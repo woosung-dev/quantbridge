@@ -4,7 +4,6 @@ export * from "./schemas";
 export {
   LIVE_SESSION_LIST_REFETCH_MS,
   LIVE_SESSION_STATE_REFETCH_ACTIVE_MS,
-  LIVE_SESSION_STATE_REFETCH_IDLE_MS,
   MAX_LIVE_SESSIONS_PER_USER,
   computeLiveSessionStateRefetchInterval,
 } from "./utils";

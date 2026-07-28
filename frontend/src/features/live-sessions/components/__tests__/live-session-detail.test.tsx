@@ -11,7 +11,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { LiveSession, LiveSignalEvent, LiveSignalState } from "../../schemas";
+import type {
+  LiveSession,
+  LiveSignalEvent,
+  LiveSignalState,
+  OutcomeParityResponse,
+} from "../../schemas";
 import { LiveSessionDetail } from "../live-session-detail";
 
 // --- lightweight-charts mock ---------------------------------------------
@@ -97,10 +102,12 @@ vi.mock("@clerk/nextjs", () => ({
 // 호출하는 api.ts 모듈 함수들을 가짜 응답으로 교체.
 const stateMock = vi.fn();
 const eventsMock = vi.fn();
+const outcomeParityMock = vi.fn();
 
 vi.mock("../../api", () => ({
   getLiveSessionState: (...args: unknown[]) => stateMock(...args),
   listLiveSessionEvents: (...args: unknown[]) => eventsMock(...args),
+  getLiveSessionOutcomeParity: (...args: unknown[]) => outcomeParityMock(...args),
   // 사용 안 하지만 hooks.ts 가 import 하므로 stub 필요.
   listLiveSessions: vi.fn(),
   registerLiveSession: vi.fn(),
@@ -169,6 +176,68 @@ const STATE_WITH_EQUITY: LiveSignalState = {
   equity_curve: [{ timestamp_ms: Date.parse("2026-05-01T12:01:00Z"), cumulative_pnl: "12.34" }],
 };
 
+const INACTIVE_SESSION: LiveSession = {
+  ...SESSION,
+  is_active: false,
+  deactivated_at: "2026-05-01T12:02:00Z",
+};
+
+const OUTCOME_PARITY_SCOPE: OutcomeParityResponse["session"] = {
+  matched_count: 1,
+  expected_gross: "10",
+  actual_net: "8",
+  decomposable_count: 1,
+  decomposable_expected_gross: "10",
+  execution_gap: "-1",
+  cost: "-1",
+  decomposable_actual_net: "8",
+  actual_gross: "9",
+  round_trip_notional: "1000",
+  effective_cost_pct_per_leg: "0.1",
+  effective_cost_pct_round_trip: "0.2",
+  edge_pct_round_trip: "1.6",
+  cost_to_edge_ratio: "0.125",
+  undecomposed_count: 0,
+  undecomposed_net: "0",
+  expected_only_count: 0,
+  expected_only_gross: "0",
+  expected_only_pending_count: 0,
+  expected_only_failed_count: 0,
+  expected_only_dispatched_count: 0,
+  actual_only_count: 0,
+  actual_only_net: "0",
+  ledger_only_count: 0,
+  ledger_only_net: "0",
+  inferred_attribution_count: 0,
+  match_coverage_pct: "100",
+  decomposition_coverage_pct: "100",
+  sample_n: 1,
+  sample_mean_net: "8",
+  sample_sd_net: null,
+  sample_required_n: null,
+  sample_sufficient: false,
+  ratio_sample_n: 1,
+  ratio_sample_required_n: null,
+  ratio_sample_sufficient: false,
+};
+
+const OUTCOME_PARITY_RESPONSE: OutcomeParityResponse = {
+  session_id: SESSION.id,
+  session: OUTCOME_PARITY_SCOPE,
+  strategy: OUTCOME_PARITY_SCOPE,
+  unattributed_count: 0,
+  inferred_attribution_count: 0,
+  ledger_supported: true,
+  strategy_session_count: 1,
+  assumption: {
+    source: "house_default",
+    taker_fee_pct: "0.1",
+    slippage_pct: "0.05",
+    maker_fee_pct: "0.02",
+    implied_round_trip_pct: "0.3",
+  },
+};
+
 // --- helpers -------------------------------------------------------------
 
 function renderWith(ui: React.ReactElement) {
@@ -187,6 +256,8 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     roInstances = [];
     stateMock.mockReset();
     eventsMock.mockReset();
+    outcomeParityMock.mockReset();
+    outcomeParityMock.mockResolvedValue(OUTCOME_PARITY_RESPONSE);
     (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
       MockResizeObserver;
   });
@@ -216,6 +287,7 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
 
     // Activity Timeline chart 가 mount 되기를 기다림.
     await screen.findByTestId("activity-timeline-chart");
+    expect(await screen.findByTestId("outcome-parity-panel")).toBeInTheDocument();
 
     expect(createChartMock).toHaveBeenCalledTimes(1);
     expect(chartInstances).toHaveLength(1);
@@ -235,6 +307,17 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
 
     expect(createChartMock).toHaveBeenCalledTimes(2);
     expect(chartInstances).toHaveLength(2);
+  });
+
+  it("종료 세션도 데이터를 렌더하고 종료 상태를 표시한다", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: EVENTS });
+
+    renderWith(<LiveSessionDetail session={INACTIVE_SESSION} />);
+
+    expect(await screen.findByText("+12.34")).toBeInTheDocument();
+    expect(screen.getByTestId("live-session-ended-badge")).toHaveTextContent("종료된 세션");
+    expect(eventsMock).toHaveBeenCalledWith(INACTIVE_SESSION.id, "test-token");
   });
 
   it("ErrorBoundary 미발동 — render 가 throw 하지 않음 (BL-157 regression 방어)", async () => {

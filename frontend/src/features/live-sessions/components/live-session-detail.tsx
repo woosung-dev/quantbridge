@@ -24,10 +24,7 @@ import {
 import { labelOf } from "@/lib/labels";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
-import {
-  LIVE_SIGNAL_DIRECTION_LABEL,
-  LIVE_SIGNAL_EVENT_STATUS_LABEL,
-} from "../labels";
+import { LIVE_SIGNAL_DIRECTION_LABEL, LIVE_SIGNAL_EVENT_STATUS_LABEL } from "../labels";
 import type { LiveSession } from "../schemas";
 // Sprint 27 BL-140 — buildActivityTimeline 은 utils.ts (테스트 가능 단위).
 // Sprint 28 Slice 3 (BL-140b) — buildActivityTimelineWithEquity 추가 (real cumulative PnL).
@@ -38,6 +35,7 @@ import {
   formatRealizedPnl,
 } from "../utils";
 import { ActivityTimelineChart } from "./activity-timeline-chart";
+import { OutcomeParityPanel } from "./outcome-parity-panel";
 
 type Props = {
   session: LiveSession;
@@ -60,6 +58,7 @@ export function LiveSessionDetail({ session }: Props) {
   );
   const { data: events, isLoading: eventsLoading } = useLiveSessionEvents(
     session.id,
+    session.is_active,
   );
 
   const entrySkipCounts = new Map<string, number>();
@@ -72,10 +71,7 @@ export function LiveSessionDetail({ session }: Props) {
         "reason" in entrySkip &&
         typeof entrySkip.reason === "string"
       ) {
-        entrySkipCounts.set(
-          entrySkip.reason,
-          (entrySkipCounts.get(entrySkip.reason) ?? 0) + 1,
-        );
+        entrySkipCounts.set(entrySkip.reason, (entrySkipCounts.get(entrySkip.reason) ?? 0) + 1);
       }
     }
   }
@@ -138,25 +134,29 @@ export function LiveSessionDetail({ session }: Props) {
   return (
     <div className="space-y-4" data-testid={`live-session-detail-${session.id}`}>
       <div className="rounded-md border p-4">
-        <h3 className="font-medium">{session.symbol}</h3>
-        <p className="text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-medium">{session.symbol}</h3>
+          {!session.is_active ? (
+            <span
+              className="rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+              data-testid="live-session-ended-badge"
+            >
+              종료된 세션
+            </span>
+          ) : null}
+        </div>
+        <p className="text-muted-foreground text-xs">
           {session.interval} · 마지막 평가 {formatDateTime(session.last_evaluated_bar_time)}
         </p>
         <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">종료 거래</dt>
-            <dd className="font-mono">
-              {stateLoading ? "…" : state?.total_closed_trades ?? 0}
-            </dd>
+            <dd className="font-mono">{stateLoading ? "…" : (state?.total_closed_trades ?? 0)}</dd>
           </div>
           <div>
             <dt className="text-muted-foreground">실현 손익</dt>
             <dd className="font-mono">
-              {stateLoading ? (
-                "…"
-              ) : (
-                <PnlValue raw={state?.total_realized_pnl ?? "0"} />
-              )}
+              {stateLoading ? "…" : <PnlValue raw={state?.total_realized_pnl ?? "0"} />}
             </dd>
             {/* BL-458 — 이 숫자의 신뢰 등급. 어휘는 주문 블로터 칩과 동일한 SSOT 를
                 쓴다(복사하면 두 화면이 다른 말을 하게 된다). 소계가 없으면(구 응답)
@@ -165,17 +165,11 @@ export function LiveSessionDetail({ session }: Props) {
             state?.confirmed_realized_pnl !== undefined &&
             state.estimated_realized_pnl !== undefined ? (
               <dd className="mt-1 flex flex-wrap gap-1">
-                <span
-                  className="chip chip-xs"
-                  title={ORDER_REALIZED_PNL_SOURCE_HINT.confirmed}
-                >
+                <span className="chip chip-xs" title={ORDER_REALIZED_PNL_SOURCE_HINT.confirmed}>
                   {ORDER_REALIZED_PNL_SOURCE_LABEL.confirmed}{" "}
                   <PnlValue raw={state.confirmed_realized_pnl} />
                 </span>
-                <span
-                  className="chip chip-xs"
-                  title={ORDER_REALIZED_PNL_SOURCE_HINT.estimated}
-                >
+                <span className="chip chip-xs" title={ORDER_REALIZED_PNL_SOURCE_HINT.estimated}>
                   {ORDER_REALIZED_PNL_SOURCE_LABEL.estimated}{" "}
                   <PnlValue raw={state.estimated_realized_pnl} />
                 </span>
@@ -189,7 +183,7 @@ export function LiveSessionDetail({ session }: Props) {
             <dd className="font-mono" data-testid="live-session-equity-baseline">
               {session.equity_baseline_usdt ? `${session.equity_baseline_usdt} USDT` : UNAVAILABLE}
             </dd>
-            <dd className="mt-1 text-xs text-muted-foreground">
+            <dd className="text-muted-foreground mt-1 text-xs">
               세션 시작 시점의 거래소 잔고 스냅샷입니다. 주문 수량이 이 값을 기준으로 계산되며 이후
               입출금과 손익은 반영되지 않습니다.
             </dd>
@@ -201,12 +195,14 @@ export function LiveSessionDetail({ session }: Props) {
                 ? "…"
                 : entrySkipCounts.size === 0
                   ? UNAVAILABLE
-                  : Array.from(entrySkipCounts, ([reason, count]) =>
-                      `${ENTRY_SKIP_REASON_LABEL[reason] ?? reason} ${count}건`,
+                  : Array.from(
+                      entrySkipCounts,
+                      ([reason, count]) =>
+                        `${ENTRY_SKIP_REASON_LABEL[reason] ?? reason} ${count}건`,
                     ).join(", ")}
             </dd>
             {hasMarginInsufficient ? (
-              <dd className="mt-1 text-xs text-muted-foreground">
+              <dd className="text-muted-foreground mt-1 text-xs">
                 증거금 판정은 수수료·슬리피지를 차감하기 전 자본으로 합니다.
               </dd>
             ) : null}
@@ -217,13 +213,16 @@ export function LiveSessionDetail({ session }: Props) {
               {stateLoading ? "…" : liquidationCount === 0 ? UNAVAILABLE : `${liquidationCount}건`}
             </dd>
             {liquidationCount > 0 ? (
-              <dd className="mt-1 text-xs text-muted-foreground">
-                증거금 부족 시 시뮬레이터가 청산으로 판정해 청산 주문을 냅니다. 격리 증거금 기준이며 거래소의 실제 청산과 다를 수 있습니다.
+              <dd className="text-muted-foreground mt-1 text-xs">
+                증거금 부족 시 시뮬레이터가 청산으로 판정해 청산 주문을 냅니다. 격리 증거금 기준이며
+                거래소의 실제 청산과 다를 수 있습니다.
               </dd>
             ) : null}
           </div>
         </dl>
       </div>
+
+      <OutcomeParityPanel sessionId={session.id} />
 
       {pendingConditionalEntries.length > 0 ? (
         <div className="rounded-md border p-4" data-testid="live-session-pending-orders">
@@ -233,7 +232,7 @@ export function LiveSessionDetail({ session }: Props) {
               목표 수량이 거래소 눈금 미만이거나 트리거가 이미 돌파됐으면 계획기가 발주를
               걷어내는데 이 목록은 그대로 남는다. "대기 중" 이라고 쓰면 안 나간 주문을
               나간 것처럼 보이게 하는 "되는 척" 이 된다. 등재 확정은 주문 원장이 SSOT. */}
-          <p className="mb-2 text-xs text-muted-foreground">
+          <p className="text-muted-foreground mb-2 text-xs">
             전략 엔진이 다음 bar 에 걸려고 하는 조건부 진입입니다. 거래소 등재 여부는 주문 원장에서
             확인하세요. 목표 수량이 거래소 최소 눈금 미만이거나 트리거가 이미 돌파된 경우 발주되지
             않습니다.
@@ -241,7 +240,8 @@ export function LiveSessionDetail({ session }: Props) {
           <ul className="space-y-1 text-sm">
             {pendingConditionalEntries.map((order, index) => (
               <li key={`${order.direction}-${order.stopPrice}-${index}`} className="font-mono">
-                {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, order.direction, "live-signal-direction")} · 트리거 {order.stopPrice} · 목표 포지션 {order.targetPosition}
+                {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, order.direction, "live-signal-direction")} ·
+                트리거 {order.stopPrice} · 목표 포지션 {order.targetPosition}
               </li>
             ))}
           </ul>
@@ -252,14 +252,14 @@ export function LiveSessionDetail({ session }: Props) {
       <div className="rounded-md border p-4">
         <div className="mb-3 flex items-center justify-between">
           <h4 className="text-sm font-medium">Activity Timeline</h4>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             최근 events 누적 entry / close (전체 누적 = BL-140b 후속)
           </p>
         </div>
         {eventsLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-muted-foreground text-sm">Loading…</p>
         ) : !events || events.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             아직 평가된 signal 이 없습니다. 다음 bar 평가를 기다려주세요.
           </p>
         ) : (
@@ -270,16 +270,16 @@ export function LiveSessionDetail({ session }: Props) {
       <div className="rounded-md border p-4">
         <h4 className="mb-2 text-sm font-medium">Recent Events</h4>
         {eventsLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <p className="text-muted-foreground text-sm">Loading…</p>
         ) : !events || events.items.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             아직 평가된 signal 이 없습니다. 다음 bar 평가를 기다려주세요.
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-[480px] w-full text-sm">
+            <table className="w-full min-w-[480px] text-sm">
               <thead>
-                <tr className="text-left text-muted-foreground">
+                <tr className="text-muted-foreground text-left">
                   <th className="py-1">Bar</th>
                   <th className="py-1">Action</th>
                   <th className="py-1">Direction</th>
@@ -290,16 +290,10 @@ export function LiveSessionDetail({ session }: Props) {
               <tbody>
                 {events.items.slice(0, 20).map((ev) => (
                   <tr key={ev.id} className="border-t">
-                    <td className="py-1 font-mono">
-                      {formatDateTime(ev.bar_time)}
-                    </td>
+                    <td className="py-1 font-mono">{formatDateTime(ev.bar_time)}</td>
                     <td className="py-1">{ev.action}</td>
                     <td className="py-1">
-                      {labelOf(
-                        LIVE_SIGNAL_DIRECTION_LABEL,
-                        ev.direction,
-                        "live-signal-direction",
-                      )}
+                      {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, ev.direction, "live-signal-direction")}
                     </td>
                     <td className="py-1 font-mono">{ev.qty}</td>
                     <td className="py-1">
@@ -312,11 +306,7 @@ export function LiveSessionDetail({ session }: Props) {
                               : "text-muted-foreground"
                         }
                       >
-                        {labelOf(
-                          LIVE_SIGNAL_EVENT_STATUS_LABEL,
-                          ev.status,
-                          "liveEvent.status",
-                        )}
+                        {labelOf(LIVE_SIGNAL_EVENT_STATUS_LABEL, ev.status, "liveEvent.status")}
                       </span>
                     </td>
                   </tr>

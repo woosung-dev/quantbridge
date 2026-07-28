@@ -6,7 +6,6 @@ import { describe, expect, it } from "vitest";
 import type { EquityCurvePoint, LiveSignalEvent } from "../schemas";
 import {
   LIVE_SESSION_STATE_REFETCH_ACTIVE_MS,
-  LIVE_SESSION_STATE_REFETCH_IDLE_MS,
   buildActivityTimeline,
   buildActivityTimelineWithEquity,
   computeLiveSessionStateRefetchInterval,
@@ -60,10 +59,8 @@ describe("computeLiveSessionStateRefetchInterval", () => {
     );
   });
 
-  it("active=false → 30s", () => {
-    expect(computeLiveSessionStateRefetchInterval(false)).toBe(
-      LIVE_SESSION_STATE_REFETCH_IDLE_MS,
-    );
+  it("active=false → 폴링 중단", () => {
+    expect(computeLiveSessionStateRefetchInterval(false)).toBe(false);
   });
 });
 

@@ -25,12 +25,14 @@ from src.trading.kill_switch import (
     KillSwitchEvaluator,
     KillSwitchService,
 )
+from src.trading.outcome_parity_service import OutcomeParityService
 from src.trading.providers import BybitFuturesProvider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
+from src.trading.repositories.parity_repository import ParityRepository
 from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.alert_rule_service import AlertRuleService
@@ -215,6 +217,17 @@ async def get_live_signal_session_service(
         strategy_repo=StrategyRepository(session),
         balance_service=balance_service,
         user_repo=UserRepository(session),
+    )
+
+
+async def get_outcome_parity_service(
+    session: AsyncSession = Depends(get_async_session),
+) -> OutcomeParityService:
+    """같은 DB 세션의 parity 조회 repository를 읽기 전용으로 조립한다."""
+    return OutcomeParityService(
+        session_repo=LiveSignalSessionRepository(session),
+        parity_repo=ParityRepository(session),
+        exchange_account_repo=ExchangeAccountRepository(session),
     )
 
 

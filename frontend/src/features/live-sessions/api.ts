@@ -11,12 +11,14 @@ import {
   LiveSessionSchema,
   LiveSignalEventListResponseSchema,
   LiveSignalStateSchema,
+  OutcomeParityResponseSchema,
   type AccountPositions,
   type ClosePositionResponse,
   type LiveSession,
   type LiveSessionPositions,
   type LiveSignalEvent,
   type LiveSignalState,
+  type OutcomeParityResponse,
   type RegisterLiveSessionRequest,
 } from "./schemas";
 
@@ -25,8 +27,12 @@ const EXCHANGE_ACCOUNTS_PATH = "/api/v1/exchange-accounts";
 
 export async function listLiveSessions(
   token: string | null,
+  includeInactive = false,
 ): Promise<{ items: LiveSession[]; total: number }> {
-  const raw = await apiFetch<unknown>(LIVE_SESSIONS_PATH, {
+  const path = includeInactive
+    ? `${LIVE_SESSIONS_PATH}?include_inactive=true`
+    : LIVE_SESSIONS_PATH;
+  const raw = await apiFetch<unknown>(path, {
     method: "GET",
     token,
   });
@@ -92,6 +98,17 @@ export async function getLiveSessionPositions(
     token,
   });
   return LiveSessionPositionsResponseSchema.parse(raw);
+}
+
+export async function getLiveSessionOutcomeParity(
+  sessionId: string,
+  token: string | null,
+): Promise<OutcomeParityResponse> {
+  const raw = await apiFetch<unknown>(`${LIVE_SESSIONS_PATH}/${sessionId}/outcome-parity`, {
+    method: "GET",
+    token,
+  });
+  return OutcomeParityResponseSchema.parse(raw);
 }
 
 export async function getAccountPositions(

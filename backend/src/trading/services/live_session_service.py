@@ -189,6 +189,11 @@ class LiveSignalSessionService:
     async def list_active(self, user_id: UUID) -> list[LiveSignalSession]:
         return list(await self._repo.list_active_by_user(user_id))
 
+    async def list_active_with_recent_inactive(self, user_id: UUID) -> list[LiveSignalSession]:
+        active = await self._repo.list_active_by_user(user_id)
+        inactive = await self._repo.list_recent_inactive_by_user(user_id)
+        return [*active, *inactive]
+
     async def deactivate(self, user_id: UUID, session_id: UUID) -> None:
         """ownership check + repo.deactivate + commit."""
         sess = await self._repo.get_by_id(session_id)

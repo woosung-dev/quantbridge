@@ -33,18 +33,15 @@ export function formatDateTime(iso: string | null | undefined): string {
 // 본 helper 는 hooks.ts 에서 callback 안에서 호출.
 
 export const LIVE_SESSION_STATE_REFETCH_ACTIVE_MS = 5_000;
-export const LIVE_SESSION_STATE_REFETCH_IDLE_MS = 30_000;
 export const LIVE_SESSION_LIST_REFETCH_MS = 30_000;
 export const MAX_LIVE_SESSIONS_PER_USER = 5;
 
 /**
  * Sprint 26 — pure helper for unit testing.
- * is_active=true → 5s refetch, false → 30s.
+ * 활성 세션만 5초마다 다시 조회한다. 종료 세션은 최초 조회 후 자동 폴링하지 않는다.
  */
-export function computeLiveSessionStateRefetchInterval(isActive: boolean): number {
-  return isActive
-    ? LIVE_SESSION_STATE_REFETCH_ACTIVE_MS
-    : LIVE_SESSION_STATE_REFETCH_IDLE_MS;
+export function computeLiveSessionStateRefetchInterval(isActive: boolean): number | false {
+  return isActive ? LIVE_SESSION_STATE_REFETCH_ACTIVE_MS : false;
 }
 
 

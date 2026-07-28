@@ -1,7 +1,7 @@
 // Sprint 33 BL-174 list-only 회귀 — Empty/Failed/Loading state 통일.
 // LiveSessionStateView 가 3 state 모두 testid + title 노출.
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
 vi.mock("sonner", () => ({
@@ -60,7 +60,8 @@ describe("LiveSessionList state view (BL-174 list-only)", () => {
     ).toBeInTheDocument();
   });
 
-  test("Empty state — is_active=false 만 있으면 empty", () => {
+  test("활성 0건이어도 최근 종료 세션을 표시하고 선택한다", () => {
+    const onSelect = vi.fn();
     mockUseLiveSessions.mockReturnValue({
       data: {
         items: [
@@ -70,13 +71,35 @@ describe("LiveSessionList state view (BL-174 list-only)", () => {
             interval: "1h",
             is_active: false,
             created_at: new Date().toISOString(),
+            deactivated_at: "2026-07-28T12:00:00Z",
           },
         ],
       },
       isLoading: false,
       error: null,
     });
-    render(<LiveSessionList />);
+
+    render(<LiveSessionList onSelect={onSelect} />);
+
     expect(screen.getByTestId("live-session-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("recent-inactive-list")).toBeInTheDocument();
+    expect(screen.getByText("최근 종료된 세션")).toBeInTheDocument();
+    expect(screen.getByText("종료된 세션")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /BTC\/USDT/ }));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "id1", is_active: false }));
+  });
+
+  test("최근 종료 세션이 없으면 별도 빈 상태를 표시한다", () => {
+    mockUseLiveSessions.mockReturnValue({
+      data: { items: [] },
+      isLoading: false,
+      error: null,
+    });
+    render(<LiveSessionList />);
+
+    expect(screen.getByTestId("live-session-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("recent-inactive-empty")).toBeInTheDocument();
+    expect(screen.getByText("최근 종료된 세션이 없습니다.")).toBeInTheDocument();
   });
 });

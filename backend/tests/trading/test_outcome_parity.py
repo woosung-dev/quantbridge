@@ -1,0 +1,422 @@
+"""Outcome parity 순수 파생값의 주문 단위 회귀 테스트."""
+
+from __future__ import annotations
+
+from decimal import Decimal, localcontext
+
+import pytest
+
+from src.trading.outcome_parity import (
+    PARITY_DECIMAL_CONTEXT,
+    ParityBuckets,
+    ParityObservation,
+    summarize_parity,
+)
+
+
+def _empty_buckets() -> ParityBuckets:
+    return ParityBuckets(
+        expected_only_count=0,
+        expected_only_gross=Decimal("0"),
+        expected_only_pending_count=0,
+        expected_only_failed_count=0,
+        expected_only_dispatched_count=0,
+        actual_only_count=0,
+        actual_only_net=Decimal("0"),
+        ledger_only_count=0,
+        ledger_only_net=Decimal("0"),
+        inferred_attribution_count=0,
+    )
+
+
+def _observation(
+    *,
+    expected_gross: Decimal,
+    actual_net: Decimal,
+    actual_gross: Decimal | None = Decimal("0"),
+    round_trip_notional: Decimal | None = Decimal("0"),
+) -> ParityObservation:
+    return ParityObservation(
+        expected_gross=expected_gross,
+        actual_net=actual_net,
+        actual_gross=actual_gross,
+        round_trip_notional=round_trip_notional,
+    )
+
+
+def test_reproduces_sql_oracle_totals_and_effective_cost_rates() -> None:
+    """프로덕션 DB SQL 손계산 오라클을 주문 합계로 재현한다.
+
+    기대값 21건과 거래소 확정 27건의 집계 차이를 표현할 때, 이 순수 모듈에는
+    주문 매칭을 이미 마친 27 관측이 들어온다. 기대 이벤트가 없는 6건은 기대 gross
+    0으로 둬서 매칭된 주문 수와 각 금액 합계를 함께 고정한다.
+    """
+    oracle_observation = _observation(
+        expected_gross=Decimal("17.9124"),
+        actual_gross=Decimal("16.6437"),
+        actual_net=Decimal("-27.6433"),
+        round_trip_notional=Decimal("80145.51"),
+    )
+    expected_events = [oracle_observation] + [
+        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0")) for _ in range(20)
+    ]
+    exchange_only_expected = [
+        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0")) for _ in range(6)
+    ]
+
+    summary = summarize_parity([*expected_events, *exchange_only_expected], _empty_buckets())
+
+    assert summary.matched_count == 27
+    assert summary.expected_gross == Decimal("17.9124")
+    assert summary.actual_gross == Decimal("16.6437")
+    assert summary.actual_net == Decimal("-27.6433")
+    assert summary.round_trip_notional == Decimal("80145.51")
+    assert summary.cost == Decimal("-44.2870")
+    assert summary.effective_cost_pct_per_leg is not None
+    assert summary.effective_cost_pct_round_trip is not None
+    assert abs(summary.effective_cost_pct_per_leg - Decimal("0.05526")) <= Decimal("0.00001")
+    # 왕복은 편도에서 산술로 유도된다. 다만 모듈이 prec=50 컨텍스트에서 곱하므로
+    # (Numeric(18,8) 곱이 36 자리까지 간다) 기본 컨텍스트(prec=28)로 여기서 다시 곱하면
+    # 마지막 자리가 어긋난다. 같은 컨텍스트에서 비교해야 이 항등식이 의미를 갖는다.
+    with localcontext(PARITY_DECIMAL_CONTEXT):
+        assert (
+            summary.effective_cost_pct_round_trip
+            == summary.effective_cost_pct_per_leg * Decimal("2")
+        )
+
+
+def test_decomposable_totals_obey_expected_gap_cost_net_identity() -> None:
+    """분해 합계의 구체 값과 그 Decimal 항등식을 함께 고정한다."""
+    summary = summarize_parity(
+        [
+            _observation(
+                expected_gross=Decimal("100"),
+                actual_gross=Decimal("95"),
+                actual_net=Decimal("90"),
+                round_trip_notional=Decimal("1000"),
+            ),
+            _observation(
+                expected_gross=Decimal("-5"),
+                actual_gross=Decimal("-4"),
+                actual_net=Decimal("-6"),
+                round_trip_notional=Decimal("200"),
+            ),
+        ],
+        _empty_buckets(),
+    )
+
+    assert summary.matched_count == 2
+    assert summary.expected_gross == Decimal("95")
+    assert summary.actual_net == Decimal("84")
+    assert summary.decomposable_count == 2
+    assert summary.decomposable_expected_gross == Decimal("95")
+    assert summary.decomposable_actual_net == Decimal("84")
+    assert summary.actual_gross == Decimal("91")
+    assert summary.execution_gap == Decimal("-4")
+    assert summary.cost == Decimal("-7")
+    assert summary.round_trip_notional == Decimal("1200")
+    assert summary.effective_cost_pct_per_leg == Decimal(
+        "0.58333333333333333333333333333333333333333333333333"
+    )
+    assert summary.effective_cost_pct_round_trip == Decimal(
+        "1.1666666666666666666666666666666666666666666666667"
+    )
+    assert summary.expected_gross + summary.execution_gap + summary.cost == summary.actual_net
+
+
+def test_waterfall_closes_on_decomposable_subset_only() -> None:
+    """워터폴은 전 관측 총계가 아닌 분해 가능 부분집합만 써야 닫힌다."""
+    summary = summarize_parity(
+        [
+            _observation(
+                expected_gross=Decimal("10"),
+                actual_gross=Decimal("12"),
+                actual_net=Decimal("-3"),
+                round_trip_notional=Decimal("1000"),
+            ),
+            _observation(
+                expected_gross=Decimal("4"),
+                actual_gross=None,
+                actual_net=Decimal("-1"),
+                round_trip_notional=None,
+            ),
+        ],
+        _empty_buckets(),
+    )
+
+    assert summary.decomposable_expected_gross == Decimal("10")
+    assert summary.actual_gross == Decimal("12")
+    assert summary.execution_gap == Decimal("2")
+    assert summary.cost == Decimal("-15")
+    assert summary.decomposable_actual_net == Decimal("-3")
+    assert summary.round_trip_notional == Decimal("1000")
+    assert summary.expected_gross == Decimal("14")
+    assert summary.actual_net == Decimal("-4")
+    assert (
+        summary.decomposable_expected_gross + summary.execution_gap + summary.cost
+        == summary.decomposable_actual_net
+    )
+    assert summary.expected_gross + summary.execution_gap + summary.cost != summary.actual_net
+
+
+def test_decomposable_totals_are_none_when_nothing_is_decomposable() -> None:
+    """gross 를 분해할 수 있는 주문이 없으면 워터폴 양 끝도 제공하지 않는다."""
+    summary = summarize_parity(
+        [
+            _observation(
+                expected_gross=Decimal("10"),
+                actual_gross=None,
+                actual_net=Decimal("-3"),
+                round_trip_notional=None,
+            ),
+            _observation(
+                expected_gross=Decimal("4"),
+                actual_gross=None,
+                actual_net=Decimal("-1"),
+                round_trip_notional=None,
+            ),
+        ],
+        _empty_buckets(),
+    )
+
+    assert summary.decomposable_expected_gross is None
+    assert summary.decomposable_actual_net is None
+
+
+def test_sums_decimals_without_a_float_intermediate() -> None:
+    """float 를 거치면 흔들리는 0.1 세 번의 합도 정확히 보존한다."""
+    observations = [
+        _observation(
+            expected_gross=Decimal("0.1"),
+            actual_gross=Decimal("0.1"),
+            actual_net=Decimal("0.1"),
+            round_trip_notional=Decimal("1"),
+        )
+        for _ in range(3)
+    ]
+
+    summary = summarize_parity(observations, _empty_buckets())
+
+    assert summary.expected_gross == Decimal("0.3")
+    assert summary.actual_gross == Decimal("0.3")
+    assert summary.actual_net == Decimal("0.3")
+
+
+def test_undecomposable_observation_stays_out_of_gross_cost_and_notional() -> None:
+    """분해 불가 net은 전체 net과 전용 버킷에만 남기고 0으로 가장하지 않는다."""
+    summary = summarize_parity(
+        [
+            _observation(
+                expected_gross=Decimal("10"),
+                actual_gross=Decimal("9"),
+                actual_net=Decimal("8"),
+                round_trip_notional=Decimal("100"),
+            ),
+            _observation(
+                expected_gross=Decimal("4"),
+                actual_gross=None,
+                actual_net=Decimal("-3"),
+                round_trip_notional=None,
+            ),
+        ],
+        _empty_buckets(),
+    )
+
+    assert summary.actual_net == Decimal("5")
+    assert summary.actual_gross == Decimal("9")
+    assert summary.cost == Decimal("-1")
+    assert summary.round_trip_notional == Decimal("100")
+    assert summary.undecomposed_count == 1
+    assert summary.undecomposed_net == Decimal("-3")
+
+
+def test_performance_ratios_remain_available_before_the_sample_gate_opens() -> None:
+    """표본 충분성과 무관하게 API가 성과 비율을 구분해 전달한다."""
+    summary = summarize_parity(
+        [
+            _observation(
+                expected_gross=Decimal("11"),
+                actual_gross=Decimal("12"),
+                actual_net=Decimal("10"),
+                round_trip_notional=Decimal("1000"),
+            )
+        ],
+        _empty_buckets(),
+    )
+
+    assert summary.sample.sufficient is False
+    assert summary.edge_pct_round_trip == Decimal("2")
+    assert summary.cost_to_edge_ratio == Decimal("0.2")
+
+
+def test_ratio_sample_uses_only_decomposable_observations() -> None:
+    """매칭 표본이 충분해도 비율 표본이 적으면 성과 비율을 열지 않는다."""
+    observations = [
+        *[
+            _observation(
+                expected_gross=Decimal("0"),
+                actual_net=Decimal("9"),
+                actual_gross=None,
+                round_trip_notional=None,
+            )
+            for _ in range(15)
+        ],
+        *[
+            _observation(
+                expected_gross=Decimal("0"),
+                actual_net=Decimal("11"),
+                actual_gross=None,
+                round_trip_notional=None,
+            )
+            for _ in range(14)
+        ],
+        _observation(
+            expected_gross=Decimal("10"),
+            actual_net=Decimal("10"),
+            actual_gross=Decimal("11"),
+            round_trip_notional=Decimal("100"),
+        ),
+    ]
+
+    summary = summarize_parity(observations, _empty_buckets())
+
+    assert summary.sample.n == 30
+    assert summary.sample.sufficient is True
+    assert summary.ratio_sample.n == 1
+    assert summary.ratio_sample.required_n is None
+    assert summary.ratio_sample.sufficient is False
+
+
+@pytest.mark.parametrize(
+    ("actual_gross", "round_trip_notional"),
+    [
+        (None, Decimal("100")),
+        (Decimal("10"), None),
+    ],
+)
+def test_partial_decomposition_input_is_rejected(
+    actual_gross: Decimal | None,
+    round_trip_notional: Decimal | None,
+) -> None:
+    """gross 와 notional 중 하나만 결측이면 조용한 0 보정 없이 즉시 실패한다."""
+    with pytest.raises(ValueError):
+        _observation(
+            expected_gross=Decimal("1"),
+            actual_gross=actual_gross,
+            actual_net=Decimal("1"),
+            round_trip_notional=round_trip_notional,
+        )
+
+
+def test_sample_gate_rejects_the_measured_27_order_sample() -> None:
+    """실측 mean, sd, n으로 필요한 64건을 계산하고 성급한 통과를 막는다."""
+    mean_net = Decimal("-1.0238")
+    sd_net = Decimal("4.0943")
+    nets = [mean_net + sd_net] * 13 + [mean_net - sd_net] * 13 + [mean_net]
+    observations = [_observation(expected_gross=Decimal("0"), actual_net=net) for net in nets]
+
+    summary = summarize_parity(observations, _empty_buckets())
+
+    assert summary.sample.n == 27
+    assert summary.sample.mean_net == mean_net
+    assert summary.sample.sd_net == sd_net
+    assert summary.sample.required_n == 64
+    assert summary.sample.sufficient is False
+
+
+def test_sample_gate_rejects_undefined_or_zero_signal_cases() -> None:
+    """n이 1 이하이거나 표준편차 또는 평균이 0이면 표본 통과를 허용하지 않는다."""
+    insufficient_n = summarize_parity(
+        [_observation(expected_gross=Decimal("0"), actual_net=Decimal("1"))],
+        _empty_buckets(),
+    )
+    zero_sd = summarize_parity(
+        [
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-1")),
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-1")),
+        ],
+        _empty_buckets(),
+    )
+    zero_mean = summarize_parity(
+        [
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-1")),
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("1")),
+        ],
+        _empty_buckets(),
+    )
+
+    for summary in (insufficient_n, zero_sd, zero_mean):
+        assert summary.sample.required_n is None
+        assert summary.sample.sufficient is False
+
+
+def test_sample_gate_requires_variance_estimator_minimum_even_when_sd_is_small() -> None:
+    """세 건이 우연히 비슷해도 표본 표준편차로 성과를 판정하지 않는다."""
+    summary = summarize_parity(
+        [
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-0.9000")),
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-0.9200")),
+            _observation(expected_gross=Decimal("0"), actual_net=Decimal("-0.9430")),
+        ],
+        _empty_buckets(),
+    )
+
+    assert summary.sample.n == 3
+    assert summary.sample.required_n == 30
+    assert summary.sample.sufficient is False
+
+
+def test_empty_input_returns_zero_or_none_without_raising() -> None:
+    """매칭 주문이 하나도 없어도 빈 상태를 소비자가 안전하게 렌더할 수 있다."""
+    buckets = _empty_buckets()
+
+    summary = summarize_parity([], buckets)
+
+    assert summary.matched_count == 0
+    assert summary.expected_gross == Decimal("0")
+    assert summary.actual_net == Decimal("0")
+    assert summary.decomposable_count == 0
+    assert summary.decomposable_expected_gross is None
+    assert summary.decomposable_actual_net is None
+    assert summary.actual_gross is None
+    assert summary.execution_gap is None
+    assert summary.cost is None
+    assert summary.round_trip_notional is None
+    assert summary.effective_cost_pct_per_leg is None
+    assert summary.effective_cost_pct_round_trip is None
+    assert summary.undecomposed_count == 0
+    assert summary.undecomposed_net == Decimal("0")
+    assert summary.buckets == buckets
+    assert summary.match_coverage_pct is None
+    assert summary.decomposition_coverage_pct is None
+    assert summary.sample.n == 0
+    assert summary.sample.mean_net is None
+    assert summary.sample.sd_net is None
+    assert summary.sample.required_n is None
+    assert summary.sample.sufficient is False
+
+
+def test_match_coverage_includes_ledger_only_exits() -> None:
+    """매칭 커버리지 분모는 주문 버킷과 원장 전용 청산을 모두 포함한다."""
+    observations = [
+        _observation(expected_gross=Decimal("0"), actual_net=Decimal("0")) for _ in range(21)
+    ]
+    buckets = ParityBuckets(
+        expected_only_count=51,
+        expected_only_gross=Decimal("0"),
+        expected_only_pending_count=17,
+        expected_only_failed_count=17,
+        expected_only_dispatched_count=17,
+        actual_only_count=6,
+        actual_only_net=Decimal("0"),
+        ledger_only_count=3,
+        ledger_only_net=Decimal("0"),
+        inferred_attribution_count=0,
+    )
+
+    summary = summarize_parity(observations, buckets)
+
+    assert summary.match_coverage_pct == Decimal(
+        "25.925925925925925925925925925925925925925925925926"
+    )
+    assert summary.decomposition_coverage_pct == Decimal("100")

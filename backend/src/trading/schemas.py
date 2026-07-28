@@ -286,6 +286,82 @@ class LiveSignalStateResponse(BaseModel):
     updated_at: AwareDatetime | None
 
 
+class OutcomeParityScope(BaseModel):
+    """한 스코프(세션 또는 전략 누적)의 parity 요약이다.
+
+    `round_trip_notional`은 두 leg 합이므로 이를 분모로 한 비용률은 편도다. 왕복 비용
+    가정과 비교할 소비자는 `effective_cost_pct_round_trip`만 사용해야 한다.
+
+    `edge_pct_round_trip`와 `cost_to_edge_ratio`는 표본 충분성과 무관하게 계산된다.
+    소비자는 두 비율을 표시하기 전에 `ratio_sample_sufficient`를 반드시 확인해야 한다.
+    """
+
+    matched_count: int
+    expected_gross: Decimal
+    actual_net: Decimal
+    decomposable_count: int
+    decomposable_expected_gross: Decimal | None
+    execution_gap: Decimal | None
+    cost: Decimal | None
+    decomposable_actual_net: Decimal | None
+    actual_gross: Decimal | None
+    round_trip_notional: Decimal | None
+    effective_cost_pct_per_leg: Decimal | None
+    effective_cost_pct_round_trip: Decimal | None
+    edge_pct_round_trip: Decimal | None
+    cost_to_edge_ratio: Decimal | None
+    undecomposed_count: int
+    undecomposed_net: Decimal
+    expected_only_count: int
+    expected_only_gross: Decimal
+    expected_only_pending_count: int
+    expected_only_failed_count: int
+    expected_only_dispatched_count: int
+    actual_only_count: int
+    actual_only_net: Decimal
+    ledger_only_count: int
+    ledger_only_net: Decimal
+    inferred_attribution_count: int
+    match_coverage_pct: Decimal | None
+    decomposition_coverage_pct: Decimal | None
+    sample_n: int
+    sample_mean_net: Decimal | None
+    sample_sd_net: Decimal | None
+    sample_required_n: int | None
+    sample_sufficient: bool
+    ratio_sample_n: int
+    ratio_sample_required_n: int | None
+    ratio_sample_sufficient: bool
+
+
+class OutcomeParityAssumption(BaseModel):
+    """비교 기준 비용 가정이다.
+
+    `source="house_default"`는 BacktestConfig 기본값이며 사용자의 백테스트 설정과
+    다를 수 있다. `implied_round_trip_pct`는 taker 왕복 기준이라 TP resting limit
+    leg의 maker 수수료와 슬리피지 면제를 반영하지 못해 그 경우 비용을 과대계상한다.
+    """
+
+    source: Literal["house_default"]
+    taker_fee_pct: Decimal
+    slippage_pct: Decimal
+    maker_fee_pct: Decimal
+    implied_round_trip_pct: Decimal
+
+
+class OutcomeParityResponse(BaseModel):
+    """한 라이브 세션과 전략 누적 parity를 함께 반환한다."""
+
+    session_id: UUID
+    session: OutcomeParityScope
+    strategy: OutcomeParityScope
+    unattributed_count: int
+    inferred_attribution_count: int
+    ledger_supported: bool
+    strategy_session_count: int
+    assumption: OutcomeParityAssumption
+
+
 class LiveSignalEventResponse(BaseModel):
     """GET /api/v1/live-sessions/{id}/events — debug + UI 용."""
 

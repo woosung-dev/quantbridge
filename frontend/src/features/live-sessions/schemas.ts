@@ -184,6 +184,69 @@ export const ClosePositionResponseSchema = z.object({
 });
 export type ClosePositionResponse = z.infer<typeof ClosePositionResponseSchema>;
 
+// ── Outcome parity response ───────────────────────────────────────────
+
+export const OutcomeParityScopeSchema = z.object({
+  matched_count: z.number(),
+  expected_gross: z.string(),
+  actual_net: z.string(),
+  decomposable_count: z.number(),
+  decomposable_expected_gross: z.string().nullable(),
+  execution_gap: z.string().nullable(),
+  cost: z.string().nullable(),
+  decomposable_actual_net: z.string().nullable(),
+  actual_gross: z.string().nullable(),
+  round_trip_notional: z.string().nullable(),
+  effective_cost_pct_per_leg: z.string().nullable(),
+  effective_cost_pct_round_trip: z.string().nullable(),
+  edge_pct_round_trip: z.string().nullable(),
+  cost_to_edge_ratio: z.string().nullable(),
+  undecomposed_count: z.number(),
+  undecomposed_net: z.string(),
+  expected_only_count: z.number(),
+  expected_only_gross: z.string(),
+  expected_only_pending_count: z.number(),
+  expected_only_failed_count: z.number(),
+  expected_only_dispatched_count: z.number(),
+  actual_only_count: z.number(),
+  actual_only_net: z.string(),
+  ledger_only_count: z.number(),
+  ledger_only_net: z.string(),
+  inferred_attribution_count: z.number(),
+  match_coverage_pct: z.string().nullable(),
+  decomposition_coverage_pct: z.string().nullable(),
+  sample_n: z.number(),
+  sample_mean_net: z.string().nullable(),
+  sample_sd_net: z.string().nullable(),
+  sample_required_n: z.number().nullable(),
+  sample_sufficient: z.boolean(),
+  ratio_sample_n: z.number(),
+  ratio_sample_required_n: z.number().nullable(),
+  ratio_sample_sufficient: z.boolean(),
+});
+export type OutcomeParityScope = z.infer<typeof OutcomeParityScopeSchema>;
+
+export const OutcomeParityAssumptionSchema = z.object({
+  source: z.literal("house_default"),
+  taker_fee_pct: z.string(),
+  slippage_pct: z.string(),
+  maker_fee_pct: z.string(),
+  implied_round_trip_pct: z.string(),
+});
+export type OutcomeParityAssumption = z.infer<typeof OutcomeParityAssumptionSchema>;
+
+export const OutcomeParityResponseSchema = z.object({
+  session_id: z.uuid(),
+  session: OutcomeParityScopeSchema,
+  strategy: OutcomeParityScopeSchema,
+  unattributed_count: z.number(),
+  inferred_attribution_count: z.number(),
+  ledger_supported: z.boolean(),
+  strategy_session_count: z.number(),
+  assumption: OutcomeParityAssumptionSchema,
+});
+export type OutcomeParityResponse = z.infer<typeof OutcomeParityResponseSchema>;
+
 // ── Form schema — UI input only (RHF + Zod v4 transform 불필요) ────────
 
 export const LiveSessionFormSchema = z.object({

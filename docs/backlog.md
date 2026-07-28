@@ -682,7 +682,15 @@
 | [BL-523](#bl-523) | 조건부·전환 진입에 TP/SL 브래킷이 붙지 않는다 (현재 코퍼스 미발현 — `stop=`+`strategy.exit` 동시 사용 시 발현)                                                 | 실자금 cutover 전                                                              | M            | 2026-07-28 live-entry-parity                           |
 | [BL-524](#bl-524) | `strategy.entry(limit=...)` 이 조용히 버려지고 시장가 진입으로 대체된다 (TV 충실도)                                                                            | limit 진입 전략 지원 시                                                        | M            | 2026-07-28 live-entry-parity                           |
 | [BL-525](#bl-525) | 라이브가 Track A(indicator + alertcondition) 전략을 어떻게 다루는지 정의되지 않았다                                                                            | Track A 로 라이브 세션을 열 때                                                 | S            | 2026-07-28 live-entry-parity                           |
-| [BL-526](#bl-526) | ★라이브 실적이 백테스트 기대치와 맞는지 화면에서 물을 수 없다 (패리티가 진입까지만 증명됨)                                                                     | 다음 스프린트                                                                  | M            | 2026-07-28 live-entry-parity                           |
+| [BL-526](#bl-526) | ~~★라이브 실적이 백테스트 기대치와 맞는지 화면에서 물을 수 없다~~ **✅ Resolved 2026-07-28**                                                                   | —                                                                              | M            | 2026-07-28 live-entry-parity                           |
+| [BL-527](#bl-527) | ★`trade_id` 재사용 + catch-up 다중 emit 이 `pnl_by_trade` 를 덮어써 기대치를 오염시킬 수 있다                                                                  | 기대치 정확도가 판정에 쓰이기 전                                               | S            | 2026-07-28 live-outcome-parity                         |
+| [BL-528](#bl-528) | 세션 창 밖 늦은 체결이 어느 표면에도 안 잡힌다 (실측 확정 청산 4건 · net −0.5463)                                                                              | 세션 손익 완결성이 필요할 때                                                   | M            | 2026-07-28 live-outcome-parity                         |
+| [BL-529](#bl-529) | 같은 Bybit uid 를 두 계정 행이 스윕해 청산 원장이 2배로 적재된다                                                                                               | 전략 누적 지표를 신뢰해야 할 때                                                | S            | 2026-07-28 live-outcome-parity                         |
+| [BL-530](#bl-530) | ★엔진이 청산했다고 본 것의 71% 가 거래소에서 확정되지 않는다 (실측 51/72)                                                                                      | 실자금 cutover 전 필수                                                         | M-L          | 2026-07-28 live-outcome-parity                         |
+| [BL-531](#bl-531) | parity 표면의 `ParitySummary` -> `OutcomeParityScope` 평탄화가 shotgun surgery (지표 1개 추가 = 5파일 편집)                                                    | parity 지표를 더 붙일 때                                                       | S            | 2026-07-29 PR #496 코드리뷰                            |
+| [BL-532](#bl-532) | `_sum_decimals` 사본이 `PARITY_DECIMAL_CONTEXT` 밖에서 돈다 (본 레포가 방금 세운 규칙과 불일치)                                                                | 다음 parity 손질 시                                                            | XS           | 2026-07-29 PR #496 코드리뷰                            |
+| [BL-533](#bl-533) | 종료 세션 목록이 같은 엔드포인트를 두 쿼리 키로 조회해 미러 state 를 낳는다                                                                                    | 코크핏 손질 시                                                                 | XS           | 2026-07-29 PR #496 코드리뷰                            |
+| [BL-534](#bl-534) | 외부 오라클 테스트가 27 leg Decimal 합산을 실제로 실행하지 않는다 (총계를 관측 1건에 몰아넣음)                                                                 | parity 산술을 손댈 때                                                          | XS           | 2026-07-29 PR #496 코드리뷰                            |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -3902,3 +3910,171 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 ★**설계 시 반드시 짚을 것** — (a) 라이브 세션 손익의 SSOT 는 `live_signal_states.total_realized_pnl` 이 **아니라** append-only `live_signal_events` 다(단조가 아니다). (b) 시뮬 PnL 과 거래소 PnL 은 **부호까지 다를 수 있다**(수수료 왕복). 같은 누적기에 넣지 마라. 둘 다 `gates-and-traps.md` 에 실측 근거가 있다.
 **Risk:** 🟢 (읽기 전용 파생 — 머니-패스 무영향)
+
+**✅ Resolved (2026-07-28, live-outcome-parity):** `GET /live-sessions/{id}/outcome-parity` + 세션 상세 패널. **마이그레이션 0 · 새 엔진 코드 0.** 회고는 [`dev-log/2026-07-28-live-outcome-parity.md`](dev-log/2026-07-28-live-outcome-parity.md).
+
+- **분해** = `엔진 기대 gross + 체결 격차 + 비용 = 거래소 확정 net`. 수수료는 **가정하지 않고 파생**한다(원장 평균가 gross - 확정 net).
+- **실측** — 62분 soak: 기대 +0.6857 / 격차 +2.7154 / 비용 -6.1641 / 확정 **-2.7630**, 왕복 실효 비용률 **0.1115%**. 전략 누적 4세션: 매칭 9건, 커버리지 **15%**, 기대 +5.20 vs 확정 **-14.19**.
+- ★**BL 이 물었던 0.11% 문턱이 화면에 나왔다** — 손계산과 화면이 일치(0.1115%). **다만 화면은 아직 답을 말하지 않는다**(표본 9 < 필요 30 이라 성과 비율 차단). 그게 이 기능의 의도다.
+- ★**전제 3건이 반증됐다** — 저장된 백테스트로는 대조 불가(전부 1h·비중첩, 1m OHLCV 0행) · `live_signal_events.realized_pnl` 에 **비용이 적용된 적 없음**(`run_live` 가 `v2_adapter` 비용모델을 안 거친다) · `CONTEXT.md` 의 "선택적 reference Backtest" 는 **없는 FK**.
+- ★**설계 노트 (a) 는 부정확했다** — 실적의 SSOT 는 이벤트가 아니라 **확정 주문**이다. `live_signal_events` 는 **기대치**의 SSOT 다. 미동기 `Order.realized_pnl` 에는 엔진 추정값이 그대로 들어 있어 확정 필터가 빠지면 화면이 동어반복이 된다.
+- 부수: 종료된 세션 도달 경로 신설(`include_inactive=true`, 기본값 불변) — 그전엔 API·UI 양쪽에서 활성만 노출돼 **회고 표면에 도달 자체가 불가능**했다.
+
+---
+
+### BL-527
+
+**Title:** ★`trade_id` 재사용 + catch-up 다중 emit 이 `pnl_by_trade` 를 덮어써 기대치를 오염시킬 수 있다
+**Category:** pine_v2 / 라이브 신호
+**Priority:** P2 (잠재 — 실데이터 미재현)
+**Trigger:** 기대치 정확도가 판정 입력으로 쓰이기 전
+**Est:** S
+**출처:** 2026-07-28 live-outcome-parity 적대 검증
+
+**원인 / 영향:** `event_loop.py` 의 `pnl_by_trade` 는 `strategy_state.closed_trades` 를 `t.id` 로 인덱싱하는데, 그 id 는 Pine 진입 이름(`"PivRevSE"` 등)이라 **거래마다 재사용**된다. 같은 dict 키에 여러 청산이 들어오면 **마지막 값만 남는다.**
+
+그 코드의 주석은 스스로 "마지막 bar event 만 signal 로 나가므로 실무상 1:1" 을 근거로 든다. 그런데 `tasks/live_signal.py` 는 `last_evaluated_bar_time` 이 있으면 **거의 항상** `emit_from_bar_time` 을 세운다 — **catch-up 은 예외가 아니라 정상 경로**다. 즉 그 주석의 전제는 이미 거짓이다.
+
+★**결함은 잠재, 근거는 확정.** 실데이터에서 같은 배치 안 다중 close 오염은 재현되지 않았다(중복 PnL 1쌍은 25분 떨어진 별개 bar). 오염되면 `live_signal_events.realized_pnl` 이 틀리고, 그것이 BL-526 표면의 **기대치 입력**이다.
+
+**권장 접근:** `pnl_by_trade` 키를 `(trade_id, exit_bar_index)` 같은 유일 키로 바꾸거나, 청산을 dict 가 아닌 리스트로 들고 이벤트 생성 시점에 짝을 맞춘다. ★**주석의 거짓 전제를 먼저 지워라** — 그 문장이 남아 있으면 다음 사람이 같은 판단을 반복한다.
+**Risk:** 🟡 (기대치 정확도)
+
+---
+
+### BL-528
+
+**Title:** 세션 창 밖 늦은 체결이 어느 표면에도 안 잡힌다
+**Category:** Trading / 세션 스코프
+**Priority:** P2
+**Trigger:** 세션 손익 완결성이 필요할 때
+**Est:** M
+**출처:** 2026-07-28 live-outcome-parity 실측
+
+**원인 / 영향:** `SessionScope` 의 창은 `filled_at` 기준 반열림 `[started_at, ended_at)` 이고, 그 docstring 이 **"세션 종료 뒤 체결된 주문은 인접 세션이 있으면 그쪽으로, 없으면 어디에도 안 잡힌다"** 를 수용된 트레이드오프로 명시한다.
+
+★**이번에 그 크기를 처음 쟀다** — 확정 청산 **27건 중 4건**(net **−0.5463**)이 어느 세션 창에도 안 들어간다. 그 4건은 `/state` 커브에도, outcome-parity 표면에도 나타나지 않는다.
+
+부수 효과 — 기대 축(이벤트, `session_id` FK)과 실제 축(주문, `filled_at` 창)의 스코프 정의가 다르므로, 늦은 청산은 세션 A 에서 `expected_only`, 인접 세션 B 에서 `actual_only` 가 된다. **두 세션 패널이 서로 다른 답을 내되 둘 다 정상 응답**이다.
+
+**권장 접근:** 창 상한을 `deactivated_at + grace` 로 두거나, 세션 귀속을 `filled_at` 이 아니라 **주문 생성 시점**(세션이 발주했다는 사실)으로 바꾼다. 후자가 의미상 맞지만 기존 소비처 3곳(`/state` 커브 · 손실 한도 알림 · 이번 표면)에 동시 영향이라 별도 스프린트가 필요하다.
+**Risk:** 🟡
+
+---
+
+### BL-529
+
+**Title:** 같은 Bybit uid 를 두 계정 행이 스윕해 청산 원장이 2배로 적재된다
+**Category:** Trading / 데이터 위생
+**Priority:** P2
+**Trigger:** 전략 누적 지표를 신뢰해야 할 때
+**Est:** S
+**출처:** 2026-07-28 live-outcome-parity 실측
+
+**원인 / 영향:** `exchange_exits` 실측 — 계정 행이 2개(`0277c150` / `19a8166a`)인데 **둘 다 같은 Bybit uid** 를 가리켜 같은 청산이 계정별로 2행 적재된다. 한쪽은 32행 전부 `matched_order_id IS NULL` 이다.
+
+- 세션 단위 표면은 **무해**하다(한 세션 = 한 계정).
+- 전략 누적과 계정 진단에서 **`unattributed_count` 가 부풀려진다**(실측 37 중 다수가 거울 행).
+- `aggregate_closed_pnl` 은 계정 스코프라 안전하지만, 계정을 안 거는 새 집계를 만들면 즉시 2배가 된다.
+
+**권장 접근:** 등록 시 거래소 uid 중복을 감지해 경고하거나, 스윕을 uid 단위로 dedupe 한다. 화면은 그때까지 "계정 행마다 중복 적재될 수 있음" 을 명시한다(이번 스프린트에서 문구 반영).
+**Risk:** 🟢
+
+---
+
+### BL-530
+
+**Title:** ★엔진이 청산했다고 본 것의 71% 가 거래소에서 확정되지 않는다
+**Category:** Trading / 라이브 완결성
+**Priority:** **P1**
+**Trigger:** 실자금 cutover 전 필수
+**Est:** M-L
+**출처:** 2026-07-28 live-outcome-parity 실측
+
+**원인 / 영향:** close 이벤트 **72건 중 거래소 확정은 21건(29%)** 이다. 나머지 51건:
+
+| 갈래            | 건수   | 뜻                        |
+| --------------- | ------ | ------------------------- |
+| dispatch failed | **16** | 이벤트가 발주까지 못 갔다 |
+| order rejected  | **35** | 발주됐으나 거래소가 거부  |
+
+직전 스프린트(BL-511)가 고친 것은 **진입** 거절이다. 이 숫자는 **청산** 쪽 유실을 처음 계량한 것이다. 엔진은 포지션이 닫혔다고 보고 다음 신호를 평가하는데 거래소에는 포지션이 남아 있을 수 있다 — 즉 **시뮬과 실제의 포지션 상태가 갈린다.**
+
+★거절 상당수는 "reduce-only 대상 포지션 부재" 계열로 보인다(진입이 애초에 안 걸린 것의 하류 효과). **원인 분해가 첫 step 이어야 하고, 기계적 수리가 아니라 측정이 먼저다.**
+
+**권장 접근:** 거절 코드별 분해 -> 진입 유실 하류인지 독립 결함인지 판정 -> 그 다음 수리. BL-522(진입 완결성)와 같은 뿌리일 가능성이 높으므로 묶어서 본다.
+**Risk:** 🔴 (실자금에서 포지션 상태 발산)
+
+---
+
+### BL-531
+
+**Title:** parity 표면의 `ParitySummary` -> `OutcomeParityScope` 평탄화가 shotgun surgery
+**Category:** Refactor / Trading
+**Priority:** P2
+**Trigger:** parity 지표를 더 붙일 때
+**Est:** S
+**출처:** 2026-07-29 PR #496 코드리뷰 (Standards 축)
+
+**원인 / 영향:** 순수 파생 `ParitySummary`(중첩 dataclass)를 응답 `OutcomeParityScope`(36 필드 평탄화)로 `_to_scope` 가 손으로 옮긴다. 지표 1개를 추가하면 **5파일**(순수 모듈 · 서비스 매핑 · 스키마 · zod · 패널)을 편집해야 한다.
+
+부수로 같은 리뷰가 지적한 것 — `linked_order_scope` / `confirmed_close_scope` 가 5개 술어 완전 동일한데 이름만 둘(`parity_repository.py:337-355`), `_derive_ledger_values` 가 `len != 1` 을 걸러낸 뒤 1원소 합산 루프를 돈다, `load_account_ledger_diagnostics` CTE 가 안 쓰는 3열을 select 한다, `parity_repository.py:31` 이 `order_repository` 의 private `_session_scope_where` 를 import 한다.
+
+**권장 접근:** 평탄화를 유지할지(직렬화 단순) 중첩을 노출할지 먼저 정한다. 유지한다면 매핑을 필드 목록 하나에서 파생시켜 손 편집 지점을 1곳으로 줄인다. `_session_scope_where` 는 공개 이름으로 승격하거나 `SessionScope` 에 메서드로 얹는다.
+**Risk:** 🟢 (읽기 전용 파생)
+
+---
+
+### BL-532
+
+**Title:** `_sum_decimals` 사본이 `PARITY_DECIMAL_CONTEXT` 밖에서 돈다
+**Category:** Refactor / 금융 정확도
+**Priority:** P2
+**Trigger:** 다음 parity 손질 시
+**Est:** XS
+**출처:** 2026-07-29 PR #496 코드리뷰 (Standards 축, 평가자 재현 확인)
+
+**원인 / 영향:** `_sum_decimals` 가 `outcome_parity.py:130` 과 `parity_repository.py:59` 에 **2벌** 있고, 후자의 호출부(`:92, 159, 169, 174`)는 `localcontext(PARITY_DECIMAL_CONTEXT)` **밖**이다. 전자는 모든 산술을 `prec=50` 으로 감싼다.
+
+★**PR #496 이 `gates-and-traps.md` 에 직접 추가한 규칙**("금융 파생 모듈은 `localcontext(Context(prec=50))` 로 감싸라")과 그 PR 자신이 어긋난다. `Numeric(18,8)` 값의 단순 합산이라 실무 위험은 낮지만, 규칙을 세운 PR 이 그 규칙을 안 지키면 다음 사람이 규칙을 안 믿는다.
+
+**권장 접근:** 사본을 지우고 `outcome_parity._sum_decimals` 를 import 하거나, 리포지토리 호출부를 같은 컨텍스트로 감싼다.
+**Risk:** 🟢
+
+---
+
+### BL-533
+
+**Title:** 종료 세션 목록이 같은 엔드포인트를 두 쿼리 키로 조회해 미러 state 를 낳는다
+**Category:** Frontend UX / 상태관리
+**Priority:** P2
+**Trigger:** 코크핏 손질 시
+**Est:** XS
+**출처:** 2026-07-29 PR #496 코드리뷰 (Standards 축)
+
+**원인 / 영향:** 코크핏은 `useLiveSessions()`, 세션 리스트는 `useLiveSessions(true)` 를 쓴다. 같은 엔드포인트를 **서로 다른 쿼리 키로 2회** 조회하고, 그 때문에 `selectedInactiveSession` 미러 state 가 필요해졌다. 코크핏도 `true` 를 쓰면 미러가 사라진다.
+
+같은 리뷰가 지적한 FE 위생 — 패널이 isLoading / isError / !data **3단 early-return 캐스케이드**(`outcome-parity-panel.tsx:309-338`, `frontend.md` §3 은 Suspense+ErrorBoundary 권장), `parsedNumber(value)` 는 값처럼 읽히는 이름(`toFiniteNumber` 등이 낫다).
+
+**권장 접근:** 코크핏도 `include_inactive=true` 로 통일하고 미러 state 제거.
+**Risk:** 🟢
+
+---
+
+### BL-534
+
+**Title:** 외부 오라클 테스트가 27 leg Decimal 합산을 실제로 실행하지 않는다
+**Category:** Test infra / Trading
+**Priority:** P2
+**Trigger:** parity 산술을 손댈 때
+**Est:** XS
+**출처:** 2026-07-29 PR #496 코드리뷰 (Spec 축)
+
+**원인 / 영향:** `test_outcome_parity.py:55-78` 이 SQL 오라클 **총계를 관측 1건에 통째로 넣고** 나머지 26건을 0 으로 채운다. 총계와 실효 비용률(0.05526%)은 맞지만 **27건 Decimal 합산 자체는 이 오라클이 검증하지 않는다.**
+
+★조인·스코프 정확성은 `test_parity_repository.py` 와 실 DB 대조가 담당하므로 커버는 있다. 다만 이 테스트의 이름(`test_reproduces_sql_oracle_totals...`)이 실제보다 넓은 것을 주장한다.
+
+부수 — 리뷰가 함께 지적한 스코프 이탈 2건은 **의도된 것으로 판단해 기각**한다: (a) 종료 세션 도달 경로(W5)는 화면 검증이 "기능에 도달 불가" 를 잡아 추가한 것으로 dev-log 에 근거가 있다, (b) `/state` 폴링 계약 변경은 신규 표면이 폴링하지 않도록 한 결과이고 핸들러는 무변경이다. 다만 **둘 다 G1 동결 스펙 밖이었다** — 스코프 확장 시 동결 문서를 갱신하는 절차가 없었던 것이 진짜 문제다.
+
+**권장 접근:** 27개 관측에 실제 leg 값을 넣어 합산을 재현하거나, 테스트 이름을 실제 검증 범위에 맞게 좁힌다.
+**Risk:** 🟢
