@@ -131,6 +131,25 @@ Order.realized_pnl  vs  ExchangeExit.closed_pnl   ->  27 leg 전건 일치, 불�
 
 ---
 
+## 3.8 W1 에서 평가자 스펙 결함 1건 (E1) — 워터폴이 안 닫혔다
+
+구현 후 실행으로 재현했다. codex 구현은 스펙대로였고 **스펙이 틀렸다.**
+
+```
+관측 2건: (기대 10, net -3, gross 12, notional 1000) + (기대 4, net -1, gross None)
+expected_gross = 14   actual_net = -4
+execution_gap  =  2   cost = -15
+14 + 2 + (-15) = 1  !=  -4      <- 막대가 5 만큼 안 닫힌다
+```
+
+원인 — 합계는 **전 관측**인데 격차·비용은 **분해 가능분만**이라 두 집합이 다르다. 분해 불가 관측이 하나라도 있으면 화면 워터폴이 어긋난다. 0 으로 메우면 비용 없는 주문처럼 보이고, 관측을 빼면 총 실적이 줄어든다.
+
+**처분** — `decomposable_expected_gross` / `decomposable_actual_net` 를 노출해 **워터폴은 분해 가능 부분집합 위에서만** 그린다. 전 관측 합은 세션 총계용으로 유지한다. 변이 **M19** 로 고정.
+
+> ★이 결함은 게이트가 전부 green 인 상태(10 tests · ruff · mypy 210)에서 나왔다. **테스트 통과는 스펙이 옳다는 증거가 아니다.**
+
+---
+
 ## 3.9 세 집합 — 이 스프린트에서 가장 오독되기 쉬운 지점
 
 워터폴이 성립하는 집합과 총계를 내는 집합은 **다르다.** 이걸 뭉개면 화면이 조용히 거짓말한다.
@@ -245,6 +264,7 @@ Order.realized_pnl  vs  ExchangeExit.closed_pnl   ->  27 leg 전건 일치, 불�
 | M16     | `decomposable=false` 주문의 gross 를 0 으로 채움    | `undecomposed` 테스트 red (D3/C6)               |
 | M17     | event 축 스코프를 `SessionScope` 로 교체            | 분모 72 테스트 red (C7)                         |
 | M18     | `actual_only` 에서 net 금액을 떼고 건수만 남김      | 브래킷 픽스처 red (D5)                          |
+| M19     | 워터폴을 `decomposable_*` 대신 전 관측 합으로 그림  | 워터폴 폐합 테스트 red (E1)                     |
 | N1      | 라벨 문구만 변경                                    | 전건 green **유지**                             |
 | N2      | `MetricTile` variant 변경                           | 전건 green **유지**                             |
 | N3      | `PARITY_SE_MULTIPLIER` 2 → 2 (동치 재작성)          | 전건 green **유지**                             |
