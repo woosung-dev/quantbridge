@@ -117,6 +117,8 @@ class StrategySettings(BaseModel):
     leverage: int = Field(ge=1, le=125)
     margin_mode: Literal["cross", "isolated"]
     position_size_pct: float = Field(gt=0, le=100)
+    max_trigger_breach_pct: float | None = Field(default=None, gt=0)
+    fill_timing: Literal["bar_close", "next_bar_open"] = "bar_close"
 
 
 def validate_strategy_settings(
@@ -140,6 +142,8 @@ class UpdateStrategySettingsRequest(BaseModel):
     leverage: int = Field(ge=1, le=125)
     margin_mode: Literal["cross", "isolated"]
     position_size_pct: float = Field(gt=0, le=100)
+    max_trigger_breach_pct: float | None = Field(default=None, gt=0)
+    fill_timing: Literal["bar_close", "next_bar_open"] = "bar_close"
 
 
 class LatestBacktestSummary(BaseModel):

@@ -20,6 +20,8 @@
 - qb_live_signal_outbox_pending_gauge  (Gauge)                          ← Sprint 26 B.4
 - qb_closed_pnl_backfill_total       (Counter, labels: outcome)         ← MP-2
 - qb_partial_fill_total              (Counter, labels: source)          ← Sprint 48 Pass 2
+- qb_exchange_order_response_total  (Counter, labels: exchange, outcome, reason) ← BL-512
+- qb_live_conditional_guard_total   (Counter, labels: outcome)          ← BL-512
 
 원칙:
 - `PROMETHEUS_MULTIPROC_DIR` 설정 시 shared multiprocess registry, 미설정 시 기본 `REGISTRY`.
@@ -27,20 +29,56 @@
 - 민감 정보 label 금지 (user_id, strategy_id, api_key, account_id).
 - Celery worker 값은 process별 mmap 파일에 기록하고 API가 `MultiProcessCollector`로 수집.
 
+BL-512 label cardinality:
+- qb_exchange_order_response_total: exchange ∈ {bybit, binance, okx, unknown} ≤ 4,
+  outcome ∈ {accepted, rejected, unknown} = 3, reason ∈ {trigger_breached,
+  reduce_only_violation, position_zero, insufficient_balance, auth_failed,
+  permission_denied, rate_limited, other, unparsed, rejected_at_submission, filled,
+  submitted} = 12. 최대 4 x 3 x 12 = 144 series.
+- qb_live_conditional_guard_total: outcome ∈ {conditional_placed, market_converted,
+  breach_capped, breach_with_resting, reference_unavailable, convert_suppressed,
+  breach_reverted} = 7. 최대 7 series.
+
 `ccxt_timer` context manager 는 Bybit/OKX provider 에서 CCXT 호출을 감싸는 데 사용.
 """
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from prometheus_client import Counter, Gauge, Histogram
 
 from src.common.metrics_multiproc import configure_multiprocess
 
 configure_multiprocess()
+
+
+_LIVE_CONDITIONAL_GUARD_OUTCOMES: frozenset[str] = frozenset(
+    {
+        "conditional_placed",
+        "market_converted",
+        "breach_capped",
+        "breach_with_resting",
+        "reference_unavailable",
+        "convert_suppressed",
+        "breach_reverted",
+    }
+)
+
+
+class _GuardOutcomeCounter(Counter):
+    """고정 outcome 외 라벨 생성으로 인한 cardinality 증가를 차단한다."""
+
+    def labels(self, *labelvalues: Any, **labelkwargs: Any) -> _GuardOutcomeCounter:
+        outcome = labelkwargs.get("outcome") if labelkwargs else labelvalues[0]
+        if outcome not in _LIVE_CONDITIONAL_GUARD_OUTCOMES:
+            raise ValueError(f"Unsupported live conditional guard outcome: {outcome}")
+        return super().labels(*labelvalues, **labelkwargs)
+
 
 # 1. Backtest 실행 시간 (queued → terminal state)
 qb_backtest_duration_seconds = Histogram(
@@ -187,6 +225,50 @@ def _normalize_error_class(exc: BaseException) -> str:
     return name if name in _ALLOWLIST_ERROR_CLASSES else "Other"
 
 
+# BL-512 — ProviderError 원문에서 retCode 숫자만 읽는다. retMsg 는 실응답에서 깨진
+# 구분자를 포함하므로 절대 분류 근거로 사용하지 않는다.
+_BYBIT_RETCODE_PATTERN = re.compile(r'"retCode"\s*:\s*(\d+)')
+_EXCHANGE_ORDER_RESPONSE_REASONS: dict[str, str] = {
+    "110092": "trigger_breached",
+    "110093": "trigger_breached",
+    "110017": "reduce_only_violation",
+    "110034": "position_zero",
+    "110004": "insufficient_balance",
+    "110006": "insufficient_balance",
+    "110007": "insufficient_balance",
+    "110012": "insufficient_balance",
+    "110044": "insufficient_balance",
+    "110045": "insufficient_balance",
+    "110051": "insufficient_balance",
+    "110052": "insufficient_balance",
+    "110053": "insufficient_balance",
+    "10003": "auth_failed",
+    "10004": "auth_failed",
+    "10005": "permission_denied",
+    "10010": "permission_denied",
+    "10020": "permission_denied",
+    "10027": "permission_denied",
+    "10028": "permission_denied",
+    "10006": "rate_limited",
+    "10018": "rate_limited",
+}
+
+
+def _normalize_exchange_order_response_reason(message: str) -> str:
+    """Bybit retCode allowlist 외 응답을 저카디널리티 reason 으로 정규화한다."""
+    match = _BYBIT_RETCODE_PATTERN.search(message)
+    if match is None:
+        return "unparsed"
+    return _EXCHANGE_ORDER_RESPONSE_REASONS.get(match.group(1), "other")
+
+
+qb_exchange_order_response_total = Counter(
+    "qb_exchange_order_response_total",
+    "거래소 주문 제출 응답 또는 응답 미확인 결과",
+    labelnames=("exchange", "outcome", "reason"),
+)
+
+
 # 8. Redis distributed lock acquire outcomes (Sprint 10 Phase A2)
 # outcome ∈ {success, contention, unavailable, timeout}
 # - success:     SET NX 성공 (분산 lock 획득)
@@ -293,6 +375,11 @@ qb_live_conditional_reconcile_errors_total = Counter(
     "qb_live_conditional_reconcile_errors_total",
     "Live conditional entry reconciliation failures",
     labelnames=("stage",),
+)
+qb_live_conditional_guard_total = _GuardOutcomeCounter(
+    "qb_live_conditional_guard_total",
+    "조건부 진입 등재 시점 가드의 판정 결과이며 실제 거래소 결과는 qb_exchange_order_response_total",
+    labelnames=("outcome",),
 )
 qb_live_conditional_sweep_filled_total = Counter(
     "qb_live_conditional_sweep_filled_total",

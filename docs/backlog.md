@@ -619,6 +619,8 @@
 
 ### BL-511
 
+**상태:** ✅ **Resolved (2026-07-28, `feat/live-entry-parity`).** 가드 기준가를 stale bar 종가 → **거래소 실시간 perp last price** 로 교체하고, 트리거가 이미 돌파됐으면 **시장가로 전환**한다(resting 조건부가 없을 때만 — 있으면 거래소가 이미 트리거했을 확률이 높아 이중 진입이 된다). 근거 = 우리 백테스트 엔진이 그 상황을 다음 bar 시가에 체결한다(`strategy_state.py:67-84`). 사용자 설정 상한 `StrategySettings.max_trigger_breach_pct`(기본 `None` = 무제한 = 백테스트와 동일). 마이그레이션 **0**(JSONB). **62분 soak 실측 — 조건부 거절 43.3%(29/67) → 0%(0/19), `110093` 29 → 0, 거래소 raw HMAC 오라클 26주문 전부 `EC_NoError`, 시장가 전환 5건 전부 체결.** ★적대 검증이 **기준가가 perp 이 아니라 스팟이었음**을 잡았다(실측 오차 0.0543% > 잡으려던 신호 중앙값 0.025%) — 그대로 갔으면 숫자는 나와도 뜻을 알 수 없었다. 상세 = `docs/dev-log/`.
+
 **Title:** ★조건부 진입의 **절반이 거래소에 거절된다** — stale 기준가로 인한 매 tick 재시도 루프, 백테스트↔라이브 조용한 발산
 **Category:** Backend / trading (조건부 진입)
 **Priority:** **P1**
@@ -1415,6 +1417,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 ---
 
 ### BL-512
+
+**상태:** ✅ **Resolved (2026-07-28, `feat/live-entry-parity`).** `qb_exchange_order_response_total{exchange,outcome,reason}` 신설 — **`retCode` 숫자로** 정규화한다(ccxt 예외 클래스로는 안 된다: `110093` 트리거방향오류와 `110017` reduce-only 위반이 **둘 다 `InvalidOrder`** 다). `outcome` ∈ `accepted|rejected|unknown` — ★**응답을 못 읽은 경우(타임아웃 등)를 "거절" 로 세면 개선치가 오염**되므로 `unknown` 으로 분리한다. `qb_live_conditional_guard_total{outcome}` 7종 신설. 정상 체결이 `exchange_missing` error 카운터를 올리던 오계상 수정. **soak 실측 검증 — `accepted/submitted` 27 · `rejected/reduce_only_violation` 2.** ★★두 가지가 사후 증명됐다 — (a) Bybit demo 는 **시장가도 `submitted` 로 응답**하고 체결은 WS 가 확정하므로, `filled` 만 accepted 로 셌다면 **카운터가 영구 0** 이었다(codex G1 검증이 코드 쓰기 전에 잡았다). (b) `110017` 을 `position_zero` 가 아니라 **`reduce_only_violation`** 으로 정정한 것이 옳았다 — soak 중 실제로 `"reduce-only order has same side with current position"` 이 나왔고, 옛 매핑이었다면 **포지션 반전 부작용이 "무해" 로 위장**됐을 것이다.
 
 **Title:** 계측이 "우리가 하려던 것" 만 세고 "거래소가 한 것" 은 안 센다 — 거절 미계상 · 낙관적 placed · **정상 체결이 error 카운터**
 **Category:** Backend / observability (trading)
@@ -3800,3 +3804,73 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 - **2026-04-30** — 초기 작성 50 BL (P0 5 + P1 17 + P2 14 + P3 8 + Beta 6).
 
 > 누락 sprint (19/20/22~24/26/28~31/40/43/44/46~49)은 [`dev-log/INDEX.md`](./dev-log/INDEX.md) 본문 참조.
+
+---
+
+### BL-522
+
+**Title:** ★**엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다** — 유실 채널 5종, 실측 시간당 14회
+**Category:** Backend / trading (라이브 진입 완결성)
+**Priority:** **P1**
+**Trigger:** 실자금 cutover 전 필수
+**Est:** M-L
+**출처:** 2026-07-28 live-entry-parity — codex G1 검증 #1/#2/#3/#4/#5 가 하나의 근본원인으로 수렴, soak 실측으로 크기 확정
+
+**원인 / 영향:** sim 이 pending stop 을 체결하면(`strategy_state.py:82-83`) 그 주문은 `desired` 에서 사라지고 포지션이 된다. 그런데 `action="fill"` 은 **dispatch 대상이 아니다** — `event_loop.py:422` 가 "broker 가 자체 fill 알림 처리" 를 전제하기 때문이다(BL-478 이 지적한 그 전제). 따라서 그 진입이 라이브에서 **어떤 이유로든** 완결되지 못하면 다시 시도할 주체가 없다.
+
+**유실 채널 5종** — (1) 조회~발주 사이 가격이 다시 움직여 생기는 잔여 거절 (2) `market_orders_in_flight` 로 reconcile 전체가 deferred (3) 전환 주문의 부분체결 (4) 돌파+resting 조합에서 취소가 트리거를 이긴 경우 (5) notional/balance 사전 게이트 거부.
+
+★**크기가 처음 측정됐다** — 62분 soak 에서 `qb_live_conditional_reconcile_errors_total{stage="deferred_market_inflight"}` = **14**. 채널 (2) 하나가 **시간당 14회**다. 조건부 모델에서는 다음 bar 에 재등재되므로 무해했지만 **1-shot 시장가 전환에서는 유실**이다.
+
+**권장 접근:** 전환 의도를 영속화해 다음 tick 에 재시도하거나, `action="fill"` 을 라이브에서 소비하는 경로를 만든다. ★**새 상태 저장소는 위험하므로 크기를 본 뒤 설계한다** — 이번 스프린트가 계측만 넣고 멈춘 이유다.
+**Risk:** 🟡 (백테스트↔라이브 진입 발산. 실주문을 잘못 내지는 않는다)
+
+---
+
+### BL-523
+
+**Title:** 조건부·전환 진입에 TP/SL 브래킷이 붙지 않는다 — 전환은 즉시 체결이라 무방비 창이 실재한다
+**Category:** Backend / trading (조건부 진입)
+**Priority:** P2
+**Trigger:** 실자금 cutover 전
+**Est:** M
+**출처:** 2026-07-28 live-entry-parity 적대 검증(백테스트 패리티 렌즈)
+
+**원인 / 영향:** reconcile 의 `OrderRequest`(`tasks/live_signal.py` 발주 루프)에 `take_profit`/`stop_loss`/`trailing_stop` 이 없다. 일반 LiveSignal 경로는 지정한다. 백테스트는 체결 직후 `check_exit_fills`(`event_loop.py`)로 브래킷이 활성화되므로 **라이브만 무방비**다. 조건부일 때는 트리거 전까지 잠재적이었지만 **시장가 전환은 즉시 포지션을 연다.**
+
+**권장 접근:** `PendingOrderSnapshot` 에 exit 레벨을 실어 진입 주문에 부착한다. 체결 후 부착 경로(`_enqueue_trailing_if_intended`)와 중복되지 않게 정리 필요.
+**Risk:** 🟡
+
+---
+
+### BL-524
+
+**Title:** `strategy.entry(limit=...)` 이 조용히 버려지고 시장가 진입으로 대체된다 — TV 충실도 결함
+**Category:** Backend / pine_v2
+**Priority:** P2
+**Trigger:** limit 진입을 쓰는 전략을 지원할 때
+**Est:** M
+**출처:** 2026-07-28 live-entry-parity 스코프 조사
+
+**원인 / 영향:** `interpreter.py:1521-1523` 이 `limit`·`trail_points`·`trail_offset`·`qty_percent` 를 **미지원 인자로 걸러 경고만 남기고** 버린다. `stop` 이 없으면 그 진입은 `MarketIntent` 로 큐돼 **시장가로 체결**된다. `PendingOrder`/`PendingOrderSnapshot` 에 `limit_price` 필드 자체가 없어 라이브 reconciler 까지 도달하지 못한다.
+
+★백테스트와 라이브가 **똑같이** 그러므로 패리티 결함은 아니다. 그러나 TV 는 지정가 도달을 기다리므로 **TV 충실도**가 깨지고, 사용자는 경고를 라이브에서 보지 못한다(`live_signal.py` 에 `warnings` 참조 0건).
+**Risk:** 🟡
+
+---
+
+### BL-525
+
+**Title:** 라이브가 Track A(indicator + alertcondition) 전략을 어떻게 다루는지 정의되지 않았다
+**Category:** Backend / trading (라이브 신호)
+**Priority:** P3
+**Trigger:** Track A 전략으로 라이브 세션을 열 때
+**Est:** S
+**출처:** 2026-07-28 live-entry-parity codex G1 검증 #7 (재현 확인)
+
+**원인 / 영향:** `run_live`(`event_loop.py`)는 `run_historical` **만** 호출한다. Track A 를 처리하는 `run_virtual_strategy` 는 `TrackRunner._dispatch_table["A"]` 로만 도달한다. 즉 라이브 경로에 Track 분기가 없다. `fill_timing=next_bar_open` 이 Track A 에서 무시된다는 경고도 라이브에서는 발생하지 않는다(그 코드에 도달하지 않으므로).
+
+★이번 스프린트가 "없는 경로에 계측을 붙이지 않기 위해" W3-3 을 폐기하면서 발견했다. **영원히 0인 카운터를 만들지 않은 대신, 그 경로가 무엇을 하는지는 여전히 미정의다.**
+
+**권장 접근:** 라이브 세션 등록 시 Track 을 판정해 미지원이면 422 로 막거나(BL-478 (c) 선례), `run_live` 에 Track 분기를 넣는다.
+**Risk:** 🟢

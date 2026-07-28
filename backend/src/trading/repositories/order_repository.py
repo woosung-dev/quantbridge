@@ -172,6 +172,30 @@ class OrderRepository:
         )
         return (await self.session.execute(stmt)).scalars().all()
 
+    async def has_recent_market_converted_entry(
+        self,
+        *,
+        exchange_account_id: UUID,
+        strategy_id: UUID,
+        session_id: UUID,
+        since: datetime,
+    ) -> bool:
+        """최근 2 bar 안에 등재된 세션 소유 시장가 전환 주문이 있는지 확인한다.
+
+        거래소 응답 미확인 전환은 `rejected`로 종결돼도 실제 주문이 남아 있을 수 있어,
+        상태와 무관하게 다음 전환을 억제한다.
+        """
+        key_prefix = f"live:{session_id}:condmkt:%"
+        stmt = (
+            select(cast(Any, Order.id))
+            .where(cast(Any, Order.exchange_account_id) == exchange_account_id)
+            .where(cast(Any, Order.strategy_id) == strategy_id)
+            .where(cast(Any, Order.idempotency_key).like(key_prefix))
+            .where(cast(Any, Order.created_at) >= since)
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none() is not None
+
     async def list_orphan_conditional_entries(self) -> Sequence[Order]:
         """비활성 또는 없는 라이브 세션 소유의 조건부 진입 주문을 찾는다."""
         from src.trading.services.conditional_entry_planner import parse_conditional_entry_key
@@ -184,7 +208,9 @@ class OrderRepository:
             .order_by(Order.submitted_at.asc())  # type: ignore[union-attr]
         )
         candidates = (await self.session.execute(stmt)).scalars().all()
-        parsed_orders = [(order, parse_conditional_entry_key(order.idempotency_key)) for order in candidates]
+        parsed_orders = [
+            (order, parse_conditional_entry_key(order.idempotency_key)) for order in candidates
+        ]
         session_ids = {parsed[0] for _, parsed in parsed_orders if parsed is not None}
         if not session_ids:
             return []

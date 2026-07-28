@@ -450,3 +450,47 @@ async def test_notional_balance_unavailable_live_fail_closed(
     )
     with pytest.raises(BalanceUnverified):
         await svc.execute(req, idempotency_key=None)
+
+
+async def test_converted_market_entry_uses_mark_buffer_not_trigger_price(
+    db_session: AsyncSession, strategy, exchange_account: ExchangeAccount
+):
+    """돌파 전환은 trigger가가 아닌 mark x 1.02로 명목을 보수적으로 평가한다."""
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.schemas import OrderRequest
+    from src.trading.services.order_service import OrderService
+
+    exchange_stub = _make_exchange_service_stub(Decimal("100"), mark_price=Decimal("94"))
+    svc = OrderService(
+        session=db_session,
+        repo=OrderRepository(db_session),
+        dispatcher=_CapturingDispatcher(),
+        kill_switch=_NoopKillSwitch(),
+        exchange_service=exchange_stub,
+    )
+    conditional = OrderRequest(
+        strategy_id=strategy.id,
+        exchange_account_id=exchange_account.id,
+        symbol="BTC/USDT:USDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("1"),
+        price=None,
+        trigger_price=Decimal("94"),
+        trigger_direction=1,
+        trigger_by="LastPrice",
+        leverage=1,
+        margin_mode="cross",
+    )
+    converted = conditional.model_copy(
+        update={"trigger_price": None, "trigger_direction": None, "trigger_by": None}
+    )
+
+    await svc.execute(conditional, idempotency_key=None)
+    with pytest.raises(NotionalExceeded) as exc_info:
+        await svc.execute(converted, idempotency_key=None)
+
+    assert exc_info.value.notional == Decimal("95.88")
+    exchange_stub.fetch_mark_price.assert_awaited_once_with(
+        exchange_account.id, "BTC/USDT:USDT"
+    )

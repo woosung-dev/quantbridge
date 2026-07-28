@@ -9,13 +9,21 @@ import type { BacktestFormValues } from "@/app/(dashboard)/backtests/_components
 interface BacktestCostFieldSetProps {
   register: UseFormRegister<BacktestFormValues>;
   errors: FieldErrors<BacktestFormValues>;
+  fillTiming: BacktestFormValues["fill_timing"];
+  liveFillTiming: BacktestFormValues["fill_timing"] | null;
 }
 
 export function BacktestCostFieldSet({
   register,
   errors,
+  fillTiming,
+  liveFillTiming,
 }: BacktestCostFieldSetProps) {
   const isCapitalInvalid = Boolean(errors.initial_capital);
+  const isLiveFillTimingMismatch =
+    liveFillTiming != null && fillTiming !== liveFillTiming;
+  const liveFillTimingLabel =
+    liveFillTiming === "next_bar_open" ? "시그널 다음 봉 시가" : "시그널 봉 종가";
   return (
     <section
       aria-label="자본과 체결"
@@ -77,6 +85,11 @@ export function BacktestCostFieldSet({
             <option value="next_bar_open">시그널 다음 봉 시가</option>
             <option value="bar_close">시그널 봉 종가</option>
           </select>
+          {isLiveFillTimingMismatch ? (
+            <span className="chip warn" data-testid="live-fill-timing-mismatch-badge">
+              {`Live 설정과 다릅니다. Live 설정이 기준입니다: ${liveFillTimingLabel}`}
+            </span>
+          ) : null}
           <p className="field-hint">
             다음 봉 시가로 체결하면 시그널이 확정된 봉의 종가를 미리 아는 미래
             참조를 막을 수 있습니다.

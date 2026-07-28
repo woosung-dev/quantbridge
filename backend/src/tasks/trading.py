@@ -34,14 +34,17 @@ from sqlalchemy.ext.asyncio import (
 
 from src.common.alert import send_critical_alert
 from src.common.metrics import (
+    _normalize_exchange_order_response_reason,
     qb_active_orders,
     qb_closed_pnl_backfill_total,
     qb_exchange_exit_attribution_total,
     qb_exchange_exit_link_unverified_total,
     qb_exchange_exit_rows_total,
+    qb_exchange_order_response_total,
     qb_partial_fill_total,
     qb_trailing_placement_total,
 )
+from src.common.metrics_multiproc import record_metric_safely
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.market_data.constants import to_bybit_raw_symbol
@@ -102,6 +105,31 @@ _EXIT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 _UNIX_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 logger = logging.getLogger(__name__)
+
+
+def _exchange_response_label(account: ExchangeAccount | None) -> str:
+    """계정에서 실제 거래소 라벨을 읽고, 확인할 수 없으면 unknown 으로 수렴한다."""
+    if account is None:
+        return "unknown"
+    exchange = getattr(account, "exchange", None)
+    value = getattr(exchange, "value", exchange)
+    return value if isinstance(value, str) and value else "unknown"
+
+
+def _record_exchange_order_response(
+    account: ExchangeAccount | None, outcome: str, reason: str
+) -> None:
+    """거래소 응답 계측 실패가 주문 처리 흐름에 영향을 주지 않게 한다."""
+    exchange = _exchange_response_label(account)
+
+    def increment() -> None:
+        qb_exchange_order_response_total.labels(
+            exchange=exchange,
+            outcome=outcome,
+            reason=reason,
+        ).inc()
+
+    record_metric_safely(increment)
 
 
 # Sprint 18 BL-080 prefork-safe engine factory — `_worker_engine.py` 단일 SSOT.
@@ -402,6 +430,12 @@ async def _execute_with_session(
             receipt = await provider.create_order(creds, order_submit)
         except ProviderError as e:
             error_msg = f"provider_failure: {e}"
+            response_reason = _normalize_exchange_order_response_reason(str(e))
+            _record_exchange_order_response(
+                account,
+                outcome="unknown" if response_reason == "unparsed" else "rejected",
+                reason=response_reason,
+            )
             logger.error(
                 "provider_create_order_failed",
                 extra={"order_id": str(order_id), "error": str(e)},
@@ -431,6 +465,7 @@ async def _execute_with_session(
         #    실체결 미검증으로 끝난 원인 중 하나. Bybit Demo limit 주문이나 시장가 주문의
         #    "WaitForFill" 상태는 status="open" 으로 받음.
         if receipt.status == "filled":
+            _record_exchange_order_response(account, outcome="accepted", reason="filled")
             filled_at = datetime.now(UTC)
             rows = await repo.transition_to_filled(
                 order_id,
@@ -506,6 +541,11 @@ async def _execute_with_session(
             }
 
         if receipt.status == "rejected":
+            _record_exchange_order_response(
+                account,
+                outcome="rejected",
+                reason="rejected_at_submission",
+            )
             error_msg = "exchange_rejected_at_submission"
             # Sprint 16 BL-027 (codex G.0 P1 #2): winner-only dec.
             rows = await repo.transition_to_rejected(
@@ -531,6 +571,7 @@ async def _execute_with_session(
         # status == "submitted" — exchange_order_id 만 attach. submitted 유지.
         # WS order event 가 orderLinkId(=Order.id) 또는 exchange_order_id 로 매칭하여
         # terminal 시 transition_to_filled / transition_to_rejected 호출.
+        _record_exchange_order_response(account, outcome="accepted", reason="submitted")
         await repo.attach_exchange_order_id(order_id, receipt.exchange_order_id)
         await session.commit()
         # Sprint 15 Phase A.2 — submitted watchdog (BL-001) enqueue.

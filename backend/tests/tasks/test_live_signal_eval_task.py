@@ -1279,6 +1279,7 @@ async def test_run_live_passes_leverage_and_counts_engine_events_without_diverge
             "leverage": 8.0,
             "sessions_allowed": (),
             "pyramiding": None,
+            "fill_timing": "bar_close",
         }
     ]
     for reason in reasons:
@@ -1329,6 +1330,7 @@ async def test_run_live_passes_sessions_and_declared_pyramiding(
             "leverage": 2.0,
             "sessions_allowed": ("asia", "ny"),
             "pyramiding": 2,
+            "fill_timing": "bar_close",
         }
     ]
 

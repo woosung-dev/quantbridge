@@ -8,6 +8,8 @@ from typing import Literal
 from src.strategy.pine_v2.event_loop import PendingOrderSnapshot
 from src.trading.services.conditional_entry_planner import (
     RestingConditionalEntry,
+    build_conditional_entry_key,
+    build_market_converted_entry_key,
     entry_trigger_direction,
     plan_reconcile,
 )
@@ -60,6 +62,8 @@ def _plan(
     qty_step: Decimal = Decimal("1"),
     price_tick: Decimal = Decimal("1"),
     reference_price: Decimal | None = None,
+    max_breach_pct: Decimal | None = None,
+    allow_market_conversion: bool = True,
 ):
     return plan_reconcile(
         desired=desired,
@@ -68,6 +72,8 @@ def _plan(
         qty_step=qty_step,
         price_tick=price_tick,
         reference_price=reference_price,
+        max_breach_pct=max_breach_pct,
+        allow_market_conversion=allow_market_conversion,
     )
 
 
@@ -300,24 +306,130 @@ def test_target_already_met_stays_a_quiet_noop() -> None:
     assert plan.divergences == ()
 
 
-def test_already_breached_trigger_is_not_placed() -> None:
-    """★이미 돌파된 트리거는 거래소가 받지 않는다 (retCode 110093).
-
-    숏 stop 은 트리거가 < 현재가여야 하는데 가격이 피벗 저점 아래로 내려가면
-    시뮬은 즉시 체결로 보고 거래소는 거부한다. 매 tick 재시도하면 거부 행만 쌓인다
-    (실측 104분에 10건).
-    """
+def test_breached_trigger_without_resting_converts_to_market() -> None:
+    """resting 주문 없이 이미 돌파됐으면 백테스트의 다음 시가 체결로 근사한다."""
     plan = _plan(
-        [_desired(direction="short", target=Decimal("-8"), stop=Decimal("128"))],
+        [_desired(stop=Decimal("100"))],
         [],
-        reference_price=Decimal("64"),
+        reference_price=Decimal("110"),
+    )
+
+    assert plan.to_cancel == ()
+    assert plan.divergences == ()
+    assert len(plan.to_place) == 1
+    assert plan.to_place[0].as_market is True
+
+
+def test_allow_market_conversion_false_keeps_legacy_behaviour() -> None:
+    plan = _plan(
+        [_desired(stop=Decimal("100"))],
+        [],
+        reference_price=Decimal("110"),
+        allow_market_conversion=False,
+    )
+
+    assert plan.to_cancel == ()
+    assert plan.to_place == ()
+    assert plan.divergences[0]["reason"] == "trigger_already_breached"
+    assert plan.divergences[0]["had_resting"] is False
+
+
+def test_conditional_and_market_keys_share_longer_namespace_boundary() -> None:
+    from datetime import UTC, datetime
+    from uuid import uuid4
+
+    session_id = uuid4()
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    trade_id = "x" * 132
+
+    conditional_key = build_conditional_entry_key(
+        session_id, trade_id, bar_time, Decimal("100"), Decimal("1")
+    )
+    market_key = build_market_converted_entry_key(
+        session_id, trade_id, bar_time, Decimal("100"), Decimal("1")
+    )
+
+    assert (conditional_key is None) == (market_key is None)
+
+
+def test_breached_trigger_with_resting_cancels_and_does_not_convert() -> None:
+    """resting stop이 있으면 거래소 트리거 경합을 피하려 기존 취소 동작을 유지한다."""
+    plan = _plan(
+        [_desired(stop=Decimal("100"))],
+        [_actual(stop=Decimal("100"))],
+        reference_price=Decimal("110"),
+    )
+
+    assert [entry.order_id for entry in plan.to_cancel] == ["local-entry"]
+    assert plan.to_place == ()
+    assert plan.divergences[0]["reason"] == "trigger_already_breached"
+    assert plan.divergences[0]["had_resting"] is True
+
+
+def test_breach_within_cap_still_converts() -> None:
+    """돌파폭이 상한과 정확히 같으면 허용한다(M9 경계)."""
+    plan = _plan(
+        [_desired(stop=Decimal("9995"))],
+        [],
+        reference_price=Decimal("10000"),
+        max_breach_pct=Decimal("0.05"),
+    )
+
+    assert len(plan.to_place) == 1
+    assert plan.to_place[0].as_market is True
+
+
+def test_breach_exceeding_cap_is_not_placed() -> None:
+    plan = _plan(
+        [_desired(stop=Decimal("100"))],
+        [],
+        reference_price=Decimal("101"),
+        max_breach_pct=Decimal("0.5"),
     )
 
     assert plan.to_place == ()
-    assert [item["reason"] for item in plan.divergences] == ["trigger_already_breached"]
+    assert plan.divergences[0]["reason"] == "breach_exceeds_cap"
+    assert plan.divergences[0]["breach_pct"] == "0.9900990099009900990099009901"
+    assert plan.divergences[0]["max_breach_pct"] == "0.5"
 
 
-def test_reachable_trigger_still_places() -> None:
+def test_cap_none_means_unlimited() -> None:
+    plan = _plan(
+        [_desired(stop=Decimal("100"))],
+        [],
+        reference_price=Decimal("200"),
+        max_breach_pct=None,
+    )
+
+    assert len(plan.to_place) == 1
+    assert plan.to_place[0].as_market is True
+
+
+def test_converted_entry_still_respects_side_mismatch_guard() -> None:
+    plan = _plan(
+        [_desired(target=Decimal("4"), stop=Decimal("100"))],
+        [],
+        current=Decimal("8"),
+        reference_price=Decimal("110"),
+    )
+
+    assert plan.to_place == ()
+    assert [item["reason"] for item in plan.divergences] == ["entry_side_mismatch"]
+
+
+def test_converted_entry_still_respects_below_exchange_minimum() -> None:
+    plan = _plan(
+        [_desired(target=Decimal("0.0002"), stop=Decimal("100"))],
+        [],
+        qty_step=Decimal("0.001"),
+        reference_price=Decimal("110"),
+    )
+
+    assert plan.to_place == ()
+    assert [item["reason"] for item in plan.divergences] == ["below_exchange_minimum"]
+
+
+def test_reachable_trigger_still_places_conditional() -> None:
     """음성 대조 - 정상 방향이면 그대로 발주한다(과잉차단 아님)."""
     long_ok = _plan([_desired(stop=Decimal("128"))], [], reference_price=Decimal("64"))
     short_ok = _plan(
@@ -328,6 +440,8 @@ def test_reachable_trigger_still_places() -> None:
 
     assert [e.trade_id for e in long_ok.to_place] == ["entry"]
     assert [e.trade_id for e in short_ok.to_place] == ["entry"]
+    assert long_ok.to_place[0].as_market is False
+    assert short_ok.to_place[0].as_market is False
     assert long_ok.divergences == () and short_ok.divergences == ()
 
 
