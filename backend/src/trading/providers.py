@@ -1753,12 +1753,19 @@ class BybitFuturesProvider:
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
 
-    async def fetch_mark_price(self, creds: Credentials, symbol: str) -> Decimal | None:
-        """심볼의 mark/last price 조회 (P1-13, S5-B: market order notional 근사 가드용).
+    async def _fetch_ticker_price(
+        self,
+        creds: Credentials,
+        symbol: str,
+        *,
+        price_keys: tuple[str, ...],
+        info_price_keys: tuple[str, ...] = (),
+    ) -> Decimal | None:
+        """ticker 가격을 지정한 키 우선순위로 1회 조회한다.
 
-        ephemeral CCXT 클라이언트로 1회 fetch_ticker 후 즉시 close. mark price 우선,
-        fallback to last/close. 모든 실패는 None 반환 (fail-soft) — caller 가
-        fallback 결정 (live = fail-closed, demo = fail-open).
+        ephemeral CCXT 클라이언트로 fetch_ticker 한 번만 호출하고 즉시 close 한다.
+        모든 실패는 None 으로 숨긴다. traceback 에 apiKey 를 보유한 CCXT 인스턴스가
+        섞일 수 있으므로 non-CCXT 예외도 호출자에게 전파하지 않는다.
         """
         exchange = ccxt_async.bybit(
             {
@@ -1775,21 +1782,22 @@ class BybitFuturesProvider:
         _apply_bybit_env(exchange, creds.environment)
         try:
             async with ccxt_timer("bybit_futures", "fetch_ticker"):
-                ticker = await exchange.fetch_ticker(symbol)
+                ticker = await exchange.fetch_ticker(_to_bybit_linear_symbol(symbol))
             if not isinstance(ticker, dict):
                 return None
-            # CCXT ticker: {'mark': ..., 'last': ..., 'close': ..., 'bid': ..., 'ask': ...}.
-            # mark 우선 (perp 의 가장 보수적 reference), 없으면 last → close.
-            for key in ("mark", "last", "close"):
-                val = ticker.get(key)
-                if val is None:
-                    continue
-                try:
-                    price = Decimal(str(val))
-                except (ValueError, TypeError, InvalidOperation):
-                    continue
-                if price > 0:
-                    return price
+            info = ticker.get("info")
+            info_values = info if isinstance(info, dict) else {}
+            for values, keys in ((info_values, info_price_keys), (ticker, price_keys)):
+                for key in keys:
+                    val = values.get(key)
+                    if val is None:
+                        continue
+                    try:
+                        price = Decimal(str(val))
+                    except (ValueError, TypeError, InvalidOperation):
+                        continue
+                    if price.is_finite() and price > 0:
+                        return price
             return None
         except (ccxt_async.BaseError, ProviderError):
             return None
@@ -1801,6 +1809,26 @@ class BybitFuturesProvider:
                 await exchange.close()
             except Exception:
                 logger.warning("bybit_futures_close_failed", exc_info=True)
+
+    async def fetch_mark_price(self, creds: Credentials, symbol: str) -> Decimal | None:
+        """심볼의 mark price 조회 (market order notional 근사 가드용).
+
+        기존 동작은 사실상 last 였다.
+        """
+        return await self._fetch_ticker_price(
+            creds,
+            symbol,
+            price_keys=("last", "close"),
+            info_price_keys=("markPrice",),
+        )
+
+    async def fetch_last_price(self, creds: Credentials, symbol: str) -> Decimal | None:
+        """LastPrice 트리거와 같은 기준의 실시간 가격을 조회한다."""
+        return await self._fetch_ticker_price(
+            creds,
+            symbol,
+            price_keys=("last", "close"),
+        )
 
     async def fetch_min_notional(self, creds: Credentials, symbol: str) -> Decimal | None:
         """Wave 1 C5 — 심볼의 거래소 최소 주문 cost(limits.cost.min) 조회.

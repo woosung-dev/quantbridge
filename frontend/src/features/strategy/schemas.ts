@@ -49,6 +49,8 @@ export const StrategySettingsSchema = z
     leverage: z.number().int().min(1).max(125),
     margin_mode: MarginModeSchema,
     position_size_pct: z.number().gt(0).max(100),
+    max_trigger_breach_pct: z.number().gt(0).nullable().optional().default(null),
+    fill_timing: z.enum(["bar_close", "next_bar_open"]).default("bar_close"),
   })
   .strict();
 export type StrategySettings = z.infer<typeof StrategySettingsSchema>;

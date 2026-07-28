@@ -39,6 +39,7 @@ from src.common.alert import track_pending_alert
 from src.common.metrics import (
     qb_active_orders,
     qb_live_conditional_cancelled_total,
+    qb_live_conditional_guard_total,
     qb_live_conditional_placed_total,
     qb_live_conditional_reconcile_errors_total,
     qb_live_conditional_sweep_filled_total,
@@ -58,6 +59,7 @@ from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.alerting import send_rule_alert
 from src.trading.exceptions import (
+    BalanceUnverified,
     IdempotencyConflict,
     KillSwitchActive,
     LeverageCapExceeded,
@@ -126,6 +128,15 @@ def _ohlcv_rows_to_dataframe(rows: list[list[Any]]) -> Any:
     df = pd.DataFrame(rows, columns=["timestamp_ms", "open", "high", "low", "close", "volume"])
     df["timestamp"] = pd.to_datetime(df["timestamp_ms"], unit="ms", utc=True)
     return df.drop(columns=["timestamp_ms"])
+
+
+def _last_close_or_none(df: Any) -> Decimal | None:
+    """마지막 종료 bar의 종가를 Decimal로 반환하고 얻지 못하면 None을 반환한다."""
+    try:
+        value = Decimal(str(df["close"].iloc[-1]))
+    except Exception:
+        return None
+    return value if value.is_finite() and value > 0 else None
 
 
 def _build_idempotency_key(
@@ -214,15 +225,6 @@ def _classify_live_divergence(msg: str) -> str:
     return "unexpected"
 
 
-def _last_close_or_none(df: Any) -> Decimal | None:
-    """마지막 종료 bar 의 종가. 얻지 못하면 None (검사를 건너뛴다)."""
-    try:
-        value = Decimal(str(df["close"].iloc[-1]))
-    except Exception:
-        return None
-    return value if value.is_finite() and value > 0 else None
-
-
 async def _reconcile_conditional_entries(
     sess: Any,
     result: Any,
@@ -231,7 +233,7 @@ async def _reconcile_conditional_entries(
     *,
     bar_time: datetime,
     market_orders_in_flight: bool,
-    reference_price: Decimal | None = None,
+    fallback_reference_price: Decimal | None = None,
 ) -> None:
     """조건부 진입 desired 상태를 안전하게 거래소 resting 주문으로 수렴시킨다.
 
@@ -267,6 +269,7 @@ async def _reconcile_conditional_entries(
         from src.trading.services.conditional_entry_planner import (
             RestingConditionalEntry,
             build_conditional_entry_key,
+            build_market_converted_entry_key,
             parse_conditional_entry_key,
             plan_reconcile,
         )
@@ -406,7 +409,10 @@ async def _reconcile_conditional_entries(
                 # tick 은 등재하지 않는다.
                 if probe.status == "filled":
                     fill_confirmed = True
-                qb_live_conditional_reconcile_errors_total.labels(stage="exchange_missing").inc()
+                else:
+                    qb_live_conditional_reconcile_errors_total.labels(
+                        stage="exchange_missing"
+                    ).inc()
                 logger.warning(
                     "live_conditional_reconcile_divergence",
                     extra={
@@ -488,6 +494,29 @@ async def _reconcile_conditional_entries(
                     else:
                         raise ValueError(f"unknown position side: {position.side!r}")
 
+            reference_price = fallback_reference_price
+            allow_market_conversion = False
+            if desired:
+                exchange_reference_price = await bybit_provider.fetch_last_price(creds, sess.symbol)
+                if exchange_reference_price is None:
+                    qb_live_conditional_guard_total.labels(outcome="reference_unavailable").inc()
+                    logger.warning(
+                        "live_conditional_reconcile_divergence",
+                        extra={
+                            "session_id": str(sess.id),
+                            "symbol": sess.symbol,
+                            "reason": "reference_price_unavailable",
+                        },
+                    )
+                else:
+                    reference_price = exchange_reference_price
+                    allow_market_conversion = True
+
+            max_breach_pct = (
+                Decimal(str(parsed_settings.max_trigger_breach_pct))
+                if parsed_settings.max_trigger_breach_pct is not None
+                else None
+            )
             plan = plan_reconcile(
                 desired=desired,
                 actual=tuple(actual_by_order_id.values()),
@@ -495,8 +524,17 @@ async def _reconcile_conditional_entries(
                 qty_step=qty_step,
                 price_tick=price_tick,
                 reference_price=reference_price,
+                max_breach_pct=max_breach_pct,
+                allow_market_conversion=allow_market_conversion,
             )
             for divergence in plan.divergences:
+                if divergence["reason"] == "breach_exceeds_cap":
+                    qb_live_conditional_guard_total.labels(outcome="breach_capped").inc()
+                elif (
+                    divergence["reason"] == "trigger_already_breached"
+                    and divergence.get("had_resting") is True
+                ):
+                    qb_live_conditional_guard_total.labels(outcome="breach_with_resting").inc()
                 logger.warning(
                     "live_conditional_reconcile_divergence",
                     extra={"session_id": str(sess.id), **divergence},
@@ -589,7 +627,8 @@ async def _reconcile_conditional_entries(
                 #   주문이 그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다.
                 #   다음 tick 이 새 포지션·거래소 스냅샷으로 다시 계획하면 된다.
                 return
-            if not plan.to_place:
+            to_place = plan.to_place
+            if not to_place:
                 return
 
             evaluators: list[KillSwitchEvaluator] = [
@@ -612,8 +651,109 @@ async def _reconcile_conditional_entries(
                 sessions_port=_StrategySessionsAdapter(session),
                 exchange_service=exchange_service,
             )
-            for planned_entry in plan.to_place:
+            for placement_index, planned_entry in enumerate(to_place):
                 try:
+                    breach_pct: Decimal | None = None
+                    if planned_entry.as_market:
+                        interval_seconds = {
+                            "1m": 60,
+                            "5m": 300,
+                            "15m": 900,
+                            "1h": 3600,
+                        }.get(str(sess.interval))
+                        if interval_seconds is None:
+                            # 미지 interval은 전환 창을 해석할 수 없다. 창 크기의 폴백은
+                            # 전환 허용 근거가 아니므로 시장가 전환만 명시적으로 막는다.
+                            qb_live_conditional_guard_total.labels(
+                                outcome="convert_suppressed"
+                            ).inc()
+                            logger.warning(
+                                "live_conditional_reconcile_market_convert_suppressed",
+                                extra={
+                                    "session_id": str(sess.id),
+                                    "trade_id": planned_entry.trade_id,
+                                    "reason": "unknown_interval",
+                                    "interval": str(sess.interval),
+                                },
+                            )
+                            continue
+                        since = bar_time - timedelta(seconds=interval_seconds * 2)
+                        if await order_repo.has_recent_market_converted_entry(
+                            exchange_account_id=sess.exchange_account_id,
+                            strategy_id=sess.strategy_id,
+                            session_id=sess.id,
+                            since=since,
+                        ):
+                            qb_live_conditional_guard_total.labels(
+                                outcome="convert_suppressed"
+                            ).inc()
+                            logger.warning(
+                                "live_conditional_reconcile_market_convert_suppressed",
+                                extra={
+                                    "session_id": str(sess.id),
+                                    "trade_id": planned_entry.trade_id,
+                                    "since": since.isoformat(),
+                                },
+                            )
+                            continue
+
+                        conversion_reference_price = await bybit_provider.fetch_last_price(
+                            creds, sess.symbol
+                        )
+                        if conversion_reference_price is None:
+                            qb_live_conditional_guard_total.labels(
+                                outcome="reference_unavailable"
+                            ).inc()
+                            logger.warning(
+                                "live_conditional_reconcile_market_convert_skipped",
+                                extra={
+                                    "session_id": str(sess.id),
+                                    "trade_id": planned_entry.trade_id,
+                                    "reason": "reference_price_unavailable",
+                                },
+                            )
+                            continue
+                        still_breached = (
+                            planned_entry.direction == "long"
+                            and planned_entry.trigger_price <= conversion_reference_price
+                        ) or (
+                            planned_entry.direction == "short"
+                            and planned_entry.trigger_price >= conversion_reference_price
+                        )
+                        if not still_breached:
+                            qb_live_conditional_guard_total.labels(outcome="breach_reverted").inc()
+                            logger.warning(
+                                "live_conditional_reconcile_market_convert_skipped",
+                                extra={
+                                    "session_id": str(sess.id),
+                                    "trade_id": planned_entry.trade_id,
+                                    "reason": "breach_reverted",
+                                    "stop_price": str(planned_entry.trigger_price),
+                                    "reference_price": str(conversion_reference_price),
+                                },
+                            )
+                            continue
+                        breach_pct = (
+                            abs(conversion_reference_price - planned_entry.trigger_price)
+                            / conversion_reference_price
+                            * Decimal("100")
+                        )
+                        if max_breach_pct is not None and breach_pct > max_breach_pct:
+                            qb_live_conditional_guard_total.labels(outcome="breach_capped").inc()
+                            logger.warning(
+                                "live_conditional_reconcile_divergence",
+                                extra={
+                                    "session_id": str(sess.id),
+                                    "trade_id": planned_entry.trade_id,
+                                    "reason": "breach_exceeds_cap",
+                                    "direction": planned_entry.direction,
+                                    "stop_price": str(planned_entry.trigger_price),
+                                    "reference_price": str(conversion_reference_price),
+                                    "breach_pct": str(breach_pct),
+                                    "max_breach_pct": str(max_breach_pct),
+                                },
+                            )
+                            continue
                     request = OrderRequest(
                         strategy_id=sess.strategy_id,
                         exchange_account_id=sess.exchange_account_id,
@@ -622,19 +762,33 @@ async def _reconcile_conditional_entries(
                         type=OrderType.market,
                         quantity=planned_entry.quantity,
                         price=None,
-                        trigger_price=planned_entry.trigger_price,
-                        trigger_direction=planned_entry.trigger_direction,
-                        trigger_by="LastPrice",
+                        trigger_price=None
+                        if planned_entry.as_market
+                        else planned_entry.trigger_price,
+                        trigger_direction=(
+                            None if planned_entry.as_market else planned_entry.trigger_direction
+                        ),
+                        trigger_by=None if planned_entry.as_market else "LastPrice",
                         reduce_only=False,
                         leverage=parsed_settings.leverage,
                         margin_mode=parsed_settings.margin_mode,
                     )
-                    idempotency_key = build_conditional_entry_key(
-                        sess.id,
-                        planned_entry.trade_id,
-                        bar_time,
-                        planned_entry.trigger_price,
-                        planned_entry.quantity,
+                    idempotency_key = (
+                        build_market_converted_entry_key(
+                            sess.id,
+                            planned_entry.trade_id,
+                            bar_time,
+                            planned_entry.trigger_price,
+                            planned_entry.quantity,
+                        )
+                        if planned_entry.as_market
+                        else build_conditional_entry_key(
+                            sess.id,
+                            planned_entry.trade_id,
+                            bar_time,
+                            planned_entry.trigger_price,
+                            planned_entry.quantity,
+                        )
                     )
                     if idempotency_key is None:
                         # 되짚지 못할 key 로 발주하면 우리 주문을 영원히 남의 것으로 본다.
@@ -648,8 +802,54 @@ async def _reconcile_conditional_entries(
                         body_hash=None,
                     )
                     qb_live_conditional_placed_total.labels(direction=planned_entry.direction).inc()
+                    qb_live_conditional_guard_total.labels(
+                        outcome=(
+                            "market_converted" if planned_entry.as_market else "conditional_placed"
+                        )
+                    ).inc()
+                    if planned_entry.as_market:
+                        logger.warning(
+                            "live_conditional_reconcile_divergence",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                                "reason": "market_converted",
+                                "stop_price": str(planned_entry.trigger_price),
+                                "breach_pct": str(breach_pct),
+                            },
+                        )
+                        # 시장가 전환은 포지션 스냅샷을 즉시 낡게 만든다. 이 tick의 나머지
+                        # 등재는 다음 tick의 새 포지션 스냅샷까지 미룬다.
+                        remaining_count = len(to_place) - placement_index - 1
+                        for _ in range(remaining_count):
+                            qb_live_conditional_reconcile_errors_total.labels(
+                                stage="deferred_after_market_convert"
+                            ).inc()
+                        if remaining_count:
+                            logger.warning(
+                                "live_conditional_reconcile_deferred_after_market_convert",
+                                extra={
+                                    "session_id": str(sess.id),
+                                    "remaining_count": remaining_count,
+                                },
+                            )
+                        return
+                except (BalanceUnverified, MinNotionalNotMet, NotionalExceeded):
+                    qb_live_conditional_reconcile_errors_total.labels(
+                        stage=(
+                            "market_place_gate"
+                            if planned_entry.as_market
+                            else "conditional_place_gate"
+                        )
+                    ).inc()
+                    logger.exception(
+                        "live_conditional_reconcile_place_failed",
+                        extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
+                    )
                 except Exception:
-                    qb_live_conditional_reconcile_errors_total.labels(stage="place").inc()
+                    qb_live_conditional_reconcile_errors_total.labels(
+                        stage="market_place" if planned_entry.as_market else "conditional_place"
+                    ).inc()
                     logger.exception(
                         "live_conditional_reconcile_place_failed",
                         extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
@@ -1115,6 +1315,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 "leverage": float(parsed_settings.leverage),
                 "sessions_allowed": tuple(strategy.trading_sessions or ()),
                 "pyramiding": pyramiding,
+                "fill_timing": parsed_settings.fill_timing,
             }
             if emit_from_bar_time is not None:
                 run_live_kwargs["emit_from_bar_time"] = emit_from_bar_time
@@ -1350,9 +1551,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             sm,
             bar_time=last_bar_time,
             market_orders_in_flight=bool(new_events),
-            # 마지막 종료 bar 종가를 트리거 도달 가능성 판정의 참조가로 쓴다.
-            # 분 안 변동은 못 잡지만 "피벗을 이미 지나갔다" 는 체계적 케이스를 잡는다.
-            reference_price=_last_close_or_none(df),
+            fallback_reference_price=_last_close_or_none(df),
         )
 
         qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()

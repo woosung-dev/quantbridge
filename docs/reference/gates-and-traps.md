@@ -90,6 +90,32 @@ cd $QB/frontend && pnpm e2e:authed
 - ★**codex 프롬프트의 "변경 파일 정확히 N개" 는 신규 작업 파일에만 걸어라.** 그 변경이 깨뜨리는 기존 테스트를 파일 수에 안 넣으면 codex 가 **질문하고 멈춘다**(실측: G7 첫 실행 0건 변경). "부수 정합성 수정은 승인된 것으로 간주" 를 함께 적어라.
 - ★**변이가 실제로 의미를 바꾸는지 먼저 확인해라.** `x=None or (...)` 는 Python 에서 `(...)` 라 no-op 이고, 그걸 모르면 "테스트 구멍" 으로 오판한다.
 
+### 거래소 실상 (2026-07-28 live-entry-parity, 실거래소 실측)
+
+- ★★**ccxt 에서 `BTC/USDT` 는 perp 이 아니라 스팟이다.** linear perp 는 `BTC/USDT:USDT` 이고 변환기가 이미 있다(`providers.py` `_to_bybit_linear_symbol`). 실측:
+  ```
+  ccxt.market("BTC/USDT")      -> type=spot
+  ccxt.market("BTC/USDT:USDT") -> type=swap, linear=True
+  spot last=63561.2  perp last=63526.7  차이 34.50 USDT (0.0543%)
+  ```
+  **`fetch_ticker` 를 원문 심볼로 부르면 다른 자산의 가격을 읽는다.** 트리거 판정처럼 bp 단위가 중요한 곳에서는 신호보다 오차가 커진다(실측: 오차 0.054% vs 잡으려던 돌파폭 중앙값 0.025%).
+- ★**ccxt ticker 에 `"mark"` 키는 없다.** mark price 는 `ticker["info"]["markPrice"]` 다. `ticker.get("mark")` 는 항상 `None` 이라 `fetch_mark_price` 는 도입 이래 늘 `last` 로 폴백해 왔다.
+- ★**돌파 거절코드는 방향별로 다르다** — `110092` = "expect Rising"(**롱** stop), `110093` = "expect Falling"(**숏** stop). 한쪽만 allowlist 에 넣으면 절반을 놓친다.
+- ★**`110017` 은 "포지션 0" 이 아니라 "reduce-only 규칙 위반"** 이다(ccxt 에러맵). "포지션 없음" 은 `110034` 다. 우리 원장의 옛 메시지만 보고 매핑하면 **포지션 반전 부작용이 "무해" 로 위장**된다(실측으로 재현됨 — `"reduce-only order has same side with current position"`).
+- ★**Bybit demo 는 시장가 주문도 `create_order` 응답에서 `submitted` 로 준다.** 체결 확정은 WS 가 나중에 한다(`websocket/state_handler.py` · `reconciliation.py`). 따라서 "거래소가 수락했다" 를 `filled` 로만 세면 **그 카운터는 영구히 0** 이다.
+
+### 측정 도구가 먼저 틀린다 (2026-07-28)
+
+- ★★**`/metrics` 가 HELP/TYPE 만 보이고 샘플이 없으면 백엔드를 재기동해라.** `PROMETHEUS_MULTIPROC_DIR` 배선 **이전에** 뜬 프로세스는 단일 프로세스 모드라 **자기 값만** 노출한다. 그 상태에서 관측한 worker metric 처럼 보이는 값들이 사실은 API 프로세스 자신의 것일 수 있다.
+- ★★**`MmapedDict.read_all_values_from_file` 은 4-튜플을 준다.** `for k, v in ...` 로 풀면 `ValueError` 가 나고, 그걸 `except: pass` 로 삼키면 **"1389개 파일 전부에 metric 0개"** 라는 오답이 나온다. **측정값이 0이면 대상보다 계측기를 먼저 의심해라.**
+- ★★**변이가 두 구현이 동치인 지점에 떨어지면 아무것도 증명하지 못한다.** "fail-closed 를 조기 `return` 으로" 변이를 **취소 루프 뒤**에 넣었더니 `to_place=()` 와 의미가 같아 통과했다. 앞으로 옮기니 즉시 잡혔다. **탈출을 보고 "테스트가 약하다" 로 바로 가지 마라 — 변이가 실제로 무엇을 바꿨는지 먼저 봐라.** (같은 회차에서 2번 발생: 다른 하나는 두 가드가 같은 mock 을 써서 서로를 가린 경우였다.)
+- ★**변이 대상 테스트 파일을 맞게 골라라.** 리포지토리 SQL 을 겨눈 변이를 서비스 테스트(리포지토리를 mock 함)로 재면 영원히 통과한다.
+
+### 셸·게이트가 거짓 red 를 내는 경로 (2026-07-28)
+
+- ★★**Bash 도구의 cwd 는 호출 간 유지된다.** `cd backend && set -a; . ./.env.local; set +a; uv run pytest` 를 **두 번째로** 부르면 `cd backend` 가 실패하고 `&&` 때문에 **`set -a` 가 안 돈다.** env 가 export 되지 않아 `localhost:5432` 로 붙고 대량 에러가 난다 — 코드 결함처럼 보이는 거짓 red 다. **절대경로로 `cd` 해라.**
+- ★★**부분 선택 실행은 격리가 깨진다.** `pytest tests/tasks/x.py tests/trading/ tests/strategy/` 조합에서 **30건이 실패**했지만 같은 테스트를 단건으로 돌리면 통과하고 **전체 스위트도 통과**한다. 판정 권위는 **전체 스위트**다.
+
 ### 린트가 잡는 문자
 
 - **RUF003** — 주석 안의 `×`(MULTIPLICATION SIGN) 와 `−`(MINUS SIGN) 가 ruff 를 깬다. ASCII `x` 와 `-` 를 써라. 네 번 재발했다. `tests/` · `scripts/` · `alembic/versions/` 는 면제지만 `src/` 는 아니다.
@@ -127,6 +153,16 @@ cd $QB/frontend && pnpm e2e:authed
 ### 추론 (2026-07-27)
 
 - ★**"그 코드 경로의 흔적이 원장에 없다" 는 "그 코드가 호출된 적 없다" 가 아니다.** 조건부 UPDATE 가 경합에 **패배**하면 `rowcount=0` 이라 행에 아무것도 쓰지 않는다. 최종 행만 보고 "미주행" 을 결론내면 성공 경로와 시도 횟수를 혼동한 것이다. 호출·패배를 세려면 **전용 metric** 이 필요하다.
+
+## 3.5 컨텍스트 예산 — 세션이 새는 두 채널
+
+> 2026-07-28 승격. 직전 회차가 이 규칙을 **참조는 했으나 이 파일에 없었다** — 핸드오프가 "여기 있다" 고 적었지만 실제로는 없었고, 이번에 실제로 넣는다.
+
+- ★**서브에이전트는 파일이 아니라 상한으로 답한다.** 이 저장소의 읽기 전용 서브에이전트(`Explore`)는 **Write 도구가 없다.** "리포트를 파일에 써라" 는 지시는 실패하고 전문이 반환값으로 돌아온다(단일 최대 소모원). **반환값 줄 수 상한을 명시해라** — "30줄 이내 / 발견마다 3줄 / 코드 덤프 금지" 가 실제로 먹는다.
+- ★**Monitor 는 변화 감지가 아니라 위험 신호 + 하트비트다.** 즉시 발화는 **작업을 죽이는 사건만**(세션 비활성화 · kill switch · DNS 실패). 진행 상황은 **10~15분 하트비트 1줄**. 판단 기준 = _"이 발화를 보고 내가 뭘 할 것인가?"_
+- worker 로그 전문 금지 — `grep -c` / `sort | uniq -c` 집계만.
+- 문서 파일은 `head`/`sed -n` 에 **`cut -c1-200`** 을 붙여라. 이 저장소 dev-log·backlog 는 행 하나가 3,000자다.
+- ★**codex 산출물(`*-codex.txt`)은 tool-trace 가 수십만 줄이다.** 최종 답변만 뽑아라 — `awk '/^\[P[123]\]/{f=1} f'` 같은 패턴으로 자른다. 통째로 읽지 마라.
 
 ## 4. pre-push 훅
 

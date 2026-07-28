@@ -1,8 +1,10 @@
 """OrderRepository — 3-guard 상태 전이 + idempotency 조회."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
@@ -20,6 +22,7 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.repositories.order_repository import SessionScope
+from src.trading.services.conditional_entry_planner import build_market_converted_entry_key
 
 
 @pytest.fixture
@@ -84,7 +87,9 @@ async def test_transition_to_submitted_guard_blocks_wrong_state(db_session, stra
     assert rowcount == 0
 
 
-async def test_transition_to_filled_records_exchange_order_id_and_price(db_session, strategy, account):
+async def test_transition_to_filled_records_exchange_order_id_and_price(
+    db_session, strategy, account
+):
     repo, order = await _make_order(db_session, strategy, account)
     await repo.transition_to_submitted(order.id, submitted_at=datetime.now(UTC))
     await repo.commit()
@@ -194,8 +199,49 @@ async def test_get_by_idempotency_key_returns_order(db_session, strategy, accoun
 
 async def test_get_by_idempotency_key_miss_returns_none(db_session, strategy, account):
     from src.trading.repositories.order_repository import OrderRepository
+
     repo = OrderRepository(db_session)
     assert await repo.get_by_idempotency_key("never-seen") is None
+
+
+async def test_rejected_market_conversion_still_suppresses_within_two_bars(
+    db_session, strategy, account
+):
+    """응답 미확인 전환은 rejected여도 거래소에 남았을 수 있어 억제한다."""
+    from src.trading.repositories.order_repository import OrderRepository
+
+    repo = OrderRepository(db_session)
+    session_id = uuid4()
+    created_at = datetime.now(UTC)
+    key = build_market_converted_entry_key(
+        session_id,
+        "entry",
+        created_at,
+        Decimal("100"),
+        Decimal("0.01"),
+    )
+    assert key is not None
+    await repo.save(
+        Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol="BTC/USDT",
+            side=OrderSide.buy,
+            type=OrderType.market,
+            quantity=Decimal("0.01"),
+            state=OrderState.rejected,
+            idempotency_key=key,
+            created_at=created_at,
+        )
+    )
+    await repo.commit()
+
+    assert await repo.has_recent_market_converted_entry(
+        exchange_account_id=account.id,
+        strategy_id=strategy.id,
+        session_id=session_id,
+        since=created_at - timedelta(minutes=2),
+    )
 
 
 async def test_transition_to_filled_records_partial_quantity(db_session, strategy, account):
@@ -372,9 +418,7 @@ async def test_list_existing_ids_is_state_agnostic_and_account_scoped(
     _repo2, other_order = await _make_order(db_session, strategy, other_account)
 
     unknown_id = uuid4()
-    found = await repo.list_existing_ids(
-        account.id, [pending_order.id, other_order.id, unknown_id]
-    )
+    found = await repo.list_existing_ids(account.id, [pending_order.id, other_order.id, unknown_id])
 
     # 상태 무필터 — pending 주문도 우리 것이다.
     assert pending_order.id in found
@@ -391,9 +435,7 @@ async def test_list_existing_ids_short_circuits_on_empty_input(db_session, accou
     assert await OrderRepository(db_session).list_existing_ids(account.id, []) == frozenset()
 
 
-async def test_realized_pnl_split_partitions_the_scope_by_provenance(
-    db_session, strategy, account
-):
+async def test_realized_pnl_split_partitions_the_scope_by_provenance(db_session, strategy, account):
     """BL-458 — 확정·추정·미기록 세 카운트가 스코프를 **정확히 분할**한다.
 
     `realized_pnl_synced_at` 이 출처 마커다 — NULL = pine_v2 추정, 값 있음 = 거래소
@@ -428,9 +470,7 @@ async def test_realized_pnl_split_partitions_the_scope_by_provenance(
             filled_at=base + timedelta(minutes=1),
         )
     )
-    await repo.save(
-        _o(realized_pnl=Decimal("-4"), filled_at=base + timedelta(minutes=2))
-    )
+    await repo.save(_o(realized_pnl=Decimal("-4"), filled_at=base + timedelta(minutes=2)))
     await repo.save(_o(realized_pnl=None, filled_at=base + timedelta(minutes=3)))
     await repo.commit()
 
@@ -445,9 +485,7 @@ async def test_realized_pnl_split_partitions_the_scope_by_provenance(
     db_session.add(live_session)
     await db_session.flush()
 
-    split = await repo.realized_pnl_split_for_session(
-        SessionScope.from_live_session(live_session)
-    )
+    split = await repo.realized_pnl_split_for_session(SessionScope.from_live_session(live_session))
 
     assert split.confirmed == Decimal("-2")
     assert split.estimated == Decimal("-4")

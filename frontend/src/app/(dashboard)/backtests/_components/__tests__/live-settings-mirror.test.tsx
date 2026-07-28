@@ -24,7 +24,13 @@ const strategiesList = {
 type StrategyDetail = {
   id: string;
   trading_sessions?: string[];
-  settings?: { leverage: number; position_size_pct: number; margin_mode: string; schema_version: number } | null;
+  settings?: {
+    leverage: number;
+    position_size_pct: number;
+    margin_mode: string;
+    schema_version: number;
+    fill_timing?: "bar_close" | "next_bar_open";
+  } | null;
   pine_declared_qty?: { type?: string | null; value?: number | null } | null;
 } | null;
 let mockStrategyDetail: StrategyDetail = null;
@@ -212,5 +218,45 @@ describe("BacktestForm Live Settings mirror (BL-188 v3 B — 4-state)", () => {
       const msg = JSON.stringify(result.error.issues);
       expect(msg).toMatch(/Live mirror|동시 명시 불가/);
     }
+  });
+
+  it("(5) 백테스트 fill_timing 이 Live 설정과 다르면 경고 배지가 표시된다", async () => {
+    mockStrategyDetail = {
+      id: "abc",
+      trading_sessions: [],
+      settings: {
+        schema_version: 1,
+        leverage: 1,
+        margin_mode: "cross",
+        position_size_pct: 30,
+        fill_timing: "next_bar_open",
+      },
+    };
+    await act(async () => {
+      render(<BacktestForm />);
+    });
+
+    expect(
+      screen.getByTestId("live-fill-timing-mismatch-badge"),
+    ).toBeInTheDocument();
+  });
+
+  it("(6) 백테스트 fill_timing 이 Live 설정과 같으면 경고 배지가 없다", async () => {
+    mockStrategyDetail = {
+      id: "abc",
+      trading_sessions: [],
+      settings: {
+        schema_version: 1,
+        leverage: 1,
+        margin_mode: "cross",
+        position_size_pct: 30,
+        fill_timing: "bar_close",
+      },
+    };
+    await act(async () => {
+      render(<BacktestForm />);
+    });
+
+    expect(screen.queryByTestId("live-fill-timing-mismatch-badge")).toBeNull();
   });
 });

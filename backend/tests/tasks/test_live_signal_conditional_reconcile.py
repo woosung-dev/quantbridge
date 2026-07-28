@@ -23,6 +23,7 @@ from src.trading.models import OrderSide, OrderState  # noqa: E402
 from src.trading.providers import ConditionalOrderSnapshot, PositionSnapshot  # noqa: E402
 from src.trading.services.conditional_entry_planner import (  # noqa: E402
     build_conditional_entry_key,
+    build_market_converted_entry_key,
     parse_conditional_entry_key,
 )
 
@@ -38,8 +39,8 @@ class _SessionContext:
         return None
 
 
-
 _BAR_TIME = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+
 
 def _session() -> SimpleNamespace:
     return SimpleNamespace(
@@ -47,6 +48,7 @@ def _session() -> SimpleNamespace:
         strategy_id=uuid4(),
         exchange_account_id=uuid4(),
         symbol="BTC/USDT",
+        interval="1m",
         is_active=True,
     )
 
@@ -126,6 +128,8 @@ def _patch_reconcile(
     exchange_orders_error: Exception | None = None,
     probe_status: str | None = "submitted",
     probe_error: Exception | None = None,
+    last_price: Decimal | None = Decimal("64"),
+    recent_market_conversion: bool = False,
 ) -> SimpleNamespace:
     session = AsyncMock()
     order_repo = AsyncMock()
@@ -141,6 +145,7 @@ def _patch_reconcile(
     order_repo.get_state_and_exchange_id_fresh = AsyncMock(
         return_value=None if fresh_state is None else (fresh_state, fresh_exchange_order_id)
     )
+    order_repo.has_recent_market_converted_entry = AsyncMock(return_value=recent_market_conversion)
     order_repo.commit = AsyncMock()
 
     account_repo = AsyncMock()
@@ -176,6 +181,7 @@ def _patch_reconcile(
         return_value=exchange_orders or [], side_effect=exchange_orders_error
     )
     provider.fetch_open_positions = AsyncMock(return_value=positions or [])
+    provider.fetch_last_price = AsyncMock(return_value=last_price)
     provider.cancel_order = AsyncMock()
     provider.fetch_order = AsyncMock(
         return_value=SimpleNamespace(
@@ -234,14 +240,22 @@ async def _reconcile(
     harness: SimpleNamespace,
     *,
     market_orders_in_flight: bool = False,
+    fallback_reference_price: Decimal | None = None,
+    max_trigger_breach_pct: float | None = None,
 ) -> None:
     await live_signal_module._reconcile_conditional_entries(
         session,
         result,
-        StrategySettings(leverage=2, margin_mode="cross", position_size_pct=10),
+        StrategySettings(
+            leverage=2,
+            margin_mode="cross",
+            position_size_pct=10,
+            max_trigger_breach_pct=max_trigger_breach_pct,
+        ),
         harness.sm,
         bar_time=_BAR_TIME,
         market_orders_in_flight=market_orders_in_flight,
+        fallback_reference_price=fallback_reference_price,
     )
 
 
@@ -268,8 +282,12 @@ def test_conditional_key_changes_per_bar_so_replacement_actually_dispatches() ->
     """
     session_id = uuid4()
     args = ("PivRevLE", Decimal("100"), Decimal("1"))
-    first = build_conditional_entry_key(session_id, args[0], datetime(2026, 5, 1, 12, 0, tzinfo=UTC), *args[1:])
-    second = build_conditional_entry_key(session_id, args[0], datetime(2026, 5, 1, 13, 0, tzinfo=UTC), *args[1:])
+    first = build_conditional_entry_key(
+        session_id, args[0], datetime(2026, 5, 1, 12, 0, tzinfo=UTC), *args[1:]
+    )
+    second = build_conditional_entry_key(
+        session_id, args[0], datetime(2026, 5, 1, 13, 0, tzinfo=UTC), *args[1:]
+    )
 
     assert first != second
     assert parse_conditional_entry_key(first) == parse_conditional_entry_key(second)
@@ -285,7 +303,9 @@ def test_conditional_key_rejects_unrepresentable_trade_ids() -> None:
     session_id = uuid4()
     bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
 
-    assert build_conditional_entry_key(session_id, "  ", bar_time, Decimal("1"), Decimal("1")) is None
+    assert (
+        build_conditional_entry_key(session_id, "  ", bar_time, Decimal("1"), Decimal("1")) is None
+    )
     assert (
         build_conditional_entry_key(session_id, "x" * 200, bar_time, Decimal("1"), Decimal("1"))
         is None
@@ -300,6 +320,310 @@ async def test_zero_cost_shortcut_skips_exchange_fetch(monkeypatch: pytest.Monke
     await _reconcile(session, _result([]), harness)
 
     harness.provider.fetch_open_conditional_orders.assert_not_awaited()
+    harness.provider.fetch_last_price.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reference_price_comes_from_exchange_last_not_bar_close(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert request.trigger_price is None
+    assert harness.provider.fetch_last_price.await_count == 2
+    harness.provider.fetch_last_price.assert_awaited_with(ANY, session.symbol)
+
+
+@pytest.mark.asyncio
+async def test_reference_price_not_fetched_when_no_conditional_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+
+    await _reconcile(session, _result([]), harness)
+
+    harness.provider.fetch_last_price.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reference_price_failure_still_places_conditional(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    stale = _order(session, trade_id="old", exchange_order_id="exchange-old")
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[stale],
+        exchange_orders=[_exchange_order(stale)],
+        last_price=None,
+    )
+
+    await _reconcile(
+        session,
+        _result([_pending("new")]),
+        harness,
+        fallback_reference_price=Decimal("99"),
+    )
+
+    harness.provider.fetch_last_price.assert_awaited_once_with(ANY, session.symbol)
+    harness.provider.cancel_order.assert_awaited_once_with(ANY, "exchange-old", session.symbol)
+    harness.order_service.execute.assert_awaited_once()
+    request = harness.order_service.execute.await_args.args[0]
+    assert request.trigger_price == Decimal("100")
+
+
+@pytest.mark.asyncio
+async def test_reference_price_failure_forbids_market_conversion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=None)
+
+    await _reconcile(
+        session,
+        _result([_pending()]),
+        harness,
+        fallback_reference_price=Decimal("110"),
+    )
+
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_fallback_reference_forbids_conversion_even_if_reprobe_would_succeed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★평가자 추가 게이트 - 전환 금지의 주체가 폴백 판정임을 분리해 고정한다.
+
+    첫 조회 실패와 발주 직전 재확인이 같은 대역을 쓰면 둘 다 None 이라 어느 가드가
+    막았는지 구분되지 않는다(변이 F7 이 그 틈으로 통과했다). 첫 조회만 실패시키고
+    재확인은 성공시키면 폴백 판정만 남는다.
+    """
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=None)
+    harness.provider.fetch_last_price = AsyncMock(side_effect=[None, Decimal("110")])
+
+    await _reconcile(
+        session,
+        _result([_pending()]),
+        harness,
+        fallback_reference_price=Decimal("110"),
+    )
+
+    assert harness.provider.fetch_last_price.await_count == 1
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_rejected_recent_conversion_still_suppresses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(
+        monkeypatch,
+        last_price=Decimal("110"),
+        recent_market_conversion=True,
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_repo.has_recent_market_converted_entry.assert_awaited_once()
+    harness.order_service.execute.assert_not_awaited()
+    harness.provider.fetch_last_price.assert_awaited_once_with(ANY, session.symbol)
+
+
+@pytest.mark.asyncio
+async def test_breach_reverted_before_place_skips_conversion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+    harness.provider.fetch_last_price.side_effect = [Decimal("110"), Decimal("99")]
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    assert harness.provider.fetch_last_price.await_count == 2
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_breach_exceeding_cap_at_reprobe_is_not_converted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.common.metrics import qb_live_conditional_guard_total
+
+    cap = Decimal("1")
+    initial_reference_price = Decimal("100.5")
+    reprobe_reference_price = Decimal("102")
+    initial_breach_pct = (
+        abs(initial_reference_price - Decimal("100")) / initial_reference_price * Decimal("100")
+    )
+    reprobe_breach_pct = (
+        abs(reprobe_reference_price - Decimal("100")) / reprobe_reference_price * Decimal("100")
+    )
+    assert initial_breach_pct <= cap < reprobe_breach_pct
+
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=initial_reference_price)
+    harness.provider.fetch_last_price = AsyncMock(
+        side_effect=[initial_reference_price, reprobe_reference_price]
+    )
+    counter = qb_live_conditional_guard_total.labels(outcome="breach_capped")
+    before = counter._value.get()
+
+    await _reconcile(
+        session,
+        _result([_pending()]),
+        harness,
+        max_trigger_breach_pct=float(cap),
+    )
+
+    assert harness.provider.fetch_last_price.await_count == 2
+    harness.order_service.execute.assert_not_awaited()
+    assert counter._value.get() == before + 1
+
+
+@pytest.mark.asyncio
+async def test_reprobe_within_cap_still_converts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cap = Decimal("1")
+    initial_reference_price = Decimal("100.5")
+    reprobe_reference_price = Decimal("100.75")
+    initial_breach_pct = (
+        abs(initial_reference_price - Decimal("100")) / initial_reference_price * Decimal("100")
+    )
+    reprobe_breach_pct = (
+        abs(reprobe_reference_price - Decimal("100")) / reprobe_reference_price * Decimal("100")
+    )
+    assert initial_breach_pct <= cap
+    assert reprobe_breach_pct <= cap
+
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=initial_reference_price)
+    harness.provider.fetch_last_price = AsyncMock(
+        side_effect=[initial_reference_price, reprobe_reference_price]
+    )
+
+    await _reconcile(
+        session,
+        _result([_pending()]),
+        harness,
+        max_trigger_breach_pct=float(cap),
+    )
+
+    assert harness.provider.fetch_last_price.await_count == 2
+    harness.order_service.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_unknown_interval_skips_conversion(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    from src.common.metrics import qb_live_conditional_guard_total
+
+    session = _session()
+    session.interval = "2h"
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+    counter = qb_live_conditional_guard_total.labels(outcome="convert_suppressed")
+    before = counter._value.get()
+
+    with caplog.at_level(logging.WARNING):
+        await _reconcile(session, _result([_pending()]), harness)
+
+    harness.provider.fetch_last_price.assert_awaited_once_with(ANY, session.symbol)
+    harness.order_repo.has_recent_market_converted_entry.assert_not_awaited()
+    harness.order_service.execute.assert_not_awaited()
+    assert counter._value.get() == before + 1
+    assert any(
+        record.message == "live_conditional_reconcile_market_convert_suppressed"
+        and getattr(record, "reason", None) == "unknown_interval"
+        for record in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_deferred_legs_after_conversion_are_counted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.common.metrics import qb_live_conditional_reconcile_errors_total
+
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+    counter = qb_live_conditional_reconcile_errors_total.labels(
+        stage="deferred_after_market_convert"
+    )
+    before = counter._value.get()
+
+    await _reconcile(session, _result([_pending("a"), _pending("b")]), harness)
+
+    assert harness.order_service.execute.await_count == 1
+    assert counter._value.get() == before + 1
+
+
+@pytest.mark.asyncio
+async def test_market_conversion_stops_further_placements_in_tick(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+
+    await _reconcile(session, _result([_pending("a"), _pending("b")]), harness)
+
+    assert harness.order_service.execute.await_count == 1
+    assert harness.order_service.execute.await_args.args[0].trigger_price is None
+
+
+@pytest.mark.asyncio
+async def test_converted_order_has_no_trigger_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert request.trigger_price is None
+    assert request.trigger_direction is None
+    assert request.trigger_by is None
+
+
+@pytest.mark.asyncio
+async def test_converted_order_uses_distinct_idempotency_namespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    key = harness.order_service.execute.await_args.kwargs["idempotency_key"]
+    assert key is not None
+    assert ":condmkt:" in key
+    assert key != build_conditional_entry_key(
+        session.id, "entry", _BAR_TIME, Decimal("100"), Decimal("1")
+    )
+
+
+@pytest.mark.asyncio
+async def test_converted_key_is_not_parsed_as_resting_conditional(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    key = harness.order_service.execute.await_args.kwargs["idempotency_key"]
+    assert key == build_market_converted_entry_key(
+        session.id, "entry", _BAR_TIME, Decimal("100"), Decimal("1")
+    )
+    assert parse_conditional_entry_key(key) is None
 
 
 @pytest.mark.asyncio
@@ -342,16 +666,16 @@ async def test_disappeared_desired_cancels_resting_entry(monkeypatch: pytest.Mon
 
     await _reconcile(session, _result([]), harness)
 
-    harness.provider.cancel_order.assert_awaited_once_with(
-        ANY, "exchange-entry", "BTC/USDT"
-    )
+    harness.provider.cancel_order.assert_awaited_once_with(ANY, "exchange-entry", "BTC/USDT")
     harness.order_service.execute.assert_not_awaited()
 
 
 @pytest.mark.asyncio
 async def test_foreign_exchange_order_is_never_cancelled(monkeypatch: pytest.MonkeyPatch) -> None:
     session = _session()
-    foreign_order = _order(session, trade_id="otherleg", strategy_id=uuid4(), exchange_order_id="foreign-entry")
+    foreign_order = _order(
+        session, trade_id="otherleg", strategy_id=uuid4(), exchange_order_id="foreign-entry"
+    )
     unlinked_order = ConditionalOrderSnapshot(
         order_id="unlinked-entry",
         side="buy",
@@ -668,12 +992,8 @@ def _capture_error_stages(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     """`qb_live_conditional_reconcile_errors_total` 의 stage 라벨을 수집한다."""
     stages: list[str] = []
     metric = MagicMock()
-    metric.labels = MagicMock(
-        side_effect=lambda stage: (stages.append(stage), MagicMock())[1]
-    )
-    monkeypatch.setattr(
-        live_signal_module, "qb_live_conditional_reconcile_errors_total", metric
-    )
+    metric.labels = MagicMock(side_effect=lambda stage: (stages.append(stage), MagicMock())[1])
+    monkeypatch.setattr(live_signal_module, "qb_live_conditional_reconcile_errors_total", metric)
     return stages
 
 
@@ -850,6 +1170,46 @@ async def test_confirmed_fill_stands_down_this_tick(
     await _reconcile(session, _result([_pending()]), harness)
 
     harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirmed_fill_does_not_increment_exchange_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """체결 확인은 거래소 부재 오류가 아니므로 error metric을 올리지 않는다."""
+    from src.common.metrics import qb_live_conditional_reconcile_errors_total
+
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch, local_orders=[ghost], exchange_orders=[], probe_status="filled"
+    )
+    counter = qb_live_conditional_reconcile_errors_total.labels(stage="exchange_missing")
+    before = counter._value.get()
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    assert counter._value.get() == before
+
+
+@pytest.mark.asyncio
+async def test_cancelled_probe_still_increments_exchange_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """음성 대조: 취소 확인은 기존처럼 거래소 부재 오류로 계측한다."""
+    from src.common.metrics import qb_live_conditional_reconcile_errors_total
+
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch, local_orders=[ghost], exchange_orders=[], probe_status="cancelled"
+    )
+    counter = qb_live_conditional_reconcile_errors_total.labels(stage="exchange_missing")
+    before = counter._value.get()
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    assert counter._value.get() == before + 1
 
 
 @pytest.mark.asyncio

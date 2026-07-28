@@ -321,6 +321,7 @@ def run_live(
     leverage: float = 1.0,
     sessions_allowed: tuple[str, ...] = (),
     pyramiding: int | None = None,
+    fill_timing: str = "bar_close",
     emit_from_bar_time: datetime | None = None,
 ) -> LiveSignalResult:
     """Sprint 26 — Option B (warmup replay) 채택.
@@ -346,6 +347,8 @@ def run_live(
             tz-aware DatetimeIndex가 없으면 tz-aware `timestamp` 컬럼으로 인덱스를 세우되,
             해당 컬럼은 보존한다. 둘 다 불가하면 세션 필터가 조용히 무시되지 않도록 실패한다.
         pyramiding: 같은 방향 동시 진입 cap. None 이면 cap을 적용하지 않는다.
+        fill_timing: 시장가 체결 시점. "next_bar_open"은 진입뿐 아니라 close/close_all
+            청산도 다음 bar 시가로 지연하므로 손절 청산도 한 bar 늦어진다.
         emit_from_bar_time: 지정 시 이 시각보다 뒤의 bar 이벤트를 모두 발행한다. None이면
             기존처럼 마지막 bar 이벤트만 발행한다.
 
@@ -388,6 +391,7 @@ def run_live(
         leverage=leverage,
         sessions_allowed=sessions_allowed,
         pyramiding=pyramiding,
+        fill_timing=fill_timing,
     )
     strategy_state = result.strategy_state
     if strategy_state is None:

@@ -46,6 +46,8 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
       leverage: strategy.settings?.leverage ?? 2,
       margin_mode: strategy.settings?.margin_mode ?? "cross",
       position_size_pct: strategy.settings?.position_size_pct ?? 10,
+      max_trigger_breach_pct: strategy.settings?.max_trigger_breach_pct ?? null,
+      fill_timing: strategy.settings?.fill_timing ?? "bar_close",
     },
   });
   const updateSettings = useUpdateStrategySettings(strategy.id, {
@@ -199,6 +201,38 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                   {...settingsForm.register("position_size_pct", { valueAsNumber: true })}
                 />
                 <span className="field-hint">가용 잔고 대비 포지션 크기입니다. 100 이면 전액입니다.</span>
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="s-trigger-breach-cap">
+                  트리거 돌파 상한 (%)
+                </label>
+                <input
+                  className="input mono"
+                  id="s-trigger-breach-cap"
+                  type="number"
+                  min={0}
+                  step="any"
+                  {...settingsForm.register("max_trigger_breach_pct", {
+                    setValueAs: (value) => (value === "" ? null : Number(value)),
+                  })}
+                />
+                <span className="field-hint">비워두면 제한 없음입니다.</span>
+              </div>
+              <div className="field">
+                <label className="field-label" htmlFor="s-fill-timing">
+                  체결 시점
+                </label>
+                <select
+                  className="select"
+                  id="s-fill-timing"
+                  {...settingsForm.register("fill_timing")}
+                >
+                  <option value="bar_close">시그널 봉 종가</option>
+                  <option value="next_bar_open">시그널 다음 봉 시가</option>
+                </select>
+                <span className="field-hint">
+                  다음 봉 시가를 선택하면 진입과 청산이 모두 한 bar 늦게 체결됩니다. 손절 청산도 지연될 수 있습니다.
+                </span>
               </div>
             </div>
             <div className="form-actions">

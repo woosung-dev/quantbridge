@@ -67,10 +67,19 @@ def _session(*, last_evaluated_bar_time: datetime | None) -> SimpleNamespace:
     )
 
 
-def _strategy(strategy_id: object) -> SimpleNamespace:
+def _strategy(
+    strategy_id: object, *, fill_timing: str | None = None
+) -> SimpleNamespace:
+    settings: dict[str, object] = {
+        "leverage": 2,
+        "margin_mode": "cross",
+        "position_size_pct": 10.0,
+    }
+    if fill_timing is not None:
+        settings["fill_timing"] = fill_timing
     return SimpleNamespace(
         id=strategy_id,
-        settings={"leverage": 2, "margin_mode": "cross", "position_size_pct": 10.0},
+        settings=settings,
         pine_source="//@version=5\nstrategy('gap')",
         trading_sessions=[],
     )
@@ -111,6 +120,7 @@ def _install_evaluation(
     rows: list[list[object]],
     run_result: LiveSignalResult,
     inserted_events: list[SimpleNamespace],
+    fill_timing: str | None = None,
 ) -> tuple[AsyncMock, AsyncMock, list[dict[str, Any]]]:
     """평가 경로를 메모리 의존성으로 고정하고 run_live kwargs를 수집한다."""
     _patch_engine(monkeypatch)
@@ -127,7 +137,9 @@ def _install_evaluation(
     event_repo.list_by_session = AsyncMock(return_value=[])
     event_repo.insert_pending_events = AsyncMock(return_value=inserted_events)
     strategy_repo = AsyncMock()
-    strategy_repo.find_by_id_and_owner = AsyncMock(return_value=_strategy(sess.strategy_id))
+    strategy_repo.find_by_id_and_owner = AsyncMock(
+        return_value=_strategy(sess.strategy_id, fill_timing=fill_timing)
+    )
     account_repo = AsyncMock()
     account_repo.get_by_id = AsyncMock(
         return_value=SimpleNamespace(exchange=ExchangeName.bybit, mode=ExchangeMode.demo)
@@ -166,6 +178,28 @@ def _install_evaluation(
     return sess_repo, event_repo, captured_kwargs
 
 
+@pytest.mark.asyncio
+async def test_strategy_settings_fill_timing_reaches_run_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """전략 설정의 체결 시점이 라이브 인터프리터 호출까지 보존된다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    sess = _session(last_evaluated_bar_time=None)
+    _sess_repo, _event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0),
+        run_result=_result(last_bar_time=t0, signals=[]),
+        inserted_events=[],
+        fill_timing="next_bar_open",
+    )
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    assert run_kwargs[0]["fill_timing"] == "next_bar_open"
+
+
 def _rows(*times: datetime) -> list[list[object]]:
     return [[int(time.timestamp() * 1000), 1, 2, 0, 1, 100] for time in times]
 
@@ -200,6 +234,7 @@ async def test_short_gap_catches_up_two_bars_without_duplicate_keys(
             "leverage": 2.0,
             "sessions_allowed": (),
             "pyramiding": None,
+            "fill_timing": "bar_close",
             "emit_from_bar_time": t0,
         }
     ]

@@ -397,7 +397,12 @@ export function BacktestForm() {
               </div>
 
               <div className="card-body">
-                <BacktestCostFieldSet register={register} errors={errors} />
+                <BacktestCostFieldSet
+                  register={register}
+                  errors={errors}
+                  fillTiming={watchedFillTiming}
+                  liveFillTiming={strategy?.settings?.fill_timing ?? null}
+                />
 
                 <BacktestLeverageFieldSet
                   control={control}
