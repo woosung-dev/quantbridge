@@ -135,7 +135,11 @@ git diff --name-only $(git merge-base origin/main HEAD)..HEAD   # path-filter �
 - dev-log 신규 + INDEX + status + roadmap + backlog 를 **같은 커밋에서** 갱신한다.
 - ★**요약 레이어는 본문보다 늦는다.** 2026-07-27 종결 시 `dev-log/INDEX.md` 가 **폐기된 설계를 출시된 것처럼** 적고 있었고 `roadmap.md` 도 같은 상태였다. 종결 체크리스트에 **"요약(INDEX·roadmap·status)을 본문과 대조"** 를 고정 항목으로 넣는다.
 - 작업 문서(`docs/<theme>/`)는 **흡수 대조 후 삭제**한다. 대조 없이 지우지 마라 — 2세션 연속으로 미흡수 2건이 나왔다. `docs/` 최상위 10 유지.
-- PR 생성까지. **squash 는 사용자.** 명시 위임이 있을 때만 머지한다.
+- PR 생성까지. **squash 는 사용자.**
+- ★**다음 스프린트 핸드오프는 `docs/status.md` 의 「다음 스프린트」 블록 하나로 한다. 별도 킥오프 파일을 만들지 마라.**
+  `AGENTS.md` 가 이미 새 세션 첫 step 을 `CONTEXT.md` + `AGENTS.md` + `docs/status.md` 3종으로 정해뒀다. 레포 밖(`~/.claude/plans/`)에 킥오프를 두면 **진입점이 둘이 되고 그 파일은 아무도 검증하지 않는다** — 2026-07-28 실측: 킥오프가 `gates-and-traps.md` §3.5 를 "있다" 고 적었으나 **그 섹션이 없었고**, 자기 사용법("전체를 붙여넣는다")도 틀렸다(사용자는 경로만 줬고 그게 더 잘 동작했다).
+  블록에 담을 것 = 한 줄 테마 · 본체 BL · **왜 지금인가(실측 숫자)** · 설계 시 짚을 것 · blocking 결정 후보 · 하지 않을 것 · baseline. 나머지는 전부 레포 안 제자리를 가리킨다(절차는 §4·§7, 함정은 `gates-and-traps.md`, 상세 8필드는 `backlog.md`).
+  명시 위임이 있을 때만 머지한다.
 
 ## 5. 실패 모드
 
@@ -158,3 +162,88 @@ git diff --name-only $(git merge-base origin/main HEAD)..HEAD   # path-filter �
 | 1/3  | live-ops-hygiene (2026-07-28)   | **작동했다.** ★★★**게이트가 전부 green 인 상태에서 P1 이 세 번** 나왔다 — 거래소 오라클(Bybit 이 `orderId` 를 우선해 **살아 있는 주문을 '미발주' 로 오판**) · 변이 주입(**거짓 게이트 3건**: cutoff 를 0으로 무력화해도, 과차단으로 바꿔도, `commit()` 을 지워도 통과) · codex 최종 리뷰(**접기가 hedge 의 실포지션 leg 를 화면에서 지움**). 원인은 §1 이 예측한 그대로 — **생성자의 테스트는 생성자의 구현을 비춘다**(codex 테스트가 ccxt 를 mock 해 거래소 실동작을 구조적으로 못 본다). ★G1 플랜 검증이 코드 쓰기 **전에** 8건을 잡고 **설계 3건을 교체**시켰다(제출 중단 행 blind reject → `orderLinkId` 조회 / `OrderNotFound` 흡수가 겨눈 예외가 틀림 / uid 대표만 조회하면 청산 버튼이 사라짐). ★변이 **28건 전건 판별, 실패 0**. ★★**같은 답을 낸 둘이 독립 표본이 아닐 수 있다** — 평가자와 codex 가 `trigger=True` 건에서 같은 오답에 도달했고(둘 다 ccxt 소스+우리 코드라는 **내부 증거만** 봤다) **외부 오라클만이 깼다**. ★★**화면 검증도 P1 을 통과시켰다** — 재현 상태(hedge)가 dogfood 계정에 없었다. **화면에 없는 상태는 화면 검증이 못 본다.** **비용** = codex 세션 8회(플랜 1 + 구현 3 + 정정 4). BL 1건당 왕복 2~4회이고 그 절반은 **codex 가 이 스택 DB(5433)에 접속하지 못해** 생겼다 — 다음 회차엔 스펙에 'DB 의존 테스트는 평가자가 돌린다' 를 명시하고 **표적 변이를 수용 기준에 함께 넘긴다**. |
 | 2/3  | live-observability (2026-07-28) | **소급 등재.** worker Prometheus metric 스크레이프 배선(BL-506). ★★**보이게 만들자마자 그 metric 을 믿으면 안 된다는 것이 드러났다** — `qb_active_orders` 가 0 인데 실제 in-flight 1(산술 전건 설명). ★★★**G6 최종 리뷰가 `order_service.py` diff 0줄인데 머니-패스가 바뀐 것을 잡았다**(`.inc()` 가 공유 mmap 쓰기가 되어 예외 시 영구 미발주). ★**평가자의 3줄 수선이 fail-open 을 만들었고 리뷰가 잡았다.** 변이 25종 전건 판별.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | 3/3  | live-entry-parity (2026-07-28)  | **작동했다. 승격 조건 충족.** ★★★**적대 검증(거래소 실상 렌즈)이 스프린트를 구했다** — 가드 기준가가 perp 이 아니라 **스팟**이었고(실측 오차 0.054% > 잡으려던 신호 중앙값 0.025%), 그대로 갔으면 soak 숫자가 나와도 무엇을 뜻하는지 알 수 없었다. ★★**G1 플랜 검증이 "계측이 성공을 못 세는 설계" 를 코드 쓰기 전에 잡았다**(Bybit demo 는 시장가도 `submitted` 로 주므로 `filled` 만 세면 카운터가 영구 0 — soak 실측으로 사후 증명됨). ★★**같은 렌즈가 예측한 `110017` 오분류가 soak 중 실제로 발생**했고 정정한 라벨 덕분에 "무해" 로 위장되지 않았다. ★**G6 가 평가자 수선 2줄 중 하나가 fail-closed 를 깬 것을 잡았다**(8세션 연속 P1). ★**반대로 평가자의 계측기가 3번 틀렸다** — 변이 오조준 2건 + mmap 4-튜플 오판독 1건. 셋 다 "시스템이 고장났다" 로 갈 뻔했다. 변이 **누적 21종 전건 판별**(탈출 3건은 전부 계측기 결함, 재조준 후 검출). **본체 결과 = `110093` 거절 29건 → 0건, 거래소 오라클 26주문 전부 `EC_NoError`.** 비용 = codex 세션 7회(플랜 1 + 구현 4 + 수리 2).                                                                                                                                                                                                                                                                                                                                   |
+
+---
+
+## 7. 재사용 레시피 (2026-07-28 live-entry-parity 에서 승격)
+
+> 매 회차 재발명하던 절차 셋. **킥오프 문서에 복붙하지 말고 여기를 가리켜라** — 그게 `gates-and-traps.md` 가 생긴 이유다.
+
+### 7.1 codex 태스크 스펙은 파일로 넘긴다
+
+```bash
+codex exec -s workspace-write -C "$(pwd)" "$(cat <스크래치패드>/spec-w1.md)" < /dev/null
+```
+
+스펙 파일에 반드시 넣을 고정 문구:
+
+- _"DB 의존 테스트는 평가자가 돌린다. 네 샌드박스는 `localhost:5433` 에 접속 못 한다. **돌리지 못한 것을 통과했다고 쓰지 마라.**"_
+- _"스펙 밖 리팩토링 금지. 부수 정합성 수정은 승인된 것으로 간주한다."_
+- _"`src/` 주석에 `×`·`−` 금지(RUF003)."_
+- _"라이브 머니-패스다. 한 파일씩 완결된 상태로 저장해라"_ (워커 watchfiles 가 중간 상태를 문다)
+
+★**BL 1건 = codex 1세션.** 섞으면 변이 판별이 무뎌진다.
+
+### 7.2 변이 하네스 — 해시로 복원을 검증한다
+
+문자열 치환 쌍 + **복원 해시 대조**. `git checkout` 은 이번 스프린트 신규 코드까지 날린다.
+
+```python
+base = sha256(path.read_bytes()).hexdigest()[:12]
+text = path.read_text()
+assert text.count(old) == 1                    # 앵커가 유일한지 먼저 확인
+path.write_text(text.replace(old, new, 1))
+ok, tail = run_tests()                         # 변이 주입 상태로 실행
+path.write_text(text)                          # 복원
+assert sha256(path.read_bytes()).hexdigest()[:12] == base   # 복원 검증
+# 마지막에 전체 재실행으로 green 확인
+```
+
+★**변이가 탈출하면 코드가 아니라 계측기를 먼저 의심해라.** 실측 실패 유형 셋:
+
+1. **동치 지점에 주입** — "fail-closed 를 조기 `return` 으로" 변이를 취소 루프 **뒤**에 넣으면 `to_place=()` 와 의미가 같다. 앞으로 옮겨야 잡힌다.
+2. **두 가드가 같은 대역을 공유** — 초기 조회와 재확인이 같은 mock 을 쓰면 서로를 가린다. 하나만 실패시키는 픽스처가 필요하다.
+3. **대상 테스트 파일 오선택** — 리포지토리 SQL 변이를 서비스 테스트(리포지토리를 mock)로 재면 영원히 통과한다.
+
+### 7.3 라이브 soak 세션 시작
+
+`e2e/.auth/storageState.json` 의 `__session` 은 **만료돼 있다**(`TOKEN_EXPIRED`). 브라우저에서 신선한 토큰을 발급받아야 한다.
+
+```js
+// playwright MCP — http://localhost:3100 접속 후 (정체성 프로브 먼저)
+const t = await window.Clerk.session.getToken();
+await fetch("http://localhost:8100/api/v1/live-sessions", {
+  method: "POST",
+  headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },
+  body: JSON.stringify({
+    strategy_id,
+    exchange_account_id,
+    symbol: "BTC/USDT",
+    interval: "1m",
+  }),
+});
+```
+
+- 경로는 `/api/v1/live-sessions` 다(`/api/v1/trading/...` 아님).
+- 종료도 같은 방식의 `DELETE` 로 — DB 직접 수정하면 **미체결 조건부 주문 정리가 안 된다**.
+- ★soak 전 **활성 세션 0 확인** + 워커 sentinel(신규 심볼 `hasattr`) 확인.
+
+### 7.4 외부 오라클 — raw HMAC 으로 거래소에 직접 묻는다
+
+ccxt 도 우리 코드도 거치지 않아야 순환 오라클이 아니다. 스크립트를 워커 컨테이너에서 돌린다:
+
+```bash
+docker cp oracle.py quantbridge-worker:/tmp/oracle.py
+docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
+```
+
+- 자격증명은 `EncryptionService(settings.trading_encryption_keys).decrypt(...)` 로 DB 에서 푼다.
+- demo 베이스 URL = `https://api-demo.bybit.com`.
+- 서명 = `HMAC_SHA256(timestamp + apiKey + recvWindow + queryString, secret)`.
+- 조회 = `/v5/execution/list`(체결) · `/v5/order/history`(주문 이력, `rejectReason` 포함).
+
+### 7.5 metric 을 읽을 때
+
+- `/metrics` 에 신규 카운터가 **이름만(HELP/TYPE) 보이고 샘플이 없으면** 백엔드를 재기동해라 — 배선 이전에 뜬 프로세스는 단일 프로세스 모드라 **API 자기 값만** 보여준다.
+- mmap 파일을 직접 열 때 `MmapedDict.read_all_values_from_file` 은 **4-튜플**을 준다. 2-튜플로 언팩하고 예외를 삼키면 **"전 파일에 metric 0개"** 라는 오답이 나온다.
+- 라벨 집합의 권위는 **문서가 아니라 코드**다(이번 회차에 문서 목록이 세 번 어긋났다).
