@@ -263,10 +263,32 @@ class ParityRepository:
             )
             for scope in scopes
         ]
-        has_local_order = (
+        scope_strategy_ids = [scope.strategy_id for scope in scopes]
+        scoped_linked_order_predicates: list[Any] = []
+        for scope in scopes:
+            linked_order_scope = [
+                cast(Any, Order.strategy_id) == scope.strategy_id,
+                cast(Any, Order.exchange_account_id) == scope.exchange_account_id,
+                cast(Any, Order.symbol) == scope.symbol,
+                cast(Any, Order.state) == OrderState.filled,
+                cast(Any, Order.filled_at) >= scope.started_at,
+            ]
+            if scope.ended_at is not None:
+                linked_order_scope.append(cast(Any, Order.filled_at) < scope.ended_at)
+            scoped_linked_order_predicates.append(
+                select(cast(Any, Order.id))
+                .where(cast(Any, Order.exchange_account_id) == ExchangeExit.exchange_account_id)
+                .where(sa_cast(cast(Any, Order.id), String) == ExchangeExit.order_link_id)
+                .where(and_(*linked_order_scope))
+                .exists()
+            )
+        has_scoped_linked_order = or_(*scoped_linked_order_predicates)
+        has_confirmed_close_order = (
             select(cast(Any, Order.id))
             .where(cast(Any, Order.exchange_account_id) == ExchangeExit.exchange_account_id)
             .where(sa_cast(cast(Any, Order.id), String) == ExchangeExit.order_link_id)
+            .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
+            .where(cast(Any, Order.reduce_only).is_(True))
             .exists()
         )
         scoped_exits = (
@@ -275,40 +297,44 @@ class ParityRepository:
                 cast(Any, ExchangeExit.exchange_created_at),
                 cast(Any, ExchangeExit.closed_pnl),
                 cast(Any, ExchangeExit.classification),
+                cast(Any, ExchangeExit.attribution_confidence),
+                cast(Any, ExchangeExit.attributed_strategy_id),
                 cast(Any, ExchangeExit.matched_order_id),
-                cast(Any, ExchangeExit.order_link_id),
-                has_local_order.label("has_local_order"),
+                has_scoped_linked_order.label("has_scoped_linked_order"),
+                has_confirmed_close_order.label("has_confirmed_close_order"),
             )
             .where(or_(*ledger_scope_predicates))
             .cte("scoped_exchange_exits")
         )
-        unlinked_exit = and_(
+        unmatched_exit = and_(
             scoped_exits.c.matched_order_id.is_(None),
+            scoped_exits.c.has_confirmed_close_order.is_(False),
+        )
+        ledger_only_exit = and_(
+            scoped_exits.c.classification.in_(_LEDGER_ONLY_CLASSIFICATIONS),
+            scoped_exits.c.attribution_confidence.is_distinct_from(ExitAttribution.inferred),
             or_(
-                scoped_exits.c.order_link_id.is_(None),
-                scoped_exits.c.has_local_order.is_(False),
+                and_(
+                    scoped_exits.c.attribution_confidence == ExitAttribution.exact,
+                    scoped_exits.c.attributed_strategy_id.in_(scope_strategy_ids),
+                ),
+                scoped_exits.c.has_scoped_linked_order.is_(True),
             ),
         )
         unattributed_count = (
             select(func.count())
             .select_from(scoped_exits)
-            .where(unlinked_exit)
-            .where(~scoped_exits.c.classification.in_(_LEDGER_ONLY_CLASSIFICATIONS))
+            .where(unmatched_exit)
+            .where(~ledger_only_exit)
+            .where(
+                scoped_exits.c.attribution_confidence.is_distinct_from(ExitAttribution.inferred)
+            )
             .scalar_subquery()
         )
-        inferred_attribution_predicates = [
-            and_(
-                cast(Any, ExchangeExit.exchange_account_id) == scope.exchange_account_id,
-                cast(Any, ExchangeExit.symbol) == to_bybit_raw_symbol(scope.symbol),
-                cast(Any, ExchangeExit.attributed_strategy_id) == scope.strategy_id,
-                cast(Any, ExchangeExit.attribution_confidence) == ExitAttribution.inferred,
-            )
-            for scope in scopes
-        ]
         inferred_attribution_count = (
             select(func.count())
-            .select_from(ExchangeExit)
-            .where(or_(*inferred_attribution_predicates))
+            .select_from(scoped_exits)
+            .where(scoped_exits.c.attribution_confidence == ExitAttribution.inferred)
             .scalar_subquery()
         )
         result = await self.session.execute(select(unattributed_count, inferred_attribution_count))

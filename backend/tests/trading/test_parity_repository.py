@@ -423,6 +423,82 @@ async def test_account_ledger_diagnostics_counts_unattributed_raw_symbol_exit(
 
 
 @pytest.mark.asyncio
+async def test_account_ledger_diagnostics_counts_unmatched_ours_exit_as_unattributed(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    await _exchange_exit(db_session, seed, order_link_id="not-a-uuid-garbage")
+
+    account_diagnostics = await ParityRepository(db_session).load_account_ledger_diagnostics(
+        [seed.scope]
+    )
+    ledger_diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
+        [seed.scope]
+    )
+
+    assert account_diagnostics.unattributed_count == 1
+    assert ledger_diagnostics.ledger_only_count == 0
+
+
+@pytest.mark.asyncio
+async def test_unmatched_scoped_exits_partition_into_ledger_inferred_or_unattributed(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-1",
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.exact,
+    )
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-2",
+        order_link_id="not-a-uuid-garbage",
+    )
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-3",
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+        attribution_confidence=ExitAttribution.inferred,
+    )
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-4",
+        classification=ExitClassification.external_manual,
+    )
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-5",
+        classification=ExitClassification.unknown,
+    )
+
+    account_diagnostics = await ParityRepository(db_session).load_account_ledger_diagnostics(
+        [seed.scope]
+    )
+    ledger_diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
+        [seed.scope]
+    )
+
+    assert ledger_diagnostics.ledger_only_count == 1
+    assert account_diagnostics.inferred_attribution_count == 1
+    assert account_diagnostics.unattributed_count == 3
+    assert (
+        ledger_diagnostics.ledger_only_count
+        + account_diagnostics.inferred_attribution_count
+        + account_diagnostics.unattributed_count
+        == 5
+    )
+
+
+@pytest.mark.asyncio
 async def test_load_parity_inputs_excludes_order_at_session_end_boundary(
     db_session: AsyncSession,
 ) -> None:

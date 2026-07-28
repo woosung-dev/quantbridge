@@ -7,6 +7,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from src.backtest.engine.types import BacktestConfig
+from src.trading.exceptions import LiveSignalSessionNotFound
 from src.trading.models import ExchangeName
 from src.trading.outcome_parity import ParitySummary, summarize_parity
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
@@ -23,10 +24,6 @@ from src.trading.schemas import (
     OutcomeParityResponse,
     OutcomeParityScope,
 )
-
-
-class OutcomeParitySessionNotFound(Exception):
-    """요청 사용자가 읽을 수 없는 라이브 세션이다."""
 
 
 class OutcomeParityService:
@@ -46,7 +43,7 @@ class OutcomeParityService:
         """요청 세션과 동일 전략 축의 누적 parity를 함께 반환한다."""
         session = await self._session_repo.get_by_id(session_id)
         if session is None or session.user_id != user_id:
-            raise OutcomeParitySessionNotFound
+            raise LiveSignalSessionNotFound(session_id)
 
         account = await self._exchange_account_repo.get_by_id(session.exchange_account_id)
         ledger_supported = account is not None and account.exchange == ExchangeName.bybit

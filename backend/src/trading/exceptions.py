@@ -26,6 +26,17 @@ class AccountNotFound(AppException):
         self.account_id = account_id
 
 
+class LiveSignalSessionNotFound(AppException):
+    """Raised when LiveSignalSession lookup fails. session_id is required."""
+
+    status_code = 404
+    code = "live_signal_session_not_found"
+
+    def __init__(self, session_id: UUID) -> None:
+        super().__init__(f"LiveSignalSession not found: {session_id}")
+        self.session_id = session_id
+
+
 class KillSwitchActive(AppException):
     """Kill Switch 이벤트 활성 — 주문 차단."""
 
@@ -293,9 +304,7 @@ class MinNotionalNotMet(AppException):
     code = "min_notional_not_met"
 
     def __init__(self, *, notional: Decimal, min_notional: Decimal) -> None:
-        super().__init__(
-            f"position notional {notional} is below exchange minimum {min_notional}"
-        )
+        super().__init__(f"position notional {notional} is below exchange minimum {min_notional}")
         self.notional = notional
         self.min_notional = min_notional
 

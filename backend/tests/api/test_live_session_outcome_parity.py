@@ -488,7 +488,7 @@ async def test_outcome_parity_hides_other_users_session(
     response = await client.get(f"/api/v1/live-sessions/{other_session.id}/outcome-parity")
 
     assert response.status_code == 404
-    assert response.json() == {"detail": "live session not found"}
+    assert response.json()["detail"]["code"] == "live_signal_session_not_found"
 
 
 @pytest.mark.asyncio
@@ -499,4 +499,4 @@ async def test_outcome_parity_returns_not_found_for_missing_session(
     response = await client.get(f"/api/v1/live-sessions/{uuid4()}/outcome-parity")
 
     assert response.status_code == 404
-    assert response.json() == {"detail": "live session not found"}
+    assert response.json()["detail"]["code"] == "live_signal_session_not_found"

@@ -42,10 +42,7 @@ from src.trading.liquidation_schemas import (
     LiquidationPreviewRequest,
 )
 from src.trading.models import OrderState
-from src.trading.outcome_parity_service import (
-    OutcomeParityService,
-    OutcomeParitySessionNotFound,
-)
+from src.trading.outcome_parity_service import OutcomeParityService
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
@@ -504,10 +501,7 @@ async def get_live_session_outcome_parity(
     service: OutcomeParityService = Depends(get_outcome_parity_service),
 ) -> OutcomeParityResponse:
     """화면 진입 시 한 번 읽는 세션 및 전략 누적 parity 요약이다."""
-    try:
-        return await service.get_parity(current_user.id, session_id)
-    except OutcomeParitySessionNotFound as exc:
-        raise HTTPException(status_code=404, detail="live session not found") from exc
+    return await service.get_parity(current_user.id, session_id)
 
 
 @router.get(
