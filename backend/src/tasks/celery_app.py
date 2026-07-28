@@ -3,18 +3,21 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import logging
 from typing import TYPE_CHECKING
 
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import (
+    beat_init,
     worker_process_init,
     worker_process_shutdown,  # Sprint 18 BL-080 (codex G.0 P1 #4)
     worker_ready,
     worker_shutdown,
 )
 
+from src.common.metrics_multiproc import mark_metrics_process_dead
 from src.core.config import settings
 
 if TYPE_CHECKING:
@@ -238,7 +241,27 @@ def _shutdown_worker_state_on_child_exit(**_kwargs: object) -> None:
 
     from src.tasks._worker_loop import shutdown_worker_loop
 
-    shutdown_worker_loop()
+    try:
+        shutdown_worker_loop()
+    finally:
+        try:
+            mark_metrics_process_dead()
+        except Exception:
+            logger.exception("metrics_process_dead_mark_failed_on_child_exit")
+
+
+def _mark_metrics_process_dead_on_beat_exit() -> None:
+    try:
+        mark_metrics_process_dead()
+    except Exception:
+        logger.exception("metrics_process_dead_mark_failed_on_beat_exit")
+
+
+@beat_init.connect  # type: ignore[untyped-decorator]
+def _register_beat_metrics_cleanup(**_kwargs: object) -> None:
+    # beat_init은 beat에만 오므로 다른 Celery role에 atexit hook을 등록하지 않는다.
+    # SIGKILL은 종료 hook/atexit를 실행하지 않으므로 여기서 정리할 수 없다.
+    atexit.register(_mark_metrics_process_dead_on_beat_exit)
 
 
 @worker_ready.connect  # type: ignore[untyped-decorator]
@@ -319,40 +342,46 @@ def _on_worker_shutdown(sender: object = None, **_kwargs: object) -> None:
        shutdown 진행.
     """
     try:
-        from src.tasks.websocket_task import signal_all_stop_events
-
-        count = signal_all_stop_events()
-        if count > 0:
-            logger.info("ws_streams_signaled_on_shutdown count=%d", count)
-    except Exception:
-        logger.exception("ws_stream_shutdown_signal_failed")
-
-    # codex G.2 P1 #1: running loop 안에서는 cleanup 시도 금지 (race fail).
-    from src.tasks import _worker_loop as worker_loop_mod
-
-    worker_loop = worker_loop_mod._WORKER_LOOP
-    if worker_loop is not None and worker_loop.is_running():
-        logger.info(
-            "worker_shutdown_skipped_loop_cleanup_loop_running "
-            "(stream task in flight; OS reclaim on process exit)"
-        )
-        return
-
-    global _ccxt_provider
-    if _ccxt_provider is not None:
         try:
-            from src.tasks._worker_loop import run_in_worker_loop
+            from src.tasks.websocket_task import signal_all_stop_events
 
-            run_in_worker_loop(_ccxt_provider.close())
+            count = signal_all_stop_events()
+            if count > 0:
+                logger.info("ws_streams_signaled_on_shutdown count=%d", count)
         except Exception:
-            logger.exception("ccxt_close_failed_on_shutdown")
-        finally:
-            _ccxt_provider = None
+            logger.exception("ws_stream_shutdown_signal_failed")
 
-    # solo pool / master 모두 idempotent.
-    try:
-        from src.tasks._worker_loop import shutdown_worker_loop
+        # codex G.2 P1 #1: running loop 안에서는 cleanup 시도 금지 (race fail).
+        from src.tasks import _worker_loop as worker_loop_mod
 
-        shutdown_worker_loop()
-    except Exception:
-        logger.exception("shutdown_worker_loop_failed_on_master")
+        worker_loop = worker_loop_mod._WORKER_LOOP
+        if worker_loop is not None and worker_loop.is_running():
+            logger.info(
+                "worker_shutdown_skipped_loop_cleanup_loop_running "
+                "(stream task in flight; OS reclaim on process exit)"
+            )
+            return
+
+        global _ccxt_provider
+        if _ccxt_provider is not None:
+            try:
+                from src.tasks._worker_loop import run_in_worker_loop
+
+                run_in_worker_loop(_ccxt_provider.close())
+            except Exception:
+                logger.exception("ccxt_close_failed_on_shutdown")
+            finally:
+                _ccxt_provider = None
+
+        # solo pool / master 모두 idempotent.
+        try:
+            from src.tasks._worker_loop import shutdown_worker_loop
+
+            shutdown_worker_loop()
+        except Exception:
+            logger.exception("shutdown_worker_loop_failed_on_master")
+    finally:
+        try:
+            mark_metrics_process_dead()
+        except Exception:
+            logger.exception("metrics_process_dead_mark_failed_on_master_exit")

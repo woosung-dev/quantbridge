@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.common.metrics import qb_active_orders, qb_order_rejected_total
+from src.common.metrics_multiproc import record_metric_safely
 from src.core.config import settings
 from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.exceptions import (
@@ -158,9 +159,7 @@ class OrderService:
         # (get_order_service / live_signal) 에서 강제. 둘 다 없으면 검증 불가 →
         # data-layer 강제는 Phase C(TI-5) 후속.
         if self._sessions_port is not None and self._exchange_service is not None:
-            owner_account = await self._exchange_service._repo.get_by_id(
-                req.exchange_account_id
-            )
+            owner_account = await self._exchange_service._repo.get_by_id(req.exchange_account_id)
             strategy_owner = await self._sessions_port.get_owner(req.strategy_id)
             if (
                 owner_account is None
@@ -198,7 +197,9 @@ class OrderService:
             # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
             # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
             if req.leverage is not None and req.leverage > settings.bybit_futures_max_leverage:
-                qb_order_rejected_total.labels(exchange=_metric_exchange, reason="leverage_cap").inc()
+                qb_order_rejected_total.labels(
+                    exchange=_metric_exchange, reason="leverage_cap"
+                ).inc()
                 raise LeverageCapExceeded(
                     requested=req.leverage,
                     cap=settings.bybit_futures_max_leverage,
@@ -428,7 +429,7 @@ class OrderService:
 
         # Sprint 9 Phase D: 신규 pending 주문 생성 → active_orders gauge inc.
         # 터미널 전이 (filled/rejected/canceled) 시 tasks/trading.py 가 dec.
-        qb_active_orders.inc()
+        record_metric_safely(qb_active_orders.inc)
 
         await self._dispatcher.dispatch_order_execution(created_order_id)
         fetched = await self._repo.get_by_id(created_order_id)

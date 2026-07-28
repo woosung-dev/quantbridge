@@ -16,9 +16,11 @@
 .PHONY: help dev up down logs be fe \
         dev-isolated up-isolated up-isolated-build up-isolated-watch down-isolated logs-isolated be-isolated fe-isolated \
         migrate migrate-isolated wait-db-isolated seed \
-        test be-test fe-test fe-e2e fe-e2e-authed lint typecheck
+        test be-test fe-test fe-e2e fe-e2e-authed lint typecheck metrics-prepare metrics-wipe
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
+METRICS_COMPOSE_FILES :=
+METRICS_WRITER_SERVICES := backend-worker backend-ws-stream backend-optimizer-heavy backend-beat
 
 # 격리 모드 DB URL (host 5433 / container 내부 5432) — be-isolated / migrate-isolated 공통.
 # .env.local 변형 없이 inline override 패턴 (process env > pydantic-settings dotenv 우선순위).
@@ -54,6 +56,26 @@ help:
 	@echo "    make lint           # ruff + eslint"
 	@echo "    make typecheck      # mypy + tsc"
 
+# Prometheus mmap 파일은 모든 writer가 멈춘 콜드 스타트에서만 제거한다.
+# 부분 재기동 타깃에는 metrics-wipe를 절대 붙이지 않는다.
+metrics-prepare:
+	mkdir -p backend/.metrics
+	chmod 0777 backend/.metrics
+
+# ★실패가 아니라 건너뛴다 — `up*` 은 이미 떠 있는 스택을 재조정할 때도 쓰는 멱등 커맨드다.
+# wipe 는 전제조건이 아니라 위생 단계이므로, 살아 있는 writer 가 있으면 조용히가 아니라
+# 시끄럽게 알리고 넘어간다(지우면 그 writer 가 고아 inode 에 쓰게 되어 지표가 무음 손실된다).
+metrics-wipe: metrics-prepare
+	@writers="$$(docker compose $(METRICS_COMPOSE_FILES) ps -q $(METRICS_WRITER_SERVICES))"; status=$$?; \
+	if [ $$status -ne 0 ]; then \
+		echo "metrics-wipe: SKIPPED — compose ps failed; preserving metric files (fail-closed)"; \
+	elif [ -n "$$writers" ]; then \
+		echo "metrics-wipe: SKIPPED — metric writers running"; \
+	else \
+		find backend/.metrics -maxdepth 1 -type f -name '*.db' -delete; \
+		echo "metrics-wipe: WIPED — no metric writers running"; \
+	fi
+
 # === 기본 모드 (3000 / 8000 / 5432 / 6379) ===
 
 # `dev` — up + be + fe 동시. trap 으로 Ctrl+C 시 양쪽 자식 프로세스 종료.
@@ -67,7 +89,7 @@ dev: up
 	  $(MAKE) -s fe & \
 	  wait
 
-up:
+up: metrics-wipe
 	docker compose up -d
 
 down:
@@ -76,8 +98,11 @@ down:
 logs:
 	docker compose logs -f
 
-be:
-	cd backend && uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+be: metrics-prepare
+	cd backend && \
+	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/backend/.metrics \
+	  QB_METRICS_ROLE=api \
+	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
 fe:
 	cd frontend && pnpm dev
@@ -95,12 +120,14 @@ dev-isolated: up-isolated migrate-isolated
 	  $(MAKE) -s fe-isolated & \
 	  wait
 
-up-isolated:
+up-isolated: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
+up-isolated: metrics-wipe
 	docker compose $(ISOLATED_COMPOSE) up -d
 
 # Sprint 23 BL-101 — 코드 변경 후 image 재빌드 + 부팅. daily flow 영향 0.
 # 기본 up-isolated 는 빠른 부팅 유지 (image cache 사용).
-up-isolated-build:
+up-isolated-build: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
+up-isolated-build: metrics-wipe
 	docker compose $(ISOLATED_COMPOSE) up -d --build
 
 # Sprint 38 BL-181 — 격리 모드 + worker auto-rebuild on src 변경.
@@ -108,7 +135,7 @@ up-isolated-build:
 # `./backend/src` bind-mount + watchfiles wrapper 적용 (isolated.yml override).
 # host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
 # 패키지 변경은 image rebuild 의무 (ADR docs/reference/infra/2026-05-06-bl-181-*).
-up-isolated-watch:
+up-isolated-watch: metrics-prepare
 	docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
 
 down-isolated:
@@ -165,7 +192,7 @@ seed:
 ifndef QB_MIGRATE_DONE
 be-isolated: migrate-isolated
 endif
-be-isolated:
+be-isolated: metrics-prepare
 	cd backend && \
 	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
 	  REDIS_URL=redis://localhost:6380/0 \
@@ -174,6 +201,8 @@ be-isolated:
 	  REDIS_LOCK_URL=redis://localhost:6380/3 \
 	  FRONTEND_URL=http://localhost:3100 \
 	  WAITLIST_INVITE_BASE_URL=http://localhost:3100/invite \
+	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/backend/.metrics \
+	  QB_METRICS_ROLE=api \
 	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8100
 
 fe-isolated:

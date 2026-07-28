@@ -62,7 +62,7 @@ RUN chmod +x /app/docker-entrypoint.sh
 # 포인트의 내용·소유권을 복사한다. 이 디렉토리가 이미지에 없으면 볼륨이 root 소유로
 # 초기화되어 appuser beat 가 /data/celerybeat-schedule 쓰기 실패 (Sprint 4→tier-c 만성
 # 재발). 기존 root-소유 볼륨은 1회 재생성 필요.
-RUN mkdir -p /data && chown appuser:appuser /data
+RUN mkdir -p /data /metrics && chown appuser:appuser /data /metrics
 
 USER appuser
 

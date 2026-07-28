@@ -73,6 +73,7 @@ esac
 
 case "$ROLE" in
     api)
+        # 컨테이너 API는 worker와 같은 metrics volume을 mount하고 두 multiprocess env를 주입해야 worker 지표를 수집한다.
         run_alembic_with_lock
         echo "[entrypoint] starting uvicorn on port=${PORT:-8080}"
         exec uv run uvicorn src.main:app --host 0.0.0.0 --port "${PORT:-8080}"

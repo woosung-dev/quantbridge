@@ -22,10 +22,10 @@
 - qb_partial_fill_total              (Counter, labels: source)          ← Sprint 48 Pass 2
 
 원칙:
-- registry 는 기본 `REGISTRY` (single-process). Sprint 10+ 에서 multi-process 고려.
+- `PROMETHEUS_MULTIPROC_DIR` 설정 시 shared multiprocess registry, 미설정 시 기본 `REGISTRY`.
 - label cardinality 낮게 유지 — exchange 는 enum 2~4개, reason/trigger_type 도 enum.
 - 민감 정보 label 금지 (user_id, strategy_id, api_key, account_id).
-- prometheus_client 는 fork-safe 하므로 Celery worker 가 동일 counter/gauge 참조 가능.
+- Celery worker 값은 process별 mmap 파일에 기록하고 API가 `MultiProcessCollector`로 수집.
 
 `ccxt_timer` context manager 는 Bybit/OKX provider 에서 CCXT 호출을 감싸는 데 사용.
 """
@@ -37,6 +37,10 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from prometheus_client import Counter, Gauge, Histogram
+
+from src.common.metrics_multiproc import configure_multiprocess
+
+configure_multiprocess()
 
 # 1. Backtest 실행 시간 (queued → terminal state)
 qb_backtest_duration_seconds = Histogram(
@@ -71,6 +75,17 @@ qb_ccxt_request_duration_seconds = Histogram(
 qb_active_orders = Gauge(
     "qb_active_orders",
     "Current pending + submitted order count (eventually consistent)",
+    multiprocess_mode="sum",
+)
+
+qb_metrics_render_fallback_total = Counter(
+    "qb_metrics_render_fallback_total",
+    "Metrics renders that fell back to the single-process registry",
+)
+
+qb_metrics_mutation_failed_total = Counter(
+    "qb_metrics_mutation_failed_total",
+    "Metric mutations that failed without affecting business operations",
 )
 
 # 6. Rate limit throttled (Sprint 10 Phase B)
@@ -189,6 +204,7 @@ qb_redlock_acquire_total = Counter(
 qb_redis_lock_pool_healthy = Gauge(
     "qb_redis_lock_pool_healthy",
     "1 if startup PING+SET+GET+DEL succeeded, 0 otherwise",
+    multiprocess_mode="mostrecent",
 )
 
 # --- Sprint 12 Phase C: Bybit Private WebSocket ---
@@ -203,6 +219,7 @@ qb_ws_orphan_event_total = Counter(
 qb_ws_orphan_buffer_size = Gauge(
     "qb_ws_orphan_buffer_size",
     "Current size of WS orphan buffer (capped at 1000)",
+    multiprocess_mode="livesum",
 )
 
 # 12. reconnect 직후 reconciliation 에서 exchange 에 없는 local active order.
@@ -244,6 +261,7 @@ qb_ws_subscribe_rejected_total = Counter(
 qb_pending_alerts = Gauge(
     "qb_pending_alerts",
     "In-flight fire-and-forget alert tasks (kill switch / scan watchdog 등)",
+    multiprocess_mode="livesum",
 )
 
 # 17. (Sprint 26) Live Signal Auto-Trading — eval/dispatch task observability.
@@ -383,6 +401,7 @@ qb_live_signal_eval_duration_seconds = Histogram(
 qb_live_signal_outbox_pending_gauge = Gauge(
     "qb_live_signal_outbox_pending_gauge",
     "Live signal outbox events with status=pending (snapshot at last eval cycle)",
+    multiprocess_mode="mostrecent",
 )
 # BL-362 — live 경로 coverage↔interpreter 발산(silent swallow) fail-closed 집계.
 # 발산 감지 시 세션 자동 비활성화 + 본 metric inc + critical alert. 0 초과 = 즉시 운영 page.
