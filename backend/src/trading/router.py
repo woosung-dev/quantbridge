@@ -472,10 +472,15 @@ async def create_live_session(
 
 @router.get("/live-sessions", response_model=LiveSessionListResponse)
 async def list_live_sessions(
+    include_inactive: bool = False,
     current_user: CurrentUser = Depends(get_current_user),
     service: LiveSignalSessionService = Depends(get_live_signal_session_service),
 ) -> LiveSessionListResponse:
-    sessions = await service.list_active(current_user.id)
+    sessions = (
+        await service.list_active_with_recent_inactive(current_user.id)
+        if include_inactive
+        else await service.list_active(current_user.id)
+    )
     items = [LiveSessionResponse.model_validate(s) for s in sessions]
     return LiveSessionListResponse(items=items, total=len(items))
 

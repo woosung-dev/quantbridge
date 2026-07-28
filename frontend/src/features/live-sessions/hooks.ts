@@ -6,7 +6,7 @@
 //  - H-1: useEffect dep array primitive only (`[data?.id, data?.is_active]`)
 //  - H-2: queryFn = module-level factory 호출식 (`makeXxxFetcher(...)`),
 //         queryKey factory userId 첫 인자.
-// 폴링: state 는 active 시 5s / idle 시 30s, list 는 30s.
+// 폴링: state와 events는 active 시에만, list는 30s.
 
 import {
   useQueries,
@@ -50,10 +50,6 @@ import { LIVE_SESSION_LIST_REFETCH_MS, computeLiveSessionStateRefetchInterval } 
 const listRefetchInterval = makeRefetchInterval<{
   items: LiveSession[];
   total: number;
-}>(() => LIVE_SESSION_LIST_REFETCH_MS);
-
-const eventsRefetchInterval = makeRefetchInterval<{
-  items: LiveSignalEvent[];
 }>(() => LIVE_SESSION_LIST_REFETCH_MS);
 
 const positionsRefetchInterval = makeRefetchInterval<LiveSessionPositions>(
@@ -137,7 +133,7 @@ function summarizeLocalOpenTrades(
 }
 
 /**
- * 세션 state 폴링 간격 — active 여부에 따라 5s/30s, error 시 중단.
+ * 세션 state 폴링 간격. 활성 세션만 5s, 종료 세션과 error 상태는 중단.
  * useLiveSessionState(단건)와 useLiveSessionsAggregate(팬아웃) 공용.
  * (기존 aggregate 는 상수 interval 을 그대로 넘겨 error 가드가 빠져 있었다 — LESSON-004 위반 수정.)
  */
@@ -147,12 +143,18 @@ export function liveStateRefetchInterval(
   return makeRefetchInterval(() => computeLiveSessionStateRefetchInterval(isActive));
 }
 
+export function liveSessionEventsRefetchInterval(
+  isActive: boolean,
+): RefetchIntervalFn<{ items: LiveSignalEvent[] }> {
+  return makeRefetchInterval(() => (isActive ? LIVE_SESSION_LIST_REFETCH_MS : false));
+}
+
 // ── queryFn factories (module-level — H-2 우회 패턴) ────────────────────
 
-function makeListFetcher(getToken: TokenGetter) {
+function makeListFetcher(includeInactive: boolean, getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
-    return listLiveSessions(token);
+    return listLiveSessions(token, includeInactive);
   };
 }
 
@@ -279,11 +281,15 @@ function isDivergentWithoutExchangePosition(diff: LiveSessionPositions["diff"]):
 
 // ── Hooks ──────────────────────────────────────────────────────────────
 
-export function useLiveSessions(): UseQueryResult<{ items: LiveSession[]; total: number }, Error> {
+export function useLiveSessions(
+  includeInactive = false,
+): UseQueryResult<{ items: LiveSession[]; total: number }, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
-    queryKey: liveSessionKeys.list(uid),
-    queryFn: makeListFetcher(getToken),
+    queryKey: includeInactive
+      ? liveSessionKeys.listWithInactive(uid)
+      : liveSessionKeys.list(uid),
+    queryFn: makeListFetcher(includeInactive, getToken),
     refetchInterval: listRefetchInterval,
   });
 }
@@ -429,13 +435,14 @@ export function useLiveSessionsAggregate(sessions: readonly LiveSession[]): Live
 
 export function useLiveSessionEvents(
   sessionId: string | null,
+  isActive: boolean,
 ): UseQueryResult<{ items: LiveSignalEvent[] }, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: liveSessionKeys.events(uid, sessionId ?? ""),
     queryFn: makeEventsFetcher(sessionId ?? "", getToken),
     enabled: Boolean(sessionId),
-    refetchInterval: eventsRefetchInterval,
+    refetchInterval: liveSessionEventsRefetchInterval(isActive),
   });
 }
 

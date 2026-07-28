@@ -32,7 +32,7 @@ type Props = {
 };
 
 export function LiveSessionList({ onSelect, selectedId }: Props) {
-  const { data, isLoading, error } = useLiveSessions();
+  const { data, isLoading, error } = useLiveSessions(true);
   const deactivate = useDeactivateLiveSession();
   const [confirmId, setConfirmId] = useState<string | null>(null);
 
@@ -61,17 +61,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
 
   const items = data?.items ?? [];
   const active = items.filter((s) => s.is_active);
-
-  if (active.length === 0) {
-    return (
-      <LiveSessionStateView
-        icon={Plus}
-        title="활성 세션이 없습니다."
-        description="위 폼으로 새 세션을 시작하세요."
-        testId="live-session-empty"
-      />
-    );
-  }
+  const inactive = items.filter((s) => !s.is_active);
 
   const handleStop = async () => {
     if (!confirmId) return;
@@ -89,38 +79,83 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
 
   return (
     <>
-      <ul className="space-y-2" data-testid="live-session-list">
-        {active.map((s) => (
-          <li
-            key={s.id}
-            className={`flex flex-col gap-1 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between ${
-              selectedId === s.id ? "border-primary" : ""
-            }`}
-            data-testid={`live-session-${s.id}`}
-          >
-            <button
-              type="button"
-              onClick={() => onSelect?.(s)}
-              className="text-left"
+      {active.length === 0 ? (
+        <LiveSessionStateView
+          icon={Plus}
+          title="활성 세션이 없습니다."
+          description="위 폼으로 새 세션을 시작하세요."
+          testId="live-session-empty"
+        />
+      ) : (
+        <ul className="space-y-2" data-testid="live-session-list">
+          {active.map((s) => (
+            <li
+              key={s.id}
+              className={`flex flex-col gap-1 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between ${
+                selectedId === s.id ? "border-primary" : ""
+              }`}
+              data-testid={`live-session-${s.id}`}
             >
-              <span className="block font-medium">{s.symbol}</span>
-              <p className="text-xs text-muted-foreground">
-                {s.interval} · 생성 {formatDateTime(s.created_at)}
-              </p>
-              <SessionPnlBadge sessionId={s.id} isActive={s.is_active} />
-            </button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setConfirmId(s.id)}
-              disabled={deactivate.isPending}
-              data-testid={`live-session-stop-${s.id}`}
-            >
-              Stop
-            </Button>
-          </li>
-        ))}
-      </ul>
+              <button
+                type="button"
+                onClick={() => onSelect?.(s)}
+                className="text-left"
+              >
+                <span className="block font-medium">{s.symbol}</span>
+                <p className="text-xs text-muted-foreground">
+                  {s.interval} · 생성 {formatDateTime(s.created_at)}
+                </p>
+                <SessionPnlBadge sessionId={s.id} isActive={s.is_active} />
+              </button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setConfirmId(s.id)}
+                disabled={deactivate.isPending}
+                data-testid={`live-session-stop-${s.id}`}
+              >
+                Stop
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <section className="mt-4 border-t pt-4" data-testid="recent-inactive-live-sessions">
+        <h4 className="text-sm font-medium">최근 종료된 세션</h4>
+        <p className="mt-1 text-xs text-muted-foreground">
+          종료된 세션을 선택하면 실행 이력과 성과 대조를 확인할 수 있습니다.
+        </p>
+        {inactive.length === 0 ? (
+          <p className="mt-3 text-sm text-muted-foreground" data-testid="recent-inactive-empty">
+            최근 종료된 세션이 없습니다.
+          </p>
+        ) : (
+          <ul className="mt-3 space-y-2" data-testid="recent-inactive-list">
+            {inactive.map((s) => (
+              <li
+                key={s.id}
+                className={`flex flex-col gap-1 rounded-md border border-dashed bg-muted/40 p-3 ${
+                  selectedId === s.id ? "border-primary" : ""
+                }`}
+                data-testid={`inactive-live-session-${s.id}`}
+              >
+                <button type="button" onClick={() => onSelect?.(s)} className="text-left">
+                  <span className="flex flex-wrap items-center gap-2 font-medium">
+                    {s.symbol}
+                    <span className="rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      종료된 세션
+                    </span>
+                  </span>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {s.interval} · 종료 {formatDateTime(s.deactivated_at)}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <Dialog
         open={confirmId !== null}
@@ -155,7 +190,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
 }
 
 // 세션별 실현손익 배지 — useLiveSessionState 재사용(queryKey 공유 → 추가 네트워크 0).
-// 리스트는 is_active 세션만 표시하므로 항상 enabled. LESSON-004: primitive dep 전달.
+// 활성 세션 행에서만 쓰므로 항상 enabled. LESSON-004: primitive dep 전달.
 function SessionPnlBadge({
   sessionId,
   isActive,

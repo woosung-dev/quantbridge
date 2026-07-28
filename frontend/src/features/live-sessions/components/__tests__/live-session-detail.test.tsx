@@ -169,6 +169,12 @@ const STATE_WITH_EQUITY: LiveSignalState = {
   equity_curve: [{ timestamp_ms: Date.parse("2026-05-01T12:01:00Z"), cumulative_pnl: "12.34" }],
 };
 
+const INACTIVE_SESSION: LiveSession = {
+  ...SESSION,
+  is_active: false,
+  deactivated_at: "2026-05-01T12:02:00Z",
+};
+
 // --- helpers -------------------------------------------------------------
 
 function renderWith(ui: React.ReactElement) {
@@ -235,6 +241,17 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
 
     expect(createChartMock).toHaveBeenCalledTimes(2);
     expect(chartInstances).toHaveLength(2);
+  });
+
+  it("종료 세션도 데이터를 렌더하고 종료 상태를 표시한다", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: EVENTS });
+
+    renderWith(<LiveSessionDetail session={INACTIVE_SESSION} />);
+
+    expect(await screen.findByText("+12.34")).toBeInTheDocument();
+    expect(screen.getByTestId("live-session-ended-badge")).toHaveTextContent("종료된 세션");
+    expect(eventsMock).toHaveBeenCalledWith(INACTIVE_SESSION.id, "test-token");
   });
 
   it("ErrorBoundary 미발동 — render 가 throw 하지 않음 (BL-157 regression 방어)", async () => {

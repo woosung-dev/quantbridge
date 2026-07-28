@@ -56,7 +56,10 @@ export function LiveSessionDetail({ session }: Props) {
     session.id,
     session.is_active,
   );
-  const { data: events, isLoading: eventsLoading } = useLiveSessionEvents(session.id);
+  const { data: events, isLoading: eventsLoading } = useLiveSessionEvents(
+    session.id,
+    session.is_active,
+  );
 
   const entrySkipCounts = new Map<string, number>();
   const entrySkips = state?.last_strategy_state_report?.last_bar_entry_skips;
@@ -131,7 +134,17 @@ export function LiveSessionDetail({ session }: Props) {
   return (
     <div className="space-y-4" data-testid={`live-session-detail-${session.id}`}>
       <div className="rounded-md border p-4">
-        <h3 className="font-medium">{session.symbol}</h3>
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="font-medium">{session.symbol}</h3>
+          {!session.is_active ? (
+            <span
+              className="rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+              data-testid="live-session-ended-badge"
+            >
+              종료된 세션
+            </span>
+          ) : null}
+        </div>
         <p className="text-muted-foreground text-xs">
           {session.interval} · 마지막 평가 {formatDateTime(session.last_evaluated_bar_time)}
         </p>

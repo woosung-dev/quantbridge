@@ -23,6 +23,8 @@ _INTERVAL_SECONDS_CASE = (
     "END"
 )
 
+_RECENT_INACTIVE_LIST_LIMIT = 20
+
 
 class LiveSignalSessionRepository:
     """Sprint 26 — Pine signal evaluate session CRUD + race-safe bar claim.
@@ -63,6 +65,23 @@ class LiveSignalSessionRepository:
             .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
             .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712  # type: ignore[arg-type]
             .order_by(LiveSignalSession.created_at.desc())  # type: ignore[attr-defined]
+        )
+        return result.scalars().all()
+
+    async def list_recent_inactive_by_user(
+        self, user_id: UUID, *, limit: int = _RECENT_INACTIVE_LIST_LIMIT
+    ) -> Sequence[LiveSignalSession]:
+        """사용자의 최근 종료 세션을 화면용으로 제한해 조회한다."""
+        if limit <= 0:
+            return []
+
+        # 세션은 계속 누적되므로, 회고 화면 목록은 최근 20건을 넘기지 않는다.
+        result = await self.session.execute(
+            select(LiveSignalSession)
+            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == False)  # type: ignore[arg-type]  # noqa: E712
+            .order_by(LiveSignalSession.deactivated_at.desc().nullslast())  # type: ignore[union-attr]
+            .limit(min(limit, _RECENT_INACTIVE_LIST_LIMIT))
         )
         return result.scalars().all()
 
@@ -162,9 +181,7 @@ class LiveSignalSessionRepository:
         rows = result.mappings().all()
         return [LiveSignalSession(**dict(row)) for row in rows]
 
-    async def try_claim_bar(
-        self, session_id: UUID, bar_time: datetime, claim_token: UUID
-    ) -> bool:
+    async def try_claim_bar(self, session_id: UUID, bar_time: datetime, claim_token: UUID) -> bool:
         """codex G.0 P2 #3 — winner-only bar claim.
 
         UPDATE WHERE id=session_id AND is_active=true AND

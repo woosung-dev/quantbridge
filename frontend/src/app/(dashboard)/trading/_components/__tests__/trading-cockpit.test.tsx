@@ -14,14 +14,27 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@/features/live-sessions", () => ({
   LiveSessionDetail: () => <div data-testid="mock-detail" />,
   LiveSessionForm: () => null,
-  LiveSessionList: ({ onSelect }: { onSelect?: (session: { id: string }) => void }) => (
-    <button
-      type="button"
-      data-testid="mock-live-session-select"
-      onClick={() => onSelect?.({ id: "session-1" })}
-    >
-      세션 선택
-    </button>
+  LiveSessionList: ({
+    onSelect,
+  }: {
+    onSelect?: (session: { id: string; is_active?: boolean }) => void;
+  }) => (
+    <>
+      <button
+        type="button"
+        data-testid="mock-live-session-select"
+        onClick={() => onSelect?.({ id: "session-1", is_active: true })}
+      >
+        세션 선택
+      </button>
+      <button
+        type="button"
+        data-testid="mock-inactive-live-session-select"
+        onClick={() => onSelect?.({ id: "inactive-session", is_active: false })}
+      >
+        종료 세션 선택
+      </button>
+    </>
   ),
   LiveSessionTable: () => null,
   useLiveSessions: () => useLiveSessionsMock(),
@@ -143,6 +156,15 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
     render(<TradingCockpit />);
 
     fireEvent.click(screen.getByTestId("mock-live-session-select"));
+
+    expect(screen.getByTestId("mock-detail")).toBeInTheDocument();
+    expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
+  });
+
+  it("최근 종료 세션을 선택해도 같은 상세 패널을 보여준다", () => {
+    render(<TradingCockpit />);
+
+    fireEvent.click(screen.getByTestId("mock-inactive-live-session-select"));
 
     expect(screen.getByTestId("mock-detail")).toBeInTheDocument();
     expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();

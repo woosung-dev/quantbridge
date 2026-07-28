@@ -74,6 +74,7 @@ export function TradingCockpit() {
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedInactiveSession, setSelectedInactiveSession] = useState<LiveSession | null>(null);
 
   // H-1 준수 — RQ data 객체를 dep 로 직접 쓰지 않고 .items/array 참조를 memoize.
   const sessionItems = useMemo<readonly LiveSession[]>(
@@ -81,8 +82,10 @@ export function TradingCockpit() {
     [sessionsQ.data?.items],
   );
   const selected = useMemo(
-    () => sessionItems.find((session) => session.id === selectedId) ?? null,
-    [sessionItems, selectedId],
+    () =>
+      sessionItems.find((session) => session.id === selectedId) ??
+      (selectedInactiveSession?.id === selectedId ? selectedInactiveSession : null),
+    [sessionItems, selectedId, selectedInactiveSession],
   );
   const accountItems = useMemo<readonly ExchangeAccount[]>(
     () => accountsQ.data ?? [],
@@ -98,6 +101,10 @@ export function TradingCockpit() {
   );
 
   const activeSessions = useMemo(() => sessionItems.filter((s) => s.is_active), [sessionItems]);
+  const handleSessionSelect = (session: LiveSession) => {
+    setSelectedId(session.id);
+    setSelectedInactiveSession(session.is_active === false ? session : null);
+  };
   const demoSessionIds = useMemo(() => {
     const demoAccountIds = new Set(
       accountItems.filter((account) => account.mode === "demo").map((account) => account.id),
@@ -407,7 +414,10 @@ export function TradingCockpit() {
                 strategies={formStrategies}
                 exchangeAccounts={formAccounts}
                 activeSessionsCount={activeSessions.length}
-                onSuccess={(session) => setSelectedId(session.id)}
+                onSuccess={(session) => {
+                  setSelectedId(session.id);
+                  setSelectedInactiveSession(null);
+                }}
               />
             </div>
             <div className="card card-pad">
@@ -417,7 +427,7 @@ export function TradingCockpit() {
                 중단하면 이 목록에서 사라집니다.
               </p>
               <LiveSessionList
-                onSelect={(session) => setSelectedId(session.id)}
+                onSelect={handleSessionSelect}
                 selectedId={selectedId}
               />
             </div>
