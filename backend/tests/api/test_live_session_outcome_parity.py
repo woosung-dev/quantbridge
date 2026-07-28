@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
@@ -228,12 +229,12 @@ async def test_response_has_three_blocks_and_required_fields(
 
 
 @pytest.mark.asyncio
-async def test_native_bracket_exit_is_deduplicated_in_ledger_only_bucket_and_lowers_coverage(
+async def test_native_bracket_split_exit_is_summed_in_ledger_only_bucket_and_lowers_coverage(
     client: AsyncClient,
     db_session: AsyncSession,
     mock_clerk_auth,
 ) -> None:
-    """로컬 reduce-only 주문 없는 거래소 TP는 원장 전용으로만 보인다."""
+    """로컬 reduce-only 주문 없는 거래소 TP 분할 행은 주문 단위로 합산한다."""
     session = await _seed_parity_data(db_session, mock_clerk_auth)
     exchange_created_at = _BASE + timedelta(minutes=3)
     db_session.add_all(
@@ -244,9 +245,10 @@ async def test_native_bracket_exit_is_deduplicated_in_ledger_only_bucket_and_low
                 row_hash="native-bracket-tp-primary",
                 symbol="BTCUSDT",
                 side="Sell",
-                closed_pnl=Decimal("3.25"),
+                closed_pnl=Decimal("-1.0"),
                 exchange_created_at=exchange_created_at,
                 classification=ExitClassification.bracket_tp,
+                attributed_strategy_id=session.strategy_id,
                 attribution_confidence=ExitAttribution.exact,
                 raw={"source": "native-bracket-tp"},
             ),
@@ -256,9 +258,10 @@ async def test_native_bracket_exit_is_deduplicated_in_ledger_only_bucket_and_low
                 row_hash="native-bracket-tp-mirror",
                 symbol="BTCUSDT",
                 side="Sell",
-                closed_pnl=Decimal("3.25"),
+                closed_pnl=Decimal("-2.0"),
                 exchange_created_at=exchange_created_at,
                 classification=ExitClassification.bracket_tp,
+                attributed_strategy_id=session.strategy_id,
                 attribution_confidence=ExitAttribution.exact,
                 raw={"source": "native-bracket-tp-mirror"},
             ),
@@ -272,9 +275,65 @@ async def test_native_bracket_exit_is_deduplicated_in_ledger_only_bucket_and_low
     body = response.json()
     session_scope = body["session"]
     assert session_scope["ledger_only_count"] == 1
-    assert Decimal(session_scope["ledger_only_net"]) == Decimal("3.25")
+    assert Decimal(session_scope["ledger_only_net"]) == Decimal("-3.0")
     assert Decimal(session_scope["match_coverage_pct"]) < Decimal("50")
     assert body["unattributed_count"] == 0
+
+
+@pytest.mark.asyncio
+async def test_ledger_only_is_scoped_per_session_and_strategy_union(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    mock_clerk_auth,
+) -> None:
+    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    previous_session = (
+        await db_session.execute(
+            select(LiveSignalSession)
+            .where(LiveSignalSession.strategy_id == session.strategy_id)
+            .where(LiveSignalSession.id != session.id)
+        )
+    ).scalar_one()
+    db_session.add_all(
+        [
+            ExchangeExit(
+                exchange_account_id=session.exchange_account_id,
+                exchange_order_id="previous-native-bracket",
+                row_hash="previous-native-bracket-row",
+                symbol="BTCUSDT",
+                side="Sell",
+                closed_pnl=Decimal("-1"),
+                exchange_created_at=previous_session.created_at + timedelta(minutes=30),
+                classification=ExitClassification.bracket_tp,
+                attributed_strategy_id=session.strategy_id,
+                attribution_confidence=ExitAttribution.none,
+                raw={"source": "previous-native-bracket"},
+            ),
+            ExchangeExit(
+                exchange_account_id=session.exchange_account_id,
+                exchange_order_id="current-native-bracket",
+                row_hash="current-native-bracket-row",
+                symbol="BTCUSDT",
+                side="Sell",
+                closed_pnl=Decimal("-2"),
+                exchange_created_at=_BASE + timedelta(minutes=3),
+                classification=ExitClassification.bracket_tp,
+                attributed_strategy_id=session.strategy_id,
+                attribution_confidence=ExitAttribution.none,
+                raw={"source": "current-native-bracket"},
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["session"]["ledger_only_count"] == 1
+    assert Decimal(body["session"]["ledger_only_net"]) == Decimal("-2")
+    assert body["strategy"]["ledger_only_count"] == 2
+    assert Decimal(body["strategy"]["ledger_only_net"]) == Decimal("-3")
 
 
 @pytest.mark.asyncio

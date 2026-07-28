@@ -161,9 +161,13 @@ async def _exchange_exit(
     *,
     matched_order_id: UUID | None = None,
     order_link_id: str | None = None,
+    attributed_strategy_id: UUID | None = None,
     account: ExchangeAccount | None = None,
     symbol: str = _BTC_RAW,
     side: str = "Sell",
+    exchange_order_id: str | None = None,
+    closed_pnl: str = "-1",
+    exchange_created_at: datetime = _BASE,
     closed_size: str | None = "1",
     avg_entry_price: str | None = "100",
     avg_exit_price: str | None = "110",
@@ -171,18 +175,19 @@ async def _exchange_exit(
 ) -> ExchangeExit:
     exchange_exit = ExchangeExit(
         exchange_account_id=(account or seed.account).id,
-        exchange_order_id=f"exit-{uuid4().hex}",
+        exchange_order_id=exchange_order_id or f"exit-{uuid4().hex}",
         row_hash=uuid4().hex,
         symbol=symbol,
         side=side,
-        closed_pnl=Decimal("-1"),
+        closed_pnl=Decimal(closed_pnl),
         closed_size=Decimal(closed_size) if closed_size is not None else None,
         avg_entry_price=Decimal(avg_entry_price) if avg_entry_price is not None else None,
         avg_exit_price=Decimal(avg_exit_price) if avg_exit_price is not None else None,
-        exchange_created_at=_BASE,
+        exchange_created_at=exchange_created_at,
         classification=classification,
         order_link_id=order_link_id,
         matched_order_id=matched_order_id,
+        attributed_strategy_id=attributed_strategy_id,
         attribution_confidence=ExitAttribution.none,
         raw={"source": "parity-repository-test"},
     )
@@ -413,7 +418,6 @@ async def test_account_ledger_diagnostics_counts_unattributed_raw_symbol_exit(
     diagnostics = await ParityRepository(db_session).load_account_ledger_diagnostics([seed.scope])
 
     assert diagnostics.unattributed_count == 1
-    assert diagnostics.ledger_only_count == 0
 
 
 @pytest.mark.asyncio
@@ -500,12 +504,15 @@ async def test_account_ledger_diagnostics_places_unmatched_bracket_exit_in_ledge
         db_session,
         seed,
         classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
     )
 
     observations, buckets = await ParityRepository(db_session).load_parity_inputs(
         session_ids=[seed.session.id], scopes=[seed.scope]
     )
-    diagnostics = await ParityRepository(db_session).load_account_ledger_diagnostics([seed.scope])
+    diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
+        [seed.scope]
+    )
 
     assert observations == []
     assert buckets == ParityBuckets(
@@ -519,6 +526,115 @@ async def test_account_ledger_diagnostics_places_unmatched_bracket_exit_in_ledge
         ledger_only_count=0,
         ledger_only_net=Decimal("0"),
     )
-    assert diagnostics.unattributed_count == 0
     assert diagnostics.ledger_only_count == 1
     assert diagnostics.ledger_only_net == Decimal("-1")
+
+
+@pytest.mark.asyncio
+async def test_scoped_ledger_only_diagnostics_sums_split_exchange_exit_rows(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    exchange_order_id = f"split-exit-{uuid4().hex}"
+    await _exchange_exit(
+        db_session,
+        seed,
+        exchange_order_id=exchange_order_id,
+        closed_pnl="-1.0",
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+    )
+    await _exchange_exit(
+        db_session,
+        seed,
+        exchange_order_id=exchange_order_id,
+        closed_pnl="-2.0",
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+    )
+
+    diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
+        [seed.scope]
+    )
+
+    assert diagnostics.ledger_only_count == 1
+    assert diagnostics.ledger_only_net == Decimal("-3.0")
+
+
+@pytest.mark.asyncio
+async def test_scoped_ledger_only_keeps_bracket_linked_to_entry_order(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    entry_order = await _order(db_session, seed, realized_pnl=None, synced=False)
+    await _exchange_exit(
+        db_session,
+        seed,
+        order_link_id=str(entry_order.id),
+        classification=ExitClassification.bracket_tp,
+    )
+
+    diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
+        [seed.scope]
+    )
+
+    assert diagnostics.ledger_only_count == 1
+    assert diagnostics.ledger_only_net == Decimal("-1")
+
+
+@pytest.mark.asyncio
+async def test_ledger_only_respects_the_scope_window(
+    db_session: AsyncSession,
+) -> None:
+    first_ended_at = _BASE + timedelta(hours=1)
+    seed = await _seed(db_session, deactivated_at=first_ended_at)
+    second_session = LiveSignalSession(
+        user_id=seed.session.user_id,
+        strategy_id=seed.strategy.id,
+        exchange_account_id=seed.account.id,
+        symbol=_BTC,
+        interval=LiveSignalInterval.m1,
+        is_active=False,
+        created_at=first_ended_at,
+        deactivated_at=first_ended_at + timedelta(hours=1),
+    )
+    db_session.add(second_session)
+    await db_session.flush()
+    second_scope = SessionScope.from_live_session(second_session)
+
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-11",
+        exchange_created_at=_BASE - timedelta(minutes=1),
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+    )
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-2",
+        exchange_created_at=_BASE + timedelta(minutes=30),
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+    )
+    await _exchange_exit(
+        db_session,
+        seed,
+        closed_pnl="-3",
+        exchange_created_at=first_ended_at + timedelta(minutes=30),
+        classification=ExitClassification.bracket_tp,
+        attributed_strategy_id=seed.strategy.id,
+    )
+
+    session_diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
+        [seed.scope]
+    )
+    strategy_diagnostics = await ParityRepository(
+        db_session
+    ).load_scoped_ledger_only_diagnostics([seed.scope, second_scope])
+
+    assert session_diagnostics.ledger_only_count == 1
+    assert session_diagnostics.ledger_only_net == Decimal("-2")
+    assert strategy_diagnostics.ledger_only_count == 2
+    assert strategy_diagnostics.ledger_only_net == Decimal("-5")

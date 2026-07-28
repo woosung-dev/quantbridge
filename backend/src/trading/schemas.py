@@ -291,6 +291,9 @@ class OutcomeParityScope(BaseModel):
 
     `round_trip_notional`은 두 leg 합이므로 이를 분모로 한 비용률은 편도다. 왕복 비용
     가정과 비교할 소비자는 `effective_cost_pct_round_trip`만 사용해야 한다.
+
+    `edge_pct_round_trip`와 `cost_to_edge_ratio`는 표본 충분성과 무관하게 계산된다.
+    소비자는 `sample_sufficient`를 반드시 확인해야 한다.
     """
 
     matched_count: int

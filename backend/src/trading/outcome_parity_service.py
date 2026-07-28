@@ -15,7 +15,7 @@ from src.trading.repositories.live_signal_session_repository import (
 )
 from src.trading.repositories.order_repository import SessionScope
 from src.trading.repositories.parity_repository import (
-    AccountLedgerDiagnostics,
+    LedgerOnlyDiagnostics,
     ParityRepository,
 )
 from src.trading.schemas import (
@@ -59,22 +59,33 @@ class OutcomeParityService:
         )
 
         session_scopes = [SessionScope.from_live_session(session)]
-        ledger_diagnostics = await self._parity_repo.load_account_ledger_diagnostics(session_scopes)
-        session_summary = await self._load_summary([session.id], session_scopes, ledger_diagnostics)
+        strategy_scopes = [
+            SessionScope.from_live_session(strategy_session)
+            for strategy_session in strategy_sessions
+        ]
+        account_diagnostics = await self._parity_repo.load_account_ledger_diagnostics(
+            session_scopes
+        )
+        session_ledger_diagnostics = await self._parity_repo.load_scoped_ledger_only_diagnostics(
+            session_scopes
+        )
+        strategy_ledger_diagnostics = await self._parity_repo.load_scoped_ledger_only_diagnostics(
+            strategy_scopes
+        )
+        session_summary = await self._load_summary(
+            [session.id], session_scopes, session_ledger_diagnostics
+        )
         strategy_summary = await self._load_summary(
             [strategy_session.id for strategy_session in strategy_sessions],
-            [
-                SessionScope.from_live_session(strategy_session)
-                for strategy_session in strategy_sessions
-            ],
-            ledger_diagnostics,
+            strategy_scopes,
+            strategy_ledger_diagnostics,
         )
 
         return OutcomeParityResponse(
             session_id=session.id,
             session=_to_scope(session_summary),
             strategy=_to_scope(strategy_summary),
-            unattributed_count=ledger_diagnostics.unattributed_count,
+            unattributed_count=account_diagnostics.unattributed_count,
             ledger_supported=ledger_supported,
             strategy_session_count=len(strategy_sessions),
             assumption=_house_default_assumption(),
@@ -84,7 +95,7 @@ class OutcomeParityService:
         self,
         session_ids: list[UUID],
         scopes: list[SessionScope],
-        ledger_diagnostics: AccountLedgerDiagnostics,
+        ledger_diagnostics: LedgerOnlyDiagnostics,
     ) -> ParitySummary:
         observations, buckets = await self._parity_repo.load_parity_inputs(
             session_ids=session_ids,
