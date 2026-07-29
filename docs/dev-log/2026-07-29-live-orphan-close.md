@@ -101,13 +101,13 @@ metric 스냅샷이 `계열 0` 을 보고했는데 `.metrics` 에는 파일이 *
 
 ## 게이트 (실측, `feat/live-orphan-close`)
 
-BE **3422**(baseline 3415, **+7**) / ruff **clean** / mypy **212 clean** / **마이그레이션 0** / FE **무변경**(H2 미착수라 프론트 0 파일).
+BE **3424**(baseline 3415, **+9**) / ruff **clean** / mypy **212 clean** / **마이그레이션 0** / FE **무변경**(H2 미착수라 프론트 0 파일).
 
-변이 **5종 전건 판별** — M1 settings 게이트 복원 · M2 폴백 leverage 0 · M3 클램프 제거 · M4 소유 게이트를 `if not flatten:` 밑으로 · M5 reduce-only 원장 미기록. 변이·복원은 문자열 치환 쌍으로만 했고 복원 후 **grep + 재실행 + `git diff --stat` 로 대상 파일이 diff 에 없음**까지 확인했다.
+변이 **6종 전건 판별** — M1 settings 게이트 복원 · M2 폴백 leverage 0 · M3 클램프 제거 · M4 소유 게이트를 `if not flatten:` 밑으로 · M5 reduce-only 원장 미기록 · M6 `is_finite()` 가드 제거. 변이·복원은 문자열 치환 쌍으로만 했고 복원 후 **grep + 재실행 + `git diff --stat` 로 대상 파일이 diff 에 없음**까지 확인했다.
 
 ★mypy 가 실제 결함을 잡았다 — `_FALLBACK_MARGIN_MODE = "cross"` 가 `str` 로 추론돼 `Literal["cross","isolated"]` 계약을 깼다.
 
-★`ruff format` 은 이 레포 게이트가 아니다(손대지 않은 `router.py`·`position_service.py` 도 "would reformat" 이 뜬다).
+★**`ruff format` 에 대한 내 판단을 정정한다.** 세션 중반엔 "이 레포 게이트 아님"으로 적었다(손대지 않은 `router.py`·`position_service.py` 도 "would reformat" 이 뜬다 → **CI 게이트가 아닌 건 맞다**). 그런데 커밋해 보니 **lint-staged pre-commit 훅이 staged 파일에만 `ruff format` 을 돌린다.** 즉 "게이트 아님" 은 CI 축에서만 참이고 커밋 축에서는 거짓이다 — 그래서 내 파일들은 커밋 시점에 재포맷됐다(동작 무변경, 재실행 25 passed 확인). **한 축에서 관측한 것을 전체 진술로 쓰면 안 된다.**
 
 ---
 
