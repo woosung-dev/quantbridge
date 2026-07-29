@@ -47,14 +47,18 @@ CONTROL_AGENT=""
 BOOTSTRAP_ARGS=()
 TEARDOWN=""
 
+# 값이 필요한 옵션은 값의 존재를 먼저 본다 — 값을 빼면 `shift 2` 가 실패해 `set -e` 로
+# **의도한 진단 대신** 셸 오류만 남기고 죽는다 (codex 리뷰 P2).
+need_val() { [ "$1" -ge 2 ] || { echo "✗ $2 에 값이 없다" >&2; exit 2; }; }
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --agent)         SPECS+=("${2:-}"); shift 2 ;;
-    --label)         LABEL="${2:-}"; shift 2 ;;
-    --base)          BASE="${2:-}"; shift 2 ;;
-    --control-agent) CONTROL_AGENT="${2:-}"; shift 2 ;;
+    --agent)         need_val $# --agent;         SPECS+=("$2"); shift 2 ;;
+    --label)         need_val $# --label;         LABEL="$2"; shift 2 ;;
+    --base)          need_val $# --base;          BASE="$2"; shift 2 ;;
+    --control-agent) need_val $# --control-agent; CONTROL_AGENT="$2"; shift 2 ;;
     --skip-deps)     BOOTSTRAP_ARGS+=(--skip-deps); shift ;;
-    --teardown)      TEARDOWN="${2:-}"; shift 2 ;;
+    --teardown)      need_val $# --teardown;      TEARDOWN="$2"; shift 2 ;;
     -h|--help)       sed -n '2,30p' "$0"; exit 0 ;;
     *)               die "알 수 없는 인자: $1  (--help)" ;;
   esac
@@ -97,6 +101,13 @@ EOF
 fi
 
 [ "${#SPECS[@]}" -gt 0 ] || die "에이전트를 하나 이상 줘라: --agent claude:<이름>  (--help)"
+
+# 워커 4개면 CONTROL pane 자체가 없다. 워크트리를 만들고 pane 을 다 띄운 **뒤에** 거부하면
+# 반쯤 만들어진 상태가 남는다 (codex 리뷰 P2). 아무것도 만들기 전에 판정한다.
+if [ -n "$CONTROL_AGENT" ] && [ "${#SPECS[@]}" -ge 4 ]; then
+  die "--control-agent 는 워커가 4개일 때 쓸 수 없다 — 2×2 에 CONTROL 칸이 남지 않는다.
+    워커를 3개 이하로 줄여라."
+fi
 
 # ★인자 검증은 **부작용 전에** 끝낸다. 워크트리를 만들다가 3번째에서 죽으면 반쯤 만들어진
 #   상태가 남는다. 아래 두 검사는 아무것도 만들기 전에 전건을 본다.

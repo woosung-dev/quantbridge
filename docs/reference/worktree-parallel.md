@@ -55,16 +55,35 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 **종료 코드는 2 다** — 가드 셸 조각은 `exit 1` 이지만 `make` 가 레시피 실패를 2 로 감싼다.
 수용 기준에 "exit 1" 이라고 쓰면 실측과 어긋난다(실제로 한 번 어긋났다).
 
-★**가드는 선행 타깃과 레시피 첫 줄 양쪽에 있다.** 한쪽만으로는 각각 구멍이 있다 —
-선행만 두면 `make -o _guard-main-only seed` 로 **건너뛸 수 있고**(실측: exit 0 통과, dry-run 이
-`seed_dogfood.py --confirm` 이 **공유 앱 DB** 에 돌 것임을 보여줬다), 레시피에만 두면
-`up-isolated: metrics-wipe` 처럼 **선행의 부작용이 먼저** 실행된다. 둘이 서로의 구멍을 막는다.
+### 가드가 지금의 모양이 된 이유 — make 안의 가드는 make 가 끈다
 
-★**판정 기준은 `QB_SLOT` 이 아니라 git 이다.** make 는 명령행 변수를 `-include` 로 읽은 파일보다
-우선하므로, 슬롯 변수로 판정하면 **`make QB_SLOT=0 up` 한 줄로 가드가 꺼진다** — 실측으로 슬롯 1
-워크트리에서 `make QB_SLOT=0 _guard-main-only` 가 exit 0 을 냈다(codex 리뷰 P1). 지금은
-`git rev-parse --absolute-git-dir` 와 `--git-common-dir` 가 갈리는지를 본다. 워크트리에서만 갈리고,
-어떤 make 변수로도 못 바꾼다. **인자로 끌 수 있는 가드는 가드가 아니다.**
+세 번 뚫렸고, 세 번째에 설계를 바꿨다. 뚫린 기록을 남기는 이유는 **되돌리지 말라**는 뜻이다.
+
+| 뚫은 방법                       | 왜 통했나                                                                              |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `make QB_SLOT=0 seed`           | 판정을 슬롯 변수로 했다. make 는 명령행 변수를 `-include` 파일보다 **우선**한다        |
+| `make -o _guard-main-only seed` | 가드가 **선행 타깃**뿐이었다. `-o` 는 선행을 "이미 최신" 으로 만든다                   |
+| `make -i seed` · `MAKEFLAGS=-i` | 가드와 페이로드가 **다른 레시피 줄**이었다. `-i` 는 실패를 무시하고 **다음 줄**로 간다 |
+| `make 'qb-guard=@:' seed`       | 가드가 `$(qb-guard)` **make 변수 참조**였다. 빈 명령으로 덮인다                        |
+
+그래서 지금은 이렇다:
+
+1. **판정을 make 밖으로** — [`scripts/assert-main-checkout.sh`](../../scripts/assert-main-checkout.sh).
+   덮어쓸 make 변수가 없다. 판정 근거는 git 이다(워크트리에서만 `--absolute-git-dir` 과
+   `--git-common-dir` 이 갈린다). 슬롯 번호로 판정하지 않는다.
+2. **호출을 페이로드와 같은 셸 명령에 묶는다** — `@scripts/assert-main-checkout.sh <타깃> || exit 1; \`
+   뒤에 페이로드가 이어진다. `-i` 가 make 의 종료 코드를 무시해도 **셸은 이미 죽었다.**
+3. 레시피 텍스트에 `$(...)` 를 쓰지 않는다 — 변수 참조가 없으면 덮어쓸 것도 없다.
+4. `_guard-main-only` 선행은 **남겨둔다.** 보증이 아니라 조기 실패용이다(선행 `metrics-wipe` 의
+   부작용보다 먼저 죽는다). 진짜 보증은 2번이다. `metrics-wipe` 자체도 같은 assert 를 부른다 —
+   `make -j` 는 선행을 병렬로 시작하므로 순서에 기댈 수 없다.
+
+실측 — 우회 시도 **16가지 전부 차단**: `-i` · `MAKEFLAGS=-i` · `--ignore-errors` · `-k -i` ·
+`'qb-guard=@:'` · `QB_SLOT=0`(명령행/`-e`/환경) · `-o _guard-main-only` · `-B` · `--always-make` ·
+`-j4` · 그리고 이들의 조합. 슬롯 0(메인)에서는 `make -n` 출력이 머지된 Makefile 과 **차이 0**.
+
+> 이 표가 말하는 것은 "이제 안전하다" 가 아니라 **"make 기능으로 가드를 표현하지 마라"** 다.
+> 새 타깃을 추가할 때도 `@scripts/assert-main-checkout.sh <타깃> || exit 1; \` 로 시작해라.
 
 **선행 타깃이 필요한 이유** — 레시피에만 두면 선행이 이미 돌아간 뒤에 발동한다. 실측에서
 `up-isolated` 의 선행 `metrics-wipe` 가 **가드보다 먼저** 돌았고, 그게 워크트리에서
@@ -79,11 +98,7 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 | `migrate` · `migrate-isolated`                                                              | 워크트리 브랜치의 마이그레이션을 **공유 앱 DB** 에 걸어 전원이 뒤집어쓴다 |
 | `seed`                                                                                      | 공유 앱 DB 를 갈아엎는다                                                  |
 
-실측 우회 시도 **12가지 전부 차단** — `QB_SLOT=0` · `-e` · 환경변수 · `MAKEFLAGS=-e` ·
-`--always-make` · `-o _guard-main-only` · `-B -o` 조합. 슬롯 0(메인)에서는 `make -n` 출력이
-머지된 Makefile 과 **차이 0**.
-
-메시지에 슬롯 번호와 메인 경로가 함께 나온다(`QB_MAIN_ROOT` 는 부트스트랩이 `.worktree-slot` 에 쓴다).
+메시지에 메인 체크아웃 경로가 함께 나온다.
 
 ★**`be-isolated` 는 이제 워크트리에서 `migrate-isolated` 를 선행하지 않는다.** 예전엔 사람이
 `QB_MIGRATE_DONE=1` 을 매번 붙여서 피해야 했는데, 한 번 빠뜨리면 남이 깨지는 구조였다.

@@ -113,6 +113,20 @@ trap 'rmdir "$SLOT_LOCK" 2>/dev/null || true' EXIT INT TERM
 #    두 번 배정하고, 그러면 `quantbridge_w{N}_test` 와 Redis lock DB 가 겹쳐
 #    pytest 의 drop_all 과 마이그레이션이 서로를 파괴한다 — 위 락으로 막으려던 바로 그 파괴가
 #    다른 경로로 되살아난다. 어떤 워크트리가 존재하는가의 권위 있는 출처는 git 뿐이다.
+#
+# ⚠️ 스캔은 **fail-closed** 여야 한다. `$(git worktree list ...)` 를 here-doc 안에서 바로
+#    쓰면 그 종료 상태가 `while` 의 성공 상태에 먹혀 사라진다. git 이 어떤 이유로든 실패하면
+#    (레포 손상 · PATH 오염 · 권한) `USED` 가 조용히 비고, 그러면 **이미 남이 쥔 슬롯을
+#    비어 있다고 판단**해 같은 pytest DB 와 Redis lock DB 를 배정한다. 그게 이 락이 막으려던
+#    바로 그 파괴다. 그러니 목록을 먼저 받아 상태를 확인하고, 실패면 여기서 죽는다.
+_WT_LIST="$(git worktree list --porcelain 2>/dev/null)" \
+  || die "git worktree list 실패 — 어떤 슬롯이 쓰이는지 알 수 없다.
+    빈 목록을 '아무도 안 쓴다' 로 읽으면 남이 쥔 슬롯을 덮어써 pytest DB 가 서로를 파괴한다.
+    레포 상태를 확인하고 다시 실행해라."
+_WT_PATHS="$(printf '%s\n' "$_WT_LIST" | sed -n 's/^worktree //p')"
+[ -n "$_WT_PATHS" ] || die "git worktree list 가 경로를 하나도 내지 않았다 (메인조차 없다).
+    출력 형식이 바뀌었거나 레포가 비정상이다. 슬롯 배정을 진행하지 않는다."
+
 USED=""
 while IFS= read -r _wt; do
   [ -n "$_wt" ] || continue
@@ -121,7 +135,7 @@ while IFS= read -r _wt; do
   [ -f "$_wt/.worktree-slot" ] || continue
   USED="$USED $(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$_wt/.worktree-slot")"
 done <<EOF
-$(git worktree list --porcelain | sed -n 's/^worktree //p')
+$_WT_PATHS
 EOF
 
 # 재실행이 슬롯을 바꾸면 안 된다. 이미 떠 있는 서버는 옛 포트에 남아 있는데

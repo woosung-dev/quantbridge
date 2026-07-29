@@ -48,6 +48,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$RUN" ] || die "--run <이름> 이 필요하다. (--help)"
+# ★RUN 은 경로 조각으로 그대로 쓰인다. `--run ../../../b` 를 주면 워커 A 의 출력 경로가
+#   워커 B 의 워크트리로 정규화되고, A 에게 B 의 task/status/report 를 읽고 쓰라는 프롬프트가
+#   나간다 — 산출물 격리 계약이 통째로 깨진다 (codex 리뷰 P2). 식별자만 받는다.
+case "$RUN" in
+  *[!A-Za-z0-9._-]*|.*|"") die "--run 은 영숫자·점·밑줄·하이픈만 쓸 수 있다 (경로 조각 금지): $RUN" ;;
+esac
 
 command -v herdr >/dev/null 2>&1 || die "herdr 가 없다."
 herdr status server >/dev/null 2>&1 || die "herdr 서버가 안 떠 있다."
@@ -73,6 +79,8 @@ WORKERS=()
 for f in "$RUN_DIR"/tasks/*.md; do
   [ -f "$f" ] || continue
   n="$(basename "$f" .md)"
+  # 워커 이름도 경로 조각이 된다 (tasks/<n>.md → <워크트리>/.claude/fleet/<run>/).
+  case "$n" in *[!A-Za-z0-9._-]*|.*) die "워커 이름에 경로 문자를 쓸 수 없다: $n" ;; esac
   if [ -n "$ONLY" ]; then
     case ",$ONLY," in *",$n,"*) ;; *) continue ;; esac
   fi
@@ -81,13 +89,18 @@ done
 [ "${#WORKERS[@]}" -gt 0 ] || die "대상 워커가 없다 (tasks/*.md 확인, --only 는 '$ONLY')."
 
 # pane 을 cwd 로 역추적한다. 같은 cwd 가 둘이면 어느 쪽인지 모르므로 die 한다.
-pane_of() {  # pane_of <워크트리 절대경로> → pane_id
+# ★에이전트가 **붙어 있는** pane 만 후보다. cwd 만 보면, 그 워크트리를 cwd 로 둔 채 남아 있는
+#   오래된 workspace 의 셸 pane 하나에 프롬프트가 그대로 주입된다 (codex 리뷰 P2).
+#   후보가 0 개거나 2 개 이상이면 실패한다 — 어디로 갈지 모르는 상태로 주입하지 않는다.
+#   workspace_id 도 함께 내보내 호출자가 워커들이 한 화면에 있는지 대조하게 한다.
+pane_of() {  # pane_of <워크트리 절대경로> → "<pane_id> <workspace_id>"
   herdr pane list 2>/dev/null | python3 -c '
 import json,sys
 want=sys.argv[1]
-hits=[p for p in json.load(sys.stdin)["result"]["panes"] if p.get("cwd")==want]
+hits=[p for p in json.load(sys.stdin)["result"]["panes"]
+      if p.get("cwd")==want and p.get("agent")]
 if len(hits)!=1: sys.exit(1)
-print(hits[0]["pane_id"])
+print(hits[0]["pane_id"], hits[0].get("workspace_id",""))
 ' "$1"
 }
 agent_status_of() {
@@ -111,7 +124,7 @@ if [ "$STATUS" -eq 1 ]; then
   printf '%-12s %-9s %-9s %-10s %-7s %s\n' WORKER PANE HERDR SIGNAL REPORT "BRANCH(vs origin/main)"
   for w in "${WORKERS[@]}"; do
     wt="$MAIN_ROOT/.claude/worktrees/$w"
-    pane="$(pane_of "$wt" || true)"
+    _pw="$(pane_of "$wt" || true)"; pane="${_pw%% *}"
     hs="-"; [ -n "$pane" ] && hs="$(agent_status_of "$pane")"
     out="$(wt_out "$w")"
     sig="-"; [ -f "$out/status" ] && sig="$(tr -d '\n' < "$out/status")"
@@ -137,8 +150,18 @@ for w in "${WORKERS[@]}"; do
   [ -f "$wt/.worktree-slot" ] || die "$w 에 슬롯이 없다 — 부트스트랩이 안 됐다."
   slot="$(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$wt/.worktree-slot")"
 
-  pane="$(pane_of "$wt")" || die "$w 의 pane 을 못 찾았다 (cwd=$wt).
-    함대가 떠 있는지 확인해라: herdr pane list"
+  _pw="$(pane_of "$wt")" || die "$w 의 pane 을 못 찾았다 (cwd=$wt, 에이전트가 붙은 pane 기준).
+    함대가 떠 있는지 확인해라: herdr pane list
+    (에이전트 없는 셸 pane 은 후보에서 뺀다 — stale workspace 에 잘못 주입되는 것을 막는다.)"
+  pane="${_pw%% *}"; pane_ws="${_pw##* }"
+  # 워커들이 **한 화면**에 있어야 한다. 서로 다른 workspace 에 흩어져 있으면 그중 하나는
+  # 오래된 함대의 잔재일 가능성이 크고, 그쪽으로 주입하면 엉뚱한 에이전트가 일을 받는다.
+  if [ -z "${FLEET_WS:-}" ]; then
+    FLEET_WS="$pane_ws"
+  elif [ "$pane_ws" != "$FLEET_WS" ]; then
+    die "$w 의 pane($pane)이 다른 workspace($pane_ws)에 있다 — 나머지 워커는 $FLEET_WS 다.
+    오래된 함대가 남아 있을 수 있다. 정리하고 다시 띄워라: herdr workspace list"
+  fi
 
   # working 중에 주입하면 입력이 섞인다. idle 이 아니면 거부한다.
   hs="$(agent_status_of "$pane")"
@@ -162,6 +185,16 @@ for w in "${WORKERS[@]}"; do
   # 안에 있어야 codex 의 `-s workspace-write` 샌드박스에서도 보고가 남는다.
   OUT="$(wt_out "$w")"
   mkdir -p "$OUT"
+  # 이름 검증을 통과했더라도, 실제 경로가 그 워크트리 **안**인지 한 번 더 확인한다.
+  # 심볼릭 링크나 미래의 이름 규칙 변경이 이 불변식을 조용히 깨는 것을 막는다.
+  _out_real="$(cd "$OUT" && pwd -P)" || die "$w 출력 경로를 정규화할 수 없다: $OUT"
+  _wt_real="$(cd "$wt" && pwd -P)"   || die "$w 워크트리를 정규화할 수 없다: $wt"
+  case "$_out_real/" in
+    "$_wt_real"/*) ;;
+    *) die "$w 의 출력 경로가 워크트리 밖이다 — 분배를 중단한다.
+    출력: $_out_real
+    워크트리: $_wt_real" ;;
+  esac
   cp "$RUN_DIR/tasks/$w.md" "$OUT/task.md"
 
   # ★`pending` 은 **주입 전에** 쓴다. 주입 뒤에 쓰면, 지시대로 즉시 `running` 을 쓴 워커의 값을
