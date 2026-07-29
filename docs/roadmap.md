@@ -2,9 +2,11 @@
 
 # QuantBridge — 제품 로드맵 · 남은 작업 체크리스트 (Living)
 
-> **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](backlog.md), 활성 sprint 상태 = [`status.md`](../.ai/templates/docs/status.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
+> **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](backlog.md), 활성 sprint 상태 = [`status.md`](status.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
 >
-> **최종 갱신:** 2026-07-28 (**live-outcome-parity 완료** — **BL-526 Resolved**. 라이브 실적을 엔진이 그때 기대한 값과 나란히 놓고 격차를 [체결 격차 / 비용] 두 층으로 쪼개는 read-time 파생 표면. 마이그레이션 0 · 새 엔진 코드 0. 실측 왕복 실효 비용률 **0.1115%** 가 BL 이 물었던 0.11% 문턱과 일치했고, **화면은 아직 답을 말하지 않는다**(표본 9 < 필요 30 이라 성과 비율 차단). ★게이트가 전부 green 인데 **화면을 열자 기능에 도달할 수 없었다**. ★G6 를 **세 번** 돌렸고 2·3차가 앞선 수정이 만든 새 P1 을 잡았다. 신규 BL-527~530.)
+> **최종 갱신:** 2026-07-29 (**live-orphan-close 완료 · PR #501 머지 @91411980** — **BL-537 Resolved, 단 ★전제가 반증됐다**. "세션이 꺼지면 고아를 못 닫는다" 가 틀렸고 BL-498 이 이미 탈출구를 지어 뒀다(인위 고아로 3중 실측: 죽은 세션이 귀속 → 202 → 원장 `reduce_only=t·filled` → 거래소 flat). ★**그래서 계정 스코프 엔드포인트를 짓지 않았다** — 잔여는 BL-541 로 이연(아직 실측된 적 없음). 진짜 결함은 **누르면 실패하는 버튼**(settings 422 를 `position_service` 가 평가 안 함) + `leverage 0/None` 이면 청산이 조용히 **스팟**으로. ★★★**BL-543 신설** — `run_live` 는 300바를 재생하지만 dispatch 는 마지막 바만이라 **세션이 태어날 때부터 갈릴 수 있다**(계측기 무효 · 유령 청산 · >5분 공백마다 세션 사망). **BL-536 이 자기 첫 step 으로 지정한 계측기가 바로 그것이었다.** BL-536 재측정 = **판정 유지**(유실률 16.7%). 신규 BL-541/542/543.)
+>
+> ★**2026-07-29 표류 수리:** 이 문서가 4스프린트(live-outcome-parity ~ live-orphan-close) 동안 갱신되지 않아 「완료」 표·「권장 착수 순서」·P1 체크박스가 어긋나 있었다. 아래 §동기화 규약은 이 문서 자신이 정한 것인데 지켜지지 않았다. **BL-522/530/535/536/537 은 로드맵에 등재된 적이 없다** — 이번에 소급 등재했다.
 >
 > **동기화 규약.** BL Resolved 시 (1) REFACTORING-BACKLOG.md 에서 ✅ 마킹 (2) 본 문서 해당 체크박스 `[x]` + 스프린트/PR 표기. 신규 BL 등재 시 본 문서 해당 그룹에 1행 추가. 표류 방지 = 스프린트 마감 산출물 체크리스트에 "product-roadmap.md 갱신" 포함.
 
@@ -16,34 +18,36 @@
 
 **머니-패스 정확도 팩은 사실상 닫혔다** — 잔여는 BL-446 1건뿐이고 실측 여유가 임계 10% 대비 54,117배다. 남은 건 (a) 저우선 프로토타입/기능 잔여(대부분 P3·스키마 확장 선행), (b) 거래소 확장(OKX WS·풀 레버리지), (c) 사용자 결정 대기(Beta 배포)이다.
 
-### ★새로 드러난 갭 — 로컬 앱이 지금 "실사용 불가" 상태다 (로드맵에 없던 항목)
+### ~~★새로 드러난 갭 — 로컬 앱이 "실사용 불가"~~ ✅ **해소됨 (2026-07-26 dogfood-restore, `make seed` 신설)**
 
-실측(2026-07-26 #481 머지 후) — `strategies` **0** · `backtests` **0** · `orders` **0** · `live_signal_sessions` **0** · **`ts.ohlcv` 0행**. 캔들이 없으니 백테스트를 아예 돌릴 수 없고, 원커맨드 복원 경로도 없다(OHLCV 수집은 Celery 태스크로만 존재, `run_auto_dogfood.py` 는 시더가 아니라 pytest 시나리오 러너).
+당시 실측은 `ts.ohlcv` **0행** 이라 백테스트를 아예 못 돌리는 상태였고 원커맨드 복원 경로도 없었다. `make seed` 로 닫혔고, 이후 스프린트는 **전부 실주행 dogfood 를 포함**한다(#486 실체결 3중 대조 · #497 soak 56분 · #501 soak **2h40m**).
 
-그래서 **최근 3스프린트(#477·#480·#481)가 모두 "실화면 dogfood 미실행" 으로 닫혔다.** 세 스프린트 분량의 신뢰 작업이 **우리가 직접 쓴 테스트로만** 검증돼 있다 — `.ai/common/global.md` §7.3 이 금지하는 circular oracle 에 빈 DB 가 구조적으로 몰아넣는 상황이다. 과거 dogfood 는 실제로 진짜 P1 을 잡았다(#476 StrEnum 크래시 · #468 잠복 2건 · #480 마진 게이트 gross 자본). **dogfood-first 원칙 대비 이게 현재 최대 리스크다.**
+★**그 자리를 대신하는 현재 최대 리스크는 [BL-543] 이다** — 세션이 태어날 때부터 엔진↔거래소가 갈릴 수 있어 (a) 진입 유실 계측기가 오염되고 (b) 유령 청산이 생기며 (c) **>5분 공백마다 세션이 죽는다.** 즉 "빈 DB 라 검증을 못 한다" 에서 "검증할 계측기를 믿을 수 없다" 로 리스크의 성질이 옮겨갔다.
 
 ## 완료 (참고 — 최근 스프린트, 전량 MERGED)
 
-| 스프린트                   | PR        | 한줄                                                                                                                 |
-| -------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------- |
-| **live-entry-parity**      | #493      | 조건부 진입 거절 43% → **0%**. 기준가 stale close → 실시간 perp last + 돌파 시 시장가 전환 (BL-511/512)              |
-| **live-outcome-parity**    | (PR 대기) | 라이브가 백테스트대로 **버는지** 물을 수 있는 자. 엔진 기대 gross → 체결 격차 → 비용 → 거래소 확정 net 분해 (BL-526) |
-| live-observability         | #492      | worker Prometheus metric 스크레이프 배선 + 라이브 실주행 판정표 (BL-506)                                             |
-| live-ops-hygiene           | #491      | 조건부 진입 정리 주체 + 계정 스코프 위생 (BL-503/501/502)                                                            |
-| C 디자인 언어 이식 완주    | #463/#464 | 17벌 전체 이식 + 리포트 정본 + 부채 마감                                                                             |
-| functional-parity          | #468      | C 이식 후 기능 격차 마감 + 잠복 P1 2건                                                                               |
-| tier-c                     | #469      | Tier C 4종 + WS Tier 1 (펀딩·포지션 대조·알림·팬아웃)                                                                |
-| opspack-ws2                | #470      | 정비 팩 6종 + WS Tier 2 (public ticker·미실현 P&L)                                                                   |
-| perf-surface               | #471      | 성과 표면 A1~A4 (read-time 파생, 마이그레이션 0)                                                                     |
-| position-cockpit (Phase B) | #472      | WS position 채널 + 코크핏 잔고/포지션                                                                                |
-| trading-surface-pack       | #473      | 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 (BL-431/416/425/432/433)                                               |
-| close-completeness         | #474      | 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고 (BL-435/436)                                                      |
-| money-path-accuracy        | #475      | 거래소 closedPnl 손익 보정 + filled_quantity 소생 + BL-362 텔레그램 (BL-014 부분)                                    |
-| exit-attribution           | #476      | 거래소 청산 원장 (최근 7일, BL-442)                                                                                  |
-| exit-money-path            | #477      | 세션 스코프 머니-패스 정정 (BL-444/445)                                                                              |
-| (후속 픽스)                | #478      | 큰 배열 spread RangeError 공유 페이지 크래시 수정                                                                    |
-| backtest-trust             | #480      | Sharpe TV 컨벤션 + 격리 레버리지 마진·청산 (BL-398/186a/388)                                                         |
-| money-path-finish          | #481      | 원장 실측 매칭 + 심볼 ingress 정규화 + 출처 라벨 (BL-457/454 · 458 부분 · 464)                                       |
+| 스프린트                    | PR        | 한줄                                                                                                                     |
+| --------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| **live-orphan-close**       | #501      | 고아 청산은 **이미 됐다**(BL-537 전제 반증) — 진짜 결함은 누르면 실패하는 버튼. BL-536 재측정 판정 유지. **BL-543 신설** |
+| **live-close-completeness** | #497/#498 | 엔진이 **스팟 봉**을 재생하며 주문은 perp 로 냈다 — 계기 정렬 1사이트 (BL-530)                                           |
+| **live-outcome-parity**     | #496      | 라이브가 백테스트대로 **버는지** 물을 수 있는 자. 엔진 기대 gross → 체결 격차 → 비용 → 거래소 확정 net 분해 (BL-526)     |
+| **live-entry-parity**       | #493      | 조건부 진입 거절 43% → **0%**. 기준가 stale close → 실시간 perp last + 돌파 시 시장가 전환 (BL-511/512)                  |
+| live-observability          | #492      | worker Prometheus metric 스크레이프 배선 + 라이브 실주행 판정표 (BL-506)                                                 |
+| live-ops-hygiene            | #491      | 조건부 진입 정리 주체 + 계정 스코프 위생 (BL-503/501/502)                                                                |
+| C 디자인 언어 이식 완주     | #463/#464 | 17벌 전체 이식 + 리포트 정본 + 부채 마감                                                                                 |
+| functional-parity           | #468      | C 이식 후 기능 격차 마감 + 잠복 P1 2건                                                                                   |
+| tier-c                      | #469      | Tier C 4종 + WS Tier 1 (펀딩·포지션 대조·알림·팬아웃)                                                                    |
+| opspack-ws2                 | #470      | 정비 팩 6종 + WS Tier 2 (public ticker·미실현 P&L)                                                                       |
+| perf-surface                | #471      | 성과 표면 A1~A4 (read-time 파생, 마이그레이션 0)                                                                         |
+| position-cockpit (Phase B)  | #472      | WS position 채널 + 코크핏 잔고/포지션                                                                                    |
+| trading-surface-pack        | #473      | 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 (BL-431/416/425/432/433)                                                   |
+| close-completeness          | #474      | 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고 (BL-435/436)                                                          |
+| money-path-accuracy         | #475      | 거래소 closedPnl 손익 보정 + filled_quantity 소생 + BL-362 텔레그램 (BL-014 부분)                                        |
+| exit-attribution            | #476      | 거래소 청산 원장 (최근 7일, BL-442)                                                                                      |
+| exit-money-path             | #477      | 세션 스코프 머니-패스 정정 (BL-444/445)                                                                                  |
+| (후속 픽스)                 | #478      | 큰 배열 spread RangeError 공유 페이지 크래시 수정                                                                        |
+| backtest-trust              | #480      | Sharpe TV 컨벤션 + 격리 레버리지 마진·청산 (BL-398/186a/388)                                                             |
+| money-path-finish           | #481      | 원장 실측 매칭 + 심볼 ingress 정규화 + 출처 라벨 (BL-457/454 · 458 부분 · 464)                                           |
 
 ## 🔵 진행중 / 📋 계획됨 (핸드오프 SSOT 존재)
 
@@ -61,11 +65,18 @@
    4c. ✅ **live-conditional-entry** (완료 · **PR #489 머지 @30031efe**) — **BL-478 (a) Resolved** 선언적 reconcile 로 조건부 진입 등재. 데모 실체결 5건 3중 대조. 최종 codex 리뷰가 4세션 연속 P1 적발(계정 공유 시 남의 포지션까지 반전). 신규 BL-492~500.
    4d. ✅ **live-conditional-hardening** (완료 · **PR #490 머지 @9ec56e89**) — **BL-498 Resolved**(활성 세션 0건에서도 잔여 포지션 표시·청산) · **BL-500 Resolved**(거래소 부재가 로컬 행을 이긴다 — 후보마다 `fetch_order` 로 terminal 확인 후에만 제거. ★**나이 게이트 3분은 폐기했다** — reconcile 은 bar 마다 돌아 게이트가 늘 열려 있었고 `submitted_at` 은 부재의 나이가 아니다) · **BL-499 부분 완화**(패자 분류 metric, 근본 경합은 열림). ★preflight 결론이 **틀렸음을 codex 가 반박**(성공 경로와 시도 횟수 혼동). ★e2e 가 **dev 서버 stale CSS 로 거짓 red**. 신규 BL-501/502/503.
    4e. ✅ **live-ops-hygiene** (완료 — **BL-503 Resolved**(조건부 진입 janitor 신설, **거래소에 물어본 뒤에만** 처분 · 세션 활성 여부 무관 · reject 는 CAS) · **BL-501 Resolved**(uid 표시 전용 접기 + readOnly 이중 차단 + 형제 캐시 무효화, **마이그레이션 1**) · **BL-502 Resolved**(포지션 단위 공유 lock) · **BL-499 열림 — 실관측 0건**). ★★★**게이트가 전부 green 인 상태에서 P1 3건** — 거래소 오라클(Bybit 이 `orderId` 우선 → 살아 있는 주문을 미발주로 오판) · 변이 주입(**거짓 게이트 3건**) · codex 최종 리뷰(**접기가 hedge 실포지션 leg 은폐**). ★★**내 F-A 결론이 거래소에 반증**(codex 도 같은 오답 — 둘 다 내부 증거만 봐서 독립 표본이 아니었다). ★**화면 검증이 P1 을 통과시켰다**(dogfood 계정이 one-way 단일 leg). **Generator/Evaluator 파이프라인 1/3 검증** — 변이 28건 전건 판별. 신규 BL-505/506/507.
-5. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
-6. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
-7. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
-8. **tasks 도메인 deepen** (상시 가능 · 내부 부채) — money-path Celery 감사(`/deepen-modules`, codex 빌드 아님).
-9. **Beta 배포** (사용자 결정 · 다음 단계) — G1 DB 호스팅 + BL-070~075.
+   4f. ✅ **live-observability** (완료 · **PR #492**) — **BL-506 Resolved** worker metric 배선. ★**보이게 만들자마자 그 metric 을 믿으면 안 된다는 게 드러났다**(`qb_active_orders` 0 인데 실제 in-flight 1). 거절률 50% 발견 → BL-511.
+   4g. ✅ **live-entry-parity** (완료 · **PR #493**) — **BL-511/512 Resolved** 조건부 진입 거절 **43.3% → 0%**. ★**적대 검증이 스프린트를 구했다** — 기준가가 perp 이 아니라 **스팟**이었다.
+   4h. ✅ **live-outcome-parity** (완료 · **PR #496 머지 @9a80e3c2**) — **BL-526 Resolved** 라이브 실적↔엔진 기대치 대조 표면. ★게이트 전건 green 인데 **화면을 열자 기능에 도달 불가**. 신규 BL-527~530.
+   4i. ✅ **live-close-completeness** (완료 · **PR #497 머지 @178d24ef** · 사후검증 #498 @004c374f) — **BL-530 Resolved**. 뿌리는 청산 경로가 아니라 **계기 불일치**: 엔진이 **Bybit 스팟 1m 봉**을 재생하며 주문은 perp 로 냈다. 수정 = fetch 인자 **1개**. ★외부 오라클이 소수점까지 확정(스팟 고가 63541.7 = 시뮬 스톱 일치). ★**soak 이 그날 쓴 가드를 15분 만에 반증**. 신규 BL-535/536/537.
+   4j. ✅ **live-orphan-close** (완료 · **PR #501 머지 @91411980**) — **BL-537 Resolved, ★전제 반증**(계정 스코프는 이미 닫힌다 — 3중 실측). ★**엔드포인트를 짓지 않은 것이 핵심 판단**(BL-541 로 이연, 아직 실측된 적 없음). 진짜 결함 = **누르면 실패하는 버튼**. **BL-536 재측정 = 판정 유지**(soak 2h40m · 유실률 16.7% · 최대 채널 57% 로 분산). ★★★**BL-543 신설 — 세션은 태어날 때부터 갈릴 수 있다**. 신규 BL-541/542/543.
+
+5. ★**engine-exchange-alignment** (다음 — **BL-543 먼저 → BL-536**) — 세션 시작 시 엔진 상태를 거래소와 정렬한다. BL-543 이 선행인 이유는 셋이다: (a) `engine_only` 계측기를 오염시켜 **BL-536 이 지정한 첫 step 자체가 무효** (b) 유령 청산(`close_position_flat`·`110017`)을 만든다 (c) **>5분 공백마다 세션이 죽는다**(`gap_resync` 는 엔진도 flat 이어야 탄다). 정렬 없이 BL-536 의 "전환 의도 영속화" 를 지으면 **재생이 계속 제조하는 포지션 위에** 상태를 얹게 된다.
+6. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
+7. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
+8. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
+9. **tasks 도메인 deepen** (상시 가능 · 내부 부채) — money-path Celery 감사(`/deepen-modules`, codex 빌드 아님).
+10. **Beta 배포** (사용자 결정 · 다음 단계) — G1 DB 호스팅 + BL-070~075.
 
 ---
 
@@ -114,6 +125,13 @@
 - [x] **BL-483 ✅ Resolved** [P1] `leverage` 라이브 마진게이트 배선 + **무음 skip 표면화** — `entry_skips` 구조화 6지점(margin / non_finite_qty / pyramiding_cap / session_closed) + `qb_live_signal_entry_skipped_total`(divergence 아님) + 화면 행. ★배선이 켠 것은 게이트만이 아니었다 — `check_liquidations` 도 살아나 **실제 reduce-only 주문을 내는 머니-패스**라 청산 표면화를 함께 넣었다. cross 증거금 모델 부재는 **BL-490**
 - [x] **BL-481 / BL-482 ✅ Resolved** [P2/P3] `sessions_allowed` · `pyramiding` 라이브 배선 — ★`sessions_allowed` 는 넘기기만 하면 **조용한 no-op** 이었다(라이브 프레임이 `RangeIndex` + `timestamp` 컬럼). tz-aware 인덱스 복원 + fail-closed 로 수리하고 SSOT 불변식 감사를 **5계층**으로 확장했다
 - [x] **BL-488 ✅ Resolved** [P1] ★평가 갭이 orphan close 를 만든다 — 원인은 beat 가 아니라 `run_live` 의 마지막-bar 발행 계약이었다(실측 갭 131바 중 수면 76 + 배포 50, 서버 기전은 4바). `emit_from_bar_time` opt-in + 벽시계 상한 + resync + close 포지션 가드. 프로덕션에서 resync 발동 관측 · 회고 = [`dev-log/2026-07-27-live-conditional-entry.md`](dev-log/2026-07-27-live-conditional-entry.md) ~~ — 워커가 252 바 중 180 바만 평가(50분 구멍)했고, 구멍에 빠진 진입은 발주된 적 없는데 그 청산은 발주돼 `reduce_only` 주문이 `rejected`. 시뮬은 거래소가 준 적 없는 `+4.87330864` 를 이익 계상했다. 갭 감지 + 재동기화 설계 필요
+- [x] **BL-530 ✅ Resolved** [P1] ★엔진과 거래소가 **서로 다른 상품**을 보고 있었다 — 엔진이 Bybit **스팟 1m 봉**을 재생하며 주문은 무기한선물에 냈다(`market_data/providers/ccxt.py:46` `defaultType: "spot"`). 라이브 OHLCV fetch 를 `to_ccxt_perpetual_symbol` 로 통과(**1사이트 · 마이그레이션 0**). 외부 오라클이 소수점까지 확정(스팟 고가 63541.7 = 시뮬 스톱 일치, perp 는 63499.4) · PR #497/#498
+- [x] **BL-537 ✅ Resolved** [P1] ★**전제가 반증됐다** — "활성 세션이 없으면 고아를 못 닫는다" 가 틀렸다. BL-498 이 이미 탈출구를 지어 뒀고(인위 고아 3중 실측: 죽은 세션이 귀속 → **202** → 원장 `reduce_only=t·filled·leverage=2` → 거래소 **flat**), **계정 스코프 엔드포인트를 짓지 않았다**. 진짜 결함은 **누르면 실패하는 버튼**(`close_service` 가 settings 로 422 거부하는데 `position_service` 는 그 게이트를 평가 안 함) + `leverage 0/None` 이면 청산이 조용히 **스팟**으로 · PR #501
+- [ ] ★**BL-543** [P1] **세션은 태어날 때부터 갈릴 수 있다** — `run_live` 는 300바를 재생하지만 dispatch 는 **마지막 바만**(`event_loop.py:410`). 재생 구간 포지션은 주문이 된 적 없는데 엔진에는 남는다. 하류 3종 = **계측기 무효**(BL-536 이 지정한 첫 step) · 유령 청산(`close_position_flat`·`110017`) · **>5분 공백마다 세션 사망**(`gap_resync` 는 엔진도 flat 이어야 탄다). **다음 스프린트 선행**
+- [ ] **BL-536** [P1] BL-522 진입 완결성 — **재측정 완료(2026-07-29), 판정 유지.** soak 2h40m 유실률 **16.7%**(rejected 2/(filled 10+rejected 2)), 최대 채널 C2 **57% < 70%** 로 분산. ★착수는 **BL-543 이후** — 정렬 없이 지으면 재생이 계속 제조하는 포지션 위에 상태를 얹는다
+- [ ] **BL-535** [P1] 백테스트는 **스팟 봉**으로 perp 전략을 검증한다 (BL-530 이 라이브만 정렬 — **의도된 잔여, 되돌리지 말 것**). 실측 괴리 25~42 USDT(0.04~0.066%), 한쪽으로 치우친다. 권장 = `ts.ohlcv` 에 perp 를 `BTC/USDT:USDT` 키로 신규 적재(마이그레이션 0)
+- [ ] **BL-541** [P2] 세션 행이 **아예 없는** 포지션(웹훅 경로·거래소 수동)은 여전히 못 닫는다 — ★**아직 실측된 적 없어 의도적으로 안 지었다.** 관측되면 착수(`Order.strategy_id` nullable 화는 금지 — kill-switch 가 전략별 합산이라 NULL 은 영구 불가시)
+- [ ] **BL-542** [P3] 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 (거짓 양성 의심, **n=1**)
 - [ ] **BL-015** [P1] OKX Private WS — (그룹 2 참조)
 - [ ] **BL-022** [P1] Golden expectations 재생성 — strategy.exit 지원 후
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소

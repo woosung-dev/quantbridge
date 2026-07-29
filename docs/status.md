@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-07-29 (**live-orphan-close** 완료 — BL-537 종결 + BL-536 재측정 판정)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `feat/live-orphan-close` (커밋 대기 — 사용자 승인 필요)
+> **Last Merged:** `feat/live-orphan-close` → `main@91411980` (PR #501)
 > **Last Merged:** `fix/bl530-review-followups` → `main@004c374f` (PR #498) · 그 앞 `feat/live-close-completeness` → `main@178d24ef` (PR #497)
 
 ---
