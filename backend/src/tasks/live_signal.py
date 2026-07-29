@@ -108,6 +108,14 @@ _PREFLIGHT_CATEGORY_METADATA: dict[str, tuple[bool, str, str | None]] = {
         "평가 공백 후 포지션 불일치",
         "평가 공백이 상한을 초과했고 거래소와 시뮬레이션 포지션을 재동기화할 수 없습니다",
     ),
+    # ★등재하지 않으면 `_fire_divergence_alert` 가 기본 사유로 떨어져 운영자에게
+    # "pine_v2 coverage↔interpreter 발산" 이라는 **틀린 진단**이 나간다. 위
+    # `gap_resync_position_mismatch` 와 같은 계열(포지션 불일치)이므로 같은 처리 계약을 쓴다.
+    "position_direction_mismatch": (
+        False,
+        "엔진↔거래소 포지션 방향 불일치",
+        "엔진과 거래소가 연속 2회 평가에서 서로 반대 방향 포지션을 들고 있습니다",
+    ),
 }
 
 # 실측된 서버 기전은 1 bar 지연뿐이다. 봉 개수 대신 벽시계 5분으로 제한해 1h 봉 장기
@@ -224,6 +232,11 @@ _POSITION_SIZE_REL_TOL = Decimal("0.05")
 # 표시한다. 엔진 키와 충돌하면 그 순간 판정이 조용히 틀리므로 이름을 겹치게 두지 마라.
 _DIRECTION_MISMATCH_KEY = "_qb_direction_mismatch_seen"
 
+# 거래소를 못 읽어 **판정 자체를 못 한** 경우. "불일치 없음"(None)과 반드시 구분해야 한다 —
+# 둘을 합치면 REST 가 한 번 흔들릴 때마다 직전 strike 가 지워져, 진짜 지속 발산이
+# 영원히 2회차에 도달하지 못한다(가드가 조용히 무력화된다).
+_PROBE_FAILED = "probe_failed"
+
 
 def _net_position_size(positions: Sequence[Any]) -> Decimal:
     """거래소 포지션 목록 → 부호 있는 순포지션(long 양수 / short 음수).
@@ -317,13 +330,15 @@ async def _detect_position_divergence(
         positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
         exchange_position = _net_position_size(positions)
     except Exception:
-        qb_live_position_divergence_total.labels(category="probe_failed").inc()
+        qb_live_position_divergence_total.labels(category=_PROBE_FAILED).inc()
         logger.warning(
             "live_signal_position_divergence_probe_failed",
             exc_info=True,
             extra={"session_id": str(sess.id), "symbol": sess.symbol},
         )
-        return None
+        # ★None(일치)이 아니라 `_PROBE_FAILED`(모름)를 돌려준다. 호출부가 이걸 보고
+        # 직전 strike 를 **보존**한다. None 으로 돌리면 조용히 strike 를 지운다.
+        return _PROBE_FAILED
 
     category = _classify_position_divergence(engine_position, exchange_position)
     if category is not None:
@@ -1591,20 +1606,32 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # 가드가 이 **자기해소되는 skew** 로 세션을 죽였다.
             # 그래서 **연속 2회 평가에서 살아남은 경우에만** 차단한다. 한 bar 를 넘겨도
             # 반대편이면 그건 스스로 풀리는 상태가 아니다.
+            #
+            # ★**판정하지 못한 tick 이 직전 strike 를 지우면 안 된다.** 판정 실패는 두
+            # 경로로 온다 — `position_size` 를 못 읽거나(NaN/부재), 거래소 probe 가
+            # 실패하거나(REST blip, 현실적). 둘 다 "불일치 없음" 이 아니라 "모름" 이다.
+            # 모름을 False 로 적으면 REST 한 번 흔들릴 때마다 strike 가 초기화돼 진짜
+            # 지속 발산이 영원히 2회차에 도달하지 못한다(가드 fail-open 무력화).
+            # 그래서 `None`(모름)이면 직전 값을 그대로 넘긴다.
+            previous_state = await sess_repo.get_state(sess.id)
+            # 직전 리포트를 못 읽으면 "직전 strike 없음" 으로 본다. 아래 `isinstance` 방어와
+            # 같은 계약이며, state 행이 아직 없거나 리포트가 비어 있는 첫 tick 이 정상이다.
+            previous_report = getattr(previous_state, "last_strategy_state_report", None)
+            previous_direction_mismatch = (
+                isinstance(previous_report, dict)
+                and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
+            )
+
             engine_position = _to_engine_position(result.strategy_state_report)
-            direction_mismatch_seen = False
+            direction_mismatch_seen: bool | None = None
             if engine_position is not None:
                 divergence_category = await _detect_position_divergence(
                     sess, engine_position, account_repo=account_repo
                 )
-                direction_mismatch_seen = divergence_category == "direction"
-                previous_state = await sess_repo.get_state(sess.id)
-                previous_report = (
-                    previous_state.last_strategy_state_report if previous_state is not None else None
-                )
-                direction_mismatch_persisted = direction_mismatch_seen and (
-                    isinstance(previous_report, dict)
-                    and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
+                if divergence_category != _PROBE_FAILED:
+                    direction_mismatch_seen = divergence_category == "direction"
+                direction_mismatch_persisted = (
+                    direction_mismatch_seen is True and previous_direction_mismatch
                 )
                 if direction_mismatch_seen and not direction_mismatch_persisted:
                     # 첫 관측 — 다음 평가까지 유예한다. 플래그는 아래 upsert 로 넘어간다.
@@ -1632,12 +1659,14 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                             last_error_bar=-1,
                         )
                     return {"deactivated": "position_divergence", "category": "direction"}
-                if divergence_category is not None and not direction_mismatch_seen:
+                if (
+                    divergence_category is not None
+                    and divergence_category != _PROBE_FAILED
+                    and not direction_mismatch_seen
+                ):
                     # 죽이지는 않는다 — 크기를 재서 BL-522 설계 입력으로 삼는다.
                     # 차단 counter 와 분리한다(페이징 계약이 다르다).
-                    qb_live_position_divergence_total.labels(
-                        category=divergence_category
-                    ).inc()
+                    qb_live_position_divergence_total.labels(category=divergence_category).inc()
 
             for entry_skip in result.entry_skips:
                 reason = entry_skip.get("reason")
@@ -1699,8 +1728,13 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             sanitized_report = _sanitize_for_jsonb(result.strategy_state_report)
             # 방향 불일치 1회차를 다음 평가로 넘긴다(위 7.6). 여기 얹는 이유는 이 dict 가
             # 이미 매 tick upsert 되기 때문이다 — 새 컬럼도 새 저장소도 만들지 않는다.
+            # ★판정하지 못한 tick(`None`)은 직전 값을 그대로 넘긴다 — 지우지 않는다.
             if isinstance(sanitized_report, dict):
-                sanitized_report[_DIRECTION_MISMATCH_KEY] = direction_mismatch_seen
+                sanitized_report[_DIRECTION_MISMATCH_KEY] = (
+                    previous_direction_mismatch
+                    if direction_mismatch_seen is None
+                    else direction_mismatch_seen
+                )
             # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
             # 이번 tick 에 새로 INSERT 된 close event 만 curve 에 반영한다. warmup 창
             # 재계산의 미세 변동은 point 를 추가하지 않는다.
