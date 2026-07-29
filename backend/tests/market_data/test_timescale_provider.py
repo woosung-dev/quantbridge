@@ -1,4 +1,9 @@
-"""TimescaleProvider — cache → CCXT fallback + advisory lock 테스트."""
+"""TimescaleProvider — cache → CCXT fallback + advisory lock 테스트.
+
+★BL-535 — 인자는 canonical 시장(`BTC/USDT`)이지만 **저장 키는 상품**(`BTC/USDT:USDT`)이다.
+그래서 픽스처도 상품 키로 심는다. 그 경계 자체의 회귀는
+`test_backtest_instrument_parity.py` 가 잠근다.
+"""
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock
@@ -13,7 +18,7 @@ from src.market_data.repository import OHLCVRepository
 def _db_row(base: datetime, offset_h: int) -> dict[str, object]:
     return {
         "time": base + timedelta(hours=offset_h),
-        "symbol": "BTC/USDT",
+        "symbol": "BTC/USDT:USDT",
         "timeframe": "1h",
         "exchange": "bybit",
         "open": Decimal("1"),
@@ -85,10 +90,10 @@ async def test_get_ohlcv_empty_when_no_cache_no_ccxt_response(db_session) -> Non
 
 @pytest.mark.asyncio
 async def test_get_ohlcv_normalizes_symbol(db_session) -> None:
-    """'BTCUSDT' 입력을 'BTC/USDT'로 정규화하여 조회."""
+    """'BTCUSDT' concat 입력도 상품 키 'BTC/USDT:USDT' 로 해석되어 조회된다."""
     base = datetime(2024, 1, 1, tzinfo=UTC)
     repo = OHLCVRepository(db_session)
-    # 정규화된 symbol로 pre-insert
+    # 저장 키(상품 표기)로 pre-insert
     await repo.insert_bulk([_db_row(base, 0)])
     await repo.commit()
 

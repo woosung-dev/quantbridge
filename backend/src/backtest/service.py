@@ -542,9 +542,19 @@ class BacktestService:
         bar_delta = timedelta(seconds=PAD_BARS * TIMEFRAME_SECONDS[bt.timeframe])
         range_start = max(bt.period_start, trade.entry_time - bar_delta)
         range_end = min(bt.period_end, (trade.exit_time or bt.period_end) + bar_delta)
+        # ★BL-535 — 차트는 엔진이 재생한 것과 **같은 상품**을 그려야 한다. 스팟 봉 위에 perp
+        # 체결 마커를 얹으면 스톱이 그려진 봉의 고저 밖에 놓여 화면이 발산을 은폐한다.
+        # 다만 어느 상품으로 돈 백테스트인지는 행에 적혀 있지 않으므로(컬럼 추가 =
+        # 마이그레이션 ≠ 0) **perp 우선, 그 창에 perp 가 없으면 legacy 스팟**으로 떨어진다.
+        # 계기 정렬 이전 백테스트의 차트가 통째로 비는 회귀를 막는 fallback 이다.
+        # 경계 정본: `docs/reference/instrument-symbol-boundary.md` §3.1.
         rows = await self.ohlcv_repo.get_range(
-            normalize_symbol(bt.symbol), bt.timeframe, range_start, range_end
+            to_ccxt_perpetual_symbol(bt.symbol), bt.timeframe, range_start, range_end
         )
+        if not rows:
+            rows = await self.ohlcv_repo.get_range(
+                normalize_symbol(bt.symbol), bt.timeframe, range_start, range_end
+            )
 
         stride = 1
         truncated = False

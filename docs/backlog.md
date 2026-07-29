@@ -4120,6 +4120,17 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 **권장 접근:** `ts.ohlcv` 에 perp 를 **`BTC/USDT:USDT` 키로 신규 적재**한다 — 기존 행 불변이라 **마이그레이션 0** 이고, `TimescaleProvider` 는 cache-first 라 백테스트 1회가 곧 시딩이다(dogfood-restore 선례). 심볼 컨벤션이 전략·UI·기존 백테스트에 파급되므로 그 경계를 먼저 정해야 한다.
 **Risk:** 🟡 (판단 근거의 정합성. 머니-패스 직접 영향은 없다)
 
+### 코드 착지 (2026-07-29 함대 워커 `bl535`) — **실주행 검증 대기**
+
+경계 정본 신설: [`docs/reference/instrument-symbol-boundary.md`](reference/instrument-symbol-boundary.md).
+변환은 `to_ccxt_perpetual_symbol` **재사용**이고 신규 함수는 없다. 마이그레이션 0.
+
+- **fetch 경로 1사이트** — `market_data/providers/timescale.py` `get_ohlcv` 가 canonical 을 받아 상품 키로 lock·gap·fetch·insert·get_range 한다. 세 소비자(backtest·optimizer·stress_test)가 이 프로토콜 하나를 지나므로 소비자별 복제가 없다. `CCXTProvider` 의 `defaultType: "spot"` 은 **건드리지 않았다**(콜론 표기가 이기는 것은 BL-530 이 외부 오라클로 확정).
+- 부수 2사이트 — 거래 상세 차트(`backtest/service.py` `trade_ohlcv`)가 perp 우선·없으면 legacy 스팟, `tasks/market_data_backfill.py` 의 row-count 가 **쓰는 키로** 센다(안 고치면 `rows_written` 이 상시 0 이라 거짓 보고).
+- 기존 스팟 행은 UPDATE/DELETE 없음. `TestLegacySpotRowsAreUntouched` 가 값까지 잠근다.
+
+★**아직 검증되지 않은 것** — perp 실적재와 백테스트 1회 대조는 워크트리에서 구조적으로 불가능하다(celery worker 가 메인 `src` 를 mount). CONTROL 이 `ts.ohlcv` 에 `BTC/USDT:USDT` 행이 실제로 쌓이는지, 같은 전략의 스팟/perp 결과 차가 실측 괴리(0.04~0.066%) 방향과 맞는지 확인해야 Resolved 다.
+
 ---
 
 ### BL-536

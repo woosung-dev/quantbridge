@@ -15,7 +15,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.market_data.constants import TIMEFRAME_SECONDS, normalize_symbol
+from src.market_data.constants import TIMEFRAME_SECONDS, to_ccxt_perpetual_symbol
 from src.market_data.models import OHLCV
 from src.market_data.providers.ccxt import CCXTProvider
 from src.market_data.repository import OHLCVRepository
@@ -41,8 +41,22 @@ class TimescaleProvider:
         period_start: datetime,
         period_end: datetime,
     ) -> pd.DataFrame:
-        """cache-first 조회 — gap만 CCXT로 fetch 후 캐시 저장."""
-        symbol = normalize_symbol(symbol)
+        """cache-first 조회 — gap만 CCXT로 fetch 후 캐시 저장.
+
+        ★BL-535 — 인자는 canonical 시장(`BTC/USDT`)이지만 **저장 키와 거래소 fetch 는 상품**
+        (`BTC/USDT:USDT`)이다. 여기가 그 경계다 (`docs/reference/instrument-symbol-boundary.md`).
+
+        `CCXTProvider` 는 `defaultType: "spot"` 이라 canonical 을 그대로 넘기면 **스팟 봉**이
+        온다. 그런데 주문은 `BybitFuturesProvider`(defaultType "linear")로 무기한선물에 나간다.
+        두 상품 가격은 붙어 있지 않아(실측 스팟이 perp 보다 25~42 USDT / 0.04~0.066% 높고 한쪽으로
+        치우친다) 백테스트는 스팟 고가로 스톱을 체결시키는데 라이브는 그 근처도 안 간다.
+        라이브는 BL-530 이 이미 perp 로 정렬했다 — 이 함수가 백테스트·옵티마이저·스트레스
+        테스트 세 소비자를 같은 축에 올린다.
+
+        저장 키가 달라지므로 기존 스팟 행은 **건드리지 않고 그대로 남는다**(PK 에 symbol 포함,
+        마이그레이션 0). 캐시가 비어 있으면 첫 조회가 곧 perp 시딩이다.
+        """
+        symbol = to_ccxt_perpetual_symbol(symbol)
         tf_sec = TIMEFRAME_SECONDS[timeframe]
 
         # 1. advisory lock — 동시 fetch race 방지 (트랜잭션 종료 시 해제)
