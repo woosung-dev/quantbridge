@@ -170,6 +170,42 @@ BE **3411**(baseline 3390, **+21**) / FE **203 파일 · 1213**(baseline 일치,
 - **`size` counter 신규 발화 0건** — 매칭된 포지션이 존재하는데도(엔진 `+0.029974569920858073` vs 거래소 `long 0.029`, 양자화 차 3.25%) 발화하지 않았다. 상대 문턱 수리의 실주행 확인이다. 정확 비교였다면 매 tick 발화했다.
 - `110093`(트리거 이미 돌파) **1건 발생**. BL-511 이후 창에서는 0건이었다. perp 봉으로 계산한 스톱은 perp 현재가에 더 가까이 놓이므로 **돌파 상태로 태어날 확률이 오히려 올라갈 수 있다** — 1건이라 판정은 못 하지만 **다음 회차가 지켜볼 것**으로 남긴다.
 
+## 사후 리뷰 (2026-07-29, 머지 후 2축 리뷰 + CI 재현)
+
+머지 뒤 Standards/Spec 2축 리뷰를 돌렸다. **두 축이 독립적으로 같은 기능 — 이 스프린트가 새로 넣은 방향 불일치 가드 — 을 지목했다.**
+
+### CI 재현 (러너 미할당이라 로컬로 동일 재현)
+
+이 PR 이 실제로 발화시키는 잡은 **backend 하나**다(`frontend/**` 0 파일 → frontend·e2e skip).
+
+| 스텝                              | 결과                                                    |
+| --------------------------------- | ------------------------------------------------------- |
+| `ruff check .` · `mypy src/`      | ✅                                                      |
+| `alembic upgrade head` (fresh DB) | ✅ head `20260728_0001` = **마이그레이션 0 확인**       |
+| `pytest` + `--cov-fail-under=90`  | ✅ **3411 passed / 0 failed**, `Total coverage: 93.14%` |
+
+★**커버리지 래칫은 머지 전에 안 돌린 유일한 게이트였다.** 결과적으로 통과였지만, 안 돌린 채 머지한 것은 사실이다.
+
+★★**재현 1차는 내 환경 결함으로 실패했고, 나는 그걸 통과로 읽을 뻔했다.** `| tail` 로 파이프해 **exit code 가 `tail` 것으로 바뀌었다** — 이 저장소가 `gates-and-traps.md` §3 에 이미 적어둔 함정에 그대로 걸렸다. 실패 5건은 `test_migrations` 의 **자체 가드**("버려도 되는 `_test` 접미사 DB 만 허용")가 내 throwaway DB 이름을 거부한 것이고, 16건은 `conftest.py:50` 이 `TEST_REDIS_LOCK_URL` 부재 시 **6379 기본값**을 쓰는데 로컬 redis 가 6380 인 탓이었다. **둘 다 코드가 아니라 재현이 틀린 것.**
+
+### 리뷰가 잡은 실제 결함 3건 (전부 이번 스프린트가 새로 넣은 코드)
+
+1. ★**차단 알림이 틀린 진단·처방을 냈다.** `_fire_divergence_alert(category="position_direction_mismatch")` 를 `reason` 없이 불렀는데 그 키가 `_PREFLIGHT_CATEGORY_METADATA` 에 **없어서**, 사유가 기본값 `"pine_v2 coverage↔interpreter 발산"` 으로 떨어졌다. 세션은 옳게 죽지만 운영자는 **"전략을 고쳐라"** 를 읽는다. → 선례(`gap_resync_position_mismatch`)대로 등재해 수리.
+2. ★**판정 못 한 tick 이 직전 strike 를 지웠다.** `direction_mismatch_seen = False` 가 판정 블록 **밖에서** 초기화돼 그대로 영속됐다. probe 실패(REST blip)나 `position_size` 결측이면 strike 가 초기화돼 **진짜 지속 발산이 영원히 2회차에 도달하지 못한다** — 가드가 조용히 무력화되는 경로였다. → `_PROBE_FAILED`(모름)를 `None`(일치)과 분리하고, 모름이면 직전 값을 보존하도록 수리.
+3. ★**LESSON-019 commit-spy 누락.** 새 mutation 경로를 덮는 테스트가 `deactivate` 만 단언했다. 동일 의식을 검증하는 sibling 은 `commit` + `insert_pending_events.assert_not_called()` 까지 단언한다 — **차단하면서 이벤트를 그대로 발주하는 회귀가 통과**했다. → 단언 보강, 변이(M-D)로 검출 확인.
+
+### 리뷰가 틀린 것도 있었다
+
+- "state report 에 내부 키를 실어 FE 가 깨진다" → **오탐.** FE 는 `z.record(z.string(), z.unknown())` open record 다(`features/live-sessions/schemas.ts:61`). 설계 냄새로는 유효해 BL 로만 남긴다.
+- "BL-527 확인 누락" → 절차상 맞지만 **결론은 오염되지 않았다.** 이 회차가 보고한 숫자는 전부 `status`/`error_message`/`state`/`side` **카운트**이고 "확정" 도 `realized_pnl_synced_at` **존재 여부**다 — `realized_pnl` **값을 읽는 결론이 하나도 없다.**
+
+### 내가 적어놓고 안 한 것
+
+- **BL-529 보강** — 플랜 W4 가 "등재 내용 보강만" 이라 적었는데 PR 에 0건이었다. 사후에 반영(`ours` 30행 / `unknown` 30행이 **net 까지 −27.6870 동일**).
+- **게이트 문구** — `status.md` baseline 줄이 e2e·canon·tsc·eslint 를 measured 처럼 실었다. `frontend/**` 0 파일이라 값 자체는 구성상 참이지만 **돌리지는 않았다.** → 「직접 측정 / 이월(미재측정)」로 분리.
+
+신규 **BL-538**(알림 처방 문구 — 선재) · **BL-539**(유예 시간 경계) · **BL-540**(`live_signal.py` 반복 3종).
+
 ## 남긴 것
 
 - **BL-535 (P1)** — 백테스트는 여전히 스팟 봉이다. **의도된 잔여**이고, 다음 사람이 결함으로 오진해 라이브를 되돌리면 BL-530 이 재발한다.

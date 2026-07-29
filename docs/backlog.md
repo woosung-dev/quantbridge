@@ -694,6 +694,9 @@
 | [BL-535](#bl-535) | ★백테스트는 스팟 봉으로 perp 전략을 검증한다 (라이브만 계기 정렬 — 의도된 잔여)                                                                                | 백테스트를 라이브 판단 근거로 쓰기 전                                          | M            | 2026-07-28 live-close-completeness                     |
 | [BL-536](#bl-536) | BL-522 진입 완결성 — 계기 정렬 후 유실 채널 5종 재측정 후 설계                                                                                                 | 실자금 cutover 전 필수                                                         | M            | 2026-07-28 live-close-completeness                     |
 | [BL-537](#bl-537) | 활성 세션이 없으면 고아 포지션을 앱에서 청산할 수 없다 (SL 없는 short 0.03 을 9시간 방치)                                                                      | 실자금 cutover 전 필수                                                         | S            | 2026-07-28 live-close-completeness                     |
+| [BL-538](#bl-538) | 발산 알림 본문이 모든 카테고리에 "전략 수정 후 재활성화" 라고 처방한다 (포지션 불일치엔 틀린 처방)                                                             | 운영 알림을 사람이 신뢰해야 할 때                                              | S            | 2026-07-29 PR #497 사후 리뷰                           |
+| [BL-539](#bl-539) | 방향 불일치 유예가 시간 경계가 없다 — 평가가 드문드문하면 오래된 strike 가 살아남는다                                                                          | 발산 가드를 다시 손댈 때                                                       | S            | 2026-07-29 PR #497 사후 리뷰                           |
+| [BL-540](#bl-540) | `live_signal.py` 반복 3종 — deactivate 의식 6회 · provider+creds 4회 · category 가 맨 `str`                                                                    | 이 파일을 다시 크게 손댈 때                                                    | M            | 2026-07-29 PR #497 사후 리뷰                           |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -3983,6 +3986,10 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 **권장 접근:** 등록 시 거래소 uid 중복을 감지해 경고하거나, 스윕을 uid 단위로 dedupe 한다. 화면은 그때까지 "계정 행마다 중복 적재될 수 있음" 을 명시한다(이번 스프린트에서 문구 반영).
 **Risk:** 🟢
 
+**🔁 재확인 (2026-07-29, live-close-completeness 리뷰):** 거울 행이 **실재로 재확인**됐다 — `exchange_exits` 분류 집계에서 `ours` **30행**과 `unknown` **30행**이 건수뿐 아니라 **net 합계까지 −27.6870 으로 동일**했다. 같은 청산이 계정 행 2개에 각각 적재된다는 BL 본문의 진단과 일치한다.
+
+★이 확인은 live-close-completeness 플랜(W4)이 "등재 내용 보강만" 으로 약속했으나 **그 PR 에서 누락**됐고, 사후 Spec 리뷰가 잡아 여기 반영한다. 스코프를 줄인 게 아니라 **적어놓고 안 한 것**이므로 같은 누락이 반복되지 않도록 기록해 둔다.
+
 ---
 
 ### BL-530
@@ -4143,3 +4150,68 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 **권장 접근:** 계정·심볼 단위 청산 경로를 세션과 독립적으로 둔다. `OrderService` 를 거치게 해 원장·리스크 게이트가 유지돼야 한다.
 **Risk:** 🔴 (무방비 노출이 무기한 지속)
+
+---
+
+### BL-538
+
+**Title:** 발산 알림 본문이 **모든 카테고리에 "전략 수정 후 재활성화 필요"** 라고 처방한다 (포지션 불일치엔 틀린 처방)
+**Category:** Backend / trading (운영 알림)
+**Priority:** P2
+**Trigger:** 운영 알림을 사람이 신뢰해야 할 때
+**Est:** S
+**출처:** 2026-07-29 PR #497 사후 리뷰 (Spec 축)
+
+**원인 / 영향:** `_alert_live_divergence`(`tasks/live_signal.py`)의 메시지가 단일 f-string 이고 **stage 분기가 없다**:
+
+```
+f"{reason}({stage}/{category}) 감지 — 세션을 비활성화했습니다(...). 전략 수정 후 재활성화 필요."
+```
+
+`reason` 은 카테고리별로 갈리지만 **처방 문장은 하드코딩**이라, 포지션 계열(`gap_resync_position_mismatch`, `position_direction_mismatch`)에도 "전략을 고쳐라" 가 나간다. 실제 필요한 조치는 **거래소 포지션과 엔진 상태 대조 후 재활성화**다.
+
+★**선재 결함이다** — `gap_resync_position_mismatch` 가 이미 같은 문장을 받고 있었고, PR #497 이 카테고리를 하나 더 추가하면서 노출면이 넓어졌다. #497 은 사유·제목만 정정했다(메타데이터 등재).
+
+**권장 접근:** `_PREFLIGHT_CATEGORY_METADATA` 에 처방(remedy) 원소를 추가하거나 `_alert_live_divergence` 에 kwarg 로 주입한다.
+**Risk:** 🟡 (사람이 잘못된 조치를 하게 만든다. 자동 경로 무영향)
+
+---
+
+### BL-539
+
+**Title:** 방향 불일치 유예가 **시간 경계가 없다** — 평가가 드문드문하면 오래된 strike 가 살아남는다
+**Category:** Backend / trading (라이브 발산 감지)
+**Priority:** P3
+**Trigger:** 발산 가드를 다시 손댈 때
+**Est:** S
+**출처:** 2026-07-29 PR #497 사후 리뷰 (Spec 축)
+
+**원인 / 영향:** `_DIRECTION_MISMATCH_KEY` 플래그는 `upsert_state` 에 도달한 tick 에서만 갱신된다. `no_new_bar` / `claim_lost` 로 조기 반환하는 tick 은 갱신하지 않으므로, 오래 전 `True` 가 그대로 남는다. 그 뒤 **진짜로 한 bar 만에 풀릴 skew** 가 와도 첫 관측에 차단될 수 있다.
+
+★계약이 "연속 2회 **평가**" 이지 "연속 2회 **bar**" 가 아니다. 1m 세션에서는 둘이 사실상 같지만 5m/15m/1h 나 재기동 후에는 갈린다.
+
+**권장 접근:** 플래그에 관측 bar_time 을 함께 실어 인접 bar 일 때만 strike 로 인정한다.
+**Risk:** 🟢 (과잉차단 방향 — 세션이 죽지 돈이 새지 않는다)
+
+---
+
+### BL-540
+
+**Title:** `live_signal.py` 의 반복 3종 — deactivate 의식 6회 · provider+creds 조립 4회 · divergence category 가 맨 `str`
+**Category:** Refactor / trading
+**Priority:** P3
+**Trigger:** 이 파일을 다시 크게 손댈 때
+**Est:** M
+**출처:** 2026-07-29 PR #497 사후 리뷰 (Standards 축)
+
+**원인 / 영향:**
+
+- **deactivate 의식**(`deactivate` → `commit` → `rows == 1` → sweep → `publish_realtime` → counter → alert)이 한 함수 안에서 **6회** 반복된다. 한 갈래만 고치면 나머지가 조용히 갈린다.
+- **provider + credentials 조립**(`BybitFuturesProvider` + `EncryptionService` + `ExchangeAccountService` + `get_credentials_for_order`)이 **4곳**(`:316` `:449` `:1437` `:2155`)에 거의 동일하게 반복된다.
+- **divergence category 가 맨 `str | None`** — 합법 집합이 `common/metrics.py` 주석에만 있고 `== "direction"` 리터럴과 metric label 로 재인코딩된다. 이 저장소는 StrEnum-vs-plain-str 로 이미 물렸다(BL-453).
+- 같은 tick 에 `sess_repo.get_state(sess.id)` **2회**(발산 판정 · equity curve).
+
+★전부 **선재 패턴**이고 PR #497 이 각각 하나씩 보탰다. 지금 리팩터링하면 diff 가 커져 리뷰가 어려워지므로 분리한다.
+
+**권장 접근:** deactivate 의식을 헬퍼로 접고, category 를 StrEnum 으로 승격하고, `get_state` 를 한 번만 읽어 두 소비처가 공유한다.
+**Risk:** 🟢
