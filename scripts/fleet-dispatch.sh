@@ -6,13 +6,22 @@
 #   scripts/fleet-dispatch.sh --run <이름>                 # tasks/*.md 를 각 워커 pane 에 주입
 #   scripts/fleet-dispatch.sh --run <이름> --status        # 상태 종합 (반복 호출용)
 #   scripts/fleet-dispatch.sh --run <이름> --only a,b      # 일부만 재분배
-#   scripts/fleet-dispatch.sh --run <이름> --force         # working 중인 워커에도 주입(위험)
+#   scripts/fleet-dispatch.sh --run <이름> --force         # idle 이 아닌 워커에도 주입(입력이 섞인다)
 #
 # 계약과 절차는 docs/guides/fleet-orchestration.md. 여기 복사하지 않는다 — 두 벌이 되면 갈린다.
 #
-#   .claude/fleet/<run>/tasks/<worker>.md      오케스트레이터가 쓴다 (수용 기준 포함)
-#   .claude/fleet/<run>/signals/<worker>.status  워커가 쓴다  running | done | blocked
-#   .claude/fleet/<run>/reports/<worker>.md      워커가 쓴다
+# ★워커가 만지는 것은 **전부 그 워커의 워크트리 안**이다:
+#
+#   <메인>/.claude/fleet/<run>/tasks/<worker>.md   오케스트레이터가 쓰는 원본 (SSOT)
+#   <워크트리>/.claude/fleet/<run>/task.md         분배가 복사해 넣는다 (워커가 읽는 것)
+#   <워크트리>/.claude/fleet/<run>/status          워커가 쓴다  running | done | blocked
+#   <워크트리>/.claude/fleet/<run>/report.md       워커가 쓴다
+#
+# 메인에 두지 않는 이유 — codex 워커는 `-s workspace-write` 샌드박스라 **워크스페이스 밖 쓰기가
+# 거부된다.** 실측에서 codex 두 기가 임무를 다 끝내고도 `operation not permitted` 로 보고 파일도
+# `blocked` 기록도 못 남겨 **결과가 통째로 유실**됐다. 워크트리 안으로 옮기면 codex 는 좁은
+# 샌드박스 그대로 보고할 수 있고, "워커는 자기 워크트리만 만진다" 는 불변식도 강해진다.
+# (`.claude/*` 는 gitignore 라 브랜치가 더러워지지 않는다.)
 #
 # 워커 이름 = 워크트리 이름 = herdr-fleet.sh --agent <kind>:<이름> 의 그 이름.
 # pane 은 이름으로 찾지 않고 **cwd 로 역추적**한다 — pane 라벨은 사람이 바꿀 수 있어 신뢰할 수 없다.
@@ -24,13 +33,17 @@ ok()  { echo "  ✓ $*"; }
 
 RUN=""; STATUS=0; FORCE=0; ONLY=""
 
+# 값이 필요한 옵션은 값의 존재를 먼저 본다 — `--run` 만 주고 값을 빼면 `shift 2` 가 실패해
+# `set -e` 로 **메시지 없이** 죽는다(worktree-bootstrap.sh 에서 codex 가 잡은 것과 같은 패턴).
+need_val() { [ "$1" -ge 2 ] || { echo "✗ $2 에 값이 없다" >&2; exit 2; }; }
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --run)    RUN="${2:-}"; shift 2 ;;
+    --run)    need_val $# --run;  RUN="$2"; shift 2 ;;
     --status) STATUS=1; shift ;;
     --force)  FORCE=1; shift ;;
-    --only)   ONLY="${2:-}"; shift 2 ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --only)   need_val $# --only; ONLY="$2"; shift 2 ;;
+    -h|--help) sed -n '2,28p' "$0"; exit 0 ;;
     *) die "알 수 없는 인자: $1  (--help)" ;;
   esac
 done
@@ -51,7 +64,9 @@ RUN_DIR="$MAIN_ROOT/.claude/fleet/$RUN"
 [ -d "$RUN_DIR/tasks" ] || die "$RUN_DIR/tasks 가 없다.
     먼저 오케스트레이터가 워커별 task 파일을 쓴다 — 수용 기준을 착수 전에 동결하는 것이 이 구조의 핵심이다
     (docs/guides/fleet-orchestration.md §1)."
-mkdir -p "$RUN_DIR/signals" "$RUN_DIR/reports"
+
+# 워커 산출물이 놓이는 곳 — 그 워커의 **워크트리 안**이다 (머리말 참조).
+wt_out() { printf '%s/.claude/fleet/%s' "$MAIN_ROOT/.claude/worktrees/$1" "$RUN"; }
 
 # 워커 목록 = tasks/*.md 의 basename. --only 로 좁힐 수 있다.
 WORKERS=()
@@ -98,8 +113,9 @@ if [ "$STATUS" -eq 1 ]; then
     wt="$MAIN_ROOT/.claude/worktrees/$w"
     pane="$(pane_of "$wt" || true)"
     hs="-"; [ -n "$pane" ] && hs="$(agent_status_of "$pane")"
-    sig="-"; [ -f "$RUN_DIR/signals/$w.status" ] && sig="$(tr -d '\n' < "$RUN_DIR/signals/$w.status")"
-    rep="-"; [ -s "$RUN_DIR/reports/$w.md" ] && rep="있음"
+    out="$(wt_out "$w")"
+    sig="-"; [ -f "$out/status" ] && sig="$(tr -d '\n' < "$out/status")"
+    rep="-"; [ -s "$out/report.md" ] && rep="있음"
     br="-"
     if git rev-parse --verify --quiet "wt/$w" >/dev/null; then
       br="wt/$w($(git rev-list --count "origin/main..wt/$w" 2>/dev/null || echo '?'))"
@@ -142,26 +158,43 @@ for w in "${WORKERS[@]}"; do
     base 가 이 문서를 포함한 커밋이어야 한다. 워커에게 없는 파일을 읽으라고 시키면
     워커는 제 나름대로 해석하고, 그건 계약이 아니다."
 
+  # task 원본은 메인에 두되 **워크트리로 복사**한다. 워커가 읽고 쓰는 것이 전부 자기 워크트리
+  # 안에 있어야 codex 의 `-s workspace-write` 샌드박스에서도 보고가 남는다.
+  OUT="$(wt_out "$w")"
+  mkdir -p "$OUT"
+  cp "$RUN_DIR/tasks/$w.md" "$OUT/task.md"
+
+  # ★`pending` 은 **주입 전에** 쓴다. 주입 뒤에 쓰면, 지시대로 즉시 `running` 을 쓴 워커의 값을
+  #   덮어써서 폴링이 오랫동안 거짓 `pending` 을 보여준다 (codex 리뷰 P2).
+  printf 'pending\n' > "$OUT/status"
+
   # 계약은 프롬프트에 복사하지 않는다. 읽게 시킨다 — 복사하면 두 벌이 되어 갈린다.
   read -r -d '' PROMPT <<EOF || true
 너는 fleet 워커 '$w' 다. 워크트리 $wt (슬롯 $slot) 에서만 작업한다.
+아래 경로는 전부 그 워크트리 안이다 — 밖으로 나가지 마라.
 
 다음을 순서대로 읽고 그대로 수행해라:
   1) $CONTRACT  — §1 역할 · §3 라우팅 · §7 워커 규칙
-  2) $RUN_DIR/tasks/$w.md  — 네 임무와 수용 기준
+  2) $OUT/task.md  — 네 임무와 수용 기준
 
 시작하면 즉시:
-  echo running > $RUN_DIR/signals/$w.status
+  echo running > $OUT/status
 
-끝나면 $RUN_DIR/reports/$w.md 에 보고를 쓰고:
-  echo done > $RUN_DIR/signals/$w.status
+끝나면 $OUT/report.md 에 보고를 쓰고:
+  echo done > $OUT/status
 
 커밋까지만 한다. 푸시·PR·머지는 오케스트레이터 몫이다. 사용자에게 질문하지 마라 —
 판단이 막히면 blocked 를 쓰고 이유를 보고에 남겨라.
 EOF
 
+  # 상태 확인과 주입 사이에 워커가 working 으로 바뀔 수 있다(TOCTOU — codex 리뷰 P2).
+  # 창을 없앨 수는 없지만 주입 **직전에** 한 번 더 봐서 크게 줄인다.
+  if [ "$FORCE" -ne 1 ]; then
+    hs2="$(agent_status_of "$pane")"
+    [ "$hs2" = "idle" ] || die "$w ($pane) 가 확인 직후 '$hs2' 로 바뀌었다 — 주입을 취소했다.
+    다시 시도하거나, 정말 넣어야 하면 --force."
+  fi
   herdr agent prompt "$pane" "$PROMPT" >/dev/null || die "$w 주입 실패 ($pane)"
-  printf 'pending\n' > "$RUN_DIR/signals/$w.status"
   ok "$w → $pane (슬롯 $slot)"
 done
 

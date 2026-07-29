@@ -52,12 +52,21 @@ QB_BE_PORT := $(shell expr 8100 + $(QB_SLOT))
 # 선행 타깃은 (직렬 make 에서) 나열 순서대로 실행되므로 이걸 **맨 앞**에 둔다.
 #
 # 종료 코드는 셸에선 1 이지만 **`make` 는 2 로 감싼다.** 문서에 "exit 1" 이라고 쓰지 마라.
+#
+# ★판정 기준은 `$(QB_SLOT)` 이 **아니다.** make 는 명령행 변수(`make QB_SLOT=0 up`)를
+#   `-include` 로 읽은 파일보다 우선하므로, 슬롯 변수로 판정하면 **인자 하나로 가드가 꺼진다.**
+#   실측 — 슬롯 1 워크트리에서 `make QB_SLOT=0 _guard-main-only` 가 exit 0 으로 통과했다
+#   (codex 리뷰 P1). 인자로 끌 수 있는 가드는 가드가 아니다.
+#   그래서 **git 에게 묻는다**: 워크트리에서만 git-dir 과 git-common-dir 이 갈린다.
+#   이건 어떤 make 변수로도 못 바꾼다.
 .PHONY: _guard-main-only
 _guard-main-only:
-	@if [ "$(QB_SLOT)" != "0" ]; then \
-	  echo "✗ '$(or $(MAKECMDGOALS),이 타깃)' 은 메인 체크아웃 전용이다 (지금 슬롯 $(QB_SLOT))." >&2; \
+	@_gd="$$(git rev-parse --absolute-git-dir 2>/dev/null)"; \
+	 _gc="$$(cd "$$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd)"; \
+	 if [ -n "$$_gd" ] && [ -n "$$_gc" ] && [ "$$_gd" != "$$_gc" ]; then \
+	  echo "✗ '$(or $(MAKECMDGOALS),이 타깃)' 은 메인 체크아웃 전용이다 (여기는 워크트리 — 슬롯 $(QB_SLOT))." >&2; \
 	  echo "  컨테이너와 앱 DB 는 슬롯과 무관하게 1벌 공유다 — 여기서 실행하면 다른 워크트리와 메인이 깨진다." >&2; \
-	  echo "  → 메인에서 실행해라: cd $(QB_MAIN_ROOT) && make $(MAKECMDGOALS)" >&2; \
+	  echo "  → 메인에서 실행해라: cd $$(dirname "$$_gc") && make $(MAKECMDGOALS)" >&2; \
 	  echo "  (근거: docs/reference/worktree-parallel.md §2.1)" >&2; \
 	  exit 1; \
 	fi

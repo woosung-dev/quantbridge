@@ -38,7 +38,11 @@ SLOT=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --slot)      SLOT="${2:-}"; shift 2 ;;
+    # ★값이 필요한 옵션은 값의 존재를 먼저 확인한다. `--slot` 만 주고 값을 빼면 `shift 2` 가
+    #   인자 부족으로 실패하고 `set -e` 가 **메시지 없이** 죽는다(실측: exit 1, 출력 0줄).
+    #   호출자는 무엇이 잘못됐는지 알 수 없다.
+    --slot)      [ $# -ge 2 ] || { echo "✗ --slot 에 값이 없다 (예: --slot 3)" >&2; exit 2; }
+                 SLOT="$2"; shift 2 ;;
     --skip-deps) SKIP_DEPS=1; shift ;;
     --skip-db)   SKIP_DB=1; shift ;;
     --adopt-env) ADOPT_ENV=1; shift ;;

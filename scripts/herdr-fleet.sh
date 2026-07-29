@@ -97,6 +97,27 @@ EOF
 fi
 
 [ "${#SPECS[@]}" -gt 0 ] || die "에이전트를 하나 이상 줘라: --agent claude:<이름>  (--help)"
+
+# ★인자 검증은 **부작용 전에** 끝낸다. 워크트리를 만들다가 3번째에서 죽으면 반쯤 만들어진
+#   상태가 남는다. 아래 두 검사는 아무것도 만들기 전에 전건을 본다.
+_seen=""
+for spec in "${SPECS[@]}"; do
+  case "$spec" in
+    *:*) _k="${spec%%:*}"; _n="${spec#*:}" ;;
+    *)   die "--agent 는 KIND:이름 형식이다 (예: claude:bl537). 받은 값: $spec" ;;
+  esac
+  [ -n "$_k" ] && [ -n "$_n" ] || die "--agent 값이 비었다: $spec"
+  case "$_n" in */*|.*) die "워크트리 이름에 '/' 나 선행 '.' 는 쓰지 마라: $_n" ;; esac
+  # 이름이 곧 워크트리이고 워크트리가 곧 슬롯이다. 같은 이름을 두 번 주면 두 pane 의 두
+  # 에이전트가 **같은 워크트리와 같은 슬롯 테스트 DB** 를 공유한다 — 동시에 같은 파일을 고치고
+  # 서로의 pytest DB 를 drop_all 한다. 슬롯 격리 전체가 그 순간 무의미해진다 (codex 리뷰 P2).
+  case " $_seen " in
+    *" $_n "*) die "--agent 이름이 중복이다: $_n
+    이름 하나가 워크트리 하나이고 슬롯 하나다. 두 에이전트가 같은 워크트리와 같은 pytest DB 를
+    공유하면 서로의 파일을 덮어쓰고 서로의 테이블을 드롭한다." ;;
+  esac
+  _seen="$_seen $_n"
+done
 [ "${#SPECS[@]}" -le "$MAX_AGENTS" ] || die "에이전트는 최대 $MAX_AGENTS 개다 (2×2 니까). 준 개수: ${#SPECS[@]}
     더 필요하면 함대를 하나 더 띄워라 — 한 화면에 6칸을 넣으면 아무것도 안 읽힌다."
 
@@ -129,7 +150,6 @@ for spec in "${SPECS[@]}"; do
     *)   die "--agent 는 KIND:이름 형식이다 (예: claude:bl537). 받은 값: $spec" ;;
   esac
   [ -n "$kind" ] && [ -n "$name" ] || die "--agent 값이 비었다: $spec"
-  case "$name" in */*|.*) die "워크트리 이름에 '/' 나 선행 '.' 는 쓰지 마라: $name" ;; esac
 
   wt="$MAIN_ROOT/.claude/worktrees/$name"
   if [ -d "$wt" ]; then
@@ -199,13 +219,57 @@ else
 fi
 
 # ── 4. 에이전트 기동 + 라벨 ─────────────────────────────────────────────────
+#
+# ★kind 마다 승인 정책이 다르다. claude 는 `.worktreeinclude` 가 복사한
+#   `.claude/settings.local.json` 의 allow 목록을 상속받아 그냥 돈다. codex 는 그런 게 없어서
+#   **첫 명령부터 승인 프롬프트로 멈춘다**(실측 — 두 codex 워커가 `echo running > …` 에서 정지).
+#   그래서 codex 에는 승인·샌드박스 정책을 명시로 준다.
+#   ⚠️ `-s workspace-write` 는 **워크스페이스(=워크트리) 밖 쓰기와 네트워크를 막는다.** 그게
+#      의도다 — 워커는 자기 워크트리만 만져야 한다. 대신 codex 워커에게 DB 를 타는 검증을
+#      시키면 안 된다(localhost TCP 가 Operation not permitted 로 막힌다 — 실측).
+#      docs/guides/fleet-orchestration.md §3 의 라우팅 표를 봐라.
+agent_args_for() {
+  case "$1" in
+    codex) printf '%s\n' -a never -s workspace-write ;;
+    *)     : ;;
+  esac
+}
+
 echo "▶ 에이전트"
 i=0
 for p in "${PANES[@]}"; do
-  herdr agent start "${NAMES[$i]}" --kind "${KINDS[$i]}" --pane "$p" >/dev/null \
-    || die "에이전트 기동 실패: ${NAMES[$i]} (${KINDS[$i]}) @ $p"
+  _extra=()
+  while IFS= read -r _a; do [ -n "$_a" ] && _extra+=("$_a"); done < <(agent_args_for "${KINDS[$i]}")
+  if [ "${#_extra[@]}" -gt 0 ]; then
+    herdr agent start "${NAMES[$i]}" --kind "${KINDS[$i]}" --pane "$p" -- "${_extra[@]}" >/dev/null \
+      || die "에이전트 기동 실패: ${NAMES[$i]} (${KINDS[$i]}) @ $p"
+  else
+    herdr agent start "${NAMES[$i]}" --kind "${KINDS[$i]}" --pane "$p" >/dev/null \
+      || die "에이전트 기동 실패: ${NAMES[$i]} (${KINDS[$i]}) @ $p"
+  fi
+
+  # ★기동 성공 반환값만 믿으면 안 된다. 실측 — codex 가 기동 직후 **스스로 업데이트하고
+  #   "Please restart Codex" 로 종료**했는데, 이 스크립트는 "✓ codex 기동" 이라고 보고했다.
+  #   거짓 그린이다. 잠깐 뒤 herdr 이 아직 그 pane 을 에이전트로 보는지 확인한다.
+  _alive=""
+  for _try in 1 2 3 4 5 6; do
+    _alive="$(herdr pane list 2>/dev/null | python3 -c '
+import json,sys
+want=sys.argv[1]
+for p in json.load(sys.stdin)["result"]["panes"]:
+    if p.get("pane_id")==want:
+        print(p.get("agent","")); break
+' "$p")"
+    [ -n "$_alive" ] && break
+    sleep 1
+  done
+  [ -n "$_alive" ] || die "${NAMES[$i]} ($p) 에 에이전트가 살아 있지 않다 — 기동 직후 종료했다.
+    pane 을 직접 봐라: herdr pane read $p --source recent --lines 30
+    (codex 는 보류 중이던 자기 업데이트를 설치하고 재시작을 요구하며 죽는 경우가 있다 — 실측.
+     그때는 이 스크립트를 한 번 더 돌리면 된다.)"
+
   herdr pane rename "$p" "${NAMES[$i]}·s${SLOTS[$i]}·${KINDS[$i]}" >/dev/null || true
-  ok "${KINDS[$i]} ${NAMES[$i]} → $p (슬롯 ${SLOTS[$i]})"
+  ok "${KINDS[$i]} ${NAMES[$i]} → $p (슬롯 ${SLOTS[$i]}, agent=$_alive)"
   i=$((i + 1))
 done
 
