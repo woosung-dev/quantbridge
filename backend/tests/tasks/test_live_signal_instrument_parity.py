@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -331,6 +332,12 @@ class TestDivergenceFailClosed:
                 total_realized_pnl=Decimal("0"),
             ),
         )
+        # ★"발주하지 않음" 을 **직접** 본다. outbox INSERT 0 은 간접 증거일 뿐이라,
+        # 가드보다 앞서 dispatch 가 enqueue 되는 회귀가 생기면 그 단언은 통과한다.
+        apply_async_spy = MagicMock()
+        monkeypatch.setattr(
+            live_signal_module.dispatch_live_signal_event_task, "apply_async", apply_async_spy
+        )
         monkeypatch.setattr(live_signal_module, "publish_realtime", AsyncMock())
         monkeypatch.setattr(
             live_signal_module, "_reconcile_conditional_entries", AsyncMock()
@@ -347,6 +354,7 @@ class TestDivergenceFailClosed:
         result["_commit_calls"] = sess_repo.commit.await_count
         result["_insert_calls"] = event_repo.insert_pending_events.await_count
         result["_upsert_calls"] = sess_repo.upsert_state.await_count
+        result["_dispatch_calls"] = apply_async_spy.call_count
         # 다음 평가로 넘어가는 strike 플래그(판정 못 한 tick 은 직전 값을 보존해야 한다).
         result["_persisted_flag"] = (
             sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"].get(
@@ -376,6 +384,8 @@ class TestDivergenceFailClosed:
         # ★차단은 "발주하지 않음" 까지가 계약이다. 죽이면서 이벤트를 내보내면 차단이 아니다.
         assert result["_insert_calls"] == 0
         assert result["_upsert_calls"] == 0
+        # codex [P2] — 간접 증거로 만족하지 않는다. 발주 큐잉 자체를 spy 로 본다.
+        assert result["_dispatch_calls"] == 0
 
     @pytest.mark.asyncio
     async def test_first_direction_mismatch_is_not_blocked(
@@ -461,21 +471,38 @@ class TestDivergenceFailClosed:
 
 
 class TestDivergenceAlertDiagnosis:
-    """차단 알림이 **맞는 원인**을 말하는지."""
+    """차단 알림이 **맞는 원인**을 말하는지 — 실제로 나가는 문구로 검증한다.
 
-    def test_position_category_is_registered(self) -> None:
-        """★등재를 빠뜨리면 `_fire_divergence_alert` 가 기본 사유로 조용히 떨어진다.
+    ★메타데이터 dict 만 들여다보면 안 된다. 그 방식은 **호출부 리터럴을 안 건드리므로**
+    `_fire_divergence_alert(category=...)` 를 오타내도 초록이고, 알림은 그대로 기본 사유
+    (`"pine_v2 coverage↔interpreter 발산"`)로 떨어진다 — 고치려던 결함이 그대로 재발한다.
+    그래서 세션을 실제로 차단시키고 **발송된 message 를** 본다.
+    """
 
-        그 기본값은 `"pine_v2 coverage↔interpreter 발산"` 이라, 포지션 불일치를
-        **전략 버그로 오진**한 알림이 운영자에게 나간다. 실제로 그렇게 나갔었다.
-        """
-        metadata = live_signal_module._PREFLIGHT_CATEGORY_METADATA.get(
-            "position_direction_mismatch"
+    @pytest.mark.asyncio
+    async def test_blocked_alert_names_the_position_cause(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sent: list[str] = []
+
+        async def _capture(_settings: object, **kwargs: object) -> None:
+            sent.append(str(kwargs.get("message", "")))
+
+        monkeypatch.setattr(live_signal_module, "send_rule_alert", _capture)
+
+        await TestDivergenceFailClosed._evaluate_with_divergence(
+            monkeypatch, category="direction", position_size=0.029, previously_seen=True
         )
-        assert metadata is not None, "카테고리가 등재돼야 사유가 기본값으로 안 떨어진다"
-        _pageable, reason, _detail = metadata
-        assert reason != live_signal_module._DIVERGENCE_REASON
-        assert "포지션" in reason
+        # fire-and-forget task 가 끝나도록 양보한다(kill_switch 테스트 패턴).
+        for _ in range(5):
+            await asyncio.sleep(0.01)
+
+        assert sent, "차단했으면 알림이 나가야 한다"
+        message = sent[0]
+        assert "포지션" in message, f"원인이 포지션 불일치로 읽혀야 한다: {message}"
+        assert live_signal_module._DIVERGENCE_REASON not in message, (
+            f"기본 사유(pine_v2 발산)로 떨어지면 운영자가 전략 버그로 오진한다: {message}"
+        )
 
 
 class TestNetPositionSize:

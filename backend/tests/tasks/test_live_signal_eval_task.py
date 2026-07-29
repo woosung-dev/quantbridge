@@ -1533,6 +1533,9 @@ async def test_equity_curve_does_not_grow_without_new_close(
     )
     sess_repo.get_state = AsyncMock(
         return_value=SimpleNamespace(
+            # 실제 `LiveSignalState` 는 이 열을 항상 가진다. stub 이 빠뜨리면 프로덕션을
+            # 방어적으로 만들라는 압력이 생기는데, 그 방어가 곧 가드 영구 OFF 위장이다.
+            last_strategy_state_report={},
             total_realized_pnl=Decimal("1"),
             equity_curve=[{"timestamp_ms": 1, "cumulative_pnl": "1"}],
         )
@@ -1555,6 +1558,9 @@ async def test_equity_curve_grows_once_for_new_close(monkeypatch: pytest.MonkeyP
     )
     sess_repo.get_state = AsyncMock(
         return_value=SimpleNamespace(
+            # 실제 `LiveSignalState` 는 이 열을 항상 가진다. stub 이 빠뜨리면 프로덕션을
+            # 방어적으로 만들라는 압력이 생기는데, 그 방어가 곧 가드 영구 OFF 위장이다.
+            last_strategy_state_report={},
             equity_curve=[{"timestamp_ms": 1, "cumulative_pnl": "1"}],
         )
     )

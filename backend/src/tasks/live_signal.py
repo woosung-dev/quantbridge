@@ -306,8 +306,11 @@ async def _detect_position_divergence(
 ) -> str | None:
     """엔진 포지션과 거래소 순포지션을 대조해 발산 갈래를 돌려준다.
 
-    조회 실패는 None(fail-open) — 감지기가 거래소를 못 읽었다는 사실을 세션 사망으로
-    바꾸지 않는다. 감지 못 한 발산은 close 거절로 여전히 드러난다.
+    반환은 **3-상태**다 — 갈래 문자열(`direction`/`engine_only`/`exchange_only`/`size`) ·
+    `None`(일치) · `_PROBE_FAILED`(거래소를 못 읽어 **판정 자체를 못 함**).
+
+    조회 실패는 세션을 죽이지 않는다(fail-open). 다만 그것을 `None`(일치)으로 접으면
+    호출부가 직전 strike 를 지워 가드가 스스로 무장해제되므로, 반드시 구분해서 돌려준다.
 
     ★조회를 `_reconcile_conditional_entries` 의 것과 공유하지 않는 이유 — 그 함수는
     desired 도 로컬 주문도 없으면 **REST 를 열기 전에 조기 반환한다**(stop-entry 를 안
@@ -1604,7 +1607,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # 구간이 정상적으로 존재한다 — 실측(2026-07-28 soak): 거래소가 17:46:28 에
             # 롱으로 체결됐는데 엔진이 평가한 bar 는 17:45 종가라 아직 숏이었고, 초판
             # 가드가 이 **자기해소되는 skew** 로 세션을 죽였다.
-            # 그래서 **연속 2회 평가에서 살아남은 경우에만** 차단한다. 한 bar 를 넘겨도
+            # 그래서 **판정된 평가 2회 연속으로 살아남은 경우에만** 차단한다. ★"2 bar" 가
+            # 아니라 "판정된 평가 2회" 다 — 판정 못 한 tick 은 세지도 지우지도 않으므로 두
+            # 관측이 시간상 멀리 떨어질 수 있다(BL-539). 한 bar 를 넘겨도
             # 반대편이면 그건 스스로 풀리는 상태가 아니다.
             #
             # ★**판정하지 못한 tick 이 직전 strike 를 지우면 안 된다.** 판정 실패는 두
@@ -1614,9 +1619,13 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # 지속 발산이 영원히 2회차에 도달하지 못한다(가드 fail-open 무력화).
             # 그래서 `None`(모름)이면 직전 값을 그대로 넘긴다.
             previous_state = await sess_repo.get_state(sess.id)
-            # 직전 리포트를 못 읽으면 "직전 strike 없음" 으로 본다. 아래 `isinstance` 방어와
-            # 같은 계약이며, state 행이 아직 없거나 리포트가 비어 있는 첫 tick 이 정상이다.
-            previous_report = getattr(previous_state, "last_strategy_state_report", None)
+            # ★`getattr(..., None)` 로 접지 마라. 컬럼이 사라지거나 이름이 바뀌면 그 순간부터
+            # 조용히 "직전 strike 없음" 이 되어 가드가 **영구 OFF** 로 위장한다 —
+            # `gates-and-traps.md` §3 이 적어둔 그 함정이고, 이 가드가 고치려던 실패 계열과 같다.
+            # 없어도 되는 것은 state **행**(첫 tick)뿐이므로 거기까지만 방어한다.
+            previous_report = (
+                previous_state.last_strategy_state_report if previous_state is not None else None
+            )
             previous_direction_mismatch = (
                 isinstance(previous_report, dict)
                 and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
