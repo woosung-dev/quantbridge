@@ -59,17 +59,29 @@ QB_BE_PORT := $(shell expr 8100 + $(QB_SLOT))
 #   (codex 리뷰 P1). 인자로 끌 수 있는 가드는 가드가 아니다.
 #   그래서 **git 에게 묻는다**: 워크트리에서만 git-dir 과 git-common-dir 이 갈린다.
 #   이건 어떤 make 변수로도 못 바꾼다.
+#
+# ★가드는 **선행 타깃과 레시피 첫 줄 양쪽**에 건다. 한쪽만으로는 각각 구멍이 있고, 둘이 서로의
+#   구멍을 막는다:
+#     - 선행 타깃만  → `make -o _guard-main-only seed` 로 선행을 "이미 최신" 취급시켜 건너뛸 수
+#                      있다. 실측 — 그 명령이 워크트리에서 **exit 0** 으로 통과했고 dry-run 은
+#                      `seed_dogfood.py --confirm` 이 **공유 앱 DB** 에 돌 것임을 보여줬다.
+#     - 레시피만    → `up-isolated: metrics-wipe` 처럼 **선행의 부작용이 먼저** 실행된다.
+#   그래서 둘 다 건다. 중복 실행 비용은 `git rev-parse` 두 번뿐이다.
+define qb-guard
+@_gd="$$(git rev-parse --absolute-git-dir 2>/dev/null)"; \
+ _gc="$$(cd "$$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd)"; \
+ if [ -n "$$_gd" ] && [ -n "$$_gc" ] && [ "$$_gd" != "$$_gc" ]; then \
+   echo "✗ '$@' 은 메인 체크아웃 전용이다 (여기는 워크트리 — 슬롯 $(QB_SLOT))." >&2; \
+   echo "  컨테이너와 앱 DB 는 슬롯과 무관하게 1벌 공유다 — 여기서 실행하면 다른 워크트리와 메인이 깨진다." >&2; \
+   echo "  → 메인에서 실행해라: cd $$(dirname "$$_gc") && make $@" >&2; \
+   echo "  (근거: docs/reference/worktree-parallel.md §2.1)" >&2; \
+   exit 1; \
+ fi
+endef
+
 .PHONY: _guard-main-only
 _guard-main-only:
-	@_gd="$$(git rev-parse --absolute-git-dir 2>/dev/null)"; \
-	 _gc="$$(cd "$$(git rev-parse --git-common-dir 2>/dev/null)" 2>/dev/null && pwd)"; \
-	 if [ -n "$$_gd" ] && [ -n "$$_gc" ] && [ "$$_gd" != "$$_gc" ]; then \
-	  echo "✗ '$(or $(MAKECMDGOALS),이 타깃)' 은 메인 체크아웃 전용이다 (여기는 워크트리 — 슬롯 $(QB_SLOT))." >&2; \
-	  echo "  컨테이너와 앱 DB 는 슬롯과 무관하게 1벌 공유다 — 여기서 실행하면 다른 워크트리와 메인이 깨진다." >&2; \
-	  echo "  → 메인에서 실행해라: cd $$(dirname "$$_gc") && make $(MAKECMDGOALS)" >&2; \
-	  echo "  (근거: docs/reference/worktree-parallel.md §2.1)" >&2; \
-	  exit 1; \
-	fi
+	$(qb-guard)
 
 # 격리 모드 DB URL (host 5433 / container 내부 5432) — be-isolated / migrate-isolated 공통.
 # .env.local 변형 없이 inline override 패턴 (process env > pydantic-settings dotenv 우선순위).
@@ -145,9 +157,11 @@ dev: up
 	  wait
 
 up: _guard-main-only metrics-wipe
+	$(qb-guard)
 	docker compose up -d
 
 down: _guard-main-only
+	$(qb-guard)
 	docker compose down
 
 logs:
@@ -177,12 +191,14 @@ dev-isolated: up-isolated migrate-isolated
 
 up-isolated: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
 up-isolated: _guard-main-only metrics-wipe
+	$(qb-guard)
 	docker compose $(ISOLATED_COMPOSE) up -d
 
 # Sprint 23 BL-101 — 코드 변경 후 image 재빌드 + 부팅. daily flow 영향 0.
 # 기본 up-isolated 는 빠른 부팅 유지 (image cache 사용).
 up-isolated-build: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
 up-isolated-build: _guard-main-only metrics-wipe
+	$(qb-guard)
 	docker compose $(ISOLATED_COMPOSE) up -d --build
 
 # Sprint 38 BL-181 — 격리 모드 + worker auto-rebuild on src 변경.
@@ -191,9 +207,11 @@ up-isolated-build: _guard-main-only metrics-wipe
 # host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
 # 패키지 변경은 image rebuild 의무 (ADR docs/reference/infra/2026-05-06-bl-181-*).
 up-isolated-watch: _guard-main-only metrics-prepare
+	$(qb-guard)
 	docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
 
 down-isolated: _guard-main-only
+	$(qb-guard)
 	docker compose $(ISOLATED_COMPOSE) down
 
 logs-isolated:
@@ -217,6 +235,7 @@ wait-db-isolated:
 # host uvicorn 이 docker-entrypoint.sh 안 타는 점을 보강. process env override 로
 # .env.local 의 5432 default 를 5433 으로 변경. up-isolated 후 db healthy 대기.
 migrate-isolated: _guard-main-only wait-db-isolated
+	$(qb-guard)
 	@echo "▶ alembic upgrade head (격리 DB 5433)"
 	cd backend && \
 	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
@@ -224,6 +243,7 @@ migrate-isolated: _guard-main-only wait-db-isolated
 
 # 기본 모드 마이그레이션 — host 5432.
 migrate: _guard-main-only
+	$(qb-guard)
 	cd backend && uv run alembic upgrade head
 
 # dogfood 복원 시더 — 빈 DB 를 전 화면 사용 가능 상태로.
@@ -234,6 +254,7 @@ migrate: _guard-main-only
 #   make seed            전체
 #   make seed ONLY=daily 하나만
 seed: _guard-main-only
+	$(qb-guard)
 	cd backend && set -a; . ./.env.local; set +a; \
 	  uv run python scripts/seed_dogfood.py --confirm $(if $(ONLY),--only $(ONLY),)
 

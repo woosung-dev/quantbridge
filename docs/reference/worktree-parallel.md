@@ -54,6 +54,11 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 **종료 코드는 2 다** — 가드 셸 조각은 `exit 1` 이지만 `make` 가 레시피 실패를 2 로 감싼다.
 수용 기준에 "exit 1" 이라고 쓰면 실측과 어긋난다(실제로 한 번 어긋났다).
 
+★**가드는 선행 타깃과 레시피 첫 줄 양쪽에 있다.** 한쪽만으로는 각각 구멍이 있다 —
+선행만 두면 `make -o _guard-main-only seed` 로 **건너뛸 수 있고**(실측: exit 0 통과, dry-run 이
+`seed_dogfood.py --confirm` 이 **공유 앱 DB** 에 돌 것임을 보여줬다), 레시피에만 두면
+`up-isolated: metrics-wipe` 처럼 **선행의 부작용이 먼저** 실행된다. 둘이 서로의 구멍을 막는다.
+
 ★**판정 기준은 `QB_SLOT` 이 아니라 git 이다.** make 는 명령행 변수를 `-include` 로 읽은 파일보다
 우선하므로, 슬롯 변수로 판정하면 **`make QB_SLOT=0 up` 한 줄로 가드가 꺼진다** — 실측으로 슬롯 1
 워크트리에서 `make QB_SLOT=0 _guard-main-only` 가 exit 0 을 냈다(codex 리뷰 P1). 지금은
@@ -72,6 +77,10 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 | `up` · `down` · `up-isolated` · `down-isolated` · `up-isolated-build` · `up-isolated-watch` | `container_name` 이 고정이라 남의 스택을 띄우거나 **죽인다**              |
 | `migrate` · `migrate-isolated`                                                              | 워크트리 브랜치의 마이그레이션을 **공유 앱 DB** 에 걸어 전원이 뒤집어쓴다 |
 | `seed`                                                                                      | 공유 앱 DB 를 갈아엎는다                                                  |
+
+실측 우회 시도 **12가지 전부 차단** — `QB_SLOT=0` · `-e` · 환경변수 · `MAKEFLAGS=-e` ·
+`--always-make` · `-o _guard-main-only` · `-B -o` 조합. 슬롯 0(메인)에서는 `make -n` 출력이
+머지된 Makefile 과 **차이 0**.
 
 메시지에 슬롯 번호와 메인 경로가 함께 나온다(`QB_MAIN_ROOT` 는 부트스트랩이 `.worktree-slot` 에 쓴다).
 
