@@ -355,7 +355,7 @@ cat <<EOF
   E2E         PLAYWRIGHT_BASE_URL=http://localhost:$FE_PORT pnpm e2e
               (이 변수 없으면 3000 의 남의 앱을 검사한다 — 실제 사고 이력 있음)
 
-이 워크트리에서 막혀 있는 것 (Makefile 가드가 exit 1 로 거부한다):
+이 워크트리에서 막혀 있는 것 (Makefile 가드가 거부한다 — make 종료 코드 2):
   ✗ make up / down / up-isolated / down-isolated  → container_name 고정. 스택은 메인에서만.
   ✗ make migrate / migrate-isolated / seed        → 앱 DB 는 공유다. 다른 워크트리가 깨진다.
 

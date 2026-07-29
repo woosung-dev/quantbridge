@@ -41,15 +41,26 @@ QB_BE_PORT := $(shell expr 8100 + $(QB_SLOT))
 #   up/down 계열   → container_name 이 고정이라 스택은 1벌뿐이다. 남의 DB 를 죽인다.
 #   migrate 계열   → 대상이 **공유 앱 DB** 다. 워크트리 브랜치의 마이그레이션을 전원이 뒤집어쓴다.
 #   seed           → 공유 앱 DB 를 갈아엎는다.
-define guard-main-only
-@if [ "$(QB_SLOT)" != "0" ]; then \
-  echo "✗ '$@' 은 메인 체크아웃 전용이다 (지금 슬롯 $(QB_SLOT))." >&2; \
-  echo "  컨테이너와 앱 DB 는 슬롯과 무관하게 1벌 공유다 — 여기서 실행하면 다른 워크트리와 메인이 깨진다." >&2; \
-  echo "  → 메인에서 실행해라: cd $(QB_MAIN_ROOT) && make $@" >&2; \
-  echo "  (근거: docs/reference/worktree-parallel.md §2)" >&2; \
-  exit 1; \
-fi
-endef
+# ★가드는 **선행 타깃**이어야 한다. 레시피 첫 줄에 두면 선행 타깃이 이미 돌아간 뒤에 발동한다.
+# 실측으로 걸린 두 사례:
+#   - up-isolated 의 선행 metrics-wipe — 워크트리에서 `docker compose ps` 가 **디렉터리 이름에서
+#     유도된 다른 compose 프로젝트**를 보는 바람에 writer 를 0개로 세고
+#     (실측: 워크트리 0 / 메인 4 / 실제 구동 4), exit 0 이라 fail-closed 분기도 안 타고
+#     곧장 삭제 분기로 간다.
+#   - migrate-isolated 의 선행 wait-db-isolated — DB 를 30초 폴링한 뒤에야 가드가 뜬다. 스택이
+#     내려가 있으면 "DB 가 죽었다" 로 오진하고 슬롯 가드 메시지는 영영 안 나온다.
+# 선행 타깃은 (직렬 make 에서) 나열 순서대로 실행되므로 이걸 **맨 앞**에 둔다.
+#
+# 종료 코드는 셸에선 1 이지만 **`make` 는 2 로 감싼다.** 문서에 "exit 1" 이라고 쓰지 마라.
+.PHONY: _guard-main-only
+_guard-main-only:
+	@if [ "$(QB_SLOT)" != "0" ]; then \
+	  echo "✗ '$(or $(MAKECMDGOALS),이 타깃)' 은 메인 체크아웃 전용이다 (지금 슬롯 $(QB_SLOT))." >&2; \
+	  echo "  컨테이너와 앱 DB 는 슬롯과 무관하게 1벌 공유다 — 여기서 실행하면 다른 워크트리와 메인이 깨진다." >&2; \
+	  echo "  → 메인에서 실행해라: cd $(QB_MAIN_ROOT) && make $(MAKECMDGOALS)" >&2; \
+	  echo "  (근거: docs/reference/worktree-parallel.md §2.1)" >&2; \
+	  exit 1; \
+	fi
 
 # 격리 모드 DB URL (host 5433 / container 내부 5432) — be-isolated / migrate-isolated 공통.
 # .env.local 변형 없이 inline override 패턴 (process env > pydantic-settings dotenv 우선순위).
@@ -124,12 +135,10 @@ dev: up
 	  $(MAKE) -s fe & \
 	  wait
 
-up: metrics-wipe
-	$(guard-main-only)
+up: _guard-main-only metrics-wipe
 	docker compose up -d
 
-down:
-	$(guard-main-only)
+down: _guard-main-only
 	docker compose down
 
 logs:
@@ -158,15 +167,13 @@ dev-isolated: up-isolated migrate-isolated
 	  wait
 
 up-isolated: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
-up-isolated: metrics-wipe
-	$(guard-main-only)
+up-isolated: _guard-main-only metrics-wipe
 	docker compose $(ISOLATED_COMPOSE) up -d
 
 # Sprint 23 BL-101 — 코드 변경 후 image 재빌드 + 부팅. daily flow 영향 0.
 # 기본 up-isolated 는 빠른 부팅 유지 (image cache 사용).
 up-isolated-build: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
-up-isolated-build: metrics-wipe
-	$(guard-main-only)
+up-isolated-build: _guard-main-only metrics-wipe
 	docker compose $(ISOLATED_COMPOSE) up -d --build
 
 # Sprint 38 BL-181 — 격리 모드 + worker auto-rebuild on src 변경.
@@ -174,12 +181,10 @@ up-isolated-build: metrics-wipe
 # `./backend/src` bind-mount + watchfiles wrapper 적용 (isolated.yml override).
 # host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
 # 패키지 변경은 image rebuild 의무 (ADR docs/reference/infra/2026-05-06-bl-181-*).
-up-isolated-watch: metrics-prepare
-	$(guard-main-only)
+up-isolated-watch: _guard-main-only metrics-prepare
 	docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
 
-down-isolated:
-	$(guard-main-only)
+down-isolated: _guard-main-only
 	docker compose $(ISOLATED_COMPOSE) down
 
 logs-isolated:
@@ -202,16 +207,14 @@ wait-db-isolated:
 # Sprint 32 BL-168 — 격리 DB 5433 에 alembic upgrade head 적용.
 # host uvicorn 이 docker-entrypoint.sh 안 타는 점을 보강. process env override 로
 # .env.local 의 5432 default 를 5433 으로 변경. up-isolated 후 db healthy 대기.
-migrate-isolated: wait-db-isolated
-	$(guard-main-only)
+migrate-isolated: _guard-main-only wait-db-isolated
 	@echo "▶ alembic upgrade head (격리 DB 5433)"
 	cd backend && \
 	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
 	  uv run alembic upgrade head
 
 # 기본 모드 마이그레이션 — host 5432.
-migrate:
-	$(guard-main-only)
+migrate: _guard-main-only
 	cd backend && uv run alembic upgrade head
 
 # dogfood 복원 시더 — 빈 DB 를 전 화면 사용 가능 상태로.
@@ -221,8 +224,7 @@ migrate:
 # ts.ohlcv 에 직접 쓰므로 첫 백테스트가 곧 시딩이다. 멱등.
 #   make seed            전체
 #   make seed ONLY=daily 하나만
-seed:
-	$(guard-main-only)
+seed: _guard-main-only
 	cd backend && set -a; . ./.env.local; set +a; \
 	  uv run python scripts/seed_dogfood.py --confirm $(if $(ONLY),--only $(ONLY),)
 

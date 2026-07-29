@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 #
-# herdr 워크트리 함대 부팅 — 한 화면 2×2 에 워크트리 에이전트 3 + 메인 CONTROL 1.
+# herdr 워크트리 함대 부팅 — 한 화면 2×2. 워커 1~4, 남는 칸은 CONTROL(메인, 슬롯 0).
 #
 # 사용법:
 #   scripts/herdr-fleet.sh --agent claude:bl537 --agent claude:bl536 --agent codex:impl
+#   scripts/herdr-fleet.sh --agent claude:a --agent claude:b --agent codex:c --agent codex:review
+#     └ 4개면 네 칸 모두 워커고 CONTROL pane 이 없다 (경고가 뜬다)
 #   scripts/herdr-fleet.sh --agent claude:a --agent codex:b --label "QB 실험"
 #   scripts/herdr-fleet.sh --agent claude:a --base origin/main --skip-deps
 #   scripts/herdr-fleet.sh --teardown w7          # 워크스페이스 닫기 (워크트리는 안 지운다)
@@ -34,7 +36,10 @@ set -euo pipefail
 die() { echo "✗ $*" >&2; exit 1; }
 ok()  { echo "  ✓ $*"; }
 
-MAX_AGENTS=3
+# 3 이면 2×2 의 남은 한 칸이 CONTROL(메인, 슬롯 0) 이다.
+# 4 를 주면 네 칸 모두 워커가 되고 **CONTROL pane 이 없다** — 그때 celery 검증·게이트·머지는
+# 오케스트레이터 세션이 `cd <메인>` 으로 직접 해야 한다. 화면에 그 자리가 안 보이므로 경고한다.
+MAX_AGENTS=4
 SPECS=()
 LABEL=""
 BASE="origin/main"
@@ -92,7 +97,7 @@ EOF
 fi
 
 [ "${#SPECS[@]}" -gt 0 ] || die "에이전트를 하나 이상 줘라: --agent claude:<이름>  (--help)"
-[ "${#SPECS[@]}" -le "$MAX_AGENTS" ] || die "에이전트는 최대 $MAX_AGENTS 개다 (2×2 의 나머지 한 칸은 CONTROL). 준 개수: ${#SPECS[@]}
+[ "${#SPECS[@]}" -le "$MAX_AGENTS" ] || die "에이전트는 최대 $MAX_AGENTS 개다 (2×2 니까). 준 개수: ${#SPECS[@]}
     더 필요하면 함대를 하나 더 띄워라 — 한 화면에 6칸을 넣으면 아무것도 안 읽힌다."
 
 # ── 1. 메인 체크아웃에서만 ──────────────────────────────────────────────────
@@ -173,6 +178,7 @@ split_pane() {  # split_pane <기준 pane> <right|down> <cwd> → 새 pane_id
 }
 
 PANES=("$P1")
+CONTROL_PANE=""
 case "${#SPECS[@]}" in
   1) CONTROL_PANE="$(split_pane "$P1" right "$MAIN_ROOT")" ;;
   2) P2="$(split_pane "$P1" right "${PATHS[1]}")"; PANES+=("$P2")
@@ -180,8 +186,17 @@ case "${#SPECS[@]}" in
   3) P2="$(split_pane "$P1" right "${PATHS[1]}")"; PANES+=("$P2")
      P3="$(split_pane "$P1" down "${PATHS[2]}")";  PANES+=("$P3")
      CONTROL_PANE="$(split_pane "$P2" down "$MAIN_ROOT")" ;;
+  4) P2="$(split_pane "$P1" right "${PATHS[1]}")"; PANES+=("$P2")
+     P3="$(split_pane "$P1" down "${PATHS[2]}")";  PANES+=("$P3")
+     P4="$(split_pane "$P2" down "${PATHS[3]}")";  PANES+=("$P4") ;;
 esac
-ok "pane ${#PANES[@]} + CONTROL($CONTROL_PANE)"
+if [ -n "$CONTROL_PANE" ]; then
+  ok "pane ${#PANES[@]} + CONTROL($CONTROL_PANE)"
+else
+  ok "pane ${#PANES[@]} — ★CONTROL 없음"
+  echo "  ! 네 칸 모두 워커다. celery 경유 검증·게이트·머지를 할 자리가 화면에 없다." >&2
+  echo "    오케스트레이터 세션이 'cd $MAIN_ROOT' 로 직접 해야 한다." >&2
+fi
 
 # ── 4. 에이전트 기동 + 라벨 ─────────────────────────────────────────────────
 echo "▶ 에이전트"
@@ -194,12 +209,16 @@ for p in "${PANES[@]}"; do
   i=$((i + 1))
 done
 
-if [ -n "$CONTROL_AGENT" ]; then
-  herdr agent start control --kind "$CONTROL_AGENT" --pane "$CONTROL_PANE" >/dev/null \
-    || die "CONTROL 에이전트 기동 실패"
-  ok "$CONTROL_AGENT control → $CONTROL_PANE (슬롯 0)"
+if [ -n "$CONTROL_PANE" ]; then
+  if [ -n "$CONTROL_AGENT" ]; then
+    herdr agent start control --kind "$CONTROL_AGENT" --pane "$CONTROL_PANE" >/dev/null \
+      || die "CONTROL 에이전트 기동 실패"
+    ok "$CONTROL_AGENT control → $CONTROL_PANE (슬롯 0)"
+  fi
+  herdr pane rename "$CONTROL_PANE" "CONTROL·s0·main" >/dev/null || true
+elif [ -n "$CONTROL_AGENT" ]; then
+  die "--control-agent 는 워커가 4개일 때 쓸 수 없다 (CONTROL pane 이 없다). 워커를 3개로 줄여라."
 fi
-herdr pane rename "$CONTROL_PANE" "CONTROL·s0·main" >/dev/null || true
 
 # ── 5. 요약 ─────────────────────────────────────────────────────────────────
 echo
@@ -211,11 +230,11 @@ for p in "${PANES[@]}"; do
     "$p" "${SLOTS[$i]}" "$((3100 + SLOTS[i]))" "$((8100 + SLOTS[i]))" "${PATHS[$i]}"
   i=$((i + 1))
 done
-printf '%-14s %-6s %-6s %-6s %s\n' "$CONTROL_PANE" "0" "3100" "8100" "$MAIN_ROOT (CONTROL)"
+[ -n "$CONTROL_PANE" ] && printf '%-14s %-6s %-6s %-6s %s\n' "$CONTROL_PANE" "0" "3100" "8100" "$MAIN_ROOT (CONTROL)"
 cat <<EOF
 
 CONTROL 에서만 되는 것 — celery 경유 검증(백테스트·라이브신호·옵티마이저) · make up/seed/migrate ·
-게이트 종합 · 머지. 워크트리 pane 에서 그걸 시도하면 Makefile 가드가 exit 1 로 거부한다.
+게이트 종합 · 머지. 워크트리 pane 에서 그걸 시도하면 Makefile 가드가 거부한다(make 종료 코드 2).
 
 정리:  scripts/herdr-fleet.sh --teardown $WS_ID
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
