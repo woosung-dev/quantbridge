@@ -1,13 +1,15 @@
 # 라이브 세션의 단일 선물 포지션을 reduce-only 시장가로 청산하는 서비스
 from __future__ import annotations
 
+from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from fastapi import HTTPException
 from pydantic import ValidationError
 
 from src.strategy.repository import StrategyRepository
-from src.strategy.schemas import validate_strategy_settings
+from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.models import ExchangeMode, ExchangeName, OrderSide, OrderType
 from src.trading.providers import BybitFuturesProvider
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
@@ -15,6 +17,38 @@ from src.trading.repositories.live_signal_session_repository import LiveSignalSe
 from src.trading.schemas import ClosePositionResponse, OrderRequest
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.order_service import OrderService
+
+# BL-537 — reduce-only 청산에서 leverage/margin_mode 는 **거래소로 가지 않는다**.
+# `BybitFuturesProvider.create_order` 가 `if not order.reduce_only:` 로 set_margin_mode 와
+# set_leverage 를 둘 다 감싸기 때문이다. 두 값이 여전히 필요한 이유는 둘뿐이다:
+#   1. `create_order` 가 None 이면 fast-fail 한다 (NOT NULL 계약)
+#   2. ★`tasks/trading.py` `_has_leverage` 가 not-null AND > 0 일 때만 **futures** provider 로
+#      보낸다 — 0/None 이면 청산이 조용히 스팟으로 나가 linear 포지션을 못 닫는다
+# 즉 원장 필드 + dispatch 판별자일 뿐이므로, 값이 없다고 청산을 막아선 안 된다.
+_FALLBACK_LEVERAGE = 1
+_FALLBACK_MARGIN_MODE: Literal["cross", "isolated"] = "cross"
+# `OrderRequest.leverage` 는 Field(ge=1, le=125). 벗어나면 ValidationError 가 🔴 청산 자체를
+# 막으므로, 거래소가 어차피 안 받는 값을 여기서 클램프한다 (cap 우회가 성립하지 않는다).
+_MAX_LEVERAGE = 125
+
+
+def _close_leverage(position_leverage: Decimal | None, settings: StrategySettings | None) -> int:
+    """청산 주문에 실을 leverage — 거래소 포지션 → 전략 설정 → 1 순의 **첫 양수**.
+
+    ★비유한(NaN/Inf) 후보는 건너뛴다. `_position_snapshot_from_ccxt` 는 leverage 를
+    `finite_only` 없이 파싱하므로(`providers.py`) 거래소가 malformed 값을 주면
+    `Decimal("NaN")` 이 그대로 올라오고, `int()` 가 ValueError 를 던져 🔴 청산이
+    500 이 된다. 청산은 어떤 필드 때문에도 막히면 안 된다.
+    """
+    for candidate in (position_leverage, settings.leverage if settings is not None else None):
+        if candidate is None:
+            continue
+        if isinstance(candidate, Decimal) and not candidate.is_finite():
+            continue
+        value = int(candidate)
+        if value > 0:
+            return min(value, _MAX_LEVERAGE)
+    return _FALLBACK_LEVERAGE
 
 
 class ClosePositionService:
@@ -46,12 +80,15 @@ class ClosePositionService:
 
         strategy = await self._strategy_repo.find_by_id_and_owner(session.strategy_id, user_id)
         settings = strategy.settings if strategy is not None else None
+        # BL-537 — 설정이 없거나 깨졌다고 청산을 막지 않는다. 위 상수 블록 참조:
+        # 이 두 값은 reduce-only 청산에서 거래소에 도달하지 않으므로, 여기서 422 를 내면
+        # 전략 설정을 비운 사용자의 라이브 포지션이 앱에서 **영구히 안 닫힌다**.
+        # ★게다가 `position_service.get_account_positions` 의 close_blocked_reason 은 이
+        #   게이트를 평가하지 않아, 코크핏이 "누르면 실패하는 버튼" 을 렌더할 수 있었다.
         try:
             validated_settings = validate_strategy_settings(settings)
-        except ValidationError as exc:
-            raise HTTPException(status_code=422, detail="settings_invalid") from exc
-        if validated_settings is None:
-            raise HTTPException(status_code=422, detail="settings_unset")
+        except ValidationError:
+            validated_settings = None
         if account.mode != ExchangeMode.demo:
             raise HTTPException(status_code=422, detail="live_mode_stub")
         if account.exchange != ExchangeName.bybit:
@@ -85,18 +122,16 @@ class ClosePositionService:
             type=OrderType.market,
             quantity=position.size,
             price=None,
-            leverage=(
-                int(position.leverage)
-                if position.leverage is not None
-                else int(validated_settings.leverage)
+            leverage=_close_leverage(position.leverage, validated_settings),
+            margin_mode=(
+                validated_settings.margin_mode
+                if validated_settings is not None
+                else _FALLBACK_MARGIN_MODE
             ),
-            margin_mode=validated_settings.margin_mode,
             reduce_only=True,
             risk_percent=None,
         )
-        response, _ = await self._order_service.execute(
-            request, idempotency_key=None, flatten=True
-        )
+        response, _ = await self._order_service.execute(request, idempotency_key=None, flatten=True)
         return ClosePositionResponse(
             order_id=response.id,
             state=response.state,

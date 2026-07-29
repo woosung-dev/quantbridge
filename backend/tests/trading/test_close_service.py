@@ -20,7 +20,7 @@ _SETTINGS = {"leverage": 3, "margin_mode": "cross", "position_size_pct": 10.0}
 
 
 def _position(
-    side: str = "long", leverage: Decimal = Decimal("3"), position_idx: int | None = None
+    side: str = "long", leverage: Decimal | None = Decimal("3"), position_idx: int | None = None
 ) -> PositionSnapshot:
     return PositionSnapshot(
         side=side,
@@ -86,19 +86,76 @@ def _service(
     )
 
 
+@pytest.mark.parametrize("settings", [None, {"leverage": 3}])
+async def test_close_survives_unset_or_invalid_settings(settings) -> None:
+    """BL-537 — 전략 설정이 없거나 깨져도 라이브 포지션은 닫혀야 한다.
+
+    reduce-only 청산은 leverage/margin_mode 를 거래소에 보내지 않는다
+    (`providers.py` create_order 의 `if not order.reduce_only:` 가 set_margin_mode 와
+    set_leverage 를 **둘 다** 감싼다). 그래서 이 값들 때문에 422 를 내면, 설정을 비운
+    사용자의 포지션이 앱에서 영구히 안 닫힌다 — 그게 07-28 의 9시간 방치다.
+    ★`position_service` 의 close_blocked_reason 은 이 게이트를 평가하지 않아
+      "누르면 실패하는 버튼" 이 됐다.
+    """
+    service, user_id, session, orders = _service(
+        settings=settings, positions=[_position(leverage=Decimal("7"))]
+    )
+
+    await service.close_position(user_id, session.id)
+
+    request = orders.execute.await_args.args[0]
+    assert request.reduce_only is True
+    assert request.leverage == 7
+    assert request.margin_mode == "cross"
+
+
 @pytest.mark.parametrize(
-    ("settings", "reason"),
-    [(None, "settings_unset"), ({"leverage": 3}, "settings_invalid")],
+    ("position_leverage", "settings", "expected"),
+    [
+        (None, _SETTINGS, 3),
+        (Decimal("0"), _SETTINGS, 3),
+        (None, None, 1),
+        (Decimal("0"), None, 1),
+        (Decimal("999"), None, 125),
+    ],
 )
-async def test_close_rejects_unset_or_invalid_settings(settings, reason) -> None:
-    service, user_id, session, orders = _service(settings=settings, positions=[_position()])
+async def test_close_always_emits_a_positive_in_range_leverage(
+    position_leverage, settings, expected
+) -> None:
+    """★leverage 는 futures/spot provider 를 가르는 판별자다.
 
-    with pytest.raises(HTTPException) as exc_info:
-        await service.close_position(user_id, session.id)
+    `tasks/trading.py` `_has_leverage` 는 not-null AND > 0 일 때만 futures 로 보낸다.
+    0/None 이면 청산이 조용히 **스팟**으로 나가 linear 포지션을 못 닫는다.
+    상한은 `OrderRequest.leverage` 의 `Field(ge=1, le=125)` — 넘기면 ValidationError 가
+    🔴 청산 자체를 막는다.
+    """
+    service, user_id, session, orders = _service(
+        settings=settings, positions=[_position(leverage=position_leverage)]
+    )
 
-    assert exc_info.value.status_code == 422
-    assert exc_info.value.detail == reason
-    orders.execute.assert_not_awaited()
+    await service.close_position(user_id, session.id)
+
+    request = orders.execute.await_args.args[0]
+    assert request.leverage == expected
+
+
+@pytest.mark.parametrize("settings", [_SETTINGS, None])
+async def test_close_survives_non_finite_exchange_leverage(settings) -> None:
+    """★거래소가 NaN/Inf 를 주면 `int()` 가 ValueError 를 던져 🔴 청산이 500 이 된다.
+
+    `_position_snapshot_from_ccxt` 는 leverage 를 `finite_only` 없이 파싱하므로
+    (`providers.py` `_decimal_or_none(position.get("leverage"), strict=True)`)
+    `Decimal("NaN")` 이 그대로 올라온다. 비유한 값은 후보에서 건너뛰고 다음 출처로
+    넘어가야 한다 — 청산은 어떤 필드 때문에도 막히면 안 된다.
+    """
+    service, user_id, session, orders = _service(
+        settings=settings, positions=[_position(leverage=Decimal("NaN"))]
+    )
+
+    await service.close_position(user_id, session.id)
+
+    request = orders.execute.await_args.args[0]
+    assert request.leverage == (3 if settings else 1)
 
 
 async def test_close_rejects_non_owned_session() -> None:
