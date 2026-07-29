@@ -1,0 +1,29 @@
+# 워크트리 생성 시 메인 체크아웃에서 복사할 gitignore 파일 (Claude Code `copyWorktreeIncludeFiles`).
+#
+# gitignore 스타일 glob. 트래킹되는 파일은 워크트리가 알아서 체크아웃하므로 여기 적지 않는다.
+# 여기 적을 것 = "gitignore 인데 없으면 워크트리가 작동하지 않는 것" 뿐.
+#
+# ⚠️ 심볼릭 링크는 복사되지 않는다 (Claude Code 가 "Skipping symlink in .worktreeinclude" 로 건너뜀).
+#    `.claude/rules -> ../.ai/rules` 는 scripts/worktree-bootstrap.sh 가 재생성한다.
+#
+# ⚠️ 여기 나열된 파일에는 시크릿(거래소 키·Clerk·암호화 키)이 들어 있다.
+#    워크트리는 `.claude/worktrees/` 안(= gitignore) 이므로 커밋 경로에 노출되지 않지만,
+#    워크트리 디렉터리를 레포 밖으로 옮기지 마라.
+
+# 백엔드 — 없으면 uvicorn/pytest 가 5432 기본값으로 붙어 격리 스택을 못 찾는다.
+# TEST_DATABASE_URL 도 여기 있다 (없으면 conftest 가 개발 DB 를 drop_all 한다 — AGENTS.md 경고).
+backend/.env.local
+
+# 프론트 — Clerk 키. 없으면 dev 서버가 부팅 단계에서 죽고 e2e:authed 가 전멸한다.
+frontend/.env.local
+
+# compose 용 — POSTGRES_* / TRADING_ENCRYPTION_KEYS. `make up-isolated` 가 읽는다.
+.env
+
+# 워크트리 세션의 권한 allow 목록. 없으면 매 명령마다 권한 프롬프트가 뜬다.
+.claude/settings.local.json
+
+# 루트 lockfile — husky/lint-staged/prettier 용 devDependencies 를 메인과 같은 버전으로 고정한다.
+# 없으면 워크트리 루트 `pnpm install` 이 lockfile 없이 돌아 버전이 갈린다.
+# (이게 빠지면 pre-commit 훅이 `Command "lint-staged" not found` 로 조용히 죽는다 — 실측)
+/pnpm-lock.yaml
