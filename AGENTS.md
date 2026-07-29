@@ -85,6 +85,17 @@ ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-`
 > - 기본: `make up` / `make be` / `make fe` → 3000 / 8000 / 5432 / 6379
 > - 격리: `make up-isolated` / `make be-isolated` / `make fe-isolated` → 3100 / 8100 / 5433 / 6380 (다른 웹앱 병렬 시)
 
+### 워크트리 병렬 — 슬롯
+
+여러 벌을 동시에 굴릴 때는 워크트리마다 **슬롯**(FE `3100+N` / BE `8100+N` / pytest DB `quantbridge_w{N}_test`)을 갖는다. 메인 체크아웃이 슬롯 0 이고 포트는 기존과 같다.
+
+```bash
+scripts/herdr-fleet.sh --agent claude:<이름> --agent codex:<이름>   # 메인에서 — 2×2 한 화면
+cd <워크트리> && ./scripts/worktree-bootstrap.sh --adopt-env         # 워크트리 하나만 수동으로
+```
+
+★**워크트리에서 `make up` / `down` / `migrate` / `seed` 계열은 거부된다** — 컨테이너와 앱 DB 는 1벌 공유라 실행하면 다른 워크트리와 메인이 함께 깨진다. **celery 경유 검증(백테스트·라이브신호·옵티마이저)은 워크트리에서 구조적으로 불가능하다** — worker 가 메인의 `src` 를 mount 하므로 내 코드가 아니라 메인 코드가 돈다(침묵 실패). 정본: [`docs/reference/worktree-parallel.md`](docs/reference/worktree-parallel.md).
+
 ### BE pytest — env 소싱 의무
 
 `uv run` 은 `.env.local` 을 `os.environ` 에 올리지 않는다 (pydantic-settings 의 `env_file` 은 앱 Settings 만 채운다). `conftest.py` 는 `os.environ` 만 읽으므로, `make be-test` / 맨 `uv run pytest` 는 기본값 `localhost:5432` 로 붙어 격리 스택 DB (5433) 를 못 찾고 대량 에러가 난다.
