@@ -1,7 +1,8 @@
 # 워크트리 병렬 작업 — 무엇이 되고 무엇이 안 되는가
 
 > 정본. 2026-07-29 실측 기준. 코드와 어긋나면 코드가 맞다.
-> 도구: `.worktreeinclude` · `scripts/worktree-bootstrap.sh` · `scripts/herdr-fleet.sh` · `Makefile` 의 `QB_SLOT` / `guard-main-only`.
+> 도구: `.worktreeinclude` · `scripts/worktree-bootstrap.sh` · `scripts/herdr-fleet.sh` ·
+> `scripts/fleet-dispatch.sh` · `Makefile` 의 `QB_SLOT` / `qb-guard`. 함대 운용은 [`../guides/fleet-orchestration.md`](../guides/fleet-orchestration.md).
 
 ---
 
@@ -65,8 +66,8 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 `git rev-parse --absolute-git-dir` 와 `--git-common-dir` 가 갈리는지를 본다. 워크트리에서만 갈리고,
 어떤 make 변수로도 못 바꾼다. **인자로 끌 수 있는 가드는 가드가 아니다.**
 
-★**가드는 레시피가 아니라 선행 타깃**이다. 레시피 첫 줄에 두면 선행이 이미 돌아간 뒤에 발동한다 —
-실측에서 `up-isolated` 의 선행 `metrics-wipe` 가 **가드보다 먼저** 돌았고, 그게 워크트리에서
+**선행 타깃이 필요한 이유** — 레시피에만 두면 선행이 이미 돌아간 뒤에 발동한다. 실측에서
+`up-isolated` 의 선행 `metrics-wipe` 가 **가드보다 먼저** 돌았고, 그게 워크트리에서
 `docker compose ps` 로 writer 를 세는데 **디렉터리 이름에서 유도된 다른 compose 프로젝트**를 보는
 바람에 0개로 세어(실측: 워크트리 0 / 메인 4 / 실제 구동 4) fail-closed 분기를 건너뛰고 삭제 분기로 갔다.
 `migrate-isolated` 은 선행 `wait-db-isolated` 가 DB 를 30초 폴링한 뒤에야 가드가 떠서, 스택이 내려가
