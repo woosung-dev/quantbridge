@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -259,8 +260,15 @@ class TestDetectPositionDivergence:
         assert result == "direction"
 
     @pytest.mark.asyncio
-    async def test_probe_failure_is_fail_open(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """거래소를 못 읽었다는 사실이 세션 사망으로 바뀌면 안 된다."""
+    async def test_probe_failure_reports_unknown_not_agreement(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """거래소를 못 읽었다는 사실이 세션 사망으로 바뀌면 안 되고(fail-open),
+        **"일치"로 보고돼서도 안 된다.**
+
+        `None`(일치)과 `_PROBE_FAILED`(모름)를 합치면 호출부가 직전 strike 를 지워버려
+        진짜 지속 발산이 영원히 2회차에 도달하지 못한다.
+        """
         self._patch_exchange(monkeypatch, positions=RuntimeError("bybit down"))
         sess = SimpleNamespace(id=uuid4(), symbol="BTC/USDT", exchange_account_id=uuid4())
         before = _position_counter("probe_failed")
@@ -269,7 +277,8 @@ class TestDetectPositionDivergence:
             sess, Decimal("0.029"), account_repo=AsyncMock()
         )
 
-        assert result is None
+        assert result == live_signal_module._PROBE_FAILED
+        assert result is not None, "모름을 일치로 접으면 strike 가 조용히 지워진다"
         assert _position_counter("probe_failed") == before + 1
 
 
@@ -323,6 +332,12 @@ class TestDivergenceFailClosed:
                 total_realized_pnl=Decimal("0"),
             ),
         )
+        # ★"발주하지 않음" 을 **직접** 본다. outbox INSERT 0 은 간접 증거일 뿐이라,
+        # 가드보다 앞서 dispatch 가 enqueue 되는 회귀가 생기면 그 단언은 통과한다.
+        apply_async_spy = MagicMock()
+        monkeypatch.setattr(
+            live_signal_module.dispatch_live_signal_event_task, "apply_async", apply_async_spy
+        )
         monkeypatch.setattr(live_signal_module, "publish_realtime", AsyncMock())
         monkeypatch.setattr(
             live_signal_module, "_reconcile_conditional_entries", AsyncMock()
@@ -334,6 +349,20 @@ class TestDivergenceFailClosed:
         )
         result = await live_signal_module._evaluate_session_inner(session_obj.id, "1m")
         result["_deactivated_calls"] = sess_repo.deactivate.await_count
+        # LESSON-019 — mutation 경로는 commit 까지 검증한다. 그리고 fail-closed 는
+        # "죽였다" 만으로 부족하다: 죽이면서 이벤트를 그대로 발주하면 차단이 아니다.
+        result["_commit_calls"] = sess_repo.commit.await_count
+        result["_insert_calls"] = event_repo.insert_pending_events.await_count
+        result["_upsert_calls"] = sess_repo.upsert_state.await_count
+        result["_dispatch_calls"] = apply_async_spy.call_count
+        # 다음 평가로 넘어가는 strike 플래그(판정 못 한 tick 은 직전 값을 보존해야 한다).
+        result["_persisted_flag"] = (
+            sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"].get(
+                "_qb_direction_mismatch_seen"
+            )
+            if sess_repo.upsert_state.await_count
+            else None
+        )
         return result
 
     @pytest.mark.asyncio
@@ -350,6 +379,13 @@ class TestDivergenceFailClosed:
         assert result["deactivated"] == "position_divergence"
         assert result["_deactivated_calls"] == 1
         assert _blocked_counter("direction") == before + 1
+        # LESSON-019 — deactivate 만으로는 영속되지 않는다.
+        assert result["_commit_calls"] == 1
+        # ★차단은 "발주하지 않음" 까지가 계약이다. 죽이면서 이벤트를 내보내면 차단이 아니다.
+        assert result["_insert_calls"] == 0
+        assert result["_upsert_calls"] == 0
+        # codex [P2] — 간접 증거로 만족하지 않는다. 발주 큐잉 자체를 spy 로 본다.
+        assert result["_dispatch_calls"] == 0
 
     @pytest.mark.asyncio
     async def test_first_direction_mismatch_is_not_blocked(
@@ -387,6 +423,86 @@ class TestDivergenceFailClosed:
         assert "deactivated" not in result
         assert result["_deactivated_calls"] == 0
         assert _position_counter("engine_only") == before + 1
+
+    @pytest.mark.asyncio
+    async def test_probe_failure_preserves_a_prior_strike(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """★거래소를 못 읽은 tick 이 직전 strike 를 **지우면 안 된다**.
+
+        probe 실패는 "불일치 없음" 이 아니라 "모름" 이다. 모름을 False 로 적으면 REST 가
+        한 번 흔들릴 때마다 strike 가 초기화돼 진짜 지속 발산이 영원히 2회차에 도달하지
+        못한다 — 가드가 조용히 무력화된다.
+        """
+        result = await self._evaluate_with_divergence(
+            monkeypatch,
+            category="probe_failed",
+            position_size=0.029,
+            previously_seen=True,
+        )
+
+        assert "deactivated" not in result, "판정 못 한 tick 이 곧바로 죽여서도 안 된다"
+        assert result["_persisted_flag"] is True, "직전 strike 가 보존돼야 한다"
+
+    @pytest.mark.asyncio
+    async def test_unreadable_engine_position_preserves_a_prior_strike(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """`position_size` 를 못 읽는 tick(NaN/부재)도 같은 계약이다."""
+        result = await self._evaluate_with_divergence(
+            monkeypatch,
+            category=None,
+            position_size=float("nan"),
+            previously_seen=True,
+        )
+
+        assert "deactivated" not in result
+        assert result["_persisted_flag"] is True
+
+    @pytest.mark.asyncio
+    async def test_agreement_clears_the_strike(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """반대로 **판정된** 일치는 strike 를 지워야 한다 — 안 지우면 영구 무장이다."""
+        result = await self._evaluate_with_divergence(
+            monkeypatch, category=None, position_size=0.029, previously_seen=True
+        )
+
+        assert "deactivated" not in result
+        assert result["_persisted_flag"] is False
+
+
+class TestDivergenceAlertDiagnosis:
+    """차단 알림이 **맞는 원인**을 말하는지 — 실제로 나가는 문구로 검증한다.
+
+    ★메타데이터 dict 만 들여다보면 안 된다. 그 방식은 **호출부 리터럴을 안 건드리므로**
+    `_fire_divergence_alert(category=...)` 를 오타내도 초록이고, 알림은 그대로 기본 사유
+    (`"pine_v2 coverage↔interpreter 발산"`)로 떨어진다 — 고치려던 결함이 그대로 재발한다.
+    그래서 세션을 실제로 차단시키고 **발송된 message 를** 본다.
+    """
+
+    @pytest.mark.asyncio
+    async def test_blocked_alert_names_the_position_cause(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        sent: list[str] = []
+
+        async def _capture(_settings: object, **kwargs: object) -> None:
+            sent.append(str(kwargs.get("message", "")))
+
+        monkeypatch.setattr(live_signal_module, "send_rule_alert", _capture)
+
+        await TestDivergenceFailClosed._evaluate_with_divergence(
+            monkeypatch, category="direction", position_size=0.029, previously_seen=True
+        )
+        # fire-and-forget task 가 끝나도록 양보한다(kill_switch 테스트 패턴).
+        for _ in range(5):
+            await asyncio.sleep(0.01)
+
+        assert sent, "차단했으면 알림이 나가야 한다"
+        message = sent[0]
+        assert "포지션" in message, f"원인이 포지션 불일치로 읽혀야 한다: {message}"
+        assert live_signal_module._DIVERGENCE_REASON not in message, (
+            f"기본 사유(pine_v2 발산)로 떨어지면 운영자가 전략 버그로 오진한다: {message}"
+        )
 
 
 class TestNetPositionSize:
