@@ -27,8 +27,29 @@ METRICS_WRITER_SERVICES := backend-worker backend-ws-stream backend-optimizer-he
 # 컨테이너(5433/6380)는 슬롯과 무관하게 공유한다 — container_name 이 고정이라 스택은 1벌뿐이다.
 -include .worktree-slot
 QB_SLOT ?= 0
+QB_MAIN_ROOT ?= (메인 체크아웃)
 QB_FE_PORT := $(shell expr 3100 + $(QB_SLOT))
 QB_BE_PORT := $(shell expr 8100 + $(QB_SLOT))
+
+# 공유 자원을 변형하는 타깃은 메인 체크아웃(슬롯 0)에서만 돈다.
+#
+# 왜 문서가 아니라 코드로 막는가 — `docs/reference/worktree-parallel.md` 와 부트스트랩 요약이
+# "하면 안 된다" 고 적어만 두던 것들이다. 사람은 읽지만 **에이전트는 읽지 않고 실행한다.**
+# 워크트리에서 이 중 하나가 돌면 다른 워크트리와 메인이 함께 깨지고, 깨진 쪽은 원인을
+# 알 수 없는 빨간불을 받는다(누가 언제 무엇을 드롭했는지 흔적이 남지 않는다).
+#
+#   up/down 계열   → container_name 이 고정이라 스택은 1벌뿐이다. 남의 DB 를 죽인다.
+#   migrate 계열   → 대상이 **공유 앱 DB** 다. 워크트리 브랜치의 마이그레이션을 전원이 뒤집어쓴다.
+#   seed           → 공유 앱 DB 를 갈아엎는다.
+define guard-main-only
+@if [ "$(QB_SLOT)" != "0" ]; then \
+  echo "✗ '$@' 은 메인 체크아웃 전용이다 (지금 슬롯 $(QB_SLOT))." >&2; \
+  echo "  컨테이너와 앱 DB 는 슬롯과 무관하게 1벌 공유다 — 여기서 실행하면 다른 워크트리와 메인이 깨진다." >&2; \
+  echo "  → 메인에서 실행해라: cd $(QB_MAIN_ROOT) && make $@" >&2; \
+  echo "  (근거: docs/reference/worktree-parallel.md §2)" >&2; \
+  exit 1; \
+fi
+endef
 
 # 격리 모드 DB URL (host 5433 / container 내부 5432) — be-isolated / migrate-isolated 공통.
 # .env.local 변형 없이 inline override 패턴 (process env > pydantic-settings dotenv 우선순위).
@@ -58,8 +79,10 @@ help:
 	@echo "    make fe-isolated       # frontend Next.js (port 3100)"
 	@echo ""
 	@echo "  워크트리 병렬 — 현재 슬롯 $(QB_SLOT) (FE $(QB_FE_PORT) / BE $(QB_BE_PORT))"
+	@echo "    scripts/herdr-fleet.sh          # herdr 2x2 함대 — 워크트리 3 + CONTROL 1 (메인에서)"
 	@echo "    scripts/worktree-bootstrap.sh   # 새 워크트리를 실행 가능 상태로 (슬롯·테스트DB·env)"
 	@echo "    docs/reference/worktree-parallel.md   # 무엇이 병렬 가능하고 무엇이 불가능한가"
+	@echo "    * 슬롯 != 0 에서는 up/down/migrate/seed 계열이 거부된다 (공유 자원 보호)"
 	@echo ""
 	@echo "  품질"
 	@echo "    make test           # backend pytest + frontend vitest"
@@ -102,9 +125,11 @@ dev: up
 	  wait
 
 up: metrics-wipe
+	$(guard-main-only)
 	docker compose up -d
 
 down:
+	$(guard-main-only)
 	docker compose down
 
 logs:
@@ -134,12 +159,14 @@ dev-isolated: up-isolated migrate-isolated
 
 up-isolated: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
 up-isolated: metrics-wipe
+	$(guard-main-only)
 	docker compose $(ISOLATED_COMPOSE) up -d
 
 # Sprint 23 BL-101 — 코드 변경 후 image 재빌드 + 부팅. daily flow 영향 0.
 # 기본 up-isolated 는 빠른 부팅 유지 (image cache 사용).
 up-isolated-build: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
 up-isolated-build: metrics-wipe
+	$(guard-main-only)
 	docker compose $(ISOLATED_COMPOSE) up -d --build
 
 # Sprint 38 BL-181 — 격리 모드 + worker auto-rebuild on src 변경.
@@ -148,9 +175,11 @@ up-isolated-build: metrics-wipe
 # host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
 # 패키지 변경은 image rebuild 의무 (ADR docs/reference/infra/2026-05-06-bl-181-*).
 up-isolated-watch: metrics-prepare
+	$(guard-main-only)
 	docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
 
 down-isolated:
+	$(guard-main-only)
 	docker compose $(ISOLATED_COMPOSE) down
 
 logs-isolated:
@@ -174,6 +203,7 @@ wait-db-isolated:
 # host uvicorn 이 docker-entrypoint.sh 안 타는 점을 보강. process env override 로
 # .env.local 의 5432 default 를 5433 으로 변경. up-isolated 후 db healthy 대기.
 migrate-isolated: wait-db-isolated
+	$(guard-main-only)
 	@echo "▶ alembic upgrade head (격리 DB 5433)"
 	cd backend && \
 	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
@@ -181,6 +211,7 @@ migrate-isolated: wait-db-isolated
 
 # 기본 모드 마이그레이션 — host 5432.
 migrate:
+	$(guard-main-only)
 	cd backend && uv run alembic upgrade head
 
 # dogfood 복원 시더 — 빈 DB 를 전 화면 사용 가능 상태로.
@@ -191,6 +222,7 @@ migrate:
 #   make seed            전체
 #   make seed ONLY=daily 하나만
 seed:
+	$(guard-main-only)
 	cd backend && set -a; . ./.env.local; set +a; \
 	  uv run python scripts/seed_dogfood.py --confirm $(if $(ONLY),--only $(ONLY),)
 
@@ -201,8 +233,16 @@ seed:
 # `make be-isolated` 단독 실행 시도 fresh start 호환 (db healthy + alembic 자동).
 # QB_MIGRATE_DONE=1 sentinel — `dev-isolated` 가 이미 migrate-isolated 수행한 경우
 # sub-make 호출에서 중복 실행 회피 (GNU make 는 target 캐시를 sub-process 와 공유 안 함).
+#
+# 워크트리(슬롯 ≠ 0)에서는 선행을 아예 걸지 않는다. 대상이 **공유 앱 DB** 라 워크트리
+# 브랜치의 마이그레이션이 다른 워크트리와 메인에 걸리기 때문이다. 지금까지는 사람이
+# `QB_MIGRATE_DONE=1` 을 매번 붙여서 피해야 했는데(문서 §5 의 ⚠️), 슬롯이 이미 그 정보를
+# 갖고 있으므로 사람에게 의무를 지울 이유가 없다. 한 번 빠뜨리면 남이 깨진다.
+# 마이그레이션을 실제로 적용해야 하는 작업이라면 메인 체크아웃에서 해라.
 ifndef QB_MIGRATE_DONE
+ifeq ($(QB_SLOT),0)
 be-isolated: migrate-isolated
+endif
 endif
 be-isolated: metrics-prepare
 	cd backend && \

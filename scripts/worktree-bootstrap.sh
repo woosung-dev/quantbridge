@@ -7,6 +7,8 @@
 #   scripts/worktree-bootstrap.sh --slot 2     # 슬롯 지정 (다른 워크트리가 쥔 번호면 거부한다)
 #   scripts/worktree-bootstrap.sh --skip-deps  # deps 설치 생략
 #   scripts/worktree-bootstrap.sh --skip-db    # 테스트 DB 생성 생략 (문서/계획 전용 워크트리)
+#   scripts/worktree-bootstrap.sh --adopt-env  # env 가 없으면 죽지 말고 메인에서 복사해 온다
+#                                              # (git worktree add / herdr 로 만든 워크트리용 — §3)
 #
 # 재실행은 안전하다 — 이미 슬롯이 있으면 그 번호를 유지한다(바뀌면 떠 있는 서버와 어긋난다).
 #
@@ -31,6 +33,7 @@ set -euo pipefail
 
 SKIP_DEPS=0
 SKIP_DB=0
+ADOPT_ENV=0
 SLOT=""
 
 while [ $# -gt 0 ]; do
@@ -38,6 +41,7 @@ while [ $# -gt 0 ]; do
     --slot)      SLOT="${2:-}"; shift 2 ;;
     --skip-deps) SKIP_DEPS=1; shift ;;
     --skip-db)   SKIP_DB=1; shift ;;
+    --adopt-env) ADOPT_ENV=1; shift ;;
     -h|--help)   sed -n '2,30p' "$0"; exit 0 ;;
     *)           echo "알 수 없는 인자: $1" >&2; exit 2 ;;
   esac
@@ -77,6 +81,9 @@ write_slot_file() {
   cat > "$WT_ROOT/.worktree-slot" <<EOF
 # scripts/worktree-bootstrap.sh 생성 — Makefile 이 -include 로 읽는다. 커밋 대상 아님.
 QB_SLOT = $1
+# Makefile 의 guard-main-only 가 "메인은 여기다" 를 출력할 때 쓴다.
+# 여기 박아두는 이유 — 없으면 make 가 타깃마다 git 을 한 번씩 더 불러야 한다.
+QB_MAIN_ROOT = $MAIN_ROOT
 EOF
 }
 
@@ -95,12 +102,23 @@ done
 trap 'rmdir "$SLOT_LOCK" 2>/dev/null || true' EXIT INT TERM
 
 # 다른 워크트리들이 이미 쥔 슬롯. 자기 것은 뺀다(자기 슬롯은 아래에서 따로 다룬다).
+#
+# ⚠️ 디렉터리 글롭(`$MAIN_ROOT/.claude/worktrees/*/`)으로 세면 안 된다. 워크트리가 거기에만
+#    생긴다는 보장이 없다 — herdr 는 `~/.herdr/worktrees/<repo>/<이름>` 에 만들고(실측),
+#    수동 `git worktree add` 는 아무 경로나 받는다. 그것들이 USED 에서 빠지면 같은 번호를
+#    두 번 배정하고, 그러면 `quantbridge_w{N}_test` 와 Redis lock DB 가 겹쳐
+#    pytest 의 drop_all 과 마이그레이션이 서로를 파괴한다 — 위 락으로 막으려던 바로 그 파괴가
+#    다른 경로로 되살아난다. 어떤 워크트리가 존재하는가의 권위 있는 출처는 git 뿐이다.
 USED=""
-for f in "$MAIN_ROOT"/.claude/worktrees/*/.worktree-slot; do
-  [ -f "$f" ] || continue
-  [ "$f" = "$WT_ROOT/.worktree-slot" ] && continue
-  USED="$USED $(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$f")"
-done
+while IFS= read -r _wt; do
+  [ -n "$_wt" ] || continue
+  [ "$_wt" = "$MAIN_ROOT" ] && continue   # 메인은 슬롯 0 고정 (Makefile 의 QB_SLOT ?= 0)
+  [ "$_wt" = "$WT_ROOT" ] && continue     # 자기 슬롯은 아래에서 재사용 여부를 따로 판단한다
+  [ -f "$_wt/.worktree-slot" ] || continue
+  USED="$USED $(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$_wt/.worktree-slot")"
+done <<EOF
+$(git worktree list --porcelain | sed -n 's/^worktree //p')
+EOF
 
 # 재실행이 슬롯을 바꾸면 안 된다. 이미 떠 있는 서버는 옛 포트에 남아 있는데
 # env·테스트 DB·Makefile 만 새 번호로 갈아타면, 이후 테스트와 E2E 가 서로 다른
@@ -155,6 +173,44 @@ echo "  slot     : $SLOT  (FE $FE_PORT / BE $BE_PORT / $TEST_DB / redis lock $LO
 
 # ── 3. .worktreeinclude 가 실제로 동작했는지 검증 ───────────────────────────
 # 이 셋이 없으면 워크트리는 부팅 자체가 불가능하다. 조용히 넘어가면 안 된다.
+#
+# `.worktreeinclude` 는 **Claude Code 의 `EnterWorktree` 기능이지 git 기능이 아니다.**
+# `git worktree add` 나 herdr 로 만든 워크트리에는 적용되지 않으므로 아래 검증이 die 한다.
+# 사람에겐 그게 맞다(무엇이 왜 없는지 봐야 한다). 하지만 비대화형 호출자 — fleet 스크립트나
+# 에이전트 — 에겐 그냥 정지다. `--adopt-env` 는 그때 쓰라고 있다.
+#
+# ★목록의 SSOT 는 `.worktreeinclude` 하나뿐이다. 여기에 파일 이름을 다시 적으면 두 벌이 되어
+#   언젠가 갈린다 (한쪽에만 추가된 파일이 조용히 안 따라가는 형태로).
+adopt_env() {
+  # 목록은 **이 워크트리** 것을 읽는다 — `.worktreeinclude` 는 트래킹되는 파일이고,
+  # "무엇이 있어야 하는가" 를 정하는 건 지금 체크아웃된 브랜치이기 때문이다.
+  # 메인 체크아웃은 다른(더 오래된) 브랜치에 있을 수 있다 — 실제로 이 스크립트를 처음 돌렸을 때
+  # 메인이 아직 머지 전 커밋이라 파일이 없었다. 복사해 오는 **내용**만 메인 것이다.
+  _list="$WT_ROOT/.worktreeinclude"
+  [ -f "$_list" ] || _list="$MAIN_ROOT/.worktreeinclude"   # 브랜치가 이 파일보다 오래된 경우
+  [ -f "$_list" ] || die "$WT_ROOT/.worktreeinclude 도 $MAIN_ROOT/.worktreeinclude 도 없다 — 복사할 목록이 없다."
+  echo "▶ --adopt-env — $_list 기준으로 $MAIN_ROOT 에서 복사"
+  while IFS= read -r _pat || [ -n "$_pat" ]; do
+    case "$_pat" in ''|'#'*) continue ;; esac
+    _rel="${_pat#/}"   # 선행 `/` 는 "레포 루트 고정" 이라는 gitignore 표기일 뿐이다
+    # glob 은 지원하지 않는다. 조용히 건너뛰면 그 파일이 없는 채로 부팅되므로 시끄럽게 알린다.
+    case "$_rel" in
+      *'*'*|*'?'*|*'['*)
+        echo "  ! glob 은 --adopt-env 가 다루지 않는다 (수동 복사 필요): $_rel" >&2; continue ;;
+    esac
+    [ -e "$WT_ROOT/$_rel" ] && continue
+    if [ -f "$MAIN_ROOT/$_rel" ]; then
+      mkdir -p "$(dirname "$WT_ROOT/$_rel")"
+      cp -p "$MAIN_ROOT/$_rel" "$WT_ROOT/$_rel"
+      ok "복사 $_rel"
+    else
+      # 메인에도 없으면 복사로는 못 고친다. 아래 검증이 필수 파일인지 판정한다.
+      echo "  ! 메인에도 없다, 건너뜀: $_rel" >&2
+    fi
+  done < "$_list"
+}
+if [ "$ADOPT_ENV" -eq 1 ]; then adopt_env; fi
+
 echo "▶ env 파일 (.worktreeinclude 복사분)"
 MISSING=""
 for f in backend/.env.local frontend/.env.local .env; do
@@ -162,7 +218,8 @@ for f in backend/.env.local frontend/.env.local .env; do
 done
 if [ -n "$MISSING" ]; then
   echo "  ✗ 누락:$MISSING" >&2
-  echo "    → .worktreeinclude 가 적용되지 않았다 (수동 git worktree add 로 만들었거나 구버전 CLI)." >&2
+  echo "    → .worktreeinclude 가 적용되지 않았다 (수동 git worktree add / herdr 로 만들었거나 구버전 CLI)." >&2
+  echo "    자동 복구:  $0 --adopt-env" >&2
   echo "    수동 복구:" >&2
   for f in $MISSING; do echo "      cp '$MAIN_ROOT/$f' '$WT_ROOT/$f'" >&2; done
   die "env 없이는 진행 불가."
@@ -292,17 +349,19 @@ cat <<EOF
 
   BE 테스트   cd backend && set -a; . ./.env.local; set +a; uv run pytest
               (env 소싱 필수 — AGENTS.md §BE pytest. 안 하면 5432 로 붙는다)
-  BE 서버     make be-isolated QB_MIGRATE_DONE=1   → http://localhost:$BE_PORT
-              (이 변수가 없으면 migrate-isolated 가 선행돼 공유 앱 DB 에 alembic 이 걸린다)
+  BE 서버     make be-isolated      → http://localhost:$BE_PORT
+              (슬롯 ≠ 0 이면 migrate-isolated 선행이 자동으로 빠진다 — QB_MIGRATE_DONE 불필요)
   FE 서버     make fe-isolated      → http://localhost:$FE_PORT
   E2E         PLAYWRIGHT_BASE_URL=http://localhost:$FE_PORT pnpm e2e
               (이 변수 없으면 3000 의 남의 앱을 검사한다 — 실제 사고 이력 있음)
 
-이 워크트리에서 하면 안 되는 것:
-  ✗ make up / up-isolated       → container_name 충돌. 컨테이너는 메인 체크아웃에서만.
-  ✗ alembic upgrade / make seed → 앱 DB 는 공유다. 다른 워크트리가 깨진다.
+이 워크트리에서 막혀 있는 것 (Makefile 가드가 exit 1 로 거부한다):
+  ✗ make up / down / up-isolated / down-isolated  → container_name 고정. 스택은 메인에서만.
+  ✗ make migrate / migrate-isolated / seed        → 앱 DB 는 공유다. 다른 워크트리가 깨진다.
+
+막을 수 없는 것 — 스스로 지켜야 한다:
   ✗ celery 경유 검증(백테스트·라이브신호·옵티마이저)
-                                → worker 가 메인의 src 를 mount 한다. 네 코드가 안 돈다.
-                                   그 검증은 메인 체크아웃으로 돌아가서 해라.
+       worker 컨테이너가 메인의 src 를 mount 하므로 **네 코드가 아니라 메인 코드가 돈다.**
+       테스트는 통과하는데 실행된 게 내 코드가 아닌 침묵 실패다. 메인 체크아웃에서 해라.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF
