@@ -132,3 +132,57 @@ for m in reg.collect():
 | `10005 Permission denied`          |   1 | read-only 계정   |
 
 합 72 · 확정 29%. **단 이 값은 3일·3스프린트 누적이다**(reduce-only 거절 35건 중 31건이 07-26). BL-511 이후 창만 보면 close 6건 중 확정 3건 = **50%(n=6)** 였다. §0 의 경고가 바로 이 사례에서 나왔다.
+
+---
+
+## 7. 진입 유실률 — ★`engine_only` 로 재지 마라 (2026-07-29)
+
+`qb_live_position_divergence_total{category=engine_only}` 은 **진입 유실의 측정치가 아니다.** `run_live` 는 매 평가마다 300 bar 를 재생하지만 dispatch 대상은 **마지막 bar 의 이벤트뿐**이다(`strategy/pine_v2/event_loop.py:410`). 재생 구간에서 열린 포지션은 주문이 된 적이 없는데 엔진 상태에는 남는다 — 그래서 **재생이 non-flat 으로 끝나는 세션은 태어날 때부터 갈려 있고**, 그 경우 이 카운터는 유실이 0 이어도 매 tick 증가한다(재생이 flat 으로 끝나면 안 그렇다 — 전략·창에 달렸다). 실측: 신규 세션이 `events=0 · orders=0` 인데 엔진 `position_size=0.0297`, 카운터 55→57 (BL-543).
+
+### ★`live_signal_events` 로도 재지 마라 — 조건부 진입은 그 테이블을 거치지 않는다
+
+`trading.live_signal_events WHERE action='entry'` 를 분모로 쓰고 싶어진다. **틀렸다.** 조건부(스톱) 진입은 `_reconcile_conditional_entries` 가 `OrderService.execute` 를 **직접** 부른다(`tasks/live_signal.py:387`·`:952`) — outbox 이벤트를 만들지 않는다. 실측(2026-07-29): 같은 창에서 events 기준 진입이 **0건**인데 원장에는 **16건**이 있었다.
+
+유효한 분모는 **주문 원장**뿐이다.
+
+```sql
+-- 진입(=reduce_only false) 만 본다. kind: cond=조건부 · condmkt=시장가 전환 · 그 외=일반 신호
+SELECT split_part(o.idempotency_key, ':', 3) AS kind,
+       o.state,
+       substring(o.error_message from 'retCode":([0-9]+)') AS code,
+       count(*)
+FROM trading.orders o
+WHERE o.reduce_only = false
+  AND o.created_at >= '<T0>'          -- ★창 필수
+GROUP BY 1, 2, 3
+ORDER BY 4 DESC;
+```
+
+읽는 법 — ★**`cancelled` 를 유실로 세지 마라.** 조건부 스톱은 desired 레벨이 매 bar 움직이면 취소 후 재등재된다(정상 churn). 검산: `cancelled` 개수가 `qb_live_conditional_cancelled_total{reason="replaced"}` 차분과 **같으면** 전량 churn 이다(2026-07-29 실측 25 = 25).
+
+> **유실률 = `rejected` / (`filled` + `rejected`)** — 2026-07-29 실측 2/(10+2) = **16.7%**
+
+채널별 분해는 카운터 **차분**으로 읽는다(§5). 절대값은 파일이 마지막으로 지워진 시점부터의 누적이라 의미가 없다.
+
+★**스냅샷 함정** — `prometheus_client` 는 Counter 의 **family 이름에서 `_total` 을 뗀다.** `m.name` 을 `..._total` 로 매칭하면 데이터가 멀쩡해도 **항상 0 계열**이 나온다. `s.name`(샘플 이름)으로 매칭하거나 prefix 로 걸러라.
+
+## 8. 고아 포지션 청산 (BL-537)
+
+★**앱에 경로가 있다.** 세션이 꺼져도 행은 남고(`DELETE` 는 비활성화만 한다), `list_by_account` 는 `is_active` 를 안 거르므로 코크핏 §03 **계정 잔여 포지션** 표가 청산 버튼을 준다. provider 원시 호출로 내려가지 마라 — 그러면 `Order` 행도 없고 kill-switch 도 안 돈다.
+
+버튼이 없으면 `close_blocked_reason` 을 먼저 읽어라.
+
+| 사유                | 뜻                                                                           |
+| ------------------- | ---------------------------------------------------------------------------- |
+| `no_owning_session` | 그 계정·심볼로 만든 세션이 **한 번도** 없다 (웹훅 경로·거래소 수동 — BL-541) |
+| `hedge_unsupported` | leg 2개 이상 또는 `position_idx != 0` — one-way 전용이라 구조적 미지원       |
+| `read_only_key`     | 그 키로는 발주가 안 된다. 쓰기 가능한 형제 계정 행을 써라                    |
+
+확인 SQL — 청산 후 **원장 행이 남았는지**가 판정이다(없으면 우회한 것이다).
+
+```sql
+SELECT id, strategy_id, symbol, side, quantity, reduce_only, state, leverage, margin_mode
+FROM trading.orders
+WHERE exchange_account_id = '<account_id>' AND reduce_only = true
+ORDER BY created_at DESC LIMIT 5;
+```
