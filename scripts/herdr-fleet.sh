@@ -240,13 +240,23 @@ i=0
 for p in "${PANES[@]}"; do
   _extra=()
   while IFS= read -r _a; do [ -n "$_a" ] && _extra+=("$_a"); done < <(agent_args_for "${KINDS[$i]}")
-  if [ "${#_extra[@]}" -gt 0 ]; then
-    herdr agent start "${NAMES[$i]}" --kind "${KINDS[$i]}" --pane "$p" -- "${_extra[@]}" >/dev/null \
-      || die "에이전트 기동 실패: ${NAMES[$i]} (${KINDS[$i]}) @ $p"
-  else
-    herdr agent start "${NAMES[$i]}" --kind "${KINDS[$i]}" --pane "$p" >/dev/null \
-      || die "에이전트 기동 실패: ${NAMES[$i]} (${KINDS[$i]}) @ $p"
-  fi
+
+  # ★`workspace create` / `pane split` 이 반환한 직후의 pane 은 아직 셸 초기화 중일 수 있다.
+  #   그때 기동하면 `agent_pane_busy: not an available shell` 로 실패한다(실측). 순수한 레이스라
+  #   잠깐 뒤 재시도하면 붙는다. 죽기 전에 몇 번 기다려 본다.
+  _started=0; _err=""
+  for _try in 1 2 3 4 5 6 7 8; do
+    if [ "${#_extra[@]}" -gt 0 ]; then
+      _err="$(herdr agent start "${NAMES[$i]}" --kind "${KINDS[$i]}" --pane "$p" -- "${_extra[@]}" 2>&1)" \
+        && { _started=1; break; }
+    else
+      _err="$(herdr agent start "${NAMES[$i]}" --kind "${KINDS[$i]}" --pane "$p" 2>&1)" \
+        && { _started=1; break; }
+    fi
+    case "$_err" in *agent_pane_busy*|*"not an available shell"*) sleep 2 ;; *) break ;; esac
+  done
+  [ "$_started" -eq 1 ] || die "에이전트 기동 실패: ${NAMES[$i]} (${KINDS[$i]}) @ $p
+    $_err"
 
   # ★기동 성공 반환값만 믿으면 안 된다. 실측 — codex 가 기동 직후 **스스로 업데이트하고
   #   "Please restart Codex" 로 종료**했는데, 이 스크립트는 "✓ codex 기동" 이라고 보고했다.
