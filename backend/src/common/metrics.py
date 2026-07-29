@@ -511,7 +511,13 @@ qb_live_signal_divergence_total = Counter(
 # BL-530 — 엔진↔거래소 포지션 발산 **관측**(차단 아님). 위 counter 와 분리한 이유는
 # 페이징 계약이 다르기 때문이다. 여기 값은 정상 운영 중에도 0 이 아닐 수 있고,
 # BL-522(진입 완결성) 설계에 쓸 유실 크기의 입력이다.
-#   category: engine_only    — 엔진만 포지션을 믿는다(유령 진입 → close 전량 거절)
+#   category: engine_only    — 엔진만 포지션을 믿는다. 이 counter 는 dispatch 보다 한 tick
+#               앞서 판정하므로 마지막 bar 신규 진입은 주문 enqueue 전 한 번 잡힌다.
+#               유실이 없어도 진입 1건당 1씩 늘 수 있다. 이 값을 진입 유실의 측정치로
+#               쓰지 마라.
+#               재생 창보다 오래 산 실제 포지션은 재생에 없어서 engine_only 가 아니라
+#               exchange_only 로 나타난다. 진입 유실은 orders.idempotency_key 기준 진입측
+#               원장으로 측정한다(live-close-diagnostics.md §3).
 #             exchange_only  — 거래소에만 포지션이 남았다(고아 노출)
 #             size           — 방향은 같고 크기가 다르다(부분체결·수량 step)
 #             probe_failed   — 거래소를 못 읽어 판정 자체를 못 했다(fail-open)

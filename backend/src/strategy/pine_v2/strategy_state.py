@@ -284,6 +284,27 @@ class StrategyState:
     # next_bar_open 모드의 시장가 인텐트 큐 — process_market_intents 가 소비.
     pending_market_intents: list[MarketIntent] = field(default_factory=list)
 
+    def discard_state_before_epoch(self) -> None:
+        """position epoch 이전 재생이 만든 포지션 및 손익 상태를 폐기한다.
+
+        warmup 재생에서 outbox 발행 허용 시점 이전에 열린 거래는 실제 거래소 주문으로
+        이어진 적이 없으므로, open/closed 거래와 exit 브래킷, 강제청산 횟수를 모두
+        없던 일로 만든다. 사이징이 과거 가상 손익을 쓰지 않도록 running_equity 도
+        configure_sizing()이 받은 initial_capital 로 되돌린다. 폐기 과정은 close 이벤트나
+        closed_trades 기록을 만들지 않는다.
+
+        pending_orders, pending_market_intents, events, warnings, entry_skips 는 유지한다.
+        특히 epoch 직전 bar 의 next_bar_open 시장가 인텐트는 epoch bar 에 체결되어 그
+        bar 의 outbox 대상이 될 수 있다. 단, 그 인텐트가 close_all 이면 close_all 자체의
+        기존 계약에 따라 pending_orders 와 pending_exits 를 비울 수 있다.
+        """
+        self.open_trades.clear()
+        self.pending_exits.clear()
+        self.closed_trades.clear()
+        self.liquidation_count = 0
+        if self.running_equity is not None:
+            self.running_equity = self.initial_capital
+
     # ---- Sprint 37 BL-185: 포지션 사이징 (spot-equivalent) ------------
 
     def configure_sizing(

@@ -190,6 +190,7 @@ def _build_session_obj(
         symbol="BTC/USDT",
         interval=LiveSignalInterval.m1,
         is_active=is_active,
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
         last_evaluated_bar_time=last_evaluated_bar_time,
         equity_baseline_usdt=equity_baseline_usdt,
     )
@@ -601,7 +602,8 @@ def _preflight_scaffold(
         event_repo=event_repo,
         account_repo=account_repo if account_repo is not None else _demo_account_repo(),
         strategy_repo=strategy_repo,
-        ohlcv_rows=ohlcv_rows or [[int(datetime(2026, 5, 1, tzinfo=UTC).timestamp() * 1000), 1, 2, 0, 1, 100]],
+        ohlcv_rows=ohlcv_rows
+        or [[int(datetime(2026, 5, 1, tzinfo=UTC).timestamp() * 1000), 1, 2, 0, 1, 100]],
         carry_result=carry_result,
         ledger_result=ledger_result,
     )
@@ -1153,7 +1155,14 @@ async def test_live_sizing_carry_restores_window_invariance(
         carry_result=(Decimal("4096"), 1),
         ohlcv_rows=[
             [int(window_start.timestamp() * 1000), 65535.0, 65535.0, 65535.0, 65535.0, 100],
-            [int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000), 65535.0, 65535.0, 65535.0, 65535.0, 100],
+            [
+                int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000),
+                65535.0,
+                65535.0,
+                65535.0,
+                65535.0,
+                100,
+            ],
             [int(bar_time.timestamp() * 1000), 65535.0, 65536.0, 65535.0, 65536.0, 100],
         ],
     )
@@ -1162,7 +1171,9 @@ async def test_live_sizing_carry_restores_window_invariance(
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 
     assert res["evaluated"] is True
-    event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    assert [
+        call.kwargs["bar_time"] for call in event_repo.sum_realized_pnl_before.await_args_list
+    ] == [window_start, bar_time]
     signals = event_repo.insert_pending_events.await_args.kwargs["signals"]
     assert signals[0]["qty"] == 0.09375
     state_kwargs = _sess_repo.upsert_state.await_args.kwargs
@@ -1207,7 +1218,9 @@ async def test_live_sizing_passes_carry_to_initial_capital_and_ledger_total(
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 
     assert res["evaluated"] is True
-    _event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    assert [
+        call.kwargs["bar_time"] for call in _event_repo.sum_realized_pnl_before.await_args_list
+    ] == [window_start, bar_time]
     _event_repo.sum_realized_pnl_all.assert_awaited_once_with(sess.id)
     assert captured_initial_capital == [12288.0]
     state_kwargs = sess_repo.upsert_state.await_args.kwargs
@@ -1280,6 +1293,7 @@ async def test_run_live_passes_leverage_and_counts_engine_events_without_diverge
             "sessions_allowed": (),
             "pyramiding": None,
             "fill_timing": "bar_close",
+            "position_epoch": bar_time,
         }
     ]
     for reason in reasons:
@@ -1331,6 +1345,7 @@ async def test_run_live_passes_sessions_and_declared_pyramiding(
             "sessions_allowed": ("asia", "ny"),
             "pyramiding": 2,
             "fill_timing": "bar_close",
+            "position_epoch": bar_time,
         }
     ]
 
@@ -1355,7 +1370,14 @@ async def test_live_sizing_reaches_run_live_hand_computed(monkeypatch: pytest.Mo
         carry_result=(Decimal("0"), 0),
         ohlcv_rows=[
             [int(window_start.timestamp() * 1000), 65535.0, 65535.0, 65535.0, 65535.0, 100],
-            [int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000), 65535.0, 65535.0, 65535.0, 65535.0, 100],
+            [
+                int(datetime(2026, 5, 1, 11, 59, tzinfo=UTC).timestamp() * 1000),
+                65535.0,
+                65535.0,
+                65535.0,
+                65535.0,
+                100,
+            ],
             [int(bar_time.timestamp() * 1000), 65535.0, 65536.0, 65535.0, 65536.0, 100],
         ],
     )
@@ -1364,7 +1386,9 @@ async def test_live_sizing_reaches_run_live_hand_computed(monkeypatch: pytest.Mo
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 
     assert res["evaluated"] is True
-    event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    assert [
+        call.kwargs["bar_time"] for call in event_repo.sum_realized_pnl_before.await_args_list
+    ] == [window_start, bar_time]
     signals = event_repo.insert_pending_events.await_args.kwargs["signals"]
     assert signals[0]["qty"] == 0.0625
 
@@ -1406,18 +1430,19 @@ async def test_effective_capital_uses_decimal_sum_before_float_boundary(
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 
     assert res["evaluated"] is True
-    event_repo.sum_realized_pnl_before.assert_awaited_once_with(sess.id, bar_time=window_start)
+    assert [
+        call.kwargs["bar_time"] for call in event_repo.sum_realized_pnl_before.await_args_list
+    ] == [window_start, bar_time]
     assert captured_initial_capital == [1000.17]
 
 
 @pytest.mark.asyncio
-async def test_d2_ledger_is_ssot_while_sizing_remains_a_known_limitation(
+async def test_d2_ledger_is_ssot_and_sizing_carry_reaches_replay_epoch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """D2 프로덕션 회귀다. 16:12의 3건 5.16879987이 16:49에 2건 4.07002377로 줄었다.
 
-    화면 총계는 원장 SSOT로 해결됐고 사이징 자본만 남았다. 창 밖 진입의 창 안 close가
-    재현되지 않는 동안 initial_capital은 일시적으로 함몰한다.
+    화면 총계는 원장 SSOT를 유지하고, 사이징 자본은 각 재생 epoch까지의 carry를 쓴다.
     """
     import src.strategy.pine_v2.event_loop as event_loop_mod
 
@@ -1435,24 +1460,68 @@ async def test_d2_ledger_is_ssot_while_sizing_remains_a_known_limitation(
         carry_result=(Decimal("0"), 0),
         ohlcv_rows=[
             [int(first_window_start.timestamp() * 1000), 101, 101, 101, 101, 100],
-            [int(datetime(2026, 5, 1, 12, 1, tzinfo=UTC).timestamp() * 1000), 200, 200, 200, 200, 100],
-            [int(datetime(2026, 5, 1, 12, 2, tzinfo=UTC).timestamp() * 1000), 300, 300, 300, 300, 100],
+            [
+                int(datetime(2026, 5, 1, 12, 1, tzinfo=UTC).timestamp() * 1000),
+                200,
+                200,
+                200,
+                200,
+                100,
+            ],
+            [
+                int(datetime(2026, 5, 1, 12, 2, tzinfo=UTC).timestamp() * 1000),
+                300,
+                300,
+                300,
+                300,
+                100,
+            ],
         ],
     )
     provider.fetch_ohlcv.side_effect = [
         [
             [int(first_window_start.timestamp() * 1000), 101, 101, 101, 101, 100],
-            [int(datetime(2026, 5, 1, 12, 1, tzinfo=UTC).timestamp() * 1000), 200, 200, 200, 200, 100],
-            [int(datetime(2026, 5, 1, 12, 2, tzinfo=UTC).timestamp() * 1000), 300, 300, 300, 300, 100],
+            [
+                int(datetime(2026, 5, 1, 12, 1, tzinfo=UTC).timestamp() * 1000),
+                200,
+                200,
+                200,
+                200,
+                100,
+            ],
+            [
+                int(datetime(2026, 5, 1, 12, 2, tzinfo=UTC).timestamp() * 1000),
+                300,
+                300,
+                300,
+                300,
+                100,
+            ],
         ],
         [
             [int(second_window_start.timestamp() * 1000), 301, 301, 301, 301, 100],
-            [int(datetime(2026, 5, 1, 12, 4, tzinfo=UTC).timestamp() * 1000), 302, 302, 302, 302, 100],
-            [int(datetime(2026, 5, 1, 12, 5, tzinfo=UTC).timestamp() * 1000), 303, 303, 303, 303, 100],
+            [
+                int(datetime(2026, 5, 1, 12, 4, tzinfo=UTC).timestamp() * 1000),
+                302,
+                302,
+                302,
+                302,
+                100,
+            ],
+            [
+                int(datetime(2026, 5, 1, 12, 5, tzinfo=UTC).timestamp() * 1000),
+                303,
+                303,
+                303,
+                303,
+                100,
+            ],
         ],
     ]
     event_repo.sum_realized_pnl_before.side_effect = [
         (Decimal("0"), 0),
+        (Decimal("0"), 0),
+        (Decimal("4096"), 1),
         (Decimal("4096"), 1),
     ]
     event_repo.sum_realized_pnl_all.side_effect = [
@@ -1474,11 +1543,61 @@ async def test_d2_ledger_is_ssot_while_sizing_remains_a_known_limitation(
     assert second["evaluated"] is True
     assert [
         call.kwargs["bar_time"] for call in event_repo.sum_realized_pnl_before.await_args_list
-    ] == [first_window_start, second_window_start]
+    ] == [
+        first_window_start,
+        datetime(2026, 5, 1, 12, 2, tzinfo=UTC),
+        second_window_start,
+        datetime(2026, 5, 1, 12, 5, tzinfo=UTC),
+    ]
     assert initial_capitals == [8192.0, 12288.0]
     assert [
         call.kwargs["total_realized_pnl"] for call in sess_repo.upsert_state.await_args_list
     ] == [Decimal("4096"), Decimal("4096")]
+
+
+@pytest.mark.asyncio
+async def test_recalculated_effective_capital_falls_back_when_epoch_carry_exhausts_equity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """epoch carry가 자본을 소진해도 기존 window_start 자본으로 계속 평가한다."""
+    import src.strategy.pine_v2.event_loop as event_loop_mod
+
+    window_start = datetime(2026, 5, 1, 11, 58, tzinfo=UTC)
+    bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+    sess, sess_repo, event_repo, _publisher, _provider = _preflight_scaffold(
+        monkeypatch,
+        pine_source="//@version=5\nstrategy('x')",
+        ohlcv_rows=[
+            [int(window_start.timestamp() * 1000), 1, 2, 0, 1, 100],
+            [int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100],
+        ],
+    )
+    event_repo.sum_realized_pnl_before.side_effect = [
+        (Decimal("0"), 0),
+        (Decimal("-8192.00"), 1),
+    ]
+    initial_capitals: list[float] = []
+
+    def fake_run_live(*_args: object, **kwargs: object) -> LiveSignalResult:
+        initial_capitals.append(float(kwargs["initial_capital"]))
+        return LiveSignalResult(
+            last_bar_time=bar_time,
+            signals=[],
+            strategy_state_report={},
+            total_closed_trades=0,
+            total_realized_pnl=Decimal("0"),
+        )
+
+    monkeypatch.setattr(event_loop_mod, "run_live", fake_run_live)
+
+    res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert res["evaluated"] is True
+    assert [
+        call.kwargs["bar_time"] for call in event_repo.sum_realized_pnl_before.await_args_list
+    ] == [window_start, bar_time]
+    assert initial_capitals == [8192.0]
+    sess_repo.deactivate.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -1596,7 +1715,9 @@ async def test_equity_curve_grows_once_for_new_close(monkeypatch: pytest.MonkeyP
             total_realized_pnl=Decimal("2"),
         ),
     )
-    monkeypatch.setattr(live_signal_module.dispatch_live_signal_event_task, "apply_async", MagicMock())
+    monkeypatch.setattr(
+        live_signal_module.dispatch_live_signal_event_task, "apply_async", MagicMock()
+    )
 
     res = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 

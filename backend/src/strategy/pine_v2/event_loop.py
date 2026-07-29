@@ -76,6 +76,7 @@ def run_historical(
     input_overrides: Mapping[str, Any] | None = None,
     pyramiding: int | None = None,
     fill_timing: str = "bar_close",
+    position_epoch_bar: int | None = None,
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -93,6 +94,9 @@ def run_historical(
         sessions_allowed: BL-188 v3 — entry placement + pending fill 양쪽에 적용되는
             session gate. 비어있으면 24h. 비어있지 않으면 ohlcv.index 가 tz-aware
             DatetimeIndex 여야 함 (v2_adapter 가 422 reject 책임).
+        position_epoch_bar: 지정한 bar 시작 시, 그 이전 warmup 재생이 만든 포지션 및
+            손익 상태를 폐기한다. 시장가 인텐트 처리는 그 뒤에 실행하므로 epoch 직전
+            bar 에 큐된 next_bar_open 인텐트는 epoch bar 에서 정상 체결된다.
     """
     _validate_ohlcv(ohlcv)
     tree = parse_to_ast(source)
@@ -131,6 +135,8 @@ def run_historical(
         bar_ts_py = bar_ts.to_pydatetime() if bar_ts is not None else None
         # TV parity (next_bar_open) — 직전 bar 큐 인텐트를 이번 bar 시가로 체결.
         # pending stop/exit 검사보다 먼저 (entry 체결 후 같은 bar 브래킷 부착 순서 유지).
+        if position_epoch_bar is not None and bar.bar_index == position_epoch_bar:
+            interp.strategy.discard_state_before_epoch()
         interp.strategy.process_market_intents(
             bar=bar.bar_index,
             open_=bar.current("open"),
@@ -323,6 +329,7 @@ def run_live(
     pyramiding: int | None = None,
     fill_timing: str = "bar_close",
     emit_from_bar_time: datetime | None = None,
+    position_epoch: datetime | None = None,
 ) -> LiveSignalResult:
     """Sprint 26 — Option B (warmup replay) 채택.
 
@@ -351,6 +358,9 @@ def run_live(
             청산도 다음 bar 시가로 지연하므로 손절 청산도 한 bar 늦어진다.
         emit_from_bar_time: 지정 시 이 시각보다 뒤의 bar 이벤트를 모두 발행한다. None이면
             기존처럼 마지막 bar 이벤트만 발행한다.
+        position_epoch: outbox 발행을 허용한 시각. 이 시각 이상인 첫 bar 시작 전에
+            warmup 재생 포지션 및 손익 상태를 폐기한다. OHLCV timestamp 는 오름차순이라는
+            전제이며, 그런 bar 가 없으면 마지막 bar 를 epoch 으로 사용한다.
 
     Returns:
         LiveSignalResult — last_bar_time + signals + strategy_state_report + 누적 통계.
@@ -374,6 +384,23 @@ def run_live(
             )
         ohlcv = ohlcv.set_index(timestamps, drop=False)
 
+    position_epoch_bar: int | None = None
+    if position_epoch is not None:
+        position_epoch_bar = next(
+            (
+                index
+                for index in range(len(ohlcv))
+                if _extract_bar_time(ohlcv, index) >= position_epoch
+            ),
+            len(ohlcv) - 1,
+        )
+        if position_epoch_bar == 0:
+            position_epoch_bar = None
+
+    historical_kwargs: dict[str, Any] = {}
+    if position_epoch_bar is not None:
+        historical_kwargs["position_epoch_bar"] = position_epoch_bar
+
     # run_historical 전체 재실행 (warmup replay)
     qty_type, qty_value = resolve_default_qty(
         source,
@@ -392,6 +419,7 @@ def run_live(
         sessions_allowed=sessions_allowed,
         pyramiding=pyramiding,
         fill_timing=fill_timing,
+        **historical_kwargs,
     )
     strategy_state = result.strategy_state
     if strategy_state is None:
