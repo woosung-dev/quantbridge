@@ -26,28 +26,29 @@
 
 ## 완료 (참고 — 최근 스프린트, 전량 MERGED)
 
-| 스프린트                    | PR        | 한줄                                                                                                                     |
-| --------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| **live-orphan-close**       | #501      | 고아 청산은 **이미 됐다**(BL-537 전제 반증) — 진짜 결함은 누르면 실패하는 버튼. BL-536 재측정 판정 유지. **BL-543 신설** |
-| **live-close-completeness** | #497/#498 | 엔진이 **스팟 봉**을 재생하며 주문은 perp 로 냈다 — 계기 정렬 1사이트 (BL-530)                                           |
-| **live-outcome-parity**     | #496      | 라이브가 백테스트대로 **버는지** 물을 수 있는 자. 엔진 기대 gross → 체결 격차 → 비용 → 거래소 확정 net 분해 (BL-526)     |
-| **live-entry-parity**       | #493      | 조건부 진입 거절 43% → **0%**. 기준가 stale close → 실시간 perp last + 돌파 시 시장가 전환 (BL-511/512)                  |
-| live-observability          | #492      | worker Prometheus metric 스크레이프 배선 + 라이브 실주행 판정표 (BL-506)                                                 |
-| live-ops-hygiene            | #491      | 조건부 진입 정리 주체 + 계정 스코프 위생 (BL-503/501/502)                                                                |
-| C 디자인 언어 이식 완주     | #463/#464 | 17벌 전체 이식 + 리포트 정본 + 부채 마감                                                                                 |
-| functional-parity           | #468      | C 이식 후 기능 격차 마감 + 잠복 P1 2건                                                                                   |
-| tier-c                      | #469      | Tier C 4종 + WS Tier 1 (펀딩·포지션 대조·알림·팬아웃)                                                                    |
-| opspack-ws2                 | #470      | 정비 팩 6종 + WS Tier 2 (public ticker·미실현 P&L)                                                                       |
-| perf-surface                | #471      | 성과 표면 A1~A4 (read-time 파생, 마이그레이션 0)                                                                         |
-| position-cockpit (Phase B)  | #472      | WS position 채널 + 코크핏 잔고/포지션                                                                                    |
-| trading-surface-pack        | #473      | 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 (BL-431/416/425/432/433)                                                   |
-| close-completeness          | #474      | 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고 (BL-435/436)                                                          |
-| money-path-accuracy         | #475      | 거래소 closedPnl 손익 보정 + filled_quantity 소생 + BL-362 텔레그램 (BL-014 부분)                                        |
-| exit-attribution            | #476      | 거래소 청산 원장 (최근 7일, BL-442)                                                                                      |
-| exit-money-path             | #477      | 세션 스코프 머니-패스 정정 (BL-444/445)                                                                                  |
-| (후속 픽스)                 | #478      | 큰 배열 spread RangeError 공유 페이지 크래시 수정                                                                        |
-| backtest-trust              | #480      | Sharpe TV 컨벤션 + 격리 레버리지 마진·청산 (BL-398/186a/388)                                                             |
-| money-path-finish           | #481      | 원장 실측 매칭 + 심볼 ingress 정규화 + 출처 라벨 (BL-457/454 · 458 부분 · 464)                                           |
+| 스프린트                      | PR        | 한줄                                                                                                                                        |
+| ----------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **engine-exchange-alignment** | (미머지)  | position epoch 로 재생 아티팩트 제거(엔진 0.0297 → **0.0**) + 백테스트 perp 정렬. ★soak 이 **같은 증상의 반대 방향**을 찾아 **BL-544 신설** |
+| **live-orphan-close**         | #501      | 고아 청산은 **이미 됐다**(BL-537 전제 반증) — 진짜 결함은 누르면 실패하는 버튼. BL-536 재측정 판정 유지. **BL-543 신설**                    |
+| **live-close-completeness**   | #497/#498 | 엔진이 **스팟 봉**을 재생하며 주문은 perp 로 냈다 — 계기 정렬 1사이트 (BL-530)                                                              |
+| **live-outcome-parity**       | #496      | 라이브가 백테스트대로 **버는지** 물을 수 있는 자. 엔진 기대 gross → 체결 격차 → 비용 → 거래소 확정 net 분해 (BL-526)                        |
+| **live-entry-parity**         | #493      | 조건부 진입 거절 43% → **0%**. 기준가 stale close → 실시간 perp last + 돌파 시 시장가 전환 (BL-511/512)                                     |
+| live-observability            | #492      | worker Prometheus metric 스크레이프 배선 + 라이브 실주행 판정표 (BL-506)                                                                    |
+| live-ops-hygiene              | #491      | 조건부 진입 정리 주체 + 계정 스코프 위생 (BL-503/501/502)                                                                                   |
+| C 디자인 언어 이식 완주       | #463/#464 | 17벌 전체 이식 + 리포트 정본 + 부채 마감                                                                                                    |
+| functional-parity             | #468      | C 이식 후 기능 격차 마감 + 잠복 P1 2건                                                                                                      |
+| tier-c                        | #469      | Tier C 4종 + WS Tier 1 (펀딩·포지션 대조·알림·팬아웃)                                                                                       |
+| opspack-ws2                   | #470      | 정비 팩 6종 + WS Tier 2 (public ticker·미실현 P&L)                                                                                          |
+| perf-surface                  | #471      | 성과 표면 A1~A4 (read-time 파생, 마이그레이션 0)                                                                                            |
+| position-cockpit (Phase B)    | #472      | WS position 채널 + 코크핏 잔고/포지션                                                                                                       |
+| trading-surface-pack          | #473      | 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 (BL-431/416/425/432/433)                                                                      |
+| close-completeness            | #474      | 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고 (BL-435/436)                                                                             |
+| money-path-accuracy           | #475      | 거래소 closedPnl 손익 보정 + filled_quantity 소생 + BL-362 텔레그램 (BL-014 부분)                                                           |
+| exit-attribution              | #476      | 거래소 청산 원장 (최근 7일, BL-442)                                                                                                         |
+| exit-money-path               | #477      | 세션 스코프 머니-패스 정정 (BL-444/445)                                                                                                     |
+| (후속 픽스)                   | #478      | 큰 배열 spread RangeError 공유 페이지 크래시 수정                                                                                           |
+| backtest-trust                | #480      | Sharpe TV 컨벤션 + 격리 레버리지 마진·청산 (BL-398/186a/388)                                                                                |
+| money-path-finish             | #481      | 원장 실측 매칭 + 심볼 ingress 정규화 + 출처 라벨 (BL-457/454 · 458 부분 · 464)                                                              |
 
 ## 🔵 진행중 / 📋 계획됨 (핸드오프 SSOT 존재)
 
@@ -71,7 +72,9 @@
    4i. ✅ **live-close-completeness** (완료 · **PR #497 머지 @178d24ef** · 사후검증 #498 @004c374f) — **BL-530 Resolved**. 뿌리는 청산 경로가 아니라 **계기 불일치**: 엔진이 **Bybit 스팟 1m 봉**을 재생하며 주문은 perp 로 냈다. 수정 = fetch 인자 **1개**. ★외부 오라클이 소수점까지 확정(스팟 고가 63541.7 = 시뮬 스톱 일치). ★**soak 이 그날 쓴 가드를 15분 만에 반증**. 신규 BL-535/536/537.
    4j. ✅ **live-orphan-close** (완료 · **PR #501 머지 @91411980**) — **BL-537 Resolved, ★전제 반증**(계정 스코프는 이미 닫힌다 — 3중 실측). ★**엔드포인트를 짓지 않은 것이 핵심 판단**(BL-541 로 이연, 아직 실측된 적 없음). 진짜 결함 = **누르면 실패하는 버튼**. **BL-536 재측정 = 판정 유지**(soak 2h40m · 유실률 16.7% · 최대 채널 57% 로 분산). ★★★**BL-543 신설 — 세션은 태어날 때부터 갈릴 수 있다**. 신규 BL-541/542/543.
 
-5. ★**engine-exchange-alignment** (다음 — **BL-543 먼저 → BL-536**) — 세션 시작 시 엔진 상태를 거래소와 정렬한다. BL-543 이 선행인 이유는 셋이다: (a) `engine_only` 계측기를 오염시켜 **BL-536 이 지정한 첫 step 자체가 무효** (b) 유령 청산(`close_position_flat`·`110017`)을 만든다 (c) **>5분 공백마다 세션이 죽는다**(`gap_resync` 는 엔진도 flat 이어야 탄다). 정렬 없이 BL-536 의 "전환 의도 영속화" 를 지으면 **재생이 계속 제조하는 포지션 위에** 상태를 얹게 된다.
+   4k. ✅ **engine-exchange-alignment** (완료 · **미머지 — `stage/engine-exchange-alignment`**) — **BL-543 착지** (position epoch: 엔진 포지션은 발행 허용 epoch 이후 bar 에서만 쌓인다) + **BL-535 부분** (백테스트가 perp 키로 적재 — `BTC/USDT:USDT` 721행 신규, 기존 스팟 9337행 불변). ★**herdr 함대 워크트리 2벌 병렬**로 실행하고 방법론 A/B 를 관찰했다 — 워커 자기 보고와 CONTROL 재측정의 **격차 0**, 스코프 중첩 0, 통합 충돌 0. ★★★**실주행 soak 이 단위 테스트를 반증** — 재생 아티팩트는 사라졌으나(`engine_only` 증가 0) 공백 후 세션 사망이 **반대 방향으로 남아 있었다**(엔진 flat / 거래소 롱 0.029). 신규 **BL-544**. ★문서 모순 2건 정정(worker 는 `src` 를 **bind-mount 한다** · "병렬화는 읽기뿐" 은 슬롯 체계로 반증).
+
+5. ★**conditional-entry-alignment** (다음 — **BL-544 먼저 → BL-536**) — 엔진이 **자기 주문의 체결을 모른다**. 거래소는 stop 을 bar **안에서 실시간** 트리거하고 엔진 재생은 **bar 종가 기준**이라, 조건부 진입이 체결돼도 재생은 그 진입을 만들지 않는다 → `exchange_only` 발산 → >5분 공백마다 세션 사망(`live_signal.py:1679`). ★**판정을 느슨하게 하는 게 답이 아니다** — 세션을 죽이는 것은 fail-closed 로 타당하고, 고칠 것은 **엔진이 체결 사실을 반영하지 않는다는 것**이다. 갈래 셋(원장 체결로 재생 seed / `gap_resync` 를 '일치' 판정으로 확장 / 체결을 다음 tick 에 이벤트로 이어붙임)의 크기를 재고 고른다. ★**BL-544 가 열려 있으면 BL-536 의 장시간 soak 자체가 불가능하다**(2026-07-30 실측: 세션이 18분 만에 죽었다).
 6. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
 7. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
 8. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
