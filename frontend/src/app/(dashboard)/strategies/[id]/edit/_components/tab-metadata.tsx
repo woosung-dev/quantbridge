@@ -47,6 +47,9 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
       margin_mode: strategy.settings?.margin_mode ?? "cross",
       position_size_pct: strategy.settings?.position_size_pct ?? 10,
       max_trigger_breach_pct: strategy.settings?.max_trigger_breach_pct ?? null,
+      // BL-516 — UI 입력은 없다(캡은 기본 비활성). 다만 여기서 값을 보존하지 않으면
+      // 저장 시 기존 값이 null 로 덮인다.
+      max_reversal_overshoot_ratio: strategy.settings?.max_reversal_overshoot_ratio ?? null,
       fill_timing: strategy.settings?.fill_timing ?? "bar_close",
     },
   });

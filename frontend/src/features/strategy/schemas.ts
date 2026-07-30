@@ -50,6 +50,10 @@ export const StrategySettingsSchema = z
     margin_mode: MarginModeSchema,
     position_size_pct: z.number().gt(0).max(100),
     max_trigger_breach_pct: z.number().gt(0).nullable().optional().default(null),
+    // BL-516 — BE `StrategySettings` 가 default None 으로 emit 한다. `update_settings` 가
+    // `model_dump()` 를 그대로 저장하므로 설정을 한 번만 저장해도 JSONB 에 이 키가 박힌다.
+    // `.strict()` 라 여기 없으면 그 전략의 이후 파싱이 **영구히** 실패한다 (codex 적대 리뷰 MAJOR).
+    max_reversal_overshoot_ratio: z.number().gt(0).nullable().optional().default(null),
     fill_timing: z.enum(["bar_close", "next_bar_open"]).default("bar_close"),
   })
   .strict();

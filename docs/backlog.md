@@ -7,7 +7,7 @@
 **작성일:** 2026-04-30
 **최종 갱신:** 2026-07-26 (**dogfood-restore 스프린트** — 로컬 실사용 복원 + 3스프린트 누적 신뢰 작업 실화면 검증. **BL-465/467 Resolved** + 신규 **BL-466/468~472/474** + **BL-473 Resolved**(WS auth `expires` 창 — 라이브 체결 스트리밍이 통째로 죽어 있었다). ★**dogfood 가 P1 을 잡았다** — `_periodic_returns` 가 음수 자본을 안 걸러 파산한 실행에 **양수 샤프**가 붙었고(실측 -2179.68% 에 +0.029), **committed Trust Layer baseline 이 그걸 담고 있었다**(s1_pbr 샤프 +0.600 · 소르티노 +2.349 on -536%). 코퍼스 5종 중 4종이 음수 자본이고 골든이 깨진 것도 정확히 그 4종. baseline 재생성 diff = 12 메트릭 키 중 2개 한정. ★**옵티마이저는 이 스택에서 구조적으로 죽어 있었다** — `optimizer_heavy` 유일 소비자에 OHLCV env 3종 부재. ★**`make seed` 신설** — 백테스트 1회가 곧 OHLCV 시딩(TimescaleProvider cache-first). 마이그레이션 0.) // 이전: 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
-**현재 상태:** **ACTIVE 140 · PARTIAL 4 · RESOLVED 57 · UNKNOWN 17 / 전체 218 항목** — P별 ACTIVE = **P0 1 · P1 7 · P2 55 · P3 77** (2026-07-30 `scripts/bl-audit.sh` 실측). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **ACTIVE 143 · PARTIAL 4 · RESOLVED 57 · UNKNOWN 17 / 전체 221 항목** — P별 ACTIVE = **P0 1 · P1 7 · P2 56 · P3 79** (2026-07-30 `scripts/bl-audit.sh` 실측). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 > ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 했고, 그 다음 표기 "86 active / 전체 135" 도 실측(217 섹션)과 어긋나 있었다. **산식은 이제 문서 주석이 아니라 스크립트다:**
 >
@@ -5062,5 +5062,87 @@ BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제�
 이 항목이 세 번째로 재발한다.
 
 **Risk:** 🟡 (진단 불가가 다른 P1 을 막는다)
+
+---
+
+### BL-562
+
+**우선순위:** P2
+**카테고리:** Backend / trading (조건부 진입 계측 정확도)
+**Trigger:** BL-516 캡을 실제로 켜기 **전** (기본 비활성인 동안은 오작동하지 않는다)
+**Est:** S
+**상태:** 🟡 **열려 있다** — 2026-07-30 codex 적대 리뷰 MAJOR 로 발견.
+
+★**게이트 B 와 반전 캡이 「등재 순간의 포지션」만 본다 — 조건부 주문은 트리거까지 대기한다.**
+
+**원인/영향.** `conditional_entry_planner.py` 의 `crosses_zero` / `overshoot_ratio` /
+`resulting_position_qty` 는 **계획 시점**에 계산되고 이후 재계산되지 않는다. 그런데 조건부 주문은
+거래소에서 **트리거될 때까지 대기**한다. 그 사이 포지션이 바뀌면 세 값이 전부 낡는다.
+
+**재현.** flat 에서 TP 가 있는 `buy 1` 을 등재하면 `resulting=1`, `crosses_zero=False`.
+트리거 전에 형제 조건부 주문이나 수동 주문이 `short 0.5` 를 만들면 실제 체결 결과는 `long 0.5` 다.
+그런데 `tpSize=1` 이 그대로 나가고, **실제로는 반전인데 캡도 안 걸리고 reversal metric 에도 안 잡힌다.**
+부분 체결도 같은 방식으로 계획 시점 계산을 무효화한다.
+
+★**지금은 무해하다** — 캡이 기본 비활성이고 게이트 B 는 TP 를 **드롭하는** 방향(보수적)이라
+잘못 드롭할 뿐 잘못 통과시키지 않는다. **캡을 켜는 순간 이 항목이 P1 이 된다.**
+
+**권장 접근:** 재계산 지점은 트리거가 아니라 **체결 훅**이다(`_enqueue_trailing_if_intended` 가 이미
+붙어 있는 그 자리). 다만 그때는 이미 주문이 나간 뒤라 tpSize 는 못 고친다 →
+**계측만 체결 시점으로 옮기고**, 캡은 "등재 시점 근사" 임을 이름/문서에 명시하는 쪽이 정직하다.
+★**BL-516 의 leg 분리를 다시 꺼내지 마라** — 술어 4곳 문제는 그대로다.
+
+**Risk:** 🟡
+
+---
+
+### BL-563
+
+**우선순위:** P3
+**카테고리:** Backend / observability (계측 귀속 지점)
+**Trigger:** BL-523 의 `bracket_unavailable` 비율을 근거로 쓰기 **전**
+**Est:** XS
+**상태:** 🟡 **열려 있다** — 2026-07-30 codex 적대 리뷰 MINOR.
+
+★**"붙일 것이 있었는가" 를 게이트 **뒤**에서 재고 있다.**
+
+**원인/영향.** `tasks/live_signal.py` 가 bracket outcome 을 **게이트 처리 후 `request`** 기준으로
+센다. 그래서 TP-only 반전에서 엔진이 TP 를 **공급했는데도** 게이트 B 가 그것을 드롭하면
+`bracket_tp_dropped_size` 와 `bracket_unavailable` 이 **둘 다** 올라 "엔진이 아무것도 공급하지 않았다"
+로 오분류된다.
+
+★**BL-523 의 판정 근거가 이 counter 다.** 2026-07-30 soak 은 `bracket_unavailable` 100% 였으나
+그 창에는 TP 공급 자체가 0이라 오분류가 발생하지 않았다(결론은 유효). 하지만 **`strategy.exit` 을
+쓰는 전략이 등장하는 순간 이 숫자는 못 믿는다.**
+
+**권장 접근:** outcome 을 **원본 planned leg**(`PlannedConditionalEntry`) 기준으로 옮긴다.
+`bracket_unavailable` = "엔진이 공급 안 함", 게이트 드롭은 **별도 축**으로 센다.
+
+**Risk:** 🟢
+
+---
+
+### BL-564
+
+**우선순위:** P3
+**카테고리:** Tooling / docs (BL 감사 스크립트)
+**Trigger:** `scripts/bl-audit.sh` 를 게이트 체인에 넣기 전
+**Est:** XS
+**상태:** 🟡 **열려 있다** — 2026-07-30 codex 적대 리뷰 MINOR.
+
+★**`bl-audit.sh` 가 코드펜스·`<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다.**
+
+**원인/영향.** 파서가 섹션 본문에서 첫 `**상태:**` / `**Status:**` 를 SSOT 로 잡는데,
+코드펜스 안이나 `<details>`(폐기된 옛 판정을 접어두는 관용구) 안의 줄도 후보가 된다.
+첫 줄이 이기고 **중복은 실패 조건에 포함되지 않는다**(경고만 출력).
+
+★**실제로 이 회차에 `<details>` 를 처음 도입했다**(BL-553 의 이전 판정 보존). 지금은 그 안에
+`**상태:**` 형식이 없어 오탐이 나지 않지만, 관용구가 퍼지면 조용히 뒤집힌다.
+
+**권장 접근:** 파서가 ` ``` ` 펜스와 `<details>…</details>` 구간을 **건너뛰게** 한다.
+중복 상태줄은 경고가 아니라 **실패**로 올린다(SSOT 는 하나여야 한다).
+★현재 `UNKNOWN 17` 정리와 함께 처리하면 게이트 체인 편입 조건이 갖춰진다.
+
+**Risk:** 🟢
 
 ---

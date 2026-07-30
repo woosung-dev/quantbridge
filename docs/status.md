@@ -59,8 +59,12 @@ BL-523 의 엔진 계약 변경(크기 미확정) · 거래소 확장 · PbR 로
 
 ### baseline (2026-07-30 실측 — `stage/conditional-entry-armor`)
 
-**BE 3659 passed / 46 skipped**(main 3633 대비 +26) · ruff clean · mypy **213** clean ·
+**BE 3659 passed / 46 skipped**(main 3633 대비 +26) · **FE 1232 passed**(205 파일) ·
+ruff clean · mypy **213** clean · FE typecheck/lint clean · `pnpm e2e` **4 passed** ·
 마이그레이션 head **`20260730_0001`**(이번 회차 마이그레이션 0).
+
+★**직전 블록의 「FE 1231」은 stale 이었다** — main 을 직접 재보니 **1232** 다(이번 회차 FE 테스트 추가 0건).
+`docdrift` 워크트리(FE 무변경)로 대조해 확인했다. **baseline 은 언제나 대조 대상이다.**
 
 ★**이 숫자도 대조 대상이다. 첫 step 에서 지금 HEAD 로 다시 재라.**
 
