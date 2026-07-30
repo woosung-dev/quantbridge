@@ -17,6 +17,7 @@ Day 4 단순화:
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal, NamedTuple
@@ -205,6 +206,21 @@ class Trade:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class LedgerSeedLeg:
+    """주문 원장이 증언하는 포지션 1건 — `seed_positions_from_ledger` 의 입력 (BL-544).
+
+    체결 1건당 leg 1개다. 여러 체결을 합쳐 하나로 만들면 안 된다 — `open_trades` 는
+    trade id 가 key 이고 `strategy.close(id)` 는 그 id 하나만 pop 하므로, 합치는 순간
+    Pine 의 trade-id 의미론이 깨진다.
+    """
+
+    trade_id: str
+    direction: Direction
+    qty: float
+    entry_price: float
+
+
 @dataclass
 class TradeEvent:
     """Sprint 26 codex G.0 P1 #2 — bar-level entry/close/fill event log.
@@ -304,6 +320,64 @@ class StrategyState:
         self.liquidation_count = 0
         if self.running_equity is not None:
             self.running_equity = self.initial_capital
+
+    def seed_positions_from_ledger(
+        self, legs: Sequence[LedgerSeedLeg], *, bar: int
+    ) -> tuple[str, ...]:
+        """주문 원장이 증언하는 포지션을 재생 상태로 채택한다. 채택한 trade id 들을 돌려준다.
+
+        `discard_state_before_epoch` 의 대칭이다 — 그쪽은 재생이 **지어낸** 포지션을 지우고,
+        이쪽은 재생이 **놓친** 포지션을 들여온다(BL-544). 대상은 평가 공백 동안 거래소에서
+        체결됐지만 재생이 재도출하지 못한 진입이다. 조건부 진입의 trigger 는 tick 마다
+        재도출되므로(실측 이동 64235.3 → 64166.7) 공백이 지나면 재생은 그 체결을 아예
+        만들지 않는다.
+
+        ★**멱등** — 이미 open 포지션이 하나라도 있으면 아무것도 하지 않는다. 재생이 같은
+        진입을 스스로 다시 만들었을 수 있고, 그때 더하면 이중 계상이다. 감량·반전을 맞추는
+        것도 이 메서드의 책임이 아니다 — 그런 상태는 호출부의 거래소 대조가 불일치로 잡아
+        fail-closed 로 죽인다. 채택은 "엔진이 완전히 비어 있을 때 원장을 믿는다" 하나뿐이다.
+
+        정상 진입(`_open_trade`)과 **의도적으로** 다른 점 둘:
+
+        - **증거금 게이트를 돌리지 않는다.** 그 포지션은 이미 거래소에 존재한다. 여기서
+          거절해도 현실은 되돌아가지 않고, 엔진만 그 포지션을 모르는 상태가 유지된다.
+        - **`_record_event` 를 하지 않는다.** 이벤트를 남기면 outbox 가 **이미 나간 주문을
+          다시 낸다.**
+
+        `liq_price` / `margin_used` 는 `_open_trade` 와 같은 helper 로 채운다 — 비워두면
+        `check_liquidations` 가 이 포지션만 조용히 건너뛴다.
+        """
+        if not legs or self.open_trades:
+            return ()
+        leveraged = is_leverage_active(self.leverage)
+        for leg in legs:
+            self.open_trades[leg.trade_id] = Trade(
+                id=leg.trade_id,
+                direction=leg.direction,
+                qty=leg.qty,
+                entry_bar=bar,
+                entry_price=leg.entry_price,
+                comment="ledger_seed",
+                liq_price=(
+                    liquidation_price(
+                        entry_price=leg.entry_price,
+                        direction=leg.direction,
+                        leverage=self.leverage,
+                    )
+                    if leveraged
+                    else None
+                ),
+                margin_used=(
+                    required_margin(
+                        qty=leg.qty,
+                        price=leg.entry_price,
+                        leverage=self.leverage,
+                    )
+                    if leveraged
+                    else None
+                ),
+            )
+        return tuple(leg.trade_id for leg in legs)
 
     # ---- Sprint 37 BL-185: 포지션 사이징 (spot-equivalent) ------------
 

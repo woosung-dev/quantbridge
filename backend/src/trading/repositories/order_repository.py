@@ -13,7 +13,13 @@ from uuid import UUID
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import ExchangeAccount, LiveSignalSession, Order, OrderState
+from src.trading.models import (
+    ExchangeAccount,
+    LiveSignalSession,
+    Order,
+    OrderSide,
+    OrderState,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +86,34 @@ class SessionRealizedPnl:
     def total(self) -> Decimal:
         """확정 + 추정. 게이트가 쓰는 값은 여전히 이 합계다 — 라벨은 가산적이다."""
         return Decimal(str(self.confirmed)) + Decimal(str(self.estimated))
+
+
+@dataclass(frozen=True, slots=True)
+class LedgerFill:
+    """세션 스코프 안에서 **관측된** 체결 1건 (BL-544).
+
+    엔진 재생이 모르는 사실의 원천이다. 공백 동안 worker/beat 가 멈춰 있어도 `ws-stream`
+    이 살아 있으면 체결은 원장에 남는다 — 실측에서 세션이 죽기 4분 36초 전에 이미
+    `state=filled` 가 찍혀 있었다.
+
+    ★`filled_at` 은 거래소 체결시각이 아니라 **우리 관측시각**이다(`SessionScope` 주석).
+    그래서 이 값으로 "몇 번째 bar 에서 체결됐나" 를 정하면 관측 지연만큼 틀린 bar 를 고른다.
+    이 타입이 답하는 질문은 **"그 창 안에 무엇이 체결됐나"** 하나뿐이다.
+    """
+
+    order_id: UUID
+    idempotency_key: str | None
+    side: OrderSide
+    filled_quantity: Decimal | None
+    filled_price: Decimal | None
+    filled_at: datetime
+    reduce_only: bool
+
+
+# 한 공백 창에서 훑을 체결 상한. 호출부가 **절단을 감지**할 수 있어야 하므로 조회는
+# 이 값 + 1 건을 가져온다 — 조용한 절단은 부분 원장으로 순포지션을 만들고, 그 값은
+# 실제보다 작아 엔진을 실제보다 flat 하게 심는다.
+LEDGER_FILL_SCAN_LIMIT = 200
 
 
 def _session_scope_where(scope: SessionScope) -> list[Any]:
@@ -288,6 +322,59 @@ class OrderRepository:
             .order_by(Order.filled_at.asc())  # type: ignore[union-attr]
         )
         return (await self.session.execute(stmt)).scalars().all()
+
+    async def list_fills_since(
+        self, scope: SessionScope, *, since: datetime, limit: int = LEDGER_FILL_SCAN_LIMIT
+    ) -> Sequence[LedgerFill]:
+        """세션 스코프 안에서 `since` 이후 관측된 체결을 `(filled_at, id)` 오름차순으로 준다.
+
+        BL-544 — 장기 공백 뒤 재개할 때 "재생이 모르는데 거래소에는 있는" 포지션의 근거를
+        찾는 조회다. `list_filled_realized_for_session`(위)을 쓸 수 없다 —
+        그쪽은 `realized_pnl IS NOT NULL` 을 더 걸어 **진입 주문을 구조적으로 못 본다**.
+        그게 이 버그의 조회측 원인이다.
+
+        ★`reduce_only` 를 필터하지 않는다. 청산 체결은 순포지션의 **뺄셈 항**이고, 빼면
+        진입만 세어 포지션을 과대 계상한다. 부호는 `reduce_only` 가 아니라 `side` 가 정한다
+        (라이브 close 는 long→sell / short→buy 로 매핑된다).
+
+        ★경계는 `>= since` 다. `> since` 로 두면 watermark 와 **같은 시각**에 관측된 체결이
+        조용히 빠진다. 이 조회는 "이미 반영됐다" 는 개념이 없으므로 한 건을 더 보는 쪽이
+        언제나 안전하다.
+
+        ★`limit + 1` 건을 가져온다. 호출부가 `len(rows) > limit` 으로 절단을 감지해
+        fail-closed 하기 위한 것이다 — 조용한 절단은 부분 원장을 온전한 원장으로 위장한다.
+        """
+        stmt = (
+            select(
+                cast(Any, Order.id),
+                cast(Any, Order.idempotency_key),
+                cast(Any, Order.side),
+                cast(Any, Order.filled_quantity),
+                cast(Any, Order.filled_price),
+                cast(Any, Order.filled_at),
+                cast(Any, Order.reduce_only),
+            )
+            .where(*_session_scope_where(scope))
+            .where(Order.filled_at >= since)  # type: ignore[operator, arg-type]
+            .order_by(
+                Order.filled_at.asc(),  # type: ignore[union-attr]
+                cast(Any, Order.id).asc(),
+            )
+            .limit(limit + 1)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            LedgerFill(
+                order_id=row[0],
+                idempotency_key=row[1],
+                side=row[2],
+                filled_quantity=row[3],
+                filled_price=row[4],
+                filled_at=row[5],
+                reduce_only=row[6],
+            )
+            for row in rows
+        ]
 
     async def realized_pnl_split_for_session(self, scope: SessionScope) -> SessionRealizedPnl:
         """세션 스코프 안의 체결 주문 실현 손익을 **출처별로 쪼개서** 돌려준다.

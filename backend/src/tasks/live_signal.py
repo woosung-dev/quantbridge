@@ -27,10 +27,11 @@ import contextlib
 import logging
 import time
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from celery import shared_task
@@ -44,6 +45,7 @@ from src.common.metrics import (
     qb_live_conditional_placed_total,
     qb_live_conditional_reconcile_errors_total,
     qb_live_conditional_sweep_filled_total,
+    qb_live_gap_ledger_seed_total,
     qb_live_position_divergence_total,
     qb_live_signal_dispatch_total,
     qb_live_signal_divergence_total,
@@ -59,6 +61,7 @@ from src.core.config import settings
 from src.market_data.constants import to_ccxt_perpetual_symbol
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
+from src.strategy.pine_v2.strategy_state import LedgerSeedLeg
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.alerting import send_rule_alert
 from src.trading.exceptions import (
@@ -297,6 +300,193 @@ def _net_position_size(positions: Sequence[Any]) -> Decimal:
             net -= position.size
         else:
             raise ValueError(f"unknown position side: {position.side!r}")
+    return net
+
+
+def _pine_trade_id_from_order_key(key: str | None, *, session_id: UUID) -> str | None:
+    """우리 주문의 idempotency key → Pine trade id. 우리 것이 아니면 None (BL-544).
+
+    세 형식을 **모두** 되짚는다. 하나라도 빠뜨리면 그 경로로 열린 포지션을 남의 것으로 보고
+    채택을 거부한다 — 그러면 이 스프린트가 고치려는 상태에서 세션이 계속 죽는다.
+
+    - 조건부 진입 `live:<sess>:cond:<bar_epoch>:<stop>:<qty>:<trade_id>`
+    - 시장가 전환 `live:<sess>:condmkt:<bar_epoch>:<stop>:<qty>:<trade_id>`
+      (둘 다 `conditional_entry_planner.py:107`)
+    - 시장가 진입 `live:<sess>:<bar_time ISO>:<seq>:entry:<trade_id>`
+      (`_build_idempotency_key`) — ISO 시각이 `:` 를 포함하므로 split 이 아니라
+      `:entry:` 마커로 가른다. `trade_id` 는 Pine 사용자 입력이라 `:` 를 포함할 수 있어
+      **마커 뒤 전부**가 id 다.
+
+    ★`close` 키는 의도적으로 되짚지 않는다. 청산 체결은 포지션을 만들지 않으므로 채택
+    대상이 아니고, 애초에 그런 창은 admissible 이 아니다.
+    """
+    if not key:
+        return None
+    prefix = f"live:{session_id}:"
+    if not key.startswith(prefix):
+        return None
+    rest = key[len(prefix) :]
+    for kind in ("cond:", "condmkt:"):
+        if rest.startswith(kind):
+            parts = rest[len(kind) :].split(":", 3)
+            if len(parts) != 4 or not all(parts):
+                return None
+            return parts[3]
+    marker = ":entry:"
+    index = rest.find(marker)
+    if index == -1:
+        return None
+    return rest[index + len(marker) :] or None
+
+
+@dataclass(frozen=True, slots=True)
+class _LedgerGapSeed:
+    """공백 창의 주문 원장을 읽은 결과 (BL-544).
+
+    `net` 은 창 안 체결의 부호 있는 합(읽을 수 없으면 None)이고, `legs` 는 **실제로 엔진에
+    넣어도 되는** 포지션이다. 둘을 분리하는 이유 — 원장이 "무언가 체결됐다" 고 말하는 것과
+    "그것으로 엔진 상태를 재구성해도 된다" 는 것은 다르다. 재구성 불가한 창(양방향 혼재 등)
+    에서는 `net` 이 0 이 아니면서 `legs` 가 비고, 그때는 기존 fail-closed 판정으로 떨어진다.
+    """
+
+    net: Decimal | None
+    legs: tuple[LedgerSeedLeg, ...]
+    outcome: str
+    order_ids: tuple[str, ...]
+
+
+_LEDGER_GAP_SEED_NONE = _LedgerGapSeed(net=None, legs=(), outcome="not_probed", order_ids=())
+
+
+def _ledger_gap_seed(
+    fills: Sequence[Any], *, session_id: UUID, overflowed: bool
+) -> _LedgerGapSeed:
+    """공백 창 체결 목록 → 엔진에 넣을 seed. 순수 함수 (BL-544).
+
+    순포지션은 `reduce_only` 를 **필터하지 않고** `side` 로 부호를 정해 합산한다 — 청산
+    체결이 뺄셈 항이다.
+
+    다만 **채택(legs)은 그보다 훨씬 보수적**이다. 아래를 모두 만족할 때만 만든다:
+
+    - 절단·판독 불가가 없다.
+    - 창 안 체결이 **전부 같은 side** 이고 **reduce-only 가 하나도 없다.**
+      ★근거 — 공백 중 "열고 (부분)닫은" 창을 엔진 상태로 되돌리려면 **공백 이전 포지션**을
+      알아야 하는데 이 창에는 그 정보가 없다. 그런 창을 채택하면 없는 포지션을 만들거나
+      방향을 뒤집는다. 그래서 채택하지 않고 기존 판정(사망)으로 떨어뜨린다.
+    - 모든 체결의 Pine trade id 를 되짚을 수 있고 **서로 중복이 아니다.**
+      ★`open_trades` 는 trade id 가 key 라 중복이면 뒤엣것이 앞엣것을 덮어써 엔진이 실제보다
+      작은 포지션을 갖는다 — 조용한 과소 계상이다.
+    """
+    order_ids = tuple(str(fill.order_id) for fill in fills)
+    if overflowed:
+        return _LedgerGapSeed(net=None, legs=(), outcome="overflow", order_ids=order_ids)
+    if not fills:
+        return _LedgerGapSeed(net=Decimal("0"), legs=(), outcome="no_basis", order_ids=())
+
+    for fill in fills:
+        quantity, price = fill.filled_quantity, fill.filled_price
+        if (
+            quantity is None
+            or price is None
+            or not quantity.is_finite()
+            or not price.is_finite()
+            or quantity <= 0
+            or price <= 0
+        ):
+            return _LedgerGapSeed(net=None, legs=(), outcome="unreadable", order_ids=order_ids)
+
+    net = Decimal("0")
+    for fill in fills:
+        quantity = Decimal(str(fill.filled_quantity))
+        net += quantity if fill.side == OrderSide.buy else -quantity
+
+    sides = {fill.side for fill in fills}
+    if len(sides) != 1 or any(fill.reduce_only for fill in fills):
+        return _LedgerGapSeed(net=net, legs=(), outcome="inadmissible", order_ids=order_ids)
+
+    trade_ids = [
+        _pine_trade_id_from_order_key(fill.idempotency_key, session_id=session_id)
+        for fill in fills
+    ]
+    if any(trade_id is None for trade_id in trade_ids) or len(set(trade_ids)) != len(trade_ids):
+        return _LedgerGapSeed(net=net, legs=(), outcome="inadmissible", order_ids=order_ids)
+
+    direction: Literal["long", "short"] = "long" if sides == {OrderSide.buy} else "short"
+    legs = tuple(
+        LedgerSeedLeg(
+            trade_id=str(trade_id),
+            direction=direction,
+            qty=float(fill.filled_quantity),
+            entry_price=float(fill.filled_price),
+        )
+        for fill, trade_id in zip(fills, trade_ids, strict=True)
+    )
+    return _LedgerGapSeed(net=net, legs=legs, outcome="seedable", order_ids=order_ids)
+
+
+def _carried_position_size(
+    strategy_state_report: dict[str, Any],
+    *,
+    last_bar_index: int,
+    seeded_ids: frozenset[str],
+) -> Decimal | None:
+    """재생이 **마지막 bar 이전부터 들고 있던** 순포지션. 읽을 수 없으면 None(fail-closed).
+
+    마지막 bar 에 새로 연 포지션은 뺀다 — 그 주문은 아직 나가지 않았으므로 거래소에 있을 수
+    없다. 예전 `carried_position_flat` 이 `entry_bar == last_bar_index` 만 허용한 것과 같은
+    의도이며, 여기서는 그것을 **크기까지 재는 술어로 일반화**한 것뿐이다.
+
+    ★원장으로 채택한 포지션은 `entry_bar` 가 마지막 bar 지만 **이미 거래소에 있으므로**
+    포함한다. 빼면 방금 채택한 것을 스스로 못 본 채 불일치라고 부른다.
+    """
+    open_trades = strategy_state_report.get("open_trades")
+    if not isinstance(open_trades, list):
+        return None
+    net = Decimal("0")
+    for trade in open_trades:
+        if not isinstance(trade, dict):
+            return None
+        entry_bar = trade.get("entry_bar")
+        direction = trade.get("direction")
+        quantity = trade.get("qty")
+        if type(entry_bar) is not int or direction not in ("long", "short"):
+            return None
+        if isinstance(quantity, bool) or not isinstance(quantity, int | float):
+            return None
+        if entry_bar >= last_bar_index and trade.get("id") not in seeded_ids:
+            continue
+        value = Decimal(str(quantity))
+        if not value.is_finite():
+            return None
+        net += value if direction == "long" else -value
+    return net
+
+
+def _closed_seed_position(
+    strategy_state_report: dict[str, Any],
+    *,
+    legs: Sequence[LedgerSeedLeg],
+    seeded_ids: frozenset[str],
+) -> Decimal:
+    """이번 마지막 bar 에서 Pine 이 닫아버린 **채택 포지션**을 되돌려 더한다 (BL-544).
+
+    ★이 항이 없으면 수리가 스스로를 무효화한다. 공백 판정은 outbox INSERT **앞**에 있다.
+    전략이 마지막 bar 에서 방금 채택한 포지션을 닫으면(또는 반대로 진입해 flip 하면)
+    `open_trades` 에서는 사라지지만 **거래소에는 그대로 있고**, 그 close 신호는 바로 아래에서
+    발행될 참이다. 그 상태를 불일치라고 부르면 세션이 죽어 **그 close 가 영원히 안 나간다** —
+    채택해 놓고 닫지 못하는, 가장 나쁜 결말이다.
+    """
+    open_ids = {
+        trade.get("id")
+        for trade in strategy_state_report.get("open_trades", [])
+        if isinstance(trade, dict)
+    }
+    net = Decimal("0")
+    for leg in legs:
+        if leg.trade_id not in seeded_ids or leg.trade_id in open_ids:
+            continue
+        quantity = Decimal(str(leg.qty))
+        net += quantity if leg.direction == "long" else -quantity
     return net
 
 
@@ -1489,6 +1679,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # 장기 공백은 과거 이벤트를 발주하지 않는다. 거래소가 flat인지 먼저 확인하고,
             # 아래 warmup replay 결과의 carried position과 함께 조용한 resync를 판정한다.
             exchange_positions: list[Any] | None = None
+            ledger_seed = _LEDGER_GAP_SEED_NONE
             if requires_gap_resync:
                 from src.trading.encryption import EncryptionService
                 from src.trading.providers import BybitFuturesProvider
@@ -1511,6 +1702,40 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                         exc_info=True,
                         extra={"session_id": str(sess.id), "symbol": sess.symbol},
                     )
+
+                # BL-544 — 공백 창의 **주문 원장**을 읽는다. 재생은 이 사실을 모른다:
+                # 조건부 진입의 trigger 는 tick 마다 재도출되므로 공백이 지나면 재생은 그
+                # 체결을 아예 만들지 않는데, worker 가 멈춘 동안에도 `ws-stream` 은 살아 있어
+                # 체결은 원장에 남는다(실측: 세션 사망 4분 36초 **전에** 이미 filled).
+                # ★조회는 여기, 판정은 아래. seed 를 거래소에서 가져오면 아래 대조가
+                # 동어반복이 되어 가드가 통째로 사라진다.
+                if last_evaluated_bar_time is not None:
+                    from src.trading.repositories.order_repository import (
+                        LEDGER_FILL_SCAN_LIMIT,
+                        OrderRepository,
+                        SessionScope,
+                    )
+
+                    try:
+                        fills = await OrderRepository(session).list_fills_since(
+                            SessionScope.from_live_session(sess),
+                            since=last_evaluated_bar_time,
+                        )
+                        ledger_seed = _ledger_gap_seed(
+                            fills[:LEDGER_FILL_SCAN_LIMIT],
+                            session_id=sess.id,
+                            overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
+                        )
+                    except Exception:
+                        # 조회 실패는 seed 없음 = 기존 fail-closed 판정 그대로다.
+                        ledger_seed = _LedgerGapSeed(
+                            net=None, legs=(), outcome="fetch_failed", order_ids=()
+                        )
+                        logger.warning(
+                            "live_signal_gap_ledger_fetch_failed",
+                            exc_info=True,
+                            extra={"session_id": str(sess.id), "symbol": sess.symbol},
+                        )
 
             # 7. run_live (warmup replay, Option B)
             df = _ohlcv_rows_to_dataframe(ohlcv_rows)
@@ -1589,6 +1814,10 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             }
             if emit_from_bar_time is not None:
                 run_live_kwargs["emit_from_bar_time"] = emit_from_bar_time
+            if ledger_seed.legs:
+                # ★비어 있으면 인자 자체를 넘기지 않는다 — 기본 호출의 kwargs 를 그대로 둬
+                # "seed 가 없을 때 기존과 byte-identical" 을 호출 형태로도 유지한다.
+                run_live_kwargs["ledger_seed_legs"] = ledger_seed.legs
             try:
                 result = run_live(strategy.pine_source, df, **run_live_kwargs)
             except Exception as exc:
@@ -1670,21 +1899,66 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 return {"deactivated": "runtime_divergence", "category": category}
 
             if requires_gap_resync:
-                # `to_report()["open_trades"]` 는 list 다(`strategy_state.py:1005`). 모든
-                # trade가 마지막 bar 에서 열린 경우에만 이번 재생이 새로 만든 포지션이다.
-                # entry_bar 를 읽지 못하면 넘어온 포지션으로 보아 fail-closed 처리한다.
-                simulated_open_trades = result.strategy_state_report.get("open_trades")
+                # BL-544 — 판정을 **엔진 ↔ 거래소 순포지션 일치**로 바꾼다.
+                #
+                # 예전 술어는 `exchange_positions == [] and carried_position_flat` 였다. 즉
+                # "양쪽 다 flat" 만 통과였고, 공백 중 실제로 체결된 진입은 **정상인데도**
+                # 매번 세션을 죽였다(실측 BL-544). 새 술어는 그 둘을 **크기까지 재는 하나의
+                # 술어로 일반화**한 것이다 — 둘 다 0 인 경우를 포함하므로 예전 통과 케이스는
+                # 그대로 통과하고, "둘이 같은 값으로 non-flat" 만 새로 통과한다.
+                #
+                # ★`exchange_positions is None`(REST 조회 실패)은 계속 mismatch 다. 예전에
+                # `None == []` 이 False 라서 **공짜로 얻고 있던** fail-closed 성질이며, 여기서
+                # 명시적으로 유지한다.
+                # ★leg 이 2개 이상(hedge)이면 거절한다. 순포지션은 long+short 를 상쇄해 0 으로
+                # 만들 수 있어, 예전 술어가 거절하던 상태를 조용히 통과시킨다.
+                seeded_ids = frozenset(result.ledger_seed_applied)
                 last_bar_index = len(ohlcv_rows) - 1
-                carried_position_flat = isinstance(simulated_open_trades, list) and all(
-                    isinstance(trade, dict)
-                    and type(trade.get("entry_bar")) is int
-                    and trade["entry_bar"] == last_bar_index
-                    for trade in simulated_open_trades
+                carried_position = _carried_position_size(
+                    result.strategy_state_report,
+                    last_bar_index=last_bar_index,
+                    seeded_ids=seeded_ids,
                 )
-                # 이 검사를 거래소 flat 만으로 완화하면 position_epoch 배선이 깨져도 조용히
-                # 통과해 가드가 사라진다. 마지막 bar 신규 포지션만 허용해 가용성은 되찾되
-                # 재생이 제조한 이전 포지션은 계속 포착한다.
-                if exchange_positions == [] and carried_position_flat:
+                if carried_position is not None and seeded_ids:
+                    carried_position += _closed_seed_position(
+                        result.strategy_state_report,
+                        legs=ledger_seed.legs,
+                        seeded_ids=seeded_ids,
+                    )
+                gap_outcome = (
+                    "applied"
+                    if seeded_ids
+                    else ("already_open" if ledger_seed.legs else ledger_seed.outcome)
+                )
+                if gap_outcome != "not_probed":
+                    qb_live_gap_ledger_seed_total.labels(outcome=gap_outcome).inc()
+                if ledger_seed.order_ids or seeded_ids:
+                    logger.warning(
+                        "live_signal_gap_ledger_seed",
+                        extra={
+                            "session_id": str(sess.id),
+                            "symbol": sess.symbol,
+                            "outcome": gap_outcome,
+                            "order_ids": list(ledger_seed.order_ids),
+                            "trade_ids": sorted(seeded_ids),
+                            "ledger_net": str(ledger_seed.net),
+                            "carried_position": str(carried_position),
+                        },
+                    )
+                try:
+                    positions_aligned = (
+                        exchange_positions is not None
+                        and len(exchange_positions) <= 1
+                        and carried_position is not None
+                        and _classify_position_divergence(
+                            carried_position, _net_position_size(exchange_positions)
+                        )
+                        is None
+                    )
+                except ValueError:
+                    # 모르는 side 는 판정 불가다. 판정 못 한 것을 일치로 접으면 안 된다.
+                    positions_aligned = False
+                if positions_aligned:
                     # try_claim_bar가 이미 최신 bar_time을 기록했다. 마지막 bar 신호만 이어서
                     # 처리해 수면·배포 공백을 조용히 정상화한다.
                     pass

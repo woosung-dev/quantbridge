@@ -19,7 +19,7 @@ ADR-011 §2.0.3 bar-by-bar 이벤트 루프 원칙 구현.
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
@@ -35,6 +35,7 @@ from src.strategy.pine_v2.interpreter import (
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.sizing import resolve_default_qty
+from src.strategy.pine_v2.strategy_state import LedgerSeedLeg
 
 
 @dataclass
@@ -48,6 +49,9 @@ class RunResult:
     # Sprint 8c: 외부 assertion 접근용. run_historical 종료 시 채워짐.
     strategy_state: Any | None = None  # StrategyState (trades / position_size 포함)
     var_series: dict[str, list[Any]] = field(default_factory=dict)  # user 변수 시계열
+    # BL-544 — 원장으로 채택한 trade id 들. 비어 있으면 seed 가 없었거나 재생이 이미
+    # 포지션을 들고 있어 멱등 가드가 막은 것이다. 호출부의 거래소 대조가 이 값을 쓴다.
+    ledger_seed_applied: tuple[str, ...] = ()
 
     def __len__(self) -> int:
         return self.bars_processed
@@ -77,6 +81,7 @@ def run_historical(
     pyramiding: int | None = None,
     fill_timing: str = "bar_close",
     position_epoch_bar: int | None = None,
+    ledger_seed_legs: Sequence[LedgerSeedLeg] = (),
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -97,6 +102,9 @@ def run_historical(
         position_epoch_bar: 지정한 bar 시작 시, 그 이전 warmup 재생이 만든 포지션 및
             손익 상태를 폐기한다. 시장가 인텐트 처리는 그 뒤에 실행하므로 epoch 직전
             bar 에 큐된 next_bar_open 인텐트는 epoch bar 에서 정상 체결된다.
+        ledger_seed_legs: 주문 원장이 증언하는 포지션. **마지막 bar 의 Pine 실행 직전**에
+            채택한다(BL-544, 지점 근거는 아래 훅 주석). 비어 있으면 훅 자체가 돌지 않아
+            기존 동작과 byte-identical 이다.
     """
     _validate_ohlcv(ohlcv)
     tree = parse_to_ast(source)
@@ -123,6 +131,7 @@ def run_historical(
     # TV parity — 시장가 체결 타이밍 ("bar_close" 기본 = 기존 byte-identical).
     interp.strategy.fill_timing = fill_timing
     result = RunResult(bars_processed=0, final_state={})
+    last_bar_index = len(ohlcv) - 1
 
     while bar.advance():
         store.begin_bar()
@@ -164,6 +173,26 @@ def run_historical(
             low=bar.current("low"),
             bar_ts=bar_ts_py,
         )
+        # BL-544 — 원장이 증언하는 포지션을 **마지막 bar 의 Pine 실행 직전**에 채택한다.
+        # 이 자리인 이유 셋. 하나라도 옮기면 각각이 실측된 실패로 돌아온다:
+        #
+        # (a) `process_market_intents` / `check_pending_fills` / `check_exit_fills` 가 **모두
+        #     끝난 뒤**다. 재생이 이 창에서 만들 수 있는 broker-side 체결이 전부 확정된
+        #     상태라 "엔진이 이미 들고 있는가" 판정이 정확하다 = 멱등 가드가 실제로 멱등하다.
+        #     `process_market_intents` 앞(= discard 훅 자리)에 두면 같은 bar 의
+        #     `check_pending_fills` 가 방금 심은 것을 닫고 다시 열어 갈아치운다.
+        # (b) 뒤에 재생할 bar 가 없다. 중간 bar 에 심으면 남은 bar 들에서 전략이 그 포지션을
+        #     닫아버릴 수 있는데, gap 경로에는 `emit_from_bar_time` 이 없어 마지막 bar 이벤트만
+        #     발행된다 → 그 close 는 **조용히 사라진다**.
+        # (c) `interp.execute` 직전이라 이 bar 의 Pine 로직이 채택한 포지션을 본다. 전략이
+        #     닫기를 원하면 **마지막 bar 의 close 이벤트**로 나가 outbox 를 탄다 — 고아를
+        #     채택만 하고 못 닫는 상태를 피한다.
+        #
+        # `discard_state_before_epoch` 훅(`process_market_intents` 직전)은 건드리지 않는다.
+        if ledger_seed_legs and bar.bar_index == last_bar_index:
+            result.ledger_seed_applied = interp.strategy.seed_positions_from_ledger(
+                ledger_seed_legs, bar=bar.bar_index
+            )
         try:
             interp.execute(tree)
         except PineRuntimeError as e:
@@ -274,6 +303,9 @@ class LiveSignalResult:
     # 호출자(live_signal task)가 coverage↔interpreter 발산을 fail-closed 처리하도록 표면화.
     errors: list[tuple[int, str]] = field(default_factory=list)
     pending_orders: list[PendingOrderSnapshot] = field(default_factory=list)
+    # BL-544 — 원장으로 채택한 trade id 들. ★`strategy_state_report` 에는 넣지 않는다.
+    # 그 dict 는 `run_historical` 결과와 exact equality 로 검증되는 mutation oracle 이다.
+    ledger_seed_applied: tuple[str, ...] = ()
 
 
 def _to_decimal(value: float | None) -> Decimal | None:
@@ -330,6 +362,7 @@ def run_live(
     fill_timing: str = "bar_close",
     emit_from_bar_time: datetime | None = None,
     position_epoch: datetime | None = None,
+    ledger_seed_legs: Sequence[LedgerSeedLeg] = (),
 ) -> LiveSignalResult:
     """Sprint 26 — Option B (warmup replay) 채택.
 
@@ -361,6 +394,9 @@ def run_live(
         position_epoch: outbox 발행을 허용한 시각. 이 시각 이상인 첫 bar 시작 전에
             warmup 재생 포지션 및 손익 상태를 폐기한다. OHLCV timestamp 는 오름차순이라는
             전제이며, 그런 bar 가 없으면 마지막 bar 를 epoch 으로 사용한다.
+        ledger_seed_legs: 주문 원장이 증언하는 포지션. 마지막 bar 의 Pine 실행 직전에
+            채택하며(BL-544), 채택된 trade id 는 `ledger_seed_applied` 로 돌려준다.
+            비어 있으면 기존 동작과 byte-identical.
 
     Returns:
         LiveSignalResult — last_bar_time + signals + strategy_state_report + 누적 통계.
@@ -419,6 +455,7 @@ def run_live(
         sessions_allowed=sessions_allowed,
         pyramiding=pyramiding,
         fill_timing=fill_timing,
+        ledger_seed_legs=ledger_seed_legs,
         **historical_kwargs,
     )
     strategy_state = result.strategy_state
@@ -608,6 +645,7 @@ def run_live(
         liquidations=last_bar_liquidations,
         errors=result.errors,  # BL-362 — 삼켜진 발산 표면화
         pending_orders=pending_orders,
+        ledger_seed_applied=result.ledger_seed_applied,
     )
 
 

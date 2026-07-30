@@ -26,7 +26,9 @@ from src.trading.models import (  # noqa: E402
     ExchangeName,
     LiveSignalEventStatus,
     LiveSignalInterval,
+    OrderSide,
 )
+from src.trading.repositories.order_repository import LedgerFill  # noqa: E402
 
 
 class _SessionContext:
@@ -63,8 +65,54 @@ def _session(*, last_evaluated_bar_time: datetime | None) -> SimpleNamespace:
         interval=LiveSignalInterval.m1,
         is_active=True,
         created_at=datetime(2026, 5, 1, tzinfo=UTC),
+        # BL-544 — SessionScope.from_live_session 이 읽는다. 없으면 원장 조회가 조용히
+        # AttributeError 로 죽어 "seed 없음" 이 되고, 그러면 seed 테스트가 무엇도 안 잰다.
+        deactivated_at=None,
         last_evaluated_bar_time=last_evaluated_bar_time,
         equity_baseline_usdt=Decimal("8192"),
+    )
+
+
+def _position(*, side: str, size: str) -> SimpleNamespace:
+    """`fetch_open_positions` 가 실제로 주는 leg 형태 (`ExchangePositionSchema` 부분집합).
+
+    ★예전 픽스처는 `object()` 였다. `_net_position_size` 가 `.side` 를 못 읽어 예외가 났고,
+    "거래소에 포지션이 있다" 를 표현하지 못했다 — 픽스처는 그 산출물이 실제로 주는 형태여야 한다.
+    """
+    return SimpleNamespace(side=side, size=Decimal(size))
+
+
+def _open_trade(
+    *, trade_id: str, direction: str, qty: float, entry_bar: int
+) -> dict[str, object]:
+    """`Trade.to_dict()` 가 실제로 주는 키 부분집합. ★`qty` 를 빠뜨리면 판정이 못 읽는다."""
+    return {"id": trade_id, "direction": direction, "qty": qty, "entry_bar": entry_bar}
+
+
+def _fill(
+    *,
+    session_id: object,
+    side: OrderSide,
+    quantity: str,
+    price: str,
+    filled_at: datetime,
+    trade_id: str = "L",
+    reduce_only: bool = False,
+    idempotency_key: str | None = None,
+) -> LedgerFill:
+    """공백 창에서 관측된 체결 1건. key 는 실제 조건부 진입 형식을 쓴다."""
+    return LedgerFill(
+        order_id=uuid4(),
+        idempotency_key=(
+            idempotency_key
+            if idempotency_key is not None
+            else f"live:{session_id}:cond:1785337500:64166.7:{quantity}:{trade_id}"
+        ),
+        side=side,
+        filled_quantity=Decimal(quantity),
+        filled_price=Decimal(price),
+        filled_at=filled_at,
+        reduce_only=reduce_only,
     )
 
 
@@ -89,6 +137,7 @@ def _result(
     last_bar_time: datetime,
     signals: list[LiveSignal],
     open_trades: list[object] | None = None,
+    ledger_seed_applied: tuple[str, ...] = (),
 ) -> LiveSignalResult:
     return LiveSignalResult(
         last_bar_time=last_bar_time,
@@ -96,6 +145,7 @@ def _result(
         strategy_state_report={"open_trades": open_trades or []},
         total_closed_trades=0,
         total_realized_pnl=Decimal("0"),
+        ledger_seed_applied=ledger_seed_applied,
     )
 
 
@@ -121,6 +171,7 @@ def _install_evaluation(
     inserted_events: list[SimpleNamespace],
     fill_timing: str | None = None,
     previous_state: object | None = None,
+    ledger_fills: list[LedgerFill] | None = None,
 ) -> tuple[AsyncMock, AsyncMock, list[dict[str, Any]]]:
     """평가 경로를 메모리 의존성으로 고정하고 run_live kwargs를 수집한다."""
     _patch_engine(monkeypatch)
@@ -144,13 +195,21 @@ def _install_evaluation(
     account_repo.get_by_id = AsyncMock(
         return_value=SimpleNamespace(exchange=ExchangeName.bybit, mode=ExchangeMode.demo)
     )
+    # BL-544 — 공백 재개 경로가 이 원장을 읽는다. 기본값은 "공백 창에 체결 없음" 이라
+    # 이 조회를 쓰지 않는 기존 테스트의 의미가 바뀌지 않는다.
+    order_repo = AsyncMock()
+    order_repo.list_fills_since = AsyncMock(return_value=list(ledger_fills or []))
 
     import src.strategy.pine_v2.event_loop as event_loop_module
     import src.strategy.repository as strategy_repo_module
     import src.trading.repositories.exchange_account_repository as account_repo_module
     import src.trading.repositories.live_signal_event_repository as event_repo_module
     import src.trading.repositories.live_signal_session_repository as sess_repo_module
+    import src.trading.repositories.order_repository as order_repo_module
 
+    monkeypatch.setattr(
+        order_repo_module, "OrderRepository", MagicMock(return_value=order_repo)
+    )
     monkeypatch.setattr(
         sess_repo_module, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
     )
@@ -270,7 +329,7 @@ async def test_long_gap_both_flat_resyncs_without_deactivation(
         run_result=_result(
             last_bar_time=t6,
             signals=[last_signal],
-            open_trades=[{"id": "B", "direction": "long", "entry_bar": 1}],
+            open_trades=[_open_trade(trade_id="B", direction="long", qty=1.0, entry_bar=1)],
         ),
         inserted_events=[_event(last_signal, sess.id)],
     )
@@ -302,7 +361,7 @@ async def test_long_gap_exchange_flat_realigns_stored_epoch_to_last_bar(
         run_result=_result(
             last_bar_time=t6,
             signals=[last_signal],
-            open_trades=[{"id": "B", "direction": "long", "entry_bar": 1}],
+            open_trades=[_open_trade(trade_id="B", direction="long", qty=1.0, entry_bar=1)],
         ),
         inserted_events=[_event(last_signal, sess.id)],
         previous_state=SimpleNamespace(
@@ -353,28 +412,194 @@ async def test_short_gap_keeps_stored_epoch_when_state_exists(
 
 
 @pytest.mark.asyncio
-async def test_long_gap_position_mismatch_deactivates_with_reason(
+async def test_long_gap_position_mismatch_without_ledger_basis_deactivates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """상한 밖 공백의 거래소 보유분은 과거 발주 대신 세션 중단으로 표면화한다."""
+    """★음성 대조 — 거래소만 보유하고 **원장에 근거가 없으면** 계속 세션을 중단한다.
+
+    BL-544 가 바꾼 것은 "원장이 설명하는 보유분" 뿐이다. 설명 없는 보유분까지 통과시키면
+    seed 는 사라지고 판정만 넓힌 것이 되어, 시끄러운 사망이 조용한 고아로 바뀐다.
+    """
     t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
     t6 = t0 + timedelta(minutes=6)
     sess = _session(last_evaluated_bar_time=t0)
+    sess_repo, event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+    await asyncio.sleep(0)
+
+    assert result == {"deactivated": "gap_resync_position_mismatch"}
+    assert "ledger_seed_legs" not in run_kwargs[0]
+    sess_repo.deactivate.assert_awaited_once()
+    event_repo.insert_pending_events.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_long_gap_position_mismatch_explained_by_ledger_survives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★BL-544 재현 — 공백 중 체결된 조건부 진입은 원장으로 seed 되어 세션이 산다.
+
+    실측 원장 그대로다(세션 1178787c, 2026-07-29): buy `filled_quantity=0.029`
+    `filled_price=64166.9`, `filled_at` 이 `last_evaluated_bar_time` 이후. 거래소도 같은
+    포지션을 들고 있다. 예전에는 이 상태가 `gap_resync_position_mismatch` 로 죽었다.
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    last_signal = LiveSignal("close", "long", "L", 0.029, 0)
+    sess_repo, event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(
+            last_bar_time=t6,
+            signals=[last_signal],
+            # 엔진 훅이 채택한 결과 — entry_bar 는 마지막 bar 지만 거래소에 이미 있다.
+            open_trades=[_open_trade(trade_id="L", direction="long", qty=0.029, entry_bar=1)],
+            ledger_seed_applied=("L",),
+        ),
+        inserted_events=[_event(last_signal, sess.id)],
+        ledger_fills=[
+            _fill(
+                session_id=sess.id,
+                side=OrderSide.buy,
+                quantity="0.029",
+                price="64166.9",
+                filled_at=t0 + timedelta(minutes=3),
+            )
+        ],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    sess_repo.deactivate.assert_not_awaited()
+    event_repo.insert_pending_events.assert_awaited_once()
+    legs = run_kwargs[0]["ledger_seed_legs"]
+    assert [(leg.trade_id, leg.direction, leg.qty, leg.entry_price) for leg in legs] == [
+        ("L", "long", 0.029, 64166.9)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_long_gap_ledger_seed_closed_by_strategy_still_survives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """채택한 포지션을 마지막 bar 에서 전략이 닫아도 세션은 살아 그 close 를 발행한다.
+
+    판정이 outbox INSERT 앞에 있어, 이걸 불일치라고 부르면 세션이 죽고 **그 close 가 영원히
+    안 나간다** — 채택해 놓고 못 닫는 최악의 결말이다.
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    close_signal = LiveSignal("close", "long", "L", 0.029, 0)
     sess_repo, event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        # 전략이 닫았으므로 open_trades 는 비었다. 거래소에는 아직 그대로 있다.
+        run_result=_result(
+            last_bar_time=t6,
+            signals=[close_signal],
+            open_trades=[],
+            ledger_seed_applied=("L",),
+        ),
+        inserted_events=[_event(close_signal, sess.id)],
+        ledger_fills=[
+            _fill(
+                session_id=sess.id,
+                side=OrderSide.buy,
+                quantity="0.029",
+                price="64166.9",
+                filled_at=t0 + timedelta(minutes=3),
+            )
+        ],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    sess_repo.deactivate.assert_not_awaited()
+    event_repo.insert_pending_events.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "fill_kwargs",
+    [
+        pytest.param({"reduce_only": True}, id="reduce_only"),
+        pytest.param({"idempotency_key": "someone-elses-key"}, id="foreign_key"),
+    ],
+)
+async def test_long_gap_inadmissible_ledger_window_still_deactivates(
+    monkeypatch: pytest.MonkeyPatch, fill_kwargs: dict[str, Any]
+) -> None:
+    """자동 재구성 대상이 아닌 창은 채택하지 않고 기존 fail-closed 판정으로 떨어진다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    sess_repo, _event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[
+            _fill(
+                session_id=sess.id,
+                side=OrderSide.buy,
+                quantity="0.029",
+                price="64166.9",
+                filled_at=t0 + timedelta(minutes=3),
+                **fill_kwargs,
+            )
+        ],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result == {"deactivated": "gap_resync_position_mismatch"}
+    assert "ledger_seed_legs" not in run_kwargs[0]
+    sess_repo.deactivate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_long_gap_hedged_exchange_legs_still_deactivate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """hedge 양다리는 순포지션이 0 으로 상쇄되므로 순포지션 일치만으로 통과시키지 않는다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    sess_repo, _event_repo, _run_kwargs = _install_evaluation(
         monkeypatch,
         sess=sess,
         rows=_rows(t0, t6),
         run_result=_result(last_bar_time=t6, signals=[]),
         inserted_events=[],
     )
-    _patch_positions(monkeypatch, positions=[object()])
+    _patch_positions(
+        monkeypatch,
+        positions=[_position(side="long", size="1"), _position(side="short", size="1")],
+    )
 
     result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
-    await asyncio.sleep(0)
 
     assert result == {"deactivated": "gap_resync_position_mismatch"}
     sess_repo.deactivate.assert_awaited_once()
-    event_repo.insert_pending_events.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -603,7 +828,7 @@ async def test_long_gap_exchange_flat_with_carried_position_still_deactivates(
         run_result=_result(
             last_bar_time=t6,
             signals=[last_signal],
-            open_trades=[{"id": "B", "direction": "long", "entry_bar": 0}],
+            open_trades=[_open_trade(trade_id="B", direction="long", qty=1.0, entry_bar=0)],
         ),
         inserted_events=[_event(last_signal, sess.id)],
     )
