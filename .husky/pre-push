@@ -11,42 +11,148 @@ set -e
 #
 # Sprint 37 개선: branch-prefix 기반 화이트리스트.
 # - main/master 직접 push = 영구 금지 (PR-only 정책, bypass 도 차단)
-# - feat/* | fix/* | chore/* | docs/* | test/* | refactor/* | hotfix/* = 메인 세션 의도 추정 → 허용
+# - stage/* | feat/* | fix/* | chore/* | docs/* | test/* | refactor/* | hotfix/* = 허용
 # - 그 외 임의 branch (worker 일 가능성) = 차단 + bypass 안내
+#
+# BL-554 · BL-555 (2026-07-30): **판정 대상**을 현재 브랜치 → 실제로 미는 ref 로 바꿨다.
+#   현재 브랜치로 판정하면 main 에 서서 `git push origin --delete stage/foo` 가 "main 직접 push" 로
+#   거부된다 — 실제로 미는 것은 남의 브랜치인데도. 결국 `gh api -X DELETE` 로 우회해야 했다.
+#   ★보호 자체는 옳다(main 직접 push 는 영구 금지). 틀린 것은 판정 대상이었다.
+#   화이트리스트에 `stage/*`(ADR-017 통합 브랜치)를 넣은 것이 BL-555 다.
+#   판정 규칙 자체는 scripts/lib/pre-push-ref-guard.sh 의 순수 함수에 있다 — 그래야 시험할 수 있다
+#   (하네스: scripts/pre-push-guard-test.sh).
 QB_GIT_DIR="$(git rev-parse --git-dir)"
 QB_GIT_COMMON_DIR="$(git rev-parse --git-common-dir)"
 QB_REPO_ROOT="$(git rev-parse --show-toplevel)"
 QB_BRANCH="$(git symbolic-ref --short HEAD 2>/dev/null || echo unknown)"
+
+# ★자기시험 스위치는 **argv** 로만 켠다 (env 아님). git 은 pre-push 훅에 인자를 정확히 2 개
+#   (<remote name> <remote url>) 주고 husky 가 그대로 넘긴다(`.husky/_/h`: sh -e "$s" "$@") —
+#   3 번째 인자는 `git push` 로 만들 수 없다. 즉 이 스위치는 **실제 push 경로에서 발화 불가**다.
+#   env 로 두면 `QB_...=1 git push` 로 아래 FE/BE 검사를 건너뛸 수 있었다 (codex G1 P2).
+QB_SELFTEST=0
+case "${3:-}" in
+  --qb-selftest) QB_SELFTEST=1 ;;
+esac
+
+# ★stdin 은 **여기서 한 번만** 읽어 변수에 담는다. 아래 FE/BE 검사는 stdin 을 쓰지 않는다.
+#   - `read` 로 직접 소비하지 않는 이유: EOF 에서 non-zero 를 반환해 `set -e` 아래에서 훅이
+#     폴백에 도달하기 전에 죽는다 (codex G1 P2 — 실제 재현됐다).
+#   - TTY 를 먼저 가른다: 사람이 손으로 훅을 돌릴 때 `cat` 이 무한 대기한다.
+#   - ★읽기 **실패**와 EOF 를 구분한다. 실패를 "stdin 없음" 으로 삼키면 현재-브랜치 폴백으로
+#     내려가 remote main 차단의 근거(remote_ref)를 잃는다 = fail-open (codex G1 P1). fail-closed 로 죽는다.
+QB_PUSH_REFS=""
+if [ -t 0 ]; then
+  : # stdin 이 터미널 = 사람이 손으로 실행했다. 아래 폴백으로 간다.
+elif [ -d /dev/fd ] && [ ! -e /dev/fd/0 ]; then
+  # ★fd 0 이 **닫힌** 채 호출됐다. 이때 `cat` 은 에러로 끝나지 않고 **무한 대기**한다 —
+  #   실측으로 2 분 hang 을 재현했다(닫힌 fd 0 자리에 다른 open 이 들어앉는다). 훅이 매달리는
+  #   것은 그 자체로 사고이므로 여기서 fail-closed 로 끊는다. /dev/fd 가 없는 환경에서는 이
+  #   판별을 할 수 없으므로 아래에서 그대로 읽어 본다(판정 강도를 낮추지 않는다).
+  echo "ERROR: pre-push 의 stdin(fd 0)이 닫혀 있다 — 어떤 ref 를 미는지 알 수 없다"
+  echo "  근거 없이 통과시키지 않는다 (fail-closed). git 은 항상 ref 목록을 stdin 으로 준다."
+  exit 1
+elif QB_PUSH_REFS="$(cat)"; then
+  : # 정상 — 빈 문자열일 수도 있다(그 경우도 폴백).
+else
+  echo "ERROR: pre-push stdin 을 읽지 못했다 — 어떤 ref 를 미는지 모른 채 통과시킬 수 없다"
+  echo "  (fail-closed. 손으로 시험: sh .husky/pre-push origin <url> --qb-selftest < 케이스파일)"
+  exit 1
+fi
+
+QB_MAIN_WT=0
 if [ "$QB_GIT_DIR" = "$QB_GIT_COMMON_DIR" ]; then
-  case "$QB_BRANCH" in
-    main|master)
-      # main 직접 push 영구 금지 (bypass 도 차단)
+  QB_MAIN_WT=1
+fi
+# 하네스는 워커 워크트리에서 돈다 — 그대로면 이 분기를 안 타서 판정 로직이 아예 안 돈다.
+# ★**켜는 방향으로만** 강제한다. 끄는 데는 쓸 수 없다 (fail-open 금지).
+if [ "$QB_SELFTEST" = "1" ]; then
+  QB_MAIN_WT=1
+fi
+
+if [ "$QB_MAIN_WT" = "1" ]; then
+  # 판정 규칙이 없으면 통과시키지 않는다 (fail-closed).
+  QB_GUARD_LIB="$QB_REPO_ROOT/scripts/lib/pre-push-ref-guard.sh"
+  if [ ! -f "$QB_GUARD_LIB" ]; then
+    echo "ERROR: 판정 규칙 파일이 없다 — $QB_GUARD_LIB"
+    echo "  main 보호를 근거 없이 통과시킬 수 없다 (fail-closed)."
+    exit 1
+  fi
+  . "$QB_GUARD_LIB"
+
+  if [ -n "$QB_PUSH_REFS" ]; then
+    # ★1 패스 — **전 라인**의 remote_ref 가 main/master 인지 화이트리스트보다 **먼저** 본다.
+    #   한 번의 push 가 여러 ref 를 담을 수 있고, 하나라도 main 이면 전체를 차단한다.
+    #   `read` 는 마지막 줄에 개행이 없으면 non-zero 를 반환한다 → `|| [ -n "$QB_L" ]` 로 흡수.
+    #   heredoc 리다이렉션은 파이프가 아니므로 서브셸이 아니다 — 루프 안 `exit` 가 훅을 끝낸다.
+    while IFS=' ' read -r QB_L QB_LSHA QB_R QB_RSHA || [ -n "$QB_L" ]; do
+      if [ -z "$QB_L" ]; then
+        continue
+      fi
+      if qb_ref_is_protected "$QB_R"; then
+        echo "ERROR: main 직접 push 영구 금지 — PR 경유 의무 (bypass 불가)"
+        echo "  ref 판정 : deny-main ($QB_L → $QB_R)"
+        echo "  path     : $QB_REPO_ROOT"
+        exit 1
+      fi
+    done <<QB_REFS_EOF
+$QB_PUSH_REFS
+QB_REFS_EOF
+
+    # 2 패스 — 라인별 판정.
+    while IFS=' ' read -r QB_L QB_LSHA QB_R QB_RSHA || [ -n "$QB_L" ]; do
+      if [ -z "$QB_L" ]; then
+        continue
+      fi
+      QB_VERDICT="$(qb_push_ref_verdict "$QB_L" "$QB_LSHA" "$QB_R" "$QB_RSHA" "${QB_PRE_PUSH_BYPASS:-0}")"
+      case "$QB_VERDICT" in
+        allow-*)
+          echo "→ pre-push: ref 판정 $QB_VERDICT ($QB_L → $QB_R)"
+          ;;
+        *)
+          echo "ERROR: main worktree + 임의 ref push 차단 (Sprint 33 worker isolation)"
+          echo "  ref 판정 : $QB_VERDICT ($QB_L → $QB_R)"
+          echo "  path     : $QB_REPO_ROOT"
+          echo ""
+          echo "  표준 prefix (stage/feat/fix/chore/docs/test/refactor/hotfix) 사용 권장."
+          echo "  의도적 임의 ref push 시: QB_PRE_PUSH_BYPASS=1 git push <args>"
+          exit 1
+          ;;
+      esac
+    done <<QB_REFS_EOF
+$QB_PUSH_REFS
+QB_REFS_EOF
+  else
+    # 폴백 — stdin 이 없으면 **기존 동작**(현재 브랜치 기준)으로 판정한다. fail-open 은 금지다:
+    # 이 훅의 존재 이유가 main 보호다. 패턴은 위 lib 을 재사용한다(화이트리스트를 두 벌로 두지 않는다).
+    echo "→ pre-push: stdin 없음 — 현재 브랜치 기준 폴백 판정 ($QB_BRANCH)"
+    if qb_ref_is_protected "$QB_BRANCH"; then
       echo "ERROR: main 직접 push 영구 금지 — PR 경유 의무"
       echo "  branch: $QB_BRANCH"
       echo "  path: $QB_REPO_ROOT"
       exit 1
-      ;;
-    feat/*|fix/*|chore/*|docs/*|test/*|refactor/*|hotfix/*)
-      # feature branch = 메인 세션 의도 추정 → 허용
-      echo "→ pre-push: main worktree, feature branch ($QB_BRANCH) — 허용"
-      ;;
-    *)
-      # 임의 branch (worker 일 가능성) → 차단 + bypass 안내
-      if [ "$QB_PRE_PUSH_BYPASS" = "1" ]; then
-        echo "→ pre-push: BYPASS — main worktree 임의 branch push 허용 (QB_PRE_PUSH_BYPASS=1)"
-        echo "  branch: $QB_BRANCH"
-        echo "  path: $QB_REPO_ROOT"
-      else
-        echo "ERROR: main worktree + 임의 branch push 차단 (Sprint 33 worker isolation)"
-        echo "  branch: $QB_BRANCH"
-        echo "  path: $QB_REPO_ROOT"
-        echo ""
-        echo "  표준 prefix (feat/fix/chore/docs/test/refactor/hotfix) 사용 권장."
-        echo "  의도적 임의 branch push 시: QB_PRE_PUSH_BYPASS=1 git push <args>"
-        exit 1
-      fi
-      ;;
-  esac
+    elif qb_ref_is_whitelisted "$QB_BRANCH"; then
+      echo "→ pre-push: main worktree, 표준 branch ($QB_BRANCH) — 허용"
+    elif [ "${QB_PRE_PUSH_BYPASS:-0}" = "1" ]; then
+      echo "→ pre-push: BYPASS — main worktree 임의 branch push 허용 (QB_PRE_PUSH_BYPASS=1)"
+      echo "  branch: $QB_BRANCH"
+      echo "  path: $QB_REPO_ROOT"
+    else
+      echo "ERROR: main worktree + 임의 branch push 차단 (Sprint 33 worker isolation)"
+      echo "  branch: $QB_BRANCH"
+      echo "  path: $QB_REPO_ROOT"
+      echo ""
+      echo "  표준 prefix (stage/feat/fix/chore/docs/test/refactor/hotfix) 사용 권장."
+      echo "  의도적 임의 branch push 시: QB_PRE_PUSH_BYPASS=1 git push <args>"
+      exit 1
+    fi
+  fi
+
+  # 자기시험은 여기까지다 — 하네스의 관심사는 ref 가드뿐이고, 아래는 pnpm/uv 를 돌린다.
+  if [ "$QB_SELFTEST" = "1" ]; then
+    echo "→ pre-push: --qb-selftest — ref 가드까지만 (FE/BE 검사 생략)"
+    exit 0
+  fi
 else
   echo "→ pre-push: worker worktree (path: $QB_REPO_ROOT)"
 fi

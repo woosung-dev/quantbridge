@@ -7,7 +7,7 @@
 #   "수용 기준은 자기 집행되지 않는다"(적어놓고 미이행 2회)를 이미 배웠다. 그래서 실행한다.
 #
 # 사용법
-#   scripts/final-gates.sh --run <name> [--skip-e2e] [--skip-ci-repro]
+#   scripts/final-gates.sh --run <name> [--allow-dirty] [--skip-e2e] [--skip-ci-repro]
 #
 #   스킬 게이트는 에이전트가 돌린 뒤 아래 파일을 남겨야 통과한다(내용은 근거 요약):
 #     .claude/gates/<run>/vercel.ok      /vercel-react-best-practices  (frontend/** diff 있을 때만 필수)
@@ -15,16 +15,22 @@
 #     .claude/gates/<run>/codex.ok       /codex 적대 리뷰 — findings 전건 처분 결과
 #     .claude/gates/<run>/g9.ok          계획 vs 실제 구현 최종 점검 표
 #
-# 종료 코드: 0 = 전건 통과 / 1 = 하나 이상 실패 또는 미확인
+# ★BL-549 — 커밋 **전에** 돌리면 거짓 그린이 났다. 영역 판정이 `merge-base..HEAD` diff 라서
+#   미커밋 변경이 안 보이고, `fe_diff=0 be_diff=0` 이 되어 lint·type·단위·build 가 전부 `skip` 이
+#   된다. 결과표에 FAIL 이 하나도 없으니 **통과처럼 읽힌다.** 그래서 더러운 트리는 기본 거부하고,
+#   `--allow-dirty` 를 준 때만 영역 판정을 **워킹트리 기준으로 넓혀서** 돈다.
+#
+# 종료 코드: 0 = 전건 통과 / 1 = 하나 이상 실패·미확인 또는 더러운 트리 거부
 set -uo pipefail
 
-RUN=""; SKIP_E2E=0; SKIP_CI=0
+RUN=""; SKIP_E2E=0; SKIP_CI=0; ALLOW_DIRTY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --run) [ $# -ge 2 ] || { echo "--run 에 값이 필요하다" >&2; exit 1; }; RUN="$2"; shift 2 ;;
+    --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --skip-e2e) SKIP_E2E=1; shift ;;
     --skip-ci-repro) SKIP_CI=1; shift ;;
-    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
 done
@@ -46,6 +52,31 @@ if [ -n "$BASE" ]; then
 else
   CHANGED=""
 fi
+# ★워킹트리 미커밋 변경 (BL-549).
+#   --no-renames    rename 을 `R old -> new` 한 줄이 아니라 D/A 두 줄로 준다. 한 줄로 받아 파싱하면
+#                   **원래 경로를 버려서** `git mv frontend/a.ts docs/a.ts` 를 has_fe=0 으로 오판한다
+#                   (codex G1 P1 — 실측 확인).
+#   core.quotePath=false   비ASCII 경로에 `"\355\225..."` 이스케이프가 붙는 것을 막는다. 공백 포함
+#                   경로는 그래도 따옴표가 붙으므로 아래 sed 가 벗긴다. (`-z` 는 쓸 수 없다 —
+#                   `$(...)` 명령 치환이 NUL 을 버려서 전 항목이 한 줄로 뭉친다. 실측으로 확인했다.)
+# ★실패를 깨끗한 트리로 삼키지 않는다 — 그러면 dirty 거부가 조용히 사라진다 (codex G1 P2).
+DIRTY_RAW="$(git -C "$ROOT" -c core.quotePath=false status --porcelain --no-renames 2>/dev/null)" || {
+  echo "✗ git status 가 실패했다 — 워킹트리가 깨끗한지 판정할 수 없어 게이트를 신뢰할 수 없다." >&2
+  exit 1
+}
+DIRTY="$(printf '%s\n' "$DIRTY_RAW" | grep -c . || true)"   # ★M1 변이 지점
+: "${DIRTY:=0}"
+DIRTY_PATHS=""
+if [ "$DIRTY" -gt 0 ]; then
+  DIRTY_PATHS="$(printf '%s\n' "$DIRTY_RAW" | sed -e '/^$/d' -e 's/^...//' -e 's/^"//' -e 's/"$//')"
+fi
+
+# --allow-dirty 면 영역 판정을 **워킹트리까지** 넓힌다 (커밋 안 한 frontend/ 변경도 FE 게이트를 켠다).
+if [ "$ALLOW_DIRTY" -eq 1 ] && [ -n "$DIRTY_PATHS" ]; then
+  CHANGED="$CHANGED
+$DIRTY_PATHS"
+fi
+
 has_fe=0; has_be=0
 printf '%s\n' "$CHANGED" | grep -q '^frontend/' && has_fe=1
 printf '%s\n' "$CHANGED" | grep -q '^backend/'  && has_be=1
@@ -65,9 +96,26 @@ run_gate() {  # run_gate <label> <note> <command...>
 
 skip_gate() { record "$1" "-" "$2"; printf '\n▶ %s\n  → 건너뜀 (%s)\n' "$1" "$2"; }
 
-be() { cd "$ROOT/backend" || return 1; set -a; . ./.env.local; set +a; "$@"; }
+DIRTY_NOTE=""
+[ "$DIRTY" -gt 0 ] && [ "$ALLOW_DIRTY" -eq 1 ] && DIRTY_NOTE=" (--allow-dirty — 영역 판정에 워킹트리 포함)"
+echo "══ final-gates  run=$RUN  slot=$SLOT  base=${BASE:0:8}  fe_diff=$has_fe be_diff=$has_be dirty=$DIRTY$DIRTY_NOTE ══"
 
-echo "══ final-gates  run=$RUN  slot=$SLOT  base=${BASE:0:8}  fe_diff=$has_fe be_diff=$has_be ══"
+# ★더러운 트리는 기본 거부 (BL-549). 헤더를 먼저 찍고 거부한다 — 왜 멈췄는지가 숫자와 함께 남아야 한다.
+if [ "$DIRTY" -gt 0 ] && [ "$ALLOW_DIRTY" -eq 0 ]; then
+  echo
+  echo "✗ 워킹트리에 미커밋 변경 $DIRTY 건 — 이 상태로는 게이트를 돌리지 않는다."
+  echo
+  echo "  왜: 영역 판정이 'merge-base(origin/main,HEAD)..HEAD' diff 다. 미커밋 변경은 여기에"
+  echo "      안 잡혀서 fe_diff/be_diff 가 0 이 되고, lint·type·단위·build 가 전부 skip 된다."
+  echo "      결과표에 FAIL 이 하나도 없으니 **통과처럼 읽힌다** — 그게 BL-549 다."
+  echo
+  echo "  둘 중 하나를 해라:"
+  echo "    1) 커밋하고 다시 돌린다 (권장 — PR 게이트는 커밋된 것을 재는 것이다)"
+  echo "    2) $0 --run $RUN --allow-dirty  (영역 판정을 워킹트리 기준으로 넓혀서 돈다)"
+  echo
+  printf '%s\n' "$DIRTY_PATHS" | sed 's/^/    /'
+  exit 1
+fi
 
 # ── 1. lint / type ────────────────────────────────────────────────
 if [ "$has_be" -eq 1 ] || [ -z "$BASE" ]; then
@@ -165,6 +213,10 @@ check_signal "★G9 계획 vs 실제 구현" "g9.ok" 1 ""
 # ── 결과 ──────────────────────────────────────────────────────────
 echo
 echo "══════════════════ 결과 ══════════════════"
+if [ "$DIRTY" -gt 0 ]; then
+  printf "  %-4s  %-38s %s\n" "DIRT" "워킹트리 미커밋 $DIRTY 건" \
+    "--allow-dirty — 영역 판정에 포함됨. 이 결과는 커밋되지 않은 코드의 것이다."
+fi
 fail=0
 for i in "${!NAMES[@]}"; do
   c="${CODES[$i]}"
