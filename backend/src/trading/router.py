@@ -636,9 +636,14 @@ async def list_live_session_events(
     if sess is None or sess.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="live session not found")
     event_repo = LiveSignalEventRepository(session)
-    events = await event_repo.list_by_session(session_id, limit=limit)
+    event_rows = await event_repo.list_by_session_with_order_state(session_id, limit=limit)
     return LiveSignalEventListResponse(
-        items=[LiveSignalEventResponse.model_validate(e) for e in events]
+        items=[
+            LiveSignalEventResponse.model_validate(event).model_copy(
+                update={"order_state": order_state}
+            )
+            for event, order_state in event_rows
+        ]
     )
 
 

@@ -20,8 +20,9 @@ import { useMemo } from "react";
 import {
   ORDER_REALIZED_PNL_SOURCE_HINT,
   ORDER_REALIZED_PNL_SOURCE_LABEL,
+  ORDER_STATE_LABEL,
 } from "@/features/trading/labels";
-import { labelOf } from "@/lib/labels";
+import { labelOf, statusLabelOf } from "@/lib/labels";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
 import { LIVE_SIGNAL_DIRECTION_LABEL, LIVE_SIGNAL_EVENT_STATUS_LABEL } from "../labels";
@@ -296,29 +297,37 @@ export function LiveSessionDetail({ session }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {events.items.slice(0, 20).map((ev) => (
-                  <tr key={ev.id} className="border-t">
-                    <td className="py-1 font-mono">{formatDateTime(ev.bar_time)}</td>
-                    <td className="py-1">{ev.action}</td>
-                    <td className="py-1">
-                      {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, ev.direction, "live-signal-direction")}
-                    </td>
-                    <td className="py-1 font-mono">{ev.qty}</td>
-                    <td className="py-1">
-                      <span
-                        className={
-                          ev.status === "dispatched"
-                            ? "text-success"
-                            : ev.status === "failed"
-                              ? "text-destructive"
-                              : "text-muted-foreground"
-                        }
-                      >
-                        {labelOf(LIVE_SIGNAL_EVENT_STATUS_LABEL, ev.status, "liveEvent.status")}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {events.items.slice(0, 20).map((ev) => {
+                  const orderResult = ev.order_state
+                    ? statusLabelOf(ORDER_STATE_LABEL, ev.order_state, "liveEvent.order_state")
+                    : null;
+                  const hasRejectedOrder =
+                    ev.order_state === "rejected" || ev.order_state === "cancelled";
+                  const statusClass = hasRejectedOrder
+                    ? "text-destructive"
+                    : ev.status === "dispatched"
+                      ? "text-success"
+                      : ev.status === "failed"
+                        ? "text-destructive"
+                        : "text-muted-foreground";
+
+                  return (
+                    <tr key={ev.id} className="border-t">
+                      <td className="py-1 font-mono">{formatDateTime(ev.bar_time)}</td>
+                      <td className="py-1">{ev.action}</td>
+                      <td className="py-1">
+                        {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, ev.direction, "live-signal-direction")}
+                      </td>
+                      <td className="py-1 font-mono">{ev.qty}</td>
+                      <td className="py-1">
+                        <span className={statusClass}>
+                          {labelOf(LIVE_SIGNAL_EVENT_STATUS_LABEL, ev.status, "liveEvent.status")}
+                          {orderResult ? ` (주문 ${orderResult.label})` : ""}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

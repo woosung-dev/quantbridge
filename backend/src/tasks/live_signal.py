@@ -647,7 +647,7 @@ def _pending_order_skip_reason(raw: object) -> str:
     return raw if isinstance(raw, str) and raw in _PENDING_ORDER_SKIP_REASONS else "other"
 
 
-def _count_safely(counter: Any, reason: str) -> None:
+def _count_safely(counter: Any, **labels: str) -> None:
     """라벨 생성과 증가를 **함께** 예외로부터 격리한다 (BL-536 R2).
 
     ★`.labels()` 도 감싸야 한다. multiprocess 모드에서 새 라벨 조합은 그 시점에
@@ -655,10 +655,10 @@ def _count_safely(counter: Any, reason: str) -> None:
     막는 것**이다. 기존 선례(`order_service.py` 의 `record_metric_safely(gauge.inc)`)는
     라벨이 없는 gauge 라 그 구분이 없었다.
 
-    이 두 counter 의 호출 지점이 `try_claim_bar` 뒤 · 단일 commit 앞이라, 여기서 던지면
+    기존 두 counter 의 호출 지점이 `try_claim_bar` 뒤 · 단일 commit 앞이라, 여기서 던지면
     claim 이 rollback 되고 다음 tick 이 같은 bar 를 다시 평가해 **매-tick 크래시 루프**가 된다.
     """
-    record_metric_safely(lambda: counter.labels(reason=reason).inc())
+    record_metric_safely(lambda: counter.labels(**labels).inc())
 
 
 def _count_pending_order_skips(strategy_state_report: object) -> None:
@@ -680,7 +680,8 @@ def _count_pending_order_skips(strategy_state_report: object) -> None:
     for skip in skips:
         reason = skip.get("reason") if isinstance(skip, dict) else None
         _count_safely(
-            qb_live_pending_order_skip_evaluations_total, _pending_order_skip_reason(reason)
+            qb_live_pending_order_skip_evaluations_total,
+            reason=_pending_order_skip_reason(reason),
         )
 
 
@@ -703,7 +704,13 @@ async def _reconcile_conditional_entries(
     청산이 체결된 뒤 돌파가 오면 의도의 3배가 열린다. 한 tick 늦추는 편이 낫다.
     """
     if market_orders_in_flight:
-        qb_live_conditional_reconcile_errors_total.labels(stage="deferred_market_inflight").inc()
+        pending_orders = getattr(result, "pending_orders", None)
+        stage = (
+            "deferred_market_inflight"
+            if pending_orders is None or pending_orders
+            else "deferred_market_inflight_noop"
+        )
+        _count_safely(qb_live_conditional_reconcile_errors_total, stage=stage)
         return
     try:
         from src.tasks.celery_app import get_ccxt_provider_for_worker
@@ -987,7 +994,7 @@ async def _reconcile_conditional_entries(
                 # reason 이 둘 있으므로 합산하지 마라 — 상세는 metrics.py 주석.
                 _count_safely(
                     qb_live_conditional_plan_drop_evaluations_total,
-                    _plan_drop_reason(divergence.get("reason")),
+                    reason=_plan_drop_reason(divergence.get("reason")),
                 )
                 if divergence["reason"] == "breach_exceeds_cap":
                     qb_live_conditional_guard_total.labels(outcome="breach_capped").inc()

@@ -32,9 +32,10 @@
 BL-512 label cardinality:
 - qb_exchange_order_response_total: exchange ∈ {bybit, binance, okx, unknown} ≤ 4,
   outcome ∈ {accepted, rejected, unknown} = 3, reason ∈ {trigger_breached,
-  reduce_only_violation, position_zero, insufficient_balance, auth_failed,
-  permission_denied, rate_limited, other, unparsed, rejected_at_submission, filled,
-  submitted} = 12. 최대 4 x 3 x 12 = 144 series.
+  reduce_only_same_side, reduce_only_position_zero, reduce_only_violation,
+  position_zero, insufficient_balance, auth_failed, permission_denied, rate_limited,
+  other, unparsed, rejected_at_submission, filled, submitted} = 14.
+  최대 4 x 3 x 14 = 168 series.
 - qb_live_conditional_guard_total: outcome ∈ {conditional_placed, market_converted,
   breach_capped, breach_with_resting, reference_unavailable, convert_suppressed,
   breach_reverted} = 7. 최대 7 series.
@@ -225,13 +226,15 @@ def _normalize_error_class(exc: BaseException) -> str:
     return name if name in _ALLOWLIST_ERROR_CLASSES else "Other"
 
 
-# BL-512 — ProviderError 원문에서 retCode 숫자만 읽는다. retMsg 는 실응답에서 깨진
-# 구분자를 포함하므로 절대 분류 근거로 사용하지 않는다.
+# BL-512 — ProviderError 원문에서 retCode 숫자를 읽는다.
+# ★**어떤 사유인지의 판정 근거는 `retCode` 뿐이다.** retMsg 는 실응답에서 깨진 구분자를
+#   포함하므로 코드 판정에 절대 쓰지 않는다(BL-512 원 제약, 그대로 유효).
+#   아래 110017 분기만 예외인데, 그것도 **코드를 정한 뒤 그 안에서 갈래만** 가르는 용도다
+#   - 이미 110017 로 확정된 뒤라 구분자가 깨져도 다른 사유로 새지 않는다.
 _BYBIT_RETCODE_PATTERN = re.compile(r'"retCode"\s*:\s*(\d+)')
 _EXCHANGE_ORDER_RESPONSE_REASONS: dict[str, str] = {
     "110092": "trigger_breached",
     "110093": "trigger_breached",
-    "110017": "reduce_only_violation",
     "110034": "position_zero",
     "110004": "insufficient_balance",
     "110006": "insufficient_balance",
@@ -259,7 +262,19 @@ def _normalize_exchange_order_response_reason(message: str) -> str:
     match = _BYBIT_RETCODE_PATTERN.search(message)
     if match is None:
         return "unparsed"
-    return _EXCHANGE_ORDER_RESPONSE_REASONS.get(match.group(1), "other")
+
+    retcode = match.group(1)
+    if retcode == "110017":
+        # 정본 문서 두 곳이 코드로만 묶지 말라고 했는데 110017을 하나로 묶고 있었다.
+        # retMsg까지 분리해 무해한 포지션 0과 위험한 반대 방향을 각각 계측한다.
+        normalized_message = re.sub(r"\s+", " ", message).casefold()
+        if "same side" in normalized_message:
+            return "reduce_only_same_side"
+        if "current position is zero" in normalized_message:
+            return "reduce_only_position_zero"
+        return "reduce_only_violation"
+
+    return _EXCHANGE_ORDER_RESPONSE_REASONS.get(retcode, "other")
 
 
 qb_exchange_order_response_total = Counter(
@@ -371,6 +386,15 @@ qb_live_conditional_cancelled_total = Counter(
     "Live conditional entries cancelled during reconciliation",
     labelnames=("reason",),
 )
+# ★`deferred_market_inflight` 계열은 유실 건수가 아니라 시장가 주문이 in-flight 인 tick 의
+# 평가 발화 횟수다. `deferred_market_inflight` 는 pending 조건부 진입이 있어 실제로 미룬
+# 경우이고, `deferred_market_inflight_noop` 는 미룰 조건부 진입이 없었던 경우다.
+#
+# ★원장 기반 `entry_completeness` 비율과 절대 합산하지 마라. 이 값은 의도별 원장이 아니라
+# tick 발화 횟수라 같은 조건부 진입이 여러 bar 에서 중복 발화할 수 있다.
+#
+# ★`deferred_market_inflight_noop` 는 이번 배포에서 태어난 새 series 다. 기존 라벨과 절대값을
+# 나란히 비교할 수 없고, 같은 관측 창의 차분만 비교해야 한다.
 qb_live_conditional_reconcile_errors_total = Counter(
     "qb_live_conditional_reconcile_errors_total",
     "Live conditional entry reconciliation failures",

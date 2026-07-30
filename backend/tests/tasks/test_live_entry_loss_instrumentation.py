@@ -356,7 +356,8 @@ def test_plan_drop_counter_failure_is_isolated_too(monkeypatch: pytest.MonkeyPat
     before = failures._value.get()
 
     live_signal_module._count_safely(
-        metrics_module.qb_live_conditional_plan_drop_evaluations_total, "below_exchange_minimum"
+        metrics_module.qb_live_conditional_plan_drop_evaluations_total,
+        reason="below_exchange_minimum",
     )
 
     assert failures._value.get() == before + 1

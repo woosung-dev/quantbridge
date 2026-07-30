@@ -381,6 +381,9 @@ class LiveSignalEventResponse(BaseModel):
     comment: str
     status: str
     order_id: UUID | None
+    # 이벤트 dispatch 성공과 거래소 주문 수락은 다른 사건이다. 이 값이 없으면 거절된 청산이
+    # 화면에서 성공으로 보인다. None은 주문이 아직 없거나 연결되지 않았음을 뜻하며 성공이 아니다.
+    order_state: str | None = None
     error_message: str | None
     retry_count: int
     created_at: AwareDatetime

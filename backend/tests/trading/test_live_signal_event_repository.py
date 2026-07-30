@@ -6,10 +6,11 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
-from src.strategy.models import Strategy
+from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.trading.models import (
     ExchangeAccount,
     ExchangeMode,
@@ -18,6 +19,10 @@ from src.trading.models import (
     LiveSignalEventStatus,
     LiveSignalInterval,
     LiveSignalSession,
+    Order,
+    OrderSide,
+    OrderState,
+    OrderType,
 )
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 
@@ -119,3 +124,116 @@ async def test_realized_pnl_sums_are_session_scoped_and_all_ignores_bar_time(
     assert closed_count == 1
     assert all_total_pnl == Decimal("14.74")
     assert all_closed_count == 3
+
+
+@pytest.mark.asyncio
+async def test_list_events_returns_order_state_with_one_joined_order_query(
+    client, mock_clerk_auth, db_session: AsyncSession
+) -> None:
+    """이벤트 상태와 주문 결과를 함께 반환하고 주문별 추가 조회를 만들지 않는다."""
+    user = mock_clerk_auth
+    strategy = Strategy(
+        user_id=user.id,
+        name="event-order-state",
+        pine_source="//",
+        pine_version=PineVersion.v5,
+        parse_status=ParseStatus.ok,
+    )
+    account = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"key",
+        api_secret_encrypted=b"secret",
+    )
+    db_session.add_all([strategy, account])
+    await db_session.flush()
+    live_session = LiveSignalSession(
+        user_id=user.id,
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        interval=LiveSignalInterval.m1,
+    )
+    db_session.add(live_session)
+    await db_session.flush()
+
+    rejected_order = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=Decimal("1"),
+        state=OrderState.rejected,
+    )
+    filled_order = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=Decimal("1"),
+        state=OrderState.filled,
+    )
+    db_session.add_all([rejected_order, filled_order])
+    await db_session.flush()
+    db_session.add_all(
+        [
+            LiveSignalEvent(
+                session_id=live_session.id,
+                bar_time=datetime(2026, 7, 30, 12, 0, tzinfo=UTC),
+                sequence_no=1,
+                action="close",
+                direction="long",
+                trade_id="rejected",
+                qty=Decimal("1"),
+                status=LiveSignalEventStatus.dispatched,
+                order_id=rejected_order.id,
+            ),
+            LiveSignalEvent(
+                session_id=live_session.id,
+                bar_time=datetime(2026, 7, 30, 12, 1, tzinfo=UTC),
+                sequence_no=2,
+                action="close",
+                direction="long",
+                trade_id="filled",
+                qty=Decimal("1"),
+                status=LiveSignalEventStatus.dispatched,
+                order_id=filled_order.id,
+            ),
+            LiveSignalEvent(
+                session_id=live_session.id,
+                bar_time=datetime(2026, 7, 30, 12, 2, tzinfo=UTC),
+                sequence_no=3,
+                action="close",
+                direction="long",
+                trade_id="unlinked",
+                qty=Decimal("1"),
+                status=LiveSignalEventStatus.dispatched,
+            ),
+        ]
+    )
+    await db_session.commit()
+
+    order_queries: list[str] = []
+    connection = db_session.sync_session.bind
+
+    def capture_order_query(
+        conn, cursor, statement, parameters, context, executemany
+    ) -> None:
+        if "trading.orders" in statement:
+            order_queries.append(statement)
+
+    event.listen(connection, "before_cursor_execute", capture_order_query)
+    try:
+        response = await client.get(f"/api/v1/live-sessions/{live_session.id}/events")
+    finally:
+        event.remove(connection, "before_cursor_execute", capture_order_query)
+
+    assert response.status_code == 200, response.text
+    items_by_trade_id = {item["trade_id"]: item for item in response.json()["items"]}
+    assert items_by_trade_id["rejected"]["order_state"] == "rejected"
+    assert items_by_trade_id["filled"]["order_state"] == "filled"
+    assert items_by_trade_id["unlinked"]["order_state"] is None
+    assert len(order_queries) == 1

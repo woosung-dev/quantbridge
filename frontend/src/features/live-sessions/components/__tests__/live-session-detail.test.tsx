@@ -301,6 +301,42 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     expect(chartInstances[0]!.addLineSeries).toHaveBeenCalledTimes(2);
   });
 
+  it("전송된 이벤트의 거부 주문은 성공 색으로 표시하지 않는다", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({
+      items: [{ ...EVENTS[0], order_state: "rejected" }],
+    });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    const status = await screen.findByText("전송됨 (주문 거부)");
+    expect(status).toHaveClass("text-destructive");
+    expect(status).not.toHaveClass("text-success");
+  });
+
+  it("전송된 이벤트의 체결 주문은 기존 성공 색을 유지한다", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({
+      items: [{ ...EVENTS[0], order_state: "filled" }],
+    });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    const status = await screen.findByText("전송됨 (주문 체결)");
+    expect(status).toHaveClass("text-success");
+  });
+
+  it("주문 상태가 없는 구 응답은 기존 이벤트 표시를 유지한다", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: [{ ...EVENTS[0] }] });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    const status = await screen.findByText("전송됨");
+    expect(status).toHaveClass("text-success");
+    expect(status).not.toHaveTextContent("주문");
+  });
+
   it("events + equity_curve — 2 chart 인스턴스 (counts + equity panes)", async () => {
     stateMock.mockResolvedValue(STATE_WITH_EQUITY);
     eventsMock.mockResolvedValue({ items: EVENTS });

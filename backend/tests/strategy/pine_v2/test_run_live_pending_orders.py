@@ -287,3 +287,35 @@ def test_window_bars_accompanies_placed_bar() -> None:
 
     assert result.strategy_state_report["window_bars"] == 2
     assert _reported(result)["PivRevLE"]["placed_bar"] == 1
+
+
+def test_internal_pending_stop_fill_opens_trade_without_live_signal() -> None:
+    """다음 bar에서 내부 체결된 stop은 엔진 포지션만 열고 signal은 만들지 않는다."""
+    result = run_live(_SESSION_STOP_ENTRY, _ohlcv([100.0, 120.0]))
+
+    open_trade_ids = [trade["id"] for trade in result.strategy_state_report["open_trades"]]
+    assert "PivRevLE" in open_trade_ids
+    assert not any(
+        signal.trade_id == "PivRevLE" and signal.action == "entry"
+        for signal in result.signals
+    )
+    assert all(order.trade_id != "PivRevLE" for order in result.pending_orders)
+
+
+def test_unfilled_pending_stop_remains_pending_without_opening_position() -> None:
+    """음성 대조 - stop에 닿지 않으면 주문은 pending으로 남고 포지션을 열지 않는다."""
+    result = run_live(_SESSION_STOP_ENTRY, _ohlcv([100.0, 110.0]))
+
+    assert any(order.trade_id == "PivRevLE" for order in result.pending_orders)
+    assert result.strategy_state_report["position_size"] == 0.0
+    assert result.strategy_state_report["open_trades"] == []
+
+
+def test_internal_pending_stop_fill_never_leaks_fill_signal() -> None:
+    """내부 체결이 일어난 결과에도 signal action은 entry 또는 close뿐이다."""
+    result = run_live(_SESSION_STOP_ENTRY, _ohlcv([100.0, 120.0]))
+
+    assert any(
+        trade["id"] == "PivRevLE" for trade in result.strategy_state_report["open_trades"]
+    )
+    assert all(signal.action in ("entry", "close") for signal in result.signals)
