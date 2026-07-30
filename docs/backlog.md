@@ -7,16 +7,16 @@
 **작성일:** 2026-04-30
 **최종 갱신:** 2026-07-26 (**dogfood-restore 스프린트** — 로컬 실사용 복원 + 3스프린트 누적 신뢰 작업 실화면 검증. **BL-465/467 Resolved** + 신규 **BL-466/468~472/474** + **BL-473 Resolved**(WS auth `expires` 창 — 라이브 체결 스트리밍이 통째로 죽어 있었다). ★**dogfood 가 P1 을 잡았다** — `_periodic_returns` 가 음수 자본을 안 걸러 파산한 실행에 **양수 샤프**가 붙었고(실측 -2179.68% 에 +0.029), **committed Trust Layer baseline 이 그걸 담고 있었다**(s1_pbr 샤프 +0.600 · 소르티노 +2.349 on -536%). 코퍼스 5종 중 4종이 음수 자본이고 골든이 깨진 것도 정확히 그 4종. baseline 재생성 diff = 12 메트릭 키 중 2개 한정. ★**옵티마이저는 이 스택에서 구조적으로 죽어 있었다** — `optimizer_heavy` 유일 소비자에 OHLCV env 3종 부재. ★**`make seed` 신설** — 백테스트 1회가 곧 OHLCV 시딩(TimescaleProvider cache-first). 마이그레이션 0.) // 이전: 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
-**현재 상태:** **86 active BL / 전체 135 항목** (2026-07-26 live-engine-parity 기준, 아래 산식으로 기계 측정). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **ACTIVE 139 · PARTIAL 4 · RESOLVED 57 · UNKNOWN 17 / 전체 217 항목** — P별 ACTIVE = **P0 1 · P1 7 · P2 54 · P3 77** (2026-07-31 `scripts/bl-audit.sh` 실측). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
-> ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 하게 남아 있었다. 산식 = `### BL-` 헤딩 수(전체) 대비 각 섹션 본문에 `Resolved` 가 등장하지 않는 항목 수(active). 부분 Resolved 는 active 로 세지 않는다(본문에 `Resolved` 문자열이 있으므로).
+> ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 했고, 그 다음 표기 "86 active / 전체 135" 도 실측(217 섹션)과 어긋나 있었다. **산식은 이제 문서 주석이 아니라 스크립트다:**
 >
 > ```bash
-> awk '/^### BL-/ { if (id) print id, res?"RESOLVED":"ACTIVE"; id=$2; res=0; next }
->      /^## / && id { print id, res?"RESOLVED":"ACTIVE"; id=""; next }
->      { if (id && /Resolved/) res=1 }
->      END { if (id) print id, res?"RESOLVED":"ACTIVE" }' docs/backlog.md | sort | uniq -c -f1
+> scripts/bl-audit.sh                 # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록 (불일치 시 exit 1)
+> scripts/bl-audit.sh --list ACTIVE   # id / 우선순위 / 줄번호 만
 > ```
+>
+> ★**낡은 산식(인라인 awk)은 폐기했다.** 그것은 "섹션 본문 어딘가에 `Resolved` 문자열이 있으면 RESOLVED" 였고, 그래서 **cross-ref 한 줄이 항목을 지웠다** — `BL-003`(P0, 열려 있음)이 자기 섹션의 `BL-004 ✅ Resolved` 두 줄 때문에 RESOLVED 로 집계돼 **공식 산식이 P0 active 를 0 으로 보고하고 있었다**(BL-499·BL-535 도 같은 뿌리). 새 산식의 SSOT 는 각 섹션의 `**상태:**` / `**Status:**` **줄 하나**이고, 근거가 없으면 추측하지 않고 **UNKNOWN 으로 남긴다**. 🟡 부분 Resolved 는 종전대로 active 로 세지 않는다.
 
 **최근 sprint BL 변경 (Sprint 55~Sprint 62 Beta 진입):**
 
@@ -54,7 +54,7 @@
   - BL-320 Development mode 배지 / BL-321/352 Clerk application name / BL-347 server header / BL-261 Clerk custom domain
 - **기존 P0**: BL-003 (Bybit mainnet runbook, H1 종료 gate — BL-073 캠페인 후 trigger)
 - **잔존 P1/P2/P3** (Beta 본격 진입 후 polish 또는 dogfood 발견 시 trigger):
-  - P1: BL-014/015/022/023/024/025/026/308
+  - P1: BL-014/015/022/023/024/025/026 (**BL-308 은 2026-06-29 W3 Resolved — 이 목록에서 제거**)
   - P2: BL-186/190/195/235/236/309/313/314/315/316/329/330/332/344/345/351
   - P3: BL-306/307/317/318/324/325/326/331/333/334/335/336/337/338/346/355/360
 
@@ -96,7 +96,7 @@
 **Title:** Bybit mainnet 진입 runbook + smoke 스크립트
 **Category:** Tooling / Infra
 **Priority:** P0 (H1 Stealth 종료 직전)
-**Trigger:** Bybit Demo 1주 안정 운영 후 + BL-004 완료 후 (BL-004 ✅ Resolved Sprint 28)
+**Trigger:** Bybit Demo 1주 안정 운영 후 + BL-004 완료 후 (BL-004 = 완료, Sprint 28)
 **Est:** M (4-5h)
 **출처:** [`docs/status.md`](../.ai/templates/docs/status.md) L646~651
 
@@ -108,7 +108,9 @@
 2. `scripts/bybit-smoke.sh` 신규 — mainnet credentials 로 read-only API 호출 (잔고 조회 + 1 USDT limit-order 후 즉시 cancel) dry-run
 3. `.env.production` 별도 secret manager + rotation 절차
 
-**의존성:** BL-004 ✅ Resolved (Sprint 28 PR #108).
+**의존성:** BL-004(완료, Sprint 28 PR #108).
+
+**Status:** 🔴 **열려 있다.** mainnet runbook·smoke 스크립트 미착수. (위 두 줄의 BL-004 는 **참조**다 — 이 항목의 상태가 아니다. 이 구분이 없어서 낡은 산식이 BL-003 을 RESOLVED 로 세고 **P0 active 를 0 으로 보고했다.**)
 
 ---
 
@@ -116,16 +118,17 @@
 
 | ID                | 제목                                                                                               | Trigger                                         | Est        | 출처                            |
 | ----------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ---------- | ------------------------------- |
-| [BL-014](#bl-014) | Partial fill `cumExecQty` tracking                                                                 | partial fill 1건 발견 시                        | M (4-5h)   | TODO.md L709                    |
+| [BL-014](#bl-014) | 🟡 부분 Resolved — Partial fill `cumExecQty` tracking (잔여 = BL-439/440/441)                      | 🟡 2026-07-25 `stage/money-path-accuracy`       | M (4-5h)   | TODO.md L709                    |
 | [BL-015](#bl-015) | OKX Private WS                                                                                     | Bybit Demo 안정화 후                            | M (6-8h)   | TODO.md L710                    |
 | [BL-022](#bl-022) | golden expectations 재생성                                                                         | pine_v2 `strategy.exit` 도입 후                 | M (3-4h)   | TODO.md L17 (skip #1)           |
 | [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                                                       | Trust Layer v2 검토 시                          | M (5-6h)   | TODO.md L23 (skip #16)          |
 | [BL-024](#bl-024) | real_broker E2E 본 구현 (nightly cron)                                                             | Bybit Demo credentials + seed data 준비 시      | L (8h+)    | CLAUDE.md Sprint 10 Phase C     |
 | [BL-025](#bl-025) | autonomous-parallel-sprints 스킬 patch                                                             | on-demand (BUG-1/2/3 재발 시)                   | S (2h)     | TODO.md L653                    |
 | [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                    | Stage 2c 2차 fixture 활성화 후                  | S (1-2h)   | TODO.md L20-22                  |
-| [BL-308](#bl-308) | trading websocket test coverage 4% → ≥70%                                                          | dogfood 직후 (Day 7 후)                         | L (12-16h) | 2026-05-15 trading-deepen audit |
+| [BL-308](#bl-308) | ✅ Resolved — trading websocket test coverage 4% → ≥70% (실측 85% → **96%** combined)              | ✅ W3 2026-06-29 (CI `--cov-fail-under=90`)     | L (12-16h) | 2026-05-15 trading-deepen audit |
+| [BL-361](#bl-361) | ✅ Resolved — Pine Trust Layer 누출 (coverage SUPPORTED ↔ interpreter dispatch 28 symbols)         | ✅ S2 `stage/fix-trust-layer-leak`              | S (2-3h)   | 2026-05-30 전체 정검 §4.3       |
 | [BL-404](#bl-404) | ✅ Resolved — watchdog `fetch_order` Bybit 전면 실패 (acknowledged 게이트 + futures 심볼 미정규화) | ✅ `fix/trading-bl404-fetch-order-acknowledged` | S (1-2h)   | 2026-07-05 데모 라이브 dogfood  |
-| [BL-488](#bl-488) | 평가 갭 orphan close → 보유분 없는 `reduce_only` 주문과 시뮬 손익 오염                             | 즉시. 평가 갭이 재현되거나 beat 안정화 전       | M          | 2026-07-26 live-engine-parity   |
+| [BL-488](#bl-488) | ✅ Resolved — 평가 갭 orphan close → 보유분 없는 `reduce_only` 주문과 시뮬 손익 오염               | ✅ 2026-07-27 `feat/live-conditional-entry`     | M          | 2026-07-26 live-engine-parity   |
 | [BL-522](#bl-522) | ★엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다 (유실 채널 5종)             | 실자금 cutover 전 필수                          | M-L        | 2026-07-28 live-entry-parity    |
 
 > Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 ([\_archived.md](archive/refactoring-backlog/_archived.md)).
@@ -263,9 +266,10 @@
 **Title:** Pine Trust Layer 누출 — coverage SUPPORTED ↔ interpreter dispatch SSOT drift (28 symbols)
 **Category:** Strategy / pine_v2 SSOT / Trust Layer
 **Priority:** P1
-**Trigger:** 전체 정검 2026-05-30 (P1-10/13) — ✅ **Resolved S2** (`stage/fix-trust-layer-leak`)
+**Trigger:** 전체 정검 2026-05-30 (P1-10/13)
 **Est:** S (2-3h) — 실측 ~1.5h
 **출처:** [`docs/archive/audit/2026-05-30-full-inspection.md`](archive/audit/2026-05-30-full-inspection.md) §4.3
+**Status:** ✅ **Resolved S2** (`stage/fix-trust-layer-leak`) — 28 누출 전부 구현 + 망라 parity 테스트가 영구 tripwire. ★단 이 항목이 닫은 것은 **그 28건**이고, 라이브 `strict=False` 가 향후 임의의 발산을 조용히 삼키는 latent risk 서술은 [BL-362](#bl-362) 본문에 남아 있다 (지우지 말 것).
 
 **원인 / 영향:** `coverage.py` 가 SUPPORTED 표기하나 interpreter 미구현 → `is_runnable=True` preflight 통과 후 runtime `PineRuntimeError`. backtest=FAILED(strict=True), live=silent swallow 후 오신호(strict=False, event_loop.py:128). ADR-003 부분실행 금지 위반.
 
@@ -651,11 +655,11 @@
 | [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                                                                                                                      | Sprint 45 codex G.4                                                            | XS (30m)     | Sprint 45 codex G.4 발견                               |
 | [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                                                                                                                     | Sprint 57+                                                                     | M (8-12h)    | ADR-013 §6 #8 deferred                                 |
 | [BL-236](#bl-236) | `objective_metric` whitelist 자유화 (BacktestMetrics 24+)                                                                                                         | Sprint 56+                                                                     | S (3-5h)     | Sprint 55 deferred                                     |
-| [BL-309](#bl-309) | trading registry/webhook/fees test 0% → ≥80%                                                                                                                      | BL-308 묶음 또는 dogfood 직후                                                  | M (4-6h)     | 2026-05-15 trading-deepen audit                        |
-| [BL-362](#bl-362) | live 경로 coverage↔interpreter divergence silent swallow observability                                                                                            | S5 (trading kill-switch 묶음)                                                  | S (2-4h)     | 2026-05-30 full-inspection §4.3                        |
+| [BL-309](#bl-309) | ✅ Resolved — trading registry/webhook/fees test 0% → ≥80%                                                                                                        | ✅ W3 2026-06-29 (baseline stale + fees obsolete)                              | M (4-6h)     | 2026-05-15 trading-deepen audit                        |
+| [BL-362](#bl-362) | ✅ Resolved — live 경로 coverage↔interpreter divergence silent swallow observability                                                                              | ✅ 2026-07-25 `stage/money-path-accuracy`                                      | S (2-4h)     | 2026-05-30 full-inspection §4.3                        |
 | [BL-363](#bl-363) | stress*test `\_execute*\*` 4-method boilerplate 추출 (config drift 근본원인)                                                                                      | deepening sprint 또는 5번째 engine 추가 시                                     | S (2-3h)     | 2026-05-30 full-inspection §appendix P1-9              |
 | [BL-364](#bl-364) | Optimizer 진짜 string-label CategoricalField sweep (Genetic+Bayesian ordinal 인코딩)                                                                              | string 카테고리 sweep 요청 시                                                  | M (4-6h)     | 2026-05-30 full-inspection §appendix P1-9 (S4 후속)    |
-| [BL-365](#bl-365) | `trigger_direction_for`/`map_exit_kind` dead + 서버 미배선 (standalone-trigger 방향)                                                                              | 서버 standalone 트리거 발주 시                                                 | S (2-4h)     | 2026-06-26 trading-deepen-2                            |
+| [BL-365](#bl-365) | ✅ Resolved — `trigger_direction_for`/`map_exit_kind` dead + 서버 미배선 (standalone-trigger 방향)                                                                | ✅ 2026-07-27 `feat/live-conditional-entry`                                    | S (2-4h)     | 2026-06-26 trading-deepen-2                            |
 | [BL-366](#bl-366) | live-signal dispatch OrderService DI 인라인 조립 중복 (HTTP 와 drift)                                                                                             | trading deepening sprint                                                       | S-M (3-5h)   | 2026-06-26 trading-deepen-2                            |
 | [BL-368](#bl-368) | `_merge_exit_params` ccxt 키명 3 call site 누설 (shallow interface)                                                                                               | trading deepening / 4번째 provider                                             | S-M (3-5h)   | 2026-06-26 trading-deepen-2                            |
 | [BL-369](#bl-369) | 3 provider `create_order` try/except/finally ~40 LOC 복붙                                                                                                         | trading deepening sprint                                                       | S (2-4h)     | 2026-06-26 trading-deepen-2                            |
@@ -675,7 +679,7 @@
 | [BL-385](#bl-385) | PineVersion enum v6 부재 → `//@version=6` 가 v5 로 collapse (메타데이터 부정확)                                                                                   | pine_v2 coverage 후속                                                          | XS (1-2h)    | 2026-06-30 QA F3                                       |
 | [BL-386](#bl-386) | v4 bare math builtin `floor`/`ceil`/`round`/`sqrt` 미별칭 (preflight reject, over-strict)                                                                         | pine_v2 coverage 후속                                                          | XS (1-2h)    | 2026-06-30 QA F4                                       |
 | [BL-387](#bl-387) | backtest sizing-canonical → config_payload 가 untyped `dict[str,Any]` seam 횡단 (key drift 시 silent 잘못된 sizing, money-path)                                   | backtest deepening 또는 sizing 로직 변경 시                                    | S-M (3-5h)   | 2026-06-30 backtest-deepen (codex 최강 후보)           |
-| [BL-388](#bl-388) | BacktestMetrics 24-field 가 4곳 평행 정의 (dataclass↔schema↔serializer↔_to_detail), field-parity 무검증 (leaky seam)                                              | backtest deepening 또는 BL-236 진행 시                                         | S-M (3-5h)   | 2026-06-30 backtest-deepen (codex 가 4번째 site 발견)  |
+| [BL-388](#bl-388) | ✅ Resolved — BacktestMetrics 24-field 4곳 평행 정의 (dataclass↔schema↔serializer↔_to_detail)                                                                     | ✅ 2026-07-26 backtest-trust (착수 시 이미 해결 상태)                          | S-M (3-5h)   | 2026-06-30 backtest-deepen (codex 가 4번째 site 발견)  |
 | [BL-392](#bl-392) | stress_test CA/PS "2D grid sweep" DTO 8-site 평행 정의 통합 (engine dataclass↔serializer↔OutSchema, untyped JSONB seam)                                           | stress_test deepening 또는 grid-cell 필드 추가 / 3번째 grid-sweep 타입 등장 시 | M (4-6h)     | 2026-06-30 stress_test-deepen (deepen-modules 1차)     |
 | [BL-401](#bl-401) | ✅ Resolved (2026-07-23) — optimizer 3폼 field-level zod 에러 렌더 (`.field-error` + role=alert, 메시지 한국어화)                                                 | ✅ `stage/functional-parity`                                                   | S-M (2-4h)   | 2026-07-05 PR #394 FE 리팩토링 번들 dogfood            |
 | [BL-402](#bl-402) | ✅ Resolved (2026-07-23, 구조 소멸) — C 이식 네이티브 select 전환으로 4사이트 결함 자체 소멸 (실측 재확인, 코드 변경 0)                                           | ✅ `stage/functional-parity` (문서만)                                          | XS-S (1-2h)  | 2026-07-05 PR #394 FE 리팩토링 번들 dogfood            |
@@ -686,7 +690,7 @@
 | [BL-527](#bl-527) | ★`trade_id` 재사용 + catch-up 다중 emit 이 `pnl_by_trade` 를 덮어써 기대치를 오염시킬 수 있다                                                                     | 기대치 정확도가 판정에 쓰이기 전                                               | S            | 2026-07-28 live-outcome-parity                         |
 | [BL-528](#bl-528) | 세션 창 밖 늦은 체결이 어느 표면에도 안 잡힌다 (실측 확정 청산 4건 · net −0.5463)                                                                                 | 세션 손익 완결성이 필요할 때                                                   | M            | 2026-07-28 live-outcome-parity                         |
 | [BL-529](#bl-529) | 같은 Bybit uid 를 두 계정 행이 스윕해 청산 원장이 2배로 적재된다                                                                                                  | 전략 누적 지표를 신뢰해야 할 때                                                | S            | 2026-07-28 live-outcome-parity                         |
-| [BL-530](#bl-530) | ★엔진이 청산했다고 본 것의 71% 가 거래소에서 확정되지 않는다 (실측 51/72)                                                                                         | 실자금 cutover 전 필수                                                         | M-L          | 2026-07-28 live-outcome-parity                         |
+| [BL-530](#bl-530) | ✅ Resolved — ★엔진이 청산했다고 본 것의 71% 가 거래소에서 확정되지 않는다 (실측 51/72)                                                                           | ✅ 2026-07-28 live-close-completeness (PR #497/#498)                           | M-L          | 2026-07-28 live-outcome-parity                         |
 | [BL-531](#bl-531) | parity 표면의 `ParitySummary` -> `OutcomeParityScope` 평탄화가 shotgun surgery (지표 1개 추가 = 5파일 편집)                                                       | parity 지표를 더 붙일 때                                                       | S            | 2026-07-29 PR #496 코드리뷰                            |
 | [BL-532](#bl-532) | `_sum_decimals` 사본이 `PARITY_DECIMAL_CONTEXT` 밖에서 돈다 (본 레포가 방금 세운 규칙과 불일치)                                                                   | 다음 parity 손질 시                                                            | XS           | 2026-07-29 PR #496 코드리뷰                            |
 | [BL-533](#bl-533) | 종료 세션 목록이 같은 엔드포인트를 두 쿼리 키로 조회해 미러 state 를 낳는다                                                                                       | 코크핏 손질 시                                                                 | XS           | 2026-07-29 PR #496 코드리뷰                            |
@@ -699,19 +703,19 @@
 | [BL-540](#bl-540) | (P3) `live_signal.py` 반복 3종 — deactivate 의식 6회 · provider+creds 4회 · category 가 맨 `str`                                                                  | 이 파일을 다시 크게 손댈 때                                                    | M            | 2026-07-29 PR #497 사후 리뷰                           |
 | [BL-541](#bl-541) | 세션 행이 아예 없는 포지션(웹훅 경로·거래소 수동)은 여전히 앱에서 못 닫는다 — ★아직 실측된 적 없음                                                                | `no_owning_session` 이 실제로 관측될 때                                        | M            | 2026-07-29 live-orphan-close                           |
 | [BL-542](#bl-542) | (P3) 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 (거짓 양성 의심, n=1)                                                                                 | 잔여 노출 표를 신뢰해야 할 때                                                  | XS           | 2026-07-29 live-orphan-close                           |
-| [BL-543](#bl-543) | ★`qb_live_position_divergence_total{engine_only}` 은 진입 유실을 측정할 수 없다 — 세션은 태어날 때부터 갈려 있다                                                  | 이 metric 으로 판단하기 전 (BL-536 선행)                                       | S            | 2026-07-29 live-orphan-close                           |
+| [BL-543](#bl-543) | ✅ Resolved 2026-07-30 (a) · (c)→[BL-544](#bl-544) — ★`engine_only` 은 진입 유실을 측정할 수 없다, 세션은 태어날 때부터 갈려 있다                                 | ✅ PR #503 engine-exchange-alignment (position epoch)                          | S            | 2026-07-29 live-orphan-close                           |
 | [BL-544](#bl-544) | ✅ 조건부 진입이 거래소에서만 체결되고 엔진 재생이 재현 못 해 공백 후 세션이 죽는다 (2026-07-30 Resolved)                                                         | —                                                                              | M            | 2026-07-30 engine-exchange-alignment                   |
 | [BL-545](#bl-545) | ★gap-resync 게이트가 5% 수량 허용치를 물려받아 구 게이트가 막던 불일치를 통과시킨다                                                                               | 조건부 진입을 실자금으로 가기 전                                               | S            | 2026-07-30 conditional-entry-alignment                 |
 | [BL-546](#bl-546) | 원장→엔진 seed 경계에서 `Decimal` 이 `float` 로 강등 (Decimal-first 하드 규칙)                                                                                    | 엔진 수치 표현을 손댈 때 / 큰 notional                                         | M            | 2026-07-30 conditional-entry-alignment                 |
 | [BL-547](#bl-547) | ★원장 seed 가 그 tick 한 번만 산다 — 조용한 고아 가능 (**아직 실측된 적 없음**)                                                                                   | `exchange_only` 이 실제로 오르는 것이 관측될 때                                | M            | 2026-07-30 conditional-entry-alignment                 |
 | [BL-548](#bl-548) | (P3) `OutcomeParityPanel` 이 375px 에서 본문 가로 스크롤 24px 을 만든다 (기존 결함)                                                                               | 모바일 폭 점검 시                                                              | XS           | 2026-07-30 conditional-entry-alignment                 |
-| [BL-549](#bl-549) | ★`final-gates.sh` 를 커밋 전에 돌리면 게이트를 skip 하고도 통과처럼 읽힌다                                                                                        | 다음 회차 게이트 실행 전                                                       | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-549](#bl-549) | ✅ Resolved — ★`final-gates.sh` 를 커밋 전에 돌리면 게이트를 skip 하고도 통과처럼 읽힌다                                                                          | ✅ 2026-07-30 live-entry-completeness                                          | XS           | 2026-07-30 conditional-entry-alignment                 |
 | [BL-550](#bl-550) | (P3) 비활성 세션의 **세션별** 포지션 대조가 화면에 없다                                                                                                           | 죽은 세션을 세션 단위로 대조해야 할 때                                         | S            | 2026-07-30 conditional-entry-alignment                 |
 | [BL-551](#bl-551) | (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                         | 세션 상세를 링크로 공유해야 할 때                                              | S            | 2026-07-30 conditional-entry-alignment                 |
-| [BL-552](#bl-552) | ★`fleet-dispatch.sh` 가 프롬프트 미제출을 성공으로 보고 — 워커가 `idle` 로 멈춘다                                                                                 | 다음 함대 회차                                                                 | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-552](#bl-552) | ✅ Resolved — ★`fleet-dispatch.sh` 가 프롬프트 미제출을 성공으로 보고, 워커가 `idle` 로 멈춘다                                                                    | ✅ 2026-07-30 live-entry-completeness                                          | XS           | 2026-07-30 conditional-entry-alignment                 |
 | [BL-553](#bl-553) | ★`outcome="applied"`(원장 seed 주입)가 실주행에서 한 번도 안 밟혔다 — 단위테스트로만 증명                                                                         | 다음 soak (기회주의적 확인)                                                    | XS           | 2026-07-30 conditional-entry-alignment                 |
-| [BL-554](#bl-554) | (P3) pre-push 훅이 푸시 대상 ref 가 아니라 현재 브랜치를 봐서 원격 브랜치 삭제까지 막는다                                                                         | 머지된 stage 브랜치를 원격에서 지울 때                                         | XS           | 2026-07-30 conditional-entry-alignment                 |
-| [BL-555](#bl-555) | (P3) `stage/*` 가 통합 브랜치 관례인데 pre-push 화이트리스트에 없다 — 매번 bypass 필요                                                                            | BL-554 와 함께                                                                 | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-554](#bl-554) | ✅ Resolved — (P3) pre-push 훅이 푸시 대상 ref 가 아니라 현재 브랜치를 봐서 원격 브랜치 삭제까지 막는다                                                           | ✅ 2026-07-30 live-entry-completeness                                          | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-555](#bl-555) | ✅ Resolved — (P3) `stage/*` 가 통합 브랜치 관례인데 pre-push 화이트리스트에 없다                                                                                 | ✅ 2026-07-30 live-entry-completeness                                          | XS           | 2026-07-30 conditional-entry-alignment                 |
 | [BL-556](#bl-556) | `final-gates.sh` 가 `pnpm e2e`(chromium 4건)를 집행하지 않는다 — CI e2e 잡에는 있다                                                                               | 다음 회차 게이트 실행 전                                                       | XS           | 2026-07-30 live-entry-completeness                     |
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                   | 그 게이지로 무언가를 판단하기 전                                               | S            | 2026-07-30 live-entry-completeness                     |
 | [BL-558](#bl-558) | retCode 를 `error_message` 에 싣는 경로가 **동기 1곳뿐** — 비동기 확정 거절이 코드 미상이 된다                                                                    | 거절 코드로 채널을 가를 때                                                     | M            | 2026-07-30 live-entry-completeness                     |
@@ -4243,6 +4247,7 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 **Trigger:** 이 metric 으로 무언가를 판단하기 전 (BL-536 의 선행)
 **Est:** S
 **출처:** 2026-07-29 live-orphan-close soak 1분차 실측
+**Status:** ✅ **Resolved (2026-07-30, PR #503 engine-exchange-alignment).** (a) 재생 아티팩트 제거 = position epoch — 실주행 재측정에서 첫 평가 `position_size 0.0` · `engine_only` 증가 **0**. **(c) 가용성 잔여는 이 BL 의 결함이 아니라 반대 방향의 별건으로 판명돼 [BL-544](#bl-544) 로 이관**했고, 그 BL-544 는 PR #506 으로 Resolved. 아래 §실주행 검증이 근거다.
 
 **원인 / 영향:** `run_live` 는 매 평가마다 **300 bar 를 재생**한다. 그런데 dispatch 대상은 **마지막 bar 의 이벤트뿐**이다(`strategy/pine_v2/event_loop.py:410` `last_bar_events`). 따라서 재생 구간에서 열린 포지션은 **주문이 된 적이 없는데 엔진 상태에는 남는다.** 세션을 새로 만들어도 엔진은 즉시 포지션을 들고 시작할 수 있고, 거래소는 flat 이다.
 

@@ -17,13 +17,20 @@ Sprint kickoff 시 (sprint-kickoff-template.md 첫 작업) 본 checklist 1회 �
 ### A. Active BL 자동 추출
 
 ```bash
-# P0 BL (Beta blocker / risk-critical)
-grep -E "^### BL-[0-9]+" docs/backlog.md | head -20
-echo "---"
-grep -B1 "P0" docs/backlog.md | grep "BL-" | head -20
+scripts/bl-audit.sh                 # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록
+scripts/bl-audit.sh --list ACTIVE   # id / 우선순위 / 줄번호 만
 ```
 
-기대 결과: 진행 중 P0 BL 목록 (Sprint 28 진입 시점 = BL-001/002/003/004).
+기대 결과: **P0 버킷은 스크립트가 항상 전량 펼친다** — 여기서 진행 중 P0 를 본다.
+2026-07-31 실측 기준 P0 ACTIVE = **BL-003** 1건(Bybit mainnet runbook). Sprint 28 진입 시점의
+BL-001/002/004 는 Resolved 라 `_archived.md` 로 내려갔다.
+
+> ★**낡은 방법(`grep … | head -20`)은 쓰지 마라.** 섹션이 217개인데 20개만 보여줘 조용히
+> 잘렸고, `grep -B1 "P0"` 는 우선순위 줄을 못 집는다. 더 나쁜 것은 그 다음 세대 산식(인라인
+> awk)이 **본문에 `Resolved` 문자열이 있으면 RESOLVED** 로 봐서 **cross-ref 한 줄이 항목을
+> 지웠다**는 것이다 — BL-003(P0, 열려 있음)이 자기 섹션의 `BL-004 ✅ Resolved` 때문에
+> RESOLVED 로 집계돼 **P0 active 를 0 으로 보고했다.** 지금 산식의 SSOT 는 섹션의
+> `**상태:**` / `**Status:**` 줄이고, 근거가 없으면 **UNKNOWN 으로 남긴다**(추측 금지).
 
 ### B. Trigger 도래 여부 review
 
@@ -59,8 +66,11 @@ grep -A3 "BL-07" docs/backlog.md | head -20
 - [ ] 결과 sprint-template.md frontmatter 의 "Recent BLs" + "기존 P0 잔여 (진입 시점)" 채움
 - [ ] sprint 종료 시 dual metric 측정 시 본 진입 값과 비교
 
-## 자동화 후보 (Sprint 29+ 검토)
+## 자동화 현황
 
-- `.claude/settings.json` SessionStart hook 으로 본 checklist 자동 표시
-- script 화 (`scripts/bl-audit.sh`) — grep 결과 markdown table 자동 생성
-- GitHub Actions — PR 마다 BL Resolved 표시 자동 검증
+- ✅ `.claude/settings.json` SessionStart hook 으로 본 checklist 자동 표시
+- ✅ **script 화 = [`scripts/bl-audit.sh`](../../scripts/bl-audit.sh) (2026-07-31 신설).** 판정 SSOT =
+  섹션의 `**상태:**` / `**Status:**` 줄. 인덱스 표 ✅/🟡 · `docs/roadmap.md` 체크박스와 3면 대조하고,
+  **불일치 또는 UNKNOWN 이 있으면 exit 1** 이라 게이트에 물릴 수 있다.
+- ⏳ GitHub Actions — PR 마다 자동 검증. 스크립트는 준비됐으나 이 레포 CI 는 러너 미할당이라 미배선
+  (`scripts/final-gates.sh` 와 같은 사정).
