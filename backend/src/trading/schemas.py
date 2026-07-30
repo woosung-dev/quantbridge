@@ -214,6 +214,9 @@ class LiveSessionResponse(BaseModel):
     created_at: AwareDatetime
     updated_at: AwareDatetime
     deactivated_at: AwareDatetime | None
+    # BL-484 — 왜 죽었는지. 값 집합은 `SessionDeactivationReason` 이 정본이고 화면이
+    # 한국어로 옮긴다. 마이그레이션 이전에 죽은 세션은 None (사유 미기록) 이다.
+    deactivated_reason: str | None = None
     equity_baseline_usdt: Decimal | None = None
 
 

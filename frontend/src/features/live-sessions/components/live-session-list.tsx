@@ -25,6 +25,7 @@ import {
 import type { LiveSession } from "../schemas";
 import { formatDateTime, formatRealizedPnl } from "../utils";
 import { LiveSessionStateView } from "./live-session-state-view";
+import { SessionEndedReason } from "./session-ended-reason";
 
 type Props = {
   onSelect?: (session: LiveSession) => void;
@@ -146,6 +147,10 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
                     <span className="rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                       종료된 세션
                     </span>
+                    <SessionEndedReason
+                      reason={s.deactivated_reason}
+                      testId={`inactive-live-session-reason-${s.id}`}
+                    />
                   </span>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {s.interval} · 종료 {formatDateTime(s.deactivated_at)}

@@ -1356,7 +1356,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 ]
                 if preflight_raw_msg is None:
                     preflight_raw_msg = ", ".join(preflight_symbols)[:200]
-                rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                rows = await sess_repo.deactivate(
+                    sess.id, at=datetime.now(UTC), reason=preflight_cat
+                )
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
                     _enqueue_conditional_entry_sweep()
@@ -1442,7 +1444,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 ]
                 if preflight_raw_msg is None:
                     preflight_raw_msg = ", ".join(preflight_symbols)[:200]
-                rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                rows = await sess_repo.deactivate(
+                    sess.id, at=datetime.now(UTC), reason=preflight_cat
+                )
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
                     _enqueue_conditional_entry_sweep()
@@ -1594,7 +1598,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 # 가 안 잡음). 미처리 시 claim rollback + 세션 active 유지 → 매 tick crash-loop.
                 # → 동일 fail-closed: 세션 비활성화 + metric + alert. (interpreter na-semantics
                 # 자체 수정은 BL-374 로 분리.)
-                rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                rows = await sess_repo.deactivate(
+                    sess.id, at=datetime.now(UTC), reason="run_live_error"
+                )
                 await sess_repo.commit()
                 if rows == 1:
                     _enqueue_conditional_entry_sweep()
@@ -1631,7 +1637,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 # errors[-1] = 가장 최근(최고 bar) runtime error. block-on-any 라 warmup
                 # corruption 도 포착(마지막 bar 만 필터링하지 않음).
                 category = _classify_live_divergence(result.errors[-1][1])
-                rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                rows = await sess_repo.deactivate(
+                    sess.id, at=datetime.now(UTC), reason="runtime_divergence"
+                )
                 await sess_repo.commit()
                 if rows == 1:  # winner-only dedupe
                     _enqueue_conditional_entry_sweep()
@@ -1682,7 +1690,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     pass
                 else:
                     category = "gap_resync_position_mismatch"
-                    rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                    rows = await sess_repo.deactivate(
+                        sess.id, at=datetime.now(UTC), reason="gap_resync_position_mismatch"
+                    )
                     await sess_repo.commit()
                     if rows == 1:
                         _enqueue_conditional_entry_sweep()
@@ -1740,7 +1750,9 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     # 첫 관측 — 다음 평가까지 유예한다. 플래그는 아래 upsert 로 넘어간다.
                     qb_live_position_divergence_total.labels(category="direction_transient").inc()
                 if direction_mismatch_persisted:
-                    rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC))
+                    rows = await sess_repo.deactivate(
+                        sess.id, at=datetime.now(UTC), reason="position_divergence"
+                    )
                     await sess_repo.commit()
                     if rows == 1:
                         _enqueue_conditional_entry_sweep()

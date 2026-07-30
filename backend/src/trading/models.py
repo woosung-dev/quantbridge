@@ -104,6 +104,37 @@ class AlertChannel(StrEnum):
     both = "both"
 
 
+class SessionDeactivationReason(StrEnum):
+    """BL-484 — 라이브 세션이 **왜** 죽었는지. `LiveSignalSession.deactivated_reason` 의 값 집합.
+
+    ★이 클래스가 사유 문자열의 유일한 정본이다. 그전까지 사유는 Slack/Telegram alert 로만
+    나가고 DB 에 남지 않았다 — 알림을 놓치면 화면 어디에도 "왜 멈췄나" 가 없었다.
+
+    ★`tasks/live_signal.py` 의 호출부는 소유 경계 때문에 리터럴을 쓴다(그 파일은 다른 워커가
+    쥐고 있어 import 를 추가할 수 없다). 대신
+    `tests/tasks/test_deactivation_reason_wiring.py` 가 그 파일의 모든 `deactivate(...)` 호출을
+    AST 로 훑어 **여기 없는 값이 새면 실패**시킨다. 새 사유를 추가하려면 여기에 먼저 등재해야 한다.
+
+    ★컬럼 타입은 PG enum 이 아니라 `String(64)` 다 — `LiveSignalInterval` 이 밟은 자동
+    enum cast(`UndefinedObjectError`) 함정을 피하고, 사유 추가에 마이그레이션이 필요 없게 한다.
+    그래서 **읽을 때는 plain str 로 온다**(`.value`/`.name` 금지 — BL-453 과 동일 계약).
+    """
+
+    # preflight (evaluate 진입 전 차단) — `live_signal.py` 의 `preflight_cat` 집합.
+    coverage_unrunnable = "coverage_unrunnable"
+    degraded_unconsented = "degraded_unconsented"
+    equity_baseline_missing = "equity_baseline_missing"
+    equity_exhausted = "equity_exhausted"
+    # runtime (Pine 재생 중 발산)
+    run_live_error = "run_live_error"
+    runtime_divergence = "runtime_divergence"
+    # 포지션 정합 실패
+    gap_resync_position_mismatch = "gap_resync_position_mismatch"
+    position_divergence = "position_divergence"
+    # 사람이 Stop 을 눌렀다
+    user_stopped = "user_stopped"
+
+
 class ExchangeAccount(SQLModel, table=True):
     __tablename__ = "exchange_accounts"
     __table_args__ = (
@@ -475,6 +506,12 @@ class LiveSignalSession(SQLModel, table=True):
     )
     deactivated_at: datetime | None = Field(
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
+    )
+    # BL-484 — 종료 사유. 값 집합은 `SessionDeactivationReason` 이 정본이다.
+    # NULL 은 "마이그레이션 이전에 죽은 세션" = 사유 부재이며, 소비 측은 이를 감추지 않고
+    # "사유 미기록" 으로 읽는다(0 이나 빈 문자열로 위장하지 않는다).
+    deactivated_reason: str | None = Field(
+        default=None, sa_column=Column(String(64), nullable=True)
     )
 
 

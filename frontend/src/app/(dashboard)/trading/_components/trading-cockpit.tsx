@@ -64,7 +64,13 @@ function formatEstimatedPnl(value: number): string {
 export function TradingCockpit() {
   const queryClient = useQueryClient();
 
-  const sessionsQ = useLiveSessions();
+  // BL-423 — `true`(비활성 포함). 아래 LiveSessionList 도 `useLiveSessions(true)` 를 쓰므로
+  // 여기서 `false` 를 쓰면 queryKey 가 갈려(`list` vs `listWithInactive`) **같은 화면이 목록을
+  // 두 번 fetch** 한다. 키를 일치시켜 RQ 캐시가 한 요청으로 dedupe 하게 한다.
+  // 부수 효과가 아니라 목적: `sessionItems` 에 종료 세션이 들어오면서 LiveSessionTable 의
+  // PAUSED 칩과 active-first 정렬이 처음으로 도달 가능해진다. 활성만 필요한 소비자는
+  // 아래 `activeSessions` 를 계속 쓴다.
+  const sessionsQ = useLiveSessions(true);
   const accountsQ = useExchangeAccounts();
   const ksQ = useKillSwitchEvents();
   const strategyListQ = useStrategies({
@@ -421,10 +427,11 @@ export function TradingCockpit() {
               />
             </div>
             <div className="card card-pad">
-              <h3 className="card-title">활성 세션</h3>
+              {/* BL-423 — 이 카드는 활성 세션과 최근 종료된 세션을 함께 담는다. */}
+              <h3 className="card-title">세션 목록</h3>
               <p className="card-sub session-card-sub">
                 지금 돌고 있는 세션을 고르면 오른쪽에 상세가 열립니다. 안전 점검이 세션을 자동으로
-                중단하면 이 목록에서 사라집니다.
+                중단하면 아래 &ldquo;최근 종료된 세션&rdquo; 으로 내려가고 종료 사유가 함께 붙습니다.
               </p>
               <LiveSessionList
                 onSelect={handleSessionSelect}
@@ -440,8 +447,8 @@ export function TradingCockpit() {
             ) : selectedId ? (
               <div className="card card-pad">
                 <StateBox
-                  title="이 세션은 중단되었습니다."
-                  body="안전 점검이 세션을 자동으로 중단하면 활성 목록에서 사라집니다. 중단 사유는 등록한 알림 채널로 보냈고, 같은 전략으로 다시 시작하면 화면에서도 사유를 볼 수 있습니다."
+                  title="이 세션은 목록에서 밀려났습니다."
+                  body="최근 종료된 세션은 20건까지만 목록에 남습니다. 그보다 오래된 세션이라 상세를 열 수 없습니다. 종료 사유는 목록에 남아 있는 동안 세션 카드와 상세 배지에서 볼 수 있습니다."
                   testId="live-session-stopped-notice"
                 />
               </div>
@@ -449,7 +456,7 @@ export function TradingCockpit() {
               <div className="card card-pad">
                 <StateBox
                   title="세션을 선택하세요."
-                  body="왼쪽 활성 세션 목록에서 하나를 고르면 체결 이력과 활동 타임라인을 봅니다."
+                  body="왼쪽 목록에서 활성 세션이나 최근 종료된 세션을 고르면 체결 이력과 활동 타임라인을 봅니다."
                 />
               </div>
             )}

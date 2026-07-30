@@ -182,6 +182,12 @@ const INACTIVE_SESSION: LiveSession = {
   deactivated_at: "2026-05-01T12:02:00Z",
 };
 
+// BL-484 — 사유가 기록된 종료 세션. 사유 없는 위 픽스처가 "과거 행" 대조군 역할을 한다.
+const INACTIVE_SESSION_WITH_REASON: LiveSession = {
+  ...INACTIVE_SESSION,
+  deactivated_reason: "equity_exhausted",
+};
+
 const OUTCOME_PARITY_SCOPE: OutcomeParityResponse["session"] = {
   matched_count: 1,
   expected_gross: "10",
@@ -318,6 +324,20 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     expect(await screen.findByText("+12.34")).toBeInTheDocument();
     expect(screen.getByTestId("live-session-ended-badge")).toHaveTextContent("종료된 세션");
     expect(eventsMock).toHaveBeenCalledWith(INACTIVE_SESSION.id, "test-token");
+    // 사유 미기록 행(과거 데이터)에서는 사유 칩을 아예 안 그린다.
+    expect(screen.queryByTestId("live-session-ended-reason")).not.toBeInTheDocument();
+  });
+
+  it("BL-484 — 종료 배지 옆에 한국어 종료 사유를 붙인다", async () => {
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({ items: EVENTS });
+
+    renderWith(<LiveSessionDetail session={INACTIVE_SESSION_WITH_REASON} />);
+
+    expect(await screen.findByTestId("live-session-ended-badge")).toHaveTextContent(
+      "종료된 세션",
+    );
+    expect(screen.getByTestId("live-session-ended-reason")).toHaveTextContent("자본 소진");
   });
 
   it("ErrorBoundary 미발동 — render 가 throw 하지 않음 (BL-157 regression 방어)", async () => {

@@ -49,8 +49,8 @@ export function LiveSessionTable({
       <div className="card">
         <div className="card-body">
           <StateBox
-            title="활성 세션이 없습니다."
-            body="아래 폼으로 라이브 세션을 시작하면 이 표에 나타납니다."
+            title="세션이 없습니다."
+            body="아래 폼으로 라이브 세션을 시작하면 이 표에 나타납니다. 종료된 세션도 최근 20건까지 남습니다."
           />
         </div>
       </div>
@@ -63,8 +63,8 @@ export function LiveSessionTable({
         <div>
           <h3 className="card-title">라이브 세션 ({sessions.length})</h3>
           <p className="card-sub">
-            지금 활성인 라이브 세션의 읽기 전용 요약입니다. 비활성 세션은 API 가 아직
-            반환하지 않습니다.
+            라이브 세션의 읽기 전용 요약입니다. 활성 세션과 최근 종료된 세션 20건을 함께
+            보여주고, 상태 칩으로 구분합니다.
           </p>
         </div>
         <div className="chart-head-actions">

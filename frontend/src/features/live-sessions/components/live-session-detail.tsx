@@ -36,6 +36,7 @@ import {
 } from "../utils";
 import { ActivityTimelineChart } from "./activity-timeline-chart";
 import { OutcomeParityPanel } from "./outcome-parity-panel";
+import { SessionEndedReason } from "./session-ended-reason";
 
 type Props = {
   session: LiveSession;
@@ -137,12 +138,19 @@ export function LiveSessionDetail({ session }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <h3 className="font-medium">{session.symbol}</h3>
           {!session.is_active ? (
-            <span
-              className="rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-              data-testid="live-session-ended-badge"
-            >
-              종료된 세션
-            </span>
+            <>
+              <span
+                className="rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                data-testid="live-session-ended-badge"
+              >
+                종료된 세션
+              </span>
+              {/* BL-484 — 배지 옆에 사유. 사유가 없는 과거 행에서는 아예 안 그린다. */}
+              <SessionEndedReason
+                reason={session.deactivated_reason}
+                testId="live-session-ended-reason"
+              />
+            </>
           ) : null}
         </div>
         <p className="text-muted-foreground text-xs">

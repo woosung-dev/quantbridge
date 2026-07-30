@@ -30,6 +30,7 @@ from src.trading.models import (
     ExchangeName,
     LiveSignalInterval,
     LiveSignalSession,
+    SessionDeactivationReason,
 )
 from src.trading.repositories.exchange_account_repository import (
     ExchangeAccountRepository,
@@ -200,7 +201,11 @@ class LiveSignalSessionService:
         if sess is None or sess.user_id != user_id:
             # ownership / 미존재 동일 404 (정보 누설 회피)
             raise StrategyNotFoundError()
-        rowcount = await self._repo.deactivate(session_id, at=datetime.now(UTC))
+        rowcount = await self._repo.deactivate(
+            session_id,
+            at=datetime.now(UTC),
+            reason=SessionDeactivationReason.user_stopped,
+        )
         # rowcount==0 일 수 있음 (이미 deactivated). idempotent — error 안 함.
         if rowcount > 0:
             await self._repo.commit()  # LESSON-019

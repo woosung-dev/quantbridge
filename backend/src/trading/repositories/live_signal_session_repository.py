@@ -208,13 +208,20 @@ class LiveSignalSessionRepository:
         )
         return (result.rowcount or 0) == 1  # type: ignore[attr-defined]
 
-    async def deactivate(self, session_id: UUID, *, at: datetime) -> int:
-        """is_active=False + deactivated_at. Service 가 commit 책임."""
+    async def deactivate(self, session_id: UUID, *, at: datetime, reason: str) -> int:
+        """is_active=False + deactivated_at + deactivated_reason. Service 가 commit 책임.
+
+        ★BL-484 — `reason` 은 **기본값 없는 필수 키워드**다. 기본값을 주면 새 종료 경로가
+        사유를 빼먹어도 조용히 통과해, 화면에 "왜 죽었는지 모르는 세션" 이 다시 생긴다.
+        누락을 타입으로 잡는다(`TypeError` at call time / mypy 에서 `call-arg`).
+
+        값 집합의 정본은 `src.trading.models.SessionDeactivationReason` 이다.
+        """
         result = await self.session.execute(
             update(LiveSignalSession)
             .where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
             .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
-            .values(is_active=False, deactivated_at=at)
+            .values(is_active=False, deactivated_at=at, deactivated_reason=reason)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 

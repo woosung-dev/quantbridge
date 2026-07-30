@@ -33,7 +33,8 @@ const SESSION_B: LiveSession = {
 describe("LiveSessionTable", () => {
   test("빈 배열 → 빈 상태 안내 문구", () => {
     render(<LiveSessionTable sessions={[]} />);
-    expect(screen.getByText("활성 세션이 없습니다.")).toBeInTheDocument();
+    // BL-423 — 이 표는 이제 종료 세션도 받는다. "활성 세션이 없습니다" 는 어긋난 문구다.
+    expect(screen.getByText("세션이 없습니다.")).toBeInTheDocument();
     expect(screen.queryByTestId("live-session-table")).not.toBeInTheDocument();
   });
 
