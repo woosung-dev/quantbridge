@@ -1,54 +1,103 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-30 (**conditional-entry-alignment** — BL-544 + BL-484/423 착지 · ★soak 3/3 생존, 단 seed 주입은 미검증)
+> **Last Updated:** 2026-07-30 (**conditional-entry-alignment** 머지 완료 — BL-544 + BL-484/423 착지 · ★soak 3/3 생존, 단 seed 주입은 미검증)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `stage/conditional-entry-alignment` (PR 생성 대기 — 마이그레이션 1).
-> **Last Merged:** `stage/engine-exchange-alignment` → `main@af655616` (PR #503, 2026-07-30) · 그 앞 `docs/roadmap-drift` → `main@1f55511d` (PR #502) · `feat/live-orphan-close` → `main@91411980` (PR #501)
+> **미머지:** 없음.
+> **Last Merged:** `stage/conditional-entry-alignment` → `main@fa603ca4` (PR #506, 2026-07-30 · **마이그레이션 1** `20260730_0001`) · 그 앞 `feat/final-gates` → `main@103f9c30` (PR #505) · `stage/engine-exchange-alignment` → `main@af655616` (PR #503)
 > **Last Merged:** `fix/bl530-review-followups` → `main@004c374f` (PR #498) · 그 앞 `feat/live-close-completeness` → `main@178d24ef` (PR #497)
 
 ---
 
-## 🎯 다음 스프린트 — **BL-536 진입 완결성 재측정** (BL-544 착지로 전제 해소)
+## 🎯 다음 스프린트 — **A~D 중 택1** (직전 회차가 리스크 성질을 또 바꿔 놨다)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
-> 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + `AGENTS.md` + 본 파일을 읽고 시작한다.
-> **소요 목표 2~4시간.** 정지점은 ① 착수 전 ② PR 생성 전, 둘뿐.
+> 시작 방법: **"다음 스프린트 진행해줘"** + A/B/C/D 중 선택. `CONTEXT.md` + `AGENTS.md` + 본 파일을 읽고 시작한다.
+> 미선택 시 기본값 = **A**.
 
-**한 줄.** BL-544 가 닫혀 **세션이 공백을 넘겨 살아남기 시작했다**(soak 3/3). 직전 회차가 "세션이 공백마다 죽으면 재측정이 성립하지 않는다" 며 미룬 **BL-536**(진입 유실 5채널 재측정)이 이제 성립한다.
+**한 줄.** BL-544 가 닫혀 **세션이 공백을 넘겨 살아남기 시작했다**(soak 3/3, 45분 연속 — 직전 회차는 18분 만에 사망). 그래서 "세션이 오래 못 살아 장시간 검증 자체가 불가능하다" 는 제약이 사라졌고, **막혀 있던 재측정들이 한꺼번에 성립한다.**
 
-### 순서
+★**단 BL-544 수정의 절반은 실주행에서 증명되지 않았다** — soak 3 leg 이 전부 **판정 완화**로 살았고 `outcome="applied"`(원장 seed **주입**)는 한 번도 밟히지 않았다. 원래 실패가 정확히 주입이 필요한 케이스였으므로 이 공백은 실질적이다([BL-553](backlog.md#bl-553)).
 
-1. **BL-536 (P1)** — 계기 정렬 후 진입 유실 채널 5종 재측정. ★**계측기를 먼저 고르고 그 계측기를 검증하라** — `engine_only` 는 재생 아티팩트로 오염됐고(BL-543), `live_signal_events` 는 **조건부 진입이 거치지 않는다**(events 0건인데 원장 16건). 유효한 것은 `orders.idempotency_key` 분해뿐이다([`reference/live-close-diagnostics.md`](reference/live-close-diagnostics.md) §3·§7).
-2. **BL-553 (XS)** — 같은 soak 안에서 기회주의적으로 확인한다. `outcome="applied"` 는 아직 실주행에서 한 번도 안 밟혔다. 공백을 **15분+** 로 가져가면 대기 stop 이 트리거될 확률이 오른다.
-3. **BL-545 (S)** 를 함께 볼지 판단 — gap 게이트의 5% 허용치를 거래소 수량 step 에서 파생시키는 건. BL-536 재측정이 부분체결 빈도를 알려주면 그 값으로 결정할 수 있다.
+---
 
-### 하지 않는 것
+### A. live-entry-completeness — 진입 유실 5채널 재측정 (**BL-536** + BL-553) ★★★★★
 
-BL-547(seed 1-tick 수명 — **`exchange_only` 이 실제로 오르는 것이 관측되기 전에는 짓지 않는다**, BL-541 과 같은 프레임) · BL-546(Decimal→float — 엔진 수치 표현 전체 사안) · BL-535 잔여(`mirror_not_allowed`, BL-186 대기) · BL-541 · BL-548~552(P3/DX).
+**왜 지금** — 이게 **실자금 cutover 전 마지막 큰 미지수**다. 직전 측정(2026-07-29)은 유실률 16.7% / 최대 채널 57% 였지만 그때는 세션이 18분마다 죽어 표본이 짧았다. 이제 장시간 soak 이 가능하다. 그리고 **같은 soak 안에서 BL-553 을 기회주의적으로 닫을 수 있다**(공백을 15분+ 로 가져가면 대기 stop 이 트리거될 확률이 오른다).
+
+★**계측기를 먼저 고르고 그 계측기를 검증하라.** `engine_only` 는 재생 아티팩트로 오염됐고(BL-543), `live_signal_events` 는 **조건부 진입이 거치지 않는다**(events 0건인데 원장 16건). 유효한 것은 `orders.idempotency_key` 분해뿐이다([`reference/live-close-diagnostics.md`](reference/live-close-diagnostics.md) §3·§7).
+
+**시간: 4~6h** (설계 1h + 구현 1.5h + **soak 2~3h** — 재측정이 본체라 soak 이 가장 길다)
+**리스크:** 측정 결과에 따라 후속 스코프가 크게 갈린다(유실이 크면 별도 스프린트 필요).
+
+### B. money-path 하드닝 — codex 가 남긴 P1/P2 정리 (**BL-545** + BL-546) ★★★★
+
+**왜 지금** — 직전 회차 적대 리뷰가 낸 것들이고 **실자금 전에 닫아야 하는 성질**이다.
+
+- **BL-545** — gap-resync 게이트가 5% 수량 허용치를 물려받아 `0.028` vs `0.029` 를 "일치" 로 통과시킨다. 권장 해법은 허용치를 **거래소 수량 step 에서 파생**(`max(qty_step, size*small)`) — step 은 reconciler 가 이미 가져온다.
+- **BL-546** — 원장→엔진 seed 경계의 `Decimal`→`float` 강등. 하드 규칙 위반이지만 엔진이 원래 float 기반이라 **국소 수정으로 안 끝난다.** 먼저 "BTC 급 범위에서 왕복 오차가 `_POSITION_DUST` 아래" 를 테스트로 고정하는 1차만 해도 된다.
+
+**시간: 3~4h** (BL-545 2h + BL-546 1차 1~2h). soak 은 A 보다 짧아도 된다(1h).
+**리스크:** 낮다. 둘 다 범위가 명확하고 실측 근거가 이미 있다.
+
+### C. DX 정리 팩 — 이번에 밟은 도구 결함 4건 (**BL-549·552·554·555**) ★★★
+
+**왜 지금** — 전부 **이번 회차에 실제로 밟았고** 다음 함대 회차에서 또 밟는다. 넷 다 XS 다.
+
+- **BL-549** `final-gates.sh` 가 커밋 전 실행 시 게이트를 skip 하고도 통과처럼 읽힌다
+- **BL-552** `fleet-dispatch.sh` 가 프롬프트 미제출을 성공으로 보고 (워커가 `idle` 로 멈춤)
+- **BL-554** pre-push 훅이 푸시 대상 ref 가 아니라 현재 브랜치를 봐서 원격 브랜치 삭제까지 막는다
+- **BL-555** `stage/*` 가 통합 브랜치 관례인데 훅 화이트리스트에 없어 매번 bypass 필요
+
+**시간: 1.5~2h** (넷 다 XS, soak 불필요). ★**A 나 B 의 앞에 붙여 같이 해도 된다** — 독립적이고 게이트만 돌리면 끝난다.
+**리스크:** 없다시피. 다만 훅을 고치므로 **고친 뒤 실제로 푸시해 봐야** 한다(자기 자신을 검증).
+
+### D. 분석 표면 완결 팩 — 데일리드라이버 편의 ★★
+
+**왜** — BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬) + BL-550/551(비활성 세션 포지션 대조·URL 파라미터화). 전부 P3 이고 **스키마 확장이 선행**이라 덩치가 있다.
+
+**시간: 5~7h** (BE 스키마 + FE 다수 화면). **지금은 권하지 않는다** — 실자금 전 미지수(A)가 남아 있고, 이건 언제 해도 되는 편의 개선이다.
+
+---
+
+### 권장
+
+**A → C 순.** A 가 실자금 cutover 전 마지막 미지수를 없애고, C 는 짧아서 A 의 앞뒤에 붙일 수 있다. B 는 A 의 측정 결과가 나오면 우선순위가 자동으로 정해진다(부분체결이 흔하면 BL-545 가 급해진다). D 는 그 다음이다.
+
+★**A 를 고르면 함대는 1~2기로 충분하다** — 본체가 측정이라 병렬화 이득이 작고 soak 은 CONTROL 전용이다. C 를 붙일 때만 2기(측정 워커 + DX 워커)가 의미 있다.
+
+---
 
 ### 착수 전 반드시 읽을 것
 
-★**직전 회차의 교훈 3개가 그대로 적용된다** — 자세한 것은 [`dev-log/2026-07-30-conditional-entry-alignment.md`](dev-log/2026-07-30-conditional-entry-alignment.md).
+직전 회차 교훈 3개가 그대로 적용된다 — 자세한 것은 [`dev-log/2026-07-30-conditional-entry-alignment.md`](dev-log/2026-07-30-conditional-entry-alignment.md).
 
-1. **워커 보고는 주장이지 증거가 아니다.** 이번에 두 워커 다 매우 정확했지만, `bl544` 는 자기 구현의 한계(seed 1-tick 수명)를 **스스로** 올렸고 `bl423` 은 **내 수용 기준의 오류**(pytest 기준 수를 통합 브랜치 기준으로 써서 워커 워크트리에 맞지 않았다)를 잡아냈다. 재측정이 이 관계를 구조로 만든다.
-2. **통합 후 적대 리뷰가 P1 을 냈다.** 워커 게이트 전건 green + 통합 게이트 green 이후에 codex 가 "부분체결 후 취소된 진입이 원장 조회에서 빠진다" 를 찾았다. **게이트 통과는 리뷰를 면제하지 않는다.**
-3. ★**soak 이 증명한 것과 증명하지 못한 것을 나눠서 적어라.** 3/3 생존했지만 셋 다 **판정 완화**로 살았고 **seed 주입(`applied`)은 한 번도 안 밟혔다.** "생존했으니 전부 충족" 으로 쓰지 않는 것이 G9 의 존재 이유다.
+1. ★**BL 본문은 작성 시점 스냅샷이다.** 이번에 전제 2건이 반증됐다 — BL-544 의 서사("엔진이 체결을 모른다")는 절반만 맞았고 **원장은 사망 4분 36초 전에 알고 있었다**. BL-423 은 **하루 전 PR 이 이미 고쳐 놨다**. 착수 preflight 가 둘 다 잡았다.
+2. ★**게이트 통과는 리뷰를 면제하지 않는다.** 워커 게이트 green + 통합 게이트 green + 실브라우저 PASS **이후에** codex 가 P1 을 냈다.
+3. ★**soak 이 증명한 것과 증명하지 못한 것을 나눠 적어라.** 3/3 생존했지만 seed 주입은 한 번도 안 밟혔다. "생존했으니 전부 충족" 으로 쓰지 않는 것이 G9 의 존재 이유다.
+
+### 함대 — 구조가 바뀌었다 (2026-07-30)
+
+```bash
+# ★오케스트레이터 탭에서 그대로. 워커가 같은 워크스페이스의 **탭**으로 붙는다.
+scripts/herdr-fleet.sh --agent claude:<이름> --agent claude:<이름> --base origin/main
+scripts/fleet-dispatch.sh --run <run>          # .claude/fleet/<run>/tasks/*.md 를 먼저 쓴다
+scripts/herdr-fleet.sh --teardown              # 워커 탭만 닫는다 (현재 탭은 유지)
+```
+
+★**CONTROL 을 따로 만들지 않는다** — 스크립트를 돌린 그 탭(메인, 슬롯 0)이 곧 CONTROL 이다.
+★**재지시는 `tasks/<worker>.r<N>.md` 로 분리해라** — 이번에 원본을 덮어써서 G9 대조 대상이 사라졌다.
+★**분배 직후 `agent_status` 가 `working` 인지 확인해라**(BL-552). `idle`+`pending` 이면 프롬프트가 안 먹은 것이다 — `herdr pane send-keys <pane> Enter`.
 
 ### 게이트 체인
 
-`scripts/final-gates.sh --run <name>` 이 집행한다. ★**커밋 후에 돌려라** — 미커밋 상태로 돌리면 영역 판정이 `fe_diff=0 be_diff=0` 이 되어 게이트를 skip 하고도 통과처럼 읽힌다([BL-549](backlog.md#bl-549)). ★워커에게는 **반드시 `--skip-ci-repro`** 를 붙여라 — 그 게이트가 공유 컨테이너의 DB 를 DROP/CREATE 한다.
+`scripts/final-gates.sh --run <name>` 이 집행한다(17종). ★**커밋 후에 돌려라**(BL-549). ★워커에게는 **반드시 `--skip-e2e --skip-ci-repro`** — 그 게이트가 공유 컨테이너의 DB 를 DROP/CREATE 한다. 스킬 게이트 4종은 `.claude/gates/<run>/{vercel,screen,codex,g9}.ok` signal 이 없으면 FAIL.
 
-스킬 게이트 4종은 `.claude/gates/<run>/{vercel,screen,codex,g9}.ok` signal 이 없으면 FAIL 이다.
+### baseline (2026-07-30 실측 — `main@fa603ca4`)
 
-### baseline (2026-07-30 실측 — `stage/conditional-entry-alignment`)
+**BE 3504 passed / 46 skipped** · ruff clean · mypy **212** clean · FE vitest **1228**(205 파일) · FE lint·typecheck·build ✓ · e2e authed **66** / canon **32** · 커버리지 잡 `--cov-fail-under=90` 통과 · fresh DB `alembic upgrade head` 통과 · 마이그레이션 head **`20260730_0001`**.
 
-**BE 3504 passed / 46 skipped** · ruff clean · mypy **212** clean · FE vitest **1228**(205 파일) · FE lint clean · FE build ✓ · e2e authed **66**(직전 65 + bl423 신규 1) / canon **32** · fresh DB `alembic upgrade head` 통과 · 마이그레이션 head `20260730_0001`.
-
-★**산술 대조 격차 0** — 3459(직전 baseline) + 31(bl423) + 9(bl544 R0) + 5(bl544 R1) = **3504**. 워커 자기 보고와 통합 실측이 정확히 맞았다.
-
-> ★**테스트 DB 가 stale 이면 `tests/test_migrations.py` 5건이 `DuplicateColumn`/`DuplicateTable` 로 깨진다 — 코드 결함이 아니다.** 스키마를 비우고 `alembic upgrade head` 로 스탬프하면 6 passed. (`worktree-bootstrap.sh` 가 워크트리에 대해 이미 하는 일이고, 메인 슬롯 0 은 수동이다.)
-> ★**어느 커밋에서 잰 값인지까지 적어라.** "측정" 이라는 라벨은 스스로를 보증하지 못한다.
-> ★**CI 는 러너 전역 미할당이다.** 판단 근거는 로컬 재현뿐. `| tail` 로 파이프하면 **exit code 가 가려진다**(이번 회차에도 한 번 밟았다).
+> ★**테스트 DB 가 stale 이면 `tests/test_migrations.py` 5건이 깨진다 — 코드 결함이 아니다.** 스키마를 비우고 `alembic upgrade head` 로 스탬프하면 6 passed. ★**DB 를 통째로 드롭만 하면 안 된다**(`alembic_version` 소실로 다른 방향으로 깨진다).
+> ★**CI 는 러너 전역 미할당이다.** 판단 근거는 로컬 재현뿐. `| tail` 로 파이프하면 **exit code 와 출력이 함께 가려진다**(이번 회차에도 밟았다).
 
 ## ⚡ live-orphan-close — 고아는 이미 닫혔고, 대신 누르면 실패하는 버튼이 있었다 (BL-537) (2026-07-29)
 

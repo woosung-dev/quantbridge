@@ -710,6 +710,8 @@
 | [BL-551](#bl-551) | (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                         | 세션 상세를 링크로 공유해야 할 때                                              | S            | 2026-07-30 conditional-entry-alignment                 |
 | [BL-552](#bl-552) | ★`fleet-dispatch.sh` 가 프롬프트 미제출을 성공으로 보고 — 워커가 `idle` 로 멈춘다                                                                                 | 다음 함대 회차                                                                 | XS           | 2026-07-30 conditional-entry-alignment                 |
 | [BL-553](#bl-553) | ★`outcome="applied"`(원장 seed 주입)가 실주행에서 한 번도 안 밟혔다 — 단위테스트로만 증명                                                                         | 다음 soak (기회주의적 확인)                                                    | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-554](#bl-554) | (P3) pre-push 훅이 푸시 대상 ref 가 아니라 현재 브랜치를 봐서 원격 브랜치 삭제까지 막는다                                                                         | 머지된 stage 브랜치를 원격에서 지울 때                                         | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-555](#bl-555) | (P3) `stage/*` 가 통합 브랜치 관례인데 pre-push 화이트리스트에 없다 — 매번 bypass 필요                                                                            | BL-554 와 함께                                                                 | XS           | 2026-07-30 conditional-entry-alignment                 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -4645,3 +4647,37 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 
 **권장 접근:** 코드 변경 없음. 다음 soak 에서 (a) 공백을 **더 길게**(15분+) 가져가 대기 stop 이 트리거될 확률을 올리거나, (b) 변동성이 큰 구간을 골라 재현한다. 확인 신호는 `qb_live_gap_ledger_seed_total{outcome="applied"} > 0` + 구조화 로그 `live_signal_gap_ledger_seed` 의 `trade_ids` 비어 있지 않음. **관측되면 이 BL 을 닫고 BL-544 의 검증을 완성으로 표기한다.**
 **Risk:** 🟡 (기전이 틀렸다는 증거는 없다 — 다만 실주행 증거가 없다)
+
+---
+
+### BL-554
+
+**Title:** (P3) pre-push 훅이 **푸시 대상 ref 가 아니라 현재 브랜치**를 봐서 원격 브랜치 삭제까지 막는다
+**Category:** DX / git 훅
+**Priority:** P3
+**Trigger:** 다음에 머지된 stage 브랜치를 원격에서 지울 때
+**Est:** XS
+**출처:** 2026-07-30 conditional-entry-alignment PR #506 머지 후 정리
+
+**원인 / 영향:** `.husky/pre-push` 는 `git symbolic-ref --short HEAD` 로 **현재 브랜치**를 보고 판정한다. 그래서 main 에 서서 `git push origin --delete stage/<theme>` 를 하면 **"main 직접 push 영구 금지"** 로 거부된다 — 실제로는 main 을 밀지 않고 남의 브랜치를 지우는 것인데도. `QB_PRE_PUSH_BYPASS=1` 도 그 분기는 **의도적으로 안 뚫는다**(main 보호는 bypass 불가). 결국 `gh api -X DELETE repos/…/git/refs/heads/<branch>` 로 우회했다.
+
+★**보호 자체는 옳다** — main 직접 push 는 영구 금지가 맞다. 문제는 **판정 대상이 틀렸다**는 것이다.
+
+**권장 접근:** 훅은 stdin 으로 `<local ref> <local sha> <remote ref> <remote sha>` 를 받는다. 그걸 읽어 **실제로 미는 ref** 로 판정하면 된다. 삭제(로컬 sha 가 전부 0)는 애초에 대상 브랜치가 main 일 때만 막으면 된다. 지금은 stdin 을 쓰지 않는다.
+**Risk:** 🟢 (우회 경로가 있고 데이터 위험 없음 — 다만 매번 gh 로 돌아가야 한다)
+
+---
+
+### BL-555
+
+**Title:** (P3) `stage/*` 가 이 레포의 통합 브랜치 관례인데 pre-push 훅 화이트리스트에 없다
+**Category:** DX / git 훅
+**Priority:** P3
+**Trigger:** BL-554 와 함께 (같은 파일)
+**Est:** XS
+**출처:** 2026-07-30 conditional-entry-alignment PR #506 푸시
+
+**원인 / 영향:** ADR-017 이 정한 이 레포의 통합 브랜치는 `stage/<theme>` 인데, `.husky/pre-push` 의 허용 prefix 는 `feat|fix|chore|docs|test|refactor|hotfix` 뿐이라 **관례대로 만든 브랜치를 밀 때마다 `QB_PRE_PUSH_BYPASS=1` 이 필요하다.** bypass 를 습관화하면 그 플래그가 지켜야 할 것(워커 워크트리에서의 오발사)도 함께 무뎌진다.
+
+**권장 접근:** 화이트리스트에 `stage/*` 추가. 그러면 bypass 는 원래 의도대로 **정말 예외적인 경우**에만 쓰인다.
+**Risk:** 🟢
