@@ -385,6 +385,71 @@ qb_live_conditional_sweep_filled_total = Counter(
     "qb_live_conditional_sweep_filled_total",
     "Inactive-session conditional entries found filled during sweep",
 )
+
+# BL-536 — 지금까지 Prometheus 계측이 **0개**였던 침묵 유실 지점 2 곳.
+#
+# ★★두 counter 모두 「유실 건수」가 아니라 **「평가 발화 횟수」**다. 이름이 그렇게 돼 있고,
+#   그 이유가 이 주석의 존재 이유다. `plan_reconcile` 과 `run_live` 는 순수 함수라 상태를
+#   지우지 않는다. 해결되지 않은 leg 는 **매 평가마다** 같은 사유를 다시 만든다 — 특히
+#   `below_exchange_minimum`(전략 수량이 거래소 step 미만이라 이 계정에서 영원히 한 주도
+#   못 낸다)은 **새 bar 마다** 1씩 오른다. 그러면 "시간당 N" 은 유실 의도 N개가 아니라
+#   **한 의도가 N bar 살아 있었다**는 뜻이다.
+#
+# ★**"매 분" 이 아니라 "bar 당" 이다** (BL-536 R2 정정). beat 는 1분마다 깨우지만
+#   `run_live` 는 `no_new_bar` 조기 return **뒤**에만 돈다. 5m 세션이면 5분에 1회,
+#   1h 세션이면 60분에 1회다. 이것을 "매 분" 으로 읽으면 지속시간을 **12~60배 과소평가**한다.
+#   (`gates-and-traps.md` 가 이미 등재한 함정 — "tick 간격을 상수의 근거로 삼기 전에
+#   그 tick 이 실제로 언제 도는지 읽어라".)
+#
+# ★★**두 counter 를 같은 시간축으로 읽지 마라.** 발화 지점이 서로 다른 조기 return 뒤에 있다:
+#     pending_order_skip — `run_live` 직후. runtime divergence / gap mismatch /
+#                          position divergence **앞**이라 그 tick 들도 잡힌다.
+#     plan_drop          — `_reconcile_conditional_entries` 안. 위 셋을 **전부 통과한**
+#                          tick 에서만 오른다. 즉 분모가 더 작다.
+#   같은 창에서 두 값을 나란히 놓고 비율을 만들면 그 비율은 아무것도 뜻하지 않는다.
+#
+#   이것은 `qb_live_position_divergence_total{engine_only}` 이 무효가 된 것과 **같은 유형의
+#   함정**이다(아래 그 counter 주석 참조). 그래서:
+#     - 원장 기반 분해(`trading/entry_completeness.py`)와 **절대 합산하지 마라**.
+#     - 고유 의도 수가 필요하면 원장 분해의 에피소드 수를 봐라. 이 값은 지속시간 신호다.
+#
+# ★기존 `qb_live_conditional_guard_total` 과도 합산하지 마라. `breach_exceeds_cap` 과
+#   `trigger_already_breached`(had_resting) 는 guard 에도 함께 기록되고, `breach_capped` 는
+#   계획기 밖 시장가 전환 직전 재조회에서도 오른다. 두 counter 는 등식 검산 대상이 아니다.
+#
+# ★발화 지점은 라이브 태스크(`tasks/live_signal.py`)다. 계획기와 `pine_v2` 엔진에는 넣지
+#   않는다 — `event_loop.py` 는 백테스트·옵티마이저·스트레스 테스트가 재실행하는 **같은
+#   엔진**이라 거기 계측을 넣으면 백테스트를 돌릴 때마다 라이브 metric 이 발화한다.
+#
+# reason 은 라이브 태스크에서 allowlist 정규화한다(미지 값은 `other`) — cardinality 보호.
+qb_live_conditional_plan_drop_evaluations_total = Counter(
+    "qb_live_conditional_plan_drop_evaluations_total",
+    "조건부 진입 계획기가 leg 를 드롭한 **평가 발화 횟수** (중복 포함, 유실 건수 아님)",
+    # reason ∈ reduce_only_entry_ignored | trigger_already_breached | breach_exceeds_cap
+    #        | below_exchange_minimum | target_already_met_cancelled | entry_side_mismatch
+    #        | other  = 7 series.
+    labelnames=("reason",),
+)
+
+# ★이 counter 는 `run_live` 가 정상 반환한 평가에서만 오른다. 그 뒤의 runtime divergence·
+#   gap mismatch·position divergence 는 각자 조기 return 하므로, 그 tick 들은 여기 안 잡힌다.
+#   발화 지점을 `run_live` 직후로 둔 이유가 그것이다 — 더 앞에는 result 자체가 없다.
+#
+# ★★**트랜잭션 밖이다 — 재시도만큼 중복된다** (BL-536 R3-⑤).
+#   발화 지점이 `try_claim_bar` 뒤 · 단일 commit **앞**이라, 이후 state upsert/commit 이
+#   실패하면 DB claim 은 rollback 되지만 **Counter 증가는 되돌아가지 않는다.** 다음 tick 이
+#   같은 bar 를 재평가하면 이 값만 한 번 더 오른다.
+#   ★고치지 않고 **적어 두는** 쪽을 택했다. commit 뒤로 옮기면 위 조기 return 세 곳
+#   (runtime divergence · gap mismatch · position divergence)의 평가가 **통째로 안 잡힌다** —
+#   그건 이 counter 를 `run_live` 직후에 둔 이유 자체를 되돌리는 것이고, 잃는 정보가 더 크다.
+#   이 counter 는 애초에 「평가 발화 횟수(중복 포함)」계열이므로 중복은 계약 위반이 아니다.
+#   ★다만 **"발화 = 평가 1회" 로 읽지 마라.** commit 실패 재시도가 있으면 발화 수 ≥ 평가 수다.
+qb_live_pending_order_skip_evaluations_total = Counter(
+    "qb_live_pending_order_skip_evaluations_total",
+    "엔진이 pending 진입 leg 를 건너뛴 **평가 발화 횟수** (중복 포함, 유실 건수 아님)",
+    # reason ∈ session_disallowed | invalid_leg | below_api_precision | other = 4 series.
+    labelnames=("reason",),
+)
 qb_trailing_placement_total = Counter(
     "qb_trailing_placement_total",
     "STEP B — fill 후 native trailing-stop placement 결과",
@@ -456,6 +521,20 @@ qb_webhook_symbol_rejected_total = Counter(
 # Sprint 48 Pass 2 — 체결 winner가 주문 수량보다 적은 확정 수량을 받은 경우만 집계.
 # source: rest | ws | watchdog | reconciler.
 # Cardinality: 고정 source 4개 series만 허용한다.
+#
+# ★BL-536 — **무엇을 세지 않는가.** 이 counter 를 진입 부분체결의 측정치로 쓰지 마라.
+#   실측에서 `{ws}` = 19 인데 같은 창의 진입 원장(`reduce_only = false`)에는
+#   `filled_quantity < quantity` 인 행이 **0** 이었다. 모순이 아니라 세는 대상이 다르다.
+#   (a) `reduce_only` 를 검사하지 않는다 — 청산 주문이 그대로 들어온다. 청산 수량은
+#       엔진 값을 그대로 싣고(`tasks/live_signal.py` 의 `Decimal(str(event.qty))`)
+#       거래소 눈금으로 절삭되지 않으므로, **전량 체결이어도** 거래소 확정 수량이
+#       우리 요청값보다 작아 여기서 부분체결로 잡힌다. 조건부 진입은 반대다 —
+#       `conditional_entry_planner.plan_reconcile` 이 `qty_step` 으로 미리 정규화해
+#       발주하므로 그 불일치가 구조적으로 생기지 않는다.
+#   (b) session / strategy / symbol label 이 없다. 어느 세션의 것인지 되짚을 수 없다.
+#   (c) 시간축이 다르다. 이 값은 프로세스 수명 누적이고 발화 시점은 **terminal 시각**인데,
+#       진입 원장 분해는 `created_at` cohort 다. 창 전 생성 - 창 안 체결 행은 한쪽에만 잡힌다.
+#   진입 부분체결은 `trading/entry_completeness.py` 의 원장 분해로 측정한다.
 qb_partial_fill_total = Counter(
     "qb_partial_fill_total",
     "Orders filled with a known quantity below the requested quantity",
