@@ -529,3 +529,190 @@ async def test_normalized_symbols_collide_on_the_active_unique_index(
     )
     with pytest.raises(IntegrityError):
         await db_session.flush()
+
+
+# ── BL-544 R1 — 부분체결된 채 종결된 행은 "체결" 이다 ─────────────────────────
+
+# R1 전용 최소 seed. 기존 `_seed_money_path` 에 행을 더하면 위 합계 단언이 전부 흔들려
+# 대조군이 죽는다. 손익은 여기서도 서로 다른 소수부를 붙여 **어떤 부분합도 유일**하게 뒀다.
+R1_T0 = datetime(2026, 7, 22, 6, 0, tzinfo=UTC)
+
+
+@dataclass(frozen=True, slots=True)
+class _R1Seed:
+    session: LiveSignalSession
+    orders: dict[str, Order]
+
+
+async def _seed_partial_fill_terminals(db_session: AsyncSession) -> _R1Seed:
+    """부분체결분을 보존한 채 취소·거절된 조건부 진입을 실 DB 에 심는다."""
+    user = User(
+        clerk_user_id=f"r1-partial-{uuid4().hex[:8]}",
+        email=f"{uuid4().hex[:8]}@example.com",
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    strategy = Strategy(
+        user_id=user.id,
+        name="r1 partial fill",
+        pine_source="//@version=5\nstrategy('r1')",
+        pine_version=PineVersion.v5,
+        parse_status=ParseStatus.ok,
+    )
+    account = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"k",
+        api_secret_encrypted=b"s",
+    )
+    db_session.add_all([strategy, account])
+    await db_session.flush()
+
+    session = LiveSignalSession(
+        user_id=user.id,
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol=BTC,
+        interval=LiveSignalInterval.m1,
+        created_at=R1_T0,
+    )
+    db_session.add(session)
+    await db_session.flush()
+
+    def _order(
+        *,
+        state: OrderState,
+        filled_quantity: Decimal | None,
+        pnl: str,
+        minutes: int,
+    ) -> Order:
+        return Order(
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol=BTC,
+            side=OrderSide.buy,
+            type=OrderType.market,
+            quantity=Decimal("1"),
+            state=state,
+            filled_quantity=filled_quantity,
+            filled_price=Decimal("64166.9"),
+            realized_pnl=Decimal(pnl),
+            # `filled_at` 은 terminal 시각이다 — 취소·거절에도 채워진다(models.py:263).
+            filled_at=R1_T0 + timedelta(minutes=minutes),
+            created_at=R1_T0,
+        )
+
+    # 정상 체결 — 기존 소비처가 보는 **유일한** 행이어야 한다.
+    filled = _order(
+        state=OrderState.filled, filled_quantity=Decimal("0.02"), pnl="-3.00000003", minutes=1
+    )
+    # 부분체결 뒤 취소 / 거절 — 거래소에는 포지션이 남았다.
+    cancelled_partial = _order(
+        state=OrderState.cancelled,
+        filled_quantity=Decimal("0.009"),
+        pnl="-7.00000007",
+        minutes=2,
+    )
+    rejected_partial = _order(
+        state=OrderState.rejected,
+        filled_quantity=Decimal("0.001"),
+        pnl="-13.00000013",
+        minutes=3,
+    )
+    # 체결분 없는 취소 — 그냥 취소다. 원장 조회에 들어오면 안 된다.
+    cancelled_none = _order(
+        state=OrderState.cancelled, filled_quantity=None, pnl="-29.00000029", minutes=4
+    )
+    cancelled_zero = _order(
+        state=OrderState.cancelled,
+        filled_quantity=Decimal("0"),
+        pnl="-31.00000031",
+        minutes=5,
+    )
+    db_session.add_all(
+        [filled, cancelled_partial, rejected_partial, cancelled_none, cancelled_zero]
+    )
+    await db_session.flush()
+
+    return _R1Seed(
+        session=session,
+        orders={
+            "filled": filled,
+            "cancelled_partial": cancelled_partial,
+            "rejected_partial": rejected_partial,
+            "cancelled_none": cancelled_none,
+            "cancelled_zero": cancelled_zero,
+        },
+    )
+
+
+@pytest.mark.asyncio
+async def test_ledger_scan_sees_fills_stranded_in_cancelled_and_rejected_rows(
+    db_session: AsyncSession,
+) -> None:
+    """R1-① — 부분체결 뒤 취소·거절된 행도 공백 창 원장에 들어온다.
+
+    `filled` 만 보면 거래소에 남은 부분 포지션이 통째로 안 보이고, 엔진이 flat 으로
+    seed 되어 BL-544 가 고치려던 사망이 형제 케이스로 되살아난다.
+    """
+    seed = await _seed_partial_fill_terminals(db_session)
+    repo = OrderRepository(db_session)
+
+    fills = await repo.list_fills_since(
+        SessionScope.from_live_session(seed.session), since=R1_T0
+    )
+
+    assert {fill.order_id for fill in fills} == {
+        seed.orders["filled"].id,
+        seed.orders["cancelled_partial"].id,
+        seed.orders["rejected_partial"].id,
+    }
+    # 체결분이 실제 수량으로 보존된다 — 순포지션 합산의 입력이다.
+    by_id = {fill.order_id: fill for fill in fills}
+    assert by_id[seed.orders["cancelled_partial"].id].filled_quantity == Decimal("0.009")
+    assert by_id[seed.orders["rejected_partial"].id].filled_quantity == Decimal("0.001")
+
+
+@pytest.mark.asyncio
+async def test_ledger_scan_ignores_cancellations_that_never_filled(
+    db_session: AsyncSession,
+) -> None:
+    """R1-① 음성 대조 — `filled_quantity` 가 NULL·0 인 취소는 체결이 아니다.
+
+    이 행을 들이면 없는 포지션을 seed 해 거래소에 있지도 않은 것을 엔진이 믿는다.
+    """
+    seed = await _seed_partial_fill_terminals(db_session)
+    repo = OrderRepository(db_session)
+
+    fills = await repo.list_fills_since(
+        SessionScope.from_live_session(seed.session), since=R1_T0
+    )
+
+    scanned = {fill.order_id for fill in fills}
+    assert seed.orders["cancelled_none"].id not in scanned
+    assert seed.orders["cancelled_zero"].id not in scanned
+
+
+@pytest.mark.asyncio
+async def test_existing_scope_consumers_still_ignore_terminal_non_filled_rows(
+    db_session: AsyncSession,
+) -> None:
+    """R1-④ — 상태 집합을 넓힌 것은 원장 조회뿐이다. 손익 소비처 의미는 그대로다.
+
+    ★이 테스트가 없으면 다음 사람이 `_session_scope_where` 의 **기본값**을 넓혀도 아무도
+    안 깨진다. 그러면 취소·거절 행의 `realized_pnl` 이 loss-limit 게이트와 에쿼티 커브에
+    조용히 합산된다. 손익을 서로 다른 소수부로 심어 둔 이유가 그것이다 — 넓히는 순간
+    합계가 -3.00000003 에서 -83.00000083 로 바뀌어 숫자가 스스로 지목한다.
+    """
+    seed = await _seed_partial_fill_terminals(db_session)
+    repo = OrderRepository(db_session)
+    scope = SessionScope.from_live_session(seed.session)
+
+    split = await repo.realized_pnl_split_for_session(scope)
+    assert split.total == Decimal("-3.00000003")
+    assert (split.confirmed_count, split.estimated_count, split.unrecorded_count) == (0, 1, 0)
+
+    realized = await repo.list_filled_realized_for_session(scope)
+    assert [order.id for order in realized] == [seed.orders["filled"].id]

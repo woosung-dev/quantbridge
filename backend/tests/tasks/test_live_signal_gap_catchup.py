@@ -859,3 +859,79 @@ async def test_state_upsert_records_position_epoch(monkeypatch: pytest.MonkeyPat
     assert result["evaluated"] is True
     report = sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"]
     assert report["_qb_position_epoch"] == t0.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_long_gap_partially_filled_then_cancelled_entry_is_seeded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★R1-③(a) — 부분체결 뒤 취소된 조건부 진입도 seed 되어 세션이 산다.
+
+    거래소에는 부분 포지션(0.009)이 남는데 주문 상태는 `cancelled` 다. 원장 조회가 그 행을
+    못 보던 동안 엔진은 flat 으로 seed 되어 `gap_resync_position_mismatch` 로 죽었다 —
+    BL-544 가 고치려던 그 실패의 형제 케이스다.
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    last_signal = LiveSignal("close", "long", "L", 0.009, 0)
+    sess_repo, event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(
+            last_bar_time=t6,
+            signals=[last_signal],
+            open_trades=[_open_trade(trade_id="L", direction="long", qty=0.009, entry_bar=1)],
+            ledger_seed_applied=("L",),
+        ),
+        inserted_events=[_event(last_signal, sess.id)],
+        ledger_fills=[
+            _fill(
+                session_id=sess.id,
+                side=OrderSide.buy,
+                quantity="0.009",
+                price="64166.9",
+                filled_at=t0 + timedelta(minutes=3),
+            )
+        ],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.009")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    sess_repo.deactivate.assert_not_awaited()
+    event_repo.insert_pending_events.assert_awaited_once()
+    assert [leg.qty for leg in run_kwargs[0]["ledger_seed_legs"]] == [0.009]
+
+
+@pytest.mark.asyncio
+async def test_long_gap_cancellation_without_fill_is_not_seeded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★R1-③(b) 음성 대조 — 체결분 없는 취소는 원장 근거가 아니다.
+
+    조회가 그 행을 걸러내므로 창은 비어 있고, 거래소가 non-flat 이면 **계속 죽어야 한다.**
+    여기서 살아나면 취소된 주문을 포지션으로 지어낸 것이다.
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    sess_repo, event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        # 조회 술어가 걸러낸 결과 = 빈 창.
+        ledger_fills=[],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.009")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result == {"deactivated": "gap_resync_position_mismatch"}
+    assert "ledger_seed_legs" not in run_kwargs[0]
+    sess_repo.deactivate.assert_awaited_once()
+    event_repo.insert_pending_events.assert_not_called()

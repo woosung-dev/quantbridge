@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, select, text, update
+from sqlalchemy import and_, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.trading.models import (
@@ -116,13 +116,34 @@ class LedgerFill:
 LEDGER_FILL_SCAN_LIMIT = 200
 
 
-def _session_scope_where(scope: SessionScope) -> list[Any]:
-    """세션 스코프를 SQL 술어로 번역하는 **유일한** 자리."""
+# 체결분을 **보존한 채** 종결될 수 있는 상태들 (BL-544 R1).
+#
+# `filled` 만 보면 부분체결이 통째로 안 보인다. `transition_to_cancelled` 와
+# `transition_to_rejected` 는 둘 다 `filled_quantity is not None and != 0` 일 때
+# `filled_price`/`filled_quantity` 를 values 에 넣고, `conditional_entry_janitor.py:132-146`
+# 이 거래소 probe 의 부분체결 수량을 그 두 전이 모두에 넘긴다. 즉 **거래소에는 포지션이
+# 남았는데 상태는 `cancelled`** 인 행이 실재한다.
+_STATES_THAT_CAN_CARRY_FILLS = (OrderState.filled, OrderState.cancelled, OrderState.rejected)
+
+
+def _session_scope_where(
+    scope: SessionScope, *, states: Sequence[OrderState] = (OrderState.filled,)
+) -> list[Any]:
+    """세션 스코프를 SQL 술어로 번역하는 **유일한** 자리.
+
+    `states` 기본값이 `(filled,)` 라 기존 3 소비처(`list_filled_realized_for_session` ·
+    `realized_pnl_split_for_session`)는 인자를 주지 않아 **동작이 불변**이다. 술어를 복사해
+    두 벌로 만드는 대신 파라미터로 연 이유가 그것이다 — 스코프 SQL 번역은 계속 이 자리 하나다.
+
+    ★`filled_at` 은 이름과 달리 **terminal 시각**이다. `transition_to_{filled,rejected,
+    cancelled}` 가 모두 이 컬럼에 쓴다(`models.py:263-265` 주석이 명시한다). 그래서 창
+    술어(`>= started_at` / `< ended_at`)는 상태 집합을 넓혀도 그대로 유효하다.
+    """
     predicates: list[Any] = [
         Order.strategy_id == scope.strategy_id,
         Order.exchange_account_id == scope.exchange_account_id,
         Order.symbol == scope.symbol,
-        Order.state == OrderState.filled,
+        Order.state.in_(states),  # type: ignore[attr-defined]
         Order.filled_at.is_not(None),  # type: ignore[union-attr]
         Order.filled_at >= scope.started_at,  # type: ignore[operator]
     ]
@@ -343,6 +364,17 @@ class OrderRepository:
 
         ★`limit + 1` 건을 가져온다. 호출부가 `len(rows) > limit` 으로 절단을 감지해
         fail-closed 하기 위한 것이다 — 조용한 절단은 부분 원장을 온전한 원장으로 위장한다.
+
+        ★**`filled` 상태만 보면 안 된다** (R1). 부분체결 뒤 취소·거절된 조건부 진입은
+        `filled` 이 아니면서 체결분을 보존한다(`_STATES_THAT_CAN_CARRY_FILLS` 주석 참조).
+        그 행을 못 보면 거래소에는 부분 포지션이 남았는데 엔진은 flat 으로 seed 되어
+        **BL-544 가 고치려던 그 사망이 형제 케이스로 되살아난다.**
+
+        상태를 넓히는 대신 조건 하나를 함께 건다 — `filled` 이거나, **체결분이 실제로
+        남아 있는** 종결 행이거나. `filled_quantity` 가 NULL·0 인 취소·거절은 체결이 아니라
+        그냥 취소이므로 들어오지 않는다. 반대로 `filled` 인데 `filled_quantity` 가 NULL 인
+        행은 **일부러 통과시킨다** — 호출부가 그것을 "판독 불가" 로 보고 seed 를 포기하는
+        fail-closed 입력이며, 여기서 조용히 빼면 그 행은 "체결 없음" 으로 위장된다.
         """
         stmt = (
             select(
@@ -354,7 +386,16 @@ class OrderRepository:
                 cast(Any, Order.filled_at),
                 cast(Any, Order.reduce_only),
             )
-            .where(*_session_scope_where(scope))
+            .where(*_session_scope_where(scope, states=_STATES_THAT_CAN_CARRY_FILLS))
+            .where(
+                or_(
+                    Order.state == OrderState.filled,  # type: ignore[arg-type]
+                    and_(
+                        Order.filled_quantity.is_not(None),  # type: ignore[union-attr]
+                        Order.filled_quantity != 0,  # type: ignore[arg-type]
+                    ),
+                )
+            )
             .where(Order.filled_at >= since)  # type: ignore[operator, arg-type]
             .order_by(
                 Order.filled_at.asc(),  # type: ignore[union-attr]
