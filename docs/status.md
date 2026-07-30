@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-07-30 (**close-mismatch-visibility** — ★★★**재던 곳에 없었다.** C2 는 유실 채널이 아니라 **청산 횟수**였고, 진짜 신호는 `110017` 두 갈래가 **한 라벨에 묻혀** 있었다)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `feat/entry-defer-convergence` — PR 대기.
+> **미머지:** `feat/entry-defer-convergence` → **PR #511** (커밋 3개 @99f12d98). squash 는 사용자.
 > **Last Merged:** `stage/live-entry-completeness` → `main@f8706618` (PR #509, 2026-07-30 · **마이그레이션 0**) · 그 앞 `stage/conditional-entry-alignment` → `main@fa603ca4` (PR #506 · 마이그레이션 1 `20260730_0001`) · `feat/final-gates` → `main@103f9c30` (PR #505)
 > **Last Merged:** `fix/bl530-review-followups` → `main@004c374f` (PR #498) · 그 앞 `feat/live-close-completeness` → `main@178d24ef` (PR #497)
 
