@@ -22,6 +22,7 @@
 - qb_partial_fill_total              (Counter, labels: source)          ← Sprint 48 Pass 2
 - qb_exchange_order_response_total  (Counter, labels: exchange, outcome, reason) ← BL-512
 - qb_live_conditional_guard_total   (Counter, labels: outcome)          ← BL-512
+- qb_live_conditional_reversal_total (Counter, labels: bucket)          ← BL-516
 
 원칙:
 - `PROMETHEUS_MULTIPROC_DIR` 설정 시 shared multiprocess registry, 미설정 시 기본 `REGISTRY`.
@@ -38,7 +39,8 @@ BL-512 label cardinality:
   최대 4 x 3 x 14 = 168 series.
 - qb_live_conditional_guard_total: outcome ∈ {conditional_placed, market_converted,
   breach_capped, breach_with_resting, reference_unavailable, convert_suppressed,
-  breach_reverted} = 7. 최대 7 series.
+  breach_reverted, bracket_attached, bracket_unavailable, bracket_tp_dropped_size,
+  bracket_trailing_only_dropped} = 11. 최대 11 series.
 
 `ccxt_timer` context manager 는 Bybit/OKX provider 에서 CCXT 호출을 감싸는 데 사용.
 """
@@ -67,6 +69,18 @@ _LIVE_CONDITIONAL_GUARD_OUTCOMES: frozenset[str] = frozenset(
         "reference_unavailable",
         "convert_suppressed",
         "breach_reverted",
+        # BL-523 — 조건부 진입에 브래킷을 실을 수 있었는가. ★`bracket_unavailable` 이
+        # 이 4종의 존재 이유다. 조건부 진입은 체결 전까지 `open_trades` 에 없고
+        # `place_exit` 는 `open_trades` 만 타깃하므로(`strategy_state.py:963`)
+        # `exit_levels_for` 가 항상 `(None, None, None)` 을 준다 — 즉 배관을 깔아도
+        # 실을 것이 없다. 그 "없음" 을 추측이 아니라 관측으로 만드는 것이 이 라벨이다.
+        "bracket_attached",
+        "bracket_unavailable",
+        # TP 만 드롭(SL 유지). `_merge_exit_params` 가 `tpSize = 주문수량` 을 넣는데
+        # 반전이면 주문수량 > 체결 후 포지션이라 거래소가 진입 자체를 거부한다.
+        "bracket_tp_dropped_size",
+        # 고정 SL 없는 트레일링 단독 = 체결되면 무방비 포지션. leg 를 등재하지 않는다.
+        "bracket_trailing_only_dropped",
     }
 )
 
@@ -410,6 +424,31 @@ qb_live_conditional_sweep_filled_total = Counter(
     "Inactive-session conditional entries found filled during sweep",
 )
 
+# BL-516 안 3 — 부호가 교차하는 조건부 진입(반전)을 **등재한 횟수**와 그 크기.
+#
+# ★수량 산식은 의도적으로 바꾸지 않았다. `plan_reconcile` 은 `abs(target - current)` 한 건을
+#   그대로 내보내고 `reduce_only=False` 도 그대로다. leg 분리(청산 leg + 진입 leg)는
+#   `Order.reduce_only.is_(False)` 술어 4곳(`order_repository.py:275/315/347/513`)이 청산 leg 를
+#   reconciler·sweep·janitor·진입원장에서 전부 배제해 고아 주문을 낳고, 같은 trigger 가의
+#   조건부 2건은 체결 순서가 보장되지 않아 `110017 same-side` 를 늘리기 때문이다.
+#   그래서 이 counter 는 **고치기 전에 크기부터 재는** 계측기다.
+#
+# ★`bucket` 은 overshoot 비율 `주문수량 / |목표 포지션|` 의 하한이다. `1x` 는 반전이지만
+#   보유가 미미해 순수 진입과 사실상 같은 경우(예: 목표 -8, 보유 +0.001 -> 비율 1.0001)다.
+#   순수 진입(비율 정확히 1.0)은 부호 교차가 아니므로 **여기서 세지 않는다** — 분모가 필요하면
+#   `qb_live_conditional_placed_total` 을 봐라.
+#
+# ★유실 건수가 아니라 **등재 성공 횟수**다. 발화 지점이 `order_service.execute` 직후라
+#   캡(`max_reversal_overshoot_ratio`)에 막혀 등재되지 않은 반전은 여기 없다 —
+#   그쪽은 `qb_live_conditional_plan_drop_evaluations_total{reversal_overshoot_exceeds_cap}` 이다.
+#
+# Cardinality: bucket ∈ {1x, 2x, 4x, 8x+} = 4 series.
+qb_live_conditional_reversal_total = Counter(
+    "qb_live_conditional_reversal_total",
+    "부호가 교차하는 조건부 진입을 등재한 횟수 (overshoot 비율 버킷별)",
+    labelnames=("bucket",),
+)
+
 # BL-536 — 지금까지 Prometheus 계측이 **0개**였던 침묵 유실 지점 2 곳.
 #
 # ★★두 counter 모두 「유실 건수」가 아니라 **「평가 발화 횟수」**다. 이름이 그렇게 돼 있고,
@@ -451,7 +490,7 @@ qb_live_conditional_plan_drop_evaluations_total = Counter(
     "조건부 진입 계획기가 leg 를 드롭한 **평가 발화 횟수** (중복 포함, 유실 건수 아님)",
     # reason ∈ reduce_only_entry_ignored | trigger_already_breached | breach_exceeds_cap
     #        | below_exchange_minimum | target_already_met_cancelled | entry_side_mismatch
-    #        | other  = 7 series.
+    #        | reversal_overshoot_exceeds_cap | other  = 8 series.
     labelnames=("reason",),
 )
 

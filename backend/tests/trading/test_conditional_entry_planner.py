@@ -63,6 +63,7 @@ def _plan(
     price_tick: Decimal = Decimal("1"),
     reference_price: Decimal | None = None,
     max_breach_pct: Decimal | None = None,
+    max_reversal_overshoot_ratio: Decimal | None = None,
     allow_market_conversion: bool = True,
 ):
     return plan_reconcile(
@@ -73,6 +74,7 @@ def _plan(
         price_tick=price_tick,
         reference_price=reference_price,
         max_breach_pct=max_breach_pct,
+        max_reversal_overshoot_ratio=max_reversal_overshoot_ratio,
         allow_market_conversion=allow_market_conversion,
     )
 
@@ -88,6 +90,18 @@ def test_new_entry_places_delta_from_current_position() -> None:
 
 
 def test_reversal_uses_full_target_delta() -> None:
+    """★BL-516 안 3 판정의 수호자 — 수량은 **의도적으로 합쳐진 채** 둔다.
+
+    반전 주문 1건이 청산과 진입을 합쳐 내는 것을 안 3 은 고치지 않기로 판정했다.
+    쪼개는 대신 **계측으로 크기를 잰다**(`crosses_zero` / `overshoot_ratio`). 근거:
+    leg 분리는 `Order.reduce_only.is_(False)` 술어 4곳
+    (`order_repository.py:275/315/347/513`)이 청산 leg 를 reconciler·sweep·janitor·
+    진입원장에서 전부 배제해 고아 주문을 낳고, 같은 trigger 가의 조건부 2건은 체결
+    순서가 보장되지 않아 `110017 same-side` 를 늘린다.
+
+    ⇒ 이 테스트가 깨지면 안 3 의 핵심 계약이 깨진 것이다. 계측을 더하는 변경이
+    수량을 건드리지 않았는지를 여기서 잠근다.
+    """
     # 손계산 오라클은 2의 거듭제곱만 쓴다. 정답 16은 오답 8, 24, 0과 서로 다르다.
     plan = _plan([_desired(direction="short", target=Decimal("-8"))], [], current=Decimal("8"))
 
@@ -451,3 +465,129 @@ def test_reference_price_omitted_keeps_previous_behaviour() -> None:
 
     assert [e.trade_id for e in plan.to_place] == ["entry"]
     assert plan.divergences == ()
+
+
+# ── BL-516 안 3: 반전 계측 + 선택적 캡 ──────────────────────────────────────
+
+
+def test_reversal_is_labelled_with_its_overshoot_size() -> None:
+    """반전은 부호 교차로 판정하고 크기는 비율로 잰다. 목표 -8 / 보유 +8 -> 16 / 8 = 2."""
+    plan = _plan([_desired(direction="short", target=Decimal("-8"))], [], current=Decimal("8"))
+
+    planned = plan.to_place[0]
+    assert planned.crosses_zero is True
+    assert planned.overshoot_ratio == Decimal("2")
+    # 체결 후 포지션은 -8 이므로 크기 8 — 주문수량 16 과 다르다(그래서 tpSize 가 어긋난다).
+    assert planned.resulting_position_qty == Decimal("8")
+
+
+def test_flat_entry_is_not_a_reversal_and_scores_exactly_one() -> None:
+    """대조군 — 무포지션에서의 진입은 부호 교차가 아니고 비율이 정확히 1.0 이다."""
+    plan = _plan([_desired(target=Decimal("8"))], [], current=Decimal("0"))
+
+    planned = plan.to_place[0]
+    assert planned.crosses_zero is False
+    assert planned.overshoot_ratio == Decimal("1")
+    assert planned.resulting_position_qty == planned.quantity == Decimal("8")
+
+
+def test_resulting_position_uses_normalized_fill_not_raw_target() -> None:
+    """★눈금 미정렬 목표에서 `abs(target_position)` 을 쓰면 순수 진입까지 불일치로 보인다.
+
+    percent_of_equity 사이징은 소수 20자리를 만든다(`event_loop.py` 주석의 실측
+    0.00029537036490054884). 발주 수량은 `qty_step` 으로 절삭되므로 체결 후 포지션은
+    목표가 아니라 **절삭된 수량**이다. 그 둘을 혼동하면 tpSize 게이트가 반전이 아닌
+    진입에서도 TP 를 떨어뜨린다.
+    """
+    plan = _plan([_desired(target=Decimal("0.02953691"))], [], qty_step=Decimal("0.001"))
+
+    planned = plan.to_place[0]
+    assert planned.quantity == Decimal("0.029")
+    assert planned.resulting_position_qty == Decimal("0.029")
+    assert planned.crosses_zero is False
+
+
+def test_reversal_overshoot_cap_drops_the_leg_and_cancels_resting() -> None:
+    """캡 활성 — 초과 반전은 등재하지 않고, 같은 의도의 resting 도 걷어낸다.
+
+    남겨두면 그게 체결돼 방금 거부한 반전을 그대로 실행한다.
+    """
+    plan = _plan(
+        [_desired(direction="short", target=Decimal("-8"), stop=Decimal("64"))],
+        [_actual(side="sell", quantity=Decimal("16"), stop=Decimal("64"), trigger_direction=2)],
+        current=Decimal("8"),
+        max_reversal_overshoot_ratio=Decimal("1.5"),
+    )
+
+    assert plan.to_place == ()
+    assert [entry.order_id for entry in plan.to_cancel] == ["local-entry"]
+    divergence = plan.divergences[0]
+    assert divergence["reason"] == "reversal_overshoot_exceeds_cap"
+    assert divergence["overshoot_ratio"] == "2"
+    assert divergence["max_reversal_overshoot_ratio"] == "1.5"
+
+
+def test_reversal_overshoot_cap_at_the_boundary_still_places() -> None:
+    """경계는 초과가 아니다 — 비율 2 에 캡 2 면 그대로 등재한다."""
+    plan = _plan(
+        [_desired(direction="short", target=Decimal("-8"))],
+        [],
+        current=Decimal("8"),
+        max_reversal_overshoot_ratio=Decimal("2"),
+    )
+
+    assert [entry.trade_id for entry in plan.to_place] == ["entry"]
+    assert plan.divergences == ()
+
+
+def test_reversal_overshoot_cap_defaults_to_disabled() -> None:
+    """★회귀 0 — 캡 미지정이면 비율 4 짜리 반전도 그대로 나간다(기존 동작 불변)."""
+    plan = _plan([_desired(direction="short", target=Decimal("-8"))], [], current=Decimal("24"))
+
+    planned = plan.to_place[0]
+    assert planned.quantity == Decimal("32")
+    assert planned.overshoot_ratio == Decimal("4")
+    assert plan.divergences == ()
+
+
+def test_cap_never_blocks_a_non_reversal_entry() -> None:
+    """캡은 반전 전용이다 — 같은 방향 증량은 비율이 1 이하라 캡과 무관하다."""
+    plan = _plan(
+        [_desired(target=Decimal("8"))],
+        [],
+        current=Decimal("4"),
+        max_reversal_overshoot_ratio=Decimal("1"),
+    )
+
+    planned = plan.to_place[0]
+    assert planned.crosses_zero is False
+    assert planned.quantity == Decimal("4")
+    assert plan.divergences == ()
+
+
+def test_exit_levels_pass_through_the_planner_untouched() -> None:
+    """계획기는 브래킷을 **판단하지 않는다** — 그대로 통과시킨다(순수 함수 유지)."""
+    desired = PendingOrderSnapshot(
+        trade_id="entry",
+        direction="long",
+        target_position=Decimal("8"),
+        entry_qty=Decimal("8"),
+        stop_price=Decimal("128"),
+        placed_bar=1,
+        take_profit=Decimal("192"),
+        stop_loss=Decimal("64"),
+        trailing_stop=Decimal("4"),
+    )
+
+    planned = _plan([desired], []).to_place[0]
+
+    assert planned.take_profit == Decimal("192")
+    assert planned.stop_loss == Decimal("64")
+    assert planned.trailing_stop == Decimal("4")
+
+
+def test_exit_levels_default_to_none_when_engine_supplies_none() -> None:
+    """회귀 0 — 엔진이 안 주면 세 필드는 None 이다(조건부 진입의 현재 상태)."""
+    planned = _plan([_desired()], []).to_place[0]
+
+    assert (planned.take_profit, planned.stop_loss, planned.trailing_stop) == (None, None, None)

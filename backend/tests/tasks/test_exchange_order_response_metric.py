@@ -329,3 +329,18 @@ async def test_metric_failure_does_not_break_order_path(
     assert result["state"] == "submitted"
     harness.provider.create_order.assert_awaited_once()
     harness.repo.attach_exchange_order_id.assert_awaited_once()
+
+
+def test_guard_metric_accepts_bracket_outcomes() -> None:
+    """★BL-523 — allowlist 등재가 호출부보다 먼저다.
+
+    `_GuardOutcomeCounter` 는 미등재 outcome 에 `ValueError` 를 던진다. 호출부를 먼저
+    쓰면 그 예외가 `_count_safely` 에 삼켜져(BL-536 규칙) 계측이 조용히 0 으로 남는다.
+    """
+    for outcome in (
+        "bracket_attached",
+        "bracket_unavailable",
+        "bracket_tp_dropped_size",
+        "bracket_trailing_only_dropped",
+    ):
+        qb_live_conditional_guard_total.labels(outcome=outcome)
