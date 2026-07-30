@@ -48,9 +48,9 @@ async def test_backtest_with_timescale_provider_cache_miss_then_hit(
     assert list(df1.columns) == ["open", "high", "low", "close", "volume"]
     assert mock_ccxt.fetch_ohlcv.call_count == 1
 
-    # DB에 실제 insert됐는지 확인
+    # DB에 실제 insert됐는지 확인 — 저장 키는 상품 표기다 (BL-535).
     cached = await repo.get_range(
-        "BTC/USDT", "1h", base, base + timedelta(hours=hours - 1)
+        "BTC/USDT:USDT", "1h", base, base + timedelta(hours=hours - 1)
     )
     assert len(cached) == hours
 

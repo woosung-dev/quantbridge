@@ -53,6 +53,7 @@
 | [`reference/system-architecture.md`](./reference/system-architecture.md)                                           | C4 다이어그램 + 인증/에러 경계                     |
 | [`reference/supported-indicators.md`](./reference/supported-indicators.md)                                         | 지원 지표 목록 (엔진 에러 메시지가 인용)           |
 | [`reference/endpoints.md`](./reference/endpoints.md)                                                               | API 엔드포인트 스펙                                |
+| [`reference/instrument-symbol-boundary.md`](./reference/instrument-symbol-boundary.md)                             | `BTC/USDT` vs `BTC/USDT:USDT` 경계 (BL-530/535)    |
 | [`guides/sprint-template.md`](./guides/sprint-template.md)                                                         | sprint 종료 sweep — **§9 문서 생명주기 종결 포함** |
 | [`guides/generator-evaluator-pipeline.md`](./guides/generator-evaluator-pipeline.md)                               | 구현=codex / 판정=Claude 분리 파이프라인 (G0~G8)   |
 | [`decisions/003-pine-runtime-safety-and-parser-scope.md`](./decisions/003-pine-runtime-safety-and-parser-scope.md) | ADR-003: Pine 런타임 안전성 + 파서 범위            |

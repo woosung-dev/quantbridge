@@ -62,14 +62,13 @@ def _session(*, last_evaluated_bar_time: datetime | None) -> SimpleNamespace:
         symbol="BTC/USDT",
         interval=LiveSignalInterval.m1,
         is_active=True,
+        created_at=datetime(2026, 5, 1, tzinfo=UTC),
         last_evaluated_bar_time=last_evaluated_bar_time,
         equity_baseline_usdt=Decimal("8192"),
     )
 
 
-def _strategy(
-    strategy_id: object, *, fill_timing: str | None = None
-) -> SimpleNamespace:
+def _strategy(strategy_id: object, *, fill_timing: str | None = None) -> SimpleNamespace:
     settings: dict[str, object] = {
         "leverage": 2,
         "margin_mode": "cross",
@@ -121,6 +120,7 @@ def _install_evaluation(
     run_result: LiveSignalResult,
     inserted_events: list[SimpleNamespace],
     fill_timing: str | None = None,
+    previous_state: object | None = None,
 ) -> tuple[AsyncMock, AsyncMock, list[dict[str, Any]]]:
     """평가 경로를 메모리 의존성으로 고정하고 run_live kwargs를 수집한다."""
     _patch_engine(monkeypatch)
@@ -128,7 +128,7 @@ def _install_evaluation(
     sess_repo.get_by_id = AsyncMock(return_value=sess)
     sess_repo.try_claim_bar = AsyncMock(return_value=True)
     sess_repo.deactivate = AsyncMock(return_value=1)
-    sess_repo.get_state = AsyncMock(return_value=None)
+    sess_repo.get_state = AsyncMock(return_value=previous_state)
     sess_repo.upsert_state = AsyncMock()
     sess_repo.commit = AsyncMock()
     event_repo = AsyncMock()
@@ -160,7 +160,9 @@ def _install_evaluation(
     monkeypatch.setattr(
         account_repo_module, "ExchangeAccountRepository", MagicMock(return_value=account_repo)
     )
-    monkeypatch.setattr(strategy_repo_module, "StrategyRepository", MagicMock(return_value=strategy_repo))
+    monkeypatch.setattr(
+        strategy_repo_module, "StrategyRepository", MagicMock(return_value=strategy_repo)
+    )
     provider = SimpleNamespace(fetch_ohlcv=AsyncMock(return_value=rows))
     monkeypatch.setattr(celery_module, "get_ccxt_provider_for_worker", lambda: provider)
     captured_kwargs: list[dict[str, Any]] = []
@@ -172,8 +174,12 @@ def _install_evaluation(
     monkeypatch.setattr(event_loop_module, "run_live", fake_run_live)
     monkeypatch.setattr(live_signal_module, "publish_realtime", AsyncMock())
     monkeypatch.setattr(live_signal_module, "_reconcile_conditional_entries", AsyncMock())
-    monkeypatch.setattr(live_signal_module.dispatch_live_signal_event_task, "apply_async", MagicMock())
-    monkeypatch.setattr(live_signal_module.sweep_conditional_entries_task, "apply_async", MagicMock())
+    monkeypatch.setattr(
+        live_signal_module.dispatch_live_signal_event_task, "apply_async", MagicMock()
+    )
+    monkeypatch.setattr(
+        live_signal_module.sweep_conditional_entries_task, "apply_async", MagicMock()
+    )
     monkeypatch.setattr(live_signal_module, "send_rule_alert", AsyncMock(return_value={}))
     return sess_repo, event_repo, captured_kwargs
 
@@ -236,10 +242,14 @@ async def test_short_gap_catches_up_two_bars_without_duplicate_keys(
             "pyramiding": None,
             "fill_timing": "bar_close",
             "emit_from_bar_time": t0,
+            "position_epoch": t0,
         }
     ]
     payload = event_repo.insert_pending_events.await_args.kwargs["signals"]
-    keys = {(signal["bar_time"], signal["sequence_no"], signal["action"], signal["trade_id"]) for signal in payload}
+    keys = {
+        (signal["bar_time"], signal["sequence_no"], signal["action"], signal["trade_id"])
+        for signal in payload
+    }
     assert len(payload) == len(keys) == 2
     sess_repo.deactivate.assert_not_awaited()
 
@@ -257,7 +267,11 @@ async def test_long_gap_both_flat_resyncs_without_deactivation(
         monkeypatch,
         sess=sess,
         rows=_rows(t0, t6),
-        run_result=_result(last_bar_time=t6, signals=[last_signal]),
+        run_result=_result(
+            last_bar_time=t6,
+            signals=[last_signal],
+            open_trades=[{"id": "B", "direction": "long", "entry_bar": 1}],
+        ),
         inserted_events=[_event(last_signal, sess.id)],
     )
     _patch_positions(monkeypatch, positions=[])
@@ -266,8 +280,76 @@ async def test_long_gap_both_flat_resyncs_without_deactivation(
 
     assert result["evaluated"] is True
     assert "emit_from_bar_time" not in run_kwargs[0]
+    assert run_kwargs[0]["position_epoch"] == t6
     sess_repo.deactivate.assert_not_awaited()
     sess_repo.try_claim_bar.assert_awaited_once_with(sess.id, t6, ANY)
+
+
+@pytest.mark.asyncio
+async def test_long_gap_exchange_flat_realigns_stored_epoch_to_last_bar(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """state 행이 있어도 장기 공백의 실제 flat은 저장 epoch 대신 마지막 bar를 쓴다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    stored_epoch = t0 - timedelta(hours=1)
+    sess = _session(last_evaluated_bar_time=t0)
+    last_signal = LiveSignal("entry", "long", "B", 1.0, 0)
+    sess_repo, event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(
+            last_bar_time=t6,
+            signals=[last_signal],
+            open_trades=[{"id": "B", "direction": "long", "entry_bar": 1}],
+        ),
+        inserted_events=[_event(last_signal, sess.id)],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={"_qb_position_epoch": stored_epoch.isoformat()},
+            equity_curve=None,
+        ),
+    )
+    _patch_positions(monkeypatch, positions=[])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    assert run_kwargs[0]["position_epoch"] == t6
+    assert run_kwargs[0]["position_epoch"] != stored_epoch
+    sess_repo.deactivate.assert_not_awaited()
+    event_repo.insert_pending_events.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_short_gap_keeps_stored_epoch_when_state_exists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """짧은 공백은 저장된 epoch을 유지해 장기 flat realign과 구분한다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t1 = t0 + timedelta(minutes=1)
+    stored_epoch = t0 - timedelta(hours=1)
+    sess = _session(last_evaluated_bar_time=t0)
+    last_signal = LiveSignal("entry", "long", "B", 1.0, 0, bar_time=t1)
+    sess_repo, event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t1),
+        run_result=_result(last_bar_time=t1, signals=[last_signal]),
+        inserted_events=[_event(last_signal, sess.id)],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={"_qb_position_epoch": stored_epoch.isoformat()},
+            equity_curve=None,
+        ),
+    )
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    assert run_kwargs[0]["position_epoch"] == stored_epoch
+    assert run_kwargs[0]["position_epoch"] != t1
+    sess_repo.deactivate.assert_not_awaited()
+    event_repo.insert_pending_events.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -296,6 +378,30 @@ async def test_long_gap_position_mismatch_deactivates_with_reason(
 
 
 @pytest.mark.asyncio
+async def test_long_gap_position_fetch_failure_deactivates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """거래소 조회 실패는 flat으로 간주하지 않아 장기 공백을 fail-closed 처리한다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    sess_repo, event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+    )
+    _patch_positions(monkeypatch, positions=Exception("boom"))
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result == {"deactivated": "gap_resync_position_mismatch"}
+    sess_repo.deactivate.assert_awaited_once()
+    event_repo.insert_pending_events.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_new_session_never_catches_up_warmup_bars(monkeypatch: pytest.MonkeyPatch) -> None:
     """신규 세션은 300 bar warmup에 신호가 있어도 마지막 bar만 발행한다."""
     t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
@@ -315,7 +421,9 @@ async def test_new_session_never_catches_up_warmup_bars(monkeypatch: pytest.Monk
     assert "emit_from_bar_time" not in run_kwargs[0]
 
 
-def _patch_positions(monkeypatch: pytest.MonkeyPatch, *, positions: list[object] | Exception) -> None:
+def _patch_positions(
+    monkeypatch: pytest.MonkeyPatch, *, positions: list[object] | Exception
+) -> None:
     """장기 resync와 dispatch close 가드가 공유하는 거래소 포지션 조회를 대체한다."""
     provider = SimpleNamespace(fetch_open_positions=AsyncMock())
     if isinstance(positions, Exception):
@@ -393,9 +501,15 @@ def _install_dispatch(
     monkeypatch.setattr(
         sess_repo_module, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
     )
-    monkeypatch.setattr(strategy_repo_module, "StrategyRepository", MagicMock(return_value=strategy_repo))
-    monkeypatch.setattr(account_repo_module, "ExchangeAccountRepository", MagicMock(return_value=AsyncMock()))
-    monkeypatch.setattr(kse_repo_module, "KillSwitchEventRepository", MagicMock(return_value=AsyncMock()))
+    monkeypatch.setattr(
+        strategy_repo_module, "StrategyRepository", MagicMock(return_value=strategy_repo)
+    )
+    monkeypatch.setattr(
+        account_repo_module, "ExchangeAccountRepository", MagicMock(return_value=AsyncMock())
+    )
+    monkeypatch.setattr(
+        kse_repo_module, "KillSwitchEventRepository", MagicMock(return_value=AsyncMock())
+    )
     monkeypatch.setattr(order_repo_module, "OrderRepository", MagicMock(return_value=AsyncMock()))
     monkeypatch.setattr(order_service_module, "OrderService", OrderServiceSpy)
     return event_repo, calls
@@ -444,26 +558,52 @@ async def test_entry_does_not_fetch_positions(monkeypatch: pytest.MonkeyPatch) -
 
 
 @pytest.mark.asyncio
-async def test_long_gap_with_simulated_position_deactivates_even_if_exchange_flat(
+async def test_long_gap_exchange_flat_realigns_epoch_instead_of_deactivating(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """★불일치의 나머지 절반 - 거래소는 flat 인데 시뮬이 포지션을 들고 있는 경우.
-
-    조용히 이어가면 엔진은 보유 중이라 믿고 청산을 발주하는데 거래소엔 보유분이 없어
-    reduce_only 가 거부된다(BL-488 이 만들던 바로 그 orphan close).
-    """
+    """거래소 flat 장기 공백은 마지막 bar epoch으로 정렬해 정상 진행한다."""
     t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
     t6 = t0 + timedelta(minutes=6)
     sess = _session(last_evaluated_bar_time=t0)
     last_signal = LiveSignal("close", "long", "B", 1.0, 0)
-    sess_repo, _event_repo, _run_kwargs = _install_evaluation(
+    sess_repo, event_repo, run_kwargs = _install_evaluation(
         monkeypatch,
         sess=sess,
         rows=_rows(t0, t6),
         run_result=_result(
             last_bar_time=t6,
             signals=[last_signal],
-            open_trades=[{"id": "B", "direction": "long"}],
+            open_trades=[],
+        ),
+        inserted_events=[_event(last_signal, sess.id)],
+    )
+    _patch_positions(monkeypatch, positions=[])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    assert run_kwargs[0]["position_epoch"] == t6
+    sess_repo.deactivate.assert_not_awaited()
+    event_repo.insert_pending_events.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_long_gap_exchange_flat_with_carried_position_still_deactivates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """마지막 bar 이전 entry는 epoch 배선 회귀를 잡기 위해 계속 fail-closed 한다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    last_signal = LiveSignal("close", "long", "B", 1.0, 0)
+    sess_repo, event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(
+            last_bar_time=t6,
+            signals=[last_signal],
+            open_trades=[{"id": "B", "direction": "long", "entry_bar": 0}],
         ),
         inserted_events=[_event(last_signal, sess.id)],
     )
@@ -473,3 +613,24 @@ async def test_long_gap_with_simulated_position_deactivates_even_if_exchange_fla
 
     assert result == {"deactivated": "gap_resync_position_mismatch"}
     sess_repo.deactivate.assert_awaited_once()
+    event_repo.insert_pending_events.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_state_upsert_records_position_epoch(monkeypatch: pytest.MonkeyPatch) -> None:
+    """성공 평가 state JSONB는 다음 재생이 재사용할 epoch을 보존한다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    sess = _session(last_evaluated_bar_time=None)
+    sess_repo, _event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0),
+        run_result=_result(last_bar_time=t0, signals=[]),
+        inserted_events=[],
+    )
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    report = sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"]
+    assert report["_qb_position_epoch"] == t0.isoformat()

@@ -232,10 +232,55 @@ _POSITION_SIZE_REL_TOL = Decimal("0.05")
 # 표시한다. 엔진 키와 충돌하면 그 순간 판정이 조용히 틀리므로 이름을 겹치게 두지 마라.
 _DIRECTION_MISMATCH_KEY = "_qb_direction_mismatch_seen"
 
+# position epoch 은 마지막 성공 평가 이후 실제 outbox 발행을 허용한 시각이다. 기존 JSONB
+# 리포트에만 저장하므로 마이그레이션 없이 재생 포지션을 거래소 상태와 정렬할 수 있다.
+_POSITION_EPOCH_KEY = "_qb_position_epoch"
+
 # 거래소를 못 읽어 **판정 자체를 못 한** 경우. "불일치 없음"(None)과 반드시 구분해야 한다 —
 # 둘을 합치면 REST 가 한 번 흔들릴 때마다 직전 strike 가 지워져, 진짜 지속 발산이
 # 영원히 2회차에 도달하지 못한다(가드가 조용히 무력화된다).
 _PROBE_FAILED = "probe_failed"
+
+
+def _resolve_position_epoch(
+    previous_report: object,
+    *,
+    session_created_at: datetime,
+    last_bar_time: datetime,
+    has_previous_state: bool,
+    realign: bool,
+) -> datetime:
+    """이번 live 재생이 포지션을 쌓기 시작할 aware UTC epoch 을 고른다.
+
+    realign 은 장기 공백 뒤 거래소가 실제 flat 인 경우라 마지막 bar 부터 새로 시작한다.
+    has_previous_state=False 는 반드시 첫 평가라는 뜻이 아니라, 성공 평가 전과 가까운
+    상태다. state 행은 DB가 강제하지 않아 이전 평가가 있어도 없을 수 있다. 저장된 epoch
+    이 없거나 손상됐으면 session_created_at 으로 돌아가 재생 상태를 보수적으로 보존한다.
+    """
+
+    def normalize_utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    normalized_last_bar_time = normalize_utc(last_bar_time)
+    if realign or not has_previous_state:
+        return normalized_last_bar_time
+
+    epoch = normalize_utc(session_created_at)
+    if isinstance(previous_report, dict) and _POSITION_EPOCH_KEY in previous_report:
+        raw_epoch = previous_report[_POSITION_EPOCH_KEY]
+        try:
+            if not isinstance(raw_epoch, str):
+                raise TypeError("position epoch must be an ISO8601 string")
+            epoch = normalize_utc(datetime.fromisoformat(raw_epoch))
+        except (TypeError, ValueError):
+            logger.warning(
+                "live_signal_position_epoch_unparsable",
+                extra={"position_epoch": raw_epoch},
+            )
+
+    return min(epoch, normalized_last_bar_time)
 
 
 def _net_position_size(positions: Sequence[Any]) -> Decimal:
@@ -1438,7 +1483,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 return {"skipped": "claim_lost"}
 
             # 장기 공백은 과거 이벤트를 발주하지 않는다. 거래소가 flat인지 먼저 확인하고,
-            # 아래 warmup replay 결과의 시뮬레이션 flat과 함께 조용한 resync를 판정한다.
+            # 아래 warmup replay 결과의 carried position과 함께 조용한 resync를 판정한다.
             exchange_positions: list[Any] | None = None
             if requires_gap_resync:
                 from src.trading.encryption import EncryptionService
@@ -1465,6 +1510,59 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
 
             # 7. run_live (warmup replay, Option B)
             df = _ohlcv_rows_to_dataframe(ohlcv_rows)
+            # state 행은 optional 이다. 이 조회는 이전 epoch 및 방향 strike, equity curve가
+            # 같은 성공 평가 전 상태를 보게 하는 단일 읽기다.
+            previous_state = await sess_repo.get_state(sess.id)
+            # ★`getattr(..., None)` 로 접지 마라. 컬럼이 사라지거나 이름이 바뀌면 그 순간부터
+            # 조용히 "직전 strike 없음" 이 되어 가드가 영구 OFF 로 위장한다. 없어도 되는 것은
+            # state 행뿐이므로 거기까지만 방어한다.
+            previous_report = (
+                previous_state.last_strategy_state_report if previous_state is not None else None
+            )
+            previous_direction_mismatch = (
+                isinstance(previous_report, dict)
+                and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
+            )
+            position_epoch = _resolve_position_epoch(
+                previous_report,
+                session_created_at=sess.created_at,
+                last_bar_time=last_bar_time,
+                has_previous_state=previous_state is not None,
+                realign=requires_gap_resync and exchange_positions == [],
+            )
+            if emit_from_bar_time is not None:
+                # catch-up이 이 watermark 뒤 entry를 outbox로 발행한다. epoch이 watermark보다
+                # 뒤면 그 entry의 포지션만 폐기하고 주문은 내보내 거래소 고아를 만든다. watermark
+                # bar 자체는 이미 이전 tick에서 발행됐으므로 함께 보존하는 것이 맞다.
+                position_epoch = min(position_epoch, emit_from_bar_time)
+
+            carry_cutoff = max(window_start, position_epoch)
+            if carry_cutoff != window_start:
+                # 위 equity_exhausted preflight는 claim 및 epoch 결정 전이라 기존 window_start
+                # 기준을 보수적으로 유지한다. 여기서는 run_live 사이징 자본만 epoch까지의
+                # 실현손익으로 다시 맞춰, 재정렬이 창 안 손익을 지우지 않게 한다.
+                carry_pnl, _ = await event_repo.sum_realized_pnl_before(
+                    sess.id, bar_time=carry_cutoff
+                )
+                recalculated_capital = equity_baseline_usdt + carry_pnl
+                if (
+                    recalculated_capital.is_nan()
+                    or recalculated_capital.is_infinite()
+                    or recalculated_capital <= Decimal("0")
+                ):
+                    # window_start 기준값은 이미 preflight를 통과했고, 재계산이 없던 오늘도
+                    # run_live에 그대로 쓰던 값이므로 이 fallback은 기존 동작보다 나쁘지 않다.
+                    logger.warning(
+                        "live_signal_recalculated_capital_rejected",
+                        extra={
+                            "session_id": str(sess.id),
+                            "carry_cutoff": carry_cutoff.isoformat(),
+                            "recalculated_capital": str(recalculated_capital),
+                        },
+                    )
+                else:
+                    effective_capital = recalculated_capital
+
             pyramiding: int | None = None
             try:
                 pyramiding = extract_content(strategy.pine_source).declaration.pyramiding
@@ -1483,6 +1581,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 "sessions_allowed": tuple(strategy.trading_sessions or ()),
                 "pyramiding": pyramiding,
                 "fill_timing": parsed_settings.fill_timing,
+                "position_epoch": position_epoch,
             }
             if emit_from_bar_time is not None:
                 run_live_kwargs["emit_from_bar_time"] = emit_from_bar_time
@@ -1563,14 +1662,21 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 return {"deactivated": "runtime_divergence", "category": category}
 
             if requires_gap_resync:
-                # `to_report()["open_trades"]` 는 **list** 다(`strategy_state.py:1005`).
-                # dict 로 검사하면 항상 False 라 조용한 resync 가 절대 안 타고 모든 장기
-                # 공백이 세션을 죽인다 - 수면·배포 공백이 정확히 그 경로다.
+                # `to_report()["open_trades"]` 는 list 다(`strategy_state.py:1005`). 모든
+                # trade가 마지막 bar 에서 열린 경우에만 이번 재생이 새로 만든 포지션이다.
+                # entry_bar 를 읽지 못하면 넘어온 포지션으로 보아 fail-closed 처리한다.
                 simulated_open_trades = result.strategy_state_report.get("open_trades")
-                simulated_flat = (
-                    isinstance(simulated_open_trades, list) and not simulated_open_trades
+                last_bar_index = len(ohlcv_rows) - 1
+                carried_position_flat = isinstance(simulated_open_trades, list) and all(
+                    isinstance(trade, dict)
+                    and type(trade.get("entry_bar")) is int
+                    and trade["entry_bar"] == last_bar_index
+                    for trade in simulated_open_trades
                 )
-                if exchange_positions == [] and simulated_flat:
+                # 이 검사를 거래소 flat 만으로 완화하면 position_epoch 배선이 깨져도 조용히
+                # 통과해 가드가 사라진다. 마지막 bar 신규 포지션만 허용해 가용성은 되찾되
+                # 재생이 제조한 이전 포지션은 계속 포착한다.
+                if exchange_positions == [] and carried_position_flat:
                     # try_claim_bar가 이미 최신 bar_time을 기록했다. 마지막 bar 신호만 이어서
                     # 처리해 수면·배포 공백을 조용히 정상화한다.
                     pass
@@ -1617,19 +1723,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             # 실패하거나(REST blip, 현실적). 둘 다 "불일치 없음" 이 아니라 "모름" 이다.
             # 모름을 False 로 적으면 REST 한 번 흔들릴 때마다 strike 가 초기화돼 진짜
             # 지속 발산이 영원히 2회차에 도달하지 못한다(가드 fail-open 무력화).
-            # 그래서 `None`(모름)이면 직전 값을 그대로 넘긴다.
-            previous_state = await sess_repo.get_state(sess.id)
-            # ★`getattr(..., None)` 로 접지 마라. 컬럼이 사라지거나 이름이 바뀌면 그 순간부터
-            # 조용히 "직전 strike 없음" 이 되어 가드가 **영구 OFF** 로 위장한다 —
-            # `gates-and-traps.md` §3 이 적어둔 그 함정이고, 이 가드가 고치려던 실패 계열과 같다.
-            # 없어도 되는 것은 state **행**(첫 tick)뿐이므로 거기까지만 방어한다.
-            previous_report = (
-                previous_state.last_strategy_state_report if previous_state is not None else None
-            )
-            previous_direction_mismatch = (
-                isinstance(previous_report, dict)
-                and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
-            )
+            # 그래서 `None`(모름)이면 위에서 읽은 직전 값을 그대로 넘긴다.
 
             engine_position = _to_engine_position(result.strategy_state_report)
             direction_mismatch_seen: bool | None = None
@@ -1744,6 +1838,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     if direction_mismatch_seen is None
                     else direction_mismatch_seen
                 )
+                sanitized_report[_POSITION_EPOCH_KEY] = position_epoch.isoformat()
             # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
             # 이번 tick 에 새로 INSERT 된 close event 만 curve 에 반영한다. warmup 창
             # 재계산의 미세 변동은 point 를 추가하지 않는다.
@@ -1752,7 +1847,6 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
 
             new_equity_curve: list[dict[str, object]] | None = None
             try:
-                existing_state = await sess_repo.get_state(sess.id)
                 new_close_events = [
                     event
                     for event in new_events
@@ -1765,8 +1859,8 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     )
                     # 영구 규칙: Decimal-first 합산 (calculator 안에서 처리)
                     prev_curve = (
-                        existing_state.equity_curve
-                        if existing_state is not None and existing_state.equity_curve is not None
+                        previous_state.equity_curve
+                        if previous_state is not None and previous_state.equity_curve is not None
                         else []
                     )
                     new_curve = append_equity_point(

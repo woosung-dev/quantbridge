@@ -103,6 +103,46 @@ async def test_backfill_respects_idempotency_via_pk(db_session):
     assert result1["rows_written"] >= 0
 
 
+@pytest.mark.asyncio
+async def test_backfill_counts_the_key_it_actually_writes(db_session):
+    """★BL-535 — `TimescaleProvider` 는 canonical 을 받아 **상품 키**로 적재한다.
+
+    세는 키가 canonical 로 남으면 방금 쓴 행을 못 세서 `rows_written` 이 항상 0 이 된다 —
+    적재는 성공했는데 보고만 "아무것도 안 심었다" 가 되는 거짓 계측이다.
+    """
+    from src.market_data.repository import OHLCVRepository
+    from src.tasks.market_data_backfill import _async_backfill
+
+    bar_time = datetime.now(UTC).replace(minute=0, second=0, microsecond=0) - timedelta(hours=3)
+
+    with (
+        # ★`_async_backfill` 은 `src.tasks._worker_engine` 에서 직접 import 한다.
+        # 다른 모듈 네임스페이스를 patch 하면 조용히 실 엔진이 돈다.
+        patch("src.tasks._worker_engine.create_worker_engine_and_sm") as mock_engine_factory,
+        patch("src.market_data.providers.ccxt.CCXTProvider") as MockCCXT,
+    ):
+        mock_engine = MagicMock()
+        mock_engine.dispose = AsyncMock()
+        mock_sm = MagicMock(return_value=_AsyncSessionContextManager(db_session))
+        mock_engine_factory.return_value = (mock_engine, mock_sm)
+
+        mock_ccxt_instance = MagicMock()
+        mock_ccxt_instance.fetch_ohlcv = AsyncMock(
+            return_value=[[int(bar_time.timestamp() * 1000), 1.0, 1.0, 1.0, 1.0, 1.0]]
+        )
+        MockCCXT.return_value = mock_ccxt_instance
+
+        result = await _async_backfill("SOL/USDT", "1h", 1)
+
+    assert result["symbol"] == "SOL/USDT"
+    assert result["storage_symbol"] == "SOL/USDT:USDT"
+    assert result["rows_written"] == 1
+
+    repo = OHLCVRepository(db_session)
+    assert len(await repo.get_range("SOL/USDT:USDT", "1h", bar_time, bar_time)) == 1
+    assert await repo.get_range("SOL/USDT", "1h", bar_time, bar_time) == []
+
+
 class _AsyncSessionContextManager:
     """async with sm() context wrapper — session 재사용용 test helper."""
 

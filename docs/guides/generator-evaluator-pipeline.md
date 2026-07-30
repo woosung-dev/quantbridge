@@ -89,7 +89,8 @@ codex exec resume --last "<후속 지시>" < /dev/null    # 이어가기
    - ★마지막에 **복원 확인 실행**을 반드시 넣는다. 그 단계가 위 사고를 잡았다.
 3. **외부 오라클 대조** — 엔진 산출을 같은 엔진으로 검증하지 않는다. 머니-패스는 raw HMAC 독립 조회로 3중 대조한다.
 4. **적대 검증 — 읽기 전용 서브에이전트 3기 병렬.** 렌즈를 **서로 다르게** 준다(동시성 / 거래소 실상 / 표시 계약). 같은 렌즈 3기는 중복이고, 다른 렌즈는 서로 못 보는 실패 모드를 잡는다. findings 는 전건 코드 재현 판정 후 처분한다.
-   - ★**반드시 읽기 전용이다.** 테스트 DB 는 `quantbridge_test` 하나이고 세션 픽스처가 `drop_all + create_all` 을 돌린다(pytest-xdist 미설치). 쓰기 에이전트를 병렬로 두면 **서로의 테이블을 실행 중에 날린다.** e2e authed 도 flake 때문에 `--workers=1` + 공유 storageState 로 묶여 있고, dev 서버·격리 스택·dogfood 거래소 계정도 각각 하나뿐이다. **이 레포에서 병렬화가 가능한 것은 읽기뿐이다.**
+   - ★**같은 체크아웃 안에서는 반드시 읽기 전용이다.** 테스트 DB 는 `quantbridge_test` 하나이고 세션 픽스처가 `drop_all + create_all` 을 돌린다(pytest-xdist 미설치). 쓰기 에이전트를 한 체크아웃에서 병렬로 두면 **서로의 테이블을 실행 중에 날린다.** e2e authed 도 flake 때문에 `--workers=1` + 공유 storageState 로 묶여 있다.
+   - ★**정정(2026-07-30) — "이 레포에서 병렬화가 가능한 것은 읽기뿐" 은 더 이상 사실이 아니다.** 워크트리 슬롯 체계(PR #495/#500)가 슬롯별 `quantbridge_w{N}_test` + Redis lock DB 분리로 그 제약을 풀었다. 2026-07-30 실측 — 함대 워커 2기가 슬롯 1·2 에서 **동시에 전체 pytest 를 돌려 서로를 깨지 않았다**(각 3451·3432 passed). 정본은 [`reference/worktree-parallel.md`](../reference/worktree-parallel.md) §1. **단 여전히 1벌뿐인 것** — 컨테이너·앱 DB(`quantbridge`)·celery worker(메인 `src` 를 mount)·**dogfood 거래소 계정**. 그래서 **celery 를 타는 검증과 실주행 soak 은 메인 체크아웃 전용**이고, 이 축의 병렬화는 앞으로도 열리지 않는다.
 
 **STOP** — 변이가 아무 테스트도 뒤집지 못하면 그건 게이트가 아니다. 승인하지 말고 G1 으로 되돌린다.
 

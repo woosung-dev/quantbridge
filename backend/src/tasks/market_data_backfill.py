@@ -40,7 +40,8 @@ def backfill_ohlcv_task(
         period_days: now 부터 거슬러 올라갈 일수 (예: 60 = 60일치).
 
     Returns:
-        dict — symbol/timeframe/rows_written/duration_s/period_start/period_end.
+        dict — symbol/storage_symbol/timeframe/rows_written/duration_s/period_start/period_end.
+        `storage_symbol` 은 실제로 적재된 `ts.ohlcv` 키(상품 표기, BL-535).
 
     Worker pool 제약: prefork only (§2.4). gevent/eventlet 비호환.
 
@@ -83,13 +84,18 @@ async def _async_backfill(
             # row count BEFORE
             from sqlalchemy import func, select
 
+            from src.market_data.constants import to_ccxt_perpetual_symbol
             from src.market_data.models import OHLCV
 
+            # ★BL-535 — `TimescaleProvider` 는 canonical 을 받아 **상품 키**로 적재한다.
+            # 여기서 canonical 로 세면 방금 쓴 행을 못 세서 `rows_written` 이 항상 0 이라고
+            # 거짓 보고한다. 세는 키는 쓰는 키와 같아야 한다.
+            storage_symbol = to_ccxt_perpetual_symbol(symbol)
             count_stmt = (
                 select(func.count())
                 .select_from(OHLCV)
                 .where(
-                    OHLCV.symbol == symbol,  # type: ignore[arg-type]
+                    OHLCV.symbol == storage_symbol,  # type: ignore[arg-type]
                     OHLCV.timeframe == timeframe,  # type: ignore[arg-type]
                 )
             )
@@ -111,8 +117,10 @@ async def _async_backfill(
             rows_written = rows_after - rows_before
 
             logger.info(
-                "backfill_complete symbol=%s tf=%s period_days=%s rows_written=%s df_len=%s",
+                "backfill_complete symbol=%s storage_symbol=%s tf=%s period_days=%s "
+                "rows_written=%s df_len=%s",
                 symbol,
+                storage_symbol,
                 timeframe,
                 period_days,
                 rows_written,
@@ -121,6 +129,8 @@ async def _async_backfill(
 
             return {
                 "symbol": symbol,
+                # 운영자가 "어느 키에 심겼는가" 를 결과만 보고 알 수 있어야 한다 (BL-535).
+                "storage_symbol": storage_symbol,
                 "timeframe": timeframe,
                 "rows_written": rows_written,
                 "df_len": len(df),
