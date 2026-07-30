@@ -1,9 +1,9 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-30 (**live-entry-completeness** PR 대기 — BL-536 판정 **「축소」** · ★유실은 줄어든 게 아니라 **원장 밖 한 채널로 수렴**했다)
+> **Last Updated:** 2026-07-30 (**live-entry-completeness** 머지 완료 — BL-536 판정 **「축소」** · ★유실은 줄어든 게 아니라 **원장 밖 한 채널로 수렴**했다)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `stage/live-entry-completeness` (PR 생성 대기 — 마이그레이션 **0**).
-> **Last Merged:** `stage/conditional-entry-alignment` → `main@fa603ca4` (PR #506, 2026-07-30 · **마이그레이션 1** `20260730_0001`) · 그 앞 `feat/final-gates` → `main@103f9c30` (PR #505) · `stage/engine-exchange-alignment` → `main@af655616` (PR #503)
+> **미머지:** 없음.
+> **Last Merged:** `stage/live-entry-completeness` → `main@f8706618` (PR #509, 2026-07-30 · **마이그레이션 0**) · 그 앞 `stage/conditional-entry-alignment` → `main@fa603ca4` (PR #506 · 마이그레이션 1 `20260730_0001`) · `feat/final-gates` → `main@103f9c30` (PR #505)
 > **Last Merged:** `fix/bl530-review-followups` → `main@004c374f` (PR #498) · 그 앞 `feat/live-close-completeness` → `main@178d24ef` (PR #497)
 
 ---
@@ -52,7 +52,7 @@ soak 2h28m(세션 `98d86785`, 2026-07-30) 확정 측정:
 ★**진입 유실을 "고치는" 코드를 크기 모르는 채 쓰지 마라** — BL-522 → BL-536 이 두 번 경고했고
 이번 측정이 그 경고를 다시 확인했다.
 
-### baseline (2026-07-30 실측 — `stage/live-entry-completeness`)
+### baseline (2026-07-30 실측 — `main@f8706618`)
 
 **BE 3603 passed / 46 skipped** · ruff clean · mypy **213** clean · FE 무변경 ·
 `pnpm e2e` **4 passed** · 마이그레이션 head **`20260730_0001`**(이번 회차 마이그레이션 0).
