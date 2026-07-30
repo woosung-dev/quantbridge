@@ -1482,6 +1482,30 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-516
 
+> ### 🟡 **권장안 2종 기각 · 「계측 우선」으로 착수 (2026-07-30 close-mismatch-soak)**
+>
+> 본문의 **권장 접근(leg 분리 / 발주 직전 재확인)은 둘 다 채택하지 않았다.** 근거:
+>
+> - ★**leg 분리 = 기각.** `Order.reduce_only.is_(False)` 술어가 **4곳**
+>   (`order_repository.py:275` reconciler · `:315` sweep · `:347` janitor · `:513` 진입원장)이라
+>   청산 leg 가 **모든 lifecycle 쿼리에서 배제**된다 → 세션 종료 후에도 안 걷히는 **고아 reduce-only
+>   조건부 주문**. 계획기 주석이 스스로 _"사용자 손절을 지우는 것이 최악의 결함"_ 이라 적은 것의 거울상이다.
+>   게다가 같은 trigger 가의 조건부 2건은 **체결 순서가 보장되지 않아** 진입 leg 가 먼저 체결되면
+>   뒤이은 청산 leg 가 `110017 same side` 가 된다 — **BL-560 이 지금 재고 있는 바로 그 신호를 늘린다.**
+> - ★**발주 직전 재확인 = 무효.** 갭은 **「등재 → 트리거」 사이**인데 거기에 우리 코드가 없다.
+>   게다가 `fetch_open_positions`(`live_signal.py:929`) + 3중 fail-closed 로 **이미 구현돼 있다.**
+>
+> **채택 = 계측 + 좁은 가드.** 발주 형태 불변(1건, `reduce_only=False`, 수량 산식 그대로).
+> `crosses_zero` / `overshoot_ratio` 파생값 + `qb_live_conditional_reversal_total{bucket}` +
+> `max_reversal_overshoot_ratio` 캡(**기본 `None` = 비활성**). 깨진 기존 테스트 **0건** —
+> `test_reversal_uses_full_target_delta` 가 살아남아 "수량 불변" 계약의 수호자가 된다.
+>
+> ★**soak 이 이 선택을 사후 정당화했다.** BL-560 실측 6/6 이 **반전 체결 직후 방향 불일치**를
+> 보여줬다 — 반전 주문이 그 기계다. leg 분리를 했다면 reduce-only 를 **더 만들어** 거절을 늘렸을 것이다.
+>
+> **미검증:** `qb_live_conditional_reversal_total` 은 검증 창(3분)에 반전이 없어 **실주행 미발화**다.
+> 다음 회차에서 확인할 것.
+
 **Title:** 조건부 진입이 `reduce_only=False` 로 하드코딩돼 반전 주문이 기존 포지션을 보호 없이 가로지른다
 **Category:** Backend / trading (조건부 진입)
 **Priority:** P2
@@ -3875,7 +3899,43 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 ### BL-523
 
-**Title:** 조건부·전환 진입에 TP/SL 브래킷이 붙지 않는다 — 전환은 즉시 체결이라 무방비 창이 실재한다
+> ### 🟡 **판정 「축소」 (2026-07-30 close-mismatch-soak) — ★붙일 값이 없다**
+>
+> **본문의 전제 2건이 코드 대조로 반증됐다.**
+>
+> 1. ★**`exit_levels_for` 는 조건부 진입에 대해 항상 `(None, None, None)` 이다.**
+>    `place_exit` 가 `targets = [from_entry] if from_entry in self.open_trades else []`
+>    (`strategy_state.py:963`) 로 **`open_trades` 만** 타깃하는데, stop 진입은
+>    `pending_orders[...] = PendingOrder(...); return None`(`:714-726`) 이라 체결 전까지 거기 없다.
+>    ⇒ `pending_exits` 에 레그가 **애초에 생기지 않는다.**
+> 2. ★**시드 전략 `s1_pbr.pine` 은 `strategy.exit` 이 0건**이고, 코퍼스 8벌 중 stop 진입과 exit 을
+>    **둘 다 쓰는 전략이 없다**(`s4_hma_curvature` 는 exit 만, 나머지는 stop 진입만).
+>
+> **부수 정정 — 본문의 패리티 근거도 틀렸다.** _"백테스트는 체결 직후 `check_exit_fills` 로
+> 브래킷이 활성화되므로 라이브만 무방비"_ 라고 적었으나, bar 루프는
+> `check_exit_fills`(`event_loop.py:169`) → `interp.execute`(`:197`) 순서라 레그는 그 bar **끝**에
+> 등록되어 **다음 bar** 부터 검사된다. **백테스트도 체결 bar 안에서는 보호하지 않는다.**
+>
+> #### 실주행 확인 (2026-07-30, celery 경유 · 메인 체크아웃)
+>
+> ```
+> qb_live_conditional_guard_total{outcome="bracket_unavailable"} 2.0
+>                                (bracket_attached — 부재)
+> ```
+>
+> 조건부 진입 2건 전량이 `bracket_unavailable`. **100% / 0%** 로 전제가 재현됐다.
+>
+> **이번 회차에 한 것:** 3단 seam 배관 + 게이트 A(trailing-only 거부)/B(tpSize 정합) +
+> `conditional_request_invalid` 라벨 분리 + guard outcome 4종. **부착이 목적이 아니라
+> "붙일 것이 있었는가" 를 재는 계측이 산출물이다.** 회귀 테스트
+> `test_pending_order_snapshot_has_no_exit_levels_when_entry_not_open` 이 이 사실을 못박는다.
+>
+> **남은 것(이번 범위 밖):** `bracket_unavailable` 이 계속 100% 면 선택은 둘 —
+> (a) `place_exit` 이 pending 진입도 타깃하도록 **엔진 계약 변경**(백테스트 결과가 바뀌므로 TV 패리티 게이트 필요),
+> (b) 체결 후 부착(`set_trading_stop` 이 현재 trailing 전용 시그니처라 TP/SL 확장 필요).
+> ★**지금 고르지 마라 — 아직 크기를 모른다.**
+
+**Title:** 조건부·전환 진입에 TP/SL 브래킷이 붙지 않는다 — ~~전환은 즉시 체결이라 무방비 창이 실재한다~~ → **엔진이 pending 진입에 exit 레그를 만들지 않아 실을 값이 없다**
 **Category:** Backend / trading (조건부 진입)
 **Priority:** P2
 **Trigger:** 실자금 cutover 전
@@ -4694,7 +4754,27 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 
 ### BL-553
 
-> ### ⏳ **유지 (2026-07-30 live-entry-completeness) — 단 이유가 정확해졌다**
+> ### ⏳ **유지 (2026-07-30 close-mismatch-soak) — ★사전조건이 불완전했음이 밝혀졌다**
+>
+> **공백 33분 03초**(`18:35:03Z` → `19:08:06Z`)를 **장전된 상태에서** 열었다
+> (armed=1, `buy 0.087 @ 64795.6`). 즉 직전 회차가 지정한 사전조건을 **충족했다.**
+> 그런데 `applied` 는 **또 미발화**했고 `already_open` 이 +1(1.0 → 2.0) 됐다.
+> 누적 **62분57초 + 33분03초 = 96분에서 0회.**
+>
+> ★★**"장전" 만으로는 부족하다.** `already_open` 은 **엔진 원장에 이미 열린 트레이드가 있어
+> seed 가 불필요했다**는 뜻이다. `applied` 에 도달하려면 **장전 + 엔진 flat** 이어야 한다 —
+> 공백 중 트리거가 체결돼 **엔진이 모르는 포지션이 생겨야** seed 가 의미를 갖는다.
+>
+> ★**그리고 그것이 PbR 로는 구조적으로 어렵다.** `s1_pbr` 은 stop-and-reverse 라 거의 항상
+> 포지션을 들고 있다(flat 구간이 사실상 없다). **5회 연속 미발화의 이유가 이것으로 설명된다.**
+>
+> **다음 회차 설계:** 전략을 바꿔라. `strategy.close` 로 **flat 으로 돌아가는 구간이 있는 전략**
+> (예: `s4_hma_curvature`)에서, flat + 장전 상태를 확인한 뒤 공백을 연다.
+> ★**PbR 로 재시도하지 마라 — 같은 0 을 6번째로 얻는다.**
+
+<details><summary>이전 판정 (2026-07-30 live-entry-completeness)</summary>
+
+> ### ⏳ **유지 — 단 이유가 정확해졌다**
 >
 > 이번 soak 공백 2회(16분35초 + 18분22초, 누적 34분57초)에서도 `applied` **미발화**.
 > 직전 28분 + 이번 34분57초 = **누적 62분57초에서 0회**.
@@ -4706,6 +4786,8 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 > → **다음 회차 설계:** 공백을 **30분+** 로 가져가면 트리거가 공백 안에 들어올 확률이 오른다.
 > 확인 신호에서 **구조화 로그의 `trade_ids` 는 빼라** — 포매터가 `extra` 를 렌더하지 않아
 > 관측 불가다(정본이 이미 경고). metric `{outcome="applied"}` + 엔진 `open_trades` 변화로 본다.
+
+</details>
 
 **Title:** ★`outcome="applied"`(원장 seed **주입**)가 실주행에서 한 번도 밟히지 않았다 — 단위테스트로만 증명됨
 **Category:** Backend / trading 검증 공백
@@ -4859,11 +4941,60 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 
 ### BL-560
 
+> ### 🔴 **열려 있다 — 단 크기와 뿌리가 확정됐다 (2026-07-30 close-mismatch-soak, V3 판정)**
+>
+> **soak 창 3h20m** (`15:54:56Z` → `19:15Z`, 세션 `a815df92`, PbR + BTC/USDT 1m + bybit demo).
+> 사전등록 문턱 **V3 = 실재 · 원인 착수**. V4 충족(청산 시도 13 ≥ 10)이라 **비율 인용 가능**.
+>
+> | 지표                           |                     값 |
+> | ------------------------------ | ---------------------: |
+> | `reduce_only_same_side` 발생률 |          **2.60 건/h** |
+> | 청산 시도 대비                 |     **46.2%** (6 / 13) |
+> | `reduce_only_violation` 차분   |      **0** (7.0 → 7.0) |
+> | `reduce_only_position_zero`    | **0** (한 번도 미발화) |
+> | 세션 사망 (V5)                 |          미발동 (생존) |
+>
+> ★**라벨 분리가 작동했다.** 구 라벨 차분이 **0** 이므로 이 6건은 전부 예전이면
+> `reduce_only_violation` 에 묻혀 "유령 포지션" 으로 읽혔을 것이다. 독립 계측기 2개가 일치한다
+> (Prometheus `6.0` = 원장 `6`).
+>
+> ★★**직전 회차의 전제 하나가 뒤집혔다.** "무해 갈래가 3배 많아 위험 갈래를 묻는다" 는
+> 이 창에서 성립하지 않았다 — `position_zero` 가 **0건**이고 `same_side` 만 6건이다. 비율이 역전됐다.
+>
+> #### ★뿌리 — 6/6 전건이 같은 패턴이다 (후보 ②, 단 더 정확한 형태)
+>
+> 모든 거절이 **직전 체결과 같은 방향**이고 체결 후 **50–104초**(평균 78초) 안에 일어난다:
+>
+> ```
+> 16:03:27 buy  0.058 체결 → 16:04:43 buy  reduce-only 거절 (+76s)
+> 16:21:27 sell 0.029 체결 → 16:22:42 sell reduce-only 거절 (+75s)
+> 16:55:52 buy  0.029 체결 → 16:56:42 buy  reduce-only 거절 (+50s)
+> ```
+>
+> buy 체결 → 롱. 롱은 **sell** 로 닫는다. 그런데 엔진은 **buy** reduce-only 를 보낸다 =
+> **숏을 닫으려 한다.** 즉 원장에 숏이 아직 열려 있는데, 그 숏은 반전 체결
+> (`buy 0.058` = 숏 0.029 청산 + 롱 0.029 진입)로 거래소에선 이미 닫혔다.
+>
+> ⇒ ★**엔진이 자기 반전 체결의 청산 leg 를 반영하지 못한다.** 발신은 정상 봉 평가 경로
+> (`live_signal.dispatch_event`)이지 별도 정리 태스크가 아니다. 거절은 미정렬의 **원인이 아니라 결과**다.
+> 후보 ①(재가격 경주)·③(재생 아티팩트)은 이 패턴을 설명하지 못한다 — 둘 다 "직전 체결과 같은 방향"
+> 이라는 6/6 규칙성을 예측하지 않는다.
+>
+> #### ★수용 기준 중 하나는 구조적으로 충족 불가였다
+>
+> "그 시점의 엔진/거래소 포지션 **쌍**" 은 못 남겼다. 발신부(`tasks/live_signal.py:587-593`)가
+> `engine_position`/`exchange_position` 을 `extra=` 로 넘기지만 **포매터가 `extra` 를 렌더하지 않아**
+> 즉시 소실된다(`live_signal_position_divergence` 로그 라인에 값이 하나도 안 찍힌다).
+> **방향** 쌍은 거래소 거절 코드로 정확히 복원되지만 **크기** 쌍은 못 얻는다.
+> → **BL-561 신설**(아래). 로그 렌더는 이 항목의 선행이다.
+>
+> **다음 회차 = 원인 착수 승인.** 크기(2.60/h · 46.2%)와 뿌리가 확정됐으므로 이제 고쳐도 된다.
+
 **우선순위:** P1
 **카테고리:** Backend / trading (라이브 청산 정합성)
-**Trigger:** 신규 라벨 `reduce_only_same_side` 가 실주행 창에서 **1건 이상** 관측될 때
+**Trigger:** ~~신규 라벨이 1건 이상 관측될 때~~ → **2026-07-30 충족 (6건 관측)**
 **Est:** M
-**출처:** 2026-07-30 close-mismatch-visibility
+**출처:** 2026-07-30 close-mismatch-visibility · 실측 2026-07-30 close-mismatch-soak
 
 ★★**엔진과 거래소가 반대 방향을 들고 있는 상태가 반복 발생한다 — 5개 세션에서 9건**
 
@@ -4894,5 +5025,39 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제로 분모가 틀렸다.
 
 **Risk:** 🔴 (방벽이 `reduce_only` 플래그 하나뿐이다)
+
+---
+
+### BL-561
+
+**우선순위:** P2
+**카테고리:** Backend / observability (구조화 로그 렌더)
+**Trigger:** BL-560 원인 착수 **직전** (선행 의존)
+**Est:** XS
+**출처:** 2026-07-30 close-mismatch-soak — BL-560 수용 기준이 구조적으로 충족 불가였다
+
+★**`extra=` 로 넘긴 필드가 렌더되지 않아 진단 증거가 즉시 소실된다.**
+
+**원인/영향.** `tasks/live_signal.py:585-594` 가 `live_signal_position_divergence` 를 찍을 때
+`engine_position` / `exchange_position` / `category` 를 `extra=` 로 넘긴다. 그런데 `backend/src` 에
+포매터 설정이 없어 celery 기본 포매터가 쓰이고, 그것은 `extra` 를 **렌더하지 않는다.**
+실측(soak 2026-07-30) 로그 라인은 다음이 전부다:
+
+```
+[2026-07-30 16:03:35,101: WARNING/ForkPoolWorker-1] live_signal_position_divergence
+```
+
+값이 하나도 없다. 그 결과 **BL-560 의 수용 기준("그 시점의 엔진/거래소 포지션 쌍을 함께 남긴다")이
+구조적으로 충족 불가**였다. 방향 쌍은 거래소 거절 코드로 복원했지만 **크기 쌍은 못 얻었다.**
+
+★**같은 계열의 선례가 있다** — BL-553 이 `trade_ids` 를 확인 신호에서 빼야 했던 이유가 동일하다
+(`docs/backlog.md` BL-553: "포매터가 `extra` 를 렌더하지 않아 관측 불가"). **두 번째 발생이다.**
+개별 회피가 아니라 포매터를 고쳐야 한다.
+
+**권장 접근:** JSON 또는 key=value 포매터를 배선해 `extra` 를 렌더한다. 범위는 로깅 설정 1곳.
+★**적용 후 반드시 실주행 1회로 값이 실제로 찍히는지 확인해라** — 설정만 바꾸고 통과 선언하면
+이 항목이 세 번째로 재발한다.
+
+**Risk:** 🟡 (진단 불가가 다른 P1 을 막는다)
 
 ---
