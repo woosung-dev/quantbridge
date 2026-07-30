@@ -2,9 +2,8 @@
 
 > **Last Updated:** 2026-07-30 (**close-mismatch-visibility** — ★★★**재던 곳에 없었다.** C2 는 유실 채널이 아니라 **청산 횟수**였고, 진짜 신호는 `110017` 두 갈래가 **한 라벨에 묻혀** 있었다)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `feat/entry-defer-convergence` → **PR #511** (커밋 3개 @99f12d98). squash 는 사용자.
-> **Last Merged:** `stage/live-entry-completeness` → `main@f8706618` (PR #509, 2026-07-30 · **마이그레이션 0**) · 그 앞 `stage/conditional-entry-alignment` → `main@fa603ca4` (PR #506 · 마이그레이션 1 `20260730_0001`) · `feat/final-gates` → `main@103f9c30` (PR #505)
-> **Last Merged:** `fix/bl530-review-followups` → `main@004c374f` (PR #498) · 그 앞 `feat/live-close-completeness` → `main@178d24ef` (PR #497)
+> **미머지:** 없음.
+> **Last Merged:** `feat/entry-defer-convergence` → `main@75722cbe` (**PR #511**, 2026-07-30 · **마이그레이션 0**) · 그 앞 `stage/live-entry-completeness` → `main@f8706618` (PR #509) · `stage/conditional-entry-alignment` → `main@fa603ca4` (PR #506 · 마이그레이션 `20260730_0001`)
 
 ---
 
@@ -61,13 +60,17 @@
 BL-545 · BL-546 · BL-547 · BL-541 · 거래소 확장 ·
 ★**방향 반전을 "고치는" 코드를 크기 모르는 채 쓰는 것.**
 
-### baseline (2026-07-30 **재측정** — `feat/entry-defer-convergence`)
+### baseline (2026-07-30 실측 — `main@75722cbe`, PR #511 머지 후)
 
-**BE 3616 passed / 46 skipped** · ruff clean · mypy **213** clean ·
-마이그레이션 head **`20260730_0001`**(직전 회차 마이그레이션 0).
+**BE 3633 passed / 46 skipped** · FE **1231 passed**(205 파일) · ruff clean · mypy **213** clean ·
+`pnpm e2e` **4 passed** · 마이그레이션 head **`20260730_0001`**(직전 회차 마이그레이션 0).
 
-★**직전 블록이 적어둔 `3603` 은 stale 이었다.** §7.1 baseline 재측정이 그것을 잡았다 —
-**핸드오프의 숫자는 신뢰 대상이 아니라 대조 대상이다.**
+★**이 숫자도 대조 대상이다.** 직전 블록이 적어둔 `3603` 이 실제로 stale 이었고 §7.1 재측정이
+그것을 잡았다(실측 3616). **첫 step 에서 지금 HEAD 로 다시 재라.**
+
+★**soak 시작 절차는 여기 복붙하지 않는다** — `docs/guides/generator-evaluator-pipeline.md` §7.3
+(세션 생성/종료는 `/api/v1/live-sessions` POST/DELETE, `storageState` 토큰은 만료돼 있으니
+브라우저에서 신선한 것을 받는다) + §7.5(metric 읽는 법)를 열어라.
 
 > ★**`final-gates.sh` 는 커밋 후에 돌려라** — 미커밋이면 거부한다(BL-549 수리 완료).
 > ★**`pnpm e2e`(chromium 4건)는 게이트 체인에 없다** — 수동 1회 필요(BL-556).
