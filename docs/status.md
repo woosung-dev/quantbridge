@@ -2,23 +2,44 @@
 
 > **Last Updated:** 2026-07-30 (**engine-exchange-alignment** — BL-543 착지 + BL-535 부분 · ★soak 이 BL-544 를 냈다)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `stage/engine-exchange-alignment` → **PR [#503](https://github.com/woosung-dev/quantbridge/pull/503) OPEN** (함대 워커 2벌 통합 — squash 는 사용자)
-> **Last Merged:** `docs/roadmap-drift` → `main@1f55511d` (PR #502) · 그 앞 `feat/live-orphan-close` → `main@91411980` (PR #501)
+> **미머지:** 없음.
+> **Last Merged:** `stage/engine-exchange-alignment` → `main@af655616` (PR #503, 2026-07-30) · 그 앞 `docs/roadmap-drift` → `main@1f55511d` (PR #502) · `feat/live-orphan-close` → `main@91411980` (PR #501)
 > **Last Merged:** `fix/bl530-review-followups` → `main@004c374f` (PR #498) · 그 앞 `feat/live-close-completeness` → `main@178d24ef` (PR #497)
 
 ---
 
-## 🎯 다음 스프린트 — conditional-entry-alignment (BL-544 먼저, 이어서 BL-536)
+## 🎯 다음 스프린트 — conditional-entry-alignment (**BL-544** + **BL-423** 함대 병렬 · BL-536 은 다음 회차)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 > 시작 방법: **"다음 스프린트 진행해줘"**. 에이전트는 `CONTEXT.md` + `AGENTS.md` + 본 파일을 읽고 시작한다.
+> ★**이번 회차는 herdr 함대 오케스트레이션으로 돈다.** 계약 = [`guides/fleet-orchestration.md`](guides/fleet-orchestration.md), 방법론 = [`guides/generator-evaluator-pipeline.md`](guides/generator-evaluator-pipeline.md). **오케스트레이터는 구현 diff 를 쓰지 않는다** — 자기 컨텍스트를 수용 기준 동결·통합·재측정·판정에만 쓴다.
+> **소요 목표 2~4시간. goal 까지 끝까지 간다**(정지점은 ① 착수 전 분배안 승인 ② PR 생성 전, 둘뿐).
 
 **한 줄.** BL-543 을 고쳤고 실주행이 **재생 아티팩트 제거를 확인했다**(엔진 `position_size` 0.0297 → **0.0**, `engine_only` 증가 **0**). 그런데 같은 soak 이 **같은 증상이 반대 방향에서 살아 있음**을 증명했다 — 엔진이 flat 인데 거래소는 포지션을 들고 있다.
 
 ### ★순서 (2026-07-30 실주행이 정한 것)
 
 1. **BL-544 (P1)** 이 선행이다. 거래소는 stop 주문을 **bar 안에서 실시간** 트리거하고 엔진 재생은 **bar 종가 기준**이라, 조건부 진입이 체결돼도 **엔진 재생은 그 진입을 만들지 않는다.** 그 결과 `exchange_only` 발산이 되고, >5분 공백이 겹치면 `gap_resync` 통과 조건(`exchange_positions == []`)이 깨져 세션이 **여전히 죽는다**(`live_signal.py:1679`). ★**세션을 죽이는 것 자체는 fail-closed 로 타당하다** — 고칠 것은 판정이 아니라 **엔진이 자기 주문의 체결을 모른다는 사실**이다. 실측: 15:06:25 stop filled 0.029 → 6분 21초 공백 → 15:14:36 `gap_resync_position_mismatch` 사망(엔진 flat / 거래소 롱 0.029).
-2. **BL-536 (P1)** 은 그 위에서. 판정은 **유지**로 이미 나왔다(유실률 16.7% · 최대 채널 57% 로 분산). BL-543 이 착지했으므로 재생이 제조하는 포지션 문제는 해소됐으나, **BL-544 가 열려 있으면 장시간 soak 자체가 불가능하다**(세션이 공백마다 죽는다).
+2. **BL-423 (P3, Est S 2-4h)** 를 **병렬로** 붙인다 — 비활성 세션 진단을 UI 로 열 수 있게(`list_active()` 필터 + FE 진입 전용이라 종료된 세션의 규칙·포지션 대조·state 를 볼 방법이 없다). ★**이 회차에 붙이는 이유** = 이번에 세션이 **18분 만에 죽어 비활성이 됐고 수동으로 청산**해야 했다. BL-544 가 닫히기 전까지 그 상황이 계속 나므로 진단 표면이 실사용 가치가 있다. 그리고 **celery 를 타지 않아 워크트리에서 완결된다**(§함대 구성).
+3. **BL-536 (P1)** 은 **이번 회차에 하지 않는다.** BL-544 가 열려 있으면 장시간 soak 자체가 불가능해(세션이 공백마다 죽는다) 재측정이 성립하지 않는다. BL-544 착지 후 다음 회차.
+
+### ★함대 구성 (오케스트레이션 — 컨텍스트 분산)
+
+```bash
+scripts/herdr-fleet.sh --agent claude:bl544 --agent claude:bl423 --label "QB conditional-entry" --base origin/main
+scripts/fleet-dispatch.sh --run cond   # tasks/{bl544,bl423}.md 를 먼저 작성해 둔다
+```
+
+|           | 워커 `bl544` (슬롯 N)                                                                                            | 워커 `bl423` (슬롯 M)                                                | CONTROL (메인, 슬롯 0)                                          |
+| --------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 스코프    | BL-544 **코드 + 단위테스트 + 표적 변이**                                                                         | BL-423 **완결**(API + FE + 화면 검증)                                | 수용 기준 동결 · 통합 · 전체 게이트 · **soak** · 최종 점검 · PR |
+| 방법론    | G0~G3 + G6 (codex Generator)                                                                                     | G0~G6 (codex Generator + **G4 화면**)                                | G7~G9                                                           |
+| 금지 경로 | `frontend/**` · `trading/router.py` · `live_signal_session_repository.py`                                        | `tasks/live_signal.py` · `strategy/pine_v2/**` · `common/metrics.py` | —                                                               |
+| ★celery   | **금지** — worker 가 메인 `src` 를 mount 한다. soak·실주행은 전부 report 에 "오케스트레이터 검증 필요" 로 넘긴다 | 해당 없음(읽기 표면)                                                 | **CONTROL 전용**                                                |
+
+★**celery 제약을 이렇게 처리한다** — BL-544 는 워크트리에서 **코드까지만**, 실주행 검증은 **통합 후 CONTROL 에서 마지막 단계로 몰아서** 한다. BL-423 은 애초에 celery 무관이라 워커가 자기완결한다. 이 배치가 "워커가 돌려봤더니 되더라"(= 메인 코드가 된 것) 침묵 실패를 구조적으로 막는다.
+
+★**codex 활용 — G1 이 가장 값싼 지점이다.** 2026-07-30 실측: G1 플랜 검증은 output **136K** 로 FAIL **8건**(전건 재현·기각 0, 그중 3건이 설계를 교체)을 냈고, G2 구현 위임은 **1.07M**(비용의 39%)이었다. → **G1 은 두 워커 모두 의무**, G2 구현 위임은 워커 판단. 호출은 `codex exec … < /dev/null`(★stdin 열면 무한 대기).
 
 ### ★설계 시 반드시 짚을 것
 
@@ -30,15 +51,64 @@
 
 ### soak
 
-**2~3시간이 목표지만 BL-544 가 열려 있으면 못 채운다.** 2026-07-30 실측 = 세션 생성 14:56:36 → **18분 만에 사망**(공백 6분 21초를 인위로 넣었을 때). 즉 **BL-544 를 먼저 닫아야 장시간 soak 이 성립한다.** ★**한 leg 이 죽어도 metric 차분은 이어붙일 수 있다** — leg 별 스냅샷을 남겨라. ★**평가 수가 창 길이를 독립 확인해 준다**(1분봉). ★**세션이 죽으면 그 포지션은 관리 주체가 없다** — `POST /live-sessions/{id}/positions/close` 가 **비활성 세션에도 작동한다**(2026-07-30 재실측: 202 → `filled` → 거래소 `rows=0`).
+**CONTROL 전용. 통합 브랜치에서 전체 게이트를 통과한 뒤에 시작한다.**
+
+1. ★**worker sentinel 먼저.** worker 는 `src` 를 bind-mount 하므로 **메인 체크아웃의 브랜치가 곧 도는 코드**다. 그러나 mount 확인만으로는 부족하다 — **신규 코드에만 있는 산출물**로 실행을 증명하라(직전 회차는 `_qb_position_epoch` 기록이 그 역할을 했다).
+2. **수용 기준 = BL-544 재현 시나리오가 뒤집히는 것.** 조건부 진입 체결 → >5분 공백 → 재개에서 **세션이 살아남고** `gap_resync_position_mismatch` 가 **0건**이어야 한다. 직전 실측(FAIL)이 대조군이다 — 15:06:25 stop filled → 6분 21초 공백 → 15:14:36 사망.
+3. **60~90분 연속.** 목표는 "긴 시간" 이 아니라 **공백 재현을 2회 이상 통과**하는 것이다. 세션이 살아남기 시작하면 그때부터 장시간 soak 이 의미를 갖는다.
+4. ★**한 leg 이 죽어도 metric 차분은 이어붙일 수 있다** — leg 별 스냅샷을 남겨라. ★**평가 수가 창 길이를 독립 확인해 준다**(1분봉).
+5. ★**세션이 죽으면 그 포지션은 관리 주체가 없다** — `POST /live-sessions/{id}/positions/close` 가 **비활성 세션에도 작동한다**(2026-07-30 재실측: 202 → `filled` → 거래소 `rows=0`). soak 종료 시 **거래소 flat 을 확인하고 끝내라.**
+
+### ★게이트 체인 — 마지막 PR 전에 순서대로 전부 (생략 금지)
+
+CI 는 러너 미할당으로 `steps=0` 에 죽는다. **로컬이 유일한 판단 근거이므로 CI 가 검사할 것을 여기서 대신 돌린다.**
+
+| #   | 게이트    | 명령 / 스킬                                                                                                                                                                                                                   | 조건                                                            |
+| --- | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 1   | lint·type | `uv run ruff check .` · `uv run mypy src/` · `pnpm lint` · `pnpm typecheck`                                                                                                                                                   | 상시                                                            |
+| 2   | 단위      | `cd <abs>/backend; set -a; . ./.env.local; set +a; uv run pytest -q` · `pnpm test`                                                                                                                                            | 상시 (★`pnpm test --run` 은 **Unknown option**)                 |
+| 3   | FE 품질   | **`/vercel-react-best-practices`**                                                                                                                                                                                            | `frontend/**` diff 있을 때 = **BL-423 이 있으므로 이번엔 발동** |
+| 4   | 화면      | **MCP playwright** — 정체성 프로브(`<title>QuantBridge</title>`) → Clerk `storageState` 주입 → 실제 클릭·네트워크·콘솔 error 0 · 375px. **MCP 가 불가하면 gstack `/browse`** 로 대체하고 **무엇으로 했는지 report 에 적어라** | BL-423                                                          |
+| 5   | e2e       | `PLAYWRIGHT_BASE_URL=http://localhost:310N pnpm e2e:authed` · `pnpm e2e:design-canon`                                                                                                                                         | 상시 (★이 변수 없으면 3000 의 남의 앱을 검사한다)               |
+| 6   | 빌드      | `pnpm build`                                                                                                                                                                                                                  | `frontend/**` diff                                              |
+| 7   | 적대 리뷰 | **`/codex` 리뷰** (누적 diff challenge)                                                                                                                                                                                       | 상시. findings 는 **수정/기각(사유)/BL 등재** 로 전건 처분      |
+| 8   | CI 재현   | 커버리지 잡(`--cov-fail-under=90`) + **fresh throwaway DB `alembic upgrade head`** + `pnpm install --frozen-lockfile` + rules-of-hooks grep                                                                                   | 상시 (= GitHub CI 대체)                                         |
+
+★**`| tail` 로 파이프하면 exit code 가 가려진다.** 각 게이트의 종료 코드를 직접 확인하라.
+★billing 이 복구되면 `.github/workflows/ci.yml` 이 그대로 발화한다 — **워크플로 파일은 손대지 않는다**(트리거는 이미 있다).
+
+### ★G9 — 계획 vs 실제 구현 최종 점검 (이번 회차 신설 · 생략 금지)
+
+PR 생성 **직전**에, 오케스트레이터가 **착수 시 동결한 수용 기준 문서**(`.claude/fleet/cond/tasks/*.md`)를 다시 열고 한 항목씩 대조한다. 출력은 **표 하나**다.
+
+| 계획 항목 (동결 원문) | 실제 구현 | 증거 (파일:라인 / 명령 출력) | 판정                                       |
+| --------------------- | --------- | ---------------------------- | ------------------------------------------ |
+| …                     | …         | …                            | 충족 / **미달** / **범위 변경** / **폐기** |
+
+규칙 넷:
+
+1. ★**"충족" 은 증거가 있어야 쓴다.** 워커 보고는 증거가 아니라 주장이다 — 오케스트레이터가 다시 잰 값이나 코드 대조를 적어라.
+2. ★**미달·범위 변경·폐기를 숨기지 마라.** 직전 회차는 "공백 후 세션이 죽지 않는다" 를 테스트 green 으로 통과 처리했고 **실주행이 반증했다.** 그 항목이 이 표에 **미달**로 적혔다면 PR 서술이 처음부터 정확했을 것이다.
+3. **계획에 없었는데 구현된 것**도 적어라(스코프 크립). 요청 안 한 리팩토링은 그 자리에서 되돌린다.
+4. 미달 항목은 **BL 로 등재**하고 PR 본문에 그대로 옮긴다. 표가 곧 PR 의 "남은 것" 절이 된다.
+
+### 시간 배분 (목표 2~4시간)
+
+| 구간                                                  | 목표    |
+| ----------------------------------------------------- | ------- |
+| 분배안 작성 + 수용 기준 동결 + **정지점 ①**           | 20~30분 |
+| 워커 2기 병렬 (G0~G6)                                 | 60~90분 |
+| 통합 + 전체 게이트 체인 1~8                           | 30~40분 |
+| **soak** (BL-544 실주행 · 공백 재현 2회)              | 60~90분 |
+| **G9 최종 점검** + 문서 원자 갱신 + **정지점 ②** → PR | 20~30분 |
 
 ### 하지 않는 것
 
-**BL-535 잔여**(스팟/perp 결과 차 대조 — `mirror_not_allowed` 가 막는다, BL-186 대기) · **BL-541**(세션 행 없는 포지션 — **아직 실측된 적 없다**, 관측되면 착수) · BL-542(P3) · BL-538/539/540 · BL-527/528/529 · 거래소 확장 · `tasks/` deepen · 워커 `bl543` 이 남긴 후보 2건(계측기 one-tick lead · 재정렬 tick 사이징 전이).
+**BL-536**(진입 유실 재측정 — **BL-544 착지 후 다음 회차**. 세션이 공백마다 죽으면 재측정이 성립하지 않는다) · **BL-535 잔여**(스팟/perp 결과 차 대조 — `mirror_not_allowed` 가 막는다, BL-186 대기) · **BL-541**(세션 행 없는 포지션 — **아직 실측된 적 없다**, 관측되면 착수) · BL-542(P3) · BL-538/539/540 · BL-527/528/529 · 거래소 확장 · `tasks/` deepen · 워커 `bl543` 이 남긴 후보 2건(계측기 one-tick lead · 재정렬 tick 사이징 전이).
 
-### baseline (2026-07-30 실측, `stage/engine-exchange-alignment` 통합 브랜치에서 **전건 재측정**)
+### baseline (2026-07-30 실측 — 당시 `stage/engine-exchange-alignment`, **현재 `main@af655616` 과 동일 트리**)
 
-**직접 측정 (전부 이 브랜치에서 돌렸다):** BE **3459 passed / 46 skipped**(348s) / ruff **clean** / mypy **212 clean** / FE vitest **1213**(203 파일) / FE lint **clean** / FE build **✓** / e2e authed **65** / canon **32** / fresh DB `alembic upgrade head` **통과** / 마이그레이션 **0**.
+**직접 측정 (전부 이 트리에서 돌렸다):** BE **3459 passed / 46 skipped**(348s) / ruff **clean** / mypy **212 clean** / FE vitest **1213**(203 파일) / FE lint **clean** / FE build **✓** / e2e authed **65** / canon **32** / fresh DB `alembic upgrade head` **통과** / 마이그레이션 **0**.
 
 ★워커 자기 보고(3451 · 3432)와 산술 합(3424+27+8=**3459**)이 통합 실측과 **정확히 일치**했다 — 격차 0.
 ★`pnpm test --run` 은 이 레포에서 **Unknown option** 이다(스크립트가 이미 `vitest run`). `pnpm test` 로 써라 — 빈 출력을 통과로 세지 마라.
