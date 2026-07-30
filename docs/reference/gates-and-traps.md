@@ -158,6 +158,27 @@ cd $QB/frontend && pnpm e2e:authed
   금융 파생 모듈은 `localcontext(Context(prec=50))` 로 감싸라. ★그리고 **테스트도 같은 컨텍스트에서 비교**해야 한다 —
   기본 컨텍스트로 항등식을 재계산하면 마지막 자리가 어긋나 거짓 red 가 난다.
 
+### 원장을 읽을 때 (2026-07-30 close-mismatch-visibility)
+
+- ★★★**`orders.filled_at` 은 이름과 달리 terminal_at 이다** — 체결뿐 아니라 **취소·거절 시각도**
+  여기 들어간다(`models.py:293-296` 주석이 이미 그렇게 적었다). 그리고 **한 주문의 terminal 과
+  다음 주문의 `created_at` 을 섞지 마라.** 실측 사고 — `0.058` 주문이 09:09:46 까지 살아 있다고
+  적었는데 그건 **다음 주문의 생성 시각**이었고 실제 terminal 은 09:07:40 이었다(1m49s vs 3분).
+- ★★**라이브 진입 key 는 형식이 둘이다.** 조건부 = `live:<sess>:cond:<bar_epoch>:<stop>:<qty>:<trade_id>`,
+  시장가 = `live:<sess>:<bar_time ISO>:<seq>:<action>:<trade_id>`. `split_part` 로 한 형식만
+  가정해 자르면 **다른 형식이 조용히 오분류**된다(실측: 21행을 `cond` 로 읽었는데
+  `LIKE ':cond:%'` 카운트는 0이었다). **분해 결과를 쓰기 전에 원문을 한 번 출력해라.**
+  귀속의 권위는 `conditional_entry_planner.parse_live_entry_key` **하나**다.
+- ★★★**같은 에러 코드 안의 갈래가 위험도가 다르면 그 코드는 라벨이 될 수 없다.**
+  `110017` 이 `same side`(★엔진↔거래소 **반대 방향**) 9건과 `current position is zero`(무해) 30건을
+  한 라벨에 담고 있었다. **무해가 3배라 위험이 수적으로 묻혔고** counter 는 계속 "유령 포지션" 만
+  가리켰다. 이 저장소가 `110017` 로 이 교훈을 **두 번째** 받은 것이다.
+- ★★**`live_signal_events` 는 진입을 세지 않는다.** `entry`/`close` 시장가만 담고
+  **조건부 진입은 거치지 않는다**. 그래서 `bool(new_events)` 로 만든 판정
+  (`deferred_market_inflight`)은 stop-entry 전략에서 **사실상 「청산 tick 수」** 다.
+  ★그 counter 는 `desired` 를 **읽기 전에** 오르므로 **미룰 진입이 0건이어도 발화한다.**
+  **분모를 확인하지 않은 비중(예: "합의 75%")은 측정이 아니다.**
+
 ### 측정 도구가 먼저 틀린다 (2026-07-30 — 한 회차에 **6번**)
 
 > ★평가자의 계측기가 6번 먼저 틀렸고 **6/6 전부 "코드가 틀렸다" 로 갈 뻔했다.** 유형이 반복된다.

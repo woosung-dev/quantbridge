@@ -998,6 +998,53 @@ def _capture_error_stages(monkeypatch: pytest.MonkeyPatch) -> list[str]:
 
 
 @pytest.mark.asyncio
+async def test_market_inflight_with_pending_entries_counts_deferred_and_skips_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    stages = _capture_error_stages(monkeypatch)
+
+    await _reconcile(session, _result([_pending()]), harness, market_orders_in_flight=True)
+
+    assert stages == ["deferred_market_inflight"]
+    harness.provider.fetch_open_conditional_orders.assert_not_awaited()
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_market_inflight_without_pending_entries_counts_noop_and_skips_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    stages = _capture_error_stages(monkeypatch)
+
+    await _reconcile(session, _result([]), harness, market_orders_in_flight=True)
+
+    assert stages == ["deferred_market_inflight_noop"]
+    harness.provider.fetch_open_conditional_orders.assert_not_awaited()
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_market_inflight_metric_label_failure_is_isolated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    metric = MagicMock()
+    metric.labels.side_effect = OSError("No space left on device")
+    monkeypatch.setattr(live_signal_module, "qb_live_conditional_reconcile_errors_total", metric)
+
+    await _reconcile(session, None, harness, market_orders_in_flight=True)
+
+    metric.labels.assert_called_once_with(stage="deferred_market_inflight")
+    harness.provider.fetch_open_conditional_orders.assert_not_awaited()
+    harness.order_service.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_cancel_race_is_classified_and_skips_placement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

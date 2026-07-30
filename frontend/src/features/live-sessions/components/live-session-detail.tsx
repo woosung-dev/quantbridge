@@ -20,8 +20,9 @@ import { useMemo } from "react";
 import {
   ORDER_REALIZED_PNL_SOURCE_HINT,
   ORDER_REALIZED_PNL_SOURCE_LABEL,
+  ORDER_STATE_LABEL,
 } from "@/features/trading/labels";
-import { labelOf } from "@/lib/labels";
+import { labelOf, statusLabelOf } from "@/lib/labels";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
 import { LIVE_SIGNAL_DIRECTION_LABEL, LIVE_SIGNAL_EVENT_STATUS_LABEL } from "../labels";
@@ -296,29 +297,44 @@ export function LiveSessionDetail({ session }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {events.items.slice(0, 20).map((ev) => (
-                  <tr key={ev.id} className="border-t">
-                    <td className="py-1 font-mono">{formatDateTime(ev.bar_time)}</td>
-                    <td className="py-1">{ev.action}</td>
-                    <td className="py-1">
-                      {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, ev.direction, "live-signal-direction")}
-                    </td>
-                    <td className="py-1 font-mono">{ev.qty}</td>
-                    <td className="py-1">
-                      <span
-                        className={
-                          ev.status === "dispatched"
-                            ? "text-success"
-                            : ev.status === "failed"
-                              ? "text-destructive"
-                              : "text-muted-foreground"
-                        }
-                      >
-                        {labelOf(LIVE_SIGNAL_EVENT_STATUS_LABEL, ev.status, "liveEvent.status")}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {events.items.slice(0, 20).map((ev) => {
+                  const orderResult = ev.order_state
+                    ? statusLabelOf(ORDER_STATE_LABEL, ev.order_state, "liveEvent.order_state")
+                    : null;
+                  const hasRejectedOrder =
+                    ev.order_state === "rejected" || ev.order_state === "cancelled";
+                  // ★`null` 과 `undefined` 는 다른 뜻이다. `undefined` = 구 응답(필드 자체가 없다)
+                  //   이라 기존 표시를 유지한다. `null` 은 서버가 "연결된 주문이 없다" 고 명시한
+                  //   것이고 API 계약상 **성공이 아니다** — 초록으로 칠하면 확인되지 않은 것을
+                  //   확인된 것처럼 보이게 한다.
+                  const orderUnlinked = ev.order_state === null;
+                  const statusClass = hasRejectedOrder
+                    ? "text-destructive"
+                    : orderUnlinked
+                      ? "text-muted-foreground"
+                      : ev.status === "dispatched"
+                        ? "text-success"
+                        : ev.status === "failed"
+                          ? "text-destructive"
+                          : "text-muted-foreground";
+
+                  return (
+                    <tr key={ev.id} className="border-t">
+                      <td className="py-1 font-mono">{formatDateTime(ev.bar_time)}</td>
+                      <td className="py-1">{ev.action}</td>
+                      <td className="py-1">
+                        {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, ev.direction, "live-signal-direction")}
+                      </td>
+                      <td className="py-1 font-mono">{ev.qty}</td>
+                      <td className="py-1">
+                        <span className={statusClass}>
+                          {labelOf(LIVE_SIGNAL_EVENT_STATUS_LABEL, ev.status, "liveEvent.status")}
+                          {orderResult ? ` (주문 ${orderResult.label})` : ""}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

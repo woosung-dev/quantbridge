@@ -166,10 +166,10 @@ def test_110092_maps_to_trigger_breached_reason() -> None:
     assert _normalize_exchange_order_response_reason(_LONG_TRIGGER_BREACHED_RESPONSE) == "trigger_breached"
 
 
-def test_110017_maps_to_reduce_only_violation() -> None:
+def test_110017_position_zero_maps_to_dedicated_reason() -> None:
     assert (
         _normalize_exchange_order_response_reason(_REDUCE_ONLY_VIOLATION_RESPONSE)
-        == "reduce_only_violation"
+        == "reduce_only_position_zero"
     )
 
 

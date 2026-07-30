@@ -19,18 +19,18 @@
 
 > 본문은 해당 rule file에 있음. 본 파일은 reference table 만 유지.
 
-| ID | 승격 위치 | 한 줄 요약 |
-| -- | -------- | --------- |
-| LESSON-004 | `.ai/stacks/nextjs/frontend.md` §3 H-1 | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop) |
-| LESSON-005 | `.ai/stacks/nextjs/frontend.md` §3 H-2 | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지 |
-| LESSON-006 | `.ai/stacks/nextjs/frontend.md` §3 H-3 | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동 |
-| LESSON-019 | `.ai/stacks/fastapi/backend.md` §3 | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단) |
-| LESSON-020 | `.ai/stacks/fastapi/backend.md` §9.2 | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무 |
-| LESSON-037 | `.ai/common/global.md` §7.1 | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제) |
-| LESSON-038 | `.ai/common/global.md` §7.2 | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check |
-| LESSON-039 | `.ai/common/global.md` §7.3 | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무 |
-| LESSON-040 | `.ai/common/global.md` §7.4 | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무 |
-| LESSON-063 | `.ai/common/global.md` §7.5 | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장 |
+| ID         | 승격 위치                              | 한 줄 요약                                                                                                          |
+| ---------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| LESSON-004 | `.ai/stacks/nextjs/frontend.md` §3 H-1 | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)       |
+| LESSON-005 | `.ai/stacks/nextjs/frontend.md` §3 H-2 | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                              |
+| LESSON-006 | `.ai/stacks/nextjs/frontend.md` §3 H-3 | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                    |
+| LESSON-019 | `.ai/stacks/fastapi/backend.md` §3     | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단) |
+| LESSON-020 | `.ai/stacks/fastapi/backend.md` §9.2   | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                              |
+| LESSON-037 | `.ai/common/global.md` §7.1            | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제)                           |
+| LESSON-038 | `.ai/common/global.md` §7.2            | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check                                |
+| LESSON-039 | `.ai/common/global.md` §7.3            | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                           |
+| LESSON-040 | `.ai/common/global.md` §7.4            | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                    |
+| LESSON-063 | `.ai/common/global.md` §7.5            | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                           |
 
 ---
 
@@ -220,7 +220,7 @@
 
 ### LESSON-064 (3/3 — 정식 승격 후보) — `/deepen-modules` audit silent failure 판단 = 직접 read + 전체 dispatch 경로 추적
 
-- **상황:** BL-205 `OrderReceipt` 3-state 가 단일 grep 으로 silent failure 등재됐으나 codex G.0 2차 재검증 결과 = 의도된 *create flow* simplification, *fetch flow* 는 별도 `OrderStatusFetch` 4-state. 코드 변경 0, ADR 문서화로 Resolved.
+- **상황:** BL-205 `OrderReceipt` 3-state 가 단일 grep 으로 silent failure 등재됐으나 codex G.0 2차 재검증 결과 = 의도된 _create flow_ simplification, _fetch flow_ 는 별도 `OrderStatusFetch` 4-state. 코드 변경 0, ADR 문서화로 Resolved.
 - **해결:** (a) 단일 파일 grep 미확정 / (b) `_map_*` reverse 매핑 + consumer 전수 추적 / (c) BL 등재 전 codex G.0 cross-check. post-merge audit (Sprint 48 Worker E reverse-mapping audit) = positive validation safety net.
 - **3차 검증 (2026-06-30 stress_test-deepen):** BL-363 boilerplate 의 money-path 위험을 단일 grep 이 아니라 **직접 read(`service.py:298-411`) + git co-change 추적(`6c7adfba` WF 누락 → `ffb2299b` 별도 패치)** 으로 확정 — config-drift 가 실제 silent corruption 으로 한 번 물었음을 증명. `StressTestKind` dispatch 도 5 site/3 파일 전수 추적으로 over-eng(C3 거부) 판단. 단일 grep 이었으면 "boilerplate 추출" 표면 가치만 봤을 것 → 직접 read 가 money-path framing + git 실증을 끌어냄. **3/3 누적 → `.ai/common/global.md` §7.5 의 deepen-modules 절차에 "단일 grep 금지, 직접 read + dispatch/co-change 전수 추적 의무" 영구 승격 후보(사용자 검토).**
 - **[LESSON-063 §7.5 4차 재현 corroboration]** multi-SSOT/평행정의 패턴: pine_v2 STDLIB(1) → backtest BacktestMetrics 24-field 4-site(2) → trading exit-field(3) → **stress_test cell 8-site + add-a-type 7파일 lockstep(4, git verbatim 2회)**. AI 누적 코드는 신규 도메인 타입 추가 시 N 타입 × M 레이어 평행 확장을 디폴트로 누적 → §7.5 `/deepen-modules` 신규 도메인 직후 의무 재확인.
@@ -228,7 +228,7 @@
 ### LESSON-065 — subagent review 2-stage 가 monkeypatch indirect dependency 못 잡음
 
 - **상황:** Sprint 48 PR #246 BL-203 service.py 5-service 분할 → 5 test FAIL (`logger`/`datetime`/`settings` AttributeError). spec/code reviewer 2-stage PASS 통과 후 GitHub Actions 에서 detection.
-- **원인:** Python namespace 분리 — shim re-export 는 module-level attribute (logger/datetime/settings/typing import) 까지 보존 안 함. `monkeypatch.setattr(service_mod, ...)` 가 shim attribute 만 변경 → services/* 안 자체 attribute 영향 0.
+- **원인:** Python namespace 분리 — shim re-export 는 module-level attribute (logger/datetime/settings/typing import) 까지 보존 안 함. `monkeypatch.setattr(service_mod, ...)` 가 shim attribute 만 변경 → services/\* 안 자체 attribute 영향 0.
 - **해결:** module rename/split 동반 PR review 의무 — (1) `monkeypatch.setattr(<module>, ...)` 패턴 + module split 영역 발견 시 attribute resolution 직접 검증 / (2) shim 의 namespace 한계 인지 / (3) Preflight grep audit 시 alias (`as service_mod`) 패턴 검색 의무.
 
 ### LESSON-068 — Korean docs lint mechanism 부재 → §5/§6 위반 누적 자연 발생 (1/3)
@@ -237,14 +237,44 @@
 - **원인:** lint mechanism 0 — markdownlint custom rule (한국어 sentence + `:` end-of-line) 부재 + ESLint custom rule (한국어 주석 첫 3줄 의무) 부재 + ruff custom rule 부재. LLM 매 generation 자연 위반 + reviewer 0 → 누적.
 - **해결 path:** (a) ruff custom plugin 또는 markdownlint custom rule 으로 §5 자동 검출 + auto-fix script (`:` → `.` 한국어 sentence ender 한정) (b) ESLint custom rule + ruff custom rule 으로 §6 누락 file 검출 + pre-commit hook (c) 누락 70 file 일괄 한국어 헤더 추가 sprint = BL-307. 1차 누적 (Sprint 60 Track C) — 3차 시 `.ai/common/global.md` §5/§6 mechanism 의무 영구 승격 path.
 
+### LESSON-069 — 저-카디널리티 라벨이 **위험도가 다른 갈래**를 합치면 큰 갈래가 작은 갈래를 묻는다 (1/3)
+
+- **상황:** 2026-07-30 close-mismatch-visibility. `metrics.py` 가 Bybit `110017` 을 단일
+  `reduce_only_violation` 으로 접었다. 실측 39건 = `reduce-only ... same side`(★엔진↔거래소
+  **반대 방향**, 머니-패스 위험) **9건** + `current position is zero`(무해) **30건**.
+  무해가 3배라 counter 를 보면 "유령 포지션 문제" 로만 보이고 **방향 반전은 보이지 않았다.**
+  위험 갈래는 **5개 세션에 걸쳐 반복 발생** 중이었다.
+- **원인:** 카디널리티 보호를 위해 retCode 로만 매핑했다. 그런데 `gates-and-traps.md:104` 와
+  `live-close-diagnostics.md` §2 가 **이미 "코드로만 묶지 마라, retMsg 까지 갈라라" 고 적어 뒀는데**
+  코드가 그 경고를 지키지 않았다. 문서가 경고를 적는 것과 코드가 지키는 것은 다른 사건이다.
+- **해결:** 코드 확정 **뒤** 그 안에서만 retMsg 로 갈래를 가른다(코드 판정에는 retMsg 를 쓰지 않는
+  BL-512 원 제약은 유효). 잔여 버킷을 남겨 미지 문구가 조용히 사라지지 않게 한다.
+- **일반 규칙 후보:** **저-카디널리티 라벨을 만들 때 "이 버킷 안의 두 값이 서로 다른 조치를
+  요구하는가" 를 물어라.** 요구한다면 그 코드는 라벨이 될 수 없다. 그리고 **큰 갈래가 작은 갈래를
+  묻는 방향**(무해가 다수, 위험이 소수)이면 평균이 안전을 말하게 된다.
+- **1차 누적.** 3회 시 `.ai/common/global.md` 승격 후보.
+
+### LESSON-070 — 비중(%)을 인용하기 전에 **분모가 무엇을 세는지** 코드로 확인해라 (1/3)
+
+- **상황:** 같은 회차. 직전 스프린트가 `deferred_market_inflight` 를 "유실 채널 합의 **75%**" 로
+  적었고 그 위에 다음 스프린트를 설계했다. 실측 — 그 counter 는 `bool(new_events)` 로 오르는데
+  `new_events` 는 `entry`/`close` **시장가 이벤트만** 담고 **조건부 진입은 그 테이블을 거치지 않는다.**
+  즉 stop-entry 전략에서 그 값은 **「청산 tick 수」** 이고, 세션 실측에서 events 9건(전량 `close`)과
+  counter 9 가 **1:1** 이었다. 게다가 증가 지점이 `desired` 를 **읽기 전**이라 미룰 진입이
+  0건이어도 발화한다.
+- **해결:** 비중을 쓰기 전에 (a) 분자·분모가 **같은 사건 단위**인가 (b) 그 counter 가 증가하는
+  **코드 위치가 무엇을 이미 알고 있는가** 를 확인한다. 후자가 이번의 결정타였다 — 증가가
+  판정 대상보다 **앞**에 있으면 그 counter 는 판정에 대해 아무것도 모른다.
+- **1차 누적.**
+
 ---
 
 ## 확장 시점 판단 기준 (변경 없음)
 
 > 아래 조건이 충족되면 해당 패턴 도입을 검토한다. 그 전까지는 도입하지 않는다.
 
-| 패턴 | 도입 트리거 | 현재 상태 |
-| ---- | ---------- | -------- |
-| 코드 내 중첩 AGENTS.md | 도메인 3 개 이상 + 각각 반직관적 비즈니스 규칙 3 개 이상 누적 | 미해당 |
-| Action-Based Routing (Context Map) | `.ai/rules/domain.md` 가 200 줄 초과 + 섹션 분리로도 부족 | 미해당 |
-| 모노레포 규칙 분기 | `apps/` 하위에 독립 `package.json` 이 2 개 이상 존재 | 미해당 |
+| 패턴                               | 도입 트리거                                                   | 현재 상태 |
+| ---------------------------------- | ------------------------------------------------------------- | --------- |
+| 코드 내 중첩 AGENTS.md             | 도메인 3 개 이상 + 각각 반직관적 비즈니스 규칙 3 개 이상 누적 | 미해당    |
+| Action-Based Routing (Context Map) | `.ai/rules/domain.md` 가 200 줄 초과 + 섹션 분리로도 부족     | 미해당    |
+| 모노레포 규칙 분기                 | `apps/` 하위에 독립 `package.json` 이 2 개 이상 존재          | 미해당    |

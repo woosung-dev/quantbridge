@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import LiveSignalEvent, LiveSignalEventStatus
+from src.trading.models import LiveSignalEvent, LiveSignalEventStatus, Order
 
 
 class LiveSignalEventRepository:
@@ -135,6 +135,25 @@ class LiveSignalEventRepository:
             .limit(limit)
         )
         return result.scalars().all()
+
+    async def list_by_session_with_order_state(
+        self, session_id: UUID, *, limit: int = 100
+    ) -> Sequence[tuple[LiveSignalEvent, str | None]]:
+        """UI 이벤트 목록에 연결된 주문 상태를 단일 LEFT JOIN으로 함께 조회한다."""
+        result = await self.session.execute(
+            select(LiveSignalEvent, cast(Any, Order.state))
+            .outerjoin(
+                Order,
+                cast(Any, LiveSignalEvent.order_id) == Order.id,
+            )
+            .where(cast(Any, LiveSignalEvent.session_id) == session_id)
+            .order_by(LiveSignalEvent.created_at.desc())  # type: ignore[attr-defined]
+            .limit(limit)
+        )
+        return [
+            (live_event, str(order_state) if order_state is not None else None)
+            for live_event, order_state in result.tuples().all()
+        ]
 
     async def sum_realized_pnl_before(
         self, session_id: UUID, *, bar_time: datetime

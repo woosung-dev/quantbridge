@@ -91,6 +91,7 @@ export const LiveSignalEventSchema = z.object({
   comment: z.string(),
   status: LiveSignalEventStatusSchema,
   order_id: z.uuid().nullable(),
+  order_state: z.string().nullable().optional(),
   error_message: z.string().nullable(),
   retry_count: z.number(),
   created_at: z.string(),
