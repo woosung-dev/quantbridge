@@ -7,7 +7,7 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select, text, update
@@ -20,6 +20,9 @@ from src.trading.models import (
     OrderSide,
     OrderState,
 )
+
+# 세션 스코프 창을 어느 시각 축에 걸 것인가. `terminal` 이 기존 동작이다.
+ScopeWindow = Literal["terminal", "created"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +113,39 @@ class LedgerFill:
     reduce_only: bool
 
 
+@dataclass(frozen=True, slots=True)
+class EntryAttemptRow:
+    """진입 **발주 시도** 1건의 원장 사실 (BL-536).
+
+    ★`LedgerFill` 과 다른 타입인 이유 — 저쪽은 "무엇이 체결됐나" 만 묻고 체결되지 않은
+    행을 구조적으로 못 본다. 진입 완결성은 정반대로 **체결되지 않은 것**이 답이라,
+    같은 타입을 재사용하면 분모가 조용히 틀린다.
+
+    ★`terminal_at` 은 `Order.filled_at` 컬럼이다. 이름과 달리 체결 시각이 아니라
+    **terminal 시각**이고 `rejected`/`cancelled` 전이도 여기에 쓴다. 창(`created_at`)
+    밖의 terminal 을 "판정 유예" 로 세기 위해 싣는다.
+
+    ★`error_message` 는 거래소 retCode 원문을 담는다. 거절 사유를 라벨이 아니라 원문에서
+    읽어야 하는 이유는 `metrics._normalize_exchange_order_response_reason` 이 이미
+    저카디널리티로 뭉갠 값만 metric 에 남기기 때문이다 — 원장이 원문의 유일한 보관처다.
+    """
+
+    order_id: UUID
+    idempotency_key: str | None
+    state: OrderState
+    side: OrderSide
+    quantity: Decimal
+    filled_quantity: Decimal | None
+    created_at: datetime
+    terminal_at: datetime | None
+    error_message: str | None
+
+
+# 한 창에서 훑을 진입 시도 상한. 체결 조회와 같은 이유로 `limit + 1` 을 가져와 호출부가
+# **절단을 감지**한다 — 조용히 잘린 원장은 분모를 작게 만들어 유실률을 낙관적으로 왜곡한다.
+ENTRY_ATTEMPT_SCAN_LIMIT = 5000
+
+
 # 한 공백 창에서 훑을 체결 상한. 호출부가 **절단을 감지**할 수 있어야 하므로 조회는
 # 이 값 + 1 건을 가져온다 — 조용한 절단은 부분 원장으로 순포지션을 만들고, 그 값은
 # 실제보다 작아 엔진을 실제보다 flat 하게 심는다.
@@ -127,29 +163,46 @@ _STATES_THAT_CAN_CARRY_FILLS = (OrderState.filled, OrderState.cancelled, OrderSt
 
 
 def _session_scope_where(
-    scope: SessionScope, *, states: Sequence[OrderState] = (OrderState.filled,)
+    scope: SessionScope,
+    *,
+    states: Sequence[OrderState] | None = (OrderState.filled,),
+    window: ScopeWindow = "terminal",
 ) -> list[Any]:
     """세션 스코프를 SQL 술어로 번역하는 **유일한** 자리.
 
-    `states` 기본값이 `(filled,)` 라 기존 3 소비처(`list_filled_realized_for_session` ·
-    `realized_pnl_split_for_session`)는 인자를 주지 않아 **동작이 불변**이다. 술어를 복사해
-    두 벌로 만드는 대신 파라미터로 연 이유가 그것이다 — 스코프 SQL 번역은 계속 이 자리 하나다.
+    기본값(`states=(filled,)`, `window="terminal"`)이 오늘의 동작 그대로라 기존 4 소비처
+    (`list_filled_realized_for_session` · `list_fills_since` ·
+    `realized_pnl_split_for_session` · `parity_repository`)는 인자를 주지 않아
+    **동작이 불변**이다. 술어를 복사해 두 벌로 만드는 대신 파라미터로 연 이유가 그것이다 —
+    스코프 SQL 번역은 계속 이 자리 하나다.
 
     ★`filled_at` 은 이름과 달리 **terminal 시각**이다. `transition_to_{filled,rejected,
     cancelled}` 가 모두 이 컬럼에 쓴다(`models.py:263-265` 주석이 명시한다). 그래서 창
     술어(`>= started_at` / `< ended_at`)는 상태 집합을 넓혀도 그대로 유효하다.
+
+    두 파라미터가 여는 것 (BL-536):
+
+    - `states=None` — 상태 술어를 아예 안 건다. 진입 **시도**의 분모에는 아직 종결되지
+      않은 `pending`/`submitted` 도 들어가야 한다. 기본값으로는 구조적으로 못 본다.
+    - `window="created"` — 창을 `created_at` 으로 옮기고 `filled_at IS NOT NULL` 을 뺀다.
+      terminal 창으로는 **아직 종결되지 않은 행이 전부 사라져** 분모가 "이미 끝난 것" 만
+      남는다. 진입 완결성은 "그 창에 **시도된** 것" 을 물으므로 생성 시각이 맞는 축이다.
+      `created_at` 은 NOT NULL 이라 별도 null 검사가 필요 없다.
     """
+    time_column = Order.created_at if window == "created" else Order.filled_at
     predicates: list[Any] = [
         Order.strategy_id == scope.strategy_id,
         Order.exchange_account_id == scope.exchange_account_id,
         Order.symbol == scope.symbol,
-        Order.state.in_(states),  # type: ignore[attr-defined]
-        Order.filled_at.is_not(None),  # type: ignore[union-attr]
-        Order.filled_at >= scope.started_at,  # type: ignore[operator]
     ]
+    if states is not None:
+        predicates.append(Order.state.in_(states))  # type: ignore[attr-defined]
+    if window == "terminal":
+        predicates.append(Order.filled_at.is_not(None))  # type: ignore[union-attr]
+    predicates.append(time_column >= scope.started_at)  # type: ignore[operator]
     # 활성 세션은 `deactivated_at IS NULL` 이라 상한이 없다.
     if scope.ended_at is not None:
-        predicates.append(Order.filled_at < scope.ended_at)  # type: ignore[operator]
+        predicates.append(time_column < scope.ended_at)  # type: ignore[operator]
     return predicates
 
 
@@ -413,6 +466,71 @@ class OrderRepository:
                 filled_price=row[4],
                 filled_at=row[5],
                 reduce_only=row[6],
+            )
+            for row in rows
+        ]
+
+    async def list_entry_attempts(
+        self,
+        scope: SessionScope,
+        *,
+        since: datetime,
+        until: datetime | None = None,
+        limit: int = ENTRY_ATTEMPT_SCAN_LIMIT,
+    ) -> Sequence[EntryAttemptRow]:
+        """세션 스코프 안에서 `[since, until)` 에 **생성된** 진입 주문 전량 (BL-536).
+
+        진입 유실의 크기를 재는 조회다. 기존 조회 넷과 술어가 다른 지점이 셋이고, 셋 다
+        틀리면 분모가 조용히 거짓말한다.
+
+        1. **창이 `created_at`** 이다. `filled_at`(terminal) 창으로 잡으면 아직 종결되지
+           않은 시도가 전부 사라져 "이미 끝난 것" 만 분모에 남는다 — 유실을 재려는데
+           유실 후보를 먼저 지우는 셈이다.
+        2. **상태를 좁히지 않는다.** `pending`/`submitted` 도 시도다.
+        3. **`reduce_only = false`.** 청산은 진입이 아니다. 이 술어를 뒤집으면 진입/청산이
+           통째로 뒤바뀌므로 대조군 테스트가 이 축을 직접 겨눈다.
+
+        ★스코프 술어는 `_session_scope_where` 를 그대로 재사용한다 — 복사하면 BL-444/445 가
+        고친 그 병이 다시 두 벌이 된다. 세션 창(`[created, deactivated)`)과 `since/until`
+        은 **둘 다** 걸린다. 세션이 생기기 전에 만들어진 주문은 그 세션 것일 수 없으므로
+        세션 하한은 제약이 아니라 정의다.
+
+        ★`limit + 1` 을 가져온다. 호출부가 `len(rows) > limit` 으로 절단을 감지해야 한다.
+        """
+        stmt = (
+            select(
+                cast(Any, Order.id),
+                cast(Any, Order.idempotency_key),
+                cast(Any, Order.state),
+                cast(Any, Order.side),
+                cast(Any, Order.quantity),
+                cast(Any, Order.filled_quantity),
+                cast(Any, Order.created_at),
+                cast(Any, Order.filled_at),
+                cast(Any, Order.error_message),
+            )
+            .where(*_session_scope_where(scope, states=None, window="created"))
+            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
+            .where(Order.created_at >= since)  # type: ignore[arg-type]
+        )
+        if until is not None:
+            stmt = stmt.where(Order.created_at < until)  # type: ignore[arg-type]
+        stmt = stmt.order_by(
+            cast(Any, Order.created_at).asc(),
+            cast(Any, Order.id).asc(),
+        ).limit(limit + 1)
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            EntryAttemptRow(
+                order_id=row[0],
+                idempotency_key=row[1],
+                state=row[2],
+                side=row[3],
+                quantity=row[4],
+                filled_quantity=row[5],
+                created_at=row[6],
+                terminal_at=row[7],
+                error_message=row[8],
             )
             for row in rows
         ]

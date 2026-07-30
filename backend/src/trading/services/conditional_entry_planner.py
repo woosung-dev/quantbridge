@@ -6,10 +6,28 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import ROUND_DOWN, Decimal
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
 
-from src.strategy.pine_v2.event_loop import PendingOrderSnapshot
+if TYPE_CHECKING:
+    # ★런타임 import 로 두지 마라 (BL-536 R2).
+    #
+    # 이 모듈은 순수 계획기이고 `PendingOrderSnapshot` 을 **타입으로만** 쓴다
+    # (`plan_reconcile` 의 `desired` 주석 하나). 그런데 런타임 import 로 두면 이 모듈을
+    # import 하는 **모든** 곳이 `pine_v2` 인터프리터 전체를 함께 끌고 온다 —
+    # 실측으로 `event_loop`/`interpreter`/`stdlib`/`sizing`/`rendering` 등 **8 모듈**이
+    # `src.tasks.live_signal` 의 top-level 폐포에 새로 들어왔다(6 -> 14).
+    #
+    # 그것이 위험한 이유는 celery worker 가 `backend/src` 를 bind-mount + watchfiles 로
+    # 물기 때문이다. `event_loop.py` 편집 중간 상태가 지금까지는 **한 세션의 평가 실패**
+    # (그래서 fail-closed 비활성화가 돌 수 있었다)였는데, top-level 로 올리면
+    # **`src.tasks.live_signal` 모듈 import 실패 = celery 태스크 미등록**이 된다.
+    # 그러면 비활성화 코드조차 안 돌고 beat 는 계속 큐에 쌓는다.
+    #
+    # `from __future__ import annotations` 가 있어 주석은 문자열로 남으므로 런타임에
+    # 이 이름이 필요 없다. 아무도 이 모듈에서 `PendingOrderSnapshot` 를 import 하지 않는다
+    # (grep 확인). 회귀 방어는 `tests/tasks/test_live_signal_import_blast_radius.py`.
+    from src.strategy.pine_v2.event_loop import PendingOrderSnapshot
 
 EntryDirection = Literal["long", "short"]
 EntrySide = Literal["buy", "sell"]
@@ -149,29 +167,131 @@ def build_market_converted_entry_key(
     )
 
 
-def parse_conditional_entry_key(key: str | None) -> tuple[UUID, str] | None:
-    """우리 조건부 진입 key에서 세션과 Pine trade id를 복원한다.
+LiveEntryKind = Literal["cond", "condmkt", "entry"]
 
-    `trade_id`는 Pine 사용자 입력이라 `:`를 포함할 수 있다. 따라서 앞의 다섯 구분자만
-    분리하고 나머지는 trade id 그대로 보존한다. 이 형식 판정은 한 곳만 유지한다.
+_LIVE_KEY_PREFIX = "live:"
+_CONDITIONAL_KINDS: tuple[LiveEntryKind, ...] = ("cond", "condmkt")
+# 시장가 진입 key 는 `live:<sess>:<bar_time ISO>:<seq>:entry:<trade_id>` 다
+# (`tasks/live_signal._build_idempotency_key`). ISO 시각이 `:` 를 포함하므로 split 이
+# 아니라 이 마커로 가른다. `trade_id` 는 Pine 사용자 입력이라 `:` 를 포함할 수 있어
+# **마커 뒤 전부**가 id 다.
+_MARKET_ENTRY_MARKER = ":entry:"
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedLiveEntryKey:
+    """우리가 만든 라이브 **진입** 주문 key 를 되짚은 결과 (BL-536).
+
+    ★이 타입이 존재하는 이유는 파서를 세 벌로 늘리지 않기 위해서다. 진입 완결성 분해는
+    `session_id`/`trade_id` 만으로는 부족하고 `kind`(조건부인가 시장가 전환인가)와
+    `bar_epoch`(같은 trade_id 의 재발행을 시간순으로 세우는 축)가 필요하다. 그래서
+    형식 판정 자리를 옮기지 않고 **이 파일 하나에서 필드를 더 준다** —
+    `parse_conditional_entry_key` 와 `live_signal._pine_trade_id_from_order_key` 는
+    둘 다 여기로 위임한다.
+
+    ★`bar_epoch` 는 **관용적으로** 판독한다. int 로 안 읽히면 `None` 이고 파싱은 계속
+    성공한다. 엄격하게 막으면 BL-544 의 공백 재개 seed 가 legacy/비정규 key 앞에서
+    fail-closed 로 떨어져 **세션이 계속 죽는다** — 그 함수의 기존 동작은 epoch 를 아예
+    검사하지 않았다. 계약은 "논리 정수만 보존" 이다: `001`/`+1` 같은 비정규 표기도
+    받아들이므로 **문자열 왕복은 보장하지 않는다**(codex G1 Q5).
+
+    ★`close` key 는 여기서 `None` 으로 떨어진다. `:entry:` 마커가 없기 때문이며,
+    기존 파서 두 벌의 동작과 정확히 같다. 청산은 진입이 아니다.
     """
-    if not key:
-        return None
-    parts = key.split(":", 6)
-    if (
-        len(parts) != 7
-        or parts[0] != "live"
-        or parts[2] != "cond"
-        or not parts[3]
-        or not parts[4]
-        or not parts[5]
-        or not parts[6]
-    ):
-        return None
+
+    session_id: UUID
+    kind: LiveEntryKind
+    trade_id: str
+    bar_epoch: int | None
+    # 조건부 계열에만 있다 (시장가 진입 key 는 두 값을 싣지 않는다).
+    trigger: str | None
+    quantity: str | None
+
+
+def _lenient_int(raw: str) -> int | None:
     try:
-        return UUID(parts[1]), parts[6]
+        return int(raw)
     except (TypeError, ValueError):
         return None
+
+
+def _market_entry_bar_epoch(head: str) -> int | None:
+    """`<bar_time ISO>:<seq>` 앞부분에서 bar epoch 를 관용 판독한다. 실패하면 None."""
+    iso, separator, _sequence_no = head.rpartition(":")
+    if not separator:
+        return None
+    try:
+        return int(datetime.fromisoformat(iso).timestamp())
+    except (TypeError, ValueError):
+        return None
+
+
+def parse_live_entry_key(key: str | None) -> ParsedLiveEntryKey | None:
+    """우리가 만든 라이브 진입 key 세 형식을 되짚는 **유일한** 자리.
+
+    - 조건부 진입   `live:<sess>:cond:<bar_epoch>:<stop>:<qty>:<trade_id>`
+    - 시장가 전환   `live:<sess>:condmkt:<bar_epoch>:<stop>:<qty>:<trade_id>`
+    - 시장가 진입   `live:<sess>:<bar_time ISO>:<seq>:entry:<trade_id>`
+
+    셋 다 아니면 `None` — 청산 key, 웹훅 주문, 수동 주문이 전부 여기로 떨어진다.
+    호출부는 그것을 "우리 진입이 아님" 으로 세야지 조용히 버리면 안 된다.
+    """
+    if not key or not key.startswith(_LIVE_KEY_PREFIX):
+        return None
+    session_part, separator, rest = key[len(_LIVE_KEY_PREFIX) :].partition(":")
+    if not separator:
+        return None
+    try:
+        session_id = UUID(session_part)
+    except (TypeError, ValueError):
+        return None
+
+    for kind in _CONDITIONAL_KINDS:
+        marker = f"{kind}:"
+        if not rest.startswith(marker):
+            continue
+        # 앞의 세 구분자만 분리하고 나머지는 trade id 그대로 보존한다.
+        parts = rest[len(marker) :].split(":", 3)
+        if len(parts) != 4 or not all(parts):
+            return None
+        return ParsedLiveEntryKey(
+            session_id=session_id,
+            kind=kind,
+            trade_id=parts[3],
+            bar_epoch=_lenient_int(parts[0]),
+            trigger=parts[1],
+            quantity=parts[2],
+        )
+
+    index = rest.find(_MARKET_ENTRY_MARKER)
+    if index == -1:
+        return None
+    trade_id = rest[index + len(_MARKET_ENTRY_MARKER) :]
+    if not trade_id:
+        return None
+    return ParsedLiveEntryKey(
+        session_id=session_id,
+        kind="entry",
+        trade_id=trade_id,
+        bar_epoch=_market_entry_bar_epoch(rest[:index]),
+        trigger=None,
+        quantity=None,
+    )
+
+
+def parse_conditional_entry_key(key: str | None) -> tuple[UUID, str] | None:
+    """**resting** 조건부 진입 key에서 세션과 Pine trade id를 복원한다.
+
+    ★`condmkt` 를 계속 거부한다. 시장가 전환 주문은 `trigger_price` 가 없어 호가창에
+    남지 않으므로 reconcile 의 `actual` 이나 orphan sweep 의 대상이 아니다. 이 함수를
+    넓히면 그 주문들이 취소 대상으로 끌려 들어온다.
+
+    형식 판정 자체는 `parse_live_entry_key` 하나로 유지한다 (BL-536).
+    """
+    parsed = parse_live_entry_key(key)
+    if parsed is None or parsed.kind != "cond":
+        return None
+    return parsed.session_id, parsed.trade_id
 
 
 def _normalize(value: Decimal, step: Decimal) -> Decimal:

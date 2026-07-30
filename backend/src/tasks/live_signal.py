@@ -43,9 +43,11 @@ from src.common.metrics import (
     qb_live_conditional_cancelled_total,
     qb_live_conditional_guard_total,
     qb_live_conditional_placed_total,
+    qb_live_conditional_plan_drop_evaluations_total,
     qb_live_conditional_reconcile_errors_total,
     qb_live_conditional_sweep_filled_total,
     qb_live_gap_ledger_seed_total,
+    qb_live_pending_order_skip_evaluations_total,
     qb_live_position_divergence_total,
     qb_live_signal_dispatch_total,
     qb_live_signal_divergence_total,
@@ -56,6 +58,7 @@ from src.common.metrics import (
     qb_live_signal_outbox_pending_gauge,
     qb_live_signal_skipped_total,
 )
+from src.common.metrics_multiproc import record_metric_safely
 from src.common.redlock import RedisLock
 from src.core.config import settings
 from src.market_data.constants import to_ccxt_perpetual_symbol
@@ -319,24 +322,23 @@ def _pine_trade_id_from_order_key(key: str | None, *, session_id: UUID) -> str |
 
     ★`close` 키는 의도적으로 되짚지 않는다. 청산 체결은 포지션을 만들지 않으므로 채택
     대상이 아니고, 애초에 그런 창은 admissible 이 아니다.
+
+    BL-536 — 형식 판정은 `conditional_entry_planner.parse_live_entry_key` 하나로 모았다.
+    ★세션 접두사 검사는 **여기 남긴다**. `str(session_id)` 와의 정확 문자열 동등이
+    이 함수의 기존 계약이고, 파싱된 UUID 동등으로 바꾸면 대문자·중괄호 표기 같은
+    다른 표기까지 "우리 것" 으로 받아들여 계약이 조용히 넓어진다.
+
+    ★import 를 **함수 안에** 둔다 (R2). top-level 로 올리면 이 모듈의 import 폐포가
+    계획기를 거쳐 넓어진다 — `origin/main` 이 하던 방식(`:663` 의 지연 import)과 같은
+    모양을 유지한다. 계획기 쪽 `event_loop` 의존도 함께 끊었지만(그쪽 주석 참조),
+    두 방어를 모두 둔다: 폐포가 조용히 자라는 경로가 하나만 남아도 이 파일은 죽는다.
     """
-    if not key:
+    if not key or not key.startswith(f"live:{session_id}:"):
         return None
-    prefix = f"live:{session_id}:"
-    if not key.startswith(prefix):
-        return None
-    rest = key[len(prefix) :]
-    for kind in ("cond:", "condmkt:"):
-        if rest.startswith(kind):
-            parts = rest[len(kind) :].split(":", 3)
-            if len(parts) != 4 or not all(parts):
-                return None
-            return parts[3]
-    marker = ":entry:"
-    index = rest.find(marker)
-    if index == -1:
-        return None
-    return rest[index + len(marker) :] or None
+    from src.trading.services.conditional_entry_planner import parse_live_entry_key
+
+    parsed = parse_live_entry_key(key)
+    return None if parsed is None else parsed.trade_id
 
 
 @dataclass(frozen=True, slots=True)
@@ -617,6 +619,69 @@ def _classify_live_divergence(msg: str) -> str:
         # 일반 구조적 미지원 (Subscript on non-Name / var·varip tuple destructuring 등).
         return "unsupported_node"
     return "unexpected"
+
+
+# BL-536 — 계측 label allowlist. 미지 값은 `other` 로 수렴시켜 cardinality 를 막는다
+# (선례: 아래 entry_skips 정규화). 값 자체는 `conditional_entry_planner.plan_reconcile` 과
+# `pine_v2.event_loop` 이 만드는 `reason` 문자열이다.
+_PLAN_DROP_REASONS: frozenset[str] = frozenset(
+    {
+        "reduce_only_entry_ignored",
+        "trigger_already_breached",
+        "breach_exceeds_cap",
+        "below_exchange_minimum",
+        "target_already_met_cancelled",
+        "entry_side_mismatch",
+    }
+)
+_PENDING_ORDER_SKIP_REASONS: frozenset[str] = frozenset(
+    {"session_disallowed", "invalid_leg", "below_api_precision"}
+)
+
+
+def _plan_drop_reason(raw: object) -> str:
+    return raw if isinstance(raw, str) and raw in _PLAN_DROP_REASONS else "other"
+
+
+def _pending_order_skip_reason(raw: object) -> str:
+    return raw if isinstance(raw, str) and raw in _PENDING_ORDER_SKIP_REASONS else "other"
+
+
+def _count_safely(counter: Any, reason: str) -> None:
+    """라벨 생성과 증가를 **함께** 예외로부터 격리한다 (BL-536 R2).
+
+    ★`.labels()` 도 감싸야 한다. multiprocess 모드에서 새 라벨 조합은 그 시점에
+    mmap 파일을 늘리므로(디스크 full · 권한 오류 가능) **`.inc()` 만 감싸면 절반만
+    막는 것**이다. 기존 선례(`order_service.py` 의 `record_metric_safely(gauge.inc)`)는
+    라벨이 없는 gauge 라 그 구분이 없었다.
+
+    이 두 counter 의 호출 지점이 `try_claim_bar` 뒤 · 단일 commit 앞이라, 여기서 던지면
+    claim 이 rollback 되고 다음 tick 이 같은 bar 를 다시 평가해 **매-tick 크래시 루프**가 된다.
+    """
+    record_metric_safely(lambda: counter.labels(reason=reason).inc())
+
+
+def _count_pending_order_skips(strategy_state_report: object) -> None:
+    """엔진이 건너뛴 pending 진입 leg 를 **평가 1회당 정확히 한 번** 센다 (BL-536).
+
+    `run_live` 직후에 부른다. 더 뒤에 두면 runtime divergence / gap mismatch /
+    position divergence 가 각자 조기 return 하므로 그 tick 들이 통째로 안 보인다
+    (codex G1 Q8). 더 앞에는 `result` 자체가 없다.
+
+    ★`pine_v2` 쪽에 계측을 넣지 않는 이유 — `event_loop.py` 는 백테스트·옵티마이저·
+    스트레스 테스트가 재실행하는 같은 엔진이다. 거기서 발화시키면 백테스트를 돌릴
+    때마다 라이브 metric 이 오른다. 그래서 report dict 를 여기서 읽어 올린다.
+    """
+    if not isinstance(strategy_state_report, dict):
+        return
+    skips = strategy_state_report.get("pending_order_skips")
+    if not isinstance(skips, list):
+        return
+    for skip in skips:
+        reason = skip.get("reason") if isinstance(skip, dict) else None
+        _count_safely(
+            qb_live_pending_order_skip_evaluations_total, _pending_order_skip_reason(reason)
+        )
 
 
 async def _reconcile_conditional_entries(
@@ -916,6 +981,14 @@ async def _reconcile_conditional_entries(
                 allow_market_conversion=allow_market_conversion,
             )
             for divergence in plan.divergences:
+                # BL-536 — 계획기 드롭은 지금까지 로그에만 있었다. 이 counter 는 **평가
+                # 발화 횟수**이지 유실 건수가 아니다(계획기는 순수 함수라 해결되지 않은
+                # leg 를 매 평가마다 다시 드롭한다). 아래 guard counter 와 겹쳐 오르는
+                # reason 이 둘 있으므로 합산하지 마라 — 상세는 metrics.py 주석.
+                _count_safely(
+                    qb_live_conditional_plan_drop_evaluations_total,
+                    _plan_drop_reason(divergence.get("reason")),
+                )
                 if divergence["reason"] == "breach_exceeds_cap":
                     qb_live_conditional_guard_total.labels(outcome="breach_capped").inc()
                 elif (
@@ -1857,6 +1930,11 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                         extra={"session_id": str(sess.id), "error_type": type(exc).__name__},
                     )
                 return {"deactivated": "run_live_error"}
+
+            # BL-536 — 엔진이 건너뛴 pending 진입 leg 계측. ★여기가 아니면 아래 조기
+            # return 세 곳(runtime divergence / gap mismatch / position divergence)에서
+            # 통째로 유실된다.
+            _count_pending_order_skips(result.strategy_state_report)
 
             # 7.5 BL-362 — runtime divergence safety net (money-path fail-closed).
             # run_historical(strict=False) 가 PineRuntimeError 를 삼키고 계속 → state corruption

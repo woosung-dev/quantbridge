@@ -13,6 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.trading.models import LiveSignalEvent, LiveSignalSession, LiveSignalState
 
+# 창 조회가 훑을 세션 상한. 호출부가 **절단을 감지**할 수 있어야 하므로 조회는 이 값 + 1 건을
+# 가져온다 (BL-536 R3-⑥ — 주문 쪽 `ENTRY_ATTEMPT_SCAN_LIMIT` 와 같은 규율).
+SESSION_WINDOW_SCAN_LIMIT = 200
+
 # interval → seconds CASE expression (list_active_due 에서 SQL-side 필터)
 _INTERVAL_SECONDS_CASE = (
     "CASE interval "
@@ -113,6 +117,34 @@ class LiveSignalSessionRepository:
             .order_by(LiveSignalSession.created_at.desc())  # type: ignore[attr-defined]
         )
         return result.scalars().all()
+
+    async def list_overlapping_window(
+        self, *, since: datetime, until: datetime | None = None, limit: int = SESSION_WINDOW_SCAN_LIMIT
+    ) -> Sequence[LiveSignalSession]:
+        """`[since, until)` 과 생존 구간이 겹치는 세션 (BL-536 오프라인 분해용).
+
+        진입 완결성 CLI 가 `--session-id` 없이 창만 받았을 때 쓴다. 겹침 판정은
+        `session.created_at < until AND (deactivated_at IS NULL OR deactivated_at > since)`
+        - 활성 세션은 상한이 없으므로 NULL 을 "아직 살아 있다" 로 읽는다.
+
+        ★사용자·계정 스코프가 없다. 운영자가 셸에서 도는 진단 경로 전용이며 HTTP 표면에
+        연결하지 않는다. 연결한다면 그때 소유 검증을 반드시 함께 넣어야 한다.
+
+        ★`limit + 1` 건을 가져온다 (BL-536 R3-⑥). 호출부가 `len(rows) > limit` 으로 절단을
+        감지해야 한다. 주문 쪽(`list_entry_attempts`)은 이미 그 규율을 지키는데 세션 집합만
+        조용히 잘리면, 리포트는 "이 창의 전부" 라고 말하면서 **세션 몇 개를 통째로 빠뜨린다** —
+        절단된 분모는 유실률을 낙관적으로 왜곡한다.
+        """
+        stmt = select(LiveSignalSession).where(
+            or_(
+                cast(Any, LiveSignalSession.deactivated_at).is_(None),
+                cast(Any, LiveSignalSession.deactivated_at) > since,
+            )
+        )
+        if until is not None:
+            stmt = stmt.where(cast(Any, LiveSignalSession.created_at) < until)
+        stmt = stmt.order_by(LiveSignalSession.created_at.asc()).limit(limit + 1)  # type: ignore[attr-defined]
+        return (await self.session.execute(stmt)).scalars().all()
 
     async def list_by_strategy_account_symbol(
         self,
