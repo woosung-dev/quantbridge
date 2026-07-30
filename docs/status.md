@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-07-30 (**engine-exchange-alignment** — BL-543 착지 + BL-535 부분 · ★soak 이 BL-544 를 냈다)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `stage/engine-exchange-alignment` (함대 워커 2벌 통합 — 사용자 승인 대기)
+> **미머지:** `stage/engine-exchange-alignment` → **PR [#503](https://github.com/woosung-dev/quantbridge/pull/503) OPEN** (함대 워커 2벌 통합 — squash 는 사용자)
 > **Last Merged:** `docs/roadmap-drift` → `main@1f55511d` (PR #502) · 그 앞 `feat/live-orphan-close` → `main@91411980` (PR #501)
 > **Last Merged:** `fix/bl530-review-followups` → `main@004c374f` (PR #498) · 그 앞 `feat/live-close-completeness` → `main@178d24ef` (PR #497)
 
