@@ -202,5 +202,16 @@ A 와 B 가 각각 맞는데 합치면 깨지는 상호작용 결함이 정확�
 - **codex 를 다시 띄우려면 프로세스를 정리해야 한다** — `/quit` 은 안 먹었다. pane 의 cwd 로 PID 를
   특정해 `kill` 하면 pane 이 셸로 돌아오고 `agent start` 를 다시 할 수 있다. ★**`pkill -f codex` 는
   쓰지 마라** — 다른 프로젝트에서 돌고 있는 codex 까지 죽인다(실측으로 3기가 떠 있었다).
+- ★★**분배가 "성공" 을 보고해도 워커가 안 움직이는 갈래가 **둘**이다** (2026-07-30 실측, 둘 다 `--status` 표에서는 정상 대기처럼 보인다):
+  | 갈래 | 서명 | 해소 |
+  | --- | --- | --- |
+  | **미제출**(BL-552) | `HERDR=idle` + pane 에 `[Pasted text #N +M lines]` | `herdr pane send-keys <pane> Enter` |
+  | **제출됐는데 무작업** | `HERDR=done` + 응답 **0줄** + signal `pending` | `--only <w> --force` 재분배 |
+  ★첫 갈래는 **첫 분배에서도 난다**(2/2). "첫 분배는 정상" 이라는 관측은 표본 부족이었다.
+  ★지금은 `fleet-dispatch.sh` 가 전달을 확인하고 `delivery` 파일에 `strong|weak|undelivered` 를 남긴다.
+  단 **`blocked` 로 전이한 pane 에는 Enter 를 밀지 않는다** — 그 키는 승인 다이얼로그의 기본 선택을 누른다.
+- ★**재지시 파일은 `tasks/` 에 두지 마라** — 분배가 `tasks/*.md` **basename 을 워커 이름으로** 삼아
+  `bl536.r1` 이라는 워커를 찾다 die 한다. 원본은 `frozen/`, 재지시 원문은 `reinstructions/`,
+  `tasks/<worker>.md` 는 **지금 분배할 것**만 둔다(2026-07-30 채택 배치).
 - 나머지 9블로커는 `autonomous-parallel-sprints/references/blocker-playbook.md`. cmux 전제인 1~3번은
   herdr 에서는 해당 없다(trust 다이얼로그가 없다).
