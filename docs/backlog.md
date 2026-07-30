@@ -700,6 +700,16 @@
 | [BL-541](#bl-541) | 세션 행이 아예 없는 포지션(웹훅 경로·거래소 수동)은 여전히 앱에서 못 닫는다 — ★아직 실측된 적 없음                                                                | `no_owning_session` 이 실제로 관측될 때                                        | M            | 2026-07-29 live-orphan-close                           |
 | [BL-542](#bl-542) | (P3) 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 (거짓 양성 의심, n=1)                                                                                 | 잔여 노출 표를 신뢰해야 할 때                                                  | XS           | 2026-07-29 live-orphan-close                           |
 | [BL-543](#bl-543) | ★`qb_live_position_divergence_total{engine_only}` 은 진입 유실을 측정할 수 없다 — 세션은 태어날 때부터 갈려 있다                                                  | 이 metric 으로 판단하기 전 (BL-536 선행)                                       | S            | 2026-07-29 live-orphan-close                           |
+| [BL-544](#bl-544) | ✅ 조건부 진입이 거래소에서만 체결되고 엔진 재생이 재현 못 해 공백 후 세션이 죽는다 (2026-07-30 Resolved)                                                         | —                                                                              | M            | 2026-07-30 engine-exchange-alignment                   |
+| [BL-545](#bl-545) | ★gap-resync 게이트가 5% 수량 허용치를 물려받아 구 게이트가 막던 불일치를 통과시킨다                                                                               | 조건부 진입을 실자금으로 가기 전                                               | S            | 2026-07-30 conditional-entry-alignment                 |
+| [BL-546](#bl-546) | 원장→엔진 seed 경계에서 `Decimal` 이 `float` 로 강등 (Decimal-first 하드 규칙)                                                                                    | 엔진 수치 표현을 손댈 때 / 큰 notional                                         | M            | 2026-07-30 conditional-entry-alignment                 |
+| [BL-547](#bl-547) | ★원장 seed 가 그 tick 한 번만 산다 — 조용한 고아 가능 (**아직 실측된 적 없음**)                                                                                   | `exchange_only` 이 실제로 오르는 것이 관측될 때                                | M            | 2026-07-30 conditional-entry-alignment                 |
+| [BL-548](#bl-548) | (P3) `OutcomeParityPanel` 이 375px 에서 본문 가로 스크롤 24px 을 만든다 (기존 결함)                                                                               | 모바일 폭 점검 시                                                              | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-549](#bl-549) | ★`final-gates.sh` 를 커밋 전에 돌리면 게이트를 skip 하고도 통과처럼 읽힌다                                                                                        | 다음 회차 게이트 실행 전                                                       | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-550](#bl-550) | (P3) 비활성 세션의 **세션별** 포지션 대조가 화면에 없다                                                                                                           | 죽은 세션을 세션 단위로 대조해야 할 때                                         | S            | 2026-07-30 conditional-entry-alignment                 |
+| [BL-551](#bl-551) | (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                         | 세션 상세를 링크로 공유해야 할 때                                              | S            | 2026-07-30 conditional-entry-alignment                 |
+| [BL-552](#bl-552) | ★`fleet-dispatch.sh` 가 프롬프트 미제출을 성공으로 보고 — 워커가 `idle` 로 멈춘다                                                                                 | 다음 함대 회차                                                                 | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-553](#bl-553) | ★`outcome="applied"`(원장 seed 주입)가 실주행에서 한 번도 안 밟혔다 — 단위테스트로만 증명                                                                         | 다음 soak (기회주의적 확인)                                                    | XS           | 2026-07-30 conditional-entry-alignment                 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -2424,6 +2434,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-423
 
+**✅ Resolved (2026-07-30 conditional-entry-alignment)** — ★**원문 전제는 착수 preflight 에서 반증됐다.** `include_inactive` 쿼리 + 최근 종료 세션 목록 + 비활성 상세는 **BL-526(PR #496, 2026-07-29)이 이미 착지**시켰고, 상세 경로에 `is_active` 게이트는 한 곳도 없었다(`grep is_active router.py` → 0 hit). 이번 회차가 실제로 닫은 잔여는 셋이다 — (a) 코크핏 목록 쿼리 이중화 해소(`useLiveSessions(true)` 단일화, 같은 화면이 목록을 두 번 fetch 하던 것) → 그 부수로 **도달 불가였던 `LiveSessionTable` 의 `PAUSED` 칩과 active-first 정렬이 살아났다**(실브라우저 확인), (b) 넓어진 목록과 어긋난 안내 문구 4곳 정정, (c) **비활성 세션 상세 5경로(`/state`·`/positions`·`/events`·`/alert-rules`·`/outcome-parity`)가 200 이라는 회귀 테스트 신설** — 동작은 맞았지만 고정돼 있지 않아 누가 `is_active` 필터를 넣어도 안 깨졌다. 사유 표시는 [BL-484](#bl-484) 로 함께 착지. 잔여 2건은 [BL-550](#bl-550)·[BL-551](#bl-551) 로 분리.
+
 **Title:** 비활성(과거) 세션의 진단 정보를 UI 로 열 수 없음 — `/live-sessions` 가 active 전용
 **Category:** Frontend / live-sessions UX
 **Priority:** P3
@@ -3612,6 +3624,8 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 ### BL-484
 
+**✅ Resolved (2026-07-30 conditional-entry-alignment · 마이그레이션 1)** — `trading.live_signal_sessions.deactivated_reason` 신설(nullable `String(64)` — PG enum 을 쓰지 않아 `LiveSignalInterval` 이 밟은 자동 enum cast 함정을 피하고 사유 추가에 DDL 이 불필요하다. 대신 **읽으면 plain str** 이라 `.value`/`.name` 금지 — BL-453 과 같은 계약). 값 집합 SSOT = `SessionDeactivationReason(StrEnum)` **9종**. `deactivate(..., reason: str)` 는 **기본값 없는 필수 키워드**다 — 기본값을 주면 새 종료 경로가 사유를 빼먹어도 조용히 통과해 "왜 죽었는지 모르는 세션" 이 다시 생긴다. **7개 종료 경로 전건 배선**(preflight 2 · `run_live_error` · `runtime_divergence` · `gap_resync_position_mismatch` · `position_divergence` · `user_stopped`). ★`tasks/live_signal.py` 는 다른 워커 소유라 import 없이 리터럴을 넘겼고, 대신 **AST 테스트가 그 파일의 모든 `deactivate(...)` 호출을 훑어 미등재 사유를 차단**한다 — 변수(`preflight_cat`) 인자도 대입 리터럴을 추적하고 **리터럴 아닌 대입이 있으면 실패**시킨다. FE 는 목록·상세 공용 칩 1개(`SessionEndedReason`)로 렌더하고 코드→한국어 매핑은 `labels.ts` SSOT, **BE enum 을 실제로 읽어 라벨 누락·고아 라벨을 양방향 검사**하는 drift 가드까지 둔다. 사유가 없는 과거 행(마이그레이션 이전 종료)은 **아무것도 그리지 않는다** — 실브라우저에서 기존 12 세션 전부 `NULL` 로 확인.
+
 **Title:** 세션 자동 중단 **사유**가 화면에 남지 않는다 — 알림 채널로만 나가고 DB 에 없다
 **Category:** Frontend + Backend / trading (Surface Trust)
 **Priority:** P2
@@ -4394,6 +4408,18 @@ f"{reason}({stage}/{category}) 감지 — 세션을 비활성화했습니다(...
 
 ### BL-544
 
+**✅ Resolved (2026-07-30 conditional-entry-alignment · 마이그레이션 0 · 권장 접근 (a)+(b) 채택)** — 원장 조회(`OrderRepository.list_fills_since`, `_session_scope_where` 재사용) + 엔진 주입 API(`StrategyState.seed_positions_from_ledger`, `discard_state_before_epoch` 의 대칭·**멱등**) + 판정 일반화(`exchange_positions == [] and carried_flat` → **엔진↔거래소 순포지션 일치**). ★**seed 출처는 원장, 판정 대조는 거래소** — 거래소로 seed 하면 대조가 동어반복이 되어 가드가 사라진다. `exchange_positions is None`(REST 실패)·hedge 2-leg·미지 side 는 **계속 mismatch**(fail-closed 유지).
+
+★**설계가 두 번 갈렸다.** codex G1 2회가 둘 다 REJECT 를 냈고, 그중 결정적인 것은 **`filled_at` 이 거래소 체결시각이 아니라 우리 관측시각**(`websocket/reconciliation.py:223` 이 `datetime.now()` 로 찍는다)이라는 사실이었다. 그래서 "체결 bar 에 seed" 안을 철회하고 **마지막 bar 직전**에 심는다 — 뒤에 재생할 bar 가 없어 "seed 를 전략이 닫았는데 gap 경로엔 `emit_from_bar_time` 이 없어 그 close 가 조용히 사라지는" 실패가 **구조적으로 불가능**해진다.
+
+★**통합 후 적대 리뷰가 형제 케이스를 잡았다(R1)** — 부분체결 뒤 `cancelled`/`rejected` 된 조건부 진입은 `filled` 이 아니면서 체결분을 보존하는데(`transition_to_cancelled`/`_rejected` + janitor) 조회가 `state == filled` 만 봐서 **같은 사망이 되살아났다.** `_session_scope_where(scope, *, states=(filled,))` 파라미터화로 수리(기존 3 소비처 동작 불변) + 실 DB 테스트 3건.
+
+**실주행 soak (2026-07-30, 세션 `a0861954`, 3 leg / 누적 공백 ~28분):** 3/3 **생존**. 대조군은 2026-07-29 의 사망(15:06:25 체결 → 6분21초 공백 → 15:14:36 사망)이고, 이번엔 03:31:24 체결 → **6분30초** 공백 → 생존. `gap_resync_position_mismatch` **증가 0**(2.0 불변). 평가 수 374→382 = **8회** = 창 8분(1분봉) **정확 일치**(독립 교차검증). 세 leg 이 서로 다른 분기를 밟았다 — `already_open` / `no_basis` / `inadmissible`.
+
+★**soak 이 증명하지 못한 것 — 정직하게 남긴다.** 세 leg 모두 **재생이 포지션을 스스로 재현해서** 살았고 `outcome="applied"`(seed 주입)는 **실주행에서 한 번도 밟히지 않았다.** 그러려면 대기 stop 이 **공백 중에** 트리거돼야 하는데 3 leg 동안 일어나지 않았다. 즉 **판정 완화는 실증됐고 seed 주입은 단위테스트·표적변이까지만 증명됐다.** → [BL-553](#bl-553).
+
+**잔여:** [BL-545](#bl-545)(5% 허용치) · [BL-546](#bl-546)(Decimal→float) · [BL-547](#bl-547)(seed 1-tick 수명) · [BL-553](#bl-553)(applied 실주행 미검증).
+
 **Title:** ★조건부 진입은 거래소에서만 체결되고 엔진 재생은 그것을 재현하지 못한다 — 공백 후 세션이 **여전히** 죽는다
 **Category:** Backend / trading (가용성 · 계기 비대칭)
 **Priority:** **P1**
@@ -4421,3 +4447,201 @@ f"{reason}({stage}/{category}) 감지 — 세션을 비활성화했습니다(...
 
 **권장 접근:** 세 갈래를 크기 재고 고른다 — (a) 재생을 bar 종가가 아니라 **주문 원장의 체결 사실**로 seed 한다(`orders` 에 `filled` 가 있으면 엔진 상태에 주입). 가장 곧지만 재생/원장 두 진실의 접합면이 새로 생긴다. (b) `gap_resync` 통과 조건을 "둘 다 flat" 에서 **"엔진↔거래소가 일치"** 로 넓힌다 — 비교 로직은 `_classify_position_divergence`(`live_signal.py:258`)가 이미 갖고 있으므로 재사용 가능하고, 이 케이스는 불일치라 **그것만으로는 안 열린다**(a 와 함께여야 의미). (c) 조건부 진입 체결을 다음 tick 재생에 **이벤트로 이어붙인다**(BL-488 catch-up 경로 확장). ★어느 쪽이든 **soak 없이는 검증되지 않는다** — 이 항목의 수용 기준에 실주행 공백 재현을 반드시 넣어라.
 **Risk:** 🔴 (조건부 진입 전략은 배포·수면 공백마다 세션이 죽고, 죽은 뒤 포지션은 관리 주체가 없다 — BL-537 경로로 수동 청산해야 한다)
+
+---
+
+### BL-545
+
+**Title:** ★gap-resync 안전 게이트가 5% 수량 허용치를 물려받아, 구 게이트가 막던 불일치를 통과시킨다
+**Category:** Backend / trading (가용성 ↔ 안전 트레이드오프)
+**Priority:** P2
+**Trigger:** 조건부 진입 세션이 실자금으로 가기 전 / 부분체결이 흔해질 때
+**Est:** S
+**출처:** 2026-07-30 conditional-entry-alignment codex 적대 리뷰 (P1 제기 → 오케스트레이터가 코드 대조 후 P2 로 강등)
+
+**원인 / 영향:** BL-544 가 gap-resync 판정을 `exchange_positions == [] and carried_flat`(무관용)에서
+`_classify_position_divergence(carried, exchange) is None`(엔진↔거래소 일치)로 일반화했다. 그런데 그 함수는
+같은 방향 크기차가 `_POSITION_SIZE_REL_TOL = 0.05` 이하면 `None` 을 준다(`live_signal.py:227`, `:303`).
+따라서 엔진 `0.028` / 거래소 `0.029` 처럼 **실제로 0.001 어긋난 상태가 "일치" 로 통과**한다.
+구 게이트는 거래소가 non-empty 이기만 하면 죽였으므로, 이 부류는 **새로 통과하게 된 것**이다.
+그리고 이후 정상 tick 의 발산 감지도 `size` 를 **counter 만 올리고 차단하지 않는다**(`:1765-1772`).
+
+★**그 5% 를 그냥 좁히면 안 된다.** 값에 실측 근거가 있다 — 엔진 `position_size` 는 float 누적
+(실측 `-0.029910810628287526`)이고 거래소는 step 양자화(실측 `0.029`, BTC linear step 0.001)라
+**의도가 같아도 두 값은 절대 같아지지 않는다.** 측정된 양자화 폭 = 3.45%. 좁히면 seed 가 정렬되지
+않아 BL-544 자체가 무효가 된다.
+
+**권장 접근:** 상대 허용치를 **거래소 수량 step 에서 파생**시켜라 —
+`tol = max(qty_step, size * rel_tol_small)` 같은 형태. step 은 `_reconcile_conditional_entries` 가
+이미 `market["precision"]["amount"]` 로 가져온다(`live_signal.py:638`). 그러면 "양자화 1틱" 은
+통과하고 "부분체결 잔량" 은 통과하지 못한다. 대안: gap-resync 에만 더 좁은 별도 문턱을 두고
+정상 tick 의 관측용 문턱과 분리한다.
+**Risk:** 🟡 (통과한 불일치는 다음 주문이 그 위에 얹히지만, 5% 이내라 규모는 제한적)
+
+---
+
+### BL-546
+
+**Title:** 원장→엔진 seed 경계에서 `Decimal` 수량·가격이 `float` 로 강등된다 (Decimal-first 하드 규칙 위반)
+**Category:** Backend / pine_v2 · trading 경계
+**Priority:** P2
+**Trigger:** 엔진 내부 수치 표현을 손댈 때 / 큰 notional 을 다룰 때
+**Est:** M (엔진 전반이 float 기반이라 국소 수정으로 안 끝난다)
+**출처:** 2026-07-30 conditional-entry-alignment codex 적대 리뷰 (확정)
+
+**원인 / 영향:** DB `Numeric(18,8)` 인 `filled_quantity`/`filled_price` 가 seed 경로에서 `float` 로
+변환된다(`live_signal.py` seed leg 조립 · `strategy_state.py` `Trade.qty: float`). 예:
+`9999999999.99999999` 는 float 왕복 뒤 `10000000000.0`. seed 포지션의 수량·진입가·증거금 계산에
+반올림값이 들어간다. `AGENTS.md:122` 와 `.ai/stacks/fastapi/backend.md:50` 의 "금융 숫자는 Decimal,
+float 금지" 를 형식상 위반한다.
+
+★**이 변경이 새로 만든 문제는 아니다** — `StrategyState` 는 원래 float 기반이고(`Trade.qty: float`),
+`run_live` 의 모든 수치 입력이 이미 float 다. seed 는 **새 변환 지점을 하나 더 만들었을 뿐**이다.
+그래서 국소 수정이 아니라 엔진 수치 표현 결정 사안이다.
+
+**권장 접근:** (a) 엔진 경계에 변환 지점을 한 곳으로 모으고 그 자리에 정밀도 손실 상한을 단언한다,
+또는 (b) `StrategyState` 의 금액·수량을 `Decimal` 로 올린다(대공사 — 별도 스파이크로 크기부터 재라).
+현실적 1차: **BTC 급 수량·가격 범위에서 float 왕복 오차가 `_POSITION_DUST`(1e-8) 아래임을 테스트로
+고정**하고, 그 가정이 깨지는 심볼(고가·고정밀)에서 경고하게 한다.
+**Risk:** 🟢 (현재 취급 범위에서는 오차가 dust 아래일 가능성이 높다 — 단 측정된 적 없다)
+
+---
+
+### BL-548
+
+**Title:** (P3) `OutcomeParityPanel` 이 375px 에서 페이지 본문 가로 스크롤 24px 을 만든다
+**Category:** Frontend / 반응형
+**Priority:** P3
+**Trigger:** 모바일 폭 점검 시
+**Est:** XS
+**출처:** 2026-07-30 conditional-entry-alignment 게이트 4 (MCP playwright 실브라우저)
+
+**원인 / 영향:** `/trading` 에서 세션 상세를 열면 body 가 24px 가로 스크롤된다(375px 기준).
+인과 분리 실측 — 상세 닫힘 **0px** / 상세 열림 **24px** / 상세 열림 + `outcome-parity-panel`
+`display:none` **0px**. 대조군 `/dashboard` 는 **0px**.
+
+★**이번 회차 회귀가 아니다.** `outcome-parity-panel.tsx` 는 BL-526(PR #496, 2026-07-29)의
+컴포넌트이고 이번 diff 가 만지지 않았으며, 그 경로는 이번 변경 **이전에도 도달 가능**했다.
+
+**권장 접근:** 패널 안 넓은 콘텐츠를 자기 `overflow-x:auto` 컨테이너로 감싼다 — 같은 화면의 세 표는
+이미 `div.table-wrap{overflow-x:auto}` 로 그렇게 하고 있다. 그 패턴을 패널에도 적용.
+**Risk:** 🟢
+
+---
+
+### BL-549
+
+**Title:** ★`final-gates.sh` 를 커밋 전에 돌리면 게이트 대부분을 skip 하고도 그럴듯한 PASS 표를 낸다
+**Category:** DX / 게이트 집행
+**Priority:** P2
+**Trigger:** 다음 회차 게이트 실행 전 (지금 고치는 게 가장 싸다)
+**Est:** XS
+**출처:** 2026-07-30 conditional-entry-alignment — 워커 `bl423` 이 자기 실행 중 발견
+
+**원인 / 영향:** 스크립트는 변경 영역을 `git diff $(merge-base origin/main HEAD)..HEAD` 로 판정한다
+(`final-gates.sh:43-51`). **작업트리의 미커밋 변경은 안 본다.** 커밋 전에 돌리면
+`fe_diff=0 be_diff=0` 이 되어 lint·type·단위·build 를 전부 `skip` 으로 넘기고, 결과표는
+"skip" 이라고는 적지만 **FAIL 이 없어 통과처럼 읽힌다.** 이 스크립트가 존재하는 이유가
+"적어놓은 게이트는 집행되지 않는다" 였는데 그 집행 자체에 구멍이 있다.
+
+**권장 접근:** 시작 시 `git status --porcelain` 이 비어 있지 않으면 (a) 경고 후 워킹트리 기준으로
+영역을 판정하거나 (b) 아예 거부한다. 최소한 헤더의 `fe_diff/be_diff` 옆에 **"미커밋 변경 N개"**
+를 찍어라. 겸사겸사 `be()` 헬퍼(`:68`)는 어디서도 안 쓰이는 죽은 코드다.
+**Risk:** 🟡 (거짓 그린은 이 레포가 반복해 밟은 실패 유형이다)
+
+---
+
+### BL-550
+
+**Title:** (P3) 비활성 세션의 **세션별** 포지션 대조가 화면에 없다 (계정 스코프 표로만 보인다)
+**Category:** Frontend / live-sessions
+**Priority:** P3
+**Trigger:** 죽은 세션의 포지션을 세션 단위로 대조해야 할 때
+**Est:** S
+**출처:** 2026-07-30 conditional-entry-alignment (BL-423 잔여 중 의도적 defer)
+
+**원인 / 영향:** `OpenPositionsTable`(`trading-cockpit.tsx:342`)은 `activeSessions` 만 받는다.
+BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지만 FE 가 부르지 않는다.
+
+★**의도적으로 미루었다** — 계정 스코프 표(`AccountPositionsTable`)가 이미 고아 포지션을 보여주고
+청산까지 되며(2026-07-29 BL-537 실측), 비활성 세션마다 per-row 쿼리를 붙이면 폴링 비용이 붙는다.
+**Risk:** 🟢
+
+---
+
+### BL-551
+
+**Title:** (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니라 클라이언트 state — 딥링크·새로고침 불가
+**Category:** Frontend / live-sessions UX
+**Priority:** P3
+**Trigger:** 세션 상세를 링크로 공유하거나 새로고침 보존이 필요할 때
+**Est:** S
+**출처:** 2026-07-30 conditional-entry-alignment (BL-423 잔여 중 defer)
+
+**원인 / 영향:** `trading-cockpit.tsx:76-77` 의 `useState` 가 선택 상태를 쥔다. `useSearchParams`
+사용처 0. 새로고침하면 선택이 사라지고 특정 세션 상세로 링크할 수 없다.
+부수: e2e 가 쓰는 `/trading?tab=live-sessions` 의 `tab` 파라미터는 **읽는 코드가 없는 유물**이다.
+**Risk:** 🟢
+
+---
+
+### BL-552
+
+**Title:** ★`fleet-dispatch.sh` 가 프롬프트 미제출을 성공으로 보고한다 — 워커가 지시를 입력창에 담은 채 `idle` 로 멈춘다
+**Category:** DX / 함대 오케스트레이션
+**Priority:** P2
+**Trigger:** 다음 함대 회차 (재분배·재지시가 있을 때 특히)
+**Est:** XS
+**출처:** 2026-07-30 conditional-entry-alignment — `bl544` 재지시(R1) 분배 시 실측
+
+**원인 / 영향:** `herdr agent prompt` 가 텍스트를 pane 에 **붙이기만 하고 제출(Enter)하지 않는
+경우가 있다.** 실측: 재지시 분배 후 `fleet-dispatch.sh` 는 `✓ bl544 → wM:p1` 로 성공을 보고했지만,
+`herdr pane read` 로 보니 입력창에 `❯ [Pasted text #2 +14 lines]` 가 담긴 채 에이전트는 `idle`
+이었다. 상태표도 `HERDR=idle / SIGNAL=pending` 으로 **정상 대기처럼 보인다** — `pending` 은 분배가
+주입 전에 쓰는 값이라(§8) 미제출과 구분되지 않는다. 첫 분배는 정상이었으므로 레이스다.
+
+★**이 레포가 반복해 밟은 "거짓 그린" 유형이다.** 오케스트레이터가 pane 을 직접 읽지 않았다면
+워커가 일하는 줄 알고 무한정 기다렸을 것이다. 해소는 `herdr pane send-keys <pane> Enter`.
+
+**권장 접근:** 분배 직후 짧게 폴링해 `agent_status` 가 `working` 으로 바뀌는지 확인하고, 안 바뀌면
+(a) `send-keys Enter` 로 한 번 더 밀거나 (b) die 한다. 기동 검증(`herdr-fleet.sh` 가 이미 하는
+"살아 있는지 재확인" 패턴)과 같은 규율을 분배에도 적용하면 된다.
+**Risk:** 🟡 (침묵 지연 — 결과는 안 틀리지만 회차가 통째로 멈춘다)
+
+---
+
+### BL-547
+
+**Title:** ★원장 seed 는 **그 tick 한 번만** 산다 — 다음 tick 에 조용한 고아가 될 수 있다 (아직 실측된 적 없음)
+**Category:** Backend / trading (BL-544 잔여)
+**Priority:** P2
+**Trigger:** ★`qb_live_position_divergence_total{category="exchange_only"}` 이 **실제로 오르는 것이 관측될 때**
+**Est:** M
+**출처:** 2026-07-30 conditional-entry-alignment — 워커 `bl544` 가 자기 구현의 한계로 스스로 올린 것(codex G1 F6), 오케스트레이터가 코드 대조로 확인
+
+**원인 / 영향:** `ledger_seed` 는 `if requires_gap_resync:` **안에서만** 계산된다(`live_signal.py:1678` 초기화 · `:1720` 계산). 다음 tick 은 공백이 아니므로 원장을 읽지 않는다. 재생이 그 진입을 스스로 다시 만들지 못하면 엔진은 **다시 flat** 이 되고, 그때 발산은 `exchange_only` 로 분류돼 **counter 만 올리고 세션을 죽이지 않는다**(`live_signal.py:1765-1772`). 즉 이론상 **시끄러운 사망이 한 tick 뒤 조용한 고아로 바뀔 수 있다.**
+
+★**다만 2026-07-30 soak 3 leg 에서 발현하지 않았다.** 세 leg 모두 재생이 포지션을 스스로 재현했고 `exchange_only` 는 **부재(0) 를 유지**했다(그 counter 는 역사적으로도 한 번도 오른 적이 없다 — 세션이 gap 판정에서 먼저 죽어 발산 감지까지 도달한 적이 없었기 때문). 완화 요인 하나 — seed 를 **마지막 bar 직전**에 심으므로 그 tick 의 Pine 이 포지션을 보고 청산을 낼 수 있다. 전략이 닫으면 그 자리에서 해소된다.
+
+★[BL-541](#bl-541) 과 같은 프레임으로 둔다 — **측정되지 않은 필요 위에 상태 저장소를 짓지 않는다.**
+
+**권장 접근 (관측되면):** seed 창 watermark 를 `last_strategy_state_report` JSONB 에 `_qb_ledger_seed_since` 로 남기고(`_qb_position_epoch`(`:237`) / `_qb_direction_mismatch_seen`(`:233`) 과 같은 자리·같은 방식, 마이그레이션 0), 매 tick 그 창의 원장에서 seed 를 **재도출**한다. 창의 순포지션이 0 이 되면 marker 를 지워 자기 종결시킨다. **남는 구멍:** 부분 청산은 창이 inadmissible 이 되어 seed 가 끊긴다.
+**Risk:** 🟡 (관측되면 🔴 — 조용한 고아는 관리 주체가 없다)
+
+---
+
+### BL-553
+
+**Title:** ★`outcome="applied"`(원장 seed **주입**)가 실주행에서 한 번도 밟히지 않았다 — 단위테스트로만 증명됨
+**Category:** Backend / trading 검증 공백
+**Priority:** P2
+**Trigger:** 다음 soak / 조건부 진입 전략을 오래 굴릴 때 (기회주의적 확인)
+**Est:** XS (검증만 — 코드 변경 없음)
+**출처:** 2026-07-30 conditional-entry-alignment soak 3 leg
+
+**원인 / 영향:** BL-544 의 핵심 기전은 둘이다 — (1) **판정 완화**(엔진↔거래소 순포지션 일치) (2) **원장 seed 주입**. soak 3 leg 이 3/3 생존했지만 **세 번 다 (1) 로 살았다** — 재생이 포지션을 스스로 재현해 seed 가 생략됐다(`already_open` / `no_basis` / `inadmissible`). `applied` 를 밟으려면 **대기 조건부 주문이 공백 중에 트리거**돼야 하는데 누적 공백 ~28분 동안 일어나지 않았다(시장 변동 의존이라 강제할 수 없다).
+
+★따라서 현재 증거 수준은 **비대칭**이다 — 판정 완화 = 실주행 실증 / seed 주입 = 단위테스트 + 표적 변이(멱등·마지막 bar Pine 가시성·기본값 report dict 불변)까지. 원래 BL-544 실패(2026-07-29)가 정확히 seed 주입이 필요한 케이스였으므로 이 공백은 실질적이다.
+
+**권장 접근:** 코드 변경 없음. 다음 soak 에서 (a) 공백을 **더 길게**(15분+) 가져가 대기 stop 이 트리거될 확률을 올리거나, (b) 변동성이 큰 구간을 골라 재현한다. 확인 신호는 `qb_live_gap_ledger_seed_total{outcome="applied"} > 0` + 구조화 로그 `live_signal_gap_ledger_seed` 의 `trade_ids` 비어 있지 않음. **관측되면 이 BL 을 닫고 BL-544 의 검증을 완성으로 표기한다.**
+**Risk:** 🟡 (기전이 틀렸다는 증거는 없다 — 다만 실주행 증거가 없다)

@@ -90,6 +90,60 @@ describe("LiveSessionList state view (BL-174 list-only)", () => {
     expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: "id1", is_active: false }));
   });
 
+  test("BL-484 — 종료 세션 카드에 한국어 사유가 붙는다", () => {
+    mockUseLiveSessions.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "id-reason",
+            symbol: "BTC/USDT",
+            interval: "1h",
+            is_active: false,
+            created_at: new Date().toISOString(),
+            deactivated_at: "2026-07-30T12:00:00Z",
+            deactivated_reason: "gap_resync_position_mismatch",
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<LiveSessionList />);
+
+    expect(screen.getByTestId("inactive-live-session-reason-id-reason")).toHaveTextContent(
+      "평가 공백 후 포지션 불일치",
+    );
+  });
+
+  test("BL-484 — 사유가 없는 과거 행은 사유 칩 없이 렌더된다", () => {
+    mockUseLiveSessions.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "id-legacy",
+            symbol: "ETH/USDT",
+            interval: "1h",
+            is_active: false,
+            created_at: new Date().toISOString(),
+            deactivated_at: "2026-07-30T12:00:00Z",
+            deactivated_reason: null,
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<LiveSessionList />);
+
+    // 카드는 그대로 뜨고 사유 칩만 없다 — 마이그레이션 이전 행에서 화면이 깨지지 않는다.
+    expect(screen.getByTestId("inactive-live-session-id-legacy")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("inactive-live-session-reason-id-legacy"),
+    ).not.toBeInTheDocument();
+  });
+
   test("최근 종료 세션이 없으면 별도 빈 상태를 표시한다", () => {
     mockUseLiveSessions.mockReturnValue({
       data: { items: [] },

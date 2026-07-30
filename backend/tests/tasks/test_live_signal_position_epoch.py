@@ -213,6 +213,9 @@ def _install_actual_engine_evaluation(
         interval=LiveSignalInterval.m1,
         is_active=True,
         created_at=start,
+        # BL-544 — 공백 재개 경로가 SessionScope.from_live_session 으로 읽는다. 없으면
+        # 원장 조회가 AttributeError 로 죽어 "seed 없음" 이 되고, 그 사실이 조용히 감춰진다.
+        deactivated_at=None,
         last_evaluated_bar_time=last_evaluated_bar_time,
         equity_baseline_usdt=Decimal("8192"),
     )
@@ -250,6 +253,9 @@ def _install_actual_engine_evaluation(
     )
     strategy_repo = AsyncMock()
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
+    # BL-544 — 공백 창 원장. 기본값 "체결 없음" 이라 이 파일의 epoch 검증 의미는 그대로다.
+    order_repo = AsyncMock()
+    order_repo.list_fills_since = AsyncMock(return_value=[])
     _patch_engine(monkeypatch)
     _patch_flat_positions(monkeypatch)
 
@@ -257,7 +263,11 @@ def _install_actual_engine_evaluation(
     import src.trading.repositories.exchange_account_repository as account_repo_module
     import src.trading.repositories.live_signal_event_repository as event_repo_module
     import src.trading.repositories.live_signal_session_repository as sess_repo_module
+    import src.trading.repositories.order_repository as order_repo_module
 
+    monkeypatch.setattr(
+        order_repo_module, "OrderRepository", MagicMock(return_value=order_repo)
+    )
     monkeypatch.setattr(
         sess_repo_module, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
     )

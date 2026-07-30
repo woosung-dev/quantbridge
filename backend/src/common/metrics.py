@@ -531,6 +531,25 @@ qb_live_position_divergence_total = Counter(
     labelnames=("category",),
 )
 
+# BL-544 — 장기 공백 재개 시 **주문 원장으로 엔진 포지션을 채택**한 결과. gap-resync 판정
+# 직전에 정확히 1회 발화한다.
+#   outcome: applied      — 채택했다. ★이 label 은 신규 엔진 훅
+#              (`StrategyState.seed_positions_from_ledger`)이 실제로 돌아야만 나온다.
+#              soak 의 sentinel 이 이것이다 — 코드가 mount 됐는지가 아니라 **돌았는지**를 잰다.
+#            already_open — 원장 근거는 있는데 재생이 이미 포지션을 들고 있어 멱등 가드가 막았다.
+#            no_basis     — 공백 창에 체결이 없다. 거래소가 non-flat 이면 계속 사망한다(설계대로).
+#            inadmissible — 창이 자동 재구성 대상이 아니다(양방향 혼재 · reduce-only 포함 ·
+#                           trade id 복원 실패/중복). seed 하지 않고 기존 판정으로 떨어진다.
+#            unreadable   — 체결 수량/가격이 NULL 이거나 비정상.
+#            overflow     — 창 안 체결이 상한을 넘었다. 부분 원장으로 순포지션을 만들지 않는다.
+#            fetch_failed — 원장 조회 자체가 실패했다.
+# ★applied 를 제외한 전부는 **기존 fail-closed 경로 유지**를 뜻한다. 0 초과가 곧 장애는 아니다.
+qb_live_gap_ledger_seed_total = Counter(
+    "qb_live_gap_ledger_seed_total",
+    "Gap-resync engine position seeded from the order ledger",
+    labelnames=("outcome",),
+)
+
 # Redis 실시간 팬아웃 발행 실패. user/event ID는 label로 사용하지 않는다.
 qb_rt_publish_failed_total = Counter(
     "qb_rt_publish_failed_total",

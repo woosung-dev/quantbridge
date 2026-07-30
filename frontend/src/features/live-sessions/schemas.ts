@@ -24,6 +24,10 @@ export const LiveSessionSchema = z.object({
   last_evaluated_bar_time: z.string().nullable(),
   created_at: z.string(),
   deactivated_at: z.string().nullable(),
+  // BL-484 — 세션이 왜 죽었는지. 코드→한국어 변환은 `deactivation-reason.ts` 가 SSOT.
+  // `.optional()` 인 이유는 `equity_baseline_usdt` 와 같다 — 마이그레이션 이전에 종료된
+  // 행은 null 이고, 구 응답/픽스처에는 키 자체가 없다. 둘 다 "사유 미기록" 으로 읽는다.
+  deactivated_reason: z.string().nullable().optional(),
   // 세션 시작 시 1회 스냅샷한 자본 기준선. 주문 수량이 이 값에서 나온다.
   equity_baseline_usdt: z.string().nullable().optional(),
 });

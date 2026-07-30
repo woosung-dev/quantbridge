@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
 
 from src.strategy.pine_v2.event_loop import run_historical, run_live
+from src.strategy.pine_v2.strategy_state import LedgerSeedLeg
 
 
 def _ohlcv(closes: list[float], *, start: datetime | None = None) -> pd.DataFrame:
@@ -205,3 +207,86 @@ if bar_index == 1
     assert "P" in before_epoch.strategy_state.pending_orders
     assert at_epoch.strategy_state is not None
     assert at_epoch.strategy_state.pending_orders == {}
+
+
+# --- BL-544: 원장 seed (discard_state_before_epoch 의 대칭) --------------------
+
+_LEDGER_LONG = (LedgerSeedLeg(trade_id="L", direction="long", qty=0.029, entry_price=64166.9),)
+
+
+def test_ledger_seed_adopts_position_the_replay_never_made() -> None:
+    """재생이 만들지 못한 포지션을 원장이 마지막 bar 에 들여온다 (BL-544)."""
+    source = """//@version=5
+strategy("never enters")
+plot(close)
+"""
+    ohlcv = _ohlcv([100.0, 101.0, 102.0])
+
+    without_seed = run_live(source, ohlcv)
+    with_seed = run_live(source, ohlcv, ledger_seed_legs=_LEDGER_LONG)
+
+    assert without_seed.strategy_state_report["position_size"] == 0.0
+    assert without_seed.ledger_seed_applied == ()
+    assert with_seed.ledger_seed_applied == ("L",)
+    assert with_seed.strategy_state_report["position_size"] == 0.029
+    seeded = with_seed.strategy_state_report["open_trades"][0]
+    assert seeded["id"] == "L"
+    assert seeded["entry_price"] == 64166.9
+    assert seeded["entry_bar"] == len(ohlcv) - 1
+
+
+def test_ledger_seed_is_idempotent_when_replay_already_holds_a_position() -> None:
+    """★멱등 — 재생이 같은 포지션을 이미 열었으면 채택하지 않는다(이중 계상 금지).
+
+    이 가드가 없으면 엔진이 거래소의 두 배를 들고, 그 값이 사이징과 청산 판정에 그대로 쓰인다.
+    """
+    ohlcv = _ohlcv([100.0, 101.0, 102.0])
+
+    baseline = run_live(_BUY_ON_GREEN, ohlcv)
+    seeded = run_live(_BUY_ON_GREEN, ohlcv, ledger_seed_legs=_LEDGER_LONG)
+
+    assert baseline.strategy_state_report["position_size"] > 0.0
+    assert seeded.ledger_seed_applied == ()
+    assert (
+        seeded.strategy_state_report["position_size"]
+        == baseline.strategy_state_report["position_size"]
+    )
+
+
+def test_ledger_seed_is_visible_to_pine_on_the_last_bar() -> None:
+    """채택한 포지션은 **그 bar 의 Pine 실행**이 본다 — 그래야 전략이 고아를 닫을 수 있다.
+
+    seed 를 `interp.execute` 뒤나 중간 bar 에 두면 이 close 가 나오지 않는다.
+    """
+    source = """//@version=5
+strategy("close whatever is open")
+if strategy.position_size > 0
+    strategy.close("L")
+"""
+    ohlcv = _ohlcv([100.0, 101.0, 102.0])
+
+    without_seed = run_live(source, ohlcv)
+    with_seed = run_live(source, ohlcv, ledger_seed_legs=_LEDGER_LONG)
+
+    assert [signal.action for signal in without_seed.signals] == []
+    assert [(s.action, s.direction, s.trade_id) for s in with_seed.signals] == [
+        ("close", "long", "L")
+    ]
+
+
+def test_ledger_seed_default_leaves_run_historical_byte_identical() -> None:
+    """기본값에서는 훅 자체가 돌지 않는다 — 기존 결과와 동일."""
+    ohlcv = _ohlcv([100.0, 99.0, 101.0, 100.0])
+
+    default = run_historical(_BUY_AND_CLOSE, ohlcv, strict=True)
+    explicit = run_historical(_BUY_AND_CLOSE, ohlcv, strict=True, ledger_seed_legs=())
+
+    assert default.strategy_state is not None
+    assert explicit.strategy_state is not None
+    default_report = default.strategy_state.to_report()
+    explicit_report = explicit.strategy_state.to_report()
+    # flat 이면 `position_avg_price` 가 NaN 이고 NaN != NaN 이라 통째 비교가 안 된다.
+    assert math.isnan(default_report.pop("position_avg_price"))
+    assert math.isnan(explicit_report.pop("position_avg_price"))
+    assert default_report == explicit_report
+    assert default.ledger_seed_applied == () == explicit.ledger_seed_applied

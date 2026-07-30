@@ -90,7 +90,7 @@ ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-`
 여러 벌을 동시에 굴릴 때는 워크트리마다 **슬롯**(FE `3100+N` / BE `8100+N` / pytest DB `quantbridge_w{N}_test`)을 갖는다. 메인 체크아웃이 슬롯 0 이고 포트는 기존과 같다.
 
 ```bash
-scripts/herdr-fleet.sh --agent claude:<이름> --agent codex:<이름>   # 메인에서 — 2×2 한 화면
+scripts/herdr-fleet.sh --agent claude:<이름> --agent codex:<이름>   # 오케스트레이터 탭 옆에 워커 탭
 cd <워크트리> && ./scripts/worktree-bootstrap.sh --adopt-env         # 워크트리 하나만 수동으로
 ```
 
