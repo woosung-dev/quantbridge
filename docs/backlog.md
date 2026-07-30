@@ -712,6 +712,10 @@
 | [BL-553](#bl-553) | ★`outcome="applied"`(원장 seed 주입)가 실주행에서 한 번도 안 밟혔다 — 단위테스트로만 증명                                                                         | 다음 soak (기회주의적 확인)                                                    | XS           | 2026-07-30 conditional-entry-alignment                 |
 | [BL-554](#bl-554) | (P3) pre-push 훅이 푸시 대상 ref 가 아니라 현재 브랜치를 봐서 원격 브랜치 삭제까지 막는다                                                                         | 머지된 stage 브랜치를 원격에서 지울 때                                         | XS           | 2026-07-30 conditional-entry-alignment                 |
 | [BL-555](#bl-555) | (P3) `stage/*` 가 통합 브랜치 관례인데 pre-push 화이트리스트에 없다 — 매번 bypass 필요                                                                            | BL-554 와 함께                                                                 | XS           | 2026-07-30 conditional-entry-alignment                 |
+| [BL-556](#bl-556) | `final-gates.sh` 가 `pnpm e2e`(chromium 4건)를 집행하지 않는다 — CI e2e 잡에는 있다                                                                               | 다음 회차 게이트 실행 전                                                       | XS           | 2026-07-30 live-entry-completeness                     |
+| [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                   | 그 게이지로 무언가를 판단하기 전                                               | S            | 2026-07-30 live-entry-completeness                     |
+| [BL-558](#bl-558) | retCode 를 `error_message` 에 싣는 경로가 **동기 1곳뿐** — 비동기 확정 거절이 코드 미상이 된다                                                                    | 거절 코드로 채널을 가를 때                                                     | M            | 2026-07-30 live-entry-completeness                     |
+| [BL-559](#bl-559) | (P3) 진입 완결성 도구 잔여 3건 — 세션 목록 절단 감지 · 사문 라벨 · janitor probe 전이                                                                             | 그 경로가 실측될 때                                                            | S            | 2026-07-30 live-entry-completeness                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -4162,6 +4166,21 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 ### BL-536
 
+> ### ✅ **재측정 완료 · 판정 「축소」 (2026-07-30 live-entry-completeness)**
+>
+> soak 2h28m(세션 `98d86785`) 확정 측정 — **원장 층위 유실 0**(에피소드 7/7 `won`, `abandoned` 0),
+> **그런데 원장에 발자국을 남기지 않는 채널이 4.8/시간**이고 그중 **75%가 한 채널**
+> (`deferred_market_inflight` 9/12). 사전등록 문턱의 「축소」(한 채널 ≥70%)를 충족했다.
+>
+> ★**유실은 사라진 게 아니라 한 채널로 수렴했다.** 다음 설계는 5채널이 아니라 그 하나를 겨냥한다.
+>
+> ★★**계측기가 직전 헤드라인을 재현하며 그 라벨을 반증했다** — 직전 창에 소급 적용하니 **16.67%**
+> (= 직전 16.7%)가 나왔고, 그것이 **에피소드 유실률이 아니라 시도 거절률**임이 드러났다.
+> 같은 데이터에 답이 셋이다(시도 16.67% / 에피소드 0.00% / 에피소드-반대해석 12.50%).
+>
+> **도구:** `backend/src/trading/entry_completeness.py` + `backend/scripts/entry_completeness_report.py`.
+> **다시 만들지 마라.** 상세 = [`dev-log/2026-07-30-live-entry-completeness.md`](dev-log/2026-07-30-live-entry-completeness.md).
+
 **Title:** BL-522 진입 완결성 — 계기 정렬 후 유실 채널 5종을 **재측정**하고 그 크기 위에서 설계한다
 **Category:** Backend / trading
 **Priority:** P1
@@ -4324,6 +4343,11 @@ BL-530 의 분해표에서 `close_position_flat` 16 + `110017 current position i
 ---
 
 ### BL-542
+
+> ### ✅ **거짓 양성 확정 (2026-07-30 live-entry-completeness, 화면 실측)**
+>
+> 포지션이 **1건**인데 코크핏에 _"거래소가 더 많은 포지션이 있다고 응답했습니다.
+> 이 표는 첫 200건만 보여줍니다"_ 경고가 떠 있다. "n=1 의심" 이었던 것이 **실측으로 확정**됐다.
 
 **Title:** 계정 포지션 표의 "잘렸다" 경고가 포지션이 1건만 있어도 켜진다 (거짓 양성 의심)
 **Category:** Backend / trading (읽기 표면 정직성)
@@ -4533,6 +4557,12 @@ float 금지" 를 형식상 위반한다.
 
 ### BL-549
 
+> ### ✅ **Resolved (2026-07-30 live-entry-completeness)** — 더러운 트리 **기본 거부**(종료 코드 != 0) +
+>
+> `--allow-dirty` 로만 워킹트리 기준 판정 + 헤더에 `dirty=N`. 죽은 `be()` 헬퍼 제거.
+> ★rename(`--no-renames`)·비ASCII 경로·`git status` 실패를 "깨끗함" 으로 삼키지 않는 것까지 처리.
+> CONTROL 실증: 더러운 트리에서 **exit=1**, 거부 메시지가 **왜**까지 설명.
+
 **Title:** ★`final-gates.sh` 를 커밋 전에 돌리면 게이트 대부분을 skip 하고도 그럴듯한 PASS 표를 낸다
 **Category:** DX / 게이트 집행
 **Priority:** P2
@@ -4589,6 +4619,15 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 
 ### BL-552
 
+> ### ✅ **Resolved (2026-07-30 live-entry-completeness)** — 주입 후 전달 확인 + Enter **1회** 재시도 +
+>
+> `delivery` **별 파일**(`status` CAS 는 워커의 `running` 을 덮는 레이스가 있다).
+> ★**주입 후 폴링 중 `blocked` 로 전이한 pane 에는 Enter 를 밀지 않는다** — 그 키는 승인 다이얼로그의
+> 기본 선택을 누른다. **fail-closed 허용목록**(`idle|done`)으로 잡았다.
+> ★**실경로 2회 검증** — 새 스크립트로 재지시하니 **Enter 없이** 주입→working. 옛 스크립트는 같은
+> 자리에서 `✓` 만 찍고 워커를 `idle` 로 방치했다.
+> ★본문 보강 — **첫 분배에서도 난다**(이번 회차 2/2). "첫 분배는 정상이었다" 는 관측은 표본 부족이었다.
+
 **Title:** ★`fleet-dispatch.sh` 가 프롬프트 미제출을 성공으로 보고한다 — 워커가 지시를 입력창에 담은 채 `idle` 로 멈춘다
 **Category:** DX / 함대 오케스트레이션
 **Priority:** P2
@@ -4634,6 +4673,19 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 
 ### BL-553
 
+> ### ⏳ **유지 (2026-07-30 live-entry-completeness) — 단 이유가 정확해졌다**
+>
+> 이번 soak 공백 2회(16분35초 + 18분22초, 누적 34분57초)에서도 `applied` **미발화**.
+> 직전 28분 + 이번 34분57초 = **누적 62분57초에서 0회**.
+>
+> ★★**그런데 "시장이 안 움직였다" 가 아니다.** 대기 stop 이 **실제로 트리거됐고, 하필 공백 밖
+> (leg 3)에서** 일어났다 — 화면의 진입가 **64609.1** = 공백 2 의 `trig=64610`.
+> 공백 중 거래소를 외부 raw HMAC 오라클로 **5회** 찍어 내내 `Untriggered` 임을 실측했다.
+>
+> → **다음 회차 설계:** 공백을 **30분+** 로 가져가면 트리거가 공백 안에 들어올 확률이 오른다.
+> 확인 신호에서 **구조화 로그의 `trade_ids` 는 빼라** — 포매터가 `extra` 를 렌더하지 않아
+> 관측 불가다(정본이 이미 경고). metric `{outcome="applied"}` + 엔진 `open_trades` 변화로 본다.
+
 **Title:** ★`outcome="applied"`(원장 seed **주입**)가 실주행에서 한 번도 밟히지 않았다 — 단위테스트로만 증명됨
 **Category:** Backend / trading 검증 공백
 **Priority:** P2
@@ -4651,6 +4703,13 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 ---
 
 ### BL-554
+
+> ### ✅ **Resolved (2026-07-30 live-entry-completeness)** — stdin 4-튜플로 **실제 push ref** 판정.
+>
+> ★★**main 보호는 `remote_ref` 를 가장 먼저 본다** — `git push origin feat/foo:main` 은
+> local=feat/foo · **remote=main** 이라 화이트리스트를 local 로 걸면 원격 main 갱신이 그대로 나간다
+> (codex G1 이 **코드 쓰기 전에** 잡았다). 삭제는 대상이 main/master 일 때만 차단.
+> 순수 sh lib(`scripts/lib/pre-push-ref-guard.sh`) + 하네스(`scripts/pre-push-guard-test.sh`, 26 케이스).
 
 **Title:** (P3) pre-push 훅이 **푸시 대상 ref 가 아니라 현재 브랜치**를 봐서 원격 브랜치 삭제까지 막는다
 **Category:** DX / git 훅
@@ -4670,6 +4729,10 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 
 ### BL-555
 
+> ### ✅ **Resolved (2026-07-30 live-entry-completeness)** — `stage/*` 화이트리스트 추가.
+>
+> 부수로 **태그 push 정책 명시**(`refs/tags/*` 가 `deny-arbitrary` 로 떨어지던 회귀 차단).
+
 **Title:** (P3) `stage/*` 가 이 레포의 통합 브랜치 관례인데 pre-push 훅 화이트리스트에 없다
 **Category:** DX / git 훅
 **Priority:** P3
@@ -4681,3 +4744,94 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 
 **권장 접근:** 화이트리스트에 `stage/*` 추가. 그러면 bypass 는 원래 의도대로 **정말 예외적인 경우**에만 쓰인다.
 **Risk:** 🟢
+
+### BL-556
+
+**Title:** `final-gates.sh` 가 `pnpm e2e`(chromium 4건)를 집행하지 않는다 — CI e2e 잡에는 있다
+**Category:** DX / 게이트 집행
+**Priority:** P2
+**Trigger:** 다음 회차 게이트 실행 전
+**Est:** XS
+**출처:** 2026-07-30 live-entry-completeness
+
+**원인 / 영향:** `.github/workflows/ci.yml` 의 e2e 잡은 `pnpm e2e`(project=chromium, 4건) ·
+`pnpm e2e:design-canon` 을 돌린다. 그런데 `scripts/final-gates.sh` 는 `e2e:design-canon` 과
+`e2e:authed` 만 돌리고 **`pnpm e2e` 는 어느 게이트에도 없다.**
+`generator-evaluator-pipeline.md` §G7 표가 그것을 "로컬 상시 게이트에 없는 CI 전용 스텝" 으로
+명시하는데도 집행되지 않는다. CI 는 러너 미할당이라 판단 근거가 로컬뿐인데 그 로컬에 구멍이 있다.
+
+**권장 접근:** 게이트 체인에 추가한다(`PLAYWRIGHT_BASE_URL` 필수, 정체성 프로브 뒤에).
+이번 회차는 CONTROL 이 수동으로 메웠다 — **4 passed**.
+**Risk:** 🟡
+
+---
+
+### BL-557
+
+**Title:** (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳
+**Category:** Backend / 계측
+**Priority:** P3
+**Trigger:** 그 게이지로 무언가를 판단하기 전
+**Est:** S
+**출처:** 2026-07-30 live-entry-completeness (기존 BL 의 새 증거)
+
+**원인 / 영향:** 이미 등재된 "inc/dec 계약이 multiprocess 에서 절대값을 보장하지 못한다" 의
+**새 증거 2건**이다. (a) 직전 회차는 "0 인데 실제 1"(양의 편향)이었는데 이번엔 **음수 -2.0** —
+편향이 양방향이다. (b) ★**구조적 비대칭** — `inc` 지점은 **1 곳**(`order_service.py:432`),
+`dec` 지점은 **약 18 곳**(`tasks/trading.py` 8 · `tasks/live_signal.py` 3 ·
+`conditional_entry_janitor.py` 3 · `websocket/{reconciliation,state_handler}.py` 2 · `router.py` 1 …).
+1:18 이면 어느 dec 하나가 중복 발화해도 음수로 샌다.
+
+**권장 접근:** dec 를 단일 지점(terminal 전이 훅)으로 모으거나, Gauge 를 버리고
+`created - terminal` 두 Counter 의 차분으로 렌더한다. **음수는 그 자체로 계약 위반 신호다.**
+**Risk:** 🟢 (관측 왜곡. 머니-패스 영향은 없다)
+
+---
+
+### BL-558
+
+**Title:** retCode 를 `error_message` 에 싣는 경로가 **동기 1곳뿐** — 비동기 확정 거절이 코드 미상이 된다
+**Category:** Backend / trading (계측 타당성)
+**Priority:** P2
+**Trigger:** 거절 코드로 채널을 가를 때
+**Est:** M
+**출처:** 2026-07-30 live-entry-completeness (적대 검증 렌즈1)
+
+**원인 / 영향:** retCode JSON 을 원문에 싣는 것은 동기 `provider_failure: {ccxt}`
+(`tasks/trading.py:432`) **하나뿐**이다. WS(`state_handler.py:241` `ws_rejected: <rejectReason>`) ·
+reconciler(`reconciliation.py:240`) · janitor(`conditional_entry_janitor.py`) ·
+sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:549`) 는 전부 **평문**이라
+`110092`/`110093` 같은 코드가 **복원 불가**다. 즉 비동기로 확정된 거절은 진입 완결성 도구에서
+**"코드 미상"** 으로 떨어진다.
+
+★**이번 측정의 알려진 한계**이고 도구 출력에 그렇게 명시돼 있다
+(_"`unparsed` 는 '거절 아님' 이 아니다"_).
+
+**권장 접근:** 거절 확정 경로 전부가 **구조화된 코드 필드**를 남기게 한다.
+`error_message` 문자열 파싱에 의존하는 설계 자체가 취약하다 — 별 컬럼이면 마이그레이션 1이다.
+**Risk:** 🟡 (채널 분해의 분자를 과소·오분류한다)
+
+---
+
+### BL-559
+
+**Title:** (P3) 진입 완결성 도구 잔여 3건 — 세션 목록 절단 감지 · 사문 라벨 · janitor probe 전이
+**Category:** Backend / trading
+**Priority:** P3
+**Trigger:** 그 경로가 실측될 때
+**Est:** S
+**출처:** 2026-07-30 live-entry-completeness (적대 검증 잔여)
+
+**원인 / 영향:** 세 건 모두 확인됐으나 이번 스코프 밖으로 남겼다.
+
+1. `live_signal_session_repository.list_overlapping_window` 가 200 제한인데 `limit+1` **절단 감지가 없다**
+   — 주문 쪽은 그 규율을 지키는데 세션 쪽만 빠졌다(같은 PR 안의 불일치).
+2. `plan_drop{reduce_only_entry_ignored}` 라벨이 **구조적 사문** — 우리 조건부 진입은
+   `reduce_only=False` 로만 발주되므로 발화 경로가 없다.
+3. janitor 의 probe 부재 → `rejected` 전이가 **체결을 유실로 뒤집을 수 있다**
+   (`fetch_order_by_client_id(trigger=True)` 가 history 를 포함하는지 **[확인 필요]**).
+
+**권장 접근:** 1 은 즉시 고칠 수 있다(주문 쪽 패턴 복사). 2 는 라벨 제거. 3 은 **실측되면** 착수.
+**Risk:** 🟢
+
+---

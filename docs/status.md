@@ -1,91 +1,65 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-30 (**conditional-entry-alignment** 머지 완료 — BL-544 + BL-484/423 착지 · ★soak 3/3 생존, 단 seed 주입은 미검증)
+> **Last Updated:** 2026-07-30 (**live-entry-completeness** PR 대기 — BL-536 판정 **「축소」** · ★유실은 줄어든 게 아니라 **원장 밖 한 채널로 수렴**했다)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** 없음.
+> **미머지:** `stage/live-entry-completeness` (PR 생성 대기 — 마이그레이션 **0**).
 > **Last Merged:** `stage/conditional-entry-alignment` → `main@fa603ca4` (PR #506, 2026-07-30 · **마이그레이션 1** `20260730_0001`) · 그 앞 `feat/final-gates` → `main@103f9c30` (PR #505) · `stage/engine-exchange-alignment` → `main@af655616` (PR #503)
 > **Last Merged:** `fix/bl530-review-followups` → `main@004c374f` (PR #498) · 그 앞 `feat/live-close-completeness` → `main@178d24ef` (PR #497)
 
 ---
 
-## 🎯 다음 스프린트 — **live-entry-completeness + DX 정리** (A→C 확정, 2026-07-30 사용자 결정)
+## 🎯 다음 스프린트 — **entry-defer-convergence** (BL-536 이 한 채널로 좁혀 줬다)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 > 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + `AGENTS.md` + 본 파일을 읽고 시작한다.
-> ★**이번 회차는 herdr 함대 2기로 돈다.** 계약 = [`guides/fleet-orchestration.md`](guides/fleet-orchestration.md), 방법론 = [`guides/generator-evaluator-pipeline.md`](guides/generator-evaluator-pipeline.md). **오케스트레이터는 구현 diff 를 쓰지 않는다.**
-> **소요 목표 5~7시간. goal 까지 끝까지 간다**(정지점은 ① 착수 전 분배안 승인 ② PR 생성 전, 둘뿐).
 
-**한 줄.** BL-544 가 닫혀 **세션이 공백을 넘겨 살아남기 시작했다**(soak 3/3, 45분 연속 — 직전 회차는 18분 만에 사망). 그래서 막혀 있던 **BL-536 진입 유실 재측정이 이제 성립한다.** 그게 실자금 cutover 전 마지막 큰 미지수다.
+**한 줄.** BL-536 재측정이 끝났고 판정은 **「축소」** 다. 진입 유실은 사라진 게 아니라
+**원장에 발자국을 남기지 않는 한 채널로 수렴**했다 — `deferred_market_inflight` 가 합의 **75%**(9/12).
+5채널을 동시에 보던 프레임은 끝났다. **다음은 그 하나를 겨냥한다.**
 
-### ★순서
+### ★왜 지금인가 (실측 숫자)
 
-1. **A — BL-536 진입 유실 5채널 재측정 (P1)** 이 본체다. 직전 측정(2026-07-29)은 유실률 **16.7%** / 최대 채널 **57%** 였지만 그때는 세션이 18분마다 죽어 표본이 짧았다. 장시간 soak 으로 다시 잰다.
-2. **BL-553 을 같은 soak 안에서 기회주의적으로 닫는다.** `outcome="applied"`(원장 seed **주입**)는 아직 실주행에서 한 번도 안 밟혔다 — 공백을 **15분+** 로 가져가면 대기 stop 이 트리거될 확률이 오른다. 확인 신호 = `qb_live_gap_ledger_seed_total{outcome="applied"} > 0` + 구조화 로그 `live_signal_gap_ledger_seed` 의 `trade_ids` 비어 있지 않음.
-3. **C — DX 정리 4건**을 **병렬 워커**로 붙인다(BL-549·552·554·555). 전부 XS 이고 celery·soak 무관이라 워커가 자기완결한다. ★넷 다 **이번 회차에 실제로 밟은 것**이라 안 고치면 다음 함대에서 또 밟는다.
+soak 2h28m(세션 `98d86785`, 2026-07-30) 확정 측정:
 
-### ★함대 구성
+|                                            | 값                                                                          |
+| ------------------------------------------ | --------------------------------------------------------------------------- |
+| 층위1 시도                                 | 21행 · 체결 7 · **거절 0** · 취소 14 · open 0 → 확정 거절률 **0.00%** (n=7) |
+| 층위2 에피소드                             | 7 · **won 7** · lost 0 · abandoned 0 → 두 해석 모두 **0.00%**               |
+| **C2 `deferred_market_inflight`**          | **9건 / 3.6 per hour** — 원장 발자국 **없음**                               |
+| 신규 `plan_drop{trigger_already_breached}` | 3건 / 1.2 per hour — 원장 발자국 **없음**                                   |
 
-```bash
-scripts/herdr-fleet.sh --agent claude:bl536 --agent claude:dx --base origin/main
-scripts/fleet-dispatch.sh --run entry   # .claude/fleet/entry/tasks/{bl536,dx}.md 를 먼저 쓴다
-```
-
-|           | 워커 `bl536`                                      | 워커 `dx`                                   | CONTROL (현재 탭, 슬롯 0)                           |
-| --------- | ------------------------------------------------- | ------------------------------------------- | --------------------------------------------------- |
-| 스코프    | 계측 쿼리·분해 코드 + 단위테스트 (**측정 도구**)  | BL-549·552·554·555 (`scripts/` · `.husky/`) | 수용 기준 동결 · 통합 · 게이트 · **soak** · G9 · PR |
-| 방법론    | G0~G3 + G6 (**G1 codex 의무**)                    | G0~G3 (**G1 codex 의무**)                   | G7~G9                                               |
-| 금지 경로 | `scripts/**` · `.husky/**` · `frontend/**`        | `backend/src/**` · `backend/tests/**`       | —                                                   |
-| ★celery   | **금지** — 측정 쿼리까지만. 실주행은 전부 CONTROL | 해당 없음                                   | **CONTROL 전용**                                    |
-
-★**A 는 본체가 측정이라 병렬화 이득이 작다** — 그래서 워커 1기만 붙이고 나머지 한 자리를 C 로 채운다. soak 은 어차피 CONTROL 전용이다.
-
-### ★설계 시 반드시 짚을 것
-
-1. ★★**계측기를 먼저 고르고 그 계측기를 검증하라.** 이 스프린트는 **측정이 산출물**이라 계측기가 틀리면 전부가 틀린다. 쓰면 안 되는 것 둘 — `engine_only` 는 **재생 아티팩트로 오염**됐고(BL-543), `live_signal_events` 는 **조건부 진입이 거치지 않는다**(events 0건인데 원장 16건). 유효한 것은 **`orders.idempotency_key` 분해**뿐이다([`reference/live-close-diagnostics.md`](reference/live-close-diagnostics.md) §3·§7).
-2. **원장과 카운터가 서로를 검산하는 지점을 찾아라.** 직전 회차의 유효 교차검증 둘 — `cancelled` 25 = `replaced` 25 정확 일치 / **평가 수 8회 = 창 8분(1분봉)**.
-3. **감소를 개선으로 주장하기 전에 기전이 같은지 물어라.** 16.7% 와 새 값이 **같은 것을 세고 있는지** 먼저 증명해라 — 계기가 그 사이에 두 번 바뀌었다(BL-530 perp 정렬 · BL-543 epoch · BL-544 seed).
-4. ★**유실이 크게 줄었다면 그것부터 의심해라.** 세션이 오래 살게 된 것 자체가 분모를 바꾼다.
-
-### soak
-
-**CONTROL 전용. 통합 브랜치가 전체 게이트를 통과한 뒤에 시작한다.**
-
-1. ★**worker sentinel 먼저.** worker 는 `backend/src` 를 bind-mount 하므로 메인 체크아웃 브랜치가 곧 도는 코드다. 단 mount 확인은 증거가 아니다 — **신규 코드에만 있는 산출물**로 실행을 증명하라.
-2. **2~3시간 연속.** BL-544 착지로 이제 가능하다. 목표는 **표본**이지 시간이 아니다.
-3. ★**공백을 15분+ 로 최소 2회** 넣어 BL-553 을 노려라(§순서 2).
-4. leg 별 metric 스냅샷을 남겨라 — 한 leg 이 죽어도 차분은 이어붙일 수 있다.
-5. ★**종료 시 거래소 flat 확인.** 세션 중단은 UI 로 하면 `user_stopped` 사유가 기록돼 화면 검증까지 겸한다(직전 회차에 그렇게 닫았다).
-
-### 하지 않는 것
-
-**B**(BL-545 5% 허용치 · BL-546 Decimal→float) — **A 의 측정이 우선순위를 정해 준다**(부분체결이 흔하면 BL-545 가 급해진다). **D**(분석 표면 완결 팩) · BL-547(seed 1-tick 수명 — **`exchange_only` 이 실제로 오르는 것이 관측되기 전엔 짓지 않는다**, BL-541 프레임) · BL-535 잔여 · BL-541 · 거래소 확장.
+★**원장 층위 유실이 0인데 판정이 「소멸」이 아닌 이유**가 이것이다. 사전등록 문턱이
+"유실률 0 **그리고** 카운터 전용 합 < 1/시간" 을 요구했고 후자가 **4.8/시간**이었다.
 
 ### ★착수 전 반드시 읽을 것
 
-직전 회차 교훈 3개 — 자세한 것은 [`dev-log/2026-07-30-conditional-entry-alignment.md`](dev-log/2026-07-30-conditional-entry-alignment.md).
+1. ★★**계측기는 이제 있다 — 다시 만들지 마라.** `backend/src/trading/entry_completeness.py` +
+   `backend/scripts/entry_completeness_report.py`. 직전 창의 헤드라인 16.7% 를 **16.67%** 로 재현해
+   캘리브레이션까지 끝났다. 창 양 끝 `/metrics` 덤프를 함께 주면 화해 리포트가 나온다.
+2. ★★**"유실률" 이라고만 쓰지 마라.** 같은 데이터에 답이 셋이다(시도 16.67% / 에피소드 0.00% /
+   에피소드-반대해석 12.50%). 직전 회차가 층위를 안 적어서 이번에 반증됐다.
+3. ★**C2 의 기전을 먼저 확정해라** — "청산 시장가 주문이 in-flight 인 동안 진입 reconcile 이 밀린다"
+   (`live_signal.py:641` `market_orders_in_flight`). 이게 **무해한 지연**인지 **진짜 유실**인지가
+   설계를 가른다. 밀린 진입이 다음 tick 에 복구되면 유실이 아니다 — **그것부터 재라.**
+4. ★**BL-553 은 공백을 더 길게.** `applied` 는 대기 stop 이 **공백 중에** 트리거돼야 밟힌다.
+   이번엔 트리거가 **실제로 일어났으나 공백 밖**이었다(진입가 64609.1 = 공백 2 의 `trig=64610`).
+   누적 62분57초 공백에서 0회 — 30분+ 공백을 권한다.
 
-1. ★**BL 본문은 작성 시점 스냅샷이다.** 직전 회차에 전제 2건이 반증됐다 — BL-544 의 서사는 절반만 맞았고(**원장은 사망 4분 36초 전에 알고 있었다**), BL-423 은 **하루 전 PR 이 이미 고쳐 놨다**. 착수 preflight 가 둘 다 잡았다. **BL-536 본문도 그대로 믿지 마라.**
-2. ★**게이트 통과는 리뷰를 면제하지 않는다.** 워커 게이트 green + 통합 게이트 green + 실브라우저 PASS **이후에** codex 가 P1 을 냈다.
-3. ★**soak 이 증명한 것과 증명하지 못한 것을 나눠 적어라.** 3/3 생존했지만 seed 주입은 한 번도 안 밟혔다. G9 가 그걸 **미달**로 적었기에 BL-553 이 생겼다.
+### 하지 않는 것
 
-### 함대 — 구조가 바뀌었다 (2026-07-30)
+**BL-545**(5% 허용치) · **BL-546**(Decimal→float) · **BL-547**(seed 1-tick 수명 —
+`exchange_only` 이 실제로 오르기 전엔 짓지 않는다) · BL-535 잔여 · BL-541 · 거래소 확장.
+★**진입 유실을 "고치는" 코드를 크기 모르는 채 쓰지 마라** — BL-522 → BL-536 이 두 번 경고했고
+이번 측정이 그 경고를 다시 확인했다.
 
-★**워커가 오케스트레이터와 같은 워크스페이스의 탭으로 붙는다**(별도 워크스페이스 폐기). CONTROL 은 스크립트를 돌린 그 탭(메인, 슬롯 0)이다.
-★**재지시는 `tasks/<worker>.r<N>.md` 로 분리해라** — 직전 회차에 원본을 덮어써 G9 대조 대상이 사라졌다.
-★**분배 직후 `agent_status` 가 `working` 인지 확인해라**(BL-552). `idle`+`pending` 이면 프롬프트가 안 먹은 것이다 — `herdr pane send-keys <pane> Enter`.
-★**이전 함대를 안 닫고 같은 이름으로 다시 띄우면 `agent_name_taken` 으로 죽는다** — herdr 는 에이전트 이름을 전역으로 잡는다. `scripts/herdr-fleet.sh --teardown` 으로 먼저 닫아라.
+### baseline (2026-07-30 실측 — `stage/live-entry-completeness`)
 
-### 게이트 체인
+**BE 3603 passed / 46 skipped** · ruff clean · mypy **213** clean · FE 무변경 ·
+`pnpm e2e` **4 passed** · 마이그레이션 head **`20260730_0001`**(이번 회차 마이그레이션 0).
 
-`scripts/final-gates.sh --run entry` 가 집행한다(17종). ★**커밋 후에 돌려라**(BL-549 — 미커밋 상태면 영역 판정이 `fe_diff=0 be_diff=0` 이 되어 게이트를 skip 하고도 통과처럼 읽힌다). ★워커에게는 **반드시 `--skip-e2e --skip-ci-repro`** — 그 게이트가 공유 컨테이너의 DB 를 DROP/CREATE 한다. 스킬 게이트 4종은 `.claude/gates/entry/{vercel,screen,codex,g9}.ok` signal 이 없으면 FAIL(단 `frontend/**` diff 가 없으면 `vercel.ok` 는 자동 skip).
-
-### baseline (2026-07-30 실측 — `main@e3dacb1f`, 코드 트리는 `fa603ca4`)
-
-**BE 3504 passed / 46 skipped** · ruff clean · mypy **212** clean · FE vitest **1228**(205 파일) · FE lint·typecheck·build ✓ · e2e authed **66** / canon **32** · 커버리지 잡 `--cov-fail-under=90` 통과 · fresh DB `alembic upgrade head` 통과 · 마이그레이션 head **`20260730_0001`**.
-
-> ★**테스트 DB 가 stale 이면 `tests/test_migrations.py` 5건이 깨진다 — 코드 결함이 아니다.** 스키마를 비우고 `alembic upgrade head` 로 스탬프하면 6 passed. ★**DB 를 통째로 드롭만 하면 안 된다**(`alembic_version` 소실로 다른 방향으로 깨진다).
-> ★**어느 커밋에서 잰 값인지까지 적어라.** "측정" 이라는 라벨은 스스로를 보증하지 못한다.
-> ★**CI 는 러너 전역 미할당이다.** 판단 근거는 로컬 재현뿐. `| tail` 로 파이프하면 **exit code 와 출력이 함께 가려진다**(직전 회차에도 밟았다).
+> ★**`final-gates.sh` 는 커밋 후에 돌려라** — 미커밋이면 거부한다(BL-549 수리 완료).
+> ★**`pnpm e2e`(chromium 4건)는 게이트 체인에 없다** — 수동 1회 필요(BL-556).
+> ★**CI 는 러너 전역 미할당이다.** 판단 근거는 로컬 재현뿐. `| tail` 로 파이프하면 exit code 가 가려진다.
 
 ## ⚡ live-orphan-close — 고아는 이미 닫혔고, 대신 누르면 실패하는 버튼이 있었다 (BL-537) (2026-07-29)
 
@@ -124,7 +98,7 @@ BL-537 은 "세션이 꺼지면 포지션이 앱에서 **보이지도 닫히지�
 - ★**"원장·리스크 게이트가 유지된다" 를 잠그는 테스트가 없었다.** 기존 `test_service_orders_kill_switch.py:116-189` 는 flatten 의 **우회**만 단언한다. 2종을 추가했다 — flatten 에서도 (a) 크로스테넌트 소유 게이트가 살고 (b) 원장 행이 써진다. ★변이 검증에서 **(a) 만 진짜 미커버**였다(기존 테스트가 (b) 는 `response.id` 경유로 간접 검출). 처음에 "둘 다 미커버" 라고 판단했던 것을 실측이 정정했다.
 - ★**세션 스코프 표면은 여전히 가린다** — `position_service.py:433` 이 `settings.leverage is None` 이면 `supported=False, reason="settings_unset"` 을 반환해 그 표엔 행이 아예 안 뜬다. 계정 스코프 표가 덮으므로 P3 로 남긴다.
 - ★**내 계측기가 또 한 번 0 을 거짓 보고했다.** metric 스냅샷이 `계열 0` 이었는데 `.metrics` 에는 6798 파일이 있었다 — `prometheus_client` 는 Counter 의 **family 이름에서 `_total` 을 뗀다.** `m.name` 을 `..._total` 로 매칭한 내 필터가 틀린 것이다. **0 이면 계측기를 먼저 의심**이 또 맞았다.
-- ★**worker 는 src 를 bind-mount 하지 않는다**(baked image). soak 전 sentinel 로 `live_signal.py:1359` perp fetch 라인이 로컬과 일치함을 확인했다(§7.2).
+- ~~★**worker 는 src 를 bind-mount 하지 않는다**(baked image).~~ ★**2026-07-30 정정 — 틀렸다.** `docker inspect` 실측: worker·beat·ws-stream 모두 `backend/src -> /app/src` **bind-mount** 이고 worker 는 `uv run watchfiles --filter python … /app/src` 로 기동한다. soak 전 sentinel 로 `live_signal.py:1359` perp fetch 라인이 로컬과 일치함을 확인한 것 자체는 유효하다(§7.2).
 
 ### 신규 BL
 

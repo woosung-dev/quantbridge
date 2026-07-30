@@ -158,7 +158,25 @@ GROUP BY 1, 2, 3
 ORDER BY 4 DESC;
 ```
 
-읽는 법 — ★**`cancelled` 를 유실로 세지 마라.** 조건부 스톱은 desired 레벨이 매 bar 움직이면 취소 후 재등재된다(정상 churn). 검산: `cancelled` 개수가 `qb_live_conditional_cancelled_total{reason="replaced"}` 차분과 **같으면** 전량 churn 이다(2026-07-29 실측 25 = 25).
+읽는 법 — ★**`cancelled` 를 유실로 세지 마라.** 조건부 스톱은 desired 레벨이 매 bar 움직이면 취소 후 재등재된다(정상 churn).
+
+> ★★**2026-07-30 정정 — "`cancelled` 개수 = `replaced` 차분이면 전량 churn" 은 항등식이 아니다.**
+> `transition_to_cancelled` 호출부가 **9 곳**인데 `qb_live_conditional_cancelled_total` 을 올리는 곳은
+> **1 곳뿐**(`live_signal.py` reconcile 취소 루프)이고, `Order` 에 **취소 사유 컬럼이 없다.**
+> 그래서 2026-07-29 의 "25 = 25 정확 일치" 는 교차검증이 아니라 **우연**이었다.
+> 성립하는 관계는 **부등식**뿐이다:
+>
+> ```
+> 원장 cancelled  >=  counter{reason="replaced"} 차분
+> 잔차 = 원장 - counter  =  "미계측 취소"
+> ```
+>
+> 부등식이 깨지면 counter 나 조회 창이 틀렸다는 신호다. ★두 값을 **같은 시점**에서 재라 —
+> 시각을 안 맞추면 거짓 위반이 난다(2026-07-30 실측: 원장 9(10:06) vs counter 11(10:20) → 같은
+> 시점에서는 **14 >= 14, 잔차 0**).
+>
+> **이 검산은 이제 도구가 자동으로 한다** — `backend/scripts/entry_completeness_report.py`
+> (`--metrics-before` / `--metrics-after` 로 창 양 끝 `/metrics` 덤프를 준다).
 
 > **유실률 = `rejected` / (`filled` + `rejected`)** — 2026-07-29 실측 2/(10+2) = **16.7%**
 
