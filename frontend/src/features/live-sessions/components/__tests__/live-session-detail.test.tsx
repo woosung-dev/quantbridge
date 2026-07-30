@@ -326,6 +326,21 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     expect(status).toHaveClass("text-success");
   });
 
+  it("주문이 연결되지 않은(null) 이벤트는 성공 초록으로 칠하지 않는다", async () => {
+    // ★G6 지적 — API 계약상 `null` 은 "주문 미연결·미확인" 이고 성공이 아니다.
+    //   `undefined`(구 응답)와 달리 서버가 명시적으로 없다고 답한 경우다.
+    stateMock.mockResolvedValue(STATE_NO_EQUITY);
+    eventsMock.mockResolvedValue({
+      items: [{ ...EVENTS[0], order_state: null }],
+    });
+
+    renderWith(<LiveSessionDetail session={SESSION} />);
+
+    const status = await screen.findByText("전송됨");
+    expect(status).not.toHaveClass("text-success");
+    expect(status).toHaveClass("text-muted-foreground");
+  });
+
   it("주문 상태가 없는 구 응답은 기존 이벤트 표시를 유지한다", async () => {
     stateMock.mockResolvedValue(STATE_NO_EQUITY);
     eventsMock.mockResolvedValue({ items: [{ ...EVENTS[0] }] });

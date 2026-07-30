@@ -303,13 +303,20 @@ export function LiveSessionDetail({ session }: Props) {
                     : null;
                   const hasRejectedOrder =
                     ev.order_state === "rejected" || ev.order_state === "cancelled";
+                  // ★`null` 과 `undefined` 는 다른 뜻이다. `undefined` = 구 응답(필드 자체가 없다)
+                  //   이라 기존 표시를 유지한다. `null` 은 서버가 "연결된 주문이 없다" 고 명시한
+                  //   것이고 API 계약상 **성공이 아니다** — 초록으로 칠하면 확인되지 않은 것을
+                  //   확인된 것처럼 보이게 한다.
+                  const orderUnlinked = ev.order_state === null;
                   const statusClass = hasRejectedOrder
                     ? "text-destructive"
-                    : ev.status === "dispatched"
-                      ? "text-success"
-                      : ev.status === "failed"
-                        ? "text-destructive"
-                        : "text-muted-foreground";
+                    : orderUnlinked
+                      ? "text-muted-foreground"
+                      : ev.status === "dispatched"
+                        ? "text-success"
+                        : ev.status === "failed"
+                          ? "text-destructive"
+                          : "text-muted-foreground";
 
                   return (
                     <tr key={ev.id} className="border-t">
