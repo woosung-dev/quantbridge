@@ -200,6 +200,31 @@ cd $QB/frontend && pnpm e2e:authed
   (`qb_live_conditional_placed_total` PR #489 / `qb_live_conditional_guard_total` PR #493, **하루 차**).
   **차분에서는 정확히 일치한다.** 절대값을 나란히 놓는 순간 그 표는 거짓말한다.
 
+### 함대·계측 함정 (2026-07-31 reversal-ledger-sync)
+
+- ★★★**`herdr agent prompt` 는 텍스트를 붙여넣기만 하고 제출하지 않을 수 있다.** 워커 4벌 전부
+  `[Pasted text #1 +9 lines]` 상태로 프롬프트에 멈춰 있었는데 **발송 API 는 성공을 반환**했고
+  `agent_prompt_stalled` 조차 안 났다. ⇒ **`herdr agent send-keys <name> enter` 를 항상 뒤에 붙이고
+  `agent read` 로 눈으로 확인해라.** `working` 으로 바뀌는 것까지 봐야 발송이다.
+- ★★★**psql `-At` 는 boolean 을 `f` 가 아니라 `false` 로 찍는다.** 감시 스크립트가 `f|*` 패턴으로
+  세션 사망을 놓쳐 **3.7시간을 헛돌았다.** 출력 형식을 추측하지 말고 **한 번 찍어보고 써라.**
+- ★★**짧은 창으로는 아무것도 판정할 수 없다.** 42분 창에서 **수정 없이도** `same_side` 0 이 나왔다
+  (청산 시도 3). 그리고 4창 4.48h 동안 **청산 시도가 0건**이었다 — 이 전략은 전량 조건부 진입만 낸다.
+  **판정 지표가 그 창에서 발화 가능한지를 먼저 확인해라.**
+- ★★**`docker exec python -c` 는 러닝 워커가 리로드됐다는 증거가 아니다** — 새 프로세스가 마운트된
+  소스를 읽을 뿐이다. **로그에서 그 코드가 실제로 실행된 흔적**을 봐라(태스크 received→succeeded).
+- ★★**수정이 실주행에서 실행됐는지를 따로 재라.** 이번에 새 write-back 헬퍼가 최종 창에서
+  **0회 발화**했다 — 기존 경로가 먼저 잡았다. **지표가 좋아진 것과 내 코드가 돈 것은 다른 사실이다.**
+- ★**`python /tmp/x.py` 는 `sys.path[0]` 이 `/tmp` 다** — 컨테이너 안에서 앱 모듈을 쓰려면
+  `docker exec -e PYTHONPATH=/app -w /app`.
+- ★**`pnpm e2e` 는 자기 dev 서버를 띄우려다 죽는다** — 같은 디렉터리에 `next dev` 가 이미 떠 있으면
+  `Another next dev server is already running`. **정체성 프로브 후 `PLAYWRIGHT_BASE_URL=http://localhost:3100`.**
+- ★**`herdr pane split --ratio` 는 쪼개지는(기존) pane 이 *남기는* 비율이다**(폭 298 + `--ratio 0.25`
+  → 75/223). n 등분은 `1/(남은 열 수)` 로 접는다.
+- ★**두 워커가 같은 자리를 고치면 머지 충돌이 「의미 있는 충돌」이 된다** — 이번에 한 워커의
+  훅 통합 헬퍼가 다른 워커의 훅을 몰라서, 손으로 접었으면 **codex 가 방금 잡은 결함을 머지에서
+  재도입**할 뻔했다. **소유자에게 돌려줘라.**
+
 ### 측정 도구가 먼저 틀린다 (2026-07-30 close-mismatch-soak — 또 **2번**)
 
 > ★**0 이든 큰 수든, 숫자를 보면 계측기를 먼저 의심해라.** 이 레포에서 **7번째**다.

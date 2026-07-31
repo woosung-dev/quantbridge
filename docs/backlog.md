@@ -5157,7 +5157,14 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 체결 07:31~32 vs `filled_at` 07:44:13). 수정 = `_write_back_confirmed_terminal`
 (`tasks/live_signal.py:713`, 리컨사일러 `:1000` + 스윕 `:2699`) + 1차 `broker_filled` 유지
 (`event_loop.py:513` · `strategy_state.py:245,891-899`). 표적 변이 4회로 판별력 증명.
-**실주행 재측정(W2/W3) 미실시** — 워크트리에서 구조적으로 불가능해 CONTROL 이 메인에서 재야 한다.
+★★**실주행 재측정 완료 — 그러나 판정 불가.** CONTROL 이 메인에서 창 4벌(총 4.48h) 돌렸다.
+`same_side` **0건 · 청산 시도 0건**이라 **W4 미충족(0 < 10) → W2/W3 판정 불가**. 이 구간의 PbR 은
+전량 조건부 진입(`reduce_only=false`)으로만 돌아 청산 주문을 안 냈다 — pre-fix 창에서 **수정 없이도
+0** 이 나온 것이 이미 이를 예고했다. ★★그리고 **`_write_back_confirmed_terminal` 이 최종 창에서
+한 번도 발화하지 않았다**(체결 2건을 기존 경로가 31초·61초에 먼저 잡았다).
+⇒ **수정된 코드가 실주행에서 실행된 적이 없다.** 결정론적 테스트로 하중은 받지만 **프로덕션 미검증**이다.
+간접 신호만 개선됐다: 「체결 확인 후 미기록」 반복 **7회 → 0회**, `position_divergence` **41.6/h → 12/h**,
+세션 생존 **0.36h(fail-closed) → 0.86h(정상)**. 상세 = [dev-log](dev-log/2026-07-31-reversal-ledger-sync.md).
 **출처:** 2026-07-30 close-mismatch-visibility · 실측 2026-07-30 close-mismatch-soak
 
 ★★**엔진과 거래소가 반대 방향을 들고 있는 상태가 반복 발생한다 — 5개 세션에서 9건**
@@ -5597,5 +5604,47 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
   확인했다). 발화 0 이면 이 항목은 비용 대비 가치가 없다 — BL-560 이 두 번 밟은 함정이다.
 
 **Risk:** 🟡 (트레일링 미부착 = 무방비 포지션. 단 발생률 미측정)
+
+---
+
+### BL-566
+
+**우선순위:** P2
+**카테고리:** Backend / trading (라이브 원장 정합성)
+**Trigger:** BL-560 실주행 재측정을 다시 시도하기 전
+**Est:** M
+**상태:** 🔴 **열려 있다** — 2026-07-31 reversal-ledger-sync pre-fix 창에서 처음 관측.
+**출처:** 2026-07-31 reversal-ledger-sync (BL-561 이 로그를 렌더하자마자 드러났다)
+
+★**청산이 성공했는데도 엔진 원장이 그 포지션을 계속 들고 있다.**
+
+**원인/영향.** pre-fix 창(세션 `7fb8e2ed`, 0.71h)에서 `live_signal_position_divergence` 가
+**29건 전건 `engine_only`** 로 찍혔다 — **41.6건/h**, 평가 ~42회 중 **69%가 발산 상태**다.
+
+```
+02:30:20  buy reduce-only 체결 (청산 성공, 거래소 flat)
+02:31:12 ~ 02:39:11   engine_position=-0.0295738  exchange_position=0   ← 매 분 9회 연속
+02:41:28  buy reduce-only 체결 (청산 성공)
+02:42:12 ~            engine_position=-0.0296368  exchange_position=0   ← 값이 새로 바뀐 유령
+```
+
+거래소는 flat 인데 엔진은 숏을 들고 있고, **다음 진입이 올 때까지 지워지지 않는다.**
+그 상태에서 청산 신호가 나가면 `110017` 계열이 되고, 반대편 포지션이 차 있으면
+**BL-560 의 `same_side` 위험 갈래로 넘어간다.**
+
+★**BL-560 과 같은 계열인지 별개 채널인지 미확정.** BL-560 의 진짜 뿌리는 「체결 write-back 지연」
+이었는데, 이 현상은 **청산이 성공한 뒤**에도 남으므로 다른 지점일 수 있다.
+후보: `run_live` 가 매 tick 원장을 봉 재생으로 재도출하는 구조(`event_loop.py`)와
+`position_epoch` / `seed_positions_from_ledger` 의 상호작용.
+
+★**이것이 지금까지 안 보였던 이유** — 포매터가 `extra` 를 렌더하지 않아
+`live_signal_position_divergence` 가 **이벤트 이름만** 찍혔다(BL-561). 값이 나오자마자 드러났다.
+
+**권장 접근:** ★**먼저 재라.** 최종 창(`c77d5851`, 0.86h)에서는 divergence 가 **12/h** 로 줄었고
+성격도 `exchange_only` 9 / `direction` 1 로 바뀌었다 — **창마다 성격이 다르다.**
+분모(평가 횟수) 대비 발산 비중을 여러 창에서 재고, `engine_only` 가 지속되는 구간의
+`position_epoch` 값을 함께 남겨라. 크기 없이 원인 후보를 고르지 마라.
+
+**Risk:** 🟡 (엔진 원장이 거래소와 어긋난 채로 신호를 낸다. 방벽은 `reduce_only` 하나)
 
 ---
