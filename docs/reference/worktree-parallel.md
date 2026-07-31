@@ -172,6 +172,18 @@ herdr 는 `agent prompt <t> "<지시>" --wait --until done --timeout <ms>` 로 �
 `git worktree add` 로 만든 워크트리에는 적용되지 않으므로 부트스트랩을 `--adopt-env` 로 부른다
 (§6). 함대 스크립트는 항상 그렇게 부른다.
 
+### 지시가 붙지 않을 수 있다 — `agent_prompt_stalled` (2026-07-30 실측)
+
+`herdr agent prompt <name> "..." --wait` 이 **5초 안에 상태 변화를 못 보면**
+`{"error":{"code":"agent_prompt_stalled", ... "status is idle"}}` 로 즉시 실패한다. 기동 직후에
+프롬프트를 보내면 레이스로 이게 난다 — **같은 지시를 한 번 더 보내면 붙는다**(실측: 2벌 중 1벌이
+첫 발송에서 stall, 재발송 후 정상 완주).
+
+★**이걸 "워커가 일을 마쳤다" 로 읽지 마라.** `agent_status` 는 그대로 `idle` 이고, 겉보기에는
+"지시를 받고 곧장 끝낸" 것과 구별되지 않는다. **발송 결과의 exit/에러를 반드시 확인하고**,
+완료 판정은 언제나 CONTROL 의 재측정(브랜치에 커밋이 있는가 · 게이트 숫자가 움직였는가)으로 한다.
+같은 이유로 `idle`·`unknown` 은 완료가 아니다(§2.3 앞부분과 같은 규율).
+
 ---
 
 ## 3. 해결 불가 — celery worker 는 메인의 코드를 본다

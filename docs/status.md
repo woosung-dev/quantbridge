@@ -2,8 +2,8 @@
 
 > **Last Updated:** 2026-07-30 (**close-mismatch-soak** — ★★**실재한다. 2.60건/h · 청산 시도의 46.2%.** 그리고 6/6 이 **반전 체결 직후 같은 방향**이라 뿌리가 좁혀졌다)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `stage/conditional-entry-armor` (T2 조건부 진입 계측 + T3 BL 산식 SSOT).
-> **Last Merged:** `feat/entry-defer-convergence` → `main@75722cbe` (**PR #511**, 2026-07-30 · **마이그레이션 0**) · 그 앞 `stage/live-entry-completeness` → `main@f8706618` (PR #509)
+> **미머지:** 없음.
+> **Last Merged:** `stage/conditional-entry-armor` → `main@bc0046b6` (**PR #513**, 2026-07-30 · **마이그레이션 0**) · 그 앞 `feat/entry-defer-convergence` → `main@75722cbe` (PR #511) · `stage/live-entry-completeness` → `main@f8706618` (PR #509)
 
 ---
 
@@ -72,6 +72,53 @@ ruff clean · mypy **213** clean · FE typecheck/lint clean · `pnpm e2e` **4 pa
 > ★**`pnpm e2e`(chromium 4건)는 게이트 체인에 없다** — 수동 1회 필요(BL-556).
 > ★**CI 는 러너 전역 미할당이다.** 판단 근거는 로컬 재현뿐. `| tail` 로 파이프하면 exit code 가 가려진다.
 > ★**`scripts/bl-audit.sh` 는 현재 exit 1** — UNKNOWN 17건 미판정. 게이트 체인에 넣기 전 정리 필요.
+
+## ⚡ close-mismatch-soak — 실재한다, 그리고 6/6 이 같은 패턴이었다 (2026-07-30)
+
+**스코프.** herdr 함대 2벌(`bracket` · `docdrift`) 병렬 + CONTROL soak **3h20m**.
+**마이그레이션 0 · 새 엔드포인트 0.** 상세 = [dev-log](dev-log/2026-07-30-close-mismatch-soak.md).
+
+### 판정 — 사전등록 **V3 (실재 · 원인 착수)**
+
+| 지표                         |                     값 |
+| ---------------------------- | ---------------------: |
+| `reduce_only_same_side`      |          **2.60 건/h** |
+| 청산 시도 대비               |     **46.2%** (6 / 13) |
+| `reduce_only_violation` 차분 |                  **0** |
+| `reduce_only_position_zero`  | **0** (한 번도 미발화) |
+
+V1a(워커 내 코드 sentinel) PASS · V1b(라벨 발화) PASS · V4 충족(13 ≥ 10) · V5 미발동.
+★**구 라벨 차분 0** = 이 6건은 예전이면 전부 `reduce_only_violation` 에 묻혀 "유령 포지션" 으로 읽혔다.
+★★**직전 회차 헤드라인이 이 창에서 뒤집혔다** — "무해 갈래가 3배라 위험을 묻는다" 가 성립 안 했다.
+**역사 비율은 창마다 다르다.**
+
+### ★★★뿌리 — 6/6 전건이 「직전 체결과 같은 방향」
+
+체결 후 **50–104초**(평균 78초). buy 체결 → 롱인데 엔진이 **buy** reduce-only 를 보낸다
+= **이미 닫힌 숏을 다시 닫으려 한다.** ⇒ **엔진이 자기 반전 체결의 청산 leg 를 반영하지 못한다.**
+발신은 정상 봉 평가(`dispatch_event`)이고 **거절은 원인이 아니라 결과**다.
+후보 ①재가격 경주·③재생 아티팩트는 이 규칙성을 예측하지 않는다.
+★**원칙대로 고치지 않았다** — 크기·뿌리 확정이 산출물, 수정은 다음 회차.
+
+### 전제가 무너진 것 3건
+
+- ★★**BL-523 「붙일 값이 없다」** — `place_exit` 가 `open_trades` 만 타깃(`strategy_state.py:963`)하고
+  stop 진입은 체결 전까지 거기 없다 ⇒ `exit_levels_for` 항상 None. `s1_pbr` 은 `strategy.exit` **0건**.
+  실주행 `bracket_unavailable` **100% / `bracket_attached` 0%**. 목표를 부착 → **계측**으로 전환.
+- ★**BL-553 사전조건이 불완전했다** — 「장전」만으론 부족하고 **「장전 + 엔진 flat」**이 필요.
+  PbR 은 stop-and-reverse 라 구조적 도달 불가. **PbR 재시도 금지.**
+- ★**BL-560 수용 기준 하나가 충족 불가** — 포매터가 `extra` 미렌더라 포지션 **쌍이 소실**된다 → BL-561.
+
+### ★★★codex 적대 리뷰가 실제 파손을 잡았다
+
+BE 신규 설정 필드가 `model_dump()` 로 저장돼 FE `.strict()` 파싱을 **영구히** 깬다.
+★**GET 은 멀쩡해 화면 3개를 돌고도 놓쳤다** — 저장 경로에서만 터진다. 워커도 "영향 없음" 으로 오판.
+→ 수정 완료. 나머지는 **BL-562/563/564** 등재.
+
+### 게이트
+
+17건 전건 통과. BE **3659**(+26) · FE **1232** · mypy 213 · `pnpm e2e` 4 · **마이그레이션 0**.
+★**baseline 정정** — 문서의 「FE 1231」이 stale 이었다(실측 **1232**).
 
 ## ⚡ close-mismatch-visibility — 재던 곳에 없었고, 진짜 신호는 이미 원장에 있었다 (2026-07-30)
 
