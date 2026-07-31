@@ -4943,14 +4943,68 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 
 ### BL-560
 
-> ### 🟡 **코드 지점 확정 + 수정 완료 — soak 재측정 대기 (2026-07-31 reversal-ledger-sync)**
+> ### 🟡 **진짜 뿌리 확정 + 수정 완료 — soak 재측정 대기 (2026-07-31 reversal-ledger-sync)**
 >
-> **가설이 코드로 확정됐다.** 특성화 테스트가 반전 체결 직후 엔진이 `close`(direction=short)
-> signal 을 실제로 내보내는 것을 재현했고, 그 주문 방향이 **직전 체결과 같다**(둘 다 `buy`)는
-> 실측 6/6 서명까지 단언으로 고정했다 —
-> `backend/tests/strategy/pine_v2/test_run_live_broker_flip.py`.
+> ★★★**우리가 처음에 잘못 짚었다. 실주행이 우리 가설을 반증했다.**
 >
-> **뿌리 한 줄.** `event_loop.py:504` 의 dispatch 필터가 `fill` 만 broker 이벤트로 걸렀는데,
+> 1차 수정(`broker_filled`, 아래 §1차)을 적용하고 다시 soak 을 돌렸더니 **증상이 남았다.**
+> 세션 `70063496` (2026-07-31 07:22~07:44 UTC) 실측:
+>
+> ```
+> 9c7aef0b  buy 0.058 (= 2 × 0.029 병합 반전 주문)  state=filled
+>           created 07:30:35 · submitted 07:30:35 · filled_at 07:44:13
+> 07:32:23  live_signal_position_divergence  category=direction
+>           engine_position=-0.0297634   exchange_position=0.029      ← 엔진 숏 / 거래소 롱
+> 07:32:27~07:38:27  live_conditional_reconcile_divergence  order_id=9c7aef0b
+>           reason=exchange_missing_resting_order  exchange_status=filled   ← 매 분 반복
+> 07:44:09  gap_resync_position_mismatch 로 세션 fail-closed 사망
+> 07:44:13  그제서야 orders.filled_at 기록 (사망 4초 뒤)
+> ```
+>
+> ⇒ **엔진이 자기 플립을 재발신한 게 아니었다. 엔진이 체결을 13분간 몰랐다.**
+> 리컨사일러가 07:32:27 에 이미 `filled` 을 **확인하고도** `orders` 행을 그대로 뒀기 때문이다.
+> 기록이 미뤄지니 `OrderRepository.list_fills_since` 를 읽는 `_ledger_gap_seed` 가 그 체결을
+> 못 보고, 엔진 원장은 숏인 채로 계속 돌았다. 그 상태에서 나가는 청산 신호가 `buy`
+> reduce-only → `110017 same side`.
+>
+> ★**직전 회차의 `+50~104초` 타이밍은 두 가설 모두와 맞아 판별력이 없었다.** 그것을 근거로
+> 코드 지점을 좁힌 것이 잘못이었다. 단위테스트로 재현한 시뮬레이션 상 플립은 **실재하지만
+> 프로덕션에서 지배적인 경로가 아니었다.**
+>
+> #### 진짜 수정 — 확인한 그 자리에서 write-back
+>
+> `_write_back_confirmed_terminal`(`tasks/live_signal.py:713`) 신설. 리컨사일러가
+> `probe.status` 를 terminal 로 확인하면(`:938-947`) **그 자리에서** `transition_to_filled` /
+> `_to_cancelled` / `_to_rejected` 를 돌린다(`:1000-1024`). 스윕(`:2699`)도 같은 헬퍼를 쓴다 —
+> 전이 매핑이 두 벌로 갈라지면 한쪽만 고쳐지는 순간 원장이 다시 어긋난다.
+>
+> ★**태스크 예약(`trading.fetch_order_status`)이 아니라 직접 전이인 이유:** 그 태스크는
+> `trigger` 없이 조회한다(`tasks/trading.py:775`). 방금 `trigger=True` 로(`live_signal.py:878-880`)
+> 받아 든 확정 응답이 손에 있는데 다른 질의 형태로 다시 물어 못 찾으면 ProviderError → retry →
+> giveup 으로 **조용히 아무 일도 안 일어난다** = 없애려는 실패 모드의 재도입이다.
+>
+> ★**중복 처리 방지 = 단일행 조건부 UPDATE 승자 규약.** `transition_to_*` 셋 모두 WHERE 에
+> 출발 상태를 걸고 rowcount 를 돌려주므로, watchdog·WS·스윕·리컨사일러가 동시에 들어와도
+> **정확히 하나만 rowcount 1**. 승자만 commit·gauge dec·후속 훅. real DB 로 검증했다
+> (`tests/trading/test_conditional_terminal_write_back.py`).
+>
+> ★**등재 스킵(`fill_confirmed` → return)은 그대로 뒀다.** 낡은 포지션으로 사이징하는 것을
+> 막는 fail-closed 이고 옳다. 더한 것은 **기록을 앞당기는 것**뿐이다.
+> ★`cancelled`/`rejected` 도 같이 기록한다 — 안 하면 그 행이 `submitted` 로 남아
+> `list_resting_conditional_entries` 에 계속 잡히고 그 trade_id 가 영구 no-op 이 된다.
+>
+> **판별력 증명 (표적 변이 2회).** ① 리컨사일러의 write-back 촉발 제거 → 배선 가드 **3건 실패**
+> (음성 대조군 · real-DB 헬퍼 가드는 정상 통과). ② 승자 규약 무력화 → 중복 처리 가드 **2건 실패**
+> (mock 1 + real DB 1).
+>
+> ---
+>
+> #### §1차 수정 — `broker_filled` (유지한다, 단 이것만으로는 부족했다)
+>
+> 아래가 처음 짚은 지점이다. **시뮬레이션 상 중복 close 를 막는 것은 맞고 회귀 가드도
+> 변이로 검증됐으므로 유지한다.** 다만 위 실측이 보여주듯 프로덕션 증상의 원인은 아니었다.
+>
+> **뿌리 (1차 가설).** `event_loop.py:504` 의 dispatch 필터가 `fill` 만 broker 이벤트로 걸렀는데,
 > 조건부 진입은 거래소에 **병합 주문 1건**으로 등재되므로
 > (`trading/services/conditional_entry_planner.py:444` — `abs(target_position - current_position)`)
 > 그 주문에 딸린 **청산 leg 도 broker 가 이미 실행한 것**이다. 즉 주석의 논리가 절반만
@@ -4969,11 +5023,14 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 >
 > **판별력 증명(표적 변이 2회).** 수정의 두 절반을 **각각** 되돌렸더니 두 경우 모두 핵심
 > 테스트 2건이 실패하고 회귀 테스트 4건은 통과했다 = 두 절반 모두 하중을 받고 있고,
-> 회귀 테스트는 본 수정에 무감하다.
+> 회귀 테스트는 본 수정에 무감하다. (codex 지적 후속 — 시장가 반전 가드가 `bar_close`
+> 경로만 지나가고 `process_market_intents` 는 실행하지 않아 `next_bar_open` 커버리지를 추가했다.)
 >
 > ★**남은 것 = 실주행 재측정.** W2(발생률 0) / W3(유의 감소) 판정은 워크트리에서 구조적으로
 > 불가능하다 — celery worker 가 메인의 `src` 를 bind-mount 한다. 같은 조건(PbR · BTC/USDT ·
 > 1m · 계정 `19a8166a` · 창 ≥2h · 청산 시도 ≥10)으로 CONTROL 이 메인에서 재야 한다.
+> ★**이번엔 확인 지표가 하나 더 있다** — `orders.filled_at` 과 리컨사일러의
+> `exchange_status=filled` 로그 사이 간격이 **13분에서 1 tick 이내로** 줄어야 한다.
 >
 > ★**이 수정은 `check_exit_fills` 를 건드리지 않았다.** 같은 성질일 가능성이 높으나 범위 밖
 > → **BL-565 신설**.
@@ -5036,8 +5093,11 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 **카테고리:** Backend / trading (라이브 청산 정합성)
 **Trigger:** ~~신규 라벨이 1건 이상 관측될 때~~ → **2026-07-30 충족 (6건 관측)**
 **Est:** M
-**상태:** 🟡 **부분 Resolved** — 2026-07-31 reversal-ledger-sync. 코드 지점 확정 + 수정 완료
-(`event_loop.py:513` · `strategy_state.py:245,891-899`) + 표적 변이 2회로 판별력 증명.
+**상태:** 🟡 **부분 Resolved** — 2026-07-31 reversal-ledger-sync. ★**1차 가설은 실주행이 반증했고
+진짜 뿌리는 「확인하고도 write-back 을 안 한다」였다**(세션 `70063496` · 주문 `9c7aef0b` ·
+체결 07:31~32 vs `filled_at` 07:44:13). 수정 = `_write_back_confirmed_terminal`
+(`tasks/live_signal.py:713`, 리컨사일러 `:1000` + 스윕 `:2699`) + 1차 `broker_filled` 유지
+(`event_loop.py:513` · `strategy_state.py:245,891-899`). 표적 변이 4회로 판별력 증명.
 **실주행 재측정(W2/W3) 미실시** — 워크트리에서 구조적으로 불가능해 CONTROL 이 메인에서 재야 한다.
 **출처:** 2026-07-30 close-mismatch-visibility · 실측 2026-07-30 close-mismatch-soak
 

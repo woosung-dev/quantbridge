@@ -361,9 +361,7 @@ class _LedgerGapSeed:
 _LEDGER_GAP_SEED_NONE = _LedgerGapSeed(net=None, legs=(), outcome="not_probed", order_ids=())
 
 
-def _ledger_gap_seed(
-    fills: Sequence[Any], *, session_id: UUID, overflowed: bool
-) -> _LedgerGapSeed:
+def _ledger_gap_seed(fills: Sequence[Any], *, session_id: UUID, overflowed: bool) -> _LedgerGapSeed:
     """공백 창 체결 목록 → 엔진에 넣을 seed. 순수 함수 (BL-544).
 
     순포지션은 `reduce_only` 를 **필터하지 않고** `side` 로 부호를 정해 합산한다 — 청산
@@ -408,8 +406,7 @@ def _ledger_gap_seed(
         return _LedgerGapSeed(net=net, legs=(), outcome="inadmissible", order_ids=order_ids)
 
     trade_ids = [
-        _pine_trade_id_from_order_key(fill.idempotency_key, session_id=session_id)
-        for fill in fills
+        _pine_trade_id_from_order_key(fill.idempotency_key, session_id=session_id) for fill in fills
     ]
     if any(trade_id is None for trade_id in trade_ids) or len(set(trade_ids)) != len(trade_ids):
         return _LedgerGapSeed(net=net, legs=(), outcome="inadmissible", order_ids=order_ids)
@@ -710,6 +707,75 @@ def _count_pending_order_skips(strategy_state_report: object) -> None:
         )
 
 
+async def _write_back_confirmed_terminal(
+    order_repo: Any,
+    *,
+    order_id: UUID,
+    probe: Any | None,
+    hook_order: Any,
+    now: datetime,
+) -> str | None:
+    """거래소가 terminal 이라고 답한 조건부 진입을 **그 자리에서** 우리 원장에 기록한다.
+
+    ★BL-560 진짜 뿌리 (2026-07-31 실측). 리컨사일러는 거래소에 직접 물어 체결을
+    **확인하고도** 등재만 건너뛰고 `orders` 행은 그대로 뒀다. 그래서 기록이 세션이
+    죽을 때까지(스윕) 미뤄졌고, 그동안 `list_fills_since` 를 읽는 `_ledger_gap_seed` 에도
+    안 잡혀 **엔진 원장이 낡은 채로 돌았다**. 엔진 숏 / 거래소 롱 상태에서 다음 청산
+    신호가 `buy` reduce-only 로 나가 `110017 same side` 가 된다.
+
+    반환값은 **이 호출이 전이의 승자였을 때만** 그 terminal 상태명이고, 아니면 None.
+
+    ★중복 처리 방지 = `transition_to_*` 의 **단일행 조건부 UPDATE**다. 세 메서드 모두
+    `state == submitted` 를 WHERE 에 걸어 rowcount 를 돌려주므로, watchdog·WS·스윕·이
+    경로가 동시에 들어와도 **정확히 하나만 rowcount 1** 을 받는다. 승자만 commit 하고
+    gauge 를 내리고 후속 훅을 건다 — 패자는 아무것도 하지 않는다.
+
+    `probe is None` = client-id 조회에서 주문 자체를 못 찾은 경우(스윕 전용) → cancelled.
+    """
+    from src.tasks.trading import _enqueue_closed_pnl_refresh, _enqueue_trailing_if_intended
+
+    if probe is None:
+        rows = await order_repo.transition_to_cancelled(order_id, cancelled_at=now)
+        status = "cancelled"
+    elif probe.status == "filled":
+        rows = await order_repo.transition_to_filled(
+            order_id,
+            exchange_order_id=probe.exchange_order_id,
+            filled_price=probe.filled_price,
+            filled_quantity=probe.filled_quantity,
+            filled_at=now,
+        )
+        status = "filled"
+    elif probe.status == "cancelled":
+        rows = await order_repo.transition_to_cancelled(
+            order_id,
+            cancelled_at=now,
+            filled_price=probe.filled_price,
+            filled_quantity=probe.filled_quantity,
+        )
+        status = "cancelled"
+    elif probe.status == "rejected":
+        rows = await order_repo.transition_to_rejected(
+            order_id,
+            error_message="Conditional entry rejected on exchange",
+            failed_at=now,
+            filled_price=probe.filled_price,
+            filled_quantity=probe.filled_quantity,
+        )
+        status = "rejected"
+    else:
+        return None
+
+    if rows != 1:
+        return None  # 다른 경로가 먼저 전이시켰다 — 중복 처리 금지.
+    await order_repo.commit()
+    qb_active_orders.dec()  # 생성 시 inc 된 것의 terminal 전이
+    if status == "filled":
+        _enqueue_trailing_if_intended(hook_order)
+        _enqueue_closed_pnl_refresh(hook_order)
+    return status
+
+
 async def _reconcile_conditional_entries(
     sess: Any,
     result: Any,
@@ -798,6 +864,9 @@ async def _reconcile_conditional_entries(
             )
             creds = await exchange_service.get_credentials_for_order(sess.exchange_account_id)
 
+            # BL-560 — terminal 확인 시 write-back 훅이 읽을 원본 행 (trailing_stop /
+            # reduce_only / id). DTO 인 `RestingConditionalEntry` 에는 없는 값들이다.
+            local_by_order_id = {str(order.id): order for order in local_orders}
             actual_by_order_id: dict[str, RestingConditionalEntry] = {}
             for order in local_orders:
                 parsed_key = parse_conditional_entry_key(order.idempotency_key)
@@ -913,6 +982,35 @@ async def _reconcile_conditional_entries(
                         "reason": "exchange_missing_resting_order",
                         "exchange_status": probe.status,
                     },
+                )
+                # ★BL-560 진짜 뿌리 — 여기서 **기록까지** 해야 한다. 예전엔 확인하고도
+                # `orders` 행을 그대로 둬서, 체결 사실이 세션이 죽을 때까지(스윕) 미뤄졌다.
+                # 실측: 주문 `9c7aef0b` 가 07:31~32 체결인데 `filled_at` 은 07:44:13 —
+                # 13분 동안 `list_fills_since` 에 안 잡혀 `_ledger_gap_seed` 가 못 읽었고,
+                # 엔진은 숏 / 거래소는 롱인 채로 돌다가 07:44:09 에 fail-closed 로 죽었다.
+                #
+                # ★등재 스킵(`fill_confirmed`)은 그대로 둔다 — 낡은 포지션 사이징을 막는
+                # fail-closed 다. 여기서 더하는 것은 **기록을 앞당기는 것**뿐이다.
+                #
+                # ★`trading.fetch_order_status` 예약이 아니라 직접 전이인 이유: 그 태스크는
+                # `trigger` 없이 조회한다(`tasks/trading.py:775`). 방금 우리가 `trigger=True`
+                # 로(`:878-880`) 받아 든 확정 응답이 이미 손에 있는데, 다른 질의 형태로 다시
+                # 물어 못 찾으면 ProviderError → retry → giveup 으로 **조용히 아무 일도 안
+                # 일어난다.** 없애려는 실패 모드를 그대로 재도입하는 셈이다.
+                won = await _write_back_confirmed_terminal(
+                    order_repo,
+                    order_id=UUID(order_id),
+                    probe=probe,
+                    hook_order=local_by_order_id.get(order_id),
+                    now=datetime.now(UTC),
+                )
+                _count_safely(
+                    qb_live_conditional_reconcile_errors_total,
+                    stage=(
+                        f"terminal_write_back_{won}"
+                        if won is not None
+                        else "terminal_write_back_lost"
+                    ),
                 )
 
             try:
@@ -2547,11 +2645,8 @@ def sweep_conditional_entries_task() -> dict[str, int]:
 
 async def _async_sweep_conditional_entries() -> dict[str, int]:
     """고아 조건부 진입을 거래소 취소 뒤에만 cancelled로 전이한다."""
-    from src.tasks.trading import (
-        _enqueue_closed_pnl_refresh,
-        _enqueue_trailing_if_intended,
-        _has_leverage,
-    )
+    # 체결 후속 훅(trailing / closed-pnl)은 `_write_back_confirmed_terminal` 이 건다.
+    from src.tasks.trading import _has_leverage
     from src.trading.encryption import EncryptionService
     from src.trading.registry import dispatch
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
@@ -2611,35 +2706,14 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                             )
                             continue
 
-                        now = datetime.now(UTC)
-                        if probe is None:
-                            rows = await order_repo.transition_to_cancelled(
-                                order_id, cancelled_at=now
-                            )
-                        elif probe.status == "filled":
-                            rows = await order_repo.transition_to_filled(
-                                order_id,
-                                exchange_order_id=probe.exchange_order_id,
-                                filled_price=probe.filled_price,
-                                filled_quantity=probe.filled_quantity,
-                                filled_at=now,
-                            )
-                        elif probe.status == "cancelled":
-                            rows = await order_repo.transition_to_cancelled(
-                                order_id,
-                                cancelled_at=now,
-                                filled_price=probe.filled_price,
-                                filled_quantity=probe.filled_quantity,
-                            )
-                        elif probe.status == "rejected":
-                            rows = await order_repo.transition_to_rejected(
-                                order_id,
-                                error_message="Conditional entry rejected on exchange",
-                                failed_at=now,
-                                filled_price=probe.filled_price,
-                                filled_quantity=probe.filled_quantity,
-                            )
-                        else:
+                        # BL-560 — 리컨사일러의 확인 시점 write-back 과 **같은 계약**을
+                        # 쓴다. 전이 매핑·승자 규약·후속 훅이 두 벌로 갈라지면 한쪽만
+                        # 고쳐지는 순간 원장이 다시 어긋난다.
+                        if probe is not None and probe.status not in (
+                            "filled",
+                            "cancelled",
+                            "rejected",
+                        ):
                             qb_live_conditional_reconcile_errors_total.labels(
                                 stage="sweep_cancel_stalled"
                             ).inc()
@@ -2648,19 +2722,21 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                                 extra={"order_id": str(order_id)},
                             )
                             continue
-                        if rows == 1:
-                            await order_repo.commit()
-                            if probe is None or probe.status == "cancelled":
-                                cancelled += 1
-                            qb_active_orders.dec()
-                            if probe is not None and probe.status == "filled":
-                                qb_live_conditional_sweep_filled_total.inc()
-                                logger.warning(
-                                    "live_conditional_entry_sweep_found_filled",
-                                    extra={"order_id": str(order_id)},
-                                )
-                                _enqueue_trailing_if_intended(hook_order)
-                                _enqueue_closed_pnl_refresh(hook_order)
+                        won = await _write_back_confirmed_terminal(
+                            order_repo,
+                            order_id=order_id,
+                            probe=probe,
+                            hook_order=hook_order,
+                            now=datetime.now(UTC),
+                        )
+                        if won == "cancelled":
+                            cancelled += 1
+                        elif won == "filled":
+                            qb_live_conditional_sweep_filled_total.inc()
+                            logger.warning(
+                                "live_conditional_entry_sweep_found_filled",
+                                extra={"order_id": str(order_id)},
+                            )
                         continue
 
                     if (
