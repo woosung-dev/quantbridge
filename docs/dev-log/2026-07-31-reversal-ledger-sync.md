@@ -1,4 +1,4 @@
-# reversal-ledger-sync — 원장은 처음부터 맞았고, 틀린 것은 재발신이었다 (2026-07-31)
+# reversal-ledger-sync — 뿌리를 두 번 바꿨고, 두 번째는 실주행이 바꿨다 (2026-07-31)
 
 > **PR #TBD** · **마이그레이션 0** · herdr 함대 **4벌 pane 그리드**(한 창 3열×2행) + CONTROL soak.
 > 사전등록 판정 **W1~W5** = `docs/status.md`(착수 전 확정).
