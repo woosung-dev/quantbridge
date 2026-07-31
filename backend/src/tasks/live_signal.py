@@ -538,10 +538,11 @@ async def _detect_position_divergence(
     engine_position: Decimal,
     *,
     account_repo: Any,
+    order_repo: Any | None = None,
 ) -> str | None:
     """엔진 포지션과 거래소 순포지션을 대조해 발산 갈래를 돌려준다.
 
-    반환은 **3-상태**다 — 갈래 문자열(`direction`/`engine_only`/`exchange_only`/`size`) ·
+    반환은 **3-상태**다 — 갈래 문자열(`direction`/`engine_only*`/`exchange_only`/`size`) ·
     `None`(일치) · `_PROBE_FAILED`(거래소를 못 읽어 **판정 자체를 못 함**).
 
     조회 실패는 세션을 죽이지 않는다(fail-open). 다만 그것을 `None`(일치)으로 접으면
@@ -579,18 +580,77 @@ async def _detect_position_divergence(
         return _PROBE_FAILED
 
     category = _classify_position_divergence(engine_position, exchange_position)
+    resting_entries: tuple[Any, ...] | None = None
+    resting_lookup = "skipped"
+    if category == "engine_only" and order_repo is not None:
+        category, resting_entries = await _subclassify_engine_only_divergence(
+            sess, engine_position, order_repo=order_repo
+        )
+        resting_lookup = "failed" if resting_entries is None else "ok"
     if category is not None:
+        extra: dict[str, Any] = {
+            "session_id": str(sess.id),
+            "symbol": sess.symbol,
+            "category": category,
+            "engine_position": str(engine_position),
+            "exchange_position": str(exchange_position),
+        }
+        if category.startswith("engine_only"):
+            # ★"확인했더니 없었다" 와 "확인 자체를 못 했다" 를 로그에서 구별한다. 조회
+            # 실패를 빈 목록으로 접으면 라벨(잔여 `engine_only`)을 안 보는 사람에게는
+            # 둘이 똑같이 "대기 주문 없음" 으로 읽혀, 유령 신고가 곧 오진이 된다.
+            extra["resting_lookup"] = resting_lookup
+            if resting_entries is not None:
+                extra.update(
+                    {
+                        "resting_sides": [str(order.side) for order in resting_entries],
+                        "resting_qty": [str(order.quantity) for order in resting_entries],
+                        "resting_order_ids": [str(order.id) for order in resting_entries[:5]],
+                    }
+                )
         logger.warning(
             "live_signal_position_divergence",
-            extra={
-                "session_id": str(sess.id),
-                "symbol": sess.symbol,
-                "category": category,
-                "engine_position": str(engine_position),
-                "exchange_position": str(exchange_position),
-            },
+            extra=extra,
         )
     return category
+
+
+async def _subclassify_engine_only_divergence(
+    sess: Any,
+    engine_position: Decimal,
+    *,
+    order_repo: Any,
+) -> tuple[str, tuple[Any, ...] | None]:
+    """`engine_only`를 세션 소유 대기 조건부 진입으로만 세분화한다 (BL-566).
+
+    순수 `_classify_position_divergence`에는 DB 의존성을 넣지 않는다. gap-resync도 같은
+    순수 분류기를 쓰므로, 이 조회는 라이브 tick에서 `engine_only`가 나온 경우에만 한다.
+    조회 불가는 유령으로도 정상 대기로도 접지 않고 기존 잔여 라벨을 보존한다.
+    """
+    from src.trading.services.conditional_entry_planner import parse_conditional_entry_key
+
+    try:
+        candidates = await order_repo.list_resting_conditional_entries(
+            sess.strategy_id, sess.exchange_account_id
+        )
+    except Exception:
+        logger.warning(
+            "live_signal_position_divergence_resting_entries_fetch_failed",
+            exc_info=True,
+            extra={"session_id": str(sess.id), "symbol": sess.symbol},
+        )
+        return "engine_only", None
+
+    session_entries = tuple(
+        order
+        for order in candidates
+        if (parsed := parse_conditional_entry_key(order.idempotency_key)) is not None
+        and parsed[0] == sess.id
+    )
+    expected_side = OrderSide.buy if engine_position > 0 else OrderSide.sell
+    if any(order.side == expected_side for order in session_entries):
+        return "engine_only_awaiting_trigger", session_entries
+    return "engine_only_unexplained", session_entries
 
 
 def _classify_live_divergence(msg: str) -> str:
@@ -790,7 +850,7 @@ async def _write_back_confirmed_terminal(
         #     미반영분을 backfill 한다 → **회수된다.**
         #   - trailing: `place_trailing_stop_task` 는 이 훅에서만 예약된다. 주기적 회수
         #     경로가 **없고**, 행은 이미 `filled` 라 다른 terminal 경로도 다시 오지 않는다
-        #     → **그 주문의 트레일링은 영구 유실**이다(BL-566 로 등재).
+        #     → **그 주문의 트레일링은 영구 유실**이다(BL-567 로 등재).
         #   - reversal_measure: 크기 분포 프로브라 1건 유실은 판정을 뒤집지 않는다
         #     (BL-562 가 이미 at-least-once 를 수용한다). counter 로만 남긴다.
         #   단 삼키지 않아도 트레일링은 똑같이 유실되고 tick 까지 잃는다 — 삼키는 쪽이
@@ -1853,6 +1913,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
     from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
     from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
+    from src.trading.repositories.order_repository import OrderRepository
 
     engine, sm = create_worker_engine_and_sm()
     try:
@@ -2399,7 +2460,10 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
             direction_mismatch_seen: bool | None = None
             if engine_position is not None:
                 divergence_category = await _detect_position_divergence(
-                    sess, engine_position, account_repo=account_repo
+                    sess,
+                    engine_position,
+                    account_repo=account_repo,
+                    order_repo=OrderRepository(session),
                 )
                 if divergence_category != _PROBE_FAILED:
                     direction_mismatch_seen = divergence_category == "direction"
