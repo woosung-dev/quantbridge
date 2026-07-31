@@ -23,6 +23,7 @@
 - qb_exchange_order_response_total  (Counter, labels: exchange, outcome, reason) ← BL-512
 - qb_live_conditional_guard_total   (Counter, labels: outcome)          ← BL-512
 - qb_live_conditional_reversal_total (Counter, labels: bucket)          ← BL-516
+- qb_live_conditional_reversal_filled_total (Counter, labels: bucket)   ← BL-562
 
 원칙:
 - `PROMETHEUS_MULTIPROC_DIR` 설정 시 shared multiprocess registry, 미설정 시 기본 `REGISTRY`.
@@ -463,7 +464,30 @@ qb_live_conditional_sweep_filled_total = Counter(
 # Cardinality: bucket ∈ {1x, 2x, 4x, 8x+} = 4 series.
 qb_live_conditional_reversal_total = Counter(
     "qb_live_conditional_reversal_total",
-    "부호가 교차하는 조건부 진입을 등재한 횟수 (overshoot 비율 버킷별)",
+    "부호가 교차하는 조건부 진입을 **등재한** 횟수 (등재 시점 근사, overshoot 버킷별)",
+    labelnames=("bucket",),
+)
+
+# BL-562 — 같은 질문을 **체결 시점의 실제 포지션**으로 다시 잰다.
+#
+# ★★위 `qb_live_conditional_reversal_total` 과 **절대 합산하지 마라. 축이 다르다.**
+#     등재 counter — "이런 반전을 등재했다". 취소·재등재로 **한 의도가 여러 번** 오르고,
+#                    등재된 뒤 트리거 전에 포지션이 움직이면 그 값은 낡는다.
+#     이 counter   — "체결된 조건부 진입 1건을 **체결 후 포지션**으로 재보니 이랬다".
+#                    fill-transition 승자 1곳에서만 예약되므로 **체결당 정확히 1회**다.
+#   ⇒ 비율이 필요하면 이 counter 안에서만 만들어라(분모 = 이 counter 의 전 버킷 합).
+#
+# bucket ∈ {1x, 2x, 4x, 8x+}  — 등재 counter 와 **같은 경계**(`_reversal_overshoot_bucket` 공유)
+#          + {not_reversal, unmeasured} = 6 series.
+#     not_reversal — 쟀고, 반전이 아니었다(같은 방향 증량 또는 flat 진입).
+#     unmeasured   — ★**재지 못했다.** 포지션이 안 보이거나, 방향이 우리 체결과 어긋나거나
+#                    (= 체결이 반영되기 **전** 스냅샷을 읽었다), 포지션 생성 시각이 없어
+#                    "우리 체결이 만든 포지션인가" 를 증명하지 못한 경우.
+#                    ★추측해서 버킷에 넣지 않는다 — 틀린 버킷은 빈 버킷보다 나쁘다.
+#                    이 값이 크면 계측이 죽은 것이지 반전이 없는 것이 아니다.
+qb_live_conditional_reversal_filled_total = Counter(
+    "qb_live_conditional_reversal_filled_total",
+    "체결된 조건부 진입을 체결 후 실제 포지션으로 재판정한 반전 버킷 (체결당 1회)",
     labelnames=("bucket",),
 )
 

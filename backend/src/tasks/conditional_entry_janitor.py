@@ -29,6 +29,7 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
     """거래소 부재는 CAS reject, 발견된 주문은 수리 또는 terminal 전이한다."""
     from src.tasks.trading import (
         _enqueue_closed_pnl_refresh,
+        _enqueue_conditional_reversal_measure,
         _enqueue_trailing_if_intended,
         _has_leverage,
     )
@@ -153,6 +154,7 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                         if probe.status == "filled":
                             _enqueue_trailing_if_intended(hook_order)
                             _enqueue_closed_pnl_refresh(hook_order)
+                            _enqueue_conditional_reversal_measure(hook_order)
                     else:
                         qb_live_conditional_reconcile_errors_total.labels(
                             stage="janitor_race"

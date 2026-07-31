@@ -41,6 +41,7 @@ from src.common.metrics import (
     qb_exchange_exit_link_unverified_total,
     qb_exchange_exit_rows_total,
     qb_exchange_order_response_total,
+    qb_live_conditional_reversal_filled_total,
     qb_partial_fill_total,
     qb_trailing_placement_total,
 )
@@ -525,6 +526,7 @@ async def _execute_with_session(
                 qb_partial_fill_total.labels(source="rest").inc()
             _enqueue_trailing_if_intended(order)
             _enqueue_closed_pnl_refresh(order)
+            _enqueue_conditional_reversal_measure(order)
             logger.info(
                 "order_executed",
                 extra={
@@ -866,6 +868,7 @@ async def _fetch_order_status_with_session(
                     qb_partial_fill_total.labels(source="watchdog").inc()
                 _enqueue_trailing_if_intended(order)
                 _enqueue_closed_pnl_refresh(order)
+                _enqueue_conditional_reversal_measure(order)
                 logger.info(
                     "watchdog_filled",
                     extra={
@@ -1116,6 +1119,13 @@ _TRAILING_FLAT_RETRY_LIMIT = 2
 #   clock skew 흡수용(정상 open 은 createdTime ≤ filled_at 이 자연 성립). `>` strict (경계=부착).
 _TRAILING_REOPEN_TOLERANCE = timedelta(seconds=2)
 
+# BL-562 — 체결 시점 반전 계측. 거래소 포지션 엔드포인트가 우리 체결을 반영할 시간을 준다
+#   (trailing 이 같은 이유로 countdown 2초 + bounded retry 를 쓴다). 이쪽은 money-path 가
+#   아니라 **재시도를 두지 않으므로** 더 넉넉히 잡고, 그래도 못 재면 `unmeasured` 로 남긴다.
+_REVERSAL_MEASURE_COUNTDOWN = 5
+# 거래소-서버 clock skew 흡수용. `_TRAILING_REOPEN_TOLERANCE` 와 같은 이유·같은 크기다.
+_REVERSAL_MEASURE_CREATED_TOLERANCE = timedelta(seconds=2)
+
 
 def _is_position_zero_error(exc: ProviderError) -> bool:
     """retCode 110017 / position-zero = benign (체결→placement 사이 포지션 닫힘 race)."""
@@ -1150,6 +1160,34 @@ def _enqueue_trailing_if_intended(order: Any) -> None:
     if getattr(order, "trailing_stop", None) is None or getattr(order, "reduce_only", False):
         return
     place_trailing_stop_task.apply_async(args=[str(order.id)], countdown=2)
+
+
+def _enqueue_conditional_reversal_measure(order: Any) -> None:
+    """fill-transition winner 가 **조건부 진입**이면 체결 시점 반전 계측을 예약한다 (BL-562).
+
+    ★**중복 집계는 구조적으로 없다.** 호출부 6곳이 전부
+    `pending|submitted -> filled` 단일 행 UPDATE 의 **rowcount 승자 하나**에서만 이 자리에
+    도달한다 — `:477-482`(동기, rowcount==0 이면 조기 return) · `:824`(watchdog, `rows == 1`) ·
+    `websocket/state_handler.py:137`(`new_state == filled` 승자 루프) ·
+    `websocket/reconciliation.py:125-130`(`winners` 루프) · `tasks/live_signal.py:2658`
+    (sweep, `rows == 1`) · `tasks/conditional_entry_janitor.py:150`(`rows == 1`).
+    `_enqueue_trailing_if_intended` 가 같은 자리에서 같은 이유로 idempotency 컬럼 없이 산다.
+
+    reduce-only 는 대상이 아니다 — 반전은 **진입 주문 1건**이 청산과 진입을 합쳐 내는
+    형태이고, 그 형태를 만드는 것은 `plan_reconcile` 의 조건부 진입뿐이다. 그래서
+    `cond`/`condmkt` key 만 통과시킨다(시장가 진입 `entry` 와 웹훅/수동 주문은 제외 —
+    등재 시점 counter 의 모집단과 같아야 두 축을 나란히 읽을 수 있다).
+    """
+    if getattr(order, "reduce_only", False):
+        return
+    from src.trading.services.conditional_entry_planner import parse_live_entry_key
+
+    parsed = parse_live_entry_key(getattr(order, "idempotency_key", None))
+    if parsed is None or parsed.kind not in ("cond", "condmkt"):
+        return
+    measure_conditional_reversal_task.apply_async(
+        args=[str(order.id)], countdown=_REVERSAL_MEASURE_COUNTDOWN
+    )
 
 
 def _enqueue_closed_pnl_refresh(order: Any) -> None:
@@ -1482,6 +1520,163 @@ async def _refresh_closed_pnl_with_session(
             return {"applied": True, "order_id": str(order_id)}
     qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
     return {"skipped": "already_synced", "order_id": str(order_id)}
+
+
+def _count_reversal_at_fill(bucket: str) -> None:
+    """라벨 생성과 증가를 **함께** 예외로부터 격리한다 (BL-536 R2 와 같은 이유).
+
+    multiprocess 모드에서 새 라벨 조합은 그 시점에 mmap 파일을 늘리므로 `.labels()` 도
+    감싸야 한다. 계측이 던져서 체결 후처리를 깨뜨리는 일은 없어야 한다.
+    """
+    record_metric_safely(lambda: qb_live_conditional_reversal_filled_total.labels(bucket).inc())
+
+
+def _reversal_bucket_at_fill(
+    *,
+    position: Any | None,
+    entry_side: OrderSide,
+    filled_quantity: Decimal | None,
+    filled_at: datetime | None,
+) -> str:
+    """체결 후 실제 포지션으로 반전 여부와 크기를 판정한다 (BL-562). 순수 함수.
+
+    ★**증명하지 못하면 버킷에 넣지 않는다** — 전부 `unmeasured` 로 떨어뜨린다.
+    틀린 버킷은 빈 버킷보다 나쁘다(BL-563 이 라벨 오분류로 남긴 교훈).
+
+    판정 순서와 각 분기가 stale read(체결이 아직 REST 에 반영되기 **전**의 스냅샷)에
+    어떻게 안전한지:
+
+    1. `position is None` — "체결 미전파" 와 "체결 직후 청산" 을 구분할 수 없다 -> unmeasured.
+    2. `position.side != 우리 방향` — 우리 체결이 반영됐다면 포지션은 우리 방향이다.
+       반대면 **확실히 체결 전 스냅샷**이다 -> unmeasured. (반전의 stale read 가 전부
+       여기로 떨어진다 — 그래서 반전을 `not_reversal` 로 오분류할 길이 없다.)
+    3. `size >= filled_quantity` — 같은 방향 증량이거나 flat 진입. stale read 는 포지션을
+       **작게만** 보이게 하므로 이 분기는 위양성이 없다 -> not_reversal.
+    4. 남은 것이 반전 후보. 유일한 위양성 경로는 "증량인데 체결 전 스냅샷이라 포지션이
+       작게 보이는" 경우다. 진짜 반전이면 포지션이 **우리 체결로 새로 생성**되므로
+       생성 시각이 체결 시각 이후다. 그것을 증명 못하면(시각 결측 포함) unmeasured.
+    """
+    if filled_quantity is None or not filled_quantity.is_finite() or filled_quantity <= 0:
+        return "unmeasured"
+    if position is None:
+        return "unmeasured"
+    expected_side = "long" if entry_side == OrderSide.buy else "short"
+    if getattr(position, "side", None) != expected_side:
+        return "unmeasured"
+    size = getattr(position, "size", None)
+    if size is None or not size.is_finite() or size <= 0:
+        return "unmeasured"
+    if size >= filled_quantity:
+        return "not_reversal"
+    created_at = getattr(position, "created_at", None)
+    if filled_at is None or created_at is None:
+        return "unmeasured"
+    if created_at < filled_at - _REVERSAL_MEASURE_CREATED_TOLERANCE:
+        return "unmeasured"
+    # 등재 시점 counter 와 **같은 경계**를 써야 두 축이 비교 가능하다. 정의는 한 벌뿐이고
+    # lazy import 로 가져온다(`live_signal` 도 이 모듈을 lazy import 하므로 순환 아님).
+    from src.tasks.live_signal import _reversal_overshoot_bucket
+
+    return _reversal_overshoot_bucket(filled_quantity / size)
+
+
+async def _measure_conditional_reversal_with_session(
+    order_id: UUID,
+    sm: async_sessionmaker[AsyncSession],
+    *,
+    provider: Any = None,
+) -> dict[str, Any]:
+    """체결된 조건부 진입 1건을 **체결 후 실제 포지션**으로 재판정한다 (BL-562).
+
+    ★계측 전용이다 — 어떤 주문도 내지 않고 어떤 행도 쓰지 않는다. 그래서 실패는 전부
+    `unmeasured` 또는 조용한 skip 이고, 재시도도 alert 도 없다.
+    """
+    async with sm() as session:
+        order = await OrderRepository(session).get_by_id(order_id)
+        if order is None:
+            return {"skipped": "order_missing", "order_id": str(order_id)}
+        if order.state != OrderState.filled:
+            return {"skipped": "not_filled", "order_id": str(order_id)}
+        if order.reduce_only:
+            return {"skipped": "reduce_only", "order_id": str(order_id)}
+        account = await session.get(ExchangeAccount, order.exchange_account_id)
+        if account is None:
+            _count_reversal_at_fill("unmeasured")
+            return {"bucket": "unmeasured", "reason": "account_missing", "order_id": str(order_id)}
+        try:
+            crypto = EncryptionService(settings.trading_encryption_keys)
+            passphrase_pt = (
+                crypto.decrypt(account.passphrase_encrypted)
+                if account.passphrase_encrypted is not None
+                else None
+            )
+            creds = Credentials(
+                api_key=crypto.decrypt(account.api_key_encrypted),
+                api_secret=crypto.decrypt(account.api_secret_encrypted),
+                passphrase=passphrase_pt,
+                environment=account.mode,
+            )
+        except Exception as exc:
+            logger.error(
+                "reversal_measure_credential_decrypt_failed",
+                extra={"order_id": str(order_id), "error": str(exc)},
+            )
+            _count_reversal_at_fill("unmeasured")
+            return {"bucket": "unmeasured", "reason": "decrypt_failed", "order_id": str(order_id)}
+        # exchange IO 전에 필요한 값만 뽑는다 (detached instance 회피 — trailing 과 같은 패턴).
+        symbol = order.symbol
+        entry_side = order.side
+        filled_at = order.filled_at
+        filled_quantity = (
+            order.filled_quantity if order.filled_quantity is not None else order.quantity
+        )
+
+    if provider is None:
+        from src.trading.providers import BybitFuturesProvider
+
+        provider = BybitFuturesProvider()
+    try:
+        position = await provider.fetch_position(creds, symbol)
+    except Exception:
+        # 거래소 장애로 계측이 죽는 것과 반전이 없는 것을 구분해야 한다.
+        logger.warning("reversal_measure_position_fetch_failed", extra={"order_id": str(order_id)})
+        _count_reversal_at_fill("unmeasured")
+        return {"bucket": "unmeasured", "reason": "fetch_failed", "order_id": str(order_id)}
+
+    bucket = _reversal_bucket_at_fill(
+        position=position,
+        entry_side=entry_side,
+        filled_quantity=filled_quantity,
+        filled_at=filled_at,
+    )
+    _count_reversal_at_fill(bucket)
+    return {"bucket": bucket, "order_id": str(order_id)}
+
+
+async def _async_measure_conditional_reversal(order_id: UUID) -> dict[str, Any]:
+    """Sprint 17 Phase C 패턴 — per-call engine + finally dispose."""
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        return await _measure_conditional_reversal_with_session(order_id, sm)
+    finally:
+        await engine.dispose()
+
+
+@shared_task(name="trading.measure_conditional_reversal")  # type: ignore[untyped-decorator]
+def measure_conditional_reversal_task(order_id: str) -> dict[str, Any]:
+    """BL-562 — 체결된 조건부 진입의 반전 크기를 **체결 후 포지션**으로 재판정한다.
+
+    ★retry 를 두지 않는다. 계측 전용이라 실패는 손익에 영향이 없고, 재시도로 metric 을
+    여러 번 올리면 "체결당 1회" 계약이 깨진다. 못 재면 `unmeasured` 로 남긴다.
+    """
+    from src.tasks._worker_loop import run_in_worker_loop
+
+    try:
+        return run_in_worker_loop(_async_measure_conditional_reversal(UUID(order_id)))
+    except Exception:
+        logger.exception("reversal_measure_failed", extra={"order_id": order_id})
+        _count_reversal_at_fill("unmeasured")
+        return {"bucket": "unmeasured", "reason": "task_error", "order_id": order_id}
 
 
 async def _async_refresh_closed_pnl(order_id: UUID) -> dict[str, Any]:

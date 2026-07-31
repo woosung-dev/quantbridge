@@ -216,8 +216,14 @@ async def test_janitor_transitions_form_two_only_after_terminal_probe(
 
     trailing = MagicMock()
     closed_pnl = MagicMock()
+    # BL-562 — 반전 계측도 같은 fill-transition 승자에 붙는다. 배선이 빠지면 체결이
+    # 원장에는 남는데 계측만 조용히 0 이 된다.
+    reversal_measure = MagicMock()
     monkeypatch.setattr(trading_module, "_enqueue_trailing_if_intended", trailing)
     monkeypatch.setattr(trading_module, "_enqueue_closed_pnl_refresh", closed_pnl)
+    monkeypatch.setattr(
+        trading_module, "_enqueue_conditional_reversal_measure", reversal_measure
+    )
     dec, dispatch = _patch_task(monkeypatch, db_session, _Provider)
 
     result = await janitor_module._async_conditional_entry_janitor()
@@ -230,6 +236,7 @@ async def test_janitor_transitions_form_two_only_after_terminal_probe(
     dispatch.assert_called_once_with(ExchangeName.bybit, ExchangeMode.demo, False)
     trailing.assert_called_once()
     closed_pnl.assert_called_once()
+    reversal_measure.assert_called_once()
 
 
 @pytest.mark.asyncio
