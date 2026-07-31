@@ -39,6 +39,15 @@ if bar_index == 1
 
 # 같은 반전을 **시장가**로 하는 전략. 이쪽은 거래소가 아직 숏을 들고 있는 상태에서
 # 엔진이 close 를 보내므로 거절되지 않는다 — 계속 dispatch 되어야 한다.
+#
+# ★시장가 반전에는 **프로덕션 경로가 둘**이고 둘 다 덮어야 한다:
+#   (a) `fill_timing="bar_close"`(run_live 기본값, `event_loop.py:375`) —
+#       인터프리터가 `StrategyState.entry()` 를 그 자리에서 부른다.
+#   (b) `fill_timing="next_bar_open"` — 인터프리터가 인텐트를 큐에 넣고
+#       (`interpreter.py:1527`) 다음 bar 의 `process_market_intents()` 가
+#       `entry()` 를 부른다 (`strategy_state.py:643-650`).
+# (b) 는 별개의 호출 지점이라 `broker_filled` 를 잘못 붙이기 쉬운 자리다 —
+# 겉모습이 `check_pending_fills` 처럼 "미뤄뒀다 체결" 이기 때문이다.
 _SHORT_HELD_LONG_MARKET = """//@version=5
 strategy("short held, long market")
 if bar_index == 0
@@ -62,6 +71,26 @@ def _flip_frame() -> pd.DataFrame:
             "low": [100.0, 95.0, 118.0],
             "close": [100.0, 100.0, 125.0],
             "volume": [100.0] * 3,
+        }
+    )
+
+
+def _deferred_flip_frame() -> pd.DataFrame:
+    """`next_bar_open` 용 4-bar 프레임 — bar 2 의 롱 인텐트가 bar 3 시가에 체결된다.
+
+    인텐트는 신호 bar 의 **다음** bar 에서 체결되므로 반전이 마지막 bar 에 놓이려면
+    bar 가 하나 더 필요하다. 3-bar 로 두면 반전이 아예 일어나지 않아 테스트가
+    `signals == []` 를 통과시키며 **아무것도 지키지 않는다.**
+    """
+    start = datetime(2026, 5, 1, tzinfo=UTC)
+    return pd.DataFrame(
+        {
+            "timestamp": [start + timedelta(hours=index) for index in range(4)],
+            "open": [100.0, 100.0, 120.0, 120.0],
+            "high": [100.0, 105.0, 130.0, 130.0],
+            "low": [100.0, 95.0, 118.0, 118.0],
+            "close": [100.0, 100.0, 125.0, 125.0],
+            "volume": [100.0] * 4,
         }
     )
 
@@ -127,9 +156,7 @@ def test_broker_flip_close_is_not_dispatched_in_gap_catchup_either() -> None:
     더 위험하다. 여기서 새어 나가면 공백 1회당 거절 1건이 쌓인다.
     """
     frame = _flip_frame()
-    result = run_live(
-        _SHORT_HELD_LONG_STOP, frame, emit_from_bar_time=frame.iloc[0]["timestamp"]
-    )
+    result = run_live(_SHORT_HELD_LONG_STOP, frame, emit_from_bar_time=frame.iloc[0]["timestamp"])
 
     assert result.signals == [], (
         "catch-up 경로로 반전 청산 leg 가 새어 나갔다 — "
@@ -140,9 +167,7 @@ def test_broker_flip_close_is_not_dispatched_in_gap_catchup_either() -> None:
 def test_market_reversal_close_survives_gap_catchup() -> None:
     """★회귀 방어 (catch-up) — 시장가 반전은 공백 복구에서도 두 장 그대로다."""
     frame = _flip_frame()
-    result = run_live(
-        _SHORT_HELD_LONG_MARKET, frame, emit_from_bar_time=frame.iloc[0]["timestamp"]
-    )
+    result = run_live(_SHORT_HELD_LONG_MARKET, frame, emit_from_bar_time=frame.iloc[0]["timestamp"])
 
     assert [(s.action, s.direction, s.trade_id) for s in result.signals] == [
         ("close", "short", "HeldShort"),
@@ -151,16 +176,64 @@ def test_market_reversal_close_survives_gap_catchup() -> None:
 
 
 def test_market_reversal_still_dispatches_both_close_and_entry() -> None:
-    """★회귀 방어 — 시장가 반전은 close + entry 두 장이 계속 나가야 한다.
+    """★회귀 방어 (a) `bar_close` — 시장가 반전은 close + entry 두 장이 계속 나가야 한다.
 
     이 경로는 엔진이 먼저 결정하고 거래소가 뒤따른다. close 를 보낼 때 거래소에는
     아직 숏이 있으므로 거절되지 않는다. 여기까지 같이 죽이면 **청산이 통째로 사라진다.**
+
+    인터프리터가 `StrategyState.entry()` 를 그 자리에서 부르는 경로다.
     """
     result = run_live(_SHORT_HELD_LONG_MARKET, _flip_frame())
 
-    assert [
-        (s.action, s.direction, s.trade_id, s.sequence_no) for s in result.signals
-    ] == [
+    assert [(s.action, s.direction, s.trade_id, s.sequence_no) for s in result.signals] == [
         ("close", "short", "HeldShort", 0),
         ("entry", "long", "PivRevLE", 1),
     ]
+
+
+def test_deferred_market_reversal_dispatches_both_close_and_entry() -> None:
+    """★회귀 방어 (b) `next_bar_open` — 큐를 거친 시장가 반전도 두 장 그대로다.
+
+    `run_live` 기본값이 `bar_close`(`event_loop.py:375`)라 위 (a) 는 큐를 아예
+    만들지 않는다. 즉 `process_market_intents()` 의 `entry()` 호출
+    (`strategy_state.py:643-650`)은 **실행되지 않는다** — 그 자리에 `broker_filled` 를
+    잘못 붙여도 (a) 는 조용히 통과한다. 이 테스트가 그 지점을 실제로 지나간다.
+    """
+    result = run_live(_SHORT_HELD_LONG_MARKET, _deferred_flip_frame(), fill_timing="next_bar_open")
+
+    assert [(s.action, s.direction, s.trade_id, s.sequence_no) for s in result.signals] == [
+        ("close", "short", "HeldShort", 0),
+        ("entry", "long", "PivRevLE", 1),
+    ]
+
+
+def test_deferred_market_reversal_actually_traverses_the_intent_queue() -> None:
+    """★위 테스트가 **정말** 큐 경로를 지나가는지 직접 확인한다 (음성 대조군).
+
+    "프로덕션 라인을 실행하지 않는 단언" 은 이 레포가 세 번 밟은 함정이다. 프레임이
+    한 bar 짧으면 반전이 마지막 bar 에 오지 않아 위 단언이 다른 이유로 통과할 수 있다.
+    그래서 `next_bar_open` 이 실제로 체결을 **한 bar 미뤘는지**를 원장으로 못 박는다:
+    bar 0 신호인 숏은 bar 1 시가(100.0)에, bar 2 신호인 롱은 bar 3 시가(120.0)에 열린다.
+    """
+    historical = run_historical(
+        _SHORT_HELD_LONG_MARKET,
+        _deferred_flip_frame(),
+        capture_history=False,
+        fill_timing="next_bar_open",
+    )
+    assert historical.strategy_state is not None
+    state = historical.strategy_state
+
+    # 숏은 신호 bar(0)가 아니라 다음 bar(1) 시가에 열렸다 = 큐를 거쳤다.
+    assert [(t.id, t.entry_bar, t.entry_price) for t in state.closed_trades] == [
+        ("HeldShort", 1, 100.0)
+    ]
+    # 반전도 신호 bar(2)가 아니라 bar 3 시가에 일어났다 = 마지막 bar 이벤트가 맞다.
+    assert [(t.id, t.entry_bar, t.entry_price) for t in state.open_trades.values()] == [
+        ("PivRevLE", 3, 120.0)
+    ]
+    assert [
+        (e.bar_index, e.action, e.direction, e.broker_filled)
+        for e in state.events
+        if e.bar_index == 3
+    ] == [(3, "close", "short", False), (3, "entry", "long", False)]
