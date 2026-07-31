@@ -275,6 +275,16 @@ class PendingOrderSnapshot:
       reconciler 가 매 tick 스스로 수렴한다.
 
     `entry_qty` 는 엔진이 의도한 진입 수량으로 표시·진단용이다. 사이징에 쓰지 마라.
+
+    ★BL-523 — `take_profit`/`stop_loss`/`trailing_stop` 은 **현재 구조상 항상 None** 이다.
+    `strategy.exit` 을 처리하는 `place_exit` 이 `open_trades` 만 타깃하는데
+    (`strategy_state.py:963`), stop 진입은 체결 전까지 `pending_orders` 에만 있고
+    `open_trades` 에는 없다(`strategy_state.py:714-726`). 그래서 `exit_levels_for` 가
+    읽는 `pending_exits` 에 이 trade_id 의 레그가 애초에 생기지 않는다.
+    필드를 그럼에도 싣는 이유는 (a) 그 "없음" 을 라이브에서 관측 가능하게 만들고
+    (b) 엔진이 그 계약을 바꾸는 날 배관이 이미 깔려 있게 하기 위해서다.
+    회귀 테스트: `tests/strategy/pine_v2/test_run_live_pending_orders.py` 의
+    `test_pending_order_snapshot_has_no_exit_levels_when_entry_not_open`.
     """
 
     trade_id: str
@@ -284,6 +294,9 @@ class PendingOrderSnapshot:
     stop_price: Decimal
     placed_bar: int
     comment: str = ""
+    take_profit: Decimal | None = None
+    stop_loss: Decimal | None = None
+    trailing_stop: Decimal | None = None
 
 
 @dataclass
@@ -603,6 +616,11 @@ def run_live(
                     }
                 )
                 continue
+            # BL-523 — 진입 signal 경로(`:499-502`)와 **같은 accessor·같은 경계 변환**을 쓴다.
+            # 지금은 이 셋이 항상 None 이다(위 dataclass docstring 참조). 그 사실을
+            # 라이브에서 관측하려면 값을 여기서 실어 보내야 한다 — 계측기는 값을 실어야
+            # "없었다" 를 말할 수 있다.
+            levels = strategy_state.exit_levels_for(trade_id)
             pending_orders.append(
                 PendingOrderSnapshot(
                     trade_id=trade_id,
@@ -612,6 +630,9 @@ def run_live(
                     stop_price=quantized_stop,
                     placed_bar=order.placed_bar,
                     comment=order.comment,
+                    take_profit=_to_decimal(levels.take_profit),
+                    stop_loss=_to_decimal(levels.stop_loss),
+                    trailing_stop=_to_decimal(levels.trailing_stop),
                 )
             )
 

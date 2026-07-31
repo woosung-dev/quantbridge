@@ -59,7 +59,16 @@ class RestingConditionalEntry:
 
 @dataclass(frozen=True)
 class PlannedConditionalEntry:
-    """거래소에 새로 등재할 조건부 진입 주문."""
+    """거래소에 새로 등재할 조건부 진입 주문.
+
+    ★`take_profit`/`stop_loss`/`trailing_stop` 은 **판단 없이 통과**시킨다. 계획기는 순수
+    함수로 남고, 무엇을 드롭할지는 라이브 태스크의 게이트가 정한다(거래소 제약이라
+    계획기의 관심사가 아니다).
+
+    ★`crosses_zero`/`overshoot_ratio`/`resulting_position_qty` 는 **파생값이지 결정이
+    아니다**. 수량 산식(`abs(target_position - current_position)`)도 `reduce_only=False`도
+    그대로다 — BL-516 은 "합쳐진 주문 1건" 을 고치기 전에 **크기부터 재기로** 판정했다.
+    """
 
     trade_id: str
     direction: EntryDirection
@@ -69,6 +78,22 @@ class PlannedConditionalEntry:
     trigger_direction: int
     comment: str
     as_market: bool = False
+    # BL-523 — 엔진이 이 진입에 붙여 둔 exit 레벨. 조건부 진입에서는 지금 **항상 None** 이다
+    # (`PendingOrderSnapshot` docstring 참조). 그 "항상 None" 을 관측 가능하게 만드는 것이
+    # 이 배관의 목적이다.
+    take_profit: Decimal | None = None
+    stop_loss: Decimal | None = None
+    trailing_stop: Decimal | None = None
+    # BL-516 안 3 — 반전 계측. `crosses_zero` 는 목표와 실포지션의 부호가 교차한다는 뜻이고,
+    # `overshoot_ratio` 는 `quantity / |target_position|` (1.0 = 순수 진입)이다.
+    # `target_position` 이 0 이면 비율을 정의할 수 없어 None 이다.
+    crosses_zero: bool = False
+    overshoot_ratio: Decimal | None = None
+    # 이 주문이 체결된 뒤의 포지션 크기. tpSize 정합 게이트의 분모다.
+    # ★`abs(target_position)` 이 아니라 `|current_position ± quantity|` 다 — 발주 수량은
+    # 거래소 눈금으로 절삭되므로(percent_of_equity 사이징은 소수 20자리를 만든다) 목표를
+    # 그대로 쓰면 눈금 미정렬 목표를 가진 **순수 진입까지** 불일치로 보인다.
+    resulting_position_qty: Decimal = Decimal("0")
 
 
 @dataclass(frozen=True)
@@ -310,6 +335,7 @@ def plan_reconcile(
     price_tick: Decimal,
     reference_price: Decimal | None = None,
     max_breach_pct: Decimal | None = None,
+    max_reversal_overshoot_ratio: Decimal | None = None,
     allow_market_conversion: bool = True,
 ) -> ReconcilePlan:
     """조건부 진입 desired 상태를 거래소 실제와 비교해 결정론적 계획을 만든다.
@@ -323,6 +349,10 @@ def plan_reconcile(
             전제다(실측 `positionIdx=0`). hedge 모드는 이 함수의 적용 대상이 아니다.
         qty_step / price_tick: 거래소 눈금. 비교 전 양쪽을 같은 눈금으로 내려놓기 위한
             것이지 발주 정밀도가 아니다(발주 정밀도는 provider 의 ccxt 가 적용한다).
+        max_reversal_overshoot_ratio: `quantity / |target_position|` 의 상한. None(기본)이면
+            비활성이라 기존 동작과 byte-identical 이다. 초과하면 등재하지 않고 발산으로
+            기록한다 — 반전 주문 1건이 청산과 진입을 합쳐 내는 크기를 사용자가 **선택적으로**
+            제한하는 안전밸브이지, 수량 산식을 바꾸는 장치가 아니다.
         allow_market_conversion: 기준가가 거래소 last에서 왔을 때만 돌파 주문을 시장가로
             전환한다. False면 기존처럼 돌파를 발산으로 기록하고 등재하지 않는다.
     """
@@ -452,6 +482,35 @@ def plan_reconcile(
             )
             continue
 
+        # BL-516 안 3 — 이 주문이 청산과 진입을 합쳐 내는지, 합쳤다면 얼마나 큰지.
+        # 부호 교차(`crosses_zero`)와 비율(`overshoot_ratio`)은 동치다: side 검사를 통과한
+        # leg 는 목표가 항상 실포지션의 진행 방향에 있으므로 비율 > 1 은 교차일 때뿐이다.
+        target_magnitude = abs(pending.target_position)
+        crosses_zero = pending.target_position * current_position < 0
+        overshoot_ratio = quantity / target_magnitude if target_magnitude > 0 else None
+        if (
+            crosses_zero
+            and max_reversal_overshoot_ratio is not None
+            and overshoot_ratio is not None
+            and overshoot_ratio > max_reversal_overshoot_ratio
+        ):
+            # 등재를 거부하는 이상 이미 올라가 있는 같은 의도의 주문도 걷는다 — 남겨두면
+            # 그게 체결돼 우리가 방금 거부한 반전을 그대로 실행한다.
+            divergences.append(
+                {
+                    "trade_id": pending.trade_id,
+                    "reason": "reversal_overshoot_exceeds_cap",
+                    "direction": pending.direction,
+                    "target_position": str(pending.target_position),
+                    "current_position": str(current_position),
+                    "quantity": str(quantity),
+                    "overshoot_ratio": str(overshoot_ratio),
+                    "max_reversal_overshoot_ratio": str(max_reversal_overshoot_ratio),
+                }
+            )
+            to_cancel.extend(matching_actual)
+            continue
+
         planned = PlannedConditionalEntry(
             trade_id=pending.trade_id,
             direction=pending.direction,
@@ -461,6 +520,14 @@ def plan_reconcile(
             trigger_direction=entry_trigger_direction(pending.direction),
             comment=pending.comment,
             as_market=convert_to_market,
+            take_profit=pending.take_profit,
+            stop_loss=pending.stop_loss,
+            trailing_stop=pending.trailing_stop,
+            crosses_zero=crosses_zero,
+            overshoot_ratio=overshoot_ratio,
+            resulting_position_qty=abs(
+                current_position + (quantity if side == "buy" else -quantity)
+            ),
         )
         if len(matching_actual) != 1:
             to_cancel.extend(matching_actual)

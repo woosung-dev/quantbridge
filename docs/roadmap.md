@@ -126,12 +126,16 @@
 - [x] **BL-473** [P1] Bybit private WS 인증 `expires` 창 +1s 가 왕복 지연에 먹혀 **라이브 체결 스트리밍이 죽어 있었다** — ✅ **dogfood-restore 완료**. 통제 실험(+1s 실패 / +10s·+60s 성공)으로 격리, 10s 로 확대
 - [x] **BL-474** [P2] 테스트 주문 다이얼로그가 **spot** 으로 나가는데 라이브 신호는 **linear perp** — ✅ **PR #484**. ★원인은 다이얼로그가 아니라 **webhook ingress 한 자리에서 3건 드롭**(leverage/margin_mode 미해결 + 프론트가 보내던 `reduce_only`·TP/SL 미독). `WebhookService.resolve_trading_params()` 신설 + settings 미설정 **422 fail-closed**. 실주문 dogfood 로 확인(주문 ID 숫자형→UUID). **출처 라벨·SessionScope 화면 검증도 여기서 완료** — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
 
-## 3) 리팩토링 부채 (**active 140 / 전체 216** — 2026-07-30 기계 측정)
+## 3) 리팩토링 부채 (**ACTIVE 143 · PARTIAL 4 · RESOLVED 57 · UNKNOWN 17 / 전체 221** — 2026-07-30 `scripts/bl-audit.sh` 실측)
 
-> ★**직전 표기 `80 OPEN · P0 1 / P1 6 / P2 26 / P3 47` 은 stale 이었다.** `backlog.md` §산식
-> (`### BL-` 헤딩 수 대비 본문에 `Resolved` 가 없는 항목 수)으로 재측정한 값이 위다.
-> ★**P별 내역은 재측정하지 못했다** — `**우선순위:**` 표기 형식이 항목마다 달라 기계 집계가
-> 1건만 잡힌다. 없는 숫자를 지어내지 않고 **미측정으로 남긴다**(형식 통일은 별건).
+> ★**직전 표기 `80 OPEN · P0 1 / P1 6 / P2 26 / P3 47` 은 stale 이었다.** 그 다음 표기
+> `active 140 / 전체 216` 은 낡은 인라인 awk 산식으로 잰 값이고, 그 산식은 **cross-ref 한 줄로
+> 항목을 지운다**(BL-003 P0 가 RESOLVED 로 집계돼 P0 active 가 0 이었다). 산식은 이제
+> [`scripts/bl-audit.sh`](../scripts/bl-audit.sh) 이고 판정 SSOT 는 섹션의 `**상태:**` 줄이다.
+> ★**P별 ACTIVE 내역 = P0 1 · P1 7 · P2 54 · P3 77.** 직전에 "기계 집계가 1건만 잡혀 미측정"
+> 이라 적었던 것은 **정규식 문제였다** — `**Priority:**` 는 217 섹션 **전부**에 있다.
+> ★**UNKNOWN 17 건은 판정하지 않고 남겼다** — 상태 줄이 없고 본문 ✅/Resolved 가 cross-ref
+> 위치에만 있는 항목들이다. 스크립트 출력에 목록이 나온다. 추측으로 메우지 마라.
 
 ### P0
 
@@ -148,7 +152,7 @@
 - [x] **BL-488 ✅ Resolved** [P1] ★평가 갭이 orphan close 를 만든다 — 원인은 beat 가 아니라 `run_live` 의 마지막-bar 발행 계약이었다(실측 갭 131바 중 수면 76 + 배포 50, 서버 기전은 4바). `emit_from_bar_time` opt-in + 벽시계 상한 + resync + close 포지션 가드. 프로덕션에서 resync 발동 관측 · 회고 = [`dev-log/2026-07-27-live-conditional-entry.md`](dev-log/2026-07-27-live-conditional-entry.md) ~~ — 워커가 252 바 중 180 바만 평가(50분 구멍)했고, 구멍에 빠진 진입은 발주된 적 없는데 그 청산은 발주돼 `reduce_only` 주문이 `rejected`. 시뮬은 거래소가 준 적 없는 `+4.87330864` 를 이익 계상했다. 갭 감지 + 재동기화 설계 필요
 - [x] **BL-530 ✅ Resolved** [P1] ★엔진과 거래소가 **서로 다른 상품**을 보고 있었다 — 엔진이 Bybit **스팟 1m 봉**을 재생하며 주문은 무기한선물에 냈다(`market_data/providers/ccxt.py:46` `defaultType: "spot"`). 라이브 OHLCV fetch 를 `to_ccxt_perpetual_symbol` 로 통과(**1사이트 · 마이그레이션 0**). 외부 오라클이 소수점까지 확정(스팟 고가 63541.7 = 시뮬 스톱 일치, perp 는 63499.4) · PR #497/#498
 - [x] **BL-537 ✅ Resolved** [P1] ★**전제가 반증됐다** — "활성 세션이 없으면 고아를 못 닫는다" 가 틀렸다. BL-498 이 이미 탈출구를 지어 뒀고(인위 고아 3중 실측: 죽은 세션이 귀속 → **202** → 원장 `reduce_only=t·filled·leverage=2` → 거래소 **flat**), **계정 스코프 엔드포인트를 짓지 않았다**. 진짜 결함은 **누르면 실패하는 버튼**(`close_service` 가 settings 로 422 거부하는데 `position_service` 는 그 게이트를 평가 안 함) + `leverage 0/None` 이면 청산이 조용히 **스팟**으로 · PR #501
-- [ ] ★**BL-543** [P1] **세션은 태어날 때부터 갈릴 수 있다** — `run_live` 는 300바를 재생하지만 dispatch 는 **마지막 바만**(`event_loop.py:410`). 재생 구간 포지션은 주문이 된 적 없는데 엔진에는 남는다. 하류 3종 = **계측기 무효**(BL-536 이 지정한 첫 step) · 유령 청산(`close_position_flat`·`110017`) · **>5분 공백마다 세션 사망**(`gap_resync` 는 엔진도 flat 이어야 탄다). **다음 스프린트 선행**
+- [x] ★**BL-543 ✅ Resolved** [P1] **세션은 태어날 때부터 갈릴 수 있다** — `run_live` 는 300바를 재생하지만 dispatch 는 **마지막 바만**(`event_loop.py:410`). 재생 구간 포지션은 주문이 된 적 없는데 엔진에는 남는다. ✅ **2026-07-30 PR #503 으로 착지**(position epoch — 실주행 재측정에서 첫 평가 `position_size 0.0`, `engine_only` 증가 0). ★**(c) 잔여(>5분 공백 후 세션 사망)는 이 BL 의 결함이 아니라 반대 방향의 별건으로 판명 → [BL-544] 로 이관**했고 PR #506 으로 Resolved
 - [ ] **BL-536** [P1] BL-522 진입 완결성 — ★★★**판정 철회(2026-07-30 close-mismatch-visibility).** C2 `deferred_market_inflight` 는 **유실 채널이 아니라 「청산 tick 수」** 였다(events 9건 전량 `close`, counter 9와 1:1, 게다가 `desired` 를 읽기 전에 증가). 「합의 75%」의 분모가 틀렸다. 공개 kline 2호스트 교차로 그 9번의 defer 는 **대가 0**(하한). **진짜 신호는 [BL-560] 청산측 방향 반전**
 - [ ] ★**BL-560** [P1] **엔진과 거래소가 반대 방향** — `110017 same side` **9건 / 5개 세션**(07-26~07-30). 무해 갈래(`position is zero` 30건)가 3배라 **같은 라벨 안에 묻혀 있었다**. 라벨 분리 완료 → **이제 셀 수 있다.** 원인 3후보 전부 크기 미측정 — **먼저 재라**
 - [ ] **BL-535** [P1] 백테스트는 **스팟 봉**으로 perp 전략을 검증한다 (BL-530 이 라이브만 정렬 — **의도된 잔여, 되돌리지 말 것**). 실측 괴리 25~42 USDT(0.04~0.066%), 한쪽으로 치우친다. 권장 = `ts.ohlcv` 에 perp 를 `BTC/USDT:USDT` 키로 신규 적재(마이그레이션 0)
@@ -239,7 +243,7 @@
 
 ### P3 — 진단/네비 (프로토타입 잔여와 중첩)
 
-- [ ] **BL-423** [P3] 비활성(과거) 세션 진단 UI 부재
+- [x] **BL-423 ✅ Resolved** [P3] 비활성(과거) 세션 진단 UI 부재 — ✅ **2026-07-30 conditional-entry-alignment · PR #506**. ★전제 반증 — `include_inactive` 는 PR #496 이 이미 착지시켰고 잔여는 코크핏 쿼리 이중화·문구·회귀테스트뿐이었다
 - [ ] (그룹 1 의 BL-413/414/427/428/429/430 참조)
 
 ### P3 — trading / live / money-path 하드닝

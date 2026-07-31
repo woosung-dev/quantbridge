@@ -53,15 +53,42 @@ def _session() -> SimpleNamespace:
     )
 
 
-def _pending(trade_id: str = "entry") -> PendingOrderSnapshot:
+def _pending(
+    trade_id: str = "entry",
+    *,
+    direction: str = "long",
+    target_position: Decimal = Decimal("1"),
+    stop_price: Decimal = Decimal("100"),
+    take_profit: Decimal | None = None,
+    stop_loss: Decimal | None = None,
+    trailing_stop: Decimal | None = None,
+) -> PendingOrderSnapshot:
     return PendingOrderSnapshot(
         trade_id=trade_id,
-        direction="long",
-        target_position=Decimal("1"),
-        entry_qty=Decimal("1"),
-        stop_price=Decimal("100"),
+        direction=direction,  # type: ignore[arg-type]
+        target_position=target_position,
+        entry_qty=abs(target_position),
+        stop_price=stop_price,
         placed_bar=1,
         comment="entry",
+        take_profit=take_profit,
+        stop_loss=stop_loss,
+        trailing_stop=trailing_stop,
+    )
+
+
+def _position(side: str, size: Decimal) -> PositionSnapshot:
+    return PositionSnapshot(
+        side=side,
+        size=size,
+        entry_price=None,
+        mark_price=None,
+        unrealized_pnl=None,
+        liquidation_price=None,
+        leverage=None,
+        take_profit_price=None,
+        stop_loss_price=None,
+        position_idx=0,
     )
 
 
@@ -1323,3 +1350,236 @@ async def test_submitted_without_exchange_id_is_deferred_to_janitor(
 
     assert stages == ["cancel_deferred"]
     assert "live_conditional_reconcile_cancel_deferred_to_janitor" in caplog.messages
+
+
+# ── BL-523 브래킷 배선 + 게이트 ────────────────────────────────────────────
+
+
+def _capture_guard_outcomes(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """`qb_live_conditional_guard_total` 의 outcome 라벨을 수집한다."""
+    outcomes: list[str] = []
+    metric = MagicMock()
+    metric.labels = MagicMock(
+        side_effect=lambda outcome: (outcomes.append(outcome), MagicMock())[1]
+    )
+    monkeypatch.setattr(live_signal_module, "qb_live_conditional_guard_total", metric)
+    return outcomes
+
+
+@pytest.mark.asyncio
+async def test_conditional_entry_without_exit_levels_places_a_bare_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★회귀 0 + 이 스프린트의 계측 대상.
+
+    조건부 진입은 체결 전까지 `open_trades` 에 없어 `exit_levels_for` 가 항상
+    `(None, None, None)` 을 준다(`test_run_live_pending_orders.py` 의 회귀 테스트).
+    그래서 실운영에서 오르는 라벨은 `bracket_unavailable` 이어야 한다 — 그 "없음" 을
+    추측이 아니라 관측으로 만드는 것이 배관의 목적이다.
+    """
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    outcomes = _capture_guard_outcomes(monkeypatch)
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert (request.take_profit, request.stop_loss, request.trailing_stop) == (None, None, None)
+    assert "bracket_unavailable" in outcomes
+    assert "bracket_attached" not in outcomes
+
+
+@pytest.mark.asyncio
+async def test_conditional_entry_carries_bracket_when_engine_supplies_levels(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """음성 대조 — 엔진이 레벨을 주면 그대로 주문에 실린다(배관이 죽어 있지 않다)."""
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    outcomes = _capture_guard_outcomes(monkeypatch)
+
+    await _reconcile(
+        session,
+        _result([_pending(take_profit=Decimal("192"), stop_loss=Decimal("64"))]),
+        harness,
+    )
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert request.take_profit == Decimal("192")
+    assert request.stop_loss == Decimal("64")
+    assert "bracket_attached" in outcomes
+
+
+@pytest.mark.asyncio
+async def test_trailing_only_leg_is_not_placed_at_all(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """게이트 A — 고정 SL 없는 트레일링 단독은 등재하지 않는다.
+
+    트레일링은 체결 **후** `set_trading_stop` 으로만 붙으므로(ccxt 는 trailing + trigger
+    조합을 `InvalidOrder` 로 거부한다) SL 이 없으면 체결 순간부터 부착까지 무방비다.
+    ★시장가 진입 경로와 달리 `mark_failed` 를 쓸 수 없다 — 조건부 진입에는
+    `live_signal_events` 행이 없다.
+    """
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    outcomes = _capture_guard_outcomes(monkeypatch)
+    caplog.set_level(logging.WARNING, logger=live_signal_module.__name__)
+
+    await _reconcile(session, _result([_pending(trailing_stop=Decimal("4"))]), harness)
+
+    harness.order_service.execute.assert_not_awaited()
+    assert outcomes == ["bracket_trailing_only_dropped"]
+    assert "live_conditional_reconcile_divergence" in caplog.messages
+
+
+@pytest.mark.asyncio
+async def test_trailing_with_stop_loss_is_carried_on_a_non_reduce_only_entry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """SL 이 있으면 진입은 나가고 trailing 은 `Order` 에 영속된다.
+
+    ★`reduce_only is False` 를 함께 잠근다 — 거래소로 trailing 이 나가지 않는 것은
+    `tasks/trading.py:421` 와 `providers.py:456` 이 둘 다 `reduce_only` 를 요구하기
+    때문이다. 이 플래그가 뒤집히면 그 2중 방어가 통째로 무력해진다.
+    """
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+
+    await _reconcile(
+        session,
+        _result([_pending(stop_loss=Decimal("64"), trailing_stop=Decimal("4"))]),
+        harness,
+    )
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert request.stop_loss == Decimal("64")
+    assert request.trailing_stop == Decimal("4")
+    assert request.reduce_only is False
+
+
+@pytest.mark.asyncio
+async def test_reversal_drops_take_profit_but_keeps_stop_loss(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """게이트 B — tpSize 정합.
+
+    `_merge_exit_params`(`providers.py:462-465`)가 `takeProfit.price` 를 넣으면 ccxt 가
+    `tpslMode=Partial` 로 라우팅해 `tpSize = 주문수량` 이 된다. 반전은 주문수량(16) >
+    체결 후 포지션(8) 이라 거래소가 **진입 자체를** 거부한다. 손계산 오라클은 2의
+    거듭제곱 — 보유 +8, 목표 -8, 주문 16, 결과 포지션 8.
+    보호를 통째로 잃지 않도록 SL 은 유지한다.
+    """
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, positions=[_position("long", Decimal("8"))])
+    outcomes = _capture_guard_outcomes(monkeypatch)
+
+    await _reconcile(
+        session,
+        _result(
+            [
+                _pending(
+                    direction="short",
+                    target_position=Decimal("-8"),
+                    stop_price=Decimal("32"),
+                    take_profit=Decimal("16"),
+                    stop_loss=Decimal("64"),
+                )
+            ]
+        ),
+        harness,
+    )
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert request.quantity == Decimal("16")
+    assert request.take_profit is None
+    assert request.stop_loss == Decimal("64")
+    assert "bracket_tp_dropped_size" in outcomes
+
+
+@pytest.mark.asyncio
+async def test_reversal_placement_is_counted_with_its_overshoot_bucket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-516 안 3 — 수량은 합친 채로 두되 크기는 잰다. 16 / 8 = 2 -> `2x`."""
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, positions=[_position("long", Decimal("8"))])
+    buckets: list[str] = []
+    metric = MagicMock()
+    metric.labels = MagicMock(side_effect=lambda bucket: (buckets.append(bucket), MagicMock())[1])
+    monkeypatch.setattr(live_signal_module, "qb_live_conditional_reversal_total", metric)
+
+    await _reconcile(
+        session,
+        _result(
+            [_pending(direction="short", target_position=Decimal("-8"), stop_price=Decimal("32"))]
+        ),
+        harness,
+    )
+
+    assert harness.order_service.execute.await_args.args[0].quantity == Decimal("16")
+    assert buckets == ["2x"]
+
+
+@pytest.mark.asyncio
+async def test_flat_entry_is_not_counted_as_a_reversal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """대조군 — 순수 진입은 부호 교차가 아니므로 반전 counter 가 오르지 않는다."""
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    buckets: list[str] = []
+    metric = MagicMock()
+    metric.labels = MagicMock(side_effect=lambda bucket: (buckets.append(bucket), MagicMock())[1])
+    monkeypatch.setattr(live_signal_module, "qb_live_conditional_reversal_total", metric)
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_service.execute.assert_awaited_once()
+    assert buckets == []
+
+
+@pytest.mark.asyncio
+async def test_invalid_order_request_gets_its_own_stage_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★스키마 위반을 네트워크 실패와 **같은 라벨**로 삼키지 않는다.
+
+    exit 레벨은 Pine float 에서 오므로 `decimal_places=8` 초과가 실제로 가능한 입력이다.
+    그것을 `conditional_place`(거래소/네트워크 실패)로 세면 전략 결함을 인프라 결함으로
+    오진한다.
+    """
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    stages = _capture_error_stages(monkeypatch)
+
+    await _reconcile(
+        session,
+        _result([_pending(take_profit=Decimal("100.123456789"))]),
+        harness,
+    )
+
+    harness.order_service.execute.assert_not_awaited()
+    assert stages == ["conditional_request_invalid"]
+
+
+@pytest.mark.asyncio
+async def test_market_converted_entry_still_carries_its_bracket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """돌파로 시장가 전환된 진입도 같은 브래킷을 싣는다(전환은 트리거만 없앤다)."""
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+
+    await _reconcile(
+        session,
+        _result([_pending(stop_loss=Decimal("64"), take_profit=Decimal("192"))]),
+        harness,
+    )
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert request.trigger_price is None
+    assert request.trigger_direction is None
+    assert request.stop_loss == Decimal("64")
+    assert request.take_profit == Decimal("192")

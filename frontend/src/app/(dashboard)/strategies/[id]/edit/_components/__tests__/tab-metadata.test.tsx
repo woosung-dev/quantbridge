@@ -37,6 +37,7 @@ const strategy = {
     margin_mode: "cross",
     position_size_pct: 10,
     max_trigger_breach_pct: 0.5,
+    max_reversal_overshoot_ratio: null,
     fill_timing: "bar_close",
   },
   is_archived: false,

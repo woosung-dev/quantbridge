@@ -45,6 +45,7 @@ from src.common.metrics import (
     qb_live_conditional_placed_total,
     qb_live_conditional_plan_drop_evaluations_total,
     qb_live_conditional_reconcile_errors_total,
+    qb_live_conditional_reversal_total,
     qb_live_conditional_sweep_filled_total,
     qb_live_gap_ledger_seed_total,
     qb_live_pending_order_skip_evaluations_total,
@@ -632,6 +633,7 @@ _PLAN_DROP_REASONS: frozenset[str] = frozenset(
         "below_exchange_minimum",
         "target_already_met_cancelled",
         "entry_side_mismatch",
+        "reversal_overshoot_exceeds_cap",
     }
 )
 _PENDING_ORDER_SKIP_REASONS: frozenset[str] = frozenset(
@@ -645,6 +647,29 @@ def _plan_drop_reason(raw: object) -> str:
 
 def _pending_order_skip_reason(raw: object) -> str:
     return raw if isinstance(raw, str) and raw in _PENDING_ORDER_SKIP_REASONS else "other"
+
+
+# BL-516 안 3 — overshoot 비율의 버킷 경계. 상한이 없는 마지막 버킷까지 4개로 고정해
+# cardinality 를 못 박는다(비율은 연속값이라 라벨로 그대로 실으면 series 가 폭발한다).
+_REVERSAL_OVERSHOOT_BUCKETS: tuple[tuple[Decimal, str], ...] = (
+    (Decimal("2"), "1x"),
+    (Decimal("4"), "2x"),
+    (Decimal("8"), "4x"),
+)
+
+
+def _reversal_overshoot_bucket(ratio: Decimal | None) -> str:
+    """`주문수량 / |목표 포지션|` 을 고정 4버킷으로 접는다. 라벨은 **하한**이다.
+
+    `ratio` 가 None(목표 0 — 비율 미정의)이면 가장 보수적인 `8x+` 로 본다. 반전인데
+    비율을 못 구한 leg 를 작은 버킷에 넣으면 계측기가 위험을 과소보고한다.
+    """
+    if ratio is None:
+        return "8x+"
+    for upper, label in _REVERSAL_OVERSHOOT_BUCKETS:
+        if ratio < upper:
+            return label
+    return "8x+"
 
 
 def _count_safely(counter: Any, **labels: str) -> None:
@@ -977,6 +1002,11 @@ async def _reconcile_conditional_entries(
                 if parsed_settings.max_trigger_breach_pct is not None
                 else None
             )
+            max_reversal_overshoot_ratio = (
+                Decimal(str(parsed_settings.max_reversal_overshoot_ratio))
+                if parsed_settings.max_reversal_overshoot_ratio is not None
+                else None
+            )
             plan = plan_reconcile(
                 desired=desired,
                 actual=tuple(actual_by_order_id.values()),
@@ -985,6 +1015,7 @@ async def _reconcile_conditional_entries(
                 price_tick=price_tick,
                 reference_price=reference_price,
                 max_breach_pct=max_breach_pct,
+                max_reversal_overshoot_ratio=max_reversal_overshoot_ratio,
                 allow_market_conversion=allow_market_conversion,
             )
             for divergence in plan.divergences:
@@ -1222,25 +1253,99 @@ async def _reconcile_conditional_entries(
                                 },
                             )
                             continue
-                    request = OrderRequest(
-                        strategy_id=sess.strategy_id,
-                        exchange_account_id=sess.exchange_account_id,
-                        symbol=sess.symbol,
-                        side=OrderSide(planned_entry.side),
-                        type=OrderType.market,
-                        quantity=planned_entry.quantity,
-                        price=None,
-                        trigger_price=None
-                        if planned_entry.as_market
-                        else planned_entry.trigger_price,
-                        trigger_direction=(
-                            None if planned_entry.as_market else planned_entry.trigger_direction
-                        ),
-                        trigger_by=None if planned_entry.as_market else "LastPrice",
-                        reduce_only=False,
-                        leverage=parsed_settings.leverage,
-                        margin_mode=parsed_settings.margin_mode,
-                    )
+                    # BL-523 게이트 A — 고정 SL 없는 트레일링 단독은 등재하지 않는다.
+                    # 트레일링은 체결 **후** `set_trading_stop` 으로만 붙으므로(ccxt 는
+                    # trailing + trigger 조합을 InvalidOrder 로 거부한다), SL 이 없으면
+                    # 체결 순간부터 부착까지 무방비 포지션이 된다.
+                    # ★시장가 진입 경로(`:2705-2718`)는 여기서 `mark_failed` 를 부르지만
+                    #   조건부 진입에는 `live_signal_events` 행 자체가 없다. 이 파일의
+                    #   다른 fail-closed 드롭과 같은 모양(guard counter + 발산 로그)으로 남긴다.
+                    if planned_entry.trailing_stop is not None and planned_entry.stop_loss is None:
+                        _count_safely(
+                            qb_live_conditional_guard_total,
+                            outcome="bracket_trailing_only_dropped",
+                        )
+                        logger.warning(
+                            "live_conditional_reconcile_divergence",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                                "reason": "bracket_trailing_only",
+                            },
+                        )
+                        continue
+
+                    # BL-523 게이트 B — tpSize 정합. `_merge_exit_params`
+                    # (`providers.py:462-465`)가 `takeProfit.price` 를 항상 넣어 ccxt 가
+                    # `tpslMode=Partial` 로 라우팅하고, 그러면 `tpSize = 주문수량` 이 된다.
+                    # 반전 주문은 주문수량 > 체결 후 포지션이라 거래소가 **진입 자체를**
+                    # 거부한다. TP 만 떨어뜨리고 SL 은 유지한다 — 보호를 통째로 잃는 것보다
+                    # 이익실현 하나를 잃는 편이 낫다.
+                    take_profit = planned_entry.take_profit
+                    if (
+                        take_profit is not None
+                        and planned_entry.quantity != planned_entry.resulting_position_qty
+                    ):
+                        take_profit = None
+                        _count_safely(
+                            qb_live_conditional_guard_total, outcome="bracket_tp_dropped_size"
+                        )
+                        logger.warning(
+                            "live_conditional_reconcile_divergence",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                                "reason": "bracket_tp_size_mismatch",
+                                "quantity": str(planned_entry.quantity),
+                                "resulting_position_qty": str(planned_entry.resulting_position_qty),
+                            },
+                        )
+
+                    # ★`OrderRequest` 조립만 별도로 감싼다. 지금까지는 바깥
+                    # `except Exception` 이 스키마 위반을 네트워크 실패와 **같은 라벨**로
+                    # 삼켰다 — exit 레벨은 Pine float 에서 오므로 `decimal_places=8` 초과나
+                    # `gt=0` 위반이 실제로 가능한 입력이고, 그것을 "거래소 장애" 로 읽으면
+                    # 전략 결함을 인프라 결함으로 오진한다.
+                    try:
+                        request = OrderRequest(
+                            strategy_id=sess.strategy_id,
+                            exchange_account_id=sess.exchange_account_id,
+                            symbol=sess.symbol,
+                            side=OrderSide(planned_entry.side),
+                            type=OrderType.market,
+                            quantity=planned_entry.quantity,
+                            price=None,
+                            trigger_price=None
+                            if planned_entry.as_market
+                            else planned_entry.trigger_price,
+                            trigger_direction=(
+                                None if planned_entry.as_market else planned_entry.trigger_direction
+                            ),
+                            trigger_by=None if planned_entry.as_market else "LastPrice",
+                            reduce_only=False,
+                            leverage=parsed_settings.leverage,
+                            margin_mode=parsed_settings.margin_mode,
+                            take_profit=take_profit,
+                            stop_loss=planned_entry.stop_loss,
+                            # ★싣되 거래소로는 나가지 않는다 — `tasks/trading.py:421` 와
+                            #   `providers.py:456` 이 둘 다 `reduce_only` 를 요구하므로
+                            #   entry 의 trailing 은 create_order 에 주입되지 않는다.
+                            #   체결 후 `_enqueue_trailing_if_intended` 가 부착한다.
+                            trailing_stop=planned_entry.trailing_stop,
+                        )
+                    except ValidationError:
+                        _count_safely(
+                            qb_live_conditional_reconcile_errors_total,
+                            stage="conditional_request_invalid",
+                        )
+                        logger.exception(
+                            "live_conditional_reconcile_request_invalid",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                            },
+                        )
+                        continue
                     idempotency_key = (
                         build_market_converted_entry_key(
                             sess.id,
@@ -1275,6 +1380,27 @@ async def _reconcile_conditional_entries(
                             "market_converted" if planned_entry.as_market else "conditional_placed"
                         )
                     ).inc()
+                    # BL-523 — 붙일 브래킷이 **있었는가**. 이 두 라벨의 비가 곧 §전제의 실측이다
+                    # (조건부 진입은 체결 전까지 `open_trades` 에 없어 지금은 전량
+                    # `bracket_unavailable` 이어야 한다).
+                    _count_safely(
+                        qb_live_conditional_guard_total,
+                        outcome=(
+                            "bracket_attached"
+                            if (
+                                request.take_profit is not None
+                                or request.stop_loss is not None
+                                or request.trailing_stop is not None
+                            )
+                            else "bracket_unavailable"
+                        ),
+                    )
+                    # BL-516 안 3 — 반전이면 크기를 버킷으로 남긴다. 수량은 합친 채로 둔다.
+                    if planned_entry.crosses_zero:
+                        _count_safely(
+                            qb_live_conditional_reversal_total,
+                            bucket=_reversal_overshoot_bucket(planned_entry.overshoot_ratio),
+                        )
                     if planned_entry.as_market:
                         logger.warning(
                             "live_conditional_reconcile_divergence",

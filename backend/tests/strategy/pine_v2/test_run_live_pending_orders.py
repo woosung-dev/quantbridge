@@ -319,3 +319,76 @@ def test_internal_pending_stop_fill_never_leaks_fill_signal() -> None:
         trade["id"] == "PivRevLE" for trade in result.strategy_state_report["open_trades"]
     )
     assert all(signal.action in ("entry", "close") for signal in result.signals)
+
+
+# BL-523 — stop 진입과 strategy.exit 을 **둘 다** 쓰는 형태. 코퍼스 8벌 중 이 조합을 쓰는
+# 전략이 없어서(시드 `s1_pbr.pine` 은 strategy.exit 이 0건) 인라인으로 만든다.
+_STOP_ENTRY_WITH_EXIT = """//@version=5
+strategy("stop entry with exit")
+if bar_index == 0
+    strategy.entry("PivRevLE", strategy.long, qty=8, stop=128)
+    strategy.exit("X", from_entry="PivRevLE", stop=64, limit=192)
+"""
+
+# 같은 id 가 이미 열려 있는 채로 stop 재발행 + 그 id 에 브래킷. 열린 쪽이 있으므로
+# `place_exit` 가 타깃을 찾아 pending_exits 에 레그를 만든다 = 값이 실리는 유일한 형태.
+_SAME_ID_REISSUE_WITH_EXIT = """//@version=5
+strategy("same id reissue with exit")
+if bar_index == 0
+    strategy.entry("PivRevLE", strategy.long, qty=8)
+    strategy.exit("X", from_entry="PivRevLE", stop=64, limit=192)
+if bar_index == 1
+    strategy.entry("PivRevLE", strategy.long, qty=8, stop=128)
+"""
+
+
+def test_pending_order_snapshot_has_no_exit_levels_when_entry_not_open() -> None:
+    """★조건부 진입에는 브래킷이 **붙을 수 없다**. 그 사실을 못 박는 회귀 테스트다.
+
+    왜 None 인가 — `strategy.exit` 을 처리하는 `place_exit` 은
+    `targets = [from_entry] if from_entry in self.open_trades else []`
+    (`strategy_state.py:963`) 로 **`open_trades` 만** 타깃한다. 그런데 stop 진입은
+    `self.pending_orders[trade_id] = PendingOrder(...); return None`
+    (`strategy_state.py:714-726`) 이라 체결 전까지 `open_trades` 에 없다. 따라서
+    `exit_levels_for` 가 읽는 `pending_exits`(`strategy_state.py:1088`) 에 이 trade_id 의
+    레그가 **애초에 생기지 않는다**.
+
+    ⇒ 라이브 조건부 진입 경로에 브래킷 배관을 깔아도 실제로 실릴 값이 없다. 이것은 배선
+    누락이 아니라 엔진의 현재 계약이다. **다시 파지 마라** — 바꾸려면 `place_exit` 이
+    pending 진입까지 타깃하도록 엔진 계약을 먼저 바꿔야 하고, 그건 백테스트 결과를
+    바꾸는 변경이다.
+    """
+    result = run_live(_STOP_ENTRY_WITH_EXIT, _ohlcv([100.0, 100.0]))
+
+    pending = {order.trade_id: order for order in result.pending_orders}
+    assert set(pending) == {"PivRevLE"}
+    # 진입 자체는 정상적으로 desired 로 나간다 — 없는 것은 브래킷뿐이다.
+    assert pending["PivRevLE"].target_position == Decimal("8")
+    assert pending["PivRevLE"].take_profit is None
+    assert pending["PivRevLE"].stop_loss is None
+    assert pending["PivRevLE"].trailing_stop is None
+
+
+def test_pending_order_snapshot_carries_exit_levels_when_same_id_is_open() -> None:
+    """음성 대조 — 같은 id 가 열려 있으면 브래킷이 생기고 스냅샷에 그대로 실린다.
+
+    배관이 죽어 있는 게 아니라 **타깃이 없어서** 비는 것임을 분리해 고정한다.
+    이 테스트가 없으면 `exit_levels_for` 호출을 통째로 지우는 변이가 위 회귀 테스트를
+    그대로 통과한다.
+    """
+    result = run_live(_SAME_ID_REISSUE_WITH_EXIT, _ohlcv([100.0, 100.0]))
+
+    pending = {order.trade_id: order for order in result.pending_orders}
+    assert set(pending) == {"PivRevLE"}
+    assert pending["PivRevLE"].take_profit == Decimal("192")
+    assert pending["PivRevLE"].stop_loss == Decimal("64")
+    assert pending["PivRevLE"].trailing_stop is None
+
+
+def test_pending_order_snapshot_exit_levels_default_to_none_without_strategy_exit() -> None:
+    """회귀 0 — `strategy.exit` 이 없는 전략(시드 `s1_pbr` 형태)은 세 필드가 전부 None."""
+    result = run_live(_PIVOT_REVERSAL, _ohlcv([100.0, 100.0]))
+
+    assert result.pending_orders
+    for order in result.pending_orders:
+        assert (order.take_profit, order.stop_loss, order.trailing_stop) == (None, None, None)

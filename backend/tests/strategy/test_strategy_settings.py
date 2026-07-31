@@ -69,3 +69,37 @@ def test_invalid_fill_timing_is_rejected() -> None:
         StrategySettings(**_settings_data(), fill_timing="same_bar")
     with pytest.raises(ValidationError):
         UpdateStrategySettingsRequest(**_settings_data(), fill_timing="same_bar")
+
+
+def test_max_reversal_overshoot_ratio_defaults_to_none() -> None:
+    """★기본 비활성 — 캡이 조용히 켜지면 기존 세션의 반전 진입이 말없이 사라진다."""
+    settings = StrategySettings(**_settings_data())
+    update = UpdateStrategySettingsRequest(**_settings_data())
+
+    assert settings.max_reversal_overshoot_ratio is None
+    assert update.max_reversal_overshoot_ratio is None
+
+
+def test_legacy_settings_without_reversal_cap_still_parse() -> None:
+    """`extra="forbid"` 스키마에 필드를 더해도 기존 JSONB 는 그대로 파싱돼야 한다."""
+    settings = validate_strategy_settings(_settings_data())
+
+    assert settings is not None
+    assert settings.max_reversal_overshoot_ratio is None
+
+
+def test_update_request_mirrors_reversal_cap() -> None:
+    data = {**_settings_data(), "max_reversal_overshoot_ratio": 2.0}
+
+    settings = StrategySettings(**data)
+    update = UpdateStrategySettingsRequest(**data)
+
+    assert settings.max_reversal_overshoot_ratio == 2.0
+    assert update.model_dump() == settings.model_dump()
+
+
+def test_zero_reversal_cap_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        StrategySettings(**_settings_data(), max_reversal_overshoot_ratio=0)
+    with pytest.raises(ValidationError):
+        UpdateStrategySettingsRequest(**_settings_data(), max_reversal_overshoot_ratio=0)

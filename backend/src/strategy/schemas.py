@@ -118,6 +118,9 @@ class StrategySettings(BaseModel):
     margin_mode: Literal["cross", "isolated"]
     position_size_pct: float = Field(gt=0, le=100)
     max_trigger_breach_pct: float | None = Field(default=None, gt=0)
+    # BL-516 안 3 — 부호가 교차하는 조건부 진입(청산+진입이 주문 1건으로 합쳐지는 반전)의
+    # `주문수량 / |목표 포지션|` 상한. 기본 None = 비활성 = 기존 동작 그대로.
+    max_reversal_overshoot_ratio: float | None = Field(default=None, gt=0)
     fill_timing: Literal["bar_close", "next_bar_open"] = "bar_close"
 
 
@@ -143,6 +146,7 @@ class UpdateStrategySettingsRequest(BaseModel):
     margin_mode: Literal["cross", "isolated"]
     position_size_pct: float = Field(gt=0, le=100)
     max_trigger_breach_pct: float | None = Field(default=None, gt=0)
+    max_reversal_overshoot_ratio: float | None = Field(default=None, gt=0)
     fill_timing: Literal["bar_close", "next_bar_open"] = "bar_close"
 
 
