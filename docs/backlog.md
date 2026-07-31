@@ -5117,7 +5117,9 @@ BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제�
 **카테고리:** Backend / observability (구조화 로그 렌더)
 **Trigger:** BL-560 원인 착수 **직전** (선행 의존)
 **Est:** XS
-**상태:** 🔴 **열려 있다** — BL-560 원인 착수의 선행.
+**상태:** 🟡 **부분 완료** — 포매터 + celery/uvicorn 배선 착지(2026-07-31, `wt/logfmt`).
+★**실주행에서 실제로 찍히는지는 미검증** — 워크트리는 worker 가 메인 `src` 를 bind-mount 하므로
+celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 확인 후 Resolved 로 올려라.
 **출처:** 2026-07-30 close-mismatch-soak — BL-560 수용 기준이 구조적으로 충족 불가였다
 
 ★**`extra=` 로 넘긴 필드가 렌더되지 않아 진단 증거가 즉시 소실된다.**
@@ -5141,6 +5143,28 @@ BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제�
 **권장 접근:** JSON 또는 key=value 포매터를 배선해 `extra` 를 렌더한다. 범위는 로깅 설정 1곳.
 ★**적용 후 반드시 실주행 1회로 값이 실제로 찍히는지 확인해라** — 설정만 바꾸고 통과 선언하면
 이 항목이 세 번째로 재발한다.
+
+**착지한 것 (2026-07-31).** stdlib 전용 `key=value` 포매터. 신규 의존성 0. 호출 사이트 135개는
+그대로 두고 포매터만 고쳤다.
+
+| 무엇                    | 어디                                                                        |
+| ----------------------- | --------------------------------------------------------------------------- |
+| 포매터 + `dictConfig`   | `backend/src/common/logging_config.py`                                      |
+| celery worker/beat 배선 | `backend/src/tasks/celery_app.py:31` (`setup_logging` 시그널 = hijack 차단) |
+| uvicorn/API 배선        | `backend/src/main.py:23` (app import 시점)                                  |
+| 레벨                    | `LOG_LEVEL` (`Settings.log_level` + `backend/.env.example`)                 |
+
+★**두 프로세스가 서로 다르게 깨져 있었다** — worker 는 celery 가 root 를 hijack 해 `extra` 자리가
+없었고, **uvicorn 은 root 에 핸들러가 아예 없어 `src.*` 의 INFO 가 통째로 사라지고 있었다**
+(`logging.lastResort` 로 낙하). 원 보고서는 worker 만 지목했으나 API 쪽이 더 나빴다.
+
+★caplog 회귀 방어: root 에만 핸들러를 붙이고 개별 로거 `propagate` 를 건드리지 않는다
+(`disable_existing_loggers: False`). BE 전체 스위트 **3659 → 3676 passed / skipped 46 동일** —
+증가분 17 은 신규 테스트 파일 그대로다. **기존 테스트는 한 건도 상태가 바뀌지 않았다**
+(caplog 사용 13파일 포함).
+
+★표적 변이 3/3 — (a) 포매터를 stdlib `logging.Formatter` 로 되돌림 → 2건 실패,
+(b) `main.py` 의 `configure_logging()` 제거 → 1건 실패, (c) celery `setup_logging` 연결 해제 → 1건 실패.
 
 **Risk:** 🟡 (진단 불가가 다른 P1 을 막는다)
 

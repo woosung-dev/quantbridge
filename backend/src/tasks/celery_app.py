@@ -11,12 +11,14 @@ from celery import Celery
 from celery.schedules import crontab
 from celery.signals import (
     beat_init,
+    setup_logging,  # BL-561 — celery 의 root logger hijack 차단
     worker_process_init,
     worker_process_shutdown,  # Sprint 18 BL-080 (codex G.0 P1 #4)
     worker_ready,
     worker_shutdown,
 )
 
+from src.common.logging_config import configure_logging
 from src.common.metrics_multiproc import mark_metrics_process_dead
 from src.core.config import settings
 
@@ -24,6 +26,29 @@ if TYPE_CHECKING:
     from src.market_data.providers.ccxt import CCXTProvider
 
 logger = logging.getLogger(__name__)
+
+
+@setup_logging.connect  # type: ignore[untyped-decorator]
+def _configure_worker_logging(**_kwargs: object) -> None:
+    """BL-561 — celery 대신 우리 포매터가 root 를 잡는다.
+
+    ★`setup_logging` 에 receiver 가 붙으면 celery 는 로깅 설정을 **전혀 하지 않는다**
+    (`worker_hijack_root_logger` 도 무시된다). 기본값(True)일 때 celery 포매터가 root 를
+    hijack 했고 그 포맷 문자열엔 `extra` 자리가 없어 **전량 소실**됐다.
+
+    worker / beat 양쪽에서 같은 시그널이 발화한다 → uvicorn 과 동일 설정을 공유한다.
+
+    ★**부수효과 2건 — 조용히 넘어가지 마라.**
+
+    1. `docker-compose.yml` 의 `--loglevel=info` 는 이제 root 레벨을 결정하지 않는다.
+       레벨의 SSOT 는 `LOG_LEVEL` 환경변수(`Settings.log_level`) 다. 두 값의 기본이
+       모두 INFO 라 현재 동작은 같지만, 레벨을 바꿀 땐 `LOG_LEVEL` 을 만져야 한다.
+    2. celery 의 `redirect_stdouts` 도 함께 꺼진다(receiver 가 있으면 celery 가
+       로깅 서브시스템 전체를 건너뛴다). task 안의 `print()` 는 로거를 거치지 않고
+       stdout 으로 직행한다 — `docker logs` 에는 그대로 보인다.
+    """
+    configure_logging()
+
 
 celery_app = Celery(
     "quantbridge",
