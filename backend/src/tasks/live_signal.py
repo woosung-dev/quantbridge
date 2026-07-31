@@ -1281,6 +1281,11 @@ async def _reconcile_conditional_entries(
                     # 반전 주문은 주문수량 > 체결 후 포지션이라 거래소가 **진입 자체를**
                     # 거부한다. TP 만 떨어뜨리고 SL 은 유지한다 — 보호를 통째로 잃는 것보다
                     # 이익실현 하나를 잃는 편이 낫다.
+                    # ★BL-562 — `resulting_position_qty` 는 **등재 시점 근사**다(계획기
+                    #   docstring 참조). 여기가 유일하게 판정 가능한 지점이라 그렇다:
+                    #   `tpSize` 는 등재할 때 확정되므로 체결 시점에 다시 재도 바꿀 것이 없다.
+                    #   방향은 보수적이다 — 근사가 틀리면 TP 를 **잘못 드롭**할 뿐,
+                    #   잘못 통과시키지 않는다.
                     take_profit = planned_entry.take_profit
                     if (
                         take_profit is not None
@@ -1380,18 +1385,37 @@ async def _reconcile_conditional_entries(
                             "market_converted" if planned_entry.as_market else "conditional_placed"
                         )
                     ).inc()
-                    # BL-523 — 붙일 브래킷이 **있었는가**. 이 두 라벨의 비가 곧 §전제의 실측이다
+                    # BL-523 — 붙일 브래킷이 **있었는가**. 이 라벨들의 비가 곧 §전제의 실측이다
                     # (조건부 진입은 체결 전까지 `open_trades` 에 없어 지금은 전량
                     # `bracket_unavailable` 이어야 한다).
+                    #
+                    # ★BL-563 — "있었는가" 는 **엔진이 공급한 원본 leg**(`planned_entry`)로
+                    #   잰다. 게이트 뒤의 `request` 로 재면 게이트 B 가 드롭한 TP-only 반전이
+                    #   `bracket_unavailable` 로 집계돼 "엔진이 아무것도 공급하지 않았다" 와
+                    #   구별되지 않는다. 게이트가 전부 걷어낸 경우는 별도 축으로 센다.
+                    #   세 라벨은 상호배타이며 합 = `qb_live_conditional_placed_total`.
+                    #
+                    # ★게이트 A(`:1263` trailing-only)는 여기 오기 전에 `continue` 로 빠진다 —
+                    #   그건 브래킷이 아니라 **leg 자체**를 드롭하므로 주문이 발주되지 않는다.
+                    #   이 축의 분모(등재 성공 수)에 넣으면 위 합 등식이 깨진다. 비대칭이
+                    #   아니라 축이 다른 것이고, 그쪽은 `bracket_trailing_only_dropped` 다.
+                    engine_supplied_bracket = (
+                        planned_entry.take_profit is not None
+                        or planned_entry.stop_loss is not None
+                        or planned_entry.trailing_stop is not None
+                    )
+                    bracket_on_the_wire = (
+                        request.take_profit is not None
+                        or request.stop_loss is not None
+                        or request.trailing_stop is not None
+                    )
                     _count_safely(
                         qb_live_conditional_guard_total,
                         outcome=(
                             "bracket_attached"
-                            if (
-                                request.take_profit is not None
-                                or request.stop_loss is not None
-                                or request.trailing_stop is not None
-                            )
+                            if bracket_on_the_wire
+                            else "bracket_supplied_gate_dropped"
+                            if engine_supplied_bracket
                             else "bracket_unavailable"
                         ),
                     )

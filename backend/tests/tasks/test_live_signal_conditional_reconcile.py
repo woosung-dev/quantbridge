@@ -1496,6 +1496,84 @@ async def test_reversal_drops_take_profit_but_keeps_stop_loss(
     assert request.take_profit is None
     assert request.stop_loss == Decimal("64")
     assert "bracket_tp_dropped_size" in outcomes
+    # BL-563 — SL 이 남아 실제로 나갔으므로 여기는 여전히 `bracket_attached` 다.
+    assert "bracket_attached" in outcomes
+    assert "bracket_supplied_gate_dropped" not in outcomes
+
+
+@pytest.mark.asyncio
+async def test_tp_only_reversal_is_not_counted_as_engine_supplied_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★BL-563 — 게이트가 전부 걷어낸 것과 엔진이 공급 안 한 것을 섞지 않는다.
+
+    엔진이 TP 만 준 반전은 게이트 B 가 그 TP 를 드롭하므로 발주된 `OrderRequest` 는
+    셋 다 None 이다. 판정을 그 `request` 로 하면 `bracket_unavailable` 이 올라
+    **"엔진이 아무것도 공급하지 않았다"** 와 같은 라벨이 된다 — BL-523 의 판정 근거가
+    바로 그 counter 라 그 순간 숫자를 못 믿는다.
+
+    오라클은 게이트 B 테스트와 같은 2의 거듭제곱 — 보유 +8, 목표 -8, 주문 16,
+    체결 후 포지션 8 (16 != 8 이라 게이트 B 가 발화).
+    """
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, positions=[_position("long", Decimal("8"))])
+    outcomes = _capture_guard_outcomes(monkeypatch)
+
+    await _reconcile(
+        session,
+        _result(
+            [
+                _pending(
+                    direction="short",
+                    target_position=Decimal("-8"),
+                    stop_price=Decimal("32"),
+                    take_profit=Decimal("16"),
+                )
+            ]
+        ),
+        harness,
+    )
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert (request.take_profit, request.stop_loss, request.trailing_stop) == (None, None, None)
+    assert "bracket_tp_dropped_size" in outcomes
+    # ★핵심 단언 — 게이트 드롭은 자기 축으로 가고 "공급 없음" 축을 오염시키지 않는다.
+    assert "bracket_supplied_gate_dropped" in outcomes
+    assert "bracket_unavailable" not in outcomes
+    assert "bracket_attached" not in outcomes
+
+
+@pytest.mark.asyncio
+async def test_bracket_outcome_labels_are_mutually_exclusive_per_placement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-563 — 세 라벨의 합 = 등재 성공 수. 한 등재가 둘을 올리면 비율이 무의미해진다."""
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, positions=[_position("long", Decimal("8"))])
+    outcomes = _capture_guard_outcomes(monkeypatch)
+
+    await _reconcile(
+        session,
+        _result(
+            [
+                _pending(
+                    direction="short",
+                    target_position=Decimal("-8"),
+                    stop_price=Decimal("32"),
+                    take_profit=Decimal("16"),
+                )
+            ]
+        ),
+        harness,
+    )
+
+    bracket_axis = [
+        outcome
+        for outcome in outcomes
+        if outcome in ("bracket_attached", "bracket_unavailable", "bracket_supplied_gate_dropped")
+    ]
+    assert bracket_axis == ["bracket_supplied_gate_dropped"]
+    assert outcomes.count("conditional_placed") == len(bracket_axis)
 
 
 @pytest.mark.asyncio
