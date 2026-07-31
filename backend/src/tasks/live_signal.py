@@ -569,7 +569,7 @@ async def _detect_position_divergence(
         positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
         exchange_position = _net_position_size(positions)
     except Exception:
-        qb_live_position_divergence_total.labels(category=_PROBE_FAILED).inc()
+        _count_safely(qb_live_position_divergence_total, category=_PROBE_FAILED)
         logger.warning(
             "live_signal_position_divergence_probe_failed",
             exc_info=True,
@@ -626,6 +626,12 @@ async def _subclassify_engine_only_divergence(
     순수 `_classify_position_divergence`에는 DB 의존성을 넣지 않는다. gap-resync도 같은
     순수 분류기를 쓰므로, 이 조회는 라이브 tick에서 `engine_only`가 나온 경우에만 한다.
     조회 불가는 유령으로도 정상 대기로도 접지 않고 기존 잔여 라벨을 보존한다.
+
+    ★보장 범위를 정직하게 적는다 — 이 `except` 가 막는 것은 **이 함수가 예외를 위로
+    던지는 것**뿐이다. `session` 을 rollback 하지 않으므로, 실패가 asyncpg 트랜잭션을
+    abort 시킨 종류라면 **같은 tick 의 이후 DB 작업이 이어서 실패한다.** 즉 "세션이
+    안 죽는다" 를 여기서 보장하지는 못한다. 같은 파일 `list_fills_since`(`:2168`)의
+    선재 관용구와 같으며, 고치려면 두 자리를 함께 봐야 한다.
     """
     from src.trading.services.conditional_entry_planner import parse_conditional_entry_key
 
@@ -2472,7 +2478,7 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 )
                 if direction_mismatch_seen and not direction_mismatch_persisted:
                     # 첫 관측 — 다음 평가까지 유예한다. 플래그는 아래 upsert 로 넘어간다.
-                    qb_live_position_divergence_total.labels(category="direction_transient").inc()
+                    _count_safely(qb_live_position_divergence_total, category="direction_transient")
                 if direction_mismatch_persisted:
                     rows = await sess_repo.deactivate(
                         sess.id, at=datetime.now(UTC), reason="position_divergence"
@@ -2505,7 +2511,15 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 ):
                     # 죽이지는 않는다 — 크기를 재서 BL-522 설계 입력으로 삼는다.
                     # 차단 counter 와 분리한다(페이징 계약이 다르다).
-                    qb_live_position_divergence_total.labels(category=divergence_category).inc()
+                    #
+                    # ★`_count_safely` 로 감싼다. 이 자리는 `try_claim_bar` **뒤** · 단일
+                    # commit **앞**이라, 여기서 던지면 claim 이 rollback 되고 다음 tick 이
+                    # 같은 bar 를 다시 평가해 **매-tick 크래시 루프**가 된다. 그리고
+                    # `divergence_category` 는 이제 런타임에 **새 child series 를 만들 수
+                    # 있다**(engine_only 3분화) — multiprocess 모드에서 새 라벨 조합은 그
+                    # 시점에 mmap 파일을 늘리므로 디스크 full·권한 오류로 던질 수 있다.
+                    # 관측 전용 경로가 머니-패스를 멈추면 안 된다.
+                    _count_safely(qb_live_position_divergence_total, category=divergence_category)
 
             for entry_skip in result.entry_skips:
                 reason = entry_skip.get("reason")

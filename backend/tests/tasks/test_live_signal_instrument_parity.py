@@ -709,6 +709,77 @@ class TestEngineOnlySubclassification:
         assert _position_counter(counter_category) == before + 1
         order_repo.list_resting_conditional_entries.assert_not_awaited()
 
+    @pytest.mark.asyncio
+    async def test_aligned_positions_never_read_the_order_ledger(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """★**발산이 아예 없는** tick 에서도 원장을 읽지 않는다.
+
+        이 케이스가 없으면 가드를 `category in ("engine_only", None)` 으로 넓혀도 위
+        파라미터화는 전부 초록이다 — 즉 "`engine_only` 일 때만 읽는다" 를 아무도
+        지키지 않는다. 그리고 모든 tick 의 절대다수가 바로 이 상태라, 여기서 새는
+        읽기는 예외 상황 비용이 아니라 **상시 비용**이다.
+        """
+        session_obj = _build_session_obj()
+        warning_spy = MagicMock()
+        monkeypatch.setattr(live_signal_module.logger, "warning", warning_spy)
+
+        result, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("0.029"),
+            exchange_positions=[SimpleNamespace(side="long", size=Decimal("0.029"))],
+        )
+
+        assert "deactivated" not in result
+        order_repo.list_resting_conditional_entries.assert_not_awaited()
+        # ★발산이 없었다는 것을 직접 본다. 이게 없으면 "안 읽었다" 가 "engine_only
+        # 였는데 읽기를 빠뜨렸다" 와 구별되지 않아 가드가 아니라 우연이 된다.
+        assert not [
+            call
+            for call in warning_spy.call_args_list
+            if call.args and call.args[0] == "live_signal_position_divergence"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_new_label_allocation_failure_never_stops_the_evaluation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """★`.labels()` 자체가 던져도 평가가 살아남는다.
+
+        분화가 이 counter 에 **런타임에 새 child series 를 만드는** 지점을 늘렸다.
+        multiprocess 모드에서 새 라벨 조합은 그 시점에 mmap 파일을 늘리므로 디스크
+        full · 권한 오류로 던질 수 있다. 이 호출은 `try_claim_bar` **뒤** · 단일 commit
+        **앞**이라, 새어 나가면 claim 이 rollback 되고 다음 tick 이 같은 bar 를 다시
+        평가해 **매-tick 크래시 루프**가 된다.
+
+        ★`_position_counter()` 로 미리 child 를 만들어 두면 이 실패 모드는 **재현되지
+        않는다**(이미 할당된 series 는 `.labels()` 가 다시 늘리지 않는다). 그래서
+        여기서는 스냅샷을 찍지 않고 `.labels` 를 통째로 던지게 만든다.
+        """
+        import src.common.metrics as metrics_module
+
+        def _boom(**_labels: str) -> object:
+            raise OSError("No space left on device")
+
+        monkeypatch.setattr(metrics_module.qb_live_position_divergence_total, "labels", _boom)
+        before_failures = metrics_module.qb_metrics_mutation_failed_total._value.get()
+
+        session_obj = _build_session_obj()
+        result, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("-0.029"),
+            exchange_positions=[],
+        )
+
+        # 평가가 끝까지 갔고 세션도 죽지 않았다.
+        assert "deactivated" not in result
+        # 계측이 실패했다는 사실 자체는 남는다 — 조용히 건너뛴 것과 구별한다.
+        assert metrics_module.qb_metrics_mutation_failed_total._value.get() > before_failures
+        # 그리고 계측 실패가 분류까지 건너뛰게 만들지는 않았다.
+        order_repo.list_resting_conditional_entries.assert_awaited_once()
+
     @staticmethod
     async def _divergence_log_extra(
         monkeypatch: pytest.MonkeyPatch, *, resting: list[object] | Exception
