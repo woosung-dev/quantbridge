@@ -5853,6 +5853,32 @@ BL id 단일 키로 되돌림 → ⑤ red / (M3) 기존 중복 상태줄 탐지 
 `설정 저장` 클릭 → 네트워크에 `PUT .../settings` 없음, 화면 변화 없음.
 (대조군: 레버리지만 바꾸고 같은 버튼 → PUT 200 + 토스트.)
 
+**출처 사슬 (2026-08-01, 원장 · git 대조).** 이 필드가 어디서 왔고 왜 세 회차를 살아남았는지.
+
+- 탈락 필드 `max_trigger_breach_pct` 는 **PR #493**(2026-07-28 live-entry-parity, 커밋
+  `274dc645`)에서 BE 에 들어온 **nullable 설정 필드**다. `git log -S` 로 이 커밋이 도입 커밋임을 확인했다.
+- **원장 실측** — `public.strategies(0d94167b).settings` 에 `"max_trigger_breach_pct": null` 로
+  저장돼 있다(같은 JSONB 에 `fill_timing: "bar_close"` · `max_reversal_overshoot_ratio: null`).
+- **사슬** — null 저장 → 폼 초기 DOM 값이 `""` → `setValueAs`(`tab-metadata.tsx:218-220`)는
+  **change 이벤트에서만** 적용 → `schemas.ts:52` 의
+  `z.number().gt(0).nullable().optional().default(null)` 가 `""` 를 거부 → `handleSubmit` 차단 →
+  errors 미렌더 → **조용한 죽음.**
+
+★**세 회차 동안 안 보였던 이유 — GET 은 멀쩡하고 「편집 후 저장」도 멀쩡하다.**
+**무편집 저장을 실제로 눌러본 적이 없었다.** 직전 회차가 FE `.strict()` 파손을 잡았을 때도
+이 경로는 지나가지 않았다. 「읽기 정상 + 편집 후 쓰기 정상」이 「쓰기 정상」의 증거가 아니다.
+
+★**형제 필드가 원인을 좁힌다(코드 대조, 실측 아님).** `max_reversal_overshoot_ratio` 는
+zod 모양이 **완전히 같고**(`schemas.ts:56`) 원장에도 똑같이 `null` 인데, **폼에 입력칸이 없다**
+(`tab-metadata.tsx:52` 의 `defaultValues` 에만 있고 `register` 사이트가 없다). 그래서 RHF 값이
+`null` 로 남아 스키마를 통과한다 ⇒ **null 저장 자체나 zod 정의가 범인이 아니라, 입력칸 ·
+`setValueAs` 이음매가 범인**이라는 쪽으로 좁혀진다. 판별식을 짤 때 이 둘을 나란히 찍어라.
+
+⇒ ★**교훈: nullable BE 설정 필드를 추가하면 FE 폼의 초기값 정규화도 같은 PR 에서 해야 한다.**
+`schemas.ts` 를 맞추는 것(기존 규칙)만으로는 부족하다 — 그건 **파싱**을 맞추는 것이고,
+여기서 깨진 것은 **폼 초기값**이다. `docs/reference/gates-and-traps.md` §「신규 BE 필드는 FE
+`.strict()` 스키마와 항상 대조해라」에 이 줄을 덧붙였다.
+
 **권장 접근:** ★**먼저 재라 — 기전은 [가정]이고 미확정이다.**
 
 **[가정]** 빈 `max_trigger_breach_pct` number 입력이 초기 RHF 값에 `""` 로 남아
