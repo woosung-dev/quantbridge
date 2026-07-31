@@ -200,6 +200,48 @@ cd $QB/frontend && pnpm e2e:authed
   (`qb_live_conditional_placed_total` PR #489 / `qb_live_conditional_guard_total` PR #493, **하루 차**).
   **차분에서는 정확히 일치한다.** 절대값을 나란히 놓는 순간 그 표는 거짓말한다.
 
+### 측정 도구가 먼저 틀린다 (2026-07-30 close-mismatch-soak — 또 **2번**)
+
+> ★**0 이든 큰 수든, 숫자를 보면 계측기를 먼저 의심해라.** 이 레포에서 **7번째**다.
+
+- ★★★**JOIN 이 카운트를 조용히 뻥튀긴다.** soak 감시가 `same_side=14` 로 보고했으나 실제는 **1건**이었다.
+  `orders JOIN live_signal_sessions ON exchange_account_id` 이 그 계정의 **세션 14개만큼 행을 곱했다**.
+  사전등록 판정(V3)을 **오판할 뻔했다**. → **집계 쿼리에 JOIN 을 넣기 전에 `count(*)` 를 JOIN 없이 한 번 재라.**
+- ★★**정규화 함수 프로브는 그 함수가 받는 **실제 형태**로 넣어라.** `_normalize_exchange_order_response_reason`
+  에 산문(`"bybit 110017 reduce-only ... same side"`)을 넣어 3건 전부 `unparsed` 가 나왔고 "배선이 죽었다" 로
+  읽힐 뻔했다. 실제 패턴은 `"retCode"\s*:\s*(\d+)` — **호출부가 넘기는 것은 `str(e)` 의 JSON 본문**이다.
+- ★★**`prometheus_client` 는 첫 `.labels()` 증가 전까지 child series 를 만들지 않는다.** 그래서
+  "신규 라벨이 `/metrics` 에 **샘플과 함께** 보일 것" 같은 사전등록 문턱은 **발화 전에는 구조적으로 충족 불가**다
+  (재기동해도 안 뜬다). → 문턱은 **코드 sentinel(러닝 워커 안에서 import 해 호출)** 과 **사후 발화** 로 갈라 써라.
+- ★**before 스냅샷에 그 series 가 없으면 `after - 0` 은 차분이 아니라 절대값이다.** 리포트에 그 사실을 적어라.
+
+### 게이트가 "돌렸다" 만 보증한다 (2026-07-30)
+
+- ★★**`final-gates.sh` 는 exit code 만 기록한다 — 테스트 개수를 찍지 않는다.** 스크립트 자신이 마지막 줄에
+  그렇게 경고한다. **baseline 대조는 사람이 따로 해야 한다**(이번에 문서의 `FE 1231` 이 stale 이었고
+  main 을 직접 재보니 **1232** 였다). **baseline 은 언제나 대조 대상이다.**
+- ★★**`pnpm e2e`(chromium 4건)는 게이트 체인 밖이 맞다.** 게이트가 도는 것은
+  `chromium-design-canon` · `chromium-authed` 라는 **다른 프로젝트**다. 게이트 로그에 `e2e ... PASS` 가
+  보인다고 BL-556 의 수동 1회가 면제되지 않는다.
+- ★**`pnpm test --run` 은 Unknown option.** 이 레포는 `pnpm test`(= `vitest run`).
+- ★**`EXIT=$?` 를 파이프 뒤에 쓰면 마지막 명령(`tail`)의 종료코드를 읽는다.** `bl-audit.sh` 를 exit 0 으로
+  오판할 뻔했다. 종료코드가 판정인 스크립트는 **파이프 없이** 돌리고 그 다음 줄에서 `$?` 를 읽어라.
+- ★**`git merge-tree` 는 커밋을 받는다.** 트리 해시를 넘기면 거짓 충돌처럼 보인다.
+  브랜치 2개가 각각 main 에 clean 하고 **변경 파일 집합이 disjoint** 면 순차 머지도 clean 이다.
+
+### 신규 BE 필드는 FE `.strict()` 스키마와 **항상** 대조해라 (2026-07-30, codex 적대 리뷰 MAJOR)
+
+> ★★★**읽기 경로가 정상인 것은 쓰기 경로가 정상이라는 증거가 아니다.**
+
+`StrategySettings` 에 필드를 추가하면 BE 가 그것을 **`default=None` 으로 emit** 하고
+`strategy/service.py` 의 `update_settings` 가 `settings.model_dump()` 를 **그대로 JSONB 에 저장**한다.
+FE `StrategySettingsSchema` 는 `.strict()` 라 모르는 키에서 **파싱이 실패**한다
+⇒ **설정을 한 번만 저장해도 그 전략의 FE 파싱이 영구히 깨진다.**
+
+★**GET 응답에는 그 키가 없어서**(BE 가 DB JSONB 를 그대로 돌려준다) **화면을 3개 돌아도 안 잡힌다.**
+저장 경로에서만 터진다. 실제로 워커·평가자 둘 다 "동작 영향 없음" 으로 오판했고 codex 가 잡았다.
+→ **BE 설정 스키마에 필드를 더하면 같은 PR 에서 `frontend/src/features/strategy/schemas.ts` 를 고쳐라.**
+
 ### 측정 도구가 먼저 틀린다 (2026-07-28)
 
 - ★★**`/metrics` 가 HELP/TYPE 만 보이고 샘플이 없으면 백엔드를 재기동해라.** `PROMETHEUS_MULTIPROC_DIR` 배선 **이전에** 뜬 프로세스는 단일 프로세스 모드라 **자기 값만** 노출한다. 그 상태에서 관측한 worker metric 처럼 보이는 값들이 사실은 API 프로세스 자신의 것일 수 있다.
