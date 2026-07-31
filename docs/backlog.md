@@ -7,7 +7,7 @@
 **작성일:** 2026-04-30
 **최종 갱신:** 2026-07-26 (**dogfood-restore 스프린트** — 로컬 실사용 복원 + 3스프린트 누적 신뢰 작업 실화면 검증. **BL-465/467 Resolved** + 신규 **BL-466/468~472/474** + **BL-473 Resolved**(WS auth `expires` 창 — 라이브 체결 스트리밍이 통째로 죽어 있었다). ★**dogfood 가 P1 을 잡았다** — `_periodic_returns` 가 음수 자본을 안 걸러 파산한 실행에 **양수 샤프**가 붙었고(실측 -2179.68% 에 +0.029), **committed Trust Layer baseline 이 그걸 담고 있었다**(s1_pbr 샤프 +0.600 · 소르티노 +2.349 on -536%). 코퍼스 5종 중 4종이 음수 자본이고 골든이 깨진 것도 정확히 그 4종. baseline 재생성 diff = 12 메트릭 키 중 2개 한정. ★**옵티마이저는 이 스택에서 구조적으로 죽어 있었다** — `optimizer_heavy` 유일 소비자에 OHLCV env 3종 부재. ★**`make seed` 신설** — 백테스트 1회가 곧 OHLCV 시딩(TimescaleProvider cache-first). 마이그레이션 0.) // 이전: 2026-07-26 (**money-path-finish 스프린트** — BL-457/454 Resolved + BL-458 부분 Resolved + **신규 BL-464**. 머니-패스 정확도 마감 팩. ★**실측이 BL-457 의 '권장 접근' 을 반박** — `attribution_facts` 재사용은 진짜 우리 청산을 external 로 뒤집는다(백로그 본문에서 제자리 정정). ★**백로그에 없던 결함 발견(BL-464)** — `attribute_exit` 이 거래소 원문↔canonical 심볼을 비교해 `inferred` 귀속이 구조적으로 죽어 있었고, **픽스처 기본값이 그걸 한 스프린트 동안 가렸다**. ★`format:check` 는 이 레포의 통과 가능 게이트가 아님을 실측 확인(선재 356 red). 마이그레이션 0.) // 이전: 2026-07-25 (**exit-money-path 스프린트** — BL-444/445 Resolved + BL-453 부분 Resolved + 신규 BL-454~458. 세션 스코프 머니-패스 정정(Site 3·4). ★§0.5 실측이 BL-438 ② 를 "미룸" 이 아니라 **"현재 데이터로는 정직하게 구현 불가"** 로 재분류 — bracket/trailing 0행 · matched/attributed 0행. ★대조군 판별력을 프로덕션 stash 로 실제 증명. ★active BL 카운트 산식을 헤더에 박아 stale 재발 차단.) // 이전: 2026-07-25 (**exit-attribution 스프린트 + 범위 축소 + dogfood 완주** — BL-438 부분 Resolved(관측 원장, **최근 7일**) + BL-442 Resolved + 신규 BL-443~453. 거래소 청산 원장 신설 + 스윕 계정 독립 열거. ★과거 90일 catch-up 기계장치는 머지 전 축소로 걷어냄 → BL-452. ★로컬 개발 DB 전소 사고 → BL-451 가드. ★dogfood 실측이 알림 크래시 진짜 P1 을 적발·수정 → BL-453 예방 등재.) // 이전: 2026-07-25 (**close-completeness 스프린트** — BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연). 청산 즉시 flat + margin 503 회피 + 완전 TP/SL 보고.) // 이전: trading-surface-pack — BL-431/416/425/432/433 Resolved + BL-434~436.
 **직전 갱신:** 2026-07-24 (**trading-surface-pack 스프린트** — BL-431/416/425/432/433 Resolved + 신규 BL-434~436. 코크핏 §03 TP/SL 열 + reduce-only 시장가 청산 완성.)
-**현재 상태:** **ACTIVE 143 · PARTIAL 4 · RESOLVED 57 · UNKNOWN 17 / 전체 221 항목** — P별 ACTIVE = **P0 1 · P1 7 · P2 56 · P3 79** (2026-07-30 `scripts/bl-audit.sh` 실측). **BL-070~075 milestone active 승격** (deferred → P0 prep).
+**현재 상태:** **ACTIVE 147 · PARTIAL 7 · RESOLVED 67 · UNKNOWN 0 / 전체 221 항목** — P별 ACTIVE = **P0 1 · P1 9 · P2 56 · P3 81** (2026-07-31 `scripts/bl-audit.sh` 실측 · exit 0). **BL-070~075 milestone active 승격** (deferred → P0 prep).
 
 > ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 했고, 그 다음 표기 "86 active / 전체 135" 도 실측(217 섹션)과 어긋나 있었다. **산식은 이제 문서 주석이 아니라 스크립트다:**
 >
@@ -223,6 +223,8 @@
 ---
 
 ### BL-026
+
+**상태:** 🟡 **열려 있다** — 본 섹션 `**Trigger:**` 줄의 ✅ 는 _Stage 2c 2차 fixture 활성화_(2026-04-23 완료)를 가리키고, 이 BL 자신은 같은 줄이 명시하듯 **"회귀 PR 생성 필요"** 상태다. 근거: 본 섹션 Trigger/권장 접근 줄 · `docs/roadmap.md:168` `- [ ] **BL-026**`.
 
 **Title:** Mutation fixture 활성화 회귀 검토 (skip #4-7, #9-15)
 **Category:** Trust Layer / Test infra
@@ -650,7 +652,7 @@
 
 | ID                | 제목                                                                                                                                                              | Trigger                                                                        | Est          | 출처                                                   |
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------ | ------------------------------------------------------ |
-| [BL-186](#bl-186) | Full leverage + funding + mm + liquidation 풀 모델                                                                                                                | Sprint 38+ (BL-185 foundation 위)                                              | M-L (16-24h) | Sprint 37 BL-185 후속                                  |
+| [BL-186](#bl-186) | 🟡 부분 Resolved (186a) — Full leverage + funding + mm + liquidation 풀 모델 (잔여 = BL-186b)                                                                     | Sprint 38+ (BL-185 foundation 위)                                              | M-L (16-24h) | Sprint 37 BL-185 후속                                  |
 | [BL-190](#bl-190) | PDF export (jsPDF / Playwright)                                                                                                                                   | 외부 사용자 요청 시                                                            | M (3-5h)     | Sprint 41 Worker H 결정                                |
 | [BL-195](#bl-195) | qb-form-slide-down animation 영구 truncation                                                                                                                      | Sprint 45 codex G.4                                                            | XS (30m)     | Sprint 45 codex G.4 발견                               |
 | [BL-235](#bl-235) | N-dim acquisition surface viz (Bayesian 전용)                                                                                                                     | Sprint 57+                                                                     | M (8-12h)    | ADR-013 §6 #8 deferred                                 |
@@ -695,7 +697,7 @@
 | [BL-532](#bl-532) | `_sum_decimals` 사본이 `PARITY_DECIMAL_CONTEXT` 밖에서 돈다 (본 레포가 방금 세운 규칙과 불일치)                                                                   | 다음 parity 손질 시                                                            | XS           | 2026-07-29 PR #496 코드리뷰                            |
 | [BL-533](#bl-533) | 종료 세션 목록이 같은 엔드포인트를 두 쿼리 키로 조회해 미러 state 를 낳는다                                                                                       | 코크핏 손질 시                                                                 | XS           | 2026-07-29 PR #496 코드리뷰                            |
 | [BL-534](#bl-534) | 외부 오라클 테스트가 27 leg Decimal 합산을 실제로 실행하지 않는다 (총계를 관측 1건에 몰아넣음)                                                                    | parity 산술을 손댈 때                                                          | XS           | 2026-07-29 PR #496 코드리뷰                            |
-| [BL-535](#bl-535) | ★백테스트는 스팟 봉으로 perp 전략을 검증한다 (라이브만 계기 정렬 — 의도된 잔여)                                                                                   | 백테스트를 라이브 판단 근거로 쓰기 전                                          | M            | 2026-07-28 live-close-completeness                     |
+| [BL-535](#bl-535) | 🟡 부분 Resolved — ★백테스트는 스팟 봉으로 perp 전략을 검증한다 (적재는 착지, 결과 차 대조 미실시)                                                                | 백테스트를 라이브 판단 근거로 쓰기 전                                          | M            | 2026-07-28 live-close-completeness                     |
 | [BL-536](#bl-536) | BL-522 진입 완결성 — 계기 정렬 후 유실 채널 5종 재측정 후 설계                                                                                                    | 실자금 cutover 전 필수                                                         | M            | 2026-07-28 live-close-completeness                     |
 | [BL-537](#bl-537) | ~~활성 세션이 없으면 고아 포지션을 앱에서 청산할 수 없다~~ **✅ Resolved 2026-07-29 — ★전제 반증**(계정 스코프는 이미 닫힌다; 진짜 결함은 "누르면 실패하는 버튼") | —                                                                              | S            | 2026-07-28 live-close-completeness                     |
 | [BL-538](#bl-538) | 발산 알림 본문이 모든 카테고리에 "전략 수정 후 재활성화" 라고 처방한다 (포지션 불일치엔 틀린 처방)                                                                | 운영 알림을 사람이 신뢰해야 할 때                                              | S            | 2026-07-29 PR #497 사후 리뷰                           |
@@ -724,6 +726,8 @@
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
 ### BL-186
+
+**상태:** 🟡 **부분 Resolved (BL-186a, 2026-07-26 backtest-trust)** — 격리 단일 tier 레버리지 모델은 착지, **잔여 = BL-186b**(cross 마진 · tier 계단 MMR · 파산수수료 · 멀티거래소 · 펀딩-청산 상호작용). 근거: 본 섹션 `**🔸 부분 Resolved (BL-186a):**` 줄 · `docs/roadmap.md:114` `[x] BL-186a` / `docs/roadmap.md:115` `[ ] BL-186b`.
 
 **Title:** Full leverage + funding rate + maintenance margin + cross/isolated margin + liquidation 풀 모델
 **Category:** 트랜잭션 / Risk / Pine v2
@@ -1043,6 +1047,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-378
 
+**상태:** ✅ **Resolved (2026-06-30, `fix/pine-378-atr-wilder`)** — 근거: 본 섹션 `**Title:**` 줄 · 헤더 스프린트 변경 기록(`docs/backlog.md:29`) · 인덱스 표 행 ✅.
+
 **Title:** pine_v2 `ta.atr` rolling SMA → Wilder RMA (TradingView parity) ✅ **Resolved (2026-06-30, `fix/pine-378-atr-wilder`)**
 **Category:** Strategy / pine_v2 (indicator 정확성)
 **Priority:** P1 (harm-class, 트리거됨)
@@ -1298,6 +1304,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 
 ### BL-401
 
+**상태:** ✅ **Resolved (2026-07-23, `stage/functional-parity`)** — 근거: 본 섹션 `**Title:**` 줄 · 헤더 스프린트 변경 기록(`docs/backlog.md:25`) · 인덱스 표 행 ✅.
+
 **Title:** optimizer 3폼(grid/bayesian/genetic) field-level zod 에러 미렌더 — 검증 실패 시 사용자 무피드백 제출 차단 → ✅ **Resolved (2026-07-23, stage/functional-parity)**
 **Category:** Frontend / optimizer 폼 UX
 **Priority:** P2
@@ -1316,6 +1324,8 @@ BL-308 묶음 PR 에 포함. CI ratchet 게이트가 registry/webhook 도 합산
 ---
 
 ### BL-402
+
+**상태:** ✅ **Resolved (2026-07-23, 구조 소멸)** — C 이식이 4사이트를 네이티브 `<select>` 로 재작성해 결함 자체가 사라졌다(실측 재확인, 코드 변경 0). 근거: 본 섹션 `**Title:**` 줄 · 헤더 스프린트 변경 기록(`docs/backlog.md:25`) · 인덱스 표 행 ✅.
 
 **Title:** optimizer 백테스트 picker `value={backtestId || undefined}` uncontrolled↔controlled 전환 콘솔 에러 + 트리거 raw UUID 노출 (BL-164 SSOT 미적용 회귀) → ✅ **Resolved (2026-07-23, 구조 소멸 — C 이식 네이티브 select 전환. 실측 재확인)**
 **Category:** Frontend / optimizer UX
@@ -1905,6 +1915,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-407
 
+**상태:** ✅ **Resolved (2026-07-13, PR #433 `stage/fe-react-audit`)** — 근거: 본 섹션 `**Title:**` 줄 + `**해소 (2026-07-13):**` 문단(실 리포트 스크린샷 육안 검증 PASS).
+
 **Title:** 백테스트 리포트 낙폭(Drawdown) 차트 Y축 눈금 전부 "-0.1%" 동일 표기 — 축 포맷터 정밀도/단위 버그 → ✅ **Resolved (2026-07-13, PR #433 stage/fe-react-audit)**
 **Category:** Frontend / backtest 리포트 차트
 **Priority:** P3
@@ -2283,6 +2295,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-411
 
+**상태:** ✅ **Resolved (2026-07-23, `stage/functional-parity`)** — 근거: 본 섹션 `**Title:**` 줄 · 헤더 스프린트 변경 기록(`docs/backlog.md:25`, "지원 kind 목록 `OptimizationKind` enum 파생").
+
 **Title:** optimizer 422 에러 메시지 stale — "Sprint 55 supports {grid_search, bayesian}" 이 genetic 활성 후에도 미지원 안내 → ✅ **Resolved (2026-07-23, stage/functional-parity — `OptimizationKind` enum 파생 + Sprint 넘버 문구 중립화)**
 **Category:** Optimizer / correctness (사용자 노출 메시지)
 **Priority:** P3
@@ -2379,6 +2393,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-417
 
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 "BL-417 drop").
+
 **Title:** `LiveSignalState.last_open_trades_snapshot` 이 실경로에서 항상 `{}` — 저장 가드가 리스트를 버림 (dead data 컬럼) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / trading live-signal
 **Priority:** P2
@@ -2394,6 +2410,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-418
 
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 "payload 계약").
+
 **Title:** realtime 이벤트 payload 계약 미강제 — publisher/manager 가 임의 dict 통과 (worker 간 계약 drift 표면) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / realtime
 **Priority:** P3
@@ -2408,6 +2426,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 ---
 
 ### BL-419
+
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 정비 팩 6종).
 
 **Title:** live_signal `result.errors` 경로의 세션 자동 비활성이 `session_state` 를 발행하지 않음 (최대 30s stale) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / realtime
@@ -2439,6 +2459,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-421
 
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 "pending 시맨틱").
+
 **Title:** 미평가 라이브 세션의 `/state` 404 무한 폴링 — 콘솔 error 도배 (정상 과도상태를 error 로 표면화) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend+Frontend / live-sessions
 **Priority:** P2
@@ -2453,6 +2475,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 ---
 
 ### BL-422
+
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 정비 팩 6종).
 
 **Title:** 알림 규칙 생성 폼이 empty 상태에서만 노출 — 세션당 2번째 규칙(watchdog 등) UI 추가 불가 + 409 경로 UI 도달 불가 → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Frontend / alert-rules UX
@@ -2644,6 +2668,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-434
 
+**상태:** 🟡 **부분 Resolved (2026-07-25 close-completeness)** — 완전 TP/SL **보고(display)** 는 착지, **청산 스윕은 [BL-437] 이연**(codex G0 2 BLOCKING). 근거: 본 섹션 `**⚠️ Partially Resolved …**` 리드인 줄 · 헤더 스프린트 변경 기록(`docs/backlog.md:23`, "BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연)").
+
 **⚠️ Partially Resolved (2026-07-25 close-completeness)** — **완전 TP/SL 보고(display) 완료**: `fetch_open_conditional_orders`(2콜 union + orderId dedupe + stopOrderType 엄격분류) → position_service 조인(source-dedup·마크근접순) → §03 병합 표시(익절/손절 리스트) + has_trailing_stop 각주. dogfood 3계통(오라클 raw ↔ 앱 provider ↔ get_reconciliation 익절 66000/손절 62000). **청산 스윕은 BL-437 이연**(codex G0 2 BLOCKING: 타이밍 accept≠fill + account+symbol 공유 세션 오취소). dogfood 실측 = Partial 조건부 TP/SL 은 Bybit flat 시 자동취소(스윕 이연 안전).
 
 **Title:** 완전 TP/SL 보고 — 포지션-부착 외 조건부(Partial-mode limit-TP) 주문 미표시 + 청산 시 미스윕
@@ -2765,6 +2791,8 @@ JOIN trading.orders ON exchange_order_id → 0 행
 ---
 
 ### BL-440
+
+**상태:** 🟡 **열려 있다** — 본 섹션의 "Resolved" 문자열은 **BL-014 를 가리키는 cross-ref**(출처 줄)이고, 이 BL 자신(`order_executions` per-execution ledger)은 **YAGNI 로 미착수**다. 근거: 본 섹션 `**권장 접근:**` 줄("실제 분석 수요가 생기기 전에는 만들지 않는다") · `docs/roadmap.md:262` `- [ ] **BL-440**`.
 
 **Title:** per-execution ledger (`order_executions`) — BL-014 원안의 잔여
 **Category:** Backend / trading
@@ -3487,7 +3515,11 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 
 시드 전략 `s1_pbr` 은 진입 2개가 모두 `stop=` 이라(`s1_pbr.pine:7,20`) **100% 이 경로다.**
 
+<details><summary>이전 판정 (2026-07-26 live-entry-wiring — (c) 한정. 위 상태 줄이 대체했다)</summary>
+
 **상태:** ✅ **(c) Resolved (2026-07-26, `feat/live-entry-wiring`)** — 세션 시작 422 `live_stop_entry_unsupported` + evaluate preflight 자동 종료. 실화면 확인(`0e15c3c0` 이 첫 tick 30초 내 자동 종료, PbR 422 문구 + EMA 201 음성 대조). **(a) 조건부 주문 등재는 열려 있다** — (c) 는 거짓말을 멈춘 것이지 기능을 만든 것이 아니다.
+
+</details>
 
 **권장 접근:** 셋 중 택일 — (a) `PendingOrder` 를 거래소 conditional order 로 등재(`OrderRequest.trigger_price`/`trigger_direction` 이 이미 있고 `_merge_exit_params` 가 처리한다) · (b) `fill` 도 dispatch 대상에 넣어 시장가로 근사(체결가 괴리 발생, TV parity 훼손) · (c) stop-entry 전략의 라이브 세션 시작을 **명시적으로 차단**하고 이유를 화면에 표시. **최소 정직안은 (c)** — 지금은 조용히 안 되면서 되는 척한다.
 
@@ -4190,6 +4222,8 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 ### BL-535
 
+**상태:** 🟡 **부분 Resolved (2026-07-30, PR #503 engine-exchange-alignment)** — 적재 경로는 실주행 확인(perp `BTC/USDT:USDT` 721행 신규 · 스팟 9337 불변), **스팟/perp 결과 차 대조는 미실시**. 근거: 본 섹션 「★실주행 검증」 마지막 문단("Resolved 가 아니라 **부분 완료**로 둔다") · `docs/dev-log/INDEX.md:21` ("BL-535 부분", "잔여 = 스팟/perp 결과 차 대조 미실시").
+
 **Title:** ★**백테스트는 스팟 봉으로 perp 전략을 검증한다** — 라이브만 계기를 맞춰 두 축이 갈렸다
 **Category:** Backend / market_data
 **Priority:** **P1**
@@ -4231,6 +4265,8 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 ---
 
 ### BL-536
+
+**상태:** 🟡 **열려 있다** — 2026-07-30 close-mismatch-visibility 에서 「축소」 판정이 **철회**됐고(C2 는 유실 채널이 아니라 청산 tick 수 — 분모가 틀렸다), 그 이전 재측정(2026-07-29)의 **「유지」가 현행 판정**이다. 근거: 본 섹션 최상단 철회 블록 + 「★재측정 완료 … 판정 **유지**」 절 · `docs/roadmap.md:158` `- [ ] **BL-536**` · `docs/status.md:379` `- [ ] **BL-536 (P1)**`.
 
 > ### ❌ **「축소」 판정 철회 (2026-07-30 close-mismatch-visibility) — 분모가 틀렸다**
 >
@@ -4426,6 +4462,8 @@ BL-530 의 분해표에서 `close_position_flat` 16 + `110017 current position i
 ---
 
 ### BL-542
+
+**상태:** 🟡 **열려 있다** — 2026-07-30 화면 실측으로 **"거짓 양성" 이 확정**됐다. 확정된 것은 *결함의 실재*이지 수리가 아니다 — 커서 문자열을 로그로 남겨 페이지가 실제로 더 있는지 보는 첫 step 이 그대로 남아 있다. 근거: 본 섹션 최상단 확정 블록 + 마지막 `★증거는 n=1 이다` 줄 · `docs/roadmap.md:162` `- [ ] **BL-542**` · `docs/status.md:215`.
 
 > ### ✅ **거짓 양성 확정 (2026-07-30 live-entry-completeness, 화면 실측)**
 >
