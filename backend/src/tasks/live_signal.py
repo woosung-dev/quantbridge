@@ -1034,6 +1034,11 @@ async def _reconcile_conditional_entries(
                     and divergence.get("had_resting") is True
                 ):
                     qb_live_conditional_guard_total.labels(outcome="breach_with_resting").inc()
+                # BL-561 — `backend/src` 에서 `extra=` 에 dict 를 unpack 하는 **유일한**
+                # 자리다. 계획기가 `name`/`module` 같은 LogRecord 예약 키를 추가하면
+                # stdlib `makeRecord` 가 KeyError 를 던져 **이 로그 줄이 예외로 바뀐다.**
+                # 그 닫힘은 `tests/common/test_logging_config.py` 의
+                # `test_only_dynamic_extra_site_cannot_produce_reserved_keys` 가 지킨다.
                 logger.warning(
                     "live_conditional_reconcile_divergence",
                     extra={"session_id": str(sess.id), **divergence},

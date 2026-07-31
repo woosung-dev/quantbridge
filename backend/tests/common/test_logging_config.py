@@ -11,14 +11,17 @@ soak 2026-07-30 의 실측 라인이 이랬다::
 
 from __future__ import annotations
 
+import ast
 import io
 import logging
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
+import src as src_module
 from src.common import logging_config
 from src.common.logging_config import (
     KeyValueFormatter,
@@ -97,17 +100,67 @@ def test_reserved_attributes_are_not_emitted_as_extras():
         assert reserved not in out
 
 
-def test_reserved_name_collision_does_not_crash():
-    """LogRecord factory 등이 예약 이름을 덮어써도 포매터는 살아 있어야 한다.
+def test_reserved_key_in_extra_raises_from_stdlib_not_from_us():
+    """★실제 `logger.warning(..., extra=...)` 경로로 **진짜 동작**을 단언한다.
 
-    ★stdlib `Logger.makeRecord` 는 `extra` 에 예약 키가 오면 KeyError 를 던진다.
-    그래서 여기서는 record `__dict__` 를 직접 오염시켜 그 뒤 경로만 검증한다.
+    앞선 판본은 `record.__dict__` 를 직접 오염시켜 `Logger.makeRecord` 를 우회했다.
+    그래서 "예약 키가 와도 안 죽는다" 고 주장하면서 실제로는 확인하지 않았다 — 거짓 그린.
+
+    실제 동작은 **죽는다**: stdlib `makeRecord` 가 우리 포매터에 닿기 전에 KeyError 를
+    던진다. 우리가 고를 수 있는 동작이 아니라 stdlib 계약이다. 우회 가드를 넣지 않기로
+    한 근거는 `test_only_dynamic_extra_site_cannot_produce_reserved_keys` 가 지킨다.
     """
-    out = _format("evt", {"message": "덮어쓰기", "asctime": "X", "taskName": "T", "real": 1})
-    assert "evt" in out
-    # 예약 이름은 extras 로 새지 않고, 진짜 extra 만 남는다.
-    assert "real=1" in out
-    assert "taskName=" not in out
+    logger = logging.getLogger("tests.bl561.reserved")
+    logger.handlers = [logging.NullHandler()]
+    logger.propagate = False
+    try:
+        with pytest.raises(KeyError, match="Attempt to overwrite 'message' in LogRecord"):
+            logger.warning("evt", extra={"message": "collision"})
+        # 예약 키가 아니면 같은 경로가 멀쩡히 지나간다 (KeyError 가 키 무관 상시 발생이 아님).
+        logger.warning("evt", extra={"real": 1})
+    finally:
+        logger.handlers = []
+
+
+def test_only_dynamic_extra_site_cannot_produce_reserved_keys():
+    """`extra={..., **divergence}` (`tasks/live_signal.py:1039`) 가 예약 키를 만들 수 있는가.
+
+    ★`backend/src` 전체에서 `extra=` 에 dict 를 unpack 하는 곳은 이 **한 자리뿐**이고,
+    그 dict 는 `conditional_entry_planner.plan_reconcile` 이 만든다. 거기서 append 되는
+    dict 는 전부 **리터럴 키**라 키 집합이 닫혀 있다 — 그래서 sanitize 가드를 넣지 않았다.
+
+    이 테스트가 그 닫힘을 고정한다. 계획기가 `name` / `module` 같은 키를 새로 추가하면
+    여기서 실패한다 (그때 비로소 가드가 필요해진다).
+    """
+    planner = Path(src_module.__file__).parent / "trading/services/conditional_entry_planner.py"
+    tree = ast.parse(planner.read_text(encoding="utf-8"))
+
+    keys: set[str] = set()
+    dynamic: list[str] = []
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "append"
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "divergences"
+        ):
+            continue
+        for arg in node.args:
+            if not isinstance(arg, ast.Dict):
+                dynamic.append(f"non-literal dict: {type(arg).__name__}")
+                continue
+            for key in arg.keys:
+                if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                    keys.add(key.value)
+                else:
+                    # `{**other}` 는 key 가 None 이다 — 키 집합이 열린다.
+                    dynamic.append(ast.dump(key) if key is not None else "**unpack")
+
+    assert keys, "divergence dict 리터럴을 하나도 못 찾았다 — 계획기 구조가 바뀌었다"
+    assert not dynamic, f"divergence 키 집합이 더 이상 닫혀 있지 않다: {dynamic}"
+    collisions = keys & logging_config._RESERVED_ATTRS
+    assert not collisions, f"divergence 키가 LogRecord 예약 속성과 충돌한다: {sorted(collisions)}"
 
 
 def test_unsafe_key_characters_are_sanitised():
@@ -251,16 +304,35 @@ def test_main_module_import_configures_logging():
     assert logging_config.is_configured(), "src.main import 가 로깅을 세우지 않았다"
 
 
-def test_celery_setup_logging_signal_is_connected():
-    """★표적 변이: celery `setup_logging` 배선을 걷어내면 실패한다.
+def test_celery_setup_logging_signal_installs_formatter(_restore_root_logging: None):
+    """★celery worker 기동과 **같은 경로**로 시그널을 발화시켜 결과를 단언한다.
 
-    receiver 가 없으면 celery 가 root 를 hijack 하고 `extra` 가 다시 전량 소실된다.
+    앞선 판본은 receiver 가 하나라도 있는지만 봤다 — callback 을 no-op 으로 바꿔도
+    통과하는 거짓 그린이었다. 여기서는 celery 가 `Logging.setup_logging_subsystem`
+    에서 보내는 것과 같은 인자로 직접 `send()` 하고, root 에 우리 포매터가 실제로
+    설치됐는지 본다.
+
+    ★표적 변이 2종이 모두 여기서 잡힌다 — `@setup_logging.connect` 제거(=receiver 0)
+    와 `_configure_worker_logging` 을 `pass` 로 비우기(=포매터 미설치).
     """
     from celery.signals import setup_logging
 
     import src.tasks.celery_app  # noqa: F401  (import 부수효과로 시그널이 연결된다)
 
-    assert setup_logging.receivers, "celery setup_logging 에 receiver 가 없다 → root hijack 부활"
+    root = logging.getLogger()
+    root.handlers = []
+    # 이미 설정된 프로세스에선 `configure_logging()` 이 조기 반환한다 — worker 기동
+    # 시점(미설정)을 재현하려면 되돌려야 한다. 픽스처가 원상 복구한다.
+    logging_config._configured = False
+
+    receivers = setup_logging.send(
+        sender=None, loglevel=logging.INFO, logfile=None, format=None, colorize=None
+    )
+
+    assert receivers, "celery setup_logging 에 receiver 가 없다 → root hijack 부활"
+    assert any(isinstance(h.formatter, KeyValueFormatter) for h in root.handlers), (
+        "시그널은 붙었는데 callback 이 포매터를 세우지 않았다"
+    )
 
 
 # --- 6. 레벨 ---------------------------------------------------------------------------

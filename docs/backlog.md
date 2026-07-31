@@ -5159,12 +5159,31 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
 (`logging.lastResort` 로 낙하). 원 보고서는 worker 만 지목했으나 API 쪽이 더 나빴다.
 
 ★caplog 회귀 방어: root 에만 핸들러를 붙이고 개별 로거 `propagate` 를 건드리지 않는다
-(`disable_existing_loggers: False`). BE 전체 스위트 **3659 → 3676 passed / skipped 46 동일** —
-증가분 17 은 신규 테스트 파일 그대로다. **기존 테스트는 한 건도 상태가 바뀌지 않았다**
+(`disable_existing_loggers: False`). BE 전체 스위트 **3659 → 3677 passed / skipped 46 동일** —
+증가분 18 은 신규 테스트 파일 그대로다. **기존 테스트는 한 건도 상태가 바뀌지 않았다**
 (caplog 사용 13파일 포함).
 
 ★표적 변이 3/3 — (a) 포매터를 stdlib `logging.Formatter` 로 되돌림 → 2건 실패,
 (b) `main.py` 의 `configure_logging()` 제거 → 1건 실패, (c) celery `setup_logging` 연결 해제 → 1건 실패.
+
+**codex 적대 리뷰 반영 (2026-07-31).** 3건 모두 처리. 남은 것 없음.
+
+- ★**예약 키가 `extra=` 로 오면 로그 줄이 예외가 된다** — 우리 포매터가 아니라 stdlib
+  `Logger.makeRecord` 가 `KeyError: Attempt to overwrite 'message' in LogRecord` 를 던진다.
+  **가드를 넣지 않기로 했다.** 근거: `backend/src` 에서 `extra=` 에 dict 를 unpack 하는 곳은
+  `tasks/live_signal.py:1039` **한 자리뿐**이고, 그 dict 는 `conditional_entry_planner` 의
+  리터럴 키 16종(`reason`/`trade_id`/`stop_price` …)으로 **닫혀 있으며 예약 속성과 교집합이 없다.**
+  그 닫힘은 `test_only_dynamic_extra_site_cannot_produce_reserved_keys` 가 AST 로 고정한다 —
+  계획기가 `name` 같은 키를 추가하면 실패한다(변이 확인 완료). 호출부 주석도 남겼다.
+  ★직전 테스트는 `record.__dict__` 를 직접 오염시켜 `makeRecord` 를 **우회**하면서
+  "안 죽는다" 고 주장했다 — 거짓 그린이었다. 실제 경로로 바꿔 **죽는다는 사실**을 단언한다.
+- ★celery 배선 테스트가 receiver 존재만 봤다 → callback 을 `pass` 로 비워도 통과했다.
+  이제 `setup_logging.send(...)` 로 **worker 기동과 같은 경로**를 실제로 발화시켜 root 에
+  포매터가 설치되는지 단언한다. 변이 2종(`pass` 로 비우기 / 데코레이터 제거) 모두 실패 확인.
+- ★`LOG_LEVEL` 이 worker 컨테이너에 **전달되지 않고 있었다**. `docker-compose.yml` 의 4개
+  celery 서비스(worker/ws-stream/optimizer-heavy/beat)에 주입 + 루트 `.env.example` 선언 추가.
+  `docker-compose.isolated.yml` 은 ports/command/volumes 만 override 하고 `environment` 는
+  상속하므로 **수정 불필요**(`docker compose config` 병합 렌더로 4/4 전달 확인).
 
 **Risk:** 🟡 (진단 불가가 다른 P1 을 막는다)
 
