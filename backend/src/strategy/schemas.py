@@ -120,6 +120,9 @@ class StrategySettings(BaseModel):
     max_trigger_breach_pct: float | None = Field(default=None, gt=0)
     # BL-516 안 3 — 부호가 교차하는 조건부 진입(청산+진입이 주문 1건으로 합쳐지는 반전)의
     # `주문수량 / |목표 포지션|` 상한. 기본 None = 비활성 = 기존 동작 그대로.
+    # ★BL-562 — **등재 시점 근사**다. 조건부 주문 등재 순간의 포지션으로만 평가하고
+    # 트리거까지 재평가하지 않는다(그 시점엔 주문이 이미 거래소에 있어 크기를 못 바꾼다).
+    # 켜기 전에 BL-562 를 읽어라 — 근사임을 모르고 쓰면 "체결 시 반전 크기 보장"으로 읽힌다.
     max_reversal_overshoot_ratio: float | None = Field(default=None, gt=0)
     fill_timing: Literal["bar_close", "next_bar_open"] = "bar_close"
 

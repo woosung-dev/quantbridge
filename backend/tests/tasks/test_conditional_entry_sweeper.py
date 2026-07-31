@@ -249,6 +249,14 @@ async def test_sweeper_uses_conditional_probe_after_cancel_failure(
     closed_pnl = MagicMock()
     monkeypatch.setattr(trading_module, "_enqueue_trailing_if_intended", trailing)
     monkeypatch.setattr(trading_module, "_enqueue_closed_pnl_refresh", closed_pnl)
+    # BL-562 — 반전 계측 helper 는 **가짜로 덮지 않는다**. helper 의 조건부-진입 게이트를
+    # 실제로 지나야 `hook_order` 의 key 누락(= 이 경로 조용히 미계측)이 드러난다.
+    reversal_enqueued: list[dict] = []
+    monkeypatch.setattr(
+        trading_module.measure_conditional_reversal_task,
+        "apply_async",
+        lambda **kw: reversal_enqueued.append(kw),
+    )
     _patch_sweeper(monkeypatch, db_session, _Provider)
     filled_metric = qb_live_conditional_sweep_filled_total
     before = filled_metric._value.get()
@@ -262,6 +270,7 @@ async def test_sweeper_uses_conditional_probe_after_cancel_failure(
     assert filled_metric._value.get() == before + 1
     trailing.assert_called_once()
     closed_pnl.assert_called_once()
+    assert [kw["args"] for kw in reversal_enqueued] == [[str(orphan.id)]]
 
 
 @pytest.mark.asyncio

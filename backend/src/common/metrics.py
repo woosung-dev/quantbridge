@@ -23,6 +23,7 @@
 - qb_exchange_order_response_total  (Counter, labels: exchange, outcome, reason) ← BL-512
 - qb_live_conditional_guard_total   (Counter, labels: outcome)          ← BL-512
 - qb_live_conditional_reversal_total (Counter, labels: bucket)          ← BL-516
+- qb_live_conditional_reversal_filled_total (Counter, labels: bucket)   ← BL-562
 
 원칙:
 - `PROMETHEUS_MULTIPROC_DIR` 설정 시 shared multiprocess registry, 미설정 시 기본 `REGISTRY`.
@@ -39,8 +40,8 @@ BL-512 label cardinality:
   최대 4 x 3 x 14 = 168 series.
 - qb_live_conditional_guard_total: outcome ∈ {conditional_placed, market_converted,
   breach_capped, breach_with_resting, reference_unavailable, convert_suppressed,
-  breach_reverted, bracket_attached, bracket_unavailable, bracket_tp_dropped_size,
-  bracket_trailing_only_dropped} = 11. 최대 11 series.
+  breach_reverted, bracket_attached, bracket_unavailable, bracket_supplied_gate_dropped,
+  bracket_tp_dropped_size, bracket_trailing_only_dropped} = 12. 최대 12 series.
 
 `ccxt_timer` context manager 는 Bybit/OKX provider 에서 CCXT 호출을 감싸는 데 사용.
 """
@@ -70,12 +71,22 @@ _LIVE_CONDITIONAL_GUARD_OUTCOMES: frozenset[str] = frozenset(
         "convert_suppressed",
         "breach_reverted",
         # BL-523 — 조건부 진입에 브래킷을 실을 수 있었는가. ★`bracket_unavailable` 이
-        # 이 4종의 존재 이유다. 조건부 진입은 체결 전까지 `open_trades` 에 없고
+        # 이 5종의 존재 이유다. 조건부 진입은 체결 전까지 `open_trades` 에 없고
         # `place_exit` 는 `open_trades` 만 타깃하므로(`strategy_state.py:963`)
         # `exit_levels_for` 가 항상 `(None, None, None)` 을 준다 — 즉 배관을 깔아도
         # 실을 것이 없다. 그 "없음" 을 추측이 아니라 관측으로 만드는 것이 이 라벨이다.
+        #
+        # ★BL-563 — 이 3종은 **엔진이 공급한 원본 leg 기준**이고 상호배타다. 합은
+        #   `qb_live_conditional_placed_total`(등재 성공 수)과 같다.
+        #     bracket_attached             — 공급됐고 주문에도 실려 나갔다.
+        #     bracket_supplied_gate_dropped — 공급됐는데 게이트가 전부 드롭했다.
+        #     bracket_unavailable          — **엔진이 아예 공급하지 않았다**.
+        #   판정을 게이트 **뒤**의 `OrderRequest` 로 하면 TP-only 반전(게이트 B 가 TP 를
+        #   드롭 + SL/trailing 없음)이 "엔진이 공급 안 함" 으로 섞여 BL-523 의 판정
+        #   근거를 오염시킨다. 그래서 세 번째 라벨이 있다.
         "bracket_attached",
         "bracket_unavailable",
+        "bracket_supplied_gate_dropped",
         # TP 만 드롭(SL 유지). `_merge_exit_params` 가 `tpSize = 주문수량` 을 넣는데
         # 반전이면 주문수량 > 체결 후 포지션이라 거래소가 진입 자체를 거부한다.
         "bracket_tp_dropped_size",
@@ -442,10 +453,49 @@ qb_live_conditional_sweep_filled_total = Counter(
 #   캡(`max_reversal_overshoot_ratio`)에 막혀 등재되지 않은 반전은 여기 없다 —
 #   그쪽은 `qb_live_conditional_plan_drop_evaluations_total{reversal_overshoot_exceeds_cap}` 이다.
 #
+# ★★BL-562 — **체결된 반전 수가 아니라 등재 시점 판정이다.** 두 방향으로 어긋난다:
+#     (1) 등재는 매 tick 취소·재등재될 수 있어 한 의도가 여러 번 오른다(지속시간 신호).
+#     (2) 조건부 주문은 트리거까지 대기하므로 bucket 은 **등재 순간의 포지션**으로 잰
+#         근사다. 보통은 다음 tick 재등재가 갱신하지만, 목표와 실포지션이 같은 폭으로
+#         움직이면 갱신 없이 트리거까지 간다(`conditional_entry_planner.py:542-547`).
+#   ⇒ 이 값을 "실제로 이만큼 반전이 체결됐다" 로 읽지 마라. 체결 기준이 필요하면 원장
+#     (`trading/entry_completeness.py` 계열)을 봐라 — 이 counter 와 **합산하지 마라**.
+#
 # Cardinality: bucket ∈ {1x, 2x, 4x, 8x+} = 4 series.
 qb_live_conditional_reversal_total = Counter(
     "qb_live_conditional_reversal_total",
-    "부호가 교차하는 조건부 진입을 등재한 횟수 (overshoot 비율 버킷별)",
+    "부호가 교차하는 조건부 진입을 **등재한** 횟수 (등재 시점 근사, overshoot 버킷별)",
+    labelnames=("bucket",),
+)
+
+# BL-562 — 같은 질문을 **체결 시점의 실제 포지션**으로 다시 잰다.
+#
+# ★★위 `qb_live_conditional_reversal_total` 과 **절대 합산하지 마라. 축이 다르다.**
+#     등재 counter — "이런 반전을 등재했다". 취소·재등재로 **한 의도가 여러 번** 오르고,
+#                    등재된 뒤 트리거 전에 포지션이 움직이면 그 값은 낡는다.
+#     이 counter   — "체결된 조건부 진입 1건을 **체결 후 포지션**으로 재보니 이랬다".
+#                    fill-transition 승자 1곳에서만 예약되므로 **체결당 정확히 1회**다.
+#   ⇒ 비율이 필요하면 이 counter 안에서만 만들어라(분모 = 이 counter 의 전 버킷 합).
+#
+# bucket ∈ {1x, 2x, 4x, 8x+}  — 등재 counter 와 **같은 경계**(`_reversal_overshoot_bucket` 공유)
+#          + {not_reversal} + `unmeasured_*` 6종 = 11 series.
+#     not_reversal — 쟀고, 반전이 아니었다(같은 방향 증량 또는 flat 진입).
+#
+# ★★**못 잰 것을 한 라벨에 묻지 마라.** `unmeasured` 하나로 두면 "재보니 반전이 없었다" 와
+#   "계측기가 죽었다" 가 같은 침묵이 된다 — BL-560 이 정확히 그 병이었고, codex 2차 리뷰가
+#   이 counter 에서 같은 병을 다시 지적했다. 그래서 사유별로 가른다:
+#     unmeasured_no_position          — 포지션이 안 보인다(체결 미전파 / 체결 직후 청산).
+#     unmeasured_pre_fill_read        — 포지션 방향이 우리 체결과 반대 = **체결 전 스냅샷**.
+#     unmeasured_no_anchor            — 포지션 생성 시각 또는 `submitted_at` 결측.
+#     unmeasured_position_predates_order — 포지션이 우리 주문 발주보다 먼저 생겼다
+#                                       (= 우리 체결이 만든 포지션이 아니다).
+#     unmeasured_no_fill_qty          — 체결 수량이 없거나 비정상.
+#     unmeasured_error                — 계정/복호화/거래소 조회 실패. **인프라 신호**다.
+#   ⇒ `unmeasured_*` 합이 크면 반전이 없는 것이 아니라 **계측이 안 되고 있는 것**이다.
+#     특히 `unmeasured_error` 는 반전 분포가 아니라 장애 알림으로 읽어라.
+qb_live_conditional_reversal_filled_total = Counter(
+    "qb_live_conditional_reversal_filled_total",
+    "체결된 조건부 진입을 체결 후 실제 포지션으로 재판정한 반전 버킷 (체결당 1회)",
     labelnames=("bucket",),
 )
 

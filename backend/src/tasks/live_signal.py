@@ -737,7 +737,11 @@ async def _write_back_confirmed_terminal(
 
     `probe is None` = client-id 조회에서 주문 자체를 못 찾은 경우(스윕 전용) → cancelled.
     """
-    from src.tasks.trading import _enqueue_closed_pnl_refresh, _enqueue_trailing_if_intended
+    from src.tasks.trading import (
+        _enqueue_closed_pnl_refresh,
+        _enqueue_conditional_reversal_measure,
+        _enqueue_trailing_if_intended,
+    )
 
     if probe is None:
         rows = await order_repo.transition_to_cancelled(order_id, cancelled_at=now)
@@ -787,11 +791,19 @@ async def _write_back_confirmed_terminal(
         #   - trailing: `place_trailing_stop_task` 는 이 훅에서만 예약된다. 주기적 회수
         #     경로가 **없고**, 행은 이미 `filled` 라 다른 terminal 경로도 다시 오지 않는다
         #     → **그 주문의 트레일링은 영구 유실**이다(BL-566 로 등재).
+        #   - reversal_measure: 크기 분포 프로브라 1건 유실은 판정을 뒤집지 않는다
+        #     (BL-562 가 이미 at-least-once 를 수용한다). counter 로만 남긴다.
         #   단 삼키지 않아도 트레일링은 똑같이 유실되고 tick 까지 잃는다 — 삼키는 쪽이
         #   순수하게 낫다.
+        #
+        # ★BL-562 반전 계측이 **이 테이블에 있어야 하는** 이유: 이 헬퍼가 스윕과
+        # 리컨사일러 두 체결 확정 지점을 모두 흡수했다. 밖에서 따로 부르면 그 두 자리가
+        # 다시 갈라지고, instrument 워커가 "6곳 중 2곳이 조용히 아무 일도 안 한다" 로
+        # 잡았던 결함이 그대로 재발한다. 세 훅이 같은 실패 격리 규약을 공유한다.
         for hook_label, hook in (
             ("trailing", _enqueue_trailing_if_intended),
             ("closed_pnl", _enqueue_closed_pnl_refresh),
+            ("reversal_measure", _enqueue_conditional_reversal_measure),
         ):
             try:
                 hook(hook_order)
@@ -1163,6 +1175,11 @@ async def _reconcile_conditional_entries(
                     and divergence.get("had_resting") is True
                 ):
                     qb_live_conditional_guard_total.labels(outcome="breach_with_resting").inc()
+                # BL-561 — `backend/src` 에서 `extra=` 에 dict 를 unpack 하는 **유일한**
+                # 자리다. 계획기가 `name`/`module` 같은 LogRecord 예약 키를 추가하면
+                # stdlib `makeRecord` 가 KeyError 를 던져 **이 로그 줄이 예외로 바뀐다.**
+                # 그 닫힘은 `tests/common/test_logging_config.py` 의
+                # `test_only_dynamic_extra_site_cannot_produce_reserved_keys` 가 지킨다.
                 logger.warning(
                     "live_conditional_reconcile_divergence",
                     extra={"session_id": str(sess.id), **divergence},
@@ -1410,6 +1427,11 @@ async def _reconcile_conditional_entries(
                     # 반전 주문은 주문수량 > 체결 후 포지션이라 거래소가 **진입 자체를**
                     # 거부한다. TP 만 떨어뜨리고 SL 은 유지한다 — 보호를 통째로 잃는 것보다
                     # 이익실현 하나를 잃는 편이 낫다.
+                    # ★BL-562 — `resulting_position_qty` 는 **등재 시점 근사**다(계획기
+                    #   docstring 참조). 여기가 유일하게 판정 가능한 지점이라 그렇다:
+                    #   `tpSize` 는 등재할 때 확정되므로 체결 시점에 다시 재도 바꿀 것이 없다.
+                    #   방향은 보수적이다 — 근사가 틀리면 TP 를 **잘못 드롭**할 뿐,
+                    #   잘못 통과시키지 않는다.
                     take_profit = planned_entry.take_profit
                     if (
                         take_profit is not None
@@ -1509,22 +1531,46 @@ async def _reconcile_conditional_entries(
                             "market_converted" if planned_entry.as_market else "conditional_placed"
                         )
                     ).inc()
-                    # BL-523 — 붙일 브래킷이 **있었는가**. 이 두 라벨의 비가 곧 §전제의 실측이다
+                    # BL-523 — 붙일 브래킷이 **있었는가**. 이 라벨들의 비가 곧 §전제의 실측이다
                     # (조건부 진입은 체결 전까지 `open_trades` 에 없어 지금은 전량
                     # `bracket_unavailable` 이어야 한다).
+                    #
+                    # ★BL-563 — "있었는가" 는 **엔진이 공급한 원본 leg**(`planned_entry`)로
+                    #   잰다. 게이트 뒤의 `request` 로 재면 게이트 B 가 드롭한 TP-only 반전이
+                    #   `bracket_unavailable` 로 집계돼 "엔진이 아무것도 공급하지 않았다" 와
+                    #   구별되지 않는다. 게이트가 전부 걷어낸 경우는 별도 축으로 센다.
+                    #   세 라벨은 상호배타이며 합 = `qb_live_conditional_placed_total`.
+                    #
+                    # ★게이트 A(`:1263` trailing-only)는 여기 오기 전에 `continue` 로 빠진다 —
+                    #   그건 브래킷이 아니라 **leg 자체**를 드롭하므로 주문이 발주되지 않는다.
+                    #   이 축의 분모(등재 성공 수)에 넣으면 위 합 등식이 깨진다. 비대칭이
+                    #   아니라 축이 다른 것이고, 그쪽은 `bracket_trailing_only_dropped` 다.
+                    engine_supplied_bracket = (
+                        planned_entry.take_profit is not None
+                        or planned_entry.stop_loss is not None
+                        or planned_entry.trailing_stop is not None
+                    )
+                    bracket_on_the_wire = (
+                        request.take_profit is not None
+                        or request.stop_loss is not None
+                        or request.trailing_stop is not None
+                    )
                     _count_safely(
                         qb_live_conditional_guard_total,
                         outcome=(
                             "bracket_attached"
-                            if (
-                                request.take_profit is not None
-                                or request.stop_loss is not None
-                                or request.trailing_stop is not None
-                            )
+                            if bracket_on_the_wire
+                            else "bracket_supplied_gate_dropped"
+                            if engine_supplied_bracket
                             else "bracket_unavailable"
                         ),
                     )
                     # BL-516 안 3 — 반전이면 크기를 버킷으로 남긴다. 수량은 합친 채로 둔다.
+                    # ★BL-562 — 이것은 **등재 시점** 축이다(취소·재등재로 한 의도가 여러 번
+                    #   오르고, 트리거 전 드리프트에 낡는다). **체결 시점** 축은 별도 counter
+                    #   `qb_live_conditional_reversal_filled_total` 이고 발화 지점은 fill
+                    #   훅(`tasks/trading.py:_enqueue_conditional_reversal_measure`)이다.
+                    #   두 counter 를 합산하지 마라 — 이유는 `common/metrics.py` 주석.
                     if planned_entry.crosses_zero:
                         _count_safely(
                             qb_live_conditional_reversal_total,
@@ -2676,7 +2722,8 @@ def sweep_conditional_entries_task() -> dict[str, int]:
 
 async def _async_sweep_conditional_entries() -> dict[str, int]:
     """고아 조건부 진입을 거래소 취소 뒤에만 cancelled로 전이한다."""
-    # 체결 후속 훅(trailing / closed-pnl)은 `_write_back_confirmed_terminal` 이 건다.
+    # 체결 후속 훅 3종(trailing / closed-pnl / BL-562 반전 계측)은
+    # `_write_back_confirmed_terminal` 이 한 테이블에서 건다.
     from src.tasks.trading import _has_leverage
     from src.trading.encryption import EncryptionService
     from src.trading.registry import dispatch
@@ -2705,6 +2752,9 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                         id=order.id,
                         trailing_stop=order.trailing_stop,
                         reduce_only=order.reduce_only,
+                        # BL-562 — 반전 계측 hook 이 조건부 진입 판별에 쓴다. 빠지면
+                        # 이 경로의 체결이 **조용히 미계측**으로 남는다(예약 자체가 안 된다).
+                        idempotency_key=order.idempotency_key,
                     ),
                 )
                 for order in await order_repo.list_orphan_conditional_entries()
@@ -2753,6 +2803,10 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                                 extra={"order_id": str(order_id)},
                             )
                             continue
+                        # ★훅 3종(trailing / closed-pnl / BL-562 반전 계측)은 헬퍼 안의
+                        # 단일 테이블이 건다. 여기서 따로 부르면 리컨사일러 경로가 그
+                        # 계측을 다시 잃는다 — instrument 워커가 "6곳 중 2곳이 조용히
+                        # 아무 일도 안 한다" 로 잡았던 바로 그 결함이다.
                         won = await _write_back_confirmed_terminal(
                             order_repo,
                             order_id=order_id,

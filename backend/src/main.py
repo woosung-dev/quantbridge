@@ -11,8 +11,16 @@ from prometheus_client import CONTENT_TYPE_LATEST
 
 from src.backtest.exceptions import StrategyDegraded, StrategyNotRunnable
 from src.common.exceptions import AppException
+from src.common.logging_config import configure_logging
 from src.common.metrics_multiproc import mark_metrics_process_dead, render_metrics
 from src.core.config import settings
+
+# BL-561 — uvicorn 기본 LOGGING_CONFIG 는 `uvicorn*` 만 설정하고 **root 엔 핸들러를 두지
+# 않는다** → `src.*` 는 `logging.lastResort`(WARNING) 로 떨어져 INFO 가 통째로 사라졌다.
+# ★app import 시점에 세운다: uvicorn 은 자기 dictConfig 를 먼저 돌린 뒤 `src.main:app` 을
+# import 하므로 우리 설정이 나중에 와서 이긴다. celery 는 `tasks/celery_app.py` 의
+# `setup_logging` 시그널이 같은 함수를 부른다 — 두 프로세스가 같은 포맷을 쓴다.
+configure_logging()
 
 
 async def app_exc_handler(_req: Request, exc: Exception) -> JSONResponse:

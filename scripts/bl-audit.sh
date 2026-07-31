@@ -21,10 +21,18 @@
 #   ★4 가 핵심이다. 낡은 산식이 틀린 지점이 정확히 여기고, 여기서 추측하면 같은 사고가 반복된다.
 #   ★`🟡 부분 Resolved` = PARTIAL 이고 **active 로 세지 않는다** (backlog.md 헤더 규칙과 동일).
 #
+# 상태 근거에서 제외하는 구간 (BL-564)
+#   ` ``` ` 코드펜스와 `<details>…</details>` 는 통째로 건너뛴다. 펜스 안은 예시이고
+#   `<details>` 는 **폐기된 옛 판정을 접어두는 관용구**라(BL-553 에서 도입), 둘 다 SSOT 후보가
+#   되면 철회된 판정이 되살아난다. ★태그는 **줄 머리에서만** 인정한다 — BL-564 자신의 산문이
+#   `<details>` 를 문장 중간에 언급하므로, 아무 데서나 잡으면 그 뒤 섹션이 통째로 사라진다.
+#   구간이 안 닫히면 조용히 삼키는 대신 **실패**로 보고한다.
+#
 # 사용법
 #   scripts/bl-audit.sh [--list ACTIVE|PARTIAL|RESOLVED|UNKNOWN] [--no-crosscheck]
 #
-# 종료 코드: 0 = 불일치 0 & UNKNOWN 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
+# 종료 코드: 0 = 불일치 0 & UNKNOWN 0 & 중복 상태줄 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
+#   ★`--list` 는 목록 출력 전용이라 **항상 0** 이다 — 게이트에는 인자 없는 형태를 쓴다.
 set -uo pipefail
 
 LIST=""; CROSSCHECK=1
@@ -98,6 +106,14 @@ function reset(id, ln) {
 
 # ── 1) docs/backlog.md ───────────────────────────────────────────
 NR == FNR {
+  # ★코드펜스 / <details> 구간은 상태 근거에서 제외한다 (BL-564).
+  #   인용부호(`> `) 안의 펜스도 같다. 태그는 **줄 머리**에서만 인정한다(산문 언급 오탐 차단).
+  if ($0 ~ /^[ \t>]*```/)          { fence = !fence; next }
+  if (fence)                        next
+  if ($0 ~ /^[ \t>]*<details/)     { details++ }
+  if ($0 ~ /^[ \t>]*<\/details>/)  { if (details > 0) details--; next }
+  if (details > 0)                  next
+
   # 인덱스 표 행:  | [BL-543](#bl-543) | 제목 … |
   if ($0 ~ /^\|[ ]*\[BL-[0-9]+\]\(#bl-[0-9]+\)/) {
     match($0, /BL-[0-9]+/); rid = substr($0, RSTART, RLENGTH)
@@ -209,12 +225,21 @@ END {
   if (m == 0) printf "  없음\n"
   bad += m
 
-  # ★참고 — 드리프트가 아니라 서식 위험. 판정에 넣지 않는다(넣으면 게이트가 영구히 빨갛다).
+  # ★중복 상태줄 = 실패 (BL-564). SSOT 는 하나여야 한다 — 둘이면 어느 쪽이 이기는지가
+  #   서식 순서에 달리고, 폐기된 판정이 첫 줄이면 조용히 그게 이긴다.
+  #   폐기 보존이 목적이면 `<details>` 로 접어라 (파서가 건너뛴다).
   d = 0
-  for (id in dup) { if (d++ == 0) printf "\n▶ 참고 — 상태 줄이 둘 이상인 섹션 (첫 줄로 판정했다)\n"; printf "  %-8s +%d 줄  섹션:%d\n", id, dup[id], sec_line[id] }
+  for (id in dup) { if (d++ == 0) printf "\n▶ 중복 상태 줄 — SSOT 는 하나여야 한다 (첫 줄로 판정했다)\n"; printf "  %-8s +%d 줄  섹션:%d\n", id, dup[id], sec_line[id] }
+  bad += d
+
+  # ★구간이 안 닫히면 그 뒤가 통째로 안 읽힌다 — 조용히 삼키지 말고 실패로 올린다.
+  o = 0
+  if (fence)      { o++; printf "\n▶ 서식 오류 — ``` 코드펜스가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n" }
+  if (details > 0) { o++; printf "\n▶ 서식 오류 — <details> %d 개가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n", details }
+  bad += o
 
   printf "\n════════════════════════════════════════\n"
-  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m; exit 1 }
+  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 중복 상태줄 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, d, o; exit 1 }
   printf "✓ 3면(섹션 · 인덱스 표 · 로드맵) 정합. active=%d / 전체=%d\n", cnt["ACTIVE"] + 0, n
   exit 0
 }

@@ -61,6 +61,7 @@ services:
     environment:
       PROMETHEUS_MULTIPROC_DIR: /metrics
       QB_METRICS_ROLE: worker
+      LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
       REDIS_URL: redis://redis:6379/0
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
@@ -100,6 +101,7 @@ services:
     environment:
       PROMETHEUS_MULTIPROC_DIR: /metrics
       QB_METRICS_ROLE: wsstream
+      LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
       REDIS_URL: redis://redis:6379/0
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
@@ -129,6 +131,7 @@ services:
     environment:
       PROMETHEUS_MULTIPROC_DIR: /metrics
       QB_METRICS_ROLE: optheavy
+      LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
       REDIS_URL: redis://redis:6379/0
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
@@ -166,6 +169,7 @@ services:
     environment:
       PROMETHEUS_MULTIPROC_DIR: /metrics
       QB_METRICS_ROLE: beat
+      LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
       REDIS_URL: redis://redis:6379/0
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}

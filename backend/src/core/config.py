@@ -34,6 +34,24 @@ class Settings(BaseSettings):
     debug: bool = True
     secret_key: SecretStr = SecretStr("change-me")
 
+    # BL-561 — root logger 레벨. celery worker / uvicorn 이 **같은** 값을 쓴다.
+    # 실제 배선은 `src/common/logging_config.py`.
+    log_level: str = Field(
+        default="INFO",
+        description="root logger level (DEBUG/INFO/WARNING/ERROR/CRITICAL). BL-561.",
+    )
+
+    @field_validator("log_level")
+    @classmethod
+    def _validate_log_level(cls, v: str) -> str:
+        """오타를 조용히 INFO 로 삼키지 않는다 — 기동 시점에 명시 실패."""
+        upper = v.strip().upper()
+        if upper not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            raise ValueError(
+                "LOG_LEVEL must be one of DEBUG/INFO/WARNING/ERROR/CRITICAL, got " + repr(v)
+            )
+        return upper
+
     # Clerk
     clerk_secret_key: SecretStr = SecretStr("")
     clerk_publishable_key: str = ""

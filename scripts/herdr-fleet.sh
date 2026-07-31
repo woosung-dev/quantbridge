@@ -6,16 +6,25 @@
 #   scripts/herdr-fleet.sh --agent claude:bl537 --agent claude:bl536 --agent codex:impl
 #   scripts/herdr-fleet.sh --agent claude:a --agent codex:b --label "QB 실험"
 #   scripts/herdr-fleet.sh --agent claude:a --base origin/main --skip-deps
-#   scripts/herdr-fleet.sh --teardown            # 이 워크스페이스의 워커 탭만 닫는다
+#   scripts/herdr-fleet.sh --layout panes --agent claude:a --agent claude:b   # 한 창 그리드
+#   scripts/herdr-fleet.sh --teardown            # 이 워크스페이스의 워커 화면만 닫는다
 #
+#   `--layout tabs` (기본) — 워커마다 탭 1개:
 #   [스페이스: 퀀트브릿지]  ← 오케스트레이터 세션이 이미 있는 그 워크스페이스
 #   ┌──────────┬──────────┬──────────┐
 #   │ 1 (현재) │ bl537·s1 │ bl536·s2 │  ← 탭. 각 워커 탭 = 워크트리 1벌 = 슬롯 1벌
 #   │ CONTROL  │ 워크트리 │ 워크트리 │    (FE 3100+N / BE 8100+N / quantbridge_wN_test)
 #   └──────────┴──────────┴──────────┘
 #
-#   ★**CONTROL 은 따로 만들지 않는다** — 이 스크립트를 돌리는 그 탭(메인 체크아웃, 슬롯 0)이
-#     곧 CONTROL 이다. 워커 탭 옆에 나란히 있으므로 탭 하나만 누르면 오간다.
+#   `--layout panes` — 현재 탭을 쪼개 전부 한눈에 (2행 고정 · 열 = ceil(총칸/2) · **열 우선**):
+#   ┌──────────┬──────────┬──────────┐
+#   │ CONTROL  │ 워커2    │ 워커4    │  창 298×78 이면 각 99×39.
+#   ├──────────┼──────────┼──────────┤  ★Claude Code TUI 는 폭 80 미만이면 읽기 힘들다 —
+#   │ 워커1    │ 워커3    │          │    워커 4벌(총 5칸)까지가 실용 상한이다.
+#   └──────────┴──────────┴──────────┘
+#
+#   ★**CONTROL 은 따로 만들지 않는다** — 이 스크립트를 돌리는 그 자리(메인 체크아웃, 슬롯 0)가
+#     곧 CONTROL 이다. tabs 면 옆 탭, panes 면 같은 화면 좌상단이다.
 #
 # ★왜 별도 워크스페이스가 아닌가 (2026-07-30 사용자 결정) — 워크스페이스를 새로 만들면
 #   오케스트레이터가 있는 스페이스와 **다른 곳**에 뜬다. 진행 상황을 보려면 스페이스를
@@ -48,6 +57,8 @@ LABEL=""
 BASE="origin/main"
 BOOTSTRAP_ARGS=()
 TEARDOWN=""
+# tabs = 워커마다 탭 1개(기존 동작, 기본값) / panes = 현재 탭을 쪼개 그리드로 한눈에.
+LAYOUT="tabs"
 
 # 값이 필요한 옵션은 값의 존재를 먼저 본다 — 값을 빼면 `shift 2` 가 실패해 `set -e` 로
 # **의도한 진단 대신** 셸 오류만 남기고 죽는다 (codex 리뷰 P2).
@@ -58,12 +69,18 @@ while [ $# -gt 0 ]; do
     --agent)         need_val $# --agent;         SPECS+=("$2"); shift 2 ;;
     --label)         need_val $# --label;         LABEL="$2"; shift 2 ;;
     --base)          need_val $# --base;          BASE="$2"; shift 2 ;;
+    --layout)        need_val $# --layout;        LAYOUT="$2"; shift 2 ;;
     --skip-deps)     BOOTSTRAP_ARGS+=(--skip-deps); shift ;;
     --teardown)      TEARDOWN=1; shift ;;
-    -h|--help)       sed -n '2,36p' "$0"; exit 0 ;;
+    -h|--help)       sed -n '2,45p' "$0"; exit 0 ;;
     *)               die "알 수 없는 인자: $1  (--help)" ;;
   esac
 done
+
+case "$LAYOUT" in
+  tabs|panes) : ;;
+  *) die "--layout 은 tabs 또는 panes 다 (받은 값: $LAYOUT)" ;;
+esac
 
 command -v herdr >/dev/null 2>&1 || die "herdr 가 없다. brew 로 설치돼 있어야 한다."
 herdr status server >/dev/null 2>&1 || die "herdr 서버가 안 떠 있다. 터미널에서 'herdr' 를 한 번 띄워라."
@@ -87,34 +104,48 @@ print(cur)
 # 워크트리는 **지우지 않는다.** 에이전트가 커밋 안 한 작업을 들고 있을 수 있고, 그걸 날리는
 # 판단은 사람 몫이다. 화면만 닫고 지우는 명령을 출력한다.
 if [ -n "$TEARDOWN" ]; then
-  # ★워커 탭만 닫는다 — 오케스트레이터(현재) 탭은 절대 닫지 않는다.
-  #   판별은 **cwd 가 이 레포의 `.claude/worktrees/` 아래인 탭**으로 한다. 라벨로 고르면
+  # ★워커 화면만 닫는다 — 오케스트레이터(현재) 자리는 절대 닫지 않는다.
+  #   판별은 **cwd 가 이 레포의 `.claude/worktrees/` 아래인 pane** 으로 한다. 라벨로 고르면
   #   사람이 이름을 바꾼 순간 못 찾고, 워크스페이스를 통째로 닫으면 오케스트레이터가 함께 죽는다.
+  #
+  #   ★`--layout` 을 다시 줄 필요가 없다 — **어디에 있는지로** 결정한다:
+  #     · 워커가 **내 탭 안의 pane**(panes 모드)  → `herdr pane close`
+  #     · 워커가 **다른 탭**(tabs 모드)           → `herdr tab close` (탭째)
+  #   그래서 tabs/panes 를 섞어 띄웠어도 한 번의 --teardown 으로 전부 정리된다.
   _cur="$(herdr pane current)" || die "현재 pane 을 못 읽었다 — herdr 세션 안에서 실행해라"
   _ws="$(json_get "$_cur" result.pane.workspace_id 2>/dev/null || json_get "$_cur" result.workspace_id)"
   _me="$(json_get "$_cur" result.pane.tab_id 2>/dev/null || json_get "$_cur" result.tab_id)"
+  _mypane="$(json_get "$_cur" result.pane.pane_id 2>/dev/null || json_get "$_cur" result.pane_id)"
   _root="$(git rev-parse --show-toplevel)"
   _closed=0
-  while IFS='	' read -r _tab _cwd; do
-    [ -n "$_tab" ] || continue
-    [ "$_tab" != "$_me" ] || continue          # 내 탭은 건드리지 않는다
-    herdr tab close "$_tab" >/dev/null 2>&1 && { ok "탭 $_tab 닫음 ($_cwd)"; _closed=$((_closed + 1)); }
+  _seen_tabs=""
+  while IFS='	' read -r _pane _tab _cwd; do
+    [ -n "$_pane" ] || continue
+    # ★현재 pane 은 어떤 경우에도 닫지 않는다 (cwd 필터가 이미 걸러야 하지만 이중 방어).
+    [ "$_pane" != "$_mypane" ] || continue
+    if [ "$_tab" = "$_me" ]; then
+      herdr pane close "$_pane" >/dev/null 2>&1 \
+        && { ok "pane $_pane 닫음 ($_cwd)"; _closed=$((_closed + 1)); }
+    else
+      case " $_seen_tabs " in *" $_tab "*) continue ;; esac
+      _seen_tabs="$_seen_tabs $_tab"
+      herdr tab close "$_tab" >/dev/null 2>&1 \
+        && { ok "탭 $_tab 닫음 ($_cwd)"; _closed=$((_closed + 1)); }
+    fi
   done < <(herdr pane list 2>/dev/null | python3 -c '
 import json, sys
 ws, root = sys.argv[1], sys.argv[2]
-seen = set()
 for p in json.load(sys.stdin)["result"]["panes"]:
     if p.get("workspace_id") != ws:
         continue
     cwd = p.get("cwd") or ""
     if not cwd.startswith(root + "/.claude/worktrees/"):
         continue
-    tab = p.get("tab_id")
-    if tab and tab not in seen:
-        seen.add(tab)
-        print(f"{tab}\t{cwd}")
+    pane, tab = p.get("pane_id"), p.get("tab_id")
+    if pane and tab:
+        print(f"{pane}\t{tab}\t{cwd}")
 ' "$_ws" "$_root")
-  [ "$_closed" -gt 0 ] || echo "  (닫을 워커 탭이 없다 — 이미 정리됐거나 다른 워크스페이스다)"
+  [ "$_closed" -gt 0 ] || echo "  (닫을 워커 화면이 없다 — 이미 정리됐거나 다른 워크스페이스다)"
   cat <<'EOF'
 
 워크트리는 남겨뒀다 (커밋 안 한 작업이 있을 수 있다). 확인하고 직접 지워라:
@@ -208,7 +239,7 @@ for spec in "${SPECS[@]}"; do
   KINDS+=("$kind"); NAMES+=("$name"); PATHS+=("$wt"); SLOTS+=("$slot")
 done
 
-# ── 3. 현재 워크스페이스에 워커 탭 ──────────────────────────────────────────
+# ── 3. 현재 워크스페이스에 워커 자리 ────────────────────────────────────────
 # root pane 의 cwd 를 나중에 바꿀 방법이 없으므로, 워크스페이스를 **첫 워크트리 경로로**
 # 만들어 root 가 곧 에이전트 1 이 되게 한다. CONTROL 은 split 으로 메인을 잡는다.
 [ -n "$LABEL" ] || LABEL="QB fleet"
@@ -225,7 +256,7 @@ WS_ID="$(json_get "$CUR_JSON" result.pane.workspace_id 2>/dev/null \
   || die "현재 워크스페이스를 못 읽었다: $CUR_JSON"
 CONTROL_PANE="$(json_get "$CUR_JSON" result.pane.pane_id 2>/dev/null \
   || json_get "$CUR_JSON" result.pane_id)" || die "현재 pane_id 를 못 읽었다"
-ok "워크스페이스 $WS_ID 에 탭을 붙인다 (CONTROL = 현재 탭 $CONTROL_PANE, 메인 슬롯 0)"
+ok "워크스페이스 $WS_ID 에 워커를 붙인다 (CONTROL = 현재 pane $CONTROL_PANE, 메인 슬롯 0, layout=$LAYOUT)"
 
 # `herdr tab create` 는 응답에 `root_pane` 을 함께 준다 — pane 을 따로 찾을 필요가 없다.
 # (cwd 로 역추적하면 같은 워크트리를 가리키는 낡은 pane 과 헷갈릴 수 있다.)
@@ -236,13 +267,76 @@ new_tab_pane() {  # new_tab_pane <cwd> <label> → 새 pane_id
     || die "새 탭의 pane_id 를 못 읽었다: $_out"
 }
 
+# ★`--ratio` 는 **쪼개지는(기존) pane 이 남기는** 비율이다 — 실측: 폭 298 을 `--ratio 0.25` 로
+#   오른쪽 분할하면 기존이 75, 새 pane 이 223 이 된다. 추측하지 말고 이 규약을 지켜라.
+split_pane() {  # split_pane <pane> <right|down> <ratio> <cwd> → 새 pane_id
+  _out="$(herdr pane split --pane "$1" --direction "$2" --ratio "$3" --cwd "$4" --no-focus)" \
+    || die "pane 분할 실패 ($1 → $2, ratio=$3, cwd=$4)"
+  json_get "$_out" result.pane.pane_id \
+    || die "새 pane_id 를 못 읽었다: $_out"
+}
+
+# n 등분 중 하나를 떼어낼 때 기존 pane 이 남겨야 할 비율 = 1/n.
+_split_ratio() { awk -v n="$1" 'BEGIN { printf "%.6f", 1 / n }'; }
+
+# panes 모드 배치 — CONTROL 을 좌상단으로 두고 **먼저 열로 쪼갠 뒤 각 열을 아래로** 쪼갠다.
+# 반대 순서(행 먼저)로 하면 열 경계가 행마다 어긋나 그리드가 되지 않는다.
+#
+#   총 칸 = 워커 수 + 1(CONTROL). 2행 고정, 열 = ceil(총칸/2), 채우기는 **열 우선**.
+#   워커 4벌이면:  ┌─────────┬─────────┬─────────┐
+#                  │ CONTROL │ 워커2   │ 워커4   │   각 99×39 (창 298×78 실측)
+#                  ├─────────┼─────────┼─────────┤
+#                  │ 워커1   │ 워커3   │         │   마지막 열은 칸이 남으면 안 쪼갠다
+#                  └─────────┴─────────┴─────────┘
+grid_panes() {  # PATHS/NAMES/SLOTS 를 읽어 PANES 를 채운다
+  local total rows cols base rem j c cap i_cell head cur cap_j
+  total=$(( ${#PATHS[@]} + 1 ))
+  rows=2; [ "$total" -le 2 ] && rows=1
+  cols=$(( (total + rows - 1) / rows ))
+  base=$(( total / cols )); rem=$(( total % cols ))
+
+  # 1) 열 머리 — CONTROL 에서 오른쪽으로 cols-1 번. 각 열의 **첫 칸** cwd 를 그때 넣는다.
+  local heads=("$CONTROL_PANE") caps=()
+  for (( j = 0; j < cols; j++ )); do
+    cap=$base; [ "$j" -lt "$rem" ] && cap=$(( cap + 1 ))
+    caps+=("$cap")
+  done
+  cur="$CONTROL_PANE"; i_cell=${caps[0]}   # 열 0 이 이미 소비한 칸 수 (CONTROL 포함)
+  for (( j = 1; j < cols; j++ )); do
+    cur="$(split_pane "$cur" right "$(_split_ratio $(( cols - j + 1 )))" "${PATHS[$(( i_cell - 1 ))]}")"
+    heads+=("$cur")
+    i_cell=$(( i_cell + caps[j] ))
+  done
+
+  # 2) 각 열을 아래로 — 열의 2번째 칸부터. 워커 순서는 열 우선으로 이어붙는다.
+  PANES=()
+  i_cell=0
+  for (( j = 0; j < cols; j++ )); do
+    cap_j=${caps[$j]}
+    head="${heads[$j]}"
+    if [ "$j" -gt 0 ]; then PANES+=("$head"); fi   # 열 머리 = 그 열의 첫 워커 (열 0 은 CONTROL)
+    for (( c = 1; c < cap_j; c++ )); do
+      # 이 칸에 들어갈 워커의 전역 인덱스: 지금까지 배치한 워커 수
+      head="$(split_pane "$head" down "$(_split_ratio $(( cap_j - c + 1 )))" "${PATHS[${#PANES[@]}]}")"
+      PANES+=("$head")
+    done
+  done
+}
+
 PANES=()
-i=0
-for _p in "${PATHS[@]}"; do
-  PANES+=("$(new_tab_pane "$_p" "${NAMES[$i]}·s${SLOTS[$i]}")")
-  i=$((i + 1))
-done
-ok "워커 탭 ${#PANES[@]}개 생성"
+if [ "$LAYOUT" = "panes" ]; then
+  grid_panes
+  ok "워커 pane ${#PANES[@]}개 생성 (현재 탭 그리드)"
+else
+  i=0
+  for _p in "${PATHS[@]}"; do
+    PANES+=("$(new_tab_pane "$_p" "${NAMES[$i]}·s${SLOTS[$i]}")")
+    i=$((i + 1))
+  done
+  ok "워커 탭 ${#PANES[@]}개 생성"
+fi
+[ "${#PANES[@]}" -eq "${#PATHS[@]}" ] \
+  || die "배치 수가 안 맞는다: pane ${#PANES[@]} vs 워크트리 ${#PATHS[@]} (layout=$LAYOUT)"
 
 # ── 4. 에이전트 기동 + 라벨 ─────────────────────────────────────────────────
 #
@@ -336,12 +430,12 @@ for p in "${PANES[@]}"; do
     "$p" "${SLOTS[$i]}" "$((3100 + SLOTS[i]))" "$((8100 + SLOTS[i]))" "${PATHS[$i]}"
   i=$((i + 1))
 done
-printf '%-14s %-6s %-6s %-6s %s\n' "$CONTROL_PANE" "0" "3100" "8100" "$MAIN_ROOT (CONTROL = 현재 탭)"
+printf '%-14s %-6s %-6s %-6s %s\n' "$CONTROL_PANE" "0" "3100" "8100" "$MAIN_ROOT (CONTROL = 현재 자리)"
 cat <<EOF
 
 CONTROL 에서만 되는 것 — celery 경유 검증(백테스트·라이브신호·옵티마이저) · make up/seed/migrate ·
 게이트 종합 · 머지. 워크트리 pane 에서 그걸 시도하면 Makefile 가드가 거부한다(make 종료 코드 2).
 
-정리:  scripts/herdr-fleet.sh --teardown        # 워커 탭만 닫는다 (현재 탭은 유지)
+정리:  scripts/herdr-fleet.sh --teardown        # 워커 화면만 닫는다 (CONTROL 자리는 유지)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF

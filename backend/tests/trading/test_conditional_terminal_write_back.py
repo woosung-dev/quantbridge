@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +30,7 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.repositories.order_repository import OrderRepository
+from src.trading.services.conditional_entry_planner import build_conditional_entry_key
 
 
 @pytest.fixture
@@ -93,6 +95,22 @@ def _trailing_hook_order(order: Order) -> SimpleNamespace:
 def _reduce_only_hook_order(order: Order) -> SimpleNamespace:
     """reduce-only 청산 — `_enqueue_closed_pnl_refresh` 가 실제로 예약한다."""
     return SimpleNamespace(id=order.id, trailing_stop=None, reduce_only=True)
+
+
+def _conditional_hook_order(order: Order) -> SimpleNamespace:
+    """조건부 진입 key 를 **실제로** 들고 있는 형태 — BL-562 반전 계측의 통과 조건.
+
+    `_enqueue_conditional_reversal_measure` 는 `parse_live_entry_key` 로 `cond`/`condmkt`
+    만 통과시킨다. 임의 문자열을 넣으면 게이트에서 걸려 예약이 안 되고, 그러면 배선을
+    지워도 테스트가 통과한다 — instrument 워커가 자기 janitor 테스트에서 밟은 함정이다.
+    """
+    key = build_conditional_entry_key(
+        uuid4(), "entry", datetime(2026, 5, 1, 12, 0, tzinfo=UTC), Decimal("100"), Decimal("1")
+    )
+    assert key is not None
+    return SimpleNamespace(
+        id=order.id, trailing_stop=None, reduce_only=False, idempotency_key=key
+    )
 
 
 async def test_confirmed_fill_actually_flips_the_row(db_session, strategy, account) -> None:
@@ -260,33 +278,65 @@ async def test_fill_enqueues_closed_pnl_refresh_for_reduce_only(
     assert enqueued == [[str(order.id)]]
 
 
-async def test_non_fill_terminal_enqueues_no_hooks(
+async def test_fill_enqueues_reversal_measure_for_a_conditional_entry(
     db_session, strategy, account, monkeypatch
 ) -> None:
-    """★음성 대조군 — 거절은 체결이 아니므로 훅을 걸지 않는다.
+    """★BL-562 반전 계측이 이 경로에서도 예약된다 (stage 통합 충돌 해소분).
 
-    이게 없으면 위 두 테스트는 "terminal 이면 무조건 훅" 이라는 오답도 통과시킨다.
+    `instrument` 워커가 체결 전이 승자 6곳에 배선했는데, 그중 스윕 자리를 내가
+    `_write_back_confirmed_terminal` 로 흡수했고 리컨사일러 자리는 아예 새로 생겼다.
+    훅 테이블에 넣지 않으면 그 두 자리가 **조용히 미계측**으로 남는다 — instrument 가
+    방금 자기 브랜치에서 잡은 결함을 머지에서 재도입하는 셈이다.
+
+    ★변이 표적 — 훅 테이블에서 `("reversal_measure", ...)` 를 빼면 실패해야 한다.
     """
     import src.tasks.trading as trading_module
 
-    enqueued: list[str] = []
+    enqueued: list[list[str]] = []
     monkeypatch.setattr(
-        trading_module.place_trailing_stop_task,
+        trading_module.measure_conditional_reversal_task,
         "apply_async",
-        lambda *_a, **kw: enqueued.append("trailing"),
-    )
-    monkeypatch.setattr(
-        trading_module.refresh_closed_pnl_task,
-        "apply_async",
-        lambda *_a, **kw: enqueued.append("closed_pnl"),
+        lambda *_a, **kw: enqueued.append(kw["args"]),
     )
     repo, order = await _submitted_order(db_session, strategy, account)
 
     won = await _write_back_confirmed_terminal(
         repo,
         order_id=order.id,
+        probe=_probe("filled"),
+        hook_order=_conditional_hook_order(order),
+        now=datetime.now(UTC),
+    )
+
+    assert won == "filled"
+    assert enqueued == [[str(order.id)]]
+
+
+async def test_non_fill_terminal_enqueues_no_hooks(
+    db_session, strategy, account, monkeypatch
+) -> None:
+    """★음성 대조군 — 거절은 체결이 아니므로 훅을 걸지 않는다.
+
+    이게 없으면 위 테스트들이 "terminal 이면 무조건 훅" 이라는 오답도 통과시킨다.
+    """
+    import src.tasks.trading as trading_module
+
+    enqueued: list[str] = []
+    for task, label in (
+        (trading_module.place_trailing_stop_task, "trailing"),
+        (trading_module.refresh_closed_pnl_task, "closed_pnl"),
+        (trading_module.measure_conditional_reversal_task, "reversal_measure"),
+    ):
+        monkeypatch.setattr(
+            task, "apply_async", lambda *_a, _label=label, **_kw: enqueued.append(_label)
+        )
+    repo, order = await _submitted_order(db_session, strategy, account)
+
+    won = await _write_back_confirmed_terminal(
+        repo,
+        order_id=order.id,
         probe=_probe("rejected"),
-        hook_order=_trailing_hook_order(order),
+        hook_order=_conditional_hook_order(order),
         now=datetime.now(UTC),
     )
 
