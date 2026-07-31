@@ -277,6 +277,12 @@ FE `StrategySettingsSchema` 는 `.strict()` 라 모르는 키에서 **파싱이 
 저장 경로에서만 터진다. 실제로 워커·평가자 둘 다 "동작 영향 없음" 으로 오판했고 codex 가 잡았다.
 → **BE 설정 스키마에 필드를 더하면 같은 PR 에서 `frontend/src/features/strategy/schemas.ts` 를 고쳐라.**
 
+★**그리고 `nullable` 필드면 FE 폼의 초기값 정규화까지 같은 PR 에서 해라** (2026-08-01, BL-570).
+`schemas.ts` 를 맞추는 건 **파싱**을 맞추는 것이고, 깨지는 다음 자리는 **폼 초기값**이다 —
+null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는데 `z.number()…` 가 `""` 를 거부
+→ `handleSubmit` 이 조용히 막고, 그 폼이 `formState.errors` 를 안 그리면 **아무 피드백도 없다.**
+★**무편집 저장을 눌러봐야 보인다** — GET 도 「편집 후 저장」도 멀쩡해서 세 회차를 살아남았다.
+
 ### 측정 도구가 먼저 틀린다 (2026-07-28)
 
 - ★★**`/metrics` 가 HELP/TYPE 만 보이고 샘플이 없으면 백엔드를 재기동해라.** `PROMETHEUS_MULTIPROC_DIR` 배선 **이전에** 뜬 프로세스는 단일 프로세스 모드라 **자기 값만** 노출한다. 그 상태에서 관측한 worker metric 처럼 보이는 값들이 사실은 API 프로세스 자신의 것일 수 있다.
