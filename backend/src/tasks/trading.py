@@ -1165,13 +1165,19 @@ def _enqueue_trailing_if_intended(order: Any) -> None:
 def _enqueue_conditional_reversal_measure(order: Any) -> None:
     """fill-transition winner 가 **조건부 진입**이면 체결 시점 반전 계측을 예약한다 (BL-562).
 
-    ★**중복 집계는 구조적으로 없다.** 호출부 6곳이 전부
-    `pending|submitted -> filled` 단일 행 UPDATE 의 **rowcount 승자 하나**에서만 이 자리에
-    도달한다 — `:477-482`(동기, rowcount==0 이면 조기 return) · `:824`(watchdog, `rows == 1`) ·
-    `websocket/state_handler.py:137`(`new_state == filled` 승자 루프) ·
-    `websocket/reconciliation.py:125-130`(`winners` 루프) · `tasks/live_signal.py:2658`
-    (sweep, `rows == 1`) · `tasks/conditional_entry_janitor.py:150`(`rows == 1`).
+    ★**경로 중복은 없다.** 호출부 6곳이 전부 `pending|submitted -> filled` 단일 행 UPDATE 의
+    **rowcount 승자 하나**에서만 이 자리에 도달한다 — `:477-482`(동기, rowcount==0 이면 조기
+    return) · `:824`(watchdog, `rows == 1`) · `websocket/state_handler.py:137`(승자 루프) ·
+    `websocket/reconciliation.py:125-130`(`winners` 루프) · `tasks/live_signal.py`(sweep,
+    `rows == 1`) · `tasks/conditional_entry_janitor.py`(`rows == 1`).
     `_enqueue_trailing_if_intended` 가 같은 자리에서 같은 이유로 idempotency 컬럼 없이 산다.
+
+    ★★**"체결당 정확히 1회" 는 아니다 — 그 주장은 철회한다** (codex 2차 MAJOR[2]).
+    `celery_app.py:69` 이 `task_acks_late=True` 라 전달 보장이 **at-least-once** 다. counter
+    를 올린 뒤 ack 전에 워커가 죽으면 같은 체결이 재전달돼 **한 번 더 센다**. 상한은
+    "체결 수 + 워커 크래시 재전달 수" 이고, 하한이 체결 수다. 멱등 dedup(주문별 마커)을
+    넣지 않은 이유는 이 값이 원장이 아니라 **크기 분포 프로브**여서 크래시 빈도의 잡음이
+    판정을 뒤집지 않기 때문이다. 원장 수준 정확도가 필요해지면 그때 넣어라.
 
     reduce-only 는 대상이 아니다 — 반전은 **진입 주문 1건**이 청산과 진입을 합쳐 내는
     형태이고, 그 형태를 만드는 것은 `plan_reconcile` 의 조건부 진입뿐이다. 그래서
@@ -1536,43 +1542,58 @@ def _reversal_bucket_at_fill(
     position: Any | None,
     entry_side: OrderSide,
     filled_quantity: Decimal | None,
-    filled_at: datetime | None,
+    submitted_at: datetime | None,
 ) -> str:
     """체결 후 실제 포지션으로 반전 여부와 크기를 판정한다 (BL-562). 순수 함수.
 
-    ★**증명하지 못하면 버킷에 넣지 않는다** — 전부 `unmeasured` 로 떨어뜨린다.
-    틀린 버킷은 빈 버킷보다 나쁘다(BL-563 이 라벨 오분류로 남긴 교훈).
+    ★**증명하지 못하면 버킷에 넣지 않는다.** 못 잰 이유는 `unmeasured_*` 로 **갈라서**
+    남긴다 — 모르는 것을 한 라벨에 묻으면 "재보니 반전이 없었다" 와 "계측기가 죽었다" 가
+    구별되지 않는다(BL-560 이 정확히 그 병이었다).
 
     판정 순서와 각 분기가 stale read(체결이 아직 REST 에 반영되기 **전**의 스냅샷)에
     어떻게 안전한지:
 
-    1. `position is None` — "체결 미전파" 와 "체결 직후 청산" 을 구분할 수 없다 -> unmeasured.
+    1. `position is None` — "체결 미전파" 와 "체결 직후 청산" 을 구분할 수 없다.
     2. `position.side != 우리 방향` — 우리 체결이 반영됐다면 포지션은 우리 방향이다.
-       반대면 **확실히 체결 전 스냅샷**이다 -> unmeasured. (반전의 stale read 가 전부
-       여기로 떨어진다 — 그래서 반전을 `not_reversal` 로 오분류할 길이 없다.)
+       반대면 **확실히 체결 전 스냅샷**이다. (반전의 stale read 가 전부 여기로 떨어져
+       `not_reversal` 오분류를 막는다.)
     3. `size >= filled_quantity` — 같은 방향 증량이거나 flat 진입. stale read 는 포지션을
        **작게만** 보이게 하므로 이 분기는 위양성이 없다 -> not_reversal.
     4. 남은 것이 반전 후보. 유일한 위양성 경로는 "증량인데 체결 전 스냅샷이라 포지션이
-       작게 보이는" 경우다. 진짜 반전이면 포지션이 **우리 체결로 새로 생성**되므로
-       생성 시각이 체결 시각 이후다. 그것을 증명 못하면(시각 결측 포함) unmeasured.
+       작게 보이는" 경우다. 진짜 반전이면 포지션이 **우리 주문의 체결로 생성**되므로
+       주문이 거래소로 나간 시각(`submitted_at`) **이후**에 만들어졌다.
+
+    ★★**기준을 `filled_at` 이 아니라 `submitted_at` 으로 잡는 이유** (codex 2차 MAJOR[3]).
+    `filled_at` 은 체결 시각이 아니라 **우리가 체결을 관측한 시각**이다 — watchdog·
+    reconciler·janitor·sweep 은 실제 체결보다 한참 뒤의 `now` 를 넣는다
+    (`:824` · `websocket/reconciliation.py` · `conditional_entry_janitor.py` ·
+    `live_signal.py` sweep). 그것을 기준으로 삼으면 **fallback 경로의 진짜 반전이 전부**
+    `created_at < filled_at - tol` 에 걸려 구조적으로 탈락한다 = 새 축이 "옮겼다" 는
+    착시만 만든다. `submitted_at` 은 누가 체결을 관측했든 같은 값이라 경로 편향이 없고,
+    "주문이 나가기 전에 이미 있던 포지션은 이 체결이 만든 것일 수 없다" 는 **참인** 하한이다.
+
+    ★**남은 한계(고의로 안 막았다):** 우리 조건부 주문이 **등재된 뒤 트리거되기 전**에
+    같은 방향 포지션이 새로 열리고, 게다가 포지션 조회가 체결 전 스냅샷을 주면 증량이
+    반전으로 잡힐 수 있다. 단일 스냅샷으로는 원리적으로 구별 불가다(두 상태가 같은 수를
+    낸다). 더 좁히려면 거래소 체결 시각 소싱이 필요하고 그건 BL-375 와 같은 뿌리다.
     """
     if filled_quantity is None or not filled_quantity.is_finite() or filled_quantity <= 0:
-        return "unmeasured"
+        return "unmeasured_no_fill_qty"
     if position is None:
-        return "unmeasured"
+        return "unmeasured_no_position"
     expected_side = "long" if entry_side == OrderSide.buy else "short"
     if getattr(position, "side", None) != expected_side:
-        return "unmeasured"
+        return "unmeasured_pre_fill_read"
     size = getattr(position, "size", None)
     if size is None or not size.is_finite() or size <= 0:
-        return "unmeasured"
+        return "unmeasured_no_position"
     if size >= filled_quantity:
         return "not_reversal"
     created_at = getattr(position, "created_at", None)
-    if filled_at is None or created_at is None:
-        return "unmeasured"
-    if created_at < filled_at - _REVERSAL_MEASURE_CREATED_TOLERANCE:
-        return "unmeasured"
+    if submitted_at is None or created_at is None:
+        return "unmeasured_no_anchor"
+    if created_at < submitted_at - _REVERSAL_MEASURE_CREATED_TOLERANCE:
+        return "unmeasured_position_predates_order"
     # 등재 시점 counter 와 **같은 경계**를 써야 두 축이 비교 가능하다. 정의는 한 벌뿐이고
     # lazy import 로 가져온다(`live_signal` 도 이 모듈을 lazy import 하므로 순환 아님).
     from src.tasks.live_signal import _reversal_overshoot_bucket
@@ -1601,8 +1622,12 @@ async def _measure_conditional_reversal_with_session(
             return {"skipped": "reduce_only", "order_id": str(order_id)}
         account = await session.get(ExchangeAccount, order.exchange_account_id)
         if account is None:
-            _count_reversal_at_fill("unmeasured")
-            return {"bucket": "unmeasured", "reason": "account_missing", "order_id": str(order_id)}
+            _count_reversal_at_fill("unmeasured_error")
+            return {
+                "bucket": "unmeasured_error",
+                "reason": "account_missing",
+                "order_id": str(order_id),
+            }
         try:
             crypto = EncryptionService(settings.trading_encryption_keys)
             passphrase_pt = (
@@ -1621,12 +1646,17 @@ async def _measure_conditional_reversal_with_session(
                 "reversal_measure_credential_decrypt_failed",
                 extra={"order_id": str(order_id), "error": str(exc)},
             )
-            _count_reversal_at_fill("unmeasured")
-            return {"bucket": "unmeasured", "reason": "decrypt_failed", "order_id": str(order_id)}
+            _count_reversal_at_fill("unmeasured_error")
+            return {
+                "bucket": "unmeasured_error",
+                "reason": "decrypt_failed",
+                "order_id": str(order_id),
+            }
         # exchange IO 전에 필요한 값만 뽑는다 (detached instance 회피 — trailing 과 같은 패턴).
         symbol = order.symbol
         entry_side = order.side
-        filled_at = order.filled_at
+        # ★`filled_at` 이 아니라 `submitted_at` 이다 — 이유는 `_reversal_bucket_at_fill`.
+        submitted_at = order.submitted_at
         filled_quantity = (
             order.filled_quantity if order.filled_quantity is not None else order.quantity
         )
@@ -1640,14 +1670,14 @@ async def _measure_conditional_reversal_with_session(
     except Exception:
         # 거래소 장애로 계측이 죽는 것과 반전이 없는 것을 구분해야 한다.
         logger.warning("reversal_measure_position_fetch_failed", extra={"order_id": str(order_id)})
-        _count_reversal_at_fill("unmeasured")
-        return {"bucket": "unmeasured", "reason": "fetch_failed", "order_id": str(order_id)}
+        _count_reversal_at_fill("unmeasured_error")
+        return {"bucket": "unmeasured_error", "reason": "fetch_failed", "order_id": str(order_id)}
 
     bucket = _reversal_bucket_at_fill(
         position=position,
         entry_side=entry_side,
         filled_quantity=filled_quantity,
-        filled_at=filled_at,
+        submitted_at=submitted_at,
     )
     _count_reversal_at_fill(bucket)
     return {"bucket": bucket, "order_id": str(order_id)}
@@ -1666,8 +1696,16 @@ async def _async_measure_conditional_reversal(order_id: UUID) -> dict[str, Any]:
 def measure_conditional_reversal_task(order_id: str) -> dict[str, Any]:
     """BL-562 — 체결된 조건부 진입의 반전 크기를 **체결 후 포지션**으로 재판정한다.
 
-    ★retry 를 두지 않는다. 계측 전용이라 실패는 손익에 영향이 없고, 재시도로 metric 을
-    여러 번 올리면 "체결당 1회" 계약이 깨진다. 못 재면 `unmeasured` 로 남긴다.
+    ★retry 를 두지 않는다. 계측 전용이라 실패는 손익에 영향이 없고, 재시도는 같은 체결을
+    또 세게 만든다. 못 재면 사유별 `unmeasured_*` 로 남긴다.
+
+    ★**거래소 호출 비용** (codex 2차 MINOR[5]) — 조건부 진입 **체결 1건당 `fetch_position`
+    1회**가 추가된다. 기존 조회와 공유하지 않는데, `place_trailing_stop` 도
+    `refresh_closed_pnl` 도 각자 `BybitFuturesProvider()` 를 새로 만드는 것이 이 모듈의
+    기존 패턴이고(`:1461` · trailing 태스크), 공유할 상주 인스턴스가 없기 때문이다.
+    영향 추정: 조건부 진입 체결은 2026-07-30 soak 기준 시간당 한 자릿수라 **시간당 한
+    자릿수 REST 호출** 증가다(Bybit 한도 대비 무시할 수준). 체결 빈도가 분당 단위로
+    올라가면 그때 provider 공유를 재검토해라.
     """
     from src.tasks._worker_loop import run_in_worker_loop
 
@@ -1675,8 +1713,8 @@ def measure_conditional_reversal_task(order_id: str) -> dict[str, Any]:
         return run_in_worker_loop(_async_measure_conditional_reversal(UUID(order_id)))
     except Exception:
         logger.exception("reversal_measure_failed", extra={"order_id": order_id})
-        _count_reversal_at_fill("unmeasured")
-        return {"bucket": "unmeasured", "reason": "task_error", "order_id": order_id}
+        _count_reversal_at_fill("unmeasured_error")
+        return {"bucket": "unmeasured_error", "reason": "task_error", "order_id": order_id}
 
 
 async def _async_refresh_closed_pnl(order_id: UUID) -> dict[str, Any]:

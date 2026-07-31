@@ -29,6 +29,7 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.providers import OrderStatusFetch
+from src.trading.services.conditional_entry_planner import build_conditional_entry_key
 
 
 class _NoopEngine:
@@ -93,7 +94,16 @@ async def conditional_entry_factory(db_session: AsyncSession):
             state=OrderState.submitted,
             trigger_price=Decimal("100"),
             exchange_order_id=exchange_order_id,
-            idempotency_key=f"janitor:{uuid4()}",
+            # ★janitor 가 쓸어담는 것은 **우리가 등재한 조건부 진입**이다. 그러면 key 도
+            #   그 형식이어야 한다 — 임의 문자열이면 key 를 읽는 소비자(BL-562 반전 계측)가
+            #   프로덕션에서는 못 알아보는데 테스트만 통과한다.
+            idempotency_key=build_conditional_entry_key(
+                uuid4(),
+                f"entry-{uuid4()}",
+                datetime(2026, 7, 31, 11, 0, tzinfo=UTC),
+                Decimal("100"),
+                Decimal("0.001"),
+            ),
             submitted_at=submitted_at or datetime.now(UTC) - timedelta(minutes=31),
         )
         db_session.add(order)
@@ -216,13 +226,18 @@ async def test_janitor_transitions_form_two_only_after_terminal_probe(
 
     trailing = MagicMock()
     closed_pnl = MagicMock()
-    # BL-562 — 반전 계측도 같은 fill-transition 승자에 붙는다. 배선이 빠지면 체결이
-    # 원장에는 남는데 계측만 조용히 0 이 된다.
-    reversal_measure = MagicMock()
     monkeypatch.setattr(trading_module, "_enqueue_trailing_if_intended", trailing)
     monkeypatch.setattr(trading_module, "_enqueue_closed_pnl_refresh", closed_pnl)
+    # BL-562 — 반전 계측은 helper 를 **가짜로 바꾸지 않고** 실제로 통과시킨다.
+    # ★1차에는 여기를 `MagicMock` 으로 덮었고, 그래서 janitor 의 `hook_order` 에
+    #   `idempotency_key` 가 아예 없다는 사실(= 이 경로가 조용히 미계측)을 **테스트가
+    #   못 잡았다**. 가짜는 helper 의 게이트를 안 지난다 — 게이트를 지나게 하려면
+    #   최종 부작용인 `apply_async` 를 잡아야 한다.
+    reversal_enqueued: list[dict] = []
     monkeypatch.setattr(
-        trading_module, "_enqueue_conditional_reversal_measure", reversal_measure
+        trading_module.measure_conditional_reversal_task,
+        "apply_async",
+        lambda **kw: reversal_enqueued.append(kw),
     )
     dec, dispatch = _patch_task(monkeypatch, db_session, _Provider)
 
@@ -236,7 +251,9 @@ async def test_janitor_transitions_form_two_only_after_terminal_probe(
     dispatch.assert_called_once_with(ExchangeName.bybit, ExchangeMode.demo, False)
     trailing.assert_called_once()
     closed_pnl.assert_called_once()
-    reversal_measure.assert_called_once()
+    # ★실제 helper 를 지나 예약까지 갔는가. `hook_order` 에 `idempotency_key` 를 빼면
+    #   helper 가 조건부 진입으로 못 알아보고 조용히 return 해 이 단언이 깨진다.
+    assert [kw["args"] for kw in reversal_enqueued] == [[str(order.id)]]
 
 
 @pytest.mark.asyncio

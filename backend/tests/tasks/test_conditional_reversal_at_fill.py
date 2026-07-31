@@ -3,8 +3,8 @@
 
 이 파일이 지키는 계약은 셋이다:
   1. 판정이 **체결 후 포지션**에서 나온다 (등재 시점 값이 아니다).
-  2. 증명하지 못하면 **버킷에 넣지 않는다** — `unmeasured` 로 떨어뜨린다.
-  3. 예약은 **조건부 진입에만** 걸리고 체결당 정확히 1회다.
+  2. 증명하지 못하면 **버킷에 넣지 않는다** — 못 잰 **사유별** `unmeasured_*` 로 가른다.
+  3. 예약은 **조건부 진입에만** 걸리고, 발화 경로에 편향이 없다.
 """
 
 from __future__ import annotations
@@ -25,6 +25,8 @@ from src.trading.services.conditional_entry_planner import (
 )
 
 _FILLED_AT = datetime(2026, 7, 31, 12, 0, 0, tzinfo=UTC)
+# 조건부 주문이 거래소로 나간 시각. 트리거(체결)는 이보다 나중이다.
+_SUBMITTED_AT = datetime(2026, 7, 31, 11, 30, 0, tzinfo=UTC)
 _BAR_TIME = datetime(2026, 7, 31, 11, 0, 0, tzinfo=UTC)
 
 
@@ -42,7 +44,7 @@ def _bucket(
     position: PositionInfo | None,
     entry_side: OrderSide = OrderSide.buy,
     filled_quantity: Decimal | None = Decimal("16"),
-    filled_at: datetime | None = _FILLED_AT,
+    submitted_at: datetime | None = _SUBMITTED_AT,
 ) -> str:
     from src.tasks.trading import _reversal_bucket_at_fill
 
@@ -50,7 +52,7 @@ def _bucket(
         position=position,
         entry_side=entry_side,
         filled_quantity=filled_quantity,
-        filled_at=filled_at,
+        submitted_at=submitted_at,
     )
 
 
@@ -104,7 +106,7 @@ def test_short_reversal_uses_the_short_side_as_the_expected_direction() -> None:
 
 def test_missing_position_is_unmeasured_not_a_guess() -> None:
     """포지션이 안 보인다 = "체결 미전파" 와 "체결 직후 청산" 을 구분할 수 없다."""
-    assert _bucket(position=None) == "unmeasured"
+    assert _bucket(position=None) == "unmeasured_no_position"
 
 
 def test_position_on_the_opposite_side_means_we_read_a_pre_fill_snapshot() -> None:
@@ -113,40 +115,72 @@ def test_position_on_the_opposite_side_means_we_read_a_pre_fill_snapshot() -> No
     buy 16 이 체결됐는데 포지션이 아직 short 면 그것은 우리 체결 **전** 스냅샷이다.
     이 분기가 없으면 반전을 `not_reversal` 로 오분류할 길이 열린다.
     """
-    assert _bucket(position=_position("short", Decimal("8"))) == "unmeasured"
+    assert _bucket(position=_position("short", Decimal("8"))) == "unmeasured_pre_fill_read"
 
 
 def test_reversal_candidate_without_a_creation_timestamp_is_unmeasured() -> None:
     """생성 시각이 없으면 "우리 체결이 만든 포지션" 임을 증명할 수 없다."""
-    assert _bucket(position=_position("long", Decimal("8"), created_at=None)) == "unmeasured"
+    assert (
+        _bucket(position=_position("long", Decimal("8"), created_at=None))
+        == "unmeasured_no_anchor"
+    )
+
+
+def test_missing_submitted_at_is_unmeasured() -> None:
+    """기준 시각이 없으면 하한 자체가 없다."""
+    assert (
+        _bucket(position=_position("long", Decimal("8")), submitted_at=None)
+        == "unmeasured_no_anchor"
+    )
 
 
 def test_stale_read_of_an_add_is_not_promoted_to_a_reversal() -> None:
     """★유일한 위양성 경로를 막는 가드.
 
     보유 long 8 에 buy 16 을 더하는 **증량**인데 포지션 조회가 체결 전 스냅샷(long 8)을
-    주면 8 < 16 이라 반전처럼 보인다. 진짜 반전이면 포지션이 우리 체결로 새로 생성되므로
-    생성 시각이 체결 시각 언저리다 — 옛 시각이면 세지 않는다.
+    주면 8 < 16 이라 반전처럼 보인다. 진짜 반전이면 포지션이 우리 **주문이 나간 뒤**에
+    생성되므로, 발주보다 먼저 있던 포지션은 이 체결이 만든 것일 수 없다.
     """
-    old = _FILLED_AT - timedelta(hours=3)
-    assert _bucket(position=_position("long", Decimal("8"), created_at=old)) == "unmeasured"
+    old = _SUBMITTED_AT - timedelta(hours=3)
+    assert (
+        _bucket(position=_position("long", Decimal("8"), created_at=old))
+        == "unmeasured_position_predates_order"
+    )
 
 
 def test_clock_skew_within_tolerance_still_counts() -> None:
     """거래소 시계가 조금 이르다고 진짜 반전을 버리면 계측이 조용히 0 이 된다."""
     from src.tasks.trading import _REVERSAL_MEASURE_CREATED_TOLERANCE
 
-    skewed = _FILLED_AT - _REVERSAL_MEASURE_CREATED_TOLERANCE + timedelta(milliseconds=1)
+    skewed = _SUBMITTED_AT - _REVERSAL_MEASURE_CREATED_TOLERANCE + timedelta(milliseconds=1)
     assert _bucket(position=_position("long", Decimal("8"), created_at=skewed)) == "2x"
 
 
+def test_late_discovery_by_a_fallback_path_still_measures_the_reversal() -> None:
+    """★★codex 2차 MAJOR[3] 회귀 — fallback 체결이 구조적으로 전부 탈락하면 안 된다.
+
+    watchdog/reconciler/janitor/sweep 은 실제 체결보다 **한참 뒤**의 `now` 를
+    `Order.filled_at` 에 넣는다. 판정 기준을 `filled_at` 으로 잡으면 15분 뒤 발견된
+    진짜 반전이 `created_at < filled_at - 2s` 로 **전부** 탈락해, 새 축은 "옮겼다" 는
+    착시만 남는다.
+
+    여기서는 실제 체결(=포지션 생성)이 발주 30분 뒤에 일어나고 관측은 그보다 15분 더
+    늦은 상황을 만든다. 기준이 `submitted_at` 이면 관측 지연과 무관하게 `2x` 가 나온다.
+    """
+    real_fill = _SUBMITTED_AT + timedelta(minutes=30)
+    assert _bucket(position=_position("long", Decimal("8"), created_at=real_fill)) == "2x"
+
+
 def test_unknown_filled_quantity_is_unmeasured() -> None:
-    assert _bucket(position=_position("long", Decimal("8")), filled_quantity=None) == "unmeasured"
+    assert (
+        _bucket(position=_position("long", Decimal("8")), filled_quantity=None)
+        == "unmeasured_no_fill_qty"
+    )
 
 
 def test_zero_sized_position_is_unmeasured_not_a_division_error() -> None:
     """0 나눗셈으로 죽으면 체결 후처리가 통째로 깨진다."""
-    assert _bucket(position=_position("long", Decimal("0"))) == "unmeasured"
+    assert _bucket(position=_position("long", Decimal("0"))) == "unmeasured_no_position"
 
 
 # ── 예약 — 조건부 진입에만, 체결당 1회 ──────────────────────────────────────
@@ -246,6 +280,7 @@ async def test_task_body_counts_the_bucket_it_measured(monkeypatch: pytest.Monke
         symbol="BTC/USDT",
         side=OrderSide.buy,
         filled_at=_FILLED_AT,
+        submitted_at=_SUBMITTED_AT,
         filled_quantity=Decimal("16"),
         quantity=Decimal("16"),
     )
@@ -317,6 +352,7 @@ async def test_exchange_failure_is_unmeasured_not_silence(monkeypatch: pytest.Mo
         symbol="BTC/USDT",
         side=OrderSide.buy,
         filled_at=_FILLED_AT,
+        submitted_at=_SUBMITTED_AT,
         filled_quantity=Decimal("16"),
         quantity=Decimal("16"),
     )
@@ -339,5 +375,5 @@ async def test_exchange_failure_is_unmeasured_not_silence(monkeypatch: pytest.Mo
         order_id, _sessionmaker(order, account), provider=provider
     )
 
-    assert result["bucket"] == "unmeasured"
-    assert buckets == ["unmeasured"]
+    assert result["bucket"] == "unmeasured_error"
+    assert buckets == ["unmeasured_error"]

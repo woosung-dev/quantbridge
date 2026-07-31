@@ -478,13 +478,21 @@ qb_live_conditional_reversal_total = Counter(
 #   ⇒ 비율이 필요하면 이 counter 안에서만 만들어라(분모 = 이 counter 의 전 버킷 합).
 #
 # bucket ∈ {1x, 2x, 4x, 8x+}  — 등재 counter 와 **같은 경계**(`_reversal_overshoot_bucket` 공유)
-#          + {not_reversal, unmeasured} = 6 series.
+#          + {not_reversal} + `unmeasured_*` 6종 = 11 series.
 #     not_reversal — 쟀고, 반전이 아니었다(같은 방향 증량 또는 flat 진입).
-#     unmeasured   — ★**재지 못했다.** 포지션이 안 보이거나, 방향이 우리 체결과 어긋나거나
-#                    (= 체결이 반영되기 **전** 스냅샷을 읽었다), 포지션 생성 시각이 없어
-#                    "우리 체결이 만든 포지션인가" 를 증명하지 못한 경우.
-#                    ★추측해서 버킷에 넣지 않는다 — 틀린 버킷은 빈 버킷보다 나쁘다.
-#                    이 값이 크면 계측이 죽은 것이지 반전이 없는 것이 아니다.
+#
+# ★★**못 잰 것을 한 라벨에 묻지 마라.** `unmeasured` 하나로 두면 "재보니 반전이 없었다" 와
+#   "계측기가 죽었다" 가 같은 침묵이 된다 — BL-560 이 정확히 그 병이었고, codex 2차 리뷰가
+#   이 counter 에서 같은 병을 다시 지적했다. 그래서 사유별로 가른다:
+#     unmeasured_no_position          — 포지션이 안 보인다(체결 미전파 / 체결 직후 청산).
+#     unmeasured_pre_fill_read        — 포지션 방향이 우리 체결과 반대 = **체결 전 스냅샷**.
+#     unmeasured_no_anchor            — 포지션 생성 시각 또는 `submitted_at` 결측.
+#     unmeasured_position_predates_order — 포지션이 우리 주문 발주보다 먼저 생겼다
+#                                       (= 우리 체결이 만든 포지션이 아니다).
+#     unmeasured_no_fill_qty          — 체결 수량이 없거나 비정상.
+#     unmeasured_error                — 계정/복호화/거래소 조회 실패. **인프라 신호**다.
+#   ⇒ `unmeasured_*` 합이 크면 반전이 없는 것이 아니라 **계측이 안 되고 있는 것**이다.
+#     특히 `unmeasured_error` 는 반전 분포가 아니라 장애 알림으로 읽어라.
 qb_live_conditional_reversal_filled_total = Counter(
     "qb_live_conditional_reversal_filled_total",
     "체결된 조건부 진입을 체결 후 실제 포지션으로 재판정한 반전 버킷 (체결당 1회)",

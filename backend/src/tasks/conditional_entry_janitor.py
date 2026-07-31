@@ -63,6 +63,9 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                         id=order.id,
                         trailing_stop=order.trailing_stop,
                         reduce_only=order.reduce_only,
+                        # BL-562 — 반전 계측 hook 이 조건부 진입 판별에 쓴다. 빠지면
+                        # 이 경로의 체결이 **조용히 미계측**으로 남는다(예약 자체가 안 된다).
+                        idempotency_key=order.idempotency_key,
                     ),
                 )
                 for order in await order_repo.list_stale_conditional_entries(cutoff)

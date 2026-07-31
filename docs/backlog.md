@@ -5137,13 +5137,67 @@ BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제�
   `not_reversal` / `unmeasured`.
   ★**증명 못하면 버킷에 안 넣는다** — 포지션 미가시 / 방향 불일치(=체결 전 스냅샷) /
   포지션 생성 시각 결측·과거는 전부 `unmeasured`. 틀린 버킷은 빈 버킷보다 나쁘다.
-- ★**중복 집계 없음**: 호출부 6곳이 전부 `pending|submitted -> filled` 단일 행 UPDATE 의
+- **경로 중복 없음**: 호출부 6곳이 전부 `pending|submitted -> filled` 단일 행 UPDATE 의
   rowcount 승자에서만 도달한다 — `trading.py:477-482`(rowcount==0 조기 return) ·
   `:824`(`rows == 1`) · `websocket/state_handler.py:137` · `websocket/reconciliation.py:125-130`
-  (`winners` 루프) · `live_signal.py:2658`(`rows == 1`) · `conditional_entry_janitor.py:150`
+  (`winners` 루프) · `live_signal.py` sweep(`rows == 1`) · `conditional_entry_janitor.py`
   (`rows == 1`). `_enqueue_trailing_if_intended` 가 같은 자리에서 같은 이유로 산다.
 - 표적 변이 **4종 전건 실패 확인**: 버킷을 포지션 대신 상수로 / 방향 검사 제거 /
   `created_at` 신선도 가드 제거 / janitor 배선 제거.
+
+---
+
+##### 2026-07-31 codex 2차 적대 리뷰 — MAJOR 3건 (전건 실재, 전건 수정)
+
+★**계측을 옮기고 나서 그 계측기가 세 군데서 틀렸다.** 이 레포의 8번째 사례다.
+
+| #        | 지적                                                           | 실재 | 조치                                    |
+| -------- | -------------------------------------------------------------- | ---- | --------------------------------------- |
+| MAJOR[3] | fallback 체결이 **구조적으로 전부 `unmeasured`**               | ✅   | 기준을 `filled_at` → **`submitted_at`** |
+| MAJOR[2] | "중복 없음" 주장이 거짓 + **6곳 중 2곳이 예약조차 안 됨**      | ✅   | key 배선 + 주장 철회                    |
+| MAJOR[6] | janitor 테스트가 helper 를 `MagicMock` 으로 덮어 **거짓 그린** | ✅   | 실제 경로 통과로 교체                   |
+
+★★**MAJOR[3] — `filled_at` 은 체결 시각이 아니라 「우리가 체결을 관측한 시각」이다.**
+watchdog·reconciler·janitor·sweep 은 실제 체결보다 한참 뒤의 `now` 를 넣는다. 그것을 신선도
+기준으로 쓰면 **fallback 경로의 진짜 반전이 전부** `created_at < filled_at - 2s` 로 탈락한다
+= 새 축은 "옮겼다" 는 **착시만** 만든다. 기준을 `submitted_at`(누가 관측했든 같은 값, 그리고
+"주문이 나가기 전 포지션은 이 체결이 만든 것일 수 없다" 는 참인 하한)으로 옮겼다.
+`trading.py:_reversal_bucket_at_fill`. 회귀 테스트 =
+`test_late_discovery_by_a_fallback_path_still_measures_the_reversal`.
+
+★**남은 한계(고의):** 조건부 주문 **등재 후 트리거 전**에 같은 방향 포지션이 새로 열리고
+동시에 포지션 조회가 체결 전 스냅샷을 주면 증량이 반전으로 잡힐 수 있다. 단일 스냅샷으로는
+두 상태가 같은 수를 내 **원리적으로 구별 불가**다. 더 좁히려면 거래소 체결 시각 소싱이
+필요하고 그건 **BL-375 와 같은 뿌리**다.
+
+★★**MAJOR[2] — 6곳 중 2곳이 조용히 아무 일도 안 하고 있었다.** janitor 와 sweep 의
+`hook_order` 는 `SimpleNamespace(id, trailing_stop, reduce_only)` 라 **`idempotency_key` 가
+없었고**, 내 helper 는 그 key 로 조건부 진입을 판별한다 → 두 경로가 전량 미예약.
+`conditional_entry_janitor.py` · `live_signal.py` sweep 양쪽에 key 추가.
+
+★**「체결당 정확히 1회」 주장은 철회한다.** `celery_app.py:69` 가 `task_acks_late=True` 라
+전달 보장이 **at-least-once** 다 — counter 증가 뒤 ack 전에 워커가 죽으면 같은 체결을 한 번
+더 센다. 하한이 체결 수, 상한이 "체결 수 + 크래시 재전달 수". 멱등 dedup 을 넣지 않은 이유는
+이 값이 원장이 아니라 **크기 분포 프로브**여서 크래시 잡음이 판정을 뒤집지 않기 때문이다.
+원장 수준 정확도가 필요해지면 그때 넣어라.
+
+★★★**MAJOR[6] — 내 테스트가 거짓 그린이었다.** helper 를 `MagicMock` 으로 덮으니 helper 의
+게이트를 안 지나, 위의 key 누락이 **테스트에 전혀 안 잡혔다**. `MagicMock` 을 걷고 최종
+부작용(`apply_async`)을 잡도록 바꿨고, 픽스처 key 도 `janitor:{uuid}` → **실제 조건부 진입
+key 형식**으로 고쳤다(같은 계열 함정: "외부 형식 픽스처는 그 시스템이 실제로 주는 형태여야
+한다"). janitor + sweep 양쪽에 실제-경로 단언.
+
+★**못 잰 것을 한 라벨에 묻지 않는다** — `unmeasured` 를 6종으로 갈랐다
+(`no_position` / `pre_fill_read` / `no_anchor` / `position_predates_order` / `no_fill_qty` /
+`error`). BL-560 이 정확히 그 병이었다. bucket 총 **11 series**.
+
+**MINOR[5] 거래소 호출** — 조건부 진입 체결 1건당 `fetch_position` 1회 추가. 공유할 상주
+provider 가 없고(기존 두 태스크도 각자 생성), soak 기준 조건부 체결이 시간당 한 자릿수라
+**시간당 한 자릿수 REST 증가**. 분당 단위로 오르면 provider 공유 재검토.
+
+표적 변이 **4종 추가 전건 실패 확인**: 기준을 `filled_at` 으로 회귀 / janitor `hook_order`
+key 제거 / sweep `hook_order` key 제거 / 픽스처 key 를 임의 문자열로 회귀.
+
 - ⚠️ **worker 실주행 미검증** — 워크트리는 메인 `src` 를 mount 하므로 celery 경유 확인이
   구조적으로 불가. 신규 Celery task 라 `backend.md §9.5` 의 라이브 검증이 **CONTROL 몫**이다.
   첫 관측에서 `unmeasured` 가 지배하면 countdown(5초)이 짧은 것이다.
