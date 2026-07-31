@@ -39,8 +39,8 @@ BL-512 label cardinality:
   최대 4 x 3 x 14 = 168 series.
 - qb_live_conditional_guard_total: outcome ∈ {conditional_placed, market_converted,
   breach_capped, breach_with_resting, reference_unavailable, convert_suppressed,
-  breach_reverted, bracket_attached, bracket_unavailable, bracket_tp_dropped_size,
-  bracket_trailing_only_dropped} = 11. 최대 11 series.
+  breach_reverted, bracket_attached, bracket_unavailable, bracket_supplied_gate_dropped,
+  bracket_tp_dropped_size, bracket_trailing_only_dropped} = 12. 최대 12 series.
 
 `ccxt_timer` context manager 는 Bybit/OKX provider 에서 CCXT 호출을 감싸는 데 사용.
 """
@@ -70,12 +70,22 @@ _LIVE_CONDITIONAL_GUARD_OUTCOMES: frozenset[str] = frozenset(
         "convert_suppressed",
         "breach_reverted",
         # BL-523 — 조건부 진입에 브래킷을 실을 수 있었는가. ★`bracket_unavailable` 이
-        # 이 4종의 존재 이유다. 조건부 진입은 체결 전까지 `open_trades` 에 없고
+        # 이 5종의 존재 이유다. 조건부 진입은 체결 전까지 `open_trades` 에 없고
         # `place_exit` 는 `open_trades` 만 타깃하므로(`strategy_state.py:963`)
         # `exit_levels_for` 가 항상 `(None, None, None)` 을 준다 — 즉 배관을 깔아도
         # 실을 것이 없다. 그 "없음" 을 추측이 아니라 관측으로 만드는 것이 이 라벨이다.
+        #
+        # ★BL-563 — 이 3종은 **엔진이 공급한 원본 leg 기준**이고 상호배타다. 합은
+        #   `qb_live_conditional_placed_total`(등재 성공 수)과 같다.
+        #     bracket_attached             — 공급됐고 주문에도 실려 나갔다.
+        #     bracket_supplied_gate_dropped — 공급됐는데 게이트가 전부 드롭했다.
+        #     bracket_unavailable          — **엔진이 아예 공급하지 않았다**.
+        #   판정을 게이트 **뒤**의 `OrderRequest` 로 하면 TP-only 반전(게이트 B 가 TP 를
+        #   드롭 + SL/trailing 없음)이 "엔진이 공급 안 함" 으로 섞여 BL-523 의 판정
+        #   근거를 오염시킨다. 그래서 세 번째 라벨이 있다.
         "bracket_attached",
         "bracket_unavailable",
+        "bracket_supplied_gate_dropped",
         # TP 만 드롭(SL 유지). `_merge_exit_params` 가 `tpSize = 주문수량` 을 넣는데
         # 반전이면 주문수량 > 체결 후 포지션이라 거래소가 진입 자체를 거부한다.
         "bracket_tp_dropped_size",
@@ -441,6 +451,14 @@ qb_live_conditional_sweep_filled_total = Counter(
 # ★유실 건수가 아니라 **등재 성공 횟수**다. 발화 지점이 `order_service.execute` 직후라
 #   캡(`max_reversal_overshoot_ratio`)에 막혀 등재되지 않은 반전은 여기 없다 —
 #   그쪽은 `qb_live_conditional_plan_drop_evaluations_total{reversal_overshoot_exceeds_cap}` 이다.
+#
+# ★★BL-562 — **체결된 반전 수가 아니라 등재 시점 판정이다.** 두 방향으로 어긋난다:
+#     (1) 등재는 매 tick 취소·재등재될 수 있어 한 의도가 여러 번 오른다(지속시간 신호).
+#     (2) 조건부 주문은 트리거까지 대기하므로 bucket 은 **등재 순간의 포지션**으로 잰
+#         근사다. 보통은 다음 tick 재등재가 갱신하지만, 목표와 실포지션이 같은 폭으로
+#         움직이면 갱신 없이 트리거까지 간다(`conditional_entry_planner.py:542-547`).
+#   ⇒ 이 값을 "실제로 이만큼 반전이 체결됐다" 로 읽지 마라. 체결 기준이 필요하면 원장
+#     (`trading/entry_completeness.py` 계열)을 봐라 — 이 counter 와 **합산하지 마라**.
 #
 # Cardinality: bucket ∈ {1x, 2x, 4x, 8x+} = 4 series.
 qb_live_conditional_reversal_total = Counter(

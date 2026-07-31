@@ -340,6 +340,10 @@ def test_guard_metric_accepts_bracket_outcomes() -> None:
     for outcome in (
         "bracket_attached",
         "bracket_unavailable",
+        # BL-563 — 게이트가 전부 걷어낸 축. 미등재면 `_count_safely` 가 ValueError 를
+        # 삼켜 이 라벨만 조용히 0 으로 남는다(그러면 `bracket_unavailable` 이 여전히
+        # 100% 로 보이는데 원인은 정반대다).
+        "bracket_supplied_gate_dropped",
         "bracket_tp_dropped_size",
         "bracket_trailing_only_dropped",
     ):

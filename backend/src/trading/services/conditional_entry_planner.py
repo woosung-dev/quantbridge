@@ -68,6 +68,17 @@ class PlannedConditionalEntry:
     ★`crosses_zero`/`overshoot_ratio`/`resulting_position_qty` 는 **파생값이지 결정이
     아니다**. 수량 산식(`abs(target_position - current_position)`)도 `reduce_only=False`도
     그대로다 — BL-516 은 "합쳐진 주문 1건" 을 고치기 전에 **크기부터 재기로** 판정했다.
+
+    ★★BL-562 — 이 셋은 전부 **등재 시점 근사**다. 조건부 주문은 거래소에서 트리거될
+    때까지 대기하고, 그 사이 포지션이 움직이면 값이 낡는다. 노출 폭은 두 층이다:
+      (a) 보통은 **다음 reconcile tick 이 걷어낸다** — 수량이
+          `|target - current_position|` 이라 포지션이 움직이면 비교 튜플(`:542-547`)이
+          어긋나 resting 을 취소하고 새 값으로 재등재한다.
+      (b) 목표와 실포지션이 같은 폭으로 움직여 **튜플이 그대로면 재등재가 없다** —
+          그때는 등재 시점 판정이 트리거까지 살아남는다.
+    (b) 는 원리적으로 못 고친다: 주문은 이미 거래소에 있고 `tpSize` 는 등재할 때
+    확정되므로 체결 시점에 다시 판정해도 바꿀 것이 없다. 고정 테스트 =
+    `tests/trading/test_conditional_entry_planner.py` 의 BL-562 두 건.
     """
 
     trade_id: str
@@ -353,6 +364,10 @@ def plan_reconcile(
             비활성이라 기존 동작과 byte-identical 이다. 초과하면 등재하지 않고 발산으로
             기록한다 — 반전 주문 1건이 청산과 진입을 합쳐 내는 크기를 사용자가 **선택적으로**
             제한하는 안전밸브이지, 수량 산식을 바꾸는 장치가 아니다.
+            ★★BL-562 — 이 캡은 **등재 시점 근사**다. `current_position` 을 등재하는 그
+            순간에만 보고, 조건부 주문은 트리거까지 대기하므로 체결 시점의 실제 반전 크기는
+            이보다 클 수도 작을 수도 있다. **체결 시점 보장이 아니다** — 그 시점엔 주문이
+            이미 거래소에 있어 크기를 못 바꾼다. 상세는 `PlannedConditionalEntry` docstring.
         allow_market_conversion: 기준가가 거래소 last에서 왔을 때만 돌파 주문을 시장가로
             전환한다. False면 기존처럼 돌파를 발산으로 기록하고 등재하지 않는다.
     """

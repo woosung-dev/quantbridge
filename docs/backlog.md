@@ -5176,7 +5176,8 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
 **카테고리:** Backend / trading (조건부 진입 계측 정확도)
 **Trigger:** BL-516 캡을 실제로 켜기 **전** (기본 비활성인 동안은 오작동하지 않는다)
 **Est:** S
-**상태:** 🟡 **열려 있다** — 2026-07-30 codex 적대 리뷰 MAJOR 로 발견.
+**상태:** 🟠 **부분 해결 — 노출 폭이 측정됐고 문서화는 끝났다. 계측 이전은 하지 않았다** (2026-07-31 `instrument` 워커).
+2026-07-30 codex 적대 리뷰 MAJOR 로 발견.
 
 ★**게이트 B 와 반전 캡이 「등재 순간의 포지션」만 본다 — 조건부 주문은 트리거까지 대기한다.**
 
@@ -5197,6 +5198,46 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
 **계측만 체결 시점으로 옮기고**, 캡은 "등재 시점 근사" 임을 이름/문서에 명시하는 쪽이 정직하다.
 ★**BL-516 의 leg 분리를 다시 꺼내지 마라** — 술어 4곳 문제는 그대로다.
 
+---
+
+#### 2026-07-31 처리 — 노출 폭 실측 + 문서화 (계측 이전은 **하지 않았다**)
+
+★★**전제가 절반 틀렸다 — "트리거까지 낡는다" 가 아니라 대부분 「다음 tick 까지」다.**
+`plan_reconcile` 은 **매 reconcile tick 실포지션으로 다시 돈다.** 수량이
+`|target - current_position|` 이라 포지션이 움직이면 비교 튜플
+(`conditional_entry_planner.py:542-547` = `side / quantity / stop_price / trigger_direction`)이
+어긋나 resting 을 취소하고 **새 값으로 재등재**한다. 노출은 두 층이다:
+
+| 층                                                          | 지속           | 고칠 수 있나                                                            |
+| ----------------------------------------------------------- | -------------- | ----------------------------------------------------------------------- |
+| (a) 포지션 이동 → 수량 변화 → 재등재                        | 1 tick(=1 bar) | 이미 걷힌다 (조치 불요)                                                 |
+| (b) 목표·실포지션이 **같은 폭**으로 이동 → 튜플 동일 → 유지 | 트리거까지     | ✗ **원리적으로 불가** — 주문이 이미 거래소에 있어 `tpSize` 를 못 바꾼다 |
+
+고정 테스트 2건 = `tests/trading/test_conditional_entry_planner.py`
+(`test_position_drift_forces_a_fresh_replacement_with_recomputed_reversal_facts` ·
+`test_drift_that_leaves_the_compare_tuple_intact_keeps_the_stale_leg_resting`). 변이 2종으로
+판별력 확인(수량 비교 제거 → 전자 실패 / 튜플 상시 불일치 → 후자 실패).
+
+**한 것.** 「등재 시점 근사」를 결정·소비 지점 전건에 명시 —
+`conditional_entry_planner.py` `PlannedConditionalEntry` docstring · 같은 파일
+`plan_reconcile(max_reversal_overshoot_ratio)` docstring · `strategy/schemas.py`
+`StrategySettings.max_reversal_overshoot_ratio` · `common/metrics.py`
+`qb_live_conditional_reversal_total` 주석 · `tasks/live_signal.py` 게이트 B 주석.
+설정 필드 **추가/개명 없음** ⇒ FE `.strict()` 무영향(`max_reversal_overshoot_ratio` 는 PR #513 에서
+이미 등재됨). 캡/게이트 B 는 **그대로 뒀다** — 체결 시점엔 바꿀 것이 없다(위 표 (b)).
+
+★**계측을 체결 훅으로 옮기지 않았다. 근거:** 체결 훅
+(`tasks/trading.py:1141` `_enqueue_trailing_if_intended`)이 받는 것은 `Order` 행뿐인데,
+반전 판정에 필요한 **체결 후 포지션이 그 행에 없다.** 그래서 옮기려면 둘 중 하나가 필요하다 —
+(가) 체결마다 거래소 `fetch_position` 1회 + `place_trailing_stop_task` 가 정확성을 위해
+쌓아 올린 정착 지연·reopen tolerance·flat 재시도를 **그대로 다시** 구현(계측기가 또 틀릴 자리를
+새로 만든다), 또는 (나) 등재 시점 값을 `Order` 에 영속(머니-패스 `OrderService.execute` 관통).
+(나) 는 **발화 시점만 옮기고 숫자는 여전히 등재 시점 근사**라, 체결 시점 측정처럼 보이는데
+아니어서 오히려 더 나쁘다. 캡이 기본 비활성인 P2 계측 항목에 (가) 의 비용·위험은 과하다고 판단.
+⇒ **캡을 켜기 전에** (가) 를 별도 항목으로 세우는 것이 맞다.
+
+**남은 것:** 위 (가). 트리거 = 캡을 실제로 켜기 전.
+
 **Risk:** 🟡
 
 ---
@@ -5207,7 +5248,7 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
 **카테고리:** Backend / observability (계측 귀속 지점)
 **Trigger:** BL-523 의 `bracket_unavailable` 비율을 근거로 쓰기 **전**
 **Est:** XS
-**상태:** 🟡 **열려 있다** — 2026-07-30 codex 적대 리뷰 MINOR.
+**상태:** ✅ **Resolved** (2026-07-31 `instrument` 워커). 2026-07-30 codex 적대 리뷰 MINOR 로 발견.
 
 ★**"붙일 것이 있었는가" 를 게이트 **뒤**에서 재고 있다.**
 
@@ -5222,6 +5263,33 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
 
 **권장 접근:** outcome 을 **원본 planned leg**(`PlannedConditionalEntry`) 기준으로 옮긴다.
 `bracket_unavailable` = "엔진이 공급 안 함", 게이트 드롭은 **별도 축**으로 센다.
+
+---
+
+#### 2026-07-31 해결
+
+판정을 게이트 뒤 `OrderRequest` → **원본 `planned_entry`** 로 옮기고 신규 축
+`bracket_supplied_gate_dropped` 를 세웠다 (`tasks/live_signal.py:1391-1420`).
+allowlist 등재 = `common/metrics.py:_LIVE_CONDITIONAL_GUARD_OUTCOMES` (11 → **12 series**).
+
+세 라벨은 **상호배타**이고 합 = `qb_live_conditional_placed_total`:
+
+| 라벨                            | 뜻                                                    |
+| ------------------------------- | ----------------------------------------------------- |
+| `bracket_attached`              | 공급됐고 주문에도 실려 나갔다                         |
+| `bracket_supplied_gate_dropped` | 공급됐는데 게이트가 **전부** 드롭했다                 |
+| `bracket_unavailable`           | **엔진이 아예 공급하지 않았다** (BL-523 의 판정 근거) |
+
+★**게이트 A(`:1263` trailing-only)의 비대칭은 고치지 않았다 — 축이 다르기 때문이다.**
+게이트 A 는 브래킷이 아니라 **leg 자체**를 드롭해 `continue` 하므로 주문이 발주되지 않는다.
+이 축의 분모는 등재 성공 수(`qb_live_conditional_placed_total`)라, 발주도 안 된 leg 를 넣으면
+위 합 등식이 깨진다. 그쪽은 `bracket_trailing_only_dropped` 가 이미 센다.
+
+테스트 3건 (`tests/tasks/test_live_signal_conditional_reconcile.py`
+`test_tp_only_reversal_is_not_counted_as_engine_supplied_nothing` ·
+`test_bracket_outcome_labels_are_mutually_exclusive_per_placement` · 게이트 B 기존 테스트 보강) +
+allowlist 가드(`tests/tasks/test_exchange_order_response_metric.py:341`).
+표적 변이(`planned_entry` → `request` 로 되돌림) 로 신규 2건이 **실패함을 확인**.
 
 **Risk:** 🟢
 
