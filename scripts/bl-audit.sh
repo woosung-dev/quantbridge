@@ -31,7 +31,7 @@
 # 사용법
 #   scripts/bl-audit.sh [--list ACTIVE|PARTIAL|RESOLVED|UNKNOWN] [--no-crosscheck]
 #
-# 종료 코드: 0 = 불일치 0 & UNKNOWN 0 & 중복 상태줄 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
+# 종료 코드: 0 = 불일치 0 & UNKNOWN 0 & 중복 상태줄 0 & 중복 섹션 헤더 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
 #   ★`--list` 는 목록 출력 전용이라 **항상 0** 이다 — 게이트에는 인자 없는 형태를 쓴다.
 set -uo pipefail
 
@@ -124,6 +124,10 @@ NR == FNR {
   if ($0 ~ /^### BL-[0-9]+/) {
     finalize()
     match($0, /BL-[0-9]+/); id = substr($0, RSTART, RLENGTH)
+    # ★섹션 헤더 중복 = 실패. 이 파서는 **id 로 키를 잡으므로**(verdict/evid/sec_line/rowline)
+    #   두 번째 벌이 첫 벌을 조용히 덮어쓴다 — 첫 벌은 판정에서 사라지지만 `order[]` 에는
+    #   남아 카운트에는 잡혀서, 숫자만 보면 정상으로 읽힌다. 중복 상태줄과 같은 계약이다.
+    if (id in secfirst) secdup[id] = secdup[id] " :" FNR; else secfirst[id] = FNR
     reset(id, FNR)
     if (index($0, "✅") > 0) hd_check = 1
     next
@@ -232,6 +236,12 @@ END {
   for (id in dup) { if (d++ == 0) printf "\n▶ 중복 상태 줄 — SSOT 는 하나여야 한다 (첫 줄로 판정했다)\n"; printf "  %-8s +%d 줄  섹션:%d\n", id, dup[id], sec_line[id] }
   bad += d
 
+  # ★중복 섹션 헤더 = 실패 (BL-569). id 가 키라서 뒤 섹션이 앞 섹션의 판정을 통째로 덮어쓴다 —
+  #   상태줄은 각자 하나씩이라 위의 `dup` 은 0 이고, 그래서 이 사고가 조용히 exit 0 을 유지했다.
+  h = 0
+  for (id in secdup) { if (h++ == 0) printf "\n▶ 중복 섹션 헤더 — `### BL-<n>` 은 하나여야 한다 (뒤 섹션이 앞 섹션 판정을 덮어썼다)\n"; printf "  %-8s 첫:%d  중복%s\n", id, secfirst[id], secdup[id] }
+  bad += h
+
   # ★구간이 안 닫히면 그 뒤가 통째로 안 읽힌다 — 조용히 삼키지 말고 실패로 올린다.
   o = 0
   if (fence)      { o++; printf "\n▶ 서식 오류 — ``` 코드펜스가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n" }
@@ -239,7 +249,7 @@ END {
   bad += o
 
   printf "\n════════════════════════════════════════\n"
-  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 중복 상태줄 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, d, o; exit 1 }
+  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, d, h, o; exit 1 }
   printf "✓ 3면(섹션 · 인덱스 표 · 로드맵) 정합. active=%d / 전체=%d\n", cnt["ACTIVE"] + 0, n
   exit 0
 }

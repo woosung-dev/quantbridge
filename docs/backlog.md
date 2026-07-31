@@ -13,7 +13,7 @@
 >
 > ```bash
 > scripts/bl-audit.sh                 # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록
-> #                                     UNKNOWN · 3면 불일치 · 중복 상태줄 · 미닫힌 펜스/<details> → exit 1
+> #                                     UNKNOWN · 3면 불일치 · 중복 상태줄 · 중복 섹션 헤더 · 미닫힌 펜스/<details> → exit 1
 > scripts/bl-audit.sh --list ACTIVE   # id / 우선순위 / 줄번호 만 (★목록 전용 — 항상 exit 0, 게이트에 쓰지 마라)
 > ```
 >
@@ -723,6 +723,16 @@
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                   | 그 게이지로 무언가를 판단하기 전                                               | S            | 2026-07-30 live-entry-completeness                     |
 | [BL-558](#bl-558) | retCode 를 `error_message` 에 싣는 경로가 **동기 1곳뿐** — 비동기 확정 거절이 코드 미상이 된다                                                                    | 거절 코드로 채널을 가를 때                                                     | M            | 2026-07-30 live-entry-completeness                     |
 | [BL-559](#bl-559) | (P3) 진입 완결성 도구 잔여 3건 — 세션 목록 절단 감지 · 사문 라벨 · janitor probe 전이                                                                             | 그 경로가 실측될 때                                                            | S            | 2026-07-30 live-entry-completeness                     |
+| [BL-560](#bl-560) | 🟡 부분 Resolved — 엔진과 거래소가 반대 방향(`110017 same side`). 2026-07-31 에 두 층을 고쳤으나 진짜 수정이 실주행에서 한 번도 실행되지 않았다                   | 그 코드가 실행되는 조건을 만들어 재측정할 때                                   | M            | 2026-07-30 close-mismatch-visibility                   |
+| [BL-561](#bl-561) | ✅ Resolved 2026-08-01 — 포매터가 `extra` 를 렌더하지 않아 진단 증거가 즉시 소실된다                                                                              | ✅ 2026-08-01 메인 실주행 렌더 확인                                            | XS           | 2026-07-30 close-mismatch-soak                         |
+| [BL-562](#bl-562) | ✅ Resolved — 조건부 진입 반전 판정 3값이 계획 시점 계산이라 트리거까지 대기하는 동안 낡는다                                                                      | ✅ 2026-07-31 reversal-ledger-sync                                             | S            | 2026-07-30 close-mismatch-soak                         |
+| [BL-563](#bl-563) | ✅ Resolved — (P3) bracket outcome 을 게이트 처리 **후** request 기준으로 세어 TP 공급을 미공급으로 오분류                                                        | ✅ 2026-07-31 reversal-ledger-sync                                             | XS           | 2026-07-30 close-mismatch-soak                         |
+| [BL-564](#bl-564) | (P3) `bl-audit.sh` 가 코드펜스 · `<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다                                                                              | 그 관용구가 상태줄을 품게 될 때                                                | XS           | 2026-07-30 close-mismatch-soak                         |
+| [BL-565](#bl-565) | `check_exit_fills` 의 close 도 BL-560 과 같은 성질 — 읽기만 하고 남겼다                                                                                           | `strategy.exit` 을 쓰는 전략을 라이브로 돌리기 전                              | S            | 2026-07-31 reversal-ledger-sync                        |
+| [BL-566](#bl-566) | ★청산이 성공했는데도 엔진 원장이 그 포지션을 계속 들고 있다 — **41.6건/h**, 평가의 **69%**                                                                        | BL-560 실주행 재측정을 다시 시도하기 전                                        | M            | 2026-07-31 reversal-ledger-sync                        |
+| [BL-567](#bl-567) | `place_trailing_stop` enqueue 가 실패하면 그 주문의 트레일링은 **영구 유실** — 회수 경로가 없다                                                                   | 트레일링 전략을 라이브로 상시 운용하기 전                                      | —            | 2026-07-31 reversal-ledger-sync                        |
+| [BL-568](#bl-568) | BL-562 체결시점 반전 계측이 **11건 중 10건 무측정** — 분류된 건이 0 이다                                                                                          | 그 분포를 근거로 무언가를 판단하기 전                                          | S            | 2026-08-01 ledgerhygiene                               |
+| [BL-569](#bl-569) | ✅ Resolved — `bl-audit.sh` 가 중복 섹션 헤더를 못 잡아 같은 BL 번호 두 벌이 exit 0 을 유지했다                                                                   | ✅ 2026-08-01 ledgerhygiene                                                    | XS           | 2026-08-01 ledgerhygiene                               |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -5043,7 +5053,7 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 > (codex 3차 [5] 도 이것으로 해소된다). 이제 그 자리에서 삼키고 counter·로그로 남긴다.
 > **회수 범위는 정직하게 갈린다** — closed-pnl 은 `trading.sweep_closed_pnl` 비트
 > (`celery_app.py:141`)가 주기적으로 backfill 하므로 회수되지만, **트레일링은 회수 경로가
-> 없다** → **BL-566** 로 등재. 단 삼키지 않아도 트레일링은 똑같이 유실되고 tick 까지 잃으므로
+> 없다** → **BL-567** 로 등재. 단 삼키지 않아도 트레일링은 똑같이 유실되고 tick 까지 잃으므로
 > 삼키는 쪽이 순수하게 낫다.
 >
 > **판별력 증명 (표적 변이 4회).** ① 리컨사일러의 write-back 촉발 제거 → 배선 가드 **3건 실패**
@@ -5205,9 +5215,9 @@ BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제�
 **카테고리:** Backend / observability (구조화 로그 렌더)
 **Trigger:** BL-560 원인 착수 **직전** (선행 의존)
 **Est:** XS
-**상태:** 🟡 **부분 완료** — 포매터 + celery/uvicorn 배선 착지(2026-07-31, `wt/logfmt`).
-★**실주행에서 실제로 찍히는지는 미검증** — 워크트리는 worker 가 메인 `src` 를 bind-mount 하므로
-celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 확인 후 Resolved 로 올려라.
+**상태:** ✅ **Resolved** — 2026-08-01 **메인 실주행에서 값이 실제로 찍히는 것을 확인**했다
+(아래 「실주행 확인」). 포매터 + celery/uvicorn 배선은 2026-07-31 `wt/logfmt` 로 착지했고,
+남아 있던 유일한 미검증분(실주행 렌더)이 이것으로 닫혔다.
 **출처:** 2026-07-30 close-mismatch-soak — BL-560 수용 기준이 구조적으로 충족 불가였다
 
 ★**`extra=` 로 넘긴 필드가 렌더되지 않아 진단 증거가 즉시 소실된다.**
@@ -5272,6 +5282,25 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
   celery 서비스(worker/ws-stream/optimizer-heavy/beat)에 주입 + 루트 `.env.example` 선언 추가.
   `docker-compose.isolated.yml` 은 ports/command/volumes 만 override 하고 `environment` 는
   상속하므로 **수정 불필요**(`docker compose config` 병합 렌더로 4/4 전달 확인).
+
+**실주행 확인 (2026-08-01).** 메인 스택 worker 컨테이너의 실제 로그에서 `extra` 3필드가
+전부 렌더된다 — 등재 당시 "이벤트 이름만 찍힌다" 던 바로 그 줄이다.
+
+```
+$ docker logs quantbridge-worker --since 96h 2>&1 | grep live_signal_position_divergence | tail -2
+[2026-07-31 15:11:17,262: WARNING/ForkPoolWorker-1] src.tasks.live_signal live_signal_position_divergence \
+  session_id=c77d5851-f463-4f40-89cd-6848a75d5f24 symbol=BTC/USDT category=exchange_only \
+  engine_position=0.0 exchange_position=-0.03
+[2026-07-31 15:35:17,150: WARNING/ForkPoolWorker-1] src.tasks.live_signal live_signal_position_divergence \
+  session_id=... category=direction engine_position=-0.030428836150639117 exchange_position=0.03
+```
+
+같은 창에서 **371줄** 이 같은 형태로 남았다. 로거 이름(`src.tasks.live_signal`)까지 붙어
+celery 가 root 를 hijack 하지 않았음도 함께 보인다. ★**이 확인은 워크트리에서 할 수 없다**
+(worker 가 메인 `src` 를 bind-mount 한다) — 메인 스택 로그를 **읽기만** 해서 재현했다.
+
+★**BL-566(청산 성공 후 유령 포지션 41.6건/h)이 이 렌더 덕분에 보였다.** 값이 없을 때는
+같은 이벤트가 이름만 찍혀 크기·방향을 알 수 없었다.
 
 **Risk:** 🟡 (진단 불가가 다른 P1 을 막는다)
 
@@ -5565,7 +5594,7 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
 
 ---
 
-### BL-566
+### BL-567
 
 **우선순위:** P2
 **카테고리:** Backend / trading (체결 후속 훅 회수)
@@ -5646,5 +5675,96 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
 `position_epoch` 값을 함께 남겨라. 크기 없이 원인 후보를 고르지 마라.
 
 **Risk:** 🟡 (엔진 원장이 거래소와 어긋난 채로 신호를 낸다. 방벽은 `reduce_only` 하나)
+
+---
+
+### BL-568
+
+**우선순위:** P2
+**카테고리:** Backend / trading (조건부 진입 반전 계측)
+**Trigger:** BL-562 의 **체결시점** 반전 분포를 근거로 무언가를 판단하기 전
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-08-01 ledgerhygiene 에서 실측. 아직 원인 미측정.
+**출처:** 2026-08-01 ledgerhygiene (BL-562 착지 후 첫 실측)
+
+★**BL-562 의 체결시점 반전 계측이 11건 중 10건을 못 쟀다 — 분류된 건이 0 이다.**
+
+**원인/영향.** 메인 스택 worker 의 prometheus multiproc 레지스트리를 그대로 읽었다:
+
+```
+qb_live_conditional_reversal_filled_total{bucket="unmeasured_position_predates_order"}  10
+qb_live_conditional_reversal_filled_total{bucket="not_reversal"}                         1
+(그 외 버킷 = 없음)                                                                       0
+```
+
+같은 창의 **등재 시점** 축은 `qb_live_conditional_reversal_total{bucket="1x"} = 27` 로 살아 있다.
+즉 축 자체는 돌지만 **체결시점 축만 91%(10/11)가 `unmeasured` 로 떨어진다.**
+BL-562 는 "증명하지 못하면 버킷에 넣지 않는다" 를 원칙으로 삼았고 그 원칙은 옳다 —
+문제는 **그 결과 남는 신호가 사실상 없다**는 것이다. 지금 이 counter 로는 반전이
+일어나는지 아닌지를 말할 수 없다.
+
+`unmeasured_position_predates_order` 는 `_reversal_bucket_at_fill`
+(`backend/src/tasks/trading.py:1595`) 의 마지막 분기다 — 같은 방향 + `size < filled_quantity`
+까지 온 뒤 `created_at < submitted_at - 2s` 면 여기로 떨어진다.
+
+**[가정] anchor 가 구조적으로 뒤진다는 후보 1.** `position.created_at` 은
+`_parse_position_created_at`(`backend/src/trading/providers.py:271-278`)이 Bybit raw
+`info.createdTime` 에서 채우고, 그 주석이 **「최초 포지션 생성 시각 (ADD 시 불변)」** 이라고
+못박는다. 포지션이 flat 을 거치지 않고 살아 있는 한 `created_at` 은 계속 최초 개시 시각이므로,
+**나중에 등재된 조건부 주문의 `submitted_at` 보다 항상 앞선다.** 조건부 주문은 등재 후
+트리거까지 대기하므로 이 시차는 분 단위로 벌어진다. ★단 이건 코드 대조로 세운 가설이고
+**실측되지 않았다.**
+
+★**먼저 재라 — 왜 anchor 가 항상 뒤지는가.** 10건 각각에 대해 `submitted_at` ·
+`position.created_at` · `filled_quantity` · `position.size` 를 함께 남기고 차이를 봐라.
+가설이 맞다면 `created_at` 이 **모든 건에서 동일한 한 시각**(그 포지션의 최초 개시)으로
+수렴한다 — 그게 판별식이다. ★★**코드 대조로 뿌리를 정하지 마라** — BL-560 이 정확히 그렇게
+두 번 틀렸다(2026-07-31 실주행이 코드 대조 가설을 반증).
+
+**권장 접근:** 원인이 측정된 뒤에 고른다. anchor 후보는 최소 3개이고 셋 다 대가가 다르다 —
+(a) 거래소 체결 시각 소싱(BL-375 와 같은 뿌리, 가장 비싸고 가장 정확),
+(b) 주문 등재 시점의 포지션 스냅샷을 함께 저장해 delta 로 판정(계측 전용 경로에 쓰기가 생긴다),
+(c) `created_at` 대신 포지션 `updatedTime` 을 보조 축으로(★BL-372 가 정확히 그 이유로
+`timestamp` 를 버렸다 — same-side ADD 를 reopen 으로 오탐한다. **같은 함정을 반대편에서
+다시 밟는 선택지다**).
+
+★**계측 전용이라는 성질은 지켜라.** 이 경로는 주문을 내지 않고 행을 쓰지 않는다
+(`trading.py:1610-1613`). 원인을 고치려고 여기에 쓰기를 넣으면 계측기가 머니-패스가 된다.
+
+**Risk:** 🟢 (계측 전용 — 잘못된 값이 주문으로 이어지지 않는다. 단 BL-562 의 판정 근거가 비어 있다)
+
+---
+
+### BL-569
+
+**우선순위:** P3
+**카테고리:** DX / 문서 게이트 (`scripts/bl-audit.sh`)
+**Trigger:** —
+**Est:** XS
+**상태:** ✅ **Resolved** (2026-08-01 ledgerhygiene, 등재와 같은 PR)
+**출처:** 2026-08-01 ledgerhygiene G0 실측
+
+★**`bl-audit.sh` 가 중복 섹션 헤더를 못 잡아, 같은 BL 번호 두 벌이 exit 0 을 유지했다.**
+
+**원인/영향.** 파서는 `verdict[id]` · `evid[id]` · `sec_line[id]` 를 **BL id 로 키를 잡는다**.
+`### BL-566` 이 두 번 나오면 뒤 섹션이 앞 섹션의 판정을 통째로 덮어쓰고, 앞 섹션은
+`order[]` 에만 남아 **카운트에는 잡히므로 숫자만 보면 정상으로 읽힌다.**
+BL-564 가 넣은 중복 검사는 **상태줄**만 봤는데(`st_dup`), 두 섹션이 각자 상태줄을 하나씩
+가지면 `st_dup` 은 양쪽 다 0 이다. 그래서 실패 조건에 걸리지 않았다.
+
+**실측(수정 전).** `docs/backlog.md` 에 `### BL-566` 이 `:5568`(체결 후속 훅 회수)과
+`:5610`(청산 성공 후 유령 포지션) 두 벌 있었는데 `bash scripts/bl-audit.sh` 는 `exit 0`,
+출력에 `BL-566` 은 **한 번도 등장하지 않았다**(`grep -c BL-566` → 0).
+
+**해결.** 섹션 헤더에 상태줄과 **같은 계약**을 적용했다 — `### BL-<n>` 중복이면 exit 1 이고
+「▶ 중복 섹션 헤더」 블록으로 첫 줄과 중복 줄을 함께 출력한다(`scripts/bl-audit.sh:124-130`,
+`:236-242`). 앞 벌(체결 후속 훅 회수)은 **BL-567 로 재번호**했다.
+
+★**판별력 증명 3종.** (a) 임시 `### BL-999` 두 벌 삽입 → `exit 1` · 제거 → `exit 0`.
+(b) ★수정 전 원본(`git show HEAD:docs/backlog.md`)에 새 검사를 적용 → `BL-566 첫:5568 중복 :5610`
+로 **실제 결함을 잡는다** — 합성 케이스가 아니라 조용히 통과하던 진짜 사고를 재현했다.
+(c) 종료코드는 **파이프 없이** 읽었다(`| tail` 이 exit code 를 가린다).
+
+**Risk:** 🟢
 
 ---
