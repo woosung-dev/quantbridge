@@ -53,7 +53,7 @@ codex #1/#3/#5(BL 등재만 — 구조적/공유 메서드/선재 패턴).
 
 ### baseline (2026-08-01 실측 — `stage/conditional-fill-visibility`)
 
-**BE 3730 passed / 46 skipped**(직전 3721 대비 **+9**) · **FE 1232**(205 파일, **FE diff 0줄**) ·
+**BE 3732 passed / 46 skipped**(직전 3721 대비 **+11**) · **FE 1232**(205 파일, **FE diff 0줄**) ·
 ruff clean · mypy **214** clean · 마이그레이션 head **`20260730_0001`**(이번 회차 마이그레이션 0) ·
 `scripts/bl-audit.sh` **exit 0** · `scripts/bl-audit-test.sh` **5/5**(게이트 체인 편입).
 

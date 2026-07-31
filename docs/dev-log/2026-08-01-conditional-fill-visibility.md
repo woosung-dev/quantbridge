@@ -266,4 +266,25 @@ BL-566 의 「청산이 성공한 뒤에도 남고 **다음 진입이 올 때까
 
 ## 게이트
 
-_(창 종료 후 기입)_
+`scripts/final-gates.sh --run conditional-fill-visibility` — **파이프 없이** 돌렸다.
+
+| 게이트                         | 결과                                  | baseline 대비                                 |
+| ------------------------------ | ------------------------------------- | --------------------------------------------- |
+| BE ruff                        | ✅ All checks passed                  | —                                             |
+| BE mypy                        | ✅ **214 files** clean                | 214 → 214                                     |
+| BL 감사                        | ✅ exit 0 · **active 153 / 전체 233** | active 146 → 153 · 전체 224 → 233             |
+| **BL 감사 하네스**             | ✅ **5 / 5** (이번 회차 신설)         | 신규                                          |
+| BE pytest                      | ✅ **3732 passed / 46 skipped**       | 3721 → **+11**                                |
+| e2e design-canon               | ✅ **32 passed**                      | —                                             |
+| e2e authed                     | ✅ **66 passed**                      | —                                             |
+| CI 커버리지 잡                 | ✅ **93.15%** (문턱 90)               | —                                             |
+| CI fresh DB alembic            | ✅ exit 0 (head `20260730_0001`)      | 마이그레이션 **0**                            |
+| CI frozen-lockfile             | ✅ exit 0                             | —                                             |
+| CI hooks grep                  | ✅ exit 0                             | —                                             |
+| FE typecheck/lint/vitest/build | **건너뜀 (frontend diff 0)**          | baseline FE **1232**(205 파일)은 첫 step 실측 |
+
+★**FE 게이트는 「통과」가 아니라 「건너뜀」이다** — 영역 판정이 FE diff 0 을 읽고 건너뛴다.
+그렇게 쓴다. 체인은 e2e 전에 **자체 정체성 프로브**를 돌았다(`:3100 <title>QuantBridge</title>`).
+
+★**baseline 정정** — 이 회차 중간에 잰 **3730** 은 G6 수정 커밋(테스트 2건 추가) **이전** 값이었다.
+게이트를 다시 돌려서 잡았다. 요약 층(`status.md`)에도 반영했다.
