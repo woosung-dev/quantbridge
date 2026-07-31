@@ -155,6 +155,9 @@ def _patch_reconcile(
     exchange_orders_error: Exception | None = None,
     probe_status: str | None = "submitted",
     probe_error: Exception | None = None,
+    probe_filled_price: Decimal | None = None,
+    probe_filled_quantity: Decimal | None = None,
+    terminal_write_back_rows: int = 1,
     last_price: Decimal | None = Decimal("64"),
     recent_market_conversion: bool = False,
 ) -> SimpleNamespace:
@@ -168,6 +171,10 @@ def _patch_reconcile(
 
     order_repo.get_by_id = AsyncMock(side_effect=get_by_id)
     order_repo.transition_to_cancelled = AsyncMock(return_value=1)
+    # BL-560 — terminal write-back. rowcount 는 단일행 UPDATE 승자 규약의 입력이라
+    # 기본값을 1(승자)로 두고, 패자 경로는 테스트가 명시적으로 0 을 준다.
+    order_repo.transition_to_filled = AsyncMock(return_value=terminal_write_back_rows)
+    order_repo.transition_to_rejected = AsyncMock(return_value=terminal_write_back_rows)
     order_repo.transition_pending_to_cancelled = AsyncMock(return_value=pending_cancel_rows)
     order_repo.get_state_and_exchange_id_fresh = AsyncMock(
         return_value=None if fresh_state is None else (fresh_state, fresh_exchange_order_id)
@@ -214,8 +221,8 @@ def _patch_reconcile(
         return_value=SimpleNamespace(
             exchange_order_id="probe",
             status=probe_status,
-            filled_price=None,
-            filled_quantity=None,
+            filled_price=probe_filled_price,
+            filled_quantity=probe_filled_quantity,
             raw={},
         ),
         side_effect=probe_error,
@@ -1247,6 +1254,110 @@ async def test_confirmed_fill_stands_down_this_tick(
 
 
 @pytest.mark.asyncio
+async def test_confirmed_fill_writes_back_to_the_order_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★BL-560 진짜 뿌리 — 확인했으면 **기록까지** 해야 한다.
+
+    예전엔 `probe.status == "filled"` 를 확인하고도 `orders` 행을 그대로 뒀다. 그래서
+    체결 기록이 세션이 죽을 때까지(스윕) 미뤄졌고, 그 사이 `list_fills_since` 를 읽는
+    `_ledger_gap_seed` 가 그 체결을 못 봐 **엔진 원장이 낡은 채로 돌았다**.
+
+    실측(세션 `70063496`, 2026-07-31): 주문 `9c7aef0b` 는 07:31~32 체결인데 `filled_at`
+    은 07:44:13 — 13분 공백. 그 동안 엔진 숏 / 거래소 롱(`engine_position=-0.0297634`
+    vs `exchange_position=0.029`)이었고, 다음 청산 신호가 `buy` reduce-only 로 나가
+    `110017 same side` 가 됐다.
+    """
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[ghost],
+        exchange_orders=[],
+        probe_status="filled",
+        probe_filled_price=Decimal("64000"),
+        probe_filled_quantity=Decimal("0.029"),
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_repo.transition_to_filled.assert_awaited_once_with(
+        ghost.id,
+        exchange_order_id="probe",
+        filled_price=Decimal("64000"),
+        filled_quantity=Decimal("0.029"),
+        filled_at=ANY,
+    )
+    harness.order_repo.commit.assert_awaited()
+
+
+@pytest.mark.asyncio
+async def test_still_open_probe_writes_nothing_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    """★음성 대조군 — 거래소가 아직 살아 있다고 하면 원장을 건드리지 않는다.
+
+    이게 없으면 위 테스트는 "무조건 전이한다" 는 오답도 통과시킨다.
+    """
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch, local_orders=[ghost], exchange_orders=[], probe_status="submitted"
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_repo.transition_to_filled.assert_not_awaited()
+    harness.order_repo.transition_to_rejected.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirmed_reject_also_writes_back(monkeypatch: pytest.MonkeyPatch) -> None:
+    """확인된 거절도 같은 공백을 만든다 — 같이 기록한다.
+
+    `filled` 만 기록하면 거절된 행이 `submitted` 로 남아 `list_resting_conditional_entries`
+    에 계속 잡히고, 계획기가 "이미 등재됨" 으로 보아 그 trade_id 가 영구 no-op 이 된다.
+    """
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch, local_orders=[ghost], exchange_orders=[], probe_status="rejected"
+    )
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_repo.transition_to_rejected.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_write_back_race_loser_does_not_double_process(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★중복 처리 금지 — rowcount 0 이면 commit 도 gauge 도 건드리지 않는다.
+
+    watchdog · WS · 스윕 · 이 경로가 동시에 같은 주문을 본다. 승자만 후속을 돌려야
+    gauge 가 음수로 표류하지 않고 trailing/closed-pnl 훅이 두 번 걸리지 않는다.
+    """
+    from src.common.metrics import qb_active_orders
+
+    session = _session()
+    ghost = _order(session, exchange_order_id="exchange-ghost")
+    harness = _patch_reconcile(
+        monkeypatch,
+        local_orders=[ghost],
+        exchange_orders=[],
+        probe_status="filled",
+        terminal_write_back_rows=0,
+    )
+    commits_before = harness.order_repo.commit.await_count
+    gauge_before = qb_active_orders._value.get()
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    harness.order_repo.transition_to_filled.assert_awaited_once()
+    assert harness.order_repo.commit.await_count == commits_before
+    assert qb_active_orders._value.get() == gauge_before
+
+
+@pytest.mark.asyncio
 async def test_confirmed_fill_does_not_increment_exchange_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1496,6 +1607,84 @@ async def test_reversal_drops_take_profit_but_keeps_stop_loss(
     assert request.take_profit is None
     assert request.stop_loss == Decimal("64")
     assert "bracket_tp_dropped_size" in outcomes
+    # BL-563 — SL 이 남아 실제로 나갔으므로 여기는 여전히 `bracket_attached` 다.
+    assert "bracket_attached" in outcomes
+    assert "bracket_supplied_gate_dropped" not in outcomes
+
+
+@pytest.mark.asyncio
+async def test_tp_only_reversal_is_not_counted_as_engine_supplied_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★BL-563 — 게이트가 전부 걷어낸 것과 엔진이 공급 안 한 것을 섞지 않는다.
+
+    엔진이 TP 만 준 반전은 게이트 B 가 그 TP 를 드롭하므로 발주된 `OrderRequest` 는
+    셋 다 None 이다. 판정을 그 `request` 로 하면 `bracket_unavailable` 이 올라
+    **"엔진이 아무것도 공급하지 않았다"** 와 같은 라벨이 된다 — BL-523 의 판정 근거가
+    바로 그 counter 라 그 순간 숫자를 못 믿는다.
+
+    오라클은 게이트 B 테스트와 같은 2의 거듭제곱 — 보유 +8, 목표 -8, 주문 16,
+    체결 후 포지션 8 (16 != 8 이라 게이트 B 가 발화).
+    """
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, positions=[_position("long", Decimal("8"))])
+    outcomes = _capture_guard_outcomes(monkeypatch)
+
+    await _reconcile(
+        session,
+        _result(
+            [
+                _pending(
+                    direction="short",
+                    target_position=Decimal("-8"),
+                    stop_price=Decimal("32"),
+                    take_profit=Decimal("16"),
+                )
+            ]
+        ),
+        harness,
+    )
+
+    request = harness.order_service.execute.await_args.args[0]
+    assert (request.take_profit, request.stop_loss, request.trailing_stop) == (None, None, None)
+    assert "bracket_tp_dropped_size" in outcomes
+    # ★핵심 단언 — 게이트 드롭은 자기 축으로 가고 "공급 없음" 축을 오염시키지 않는다.
+    assert "bracket_supplied_gate_dropped" in outcomes
+    assert "bracket_unavailable" not in outcomes
+    assert "bracket_attached" not in outcomes
+
+
+@pytest.mark.asyncio
+async def test_bracket_outcome_labels_are_mutually_exclusive_per_placement(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BL-563 — 세 라벨의 합 = 등재 성공 수. 한 등재가 둘을 올리면 비율이 무의미해진다."""
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, positions=[_position("long", Decimal("8"))])
+    outcomes = _capture_guard_outcomes(monkeypatch)
+
+    await _reconcile(
+        session,
+        _result(
+            [
+                _pending(
+                    direction="short",
+                    target_position=Decimal("-8"),
+                    stop_price=Decimal("32"),
+                    take_profit=Decimal("16"),
+                )
+            ]
+        ),
+        harness,
+    )
+
+    bracket_axis = [
+        outcome
+        for outcome in outcomes
+        if outcome in ("bracket_attached", "bracket_unavailable", "bracket_supplied_gate_dropped")
+    ]
+    assert bracket_axis == ["bracket_supplied_gate_dropped"]
+    assert outcomes.count("conditional_placed") == len(bracket_axis)
 
 
 @pytest.mark.asyncio

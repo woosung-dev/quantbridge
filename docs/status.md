@@ -1,77 +1,61 @@
 # QuantBridge — TODO
 
-> **Last Updated:** 2026-07-30 (**close-mismatch-soak** — ★★**실재한다. 2.60건/h · 청산 시도의 46.2%.** 그리고 6/6 이 **반전 체결 직후 같은 방향**이라 뿌리가 좁혀졌다)
+> **Last Updated:** 2026-07-31 (**reversal-ledger-sync** — ★★★**코드 대조로 세운 뿌리 가설을 실주행이 반증했다.** 엔진이 자기 플립을 재발신한 게 아니라 **체결을 13분 38초 동안 몰랐다**)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** 없음.
-> **Last Merged:** `stage/conditional-entry-armor` → `main@bc0046b6` (**PR #513**, 2026-07-30 · **마이그레이션 0**) · 그 앞 `feat/entry-defer-convergence` → `main@75722cbe` (PR #511) · `stage/live-entry-completeness` → `main@f8706618` (PR #509)
+> **미머지:** `stage/reversal-ledger-sync` (PR 대기).
+> **Last Merged:** `docs/soak-closeout-state` → `main@262ed28e` (**PR #514**, 2026-07-31) · 그 앞 `stage/conditional-entry-armor` → `main@bc0046b6` (PR #513)
 
 ---
 
-## 🎯 다음 스프린트 — **reversal-ledger-sync** (크기와 뿌리가 나왔다. 이제 고친다)
+## 🎯 다음 스프린트 — **conditional-fill-visibility** (수정은 있는데 그 코드가 실행된 적이 없다)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 > 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + `AGENTS.md` + 본 파일을 읽고 시작한다.
 
-**한 줄.** 직전 회차가 **쟀다** — 실재하고, 2.60건/h 이고, 뿌리는 **엔진이 자기 반전 체결의
-청산 leg 를 반영하지 못하는 것**이다. 이번 회차는 **처음으로 고친다.**
-
-### ★왜 지금인가 (실측, soak 창 3h20m · 2026-07-30)
-
-| 지표                         |               값 |
-| ---------------------------- | ---------------: |
-| `reduce_only_same_side`      |    **2.60 건/h** |
-| 청산 시도 대비               | **46.2%** (6/13) |
-| 같은 패턴 적중               |     **6/6 전건** |
-| `reduce_only_violation` 차분 |            **0** |
-
-6/6 전건이 **직전 체결과 같은 방향**이고 체결 후 **50–104초**(평균 78초)에 발생한다.
-buy 체결 → 롱인데 엔진이 **buy** reduce-only 를 보낸다 = **이미 닫힌 숏을 다시 닫으려 한다.**
-발신은 정상 봉 평가(`live_signal.dispatch_event`)다.
+**한 줄.** 직전 회차가 BL-560 의 뿌리를 **두 번 바꿨다.** 최종 수정
+(`_write_back_confirmed_terminal` 계열)은 들어갔지만 **실주행에서 한 번도 실행되지 않았다.**
+그리고 판정 지표였던 `same_side` 는 **4창 4.48h 동안 0건** — 이 구간의 PbR 이 청산 주문을
+아예 안 낸다. **다음 회차의 일은 「그 코드가 실행되는 조건을 만들고 재는 것」이다.**
 
 ### ★착수 전 반드시 읽을 것
 
-1. ★★**BL-561 이 선행이다.** 포매터가 `extra` 를 렌더하지 않아 `engine_position`/`exchange_position`
-   **쌍이 소실된다**. 그것 없이 수정하면 고쳤는지 **확인할 수단이 없다.** XS 다. 먼저 해라.
-2. ★**뿌리 가설은 좁지만 아직 코드로 확정되지 않았다.** `check_pending_fills` 의 flip 처리가
-   반전 체결에서 close leg 를 어떻게 다루는지 **먼저 읽어라**(`strategy_state.py`). soak 은 증상을
-   확정했지 코드 지점을 확정하지 않았다.
-3. ★**`reduce_only` 는 방벽이지 결함이 아니다.** 거절은 손실을 막고 있다. 거절을 없애는 방향으로
-   고치지 마라 — **엔진 원장을 맞추는 것**이 목표다.
-4. ★**BL-553 은 PbR 로 재시도하지 마라.** 6번째 0 을 얻는다. flat 구간이 있는 전략이 필요하다.
+1. ★★**`same_side` 를 시간당 발생률로 재려는 시도를 반복하지 마라.** pre-fix 창에서
+   **수정 없이도 0** 이 나왔고, 4창 전체에서 청산 시도가 **0건**이었다. 이 전략·이 구간에서
+   그 지표는 **구조적으로 도달 불가**다(BL-553 이 5번 겪은 것과 같은 형태).
+2. ★**대신 결정적 지표가 이미 있다** — 「거래소 체결 확인 후 미기록」 **반복 횟수**
+   (before 7회 / after 0회)와 **등재→원장 기록 소요**(before 818초). 창 길이에 무관하다.
+3. ★**`_write_back_confirmed_terminal` 발화 여부를 먼저 계측해라.** 최종 창에서 0회였다 —
+   기존 경로(WS/watchdog)가 31·61초에 먼저 잡았다. **그 경로가 느려지는 조건**이 무엇인지
+   찾지 못하면 수정의 효과를 영원히 못 잰다.
+4. ★**BL-566(청산 성공 후 유령 포지션)이 새로 열렸다** — pre-fix 창에서 **41.6건/h**,
+   평가의 **69%**. BL-560 과 같은 계열인지 미확정. 이쪽이 더 조밀해서 재기 쉽다.
 
-### 사전등록 판정 문턱
+### 사전등록 판정 문턱 (착수 전 확정할 것)
 
-| ID  | 판정        | 조건                                                            |
-| --- | ----------- | --------------------------------------------------------------- |
-| W1  | 계측기 선행 | BL-561 적용 후 로그에 포지션 **쌍이 실제로 찍힌다**(실주행 1회) |
-| W2  | 성공        | 같은 길이 창에서 `same_side` 발생률이 **0**                     |
-| W3  | 부분        | 발생률이 **2.60/h 대비 유의하게 감소**(창 ≥2h · 청산 시도 ≥10)  |
-| W4  | 표본 하한   | 청산 시도 **< 10** 이면 어떤 비율도 인용하지 않는다             |
-| W5  | 무효        | 세션이 `position_divergence`·`run_live_error` 로 죽으면 창 폐기 |
-
-★**before 는 이미 있다** — 2.60건/h · 46.2%. 같은 전략·심볼·인터벌(PbR · BTC/USDT · 1m ·
-계정 `19a8166a`)로 재라. ★계정 `0277c150` 은 `read_only=true` 라 **주문을 못 낸다** — 쓰면 구조적 0이다.
+| ID  | 판정        | 조건                                                               |
+| --- | ----------- | ------------------------------------------------------------------ |
+| X1  | 계측기 선행 | `_write_back_confirmed_terminal` 발화 counter 가 실주행에서 **≥1** |
+| X2  | 성공        | 「체결 확인 후 미기록」 반복이 **전 주문 0회** (창 ≥2h)            |
+| X3  | 표본 하한   | 조건부 진입 **체결 < 5** 이면 어떤 비율도 인용 금지                |
+| X4  | 무효        | 세션이 `gap_resync_position_mismatch` 로 죽으면 그 창 폐기         |
 
 ### 하지 않는 것
 
-**거절 자체를 없애는 코드** · **leg 분리**(BL-516 에서 기각 — 술어 4곳이 고아 주문을 만든다) ·
-BL-523 의 엔진 계약 변경(크기 미확정) · 거래소 확장 · PbR 로 BL-553 재시도.
+**`same_side` 시간당 발생률 재시도**(구조적 불가) · **PbR 로 BL-553 재시도** ·
+BL-516 leg 분리 · 거래소 확장 · `scan_stuck_orders` 주기 단축(증상 완화).
 
-### baseline (2026-07-30 실측 — `stage/conditional-entry-armor`)
+### baseline (2026-07-31 실측 — `stage/reversal-ledger-sync`)
 
-**BE 3659 passed / 46 skipped**(main 3633 대비 +26) · **FE 1232 passed**(205 파일) ·
-ruff clean · mypy **213** clean · FE typecheck/lint clean · `pnpm e2e` **4 passed** ·
-마이그레이션 head **`20260730_0001`**(이번 회차 마이그레이션 0).
-
-★**직전 블록의 「FE 1231」은 stale 이었다** — main 을 직접 재보니 **1232** 다(이번 회차 FE 테스트 추가 0건).
-`docdrift` 워크트리(FE 무변경)로 대조해 확인했다. **baseline 은 언제나 대조 대상이다.**
+**BE 3721 passed / 46 skipped**(main 3659 대비 **+62**) · **FE 1232**(205 파일, **FE diff 0줄**) ·
+ruff clean · mypy **214** clean · `pnpm e2e` **4 passed**(수동) ·
+마이그레이션 head **`20260730_0001`**(이번 회차 마이그레이션 0) ·
+`scripts/bl-audit.sh` **exit 0** 으로 **게이트 체인 편입 완료**.
 
 ★**이 숫자도 대조 대상이다. 첫 step 에서 지금 HEAD 로 다시 재라.**
 
-> ★**`final-gates.sh` 는 커밋 후에 돌려라** — 미커밋이면 거부한다(BL-549).
-> ★**`pnpm e2e`(chromium 4건)는 게이트 체인에 없다** — 수동 1회 필요(BL-556).
-> ★**CI 는 러너 전역 미할당이다.** 판단 근거는 로컬 재현뿐. `| tail` 로 파이프하면 exit code 가 가려진다.
-> ★**`scripts/bl-audit.sh` 는 현재 exit 1** — UNKNOWN 17건 미판정. 게이트 체인에 넣기 전 정리 필요.
+> ★**`pnpm e2e` 는 자기 dev 서버를 못 띄운다** — 같은 디렉터리에 `next dev` 가 이미 떠 있으면
+> `Another next dev server is already running`. 정체성 프로브 후 `PLAYWRIGHT_BASE_URL=http://localhost:3100`.
+> ★**`herdr agent prompt` 는 붙여넣기만 하고 제출하지 않는다** — `send-keys enter` 를 반드시 붙여라.
 
 ## ⚡ close-mismatch-soak — 실재한다, 그리고 6/6 이 같은 패턴이었다 (2026-07-30)
 
@@ -119,6 +103,63 @@ BE 신규 설정 필드가 `model_dump()` 로 저장돼 FE `.strict()` 파싱을
 
 17건 전건 통과. BE **3659**(+26) · FE **1232** · mypy 213 · `pnpm e2e` 4 · **마이그레이션 0**.
 ★**baseline 정정** — 문서의 「FE 1231」이 stale 이었다(실측 **1232**).
+
+## ⚡ reversal-ledger-sync — 뿌리를 두 번 바꿨고, 두 번째는 실주행이 바꿨다 (2026-07-31)
+
+**스코프.** BL-560 원인 착수 + BL-561/562/563/564. **마이그레이션 0 · 새 엔드포인트 0.**
+상세 = [dev-log](dev-log/2026-07-31-reversal-ledger-sync.md).
+
+### ★★★코드 대조 가설을 실주행이 반증했다
+
+1차 가설(코드 대조): 엔진이 자기 반전 체결의 **청산 leg 를 재발신**한다 → `broker_filled` 로 차단.
+실주행(세션 `70063496`, 21분 만에 fail-closed 사망)이 남긴 것:
+
+```
+9c7aef0b  buy 0.058 (병합 반전)   created 07:30:35 · filled_at 07:44:13
+07:32:23  divergence  category=direction  engine=-0.0297634 / exchange=0.029
+07:32~07:38  reconcile_divergence  exchange_status=filled  ★같은 주문에 7회 반복
+```
+
+⇒ **엔진이 체결을 13분 38초 동안 몰랐다.** 리컨사일러가 거래소에 물어 `filled` 을 **7번
+확인하고도** 원장에 기록하지 않았다(`fill_confirmed` 는 등재 스킵에만 쓰였다).
+★**직전 회차의 「6/6 이 +50~104초」는 두 가설 모두와 맞아 판별력이 없었다.**
+**BL-561 이 착지한 뒤에야 갈렸다** — 선행으로 지정한 그 항목이 실제로 뿌리를 바꿨다.
+
+### 사전등록 판정
+
+| ID    | 결과                                                           |
+| ----- | -------------------------------------------------------------- |
+| W1    | ✅ **PASS(강한 형태)** — 포지션 쌍이 값과 함께 렌더            |
+| W2/W3 | ❌ **판정 불가** — 4창 4.48h 동안 **청산 시도 0건**(W4 미충족) |
+| W5    | ★1회 발동 — 그 창이 뿌리를 바꿨다                              |
+
+★★**BL-560 은 「고쳤다」로 닫지 않는다** — `_write_back_confirmed_terminal` 이 최종 창에서
+**한 번도 발화하지 않았다**(기존 경로가 31·61초에 먼저 잡았다). **프로덕션 미검증.**
+간접 신호만: 미기록 반복 **7→0회** · divergence **41.6→12/h** · 세션 생존 **0.36h(사망)→0.86h**.
+
+### 한 일
+
+- **BL-561** `extra` 를 렌더하는 stdlib 포매터(신규 의존성 0) + celery/uvicorn 양쪽 배선
+- **BL-560** `broker_filled`(1차) + `_write_back_confirmed_terminal`(2차, 훅 3종 실패 격리 통합)
+- **BL-562** 반전 계측을 **체결 시점**으로 이전(anchor = `submitted_at`, `unmeasured` 6분할)
+- **BL-563** bracket outcome 을 **원본 planned leg** 기준으로 + 게이트 드롭을 별도 축으로
+- **BL-564** `bl-audit.sh` fence/`<details>` 스킵 + UNKNOWN 17 정리 → **exit 0, 게이트 체인 편입**
+- 신규 **BL-565**(`check_exit_fills` 도 같은 성질, 읽기만) · **BL-566**(청산 성공 후 유령 포지션 41.6/h)
+
+### ★codex 적대 리뷰 3회 — MAJOR 8건
+
+**거짓 그린 4건**(시장가 반전 회귀가 그 경로를 안 지남 · 예약 키 테스트가 `makeRecord` 우회 ·
+janitor 테스트가 helper 를 MagicMock · fill-hook 삭제 변이 생존) · **죽은 배선 2곳**
+(`SimpleNamespace` 에 `idempotency_key` 없음) · **틀린 anchor**(`filled_at` 은 관측 시각) ·
+**거짓 주장**("정확히 1회" — `acks_late=True` 라 at-least-once). 전건 수정.
+
+### 게이트
+
+BE **3721 passed / 46 skipped**(baseline **3659**, **+62**) · FE **1232**(FE diff **0줄**) ·
+ruff clean · mypy **214** clean · `pnpm e2e` **4 passed**(수동) · **마이그레이션 0** ·
+`bl-audit` **exit 0**.
+
+---
 
 ## ⚡ close-mismatch-visibility — 재던 곳에 없었고, 진짜 신호는 이미 원장에 있었다 (2026-07-30)
 

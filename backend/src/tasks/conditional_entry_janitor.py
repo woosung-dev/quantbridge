@@ -29,6 +29,7 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
     """거래소 부재는 CAS reject, 발견된 주문은 수리 또는 terminal 전이한다."""
     from src.tasks.trading import (
         _enqueue_closed_pnl_refresh,
+        _enqueue_conditional_reversal_measure,
         _enqueue_trailing_if_intended,
         _has_leverage,
     )
@@ -62,6 +63,9 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                         id=order.id,
                         trailing_stop=order.trailing_stop,
                         reduce_only=order.reduce_only,
+                        # BL-562 — 반전 계측 hook 이 조건부 진입 판별에 쓴다. 빠지면
+                        # 이 경로의 체결이 **조용히 미계측**으로 남는다(예약 자체가 안 된다).
+                        idempotency_key=order.idempotency_key,
                     ),
                 )
                 for order in await order_repo.list_stale_conditional_entries(cutoff)
@@ -153,6 +157,7 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                         if probe.status == "filled":
                             _enqueue_trailing_if_intended(hook_order)
                             _enqueue_closed_pnl_refresh(hook_order)
+                            _enqueue_conditional_reversal_measure(hook_order)
                     else:
                         qb_live_conditional_reconcile_errors_total.labels(
                             stage="janitor_race"

@@ -565,6 +565,77 @@ def test_cap_never_blocks_a_non_reversal_entry() -> None:
     assert plan.divergences == ()
 
 
+# ── BL-562: 반전 계측/캡이 "등재 시점 근사" 라는 것의 경계 ──────────────────
+
+
+def test_position_drift_forces_a_fresh_replacement_with_recomputed_reversal_facts() -> None:
+    """★BL-562 의 노출 폭을 재는 상한 — 드리프트는 보통 **다음 tick 에 재등재로 걷힌다**.
+
+    `crosses_zero`/`overshoot_ratio`/`resulting_position_qty` 는 등재 시점 값이지만
+    `plan_reconcile` 은 **매 tick 실포지션으로 다시 돈다**. 수량은
+    `|target - current_position|` 이라 포지션이 움직이면 비교 튜플(`:542-547`)이
+    어긋나고, 그러면 resting 을 걷고 **새 값으로** 재등재한다.
+
+    보유 0 에서 목표 -8 로 등재(수량 8, 반전 아님) -> 보유 +8 로 드리프트하면
+    수량 16 · 반전 · 체결 후 8 로 **다시 계산돼** 나간다.
+    """
+    placed_when_flat = _plan(
+        [_desired(direction="short", target=Decimal("-8"))], [], current=Decimal("0")
+    )
+    assert placed_when_flat.to_place[0].quantity == Decimal("8")
+    assert placed_when_flat.to_place[0].crosses_zero is False
+
+    drifted = _plan(
+        [_desired(direction="short", target=Decimal("-8"))],
+        [_actual(side="sell", quantity=Decimal("8"), trigger_direction=2)],
+        current=Decimal("8"),
+    )
+
+    assert [entry.order_id for entry in drifted.to_cancel] == ["local-entry"]
+    replaced = drifted.to_place[0]
+    assert replaced.quantity == Decimal("16")
+    assert replaced.crosses_zero is True
+    assert replaced.resulting_position_qty == Decimal("8")
+
+
+def test_drift_that_leaves_the_compare_tuple_intact_keeps_the_stale_leg_resting() -> None:
+    """★BL-562 의 잔여 노출 — 비교 튜플이 그대로면 재등재가 없어 옛 판정이 살아남는다.
+
+    비교 대상은 `(side, quantity, stop_price, trigger_direction)` 뿐이고
+    `crosses_zero`/`resulting_position_qty` 는 **거기 없다**. 목표와 실포지션이 같은
+    폭으로 움직이면 수량이 그대로라 resting 이 유지되는데, 그 사이 게이트 B 판정은
+    뒤집힌다 — flat 진입(수량 1 == 체결 후 1, TP 유지)으로 등재된 leg 가 드리프트 후엔
+    반전(수량 1 != 체결 후 0.5, TP 드롭 대상)이 된다.
+
+    ★그래도 캡/게이트 B 를 체결 시점으로 옮길 수는 없다 — 주문은 이미 거래소에 있고
+    `tpSize` 는 등재할 때 확정된다. 이 테스트는 그 사실을 고정하는 것이지 고칠 지점을
+    가리키는 것이 아니다.
+    """
+    fresh = _plan(
+        [_desired(target=Decimal("0.5"))],
+        [],
+        current=Decimal("-0.5"),
+        qty_step=Decimal("0.1"),
+    )
+    planned_now = fresh.to_place[0]
+    assert planned_now.quantity == Decimal("1.0")
+    assert planned_now.crosses_zero is True
+    # 수량 1.0 != 체결 후 0.5 -> 지금 등재한다면 게이트 B 가 TP 를 드롭한다.
+    assert planned_now.resulting_position_qty == Decimal("0.5")
+
+    kept = _plan(
+        [_desired(target=Decimal("0.5"))],
+        [_actual(quantity=Decimal("1"))],
+        current=Decimal("-0.5"),
+        qty_step=Decimal("0.1"),
+    )
+
+    # 튜플이 일치해 아무 일도 일어나지 않는다 = 옛 tpSize 가 거래소에 그대로 남는다.
+    assert kept.to_place == ()
+    assert kept.to_cancel == ()
+    assert kept.divergences == ()
+
+
 def test_exit_levels_pass_through_the_planner_untouched() -> None:
     """계획기는 브래킷을 **판단하지 않는다** — 그대로 통과시킨다(순수 함수 유지)."""
     desired = PendingOrderSnapshot(

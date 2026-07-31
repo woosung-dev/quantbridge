@@ -143,6 +143,7 @@ class StateHandler:
 
                     from src.tasks.trading import (
                         _enqueue_closed_pnl_refresh,
+                        _enqueue_conditional_reversal_measure,
                         _enqueue_trailing_if_intended,
                     )
 
@@ -156,6 +157,7 @@ class StateHandler:
                         qb_partial_fill_total.labels(source="ws").inc()
                     _enqueue_trailing_if_intended(order)
                     _enqueue_closed_pnl_refresh(order)
+                    _enqueue_conditional_reversal_measure(order)
 
                 if new_state == OrderState.rejected:
                     await self._alert_sender(

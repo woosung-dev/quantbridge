@@ -131,6 +131,10 @@ else
   skip_gate "FE typecheck" "frontend diff 0"; skip_gate "FE lint" "frontend diff 0"
 fi
 
+# ★BL 감사 — docs/ 만 읽으므로 영역 판정·cd 와 무관하게 항상 돈다 (BL-564).
+#   ★파이프를 붙이지 마라. run_gate 가 rc 를 직접 읽는다.
+run_gate "BL 감사" "docs/backlog.md" bash "$ROOT/scripts/bl-audit.sh"
+
 # ── 2. 단위 ───────────────────────────────────────────────────────
 # ★env 소싱 의무 + cd 절대경로. `pnpm test --run` 은 Unknown option — `pnpm test` 가 이미 vitest run.
 run_gate "BE pytest" "env 소싱" bash -c 'cd "$0/backend"; set -a; . ./.env.local; set +a; uv run pytest -q' "$ROOT"
