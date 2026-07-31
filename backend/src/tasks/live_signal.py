@@ -1425,6 +1425,11 @@ async def _reconcile_conditional_entries(
                         ),
                     )
                     # BL-516 안 3 — 반전이면 크기를 버킷으로 남긴다. 수량은 합친 채로 둔다.
+                    # ★BL-562 — 이것은 **등재 시점** 축이다(취소·재등재로 한 의도가 여러 번
+                    #   오르고, 트리거 전 드리프트에 낡는다). **체결 시점** 축은 별도 counter
+                    #   `qb_live_conditional_reversal_filled_total` 이고 발화 지점은 fill
+                    #   훅(`tasks/trading.py:_enqueue_conditional_reversal_measure`)이다.
+                    #   두 counter 를 합산하지 마라 — 이유는 `common/metrics.py` 주석.
                     if planned_entry.crosses_zero:
                         _count_safely(
                             qb_live_conditional_reversal_total,
@@ -2578,6 +2583,7 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
     """고아 조건부 진입을 거래소 취소 뒤에만 cancelled로 전이한다."""
     from src.tasks.trading import (
         _enqueue_closed_pnl_refresh,
+        _enqueue_conditional_reversal_measure,
         _enqueue_trailing_if_intended,
         _has_leverage,
     )
@@ -2608,6 +2614,9 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                         id=order.id,
                         trailing_stop=order.trailing_stop,
                         reduce_only=order.reduce_only,
+                        # BL-562 — 반전 계측 hook 이 조건부 진입 판별에 쓴다. 빠지면
+                        # 이 경로의 체결이 **조용히 미계측**으로 남는다(예약 자체가 안 된다).
+                        idempotency_key=order.idempotency_key,
                     ),
                 )
                 for order in await order_repo.list_orphan_conditional_entries()
@@ -2690,6 +2699,7 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                                 )
                                 _enqueue_trailing_if_intended(hook_order)
                                 _enqueue_closed_pnl_refresh(hook_order)
+                                _enqueue_conditional_reversal_measure(hook_order)
                         continue
 
                     if (

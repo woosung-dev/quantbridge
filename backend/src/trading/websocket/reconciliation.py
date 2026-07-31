@@ -138,6 +138,7 @@ class Reconciler:
 
                     from src.tasks.trading import (
                         _enqueue_closed_pnl_refresh,
+                        _enqueue_conditional_reversal_measure,
                         _enqueue_trailing_if_intended,
                     )
 
@@ -151,6 +152,7 @@ class Reconciler:
                         qb_partial_fill_total.labels(source="reconciler").inc()
                     _enqueue_trailing_if_intended(local)
                     _enqueue_closed_pnl_refresh(local)
+                    _enqueue_conditional_reversal_measure(local)
 
     async def _list_local_active(
         self, session: AsyncSession, account_id: UUID

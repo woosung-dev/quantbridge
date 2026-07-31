@@ -76,9 +76,14 @@ class PlannedConditionalEntry:
           어긋나 resting 을 취소하고 새 값으로 재등재한다.
       (b) 목표와 실포지션이 같은 폭으로 움직여 **튜플이 그대로면 재등재가 없다** —
           그때는 등재 시점 판정이 트리거까지 살아남는다.
-    (b) 는 원리적으로 못 고친다: 주문은 이미 거래소에 있고 `tpSize` 는 등재할 때
-    확정되므로 체결 시점에 다시 판정해도 바꿀 것이 없다. 고정 테스트 =
+    (b) 는 **캡·게이트 B 로는** 못 고친다: 주문은 이미 거래소에 있고 `tpSize` 는 등재할
+    때 확정되므로 체결 시점에 다시 판정해도 바꿀 것이 없다. 고정 테스트 =
     `tests/trading/test_conditional_entry_planner.py` 의 BL-562 두 건.
+
+    ★**계측은 다르다** — 반전 크기는 체결 후 실제 포지션으로 다시 잰다
+    (`qb_live_conditional_reversal_filled_total`, 발화는
+    `tasks/trading.py:_enqueue_conditional_reversal_measure`). 여기 값들은 **등재 판정용**
+    이고, "실제로 얼마나 큰 반전이 체결됐나" 의 답은 그쪽 counter 다.
     """
 
     trade_id: str

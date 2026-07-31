@@ -23,6 +23,7 @@
 - qb_exchange_order_response_total  (Counter, labels: exchange, outcome, reason) ← BL-512
 - qb_live_conditional_guard_total   (Counter, labels: outcome)          ← BL-512
 - qb_live_conditional_reversal_total (Counter, labels: bucket)          ← BL-516
+- qb_live_conditional_reversal_filled_total (Counter, labels: bucket)   ← BL-562
 
 원칙:
 - `PROMETHEUS_MULTIPROC_DIR` 설정 시 shared multiprocess registry, 미설정 시 기본 `REGISTRY`.
@@ -463,7 +464,38 @@ qb_live_conditional_sweep_filled_total = Counter(
 # Cardinality: bucket ∈ {1x, 2x, 4x, 8x+} = 4 series.
 qb_live_conditional_reversal_total = Counter(
     "qb_live_conditional_reversal_total",
-    "부호가 교차하는 조건부 진입을 등재한 횟수 (overshoot 비율 버킷별)",
+    "부호가 교차하는 조건부 진입을 **등재한** 횟수 (등재 시점 근사, overshoot 버킷별)",
+    labelnames=("bucket",),
+)
+
+# BL-562 — 같은 질문을 **체결 시점의 실제 포지션**으로 다시 잰다.
+#
+# ★★위 `qb_live_conditional_reversal_total` 과 **절대 합산하지 마라. 축이 다르다.**
+#     등재 counter — "이런 반전을 등재했다". 취소·재등재로 **한 의도가 여러 번** 오르고,
+#                    등재된 뒤 트리거 전에 포지션이 움직이면 그 값은 낡는다.
+#     이 counter   — "체결된 조건부 진입 1건을 **체결 후 포지션**으로 재보니 이랬다".
+#                    fill-transition 승자 1곳에서만 예약되므로 **체결당 정확히 1회**다.
+#   ⇒ 비율이 필요하면 이 counter 안에서만 만들어라(분모 = 이 counter 의 전 버킷 합).
+#
+# bucket ∈ {1x, 2x, 4x, 8x+}  — 등재 counter 와 **같은 경계**(`_reversal_overshoot_bucket` 공유)
+#          + {not_reversal} + `unmeasured_*` 6종 = 11 series.
+#     not_reversal — 쟀고, 반전이 아니었다(같은 방향 증량 또는 flat 진입).
+#
+# ★★**못 잰 것을 한 라벨에 묻지 마라.** `unmeasured` 하나로 두면 "재보니 반전이 없었다" 와
+#   "계측기가 죽었다" 가 같은 침묵이 된다 — BL-560 이 정확히 그 병이었고, codex 2차 리뷰가
+#   이 counter 에서 같은 병을 다시 지적했다. 그래서 사유별로 가른다:
+#     unmeasured_no_position          — 포지션이 안 보인다(체결 미전파 / 체결 직후 청산).
+#     unmeasured_pre_fill_read        — 포지션 방향이 우리 체결과 반대 = **체결 전 스냅샷**.
+#     unmeasured_no_anchor            — 포지션 생성 시각 또는 `submitted_at` 결측.
+#     unmeasured_position_predates_order — 포지션이 우리 주문 발주보다 먼저 생겼다
+#                                       (= 우리 체결이 만든 포지션이 아니다).
+#     unmeasured_no_fill_qty          — 체결 수량이 없거나 비정상.
+#     unmeasured_error                — 계정/복호화/거래소 조회 실패. **인프라 신호**다.
+#   ⇒ `unmeasured_*` 합이 크면 반전이 없는 것이 아니라 **계측이 안 되고 있는 것**이다.
+#     특히 `unmeasured_error` 는 반전 분포가 아니라 장애 알림으로 읽어라.
+qb_live_conditional_reversal_filled_total = Counter(
+    "qb_live_conditional_reversal_filled_total",
+    "체결된 조건부 진입을 체결 후 실제 포지션으로 재판정한 반전 버킷 (체결당 1회)",
     labelnames=("bucket",),
 )
 

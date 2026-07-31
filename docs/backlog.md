@@ -5195,7 +5195,7 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
 **카테고리:** Backend / trading (조건부 진입 계측 정확도)
 **Trigger:** BL-516 캡을 실제로 켜기 **전** (기본 비활성인 동안은 오작동하지 않는다)
 **Est:** S
-**상태:** 🟠 **부분 해결 — 노출 폭이 측정됐고 문서화는 끝났다. 계측 이전은 하지 않았다** (2026-07-31 `instrument` 워커).
+**상태:** ✅ **Resolved — 계측을 체결 훅으로 옮겼다. 캡·게이트 B 는 등재 시점 근사로 남기고 명시했다** (2026-07-31 `instrument` 워커).
 2026-07-30 codex 적대 리뷰 MAJOR 로 발견.
 
 ★**게이트 B 와 반전 캡이 「등재 순간의 포지션」만 본다 — 조건부 주문은 트리거까지 대기한다.**
@@ -5237,7 +5237,99 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
 `test_drift_that_leaves_the_compare_tuple_intact_keeps_the_stale_leg_resting`). 변이 2종으로
 판별력 확인(수량 비교 제거 → 전자 실패 / 튜플 상시 불일치 → 후자 실패).
 
-**한 것.** 「등재 시점 근사」를 결정·소비 지점 전건에 명시 —
+★★**계측을 체결 훅으로 옮겼다** (2026-07-31 codex 적대 리뷰 재작업). 첫 회차에 "옮길 수 없다"
+로 결론냈던 것은 **틀렸다** — 근거로 든 「매 tick 재등재」는 **캡을 못 옮기는 이유**지 계측을
+못 옮기는 이유가 아니었다. 체결 훅이 `Order` 행만 받는 것은 맞지만, 그 훅이 하는 일은
+**후속 태스크 예약**이라 체결 후 포지션을 거래소에서 직접 읽을 수 있다.
+
+| 축            | counter                                         | 발화 지점                   | 뜻                                                  |
+| ------------- | ----------------------------------------------- | --------------------------- | --------------------------------------------------- |
+| 등재 시점     | `qb_live_conditional_reversal_total`            | `tasks/live_signal.py:1428` | "이런 반전을 등재했다" (재등재로 **중복**)          |
+| **체결 시점** | **`qb_live_conditional_reversal_filled_total`** | `tasks/trading.py:1650`     | "체결 후 포지션으로 재보니 이랬다" (**체결당 1회**) |
+
+★**두 counter 를 합산하지 마라** (`common/metrics.py` 주석에 등재). 이름을 갈라 BL-563 과 같은
+축 혼동을 차단했다.
+
+- 예약: `tasks/trading.py:1163` `_enqueue_conditional_reversal_measure` —
+  `_enqueue_trailing_if_intended` 바로 옆, 같은 6곳에 배선.
+  gate = not `reduce_only` + `parse_live_entry_key(...).kind in ("cond","condmkt")`
+  (등재 시점 counter 와 **같은 모집단**).
+- 판정: `tasks/trading.py:1532` `_reversal_bucket_at_fill` (순수 함수) ·
+  태스크 `trading.measure_conditional_reversal` (`:1664`, countdown 5초, **retry 없음** —
+  재시도가 "체결당 1회" 를 깬다).
+- bucket = 등재 counter 와 **같은 경계**(`_reversal_overshoot_bucket` 한 벌 공유) +
+  `not_reversal` / `unmeasured`.
+  ★**증명 못하면 버킷에 안 넣는다** — 포지션 미가시 / 방향 불일치(=체결 전 스냅샷) /
+  포지션 생성 시각 결측·과거는 전부 `unmeasured`. 틀린 버킷은 빈 버킷보다 나쁘다.
+- **경로 중복 없음**: 호출부 6곳이 전부 `pending|submitted -> filled` 단일 행 UPDATE 의
+  rowcount 승자에서만 도달한다 — `trading.py:477-482`(rowcount==0 조기 return) ·
+  `:824`(`rows == 1`) · `websocket/state_handler.py:137` · `websocket/reconciliation.py:125-130`
+  (`winners` 루프) · `live_signal.py` sweep(`rows == 1`) · `conditional_entry_janitor.py`
+  (`rows == 1`). `_enqueue_trailing_if_intended` 가 같은 자리에서 같은 이유로 산다.
+- 표적 변이 **4종 전건 실패 확인**: 버킷을 포지션 대신 상수로 / 방향 검사 제거 /
+  `created_at` 신선도 가드 제거 / janitor 배선 제거.
+
+---
+
+##### 2026-07-31 codex 2차 적대 리뷰 — MAJOR 3건 (전건 실재, 전건 수정)
+
+★**계측을 옮기고 나서 그 계측기가 세 군데서 틀렸다.** 이 레포의 8번째 사례다.
+
+| #        | 지적                                                           | 실재 | 조치                                    |
+| -------- | -------------------------------------------------------------- | ---- | --------------------------------------- |
+| MAJOR[3] | fallback 체결이 **구조적으로 전부 `unmeasured`**               | ✅   | 기준을 `filled_at` → **`submitted_at`** |
+| MAJOR[2] | "중복 없음" 주장이 거짓 + **6곳 중 2곳이 예약조차 안 됨**      | ✅   | key 배선 + 주장 철회                    |
+| MAJOR[6] | janitor 테스트가 helper 를 `MagicMock` 으로 덮어 **거짓 그린** | ✅   | 실제 경로 통과로 교체                   |
+
+★★**MAJOR[3] — `filled_at` 은 체결 시각이 아니라 「우리가 체결을 관측한 시각」이다.**
+watchdog·reconciler·janitor·sweep 은 실제 체결보다 한참 뒤의 `now` 를 넣는다. 그것을 신선도
+기준으로 쓰면 **fallback 경로의 진짜 반전이 전부** `created_at < filled_at - 2s` 로 탈락한다
+= 새 축은 "옮겼다" 는 **착시만** 만든다. 기준을 `submitted_at`(누가 관측했든 같은 값, 그리고
+"주문이 나가기 전 포지션은 이 체결이 만든 것일 수 없다" 는 참인 하한)으로 옮겼다.
+`trading.py:_reversal_bucket_at_fill`. 회귀 테스트 =
+`test_late_discovery_by_a_fallback_path_still_measures_the_reversal`.
+
+★**남은 한계(고의):** 조건부 주문 **등재 후 트리거 전**에 같은 방향 포지션이 새로 열리고
+동시에 포지션 조회가 체결 전 스냅샷을 주면 증량이 반전으로 잡힐 수 있다. 단일 스냅샷으로는
+두 상태가 같은 수를 내 **원리적으로 구별 불가**다. 더 좁히려면 거래소 체결 시각 소싱이
+필요하고 그건 **BL-375 와 같은 뿌리**다.
+
+★★**MAJOR[2] — 6곳 중 2곳이 조용히 아무 일도 안 하고 있었다.** janitor 와 sweep 의
+`hook_order` 는 `SimpleNamespace(id, trailing_stop, reduce_only)` 라 **`idempotency_key` 가
+없었고**, 내 helper 는 그 key 로 조건부 진입을 판별한다 → 두 경로가 전량 미예약.
+`conditional_entry_janitor.py` · `live_signal.py` sweep 양쪽에 key 추가.
+
+★**「체결당 정확히 1회」 주장은 철회한다.** `celery_app.py:69` 가 `task_acks_late=True` 라
+전달 보장이 **at-least-once** 다 — counter 증가 뒤 ack 전에 워커가 죽으면 같은 체결을 한 번
+더 센다. 하한이 체결 수, 상한이 "체결 수 + 크래시 재전달 수". 멱등 dedup 을 넣지 않은 이유는
+이 값이 원장이 아니라 **크기 분포 프로브**여서 크래시 잡음이 판정을 뒤집지 않기 때문이다.
+원장 수준 정확도가 필요해지면 그때 넣어라.
+
+★★★**MAJOR[6] — 내 테스트가 거짓 그린이었다.** helper 를 `MagicMock` 으로 덮으니 helper 의
+게이트를 안 지나, 위의 key 누락이 **테스트에 전혀 안 잡혔다**. `MagicMock` 을 걷고 최종
+부작용(`apply_async`)을 잡도록 바꿨고, 픽스처 key 도 `janitor:{uuid}` → **실제 조건부 진입
+key 형식**으로 고쳤다(같은 계열 함정: "외부 형식 픽스처는 그 시스템이 실제로 주는 형태여야
+한다"). janitor + sweep 양쪽에 실제-경로 단언.
+
+★**못 잰 것을 한 라벨에 묻지 않는다** — `unmeasured` 를 6종으로 갈랐다
+(`no_position` / `pre_fill_read` / `no_anchor` / `position_predates_order` / `no_fill_qty` /
+`error`). BL-560 이 정확히 그 병이었다. bucket 총 **11 series**.
+
+**MINOR[5] 거래소 호출** — 조건부 진입 체결 1건당 `fetch_position` 1회 추가. 공유할 상주
+provider 가 없고(기존 두 태스크도 각자 생성), soak 기준 조건부 체결이 시간당 한 자릿수라
+**시간당 한 자릿수 REST 증가**. 분당 단위로 오르면 provider 공유 재검토.
+
+표적 변이 **4종 추가 전건 실패 확인**: 기준을 `filled_at` 으로 회귀 / janitor `hook_order`
+key 제거 / sweep `hook_order` key 제거 / 픽스처 key 를 임의 문자열로 회귀.
+
+- ⚠️ **worker 실주행 미검증** — 워크트리는 메인 `src` 를 mount 하므로 celery 경유 확인이
+  구조적으로 불가. 신규 Celery task 라 `backend.md §9.5` 의 라이브 검증이 **CONTROL 몫**이다.
+  첫 관측에서 `unmeasured` 가 지배하면 countdown(5초)이 짧은 것이다.
+
+**캡·게이트 B 는 안 옮겼다** (권장안대로). 근거는 위 표 (b) — 체결 시점엔 주문이 이미
+거래소에 있어 `tpSize` 를 못 바꾼다.
+
+**문서화.** 「등재 시점 근사」를 결정·소비 지점 전건에 명시 —
 `conditional_entry_planner.py` `PlannedConditionalEntry` docstring · 같은 파일
 `plan_reconcile(max_reversal_overshoot_ratio)` docstring · `strategy/schemas.py`
 `StrategySettings.max_reversal_overshoot_ratio` · `common/metrics.py`
@@ -5245,17 +5337,14 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
 설정 필드 **추가/개명 없음** ⇒ FE `.strict()` 무영향(`max_reversal_overshoot_ratio` 는 PR #513 에서
 이미 등재됨). 캡/게이트 B 는 **그대로 뒀다** — 체결 시점엔 바꿀 것이 없다(위 표 (b)).
 
-★**계측을 체결 훅으로 옮기지 않았다. 근거:** 체결 훅
-(`tasks/trading.py:1141` `_enqueue_trailing_if_intended`)이 받는 것은 `Order` 행뿐인데,
-반전 판정에 필요한 **체결 후 포지션이 그 행에 없다.** 그래서 옮기려면 둘 중 하나가 필요하다 —
-(가) 체결마다 거래소 `fetch_position` 1회 + `place_trailing_stop_task` 가 정확성을 위해
-쌓아 올린 정착 지연·reopen tolerance·flat 재시도를 **그대로 다시** 구현(계측기가 또 틀릴 자리를
-새로 만든다), 또는 (나) 등재 시점 값을 `Order` 에 영속(머니-패스 `OrderService.execute` 관통).
-(나) 는 **발화 시점만 옮기고 숫자는 여전히 등재 시점 근사**라, 체결 시점 측정처럼 보이는데
-아니어서 오히려 더 나쁘다. 캡이 기본 비활성인 P2 계측 항목에 (가) 의 비용·위험은 과하다고 판단.
-⇒ **캡을 켜기 전에** (가) 를 별도 항목으로 세우는 것이 맞다.
+★**첫 회차의 오판을 기록해 둔다** — "체결 훅은 `Order` 행만 받으니 옮길 수 없다" 로 결론냈는데,
+훅이 하는 일은 **후속 태스크 예약**이라 그 태스크가 포지션을 읽으면 된다.
+`_enqueue_trailing_if_intended` 가 바로 그 형태였고 **같은 파일 12줄 아래**에 있었다.
+정착 지연·stale read 위험은 실재하지만 그것은 **`unmeasured` 로 떨어뜨리면 되는** 문제이지
+못 옮기는 이유가 아니었다(계측은 money-path 가 아니라서 "모른다" 를 답으로 낼 수 있다).
+⇒ **"못 한다" 를 말하기 전에 인접 코드가 이미 그 형태인지 먼저 봐라.**
 
-**남은 것:** 위 (가). 트리거 = 캡을 실제로 켜기 전.
+**남은 것:** worker 실주행 검증(CONTROL). `unmeasured` 비율이 첫 관측 기준선이다.
 
 **Risk:** 🟡
 
