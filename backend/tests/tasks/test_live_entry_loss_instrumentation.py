@@ -308,6 +308,8 @@ def test_engine_only_divergence_counter_still_warns_against_entry_loss_use() -> 
     source = inspect.getsource(metrics_module)
     assert "이 값을 진입 유실의 측정치로" in source
     assert "쓰지 마라" in source
+    assert "engine_only_awaiting_trigger" in source
+    assert "engine_only_unexplained" in source
 
 
 # --- R2-② 계측 예외가 머니-패스를 멈추지 않는다 -------------------------------
