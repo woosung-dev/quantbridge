@@ -4943,7 +4943,47 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 
 ### BL-560
 
-> ### 🔴 **열려 있다 — 단 크기와 뿌리가 확정됐다 (2026-07-30 close-mismatch-soak, V3 판정)**
+> ### 🟡 **코드 지점 확정 + 수정 완료 — soak 재측정 대기 (2026-07-31 reversal-ledger-sync)**
+>
+> **가설이 코드로 확정됐다.** 특성화 테스트가 반전 체결 직후 엔진이 `close`(direction=short)
+> signal 을 실제로 내보내는 것을 재현했고, 그 주문 방향이 **직전 체결과 같다**(둘 다 `buy`)는
+> 실측 6/6 서명까지 단언으로 고정했다 —
+> `backend/tests/strategy/pine_v2/test_run_live_broker_flip.py`.
+>
+> **뿌리 한 줄.** `event_loop.py:504` 의 dispatch 필터가 `fill` 만 broker 이벤트로 걸렀는데,
+> 조건부 진입은 거래소에 **병합 주문 1건**으로 등재되므로
+> (`trading/services/conditional_entry_planner.py:444` — `abs(target_position - current_position)`)
+> 그 주문에 딸린 **청산 leg 도 broker 가 이미 실행한 것**이다. 즉 주석의 논리가 절반만
+> 적용돼 있었다. **엔진 원장은 처음부터 맞았다** — 틀린 것은 그 장부 기록을 거래소 지시로
+> **재발신**하는 것이었다.
+>
+> **수정.** `TradeEvent.broker_filled` 신설(`strategy_state.py:245`) → `check_pending_fills` 의
+> flip close 와 동일 id close 를 `broker_filled=True` 로 표시(`strategy_state.py:891-899`) →
+> `run_live` dispatch 필터에서 제외(`event_loop.py:513`). 원장(`to_report()` · PnL ·
+> 백테스트 결과)은 **한 자리도 바뀌지 않는다** — `to_report()` 는 events 를 싣지 않고,
+> `TradeEvent` 소비처는 `event_loop.py` 한 곳뿐이다.
+>
+> ★**시장가 반전 경로는 그대로 두 장이 나간다**(close seq 0 + entry seq 1). 그 경로는 엔진이
+> 먼저 결정하고 거래소가 뒤따르므로 close 시점에 거래소는 아직 반대편을 들고 있어 거절되지
+> 않는다. 회귀 테스트 2건(기본 · catch-up)이 이것을 붙잡는다.
+>
+> **판별력 증명(표적 변이 2회).** 수정의 두 절반을 **각각** 되돌렸더니 두 경우 모두 핵심
+> 테스트 2건이 실패하고 회귀 테스트 4건은 통과했다 = 두 절반 모두 하중을 받고 있고,
+> 회귀 테스트는 본 수정에 무감하다.
+>
+> ★**남은 것 = 실주행 재측정.** W2(발생률 0) / W3(유의 감소) 판정은 워크트리에서 구조적으로
+> 불가능하다 — celery worker 가 메인의 `src` 를 bind-mount 한다. 같은 조건(PbR · BTC/USDT ·
+> 1m · 계정 `19a8166a` · 창 ≥2h · 청산 시도 ≥10)으로 CONTROL 이 메인에서 재야 한다.
+>
+> ★**이 수정은 `check_exit_fills` 를 건드리지 않았다.** 같은 성질일 가능성이 높으나 범위 밖
+> → **BL-565 신설**.
+>
+> ---
+>
+> #### 이전 판정 — 크기 실측 (2026-07-30 close-mismatch-soak, V3). **아래는 이력이다.**
+>
+> **soak 창 3h20m 에서 뿌리를 좁혔지만 코드 지점은 확정하지 않았다** (`<details>` 를 쓰지
+> 않는다 — BL-564 가 그 관용구를 `bl-audit.sh` 파서 함정으로 등재했다).
 >
 > **soak 창 3h20m** (`15:54:56Z` → `19:15Z`, 세션 `a815df92`, PbR + BTC/USDT 1m + bybit demo).
 > 사전등록 문턱 **V3 = 실재 · 원인 착수**. V4 충족(청산 시도 13 ≥ 10)이라 **비율 인용 가능**.
@@ -4996,6 +5036,9 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 **카테고리:** Backend / trading (라이브 청산 정합성)
 **Trigger:** ~~신규 라벨이 1건 이상 관측될 때~~ → **2026-07-30 충족 (6건 관측)**
 **Est:** M
+**상태:** 🟡 **부분 Resolved** — 2026-07-31 reversal-ledger-sync. 코드 지점 확정 + 수정 완료
+(`event_loop.py:513` · `strategy_state.py:245,891-899`) + 표적 변이 2회로 판별력 증명.
+**실주행 재측정(W2/W3) 미실시** — 워크트리에서 구조적으로 불가능해 CONTROL 이 메인에서 재야 한다.
 **출처:** 2026-07-30 close-mismatch-visibility · 실측 2026-07-30 close-mismatch-soak
 
 ★★**엔진과 거래소가 반대 방향을 들고 있는 상태가 반복 발생한다 — 5개 세션에서 9건**
@@ -5144,5 +5187,54 @@ BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제�
 ★현재 `UNKNOWN 17` 정리와 함께 처리하면 게이트 체인 편입 조건이 갖춰진다.
 
 **Risk:** 🟢
+
+---
+
+### BL-565
+
+**우선순위:** P2
+**카테고리:** Backend / trading (라이브 청산 정합성)
+**Trigger:** `strategy.exit` 을 쓰는 전략을 라이브로 돌리기 **전**
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-07-31 reversal-ledger-sync 에서 BL-560 을 고치며 **읽기만** 하고
+범위 밖으로 남긴 항목. 코드 수정 0.
+**출처:** 2026-07-31 reversal-ledger-sync (BL-560 4단계 판단)
+
+★**거래소 bracket 이 이미 체결한 청산을 엔진이 또 보낸다 — BL-560 과 같은 모양이다.**
+
+**원인/영향.** BL-560 은 `check_pending_fills` 의 close leg 가 broker 소유임을 확정하고 고쳤다.
+`check_exit_fills` 는 **같은 성질인데 손대지 않았다**:
+
+- `strategy_state.py:1068` — TP/SL/트레일링 leg 가 체결되면 `self.close(entry_id, ...)` 를
+  **표시 없이** 부른다 → `action="close"` 이벤트 → `event_loop.py:513` 필터를 그대로 통과 →
+  `live_signal.dispatch_event` 가 `reduce_only=True` 시장가 청산을 발주한다.
+- 그런데 그 TP/SL 은 **거래소에 이미 걸려 있다.** 진입 주문이 `take_profit`/`stop_loss` 를
+  실어 보내 Bybit 포지션 bracket(거래소-네이티브 OCO)이 되고(`tasks/live_signal.py:2865-2866`,
+  부착 여부는 `:1389` `bracket_attached` 로 계측), 트레일링은 체결 후
+  `set_trading_stop` 으로 따로 등재된다(`:2867-2871`).
+- ⇒ 거래소가 먼저 청산해 **flat** 이 된 뒤 엔진이 다음 봉에서 그 체결을 재도출하고 청산 주문을
+  또 낸다. 결과는 `110017 current position is zero` — BL-560 이 셌던 표의 **"무해" 30건 갈래**다.
+
+**★단 무해가 보장되지는 않는다.** 같은 봉에서 전략이 재진입하면 그 사이 포지션이 반대편으로
+차 있어 `same side` 가 된다 — BL-560 과 같은 위험 갈래로 넘어간다.
+
+**★아직 실측되지 않았다 — 크기를 모른다.** 2026-07-30 soak 창의 전략(PbR)은 `strategy.exit` 을
+쓰지 않아 `pending_exits` 가 비어 있고, `check_exit_fills` 는 그때 **즉시 return** 했다
+(`strategy_state.py:1042`). 즉 그 창의 `position_zero` 0건은 **이 경로의 반증이 아니다.**
+BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`strategy.exit` 을 쓰는 전략이
+등장하는 순간 이 숫자는 못 믿는다").
+
+**권장 접근:** BL-560 과 같은 자리·같은 수단이다 — `check_exit_fills` 의 `close` 를
+`broker_filled=True` 로 표시하면 dispatch 에서 빠진다(필드와 필터는 이미 있다).
+★**단 먼저 재라.** BL-560 에서 배운 대로 bracket 부착이 **실제로** 되고 있는지가 전제인데
+(`bracket_attached` 비율), 지금 그 counter 는 BL-563 의 귀속 오류를 안고 있다.
+**BL-563 → 실측 → 이 항목** 순서를 지켜라. `strategy.exit` 전략 없이 고치면 검증 불가능한
+수정이 된다.
+
+★**`check_liquidations`(`strategy_state.py:901-`)는 다르다.** 그쪽 close 는 계속 dispatch 돼야
+한다 — 엔진의 격리 청산가 모델은 **근사**이고 거래소가 실제로 청산했다는 보장이 없다.
+`test_run_live.py:610` 이 그 계약을 이미 고정하고 있다. 같이 묶지 마라.
+
+**Risk:** 🟡 (현재 관측 갈래는 무해하나 재진입이 겹치면 BL-560 과 동급)
 
 ---

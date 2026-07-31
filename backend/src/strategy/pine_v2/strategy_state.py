@@ -231,6 +231,12 @@ class TradeEvent:
 
     sequence_no: 같은 bar 안 event 순서 (0-based). same-bar entry+close 시
     entry sequence_no=0 + close sequence_no=1.
+
+    broker_filled: 이 이벤트가 **broker 가 이미 체결한 것을 엔진이 뒤늦게 재도출한
+    기록**인가 (BL-560). `action="fill"` 이 이름만으로 뜻하던 것을 값으로 옮긴 것이며,
+    그 fill 에 딸려 나온 반전 청산(`_flip_opposite_positions`)까지 포함한다. 원장에는
+    그대로 남지만 거래소 지시로는 재발신하면 안 된다 — 이미 닫힌 포지션을 또 닫으라는
+    주문이 되어 `110017 reduce-only ... same side` 로 거절된다.
     """
 
     bar_index: int
@@ -241,6 +247,7 @@ class TradeEvent:
     price: float
     sequence_no: int
     comment: str = ""
+    broker_filled: bool = False
 
 
 class ExitLevels(NamedTuple):
@@ -446,6 +453,7 @@ class StrategyState:
         qty: float,
         price: float,
         comment: str = "",
+        broker_filled: bool = False,
     ) -> None:
         """TradeEvent 추가 — sequence_no 자동 할당."""
         self.events.append(
@@ -458,6 +466,7 @@ class StrategyState:
                 price=price,
                 sequence_no=self._next_sequence_no(bar),
                 comment=comment,
+                broker_filled=broker_filled,
             )
         )
 
@@ -657,6 +666,7 @@ class StrategyState:
         *,
         bar: int,
         fill_price: float,
+        broker_filled: bool = False,
     ) -> None:
         """opposite-direction auto-flip 근사: 신규 direction 과 반대편 open 을 전부 close.
 
@@ -669,13 +679,17 @@ class StrategyState:
 
         comment 는 전달하지 않는다 — TradingView 는 reverse 로 닫힌 trade 에 synthetic
         comment 를 부여하지 않으며, 덮어쓰면 사용자 entry comment 오염.
+
+        broker_filled 는 호출자가 "이 flip 은 broker 가 이미 한 장으로 끝냈다" 를
+        표시하는 값이다 (BL-560 — `check_pending_fills` 경로). 원장 기록은 동일하고
+        라이브 dispatch 대상에서만 빠진다.
         """
         opposite: Direction = "short" if new_direction == "long" else "long"
         ids_to_flip = [
             tid for tid, tr in self.open_trades.items() if tr.direction == opposite
         ]
         for tid in ids_to_flip:
-            self.close(tid, bar=bar, fill_price=fill_price)
+            self.close(tid, bar=bar, fill_price=fill_price, broker_filled=broker_filled)
 
     def entry(
         self,
@@ -777,8 +791,14 @@ class StrategyState:
         bar: int,
         fill_price: float,
         comment: str = "",
+        broker_filled: bool = False,
     ) -> Trade | None:
-        """id 기준 포지션 청산. open 없으면 None."""
+        """id 기준 포지션 청산. open 없으면 None.
+
+        broker_filled=True 는 이 청산이 **거래소가 이미 실행한 체결**에서 파생됐다는
+        뜻이다 (BL-560). 원장 갱신(closed_trades / PnL / running_equity)은 전혀 다르지
+        않고, 남기는 close 이벤트에만 표시가 붙어 라이브 재발신에서 제외된다.
+        """
         trade = self.open_trades.pop(trade_id, None)
         if trade is None:
             return None
@@ -805,6 +825,7 @@ class StrategyState:
             qty=trade.qty,
             price=fill_price,
             comment=comment,
+            broker_filled=broker_filled,
         )
         return trade
 
@@ -879,9 +900,20 @@ class StrategyState:
                 to_remove.append(order_id)
                 continue
             # 체결: opposite direction flip → 동일 id 중복 청산 → 신규 open
-            self._flip_opposite_positions(order.direction, bar=bar, fill_price=fill_price)
+            #
+            # ★BL-560 — 이 세 leg 는 **거래소에서 이미 한 장으로 끝난 일**이다.
+            # 조건부 진입은 `abs(target_position - current_position)` 수량의 병합 주문
+            # 1건으로 등재되므로(`trading/services/conditional_entry_planner.py:444`),
+            # 트리거 시 거래소는 반대편 청산과 신규 진입을 동시에 처리한다. 엔진은 그
+            # 체결을 다음 봉 평가에서야 재도출하는데, 그때 나온 close 를 지시로 되돌려
+            # 보내면 이미 닫힌 포지션을 또 닫으라는 주문이 되어 거절된다
+            # (실측 2.60건/h · 청산 시도의 46.2%). `broker_filled` 로 표시해 라이브
+            # dispatch 에서만 뺀다 — 원장은 그대로다.
+            self._flip_opposite_positions(
+                order.direction, bar=bar, fill_price=fill_price, broker_filled=True
+            )
             if order_id in self.open_trades:
-                self.close(order_id, bar=bar, fill_price=fill_price)
+                self.close(order_id, bar=bar, fill_price=fill_price, broker_filled=True)
             trade = self._open_trade(
                 trade_id=order_id,
                 direction=order.direction,

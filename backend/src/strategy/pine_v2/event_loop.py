@@ -501,10 +501,21 @@ def run_live(
         for trade in strategy_state.closed_trades
         if trade.exit_bar == last_bar_index and trade.is_liquidation
     ]
-    # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결)
+    # entry / close 만 dispatch 대상 (fill 은 broker 측 pending stop 체결).
+    #
+    # ★BL-560 — `broker_filled` 도 같은 이유로 뺀다. 조건부 진입은 청산+진입이 병합된
+    # 주문 1건으로 거래소에 등재되므로, 트리거되면 **청산 leg 도 broker 가 이미 실행한
+    # 것**이다. 그런데 엔진은 그 체결을 다음 봉에서 재도출하며 반대편을 `close` 로
+    # 기록한다. 그 `close` 를 지시로 내보내면 이미 닫힌 포지션을 또 닫으라는 주문이 되어
+    # `110017 reduce-only ... same side` 로 거절된다. 즉 주석의 논리가 그동안 `fill` leg
+    # 에만 절반으로 적용돼 있었다.
+    #
+    # ★시장가 반전(`process_market_intents` → `entry()`)의 close 는 여전히 나간다.
+    # 그 경로는 엔진이 먼저 결정하고 거래소가 뒤따르므로 close 시점에 거래소는 아직
+    # 반대편을 들고 있다 — 두 장(close seq 0 + entry seq 1)이 나가는 게 정상이다.
     signals: list[LiveSignal] = []
     for e in emitted_events:
-        if e.action not in ("entry", "close"):
+        if e.action not in ("entry", "close") or e.broker_filled:
             continue
         # Phase 3 — entry signal 은 pending_exits 의 TP/SL/trail 레벨을 fold
         # (float pine 관례 → Decimal 경계 변환). close 는 exit 레벨 없음.
