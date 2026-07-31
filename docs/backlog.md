@@ -4983,19 +4983,39 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 > 받아 든 확정 응답이 손에 있는데 다른 질의 형태로 다시 물어 못 찾으면 ProviderError → retry →
 > giveup 으로 **조용히 아무 일도 안 일어난다** = 없애려는 실패 모드의 재도입이다.
 >
-> ★**중복 처리 방지 = 단일행 조건부 UPDATE 승자 규약.** `transition_to_*` 셋 모두 WHERE 에
-> 출발 상태를 걸고 rowcount 를 돌려주므로, watchdog·WS·스윕·리컨사일러가 동시에 들어와도
+> ★**중복 처리 방지 = 단일행 조건부 UPDATE 승자 규약.** `transition_to_*` 셋 다 출발 상태를
+> WHERE 에 걸고 rowcount 를 돌려주므로, watchdog·WS·스윕·리컨사일러가 동시에 들어와도
 > **정확히 하나만 rowcount 1**. 승자만 commit·gauge dec·후속 훅. real DB 로 검증했다
 > (`tests/trading/test_conditional_terminal_write_back.py`).
+> ★**정정(codex 3차 [1]) — 출발 상태 집합은 셋이 같지 않다.** 이전 서술의 "셋 모두
+> `submitted`" 는 틀렸다. `transition_to_filled` 만 `submitted` 단독이고
+> (`order_repository.py:765`), `_to_cancelled`/`_to_rejected` 는 `pending` 도 승자 후보다
+> (`:830` · `:790`) — 거래소 도달 전 행도 닫아야 하기 때문이다. **승자 규약 자체는 셋 다 동일**
+> 하므로 위 결론은 유지된다.
 >
 > ★**등재 스킵(`fill_confirmed` → return)은 그대로 뒀다.** 낡은 포지션으로 사이징하는 것을
 > 막는 fail-closed 이고 옳다. 더한 것은 **기록을 앞당기는 것**뿐이다.
 > ★`cancelled`/`rejected` 도 같이 기록한다 — 안 하면 그 행이 `submitted` 로 남아
 > `list_resting_conditional_entries` 에 계속 잡히고 그 trade_id 가 영구 no-op 이 된다.
 >
-> **판별력 증명 (표적 변이 2회).** ① 리컨사일러의 write-back 촉발 제거 → 배선 가드 **3건 실패**
+> ★**후속 훅 실패는 전이 성공과 분리했다**(codex 3차 [3], `live_signal.py:786-805`). 전이는
+> 이미 커밋됐는데 `apply_async` 가 broker 장애로 던지면 호출자의 전역 catch 가 **그 tick 을
+> 통째로** 끝냈다 — 리컨사일러는 취소 루프까지, 스윕은 `filled` 계측·로그까지 잃었다
+> (codex 3차 [5] 도 이것으로 해소된다). 이제 그 자리에서 삼키고 counter·로그로 남긴다.
+> **회수 범위는 정직하게 갈린다** — closed-pnl 은 `trading.sweep_closed_pnl` 비트
+> (`celery_app.py:141`)가 주기적으로 backfill 하므로 회수되지만, **트레일링은 회수 경로가
+> 없다** → **BL-566** 로 등재. 단 삼키지 않아도 트레일링은 똑같이 유실되고 tick 까지 잃으므로
+> 삼키는 쪽이 순수하게 낫다.
+>
+> **판별력 증명 (표적 변이 4회).** ① 리컨사일러의 write-back 촉발 제거 → 배선 가드 **3건 실패**
 > (음성 대조군 · real-DB 헬퍼 가드는 정상 통과). ② 승자 규약 무력화 → 중복 처리 가드 **2건 실패**
-> (mock 1 + real DB 1).
+> (mock 1 + real DB 1). ③ 체결 후속 훅 호출 삭제 → **3건 실패**(신규 real-DB 2 + 기존 스윕 1).
+> ④ 훅 실패 격리 제거 → **1건 실패**.
+>
+> ★**③ 이 codex 3차 [6] 이 잡은 거짓 그린이다.** real-DB 픽스처가 전부 `trailing_stop=None`
+> 이라 훅을 지워도 그 파일이 통과했다. `trailing_stop` 있는 픽스처와 reduce-only 픽스처를
+> 넣어 닫았다. (다만 그 변이는 기존 스윕 테스트 1건이 이미 잡고 있었다 — codex 가 돌린
+> 범위(reconciliation 65 + real-DB)에서는 전멸이 맞다.)
 >
 > ---
 >
@@ -5296,5 +5316,46 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
 `test_run_live.py:610` 이 그 계약을 이미 고정하고 있다. 같이 묶지 마라.
 
 **Risk:** 🟡 (현재 관측 갈래는 무해하나 재진입이 겹치면 BL-560 과 동급)
+
+---
+
+### BL-566
+
+**우선순위:** P2
+**카테고리:** Backend / trading (체결 후속 훅 회수)
+**Trigger:** 트레일링을 쓰는 전략을 라이브로 상시 운용하기 **전**, 또는
+`terminal_hook_trailing_failed` counter 가 1건이라도 발화할 때
+**상태:** 🔴 **열려 있다** — 2026-07-31 reversal-ledger-sync 에서 **한계로 명시하고 남긴 것**.
+**출처:** 2026-07-31 reversal-ledger-sync (codex 3차 리뷰 [3] 후속)
+
+★**`place_trailing_stop` enqueue 가 실패하면 그 주문의 트레일링은 영구 유실이다.**
+
+**원인/영향.** BL-560 write-back 은 후속 훅 실패를 전이 성공과 분리해 삼킨다
+(`tasks/live_signal.py:786-805`). 두 훅의 **회수 범위가 다르다**:
+
+| 훅                              | enqueue 실패 시 회수                                               |
+| ------------------------------- | ------------------------------------------------------------------ |
+| `_enqueue_closed_pnl_refresh`   | ✅ `trading.sweep_closed_pnl` 비트(`celery_app.py:141`)가 backfill |
+| `_enqueue_trailing_if_intended` | ❌ **없다**                                                        |
+
+`place_trailing_stop_task` 는 `_enqueue_trailing_if_intended`(`tasks/trading.py:1141-1152`)
+**한 곳에서만** 예약되고, 그 시점엔 행이 이미 `filled` 이라 다른 terminal 경로도 다시
+오지 않는다. 결과 = **의도한 트레일링이 없는 채로 포지션이 열려 있다**(무방비).
+
+★**삼키는 선택 자체는 옳다.** 삼키지 않아도 트레일링은 똑같이 유실되고, 거기에 더해
+호출자의 전역 catch 가 그 tick 의 취소 루프까지 날린다. 삼키는 쪽이 순수하게 낫다.
+문제는 **회수 경로가 없다**는 것이지 삼킨 것이 아니다.
+
+★**이 한계는 write-back 이 만든 것이 아니다** — 같은 훅을 쓰는 기존 3 사이트
+(`tasks/trading.py:526,867` · `conditional_entry_janitor.py:154`)도 동일하다. write-back 이
+그 사실을 counter 로 **보이게** 만들었을 뿐이다.
+
+**권장 접근:** `sweep_closed_pnl` 과 같은 모양의 비트 스윕 — `filled` + `trailing_stop IS NOT NULL`
+
+- 포지션이 아직 열려 있는데 거래소에 트레일링이 없는 주문을 찾아 재예약한다.
+  ★**먼저 재라.** `terminal_hook_trailing_failed` 가 실제로 발화하는지 모른다(구조적 가능성만
+  확인했다). 발화 0 이면 이 항목은 비용 대비 가치가 없다 — BL-560 이 두 번 밟은 함정이다.
+
+**Risk:** 🟡 (트레일링 미부착 = 무방비 포지션. 단 발생률 미측정)
 
 ---

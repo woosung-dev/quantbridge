@@ -77,8 +77,22 @@ def _probe(status: str) -> SimpleNamespace:
 
 
 def _hook_order(order: Order) -> SimpleNamespace:
-    """후속 훅이 no-op 이 되는 형태 — 이 테스트의 관심사는 행 전이뿐이다."""
+    """후속 훅이 no-op 이 되는 형태 — 행 전이만 보는 테스트용."""
     return SimpleNamespace(id=order.id, trailing_stop=None, reduce_only=False)
+
+
+def _trailing_hook_order(order: Order) -> SimpleNamespace:
+    """트레일링 의도가 **있는** entry — `_enqueue_trailing_if_intended` 가 실제로 예약한다.
+
+    ★`trailing_stop=None` 픽스처만 쓰면 훅 호출을 통째로 지워도 테스트가 전부 통과한다
+    (codex 3차 리뷰가 잡은 거짓 그린). 의도가 있어야 훅이 관측 가능해진다.
+    """
+    return SimpleNamespace(id=order.id, trailing_stop=Decimal("120"), reduce_only=False)
+
+
+def _reduce_only_hook_order(order: Order) -> SimpleNamespace:
+    """reduce-only 청산 — `_enqueue_closed_pnl_refresh` 가 실제로 예약한다."""
+    return SimpleNamespace(id=order.id, trailing_stop=None, reduce_only=True)
 
 
 async def test_confirmed_fill_actually_flips_the_row(db_session, strategy, account) -> None:
@@ -176,3 +190,143 @@ async def test_unknown_probe_status_writes_nothing(db_session, strategy, account
     fetched = await repo.get_by_id(order.id)
     assert fetched is not None
     assert fetched.state == OrderState.submitted
+
+
+# ── 체결 후속 훅 (BL-560, codex 3차 리뷰 [6]) ────────────────────────────────
+#
+# ★write-back 은 "행을 뒤집는 것" 으로 끝나지 않는다. 그 체결이 트레일링 의도 entry 면
+# 거래소에 트레일링을 붙여야 하고(무방비 포지션 방지), reduce-only 청산이면 확정 손익을
+# 다시 읽어야 한다(kill-switch 입력). 훅 호출을 지워도 통과하던 상태였다.
+
+
+async def test_fill_enqueues_trailing_when_the_entry_intended_one(
+    db_session, strategy, account, monkeypatch
+) -> None:
+    """★트레일링 의도가 있는 체결은 `place_trailing_stop` 을 실제로 예약한다.
+
+    ★변이 표적 — `live_signal.py` 의 `_enqueue_trailing_if_intended(hook_order)` 를
+    지우면 이 단언이 실패해야 한다. 거래소 경계(`apply_async`)만 대체하고 그 위
+    프로덕션 경로(`_write_back_confirmed_terminal` → `_enqueue_trailing_if_intended`)는
+    그대로 지나간다.
+    """
+    import src.tasks.trading as trading_module
+
+    enqueued: list[list[str]] = []
+    monkeypatch.setattr(
+        trading_module.place_trailing_stop_task,
+        "apply_async",
+        lambda *_a, **kw: enqueued.append(kw["args"]),
+    )
+    repo, order = await _submitted_order(db_session, strategy, account)
+
+    won = await _write_back_confirmed_terminal(
+        repo,
+        order_id=order.id,
+        probe=_probe("filled"),
+        hook_order=_trailing_hook_order(order),
+        now=datetime.now(UTC),
+    )
+
+    assert won == "filled"
+    assert enqueued == [[str(order.id)]]
+
+
+async def test_fill_enqueues_closed_pnl_refresh_for_reduce_only(
+    db_session, strategy, account, monkeypatch
+) -> None:
+    """★reduce-only 체결은 확정 손익 재조회를 실제로 예약한다 (kill-switch 입력).
+
+    ★변이 표적 — `_enqueue_closed_pnl_refresh(hook_order)` 를 지우면 실패해야 한다.
+    """
+    import src.tasks.trading as trading_module
+
+    enqueued: list[list[str]] = []
+    monkeypatch.setattr(
+        trading_module.refresh_closed_pnl_task,
+        "apply_async",
+        lambda *_a, **kw: enqueued.append(kw["args"]),
+    )
+    repo, order = await _submitted_order(db_session, strategy, account)
+
+    won = await _write_back_confirmed_terminal(
+        repo,
+        order_id=order.id,
+        probe=_probe("filled"),
+        hook_order=_reduce_only_hook_order(order),
+        now=datetime.now(UTC),
+    )
+
+    assert won == "filled"
+    assert enqueued == [[str(order.id)]]
+
+
+async def test_non_fill_terminal_enqueues_no_hooks(
+    db_session, strategy, account, monkeypatch
+) -> None:
+    """★음성 대조군 — 거절은 체결이 아니므로 훅을 걸지 않는다.
+
+    이게 없으면 위 두 테스트는 "terminal 이면 무조건 훅" 이라는 오답도 통과시킨다.
+    """
+    import src.tasks.trading as trading_module
+
+    enqueued: list[str] = []
+    monkeypatch.setattr(
+        trading_module.place_trailing_stop_task,
+        "apply_async",
+        lambda *_a, **kw: enqueued.append("trailing"),
+    )
+    monkeypatch.setattr(
+        trading_module.refresh_closed_pnl_task,
+        "apply_async",
+        lambda *_a, **kw: enqueued.append("closed_pnl"),
+    )
+    repo, order = await _submitted_order(db_session, strategy, account)
+
+    won = await _write_back_confirmed_terminal(
+        repo,
+        order_id=order.id,
+        probe=_probe("rejected"),
+        hook_order=_trailing_hook_order(order),
+        now=datetime.now(UTC),
+    )
+
+    assert won == "rejected"
+    assert enqueued == []
+
+
+async def test_hook_enqueue_failure_does_not_lose_the_committed_transition(
+    db_session, strategy, account, monkeypatch
+) -> None:
+    """★broker 장애가 나도 전이는 살아 있고 호출자는 정상 복귀한다 (codex 3차 [3]).
+
+    전이는 이미 커밋됐으니 되돌릴 수 없다. 여기서 예외를 올리면 호출자의 전역 catch 가
+    그 tick 을 통째로 끝내 **리컨사일러의 취소 루프**와 **스윕의 `filled` 계측/로그**까지
+    사라진다 — 원장을 앞당긴 대가로 다른 것이 빠지면 순이득이 아니다.
+
+    ★`won == "filled"` 반환이 곧 스윕 계측이 살아남는다는 뜻이다(codex 3차 [5]).
+    """
+    import src.tasks.trading as trading_module
+
+    def _broker_down(*_a: object, **_kw: object) -> None:
+        raise RuntimeError("broker unreachable")
+
+    monkeypatch.setattr(
+        trading_module.place_trailing_stop_task, "apply_async", _broker_down
+    )
+    monkeypatch.setattr(
+        trading_module.refresh_closed_pnl_task, "apply_async", _broker_down
+    )
+    repo, order = await _submitted_order(db_session, strategy, account)
+
+    won = await _write_back_confirmed_terminal(
+        repo,
+        order_id=order.id,
+        probe=_probe("filled"),
+        hook_order=_trailing_hook_order(order),
+        now=datetime.now(UTC),
+    )
+
+    assert won == "filled"  # ← 호출자가 계측·로그를 계속 남길 수 있다
+    fetched = await repo.get_by_id(order.id)
+    assert fetched is not None
+    assert fetched.state == OrderState.filled

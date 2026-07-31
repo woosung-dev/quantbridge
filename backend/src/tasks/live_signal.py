@@ -725,10 +725,15 @@ async def _write_back_confirmed_terminal(
 
     반환값은 **이 호출이 전이의 승자였을 때만** 그 terminal 상태명이고, 아니면 None.
 
-    ★중복 처리 방지 = `transition_to_*` 의 **단일행 조건부 UPDATE**다. 세 메서드 모두
-    `state == submitted` 를 WHERE 에 걸어 rowcount 를 돌려주므로, watchdog·WS·스윕·이
-    경로가 동시에 들어와도 **정확히 하나만 rowcount 1** 을 받는다. 승자만 commit 하고
-    gauge 를 내리고 후속 훅을 건다 — 패자는 아무것도 하지 않는다.
+    ★중복 처리 방지 = `transition_to_*` 의 **단일행 조건부 UPDATE**다. 셋 다 출발 상태를
+    WHERE 에 걸고 rowcount 를 돌려주므로 watchdog·WS·스윕·이 경로가 동시에 들어와도
+    **정확히 하나만 rowcount 1** 을 받는다. 승자만 commit 하고 gauge 를 내리고 후속 훅을
+    건다 — 패자는 아무것도 하지 않는다.
+
+    ★출발 상태 집합은 셋이 같지 않다. `transition_to_filled` 는 `submitted` 만
+    (`order_repository.py:765`), `_to_cancelled`/`_to_rejected` 는 `pending` 도 승자 후보다
+    (`:830`, `:790`) — 거래소 도달 전 행도 취소·거절로 닫아야 하기 때문이다. 승자 규약
+    자체는 셋 다 동일하다.
 
     `probe is None` = client-id 조회에서 주문 자체를 못 찾은 경우(스윕 전용) → cancelled.
     """
@@ -771,8 +776,34 @@ async def _write_back_confirmed_terminal(
     await order_repo.commit()
     qb_active_orders.dec()  # 생성 시 inc 된 것의 terminal 전이
     if status == "filled":
-        _enqueue_trailing_if_intended(hook_order)
-        _enqueue_closed_pnl_refresh(hook_order)
+        # ★후속 enqueue 실패를 **전이 성공과 분리한다.** 전이는 방금 커밋됐으니 되돌릴
+        # 수 없는데, 여기서 예외가 올라가면 호출자의 전역 catch 가 그 tick 을 통째로
+        # 끝낸다 — 리컨사일러는 **취소 루프까지**, 스윕은 `filled` 계측·로그까지 잃는다.
+        # 원장을 앞당긴 대가로 다른 것이 빠지면 순이득이 아니다.
+        #
+        # ★삼킨 실패의 회수 범위는 서로 다르다. 정직하게 적는다:
+        #   - closed-pnl: `trading.sweep_closed_pnl` 비트(`celery_app.py:141`)가 주기적으로
+        #     미반영분을 backfill 한다 → **회수된다.**
+        #   - trailing: `place_trailing_stop_task` 는 이 훅에서만 예약된다. 주기적 회수
+        #     경로가 **없고**, 행은 이미 `filled` 라 다른 terminal 경로도 다시 오지 않는다
+        #     → **그 주문의 트레일링은 영구 유실**이다(BL-566 로 등재).
+        #   단 삼키지 않아도 트레일링은 똑같이 유실되고 tick 까지 잃는다 — 삼키는 쪽이
+        #   순수하게 낫다.
+        for hook_label, hook in (
+            ("trailing", _enqueue_trailing_if_intended),
+            ("closed_pnl", _enqueue_closed_pnl_refresh),
+        ):
+            try:
+                hook(hook_order)
+            except Exception:
+                _count_safely(
+                    qb_live_conditional_reconcile_errors_total,
+                    stage=f"terminal_hook_{hook_label}_failed",
+                )
+                logger.exception(
+                    "conditional_terminal_hook_enqueue_failed",
+                    extra={"order_id": str(order_id), "hook": hook_label},
+                )
     return status
 
 
