@@ -93,7 +93,10 @@ function finalize(   t, v) {
   else                   { v = "ACTIVE";                 ev = "상태 줄 없음 + 해결 신호 없음" }
   if (v == "UNKNOWN" && st_txt != "") ev = ev " (어휘 미해석)"
   verdict[cur] = v; evid[cur] = ev
-  if (st_dup > 0) dup[cur] = st_dup
+  # ★중복 상태줄은 **섹션 서수(n)** 로 키를 잡는다 — id 로 잡으면 같은 id 섹션이 둘일 때
+  #   뒤 섹션이 앞 섹션의 줄번호를 덮어써 "어느 섹션이 문제인가" 가 뒤바뀐다.
+  #   여기서 `sec_line[cur]` 는 아직 **이 섹션**의 줄이다(다음 reset 전에 finalize 가 돈다).
+  if (st_dup > 0) { dupn[n] = st_dup; dupid[n] = cur; dupsec[n] = sec_line[cur] }
   cur = ""
 }
 function reset(id, ln) {
@@ -233,7 +236,7 @@ END {
   #   서식 순서에 달리고, 폐기된 판정이 첫 줄이면 조용히 그게 이긴다.
   #   폐기 보존이 목적이면 `<details>` 로 접어라 (파서가 건너뛴다).
   d = 0
-  for (id in dup) { if (d++ == 0) printf "\n▶ 중복 상태 줄 — SSOT 는 하나여야 한다 (첫 줄로 판정했다)\n"; printf "  %-8s +%d 줄  섹션:%d\n", id, dup[id], sec_line[id] }
+  for (k in dupn) { if (d++ == 0) printf "\n▶ 중복 상태 줄 — SSOT 는 하나여야 한다 (첫 줄로 판정했다)\n"; printf "  %-8s +%d 줄  섹션:%d\n", dupid[k], dupn[k], dupsec[k] }
   bad += d
 
   # ★중복 섹션 헤더 = 실패 (BL-569). id 가 키라서 뒤 섹션이 앞 섹션의 판정을 통째로 덮어쓴다 —
