@@ -92,9 +92,18 @@ def _render_value(value: object) -> str:
 def _render_extras(record: logging.LogRecord) -> str:
     """표준 속성을 제외한 나머지 전부를 ` key=value` 로 이어 붙인다.
 
-    ★키를 하드코딩하지 않는다 — `tasks/live_signal.py` 의
+    ★키를 하드코딩하지 않는다 — `tasks/live_signal.py:1039` 의
     `extra={"session_id": ..., **divergence}` 처럼 **키 집합이 런타임에 달라지는**
     호출 사이트가 있다(`conditional_entry_planner.py` 의 여러 dict 가 흘러든다).
+
+    ★**예약 키가 `extra=` 로 오면 죽는다 — 여기가 아니라 그 앞에서.** stdlib
+    `Logger.makeRecord` 가 `KeyError: Attempt to overwrite 'message' in LogRecord` 를
+    던진다. 우리가 고를 수 있는 동작이 아니라 stdlib 계약이라 **우회 가드를 두지 않았다.**
+    근거: `extra=` 에 dict 를 unpack 하는 곳은 `live_signal.py:1039` **한 자리뿐**이고
+    그 dict 의 키는 계획기의 리터럴 16종으로 닫혀 있어 예약 속성과 겹치지 않는다.
+    그 닫힘은 `tests/common/test_logging_config.py` 의
+    `test_only_dynamic_extra_site_cannot_produce_reserved_keys` 가 고정한다 —
+    계획기가 `name` 같은 키를 새로 추가하면 그 테스트가 실패한다.
     """
     try:
         items = [
