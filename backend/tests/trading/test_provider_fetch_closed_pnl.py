@@ -2,7 +2,7 @@
 """BybitFuturesProvider closedPnl 조회 회귀 테스트."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
@@ -103,10 +103,18 @@ async def test_fetch_closed_pnl_preserves_zero(monkeypatch: pytest.MonkeyPatch, 
 async def test_fetch_closed_pnl_supplies_since_and_until_together(
     monkeypatch: pytest.MonkeyPatch, credentials
 ) -> None:
+    """★`since` 는 **상대 시각**이어야 한다 — 고정 일자를 쓰면 스스로 만료된다.
+
+    2026-08-01 CI 에서 이 테스트가 실패했다. 원래는 `datetime(2026, 7, 25, 1)` 이 박혀
+    있었는데, `fetch_closed_pnl_since` 가 조회 창을 **7일로 클램프**하므로
+    (`providers.py` `start_ms = max(start_ms, end_ms - _CLOSED_PNL_MAX_WINDOW_MS)`)
+    그 날짜가 7일보다 오래되는 순간(= **2026-08-01 00:00 UTC**) 클램프가 이겨 단언이 깨진다.
+    실패 값이 실행마다 달라지는 것이 그 신호였다. 클램프 자체는 아래 전용 테스트가 고정한다.
+    """
     from src.trading.providers import _CLOSED_PNL_LOOKBACK_MS, BybitFuturesProvider
 
     exchange = _bybit_mock(monkeypatch, [])
-    since = datetime(2026, 7, 25, 1, tzinfo=UTC)
+    since = datetime.now(UTC) - timedelta(hours=1)
     await BybitFuturesProvider().fetch_closed_pnl(
         credentials, "BTC/USDT", order_id="close-1", since=since
     )
@@ -114,6 +122,32 @@ async def test_fetch_closed_pnl_supplies_since_and_until_together(
     assert kwargs["since"] == int(since.timestamp() * 1000) - _CLOSED_PNL_LOOKBACK_MS
     assert kwargs["limit"] == 100
     assert isinstance(kwargs["params"]["until"], int)
+
+
+async def test_fetch_closed_pnl_clamps_since_to_max_window(
+    monkeypatch: pytest.MonkeyPatch, credentials
+) -> None:
+    """창 상한(7일)보다 오래된 `since` 는 상한으로 잘린다.
+
+    위 테스트가 **우연히** 덮고 있던 동작을 의도적으로 고정한다 — 우연한 커버리지는
+    날짜가 지나면서 조용히 거짓 실패로 바뀌었다.
+    """
+    from src.trading.providers import (
+        _CLOSED_PNL_LOOKBACK_MS,
+        _CLOSED_PNL_MAX_WINDOW_MS,
+        BybitFuturesProvider,
+    )
+
+    exchange = _bybit_mock(monkeypatch, [])
+    since = datetime.now(UTC) - timedelta(days=30)
+    await BybitFuturesProvider().fetch_closed_pnl(
+        credentials, "BTC/USDT", order_id="close-1", since=since
+    )
+    kwargs = exchange.fetch_positions_history.await_args.kwargs
+    naive_start = int(since.timestamp() * 1000) - _CLOSED_PNL_LOOKBACK_MS
+    until_ms = kwargs["params"]["until"]
+    assert kwargs["since"] > naive_start  # 클램프가 실제로 걸렸다
+    assert kwargs["since"] == until_ms - _CLOSED_PNL_MAX_WINDOW_MS
 
 
 async def test_fetch_closed_pnl_skips_malformed_row_but_keeps_page(

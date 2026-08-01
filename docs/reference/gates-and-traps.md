@@ -200,6 +200,25 @@ cd $QB/frontend && pnpm e2e:authed
   (`qb_live_conditional_placed_total` PR #489 / `qb_live_conditional_guard_total` PR #493, **하루 차**).
   **차분에서는 정확히 일치한다.** 절대값을 나란히 놓는 순간 그 표는 거짓말한다.
 
+### ★★CI 와 로컬은 같은 명령이어도 **같은 env 가 아니다** (2026-08-01, 실측 5건)
+
+- ★**`Settings` 의 인프라 기본값은 docker-compose 서비스명이다**(`redis://redis:6379/*`).
+  워크플로가 그 필드를 **명시 주입하지 않으면** 러너에서 해석 불가 호스트로 붙는다.
+  실측: `REDIS_URL` 만 주입돼 있고 `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND`/`REDIS_LOCK_URL`
+  이 없어 **backend 5건**이 `Retry limit exceeded ... Celery result store` 로 죽었다.
+  **celery 는 `REDIS_URL` 을 읽지 않는다 — 별도 설정이다**(`core/config.py:64-67`).
+- ★★**로컬 CI 재현은 이 계열을 구조적으로 못 잡는다** — `.env.local` 이 그 값들을 모두
+  `localhost` 로 채운다. "CI 와 같은 스크립트를 돌렸다" 는 **같은 pytest 명령**일 뿐이다.
+  ⇒ 감사 테스트 `backend/tests/test_ci_workflow_env_parity.py` 가 대신 대조한다(변이로 판별력 증명).
+- ★**`env -u` 로 지워도 소용없다** — pydantic-settings 의 `env_file` 이 `.env.local` 에서 다시 채운다.
+  CI 를 재현하려면 **지우지 말고 CI 실효값으로 덮어써라**.
+- ★**시각 의존 테스트는 스스로 만료된다** — `since=datetime(2026, 7, 25, 1)` 하드코딩 + 7일 롤링 클램프가
+  **2026-08-01 00:00 UTC 에 폭발**했다. **실패 값이 실행마다 달라지면 시각 의존을 의심해라.**
+  픽스처 시각은 **상대값**(`now - N`)으로 써라.
+- ★**CI 가 빨간 것과 CI 가 돌기라도 한 것은 다르다** — main 5회 연속 실패는 테스트가 아니라
+  **결제/지출 한도로 잡이 시작조차 안 된 것**이었다(`The job was not started because recent account
+payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 검증하지 않았다.**
+
 ### 함대·계측 함정 (2026-07-31 reversal-ledger-sync)
 
 - ★★★**`herdr agent prompt` 는 텍스트를 붙여넣기만 하고 제출하지 않을 수 있다.** 워커 4벌 전부

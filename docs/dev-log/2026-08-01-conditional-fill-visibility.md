@@ -242,6 +242,60 @@ BL-566 의 「청산이 성공한 뒤에도 남고 **다음 진입이 올 때까
 
 ---
 
+## ★★ PR 후 — CI 가 며칠 만에 처음 돌았고 잠복 결함 2종이 드러났다
+
+PR #516 의 CI 가 **backend 6건 실패**로 빨개졌다. 로컬은 같은 커버리지 명령으로 3732 전건 통과였다.
+전건 원인을 규명했고 **6건 모두 이 PR 의 diff 와 무관**하다.
+
+### 왜 지금까지 안 보였나 — main 의 CI 는 잡이 **시작조차** 안 됐다
+
+main 최근 5회 실행이 전부 `changes` 잡에서 실패하고 backend 는 `skipped` 였다. 원인은 설정이 아니라
+**GitHub Actions 결제/지출 한도**였다:
+
+```
+The job was not started because recent account payments have failed
+or your spending limit needs to be increased.
+```
+
+⇒ **월이 바뀌며 한도가 리셋돼 이 PR 이 며칠 만에 backend 를 실제로 돌린 첫 실행**이 됐고,
+그 순간 잠복 결함 두 종이 한꺼번에 드러났다. 코드로 고칠 항목이 아니라 계정 조치가 필요하다.
+
+### ① CI env 드리프트 — 5건 (celery ×3 · watchdog ×1 · janitor ×1)
+
+`Settings` 의 인프라 기본값은 **docker-compose 서비스명**이다(`core/config.py:64-67`):
+
+| 설정                    | 기본값                     | 워크플로 주입 |
+| ----------------------- | -------------------------- | ------------- |
+| `REDIS_URL`             | `redis://redis:6379/0`     | ✅ localhost  |
+| `CELERY_BROKER_URL`     | `redis://**redis**:6379/1` | ❌ **없음**   |
+| `CELERY_RESULT_BACKEND` | `redis://**redis**:6379/2` | ❌ **없음**   |
+| `REDIS_LOCK_URL`        | `redis://**redis**:6379/3` | ❌ **없음**   |
+
+`REDIS_URL` 만 주입돼 있었고 **celery 는 별도 설정을 읽는다.** 러너에서 호스트 `redis` 가 해석되지 않아
+`Retry limit exceeded while trying to reconnect to the Celery result store` 로 죽었다.
+
+**A/B 대조로 확정했다** — 정상 env: **11 passed** ↔ CI 실효값(`redis://redis:6379/2`)으로 덮어쓰기:
+**정확히 그 4건 실패**. janitor 1건도 같은 env 로 함께 돌리면 재현된다(정상 env 단독은 12 passed).
+
+★★**로컬에서는 구조적으로 안 보인다** — `.env.local` 이 셋을 모두 `localhost` 로 채운다.
+「CI 와 같은 스크립트를 로컬에서 돌렸다」는 **같은 pytest 명령**이었을 뿐 **같은 env** 가 아니었다.
+⇒ 재발 방지 가드 `backend/tests/test_ci_workflow_env_parity.py` 신설 —
+compose 호스트를 기본값으로 갖는 `Settings` 필드가 워크플로 env 에 전부 주입돼 있는지 감사한다.
+**M9 변이**: env 한 줄 제거 → 그 변수명을 지목하며 실패, 복원 → 통과.
+음성 대조 테스트로 탐지 로직이 죽으면(빈 dict 반환) 조용히 초록이 되는 것도 막았다.
+
+### ② 시한폭탄 테스트 — 1건
+
+`test_fetch_closed_pnl_supplies_since_and_until_together` 가 `since=datetime(2026, 7, 25, 1)` 을
+하드코딩했는데, 프로바이더가 조회 창을 **7일로 클램프**한다
+(`start_ms = max(start_ms, end_ms - _CLOSED_PNL_MAX_WINDOW_MS)`).
+⇒ **2026-08-01 00:00 UTC 에 스스로 만료**됐다. CI 는 01:45 UTC(만료 1h45m 후), 내 로컬 전체 실행은
+**07-31 17:40~18:46 UTC**(만료 6시간 **전**)이라 통과했다. **실패 값이 실행마다 달라지는 것**이 신호였다.
+→ `since` 를 상대 시각으로 바꾸고, 그 테스트가 **우연히** 덮고 있던 클램프 동작은
+`test_fetch_closed_pnl_clamps_since_to_max_window` 로 **의도적으로** 고정했다.
+
+---
+
 ## 정직하게 남긴 것
 
 - **BL-565 는 손대지 않았다** — `bracket_attached` series 부재 · `bracket_unavailable` **40**
@@ -261,6 +315,14 @@ BL-566 의 「청산이 성공한 뒤에도 남고 **다음 진입이 올 때까
 - **워커 컨테이너의 `/app/src` 밖은 stale 이다** — 마운트가 `backend/src` 와 `.metrics` 둘뿐이라
   `docker exec … alembic heads` 가 `20260725_0002` 를 보고한다(실제 head 는 `20260730_0001`).
 - codex #1/#3/#5 는 **고치지 않고 BL 로 남겼다**(구조적 · 공유 메서드 · 선재 패턴).
+- ★**게이트를 처음엔 `| tail` 로 파이프해 돌렸다** — 이 레포가 문서화해 둔 함정을 내가 밟았다.
+  보고된 `exit 0` 은 `tail` 의 것이었다. 파이프 없이 다시 돌려서 **stale baseline 3730** 을 잡았다.
+- ★**CI env 드리프트를 진단하며 계측기가 두 번 더 틀렸다.** ① `env -u` 로 셸 변수를 지워도
+  pydantic-settings 의 `env_file` 이 `.env.local` 에서 다시 채운다 — **지우지 말고 덮어써야** 한다.
+  ② `.env.local` 을 셸에 소싱하지 않으면 `conftest.py` 가 DB env 를 못 읽어 **음성 대조까지 같이 죽는다**
+  — 그 덕에 1차 판별 시험이 무효임을 알았다. **음성 대조가 제 역할을 했다.**
+- **결제/지출 한도는 코드로 못 고친다** — main CI 가 며칠째 잡을 시작조차 못 한 원인이고,
+  계정 조치 전에는 게이트가 언제든 다시 침묵할 수 있다.
 
 ---
 
@@ -274,7 +336,7 @@ BL-566 의 「청산이 성공한 뒤에도 남고 **다음 진입이 올 때까
 | BE mypy                        | ✅ **214 files** clean                | 214 → 214                                     |
 | BL 감사                        | ✅ exit 0 · **active 153 / 전체 233** | active 146 → 153 · 전체 224 → 233             |
 | **BL 감사 하네스**             | ✅ **5 / 5** (이번 회차 신설)         | 신규                                          |
-| BE pytest                      | ✅ **3732 passed / 46 skipped**       | 3721 → **+11**                                |
+| BE pytest                      | ✅ **3735 passed / 46 skipped**       | 3721 → **+14** (CI 수정 3건 포함)             |
 | e2e design-canon               | ✅ **32 passed**                      | —                                             |
 | e2e authed                     | ✅ **66 passed**                      | —                                             |
 | CI 커버리지 잡                 | ✅ **93.15%** (문턱 90)               | —                                             |
