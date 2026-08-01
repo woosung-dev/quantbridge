@@ -56,7 +56,7 @@ from typing import Any
 
 from prometheus_client import Counter, Gauge, Histogram
 
-from src.common.metrics_multiproc import configure_multiprocess
+from src.common.metrics_multiproc import configure_multiprocess, record_metric_safely
 
 configure_multiprocess()
 
@@ -654,6 +654,33 @@ qb_partial_fill_total = Counter(
     "Orders filled with a known quantity below the requested quantity",
     labelnames=("source", "kind"),
 )
+
+
+def record_partial_fill(*, source: str, reduce_only: bool) -> None:
+    """부분체결 1건을 기록한다. ★**절대 던지지 않는다.**
+
+    이 helper 가 있는 이유가 두 가지다 (2026-08-01 codex 적대 리뷰 MAJOR).
+
+    1. ★**새 label 조합은 multiprocess mmap 할당을 새로 유발한다.** `kind` 축을 추가하면서
+       `{source,kind}` 8종이 전부 처음 할당되는데, 그 할당이 실패하면(`OSError` 등)
+       `.labels().inc()` 가 **던진다.** 네 호출부는 전부 **DB commit 뒤 · trailing/PnL 후속
+       enqueue 앞**이라, 던지면 **체결 후처리가 통째로 중단된다.** `record_metric_safely` 가
+       정확히 그것을 막으려고 존재한다(`tasks/trading.py` 의 reversal counter 가 선례).
+       ★**「선재 상태라 새 위험이 없다」고 넘겼던 판단을 정정한다** — 새 label 조합 자체가 새 위험이다.
+    2. `reduce_only → kind` 판정식이 네 곳에 복제돼 있었다. 의미가 바뀌면 드리프트한다.
+
+    `reduce_only` 는 `orders` 에서 **NOT NULL · default false** 라 삼항이 모호하지 않다.
+    회귀 가드 = `tests/trading/test_ws_state_handler_active_orders.py`
+    `test_partial_fill_metric_failure_does_not_stop_fill_postprocessing`
+    (래핑을 벗기면 죽는 것을 CONTROL 이 변이로 확인했다).
+    """
+    record_metric_safely(
+        lambda: qb_partial_fill_total.labels(
+            source=source, kind="close" if reduce_only else "entry"
+        ).inc()
+    )
+
+
 qb_live_signal_skipped_total = Counter(
     "qb_live_signal_skipped_total",
     "Live signal evaluate skipped reason",

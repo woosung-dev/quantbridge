@@ -264,6 +264,69 @@ async def test_handle_order_event_partial_fill_splits_ws_metric_by_order_kind(
 
 
 @pytest.mark.asyncio
+async def test_partial_fill_metric_failure_does_not_stop_fill_postprocessing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★계측 실패가 체결 후처리를 끊지 않는다 (2026-08-01 codex 적대 리뷰 MAJOR).
+
+    `kind` 축을 추가하면 `{source,kind}` 조합이 **처음 할당**되는데, multiprocess mmap
+    할당이 실패하면 `.labels()` 가 던진다. 이 호출부는 DB commit **뒤**, trailing·PnL
+    후속 enqueue **앞**이라 던지면 후처리가 통째로 중단된다.
+
+    ★**이 테스트는 그 사고를 재현한다** — `labels` 가 `OSError` 를 내도 뒤따르는
+    `_enqueue_*` 세 훅이 전부 호출돼야 한다. `record_partial_fill` 의 `record_metric_safely`
+    래핑을 벗기면 이 테스트가 죽는다(판별력).
+    """
+    order = _build_order()
+
+    repo = AsyncMock()
+    repo.get_by_id = AsyncMock(return_value=order)
+    repo.transition_to_filled = AsyncMock(return_value=1)
+
+    session = AsyncMock()
+    handler = StateHandler(
+        session_factory=_make_session_factory(session),
+        settings=MagicMock(),
+        alert_sender=AsyncMock(return_value=True),
+        user_id=uuid4(),
+    )
+    import src.common.metrics as metrics_mod
+    import src.tasks.trading as task_mod
+    from src.trading.websocket import state_handler as sh_module
+
+    called: list[str] = []
+    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
+    monkeypatch.setattr(sh_module, "publish_realtime", AsyncMock())
+    monkeypatch.setattr(
+        task_mod, "_enqueue_trailing_if_intended", lambda _order: called.append("trailing")
+    )
+    monkeypatch.setattr(
+        task_mod, "_enqueue_closed_pnl_refresh", lambda _order: called.append("pnl")
+    )
+    monkeypatch.setattr(
+        task_mod, "_enqueue_conditional_reversal_measure", lambda _order: called.append("reversal")
+    )
+
+    def _explode(**_kwargs: object) -> object:
+        raise OSError("mmap allocation failed")
+
+    monkeypatch.setattr(metrics_mod.qb_partial_fill_total, "labels", _explode)
+
+    await handler.handle_order_event(
+        uuid4(),
+        {
+            "orderLinkId": str(order.id),
+            "orderStatus": "Filled",
+            "orderId": f"exchange-{order.id}",
+            "avgPrice": "100.0",
+            "cumExecQty": "0.0005",
+        },
+    )
+
+    assert called == ["trailing", "pnl", "reversal"]
+
+
+@pytest.mark.asyncio
 async def test_handle_order_event_filled_loser_commits_no_dec(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

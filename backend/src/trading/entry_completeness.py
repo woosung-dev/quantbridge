@@ -287,6 +287,19 @@ _LOCAL_FAILURE_PREFIXES: tuple[str, ...] = (
 _WRAPPER_PREFIXES: tuple[str, ...] = ("provider_failure: ",)
 
 
+def _ret_code(error_message: str | None) -> str | None:
+    """거래소 원문에서 retCode 숫자만 뽑는 **유일한** 추출기.
+
+    ★2026-08-01 codex 리뷰(LOW) — 같은 private 정규식을 세 곳이 각자 lazy import 하고 있었다.
+    로직 중복은 아니었지만 참조가 흩어지면 **네 번째 사람이 다른 정규식을 들고 온다.**
+    retCode 를 읽어야 하는 자리는 전부 이 함수를 통한다.
+    """
+    from src.common.metrics import _BYBIT_RETCODE_PATTERN
+
+    match = _BYBIT_RETCODE_PATTERN.search(error_message or "")
+    return match.group(1) if match else None
+
+
 def _unwrap_error_message(message: str) -> str:
     """저장 시 덧씌운 래핑 접두사를 벗긴다. 중첩 래핑도 끝까지 벗긴다."""
     stripped = True
@@ -426,10 +439,8 @@ def classify_rejection_origin(error_message: str | None) -> RejectionOrigin:
     않는다.** 비동기 확정 거절 경로가 retCode 를 싣지 않는 선재 결함이 있어 진짜 거절도
     여기로 떨어지므로, 에피소드 판정에서는 유실 쪽에 남기고 그 사실을 별도로 표면화한다.
     """
-    from src.common.metrics import _BYBIT_RETCODE_PATTERN
-
     message = error_message or ""
-    if _BYBIT_RETCODE_PATTERN.search(message):
+    if _ret_code(message) is not None:
         return RejectionOrigin.exchange
     # ★래핑 접두사를 벗기고 판정한다 (R3-①). `startswith` 를 원문에 그냥 대면
     #   `provider_failure: unexpected non-CCXT error: ...` 가 통과하지 못해 `unknown` ->
@@ -690,15 +701,11 @@ class EntryCompletenessReport:
 
 def _ret_code_counts(attempts: Sequence[ClassifiedAttempt]) -> tuple[tuple[str, int], ...]:
     """거절 행의 retCode 분포. 원문에서 숫자만 읽는다 - retMsg 는 분류 근거로 쓰지 않는다."""
-    from src.common.metrics import _BYBIT_RETCODE_PATTERN
-
     counts: _Counter[str] = _Counter()
     for attempt in attempts:
         if attempt.bucket is not AttemptBucket.rejected:
             continue
-        message = attempt.fact.error_message or ""
-        match = _BYBIT_RETCODE_PATTERN.search(message)
-        counts[match.group(1) if match else "unparsed"] += 1
+        counts[_ret_code(attempt.fact.error_message) or "unparsed"] += 1
     return tuple(sorted(counts.items()))
 
 
@@ -967,8 +974,13 @@ NON_LEDGER_CHANNELS: tuple[NonLedgerChannel, ...] = (
             "원장에 발자국이 없으므로 이 채널의 크기는 원장 분해로 판정 불가다."
         ),
         where=(
-            "qb_order_rejected_total{reason=...} · qb_live_signal_dispatch_total{outcome=notional}"
-            " (두 스냅샷의 **차분**으로만. `CounterBasis` 참조)"
+            "qb_order_rejected_total{reason=min_notional|notional|balance_unverified} — 게이트 발화 지점. "
+            "조건부 경로는 qb_live_conditional_reconcile_errors_total"
+            "{stage=conditional_place_gate|market_place_gate} 로도 잡힌다. "
+            "events 경로는 trading.live_signal_events(status=failed) 원장. "
+            "★qb_live_signal_dispatch_total 은 outcome='rejected' 하나로 뭉쳐 있어 "
+            "notional 인지 kill-switch 인지 구분되지 않는다 — 크기 근거로 쓰지 마라. "
+            "(counter 는 두 스냅샷의 **차분**으로만. `CounterBasis` 참조)"
         ),
     ),
     NonLedgerChannel(
@@ -1001,12 +1013,6 @@ _FILL_CARRYING_STATES: frozenset[OrderState] = frozenset(
 # `None` = **봉이 없어서 모른다**. 호출부는 그것을 `unmeasured` 로 떨어뜨린다.
 BreakoutProbe = Callable[[Decimal, datetime, datetime], bool | None]
 
-
-def _ret_code(error_message: str | None) -> str | None:
-    from src.common.metrics import _BYBIT_RETCODE_PATTERN
-
-    match = _BYBIT_RETCODE_PATTERN.search(error_message or "")
-    return match.group(1) if match else None
 
 
 def _c1_verdict(attempt: ClassifiedAttempt) -> ChannelVerdict | None:

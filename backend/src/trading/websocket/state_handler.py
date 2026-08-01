@@ -22,9 +22,9 @@ from uuid import UUID
 from src.common.alert import send_critical_alert
 from src.common.metrics import (
     qb_active_orders,
-    qb_partial_fill_total,
     qb_ws_orphan_buffer_size,
     qb_ws_orphan_event_total,
+    record_partial_fill,
 )
 from src.core.config import Settings
 from src.trading.models import OrderState
@@ -154,9 +154,7 @@ class StateHandler:
                         and filled_quantity.is_finite()
                         and filled_quantity < order.quantity
                     ):
-                        qb_partial_fill_total.labels(
-                            source="ws", kind="close" if order.reduce_only else "entry"
-                        ).inc()
+                        record_partial_fill(source="ws", reduce_only=order.reduce_only)
                     _enqueue_trailing_if_intended(order)
                     _enqueue_closed_pnl_refresh(order)
                     _enqueue_conditional_reversal_measure(order)
