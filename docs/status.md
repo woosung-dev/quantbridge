@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-08-01 (**silent-surface-honesty** — ★★★**「기전 확정」이 확정이 아니었고 후보 셋이 전부 틀렸다.** 뿌리는 `Number(null) === 0` · 문서의 「저장 경로 자체는 정상」이 **반증**됐다)
 > **Active Sprint:** 없음. **다음 스프린트는 아래 §다음 스프린트 참조.**
-> **미머지:** `stage/silent-surface-honesty` (PR 대기).
+> **미머지:** `stage/silent-surface-honesty` — **[PR #517](https://github.com/woosung-dev/quantbridge/pull/517)** (리뷰 대기).
 > **Last Merged:** `stage/conditional-fill-visibility` → `main@51f8e51d` (**PR #516**, 2026-08-01) · 그 앞 `stage/reversal-ledger-sync` → `main@a6d891b1` (PR #515)
 
 ---
