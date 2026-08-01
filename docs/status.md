@@ -61,7 +61,8 @@
 
 **BE 3749 passed / 46 skipped**(직전 3735 대비 **+14**) · **FE 1237**(205 파일, 직전 1232 대비 **+5**) ·
 ruff clean · mypy **214** clean · 마이그레이션 head **`20260801_0001`**(이번 회차 **+1**) ·
-`scripts/bl-audit.sh` **exit 0**(active **150** / 전체 234) · `scripts/bl-audit-test.sh` **5/5**.
+`scripts/bl-audit.sh` **exit 0**(active **150** / 전체 234) · `scripts/bl-audit-test.sh` **5/5** ·
+e2e **authed 68 케이스(+setup) / design-canon 32** · `final-gates.sh` **15/15 PASS**(CI 커버리지 90 · fresh DB alembic 포함).
 
 ★**이 숫자도 대조 대상이다. 첫 step 에서 지금 HEAD 로 다시 재라.**
 

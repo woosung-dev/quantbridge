@@ -138,7 +138,7 @@ PUT 200 + 토스트 + 원장 반영 — **저장 경로 자체는 정상이다**
 ## 한 일
 
 - **BL-570** `setValueAs` 정규화(빈 값 3종) + `handleSubmit` 에 `onInvalid` 배선 + settings 폼
-  3필드 `field-error` 렌더 + 실브라우저 회귀 3케이스 + 단위 2케이스(원장 형태 픽스처).
+  3필드 `field-error` 렌더 + 실브라우저 회귀 **3케이스** + 단위 **2케이스**(원장 형태 픽스처).
   ★`playwright.config.ts` 의 `testMatch` 가 **열거식**이라 배선하지 않으면 spec 이 발견조차 안 된다.
 - **BL-542** 커서 존재 → **페이지 상한 도달**로 판정식 교체(**0-size 필터 전 원본 길이**로 측정).
   회귀 2케이스. **프로덕션 인증 fetch 실측: 계정 2/2 가 `rows=1 · truncated=false`**
@@ -204,7 +204,9 @@ diff 가 `Bin 3115 -> 3696 bytes` 로만 보였다 — **리뷰가 그 파일에
 | alembic head                    | `20260730_0001`            | **`20260801_0001`**               | **+1**              |
 | `bl-audit.sh`                   | exit 0 · active 153 / 233  | exit 0 · active **150** / **234** | −3 active · +1 전체 |
 | `bl-audit-test.sh`              | 5/5                        | 5/5                               | —                   |
-| e2e `authed-settings-save`      | (신설)                     | **4 passed**                      | 신규                |
+| e2e `authed-settings-save`      | (신설)                     | **3 케이스 통과**                 | 신규                |
+| e2e authed (전체)               | —                          | **68 케이스 + setup 통과**        | ✅                  |
+| e2e design-canon                | —                          | **32 통과**                       | ✅                  |
 
 ★**baseline 은 착수 첫 step 에서 문서값과 대조했고 전건 일치했다**(BE 3735/46 · FE 1232/205 ·
 mypy 214 · head `20260730_0001` · bl-audit exit 0 · bl-audit-test 5/5).
