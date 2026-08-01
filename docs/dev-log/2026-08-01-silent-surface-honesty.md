@@ -138,10 +138,20 @@ PUT 200 + 토스트 + 원장 반영 — **저장 경로 자체는 정상이다**
 - **BL-542** 커서 존재 → **페이지 상한 도달**로 판정식 교체(**0-size 필터 전 원본 길이**로 측정).
   회귀 2케이스. **프로덕션 인증 fetch 실측: 계정 2/2 가 `rows=1 · truncated=false`**
   (수정 전 실측은 2/2 가 `truncated=true`).
-- **BL-571** (a) 원장 정리 — enum 밖 3종을 `user_stopped` 로 치환(**대상 3행 = `UPDATE 3`** 대조).
+- **BL-571 (a)** enum 밖 3종을 `user_stopped` 로 치환. ★**처음엔 psql 로 한 번 쳤다(`UPDATE 3`)가
+  마이그레이션 안으로 옮겼다** — 수동으로 두면 재현이 셸 히스토리에만 남고 다른 환경은 영원히
+  오염된 채다. **오염을 만든 게 「원장 직접 쓰기」인데 해소도 그렇게 두면 같은 병이다.**
+  남은 위반이 있으면 **값 이름을 찍으며 `RuntimeError`** 로 멈춘 뒤(`VALIDATE` 만 돌리면 Postgres 는
+  제약 이름만 말한다) `VALIDATE CONSTRAINT` 로 과거까지 닫는다(`convalidated` false → **true**).
+  ★**두 경로 모두 CONTROL 이 직접 밟았다** — 사고 당시 오염을 원장에 복원해 upgrade(3종 접힘 +
+  validated=true) / 미지 값을 넣고 upgrade(이름 찍으며 실패).
   실측 효과: 화면 원문 노출 **3종 → 0**, `[labels]` 콘솔 경고 **67건/40초 → 0건/40초**, console error 0.
-  (b) 원장 방어 + (c) 경고 dedupe.
-- **BL-572** 세션 상태 라벨 SSOT(`labels.ts`) — 표·카드가 같은 이름을 쓴다.
+- **BL-571 (b)** `ck_live_signal_sessions_deactivated_reason` CHECK + 마이그레이션 동결본↔enum
+  드리프트 센티넬. ★컬럼 타입은 `String(64)` 유지(`LiveSignalInterval` 의 `UndefinedObjectError` 함정 회피).
+  **재발 차단 실증** — psql 직접 UPDATE(오염을 만든 그 경로)를 DB 가 거절(롤백, 원장 불변).
+  **(c)** 경고를 `(scope, key)` 당 1회로.
+- **BL-572** 세션 상태 라벨 + 톤 SSOT(`labels.ts`) — 표·카드·상세가 같은 이름을 쓴다.
+  실측: 표 상태 칩 **`PAUSED` 20행 → 「종료된 세션」 20행**, 영문 리터럴 잔존 0.
 - **신규 BL-577** — `no-raw-enum-labels` 가드가 **존재하지 않는다**(주석 10곳이 실재처럼 인용,
   3곳은 그 허구를 피하려 코드를 비틀어 놓음). BL-572 를 놓친 이유가 이것이다.
 
