@@ -764,6 +764,37 @@ def _count_safely(counter: Any, **labels: str) -> None:
     record_metric_safely(lambda: counter.labels(**labels).inc())
 
 
+def _prime_divergence_series() -> None:
+    """13 개 `(event, reason)` 조합을 import 시점에 **0 으로 실체화**한다 (BL-576 발화 검증).
+
+    ★**라벨 있는 counter 는 첫 발화 전까지 series 가 존재하지 않는다** (2026-08-02 실측).
+    라벨 없는 counter 는 import 시점에 0 으로 뜨지만, 라벨 있는 쪽은 `.labels()` 가
+    불리기 전까지 mmap 에 항목이 없다. 그래서 **첫 발화는 구조적으로 차분으로 읽을 수
+    없다** — 창 시작 스냅샷에 그 series 가 아예 없으므로 `_delta_reading` 이
+    `CounterBasis.unknown` 을 돌려주고 비교가 거부된다. 즉 "counter 를 신설했다" 를
+    프로덕션에서 증명하려는 바로 그 순간에 계측이 불가능해진다.
+
+    ★**부수 효과가 아니라 두 번째 목적이다** — 뜨거운 경로에서 새 라벨 조합이
+    mmap 을 늘리는 일이 사라진다. 2026-08-02 codex MAJOR 가 지적한 위험
+    (`.labels()` 가 던지면 체결 후처리가 끊긴다)의 발생 조건 자체를 없앤다.
+
+    ★`inc()` 하지 않는다. 여기서 1 을 올리면 창 차분이 발화 수보다 커진다.
+    ★`record_metric_safely` 로 감싼다 — 디스크 full · 권한 오류로 **워커 기동이 죽지
+    않게** 한다. 계측 초기화가 기동을 막는 것은 계측이 할 일이 아니다.
+    """
+    for event, reasons in _CONDITIONAL_DIVERGENCE_REASONS.items():
+        # "other" = `_conditional_divergence_reason` 의 미허용 reason 정규화 값.
+        for reason in (*reasons, "other"):
+            record_metric_safely(
+                lambda e=event, r=reason: qb_live_conditional_divergence_total.labels(
+                    event=e, reason=r
+                )
+            )
+
+
+_prime_divergence_series()
+
+
 def _count_pending_order_skips(strategy_state_report: object) -> None:
     """엔진이 건너뛴 pending 진입 leg 를 **평가 1회당 정확히 한 번** 센다 (BL-536).
 
