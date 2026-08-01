@@ -4,7 +4,7 @@
 > **브랜치:** `feat/sprint8a-tier0-pynescript-fork`
 > **관련 PR:** #20
 > **ADR:** [ADR-011 Pine Execution Strategy v4](011-pine-execution-strategy-v4.md) (+[#19 amendment](https://github.com/woosung-dev/quantbridge/pull/19))
-> **선행 작업:** [Phase -1 findings](../../.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md) (PR #18 `0f6583d`)
+> **선행 작업:** Phase -1 findings (현 저장소에 보존본 없음, PR #18 `0f6583d`)
 
 ---
 
@@ -198,7 +198,7 @@ Week 3 추가 (+17 tests):
 
 - [ADR-011 Pine Execution Strategy v4](011-pine-execution-strategy-v4.md)
 - [ADR-011 Phase -1 amendment (#19, merged)](https://github.com/woosung-dev/quantbridge/pull/19)
-- [Phase -1 findings](../../.gstack/experiments/phase-minus-1-drfx/output/phase-1-findings.md)
-- [pine-execution-architecture](../reference/pine-execution-architecture.md)
+- Phase -1 findings (현 저장소에 보존본 없음)
+- [pine-execution-architecture](../reference/architecture/pine-execution-architecture.md)
 - [pine_v2 README](../../backend/src/strategy/pine_v2/README.md)
 - [NOTICE](../../NOTICE)

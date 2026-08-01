@@ -4,7 +4,7 @@
 > **일자:** 2026-04-19 ~ 2026-04-20
 > **관련 PRs:** #23~#27 (FE-01~04), #29~#35 (FE-A~F)
 > **관련 LESSON:** LESSON-004 (useEffect CPU 100%), LESSON-005 (RQ queryKey userId), LESSON-006 (React Compiler ref mutate)
-> **상위 문서:** [`04_architecture/system-architecture.md`](../reference/system-architecture.md)
+> **상위 문서:** [`system-architecture.md`](../reference/architecture/system-architecture.md)
 > **합본 이유:** 10건의 개별 sprint 를 모두 ADR 화하면 잡음 ↑. 공통 주제 (FE UX 완성도 + 자율 병렬 Option C 실증) 으로 묶어 의사결정의 흐름과 학습 정리
 
 ---

@@ -4,7 +4,7 @@
 
 TradingView Pine Script 전략을 가져와 **백테스트 → 스트레스 테스트 → 최적화 → 데모/라이브 트레이딩** 한 파이프라인으로 잇는 퀀트 플랫폼. 본 문서는 도메인 용어의 canonical 정의와 경계를 고정하는 헌법이며, 충돌하는 명명/코드는 즉시 정렬한다.
 
-> **SSOT 위임:** 컬럼 정의 = [`docs/reference/erd.md`](docs/reference/erd.md) · 엔티티 책임 = [`docs/reference/entities.md`](docs/reference/entities.md) · 상태 전이 = [`docs/reference/state-machines.md`](docs/reference/state-machines.md) · 결정 근거 = `docs/dev-log/` ADR. 본 문서는 **용어/관계** 만 보유.
+> **SSOT 위임:** 컬럼 정의 = [`docs/reference/domain/erd.md`](docs/reference/domain/erd.md) · 엔티티 책임 = [`docs/reference/domain/entities.md`](docs/reference/domain/entities.md) · 상태 전이 = [`docs/reference/domain/state-machines.md`](docs/reference/domain/state-machines.md) · 결정 근거 = `docs/dev-log/` ADR. 본 문서는 **용어/관계** 만 보유.
 
 ## Language
 
@@ -129,7 +129,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 
 ## Flagged ambiguities
 
-- **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/reference/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 완료(본 브랜치).
+- **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/reference/domain/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 완료(본 브랜치).
 - **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**, vectorbt 는 지표계산 전용(ADR-011). _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 완료(본 브랜치).
 - **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `backend/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `backend/src/exchange/models.py` 표기 → Phase 2 정정 완료(본 브랜치).
 - **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. **ExchangeMode** = `demo | live` 뿐이고 demo 의미는 거래소별 상이(Bybit demo = 실 매칭엔진 / OKX demo = CCXT sandbox).

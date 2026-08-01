@@ -42,15 +42,15 @@ office-hours 시작 시점에 user가 나열한 candidate:
 
 ## Stage 2 Design Assets 재채택 (2026-04-17 plan-design-review 결과 반영)
 
-**배경:** office-hours 세션이 DESIGN.md + `docs/reference/prototypes/` + `INTERACTION_SPEC.md` 등 Stage 2(2026-04-14 확정) 자산을 참조하지 않고 진행. plan-design-review에서 Design Completeness 3/10로 채점됨. 아래 자산을 **Sprint 7c 구현의 시각·인터랙션 reference**로 채택한다.
+**배경:** office-hours 세션이 DESIGN.md + `docs/reference/design/prototypes/` + `INTERACTION_SPEC.md` 등 Stage 2(2026-04-14 확정) 자산을 참조하지 않고 진행. plan-design-review에서 Design Completeness 3/10로 채점됨. 아래 자산을 **Sprint 7c 구현의 시각·인터랙션 reference**로 채택한다.
 
 | 자산                 | 경로                                      | Sprint 7c 구현 역할                                                                 |
 | -------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------- |
 | DESIGN.md            | `/DESIGN.md`                              | 색상·타이포·간격 CSS 토큰 SSOT. 하드코딩 금지, 기존 변수 재사용                     |
-| 전략 목록 프로토타입 | `docs/reference/prototypes/06-strategies-list.html` | `/strategies` 페이지 layout + App Shell 패턴                                        |
-| 전략 편집 프로토타입 | `docs/reference/prototypes/01-strategy-editor.html` | `/strategies/[id]/edit` 편집 페이지 — 탭(코드/파싱/메타데이터) + 에디터 + 분석 패널 |
-| 전략 생성 프로토타입 | `docs/reference/prototypes/07-strategy-create.html` | `/strategies/new` — 3-step 위저드                                                   |
-| 인터랙션 명세        | `docs/reference/prototypes/INTERACTION_SPEC.md`     | `@monaco-editor/react`, react-hook-form, 실시간 파싱 구현 방식                      |
+| 전략 목록 프로토타입 | `docs/reference/design/prototypes/06-strategies-list.html` | `/strategies` 페이지 layout + App Shell 패턴                                        |
+| 전략 편집 프로토타입 | `docs/reference/design/prototypes/01-strategy-editor.html` | `/strategies/[id]/edit` 편집 페이지 — 탭(코드/파싱/메타데이터) + 에디터 + 분석 패널 |
+| 전략 생성 프로토타입 | `docs/reference/design/prototypes/07-strategy-create.html` | `/strategies/new` — 3-step 위저드                                                   |
+| 인터랙션 명세        | `docs/reference/design/prototypes/INTERACTION_SPEC.md`     | `@monaco-editor/react`, react-hook-form, 실시간 파싱 구현 방식                      |
 
 ## 기술 결정 3가지
 
@@ -112,14 +112,14 @@ T1 착수 전에 Pine 소스 1개를 **현재 curl 방식**으로 등록·Parse�
 ### 프로젝트 내부 (Stage 2 Design System — Sprint 7c가 반드시 준수)
 
 - [DESIGN.md](../../DESIGN.md) — 색상·타이포·간격 토큰 SSOT (2026-04-14 확정)
-- [docs/reference/prototypes/06-strategies-list.html](../reference/prototypes/06-strategies-list.html) — `/strategies` reference
-- [docs/reference/prototypes/01-strategy-editor.html](../reference/prototypes/01-strategy-editor.html) — `/strategies/[id]/edit` reference (Monaco)
-- [docs/reference/prototypes/07-strategy-create.html](../reference/prototypes/07-strategy-create.html) — `/strategies/new` 3-step wizard reference
-- [docs/reference/prototypes/INTERACTION_SPEC.md](../reference/prototypes/INTERACTION_SPEC.md) — `@monaco-editor/react` + react-hook-form + 실시간 파싱 인터랙션 스펙
+- [docs/reference/design/prototypes/06-strategies-list.html](../reference/design/prototypes/06-strategies-list.html) — `/strategies` reference
+- [docs/reference/design/prototypes/01-strategy-editor.html](../reference/design/prototypes/01-strategy-editor.html) — `/strategies/[id]/edit` reference (Monaco)
+- [docs/reference/design/prototypes/07-strategy-create.html](../reference/design/prototypes/07-strategy-create.html) — `/strategies/new` 3-step wizard reference
+- [docs/reference/design/prototypes/INTERACTION_SPEC.md](../reference/design/prototypes/INTERACTION_SPEC.md) — `@monaco-editor/react` + react-hook-form + 실시간 파싱 인터랙션 스펙
 
 ### 선행 sprint 자산
 
-- Sprint 6 design doc: [`docs/reference/trading-demo.md`](../reference/trading-demo.md)
+- Sprint 6 design doc: [`docs/archive/product/trading/2026-04-16-trading-demo-mvp-design.md`](../archive/product/trading/2026-04-16-trading-demo-mvp-design.md)
 
 ### User-local (참조용, 프로젝트 미커밋)
 

@@ -4,7 +4,7 @@
 > **일자:** 2026-04-18 (8b PR #21 merge `c79b10c`) + 2026-04-19 (8c PR #22 merge)
 > **브랜치:** `feat/sprint8b-tier1-corpus-matrix`, `feat/sprint8c-user-function-3track`
 > **관련 ADR:** [ADR-011 Pine v4](./011-pine-execution-strategy-v4.md) (Tier 0~5 원안), [ADR-012 Sprint 8a Tier-0](./012-sprint-8a-tier0-final-report.md) (선행)
-> **상위 문서:** [`04_architecture/pine-execution-architecture.md`](../reference/pine-execution-architecture.md)
+> **상위 문서:** [`pine-execution-architecture.md`](../reference/architecture/pine-execution-architecture.md)
 > **합본 이유:** 8b/8c 모두 pine_v2 확장 영역 + 독립 ADR 로 쪼개면 결정의 흐름이 끊김 → 합본으로 변경 근거의 연속성 유지
 
 ---
@@ -117,7 +117,7 @@ Sprint 8b 말에 2개 모델로 independent adversarial review 를 돌린 결과
 
 ### 문서
 
-- `04_architecture/pine-execution-architecture.md` 에 3-Track dispatcher 섹션 추가 필요 (Path β S0-C3 에서 처리)
+- `architecture/pine-execution-architecture.md` 에 3-Track dispatcher 섹션 추가 필요 (Path β S0-C3 에서 처리)
 - ADR-011 §9 신뢰도 9.7 → Sprint 8c 완료 후 9.8 암묵적 상향 (공식 amendment 는 본 회고로 갈음)
 
 ---

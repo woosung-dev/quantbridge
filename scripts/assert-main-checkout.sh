@@ -42,6 +42,6 @@ cat >&2 <<EOF
 ✗ '${_target}' 은 메인 체크아웃 전용이다 (여기는 워크트리).
   컨테이너와 앱 DB 는 슬롯과 무관하게 1벌 공유다 — 여기서 실행하면 다른 워크트리와 메인이 깨진다.
   → 메인에서 실행해라: cd $(dirname "$_gc") && make ${_target}
-  (근거: docs/reference/worktree-parallel.md §2.1)
+  (근거: docs/reference/operations/worktree-parallel.md §2.1)
 EOF
 exit 1

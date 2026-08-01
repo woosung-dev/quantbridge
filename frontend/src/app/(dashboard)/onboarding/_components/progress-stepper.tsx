@@ -1,5 +1,5 @@
 // 온보딩 4스텝 진행 인디케이터 — C 디자인 언어 이식 (W3-E).
-// 출처 docs/reference/prototypes/shotgun-2026-07/screen-12-onboarding.html `.ob-steps` (1021-1082).
+// 출처 docs/reference/design/prototypes/shotgun-2026-07/screen-12-onboarding.html `.ob-steps` (1021-1082).
 //  - 스텝 배지는 원형 금지, 반경 var(--r). 완료=중립+체크, 현재=코퍼, 대기=중립.
 //  - 연결선은 ::before flex 라인. 768px 이하는 라벨을 접고 collapsed 요약을 노출.
 //

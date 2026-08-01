@@ -16,7 +16,7 @@
 .PHONY: help dev up down logs be fe \
         dev-isolated up-isolated up-isolated-build up-isolated-watch down-isolated logs-isolated be-isolated fe-isolated \
         migrate migrate-isolated wait-db-isolated seed \
-        test be-test fe-test fe-e2e fe-e2e-authed lint typecheck metrics-prepare metrics-wipe
+        test be-test fe-test fe-e2e fe-e2e-authed lint typecheck docs-audit metrics-prepare metrics-wipe
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
 METRICS_COMPOSE_FILES :=
@@ -33,7 +33,7 @@ QB_BE_PORT := $(shell expr 8100 + $(QB_SLOT))
 
 # 공유 자원을 변형하는 타깃은 메인 체크아웃(슬롯 0)에서만 돈다.
 #
-# 왜 문서가 아니라 코드로 막는가 — `docs/reference/worktree-parallel.md` 와 부트스트랩 요약이
+# 왜 문서가 아니라 코드로 막는가 — `docs/reference/operations/worktree-parallel.md` 와 부트스트랩 요약이
 # "하면 안 된다" 고 적어만 두던 것들이다. 사람은 읽지만 **에이전트는 읽지 않고 실행한다.**
 # 워크트리에서 이 중 하나가 돌면 다른 워크트리와 메인이 함께 깨지고, 깨진 쪽은 원인을
 # 알 수 없는 빨간불을 받는다(누가 언제 무엇을 드롭했는지 흔적이 남지 않는다).
@@ -104,7 +104,7 @@ help:
 	@echo "  워크트리 병렬 — 현재 슬롯 $(QB_SLOT) (FE $(QB_FE_PORT) / BE $(QB_BE_PORT))"
 	@echo "    scripts/herdr-fleet.sh          # herdr 2x2 함대 — 워크트리 3 + CONTROL 1 (메인에서)"
 	@echo "    scripts/worktree-bootstrap.sh   # 새 워크트리를 실행 가능 상태로 (슬롯·테스트DB·env)"
-	@echo "    docs/reference/worktree-parallel.md   # 무엇이 병렬 가능하고 무엇이 불가능한가"
+	@echo "    docs/reference/operations/worktree-parallel.md   # 무엇이 병렬 가능하고 무엇이 불가능한가"
 	@echo "    * 슬롯 != 0 에서는 up/down/migrate/seed 계열이 거부된다 (공유 자원 보호)"
 	@echo ""
 	@echo "  품질"
@@ -113,6 +113,7 @@ help:
 	@echo "    make fe-e2e-authed  # frontend Playwright (Clerk authed, requires .env.local)"
 	@echo "    make lint           # ruff + eslint"
 	@echo "    make typecheck      # mypy + tsc"
+	@echo "    make docs-audit     # 활성 문서 링크 + 폐기 경로 검사"
 
 # Prometheus mmap 파일은 모든 writer가 멈춘 콜드 스타트에서만 제거한다.
 # 부분 재기동 타깃에는 metrics-wipe를 절대 붙이지 않는다.
@@ -197,7 +198,7 @@ up-isolated-build: _guard-main-only metrics-wipe
 # backend-worker / backend-ws-stream / backend-beat 3 서비스 한정으로
 # `./backend/src` bind-mount + watchfiles wrapper 적용 (isolated.yml override).
 # host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
-# 패키지 변경은 image rebuild 의무 (ADR docs/reference/infra/2026-05-06-bl-181-*).
+# 패키지 변경은 image rebuild 의무 (ADR-019, docs/decisions/019-worker-auto-rebuild.md).
 up-isolated-watch: _guard-main-only metrics-prepare
 	@scripts/assert-main-checkout.sh up-isolated-watch || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
@@ -316,3 +317,6 @@ lint:
 typecheck:
 	cd backend && uv run mypy src/
 	cd frontend && pnpm tsc --noEmit
+
+docs-audit:
+	scripts/docs-audit.sh

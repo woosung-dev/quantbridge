@@ -41,7 +41,7 @@ import math
 from decimal import Decimal, getcontext
 from typing import Any
 
-# Path β ADR-020 §4.3 + trust-layer-requirements.md §3.2 공식
+# Path β ADR-020 §4.3 + 당시 trust-layer-requirements §3.2 공식
 ABS_TOL: Decimal = Decimal("0.001")
 REL_TOL: Decimal = Decimal("0.001")  # 0.1%
 

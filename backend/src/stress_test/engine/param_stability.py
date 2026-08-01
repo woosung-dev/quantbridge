@@ -94,7 +94,7 @@ def _validate_param_grid_for_pine(
         unsupported = ", ".join(coverage.all_unsupported)
         raise ValueError(
             f"Strategy contains unsupported Pine built-ins: {unsupported}. "
-            f"See docs/reference/supported-indicators.md for the supported list."
+            f"See docs/reference/domain/supported-indicators.md for the supported list."
         )
 
     # var_name InputDecl cross-check (codex G.0 edge case 1 — 부재 var_name 422 reject).

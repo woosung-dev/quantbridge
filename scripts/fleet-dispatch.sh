@@ -8,7 +8,7 @@
 #   scripts/fleet-dispatch.sh --run <이름> --only a,b      # 일부만 재분배
 #   scripts/fleet-dispatch.sh --run <이름> --force         # idle 이 아닌 워커에도 주입(입력이 섞인다)
 #
-# 계약과 절차는 docs/guides/fleet-orchestration.md. 여기 복사하지 않는다 — 두 벌이 되면 갈린다.
+# 계약과 절차는 docs/reference/operations/workflows/fleet-orchestration.md. 여기 복사하지 않는다 — 두 벌이 되면 갈린다.
 #
 # ★워커가 만지는 것은 **전부 그 워커의 워크트리 안**이다:
 #
@@ -69,7 +69,7 @@ cd "$MAIN_ROOT"
 RUN_DIR="$MAIN_ROOT/.claude/fleet/$RUN"
 [ -d "$RUN_DIR/tasks" ] || die "$RUN_DIR/tasks 가 없다.
     먼저 오케스트레이터가 워커별 task 파일을 쓴다 — 수용 기준을 착수 전에 동결하는 것이 이 구조의 핵심이다
-    (docs/guides/fleet-orchestration.md §1)."
+    (docs/reference/operations/workflows/fleet-orchestration.md §1)."
 
 # 워커 산출물이 놓이는 곳 — 그 워커의 **워크트리 안**이다 (머리말 참조).
 wt_out() { printf '%s/.claude/fleet/%s' "$MAIN_ROOT/.claude/worktrees/$1" "$RUN"; }
@@ -143,7 +143,7 @@ else:
 }
 
 # ★주입 가능한 상태 (BL-552 ②-g). `idle` **또는** `done`.
-#   계약(docs/guides/fleet-orchestration.md §2)이 `done` = "**턴**이 끝났다. 태스크 완료가 아니다" 로
+#   계약(docs/reference/operations/workflows/fleet-orchestration.md §2)이 `done` = "**턴**이 끝났다. 태스크 완료가 아니다" 로
 #   정의한다 — 즉 입력 대기 상태다. 실측에서 워커가 프롬프트를 받고 아무 작업 없이 턴만 끝내
 #   (변경 0·커밋 0·report 0) `done` 이 됐는데 재분배가 `idle 일 때만` 으로 거부돼 `--force` 로
 #   뚫어야 했다. 거부해야 하는 것은:
@@ -242,7 +242,7 @@ if [ "$STATUS" -eq 1 ]; then
   done
   echo
   echo "  herdr blocked = 대개 권한 프롬프트다. 워커가 스스로 못 푼다 — 그 pane 에 사람이 가야 한다."
-  echo "  signal done + report 있음 → 통합 대상 (docs/guides/fleet-orchestration.md §5)"
+  echo "  signal done + report 있음 → 통합 대상 (docs/reference/operations/workflows/fleet-orchestration.md §5)"
   echo "  ★(prev:done) = 통합 안 한 done 마커가 재분배로 덮였다 (status.prev 보존). 그 회차 산출을"
   echo "    통합했는지 확인하고, 마쳤으면 <워크트리>/.claude/fleet/$RUN/status.prev 를 지워라."
   echo "  DELIVERY = 분배가 본 **전달** 결과 (BL-552). undelivered = 프롬프트가 제출되지 않았다."
@@ -280,11 +280,11 @@ for w in "${WORKERS[@]}"; do
   fi
 
   # ★계약 문서는 **워커 워크트리** 것을 가리킨다. 메인 경로를 가리키면 안 된다 —
-  #   `docs/guides/fleet-orchestration.md` 는 트래킹 파일이고, 메인 체크아웃은 전혀 다른
+  #   `docs/reference/operations/workflows/fleet-orchestration.md` 는 트래킹 파일이고, 메인 체크아웃은 전혀 다른
   #   (더 오래된) 브랜치에 있을 수 있다. 실제로 첫 실전에서 그 경로가 존재하지 않아
   #   두 워커가 모두 "없는 파일을 읽으라는 지시" 를 받았다(워커가 스스로 적발해 보고했다).
   #   존재를 여기서 확인해 그 침묵 실패를 막는다.
-  CONTRACT="$wt/docs/guides/fleet-orchestration.md"
+  CONTRACT="$wt/docs/reference/operations/workflows/fleet-orchestration.md"
   [ -f "$CONTRACT" ] || die "$w 의 브랜치에 계약 문서가 없다: $CONTRACT
     base 가 이 문서를 포함한 커밋이어야 한다. 워커에게 없는 파일을 읽으라고 시키면
     워커는 제 나름대로 해석하고, 그건 계약이 아니다."

@@ -11,7 +11,7 @@
 # Sprint 19 BL-081 wire 와 정합 — qb_pending_alerts gauge 가 src/common/alert.py 의
 # track_pending_alert helper 로 idempotent inc/dec.
 #
-# H1→H2 게이트 1건 진전: 운영 환경 alert 발화 evidence (docs/reference/infra/prometheus-alert-evidence.md).
+# H1→H2 게이트 1건 진전: 운영 환경 alert 발화 증적은 docs/archive/operations/observability/prometheus-alert-evidence.md에 보존.
 
 groups:
   - name: quantbridge_backend_critical
