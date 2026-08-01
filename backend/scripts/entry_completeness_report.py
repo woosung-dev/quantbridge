@@ -1,7 +1,7 @@
 # 진입 완결성 분해를 오프라인에서 찍어보는 얇은 CLI — 로직은 전부 순수 모듈에 있다
-"""라이브 진입 유실 크기 측정 (BL-536).
+"""라이브 진입 유실 크기 측정 (BL-536 · 채널 표 BL-522).
 
-원장 한 창을 두 층위로 분해해 출력한다. 계산은 전부
+원장 한 창을 세 층위(시도 / 에피소드 / 유실 채널)로 분해해 출력한다. 계산은 전부
 `src/trading/entry_completeness.py` 에 있고 이 스크립트는 **조립만** 한다.
 
 ## 사용
@@ -21,6 +21,10 @@
     curl -s localhost:8000/metrics > /tmp/after.txt       # soak 종료 후
     uv run python scripts/entry_completeness_report.py --session-id <uuid> \
         --metrics-before /tmp/before.txt --metrics-after /tmp/after.txt
+
+    # C4(취소가 트리거를 이김)까지 판정하려면 봉을 주입해야 한다
+    uv run python scripts/entry_completeness_report.py --session-id <uuid> \
+        --breakout-klines /tmp/klines.csv        # open_time_iso,high,low
 
     --json 을 주면 사람이 읽는 표 대신 기계용 JSON 을 낸다.
 
@@ -55,10 +59,15 @@ from src.trading.entry_completeness import (  # noqa: E402
     COUNTER_INTRODUCED,
     AttemptFact,
     AttemptLayer,
+    Bar,
+    BreakoutProbe,
+    ChannelTable,
     CounterBasis,
     CounterReading,
     EntryCompletenessReport,
     EpisodeLayer,
+    NonLedgerStatus,
+    bars_breakout_probe,
     build_report,
     cancel_inequality_check,
     placement_identity_check,
@@ -342,6 +351,53 @@ def _print_episode_layer(layer: EpisodeLayer) -> None:
     )
 
 
+def _print_channel_table(table: ChannelTable) -> None:
+    print("\n── 층위 3: 유실 채널 (BL-522) ──")
+    print("  ★채널은 **상호배타가 아니다** — 채널 수를 더하지 마라. 같은 주문이 둘에 걸린다.")
+    if not table.breakout_probe_supplied:
+        print("  ★C4 봉 미주입(--breakout-klines) — C4 후보는 전부 unmeasured 다.")
+    for tally in table.ledger:
+        provisional = "  ★잠정(unmeasured 있음)" if tally.provisional else ""
+        print(f"\n  [{tally.channel.value}] {tally.title}{provisional}")
+        print(f"    술어: {tally.predicate}")
+        print(
+            f"    후보 {tally.candidates} / 입력 {tally.rows} 행  →  "
+            f"해당 {tally.matched} · 아님 {tally.not_matched} · 판정불가 {tally.unmeasured}"
+        )
+        print(
+            f"    판정된 후보 중 해당 비율 = {_rate(tally.matched_rate)} (n={tally.measured})"
+            + (
+                "  ★unmeasured 를 분모에 넣지 않았다 — 이 수는 **하한**이다"
+                if tally.provisional
+                else ""
+            )
+        )
+        print(
+            f"    그중 조건부 파이프라인(cond/condmkt) = {tally.matched_conditional} "
+            "(겹치는 진단 — matched 의 부분집합이지 별도 버킷이 아니다)"
+        )
+    if table.overlaps:
+        print(f"\n  ★채널이 겹친 주문 {len(table.overlaps)} 건 — 더하면 그만큼 이중계상된다:")
+        for overlap in table.overlaps[:10]:
+            channels = "+".join(channel.value for channel in overlap.channels)
+            print(f"    {overlap.order_id} : {channels}")
+        if len(table.overlaps) > 10:
+            print(f"    ... 외 {len(table.overlaps) - 10} 건")
+    else:
+        print("\n  겹친 주문 없음 (이 창에서는. 상호배타라는 뜻은 아니다)")
+
+    print("\n  ── 원장으로 판정 불가한 채널 ──")
+    for channel in table.non_ledger:
+        mark = "반증됨" if channel.status is NonLedgerStatus.disproven else "counter 전용"
+        print(f"\n  [{channel.key}] {channel.title}  ({mark})")
+        print(f"    {channel.why}")
+        print(f"    볼 자리: {channel.where}")
+    print(
+        "\n  ★위 두 채널에는 **숫자 칸이 없다** — 원장 기반 채널과 한 분모에 넣는 산식을"
+        " 타입으로 막았다."
+    )
+
+
 def _print_report(report: EntryCompletenessReport) -> None:
     print("=" * 78)
     print(f"세션 {report.session_id}")
@@ -363,7 +419,8 @@ def _print_report(report: EntryCompletenessReport) -> None:
     print("  ★두 규칙의 수치를 함께 낸다. 한쪽만 인용하면 그것이 거짓말이다.")
     _print_episode_layer(report.primary)
     _print_episode_layer(report.alternative)
-    print("\n★층위 1 과 층위 2 를 합산하지 마라 — 분모가 다르다.")
+    _print_channel_table(report.channels)
+    print("\n★층위 1 · 2 · 3 을 합산하지 마라 — 분모가 다르다.")
 
 
 def _print_reconciliation(
@@ -477,6 +534,49 @@ def _report_to_json(report: EntryCompletenessReport) -> dict[str, Any]:
             "settled_resolved": layer.settled_resolved,
         }
 
+    def channels(table: ChannelTable) -> dict[str, Any]:
+        return {
+            # ★키 이름이 "mutually_exclusive": false 를 **기계 판독 소비자에게도** 말한다.
+            #   숫자만 뽑아가는 쪽이 채널을 더하는 것을 막는 유일한 자리다.
+            "mutually_exclusive": table.mutually_exclusive,
+            "breakout_probe_supplied": table.breakout_probe_supplied,
+            "ledger": [
+                {
+                    "channel": tally.channel.value,
+                    "title": tally.title,
+                    "predicate": tally.predicate,
+                    "rows": tally.rows,
+                    "candidates": tally.candidates,
+                    "matched": tally.matched,
+                    "not_matched": tally.not_matched,
+                    "unmeasured": tally.unmeasured,
+                    "provisional": tally.provisional,
+                    "matched_conditional": tally.matched_conditional,
+                    "matched_rate": None if tally.matched_rate is None else str(tally.matched_rate),
+                    "matched_order_ids": [str(order_id) for order_id in tally.matched_order_ids],
+                }
+                for tally in table.ledger
+            ],
+            # ★숫자 칸이 없다. JSON 에서도 없다 — 있으면 소비자가 더한다.
+            "non_ledger": [
+                {
+                    "key": channel.key,
+                    "title": channel.title,
+                    "status": channel.status.value,
+                    "why": channel.why,
+                    "where": channel.where,
+                }
+                for channel in table.non_ledger
+            ],
+            "overlaps": [
+                {
+                    "order_id": str(overlap.order_id),
+                    "channels": [channel.value for channel in overlap.channels],
+                }
+                for overlap in table.overlaps
+            ],
+        }
+
     return {
         "session_id": str(report.session_id),
         "since": report.since.isoformat(),
@@ -492,14 +592,48 @@ def _report_to_json(report: EntryCompletenessReport) -> dict[str, Any]:
         "conditional_attempts": attempts(report.conditional_attempts),
         "primary": episodes(report.primary),
         "alternative": episodes(report.alternative),
+        "channels": channels(report.channels),
     }
 
 
 # --- 조립 ---------------------------------------------------------------------
 
 
+def load_breakout_probe(path: str | None) -> BreakoutProbe | None:
+    """C4 포트를 봉 CSV 로 채운다. 파일이 없으면 `None` — C4 는 전부 `unmeasured` 가 된다.
+
+    형식: 헤더 없는 `open_time_iso,high,low` 한 줄 = 봉 하나. 봉 길이는 **연속 봉 간격의
+    최소값**으로 추론한다(그래서 최소 2 개가 필요하다).
+
+    ★이 로더는 판정하지 않는다 — 판정은 `bars_breakout_probe` 의 계약이고, 창을 덮지 못하면
+    `None`(=판정 불가)을 낸다. "봉을 못 구했다" 가 "안 건드렸다" 로 위장하는 것이 이 채널
+    표에서 가장 쉬운 거짓말이다.
+    """
+    if path is None:
+        return None
+    bars: list[Bar] = []
+    for raw_line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = [item.strip() for item in line.split(",")]
+        if len(parts) < 3:
+            raise SystemExit(f"봉 CSV 형식 오류(open_time_iso,high,low): {line!r}")
+        start = _parse_time(parts[0])
+        if start is None:
+            raise SystemExit(f"봉 시각을 읽지 못했다: {line!r}")
+        bars.append(Bar(start=start, high=Decimal(parts[1]), low=Decimal(parts[2])))
+    if len(bars) < 2:
+        raise SystemExit("봉이 2 개 미만이면 봉 길이를 모른다 — C4 를 판정할 수 없다")
+    return bars_breakout_probe(bars)
+
+
 async def _collect(
-    *, session_ids: list[UUID], since: datetime | None, until: datetime | None
+    *,
+    session_ids: list[UUID],
+    since: datetime | None,
+    until: datetime | None,
+    breakout_probe: BreakoutProbe | None = None,
 ) -> list[EntryCompletenessReport]:
     engine, sm = create_worker_engine_and_sm()
     reports: list[EntryCompletenessReport] = []
@@ -547,6 +681,11 @@ async def _collect(
                         created_at=row.created_at,
                         terminal_at=row.terminal_at,
                         error_message=row.error_message,
+                        # ★조회가 `reduce_only = false` 를 이미 걸었다
+                        #   (`list_entry_attempts` 술어 3). 기본값에 기대지 않고 **여기서
+                        #   명시**한다 — 기본값이 조용히 진입/청산을 정하는 순간, 이번 회차의
+                        #   결함(청산측 부분체결을 C3 로 계상)이 그대로 돌아온다.
+                        reduce_only=False,
                     )
                     for row in rows[:ENTRY_ATTEMPT_SCAN_LIMIT]
                 ]
@@ -558,6 +697,7 @@ async def _collect(
                         until=until,
                         queried_at=datetime.now(UTC),
                         truncated=truncated,
+                        breakout_probe=breakout_probe,
                     )
                 )
     finally:
@@ -588,6 +728,14 @@ def main() -> int:
     parser.add_argument("--metrics-before", default=None, help="창 시작 시점 /metrics 덤프")
     parser.add_argument("--metrics-after", default=None, help="창 종료 시점 /metrics 덤프")
     parser.add_argument("--json", action="store_true", help="사람용 표 대신 JSON")
+    parser.add_argument(
+        "--breakout-klines",
+        default=None,
+        help=(
+            "C4 판정용 봉 CSV — ★헤더 없이 open_time_iso,high,low 한 줄 = 봉 하나 "
+            "(헤더를 넣으면 첫 줄에서 죽는다). 봉 2개 이상 필요. 없으면 C4 는 전부 unmeasured"
+        ),
+    )
     args = parser.parse_args()
 
     session_ids = [UUID(value) for value in args.session_id]
@@ -595,8 +743,16 @@ def main() -> int:
     until = _parse_time(args.until)
     before = _load_snapshot(args.metrics_before)
     after = _load_snapshot(args.metrics_after)
+    breakout_probe = load_breakout_probe(args.breakout_klines)
 
-    reports = asyncio.run(_collect(session_ids=session_ids, since=since, until=until))
+    reports = asyncio.run(
+        _collect(
+            session_ids=session_ids,
+            since=since,
+            until=until,
+            breakout_probe=breakout_probe,
+        )
+    )
     if not reports:
         print("해당 창에 세션이 없다", file=sys.stderr)
         return 1

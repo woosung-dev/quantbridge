@@ -27,8 +27,8 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from src.common.alert import send_critical_alert
 from src.common.metrics import (
     qb_active_orders,
-    qb_partial_fill_total,
     qb_ws_reconcile_unknown_total,
+    record_partial_fill,
 )
 from src.core.config import Settings
 from src.trading.models import Order, OrderState
@@ -149,7 +149,7 @@ class Reconciler:
                         and filled_quantity.is_finite()
                         and filled_quantity < local.quantity
                     ):
-                        qb_partial_fill_total.labels(source="reconciler").inc()
+                        record_partial_fill(source="reconciler", reduce_only=local.reduce_only)
                     _enqueue_trailing_if_intended(local)
                     _enqueue_closed_pnl_refresh(local)
                     _enqueue_conditional_reversal_measure(local)

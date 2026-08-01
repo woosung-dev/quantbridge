@@ -19,7 +19,7 @@
 - qb_live_signal_eval_duration_seconds (Histogram, labels: interval)    ← Sprint 26 B.4
 - qb_live_signal_outbox_pending_gauge  (Gauge)                          ← Sprint 26 B.4
 - qb_closed_pnl_backfill_total       (Counter, labels: outcome)         ← MP-2
-- qb_partial_fill_total              (Counter, labels: source)          ← Sprint 48 Pass 2
+- qb_partial_fill_total              (Counter, labels: source, kind)    ← Sprint 48 Pass 2
 - qb_exchange_order_response_total  (Counter, labels: exchange, outcome, reason) ← BL-512
 - qb_live_conditional_guard_total   (Counter, labels: outcome)          ← BL-512
 - qb_live_conditional_reversal_total (Counter, labels: bucket)          ← BL-516
@@ -56,7 +56,7 @@ from typing import Any
 
 from prometheus_client import Counter, Gauge, Histogram
 
-from src.common.metrics_multiproc import configure_multiprocess
+from src.common.metrics_multiproc import configure_multiprocess, record_metric_safely
 
 configure_multiprocess()
 
@@ -633,15 +633,16 @@ qb_webhook_symbol_rejected_total = Counter(
 
 # Sprint 48 Pass 2 — 체결 winner가 주문 수량보다 적은 확정 수량을 받은 경우만 집계.
 # source: rest | ws | watchdog | reconciler.
-# Cardinality: 고정 source 4개 series만 허용한다.
+# kind: entry | close.
+# Cardinality: source 4개와 kind 2개로 총 고정 8개 series만 허용한다.
 #
 # ★BL-536 — **무엇을 세지 않는가.** 이 counter 를 진입 부분체결의 측정치로 쓰지 마라.
 #   실측에서 `{ws}` = 19 인데 같은 창의 진입 원장(`reduce_only = false`)에는
 #   `filled_quantity < quantity` 인 행이 **0** 이었다. 모순이 아니라 세는 대상이 다르다.
-#   (a) `reduce_only` 를 검사하지 않는다 — 청산 주문이 그대로 들어온다. 청산 수량은
+#   (a) 이제 코드는 `reduce_only` 를 검사해 `kind=entry|close` 로 분리한다. 청산 수량은
 #       엔진 값을 그대로 싣고(`tasks/live_signal.py` 의 `Decimal(str(event.qty))`)
 #       거래소 눈금으로 절삭되지 않으므로, **전량 체결이어도** 거래소 확정 수량이
-#       우리 요청값보다 작아 여기서 부분체결로 잡힌다. 조건부 진입은 반대다 —
+#       우리 요청값보다 작아 `kind=close` 부분체결로 잡힌다. 조건부 진입은 반대다 —
 #       `conditional_entry_planner.plan_reconcile` 이 `qty_step` 으로 미리 정규화해
 #       발주하므로 그 불일치가 구조적으로 생기지 않는다.
 #   (b) session / strategy / symbol label 이 없다. 어느 세션의 것인지 되짚을 수 없다.
@@ -651,8 +652,35 @@ qb_webhook_symbol_rejected_total = Counter(
 qb_partial_fill_total = Counter(
     "qb_partial_fill_total",
     "Orders filled with a known quantity below the requested quantity",
-    labelnames=("source",),
+    labelnames=("source", "kind"),
 )
+
+
+def record_partial_fill(*, source: str, reduce_only: bool) -> None:
+    """부분체결 1건을 기록한다. ★**절대 던지지 않는다.**
+
+    이 helper 가 있는 이유가 두 가지다 (2026-08-01 codex 적대 리뷰 MAJOR).
+
+    1. ★**새 label 조합은 multiprocess mmap 할당을 새로 유발한다.** `kind` 축을 추가하면서
+       `{source,kind}` 8종이 전부 처음 할당되는데, 그 할당이 실패하면(`OSError` 등)
+       `.labels().inc()` 가 **던진다.** 네 호출부는 전부 **DB commit 뒤 · trailing/PnL 후속
+       enqueue 앞**이라, 던지면 **체결 후처리가 통째로 중단된다.** `record_metric_safely` 가
+       정확히 그것을 막으려고 존재한다(`tasks/trading.py` 의 reversal counter 가 선례).
+       ★**「선재 상태라 새 위험이 없다」고 넘겼던 판단을 정정한다** — 새 label 조합 자체가 새 위험이다.
+    2. `reduce_only → kind` 판정식이 네 곳에 복제돼 있었다. 의미가 바뀌면 드리프트한다.
+
+    `reduce_only` 는 `orders` 에서 **NOT NULL · default false** 라 삼항이 모호하지 않다.
+    회귀 가드 = `tests/trading/test_ws_state_handler_active_orders.py`
+    `test_partial_fill_metric_failure_does_not_stop_fill_postprocessing`
+    (래핑을 벗기면 죽는 것을 CONTROL 이 변이로 확인했다).
+    """
+    record_metric_safely(
+        lambda: qb_partial_fill_total.labels(
+            source=source, kind="close" if reduce_only else "entry"
+        ).inc()
+    )
+
+
 qb_live_signal_skipped_total = Counter(
     "qb_live_signal_skipped_total",
     "Live signal evaluate skipped reason",

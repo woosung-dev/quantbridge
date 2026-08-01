@@ -42,8 +42,8 @@ from src.common.metrics import (
     qb_exchange_exit_rows_total,
     qb_exchange_order_response_total,
     qb_live_conditional_reversal_filled_total,
-    qb_partial_fill_total,
     qb_trailing_placement_total,
+    record_partial_fill,
 )
 from src.common.metrics_multiproc import record_metric_safely
 from src.common.redis_client import get_redis_lock_pool
@@ -523,7 +523,7 @@ async def _execute_with_session(
                 and receipt.filled_quantity.is_finite()
                 and receipt.filled_quantity < order.quantity
             ):
-                qb_partial_fill_total.labels(source="rest").inc()
+                record_partial_fill(source="rest", reduce_only=order.reduce_only)
             _enqueue_trailing_if_intended(order)
             _enqueue_closed_pnl_refresh(order)
             _enqueue_conditional_reversal_measure(order)
@@ -865,7 +865,7 @@ async def _fetch_order_status_with_session(
                     and status_fetch.filled_quantity.is_finite()
                     and status_fetch.filled_quantity < order.quantity
                 ):
-                    qb_partial_fill_total.labels(source="watchdog").inc()
+                    record_partial_fill(source="watchdog", reduce_only=order.reduce_only)
                 _enqueue_trailing_if_intended(order)
                 _enqueue_closed_pnl_refresh(order)
                 _enqueue_conditional_reversal_measure(order)

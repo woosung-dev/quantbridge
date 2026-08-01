@@ -8,6 +8,8 @@
 - 층위 1 (발주 시도) — 주문 행 하나 = 시도 하나. 분모가 자명하고 해석 여지가 없다.
   이 층위가 **바닥 진실**이다.
 - 층위 2 (진입 에피소드) — 같은 `(session_id, trade_id)` 의 연속 행을 끊어 만든 구간.
+- 층위 3 (유실 채널, BL-522) — "왜 유실됐나" 의 분해. **상호배타가 아니고** 원장 밖 채널
+  (C5)이 섞여 있어 층위 1·2 와도, 자기들끼리도 합산 불가다. `ChannelTable` 참조.
 
 ★**두 층위를 합산하지 마라.** 그래서 이 모듈은 두 층위를 하나로 묶는 합계를 제공하지
 않는다 - 타입으로 막는다. 계측 counter(`qb_live_conditional_plan_drop_evaluations_total`
@@ -32,11 +34,12 @@ re-issue 의미론"), 체결되면 `to_remove` 로 지운 뒤 나중에 같은 i
 from __future__ import annotations
 
 from collections import Counter as _Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
+from itertools import pairwise
 from uuid import UUID
 
 from src.trading.models import OrderState
@@ -284,6 +287,19 @@ _LOCAL_FAILURE_PREFIXES: tuple[str, ...] = (
 _WRAPPER_PREFIXES: tuple[str, ...] = ("provider_failure: ",)
 
 
+def _ret_code(error_message: str | None) -> str | None:
+    """거래소 원문에서 retCode 숫자만 뽑는 **유일한** 추출기.
+
+    ★2026-08-01 codex 리뷰(LOW) — 같은 private 정규식을 세 곳이 각자 lazy import 하고 있었다.
+    로직 중복은 아니었지만 참조가 흩어지면 **네 번째 사람이 다른 정규식을 들고 온다.**
+    retCode 를 읽어야 하는 자리는 전부 이 함수를 통한다.
+    """
+    from src.common.metrics import _BYBIT_RETCODE_PATTERN
+
+    match = _BYBIT_RETCODE_PATTERN.search(error_message or "")
+    return match.group(1) if match else None
+
+
 def _unwrap_error_message(message: str) -> str:
     """저장 시 덧씌운 래핑 접두사를 벗긴다. 중첩 래핑도 끝까지 벗긴다."""
     stripped = True
@@ -346,6 +362,12 @@ class AttemptFact:
     created_at: datetime
     terminal_at: datetime | None
     error_message: str | None
+    # ★층위 3(채널)이 이 필드를 요구한다 (BL-522 C3). 조회(`list_entry_attempts`)가 이미
+    #   `reduce_only = false` 를 걸어서 실제 생산자는 항상 `False` 를 준다 — 그래도 술어를
+    #   **여기 적어두는** 이유는 이번 회차의 결함이 정확히 그 지점이었기 때문이다:
+    #   손으로 센 표가 **청산측** 부분체결 7 건을 진입 유실 C3 로 계상했다. 술어가 멀리 있는
+    #   SQL 에만 있으면 분류기는 그것을 검사할 수 없고, 검사할 수 없으면 대조군도 못 만든다.
+    reduce_only: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -358,6 +380,9 @@ class ClassifiedAttempt:
     kind: LiveEntryKind | None
     trade_id: str | None
     bar_epoch: int | None
+    # 조건부 key 가 싣고 있는 발주 시점의 트리거 가격 (`Order` 에는 컬럼이 없다).
+    # ★C4 가 이 값을 쓴다. 읽히지 않으면 `None` 이고, 그러면 C4 는 **판정하지 않는다**.
+    trigger_price: Decimal | None
     # 창 밖에서 종결됐거나 아직 종결되지 않았다 = 이 창의 표로는 재현 불가능한 행.
     verdict_deferred: bool
     # `bucket is rejected` 일 때만 의미가 있다. 그 외에는 `None`.
@@ -414,10 +439,8 @@ def classify_rejection_origin(error_message: str | None) -> RejectionOrigin:
     않는다.** 비동기 확정 거절 경로가 retCode 를 싣지 않는 선재 결함이 있어 진짜 거절도
     여기로 떨어지므로, 에피소드 판정에서는 유실 쪽에 남기고 그 사실을 별도로 표면화한다.
     """
-    from src.common.metrics import _BYBIT_RETCODE_PATTERN
-
     message = error_message or ""
-    if _BYBIT_RETCODE_PATTERN.search(message):
+    if _ret_code(message) is not None:
         return RejectionOrigin.exchange
     # ★래핑 접두사를 벗기고 판정한다 (R3-①). `startswith` 를 원문에 그냥 대면
     #   `provider_failure: unexpected non-CCXT error: ...` 가 통과하지 못해 `unknown` ->
@@ -427,13 +450,44 @@ def classify_rejection_origin(error_message: str | None) -> RejectionOrigin:
     return RejectionOrigin.unknown
 
 
-def _attribute(fact: AttemptFact) -> tuple[Attribution, LiveEntryKind | None, str | None, int | None]:
+def _lenient_price(raw: str | None) -> Decimal | None:
+    """key 에 실린 가격 문자열을 관용적으로 읽는다. 못 읽으면 `None` — **추정하지 않는다**."""
+    if raw is None:
+        return None
+    try:
+        price = Decimal(raw)
+    except (ArithmeticError, ValueError):
+        return None
+    return price if price.is_finite() else None
+
+
+@dataclass(frozen=True, slots=True)
+class _Attribution:
+    """`_attribute` 의 반환. 위치 튜플이 다섯 칸이 되면 호출부가 조용히 어긋난다."""
+
+    attribution: Attribution
+    kind: LiveEntryKind | None
+    trade_id: str | None
+    bar_epoch: int | None
+    trigger_price: Decimal | None
+
+
+def _attribute(fact: AttemptFact) -> _Attribution:
     parsed = parse_live_entry_key(fact.idempotency_key)
     if parsed is None or parsed.session_id != fact.session_id:
-        return Attribution.unattributable, None, None, None
-    if parsed.kind in ("cond", "condmkt"):
-        return Attribution.conditional_ours, parsed.kind, parsed.trade_id, parsed.bar_epoch
-    return Attribution.nonconditional_ours, parsed.kind, parsed.trade_id, parsed.bar_epoch
+        return _Attribution(Attribution.unattributable, None, None, None, None)
+    bucket = (
+        Attribution.conditional_ours
+        if parsed.kind in ("cond", "condmkt")
+        else Attribution.nonconditional_ours
+    )
+    return _Attribution(
+        attribution=bucket,
+        kind=parsed.kind,
+        trade_id=parsed.trade_id,
+        bar_epoch=parsed.bar_epoch,
+        trigger_price=_lenient_price(parsed.trigger),
+    )
 
 
 def classify_attempts(
@@ -443,7 +497,7 @@ def classify_attempts(
     classified: list[ClassifiedAttempt] = []
     for fact in facts:
         bucket = classify_attempt(fact)
-        attribution, kind, trade_id, bar_epoch = _attribute(fact)
+        attributed = _attribute(fact)
         terminal = fact.terminal_at
         deferred = bucket is AttemptBucket.open or terminal is None or terminal < since
         if not deferred and until is not None and terminal is not None:
@@ -457,11 +511,12 @@ def classify_attempts(
             ClassifiedAttempt(
                 fact=fact,
                 bucket=bucket,
-                attribution=attribution,
-                kind=kind,
-                trade_id=trade_id,
+                attribution=attributed.attribution,
+                kind=attributed.kind,
+                trade_id=attributed.trade_id,
                 rejection_origin=origin,
-                bar_epoch=bar_epoch,
+                bar_epoch=attributed.bar_epoch,
+                trigger_price=attributed.trigger_price,
                 verdict_deferred=deferred,
             )
         )
@@ -640,19 +695,17 @@ class EntryCompletenessReport:
     conditional_attempts: AttemptLayer
     primary: EpisodeLayer
     alternative: EpisodeLayer
+    # 층위 3 (BL-522 채널). ★층위 1·2 와 합산 불가 — `ChannelTable` 주석 참조.
+    channels: ChannelTable
 
 
 def _ret_code_counts(attempts: Sequence[ClassifiedAttempt]) -> tuple[tuple[str, int], ...]:
     """거절 행의 retCode 분포. 원문에서 숫자만 읽는다 - retMsg 는 분류 근거로 쓰지 않는다."""
-    from src.common.metrics import _BYBIT_RETCODE_PATTERN
-
     counts: _Counter[str] = _Counter()
     for attempt in attempts:
         if attempt.bucket is not AttemptBucket.rejected:
             continue
-        message = attempt.fact.error_message or ""
-        match = _BYBIT_RETCODE_PATTERN.search(message)
-        counts[match.group(1) if match else "unparsed"] += 1
+        counts[_ret_code(attempt.fact.error_message) or "unparsed"] += 1
     return tuple(sorted(counts.items()))
 
 
@@ -851,6 +904,450 @@ def _make_episode(
     )
 
 
+# --- 층위 3: 유실 채널 (BL-522) ------------------------------------------------
+#
+# ★이 층위는 층위 1·2 와 **합산 불가**다. 같은 주문이 여러 채널에 동시에 걸릴 수 있고
+#   (아래 `ChannelTable.mutually_exclusive` 참조), 채널 하나는 "왜 유실됐나" 를 묻지
+#   "몇 건이 유실됐나" 를 묻지 않는다. 그래서 `ChannelTable` 에는 **총합 프로퍼티가 없다.**
+#
+# ★이 층위가 존재하는 이유 자체가 이번 회차의 결함이다 — 채널 표를 지금까지 **사람이 손으로
+#   세서** dev-log 에 적었고, 그렇게 적힌 다섯 줄 중 둘이 조용히 틀렸다:
+#     - C2 `deferred_market_inflight` 는 유실 채널이 아니라 **청산 tick 수**였다 (PR #511).
+#     - C3 "부분체결 7 건" 은 **청산측** 부분체결이었다. 진입측은 0 건이다.
+#   두 오류의 공통 원인은 술어가 코드에 없었다는 것 하나다. 그래서 표를 코드가 만든다.
+
+
+class LedgerChannel(StrEnum):
+    """원장 행으로 **판정 가능한** 채널만 여기 있다.
+
+    ★C5(사전 게이트 거부)와 C2(반증됨)는 이 enum 에 **없다**. 원장에 발자국이 없는 채널을
+    같은 타입에 넣으면 `sum(tally.matched for ...)` 한 줄로 한 분모에 섞인다.
+    그 둘은 숫자 필드가 아예 없는 `NonLedgerChannel` 로 간다 — 구조적으로 못 더한다.
+    """
+
+    c1_residual_rejection = "C1"
+    c3_partial_fill = "C3"
+    c4_cancel_beats_trigger = "C4"
+
+
+class ChannelVerdict(StrEnum):
+    """한 후보 행에 대한 채널 판정. 셋은 상호배타·전수적이다 (후보 집합 위에서).
+
+    ★`unmeasured` 가 `not_matched` 와 **다른 값**인 것이 이 층위의 전부다. 모르는 것을
+    아는 것처럼 분류하면 그 채널은 항상 작아 보인다 (BL-562/BL-574). 선례는
+    `order_repository.list_fills_since` 가 절단을 fail-closed 로 떨어뜨리는 관용구다.
+    """
+
+    matched = "matched"
+    not_matched = "not_matched"
+    unmeasured = "unmeasured"
+
+
+class NonLedgerStatus(StrEnum):
+    counter_only = "counter_only"
+    disproven = "disproven"
+
+
+@dataclass(frozen=True, slots=True)
+class NonLedgerChannel:
+    """원장으로 판정할 수 없는 채널. ★**숫자 필드가 하나도 없다.**
+
+    그것이 요구사항 1 의 집행 방식이다 — 이 타입에는 더할 수 있는 값이 존재하지 않으므로
+    원장 기반 채널과 한 분모에 넣는 산식을 **쓸 수가 없다**. 주석으로 금지하지 않는다.
+    """
+
+    key: str
+    title: str
+    status: NonLedgerStatus
+    why: str
+    # 그럼 어디를 봐야 하나. 없는 숫자를 지어내는 대신 **볼 자리**를 준다.
+    where: str
+
+
+NON_LEDGER_CHANNELS: tuple[NonLedgerChannel, ...] = (
+    NonLedgerChannel(
+        key="C5",
+        title="사전 게이트 거부 (notional / balance)",
+        status=NonLedgerStatus.counter_only,
+        why=(
+            "게이트가 `create_order` **이전**에 막는다 — `Order` 행이 만들어지지 않는다. "
+            "원장에 발자국이 없으므로 이 채널의 크기는 원장 분해로 판정 불가다."
+        ),
+        where=(
+            "qb_order_rejected_total{reason=min_notional|notional|balance_unverified} — 게이트 발화 지점. "
+            "조건부 경로는 qb_live_conditional_reconcile_errors_total"
+            "{stage=conditional_place_gate|market_place_gate} 로도 잡힌다. "
+            "events 경로는 trading.live_signal_events(status=failed) 원장. "
+            "★qb_live_signal_dispatch_total 은 outcome='rejected' 하나로 뭉쳐 있어 "
+            "notional 인지 kill-switch 인지 구분되지 않는다 — 크기 근거로 쓰지 마라. "
+            "(counter 는 두 스냅샷의 **차분**으로만. `CounterBasis` 참조)"
+        ),
+    ),
+    NonLedgerChannel(
+        key="C2",
+        title="deferred_market_inflight",
+        status=NonLedgerStatus.disproven,
+        why=(
+            "★**유실 채널이 아니다** — 그 counter 는 진입 유실 건수가 아니라 시장가 주문이 "
+            "in-flight 인 **tick 의 평가 발화 횟수**이고, 실측 9 건은 전량 **청산** tick "
+            "이었다 (PR #511, 2026-07-30 확정). 표에서 지우지 않고 반증됨으로 남긴다 — "
+            "지우면 다음 사람이 또 넣는다."
+        ),
+        where="qb_live_conditional_reconcile_errors_total{stage=deferred_market_inflight}",
+    ),
+)
+
+
+# C1 의 retCode 집합. 조회~발주 사이에 가격이 다시 움직여 생긴 거절만 여기 들어간다
+# (`metrics._EXCHANGE_ORDER_RESPONSE_REASONS` 가 둘 다 `trigger_breached` 로 뭉갠다).
+# ★잔고 부족(110004 등)이나 포지션 0(110034)을 여기 넣지 마라 — 다른 채널이다.
+RESIDUAL_REJECTION_RET_CODES: frozenset[str] = frozenset({"110092", "110093"})
+
+# 체결분을 보존한 채 종결될 수 있는 상태. `order_repository._STATES_THAT_CAN_CARRY_FILLS`
+# 와 같은 집합이며, 같은 이유로 존재한다 — `filled` 만 보면 BL-544 형제 케이스를 놓친다.
+_FILL_CARRYING_STATES: frozenset[OrderState] = frozenset(
+    {OrderState.filled, OrderState.cancelled, OrderState.rejected}
+)
+
+# (트리거 가격, 창 시작, 창 끝) -> 그 창 안에서 시장이 그 수준을 건드렸나.
+# `None` = **봉이 없어서 모른다**. 호출부는 그것을 `unmeasured` 로 떨어뜨린다.
+BreakoutProbe = Callable[[Decimal, datetime, datetime], bool | None]
+
+
+
+def _c1_verdict(attempt: ClassifiedAttempt) -> ChannelVerdict | None:
+    """C1 — 조회~발주 사이 가격이 다시 움직여 생긴 거절.
+
+    술어: `state=rejected` AND 거절 출처가 `exchange` AND retCode ∈ {110092, 110093}.
+
+    ★`unknown` 출처(retCode 가 원문에 없다)는 `not_matched` 가 아니라 **`unmeasured`** 다.
+    이 레포는 이미 "비동기 확정 거절 경로가 retCode 를 싣지 않는다" 는 선재 결함을
+    알고 있다(`RejectionOrigin` 주석). 그 행이 110092 였는지 아니었는지 우리는 **모른다**.
+    `not_matched` 로 떨어뜨리면 C1 이 구조적으로 작아 보인다.
+    """
+    if attempt.fact.state != OrderState.rejected:
+        return None
+    origin = classify_rejection_origin(attempt.fact.error_message)
+    if origin is RejectionOrigin.local:
+        # 거래소에 도달조차 못 했다 = 가격이 움직여서 거절된 것일 수 없다. 확정적으로 아니다.
+        return ChannelVerdict.not_matched
+    if origin is RejectionOrigin.unknown:
+        return ChannelVerdict.unmeasured
+    code = _ret_code(attempt.fact.error_message)
+    return (
+        ChannelVerdict.matched
+        if code in RESIDUAL_REJECTION_RET_CODES
+        else ChannelVerdict.not_matched
+    )
+
+
+def _c3_verdict(attempt: ClassifiedAttempt) -> ChannelVerdict | None:
+    """C3 — 전환 주문의 부분체결.
+
+    술어: `reduce_only=false` AND `state ∈ {filled, cancelled, rejected}` AND
+    `0 < filled_quantity < quantity`.
+
+    ★`reduce_only=true` 는 후보조차 아니다. **이번 회차의 핵심 결함이 정확히 이것이다** —
+    손으로 센 표의 "부분체결 7 건" 은 전부 청산측이었다. 청산 부분체결은 진입 유실이 아니다.
+
+    ★`state == filled` 만 보면 안 된다. `transition_to_cancelled`/`_rejected` 가 체결분을
+    보존한 채 종결한다(BL-544 형제 케이스).
+
+    ★`filled_quantity` 가 NULL 일 때의 판정은 **상태에 따라 다르다**. 이 갈림은 내가 정한
+    것이 아니라 `order_repository._STATES_THAT_CAN_CARRY_FILLS` 가 이미 정한 해석이다:
+
+    - `filled` 인데 수량이 NULL = **판독 불가**(`unmeasured`). BL-544 소비처가 정확히 그 행을
+      `unreadable` 로 보고 fail-closed 한다.
+    - `cancelled`/`rejected` 인데 수량이 NULL = **그냥 취소**(`not_matched`). 두 전이는
+      체결분이 있을 때만 수량을 쓰므로, NULL 은 "체결이 보고되지 않았다" 는 기록이다.
+
+    ★둘을 하나로 뭉쳐 전부 `unmeasured` 로 두면 실측 창에서 판정불가가 **194** 가 되어
+    (진입 280 행 중 취소·거절 NULL 이 그만큼이다) C3 의 분모가 통째로 증발한다.
+    보수적으로 보이지만 정본과 어긋나는 해석이고, "재보니 모르겠더라" 는 답도 거짓말이다.
+    """
+    fact = attempt.fact
+    if fact.reduce_only or fact.state not in _FILL_CARRYING_STATES:
+        return None
+    filled = fact.filled_quantity
+    if filled is None:
+        return (
+            ChannelVerdict.unmeasured
+            if fact.state == OrderState.filled
+            else ChannelVerdict.not_matched
+        )
+    if filled <= 0:
+        # 체결이 아예 없다 = 부분체결이 아니다 (그냥 취소·거절).
+        return ChannelVerdict.not_matched
+    return ChannelVerdict.matched if filled < fact.quantity else ChannelVerdict.not_matched
+
+
+def _c4_verdict(attempt: ClassifiedAttempt, probe: BreakoutProbe | None) -> ChannelVerdict | None:
+    """C4 — 취소가 트리거를 이겼다.
+
+    술어(봉 없이 판정 가능한 절반): `kind == cond`(resting) AND `state=cancelled`.
+    술어(봉이 필요한 절반): `[created_at, terminal_at)` 안에 시장이 `trigger_price` 를 건드렸나
+    — 이것은 **주입된 `BreakoutProbe`** 가 답한다. 봉이 없으면 `None` 이고 `unmeasured` 다.
+
+    ★`condmkt` 는 후보가 아니다. 시장가 전환 주문은 호가창에 남지 않아 "트리거를 기다린다"
+    는 개념 자체가 없다(`parse_conditional_entry_key` 가 같은 이유로 condmkt 를 거부한다).
+
+    ★부분체결을 보존한 채 취소된 행은 `bucket` 이 `has_fill` 이지만 `state` 는 `cancelled`
+    라 여기 후보로 들어온다. 그 행은 트리거가 실제로 발화한 행이므로 probe 가 `matched` 를
+    낼 수 있고, 동시에 C3 에도 걸린다 — **채널은 상호배타가 아니다**(아래 참조).
+    """
+    fact = attempt.fact
+    if attempt.kind != "cond" or fact.state != OrderState.cancelled:
+        return None
+    trigger = attempt.trigger_price
+    if trigger is None or fact.terminal_at is None or probe is None:
+        # 트리거 가격을 못 읽거나 취소 시각이 없거나 봉이 없다 = **판정하지 않는다**.
+        return ChannelVerdict.unmeasured
+    crossed = probe(trigger, fact.created_at, fact.terminal_at)
+    if crossed is None:
+        return ChannelVerdict.unmeasured
+    return ChannelVerdict.matched if crossed else ChannelVerdict.not_matched
+
+
+def channel_verdict(
+    attempt: ClassifiedAttempt,
+    channel: LedgerChannel,
+    *,
+    breakout_probe: BreakoutProbe | None = None,
+) -> ChannelVerdict | None:
+    """행 하나에 대한 채널 판정. `None` 이면 **그 채널의 후보가 아니다**(무판정).
+
+    ★"후보 아님" 과 "후보인데 아니다(`not_matched`)" 를 같은 값으로 뭉개면 분모가 사라진다.
+    """
+    if channel is LedgerChannel.c1_residual_rejection:
+        return _c1_verdict(attempt)
+    if channel is LedgerChannel.c3_partial_fill:
+        return _c3_verdict(attempt)
+    return _c4_verdict(attempt, breakout_probe)
+
+
+CHANNEL_PREDICATES: dict[LedgerChannel, str] = {
+    LedgerChannel.c1_residual_rejection: (
+        "state=rejected AND 거절출처=exchange AND retCode ∈ {110092,110093} "
+        "(retCode 없음 = unmeasured)"
+    ),
+    LedgerChannel.c3_partial_fill: (
+        "reduce_only=false AND state ∈ {filled,cancelled,rejected} AND "
+        "0 < filled_quantity < quantity "
+        "(filled+NULL = unmeasured · cancelled/rejected+NULL = 그냥 취소)"
+    ),
+    LedgerChannel.c4_cancel_beats_trigger: (
+        "kind=cond AND state=cancelled AND [created_at, terminal_at) 안에서 시장이 "
+        "trigger_price 를 건드렸나 (probe 미주입/봉 없음 = unmeasured)"
+    ),
+}
+
+CHANNEL_TITLES: dict[LedgerChannel, str] = {
+    LedgerChannel.c1_residual_rejection: "잔여 거절 (조회~발주 사이 가격 재이동)",
+    LedgerChannel.c3_partial_fill: "부분체결 (전환 주문)",
+    LedgerChannel.c4_cancel_beats_trigger: "취소가 트리거를 이김",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelTally:
+    """채널 하나의 집계. 후보 집합 위에서 `matched + not_matched + unmeasured` 가 파티션이다.
+
+    ★`rows` 는 입력 전체이고 `candidates` 는 그중 이 채널이 묻는 질문이 성립하는 행이다.
+    둘을 하나로 합치면 "후보 아님" 이 분모에 섞여 채널이 작아 보인다.
+    """
+
+    channel: LedgerChannel
+    title: str
+    predicate: str
+    rows: int
+    candidates: int
+    matched: int
+    not_matched: int
+    unmeasured: int
+    # --- 겹치는 진단 (파티션 아님) ---
+    # `matched` 의 **부분집합** — 조건부 파이프라인(cond/condmkt) 행만 센 값.
+    # ★이 칸이 있는 이유: 손으로 센 표의 C3 12 건은 전부 시장가 진입(trigger 없음)이었고
+    #   조건부 진입 부분체결은 0 건이었다. 한 숫자로만 내면 그 사실이 표에서 사라진다.
+    matched_conditional: int
+    matched_order_ids: tuple[UUID, ...]
+
+    @property
+    def measured(self) -> int:
+        """판정이 난 후보 수. `unmeasured` 를 분모에 넣으면 비율이 조용히 낮아진다."""
+        return self.matched + self.not_matched
+
+    @property
+    def matched_rate(self) -> Decimal | None:
+        """판정된 후보 중 이 채널에 해당한 비율. 분모가 0 이면 **비율이 없다**(0 이 아니다)."""
+        if self.measured == 0:
+            return None
+        return Decimal(self.matched) / Decimal(self.measured)
+
+    @property
+    def provisional(self) -> bool:
+        """`unmeasured` 가 하나라도 있으면 이 채널의 크기는 **하한**이다."""
+        return self.unmeasured > 0
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelOverlap:
+    order_id: UUID
+    channels: tuple[LedgerChannel, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ChannelTable:
+    """층위 3 전체. ★**총합 프로퍼티가 없다** — 채널은 서로 배타가 아니고 C5 는 원장 밖이다.
+
+    요구사항 2 의 답은 "상호배타가 아님을 명시한다" 쪽이다. 근거: 같은 주문이 C3 와 C4 에
+    동시에 걸릴 수 있다(부분체결을 남긴 채 취소된 resting 조건부 진입). 그래서 채널 수를
+    더하면 그 주문이 두 번 세어진다. 암묵적으로 두지 않기 위해 (a) 이 프로퍼티가 `False` 를
+    **명시**하고 (b) `overlaps` 가 실제로 겹친 주문을 이름으로 내놓는다.
+    """
+
+    ledger: tuple[ChannelTally, ...]
+    non_ledger: tuple[NonLedgerChannel, ...]
+    overlaps: tuple[ChannelOverlap, ...]
+    breakout_probe_supplied: bool
+
+    @property
+    def mutually_exclusive(self) -> bool:
+        return False
+
+
+def assert_channel_partition(tally: ChannelTally) -> None:
+    """채널 하나의 3분할을 **실제로 집행한다**.
+
+    ★`assert` 문이 아니라 `ValueError` 다 — `python -O` 는 assert 를 통째로 지운다
+    (`assert_partitions` 와 같은 이유, 같은 규율).
+    """
+    verdict_sum = tally.matched + tally.not_matched + tally.unmeasured
+    if verdict_sum != tally.candidates:
+        raise ValueError(
+            f"채널 분할 위반 [{tally.channel.value}]: matched {tally.matched} + "
+            f"not_matched {tally.not_matched} + unmeasured {tally.unmeasured} = {verdict_sum} "
+            f"!= candidates {tally.candidates}"
+        )
+    if tally.candidates > tally.rows:
+        raise ValueError(
+            f"후보가 입력보다 많다 [{tally.channel.value}]: {tally.candidates} > {tally.rows}"
+        )
+    if tally.matched_conditional > tally.matched:
+        raise ValueError(
+            f"조건부 부분집합이 전체보다 크다 [{tally.channel.value}]: "
+            f"{tally.matched_conditional} > {tally.matched}"
+        )
+
+
+def build_channel_table(
+    attempts: Sequence[ClassifiedAttempt], *, breakout_probe: BreakoutProbe | None = None
+) -> ChannelTable:
+    """층위 3 을 만든다. 입력은 **진입 시도 전량**(`reduce_only=false` 인 행)이다.
+
+    ★조건부 행만 넣지 마라 — 손으로 센 표의 C3 12 건이 전부 시장가 진입이었으므로,
+    조건부로 좁히면 그 12 건이 표에서 사라지고 "부분체결 0 건" 이라는 다른 거짓말이 된다.
+    조건부만의 수는 `ChannelTally.matched_conditional` 로 함께 낸다.
+    """
+    tallies: list[ChannelTally] = []
+    per_order: dict[UUID, list[LedgerChannel]] = {}
+    for channel in LedgerChannel:
+        counts: _Counter[ChannelVerdict] = _Counter()
+        matched_ids: list[UUID] = []
+        matched_conditional = 0
+        for attempt in attempts:
+            verdict = channel_verdict(attempt, channel, breakout_probe=breakout_probe)
+            if verdict is None:
+                continue
+            counts[verdict] += 1
+            if verdict is ChannelVerdict.matched:
+                matched_ids.append(attempt.fact.order_id)
+                per_order.setdefault(attempt.fact.order_id, []).append(channel)
+                if attempt.attribution is Attribution.conditional_ours:
+                    matched_conditional += 1
+        tally = ChannelTally(
+            channel=channel,
+            title=CHANNEL_TITLES[channel],
+            predicate=CHANNEL_PREDICATES[channel],
+            rows=len(attempts),
+            candidates=sum(counts.values()),
+            matched=counts[ChannelVerdict.matched],
+            not_matched=counts[ChannelVerdict.not_matched],
+            unmeasured=counts[ChannelVerdict.unmeasured],
+            matched_conditional=matched_conditional,
+            matched_order_ids=tuple(matched_ids),
+        )
+        assert_channel_partition(tally)
+        tallies.append(tally)
+
+    overlaps = tuple(
+        ChannelOverlap(order_id=order_id, channels=tuple(channels))
+        for order_id, channels in sorted(per_order.items(), key=lambda item: str(item[0]))
+        if len(channels) > 1
+    )
+    return ChannelTable(
+        ledger=tuple(tallies),
+        non_ledger=NON_LEDGER_CHANNELS,
+        overlaps=overlaps,
+        breakout_probe_supplied=breakout_probe is not None,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class Bar:
+    """봉 하나. `start` 는 봉 시작 시각이고 구간은 `[start, start + interval)` 이다."""
+
+    start: datetime
+    high: Decimal
+    low: Decimal
+
+
+def bars_breakout_probe(
+    bars: Sequence[Bar], *, interval: timedelta | None = None
+) -> BreakoutProbe:
+    """봉 배열로 C4 포트를 만든다. **덮이지 않은 창은 `None`** 이다.
+
+    계약 (이 함수가 지키는 것):
+
+    1. 창 `[start, end)` 가 봉으로 **빈틈없이 덮이지 않으면 `None`** 이다. 구멍이 있는데
+       "안 건드렸다(False)" 를 돌려주면, 봉을 못 구한 것이 채널 크기 0 으로 위장한다.
+    2. 덮였고 어느 봉이든 `low <= trigger <= high` 면 `True`. 방향을 묻지 않는 이유 —
+       resting stop 은 발주 시점에 아직 발화하지 않은 상태이므로, 그 수준을 **건드리는
+       것 자체**가 발화 조건이다(위든 아래든). 그래서 side 없이 판정 가능하다.
+    3. `end <= start` 면 `None`. 취소 시각이 생성 시각보다 앞서거나 같은 것은 시계 왜곡이라
+       "창 안에서 아무 일도 없었다" 로 읽으면 안 된다.
+    4. 봉이 2 개 미만이고 `interval` 도 안 주면 봉 길이를 모르므로 항상 `None`.
+    """
+    ordered = sorted(bars, key=lambda bar: bar.start)
+    step = interval
+    if step is None and len(ordered) >= 2:
+        step = min(
+            (later.start - earlier.start for earlier, later in pairwise(ordered)),
+            default=None,
+        )
+    if step is not None and step <= timedelta(0):
+        step = None
+
+    def probe(trigger: Decimal, start: datetime, end: datetime) -> bool | None:
+        if step is None or end <= start:
+            return None
+        cursor = start
+        touched = False
+        for bar in ordered:
+            bar_end = bar.start + step
+            if bar_end <= cursor:
+                continue
+            if bar.start > cursor:
+                return None  # 구멍 — 이 창은 봉으로 덮이지 않았다
+            if bar.low <= trigger <= bar.high:
+                touched = True
+            cursor = bar_end
+            if cursor >= end:
+                return touched
+        return None  # 창 끝까지 못 덮었다
+
+    return probe
+
+
 def build_report(
     facts: Sequence[AttemptFact],
     *,
@@ -859,8 +1356,12 @@ def build_report(
     until: datetime | None,
     queried_at: datetime,
     truncated: bool,
+    breakout_probe: BreakoutProbe | None = None,
 ) -> EntryCompletenessReport:
-    """조회 결과를 두 층위로 분해한다. 이 모듈의 유일한 진입점."""
+    """조회 결과를 세 층위로 분해한다. 이 모듈의 유일한 진입점.
+
+    `breakout_probe` 를 주지 않으면 C4 는 전부 `unmeasured` 다 — 그것이 정확한 상태다.
+    """
     classified = classify_attempts(facts, since=since, until=until)
     conditional = [
         attempt for attempt in classified if attempt.attribution is Attribution.conditional_ours
@@ -895,4 +1396,6 @@ def build_report(
             rule=EpisodeRule.fill_or_rejection_closes,
             label="에피소드 = 체결 또는 거절에서 끊는다 (반대 해석). 놓친 기회가 얼마나 되나",
         ),
+        # ★조건부만 넣지 않는다 — 시장가 진입의 부분체결이 통째로 사라진다.
+        channels=build_channel_table(classified, breakout_probe=breakout_probe),
     )
