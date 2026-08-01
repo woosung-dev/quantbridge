@@ -200,6 +200,25 @@ cd $QB/frontend && pnpm e2e:authed
   (`qb_live_conditional_placed_total` PR #489 / `qb_live_conditional_guard_total` PR #493, **하루 차**).
   **차분에서는 정확히 일치한다.** 절대값을 나란히 놓는 순간 그 표는 거짓말한다.
 
+### ★★CI 와 로컬은 같은 명령이어도 **같은 env 가 아니다** (2026-08-01, 실측 5건)
+
+- ★**`Settings` 의 인프라 기본값은 docker-compose 서비스명이다**(`redis://redis:6379/*`).
+  워크플로가 그 필드를 **명시 주입하지 않으면** 러너에서 해석 불가 호스트로 붙는다.
+  실측: `REDIS_URL` 만 주입돼 있고 `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND`/`REDIS_LOCK_URL`
+  이 없어 **backend 5건**이 `Retry limit exceeded ... Celery result store` 로 죽었다.
+  **celery 는 `REDIS_URL` 을 읽지 않는다 — 별도 설정이다**(`core/config.py:64-67`).
+- ★★**로컬 CI 재현은 이 계열을 구조적으로 못 잡는다** — `.env.local` 이 그 값들을 모두
+  `localhost` 로 채운다. "CI 와 같은 스크립트를 돌렸다" 는 **같은 pytest 명령**일 뿐이다.
+  ⇒ 감사 테스트 `backend/tests/test_ci_workflow_env_parity.py` 가 대신 대조한다(변이로 판별력 증명).
+- ★**`env -u` 로 지워도 소용없다** — pydantic-settings 의 `env_file` 이 `.env.local` 에서 다시 채운다.
+  CI 를 재현하려면 **지우지 말고 CI 실효값으로 덮어써라**.
+- ★**시각 의존 테스트는 스스로 만료된다** — `since=datetime(2026, 7, 25, 1)` 하드코딩 + 7일 롤링 클램프가
+  **2026-08-01 00:00 UTC 에 폭발**했다. **실패 값이 실행마다 달라지면 시각 의존을 의심해라.**
+  픽스처 시각은 **상대값**(`now - N`)으로 써라.
+- ★**CI 가 빨간 것과 CI 가 돌기라도 한 것은 다르다** — main 5회 연속 실패는 테스트가 아니라
+  **결제/지출 한도로 잡이 시작조차 안 된 것**이었다(`The job was not started because recent account
+payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 검증하지 않았다.**
+
 ### 함대·계측 함정 (2026-07-31 reversal-ledger-sync)
 
 - ★★★**`herdr agent prompt` 는 텍스트를 붙여넣기만 하고 제출하지 않을 수 있다.** 워커 4벌 전부
@@ -252,10 +271,15 @@ cd $QB/frontend && pnpm e2e:authed
 - ★**`EXIT=$?` 를 파이프 뒤에 쓰면 마지막 명령(`tail`)의 종료코드를 읽는다.** `bl-audit.sh` 를 exit 0 으로
   오판할 뻔했다. 종료코드가 판정인 스크립트는 **파이프 없이** 돌리고 그 다음 줄에서 `$?` 를 읽어라.
 - ★**`bl-audit.sh` 는 이제 `final-gates.sh` 체인 안에 있다**(라벨 `BL 감사`, BL-564). `docs/` 만 읽으므로
-  영역 판정과 무관하게 **항상 돈다.** 실패 조건이 셋으로 늘었다 — UNKNOWN / 3면 불일치 / **중복 상태줄**.
+  영역 판정과 무관하게 **항상 돈다.** 실패 조건이 넷으로 늘었다 — UNKNOWN / 3면 불일치 / **중복 상태줄** /
+  **중복 섹션 헤더**(`### BL-<n>` 두 벌, BL-569 — 파서가 id 로 키를 잡아 뒤 섹션이 앞 섹션 판정을 덮어썼다).
   즉 **BL 을 추가·해결하고 `**상태:**` 줄을 안 달면 게이트가 빨개진다.** 폐기된 옛 판정을 남기고 싶으면
   지우지 말고 `<details>` 로 접어라 — 파서가 ` ``` ` 펜스와 `<details>` 구간을 건너뛴다.
   ★`--list` 는 **항상 exit 0** 이다. 게이트에는 인자 없는 형태만 쓴다.
+- ★**`bl-audit.sh` 의 중복 검사는 원장이 깨끗하면 아무 일도 안 한다** — 즉 그 로직을 지워도 「BL 감사」는
+  초록이다. 그래서 `scripts/bl-audit-test.sh`(라벨 `BL 감사 하네스`)가 체인에 함께 있다. 임시 트리
+  fixture 로 돌리므로 `docs/` 를 건드리지 않는다. 변이 3종(섹션 헤더 탐지 제거 / dup 키를 BL id 로
+  되돌림 / 상태줄 탐지 제거) 전건 red 확인.
 - ★**`git merge-tree` 는 커밋을 받는다.** 트리 해시를 넘기면 거짓 충돌처럼 보인다.
   브랜치 2개가 각각 main 에 clean 하고 **변경 파일 집합이 disjoint** 면 순차 머지도 clean 이다.
 
@@ -271,6 +295,12 @@ FE `StrategySettingsSchema` 는 `.strict()` 라 모르는 키에서 **파싱이 
 ★**GET 응답에는 그 키가 없어서**(BE 가 DB JSONB 를 그대로 돌려준다) **화면을 3개 돌아도 안 잡힌다.**
 저장 경로에서만 터진다. 실제로 워커·평가자 둘 다 "동작 영향 없음" 으로 오판했고 codex 가 잡았다.
 → **BE 설정 스키마에 필드를 더하면 같은 PR 에서 `frontend/src/features/strategy/schemas.ts` 를 고쳐라.**
+
+★**그리고 `nullable` 필드면 FE 폼의 초기값 정규화까지 같은 PR 에서 해라** (2026-08-01, BL-570).
+`schemas.ts` 를 맞추는 건 **파싱**을 맞추는 것이고, 깨지는 다음 자리는 **폼 초기값**이다 —
+null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는데 `z.number()…` 가 `""` 를 거부
+→ `handleSubmit` 이 조용히 막고, 그 폼이 `formState.errors` 를 안 그리면 **아무 피드백도 없다.**
+★**무편집 저장을 눌러봐야 보인다** — GET 도 「편집 후 저장」도 멀쩡해서 세 회차를 살아남았다.
 
 ### 측정 도구가 먼저 틀린다 (2026-07-28)
 

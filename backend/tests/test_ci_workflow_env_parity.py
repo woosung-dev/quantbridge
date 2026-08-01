@@ -1,0 +1,98 @@
+# CI 워크플로 env 가 앱 Settings 의 인프라 기본값을 따라오는지 감사한다.
+"""CI env 드리프트 감사 — 2026-08-01 실측 결함의 재발 방지.
+
+★**왜 필요한가.** `Settings` 의 인프라 URL 기본값은 **docker-compose 서비스명**을 가리킨다
+(`redis://redis:6379/*`, `@db:5432/*`). GitHub Actions 러너에서는 서비스가 `localhost` 에
+붙으므로, 워크플로가 그 필드를 **명시적으로 주입하지 않으면** 앱이 기본값으로 떨어져
+해석 불가 호스트에 연결을 시도한다.
+
+실제로 2026-08-01 CI 에서 그렇게 **5건**이 실패했다 — `CELERY_BROKER_URL` /
+`CELERY_RESULT_BACKEND` / `REDIS_LOCK_URL` 이 워크플로 env 에 없어서
+"Retry limit exceeded while trying to reconnect to the Celery result store" 로 죽었다.
+`REDIS_URL` 만 주입돼 있었는데, celery 는 **별도 설정**을 읽는다.
+
+★**로컬에서는 구조적으로 안 보인다** — `.env.local` 이 그 셋을 모두 `localhost` 로 채우므로
+로컬 CI 재현은 통과한다. 그래서 사람이 눈으로 대조하는 대신 이 테스트가 대조한다.
+"""
+
+from __future__ import annotations
+
+import pathlib
+import re
+
+import pytest
+
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ci.yml"
+
+# 기본값이 compose 서비스명을 가리키는 호스트 토큰. 러너에서 해석되지 않는다.
+_COMPOSE_HOSTS = ("://redis:", "@db:", "://db:")
+
+
+def _settings_infra_fields() -> dict[str, str]:
+    """`Settings` 에서 기본값이 compose 호스트를 가리키는 필드 → 환경변수명."""
+    from src.core.config import Settings
+
+    out: dict[str, str] = {}
+    for name, field in Settings.model_fields.items():
+        default = field.default
+        if not isinstance(default, str):
+            continue
+        if any(tok in default for tok in _COMPOSE_HOSTS):
+            out[name] = name.upper()
+    return out
+
+
+def _backend_pytest_env_keys() -> set[str]:
+    """워크플로 backend 잡의 pytest 단계 `env:` 블록 키 집합.
+
+    YAML 파서를 새로 들이지 않고 텍스트로 읽는다 — 이 감사가 보려는 것은
+    "그 키가 거기 적혀 있는가" 하나뿐이다.
+    """
+    text = _WORKFLOW.read_text()
+    # pytest 실행 줄 뒤에 오는 첫 env 블록을 자른다.
+    marker = text.index("uv run pytest")
+    env_start = text.index("env:", marker)
+    tail = text[env_start + len("env:") :]
+    keys: set[str] = set()
+    for line in tail.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        m = re.match(r"^\s{8,}([A-Z][A-Z0-9_]*):", line)
+        if m:
+            keys.add(m.group(1))
+            continue
+        # 들여쓰기가 빠지면 env 블록이 끝난 것이다.
+        if line.strip() and not line.startswith(" " * 9):
+            break
+    return keys
+
+
+@pytest.mark.skipif(not _WORKFLOW.exists(), reason="워크플로 파일이 없는 체크아웃")
+def test_ci_injects_every_compose_default_setting() -> None:
+    """compose 호스트를 기본값으로 갖는 Settings 필드는 CI env 에 반드시 주입돼야 한다."""
+    required = _settings_infra_fields()
+    assert required, "감사 대상이 0개다 — 탐지 로직이 죽었는지 확인해라"
+
+    injected = _backend_pytest_env_keys()
+    missing = sorted(env for env in required.values() if env not in injected)
+
+    assert not missing, (
+        "CI 워크플로 backend pytest 단계 env 에 다음이 빠졌다: "
+        f"{missing}\n"
+        "이 필드들은 기본값이 docker-compose 서비스명이라, 주입하지 않으면 러너에서 "
+        "해석 불가 호스트로 연결을 시도한다(2026-08-01 실측: celery 계열 5건 실패). "
+        f"확인 대상 필드 → 환경변수: {required}"
+    )
+
+
+@pytest.mark.skipif(not _WORKFLOW.exists(), reason="워크플로 파일이 없는 체크아웃")
+def test_audit_detects_compose_hosts_at_all() -> None:
+    """★음성 대조 — 탐지 로직 자체가 살아 있는지 고정한다.
+
+    `_settings_infra_fields` 가 조용히 빈 dict 를 돌려주면 위 테스트는 **항상 통과**한다.
+    실제로 이 레포는 "가드가 판별력을 증명하지 못한 채 초록" 인 사례를 반복해서 밟았다.
+    """
+    fields = _settings_infra_fields()
+    assert "celery_result_backend" in fields
+    assert fields["celery_result_backend"] == "CELERY_RESULT_BACKEND"

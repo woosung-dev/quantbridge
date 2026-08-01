@@ -135,6 +135,11 @@ fi
 #   ★파이프를 붙이지 마라. run_gate 가 rc 를 직접 읽는다.
 run_gate "BL 감사" "docs/backlog.md" bash "$ROOT/scripts/bl-audit.sh"
 
+# ★위 게이트의 **중복 검사 자체**를 재는 하네스 (BL-569). 원장이 깨끗하면 중복 탐지 로직을
+#   통째로 지워도 "BL 감사" 는 초록이다 — 실제 사고를 막는 코드인데 되돌려도 아무도 못 잡는다.
+#   임시 트리 fixture 로 그 회귀를 잡는다. 실제 `docs/` 는 건드리지 않는다.
+run_gate "BL 감사 하네스" "scripts/bl-audit.sh" bash "$ROOT/scripts/bl-audit-test.sh"
+
 # ── 2. 단위 ───────────────────────────────────────────────────────
 # ★env 소싱 의무 + cd 절대경로. `pnpm test --run` 은 Unknown option — `pnpm test` 가 이미 vitest run.
 run_gate "BE pytest" "env 소싱" bash -c 'cd "$0/backend"; set -a; . ./.env.local; set +a; uv run pytest -q' "$ROOT"

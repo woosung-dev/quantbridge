@@ -13,7 +13,7 @@
 >
 > ```bash
 > scripts/bl-audit.sh                 # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록
-> #                                     UNKNOWN · 3면 불일치 · 중복 상태줄 · 미닫힌 펜스/<details> → exit 1
+> #                                     UNKNOWN · 3면 불일치 · 중복 상태줄 · 중복 섹션 헤더 · 미닫힌 펜스/<details> → exit 1
 > scripts/bl-audit.sh --list ACTIVE   # id / 우선순위 / 줄번호 만 (★목록 전용 — 항상 exit 0, 게이트에 쓰지 마라)
 > ```
 >
@@ -705,7 +705,7 @@
 | [BL-539](#bl-539) | (P3) 방향 불일치 유예가 시간 경계가 없다 — 평가가 드문드문하면 오래된 strike 가 살아남는다                                                                        | 발산 가드를 다시 손댈 때                                                       | S            | 2026-07-29 PR #497 사후 리뷰                           |
 | [BL-540](#bl-540) | (P3) `live_signal.py` 반복 3종 — deactivate 의식 6회 · provider+creds 4회 · category 가 맨 `str`                                                                  | 이 파일을 다시 크게 손댈 때                                                    | M            | 2026-07-29 PR #497 사후 리뷰                           |
 | [BL-541](#bl-541) | 세션 행이 아예 없는 포지션(웹훅 경로·거래소 수동)은 여전히 앱에서 못 닫는다 — ★아직 실측된 적 없음                                                                | `no_owning_session` 이 실제로 관측될 때                                        | M            | 2026-07-29 live-orphan-close                           |
-| [BL-542](#bl-542) | (P3) 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 (거짓 양성 의심, n=1)                                                                                 | 잔여 노출 표를 신뢰해야 할 때                                                  | XS           | 2026-07-29 live-orphan-close                           |
+| [BL-542](#bl-542) | (P3) 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 — 거짓 양성 **확정** · n=2 · 기전 확정(2026-08-01)                                                    | 잔여 노출 표를 신뢰해야 할 때 — 남은 것은 판정식 교체                          | XS           | 2026-07-29 live-orphan-close                           |
 | [BL-543](#bl-543) | ✅ Resolved 2026-07-30 (a) · (c)→[BL-544](#bl-544) — ★`engine_only` 은 진입 유실을 측정할 수 없다, 세션은 태어날 때부터 갈려 있다                                 | ✅ PR #503 engine-exchange-alignment (position epoch)                          | S            | 2026-07-29 live-orphan-close                           |
 | [BL-544](#bl-544) | ✅ 조건부 진입이 거래소에서만 체결되고 엔진 재생이 재현 못 해 공백 후 세션이 죽는다 (2026-07-30 Resolved)                                                         | —                                                                              | M            | 2026-07-30 engine-exchange-alignment                   |
 | [BL-545](#bl-545) | ★gap-resync 게이트가 5% 수량 허용치를 물려받아 구 게이트가 막던 불일치를 통과시킨다                                                                               | 조건부 진입을 실자금으로 가기 전                                               | S            | 2026-07-30 conditional-entry-alignment                 |
@@ -723,6 +723,23 @@
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                   | 그 게이지로 무언가를 판단하기 전                                               | S            | 2026-07-30 live-entry-completeness                     |
 | [BL-558](#bl-558) | retCode 를 `error_message` 에 싣는 경로가 **동기 1곳뿐** — 비동기 확정 거절이 코드 미상이 된다                                                                    | 거절 코드로 채널을 가를 때                                                     | M            | 2026-07-30 live-entry-completeness                     |
 | [BL-559](#bl-559) | (P3) 진입 완결성 도구 잔여 3건 — 세션 목록 절단 감지 · 사문 라벨 · janitor probe 전이                                                                             | 그 경로가 실측될 때                                                            | S            | 2026-07-30 live-entry-completeness                     |
+| [BL-560](#bl-560) | ✅ Resolved 2026-08-01 — 엔진과 거래소가 반대 방향. ★프로덕션 검증은 **유도 1회**(60초, 기저율 ≈4일 1회) · `same_side` 자연 관측 0                                | ✅ 배선·기록 경로 검증 완료 (효과 측정은 별건)                                 | M            | 2026-07-30 close-mismatch-visibility                   |
+| [BL-561](#bl-561) | ✅ Resolved 2026-08-01 — 포매터가 `extra` 를 렌더하지 않아 진단 증거가 즉시 소실된다                                                                              | ✅ 2026-08-01 메인 실주행 렌더 확인                                            | XS           | 2026-07-30 close-mismatch-soak                         |
+| [BL-562](#bl-562) | ✅ Resolved — 조건부 진입 반전 판정 3값이 계획 시점 계산이라 트리거까지 대기하는 동안 낡는다                                                                      | ✅ 2026-07-31 reversal-ledger-sync                                             | S            | 2026-07-30 close-mismatch-soak                         |
+| [BL-563](#bl-563) | ✅ Resolved — (P3) bracket outcome 을 게이트 처리 **후** request 기준으로 세어 TP 공급을 미공급으로 오분류                                                        | ✅ 2026-07-31 reversal-ledger-sync                                             | XS           | 2026-07-30 close-mismatch-soak                         |
+| [BL-564](#bl-564) | (P3) `bl-audit.sh` 가 코드펜스 · `<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다                                                                              | 그 관용구가 상태줄을 품게 될 때                                                | XS           | 2026-07-30 close-mismatch-soak                         |
+| [BL-565](#bl-565) | `check_exit_fills` 의 close 도 BL-560 과 같은 성질 — 읽기만 하고 남겼다                                                                                           | `strategy.exit` 을 쓰는 전략을 라이브로 돌리기 전                              | S            | 2026-07-31 reversal-ledger-sync                        |
+| [BL-566](#bl-566) | ✅ Resolved 2026-08-01 **재판정** — 유령 포지션이 아니라 **계획기 무장 지연**. 41.6/h→12.9/h · 69%→21% · 전건 2~4봉 자기해소                                      | ✅ 2026-08-01 soak (사전등록 Y2 충족)                                          | M            | 2026-07-31 reversal-ledger-sync                        |
+| [BL-567](#bl-567) | `place_trailing_stop` enqueue 가 실패하면 그 주문의 트레일링은 **영구 유실** — 회수 경로가 없다                                                                   | 트레일링 전략을 라이브로 상시 운용하기 전                                      | —            | 2026-07-31 reversal-ledger-sync                        |
+| [BL-568](#bl-568) | BL-562 체결시점 반전 계측이 **11건 중 10건 무측정** — 분류된 건이 0 이다                                                                                          | 그 분포를 근거로 무언가를 판단하기 전                                          | S            | 2026-08-01 ledgerhygiene                               |
+| [BL-569](#bl-569) | ✅ Resolved — `bl-audit.sh` 가 중복 섹션 헤더를 못 잡아 같은 BL 번호 두 벌이 exit 0 을 유지했다                                                                   | ✅ 2026-08-01 ledgerhygiene                                                    | XS           | 2026-08-01 ledgerhygiene                               |
+| [BL-570](#bl-570) | 무편집 상태에서 `설정 저장` 이 활성인데 누르면 요청 · 토스트 · 필드에러가 전부 0 이다 (★기전은 [가정])                                                            | 전략 편집 화면을 손댈 때 / 같은 미렌더 패턴의 폼을 만들 때                     | S            | 2026-08-01 qa                                          |
+| [BL-571](#bl-571) | (P3) enum 밖 종료 사유가 원장에 박혀 원문 노출 — AST 가드가 원장 직접 기입을 못 본다 (콘솔 40초 67건)                                                             | soak 운영 절차를 다시 돌릴 때 / 콘솔 경고를 게이트로 쓸 때                     | XS           | 2026-08-01 qa                                          |
+| [BL-572](#bl-572) | (P3) 같은 세션을 표는 `PAUSED`, 옆 카드는 `종료된 세션` 으로 부른다 — 죽은 세션이 재개 가능해 보인다                                                              | 라이브 세션 목록/카드를 손댈 때                                                | XS           | 2026-08-01 qa                                          |
+| [BL-573](#bl-573) | (P3) `engine_only` tick 당 `list_resting_conditional_entries` 2회 — 감지가 reconcile 보다 앞서 돌아 공유 불가                                                     | tick 비용을 손댈 때 / 두 경로를 합칠 때                                        | S            | 2026-08-01 soak codex                                  |
+| [BL-574](#bl-574) | ★`LIMIT 100` 이 세션 필터보다 앞서 걸려 현 세션 resting 을 놓치고 `awaiting_trigger` 를 `unexplained` 로 오분류                                                   | 그 분해를 근거로 쓰기 전 / 세션이 쌓일 때                                      | S            | 2026-08-01 soak codex                                  |
+| [BL-575](#bl-575) | SELECT 실패 후 같은 AsyncSession 을 rollback 없이 재사용 — fail-open 계약이 깨진다 (★선재 패턴, 회귀 아님)                                                        | fail-open 을 근거로 쓰기 전                                                    | S            | 2026-08-01 soak codex                                  |
+| [BL-576](#bl-576) | ★`live_conditional_reconcile_divergence` 한 이름이 발화 8곳 · payload 3종을 덮는다 (`110017` 라벨 충돌과 같은 형태)                                               | 그 이름으로 세거나 알림·게이트로 쓰기 전                                       | S            | 2026-08-01 soak                                        |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -4464,17 +4481,17 @@ BL-530 의 분해표에서 `close_position_flat` 16 + `110017 current position i
 
 ### BL-542
 
-**상태:** 🟡 **열려 있다** — 2026-07-30 화면 실측으로 **"거짓 양성" 이 확정**됐다. 확정된 것은 *결함의 실재*이지 수리가 아니다 — 커서 문자열을 로그로 남겨 페이지가 실제로 더 있는지 보는 첫 step 이 그대로 남아 있다. 근거: 본 섹션 최상단 확정 블록 + 마지막 `★증거는 n=1 이다` 줄 · `docs/roadmap.md:162` `- [ ] **BL-542**` · `docs/status.md:215`.
+**상태:** 🟡 **열려 있다** — 결함 실재는 2026-07-30 에 확정, **기전은 2026-08-01 에 확정**(아래 「기전 확정」). 남은 것은 수리뿐이다 — **판정식 교체 + 회귀 가드 2케이스.** ★기존의 첫 step("커서 문자열을 로그로 남겨 페이지가 실제로 더 있는지 본다")은 **닫혔다** — 코드 주석이 이미 답을 갖고 있어서 로그가 필요 없다. 근거: 본 섹션 최상단 확정 블록 + 「기전 확정」 블록 · `docs/roadmap.md:166` `- [ ] **BL-542**` · `docs/status.md:215`.
 
 > ### ✅ **거짓 양성 확정 (2026-07-30 live-entry-completeness, 화면 실측)**
 >
 > 포지션이 **1건**인데 코크핏에 _"거래소가 더 많은 포지션이 있다고 응답했습니다.
 > 이 표는 첫 200건만 보여줍니다"_ 경고가 떠 있다. "n=1 의심" 이었던 것이 **실측으로 확정**됐다.
 
-**Title:** 계정 포지션 표의 "잘렸다" 경고가 포지션이 1건만 있어도 켜진다 (거짓 양성 의심)
+**Title:** 계정 포지션 표의 "잘렸다" 경고가 포지션이 1건만 있어도 켜진다 (거짓 양성 **확정**, n=2 · 기전 확정)
 **Category:** Backend / trading (읽기 표면 정직성)
 **Priority:** P3
-**Trigger:** 잔여 노출 표를 신뢰해야 할 때
+**Trigger:** 잔여 노출 표를 신뢰해야 할 때 — 잔여 노출 점검 · 청산 누락 추적 · `truncated` 를 소비하는 신규 화면 추가 시
 **Est:** XS
 **출처:** 2026-07-29 live-orphan-close 재현 중 부수 관측
 
@@ -4482,8 +4499,32 @@ BL-530 의 분해표에서 `close_position_flat` 16 + `110017 current position i
 
 **영향** — `ScopeFootnote`(`account-positions-table.tsx:415`)가 "이게 전부가 아닐 수 있다" 를 **상시** 띄우게 되고, 진짜로 잘린 경우와 구분이 안 된다. 잔여 노출 관리가 이 표의 존재 이유이므로 경고가 상시면 신호가 죽는다.
 
-★**증거는 n=1 이다** (1 포지션 1회 관측). 커서 문자열 자체를 로그로 남겨 페이지가 실제로 더 있는지 확인하는 게 첫 step이다.
-**Risk:** 🟢
+~~★**증거는 n=1 이다** (1 포지션 1회 관측). 커서 문자열 자체를 로그로 남겨 페이지가 실제로 더 있는지 확인하는 게 첫 step이다.~~
+→ **2026-08-01 갱신: 증거 n=1 → n=2, 첫 step 은 불필요해졌다** (아래).
+
+**기전 확정 (2026-08-01 qa 트랙, 렌더된 메인 스택 실주행).**
+
+★**주석이 이미 반증을 담고 있었다 — 추론이 아니라 코드 대조다.** `providers.py:1201-1206` 의
+주석은 기전을 정확히 적어 놓았다 — _"ccxt 는 `limit=200` 으로 한 페이지만 부르고, 다음 페이지를
+가져오는 대신 커서를 첫 항목에 도장만 찍는다(`add_pagination_cursor_to_result`)"_. 그런데 **바로
+다음 줄** `providers.py:1207` 이 `if position.get("nextPageCursor") or info.get("nextPageCursor"):
+truncated = True` 로 **"도장이 찍혀 있음" 을 "다음 페이지가 있음" 으로 읽는다.** 같은 파일 안에서
+전제와 판정식이 어긋나 있다. 그래서 커서 문자열을 로그로 남길 필요가 없다.
+
+★**증거 n=1 → n=2.** 인증 fetch 로 **계정 2개 전부** `rows: 1, truncated: true`. 화면에도
+BTC/USDT 숏 0.03 **1행**과 함께 각주가 떠 있다. 종전 "1 포지션 1회 관측" 의 n=1 한계는 해소됐다.
+
+**다음 step = 판정식 교체.** 커서 존재가 아니라 **페이지 크기가 상한에 닿았는지**로 판정한다
+(`len(positions) >= 200` 계열). 커서는 "상한에 닿았을 때만" 보조 신호로 쓴다.
+★`_position_snapshot_from_ccxt` 가 0-size 포지션을 `continue` 로 걸러내므로 **필터 전 원본 길이**로
+재야 한다 — 필터 후 길이로 재면 200건이 잘려도 `truncated=False` 가 나온다.
+회귀 가드 2케이스: **1건 응답 + 커서 있음 → `truncated=False`** / **200건 응답 → `truncated=True`**.
+
+★**반대로 틀리면 진짜 절단을 침묵시킨다.** 지금은 상시 발화라 신호가 죽어 있을 뿐 손해는 없지만,
+판정식을 갈아 끼우다 하한을 잘못 잡으면 200건 초과가 실제로 나는 날 조용히 삼킨다.
+위 2케이스 가드 없이 머지하지 마라.
+
+**Risk:** 🟢 (판정식 1줄 · 머니-패스 아님 · 표시 계층 한정. 단 위 2케이스 가드는 필수)
 
 ---
 
@@ -5043,7 +5084,7 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 > (codex 3차 [5] 도 이것으로 해소된다). 이제 그 자리에서 삼키고 counter·로그로 남긴다.
 > **회수 범위는 정직하게 갈린다** — closed-pnl 은 `trading.sweep_closed_pnl` 비트
 > (`celery_app.py:141`)가 주기적으로 backfill 하므로 회수되지만, **트레일링은 회수 경로가
-> 없다** → **BL-566** 로 등재. 단 삼키지 않아도 트레일링은 똑같이 유실되고 tick 까지 잃으므로
+> 없다** → **BL-567** 로 등재. 단 삼키지 않아도 트레일링은 똑같이 유실되고 tick 까지 잃으므로
 > 삼키는 쪽이 순수하게 낫다.
 >
 > **판별력 증명 (표적 변이 4회).** ① 리컨사일러의 write-back 촉발 제거 → 배선 가드 **3건 실패**
@@ -5152,7 +5193,13 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 **카테고리:** Backend / trading (라이브 청산 정합성)
 **Trigger:** ~~신규 라벨이 1건 이상 관측될 때~~ → **2026-07-30 충족 (6건 관측)**
 **Est:** M
-**상태:** 🟡 **부분 Resolved** — 2026-07-31 reversal-ledger-sync. ★**1차 가설은 실주행이 반증했고
+**상태:** ✅ **Resolved** — 2026-08-01 **프로덕션 검증 완료.** `_write_back_confirmed_terminal` 이
+실주행에서 실행됐고 거래소 terminal → 원장 기록이 **60초**였다(사고 때 같은 축 818초).
+★★**단 그 1회는 CONTROL 이 유도한 것이다** — 거래소에서만 취소해 out-of-band 상태를 만들었다.
+자연 발생 기저율은 실측 **≈ 4일에 1회**이고, `same_side`(원래의 피해 지표)는 **자연 관측이 여전히 0**이라
+**수정의 효과가 아니라 배선·기록 경로가 검증된 것**이다. 그 한계를 수용하고 닫는다 — 상세는 아래
+「프로덕션 검증」. 이전 판정은 다음 문단에 그대로 보존한다.
+~~**상태:** 🟡 **부분 Resolved**~~ — 2026-07-31 reversal-ledger-sync. ★**1차 가설은 실주행이 반증했고
 진짜 뿌리는 「확인하고도 write-back 을 안 한다」였다**(세션 `70063496` · 주문 `9c7aef0b` ·
 체결 07:31~32 vs `filled_at` 07:44:13). 수정 = `_write_back_confirmed_terminal`
 (`tasks/live_signal.py:713`, 리컨사일러 `:1000` + 스윕 `:2699`) + 1차 `broker_filled` 유지
@@ -5165,6 +5212,7 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 ⇒ **수정된 코드가 실주행에서 실행된 적이 없다.** 결정론적 테스트로 하중은 받지만 **프로덕션 미검증**이다.
 간접 신호만 개선됐다: 「체결 확인 후 미기록」 반복 **7회 → 0회**, `position_divergence` **41.6/h → 12/h**,
 세션 생존 **0.36h(fail-closed) → 0.86h(정상)**. 상세 = [dev-log](dev-log/2026-07-31-reversal-ledger-sync.md).
+~~★프로덕션 미검증~~ → **2026-08-01 해소** (아래 「프로덕션 검증」). 상태를 ✅ 로 올렸다.
 **출처:** 2026-07-30 close-mismatch-visibility · 실측 2026-07-30 close-mismatch-soak
 
 ★★**엔진과 거래소가 반대 방향을 들고 있는 상태가 반복 발생한다 — 5개 세션에서 9건**
@@ -5195,6 +5243,31 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 그때의 엔진/거래소 포지션 쌍을 함께 남긴다. 그 숫자 없이 세 후보 중 하나를 고르지 마라 —
 BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제로 분모가 틀렸다.
 
+**프로덕션 검증 (2026-08-01, 창 2026-07-31 17:40:00→18:46 UTC · 66분 · 66틱 · 세션 `dc1e08f1`).**
+
+```
+17:40:34  조건부 sell 793e79db 등재 (state=submitted)
+~17:41:20 CONTROL 이 거래소에서만 취소 (원장 submitted 유지 = out-of-band)
+17:42:23  live_conditional_reconcile_divergence  order_id=793e79db
+17:42:23  원장 state=cancelled  (같은 초)
+          qb_live_conditional_reconcile_errors_total{stage="terminal_write_back_cancelled"} = 1.0
+```
+
+- 거래소 terminal → 원장 기록 **60초**. 사고 때 같은 축은 **818초**였다.
+- 로그 이름이 reconcile 계열이라 **스윕이 아니라 리컨사일러**가 최초 관측자임이 확정된다.
+- 독립 계측기 2개(Prometheus counter ↔ `trading.orders` 원장)가 **같은 초에 일치**.
+
+★★**유도된 발화다 — 숨기지 않는다.** CONTROL 이 거래소에서만 취소해 out-of-band 상태를 만들었다.
+자연 발생 기저율은 실측 **≈ 4일에 1회**(`terminal_write_back` series 부재 · 역사상 유일한 자연
+발화가 2026-07-31 07:44:13 **사고 그 자체**). 즉 "자연 발생을 기다려서 확인한다" 는 비례하지 않는
+기준이고, 유도가 이 경로를 검증하는 **올바른 도구**다 — 리컨사일러가 관측한 거래소 상태는 진짜였고
+경로도 프로덕션 경로 그대로다.
+
+★**닫으면서 남기는 것 — 검증된 것은 「배선·기록 경로」이지 「효과」가 아니다.**
+원래의 피해 지표 `same_side` 는 이 창에서도 **자연 관측 0**이다(직전 4창 4.48h 도 0, 청산 시도 0).
+그 축은 이 전략이 전량 조건부 진입만 내는 한 구조적으로 도달 불가다. 효과 측정이 필요해지면
+**`strategy.exit` 을 쓰는 전략으로 창을 다시 짜야 한다** — [BL-565](#bl-565) 가 같은 전제를 공유한다.
+
 **Risk:** 🔴 (방벽이 `reduce_only` 플래그 하나뿐이다)
 
 ---
@@ -5205,9 +5278,9 @@ BL-522 → BL-536 이 **두 번** 그 함정을 경고했고 BL-536 은 실제�
 **카테고리:** Backend / observability (구조화 로그 렌더)
 **Trigger:** BL-560 원인 착수 **직전** (선행 의존)
 **Est:** XS
-**상태:** 🟡 **부분 완료** — 포매터 + celery/uvicorn 배선 착지(2026-07-31, `wt/logfmt`).
-★**실주행에서 실제로 찍히는지는 미검증** — 워크트리는 worker 가 메인 `src` 를 bind-mount 하므로
-celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 확인 후 Resolved 로 올려라.
+**상태:** ✅ **Resolved** — 2026-08-01 **메인 실주행에서 값이 실제로 찍히는 것을 확인**했다
+(아래 「실주행 확인」). 포매터 + celery/uvicorn 배선은 2026-07-31 `wt/logfmt` 로 착지했고,
+남아 있던 유일한 미검증분(실주행 렌더)이 이것으로 닫혔다.
 **출처:** 2026-07-30 close-mismatch-soak — BL-560 수용 기준이 구조적으로 충족 불가였다
 
 ★**`extra=` 로 넘긴 필드가 렌더되지 않아 진단 증거가 즉시 소실된다.**
@@ -5272,6 +5345,25 @@ celery 경유 검증이 구조적으로 불가능하다. 메인 실주행 1회 �
   celery 서비스(worker/ws-stream/optimizer-heavy/beat)에 주입 + 루트 `.env.example` 선언 추가.
   `docker-compose.isolated.yml` 은 ports/command/volumes 만 override 하고 `environment` 는
   상속하므로 **수정 불필요**(`docker compose config` 병합 렌더로 4/4 전달 확인).
+
+**실주행 확인 (2026-08-01).** 메인 스택 worker 컨테이너의 실제 로그에서 `extra` 3필드가
+전부 렌더된다 — 등재 당시 "이벤트 이름만 찍힌다" 던 바로 그 줄이다.
+
+```
+$ docker logs quantbridge-worker --since 96h 2>&1 | grep live_signal_position_divergence | tail -2
+[2026-07-31 15:11:17,262: WARNING/ForkPoolWorker-1] src.tasks.live_signal live_signal_position_divergence \
+  session_id=c77d5851-f463-4f40-89cd-6848a75d5f24 symbol=BTC/USDT category=exchange_only \
+  engine_position=0.0 exchange_position=-0.03
+[2026-07-31 15:35:17,150: WARNING/ForkPoolWorker-1] src.tasks.live_signal live_signal_position_divergence \
+  session_id=... category=direction engine_position=-0.030428836150639117 exchange_position=0.03
+```
+
+같은 창에서 **371줄** 이 같은 형태로 남았다. 로거 이름(`src.tasks.live_signal`)까지 붙어
+celery 가 root 를 hijack 하지 않았음도 함께 보인다. ★**이 확인은 워크트리에서 할 수 없다**
+(worker 가 메인 `src` 를 bind-mount 한다) — 메인 스택 로그를 **읽기만** 해서 재현했다.
+
+★**BL-566(청산 성공 후 유령 포지션 41.6건/h)이 이 렌더 덕분에 보였다.** 값이 없을 때는
+같은 이벤트가 이름만 찍혀 크기·방향을 알 수 없었다.
 
 **Risk:** 🟡 (진단 불가가 다른 P1 을 막는다)
 
@@ -5565,7 +5657,7 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
 
 ---
 
-### BL-566
+### BL-567
 
 **우선순위:** P2
 **카테고리:** Backend / trading (체결 후속 훅 회수)
@@ -5613,10 +5705,16 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
 **카테고리:** Backend / trading (라이브 원장 정합성)
 **Trigger:** BL-560 실주행 재측정을 다시 시도하기 전
 **Est:** M
-**상태:** 🔴 **열려 있다** — 2026-07-31 reversal-ledger-sync pre-fix 창에서 처음 관측.
+**상태:** ✅ **Resolved — 재판정으로 닫는다** (2026-08-01). ★**등재 당시의 명제
+「다음 진입이 올 때까지 지워지지 않는다」가 원장과 어긋난다.** 재분해 결과 이것은 유령 포지션이
+지속되는 현상이 아니라 **계획기 무장 지연 — 시장가 전환 이전의 과도 상태**다. 크기 확정:
+**41.6/h → 12.9/h**, 평가의 **69% → 21%**, 미설명분 **전건이 2~4봉 안에 자기해소**(최대 연속 런 4).
+사전등록 **Y2**(연속 런 ≤5) 충족. 아래 「재판정」 참조.
 **출처:** 2026-07-31 reversal-ledger-sync (BL-561 이 로그를 렌더하자마자 드러났다)
 
-★**청산이 성공했는데도 엔진 원장이 그 포지션을 계속 들고 있다.**
+~~★**청산이 성공했는데도 엔진 원장이 그 포지션을 계속 들고 있다.**~~
+→ **2026-08-01 재판정으로 철회.** 아래 「재판정」이 정본이고, 이 아래 원 서술은 등재 당시의
+판단으로 보존한다(폐기된 판정을 지우지 않는 이 레포 관용구).
 
 **원인/영향.** pre-fix 창(세션 `7fb8e2ed`, 0.71h)에서 `live_signal_position_divergence` 가
 **29건 전건 `engine_only`** 로 찍혔다 — **41.6건/h**, 평가 ~42회 중 **69%가 발산 상태**다.
@@ -5645,6 +5743,479 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
 분모(평가 횟수) 대비 발산 비중을 여러 창에서 재고, `engine_only` 가 지속되는 구간의
 `position_epoch` 값을 함께 남겨라. 크기 없이 원인 후보를 고르지 마라.
 
-**Risk:** 🟡 (엔진 원장이 거래소와 어긋난 채로 신호를 낸다. 방벽은 `reduce_only` 하나)
+**재판정 (2026-08-01, 창 2026-07-31 17:40:00→18:46 UTC · 66분 · 66틱 · 세션 `dc1e08f1`).**
+
+★**과거 29건을 세션 스코프로 재분해했다**(팬아웃 0 — JOIN 없이 센 29 와 일치):
+
+| 갈래               | 건수 | 비중 |
+| ------------------ | ---- | ---- |
+| `awaiting_trigger` | 20   | 69%  |
+| `unexplained`      | 9    | 31%  |
+
+⇒ 크기 **41.6/h → 12.9/h**, 평가의 **69% → 21%**. 등재 헤드라인이 **3.2배 부풀어 있었다** —
+분모가 아니라 **분자**가 틀렸다(대기 중인 조건부 진입을 유령으로 셌다).
+
+★**`unexplained` 9건도 지속되지 않는다 — 전건이 2~4봉 안에 자기해소**한다
+(연속 런 **3 / 4 / 2**, 최대 **4**). 「다음 진입이 올 때까지」라는 등재 서술의 핵심 주장이 여기서 깨진다.
+
+★**이번 창에서는 자연 발생이 0이다.** 정렬 상태로 시작해 66틱, 실거래 있음(조건부 체결 3 · 취소 7)
+인데 `engine_only` **자연 발생 0건**. 유일한 1건은 CONTROL 이 유도했고 **1틱만에 해소**됐다.
+
+★**기전 확정.** 엔진이 포지션을 든 채 거래소가 flat 이면 트리거가 **이미 돌파돼 있어** 계획기가
+**시장가로 전환**한다 — `market_converted` **8 → 9**, 로그 `reason=market_converted
+breach_pct=0.0116`, 등재 **1초** 만에 체결. 그래서 같은 방향 진입이 **대기한 적이 없다.**
+즉 관측된 창은 "유령이 남아 있는 시간" 이 아니라 **"계획기가 아직 무장하지 않은 과도 구간"** 이다.
+
+**⇒ 재정의: 「계획기 무장 지연 — 시장가 전환 이전의 과도 상태」.** 크기가 확정됐고 자기해소가
+증명됐으므로 닫는다. 사전등록 **Y2**(연속 런 ≤5) 충족.
+
+★★**남기는 한계 — `engine_only_awaiting_trigger` 라벨은 프로덕션에서 한 번도 실행되지 않았다.**
+이 재판정의 69%/31% 분해는 **단위테스트 + 과거 원장 재분해 20건**으로만 뒷받침된다. 라벨 자체가
+실주행에서 발화한 적이 없으므로, **다음 창에서 이 라벨이 실제로 찍히는지 기회주의적으로 확인해라.**
+★그리고 그 분류는 [BL-574](#bl-574)(`LIMIT 100` 이 세션 필터보다 앞선다)의 영향을 받는다 —
+다른 세션 미종결 주문이 100건을 채우면 `awaiting_trigger` 가 `unexplained` 로 떨어져
+**위 20/9 비율이 보수적으로(=unexplained 쪽으로) 치우친다.**
+
+**Risk:** 🟢 (재판정 후 — 과도 상태이고 자기해소한다. 방벽은 `reduce_only` 가 그대로 유지)
+~~**Risk:** 🟡 (엔진 원장이 거래소와 어긋난 채로 신호를 낸다. 방벽은 `reduce_only` 하나)~~
+
+---
+
+### BL-568
+
+**우선순위:** P2
+**카테고리:** Backend / trading (조건부 진입 반전 계측)
+**Trigger:** BL-562 의 **체결시점** 반전 분포를 근거로 무언가를 판단하기 전
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-08-01 ledgerhygiene 에서 실측. 아직 원인 미측정.
+**출처:** 2026-08-01 ledgerhygiene (BL-562 착지 후 첫 실측)
+
+★**BL-562 의 체결시점 반전 계측이 11건 중 10건을 못 쟀다 — 분류된 건이 0 이다.**
+
+**원인/영향.** 메인 스택 worker 의 prometheus multiproc 레지스트리를 그대로 읽었다:
+
+```
+qb_live_conditional_reversal_filled_total{bucket="unmeasured_position_predates_order"}  10
+qb_live_conditional_reversal_filled_total{bucket="not_reversal"}                         1
+(그 외 버킷 = 없음)                                                                       0
+```
+
+같은 창의 **등재 시점** 축은 `qb_live_conditional_reversal_total{bucket="1x"} = 27` 로 살아 있다.
+즉 축 자체는 돌지만 **체결시점 축만 91%(10/11)가 `unmeasured` 로 떨어진다.**
+BL-562 는 "증명하지 못하면 버킷에 넣지 않는다" 를 원칙으로 삼았고 그 원칙은 옳다 —
+문제는 **그 결과 남는 신호가 사실상 없다**는 것이다. 지금 이 counter 로는 반전이
+일어나는지 아닌지를 말할 수 없다.
+
+`unmeasured_position_predates_order` 는 `_reversal_bucket_at_fill`
+(`backend/src/tasks/trading.py:1595`) 의 마지막 분기다 — 같은 방향 + `size < filled_quantity`
+까지 온 뒤 `created_at < submitted_at - 2s` 면 여기로 떨어진다.
+
+**[가정] anchor 가 구조적으로 뒤진다는 후보 1.** `position.created_at` 은
+`_parse_position_created_at`(`backend/src/trading/providers.py:271-278`)이 Bybit raw
+`info.createdTime` 에서 채우고, 그 주석이 **「최초 포지션 생성 시각 (ADD 시 불변)」** 이라고
+못박는다. 포지션이 flat 을 거치지 않고 살아 있는 한 `created_at` 은 계속 최초 개시 시각이므로,
+**나중에 등재된 조건부 주문의 `submitted_at` 보다 항상 앞선다.** 조건부 주문은 등재 후
+트리거까지 대기하므로 이 시차는 분 단위로 벌어진다. ★단 이건 코드 대조로 세운 가설이고
+**실측되지 않았다.**
+
+★**먼저 재라 — 왜 anchor 가 항상 뒤지는가.** 10건 각각에 대해 `submitted_at` ·
+`position.created_at` · `filled_quantity` · `position.size` 를 함께 남기고 차이를 봐라.
+가설이 맞다면 `created_at` 이 **모든 건에서 동일한 한 시각**(그 포지션의 최초 개시)으로
+수렴한다 — 그게 판별식이다. ★★**코드 대조로 뿌리를 정하지 마라** — BL-560 이 정확히 그렇게
+두 번 틀렸다(2026-07-31 실주행이 코드 대조 가설을 반증).
+
+**권장 접근:** 원인이 측정된 뒤에 고른다. anchor 후보는 최소 3개이고 셋 다 대가가 다르다 —
+(a) 거래소 체결 시각 소싱(BL-375 와 같은 뿌리, 가장 비싸고 가장 정확),
+(b) 주문 등재 시점의 포지션 스냅샷을 함께 저장해 delta 로 판정(계측 전용 경로에 쓰기가 생긴다),
+(c) `created_at` 대신 포지션 `updatedTime` 을 보조 축으로(★BL-372 가 정확히 그 이유로
+`timestamp` 를 버렸다 — same-side ADD 를 reopen 으로 오탐한다. **같은 함정을 반대편에서
+다시 밟는 선택지다**).
+
+★**계측 전용이라는 성질은 지켜라.** 이 경로는 주문을 내지 않고 행을 쓰지 않는다
+(`trading.py:1610-1613`). 원인을 고치려고 여기에 쓰기를 넣으면 계측기가 머니-패스가 된다.
+
+**Risk:** 🟢 (계측 전용 — 잘못된 값이 주문으로 이어지지 않는다. 단 BL-562 의 판정 근거가 비어 있다)
+
+---
+
+### BL-569
+
+**우선순위:** P3
+**카테고리:** DX / 문서 게이트 (`scripts/bl-audit.sh`)
+**Trigger:** —
+**Est:** XS
+**상태:** ✅ **Resolved** (2026-08-01 ledgerhygiene, 등재와 같은 PR)
+**출처:** 2026-08-01 ledgerhygiene G0 실측
+
+★**`bl-audit.sh` 가 중복 섹션 헤더를 못 잡아, 같은 BL 번호 두 벌이 exit 0 을 유지했다.**
+
+**원인/영향.** 파서는 `verdict[id]` · `evid[id]` · `sec_line[id]` 를 **BL id 로 키를 잡는다**.
+`### BL-566` 이 두 번 나오면 뒤 섹션이 앞 섹션의 판정을 통째로 덮어쓰고, 앞 섹션은
+`order[]` 에만 남아 **카운트에는 잡히므로 숫자만 보면 정상으로 읽힌다.**
+BL-564 가 넣은 중복 검사는 **상태줄**만 봤는데(`st_dup`), 두 섹션이 각자 상태줄을 하나씩
+가지면 `st_dup` 은 양쪽 다 0 이다. 그래서 실패 조건에 걸리지 않았다.
+
+**실측(수정 전).** `docs/backlog.md` 에 `### BL-566` 이 `:5568`(체결 후속 훅 회수)과
+`:5610`(청산 성공 후 유령 포지션) 두 벌 있었는데 `bash scripts/bl-audit.sh` 는 `exit 0`,
+출력에 `BL-566` 은 **한 번도 등장하지 않았다**(`grep -c BL-566` → 0).
+
+**해결.** 섹션 헤더에 상태줄과 **같은 계약**을 적용했다 — `### BL-<n>` 중복이면 exit 1 이고
+「▶ 중복 섹션 헤더」 블록으로 첫 줄과 중복 줄을 함께 출력한다(`scripts/bl-audit.sh:124-130`,
+`:236-242`). 앞 벌(체결 후속 훅 회수)은 **BL-567 로 재번호**했다.
+
+★**판별력 증명 3종.** (a) 임시 `### BL-999` 두 벌 삽입 → `exit 1` · 제거 → `exit 0`.
+(b) ★**수정 전 원본**에 새 검사를 적용 → `BL-566 첫:5568 중복 :5610` 로 **실제 결함을 잡는다**
+— 합성 케이스가 아니라 조용히 통과하던 진짜 사고를 재현했다.
+(c) 종료코드는 **파이프 없이** 읽었다(`| tail` 이 exit code 를 가린다).
+
+★**(b)의 재현 명령은 `HEAD` 가 아니라 `b8c63a45^`(= `a6d891b1`) 다.** 재번호가 `b8c63a45` 에
+들어갔으므로 `HEAD` 를 꺼내면 `### BL-566` 이 하나뿐이라 **재현되지 않는다.** 임시 트리에 놓고 돌려라
+(`docs/` 를 덮어쓰지 마라):
+
+```bash
+T=$(mktemp -d); mkdir -p "$T/scripts" "$T/docs"
+cp scripts/bl-audit.sh "$T/scripts/"; git show b8c63a45^:docs/roadmap.md > "$T/docs/roadmap.md"
+git show b8c63a45^:docs/backlog.md > "$T/docs/backlog.md"
+bash "$T/scripts/bl-audit.sh" > "$T/out.txt" 2>&1; echo "exit=$?"; grep -A2 '중복 섹션 헤더' "$T/out.txt"
+```
+
+★**상시 회귀 가드는 `scripts/bl-audit-test.sh` 다** (G6 codex 적대 리뷰 MAJOR). 위 (a)~(c)는
+1회성 수동 증명이라 **로직을 되돌려도 아무도 못 잡는다** — 원장이 깨끗하면 중복 검사는 아무 일도
+하지 않기 때문이다. 하네스는 임시 트리에 fixture 원장을 만들어 실제 스크립트를 돌리고,
+중복 섹션 헤더 / 중복 상태줄을 **서로 구분해** 단언한다(5 케이스). `final-gates.sh` 체인에
+라벨 `BL 감사 하네스` 로 편입했다 — 물리지 않으면 하네스도 아무도 안 돌린다.
+
+★**변이 3종 전건 적발** — (M1) 중복 섹션 헤더 탐지 제거 → ①·④ red / (M2) `dup`·`sec_line` 을
+BL id 단일 키로 되돌림 → ⑤ red / (M3) 기존 중복 상태줄 탐지 제거 → ③·⑤ red.
+★**하네스 자신이 처음엔 오탐했다** — 실패 요약 줄이 카운터 이름을 전부 나열하므로
+(`… 중복 섹션 헤더 0 건 …`) "없어야 할 마커" 를 이름만으로 찾으면 0 건일 때도 매치된다.
+`▶ ` 블록 머리로 고정했다.
+
+★**부수 정정(G6 MINOR).** `dup[]` · `sec_line[]` 가 BL id 단일 키라 **중복 섹션이 있을 때
+「중복 상태 줄」의 줄번호가 첫 섹션이 아니라 두 번째 섹션을 가리켰다.** 섹션 서수(`n`)로 키를
+바꿨다(`scripts/bl-audit.sh:95-99` · `:239`). 하네스 ⑤ 가 이 회귀를 고정한다.
+
+**Risk:** 🟢
+
+---
+
+### BL-570
+
+**우선순위:** P2
+**카테고리:** Frontend / strategy 편집 · 트레이딩 설정 폼
+**Trigger:** 전략 편집 화면을 손댈 때, 또는 같은 `zodV4Resolver` + `formState.errors` 미렌더 패턴을 쓰는 다른 폼을 만들 때
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-08-01 qa 트랙 실주행 관측. ★**기전은 [가정]이고 미확정이다.**
+**출처:** 2026-08-01 qa (렌더된 메인 스택 FE 3100 / BE 8100 실주행)
+
+★**무편집 상태에서 `설정 저장` 버튼이 활성인데, 누르면 요청도 토스트도 에러도 없이 아무 일도 일어나지 않는다.**
+
+**원인/영향.** `tab-metadata.tsx:245` 가 `disabled={!settingsForm.formState.isDirty || updateSettings.isPending}`
+인데, 신선 로드 직후 아무것도 고치지 않은 폼에서 버튼이 **활성**이다(6.5초 이상 지속 실측,
+0.5초 간격 14회 샘플 전부 `disabled:false`). 그 상태로 클릭하면 `:167` 의
+`settingsForm.handleSubmit(...)` 이 붙은 submit 이벤트는 발화하지만 **PUT 0건 · 토스트 0 ·
+필드 에러 0**, 버튼 텍스트도 `저장 중`(`:247-248`)으로 전환되지 않는다 →
+`updateSettings.mutate` 가 호출된 적이 없다 → **`handleSubmit` 이 검증에서 막았다는 뜻**이다.
+
+피드백이 0인 이유는 **별개의 확정 사실**이다: 이 설정 폼은 `settingsForm.formState.errors` 를
+어디에서도 렌더하지 않는다. 파일 전체에서 errors 참조는 `tab-metadata.tsx:63` 의 **메타데이터**
+폼 `name` 하나뿐이다. 그래서 어떤 검증 탈락도 화면에 남지 않는다.
+
+신선 로드 **3/3 재현**. 대조군으로 레버리지를 2→3 으로 실제 편집한 뒤 누르면
+`PUT /api/v1/strategies/{id}/settings` **200** + 토스트 "트레이딩 설정을 저장했습니다" + 원장 반영
+— **저장 경로 자체는 정상이다.**
+
+**재현.** `/strategies/0d94167b-8c24-444b-a124-870a2a9f0243/edit` 로드 → 아무 필드도 고치지 않고
+`설정 저장` 클릭 → 네트워크에 `PUT .../settings` 없음, 화면 변화 없음.
+(대조군: 레버리지만 바꾸고 같은 버튼 → PUT 200 + 토스트.)
+
+**출처 사슬 (2026-08-01, 원장 · git 대조).** 이 필드가 어디서 왔고 왜 세 회차를 살아남았는지.
+
+- 탈락 필드 `max_trigger_breach_pct` 는 **PR #493**(2026-07-28 live-entry-parity, 커밋
+  `274dc645`)에서 BE 에 들어온 **nullable 설정 필드**다. `git log -S` 로 이 커밋이 도입 커밋임을 확인했다.
+- **원장 실측** — `public.strategies(0d94167b).settings` 에 `"max_trigger_breach_pct": null` 로
+  저장돼 있다(같은 JSONB 에 `fill_timing: "bar_close"` · `max_reversal_overshoot_ratio: null`).
+- **사슬** — null 저장 → 폼 초기 DOM 값이 `""` → `setValueAs`(`tab-metadata.tsx:218-220`)는
+  **change 이벤트에서만** 적용 → `schemas.ts:52` 의
+  `z.number().gt(0).nullable().optional().default(null)` 가 `""` 를 거부 → `handleSubmit` 차단 →
+  errors 미렌더 → **조용한 죽음.**
+
+★**세 회차 동안 안 보였던 이유 — GET 은 멀쩡하고 「편집 후 저장」도 멀쩡하다.**
+**무편집 저장을 실제로 눌러본 적이 없었다.** 직전 회차가 FE `.strict()` 파손을 잡았을 때도
+이 경로는 지나가지 않았다. 「읽기 정상 + 편집 후 쓰기 정상」이 「쓰기 정상」의 증거가 아니다.
+
+★**형제 필드가 원인을 좁힌다(코드 대조, 실측 아님).** `max_reversal_overshoot_ratio` 는
+zod 모양이 **완전히 같고**(`schemas.ts:56`) 원장에도 똑같이 `null` 인데, **폼에 입력칸이 없다**
+(`tab-metadata.tsx:52` 의 `defaultValues` 에만 있고 `register` 사이트가 없다). 그래서 RHF 값이
+`null` 로 남아 스키마를 통과한다 ⇒ **null 저장 자체나 zod 정의가 범인이 아니라, 입력칸 ·
+`setValueAs` 이음매가 범인**이라는 쪽으로 좁혀진다. 판별식을 짤 때 이 둘을 나란히 찍어라.
+
+⇒ ★**교훈: nullable BE 설정 필드를 추가하면 FE 폼의 초기값 정규화도 같은 PR 에서 해야 한다.**
+`schemas.ts` 를 맞추는 것(기존 규칙)만으로는 부족하다 — 그건 **파싱**을 맞추는 것이고,
+여기서 깨진 것은 **폼 초기값**이다. `docs/reference/gates-and-traps.md` §「신규 BE 필드는 FE
+`.strict()` 스키마와 항상 대조해라」에 이 줄을 덧붙였다.
+
+**권장 접근:** ★**먼저 재라 — 기전은 [가정]이고 미확정이다.**
+
+**[가정]** 빈 `max_trigger_breach_pct` number 입력이 초기 RHF 값에 `""` 로 남아
+(=`register` 의 `setValueAs`(`:218-220`)가 change 시에만 적용) ① defaults 의 `null` 과 달라
+`isDirty=true` → 버튼 활성, ② `schemas.ts:52` 의 `z.number().gt(0).nullable()` 을 탈락 →
+침묵 실패. 필드를 한 번 건드리면 `setValueAs` 를 타고 `null` 로 정규화되어 유효해지고
+동시에 `isDirty=false` 가 된다.
+
+**판별식** — 신선 로드 직후(무편집, 버튼 활성인 상태)에 RHF 내부를 1회 캡처해 두 값을 본다:
+
+- `control._formValues.max_trigger_breach_pct` 가 `""` 인가 `null` 인가
+- `control._formState.errors` 의 키 목록이 비어 있는가 (`max_trigger_breach_pct` 가 들어 있으면 가정 확정)
+
+`""` + 해당 에러 키 → **가정 확정**, 수정은 `defaultValues`/`setValueAs` 정규화 1곳.
+둘 다 깨끗한데 mutate 가 안 나가면 **가정 폐기** 후 `handleSubmit` 경로를 다시 판다.
+
+★**보고자의 fiber 읽기를 신뢰하지 마라** — 첫 로드에서는 `_formValues`/`isDirty` 를 읽었으나
+이후 두 번의 신선 로드에서 **같은 코드가 빈 배열**을 냈다. 계측기부터 고정하고 재라.
+
+★**교란 사례 기록.** cap 을 `5→""` 왕복시킨 뒤 클릭했더니 요청 0 이라 위 가정을 한 번
+**반증으로 판정했는데, 그 시점엔 폼이 clean 이라 버튼이 이미 disabled 였다**(클릭 자체가 무효).
+같은 시험을 다시 설계하면 **클릭 전 `disabled` 를 반드시 함께 기록해라.**
+
+**수정 범위(가정과 무관하게 유효한 몫).** 검증 탈락이 보이도록 이 폼에 `formState.errors`
+렌더를 붙이는 것은 기전 확정 없이도 옳다 — 지금은 어떤 실패도 침묵한다.
+
+**Risk:** 🟡 (뿌리 미확정 상태에서 `isDirty`/`defaultValues` 를 건드리면 정상 저장 경로를 깰 수 있다. 에러 렌더 추가는 🟢)
+
+---
+
+### BL-571
+
+**우선순위:** P3
+**카테고리:** Backend / trading · 세션 종료 사유 원장 위생
+**Trigger:** soak 운영 절차를 다시 돌릴 때, 또는 콘솔 경고를 게이트로 쓰려 할 때
+**Est:** XS
+**상태:** 🔴 **열려 있다** — 2026-08-01 qa 트랙 실주행 관측.
+**출처:** 2026-08-01 qa (렌더된 메인 스택 FE 3100 / BE 8100 실주행)
+
+★**enum 밖 종료 사유가 원장에 박혀 화면에 원문으로 나오고, 폴링마다 같은 경고를 다시 찍어 40초에 67건까지 부푼다.**
+
+**원인/영향.** 화면에 `soak_closed_by_operator` · `interim_window_stop` · `prefix_w1_window_done`
+3종이 원문 노출된다. 이 값들은 정본 `backend/src/trading/models.py:107-135` 의
+`SessionDeactivationReason` 에 **없고**, 이를 생산하는 코드도 레포에 없다
+(`backend/` · `scripts/` grep 0건).
+
+★**출처는 우리 코드가 아니다 — 이전 회차 soak 에서 운영자(CONTROL)가 DB 에 직접 기입한 값이다.**
+버그 리포트로 읽지 마라. 이 항목이 말하는 결함은 "잘못된 값이 생성됐다" 가 아니라
+**"원장이 enum 밖 값을 받아들이고, 그걸 막는 가드가 그 경로를 못 본다"** 이다.
+
+FE 폴백 자체는 **설계대로 작동했다** — `frontend/src/features/live-sessions/labels.ts:38-39` 가
+"미등재 코드는 원문 노출 + dev 콘솔 경고" 를 의도한 fail-loud 다. 정본 코드는 정상 한글화된다
+(`gap_resync_position_mismatch` → "평가 공백 후 포지션 불일치", `user_stopped` → "사용자 중단").
+
+★**가드가 이 경로를 구조적으로 못 막는다.** `backend/tests/tasks/test_deactivation_reason_wiring.py`
+는 `tasks/live_signal.py` 의 `repo.deactivate(..., at=...)` **호출부만 AST 로 훑는다**(`:28-37`).
+원장에 직접 쓰는 경로(psql · 스크립트 · 운영자 수기)는 **스캔 범위 밖**이라 enum 밖 값이
+그대로 들어간다. BL-484 가 이 가드를 세울 때 의도한 범위가 "코드 경로" 였고, 그 범위 자체는
+옳다 — 빠진 것은 **원장 쪽 방어**다.
+
+영향 — 실손해는 없으나 콘솔 경고가 폴링마다 재발화해 **40초에 67건**(`/trading` 실측, error 는 0).
+콘솔 경고를 신호로 쓰는 순간 진짜 경고가 이 소음에 묻힌다.
+
+**재현.** `/trading` → 「라이브 세션」 카드 목록 상단 3건에 위 3개 문자열이 원문으로 표시.
+콘솔(warning)에 `[labels] live-session deactivation reason 에 없는 enum 값입니다: ...` 반복.
+
+**권장 접근:** 두 갈래를 분리한다.
+
+- **(a) 원장 정리** — 과거 soak 행의 사유를 정본 값으로 치환하거나, soak 용 사유를
+  `SessionDeactivationReason` 에 정식 등재한다.
+- **(b) 재발 차단** — 운영자 직접 기입까지 잡으려면 AST 가드가 아니라 **DB 제약 또는 기동 시
+  원장 스캔**이 필요하다. ★컬럼이 `String(64)` 라 PG enum 이 아니고(`models.py:118-120`),
+  **그 선택은 마이그레이션 회피가 목적이므로 되돌리지 말고 별도 검증을 붙여라.**
+- 부가로 FE 경고를 **코드당 1회**로 덮으면 소음이 죽는다.
+
+**Risk:** 🟢 (표시·위생 계층. 단 (b)에서 컬럼 타입을 enum 으로 되돌리는 선택은 `LiveSignalInterval` 이 밟은 `UndefinedObjectError` 함정으로 직행하므로 금지)
+
+---
+
+### BL-572
+
+**우선순위:** P3
+**카테고리:** Frontend / live-sessions · 용어 일관성
+**Trigger:** 라이브 세션 목록/카드를 손댈 때, 또는 용어 SSOT 를 확장할 때
+**Est:** XS
+**상태:** 🔴 **열려 있다** — 2026-08-01 qa 트랙 실주행 관측.
+**출처:** 2026-08-01 qa (렌더된 메인 스택 FE 3100 / BE 8100 실주행)
+
+★**같은 세션을 한 화면에서 표는 `PAUSED`, 바로 옆 카드는 `종료된 세션` 으로 부른다 — 죽은 세션이 재개 가능한 것처럼 읽힌다.**
+
+**원인/영향.** `frontend/src/features/live-sessions/components/live-session-table.tsx:101-103` 이
+`s.is_active ? "ACTIVE" : "PAUSED"` 로 **영문 리터럴을 하드코딩**한다(한국어 UI).
+실측 20행 전부 `PAUSED`, `textTransform: none` 이라 **CSS 변환이 아닌 문자열 자체다.**
+
+같은 화면의 카드 목록은 동일 세션을 `종료된 세션` 으로 표기한다(`trading-cockpit.tsx:430-434`).
+즉 **한 화면에 같은 대상의 이름이 둘이다.**
+
+의미도 어긋난다 — 이 세션들은 사유와 함께 **종료**된 것이지 일시정지가 아니며,
+`position_divergence`(엔진↔거래소 방향 불일치)로 죽은 세션도 `PAUSED` 로 표기된다.
+`docs/c-language-port/terminology-ssot.md` 에 `ACTIVE`/`PAUSED` 항목은 **없다.**
+
+**재현.** `/trading` → 「라이브 세션」 표 상태 열이 20행 전부 `PAUSED`, 같은 섹션 아래 카드
+목록은 같은 세션을 `종료된 세션` 으로 표기.
+
+**권장 접근:** `labels.ts` 에 세션 상태 라벨을 추가해 매핑 SSOT 한 곳으로 모으고
+([BL-571](#bl-571) 의 `LIVE_SESSION_DEACTIVATION_REASON_LABEL` 과 같은 자리),
+표/카드가 같은 라벨을 쓰게 한다. 종료 세션은 "일시정지" 가 아니라 **"종료" 계열**로 통일한다.
+★`no-raw-enum-labels` 가드 스코프가 이 파일을 덮는지 **함께 확인**할 것 — 덮는데도 통과했다면
+그건 별개의 결함이다.
+
+**Risk:** 🟢 (표시 문자열 한정. 단 e2e 가 `PAUSED` 텍스트를 셀렉터로 쓰고 있으면 함께 갱신 필요)
+
+---
+
+### BL-573
+
+**우선순위:** P3
+**카테고리:** Backend / trading (라이브 tick 중복 조회)
+**Trigger:** `live_signal` tick 비용을 손댈 때, 또는 발산 감지와 reconcile 을 한 자리로 합칠 때
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-08-01 codex 적대 리뷰 #1 (CONTROL 코드 대조로 확인).
+**출처:** 2026-08-01 soak 후속 codex 리뷰
+
+★**`engine_only` tick 마다 `list_resting_conditional_entries` 가 두 번 돈다 — 결과 공유가 구조적으로 불가능하다.**
+
+**원인/영향.** 두 호출부가 `backend/src/tasks/live_signal.py:639`(발산 감지)와 `:946`(reconcile)에 있다.
+**발산 감지가 reconcile 보다 앞서 돈다.** 그래서 뒤쪽이 앞쪽 결과를 물려받을 수 없고,
+앞쪽이 뒤쪽을 위해 캐시하려면 tick 수명 동안 값을 들고 다녀야 한다 — 지금 구조로는 그 자리가 없다.
+
+비용은 **인덱스 SELECT 1회/틱**이다(같은 `strategy_id` + `exchange_account_id` 조건,
+`order_repository.py:267-281`). 작다. **P3 인 이유가 그것이다** — 정합성 문제가 아니라 중복이다.
+
+★**좌표 주의.** 위 줄번호는 **메인/스테이지 기준**이다. `wt/ledgerhygiene` 워크트리에는
+이 두 호출부가 아직 없다(`list_resting_conditional_entries` 가 `live_signal.py:880` 한 곳뿐).
+발산 감지 경로는 W1 `divsplit` 작업이 들여온 것이다 — 브랜치를 확인하고 grep 해라.
+
+**권장 접근:** 합치려면 **호출 순서를 먼저 정하라.** 발산 감지를 reconcile 뒤로 옮기면 공유가
+가능해지지만, 그러면 감지가 reconcile 이 만든 상태를 보게 되어 **무엇을 재는지가 바뀐다.**
+★**비용이 SELECT 1회이므로, 순서를 바꿔서까지 합칠 값어치가 있는지부터 판단해라.**
+[BL-576](#bl-576) 과 같은 자리를 건드리므로 함께 보는 편이 싸다.
+
+**Risk:** 🟢 (중복 읽기. 정합성 영향 없음)
+
+---
+
+### BL-574
+
+**우선순위:** P2
+**카테고리:** Backend / trading (조회 절단이 분류를 뒤집는다)
+**Trigger:** `awaiting_trigger` / `unexplained` 분해를 근거로 쓰기 **전**, 또는 한 전략·계정에 세션이 여러 벌 쌓일 때
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-08-01 codex 적대 리뷰 #3.
+**출처:** 2026-08-01 soak 후속 codex 리뷰
+
+★**`LIMIT 100` 이 세션 필터보다 앞서 걸려, 현 세션의 resting 주문을 놓치고 `awaiting_trigger` 를 `unexplained` 로 오분류한다.**
+
+**원인/영향.** `order_repository.py:267-281` 의 조회는 **세션으로 필터하지 않는다** —
+`state IN (pending, submitted)` + `trigger_price IS NOT NULL` + `reduce_only = false` +
+`strategy_id` + `exchange_account_id` 로만 좁히고, `submitted_at ASC` 정렬에
+**`.limit(100)`(`:279`)** 을 건다. 세션 스코프는 **호출부에서 사후에** 적용된다.
+
+⇒ 같은 전략·계정에 **다른 세션의 미종결 조건부 주문 100건이 더 오래된 `submitted_at` 으로
+앞서 있으면**, 현 세션의 resting 주문이 SQL 단계에서 잘려 나간다. 호출부는 "이 세션에 대기 중인
+조건부 진입이 없다" 고 읽고, 그 tick 의 `engine_only` 를 **`awaiting_trigger` 가 아니라
+`unexplained` 로 분류**한다.
+
+★**이것이 [BL-566](#bl-566) 재판정의 20/9 분해를 직접 건드린다.** 편향 방향은 다행히
+**보수적**이다 — 놓치면 `unexplained` 쪽으로 떨어지므로 "설명된 비율" 을 **과소** 평가한다.
+즉 재판정의 69%는 하한이다. 그래도 **분류 근거가 조회 절단에 의존한다는 사실 자체가 결함**이고,
+세션이 쌓이면 임계를 넘는 날이 온다.
+
+★**아직 실측되지 않았다** — 100건을 실제로 넘긴 관측은 없다. 크기를 먼저 재라
+(`SELECT count(*)` 를 같은 술어로 돌려 분포를 보면 1줄이다).
+
+**권장 접근:** 세션 술어를 **SQL 안으로** 내린다(`SessionScope` 관용구가 이미 있다).
+그게 어려우면 최소한 **절단을 감지**해라 — `limit + 1` 로 가져와 `len(rows) > limit` 이면
+분류를 `unexplained` 가 아니라 **`unmeasured_truncated`** 로 떨어뜨린다. ★후자가 이 레포의 기존
+관용구다(`list_fills_since` 가 정확히 그렇게 한다, `order_repository.py:400-418`).
+**모르는 것을 아는 것처럼 분류하지 마라** — BL-562 가 세운 규칙과 같다.
+
+**Risk:** 🟡 (관측·분류 계층. 단 그 분류가 [BL-566](#bl-566) 판정의 근거였다)
+
+---
+
+### BL-575
+
+**우선순위:** P2
+**카테고리:** Backend / trading (실패 후 세션 재사용 — fail-open 계약)
+**Trigger:** 「발산 감지는 세션을 죽이지 않는다」를 근거로 쓰기 전, 또는 그 tick 의 DB 실패를 조사할 때
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-08-01 codex 적대 리뷰 #5. ★**선재 패턴이고 회귀가 아니다.**
+**출처:** 2026-08-01 soak 후속 codex 리뷰
+
+★**SELECT 가 실패하면 같은 `AsyncSession` 을 rollback/savepoint 없이 계속 쓴다 — aborted transaction 이면 「fail-open · 세션을 죽이지 않는다」 계약이 깨진다.**
+
+**원인/영향.** 발산 감지의 `except Exception` 은 예외를 삼키고 경고만 남긴다
+(`live_signal.py:637-645` 근방). 하지만 `session` 을 rollback 하지 않는다. 실패가 asyncpg
+트랜잭션을 **abort 시키는 종류**라면 그 tick 의 이후 DB 작업이 **줄줄이 실패**한다.
+즉 이 `except` 가 막는 것은 **이 함수가 예외를 위로 던지는 것**뿐이고, 계약이 약속한
+"세션이 안 죽는다" 는 여기서 보장되지 않는다.
+
+★**코드가 이미 이 한계를 스스로 적어 놓았다** — `live_signal.py:630-634` 의 docstring 이
+_"`session` 을 rollback 하지 않으므로 … 같은 tick 의 이후 DB 작업이 이어서 실패한다.
+즉 '세션이 안 죽는다' 를 여기서 보장하지는 못한다"_ 라고 명시한다. **결함을 숨긴 코드가 아니라
+정직하게 적어 두고 남긴 것**이다. 이 항목은 그 한계를 원장으로 끌어올린 것이다.
+
+★★**선재 패턴 — 회귀가 아니다.** 같은 관용구가 `live_signal.py:2168` 의 `list_fills_since`
+호출부에도 있다(docstring 이 그 자리를 직접 지목한다). **한 자리만 고치면 다른 자리가 남으므로
+두 자리를 함께 봐야 한다.** 새 코드가 만든 문제로 오해하고 W1 변경을 되돌리지 마라 —
+되돌려도 `:2168` 은 그대로다.
+
+★**아직 실측되지 않았다** — aborted transaction 으로 tick 이 연쇄 실패한 관측은 없다.
+이 SELECT 가 실패한 적 자체가 없다.
+
+**권장 접근:** 두 자리에 같은 처리를 준다 — `begin_nested()` savepoint 로 감싸거나,
+`except` 안에서 `await session.rollback()` 한다. ★**어느 쪽이든 「그 tick 을 계속 진행해도
+되는가」를 먼저 정해라.** rollback 은 같은 tick 의 **앞선 미커밋 작업까지** 되돌리므로,
+savepoint 없이 넣으면 조용히 다른 것을 잃는다.
+
+**Risk:** 🟡 (fail-open 계약이 문서와 어긋난다. 단 발생 실측 0)
+
+---
+
+### BL-576
+
+**우선순위:** P2
+**카테고리:** Backend / trading (관측 라벨 충돌)
+**Trigger:** `live_conditional_reconcile_divergence` 를 세거나 알림·게이트로 쓰기 **전**
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-08-01 soak 후속. ★**실측으로 발화 8곳 확인.**
+**출처:** 2026-08-01 soak 후속 codex 리뷰 (+ CONTROL 코드 대조로 범위 확대)
+
+★**`live_conditional_reconcile_divergence` 한 이름이 구조가 다른 사건들을 덮는다 — `110017` 라벨 충돌과 같은 형태다.**
+
+**원인/영향.** 보고는 두 사건(① write-back 누락 ② 시장가 전환)으로 왔으나,
+**코드 대조 결과 발화가 8곳이고 payload 모양이 최소 3종**이다
+(`backend/src/tasks/live_signal.py` — `:1086` · `:1181` · `:1196` · `:1250` · `:1455` ·
+`:1481` · `:1511` · `:1647`):
+
+| payload 모양                     | 예                                                                      |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `order_id` 있음                  | `:1086` `reason=exchange_missing_resting_order` (+ `exchange_order_id`) |
+| `trade_id` 있음, `order_id` 없음 | `:1455` `breach_exceeds_cap` · `:1481` `bracket_trailing_only`          |
+| `session_id` 만                  | `:1181` `reason=<stand_down_reason>`                                    |
+
+★**`:1250` 은 `**divergence` 를 splat 한다** — 키 집합이 코드에 고정돼 있지도 않다.
+그래서 이 이름으로 센 수치는 **무엇의 개수인지 정의되지 않는다.\*\*
+
+★★**이 스프린트 계열이 이미 같은 병으로 두 번 당했다.** `110017` 이 「같은 방향(위험)」과
+「포지션 0(무해)」을 한 라벨에 묻어 **무해 30건이 위험 9건을 수적으로 가렸고, 화면은 그 9건을
+전부 초록으로** 보여줬다(BL-560 계열). 지금 이름도 같은 구조다 — write-back 누락(고쳐야 하는 것)과
+시장가 전환(정상 동작)이 한 이름에 섞여 있다.
+
+★**아직 오판을 일으키지는 않았다.** 이번 창의 판정은 `order_id` 유무로 사람이 갈라 읽어서 맞았다.
+문제는 **그 구분이 사람 눈에만 있다**는 것이다.
+
+**권장 접근:** 이름을 **사건별로 가른다**(정본이 요구하는 방향 — 무해와 위험을 같은 라벨에 두지 않는다).
+최소한 `reason` 을 **필수 필드로 승격**하고 counter 라벨로 올려 `by reason` 으로 세어라.
+★**세기 전에 가르는 것이 순서다** — BL-560 이 라벨을 가른 **뒤에야** 크기를 잴 수 있었다.
+[BL-573](#bl-573) 이 같은 자리를 건드리므로 함께 보면 싸다.
+
+**Risk:** 🟡 (관측 계층. 단 이 이름으로 센 수치를 근거로 쓰면 BL-560 이 밟은 함정을 반복한다)
 
 ---

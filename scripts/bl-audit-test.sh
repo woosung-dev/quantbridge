@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# bl-audit 중복 검사 하네스 — BL-569. 전건 통과 = 종료 코드 0.
+#
+# 왜 필요한가
+#   `bl-audit.sh` 의 중복 검사는 **원장이 깨끗하면 아무 일도 하지 않는다.** 지금 3면이 정합이므로
+#   중복 탐지 로직을 통째로 지워도 게이트는 초록이다 — 즉 실제 사고(`### BL-566` 두 벌이 조용히
+#   exit 0 을 유지)를 막는 코드인데 **되돌려도 아무도 못 잡는다.** 스프린트 안에서 1회 돌린 수동
+#   증명은 그 자리에서만 살아 있고 회귀를 막지 못한다.
+#
+# ★두 검사를 **서로 구분해서** 단언한다. 이게 이 하네스의 핵심이다 —
+#   중복 섹션 헤더는 두 섹션이 각자 상태줄을 하나씩 가지므로 **중복 상태줄 검사에 안 걸린다.**
+#   그게 정확히 BL-566 이 통과한 이유다. 그래서 케이스마다 "떠야 할 마커" 와 함께
+#   **"뜨면 안 되는 마커"** 도 단언한다. 한쪽 검사가 다른 쪽을 대신 잡아주는 것처럼 보이면 red 다.
+#
+# ★fixture 는 임시 트리에 만든다 — 실제 `docs/` 를 절대 건드리지 않는다.
+#   `bl-audit.sh` 는 `dirname $0/..` 를 ROOT 로 잡고 `docs/{backlog,roadmap}.md` 를 읽으므로,
+#   스크립트 사본을 `$TMP/tree/scripts/` 에 두면 그 옆의 fixture 원장을 읽는다.
+#
+# ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (`| tail` 이 $? 를 가린다 — 실측 사고 이력).
+#
+# 사용법: scripts/bl-audit-test.sh
+
+set -uo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+AUDIT="$ROOT/scripts/bl-audit.sh"
+[ -f "$AUDIT" ] || { echo "✗ 감사 스크립트가 없다: $AUDIT" >&2; exit 1; }
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+PASS=0
+FAIL=0
+OUT=""
+RC=0
+
+run_fixture() { # stdin = backlog 본문  → $OUT / $RC
+  rm -rf "$TMP/tree"
+  mkdir -p "$TMP/tree/scripts" "$TMP/tree/docs"
+  cp "$AUDIT" "$TMP/tree/scripts/bl-audit.sh"
+  cat >"$TMP/tree/docs/backlog.md"
+  : >"$TMP/tree/docs/roadmap.md" # 체크박스 없음 = 로드맵 축 중립
+  # ★파이프 없음. 명령 치환의 종료 코드가 곧 스크립트의 종료 코드다.
+  OUT="$(bash "$TMP/tree/scripts/bl-audit.sh" 2>&1)"
+  RC=$?
+}
+
+report() { # report <label> <why(빈 문자열이면 통과)>
+  if [ -n "$2" ]; then
+    FAIL=$((FAIL + 1))
+    printf '  ✗ %-46s %s\n' "$1" "$2"
+    printf '%s\n' "$OUT" | sed 's/^/        | /'
+  else
+    PASS=$((PASS + 1))
+    printf '  ✓ %-46s\n' "$1"
+  fi
+}
+
+# ★"없어야 할 마커" 는 반드시 `▶ ` 블록 머리로 줘라. 실패 요약 줄은 네 카운터를 **전부**
+#   이름으로 나열하므로(`… 중복 섹션 헤더 0 건 …`), 블록 머리 없이 이름만 찾으면 0 건일 때도
+#   매치돼 항상 red 가 된다 — 이 하네스를 처음 돌렸을 때 실제로 그렇게 오탐했다.
+assert_case() { # assert_case <label> <기대 rc> <있어야 할 마커|-> <없어야 할 마커(▶ 블록 머리)|->
+  local why=""
+  [ "$RC" -eq "$2" ] || why="${why}종료코드=$RC(기대 $2) "
+  if [ "$3" != "-" ] && ! printf '%s' "$OUT" | grep -q "$3"; then
+    why="${why}'$3' 마커 없음 "
+  fi
+  if [ "$4" != "-" ] && printf '%s' "$OUT" | grep -q "$4"; then
+    why="${why}★'$4' 가 잘못 발화(검사가 뒤섞였다) "
+  fi
+  report "$1" "$why"
+}
+
+echo "══ bl-audit 중복 검사 하네스  (임시 트리 fixture · 실제 스크립트 실행) ══"
+echo "  대상: $AUDIT"
+echo
+
+# ── ① 중복 섹션 헤더 — 두 섹션이 **각자** 상태줄을 하나씩 갖는다(= BL-566 의 모양) ──────
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** 🔴 **열려 있다** — fixture 첫 벌.
+
+---
+
+### BL-001
+
+**우선순위:** P3
+**상태:** 🔴 **열려 있다** — fixture 두 번째 벌.
+
+---
+EOF
+assert_case "① 중복 섹션 헤더 → exit 1" 1 "▶ 중복 섹션 헤더" "▶ 중복 상태 줄"
+
+# ── ② 중복 없음 → 통과. 가드가 상시 red 면 판별력이 0 이다 ─────────────────────────
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** 🔴 **열려 있다** — fixture.
+
+---
+
+### BL-002
+
+**우선순위:** P3
+**상태:** ✅ **Resolved** (fixture)
+
+---
+EOF
+assert_case "② 중복 없음 → exit 0" 0 "3면" "▶ 중복"
+
+# ── ③ 한 섹션에 상태줄 2개 — BL-564 가 세운 기존 검사가 살아 있는지 ────────────────
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** 🔴 **열려 있다** — 첫 상태줄.
+**상태:** ✅ **Resolved** — 폐기됐어야 할 둘째 상태줄.
+
+---
+EOF
+assert_case "③ 중복 상태 줄 → exit 1" 1 "▶ 중복 상태 줄" "▶ 중복 섹션 헤더"
+
+# ── ④ 중복 섹션 헤더의 줄번호가 **첫 벌**을 가리키는가 (G6 MINOR[B]) ────────────────
+#   id 단일 키로 되돌리면 `첫:` 이 두 번째 섹션 줄로 밀린다.
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** 🔴 **열려 있다** — fixture 첫 벌 (헤더 :1).
+
+---
+
+### BL-001
+
+**우선순위:** P3
+**상태:** 🔴 **열려 있다** — fixture 두 번째 벌 (헤더 :8).
+
+---
+EOF
+_why=""
+printf '%s' "$OUT" | grep -q '첫:1  중복 :8' || _why="'첫:1  중복 :8' 이 아니다 "
+report "④ 중복 헤더가 첫 벌 줄번호를 가리킨다" "$_why"
+
+# ── ⑤ 중복 상태줄의 줄번호가 **그 섹션**을 가리키는가 (G6 MINOR[B] 본체) ───────────
+#   같은 id 섹션이 둘이고 **앞** 섹션에만 상태줄이 2개다. `dup`/`sec_line` 이 id 키면
+#   뒤 섹션(:9)이 앞 섹션(:1)의 줄번호를 덮어써 엉뚱한 자리를 가리킨다.
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** 🔴 **열려 있다** — 첫 상태줄.
+**상태:** ✅ **Resolved** — 둘째 상태줄.
+
+---
+
+### BL-001
+
+**우선순위:** P3
+**상태:** 🔴 **열려 있다** — 뒤 섹션(상태줄 1개).
+
+---
+EOF
+_why=""
+[ "$RC" -eq 1 ] || _why="${_why}종료코드=$RC(기대 1) "
+printf '%s' "$OUT" | grep -q '중복 상태 줄' || _why="${_why}'중복 상태 줄' 마커 없음 "
+printf '%s' "$OUT" | grep -q '섹션:1' || _why="${_why}★중복 상태줄이 섹션:1 이 아니다(id 단일 키 회귀) "
+report "⑤ 중복 상태줄이 그 섹션 줄번호를 가리킨다" "$_why"
+
+echo
+printf '══ 통과 %d / 실패 %d ══\n' "$PASS" "$FAIL"
+[ "$FAIL" -eq 0 ] || exit 1
+exit 0

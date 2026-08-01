@@ -18,7 +18,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pandas as pd
 import pytest
@@ -35,7 +35,8 @@ from src.tasks.live_signal import (
     _ohlcv_rows_to_dataframe,
     _to_engine_position,
 )
-from src.trading.models import ExchangeMode, ExchangeName
+from src.trading.models import ExchangeMode, ExchangeName, OrderSide
+from src.trading.services.conditional_entry_planner import build_conditional_entry_key
 from tests.fixtures.bybit_spot_vs_perp_bars import (
     BYBIT_PERP_1M_BARS,
     BYBIT_SPOT_1M_BARS,
@@ -227,7 +228,7 @@ class TestDetectPositionDivergence:
     @staticmethod
     def _patch_exchange(
         monkeypatch: pytest.MonkeyPatch, *, positions: list[object] | Exception
-    ) -> None:
+    ) -> AsyncMock:
         import src.trading.encryption as encryption_mod
         import src.trading.providers as providers_mod
         import src.trading.services.account_service as account_service_mod
@@ -246,6 +247,7 @@ class TestDetectPositionDivergence:
         monkeypatch.setattr(
             account_service_mod, "ExchangeAccountService", MagicMock(return_value=service)
         )
+        return provider
 
     @pytest.mark.asyncio
     async def test_opposite_side_is_detected(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -468,6 +470,377 @@ class TestDivergenceFailClosed:
 
         assert "deactivated" not in result
         assert result["_persisted_flag"] is False
+
+
+class TestEngineOnlySubclassification:
+    """`engine_only` 계측은 세션 소유의 대기 조건부 진입으로만 세분화한다."""
+
+    @staticmethod
+    def _resting_order(
+        *, session_id: UUID, side: OrderSide, quantity: Decimal = Decimal("0.029")
+    ) -> SimpleNamespace:
+        key = build_conditional_entry_key(
+            session_id=session_id,
+            trade_id="PivRevLE",
+            bar_time=datetime(2026, 5, 1, 12, 0, tzinfo=UTC),
+            stop_price=Decimal("100"),
+            quantity=quantity,
+        )
+        assert key is not None
+        return SimpleNamespace(
+            id=uuid4(),
+            idempotency_key=key,
+            side=side,
+            quantity=quantity,
+        )
+
+    @staticmethod
+    async def _evaluate_position_divergence(
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        session_obj: SimpleNamespace,
+        engine_position: Decimal,
+        exchange_positions: list[object],
+        resting_orders: list[object] | None = None,
+        resting_error: Exception | None = None,
+    ) -> tuple[dict[str, object], AsyncMock]:
+        """실제 평가 -> 거래소 probe -> 분류 -> counter 경로를 한 번 모두 지난다.
+
+        `run_live` 결과와 외부 경계(DB/거래소)만 고정한다. 특히 새 분류의 생산 경로인
+        `_detect_position_divergence`는 mock하지 않는다.
+        """
+        sess_repo = AsyncMock()
+        sess_repo.get_by_id = AsyncMock(return_value=session_obj)
+        sess_repo.try_claim_bar = AsyncMock(return_value=True)
+        sess_repo.deactivate = AsyncMock(return_value=1)
+        sess_repo.commit = AsyncMock()
+        sess_repo.get_state = AsyncMock(return_value=None)
+
+        strategy_repo = AsyncMock()
+        strategy_repo.find_by_id_and_owner = AsyncMock(return_value=_strategy_stub(session_obj))
+        account_repo = AsyncMock()
+        account_repo.get_by_id = AsyncMock(
+            return_value=SimpleNamespace(exchange=ExchangeName.bybit, mode=ExchangeMode.demo)
+        )
+        event_repo = AsyncMock()
+        event_repo.list_by_session = AsyncMock(return_value=[])
+        event_repo.insert_pending_events = AsyncMock(return_value=[])
+
+        bar_time = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
+        _patch_inner_dependencies(
+            monkeypatch,
+            sess_repo=sess_repo,
+            event_repo=event_repo,
+            account_repo=account_repo,
+            strategy_repo=strategy_repo,
+            ohlcv_rows=[[int(bar_time.timestamp() * 1000), 1, 2, 0, 1, 100]],
+            run_live_result=LiveSignalResult(
+                last_bar_time=bar_time,
+                signals=[],
+                strategy_state_report={
+                    "open_trades": [],
+                    "position_size": engine_position,
+                },
+                total_closed_trades=0,
+                total_realized_pnl=Decimal("0"),
+            ),
+        )
+        monkeypatch.setattr(live_signal_module, "publish_realtime", AsyncMock())
+        monkeypatch.setattr(
+            live_signal_module, "_reconcile_conditional_entries", AsyncMock()
+        )
+
+        import src.trading.repositories.order_repository as order_repository_mod
+
+        order_repo = AsyncMock()
+        if resting_error is None:
+            order_repo.list_resting_conditional_entries = AsyncMock(
+                return_value=resting_orders or []
+            )
+        else:
+            order_repo.list_resting_conditional_entries = AsyncMock(side_effect=resting_error)
+        monkeypatch.setattr(
+            order_repository_mod, "OrderRepository", MagicMock(return_value=order_repo)
+        )
+        provider = TestDetectPositionDivergence._patch_exchange(
+            monkeypatch, positions=exchange_positions
+        )
+
+        result = await live_signal_module._evaluate_session_inner(session_obj.id, "1m")
+        provider.fetch_open_positions.assert_awaited_once()
+        return result, order_repo
+
+    @pytest.mark.asyncio
+    async def test_same_session_same_side_resting_entry_awaits_trigger(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session_obj = _build_session_obj()
+        resting_order = self._resting_order(session_id=session_obj.id, side=OrderSide.sell)
+        before = _position_counter("engine_only_awaiting_trigger")
+
+        result, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("-0.029"),
+            exchange_positions=[],
+            resting_orders=[resting_order],
+        )
+
+        assert "deactivated" not in result
+        assert _position_counter("engine_only_awaiting_trigger") == before + 1
+        order_repo.list_resting_conditional_entries.assert_awaited_once_with(
+            session_obj.strategy_id, session_obj.exchange_account_id
+        )
+
+    @pytest.mark.asyncio
+    async def test_no_resting_entry_is_unexplained(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        session_obj = _build_session_obj()
+        before = _position_counter("engine_only_unexplained")
+
+        result, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("-0.029"),
+            exchange_positions=[],
+        )
+
+        assert "deactivated" not in result
+        assert _position_counter("engine_only_unexplained") == before + 1
+        order_repo.list_resting_conditional_entries.assert_awaited_once_with(
+            session_obj.strategy_id, session_obj.exchange_account_id
+        )
+
+    @pytest.mark.asyncio
+    async def test_opposite_side_resting_entry_is_unexplained(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session_obj = _build_session_obj()
+        resting_order = self._resting_order(session_id=session_obj.id, side=OrderSide.buy)
+        before = _position_counter("engine_only_unexplained")
+
+        _, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("-0.029"),
+            exchange_positions=[],
+            resting_orders=[resting_order],
+        )
+
+        assert _position_counter("engine_only_unexplained") == before + 1
+        order_repo.list_resting_conditional_entries.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_other_session_resting_entry_is_unexplained(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session_obj = _build_session_obj()
+        resting_order = self._resting_order(session_id=uuid4(), side=OrderSide.sell)
+        before = _position_counter("engine_only_unexplained")
+
+        _, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("-0.029"),
+            exchange_positions=[],
+            resting_orders=[resting_order],
+        )
+
+        assert _position_counter("engine_only_unexplained") == before + 1
+        order_repo.list_resting_conditional_entries.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_resting_entry_read_failure_keeps_residual_and_session_alive(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        session_obj = _build_session_obj()
+        before = _position_counter("engine_only")
+
+        result, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("-0.029"),
+            exchange_positions=[],
+            resting_error=RuntimeError("database unavailable"),
+        )
+
+        assert "deactivated" not in result
+        assert _position_counter("engine_only") == before + 1
+        order_repo.list_resting_conditional_entries.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("engine_position", "exchange_positions", "counter_category"),
+        [
+            (
+                Decimal("-0.029"),
+                [SimpleNamespace(side="long", size=Decimal("0.029"))],
+                "direction_transient",
+            ),
+            (
+                Decimal("0"),
+                [SimpleNamespace(side="long", size=Decimal("0.029"))],
+                "exchange_only",
+            ),
+            (
+                Decimal("-0.029"),
+                [SimpleNamespace(side="short", size=Decimal("0.010"))],
+                "size",
+            ),
+        ],
+    )
+    async def test_other_divergence_branches_keep_existing_behavior(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        engine_position: Decimal,
+        exchange_positions: list[object],
+        counter_category: str,
+    ) -> None:
+        session_obj = _build_session_obj()
+        before = _position_counter(counter_category)
+
+        result, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=engine_position,
+            exchange_positions=exchange_positions,
+        )
+
+        assert "deactivated" not in result
+        assert _position_counter(counter_category) == before + 1
+        order_repo.list_resting_conditional_entries.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_aligned_positions_never_read_the_order_ledger(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """★**발산이 아예 없는** tick 에서도 원장을 읽지 않는다.
+
+        이 케이스가 없으면 가드를 `category in ("engine_only", None)` 으로 넓혀도 위
+        파라미터화는 전부 초록이다 — 즉 "`engine_only` 일 때만 읽는다" 를 아무도
+        지키지 않는다. 그리고 모든 tick 의 절대다수가 바로 이 상태라, 여기서 새는
+        읽기는 예외 상황 비용이 아니라 **상시 비용**이다.
+        """
+        session_obj = _build_session_obj()
+        warning_spy = MagicMock()
+        monkeypatch.setattr(live_signal_module.logger, "warning", warning_spy)
+
+        result, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("0.029"),
+            exchange_positions=[SimpleNamespace(side="long", size=Decimal("0.029"))],
+        )
+
+        assert "deactivated" not in result
+        order_repo.list_resting_conditional_entries.assert_not_awaited()
+        # ★발산이 없었다는 것을 직접 본다. 이게 없으면 "안 읽었다" 가 "engine_only
+        # 였는데 읽기를 빠뜨렸다" 와 구별되지 않아 가드가 아니라 우연이 된다.
+        assert not [
+            call
+            for call in warning_spy.call_args_list
+            if call.args and call.args[0] == "live_signal_position_divergence"
+        ]
+
+    @pytest.mark.asyncio
+    async def test_new_label_allocation_failure_never_stops_the_evaluation(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """★`.labels()` 자체가 던져도 평가가 살아남는다.
+
+        분화가 이 counter 에 **런타임에 새 child series 를 만드는** 지점을 늘렸다.
+        multiprocess 모드에서 새 라벨 조합은 그 시점에 mmap 파일을 늘리므로 디스크
+        full · 권한 오류로 던질 수 있다. 이 호출은 `try_claim_bar` **뒤** · 단일 commit
+        **앞**이라, 새어 나가면 claim 이 rollback 되고 다음 tick 이 같은 bar 를 다시
+        평가해 **매-tick 크래시 루프**가 된다.
+
+        ★`_position_counter()` 로 미리 child 를 만들어 두면 이 실패 모드는 **재현되지
+        않는다**(이미 할당된 series 는 `.labels()` 가 다시 늘리지 않는다). 그래서
+        여기서는 스냅샷을 찍지 않고 `.labels` 를 통째로 던지게 만든다.
+        """
+        import src.common.metrics as metrics_module
+
+        def _boom(**_labels: str) -> object:
+            raise OSError("No space left on device")
+
+        monkeypatch.setattr(metrics_module.qb_live_position_divergence_total, "labels", _boom)
+        before_failures = metrics_module.qb_metrics_mutation_failed_total._value.get()
+
+        session_obj = _build_session_obj()
+        result, order_repo = await self._evaluate_position_divergence(
+            monkeypatch,
+            session_obj=session_obj,
+            engine_position=Decimal("-0.029"),
+            exchange_positions=[],
+        )
+
+        # 평가가 끝까지 갔고 세션도 죽지 않았다.
+        assert "deactivated" not in result
+        # 계측이 실패했다는 사실 자체는 남는다 — 조용히 건너뛴 것과 구별한다.
+        assert metrics_module.qb_metrics_mutation_failed_total._value.get() > before_failures
+        # 그리고 계측 실패가 분류까지 건너뛰게 만들지는 않았다.
+        order_repo.list_resting_conditional_entries.assert_awaited_once()
+
+    @staticmethod
+    async def _divergence_log_extra(
+        monkeypatch: pytest.MonkeyPatch, *, resting: list[object] | Exception
+    ) -> dict[str, object]:
+        """`engine_only` tick 한 번의 로그 `extra` 를 그대로 돌려준다.
+
+        ★caplog 대신 logger spy 를 쓴다 — 이 레포에서 caplog 은 다른 테스트의 handler
+        설정에 오염돼 격리가 깨진 전례가 있다.
+        """
+        TestDetectPositionDivergence._patch_exchange(monkeypatch, positions=[])
+        order_repo = AsyncMock()
+        if isinstance(resting, Exception):
+            order_repo.list_resting_conditional_entries = AsyncMock(side_effect=resting)
+        else:
+            order_repo.list_resting_conditional_entries = AsyncMock(return_value=resting)
+        sess = SimpleNamespace(
+            id=uuid4(),
+            symbol="BTC/USDT",
+            exchange_account_id=uuid4(),
+            strategy_id=uuid4(),
+        )
+        warning_spy = MagicMock()
+        monkeypatch.setattr(live_signal_module.logger, "warning", warning_spy)
+
+        await _detect_position_divergence(
+            sess, Decimal("-0.029"), account_repo=AsyncMock(), order_repo=order_repo
+        )
+
+        divergence_calls = [
+            call
+            for call in warning_spy.call_args_list
+            if call.args and call.args[0] == "live_signal_position_divergence"
+        ]
+        assert len(divergence_calls) == 1
+        extra = divergence_calls[0].kwargs["extra"]
+        assert isinstance(extra, dict)
+        return extra
+
+    @pytest.mark.asyncio
+    async def test_log_separates_lookup_failure_from_an_empty_result(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """★"확인했더니 없었다" 와 "확인 자체를 못 했다" 가 로그에서 갈려야 한다.
+
+        조회 실패를 빈 목록으로 접으면 라벨을 안 보는 사람에게는 둘이 똑같이
+        "대기 주문 없음" 으로 읽혀, 판정 불가가 곧 유령 신고로 둔갑한다.
+        """
+        failed = await self._divergence_log_extra(
+            monkeypatch, resting=RuntimeError("database unavailable")
+        )
+        assert failed["category"] == "engine_only"
+        assert failed["resting_lookup"] == "failed"
+        # ★빈 목록조차 실으면 안 된다 — 그 자체가 "확인했다" 는 거짓 진술이다.
+        assert "resting_sides" not in failed
+        assert "resting_qty" not in failed
+        assert "resting_order_ids" not in failed
+
+        empty = await self._divergence_log_extra(monkeypatch, resting=[])
+        assert empty["category"] == "engine_only_unexplained"
+        assert empty["resting_lookup"] == "ok"
+        assert empty["resting_sides"] == []
 
 
 class TestDivergenceAlertDiagnosis:

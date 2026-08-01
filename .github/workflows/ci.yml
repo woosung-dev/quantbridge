@@ -134,6 +134,15 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           REDIS_URL: redis://localhost:6379/0
+          # ★2026-08-01 — 이 셋이 없어서 5건이 실패하고 있었다. `Settings` 의 기본값은
+          #   docker-compose 서비스명(`redis://redis:6379/*`)이라 러너에서 해석되지 않고
+          #   "Retry limit exceeded while trying to reconnect to the Celery result store"
+          #   로 죽는다. `REDIS_URL` 만 주입하면 celery 는 여전히 기본값을 쓴다 —
+          #   broker/result/lock 은 **별도 설정**이다(`core/config.py:64-67`).
+          #   ★로컬에서 안 보였던 이유: `.env.local` 이 셋을 모두 localhost 로 채운다.
+          CELERY_BROKER_URL: redis://localhost:6379/1
+          CELERY_RESULT_BACKEND: redis://localhost:6379/2
+          REDIS_LOCK_URL: redis://localhost:6379/3
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
 
   # Sprint FE-01 LESSON-004 Playwright E2E — vitest jsdom 이 못 잡는 Fast Refresh /

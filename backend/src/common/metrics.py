@@ -707,6 +707,15 @@ qb_live_signal_divergence_total = Counter(
 #               앞서 판정하므로 마지막 bar 신규 진입은 주문 enqueue 전 한 번 잡힌다.
 #               유실이 없어도 진입 1건당 1씩 늘 수 있다. 이 값을 진입 유실의 측정치로
 #               쓰지 마라.
+#             engine_only_awaiting_trigger — 같은 세션의 같은 방향 대기 조건부 진입이 있다.
+#               엔진은 봉 종가에 진입하고 거래소 조건부 진입은 트리거될 때까지 체결되지
+#               않으므로, 이것은 설계된 지연이며 결함이 아니다.
+#             engine_only_unexplained — 같은 세션의 같은 방향 대기 조건부 진입이 없어
+#               설명할 수 없는 엔진 전용 포지션이다. 이 라벨만 결함 후보다.
+#             engine_only — 대기 조건부 진입 원장을 읽지 못해 세분화하지 못한 잔여다
+#               (fail-open).
+#             위 세 라벨을 합산하면 옛 `engine_only`와 같지만, 그 합계도 여전히 진입
+#               유실의 측정치가 아니다.
 #               재생 창보다 오래 산 실제 포지션은 재생에 없어서 engine_only 가 아니라
 #               exchange_only 로 나타난다. 진입 유실은 orders.idempotency_key 기준 진입측
 #               원장으로 측정한다(live-close-diagnostics.md §3).
