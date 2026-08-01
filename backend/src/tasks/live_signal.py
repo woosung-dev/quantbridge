@@ -764,6 +764,19 @@ def _count_safely(counter: Any, **labels: str) -> None:
     record_metric_safely(lambda: counter.labels(**labels).inc())
 
 
+def _touch_safely(counter: Any, **labels: str) -> None:
+    """라벨 조합을 **증가 없이** 실체화한다. `_count_safely` 의 무증분 형제.
+
+    ★왜 `_count_safely` 를 못 쓰나 — 그쪽은 `.inc()` 한다. 초기화에서 1 을 올리면
+    창 차분이 실제 발화 수보다 커져 **계측이 스스로 거짓말**을 한다.
+
+    ★왜 raw `.labels()` 를 직접 쓰지 않나 — `test_live_conditional_divergence_labels`
+    가 그 counter 에 대한 raw `.labels()` 를 **AST 로 금지**한다. 그 규율의 의도는
+    "라벨 생성도 예외로부터 격리하라" 이고, 이 함수는 그 의도를 지키면서 증분만 뺀다.
+    """
+    record_metric_safely(lambda: counter.labels(**labels))
+
+
 def _prime_divergence_series() -> None:
     """13 개 `(event, reason)` 조합을 import 시점에 **0 으로 실체화**한다 (BL-576 발화 검증).
 
@@ -779,17 +792,13 @@ def _prime_divergence_series() -> None:
     (`.labels()` 가 던지면 체결 후처리가 끊긴다)의 발생 조건 자체를 없앤다.
 
     ★`inc()` 하지 않는다. 여기서 1 을 올리면 창 차분이 발화 수보다 커진다.
-    ★`record_metric_safely` 로 감싼다 — 디스크 full · 권한 오류로 **워커 기동이 죽지
-    않게** 한다. 계측 초기화가 기동을 막는 것은 계측이 할 일이 아니다.
+    ★그래서 `_count_safely` 를 못 쓰고 `_touch_safely` 를 쓴다 — 둘 다
+    `record_metric_safely` 로 감싸므로 "raw `.labels()` 금지" 규율은 그대로 지킨다.
     """
     for event, reasons in _CONDITIONAL_DIVERGENCE_REASONS.items():
         # "other" = `_conditional_divergence_reason` 의 미허용 reason 정규화 값.
         for reason in (*reasons, "other"):
-            record_metric_safely(
-                lambda e=event, r=reason: qb_live_conditional_divergence_total.labels(
-                    event=e, reason=r
-                )
-            )
+            _touch_safely(qb_live_conditional_divergence_total, event=event, reason=reason)
 
 
 _prime_divergence_series()

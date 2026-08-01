@@ -40,8 +40,31 @@
 → **2026-08-02 divergence-label-split 로 착지.** [BL-576] Resolved(라벨 8곳 → 6 이름 + `{event,reason}` counter) ·
 문턱 결함은 **3건이 아니라 5건**이었고 전건 정정해 **[§G1.1](reference/operations/workflows/generator-evaluator-pipeline.md) 정본**으로 옮겼다.
 
-★**현재 최대 리스크는 「정본이 코드에 있는데 측정은 손 SQL 로 한다」 — 문서 규율이 막지 못한다**
-(2026-08-02 divergence-label-split 에서 지정).
+~~★**현재 최대 리스크는 「정본이 코드에 있는데 측정은 손 SQL 로 한다」 — 문서 규율이 막지 못한다**~~
+→ **2026-08-02 canonical-measurement-surface 로 착지.** 세 질문(`conditional_population` ·
+`resting_truncation_risk` · `entry_race_rejections`)이 손 SQL 값을 **행 단위로 재현**하고,
+낡은 롤링 창을 줘도 **기준선 배제가 자동 적용**된다(§G1.1 규율 6 이 실행되는 코드가 됐다).
+[BL-576] 프로덕션 발화 **검증 통과**(로그:counter = 1:1 · 4:4) · [BL-577] **전제 반증 후 Resolved**.
+
+★**현재 최대 리스크는 「계측 실패가 머니-패스를 오기록한다」 — [BL-579] 다**
+(2026-08-02 canonical-measurement-surface 에서 지정).
+
+**왜 이것이 최대 리스크인가 — 성공한 발주가 「실패」로 기록될 수 있다.**
+
+| 축                             | 실측                                                             |
+| ------------------------------ | ---------------------------------------------------------------- |
+| 가드 밖 mutation 코드 표면     | **127곳**                                                        |
+| 그중 머니-패스 직후            | **6곳**                                                          |
+| 그중 **P1**(성공→실패 오기록)  | **2곳**                                                          |
+| 관측된 발생                    | **0회** — 단 **가드 밖은 자기 실패를 셀 counter 가 없다**        |
+| 렌더 경로 실패 이력            | `qb_metrics_render_fallback_total` = **2**                       |
+| `/metrics` 볼륨                | **9423 파일 · 582MB** (counter/histogram 영구 누적)              |
+
+★**이 발견의 출처가 방법론 그 자체다** — CONTROL 이 「codex MAJOR 발생 조건을 없앴다」고 쓴 것을
+Evaluator 가 **「그 counter 하나에만 참」**이라고 반증하면서 나왔다. 주장 축소 → 크기 측정 → BL 등재.
+
+⇒ **다음 회차 = `metric-guard-parity`** — P1 2곳부터(**전 127곳 일괄 변경 금지**) +
+[BL-576] 잔여 3 event 프로덕션 확인(직전 창에서 미발화) + `/metrics` 누적 크기 판단.
 
 **왜 이것이 최대 리스크인가 — 규율을 쓰는 그 회차에 같은 병이 다섯 번째로 재발했다.**
 

@@ -740,7 +740,8 @@
 | [BL-574](#bl-574)    | ★`LIMIT 100` 이 세션 필터보다 앞서 걸려 현 세션 resting 을 놓치고 `awaiting_trigger` 를 `unexplained` 로 오분류 (측정 완료 · 수리 보류 — 동시 최대 2 / 100)       | 동시 resting 이 20건을 넘긴 날이 관측될 때                                       | S            | 2026-08-01 soak codex                                  |
 | [BL-575](#bl-575)    | SELECT 실패 후 같은 AsyncSession 을 rollback 없이 재사용 — fail-open 계약이 깨진다 (★선재 패턴, 회귀 아님)                                                        | fail-open 을 근거로 쓰기 전                                                      | S            | 2026-08-01 soak codex                                  |
 | [BL-576](#bl-576)    | ✅ Resolved — ★`live_conditional_reconcile_divergence` 한 이름이 발화 8곳 · payload 3종을 덮는다 (`110017` 라벨 충돌과 같은 형태)                                 | 그 이름으로 세거나 알림·게이트로 쓰기 전                                         | S            | 2026-08-01 soak                                        |
-| [BL-577](#bl-577)    | ★`no-raw-enum-labels` 가드가 **존재하지 않는다** — 주석 10곳이 실재처럼 인용하고 3곳은 그 허구를 피하려 코드를 비틀어 놓았다 (BL-572 를 놓친 이유)                | 원시 enum 렌더가 막혔다고 믿고 라벨 코드를 손댈 때                               | S            | 2026-08-01 silent-surface-honesty                      |
+| [BL-577](#bl-577)    | ✅ Resolved — ★전제 반증: 가드는 **실재했다**(내용 grep 이 파일명만 있는 문자열을 못 잡았다). 진짜 구멍은 JSX 안 원시 대문자 리터럴 하나뿐 → 기존 가드에 두 번째 검출기 추가 | 원시 enum 렌더가 막혔다고 믿고 라벨 코드를 손댈 때                               | S            | 2026-08-01 silent-surface-honesty                      |
+| [BL-579](#bl-579)    | prometheus mutation **127곳이 `record_metric_safely` 밖**이고 2곳은 거래소 쓰기 성공 직후라 계측 실패가 성공한 발주를 「실패」로 기록한다 (측정 완료 · 수리 보류) | `qb_metrics_mutation_failed_total` 이 0 을 벗어나거나 조건부 reconcile·트레일링 부착 경로를 손댈 때 | M            | 2026-08-02 canonical-measurement-surface               |
 | [BL-578](#bl-578)    | 조건부 진입 `110092`/`110093` 거절 시 거래소가 준 정답(`current[...]`)을 버린다 — BL-536 재판정에서 유일하게 살아남은 채널의 잔여 (측정 완료 · 수리 보류)         | C1 거절이 하루 3건 이상으로 다시 오르거나 실자금 cutover 로 1건 비용이 달라질 때 | S            | 2026-08-01 entry-completeness-rejudgement              |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
@@ -5301,12 +5302,36 @@ savepoint 없이 넣으면 조용히 다른 것을 잃는다.
 ★**가장 오해를 부른 자리는 `market_converted` 발화**였다 — 시장가 전환 **성공**(PR #493 의 의도된
 수리)이 「divergence」 이름으로 WARNING 에 올라 발산 수를 부풀렸다. **무해가 위험을 가리는 것의 역방향.**
 
+### ★프로덕션 발화 검증 완료 (2026-08-02, canonical-measurement-surface)
+
+창 **37분 28초**(`16:17:28Z`~`16:54:56Z`). 로그 tally 와 counter 차분이 **키·값 모두 일치**:
+`market_converted/market_converted` **1:1** · `stand_down/shared_account_symbol` **4:4**.
+레벨 오라클도 일치(`stand_down` 4 ERROR · `market_converted` 1 WARNING).
+
+★**선행 수리가 필요했다** — **라벨 있는 counter 는 첫 발화 전까지 series 가 존재하지 않는다.**
+그래서 창 시작 스냅샷에 그 series 가 없고 `_delta_reading` 이 `CounterBasis.unknown` 으로 비교를
+거부한다 ⇒ **신설 counter 를 프로덕션에서 증명하려는 바로 그 순간에 계측이 불가능**했다.
+13 조합을 import 시점 0 으로 실체화해 닫았다(`_prime_divergence_series`). 문서가 주장하던
+**상한 13 의 첫 실측 확인**이기도 하다.
+
+★★**5 event 중 2 event 만 확인됐다** — `exchange_divergence` · `degraded_input` · `guard_drop` 은
+그 창에서 **한 번도 발화하지 않았다.** 나머지 3종은 여전히 결정론 fixture 로만 검증된 상태다.
+★**`other` reason 5종은 구조적으로 도달 불가**(호출부 전수 확인 — 전부 허용 reason 리터럴).
+그래서 **「13 series 존재」를 기능 증거로 인용하지 마라 — 증거는 오직 차분이다.**
+
+<details><summary>착수 당시 서술 (이력 보존)</summary>
+
 ★★**남은 것 = 프로덕션 발화 검증.** 새 이벤트명·counter 는 **실주행에서 한 번도 발화하지 않았다**
 (이 회차는 창을 열지 않았다). 머지 + worker 재기동 후에만 확인 가능하다.
 ★**이 라벨로 크기를 주장할 때 §G1.1 의 A5 를 그대로 가져다 쓰지 마라** (2026-08-02 codex MAJOR#1) —
 A5 의 분모(`has_fill + rejected_exchange`)는 **진입 완결성(`AttemptLayer`)의 축**이고 이 counter 에는
 그 축이 없다. **§G1.1 규율 3 에 따라 이 라벨 전용 표본 문턱을 그때 새로 정의해라.**
-**근거:** [스프린트 회고](dev-log/2026-08-02-divergence-label-split.md)
+(★2026-08-02 canonical-measurement-surface 가 그 전용 문턱을 정의해 판정했다 — 위 §프로덕션 발화 검증.)
+
+</details>
+
+**근거:** [라벨 분화 회고](dev-log/2026-08-02-divergence-label-split.md) ·
+[프로덕션 발화 검증](dev-log/2026-08-02-canonical-measurement-surface.md)
 
 <details><summary>착수 당시 원문 (이력 보존)</summary>
 
@@ -5352,11 +5377,46 @@ A5 의 분모(`has_fill + rejected_exchange`)는 **진입 완결성(`AttemptLaye
 ### BL-577
 
 **우선순위:** P2
-**카테고리:** Frontend / 가드 위생 (존재하지 않는 안전망)
+**카테고리:** Frontend / 가드 위생 (가드는 실재하고, 모양이 한 곳에서 안 맞았다)
 **Trigger:** 원시 enum 렌더를 막았다고 믿고 라벨 코드를 손댈 때, 또는 `no-raw-enum-labels` 를 근거로 인용할 때
 **Est:** S
-**상태:** 🔴 **열려 있다** — 2026-08-01 silent-surface-honesty 에서 CONTROL 실측 발견.
+**상태:** ✅ **Resolved** (2026-08-02, canonical-measurement-surface). 전제 반증 후 좁게 확장.
 **출처:** 2026-08-01 [BL-572](#bl-572) 가 「가드 스코프가 이 파일을 덮는지 확인하라」고 지시한 것을 따라가다 발견
+
+### ★★전제가 반증됐다 — 가드는 **존재한다** (2026-08-02, 실행으로 확인)
+
+★**아래 원 서술의 헤드라인(「가드가 존재하지 않는다」)은 거짓이다.** 가드는 실재한다:
+**`frontend/src/__tests__/no-raw-enum-labels.test.ts`** (281줄, `pnpm test` 로 CI 에서 실행).
+
+★**왜 못 찾았나 — 조사 방법의 결함이다.** 원 조사는 `grep -rn "no-raw-enum-labels"` 로
+**파일 내용**을 훑었는데, **그 파일은 자기 이름을 본문에 0회 쓴다**(describe 는
+`"S4/S9/W1 — no raw enum rendered in P1 route UI"`). 내용 grep 은 **파일명에만 있는 문자열**을
+구조적으로 못 잡는다. ⇒ **함정으로 승격**: `docs/reference/operations/gates-and-traps.md`.
+
+**실제 검출기(`detectRawEnumRenders`)를 직접 실행한 결과** (CONTROL 실측 + Evaluator 3/3 재현):
+
+| 입력 | 판정 |
+| ---- | ---- |
+| `<th>{BACKTEST_LIST_HEADER.status}</th>` (우회 3곳 형태) | **잡힌다** |
+| `<td>{s.is_active ? "ACTIVE" : "PAUSED"}</td>` (BL-572 실제 위반) | `[]` **못 잡는다 — 진짜 구멍** |
+| `<span>ACTIVE</span>` (bare 텍스트) | `[]` |
+| `<td>{LIVE_SESSION_STATUS_LABEL[k].label}</td>` (라벨 경유) | `[]` |
+
+★★**그래서 아래 「구현 항목 (iii)」의 「우회 코드 3곳을 원래 형태로 되돌린다」는 집행하면 안 된다 —
+CI 가 red 가 된다.** Evaluator 가 실제로 3곳을 되돌려 **guard red 3건**을 재현한 뒤 역치환 복구했다.
+그 3곳은 **실재하는 멤버 체인 검출기**를 피한 것이지 허구를 피한 것이 아니다.
+같은 이유로 **인용 주석 10곳은 삭제 대상이 아니다** — 전부 정확한 인용이고, 실재 파일을 가리킨다.
+
+### 결과 (2026-08-02)
+
+같은 파일 안에 **두 번째 검출기**를 좁게 추가했다 — JSX 자식 위치의 **원시 대문자 문자열
+리터럴**만, 스코프는 `features/live-sessions`. 멤버 체인 규칙은 이미 있고 잘 동작하므로 손대지 않았다.
+새 eslint 규칙을 만들지 않았다(레포 선례 = vitest 가드 8건 · 커스텀 eslint 룰 0건).
+
+★**오늘 그 스코프의 위반은 0건**이라 레포 스캔만으로는 검출기가 죽어도 green 이다. 그래서
+스캔 테스트 본문에 **생존 단언**(BL-572 원문을 먹여 검출되는지)을 함께 넣어 **무력화가 곧 red** 가 되게 했다.
+
+<details><summary>착수 당시 원문 (이력 보존 — 헤드라인은 위에서 반증됐다)</summary>
 
 ★**`no-raw-enum-labels` 가드는 이 레포에 존재하지 않는다. 그런데 주석 10곳이 그것을 실재하는 것처럼
 인용하고, 그중 3곳은 「가드가 잡으므로 우회한다」며 코드를 실제로 비틀어 놓았다.**
@@ -5394,9 +5454,17 @@ _“가드가 `.status`/`.state` 로 끝나는 JSX 멤버 체인을 전부 잡�
 
 ★**이번 회차에서 고치지 않았다** — BL-572 의 라벨 수리 범위를 넘고, (a)/(b) 는 전략 선택이다.
 
+</details>
+
 ---
 
 ### ★결정 = **(a) 짓는다 (스코프 좁게)** — 2026-08-01 divergence-label-split, 사용자 승인
+
+> ★★**2026-08-02 정정 — 아래 (i)~(iii) 중 (iii) 의 절반은 집행하면 안 된다.**
+> 전제(「가드가 없다」)가 반증됐으므로 **(iii) 의 「우회 코드 3곳 되돌리기」는 CI 를 red 로 만들고,
+> 「인용 주석 10곳 걷어내기」는 정확한 인용을 지우는 것이다.** 실제로 채택한 것은
+> **(i) 스코프**(`features/live-sessions`)와 **(ii) 규칙 모양**(JSX 안 원시 대문자 리터럴)뿐이고,
+> 그 둘은 새 eslint 규칙이 아니라 **기존 vitest 가드 안의 두 번째 검출기**로 구현했다.
 
 **근거.** BL-572 가 가드 부재로 실제로 머지를 통과했고, 우회 코드 3곳이 이미 그 규칙을 전제로 휘어 있다.
 (b) 를 고르면 「다음 사람이 이건 가드가 잡는다고 믿고 BL-572 를 다시 만든다」를 **막을 수단 없이** 닫는다.
@@ -5494,5 +5562,46 @@ short stop 은 `110093`("expect Falling"). 거절 메시지는
 18번 재시도한 이력이 있다.
 
 **Risk:** 🟢 (현행 크기 1건/2일 · 자연 회복 66.7%. 단 되살릴 때의 수리는 머니-패스라 🟡)
+
+---
+
+### BL-579
+
+**우선순위:** P2
+**카테고리:** Backend / 관측 (계측 실패가 머니-패스를 오기록한다)
+**Trigger:** `qb_metrics_mutation_failed_total` 이 0 을 벗어나거나, `/metrics` 볼륨이 포화에 가까워질 때. 또는 조건부 reconcile·트레일링 부착 경로를 손댈 때
+**Est:** M
+**상태:** 🟢 **열려 있다 — 크기 측정 완료, 수리 보류.** 2026-08-02 canonical-measurement-surface (Evaluator 실측).
+**출처:** 2026-08-02 CONTROL 의 「codex MAJOR 발생 조건을 없앴다」 주장을 Evaluator 가 **counter 하나에만 참**이라고 반증하면서 발견
+
+★**prometheus mutation 127곳이 `record_metric_safely` 밖에 있고, 그중 2곳은 거래소 쓰기 성공 직후다 — 계측이 던지면 성공한 발주가 「실패」로 기록된다.**
+
+**원인/영향.** multiprocess 모드에서 `.labels()` 는 새 라벨 조합일 때 그 시점에 mmap 파일을
+늘린다(디스크 full · 권한 오류에 노출). 그래서 이 레포는 `_count_safely` 가 **`.labels()` 까지**
+감싼다(BL-536 R2). 그런데 그 관용구가 전파되지 않았다.
+
+| 축 | 실측 (2026-08-02) |
+| -- | ----------------- |
+| 가드 밖 mutation **코드 표면** | **127곳** |
+| 그중 **머니-패스 직후** | **6곳** |
+| 그중 **P1** (성공을 실패로 오기록 / 후처리 중단) | **2곳** |
+| **관측된 발생** | **0회** (`qb_metrics_mutation_failed_total` 누적 = 0, counter 파일 2188개 전량 합) |
+| 단 렌더 경로 실패 이력 | `qb_metrics_render_fallback_total` = **2** (mmap 계층이 무결하지는 않았다) |
+| `/metrics` 볼륨 | **9423 파일 · 582MB** (여유 125G). counter/histogram 은 **영구 누적** — `mark_process_dead` 는 gauge 만 지운다 |
+
+★**「관측 발생 0회」를 「위험 없음」으로 읽지 마라** — 가드된 지점에서 실패가 0회였다는 뜻이고,
+가드 **밖** 지점은 실패해도 셀 counter 자체가 없다. 구조적으로 자기 실패를 못 센다.
+
+★**판정 불가로 남긴 것** — 실제 발생 확률. 던질 수 있는 코드 경로를 라이브러리 소스로 확정했을 뿐
+ENOSPC/EACCES 를 주입해 재현하지는 않았다. `metrics.py` 의 `ccxt_timer` 2건은 context manager 안이라
+호출 문맥이 정적으로 안 잡혀 머니-패스 여부 **판정 불가**.
+
+**권장 접근(되살릴 때).** `_count_safely` 를 `tasks/trading.py`·`services/order_service.py` 로
+끌어올리고 **P1 2곳부터** 감싼다. 전 127곳 일괄 변경 금지 — 크기 대비 회귀 위험이 크고,
+이 레포는 「스펙 밖 일괄 리팩토링」으로 검증 범위를 흐린 이력이 있다.
+★**함께 볼 것** — `/metrics` 영구 누적(9423 파일)은 별개 축이고, 그것이 mmap 실패 확률의
+분모를 키운다. 수리할 때 같이 재라.
+
+**Risk:** 🟡 (관측 발생 0 이지만 P1 2곳의 귀결이 머니-패스 오기록이다)
 
 ---
