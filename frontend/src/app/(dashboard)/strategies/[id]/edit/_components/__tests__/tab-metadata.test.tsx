@@ -49,14 +49,19 @@ const strategy = {
 // ★BL-570 — 원장이 실제로 주는 형태. 기존 픽스처는 `max_trigger_breach_pct: 0.5`(non-null)라
 //   nullable 필드가 만든 결함을 구조적으로 못 봤다 (외부 시스템 픽스처는 그 시스템이 실제로
 //   주는 형태여야 한다). `public.strategies` 실측: cap · overshoot 둘 다 null.
+// ★spread 로 원본 settings 를 물려받지 않는다 — 원본이 나중에 null 이 되면 `...null` 이
+//   조용히 빈 객체가 되어 이 픽스처가 「원장 형태」이기를 멈춘다(그런데 컴포넌트의 `??`
+//   기본값이 메워 테스트는 계속 통과한다). 전 필드를 여기 적는다.
 const strategyWithNullCaps = {
   ...strategy,
   settings: {
-    ...strategy.settings!,
+    schema_version: 1,
+    leverage: 2,
     margin_mode: "isolated",
     position_size_pct: 1,
     max_trigger_breach_pct: null,
     max_reversal_overshoot_ratio: null,
+    fill_timing: "bar_close",
   },
 } as StrategyResponse;
 

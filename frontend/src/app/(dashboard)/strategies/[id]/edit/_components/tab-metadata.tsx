@@ -244,7 +244,9 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                     {settingsErrors.max_trigger_breach_pct.message}
                   </span>
                 ) : null}
-                <span className="field-hint">비워두면 제한 없음입니다.</span>
+                {/* ★min={0} 이라 브라우저는 0 을 받아주지만 스키마는 `.gt(0)` 라 거부한다.
+                    UI 가 0 을 허용하는 것처럼 보이지 않도록 힌트에 적는다. */}
+                <span className="field-hint">비워두면 제한 없음입니다. 값을 넣으려면 0 보다 커야 합니다.</span>
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="s-fill-timing">

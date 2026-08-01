@@ -50,14 +50,17 @@ test.describe("BL-570 트레이딩 설정 저장", () => {
 
     const toasts = await page.locator("[data-sonner-toast]").allTextContents();
     const fieldErrors = await page.locator(".field-error").allTextContents();
-
-    // Z2 — 셋 중 하나는 반드시 참이어야 한다. 셋 다 거짓인 상태가 정확히 BL-570 이었다.
     const savedOk = puts.includes(200);
-    const gaveFeedback = toasts.length > 0 || fieldErrors.length > 0;
+
+    // ★사전등록 Z2 는 **AND** 다 — 「PUT 200 이거나 disabled」 **그리고** 「화면에 사유가 보인다」.
+    //   셋을 전부 OR 로 묶으면 초기값 정규화만 다시 깨지고 onInvalid 만 남은 상태(요청 0 ·
+    //   토스트만 뜸)가 통과한다. 그건 저장이 여전히 불가능한 상태다.
+    //   「사유가 보인다」 쪽은 Z2b 가 전담하므로 여기서는 앞 절만 판정한다.
     expect(
-      disabledBefore || savedOk || gaveFeedback,
-      `무편집 저장이 침묵했다 — disabled=${disabledBefore} puts=${JSON.stringify(puts)} ` +
-        `toasts=${JSON.stringify(toasts)} fieldErrors=${JSON.stringify(fieldErrors)}`,
+      disabledBefore || savedOk,
+      `무편집 저장이 요청도 못 내고 버튼도 열려 있다 — disabled=${disabledBefore} ` +
+        `puts=${JSON.stringify(puts)} toasts=${JSON.stringify(toasts)} ` +
+        `fieldErrors=${JSON.stringify(fieldErrors)}`,
     ).toBe(true);
   });
 
@@ -90,21 +93,29 @@ test.describe("BL-570 트레이딩 설정 저장", () => {
     const lev = page.getByLabel("레버리지 (1 ~ 125)");
     const original = await lev.inputValue();
     const probe = original === "3" ? "2" : "3";
+    let mutated = false;
 
-    await lev.fill(probe);
-    await page.getByRole("button", { name: SAVE_BUTTON }).click();
-    await expect(
-      page.locator("[data-sonner-toast]").filter({ hasText: "트레이딩 설정을 저장했습니다" }),
-    ).toBeVisible({ timeout: 15_000 });
-    expect(puts).toContain(200);
-
-    // ★원장을 원상복구한다 — 이 spec 은 반복 실행돼도 설정을 바꾸지 않는다.
-    await gotoSettings(page);
-    await page.getByLabel("레버리지 (1 ~ 125)").fill(original);
-    await page.getByRole("button", { name: SAVE_BUTTON }).click();
-    await expect(
-      page.locator("[data-sonner-toast]").filter({ hasText: "트레이딩 설정을 저장했습니다" }),
-    ).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByLabel("레버리지 (1 ~ 125)")).toHaveValue(original);
+    // ★이 spec 은 실제 전략 원장을 바꾼다. 중간 어느 단계에서 실패하든 probe 값이 남으면
+    //   다음 실행과 다른 테스트에 상태가 누적된다 — 복구는 finally 가 책임진다.
+    try {
+      await lev.fill(probe);
+      await page.getByRole("button", { name: SAVE_BUTTON }).click();
+      mutated = true;
+      await expect(
+        page.locator("[data-sonner-toast]").filter({ hasText: "트레이딩 설정을 저장했습니다" }),
+      ).toBeVisible({ timeout: 15_000 });
+      expect(puts).toContain(200);
+    } finally {
+      if (mutated) {
+        await gotoSettings(page);
+        await page.getByLabel("레버리지 (1 ~ 125)").fill(original);
+        await page.getByRole("button", { name: SAVE_BUTTON }).click();
+        await expect(
+          page.locator("[data-sonner-toast]").filter({ hasText: "트레이딩 설정을 저장했습니다" }),
+        ).toBeVisible({ timeout: 15_000 });
+        await gotoSettings(page);
+        await expect(page.getByLabel("레버리지 (1 ~ 125)")).toHaveValue(original);
+      }
+    }
   });
 });
