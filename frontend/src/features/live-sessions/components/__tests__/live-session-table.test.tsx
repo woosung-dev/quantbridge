@@ -1,11 +1,12 @@
 // C 이식 S8 — LiveSessionTable 단위 테스트 (trading/_components 에서 이 도메인 폴더로 이동).
 // - 빈 배열 → 안내 문구
-// - 세션 → ACTIVE/PAUSED 칩 + 심볼 / 인터벌 표시
+// - 세션 → 상태 칩(BL-572 SSOT 라벨) + 심볼 / 인터벌 표시
 // - sort toggle: 최신 시작순 ↔ 활성 우선
 
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import { LiveSessionTable } from "../live-session-table";
+import { LIVE_SESSION_STATUS_LABEL } from "@/features/live-sessions/labels";
 import type { LiveSession } from "@/features/live-sessions/schemas";
 
 const SESSION_A: LiveSession = {
@@ -38,14 +39,27 @@ describe("LiveSessionTable", () => {
     expect(screen.queryByTestId("live-session-table")).not.toBeInTheDocument();
   });
 
-  test("세션 2개 → 심볼 + ACTIVE/PAUSED 칩 표시", () => {
+  test("세션 2개 → 심볼 + 상태 칩 표시", () => {
     render(<LiveSessionTable sessions={[SESSION_A, SESSION_B]} />);
     expect(screen.getByTestId("live-session-table")).toBeInTheDocument();
     expect(screen.getByText("BTC/USDT")).toBeInTheDocument();
     expect(screen.getByText("ETH/USDT")).toBeInTheDocument();
-    expect(screen.getByText("ACTIVE")).toBeInTheDocument();
-    expect(screen.getByText("PAUSED")).toBeInTheDocument();
+    // BL-572 — 표가 자체 문자열을 만들지 않고 목록 카드와 같은 SSOT 를 읽는다.
+    expect(
+      screen.getByText(LIVE_SESSION_STATUS_LABEL.active.label),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(LIVE_SESSION_STATUS_LABEL.ended.label),
+    ).toBeInTheDocument();
     expect(screen.getByText("라이브 세션 (2)")).toBeInTheDocument();
+  });
+
+  // BL-572 — 종료된 세션을 "PAUSED" 로 부르면 재개 가능한 것처럼 읽힌다. 사유와 함께 죽은
+  // 세션(position_divergence 등)까지 그렇게 나왔다. 영문 리터럴 자체가 회귀 신호다.
+  test("한국어 UI 에 영문 상태 리터럴이 남지 않는다", () => {
+    render(<LiveSessionTable sessions={[SESSION_A, SESSION_B]} />);
+    expect(screen.queryByText("ACTIVE")).not.toBeInTheDocument();
+    expect(screen.queryByText("PAUSED")).not.toBeInTheDocument();
   });
 
   test("sort toggle: 최신 시작순 ↔ 활성 우선", () => {

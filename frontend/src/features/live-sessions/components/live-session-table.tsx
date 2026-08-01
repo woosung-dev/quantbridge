@@ -10,7 +10,9 @@ import { useMemo, useState } from "react";
 import { ArrowUpDown } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
+import { CHIP_TONE_CLASS } from "@/lib/labels";
 
+import { LIVE_SESSION_STATUS_LABEL } from "../labels";
 import type { LiveSession } from "../schemas";
 
 type SortMode = "recent" | "active";
@@ -95,27 +97,33 @@ export function LiveSessionTable({
             </tr>
           </thead>
           <tbody>
-            {sorted.map((s) => (
-              <tr key={s.id}>
-                <td>
-                  <span className={s.is_active ? "chip accent" : "chip"}>
-                    {s.is_active ? "ACTIVE" : "PAUSED"}
-                  </span>
-                </td>
-                <td className="mono-l">{s.symbol}</td>
-                <td>
-                  {resolveStrategyName?.(s.strategy_id) ??
-                    s.strategy_id.slice(0, 8)}
-                  {resolveExchangeLabel ? (
-                    <span className="dim">
-                      {" "}
-                      · {resolveExchangeLabel(s.exchange_account_id)}
+            {sorted.map((s) => {
+              // BL-572 — 라벨도 톤도 ../labels 의 SSOT 에서 읽는다. 여기서 문자열을 다시
+              // 만들면 같은 세션을 목록 카드와 다른 이름으로 부르게 된다.
+              const status =
+                LIVE_SESSION_STATUS_LABEL[s.is_active ? "active" : "ended"];
+              return (
+                <tr key={s.id}>
+                  <td>
+                    <span className={CHIP_TONE_CLASS[status.tone]}>
+                      {status.label}
                     </span>
-                  ) : null}
-                </td>
-                <td className="mono-l dim">{s.interval}</td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="mono-l">{s.symbol}</td>
+                  <td>
+                    {resolveStrategyName?.(s.strategy_id) ??
+                      s.strategy_id.slice(0, 8)}
+                    {resolveExchangeLabel ? (
+                      <span className="dim">
+                        {" "}
+                        · {resolveExchangeLabel(s.exchange_account_id)}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="mono-l dim">{s.interval}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

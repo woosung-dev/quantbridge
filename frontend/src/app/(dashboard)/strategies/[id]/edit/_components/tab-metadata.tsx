@@ -61,6 +61,8 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
   // React Compiler 호환 — form.watch() 는 memoize 불가라 useWatch 구독 훅을 쓴다.
   const tradingSessions = useWatch({ control: form.control, name: "trading_sessions" }) ?? [];
   const nameError = form.formState.errors.name?.message;
+  // BL-570 — 이 폼은 검증 탈락을 어디에도 그리지 않아 저장이 조용히 죽었다.
+  const settingsErrors = settingsForm.formState.errors;
 
   return (
     <>
@@ -164,7 +166,14 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
           </div>
         </div>
         <div className="card-body">
-          <form onSubmit={settingsForm.handleSubmit((v) => updateSettings.mutate(v))}>
+          {/* BL-570 — onInvalid 를 반드시 넘긴다. 이걸 빼면 검증 탈락이 화면에 아무 흔적도
+              남기지 않는다(요청 0 · 토스트 0 · 에러 0). 필드 에러 렌더는 아래 각 field 에 있다. */}
+          <form
+            onSubmit={settingsForm.handleSubmit(
+              (v) => updateSettings.mutate(v),
+              () => toast.error("저장하지 못했습니다: 입력값을 확인해 주세요"),
+            )}
+          >
             <div className="field-grid">
               <div className="field">
                 <label className="field-label" htmlFor="s-lev">
@@ -179,6 +188,9 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                   step={1}
                   {...settingsForm.register("leverage", { valueAsNumber: true })}
                 />
+                {settingsErrors.leverage?.message ? (
+                  <span className="field-error">{settingsErrors.leverage.message}</span>
+                ) : null}
                 <span className="field-hint">거래소 마진 배수입니다. Bybit 은 최대 125배입니다.</span>
               </div>
               <div className="field">
@@ -203,6 +215,9 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                   step="any"
                   {...settingsForm.register("position_size_pct", { valueAsNumber: true })}
                 />
+                {settingsErrors.position_size_pct?.message ? (
+                  <span className="field-error">{settingsErrors.position_size_pct.message}</span>
+                ) : null}
                 <span className="field-hint">가용 잔고 대비 포지션 크기입니다. 100 이면 전액입니다.</span>
               </div>
               <div className="field">
@@ -216,10 +231,22 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                   min={0}
                   step="any"
                   {...settingsForm.register("max_trigger_breach_pct", {
-                    setValueAs: (value) => (value === "" ? null : Number(value)),
+                    // ★BL-570 — RHF 는 registration 시점에 **DOM 문자열이 아니라 defaultValue 를
+                    //   그대로** setValueAs 에 넘긴다(`setFieldValue` → `getFieldValueAs`).
+                    //   그래서 `""` 만 거르면 `null` 이 새어 `Number(null) === 0` 이 되고,
+                    //   zod `.gt(0)` 이 그 0 을 거부해 저장이 **조용히 죽었다**. 빈 값 3종을 모두 건다.
+                    setValueAs: (value) =>
+                      value === "" || value === null || value === undefined ? null : Number(value),
                   })}
                 />
-                <span className="field-hint">비워두면 제한 없음입니다.</span>
+                {settingsErrors.max_trigger_breach_pct?.message ? (
+                  <span className="field-error">
+                    {settingsErrors.max_trigger_breach_pct.message}
+                  </span>
+                ) : null}
+                {/* ★min={0} 이라 브라우저는 0 을 받아주지만 스키마는 `.gt(0)` 라 거부한다.
+                    UI 가 0 을 허용하는 것처럼 보이지 않도록 힌트에 적는다. */}
+                <span className="field-hint">비워두면 제한 없음입니다. 값을 넣으려면 0 보다 커야 합니다.</span>
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="s-fill-timing">

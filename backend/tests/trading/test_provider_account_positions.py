@@ -115,12 +115,8 @@ def test_already_canonical_symbol_passes_through():
     assert _from_bybit_linear_symbol("BTCUSDT") == "BTCUSDT"
 
 
-async def test_next_page_cursor_is_surfaced_not_swallowed(monkeypatch, credentials):
-    """★ccxt 는 한 페이지(limit 200)만 부르고 커서를 첫 항목에 도장만 찍는다.
-
-    조용히 자르면 화면이 "이게 전부" 라고 거짓말한다 — 잔여 노출 관리 표에서 그건
-    BL-498 의 증상 그 자체다.
-    """
+async def test_cursor_on_short_page_does_not_mark_truncated(monkeypatch, credentials):
+    """BL-542 — 마지막 페이지에도 남는 ccxt 커서는 절단 증거가 아니다."""
     from src.trading.providers import BybitFuturesProvider
 
     position = _ccxt_position("BTC/USDT:USDT")
@@ -129,5 +125,26 @@ async def test_next_page_cursor_is_surfaced_not_swallowed(monkeypatch, credentia
 
     rows, truncated = await BybitFuturesProvider().fetch_all_open_positions(credentials)
 
-    assert truncated is True
+    assert truncated is False
     assert len(rows) == 1
+
+
+async def test_full_raw_page_marks_truncated_even_when_flat_legs_are_dropped(
+    monkeypatch, credentials
+):
+    """BL-542 — 0-size 행을 제외하기 전 원본 페이지 크기로 절단을 판정한다."""
+    from src.trading.providers import (
+        _BYBIT_ALL_POSITIONS_PAGE_LIMIT,
+        BybitFuturesProvider,
+    )
+
+    positions = [
+        _ccxt_position("BTC/USDT:USDT", contracts=0.0)
+        for _ in range(_BYBIT_ALL_POSITIONS_PAGE_LIMIT)
+    ]
+    _bybit_mock(monkeypatch, positions)
+
+    rows, truncated = await BybitFuturesProvider().fetch_all_open_positions(credentials)
+
+    assert rows == []
+    assert truncated is True

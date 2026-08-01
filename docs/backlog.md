@@ -705,7 +705,7 @@
 | [BL-539](#bl-539) | (P3) 방향 불일치 유예가 시간 경계가 없다 — 평가가 드문드문하면 오래된 strike 가 살아남는다                                                                        | 발산 가드를 다시 손댈 때                                                       | S            | 2026-07-29 PR #497 사후 리뷰                           |
 | [BL-540](#bl-540) | (P3) `live_signal.py` 반복 3종 — deactivate 의식 6회 · provider+creds 4회 · category 가 맨 `str`                                                                  | 이 파일을 다시 크게 손댈 때                                                    | M            | 2026-07-29 PR #497 사후 리뷰                           |
 | [BL-541](#bl-541) | 세션 행이 아예 없는 포지션(웹훅 경로·거래소 수동)은 여전히 앱에서 못 닫는다 — ★아직 실측된 적 없음                                                                | `no_owning_session` 이 실제로 관측될 때                                        | M            | 2026-07-29 live-orphan-close                           |
-| [BL-542](#bl-542) | (P3) 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 — 거짓 양성 **확정** · n=2 · 기전 확정(2026-08-01)                                                    | 잔여 노출 표를 신뢰해야 할 때 — 남은 것은 판정식 교체                          | XS           | 2026-07-29 live-orphan-close                           |
+| [BL-542](#bl-542) | ✅ Resolved — (P3) 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 — 거짓 양성 **확정** · n=2 · 기전 확정(2026-08-01)                                      | 잔여 노출 표를 신뢰해야 할 때 — 남은 것은 판정식 교체                          | XS           | 2026-07-29 live-orphan-close                           |
 | [BL-543](#bl-543) | ✅ Resolved 2026-07-30 (a) · (c)→[BL-544](#bl-544) — ★`engine_only` 은 진입 유실을 측정할 수 없다, 세션은 태어날 때부터 갈려 있다                                 | ✅ PR #503 engine-exchange-alignment (position epoch)                          | S            | 2026-07-29 live-orphan-close                           |
 | [BL-544](#bl-544) | ✅ 조건부 진입이 거래소에서만 체결되고 엔진 재생이 재현 못 해 공백 후 세션이 죽는다 (2026-07-30 Resolved)                                                         | —                                                                              | M            | 2026-07-30 engine-exchange-alignment                   |
 | [BL-545](#bl-545) | ★gap-resync 게이트가 5% 수량 허용치를 물려받아 구 게이트가 막던 불일치를 통과시킨다                                                                               | 조건부 진입을 실자금으로 가기 전                                               | S            | 2026-07-30 conditional-entry-alignment                 |
@@ -733,13 +733,14 @@
 | [BL-567](#bl-567) | `place_trailing_stop` enqueue 가 실패하면 그 주문의 트레일링은 **영구 유실** — 회수 경로가 없다                                                                   | 트레일링 전략을 라이브로 상시 운용하기 전                                      | —            | 2026-07-31 reversal-ledger-sync                        |
 | [BL-568](#bl-568) | BL-562 체결시점 반전 계측이 **11건 중 10건 무측정** — 분류된 건이 0 이다                                                                                          | 그 분포를 근거로 무언가를 판단하기 전                                          | S            | 2026-08-01 ledgerhygiene                               |
 | [BL-569](#bl-569) | ✅ Resolved — `bl-audit.sh` 가 중복 섹션 헤더를 못 잡아 같은 BL 번호 두 벌이 exit 0 을 유지했다                                                                   | ✅ 2026-08-01 ledgerhygiene                                                    | XS           | 2026-08-01 ledgerhygiene                               |
-| [BL-570](#bl-570) | 무편집 상태에서 `설정 저장` 이 활성인데 누르면 요청 · 토스트 · 필드에러가 전부 0 이다 (★기전은 [가정])                                                            | 전략 편집 화면을 손댈 때 / 같은 미렌더 패턴의 폼을 만들 때                     | S            | 2026-08-01 qa                                          |
-| [BL-571](#bl-571) | (P3) enum 밖 종료 사유가 원장에 박혀 원문 노출 — AST 가드가 원장 직접 기입을 못 본다 (콘솔 40초 67건)                                                             | soak 운영 절차를 다시 돌릴 때 / 콘솔 경고를 게이트로 쓸 때                     | XS           | 2026-08-01 qa                                          |
-| [BL-572](#bl-572) | (P3) 같은 세션을 표는 `PAUSED`, 옆 카드는 `종료된 세션` 으로 부른다 — 죽은 세션이 재개 가능해 보인다                                                              | 라이브 세션 목록/카드를 손댈 때                                                | XS           | 2026-08-01 qa                                          |
+| [BL-570](#bl-570) | ✅ Resolved — 무편집 상태에서 `설정 저장` 이 활성인데 누르면 요청 · 토스트 · 필드에러가 전부 0 이다 (★기전은 [가정])                                              | 전략 편집 화면을 손댈 때 / 같은 미렌더 패턴의 폼을 만들 때                     | S            | 2026-08-01 qa                                          |
+| [BL-571](#bl-571) | ✅ Resolved — (P3) enum 밖 종료 사유가 원장에 박혀 원문 노출 — AST 가드가 원장 직접 기입을 못 본다 (콘솔 40초 67건)                                               | soak 운영 절차를 다시 돌릴 때 / 콘솔 경고를 게이트로 쓸 때                     | XS           | 2026-08-01 qa                                          |
+| [BL-572](#bl-572) | ✅ Resolved — (P3) 같은 세션을 표는 `PAUSED`, 옆 카드는 `종료된 세션` 으로 부른다 — 죽은 세션이 재개 가능해 보인다                                                | 라이브 세션 목록/카드를 손댈 때                                                | XS           | 2026-08-01 qa                                          |
 | [BL-573](#bl-573) | (P3) `engine_only` tick 당 `list_resting_conditional_entries` 2회 — 감지가 reconcile 보다 앞서 돌아 공유 불가                                                     | tick 비용을 손댈 때 / 두 경로를 합칠 때                                        | S            | 2026-08-01 soak codex                                  |
 | [BL-574](#bl-574) | ★`LIMIT 100` 이 세션 필터보다 앞서 걸려 현 세션 resting 을 놓치고 `awaiting_trigger` 를 `unexplained` 로 오분류                                                   | 그 분해를 근거로 쓰기 전 / 세션이 쌓일 때                                      | S            | 2026-08-01 soak codex                                  |
 | [BL-575](#bl-575) | SELECT 실패 후 같은 AsyncSession 을 rollback 없이 재사용 — fail-open 계약이 깨진다 (★선재 패턴, 회귀 아님)                                                        | fail-open 을 근거로 쓰기 전                                                    | S            | 2026-08-01 soak codex                                  |
 | [BL-576](#bl-576) | ★`live_conditional_reconcile_divergence` 한 이름이 발화 8곳 · payload 3종을 덮는다 (`110017` 라벨 충돌과 같은 형태)                                               | 그 이름으로 세거나 알림·게이트로 쓰기 전                                       | S            | 2026-08-01 soak                                        |
+| [BL-577](#bl-577) | ★`no-raw-enum-labels` 가드가 **존재하지 않는다** — 주석 10곳이 실재처럼 인용하고 3곳은 그 허구를 피하려 코드를 비틀어 놓았다 (BL-572 를 놓친 이유)                | 원시 enum 렌더가 막혔다고 믿고 라벨 코드를 손댈 때                             | S            | 2026-08-01 silent-surface-honesty                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -3941,7 +3942,20 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 
 **유실 채널 5종** — (1) 조회~발주 사이 가격이 다시 움직여 생기는 잔여 거절 (2) `market_orders_in_flight` 로 reconcile 전체가 deferred (3) 전환 주문의 부분체결 (4) 돌파+resting 조합에서 취소가 트리거를 이긴 경우 (5) notional/balance 사전 게이트 거부.
 
-★**크기가 처음 측정됐다** — 62분 soak 에서 `qb_live_conditional_reconcile_errors_total{stage="deferred_market_inflight"}` = **14**. 채널 (2) 하나가 **시간당 14회**다. 조건부 모델에서는 다음 bar 에 재등재되므로 무해했지만 **1-shot 시장가 전환에서는 유실**이다.
+~~★**크기가 처음 측정됐다** — 62분 soak 에서 `qb_live_conditional_reconcile_errors_total{stage="deferred_market_inflight"}` = **14**. 채널 (2) 하나가 **시간당 14회**다.~~ 조건부 모델에서는 다음 bar 에 재등재되므로 무해했지만 **1-shot 시장가 전환에서는 유실**이다.
+
+> ### ❌ **「시간당 14회」는 반증됐다 (2026-08-01 silent-surface-honesty, 소급 정정)**
+>
+> 근거였던 `deferred_market_inflight` 는 **유실 채널이 아니라 「청산 tick 수」**임이
+> 2026-07-30 close-mismatch-visibility 에서 확정됐다 — `live_signal_events` 9건이 **전량
+> `action='close'`** 이고 counter 9 와 **1:1 동치**이며, 게다가 이 counter 는 `desired` 를
+> **읽기 전에** 오른다(`live_signal.py:706` vs `:742`) ⇒ **미룰 진입이 0건이어도 발화한다.**
+> 그 판정은 [BL-536](#bl-536) 섹션에 기록됐는데 **본 섹션에는 전파되지 않아** 3개월 가까이
+> 반증된 숫자가 P1 크기 근거로 남아 있었다.
+>
+> **처분:** 채널 (2) 의 크기는 **미측정**이다. 이 숫자를 인용하지 마라.
+> 채널 5종 중 (2) 를 제외한 나머지의 크기도 재측정 대상이다.
+> ★결함 실재 자체는 반증되지 않았다 — **크기만 근거를 잃었다.**
 
 **권장 접근:** 전환 의도를 영속화해 다음 tick 에 재시도하거나, `action="fill"` 을 라이브에서 소비하는 경로를 만든다. ★**새 상태 저장소는 위험하므로 크기를 본 뒤 설계한다** — 이번 스프린트가 계측만 넣고 멈춘 이유다.
 **Risk:** 🟡 (백테스트↔라이브 진입 발산. 실주문을 잘못 내지는 않는다)
@@ -4481,7 +4495,7 @@ BL-530 의 분해표에서 `close_position_flat` 16 + `110017 current position i
 
 ### BL-542
 
-**상태:** 🟡 **열려 있다** — 결함 실재는 2026-07-30 에 확정, **기전은 2026-08-01 에 확정**(아래 「기전 확정」). 남은 것은 수리뿐이다 — **판정식 교체 + 회귀 가드 2케이스.** ★기존의 첫 step("커서 문자열을 로그로 남겨 페이지가 실제로 더 있는지 본다")은 **닫혔다** — 코드 주석이 이미 답을 갖고 있어서 로그가 필요 없다. 근거: 본 섹션 최상단 확정 블록 + 「기전 확정」 블록 · `docs/roadmap.md:166` `- [ ] **BL-542**` · `docs/status.md:215`.
+**상태:** ✅ **Resolved** — 2026-08-01 silent-surface-honesty. 판정식을 「커서 존재」에서 **「페이지 상한 도달」**로 교체했다(`providers.py`, `len(positions) >= _BYBIT_ALL_POSITIONS_PAGE_LIMIT`, **0-size 필터 전 원본 길이**). 회귀 2케이스(`1건+커서 → False` / `200건 → True`) + CONTROL 표적 변이 M4 로 판별력 확인(되돌리니 2케이스 전건 실패). ★**프로덕션 인증 fetch 실측 — 계정 2/2 가 `rows=1 · truncated=false`**(수정 전 실측은 2/2 가 `truncated=true`). 근거: `docs/dev-log/2026-08-01-silent-surface-honesty.md`.
 
 > ### ✅ **거짓 양성 확정 (2026-07-30 live-entry-completeness, 화면 실측)**
 >
@@ -5905,7 +5919,7 @@ BL id 단일 키로 되돌림 → ⑤ red / (M3) 기존 중복 상태줄 탐지 
 **카테고리:** Frontend / strategy 편집 · 트레이딩 설정 폼
 **Trigger:** 전략 편집 화면을 손댈 때, 또는 같은 `zodV4Resolver` + `formState.errors` 미렌더 패턴을 쓰는 다른 폼을 만들 때
 **Est:** S
-**상태:** 🔴 **열려 있다** — 2026-08-01 qa 트랙 실주행 관측. ★**기전은 [가정]이고 미확정이다.**
+**상태:** ✅ **Resolved** — 2026-08-01 silent-surface-honesty. ★**아래 [가정]은 반증됐다** — 실측 `_formValues.max_trigger_breach_pct` = **`0`**(`""` 도 `NaN` 도 아니다). 뿌리는 RHF 가 registration 시점에 **DOM 문자열이 아니라 defaultValue 를 그대로** `setValueAs` 에 넘기는 것(`setFieldValue` → `getFieldValueAs`) ⇒ `Number(null) === 0` ⇒ zod `.gt(0)` 거부. ★**아래 「대조군: 편집 후 저장은 200 — 저장 경로 자체는 정상이다」도 반증됐다**(레버리지만 고쳐도 cap 이 0 이라 실패). 수정 = `setValueAs` 빈 값 3종 정규화 + `handleSubmit` `onInvalid` 배선 + field-error 3필드. 가드 = `frontend/e2e/authed-settings-save.spec.ts`(★**jsdom 은 이 결함을 재현하지 못한다**). 근거: `docs/dev-log/2026-08-01-silent-surface-honesty.md`.
 **출처:** 2026-08-01 qa (렌더된 메인 스택 FE 3100 / BE 8100 실주행)
 
 ★**무편집 상태에서 `설정 저장` 버튼이 활성인데, 누르면 요청도 토스트도 에러도 없이 아무 일도 일어나지 않는다.**
@@ -5991,7 +6005,7 @@ zod 모양이 **완전히 같고**(`schemas.ts:56`) 원장에도 똑같이 `null
 **카테고리:** Backend / trading · 세션 종료 사유 원장 위생
 **Trigger:** soak 운영 절차를 다시 돌릴 때, 또는 콘솔 경고를 게이트로 쓰려 할 때
 **Est:** XS
-**상태:** 🔴 **열려 있다** — 2026-08-01 qa 트랙 실주행 관측.
+**상태:** ✅ **Resolved** — 2026-08-01 silent-surface-honesty. (a) 운영자 기입 3종을 `user_stopped` 로 접는 정리를 **마이그레이션 `20260801_0001` 안에** 넣고(수동 psql 로 두면 재현이 셸 히스토리에만 남는다) 남은 위반이 있으면 **값 이름을 찍으며 실패**하게 한 뒤 `VALIDATE CONSTRAINT` 로 과거까지 닫았다. (b) `ck_live_signal_sessions_deactivated_reason` CHECK + 마이그레이션 동결본↔enum 드리프트 센티넬(CONTROL 변이 M5 로 판별력 확인). ★컬럼 타입은 `String(64)` 유지. (c) FE 경고를 `(scope, key)` 당 1회로. **실측 — 화면 원문 노출 3종 → 0 · `[labels]` 콘솔 경고 67건/40초 → 0건/40초.** 근거: `docs/dev-log/2026-08-01-silent-surface-honesty.md`.
 **출처:** 2026-08-01 qa (렌더된 메인 스택 FE 3100 / BE 8100 실주행)
 
 ★**enum 밖 종료 사유가 원장에 박혀 화면에 원문으로 나오고, 폴링마다 같은 경고를 다시 찍어 40초에 67건까지 부푼다.**
@@ -6040,7 +6054,7 @@ FE 폴백 자체는 **설계대로 작동했다** — `frontend/src/features/liv
 **카테고리:** Frontend / live-sessions · 용어 일관성
 **Trigger:** 라이브 세션 목록/카드를 손댈 때, 또는 용어 SSOT 를 확장할 때
 **Est:** XS
-**상태:** 🔴 **열려 있다** — 2026-08-01 qa 트랙 실주행 관측.
+**상태:** ✅ **Resolved** — 2026-08-01 silent-surface-honesty. `LIVE_SESSION_STATUS_LABEL`(라벨 + 톤)을 `features/live-sessions/labels.ts` SSOT 로 신설하고 표·카드·상세가 같은 이름을 쓰게 했다. **실측 — 표 상태 칩이 `PAUSED` 20행 → 「종료된 세션」 20행**(카드와 동일), 영문 리터럴 잔존 0. ★**「가드 스코프를 확인하라」의 답 = 그 가드가 존재하지 않는다** → [BL-577](#bl-577) 신설. 근거: `docs/dev-log/2026-08-01-silent-surface-honesty.md`.
 **출처:** 2026-08-01 qa (렌더된 메인 스택 FE 3100 / BE 8100 실주행)
 
 ★**같은 세션을 한 화면에서 표는 `PAUSED`, 바로 옆 카드는 `종료된 세션` 으로 부른다 — 죽은 세션이 재개 가능한 것처럼 읽힌다.**
@@ -6217,5 +6231,51 @@ savepoint 없이 넣으면 조용히 다른 것을 잃는다.
 [BL-573](#bl-573) 이 같은 자리를 건드리므로 함께 보면 싸다.
 
 **Risk:** 🟡 (관측 계층. 단 이 이름으로 센 수치를 근거로 쓰면 BL-560 이 밟은 함정을 반복한다)
+
+---
+
+### BL-577
+
+**우선순위:** P2
+**카테고리:** Frontend / 가드 위생 (존재하지 않는 안전망)
+**Trigger:** 원시 enum 렌더를 막았다고 믿고 라벨 코드를 손댈 때, 또는 `no-raw-enum-labels` 를 근거로 인용할 때
+**Est:** S
+**상태:** 🔴 **열려 있다** — 2026-08-01 silent-surface-honesty 에서 CONTROL 실측 발견.
+**출처:** 2026-08-01 [BL-572](#bl-572) 가 「가드 스코프가 이 파일을 덮는지 확인하라」고 지시한 것을 따라가다 발견
+
+★**`no-raw-enum-labels` 가드는 이 레포에 존재하지 않는다. 그런데 주석 10곳이 그것을 실재하는 것처럼
+인용하고, 그중 3곳은 「가드가 잡으므로 우회한다」며 코드를 실제로 비틀어 놓았다.**
+
+**원인/영향.** 전 레포 검색(`*.ts` · `*.tsx` · `*.mjs` · `*.cjs` · `*.js` · `*.sh` · `*.json`,
+`node_modules` 제외) 결과 `no-raw-enum-labels` 문자열은 **주석 10곳에만** 있다.
+`frontend/eslint.config.mjs` 는 57줄이고 그런 규칙이 없다(`no-restricted-syntax` 자체가 없다).
+`frontend/package.json` 의 `lint` 는 `eslint .` 뿐이고, 이 이름의 스크립트·vitest 가드·lint 플러그인도 없다.
+
+인용 지점 — `backtest-list.tsx:139`·`:356` · `strategy-list.tsx:149`·`:411` ·
+`orders-blotter.tsx:6`·`:240` · `optimizer-run-list.tsx:196` ·
+`live-sessions/labels.ts:3`(“S9 확장 스코프”)·`:24`(“W1 확장, direction 필드”).
+
+★**단순한 문서 드리프트가 아니다 — 코드가 그 허구에 맞춰 휘어 있다.**
+`backtest-list.tsx:139` / `strategy-list.tsx:149` / `orders-blotter.tsx:240` 세 곳은
+_“가드가 `.status`/`.state` 로 끝나는 JSX 멤버 체인을 전부 잡으므로 우회한다”_ 며 중간 변수를
+두는 형태로 작성돼 있다. **존재하지 않는 규칙을 피하려고 쓴 코드다.**
+
+★**실제로 놓쳤다.** [BL-572](#bl-572) 가 정확히 이 가드가 잡아야 할 형태다 —
+`live-session-table.tsx:101-103` 이 `s.is_active ? "ACTIVE" : "PAUSED"` 로 원시 리터럴을
+한국어 UI 에 하드코딩한다. 가드가 있었다면 머지 전에 걸렸을 것이고, 없었으므로 통과했다.
+
+**재현.** `grep -rn "no-raw-enum-labels" .` → 주석 10건. `frontend/eslint.config.mjs` 전문 확인 → 규칙 없음.
+
+**권장 접근:** 두 갈래 중 **하나를 골라 끝내라. 지금 상태(믿음만 있고 실체 없음)가 가장 나쁘다.**
+
+- **(a) 짓는다** — `eslint` `no-restricted-syntax` 로 규칙을 실제로 만들고, 주석이 주장하는
+  스코프(S9 = `features/live-sessions/components` 원시 status / W1 = `direction` 필드)를 재확인해
+  주석과 규칙을 일치시킨다. ★새로 만들면 **기존 인용 3곳의 우회 코드가 여전히 필요한지** 함께 판정해라.
+- **(b) 지운다** — 가드를 안 만들기로 하면 주석 10곳을 전부 걷어내고, 우회 코드 3곳을 원래 형태로 되돌린다.
+  ★그냥 두면 다음 사람도 「이건 가드가 잡는다」고 믿고 [BL-572](#bl-572) 를 다시 만든다.
+
+★**이번 회차에서 고치지 않았다** — BL-572 의 라벨 수리 범위를 넘고, (a)/(b) 는 전략 선택이다.
+
+**Risk:** 🟡 ((a) 를 고르면 신규 규칙이 기존 파일 다수를 빨갛게 만들 수 있다 — 스코프를 좁혀 시작해라. (b) 는 🟢)
 
 ---

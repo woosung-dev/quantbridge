@@ -40,6 +40,9 @@ _CLOSED_PNL_LOOKBACK_MS = 3_600_000
 _CLOSED_PNL_MAX_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 # Bybit 한 페이지 상한 100, 최대 5페이지 = 500행. 뒤로 훑는 비용 상한이자 무한루프 방지선.
 _CLOSED_PNL_MAX_PAGES = 5
+# ccxt Bybit `fetch_positions()` 는 limit=200인 한 페이지만 요청한다. 이 원본 응답이
+# 상한에 닿으면 다음 페이지 존재 가능성을 호출자에게 표면화해야 한다.
+_BYBIT_ALL_POSITIONS_PAGE_LIMIT = 200
 
 
 def _decimal_or_none(
@@ -1177,8 +1180,8 @@ class BybitFuturesProvider:
         한다. USDT 정산 **dated futures 도 함께** 온다(무기한 전용이 아니다).
         심볼은 우리 canonical 로 되돌려 세션·주문 원장과 대조 가능하게 한다.
 
-        반환 = ``(행 목록, 잘렸는가)``. 두 번째 값이 True 면 거래소가 더 있다고
-        말한 것이므로 화면이 "이게 전부" 라고 말하면 안 된다.
+        반환 = ``(행 목록, 잘렸을 수 있는가)``. 두 번째 값이 True 면 첫 페이지가 상한에
+        닿아 다음 페이지가 있을 수 있으므로 화면이 "이게 전부" 라고 말하면 안 된다.
         """
         exchange = ccxt_async.bybit(
             {
@@ -1197,15 +1200,11 @@ class BybitFuturesProvider:
             async with ccxt_timer("bybit_futures", "fetch_all_open_positions"):
                 positions = await exchange.fetch_positions()
             rows: list[tuple[str, PositionSnapshot]] = []
-            truncated = False
+            # ccxt 는 Bybit 의 nextPageCursor 를 첫 항목에 도장만 찍으며 마지막 페이지에도
+            # 남긴다. 커서는 절단 증거가 아니므로, 0-size 행을 걸러내기 전 원본 페이지가
+            # 상한에 닿았는지만 사용한다.
+            truncated = len(positions) >= _BYBIT_ALL_POSITIONS_PAGE_LIMIT
             for position in positions:
-                # ★ccxt 는 `limit=200` 으로 **한 페이지만** 부르고, 다음 페이지를 가져오는
-                #   대신 커서를 첫 항목에 도장만 찍는다(`add_pagination_cursor_to_result`).
-                #   그 커서가 있으면 우리가 본 것이 전부가 아니라는 뜻이므로, 조용히
-                #   자르지 말고 호출자에게 알린다 — 이 표의 용도가 잔여 노출 관리다.
-                info = position.get("info") or {}
-                if position.get("nextPageCursor") or info.get("nextPageCursor"):
-                    truncated = True
                 snapshot = _position_snapshot_from_ccxt(position)
                 if snapshot is None:
                     continue
