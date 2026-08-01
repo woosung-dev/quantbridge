@@ -70,6 +70,14 @@ ORDER BY 5 DESC;
 
 close 유실의 대부분은 **진입이 라이브에서 완결되지 않은 것의 하류**다. 조건부 진입은 `idempotency_key` 로 갈린다(`cond:` = 조건부 등재, `condmkt:` = 시장가 전환, 나머지 = 일반 신호).
 
+
+> ★★**이 `split_part(idempotency_key, ':', 3)` 은 kind 를 오분류한다** (2026-08-02 codex MINOR#3).
+> 시장가 진입 key 는 `live:<sess>:<bar_time ISO>:<seq>:entry:<trade>` 인데 **ISO 시각이 `:` 를 포함**해
+> 3번째 조각이 `entry` 가 아니라 `2026-07-29T01` 이 된다. **귀속의 권위는 `parse_live_entry_key` 하나다.**
+> 총량·일별을 셀 때는 손 SQL 대신 정본 명령을 써라:
+> `uv run python scripts/entry_completeness_report.py --question conditional_population --since <ISO> --until <ISO>`
+> 아래 SQL 은 **세션 하나의 대략적 훑기**로만 쓰고, 그 결과로 kind 분포를 주장하지 마라.
+
 ```sql
 SELECT split_part(o.idempotency_key, ':', 3) AS kind,
        o.reduce_only, o.state,
@@ -119,7 +127,10 @@ for m in reg.collect():
 | `..{category=probe_failed}`                               | 거래소를 못 읽어 판정 자체를 못 했다 (fail-open) |
 | `qb_live_signal_divergence_total{stage=position}`         | ★방향 불일치 — 세션을 **비활성화**했다           |
 
-★로그(`live_signal_position_divergence`)의 `extra` 필드는 현재 포매터가 렌더하지 않는다. **수치는 metric 에서 읽어라.**
+★~~로그의 `extra` 필드는 현재 포매터가 렌더하지 않는다~~ → **2026-08-02 정정: 렌더한다.**
+`common/logging_config.KeyValueFormatter.formatMessage` 가 `extra` 를 ` key=value` 로 메시지 뒤에
+붙인다(BL-561). 소크 실측에서 `... reason=market_converted stop_price=... breach_pct=...` 로 찍혔다.
+⇒ **로그만으로 `(event, reason)` 단위 tally 가 가능하다.** metric 과의 1:1 대조도 그래서 성립한다.
 
 ## 6. 실측 기록 (2026-07-28, 계기 수리 전)
 
@@ -144,6 +155,14 @@ for m in reg.collect():
 `trading.live_signal_events WHERE action='entry'` 를 분모로 쓰고 싶어진다. **틀렸다.** 조건부(스톱) 진입은 `_reconcile_conditional_entries` 가 `OrderService.execute` 를 **직접** 부른다(`tasks/live_signal.py:387`·`:952`) — outbox 이벤트를 만들지 않는다. 실측(2026-07-29): 같은 창에서 events 기준 진입이 **0건**인데 원장에는 **16건**이 있었다.
 
 유효한 분모는 **주문 원장**뿐이다.
+
+
+> ★★**이 `split_part(idempotency_key, ':', 3)` 은 kind 를 오분류한다** (2026-08-02 codex MINOR#3).
+> 시장가 진입 key 는 `live:<sess>:<bar_time ISO>:<seq>:entry:<trade>` 인데 **ISO 시각이 `:` 를 포함**해
+> 3번째 조각이 `entry` 가 아니라 `2026-07-29T01` 이 된다. **귀속의 권위는 `parse_live_entry_key` 하나다.**
+> 총량·일별을 셀 때는 손 SQL 대신 정본 명령을 써라:
+> `uv run python scripts/entry_completeness_report.py --question conditional_population --since <ISO> --until <ISO>`
+> 아래 SQL 은 **세션 하나의 대략적 훑기**로만 쓰고, 그 결과로 kind 분포를 주장하지 마라.
 
 ```sql
 -- 진입(=reduce_only false) 만 본다. kind: cond=조건부 · condmkt=시장가 전환 · 그 외=일반 신호

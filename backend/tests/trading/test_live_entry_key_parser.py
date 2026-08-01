@@ -23,8 +23,12 @@ import pytest
 
 from src.tasks.live_signal import _pine_trade_id_from_order_key
 from src.trading.services.conditional_entry_planner import (
+    CONDITIONAL_ENTRY_KINDS,
+    LIVE_ENTRY_KEY_PREFIX,
     build_conditional_entry_key,
     build_market_converted_entry_key,
+    conditional_entry_key_like,
+    is_conditional_entry_key,
     parse_conditional_entry_key,
     parse_live_entry_key,
 )
@@ -66,6 +70,25 @@ def test_market_converted_key_is_parsed_as_condmkt() -> None:
     assert parsed.kind == "condmkt"
     assert parsed.trade_id == "PivRevSE"
     assert parsed.bar_epoch == BAR_EPOCH
+
+
+def test_conditional_entry_key_surface_uses_the_parser_result() -> None:
+    conditional = build_conditional_entry_key(
+        SESSION_ID, "PivRevSE", BAR_TIME, Decimal("64075.0"), Decimal("0.029")
+    )
+    market_converted = build_market_converted_entry_key(
+        SESSION_ID, "PivRevSE", BAR_TIME, Decimal("64075.0"), Decimal("0.029")
+    )
+
+    assert CONDITIONAL_ENTRY_KINDS == ("cond", "condmkt")
+    assert is_conditional_entry_key(conditional)
+    assert is_conditional_entry_key(market_converted)
+    assert not is_conditional_entry_key(_market_entry_key())
+    assert not is_conditional_entry_key(f"{LIVE_ENTRY_KEY_PREFIX}not-a-uuid:cond:1:2:3:LE")
+
+
+def test_conditional_entry_key_like_requires_a_fixed_session() -> None:
+    assert conditional_entry_key_like(SESSION_ID, "condmkt") == f"live:{SESSION_ID}:condmkt:%"
 
 
 def test_market_entry_key_is_parsed_as_entry() -> None:

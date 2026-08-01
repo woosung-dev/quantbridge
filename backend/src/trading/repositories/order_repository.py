@@ -21,6 +21,11 @@ from src.trading.models import (
     OrderState,
 )
 
+# ★`src.trading.services.*` 를 모듈 수준에서 import 하지 마라 — 순환이다.
+#   `services/__init__` 이 `order_service` 를 물고, 그게 `kill_switch` 를 거쳐 이 파일로
+#   되돌아온다(`ImportError: partially initialized module`). 그래서 이 파일의 기존
+#   `list_orphan_conditional_entries` 도 함수 안에서 지연 import 한다. 같은 관용구를 따른다.
+
 # 세션 스코프 창을 어느 시각 축에 걸 것인가. `terminal` 이 기존 동작이다.
 ScopeWindow = Literal["terminal", "created"]
 
@@ -139,6 +144,34 @@ class EntryAttemptRow:
     created_at: datetime
     terminal_at: datetime | None
     error_message: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class RestingIntervalRow:
+    """조건부 진입 주문이 resting 상태로 존재한 시간 구간의 원장 사실."""
+
+    strategy_id: UUID
+    exchange_account_id: UUID
+    created_at: datetime
+    closed_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class LiveEntryKeyRow:
+    """전 세션 라이브 진입 key 후보와 생성 시각."""
+
+    idempotency_key: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class EntryRejectionRow:
+    """진입 거절 1건의 Python 판정 입력."""
+
+    order_id: UUID
+    idempotency_key: str | None
+    error_message: str | None
+    created_at: datetime
 
 
 # 한 창에서 훑을 진입 시도 상한. 체결 조회와 같은 이유로 `limit + 1` 을 가져와 호출부가
@@ -293,7 +326,9 @@ class OrderRepository:
         거래소 응답 미확인 전환은 `rejected`로 종결돼도 실제 주문이 남아 있을 수 있어,
         상태와 무관하게 다음 전환을 억제한다.
         """
-        key_prefix = f"live:{session_id}:condmkt:%"
+        from src.trading.services.conditional_entry_planner import conditional_entry_key_like
+
+        key_prefix = conditional_entry_key_like(session_id, "condmkt")
         stmt = (
             select(cast(Any, Order.id))
             .where(cast(Any, Order.exchange_account_id) == exchange_account_id)
@@ -303,6 +338,105 @@ class OrderRepository:
             .limit(1)
         )
         return (await self.session.execute(stmt)).scalar_one_or_none() is not None
+
+    async def list_live_entry_keys_in_window(
+        self, *, since: datetime, until: datetime, limit: int
+    ) -> Sequence[LiveEntryKeyRow]:
+        """이 조회는 SessionScope를 걸지 않는다. 이 질문의 모집단이 전 세션이기 때문이다.
+
+        key 형식의 정확한 판정은 호출부가 `parse_live_entry_key`로 한다. SQL은 라이브 key
+        후보와 시간 창만 좁힌다.
+        """
+        from src.trading.services.conditional_entry_planner import LIVE_ENTRY_KEY_PREFIX
+
+        stmt = (
+            select(
+                cast(Any, Order.idempotency_key),
+                cast(Any, Order.created_at),
+            )
+            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
+            .where(Order.idempotency_key.like(f"{LIVE_ENTRY_KEY_PREFIX}%"))  # type: ignore[union-attr]
+            .where(Order.created_at >= since)  # type: ignore[arg-type]
+            .where(Order.created_at < until)  # type: ignore[arg-type]
+            .order_by(
+                cast(Any, Order.created_at).asc(),
+                cast(Any, Order.id).asc(),
+            )
+            .limit(limit + 1)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            LiveEntryKeyRow(idempotency_key=row[0], created_at=row[1])
+            for row in rows
+        ]
+
+    async def list_resting_intervals(
+        self, *, since: datetime, until: datetime, limit: int
+    ) -> Sequence[RestingIntervalRow]:
+        """창과 겹치는 조건부 진입 주문의 resting 시간 구간을 준다.
+
+        창 시작 전에 만들어져 창 안에도 살아 있던 주문을 포함하려면 `created_at >= since`가
+        아니라 종결 시각과의 겹침으로 판정해야 한다.
+        """
+        stmt = (
+            select(
+                cast(Any, Order.strategy_id),
+                cast(Any, Order.exchange_account_id),
+                cast(Any, Order.created_at),
+                cast(Any, Order.filled_at),
+            )
+            .where(Order.trigger_price.is_not(None))  # type: ignore[union-attr]
+            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
+            .where(Order.created_at < until)  # type: ignore[arg-type]
+            .where(func.coalesce(Order.filled_at, func.now()) >= since)
+            .order_by(
+                cast(Any, Order.created_at).asc(),
+                cast(Any, Order.id).asc(),
+            )
+            .limit(limit + 1)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            RestingIntervalRow(
+                strategy_id=row[0],
+                exchange_account_id=row[1],
+                created_at=row[2],
+                closed_at=row[3],
+            )
+            for row in rows
+        ]
+
+    async def list_entry_rejections_in_window(
+        self, *, since: datetime, until: datetime, limit: int
+    ) -> Sequence[EntryRejectionRow]:
+        """창 안에 생성된 비 reduce-only 거절 주문의 Python 판정 입력을 준다."""
+        stmt = (
+            select(
+                cast(Any, Order.id),
+                cast(Any, Order.idempotency_key),
+                cast(Any, Order.error_message),
+                cast(Any, Order.created_at),
+            )
+            .where(Order.reduce_only.is_(False))  # type: ignore[attr-defined]
+            .where(Order.state == OrderState.rejected)  # type: ignore[arg-type]
+            .where(Order.created_at >= since)  # type: ignore[arg-type]
+            .where(Order.created_at < until)  # type: ignore[arg-type]
+            .order_by(
+                cast(Any, Order.created_at).asc(),
+                cast(Any, Order.id).asc(),
+            )
+            .limit(limit + 1)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            EntryRejectionRow(
+                order_id=row[0],
+                idempotency_key=row[1],
+                error_message=row[2],
+                created_at=row[3],
+            )
+            for row in rows
+        ]
 
     async def list_orphan_conditional_entries(self) -> Sequence[Order]:
         """비활성 또는 없는 라이브 세션 소유의 조건부 진입 주문을 찾는다."""

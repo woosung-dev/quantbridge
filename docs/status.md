@@ -2,90 +2,108 @@
 
 > **업데이트:** 2026-08-02
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** `sprint/divergence-label-split` — PR 준비 중 (미push)
-> **최근 머지:** `stage/entry-completeness-rejudgement` → `main@b8d53141` (PR #518, 2026-08-01)
+> **준비 브랜치:** `sprint/canonical-measurement-surface` — PR 준비 중
+> **최근 머지:** `sprint/divergence-label-split` → `main@df446d60` (PR #519, 2026-08-02)
 
 ---
 
-## 🎯 다음 스프린트 — **canonical-measurement-surface** (정본 술어를 손으로 다시 쓰지 않게 만든다)
+## 🎯 다음 스프린트 — **metric-guard-parity** (계측 실패가 머니-패스를 오기록하는 자리를 닫는다)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 > 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + `AGENTS.md` + 본 파일을 읽고 시작한다.
 
-**한 줄.** 직전 회차가 판정식 정본(**§G1.1**)을 세웠다. 그런데 **그 규율을 쓰는 바로 그 회차에
-같은 병이 다섯 번째로 재발했다** — 규율 5(「반증된 수치는 모든 자리를 고쳐라」)가 문서에 적혀 있는 채로,
-CONTROL 이 **2회차 연속 같은 SQL 술어로 `condmkt` 를 빠뜨렸다.**
-⇒ **문서 규율은 이 병을 막지 못한다. 도구가 막아야 한다.**
+**한 줄.** 직전 회차가 「손 SQL 을 쓸 이유」를 없앴다. 그 과정에서 **계측 자체가 머니-패스를
+오기록할 수 있는 자리 127곳**이 드러났고, 그중 **2곳은 거래소 쓰기 성공 직후**다 —
+계측이 던지면 **성공한 발주가 「실패」로 기록**된다.
 
 ### 왜 이것이 최대 리스크인가 (근거는 `roadmap.md` 「현재 최대 리스크」 블록)
 
-| 축                                 | 실측                                                                                    |
-| ---------------------------------- | --------------------------------------------------------------------------------------- |
-| 정본 술어가 **코드에 있다**        | `entry_completeness.py` = `idempotency_key` 의 kind ∈ `{cond, condmkt}`                 |
-| 그런데 측정은 **매번 손 SQL** 이다 | 2026-08-01 · 08-02 두 회차 모두 `trigger_price IS NOT NULL` 로 재서 `condmkt` 를 놓쳤다 |
-| 놓친 크기                          | 07-30~31 창 **3건** (직전 회차) · 전 기간 **9건** · 일별 피크 **75 → 81**               |
-| 문서 규율로 막으려 한 시도         | §G1.1 규율 5 — **적혀 있는 상태에서 재발**                                              |
+| 축                              | 실측                                                              |
+| ------------------------------- | ----------------------------------------------------------------- |
+| 가드 밖 mutation **코드 표면**  | **127곳** (`record_metric_safely` / `_count_safely` 밖)           |
+| 그중 **머니-패스 직후**         | **6곳**                                                           |
+| 그중 **P1** (성공→실패 오기록)  | **2곳**                                                           |
+| **관측된 발생**                 | **0회** — 단 가드 밖은 자기 실패를 셀 counter 가 없다             |
+| 렌더 경로 실패 이력             | `qb_metrics_render_fallback_total` = **2** (mmap 계층 무결 아님)  |
+| `/metrics` 볼륨                 | **9423 파일 · 582MB**, counter/histogram 은 **영구 누적**         |
 
-★**두 술어가 다 필요하다는 것이 핵심이다.** 총량을 셀 때는 kind 세그먼트가 정본이고,
-`LIMIT 100` 절단 위험을 잴 때는 `trigger_price IS NOT NULL` 이 정본이다(조회 자체가 그 필터를 쓴다).
-**어느 쪽인지 사람이 매번 고르게 두는 한 계속 틀린다.**
+★**「관측 발생 0회」를 「위험 없음」으로 읽지 마라** — 가드된 지점의 실패가 0회라는 뜻이다.
+정본 = [BL-579](backlog.md#bl-579).
 
 ### 첫 step
 
 1. **baseline 재측정** (`global.md` §7.1). 대조값은 아래 블록.
-2. **정본 술어를 측정 표면으로 낸다** — `entry_completeness.py` 가 이미 가진 술어를 재사용 가능한
-   형태로 노출하고, 임시 SQL 대신 그것을 쓰게 한다. ★**새 추상을 짓지 말고 있는 것을 꺼내라.**
-3. **[BL-576] 프로덕션 발화 검증** — 라벨 분화는 착지했으나 **실주행 발화 0건**이다.
-   ★**창이 필요하다.** 열 거라면 거래소를 flat 으로 맞추고 시작해라.
-4. **[BL-577] (a) 구현** — 방향은 확정됐다(2026-08-02). 구현 조건 **2개 AND** 는 backlog 본문에 있다.
+2. **[BL-579] P1 2곳부터** — `_count_safely` 를 `tasks/trading.py`·`services/order_service.py` 로
+   끌어올린다. ★**전 127곳 일괄 변경 금지** — 크기 대비 회귀 위험이 크고, 이 레포는
+   「스펙 밖 일괄 리팩토링」으로 검증 범위를 흐린 이력이 있다.
+3. **[BL-576] 잔여 3 event 프로덕션 확인** — 직전 창(37분)에서 `exchange_divergence` ·
+   `degraded_input` · `guard_drop` 은 **한 번도 발화하지 않았다.** 5 중 2만 확인된 상태다.
+   ★**기다리지 말고 발화 조건을 만들어라** — 직전 회차가 `stand_down` 을 그렇게 유도했다.
+4. **`/metrics` 영구 누적** — 9423 파일이 mmap 실패 확률의 분모를 키운다. 크기를 재고 판단해라.
 
 ### ★착수 전 반드시 읽을 것
 
-1. ★★★**기록된 함정은 읽는 것으로 막히지 않는다.** 직전 회차 dev-log 함정 절에 적힌 술어 오류를
-   그 다음 회차가 **같은 술어로** 다시 밟았다. **함정 목록을 읽었다고 안 밟는 게 아니다 — 도구로 막아라.**
-2. ★★**「그 테스트가 검증한다」를 받아 적지 마라.** 직전 회차에 워커가 「충돌 테스트」로 보고한 것이
-   **이름이 주장하는 것보다 적게 단언**했고, 표적 변이가 **탈출**했다. CONTROL 이 고친 뒤에야 잡혔다.
-3. ★**워크트리 브랜치는 재사용된다** — 함대를 띄운 직후 **베이스 커밋을 대조해라.**
-   직전 회차에 `wt/prereg` 가 직전 스프린트 HEAD 로 붙어 있었다(그대로 뒀으면 삭제된 1164줄을 되살렸다).
-4. ★**[BL-565] 는 여전히 막혀 있다** — `bracket_attached` 0%. 전략을 바꾸지 않는 한 손대지 마라.
-5. ★**[BL-578]** 은 크기를 재고 **일부러 보류**한 항목이다. Trigger 는 2026-08-02 에 수정됐다
-   (14일 롤링 창이 자기 기준선을 담아 **항상 발화**하고 있었다). 기준선 배제 후 **0행 = 보류 유지**.
-6. ★**[BL-574]** 도 측정 완료 후 보류다. Trigger = **동시 resting 20건 초과일** (실측 상한 2).
+1. ★★★**「도구로 막는다」고 선언해도 습관은 안 바뀐다** — 직전 회차 CONTROL 이 그 선언을 한
+   회차 안에서 **손 술어를 다시 썼고**(psql 안 retCode 정규식) **남의 축 숫자를 인용했다**(34 vs 33).
+   **선언 말고 도구를 써라.**
+2. ★★**신규 counter 를 프로덕션에서 증명하려면 미리 실체화해야 한다** — 라벨 있는 counter 는
+   첫 발화 전까지 series 가 없어 **차분으로 읽을 수 없다**. `_touch_safely` 관용구.
+3. ★★**소크 종료가 자동 flat 이 아니다** — 세션 DELETE 204 뒤에도 포지션·resting 이 남는다.
+   **주문 취소 → 포지션 청산**을 따로 해라. 착수 시점 flat 확인도 의무다(직전 회차에 고아 포지션이 있었다).
+4. ★**`other` reason 5종은 구조적 도달 불가** — 「13 series 존재」를 기능 증거로 인용하지 마라.
+   **증거는 오직 차분이다.**
+5. ★**[BL-574]·[BL-578] 수리는 여전히 보류**다. 재는 방법만 바뀌었다(아래 명령).
+
+### 손 SQL 대신 쓸 것 (직전 회차 산출물)
+
+```bash
+cd backend && set -a; . ./.env.local; set +a
+uv run python scripts/entry_completeness_report.py --question <name> --since <ISO> [--until <ISO>]
+```
+
+`<name>` ∈ `conditional_population` · `resting_truncation_risk` · `entry_race_rejections`.
+**exit 0 = 미발화(보류 유지) · 3 = 발화(BL 되살린다) · 1 = 판정 불가.**
+판정 불가 사유 3종 = **절단** · **표본 없음** · **출처 미상 거절 존재**(retCode 를 못 읽어
+C1 인지 아닌지 모르는 행이 있으면 「아니다」로 수렴시키지 않는다).
+★매 실행이 **정본 술어와 함정**을 함께 인쇄하고, **양성 대조**(창이 비지 않았다는 증거)를
+항상 같이 낸다. ★그 대조는 「문턱-1」이 **아니다** — resting 은 문턱 `> 20` 에 대조 `> 1`,
+C1 은 문턱 `>= 3` 에 대조 `>= 1` 이다. 출력이 **실제로 센 술어를 글자로** 말한다.
+★낡은 롤링 창을 줘도 **기준선 배제를 자동 적용**하고 그 사실을 출력한다(§G1.1 규율 6).
 
 ### 사전등록 판정 문턱
 
 ★★**여기에 판정식을 쓰지 마라.** 정본은
-[`reference/operations/workflows/generator-evaluator-pipeline.md` **§G1.1**](reference/operations/workflows/generator-evaluator-pipeline.md) 이고,
-**규율 7 이 정확히 「`status.md` 에 두지 않는다」다** — 그 자리에 뒀더니 스프린트 머지가 두 번 지웠다.
-
-이 회차의 문턱은 **§G1.1 규율 7항을 통과시킨 뒤** 여기에 **정본 링크와 함께** 3~5줄로만 적는다.
-특히 **문턱의 숫자**(규율 3)와 **판정 없음으로 떨어지는 조합이 없는지**(규율 2b)를 먼저 대조해라.
+[`reference/operations/workflows/generator-evaluator-pipeline.md` **§G1.1**](reference/operations/workflows/generator-evaluator-pipeline.md).
+회차별 인스턴스는 **dev-log** 에 쓴다. 특히 **규율 2b**(판정 없음으로 떨어지는 조합이 없는가)와
+**규율 3**(문턱에 숫자가 박혀 있는가)을 먼저 대조해라 — 직전 회차에 **내 사전등록 조건 ③이
+구조적으로 달성 불가**였고 착수 후에야 드러났다.
 
 ### 하지 않는 것
 
-**BL-565**(구조적 측정 불가) · **BL-553 PbR 재시도** · **BL-578 수리**(Trigger 미발화) ·
-**BL-574 수리**(동시 상한 2 / 100) · **C1 시장가 전환**(머니-패스 변경).
+**BL-565**(구조적 측정 불가) · **BL-553 PbR 재시도** · **BL-578 수리** · **BL-574 수리** ·
+**C1 시장가 전환**(머니-패스 변경) · **BL-579 전 127곳 일괄 변경**.
 
-### baseline (2026-08-02 실측 — `sprint/divergence-label-split` 종료 시점)
+### baseline (2026-08-02 실측 — `sprint/canonical-measurement-surface` 종료 시점)
 
-**BE 3804 passed / 46 skipped**(착수 3792 대비 **+12**) · **FE 1237**(205 파일, **+0** — FE diff 0) ·
+**BE 3820 passed / 46 skipped**(착수 3804 대비 **+16**) · **FE 1242**(205 파일, **+5**) ·
 ruff clean · mypy **214** clean ·
 마이그레이션 head **`20260801_0001`**(이번 회차 **+0**) ·
-`scripts/bl-audit.sh` **exit 0**(active **149** / 전체 **235**) · `scripts/bl-audit-test.sh` **5/5**.
+`scripts/bl-audit.sh` **exit 0**(active **149** / 전체 **236**) · `scripts/docs-audit.sh` **exit 0**.
 
+★**active 가 149 로 안 변한 이유** — BL-577 Resolved(**−1**) + BL-579 신설(**+1**). 전체는 235→**236**.
 ★**이 숫자도 대조 대상이다. 첫 step 에서 지금 HEAD 로 다시 재라.**
 
-> ★★**표적 변이는 CONTROL 이 직접 집행한다.** 직전 회차 3종 중 **1종이 처음에 탈출**했다.
-> `git checkout` 으로 복원하지 마라 — 문자열 치환 쌍 + sha256 복원 대조(§7.2).
-> ★**`idle` 은 완료가 아니다** — 직전 회차 codex 가 `idle` 인데 커밋 0 · 더티 4 였다(샌드박스가 git index 차단).
+> ★★**표적 변이는 CONTROL 이 직접 집행한다.** 직전 회차 4종 전건 판별했고 **음성 대조 1종이
+> 무효**였다(내 변이가 동치가 아니었다 — 정의만 rename). `git checkout` 금지, 문자열 치환 + sha256.
+> ★**게이트를 파이프에 넣지 마라** — 직전 회차에 `pytest | tail` 로 **exit code 가 tail 의 것**이 됐다.
+> ★**`cd backend` 는 다음 명령까지 이어진다** — 레포 루트 스크립트는 절대경로로.
+> ★**한 파일씩 완결된 상태로 저장해라** — 워커 watchfiles 가 중간 상태를 물어 Traceback 이 났다.
 > ★**`herdr agent prompt` 는 붙여넣기만 한다** — `send-keys enter` 후 `agent get` 으로 `working` 확인까지가 발송.
-> ★**게이트를 파이프에 넣지 마라** — exit code 가 `tail` 의 것이 된다.
-> ★**`psql -c` 에 세미콜론 여러 개 = 암묵적 단일 트랜잭션.** 문장마다 따로 쳐라.
 
 ## 완료 이력
 
-- 직전 회차 — [`divergence-label-split`](dev-log/2026-08-02-divergence-label-split.md)
-- 그 앞 — [`entry-completeness-rejudgement`](dev-log/2026-08-01-entry-completeness-rejudgement.md)
+- 직전 회차 — [`canonical-measurement-surface`](dev-log/2026-08-02-canonical-measurement-surface.md)
+- 그 앞 — [`divergence-label-split`](dev-log/2026-08-02-divergence-label-split.md)
 - 이번 주 완료 스프린트와 이전 회고 — [`dev-log/INDEX.md`](dev-log/INDEX.md)
 - 2026-07-26 이전 status 원문 — [`archive/status-history.md`](archive/status-history.md)
 - 열린 BL의 현재 상태 — [`backlog.md`](backlog.md) (`scripts/bl-audit.sh`가 정본)

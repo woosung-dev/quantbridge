@@ -10,8 +10,17 @@
 
 from __future__ import annotations
 
-from scripts.entry_completeness_report import _reading, parse_metrics_text
-from src.trading.entry_completeness import CounterBasis
+import sys
+from datetime import UTC, datetime
+
+import scripts.entry_completeness_report as report
+from scripts.entry_completeness_report import (
+    _QUESTION_RUNNERS,
+    QuestionRun,
+    _reading,
+    parse_metrics_text,
+)
+from src.trading.entry_completeness import CounterBasis, MeasurementQuestion
 
 _DUMP = """
 # HELP qb_live_conditional_placed_total Live conditional entry intents accepted for execution
@@ -69,3 +78,50 @@ def test_probe_distinguishes_absent_series_from_zero() -> None:
     assert snapshot.value("qb_live_conditional_guard_total", outcome="breach_capped") == 0.0
     assert snapshot.probe("qb_live_conditional_guard_total", outcome="breach_capped") is None
     assert snapshot.probe("qb_live_conditional_guard_total", outcome="conditional_placed") == 92.0
+
+
+def test_every_measurement_question_has_a_runner() -> None:
+    assert set(_QUESTION_RUNNERS) == set(MeasurementQuestion)
+
+
+def test_question_cli_reports_truncation_as_unmeasured_exit_one(monkeypatch, capsys) -> None:
+    since = datetime(2026, 7, 29, tzinfo=UTC)
+    until = datetime(2026, 7, 30, tzinfo=UTC)
+
+    async def truncated_run(_since: datetime, _until: datetime) -> QuestionRun:
+        return QuestionRun(
+            question=MeasurementQuestion.conditional_population,
+            since=_since,
+            until=_until,
+            truncated=True,
+            sample_size=5000,
+            discrimination_rows=5000,
+            triggered=False,
+            unmeasured_reason="unmeasured_truncated",
+            result="조건부 합계 5000",
+            details={},
+        )
+
+    monkeypatch.setattr(
+        report,
+        "_QUESTION_RUNNERS",
+        {MeasurementQuestion.conditional_population: truncated_run},
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "entry_completeness_report.py",
+            "--question",
+            MeasurementQuestion.conditional_population.value,
+            "--since",
+            since.isoformat(),
+            "--until",
+            until.isoformat(),
+        ],
+    )
+
+    assert report.main() == 1
+    output = capsys.readouterr().out
+    assert "절단 yes" in output
+    assert "unmeasured_truncated" in output

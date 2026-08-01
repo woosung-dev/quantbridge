@@ -34,9 +34,9 @@ re-issue 의미론"), 체결되면 `to_remove` 로 지운 뒤 나중에 같은 i
 from __future__ import annotations
 
 from collections import Counter as _Counter
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from enum import StrEnum
 from itertools import pairwise
@@ -44,6 +44,7 @@ from uuid import UUID
 
 from src.trading.models import OrderState
 from src.trading.services.conditional_entry_planner import (
+    CONDITIONAL_ENTRY_KINDS,
     LiveEntryKind,
     parse_live_entry_key,
 )
@@ -86,6 +87,200 @@ class CounterBasis(StrEnum):
     #   음수를 그대로 쓰면 `원장 >= 음수` 가 무조건 성립해 **부등식의 검정력이 0** 이 된다.
     #   절대값은 거부하면서 음수는 통과시키는 비대칭을 남기지 않는다.
     counter_reset = "counter_reset"
+
+
+class MeasurementQuestion(StrEnum):
+    conditional_population = "conditional_population"
+    resting_truncation_risk = "resting_truncation_risk"
+    entry_race_rejections = "entry_race_rejections"
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalPredicate:
+    question: MeasurementQuestion
+    question_text: str
+    predicate: str
+    trap: str
+    why_trap_is_wrong: str
+    evidence: str
+
+
+@dataclass(frozen=True, slots=True)
+class PopulationRow:
+    """조건부 모집단 측정에 필요한 라이브 key 후보의 순수 사실."""
+
+    idempotency_key: str
+    created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PopulationTally:
+    """조건부 kind별 모집단과 UTC 일별 생성 수."""
+
+    cond: int
+    condmkt: int
+    created_by_utc_day: tuple[tuple[date, int], ...]
+    unattributable: int
+
+    @property
+    def total(self) -> int:
+        return self.cond + self.condmkt
+
+
+@dataclass(frozen=True, slots=True)
+class RestingInterval:
+    """조건부 진입 주문 하나가 resting으로 존재한 시간 구간의 순수 사실."""
+
+    strategy_id: UUID
+    exchange_account_id: UUID
+    created_at: datetime
+    closed_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class RecordedBaseline:
+    """새 관측과 섞으면 안 되는 기록된 기준선."""
+
+    measured_on: date
+    excluded_through: datetime
+    observed: tuple[tuple[date, int], ...]
+    source: str
+
+
+ENTRY_RACE_REJECTION_THRESHOLD = 3
+ENTRY_RACE_REJECTION_BASELINE = RecordedBaseline(
+    measured_on=date(2026, 8, 2),
+    excluded_through=datetime(2026, 7, 29, tzinfo=UTC),
+    observed=(
+        (date(2026, 7, 27), 10),
+        (date(2026, 7, 28), 20),
+    ),
+    source="docs/dev-log/2026-08-02-divergence-label-split.md",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class EntryRaceRejectionAttempt:
+    """C1 일별 집계에 필요한 거절 후보의 순수 사실."""
+
+    created_at: datetime
+    state: OrderState
+    error_message: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class EntryRaceRejectionTally:
+    """C1 확정 거절과 코드 미상 거절을 분리한 UTC 일별 집계."""
+
+    matched_by_utc_day: tuple[tuple[date, int], ...]
+    unmeasured_by_utc_day: tuple[tuple[date, int], ...]
+    not_matched: int
+    candidates: int
+
+    @property
+    def triggered_days(self) -> tuple[tuple[date, int], ...]:
+        return tuple(
+            (day, count)
+            for day, count in self.matched_by_utc_day
+            if count >= ENTRY_RACE_REJECTION_THRESHOLD
+        )
+
+
+_CONDITIONAL_POPULATION_PREDICATE = "idempotency_key kind ∈ {cond, condmkt}"
+_RESTING_TRUNCATION_RISK_PREDICATE = "trigger_price IS NOT NULL AND reduce_only=false"
+
+
+CANONICAL_PREDICATES: Mapping[MeasurementQuestion, CanonicalPredicate] = {
+    MeasurementQuestion.conditional_population: CanonicalPredicate(
+        question=MeasurementQuestion.conditional_population,
+        question_text="조건부 진입 주문의 총 모집단은 무엇인가?",
+        predicate=_CONDITIONAL_POPULATION_PREDICATE,
+        trap=_RESTING_TRUNCATION_RISK_PREDICATE,
+        why_trap_is_wrong=(
+            "trigger_price는 resting 조건부 주문만 보므로, trigger_price가 NULL인 "
+            "condmkt 시장가 전환 주문을 전부 빠뜨린다."
+        ),
+        evidence="conditional_entry_planner.py:parse_live_entry_key",
+    ),
+    MeasurementQuestion.resting_truncation_risk: CanonicalPredicate(
+        question=MeasurementQuestion.resting_truncation_risk,
+        question_text="resting 조건부 주문 조회가 LIMIT 100에서 절단될 위험이 있는가?",
+        predicate=_RESTING_TRUNCATION_RISK_PREDICATE,
+        trap=_CONDITIONAL_POPULATION_PREDICATE,
+        why_trap_is_wrong=(
+            "kind 모집단에는 trigger_price가 NULL인 condmkt도 들어가지만, "
+            "list_resting_conditional_entries의 LIMIT 100은 trigger_price 조건으로 잘린다."
+        ),
+        evidence="order_repository.py:list_resting_conditional_entries",
+    ),
+    MeasurementQuestion.entry_race_rejections: CanonicalPredicate(
+        question=MeasurementQuestion.entry_race_rejections,
+        question_text="조회와 발주 사이 가격 재이동으로 거래소가 거절한 진입은 몇 건인가?",
+        predicate=(
+            "state=rejected AND 거절 출처=exchange AND "
+            "retCode ∈ RESIDUAL_REJECTION_RET_CODES"
+        ),
+        trap="error_message LIKE '%110092%'",
+        why_trap_is_wrong=(
+            "원문 부분 문자열만 보면 거래소에 도달하지 못한 로컬 실패와 retCode가 없는 "
+            "코드 미상 거절을 구분하지 못한다."
+        ),
+        evidence="entry_completeness.py:_c1_verdict",
+    ),
+}
+
+
+def _utc_day(value: datetime) -> date:
+    """timezone-aware 시각을 UTC 달력일로 바꾼다."""
+    if value.tzinfo is None:
+        raise ValueError("UTC 일별 측정에는 timezone-aware datetime이 필요하다")
+    return value.astimezone(UTC).date()
+
+
+def build_population_tally(rows: Iterable[PopulationRow]) -> PopulationTally:
+    """라이브 key 후보에서 조건부 kind 모집단과 UTC 일별 생성 수를 만든다."""
+    counts: _Counter[str] = _Counter()
+    daily: _Counter[date] = _Counter()
+    unattributable = 0
+    for row in rows:
+        parsed = parse_live_entry_key(row.idempotency_key)
+        if parsed is None or parsed.kind not in CONDITIONAL_ENTRY_KINDS:
+            unattributable += 1
+            continue
+        counts[parsed.kind] += 1
+        daily[_utc_day(row.created_at)] += 1
+    return PopulationTally(
+        cond=counts["cond"],
+        condmkt=counts["condmkt"],
+        created_by_utc_day=tuple(sorted(daily.items())),
+        unattributable=unattributable,
+    )
+
+
+def max_concurrent_resting(
+    intervals: Iterable[RestingInterval],
+) -> Mapping[tuple[UUID, UUID], int]:
+    """전략·계정별 resting 조건부 주문 동시 수의 보수적 상한을 계산한다."""
+    events: dict[tuple[UUID, UUID], list[tuple[datetime, int, int]]] = {}
+    for interval in intervals:
+        if interval.closed_at is not None and interval.closed_at < interval.created_at:
+            raise ValueError("resting interval closed_at cannot precede created_at")
+        scope = (interval.strategy_id, interval.exchange_account_id)
+        scope_events = events.setdefault(scope, [])
+        # 같은 시각이면 열림(0)을 닫힘(1)보다 먼저 처리해 보수적 상한을 낸다.
+        scope_events.append((interval.created_at, 0, 1))
+        if interval.closed_at is not None:
+            scope_events.append((interval.closed_at, 1, -1))
+
+    peaks: dict[tuple[UUID, UUID], int] = {}
+    for scope, scope_events in events.items():
+        concurrent = 0
+        peak = 0
+        for _at, _order, delta in sorted(scope_events):
+            concurrent += delta
+            peak = max(peak, concurrent)
+        peaks[scope] = peak
+    return peaks
 
 
 # 알려진 counter 도입 시점. ★**집행은 이 표에 의존하지 않는다** — 거부 규칙은
@@ -478,7 +673,7 @@ def _attribute(fact: AttemptFact) -> _Attribution:
         return _Attribution(Attribution.unattributable, None, None, None, None)
     bucket = (
         Attribution.conditional_ours
-        if parsed.kind in ("cond", "condmkt")
+        if parsed.kind in CONDITIONAL_ENTRY_KINDS
         else Attribution.nonconditional_ours
     )
     return _Attribution(
@@ -1015,7 +1210,9 @@ BreakoutProbe = Callable[[Decimal, datetime, datetime], bool | None]
 
 
 
-def _c1_verdict(attempt: ClassifiedAttempt) -> ChannelVerdict | None:
+def _c1_verdict(
+    attempt: ClassifiedAttempt | EntryRaceRejectionAttempt,
+) -> ChannelVerdict | None:
     """C1 — 조회~발주 사이 가격이 다시 움직여 생긴 거절.
 
     술어: `state=rejected` AND 거절 출처가 `exchange` AND retCode ∈ {110092, 110093}.
@@ -1025,19 +1222,54 @@ def _c1_verdict(attempt: ClassifiedAttempt) -> ChannelVerdict | None:
     알고 있다(`RejectionOrigin` 주석). 그 행이 110092 였는지 아니었는지 우리는 **모른다**.
     `not_matched` 로 떨어뜨리면 C1 이 구조적으로 작아 보인다.
     """
-    if attempt.fact.state != OrderState.rejected:
+    state = attempt.fact.state if isinstance(attempt, ClassifiedAttempt) else attempt.state
+    error_message = (
+        attempt.fact.error_message if isinstance(attempt, ClassifiedAttempt) else attempt.error_message
+    )
+    if state != OrderState.rejected:
         return None
-    origin = classify_rejection_origin(attempt.fact.error_message)
+    origin = classify_rejection_origin(error_message)
     if origin is RejectionOrigin.local:
         # 거래소에 도달조차 못 했다 = 가격이 움직여서 거절된 것일 수 없다. 확정적으로 아니다.
         return ChannelVerdict.not_matched
     if origin is RejectionOrigin.unknown:
         return ChannelVerdict.unmeasured
-    code = _ret_code(attempt.fact.error_message)
+    code = _ret_code(error_message)
     return (
         ChannelVerdict.matched
         if code in RESIDUAL_REJECTION_RET_CODES
         else ChannelVerdict.not_matched
+    )
+
+
+def count_entry_race_rejections_by_utc_day(
+    attempts: Iterable[EntryRaceRejectionAttempt],
+    baseline: RecordedBaseline,
+) -> EntryRaceRejectionTally:
+    """기준선 이후 C1 확정 거절과 코드 미상 거절을 UTC 일별로 분리한다."""
+    matched: _Counter[date] = _Counter()
+    unmeasured: _Counter[date] = _Counter()
+    not_matched = 0
+    candidates = 0
+    for attempt in attempts:
+        if attempt.created_at < baseline.excluded_through:
+            continue
+        verdict = _c1_verdict(attempt)
+        if verdict is None:
+            continue
+        candidates += 1
+        day = _utc_day(attempt.created_at)
+        if verdict is ChannelVerdict.matched:
+            matched[day] += 1
+        elif verdict is ChannelVerdict.unmeasured:
+            unmeasured[day] += 1
+        else:
+            not_matched += 1
+    return EntryRaceRejectionTally(
+        matched_by_utc_day=tuple(sorted(matched.items())),
+        unmeasured_by_utc_day=tuple(sorted(unmeasured.items())),
+        not_matched=not_matched,
+        candidates=candidates,
     )
 
 

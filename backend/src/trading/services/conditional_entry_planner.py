@@ -210,8 +210,8 @@ def build_market_converted_entry_key(
 
 LiveEntryKind = Literal["cond", "condmkt", "entry"]
 
-_LIVE_KEY_PREFIX = "live:"
-_CONDITIONAL_KINDS: tuple[LiveEntryKind, ...] = ("cond", "condmkt")
+LIVE_ENTRY_KEY_PREFIX = "live:"
+CONDITIONAL_ENTRY_KINDS: tuple[LiveEntryKind, ...] = ("cond", "condmkt")
 # 시장가 진입 key 는 `live:<sess>:<bar_time ISO>:<seq>:entry:<trade_id>` 다
 # (`tasks/live_signal._build_idempotency_key`). ISO 시각이 `:` 를 포함하므로 split 이
 # 아니라 이 마커로 가른다. `trade_id` 는 Pine 사용자 입력이라 `:` 를 포함할 수 있어
@@ -277,9 +277,9 @@ def parse_live_entry_key(key: str | None) -> ParsedLiveEntryKey | None:
     셋 다 아니면 `None` — 청산 key, 웹훅 주문, 수동 주문이 전부 여기로 떨어진다.
     호출부는 그것을 "우리 진입이 아님" 으로 세야지 조용히 버리면 안 된다.
     """
-    if not key or not key.startswith(_LIVE_KEY_PREFIX):
+    if not key or not key.startswith(LIVE_ENTRY_KEY_PREFIX):
         return None
-    session_part, separator, rest = key[len(_LIVE_KEY_PREFIX) :].partition(":")
+    session_part, separator, rest = key[len(LIVE_ENTRY_KEY_PREFIX) :].partition(":")
     if not separator:
         return None
     try:
@@ -287,7 +287,7 @@ def parse_live_entry_key(key: str | None) -> ParsedLiveEntryKey | None:
     except (TypeError, ValueError):
         return None
 
-    for kind in _CONDITIONAL_KINDS:
+    for kind in CONDITIONAL_ENTRY_KINDS:
         marker = f"{kind}:"
         if not rest.startswith(marker):
             continue
@@ -318,6 +318,22 @@ def parse_live_entry_key(key: str | None) -> ParsedLiveEntryKey | None:
         trigger=None,
         quantity=None,
     )
+
+
+def is_conditional_entry_key(key: str | None) -> bool:
+    """key가 우리 조건부 진입 또는 시장가 전환 주문인지 판정한다."""
+    parsed = parse_live_entry_key(key)
+    return parsed is not None and parsed.kind in CONDITIONAL_ENTRY_KINDS
+
+
+def conditional_entry_key_like(session_id: UUID, kind: LiveEntryKind) -> str:
+    """고정 세션에서 조건부 진입 kind의 key를 찾는 SQL LIKE 패턴을 만든다.
+
+    이 LIKE는 `session_id`가 고정됐을 때만 정확하다. `trade_id`는 Pine 사용자 입력이라
+    `:`를 포함할 수 있으므로, 세션을 고정하지 않은 kind 판정은 SQL이 아니라
+    `parse_live_entry_key`가 한다.
+    """
+    return f"{LIVE_ENTRY_KEY_PREFIX}{session_id}:{kind}:%"
 
 
 def parse_conditional_entry_key(key: str | None) -> tuple[UUID, str] | None:

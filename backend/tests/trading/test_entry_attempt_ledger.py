@@ -144,6 +144,12 @@ async def _seed(db_session: AsyncSession) -> _Seed:
             filled_at=SINCE - timedelta(seconds=30),
             key=f"live:{live_session.id}:cond:1:64000:0.029:Early",
         ),
+        # resting interval은 created_at 창이 아니라 지속 구간으로 판단해야 한다.
+        "carry_in": _order(
+            created_at=SINCE - timedelta(minutes=5),
+            state=OrderState.submitted,
+            key=f"live:{live_session.id}:cond:carry:64000:0.029:CarryIn",
+        ),
         "filled": _order(
             created_at=SINCE + timedelta(minutes=1),
             state=OrderState.filled,
@@ -165,6 +171,12 @@ async def _seed(db_session: AsyncSession) -> _Seed:
             filled_at=SINCE + timedelta(minutes=4),
             key=f"live:{live_session.id}:cond:4:64000:0.029:PivRevSE",
         ),
+        "rejected_second": _order(
+            created_at=SINCE + timedelta(minutes=3, seconds=30),
+            state=OrderState.rejected,
+            filled_at=SINCE + timedelta(minutes=4, seconds=30),
+            key=f"live:{live_session.id}:condmkt:5:64000:0.029:PivRevSE",
+        ),
         # ★상태 축 판별 — `filled_at IS NULL` 이라 terminal 창 술어로는 구조적으로 안 보인다.
         "submitted": _order(
             created_at=SINCE + timedelta(minutes=4),
@@ -178,12 +190,21 @@ async def _seed(db_session: AsyncSession) -> _Seed:
             filled_quantity="0.029",
             filled_at=SINCE + timedelta(minutes=6),
             reduce_only=True,
+            key=f"live:{live_session.id}:cond:6:64000:0.029:Exit",
+        ),
+        "reduce_only_rejected": _order(
+            created_at=SINCE + timedelta(minutes=5, seconds=30),
+            state=OrderState.rejected,
+            filled_at=SINCE + timedelta(minutes=6, seconds=30),
+            reduce_only=True,
+            key=f"live:{live_session.id}:cond:7:64000:0.029:ExitRejected",
         ),
         "after_until": _order(
             created_at=UNTIL + timedelta(minutes=1),
             state=OrderState.filled,
             filled_quantity="0.029",
             filled_at=UNTIL + timedelta(minutes=2),
+            key=f"live:{live_session.id}:cond:8:64000:0.029:Late",
         ),
         "other_strategy": _order(
             created_at=SINCE + timedelta(minutes=6),
@@ -191,6 +212,7 @@ async def _seed(db_session: AsyncSession) -> _Seed:
             filled_quantity="0.029",
             filled_at=SINCE + timedelta(minutes=7),
             strategy_id=other_strategy.id,
+            key=f"live:{uuid4()}:2026-07-29T01:06:00+00:00:1:entry:OtherStrategy",
         ),
         "other_account": _order(
             created_at=SINCE + timedelta(minutes=7),
@@ -230,6 +252,7 @@ async def test_entry_attempts_cover_every_state_in_the_created_window(
         seed.orders["filled"].id,
         seed.orders["cancelled_partial"].id,
         seed.orders["rejected"].id,
+        seed.orders["rejected_second"].id,
         seed.orders["submitted"].id,
     ]
     assert ids == expected, "created_at 오름차순으로 창 안 진입 시도 전량"
@@ -262,13 +285,18 @@ async def test_window_lower_bound_excludes_rows_created_before_since(
     repo = OrderRepository(db_session)
 
     inside = await repo.list_entry_attempts(seed.scope, since=SINCE, until=UNTIL)
-    assert seed.orders["before_window"].id not in {row.order_id for row in inside}
+    inside_ids = {row.order_id for row in inside}
+    assert seed.orders["before_window"].id not in inside_ids
+    assert seed.orders["carry_in"].id not in inside_ids
 
     widened = await repo.list_entry_attempts(
         seed.scope, since=SINCE - timedelta(minutes=5), until=UNTIL
     )
-    assert seed.orders["before_window"].id in {row.order_id for row in widened}
-    assert len(widened) == len(inside) + 1
+    widened_ids = {row.order_id for row in widened}
+    assert widened_ids - inside_ids == {
+        seed.orders["before_window"].id,
+        seed.orders["carry_in"].id,
+    }
 
 
 @pytest.mark.asyncio
@@ -308,6 +336,81 @@ async def test_truncation_is_detectable_by_the_caller(db_session: AsyncSession) 
         seed.scope, since=SINCE, until=UNTIL, limit=2
     )
     assert len(rows) == 3 > 2
+
+
+@pytest.mark.asyncio
+async def test_live_entry_key_window_is_global_and_truncation_is_detectable(
+    db_session: AsyncSession,
+) -> None:
+    """이 모집단은 SessionScope가 아니라 전 세션의 live key 후보다."""
+    seed = await _seed(db_session)
+    repo = OrderRepository(db_session)
+
+    rows = await repo.list_live_entry_keys_in_window(since=SINCE, until=UNTIL, limit=20)
+    keys = {row.idempotency_key for row in rows}
+    assert seed.orders["other_strategy"].idempotency_key in keys
+    assert seed.orders["exit"].idempotency_key not in keys
+    assert seed.orders["after_until"].idempotency_key not in keys
+    other_strategy = next(
+        row for row in rows if row.idempotency_key == seed.orders["other_strategy"].idempotency_key
+    )
+    assert other_strategy.created_at == seed.orders["other_strategy"].created_at
+
+    limited = await repo.list_live_entry_keys_in_window(since=SINCE, until=UNTIL, limit=1)
+    assert len(limited) == 2 > 1
+
+
+@pytest.mark.asyncio
+async def test_resting_intervals_include_carry_in_and_exclude_non_overlaps(
+    db_session: AsyncSession,
+) -> None:
+    """창 시작 전부터 살아 있던 주문은 지속 구간이 겹치므로 빠지면 안 된다."""
+    seed = await _seed(db_session)
+    repo = OrderRepository(db_session)
+
+    rows = await repo.list_resting_intervals(since=SINCE, until=UNTIL, limit=20)
+    intervals = {(row.created_at, row.closed_at) for row in rows}
+    assert (
+        seed.orders["carry_in"].created_at,
+        seed.orders["carry_in"].filled_at,
+    ) in intervals
+    assert (
+        seed.orders["before_window"].created_at,
+        seed.orders["before_window"].filled_at,
+    ) not in intervals
+    assert (
+        seed.orders["after_until"].created_at,
+        seed.orders["after_until"].filled_at,
+    ) not in intervals
+    assert (
+        seed.orders["exit"].created_at,
+        seed.orders["exit"].filled_at,
+    ) not in intervals
+
+    limited = await repo.list_resting_intervals(since=SINCE, until=UNTIL, limit=1)
+    assert len(limited) == 2 > 1
+
+
+@pytest.mark.asyncio
+async def test_entry_rejection_window_excludes_reduce_only_and_exposes_truncation(
+    db_session: AsyncSession,
+) -> None:
+    seed = await _seed(db_session)
+    repo = OrderRepository(db_session)
+
+    rows = await repo.list_entry_rejections_in_window(since=SINCE, until=UNTIL, limit=20)
+    assert [row.order_id for row in rows] == [
+        seed.orders["rejected"].id,
+        seed.orders["rejected_second"].id,
+    ]
+    assert seed.orders["reduce_only_rejected"].id not in {row.order_id for row in rows}
+    assert [row.created_at for row in rows] == [
+        seed.orders["rejected"].created_at,
+        seed.orders["rejected_second"].created_at,
+    ]
+
+    limited = await repo.list_entry_rejections_in_window(since=SINCE, until=UNTIL, limit=1)
+    assert len(limited) == 2 > 1
 
 
 # --- ①-c 기존 소비처 동작 불변 -------------------------------------------------

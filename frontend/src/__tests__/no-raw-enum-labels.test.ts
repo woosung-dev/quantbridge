@@ -33,6 +33,26 @@ const GUARDED_ENUM_FIELDS: readonly string[] = [
   "phase",
 ];
 
+const UPPERCASE_ENUM_LITERAL = /^[A-Z][A-Z0-9_]{2,}$/;
+// 항목마다 enum 이 아닌 도메인 고정 식별자라는 사유를 남긴다.
+const NON_ENUM_UPPERCASE_ALLOWLIST: readonly string[] = [
+  "USDT", // 거래 쌍의 인용 자산 심볼이다.
+  "BTC", // 거래 자산 심볼이다.
+  "ETH", // 거래 자산 심볼이다.
+  "USD", // 법정화폐 통화 코드다.
+  "UTC", // 시간대 약어다.
+  "KST", // 시간대 약어다.
+  "PNL", // 손익 지표의 관용 약어다.
+  "ROI", // 수익률 지표의 관용 약어다.
+];
+const UPPERCASE_LITERAL_SCOPE: readonly string[] = [
+  join("features", "live-sessions"),
+];
+
+// BL-572 이전 실제 위반: f631f1c7^:live-session-table.tsx
+const BL572_HISTORICAL_SNIPPET =
+  '<span className={s.is_active ? "chip accent" : "chip"}>{s.is_active ? "ACTIVE" : "PAUSED"}</span>';
+
 // `{ 멤버체인 }` 이 중괄호의 전체 내용인 경우만 잡는다(체인 뒤에 곧바로 `}` 필요).
 // 그래서 `{data.status === "x" && ...}` 같은 boolean 식은 매치되지 않고, `?.`(옵셔널
 // 체이닝)도 허용한다. 마지막 세그먼트가 가드 필드인지는 아래에서 별도로 판정한다.
@@ -74,6 +94,29 @@ function stripComments(content: string): string {
   return cleaned;
 }
 
+// 화살표 함수 `=>` 의 `>` 는 JSX 태그 닫힘이 아니다. onClick={() => …} 뒤 속성
+// (data-direction={t.direction})을 자식으로 오인하지 않도록 `=>` 의 `>` 는 제외한다.
+function lastRealGt(content: string): number {
+  for (let i = content.length - 1; i >= 0; i--) {
+    if (content[i] === ">" && content[i - 1] !== "=") return i;
+  }
+  return -1;
+}
+
+// JSX 식 컨테이너 안이면서, 속성이나 prop 안은 아닌지를 두 검출기가 같은 방식으로 판정한다.
+function isJsxChild(
+  content: string,
+  matchStart: number,
+  matchLen: number,
+): boolean {
+  const before = content.slice(Math.max(0, matchStart - 500), matchStart);
+  const after = content.slice(matchStart + matchLen, matchStart + matchLen + 500);
+  // JSX text 문맥 = match 앞의 가장 가까운 (화살표 아닌) `>` 가 `<` 보다 뒤 + 뒤에 `<` 존재.
+  const gtBeforeIdx = lastRealGt(before);
+  const ltBeforeIdx = before.lastIndexOf("<");
+  return gtBeforeIdx > ltBeforeIdx && after.indexOf("<") >= 0;
+}
+
 // JSX 자식 위치의 원시 enum 렌더만 추출한다. 두 형태를 잡는다.
 //   ① JSX 식 컨테이너         {chain.field}
 //   ② JSX 안 템플릿 리터럴 보간  `${chain.field}`
@@ -83,34 +126,13 @@ export function detectRawEnumRenders(rawContent: string): string[] {
   const cleaned = stripComments(rawContent);
   const hits: string[] = [];
 
-  // 화살표 함수 `=>` 의 `>` 는 JSX 태그 닫힘이 아니다. onClick={() => …} 뒤 속성
-  // (data-direction={t.direction})을 자식으로 오인하지 않도록 `=>` 의 `>` 는 제외한다.
-  const lastRealGt = (s: string): number => {
-    for (let i = s.length - 1; i >= 0; i--) {
-      if (s[i] === ">" && s[i - 1] !== "=") return i;
-    }
-    return -1;
-  };
-
-  const isJsxChild = (matchStart: number, matchLen: number): boolean => {
-    const before = cleaned.slice(Math.max(0, matchStart - 500), matchStart);
-    const after = cleaned.slice(
-      matchStart + matchLen,
-      matchStart + matchLen + 500,
-    );
-    // JSX text 문맥 = match 앞의 가장 가까운 (화살표 아닌) `>` 가 `<` 보다 뒤 + 뒤에 `<` 존재.
-    const gtBeforeIdx = lastRealGt(before);
-    const ltBeforeIdx = before.lastIndexOf("<");
-    return gtBeforeIdx > ltBeforeIdx && after.indexOf("<") >= 0;
-  };
-
   // ② 템플릿 보간 `${chain.field}` — JSX 자식 문맥일 때만.
   const tpl = new RegExp(TEMPLATE_CHAIN_EXPR.source, TEMPLATE_CHAIN_EXPR.flags);
   let t: RegExpExecArray | null;
   while ((t = tpl.exec(cleaned)) !== null) {
     const chain = t[1];
     if (!chain || !GUARDED_ENUM_FIELDS.includes(lastSegment(chain))) continue;
-    if (isJsxChild(t.index, t[0].length)) hits.push(t[0]);
+    if (isJsxChild(cleaned, t.index, t[0].length)) hits.push(t[0]);
   }
 
   // ① JSX 식 컨테이너 `{chain.field}`. `${...}` 보간의 내부 `{...}` 는 위에서 처리했으므로 제외.
@@ -120,7 +142,31 @@ export function detectRawEnumRenders(rawContent: string): string[] {
     const chain = m[1];
     if (!chain || !GUARDED_ENUM_FIELDS.includes(lastSegment(chain))) continue;
     if (m.index > 0 && cleaned[m.index - 1] === "$") continue; // `${...}` 는 템플릿 경로 담당.
-    if (isJsxChild(m.index, m[0].length)) hits.push(m[0]);
+    if (isJsxChild(cleaned, m.index, m[0].length)) hits.push(m[0]);
+  }
+
+  return hits;
+}
+
+export function detectRawUppercaseEnumLiterals(rawContent: string): string[] {
+  const cleaned = stripComments(rawContent);
+  const hits: string[] = [];
+  const quotedLiteral = /(["'])([A-Z][A-Z0-9_]{2,})\1/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = quotedLiteral.exec(cleaned)) !== null) {
+    const literal = match[2];
+    if (
+      !literal ||
+      !UPPERCASE_ENUM_LITERAL.test(literal) ||
+      NON_ENUM_UPPERCASE_ALLOWLIST.includes(literal) ||
+      !isJsxChild(cleaned, match.index, match[0].length)
+    ) {
+      continue;
+    }
+    const afterLiteral = cleaned.slice(match.index + match[0].length);
+    if (/^\s*\)?\s*\.toUpperCase\s*\(/.test(afterLiteral)) continue;
+    hits.push(match[0]);
   }
 
   return hits;
@@ -172,6 +218,15 @@ function getScopedFiles(): string[] {
   ];
   const results: string[] = [];
   for (const d of dirs) walk(d, results);
+  return results;
+}
+
+function getUppercaseLiteralScopedFiles(): string[] {
+  const root = resolve(__dirname, "..");
+  const results: string[] = [];
+  for (const marker of UPPERCASE_LITERAL_SCOPE) {
+    walk(join(root, marker), results);
+  }
   return results;
 }
 
@@ -277,5 +332,75 @@ describe("S4/S9/W1 — no raw enum rendered in P1 route UI", () => {
         .map((v) => `  ${v.file}: ${v.samples.join(", ")}`)
         .join("\n")}`,
     ).toEqual([]);
+  });
+});
+
+describe("BL-577 — no raw uppercase enum literal in live sessions", () => {
+  const files = getUppercaseLiteralScopedFiles();
+
+  it("scope inventory is non-empty and includes live-session-table.tsx", () => {
+    expect(files.length).toBeGreaterThan(0);
+    expect(files.some((file) => file.endsWith("live-session-table.tsx"))).toBe(true);
+  });
+
+  it("detector flags the BL-572 historical literal and direct JSX child", () => {
+    expect(
+      detectRawUppercaseEnumLiterals(BL572_HISTORICAL_SNIPPET).length,
+    ).toBeGreaterThan(0);
+    expect(detectRawUppercaseEnumLiterals('<span>{"FILLED"}</span>')).toEqual([
+      '"FILLED"',
+    ]);
+  });
+
+  it("detector ignores non-enum JSX positions and toUpperCase output", () => {
+    expect(
+      detectRawUppercaseEnumLiterals(
+        '<span>{(mode ?? "UNKNOWN").toUpperCase()}</span>',
+      ),
+    ).toEqual([]);
+    expect(detectRawUppercaseEnumLiterals("<th>MDD</th>")).toEqual([]);
+    expect(detectRawUppercaseEnumLiterals('<Badge label="ACTIVE" />')).toEqual([]);
+    expect(
+      detectRawUppercaseEnumLiterals(
+        "<td>{LIVE_SESSION_STATUS_LABEL[k].label}</td>",
+      ),
+    ).toEqual([]);
+    expect(
+      detectRawUppercaseEnumLiterals('<td>{s.symbol === "BTC/USDT" && <X/>}</td>'),
+    ).toEqual([]);
+  });
+
+  it("detector ignores every allowed uppercase non-enum literal", () => {
+    for (const literal of NON_ENUM_UPPERCASE_ALLOWLIST) {
+      expect(detectRawUppercaseEnumLiterals(`<span>{"${literal}"}</span>`)).toEqual([]);
+    }
+  });
+
+  it("features/live-sessions 에 원시 대문자 enum 리터럴이 없다", () => {
+    const violations: { file: string; samples: string[] }[] = [];
+    for (const file of files) {
+      const hits = detectRawUppercaseEnumLiterals(readFileSync(file, "utf-8"));
+      if (hits.length > 0) {
+        violations.push({
+          file: file.replace(/.*\/quant-bridge\//, ""),
+          samples: [...new Set(hits)].slice(0, 3),
+        });
+      }
+    }
+
+    // ★검출기 생존 확인 — 이게 없으면 검출기를 무력화해도 이 테스트가 green 이다.
+    //   ★"하나라도 잡히나" 로는 부족하다 (2026-08-02 codex MINOR#4): 검출기를
+    //   `ACTIVE`·`FILLED` 만 통과시키도록 좁혀도 그 단언은 통과하고, 현 스코프 위반이
+    //   0건이라 스캔도 green 이라 `PAUSED` 류가 조용히 사라진다. 그래서 **서로 다른
+    //   리터럴 집합**이 전부 잡히는지를 단언한다.
+    expect(detectRawUppercaseEnumLiterals(BL572_HISTORICAL_SNIPPET)).toEqual(
+      expect.arrayContaining(['"ACTIVE"', '"PAUSED"']),
+    );
+    for (const canary of ["PAUSED", "PENDING", "CANCELLED", "REJECTED"]) {
+      expect(
+        detectRawUppercaseEnumLiterals(`<span>{"${canary}"}</span>`),
+      ).toEqual([`"${canary}"`]);
+    }
+    expect(violations).toEqual([]);
   });
 });

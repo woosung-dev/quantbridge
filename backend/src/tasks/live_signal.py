@@ -764,6 +764,46 @@ def _count_safely(counter: Any, **labels: str) -> None:
     record_metric_safely(lambda: counter.labels(**labels).inc())
 
 
+def _touch_safely(counter: Any, **labels: str) -> None:
+    """라벨 조합을 **증가 없이** 실체화한다. `_count_safely` 의 무증분 형제.
+
+    ★왜 `_count_safely` 를 못 쓰나 — 그쪽은 `.inc()` 한다. 초기화에서 1 을 올리면
+    창 차분이 실제 발화 수보다 커져 **계측이 스스로 거짓말**을 한다.
+
+    ★왜 raw `.labels()` 를 직접 쓰지 않나 — `test_live_conditional_divergence_labels`
+    가 그 counter 에 대한 raw `.labels()` 를 **AST 로 금지**한다. 그 규율의 의도는
+    "라벨 생성도 예외로부터 격리하라" 이고, 이 함수는 그 의도를 지키면서 증분만 뺀다.
+    """
+    record_metric_safely(lambda: counter.labels(**labels))
+
+
+def _prime_divergence_series() -> None:
+    """13 개 `(event, reason)` 조합을 import 시점에 **0 으로 실체화**한다 (BL-576 발화 검증).
+
+    ★**라벨 있는 counter 는 첫 발화 전까지 series 가 존재하지 않는다** (2026-08-02 실측).
+    라벨 없는 counter 는 import 시점에 0 으로 뜨지만, 라벨 있는 쪽은 `.labels()` 가
+    불리기 전까지 mmap 에 항목이 없다. 그래서 **첫 발화는 구조적으로 차분으로 읽을 수
+    없다** — 창 시작 스냅샷에 그 series 가 아예 없으므로 `_delta_reading` 이
+    `CounterBasis.unknown` 을 돌려주고 비교가 거부된다. 즉 "counter 를 신설했다" 를
+    프로덕션에서 증명하려는 바로 그 순간에 계측이 불가능해진다.
+
+    ★**부수 효과가 아니라 두 번째 목적이다** — 뜨거운 경로에서 새 라벨 조합이
+    mmap 을 늘리는 일이 사라진다. 2026-08-02 codex MAJOR 가 지적한 위험
+    (`.labels()` 가 던지면 체결 후처리가 끊긴다)의 발생 조건 자체를 없앤다.
+
+    ★`inc()` 하지 않는다. 여기서 1 을 올리면 창 차분이 발화 수보다 커진다.
+    ★그래서 `_count_safely` 를 못 쓰고 `_touch_safely` 를 쓴다 — 둘 다
+    `record_metric_safely` 로 감싸므로 "raw `.labels()` 금지" 규율은 그대로 지킨다.
+    """
+    for event, reasons in _CONDITIONAL_DIVERGENCE_REASONS.items():
+        # "other" = `_conditional_divergence_reason` 의 미허용 reason 정규화 값.
+        for reason in (*reasons, "other"):
+            _touch_safely(qb_live_conditional_divergence_total, event=event, reason=reason)
+
+
+_prime_divergence_series()
+
+
 def _count_pending_order_skips(strategy_state_report: object) -> None:
     """엔진이 건너뛴 pending 진입 leg 를 **평가 1회당 정확히 한 번** 센다 (BL-536).
 
