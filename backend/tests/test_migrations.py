@@ -241,6 +241,51 @@ def test_trading_orders_idempotency_unique(monkeypatch: pytest.MonkeyPatch) -> N
         engine.dispose()
 
 
+def test_deactivation_reason_check_matches_the_enum(monkeypatch: pytest.MonkeyPatch) -> None:
+    """alembic 이 만든 CHECK 의 값 집합 = SessionDeactivationReason 전건 (drift sentinel, BL-571).
+
+    ★이 테스트가 없으면 드리프트가 프로덕션에서만 터진다 — conftest 의 테스트 DB 는
+    `metadata.create_all` 로 만들어지고 그 CHECK 표현식은 enum 에서 **생성**되므로 절대
+    어긋나지 않는다. 마이그레이션에 동결된 사본만 어긋날 수 있고, 어긋나면 새 사유로
+    세션을 죽이려는 순간 IntegrityError 로 **종료가 실패**한다(라벨 오염보다 나쁘다).
+    stress_test enum 라벨 사고(`test_stress_test_enum_labels_match_member_names`)와 같은 형태다.
+    """
+    import re
+
+    from sqlalchemy import text
+
+    from src.trading.models import SessionDeactivationReason
+
+    engine, _ = _upgrade_and_inspect(monkeypatch)
+    try:
+        with engine.connect() as conn:
+            definition = conn.execute(
+                text(
+                    "SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid "
+                    "JOIN pg_namespace n ON n.oid = t.relnamespace "
+                    "WHERE n.nspname = 'trading' AND t.relname = 'live_signal_sessions' "
+                    "AND c.conname = :name"
+                ),
+                {"name": "ck_live_signal_sessions_deactivated_reason"},
+            ).scalar_one_or_none()
+    finally:
+        engine.dispose()
+
+    assert definition is not None, (
+        "ck_live_signal_sessions_deactivated_reason 가 alembic DB 에 없다 — "
+        "마이그레이션 20260801_0001 이 빠졌거나 이름이 바뀌었다."
+    )
+    ddl_values = set(re.findall(r"'([^']+)'", definition))
+    enum_values = {str(member) for member in SessionDeactivationReason}
+    assert ddl_values == enum_values, (
+        f"CHECK 제약과 SessionDeactivationReason 이 어긋났다. "
+        f"제약에만 있음: {sorted(ddl_values - enum_values)} / "
+        f"enum 에만 있음: {sorted(enum_values - ddl_values)}. "
+        "새 사유는 enum + 마이그레이션 + FE 라벨 3곳을 함께 고쳐야 한다."
+    )
+
+
 def test_destructive_migration_tests_refuse_a_non_disposable_database() -> None:
     """downgrade base 가 개발 DB 를 향하면 즉시 멈춰야 한다.
 
