@@ -2,8 +2,8 @@
 
 > **업데이트:** 2026-08-02
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** `sprint/canonical-measurement-surface` — PR 준비 중
-> **최근 머지:** `sprint/divergence-label-split` → `main@df446d60` (PR #519, 2026-08-02)
+> **준비 브랜치:** 없음
+> **최근 머지:** `stage/canonical-measurement-surface` → `main@b476327e` (PR #520, 2026-08-02)
 
 ---
 
@@ -98,6 +98,9 @@ ruff clean · mypy **214** clean ·
 > ★**게이트를 파이프에 넣지 마라** — 직전 회차에 `pytest | tail` 로 **exit code 가 tail 의 것**이 됐다.
 > ★**`cd backend` 는 다음 명령까지 이어진다** — 레포 루트 스크립트는 절대경로로.
 > ★**한 파일씩 완결된 상태로 저장해라** — 워커 watchfiles 가 중간 상태를 물어 Traceback 이 났다.
+> ★**브랜치 접두사는 `stage/` 다** — pre-push 훅이 `stage|feat|fix|chore|docs|test|refactor|hotfix`
+> 화이트리스트를 강제한다(ADR-017 · BL-555). `sprint/` 로 만들면 push 가 거부된다.
+> `QB_PRE_PUSH_BYPASS=1` 은 있지만 **쓰지 마라** — 가드를 뚫는 것이 이 레포가 반복해 당한 방식이다.
 > ★**`herdr agent prompt` 는 붙여넣기만 한다** — `send-keys enter` 후 `agent get` 으로 `working` 확인까지가 발송.
 
 ## 완료 이력
