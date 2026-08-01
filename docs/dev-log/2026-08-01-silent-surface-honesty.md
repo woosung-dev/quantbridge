@@ -219,8 +219,11 @@ mypy 214 · head `20260730_0001` · bl-audit exit 0 · bl-audit-test 5/5).
 - ★**BL-570 의 뿌리를 jsdom 으로는 잠글 수 없다.** 단위 테스트는 (a) errors 렌더 · (b) onInvalid
   두 층만 지킨다. 뿌리(`Number(null) === 0`)는 **실브라우저 e2e 에만** 잠겨 있고, `pnpm e2e` 는
   CI 가 아니라 로컬 전용이다 ⇒ **이 회귀는 CI 에서 안 잡힌다.**
-- ★**`pnpm e2e:authed` 는 `PLAYWRIGHT_BASE_URL` 과 실행 중인 스택을 전제한다.** 신규 spec 도 같다.
-  스택이 없으면 조용히 안 도는 게 아니라 실패하지만, **누군가 돌려야 한다.**
+- ★★**CI 는 `e2e:authed` 를 돌리지 않는다 — 근거를 확정했다.** `.github/workflows/ci.yml:173,178` 의
+  `e2e` 잡은 `pnpm e2e`(= `chromium` project = `smoke.spec.ts` 하나)와 `pnpm e2e:design-canon` 만
+  실행하고, `:176` 주석이 _"P1 4라우트는 전부 authed 라 로컬 `pnpm e2e:authed` 몫이고 CI 에는 없다"_ 라고
+  명시한다. ⇒ **신규 `authed-settings-save.spec.ts` 는 이 PR 의 CI 에서도 돌지 않는다.**
+  BL-570 뿌리에 대한 회귀 방어는 **사람이 로컬에서 `pnpm e2e:authed` 를 돌릴 때만** 작동한다.
 - ★**BL-542 의 200-경계는 합성 응답으로만 검증했다.** 실계정은 포지션이 1건이라
   「진짜로 잘린 페이지」를 프로덕션에서 관측한 적이 없다. 하한을 잘못 잡았는지는 회귀 2케이스가
   전부다.

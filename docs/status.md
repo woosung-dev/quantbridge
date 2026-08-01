@@ -66,8 +66,9 @@ e2e **authed 68 케이스(+setup) / design-canon 32** · `final-gates.sh` **15/1
 
 ★**이 숫자도 대조 대상이다. 첫 step 에서 지금 HEAD 로 다시 재라.**
 
-> ★**jsdom 이 못 잡는 결함이 있다** — BL-570 은 실브라우저에서만 재현됐다(jsdom 은 버튼을
-> `disabled` 로 낸다). 폼·상호작용 결함은 `pnpm e2e:authed` 로 가라. **CI 는 이걸 안 돌린다.**
+> ★★**jsdom 이 못 잡는 결함이 있다** — BL-570 은 실브라우저에서만 재현됐다(jsdom 은 버튼을
+> `disabled` 로 낸다). 폼·상호작용 결함은 `pnpm e2e:authed` 로 가라. **CI 는 이걸 안 돌린다**
+> (`ci.yml:173,178` 이 `pnpm e2e`+`design-canon` 만 실행 · `:176` 주석이 authed 는 로컬 몫이라 명시).
 > ★**`psql -c` 에 세미콜론 여러 개를 넣으면 암묵적 단일 트랜잭션**이라, 뒤쪽 한 문장이 실패하면
 > 앞선 UPDATE 가 전부 롤백된다. 문장마다 따로 쳐라.
 > ★**`pnpm e2e` 는 자기 dev 서버를 못 띄운다** → 정체성 프로브 후 `PLAYWRIGHT_BASE_URL=http://localhost:3100`.
