@@ -18,26 +18,37 @@
 from __future__ import annotations
 
 import random
+import re
 from dataclasses import replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
 
 from src.trading.entry_completeness import (
+    CANONICAL_PREDICATES,
+    ENTRY_RACE_REJECTION_BASELINE,
+    ENTRY_RACE_REJECTION_THRESHOLD,
     AttemptBucket,
     AttemptFact,
     Attribution,
+    EntryRaceRejectionAttempt,
     EpisodeOutcome,
     EpisodeRule,
+    MeasurementQuestion,
+    PopulationRow,
     RejectionOrigin,
+    RestingInterval,
     assert_partitions,
     build_episode_layer,
+    build_population_tally,
     build_report,
     classify_attempt,
     classify_attempts,
     classify_rejection_origin,
+    count_entry_race_rejections_by_utc_day,
+    max_concurrent_resting,
 )
 from src.trading.models import OrderState
 from src.trading.services.conditional_entry_planner import (
@@ -50,6 +61,149 @@ OTHER_SESSION_ID = UUID("b0861954-1c7c-4a27-bfee-6f6af1a4d440")
 SINCE = datetime(2026, 7, 29, 0, 0, tzinfo=UTC)
 UNTIL = datetime(2026, 7, 30, 0, 0, tzinfo=UTC)
 QUERIED_AT = datetime(2026, 7, 30, 0, 5, tzinfo=UTC)
+
+
+def test_every_question_has_a_canonical_predicate() -> None:
+    assert set(CANONICAL_PREDICATES) == set(MeasurementQuestion)
+
+
+def test_each_question_names_the_other_question_predicate_as_its_trap() -> None:
+    population = CANONICAL_PREDICATES[MeasurementQuestion.conditional_population]
+    truncation = CANONICAL_PREDICATES[MeasurementQuestion.resting_truncation_risk]
+
+    assert population.trap == truncation.predicate
+    assert truncation.trap == population.predicate
+
+
+def test_canonical_predicate_cards_cite_code_not_line_numbers() -> None:
+    assert all(
+        re.search(r":\d+", predicate.evidence) is None
+        for predicate in CANONICAL_PREDICATES.values()
+    )
+
+
+def test_population_tally_uses_parser_for_kind_and_utc_created_at() -> None:
+    cond_key = build_conditional_entry_key(
+        SESSION_ID,
+        "PopulationCond",
+        SINCE,
+        Decimal("64000"),
+        Decimal("0.029"),
+    )
+    condmkt_key = build_market_converted_entry_key(
+        SESSION_ID,
+        "PopulationCondmkt",
+        SINCE,
+        Decimal("64000"),
+        Decimal("0.029"),
+    )
+    assert cond_key is not None
+    assert condmkt_key is not None
+
+    tally = build_population_tally(
+        (
+            PopulationRow(idempotency_key=cond_key, created_at=SINCE),
+            PopulationRow(
+                idempotency_key=condmkt_key,
+                created_at=datetime(2026, 7, 29, 9, tzinfo=UTC),
+            ),
+            PopulationRow(idempotency_key="live:malformed", created_at=SINCE),
+        )
+    )
+
+    assert (tally.cond, tally.condmkt, tally.total, tally.unattributable) == (1, 1, 2, 1)
+    assert tally.created_by_utc_day == ((date(2026, 7, 29), 2),)
+
+
+def test_max_concurrent_resting_counts_carry_in_and_open_intervals() -> None:
+    strategy_id = uuid4()
+    account_id = uuid4()
+    peak = max_concurrent_resting(
+        (
+            RestingInterval(
+                strategy_id=strategy_id,
+                exchange_account_id=account_id,
+                created_at=SINCE - timedelta(minutes=1),
+                closed_at=SINCE + timedelta(minutes=1),
+            ),
+            RestingInterval(
+                strategy_id=strategy_id,
+                exchange_account_id=account_id,
+                created_at=SINCE + timedelta(minutes=1),
+                closed_at=SINCE + timedelta(minutes=2),
+            ),
+            RestingInterval(
+                strategy_id=strategy_id,
+                exchange_account_id=account_id,
+                created_at=SINCE + timedelta(minutes=3),
+                closed_at=None,
+            ),
+            RestingInterval(
+                strategy_id=strategy_id,
+                exchange_account_id=account_id,
+                created_at=SINCE + timedelta(minutes=4),
+                closed_at=SINCE + timedelta(minutes=5),
+            ),
+        )
+    )
+
+    assert peak == {(strategy_id, account_id): 2}
+
+
+def test_recorded_baseline_floor_covers_every_excluded_day() -> None:
+    baseline = ENTRY_RACE_REJECTION_BASELINE
+    assert baseline.excluded_through.date() > max(day for day, _count in baseline.observed)
+
+
+def test_recorded_baseline_excludes_only_threshold_exceeding_days() -> None:
+    assert all(
+        count >= ENTRY_RACE_REJECTION_THRESHOLD
+        for _day, count in ENTRY_RACE_REJECTION_BASELINE.observed
+    )
+
+
+def test_recorded_baseline_observations_do_not_trigger_again() -> None:
+    baseline = ENTRY_RACE_REJECTION_BASELINE
+    attempts = tuple(
+        EntryRaceRejectionAttempt(
+            created_at=datetime(day.year, day.month, day.day, 12, tzinfo=UTC),
+            state=OrderState.rejected,
+            error_message='{"retCode":110092,"retMsg":"expect Rising"}',
+        )
+        for day, count in baseline.observed
+        for _ in range(count)
+    )
+
+    tally = count_entry_race_rejections_by_utc_day(attempts, baseline)
+
+    assert tally.triggered_days == ()
+
+
+def test_entry_race_rejections_surface_unknown_origin_as_unmeasured() -> None:
+    baseline = ENTRY_RACE_REJECTION_BASELINE
+    attempts = (
+        EntryRaceRejectionAttempt(
+            created_at=baseline.excluded_through + timedelta(hours=1),
+            state=OrderState.rejected,
+            error_message='{"retCode":110092,"retMsg":"expect Rising"}',
+        ),
+        EntryRaceRejectionAttempt(
+            created_at=baseline.excluded_through + timedelta(days=1),
+            state=OrderState.rejected,
+            error_message="rejection payload omitted retCode",
+        ),
+        EntryRaceRejectionAttempt(
+            created_at=baseline.excluded_through + timedelta(days=1, hours=1),
+            state=OrderState.rejected,
+            error_message="credential_decrypt_failed: key unavailable",
+        ),
+    )
+
+    tally = count_entry_race_rejections_by_utc_day(attempts, baseline)
+
+    assert tally.matched_by_utc_day == ((date(2026, 7, 29), 1),)
+    assert tally.unmeasured_by_utc_day == ((date(2026, 7, 30), 1),)
+    assert (tally.not_matched, tally.candidates, tally.triggered_days) == (1, 3, ())
 
 
 def _bar(minutes: int) -> datetime:

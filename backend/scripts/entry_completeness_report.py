@@ -44,6 +44,7 @@ import asyncio
 import json
 import re
 import sys
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -56,7 +57,9 @@ sys.path.insert(0, str(REPO_ROOT / "backend"))
 
 from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 from src.trading.entry_completeness import (  # noqa: E402
+    CANONICAL_PREDICATES,
     COUNTER_INTRODUCED,
+    ENTRY_RACE_REJECTION_BASELINE,
     AttemptFact,
     AttemptLayer,
     Bar,
@@ -65,13 +68,21 @@ from src.trading.entry_completeness import (  # noqa: E402
     CounterBasis,
     CounterReading,
     EntryCompletenessReport,
+    EntryRaceRejectionAttempt,
     EpisodeLayer,
+    MeasurementQuestion,
     NonLedgerStatus,
+    PopulationRow,
+    RestingInterval,
     bars_breakout_probe,
+    build_population_tally,
     build_report,
     cancel_inequality_check,
+    count_entry_race_rejections_by_utc_day,
+    max_concurrent_resting,
     placement_identity_check,
 )
+from src.trading.models import OrderState  # noqa: E402
 from src.trading.repositories.live_signal_session_repository import (  # noqa: E402
     SESSION_WINDOW_SCAN_LIMIT,
     LiveSignalSessionRepository,
@@ -596,6 +607,259 @@ def _report_to_json(report: EntryCompletenessReport) -> dict[str, Any]:
     }
 
 
+# --- 정본 측정 질문 -----------------------------------------------------------
+
+
+_QUESTION_SCAN_LIMIT = ENTRY_ATTEMPT_SCAN_LIMIT
+_RESTING_TRIGGER = 20
+_RESTING_DISCRIMINATION_THRESHOLD = 1
+_ENTRY_RACE_DISCRIMINATION_THRESHOLD = 1
+
+
+@dataclass(frozen=True, slots=True)
+class QuestionRun:
+    question: MeasurementQuestion
+    since: datetime
+    until: datetime
+    truncated: bool
+    sample_size: int
+    discrimination_rows: int
+    triggered: bool
+    unmeasured_reason: str | None
+    result: str
+    details: Mapping[str, Any]
+    baseline_adjusted_from: datetime | None = None
+
+
+Runner = Callable[[datetime, datetime], Awaitable[QuestionRun]]
+
+
+def _unmeasured_reason(*, truncated: bool, sample_size: int, unknown: bool = False) -> str | None:
+    if truncated:
+        return "unmeasured_truncated"
+    if unknown:
+        return "unmeasured_unknown_origin"
+    if sample_size == 0:
+        return "unmeasured_empty_sample"
+    return None
+
+
+async def _run_conditional_population(since: datetime, until: datetime) -> QuestionRun:
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as db:
+            rows = await OrderRepository(db).list_live_entry_keys_in_window(
+                since=since,
+                until=until,
+                limit=_QUESTION_SCAN_LIMIT,
+            )
+    finally:
+        await engine.dispose()
+
+    truncated = len(rows) > _QUESTION_SCAN_LIMIT
+    tally = build_population_tally(
+        PopulationRow(idempotency_key=row.idempotency_key, created_at=row.created_at)
+        for row in rows[:_QUESTION_SCAN_LIMIT]
+    )
+    daily = tuple((day.isoformat(), count) for day, count in tally.created_by_utc_day)
+    daily_text = ", ".join(f"{day} {count}" for day, count in daily) or "없음"
+    return QuestionRun(
+        question=MeasurementQuestion.conditional_population,
+        since=since,
+        until=until,
+        truncated=truncated,
+        sample_size=len(rows[:_QUESTION_SCAN_LIMIT]),
+        discrimination_rows=tally.total,
+        triggered=False,
+        unmeasured_reason=_unmeasured_reason(
+            truncated=truncated,
+            sample_size=len(rows[:_QUESTION_SCAN_LIMIT]),
+        ),
+        result=(
+            f"cond {tally.cond} · condmkt {tally.condmkt} · "
+            f"조건부 합계 {tally.total} · UTC 일별 생성 {daily_text} · "
+            f"귀속 불가 {tally.unattributable}"
+        ),
+        details={
+            "cond": tally.cond,
+            "condmkt": tally.condmkt,
+            "total": tally.total,
+            "unattributable": tally.unattributable,
+            "created_by_utc_day": daily,
+        },
+    )
+
+
+async def _run_resting_truncation_risk(since: datetime, until: datetime) -> QuestionRun:
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as db:
+            rows = await OrderRepository(db).list_resting_intervals(
+                since=since,
+                until=until,
+                limit=_QUESTION_SCAN_LIMIT,
+            )
+    finally:
+        await engine.dispose()
+
+    truncated = len(rows) > _QUESTION_SCAN_LIMIT
+    peaks = max_concurrent_resting(
+        RestingInterval(
+            strategy_id=row.strategy_id,
+            exchange_account_id=row.exchange_account_id,
+            created_at=row.created_at,
+            closed_at=row.closed_at,
+        )
+        for row in rows[:_QUESTION_SCAN_LIMIT]
+    )
+    peak_rows = tuple(
+        (str(strategy_id), str(account_id), peak)
+        for (strategy_id, account_id), peak in sorted(
+            peaks.items(), key=lambda item: (str(item[0][0]), str(item[0][1]))
+        )
+    )
+    triggered_rows = tuple(row for row in peak_rows if row[2] > _RESTING_TRIGGER)
+    discrimination_rows = sum(
+        peak > _RESTING_DISCRIMINATION_THRESHOLD for peak in peaks.values()
+    )
+    maximum = max(peaks.values(), default=0)
+    sample_size = len(rows[:_QUESTION_SCAN_LIMIT])
+    return QuestionRun(
+        question=MeasurementQuestion.resting_truncation_risk,
+        since=since,
+        until=until,
+        truncated=truncated,
+        sample_size=sample_size,
+        discrimination_rows=discrimination_rows,
+        triggered=bool(triggered_rows),
+        unmeasured_reason=_unmeasured_reason(truncated=truncated, sample_size=sample_size),
+        result=(
+            f"동시 resting 최대 {maximum} · 문턱 초과 scope {len(triggered_rows)} · "
+            f"측정 scope {len(peak_rows)}"
+        ),
+        details={
+            "max_concurrent": maximum,
+            "peaks": peak_rows,
+            "triggered_scopes": triggered_rows,
+        },
+    )
+
+
+async def _run_entry_race_rejections(since: datetime, until: datetime) -> QuestionRun:
+    effective_since = max(since, ENTRY_RACE_REJECTION_BASELINE.excluded_through)
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as db:
+            rows = await OrderRepository(db).list_entry_rejections_in_window(
+                since=effective_since,
+                until=until,
+                limit=_QUESTION_SCAN_LIMIT,
+            )
+    finally:
+        await engine.dispose()
+
+    truncated = len(rows) > _QUESTION_SCAN_LIMIT
+    tally = count_entry_race_rejections_by_utc_day(
+        (
+            EntryRaceRejectionAttempt(
+                created_at=row.created_at,
+                state=OrderState.rejected,
+                error_message=row.error_message,
+            )
+            for row in rows[:_QUESTION_SCAN_LIMIT]
+        ),
+        ENTRY_RACE_REJECTION_BASELINE,
+    )
+    matched = tuple((day.isoformat(), count) for day, count in tally.matched_by_utc_day)
+    unmeasured = tuple((day.isoformat(), count) for day, count in tally.unmeasured_by_utc_day)
+    triggered_days = tuple((day.isoformat(), count) for day, count in tally.triggered_days)
+    sample_size = len(rows[:_QUESTION_SCAN_LIMIT])
+    matched_text = ", ".join(f"{day} {count}" for day, count in matched) or "없음"
+    return QuestionRun(
+        question=MeasurementQuestion.entry_race_rejections,
+        since=effective_since,
+        until=until,
+        truncated=truncated,
+        sample_size=sample_size,
+        discrimination_rows=sum(
+            count >= _ENTRY_RACE_DISCRIMINATION_THRESHOLD
+            for _day, count in tally.matched_by_utc_day
+        ),
+        triggered=bool(triggered_days),
+        unmeasured_reason=_unmeasured_reason(
+            truncated=truncated,
+            sample_size=sample_size,
+            unknown=bool(tally.unmeasured_by_utc_day),
+        ),
+        result=(
+            f"문턱 이상 UTC 일 {len(triggered_days)} · C1 확정 거절 후보 {tally.candidates} · "
+            f"UTC 일별 C1 {matched_text} · "
+            f"코드 미상 {sum(count for _day, count in tally.unmeasured_by_utc_day)}"
+        ),
+        details={
+            "matched_by_utc_day": matched,
+            "unmeasured_by_utc_day": unmeasured,
+            "not_matched": tally.not_matched,
+            "candidates": tally.candidates,
+            "triggered_days": triggered_days,
+        },
+        baseline_adjusted_from=since if effective_since > since else None,
+    )
+
+
+_QUESTION_RUNNERS: Mapping[MeasurementQuestion, Runner] = {
+    MeasurementQuestion.conditional_population: _run_conditional_population,
+    MeasurementQuestion.resting_truncation_risk: _run_resting_truncation_risk,
+    MeasurementQuestion.entry_race_rejections: _run_entry_race_rejections,
+}
+
+
+def _question_exit_code(run: QuestionRun) -> int:
+    if run.unmeasured_reason is not None:
+        return 1
+    return 3 if run.triggered else 0
+
+
+def _question_to_json(run: QuestionRun) -> dict[str, Any]:
+    card = CANONICAL_PREDICATES[run.question]
+    return {
+        "question": run.question.value,
+        "question_text": card.question_text,
+        "predicate": card.predicate,
+        "trap": card.trap,
+        "why_trap_is_wrong": card.why_trap_is_wrong,
+        "evidence": card.evidence,
+        "since": run.since.isoformat(),
+        "until": run.until.isoformat(),
+        "truncated": run.truncated,
+        "sample_size": run.sample_size,
+        "discrimination_rows": run.discrimination_rows,
+        "triggered": run.triggered,
+        "unmeasured_reason": run.unmeasured_reason,
+        "result": run.result,
+        "details": dict(run.details),
+        "baseline_adjusted_from": None
+        if run.baseline_adjusted_from is None
+        else run.baseline_adjusted_from.isoformat(),
+    }
+
+
+def _print_question_run(run: QuestionRun) -> None:
+    card = CANONICAL_PREDICATES[run.question]
+    print(f"질문      {card.question_text}")
+    print(f"정본 술어 {card.predicate}")
+    print(f"함정      {card.trap} — {card.why_trap_is_wrong}")
+    print(f"근거      {card.evidence}")
+    print(f"창        [{run.since.isoformat()}, {run.until.isoformat()})   절단 {'yes' if run.truncated else 'no'}")
+    if run.baseline_adjusted_from is not None:
+        print(f"★기준선 배제 적용: since 를 {run.since.isoformat()} 로 올렸다")
+    print(f"판별력    문턱-1 에서 {run.discrimination_rows} 행")
+    if run.unmeasured_reason is not None:
+        print(f"결과      {run.unmeasured_reason}")
+        return
+    print(f"결과      {run.result}")
+
+
 # --- 조립 ---------------------------------------------------------------------
 
 
@@ -725,6 +989,12 @@ def main() -> int:
     parser.add_argument("--session-id", action="append", default=[], help="반복 지정 가능")
     parser.add_argument("--since", default=None, help="ISO 8601. 없으면 세션 시작 시각")
     parser.add_argument("--until", default=None, help="ISO 8601. 없으면 상한 없음")
+    parser.add_argument(
+        "--question",
+        choices=[question.value for question in MeasurementQuestion],
+        default=None,
+        help="정본 술어로 측정할 질문",
+    )
     parser.add_argument("--metrics-before", default=None, help="창 시작 시점 /metrics 덤프")
     parser.add_argument("--metrics-after", default=None, help="창 종료 시점 /metrics 덤프")
     parser.add_argument("--json", action="store_true", help="사람용 표 대신 JSON")
@@ -738,9 +1008,20 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    session_ids = [UUID(value) for value in args.session_id]
     since = _parse_time(args.since)
     until = _parse_time(args.until)
+    if args.question is not None:
+        if since is None:
+            parser.error("--question 에는 --since 가 필요하다")
+        question = MeasurementQuestion(args.question)
+        run = asyncio.run(_QUESTION_RUNNERS[question](since, until or datetime.now(UTC)))
+        if args.json:
+            print(json.dumps(_question_to_json(run), indent=2))
+        else:
+            _print_question_run(run)
+        return _question_exit_code(run)
+
+    session_ids = [UUID(value) for value in args.session_id]
     before = _load_snapshot(args.metrics_before)
     after = _load_snapshot(args.metrics_after)
     breakout_probe = load_breakout_probe(args.breakout_klines)

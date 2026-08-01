@@ -1186,10 +1186,9 @@ def _enqueue_conditional_reversal_measure(order: Any) -> None:
     """
     if getattr(order, "reduce_only", False):
         return
-    from src.trading.services.conditional_entry_planner import parse_live_entry_key
+    from src.trading.services.conditional_entry_planner import is_conditional_entry_key
 
-    parsed = parse_live_entry_key(getattr(order, "idempotency_key", None))
-    if parsed is None or parsed.kind not in ("cond", "condmkt"):
+    if not is_conditional_entry_key(getattr(order, "idempotency_key", None)):
         return
     measure_conditional_reversal_task.apply_async(
         args=[str(order.id)], countdown=_REVERSAL_MEASURE_COUNTDOWN
