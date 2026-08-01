@@ -38,13 +38,73 @@ _SPLIT_EVENTS = {
 }
 _LEGACY_EVENT = "live_conditional_reconcile_divergence"
 
+# 로그 이벤트명 → 새 counter 의 `event` 축. `plan_drop` 만 None 이다 —
+# 계획기 드롭은 `qb_live_conditional_plan_drop_evaluations_total{reason}` 가 이미 세므로
+# 새 counter 에 넣지 않았다(중복 계수 금지).
+_COUNTER_EVENT: dict[str, str | None] = {
+    "live_conditional_exchange_divergence": "exchange_divergence",
+    "live_conditional_stand_down": "stand_down",
+    "live_conditional_degraded_input": "degraded_input",
+    "live_conditional_plan_drop": None,
+    "live_conditional_guard_drop": "guard_drop",
+    "live_conditional_market_converted": "market_converted",
+}
+# 로그 이벤트명 → 기대 로그 레벨. ★2026-08-02 codex LOW#9 — 오라클이 reason 만 보면
+# 나중에 `error → warning` 강등이 조용히 통과한다.
+_EVENT_LEVEL: dict[str, int] = dict.fromkeys(_COUNTER_EVENT, logging.WARNING)
+_EVENT_LEVEL["live_conditional_stand_down"] = logging.ERROR
 
-def _assert_event_reason(
-    caplog: pytest.LogCaptureFixture, *, event: str, reason: str
-) -> None:
-    assert any(
-        record.message == event and getattr(record, "reason", None) == reason
+_baseline: dict[tuple[str, str], float] = {}
+
+
+def _counter_value(event: str, reason: str) -> float:
+    return float(
+        # 테스트 전용 판독 — 프로덕션 코드는 `_count_safely` 만 쓴다(AST 오라클이 고정).
+        qb_live_conditional_divergence_total.labels(event=event, reason=reason)._value.get()
+    )
+
+
+@pytest.fixture(autouse=True)
+def _snapshot_divergence_counters() -> None:
+    """테스트 시작 시점의 counter 값을 전건 기록한다.
+
+    ★counter 는 프로세스 전역이라 절대값으로 단언할 수 없다. 각 테스트가 자기 창의
+    **차분**만 보게 한다(직전 회차 교훈: 출생일 다른 counter 는 절대값 비교 불가).
+    """
+    _baseline.clear()
+    for event, reasons in live_signal_module._CONDITIONAL_DIVERGENCE_REASONS.items():
+        for reason in reasons:
+            _baseline[(event, reason)] = _counter_value(event, reason)
+
+
+def _assert_event_reason(caplog: pytest.LogCaptureFixture, *, event: str, reason: str) -> None:
+    """발화 1건당 (이름 · reason · 레벨 · counter 차분) 네 축을 함께 고정한다.
+
+    ★2026-08-02 codex MAJOR#6 — 이전 판은 로그만 봤다. 7개 counter 배선 중 한 조합
+    (`guard_drop`/`breach_exceeds_cap`)만 값으로 검증되고 나머지는 **배선 여부조차
+    확인되지 않았다.** 여기서 로그와 counter 를 같은 단언에 묶는다.
+    """
+    matches = [
+        record
         for record in caplog.records
+        if record.message == event and getattr(record, "reason", None) == reason
+    ]
+    assert matches, f"{event} / reason={reason} 발화가 없다"
+
+    expected_level = _EVENT_LEVEL[event]
+    bad = [r.levelname for r in matches if r.levelno != expected_level]
+    assert not bad, f"{event} 로그 레벨이 바뀌었다: {bad} (기대 {expected_level})"
+
+    counter_event = _COUNTER_EVENT[event]
+    if counter_event is None:
+        # plan_drop — 새 counter 에 없다. 있으면 그게 중복 계수다.
+        assert (counter_event, reason) not in _baseline
+        return
+
+    before = _baseline[(counter_event, reason)]
+    after = _counter_value(counter_event, reason)
+    assert after == before + len(matches), (
+        f"{counter_event}/{reason} counter 차분 {after - before} != 발화 {len(matches)}"
     )
 
 
@@ -311,7 +371,9 @@ def test_divergence_counter_reason_is_event_scoped() -> None:
     for event, reasons in expected.items():
         for reason in reasons:
             assert live_signal_module._conditional_divergence_reason(event, reason) == reason
-        assert live_signal_module._conditional_divergence_reason(event, "unbounded_reason") == "other"
+        assert (
+            live_signal_module._conditional_divergence_reason(event, "unbounded_reason") == "other"
+        )
 
     # ★BL-576 — 여기가 `event` 축의 존재 이유다. 위 단언들은 정규화 함수가 **event 를 무시하고
     # 전체 합집합으로 걸러도 전부 통과한다** (2026-08-02 CONTROL 표적 변이 M2 가 그렇게 탈출했다).

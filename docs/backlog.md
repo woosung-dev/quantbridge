@@ -5193,23 +5193,35 @@ BL id 단일 키로 되돌림 → ⑤ red / (M3) 기존 중복 상태줄 탐지 
 
 **판단: 선제 경화를 지금 하지 않는다.** 실측 상한이 한계의 **2%** 라 `limit + 1` 절단 감지의
 기대 이득이 없다. **되살릴 조건 = 아래 Trigger** — 한 (strategy, account) 의 동시 resting 이
-**20건(한계의 20%)을 넘긴 날**이 관측되면 그때 경화한다.
+**20건(한계의 20%)을 넘기면**(= 21 이상) 그때 경화한다.
 
 ```bash
 docker exec quantbridge-db psql -U quantbridge -d quantbridge -At -F'|' -c "
-WITH ev AS (
-  SELECT strategy_id, exchange_account_id, created_at AS ts, 1 AS d FROM trading.orders
-   WHERE trigger_price IS NOT NULL AND reduce_only = false AND created_at >= now() - interval '7 days'
+WITH scoped AS (
+  SELECT strategy_id, exchange_account_id, created_at,
+         COALESCE(filled_at, now()) AS closed_at
+    FROM trading.orders
+   WHERE trigger_price IS NOT NULL AND reduce_only = false
+     AND COALESCE(filled_at, now()) >= now() - interval '7 days'
+), ev AS (
+  SELECT strategy_id, exchange_account_id, created_at AS ts,  1 AS d FROM scoped
   UNION ALL
-  SELECT strategy_id, exchange_account_id, filled_at AS ts, -1 AS d FROM trading.orders
-   WHERE trigger_price IS NOT NULL AND reduce_only = false AND created_at >= now() - interval '7 days'
+  SELECT strategy_id, exchange_account_id, closed_at  AS ts, -1 AS d FROM scoped
 ), r AS (
   SELECT strategy_id, exchange_account_id,
          sum(d) OVER (PARTITION BY strategy_id, exchange_account_id ORDER BY ts, d DESC
                       ROWS UNBOUNDED PRECEDING) AS run
     FROM ev)
-SELECT strategy_id, exchange_account_id, max(run) FROM r GROUP BY 1,2 HAVING max(run) >= 20"
+SELECT strategy_id, exchange_account_id, max(run) FROM r GROUP BY 1,2 HAVING max(run) > 20"
 ```
+
+★★**창 필터를 `created_at` 이 아니라 `closed_at` 에 건다** (2026-08-02 codex MAJOR#2 정정).
+`created_at >= now()-7d` 로 거르면 **창 시작 전에 열려 창 안에도 살아 있던 주문(carry-in)이 통째로
+빠져** 재고가 0 에서 시작한다. 술어의 실제 대상은 `pending`/`submitted` 상태의 지속이지 생성 시각이 아니다.
+★**`>= 20` 이 아니라 `> 20`** — 문장이 「넘긴」이므로 20 은 발화하지 않는다(codex MINOR#3).
+
+**2026-08-02 실행 결과 = 0행 (보류 유지).** ★판별력 확인 = 같은 쿼리의 `HAVING max(run) > 1` 이
+`(전략 07a22564, 계정 19a8166a, max 2)` 를 돌려준다 — **창이 비어서 0행인 게 아니다.**
 
 ★**여기서는 `trigger_price IS NOT NULL` 이 옳다** — 이 술어가 재는 것은 `list_resting_conditional_entries`
 가 실제로 거는 조건이고, 그 조회 자체가 같은 필터를 쓴다(`order_repository.py:275`). **총량을 셀 때와
@@ -5279,19 +5291,28 @@ savepoint 없이 넣으면 조용히 다른 것을 잃는다.
 증가는 전건 `_count_safely`(mmap 함정). AST 구조 오라클이 **발화 총수 8 · 낡은 이름 0곳**을 고정하고,
 8 발화 **전건**을 결정론 fixture 로 구동해 `(event, reason)` 을 1:1 단언한다. 표적 변이 3종 전건 판별.
 
-★**`event` 축이 필요했던 이유** — `breach_exceeds_cap` 이 계획기(`conditional_entry_planner.py:433`)와
-등재 가드(`live_signal.py:1455`) **양쪽에서 같은 문자열**로 나고 payload 키셋도 다르다.
-**`reason` 단독은 유일키가 아니다.**
+★**`event` 축의 역할** (2026-08-02 codex LOW#4 로 정정) — **지금 counter 안에는 reason 충돌이 없다.**
+5 event 의 허용 reason 집합이 서로 배타적이고, 충돌원이던 계획기 `plan_drop` 은 새 counter 에서
+제외됐기 때문이다. `event` 축이 하는 일은 두 가지다: (a) **로그 이벤트명과 counter 를 1:1 로 묶어**
+로그로 본 것과 센 것이 같은 사건임을 보장하고, (b) `breach_exceeds_cap` 처럼 **레포 안에서 이미 두
+경로가 공유하는 문자열**(계획기 `conditional_entry_planner.plan_reconcile` · 등재 가드의 cap 재검사)이
+나중에 같은 counter 로 합류할 때 **미리 갈라 둔다**. ★「지금 충돌을 막고 있다」는 과장이었다.
 
-★**가장 오해를 부른 자리는 `:1647` 이었다** — 시장가 전환 **성공**(PR #493 의 의도된 수리)이
-「divergence」 이름으로 WARNING 에 올라 발산 수를 부풀렸다. **무해가 위험을 가리는 것의 역방향.**
+★**가장 오해를 부른 자리는 `market_converted` 발화**였다 — 시장가 전환 **성공**(PR #493 의 의도된
+수리)이 「divergence」 이름으로 WARNING 에 올라 발산 수를 부풀렸다. **무해가 위험을 가리는 것의 역방향.**
 
 ★★**남은 것 = 프로덕션 발화 검증.** 새 이벤트명·counter 는 **실주행에서 한 번도 발화하지 않았다**
 (이 회차는 창을 열지 않았다). 머지 + worker 재기동 후에만 확인 가능하다.
-**이 라벨로 크기를 주장하려면 [§G1.1](reference/operations/workflows/generator-evaluator-pipeline.md) A5 를 먼저 통과시켜라.**
+★**이 라벨로 크기를 주장할 때 §G1.1 의 A5 를 그대로 가져다 쓰지 마라** (2026-08-02 codex MAJOR#1) —
+A5 의 분모(`has_fill + rejected_exchange`)는 **진입 완결성(`AttemptLayer`)의 축**이고 이 counter 에는
+그 축이 없다. **§G1.1 규율 3 에 따라 이 라벨 전용 표본 문턱을 그때 새로 정의해라.**
 **근거:** [스프린트 회고](dev-log/2026-08-02-divergence-label-split.md)
 
 <details><summary>착수 당시 원문 (이력 보존)</summary>
+
+> ★**아래 줄번호는 착수 시점(`main@b8d53141`)에 고정된 것이고 지금은 전부 밀렸다** — 라벨 분화가
+> 그 파일을 늘렸다. **인용하지 말고 이벤트명 문자열로 찾아라**(§G1.1 규율 = 살아 있는 파일에
+> 줄번호 앵커 금지). 이력 보존을 위해 원문은 고치지 않는다. 2026-08-02 codex MINOR#7.
 
 ★**`live_conditional_reconcile_divergence` 한 이름이 구조가 다른 사건들을 덮는다 — `110017` 라벨 충돌과 같은 형태다.**
 
