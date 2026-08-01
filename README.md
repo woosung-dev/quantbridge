@@ -96,7 +96,7 @@ open http://localhost:3000                          # FE 홈 → Clerk 로그인
 cd backend && uv run pytest -q                      # ~1831 tests pass (2026-05 기준)
 ```
 
-상세 셋업·환경변수·트러블슈팅은 **[`docs/reference/local-setup.md`](docs/reference/local-setup.md)** 참조.
+상세 셋업·환경변수·트러블슈팅은 **[`docs/reference/operations/local-setup.md`](docs/reference/operations/local-setup.md)** 참조.
 
 ---
 
@@ -104,11 +104,10 @@ cd backend && uv run pytest -q                      # ~1831 tests pass (2026-05 
 
 | 위치                                                 | 용도                                                                                                        |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [`AGENTS.md`](AGENTS.md)                             | 개발 원칙·스택 규칙·현재 작업 상태 (LLM/에이전트 + 개발자 공용)                                             |
+| [`AGENTS.md`](AGENTS.md)                             | 개발 원칙·스택 규칙·새 세션의 읽기 순서 (LLM/에이전트 + 개발자 공용)                                       |
 | [`DESIGN.md`](DESIGN.md)                             | Stage 2 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                                                          |
-| [`QUANTBRIDGE_PRD.md`](QUANTBRIDGE_PRD.md)           | 제품 요구사항                                                                                               |
-| [`docs/`](docs/)                                     | 설계 산출물 (00_project ~ 07_infra) · ADR (`dev-log/`) · 로컬 셋업 (`05_env/`) · 프로토타입 (`prototypes/`) |
-| [`docs/status.md`](docs/status.md)                       | Sprint 진행 상태 + 백로그                                                                                   |
+| [`docs/README.md`](docs/README.md)                   | 현행 문서 지도 — 상태·로드맵·백로그·정본의 진입점                                                          |
+| [`docs/status.md`](docs/status.md)                   | 활성 또는 다음 스프린트의 실행 계약                                                                         |
 | [`docs/archive/superpowers/plans/`](docs/archive/superpowers/plans/) | superpowers:writing-plans 산출물 (Sprint별 implementation plan)                                             |
 | [`.ai/rules/`](.ai/rules/)                           | 스택별 강제 규칙 (backend.md, frontend.md, typescript.md 등)                                                |
 

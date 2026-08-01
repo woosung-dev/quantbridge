@@ -17,10 +17,10 @@ import { expect, test } from "@playwright/test";
 
 import { auditUrl, formatCanonResult, hardFailCount } from "./design-canon-audit";
 
-const PROTOTYPE_DIR = resolve(__dirname, "../../docs/reference/prototypes/shotgun-2026-07");
+const PROTOTYPE_DIR = resolve(__dirname, "../../docs/reference/design/prototypes/shotgun-2026-07");
 
 /**
- * 2026-07-20 실측 기준선. `node docs/reference/prototypes/shotgun-2026-07/runtime-check.mjs` 출력.
+ * 2026-07-20 실측 기준선. `node docs/reference/design/prototypes/shotgun-2026-07/runtime-check.mjs` 출력.
  *
  * canon 은 하드 실패가 아니라 지표라 여기서 **정확히 일치**를 요구한다.
  * 프로토타입은 확정된 시각 정본이므로 이 수가 바뀌었다면 둘 중 하나다.

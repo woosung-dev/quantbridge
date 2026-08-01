@@ -2,12 +2,12 @@
 
 > **ADR-020 (구 ADR-013, 2026-05-29 정식 renumber):** 본 문서는 원래 ADR-013 으로 작성됐으나, Sprint 54 의 [Optimizer grammar ADR](../dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md) 도 동일 ID 를 사용해 충돌했다 ("ID 재사용 금지" global §3). 광범위하게 참조되는 Optimizer 측이 ADR-013 을 유지하고, 본 Trust Layer CI 문서를 **ADR-020** 으로 renumber 했다. 과거 sprint 로그/코드의 "ADR-013 §4·§10·§11" (parity / mutation oracle / stage 2c) 은 모두 본 문서(현 ADR-020)를 가리킨다.
 
-> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 결정 근거. **SSOT 는 [`docs/reference/trust-layer-requirements.md`](../reference/trust-layer-requirements.md)** (요구사항/SLO) + [`docs/reference/trust-layer-architecture.md`](../reference/trust-layer-architecture.md) (아키텍처). 본 파일은 ADR 보존용.
+> **ADR ONLY:** 본 문서는 결정 근거다. 현재 Trust Layer 계약은 [`trust-layer-architecture.md`](../reference/architecture/trust-layer-architecture.md)와 코드·테스트가 맡는다. 당시 요구사항/SLO 초안은 [`archive/product/requirements/2026-04-23-trust-layer-requirements.md`](../archive/product/requirements/2026-04-23-trust-layer-requirements.md)에 보존한다.
 >
 > **상태:** 확정 (Accepted) — Stage 2 구현 완료. P-1/P-2 parity 는 CI 상시(`ci.yml` → `test_pynescript_baseline_parity.py` / `test_trust_layer_parity.py`), P-3 Mutation Oracle 은 nightly(`trust-layer-nightly.yml` Stage 2c). 2026-06-30 verification loop 에서 구현 증거 확인 후 초안→확정 (작성 2026-04-23).
 > **일자:** 2026-04-23
 > **관련 ADR:** [ADR-003](./003-pine-runtime-safety-and-parser-scope.md) (exec 금지), [ADR-004](./004-pine-parser-approach-selection.md) (AST 인터프리터), [ADR-011](./011-pine-execution-strategy-v4.md) (Tier 0~5), [ADR-012](./012-sprint-8a-tier0-final-report.md) (Tier-0 Foundation)
-> **상위 문서 (SSOT):** [`docs/reference/trust-layer-architecture.md`](../reference/trust-layer-architecture.md) (Path β Stage 0 산출)
+> **상위 문서 (SSOT):** [`docs/reference/architecture/trust-layer-architecture.md`](../reference/architecture/trust-layer-architecture.md) (Path β Stage 0 산출)
 > **관련 Sprint:** Path β (Stage 0 문서 → Stage 1 설계 → Stage 2 구현) + Sprint Y1 Coverage Analyzer prerequisite
 > **참조 아키텍처 서베이:** [`docs/archive/superpowers/reports/2026-04-23-architecture-survey.html`](../archive/superpowers/reports/2026-04-23-architecture-survey.html)
 
@@ -246,8 +246,8 @@ SLO-1~3 는 main merge 게이트. SLO-4 초과 시 subset marker 도입 (degrade
 
 ### 문서
 
-- `docs/reference/trust-layer-architecture.md` (신규, 이 ADR 의 상위 아키텍처 요약)
-- `docs/reference/trust-layer-requirements.md` (신규, SLO)
+- `docs/reference/architecture/trust-layer-architecture.md` (신규, 이 ADR 의 상위 아키텍처 요약)
+- `docs/archive/product/requirements/2026-04-23-trust-layer-requirements.md` (당시 SLO 초안)
 - `docs/status.md` 에 P-4 (PyneCore 이식) 를 Path γ 로 tracking
 
 ### 운영
@@ -334,7 +334,7 @@ Stage 1 Day 3 오픈 질문 3 개 결정 + Gate-0 Opus evaluator Warning (W2/W3/
 |   #    | Warning                                                       | 반영 위치                                                                                                                      |
 | :----: | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | **W2** | Mutation M3 (strategy.entry 반환값) 가 "P-2 or P-3" 분류 모호 | `test_trust_layer_parity.py` 주석에 "Stage 2 실측 후 재분류" 명시. 현재는 양쪽 layer 중 하나라도 포착하면 PASS (SLO ≥7/8 기준) |
-| **W3** | Dogfood D-C 판정 1주 sample size 불충분                       | `docs/guides/dogfood-checklist.md` §3.3 에 "1~2주차는 관찰, **3주차부터 판정**" 단서 추가 (별도 커밋)                          |
+| **W3** | Dogfood D-C 판정 1주 sample size 불충분                       | `docs/archive/operations/dogfood/2026-04-23-dogfood-checklist.md` §3.3 에 "1~2주차는 관찰, **3주차부터 판정**" 단서 추가 (별도 커밋) |
 | **W4** | Decimal `getcontext().prec` 정책 문서화 누락                  | `_tolerance.py` 파일 docstring 에 "기본 `prec = 28` 유지 — metric 범위 [1e-4, 1e1] 에서 충분" 명시                             |
 | **W5** | `baseline_metrics.json` schema 에 외부 의존 버전 미기록       | `baseline_metrics.schema.json` 에 `tool_versions.pynescript / python` 필수 필드 추가. regen 시 자동 기록                       |
 

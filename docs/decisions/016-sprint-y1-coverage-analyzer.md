@@ -4,7 +4,7 @@
 > **일자:** 2026-04-23 (PR #61 merge)
 > **브랜치:** `feat/sprint-y1-pine-coverage-analyzer`
 > **관련 ADR:** [ADR-011 Pine v4](./011-pine-execution-strategy-v4.md), [ADR-020 Trust Layer CI](./020-trust-layer-ci-design.md) (후속)
-> **상위 문서:** [`04_architecture/trust-layer-architecture.md`](../reference/trust-layer-architecture.md)
+> **상위 문서:** [`trust-layer-architecture.md`](../reference/architecture/trust-layer-architecture.md)
 
 ---
 
@@ -75,7 +75,7 @@ Sprint 8a ~ 8c + X1+X3 완료 후 dogfood 시도 과정에서 발견된 패턴:
 ```
 ⚠️ 미지원 (3건): fixnan, ta.supertrend, request.security
    이 전략은 백테스트 실행이 차단됩니다. 지원 함수 목록:
-   [docs/reference/supported-indicators.md]
+   [docs/reference/domain/supported-indicators.md]
 ```
 
 ### 3.2 Backtest 생성 — 422 Reject
@@ -170,8 +170,8 @@ stdlib 에 새 함수 추가 시:
 
 ### 문서
 
-- `02_domain/supported-indicators.md` (FE 링크 대상, 기존 존재)
-- `01_requirements/pine-coverage-assignment.md` (기존 존재, Y1 이 공식화)
+- `domain/supported-indicators.md` (FE 링크 대상, 기존 존재)
+- `archive/domain/2026-04-14-pine-coverage-assignment.md` (Y1 이전 조사 기록)
 
 ---
 

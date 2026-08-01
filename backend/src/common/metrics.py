@@ -544,6 +544,18 @@ qb_live_conditional_plan_drop_evaluations_total = Counter(
     labelnames=("reason",),
 )
 
+# BL-576 — 조건부 reconcile 중 계획기 밖에서 난 사건을 사건 종류와 사유로 분리한다.
+# `plan_drop` 은 위 `qb_live_conditional_plan_drop_evaluations_total{reason}` 가 이미
+# 평가 발화 횟수를 세므로 여기에 넣지 않는다. 두 counter 를 합산하지 마라.
+# `breach_exceeds_cap` 은 계획기와 등재 가드 양쪽에서 나고 payload 키셋도 달라 reason
+# 단독으로는 유일하지 않다. event 축이 그 충돌을 막는다.
+# Cardinality: event별 허용 reason 1 + 2 + 1 + 3 + 1 = 8, event별 other 5 = 최대 13 series.
+qb_live_conditional_divergence_total = Counter(
+    "qb_live_conditional_divergence_total",
+    "조건부 reconcile의 계획기 밖 사건 수 (event와 정규화된 reason별)",
+    labelnames=("event", "reason"),
+)
+
 # ★이 counter 는 `run_live` 가 정상 반환한 평가에서만 오른다. 그 뒤의 runtime divergence·
 #   gap mismatch·position divergence 는 각자 조기 return 하므로, 그 tick 들은 여기 안 잡힌다.
 #   발화 지점을 `run_live` 직후로 둔 이유가 그것이다 — 더 앞에는 result 자체가 없다.

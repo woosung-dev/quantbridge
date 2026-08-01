@@ -42,7 +42,7 @@
 # ⚠️ CONTROL(= 현재 탭, 메인 체크아웃)이 필요한 이유 — 워크트리에서는 celery 경유 검증
 #    (백테스트·라이브신호·옵티마이저)이 **구조적으로 불가능**하다. worker 컨테이너가 메인의
 #    `./backend/src` 를 bind-mount 하므로 워크트리 코드는 실행되지 않는다. 테스트는 통과하는데
-#    돌아간 게 내 코드가 아닌 침묵 실패다. 상세: docs/reference/worktree-parallel.md §3.
+#    돌아간 게 내 코드가 아닌 침묵 실패다. 상세: docs/reference/operations/worktree-parallel.md §3.
 
 set -euo pipefail
 
@@ -347,7 +347,7 @@ fi
 #   ⚠️ `-s workspace-write` 는 **워크스페이스(=워크트리) 밖 쓰기와 네트워크를 막는다.** 그게
 #      의도다 — 워커는 자기 워크트리만 만져야 한다. 대신 codex 워커에게 DB 를 타는 검증을
 #      시키면 안 된다(localhost TCP 가 Operation not permitted 로 막힌다 — 실측).
-#      docs/guides/fleet-orchestration.md §3 의 라우팅 표를 봐라.
+#      docs/reference/operations/workflows/fleet-orchestration.md §3 의 라우팅 표를 봐라.
 agent_args_for() {
   case "$1" in
     codex) printf '%s\n' -a never -s workspace-write ;;

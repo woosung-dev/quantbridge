@@ -1,7 +1,7 @@
 # QuantBridge — TradingView Pine Script 전략 → 백테스트·데모·라이브 트레이딩 퀀트 플랫폼
 
 > **새 AI 세션 첫 step — 3 종만 읽는다.** `CONTEXT.md` (도메인 헌법 — 용어/관계 SSOT) + 본 파일 + `docs/status.md`.
-> ★**`docs/status.md` 최상단 「다음 스프린트」 블록이 다음에 무엇을 할지의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다 (근거: `docs/guides/generator-evaluator-pipeline.md` §G8).
+> ★**`docs/status.md` 최상단 「다음 스프린트」 블록이 다음에 무엇을 할지의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다 (근거: `docs/reference/operations/workflows/generator-evaluator-pipeline.md` §G8).
 > `docs/roadmap.md` (다음 후보) 와 `docs/backlog.md` (open BL) 은 **필요할 때 열어본다** — 통째로 읽지 않는다.
 > 본 파일은 **stable orientation** 만 보존. Sprint narrative 는 `docs/status.md`, 회고는 `docs/dev-log/INDEX.md`, 결정 근거는 `docs/decisions/`.
 
@@ -49,10 +49,10 @@
 - **정본** — `docs/reference/`. 코드와 어긋나면 **코드가 맞다**, 문서를 고쳐라
 - **결정 근거** — `docs/decisions/`. 규칙 변경 전 필독. 폐기는 삭제가 아니라 `Superseded` 표기
 - **끝난 것** — `docs/archive/`. 읽기 전용, 기존 항목 수정 금지
-- **뭘 돌려야 통과인가** — `docs/reference/gates-and-traps.md`. 게이트 커맨드 + 조용히 통과하는 함정
+- **뭘 돌려야 통과인가** — `docs/reference/operations/gates-and-traps.md`. 게이트 커맨드 + 조용히 통과하는 함정
 - 전체 목차 = `docs/README.md`
 
-**스프린트가 끝나면 그 스프린트 문서를 승격(`reference/`) 하거나 강등(`archive/`) 한다. 그대로 두지 않는다** (`docs/guides/sprint-template.md` §9).
+**스프린트가 끝나면 그 스프린트 문서를 승격(`reference/`) 하거나 강등(`archive/`) 한다. 그대로 두지 않는다** (`docs/reference/operations/workflows/sprint-template.md` §9).
 
 ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-` 백로그. 한 번 부여한 ID 재사용 금지.
 
@@ -98,7 +98,7 @@ scripts/herdr-fleet.sh --agent claude:<이름> --agent codex:<이름>   # 오케
 cd <워크트리> && ./scripts/worktree-bootstrap.sh --adopt-env         # 워크트리 하나만 수동으로
 ```
 
-★**워크트리에서 `make up` / `down` / `migrate` / `seed` 계열은 거부된다** — 컨테이너와 앱 DB 는 1벌 공유라 실행하면 다른 워크트리와 메인이 함께 깨진다. **celery 경유 검증(백테스트·라이브신호·옵티마이저)은 워크트리에서 구조적으로 불가능하다** — worker 가 메인의 `src` 를 mount 하므로 내 코드가 아니라 메인 코드가 돈다(침묵 실패). 정본: [`docs/reference/worktree-parallel.md`](docs/reference/worktree-parallel.md).
+★**워크트리에서 `make up` / `down` / `migrate` / `seed` 계열은 거부된다** — 컨테이너와 앱 DB 는 1벌 공유라 실행하면 다른 워크트리와 메인이 함께 깨진다. **celery 경유 검증(백테스트·라이브신호·옵티마이저)은 워크트리에서 구조적으로 불가능하다** — worker 가 메인의 `src` 를 mount 하므로 내 코드가 아니라 메인 코드가 돈다(침묵 실패). 정본: [`docs/reference/operations/worktree-parallel.md`](docs/reference/operations/worktree-parallel.md).
 
 ### BE pytest — env 소싱 의무
 

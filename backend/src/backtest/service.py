@@ -171,7 +171,7 @@ class BacktestService:
             raise StrategyNotRunnable(
                 detail=(
                     f"Strategy contains unsupported Pine built-ins: {unsupported_str}. "
-                    f"See docs/reference/supported-indicators.md for the supported list."
+                    f"See docs/reference/domain/supported-indicators.md for the supported list."
                 ),
                 unsupported_builtins=unsupported_list,
             )

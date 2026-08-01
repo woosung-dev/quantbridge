@@ -1542,7 +1542,11 @@ async def test_trailing_only_leg_is_not_placed_at_all(
 
     harness.order_service.execute.assert_not_awaited()
     assert outcomes == ["bracket_trailing_only_dropped"]
-    assert "live_conditional_reconcile_divergence" in caplog.messages
+    assert any(
+        record.message == "live_conditional_guard_drop"
+        and getattr(record, "reason", None) == "bracket_trailing_only"
+        for record in caplog.records
+    )
 
 
 @pytest.mark.asyncio

@@ -39,7 +39,7 @@ def test_strategy_not_runnable_has_unsupported_builtins_attribute() -> None:
     exc = StrategyNotRunnable(
         detail=(
             "Strategy contains unsupported Pine built-ins: heikinashi, security. "
-            "See docs/reference/supported-indicators.md for the supported list."
+            "See docs/reference/domain/supported-indicators.md for the supported list."
         ),
         unsupported_builtins=["heikinashi", "security"],
     )
@@ -67,7 +67,7 @@ def test_app_exc_handler_serializes_unsupported_builtins() -> None:
         raise StrategyNotRunnable(
             detail=(
                 "Strategy contains unsupported Pine built-ins: heikinashi, security. "
-                "See docs/reference/supported-indicators.md for the supported list."
+                "See docs/reference/domain/supported-indicators.md for the supported list."
             ),
             unsupported_builtins=["heikinashi", "security"],
         )

@@ -34,6 +34,13 @@ jobs:
             backend:
               - 'backend/**'
 
+  documentation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check active documentation links and retired paths
+        run: make docs-audit
+
   frontend:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'

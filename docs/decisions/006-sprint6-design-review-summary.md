@@ -6,7 +6,7 @@
 > **관련 PR:** [#8](https://github.com/woosung-dev/quantbridge/pull/8) (Sprint 6 설계/리뷰, commits `ebaa9b3` → `0842fa9`)
 > **관련 문서:**
 >
-> - Parent design doc: `docs/reference/trading-demo.md`
+> - Parent design doc: `docs/archive/product/trading/2026-04-16-trading-demo-mvp-design.md`
 > - Brainstorming spec: `docs/archive/superpowers/specs/2026-04-16-trading-demo-design.md`
 > - Implementation plan: `docs/archive/superpowers/plans/2026-04-16-trading-demo.md`
 > - Security audit: `docs/archive/audit/2026-04-16-trading-demo-security.md`
