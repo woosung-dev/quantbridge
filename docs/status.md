@@ -68,7 +68,7 @@
 
 ### baseline (2026-08-01 실측 — `stage/entry-completeness-rejudgement` 착수 시점, 문서값과 **7/7 일치**)
 
-**BE 3791 passed / 46 skipped**(착수 3749 대비 **+42**) · **FE 1237**(205 파일, **+0** — FE diff 0) ·
+**BE 3792 passed / 46 skipped**(착수 3749 대비 **+43**) · **FE 1237**(205 파일, **+0** — FE diff 0) ·
 ruff clean · mypy **214** clean ·
 마이그레이션 head **`20260801_0001`**(이번 회차 **+0**) ·
 `scripts/bl-audit.sh` **exit 0**(active **150** / 전체 **235**) · `scripts/bl-audit-test.sh` **5/5**.

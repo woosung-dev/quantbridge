@@ -278,7 +278,7 @@ notional 인지 kill-switch 인지 구분되지 않는다. 운영자가 그대�
 
 | 게이트             |             착수 baseline |                      **이번** |               증감 |
 | ------------------ | ------------------------: | ----------------------------: | -----------------: |
-| BE pytest          |  3749 passed / 46 skipped |         **3791 / 46 skipped** |            **+42** |
+| BE pytest          |  3749 passed / 46 skipped |         **3792 / 46 skipped** |            **+43** |
 | FE vitest          |           1237 (205 파일) |                **1237 (205)** | **+0** (FE diff 0) |
 | mypy               |                 214 clean |                 **214 clean** |                  0 |
 | ruff               |                     clean |                     **clean** |                  0 |
@@ -361,6 +361,12 @@ CONTROL 이 나눠 가졌다. **이탈을 명시한다.**
   복원한다고 `git checkout -- metrics.py` 를 쳤더니 **helper 자체가 사라졌다**(변이 전이 아니라
   HEAD 로 갔다). call-site 는 없는 이름을 import 해 수집 단계에서 죽었다. **변이는 문자열 치환
   쌍으로만 하고, 그게 어려우면 변이 전에 커밋해라.**
+- ★★★**게이트를 돌리는 중에 워크트리를 바꾸지 마라 — 이 회차에 두 번 밟았다.**
+  ① BE 스위트 실행 중 워커 브랜치를 머지 → `test_assert_partitions_is_not_an_assert_statement`
+  **거짓 red**(현재 트리 29 passed). ② **한 번 기록한 뒤에 또** — 게이트가 도는 중에 커밋했고
+  `lint-staged` 가 `ruff format` 으로 백엔드 6파일을 고쳤다. 두 실행 모두 폐기하고 재실행했다.
+  ★**규약이 이미 답을 갖고 있었다** — `final-gates.sh` 는 **「커밋 후」**에 돌리라고 적혀 있다.
+  그 순서는 편의가 아니라 **트리를 얼리기 위한 것**이다.
 - ★★**게이트를 돌리는 중에 워크트리를 바꾸지 마라.** BE 스위트 실행 중에 워커 브랜치를 머지해
   `test_assert_partitions_is_not_an_assert_statement` 가 **거짓 red** 를 냈다(현재 트리에서는
   29 passed). 재실행으로 확인했다.
