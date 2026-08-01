@@ -55,6 +55,25 @@ describe("labelOf", () => {
   });
 });
 
+// BL-571 (c) — 폴백은 fail-loud 로 남기되, 폴링 재렌더마다 같은 경고가 다시 찍혀
+// 콘솔을 덮는 것만 막는다(/trading 에서 40초에 67건).
+describe("미지 key 경고 중복 차단", () => {
+  it("같은 (scope, key) 반복 → 경고 1회", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(labelOf(STR_TABLE, "flat", "dedupe")).toBe("flat");
+    expect(labelOf(STR_TABLE, "flat", "dedupe")).toBe("flat");
+    expect(labelOf(STR_TABLE, "flat", "dedupe")).toBe("flat");
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it("key 나 scope 가 다르면 각각 경고 (fail-loud 유지)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    labelOf(STR_TABLE, "close", "dedupe");
+    statusLabelOf(STATUS_TABLE, "flat", "dedupe-other");
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("orEmptyCell", () => {
   it("null/undefined → EMPTY_CELL", () => {
     expect(orEmptyCell(null)).toBe(EMPTY_CELL);

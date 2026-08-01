@@ -3,6 +3,8 @@
 // 화면에 그대로 인쇄하지 않기 위한 한국어 라벨 매핑이며, no-raw-enum-labels 가드(S9 확장
 // 스코프)가 features/live-sessions/components 의 원시 status 렌더를 잡는다.
 
+import type { StatusLabel } from "@/lib/labels";
+
 import type { LiveSignalEventStatus } from "./schemas";
 
 /**
@@ -26,6 +28,25 @@ export const LIVE_SIGNAL_EVENT_STATUS_LABEL: Record<LiveSignalEventStatus, strin
 export const LIVE_SIGNAL_DIRECTION_LABEL: Record<"long" | "short", string> = {
   long: "롱",
   short: "숏",
+};
+
+/**
+ * BL-572 — 세션 상태 칩. **표 · 목록 카드 · 상세 배지가 같은 이름을 쓰게 하는 SSOT** 다.
+ *
+ * 그전까지 표는 `is_active ? "ACTIVE" : "PAUSED"` 영문 리터럴을 박아 뒀고, 같은 화면의 목록
+ * 카드는 동일 세션을 "종료된 세션" 으로 불렀다 — 한 화면에서 한 세션이 두 이름이었다.
+ * 게다가 PAUSED 는 의미도 틀렸다. 이 세션들은 사유(`position_divergence` 등)와 함께 **끝난**
+ * 것이지 재개를 기다리는 게 아니다. 종료 계열 어휘는 카드 쪽이 이미 맞았으므로 그쪽으로 모은다.
+ *
+ * 상태는 BE enum 이 아니라 `LiveSession.is_active` 불리언에서 파생하므로 `labelOf` 폴백이
+ * 필요 없다 — 미지 코드가 올 자리가 없다. 톤까지 여기 두는 이유는 칩 색도 라벨과 같이
+ * 갈라지기 때문이다(표가 accent/기본을 자체 삼항으로 정하고 있었다).
+ */
+export type LiveSessionStatus = "active" | "ended";
+
+export const LIVE_SESSION_STATUS_LABEL: Record<LiveSessionStatus, StatusLabel> = {
+  active: { label: "실행 중", tone: "accent" },
+  ended: { label: "종료된 세션", tone: "neutral" },
 };
 
 /**

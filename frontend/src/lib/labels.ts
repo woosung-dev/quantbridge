@@ -39,11 +39,19 @@ export interface StatusLabelWithIcon extends StatusLabel {
   readonly showCheckIcon?: boolean;
 }
 
+// BL-571 (c) — 이미 경고한 (scope, key) 쌍. 폴링 화면은 같은 미지 코드를 초당 여러 번 다시
+// 렌더하므로, 덮지 않으면 /trading 에서 40초에 67건이 찍혀 정작 읽어야 할 다른 로그를 덮는다.
+// 코드당 1회면 "서버가 새 enum 을 먼저 배포했다" 는 신호는 그대로 전달된다.
+const warnedKeys = new Set<string>();
+
 function warnUnknownKey(key: string, scope: string): void {
-  if (process.env.NODE_ENV !== "production") {
-    // 서버가 새 enum 을 먼저 배포한 경우를 개발 중에 즉시 드러낸다.
-    console.warn(`[labels] ${scope} 에 없는 enum 값입니다: ${key}`);
-  }
+  if (process.env.NODE_ENV === "production") return;
+  // scope 를 함께 묶는다 — 같은 코드라도 표가 다르면 다른 결함이다.
+  const warned = `${scope}::${key}`;
+  if (warnedKeys.has(warned)) return;
+  warnedKeys.add(warned);
+  // 서버가 새 enum 을 먼저 배포한 경우를 개발 중에 즉시 드러낸다.
+  console.warn(`[labels] ${scope} 에 없는 enum 값입니다: ${key}`);
 }
 
 /**

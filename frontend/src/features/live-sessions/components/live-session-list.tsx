@@ -22,6 +22,7 @@ import {
   useLiveSessionState,
   useLiveSessions,
 } from "../hooks";
+import { LIVE_SESSION_STATUS_LABEL } from "../labels";
 import type { LiveSession } from "../schemas";
 import { formatDateTime, formatRealizedPnl } from "../utils";
 import { LiveSessionStateView } from "./live-session-state-view";
@@ -145,7 +146,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
                   <span className="flex flex-wrap items-center gap-2 font-medium">
                     {s.symbol}
                     <span className="rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                      종료된 세션
+                      {LIVE_SESSION_STATUS_LABEL.ended.label}
                     </span>
                     <SessionEndedReason
                       reason={s.deactivated_reason}
