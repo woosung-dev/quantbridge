@@ -183,7 +183,7 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
     monkeypatch.setattr(sh_module, "publish_realtime", publisher)
 
     qb_active_orders.set(1.0)
-    partial_counter = qb_partial_fill_total.labels(source="ws")
+    partial_counter = qb_partial_fill_total.labels(source="ws", kind="entry")
     before_partial = partial_counter._value.get()
 
     await handler.handle_order_event(
@@ -212,6 +212,55 @@ async def test_handle_order_event_filled_winner_commits_then_decs(
     assert trace == ["commit", "publish"]
     assert qb_active_orders._value.get() == 0.0
     assert partial_counter._value.get() == before_partial + 1
+
+
+@pytest.mark.asyncio
+async def test_handle_order_event_partial_fill_splits_ws_metric_by_order_kind(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    entry_order = _build_order()
+    close_order = _build_order()
+    close_order.reduce_only = True
+
+    repo = AsyncMock()
+    repo.get_by_id = AsyncMock(side_effect=[entry_order, close_order])
+    repo.transition_to_filled = AsyncMock(return_value=1)
+
+    session = AsyncMock()
+    handler = StateHandler(
+        session_factory=_make_session_factory(session),
+        settings=MagicMock(),
+        alert_sender=AsyncMock(return_value=True),
+        user_id=uuid4(),
+    )
+    import src.tasks.trading as task_mod
+    from src.trading.websocket import state_handler as sh_module
+
+    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
+    monkeypatch.setattr(sh_module, "publish_realtime", AsyncMock())
+    monkeypatch.setattr(task_mod, "_enqueue_trailing_if_intended", lambda _order: None)
+    monkeypatch.setattr(task_mod, "_enqueue_closed_pnl_refresh", lambda _order: None)
+    monkeypatch.setattr(task_mod, "_enqueue_conditional_reversal_measure", lambda _order: None)
+
+    entry_counter = qb_partial_fill_total.labels(source="ws", kind="entry")
+    close_counter = qb_partial_fill_total.labels(source="ws", kind="close")
+    entry_before = entry_counter._value.get()
+    close_before = close_counter._value.get()
+
+    for order in (entry_order, close_order):
+        await handler.handle_order_event(
+            uuid4(),
+            {
+                "orderLinkId": str(order.id),
+                "orderStatus": "Filled",
+                "orderId": f"exchange-{order.id}",
+                "avgPrice": "100.0",
+                "cumExecQty": "0.0005",
+            },
+        )
+
+    assert entry_counter._value.get() == entry_before + 1
+    assert close_counter._value.get() == close_before + 1
 
 
 @pytest.mark.asyncio

@@ -523,7 +523,9 @@ async def _execute_with_session(
                 and receipt.filled_quantity.is_finite()
                 and receipt.filled_quantity < order.quantity
             ):
-                qb_partial_fill_total.labels(source="rest").inc()
+                qb_partial_fill_total.labels(
+                    source="rest", kind="close" if order.reduce_only else "entry"
+                ).inc()
             _enqueue_trailing_if_intended(order)
             _enqueue_closed_pnl_refresh(order)
             _enqueue_conditional_reversal_measure(order)
@@ -865,7 +867,9 @@ async def _fetch_order_status_with_session(
                     and status_fetch.filled_quantity.is_finite()
                     and status_fetch.filled_quantity < order.quantity
                 ):
-                    qb_partial_fill_total.labels(source="watchdog").inc()
+                    qb_partial_fill_total.labels(
+                        source="watchdog", kind="close" if order.reduce_only else "entry"
+                    ).inc()
                 _enqueue_trailing_if_intended(order)
                 _enqueue_closed_pnl_refresh(order)
                 _enqueue_conditional_reversal_measure(order)

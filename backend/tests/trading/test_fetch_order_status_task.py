@@ -199,7 +199,7 @@ async def test_fetch_order_status_partial_fill_increments_watchdog_metric(
         lambda exchange, mode, has_leverage: _PartialStatusProvider(),
     )
     monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
-    counter = qb_partial_fill_total.labels(source="watchdog")
+    counter = qb_partial_fill_total.labels(source="watchdog", kind="entry")
     before = counter._value.get()
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
