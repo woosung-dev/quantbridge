@@ -25,7 +25,11 @@ import {
 import { labelOf, statusLabelOf } from "@/lib/labels";
 
 import { useLiveSessionEvents, useLiveSessionState } from "../hooks";
-import { LIVE_SIGNAL_DIRECTION_LABEL, LIVE_SIGNAL_EVENT_STATUS_LABEL } from "../labels";
+import {
+  LIVE_SESSION_STATUS_LABEL,
+  LIVE_SIGNAL_DIRECTION_LABEL,
+  LIVE_SIGNAL_EVENT_STATUS_LABEL,
+} from "../labels";
 import type { LiveSession } from "../schemas";
 // Sprint 27 BL-140 — buildActivityTimeline 은 utils.ts (테스트 가능 단위).
 // Sprint 28 Slice 3 (BL-140b) — buildActivityTimelineWithEquity 추가 (real cumulative PnL).
@@ -144,7 +148,7 @@ export function LiveSessionDetail({ session }: Props) {
                 className="rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
                 data-testid="live-session-ended-badge"
               >
-                종료된 세션
+                {LIVE_SESSION_STATUS_LABEL.ended.label}
               </span>
               {/* BL-484 — 배지 옆에 사유. 사유가 없는 과거 행에서는 아예 안 그린다. */}
               <SessionEndedReason
