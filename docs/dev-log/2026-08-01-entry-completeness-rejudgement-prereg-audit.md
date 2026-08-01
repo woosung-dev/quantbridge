@@ -47,6 +47,12 @@
 | `dev-log/2026-07-30-…:36`                      | 유실률 ≥10% **또는** 채널 분산                  | OR      |
 | `dev-log/2026-07-29-…:137` · `backlog.md:4364` | **그리고** — 두 근거 모두                       | AND     |
 
+> ★**2026-08-02 정정 — 위 표의 앵커 4개가 죽었다(원문은 회고라 그대로 둔다).** `b8d53141`(PR #518)이
+> A1~A5 원문 표를, `f3a3c93c` 가 나머지 판정표와 `backlog.md` 의 AND 기록을 지웠다 —
+> `status.md:52`·`:472`·`:425` · `backlog.md:4364` 는 이제 다른 내용을 가리킨다.
+> **살아남은 것은 `dev-log/2026-07-30-…:36` 의 OR 하나뿐이었고**(2026-08-02 정정 완료),
+> 판정식 정본은 [`reference/operations/workflows/generator-evaluator-pipeline.md`](../reference/operations/workflows/generator-evaluator-pipeline.md) §G1.1 로 옮겼다.
+
 ★**드리프트가 07-29 에 안 걸린 이유** — 그날은 두 근거가 **둘 다 참**이라(`둘 다 충족`)
 AND/OR 이 같은 답을 냈다. **판별력이 0인 창에서 검증돼 통과한 것이다.**
 

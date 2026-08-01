@@ -41,6 +41,7 @@ from src.common.alert import track_pending_alert
 from src.common.metrics import (
     qb_active_orders,
     qb_live_conditional_cancelled_total,
+    qb_live_conditional_divergence_total,
     qb_live_conditional_guard_total,
     qb_live_conditional_placed_total,
     qb_live_conditional_plan_drop_evaluations_total,
@@ -702,6 +703,15 @@ _PLAN_DROP_REASONS: frozenset[str] = frozenset(
 _PENDING_ORDER_SKIP_REASONS: frozenset[str] = frozenset(
     {"session_disallowed", "invalid_leg", "below_api_precision"}
 )
+_CONDITIONAL_DIVERGENCE_REASONS: dict[str, frozenset[str]] = {
+    "exchange_divergence": frozenset({"exchange_missing_resting_order"}),
+    "stand_down": frozenset({"hedge_mode", "shared_account_symbol"}),
+    "degraded_input": frozenset({"reference_price_unavailable"}),
+    "guard_drop": frozenset(
+        {"breach_exceeds_cap", "bracket_trailing_only", "bracket_tp_size_mismatch"}
+    ),
+    "market_converted": frozenset({"market_converted"}),
+}
 
 
 def _plan_drop_reason(raw: object) -> str:
@@ -710,6 +720,11 @@ def _plan_drop_reason(raw: object) -> str:
 
 def _pending_order_skip_reason(raw: object) -> str:
     return raw if isinstance(raw, str) and raw in _PENDING_ORDER_SKIP_REASONS else "other"
+
+
+def _conditional_divergence_reason(event: str, raw: object) -> str:
+    reasons = _CONDITIONAL_DIVERGENCE_REASONS.get(event, frozenset())
+    return raw if isinstance(raw, str) and raw in reasons else "other"
 
 
 # BL-516 안 3 — overshoot 비율의 버킷 경계. 상한이 없는 마지막 버킷까지 4개로 고정해
@@ -1082,8 +1097,15 @@ async def _reconcile_conditional_entries(
                     qb_live_conditional_reconcile_errors_total.labels(
                         stage="exchange_missing"
                     ).inc()
+                _count_safely(
+                    qb_live_conditional_divergence_total,
+                    event="exchange_divergence",
+                    reason=_conditional_divergence_reason(
+                        "exchange_divergence", "exchange_missing_resting_order"
+                    ),
+                )
                 logger.warning(
-                    "live_conditional_reconcile_divergence",
+                    "live_conditional_exchange_divergence",
                     extra={
                         "session_id": str(sess.id),
                         "order_id": order_id,
@@ -1177,8 +1199,13 @@ async def _reconcile_conditional_entries(
             current_position = Decimal("0")
             if stand_down_reason is not None:
                 qb_live_conditional_reconcile_errors_total.labels(stage="positions").inc()
+                _count_safely(
+                    qb_live_conditional_divergence_total,
+                    event="stand_down",
+                    reason=_conditional_divergence_reason("stand_down", stand_down_reason),
+                )
                 logger.error(
-                    "live_conditional_reconcile_divergence",
+                    "live_conditional_stand_down",
                     extra={"session_id": str(sess.id), "reason": stand_down_reason},
                 )
                 desired = []
@@ -1192,8 +1219,15 @@ async def _reconcile_conditional_entries(
                 exchange_reference_price = await bybit_provider.fetch_last_price(creds, sess.symbol)
                 if exchange_reference_price is None:
                     qb_live_conditional_guard_total.labels(outcome="reference_unavailable").inc()
+                    _count_safely(
+                        qb_live_conditional_divergence_total,
+                        event="degraded_input",
+                        reason=_conditional_divergence_reason(
+                            "degraded_input", "reference_price_unavailable"
+                        ),
+                    )
                     logger.warning(
-                        "live_conditional_reconcile_divergence",
+                        "live_conditional_degraded_input",
                         extra={
                             "session_id": str(sess.id),
                             "symbol": sess.symbol,
@@ -1247,7 +1281,7 @@ async def _reconcile_conditional_entries(
                 # 그 닫힘은 `tests/common/test_logging_config.py` 의
                 # `test_only_dynamic_extra_site_cannot_produce_reserved_keys` 가 지킨다.
                 logger.warning(
-                    "live_conditional_reconcile_divergence",
+                    "live_conditional_plan_drop",
                     extra={"session_id": str(sess.id), **divergence},
                 )
 
@@ -1451,8 +1485,15 @@ async def _reconcile_conditional_entries(
                         )
                         if max_breach_pct is not None and breach_pct > max_breach_pct:
                             qb_live_conditional_guard_total.labels(outcome="breach_capped").inc()
+                            _count_safely(
+                                qb_live_conditional_divergence_total,
+                                event="guard_drop",
+                                reason=_conditional_divergence_reason(
+                                    "guard_drop", "breach_exceeds_cap"
+                                ),
+                            )
                             logger.warning(
-                                "live_conditional_reconcile_divergence",
+                                "live_conditional_guard_drop",
                                 extra={
                                     "session_id": str(sess.id),
                                     "trade_id": planned_entry.trade_id,
@@ -1477,8 +1518,15 @@ async def _reconcile_conditional_entries(
                             qb_live_conditional_guard_total,
                             outcome="bracket_trailing_only_dropped",
                         )
+                        _count_safely(
+                            qb_live_conditional_divergence_total,
+                            event="guard_drop",
+                            reason=_conditional_divergence_reason(
+                                "guard_drop", "bracket_trailing_only"
+                            ),
+                        )
                         logger.warning(
-                            "live_conditional_reconcile_divergence",
+                            "live_conditional_guard_drop",
                             extra={
                                 "session_id": str(sess.id),
                                 "trade_id": planned_entry.trade_id,
@@ -1507,8 +1555,15 @@ async def _reconcile_conditional_entries(
                         _count_safely(
                             qb_live_conditional_guard_total, outcome="bracket_tp_dropped_size"
                         )
+                        _count_safely(
+                            qb_live_conditional_divergence_total,
+                            event="guard_drop",
+                            reason=_conditional_divergence_reason(
+                                "guard_drop", "bracket_tp_size_mismatch"
+                            ),
+                        )
                         logger.warning(
-                            "live_conditional_reconcile_divergence",
+                            "live_conditional_guard_drop",
                             extra={
                                 "session_id": str(sess.id),
                                 "trade_id": planned_entry.trade_id,
@@ -1643,8 +1698,15 @@ async def _reconcile_conditional_entries(
                             bucket=_reversal_overshoot_bucket(planned_entry.overshoot_ratio),
                         )
                     if planned_entry.as_market:
+                        _count_safely(
+                            qb_live_conditional_divergence_total,
+                            event="market_converted",
+                            reason=_conditional_divergence_reason(
+                                "market_converted", "market_converted"
+                            ),
+                        )
                         logger.warning(
-                            "live_conditional_reconcile_divergence",
+                            "live_conditional_market_converted",
                             extra={
                                 "session_id": str(sess.id),
                                 "trade_id": planned_entry.trade_id,

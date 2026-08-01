@@ -123,7 +123,8 @@ def test_reserved_key_in_extra_raises_from_stdlib_not_from_us():
 
 
 def test_only_dynamic_extra_site_cannot_produce_reserved_keys():
-    """`extra={..., **divergence}` (`tasks/live_signal.py:1039`) 가 예약 키를 만들 수 있는가.
+    """`extra={..., **divergence}` (`tasks/live_signal.py` 의 `live_conditional_plan_drop` 발화)가
+    예약 키를 만들 수 있는가.
 
     ★`backend/src` 전체에서 `extra=` 에 dict 를 unpack 하는 곳은 이 **한 자리뿐**이고,
     그 dict 는 `conditional_entry_planner.plan_reconcile` 이 만든다. 거기서 append 되는

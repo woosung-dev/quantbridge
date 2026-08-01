@@ -86,8 +86,8 @@
 
 ## P0 — Dogfood / H1 종료 blocker
 
-| ID                | 제목                                        | Trigger              | Est      | 출처             |
-| ----------------- | ------------------------------------------- | -------------------- | -------- | ---------------- |
+| ID                | 제목                                        | Trigger              | Est      | 출처                 |
+| ----------------- | ------------------------------------------- | -------------------- | -------- | -------------------- |
 | [BL-003](#bl-003) | Bybit mainnet 진입 runbook + smoke 스크립트 | H1 Stealth 종료 직전 | M (4-5h) | 2026-04-30 TODO 이력 |
 
 > 추가 P0 — [BL-005 본인 dogfood](archive/refactoring-backlog/_deferred.md) + [BL-145 EffectiveLeverageEvaluator](archive/refactoring-backlog/_deferred.md) (deferred). Resolved P0 = BL-001/002/004 ([\_archived.md](archive/refactoring-backlog/_archived.md)).
@@ -737,9 +737,9 @@
 | [BL-571](#bl-571)    | ✅ Resolved — (P3) enum 밖 종료 사유가 원장에 박혀 원문 노출 — AST 가드가 원장 직접 기입을 못 본다 (콘솔 40초 67건)                                               | soak 운영 절차를 다시 돌릴 때 / 콘솔 경고를 게이트로 쓸 때                       | XS           | 2026-08-01 qa                                          |
 | [BL-572](#bl-572)    | ✅ Resolved — (P3) 같은 세션을 표는 `PAUSED`, 옆 카드는 `종료된 세션` 으로 부른다 — 죽은 세션이 재개 가능해 보인다                                                | 라이브 세션 목록/카드를 손댈 때                                                  | XS           | 2026-08-01 qa                                          |
 | [BL-573](#bl-573)    | (P3) `engine_only` tick 당 `list_resting_conditional_entries` 2회 — 감지가 reconcile 보다 앞서 돌아 공유 불가                                                     | tick 비용을 손댈 때 / 두 경로를 합칠 때                                          | S            | 2026-08-01 soak codex                                  |
-| [BL-574](#bl-574)    | ★`LIMIT 100` 이 세션 필터보다 앞서 걸려 현 세션 resting 을 놓치고 `awaiting_trigger` 를 `unexplained` 로 오분류                                                   | 그 분해를 근거로 쓰기 전 / 세션이 쌓일 때                                        | S            | 2026-08-01 soak codex                                  |
+| [BL-574](#bl-574)    | ★`LIMIT 100` 이 세션 필터보다 앞서 걸려 현 세션 resting 을 놓치고 `awaiting_trigger` 를 `unexplained` 로 오분류 (측정 완료 · 수리 보류 — 동시 최대 2 / 100)       | 동시 resting 이 20건을 넘긴 날이 관측될 때                                       | S            | 2026-08-01 soak codex                                  |
 | [BL-575](#bl-575)    | SELECT 실패 후 같은 AsyncSession 을 rollback 없이 재사용 — fail-open 계약이 깨진다 (★선재 패턴, 회귀 아님)                                                        | fail-open 을 근거로 쓰기 전                                                      | S            | 2026-08-01 soak codex                                  |
-| [BL-576](#bl-576)    | ★`live_conditional_reconcile_divergence` 한 이름이 발화 8곳 · payload 3종을 덮는다 (`110017` 라벨 충돌과 같은 형태)                                               | 그 이름으로 세거나 알림·게이트로 쓰기 전                                         | S            | 2026-08-01 soak                                        |
+| [BL-576](#bl-576)    | ✅ Resolved — ★`live_conditional_reconcile_divergence` 한 이름이 발화 8곳 · payload 3종을 덮는다 (`110017` 라벨 충돌과 같은 형태)                                 | 그 이름으로 세거나 알림·게이트로 쓰기 전                                         | S            | 2026-08-01 soak                                        |
 | [BL-577](#bl-577)    | ★`no-raw-enum-labels` 가드가 **존재하지 않는다** — 주석 10곳이 실재처럼 인용하고 3곳은 그 허구를 피하려 코드를 비틀어 놓았다 (BL-572 를 놓친 이유)                | 원시 enum 렌더가 막혔다고 믿고 라벨 코드를 손댈 때                               | S            | 2026-08-01 silent-surface-honesty                      |
 | [BL-578](#bl-578)    | 조건부 진입 `110092`/`110093` 거절 시 거래소가 준 정답(`current[...]`)을 버린다 — BL-536 재판정에서 유일하게 살아남은 채널의 잔여 (측정 완료 · 수리 보류)         | C1 거절이 하루 3건 이상으로 다시 오르거나 실자금 cutover 로 1건 비용이 달라질 때 | S            | 2026-08-01 entry-completeness-rejudgement              |
 
@@ -5147,9 +5147,9 @@ BL id 단일 키로 되돌림 → ⑤ red / (M3) 기존 중복 상태줄 탐지 
 
 **우선순위:** P2
 **카테고리:** Backend / trading (조회 절단이 분류를 뒤집는다)
-**Trigger:** `awaiting_trigger` / `unexplained` 분해를 근거로 쓰기 **전**, 또는 한 전략·계정에 세션이 여러 벌 쌓일 때
+**Trigger:** 한 (strategy, account) 의 **동시 resting 이 20건을 넘긴 날**이 관측될 때 (아래 쿼리). 또는 `awaiting_trigger` / `unexplained` 분해를 근거로 쓰기 **전**
 **Est:** S
-**상태:** 🔴 **열려 있다** — 2026-08-01 codex 적대 리뷰 #3.
+**상태:** 🟢 **열려 있다 — 크기 측정 완료, 수리는 의도적으로 보류.** 2026-08-02 divergence-label-split.
 **출처:** 2026-08-01 soak 후속 codex 리뷰
 
 ★**`LIMIT 100` 이 세션 필터보다 앞서 걸려, 현 세션의 resting 주문을 놓치고 `awaiting_trigger` 를 `unexplained` 로 오분류한다.**
@@ -5169,16 +5169,59 @@ BL id 단일 키로 되돌림 → ⑤ red / (M3) 기존 중복 상태줄 탐지 
 즉 재판정의 69%는 하한이다. 그래도 **분류 근거가 조회 절단에 의존한다는 사실 자체가 결함**이고,
 세션이 쌓이면 임계를 넘는 날이 온다.
 
-★**아직 실측되지 않았다** — 100건을 실제로 넘긴 관측은 없다. 크기를 먼저 재라
-(`SELECT count(*)` 를 같은 술어로 돌려 분포를 보면 1줄이다).
+### ★크기 측정 완료 (2026-08-02, divergence-label-split) — **수리는 값어치 근거로 보류**
 
-**권장 접근:** 세션 술어를 **SQL 안으로** 내린다(`SessionScope` 관용구가 이미 있다).
+~~★**아직 실측되지 않았다**~~ → **쟀다. 그리고 재는 축이 틀려 있었다.**
+
+★★**`LIMIT 100` 은 달력일이 아니라 「동시각 resting」에 걸린다.** 그전에 인용되던
+「(strategy, day) 당 최대 75건」은 **일별 생성 수**라 이 술어의 축이 아니다.
+
+| 축                             | 값                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| 조건부 파이프라인 총량         | **264** = `cond` **255** + `condmkt` **9** — 전건 terminal               |
+| 일별 생성                      | 07-28 **81** · 07-30 **59** · 07-31 **50** · 07-29 **43** · 07-27 **31** |
+| ★**동시 미종결(resting) 최대** | **2** (per strategy+account) — 독립 4방법 일치                           |
+| 날짜를 넘긴 미종결             | UTC **0** / **KST 2** ★타임존 의존                                       |
+
+★**총량 술어 주의** — `trigger_price IS NOT NULL` 로 세면 **`condmkt` 9건이 통째로 빠진다**
+(시장가 전환 주문은 정의상 `trigger_price` 가 NULL). 정본은 `idempotency_key` 의 kind 세그먼트다
+(`entry_completeness.py` 의 `label="조건부 진입 (우리 cond/condmkt key 만)"`).
+**이 함정은 2회차 연속 밟혔다.**
+
+⇒ **`LIMIT 100` 이 절단한 적은 없다.** 단 여유는 「75 대 100」이 아니라 **「2 대 100」**이고,
+★**그 2 는 부하 여유가 아니라 이 전략의 진입 신호 수(2종)가 만든 상한**이라 다른 전략으로 외삽할 근거가 없다.
+
+**판단: 선제 경화를 지금 하지 않는다.** 실측 상한이 한계의 **2%** 라 `limit + 1` 절단 감지의
+기대 이득이 없다. **되살릴 조건 = 아래 Trigger** — 한 (strategy, account) 의 동시 resting 이
+**20건(한계의 20%)을 넘긴 날**이 관측되면 그때 경화한다.
+
+```bash
+docker exec quantbridge-db psql -U quantbridge -d quantbridge -At -F'|' -c "
+WITH ev AS (
+  SELECT strategy_id, exchange_account_id, created_at AS ts, 1 AS d FROM trading.orders
+   WHERE trigger_price IS NOT NULL AND reduce_only = false AND created_at >= now() - interval '7 days'
+  UNION ALL
+  SELECT strategy_id, exchange_account_id, filled_at AS ts, -1 AS d FROM trading.orders
+   WHERE trigger_price IS NOT NULL AND reduce_only = false AND created_at >= now() - interval '7 days'
+), r AS (
+  SELECT strategy_id, exchange_account_id,
+         sum(d) OVER (PARTITION BY strategy_id, exchange_account_id ORDER BY ts, d DESC
+                      ROWS UNBOUNDED PRECEDING) AS run
+    FROM ev)
+SELECT strategy_id, exchange_account_id, max(run) FROM r GROUP BY 1,2 HAVING max(run) >= 20"
+```
+
+★**여기서는 `trigger_price IS NOT NULL` 이 옳다** — 이 술어가 재는 것은 `list_resting_conditional_entries`
+가 실제로 거는 조건이고, 그 조회 자체가 같은 필터를 쓴다(`order_repository.py:275`). **총량을 셀 때와
+절단 위험을 잴 때의 정본 술어가 다르다** — 이 구분이 위 함정의 반대편이다.
+
+**권장 접근(되살릴 때):** 세션 술어를 **SQL 안으로** 내린다(`SessionScope` 관용구가 이미 있다).
 그게 어려우면 최소한 **절단을 감지**해라 — `limit + 1` 로 가져와 `len(rows) > limit` 이면
 분류를 `unexplained` 가 아니라 **`unmeasured_truncated`** 로 떨어뜨린다. ★후자가 이 레포의 기존
 관용구다(`list_fills_since` 가 정확히 그렇게 한다, `order_repository.py:400-418`).
 **모르는 것을 아는 것처럼 분류하지 마라** — BL-562 가 세운 규칙과 같다.
 
-**Risk:** 🟡 (관측·분류 계층. 단 그 분류가 [BL-566](#bl-566) 판정의 근거였다)
+**Risk:** 🟢 (실측 상한이 한계의 2%. 단 그 분류가 [BL-566](#bl-566) 판정의 근거였으므로 Trigger 는 유지)
 
 ---
 
@@ -5227,8 +5270,28 @@ savepoint 없이 넣으면 조용히 다른 것을 잃는다.
 **카테고리:** Backend / trading (관측 라벨 충돌)
 **Trigger:** `live_conditional_reconcile_divergence` 를 세거나 알림·게이트로 쓰기 **전**
 **Est:** S
-**상태:** 🔴 **열려 있다** — 2026-08-01 soak 후속. ★**실측으로 발화 8곳 확인.**
+**상태:** ✅ **Resolved** (2026-08-02, divergence-label-split). ★**단 프로덕션 발화는 미검증이다** — 아래 §결과.
 **출처:** 2026-08-01 soak 후속 codex 리뷰 (+ CONTROL 코드 대조로 범위 확대)
+
+**결과 (2026-08-02).** 이름 하나를 **사건별 6종**으로 갈랐고(`exchange_divergence` · `stand_down` ·
+`degraded_input` · `plan_drop` · `guard_drop` · `market_converted`), `reason` 을 **닫힌 집합**으로
+승격해 counter `qb_live_conditional_divergence_total{event, reason}`(series 상한 **13**)을 신설했다.
+증가는 전건 `_count_safely`(mmap 함정). AST 구조 오라클이 **발화 총수 8 · 낡은 이름 0곳**을 고정하고,
+8 발화 **전건**을 결정론 fixture 로 구동해 `(event, reason)` 을 1:1 단언한다. 표적 변이 3종 전건 판별.
+
+★**`event` 축이 필요했던 이유** — `breach_exceeds_cap` 이 계획기(`conditional_entry_planner.py:433`)와
+등재 가드(`live_signal.py:1455`) **양쪽에서 같은 문자열**로 나고 payload 키셋도 다르다.
+**`reason` 단독은 유일키가 아니다.**
+
+★**가장 오해를 부른 자리는 `:1647` 이었다** — 시장가 전환 **성공**(PR #493 의 의도된 수리)이
+「divergence」 이름으로 WARNING 에 올라 발산 수를 부풀렸다. **무해가 위험을 가리는 것의 역방향.**
+
+★★**남은 것 = 프로덕션 발화 검증.** 새 이벤트명·counter 는 **실주행에서 한 번도 발화하지 않았다**
+(이 회차는 창을 열지 않았다). 머지 + worker 재기동 후에만 확인 가능하다.
+**이 라벨로 크기를 주장하려면 [§G1.1](reference/operations/workflows/generator-evaluator-pipeline.md) A5 를 먼저 통과시켜라.**
+**근거:** [스프린트 회고](dev-log/2026-08-02-divergence-label-split.md)
+
+<details><summary>착수 당시 원문 (이력 보존)</summary>
 
 ★**`live_conditional_reconcile_divergence` 한 이름이 구조가 다른 사건들을 덮는다 — `110017` 라벨 충돌과 같은 형태다.**
 
@@ -5259,7 +5322,9 @@ savepoint 없이 넣으면 조용히 다른 것을 잃는다.
 ★**세기 전에 가르는 것이 순서다** — BL-560 이 라벨을 가른 **뒤에야** 크기를 잴 수 있었다.
 [BL-573](#bl-573) 이 같은 자리를 건드리므로 함께 보면 싸다.
 
-**Risk:** 🟡 (관측 계층. 단 이 이름으로 센 수치를 근거로 쓰면 BL-560 이 밟은 함정을 반복한다)
+</details>
+
+**Risk:** 🟢 (가름 완료. 잔여 = 프로덕션 발화 검증)
 
 ---
 
@@ -5280,9 +5345,12 @@ savepoint 없이 넣으면 조용히 다른 것을 잃는다.
 `frontend/eslint.config.mjs` 는 57줄이고 그런 규칙이 없다(`no-restricted-syntax` 자체가 없다).
 `frontend/package.json` 의 `lint` 는 `eslint .` 뿐이고, 이 이름의 스크립트·vitest 가드·lint 플러그인도 없다.
 
-인용 지점 — `backtest-list.tsx:139`·`:356` · `strategy-list.tsx:149`·`:411` ·
-`orders-blotter.tsx:6`·`:240` · `optimizer-run-list.tsx:196` ·
-`live-sessions/labels.ts:3`(“S9 확장 스코프”)·`:24`(“W1 확장, direction 필드”).
+인용 지점 **10곳 전량** (2026-08-01 divergence-label-split 에서 재측정 — 이전 목록은 **9곳만 적고
+`trade-detail-shell.tsx` 를 빠뜨렸고** `labels.ts` 앵커가 `:24`→`:26` 으로 밀려 있었다) —
+`backtests/_components/backtest-list.tsx:139`·`:356` · `strategies/_components/strategy-list.tsx:149`·`:411` ·
+`orders/_components/orders-blotter.tsx:6`·`:240` · `optimizer/_components/optimizer-run-list.tsx:196` ·
+`backtests/_components/trades/trade-detail-shell.tsx:68` ·
+`features/live-sessions/labels.ts:3`(“S9 확장 스코프”)·`:26`(“W1 확장, direction 필드”).
 
 ★**단순한 문서 드리프트가 아니다 — 코드가 그 허구에 맞춰 휘어 있다.**
 `backtest-list.tsx:139` / `strategy-list.tsx:149` / `orders-blotter.tsx:240` 세 곳은
@@ -5305,7 +5373,33 @@ _“가드가 `.status`/`.state` 로 끝나는 JSX 멤버 체인을 전부 잡�
 
 ★**이번 회차에서 고치지 않았다** — BL-572 의 라벨 수리 범위를 넘고, (a)/(b) 는 전략 선택이다.
 
-**Risk:** 🟡 ((a) 를 고르면 신규 규칙이 기존 파일 다수를 빨갛게 만들 수 있다 — 스코프를 좁혀 시작해라. (b) 는 🟢)
+---
+
+### ★결정 = **(a) 짓는다 (스코프 좁게)** — 2026-08-01 divergence-label-split, 사용자 승인
+
+**근거.** BL-572 가 가드 부재로 실제로 머지를 통과했고, 우회 코드 3곳이 이미 그 규칙을 전제로 휘어 있다.
+(b) 를 고르면 「다음 사람이 이건 가드가 잡는다고 믿고 BL-572 를 다시 만든다」를 **막을 수단 없이** 닫는다.
+
+★★**단 착수 전에 확정한 단서 2건이 규칙의 모양을 바꾼다 (코드 대조 실측).**
+
+1. **주석이 주장하는 스코프는 BL-572 를 못 잡는다.** 실제 위반 형태는
+   `{s.is_active ? "ACTIVE" : "PAUSED"}` 였다(`f631f1c7^:live-session-table.tsx:101-103` 실측).
+   `.status`/`.state` **멤버 접근이 아예 없고**, 위반은 **JSX 안의 원시 대문자 문자열 리터럴**이다.
+   ⇒ backlog 가 적었던 「가드가 있었다면 머지 전에 걸렸을 것」은 **참이지만 규칙 모양까지 보증하지 않는다.**
+2. ★★**우회 코드 3곳은 오탐을 피한 것이다.** `backtest-list.tsx:139` · `strategy-list.tsx:149` ·
+   `orders-blotter.tsx:240` 은 **`HEADER.status` / `ORDER_TABLE_HEADER.state` — enum 값이 아니라 헤더
+   문자열**을 스칼라로 풀어 놓았다(주석이 그렇게 명시한다). 규칙을 위 1번의 올바른 모양으로 지으면
+   그 3곳은 **더 이상 필요하지 않다.**
+
+**⇒ 다음 회차 구현 항목 (두 조건 AND).**
+
+- (i) **스코프**: `features/live-sessions` + 세션 상태 렌더 지점부터 시작한다. 전 레포 일괄 금지.
+- (ii) **규칙 모양**: 멤버 체인이 아니라 **JSX text/attribute 위치의 원시 대문자 enum 리터럴**을 잡는다
+  (`ACTIVE`/`PAUSED`/`FILLED` 류). 멤버 체인 규칙은 채택하지 않는다 — 오탐이 이미 코드를 3곳 비틀었다.
+- (iii) **동반 정리**: 위 우회 코드 3곳을 원래 형태로 되돌리고, 스코프 밖 인용 주석 7곳을 걷어낸다.
+  ★이 부분은 (a)/(b) **어느 쪽을 골랐어도 해야 하는 일**이다.
+
+**Risk:** 🟡→🟢 (규칙 모양을 (ii) 로 좁히면 「기존 파일 다수가 빨개진다」는 위험의 근원인 멤버 체인 규칙을 채택하지 않는다)
 
 ---
 
@@ -5326,12 +5420,22 @@ FROM trading.orders
 WHERE reduce_only = false AND state = 'rejected'
   AND (error_message LIKE '%110092%' OR error_message LIKE '%110093%')
   AND created_at >= now() - interval '14 days'
+  AND created_at >= timestamptz '2026-07-29 00:00+00'
 GROUP BY 1 HAVING count(*) >= 3 ORDER BY 1"
 ```
 
 **행이 하나라도 나오면 이 BL 을 되살린다.** 나오지 않으면 보류 유지.
 기준선(2026-08-01 실측) = 07-27 **10** · 07-28 **20** · 07-29 **2** · 07-30 **0** · 07-31 **1**
 — PR #493 이후 문턱을 넘은 날이 없다.
+
+> ★★**2026-08-02 정정 — 이 Trigger 는 자기 기준선에 발화하고 있었다.** 마지막 줄
+> (`created_at >= '2026-07-29'`)이 그 수정이다. 그전 형태는 14일 롤링 창이 기준선 07-27(**10**)·
+> 07-28(**20**) 을 그대로 담아 **2행을 돌려줬고**, 위 결정 규칙이 「행이 하나라도 나오면 되살린다」라
+> **2026-08-11 04:26 UTC 까지 매번 되살림을 지시하는 항상-참 판정식**이었다(verbatim 실행 확인).
+> 원장에 **2026-07-31 18:39 UTC 이후 주문이 0건**이므로 새 증거 없이 발화한다.
+> 정본 규율 = [`reference/operations/workflows/generator-evaluator-pipeline.md`](reference/operations/workflows/generator-evaluator-pipeline.md) §G1.1 규율 6.
+> 수정 후 실행 = **0행**(= 보류 유지). 판별력 확인 = 같은 쿼리의 `HAVING count(*) >= 1` 이 07-29(**2**)·07-31(**1**)을 돌려준다(창이 빈 게 아니다).
+
 **Est:** S
 **상태:** 🟢 **열려 있다 — 크기 측정 완료, 수리는 의도적으로 보류.** 2026-08-01 entry-completeness-rejudgement.
 **출처:** 2026-08-01 [BL-536](#bl-536) 재판정에서 유일하게 살아남은 채널(C1)의 잔여
