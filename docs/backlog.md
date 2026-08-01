@@ -4368,6 +4368,10 @@ BL-188 v3 가 "Live `is_allowed` 와 단일 reference 정합" 을 목표로 했�
 >   `live_signal_events`/counter 로 떨어진다). 2축 판정 — counter `qb_order_rejected_total` ·
 >   `reconcile_errors{*_place_gate}` · `dispatch_total{outcome=rejected}` **전부 series 부재** +
 >   `live_signal_events` 전 기간 failed 는 `close_position_flat` 23건뿐. **0** ✅
+>   ★★**단 counter 축에는 양성 대조가 없다** — `qb_order_rejected_total` 은 한 번도 발화한 적이
+>   없어 그 계측기가 작동한다는 증명이 없다. C5=0 을 떠받치는 것은 **events 축**(양성 대조 있음)과
+>   코드 대조뿐이고, C3/C4 만큼 단단하지 않다. ⇒ **C5 가 실제로 0 이 아니었다면 채널이 분산되어
+>   A3 이 약해질 뿐이고, 그 경우에도 A4(≥10%)는 2.63% 로 실패하므로 「유지」로 돌아가지는 않는다.**
 >
 > #### 사전등록 전건 판정
 >

@@ -731,7 +731,10 @@ def main() -> int:
     parser.add_argument(
         "--breakout-klines",
         default=None,
-        help="C4 판정용 봉 CSV (open_time_iso,high,low). 없으면 C4 는 전부 unmeasured",
+        help=(
+            "C4 판정용 봉 CSV — ★헤더 없이 open_time_iso,high,low 한 줄 = 봉 하나 "
+            "(헤더를 넣으면 첫 줄에서 죽는다). 봉 2개 이상 필요. 없으면 C4 는 전부 unmeasured"
+        ),
     )
     args = parser.parse_args()
 
