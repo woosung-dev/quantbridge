@@ -116,8 +116,15 @@ class SessionDeactivationReason(StrEnum):
     AST 로 훑어 **여기 없는 값이 새면 실패**시킨다. 새 사유를 추가하려면 여기에 먼저 등재해야 한다.
 
     ★컬럼 타입은 PG enum 이 아니라 `String(64)` 다 — `LiveSignalInterval` 이 밟은 자동
-    enum cast(`UndefinedObjectError`) 함정을 피하고, 사유 추가에 마이그레이션이 필요 없게 한다.
-    그래서 **읽을 때는 plain str 로 온다**(`.value`/`.name` 금지 — BL-453 과 동일 계약).
+    enum cast(`UndefinedObjectError`) 함정을 피한다. 그래서 **읽을 때는 plain str 로 온다**
+    (`.value`/`.name` 금지 — BL-453 과 동일 계약).
+
+    ★BL-571 — 값 집합은 `ck_live_signal_sessions_deactivated_reason` CHECK 제약이
+    원장에서 못박는다(아래 `_DEACTIVATION_REASON_CHECK`). **그래서 사유를 추가하려면
+    이 enum + 마이그레이션 + FE 라벨 3곳을 함께 고쳐야 한다** — 컬럼 타입을 String 으로
+    고른 시점의 "사유 추가에 DDL 불필요" 성질은 의도적으로 포기했다. 이유는
+    `_DEACTIVATION_REASON_CHECK` 주석 참조. 빠뜨리면
+    `tests/test_migrations.py::test_deactivation_reason_check_matches_the_enum` 이 잡는다.
     """
 
     # preflight (evaluate 진입 전 차단) — `live_signal.py` 의 `preflight_cat` 집합.
@@ -133,6 +140,30 @@ class SessionDeactivationReason(StrEnum):
     position_divergence = "position_divergence"
     # 사람이 Stop 을 눌렀다
     user_stopped = "user_stopped"
+
+
+# BL-571 — 원장 쪽 방어. `deactivated_reason` 에 enum 밖 값이 들어오면 DB 가 거절한다.
+#
+# ★왜 (iii) repository 검증이나 (ii) 주기 스캔이 아니라 (i) CHECK 인가 —
+# 실제로 원장을 오염시킨 3종(`soak_closed_by_operator` / `interim_window_stop` /
+# `prefix_w1_window_done`)은 **코드가 만든 값이 아니다**. 운영자가 soak 중 psql 로 직접
+# UPDATE 한 값이고, 화면은 그걸 원문 그대로 보여줬다. 기존 가드
+# (`tests/tasks/test_deactivation_reason_wiring.py`)는 `src` 의 `deactivate(...)` 호출부를
+# AST 로 훑는다 — 그 범위는 옳지만, psql·스크립트·수기 경로는 구조적으로 시야 밖이다.
+# repository 검증도 같은 한계를 갖는다(ORM 을 통과하는 쓰기만 본다). 주기 스캔은 막지 못하고
+# 사후에 알릴 뿐이다. **쓰는 주체가 누구든 막는 유일한 자리가 원장 자신이다.**
+#
+# ★대가 — 사유 추가에 마이그레이션이 필요해진다. 컬럼 타입은 그대로 `String(64)` 라
+# 자동 enum cast 함정(`UndefinedObjectError`)은 여전히 없지만, 값 집합이 DDL 에 박히므로
+# enum 만 고치고 마이그레이션을 빠뜨리면 **프로덕션에서 세션 종료가 IntegrityError 로 실패**한다
+# (화면 라벨 오염보다 나쁜 고장이다). 그래서 이 표현식을 손으로 적지 않고 enum 에서 생성하고,
+# 마이그레이션에 박힌 사본은 `tests/test_migrations.py` 의 드리프트 감시가 enum 과 대조한다.
+#
+# `IS NULL OR` 는 가독성용이다 — 세 값 논리상 `NULL IN (...)` 은 NULL 이라 CHECK 를
+# 통과하므로 없어도 동작은 같다. NULL 은 "마이그레이션 이전에 죽은 세션" 으로 정당하다.
+_DEACTIVATION_REASON_CHECK = "deactivated_reason IS NULL OR deactivated_reason IN ({})".format(
+    ", ".join(f"'{reason}'" for reason in SessionDeactivationReason)
+)
 
 
 class ExchangeAccount(SQLModel, table=True):
@@ -432,6 +463,11 @@ class LiveSignalSession(SQLModel, table=True):
 
     __tablename__ = "live_signal_sessions"
     __table_args__ = (
+        # BL-571 — 값 집합을 원장이 직접 거절한다. 표현식 근거는 `_DEACTIVATION_REASON_CHECK`.
+        CheckConstraint(
+            _DEACTIVATION_REASON_CHECK,
+            name="ck_live_signal_sessions_deactivated_reason",
+        ),
         Index("ix_live_sessions_user_active", "user_id", "is_active"),
         Index(
             "ix_live_sessions_active_due",
