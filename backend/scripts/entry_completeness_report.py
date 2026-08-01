@@ -629,6 +629,10 @@ class QuestionRun:
     result: str
     details: Mapping[str, Any]
     baseline_adjusted_from: datetime | None = None
+    # ★양성 대조가 **실제로 센 술어**를 글자로 들고 다닌다. 예전 출력은 이 값을
+    #   "문턱-1" 이라고 불렀는데 resting 은 `> 20` 문턱에 `> 1` 대조를, C1 은 `>= 3` 에
+    #   `>= 1` 대조를 쓴다 — 라벨과 값이 어긋났다(2026-08-02 codex MINOR#2).
+    discrimination_label: str = "양성 대조"
 
 
 Runner = Callable[[datetime, datetime], Awaitable[QuestionRun]]
@@ -670,6 +674,7 @@ async def _run_conditional_population(since: datetime, until: datetime) -> Quest
         truncated=truncated,
         sample_size=len(rows[:_QUESTION_SCAN_LIMIT]),
         discrimination_rows=tally.total,
+        discrimination_label="모집단 전체(문턱 없는 질문)",
         triggered=False,
         unmeasured_reason=_unmeasured_reason(
             truncated=truncated,
@@ -731,6 +736,7 @@ async def _run_resting_truncation_risk(since: datetime, until: datetime) -> Ques
         truncated=truncated,
         sample_size=sample_size,
         discrimination_rows=discrimination_rows,
+        discrimination_label="동시 resting > 1",
         triggered=bool(triggered_rows),
         unmeasured_reason=_unmeasured_reason(truncated=truncated, sample_size=sample_size),
         result=(
@@ -785,6 +791,7 @@ async def _run_entry_race_rejections(since: datetime, until: datetime) -> Questi
             count >= _ENTRY_RACE_DISCRIMINATION_THRESHOLD
             for _day, count in tally.matched_by_utc_day
         ),
+        discrimination_label=f"UTC 일별 C1 >= {_ENTRY_RACE_DISCRIMINATION_THRESHOLD}",
         triggered=bool(triggered_days),
         unmeasured_reason=_unmeasured_reason(
             truncated=truncated,
@@ -853,7 +860,11 @@ def _print_question_run(run: QuestionRun) -> None:
     print(f"창        [{run.since.isoformat()}, {run.until.isoformat()})   절단 {'yes' if run.truncated else 'no'}")
     if run.baseline_adjusted_from is not None:
         print(f"★기준선 배제 적용: since 를 {run.since.isoformat()} 로 올렸다")
-    print(f"판별력    문턱-1 에서 {run.discrimination_rows} 행")
+    # ★"문턱-1" 이라고 부르면 안 된다 (2026-08-02 codex MINOR#2) — resting 은 실제 문턱이
+    #   `> 20` 인데 대조는 `> 1` 을, C1 은 `>= 3` 인데 대조는 `>= 1` 을 센다. 즉 이 수는
+    #   문턱에서 1 을 뺀 값이 아니라 **"창이 비지 않았음을 보이는 양성 대조"** 다.
+    #   라벨과 값이 어긋나는 것이 이 회차가 없애려는 병 그 자체라 이름을 값에 맞춘다.
+    print(f"양성대조  {run.discrimination_label} 에서 {run.discrimination_rows} 행 (창이 비지 않았다는 증거)")
     if run.unmeasured_reason is not None:
         print(f"결과      {run.unmeasured_reason}")
         return

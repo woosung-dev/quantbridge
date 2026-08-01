@@ -389,9 +389,18 @@ describe("BL-577 — no raw uppercase enum literal in live sessions", () => {
     }
 
     // ★검출기 생존 확인 — 이게 없으면 검출기를 무력화해도 이 테스트가 green 이다.
-    expect(
-      detectRawUppercaseEnumLiterals(BL572_HISTORICAL_SNIPPET).length,
-    ).toBeGreaterThan(0);
+    //   ★"하나라도 잡히나" 로는 부족하다 (2026-08-02 codex MINOR#4): 검출기를
+    //   `ACTIVE`·`FILLED` 만 통과시키도록 좁혀도 그 단언은 통과하고, 현 스코프 위반이
+    //   0건이라 스캔도 green 이라 `PAUSED` 류가 조용히 사라진다. 그래서 **서로 다른
+    //   리터럴 집합**이 전부 잡히는지를 단언한다.
+    expect(detectRawUppercaseEnumLiterals(BL572_HISTORICAL_SNIPPET)).toEqual(
+      expect.arrayContaining(['"ACTIVE"', '"PAUSED"']),
+    );
+    for (const canary of ["PAUSED", "PENDING", "CANCELLED", "REJECTED"]) {
+      expect(
+        detectRawUppercaseEnumLiterals(`<span>{"${canary}"}</span>`),
+      ).toEqual([`"${canary}"`]);
+    }
     expect(violations).toEqual([]);
   });
 });

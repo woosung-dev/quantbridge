@@ -5283,11 +5283,13 @@ savepoint 없이 넣으면 조용히 다른 것을 잃는다.
 **카테고리:** Backend / trading (관측 라벨 충돌)
 **Trigger:** `live_conditional_reconcile_divergence` 를 세거나 알림·게이트로 쓰기 **전**
 **Est:** S
-**상태:** ✅ **Resolved** (2026-08-02, divergence-label-split). ★**단 프로덕션 발화는 미검증이다** — 아래 §결과.
+**상태:** ✅ **Resolved** (2026-08-02, divergence-label-split). **프로덕션 발화 검증까지 완료** (2026-08-02 canonical-measurement-surface) — 아래 §프로덕션 발화 검증. ★단 **5 event 중 2 만** 확인됐다.
 **출처:** 2026-08-01 soak 후속 codex 리뷰 (+ CONTROL 코드 대조로 범위 확대)
 
-**결과 (2026-08-02).** 이름 하나를 **사건별 6종**으로 갈랐고(`exchange_divergence` · `stand_down` ·
-`degraded_input` · `plan_drop` · `guard_drop` · `market_converted`), `reason` 을 **닫힌 집합**으로
+**결과 (2026-08-02).** 이름 하나를 **사건별로** 갈랐고(로그 이벤트명 6종 — `exchange_divergence` ·
+`stand_down` · `degraded_input` · `plan_drop` · `guard_drop` · `market_converted`.
+★**counter 의 `event` 라벨은 5종**이다 — `plan_drop` 은 별도 counter
+(`qb_live_conditional_plan_drop_evaluations_total`)라 이 counter 에 없다. 2026-08-02 실측 정정), `reason` 을 **닫힌 집합**으로
 승격해 counter `qb_live_conditional_divergence_total{event, reason}`(series 상한 **13**)을 신설했다.
 증가는 전건 `_count_safely`(mmap 함정). AST 구조 오라클이 **발화 총수 8 · 낡은 이름 0곳**을 고정하고,
 8 발화 **전건**을 결정론 fixture 로 구동해 `(event, reason)` 을 1:1 단언한다. 표적 변이 3종 전건 판별.
