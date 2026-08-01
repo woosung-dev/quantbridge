@@ -149,7 +149,9 @@ class Reconciler:
                         and filled_quantity.is_finite()
                         and filled_quantity < local.quantity
                     ):
-                        qb_partial_fill_total.labels(source="reconciler").inc()
+                        qb_partial_fill_total.labels(
+                            source="reconciler", kind="close" if local.reduce_only else "entry"
+                        ).inc()
                     _enqueue_trailing_if_intended(local)
                     _enqueue_closed_pnl_refresh(local)
                     _enqueue_conditional_reversal_measure(local)

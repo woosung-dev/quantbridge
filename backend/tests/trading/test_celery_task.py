@@ -393,7 +393,7 @@ class _PartialReceiptProvider:
 
 
 @pytest.mark.asyncio
-async def test_execute_order_task_partial_fill_increments_rest_metric(
+async def test_execute_order_task_partial_fill_splits_rest_metric_by_order_kind(
     db_session: AsyncSession,
     pending_order,
     monkeypatch: pytest.MonkeyPatch,
@@ -401,7 +401,19 @@ async def test_execute_order_task_partial_fill_increments_rest_metric(
     import src.tasks.trading as task_mod
     from src.common.metrics import qb_partial_fill_total
 
-    order, _ = pending_order
+    order, account = pending_order
+    close_order = Order(
+        strategy_id=order.strategy_id,
+        exchange_account_id=account.id,
+        symbol=order.symbol,
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=order.quantity,
+        state=OrderState.pending,
+        reduce_only=True,
+    )
+    db_session.add(close_order)
+    await db_session.commit()
     monkeypatch.setattr(
         task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
     )
@@ -411,13 +423,21 @@ async def test_execute_order_task_partial_fill_increments_rest_metric(
         lambda exchange, mode, has_leverage: _PartialReceiptProvider(),
     )
     monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
-    counter = qb_partial_fill_total.labels(source="rest")
-    before = counter._value.get()
+    monkeypatch.setattr(task_mod, "_enqueue_trailing_if_intended", lambda _order: None)
+    monkeypatch.setattr(task_mod, "_enqueue_closed_pnl_refresh", lambda _order: None)
+    monkeypatch.setattr(task_mod, "_enqueue_conditional_reversal_measure", lambda _order: None)
+    entry_counter = qb_partial_fill_total.labels(source="rest", kind="entry")
+    close_counter = qb_partial_fill_total.labels(source="rest", kind="close")
+    entry_before = entry_counter._value.get()
+    close_before = close_counter._value.get()
 
-    result = await task_mod._async_execute(order.id)
+    entry_result = await task_mod._async_execute(order.id)
+    close_result = await task_mod._async_execute(close_order.id)
 
-    assert result["state"] == "filled"
-    assert counter._value.get() == before + 1
+    assert entry_result["state"] == "filled"
+    assert close_result["state"] == "filled"
+    assert entry_counter._value.get() == entry_before + 1
+    assert close_counter._value.get() == close_before + 1
 
 
 class _RejectedReceiptProvider:

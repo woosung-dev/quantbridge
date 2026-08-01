@@ -195,7 +195,7 @@ async def test_run_filled_winner_commits_then_decs(
     monkeypatch.setattr(recon_module, "OrderRepository", lambda _: repo)
 
     qb_active_orders.set(1.0)
-    partial_counter = qb_partial_fill_total.labels(source="reconciler")
+    partial_counter = qb_partial_fill_total.labels(source="reconciler", kind="entry")
     before_partial = partial_counter._value.get()
 
     await reconciler.run(account_id=uuid4())

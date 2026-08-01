@@ -154,7 +154,9 @@ class StateHandler:
                         and filled_quantity.is_finite()
                         and filled_quantity < order.quantity
                     ):
-                        qb_partial_fill_total.labels(source="ws").inc()
+                        qb_partial_fill_total.labels(
+                            source="ws", kind="close" if order.reduce_only else "entry"
+                        ).inc()
                     _enqueue_trailing_if_intended(order)
                     _enqueue_closed_pnl_refresh(order)
                     _enqueue_conditional_reversal_measure(order)
