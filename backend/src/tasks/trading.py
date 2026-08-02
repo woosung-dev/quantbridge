@@ -45,7 +45,7 @@ from src.common.metrics import (
     qb_trailing_placement_total,
     record_partial_fill,
 )
-from src.common.metrics_multiproc import record_metric_safely
+from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.market_data.constants import to_bybit_raw_symbol
@@ -383,7 +383,7 @@ async def _execute_with_session(
             )
             await session.commit()
             if rows == 1:
-                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+                record_metric_safely(qb_active_orders.dec)  # Sprint 9 Phase D: terminal state
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -447,7 +447,7 @@ async def _execute_with_session(
             )
             await session.commit()
             if rows == 1:
-                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+                record_metric_safely(qb_active_orders.dec)  # Sprint 9 Phase D: terminal state
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -493,7 +493,7 @@ async def _execute_with_session(
                     "source": "rest",
                 },
             )
-            qb_active_orders.dec()  # Sprint 9 Phase D: terminal state (filled)
+            record_metric_safely(qb_active_orders.dec)  # Sprint 9 Phase D: terminal state (filled)
             if order.reduce_only:
                 try:
                     sessions = await LiveSignalSessionRepository(session).list_active_by_account(
@@ -555,7 +555,7 @@ async def _execute_with_session(
             )
             await session.commit()
             if rows == 1:
-                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+                record_metric_safely(qb_active_orders.dec)  # Sprint 9 Phase D: terminal state
             logger.info(
                 "order_rejected_by_exchange",
                 extra={
@@ -836,7 +836,7 @@ async def _fetch_order_status_with_session(
                         "source": "watchdog",
                     },
                 )
-                qb_active_orders.dec()
+                record_metric_safely(qb_active_orders.dec)
                 # ★BL-498 — watchdog 도 체결을 확정하는 경로다. 즉시 `filled` 경로에만
                 #   캐시 무효화를 걸면, 접수 응답이 `submitted` 이고 position WS 를
                 #   놓친 조합에서 계정 표가 **이미 닫힌 포지션**을 최대 15초 더 보여준다.
@@ -1292,7 +1292,7 @@ async def _do_place_trailing_stop(
         raise
 
     logger.info("trailing_placed", extra={"order_id": str(order_id)})
-    qb_trailing_placement_total.labels(outcome="placed").inc()
+    _count_safely(qb_trailing_placement_total, outcome="placed")
     return {"placed": True}
 
 

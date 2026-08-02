@@ -3,114 +3,69 @@
 > **업데이트:** 2026-08-02
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
 > **준비 브랜치:** 없음
-> **최근 머지:** `stage/context-budget-repair` → `main@add7b0de` (PR #523, 2026-08-02)
+> **최근 머지:** `stage/metric-guard-parity` → `main` (PR #525, 2026-08-02)
 
 ---
 
-## 🎯 다음 스프린트 — **metric-guard-parity** (계측 실패가 머니-패스를 오기록하는 자리를 닫는다)
+## 🎯 다음 스프린트 — **metric-guard-residual** (가드가 못 막는 자리를 좁히고, 못 막는다는 걸 증명한다)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 > 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + 본 파일을 읽고 시작한다.
 > ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다**(`CLAUDE.md` 가 `@AGENTS.md` 하나만 import 한다).
 > ★**`CONTEXT.md` 는 반대다 — 자동 로드가 아니라서 읽어야 들어온다.** `.ai/rules/*.md` 도 자동 로드가 아니다.
 > ★**`docs/dev-log/INDEX.md` 를 통째로 grep 하지 마라** — `## 최근 12회차` 상단만 읽는다.
-> 그 이전 이력의 상세는 `docs/archive/dev-log/index-full-2026-08-02.md` 에 있고 **필요할 때만** 연다.
-> (근거 = 2026-08-02 [`context-budget-repair`](dev-log/2026-08-02-context-budget-repair.md) §2 실측.)
 
-**한 줄.** 직전 회차가 「손 SQL 을 쓸 이유」를 없앴다. 그 과정에서 **계측 자체가 머니-패스를
-오기록할 수 있는 자리 127곳**이 드러났고, 그중 **2곳은 거래소 쓰기 성공 직후**다 —
-계측이 던지면 **성공한 발주가 「실패」로 기록**된다.
-
-### 왜 이것이 최대 리스크인가 (근거는 `roadmap.md` 「현재 최대 리스크」 블록)
-
-| 축                             | 실측                                                             |
-| ------------------------------ | ---------------------------------------------------------------- |
-| 가드 밖 mutation **코드 표면** | **127곳** (`record_metric_safely` / `_count_safely` 밖)          |
-| 그중 **머니-패스 직후**        | **6곳**                                                          |
-| 그중 **P1** (성공→실패 오기록) | **2곳**                                                          |
-| **관측된 발생**                | **0회** — 단 가드 밖은 자기 실패를 셀 counter 가 없다            |
-| 렌더 경로 실패 이력            | `qb_metrics_render_fallback_total` = **2** (mmap 계층 무결 아님) |
-| `/metrics` 볼륨                | **9423 파일 · 582MB**, counter/histogram 은 **영구 누적**        |
-
-★**「관측 발생 0회」를 「위험 없음」으로 읽지 마라** — 가드된 지점의 실패가 0회라는 뜻이다.
-정본 = [BL-579](backlog.md#bl-579).
+**한 줄.** 직전 회차가 머니-패스 계측 **18곳**을 감쌌고 **141곳이 남았다.** 남은 것 대부분은
+「감쌀 필요가 없다」가 근거인데, **그 근거가 실측이 아니라 코드 독해**다. 이번 회차는 그 근거를
+**집행 가능한 형태로 바꾸거나, 틀렸으면 고친다.**
 
 ### 첫 step
 
 1. **baseline 재측정** (`global.md` §7.1). 대조값은 아래 블록.
-2. **[BL-579] P1 2곳부터** — `_count_safely` 를 `tasks/trading.py`·`services/order_service.py` 로
-   끌어올린다. ★**전 127곳 일괄 변경 금지** — 크기 대비 회귀 위험이 크고, 이 레포는
-   「스펙 밖 일괄 리팩토링」으로 검증 범위를 흐린 이력이 있다.
-3. **[BL-576] 잔여 3 event 프로덕션 확인** — 직전 창(37분)에서 `exchange_divergence` ·
-   `degraded_input` · `guard_drop` 은 **한 번도 발화하지 않았다.** 5 중 2만 확인된 상태다.
-   ★**기다리지 말고 발화 조건을 만들어라** — 직전 회차가 `stand_down` 을 그렇게 유도했다.
-4. **`/metrics` 영구 누적** — 9423 파일이 mmap 실패 확률의 분모를 키운다. 크기를 재고 판단해라.
+2. **[BL-580] 잔여 141곳의 근거를 검증한다.** ★수리부터 하지 마라 —
+   `trading.py:908/931/1093` · `router.py:376` 을 「실패로 계상하는 except 가 없다」로 뺐는데,
+   **그 판정은 코드 독해였다.** 고장 주입으로 **실제 귀결**을 재라(직전 회차가 그렇게 해서
+   「오기록」이 실은 **과잉 발주**이기도 하다는 걸 찾았다).
+3. **[BL-582] 도달 불가 7종을 게이트로 고정한다** — 지금은 문서에만 있다.
+   `PendingOrderSnapshot` 이 exit level 을 갖게 되면 조용히 도달 가능해지는데 **아무도 모른다.**
+4. **[BL-576] 잔여** — `stand_down/hedge_mode` · `guard_drop/breach_exceeds_cap`.
+   ★`degraded_input` 은 **하지 마라**(유일한 경로가 제3자 API 남용이다).
 
-### ★착수 전 반드시 읽을 것
+### ★착수 전 반드시 읽을 것 (직전 회차가 실제로 밟은 것)
 
-1. ★★★**「도구로 막는다」고 선언해도 습관은 안 바뀐다** — 직전 회차 CONTROL 이 그 선언을 한
-   회차 안에서 **손 술어를 다시 썼고**(psql 안 retCode 정규식) **남의 축 숫자를 인용했다**(34 vs 33).
-   **선언 말고 도구를 써라.**
-2. ★★**신규 counter 를 프로덕션에서 증명하려면 미리 실체화해야 한다** — 라벨 있는 counter 는
-   첫 발화 전까지 series 가 없어 **차분으로 읽을 수 없다**. `_touch_safely` 관용구.
-3. ★★**소크 종료가 자동 flat 이 아니다** — 세션 DELETE 204 뒤에도 포지션·resting 이 남는다.
-   **주문 취소 → 포지션 청산**을 따로 해라. 착수 시점 flat 확인도 의무다(직전 회차에 고아 포지션이 있었다).
-4. ★**`other` reason 5종은 구조적 도달 불가** — 「13 series 존재」를 기능 증거로 인용하지 마라.
-   **증거는 오직 차분이다.**
-5. ★**[BL-574]·[BL-578] 수리는 여전히 보류**다. 재는 방법만 바뀌었다(아래 명령).
+1. ★★★**핸드오프의 파일 목록은 조사 범위가 아니라 조사 대상이다** — BL-579 가 지목한 두 파일
+   **어디에도 최강 P1 이 없었고** 한 파일은 **P1 0곳**이었다. 그 목록에 갇혀 1차 조사를 낭비했다.
+2. ★★★**「고쳤다」와 「그 종류를 다 고쳤다」는 다른 문장이다** — 커밋에 포괄 주장을 썼다가
+   G6 가 **같은 결함을 이미 고친 파일 안에서 8곳 더** 찾았다(4곳은 `commit()` 앞이라 **rollback** 까지).
+3. ★★★**추론기가 오라클보다 복잡해지면 그건 오라클이 아니다** — zone 추론이 정의마다 **6/13/14**
+   를 냈고 「6」은 **내가 박아두고 잊은 40줄 창**의 산물이었다. 추론을 버리고 손으로 동결했다.
+4. ★★**게이트를 코드 쓰기 전에 걸어라** — codex G1 2회로 **MAJOR 8건**을 코드 이전에 잡았다.
+   그중 하나는 내 테스트가 **실 DB 로 가서 조용히 실패**했을 것이라는 지적이다.
+5. ★★**표적 변이를 전체 pytest 와 동시에 돌리지 마라** — 테스트 DB 1벌 + `drop_all`.
+   **직전 회차에 내가 밟았고** 그 실행 결과를 폐기했다.
+6. ★★**게이트를 파이프에 넣지 마라 · 부분 경로로 재지 마라** — `ruff check src/` 만 돌리고
+   「ruff clean」이라고 보고했다가 `final-gates.sh` 에 잡혔다(실제로는 3건 red).
+7. ★**소크 종료가 자동 flat 이 아니다」는 무조건 참이 아니다** — 열린 주문이 전부 세션 소유면
+   DELETE 만으로 `FLAT=YES` 다. **세션이 소유하지 않은** 것이 있을 때만 수동 정리가 필요하다.
 
-### 손 SQL 대신 쓸 것 (직전 회차 산출물)
+### baseline (2026-08-02 실측 — PR #525 머지 시점)
 
-```bash
-cd backend && set -a; . ./.env.local; set +a
-uv run python scripts/entry_completeness_report.py --question <name> --since <ISO> [--until <ISO>]
-```
-
-`<name>` ∈ `conditional_population` · `resting_truncation_risk` · `entry_race_rejections`.
-**exit 0 = 미발화(보류 유지) · 3 = 발화(BL 되살린다) · 1 = 판정 불가.**
-판정 불가 사유 3종 = **절단** · **표본 없음** · **출처 미상 거절 존재**(retCode 를 못 읽어
-C1 인지 아닌지 모르는 행이 있으면 「아니다」로 수렴시키지 않는다).
-★매 실행이 **정본 술어와 함정**을 함께 인쇄하고, **양성 대조**(창이 비지 않았다는 증거)를
-항상 같이 낸다. ★그 대조는 「문턱-1」이 **아니다** — resting 은 문턱 `> 20` 에 대조 `> 1`,
-C1 은 문턱 `>= 3` 에 대조 `>= 1` 이다. 출력이 **실제로 센 술어를 글자로** 말한다.
-★낡은 롤링 창을 줘도 **기준선 배제를 자동 적용**하고 그 사실을 출력한다(§G1.1 규율 6).
-
-### 사전등록 판정 문턱
-
-★★**여기에 판정식을 쓰지 마라.** 정본은
-[`reference/operations/workflows/generator-evaluator-pipeline.md` **§G1.1**](reference/operations/workflows/generator-evaluator-pipeline.md).
-회차별 인스턴스는 **dev-log** 에 쓴다. 특히 **규율 2b**(판정 없음으로 떨어지는 조합이 없는가)와
-**규율 3**(문턱에 숫자가 박혀 있는가)을 먼저 대조해라 — 직전 회차에 **내 사전등록 조건 ③이
-구조적으로 달성 불가**였고 착수 후에야 드러났다.
-
-### 하지 않는 것
-
-**BL-565**(구조적 측정 불가) · **BL-553 PbR 재시도** · **BL-578 수리** · **BL-574 수리** ·
-**C1 시장가 전환**(머니-패스 변경) · **BL-579 전 127곳 일괄 변경**.
-
-### baseline (2026-08-02 재측정 — `stage/context-budget-repair` 착수 시점, 값 동일)
-
-**BE 3820 passed / 46 skipped**(착수 3804 대비 **+16**) · **FE 1242**(205 파일, **+5**) ·
-ruff clean · mypy **214** clean ·
-마이그레이션 head **`20260801_0001`**(이번 회차 **+0**) ·
-`scripts/bl-audit.sh` **exit 0**(active **149** / 전체 **236**) · `scripts/docs-audit.sh` **exit 0**.
-
-★**active 가 149 로 안 변한 이유** — BL-577 Resolved(**−1**) + BL-579 신설(**+1**). 전체는 235→**236**.
+**BE 3835 passed / 46 skipped** · **FE 1242**(205 파일) · ruff clean · mypy **214** clean ·
+마이그레이션 head **`20260801_0001`** ·
+가드 밖 mutation **141**(규칙 R1 — 정본은 `backend/tests/common/test_metric_guard_census.py`) ·
+`qb_metrics_mutation_failed_total` **0** · `/metrics` **10277 파일 · 635MB**.
 ★**이 숫자도 대조 대상이다. 첫 step 에서 지금 HEAD 로 다시 재라.**
 
-> ★★**표적 변이는 CONTROL 이 직접 집행한다.** 직전 회차 4종 전건 판별했고 **음성 대조 1종이
-> 무효**였다(내 변이가 동치가 아니었다 — 정의만 rename). `git checkout` 금지, 문자열 치환 + sha256.
-> ★**게이트를 파이프에 넣지 마라** — 직전 회차에 `pytest | tail` 로 **exit code 가 tail 의 것**이 됐다.
+> ★★**표적 변이는 CONTROL 이 직접 집행한다.** `git checkout` 금지, 문자열 치환 + sha256 복원 대조.
+> ★**브랜치 접두사는 `stage/`** (pre-push 훅 화이트리스트). `QB_PRE_PUSH_BYPASS=1` 은 **쓰지 마라**.
 > ★**`cd backend` 는 다음 명령까지 이어진다** — 레포 루트 스크립트는 절대경로로.
-> ★**한 파일씩 완결된 상태로 저장해라** — 워커 watchfiles 가 중간 상태를 물어 Traceback 이 났다.
-> ★**브랜치 접두사는 `stage/` 다** — pre-push 훅이 `stage|feat|fix|chore|docs|test|refactor|hotfix`
-> 화이트리스트를 강제한다(ADR-017 · BL-555). `sprint/` 로 만들면 push 가 거부된다.
-> `QB_PRE_PUSH_BYPASS=1` 은 있지만 **쓰지 마라** — 가드를 뚫는 것이 이 레포가 반복해 당한 방식이다.
-> ★**`herdr agent prompt` 는 붙여넣기만 한다** — `send-keys enter` 후 `agent get` 으로 `working` 확인까지가 발송.
+> ★**pre-commit 이 `ruff format`·`prettier --write` 를 돌린다** — **커밋 후 게이트를 다시 재라**.
 
 ## 완료 이력
 
-- 직전 회차 — [`context-budget-repair`](dev-log/2026-08-02-context-budget-repair.md)
+- 직전 회차 — [`metric-guard-parity`](dev-log/2026-08-02-metric-guard-parity.md)
+  (계측 실패가 성공한 발주를 실패로 기록하고 **주문을 하나 더 냈다**. 가드 18곳 · census 159→141)
+- 그 앞 — [`context-budget-repair`](dev-log/2026-08-02-context-budget-repair.md)
   (문서·계측만. `INDEX.md` **−92.3%** · 자동 로드 고정비 **−42.2%** · 줄길이 게이트 신설.
   ★**착수 전제 3건 반증** — `CONTEXT.md`·`.ai/rules` 는 자동 로드가 아니다)
 - 그 앞 — [`canonical-measurement-surface`](dev-log/2026-08-02-canonical-measurement-surface.md)

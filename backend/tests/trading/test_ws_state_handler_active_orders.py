@@ -327,6 +327,60 @@ async def test_partial_fill_metric_failure_does_not_stop_fill_postprocessing(
 
 
 @pytest.mark.asyncio
+async def test_active_orders_metric_failure_does_not_stop_fill_postprocessing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """활성 주문 계측 오류가 체결 후처리 세 갈래를 끊지 않는다."""
+    order = _build_order()
+
+    repo = AsyncMock()
+    repo.get_by_id = AsyncMock(return_value=order)
+    repo.transition_to_filled = AsyncMock(return_value=1)
+
+    session = AsyncMock()
+    handler = StateHandler(
+        session_factory=_make_session_factory(session),
+        settings=MagicMock(),
+        alert_sender=AsyncMock(return_value=True),
+        user_id=uuid4(),
+    )
+    import src.common.metrics as metrics_mod
+    import src.tasks.trading as task_mod
+    from src.trading.websocket import state_handler as sh_module
+
+    called: list[str] = []
+    monkeypatch.setattr(sh_module, "OrderRepository", lambda _: repo)
+    monkeypatch.setattr(sh_module, "publish_realtime", AsyncMock())
+    monkeypatch.setattr(
+        task_mod, "_enqueue_trailing_if_intended", lambda _order: called.append("trailing")
+    )
+    monkeypatch.setattr(
+        task_mod, "_enqueue_closed_pnl_refresh", lambda _order: called.append("pnl")
+    )
+    monkeypatch.setattr(
+        task_mod, "_enqueue_conditional_reversal_measure", lambda _order: called.append("reversal")
+    )
+
+    def _explode() -> None:
+        raise OSError("mmap allocation failed")
+
+    monkeypatch.setattr(metrics_mod.qb_active_orders, "dec", _explode)
+
+    await handler.handle_order_event(
+        uuid4(),
+        {
+            "orderLinkId": str(order.id),
+            "orderStatus": "Filled",
+            "orderId": f"exchange-{order.id}",
+            "avgPrice": "100.0",
+            "cumExecQty": "0.0005",
+        },
+    )
+
+    assert called == ["trailing", "pnl", "reversal"]
+
+
+@pytest.mark.asyncio
 async def test_handle_order_event_filled_loser_commits_no_dec(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
