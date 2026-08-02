@@ -57,13 +57,7 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
     ("backend/src/tasks/_ws_circuit_breaker.py", "qb_ws_auth_circuit_total"): 4,
     ("backend/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
-    ("backend/src/tasks/conditional_entry_janitor.py", "qb_active_orders"): 2,
-    (
-        "backend/src/tasks/conditional_entry_janitor.py",
-        "qb_live_conditional_reconcile_errors_total",
-    ): 5,
-    ("backend/src/tasks/live_signal.py", "qb_active_orders"): 2,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_cancelled_total"): 1,
+    ("backend/src/tasks/conditional_entry_janitor.py", "qb_live_conditional_reconcile_errors_total"): 5,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_guard_total"): 8,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 13,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
@@ -76,7 +70,7 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_outbox_pending_gauge"): 2,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 10,
-    ("backend/src/tasks/trading.py", "qb_active_orders"): 6,
+    ("backend/src/tasks/trading.py", "qb_active_orders"): 3,
     ("backend/src/tasks/trading.py", "qb_closed_pnl_backfill_total"): 15,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_link_unverified_total"): 1,
@@ -278,7 +272,7 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
     ]
     lines = [
         "Metric guard census diverged from the frozen R1 baseline.",
-        "159 − 사전등록 10 = 149",
+        "159 − 사전등록 18 = 141",
         "새 site (file, lineno, metric, verb, 함수명):",
     ]
     lines.extend(
@@ -366,8 +360,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 48
-    assert sum(_FROZEN_CENSUS.values()) == 149
+    assert len(_FROZEN_CENSUS) == 45
+    assert sum(_FROZEN_CENSUS.values()) == 141
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
@@ -472,11 +466,54 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "qb_active_orders",
         "BL-567 이 '트레일링 영구 유실' 로 등재한 격리 블록의 한 줄 위",
     ),
+    # ★2026-08-02 codex G6 Spec MAJOR 로 추가된 7곳 — 같은 결함 형태가 **내가 이미 고친
+    #   파일 안에** 남아 있었다. 4곳은 `commit()` **앞**이라 더 나쁘다(계측 예외가 terminal
+    #   DB 전이를 rollback 시킨다).
+    (
+        "backend/src/tasks/live_signal.py",
+        "_reconcile_conditional_entries",
+        "qb_live_conditional_cancelled_total",
+        "거래소 취소 성공 뒤. except 가 stage=cancel 실패로 계상하고 이후 reconcile 중단",
+    ),
+    (
+        "backend/src/tasks/live_signal.py",
+        "_async_sweep_conditional_entries",
+        "qb_active_orders",
+        "★commit 앞 + except 가 rollback — 계측 예외가 terminal DB 전이를 되돌린다",
+    ),
+    (
+        "backend/src/tasks/conditional_entry_janitor.py",
+        "_async_conditional_entry_janitor",
+        "qb_active_orders",
+        "★commit 앞 + rollback (2곳)",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "_execute_with_session",
+        "qb_active_orders",
+        "reject 경로 commit 뒤 (2곳). 같은 문자열이 3곳이라 하나만 남기면 잘못된 패턴이 복제된다",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "_fetch_order_status_with_session",
+        "qb_active_orders",
+        "같은 형태 — 일관성 유지",
+    ),
 )
+
+# ★공허화 방지 (codex G6 Standards MAJOR) — 목록이 비면 아래 두 테스트가 **반복할 항목이
+#   없어 통과**한다. 그건 검증이 아니라 침묵이다.
+assert _PROTECTED_SITES, "보호 목록이 비었다 — 이 테스트 파일은 아무것도 집행하지 않는다"
 
 
 def _guarded_metric_mentions(tree: ast.Module, function_name: str, metric: str) -> int:
-    """해당 함수 안에서 그 metric 을 가드 호출에 넘긴 횟수."""
+    """해당 함수 안에서 그 metric 이 **가드의 인자로 구조적으로** 들어간 횟수.
+
+    ★1차 구현은 `metric in ast.unparse(call)` 이라는 **문자열 포함**이었다 (2026-08-02 codex G6
+    Standards MAJOR). 그러면 같은 이름이 주석·다른 인자에 스치기만 해도 통과하고, 같은 함수의
+    **다른** mutation 을 감싸 놓고 목표 자리를 raw 로 되돌려도 통과한다. ⇒ AST 로 본다:
+    가드 호출의 인자 서브트리 안에서 그 metric 을 뿌리로 하는 mutation/labels 노드를 찾는다.
+    """
     found = 0
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -493,13 +530,31 @@ def _guarded_metric_mentions(tree: ast.Module, function_name: str, metric: str) 
             )
             if name not in _GUARD_FUNCTIONS:
                 continue
-            if metric in ast.unparse(inner):
-                found += 1
+            for argument in list(inner.args) + [kw.value for kw in inner.keywords]:
+                for sub in ast.walk(argument):
+                    # (a) record_metric_safely(qb_x.dec) — bound method 를 인자로
+                    if (
+                        isinstance(sub, ast.Attribute)
+                        and sub.attr in _MUTATION_METHODS
+                        and isinstance(sub.value, ast.Name)
+                        and sub.value.id == metric
+                    ):
+                        found += 1
+                    # (b) _count_safely(qb_x, ...) — counter 자체를 인자로
+                    elif isinstance(sub, ast.Name) and sub.id == metric:
+                        found += 1
+                    # (c) record_metric_safely(lambda: qb_x.labels(...).inc())
+                    elif (
+                        isinstance(sub, ast.Call)
+                        and isinstance(sub.func, ast.Attribute)
+                        and _metric_name(sub.func.value) == metric
+                    ):
+                        found += 1
     return found
 
 
 def test_every_protected_site_is_actually_guarded() -> None:
-    """동결한 10곳 각각에 **가드된** mutation 이 실재하는지 확인한다.
+    """동결한 보호 자리 각각에 **가드된** mutation 이 실재하는지 확인한다.
 
     ★★이 테스트가 집행하는 것과 하지 않는 것을 정확히 적는다 (2026-08-02, 내가 한 번 틀렸다).
 

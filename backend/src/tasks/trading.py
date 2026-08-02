@@ -383,7 +383,7 @@ async def _execute_with_session(
             )
             await session.commit()
             if rows == 1:
-                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+                record_metric_safely(qb_active_orders.dec)  # Sprint 9 Phase D: terminal state
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -447,7 +447,7 @@ async def _execute_with_session(
             )
             await session.commit()
             if rows == 1:
-                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+                record_metric_safely(qb_active_orders.dec)  # Sprint 9 Phase D: terminal state
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -555,7 +555,7 @@ async def _execute_with_session(
             )
             await session.commit()
             if rows == 1:
-                qb_active_orders.dec()  # Sprint 9 Phase D: terminal state
+                record_metric_safely(qb_active_orders.dec)  # Sprint 9 Phase D: terminal state
             logger.info(
                 "order_rejected_by_exchange",
                 extra={

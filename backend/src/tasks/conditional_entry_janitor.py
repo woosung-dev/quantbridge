@@ -91,7 +91,7 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                             if rows == 1:
                                 await order_repo.commit()
                                 rejected += 1
-                                qb_active_orders.dec()
+                                record_metric_safely(qb_active_orders.dec)
                             else:
                                 qb_live_conditional_reconcile_errors_total.labels(
                                     stage="janitor_race"
@@ -105,7 +105,7 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                         if rows == 1:
                             await order_repo.commit()
                             rejected += 1
-                            qb_active_orders.dec()
+                            record_metric_safely(qb_active_orders.dec)
                         else:
                             qb_live_conditional_reconcile_errors_total.labels(
                                 stage="janitor_race"

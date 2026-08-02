@@ -1356,7 +1356,7 @@ async def _reconcile_conditional_entries(
                     # OrderService.execute 가 생성 시 inc 했으므로 terminal 전이에서 dec.
                     # 조건부 진입은 교체·세션 종료로 반복 취소되므로 빠뜨리면 active gauge 가
                     # 단조 증가해 운영 경보가 왜곡된다(표준 취소 경로는 trading.py 가 dec 한다).
-                    qb_active_orders.dec()
+                    record_metric_safely(qb_active_orders.dec)
                     reason = (
                         cancel_reason
                         if not desired_trade_ids
@@ -1364,7 +1364,7 @@ async def _reconcile_conditional_entries(
                         if entry.trade_id in desired_trade_ids
                         else "desired_removed"
                     )
-                    qb_live_conditional_cancelled_total.labels(reason=reason).inc()
+                    _count_safely(qb_live_conditional_cancelled_total, reason=reason)
                 except Exception:
                     cancel_failed = True
                     qb_live_conditional_reconcile_errors_total.labels(stage="cancel").inc()
@@ -2989,7 +2989,7 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                         == 1
                     ):
                         cancelled += 1
-                        qb_active_orders.dec()  # 생성 시 inc 된 것의 terminal 전이
+                        record_metric_safely(qb_active_orders.dec)  # 생성 시 inc 된 것의 terminal 전이
                     await order_repo.commit()
                 except Exception:
                     with contextlib.suppress(Exception):
