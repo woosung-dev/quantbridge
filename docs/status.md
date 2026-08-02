@@ -2,65 +2,72 @@
 
 > **업데이트:** 2026-08-02
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** `stage/metric-guard-parity` (PR 미생성 — 사용자 승인 대기)
-> **최근 머지:** `docs/status-post-merge-sync` → `main@6ee0b2c7` (PR #521, 2026-08-02)
+> **준비 브랜치:** 없음
+> **최근 머지:** `stage/metric-guard-parity` → `main` (PR #525, 2026-08-02)
 
 ---
 
-## 🎯 다음 스프린트 — **미지정**
+## 🎯 다음 스프린트 — **metric-guard-residual** (가드가 못 막는 자리를 좁히고, 못 막는다는 걸 증명한다)
 
-> ★**직전 회차(`metric-guard-parity`)가 아직 머지되지 않았다.** 다음 회차 지정은 그 PR 이
-> 머지된 뒤에 한다 — 머지 전에 지정하면 「PR 준비 중인 브랜치를 가리키는 다음 스프린트」가
-> 되어 PR #521 이 고친 바로 그 표류가 재발한다.
->
-> **지금 할 일 = `stage/metric-guard-parity` PR 생성·머지.**
-> 회고 = [`dev-log/2026-08-02-metric-guard-parity.md`](dev-log/2026-08-02-metric-guard-parity.md).
+> ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
+> 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + 본 파일을 읽고 시작한다.
+> ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다**(`CLAUDE.md` 가 `@AGENTS.md` 하나만 import 한다).
+> ★**`CONTEXT.md` 는 반대다 — 자동 로드가 아니라서 읽어야 들어온다.** `.ai/rules/*.md` 도 자동 로드가 아니다.
+> ★**`docs/dev-log/INDEX.md` 를 통째로 grep 하지 마라** — `## 최근 12회차` 상단만 읽는다.
 
-### 머지 후 다음 회차 후보 (우선순위 순)
+**한 줄.** 직전 회차가 머니-패스 계측 **18곳**을 감쌌고 **141곳이 남았다.** 남은 것 대부분은
+「감쌀 필요가 없다」가 근거인데, **그 근거가 실측이 아니라 코드 독해**다. 이번 회차는 그 근거를
+**집행 가능한 형태로 바꾸거나, 틀렸으면 고친다.**
 
-1. ★**[BL-580] 계측 가드 잔여** — 이번 회차가 18곳을 감쌌고 **141곳이 남았다.** 그중
-   `trading.py:908/931/1093` · `router.py:376` 은 raw `qb_active_orders.dec()` 이지만
-   **거절/취소 확정 뒤라 실패로 계상하는 except 가 없다**(그래서 이번 스코프에서 뺐다).
-   ★**승격 규칙이 사전등록돼 있다** — `qb_metrics_mutation_failed_total` 의 **창 차분이
-   0 을 벗어나는 순간** 즉시 승격(절대값 아님, `CounterBasis.delta` 로만 읽는다).
-2. **[BL-576] 잔여 3 series 프로덕션 확인** — 이번에 `exchange_divergence` 를 유도로 확인해
-   **2 → 3/6** 이 됐다. 남은 것은 `stand_down/hedge_mode`(계정 position mode 전환 필요) ·
-   `guard_drop/breach_exceeds_cap`(확률적). ★`degraded_input` 은 **제3자 API 남용 없이는
-   유도 불가**라 제외했다 — 자연 발화를 기다리거나 MITM 하네스가 필요하다.
-3. **[BL-581] `/metrics` 영구 누적** — **10277 파일 · 635MB · distinct PID 1968**.
-   ★**counter 파일 삭제 금지** — `entry_completeness.py` 가 재기동 생존을 전제로 창 차분을 잰다.
-4. **[BL-574] · [BL-578]** — 여전히 **측정 완료 · 수리 보류**.
+### 첫 step
 
-### ★착수 전 반드시 읽을 것 (이번 회차가 실제로 밟은 것)
+1. **baseline 재측정** (`global.md` §7.1). 대조값은 아래 블록.
+2. **[BL-580] 잔여 141곳의 근거를 검증한다.** ★수리부터 하지 마라 —
+   `trading.py:908/931/1093` · `router.py:376` 을 「실패로 계상하는 except 가 없다」로 뺐는데,
+   **그 판정은 코드 독해였다.** 고장 주입으로 **실제 귀결**을 재라(직전 회차가 그렇게 해서
+   「오기록」이 실은 **과잉 발주**이기도 하다는 걸 찾았다).
+3. **[BL-582] 도달 불가 7종을 게이트로 고정한다** — 지금은 문서에만 있다.
+   `PendingOrderSnapshot` 이 exit level 을 갖게 되면 조용히 도달 가능해지는데 **아무도 모른다.**
+4. **[BL-576] 잔여** — `stand_down/hedge_mode` · `guard_drop/breach_exceeds_cap`.
+   ★`degraded_input` 은 **하지 마라**(유일한 경로가 제3자 API 남용이다).
 
-1. ★★★**핸드오프의 파일 목록은 조사 범위가 아니라 조사 대상이다** — [BL-579] 가 지목한 두 파일
-   어디에도 최강 P1 이 없었고, 그중 한 파일은 **P1 이 0곳**이었다. 내 1차 조사가 그 목록에
-   갇혔다.
-2. ★★★**「고쳤다」와 「그 종류를 다 고쳤다」는 다른 문장이다** — 커밋 메시지에 포괄 주장을 썼다가
-   G6 가 **같은 결함이 내가 이미 고친 파일 안에 8곳 더** 있음을 보였다(4곳은 `commit()` 앞이라
-   **더 나쁘다** — 계측 예외가 terminal DB 전이를 rollback 한다).
-3. ★★★**추론기가 오라클보다 복잡해지면 그건 오라클이 아니다** — 「머니-패스 zone」을 AST 로
-   추론하려다 정의를 바꿀 때마다 **6/13/14** 를 얻었다. 그중 「6」은 **내가 프로토타입에 박아둔
-   임의의 40줄 창**이 만든 값이었다. **추론을 버리고 손으로 동결**했다.
-4. ★★**게이트는 코드 쓰기 전에 걸어라** — codex G1 을 2회 돌려 **MAJOR 8건**을 코드 이전에 잡았다.
-   그중 하나는 내 고장 주입 테스트가 **실 DB 로 가서 조용히 실패**했을 것이라는 지적이었다.
-5. ★★**표적 변이를 전체 pytest 와 동시에 돌리지 마라** — 테스트 DB 는 `quantbridge_test` 하나이고
-   세션 픽스처가 `drop_all + create_all` 을 돈다. **이번에 내가 밟았고** 그 실행 결과를 폐기했다.
-6. ★**소크 종료가 자동 flat 이 아니다」는 무조건 참이 아니다** — 이번엔 세션 DELETE 직후
-   `FLAT=YES` 였다(열린 주문이 **전부 세션 소유 조건부 진입**이라 비활성화가 취소했다).
-   그 함정은 **세션이 소유하지 않은 포지션·주문이 있을 때** 성립한다.
+### ★착수 전 반드시 읽을 것 (직전 회차가 실제로 밟은 것)
 
-### baseline (2026-08-02 실측 — `stage/metric-guard-parity` 종료 시점)
+1. ★★★**핸드오프의 파일 목록은 조사 범위가 아니라 조사 대상이다** — BL-579 가 지목한 두 파일
+   **어디에도 최강 P1 이 없었고** 한 파일은 **P1 0곳**이었다. 그 목록에 갇혀 1차 조사를 낭비했다.
+2. ★★★**「고쳤다」와 「그 종류를 다 고쳤다」는 다른 문장이다** — 커밋에 포괄 주장을 썼다가
+   G6 가 **같은 결함을 이미 고친 파일 안에서 8곳 더** 찾았다(4곳은 `commit()` 앞이라 **rollback** 까지).
+3. ★★★**추론기가 오라클보다 복잡해지면 그건 오라클이 아니다** — zone 추론이 정의마다 **6/13/14**
+   를 냈고 「6」은 **내가 박아두고 잊은 40줄 창**의 산물이었다. 추론을 버리고 손으로 동결했다.
+4. ★★**게이트를 코드 쓰기 전에 걸어라** — codex G1 2회로 **MAJOR 8건**을 코드 이전에 잡았다.
+   그중 하나는 내 테스트가 **실 DB 로 가서 조용히 실패**했을 것이라는 지적이다.
+5. ★★**표적 변이를 전체 pytest 와 동시에 돌리지 마라** — 테스트 DB 1벌 + `drop_all`.
+   **직전 회차에 내가 밟았고** 그 실행 결과를 폐기했다.
+6. ★★**게이트를 파이프에 넣지 마라 · 부분 경로로 재지 마라** — `ruff check src/` 만 돌리고
+   「ruff clean」이라고 보고했다가 `final-gates.sh` 에 잡혔다(실제로는 3건 red).
+7. ★**소크 종료가 자동 flat 이 아니다」는 무조건 참이 아니다** — 열린 주문이 전부 세션 소유면
+   DELETE 만으로 `FLAT=YES` 다. **세션이 소유하지 않은** 것이 있을 때만 수동 정리가 필요하다.
 
-**BE 3835 passed / 46 skipped**(착수 3820 대비 **+15**) · **FE 1242**(205 파일, **+0**) ·
-ruff clean · mypy **214** clean ·
-마이그레이션 head **`20260801_0001`**(이번 회차 **+0**) ·
-가드 밖 mutation **141**(착수 159, 규칙 R1) · `qb_metrics_mutation_failed_total` **0**.
-★`scripts/bl-audit.sh` · `docs-audit.sh` 는 **PR 전 재실행 의무**(BL 3건 신설분 반영).
+### baseline (2026-08-02 실측 — PR #525 머지 시점)
+
+**BE 3835 passed / 46 skipped** · **FE 1242**(205 파일) · ruff clean · mypy **214** clean ·
+마이그레이션 head **`20260801_0001`** ·
+가드 밖 mutation **141**(규칙 R1 — 정본은 `backend/tests/common/test_metric_guard_census.py`) ·
+`qb_metrics_mutation_failed_total` **0** · `/metrics` **10277 파일 · 635MB**.
+★**이 숫자도 대조 대상이다. 첫 step 에서 지금 HEAD 로 다시 재라.**
+
+> ★★**표적 변이는 CONTROL 이 직접 집행한다.** `git checkout` 금지, 문자열 치환 + sha256 복원 대조.
+> ★**브랜치 접두사는 `stage/`** (pre-push 훅 화이트리스트). `QB_PRE_PUSH_BYPASS=1` 은 **쓰지 마라**.
+> ★**`cd backend` 는 다음 명령까지 이어진다** — 레포 루트 스크립트는 절대경로로.
+> ★**pre-commit 이 `ruff format`·`prettier --write` 를 돌린다** — **커밋 후 게이트를 다시 재라**.
 
 ## 완료 이력
 
-- 직전 회차 — [`metric-guard-parity`](dev-log/2026-08-02-metric-guard-parity.md) (PR 준비 중)
+- 직전 회차 — [`metric-guard-parity`](dev-log/2026-08-02-metric-guard-parity.md)
+  (계측 실패가 성공한 발주를 실패로 기록하고 **주문을 하나 더 냈다**. 가드 18곳 · census 159→141)
+- 그 앞 — [`context-budget-repair`](dev-log/2026-08-02-context-budget-repair.md)
+  (문서·계측만. `INDEX.md` **−92.3%** · 자동 로드 고정비 **−42.2%** · 줄길이 게이트 신설.
+  ★**착수 전제 3건 반증** — `CONTEXT.md`·`.ai/rules` 는 자동 로드가 아니다)
 - 그 앞 — [`canonical-measurement-surface`](dev-log/2026-08-02-canonical-measurement-surface.md)
 - 그 앞 — [`divergence-label-split`](dev-log/2026-08-02-divergence-label-split.md)
 - 이번 주 완료 스프린트와 이전 회고 — [`dev-log/INDEX.md`](dev-log/INDEX.md)
