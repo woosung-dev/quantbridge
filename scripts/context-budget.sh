@@ -15,7 +15,9 @@
 #   턴**을 골라 Δ(input+cache_creation+cache_read) − 직전 턴 output_tokens 를 그 tool_result 의
 #   토큰으로 역산했다. 한국어 md 표본 16건 110,395자 → 81,218 tok = **0.736 tok/자**.
 #   (참고: 코드 0.445 · Bash 출력 0.587 — 이 스크립트는 md 만 다루므로 0.736 만 쓴다.)
-#   ⇒ 절대값은 ±5% 오차가 있을 수 있으나 **before/after 비교에는 같은 계수가 양쪽에 걸리므로 무해**하다.
+#   ★★**계수는 실측이지만 파일별 토큰 수는 「문자수 × 상수」 = 추정이다.** 둘을 섞어 부르지 마라.
+#     압축 전후로 링크·표·식별자 비중이 달라지면 같은 상수를 곱한 값의 감소율이 실제 토큰 감소율과
+#     어긋날 수 있다(codex MINOR, 2026-08-02). 그래서 출력 컬럼 이름이 `~tok`(estimated)다.
 #
 # 사용법
 #   bash scripts/context-budget.sh              # 사람이 읽는 표
@@ -104,13 +106,26 @@ def measure(path: Path, label: str | None = None) -> dict | None:
 
 
 def resolve_chain(entry: Path, seen: set[Path]) -> list[Path]:
-    """CLAUDE.md 의 `@파일` import 를 재귀적으로 펼친다."""
-    if not entry.exists() or entry in seen:
+    """CLAUDE.md 의 `@파일` import 를 재귀적으로 펼친다.
+
+    ★가드 2종 (codex NIT, 2026-08-02):
+      - **레포 밖 import 는 거부**한다. `@../../secret.md` 같은 경로가 고정비에 섞이면
+        「자동 로드분」이 임의로 부풀거나 줄어든다.
+      - **없는 import 는 조용히 넘기지 않고 경고**한다. 조용한 누락은 과소계상이 된다.
+    """
+    if entry in seen:
+        return []
+    if not entry.exists():
+        print(f"  ! import 대상 없음 — 고정비에서 누락됨: {entry}", file=sys.stderr)
         return []
     seen.add(entry)
     out = [entry]
     for target in IMPORT_RE.findall(entry.read_text(encoding="utf-8", errors="replace")):
-        out.extend(resolve_chain((entry.parent / target).resolve(), seen))
+        resolved = (entry.parent / target).resolve()
+        if not resolved.is_relative_to(root):
+            print(f"  ! 레포 밖 import 는 세지 않는다: {resolved}", file=sys.stderr)
+            continue
+        out.extend(resolve_chain(resolved, seen))
     return out
 
 

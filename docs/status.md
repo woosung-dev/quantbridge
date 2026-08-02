@@ -111,7 +111,7 @@ ruff clean · mypy **214** clean ·
 ## 완료 이력
 
 - 직전 회차 — [`context-budget-repair`](dev-log/2026-08-02-context-budget-repair.md)
-  (문서·계측만. `INDEX.md` **−89.9%** · 자동 로드 고정비 **−42.2%** · 줄길이 게이트 신설.
+  (문서·계측만. `INDEX.md` **−92.3%** · 자동 로드 고정비 **−42.2%** · 줄길이 게이트 신설.
   ★**착수 전제 3건 반증** — `CONTEXT.md`·`.ai/rules` 는 자동 로드가 아니다)
 - 그 앞 — [`canonical-measurement-surface`](dev-log/2026-08-02-canonical-measurement-surface.md)
 - 그 앞 — [`divergence-label-split`](dev-log/2026-08-02-divergence-label-split.md)

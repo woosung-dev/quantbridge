@@ -122,6 +122,22 @@ for rel, cap in line_caps.items():
         if len(line) > cap:
             cap_hits.append((rel, lineno, len(line), cap))
 
+# ── dev-log/INDEX.md 의 링크 ────────────────────────────────────
+# 위 링크 검사는 `docs/dev-log` 를 frozen 으로 스킵한다(append-only 이력이라). 그런데 INDEX.md 는
+# 이력이 아니라 **매 세션 읽히는 색인**이고, 2026-08-02 압축 이후 상세의 상당수가
+# `docs/archive/dev-log/index-full-2026-08-02.md` 링크 너머에 있다. 그 링크가 깨지면
+# 「압축이 곧 삭제」가 되는데 어떤 게이트도 물지 않았다 — 명시 대상으로 넣는다.
+index_md = docs / "dev-log" / "INDEX.md"
+if index_md.exists():
+    text = index_md.read_text(encoding="utf-8", errors="replace")
+    for raw_target in link_re.findall(text):
+        target = raw_target.strip().split(maxsplit=1)[0].strip("<>")
+        if not target or target.startswith(("#", "http:", "https:", "mailto:", "tel:")):
+            continue
+        target = target.split("#", 1)[0]
+        if target and not (index_md.parent / target).resolve().exists():
+            broken_links.append((index_md.relative_to(root), target))
+
 if broken_links:
     print("▶ Broken active Markdown links")
     for path, target in broken_links:
