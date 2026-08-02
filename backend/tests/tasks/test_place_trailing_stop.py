@@ -2,8 +2,10 @@
 """체결(fill-transition) 후 native trailing-stop 부착. winner-only enqueue 라 멱등.
 money-path: 무방비 방지 — 성공/skip 분류 + network 실패는 raise(상위 retry+alert).
 """
+
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -24,7 +26,9 @@ def _provider(*, pos, set_side_effect=None):
     return p
 
 
-async def _run(provider, *, entry_side=OrderSide.buy, distance=Decimal("3.0"), order_filled_at=None):
+async def _run(
+    provider, *, entry_side=OrderSide.buy, distance=Decimal("3.0"), order_filled_at=None
+):
     from src.tasks.trading import _do_place_trailing_stop
 
     return await _do_place_trailing_stop(
@@ -186,9 +190,7 @@ def _patch_session_wrapper(monkeypatch, *, order, account):
     monkeypatch.setattr(
         t, "OrderRepository", lambda _s: SimpleNamespace(get_by_id=AsyncMock(return_value=order))
     )
-    monkeypatch.setattr(
-        t, "EncryptionService", lambda _k: SimpleNamespace(decrypt=lambda x: "pt")
-    )
+    monkeypatch.setattr(t, "EncryptionService", lambda _k: SimpleNamespace(decrypt=lambda x: "pt"))
     return lambda: _FakeSession(account)
 
 
@@ -296,9 +298,7 @@ def test_enqueue_gates_on_trailing_intent(monkeypatch):
     from src.tasks import trading as t
 
     calls: list[dict] = []
-    monkeypatch.setattr(
-        t.place_trailing_stop_task, "apply_async", lambda **kw: calls.append(kw)
-    )
+    monkeypatch.setattr(t.place_trailing_stop_task, "apply_async", lambda **kw: calls.append(kw))
     t._enqueue_trailing_if_intended(
         SimpleNamespace(id=uuid4(), trailing_stop=Decimal("3.0"), reduce_only=False)
     )
@@ -378,6 +378,132 @@ def _drive_task(monkeypatch, *, retries, behaviors):
             return None, task.retry, r
     finally:
         task.pop_request()
+
+
+def _drive_task_for_real(monkeypatch, *, retries, provider):
+    """실제 coroutine으로 task 본문을 구동하되 provider 생성 경계만 고정한다."""
+    from celery.exceptions import Retry
+
+    from src.tasks import _worker_loop as wl
+    from src.tasks import trading as t
+    from src.tasks.trading import place_trailing_stop_task as task
+
+    async def _fake_async_place_trailing_stop(order_id):
+        return await t._do_place_trailing_stop(
+            order_id=order_id,
+            symbol="BTC/USDT",
+            entry_side=OrderSide.buy,
+            distance=Decimal("3.0"),
+            creds=object(),
+            provider=provider,
+        )
+
+    monkeypatch.setattr(t, "_async_place_trailing_stop", _fake_async_place_trailing_stop)
+    monkeypatch.setattr(wl, "run_in_worker_loop", asyncio.run)
+    monkeypatch.setattr(task, "retry", Mock(side_effect=lambda **_kwargs: Retry()))
+    task.push_request(retries=retries)
+    try:
+        try:
+            return task.run(str(uuid4())), task.retry, None
+        except Retry as exc:
+            return None, task.retry, exc
+    finally:
+        task.pop_request()
+
+
+def test_placed_metric_failure_does_not_retry_a_successful_placement(monkeypatch):
+    """성공한 거래소 부착 뒤 계측 실패는 placement 결과를 바꾸지 않는다."""
+    import src.common.metrics as metrics_mod
+
+    provider = _provider(pos=PositionInfo(size=Decimal("0.001"), side="long"))
+    labels = metrics_mod.qb_trailing_placement_total.labels
+
+    def _explode(**kwargs: object) -> object:
+        if kwargs["outcome"] == "placed":
+            raise OSError("mmap allocation failed")
+        return labels(**kwargs)
+
+    monkeypatch.setattr(metrics_mod.qb_trailing_placement_total, "labels", _explode)
+
+    result, retry, raised = _drive_task_for_real(monkeypatch, retries=0, provider=provider)
+
+    assert raised is None
+    assert result == {"placed": True}
+    retry.assert_not_called()
+    provider.set_trading_stop.assert_awaited_once()
+
+
+def test_placed_metric_failure_does_not_fire_false_unprotected_alert(monkeypatch):
+    """성공한 거래소 부착 뒤 계측 실패는 무방비 경보로 바뀌지 않는다."""
+    import src.common.metrics as metrics_mod
+    from src.tasks import trading as t
+    from src.tasks.trading import _TRAILING_MAX_RETRIES
+
+    provider = _provider(pos=PositionInfo(size=Decimal("0.001"), side="long"))
+    alert_spy = AsyncMock()
+    labels = metrics_mod.qb_trailing_placement_total.labels
+
+    def _explode(**kwargs: object) -> object:
+        if kwargs["outcome"] == "placed":
+            raise OSError("mmap allocation failed")
+        return labels(**kwargs)
+
+    monkeypatch.setattr(metrics_mod.qb_trailing_placement_total, "labels", _explode)
+    monkeypatch.setattr(t, "_alert_trailing_unprotected", alert_spy)
+
+    result, _retry, raised = _drive_task_for_real(
+        monkeypatch, retries=_TRAILING_MAX_RETRIES, provider=provider
+    )
+
+    assert raised is None
+    assert result.get("failed") != "trailing_unprotected"
+    alert_spy.assert_not_awaited()
+
+
+def test_provider_failure_still_retries_when_only_failed_label_explodes(monkeypatch):
+    """거래소 실패의 재시도 의미는 실패 계측 오류와 무관하게 유지된다."""
+    import src.common.metrics as metrics_mod
+
+    provider = _provider(
+        pos=PositionInfo(size=Decimal("0.001"), side="long"),
+        set_side_effect=ProviderError("RequestTimeout: connection lost"),
+    )
+    labels = metrics_mod.qb_trailing_placement_total.labels
+
+    def _explode(**kwargs: object) -> object:
+        if kwargs["outcome"] == "failed":
+            raise OSError("mmap allocation failed")
+        return labels(**kwargs)
+
+    monkeypatch.setattr(metrics_mod.qb_trailing_placement_total, "labels", _explode)
+
+    result, retry, raised = _drive_task_for_real(monkeypatch, retries=0, provider=provider)
+
+    assert result is None
+    assert raised is not None
+    retry.assert_called_once()
+
+
+def test_pre_write_skip_metric_failure_changes_nothing(monkeypatch):
+    """거래소 쓰기 전 skip 계측 오류는 기존 재시도 분류를 유지한다."""
+    import src.common.metrics as metrics_mod
+
+    provider = _provider(pos=PositionInfo(size=Decimal("0.001"), side="short"))
+    labels = metrics_mod.qb_trailing_placement_total.labels
+
+    def _explode(**kwargs: object) -> object:
+        if kwargs["outcome"] == "skipped_position_mismatch":
+            raise OSError("mmap allocation failed")
+        return labels(**kwargs)
+
+    monkeypatch.setattr(metrics_mod.qb_trailing_placement_total, "labels", _explode)
+
+    result, retry, raised = _drive_task_for_real(monkeypatch, retries=0, provider=provider)
+
+    assert result is None
+    assert raised is not None
+    retry.assert_called_once()
+    provider.set_trading_stop.assert_not_awaited()
 
 
 def test_task_premature_flat_retries_within_limit(monkeypatch):
