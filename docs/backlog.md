@@ -2468,7 +2468,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-417
 
-**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 "BL-417 drop").
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/archive/dev-log/index-full-2026-08-02.md` (opspack-ws2 "BL-417 drop").
 
 **Title:** `LiveSignalState.last_open_trades_snapshot` 이 실경로에서 항상 `{}` — 저장 가드가 리스트를 버림 (dead data 컬럼) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / trading live-signal
@@ -2485,7 +2485,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-418
 
-**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 "payload 계약").
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/archive/dev-log/index-full-2026-08-02.md` (opspack-ws2 "payload 계약").
 
 **Title:** realtime 이벤트 payload 계약 미강제 — publisher/manager 가 임의 dict 통과 (worker 간 계약 drift 표면) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / realtime
@@ -2502,7 +2502,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-419
 
-**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 정비 팩 6종).
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/archive/dev-log/index-full-2026-08-02.md` (opspack-ws2 정비 팩 6종).
 
 **Title:** live_signal `result.errors` 경로의 세션 자동 비활성이 `session_state` 를 발행하지 않음 (최대 30s stale) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend / realtime
@@ -2534,7 +2534,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-421
 
-**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 "pending 시맨틱").
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/archive/dev-log/index-full-2026-08-02.md` (opspack-ws2 "pending 시맨틱").
 
 **Title:** 미평가 라이브 세션의 `/state` 404 무한 폴링 — 콘솔 error 도배 (정상 과도상태를 error 로 표면화) → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Backend+Frontend / live-sessions
@@ -2551,7 +2551,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-422
 
-**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/dev-log/INDEX.md:43` (opspack-ws2 정비 팩 6종).
+**상태:** ✅ **Resolved (2026-07-24, `stage/opspack-ws2`)** — 근거: 본 섹션 `**Title:**` 줄 · `docs/archive/dev-log/index-full-2026-08-02.md` (opspack-ws2 정비 팩 6종).
 
 **Title:** 알림 규칙 생성 폼이 empty 상태에서만 노출 — 세션당 2번째 규칙(watchdog 등) UI 추가 불가 + 409 경로 UI 도달 불가 → ✅ **Resolved (2026-07-24, stage/opspack-ws2)**
 **Category:** Frontend / alert-rules UX
@@ -4219,7 +4219,7 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 
 ### BL-535
 
-**상태:** 🟡 **부분 Resolved (2026-07-30, PR #503 engine-exchange-alignment)** — 적재 경로는 실주행 확인(perp `BTC/USDT:USDT` 721행 신규 · 스팟 9337 불변), **스팟/perp 결과 차 대조는 미실시**. 근거: 본 섹션 「★실주행 검증」 마지막 문단("Resolved 가 아니라 **부분 완료**로 둔다") · `docs/dev-log/INDEX.md:21` ("BL-535 부분", "잔여 = 스팟/perp 결과 차 대조 미실시").
+**상태:** 🟡 **부분 Resolved (2026-07-30, PR #503 engine-exchange-alignment)** — 적재 경로는 실주행 확인(perp `BTC/USDT:USDT` 721행 신규 · 스팟 9337 불변), **스팟/perp 결과 차 대조는 미실시**. 근거: 본 섹션 「★실주행 검증」 마지막 문단("Resolved 가 아니라 **부분 완료**로 둔다") · `docs/archive/dev-log/index-full-2026-08-02.md` ("BL-535 부분", "잔여 = 스팟/perp 결과 차 대조 미실시").
 
 **Title:** ★**백테스트는 스팟 봉으로 perp 전략을 검증한다** — 라이브만 계기를 맞춰 두 축이 갈렸다
 **Category:** Backend / market_data
