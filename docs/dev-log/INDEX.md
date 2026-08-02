@@ -11,6 +11,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-02 context-budget-repair** — 문서를 읽는 비용. `INDEX.md` **−90.0%**(151,256→15,199 tok) · 자동 로드 고정비 **−42.2%** · 줄길이 상한 게이트 신설. ★**착수 전제 3건 반증** — `CONTEXT.md`·`.ai/rules` 는 자동 로드가 **아니다** [dev-log](2026-08-02-context-budget-repair.md)
 - **2026-08-02 canonical-measurement-surface** — 손 SQL 을 쓸 이유를 없앤 정본 술어 측정 표면 3종. **BL-576 프로덕션 발화 검증 통과**, **BL-577 전제 반증**(가드는 실재했다 — 내용 grep 은 파일명에만 있는 문자열을 못 잡는다), 신규 BL-579. PR #520 — [dev-log](2026-08-02-canonical-measurement-surface.md)
 - **2026-08-02 divergence-label-split** — 로그 이벤트 하나가 덮던 발화 8곳을 사건별 6 이름으로 갈라 **BL-576 Resolved**. 판정식 정본을 §G1.1 로 이관 — 살아남은 유일한 완전 판정 표가 OR 버전이었다(삭제에 의한 역선택). PR #519 — [dev-log](2026-08-02-divergence-label-split.md)
 - **2026-08-01 entry-completeness-rejudgement** — **4개 채널 중 3개가 유실 채널이 아니었다** ⇒ 「축소」. 층위1 확정 거절률 16.67% → 2.44%. **BL-536 Resolved · BL-522 P1→P2**, 신규 BL-578. PR #518 — [dev-log](2026-08-01-entry-completeness-rejudgement.md)
@@ -22,7 +23,6 @@
 - **2026-07-30 live-entry-completeness** — **BL-536 재측정 「축소」** — 유실은 줄어든 게 아니라 원장 밖 한 채널로 수렴(75%). 직전 헤드라인 16.67% 는 에피소드 유실률이 아니라 시도 거절률이었다. PR #509 · #510 — [dev-log](2026-07-30-live-entry-completeness.md)
 - **2026-07-30 conditional-entry-alignment** — 착수 preflight 가 전제 2건을 반증. **BL-544**(원장 체결로 엔진 seed) · **BL-484**(세션 종료 사유 영속) 착지. soak 3/3 생존이나 seed 주입 경로는 한 번도 안 밟혔다 → BL-553. PR #506 — [dev-log](2026-07-30-conditional-entry-alignment.md)
 - **2026-07-30 engine-exchange-alignment** — **BL-543**(position epoch) 착지 + BL-535 부분. **실주행 soak 이 단위테스트를 반증** — 재생 아티팩트는 사라졌으나 공백 뒤 세션이 정반대 방향으로 사망 ⇒ **BL-544** 신설. PR #503 — [dev-log](2026-07-30-engine-exchange-alignment.md)
-- **2026-07-29 live-orphan-close** — **BL-537 전제 반증** — 고아 포지션은 실제로 눌러 보니 닫혔다. 진짜 결함은 「누르면 실패하는 버튼」. BL-536 판정 = 유지. 신규 BL-541/542/543. PR #501 — [dev-log](2026-07-29-live-orphan-close.md)
 
 ---
 
@@ -32,6 +32,7 @@
 
 | 날짜        | 이름                                         | 기록                                                             |
 | ----------- | -------------------------------------------- | ---------------------------------------------------------------- |
+| 2026-07-29  | live-orphan-close                            | [dev-log](2026-07-29-live-orphan-close.md)                       |
 | 2026-08-01  | entry-completeness-rejudgement 사전등록 감사 | [log](2026-08-01-entry-completeness-rejudgement-prereg-audit.md) |
 | 2026-07-28  | live-close-completeness                      | [log](2026-07-28-live-close-completeness.md)                     |
 | 2026-07-28  | live-outcome-parity                          | [log](2026-07-28-live-outcome-parity.md)                         |
