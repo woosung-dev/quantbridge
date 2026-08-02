@@ -30,6 +30,7 @@ from src.common.metrics import (
     qb_ws_reconcile_unknown_total,
     record_partial_fill,
 )
+from src.common.metrics_multiproc import record_metric_safely
 from src.core.config import Settings
 from src.trading.models import Order, OrderState
 from src.trading.repositories.order_repository import OrderRepository
@@ -127,7 +128,7 @@ class Reconciler:
                     OrderState.rejected,
                     OrderState.cancelled,
                 ):
-                    qb_active_orders.dec()
+                    record_metric_safely(qb_active_orders.dec)
                 if new_state == OrderState.filled:
                     # STEP B (Opus A P1) — reconciler 는 4번째 fill-transition winner.
                     #   WS 이벤트 유실 시 reconciler 가 winner → 다른 enqueue 분기는

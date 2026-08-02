@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from celery import shared_task
 
 from src.common.metrics import qb_active_orders, qb_live_conditional_reconcile_errors_total
+from src.common.metrics_multiproc import record_metric_safely
 from src.core.config import settings
 from src.tasks._worker_engine import create_worker_engine_and_sm
 from src.tasks.orphan_scanner import _SCAN_STUCK_THRESHOLD_MINUTES
@@ -153,7 +154,7 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                     if rows == 1:
                         await order_repo.commit()
                         terminal += 1
-                        qb_active_orders.dec()
+                        record_metric_safely(qb_active_orders.dec)
                         if probe.status == "filled":
                             _enqueue_trailing_if_intended(hook_order)
                             _enqueue_closed_pnl_refresh(hook_order)

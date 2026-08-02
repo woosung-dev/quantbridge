@@ -8,6 +8,7 @@ import re
 from collections.abc import Callable
 from itertools import count
 from pathlib import Path
+from typing import Any
 
 from prometheus_client import CollectorRegistry, generate_latest, values
 from prometheus_client.gc_collector import GCCollector
@@ -34,6 +35,33 @@ def record_metric_safely(fn: Callable[..., object], *args: object) -> None:
             qb_metrics_mutation_failed_total.inc()
         except Exception:
             logger.exception("metrics_mutation_failure_count_failed")
+
+
+def _count_safely(counter: Any, **labels: str) -> None:
+    """라벨 생성과 증가를 **함께** 예외로부터 격리한다 (BL-536 R2).
+
+    ★`.labels()` 도 감싸야 한다. multiprocess 모드에서 새 라벨 조합은 그 시점에
+    mmap 파일을 늘리므로(디스크 full · 권한 오류 가능) **`.inc()` 만 감싸면 절반만
+    막는 것**이다. 기존 선례(`order_service.py` 의 `record_metric_safely(gauge.inc)`)는
+    라벨이 없는 gauge 라 그 구분이 없었다.
+
+    기존 두 counter 의 호출 지점이 `try_claim_bar` 뒤 · 단일 commit 앞이라, 여기서 던지면
+    claim 이 rollback 되고 다음 tick 이 같은 bar 를 다시 평가해 **매-tick 크래시 루프**가 된다.
+    """
+    record_metric_safely(lambda: counter.labels(**labels).inc())
+
+
+def _touch_safely(counter: Any, **labels: str) -> None:
+    """라벨 조합을 **증가 없이** 실체화한다. `_count_safely` 의 무증분 형제.
+
+    ★왜 `_count_safely` 를 못 쓰나 — 그쪽은 `.inc()` 한다. 초기화에서 1 을 올리면
+    창 차분이 실제 발화 수보다 커져 **계측이 스스로 거짓말**을 한다.
+
+    ★왜 raw `.labels()` 를 직접 쓰지 않나 — `test_live_conditional_divergence_labels`
+    가 그 counter 에 대한 raw `.labels()` 를 **AST 로 금지**한다. 그 규율의 의도는
+    "라벨 생성도 예외로부터 격리하라" 이고, 이 함수는 그 의도를 지키면서 증분만 뺀다.
+    """
+    record_metric_safely(lambda: counter.labels(**labels))
 
 
 def _quarantine_corrupt_metrics(path: str) -> None:

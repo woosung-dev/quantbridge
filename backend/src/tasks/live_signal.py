@@ -60,7 +60,7 @@ from src.common.metrics import (
     qb_live_signal_outbox_pending_gauge,
     qb_live_signal_skipped_total,
 )
-from src.common.metrics_multiproc import record_metric_safely
+from src.common.metrics_multiproc import _count_safely, _touch_safely, record_metric_safely
 from src.common.redlock import RedisLock
 from src.core.config import settings
 from src.market_data.constants import to_ccxt_perpetual_symbol
@@ -750,33 +750,6 @@ def _reversal_overshoot_bucket(ratio: Decimal | None) -> str:
     return "8x+"
 
 
-def _count_safely(counter: Any, **labels: str) -> None:
-    """라벨 생성과 증가를 **함께** 예외로부터 격리한다 (BL-536 R2).
-
-    ★`.labels()` 도 감싸야 한다. multiprocess 모드에서 새 라벨 조합은 그 시점에
-    mmap 파일을 늘리므로(디스크 full · 권한 오류 가능) **`.inc()` 만 감싸면 절반만
-    막는 것**이다. 기존 선례(`order_service.py` 의 `record_metric_safely(gauge.inc)`)는
-    라벨이 없는 gauge 라 그 구분이 없었다.
-
-    기존 두 counter 의 호출 지점이 `try_claim_bar` 뒤 · 단일 commit 앞이라, 여기서 던지면
-    claim 이 rollback 되고 다음 tick 이 같은 bar 를 다시 평가해 **매-tick 크래시 루프**가 된다.
-    """
-    record_metric_safely(lambda: counter.labels(**labels).inc())
-
-
-def _touch_safely(counter: Any, **labels: str) -> None:
-    """라벨 조합을 **증가 없이** 실체화한다. `_count_safely` 의 무증분 형제.
-
-    ★왜 `_count_safely` 를 못 쓰나 — 그쪽은 `.inc()` 한다. 초기화에서 1 을 올리면
-    창 차분이 실제 발화 수보다 커져 **계측이 스스로 거짓말**을 한다.
-
-    ★왜 raw `.labels()` 를 직접 쓰지 않나 — `test_live_conditional_divergence_labels`
-    가 그 counter 에 대한 raw `.labels()` 를 **AST 로 금지**한다. 그 규율의 의도는
-    "라벨 생성도 예외로부터 격리하라" 이고, 이 함수는 그 의도를 지키면서 증분만 뺀다.
-    """
-    record_metric_safely(lambda: counter.labels(**labels))
-
-
 def _prime_divergence_series() -> None:
     """13 개 `(event, reason)` 조합을 import 시점에 **0 으로 실체화**한다 (BL-576 발화 검증).
 
@@ -899,7 +872,7 @@ async def _write_back_confirmed_terminal(
     if rows != 1:
         return None  # 다른 경로가 먼저 전이시켰다 — 중복 처리 금지.
     await order_repo.commit()
-    qb_active_orders.dec()  # 생성 시 inc 된 것의 terminal 전이
+    record_metric_safely(qb_active_orders.dec)  # 생성 시 inc 된 것의 terminal 전이
     if status == "filled":
         # ★후속 enqueue 실패를 **전이 성공과 분리한다.** 전이는 방금 커밋됐으니 되돌릴
         # 수 없는데, 여기서 예외가 올라가면 호출자의 전역 catch 가 그 tick 을 통째로
@@ -1686,12 +1659,16 @@ async def _reconcile_conditional_entries(
                         idempotency_key=idempotency_key,
                         body_hash=None,
                     )
-                    qb_live_conditional_placed_total.labels(direction=planned_entry.direction).inc()
-                    qb_live_conditional_guard_total.labels(
+                    _count_safely(
+                        qb_live_conditional_placed_total,
+                        direction=planned_entry.direction,
+                    )
+                    _count_safely(
+                        qb_live_conditional_guard_total,
                         outcome=(
                             "market_converted" if planned_entry.as_market else "conditional_placed"
-                        )
-                    ).inc()
+                        ),
+                    )
                     # BL-523 — 붙일 브래킷이 **있었는가**. 이 라벨들의 비가 곧 §전제의 실측이다
                     # (조건부 진입은 체결 전까지 `open_trades` 에 없어 지금은 전량
                     # `bracket_unavailable` 이어야 한다).
@@ -1759,9 +1736,10 @@ async def _reconcile_conditional_entries(
                         # 등재는 다음 tick의 새 포지션 스냅샷까지 미룬다.
                         remaining_count = len(to_place) - placement_index - 1
                         for _ in range(remaining_count):
-                            qb_live_conditional_reconcile_errors_total.labels(
+                            _count_safely(
+                                qb_live_conditional_reconcile_errors_total,
                                 stage="deferred_after_market_convert"
-                            ).inc()
+                            )
                         if remaining_count:
                             logger.warning(
                                 "live_conditional_reconcile_deferred_after_market_convert",

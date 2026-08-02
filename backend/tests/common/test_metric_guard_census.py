@@ -57,16 +57,15 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
     ("backend/src/tasks/_ws_circuit_breaker.py", "qb_ws_auth_circuit_total"): 4,
     ("backend/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
-    ("backend/src/tasks/conditional_entry_janitor.py", "qb_active_orders"): 3,
+    ("backend/src/tasks/conditional_entry_janitor.py", "qb_active_orders"): 2,
     (
         "backend/src/tasks/conditional_entry_janitor.py",
         "qb_live_conditional_reconcile_errors_total",
     ): 5,
-    ("backend/src/tasks/live_signal.py", "qb_active_orders"): 3,
+    ("backend/src/tasks/live_signal.py", "qb_active_orders"): 2,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_cancelled_total"): 1,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_guard_total"): 9,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_placed_total"): 1,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 14,
+    ("backend/src/tasks/live_signal.py", "qb_live_conditional_guard_total"): 8,
+    ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 13,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_dispatch_total"): 12,
@@ -77,13 +76,13 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_outbox_pending_gauge"): 2,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 10,
-    ("backend/src/tasks/trading.py", "qb_active_orders"): 8,
+    ("backend/src/tasks/trading.py", "qb_active_orders"): 6,
     ("backend/src/tasks/trading.py", "qb_closed_pnl_backfill_total"): 15,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_link_unverified_total"): 1,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
     ("backend/src/tasks/trading.py", "qb_order_snapshot_fallback_total"): 2,
-    ("backend/src/tasks/trading.py", "qb_trailing_placement_total"): 10,
+    ("backend/src/tasks/trading.py", "qb_trailing_placement_total"): 9,
     ("backend/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): 1,
     ("backend/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
     ("backend/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
@@ -97,9 +96,7 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconcile_skipped_total"): 1,
     ("backend/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconnect_total"): 1,
     ("backend/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
-    ("backend/src/trading/websocket/reconciliation.py", "qb_active_orders"): 1,
     ("backend/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
-    ("backend/src/trading/websocket/state_handler.py", "qb_active_orders"): 1,
     ("backend/src/trading/websocket/state_handler.py", "qb_ws_orphan_buffer_size"): 2,
     ("backend/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): 1,
 }
@@ -369,8 +366,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 51
-    assert sum(_FROZEN_CENSUS.values()) == 159
+    assert len(_FROZEN_CENSUS) == 48
+    assert sum(_FROZEN_CENSUS.values()) == 149
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
@@ -400,3 +397,160 @@ def test_guard_outcome_literals_are_all_allowed() -> None:
                     )
 
     assert not violations, "\n".join(violations)
+
+
+# ---------------------------------------------------------------------------
+# 보호 목록 (L2) — CONTROL 이 손으로 동결한다. ★추론하지 않는다.
+#
+# 왜 추론을 안 쓰나: 「머니-패스」 zone 을 AST 로 추론하려 세 번 시도했고 정의를 조금씩
+# 바꿀 때마다 6 / 13 / 14 곳으로 흔들렸다(2026-08-02). 그중 「6곳」은 프로토타입에 박아둔
+# 임의의 40줄 창이 만든 값이었다. ⇒ 머니-패스 여부는 구문에서 추론할 수 없다.
+# 신규 유입 차단은 위 census 천장이 담당하고, 이 목록은 **무엇을 왜 지키는지**를 고정한다.
+# ---------------------------------------------------------------------------
+
+_PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
+    # (파일, 함수, metric, 이유)
+    # Tier 1 — 주문 접수·실행 enqueue 성공 직후. 던지면 성공이 실패로 기록된다.
+    (
+        "backend/src/tasks/live_signal.py",
+        "_reconcile_conditional_entries",
+        "qb_live_conditional_placed_total",
+        "성공 접수를 stage=conditional_place 실패로 계상",
+    ),
+    (
+        "backend/src/tasks/live_signal.py",
+        "_reconcile_conditional_entries",
+        "qb_live_conditional_guard_total",
+        "위와 같음 + _GuardOutcomeCounter 는 ValueError 도 던진다",
+    ),
+    (
+        "backend/src/tasks/live_signal.py",
+        "_reconcile_conditional_entries",
+        "qb_live_conditional_reconcile_errors_total",
+        "지연 return 을 건너뛰어 낡은 스냅샷 위 과잉 등재 (실측: execute await 2회)",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "_do_place_trailing_stop",
+        "qb_trailing_placement_total",
+        "중복 set_trading_stop + 거짓 trailing_unprotected critical alert",
+    ),
+    # Tier 2 — 내구 쓰기와 체결 후처리 훅 사이의 gauge. 던지면 후처리가 통째로 유실된다.
+    (
+        "backend/src/trading/websocket/state_handler.py",
+        "handle_order_event",
+        "qb_active_orders",
+        "WS fill 주 경로. 23줄 아래 가드와 그 전용 회귀 테스트를 도달 불가로 만든다",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "_execute_with_session",
+        "qb_active_orders",
+        "REST 동기 fill. max_retries=0 이라 회수 경로가 없다",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "_fetch_order_status_with_session",
+        "qb_active_orders",
+        "watchdog fill",
+    ),
+    (
+        "backend/src/trading/websocket/reconciliation.py",
+        "run",
+        "qb_active_orders",
+        "reconciler fill",
+    ),
+    (
+        "backend/src/tasks/conditional_entry_janitor.py",
+        "_async_conditional_entry_janitor",
+        "qb_active_orders",
+        "janitor fill",
+    ),
+    (
+        "backend/src/tasks/live_signal.py",
+        "_write_back_confirmed_terminal",
+        "qb_active_orders",
+        "BL-567 이 '트레일링 영구 유실' 로 등재한 격리 블록의 한 줄 위",
+    ),
+)
+
+
+def _guarded_metric_mentions(tree: ast.Module, function_name: str, metric: str) -> int:
+    """해당 함수 안에서 그 metric 을 가드 호출에 넘긴 횟수."""
+    found = 0
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if node.name != function_name:
+            continue
+        for inner in ast.walk(node):
+            if not isinstance(inner, ast.Call):
+                continue
+            name = (
+                inner.func.id
+                if isinstance(inner.func, ast.Name)
+                else getattr(inner.func, "attr", None)
+            )
+            if name not in _GUARD_FUNCTIONS:
+                continue
+            if metric in ast.unparse(inner):
+                found += 1
+    return found
+
+
+def test_every_protected_site_is_actually_guarded() -> None:
+    """동결한 10곳 각각에 **가드된** mutation 이 실재하는지 확인한다.
+
+    ★★이 테스트가 집행하는 것과 하지 않는 것을 정확히 적는다 (2026-08-02, 내가 한 번 틀렸다).
+
+    **하지 않는 것:** 「이 함수 안에 그 metric 의 가드 밖 mutation 이 0개」를 요구하지 **않는다.**
+    처음엔 그렇게 썼다가 red 가 났다 — `_reconcile_conditional_entries` 안의
+    `qb_live_conditional_guard_total` 은 **9곳**이고 이번 회차가 감싼 것은 그중 발주 직후 1곳뿐이다.
+    `(파일, 함수, metric)` 삼중항은 **과선택한다.** zone 추론이 6/13/14 로 흔들린 것과 같은 병이다.
+
+    **집행은 위 census 천장이 한다.** 보호 site 를 raw 로 되돌리면 그 `(파일, metric)` 개수가
+    올라가 `test_unguarded_mutation_count_per_file_matches_record` 가 red 가 된다. 실측 확인됨.
+
+    **이 테스트의 몫:** 가드가 통째로 사라지는 것(리팩터링·되돌림)을 잡고, **무엇을 왜 지키는지**를
+    코드 안에 남긴다.
+    """
+    missing = [
+        f"{path}::{function} 에 {metric} 의 가드된 mutation 이 없다 — {reason}"
+        for path, function, metric, reason in _PROTECTED_SITES
+        if _guarded_metric_mentions(
+            dict(
+                (p.relative_to(_REPOSITORY_ROOT).as_posix(), t) for p, t in _source_trees()
+            )[path],
+            function,
+            metric,
+        )
+        == 0
+    ]
+    assert not missing, "\n".join(missing)
+
+
+def test_protected_site_list_is_not_vacuous() -> None:
+    """공허화 방지 — 함수가 사라지거나 가드가 통째로 빠지면 '0건이라 통과' 가 아니라 red."""
+    trees = {
+        path.relative_to(_REPOSITORY_ROOT).as_posix(): tree for path, tree in _source_trees()
+    }
+    problems: list[str] = []
+    for path, function, metric, _reason in _PROTECTED_SITES:
+        tree = trees.get(path)
+        if tree is None:
+            problems.append(f"{path} 가 없다 — 보호 목록을 갱신해라")
+            continue
+        names = {
+            node.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        }
+        if function not in names:
+            problems.append(f"{path}::{function} 가 없다 (rename?) — 보호 목록을 갱신해라")
+            continue
+        if _guarded_metric_mentions(tree, function, metric) == 0:
+            problems.append(
+                f"{path}::{function} 에 {metric} 의 **가드된** mutation 이 0개다 — "
+                "자리가 비었으면 통과가 아니라 갱신 대상이다"
+            )
+    assert not problems, "\n".join(problems)

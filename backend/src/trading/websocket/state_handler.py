@@ -26,6 +26,7 @@ from src.common.metrics import (
     qb_ws_orphan_event_total,
     record_partial_fill,
 )
+from src.common.metrics_multiproc import record_metric_safely
 from src.core.config import Settings
 from src.trading.models import OrderState
 from src.trading.realtime_publisher import publish_realtime
@@ -132,7 +133,7 @@ class StateHandler:
                     OrderState.rejected,
                     OrderState.cancelled,
                 ):
-                    qb_active_orders.dec()
+                    record_metric_safely(qb_active_orders.dec)
 
                 if new_state == OrderState.filled:
                     # STEP B — WS fill winner: trailing 의도 entry 면 place_trailing_stop enqueue.
