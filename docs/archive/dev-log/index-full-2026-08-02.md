@@ -1,3 +1,6 @@
+> 2026-08-02 이전 `dev-log/INDEX.md` 원문. 읽기 전용 — 본문은 한 글자도 고치지 않는다.
+> 압축본 = [`../../dev-log/INDEX.md`](../../dev-log/INDEX.md).
+
 # Dev-log Index
 
 > 본 디렉토리의 모든 개발 회고·ADR·dogfood 기록의 인덱스. AGENTS.md "현재 작업" 섹션에서 sprint history 가 빠진 후 컨텍스트 복원용.
