@@ -2,7 +2,7 @@
 
 > **업데이트:** 2026-08-02
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** 없음
+> **준비 브랜치:** `stage/context-budget-repair` (PR 준비 중 — 문서·계측만, 마이그레이션 0)
 > **최근 머지:** `stage/canonical-measurement-surface` → `main@b476327e` (PR #520, 2026-08-02)
 
 ---
@@ -10,7 +10,12 @@
 ## 🎯 다음 스프린트 — **metric-guard-parity** (계측 실패가 머니-패스를 오기록하는 자리를 닫는다)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
-> 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + `AGENTS.md` + 본 파일을 읽고 시작한다.
+> 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + 본 파일을 읽고 시작한다.
+> ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다**(`CLAUDE.md` 가 `@AGENTS.md` 하나만 import 한다).
+> ★**`CONTEXT.md` 는 반대다 — 자동 로드가 아니라서 읽어야 들어온다.** `.ai/rules/*.md` 도 자동 로드가 아니다.
+> ★**`docs/dev-log/INDEX.md` 를 통째로 grep 하지 마라** — `## 최근 12회차` 상단만 읽는다.
+> 그 이전 이력의 상세는 `docs/archive/dev-log/index-full-2026-08-02.md` 에 있고 **필요할 때만** 연다.
+> (근거 = 2026-08-02 [`context-budget-repair`](dev-log/2026-08-02-context-budget-repair.md) §2 실측.)
 
 **한 줄.** 직전 회차가 「손 SQL 을 쓸 이유」를 없앴다. 그 과정에서 **계측 자체가 머니-패스를
 오기록할 수 있는 자리 127곳**이 드러났고, 그중 **2곳은 거래소 쓰기 성공 직후**다 —
@@ -18,14 +23,14 @@
 
 ### 왜 이것이 최대 리스크인가 (근거는 `roadmap.md` 「현재 최대 리스크」 블록)
 
-| 축                              | 실측                                                              |
-| ------------------------------- | ----------------------------------------------------------------- |
-| 가드 밖 mutation **코드 표면**  | **127곳** (`record_metric_safely` / `_count_safely` 밖)           |
-| 그중 **머니-패스 직후**         | **6곳**                                                           |
-| 그중 **P1** (성공→실패 오기록)  | **2곳**                                                           |
-| **관측된 발생**                 | **0회** — 단 가드 밖은 자기 실패를 셀 counter 가 없다             |
-| 렌더 경로 실패 이력             | `qb_metrics_render_fallback_total` = **2** (mmap 계층 무결 아님)  |
-| `/metrics` 볼륨                 | **9423 파일 · 582MB**, counter/histogram 은 **영구 누적**         |
+| 축                             | 실측                                                             |
+| ------------------------------ | ---------------------------------------------------------------- |
+| 가드 밖 mutation **코드 표면** | **127곳** (`record_metric_safely` / `_count_safely` 밖)          |
+| 그중 **머니-패스 직후**        | **6곳**                                                          |
+| 그중 **P1** (성공→실패 오기록) | **2곳**                                                          |
+| **관측된 발생**                | **0회** — 단 가드 밖은 자기 실패를 셀 counter 가 없다            |
+| 렌더 경로 실패 이력            | `qb_metrics_render_fallback_total` = **2** (mmap 계층 무결 아님) |
+| `/metrics` 볼륨                | **9423 파일 · 582MB**, counter/histogram 은 **영구 누적**        |
 
 ★**「관측 발생 0회」를 「위험 없음」으로 읽지 마라** — 가드된 지점의 실패가 0회라는 뜻이다.
 정본 = [BL-579](backlog.md#bl-579).
@@ -83,7 +88,7 @@ C1 은 문턱 `>= 3` 에 대조 `>= 1` 이다. 출력이 **실제로 센 술어�
 **BL-565**(구조적 측정 불가) · **BL-553 PbR 재시도** · **BL-578 수리** · **BL-574 수리** ·
 **C1 시장가 전환**(머니-패스 변경) · **BL-579 전 127곳 일괄 변경**.
 
-### baseline (2026-08-02 실측 — `sprint/canonical-measurement-surface` 종료 시점)
+### baseline (2026-08-02 재측정 — `stage/context-budget-repair` 착수 시점, 값 동일)
 
 **BE 3820 passed / 46 skipped**(착수 3804 대비 **+16**) · **FE 1242**(205 파일, **+5**) ·
 ruff clean · mypy **214** clean ·
@@ -105,7 +110,10 @@ ruff clean · mypy **214** clean ·
 
 ## 완료 이력
 
-- 직전 회차 — [`canonical-measurement-surface`](dev-log/2026-08-02-canonical-measurement-surface.md)
+- 직전 회차 — [`context-budget-repair`](dev-log/2026-08-02-context-budget-repair.md)
+  (문서·계측만. `INDEX.md` **−92.3%** · 자동 로드 고정비 **−42.2%** · 줄길이 게이트 신설.
+  ★**착수 전제 3건 반증** — `CONTEXT.md`·`.ai/rules` 는 자동 로드가 아니다)
+- 그 앞 — [`canonical-measurement-surface`](dev-log/2026-08-02-canonical-measurement-surface.md)
 - 그 앞 — [`divergence-label-split`](dev-log/2026-08-02-divergence-label-split.md)
 - 이번 주 완료 스프린트와 이전 회고 — [`dev-log/INDEX.md`](dev-log/INDEX.md)
 - 2026-07-26 이전 status 원문 — [`archive/status-history.md`](archive/status-history.md)

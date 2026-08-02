@@ -99,6 +99,45 @@ for start in (docs, root / "backend", root / "frontend", root / "scripts", root 
             if legacy in text:
                 legacy_hits.append((path.relative_to(root), legacy, replacement))
 
+# ── 줄 길이 상한 ────────────────────────────────────────────────
+# 왜 있나 (2026-08-02 context-budget-repair 실측):
+#   grep 은 매치된 **줄 전체**를 준다. 그래서 긴 줄 하나가 곧 대량 읽기다.
+#   `INDEX.md` 는 205,511자를 208줄에 담고 있었고(줄 하나 최대 4,607자),
+#   직전 회차의 `head -20 INDEX.md; grep …` **한 번이 16,104자**를 물어
+#   그 세션 최대 단일 tool_result 였다. 기록된 규율은 안 지켜진다 — 게이트로 막는다.
+# ★`docs/dev-log` 는 위 링크 검사에서 frozen 으로 빠지지만, `INDEX.md` 는
+#   append-only 이력이 아니라 **매 세션 읽히는 인덱스**다. 여기서는 명시 대상으로 넣는다.
+# ★문자 수로 잰다. `awk length()` 는 로케일에 따라 바이트를 세어 한국어에서 1.4배 부풀린다.
+line_caps = {
+    "docs/dev-log/INDEX.md": 300,
+    "docs/backlog.md": 1000,
+    "docs/roadmap.md": 1000,
+}
+cap_hits: list[tuple[str, int, int, int]] = []
+for rel, cap in line_caps.items():
+    path = root / rel
+    if not path.exists():
+        continue
+    for lineno, line in enumerate(path.read_text(encoding="utf-8", errors="replace").split("\n"), 1):
+        if len(line) > cap:
+            cap_hits.append((rel, lineno, len(line), cap))
+
+# ── dev-log/INDEX.md 의 링크 ────────────────────────────────────
+# 위 링크 검사는 `docs/dev-log` 를 frozen 으로 스킵한다(append-only 이력이라). 그런데 INDEX.md 는
+# 이력이 아니라 **매 세션 읽히는 색인**이고, 2026-08-02 압축 이후 상세의 상당수가
+# `docs/archive/dev-log/index-full-2026-08-02.md` 링크 너머에 있다. 그 링크가 깨지면
+# 「압축이 곧 삭제」가 되는데 어떤 게이트도 물지 않았다 — 명시 대상으로 넣는다.
+index_md = docs / "dev-log" / "INDEX.md"
+if index_md.exists():
+    text = index_md.read_text(encoding="utf-8", errors="replace")
+    for raw_target in link_re.findall(text):
+        target = raw_target.strip().split(maxsplit=1)[0].strip("<>")
+        if not target or target.startswith(("#", "http:", "https:", "mailto:", "tel:")):
+            continue
+        target = target.split("#", 1)[0]
+        if target and not (index_md.parent / target).resolve().exists():
+            broken_links.append((index_md.relative_to(root), target))
+
 if broken_links:
     print("▶ Broken active Markdown links")
     for path, target in broken_links:
@@ -109,9 +148,19 @@ if legacy_hits:
     for path, legacy, replacement in legacy_hits:
         print(f"  {path}: {legacy} → {replacement}")
 
-if broken_links or legacy_hits:
-    print(f"✗ docs-audit failed: links={len(broken_links)}, retired_paths={len(legacy_hits)}")
+if cap_hits:
+    print("▶ 줄 길이 상한 초과 (grep 한 줄이 곧 대량 읽기다)")
+    for rel, lineno, length, cap in cap_hits[:20]:
+        print(f"  {rel}:{lineno}: {length}자 > 상한 {cap}자")
+    if len(cap_hits) > 20:
+        print(f"  … 외 {len(cap_hits) - 20}줄")
+
+if broken_links or legacy_hits or cap_hits:
+    print(
+        f"✗ docs-audit failed: links={len(broken_links)}, "
+        f"retired_paths={len(legacy_hits)}, long_lines={len(cap_hits)}"
+    )
     raise SystemExit(1)
 
-print("✓ docs-audit: active Markdown links and retired paths are clean")
+print("✓ docs-audit: active Markdown links, retired paths, line-length caps are clean")
 PY
