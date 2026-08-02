@@ -3,7 +3,7 @@
 > **한 줄.** 문서를 읽는 비용을 재러 들어와서 **착수 전제 4건 중 3건이 틀렸다는 것**을 먼저 재게 됐다.
 > 프롬프트가 시킨 정정 하나는 **하면 안 되는 것**이었고, 약속한 절감 하나는 **실현 가능액이 0**이었다.
 
-**PR:** #TBD · **베이스:** `main@6ee0b2c7` · **브랜치:** `stage/context-budget-repair`
+**PR:** #523 (머지 `main@add7b0de`) · **베이스:** `main@6ee0b2c7` · **브랜치:** `stage/context-budget-repair`
 **마이그레이션 0 · `backend/src` 변경 0 · `frontend/src` 변경 0.**
 
 ---

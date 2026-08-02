@@ -2,8 +2,8 @@
 
 > **업데이트:** 2026-08-02
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** `stage/context-budget-repair` (PR 준비 중 — 문서·계측만, 마이그레이션 0)
-> **최근 머지:** `stage/canonical-measurement-surface` → `main@b476327e` (PR #520, 2026-08-02)
+> **준비 브랜치:** 없음
+> **최근 머지:** `stage/context-budget-repair` → `main@add7b0de` (PR #523, 2026-08-02)
 
 ---
 
