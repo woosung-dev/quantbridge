@@ -57,7 +57,10 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
     ("backend/src/tasks/_ws_circuit_breaker.py", "qb_ws_auth_circuit_total"): 4,
     ("backend/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
-    ("backend/src/tasks/conditional_entry_janitor.py", "qb_live_conditional_reconcile_errors_total"): 5,
+    (
+        "backend/src/tasks/conditional_entry_janitor.py",
+        "qb_live_conditional_reconcile_errors_total",
+    ): 5,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_guard_total"): 8,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 13,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
@@ -506,6 +509,30 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
 assert _PROTECTED_SITES, "보호 목록이 비었다 — 이 테스트 파일은 아무것도 집행하지 않는다"
 
 
+def _references_metric(node: ast.AST, metric: str) -> bool:
+    """가드 인자 서브트리의 한 노드가 그 metric 을 가리키는가.
+
+    세 형태를 덮는다:
+    (a) ``record_metric_safely(qb_x.dec)`` — bound method 를 인자로 넘김
+    (b) ``_count_safely(qb_x, ...)`` — counter 자체를 인자로 넘김
+    (c) ``record_metric_safely(lambda: qb_x.labels(...).inc())`` — lambda 안 체인
+    """
+    if (
+        isinstance(node, ast.Attribute)
+        and node.attr in _MUTATION_METHODS
+        and isinstance(node.value, ast.Name)
+        and node.value.id == metric
+    ):
+        return True
+    if isinstance(node, ast.Name) and node.id == metric:
+        return True
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and _metric_name(node.func.value) == metric
+    )
+
+
 def _guarded_metric_mentions(tree: ast.Module, function_name: str, metric: str) -> int:
     """해당 함수 안에서 그 metric 이 **가드의 인자로 구조적으로** 들어간 횟수.
 
@@ -531,25 +558,7 @@ def _guarded_metric_mentions(tree: ast.Module, function_name: str, metric: str) 
             if name not in _GUARD_FUNCTIONS:
                 continue
             for argument in list(inner.args) + [kw.value for kw in inner.keywords]:
-                for sub in ast.walk(argument):
-                    # (a) record_metric_safely(qb_x.dec) — bound method 를 인자로
-                    if (
-                        isinstance(sub, ast.Attribute)
-                        and sub.attr in _MUTATION_METHODS
-                        and isinstance(sub.value, ast.Name)
-                        and sub.value.id == metric
-                    ):
-                        found += 1
-                    # (b) _count_safely(qb_x, ...) — counter 자체를 인자로
-                    elif isinstance(sub, ast.Name) and sub.id == metric:
-                        found += 1
-                    # (c) record_metric_safely(lambda: qb_x.labels(...).inc())
-                    elif (
-                        isinstance(sub, ast.Call)
-                        and isinstance(sub.func, ast.Attribute)
-                        and _metric_name(sub.func.value) == metric
-                    ):
-                        found += 1
+                found += sum(1 for sub in ast.walk(argument) if _references_metric(sub, metric))
     return found
 
 
@@ -573,9 +582,7 @@ def test_every_protected_site_is_actually_guarded() -> None:
         f"{path}::{function} 에 {metric} 의 가드된 mutation 이 없다 — {reason}"
         for path, function, metric, reason in _PROTECTED_SITES
         if _guarded_metric_mentions(
-            dict(
-                (p.relative_to(_REPOSITORY_ROOT).as_posix(), t) for p, t in _source_trees()
-            )[path],
+            {p.relative_to(_REPOSITORY_ROOT).as_posix(): t for p, t in _source_trees()}[path],
             function,
             metric,
         )
@@ -586,9 +593,7 @@ def test_every_protected_site_is_actually_guarded() -> None:
 
 def test_protected_site_list_is_not_vacuous() -> None:
     """공허화 방지 — 함수가 사라지거나 가드가 통째로 빠지면 '0건이라 통과' 가 아니라 red."""
-    trees = {
-        path.relative_to(_REPOSITORY_ROOT).as_posix(): tree for path, tree in _source_trees()
-    }
+    trees = {path.relative_to(_REPOSITORY_ROOT).as_posix(): tree for path, tree in _source_trees()}
     problems: list[str] = []
     for path, function, metric, _reason in _PROTECTED_SITES:
         tree = trees.get(path)
