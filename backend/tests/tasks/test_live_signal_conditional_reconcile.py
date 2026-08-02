@@ -1776,3 +1776,100 @@ async def test_market_converted_entry_still_carries_its_bracket(
     assert request.trigger_direction is None
     assert request.stop_loss == Decimal("64")
     assert request.take_profit == Decimal("192")
+
+
+@pytest.mark.asyncio
+async def test_placed_metric_failure_does_not_skip_the_market_convert_deferral(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """시장가 전환 뒤 계측 실패가 남은 낡은 스냅샷 등재를 재개하면 안 된다."""
+    import src.common.metrics as metrics_mod
+
+    def _explode(**_kwargs: object) -> object:
+        raise OSError("mmap allocation failed")
+
+    session = _session()
+    harness = _patch_reconcile(monkeypatch, last_price=Decimal("110"))
+    monkeypatch.setattr(metrics_mod.qb_live_conditional_placed_total, "labels", _explode)
+
+    await _reconcile(session, _result([_pending("a"), _pending("b")]), harness)
+
+    assert harness.order_service.execute.await_count == 1
+    assert harness.order_service.execute.await_args.args[0].trigger_price is None
+
+
+@pytest.mark.asyncio
+async def test_placed_metric_failure_is_not_counted_as_a_place_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.common.metrics as metrics_mod
+
+    def _explode(**_kwargs: object) -> object:
+        raise OSError("mmap allocation failed")
+
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    failures = metrics_mod.qb_live_conditional_reconcile_errors_total.labels(
+        stage="conditional_place"
+    )
+    before = failures._value.get()
+    monkeypatch.setattr(metrics_mod.qb_live_conditional_placed_total, "labels", _explode)
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    after = failures._value.get()
+    harness.order_service.execute.assert_awaited_once()
+    assert after - before == 0
+
+
+@pytest.mark.asyncio
+async def test_guard_outcome_metric_failure_does_not_counted_as_place_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import src.common.metrics as metrics_mod
+
+    def _explode(**_kwargs: object) -> object:
+        raise OSError("mmap allocation failed")
+
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    failures = metrics_mod.qb_live_conditional_reconcile_errors_total.labels(
+        stage="conditional_place"
+    )
+    before = failures._value.get()
+    monkeypatch.setattr(metrics_mod.qb_live_conditional_guard_total, "labels", _explode)
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    after = failures._value.get()
+    harness.order_service.execute.assert_awaited_once()
+    assert after - before == 0
+
+
+@pytest.mark.asyncio
+async def test_pre_execute_metric_failure_is_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """주문 전 계측 실패는 기존처럼 발주 없이 conditional_place로 계상한다."""
+    import src.common.metrics as metrics_mod
+
+    labels = metrics_mod.qb_live_conditional_reconcile_errors_total.labels
+
+    def _explode(**kwargs: object) -> object:
+        if kwargs["stage"] == "unrepresentable_key":
+            raise OSError("mmap allocation failed")
+        return labels(**kwargs)
+
+    session = _session()
+    harness = _patch_reconcile(monkeypatch)
+    failures = metrics_mod.qb_live_conditional_reconcile_errors_total.labels(
+        stage="conditional_place"
+    )
+    before = failures._value.get()
+    monkeypatch.setattr(metrics_mod.qb_live_conditional_reconcile_errors_total, "labels", _explode)
+
+    await _reconcile(session, _result([_pending("x" * 200)]), harness)
+
+    after = failures._value.get()
+    harness.order_service.execute.assert_not_awaited()
+    assert after - before == 1
