@@ -19,6 +19,7 @@ from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
 from src.common.database import get_async_session
 from src.common.metrics import qb_active_orders
+from src.common.metrics_multiproc import record_metric_safely
 from src.trading.dependencies import (
     get_alert_rule_service,
     get_balance_service,
@@ -373,7 +374,9 @@ async def cancel_order(
         raise HTTPException(status_code=409, detail="cannot cancel in current state")
     # Sprint 9 Phase D FIX-D1: cancel path 에서 gauge decrement
     # (service.execute 에서 +1 한 것을 cancelled terminal state 로 전이 시 -1).
-    qb_active_orders.dec()
+    # ★BL-580 — `commit()` 뒤다. 여기서 던지면 **확정된 취소가 HTTP 500 으로 보고**된다
+    #   (고장 주입 확인: `tests/trading/test_router_cancel_metric_failure.py`).
+    record_metric_safely(qb_active_orders.dec)
     fetched = await repo.get_by_id(order_id)
     if not fetched:
         raise HTTPException(status_code=500, detail="order fetch failed after cancel")
