@@ -14,8 +14,9 @@
 > 생존을 판정해 **25세션 중 12세션을 「살아있음」으로 오독**했다(`deactivated_at` 기준으로 교체).
 >
 > **★PR [#536](https://github.com/woosung-dev/quantbridge/pull/536) OPEN** —
-> `stage/soak-divergence-root` (커밋 3개). **머지 여부와 무관하게 소크는 이미 돌고 있다** —
-> 워커가 `backend/src` 를 bind-mount 하므로 수리는 이미 러닝 코드다.
+> `stage/soak-divergence-root`. **머지 여부와 무관하게 소크는 이미 돌고 있다** —
+> 워커가 `backend/src` 를 bind-mount + `watchfiles` 로 물므로 수리는 **이미 러닝 코드**다
+> (실측: 편집 직후 `1 change detected` → `celery ready` 로그).
 > **최근 머지:** `stage/status-next-sprint-entry` → `main` (**PR #535** @ `048e6e1a`, 2026-08-03).
 
 ---
@@ -146,10 +147,10 @@ exchange `−0.03`. 원장상 거래소가 `14:20:20` 에 뒤집힌 **14초 뒤*
   눈금 붕괴 구멍이 **독립 증거**를 얻었다. 묶었으면 서로의 증거를 가렸다.
 - **A-V3** ❌ **폐기** — 「65분 초과」는 기저율(25세션 중 1건)상 판별력 0. 대체 = 재생 오라클이
   0 이 아닌 모집단(**29건**, 사망 유발 주문 포함)을 냈다.
-- **A-V4** 재가동 후 `qb_live_conditional_guard_total{breach_with_resting}` 와 `{market_converted}`
-  의 **차분**을 기록한다(절대값 금지 — 출생일이 다르다). 판정이 아니라 **관측**이다.
-- **A-V4** ✅ 기록함 — 재가동 T0+17분 `market_converted` **+1**(기존 무-resting 경로) ·
-  `breach_with_resting` **불변 11** · `direction_transient` **+1**(자기해소, hard 0). **차분만** 봤다.
+- **A-V4** ✅ **기록함** (판정이 아니라 관측 — 절대값 금지, 출생일이 다르다). T0→+1h 차분:
+  `market_converted` **+1**(기존 무-resting 경로) · `breach_with_resting` **불변 11** ·
+  `direction_transient` **+2**(둘 다 자기해소) · hard `direction` **0**.
+  ⇒ **수리한 갈래는 프로덕션 미검증**이다(1시간 기대값 ≈0.06건이라 정상).
 - **B-V1** ✅ **충족** — 세 변조에 각각 **자기 assert 만** red(매번 1 failed / 2 passed, 교차 오염 0).
   복원은 sha256 대조.
 - **B-V2** ⚠️ **「유지」로 충족 — 「증가」는 아니다.** nightly 183s → 218s(+19%), 감지
