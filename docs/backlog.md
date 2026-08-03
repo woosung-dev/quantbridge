@@ -1707,11 +1707,13 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Est:** M (4-6h)
 **출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex DOWNGRADE → `metrics.py` 부재 직접 검증 후 KEEP 정정)
 
-**원인 / 영향:** `v2_adapter.py`(964L)의 본 책임은 V2RunResult → BacktestOutcome 변환(orchestration)인데, Sharpe/MaxDD/CAGR/win-rate/streak/monthly 등 도메인-비종속 finance math 10 함수(`_v2_avg_holding_hours`~`_mean`, L707-912 ~250 LOC)가 같은 모듈에 혼재 = shallow-by-size, Locality 깨짐. (codex 가 `engine/metrics.py` 존재로 오판 DOWNGRADE → 실제 부재 확인, 모든 math 가 v2_adapter 내부 → KEEP 정정.) stress_test 재사용은 speculative(현재 `result.metrics` 만 소비)라 추출 정당화는 locality 중심.
+**원인 / 영향:** `v2_adapter.py` 의 본 책임은 V2RunResult → BacktestOutcome 변환(orchestration)인데, Sharpe/MaxDD/CAGR/win-rate/streak/monthly 등 도메인-비종속 finance math 함수가 같은 모듈에 혼재 = shallow-by-size, Locality 깨짐. stress_test 재사용은 speculative(현재 `result.metrics` 만 소비)라 추출 정당화는 locality 중심.
 
-**권장 접근:** finance 계산을 `engine/metrics.py` Deep Module 로 이동 — '(equity_curve, trades, config) → 지표 묶음' 작은 Interface 뒤에 큰 behavior 은닉. v2_adapter 는 호출만 남김. 이동(move)이라 golden oracle parity 로 회귀 0 보장.
+**★전제 정정 (2026-08-03 실측, backtest-metric-oracle):** 본 항목이 전제한 「`engine/metrics.py` 부재」는 **낡았다** — 그 파일은 2026-07-26 backtest-trust 스프린트 이후 실재하며 현재 343줄(`sharpe_ratio`/`sortino_ratio`/`calmar_ratio`/`compute_excursion_stats`/`compute_side_metrics` 등 12 함수)이다. 남은 이동 대상은 `v2_adapter.py` 의 `_v2_*` 헬퍼 블록이고 위치도 바뀌었다 — 등재 당시 인용 `L707-912 / 964L` 은 stale, 현재는 **1211줄 중 L907-1162**. 레포 전체 grep 결과 그 헬퍼 12개를 `src/` 안에서 import 하는 곳은 **0건**이라 순수 move 가 안전하다(테스트 2파일만 직접 import).
 
-**영향 파일:** `engine/v2_adapter.py`(L707-912 추출), 신규 `engine/metrics.py`.
+**권장 접근:** 남은 finance 계산을 기존 `engine/metrics.py` 로 이동 — '(equity_curve, trades, config) → 지표 묶음' 작은 Interface 뒤에 큰 behavior 은닉. v2_adapter 는 호출만 남김. 이동(move)이라 golden oracle parity 로 회귀 0 보장.
+
+**영향 파일:** `engine/v2_adapter.py`(L907-1162 추출), 기존 `engine/metrics.py`.
 
 **Risk:** 🟢 (move refactor — `test_golden_oracle_minimal` + `test_metrics_real_extract` parity 가드, 이동 전후 동일 oracle 재실행).
 
@@ -1741,17 +1743,18 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Title:** backtest trades→equity→metrics 3단 reconciliation 불변식 암묵 + cross-stage oracle 부재 (test-first)
 **Category:** Backtest / Test surface (locality / pure-fn-extracted anti-pattern)
 **Priority:** P3
+**상태:** Resolved (2026-08-03, backtest-metric-oracle)
 **Trigger:** BL-389 metrics 추출과 묶음 또는 backtest test 강화 시
 **Est:** S (2-4h)
 **출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex DOWNGRADE → 좁은 oracle 범위로 축소)
 
-**원인 / 영향:** `_build_raw_trades`(:145) → `_compute_equity_curve`(:154) → `_compute_metrics` 가 상호 의존(equity ← trade pnl, metrics ← 양쪽)하나 각각 isolation 으로만 테스트되고 단계 간 계약(`sum(trade.pnl)` ↔ equity 종가 delta)이 문서화/검증 안 됨 = 'testability 위해 추출된 순수함수' 안티패턴 → off-by-one 등 cross-stage 버그가 단위 테스트를 통과할 수 있다. (codex: golden/cost invariant 일부 존재 → 좁은 closed-trade·no-funding equity↔PnL oracle 만 추가, broad pipeline 재구성 아님.)
+**원인 / 영향:** `_build_raw_trades`(:295) → `_compute_equity_curve`(:472) → `_compute_metrics`(:621) 가 상호 의존(equity ← trade pnl, metrics ← 양쪽)하나 각각 isolation 으로만 테스트되고 단계 간 계약(`sum(trade.pnl)` ↔ equity 종가 delta)이 문서화/검증 안 됨 = 'testability 위해 추출된 순수함수' 안티패턴.
 
-**권장 접근:** reconciliation 불변식 명시(docstring) + closed-trade·no-funding 케이스의 equity↔PnL cross-stage oracle 테스트 1건 선작성. BL-389 와 묶으면 자연스러움.
+**해결 (2026-08-03):** `tests/backtest/test_cross_stage_reconciliation.py` 5건 + 세 함수 docstring 에 계약 명시. 고정한 불변식 2종 — `equity[-1] - init_cash == Σ trade.pnl`(1단↔2단), `net_profit_abs == total_return × init_cash`(1단↔2단, 3단 경유). 후자가 유효한 이유는 `_compute_metrics` 가 두 값을 **서로 다른 입력**에서 독립 계산하기 때문이다(`:719` trades / `:663` equity).
 
-**영향 파일:** `tests/backtest/`(cross-stage oracle 신규), `engine/v2_adapter.py`(불변식 docstring).
+**★전제 부분 반증:** 백로그가 표적으로 지목한 **off-by-one 은 이미 커버돼 있었다.** 실측 — `exit_bar_index <= bar_idx` 를 `<` 로 바꾸자 `test_golden_oracle_minimal` 2건 + `test_v2_adapter::test_equity_curve_accrues_realized_pnl_on_exit_bar` 가 red 가 됐다(골든이 equity **전 계열**을 하드코딩 기대값과 대조한다). 실제로 비어 있던 곳은 (a) **metrics 단계에서 두 집계가 서로 어긋나는 것**, (b) **fees > 0 경로**(기존 골든은 전부 `fees=0`)였다. `net_profit_abs` 비용 이중 차감 변조는 기존 backtest 스위트 **557건을 전부 통과**했고 신규 오라클만 잡았다.
 
-**Risk:** 🟢 (test-first — 코드 변경은 docstring 수준).
+**Risk:** 🟢 (test + docstring — 프로덕션 동작 변경 0).
 
 ---
 

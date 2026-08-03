@@ -359,7 +359,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 - [ ] **BL-389** [P3] backtest finance-math 10함수 Deep Module 추출
 - [ ] **BL-390** [P3] exit-leg maker/taker fill_type 라우팅 복제
-- [ ] **BL-391** [P3] trades→equity→metrics reconciliation oracle 부재 (BL-389 묶음)
+- [x] **BL-391** [P3] trades→equity→metrics reconciliation oracle 부재 — 해결(2026-08-03 backtest-metric-oracle). ★표적으로 지목했던 off-by-one 은 **이미 커버돼 있었다**(골든이 equity 전 계열 대조). 실제 빈 곳은 metrics 단계의 두 집계 불일치 + `fees>0` 경로 — 비용 이중 차감 변조가 기존 스위트 557건을 전부 통과했다
 
 ### P3 — 차트 일원화 / 리포트 UI
 
