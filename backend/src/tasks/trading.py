@@ -448,6 +448,7 @@ async def _execute_with_session(
             await session.commit()
             if rows == 1:
                 record_metric_safely(qb_active_orders.dec)  # Sprint 9 Phase D: terminal state
+                _enqueue_breach_recovery(order, response_reason)
             return {
                 "order_id": str(order_id),
                 "state": "rejected",
@@ -1164,6 +1165,27 @@ def _enqueue_trailing_if_intended(order: Any) -> None:
     if getattr(order, "trailing_stop", None) is None or getattr(order, "reduce_only", False):
         return
     place_trailing_stop_task.apply_async(args=[str(order.id)], countdown=2)
+
+
+def _enqueue_breach_recovery(order: Any, reason: str) -> None:
+    """거래소가 거절한 조건부 진입의 시장가 복구를 예약한다.
+
+    `condmkt`를 다시 통과시키면 거절마다 복구를 재귀 예약하므로, 원래 resting
+    조건부 진입(`cond`)만 대상으로 한다. 호출부는 rejected CAS 승자가 commit한 뒤라
+    별도 워커가 거절 행을 안정적으로 읽을 수 있다.
+    """
+    if reason != "trigger_breached":
+        return
+
+    from src.trading.services.conditional_entry_planner import parse_live_entry_key
+
+    parsed = parse_live_entry_key(getattr(order, "idempotency_key", None))
+    if parsed is None or parsed.kind != "cond":
+        return
+
+    from src.tasks.conditional_entry_recovery import conditional_entry_recovery_task
+
+    conditional_entry_recovery_task.apply_async(args=[str(order.id)])
 
 
 def _enqueue_conditional_reversal_measure(order: Any) -> None:

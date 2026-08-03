@@ -41,7 +41,8 @@ BL-512 label cardinality:
 - qb_live_conditional_guard_total: outcome ∈ {conditional_placed, market_converted,
   breach_capped, breach_with_resting, reference_unavailable, convert_suppressed,
   breach_reverted, bracket_attached, bracket_unavailable, bracket_supplied_gate_dropped,
-  bracket_tp_dropped_size, bracket_trailing_only_dropped} = 12. 최대 12 series.
+  bracket_tp_dropped_size, bracket_trailing_only_dropped, recovery_placed,
+  recovery_reverted, recovery_suppressed, recovery_expired} = 16. 최대 16 series.
 
 `ccxt_timer` context manager 는 Bybit/OKX provider 에서 CCXT 호출을 감싸는 데 사용.
 """
@@ -70,6 +71,13 @@ _LIVE_CONDITIONAL_GUARD_OUTCOMES: frozenset[str] = frozenset(
         "reference_unavailable",
         "convert_suppressed",
         "breach_reverted",
+        # 거래소가 돌파를 판정해 조건부 주문을 거절한 뒤의 복구 태스크 결과.
+        # `recovery_placed`는 거래소 수락이 아니라 시장가 복구 발주를 요청한 결과다.
+        # 신규 원장 등재일 수도 있고, 같은 key의 기존 요청에 합류한 캐시 응답일 수도 있다.
+        "recovery_placed",
+        "recovery_reverted",
+        "recovery_suppressed",
+        "recovery_expired",
         # BL-523 — 조건부 진입에 브래킷을 실을 수 있었는가. ★`bracket_unavailable` 이
         # 이 5종의 존재 이유다. 조건부 진입은 체결 전까지 `open_trades` 에 없고
         # `place_exit` 는 `open_trades` 만 타깃하므로(`strategy_state.py:963`)
