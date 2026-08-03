@@ -62,6 +62,13 @@ def _fake_create_worker_engine_and_sm(db_session: AsyncSession):
 def _patch_sweeper(
     monkeypatch: pytest.MonkeyPatch, db_session: AsyncSession, provider: type[object]
 ) -> MagicMock:
+    # ★BL-583 — 아래 `src.trading.registry.dispatch` 패치는 **정의 모듈**을 갈아치운다. 그 창
+    #   안에서 `src.tasks.trading` 이 **처음** 적재되면(스윕이 밟는 지연 import) 그 모듈 최상단의
+    #   `from src.trading.registry import dispatch as _dispatch_provider`(`trading.py:86`)가
+    #   MagicMock 을 자기 전역으로 **복사**하고, monkeypatch 는 정의 모듈만 되돌리므로 그
+    #   복사본이 세션 끝까지 남는다(실측: 이 파일 단독 실행에서 가드가 잡았다).
+    from src.tasks import trading as _preload_trading  # noqa: F401
+
     dispatch = MagicMock(return_value=provider())
     monkeypatch.setattr(
         live_signal_module,
