@@ -61,19 +61,21 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
         "backend/src/tasks/conditional_entry_janitor.py",
         "qb_live_conditional_reconcile_errors_total",
     ): 5,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_guard_total"): 8,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 13,
+    ("backend/src/tasks/live_signal.py", "qb_live_conditional_guard_total"): 4,
+    ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 11,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_dispatch_total"): 12,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 5,
+    ("backend/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 4,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_eval_duration_seconds"): 1,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 7,
+    ("backend/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 6,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_outbox_pending_gauge"): 2,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 10,
-    ("backend/src/tasks/trading.py", "qb_active_orders"): 3,
+    # ★`tasks/trading.py` · `trading/router.py` 의 `qb_active_orders` 는 2026-08-03
+    #   metric-guard-residual 이 전건 감쌌다. Counter 는 0 인 키를 만들지 않으므로 항목
+    #   자체를 지운다 — `: 0` 으로 남기면 `actual == _FROZEN_CENSUS` 가 영구 red 다.
     ("backend/src/tasks/trading.py", "qb_closed_pnl_backfill_total"): 15,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_link_unverified_total"): 1,
@@ -86,7 +88,6 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/trading/providers.py", "qb_closed_pnl_backfill_total"): 1,
     ("backend/src/trading/realtime_publisher.py", "qb_rt_publish_failed_total"): 1,
     ("backend/src/trading/realtime_publisher.py", "qb_rt_publish_invalid_total"): 1,
-    ("backend/src/trading/router.py", "qb_active_orders"): 1,
     ("backend/src/trading/services/order_service.py", "qb_order_rejected_total"): 10,
     ("backend/src/trading/webhook.py", "qb_order_rejected_total"): 1,
     ("backend/src/trading/webhook.py", "qb_webhook_symbol_rejected_total"): 1,
@@ -275,7 +276,7 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
     ]
     lines = [
         "Metric guard census diverged from the frozen R1 baseline.",
-        "159 − 사전등록 18 = 141",
+        "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129",
         "새 site (file, lineno, metric, verb, 함수명):",
     ]
     lines.extend(
@@ -363,8 +364,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 45
-    assert sum(_FROZEN_CENSUS.values()) == 141
+    assert len(_FROZEN_CENSUS) == 43
+    assert sum(_FROZEN_CENSUS.values()) == 129
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
@@ -501,6 +502,43 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "_fetch_order_status_with_session",
         "qb_active_orders",
         "같은 형태 — 일관성 유지",
+    ),
+    # ★2026-08-03 metric-guard-residual — 고장 주입으로 귀결을 **실측**하고 감싼 12곳.
+    #   근거는 산문이 아니라 테스트다: `tests/trading/test_router_cancel_metric_failure.py` ·
+    #   `tests/trading/test_trading_task_metric_failure.py` ·
+    #   `tests/tasks/test_live_signal_metric_failure.py`.
+    #   ★`_FROZEN_CENSUS` 는 `(파일, metric)` **합계**뿐이라 위치를 잃는다 — 같은 파일·metric 에
+    #   새 raw 가 생기고 여기 자리가 raw 로 되돌아가면 **상쇄돼 통과**한다(2026-08-02 codex G1
+    #   MAJOR#7). 그래서 자리마다 여기에 남긴다.
+    (
+        "backend/src/trading/router.py",
+        "cancel_order",
+        "qb_active_orders",
+        "commit 뒤 — 던지면 확정된 취소가 HTTP 500 으로 보고된다 (H1, 주입 확인)",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "_cancel_order_with_session",
+        "qb_active_orders",
+        "commit 뒤 + 바로 아래 로그가 거래소 취소를 남기는 유일한 라인 (H1)",
+    ),
+    (
+        "backend/src/tasks/live_signal.py",
+        "_reconcile_conditional_entries",
+        "qb_live_conditional_reconcile_errors_total",
+        "★stand-down 직전 — 던지면 잘못된 전제 위 조건부 진입이 거래소에 남는다 (H4)",
+    ),
+    (
+        "backend/src/tasks/live_signal.py",
+        "_evaluate_session_inner",
+        "qb_live_signal_divergence_total",
+        "★세션 자동 비활성화 commit 뒤 · 무신호 차단 고지 앞 — 세션이 조용히 죽는다 (H2)",
+    ),
+    (
+        "backend/src/tasks/live_signal.py",
+        "_evaluate_session_inner",
+        "qb_live_signal_evaluated_total",
+        "위와 같은 블록 — 둘 다 감싸야 고지에 도달한다",
     ),
 )
 

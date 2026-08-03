@@ -905,7 +905,8 @@ async def _fetch_order_status_with_session(
                         "source": "watchdog",
                     },
                 )
-                qb_active_orders.dec()
+                # ★BL-580 — commit 뒤. 던지면 확정된 거절 전이가 task FAILED 로 기록된다.
+                record_metric_safely(qb_active_orders.dec)
                 return {"order_id": str(order_id), "state": "rejected"}
             return {
                 "order_id": str(order_id),
@@ -928,7 +929,8 @@ async def _fetch_order_status_with_session(
                         "source": "watchdog",
                     },
                 )
-                qb_active_orders.dec()
+                # ★BL-580 — commit 뒤. 던지면 확정된 취소 전이가 task FAILED 로 기록된다.
+                record_metric_safely(qb_active_orders.dec)
                 return {"order_id": str(order_id), "state": "cancelled"}
             return {
                 "order_id": str(order_id),
@@ -1090,7 +1092,9 @@ async def _cancel_order_with_session(order_id: UUID, sm: Any) -> dict[str, Any]:
                     "source": "cancel",
                 },
             )
-            qb_active_orders.dec()  # terminal 전이 — active gauge dec
+            # terminal 전이 — active gauge dec.
+            # ★BL-580 — commit 뒤이고 **바로 아래 로그가 거래소 취소를 남기는 유일한 라인**이다.
+            record_metric_safely(qb_active_orders.dec)
             logger.info("order_cancelled_on_exchange", extra={"order_id": str(order_id)})
             return {"order_id": str(order_id), "state": "cancelled"}
         # race: 취소 호출과 fill/reject reconcile 겹침 — 이중 전이 금지.

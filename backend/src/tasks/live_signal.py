@@ -1107,9 +1107,11 @@ async def _reconcile_conditional_entries(
                 if probe.status == "filled":
                     fill_confirmed = True
                 else:
-                    qb_live_conditional_reconcile_errors_total.labels(
-                        stage="exchange_missing"
-                    ).inc()
+                    # ★BL-580 — 한 줄 아래 `_count_safely` 가드가 이 줄에 가려 있었다.
+                    #   여기서 던지면 그 가드도, 이 tick 의 등재 판단도 통째로 사라진다.
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total, stage="exchange_missing"
+                    )
                 _count_safely(
                     qb_live_conditional_divergence_total,
                     event="exchange_divergence",
@@ -1211,7 +1213,10 @@ async def _reconcile_conditional_entries(
             )
             current_position = Decimal("0")
             if stand_down_reason is not None:
-                qb_live_conditional_reconcile_errors_total.labels(stage="positions").inc()
+                # ★★BL-580 — 이 줄이 던지면 **stand-down 자체가 일어나지 않는다.** 위 주석이
+                #   그 귀결을 적어 놨다("남겨두면 그게 잘못된 전제로 체결된다"). 바깥 except 가
+                #   `stage=reconcile` 로 삼켜 원인도 가려진다.
+                _count_safely(qb_live_conditional_reconcile_errors_total, stage="positions")
                 _count_safely(
                     qb_live_conditional_divergence_total,
                     event="stand_down",
@@ -1231,7 +1236,8 @@ async def _reconcile_conditional_entries(
             if desired:
                 exchange_reference_price = await bybit_provider.fetch_last_price(creds, sess.symbol)
                 if exchange_reference_price is None:
-                    qb_live_conditional_guard_total.labels(outcome="reference_unavailable").inc()
+                    # ★BL-580 — 한 줄 아래 가드를 가리고 있었다.
+                    _count_safely(qb_live_conditional_guard_total, outcome="reference_unavailable")
                     _count_safely(
                         qb_live_conditional_divergence_total,
                         event="degraded_input",
@@ -1281,13 +1287,16 @@ async def _reconcile_conditional_entries(
                     qb_live_conditional_plan_drop_evaluations_total,
                     reason=_plan_drop_reason(divergence.get("reason")),
                 )
+                # ★BL-580 — 이 둘은 `_count_safely` 바로 **뒤**라 S1 스윕(앞만 본다)이 놓쳤다.
+                #   던지면 `plan.divergences` 루프가 죽어 **남은 leg 의 드롭 계상과 로그가
+                #   통째로 사라지고** 바깥 except 가 `stage=reconcile` 로 원인을 가린다.
                 if divergence["reason"] == "breach_exceeds_cap":
-                    qb_live_conditional_guard_total.labels(outcome="breach_capped").inc()
+                    _count_safely(qb_live_conditional_guard_total, outcome="breach_capped")
                 elif (
                     divergence["reason"] == "trigger_already_breached"
                     and divergence.get("had_resting") is True
                 ):
-                    qb_live_conditional_guard_total.labels(outcome="breach_with_resting").inc()
+                    _count_safely(qb_live_conditional_guard_total, outcome="breach_with_resting")
                 # BL-561 — `backend/src` 에서 `extra=` 에 dict 를 unpack 하는 **유일한**
                 # 자리다. 계획기가 `name`/`module` 같은 LogRecord 예약 키를 추가하면
                 # stdlib `makeRecord` 가 KeyError 를 던져 **이 로그 줄이 예외로 바뀐다.**
@@ -1497,7 +1506,8 @@ async def _reconcile_conditional_entries(
                             * Decimal("100")
                         )
                         if max_breach_pct is not None and breach_pct > max_breach_pct:
-                            qb_live_conditional_guard_total.labels(outcome="breach_capped").inc()
+                            # ★BL-580 — 한 줄 아래 가드를 가리고 있었다.
+                            _count_safely(qb_live_conditional_guard_total, outcome="breach_capped")
                             _count_safely(
                                 qb_live_conditional_divergence_total,
                                 event="guard_drop",
@@ -1738,7 +1748,7 @@ async def _reconcile_conditional_entries(
                         for _ in range(remaining_count):
                             _count_safely(
                                 qb_live_conditional_reconcile_errors_total,
-                                stage="deferred_after_market_convert"
+                                stage="deferred_after_market_convert",
                             )
                         if remaining_count:
                             logger.warning(
@@ -2569,12 +2579,19 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                         await publish_realtime(
                             str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                         )
-                        qb_live_signal_divergence_total.labels(
-                            stage="position", category="direction"
-                        ).inc()
-                        qb_live_signal_evaluated_total.labels(
-                            interval=interval_value, outcome="divergence_blocked"
-                        ).inc()
+                        # ★★BL-580 — 세션 비활성화 `commit()` **뒤** · 아래
+                        #   `_fire_divergence_alert`(BL-362 무신호 차단 고지) **앞**이다.
+                        #   여기서 던지면 **세션은 죽었는데 사용자는 통보를 못 받는다.**
+                        _count_safely(
+                            qb_live_signal_divergence_total,
+                            stage="position",
+                            category="direction",
+                        )
+                        _count_safely(
+                            qb_live_signal_evaluated_total,
+                            interval=interval_value,
+                            outcome="divergence_blocked",
+                        )
                         _fire_divergence_alert(
                             session_id=sess.id,
                             stage="position",
@@ -2989,7 +3006,9 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                         == 1
                     ):
                         cancelled += 1
-                        record_metric_safely(qb_active_orders.dec)  # 생성 시 inc 된 것의 terminal 전이
+                        record_metric_safely(
+                            qb_active_orders.dec
+                        )  # 생성 시 inc 된 것의 terminal 전이
                     await order_repo.commit()
                 except Exception:
                     with contextlib.suppress(Exception):

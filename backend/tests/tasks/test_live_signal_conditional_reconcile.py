@@ -161,6 +161,25 @@ def _patch_reconcile(
     last_price: Decimal | None = Decimal("64"),
     recent_market_conversion: bool = False,
 ) -> SimpleNamespace:
+    # ★BL-583 — 아래 패치들은 **클래스 정의 모듈**의 속성을 갈아치운다. 그 상태에서 소비
+    #   모듈이 **처음** 적재되면 그 모듈 최상단의 `from … import OrderRepository` 가 MagicMock
+    #   을 자기 전역으로 **복사**하고, monkeypatch teardown 은 정의 모듈만 되돌리므로 그
+    #   복사본이 세션 끝까지 남는다. 리컨사일러가 밟는 지연 import 는 두 곳이고 둘 다 그런
+    #   소비 모듈이다:
+    #     `live_signal.py:834`  `_write_back_confirmed_terminal`     → `src.tasks.trading`
+    #                                                                 (`trading.py:91`)
+    #     `live_signal.py:3027` `_conditional_entry_janitor_delay_…` → `src.tasks.orphan_scanner`
+    #                                                                 (`orphan_scanner.py:25`)
+    #   실측 피해: 앞은 `tests/trading/test_cancel_order_task.py` 2건이 남의 가짜 repo 로
+    #   `get_by_id` 해 `not_found`(2 failed), 뒤는 `tests/trading/test_orphan_scanner.py`
+    #   3건(3 failed). 패치보다 먼저 적재해 그 창을 없앤다 — 프로덕션의 지연 import 는 그대로
+    #   둔다. 모듈수준으로 올리면 import 실패 등급이 「평가 1건 실패」에서 **celery 태스크
+    #   미등록**으로 올라간다(`test_live_signal_import_blast_radius.py` docstring).
+    # (별칭을 붙이는 이유는 ruff 뿐이다 — `import src.tasks.x` 두 줄은 같은 `src` 이름에
+    #  묶여 한쪽 `noqa` 가 RUF100 으로 떨어진다. 별칭이면 줄 순서에 무관하게 안정적이다.)
+    from src.tasks import orphan_scanner as _preload_orphan_scanner  # noqa: F401
+    from src.tasks import trading as _preload_trading  # noqa: F401
+
     session = AsyncMock()
     order_repo = AsyncMock()
     order_repo.list_resting_conditional_entries = AsyncMock(return_value=local_orders or [])

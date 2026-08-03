@@ -12,9 +12,11 @@
 from __future__ import annotations
 
 import os
+import sys
 import uuid
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator, Iterable
 from typing import Any
+from unittest.mock import NonCallableMock
 
 # Sprint 6 T3 — src.core.config.Settings.trading_encryption_keys is a required
 # field (no default). src.core.config module evaluates `settings = get_settings()`
@@ -121,6 +123,137 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(skip_mutation)
         if "integration" in item.keywords and not run_integration:
             item.add_marker(skip_integration)
+
+
+# -------------------------------------------------------------------------
+# BL-583 — 테스트 대역이 프로덕션 모듈 전역으로 **영구 복사**되는 것을 잡는다.
+#
+# 왜. 테스트가 **클래스 정의 모듈**의 속성을 monkeypatch 한 상태에서 소비 모듈이 **처음**
+# 적재되면, 그 소비 모듈 최상단의 `from … import X` 가 가짜를 자기 전역으로 복사한다.
+# monkeypatch teardown 은 정의 모듈만 되돌리므로 **복사본은 세션 끝까지 남는다.**
+# 2026-08-03 실측: 오염원 테스트 **4개**가 모듈 **3개**의 전역 **8개**를 그렇게 오염시켰다 —
+# `src.tasks.trading` 6개(`OrderRepository`·`ExchangeAccountRepository`·
+# `LiveSignalSessionRepository`·`ExchangeAccountService`·`BybitFuturesProvider`·
+# `_dispatch_provider`) · `src.tasks.orphan_scanner.OrderRepository` ·
+# `src.market_data.providers.timescale.CCXTProvider`. 관측된 피해는 무관한 테스트 **5건**
+# (`tests/trading/test_cancel_order_task.py` 2 + `tests/trading/test_orphan_scanner.py` 3)이고,
+# **어떤 파일이 함께 수집됐는지에 따라** red/green 이 바뀌었다. 그러면 「전부 통과」가 증거가
+# 아니다.
+#
+# 창(window) = 한 항목의 setup~teardown 사이에 **처음** 적재된 `src.*` 모듈. 수집 시점 import
+# 는 패치가 없어 안전하고, 이 창 밖에서는 복사가 일어날 수 없다.
+#
+# ★검사 지점은 teardown wrapper 의 post-yield 다 — 그때가 monkeypatch 되돌림 **뒤**다
+#   (실측: 같은 배치의 프로브에서 `teardown-post` 가 원본 값으로 복귀). 그전에 보면 정당한
+#   패치를 오염으로 오검출한다.
+# ★이 가드가 **못 잡는 것**을 적어 둔다 (codex G1/G6 — 「가드 발화 0」을 「전역 오염이 없다」로
+#   인용하지 마라):
+#     1. 이미 적재된 모듈의 직접 변조 (창은 「처음 적재」만 본다)
+#     2. 클로저나 객체 내부에 숨은 대역 (전역만 훑는다)
+#     3. `sys.modules` 키의 모듈 객체 교체 (`patch.dict(sys.modules, …)`)
+#     4. **창 안의 `importlib.reload` / `del sys.modules[name]` 후 재import** — 이름이 차집합에
+#        없으므로 재복사를 못 본다 (현재 레포에서 그 관용구 사용 **0건**, 잠재 갭)
+#     5. **비-Mock 대역** — `SimpleNamespace()`·`object()` 는 `__module__` 이 없고
+#        `functools.partial` 은 `functools` 라 술어 2 에 안 걸린다 (실측)
+# -------------------------------------------------------------------------
+
+_MODULES_BEFORE_ITEM = pytest.StashKey[frozenset[str]]()
+
+
+def leaked_test_doubles(module_names: Iterable[str]) -> list[str]:
+    """`src.*` 모듈 전역에 남은 테스트 대역을 `"module.attr"` 로 열거한다.
+
+    술어가 둘인 이유 — 하네스가 심는 것이 Mock 만이 아니다:
+      1. `unittest.mock` 객체. `Mock`/`MagicMock`/`AsyncMock` 은 전부 `NonCallableMock` 하위다.
+      2. **테스트 모듈에서 정의된** 객체(lambda·헬퍼·가짜 클래스). `monkeypatch.setattr` 에
+         lambda 를 넘기는 곳이 `tests/` 에 126곳 있어, 1번만 보면 그 종류를 통째로 놓친다.
+    프로덕션 모듈 전역에 둘 중 어느 것이든 있으면 그것은 정의상 누수다.
+    """
+    leaked: list[str] = []
+    for module_name in sorted(module_names):
+        module = sys.modules.get(module_name)
+        if module is None:
+            continue
+        for attr, value in list(vars(module).items()):
+            if isinstance(value, NonCallableMock):
+                leaked.append(f"{module_name}.{attr}")
+                continue
+            origin = getattr(value, "__module__", None)
+            if isinstance(origin, str) and (origin == "tests" or origin.startswith("tests.")):
+                leaked.append(f"{module_name}.{attr}")
+    return leaked
+
+
+def leaked_test_doubles_since(modules_before: frozenset[str]) -> list[str]:
+    """스냅샷 **이후** 처음 적재된 `src.*` 모듈만 검사한다.
+
+    ★창 계산을 술어와 **따로** 떼어 둔 이유는 판별력이다(codex G1 BLOCKING). 술어만
+    함수로 두면 「스캔 범위를 없애는」 변이가 어떤 테스트도 red 로 만들지 못한다.
+    """
+    first_imported_here = {
+        name for name in sys.modules.keys() - modules_before if name.startswith("src.")
+    }
+    return leaked_test_doubles(first_imported_here)
+
+
+def _leak_report(leaked: list[str]) -> str:
+    return (
+        "★BL-583 — 이 테스트가 끝난 뒤에도 테스트 대역이 프로덕션 모듈 전역에 남아 있다:\n"
+        + "\n".join(f"  - {entry}" for entry in leaked)
+        + "\n\n이 테스트가 **클래스 정의 모듈**을 패치한 상태에서 위 모듈이 **처음** 적재됐다는"
+        " 뜻이다 (소비 모듈 최상단의 `from … import X` 가 가짜를 자기 전역으로 복사하고,"
+        " monkeypatch 는 정의 모듈만 되돌린다).\n"
+        "고치는 법: 패치를 걸기 **전에** 그 모듈을 적재해라 (예: 하네스 진입부에"
+        " `from src.tasks import trading as _preload_trading  # noqa: F401`"
+        " — 별칭을 붙이면 두 줄 이상이어도 ruff RUF100 이 안 난다)."
+    )
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_setup(item: pytest.Item) -> Generator[None, object, object]:
+    """항목 시작 시점의 적재 목록을 남긴다 — fixture setup 보다 앞이어야 창이 안 좁아진다.
+
+    ★`wrapper=True, tryfirst=True` 인 이유(codex G6 MAJOR) — 평범한 `tryfirst` 훅은 **다른
+    플러그인의 setup wrapper 의 pre-yield 보다 뒤**다(실측 순서: `other-wrapper-pre` →
+    `my-plain-tryfirst`). 그 플러그인이 pre-yield 에서 패치를 걸고 소비 모듈을 적재하면 창이
+    그만큼 좁아진다. wrapper + tryfirst 면 내 pre-yield 가 가장 먼저 온다(실측으로 확인).
+    """
+    item.stash[_MODULES_BEFORE_ITEM] = frozenset(sys.modules)
+    return (yield)
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_teardown(
+    item: pytest.Item, nextitem: pytest.Item | None
+) -> Generator[None, object, object]:
+    try:
+        result = yield
+    except BaseException as exc:
+        # ★teardown 이 이미 터졌다. pluggy 는 그 예외를 이 `yield` 지점에 재발화하므로
+        #   post-yield 검사는 통째로 건너뛰어진다(codex G1 MAJOR). 그렇다고 여기서 `fail` 을
+        #   던지면 **원인 예외를 가린다.**
+        #   `add_note` 를 쓰는 이유 — 예외를 만들지 않으므로 원본을 절대 가리지 않고,
+        #   `filterwarnings = error` 가 켜져도 안전하며(경고는 그때 또 다른 예외가 된다),
+        #   pytest 9 가 원인 예외 **바로 아래**에 그대로 출력한다(실측).
+        leaked = _leaked_since_snapshot(item)
+        if leaked:
+            exc.add_note(_leak_report(leaked))
+        raise
+    leaked = _leaked_since_snapshot(item)
+    if leaked:
+        pytest.fail(_leak_report(leaked), pytrace=False)
+    return result
+
+
+def _leaked_since_snapshot(item: pytest.Item) -> list[str]:
+    """스냅샷이 **없으면 검사하지 않는다.**
+
+    ★기본값을 빈 집합으로 두면 창이 「지금까지 적재된 전부」로 벌어져, 선재 누수를 엉뚱한
+    테스트에 귀속시킨다. 거짓 지목은 미검출보다 나쁘다 — 창을 모르면 조용히 넘긴다.
+    """
+    if _MODULES_BEFORE_ITEM not in item.stash:
+        return []
+    return leaked_test_doubles_since(item.stash[_MODULES_BEFORE_ITEM])
 
 
 # Sprint 18 BL-080 (codex G.0 P1 #7): 격리 docker stack 은 db host port 5433

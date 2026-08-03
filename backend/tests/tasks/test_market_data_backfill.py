@@ -12,6 +12,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+# ★BL-583 — 아래 세 테스트는 **정의 모듈**을 패치한다(`patch("src.market_data.providers.ccxt.
+#   CCXTProvider")`). 그 창 안에서 소비 모듈 `…providers.timescale` 이 **처음** 적재되면 그
+#   모듈 최상단의 `from …ccxt import CCXTProvider`(`timescale.py:20`)가 MagicMock 을 자기
+#   전역으로 **복사**하고, `patch` 는 정의 모듈만 되돌리므로 그 복사본이 세션 끝까지 남는다
+#   (실측: `tests/tasks` 단독 실행에서 가드가 잡았다). 수집 시점에 미리 적재해 창을 없앤다 —
+#   여기서는 세 테스트가 같은 패치를 쓰므로 모듈 수준이 한 곳으로 덮는다.
+import src.market_data.providers.timescale  # noqa: F401
+
 
 @pytest.mark.asyncio
 async def test_backfill_returns_dict_with_required_keys(db_session):
