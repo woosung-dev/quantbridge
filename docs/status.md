@@ -2,8 +2,8 @@
 
 > **업데이트:** 2026-08-03
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** `stage/metric-guard-residual-close` → **PR #530 OPEN** (머지·squash 는 사용자).
-> **최근 머지:** `stage/gate-trustworthiness` → `main` (**PR #528**, 2026-08-03).
+> **준비 브랜치:** 없음 — 누적분은 전부 착지했다.
+> **최근 머지:** `stage/metric-guard-residual-close` → `main` (**PR #530** @ `6b7e1271`, 2026-08-03).
 
 ---
 
