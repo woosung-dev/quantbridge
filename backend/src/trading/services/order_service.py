@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.common.metrics import qb_active_orders, qb_order_rejected_total
-from src.common.metrics_multiproc import record_metric_safely
+from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.core.config import settings
 from src.strategy.trading_sessions import is_allowed as _sessions_is_allowed
 from src.trading.exceptions import (
@@ -90,6 +90,13 @@ class OrderService:
                 req, idempotency_key=idempotency_key, body_hash=body_hash, flatten=flatten
             )
 
+    # ★BL-580 (2026-08-03) — 이 클래스의 `qb_order_rejected_total` 10곳은 전부
+    #   `.inc()` **직후 도메인 예외를 raise** 한다. 계측이 던지면 그 도메인 예외가 아예
+    #   발생하지 않고 OSError 가 대신 올라간다. 9종 전부 AppException(4xx) 이라
+    #   `main.py` 의 unhandled 핸들러로 가 **HTTP 500** 이 되고, 그중 6종은 호출자가
+    #   **예외 타입으로 분기**하므로 기록·무재시도 분기가 통째로 빠진다.
+    #   BL 표의 「blast radius 0」은 고장 주입으로 반증됐다 (10/10).
+    #   `.labels()` 도 함께 감싼다 — 새 라벨 조합이 mmap 을 늘리는 지점이다 (BL-536 R2).
     async def _validate_position_size(self, req: OrderRequest) -> None:
         """Wave 2 P2 — 서버 권위 risk-기반 사이징. client qty 를 신뢰하지 않는다.
 
@@ -126,7 +133,7 @@ class OrderService:
         risk_budget = balance * req.risk_percent / Decimal("100")
         max_qty = risk_budget / stop_distance
         if req.quantity > max_qty:
-            qb_order_rejected_total.labels(exchange="unknown", reason="risk_sizing").inc()
+            _count_safely(qb_order_rejected_total, exchange="unknown", reason="risk_sizing")
             raise RiskSizingExceeded(
                 quantity=req.quantity,
                 max_quantity=max_qty,
@@ -166,9 +173,9 @@ class OrderService:
                 or strategy_owner is None
                 or owner_account.user_id != strategy_owner
             ):
-                qb_order_rejected_total.labels(
-                    exchange="unknown", reason="ownership_mismatch"
-                ).inc()
+                _count_safely(
+                    qb_order_rejected_total, exchange="unknown", reason="ownership_mismatch"
+                )
                 raise AccountOwnershipMismatch(
                     f"exchange_account {req.exchange_account_id} 소유자가 strategy "
                     f"{req.strategy_id} 소유자와 일치하지 않음"
@@ -197,9 +204,9 @@ class OrderService:
             # Sprint 7a: OrderRequest.leverage Field(le=125)는 Bybit 이론 상한.
             # 운영 리스크 관리용 동적 cap은 서비스 계층에서 enforce (4/4 리뷰 컨센서스).
             if req.leverage is not None and req.leverage > settings.bybit_futures_max_leverage:
-                qb_order_rejected_total.labels(
-                    exchange=_metric_exchange, reason="leverage_cap"
-                ).inc()
+                _count_safely(
+                    qb_order_rejected_total, exchange=_metric_exchange, reason="leverage_cap"
+                )
                 raise LeverageCapExceeded(
                     requested=req.leverage,
                     cap=settings.bybit_futures_max_leverage,
@@ -242,9 +249,11 @@ class OrderService:
                     if min_notional is not None:
                         position_notional = req.quantity * effective_price
                         if position_notional < min_notional:
-                            qb_order_rejected_total.labels(
-                                exchange=_metric_exchange, reason="min_notional"
-                            ).inc()
+                            _count_safely(
+                                qb_order_rejected_total,
+                                exchange=_metric_exchange,
+                                reason="min_notional",
+                            )
                             raise MinNotionalNotMet(
                                 notional=position_notional, min_notional=min_notional
                             )
@@ -261,9 +270,11 @@ class OrderService:
                         notional = req.quantity * effective_price
                         max_notional = available * Decimal(req.leverage) * Decimal("0.95")
                         if notional > max_notional:
-                            qb_order_rejected_total.labels(
-                                exchange=_metric_exchange, reason="notional"
-                            ).inc()
+                            _count_safely(
+                                qb_order_rejected_total,
+                                exchange=_metric_exchange,
+                                reason="notional",
+                            )
                             raise NotionalExceeded(
                                 notional=notional,
                                 available=available,
@@ -276,9 +287,11 @@ class OrderService:
                     ):
                         # CF5 — live 는 balance 검증 불가(fetch 실패/0) 시 fail-closed (주문 거부).
                         # demo 는 fail-open(skip) 유지 (서비스 중단 금지 — 기존 정책).
-                        qb_order_rejected_total.labels(
-                            exchange=_metric_exchange, reason="balance_unverified"
-                        ).inc()
+                        _count_safely(
+                            qb_order_rejected_total,
+                            exchange=_metric_exchange,
+                            reason="balance_unverified",
+                        )
                         raise BalanceUnverified(account_id=req.exchange_account_id)
                 elif (
                     req.price is None
@@ -288,9 +301,11 @@ class OrderService:
                     # P1-13 (S5-B) — market order + live + mark price 추정 실패 = fail-closed.
                     # demo 는 기존 정책대로 fail-open(skip — effective_price=None 이므로
                     # notional/available 분기 자체를 건너뜀).
-                    qb_order_rejected_total.labels(
-                        exchange=_metric_exchange, reason="balance_unverified"
-                    ).inc()
+                    _count_safely(
+                        qb_order_rejected_total,
+                        exchange=_metric_exchange,
+                        reason="balance_unverified",
+                    )
                     raise BalanceUnverified(account_id=req.exchange_account_id)
 
             # Sprint 7d: 전략의 trading_sessions 가드. 비어있으면 24h(통과). 채워진 값이면
@@ -300,9 +315,9 @@ class OrderService:
                 sessions = await self._sessions_port.get_sessions(req.strategy_id)
                 now = datetime.now(UTC)
                 if not _sessions_is_allowed(sessions, now):
-                    qb_order_rejected_total.labels(
-                        exchange=_metric_exchange, reason="session_closed"
-                    ).inc()
+                    _count_safely(
+                        qb_order_rejected_total, exchange=_metric_exchange, reason="session_closed"
+                    )
                     raise TradingSessionClosed(
                         sessions=sessions,
                         current_hour_utc=now.hour,
@@ -324,9 +339,14 @@ class OrderService:
                         account_id=req.exchange_account_id,
                     )
                 except KillSwitchActive:
-                    qb_order_rejected_total.labels(
-                        exchange=_metric_exchange, reason="kill_switch"
-                    ).inc()
+                    # ★BL-580 — bare `raise` 앞이다. 여기서 던지면 KillSwitchActive 가
+                    #   **삼켜지고** OSError 가 대신 올라가, 호출자
+                    #   (`tasks/live_signal.py:3232` `except KillSwitchActive`) 의
+                    #   mark_failed 가 안 돌고 차단된 주문이 3회 재시도된다.
+                    #   고장 주입: `tests/trading/test_order_rejected_metric.py`.
+                    _count_safely(
+                        qb_order_rejected_total, exchange=_metric_exchange, reason="kill_switch"
+                    )
                     raise
 
         created_order_id: UUID | None = None
@@ -338,9 +358,14 @@ class OrderService:
                 existing = await self._repo.get_by_idempotency_key(idempotency_key)
                 if existing:
                     if body_hash is not None and existing.idempotency_payload_hash != body_hash:
-                        qb_order_rejected_total.labels(
-                            exchange=_metric_exchange, reason="idempotency_conflict"
-                        ).inc()
+                        # ★BL-580 — BL 표는 이 자리를 「발주 **전** 검증 거절 직후」라 적었지만
+                        #   실제로는 `begin_nested()` + advisory lock **안**이다. 그리고
+                        #   `live_signal.py:3249` 는 이 타입일 때만 재시도 없이 종결한다.
+                        _count_safely(
+                            qb_order_rejected_total,
+                            exchange=_metric_exchange,
+                            reason="idempotency_conflict",
+                        )
                         raise IdempotencyConflict(
                             f"Idempotency-Key 재사용됐지만 payload가 다름. "
                             f"original_order_id={existing.id}",

@@ -225,3 +225,147 @@ async def test_position_divergence_deactivation_still_alerts_when_counter_fails(
     assert fired == ["position_direction_mismatch"], (
         "세션이 죽었는데 고지가 안 나가면 사용자는 무신호 차단을 알 방법이 없다"
     )
+
+
+# ── BL-580 (2026-08-03 metric-guard-residual-close) — A-C1 · A-C2 판정 오라클 ──
+#
+# ★**이 두 테스트는 red→green 게이트가 아니라 「판정용 오라클」이다.** 그렇게 적어 두지
+#   않으면 다음 사람이 이것을 수리의 증거로 오독한다.
+#
+# H4 주장은 **두 단계 실측의 합성**이다:
+#   ① `tests/trading/test_order_rejected_metric.py` 가 잰 것 — `order_service.py` 의 계측
+#      한 줄이 던지면 도메인 예외가 **아예 발생하지 않고** `OSError` 가 대신 탈출한다.
+#      (수리 전 10/10 이 이 이유로 red 였다.)
+#   ② 아래 두 테스트가 재는 것 — 호출자는 **예외 타입으로 분기**하므로, 도메인 예외가
+#      아닌 것이 올라오면 `mark_failed` + `commit` 이 실행되지 않고 Celery 가 재시도한다.
+#
+# ①+② ⇒ 계측 한 줄이 이벤트를 outbox 에 `pending` 으로 남기고 결정론적 거절을 3회
+# 재시도시킨다. ②는 호출자의 성질이라 수리 뒤에도 참이다 — 그래서 회귀 가드로 남긴다.
+
+
+async def test_dispatch_skips_mark_failed_when_execute_raises_a_non_domain_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A-C1 오라클 — `execute` 가 도메인 예외가 아닌 것을 던지면 기록 분기가 통째로 빠진다.
+
+    양성 대조는 이미 스위트에 있다 —
+    `tests/tasks/test_live_signal_dispatch_task.py::test_kill_switch_active_marks_failed_and_raises`
+    가 **같은 하네스에서** `KillSwitchActive` 일 때 `mark_failed(error="kill_switched")`
+    + `commit` 이 일어남을 단언한다. 두 테스트의 차이는 **예외 타입 하나뿐**이다.
+    """
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+    from uuid import uuid4
+
+    from tests.tasks.test_live_signal_dispatch_task import (
+        _build_active_session,
+        _build_pending_event,
+        _patch_engine,
+        _patch_repos,
+    )
+
+    _patch_engine(monkeypatch)
+    event = _build_pending_event()
+    sess = _build_active_session(uuid4())
+    sess.id = event.session_id
+
+    event_repo = AsyncMock()
+    event_repo.get_by_id = AsyncMock(return_value=event)
+    event_repo.mark_failed = AsyncMock(return_value=1)
+    event_repo.commit = AsyncMock()
+
+    sess_repo = AsyncMock()
+    sess_repo.get_by_id = AsyncMock(return_value=sess)
+    strategy_repo = AsyncMock()
+    strategy_repo.find_by_id_and_owner = AsyncMock(
+        return_value=SimpleNamespace(
+            id=sess.strategy_id,
+            settings={"leverage": 5, "margin_mode": "cross", "position_size_pct": 10.0},
+            pine_source="//@version=5\nstrategy('x')",
+        )
+    )
+
+    _patch_repos(
+        monkeypatch,
+        event_repo=event_repo,
+        sess_repo=sess_repo,
+        strategy_repo=strategy_repo,
+        order_repo=AsyncMock(),
+        account_repo=AsyncMock(),
+        kse_repo=AsyncMock(),
+    )
+
+    class _OrderServiceMetricBlown:
+        """계측이 터져 도메인 예외 대신 `OSError` 가 올라온 상태를 재현한다."""
+
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        async def execute(self, *_a: Any, **_kw: Any) -> tuple[Any, bool]:
+            raise OSError("mmap allocation failed")
+
+    import src.trading.services.order_service as trading_service_mod
+
+    monkeypatch.setattr(trading_service_mod, "OrderService", _OrderServiceMetricBlown)
+
+    import src.trading.kill_switch as kill_switch_mod
+
+    monkeypatch.setattr(kill_switch_mod, "KillSwitchService", MagicMock())
+    monkeypatch.setattr(kill_switch_mod, "CumulativeLossEvaluator", MagicMock())
+    monkeypatch.setattr(kill_switch_mod, "DailyLossEvaluator", MagicMock())
+
+    with pytest.raises(OSError, match="mmap allocation failed"):
+        await live_signal_module._async_dispatch_event(event.id)
+
+    event_repo.mark_failed.assert_not_awaited()
+    event_repo.commit.assert_not_awaited()
+
+
+def test_dispatch_task_retries_a_non_domain_error_but_not_a_domain_reject(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A-C2 오라클 — 태스크 레벨도 타입으로 갈린다.
+
+    `dispatch_live_signal_event_task` 는 결정론적 거절 5종을 `{"failed":
+    "deterministic_reject"}` 로 종결하고 **재시도하지 않는다**. 계측이 그 타입을 `OSError`
+    로 바꾸면 같은 사건이 `except Exception` 으로 떨어져 **재시도 대상**이 된다.
+    """
+    from unittest.mock import Mock
+    from uuid import uuid4
+
+    from celery.exceptions import Retry
+
+    from src.tasks import _worker_loop as worker_loop
+    from src.tasks.live_signal import dispatch_live_signal_event_task as task
+    from src.trading.exceptions import TradingSessionClosed
+
+    def _drive(exc: BaseException) -> tuple[dict | None, Mock, Retry | None]:
+        def _run(coro: Any) -> Any:
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                coro.close()
+            raise exc
+
+        monkeypatch.setattr(worker_loop, "run_in_worker_loop", _run)
+        retry = Mock(side_effect=lambda **_kw: Retry())
+        monkeypatch.setattr(task, "retry", retry)
+        task.push_request(retries=0)
+        try:
+            try:
+                return task.run(str(uuid4())), retry, None
+            except Retry as raised:
+                return None, retry, raised
+        finally:
+            task.pop_request()
+
+    # 도메인 거절 — 종결, 재시도 없음
+    result, retry, raised = _drive(TradingSessionClosed(sessions=[], current_hour_utc=3))
+    assert raised is None
+    assert result == {"failed": "deterministic_reject"}
+    retry.assert_not_called()
+
+    # 계측이 터져 타입이 바뀐 경우 — 같은 사건이 재시도 대상이 된다
+    _result2, retry2, raised2 = _drive(OSError("mmap allocation failed"))
+    assert raised2 is not None, "OSError 는 일시 장애로 분류돼 재시도된다"
+    retry2.assert_called_once()

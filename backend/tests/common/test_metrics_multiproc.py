@@ -20,6 +20,7 @@ from prometheus_client.multiprocess import MultiProcessCollector, mark_process_d
 from src.common import metrics as metrics_module
 from src.common import metrics_multiproc
 from src.common.metrics_multiproc import (
+    _count_safely,
     _process_identifier,
     build_metrics_registry,
     configure_multiprocess,
@@ -283,6 +284,38 @@ def test_record_metric_safely_swallows_failure_counter_error(
     record_metric_safely(mutation)
 
     mutation.assert_called_once_with()
+
+
+# ── BL-580 (2026-08-03 metric-guard-residual-close) — 가드 자체의 폭 ────────
+#
+# ★**주입 테스트만으로는 반쪽 수리를 못 잡는다** (codex G1 MAJOR).
+# 25곳의 사이트 테스트는 `.labels` 를 폭파시켜 잰다. 그런데 `.labels()` 만 try 로 감싸고
+# `.inc()` 를 밖에 두는 수리도 그 주입에서는 green 이 된다 — multiprocess 모드에서
+# `.inc()` 는 **별도의 mmap write** 를 하므로 거기서도 던질 수 있다.
+# ⇒ 가드가 **둘 다** 삼키는지를 여기서 따로 못 박는다.
+
+
+def test_count_safely_swallows_labels_failure() -> None:
+    """새 라벨 조합이 mmap 을 늘리다 실패해도 호출자를 막지 않는다 (BL-536 R2)."""
+    counter = Mock()
+    counter.labels = Mock(side_effect=OSError("mmap allocation failed"))
+
+    _count_safely(counter, outcome="x")
+
+    counter.labels.assert_called_once_with(outcome="x")
+
+
+def test_count_safely_swallows_child_inc_failure() -> None:
+    """라벨 조합은 만들어졌는데 증가 write 가 실패하는 경우도 삼켜야 한다."""
+    child = Mock()
+    child.inc = Mock(side_effect=OSError("mmap write failed"))
+    counter = Mock()
+    counter.labels = Mock(return_value=child)
+
+    _count_safely(counter, outcome="x")
+
+    counter.labels.assert_called_once_with(outcome="x")
+    child.inc.assert_called_once_with()
 
 
 def test_render_metrics_counts_zero_byte_mmap_fallback(
