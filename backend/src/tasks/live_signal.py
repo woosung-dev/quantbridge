@@ -2817,9 +2817,13 @@ def dispatch_live_signal_event_task(self: Any, event_id: str) -> dict[str, Any]:
                     "live_signal_dispatch_mark_failed_on_exhaustion_failed",
                     extra={"event_id": event_id},
                 )
-            qb_live_signal_dispatch_total.labels(
-                action="unknown", outcome="max_retries_exhausted"
-            ).inc()
+            # ★BL-580 D12 — `except Exception` 핸들러 **안**이다. raw 로 두면 포기 반환이
+            #   사라지고 `OSError` 가 태스크 밖으로 탈출해, 포기 사실이 어디에도 안 남는다.
+            _count_safely(
+                qb_live_signal_dispatch_total,
+                action="unknown",
+                outcome="max_retries_exhausted",
+            )
             return {"failed": "max_retries_exhausted"}
         logger.exception("live_signal_dispatch_failed_will_retry", extra={"event_id": event_id})
         raise self.retry(exc=exc) from exc
@@ -3075,9 +3079,11 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             if sess is None or not sess.is_active:
                 await event_repo.mark_failed(event.id, error="session_inactive")
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(
-                    action=event.action, outcome="session_inactive"
-                ).inc()
+                _count_safely(
+                    qb_live_signal_dispatch_total,
+                    action=event.action,
+                    outcome="session_inactive",
+                )
                 return {"failed": "session_inactive"}
 
             # strategy + settings (P2 #4)
@@ -3130,9 +3136,15 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                     if len(positions) == 0:
                         await event_repo.mark_failed(event.id, error="close_position_flat")
                         await event_repo.commit()
-                        qb_live_signal_dispatch_total.labels(
-                            action=event.action, outcome="close_position_flat"
-                        ).inc()
+                        # ★BL-580 D5 — 이 자리만 **fail-open `try` 안**이다. raw 로 두면
+                        #   계측 예외를 아래 `except` 가 「포지션 조회 실패」로 오인해 삼키고
+                        #   `return` 을 건너뛴 채 **그대로 발주한다**(주입 실측: 거래소가
+                        #   flat 인데 청산 주문이 나갔다). 오기록이 아니라 원장 분기다.
+                        _count_safely(
+                            qb_live_signal_dispatch_total,
+                            action=event.action,
+                            outcome="close_position_flat",
+                        )
                         return {"failed": "close_position_flat"}
                 except Exception:
                     logger.warning(
@@ -3177,7 +3189,9 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                     event.id, error="trailing_stop_live_placement_unsupported"
                 )
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(action=event.action, outcome="rejected").inc()
+                _count_safely(
+                    qb_live_signal_dispatch_total, action=event.action, outcome="rejected"
+                )
                 return {"failed": "trailing_unsupported"}
 
             # OrderRequest 조립 — DB NUMERIC(18,8) round-trip 후 0/비정상으로 반올림된 exit
@@ -3215,7 +3229,9 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             except ValidationError as exc:
                 await event_repo.mark_failed(event.id, error=f"invalid_order_request: {exc}")
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(action=event.action, outcome="rejected").inc()
+                _count_safely(
+                    qb_live_signal_dispatch_total, action=event.action, outcome="rejected"
+                )
                 return {"failed": "invalid_order_request"}
             idempotency_key = _build_idempotency_key(
                 session_id=sess.id,
@@ -3232,9 +3248,14 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             except KillSwitchActive:
                 await event_repo.mark_failed(event.id, error="kill_switched")
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(
-                    action=event.action, outcome="kill_switched"
-                ).inc()
+                # ★BL-580 D8 — `commit()` 과 `raise` **사이**다. raw 로 두면 도메인 예외가
+                #   아예 발생하지 않고 `OSError` 가 대신 탈출해, 호출자(`:2793`)의
+                #   「재시도해도 풀리지 않는 결정론적 거절」 분기를 건너뛴다.
+                _count_safely(
+                    qb_live_signal_dispatch_total,
+                    action=event.action,
+                    outcome="kill_switched",
+                )
                 raise
             except (
                 NotionalExceeded,
@@ -3244,7 +3265,11 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             ) as exc:
                 await event_repo.mark_failed(event.id, error=str(exc))
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(action=event.action, outcome="rejected").inc()
+                # ★BL-580 D9 — D8 과 같은 형태(`commit()` 과 `raise` 사이). 도메인 타입이
+                #   보존돼야 호출자가 무재시도로 종결한다.
+                _count_safely(
+                    qb_live_signal_dispatch_total, action=event.action, outcome="rejected"
+                )
                 raise
             except IdempotencyConflict as exc:
                 # 같은 idempotency_key 가 다른 payload — 복구 불가, mark_failed
@@ -3258,7 +3283,9 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             # OrderService.execute 가 self._session.commit() 내부 호출 — Order INSERT 영구화 완료.
             await event_repo.mark_dispatched(event.id, order_id=response.id)
             await event_repo.commit()
-            qb_live_signal_dispatch_total.labels(action=event.action, outcome="dispatched").inc()
+            # ★BL-580 D11 — 주문이 **이미 거래소에 나간 뒤**다. raw 로 두면 성공한 발주가
+            #   호출자에게 일시 장애로 보고돼 재시도 대상이 된다.
+            _count_safely(qb_live_signal_dispatch_total, action=event.action, outcome="dispatched")
             return {"dispatched": str(response.id), "replayed": _replayed}
     finally:
         await engine.dispose()

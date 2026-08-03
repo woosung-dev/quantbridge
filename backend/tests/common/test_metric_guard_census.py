@@ -65,7 +65,19 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 11,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_dispatch_total"): 12,
+    # ★2026-08-03 metric-guard-residual-sweep — 12곳 중 8곳 수리. 잔여 4곳은 **판정 보류**
+    #   (프로덕션 도달 경로를 한 줄로 못 적어 주입 하네스를 만들지 않았다. 만들면 프로덕션이
+    #   못 만드는 상태를 손조립해 「실측 유해」로 적게 된다 — [BL-582] 함정의 거울상):
+    #     `:3095` strategy_missing — FK `strategies.id ON DELETE RESTRICT`(`models.py:502`)가
+    #        세션 존재 중 삭제를 막고, owner 는 등재 시 일치 후 이전 경로가 없다.
+    #     `:3104` invalid_settings — `update_settings(settings: StrategySettings)` 가 같은
+    #        클래스를 `model_dump()` 하므로 round-trip 이 항상 유효하다.
+    #     `:3111` settings_unset — 등록 게이트(`live_session_service.py:84`)가 유일 방벽이고
+    #        통과 뒤 settings 가 비는 경로가 없다.
+    #     `:3278` idempotency_conflict — ★**도달 불가**. 유일 raise 지점
+    #        (`order_service.py:369`)이 `if body_hash is not None` 안인데 `:3246` 은
+    #        `body_hash=None` 을 넘긴다. 그 `except` 는 이 호출자에게 사문(死文)이다.
+    ("backend/src/tasks/live_signal.py", "qb_live_signal_dispatch_total"): 4,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 4,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_signal_eval_duration_seconds"): 1,
@@ -277,7 +289,8 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
     ]
     lines = [
         "Metric guard census diverged from the frozen R1 baseline.",
-        "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129 − 2026-08-03 수리 25 = 104",
+        "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129 "
+        "− 2026-08-03 수리 25 = 104 − 2026-08-03 수리 8 = 96",
         "새 site (file, lineno, metric, verb, 함수명):",
     ]
     lines.extend(
@@ -366,7 +379,7 @@ c.inc()
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
     assert len(_FROZEN_CENSUS) == 41
-    assert sum(_FROZEN_CENSUS.values()) == 104
+    assert sum(_FROZEN_CENSUS.values()) == 96
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
@@ -579,6 +592,30 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "_sweep_closed_pnl_with_session",
         "qb_closed_pnl_backfill_total",
         "★계정 격리 handler 의 첫 줄 + 신규 청산 알림 앞 + 원장 적재 앞 (H4·H2·H7)",
+    ),
+    # ★2026-08-03 metric-guard-residual-sweep — 라이브 발주 outbox 경로 8곳(전건 「수리함」).
+    #   전부 `mark_failed`/`mark_dispatched` + `commit()` **뒤**이고, 호출자
+    #   `dispatch_live_signal_event_task:2793` 이 **예외 타입으로** 재시도를 가른다 ⇒ 계측이
+    #   던지면 종결이 재시도로 오분류된다(H6). 정본 = `tests/tasks/test_live_signal_metric_failure.py`.
+    #   ★★★**사전등록이 한 자리에서 반증됐다** — `:3133`(close_position_flat)만 fail-open
+    #      `try` 안이라, 계측 예외를 `except` 가 「포지션 조회 실패」로 오인해 삼키고 **그대로
+    #      발주한다**. 오기록이 아니라 **거절이 집행으로 뒤집히는** 자리다(신규 라벨 H8).
+    #   ★이 함수는 metric 이 하나뿐이라 아래 `(파일, 함수, metric)` 삼중항은 **과선택**한다 —
+    #    「이 함수에 가드된 dispatch_total 이 1개 이상」만 집행한다. **자리별 집행은 census
+    #    천장**(`test_unguarded_mutation_count...`)이 한다. 잔여 4곳이 raw 로 남아 있으므로
+    #    수리한 자리가 raw 로 되돌아가면 그 `(파일, metric)` 개수가 4를 넘어 red 가 된다.
+    (
+        "backend/src/tasks/live_signal.py",
+        "_async_dispatch_event",
+        "qb_live_signal_dispatch_total",
+        "★발주 outbox 종결 7곳 — flat 청산 거부가 집행으로 뒤집히고(H8), "
+        "kill-switch·도메인 거절의 타입이 소실돼 무재시도 분기를 건너뛴다 (H6·H5)",
+    ),
+    (
+        "backend/src/tasks/live_signal.py",
+        "dispatch_live_signal_event_task",
+        "qb_live_signal_dispatch_total",
+        "★재시도 소진 포기 기록 — 던지면 포기 반환이 사라지고 사유가 어디에도 안 남는다 (H6·H2)",
     ),
 )
 
