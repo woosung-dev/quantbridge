@@ -2,9 +2,10 @@
 
 > **업데이트:** 2026-08-03
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** `stage/gate-trustworthiness` (커밋 완료 · PR 미생성) —
-> ★그 아래 `stage/metric-guard-residual`(3커밋)이 **미머지로 쌓여 있다.** PR 은 두 회차를 함께 담는다.
-> **최근 머지:** `stage/metric-guard-parity` → `main` (PR #525, 2026-08-02)
+> **준비 브랜치:** 없음 — 누적분은 전부 착지했다.
+> **최근 머지:** `stage/gate-trustworthiness` → `main` (**PR #528**, 2026-08-03).
+> ★이 PR 하나가 **두 회차**(metric-guard-residual + gate-trustworthiness · 6커밋)를 담았다 —
+> 스택이 선형이라 tip 하나로 덮였다. 다음 회차는 **`main` 에서 새로 딴다**(3단 스택 금지).
 
 ---
 
