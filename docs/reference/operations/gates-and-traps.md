@@ -285,6 +285,36 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
 - ★**`git merge-tree` 는 커밋을 받는다.** 트리 해시를 넘기면 거짓 충돌처럼 보인다.
   브랜치 2개가 각각 main 에 clean 하고 **변경 파일 집합이 disjoint** 면 순차 머지도 clean 이다.
 
+### ★★스위트 결과가 **수집 집합**에 달려 있었다 (2026-08-03 gate-trustworthiness, BL-583)
+
+> ★★★**「전부 통과」가 증거이려면 그 통과가 수집 집합과 무관해야 한다.** 이 레포는 그렇지 않았다.
+
+- ★★**`-p no:randomly` 는 이 레포에서 no-op 다.** `pytest-randomly` 가 **설치돼 있지 않다**(설치된 플러그인:
+  asyncio · celery · cov · json-report · metadata · timeout · docker_tools). 실측으로 그 플래그 유무가 같은
+  수치(3848 passed / 46 skipped)를 낸다. 「랜덤 순서라서 red 가 나타났다 사라졌다」는 서술은 **거짓**이었다 —
+  실행 순서는 결정론적이고, 바뀌는 것은 **어떤 파일이 함께 수집됐는가**다.
+- ★★★**클래스 정의 모듈을 monkeypatch 한 상태에서 소비 모듈이 「처음」 적재되면 그 모듈 전역에 가짜가 영구
+  복사된다.** `monkeypatch` teardown 은 **정의 모듈만** 되돌린다. 실측: 오염원 테스트 **4개**가 모듈 3개의
+  전역 **8개**를 오염시켰고(`src.tasks.trading` 6 · `orphan_scanner.OrderRepository` ·
+  `providers.timescale.CCXTProvider`), 그중 두 경로가 무관한 테스트 **5건**(cancel 2 + orphan_scanner 3)을
+  red 로 만들었다. **「소비 모듈이 최상단 import 라 patch 가 안 닿는다」는 이미 적재된 모듈에만 참이다.**
+  ★**창이 넓은 실행 형태에서 더 나온다** — 디렉터리 단위 census 가 1건, **파일 단위**가 1건을 더 찾았다.
+  「전체 스위트에서 가드 발화 0」은 아무것도 증명하지 않는다(`src.*` 214 모듈 중 수집 시점 미적재 **9개**).
+- ★★**그래서 전체 스위트의 green 이 우연일 수 있다.** 위 오염은 알파벳상 앞선 **무관한 파일 6개**가 수집
+  시점에 문제 모듈을 미리 적재해 줘서 가려져 있었다(`test_dispatch_snapshot_priority` ·
+  `test_provider_dispatch` · `test_exchange_order_response_metric` · `test_beat_schedule` ·
+  `test_conditional_entry_janitor` · `integration/test_auto_dogfood`). 6개를 `--ignore` 하면 **3 failed** 다.
+  ★**4개만 빼면 여전히 green(3781)** 이다 — ignore 집합을 손으로 고르면 **마스킹된 green** 을 얻는다.
+  **AST 모듈수준 폐포로 세라**(선례: `tests/tasks/test_live_signal_import_blast_radius.py`). 그리고 그런 실험은
+  「대상 모듈이 수집 시점에 미적재」를 **프로브로 단언한 뒤에만** 결과를 채택해라.
+- ★**이제 `tests/conftest.py` 가 상시로 잡는다** — 한 테스트 항목 안에서 **처음** 적재된 `src.*` 모듈 전역에
+  테스트 대역(`unittest.mock` 객체 또는 `tests.*` 에서 정의된 lambda·헬퍼)이 남으면 **그 오염원 테스트가
+  teardown ERROR** 가 된다. 고치는 법은 하네스가 패치를 걸기 **전에** 그 모듈을 적재하는 것 한 줄이다.
+- ★가드가 **못 잡는 5종**: ① 이미 적재된 모듈의 직접 변조 ② 클로저나 객체 내부에 숨은 대역
+  ③ `sys.modules` 키의 모듈 객체 교체 ④ 창 안의 `importlib.reload` / `del sys.modules[…]` 후 재import
+  ⑤ 비-Mock 대역(`SimpleNamespace()`·`object()` 는 `__module__` 이 없고 `partial` 은 `functools`).
+  **「가드 발화 0」을 「전역 오염 없음」으로 인용하지 마라.**
+
 ### 신규 BE 필드는 FE `.strict()` 스키마와 **항상** 대조해라 (2026-07-30, codex 적대 리뷰 MAJOR)
 
 > ★★★**읽기 경로가 정상인 것은 쓰기 경로가 정상이라는 증거가 아니다.**

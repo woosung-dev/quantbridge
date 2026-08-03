@@ -11,6 +11,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-03 gate-trustworthiness** — 「전부 통과」가 증거가 되게 만든다. ★**순서는 랜덤이 아니었다**(`pytest-randomly` 미설치 ⇒ `-p no:randomly` no-op) — **수집 집합** 운이었다. 뿌리 = 정의 모듈 패치 창의 첫 적재가 가짜를 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개, 상시 가드 신설. **BL-583 Resolved** — [dev-log](2026-08-03-gate-trustworthiness.md)
 - **2026-08-03 metric-guard-residual** — 「감쌀 필요 없다」의 근거를 고장 주입으로 재판정. 명시 4곳 **전건 반증** ⇒ 12곳 수리(census 141→129). **BL-582 「7종 도달 불가」→5종**(엔진 구동이 2종 반증). ★부수: **스위트가 실행 순서로 red/green 이 갈린다**(기존 테스트로 재현) ⇒ BL-583 — [dev-log](2026-08-03-metric-guard-residual.md)
 - **2026-08-02 metric-guard-parity** — 계측 실패가 성공한 발주를 실패로 기록하고 **주문을 하나 더 냈다**(`assert 2 == 1`). 머니-패스 가드 **18곳**, census 159→141. ★백로그가 지목한 두 파일에 최강 P1 이 **없었다**. **BL-579 Resolved**, 신규 BL-580~582 — [dev-log](2026-08-02-metric-guard-parity.md)
 - **2026-08-02 context-budget-repair** — 문서를 읽는 비용. `INDEX.md` **−92.3%**(151,256→11,610 tok) · 자동 로드 고정비 **−42.2%** · 줄길이 상한 게이트 신설. ★**착수 전제 3건 반증** — `CONTEXT.md`·`.ai/rules` 는 자동 로드가 **아니다** [dev-log](2026-08-02-context-budget-repair.md)
@@ -22,8 +23,6 @@
 - **2026-07-31 reversal-ledger-sync** — **실주행이 코드 대조 뿌리 가설을 반증** — 엔진이 체결을 13분 38초 몰랐다(리컨사일러가 `filled` 을 7번 확인하고도 미기록). BL-560 수정은 최종 창에서 0회 발화 = 프로덕션 미검증. 신규 BL-565/566. PR #515 — [dev-log](2026-07-31-reversal-ledger-sync.md)
 - **2026-07-30 close-mismatch-soak** — **BL-560 실재 확정** — 2.60건/h · 청산 시도의 46.2%. 6/6 전건이 「직전 체결과 같은 방향」 ⇒ 엔진이 자기 반전 체결의 청산 leg 미반영. BL-523 전제 반증 · `bl-audit.sh` 신설. PR #513 — [dev-log](2026-07-30-close-mismatch-soak.md)
 - **2026-07-30 close-mismatch-visibility** — **재던 곳에 없었다** — C2 는 유실 채널이 아니라 청산 tick 수. `110017` 두 갈래(same side 9 / position is zero 30)가 한 라벨에 묻혀 화면이 9건 전부를 초록으로 냈다. soak 미실시. PR #511 — [dev-log](2026-07-30-close-mismatch-visibility.md)
-- **2026-07-30 live-entry-completeness** — **BL-536 재측정 「축소」** — 유실은 줄어든 게 아니라 원장 밖 한 채널로 수렴(75%). 직전 헤드라인 16.67% 는 에피소드 유실률이 아니라 시도 거절률이었다. PR #509 · #510 — [dev-log](2026-07-30-live-entry-completeness.md)
-- **2026-07-30 conditional-entry-alignment** — 착수 preflight 가 전제 2건을 반증. **BL-544**(원장 체결로 엔진 seed) · **BL-484**(세션 종료 사유 영속) 착지. soak 3/3 생존이나 seed 주입 경로는 한 번도 안 밟혔다 → BL-553. PR #506 — [dev-log](2026-07-30-conditional-entry-alignment.md)
 
 ---
 
@@ -31,6 +30,8 @@
 
 > 요약 문장을 두지 않는다 — 상세는 링크 대상에 있다. 자기 dev-log 가 없는 회차는 원문 아카이브로 보낸다.
 
+- 2026-07-30 · live-entry-completeness — [dev-log](2026-07-30-live-entry-completeness.md)
+- 2026-07-30 · conditional-entry-alignment — [dev-log](2026-07-30-conditional-entry-alignment.md)
 - **2026-07-30 engine-exchange-alignment** — **BL-543**(position epoch) 착지 + BL-535 부분. **실주행 soak 이 단위테스트를 반증** — 재생 아티팩트는 사라졌으나 공백 뒤 세션이 정반대 방향으로 사망 ⇒ **BL-544** 신설. PR #503 — [dev-log](2026-07-30-engine-exchange-alignment.md)
 - 2026-07-29 · live-orphan-close — [dev-log](2026-07-29-live-orphan-close.md)
 - 2026-08-01 · entry-completeness-rejudgement 사전등록 감사 — [log](2026-08-01-entry-completeness-rejudgement-prereg-audit.md)
