@@ -43,25 +43,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "pine_corpus_v2"
 OHLCV_PATH = FIXTURE_DIR / "corpus_ohlcv_frozen.parquet"
 BASELINE_PATH = FIXTURE_DIR / "baseline_metrics.json"
-SCHEMA_PATH = FIXTURE_DIR / "baseline_metrics.schema.json"
+# ★`baseline_metrics.schema.json` 은 2026-08-03 에 지웠다([BL-588]). 레포 전체에
+# `jsonschema` import 가 0건이라 **어디서도 로드되지 않는 스키마**였고, "있지만 안 도는"
+# 상태가 가장 나쁘다 — 그 사이 런타임이 3.12 -> 3.13 으로 드리프트해도 아무도 몰랐다.
+# 지금 envelope 을 실제로 강제하는 곳은 `tests/strategy/pine_v2/test_trust_layer_parity.py`
+# 의 `test_envelope_*` 4건이다(해시 · schema_version · python minor · 코퍼스 집합).
 
 # sys.path 확장 — uv run 으로 실행 시 src/tests import 가능하게
 sys.path.insert(0, str(REPO_ROOT))
 
-# ★test_trust_layer_parity.py 의 동명 상수와 쌍이다 — 한쪽만 고치면 조용히 어긋난다.
-RUNNABLE_CORPUS = (
-    "s1_pbr",
-    "s2_utbot",
-    "s3_rsid",
-    "i1_utbot",
-    "i2_luxalgo",
-    # 아래 2벌 = 비축퇴 코퍼스 (backtest-metric-oracle). 위 5벌은 자본이 음수로 끝나
-    # sharpe 0 / sortino·calmar null 이라 위험조정지표의 산술을 전혀 비추지 못한다.
-    "s4_hma_curvature",  # 3지표 전부 음수 (sharpe -2.30)
-    "s5_ema_trend",  # 3지표 전부 양수 (sharpe +0.36) — 부호 오류 감지용 짝
-)
-SKIPPED_CORPUS = ("i3_drfx",)
-ALL_CORPUS = RUNNABLE_CORPUS + SKIPPED_CORPUS
+# ★목록 SSOT 는 `tests/strategy/pine_v2/_corpus.py` 하나다([BL-588]). 예전엔 여기와
+#   `test_trust_layer_parity.py` 와 `test_mutation_oracle.py` 셋에 따로 적혀 있었고,
+#   셋째가 5벌에서 멈춰 비축퇴 코퍼스 2벌이 mutation oracle 로 확산되지 않았다.
+from tests.strategy.pine_v2._corpus import ALL_CORPUS, SKIPPED_CORPUS  # noqa: E402
 
 
 def _git_commit_short() -> str:

@@ -34,6 +34,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
+from tests.strategy.pine_v2._corpus import RUNNABLE_CORPUS as _MUTATION_CORPORA
 from tests.strategy.pine_v2._tolerance import digest_sequence, within_tolerance
 
 _CORPUS_DIR = Path(__file__).parents[2] / "fixtures" / "pine_corpus_v2"
@@ -42,8 +43,10 @@ _OHLCV_FROZEN = _CORPUS_DIR / "corpus_ohlcv_frozen.parquet"
 
 _MUTATIONS_RUNNABLE = _BASELINE_METRICS.exists() and _OHLCV_FROZEN.exists()
 
-# 5 runnable corpus — 각 mutation 은 모두 실행 후 하나라도 drift 면 감지 성공
-_MUTATION_CORPORA = ("s1_pbr", "s2_utbot", "s3_rsid", "i1_utbot", "i2_luxalgo")
+# ★[BL-588] — 코퍼스 목록은 여기에 손으로 적힌 **5벌**이었고, 정본이 7벌로 늘었을 때
+#   따라오지 않았다. 빠진 2벌이 하필 **위험조정지표의 유일한 값 채널**이라(앞 5벌은 sharpe 가
+#   전부 0, sortino·calmar 가 전부 null) 그 지표들의 산술 회귀는 mutation oracle 에서
+#   구조적으로 감지 불가였다. 이제 `_corpus.py` 정본 하나만 읽는다(위 import).
 
 
 def _load_frozen_ohlcv() -> pd.DataFrame:

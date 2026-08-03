@@ -36,6 +36,8 @@ import pytest
 
 from src.strategy.pine_v2 import coverage as cov
 from src.strategy.pine_v2.interpreter import STDLIB_NAMES
+from tests.strategy.pine_v2._corpus import RUNNABLE_CORPUS as _RUNNABLE_CORPUS
+from tests.strategy.pine_v2._corpus import SKIPPED_CORPUS as _SKIPPED_CORPUS
 from tests.strategy.pine_v2._tolerance import (
     digest_sequence,
     normalize_decimal,
@@ -51,23 +53,9 @@ _BASELINE_METRICS = _CORPUS_DIR / "baseline_metrics.json"
 
 _BASELINE_PRESENT = _BASELINE_METRICS.exists() and _OHLCV_FROZEN.exists()
 
-# i3_drfx 는 Sprint Y1 Coverage Analyzer 에서 is_runnable=false 로 reject
-# → P-3 실행 대상 제외 (baseline 에 "note": "Skipped" 로만 기록)
-# ★scripts/regen_trust_layer_baseline.py 의 동명 상수와 쌍이다 — 한쪽만 고치면
-#   regen 이 만든 항목을 테스트가 안 읽거나 그 반대가 되어 조용히 어긋난다.
-RUNNABLE_CORPUS: tuple[str, ...] = (
-    "s1_pbr",
-    "s2_utbot",
-    "s3_rsid",
-    "i1_utbot",
-    "i2_luxalgo",
-    # 아래 2벌 = 비축퇴 코퍼스 (backtest-metric-oracle, 2026-08-03).
-    # 위 5벌은 사이징 미선언으로 자본이 음수로 끝나 sharpe 가 5벌 모두 "0.00000000",
-    # sortino·calmar 가 5벌 모두 null 이다 — 세 지표의 **산술**이 회귀해도 값 채널에
-    # 움직일 여지가 없었다. 아래 2벌이 그 채널을 연다.
-    "s4_hma_curvature",  # sharpe -2.30 / sortino -0.92 / calmar -1.05 (전부 음수)
-    "s5_ema_trend",  # sharpe +0.36 / sortino +0.84 / calmar +2.73 (전부 양수)
-)
+# ★목록은 `_corpus.py` 하나뿐이다 — regen 스크립트와 mutation oracle 도 같은 것을 읽는다
+#   ([BL-588]). 예전엔 세 곳에 따로 적혀 있었고 그중 하나가 5벌에서 멈춰 있었다.
+RUNNABLE_CORPUS = _RUNNABLE_CORPUS
 
 # Mutation Oracle 8개 (ADR-020 §4.4). M3 는 Stage 2 실측 후 layer 재분류 (opus W2).
 MUTATION_IDS: tuple[str, ...] = (
@@ -276,6 +264,10 @@ _INT_METRIC_KEYS = ("num_trades", "long_count", "short_count")
 # 16 passed 로 green 이었다(전용 단위 테스트 `test_metrics_nonpositive_equity.py` 는 red).
 # 즉 구멍은 컨벤션 자체가 아니라 **엔드투엔드 코퍼스 회귀망의 채널 부재**였다.
 _STR_METRIC_KEYS = ("sharpe_convention",)
+
+# ★`regen_trust_layer_baseline.py` 의 `"schema_version": 2` 와 **쌍**이다. 한쪽만 올리면
+#   아래 envelope 검사가 red 로 알려준다 — 그게 이 상수를 여기 두는 이유다.
+_EXPECTED_SCHEMA_VERSION = 2
 
 
 @pytest.mark.skipif(
@@ -489,3 +481,99 @@ def test_regen_script_without_confirm_fails() -> None:
         f"stdout: {result.stdout}\nstderr: {result.stderr}"
     )
     assert "--confirm" in result.stderr, f"에러 메시지에 '--confirm' 힌트 누락: {result.stderr}"
+
+
+# ---------------------------------------------------------------------
+# 정답지 envelope — [BL-585] 값이 있는데 읽는 곳이 없었다
+# ---------------------------------------------------------------------
+#
+# `ohlcv_sha256` / `schema_version` / `tool_versions.python` 은 regen 스크립트가 **쓰기만**
+# 하고 레포 어디서도 읽지 않았다(실측 grep 0곳). 그래서 런타임이 3.12 -> 3.13 으로
+# 드리프트하는 동안 아무도 몰랐고, CI 가 재현 못 하는 baseline 이 만들어졌다([BL-587]).
+#
+# ★★red 를 「회귀」로 읽지 마라. 아래 세 assert 는 **숫자가 틀렸다**고 말하는 게 아니라
+#   **이 정답지가 다른 세계에서 만들어졌다**고 말한다. 그래서 조치는 "코드를 고쳐라" 가
+#   아니라 "regen 하고 값이 그대로인지 확인해라" 다. 이 구분을 메시지에 박아두지 않으면
+#   다음 사람이 baseline 의 숫자를 손으로 고친다(이 파일이 막으려는 바로 그 행위다).
+_ENVELOPE_RED_MEANS = (
+    "\n★이것은 회귀가 아니다 — 정답지가 **다른 환경에서** 만들어졌다는 뜻이다.\n"
+    "  조치: `uv run python scripts/regen_trust_layer_baseline.py --confirm` 로 재생성한 뒤\n"
+    "        `git diff` 로 **corpora 숫자가 그대로인지** 확인해라.\n"
+    "  ★baseline 의 값을 손으로 고치지 마라. 그건 이 회귀망을 무력화하는 것이다."
+)
+
+
+@pytest.mark.skipif(not _BASELINE_PRESENT, reason="Stage 2 fixtures 미생성")
+def test_envelope_ohlcv_sha256_matches_frozen_parquet() -> None:
+    """정답지가 선언한 입력 해시가 실제 코퍼스 parquet 과 같은가.
+
+    다르면 정답지와 입력이 짝이 아니다 — 숫자 비교 전체가 무의미해진다.
+    """
+    import hashlib
+
+    hasher = hashlib.sha256()
+    with _OHLCV_FROZEN.open("rb") as fp:
+        for chunk in iter(lambda: fp.read(65536), b""):
+            hasher.update(chunk)
+    actual = hasher.hexdigest()
+
+    declared = json.loads(_BASELINE_METRICS.read_text()).get("ohlcv_sha256")
+    assert declared == actual, (
+        f"입력 코퍼스가 정답지와 짝이 아니다.\n"
+        f"  baseline_metrics.json: {declared}\n"
+        f"  corpus_ohlcv_frozen.parquet 실측: {actual}{_ENVELOPE_RED_MEANS}"
+    )
+
+
+@pytest.mark.skipif(not _BASELINE_PRESENT, reason="Stage 2 fixtures 미생성")
+def test_envelope_schema_version_is_current() -> None:
+    """정답지 스키마 버전이 이 테스트가 아는 버전인가.
+
+    ★`_STR_METRIC_KEYS` 대조(:347)가 "schema_version 2 미만" 을 이미 전제한다. 전제를
+    선언만 하고 검사하지 않으면 낡은 정답지에서 그 대조가 조용히 안 돈다.
+    """
+    declared = json.loads(_BASELINE_METRICS.read_text()).get("schema_version")
+    assert declared == _EXPECTED_SCHEMA_VERSION, (
+        f"정답지 schema_version={declared!r}, 이 테스트가 아는 버전={_EXPECTED_SCHEMA_VERSION}."
+        f"{_ENVELOPE_RED_MEANS}"
+    )
+
+
+@pytest.mark.skipif(not _BASELINE_PRESENT, reason="Stage 2 fixtures 미생성")
+def test_envelope_python_minor_matches_runtime() -> None:
+    """정답지를 만든 python minor 가 지금 도는 런타임과 같은가.
+
+    ★[BL-587] 이 이 채널의 부재로 생겼다 — `requires-python = ">=3.12"` 만 있고 핀이 없어
+    워크트리 bootstrap 의 `uv sync` 가 3.13 을 집었고, CI(3.12)가 재현 못 하는 baseline 이
+    만들어졌다. 원인 차단은 `backend/.python-version`, 이 assert 는 **그 핀이 풀렸을 때의
+    탐지기**다. 둘 다 필요하다.
+    """
+    import sys as _sys
+
+    runtime = f"{_sys.version_info.major}.{_sys.version_info.minor}"
+    declared = json.loads(_BASELINE_METRICS.read_text()).get("tool_versions", {}).get("python")
+    assert declared == runtime, (
+        f"정답지는 python {declared} 에서, 지금 스위트는 python {runtime} 에서 돈다.\n"
+        f"  ★핀은 `backend/.python-version` 이다 — 풀렸는지 먼저 봐라.{_ENVELOPE_RED_MEANS}"
+    )
+
+
+@pytest.mark.skipif(not _BASELINE_PRESENT, reason="Stage 2 fixtures 미생성")
+def test_envelope_corpus_set_is_exactly_the_canonical_list() -> None:
+    """정답지에 실린 코퍼스 집합이 정본 목록과 **정확히** 같은가.
+
+    ★[BL-588] — 이 불변식은 원래 `baseline_metrics.schema.json` 의
+    `minProperties/maxProperties: 8` 에만 있었는데, **그 스키마는 어디서도 로드되지
+    않았다**(레포 전체 `jsonschema` import 0건). 스키마를 지우면서 유일하게 중복이
+    아니었던 이 검사를 평범한 assert 로 옮겨 왔고, 개수가 아니라 **키 집합**을 본다 —
+    한 벌이 빠지고 다른 한 벌이 들어와도 개수는 8 그대로다.
+
+    빠지면 그 코퍼스의 회귀는 **조용히** 감시 대상에서 사라진다.
+    """
+    declared = set(json.loads(_BASELINE_METRICS.read_text()).get("corpora", {}))
+    canonical = set(RUNNABLE_CORPUS) | set(_SKIPPED_CORPUS)
+    assert declared == canonical, (
+        f"정답지 코퍼스 집합이 정본과 다르다.\n"
+        f"  정답지에만: {sorted(declared - canonical)}\n"
+        f"  정본에만:   {sorted(canonical - declared)}{_ENVELOPE_RED_MEANS}"
+    )

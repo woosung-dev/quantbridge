@@ -13,8 +13,11 @@
 #     이전 스냅샷에 없던 series 는 `after-0` 이 아니라 **NEW** 로 표기한다.
 #   · **fail-closed** — 조회 실패는 「이상 없음」이 아니라 UNKNOWN + 비-0 종료다
 #     (감시 스크립트가 fail-open 이라 죽은 세션을 「생존」으로 보고한 전례).
-#   · **boolean 으로 판정하지 않는다**(`is_active` 는 bare 컬럼이면 t/f, 캐스트하면 true/false).
-#     세션 사망은 nullable 텍스트 `deactivated_reason` 으로 본다.
+#   · **boolean 을 판정에 쓰지 않는다**(`is_active` 는 bare 컬럼이면 t/f, 캐스트하면 true/false).
+#     ★단 그 대체를 `deactivated_reason` 으로 두면 안 된다 — 실측 25세션 중 **12세션이
+#     `is_active=false` 인데 `deactivated_reason IS NULL`** 이라 죽은 세션이 "살아있음" 으로
+#     찍힌다(fail-closed 를 표방한 도구의 fail-open). 판정은 **`deactivated_at`** 으로 하고
+#     `is_active` 와 사유는 **읽는 사람에게 보여만 준다**.
 #   · `psql -c` 는 **문장 하나씩**(세미콜론 여럿 = 암묵적 단일 트랜잭션).
 #   · 집계 JOIN 앞에 **JOIN 없는 count** 를 먼저 찍는다(JOIN 팬아웃이 1건을 14건으로 불렸다).
 
@@ -82,8 +85,11 @@ echo "T0=${T0}   (★창은 시계가 아니라 이 값이다)"
 echo "now=$(date -u '+%Y-%m-%d %H:%M:%S+00')"
 
 # ── 1. 세션 생존 ─────────────────────────────────────────────────────────
-hdr "1. 세션 생존 (★boolean 아니라 deactivated_reason 으로 판정)"
-q "SELECT coalesce(deactivated_reason, '(살아있음)') AS death_reason,
+hdr "1. 세션 생존 (★판정은 deactivated_at — reason 은 NULL 일 수 있다)"
+q "SELECT CASE WHEN deactivated_at IS NULL THEN '살아있음' ELSE '죽음' END AS alive,
+          coalesce(deactivated_reason, CASE WHEN deactivated_at IS NULL THEN '-'
+                                            ELSE '(사유미기록)' END) AS death_reason,
+          is_active::text AS is_active,
           to_char(last_evaluated_bar_time, 'YYYY-MM-DD HH24:MI') AS last_bar,
           round(extract(epoch FROM (now() - last_evaluated_bar_time))/60.0) AS bar_age_min,
           round(extract(epoch FROM (now() - created_at))/3600.0, 2) AS soak_hours
@@ -108,8 +114,11 @@ q "SELECT action, status,
 # ── 4. counter 차분 ──────────────────────────────────────────────────────
 hdr "4. counter 차분 (★절대값 비교 금지 — 이전 스냅샷 대비 변화만)"
 SNAP="${STATE_DIR}/snap-$(date -u '+%Y%m%dT%H%M%SZ').txt"
+# ★`live_conditional_guard`/`plan_drop_evaluations` 는 BL-589 수리로 시장가 전환이 늘어나는
+# 것을 보기 위해 넣었다. 볼 눈금은 `breach_with_resting`(막힌 드롭) 대 `market_converted`(전환).
+# 절대값은 출생일이 달라 비교 불가 — **차분만** 본다.
 if ! curl -sf --max-time 30 "${METRICS_URL}" \
-     | grep -E '^qb_(live_signal_dispatch|live_signal_skipped|live_signal_evaluated|live_signal_divergence|live_conditional_reconcile_errors|live_position_divergence|metrics_mutation_failed|metrics_render_fallback)' \
+     | grep -E '^qb_(live_signal_dispatch|live_signal_skipped|live_signal_evaluated|live_signal_divergence|live_conditional_reconcile_errors|live_conditional_guard|live_conditional_plan_drop_evaluations|live_position_divergence|metrics_mutation_failed|metrics_render_fallback)' \
      | sort > "${SNAP}"; then
   echo "  UNKNOWN — ${METRICS_URL} 스크레이프 실패"
   FAILED=1

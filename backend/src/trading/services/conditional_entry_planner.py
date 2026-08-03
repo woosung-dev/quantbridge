@@ -422,10 +422,29 @@ def plan_reconcile(
         # 참조가 미지정이면 이 검사를 건너뛴다 - 기존 호출자 무영향.
         convert_to_market = False
         if reference_price is not None and reference_price > 0:
-            breached = (
-                pending.direction == "long" and pending.stop_price <= reference_price
-            ) or (pending.direction == "short" and pending.stop_price >= reference_price)
-            if breached and (matching_actual or not allow_market_conversion):
+            breached = (pending.direction == "long" and pending.stop_price <= reference_price) or (
+                pending.direction == "short" and pending.stop_price >= reference_price
+            )
+            # ★★BL-589 — 시장가 전환을 막는 것은 "대기 주문이 있다" 가 아니라 **"그 대기
+            # 주문이 발화했을 수 있다"** 다. 배제의 원래 근거(PR #493)는 "거래소가 이미 그
+            # 주문을 트리거했을 확률이 높아 취소+시장가는 이중 진입이 된다" 였는데, 그 확률은
+            # 대기 주문 **자신의** 트리거가 뚫렸을 때만 0 이 아니다.
+            #
+            # 실측(2026-08-03 소크 T0+65분 사망): 피벗이 62811.5 -> 62661.71 로 내려가
+            # 새 트리거가 현재가 62700 **아래**라 stop 으로 못 걸었는데, 올라가 있던 대기
+            # 주문의 트리거는 62811.5 라 **한 번도 닿은 적이 없었다**. 그런데도 전환이 꺼져
+            # 드롭됐고, 시뮬은 `low <= stop` 으로 이미 진입을 잡은 뒤였다 -> 엔진 롱 /
+            # 거래소 숏 -> `direction` 발산 2회 연속 -> fail-closed.
+            #
+            # ★드롭 쪽이 손해보는 일은 없다 — 두 갈래 모두 `matching_actual` 을 취소하므로,
+            # 전환이 하류 가드(미지 interval / 최근 전환 중복 / 돌파 해소 / breach cap)에
+            # 걸려 무산되면 결과는 기존 드롭과 같다.
+            resting_could_have_fired = any(
+                (entry.side == "buy" and entry.stop_price <= reference_price)
+                or (entry.side == "sell" and entry.stop_price >= reference_price)
+                for entry in matching_actual
+            )
+            if breached and (resting_could_have_fired or not allow_market_conversion):
                 divergences.append(
                     {
                         "trade_id": pending.trade_id,
@@ -434,13 +453,16 @@ def plan_reconcile(
                         "stop_price": str(pending.stop_price),
                         "reference_price": str(reference_price),
                         "had_resting": bool(matching_actual),
+                        # ★`had_resting` 만으로는 "발화 가능한 대기 주문이 막았다"(정당한
+                        # 보호)와 "전환 자체가 꺼져 있었다"(기준가 열화)가 구별되지 않는다.
+                        "resting_could_have_fired": resting_could_have_fired,
                     }
                 )
                 to_cancel.extend(matching_actual)
                 continue
             if breached:
-                breach_pct = abs(reference_price - pending.stop_price) / reference_price * Decimal(
-                    "100"
+                breach_pct = (
+                    abs(reference_price - pending.stop_price) / reference_price * Decimal("100")
                 )
                 if max_breach_pct is not None and breach_pct > max_breach_pct:
                     divergences.append(
@@ -575,7 +597,14 @@ def plan_reconcile(
         # 또는 수동 등재)이 side/수량/가격만 맞으면 "일치" 로 판정돼 영원히 살아남는다.
         # 진입 트리거 방향은 이 스프린트가 BL-365 로 명시적으로 다루는 바로 그 축이다.
         # `None` 은 방향 미상 = 불일치로 본다(재등재해서 확정 상태로 만든다).
-        if (
+        #
+        # ★★BL-589 — **대기 stop 주문은 시장가 의도를 절대 만족시키지 못한다.** `as_market`
+        # 은 위 등가 비교 축에 없어서, 눈금이 굵으면 둘이 "일치" 로 접힌다(실증: `price_tick`
+        # 10 이면 desired stop 100 과 resting stop 108 이 둘 다 100 으로 정규화된다).
+        # 그러면 아무것도 취소하지 않고 아무것도 등재하지 않아 **시장가로 나갔어야 할 진입이
+        # 조용히 사라지고 대기 stop 만 남는다** — 고치려던 발산이 그대로 재발한다.
+        # 이 구멍은 위 술어를 좁히기 전에는 도달 불가였다(전환과 대기 주문이 공존 못 했다).
+        if planned.as_market or (
             current.side,
             _normalize(current.quantity, qty_step),
             _normalize(current.stop_price, price_tick),
