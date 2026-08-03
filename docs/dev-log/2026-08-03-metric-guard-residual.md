@@ -1,4 +1,4 @@
-# 2026-08-02 — metric-guard-residual
+# 2026-08-03 — metric-guard-residual
 
 > 가드가 못 막는 자리를 좁히고, **못 막는다는 것을 증명한다.**
 > 진입점: `docs/status.md` 「다음 스프린트」. 브랜치 `stage/metric-guard-residual`.
