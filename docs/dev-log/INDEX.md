@@ -11,7 +11,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
-- **2026-08-03 backtest-metric-oracle** — 회귀망이 위험조정지표에 **감지력 0** 이었다(코퍼스 5벌 전부 sharpe=0·sortino/calmar=null). 컨벤션 대조 + 비축퇴 코퍼스 2벌로 채널 신설. **BL-461 Resolved** — 하루치 1h 봉이 **Sharpe 16.56** 을 보고했다. ★표적 2건이 빗나감(sortino null 은 이미 대조 · off-by-one 은 이미 커버) — [dev-log](2026-08-03-backtest-metric-oracle.md)
+- **2026-08-03 backtest-metric-oracle** — 회귀망이 위험조정지표에 **감지력 0** 이었다(5벌 전부 sharpe=0·sortino/calmar=null). 컨벤션 대조 + 비축퇴 2벌로 채널 신설. **BL-461 Resolved** — 하루치 1h 봉이 **Sharpe 16.56** 을 보고했다. ★표적 2건 빗나감. ★★**소크가 65분에 죽었다 → BL-589(P1)** — [dev-log](2026-08-03-backtest-metric-oracle.md)
 - **2026-08-03 metric-guard-residual-sweep** — 발주 outbox **12곳** ⇒ **수리함 8 · 보류 4**(census 104→96). ★★★전부 「commit 뒤」인데 **한 자리만 fail-open `try` 안**이라 계측 실패가 **거절을 집행으로 뒤집었다**(flat 인데 청산 발주, 신규 H8). ★변이 M4 가 **오라클 구멍**을 드러냄. **BL-584 도달 불가** — [dev-log](2026-08-03-metric-guard-residual-sweep.md)
 - **2026-08-03 metric-guard-residual-close** — BL-580 잔여 **25곳** 주입 판정 ⇒ **수리함 23 · 판정 보류 2**(census 129→104). ★산문 2줄이 25곳을 잘못 뺐다(「blast radius 0」은 10/10 이 OSError 탈출). ★**내 하네스가 계약을 깨 도달 불가 분기를 「유해」로 만들 뻔했다**(codex G6) — [dev-log](2026-08-03-metric-guard-residual-close.md)
 - **2026-08-03 gate-trustworthiness** — 「전부 통과」가 증거가 되게 만든다. ★**순서는 랜덤이 아니었다**(`pytest-randomly` 미설치 ⇒ `-p no:randomly` no-op) — **수집 집합** 운이었다. 뿌리 = 정의 모듈 패치 창의 첫 적재가 가짜를 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개, 상시 가드 신설. **BL-583 Resolved** PR #528 — [dev-log](2026-08-03-gate-trustworthiness.md)
