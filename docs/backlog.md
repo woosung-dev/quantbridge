@@ -802,11 +802,11 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-583](#bl-583)    | ✅ Resolved — ★스위트 결과가 **수집 집합**에 달려 있었다(순서 랜덤이 아니다 — `pytest-randomly` 미설치). 뿌리 = 정의 모듈 패치 창에서 소비 모듈 첫 적재 시 가짜가 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개 처분 + 상시 가드                                                             | 게이트가 이유 없이 red 이거나 같은 커밋이 두 번 다른 결과를 낼 때                                                 | M            | 2026-08-03 metric-guard-residual                       |
 | [BL-584](#bl-584)    | `BalanceUnverified` 가 라이브 dispatch 의 결정론적-거절 튜플 양쪽에 없다 — 소진 시 실제 사유가 `max_retries_exhausted` 로 덮인다. ★2026-08-03 **현재 코퍼스 도달 불가 확정**(계정 mode 는 생성 후 불변 · `mode=live` 계정 0건) ⇒ 수리 보류, Trigger 를 cutover 로 보강                          | **`mode=live` 계정이 생성될 때**(Wave 3 cutover), 또는 `outcome="max_retries_exhausted"` 창 차분이 0 을 벗어날 때 | S            | 2026-08-03 metric-guard-residual-close                 |
 | [BL-578](#bl-578)    | 조건부 진입 `110092`/`110093` 거절 시 거래소가 준 정답(`current[...]`)을 버린다 — BL-536 재판정에서 유일하게 살아남은 채널의 잔여 (측정 완료 · 수리 보류)                                                                                                                                       | C1 거절이 하루 3건 이상으로 다시 오르거나 실자금 cutover 로 1건 비용이 달라질 때                                  | S            | 2026-08-01 entry-completeness-rejudgement              |
-| [BL-585](#bl-585)    | `baseline_metrics.schema.json` 이 **어디서도 로드되지 않는다**(레포 전체 `jsonschema` import 0건). 증거 — 그 스키마의 python 패턴 `^3\.1[12]$` 는 현재 baseline(3.13)을 reject 한다. 켜거나 지우거나 — 「있지만 안 도는」 상태가 가장 나쁘다                                                    | baseline 스키마를 또 손댈 때, 또는 regen 산출물이 예상 밖 형태로 나올 때                                          | XS           | 2026-08-03 backtest-metric-oracle                      |
+| [BL-585](#bl-585)    | ✅ Resolved — 안 도는 스키마를 **지웠다**. 중복이 아니었던 유일한 검사(`corpora` 8벌)는 **키 집합 대조**로 강화해 테스트로 이관. 패턴을 남기면 세 번째 SSOT 가 된다                                                                                                                             | baseline 정답지의 형태 검사를 다시 논할 때                                                                        | XS           | 2026-08-03 backtest-metric-oracle                      |
 | [BL-586](#bl-586)    | P-3 골든이 `BacktestMetrics` **51 필드 중 13개**만 고정 — 38개가 회귀 감지 대상 밖(TV parity 팩 · 비용 분해 · per_side · excursion · 청산). `RawTrade` 도 22 중 11 필드만 digest                                                                                                                | TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때                                                             | M            | 2026-08-03 backtest-metric-oracle                      |
-| [BL-587](#bl-587)    | baseline envelope(`ohlcv_sha256`·`pine_v2_commit`·`tool_versions`·`schema_version`)을 검증하는 assert 0건 — 쓰기만 하고 안 읽는다. 실측: 런타임이 python 3.12→3.13 으로 드리프트했는데 아무도 몰랐다(값은 다행히 전부 동일)                                                                     | parquet 교체 · python/pynescript 업그레이드 시                                                                    | XS           | 2026-08-03 backtest-metric-oracle                      |
+| [BL-587](#bl-587)    | ✅ Resolved — **원인 차단 + 탐지기 둘 다**. `backend/.python-version` 3.12 핀 + envelope assert 3건(그전까지 읽는 곳 0곳). red 메시지에 「회귀가 아니라 regen 해라」 명시                                                                                                                       | parquet 교체 · python/pynescript 업그레이드 시                                                                    | XS           | 2026-08-03 backtest-metric-oracle                      |
 | [BL-589](#bl-589)    | ✅ Resolved — ★뿌리는 엔진이 아니라 **조건부 진입 계획기**였다. 엔진은 취소를 못 본 게 아니라 **주문을 아예 모른다**(포지션 출처 = `run_live` 시뮬). 계획기가 「대기 주문이 있다」는 이유만으로 시장가 전환을 껐는데 그 대기 주문은 **발화할 수 없었다** → 술어를 「발화할 수 있었는가」로 좁힘 | 조건부 진입이 드롭됐는데 시뮬은 진입을 잡은 상태가 의심될 때                                                      | M            | 2026-08-03 backtest-metric-oracle                      |
-| [BL-588](#bl-588)    | 코퍼스 목록이 **세 곳에 따로** 있다 — parity 7벌 / regen 7벌 / `_MUTATION_CORPORA` **5벌**. 신규 비축퇴 코퍼스 2벌이 nightly mutation oracle 로 확산되지 않았다(판별력을 만든 유일한 두 벌인데)                                                                                                 | 코퍼스를 또 추가/제거할 때                                                                                        | XS-S         | 2026-08-03 backtest-metric-oracle                      |
+| [BL-588](#bl-588)    | ✅ Resolved — 목록을 `_corpus.py` **하나로** 합쳤다. ★5벌이 정확히 **위험조정지표 축퇴 5벌**이라 그 산술 회귀가 감지 불가였다. nightly +19%, 감지 불변                                                                                                                                          | 코퍼스를 또 추가/제거할 때                                                                                        | XS-S         | 2026-08-03 backtest-metric-oracle                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -6010,8 +6010,14 @@ Bybit **demo** 만 허용하고 이 거절은 `mode == live` 분기에서만 난
 **우선순위:** P3
 **카테고리:** Backtest / Trust Layer (강제력 없는 스키마)
 **Trigger:** baseline 스키마를 또 손대게 될 때, 또는 regen 산출물이 예상 밖 형태로 나올 때
-**Est:** XS (`jsonschema` 의존 추가 + 테스트 1건)
-**상태:** 🟢 열려 있다
+**Est:** XS
+**상태:** ✅ **Resolved (2026-08-03 soak-divergence-root) — 「켜거나 지우거나」에서 「지운다」를 골랐다.**
+`jsonschema` 의존을 새로 들이는 값이 없었다. 스키마가 선언하던 것 중 **중복이 아니었던 유일한
+검사**는 `corpora` 의 `minProperties/maxProperties: 8` 하나였고, 그것을 개수가 아니라 **키 집합**
+대조로 강화해 `test_envelope_corpus_set_is_exactly_the_canonical_list` 로 옮겼다(한 벌이 빠지고
+다른 한 벌이 들어와도 개수는 8 그대로다). 나머지 필드는 [[BL-587]] 의 assert 3건이, `corpora` 의
+숫자는 P-3 parity 가 타입 검사보다 훨씬 강하게 지킨다. 스키마의 `^3\.1[12]$` 패턴을 남겨두면
+`.python-version`·런타임 assert 와 함께 **세 번째 SSOT** 가 된다는 점도 삭제 근거였다.
 **출처:** 2026-08-03 backtest-metric-oracle
 
 `baseline_metrics.schema.json`(6.7KB) 은 **어디서도 로드되지 않는다.** 레포 전체에 `jsonschema`
@@ -6066,8 +6072,15 @@ digest(명시적 11-필드) 불변" 으로 그 결정을 명문화). `exit_kind`
 **우선순위:** P3
 **카테고리:** Backtest / Trust Layer (기록만 하고 검증 안 하는 envelope)
 **Trigger:** parquet 교체 · python/pynescript 업그레이드 시
-**Est:** XS (assert 3건)
-**상태:** 🟢 열려 있다
+**Est:** XS
+**상태:** ✅ **Resolved (2026-08-03 soak-divergence-root)** — **원인 차단 + 탐지기를 둘 다 넣었다.**
+원인 차단 = `backend/.python-version` 에 `3.12` 핀(`requires-python = ">=3.12"` 만 있어 `uv sync`
+가 3.13 을 집었다). 탐지기 = `test_envelope_*` 3건이 `ohlcv_sha256` · `schema_version` ·
+`tool_versions.python` 을 실제로 읽는다 — 그전까지 이 셋은 regen 이 **쓰기만** 하고 읽는 곳이
+0곳이었다. ★red 메시지에 **「회귀가 아니라 regen 하고 값이 같은지 확인해라」**를 박아뒀다. 안
+그러면 다음 사람이 baseline 숫자를 손으로 고친다(이 회귀망이 막으려는 바로 그 행위다).
+**판별력 확인:** 세 변조(해시 1글자 · `schema_version` 2→1 · python 3.12→3.13)에 대해 각각
+**자기 assert 만** red(매번 1 failed / 2 passed). 복원은 sha256 대조로 확인했다.
 **출처:** 2026-08-03 backtest-metric-oracle
 
 baseline envelope 의 `ohlcv_sha256` · `pine_v2_commit` · `tool_versions` · `schema_version` 을
@@ -6108,7 +6121,17 @@ baseline envelope 의 `ohlcv_sha256` · `pine_v2_commit` · `tool_versions` · `
 **카테고리:** Backtest / Trust Layer (코퍼스 목록 3중 정의)
 **Trigger:** 코퍼스를 또 추가/제거할 때
 **Est:** XS-S
-**상태:** 🟢 열려 있다
+**상태:** ✅ **Resolved (2026-08-03 soak-divergence-root)** — 「5→7 로 맞춘다」가 아니라 **목록을
+하나로 합쳤다**(`backend/tests/strategy/pine_v2/_corpus.py`). parity·regen·mutation oracle 셋이
+그것만 읽는다. 앞 둘은 "동명 상수와 쌍이다" 라는 주석으로 서로를 가리켰지만 **셋째는 아무도
+가리키지 않아서** 비축퇴 2벌이 확산되지 않았다 — 주석으로 쌍을 맺는 방식 자체가 실패했다.
+★**실측: `_MUTATION_CORPORA` 에 있던 5벌이 정확히 위험조정지표가 축퇴한 5벌**이었다
+(sharpe `0.00000000` · sortino/calmar `null`, 7벌 중 5벌). 빠져 있던 s4/s5 가 유일한 비축퇴 짝이라,
+5벌 체제에서는 그 3지표의 **산술 회귀가 구조적으로 감지 불가**였다.
+**비용/효과 실측:** nightly `--run-mutations` **183s → 218s (+19%)**, 감지 결과는
+**7 passed + 1 xpassed 로 불변**. ★기존 8 변이는 전부 거래 시퀀스를 흔들어 `trades_digest` 로
+이미 잡히므로 증가가 없는 것이 정상이다 — 7벌의 값은 **앞으로의 지표-산술 회귀를 위한 채널의
+존재**이지 이 8건의 감지율이 아니다. (사전등록 B-V2 「증가하거나 최소 유지」 → **유지**.)
 **출처:** 2026-08-03 backtest-metric-oracle
 
 실행 대상 코퍼스 목록이 **세 곳에 따로** 있다.

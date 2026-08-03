@@ -252,10 +252,10 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-461** [P3] `_periodic_returns` daily fallback 이 sub-daily 를 "1 bar = 1 day" 로 계산 — `resample("D").last()` 로 해결(2026-08-03 backtest-metric-oracle). 실측 왜곡 = 같은 자본 경로를 1h 로 적으면 Sharpe 가 참 값의 6배, 하루치 1h 봉에서는 Sharpe 16.56. 우려됐던 baseline 2 metric 확산은 **미발생** — 코퍼스 7벌이 전부 월간 경로라 regen 0행
 - [ ] **BL-462** [P3] Sharpe 목록 정렬 신·구 컨벤션 혼재 — `repository.py:75` 가 원시 JSONB 숫자만 캐스팅. 현재는 FE 고지로 대응, 완전 해소는 read-time recompute
 - [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기
-- [ ] **BL-585** [P3] `baseline_metrics.schema.json` 이 어디서도 로드되지 않는다(`jsonschema` import 0건) — 증거는 그 스키마의 python 패턴 `^3\.1[12]$` 가 현재 baseline(3.13)을 reject 한다는 것. 켜거나 지우거나
+- [x] **BL-585** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 「켜거나 지우거나」에서 **지운다**를 골랐다. `jsonschema` 의존을 새로 들일 값이 없었고, 스키마가 선언하던 것 중 중복이 아니었던 유일한 검사(`corpora` 8벌)는 **키 집합 대조**로 강화해 테스트로 옮겼다. `^3\.1[12]$` 패턴을 남기면 `.python-version`·런타임 assert 와 함께 **세 번째 SSOT** 가 된다
 - [ ] **BL-586** [P3] P-3 골든이 `BacktestMetrics` 51 필드 중 **13개**만 고정 — TV parity 팩·비용 분해·per_side·excursion·청산 38개가 감지 대상 밖. `RawTrade` 도 22 중 11 필드만 digest
-- [ ] **BL-587** [P3] baseline envelope(`ohlcv_sha256`·`pine_v2_commit`·`tool_versions`)을 검증하는 assert 0건 — 실측: 런타임이 python 3.12→3.13 으로 드리프트했는데 아무 게이트도 안 울렸다(값은 전부 동일했다)
-- [ ] **BL-588** [P3] 코퍼스 목록 3중 정의 — parity 7벌 / regen 7벌 / `_MUTATION_CORPORA` **5벌**. 판별력을 만든 비축퇴 2벌이 nightly mutation oracle 로 확산 안 됨
+- [x] **BL-587** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — **원인 차단 + 탐지기 둘 다**. 차단 = `backend/.python-version` 3.12 핀. 탐지 = `test_envelope_*` 3건이 `ohlcv_sha256`·`schema_version`·`tool_versions.python` 을 실제로 읽는다(그전까지 읽는 곳 0곳). ★red 메시지에 「회귀가 아니라 regen 하고 값이 같은지 확인해라」를 박았다. 세 변조에 각각 자기 assert 만 red 로 판별력 확인
+- [x] **BL-588** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 5→7 로 맞추는 대신 **목록을 `_corpus.py` 하나로 합쳤다**(parity·regen·mutation 셋이 그것만 읽는다). ★실측: `_MUTATION_CORPORA` 의 5벌이 **정확히 위험조정지표가 축퇴한 5벌**이라 그 3지표의 산술 회귀가 구조적으로 감지 불가였다. nightly 183s→218s(+19%), 감지 결과 불변(기존 8변이는 `trades_digest` 로 이미 잡힌다)
 - [x] **BL-465** [P1] `_periodic_returns` 음수 자본 미차단 → 파산한 실행에 양수 샤프 — ✅ **dogfood-restore 완료**. 신규 마커 `unavailable_nonpositive_equity` + Trust Layer baseline 재생성(2/12 키 한정)
 - [ ] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
 - [x] **BL-467** [P1] `backend-optimizer-heavy` OHLCV env 3종 부재로 **모든 optimizer 실행 실패** — ✅ **dogfood-restore 완료**

@@ -158,3 +158,93 @@ if breached and (matching_actual or not allow_market_conversion):   # 수리 전
    거짓말한다. 함정을 피한 자리가 새 함정이 됐다.
 4. ★★**기다림을 판정 축으로 삼기 전에 기저율을 계산해라.** 25세션 중 1건이면 65분 무사고는
    증거가 아니다. 두 회차 연속 같은 계산이 필요했다(직전 회차 `close_position_flat` 30분 기대값 0.02건).
+
+---
+
+## §7. B — 정답지 envelope ([BL-587] · [BL-585] · [BL-588] 전부 Resolved)
+
+A3 재가동 뒤 창이 도는 동안 했다. 전부 `tests/`·`scripts/`·설정만 건드려 `backend/src` 무접촉이다.
+
+### B1+B2 [BL-587] — 원인 차단과 탐지기를 **둘 다** 넣었다
+
+`requires-python = ">=3.12"` 만 있고 핀이 없어 워크트리 bootstrap 의 `uv sync` 가 3.13 을 집었고,
+CI(3.12)가 재현 못 하는 정답지가 만들어졌다. 그런데 **아무도 몰랐다** — `ohlcv_sha256` ·
+`schema_version` · `tool_versions.python` 은 regen 이 **쓰기만** 하고 읽는 곳이 **0곳**이었다.
+
+- 차단: `backend/.python-version` = `3.12`.
+- 탐지: `test_envelope_*` 3건이 그 셋을 실제로 대조.
+
+★**red 메시지에 「이것은 회귀가 아니다」를 박았다.** 이 세 assert 가 red 라는 것은 *숫자가
+틀렸다*가 아니라 *정답지가 다른 세계에서 만들어졌다*는 뜻이고, 조치는 「코드를 고쳐라」가 아니라
+「regen 하고 값이 그대로인지 확인해라」다. 이 구분을 안 적으면 다음 사람이 **baseline 숫자를
+손으로 고친다** — 이 회귀망이 막으려는 바로 그 행위다.
+
+**B-V1 판별력** — 세 변조에 각각 **자기 assert 만** red:
+
+| 변조                   | 결과                                                     |
+| ---------------------- | -------------------------------------------------------- |
+| `ohlcv_sha256` 한 글자 | `test_envelope_ohlcv_sha256_*` red (1 failed / 2 passed) |
+| `schema_version` 2 → 1 | `test_envelope_schema_version_*` red (1 / 2)             |
+| python `3.12` → `3.13` | `test_envelope_python_minor_*` red (1 / 2)               |
+
+교차 오염 0. 복원은 **sha256 대조**로 확인했다(`git checkout` 금지 — 미커밋 변경이 날아간다).
+
+### B3 [BL-585] — 「켜거나 지우거나」에서 **지운다**를 골랐다
+
+`baseline_metrics.schema.json`(193줄)은 레포 전체 `jsonschema` import **0건**이라 한 번도 로드된
+적이 없다. 켜려면 의존을 새로 들여야 하는데 그 값이 없었다:
+
+- envelope 필드 → B2 의 assert 3건이 **타입이 아니라 값**으로 지킨다.
+- `corpora` 숫자 → P-3 parity 가 JSON Schema 타입 검사보다 훨씬 강하다.
+- 남기면 스키마의 `^3\.1[12]$` 가 `.python-version`·런타임 assert 와 함께 **세 번째 SSOT** 가 된다.
+
+★**지우기 전에 열어봤고, 중복이 아니었던 검사가 하나 있었다** — `corpora` 의
+`minProperties/maxProperties: 8`. 그것만 평범한 assert 로 옮기되 **개수가 아니라 키 집합**으로
+강화했다(한 벌이 빠지고 다른 한 벌이 들어와도 개수는 8 그대로다).
+
+### B4 [BL-588] — 5→7 이 아니라 **목록을 하나로 합쳤다**
+
+parity(7벌) · regen(7벌) · `_MUTATION_CORPORA`(**5벌**). 앞 둘은 _"동명 상수와 쌍이다"_ 라는
+주석으로 서로를 가리켰는데 **셋째는 아무도 가리키지 않았다.** 주석으로 쌍을 맺는 방식이 실패한
+것이므로 목록을 `tests/strategy/pine_v2/_corpus.py` 하나로 두고 셋이 import 하게 했다.
+
+★**빠진 2벌이 하필 결정적이었다.** 실측:
+
+| 코퍼스                                    | sharpe       | sortino     | calmar      |
+| ----------------------------------------- | ------------ | ----------- | ----------- |
+| s1_pbr / s2_utbot / s3_rsid / i1 / i2 (5) | `0.00000000` | `null`      | `null`      |
+| **s4_hma_curvature**                      | −2.30097687  | −0.91713195 | −1.04561323 |
+| **s5_ema_trend**                          | +0.36060359  | +0.84446947 | +2.72519830 |
+
+**`_MUTATION_CORPORA` 에 있던 5벌이 정확히 위험조정지표가 축퇴한 5벌이다.** sharpe 가 전부 0 이고
+sortino·calmar 가 전부 null 이면 그 세 지표의 **산술이 회귀해도 값이 움직일 여지가 없다** —
+mutation oracle 이 구조적으로 못 잡는 결함 부류가 존재했다는 뜻이다.
+
+**B-V2 비용/효과 실측** — nightly `--run-mutations` **183s → 218s (+19%)**, 감지 결과는
+**7 passed + 1 xpassed 로 불변**.
+
+★**「증가하지 않았다」를 숨기지 않는다.** 사전등록 문턱은 「증가하거나 최소 유지」였고 결과는
+**유지**다. 증가가 없는 것이 정상인데, 기존 8 변이는 전부 거래 시퀀스를 흔들어 `trades_digest`
+로 이미 잡히기 때문이다. 7벌이 사는 값은 **이 8건의 감지율이 아니라 앞으로의 지표-산술 회귀를
+위한 채널의 존재**다. 그 구분을 안 적으면 다음 사람이 「+19% 주고 얻은 게 없다」고 되돌린다.
+
+## §8. 재가동 관측 (T0 `2026-08-03T14:09:38Z` · 세션 `a201a47b`)
+
+거래소 `FLAT=YES`(포지션 0건) 확인 후 서비스 계층으로 등재했다(HTTP 는 Clerk `azp` 때문에 불가,
+손 INSERT 는 `equity_baseline_usdt` 누락으로 첫 tick 사망). equity baseline `190419.28986309`.
+
+T0+17분 실측 — 세션 생존 · 평가 +16 · 주문 4건(체결 3 / 취소 1).
+
+★**시장가 전환 경로가 실제로 발화했다** — `14:10:55` `condmkt` buy 0.03 → 2초 뒤 체결
+(`market_converted` 10→11). 단 이번 것은 **대기 주문이 없던** 기존 경로다
+(`breach_with_resting` 는 11 그대로) — 내 수리가 여는 갈래는 아직 안 밟았다.
+
+★**`direction` 발산이 한 번 났는데 세션은 살았다.** `14:20:34` engine `+0.03007` vs exchange
+`−0.03`. 원장을 보면 거래소가 `14:20:20` 에 −0.03 으로 뒤집힌 **14초 뒤**라, 엔진이 아직 이전 봉
+종가에 있던 **자기해소 skew** 다 — 가드가 설계대로 1회차를 유예했고(`direction_transient` 17→18)
+다음 평가에서 해소됐다(hard `direction` 증가 **0**). 사망 사례와 구별되는 지점이 정확히 이것이다.
+
+★`reconcile_errors{stage="deferred_after_market_convert"}` 가 NEW 로 떴는데 **결함이 아니다** —
+시장가 전환이 포지션 스냅샷을 낡게 만들어 그 tick 의 나머지 등재를 다음 tick 으로 미루는
+**설계된 stand-down** 이다(`live_signal.py:1745-1760`). errors counter 에 실려 있어 오해를 부르지만
+선재 동작이라 손대지 않았다.
