@@ -802,6 +802,10 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-583](#bl-583)    | ✅ Resolved — ★스위트 결과가 **수집 집합**에 달려 있었다(순서 랜덤이 아니다 — `pytest-randomly` 미설치). 뿌리 = 정의 모듈 패치 창에서 소비 모듈 첫 적재 시 가짜가 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개 처분 + 상시 가드                                    | 게이트가 이유 없이 red 이거나 같은 커밋이 두 번 다른 결과를 낼 때                                                 | M            | 2026-08-03 metric-guard-residual                       |
 | [BL-584](#bl-584)    | `BalanceUnverified` 가 라이브 dispatch 의 결정론적-거절 튜플 양쪽에 없다 — 소진 시 실제 사유가 `max_retries_exhausted` 로 덮인다. ★2026-08-03 **현재 코퍼스 도달 불가 확정**(계정 mode 는 생성 후 불변 · `mode=live` 계정 0건) ⇒ 수리 보류, Trigger 를 cutover 로 보강 | **`mode=live` 계정이 생성될 때**(Wave 3 cutover), 또는 `outcome="max_retries_exhausted"` 창 차분이 0 을 벗어날 때 | S            | 2026-08-03 metric-guard-residual-close                 |
 | [BL-578](#bl-578)    | 조건부 진입 `110092`/`110093` 거절 시 거래소가 준 정답(`current[...]`)을 버린다 — BL-536 재판정에서 유일하게 살아남은 채널의 잔여 (측정 완료 · 수리 보류)                                                                                                              | C1 거절이 하루 3건 이상으로 다시 오르거나 실자금 cutover 로 1건 비용이 달라질 때                                  | S            | 2026-08-01 entry-completeness-rejudgement              |
+| [BL-585](#bl-585)    | `baseline_metrics.schema.json` 이 **어디서도 로드되지 않는다**(레포 전체 `jsonschema` import 0건). 증거 — 그 스키마의 python 패턴 `^3\.1[12]$` 는 현재 baseline(3.13)을 reject 한다. 켜거나 지우거나 — 「있지만 안 도는」 상태가 가장 나쁘다                           | baseline 스키마를 또 손댈 때, 또는 regen 산출물이 예상 밖 형태로 나올 때                                          | XS           | 2026-08-03 backtest-metric-oracle                      |
+| [BL-586](#bl-586)    | P-3 골든이 `BacktestMetrics` **51 필드 중 13개**만 고정 — 38개가 회귀 감지 대상 밖(TV parity 팩 · 비용 분해 · per_side · excursion · 청산). `RawTrade` 도 22 중 11 필드만 digest                                                                                       | TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때                                                             | M            | 2026-08-03 backtest-metric-oracle                      |
+| [BL-587](#bl-587)    | baseline envelope(`ohlcv_sha256`·`pine_v2_commit`·`tool_versions`·`schema_version`)을 검증하는 assert 0건 — 쓰기만 하고 안 읽는다. 실측: 런타임이 python 3.12→3.13 으로 드리프트했는데 아무도 몰랐다(값은 다행히 전부 동일)                                            | parquet 교체 · python/pynescript 업그레이드 시                                                                    | XS           | 2026-08-03 backtest-metric-oracle                      |
+| [BL-588](#bl-588)    | 코퍼스 목록이 **세 곳에 따로** 있다 — parity 7벌 / regen 7벌 / `_MUTATION_CORPORA` **5벌**. 신규 비축퇴 코퍼스 2벌이 nightly mutation oracle 로 확산되지 않았다(판별력을 만든 유일한 두 벌인데)                                                                        | 코퍼스를 또 추가/제거할 때                                                                                        | XS-S         | 2026-08-03 backtest-metric-oracle                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -5995,6 +5999,125 @@ Bybit **demo** 만 허용하고 이 거절은 `mode == live` 분기에서만 난
 
 ⇒ 라이브 신호 dispatch 경로에서 이 거절은 **날 수 없다.** 그래서 고치지 않고, Trigger 를
 「그 전제가 깨지는 순간」(= `mode=live` 계정 생성)으로 바꿔 등재만 유지한다.
+
+**Risk:** 🟢
+
+---
+
+### BL-585
+
+**우선순위:** P3
+**카테고리:** Backtest / Trust Layer (강제력 없는 스키마)
+**Trigger:** baseline 스키마를 또 손대게 될 때, 또는 regen 산출물이 예상 밖 형태로 나올 때
+**Est:** XS (`jsonschema` 의존 추가 + 테스트 1건)
+**상태:** 🟢 열려 있다
+**출처:** 2026-08-03 backtest-metric-oracle
+
+`baseline_metrics.schema.json`(6.7KB) 은 **어디서도 로드되지 않는다.** 레포 전체에 `jsonschema`
+import 0건이고, `scripts/regen_trust_layer_baseline.py:46` 의 `SCHEMA_PATH` 상수는 선언만 되고
+한 번도 쓰이지 않는다.
+
+**강제력 0 의 증거 — 이번 스프린트가 실측했다.** 그 스키마의 `tool_versions.python` 패턴이
+`^3\.1[12]$` 였는데, 실제 baseline 은 그 사이에 `3.12 → 3.13` 으로 드리프트해 있었다. 즉 스키마가
+켜져 있었다면 **현재 baseline 을 reject 했을 것**이다. 아무도 몰랐다.
+
+**권장 접근:** `jsonschema` 를 dev 의존으로 추가하고 `test_trust_layer_parity.py` 에 baseline ↔
+schema validate 테스트 1건. 또는 스키마 파일을 지우고 dataclass 를 SSOT 로 삼는다 — **둘 중
+하나여야 한다. 지금처럼 「있지만 안 도는」 상태가 가장 나쁘다.**
+
+**영향 파일:** `tests/fixtures/pine_corpus_v2/baseline_metrics.schema.json`, `scripts/regen_trust_layer_baseline.py:46`.
+
+**Risk:** 🟢
+
+---
+
+### BL-586
+
+**우선순위:** P3
+**카테고리:** Backtest / Trust Layer (골든 커버리지 구멍)
+**Trigger:** TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때
+**Est:** M (baseline 크기 증가 + 리스트형 필드 직렬화 설계 선행)
+**상태:** 🟢 열려 있다
+**출처:** 2026-08-03 backtest-metric-oracle
+
+P-3 골든이 고정하는 것은 `BacktestMetrics` **51 필드 중 13개**(이번 스프린트에서 12 → 13)뿐이다.
+**38개가 회귀 감지 대상 밖**이다 — TV parity 팩(`avg_holding_hours` · `consecutive_*_max` ·
+`monthly_returns` · `drawdown_curve` · `annual_return_pct` · `avg/best/worst_trade_pct`),
+비용 분해(`total_fees` · `total_slippage` · `total_funding`), `per_side`, `excursion_stats`,
+청산(`liquidation_occurred` · `liquidation_count`) 이 전부 여기 속한다.
+
+`RawTrade` 도 22 필드 중 digest 에 들어가는 것은 **11개**다(`types.py:279` 가 "trust-layer trades
+digest(명시적 11-필드) 불변" 으로 그 결정을 명문화). `exit_kind` · `fee_paid` · `slippage_paid` ·
+`liquidated` 등이 빠져 있다.
+
+**권장 접근:** 전량 고정은 baseline 을 크게 만들고 리스트형 필드(`monthly_returns` ·
+`drawdown_curve` · `buy_and_hold_curve`)는 그대로 넣기 어렵다 — **digest 로 접는 쪽**이 현실적이다.
+스칼라 필드부터 늘리고 리스트는 필드별 digest 를 추가하는 2단계 권장.
+
+**영향 파일:** `scripts/regen_trust_layer_baseline.py`, `tests/strategy/pine_v2/test_trust_layer_parity.py`, `tests/fixtures/pine_corpus_v2/baseline_metrics.json`.
+
+**Risk:** 🟢
+
+---
+
+### BL-587
+
+**우선순위:** P3
+**카테고리:** Backtest / Trust Layer (기록만 하고 검증 안 하는 envelope)
+**Trigger:** parquet 교체 · python/pynescript 업그레이드 시
+**Est:** XS (assert 3건)
+**상태:** 🟢 열려 있다
+**출처:** 2026-08-03 backtest-metric-oracle
+
+baseline envelope 의 `ohlcv_sha256` · `pine_v2_commit` · `tool_versions` · `schema_version` 을
+**검증하는 assert 가 하나도 없다.** regen 이 쓰기만 하고 아무도 읽지 않는다. 특히
+`ohlcv_sha256` 은 "파일 변경 시 전체 baseline regen 의무" 를 위해 존재하는데, `corpus_ohlcv_frozen.parquet`
+이 교체돼도 CI 는 불일치를 못 잡는다.
+
+**실측 사례.** 이번 스프린트의 regen 에서 `tool_versions.python` 이 `3.12 → 3.13` 으로 바뀌었다.
+2026-07-26 baseline 생성 이후 런타임이 드리프트해 있었고 아무 게이트도 울리지 않았다
+(`pyproject.toml` 은 `requires-python = ">=3.12"` 이고 `.python-version` 핀이 없다).
+★불행 중 다행 — 엔진 커밋 `29d0b98 → 00c63018` 과 python `3.12 → 3.13` 이 **함께** 바뀌었는데
+12 필드 값과 3 digest 가 **전부 동일**했다. 두 변화 모두 숫자를 안 움직였다는 뜻이다.
+
+**권장 접근:** `test_trust_layer_parity.py` 에 (a) `ohlcv_sha256` == 실제 파일 해시, (b)
+`schema_version` == 코드가 기대하는 값, (c) `tool_versions.python` == 현재 런타임 minor 검증 3건.
+(c) 는 red 가 "회귀" 가 아니라 "regen 하고 값이 같은지 확인해라" 신호다 — 메시지에 그렇게 쓴다.
+`.python-version` 핀 추가도 함께 검토. [[BL-585]] 와 묶으면 자연스럽다.
+
+**영향 파일:** `tests/strategy/pine_v2/test_trust_layer_parity.py`, `backend/pyproject.toml`.
+
+**Risk:** 🟢
+
+---
+
+### BL-588
+
+**우선순위:** P3
+**카테고리:** Backtest / Trust Layer (코퍼스 목록 3중 정의)
+**Trigger:** 코퍼스를 또 추가/제거할 때
+**Est:** XS-S
+**상태:** 🟢 열려 있다
+**출처:** 2026-08-03 backtest-metric-oracle
+
+실행 대상 코퍼스 목록이 **세 곳에 따로** 있다.
+
+| 위치                                                | 상수                | 현재    |
+| --------------------------------------------------- | ------------------- | ------- |
+| `tests/strategy/pine_v2/test_trust_layer_parity.py` | `RUNNABLE_CORPUS`   | 7벌     |
+| `scripts/regen_trust_layer_baseline.py`             | `RUNNABLE_CORPUS`   | 7벌     |
+| `tests/strategy/pine_v2/test_mutation_oracle.py`    | `_MUTATION_CORPORA` | **5벌** |
+
+앞 두 곳은 이번 스프린트에서 함께 갱신했지만 **셋째는 안 따라온다** — 즉 신규 비축퇴 코퍼스
+(`s4_hma_curvature` · `s5_ema_trend`)가 nightly mutation oracle 에는 확산되지 않았다. 그 두 벌이
+위험조정지표에 판별력을 만든 유일한 코퍼스이므로, mutation oracle 은 **여전히 sharpe 가 전부 0 인
+5벌로만** 판정한다.
+
+**권장 접근:** 목록을 한 곳(예: 코퍼스 디렉터리의 manifest 또는 공용 모듈)으로 모으고 세 소비자가
+같은 곳을 읽게 한다. 최소 조치로는 `_MUTATION_CORPORA` 를 7벌로 늘리는 것만으로도 nightly 감지율이
+올라갈 수 있다 — 다만 mutation 실행 시간이 늘어나므로 nightly 소요를 먼저 재라.
+
+**영향 파일:** 위 표 3개 파일.
 
 **Risk:** 🟢
 

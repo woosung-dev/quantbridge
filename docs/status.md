@@ -2,11 +2,38 @@
 
 > **업데이트:** 2026-08-03
 > **활성 Sprint:** **demo-soak-restart — 소크 창이 돌고 있다.** T0 `2026-08-03T09:53:34Z` ·
-> 창 ≥48h ⇒ **판정 가능 시각 = `2026-08-05T09:53Z` 이후**. 그전에는 판정도 PR 도 없다.
-> **준비 브랜치:** `stage/demo-soak-restart` — **PR #533 OPEN**. ★**머지는 창이 닫힌 뒤**다 —
-> 판정·dev-log 커밋을 이 브랜치에 얹어 **스프린트 1개 = PR 1개**로 끝낸다(문서 동기화도
-> 별도 PR 없이 여기 접었다).
-> **최근 머지:** `stage/metric-guard-residual-sweep` → `main` (**PR #532** @ `9ff8a6f7`, 2026-08-03).
+> 창 ≥48h ⇒ **소크 판정 가능 시각 = `2026-08-05T09:53Z` 이후**.
+> **★정정 (2026-08-03 실측):** 이 줄은 「`stage/demo-soak-restart` — PR #533 OPEN · 머지는 창이
+> 닫힌 뒤」라고 적고 있었으나 **PR #533 은 `2026-08-03T10:41:10Z` 에 이미 머지됐다**
+> (merge commit `00c63018` = 현재 main HEAD). 따라서 「스프린트 1개 = PR 1개」 계획은 이미
+> 깨졌고 **소크 판정·dev-log 는 새 PR 이 필요하다.**
+> **최근 머지:** `stage/demo-soak-restart` → `main` (**PR #533** @ `00c63018`, 2026-08-03).
+
+---
+
+## 다음 스프린트 — **backtest-metric-oracle** (착수 완료 · 머지 대기)
+
+> ★**소크와 병행한다.** 이 스프린트는 celery 를 안 타므로(엔진 직접 호출) 워크트리에서 완결된다.
+> 작업 위치 = `.claude/worktrees/metricoracle` **슬롯 5** · 브랜치 `stage/backtest-metric-oracle`.
+
+**왜.** 백테스트 회귀 안전망(Trust Layer P-3)이 위험조정지표에 대해 **감지력이 0** 이었다 —
+코퍼스 5벌이 전부 자본을 음수로 몰고 끝나 `sharpe_ratio` 가 5벌 모두 `"0.00000000"`,
+`sortino`·`calmar` 가 5벌 모두 `null` 이었다. 값이 상수라 그 지표들의 산술이 회귀해도
+baseline diff 가 0 이다.
+
+**한 것.** ① `sharpe_convention` 대조 신설(schema v2) ② 비축퇴 코퍼스 2벌 등재
+(`s4_hma_curvature` 음수 3지표 · `s5_ema_trend` 양수 3지표) ③ **[BL-461] Resolved** —
+daily fallback 날짜 리샘플 ④ **[BL-391] Resolved** — 3단 계약 오라클.
+
+**게이트.** BE pytest **3893 → 3906**(+13) · ruff 0 · mypy 0 · FE 1242 · docs-audit 0 ·
+bl-audit 3면 정합. 회고 = [dev-log](dev-log/2026-08-03-backtest-metric-oracle.md).
+
+### ★머지 조건 — 소크 창이 닫힌 뒤
+
+이 브랜치는 `backend/src/backtest/engine/` 을 건드린다. **머지가 main 의 `backend/src` 를 바꿔
+`watchfiles` 재적재를 유발하므로 `2026-08-05T09:53Z` 전에는 머지하지 않는다.**
+머지 후 첫 step = **celery 경유 dogfood**(실제 백테스트 제출 → 리포트 화면에서 daily 컨벤션
+각주 확인). 워크트리에서는 구조적으로 불가능하다 — worker 가 메인의 `src` 를 mount 한다.
 
 ---
 
