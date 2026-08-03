@@ -50,7 +50,17 @@ def _periodic_returns(equity: pd.Series) -> tuple[list[float], float, str] | Non
     """equity(float, DatetimeIndex) → (기간 수익률 목록, 기간 RFR, 기간 라벨).
 
     달력 월말 샘플 ≥ 2 → 월간(RFR 2%/12), 아니면 daily(RFR 2%/365) fallback.
-    기준점 = equity 첫 값 (TV 예시: 1월 1일 100 → 2월 1일 110 = +10%).
+    월간 경로의 기준점 = equity 첫 값 (TV 예시: 1월 1일 100 → 2월 1일 110 = +10%).
+
+    ★daily fallback 은 **날짜로 리샘플**한다 (BL-461). 이전에는 리샘플 없이 전 bar 를
+    기간 표본으로 쓰면서 RFR 은 일간(2%/365) 을 적용해 **1시간 봉 1개를 하루로 셌다**.
+    실측 — 같은 자본 경로 `[100, 110, 99]` 를 1시간 봉 72개로 적으면 Sharpe 가
+    -0.003265 로 참 값(-0.000548)의 약 6배였고, 하루치 1시간 봉 24개짜리 상승
+    구간에서는 23개의 가짜 "일간" 수익률로 **Sharpe 16.56** 을 만들어냈다.
+    리샘플 후 표본이 2 미만이면 수익률이 없어 `None`(= `unavailable`) 이 된다 —
+    없는 정보를 지어내는 것보다 「산출 불가」가 옳다.
+    daily 경로는 월간과 달리 기준점을 앞에 덧붙이지 않는다. 첫 일자의 종가 자체가
+    첫 표본이므로 덧붙이면 선두에 수익률 0 이 하나 생겨 값이 달라진다.
     """
     if len(equity) < 2 or not isinstance(equity.index, pd.DatetimeIndex):
         return None
@@ -60,7 +70,7 @@ def _periodic_returns(equity: pd.Series) -> tuple[list[float], float, str] | Non
         rfr = _RFR_ANNUAL / 12.0
         period = "monthly"
     else:
-        samples = [float(v) for v in equity]
+        samples = [float(v) for v in equity.resample("D").last().dropna()]
         rfr = _RFR_ANNUAL / 365.0
         period = "daily"
     returns: list[float] = []
@@ -105,10 +115,11 @@ def sharpe_ratio(equity: pd.Series) -> tuple[Decimal, str]:
     `key-stats-strip.tsx`의 `.toFixed(2)`가 깨진다. degenerate는 값 0과
     convention `"unavailable"`로 구분한다.
 
-    daily fallback은 sub-daily 타임프레임을 "1 bar = 1 day"로 센다. 이는
-    `_periodic_returns`가 이미 가진 선재 결함이며 `sortino_ratio`도 동일하게
-    영향받는다. 이 슬라이스에서는 고치지 않는다. 고치면 Sortino baseline까지
-    흔들린다.
+    daily fallback은 `equity.resample("D").last()` 로 **날짜 단위 표본**을 만든다
+    (BL-461 수정, 2026-08-03). 이전에는 리샘플 없이 전 bar 를 기간 표본으로 써서
+    sub-daily 타임프레임을 "1 bar = 1 day"로 셌다. `sortino_ratio` 도
+    `_periodic_returns` 를 공유하므로 함께 고쳐졌다. 코퍼스 7벌은 전부 월간
+    경로라 골든 baseline 은 변하지 않았다(수정 후 parity 20 passed 로 확인).
     """
     # 파산한 계좌에 위험조정수익을 매기지 않는다. 이걸 막지 않으면 분모 부호가
     # 뒤집혀 **손실이 클수록 좋아 보이는** 숫자가 나온다 — BL-398 이 없애려던

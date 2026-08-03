@@ -2056,17 +2056,20 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Title:** `_periodic_returns` daily fallback 이 sub-daily 봉을 "1 bar = 1 day" 로 센다 (resample 부재)
 **Category:** Backtest / metrics (TV parity)
 **Priority:** P3
+**상태:** Resolved (2026-08-03, backtest-metric-oracle)
 **Trigger:** 2개월 미만 백테스트의 Sharpe/Sortino 문의 시
 **Est:** S-M (baseline 2 metric 확산 주의)
 **출처:** 2026-07-26 backtest-trust 스프린트 (BL-398 구현 중 발견)
 
-**원인 / 영향:** `engine/metrics.py:41-43` 의 else 분기가 **resample 없이 전 bar** 를 기간 표본으로 쓰고 RFR 은 `0.02/365` 를 적용한다. 1h/5m 백테스트가 2 달력월 미만이면 1시간을 하루로 세어 위험조정 지표가 왜곡된다. **sortino 가 이미 갖고 있던 선재 결함**이고, BL-398 이 `_periodic_returns` 를 재사용하면서 sharpe 로도 전파됐다.
+**원인 / 영향:** `engine/metrics.py` 의 else 분기가 **resample 없이 전 bar** 를 기간 표본으로 쓰고 RFR 은 `0.02/365` 를 적용했다(등재 당시 인용 `:41-43` 은 BL-465 가드 추가로 밀려 실제로는 `:62-65`). 1h/5m 백테스트가 2 달력월 미만이면 1시간을 하루로 세어 위험조정 지표가 왜곡된다. **sortino 가 이미 갖고 있던 선재 결함**이고, BL-398 이 `_periodic_returns` 를 재사용하면서 sharpe 로도 전파됐다.
 
-**권장 접근:** daily fallback 에서 `equity.resample("D").last()` 적용. ★고치면 **sortino 값도 바뀌어** baseline regen 이 2 metric 으로 번지므로, "sharpe-only diff" 같은 감사 가능성을 유지하려면 별도 슬라이스로 분리하고 regen diff 범위를 미리 선언할 것.
+**해결 (2026-08-03):** else 분기를 `equity.resample("D").last().dropna()` 로 교체. 실측 왜곡 크기 — 같은 자본 경로 `[100, 110, 99]` 를 1h 봉 72개로 적으면 Sharpe 가 `-0.003265` 로 참 값 `-0.000548` 의 약 6배였고(sortino 는 `-0.004614` vs `-0.000774`), **하루치 1h 봉 24개 상승 구간에서는 23개의 가짜 "일간" 수익률로 Sharpe `16.56` 을 만들어냈다.** 리샘플 후 표본이 2 미만이면 `unavailable` 이다 — 없는 정보를 지어내지 않는다.
 
-**현재 대응:** `sharpe_ratio` docstring 명시 + FE 문구 "무위험 2%/년 · 봉 단위 기간 기준(2개월 미만)" 로 정직 고지.
+**검증:** `test_golden_oracle_tv_pack.py` 에 hand-oracle 3건 신설(봉-단위 불변성 + 손계산 값 + 단일일 경계). 수정 전 3건 전부 red → 수정 후 green. 기존 daily 테스트 2건은 `freq="D"` 라 `resample("D")` 가 항등이므로 green 유지. **골든 baseline regen 0행** — 코퍼스 7벌이 전부 월간 경로다(parity 20 passed 로 확인). 우려됐던 "sortino 로의 2 metric 확산" 은 코퍼스에서 발생하지 않았다.
 
-**Risk:** 🟢 (고지 중 · 2개월 이상 백테스트는 월간 경로라 무영향).
+**부수 실측:** `scripts/seed_dogfood.py` 의 `daily` RunSpec(2026-03-02~03-30, `TIMEFRAME="1h"`)이 정확히 이 케이스라 dogfood 시드의 sharpe/sortino 가 바뀐다. 시드는 생성물이지 고정 baseline 이 아니라 게이트에는 안 걸린다.
+
+**Risk:** 🟢 (2개월 이상 백테스트는 월간 경로라 무영향).
 
 ---
 

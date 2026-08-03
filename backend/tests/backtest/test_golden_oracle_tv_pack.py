@@ -118,6 +118,77 @@ def test_sharpe_daily_fallback_hand_oracle() -> None:
     assert convention == "tv_daily_rfr2"
 
 
+def _hourly_equity_same_daily_closes() -> pd.Series:
+    """1 달력월 안의 **1시간 봉** — 일별 종가는 [100, 110, 99] 로 위 daily 테스트와 동일.
+
+    2024-01-01 ~ 01-03 (72 bar). 한 달력월 안에 있으므로 `resample("ME")` 빈이 1개 →
+    daily fallback 경로. 하루 안에서는 자본이 변하지 않으므로 **일별 종가 계열은
+    `[100, 110, 99]` 로 `test_sharpe_daily_fallback_hand_oracle` 과 완전히 같다.**
+    """
+    idx = pd.date_range("2024-01-01", periods=72, freq="h")
+    values = [100.0 if ts.day == 1 else (110.0 if ts.day == 2 else 99.0) for ts in idx]
+    return pd.Series(values, index=idx, dtype=float)
+
+
+def test_sharpe_subdaily_matches_same_daily_closes() -> None:
+    """BL-461: daily fallback 은 봉 주기가 아니라 **날짜**로 기간을 세야 한다.
+
+    같은 자본 경로를 1D 로 적든 1h 로 적든 Sharpe 는 같아야 한다(봉-단위 불변성).
+    수정 전에는 `_periodic_returns` 가 resample 없이 전 bar 를 기간 표본으로 써서
+    1시간을 하루로 셌다 — 71개 수익률(69개가 0)로 sd 가 작아지고 rfr 은 일간
+    기준(2%/365)이라 실측 -0.003265 가 나왔다(참 값의 약 6배).
+
+    손계산(anti-circular): 일별 종가 [100, 110, 99] → returns [0.1, -0.1],
+    mean = 0, popSD = 0.1, rfr_d = 0.02/365 → sharpe = -0.000548.
+    """
+    hourly = _hourly_equity_same_daily_closes()
+    daily = pd.Series(
+        [100.0, 110.0, 99.0], index=pd.date_range("2024-01-01", periods=3, freq="D"), dtype=float
+    )
+
+    h_value, h_convention = sharpe_ratio(hourly)
+    d_value, d_convention = sharpe_ratio(daily)
+
+    assert h_convention == "tv_daily_rfr2"
+    assert d_convention == "tv_daily_rfr2"
+    # (a) 손계산 값 — 외부 진실
+    assert float(h_value) == pytest.approx(-0.000548, abs=1e-6)
+    # (b) 봉-단위 불변성 — 같은 자본 경로면 표현 주기와 무관하게 같은 값
+    assert float(h_value) == pytest.approx(float(d_value), abs=1e-12)
+
+
+def test_sortino_subdaily_matches_same_daily_closes() -> None:
+    """BL-461 — sortino 도 같은 결함을 공유한다 (`_periodic_returns` 공용).
+
+    손계산: returns [0.1, -0.1], rfr_d = 0.02/365, mean = 0,
+    DD = sqrt(((rfr_d + 0.1)^2)/2) = 0.0707494 → sortino = -0.000774.
+    수정 전 실측은 -0.004614 (약 6배).
+    """
+    hourly = _hourly_equity_same_daily_closes()
+    daily = pd.Series(
+        [100.0, 110.0, 99.0], index=pd.date_range("2024-01-01", periods=3, freq="D"), dtype=float
+    )
+
+    h_value = sortino_ratio(hourly)
+    d_value = sortino_ratio(daily)
+    assert h_value is not None and d_value is not None
+    assert float(h_value) == pytest.approx(-0.000775, abs=2e-4)
+    assert float(h_value) == pytest.approx(float(d_value), abs=1e-12)
+
+
+def test_sharpe_subdaily_single_day_is_unavailable() -> None:
+    """경계: 리샘플 후 표본이 2 미만이면 값이 아니라 `unavailable` 이다.
+
+    하루치 1시간 봉만 있으면 일별 표본이 1개라 수익률을 만들 수 없다. 수정 전에는
+    23개의 가짜 "일간" 수익률로 숫자를 만들어냈다 — 없는 정보를 지어내는 쪽이
+    0 을 반환하는 쪽보다 나쁘다.
+    """
+    idx = pd.date_range("2024-01-01", periods=24, freq="h")
+    equity = pd.Series([100.0 + i for i in range(24)], index=idx, dtype=float)
+    assert sharpe_ratio(equity) == (Decimal("0"), "unavailable")
+    assert sortino_ratio(equity) is None
+
+
 def test_sharpe_zero_sd_returns_zero_not_none() -> None:
     idx = pd.date_range("2024-01-01", "2024-03-31", freq="D")
     eq = pd.Series([100.0] * len(idx), index=idx, dtype=float)
