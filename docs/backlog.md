@@ -5849,11 +5849,34 @@ uv run pytest tests/tasks/test_live_conditional_divergence_labels.py \
 `commit()` 한 DB 행을 task 의 `repo.get_by_id` 가 못 찾는다. 단독 실행에서는 같은 행이 보인다
 (직접 SQL 프로브로 확인).
 
-**아직 모르는 것.** 뿌리. 아래는 **배제된** 가설이다(추측 금지 — 확인한 것만 적는다):
+### ★2026-08-03 프로브 — 「DB 문제 아니다」까지 좁혔다
+
+임시 프로브로 **task 호출 직전/직후를 같은 테스트 안에서** 관측했다(프로브는 커밋하지 않았다).
+
+| 관측점                                       | 단독 실행 | 오염된 순서 |
+| -------------------------------------------- | --------- | ----------- |
+| 직접 SQL `count(*)` (task 호출 **전**)       | 1         | **1**       |
+| `OrderRepository(db_session).get_by_id` (전) | 찾음      | **찾음**    |
+| `db_session.in_transaction()`                | True      | True        |
+| **task 안의 같은 `get_by_id`**               | 찾음      | ★**None**   |
+| 직접 SQL `count(*)` (task 호출 **후**)       | 1         | **1**       |
+
+★★**행은 내내 보인다. 그런데 task 안의 같은 쿼리만 못 찾는다.**
+⇒ **DB·savepoint·트랜잭션 문제가 아니다.** task 가 **내가 주입한 세션/리포지토리를 쓰지 않고
+있다**는 뜻이다. 다음 회차는 여기서 시작해라 — `create_worker_engine_and_sm` 주입이 실제로
+먹었는지, `sm()` 이 정말 `db_session` 을 넘기는지, `repo` 가 진짜 `OrderRepository` 인지를
+task 내부에서 직접 찍어 봐라.
+
+**배제된 가설** (확인한 것만 적는다 — 추측 금지):
 
 - `_patch_reconcile` 의 `OrderRepository` monkeypatch 누수 ✗ — `tasks/trading.py` 는 모듈
   최상단에서 이름으로 import 하므로 그 patch 가 애초에 닿지 않는다.
-- DB 행 자체의 소실 ✗ — 오염된 순서에서도 같은 세션의 직접 SQL 은 행을 **찾는다**.
+- DB 행 자체의 소실 ✗ — 오염된 순서에서도 행은 task 전·후 모두 **보인다**(위 표).
+- savepoint rollback ✗ — 같은 이유. `in_transaction()` 도 True 로 동일하다.
+
+**오염원 특정** — labels 파일 전체가 아니라 **terminal write-back 경로를 타는 테스트 1건**이다
+(`local_orders=[ghost]` + `exchange_orders=[]` + `probe_status="cancelled"`). 같은 파일의 다른
+테스트(stand_down · degraded_input) 뒤에서는 **재현되지 않는다.**
 
 **왜 P2 인가.** 이 레포는 BE pytest 수치를 baseline 대조와 판정 근거로 쓴다. 그 수치가 순서에
 따라 흔들리면 **「게이트 통과」가 증거가 아니게 된다.** 실제로 2026-08-03 회차에서 전체 스위트는
