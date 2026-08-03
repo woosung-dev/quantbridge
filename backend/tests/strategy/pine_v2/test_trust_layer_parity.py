@@ -261,6 +261,13 @@ _DECIMAL_METRIC_KEYS = (
     "avg_loss",
 )
 _INT_METRIC_KEYS = ("num_trades", "long_count", "short_count")
+# 문자열 metric — 오차 개념이 없으므로 exact 비교. `sharpe_ratio` 는 degenerate 실행에서
+# 전부 0 이라 값 채널만으로는 컨벤션 뒤집힘(monthly ↔ daily ↔ unavailable ↔
+# unavailable_nonpositive_equity)이 diff 0 이다. 착수 전 실측 — `sharpe_ratio` 가
+# `unavailable_nonpositive_equity` 대신 `unavailable` 을 돌려주게 변조해도 이 파일은
+# 16 passed 로 green 이었다(전용 단위 테스트 `test_metrics_nonpositive_equity.py` 는 red).
+# 즉 구멍은 컨벤션 자체가 아니라 **엔드투엔드 코퍼스 회귀망의 채널 부재**였다.
+_STR_METRIC_KEYS = ("sharpe_convention",)
 
 
 @pytest.mark.skipif(
@@ -321,6 +328,23 @@ def test_p3_execution_metrics_match_golden(corpus_id: str) -> None:
             actual_val = 0
         assert actual_val == expected_val, (
             f"{corpus_id}.{key}: expected={expected_val} actual={actual_val}"
+        )
+
+    # 문자열 metric 비교 (exact)
+    # ★`_INT_METRIC_KEYS` 루프처럼 `.get(key, <기본값>)` 을 쓰지 않는다 — 그러면 regen
+    #   누락으로 baseline 에 키가 없을 때 "기본값 == 기본값" 으로 조용히 통과한다.
+    #   키 부재는 통과가 아니라 실패다.
+    for key in _STR_METRIC_KEYS:
+        assert key in expected_m, (
+            f"{corpus_id}.{key}: baseline 에 키 없음 (schema_version 2 미만). "
+            "scripts/regen_trust_layer_baseline.py --confirm 로 재생성."
+        )
+        actual_val = getattr(actual, key)
+        expected_val = expected_m[key]
+        assert actual_val == expected_val, (
+            f"{corpus_id}.{key}: 컨벤션 드리프트\n"
+            f"  actual={actual_val!r} baseline={expected_val!r}\n"
+            "의도된 변경이면 regen_trust_layer_baseline.py --confirm 실행."
         )
 
     # Digest 비교 (길이 독립 fingerprint)

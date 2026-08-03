@@ -217,6 +217,10 @@ def _runnable_corpus_record(corpus_id: str, ohlcv_df: pd.DataFrame) -> dict[str,
         "avg_loss": _normalize_metric(m.avg_loss, normalize_decimal),
         "long_count": m.long_count if m.long_count is not None else 0,
         "short_count": m.short_count if m.short_count is not None else 0,
+        # sharpe_ratio 는 degenerate 실행에서 전부 0 이라 값만으로는 monthly ↔ daily ↔
+        # unavailable ↔ unavailable_nonpositive_equity 가 뒤집혀도 diff 가 나지 않는다.
+        # 컨벤션을 따로 고정해야 그 뒤집힘이 P-3 에서 보인다 (schema_version 2).
+        "sharpe_convention": m.sharpe_convention,
     }
 
     trades_list = [_trade_to_dict(t) for t in trades]
@@ -324,7 +328,8 @@ def main() -> int:
 
     print("[3/4] Building metadata envelope...")
     baseline = {
-        "schema_version": 1,
+        # 2 = corpus metrics 에 `sharpe_convention` 추가 (backtest-metric-oracle).
+        "schema_version": 2,
         "ohlcv_sha256": _file_sha256(OHLCV_PATH),
         "pine_v2_commit": envelope_pine_v2_commit,
         "tool_versions": {

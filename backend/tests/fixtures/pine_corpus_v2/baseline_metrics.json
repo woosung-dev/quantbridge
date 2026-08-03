@@ -1,12 +1,12 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "ohlcv_sha256": "1a99144813f15ebc029f4c2d18cf4e657eb54f1a7317e28820380b80ebec5038",
-  "pine_v2_commit": "29d0b98",
+  "pine_v2_commit": "00c63018",
   "tool_versions": {
     "pynescript": "0.3.0",
-    "python": "3.12"
+    "python": "3.13"
   },
-  "generated_at": "2026-07-26T02:12:14Z",
+  "generated_at": "2026-08-03T11:16:13Z",
   "corpora": {
     "s1_pbr": {
       "metrics": {
@@ -21,12 +21,13 @@
         "avg_win": "0.01408262",
         "avg_loss": "-0.01198646",
         "long_count": 260,
-        "short_count": 205
+        "short_count": 205,
+        "sharpe_convention": "unavailable_nonpositive_equity"
       },
       "var_series_digest": "sha256:868bb760d0cacb4cf9ce9073c7bf7d140b06b907573e8c0d2526242c75e8e6f7",
       "trades_digest": "sha256:b04e1ddc0632bbde03cc32d83fd982ca649319bf18be7f1cd3319c3ba7a214e8",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-07-26T02:11:38Z"
+      "updated_at": "2026-08-03T11:15:26Z"
     },
     "s2_utbot": {
       "metrics": {
@@ -41,12 +42,13 @@
         "avg_win": "0.01765886",
         "avg_loss": "-0.01067292",
         "long_count": 216,
-        "short_count": 217
+        "short_count": 217,
+        "sharpe_convention": "unavailable_nonpositive_equity"
       },
       "var_series_digest": "sha256:e60b37b755aa304734e3d166443be51c9b276661424ecda2e18639e865559387",
       "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-07-26T02:11:50Z"
+      "updated_at": "2026-08-03T11:15:42Z"
     },
     "s3_rsid": {
       "metrics": {
@@ -61,12 +63,13 @@
         "avg_win": "0.02375509",
         "avg_loss": "-0.01978951",
         "long_count": 65,
-        "short_count": 0
+        "short_count": 0,
+        "sharpe_convention": "unavailable_nonpositive_equity"
       },
       "var_series_digest": "sha256:2e43209dc6ce7416c1bbd1ce1c9ef56fe029ac52b97663a2072498041cadb9c0",
       "trades_digest": "sha256:9913b3068b312577e812061db8421959b878669480c8583f204aa8d89f234e62",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-07-26T02:12:03Z"
+      "updated_at": "2026-08-03T11:15:59Z"
     },
     "i1_utbot": {
       "metrics": {
@@ -81,12 +84,13 @@
         "avg_win": "0.01765886",
         "avg_loss": "-0.01067292",
         "long_count": 216,
-        "short_count": 217
+        "short_count": 217,
+        "sharpe_convention": "unavailable_nonpositive_equity"
       },
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-07-26T02:12:06Z"
+      "updated_at": "2026-08-03T11:16:03Z"
     },
     "i2_luxalgo": {
       "metrics": {
@@ -101,12 +105,13 @@
         "avg_win": null,
         "avg_loss": null,
         "long_count": 0,
-        "short_count": 0
+        "short_count": 0,
+        "sharpe_convention": "unavailable"
       },
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-07-26T02:12:14Z"
+      "updated_at": "2026-08-03T11:16:13Z"
     },
     "i3_drfx": {
       "note": "Skipped \u2014 is_runnable=false per Y1 Coverage Analyzer",
