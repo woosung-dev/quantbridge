@@ -101,3 +101,5 @@ docs/_archive/
 docs/reports/*.html
 !docs/reports/_template-*.html
 !docs/reports/auto-dogfood/
+# 데모 소크 관측 상태 — 세션 앵커 + /metrics 스냅샷 (scripts/soak-observe.sh)
+.soak/
