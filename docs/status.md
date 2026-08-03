@@ -15,6 +15,11 @@
 >
 > **게이트:** BE **3938 / 46 skipped** · ruff 0 · mypy 0 (**215**) · 변이 **8/8** ·
 > 유도 주입으로 프로덕션 발화 확인(`recovery_placed` **1.0** · 복구 주문 **체결**).
+>
+> **★PR [#538](https://github.com/woosung-dev/quantbridge/pull/538) OPEN** —
+> `stage/breach-rejection-recovery` @ `66807cb2`. **머지 여부와 무관하게 수리는 이미 러닝
+> 코드다** — 워커가 `backend/src` 를 bind-mount + `watchfiles` 로 물고, 재적재를 로그와
+> `celery inspect registered`(3 자식 전부 `live_signal.recover_breached_entry`)로 확인했다.
 > **최근 머지:** `stage/soak-divergence-root` → `main` (**PR #536** @ `18d1fdaa`, 2026-08-03).
 
 ---
@@ -23,6 +28,10 @@
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 > ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다.** `CONTEXT.md` 는 반대다(읽어야 들어온다).
+
+**소크가 돌고 있다 — 세션 `4bf679af` · T0 `2026-08-03T22:55:58Z` · equity baseline
+`190394.62258066`.** 앵커는 `.soak/session`(이미 새 세션을 가리킨다). ★T0 직전 거래소는
+`FLAT=YES` 였다.
 
 P0 [BL-003] 의 게이트는 코드가 아니라 **「Bybit Demo 1주 안정 운영」이라는 달력 시간**이고,
 그 시계 말고 P0 를 여는 길이 없다. **이번 회차의 주된 산출물은 「시계를 안 멈추는 것」이다.**
@@ -246,6 +255,8 @@ exchange `−0.03`. 원장상 거래소가 `14:20:20` 에 뒤집힌 **14초 뒤*
 `qb_metrics_mutation_failed_total`([BL-580] Trigger, 아직 실측 0) ·
 `/metrics` 파일 수([BL-581] Trigger 20000) ·
 `qb_live_conditional_guard_total{breach_with_resting}` vs `{market_converted}`([BL-589] 수리 관측축) ·
+`qb_live_conditional_guard_total{recovery_placed}`([BL-590] 수리 관측축 — 증가하면 그 시점
+원장에 `condmkt` 주문이 짝으로 있는지 확인해라. `recovery_expired` 가 증가하면 **브로커 적체**다) ·
 마이그레이션 head `20260801_0001`.
 
 > ★★**`cd backend && set -a; . ./.env.local; set +a` 를 쓰지 마라.** 이미 `backend` 에 있으면
@@ -270,7 +281,15 @@ fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `No
 
 ## 완료 이력
 
-- 직전 회차 — [`soak-divergence-root`](dev-log/2026-08-03-soak-divergence-root.md)
+- 직전 회차 — [`breach-rejection-recovery`](dev-log/2026-08-03-breach-rejection-recovery.md)
+  ([BL-590] **Resolved**. ★★★**가드가 뚫린 게 아니라 거절 뒤 복구가 없었다** — 계획기는
+  발주 시각에 옳았고(카운터 차분이 연역 증명) 거래소가 2.1초 뒤 자기 시각으로 거절했다.
+  ★★**이 클래스는 `110093` 단독이 아니다** — 거울 코드 `110092` 가 원장 4건 중 2건.
+  ★★**격리 실행이 거짓말했다** — 두 파일만 돌리면 24 passed 인데 전체 스위트는 8 failed
+  (내 fixture 가 시각을 **모듈 import 시점**에 고정). ★★**두 안전한 것이 합쳐져 결함이 됐다**
+  — codex 가 「flake 아님」으로 판정한 값이 내가 만료 가드를 넣으면서 load-bearing 이 됐다.
+  ★변이 **8/8** · 유도 주입으로 프로덕션 발화 확인)
+- 그 앞 — [`soak-divergence-root`](dev-log/2026-08-03-soak-divergence-root.md)
   ([BL-589] **Resolved**. ★★★**엔진은 취소를 못 본 게 아니라 주문을 아예 모른다** — 포지션 출처가
   `run_live` 시뮬이라 「되돌리는 경로」가 애초에 없다. 뿌리는 계획기가 「대기 주문이 있다」만으로
   시장가 전환을 껐다는 것이고 **그 주문은 발화 불가**였다. ★★**한 번에 둘을 고치면 서로의 증거를
