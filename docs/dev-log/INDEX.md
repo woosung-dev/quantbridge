@@ -11,6 +11,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-03 soak-divergence-root** — 소크를 65분에 끊은 발산. ★엔진은 취소를 못 본 게 아니라 **주문을 아예 모른다**(포지션 = `run_live` 시뮬). 뿌리는 계획기가 「대기 주문이 있다」만으로 시장가 전환을 껐다는 것 — 그 주문은 **발화 불가**였다. 술어를 「발화할 수 있었는가」로 좁힘. **BL-589 Resolved** — [dev-log](2026-08-03-soak-divergence-root.md)
 - **2026-08-03 backtest-metric-oracle** — 회귀망이 위험조정지표에 **감지력 0** 이었다(5벌 전부 sharpe=0·sortino/calmar=null). 컨벤션 대조 + 비축퇴 2벌로 채널 신설. **BL-461 Resolved** — 하루치 1h 봉이 **Sharpe 16.56** 을 보고했다. ★표적 2건 빗나감. ★★**소크가 65분에 죽었다 → BL-589(P1)** — [dev-log](2026-08-03-backtest-metric-oracle.md)
 - **2026-08-03 metric-guard-residual-sweep** — 발주 outbox **12곳** ⇒ **수리함 8 · 보류 4**(census 104→96). ★★★전부 「commit 뒤」인데 **한 자리만 fail-open `try` 안**이라 계측 실패가 **거절을 집행으로 뒤집었다**(flat 인데 청산 발주, 신규 H8). ★변이 M4 가 **오라클 구멍**을 드러냄. **BL-584 도달 불가** — [dev-log](2026-08-03-metric-guard-residual-sweep.md)
 - **2026-08-03 metric-guard-residual-close** — BL-580 잔여 **25곳** 주입 판정 ⇒ **수리함 23 · 판정 보류 2**(census 129→104). ★산문 2줄이 25곳을 잘못 뺐다(「blast radius 0」은 10/10 이 OSError 탈출). ★**내 하네스가 계약을 깨 도달 불가 분기를 「유해」로 만들 뻔했다**(codex G6) — [dev-log](2026-08-03-metric-guard-residual-close.md)
@@ -22,7 +23,6 @@
 - **2026-08-02 divergence-label-split** — 로그 이벤트 하나가 덮던 발화 8곳을 사건별 6 이름으로 갈라 **BL-576 Resolved**. 판정식 정본을 §G1.1 로 이관 — 살아남은 유일한 완전 판정 표가 OR 버전이었다(삭제에 의한 역선택). PR #519 — [dev-log](2026-08-02-divergence-label-split.md)
 - **2026-08-01 entry-completeness-rejudgement** — **4개 채널 중 3개가 유실 채널이 아니었다** ⇒ 「축소」. 층위1 확정 거절률 16.67% → 2.44%. **BL-536 Resolved · BL-522 P1→P2**, 신규 BL-578. PR #518 — [dev-log](2026-08-01-entry-completeness-rejudgement.md)
 - **2026-08-01 silent-surface-honesty** — 조용히 실패하는 표면 4건(BL-570/542/571/572). 뿌리는 **RHF 가 defaultValue 를 그대로 setValueAs 에 넘겨 `Number(null) === 0`** — 이 전략은 설정을 저장할 방법이 없었다. 신규 BL-577. PR #517 — [dev-log](2026-08-01-silent-surface-honesty.md)
-- **2026-08-01 conditional-fill-visibility** — 기다리는 대신 발화 조건을 만들어 write-back 을 **프로덕션 검증**(거래소 terminal→원장 60초, 사고 때 818초). **BL-566 재판정** 41.6→12.9/h. 신규 BL-567~571. PR #516 — [dev-log](2026-08-01-conditional-fill-visibility.md)
 
 ---
 
@@ -30,6 +30,7 @@
 
 > 요약 문장을 두지 않는다 — 상세는 링크 대상에 있다. 자기 dev-log 가 없는 회차는 원문 아카이브로 보낸다.
 
+- 2026-08-01 · conditional-fill-visibility — [dev-log](2026-08-01-conditional-fill-visibility.md)
 - 2026-07-31 · reversal-ledger-sync — [dev-log](2026-07-31-reversal-ledger-sync.md)
 - 2026-07-30 · close-mismatch-soak — [dev-log](2026-07-30-close-mismatch-soak.md)
 - **2026-07-30 close-mismatch-visibility** — **재던 곳에 없었다** — C2 는 유실 채널이 아니라 청산 tick 수. `110017` 두 갈래(same side 9 / position is zero 30)가 한 라벨에 묻혀 화면이 9건 전부를 초록으로 냈다. soak 미실시. PR #511 — [dev-log](2026-07-30-close-mismatch-visibility.md)

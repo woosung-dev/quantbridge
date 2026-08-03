@@ -380,6 +380,95 @@ def test_breached_trigger_with_resting_cancels_and_does_not_convert() -> None:
     assert plan.divergences[0]["had_resting"] is True
 
 
+def test_breached_trigger_with_unfireable_resting_converts_to_market() -> None:
+    """[BL-589] 대기 주문이 **발화할 수 없었으면** 이중 진입 위험이 없다 — 시장가로 전환한다.
+
+    2026-08-03 소크를 T0+65분에 죽인 형태다. 피벗이 내려가 새 트리거(100)가 현재가(110)
+    아래라 stop 으로 못 거는데, 올라가 있던 대기 주문의 트리거는 120 이라 **한 번도 닿은 적이
+    없다**. 그런데 계획기는 「대기 주문이 있다」는 이유만으로 시장가 전환을 끄고 그 주문을
+    취소해버렸다. 시뮬은 `low <= stop` 으로 이미 진입을 잡았으므로 엔진 롱 / 거래소 숏이 되고
+    `direction` 발산 2회 연속으로 세션이 fail-closed 됐다.
+
+    PR #493 이 배제한 근거는 "거래소가 이미 그 주문을 트리거했을 확률이 높아 취소+시장가는
+    이중 진입이 된다" 였다. 그 확률은 **대기 주문 자신의 트리거가 뚫렸을 때만** 0 이 아니다.
+    """
+    plan = _plan(
+        [_desired(stop=Decimal("100"))],
+        [_actual(stop=Decimal("120"))],
+        reference_price=Decimal("110"),
+    )
+
+    assert [entry.order_id for entry in plan.to_cancel] == ["local-entry"]
+    assert len(plan.to_place) == 1
+    assert plan.to_place[0].as_market is True
+    assert plan.divergences == ()
+
+
+def test_unfireable_resting_still_dropped_when_conversion_disabled() -> None:
+    """전환이 꺼져 있으면(기준가가 거래소 last 가 아니면) 발화 불가여도 기존 드롭을 유지한다.
+
+    ★음성 대조다 — 위 전환이 `allow_market_conversion` 을 우회해서 열린 게 아님을 보인다.
+    """
+    plan = _plan(
+        [_desired(stop=Decimal("100"))],
+        [_actual(stop=Decimal("120"))],
+        reference_price=Decimal("110"),
+        allow_market_conversion=False,
+    )
+
+    assert [entry.order_id for entry in plan.to_cancel] == ["local-entry"]
+    assert plan.to_place == ()
+    assert plan.divergences[0]["reason"] == "trigger_already_breached"
+    assert plan.divergences[0]["had_resting"] is True
+
+
+def test_breach_drop_records_why_the_resting_order_blocked_conversion() -> None:
+    """드롭이 남는 두 갈래를 로그·계측에서 가를 수 있어야 한다.
+
+    `had_resting` 만으로는 「대기 주문이 발화할 수 있어서 막았다」와 「전환 자체가 꺼져
+    있었다」가 구별되지 않는다. 앞엣것은 정당한 보호이고 뒤엣것은 기준가 열화다.
+    [BL-589] 회차에서 이 구별이 없어 11건의 `breach_with_resting` 중 몇 건이 실제 위험이었는지
+    사후에 셀 수 없었다.
+    """
+    fireable = _plan(
+        [_desired(stop=Decimal("100"))],
+        [_actual(stop=Decimal("100"))],
+        reference_price=Decimal("110"),
+    )
+    conversion_off = _plan(
+        [_desired(stop=Decimal("100"))],
+        [_actual(stop=Decimal("120"))],
+        reference_price=Decimal("110"),
+        allow_market_conversion=False,
+    )
+
+    assert fireable.divergences[0]["resting_could_have_fired"] is True
+    assert conversion_off.divergences[0]["resting_could_have_fired"] is False
+
+
+def test_market_conversion_never_reuses_a_resting_stop_order() -> None:
+    """★눈금이 굵으면 시장가 의도가 대기 stop 주문과 '일치' 로 접힐 수 있다.
+
+    `price_tick=10` 이면 desired stop 100 과 resting stop 108 이 둘 다 100 으로 정규화된다.
+    side·수량·trigger_direction 까지 같으면 등가 판정에 걸려 **아무것도 취소하지 않고 아무것도
+    등재하지 않는다** — 시장가로 나갔어야 할 진입이 조용히 사라지고 대기 stop 만 남는다.
+    `as_market` 은 등가 비교 축에 없으므로, 전환이 결정된 leg 는 항상 재등재해야 한다.
+
+    ★이 구멍은 수리 **전에는 도달 불가**였다(전환과 대기 주문이 공존할 수 없었다).
+    사전등록에는 없었고 구현 중 발견했다.
+    """
+    plan = _plan(
+        [_desired(stop=Decimal("100"))],
+        [_actual(stop=Decimal("108"))],
+        reference_price=Decimal("105"),
+        price_tick=Decimal("10"),
+    )
+
+    assert [entry.order_id for entry in plan.to_cancel] == ["local-entry"]
+    assert len(plan.to_place) == 1
+    assert plan.to_place[0].as_market is True
+
+
 def test_breach_within_cap_still_converts() -> None:
     """돌파폭이 상한과 정확히 같으면 허용한다(M9 경계)."""
     plan = _plan(
