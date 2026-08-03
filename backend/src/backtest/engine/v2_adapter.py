@@ -302,6 +302,13 @@ def _build_raw_trades(
     ohlcv 전달 시 per-trade run-up/drawdown(MFE/MAE) 을 bar high/low 로 계산
     (TV Trades parity). None 이면 excursion 필드만 None — 기존 직접 호출
     테스트 호환 (keyword-optional, blast radius 0).
+
+    ★3단 계약 1/3 (BL-391) — 이 함수가 내는 `RawTrade.pnl` 은 수수료·슬리피지를
+    차감한 **net** 이다(`net_pnl = gross_pnl - fees_total`). 다음 두 단계가 그것을
+    전제로 한다: `_compute_equity_curve` 는 exit bar 에서 이 값을 그대로 실현
+    누적하고, `_compute_metrics` 는 `net_profit_abs` 로 합산한다. 여기서 비용 규약을
+    바꾸면 세 단계가 함께 움직여야 한다.
+    불변식 검증 = `tests/backtest/test_cross_stage_reconciliation.py`.
     """
     all_trades: list[Trade] = list(state.closed_trades) + list(state.open_trades.values())
     # 체결 순서 = entry_bar 오름차순 (같은 bar 면 기존 리스트 순서 유지)
@@ -491,6 +498,12 @@ def _compute_equity_curve(
     것을 방지 (Codex review P1).
 
     Decimal-first 합산을 위해 반환 Series 는 dtype=object 로 Decimal 을 보관한다.
+
+    ★3단 계약 2/3 (BL-391) — 전 trade 가 closed 이고 funding 이 없으면
+    `equity[-1] - init_cash == Σ trade.pnl` 이어야 한다. exit bar 에서 실현과
+    평가가 겹치면(`exit_bar_index <= bar_idx` 를 `<` 로 쓰면) 그 trade 의 pnl 이
+    두 번 셰여 이 등식이 깨진다.
+    불변식 검증 = `tests/backtest/test_cross_stage_reconciliation.py`.
     """
     n = len(ohlcv)
     init_cash = cfg.init_cash
@@ -598,7 +611,11 @@ def _compute_equity_extremes(
         for t in trades:
             if t.entry_bar_index > bar_idx:
                 continue
-            if t.status == "closed" and t.exit_bar_index is not None and t.exit_bar_index <= bar_idx:
+            if (
+                t.status == "closed"
+                and t.exit_bar_index is not None
+                and t.exit_bar_index <= bar_idx
+            ):
                 continue
             direction_sign = Decimal("1") if t.direction == "long" else Decimal("-1")
             fav_px = high_px if t.direction == "long" else low_px
@@ -647,6 +664,14 @@ def _compute_metrics(
     `ohlcv` 는 monthly_returns / drawdown_curve 의 timestamp 매핑용. None
     이면 monthly/drawdown_curve 는 None 반환 (graceful degrade — 기존
     fixture 호환).
+
+    ★3단 계약 3/3 (BL-391) — 이 함수는 **서로 다른 두 입력**에서 같은 사실을
+    두 번 센다: `net_profit_abs` 는 trade 목록에서, `total_return` 은 equity
+    종가에서. 코드가 둘의 일치를 강제하지 않으므로
+    `net_profit_abs == total_return * init_cash` 는 동어반복이 아니라 검증 가능한
+    계약이다(closed-trade · no-funding 조건). 실측 — `net_profit_abs` 에서 비용을
+    한 번 더 빼는 변조는 기존 backtest 스위트 557건을 **전부 통과**했고 이 계약만
+    잡았다. 불변식 검증 = `tests/backtest/test_cross_stage_reconciliation.py`.
     """
     closed = [t for t in trades if t.status == "closed"]
     num_trades = len(closed)
@@ -774,13 +799,9 @@ def _compute_metrics(
     sortino = sortino_ratio(equity_float) if trades else None
     calmar = calmar_ratio(annual_return_pct, max_drawdown)
     liquidation_count = (
-        sum(t.liquidated is True for t in closed)
-        if is_leverage_active(cfg.leverage)
-        else None
+        sum(t.liquidated is True for t in closed) if is_leverage_active(cfg.leverage) else None
     )
-    liquidation_occurred = (
-        liquidation_count > 0 if liquidation_count is not None else None
-    )
+    liquidation_occurred = liquidation_count > 0 if liquidation_count is not None else None
 
     # C14 (정직성) — 총 수수료/슬리피지 분해 집계. TV Trades parity 확장으로
     # RawTrade 가 fee_paid/slippage_paid split 을 직접 보유 → 재계산 없이 합산

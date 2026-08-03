@@ -61,7 +61,7 @@ export function describeSharpe(
   if (convention === SHARPE_CONVENTION.daily) {
     return {
       display: value.toFixed(2),
-      foot: "무위험 2%/년 · 봉 단위 기간 기준(2개월 미만)",
+      foot: "무위험 2%/년 · 일간 수익률 기준(2개월 미만)",
       isLegacy: false,
       isUnavailable: false,
     };

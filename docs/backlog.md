@@ -802,6 +802,11 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-583](#bl-583)    | ✅ Resolved — ★스위트 결과가 **수집 집합**에 달려 있었다(순서 랜덤이 아니다 — `pytest-randomly` 미설치). 뿌리 = 정의 모듈 패치 창에서 소비 모듈 첫 적재 시 가짜가 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개 처분 + 상시 가드                                    | 게이트가 이유 없이 red 이거나 같은 커밋이 두 번 다른 결과를 낼 때                                                 | M            | 2026-08-03 metric-guard-residual                       |
 | [BL-584](#bl-584)    | `BalanceUnverified` 가 라이브 dispatch 의 결정론적-거절 튜플 양쪽에 없다 — 소진 시 실제 사유가 `max_retries_exhausted` 로 덮인다. ★2026-08-03 **현재 코퍼스 도달 불가 확정**(계정 mode 는 생성 후 불변 · `mode=live` 계정 0건) ⇒ 수리 보류, Trigger 를 cutover 로 보강 | **`mode=live` 계정이 생성될 때**(Wave 3 cutover), 또는 `outcome="max_retries_exhausted"` 창 차분이 0 을 벗어날 때 | S            | 2026-08-03 metric-guard-residual-close                 |
 | [BL-578](#bl-578)    | 조건부 진입 `110092`/`110093` 거절 시 거래소가 준 정답(`current[...]`)을 버린다 — BL-536 재판정에서 유일하게 살아남은 채널의 잔여 (측정 완료 · 수리 보류)                                                                                                              | C1 거절이 하루 3건 이상으로 다시 오르거나 실자금 cutover 로 1건 비용이 달라질 때                                  | S            | 2026-08-01 entry-completeness-rejudgement              |
+| [BL-585](#bl-585)    | `baseline_metrics.schema.json` 이 **어디서도 로드되지 않는다**(레포 전체 `jsonschema` import 0건). 증거 — 그 스키마의 python 패턴 `^3\.1[12]$` 는 현재 baseline(3.13)을 reject 한다. 켜거나 지우거나 — 「있지만 안 도는」 상태가 가장 나쁘다                           | baseline 스키마를 또 손댈 때, 또는 regen 산출물이 예상 밖 형태로 나올 때                                          | XS           | 2026-08-03 backtest-metric-oracle                      |
+| [BL-586](#bl-586)    | P-3 골든이 `BacktestMetrics` **51 필드 중 13개**만 고정 — 38개가 회귀 감지 대상 밖(TV parity 팩 · 비용 분해 · per_side · excursion · 청산). `RawTrade` 도 22 중 11 필드만 digest                                                                                       | TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때                                                             | M            | 2026-08-03 backtest-metric-oracle                      |
+| [BL-587](#bl-587)    | baseline envelope(`ohlcv_sha256`·`pine_v2_commit`·`tool_versions`·`schema_version`)을 검증하는 assert 0건 — 쓰기만 하고 안 읽는다. 실측: 런타임이 python 3.12→3.13 으로 드리프트했는데 아무도 몰랐다(값은 다행히 전부 동일)                                            | parquet 교체 · python/pynescript 업그레이드 시                                                                    | XS           | 2026-08-03 backtest-metric-oracle                      |
+| [BL-589](#bl-589)    | **P1 · 소크를 65분에 끊은 사건.** 취소된 반전 주문 뒤 엔진만 포지션이 뒤집힌 채 남았다(`engine +0.0304` vs `exchange −0.03`) → `position_divergence/direction` fail-closed. [BL-560] 의 거울상. ★T0 이후 취소 4건의 사유가 **전부 NULL**                               | ★이미 발화(2026-08-03T10:58:34Z). 재가동 전 원인 확정 의무                                                        | M            | 2026-08-03 backtest-metric-oracle                      |
+| [BL-588](#bl-588)    | 코퍼스 목록이 **세 곳에 따로** 있다 — parity 7벌 / regen 7벌 / `_MUTATION_CORPORA` **5벌**. 신규 비축퇴 코퍼스 2벌이 nightly mutation oracle 로 확산되지 않았다(판별력을 만든 유일한 두 벌인데)                                                                        | 코퍼스를 또 추가/제거할 때                                                                                        | XS-S         | 2026-08-03 backtest-metric-oracle                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -1707,11 +1712,13 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Est:** M (4-6h)
 **출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex DOWNGRADE → `metrics.py` 부재 직접 검증 후 KEEP 정정)
 
-**원인 / 영향:** `v2_adapter.py`(964L)의 본 책임은 V2RunResult → BacktestOutcome 변환(orchestration)인데, Sharpe/MaxDD/CAGR/win-rate/streak/monthly 등 도메인-비종속 finance math 10 함수(`_v2_avg_holding_hours`~`_mean`, L707-912 ~250 LOC)가 같은 모듈에 혼재 = shallow-by-size, Locality 깨짐. (codex 가 `engine/metrics.py` 존재로 오판 DOWNGRADE → 실제 부재 확인, 모든 math 가 v2_adapter 내부 → KEEP 정정.) stress_test 재사용은 speculative(현재 `result.metrics` 만 소비)라 추출 정당화는 locality 중심.
+**원인 / 영향:** `v2_adapter.py` 의 본 책임은 V2RunResult → BacktestOutcome 변환(orchestration)인데, Sharpe/MaxDD/CAGR/win-rate/streak/monthly 등 도메인-비종속 finance math 함수가 같은 모듈에 혼재 = shallow-by-size, Locality 깨짐. stress_test 재사용은 speculative(현재 `result.metrics` 만 소비)라 추출 정당화는 locality 중심.
 
-**권장 접근:** finance 계산을 `engine/metrics.py` Deep Module 로 이동 — '(equity_curve, trades, config) → 지표 묶음' 작은 Interface 뒤에 큰 behavior 은닉. v2_adapter 는 호출만 남김. 이동(move)이라 golden oracle parity 로 회귀 0 보장.
+**★전제 정정 (2026-08-03 실측, backtest-metric-oracle):** 본 항목이 전제한 「`engine/metrics.py` 부재」는 **낡았다** — 그 파일은 2026-07-26 backtest-trust 스프린트 이후 실재하며 현재 343줄(`sharpe_ratio`/`sortino_ratio`/`calmar_ratio`/`compute_excursion_stats`/`compute_side_metrics` 등 12 함수)이다. 남은 이동 대상은 `v2_adapter.py` 의 `_v2_*` 헬퍼 블록이고 위치도 바뀌었다 — 등재 당시 인용 `L707-912 / 964L` 은 stale, 현재는 **1211줄 중 L907-1162**. 레포 전체 grep 결과 그 헬퍼 12개를 `src/` 안에서 import 하는 곳은 **0건**이라 순수 move 가 안전하다(테스트 2파일만 직접 import).
 
-**영향 파일:** `engine/v2_adapter.py`(L707-912 추출), 신규 `engine/metrics.py`.
+**권장 접근:** 남은 finance 계산을 기존 `engine/metrics.py` 로 이동 — '(equity_curve, trades, config) → 지표 묶음' 작은 Interface 뒤에 큰 behavior 은닉. v2_adapter 는 호출만 남김. 이동(move)이라 golden oracle parity 로 회귀 0 보장.
+
+**영향 파일:** `engine/v2_adapter.py`(L907-1162 추출), 기존 `engine/metrics.py`.
 
 **Risk:** 🟢 (move refactor — `test_golden_oracle_minimal` + `test_metrics_real_extract` parity 가드, 이동 전후 동일 oracle 재실행).
 
@@ -1741,17 +1748,18 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Title:** backtest trades→equity→metrics 3단 reconciliation 불변식 암묵 + cross-stage oracle 부재 (test-first)
 **Category:** Backtest / Test surface (locality / pure-fn-extracted anti-pattern)
 **Priority:** P3
+**상태:** Resolved (2026-08-03, backtest-metric-oracle)
 **Trigger:** BL-389 metrics 추출과 묶음 또는 backtest test 강화 시
 **Est:** S (2-4h)
 **출처:** [`docs/dev-log/2026-06-30-backtest-deepen.md`](dev-log/2026-06-30-backtest-deepen.md) (codex DOWNGRADE → 좁은 oracle 범위로 축소)
 
-**원인 / 영향:** `_build_raw_trades`(:145) → `_compute_equity_curve`(:154) → `_compute_metrics` 가 상호 의존(equity ← trade pnl, metrics ← 양쪽)하나 각각 isolation 으로만 테스트되고 단계 간 계약(`sum(trade.pnl)` ↔ equity 종가 delta)이 문서화/검증 안 됨 = 'testability 위해 추출된 순수함수' 안티패턴 → off-by-one 등 cross-stage 버그가 단위 테스트를 통과할 수 있다. (codex: golden/cost invariant 일부 존재 → 좁은 closed-trade·no-funding equity↔PnL oracle 만 추가, broad pipeline 재구성 아님.)
+**원인 / 영향:** `_build_raw_trades`(:295) → `_compute_equity_curve`(:472) → `_compute_metrics`(:621) 가 상호 의존(equity ← trade pnl, metrics ← 양쪽)하나 각각 isolation 으로만 테스트되고 단계 간 계약(`sum(trade.pnl)` ↔ equity 종가 delta)이 문서화/검증 안 됨 = 'testability 위해 추출된 순수함수' 안티패턴.
 
-**권장 접근:** reconciliation 불변식 명시(docstring) + closed-trade·no-funding 케이스의 equity↔PnL cross-stage oracle 테스트 1건 선작성. BL-389 와 묶으면 자연스러움.
+**해결 (2026-08-03):** `tests/backtest/test_cross_stage_reconciliation.py` 5건 + 세 함수 docstring 에 계약 명시. 고정한 불변식 2종 — `equity[-1] - init_cash == Σ trade.pnl`(1단↔2단), `net_profit_abs == total_return × init_cash`(1단↔2단, 3단 경유). 후자가 유효한 이유는 `_compute_metrics` 가 두 값을 **서로 다른 입력**에서 독립 계산하기 때문이다(`:719` trades / `:663` equity).
 
-**영향 파일:** `tests/backtest/`(cross-stage oracle 신규), `engine/v2_adapter.py`(불변식 docstring).
+**★전제 부분 반증:** 백로그가 표적으로 지목한 **off-by-one 은 이미 커버돼 있었다.** 실측 — `exit_bar_index <= bar_idx` 를 `<` 로 바꾸자 `test_golden_oracle_minimal` 2건 + `test_v2_adapter::test_equity_curve_accrues_realized_pnl_on_exit_bar` 가 red 가 됐다(골든이 equity **전 계열**을 하드코딩 기대값과 대조한다). 실제로 비어 있던 곳은 (a) **metrics 단계에서 두 집계가 서로 어긋나는 것**, (b) **fees > 0 경로**(기존 골든은 전부 `fees=0`)였다. `net_profit_abs` 비용 이중 차감 변조는 기존 backtest 스위트 **557건을 전부 통과**했고 신규 오라클만 잡았다.
 
-**Risk:** 🟢 (test-first — 코드 변경은 docstring 수준).
+**Risk:** 🟢 (test + docstring — 프로덕션 동작 변경 0).
 
 ---
 
@@ -2056,17 +2064,20 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Title:** `_periodic_returns` daily fallback 이 sub-daily 봉을 "1 bar = 1 day" 로 센다 (resample 부재)
 **Category:** Backtest / metrics (TV parity)
 **Priority:** P3
+**상태:** Resolved (2026-08-03, backtest-metric-oracle)
 **Trigger:** 2개월 미만 백테스트의 Sharpe/Sortino 문의 시
 **Est:** S-M (baseline 2 metric 확산 주의)
 **출처:** 2026-07-26 backtest-trust 스프린트 (BL-398 구현 중 발견)
 
-**원인 / 영향:** `engine/metrics.py:41-43` 의 else 분기가 **resample 없이 전 bar** 를 기간 표본으로 쓰고 RFR 은 `0.02/365` 를 적용한다. 1h/5m 백테스트가 2 달력월 미만이면 1시간을 하루로 세어 위험조정 지표가 왜곡된다. **sortino 가 이미 갖고 있던 선재 결함**이고, BL-398 이 `_periodic_returns` 를 재사용하면서 sharpe 로도 전파됐다.
+**원인 / 영향:** `engine/metrics.py` 의 else 분기가 **resample 없이 전 bar** 를 기간 표본으로 쓰고 RFR 은 `0.02/365` 를 적용했다(등재 당시 인용 `:41-43` 은 BL-465 가드 추가로 밀려 실제로는 `:62-65`). 1h/5m 백테스트가 2 달력월 미만이면 1시간을 하루로 세어 위험조정 지표가 왜곡된다. **sortino 가 이미 갖고 있던 선재 결함**이고, BL-398 이 `_periodic_returns` 를 재사용하면서 sharpe 로도 전파됐다.
 
-**권장 접근:** daily fallback 에서 `equity.resample("D").last()` 적용. ★고치면 **sortino 값도 바뀌어** baseline regen 이 2 metric 으로 번지므로, "sharpe-only diff" 같은 감사 가능성을 유지하려면 별도 슬라이스로 분리하고 regen diff 범위를 미리 선언할 것.
+**해결 (2026-08-03):** else 분기를 `equity.resample("D").last().dropna()` 로 교체. 실측 왜곡 크기 — 같은 자본 경로 `[100, 110, 99]` 를 1h 봉 72개로 적으면 Sharpe 가 `-0.003265` 로 참 값 `-0.000548` 의 약 6배였고(sortino 는 `-0.004614` vs `-0.000774`), **하루치 1h 봉 24개 상승 구간에서는 23개의 가짜 "일간" 수익률로 Sharpe `16.56` 을 만들어냈다.** 리샘플 후 표본이 2 미만이면 `unavailable` 이다 — 없는 정보를 지어내지 않는다.
 
-**현재 대응:** `sharpe_ratio` docstring 명시 + FE 문구 "무위험 2%/년 · 봉 단위 기간 기준(2개월 미만)" 로 정직 고지.
+**검증:** `test_golden_oracle_tv_pack.py` 에 hand-oracle 3건 신설(봉-단위 불변성 + 손계산 값 + 단일일 경계). 수정 전 3건 전부 red → 수정 후 green. 기존 daily 테스트 2건은 `freq="D"` 라 `resample("D")` 가 항등이므로 green 유지. **골든 baseline regen 0행** — 코퍼스 7벌이 전부 월간 경로다(parity 20 passed 로 확인). 우려됐던 "sortino 로의 2 metric 확산" 은 코퍼스에서 발생하지 않았다.
 
-**Risk:** 🟢 (고지 중 · 2개월 이상 백테스트는 월간 경로라 무영향).
+**부수 실측:** `scripts/seed_dogfood.py` 의 `daily` RunSpec(2026-03-02~03-30, `TIMEFRAME="1h"`)이 정확히 이 케이스라 dogfood 시드의 sharpe/sortino 가 바뀐다. 시드는 생성물이지 고정 baseline 이 아니라 게이트에는 안 걸린다.
+
+**Risk:** 🟢 (2개월 이상 백테스트는 월간 경로라 무영향).
 
 ---
 
@@ -5991,5 +6002,192 @@ Bybit **demo** 만 허용하고 이 거절은 `mode == live` 분기에서만 난
 「그 전제가 깨지는 순간」(= `mode=live` 계정 생성)으로 바꿔 등재만 유지한다.
 
 **Risk:** 🟢
+
+---
+
+### BL-585
+
+**우선순위:** P3
+**카테고리:** Backtest / Trust Layer (강제력 없는 스키마)
+**Trigger:** baseline 스키마를 또 손대게 될 때, 또는 regen 산출물이 예상 밖 형태로 나올 때
+**Est:** XS (`jsonschema` 의존 추가 + 테스트 1건)
+**상태:** 🟢 열려 있다
+**출처:** 2026-08-03 backtest-metric-oracle
+
+`baseline_metrics.schema.json`(6.7KB) 은 **어디서도 로드되지 않는다.** 레포 전체에 `jsonschema`
+import 0건이고, `scripts/regen_trust_layer_baseline.py:46` 의 `SCHEMA_PATH` 상수는 선언만 되고
+한 번도 쓰이지 않는다.
+
+**강제력 0 의 증거 — 이번 스프린트가 실측했다.** 그 스키마의 `tool_versions.python` 패턴이
+`^3\.1[12]$` 였는데, 실제 baseline 은 그 사이에 `3.12 → 3.13` 으로 드리프트해 있었다. 즉 스키마가
+켜져 있었다면 **현재 baseline 을 reject 했을 것**이다. 아무도 몰랐다.
+
+**권장 접근:** `jsonschema` 를 dev 의존으로 추가하고 `test_trust_layer_parity.py` 에 baseline ↔
+schema validate 테스트 1건. 또는 스키마 파일을 지우고 dataclass 를 SSOT 로 삼는다 — **둘 중
+하나여야 한다. 지금처럼 「있지만 안 도는」 상태가 가장 나쁘다.**
+
+**영향 파일:** `tests/fixtures/pine_corpus_v2/baseline_metrics.schema.json`, `scripts/regen_trust_layer_baseline.py:46`.
+
+**Risk:** 🟢
+
+---
+
+### BL-586
+
+**우선순위:** P3
+**카테고리:** Backtest / Trust Layer (골든 커버리지 구멍)
+**Trigger:** TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때
+**Est:** M (baseline 크기 증가 + 리스트형 필드 직렬화 설계 선행)
+**상태:** 🟢 열려 있다
+**출처:** 2026-08-03 backtest-metric-oracle
+
+P-3 골든이 고정하는 것은 `BacktestMetrics` **51 필드 중 13개**(이번 스프린트에서 12 → 13)뿐이다.
+**38개가 회귀 감지 대상 밖**이다 — TV parity 팩(`avg_holding_hours` · `consecutive_*_max` ·
+`monthly_returns` · `drawdown_curve` · `annual_return_pct` · `avg/best/worst_trade_pct`),
+비용 분해(`total_fees` · `total_slippage` · `total_funding`), `per_side`, `excursion_stats`,
+청산(`liquidation_occurred` · `liquidation_count`) 이 전부 여기 속한다.
+
+`RawTrade` 도 22 필드 중 digest 에 들어가는 것은 **11개**다(`types.py:279` 가 "trust-layer trades
+digest(명시적 11-필드) 불변" 으로 그 결정을 명문화). `exit_kind` · `fee_paid` · `slippage_paid` ·
+`liquidated` 등이 빠져 있다.
+
+**권장 접근:** 전량 고정은 baseline 을 크게 만들고 리스트형 필드(`monthly_returns` ·
+`drawdown_curve` · `buy_and_hold_curve`)는 그대로 넣기 어렵다 — **digest 로 접는 쪽**이 현실적이다.
+스칼라 필드부터 늘리고 리스트는 필드별 digest 를 추가하는 2단계 권장.
+
+**영향 파일:** `scripts/regen_trust_layer_baseline.py`, `tests/strategy/pine_v2/test_trust_layer_parity.py`, `tests/fixtures/pine_corpus_v2/baseline_metrics.json`.
+
+**Risk:** 🟢
+
+---
+
+### BL-587
+
+**우선순위:** P3
+**카테고리:** Backtest / Trust Layer (기록만 하고 검증 안 하는 envelope)
+**Trigger:** parquet 교체 · python/pynescript 업그레이드 시
+**Est:** XS (assert 3건)
+**상태:** 🟢 열려 있다
+**출처:** 2026-08-03 backtest-metric-oracle
+
+baseline envelope 의 `ohlcv_sha256` · `pine_v2_commit` · `tool_versions` · `schema_version` 을
+**검증하는 assert 가 하나도 없다.** regen 이 쓰기만 하고 아무도 읽지 않는다. 특히
+`ohlcv_sha256` 은 "파일 변경 시 전체 baseline regen 의무" 를 위해 존재하는데, `corpus_ohlcv_frozen.parquet`
+이 교체돼도 CI 는 불일치를 못 잡는다.
+
+**실측 사례.** 이번 스프린트의 regen 에서 `tool_versions.python` 이 `3.12 → 3.13` 으로 바뀌었다.
+2026-07-26 baseline 생성 이후 런타임이 드리프트해 있었고 아무 게이트도 울리지 않았다
+(`pyproject.toml` 은 `requires-python = ">=3.12"` 이고 `.python-version` 핀이 없다).
+★불행 중 다행 — 엔진 커밋 `29d0b98 → 00c63018` 과 python `3.12 → 3.13` 이 **함께** 바뀌었는데
+12 필드 값과 3 digest 가 **전부 동일**했다. 두 변화 모두 숫자를 안 움직였다는 뜻이다.
+
+**★같은 회차에 그 필드로 실제 사고가 났다 — 워크트리가 CI 와 다른 파이썬을 쓴다.**
+`scripts/worktree-bootstrap.sh` 의 `uv sync` 는 `requires-python = ">=3.12"` 를 만족하는 **최신**을
+고른다. 실측 — 메인 체크아웃 venv 는 **3.12.12**, CI(`.github/workflows/ci.yml:120`)도 **3.12**
+인데 이번에 만든 워크트리 venv 는 **3.13.12** 였다. 그 위에서 regen 을 돌려 baseline 에
+`"python": "3.13"` 을 기록했다 — **CI 가 절대 재현할 수 없는 값**이다. 발견 후 워크트리 venv 를
+3.12 로 되돌리고 재생성했다(`uv venv --python 3.12`).
+★부수 소득 — 3.12 재생성에서 **7벌 전 필드·전 digest 가 동일**했다. 3.12→3.13 과 3.13→3.12
+양방향 모두 숫자를 안 움직였다는 뜻이다. 하지만 그건 **이번에 운이 좋았다는 것이지 규칙이 아니다.**
+
+**권장 접근:** `test_trust_layer_parity.py` 에 (a) `ohlcv_sha256` == 실제 파일 해시, (b)
+`schema_version` == 코드가 기대하는 값, (c) `tool_versions.python` == 현재 런타임 minor 검증 3건.
+(c) 는 red 가 "회귀" 가 아니라 "regen 하고 값이 같은지 확인해라" 신호다 — 메시지에 그렇게 쓴다.
+**`.python-version` 핀 추가는 (c) 보다 먼저 해야 한다** — 워크트리마다 런타임이 갈리는 것을 막는
+쪽이 근본이다. [[BL-585]] 와 묶으면 자연스럽다.
+
+**영향 파일:** `tests/strategy/pine_v2/test_trust_layer_parity.py`, `backend/pyproject.toml`(또는 `.python-version`), `scripts/worktree-bootstrap.sh`.
+
+**Risk:** 🟢
+
+---
+
+### BL-588
+
+**우선순위:** P3
+**카테고리:** Backtest / Trust Layer (코퍼스 목록 3중 정의)
+**Trigger:** 코퍼스를 또 추가/제거할 때
+**Est:** XS-S
+**상태:** 🟢 열려 있다
+**출처:** 2026-08-03 backtest-metric-oracle
+
+실행 대상 코퍼스 목록이 **세 곳에 따로** 있다.
+
+| 위치                                                | 상수                | 현재    |
+| --------------------------------------------------- | ------------------- | ------- |
+| `tests/strategy/pine_v2/test_trust_layer_parity.py` | `RUNNABLE_CORPUS`   | 7벌     |
+| `scripts/regen_trust_layer_baseline.py`             | `RUNNABLE_CORPUS`   | 7벌     |
+| `tests/strategy/pine_v2/test_mutation_oracle.py`    | `_MUTATION_CORPORA` | **5벌** |
+
+앞 두 곳은 이번 스프린트에서 함께 갱신했지만 **셋째는 안 따라온다** — 즉 신규 비축퇴 코퍼스
+(`s4_hma_curvature` · `s5_ema_trend`)가 nightly mutation oracle 에는 확산되지 않았다. 그 두 벌이
+위험조정지표에 판별력을 만든 유일한 코퍼스이므로, mutation oracle 은 **여전히 sharpe 가 전부 0 인
+5벌로만** 판정한다.
+
+**권장 접근:** 목록을 한 곳(예: 코퍼스 디렉터리의 manifest 또는 공용 모듈)으로 모으고 세 소비자가
+같은 곳을 읽게 한다. 최소 조치로는 `_MUTATION_CORPORA` 를 7벌로 늘리는 것만으로도 nightly 감지율이
+올라갈 수 있다 — 다만 mutation 실행 시간이 늘어나므로 nightly 소요를 먼저 재라.
+
+**영향 파일:** 위 표 3개 파일.
+
+**Risk:** 🟢
+
+---
+
+### BL-589
+
+**우선순위:** P1
+**카테고리:** Trading / 라이브 신호 (엔진↔거래소 방향 발산)
+**Trigger:** ★**이미 발화했다.** 2026-08-03 소크가 T0 65분 만에 이 사유로 fail-closed 종료.
+**Est:** M (원인 확정 선행 — 아래 「먼저 확인할 것」)
+**상태:** 🟢 **열려 있다 — 실측 1건, 원인 미확정**
+**출처:** 2026-08-03 backtest-metric-oracle (소크 관측 중 발견)
+
+**취소된 반전 주문 뒤에 엔진만 포지션이 뒤집힌 채 남았다.**
+
+소크 세션 `04097fdc`(T0 `2026-08-03T09:53:34Z`)가 `10:58:34Z` 에
+`position_divergence` / `category=direction` 으로 자동 비활성화됐다 — 창의 **65분** 지점.
+`engine_position=+0.030392388292696512` vs `exchange_position=-0.03`. 크기는 사실상 같고
+**방향이 정반대**다.
+
+**타임라인 (T0 이후 주문 7건 전량).**
+
+| 시각(UTC)    | 사건                                                  |
+| ------------ | ----------------------------------------------------- |
+| 10:05:04     | `sell 0.03` **filled** → 거래소 −0.03                 |
+| 10:12:34     | `buy 0.06` **filled** → 거래소 +0.03                  |
+| 10:19:37     | `sell 0.06` **filled** → 거래소 **−0.03**             |
+| 10:38:46     | `buy 0.06` 발주 (−0.03 → +0.03 반전 의도)             |
+| **10:56:41** | 그 주문 **cancelled** — `error_message` **비어 있음** |
+| 10:57:34     | `live_signal_position_divergence` 1차 경고            |
+| **10:58:34** | 2차 경고 → **fail-closed 비활성화**                   |
+
+체결분만 더하면 거래소는 정확히 −0.03 이다. 즉 **거래소 원장은 일관적이고 엔진만 틀렸다.**
+반전 주문이 취소됐는데 엔진 상태는 전진한 것으로 보인다.
+
+★**[BL-560] 의 거울상이다.** BL-560 은 「반전이 **체결**됐는데 엔진이 모른다」였고, 이건
+「반전이 **취소**됐는데 엔진이 됐다고 믿는다」다. 두 방향 모두 같은 자리(반전 leg 의 상태 반영)를
+가리킨다.
+
+**★먼저 확인할 것 (원인 확정 전 수리 금지).**
+
+1. 엔진 포지션은 **주문 체결에서 오는가, 자체 시뮬레이션에서 오는가** — 후자면 「취소를 체결로
+   오인」이 아니라 애초에 원장을 안 보는 설계 문제다. 이 구분이 수리 위치를 바꾼다.
+2. `+0.0304` 라는 값의 출처 — 거래소는 `qty_step` 절삭으로 `0.03` 을 쓴다. 0.0304 는
+   percent-of-equity 계산 원값으로 보이는데, 그렇다면 엔진은 **발주 수량이 아니라 의도 수량**을
+   들고 있다.
+3. **취소 사유가 왜 하나도 없나** — T0 이후 7건 중 **4건이 cancelled 인데 `error_message` 가 전부
+   NULL** 이다. 사유 없이는 「왜 취소됐나」를 영원히 못 센다. [[BL-578]] 과 같은 계열.
+4. 2회 연속 divergence 에서 비활성화하는 정책이 맞는지 — 1차 경고와 2차 사이 60초에 자가 복구
+   기회가 있었는가.
+
+**부수 조치 (2026-08-03).** 세션 종료 후 거래소에 **세션 없는 −0.03 숏**이 남아 있어
+reduce-only 시장가 매수 0.03 으로 flat 정리했다(사용자 승인).
+★**이 정리는 앱 원장을 거치지 않았다** — `ClosePositionService` 는 HTTP 경로에만 조립돼 있어
+Clerk JWT 가 필요한데 스크립트에서 얻을 수 없어 provider 를 직접 호출했다. 따라서 이 청산에
+대응하는 `trading.orders` 행이 **없다**. 원장을 읽을 때 이 구멍을 기억해야 한다.
+
+**Risk:** 🔴 **소크 시계를 멈춘 사건이다.** P0 [BL-003] 의 유일한 게이트가 「데모 1주 안정 운영」인데
+이 발산이 창을 65분에서 끊었다. 원인을 모른 채 재가동하면 같은 자리에서 또 끊길 가능성이 높다.
 
 ---

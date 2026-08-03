@@ -249,9 +249,13 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-186a** [P2] 레버리지 충실도 — ✅ **backtest-trust 완료**. ★TV/MT5 컨벤션(레버리지는 **수량을 바꾸지 않고** 필요증거금·청산가만 정함) → `compute_qty` 무변경 → 레버리지>1 에서도 TV parity 유지. 격리 청산 + 마진 게이트(단일 chokepoint) + FE 입력 재도입. L=1 byte-identical
 - [ ] **BL-186b** [P2] cross/tiered MM + 파산수수료 + 멀티거래소 + 펀딩-청산 상호작용 — 186a 이후 이연
 - [ ] **BL-460** [P2] 마진 게이트가 **gross 자본**으로 판정 — `running_equity` 가 수수료·슬리피지 차감 전이라(`close()` "fees=0 Sprint 37 가정") 실측 gross +38,679 vs net −53,670. 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 파괴 → 별도 설계 필요 · (실자금 레버리지 사용 전)
-- [ ] **BL-461** [P3] `_periodic_returns` daily fallback 이 sub-daily 를 "1 bar = 1 day" 로 계산 — resample 부재. sortino 도 동일 영향이라 고치면 baseline 2 metric 확산
+- [x] **BL-461** [P3] `_periodic_returns` daily fallback 이 sub-daily 를 "1 bar = 1 day" 로 계산 — `resample("D").last()` 로 해결(2026-08-03 backtest-metric-oracle). 실측 왜곡 = 같은 자본 경로를 1h 로 적으면 Sharpe 가 참 값의 6배, 하루치 1h 봉에서는 Sharpe 16.56. 우려됐던 baseline 2 metric 확산은 **미발생** — 코퍼스 7벌이 전부 월간 경로라 regen 0행
 - [ ] **BL-462** [P3] Sharpe 목록 정렬 신·구 컨벤션 혼재 — `repository.py:75` 가 원시 JSONB 숫자만 캐스팅. 현재는 FE 고지로 대응, 완전 해소는 read-time recompute
 - [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기
+- [ ] **BL-585** [P3] `baseline_metrics.schema.json` 이 어디서도 로드되지 않는다(`jsonschema` import 0건) — 증거는 그 스키마의 python 패턴 `^3\.1[12]$` 가 현재 baseline(3.13)을 reject 한다는 것. 켜거나 지우거나
+- [ ] **BL-586** [P3] P-3 골든이 `BacktestMetrics` 51 필드 중 **13개**만 고정 — TV parity 팩·비용 분해·per_side·excursion·청산 38개가 감지 대상 밖. `RawTrade` 도 22 중 11 필드만 digest
+- [ ] **BL-587** [P3] baseline envelope(`ohlcv_sha256`·`pine_v2_commit`·`tool_versions`)을 검증하는 assert 0건 — 실측: 런타임이 python 3.12→3.13 으로 드리프트했는데 아무 게이트도 안 울렸다(값은 전부 동일했다)
+- [ ] **BL-588** [P3] 코퍼스 목록 3중 정의 — parity 7벌 / regen 7벌 / `_MUTATION_CORPORA` **5벌**. 판별력을 만든 비축퇴 2벌이 nightly mutation oracle 로 확산 안 됨
 - [x] **BL-465** [P1] `_periodic_returns` 음수 자본 미차단 → 파산한 실행에 양수 샤프 — ✅ **dogfood-restore 완료**. 신규 마커 `unavailable_nonpositive_equity` + Trust Layer baseline 재생성(2/12 키 한정)
 - [ ] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
 - [x] **BL-467** [P1] `backend-optimizer-heavy` OHLCV env 3종 부재로 **모든 optimizer 실행 실패** — ✅ **dogfood-restore 완료**
@@ -292,6 +296,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] ★**BL-543 ✅ Resolved** [P1] **세션은 태어날 때부터 갈릴 수 있다** — `run_live` 는 300바를 재생하지만 dispatch 는 **마지막 바만**(`event_loop.py:410`). 재생 구간 포지션은 주문이 된 적 없는데 엔진에는 남는다. ✅ **2026-07-30 PR #503 으로 착지**(position epoch — 실주행 재측정에서 첫 평가 `position_size 0.0`, `engine_only` 증가 0). ★**(c) 잔여(>5분 공백 후 세션 사망)는 이 BL 의 결함이 아니라 반대 방향의 별건으로 판명 → [BL-544] 로 이관**했고 PR #506 으로 Resolved
 - [x] **BL-536** ✅ **Resolved (2026-08-01 entry-completeness-rejudgement)** — 재측정 완료 + 설계 판단 완료. **판정 「축소」(사전등록 A3)**: 유실 채널 5종 중 **C2·C3 는 유실 채널이 아님이 확정**(C3 는 청산측 `qty_step` 절삭 아티팩트 — **5축**), **C4·C5 는 판별력을 증명한 계측기로 0**, 잔존은 **C1 1건/2일**. 층위1 **16.67% → 2.44%** · 에피소드 **2.08%**. 설계 = **「전환 의도 영속화 저장소를 짓지 않는다」**, 잔여는 **[BL-578]**. ★**착수 전제가 거짓이었다** — 「유실률 `2/12` 의 분모 12 가 C2」는 오독이고 12 = `filled 10 + rejected 2` 다. ★**직전 「유지」는 그 당시 데이터로도 틀렸다**(정정 술어로 07-29 창도 축소)
 - [x] ★**BL-560** [P1] ✅ **Resolved 2026-08-01 — 프로덕션 검증 완료** (`_write_back_confirmed_terminal` 실행 확인, 거래소 terminal→원장 **60초** vs 사고 때 818초). ★★**단 그 1회는 유도된 것**이고 자연 기저율은 **≈4일 1회**, `same_side` 자연 관측은 **여전히 0** — 검증된 것은 **배선·기록 경로이지 효과가 아니다**. 효과 측정은 `strategy.exit` 전략으로 창을 다시 짜야 한다. // 등재 당시: **엔진과 거래소가 반대 방향** — `110017 same side` **9건 / 5개 세션**(07-26~07-30). 무해 갈래(`position is zero` 30건)가 3배라 **같은 라벨 안에 묻혀 있었다**. 라벨 분리 완료 → **이제 셀 수 있다.** 원인 3후보 전부 크기 미측정 — **먼저 재라**
+- [ ] ★**BL-589** [P1] **소크를 65분에 끊은 사건 (2026-08-03 실측 1건).** 취소된 반전 주문 뒤 엔진만 포지션이 뒤집힌 채 남았다 — `engine +0.0304` vs `exchange −0.03`, 방향 정반대 → `position_divergence/direction` fail-closed. 체결분만 더하면 거래소는 정확히 −0.03 이라 **거래소 원장은 일관적이고 엔진만 틀렸다**. [BL-560]의 거울상(그쪽은 「반전이 체결됐는데 모른다」, 이쪽은 「취소됐는데 됐다고 믿는다」). ★T0 이후 취소 4건의 `error_message` 가 **전부 NULL** 이라 왜 취소됐는지 셀 수 없다. **원인 확정 전 재가동 금지**
 - [ ] **BL-535** [P1] 백테스트는 **스팟 봉**으로 perp 전략을 검증한다 (BL-530 이 라이브만 정렬 — **의도된 잔여, 되돌리지 말 것**). 실측 괴리 25~42 USDT(0.04~0.066%), 한쪽으로 치우친다. 권장 = `ts.ohlcv` 에 perp 를 `BTC/USDT:USDT` 키로 신규 적재(마이그레이션 0)
 - [ ] **BL-541** [P2] 세션 행이 **아예 없는** 포지션(웹훅 경로·거래소 수동)은 여전히 못 닫는다 — ★**아직 실측된 적 없어 의도적으로 안 지었다.** 관측되면 착수(`Order.strategy_id` nullable 화는 금지 — kill-switch 가 전략별 합산이라 NULL 은 영구 불가시)
 - [x] **BL-542 ✅ Resolved** [P3] 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 — 거짓 양성 **확정** · **n=2**(계정 2/2) · **기전 확정**(2026-08-01: `providers.py:1201-1206` 주석이 "ccxt 는 커서를 첫 항목에 도장만 찍는다" 고 적어 놓고 `:1207` 이 그 커서를 "다음 페이지 있음" 으로 읽는다). 남은 것은 판정식 교체 + 회귀 가드 2케이스
@@ -359,7 +364,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 - [ ] **BL-389** [P3] backtest finance-math 10함수 Deep Module 추출
 - [ ] **BL-390** [P3] exit-leg maker/taker fill_type 라우팅 복제
-- [ ] **BL-391** [P3] trades→equity→metrics reconciliation oracle 부재 (BL-389 묶음)
+- [x] **BL-391** [P3] trades→equity→metrics reconciliation oracle 부재 — 해결(2026-08-03 backtest-metric-oracle). ★표적으로 지목했던 off-by-one 은 **이미 커버돼 있었다**(골든이 equity 전 계열 대조). 실제 빈 곳은 metrics 단계의 두 집계 불일치 + `fees>0` 경로 — 비용 이중 차감 변조가 기존 스위트 557건을 전부 통과했다
 
 ### P3 — 차트 일원화 / 리포트 UI
 

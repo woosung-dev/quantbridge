@@ -21,7 +21,7 @@ describe("describeSharpe", () => {
       SHARPE_CONVENTION.daily,
       -1.234,
       "-1.23",
-      "무위험 2%/년 · 봉 단위 기간 기준(2개월 미만)",
+      "무위험 2%/년 · 일간 수익률 기준(2개월 미만)",
       false,
       false,
     ],

@@ -16,8 +16,8 @@
   "properties": {
     "schema_version": {
       "type": "integer",
-      "const": 1,
-      "description": "스키마 버전 (breaking change 시 +1). 현재 v1 = Path β Stage 1 설계."
+      "const": 2,
+      "description": "스키마 버전 (breaking change 시 +1). v1 = Path β Stage 1 설계. v2 = corpus metrics 에 `sharpe_convention` 추가 (backtest-metric-oracle, 2026-08-03)."
     },
     "ohlcv_sha256": {
       "type": "string",
@@ -42,8 +42,8 @@
         },
         "python": {
           "type": "string",
-          "pattern": "^3\\.1[12]$",
-          "description": "Python minor 버전 (3.11 또는 3.12). Decimal precision 영향 있음."
+          "pattern": "^3\\.\\d+$",
+          "description": "Python minor 버전. Decimal precision 영향 있음. ★본 스키마는 어디서도 로드되지 않는다 (레포 전체 `jsonschema` import 0건, `regen_trust_layer_baseline.py:46` 의 `SCHEMA_PATH` 는 미사용 상수). 그래서 런타임이 3.12 → 3.13 으로 드리프트하는 동안 아무도 몰랐고, 직전 패턴 `^3\\.1[12]$` 는 현재 baseline 을 reject 한다 — 강제력 0 의 증거."
         },
         "pine_v2_tests": {
           "type": "integer",
@@ -59,9 +59,9 @@
     },
     "corpora": {
       "type": "object",
-      "description": "corpus_id → 실행 결과 매핑. 6 종 (s1_pbr, s2_utbot, s3_rsid, i1_utbot, i2_luxalgo, i3_drfx).",
-      "minProperties": 6,
-      "maxProperties": 6,
+      "description": "corpus_id → 실행 결과 매핑. 8 종 (s1_pbr, s2_utbot, s3_rsid, i1_utbot, i2_luxalgo, s4_hma_curvature, s5_ema_trend, i3_drfx). 앞 5벌 = Path β 원본(전부 자본 음수 종료), s4/s5 = 비축퇴 코퍼스(위험조정지표 값 채널), i3_drfx = Coverage reject.",
+      "minProperties": 8,
+      "maxProperties": 8,
       "additionalProperties": {
         "oneOf": [
           { "$ref": "#/$defs/CorpusExecutionRecord" },
@@ -107,7 +107,8 @@
             "avg_win",
             "avg_loss",
             "long_count",
-            "short_count"
+            "short_count",
+            "sharpe_convention"
           ],
           "additionalProperties": false,
           "properties": {
@@ -140,7 +141,17 @@
               "oneOf": [{ "$ref": "#/$defs/DecimalString" }, { "type": "null" }]
             },
             "long_count": { "type": "integer", "minimum": 0 },
-            "short_count": { "type": "integer", "minimum": 0 }
+            "short_count": { "type": "integer", "minimum": 0 },
+            "sharpe_convention": {
+              "type": "string",
+              "enum": [
+                "tv_monthly_rfr2",
+                "tv_daily_rfr2",
+                "unavailable",
+                "unavailable_nonpositive_equity"
+              ],
+              "description": "engine/metrics.py 의 SHARPE_CONVENTION_* 4종. sharpe_ratio 는 degenerate 실행에서 전부 0 이라 값 채널만으로는 컨벤션 뒤집힘이 diff 0 이다 (schema_version 2 에서 추가)."
+            }
           }
         },
         "var_series_digest": {

@@ -48,7 +48,18 @@ SCHEMA_PATH = FIXTURE_DIR / "baseline_metrics.schema.json"
 # sys.path 확장 — uv run 으로 실행 시 src/tests import 가능하게
 sys.path.insert(0, str(REPO_ROOT))
 
-RUNNABLE_CORPUS = ("s1_pbr", "s2_utbot", "s3_rsid", "i1_utbot", "i2_luxalgo")
+# ★test_trust_layer_parity.py 의 동명 상수와 쌍이다 — 한쪽만 고치면 조용히 어긋난다.
+RUNNABLE_CORPUS = (
+    "s1_pbr",
+    "s2_utbot",
+    "s3_rsid",
+    "i1_utbot",
+    "i2_luxalgo",
+    # 아래 2벌 = 비축퇴 코퍼스 (backtest-metric-oracle). 위 5벌은 자본이 음수로 끝나
+    # sharpe 0 / sortino·calmar null 이라 위험조정지표의 산술을 전혀 비추지 못한다.
+    "s4_hma_curvature",  # 3지표 전부 음수 (sharpe -2.30)
+    "s5_ema_trend",  # 3지표 전부 양수 (sharpe +0.36) — 부호 오류 감지용 짝
+)
 SKIPPED_CORPUS = ("i3_drfx",)
 ALL_CORPUS = RUNNABLE_CORPUS + SKIPPED_CORPUS
 
@@ -217,6 +228,10 @@ def _runnable_corpus_record(corpus_id: str, ohlcv_df: pd.DataFrame) -> dict[str,
         "avg_loss": _normalize_metric(m.avg_loss, normalize_decimal),
         "long_count": m.long_count if m.long_count is not None else 0,
         "short_count": m.short_count if m.short_count is not None else 0,
+        # sharpe_ratio 는 degenerate 실행에서 전부 0 이라 값만으로는 monthly ↔ daily ↔
+        # unavailable ↔ unavailable_nonpositive_equity 가 뒤집혀도 diff 가 나지 않는다.
+        # 컨벤션을 따로 고정해야 그 뒤집힘이 P-3 에서 보인다 (schema_version 2).
+        "sharpe_convention": m.sharpe_convention,
     }
 
     trades_list = [_trade_to_dict(t) for t in trades]
@@ -324,7 +339,8 @@ def main() -> int:
 
     print("[3/4] Building metadata envelope...")
     baseline = {
-        "schema_version": 1,
+        # 2 = corpus metrics 에 `sharpe_convention` 추가 (backtest-metric-oracle).
+        "schema_version": 2,
         "ohlcv_sha256": _file_sha256(OHLCV_PATH),
         "pine_v2_commit": envelope_pine_v2_commit,
         "tool_versions": {
