@@ -116,6 +116,48 @@
     "i3_drfx": {
       "note": "Skipped \u2014 is_runnable=false per Y1 Coverage Analyzer",
       "unsupported": ["ta.supertrend", "tostring", "request.security"]
+    },
+    "s4_hma_curvature": {
+      "metrics": {
+        "total_return": "-0.95443545",
+        "sharpe_ratio": "-2.30097687",
+        "max_drawdown": "-0.95443545",
+        "win_rate": "0.06584362",
+        "num_trades": 243,
+        "profit_factor": "0.02077355",
+        "sortino_ratio": "-0.91713195",
+        "calmar_ratio": "-1.04561323",
+        "avg_win": "0.00234800",
+        "avg_loss": "-0.00649847",
+        "long_count": 117,
+        "short_count": 126,
+        "sharpe_convention": "tv_monthly_rfr2"
+      },
+      "var_series_digest": "sha256:fe75653c6f4b87338ba434a30e480455be5b0eac18d40a482c79b35bb29501bb",
+      "trades_digest": "sha256:186b29620a9ee77d590e2205f40cbb01927d612b333aa443c4a43fed1cbbea12",
+      "warnings_digest": "sha256:9ba2cdb07efc5e38d0934242497ca965a5c3afd0cbb599d9546e3ab51035b9b1",
+      "updated_at": "2026-08-03T11:25:40Z"
+    },
+    "s5_ema_trend": {
+      "metrics": {
+        "total_return": "0.14864116",
+        "sharpe_ratio": "0.36060359",
+        "max_drawdown": "-0.11768574",
+        "win_rate": "0.34782609",
+        "num_trades": 23,
+        "profit_factor": "1.69122402",
+        "sortino_ratio": "0.84446947",
+        "calmar_ratio": "2.72519830",
+        "avg_win": "0.08023105",
+        "avg_loss": "-0.02345296",
+        "long_count": 23,
+        "short_count": 0,
+        "sharpe_convention": "tv_monthly_rfr2"
+      },
+      "var_series_digest": "sha256:c7f0b50a8c21928672fbc5f408fdd83fc82ab54fd4cb2832a97c269444fdad71",
+      "trades_digest": "sha256:125bbde47aab0aaac6b0be9ca5a40e2e7b6fa175ea130a13a72e9e5ebc8db79b",
+      "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "updated_at": "2026-08-03T11:25:47Z"
     }
   }
 }

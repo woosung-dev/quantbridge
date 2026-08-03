@@ -53,12 +53,20 @@ _BASELINE_PRESENT = _BASELINE_METRICS.exists() and _OHLCV_FROZEN.exists()
 
 # i3_drfx 는 Sprint Y1 Coverage Analyzer 에서 is_runnable=false 로 reject
 # → P-3 실행 대상 제외 (baseline 에 "note": "Skipped" 로만 기록)
+# ★scripts/regen_trust_layer_baseline.py 의 동명 상수와 쌍이다 — 한쪽만 고치면
+#   regen 이 만든 항목을 테스트가 안 읽거나 그 반대가 되어 조용히 어긋난다.
 RUNNABLE_CORPUS: tuple[str, ...] = (
     "s1_pbr",
     "s2_utbot",
     "s3_rsid",
     "i1_utbot",
     "i2_luxalgo",
+    # 아래 2벌 = 비축퇴 코퍼스 (backtest-metric-oracle, 2026-08-03).
+    # 위 5벌은 사이징 미선언으로 자본이 음수로 끝나 sharpe 가 5벌 모두 "0.00000000",
+    # sortino·calmar 가 5벌 모두 null 이다 — 세 지표의 **산술**이 회귀해도 값 채널에
+    # 움직일 여지가 없었다. 아래 2벌이 그 채널을 연다.
+    "s4_hma_curvature",  # sharpe -2.30 / sortino -0.92 / calmar -1.05 (전부 음수)
+    "s5_ema_trend",  # sharpe +0.36 / sortino +0.84 / calmar +2.73 (전부 양수)
 )
 
 # Mutation Oracle 8개 (ADR-020 §4.4). M3 는 Stage 2 실측 후 layer 재분류 (opus W2).

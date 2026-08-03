@@ -1,0 +1,27 @@
+// P-3 골든 오라클용 비축퇴 코퍼스 (backtest-metric-oracle, 2026-08-03).
+// 기존 5벌은 사이징 미선언으로 자본이 음수로 끝나 sharpe 가 전부 0 / sortino·calmar 가
+// 전부 null 이었다 — 위험조정지표의 산술이 회귀해도 baseline diff 가 0 이었다.
+// s4_hma_curvature 가 자본을 양수로 유지하지만 3지표가 전부 **음수**라 부호 오류를
+// 못 잡는다. 이 전략은 동결 데이터(BTC/USDT:USDT 1h, 2024-01-01~06-30)에서 3지표가
+// 전부 **양수**로 나오게 만든 짝이다. 실측: sharpe +0.3606 / sortino +0.8445 /
+// calmar +2.7252 / total_return +14.86% / MDD -11.77% / 자본 9,662.96 ~ 11,486.41.
+//@version=5
+strategy("EMA Trend Follow (Long Only)", overlay=true, initial_capital=10000, default_qty_type=strategy.percent_of_equity, default_qty_value=50, currency=currency.USD)
+
+fastLength = input.int(24, title="Fast EMA Period")
+slowLength = input.int(96, title="Slow EMA Period")
+
+fastEma = ta.ema(close, fastLength)
+slowEma = ta.ema(close, slowLength)
+
+longSignal = ta.crossover(fastEma, slowEma)
+exitSignal = ta.crossunder(fastEma, slowEma)
+
+if (longSignal)
+    strategy.entry("EmaTrendLE", strategy.long, comment="EmaTrendLE")
+
+if (exitSignal)
+    strategy.close("EmaTrendLE", comment="EmaTrendLX")
+
+plot(fastEma, title="Fast EMA", color=color.blue)
+plot(slowEma, title="Slow EMA", color=color.orange)

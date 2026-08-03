@@ -59,9 +59,9 @@
     },
     "corpora": {
       "type": "object",
-      "description": "corpus_id → 실행 결과 매핑. 6 종 (s1_pbr, s2_utbot, s3_rsid, i1_utbot, i2_luxalgo, i3_drfx).",
-      "minProperties": 6,
-      "maxProperties": 6,
+      "description": "corpus_id → 실행 결과 매핑. 8 종 (s1_pbr, s2_utbot, s3_rsid, i1_utbot, i2_luxalgo, s4_hma_curvature, s5_ema_trend, i3_drfx). 앞 5벌 = Path β 원본(전부 자본 음수 종료), s4/s5 = 비축퇴 코퍼스(위험조정지표 값 채널), i3_drfx = Coverage reject.",
+      "minProperties": 8,
+      "maxProperties": 8,
       "additionalProperties": {
         "oneOf": [
           { "$ref": "#/$defs/CorpusExecutionRecord" },
