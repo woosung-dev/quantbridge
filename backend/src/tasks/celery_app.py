@@ -65,6 +65,7 @@ celery_app = Celery(
         "src.tasks.orphan_scanner",
         "src.tasks.live_signal",  # Sprint 26 — Pine Signal Auto-Trading
         "src.tasks.conditional_entry_janitor",
+        "src.tasks.conditional_entry_recovery",
         "src.tasks.alert_rules",
     ],
 )
