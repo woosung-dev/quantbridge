@@ -2,91 +2,102 @@
 
 > **업데이트:** 2026-08-03
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** 없음 — 누적분은 전부 착지했다.
+> **준비 브랜치:** `stage/metric-guard-residual-sweep` — **PR #532 OPEN**(BL-580 발주 outbox 8곳 수리 · census 104→96).
 > **최근 머지:** `stage/metric-guard-residual-close` → `main` (**PR #530** @ `6b7e1271`, 2026-08-03).
 
 ---
 
-## 🎯 다음 스프린트 — **metric-guard-residual-sweep** ([BL-580] 잔여 104곳, `live_signal.py` 54곳부터)
+## 🎯 다음 스프린트 — **demo-soak-restart** (데모 시계 재가동 · P0 [BL-003] 유일 진입로)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 > 시작 방법: **"다음 스프린트 진행해줘"**. `CONTEXT.md` + 본 파일을 읽고 시작한다.
-> ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다**(`CLAUDE.md` 가 `@AGENTS.md` 하나만 import 한다).
-> ★**`CONTEXT.md` 는 반대다 — 자동 로드가 아니라서 읽어야 들어온다.** `.ai/rules/*.md` 도 마찬가지다.
-> ★**`docs/dev-log/INDEX.md` 를 통째로 grep 하지 마라** — `## 최근 12회차` 상단만 읽는다.
+> ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다.** `CONTEXT.md`·`.ai/rules/*.md` 는 반대다(읽어야 들어온다).
 
-**목표·왜 지금.** 계측 실패가 머니-패스를 오기록하는 자리가 **104곳** 남았다([BL-580]).
-직전 회차가 25곳을 판정해 **수리함 23 · 판정 보류 2**로 끝났고, 누적 34곳에서 **「가드 없이
-유지」가 0곳**이다. 산문 근거의 타율이 0 이므로 **잔여도 분류하지 말고 주입으로 시작한다.**
-**비목표** — census 키 구조 변경 · [BL-581] (Trigger 미달) · soak.
+**목표·왜 지금.** ★**데모 운영 시계가 멈춰 있다.** 일별 주문이
+`07-30: 86 · 07-31: 53 · 08-01: 5 · 08-02: 3 · 08-03: 0` 이고 마지막 라이브 신호 이벤트는
+**07-31** 이다. **P0 [BL-003] — 실자금 cutover — 의 Trigger 는 「Bybit Demo 1주 안정 운영 후」** 이고,
+그 시계를 다시 돌리는 것 말고 P0 를 여는 방법은 없다.
 
-**작업 단위.** `tasks/live_signal.py` **54곳**이 전체의 52%다. 함수별로는
-`_evaluate_session_inner` 21 · `_reconcile_conditional_entries` 12 · `_async_dispatch_event` 11.
-**한 회차에 한 함수**로 끊어라 — 25곳이 한 회차의 상한에 가까웠다.
+★**그동안 머지된 5개 PR(#523·#525·#528·#530·#532)은 실주행 검증이 0이다.** 오늘 고친 **H8**
+(계측 실패가 fail-open `except` 에 삼켜져 flat 청산 거부를 발주로 뒤집는다)의 그 분기는
+프로덕션에서 **14회 발화**한 자리인데, 수리 후 한 번도 안 돌려봤다.
+
+★**소크는 백로그를 닫으러 가는 게 아니다.** 실측: 「실주행으로만 닫히는」 미해결 BL 은
+**2건뿐**([BL-516]·[BL-573])이다. 소크의 값어치는 (a) **P0 시계**, (b) **미검증 5PR 의 검증**,
+(c) 이 레포에서 소크가 데스크 결론을 뒤집은 전례 — 07-30 소크가 **단위테스트를** 반증했고
+07-31 실주행이 **코드 대조 뿌리 가설을** 반증했다.
+
+**비목표** — [BL-580] 잔여 96곳(P2, Trigger `qb_metrics_mutation_failed_total` **실측 0** — 한 번도
+안 올랐다) · 새 기능 · 마이그레이션.
+
+### 재가동 전제 — 이미 다 갖춰져 있다 (2026-08-03 실측)
+
+인프라 전량 가동(`worker`·`beat`·`ws-stream`·`db`·`redis`) · Bybit **demo** 계정 **2개** ·
+활성 세션 **0** · settings 유효 전략 **2건**. ⇒ **세션 등재 한 번**이면 시계가 다시 돈다.
+마지막 조합 = 전략 `07a22564` + 계정 `19a8166a` + `BTC/USDT`.
 
 ### 첫 step
 
-1. **baseline 재측정** (`global.md` §7.1). 대조값은 아래 블록. ★**`-p no:randomly` 를 쓰지 마라 —
-   randomizer 가 없어 no-op 이다.** 「두 번 재라」는 **수집 집합을 바꿔 재라**는 뜻이다.
-2. **주입 관용구를 그대로 복제해라** — `.inc` 가 아니라 **`.labels` 를 폭파**(`OSError("mmap allocation failed")`)
-   - **stub 정확히 1회 호출 단언** + **사이트별 비-계측 postcondition**. 정본 5파일은 아래 참조.
-3. **판정 라벨은 누적 7종이다** — H1~H4(직전 정의 그대로) + **H5**(4xx 거절이 500 으로) ·
-   **H6**(정상 종결이 재시도로 오분류) · **H7**(내구 쓰기 **앞**이라 아직 안 일어난 적재가 중단).
-   **H3 은 두 회차 연속 공허**다. 넓히지 말고 필요하면 늘려라.
-4. **[BL-584]** 신규 — 수리 전에 **현재 코퍼스에서 도달 가능한지**부터 확인해라(demo 전용이라
-   `mode == live` 분기 미도달 가능성). 급하지 않다.
-5. **[BL-582]** 반증된 2종은 전략 등록이 선행돼야 한다. ★`degraded_input` 은 **영구 제외**.
-6. **[BL-581]** `/metrics` **11449 파일 · 708MB**. Trigger 20000 미달이라 착수하지 않는다.
+1. **세션을 먼저 올려라 — 코드를 읽기 전에.** 시계가 도는 동안 나머지를 한다. 이 회차의
+   실패 모드는 「분석하다가 또 안 돌리는 것」이다.
+2. **재가동 직후 30분 안에 H8 수리를 확인해라** — `qb_live_signal_dispatch_total{action="close",
+outcome="close_position_flat"}`(현재 **14**)의 **창 차분**을 보고, 그 tick 에 실주문이
+   나가지 않았는지 `trading.orders` 로 대조한다. ★절대값 말고 차분이다.
+3. **소크 창을 최소 48시간 잡아라** — [BL-578] 잔여 거절이 **1건/2일**이라 그보다 짧으면
+   구조적으로 못 잰다(직전 회차들이 「4일에 1회」를 창 길이로 못 이긴 전례가 있다).
+4. **매일 한 번 원장 대조**(주문 수 · `live_signal_events` 상태 분포 · reconcile_errors stage별
+   창 차분). 이상이 없으면 **아무것도 고치지 마라** — 시계를 세우는 게 더 비싸다.
+5. **1주 무사고면 [BL-003] Trigger 가 열린다.** 그때 mainnet runbook 을 착수 후보로 올린다.
 
-### ★착수 전 반드시 읽을 것 (직전 회차가 실제로 밟은 것)
+### ★착수 전 반드시 읽을 것
 
-1. ★★★**산문 근거의 타율이 0 이다.** 이번에 반증된 두 문장은 각각 **10곳**·**7곳**을 가드에서
-   빼는 근거였다. 직전 회차 4곳까지 합쳐 **21곳 중 21곳**이 주입에서 유해했다.
-2. ★★★**백로그가 이름을 댄 범위가 문제의 범위가 아니었다.** 「closed_pnl 7곳」은 같은 파일·같은
-   metric **15곳 중 7곳**이었고, **이름 없던 8곳 중 6곳이 더 나빴다**(계정 루프 전체 중단 · 원장 유실).
-   나머지 2곳은 도달 불가로 **판정 보류**다 — 아래 7번 참조.
-   **census 정본을 먼저 읽고 백로그 문장은 대조 대상으로 삼아라.**
-3. ★★★**반쪽 수리는 사이트 주입을 전부 통과한다** — `.labels()` 만 감싸고 `.inc()` 를 밖에 두면
-   **주입 29건이 전부 green** 이다(변이 M5 실측). 가드 폭은 `tests/common/test_metrics_multiproc.py`
-   의 `_count_safely` 전용 테스트 2건이 지킨다. **그 테스트를 지우지 마라.**
-4. ★★**불변식을 지키는 테스트가 있다는 게 그 불변식이 지켜진다는 뜻이 아니다** —
-   `test_sweep_isolates_one_account_failure` 는 계정 격리용인데 **provider 예외만 주입해서**
-   격리를 실제로 깨는 경로(`except` 첫 줄의 raw 계측)를 못 잡았다.
-5. ★★**세 회차 연속으로 사전등록 변이 하나에 판별력이 0 이었다**(세 번 다 실행 전에 잡았다).
-   **변이를 적을 때 「무엇을 끄는가 / 어느 테스트가 살아남는가」를 함께 적어라.**
-6. ★★**codex 가 「내 변이가 판별력 없다」를 두 건 맞혔다** — `_PROTECTED_SITES` 검사는
-   `(파일, 함수, metric)` 삼중항이라 **과선택**하고, 기존 격리 테스트는 계측을 주입하지 않는다.
-7. ★★★**「테스트가 red 다」와 「프로덕션이 그 분기에 도달한다」는 다른 명제다.** 직전 회차의
-   sweep 6곳 중 2곳(`:1879`/`:1884`)은 **프로덕션에서 구조적으로 도달 불가**인데 내 하네스가
-   fake repo·팩토리 교체로 분기를 만들어 「실측 유해」로 적을 뻔했다(codex G6 가 잡았다).
-   [BL-582] 함정의 **거울상**이다. ⇒ **주입 대상 분기마다 「프로덕션이 여기 도달하는 경로가
-   무엇인가」를 한 줄로 적어라. 못 적으면 「판정 보류」다.**
-8. ★**「전건 red」는 좋은 신호가 아니라 확인 대상이다** — 실패 지점이 전부 주입 stub 의 `raise`
-   줄인지 먼저 봐라(드라이버가 잘못돼 red 인 것과 구별되지 않는다).
-9. ★★**표적 변이를 전체 pytest 와 동시에 돌리지 마라**(테스트 DB 1벌 + `drop_all`).
-10. ★★**게이트를 파이프에 넣지 마라 · 부분 경로로 재지 마라**(`ruff check src/` 만 돌리면 놓친다).
+1. ★★★**데스크 회차가 반증하는 것은 「내가 적은 산문」이고, 소크가 반증하는 것은 「코드가
+   실제로 하는 일」이다.** 최근 5회차는 전자만 했다. 계측 부채는 무한(96곳)하고 오프라인에서
+   검증 가능하지만 소크는 느리고 위험하다 — 그래서 **이 루프는 자기 지속된다.** 의식적으로 끊어라.
+2. ★★**`roadmap.md` 가 2026-07-26 에 스스로 세운 규칙** — 「이후 스프린트는 **전부 실주행
+   dogfood 를 포함**한다」. 최근 5회차가 이 규칙을 지키지 않았다.
+3. ★★**소크 전후로 거래소를 flat 으로 맞춰라**(직전 소크 회차 교훈).
+4. ★**`idle` 은 완료가 아니다** · **Clerk JWT 는 60초** · **`:3000` 은 다른 앱(Kairos)** 이다.
+5. ★★**게이트를 파이프에 넣지 마라** · **`cd backend && set -a; . ./.env.local` 금지**(아래 참조).
 
-### baseline (2026-08-03 실측 — **커밋 후 재측정값**)
+### baseline (2026-08-03 실측 — PR #532 커밋 후)
 
-**BE 3885 passed / 46 skipped**(282s) · **BE 좁은 집합 `tests/trading tests/tasks` 1570 / 12** ·
-**FE 1242**(205 파일 — FE diff 0 이라 착수 시점 값 그대로) · ruff clean · mypy **214** clean ·
-마이그레이션 head **`20260801_0001`** ·
-가드 밖 mutation **104**(규칙 R1 — 정본은 `backend/tests/common/test_metric_guard_census.py`) ·
-`/metrics` **11449 파일 · 708MB**(BL-581 Trigger 20000 미달).
+**BE 3893 passed / 46 skipped** · **FE 1242**(205 파일) · ruff clean · mypy **214** clean ·
+마이그레이션 head **`20260801_0001`** · 가드 밖 mutation **96** ·
+`/metrics` **12459 파일 · 771MB**(BL-581 Trigger 20000 미달) ·
+**`qb_metrics_mutation_failed_total` = 0**(BL-580 Trigger 미발화) ·
+`qb_live_signal_dispatch_total{close,close_position_flat}` = **14**(H8 분기 실발화 누계).
 ★**이 숫자도 대조 대상이다. 첫 step 에서 지금 HEAD 로 다시 재라.**
-★**BE 증가분 29 는 신규 테스트다** — 사이트 25 + 호출자 오라클 2 + 가드 폭 2. 주입 정본 5파일: `tests/trading/test_order_rejected_metric.py` ·
-`tests/tasks/test_closed_pnl_refresh_metric_failure.py` ·
-`tests/tasks/test_closed_pnl_sweep_metric_failure.py` · `tests/tasks/test_refresh_closed_pnl.py` ·
-`tests/tasks/test_live_signal_metric_failure.py`.
 
-> ★★**표적 변이는 CONTROL 이 직접 집행한다.** `git checkout` 금지, 문자열 치환 + sha256 복원 대조.
-> ★**브랜치 접두사는 `stage/`** (pre-push 훅 화이트리스트). `QB_PRE_PUSH_BYPASS=1` 은 **쓰지 마라**.
-> ★**`cd backend` 는 다음 명령까지 이어진다** — 레포 루트 스크립트는 절대경로로.
+> ★★**`cd backend && set -a; . ./.env.local; set +a` 를 쓰지 마라.** 이미 `backend` 에 있으면
+> `cd` 가 실패해 **`set -a` 만 건너뛰고** 나머지는 `;` 로 계속 실행된다 — env 가 export 되지
+> 않은 채 pytest 가 5432 로 붙어 `InvalidPasswordError` **대량 거짓 red**.
+> **`QB=…; set -a; . $QB/backend/.env.local; set +a; cd $QB/backend`** 로 써라.
+> ★**브랜치 접두사는 `stage/`** · `QB_PRE_PUSH_BYPASS=1` 금지.
 > ★**pre-commit 이 `ruff format`·`prettier --write` 를 돌린다** — **커밋 후 게이트를 다시 재라**.
+> ★**표적 변이는 CONTROL 이 직접 집행**(`git checkout` 금지, sha256 복원 대조). 치환 문자열이
+> 다른 함수와 겹치는지 **먼저 세라**.
+
+### 보류 — [BL-580] 잔여 96곳 (P2, 재개 조건 명시)
+
+방법은 검증됐다(주입 판정 **42/42 전건 유해**). 다만 **Trigger 가 실측 0** 이라 P0 보다 뒤다.
+재개하면 다음 단위는 **`_reconcile_conditional_entries` 12곳** — 그 함수의 바깥 `except` 가
+fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `None` 반환)이라 **H8 조건이
+함수 전체 규모로** 있다. 그 외 잔여: `_evaluate_session_inner` 21 ·
+`_async_sweep_conditional_entries` 4 · `_async_dispatch_event` **4(판정 보류 — 손대지 마라)** ·
+`_async_evaluate_all` 2 · `_async_evaluate_session` 2 · `_async_dispatch_pending` 1.
+★**판정 라벨은 누적 8종** — H1~H7 + **H8**(fail-open `except` 가 삼켜 거절이 집행으로 뒤집힌다).
+★**도달 경로를 못 적으면 「판정 보류」다 — 하네스를 만들지 마라.**
 
 ## 완료 이력
 
-- 직전 회차 — [`metric-guard-residual-close`](dev-log/2026-08-03-metric-guard-residual-close.md)
+- 직전 회차 — [`metric-guard-residual-sweep`](dev-log/2026-08-03-metric-guard-residual-sweep.md)
+  (발주 outbox **12곳** 판정 — **수리함 8 · 판정 보류 4**, census 104→96.
+  ★★★**같은 함수·같은 metric·전부 「commit 뒤」인데 한 자리만 fail-open `try` 안**이라 계측
+  실패가 **거절을 집행으로 뒤집었다** — 거래소가 flat 이라 거부한 청산에 실주문이 나갔다(신규
+  라벨 **H8**). ★변이 M4 가 코드가 아니라 **오라클 구멍**을 드러냄(1578건 판별력 0) → 5종으로
+  확장. **BL-584 현재 코퍼스 도달 불가 확정**)
+- 그 앞 — [`metric-guard-residual-close`](dev-log/2026-08-03-metric-guard-residual-close.md)
   (BL-580 잔여 **25곳** 판정 — **수리함 23 · 판정 보류 2**, census 129→104.
   ★**산문 2줄이 25곳을 잘못 뺐다** — 「blast radius 0」은 10/10 이 도메인 예외 대신 OSError 를
   탈출시켰고, 「already_synced 수렴」은 7곳 중 1곳만 성립. ★**반쪽 수리는 사이트 주입 29건을
