@@ -76,7 +76,9 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     # ★`tasks/trading.py` · `trading/router.py` 의 `qb_active_orders` 는 2026-08-03
     #   metric-guard-residual 이 전건 감쌌다. Counter 는 0 인 키를 만들지 않으므로 항목
     #   자체를 지운다 — `: 0` 으로 남기면 `actual == _FROZEN_CENSUS` 가 영구 red 다.
-    ("backend/src/tasks/trading.py", "qb_closed_pnl_backfill_total"): 15,
+    #   ★2026-08-03 metric-guard-residual-close 가 같은 이유로 두 항목을 더 지웠다:
+    #   `tasks/trading.py`+`qb_closed_pnl_backfill_total`(15) ·
+    #   `services/order_service.py`+`qb_order_rejected_total`(10).
     ("backend/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_link_unverified_total"): 1,
     ("backend/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
@@ -88,7 +90,6 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/trading/providers.py", "qb_closed_pnl_backfill_total"): 1,
     ("backend/src/trading/realtime_publisher.py", "qb_rt_publish_failed_total"): 1,
     ("backend/src/trading/realtime_publisher.py", "qb_rt_publish_invalid_total"): 1,
-    ("backend/src/trading/services/order_service.py", "qb_order_rejected_total"): 10,
     ("backend/src/trading/webhook.py", "qb_order_rejected_total"): 1,
     ("backend/src/trading/webhook.py", "qb_webhook_symbol_rejected_total"): 1,
     ("backend/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconcile_skipped_total"): 1,
@@ -276,7 +277,7 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
     ]
     lines = [
         "Metric guard census diverged from the frozen R1 baseline.",
-        "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129",
+        "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129 − 2026-08-03 수리 25 = 104",
         "새 site (file, lineno, metric, verb, 함수명):",
     ]
     lines.extend(
@@ -364,8 +365,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 43
-    assert sum(_FROZEN_CENSUS.values()) == 129
+    assert len(_FROZEN_CENSUS) == 41
+    assert sum(_FROZEN_CENSUS.values()) == 104
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
@@ -539,6 +540,45 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "_evaluate_session_inner",
         "qb_live_signal_evaluated_total",
         "위와 같은 블록 — 둘 다 감싸야 고지에 도달한다",
+    ),
+    # ★2026-08-03 metric-guard-residual-close — 고장 주입 25곳(전건 「수리함」).
+    #   BL-580 이 산문으로 뺐던 두 근거가 **둘 다 반증**됐다:
+    #   ① 「order_service.py 10곳은 blast radius 0」 → 10/10 이 도메인 예외 대신 OSError 를
+    #      탈출시킨다(4xx → 500, 그중 6종은 호출자 타입 분기까지 건너뛴다).
+    #   ② 「closed_pnl 은 already_synced 로 수렴」 → 수렴 논거가 닿는 자리는 7곳 중 1곳뿐.
+    #   정본: `tests/trading/test_order_rejected_metric.py` ·
+    #   `tests/tasks/test_closed_pnl_refresh_metric_failure.py` ·
+    #   `tests/tasks/test_closed_pnl_sweep_metric_failure.py` ·
+    #   `tests/tasks/test_refresh_closed_pnl.py`.
+    (
+        "backend/src/trading/services/order_service.py",
+        "_execute_inner",
+        "qb_order_rejected_total",
+        "★거절 8곳 — 도메인 예외가 삼켜지면 4xx 가 500 이 되고 호출자 기록 분기가 빠진다 (H5·H4)",
+    ),
+    (
+        "backend/src/trading/services/order_service.py",
+        "_validate_position_size",
+        "qb_order_rejected_total",
+        "risk 사이징 거절 — 구체 타입 catch 는 없지만 4xx 가 500 이 된다 (H5)",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "_refresh_closed_pnl_with_session",
+        "qb_closed_pnl_backfill_total",
+        "★종결 skip 5곳 + applied/already_synced — 정상 종결이 재시도로 오분류된다 (H6·H1)",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "refresh_closed_pnl_task",
+        "qb_closed_pnl_backfill_total",
+        "★포기 알림 바로 앞 — 던지면 알림이 1건 더가 아니라 0건이 된다 (H2)",
+    ),
+    (
+        "backend/src/tasks/trading.py",
+        "_sweep_closed_pnl_with_session",
+        "qb_closed_pnl_backfill_total",
+        "★계정 격리 handler 의 첫 줄 + 신규 청산 알림 앞 + 원장 적재 앞 (H4·H2·H7)",
     ),
 )
 

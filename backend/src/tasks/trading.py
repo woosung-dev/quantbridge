@@ -504,9 +504,9 @@ async def _execute_with_session(
                         await redis.delete(position_snapshot_cache_key(live_session.id))
                     account_ids = [account.id]
                     if account.exchange_uid is not None:
-                        for sibling in await ExchangeAccountRepository(session).list_by_exchange_uid(
-                            account.exchange_uid
-                        ):
+                        for sibling in await ExchangeAccountRepository(
+                            session
+                        ).list_by_exchange_uid(account.exchange_uid):
                             if sibling.id != account.id:
                                 account_ids.append(sibling.id)
                     for account_id in account_ids:
@@ -845,9 +845,9 @@ async def _fetch_order_status_with_session(
                     try:
                         account_ids = [account.id]
                         if account.exchange_uid is not None:
-                            for sibling in await ExchangeAccountRepository(session).list_by_exchange_uid(
-                                account.exchange_uid
-                            ):
+                            for sibling in await ExchangeAccountRepository(
+                                session
+                            ).list_by_exchange_uid(account.exchange_uid):
                                 if sibling.id != account.id:
                                     account_ids.append(sibling.id)
                         redis = get_redis_lock_pool()
@@ -1455,6 +1455,11 @@ async def _refresh_closed_pnl_with_session(
     provider: Any = None,
 ) -> dict[str, Any]:
     """단일 reduce-only 체결 주문의 Bybit 확정 손익을 조건부로 교체한다."""
+    # ★BL-580 (2026-08-03) — 아래 7곳의 계측이 던지면 **정상 종결이 task 실패로 승격**돼
+    #   `refresh_closed_pnl_task`(max_retries=4) 가 재시도한다. BL 표의 「already_synced
+    #   수렴」 논거는 `backfill_exchange_realized_pnl` 을 호출하는 자리에만 적용되는데,
+    #   그 함수를 아예 안 부르는 skip 경로가 5곳이고 `already_synced` 자신은 고정점 실패다.
+    #   고장 주입: `tests/tasks/test_closed_pnl_refresh_metric_failure.py`.
     async with sm() as session:
         repo = OrderRepository(session)
         order = await repo.get_by_id(order_id)
@@ -1467,14 +1472,14 @@ async def _refresh_closed_pnl_with_session(
         # 아래 세 갈래는 "정상 no-op"(경합/미지원)이 아니라 데이터 이상이다 — 조용히
         # 반환하면 해당 체결 청산이 추정 손익으로 남는데 운영이 알 방법이 없다.
         if order.exchange_order_id is None:
-            qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
+            _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_incomplete")
             return {"skipped": "no_exchange_order_id", "order_id": str(order_id)}
         account = await session.get(ExchangeAccount, order.exchange_account_id)
         if account is None:
-            qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
+            _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_incomplete")
             return {"skipped": "account_missing", "order_id": str(order_id)}
         if account.exchange != ExchangeName.bybit or order.leverage is None:
-            qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
+            _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_unsupported")
             return {"skipped": "unsupported_exchange", "order_id": str(order_id)}
         try:
             crypto = EncryptionService(settings.trading_encryption_keys)
@@ -1495,14 +1500,14 @@ async def _refresh_closed_pnl_with_session(
                 extra={"order_id": str(order_id), "error": str(exc)},
             )
             # 키 회전 실패 등 — 계정 전체가 영향받으므로 metric 으로 반드시 표면화한다.
-            qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
+            _count_safely(qb_closed_pnl_backfill_total, outcome="failed_provider")
             return {"skipped": "decrypt_failed", "order_id": str(order_id)}
         symbol = order.symbol
         exchange_order_id = order.exchange_order_id
         filled_at = order.filled_at
 
     if filled_at is None:
-        qb_closed_pnl_backfill_total.labels(outcome="skipped_incomplete").inc()
+        _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_incomplete")
         return {"skipped": "no_filled_at", "order_id": str(order_id)}
     if provider is None:
         from src.trading.providers import BybitFuturesProvider
@@ -1525,9 +1530,10 @@ async def _refresh_closed_pnl_with_session(
         )
         if rows == 1:
             await session.commit()
-            qb_closed_pnl_backfill_total.labels(outcome="applied").inc()
+            # ★BL-580 — commit 뒤다. 던지면 **확정된 손익 교체가 실패로 보고**된다.
+            _count_safely(qb_closed_pnl_backfill_total, outcome="applied")
             return {"applied": True, "order_id": str(order_id)}
-    qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
+    _count_safely(qb_closed_pnl_backfill_total, outcome="already_synced")
     return {"skipped": "already_synced", "order_id": str(order_id)}
 
 
@@ -1741,7 +1747,9 @@ def refresh_closed_pnl_task(self: Any, order_id: str) -> dict[str, Any]:
     except Exception as exc:
         if self.request.retries >= _CLOSED_PNL_MAX_RETRIES:
             logger.exception("closed_pnl_backfill_provider_giveup", extra={"order_id": order_id})
-            qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
+            # ★BL-580 — 바로 다음 줄이 포기 알림이다. 여기서 던지면 알림이 1건 더 나가는
+            #   게 아니라 **아예 안 나가고** task 가 죽는다 (BL 표의 「거짓 알림 1건」 반증).
+            _count_safely(qb_closed_pnl_backfill_total, outcome="failed_provider")
             run_in_worker_loop(_alert_closed_pnl_unbackfilled(UUID(order_id), "provider_error"))
             return {"failed": "provider_error", "order_id": order_id}
         raise self.retry(
@@ -1753,7 +1761,7 @@ def refresh_closed_pnl_task(self: Any, order_id: str) -> dict[str, Any]:
         if self.request.retries < _CLOSED_PNL_MAX_RETRIES:
             raise self.retry(countdown=_CLOSED_PNL_RETRY_BASE_SECONDS * (2**self.request.retries))
         logger.warning("closed_pnl_backfill_never_found", extra={"order_id": order_id})
-        qb_closed_pnl_backfill_total.labels(outcome="never_found").inc()
+        _count_safely(qb_closed_pnl_backfill_total, outcome="never_found")
         run_in_worker_loop(
             _alert_closed_pnl_unbackfilled(UUID(order_id), "closed_pnl_not_yet_available")
         )
@@ -1876,12 +1884,12 @@ async def _sweep_closed_pnl_with_session(
         summary["accounts"] += 1
         try:
             if account.exchange != ExchangeName.bybit:
-                qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
+                _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_unsupported")
                 continue
             try:
                 account_provider = provider or BybitFuturesProvider()
             except UnsupportedExchangeError:
-                qb_closed_pnl_backfill_total.labels(outcome="skipped_unsupported").inc()
+                _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_unsupported")
                 continue
             crypto = EncryptionService(settings.trading_encryption_keys)
             passphrase = (
@@ -1964,7 +1972,9 @@ async def _sweep_closed_pnl_with_session(
                 if exchange_created_at is None or snapshot.symbol is None or snapshot.side is None:
                     # 원장 필수 필드를 못 만든 행은 적재할 수 없다. 로그만 남기면
                     # 이 소실이 관측되지 않으므로 malformed_row 로 표면화한다.
-                    qb_closed_pnl_backfill_total.labels(outcome="malformed_row").inc()
+                    # ★BL-580 — `upsert_rows` + `commit` **앞**이다. 던지면 rollback 이
+                    #   아니라 **아직 안 일어난 적재 전체가 중단**된다 (그 계정의 원장 유실).
+                    _count_safely(qb_closed_pnl_backfill_total, outcome="malformed_row")
                     logger.warning(
                         "closed_pnl_ledger_row_skipped",
                         extra={"account_id": str(account.id), "order_id": snapshot.order_id},
@@ -2135,13 +2145,17 @@ async def _sweep_closed_pnl_with_session(
             summary["backfilled"] += applied
             summary["resynced"] += resynced
             for _ in range(applied + resynced):
-                qb_closed_pnl_backfill_total.labels(outcome="applied").inc()
+                _count_safely(qb_closed_pnl_backfill_total, outcome="applied")
             for _ in range(already_synced):
-                qb_closed_pnl_backfill_total.labels(outcome="already_synced").inc()
+                _count_safely(qb_closed_pnl_backfill_total, outcome="already_synced")
             if await _alert_new_exchange_exits(sm, account.id, new_hashes):
                 summary["alerted"] += 1
         except Exception:
-            qb_closed_pnl_backfill_total.labels(outcome="failed_provider").inc()
+            # ★★BL-580 — 계정 격리를 지키는 handler 의 **첫 줄**이다. 이 줄이 raw 면
+            #   계측 지속 실패 시 handler 자신이 다시 던져 **루프 전체가 중단**되고
+            #   이후 계정이 전부 미처리로 남는다. 기존 격리 테스트는 provider 예외만
+            #   주입해 이 결함을 못 잡았다 (`test_closed_pnl_sweep_metric_failure.py`).
+            _count_safely(qb_closed_pnl_backfill_total, outcome="failed_provider")
             logger.exception(
                 "closed_pnl_sweep_account_failed", extra={"account_id": str(account.id)}
             )

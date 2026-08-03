@@ -129,3 +129,66 @@ async def test_unbackfilled_alert_goes_to_both_channels(monkeypatch) -> None:
     assert len(sent) == 1
     assert sent[0]["channel"] is AlertChannel.both
     assert sent[0]["context"]["reason"] == "provider_error"
+
+
+# ── BL-580 (2026-08-03 metric-guard-residual-close) — B8 · B9 고장 주입 ──────
+#
+# ★**백로그의 「귀결은 거짓 알림 1건」이 뒤집히는 자리다.** :1744 는 :1745
+# `_alert_closed_pnl_unbackfilled` **바로 앞**이고 :1756 은 :1757 앞이다. 계측이 던지면
+# 알림이 1건 더 나가는 게 아니라 **아예 안 나가고** task 가 unhandled 예외로 죽는다
+# (사전등록 **H2** + **H6**). 추정 손익으로 리스크 게이트가 돈다는 사실을 운영이 알 방법이
+# 사라진다.
+
+
+def _explode_labels(calls):
+    def _labels(*_args, **_kwargs):
+        calls.append("labels")
+        raise OSError("mmap allocation failed")
+
+    return _labels
+
+
+def test_provider_giveup_still_alerts_when_metric_fails(monkeypatch) -> None:
+    """B8 (`trading.py:1744`) — 재시도 소진 뒤 포기 알림이 계측 실패로 사라지면 안 된다."""
+    from src.common.metrics import qb_closed_pnl_backfill_total
+    from src.tasks import trading as trading_mod
+
+    alert = Mock(return_value=None)
+    monkeypatch.setattr(trading_mod, "_alert_closed_pnl_unbackfilled", alert)
+    calls: list[str] = []
+    monkeypatch.setattr(qb_closed_pnl_backfill_total, "labels", _explode_labels(calls))
+
+    result, retry, raised = _drive_task(
+        monkeypatch,
+        retries=trading_mod._CLOSED_PNL_MAX_RETRIES,
+        behaviors=[RuntimeError("offline"), None],
+    )
+
+    assert calls == ["labels"], "프로덕션 계측 라인이 실제로 실행돼야 한다 (주입 판별력)"
+    assert raised is None
+    assert result["failed"] == "provider_error"
+    retry.assert_not_called()
+    alert.assert_called_once()
+
+
+def test_never_found_still_alerts_when_metric_fails(monkeypatch) -> None:
+    """B9 (`trading.py:1756`) — 정산 행을 끝내 못 찾은 경우의 알림도 마찬가지다."""
+    from src.common.metrics import qb_closed_pnl_backfill_total
+    from src.tasks import trading as trading_mod
+
+    alert = Mock(return_value=None)
+    monkeypatch.setattr(trading_mod, "_alert_closed_pnl_unbackfilled", alert)
+    calls: list[str] = []
+    monkeypatch.setattr(qb_closed_pnl_backfill_total, "labels", _explode_labels(calls))
+
+    result, retry, raised = _drive_task(
+        monkeypatch,
+        retries=trading_mod._CLOSED_PNL_MAX_RETRIES,
+        behaviors=[{"transient": "closed_pnl_not_yet_available"}, None],
+    )
+
+    assert calls == ["labels"], "프로덕션 계측 라인이 실제로 실행돼야 한다 (주입 판별력)"
+    assert raised is None
+    assert result["failed"] == "closed_pnl_not_yet_available"
+    retry.assert_not_called()
+    alert.assert_called_once()

@@ -796,10 +796,11 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-576](#bl-576)    | ✅ Resolved — ★`live_conditional_reconcile_divergence` 한 이름이 발화 8곳 · payload 3종을 덮는다 (`110017` 라벨 충돌과 같은 형태)                                                                                                   | 그 이름으로 세거나 알림·게이트로 쓰기 전                                                                        | S            | 2026-08-01 soak                                        |
 | [BL-577](#bl-577)    | ✅ Resolved — ★전제 반증: 가드는 **실재했다**(내용 grep 이 파일명만 있는 문자열을 못 잡았다). 진짜 구멍은 JSX 안 원시 대문자 리터럴 하나뿐 → 기존 가드에 두 번째 검출기 추가                                                        | 원시 enum 렌더가 막혔다고 믿고 라벨 코드를 손댈 때                                                              | S            | 2026-08-01 silent-surface-honesty                      |
 | [BL-579](#bl-579)    | ✅ Resolved — 머니-패스 계측 **18곳 가드** + 결함 재현 확정(계측 실패가 **주문을 하나 더 냈다**). 잔여는 [BL-580](#bl-580)                                                                                                          | —                                                                                                               | M            | 2026-08-02 canonical-measurement-surface               |
-| [BL-580](#bl-580)    | 계측 가드 잔여 **129곳** (2026-08-03 에 12곳 수리 · 「뺀 이유」 4곳은 고장 주입으로 전건 반증). 근거는 산문이 아니라 테스트                                                                                                         | `qb_metrics_mutation_failed_total` 창 차분이 0 을 벗어날 때 (★프록시다 — 가드 밖은 이 counter 를 올리지 않는다) | M            | 2026-08-02 metric-guard-parity                         |
+| [BL-580](#bl-580)    | 계측 가드 잔여 **104곳** (누적 55곳 수리). ★산문 근거 21곳이 주입에서 **21곳 전건 유해** — 「가드 없이 유지」 누적 0곳                                                                                                         | `qb_metrics_mutation_failed_total` 창 차분이 0 을 벗어날 때 (★프록시다 — 가드 밖은 이 counter 를 올리지 않는다) | M            | 2026-08-02 metric-guard-parity                         |
 | [BL-581](#bl-581)    | `/metrics` 영구 누적 **10277 파일 · 635MB · PID 1968** (counter 삭제 금지)                                                                                                                                                          | 20000 파일 초과 · 스크레이프 지연 · 여유 20G 미만                                                               | M            | 2026-08-02 metric-guard-parity                         |
 | [BL-582](#bl-582)    | divergence counter 13 series 중 **5종** 도달 불가 (2026-08-03 재판정 — 7종에서 축소. 2종은 엔진 구동으로 **반증**), 프로덕션 확인 3/8                                                                                               | 반증된 2종이 프로덕션에서 발화하거나 `other` def-use 오라클이 red 일 때                                         | S            | 2026-08-02 metric-guard-parity                         |
 | [BL-583](#bl-583)    | ✅ Resolved — ★스위트 결과가 **수집 집합**에 달려 있었다(순서 랜덤이 아니다 — `pytest-randomly` 미설치). 뿌리 = 정의 모듈 패치 창에서 소비 모듈 첫 적재 시 가짜가 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개 처분 + 상시 가드 | 게이트가 이유 없이 red 이거나 같은 커밋이 두 번 다른 결과를 낼 때                                               | M            | 2026-08-03 metric-guard-residual                       |
+| [BL-584](#bl-584)    | `BalanceUnverified` 가 라이브 dispatch 의 결정론적-거절 튜플 양쪽에 없다 — 소진 시 실제 사유가 `max_retries_exhausted` 로 덮인다. ★수리 전에 **현재 코퍼스에서 도달 가능한지**(demo 전용이라 `mode == live` 분기 미도달)부터 확인 | `outcome="max_retries_exhausted"` 창 차분이 0 을 벗어나거나 `BalanceUnverified` 가 라이브에서 관측될 때        | S            | 2026-08-03 metric-guard-residual-close                 |
 | [BL-578](#bl-578)    | 조건부 진입 `110092`/`110093` 거절 시 거래소가 준 정답(`current[...]`)을 버린다 — BL-536 재판정에서 유일하게 살아남은 채널의 잔여 (측정 완료 · 수리 보류)                                                                           | C1 거절이 하루 3건 이상으로 다시 오르거나 실자금 cutover 로 1건 비용이 달라질 때                                | S            | 2026-08-01 entry-completeness-rejudgement              |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
@@ -5702,13 +5703,13 @@ census 래칫 **159 → 141** · 변이 M1 이 **5개 검사 동시 red** · 음
 
 **우선순위:** P2
 **카테고리:** Backend / 관측 (계측 가드 잔여)
-**Trigger:** ★`qb_metrics_mutation_failed_total` 의 **창 차분이 0 을 벗어나는 순간** 즉시 승격. 절대값 아님 — `CounterBasis.delta` 로만 읽는다. 또는 아래 명시 4곳의 감싸는 `except` 가 실패를 계상하도록 바뀔 때
+**Trigger:** ★`qb_metrics_mutation_failed_total` 의 **창 차분이 0 을 벗어나는 순간** 즉시 승격. 절대값 아님 — `CounterBasis.delta` 로만 읽는다. 또는 잔여 104곳 중 어느 자리가 머니-패스·알림·내구 쓰기 경계에 새로 닿게 될 때
 **Est:** M
-**상태:** 🟢 **열려 있다 — 129곳.** 2026-08-03 metric-guard-residual 이 **12곳 수리**(141→129)하고
-**근거를 산문 → 고장 주입 테스트로 교체**했다. 2026-08-02 metric-guard-parity 에서 [BL-579](#bl-579) 분리.
+**상태:** 🟢 **열려 있다 — 104곳.** 2026-08-03 metric-guard-residual-close 가 **25곳 수리**(129→104).
+그 앞 회차가 12곳(141→129). 2026-08-02 metric-guard-parity 에서 [BL-579](#bl-579) 분리.
 **출처:** 2026-08-02 metric-guard-parity (18곳 수리 후 잔여)
 
-가드 밖 mutation **129곳**(규칙 R1, `test_metric_guard_census.py` 가 정본이고 천장으로 고정).
+가드 밖 mutation **104곳**(규칙 R1, `test_metric_guard_census.py` 가 정본이고 천장으로 고정).
 
 ### ★2026-08-03 — 「뺀 이유」 4곳이 **전건 반증**됐다
 
@@ -5724,16 +5725,59 @@ census 래칫 **159 → 141** · 변이 M1 이 **5개 검사 동시 red** · 음
 감싸면 **재귀**한다. 이미 자체 `try/except` 안이고 DB write·후속 훅·HTTP 표면이 없다.
 
 ★**Trigger 의 한계** — `qb_metrics_mutation_failed_total` 은 `record_metric_safely` **안에서만**
-오른다(`metrics_multiproc.py` 유일 증가 지점). 가드 **밖** 129곳이 던지면 이 counter 는 오르지
+오른다(`metrics_multiproc.py` 유일 증가 지점). 가드 **밖** 104곳이 던지면 이 counter 는 오르지
 않고 호출자가 죽는다. 즉 이 Trigger 는 **직접 관측이 아니라 프록시**다 — 「같은 환경이면 가드된
 자리도 함께 실패한다」를 전제로만 성립한다.
 
-**남은 것과 이유 (아직 코드 독해다 — 다음 회차의 조사 대상)**
+### ★2026-08-03 — 위 표의 **산문 2줄이 25곳을 잘못 뺐다** (metric-guard-residual-close)
 
-| 대상                        | 이유                                                                                                                                                                  |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `order_service.py` 10곳     | 발주 **전** 검증 거절 직후 `raise`. blast radius 0                                                                                                                    |
-| `trading.py` closed_pnl 7곳 | `backfill_exchange_realized_pnl` 이 `realized_pnl_synced_at IS NULL` 을 갖고 있어 재시도가 **`already_synced` 로 수렴**한다. DB 는 이미 정확하고 귀결은 거짓 알림 1건 |
+종전 이 자리에는 「`order_service.py` 10곳 = 발주 전 검증 거절 직후 `raise`, blast radius 0」과
+「`trading.py` closed_pnl 7곳 = `already_synced` 로 수렴, 귀결은 거짓 알림 1건」이 적혀 있었다.
+**둘 다 고장 주입으로 반증됐다. 판정 25곳 전건 「수리함」, 「가드 없이 유지」 0곳.**
+
+- **`order_service.py` 10/10** — 계측이 던지면 도메인 예외가 **아예 발생하지 않고** `OSError` 가
+  탈출한다. 9종 전부 `AppException`(4xx) 이라 HTTP **500** 이 되고, 그중 6종은 호출자가 예외
+  **타입으로 분기**하므로(`tasks/live_signal.py:3232`/`:3239`/`:3249`/`:2793`) `mark_failed` +
+  `commit` 이 통째로 빠지고 결정론적 거절이 **3회 재시도**된다. ★`idempotency_conflict` 자리는
+  「발주 전」이 아니라 `begin_nested()` + advisory lock **안**이었다.
+- **closed_pnl** — 수렴을 만드는 `realized_pnl_synced_at IS NULL` 조건은
+  `backfill_exchange_realized_pnl` 을 **호출하는 자리에만** 적용된다. 7곳 중 **5곳은 그 함수를
+  한 번도 안 부르는 종결 skip** 이고, `already_synced` 자신은 수렴이 아니라 **고정점 실패**다.
+  논거가 성립하는 것은 `applied` 1곳뿐이고 그 자리도 commit **뒤**다.
+- **★「거짓 알림 1건」은 반대였다** — `:1744`/`:1756` 은 포기 알림 **바로 앞**이라 지속 실패 시
+  알림이 **0건**이 되고 task 가 죽는다.
+- **★백로그가 이름을 대지 않았던 8곳 중 6곳이 더 나빴다** — `(tasks/trading.py, qb_closed_pnl_backfill_total)`
+  census 는 **15곳**이고 「7곳」은 한 함수의 부분집합이었다. 나머지 중 `:2144` 는 **계정 격리를
+  지키는 `except` 의 첫 줄**이라 계측 지속 실패 시 **계정 루프 전체가 중단**된다.
+- ★★**단 `:1879`/`:1884` 2곳은 「판정 보류」다 — 프로덕션에서 구조적으로 도달 불가**
+  (`list_by_exchange(bybit)` 가 SQL 로 걸러 오고, `BybitFuturesProvider` 에는 `__init__` 이 없다).
+  **내 하네스가 계약을 깨서 만든 분기였고 codex G6 가 잡았다.** [BL-582] 함정의 거울상이다 —
+  손조립한 상태는 「도달 불가」로도 「유해」로도 거짓말한다. 래핑은 유지, 인용은 금지.
+  ⇒ 판정 25곳 = **수리함 23 + 판정 보류 2**, 「가드 없이 유지」 0.
+
+정본은 산문이 아니라 테스트다 — `tests/trading/test_order_rejected_metric.py` ·
+`tests/tasks/test_closed_pnl_refresh_metric_failure.py` ·
+`tests/tasks/test_closed_pnl_sweep_metric_failure.py` · `tests/tasks/test_refresh_closed_pnl.py` ·
+`tests/tasks/test_live_signal_metric_failure.py`(호출자 오라클) ·
+`tests/common/test_metrics_multiproc.py`(가드 폭).
+
+★**가드 폭도 별도로 지킨다** — `.labels` 만 감싸고 `.inc()` 를 밖에 두는 **반쪽 수리는 사이트
+주입 29건을 전부 통과한다**(변이 M5 실측). `_count_safely` 전용 단위 테스트 2건이 그것을 막는다.
+
+**남은 104곳 — 파일별 분포 (개별 사유는 아직 없다. 「미판정」이지 「안전」이 아니다)**
+
+| 건수 | 파일 |
+| ---: | --- |
+| 54 | `backend/src/tasks/live_signal.py` |
+| 14 | `backend/src/tasks/trading.py` |
+| 5 | `backend/src/tasks/conditional_entry_janitor.py` |
+| 4 | `backend/src/tasks/_ws_circuit_breaker.py` |
+| 3 | `backend/src/common/redlock.py` · `backend/src/tasks/websocket_task.py` · `backend/src/trading/websocket/state_handler.py` (각 3) |
+| 2 | `common/alert.py` · `common/metrics.py` · `trading/realtime_publisher.py` · `trading/webhook.py` · `trading/websocket/bybit_private_stream.py` (각 2) |
+| 1 | 나머지 8개 파일 (각 1) |
+
+★**누적 판정 34곳 중 「가드 없이 유지」 0곳이다**(직전 회차 9 + 이번 25). 잔여 104곳도
+산문으로 분류하지 말고 **주입으로 시작해라.**
 
 ★**census 규칙이 못 잡는 것** — 별칭(`c = qb_x; c.inc()`) · `getattr` 동적 접근 · 모듈 alias ·
 **eager `.labels()`**(`record_metric_safely(qb_x.labels(a="b").inc)` 는 `.labels()` 가 헬퍼 호출
@@ -5888,5 +5932,33 @@ teardown 은 정의 모듈만 되돌리므로 — 그 복사본이 세션 끝까
 미적재」를 **프로브로 단언한 뒤에만** 결과를 채택해라.
 
 **Risk:** 🟢 (닫힘)
+
+---
+
+### BL-584
+
+**우선순위:** P3
+**카테고리:** Backend / 관측 (라이브 발주 실패 사유 유실)
+**Trigger:** `qb_live_signal_dispatch_total{outcome="max_retries_exhausted"}` 의 창 차분이 0 을 벗어날 때, 또는 `BalanceUnverified` 가 라이브에서 실제 관측될 때
+**Est:** S
+**상태:** 🟢 **열려 있다 — 등재만.** 2026-08-03 metric-guard-residual-close 가 codex G1 지적을 코드 대조하다 발견. 이 회차에서는 고치지 않았다(계측과 무관한 선재 거동).
+**출처:** 2026-08-03 metric-guard-residual-close (BL-580 A6/A7 판정 중)
+
+`BalanceUnverified`(fail-closed 잔고 미검증 거절, 422)가 `tasks/live_signal.py` 의 **결정론적-거절
+튜플 양쪽에 없다** — `_async_dispatch_event` 의 `except (NotionalExceeded, LeverageCapExceeded,
+MinNotionalNotMet, TradingSessionClosed)` 에도, `dispatch_live_signal_event_task` 의 무재시도
+튜플에도 없다. 같은 계열의 다른 거절 5종은 둘 다에 있다.
+
+**귀결.** 이 거절은 `except Exception` 으로 떨어져 **재시도 대상**이 되고, 소진하면
+`mark_failed(error="max_retries_exhausted")` + `outcome="max_retries_exhausted"` 로 기록된다.
+**실제 사유(잔고 미검증)가 기록에서 사라진다.**
+
+★**재시도 자체는 타당할 수 있다** — 잔고·mark price 조회 실패는 일시적일 수 있다. 그래서 P3 이고,
+수리 방향은 「튜플에 넣기」가 아니라 **소진 시 원래 예외 사유를 error 에 보존하기**일 가능성이 높다.
+결정 전에 `BalanceUnverified` 가 라이브에서 실제로 발생하는지부터 봐야 한다 — 현재 플랫폼은
+Bybit **demo** 만 허용하고 이 거절은 `mode == live` 분기에서만 난다(`order_service.py`), 즉
+**현재 코퍼스에서 도달 불가일 수 있다**. 그것부터 확인하는 것이 첫 step 이다.
+
+**Risk:** 🟢
 
 ---
