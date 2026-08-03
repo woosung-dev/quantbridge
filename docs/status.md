@@ -13,6 +13,9 @@
 > **7건 전부**. **★관측기 자체 결함도 하나** — `soak-observe.sh` 가 `deactivated_reason` 으로
 > 생존을 판정해 **25세션 중 12세션을 「살아있음」으로 오독**했다(`deactivated_at` 기준으로 교체).
 >
+> **★PR [#536](https://github.com/woosung-dev/quantbridge/pull/536) OPEN** —
+> `stage/soak-divergence-root` (커밋 3개). **머지 여부와 무관하게 소크는 이미 돌고 있다** —
+> 워커가 `backend/src` 를 bind-mount 하므로 수리는 이미 러닝 코드다.
 > **최근 머지:** `stage/status-next-sprint-entry` → `main` (**PR #535** @ `048e6e1a`, 2026-08-03).
 
 ---
