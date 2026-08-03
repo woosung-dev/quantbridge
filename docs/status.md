@@ -2,7 +2,7 @@
 
 > **업데이트:** 2026-08-03
 > **활성 Sprint:** 없음. 다음 작업은 아래 「다음 스프린트」 블록만 읽는다.
-> **준비 브랜치:** `stage/metric-guard-residual-sweep` — **PR 대기**(BL-580 발주 outbox 8곳 수리).
+> **준비 브랜치:** `stage/metric-guard-residual-sweep` — **PR #532 OPEN**(BL-580 발주 outbox 8곳 수리 · census 104→96).
 > **최근 머지:** `stage/metric-guard-residual-close` → `main` (**PR #530** @ `6b7e1271`, 2026-08-03).
 
 ---
