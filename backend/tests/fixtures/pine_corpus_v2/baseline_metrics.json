@@ -1,12 +1,12 @@
 {
   "schema_version": 2,
   "ohlcv_sha256": "1a99144813f15ebc029f4c2d18cf4e657eb54f1a7317e28820380b80ebec5038",
-  "pine_v2_commit": "00c63018",
+  "pine_v2_commit": "66ea64dc",
   "tool_versions": {
     "pynescript": "0.3.0",
-    "python": "3.13"
+    "python": "3.12"
   },
-  "generated_at": "2026-08-03T11:16:13Z",
+  "generated_at": "2026-08-03T12:20:49Z",
   "corpora": {
     "s1_pbr": {
       "metrics": {
@@ -27,7 +27,7 @@
       "var_series_digest": "sha256:868bb760d0cacb4cf9ce9073c7bf7d140b06b907573e8c0d2526242c75e8e6f7",
       "trades_digest": "sha256:b04e1ddc0632bbde03cc32d83fd982ca649319bf18be7f1cd3319c3ba7a214e8",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T11:15:26Z"
+      "updated_at": "2026-08-03T12:20:08Z"
     },
     "s2_utbot": {
       "metrics": {
@@ -48,7 +48,7 @@
       "var_series_digest": "sha256:e60b37b755aa304734e3d166443be51c9b276661424ecda2e18639e865559387",
       "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T11:15:42Z"
+      "updated_at": "2026-08-03T12:20:20Z"
     },
     "s3_rsid": {
       "metrics": {
@@ -69,7 +69,7 @@
       "var_series_digest": "sha256:2e43209dc6ce7416c1bbd1ce1c9ef56fe029ac52b97663a2072498041cadb9c0",
       "trades_digest": "sha256:9913b3068b312577e812061db8421959b878669480c8583f204aa8d89f234e62",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T11:15:59Z"
+      "updated_at": "2026-08-03T12:20:33Z"
     },
     "i1_utbot": {
       "metrics": {
@@ -90,7 +90,7 @@
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T11:16:03Z"
+      "updated_at": "2026-08-03T12:20:36Z"
     },
     "i2_luxalgo": {
       "metrics": {
@@ -111,7 +111,7 @@
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T11:16:13Z"
+      "updated_at": "2026-08-03T12:20:45Z"
     },
     "i3_drfx": {
       "note": "Skipped \u2014 is_runnable=false per Y1 Coverage Analyzer",
@@ -136,7 +136,7 @@
       "var_series_digest": "sha256:fe75653c6f4b87338ba434a30e480455be5b0eac18d40a482c79b35bb29501bb",
       "trades_digest": "sha256:186b29620a9ee77d590e2205f40cbb01927d612b333aa443c4a43fed1cbbea12",
       "warnings_digest": "sha256:9ba2cdb07efc5e38d0934242497ca965a5c3afd0cbb599d9546e3ab51035b9b1",
-      "updated_at": "2026-08-03T11:25:40Z"
+      "updated_at": "2026-08-03T12:20:48Z"
     },
     "s5_ema_trend": {
       "metrics": {
@@ -157,7 +157,7 @@
       "var_series_digest": "sha256:c7f0b50a8c21928672fbc5f408fdd83fc82ab54fd4cb2832a97c269444fdad71",
       "trades_digest": "sha256:125bbde47aab0aaac6b0be9ca5a40e2e7b6fa175ea130a13a72e9e5ebc8db79b",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T11:25:47Z"
+      "updated_at": "2026-08-03T12:20:49Z"
     }
   }
 }

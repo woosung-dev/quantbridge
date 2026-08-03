@@ -805,6 +805,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-585](#bl-585)    | `baseline_metrics.schema.json` 이 **어디서도 로드되지 않는다**(레포 전체 `jsonschema` import 0건). 증거 — 그 스키마의 python 패턴 `^3\.1[12]$` 는 현재 baseline(3.13)을 reject 한다. 켜거나 지우거나 — 「있지만 안 도는」 상태가 가장 나쁘다                           | baseline 스키마를 또 손댈 때, 또는 regen 산출물이 예상 밖 형태로 나올 때                                          | XS           | 2026-08-03 backtest-metric-oracle                      |
 | [BL-586](#bl-586)    | P-3 골든이 `BacktestMetrics` **51 필드 중 13개**만 고정 — 38개가 회귀 감지 대상 밖(TV parity 팩 · 비용 분해 · per_side · excursion · 청산). `RawTrade` 도 22 중 11 필드만 digest                                                                                       | TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때                                                             | M            | 2026-08-03 backtest-metric-oracle                      |
 | [BL-587](#bl-587)    | baseline envelope(`ohlcv_sha256`·`pine_v2_commit`·`tool_versions`·`schema_version`)을 검증하는 assert 0건 — 쓰기만 하고 안 읽는다. 실측: 런타임이 python 3.12→3.13 으로 드리프트했는데 아무도 몰랐다(값은 다행히 전부 동일)                                            | parquet 교체 · python/pynescript 업그레이드 시                                                                    | XS           | 2026-08-03 backtest-metric-oracle                      |
+| [BL-589](#bl-589)    | **P1 · 소크를 65분에 끊은 사건.** 취소된 반전 주문 뒤 엔진만 포지션이 뒤집힌 채 남았다(`engine +0.0304` vs `exchange −0.03`) → `position_divergence/direction` fail-closed. [BL-560] 의 거울상. ★T0 이후 취소 4건의 사유가 **전부 NULL**                               | ★이미 발화(2026-08-03T10:58:34Z). 재가동 전 원인 확정 의무                                                        | M            | 2026-08-03 backtest-metric-oracle                      |
 | [BL-588](#bl-588)    | 코퍼스 목록이 **세 곳에 따로** 있다 — parity 7벌 / regen 7벌 / `_MUTATION_CORPORA` **5벌**. 신규 비축퇴 코퍼스 2벌이 nightly mutation oracle 로 확산되지 않았다(판별력을 만든 유일한 두 벌인데)                                                                        | 코퍼스를 또 추가/제거할 때                                                                                        | XS-S         | 2026-08-03 backtest-metric-oracle                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
@@ -6080,12 +6081,22 @@ baseline envelope 의 `ohlcv_sha256` · `pine_v2_commit` · `tool_versions` · `
 ★불행 중 다행 — 엔진 커밋 `29d0b98 → 00c63018` 과 python `3.12 → 3.13` 이 **함께** 바뀌었는데
 12 필드 값과 3 digest 가 **전부 동일**했다. 두 변화 모두 숫자를 안 움직였다는 뜻이다.
 
+**★같은 회차에 그 필드로 실제 사고가 났다 — 워크트리가 CI 와 다른 파이썬을 쓴다.**
+`scripts/worktree-bootstrap.sh` 의 `uv sync` 는 `requires-python = ">=3.12"` 를 만족하는 **최신**을
+고른다. 실측 — 메인 체크아웃 venv 는 **3.12.12**, CI(`.github/workflows/ci.yml:120`)도 **3.12**
+인데 이번에 만든 워크트리 venv 는 **3.13.12** 였다. 그 위에서 regen 을 돌려 baseline 에
+`"python": "3.13"` 을 기록했다 — **CI 가 절대 재현할 수 없는 값**이다. 발견 후 워크트리 venv 를
+3.12 로 되돌리고 재생성했다(`uv venv --python 3.12`).
+★부수 소득 — 3.12 재생성에서 **7벌 전 필드·전 digest 가 동일**했다. 3.12→3.13 과 3.13→3.12
+양방향 모두 숫자를 안 움직였다는 뜻이다. 하지만 그건 **이번에 운이 좋았다는 것이지 규칙이 아니다.**
+
 **권장 접근:** `test_trust_layer_parity.py` 에 (a) `ohlcv_sha256` == 실제 파일 해시, (b)
 `schema_version` == 코드가 기대하는 값, (c) `tool_versions.python` == 현재 런타임 minor 검증 3건.
 (c) 는 red 가 "회귀" 가 아니라 "regen 하고 값이 같은지 확인해라" 신호다 — 메시지에 그렇게 쓴다.
-`.python-version` 핀 추가도 함께 검토. [[BL-585]] 와 묶으면 자연스럽다.
+**`.python-version` 핀 추가는 (c) 보다 먼저 해야 한다** — 워크트리마다 런타임이 갈리는 것을 막는
+쪽이 근본이다. [[BL-585]] 와 묶으면 자연스럽다.
 
-**영향 파일:** `tests/strategy/pine_v2/test_trust_layer_parity.py`, `backend/pyproject.toml`.
+**영향 파일:** `tests/strategy/pine_v2/test_trust_layer_parity.py`, `backend/pyproject.toml`(또는 `.python-version`), `scripts/worktree-bootstrap.sh`.
 
 **Risk:** 🟢
 
@@ -6120,5 +6131,63 @@ baseline envelope 의 `ohlcv_sha256` · `pine_v2_commit` · `tool_versions` · `
 **영향 파일:** 위 표 3개 파일.
 
 **Risk:** 🟢
+
+---
+
+### BL-589
+
+**우선순위:** P1
+**카테고리:** Trading / 라이브 신호 (엔진↔거래소 방향 발산)
+**Trigger:** ★**이미 발화했다.** 2026-08-03 소크가 T0 65분 만에 이 사유로 fail-closed 종료.
+**Est:** M (원인 확정 선행 — 아래 「먼저 확인할 것」)
+**상태:** 🟢 **열려 있다 — 실측 1건, 원인 미확정**
+**출처:** 2026-08-03 backtest-metric-oracle (소크 관측 중 발견)
+
+**취소된 반전 주문 뒤에 엔진만 포지션이 뒤집힌 채 남았다.**
+
+소크 세션 `04097fdc`(T0 `2026-08-03T09:53:34Z`)가 `10:58:34Z` 에
+`position_divergence` / `category=direction` 으로 자동 비활성화됐다 — 창의 **65분** 지점.
+`engine_position=+0.030392388292696512` vs `exchange_position=-0.03`. 크기는 사실상 같고
+**방향이 정반대**다.
+
+**타임라인 (T0 이후 주문 7건 전량).**
+
+| 시각(UTC)    | 사건                                                  |
+| ------------ | ----------------------------------------------------- |
+| 10:05:04     | `sell 0.03` **filled** → 거래소 −0.03                 |
+| 10:12:34     | `buy 0.06` **filled** → 거래소 +0.03                  |
+| 10:19:37     | `sell 0.06` **filled** → 거래소 **−0.03**             |
+| 10:38:46     | `buy 0.06` 발주 (−0.03 → +0.03 반전 의도)             |
+| **10:56:41** | 그 주문 **cancelled** — `error_message` **비어 있음** |
+| 10:57:34     | `live_signal_position_divergence` 1차 경고            |
+| **10:58:34** | 2차 경고 → **fail-closed 비활성화**                   |
+
+체결분만 더하면 거래소는 정확히 −0.03 이다. 즉 **거래소 원장은 일관적이고 엔진만 틀렸다.**
+반전 주문이 취소됐는데 엔진 상태는 전진한 것으로 보인다.
+
+★**[BL-560] 의 거울상이다.** BL-560 은 「반전이 **체결**됐는데 엔진이 모른다」였고, 이건
+「반전이 **취소**됐는데 엔진이 됐다고 믿는다」다. 두 방향 모두 같은 자리(반전 leg 의 상태 반영)를
+가리킨다.
+
+**★먼저 확인할 것 (원인 확정 전 수리 금지).**
+
+1. 엔진 포지션은 **주문 체결에서 오는가, 자체 시뮬레이션에서 오는가** — 후자면 「취소를 체결로
+   오인」이 아니라 애초에 원장을 안 보는 설계 문제다. 이 구분이 수리 위치를 바꾼다.
+2. `+0.0304` 라는 값의 출처 — 거래소는 `qty_step` 절삭으로 `0.03` 을 쓴다. 0.0304 는
+   percent-of-equity 계산 원값으로 보이는데, 그렇다면 엔진은 **발주 수량이 아니라 의도 수량**을
+   들고 있다.
+3. **취소 사유가 왜 하나도 없나** — T0 이후 7건 중 **4건이 cancelled 인데 `error_message` 가 전부
+   NULL** 이다. 사유 없이는 「왜 취소됐나」를 영원히 못 센다. [[BL-578]] 과 같은 계열.
+4. 2회 연속 divergence 에서 비활성화하는 정책이 맞는지 — 1차 경고와 2차 사이 60초에 자가 복구
+   기회가 있었는가.
+
+**부수 조치 (2026-08-03).** 세션 종료 후 거래소에 **세션 없는 −0.03 숏**이 남아 있어
+reduce-only 시장가 매수 0.03 으로 flat 정리했다(사용자 승인).
+★**이 정리는 앱 원장을 거치지 않았다** — `ClosePositionService` 는 HTTP 경로에만 조립돼 있어
+Clerk JWT 가 필요한데 스크립트에서 얻을 수 없어 provider 를 직접 호출했다. 따라서 이 청산에
+대응하는 `trading.orders` 행이 **없다**. 원장을 읽을 때 이 구멍을 기억해야 한다.
+
+**Risk:** 🔴 **소크 시계를 멈춘 사건이다.** P0 [BL-003] 의 유일한 게이트가 「데모 1주 안정 운영」인데
+이 발산이 창을 65분에서 끊었다. 원인을 모른 채 재가동하면 같은 자리에서 또 끊길 가능성이 높다.
 
 ---
