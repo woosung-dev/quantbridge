@@ -42,8 +42,9 @@
   status.md 가 정한 확인식(「`breach_with_resting` 이 증가할 때 `market_converted` 동시 증가」)이
   **충족되지 않았다** — 대기 주문이 진짜로 발화 가능했다면 정상이다. 그 주문의 트리거·기준가를
   원장에서 확인해라. **결론을 미리 적지 마라.**
-- `qb_live_conditional_reconcile_errors_total{stage="terminal_write_back_filled"}` **= 1** (신규
-  series) — write-back 경로에서 처음 나온 에러다. 로그에서 그 tick 을 찾아 무엇이 던졌는지 봐라.
+- `qb_live_conditional_reconcile_errors_total{stage="terminal_write_back_filled"}` — 신규 series 가
+  나타나 **16분 만에 1 → 2** 로 늘었다. ★**일회성이 아니다.** write-back 경로에서 무엇이 던지는지
+  로그에서 그 두 tick 을 찾아라. 원인이 확인되면 **[BL-566] 계열에 링크**한다(새 BL 금지).
 
 ★새 증상 BL 을 열지 마라 — [BL-591] 또는 해당 원본 BL 에 링크한다.
 

@@ -153,11 +153,14 @@ pyramiding 캡이 허구가 되고, 없는 leg 를 닫으려는 reduce-only 주�
 - **`_qb_ledger_shadow` 는 최신 tick 만 덮어쓴다** — ③ 분포를 사후에 못 캔다.
 - **[BL-581] 이 소크 창의 상한이 됐다** — `.metrics` **14,905 파일 / 924MB**, 증가율 **+175 파일/h**
   ⇒ 약 **29시간** 뒤 Trigger(20,000). 스크레이프 **2.67초**.
-- 관측 중 `soak-observe.sh` 차분에 **처음 보는 것 2개**가 떴다 — `conditional_guard{breach_with_resting}`
-  **11→12**([BL-589] 수리 관측축의 **첫 프로덕션 발화**, 다만 `market_converted` 동시 증가는 없었다)와
-  신규 series `conditional_reconcile_errors{stage="terminal_write_back_filled"}` **=1**.
-  ★**이번 회차는 판정하지 않았다** — 소크 생존 중이라 `src` 를 볼 수는 있어도 고칠 수 없고,
-  둘 다 다음 회차의 **첫 확인 대상**이다.
+- 관측 중 `soak-observe.sh` 차분에 **처음 보는 것 2개**가 떴다 —
+  ① `conditional_guard{breach_with_resting}` **11→12**([BL-589] 수리 관측축의 **첫 프로덕션 발화**.
+  ★status.md 가 정한 확인식은 「그 시점 `market_converted` 동시 증가」인데 **동시 증가가 없었다** —
+  대기 주문이 진짜 발화 가능했다면 정상이므로 그 주문의 트리거·기준가를 원장에서 봐야 한다)
+  ② 신규 series `conditional_reconcile_errors{stage="terminal_write_back_filled"}` — **16분 만에
+  1 → 2**, ★**일회성이 아니다.**
+  ★**이번 회차는 둘 다 판정하지 않았다** — 소크 생존 중이라 `src` 를 볼 수는 있어도 고칠 수 없다.
+  다음 회차의 **첫 확인 대상**이다.
 
 ## §6. 남긴 것 — 슬라이스 2 재개 조건 (셋 다)
 
