@@ -140,6 +140,40 @@
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 
+### ★★첫 3 step — 이것부터 해라 (순서 있음)
+
+**Step 1 — 현재 위치 확인 (5분).**
+
+```bash
+QB=/Users/woosung/project/agy-project/quant-bridge
+git -C $QB log --oneline -1                     # 83b4492b 여야 한다
+git -C $QB rev-list --count origin/main..origin/stage/engine-position-ssot   # 30
+gh pr view 539 --json state,title
+docker exec quantbridge-db psql -U quantbridge -d quantbridge -Atc \
+  "SELECT count(*) FROM trading.live_signal_sessions WHERE is_active=true;"  # 0 = 소크 내려감
+```
+
+**Step 2 — ★PR #539 의 표류를 먼저 결정해라 (이게 안 정해지면 뒤가 다 막힌다).**
+
+`stage/engine-position-ssot` 는 이제 `main` 보다 **30커밋** 앞이고, PR #539 의 제목·본문은
+**「엔진 포지션 SSOT 슬라이스 1」한 회차만** 설명한다. 그 사이에 3회차가 더 들어갔다
+(direction 채널 분해 · BL-580 12곳 · **이번 회차 16커밋**).
+⇒ **PR 본문이 브랜치 내용을 더 이상 설명하지 못한다.** 세 갈래 중 하나를 사용자와 정해라:
+
+| 안                 | 내용                                              | 대가                                      |
+| ------------------ | ------------------------------------------------- | ----------------------------------------- |
+| **A. 본문 재작성** | #539 를 「4회차 통합」으로 다시 쓰고 그대로 머지  | 리뷰 단위가 30커밋으로 크다               |
+| **B. 분할**        | 회차별로 PR 을 새로 끊는다                        | 브랜치가 이미 선형이라 되감기 비용이 크다 |
+| **C. 지금 머지**   | 검증이 끝났으니 `main` 으로 보내고 #539 를 닫는다 | 「1주 안정 운영」 전에 main 이 움직인다   |
+
+★**사용자 확정 규칙은 「검증이 다 끝난 뒤 한 번에 main」**이다. 이번 회차로 게이트는 전건 통과했지만
+**실거래소·`_evaluate_session_inner` 본체는 여전히 미검증**이다 — 그 둘을 「검증 끝」에 포함할지가 판단의 핵심이다.
+
+**Step 3 — 본 작업 착수.** 아래 두 축 중 **자격증명 유무로 갈린다**:
+
+- Bybit demo 키 **있으면** → [BL-024] 실주문 leg (§아래) — 이게 소크를 자동화로 대체하는 축이다
+- **없으면** → [BL-580] 잔여 수리 (§아래) — 이번 회차가 그 선행 조건을 만들어 놨다
+
 ### ★무엇이 달라졌나 — 이번 회차가 만든 **선행 조건**
 
 [BL-580] 잔여 84곳 중 `live_signal.py` **34곳**은 이제 **이름 붙은 헬퍼 안**에 있다.
@@ -155,6 +189,23 @@
   (최대 `try` 본문 845 → 8).
 - `_place_planned_entry` 236줄 · `_reconcile_conditional_entries_inner` 203줄 — 경계선.
 - `_async_dispatch_event` 256줄 · 최대 `try` 본문 **225줄** — ★**이번 범위 밖**이었다. 이제 이게 최대다.
+
+### ★[BL-580] 잔여 84곳 — 어디부터, 어떻게
+
+**분포(실측)**: `live_signal.py` **34** · `trading.py` 14 · `conditional_entry_janitor.py` 5 ·
+`_ws_circuit_breaker.py` 4 · `redlock.py`/`websocket_task.py`/`state_handler.py` 각 3 · 나머지 18.
+
+**권장 순서** — `live_signal.py` 34곳부터. 이번 회차가 그 34곳을 **이름 붙은 헬퍼 안**으로 옮겨
+감싸는 핸들러가 docstring 에 적혀 있게 만들었다. 한 회차에 **한 헬퍼 계열**로 끊어라.
+
+**방법(이전 4회차가 확립한 것 — 바꾸지 마라):**
+
+1. 자리마다 **감싸는 핸들러를 코드로 확인**하고, 해악을 (a) 오기록 (b) 조용한 중단 으로 갈라 적는다
+2. **고장 주입으로 판정**한다 — 산문으로 「~라서 안전하다」 쓰지 마라(누적 42곳에서 그 산문 **전건 반증**)
+3. 주입 판정이 안 되면 **「판정 보류」로 적고 하네스를 짓지 마라**(4회 연속 판별력 0 을 밟았다)
+4. 구조적 방어는 `tests/common/test_metric_guard_census.py` 의 AST 동결(**현재 40키 / 84**)
+
+★**census 숫자가 줄면 그만큼 `_FROZEN_CENSUS` 를 낮춰라** — 안 낮추면 다음 회차가 그 자리를 다시 판정한다.
 
 ### ★[BL-024] — 사용자 액션이 차단 사유다
 
