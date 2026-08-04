@@ -68,18 +68,26 @@ async def test_tv_webhook_to_bybit_demo_filled(
     2. GitHub Secrets 에 BYBIT_DEMO_API_KEY_TEST / BYBIT_DEMO_API_SECRET_TEST 등록.
     3. `nightly-real-broker.yml` workflow 가 Secrets 주입 + pytest --run-real-broker.
 
-    **본 테스트는 구현 skeleton.** 실제 TestClient + Celery worker fixture 결합은
-    pytest-celery 의 `celery_worker` + `celery_app` fixture 로 세팅.
+    **본 테스트는 구현 skeleton.** 실주문 leg 은 전용 Bybit demo 키(`BYBIT_DEMO_API_KEY_TEST`
+    / `BYBIT_DEMO_API_SECRET_TEST`)가 발급된 뒤에 작성한다 — 지금은 repo secret 에도
+    `backend/.env.local` 에도 없다.
 
-    Implementation TODO (nightly 첫 실행 시 작성):
-    - `celery_app` fixture — src.tasks.celery_app:celery_app 사용
-    - `celery_worker` fixture — pytest-celery in-process spawn
-    - FastAPI TestClient — src.main:app
-    - strategy_id seed — pytest fixture 로 테스트 user + strategy + exchange_account 생성
+    Implementation TODO (자격증명 도착 후):
+    - strategy_id seed — 테스트 user + strategy + exchange_account(demo) 생성
     - Bybit Demo credentials 를 ExchangeAccount.api_key_encrypted 로 Fernet 암호화 저장
+    - ★**진입 주문을 내기 전에** `broker_flat_guard(account_id=…, symbol=…,
+      live_session_id=…)` 로 등록해라. 등록이 주문보다 늦으면 그 사이에 죽은 세션은
+      아무도 청산하지 않는다 (`tests/real_broker/_harness.py`).
+    - ★`ClosePositionService` 가 `LiveSignalSession` 을 요구하므로 **진입 전에 세션을
+      등재**한다. 덤으로 `live_session_service.py:109-113` 의 demo 강제 게이트를 얻는다.
     - webhook secret HMAC 서명 (WebhookSecret 테이블 참조)
-    - polling — order_repo.get_by_id + state 확인 (5s interval × 10 iter)
-    - cleanup — Bybit Demo 에서 포지션 close + residual cancel
+    - ★**체결 확인을 polling 으로 짜지 마라 — 영원히 red 인 테스트가 된다.**
+      Bybit demo 시장가는 `create_order` 응답에서 **`submitted`** 로 온다
+      (`providers.py:2213-2225` `_map_ccxt_status`). 체결 확정은 WS 가 나중에 한다.
+      그런데 `conftest.py` 의 autouse `_no_op_enqueue` 가 celery enqueue 를 전부 막으므로
+      (로컬 워커가 앱 DB 를 보며 우리 태스크를 집어가는 것을 막는 안전장치다)
+      **`_async_fetch_order_status`(`tasks/trading.py:685-707`)를 명시적으로 태우는**
+      설계여야 한다.
     """
     # credentials fixture 가 정상 통과하면 (env 존재) 여기까지 도달
     _api_key, _api_secret = bybit_demo_test_credentials

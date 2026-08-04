@@ -255,7 +255,9 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **Est:** L (8h+)
 **출처:** CLAUDE.md Sprint 10 Phase C — "실제 E2E 로직은 nightly 첫 실행 시 credentials + seed data 하에 작성 예정"
 
-**권장 접근:** `nightly-real-broker.yml` (cron 0 18 \* \* \*) 의 실제 검증 로직 구현. 현재는 skeleton + marker + flag 만.
+**상태:** 🟡 **열려 있다 (2026-08-04, `wt/e2e` — 워크플로·하네스만 수리, 실주문 leg 미착수).** ★★★**「skeleton 을 채운다」는 전제가 실측으로 뒤집혔다** — nightly 는 07-25~08-03 **10/10 실패**했고 지점은 pytest 가 아니라 `alembic upgrade head` 였다(`secrets.TRADING_ENCRYPTION_KEYS_TEST` 부재 → 빈 문자열 → `Settings` import 시점 ValidationError). ⇒ **pytest 는 한 번도 실행된 적이 없고, `flaky-real-broker` 이슈 89건(전부 OPEN)은 broker flakiness 의 증거가 아니다.** ★이 고장은 **alembic 스텝에만** 해당한다 — `tests/conftest.py:25-28` 이 pytest 에서는 빈 키를 즉석 Fernet 로 채운다. 이번 회차가 한 것: 워크플로 수리 9건(리터럴 키 · preflight `has_creds` 게이팅 · **이슈 생산기 스위치** · `_test` DSN · 아티팩트) + 계약 감사 `tests/test_nightly_workflow_contract.py`(marker 없음, 매 PR) + 자기정리 2층 하네스(`tests/real_broker/_harness.py`) + `_test` DSN 하드가드 + provider 경유 demo 엔드포인트 교정. ★**실거래소는 1바이트도 검증되지 않았다** — 잔여 = 실주문 leg(S2~S13), **차단 사유는 Bybit demo 전용 키 2종 미발급**(`BYBIT_DEMO_API_KEY_TEST` / `BYBIT_DEMO_API_SECRET_TEST`).
+
+**권장 접근:** 자격증명 2종 발급 후 실주문 leg 구현. ★체결 확인을 polling 으로 짜지 마라 — Bybit demo 시장가는 `create_order` 응답에서 `submitted` 로 오고(`providers.py:_map_ccxt_status`) 체결 확정은 WS 가 한다. `_async_fetch_order_status`(`tasks/trading.py:685-707`)를 명시적으로 태우는 설계여야 한다.
 
 ---
 
