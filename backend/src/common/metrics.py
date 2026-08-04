@@ -799,6 +799,52 @@ qb_live_gap_ledger_seed_total = Counter(
     labelnames=("outcome",),
 )
 
+# BL-591 / ADR-022 슬라이스 1 — **계측 전용**. 매 tick `run_live` **직전**에 원장으로 포지션을
+# 유도하고 거래소 스냅샷과 대조한 결과다. ★슬라이스 1 은 아무것도 주입하지 않는다 —
+# 이 counter 가 0 이 아니어도 **동작은 오늘과 동일**하다. 슬라이스 2 의 계수를 여기서 정한다.
+#
+#   outcome = `derive_open_position` 의 판정 (`ledger_position.py`):
+#     no_fills / flat / open        — 판정됨
+#     overflow / foreign_fill / close_without_open / duplicate_open / unreadable
+#                                   — **판정 불가**(fail-closed). 슬라이스 2 는 주입하지 않는다.
+# ★`legs == ()`(flat) 과 판정 불가를 **절대 합산하지 마라.** 전자는 "포지션이 없다고 판정함",
+#   후자는 "모른다" 다. 합치면 모르는 상태가 flat 으로 둔갑한다.
+qb_live_ledger_derive_total = Counter(
+    "qb_live_ledger_derive_total",
+    "Ledger-derived open position outcome, measured before run_live (no injection)",
+    labelnames=("outcome",),
+)
+
+# BL-591 / ADR-022 슬라이스 1 — 원장 유도 포지션 ↔ 거래소 스냅샷 대조. **슬라이스 2 의
+# veto 판정을 미리 재는 것**이며 지금은 아무 동작도 바꾸지 않는다.
+#
+#   decision: agree        — 일치. 슬라이스 2 라면 **주입했을** tick.
+#             disagree     — 불일치. 슬라이스 2 라면 **veto + 관망**했을 tick.
+#                            ★이 값의 비율과 연속 지속 길이가 관망 상한 계수의 직접 근거다.
+#             undecidable  — 원장으로 판정 불가(위 counter 의 fail-closed 갈래).
+#             probe_failed — 거래소 조회 자체가 실패. ★`disagree` 와 섞지 마라 —
+#                            섞으면 조회 장애가 발산으로 둔갑한다.
+# ★`agree` 는 "엔진에 주입 가능" 을 뜻하지 않는다. 주입은 **엔진이 flat 일 때만** 일어나므로
+#   (`strategy_state.py:357`) 실제 주입 가능 tick 은 아래 `engine_flat` label 과 함께 봐야 한다.
+qb_live_ledger_veto_total = Counter(
+    "qb_live_ledger_veto_total",
+    "Ledger vs exchange agreement measured before run_live (shadow; no action taken)",
+    labelnames=("decision", "engine_flat"),
+)
+
+# BL-591 / ADR-022 슬라이스 1 — **연속 `disagree` 가 몇 tick 만에 풀렸는가.**
+# ★관망 상한 계수의 **직접 근거**가 이 분포다. `disagree` 비율만으로는 상한을 못 정한다 —
+#   중요한 것은 "얼마나 오래 어긋나 있었나" 이기 때문이다.
+# ★label 은 **버킷**이다(raw tick 수를 label 로 쓰면 cardinality 가 터진다).
+#   bucket: 1 | 2 | 3-5 | 6-15 | 16+
+# ★tick 주기 = `interval` 이므로 **분이 아니라 tick 이다.** 1분봉이면 3-5 = 3~5분,
+#   1시간봉이면 3~5시간이다. 절대 시간으로 읽으면 상한 계수를 틀리게 정한다.
+qb_live_ledger_hold_resolved_total = Counter(
+    "qb_live_ledger_hold_resolved_total",
+    "Consecutive ledger/exchange disagreement runs, bucketed by tick length",
+    labelnames=("bucket",),
+)
+
 # Redis 실시간 팬아웃 발행 실패. user/event ID는 label로 사용하지 않는다.
 qb_rt_publish_failed_total = Counter(
     "qb_rt_publish_failed_total",

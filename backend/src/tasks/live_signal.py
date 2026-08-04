@@ -31,7 +31,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from types import SimpleNamespace
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID, uuid4
 
 from celery import shared_task
@@ -49,6 +49,9 @@ from src.common.metrics import (
     qb_live_conditional_reversal_total,
     qb_live_conditional_sweep_filled_total,
     qb_live_gap_ledger_seed_total,
+    qb_live_ledger_derive_total,
+    qb_live_ledger_hold_resolved_total,
+    qb_live_ledger_veto_total,
     qb_live_pending_order_skip_evaluations_total,
     qb_live_position_divergence_total,
     qb_live_signal_dispatch_total,
@@ -243,6 +246,9 @@ _DIRECTION_MISMATCH_KEY = "_qb_direction_mismatch_seen"
 # position epoch 은 마지막 성공 평가 이후 실제 outbox 발행을 허용한 시각이다. 기존 JSONB
 # 리포트에만 저장하므로 마이그레이션 없이 재생 포지션을 거래소 상태와 정렬할 수 있다.
 _POSITION_EPOCH_KEY = "_qb_position_epoch"
+# BL-591 / ADR-022 슬라이스 1 — tick 마다 원장↔거래소 대조 결과를 남기는 자리.
+# ★새 컬럼도 새 저장소도 만들지 않는다(마이그레이션 0) — 이 dict 는 이미 매 tick upsert 된다.
+_LEDGER_SHADOW_KEY = "_qb_ledger_shadow"
 
 # 거래소를 못 읽어 **판정 자체를 못 한** 경우. "불일치 없음"(None)과 반드시 구분해야 한다 —
 # 둘을 합치면 REST 가 한 번 흔들릴 때마다 직전 strike 가 지워져, 진짜 지속 발산이
@@ -423,6 +429,154 @@ def _ledger_gap_seed(fills: Sequence[Any], *, session_id: UUID, overflowed: bool
         for fill, trade_id in zip(fills, trade_ids, strict=True)
     )
     return _LedgerGapSeed(net=net, legs=legs, outcome="seedable", order_ids=order_ids)
+
+
+if TYPE_CHECKING:  # ★런타임 import 는 함수 안에 둔다 (R2 — 이 모듈의 import 폐포 보존)
+    from src.trading.ledger_position import LedgerPosition
+
+
+@dataclass(frozen=True, slots=True)
+class _LedgerShadow:
+    """슬라이스 1 계측 스냅샷 (BL-591 / ADR-022). **아무 동작도 바꾸지 않는다.**
+
+    ★`run_live` **직전**에 캡처한다 — 슬라이스 2 의 주입 판정 지점과 **같은 자리**다.
+    다른 자리에서 재면 여기서 나온 계수가 슬라이스 2 에서 무의미해진다.
+
+    `exchange_qty is None` = 거래소 조회 실패(**모름**)이며 `Decimal("0")`(flat)과 다르다.
+    """
+
+    derived: LedgerPosition
+    exchange_qty: Decimal | None
+
+
+async def _capture_ledger_shadow(
+    sess: Any, *, session: Any, account_repo: Any
+) -> _LedgerShadow:
+    """원장 유도 포지션 + 거래소 스냅샷을 **계측용으로만** 뜬다 (BL-591 슬라이스 1).
+
+    ★실패를 전부 흡수한다. 이 함수가 던지면 **계측이 발주를 막는 것**이 되고, 그것은
+    이 레포가 H8 로 이름 붙여 온 결함(계측 실패가 집행을 뒤집는다)과 같은 형태다.
+    """
+    from src.trading.ledger_position import LedgerPosition as _LP
+    from src.trading.ledger_position import derive_open_position
+    from src.trading.repositories.order_repository import (
+        LEDGER_FILL_SCAN_LIMIT,
+        OrderRepository,
+        SessionScope,
+    )
+
+    try:
+        # ★`since` 는 **세션 생성 시각**이다. 짧은 창으로 잡으면 앞쪽 진입을 못 봐서
+        #   열린 포지션을 놓치고 flat 으로 오인한다. 절단은 `overflow` 로 판정 불가가 된다.
+        fills = await OrderRepository(session).list_fills_since(
+            SessionScope.from_live_session(sess), since=sess.created_at
+        )
+        derived = derive_open_position(
+            fills[:LEDGER_FILL_SCAN_LIMIT],
+            session_id=sess.id,
+            overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
+        )
+    except Exception:
+        logger.warning(
+            "live_signal_ledger_shadow_fetch_failed",
+            exc_info=True,
+            extra={"session_id": str(sess.id)},
+        )
+        derived = _LP(legs=None, outcome="fetch_failed")
+
+    exchange_qty: Decimal | None = None
+    try:
+        from src.trading.encryption import EncryptionService
+        from src.trading.providers import BybitFuturesProvider
+        from src.trading.services.account_service import ExchangeAccountService
+
+        bybit_provider = BybitFuturesProvider()
+        exchange_svc = ExchangeAccountService(
+            repo=account_repo,
+            crypto=EncryptionService(settings.trading_encryption_keys),
+            bybit_futures_provider=bybit_provider,
+        )
+        creds = await exchange_svc.get_credentials_for_order(sess.exchange_account_id)
+        positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
+        exchange_qty = _net_position_size(positions)
+    except Exception:
+        logger.warning(
+            "live_signal_ledger_shadow_probe_failed",
+            exc_info=True,
+            extra={"session_id": str(sess.id), "symbol": sess.symbol},
+        )
+
+    return _LedgerShadow(derived=derived, exchange_qty=exchange_qty)
+
+
+def _hold_bucket(ticks: int) -> str:
+    """연속 `disagree` 길이를 label 안전한 버킷으로 접는다 (raw 값은 cardinality 폭발)."""
+    if ticks <= 1:
+        return "1"
+    if ticks == 2:
+        return "2"
+    if ticks <= 5:
+        return "3-5"
+    if ticks <= 15:
+        return "6-15"
+    return "16+"
+
+
+def _record_ledger_shadow(
+    shadow: _LedgerShadow | None,
+    *,
+    engine_position: Decimal | None,
+    previous_report: object,
+    report: object,
+) -> None:
+    """계측 결과를 counter + tick 상태(jsonb)에 남긴다. **발주 경로를 건드리지 않는다.**
+
+    ★`agree` 는 「엔진에 주입 가능」을 뜻하지 않는다. 주입은 **엔진이 flat 일 때만** 일어나므로
+    (`strategy_state.py:357`) 실제 주입 가능 tick 은 `engine_flat` label 과 함께 봐야 한다.
+    """
+    if shadow is None:
+        return
+    _count_safely(qb_live_ledger_derive_total, outcome=shadow.derived.outcome)
+
+    if engine_position is None:
+        engine_flat = "unknown"
+    else:
+        engine_flat = "true" if abs(engine_position) < _POSITION_DUST else "false"
+
+    net = shadow.derived.net_signed_qty()
+    if shadow.exchange_qty is None:
+        # ★`disagree` 와 섞지 마라 — 섞으면 조회 장애가 발산으로 둔갑한다.
+        decision = "probe_failed"
+    elif net is None:
+        decision = "undecidable"
+    elif abs(net - shadow.exchange_qty) < _POSITION_DUST:
+        decision = "agree"
+    else:
+        decision = "disagree"
+    _count_safely(qb_live_ledger_veto_total, decision=decision, engine_flat=engine_flat)
+
+    previous_hold = 0
+    if isinstance(previous_report, dict):
+        previous_shadow = previous_report.get(_LEDGER_SHADOW_KEY)
+        if isinstance(previous_shadow, dict):
+            raw_hold = previous_shadow.get("hold_ticks")
+            if isinstance(raw_hold, int) and raw_hold > 0:
+                previous_hold = raw_hold
+    hold_ticks = previous_hold + 1 if decision == "disagree" else 0
+    if decision != "disagree" and previous_hold > 0:
+        # 방금 풀렸다 — 그 구간의 **길이**가 관망 상한 계수의 근거다.
+        _count_safely(qb_live_ledger_hold_resolved_total, bucket=_hold_bucket(previous_hold))
+
+    if isinstance(report, dict):
+        report[_LEDGER_SHADOW_KEY] = {
+            "outcome": shadow.derived.outcome,
+            "decision": decision,
+            "engine_flat": engine_flat,
+            "hold_ticks": hold_ticks,
+            "ledger_net": None if net is None else str(net),
+            "exchange_net": None if shadow.exchange_qty is None else str(shadow.exchange_qty),
+            "legs": None if shadow.derived.legs is None else len(shadow.derived.legs),
+        }
 
 
 def _carried_position_size(
@@ -2356,6 +2510,20 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                 # ★비어 있으면 인자 자체를 넘기지 않는다 — 기본 호출의 kwargs 를 그대로 둬
                 # "seed 가 없을 때 기존과 byte-identical" 을 호출 형태로도 유지한다.
                 run_live_kwargs["ledger_seed_legs"] = ledger_seed.legs
+
+            # ── BL-591 / ADR-022 슬라이스 1 — 계측 전용 ────────────────────────────
+            # ★★**여기가 슬라이스 2 의 주입 판정 지점이다.** 계측을 다른 자리(예:
+            #   `_detect_position_divergence`, 즉 `run_live` **뒤**)에서 하면 여기서 나온
+            #   계수가 슬라이스 2 에서 무의미해진다. `run_live_kwargs` 는 건드리지 않는다 —
+            #   이 슬라이스는 아무것도 주입하지 않는다.
+            # ★**「동작 변경 0」이 아니다** — 거래소 조회가 tick 당 1회 늘어 **2회**가 된다.
+            #   `_detect_position_divergence` 는 `engine_position`(= `run_live` **결과**)이
+            #   필요해 뒤로 갈 수밖에 없으므로 두 조회는 **구조적으로 합칠 수 없다.**
+            #   판정·발주 경로는 무변경이고 늘어난 것은 조회 횟수뿐이다
+            #   (`test_live_signal_instrument_parity` 가 2회를 단언해 증식을 막는다).
+            ledger_shadow = await _capture_ledger_shadow(
+                sess, session=session, account_repo=account_repo
+            )
             try:
                 result = run_live(strategy.pine_source, df, **run_live_kwargs)
             except Exception as exc:
@@ -2686,6 +2854,15 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     else direction_mismatch_seen
                 )
                 sanitized_report[_POSITION_EPOCH_KEY] = position_epoch.isoformat()
+            # BL-591 슬라이스 1 — 위에서 뜬 계측 스냅샷을 counter + 이 dict 에 남긴다.
+            # ★`engine_position` 은 `run_live` **결과**다(주입 가능 여부는 엔진이 flat 일
+            #   때만이므로 이 label 없이는 「주입 가능 tick 수」를 못 센다).
+            _record_ledger_shadow(
+                ledger_shadow,
+                engine_position=engine_position,
+                previous_report=previous_report,
+                report=sanitized_report,
+            )
             # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
             # 이번 tick 에 새로 INSERT 된 close event 만 curve 에 반영한다. warmup 창
             # 재계산의 미세 변동은 point 를 추가하지 않는다.
