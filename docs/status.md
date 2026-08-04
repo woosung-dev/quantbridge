@@ -169,10 +169,24 @@ docker exec quantbridge-db psql -U quantbridge -d quantbridge -Atc \
 ★**사용자 확정 규칙은 「검증이 다 끝난 뒤 한 번에 main」**이다. 이번 회차로 게이트는 전건 통과했지만
 **실거래소·`_evaluate_session_inner` 본체는 여전히 미검증**이다 — 그 둘을 「검증 끝」에 포함할지가 판단의 핵심이다.
 
-**Step 3 — 본 작업 착수.** 아래 두 축 중 **자격증명 유무로 갈린다**:
+**Step 3 — 본 작업 착수 = [BL-024] 실주문 leg.** ★**자격증명은 이제 있다**(2026-08-04 배치 완료):
 
-- Bybit demo 키 **있으면** → [BL-024] 실주문 leg (§아래) — 이게 소크를 자동화로 대체하는 축이다
-- **없으면** → [BL-580] 잔여 수리 (§아래) — 이번 회차가 그 선행 조건을 만들어 놨다
+- `backend/.env.local` 에 `BYBIT_DEMO_API_KEY_TEST` / `BYBIT_DEMO_API_SECRET_TEST`
+- GitHub repo secret 동명 2종 (`gh secret list` 로 확인)
+- 출처 = `trading.exchange_accounts` **`19a8166a`**(label `bybit demo`, `exchange_uid` **558689281**)의
+  **거래 가능** 키. 잔고 실측 **190,352 USDT**.
+
+★★★**이 키는 소크/도그푸드와 같은 Bybit 계정이다 — 새 계정이 아니다.**
+DB 의 두 계정(`19a8166a` · `0277c150`)은 **`exchange_uid` 가 같고**(둘 다 558689281) 잔고도 동일하다.
+즉 **같은 계정의 키 2개**이고 `0277c150` 은 `read_only=true` 라 주문을 못 낸다.
+⇒ **같은 계정에 키를 더 발급해도 격리 효과는 0** 이다(포지션을 공유한다).
+
+★**따라서 실주문 leg 의 첫 요구사항은 「충돌 가드」다** — nightly 는 매일 03:00 KST 에 도는데
+그 시각에 소크가 돌고 있으면 **같은 계정의 포지션을 서로 본다**. 하네스가 진입 **전에**
+활성 라이브 세션을 확인하고, 있으면 **「소크가 돌고 있다」로 명시적 skip** 해야 한다 —
+혼란스러운 residual 오탐 대신. 진짜 격리(별도 서브계정)는 **소크 재개 시점의 별도 판단**이다.
+
+(자격증명이 없던 시절의 대안이었던 [BL-580] 잔여 수리는 §아래에 그대로 둔다 — 언제든 착수 가능하다.)
 
 ### ★무엇이 달라졌나 — 이번 회차가 만든 **선행 조건**
 
@@ -207,15 +221,23 @@ docker exec quantbridge-db psql -U quantbridge -d quantbridge -Atc \
 
 ★**census 숫자가 줄면 그만큼 `_FROZEN_CENSUS` 를 낮춰라** — 안 낮추면 다음 회차가 그 자리를 다시 판정한다.
 
-### ★[BL-024] — 사용자 액션이 차단 사유다
+### ★[BL-024] 실주문 leg — 착수 가능하다 (자격증명 배치 완료)
 
-실주문 leg(S2~S13)은 **Bybit demo 전용 API 키 2종**이 없어 착수 불가다.
-필요: 전용 서브계정(소크 계정과 **분리**) · 잔고 ≥200 USDT · Contract Trade+Read, Withdraw 금지 ·
-IP 제한 없음. 배치처 = `backend/.env.local` + repo secret `BYBIT_DEMO_API_KEY_TEST` /
-`BYBIT_DEMO_API_SECRET_TEST`. ★`TRADING_ENCRYPTION_KEYS_TEST` 는 **이제 불필요**하다(워크플로 리터럴).
-★**착수 전에 적대 검증이 남긴 것 3건을 먼저 봐라** — `_harness.py` 함수 본문의 **93%가 미실행**(F3),
-`flatten_one` 이 `submitted`→`filled` 대기 없이 `fetch_open_positions` 를 불러 **거짓 residual** 가능(F12),
-감사가 스텝 **순서**·`timeout-minutes` 를 안 본다(F6).
+~~사용자 액션이 차단 사유다~~ → **2026-08-04 해소.** `TRADING_ENCRYPTION_KEYS_TEST` 는 **불필요**하다(워크플로 리터럴).
+
+**해야 할 순서:**
+
+1. **★충돌 가드 먼저** (§Step 3). 소크와 같은 Bybit 계정이므로, 진입 전 활성 라이브 세션 확인 →
+   있으면 명시적 skip. 이게 없으면 nightly 가 소크 포지션 때문에 오탐으로 빨개진다.
+2. **적대 검증이 남긴 3건을 먼저 닫아라** — 실주문이 이 코드를 처음 실행시키는 순간 드러난다:
+   - **F3** `_harness.py` 함수 본문의 **93%가 미실행**(사용 테스트 0개) — 깨진 게 아니라 **미검증**
+   - **F12** `flatten_one` 이 `submitted`→`filled` **대기 없이** `fetch_open_positions` 를 부른다
+     ⇒ **거짓 residual** 가능. ★Bybit demo 시장가는 `create_order` 응답에서 `submitted` 로 오고
+     체결 확정은 WS 가 한다 — `_async_fetch_order_status`(`tasks/trading.py:685-707`)를 태워야 한다
+   - **F6** 감사가 스텝 **순서**·`Upload pytest output` 존재·`timeout-minutes` 를 안 본다
+3. 시나리오 **S2~S13** 구현(§`docs/backlog.md` [BL-024]). 최소 수량으로 — 비용이 아니라 **신호**가 목적이다.
+4. ★**멱등·자기정리**: 실패해도 거래소에 포지션·대기 주문을 남기지 마라. `stop` → `flatten` 순서 계약.
+   **세션 비활성화는 아무것도 flat 하지 않는다** — 이 레포가 3회 덴 함정이다.
 
 ### ★방법론 — 이번 회차가 실측으로 배운 것
 
