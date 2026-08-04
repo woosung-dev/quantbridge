@@ -14,6 +14,13 @@
 > 아니다. **주입과 `direction` 킬은 같은 tick 에 공존할 수 없다** — 소크를 죽이는 그 발산을
 > 고치는 게 아니라, 진입을 놓친 상태를 미리 메워 **거기까지 가지 않게** 하는 것이다.
 >
+> **소크가 돌고 있다 — 세션 `bbea6da4` · T0 `2026-08-04T02:54:15Z` · equity baseline
+> `190359.77569871`.** 앵커는 `.soak/session`. ★T0 직전 거래소 `FLAT=YES` 확인.
+> **재시작 뒤 `backend/src` 편집·변이 테스트 금지가 복귀했다.**
+>
+> **커밋:** `92a03b35` (브랜치 `stage/engine-position-ssot`, 11파일 / +1862) · **PR 미생성.**
+> 게이트(커밋 후 재측정) = BE **3993 passed / 46 skipped** · ruff 0 · mypy 0 (**216**) ·
+> bl-audit active **154** 3면 정합 · docs-audit clean · 사전등록 변이 **M1~M5 전건 판별**.
 > **최근 머지:** `stage/breach-rejection-recovery` → `main` (**PR #538** @ `70127fdd`, 2026-08-03).
 
 ---
@@ -56,6 +63,29 @@ interval 비례**였고 아무도 명시한 적이 없었다. ★**계수는 추
   ★**계측 지점이 슬라이스 2 의 판정 지점과 다르면 여기서 잰 계수가 무의미해진다.**
 - **재는 것** ① 주입 가능 tick 수 ② veto 발동률 ③ **veto 해소까지 tick 분포**(상한 계수의 직접
   근거) ④ ★**`exchange_only` → `direction` 발전율**(= C 의 기대 효과 그 자체) ⑤ 유도 함수 `None` 비율.
+
+### ★계측이 프로덕션에서 **돈다** (2026-08-04 T0+1분 실측)
+
+「코드가 mount 됐다」가 아니라 **「돌았다」의 직접 증거**다 —
+`live_signal_states.last_strategy_state_report._qb_ledger_shadow`:
+
+```json
+{
+  "outcome": "no_fills",
+  "decision": "agree",
+  "engine_flat": "true",
+  "ledger_net": "0",
+  "exchange_net": "0",
+  "hold_ticks": 0,
+  "legs": 0
+}
+```
+
+counter 도 발화 — `qb_live_ledger_derive_total{no_fills}` **1** ·
+`qb_live_ledger_veto_total{agree,engine_flat="true"}` **1**.
+첫 tick(세션 직후라 원장 체결 0 · 거래소 flat · 엔진 flat)이라 값이 전부 예상대로다.
+★**이 1건을 「계측이 정확하다」의 증거로 쓰지 마라** — 아직 `disagree` 도 판정 불가도 한 번도
+안 밟혔다. 재는 대상 5개 중 실제로 관측된 것은 **0개**다.
 
 ### 사전등록
 
