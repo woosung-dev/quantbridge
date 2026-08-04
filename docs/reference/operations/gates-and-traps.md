@@ -53,7 +53,7 @@ scripts/soak-gate.sh --status
 
 술어·창·리셋 규칙은 [`ADR-024`](../../decisions/024-soak-stability-gate.md). 계산부는 I/O 없는
 순수 함수(`backend/scripts/soak_gate_predicate.py`)라 손 계산과 대조할 수 있고, 정의는
-`backend/tests/scripts/test_soak_gate_predicate.py` 16테스트로 동결돼 있다.
+`backend/tests/scripts/test_soak_gate_predicate.py` 18테스트로 동결돼 있다.
 
 ★**고정본 스택이 떠 있으면 `make up-isolated` 계열이 거부된다** — 같은 `container_name` 을
 덮어써 소크를 끊기 때문이다. 정말 덮어쓰려면 `QB_SOAK_OVERRIDE=1`.

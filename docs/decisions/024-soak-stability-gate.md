@@ -7,7 +7,7 @@
 > **코드:** [`backend/scripts/soak_gate_predicate.py`](../../backend/scripts/soak_gate_predicate.py) (순수 함수) ·
 > [`scripts/soak-gate.sh`](../../scripts/soak-gate.sh) (수집·판정 CLI) ·
 > [`scripts/soak-stack.sh`](../../scripts/soak-stack.sh) (커밋 고정) ·
-> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 16테스트)
+> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 18테스트)
 
 ---
 
@@ -190,7 +190,7 @@ FAIL 은 운영자가 `scripts/soak-stack.sh up` 으로 **새 창을 열 때까�
 - 게이트는 이제 **명령 한 줄**이다: `scripts/soak-gate.sh`
 - 판정의 계산부는 **I/O 없는 순수 함수**라(`soak_gate_predicate.py`) 손 계산과 대조할 수 있다.
   실측 2026-08-05: 스크립트 `0.2513h` = psql 손 계산 `0.2513h`
-- 정의는 **16 테스트로 동결**됐다. 자동 사망 목록은 `SessionDeactivationReason` 정본과 대조된다
+- 정의는 **18 테스트로 동결**됐다. 자동 사망 목록은 `SessionDeactivationReason` 정본과 대조된다
 - `scripts/soak-gate.sh --install` 이 **30분마다** 표본과 phantom 아카이브를 남긴다.
   ★표본이 없으면 C4 를 판정할 수 없어 UNKNOWN(`측정불가`)이 된다 — 그게 옳은 동작이다
 - **첫 실전 판정(2026-08-05)**: 게이트를 세운 지 **38분 만에 `FAIL`** 이 나왔다 —

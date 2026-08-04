@@ -254,7 +254,7 @@ base RDB(5,168 키)는 멀쩡했고 incr AOF 만 깨졌다.
 | ----------- | ----------------------------------------------- |
 | BE ruff     | 0                                               |
 | BE mypy     | 0 (216 files)                                   |
-| BE pytest   | **4046 passed / 45 skipped** (= 4030 + 신규 16) |
+| BE pytest   | **4048 passed / 45 skipped** (= 4030 + 신규 18) |
 | bl-audit    | active **155** / 251 · 3면 정합                 |
 | docs-audit  | clean                                           |
 | final-gates | 전건                                            |
