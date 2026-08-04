@@ -7,7 +7,7 @@
 > **코드:** [`backend/scripts/soak_gate_predicate.py`](../../backend/scripts/soak_gate_predicate.py) (순수 함수) ·
 > [`scripts/soak-gate.sh`](../../scripts/soak-gate.sh) (수집·판정 CLI) ·
 > [`scripts/soak-stack.sh`](../../scripts/soak-stack.sh) (커밋 고정) ·
-> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 18테스트)
+> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 22테스트)
 
 ---
 
@@ -163,6 +163,30 @@ FAIL 은 운영자가 `scripts/soak-stack.sh up` 으로 **새 창을 열 때까�
 ⇒ 살아 있는 세션은 **①연속 두 표본에서 bar time 이 얼어붙었는가**로만 판정하고, 종단 lag 은
 **끝난 세션**에만 적용한다. ①은 따라잡는 중을 구조적으로 통과시킨다.
 
+### ★★★codex 적대 리뷰가 거짓 PASS 경로 5개를 잡았다 (2026-08-05)
+
+게이트를 다 짓고 자기시험까지 통과시킨 뒤 돌린 적대 리뷰가 **P1 6건 + P2 1건**을 냈다.
+그중 **5건이 거짓 PASS 를 만들 수 있었다** — 이 게이트의 존재 이유가 정확히 그것이다.
+
+| 지적                             | 판정                         | 무엇이 잘못됐나                                                                                             | 수리                                                   |
+| -------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| 동시 활성 세션 **합산**          | ✅ 실재                      | 유저당 활성 세션 5개 허용 ⇒ 세션 2개로 **84시간 만에 168h**                                                 | 귀속 구간별 **합집합**(`_merge`)                       |
+| 실격 뒤 인지 전 시간 credit      | ✅ 실재                      | 실격 시점에 이미 열려 있던 귀속 구간이 계속 카운트                                                          | **실격 이후 열린 구간만** 센다                         |
+| 분류기 실패 fail-open            | ✅ 실재                      | 껍데기 아카이브(verdicts 0)가 「검증된 로그 + phantom 없음」으로 읽힘                                       | `classifier_ok` 를 따로 기록·요구                      |
+| `_q` 실패가 `DB_OK` 에 미반영    | ✅ 실재                      | command substitution 서브셸이라 대입이 부모로 안 간다(실행으로 확인)                                        | 함수는 rc 만, 부모가 `\|\| DB_OK=0`                    |
+| 빈 표본이 남의 C4 공백을 메움    | ✅ 실재                      | `sample_gaps` 가 세션 row 를 안 봤다                                                                        | **세션별**로 표본 존재를 확인                          |
+| `pin` 이 실행 중 스냅샷을 덮어씀 | ✅ 실재(내가 이번에 만든 것) | 창은 B 로 기록되는데 프로세스는 A 를 import 한 상태                                                         | 돌고 있으면 `pin` **거부** + `up` 이 `/proc` 값과 대조 |
+| `make -i` 우회                   | ⚠ **부분 반증**              | 실행해 보니 recipe 재검사가 compose 를 막고 `metrics-wipe` 도 SKIP — **피해 0**, 남는 건 exit code 거짓말뿐 | 기존 `assert-main-checkout` 와 같은 잔여로 기록        |
+| heredoc 파이썬 주입              | ✅ 실재(P2)                  | psql 출력·CLI 인자가 파이썬 **소스로** 확장됐다                                                             | `<<'PY'` + argv/파일로만 전달                          |
+
+★★**수리하다가 내가 결함을 하나 더 만들었다** — TSV 를 stdin 으로 파이프했는데
+`python3 - <<'PY'` 는 **stdin 을 프로그램으로 읽는다**. 세션 목록이 조용히 비었고
+`auto_death` 실격이 통째로 사라졌다. **판정이 조용히 관대해지는 방향으로** 틀렸다.
+
+★**교훈** — 「세 낱말을 각각 낼 수 있다」를 **자기시험으로만** 증명하면 그 경로가
+**운영 조건에서 도달 가능한지**는 증명되지 않는다. 실제로 기본 실행은 구조적으로 FAIL 을
+낼 수 없었고(§FAIL 의 범위), 자기시험만 초록이었다.
+
 ---
 
 ## 대안 (거부됨)
@@ -190,7 +214,7 @@ FAIL 은 운영자가 `scripts/soak-stack.sh up` 으로 **새 창을 열 때까�
 - 게이트는 이제 **명령 한 줄**이다: `scripts/soak-gate.sh`
 - 판정의 계산부는 **I/O 없는 순수 함수**라(`soak_gate_predicate.py`) 손 계산과 대조할 수 있다.
   실측 2026-08-05: 스크립트 `0.2513h` = psql 손 계산 `0.2513h`
-- 정의는 **18 테스트로 동결**됐다. 자동 사망 목록은 `SessionDeactivationReason` 정본과 대조된다
+- 정의는 **22 테스트로 동결**됐다. 자동 사망 목록은 `SessionDeactivationReason` 정본과 대조된다
 - `scripts/soak-gate.sh --install` 이 **30분마다** 표본과 phantom 아카이브를 남긴다.
   ★표본이 없으면 C4 를 판정할 수 없어 UNKNOWN(`측정불가`)이 된다 — 그게 옳은 동작이다
 - **첫 실전 판정(2026-08-05)**: 게이트를 세운 지 **38분 만에 `FAIL`** 이 나왔다 —

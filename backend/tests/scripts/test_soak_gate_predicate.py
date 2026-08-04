@@ -74,7 +74,13 @@ def _payload(**overrides: Any) -> dict[str, Any]:
             }
         ],
         "phantom_observations": [],
-        "log_coverage": [{"from": "2026-08-04T10:00:00+00:00", "to": "2026-08-04T12:00:00+00:00"}],
+        "log_coverage": [
+            {
+                "from": "2026-08-04T10:00:00+00:00",
+                "to": "2026-08-04T12:00:00+00:00",
+                "classifier_ok": True,
+            }
+        ],
         "darkness": {"undecidable": 0, "total": 10},
         "db_ok": True,
         "stack_pinned": True,
@@ -285,12 +291,109 @@ def test_unverified_tail_is_trimmed_not_credited(gate: Any) -> None:
     verdict = gate.evaluate(
         _payload(
             log_coverage=[
-                {"from": "2026-08-04T10:00:00+00:00", "to": "2026-08-04T11:30:00+00:00"}
+                {
+                    "from": "2026-08-04T10:00:00+00:00",
+                    "to": "2026-08-04T11:30:00+00:00",
+                    "classifier_ok": True,
+                }
             ],
         )
     )
     assert verdict.conditions["C1_cumulative_hours"] == pytest.approx(1.5)
     assert verdict.detail["unverified_hours"] == pytest.approx(0.5)
+
+
+# ── codex 적대 리뷰(2026-08-05)가 낸 거짓 PASS 경로 ──────────────────────────
+
+
+def test_concurrent_sessions_do_not_double_count(gate: Any) -> None:
+    """★두 세션이 같은 시간에 살아 있어도 그 시간은 **한 번만** 센다.
+
+    유저당 활성 세션이 5개까지 허용되므로(CONTEXT.md), 단순 합산이면 세션 2개로 84시간 만에
+    168h 를 만들 수 있다. codex 적대 리뷰가 잡은 P1 이고 실제로 도달 가능한 경로다.
+    """
+    twin = {
+        "id": "bbbbbbbb-0000-4000-8000-000000000002",
+        "created_at": "2026-08-04T10:00:00+00:00",
+        "deactivated_at": None,
+        "deactivated_reason": None,
+        "last_evaluated_bar_time": "2026-08-04T11:58:00+00:00",
+        "interval_seconds": 60,
+    }
+    base = _payload()
+    both = gate.evaluate(_payload(sessions=[*base["sessions"], twin]))
+    assert both.conditions["C1_cumulative_hours"] == pytest.approx(2.0)
+    assert both.conditions["C2_longest_hours"] == pytest.approx(2.0)
+
+
+def test_time_before_the_operator_reopens_is_not_credited(gate: Any) -> None:
+    """★실격 시점에 **이미 열려 있던** 귀속 구간은 세지 않는다.
+
+    죽은 뒤 운영자가 알아채기 전까지 흐른 시간이 PASS 누적에 들어가면 안 된다. 새 창을 여는
+    `soak-stack.sh up` 이 인지 행위이므로, 그 뒤에 시작한 구간만 유효하다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            sessions=[
+                DEAD_SESSION,
+                {
+                    "id": "bbbbbbbb-0000-4000-8000-000000000002",
+                    "created_at": "2026-08-04T11:05:00+00:00",
+                    "deactivated_at": None,
+                    "deactivated_reason": None,
+                    "last_evaluated_bar_time": "2026-08-04T11:58:00+00:00",
+                    "interval_seconds": 60,
+                },
+            ],
+            # 사망(11:00) 뒤로도 같은 귀속 구간이 열려 있다 — 새 `up` 이 없다
+            pin_events=[{"event": "up", "sha": PIN_SHA, "at": "2026-08-04T10:00:00+00:00"}],
+        )
+    )
+    assert verdict.conditions["C1_cumulative_hours"] == pytest.approx(0.0)
+    assert verdict.verdict == "FAIL"
+
+
+def test_broken_classifier_archive_is_not_coverage(gate: Any) -> None:
+    """★분류기가 깨져서 만든 껍데기 아카이브를 「검증됨」으로 읽지 않는다 (fail-open 방지).
+
+    실측 2026-08-05: 시스템 python3 로 돌렸더니 분류기가 조용히 실패해 verdicts 가 늘 0 이었다.
+    그걸 커버리지로 인정하면 그 시간이 credit 되고 진짜 phantom 도 숨는다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            log_coverage=[
+                {
+                    "from": "2026-08-04T10:00:00+00:00",
+                    "to": "2026-08-04T12:00:00+00:00",
+                    "classifier_ok": False,
+                }
+            ],
+        )
+    )
+    assert verdict.conditions["C1_cumulative_hours"] == pytest.approx(0.0)
+    assert verdict.conditions["C5"]["phantom_archive"] is False
+    assert verdict.verdict == "UNKNOWN"
+
+
+def test_empty_sample_does_not_fill_another_sessions_gap(gate: Any) -> None:
+    """★다른 세션의 row 가 없는 표본은 그 세션의 공백을 메우지 못한다.
+
+    활성 세션 조회가 실패해 `sessions: []` 로 기록된 표본이 모든 세션의 C4 를 통과시키던
+    경로다(codex P1). 표본은 그 세션의 row 를 담고 있을 때만 증거다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            samples=[{"at": "2026-08-04T11:00:00+00:00", "sessions": []}],
+            thresholds={
+                "require_hours": 1.0,
+                "require_continuous_hours": 1.0,
+                "max_sample_gap_seconds": 1800,
+            },
+        )
+    )
+    assert verdict.verdict == "UNKNOWN"
+    assert verdict.reason_word == "측정불가"
+    assert verdict.conditions["C4_sample_gaps"]
 
 
 # ── tick 연속성 (C4) ─────────────────────────────────────────────────────────

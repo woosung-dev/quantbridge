@@ -110,12 +110,13 @@ done
 # ---------------------------------------------------------------- 수집
 
 # 조회 실패를 「이상 없음」으로 수렴시키지 않는다 — 실패는 C5 위반이고 UNKNOWN 이다.
+#
+# ★★`DB_OK=0` 을 함수 **안**에서 세우면 안 된다 — `X="$(_q ...)"` 는 command substitution
+#   이라 서브셸에서 돌고 대입이 부모로 전파되지 않는다(실측: `DB_OK` 가 1 로 남는다).
+#   그래서 함수는 **종료 코드만** 내고, 부모가 `|| DB_OK=0` 으로 받는다(codex P1).
 DB_OK=1
 _q() {
-  docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "$1" 2>/dev/null || {
-    DB_OK=0
-    return 1
-  }
+  docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "$1" 2>/dev/null
 }
 
 NOW="$(docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "SELECT now();" 2>/dev/null)"
@@ -126,19 +127,21 @@ SESSIONS_TSV="$(_q "
 SELECT id, created_at, COALESCE(deactivated_at::text,''), COALESCE(deactivated_reason,''),
        COALESCE(last_evaluated_bar_time::text,''),
        CASE interval WHEN '1m' THEN 60 WHEN '5m' THEN 300 WHEN '15m' THEN 900 WHEN '1h' THEN 3600 ELSE 60 END
-FROM trading.live_signal_sessions ORDER BY created_at;")"
+FROM trading.live_signal_sessions ORDER BY created_at;")" || DB_OK=0
 
-# 활성 세션 (표본용)
+# 활성 세션 (표본용). ★이 조회가 실패했는데 위가 성공하면 빈 표본이 기록되고, 그 빈 표본이
+#   모든 세션의 C4 공백을 메운다 — 그래서 실패 시 표본을 **아예 남기지 않는다**.
+ACTIVE_OK=1
 ACTIVE_TSV="$(_q "
 SELECT id, COALESCE(last_evaluated_bar_time::text,'')
-FROM trading.live_signal_sessions WHERE deactivated_at IS NULL;")"
+FROM trading.live_signal_sessions WHERE deactivated_at IS NULL;")" || { DB_OK=0; ACTIVE_OK=0; }
 
 # 스택이 고정본인가 — C5⑵
 STACK_PINNED=0
 bash "${ROOT}/scripts/soak-stack.sh" assert-not-pinned >/dev/null 2>&1 || STACK_PINNED=1
 
 # 표본 append (창 안 tick 연속성의 유일한 증거원)
-if [ "${COLLECT}" = "1" ]; then
+if [ "${COLLECT}" = "1" ] && [ "${ACTIVE_OK}" = "1" ]; then
   {
     printf '{"at":"%s","sessions":[' "${NOW}"
     first=1
@@ -172,22 +175,46 @@ if [ "${COLLECT}" = "1" ]; then
     # 관측 0건이면 분류기는 exit 1 + 텍스트를 낸다 — 그건 실패가 아니라 「phantom 없음」이다.
     ( set -a; . "${ROOT}/backend/.env.local"; set +a
       docker logs "${WORKER_CONTAINER}" 2>&1 \
-        | (cd "${ROOT}/backend" && uv run python scripts/classify_direction_divergence.py --json 2>/dev/null)
+        | (cd "${ROOT}/backend" && uv run python scripts/classify_direction_divergence.py --json 2>&1)
     ) > "${PHANTOM_JSON}.tmp" 2>/dev/null
-    python3 - "${PHANTOM_JSON}.tmp" "${PHANTOM_JSON}" "${LOG_FIRST}" "${LOG_LAST}" <<'PY' || rm -f "${PHANTOM_JSON}.tmp"
-import json, sys, pathlib
+    # ★★분류기 **성공 여부를 따로 기록**한다. 껍데기 아카이브(verdicts 0)를 커버리지로
+    #   인정하면 「phantom 없음 + 검증된 로그」로 읽혀 그 시간이 credit 되고 진짜 phantom 도
+    #   숨는다 — fail-open 이다(codex P1). 성공의 정의는 둘 중 하나뿐이다:
+    #     ⑴ 파싱되는 JSON 을 냈다   ⑵ 「관측이 없다」를 명시적으로 냈다(정상적인 0건)
+    #   그 외(의존성·DB·인자 실패)는 `classifier_ok=false` 로 남기고 커버리지에서 제외된다.
+    python3 - "${PHANTOM_JSON}.tmp" "${PHANTOM_JSON}" "${LOG_FIRST}" "${LOG_LAST}" <<'PY'
+import json, pathlib, sys
+
 src, dst, first, last = sys.argv[1:5]
+raw_text = pathlib.Path(src).read_text() if pathlib.Path(src).exists() else ""
+verdicts, ok, note = [], False, ""
 try:
-    raw = json.loads(pathlib.Path(src).read_text())
-    verdicts = raw.get("verdicts", [])
+    blob = json.loads(raw_text)
+    verdicts = blob.get("verdicts", [])
+    ok, note = True, "json"
 except Exception:
-    verdicts = []
-pathlib.Path(dst).write_text(json.dumps(
-    {"log_from": first, "log_to": last,
-     "verdicts": [{"at": v.get("at"), "label": v.get("label"),
-                   "session_id": v.get("session_id")} for v in verdicts]},
-    ensure_ascii=False))
+    if "관측이 없다" in raw_text:
+        ok, note = True, "no-observations"
+    else:
+        note = (raw_text.strip().splitlines() or ["(빈 출력)"])[-1][:200]
+pathlib.Path(dst).write_text(
+    json.dumps(
+        {
+            "log_from": first,
+            "log_to": last,
+            "classifier_ok": ok,
+            "classifier_note": note,
+            "verdicts": [
+                {"at": v.get("at"), "label": v.get("label"), "session_id": v.get("session_id")}
+                for v in verdicts
+            ],
+        },
+        ensure_ascii=False,
+    )
+)
 pathlib.Path(src).unlink(missing_ok=True)
+if not ok:
+    print(f"⚠ phantom 분류기 실패 — 이 창은 커버리지로 인정되지 않는다: {note}", file=sys.stderr)
 PY
   fi
 fi
@@ -219,13 +246,26 @@ fi
 
 # ---------------------------------------------------------------- 판정
 
-PAYLOAD="$(python3 - <<PY
-import json, os, pathlib, sys
+# ★값을 파이썬 **소스 안으로 확장하지 않는다.** `<<PY`(비인용 heredoc)로 psql 출력과 CLI
+#   인자를 코드 문자열에 끼워 넣으면 개행·따옴표 하나가 프로그램 구조를 바꾼다(codex P2).
+#   heredoc 은 `<<'PY'` 로 인용하고, 값은 **argv 와 stdin(TSV)** 으로만 넘긴다.
+# ★TSV 를 stdin 으로 넘길 수 없다 — `python3 - <<'PY'` 는 **stdin 을 프로그램으로 읽는다**.
+#   파이프를 붙이면 heredoc 이 이기고 세션 목록이 조용히 비어버린다(실측: auto_death 실격이
+#   통째로 사라졌다). 그래서 TSV 도 **파일 경로**로 넘긴다.
+SESSIONS_FILE="$(mktemp)"
+printf '%s' "${SESSIONS_TSV}" > "${SESSIONS_FILE}"
+PAYLOAD="$(python3 - \
+  "${STATE_DIR}" "${NOW}" "${DARKNESS}" "${DB_OK}" "${STACK_PINNED}" \
+  "${REQUIRE_HOURS}" "${REQUIRE_CONTINUOUS}" "${SINCE}" "${SESSIONS_FILE}" <<'PY'
+import json, pathlib, sys
 
-state = pathlib.Path("${STATE_DIR}")
+state = pathlib.Path(sys.argv[1])
+now, darkness_raw, db_ok, stack_pinned = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
+require_hours, require_continuous, since = sys.argv[6], sys.argv[7], sys.argv[8]
+sessions_tsv = pathlib.Path(sys.argv[9]).read_text()
 
 sessions = []
-for line in """${SESSIONS_TSV}""".splitlines():
+for line in sessions_tsv.splitlines():
     parts = line.split("|")
     if len(parts) < 6 or not parts[0]:
         continue
@@ -237,6 +277,7 @@ for line in """${SESSIONS_TSV}""".splitlines():
         "last_evaluated_bar_time": parts[4] or None,
         "interval_seconds": int(parts[5]),
     })
+
 
 def read_jsonl(path):
     out = []
@@ -250,6 +291,7 @@ def read_jsonl(path):
                     pass
     return out
 
+
 pin_events = read_jsonl(state / "pin-history.jsonl")
 samples = read_jsonl(state / "gate-samples.jsonl")
 
@@ -260,34 +302,40 @@ for p in sorted(state.glob("phantom-*.json")):
     except Exception:
         continue
     if blob.get("log_from") and blob.get("log_to"):
-        coverage.append({"from": blob["log_from"], "to": blob["log_to"]})
+        coverage.append({
+            "from": blob["log_from"],
+            "to": blob["log_to"],
+            # 옛 아카이브에는 이 필드가 없다 — 없으면 인정하지 않는다(fail-closed).
+            "classifier_ok": blob.get("classifier_ok") is True,
+        })
     for v in blob.get("verdicts", []):
         if v.get("at"):
             phantoms.append(v)
 
 thresholds = {}
-if "${REQUIRE_HOURS}":
-    thresholds["require_hours"] = float("${REQUIRE_HOURS}")
-if "${REQUIRE_CONTINUOUS}":
-    thresholds["require_continuous_hours"] = float("${REQUIRE_CONTINUOUS}")
+if require_hours:
+    thresholds["require_hours"] = float(require_hours)
+if require_continuous:
+    thresholds["require_continuous_hours"] = float(require_continuous)
 
 payload = {
-    "now": """${NOW}""".strip(),
+    "now": now.strip(),
     "sessions": sessions,
     "pin_events": pin_events,
     "samples": samples,
     "phantom_observations": phantoms,
     "log_coverage": coverage,
-    "darkness": json.loads("""${DARKNESS}""") if """${DARKNESS}""".strip() != "null" else None,
-    "db_ok": ${DB_OK} == 1,
-    "stack_pinned": ${STACK_PINNED} == 1,
+    "darkness": json.loads(darkness_raw) if darkness_raw.strip() != "null" else None,
+    "db_ok": db_ok == "1",
+    "stack_pinned": stack_pinned == "1",
     "thresholds": thresholds,
 }
-if "${SINCE}":
-    payload["since"] = "${SINCE}"
+if since:
+    payload["since"] = since
 json.dump(payload, sys.stdout, ensure_ascii=False)
 PY
 )"
+rm -f "${SESSIONS_FILE}"
 
 RESULT="$(printf '%s' "${PAYLOAD}" | python3 "${ROOT}/backend/scripts/soak_gate_predicate.py")"
 RC=$?
@@ -301,9 +349,12 @@ VERDICT="$(printf '%s' "${RESULT}" | python3 -c 'import json,sys; print(json.loa
 WORD="$(printf '%s' "${RESULT}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["reason_word"])')"
 SUMMARY="$(printf '%s' "${RESULT}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["summary"])')"
 
-# ★자기시험 실행(`--require-*` / `--since`)은 운영 상태 파일을 덮지 않는다.
-#   덮으면 `--status` 가 문턱 0.1h 짜리 PASS 를 현행 판정으로 보여준다(실측 오독 1회).
-if [ -z "${REQUIRE_HOURS}${REQUIRE_CONTINUOUS}${SINCE}" ]; then
+# ★자기시험·조사 실행은 운영 상태 파일을 덮지 않는다.
+#   `--require-*`/`--since` 는 문턱·창을 바꾸고, `--no-collect` 는 증거를 안 남기는 조사
+#   실행이다(장애 주입 시험도 여기 온다). 어느 쪽이든 `--status` 가 그걸 현행 판정으로
+#   보여주면 오독이다 — 실측으로 두 번 밟았다(문턱 0.1h PASS · 주입한 `측정불가`).
+#   `last-result` 는 **증거를 남기는 운영 실행**의 기록이다.
+if [ -z "${REQUIRE_HOURS}${REQUIRE_CONTINUOUS}${SINCE}" ] && [ "${COLLECT}" = "1" ]; then
   printf '%s  %s %s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')" "${VERDICT}" "${WORD}" "${SUMMARY}" \
     > "${LOGDIR}/soak-gate-last-result"
 fi

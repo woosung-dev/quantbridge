@@ -198,8 +198,12 @@ def find_disqualifications(
             )
 
     found.extend(_tick_stalls(sessions, samples, tick_bars))
-    found.sort(key=lambda d: d.at)
-    return found
+    # 같은 사건이 여러 아카이브에 중복 보존된다(매 실행이 로그 전량을 다시 분류한다).
+    # 판정에는 영향이 없지만 목록이 부풀어 읽는 사람을 속인다 — 여기서 접는다.
+    deduped: dict[tuple[datetime, str, str], Disqualification] = {}
+    for d in found:
+        deduped.setdefault((d.at, d.kind, d.detail), d)
+    return sorted(deduped.values(), key=lambda d: d.at)
 
 
 def _tick_stalls(
@@ -305,9 +309,20 @@ def _merge(intervals: list[Interval]) -> list[Interval]:
     return merged
 
 
-def sample_gaps(samples: list[dict[str, Any]], window: Interval, limit: float) -> list[str]:
-    """창 안에서 표본이 `limit` 초보다 드물었던 구간. 있으면 C4 를 판정할 수 없다."""
-    times = sorted(parse_ts(str(s["at"])) for s in samples)
+def sample_gaps(
+    samples: list[dict[str, Any]], window: Interval, limit: float, session_id: str
+) -> list[str]:
+    """그 **세션에 대해** 표본이 `limit` 초보다 드물었던 구간. 있으면 C4 를 판정할 수 없다.
+
+    ★세션을 안 보고 표본 시각만 세면 안 된다 — 활성 세션 조회가 실패해 `sessions: []` 로
+    기록된 빈 표본이 **모든 세션의 공백을 메운다**(codex P1). 표본은 그 세션의 row 를
+    담고 있을 때만 그 세션에 대한 증거다.
+    """
+    times = sorted(
+        parse_ts(str(s["at"]))
+        for s in samples
+        if any(str(r.get("id", "")) == session_id for r in s.get("sessions", []))
+    )
     inside = [t for t in times if window.start <= t <= window.end]
     gaps: list[str] = []
     cursor = window.start
@@ -354,9 +369,15 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     # ── 귀속 가능한 clean 창 ────────────────────────────────────────────────
     # 창 = 「세션 활성」 ∩ 「고정 커밋 불변」 ∩ 「T0 이후」 ∩ **「phantom 관측이 덮은 구간」**.
     # 마지막 조건이 자르기인 이유는 `restrict()` docstring 참조 — 증명된 시간만 센다.
+    # ★분류기가 **성공한** 아카이브만 커버리지로 인정한다.
+    #   분류기가 깨져도(의존성·DB·인자) 껍데기 JSON 은 만들어지고 verdicts 는 빈 배열이 된다.
+    #   그걸 커버리지로 받으면 「phantom 0건 + 검증된 로그」로 읽혀 그 시간이 credit 되고
+    #   진짜 phantom 도 숨는다 — 정확히 fail-open 이다(codex P1). 실제로 이 회차에서 시스템
+    #   python3 로 돌려 verdicts 가 늘 0 이었던 전례가 있다.
     log_coverage = [
         Interval(parse_ts(str(c["from"])), parse_ts(str(c["to"])))
         for c in payload.get("log_coverage", [])
+        if c.get("classifier_ok") is True
     ]
     attribution = attribution_intervals(pin_events, now)
 
@@ -377,18 +398,33 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     else:
         violations = []
 
+    # ★실격 사건 **이후에 열린** 귀속 구간만 센다.
+    #   실격 시점에 이미 열려 있던 구간은 「인지 전」이다 — 그 시간을 credit 하면 운영자가
+    #   사망을 알아채기 전까지 흐른 시간이 PASS 누적에 들어간다(codex P1). 새 창을 여는
+    #   `soak-stack.sh up` 이 곧 인지 행위이므로, **그 뒤에 시작한 구간**만 유효하다.
+    countable = [a for a in attribution if a.start >= window_start]
+
+    # ★귀속 구간별로 **합집합**을 낸다 — 세션을 그냥 합산하면 동시 활성 세션 2개가
+    #   84시간 만에 168h 를 만든다(user 당 active ≤ 5 이므로 실제로 도달 가능하다, codex P1).
+    #   구간을 넘나드는 병합은 하지 않는다 — 재고정 경계를 지워 연속 창을 부풀린다.
+    sess_ivs = session_intervals(sessions, now)
     clean: list[dict[str, Any]] = []
-    attributed_seconds = 0.0
-    for sid, s_iv in session_intervals(sessions, now):
-        for a_iv in attribution:
+    per_attribution_verified: list[list[Interval]] = []
+    per_attribution_all: list[list[Interval]] = []
+
+    for a_iv in countable:
+        attributed_pieces: list[Interval] = []
+        verified_pieces: list[Interval] = []
+        for sid, s_iv in sess_ivs:
             inter = s_iv.intersect(a_iv)
             if inter is None:
                 continue
             clipped = inter.clip(window_start, now)
             if clipped is None:
                 continue
-            attributed_seconds += clipped.seconds
+            attributed_pieces.append(clipped)
             for verified in restrict(clipped, log_coverage):
+                verified_pieces.append(verified)
                 clean.append(
                     {
                         "session": sid[:8],
@@ -397,14 +433,17 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
                         "to": verified.end.isoformat(),
                         "hours": round(verified.seconds / 3600.0, 4),
                         "_iv": verified,
+                        "_sid": sid,
                     }
                 )
+        per_attribution_all.append(_merge(attributed_pieces))
+        per_attribution_verified.append(_merge(verified_pieces))
 
-    # ★합산은 **원본 초**로 한다 — 표시용으로 반올림한 `hours` 를 더하면 창이 늘수록
-    #   오차가 쌓인다(4자리 = 창당 최대 0.18초).
-    cumulative_hours = sum(c["_iv"].seconds for c in clean) / 3600.0
-    longest_hours = max((c["_iv"].seconds for c in clean), default=0.0) / 3600.0
-    unverified_hours = max(0.0, attributed_seconds / 3600.0 - cumulative_hours)
+    merged = [iv for group in per_attribution_verified for iv in group]
+    cumulative_hours = sum(iv.seconds for iv in merged) / 3600.0
+    longest_hours = max((iv.seconds for iv in merged), default=0.0) / 3600.0
+    attributed_hours = sum(iv.seconds for group in per_attribution_all for iv in group) / 3600.0
+    unverified_hours = max(0.0, attributed_hours - cumulative_hours)
 
     # ── 귀속 불가 시간 (보고 전용 — 절대 C1 에 더하지 않는다) ───────────────
     unattributed = 0.0
@@ -424,12 +463,13 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         "darkness_computed": darkness is not None,
     }
 
-    # ── C4 표본 공백 (귀속 창 안에서만 묻는다) ──────────────────────────────
+    # ── C4 표본 공백 (귀속 창 안에서만, **세션별로** 묻는다) ────────────────
     gaps: list[str] = []
     for entry in clean:
-        gaps.extend(sample_gaps(samples, entry["_iv"], max_gap))
+        gaps.extend(sample_gaps(samples, entry["_iv"], max_gap, str(entry["_sid"])))
     for entry in clean:
         entry.pop("_iv", None)
+        entry.pop("_sid", None)
 
     conditions = {
         "C1_cumulative_hours": round(cumulative_hours, 4),

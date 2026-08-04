@@ -39,7 +39,7 @@
 > 읽히므로** 떠 있는 프로세스엔 증상이 0 이고 healthcheck(`redis-cli ping`)도 구조적으로 못 본다.
 > ⇒ **스택에 재기동 내성이 없었다.** 168h 창 안에 재부팅이 들어오면 워커가 안 뜬다.
 >
-> **게이트(실측):** BE **4046 passed / 45 skipped**(= 4030 + 술어 동결 16) · ruff 0 · mypy 0 (216) ·
+> **게이트(실측):** BE **4052 passed / 45 skipped**(= 4030 + 술어 동결 22) · ruff 0 · mypy 0 (216) ·
 > bl-audit active **155** / 251 · docs-audit clean. `backend/src` **0줄** · 마이그레이션 0 · FE 0.
 >
 > **★정정** — 아래 5차 블록의 「08-01 이후 자동 사망 0건」은 **범위를 잃은 문장**이다.
@@ -396,7 +396,7 @@ scripts/nightly-real-broker-local.sh --uninstall   # 해제
 
 ### ~~★소크는 내려가 있다 (사용자 결정 2026-08-04)~~ → **2026-08-05 재가동, 그리고 고정됐다**
 
-**활성 세션 1 (`39731d57`) · 고정 커밋 `f5f06886`.** `backend/src` 편집·BE pytest **전면 허용**
+**활성 세션 1 (`cc19abd2`) · 고정 커밋 `f5f06886`.** `backend/src` 편집·BE pytest **전면 허용**
 이고, ★이제 편집이 **소크를 재적재시키지 않는다**(워커는 `.soak/src` 스냅샷을 mount 한다).
 운영은 `scripts/soak-stack.sh` / `scripts/soak-gate.sh` — §다음 스프린트 참조.
 아래 §소크 재개 조건의 「먼저 검토해라」 항목은 **이번 회차가 실행했다.**
@@ -452,7 +452,7 @@ scripts/soak-gate.sh             # [BL-003] 판정 — PASS / FAIL / UNKNOWN
 ★**`make up-isolated` 계열은 고정본이 떠 있으면 거부된다**(`QB_SOAK_OVERRIDE=1` 로 우회).
 ★**`make down` 은 프로젝트 이름이 같아 소크 스택도 내린다.**
 
-★**BE pytest 는 소크 중에도 안전하다**(2026-08-04·08-05 실증 — 4046 통과 중 세션 생존) —
+★**BE pytest 는 소크 중에도 안전하다**(2026-08-04·08-05 실증 — 4052 통과 중 세션 생존) —
 `_test_engine` 은 autouse 가 아니고 대상이 `quantbridge_test` 다. 위험한 것은
 **`DATABASE_URL` 단독 주입**뿐이다.
 ★**「1주 안정 운영」([BL-003] 게이트)은 이제 기계가 잰다** — 현재 **누적 0.25h / 168h**.

@@ -86,6 +86,18 @@ _pin() {
 
   bash "${ROOT}/scripts/assert-main-checkout.sh" "soak-stack.sh pin" || exit 2
 
+  # ★★돌고 있는 고정본 위에 다시 pin 하지 않는다.
+  #   `.soak/src` 는 **실행 중 컨테이너의 bind mount 원본**이다. 제자리에서 지우고 다시 쓰면
+  #   celery 는 이미 구 커밋 모듈을 메모리에 import 한 상태인데 stamp 만 새 SHA 가 된다 ⇒
+  #   창이 B 로 기록되는데 실제로는 A(또는 A/B 혼합)가 돈다(codex P1).
+  #   ★`commit` 은 파일의 증거일 뿐 import 의 증거가 아니므로 이 어긋남을 잡아내지 못한다.
+  if [ "${QB_SOAK_OVERRIDE:-0}" != "1" ] && _stack_is_pinned && [ -n "$(_celery_main_pid)" ]; then
+    echo "✗ 고정본 스택이 돌고 있다 — 그 위에 다시 pin 하면 기록 커밋과 실행 코드가 갈린다." >&2
+    echo "  현재 고정: $(cut -d' ' -f1 "${STAMP_FILE}" 2>/dev/null || echo '?')" >&2
+    echo "  → 'scripts/soak-stack.sh down' 으로 내린 뒤 pin 해라 (연속 창은 끊긴다)." >&2
+    exit 2
+  fi
+
   # ★커밋되지 않은 backend/src 를 소크하지 않는다. 이게 이 도구의 존재 이유의 절반이다.
   local dirty
   dirty="$(cd "${ROOT}" && git status --porcelain -- backend/src)"
@@ -133,14 +145,24 @@ _up() {
   #   실격 사건(사망·phantom·정체)은 그 창이 닫힐 때까지 FAIL 로 남는다 — 그래서 「인지했고
   #   다시 시작한다」는 **명시적 행위**가 필요하다. 그 행위가 이것이다. 워커를 재기동할 이유는
   #   없다(사망한 것은 라이브 세션이지 워커가 아니다) — 재기동은 4분짜리 uv 동기화를 부른다.
-  if _stack_is_pinned && [ -n "$(_celery_main_pid)" ]; then
-    local now_iso
-    now_iso="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-    _record_event up "$(cut -d' ' -f1 "${STAMP_FILE}")" "${now_iso}"
-    echo "✓ 기존 고정본 스택을 재사용하고 **새 창을 열었다** — ${now_iso}"
-    echo "  커밋: $(cut -d' ' -f1 "${STAMP_FILE}")"
-    echo "  ★이전 창의 실격 사건은 이제 FAIL 을 만들지 않는다(누적은 0 에서 다시 센다)."
-    return 0
+  local main_pid
+  main_pid="$(_celery_main_pid)"
+  if _stack_is_pinned && [ -n "${main_pid}" ]; then
+    # ★그 프로세스가 **실제로 보는** stamp 가 파일의 stamp 와 같아야만 재사용한다.
+    #   다르면 누군가 밑에서 스냅샷을 바꾼 것이고, 그대로 창을 열면 기록 커밋과 실행 코드가
+    #   갈린 채 시간이 credit 된다(codex P1). 그 경우엔 재기동 경로로 떨어뜨린다.
+    local proc_sha file_sha now_iso
+    proc_sha="$(docker exec "${WORKER_CONTAINER}" cat "/proc/${main_pid}/root/app/src/__soak_commit__" 2>/dev/null | cut -d' ' -f1)"
+    file_sha="$(cut -d' ' -f1 "${STAMP_FILE}")"
+    if [ -n "${proc_sha}" ] && [ "${proc_sha}" = "${file_sha}" ]; then
+      now_iso="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+      _record_event up "${file_sha}" "${now_iso}"
+      echo "✓ 기존 고정본 스택을 재사용하고 **새 창을 열었다** — ${now_iso}"
+      echo "  커밋: ${file_sha}  (PID ${main_pid} 가 보는 값과 일치)"
+      echo "  ★이전 창의 실격 사건은 이제 FAIL 을 만들지 않는다(누적은 0 에서 다시 센다)."
+      return 0
+    fi
+    echo "⚠ 실행 중 프로세스가 보는 커밋(${proc_sha:-없음})이 고정본(${file_sha})과 다르다 — 재기동한다." >&2
   fi
 
   local since sha ready waited
