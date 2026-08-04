@@ -2935,21 +2935,34 @@ async def _block_on_direction_divergence(
 async def _evaluate_session_with_engine(
     session_id: UUID, interval_value: str, sm: Any
 ) -> dict[str, Any]:
-    """평가 본체.
+    """평가 본체 — 단계별로 **누가 무엇을 잡는지** 지도.
 
-    Flow:
-    1. session fetch + active 검증
-    2. strategy + StrategySettings.model_validate (P2 #4)
-    3. account + Bybit Demo 강제 (P2 #1)
-    4. CCXTProvider.fetch_ohlcv(limit_bars=300, ...) (P1 #6)
-    5. last_bar_time 비교 → no new bar skip
-    6. try_claim_bar winner-only (P2 #3)
-    7. run_live (warmup replay, Option B)
-    8. transactional outbox: events INSERT + state upsert + session.last_evaluated commit (P1 #3)
-    9. 신규 INSERT 된 event 만 dispatch task apply_async
+    ★**이 함수 자신은 `try` 를 하나도 갖지 않는다.** 예외는 `_evaluate_session_inner` 의
+    `finally`(dispose)만 거쳐 `_async_evaluate_all` 의 per-session `except` 로 가
+    `reason="eval_error"` 로 계상된다. 즉 **fail-open 은 이 파일의 이 함수 밖에 있다** —
+    리컨사일러(`_reconcile_conditional_entries` 가 스스로 fail-open 소유)와 정반대다.
 
-    ★**감싸는 핸들러: 없다.** 여기서 나온 예외는 `_evaluate_session_inner` 의 `finally`
-    (dispose)만 거쳐 `_async_evaluate_all` 의 per-session `except` 로 간다.
+    | 단계 | 헬퍼 | 그 헬퍼가 소유하는 핸들러 |
+    | --- | --- | --- |
+    | 1 session fetch + active   | (인라인)                        | 없음 |
+    | 2 settings validate        | `_load_strategy_settings`       | `ValidationError → invalid_settings` |
+    | 3 account + Bybit demo     | (인라인)                        | 없음 |
+    | 3.5 coverage preflight     | `_block_on_coverage_preflight`  | 없음 (세션 kill) |
+    | 4 closed-bar OHLCV         | `_fetch_evaluation_bars`        | 없음 |
+    | 5 no-new-bar / catch-up    | (인라인)                        | 없음 |
+    | 5.5 자본 소진              | `_block_on_equity_exhausted`    | 없음 (세션 kill) |
+    | 6 try_claim_bar            | (인라인)                        | 없음 |
+    | 6.5 공백 재동기 조회       | `_probe_gap_resync_state`       | `Exception` 2개 (fail-open, 모름을 값으로) |
+    | 7 pyramiding               | `_extract_pyramiding`           | `Exception` (fail-open → None) |
+    | 7 run_live                 | `_run_live_or_deactivate`       | `Exception` → deactivate, 재던지지 않음 |
+    | 7.5 runtime divergence     | `_block_on_runtime_divergence`  | 없음 (세션 kill) |
+    | 7.5b 공백 정렬 판정        | `_positions_are_aligned`        | `ValueError → False` (판정불가≠일치) |
+    | 7.5c 공백 불일치           | `_block_on_gap_mismatch`        | 없음 (세션 kill) |
+    | 7.6 방향 발산              | `_block_on_direction_divergence`| 없음 (세션 kill) |
+    | 8 outbox + state upsert    | (인라인)                        | 없음 |
+    | 8b equity curve            | `_next_equity_curve`            | `InvalidOperation/ValueError/TypeError` (BL-004) |
+    | 9 dispatch enqueue         | (인라인)                        | 없음 |
+
     ★9단계 enqueue 와 리컨사일 호출은 `async with sm()` **밖**에 남는다 — outbox
     visibility race 방지(커밋 뒤에 발주를 큐잉해야 한다).
     """
