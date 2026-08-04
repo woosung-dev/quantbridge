@@ -1,6 +1,13 @@
 # QuantBridge — Status
 
-> **업데이트:** 2026-08-04
+> **업데이트:** 2026-08-04 (후속 회차 — 축이 바뀌었다)
+> **★★★[ADR-023](decisions/023-engine-state-ssot.md) 신설 = Proposed.** 사망 경로의 수리 축이
+> **원장 주입(C)에서 「엔진에 영속 상태를 주고 거래소 현실을 되먹인다」로 옮겨간다.**
+> 근거: ④=0 에 더해 **유도가 사망 시점에 이미 판정 불가**였고(veto 절반까지 꺼짐), veto 는
+> **원장==거래소·엔진만 거짓말**인 사망 경로에서 애초에 발화하지 않으며, 방향도 반대다
+> (`engine_only` **314** vs `exchange_only` **21**). ★**사용자 판정 대기 — Accepted 아니다.**
+> 선행연구(NautilusTrader·Freqtrade) 대조로 **우리가 내린 기각 3건이 순환**임을 확인했다.
+>
 > **★[BL-591] 슬라이스 1(계측) = PR #539 **OPEN(미머지)** — 그리고 사전등록 V1 이 발동해
 > 슬라이스 2 를 착수하지 않는다.**
 > 근거 전문은 [`ADR-022 §슬라이스 1 실측`](decisions/022-engine-position-ssot.md) ·
@@ -23,6 +30,15 @@
 >
 > **소크가 돌고 있다 — 세션 `bbea6da4` · T0 `2026-08-04T02:54:15Z` · equity baseline
 > `190359.77569871`.** 앵커는 `.soak/session`. **`backend/src` 편집·변이 테스트·BE pytest 금지.**
+> 후속 회차 04:26Z 기준 **1.53h 생존**(직전 사망 세션 `04097fdc` 의 65분을 넘겼다).
+>
+> ★**사전등록 예측 = 적중.** `duplicate_open` 은 예측대로 **2번째 `PivRevSE` 체결**(`03:48:16`)
+> 에서 발화했다. 첫 읽기가 0 이었던 것은 **호스트 `/metrics` 지연**(상비 참조의 기록된 함정).
+> ⇒ ADR-022 §슬라이스 1 의 기전 설명은 **반증되지 않았다.**
+> ★★**그리고 판정 불가는 「비율」이 아니라 흡수 상태다** — `since = sess.created_at` 이라 한 번
+> 들어가면 세션 끝까지 나오지 못한다. 프로덕션 실증: `open` **44.0 에서 완전 정지**,
+> `duplicate_open` **36 연속**. 라이브 시간의 **19.0%** 가 어둡고 진입까지 median **26.6분**이며,
+> ★**`position_divergence` 사망 2건이 모두 이미 어두운 뒤에 죽었다.**
 >
 > ★★**브랜치 전략 — `stage/engine-position-ssot` 이 통합 브랜치다.** **PR #539 는 열어 둔 채**
 > 검증이 다 끝나면 **한 번에** `main` 으로 머지한다(사용자 확정 2026-08-04). 다음 회차는
@@ -33,65 +49,64 @@
 
 ---
 
-## 다음 스프린트 — **결정 대기** (engine-position-ssot 슬라이스 1 로 축이 흔들렸다)
+## 다음 스프린트 — **[ADR-023] 선행 측정** (`engine_only` 314 의 원인 분해)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 > ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다.** `CONTEXT.md` 는 반대다(읽어야 들어온다).
-
 > ★★**브랜치 규칙(사용자 확정)** — `stage/engine-position-ssot` 이 통합 브랜치다. **이 브랜치에
 > 커밋을 얹거나** 새 브랜치를 만들어 **이 브랜치로 PR** 을 올려라. **`main` 머지는 검증이 다 끝난 뒤
 > 한 번에** 한다. PR #539 는 **열어 둔다.**
 
-### 무조건 하는 첫 step — 사전등록 예측 1건 + 관측 2건 (판정 없이 기록만)
+### 무조건 하는 첫 step
 
-★**예측(2026-08-04T03:5xZ 시점에 미발생)** — 소크 `bbea6da4` 의 `derive_total` 은
-`no_fills 10 · open 39` 이고 **`duplicate_open` 은 아직 0 이다**. [BL-591] 실측대로라면 이 세션은
-**다음 `PivRevSE` 진입이 체결되는 순간 `duplicate_open`(판정 불가)으로 넘어간다.**
-다음 회차 첫 커맨드로 `curl -s localhost:8100/metrics | grep qb_live_ledger_derive` 를 찍어
-**맞았는지 틀렸는지 그대로 적어라.** ★틀렸으면 §2 의 기전 설명이 불완전한 것이다 — 반증이 우선이다.
+```bash
+QB=/Users/woosung/project/agy-project/quant-bridge
+$QB/scripts/soak-observe.sh          # 인자 없이 1회 · exit 0 (★파이프에 넣지 마라)
+```
 
-2026-08-04 `soak-observe.sh` 차분에 **처음 보는 것 2개**가 떴고, 소크 생존 중이라 손대지 못했다.
+소크가 죽었으면 **그 부검이 최우선**이다 — 슬라이스 1 계측이 깔려 있어 지금까지보다 자세하다.
+살아 있으면 `backend/src` 편집·변이·BE pytest 전면 금지다.
 
-- `qb_live_conditional_guard_total{breach_with_resting}` **11 → 12** — [BL-589] 수리 관측축의
-  **첫 프로덕션 발화**다. ★단 같은 창에서 `market_converted` 는 **증가하지 않았다.**
-  status.md 가 정한 확인식(「`breach_with_resting` 이 증가할 때 `market_converted` 동시 증가」)이
-  **충족되지 않았다** — 대기 주문이 진짜로 발화 가능했다면 정상이다. 그 주문의 트리거·기준가를
-  원장에서 확인해라. **결론을 미리 적지 마라.**
-- `qb_live_conditional_reconcile_errors_total{stage="terminal_write_back_filled"}` — 신규 series 가
-  나타나 **16분 만에 1 → 2** 로 늘었다. ★**일회성이 아니다.** write-back 경로에서 무엇이 던지는지
-  로그에서 그 두 tick 을 찾아라. 원인이 확인되면 **[BL-566] 계열에 링크**한다(새 BL 금지).
+### 본 작업 — `engine_only` 314 의 **원인** 을 갈라라 (읽기 전용이라 소크와 공존한다)
 
-★새 증상 BL 을 열지 마라 — [BL-591] 또는 해당 원본 BL 에 링크한다.
+★**[ADR-023] 의 슬라이스를 확정하려면 이 분해가 먼저다.** `_classify_position_divergence` 는
+「엔진 non-flat + 거래소 flat」이라는 **상태만** 세고 **원인은 세지 않는다.** 후보 셋:
 
-### 그다음 — 사용자 결정 (셋 중 하나. 추천은 A)
+| 후보                                                        | 지배 시 수리의 모양             |
+| ----------------------------------------------------------- | ------------------------------- |
+| (a) 주문이 안 나갔거나 거절됐는데 시뮬은 체결로 쳤다        | **거절을 엔진에 되먹임**        |
+| (b) 브래킷 TP/SL·청산이 **거래소에서** 닫았고 엔진이 모른다 | **거래소발 청산을 엔진에 반영** |
+| (c) 엔진이 열었는데 outbox 가 발행하지 않았다               | **발행 경로 수리**              |
 
-**A. [BL-591] 축 재판정** — ④ = 0 이 확인됐으므로 「C(원장 주입)를 계속 갈 것인가」 자체가 열린
-질문이다. C 를 살리려면 주입 범위를 「엔진 flat」 밖으로 넓혀야 하는데 ADR-022 는 그것을
-**멱등성 붕괴**로 이미 기각했다(§대안 「원장으로 전면 덮어쓰기」). 즉 **설계 축을 다시 골라야
-한다** — 이것이 P0([BL-003])의 실질 게이트다. 사용자 결정 사항이라 코드보다 질문이 먼저다.
+재료는 `trading.orders` · `trading.exchange_exits` · 워커 로그(`live_signal_position_divergence`
+는 tick 마다 무조건 찍힌다)다. ★**결론(고칠 곳 = 엔진)은 세 경우 모두 같으므로 축은 안 바뀐다 —
+바뀌는 것은 슬라이스의 내용이다.**
 
-**B. [BL-581] 처분** — `.metrics` **14,905/20,000 파일**, **+175 파일/h** ⇒ 약 **29시간** 뒤 Trigger.
-스크레이프 이미 **2.67초**. ★**counter 파일을 지우는 것은 금지**(창 차분 계측이 재기동 생존을
-전제한다)라 처분에는 설계가 필요하다. **소크 창의 상한**이므로 A 보다 먼저 와야 할 수도 있다.
+★**[BL-592] 를 먼저 읽어라** — 같은 Bybit 데모 계정이 `exchange_accounts` 에 **2행**이라
+`exchange_exits` 로 귀속을 판정하면 **3.7배 부풀려진다.**
 
-**C. 유도 함수 재설계**([BL-591] 슬라이스 1.5) — `trade_id` 재사용과 배수량 반전을 견디는 legs
-분해. ★**A 의 답이 「C 안을 접는다」면 이 작업은 통째로 불필요하다.** A 를 먼저 답해라.
+### 그다음 — 사용자 판정 대기 (코드보다 질문이 먼저다)
+
+[ADR-023] 은 **Proposed** 다. 위 분해가 끝나면 §슬라이스 분해를 채우고 사용자에게 「이 개편을
+할 것인가」를 묻는다. ★**긴급도는 소크 달력 시간이 정한다** — [BL-589]/[BL-590] 수리 뒤 자동
+사망이 **0건 / 225분**인데 수리 전 기저율(3건/738분) 기대값이 **0.91건**이라 **아직 아무 증거도
+아니다**(P(0|무변화)≈40%). **며칠 무사고면 [ADR-023] 의 우선순위를 낮춰라.**
 
 ### 착수 전 반드시 읽을 것
 
 - ★**소크가 살아 있으면 `backend/src` 편집 · 변이 테스트 · BE pytest 전면 금지**다
   (`drop_all` 이 소크 원장을 든 개발 DB 를 겨냥한다). 먼저 `scripts/soak-observe.sh` 로 생존을 재라.
-- ★**「기다린다」를 고르기 전에 그 지표가 그 창에서 발화 가능한지 계산해라.** 이번 회차도 계산이
-  선택지를 바꿨다(19 tick 짜리 창으로는 ①②③⑤ 를 못 잰다 → 과거 원장 재생으로 경로 교체).
+- ★**「기다린다」를 고르기 전에 그 지표가 그 창에서 발화 가능한지 계산해라.**
 - ★**작은 창의 0 은 0 이 아니다** — ⑤가 소크 19 tick 에서 **0/19**, 과거 29세션에서 **27.6%** 였다.
+- ★**「비율」과 「흡수 상태」를 구분해라** — 판정 불가 19.0% 는 균등 분포가 아니라 **median 26.6분에
+  들어가서 안 나오는** 것이다. 「27.6% 의 세션이 실패」로 읽으면 심각도를 과소평가한다.
 
 ### 비목표
 
 슬라이스 2(실제 주입·관망) — ★**재개 조건 3개를 다 채우기 전에는 착수 금지**
 ([ADR-022 §슬라이스 2 재개 조건](decisions/022-engine-position-ssot.md)).
-[BL-580] 잔여 96곳 · [BL-578] 취소 사유 영속화 · [BL-389]/[BL-466] 파산 모델 · [BL-462] · mainnet.
-
----
+[ADR-023] 의 **구현**(설계 Accepted 전) · [BL-580] 잔여 96곳 · [BL-578] 취소 사유 영속화 ·
+[BL-389]/[BL-466] 파산 모델 · [BL-462] · mainnet.
 
 ## ⛔ 종료 — **engine-position-ssot 슬라이스 1** (완료 · 참고자료)
 
@@ -196,15 +211,36 @@
 ★**counter 절대값을 비교하지 마라 — 출생일이 다르다.** 원본 스냅샷은 `.soak/snap-*.txt` 에 있고
 **차분은 거기서 뜬다**(`soak-observe.sh` §4 가 자동으로 한다). 상시 확인 대상:
 `qb_metrics_mutation_failed_total`([BL-580] Trigger, 아직 실측 0) ·
-`/metrics` 파일 수([BL-581] Trigger 20000) ·
-`qb_live_conditional_guard_total{breach_with_resting}` vs `{market_converted}`([BL-589] 수리 관측축) ·
+`/metrics` 파일 수([BL-581] Trigger 20000 — ★**소크 창의 상한이 아니다**, 아래 정정) ·
+★**[BL-589] 수리 관측축 정정(2026-08-04)** — 종전의 「`breach_with_resting` 이 증가할 때
+`market_converted` 동시 증가」는 **코드상 구조적으로 성립 불가**다. `conditional_entry_planner.py:447`
+이 `breached and (resting_could_have_fired or not allow_market_conversion)` 일 때만 그 갈래를 타므로
+**같은 leg 에서 둘이 함께 오를 수 없다.** 볼 것은 counter 가 아니라 **`live_conditional_plan_drop`
+로그의 `resting_could_have_fired`** 다 — **`false`** 인 건이 [BL-589] 결함 형태이고, `true` 면
+「발화 가능한 대기 주문이 정당하게 막았다」라 **전환하지 않는 것이 옳다**(실측 `03:03:14` 건은
+`true` 였고 그 대기 주문이 **57초 뒤 실제 체결**됐다 — 전환했으면 이중 진입이었다) ·
 `qb_live_conditional_guard_total{recovery_placed}`([BL-590] 수리 관측축 — 증가하면 그 시점
 원장에 `condmkt` 주문이 짝으로 있는지 확인해라. `recovery_expired` 가 증가하면 **브로커 적체**다) ·
 `qb_live_ledger_derive_total` / `qb_live_ledger_veto_total` / `qb_live_ledger_hold_resolved_total`
 ([BL-591] 슬라이스 1 계측 — ★`derive_total` 이 **증가 중**인지가 「계측이 돌고 있다」의 유일한 증거다.
 「코드가 mount 됐다」와 다르다. 교차 확인은
-`live_signal_states.last_strategy_state_report._qb_ledger_shadow` 의 `updated_at`) ·
+`live_signal_states.last_strategy_state_report._qb_ledger_shadow` 의 `updated_at`.
+★**`derive_total{duplicate_open}` 이 오르기 시작하면 그 세션의 계측은 끝난 것이다** — 흡수
+상태라 되돌아오지 않는다) ·
 마이그레이션 head `20260801_0001`.
+
+★**`qb_live_conditional_reconcile_errors_total{stage="terminal_write_back_*"}` 는 에러가 아니다**
+(2026-08-04 판정). `live_signal.py:1310` 이 `f"terminal_write_back_{won}"` 로 라벨을 만드는데 `won` 은
+**전이 경합에서 이겼을 때의 terminal 상태명**이다(`:958` docstring) — 즉 **[BL-560] 수리가 성공한
+횟수**가 "reconciliation failures" counter 에 계상된다. 소비자는 전부 `stage` 라벨 단위라 자동
+판정은 안 깨지고 피해는 **사람의 오독**이다. 상세는 [BL-566] 계열. **차분에서 보이면 무시해라.**
+
+★**[BL-581] 은 소크 창의 상한이 아니다**(2026-08-04 정정). 워커 커맨드가
+`uv run watchfiles --filter python celery … /app/src` 이고 `/metrics` 파일은 **PID 당** 생기므로,
+증가 드라이버는 **`backend/src` 편집으로 인한 워커 재기동**이다. 실측: 편집 세션 시간대 **~600/h**
+(08-03 08시 584 · 17시 829 · 08-04 01시 595) vs **조용한 소크 시간대 ~4–5/h**(08-04 00시 4개 ·
+최근 90분 5개 = 워커 자식 1회 재활용). 남은 5,091 파일 기준 **약 42일**이다. ⇒ 상한은 소크 시간이
+아니라 **개발 재기동 예산**이다.
 
 > ★★**`cd backend && set -a; . ./.env.local; set +a` 를 쓰지 마라.** 이미 `backend` 에 있으면
 > `cd` 가 실패해 **`set -a` 만 건너뛰고** 나머지는 `;` 로 계속 실행된다 — env 가 export 되지
@@ -228,7 +264,19 @@ fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `No
 
 ## 완료 이력
 
-- 직전 회차 — [`engine-position-ssot`](dev-log/2026-08-04-engine-position-ssot.md)
+- 직전 회차 — [`engine-state-ssot`](dev-log/2026-08-04-engine-state-ssot.md)
+  (**[ADR-023] Proposed 신설 · 코드 0줄 · 소크 무중단**. ★★★**사망 경로의 축이 바뀐다** — ④=0 은
+  주입 절반을 막았고, 이번에 **veto 절반까지** 막혔다: 유도가 **흡수 상태**라 사망 2건 모두 이미
+  어두운 뒤 죽었고(`a201a47b` 17.3분→104.9분 · `04097fdc` 26.1분→65.0분), veto 는
+  **원장==거래소·엔진만 거짓말**인 사망 경로에서 발화하지 않으며, 방향도 반대다(`engine_only` 314
+  vs `exchange_only` 21). ★★★**선행연구가 우리 기각 3건을 순환으로 판정** — NautilusTrader 는
+  「reconciliation 은 라이브 전용」이라 엔진을 포크할 필요가 없고, 합성 주문은 **꼬리표**로 격리하며,
+  우리가 죽이는 `direction` 을 **Position side flip** 으로 이름 붙여 조정 주문을 낸다. 우리
+  `duplicate_open` 의 해법(**zero-crossing 생애주기**)도 문서화돼 있다. ★★**Trust Layer 23 테스트가
+  `run_live` 를 0회 호출** ⇒ 라이브가 갈라져도 CI 는 구조적으로 green. ★★**새 위험 R1 — replay 가
+  우연히 float 오차 청소부였다.** ★사전등록 예측 **적중** · 관측 2건 판정(`breach_with_resting` 은
+  정상이고 확인식이 구조적 불가 · `terminal_write_back_*` 는 **성공인데 errors counter**))
+- 그 앞 — [`engine-position-ssot`](dev-log/2026-08-04-engine-position-ssot.md)
   (슬라이스 1(계측) **PR #539 OPEN** · **슬라이스 2 미착수 확정**. ★★★**계측이 초록인데 주입될
   값이 틀렸다** — 유도 함수의 **net 은 맞고 legs 는 틀리다**(외부 오라클 11건: 오답 0, 적중 4가
   3건이 `legs=2` 인데 거래소는 단일 포지션 — 나머지 1건은 반전 없는 먼지 세션이라 정확했다).

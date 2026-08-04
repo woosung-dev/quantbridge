@@ -3,14 +3,14 @@
 > **상태:** 확정 (Accepted)
 > **일자:** 2026-08-04
 > **출처:** 2026-08-04 engine-position-ssot ([BL-591] §설계 축 4개 질문의 사용자 확정)
-> **관련:** [`tasks/live_signal.py:2360`](../../backend/src/tasks/live_signal.py) (`run_live` 재생) · `live_signal.py:2248` (동어반복 금지 제약) · `live_signal.py:494-516` (발산 분류기) · [`pine_v2/event_loop.py:192`](../../backend/src/strategy/pine_v2/event_loop.py) (주입점) · [`pine_v2/strategy_state.py:331-357`](../../backend/src/strategy/pine_v2/strategy_state.py) (`seed_positions_from_ledger`)
+> **관련:** [`tasks/live_signal.py:2528`](../../backend/src/tasks/live_signal.py) (`run_live` 재생) · `live_signal.py:2248` (동어반복 금지 제약) · `live_signal.py:494-516` (발산 분류기) · [`pine_v2/event_loop.py:192`](../../backend/src/strategy/pine_v2/event_loop.py) (주입점) · [`pine_v2/strategy_state.py:331-357`](../../backend/src/strategy/pine_v2/strategy_state.py) (`seed_positions_from_ledger`)
 
 ---
 
 ## 배경
 
 **엔진 포지션에는 SSOT 가 없다.** `run_live` 는 매 tick 봉을 처음부터 재생해 포지션을 **도출**하며
-(`live_signal.py:2360`), 정상 운행 중엔 현실로 **보정되지 않는다.** `last_strategy_state_report` 는
+(`live_signal.py:2528`), 정상 운행 중엔 현실로 **보정되지 않는다.** `last_strategy_state_report` 는
 발산 스트라이크 플래그와 보고용일 뿐 엔진 상태를 이어받지 않는다. ⇒ **엔진에 「쓸」 자리가 없다.**
 
 그래서 시스템이 어긋남에 대해 할 수 있는 일은 **죽이는 것**뿐이고, 실제로 `direction`(양쪽이 정반대)
@@ -119,7 +119,8 @@ tick 당 1회 늘어 2회가 된다** — `_detect_position_divergence` 는 `eng
 
 **재현성 — 라이브는 더 이상 「전략+OHLCV」만으로 재현되지 않는다.**
 
-백테스트 골든은 안 깨진다(`ledger_seed_legs` 를 채우는 곳은 `live_signal.py:2358` 하나뿐).
+백테스트 골든은 안 깨진다(`ledger_seed_legs` 를 채우는 곳은 `live_signal.py:2512` 하나뿐 —
+★줄번호만 2026-08-04 에 갱신했다, 주장은 손대지 않았다. 검증 결과는 §슬라이스 1 후속 실측 참조).
 다만 그 격리가 **관례로만** 유지되므로 회귀 테스트를 신설한다. 라이브 쪽은 주입 후 그 시점
 원장이 있어야 재현되므로, `live_signal_states.last_strategy_state_report`(기존 jsonb,
 **마이그레이션 0**)에 `ledger_seed{applied, vetoed, hold_ticks}` 를 영속한다.
@@ -252,3 +253,60 @@ fail-closed 가 실제로 작동해 **오답 0/11** 이다. 문제는 정확성�
   들어가는 tick 은 **원장 non-flat + 엔진 flat + agree** 인데 그 교차는 현재 counter 로 못 센다.
 - 회고 재생은 **같은 함수**를 쓰므로 함수의 정확성을 검증하지 않는다. 정확성을 잰 것은 위
   **오라클 11건**(외부 진실)뿐이다. 두 층을 합쳐 말하지 마라.
+
+---
+
+## 슬라이스 1 후속 실측 — veto 절반까지 꺼진다 (2026-08-04, 같은 날 후속 회차)
+
+> 위 §슬라이스 1 실측과 마찬가지로 **§결과·§근거의 예고 문장은 고치지 않았다**(줄번호만 갱신).
+> 본 절이 그 뒤에 잰 것이다. **결정은 여전히 Accepted** — 무너진 것은 C 의 **적용 범위**다.
+
+### 사전등록 예측 — **적중**
+
+「소크 `bbea6da4` 는 다음 `PivRevSE` 진입 체결에서 `duplicate_open` 으로 넘어간다」는 예측이
+**그대로 맞았다.** 트리거는 **2번째 `PivRevSE` 체결**(`03:48:16`)이었고, 그 직후 tick 부터
+`derive_total{duplicate_open}` 이 오르기 시작했다. ★첫 읽기(`03:49:29`)가 0 이었던 것은
+**호스트 `/metrics` 지연**(상비 참조에 이미 기록된 함정)이고 `03:50:23` 에 1.0 으로 보였다.
+⇒ **§슬라이스 1 실측의 기전 설명은 반증되지 않았다.**
+
+### 신규 3건 — 판정 불가는 「비율」이 아니라 **흡수 상태**다
+
+`_capture_ledger_shadow` 는 `since = sess.created_at`(`live_signal.py:471`)으로 **세션 전체**를
+읽는다. ⇒ `trade_id` 가 한 번 반복되는 순간 그 뒤 **모든 tick 이 영구히 `legs=None`** 이다.
+
+| 사실                                                           | 실측                                                                                                                       |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `duplicate_open` = **흡수 상태**                               | 프로덕션 실증: `open` 44.0 에서 **완전 정지**, `duplicate_open` 36 연속                                                    |
+| 라이브 시간 중 **어두운 비율**                                 | **19.0%** (601 / 3165 세션·분, n=29)                                                                                       |
+| 실명까지 걸린 시간                                             | median **26.6분** (min 17.3 / max 60.5, n=8)                                                                               |
+| ★**`position_divergence` 사망 2건이 모두 이미 어두운 뒤 사망** | `a201a47b` T0+17.3 dark → T0+104.9 사망 · `04097fdc` T0+26.1 dark → T0+65.0 사망                                           |
+| 깨지는 조건 = **반전(`:close:` 키 없음)**                      | close 키 0 + 체결 ≥2 세션 **6/6 전건** dark. 916분 무실명 세션 `e1f6d84c` 는 `Long` 12 open / 12 close **짝 맞는 롱 전용** |
+
+★재생 산식이 위 §⑤ 의 **27.6%(8/29)를 그대로 재현**했다 — 계측기 자체가 교차검증됐다.
+
+### 판정 — ④=0 이 주입 절반을 막았다면, 이 3건은 **veto 절반까지** 막는다
+
+§슬라이스 1 실측은 **주입**이 사망 경로에 닿지 않음을 보였다(④=0). 남은 절반인 **veto/관망**은
+`net` 만 필요하고 net 은 오답 0/11 이라 **살아 있다고 볼 수 있었다.** 그러나:
+
+1. **사망 시점에 유도 자체가 판정 불가였다** — 위 표. veto 를 계산할 입력이 없다.
+2. **설령 계산됐어도 발화하지 않는다** — veto 는 「원장 vs 거래소」 대조인데 사망 경로는
+   **원장 == 거래소이고 엔진만 거짓말**한다. `agree` 로 통과하고 `direction` 킬이 그대로 난다.
+3. **방향이 반대다** — `engine_only` **314** vs `exchange_only` **21**. C 가 메우는 것은 21 쪽이다.
+
+⇒ **C 는 예방 전용이며 사망 경로에 구조적으로 닿지 않는다.** 결정은 유지하되 **적용 범위를
+그렇게 축소한다.** 사망 경로의 수리는 [ADR-023](023-engine-state-ssot.md) 이 다룬다.
+
+### 대안 D 기각이 순환이었다
+
+> **D. 조정 연산 정의** — 엔진에 쓸 자리가 없으므로 결국 같은 주입점을 쓴다. **C 의 부분집합.**
+
+「쓸 자리가 없다」는 **본 ADR §배경이 진단한 결함 그 자체**이지 넘을 수 없는 경계가 아니다.
+같은 형태의 순환이 둘 더 있었다(백테스트 분기 우려 · 합성 주문 행 오염 우려) — 전문은
+[ADR-023 §순환 기각 3건](023-engine-state-ssot.md).
+
+### §결과의 「회귀 테스트를 신설한다」는 **이행됐다**
+
+`backend/tests/strategy/pine_v2/test_ledger_seed_isolation.py`(75줄, 테스트 3개). ★단서 둘:
+**⑴ `origin/main` 에 없다**(PR #539 미머지 → main CI 는 아직 이 계약을 집행하지 않는다)
+**⑵ `ledger_seed_legs` 단일 심볼만 지킨다**(`:31`) — `position_epoch`·`emit_from_bar_time` 은 무방비.
