@@ -169,7 +169,12 @@ docker exec quantbridge-db psql -U quantbridge -d quantbridge -Atc \
 ★**사용자 확정 규칙은 「검증이 다 끝난 뒤 한 번에 main」**이다. 이번 회차로 게이트는 전건 통과했지만
 **실거래소·`_evaluate_session_inner` 본체는 여전히 미검증**이다 — 그 둘을 「검증 끝」에 포함할지가 판단의 핵심이다.
 
-**Step 3 — 본 작업 착수 = [BL-024] 실주문 leg.** ★**자격증명은 이제 있다**(2026-08-04 배치 완료):
+**Step 3 — ★★첫 작업은 「지리 차단」 처리다** (§아래 [BL-024] 절 참조).
+자격증명을 넣자 **Bybit 이 GitHub 러너를 403 으로 차단**하는 것이 드러났다 —
+로컬(한국)에서는 같은 키가 된다. **A(self-hosted) / B(로컬 스케줄) 중 하나를 정하거나,
+정하기 전까지 `schedule:` 을 끄거나 명시 skip 을 넣어라** — 안 그러면 매일 이슈가 하나씩 쌓인다.
+
+그 다음이 실주문 leg 이다. ★**자격증명은 이제 있다**(2026-08-04 배치 완료):
 
 - `backend/.env.local` 에 `BYBIT_DEMO_API_KEY_TEST` / `BYBIT_DEMO_API_SECRET_TEST`
 - GitHub repo secret 동명 2종 (`gh secret list` 로 확인)
@@ -221,7 +226,42 @@ DB 의 두 계정(`19a8166a` · `0277c150`)은 **`exchange_uid` 가 같고**(둘
 
 ★**census 숫자가 줄면 그만큼 `_FROZEN_CENSUS` 를 낮춰라** — 안 낮추면 다음 회차가 그 자리를 다시 판정한다.
 
-### ★[BL-024] 실주문 leg — 착수 가능하다 (자격증명 배치 완료)
+### ★★★[BL-024] — 자격증명을 넣자 **진짜 차단이 드러났다: Bybit 이 GitHub 러너를 지리 차단한다**
+
+자격증명 배치 직후 nightly 를 돌렸다(run **`30917972735`**). **이 워크플로 역사상 pytest 가 처음
+실행된 실행**이다(직전 102회는 전부 `alembic` 에서 죽어 도달조차 못 했다). 그리고 이렇게 실패했다:
+
+```
+ProviderError: bybit GET https://api-demo.bybit.com/v5/market/instruments-info?category=spot
+403 Forbidden — The Amazon CloudFront distribution is configured to block access from your country.
+```
+
+**대조 실측 (같은 키, 같은 시각):**
+
+| 실행 위치           | `fetch_balance`    | `load_markets` |
+| ------------------- | ------------------ | -------------- |
+| GitHub Actions 러너 | **403 Forbidden**  | —              |
+| 로컬 (한국)         | ✅ USDT 190,352.88 | ✅ 3,091 마켓  |
+
+⇒ **키 문제가 아니다. 코드로 못 고친다.** 자동 이슈 [#540](https://github.com/woosung-dev/quantbridge/issues/540) 에 판정을 적었다.
+
+★**이번 회차 장치는 전부 의도대로 작동했다** — `Alembic migrate` success · preflight 가 자격증명 감지 ·
+E2E 스텝 **실행됨**(직전엔 skip) · `Upload pytest output` success(F2 수리) · 이슈는 **자격증명이 있을 때만** 발화.
+**워크플로는 이제 진실을 말한다. 이 실패가 그 첫 산출물이다.**
+
+**★다음 회차가 먼저 고를 것 (이거 없이는 S2~S13 을 짜도 CI 에서 못 돈다):**
+
+| 안                           | 내용                                            | 대가                                                   |
+| ---------------------------- | ----------------------------------------------- | ------------------------------------------------------ |
+| **A. self-hosted 러너**      | 허용 지역(=소크 돌리던 그 머신)에 러너를 붙인다 | 러너 운영·보안 부담. **지리 조건은 이미 만족**         |
+| **B. 로컬 스케줄**           | GitHub cron 대신 로컬 cron/launchd              | CI 통합을 잃지만 **가장 빨리 신호를 얻는다**           |
+| **C. 프록시**                | 허용 지역 경유                                  | 시크릿·실패 모드가 하나씩 는다                         |
+| **D. 지리 차단을 명시 skip** | 403+CloudFront 감지 → 「측정 불가」 green skip  | ★**이슈는 멈추지만 검증도 0.** 위 셋의 임시 완충으로만 |
+
+★**A/B 를 정하기 전까지 nightly cron 은 매일 이 이슈를 다시 만든다.** 임시로 **D 를 넣거나
+`schedule:` 을 끄는 것**이 원장 오염을 막는다 — 그게 다음 세션의 **첫 작업**이다.
+
+### ★[BL-024] 실주문 leg — 코드 쪽은 착수 가능 (자격증명 배치 완료)
 
 ~~사용자 액션이 차단 사유다~~ → **2026-08-04 해소.** `TRADING_ENCRYPTION_KEYS_TEST` 는 **불필요**하다(워크플로 리터럴).
 
