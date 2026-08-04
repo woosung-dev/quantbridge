@@ -432,6 +432,24 @@ def test_guard_outcome_literals_are_all_allowed() -> None:
 # 바꿀 때마다 6 / 13 / 14 곳으로 흔들렸다(2026-08-02). 그중 「6곳」은 프로토타입에 박아둔
 # 임의의 40줄 창이 만든 값이었다. ⇒ 머니-패스 여부는 구문에서 추론할 수 없다.
 # 신규 유입 차단은 위 census 천장이 담당하고, 이 목록은 **무엇을 왜 지키는지**를 고정한다.
+#
+# ★★2026-08-04 `live_signal.py` 해체의 **순이득 — 두 자리가 처음으로 각각 집행된다.**
+#   해체 전에는 `qb_live_conditional_reconcile_errors_total` 두 항목이 삼중항
+#   `(tasks/live_signal.py, _reconcile_conditional_entries, …)` 로 **완전히 동일**했다.
+#   오라클(`test_every_protected_site_is_actually_guarded`)은 「그 함수에 가드된 mention 이
+#   1개 이상」만 보므로 **둘 중 하나만 남겨도 통과**했다 — 즉 한 자리는 집행되지 않았다.
+#   해체 후 두 항목은 서로 다른 함수를 가리킨다:
+#     · 「지연 return」  → `_place_planned_entry`
+#     · 「stand-down 직전」→ `_resolve_current_position`
+#
+# ★★그래서 **앵커를 이 오라클로 검증하지 마라.** 오라클은 같은 함수에 그 metric 의 다른
+#   가드가 하나라도 있으면 통과하므로 **틀린 함수를 적어도 green 이다.** 실제로 해체 1단계에서
+#   두 항목이 옛 함수를 가리킨 채 통과했다(다른 두 항목은 red 였다 — 그래서 더 헷갈린다).
+#   갱신할 때는 **이유 문자열이 가리키는 앵커 행이 새 함수의 행 범위 안인지 숫자로 확인해라.**
+#
+# ★`(파일, 함수, metric)` 이 겹치는 항목이 `tasks/trading.py` 2건 ·
+#   `conditional_entry_janitor.py` 1건 남아 있다(이번 회차 범위 밖). 같은 이유로 각각
+#   집행되지 않고 있으니, 그 파일을 손볼 때 함께 갈라라.
 # ---------------------------------------------------------------------------
 
 _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
