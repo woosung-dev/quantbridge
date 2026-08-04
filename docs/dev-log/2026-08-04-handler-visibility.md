@@ -15,7 +15,7 @@
 | 본체 운반자 (`_inner` · `_with_engine`) | **`try` 0개 · 중첩 0** — 모든 핸들러가 이름 붙은 헬퍼로                        |
 | 함수 수 / 신규 `.py` 소스 파일          | 45 → **71개** / **0개**                                                        |
 | nightly real-broker                     | **10/10 실패(07-25~08-03)** → 원인 확정·수리 + 계약 감사 13테스트              |
-| 게이트                                  | BE **4026 / 45** · ruff 0 · mypy 0(216) · census **40/84 불변** · bl-audit 154 |
+| 게이트                                  | BE **4030 / 45** · ruff 0 · mypy 0(216) · census **40/84 불변** · bl-audit 154 |
 
 ---
 
@@ -129,6 +129,25 @@ md5 일치만으로는 부족하다(파일의 증거이지 **프로세스**의 �
 에러 **0** · `live_signal.*` **4태스크 전부 등록**.
 ⇒ 「함수-지역 import 를 올리면 celery 태스크 미등록」 위험이 닫혔다.
 ★**단 `due_count: 0` 이라 `_evaluate_session_inner` 본체는 미검증**이다(활성 세션 0).
+
+---
+
+## 6-b. ★교훈을 문서가 아니라 **게이트**로 동결했다
+
+`backend/tests/tasks/test_live_signal_handler_visibility.py` (4테스트, 커밋 `15bb91d0`).
+2026-08-04 오독의 뿌리는 판단력이 아니라 **모양**이었다 — 845줄짜리 `try` 본문 + 3겹 중첩이면
+「이 계상이 어느 핸들러에 잡히나」를 사람이 안정적으로 못 읽는다. 그 모양이 **다시 자라는 것을 막는다**:
+
+| 테스트                                                            | 무엇을 red 로 만드나                                                          |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `test_every_declared_helper_actually_exists`                      | ★**공허화 방지** — 헬퍼 이름이 바뀌면 나머지 셋이 **검사 대상 없이 통과**한다 |
+| `test_the_split_families_have_no_nested_try`                      | 해체한 **28개 함수**에 `try` 중첩이 다시 생기면                               |
+| `test_remaining_nested_try_functions_are_exactly_the_frozen_list` | 잔여 중첩 **5개를 정확값으로 동결** — 늘 수도, **조용히 줄 수도** 없다        |
+| `test_no_try_body_exceeds_the_frozen_maximum`                     | `try` 본문 천장 **845 → 225** 초과 시                                         |
+
+★워커가 **변이로 판별력을 증명**했다(`_positions_are_aligned` 의 `try` 안에 `try` 를 넣어 red 확인).
+★동반한 `live_signal.py` 43줄 변경은 **전부 docstring**(`_evaluate_session_with_engine` 의 9단계
+서술을 **헬퍼 이름 지도**로 교체)이고, CONTROL 재측정에서 정규 동치는 `control_context` 제외 시 **0/0**.
 
 ---
 

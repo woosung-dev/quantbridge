@@ -19,12 +19,23 @@
 > 증거가 아니다.** 워크플로 9건 수리 + 계약 감사 13테스트(매 PR) + 자기정리 2층 하네스.
 > ★**실거래소는 1바이트도 검증되지 않았다** — 차단 사유 = Bybit demo 전용 키 2종 미발급.
 >
-> **게이트(통합본 실측):** BE **4026 passed / 45 skipped**(= 4013 + contract 13 − 삭제 1) ·
+> **게이트(통합본 실측):** BE **4030 passed / 45 skipped**(= 4013 + contract 13 + 가시성 래칫 4 − 삭제 1) ·
 > ruff 0 · mypy 0 (216) · bl-audit active **154** · bl-audit-test 5/0 · docs-audit clean ·
 > census **len 40 / sum 84 불변** · FE typecheck·lint 0 · vitest 1242 · e2e design-canon 32 · authed 69.
 > **celery 실주행**: 워커가 통합 코드로 재기동(md5 일치) 후 `evaluate_all` 2회 ·
 > `sweep_conditional_entries` 12회 성공 · 에러 0 · `live_signal.*` 4태스크 전부 등록.
 > ★단 `due_count: 0` 이라 **`_evaluate_session_inner` 본체는 미검증**이다(활성 세션 0).
+>
+> **★교훈을 게이트로 동결했다** — `tests/tasks/test_live_signal_handler_visibility.py` 4테스트:
+> 해체한 28함수 **중첩 1** · 잔여 중첩 **5개 정확값 동결**(늘 수도 조용히 줄 수도 없다) ·
+> `try` 본문 천장 **845 → 225** · ★**공허화 방지**(헬퍼 이름이 바뀌면 나머지가 검사 대상 없이 통과).
+>
+> **★nightly 실검증 — 11회 만에 처음 green** (run `30914689208`). `Alembic migrate` **success**
+> (10회 연속 죽던 자리) · `Run real_broker E2E` **skipped** · `Flaky detection` **skipped**
+> ⇒ **새 이슈 0건**. `flaky-real-broker` **89건 전부 종료**(OPEN 0 / CLOSED 89).
+> ★근거는 로그 표본이 아니라 **코드 이력**이다 — 워크플로는 **생성 시점(04-25)부터** 없는 secret 을
+> 참조했고 `alembic/env.py:24` 의 `Settings` import(04-15)·빈 Fernet 거부(04-17)가 **둘 다 먼저**다.
+> (오래된 로그는 **HTTP 410 만료**라 로그로는 확인 불가 — 그래서 구성 논증으로 대체했다.)
 >
 > **★이전 회차 (4차 — 소크를 내리고 축을 옮겼다)**
 > **★소크는 중단됐다 (사용자 결정)** — `stop` → `flatten` 으로 **활성 세션 0 · FLAT=YES**.
