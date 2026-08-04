@@ -449,9 +449,7 @@ class _LedgerShadow:
     exchange_qty: Decimal | None
 
 
-async def _capture_ledger_shadow(
-    sess: Any, *, session: Any, account_repo: Any
-) -> _LedgerShadow:
+async def _capture_ledger_shadow(sess: Any, *, session: Any, account_repo: Any) -> _LedgerShadow:
     """원장 유도 포지션 + 거래소 스냅샷을 **계측용으로만** 뜬다 (BL-591 슬라이스 1).
 
     ★실패를 전부 흡수한다. 이 함수가 던지면 **계측이 발주를 막는 것**이 되고, 그것은
@@ -1239,9 +1237,10 @@ async def _reconcile_conditional_entries(
                         creds, resting.exchange_order_id, sess.symbol, trigger=True
                     )
                 except Exception:
-                    qb_live_conditional_reconcile_errors_total.labels(
-                        stage="exchange_missing_probe_failed"
-                    ).inc()
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total,
+                        stage="exchange_missing_probe_failed",
+                    )
                     logger.warning(
                         "live_conditional_reconcile_probe_failed",
                         extra={
@@ -1330,7 +1329,7 @@ async def _reconcile_conditional_entries(
                 ):
                     raise ValueError("conditional entry market precision is unavailable")
             except Exception:
-                qb_live_conditional_reconcile_errors_total.labels(stage="precision").inc()
+                _count_safely(qb_live_conditional_reconcile_errors_total, stage="precision")
                 logger.exception(
                     "live_conditional_reconcile_precision_failed",
                     extra={"session_id": str(sess.id), "symbol": sess.symbol},
@@ -1485,9 +1484,10 @@ async def _reconcile_conditional_entries(
                                 # client-id 조회로 확인한다. 즉시 경합을 재시도하지는 않는다.
                                 deferred = state == OrderState.submitted and exchange_id is None
                                 cancel_raced = True
-                                qb_live_conditional_reconcile_errors_total.labels(
-                                    stage="cancel_deferred" if deferred else "cancel_raced"
-                                ).inc()
+                                _count_safely(
+                                    qb_live_conditional_reconcile_errors_total,
+                                    stage="cancel_deferred" if deferred else "cancel_raced",
+                                )
                                 log = logger.warning
                                 log(
                                     "live_conditional_reconcile_cancel_deferred_to_janitor"
@@ -1530,7 +1530,7 @@ async def _reconcile_conditional_entries(
                     _count_safely(qb_live_conditional_cancelled_total, reason=reason)
                 except Exception:
                     cancel_failed = True
-                    qb_live_conditional_reconcile_errors_total.labels(stage="cancel").inc()
+                    _count_safely(qb_live_conditional_reconcile_errors_total, stage="cancel")
                     logger.exception(
                         "live_conditional_reconcile_cancel_failed",
                         extra={"session_id": str(sess.id), "order_id": entry.order_id},
@@ -1585,9 +1585,9 @@ async def _reconcile_conditional_entries(
                         if interval_seconds is None:
                             # 미지 interval은 전환 창을 해석할 수 없다. 창 크기의 폴백은
                             # 전환 허용 근거가 아니므로 시장가 전환만 명시적으로 막는다.
-                            qb_live_conditional_guard_total.labels(
-                                outcome="convert_suppressed"
-                            ).inc()
+                            _count_safely(
+                                qb_live_conditional_guard_total, outcome="convert_suppressed"
+                            )
                             logger.warning(
                                 "live_conditional_reconcile_market_convert_suppressed",
                                 extra={
@@ -1605,9 +1605,9 @@ async def _reconcile_conditional_entries(
                             session_id=sess.id,
                             since=since,
                         ):
-                            qb_live_conditional_guard_total.labels(
-                                outcome="convert_suppressed"
-                            ).inc()
+                            _count_safely(
+                                qb_live_conditional_guard_total, outcome="convert_suppressed"
+                            )
                             logger.warning(
                                 "live_conditional_reconcile_market_convert_suppressed",
                                 extra={
@@ -1622,9 +1622,9 @@ async def _reconcile_conditional_entries(
                             creds, sess.symbol
                         )
                         if conversion_reference_price is None:
-                            qb_live_conditional_guard_total.labels(
-                                outcome="reference_unavailable"
-                            ).inc()
+                            _count_safely(
+                                qb_live_conditional_guard_total, outcome="reference_unavailable"
+                            )
                             logger.warning(
                                 "live_conditional_reconcile_market_convert_skipped",
                                 extra={
@@ -1642,7 +1642,9 @@ async def _reconcile_conditional_entries(
                             and planned_entry.trigger_price >= conversion_reference_price
                         )
                         if not still_breached:
-                            qb_live_conditional_guard_total.labels(outcome="breach_reverted").inc()
+                            _count_safely(
+                                qb_live_conditional_guard_total, outcome="breach_reverted"
+                            )
                             logger.warning(
                                 "live_conditional_reconcile_market_convert_skipped",
                                 extra={
@@ -1814,9 +1816,10 @@ async def _reconcile_conditional_entries(
                     )
                     if idempotency_key is None:
                         # 되짚지 못할 key 로 발주하면 우리 주문을 영원히 남의 것으로 본다.
-                        qb_live_conditional_reconcile_errors_total.labels(
-                            stage="unrepresentable_key"
-                        ).inc()
+                        _count_safely(
+                            qb_live_conditional_reconcile_errors_total,
+                            stage="unrepresentable_key",
+                        )
                         continue
                     await order_service.execute(
                         request,
@@ -1914,27 +1917,29 @@ async def _reconcile_conditional_entries(
                             )
                         return
                 except (BalanceUnverified, MinNotionalNotMet, NotionalExceeded):
-                    qb_live_conditional_reconcile_errors_total.labels(
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total,
                         stage=(
                             "market_place_gate"
                             if planned_entry.as_market
                             else "conditional_place_gate"
-                        )
-                    ).inc()
+                        ),
+                    )
                     logger.exception(
                         "live_conditional_reconcile_place_failed",
                         extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
                     )
                 except Exception:
-                    qb_live_conditional_reconcile_errors_total.labels(
-                        stage="market_place" if planned_entry.as_market else "conditional_place"
-                    ).inc()
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total,
+                        stage="market_place" if planned_entry.as_market else "conditional_place",
+                    )
                     logger.exception(
                         "live_conditional_reconcile_place_failed",
                         extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
                     )
     except Exception:
-        qb_live_conditional_reconcile_errors_total.labels(stage="reconcile").inc()
+        _count_safely(qb_live_conditional_reconcile_errors_total, stage="reconcile")
         logger.exception("live_conditional_reconcile_failed", extra={"session_id": str(sess.id)})
 
 

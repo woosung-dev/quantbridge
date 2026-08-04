@@ -1866,10 +1866,24 @@ async def test_guard_outcome_metric_failure_does_not_counted_as_place_failure(
 
 
 @pytest.mark.asyncio
-async def test_pre_execute_metric_failure_is_unchanged(
+async def test_pre_execute_metric_failure_no_longer_masquerades_as_a_place_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """주문 전 계측 실패는 기존처럼 발주 없이 conditional_place로 계상한다."""
+    """주문 전 계측 실패는 발주를 건너뛰되 **발주 실패로 오기록되지 않는다** (BL-580).
+
+    ★**이 테스트가 내 판정을 정정했다.** 2026-08-04 연장에서 나는 `_reconcile_conditional_entries`
+    의 12곳을 「전부 바깥 fail-open `except` 안이라 리컨사일 전체가 조용히 중단된다」로
+    적었는데, **이 자리는 아니었다** — `unrepresentable_key` 계상은 발주 `try` 안이라
+    예외가 **안쪽** `except Exception`(`stage="conditional_place"`)에 잡혔다.
+
+    즉 수리 전 해악은 「중단」이 아니라 **오기록**이었다: 발주를 시도한 적도 없는데
+    `conditional_place`(= 발주 실패)가 올라, 「되짚지 못할 key 라서 건너뛰었다」는 진짜
+    사유가 사라진다. `_count_safely` 로 감싼 뒤에는 `continue` 가 제대로 실행돼 그 거짓
+    계상이 사라진다.
+
+    ⇒ **「전부 같은 형태」 가정은 12곳 중 최소 1곳에서 틀린다.** 이 레포가 반복해 덴
+    함정이고(직전 회차: 8곳 중 1곳만 fail-open `try` 안), 이번에도 같았다.
+    """
     import src.common.metrics as metrics_mod
 
     labels = metrics_mod.qb_live_conditional_reconcile_errors_total.labels
@@ -1890,5 +1904,7 @@ async def test_pre_execute_metric_failure_is_unchanged(
     await _reconcile(session, _result([_pending("x" * 200)]), harness)
 
     after = failures._value.get()
+    # 변하지 않은 것 — 되짚지 못할 key 로는 여전히 발주하지 않는다.
     harness.order_service.execute.assert_not_awaited()
-    assert after - before == 1
+    # 변한 것 — 계측 실패가 더는 「발주 실패」로 둔갑하지 않는다.
+    assert after - before == 0

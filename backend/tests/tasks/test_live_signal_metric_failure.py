@@ -841,3 +841,38 @@ def test_d12_retry_exhaustion_still_returns_its_terminal_result(
     )
     assert result == {"failed": "max_retries_exhausted"}
     retry.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-04 direction-channel-decomposition 연장 — `_reconcile_conditional_entries`
+# **잔여 12곳 전건 수리** (BL-580, census 96 → 84).
+#
+# ★**판정 — 「전부 같은 형태」가 아니다.** 감싸는 핸들러가 갈린다:
+#   (a) **안쪽 `except` 에 잡히는 자리** → 예외가 그 핸들러의 라벨로 **오기록**되고 루프는
+#       계속된다. 실증: `unrepresentable_key` 는 발주 `try` 안이라, 발주를 시도한 적도
+#       없는데 `stage="conditional_place"`(= 발주 실패)가 올랐다.
+#   (b) **바깥 fail-open `except` 까지 가는 자리** → `stage="reconcile"` 로 계상하고
+#       **정상과 똑같이 `None` 을 반환**한다. 호출자(평가 tick)는 곧바로
+#       `outcome="success"` 를 계상하므로 **리컨사일이 조용히 사라지는데 성공으로
+#       기록된다.** 지속 실패 시 resting 조건부 주문 수렴이 멈춘다.
+#
+# ★**내가 처음 12곳을 전부 (b)로 적었고, 기존 회귀 테스트가 그 일반화를 반증했다**
+#   (`test_pre_execute_metric_failure_no_longer_masquerades_as_a_place_failure`).
+#   직전 회차의 「8곳 중 1곳만 fail-open `try` 안」과 같은 함정이다.
+#
+# ★**H8 은 아니다** — 어느 갈래든 예외는 `continue` 와 `execute` 를 **함께** 건너뛰므로
+#   잘못된 주문이 나가지 않는다. 이 클래스는 「거절이 집행으로 뒤집힘」이 아니라
+#   **「집행이 사라지거나 엉뚱한 라벨로 기록됨」**이다. 방향을 섞어 적지 마라.
+#
+# ★**사이트별 주입은 「판정 보류」다 — 하네스를 새로 만들지 않았다.**
+#   위 A1~A4·C1 이 이 함수의 일부 자리를 이미 덮는다. 나머지(특히 시장가 전환 갈래의
+#   `convert_suppressed`/`reference_unavailable`/`breach_reverted` 와 바깥 `stage="reconcile"`)
+#   는 **기존 `_patch_reconcile` 로 도달 경로를 적지 못했다.** 시도한 두 주입은 판별력이
+#   0 이었다 — 하나는 A3 와 같은 갈래로 새고(`calls == []`), 하나는 `precision_error` 가
+#   자체 `except` 에 잡혀 바깥까지 가지 않았다. **레포 규칙대로 하네스를 지어 도달을
+#   만들지 않는다**(선례: 손조립한 상태가 도달 불가 분기를 「유해」로 만들 뻔한 codex G6).
+#
+# ★**구조적 방어는 주입이 아니라 census 다** — `tests/common/test_metric_guard_census.py`
+#   가 AST 로 raw 사이트를 세어 84 에 동결한다. 반쪽 수리는 거기서 red 가 된다
+#   (직전 회차 교훈: 「반쪽 수리는 사이트 주입 29건을 전부 통과한다」).
+# ---------------------------------------------------------------------------

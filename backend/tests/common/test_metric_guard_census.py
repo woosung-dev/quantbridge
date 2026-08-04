@@ -61,8 +61,22 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
         "backend/src/tasks/conditional_entry_janitor.py",
         "qb_live_conditional_reconcile_errors_total",
     ): 5,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_guard_total"): 4,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 11,
+    # ★2026-08-04 direction-channel-decomposition 연장 — `_reconcile_conditional_entries`
+    # **12곳 전건 수리**(`qb_live_conditional_guard_total` 4곳은 여기서 **0** 이 됐다).
+    # 판정 — ★**「전부 같은 형태」가 아니다.** 감싸는 핸들러가 갈린다:
+    #   (a) **안쪽 `except` 에 잡히는 자리** → 예외가 그 핸들러의 라벨로 **오기록**되고
+    #       루프는 계속된다. 실증: `unrepresentable_key` 는 발주 `try` 안이라 발주를
+    #       시도한 적도 없는데 `stage="conditional_place"`(= 발주 실패)가 올랐다
+    #       (`test_pre_execute_metric_failure_no_longer_masquerades_as_a_place_failure`).
+    #   (b) **바깥 fail-open `except` 까지 가는 자리** → `stage="reconcile"` 로 계상하고
+    #       **정상과 똑같이 `None` 을 반환**한다. 호출자(평가 tick)는 곧바로
+    #       `outcome="success"` 를 계상하므로 **리컨사일이 조용히 사라지는데 성공으로
+    #       기록된다.** 지속 실패 시 resting 조건부 주문 수렴이 멈춘다.
+    # ★H8(거절이 집행으로 뒤집힘)은 **아니다** — 어느 갈래든 예외는 `continue` 와
+    #   `execute` 를 함께 건너뛰므로 잘못된 주문이 나가지 않는다.
+    # ★내가 처음 12곳을 전부 (b)로 적었고 **테스트가 그 일반화를 반증했다.** 직전 회차의
+    #   「8곳 중 1곳만 fail-open `try` 안」과 같은 함정이다.
+    ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 3,
     ("backend/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
     ("backend/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     # ★2026-08-03 metric-guard-residual-sweep — 12곳 중 8곳 수리. 잔여 4곳은 **판정 보류**
@@ -290,7 +304,7 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
     lines = [
         "Metric guard census diverged from the frozen R1 baseline.",
         "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129 "
-        "− 2026-08-03 수리 25 = 104 − 2026-08-03 수리 8 = 96",
+        "− 2026-08-03 수리 25 = 104 − 2026-08-03 수리 8 = 96 − 2026-08-04 수리 12 = 84",
         "새 site (file, lineno, metric, verb, 함수명):",
     ]
     lines.extend(
@@ -378,8 +392,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 41
-    assert sum(_FROZEN_CENSUS.values()) == 96
+    assert len(_FROZEN_CENSUS) == 40
+    assert sum(_FROZEN_CENSUS.values()) == 84
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
