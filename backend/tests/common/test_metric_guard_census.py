@@ -576,13 +576,13 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     ),
     (
         "backend/src/tasks/live_signal.py",
-        "_evaluate_session_inner",
+        "_evaluate_session_with_engine",
         "qb_live_signal_divergence_total",
         "★세션 자동 비활성화 commit 뒤 · 무신호 차단 고지 앞 — 세션이 조용히 죽는다 (H2)",
     ),
     (
         "backend/src/tasks/live_signal.py",
-        "_evaluate_session_inner",
+        "_evaluate_session_with_engine",
         "qb_live_signal_evaluated_total",
         "위와 같은 블록 — 둘 다 감싸야 고지에 도달한다",
     ),

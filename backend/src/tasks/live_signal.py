@@ -2429,8 +2429,10 @@ async def _async_evaluate_session(session_id: UUID, interval_value: str) -> dict
         )
 
 
-async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict[str, Any]:
-    """Lock 안에서 실행되는 핵심 평가 로직.
+async def _evaluate_session_with_engine(
+    session_id: UUID, interval_value: str, sm: Any
+) -> dict[str, Any]:
+    """평가 본체.
 
     Flow:
     1. session fetch + active 검증
@@ -2442,6 +2444,11 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
     7. run_live (warmup replay, Option B)
     8. transactional outbox: events INSERT + state upsert + session.last_evaluated commit (P1 #3)
     9. 신규 INSERT 된 event 만 dispatch task apply_async
+
+    ★**감싸는 핸들러: 없다.** 여기서 나온 예외는 `_evaluate_session_inner` 의 `finally`
+    (dispose)만 거쳐 `_async_evaluate_all` 의 per-session `except` 로 간다.
+    ★9단계 enqueue 와 리컨사일 호출은 `async with sm()` **밖**에 남는다 — outbox
+    visibility race 방지(커밋 뒤에 발주를 큐잉해야 한다).
     """
     from src.strategy.pine_v2.event_loop import run_live
     from src.strategy.repository import StrategyRepository
@@ -2451,376 +2458,502 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
     from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
     from src.trading.repositories.order_repository import OrderRepository
 
-    engine, sm = create_worker_engine_and_sm()
-    try:
-        async with sm() as session:
-            sess_repo = LiveSignalSessionRepository(session)
-            event_repo = LiveSignalEventRepository(session)
-            account_repo = ExchangeAccountRepository(session)
-            strategy_repo = StrategyRepository(session)
+    async with sm() as session:
+        sess_repo = LiveSignalSessionRepository(session)
+        event_repo = LiveSignalEventRepository(session)
+        account_repo = ExchangeAccountRepository(session)
+        strategy_repo = StrategyRepository(session)
 
-            # 1. session fetch
-            sess = await sess_repo.get_by_id(session_id)
-            if sess is None or not sess.is_active:
-                qb_live_signal_skipped_total.labels(reason="session_inactive").inc()
-                return {"skipped": "session_inactive"}
+        # 1. session fetch
+        sess = await sess_repo.get_by_id(session_id)
+        if sess is None or not sess.is_active:
+            qb_live_signal_skipped_total.labels(reason="session_inactive").inc()
+            return {"skipped": "session_inactive"}
 
-            # 2. strategy + settings validate (P2 #4)
-            strategy = await strategy_repo.find_by_id_and_owner(sess.strategy_id, sess.user_id)
-            if strategy is None:
-                qb_live_signal_skipped_total.labels(reason="strategy_missing").inc()
-                return {"skipped": "strategy_missing"}
-            try:
-                parsed_settings: StrategySettings | None = validate_strategy_settings(
-                    strategy.settings
-                )
-            except ValidationError as exc:
-                qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
-                logger.warning(
-                    "live_signal_invalid_settings",
-                    extra={"session_id": str(sess.id), "error": str(exc)},
-                )
-                return {"skipped": "invalid_settings"}
-            if parsed_settings is None:
-                qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
-                return {"skipped": "settings_unset"}
-
-            # 3. account + Bybit Demo 강제 (P2 #1)
-            account = await account_repo.get_by_id(sess.exchange_account_id)
-            if (
-                account is None
-                or account.exchange != ExchangeName.bybit
-                or account.mode != ExchangeMode.demo
-            ):
-                qb_live_signal_skipped_total.labels(reason="non_demo_account").inc()
-                return {"skipped": "non_demo_account"}
-
-            # 3.5 BL-362 — coverage preflight (money-path fail-closed). backtest/service.py 와
-            # 동일 게이트: 미지원 builtin(is_runnable=False) 또는 degraded(heikinashi/
-            # request.security/timeframe.period — graceful 실행이나 결과 divergence) 감지 시
-            # 세션 자동 비활성화. live 엔 allow_degraded_pine 동의 플래그 없음 → 하드 차단.
-            # account/demo check 뒤에 배치 — non-demo 세션은 비활성화 아닌 skip 유지 (G1 P1#2).
-            cov = analyze_coverage(strategy.pine_source)
-            preflight_cat: str | None = None
-            preflight_symbols: tuple[str, ...] = ()
-            equity_baseline_usdt = sess.equity_baseline_usdt
-            if not cov.is_runnable:
-                preflight_cat, preflight_symbols = "coverage_unrunnable", cov.all_unsupported
-            elif cov.has_degraded:
-                preflight_cat, preflight_symbols = "degraded_unconsented", cov.degraded_calls
-            # NaN/Infinity 를 먼저 걸러야 한다 — `Decimal('NaN') <= 0` 은 False 가 아니라
-            # InvalidOperation 을 raise 한다(실측). 그리고 그건 "자본 소진"이 아니라
-            # 애초에 쓸 수 없는 기준선이므로 equity_baseline_missing 으로 진단해야 맞다.
-            elif (
-                equity_baseline_usdt is None
-                or equity_baseline_usdt.is_nan()
-                or equity_baseline_usdt.is_infinite()
-                or equity_baseline_usdt <= Decimal("0")
-            ):
-                preflight_cat = "equity_baseline_missing"
-            if preflight_cat is not None:
-                preflight_pageable, _, preflight_raw_msg = _PREFLIGHT_CATEGORY_METADATA[
-                    preflight_cat
-                ]
-                if preflight_raw_msg is None:
-                    preflight_raw_msg = ", ".join(preflight_symbols)[:200]
-                rows = await sess_repo.deactivate(
-                    sess.id, at=datetime.now(UTC), reason=preflight_cat
-                )
-                await sess_repo.commit()
-                if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
-                    _enqueue_conditional_entry_sweep()
-                    await publish_realtime(
-                        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
-                    )
-                    if preflight_pageable:
-                        qb_live_signal_divergence_total.labels(
-                            stage="preflight", category=preflight_cat
-                        ).inc()
-                    qb_live_signal_skipped_total.labels(reason=preflight_cat).inc()
-                    _fire_divergence_alert(
-                        session_id=sess.id,
-                        stage="preflight",
-                        category=preflight_cat,
-                        raw_msg=preflight_raw_msg,
-                        error_count=0,
-                        last_error_bar=-1,
-                    )
-                    logger.error(
-                        "live_signal_preflight_blocked",
-                        extra={
-                            "session_id": str(sess.id),
-                            "category": preflight_cat,
-                            "symbols": list(preflight_symbols),
-                        },
-                    )
-                return {"deactivated": preflight_cat}
-
-            # 4. CCXT fetch_ohlcv (P1 #6 closed-bar)
-            #
-            # ★BL-530 — 엔진이 재생하는 봉은 주문이 나가는 상품과 같아야 한다.
-            # `CCXTProvider` 는 `defaultType: "spot"` 이라 `sess.symbol`("BTC/USDT")을 그대로
-            # 넘기면 **스팟** 봉이 온다. 그런데 주문은 `BybitFuturesProvider`(defaultType
-            # "linear")로 **무기한선물**에 나간다. 두 상품 가격은 붙어 있지 않아(실측 스팟이
-            # perp 보다 ~40 USDT / 0.066% 높음) 시뮬은 스팟 고가로 매수 스톱을 체결하는데
-            # 거래소 perp 는 그 근처도 안 간다 → 엔진만 포지션을 믿는 유령 진입이 생기고,
-            # 그 포지션의 close 는 전량 거절된다(실측 46/51 이 이 갈래). 방향까지 어긋나면
-            # reduce-only 하나가 반대 방향 포지션 증가를 막는 유일한 방벽이 된다.
-            #
-            # ★`sess.symbol` 자체는 canonical 로 **불변**이다 — 주문 라우팅·세션 스코프·
-            # 원장 매칭이 전부 그 값에 묶여 있다. 바꾸는 것은 이 fetch 인자뿐이다.
-            provider = get_ccxt_provider_for_worker()
-            ohlcv_rows = await provider.fetch_ohlcv(
-                to_ccxt_perpetual_symbol(sess.symbol), str(sess.interval), limit_bars=300
+        # 2. strategy + settings validate (P2 #4)
+        strategy = await strategy_repo.find_by_id_and_owner(sess.strategy_id, sess.user_id)
+        if strategy is None:
+            qb_live_signal_skipped_total.labels(reason="strategy_missing").inc()
+            return {"skipped": "strategy_missing"}
+        try:
+            parsed_settings: StrategySettings | None = validate_strategy_settings(strategy.settings)
+        except ValidationError as exc:
+            qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
+            logger.warning(
+                "live_signal_invalid_settings",
+                extra={"session_id": str(sess.id), "error": str(exc)},
             )
-            if not ohlcv_rows:
-                qb_live_signal_evaluated_total.labels(
-                    interval=interval_value, outcome="no_new_bar"
-                ).inc()
-                return {"skipped": "empty_ohlcv"}
+            return {"skipped": "invalid_settings"}
+        if parsed_settings is None:
+            qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
+            return {"skipped": "settings_unset"}
 
-            # 5. warmup 창의 첫/마지막 bar → no new bar skip + catch-up 범위 판정
-            window_start = datetime.fromtimestamp(int(ohlcv_rows[0][0]) / 1000, tz=UTC)
-            last_bar_ms = int(ohlcv_rows[-1][0])
-            last_bar_time = datetime.fromtimestamp(last_bar_ms / 1000, tz=UTC)
-            last_evaluated_bar_time = sess.last_evaluated_bar_time
-            if last_evaluated_bar_time is not None and last_bar_time <= last_evaluated_bar_time:
-                qb_live_signal_evaluated_total.labels(
-                    interval=interval_value, outcome="no_new_bar"
-                ).inc()
-                return {"skipped": "no_new_bar"}
-            emit_from_bar_time: datetime | None = None
-            requires_gap_resync = False
-            if last_evaluated_bar_time is not None:
-                elapsed = last_bar_time - last_evaluated_bar_time
-                if elapsed <= _MAX_CATCHUP_WALL_CLOCK_GAP:
-                    emit_from_bar_time = last_evaluated_bar_time
-                else:
-                    requires_gap_resync = True
+        # 3. account + Bybit Demo 강제 (P2 #1)
+        account = await account_repo.get_by_id(sess.exchange_account_id)
+        if (
+            account is None
+            or account.exchange != ExchangeName.bybit
+            or account.mode != ExchangeMode.demo
+        ):
+            qb_live_signal_skipped_total.labels(reason="non_demo_account").inc()
+            return {"skipped": "non_demo_account"}
 
-            carry_pnl, _ = await event_repo.sum_realized_pnl_before(sess.id, bar_time=window_start)
-            assert equity_baseline_usdt is not None  # 위 preflight가 None을 이미 비활성화한다.
-            effective_capital = equity_baseline_usdt + carry_pnl
-            if (
-                effective_capital.is_nan()
-                or effective_capital.is_infinite()
-                or effective_capital <= Decimal("0")
-            ):
-                preflight_cat = "equity_exhausted"
-                preflight_pageable, _, preflight_raw_msg = _PREFLIGHT_CATEGORY_METADATA[
-                    preflight_cat
-                ]
-                if preflight_raw_msg is None:
-                    preflight_raw_msg = ", ".join(preflight_symbols)[:200]
-                rows = await sess_repo.deactivate(
-                    sess.id, at=datetime.now(UTC), reason=preflight_cat
+        # 3.5 BL-362 — coverage preflight (money-path fail-closed). backtest/service.py 와
+        # 동일 게이트: 미지원 builtin(is_runnable=False) 또는 degraded(heikinashi/
+        # request.security/timeframe.period — graceful 실행이나 결과 divergence) 감지 시
+        # 세션 자동 비활성화. live 엔 allow_degraded_pine 동의 플래그 없음 → 하드 차단.
+        # account/demo check 뒤에 배치 — non-demo 세션은 비활성화 아닌 skip 유지 (G1 P1#2).
+        cov = analyze_coverage(strategy.pine_source)
+        preflight_cat: str | None = None
+        preflight_symbols: tuple[str, ...] = ()
+        equity_baseline_usdt = sess.equity_baseline_usdt
+        if not cov.is_runnable:
+            preflight_cat, preflight_symbols = "coverage_unrunnable", cov.all_unsupported
+        elif cov.has_degraded:
+            preflight_cat, preflight_symbols = "degraded_unconsented", cov.degraded_calls
+        # NaN/Infinity 를 먼저 걸러야 한다 — `Decimal('NaN') <= 0` 은 False 가 아니라
+        # InvalidOperation 을 raise 한다(실측). 그리고 그건 "자본 소진"이 아니라
+        # 애초에 쓸 수 없는 기준선이므로 equity_baseline_missing 으로 진단해야 맞다.
+        elif (
+            equity_baseline_usdt is None
+            or equity_baseline_usdt.is_nan()
+            or equity_baseline_usdt.is_infinite()
+            or equity_baseline_usdt <= Decimal("0")
+        ):
+            preflight_cat = "equity_baseline_missing"
+        if preflight_cat is not None:
+            preflight_pageable, _, preflight_raw_msg = _PREFLIGHT_CATEGORY_METADATA[preflight_cat]
+            if preflight_raw_msg is None:
+                preflight_raw_msg = ", ".join(preflight_symbols)[:200]
+            rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC), reason=preflight_cat)
+            await sess_repo.commit()
+            if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                _enqueue_conditional_entry_sweep()
+                await publish_realtime(
+                    str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                 )
-                await sess_repo.commit()
-                if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
-                    _enqueue_conditional_entry_sweep()
-                    await publish_realtime(
-                        str(sess.user_id), "session_state", {"session_id": str(sess.id)}
-                    )
-                    if preflight_pageable:
-                        qb_live_signal_divergence_total.labels(
-                            stage="preflight", category=preflight_cat
-                        ).inc()
-                    qb_live_signal_skipped_total.labels(reason=preflight_cat).inc()
-                    _fire_divergence_alert(
-                        session_id=sess.id,
-                        stage="preflight",
-                        category=preflight_cat,
-                        raw_msg=preflight_raw_msg,
-                        error_count=0,
-                        last_error_bar=-1,
-                    )
-                    logger.error(
-                        "live_signal_preflight_blocked",
-                        extra={
-                            "session_id": str(sess.id),
-                            "category": preflight_cat,
-                            "symbols": list(preflight_symbols),
-                        },
-                    )
-                return {"deactivated": preflight_cat}
+                if preflight_pageable:
+                    qb_live_signal_divergence_total.labels(
+                        stage="preflight", category=preflight_cat
+                    ).inc()
+                qb_live_signal_skipped_total.labels(reason=preflight_cat).inc()
+                _fire_divergence_alert(
+                    session_id=sess.id,
+                    stage="preflight",
+                    category=preflight_cat,
+                    raw_msg=preflight_raw_msg,
+                    error_count=0,
+                    last_error_bar=-1,
+                )
+                logger.error(
+                    "live_signal_preflight_blocked",
+                    extra={
+                        "session_id": str(sess.id),
+                        "category": preflight_cat,
+                        "symbols": list(preflight_symbols),
+                    },
+                )
+            return {"deactivated": preflight_cat}
 
-            # 6. try_claim_bar winner-only (P2 #3)
-            won = await sess_repo.try_claim_bar(sess.id, last_bar_time, uuid4())
-            if not won:
-                # 다른 worker 가 이미 같은 bar claim 한 상태 — UPDATE no-op rollback
-                await session.rollback()
-                qb_live_signal_evaluated_total.labels(
-                    interval=interval_value, outcome="claim_lost"
-                ).inc()
-                return {"skipped": "claim_lost"}
+        # 4. CCXT fetch_ohlcv (P1 #6 closed-bar)
+        #
+        # ★BL-530 — 엔진이 재생하는 봉은 주문이 나가는 상품과 같아야 한다.
+        # `CCXTProvider` 는 `defaultType: "spot"` 이라 `sess.symbol`("BTC/USDT")을 그대로
+        # 넘기면 **스팟** 봉이 온다. 그런데 주문은 `BybitFuturesProvider`(defaultType
+        # "linear")로 **무기한선물**에 나간다. 두 상품 가격은 붙어 있지 않아(실측 스팟이
+        # perp 보다 ~40 USDT / 0.066% 높음) 시뮬은 스팟 고가로 매수 스톱을 체결하는데
+        # 거래소 perp 는 그 근처도 안 간다 → 엔진만 포지션을 믿는 유령 진입이 생기고,
+        # 그 포지션의 close 는 전량 거절된다(실측 46/51 이 이 갈래). 방향까지 어긋나면
+        # reduce-only 하나가 반대 방향 포지션 증가를 막는 유일한 방벽이 된다.
+        #
+        # ★`sess.symbol` 자체는 canonical 로 **불변**이다 — 주문 라우팅·세션 스코프·
+        # 원장 매칭이 전부 그 값에 묶여 있다. 바꾸는 것은 이 fetch 인자뿐이다.
+        provider = get_ccxt_provider_for_worker()
+        ohlcv_rows = await provider.fetch_ohlcv(
+            to_ccxt_perpetual_symbol(sess.symbol), str(sess.interval), limit_bars=300
+        )
+        if not ohlcv_rows:
+            qb_live_signal_evaluated_total.labels(
+                interval=interval_value, outcome="no_new_bar"
+            ).inc()
+            return {"skipped": "empty_ohlcv"}
 
-            # 장기 공백은 과거 이벤트를 발주하지 않는다. 거래소가 flat인지 먼저 확인하고,
-            # 아래 warmup replay 결과의 carried position과 함께 조용한 resync를 판정한다.
-            exchange_positions: list[Any] | None = None
-            ledger_seed = _LEDGER_GAP_SEED_NONE
-            if requires_gap_resync:
-                from src.trading.encryption import EncryptionService
-                from src.trading.providers import BybitFuturesProvider
-                from src.trading.services.account_service import ExchangeAccountService
+        # 5. warmup 창의 첫/마지막 bar → no new bar skip + catch-up 범위 판정
+        window_start = datetime.fromtimestamp(int(ohlcv_rows[0][0]) / 1000, tz=UTC)
+        last_bar_ms = int(ohlcv_rows[-1][0])
+        last_bar_time = datetime.fromtimestamp(last_bar_ms / 1000, tz=UTC)
+        last_evaluated_bar_time = sess.last_evaluated_bar_time
+        if last_evaluated_bar_time is not None and last_bar_time <= last_evaluated_bar_time:
+            qb_live_signal_evaluated_total.labels(
+                interval=interval_value, outcome="no_new_bar"
+            ).inc()
+            return {"skipped": "no_new_bar"}
+        emit_from_bar_time: datetime | None = None
+        requires_gap_resync = False
+        if last_evaluated_bar_time is not None:
+            elapsed = last_bar_time - last_evaluated_bar_time
+            if elapsed <= _MAX_CATCHUP_WALL_CLOCK_GAP:
+                emit_from_bar_time = last_evaluated_bar_time
+            else:
+                requires_gap_resync = True
+
+        carry_pnl, _ = await event_repo.sum_realized_pnl_before(sess.id, bar_time=window_start)
+        assert equity_baseline_usdt is not None  # 위 preflight가 None을 이미 비활성화한다.
+        effective_capital = equity_baseline_usdt + carry_pnl
+        if (
+            effective_capital.is_nan()
+            or effective_capital.is_infinite()
+            or effective_capital <= Decimal("0")
+        ):
+            preflight_cat = "equity_exhausted"
+            preflight_pageable, _, preflight_raw_msg = _PREFLIGHT_CATEGORY_METADATA[preflight_cat]
+            if preflight_raw_msg is None:
+                preflight_raw_msg = ", ".join(preflight_symbols)[:200]
+            rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC), reason=preflight_cat)
+            await sess_repo.commit()
+            if rows == 1:  # winner-only dedupe (동시 worker 2nd UPDATE rowcount=0)
+                _enqueue_conditional_entry_sweep()
+                await publish_realtime(
+                    str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                )
+                if preflight_pageable:
+                    qb_live_signal_divergence_total.labels(
+                        stage="preflight", category=preflight_cat
+                    ).inc()
+                qb_live_signal_skipped_total.labels(reason=preflight_cat).inc()
+                _fire_divergence_alert(
+                    session_id=sess.id,
+                    stage="preflight",
+                    category=preflight_cat,
+                    raw_msg=preflight_raw_msg,
+                    error_count=0,
+                    last_error_bar=-1,
+                )
+                logger.error(
+                    "live_signal_preflight_blocked",
+                    extra={
+                        "session_id": str(sess.id),
+                        "category": preflight_cat,
+                        "symbols": list(preflight_symbols),
+                    },
+                )
+            return {"deactivated": preflight_cat}
+
+        # 6. try_claim_bar winner-only (P2 #3)
+        won = await sess_repo.try_claim_bar(sess.id, last_bar_time, uuid4())
+        if not won:
+            # 다른 worker 가 이미 같은 bar claim 한 상태 — UPDATE no-op rollback
+            await session.rollback()
+            qb_live_signal_evaluated_total.labels(
+                interval=interval_value, outcome="claim_lost"
+            ).inc()
+            return {"skipped": "claim_lost"}
+
+        # 장기 공백은 과거 이벤트를 발주하지 않는다. 거래소가 flat인지 먼저 확인하고,
+        # 아래 warmup replay 결과의 carried position과 함께 조용한 resync를 판정한다.
+        exchange_positions: list[Any] | None = None
+        ledger_seed = _LEDGER_GAP_SEED_NONE
+        if requires_gap_resync:
+            from src.trading.encryption import EncryptionService
+            from src.trading.providers import BybitFuturesProvider
+            from src.trading.services.account_service import ExchangeAccountService
+
+            try:
+                bybit_provider = BybitFuturesProvider()
+                exchange_svc = ExchangeAccountService(
+                    repo=account_repo,
+                    crypto=EncryptionService(settings.trading_encryption_keys),
+                    bybit_futures_provider=bybit_provider,
+                )
+                creds = await exchange_svc.get_credentials_for_order(sess.exchange_account_id)
+                exchange_positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
+            except Exception:
+                logger.warning(
+                    "live_signal_gap_resync_position_fetch_failed",
+                    exc_info=True,
+                    extra={"session_id": str(sess.id), "symbol": sess.symbol},
+                )
+
+            # BL-544 — 공백 창의 **주문 원장**을 읽는다. 재생은 이 사실을 모른다:
+            # 조건부 진입의 trigger 는 tick 마다 재도출되므로 공백이 지나면 재생은 그
+            # 체결을 아예 만들지 않는데, worker 가 멈춘 동안에도 `ws-stream` 은 살아 있어
+            # 체결은 원장에 남는다(실측: 세션 사망 4분 36초 **전에** 이미 filled).
+            # ★조회는 여기, 판정은 아래. seed 를 거래소에서 가져오면 아래 대조가
+            # 동어반복이 되어 가드가 통째로 사라진다.
+            if last_evaluated_bar_time is not None:
+                from src.trading.repositories.order_repository import (
+                    LEDGER_FILL_SCAN_LIMIT,
+                    OrderRepository,
+                    SessionScope,
+                )
 
                 try:
-                    bybit_provider = BybitFuturesProvider()
-                    exchange_svc = ExchangeAccountService(
-                        repo=account_repo,
-                        crypto=EncryptionService(settings.trading_encryption_keys),
-                        bybit_futures_provider=bybit_provider,
+                    fills = await OrderRepository(session).list_fills_since(
+                        SessionScope.from_live_session(sess),
+                        since=last_evaluated_bar_time,
                     )
-                    creds = await exchange_svc.get_credentials_for_order(sess.exchange_account_id)
-                    exchange_positions = await bybit_provider.fetch_open_positions(
-                        creds, sess.symbol
+                    ledger_seed = _ledger_gap_seed(
+                        fills[:LEDGER_FILL_SCAN_LIMIT],
+                        session_id=sess.id,
+                        overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
                     )
                 except Exception:
+                    # 조회 실패는 seed 없음 = 기존 fail-closed 판정 그대로다.
+                    ledger_seed = _LedgerGapSeed(
+                        net=None, legs=(), outcome="fetch_failed", order_ids=()
+                    )
                     logger.warning(
-                        "live_signal_gap_resync_position_fetch_failed",
+                        "live_signal_gap_ledger_fetch_failed",
                         exc_info=True,
                         extra={"session_id": str(sess.id), "symbol": sess.symbol},
                     )
 
-                # BL-544 — 공백 창의 **주문 원장**을 읽는다. 재생은 이 사실을 모른다:
-                # 조건부 진입의 trigger 는 tick 마다 재도출되므로 공백이 지나면 재생은 그
-                # 체결을 아예 만들지 않는데, worker 가 멈춘 동안에도 `ws-stream` 은 살아 있어
-                # 체결은 원장에 남는다(실측: 세션 사망 4분 36초 **전에** 이미 filled).
-                # ★조회는 여기, 판정은 아래. seed 를 거래소에서 가져오면 아래 대조가
-                # 동어반복이 되어 가드가 통째로 사라진다.
-                if last_evaluated_bar_time is not None:
-                    from src.trading.repositories.order_repository import (
-                        LEDGER_FILL_SCAN_LIMIT,
-                        OrderRepository,
-                        SessionScope,
-                    )
+        # 7. run_live (warmup replay, Option B)
+        df = _ohlcv_rows_to_dataframe(ohlcv_rows)
+        # state 행은 optional 이다. 이 조회는 이전 epoch 및 방향 strike, equity curve가
+        # 같은 성공 평가 전 상태를 보게 하는 단일 읽기다.
+        previous_state = await sess_repo.get_state(sess.id)
+        # ★`getattr(..., None)` 로 접지 마라. 컬럼이 사라지거나 이름이 바뀌면 그 순간부터
+        # 조용히 "직전 strike 없음" 이 되어 가드가 영구 OFF 로 위장한다. 없어도 되는 것은
+        # state 행뿐이므로 거기까지만 방어한다.
+        previous_report = (
+            previous_state.last_strategy_state_report if previous_state is not None else None
+        )
+        previous_direction_mismatch = (
+            isinstance(previous_report, dict)
+            and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
+        )
+        position_epoch = _resolve_position_epoch(
+            previous_report,
+            session_created_at=sess.created_at,
+            last_bar_time=last_bar_time,
+            has_previous_state=previous_state is not None,
+            realign=requires_gap_resync and exchange_positions == [],
+        )
+        if emit_from_bar_time is not None:
+            # catch-up이 이 watermark 뒤 entry를 outbox로 발행한다. epoch이 watermark보다
+            # 뒤면 그 entry의 포지션만 폐기하고 주문은 내보내 거래소 고아를 만든다. watermark
+            # bar 자체는 이미 이전 tick에서 발행됐으므로 함께 보존하는 것이 맞다.
+            position_epoch = min(position_epoch, emit_from_bar_time)
 
-                    try:
-                        fills = await OrderRepository(session).list_fills_since(
-                            SessionScope.from_live_session(sess),
-                            since=last_evaluated_bar_time,
-                        )
-                        ledger_seed = _ledger_gap_seed(
-                            fills[:LEDGER_FILL_SCAN_LIMIT],
-                            session_id=sess.id,
-                            overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
-                        )
-                    except Exception:
-                        # 조회 실패는 seed 없음 = 기존 fail-closed 판정 그대로다.
-                        ledger_seed = _LedgerGapSeed(
-                            net=None, legs=(), outcome="fetch_failed", order_ids=()
-                        )
-                        logger.warning(
-                            "live_signal_gap_ledger_fetch_failed",
-                            exc_info=True,
-                            extra={"session_id": str(sess.id), "symbol": sess.symbol},
-                        )
-
-            # 7. run_live (warmup replay, Option B)
-            df = _ohlcv_rows_to_dataframe(ohlcv_rows)
-            # state 행은 optional 이다. 이 조회는 이전 epoch 및 방향 strike, equity curve가
-            # 같은 성공 평가 전 상태를 보게 하는 단일 읽기다.
-            previous_state = await sess_repo.get_state(sess.id)
-            # ★`getattr(..., None)` 로 접지 마라. 컬럼이 사라지거나 이름이 바뀌면 그 순간부터
-            # 조용히 "직전 strike 없음" 이 되어 가드가 영구 OFF 로 위장한다. 없어도 되는 것은
-            # state 행뿐이므로 거기까지만 방어한다.
-            previous_report = (
-                previous_state.last_strategy_state_report if previous_state is not None else None
-            )
-            previous_direction_mismatch = (
-                isinstance(previous_report, dict)
-                and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
-            )
-            position_epoch = _resolve_position_epoch(
-                previous_report,
-                session_created_at=sess.created_at,
-                last_bar_time=last_bar_time,
-                has_previous_state=previous_state is not None,
-                realign=requires_gap_resync and exchange_positions == [],
-            )
-            if emit_from_bar_time is not None:
-                # catch-up이 이 watermark 뒤 entry를 outbox로 발행한다. epoch이 watermark보다
-                # 뒤면 그 entry의 포지션만 폐기하고 주문은 내보내 거래소 고아를 만든다. watermark
-                # bar 자체는 이미 이전 tick에서 발행됐으므로 함께 보존하는 것이 맞다.
-                position_epoch = min(position_epoch, emit_from_bar_time)
-
-            carry_cutoff = max(window_start, position_epoch)
-            if carry_cutoff != window_start:
-                # 위 equity_exhausted preflight는 claim 및 epoch 결정 전이라 기존 window_start
-                # 기준을 보수적으로 유지한다. 여기서는 run_live 사이징 자본만 epoch까지의
-                # 실현손익으로 다시 맞춰, 재정렬이 창 안 손익을 지우지 않게 한다.
-                carry_pnl, _ = await event_repo.sum_realized_pnl_before(
-                    sess.id, bar_time=carry_cutoff
-                )
-                recalculated_capital = equity_baseline_usdt + carry_pnl
-                if (
-                    recalculated_capital.is_nan()
-                    or recalculated_capital.is_infinite()
-                    or recalculated_capital <= Decimal("0")
-                ):
-                    # window_start 기준값은 이미 preflight를 통과했고, 재계산이 없던 오늘도
-                    # run_live에 그대로 쓰던 값이므로 이 fallback은 기존 동작보다 나쁘지 않다.
-                    logger.warning(
-                        "live_signal_recalculated_capital_rejected",
-                        extra={
-                            "session_id": str(sess.id),
-                            "carry_cutoff": carry_cutoff.isoformat(),
-                            "recalculated_capital": str(recalculated_capital),
-                        },
-                    )
-                else:
-                    effective_capital = recalculated_capital
-
-            pyramiding: int | None = None
-            try:
-                pyramiding = extract_content(strategy.pine_source).declaration.pyramiding
-            except Exception:
+        carry_cutoff = max(window_start, position_epoch)
+        if carry_cutoff != window_start:
+            # 위 equity_exhausted preflight는 claim 및 epoch 결정 전이라 기존 window_start
+            # 기준을 보수적으로 유지한다. 여기서는 run_live 사이징 자본만 epoch까지의
+            # 실현손익으로 다시 맞춰, 재정렬이 창 안 손익을 지우지 않게 한다.
+            carry_pnl, _ = await event_repo.sum_realized_pnl_before(sess.id, bar_time=carry_cutoff)
+            recalculated_capital = equity_baseline_usdt + carry_pnl
+            if (
+                recalculated_capital.is_nan()
+                or recalculated_capital.is_infinite()
+                or recalculated_capital <= Decimal("0")
+            ):
+                # window_start 기준값은 이미 preflight를 통과했고, 재계산이 없던 오늘도
+                # run_live에 그대로 쓰던 값이므로 이 fallback은 기존 동작보다 나쁘지 않다.
                 logger.warning(
-                    "live_signal_pyramiding_extract_failed",
-                    exc_info=True,
-                    extra={"session_id": str(sess.id)},
+                    "live_signal_recalculated_capital_rejected",
+                    extra={
+                        "session_id": str(sess.id),
+                        "carry_cutoff": carry_cutoff.isoformat(),
+                        "recalculated_capital": str(recalculated_capital),
+                    },
                 )
-            run_live_kwargs: dict[str, Any] = {
-                "initial_capital": float(effective_capital),
-                "live_position_size_pct": parsed_settings.position_size_pct,
-                # BL-483 후속: pine_v2 청산 모델은 isolated 기준이다.
-                # margin_mode는 아직 전달하지 않으며 cross 모델은 별도 BL 설계가 필요하다.
-                "leverage": float(parsed_settings.leverage),
-                "sessions_allowed": tuple(strategy.trading_sessions or ()),
-                "pyramiding": pyramiding,
-                "fill_timing": parsed_settings.fill_timing,
-                "position_epoch": position_epoch,
-            }
-            if emit_from_bar_time is not None:
-                run_live_kwargs["emit_from_bar_time"] = emit_from_bar_time
-            if ledger_seed.legs:
-                # ★비어 있으면 인자 자체를 넘기지 않는다 — 기본 호출의 kwargs 를 그대로 둬
-                # "seed 가 없을 때 기존과 byte-identical" 을 호출 형태로도 유지한다.
-                run_live_kwargs["ledger_seed_legs"] = ledger_seed.legs
+            else:
+                effective_capital = recalculated_capital
 
-            # ── BL-591 / ADR-022 슬라이스 1 — 계측 전용 ────────────────────────────
-            # ★★**여기가 슬라이스 2 의 주입 판정 지점이다.** 계측을 다른 자리(예:
-            #   `_detect_position_divergence`, 즉 `run_live` **뒤**)에서 하면 여기서 나온
-            #   계수가 슬라이스 2 에서 무의미해진다. `run_live_kwargs` 는 건드리지 않는다 —
-            #   이 슬라이스는 아무것도 주입하지 않는다.
-            # ★**「동작 변경 0」이 아니다** — 거래소 조회가 tick 당 1회 늘어 **2회**가 된다.
-            #   `_detect_position_divergence` 는 `engine_position`(= `run_live` **결과**)이
-            #   필요해 뒤로 갈 수밖에 없으므로 두 조회는 **구조적으로 합칠 수 없다.**
-            #   판정·발주 경로는 무변경이고 늘어난 것은 조회 횟수뿐이다
-            #   (`test_live_signal_instrument_parity` 가 2회를 단언해 증식을 막는다).
-            ledger_shadow = await _capture_ledger_shadow(
-                sess, session=session, account_repo=account_repo
+        pyramiding: int | None = None
+        try:
+            pyramiding = extract_content(strategy.pine_source).declaration.pyramiding
+        except Exception:
+            logger.warning(
+                "live_signal_pyramiding_extract_failed",
+                exc_info=True,
+                extra={"session_id": str(sess.id)},
             )
+        run_live_kwargs: dict[str, Any] = {
+            "initial_capital": float(effective_capital),
+            "live_position_size_pct": parsed_settings.position_size_pct,
+            # BL-483 후속: pine_v2 청산 모델은 isolated 기준이다.
+            # margin_mode는 아직 전달하지 않으며 cross 모델은 별도 BL 설계가 필요하다.
+            "leverage": float(parsed_settings.leverage),
+            "sessions_allowed": tuple(strategy.trading_sessions or ()),
+            "pyramiding": pyramiding,
+            "fill_timing": parsed_settings.fill_timing,
+            "position_epoch": position_epoch,
+        }
+        if emit_from_bar_time is not None:
+            run_live_kwargs["emit_from_bar_time"] = emit_from_bar_time
+        if ledger_seed.legs:
+            # ★비어 있으면 인자 자체를 넘기지 않는다 — 기본 호출의 kwargs 를 그대로 둬
+            # "seed 가 없을 때 기존과 byte-identical" 을 호출 형태로도 유지한다.
+            run_live_kwargs["ledger_seed_legs"] = ledger_seed.legs
+
+        # ── BL-591 / ADR-022 슬라이스 1 — 계측 전용 ────────────────────────────
+        # ★★**여기가 슬라이스 2 의 주입 판정 지점이다.** 계측을 다른 자리(예:
+        #   `_detect_position_divergence`, 즉 `run_live` **뒤**)에서 하면 여기서 나온
+        #   계수가 슬라이스 2 에서 무의미해진다. `run_live_kwargs` 는 건드리지 않는다 —
+        #   이 슬라이스는 아무것도 주입하지 않는다.
+        # ★**「동작 변경 0」이 아니다** — 거래소 조회가 tick 당 1회 늘어 **2회**가 된다.
+        #   `_detect_position_divergence` 는 `engine_position`(= `run_live` **결과**)이
+        #   필요해 뒤로 갈 수밖에 없으므로 두 조회는 **구조적으로 합칠 수 없다.**
+        #   판정·발주 경로는 무변경이고 늘어난 것은 조회 횟수뿐이다
+        #   (`test_live_signal_instrument_parity` 가 2회를 단언해 증식을 막는다).
+        ledger_shadow = await _capture_ledger_shadow(
+            sess, session=session, account_repo=account_repo
+        )
+        try:
+            result = run_live(strategy.pine_source, df, **run_live_kwargs)
+        except Exception as exc:
+            # G2 — run_live 가 result.errors 로 surface 안 되는 예외를 raise 하는 경로:
+            # parse SyntaxError / 미구현 na-semantics 의 raw ZeroDivisionError(`x/0`) /
+            # math domain ValueError(`math.sqrt(-1)`) 등 (strict=False 의 except PineRuntimeError
+            # 가 안 잡음). 미처리 시 claim rollback + 세션 active 유지 → 매 tick crash-loop.
+            # → 동일 fail-closed: 세션 비활성화 + metric + alert. (interpreter na-semantics
+            # 자체 수정은 BL-374 로 분리.)
+            rows = await sess_repo.deactivate(
+                sess.id, at=datetime.now(UTC), reason="run_live_error"
+            )
+            await sess_repo.commit()
+            if rows == 1:
+                _enqueue_conditional_entry_sweep()
+                await publish_realtime(
+                    str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                )
+                qb_live_signal_divergence_total.labels(
+                    stage="runtime", category="run_live_error"
+                ).inc()
+                qb_live_signal_evaluated_total.labels(
+                    interval=interval_value, outcome="divergence_blocked"
+                ).inc()
+                # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). Telegram까지
+                # fan-out하므로 호출부에서 예외 클래스명만 전달한다. 전체 원문은 아래 logger에만 남긴다.
+                _fire_divergence_alert(
+                    session_id=sess.id,
+                    stage="runtime",
+                    category="run_live_error",
+                    raw_msg=type(exc).__name__,
+                    error_count=1,
+                    last_error_bar=-1,
+                )
+                logger.exception(
+                    "live_signal_run_live_crash",
+                    extra={"session_id": str(sess.id), "error_type": type(exc).__name__},
+                )
+            return {"deactivated": "run_live_error"}
+
+        # BL-536 — 엔진이 건너뛴 pending 진입 leg 계측. ★여기가 아니면 아래 조기
+        # return 세 곳(runtime divergence / gap mismatch / position divergence)에서
+        # 통째로 유실된다.
+        _count_pending_order_skips(result.strategy_state_report)
+
+        # 7.5 BL-362 — runtime divergence safety net (money-path fail-closed).
+        # run_historical(strict=False) 가 PineRuntimeError 를 삼키고 계속 → state corruption
+        # 가능 → 오신호. errors 비어있지 않으면(어느 bar든) 세션 비활성화 + events INSERT/
+        # dispatch 차단. claim(UPDATE) + deactivate(UPDATE) 단일 commit (events 안 넣음).
+        if result.errors:
+            # errors[-1] = 가장 최근(최고 bar) runtime error. block-on-any 라 warmup
+            # corruption 도 포착(마지막 bar 만 필터링하지 않음).
+            category = _classify_live_divergence(result.errors[-1][1])
+            rows = await sess_repo.deactivate(
+                sess.id, at=datetime.now(UTC), reason="runtime_divergence"
+            )
+            await sess_repo.commit()
+            if rows == 1:  # winner-only dedupe
+                _enqueue_conditional_entry_sweep()
+                await publish_realtime(
+                    str(sess.user_id), "session_state", {"session_id": str(sess.id)}
+                )
+                qb_live_signal_divergence_total.labels(stage="runtime", category=category).inc()
+                qb_live_signal_evaluated_total.labels(
+                    interval=interval_value, outcome="divergence_blocked"
+                ).inc()
+                _fire_divergence_alert(
+                    session_id=sess.id,
+                    stage="runtime",
+                    category=category,
+                    raw_msg=result.errors[-1][1],
+                    error_count=len(result.errors),
+                    last_error_bar=result.errors[-1][0],
+                )
+                logger.error(
+                    "live_signal_runtime_divergence",
+                    extra={
+                        "session_id": str(sess.id),
+                        "category": category,
+                        "error_count": len(result.errors),
+                        "errors": result.errors[:10],
+                    },
+                )
+            return {"deactivated": "runtime_divergence", "category": category}
+
+        if requires_gap_resync:
+            # BL-544 — 판정을 **엔진 ↔ 거래소 순포지션 일치**로 바꾼다.
+            #
+            # 예전 술어는 `exchange_positions == [] and carried_position_flat` 였다. 즉
+            # "양쪽 다 flat" 만 통과였고, 공백 중 실제로 체결된 진입은 **정상인데도**
+            # 매번 세션을 죽였다(실측 BL-544). 새 술어는 그 둘을 **크기까지 재는 하나의
+            # 술어로 일반화**한 것이다 — 둘 다 0 인 경우를 포함하므로 예전 통과 케이스는
+            # 그대로 통과하고, "둘이 같은 값으로 non-flat" 만 새로 통과한다.
+            #
+            # ★`exchange_positions is None`(REST 조회 실패)은 계속 mismatch 다. 예전에
+            # `None == []` 이 False 라서 **공짜로 얻고 있던** fail-closed 성질이며, 여기서
+            # 명시적으로 유지한다.
+            # ★leg 이 2개 이상(hedge)이면 거절한다. 순포지션은 long+short 를 상쇄해 0 으로
+            # 만들 수 있어, 예전 술어가 거절하던 상태를 조용히 통과시킨다.
+            seeded_ids = frozenset(result.ledger_seed_applied)
+            last_bar_index = len(ohlcv_rows) - 1
+            carried_position = _carried_position_size(
+                result.strategy_state_report,
+                last_bar_index=last_bar_index,
+                seeded_ids=seeded_ids,
+            )
+            if carried_position is not None and seeded_ids:
+                carried_position += _closed_seed_position(
+                    result.strategy_state_report,
+                    legs=ledger_seed.legs,
+                    seeded_ids=seeded_ids,
+                )
+            gap_outcome = (
+                "applied"
+                if seeded_ids
+                else ("already_open" if ledger_seed.legs else ledger_seed.outcome)
+            )
+            if gap_outcome != "not_probed":
+                qb_live_gap_ledger_seed_total.labels(outcome=gap_outcome).inc()
+            if ledger_seed.order_ids or seeded_ids:
+                logger.warning(
+                    "live_signal_gap_ledger_seed",
+                    extra={
+                        "session_id": str(sess.id),
+                        "symbol": sess.symbol,
+                        "outcome": gap_outcome,
+                        "order_ids": list(ledger_seed.order_ids),
+                        "trade_ids": sorted(seeded_ids),
+                        "ledger_net": str(ledger_seed.net),
+                        "carried_position": str(carried_position),
+                    },
+                )
             try:
-                result = run_live(strategy.pine_source, df, **run_live_kwargs)
-            except Exception as exc:
-                # G2 — run_live 가 result.errors 로 surface 안 되는 예외를 raise 하는 경로:
-                # parse SyntaxError / 미구현 na-semantics 의 raw ZeroDivisionError(`x/0`) /
-                # math domain ValueError(`math.sqrt(-1)`) 등 (strict=False 의 except PineRuntimeError
-                # 가 안 잡음). 미처리 시 claim rollback + 세션 active 유지 → 매 tick crash-loop.
-                # → 동일 fail-closed: 세션 비활성화 + metric + alert. (interpreter na-semantics
-                # 자체 수정은 BL-374 로 분리.)
+                positions_aligned = (
+                    exchange_positions is not None
+                    and len(exchange_positions) <= 1
+                    and carried_position is not None
+                    and _classify_position_divergence(
+                        carried_position, _net_position_size(exchange_positions)
+                    )
+                    is None
+                )
+            except ValueError:
+                # 모르는 side 는 판정 불가다. 판정 못 한 것을 일치로 접으면 안 된다.
+                positions_aligned = False
+            if positions_aligned:
+                # try_claim_bar가 이미 최신 bar_time을 기록했다. 마지막 bar 신호만 이어서
+                # 처리해 수면·배포 공백을 조용히 정상화한다.
+                pass
+            else:
+                category = "gap_resync_position_mismatch"
                 rows = await sess_repo.deactivate(
-                    sess.id, at=datetime.now(UTC), reason="run_live_error"
+                    sess.id, at=datetime.now(UTC), reason="gap_resync_position_mismatch"
                 )
                 await sess_repo.commit()
                 if rows == 1:
@@ -2828,401 +2961,272 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
-                    qb_live_signal_divergence_total.labels(
-                        stage="runtime", category="run_live_error"
-                    ).inc()
-                    qb_live_signal_evaluated_total.labels(
-                        interval=interval_value, outcome="divergence_blocked"
-                    ).inc()
-                    # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). Telegram까지
-                    # fan-out하므로 호출부에서 예외 클래스명만 전달한다. 전체 원문은 아래 logger에만 남긴다.
+                    qb_live_signal_skipped_total.labels(reason=category).inc()
                     _fire_divergence_alert(
                         session_id=sess.id,
-                        stage="runtime",
-                        category="run_live_error",
-                        raw_msg=type(exc).__name__,
-                        error_count=1,
+                        stage="gap_resync",
+                        category=category,
+                        raw_msg="exchange_or_simulated_position_not_flat",
+                        error_count=0,
                         last_error_bar=-1,
                     )
-                    logger.exception(
-                        "live_signal_run_live_crash",
-                        extra={"session_id": str(sess.id), "error_type": type(exc).__name__},
-                    )
-                return {"deactivated": "run_live_error"}
+                return {"deactivated": category}
 
-            # BL-536 — 엔진이 건너뛴 pending 진입 leg 계측. ★여기가 아니면 아래 조기
-            # return 세 곳(runtime divergence / gap mismatch / position divergence)에서
-            # 통째로 유실된다.
-            _count_pending_order_skips(result.strategy_state_report)
+        # 7.6 BL-530 — 엔진↔거래소 포지션 발산 감지.
+        #
+        # 지금까지 이 발산은 **close 가 거절될 때까지 보이지 않았다.** 계기를 perp 로
+        # 맞춰도(위 4단계) 진입 유실·부분체결로 재발할 수 있으므로 감지는 계기 수리와
+        # 독립적으로 필요하다. 조회 실패는 fail-open — REST 한 번 실패로 세션을 죽이지
+        # 않는다(이 파일의 다른 포지션 조회와 같은 계약).
+        #
+        # ★**방향 불일치는 한 번 봤다고 죽이지 않는다.** 거래소는 스톱을 **bar 안에서
+        # 실시간으로** 트리거하는데 엔진은 **bar 종가에만** 평가한다. stop-and-reverse
+        # 전략에서는 거래소가 먼저 반대편으로 넘어가고 엔진이 다음 bar 에 따라가는
+        # 구간이 정상적으로 존재한다 — 실측(2026-07-28 soak): 거래소가 17:46:28 에
+        # 롱으로 체결됐는데 엔진이 평가한 bar 는 17:45 종가라 아직 숏이었고, 초판
+        # 가드가 이 **자기해소되는 skew** 로 세션을 죽였다.
+        # 그래서 **판정된 평가 2회 연속으로 살아남은 경우에만** 차단한다. ★"2 bar" 가
+        # 아니라 "판정된 평가 2회" 다 — 판정 못 한 tick 은 세지도 지우지도 않으므로 두
+        # 관측이 시간상 멀리 떨어질 수 있다(BL-539). 한 bar 를 넘겨도
+        # 반대편이면 그건 스스로 풀리는 상태가 아니다.
+        #
+        # ★**판정하지 못한 tick 이 직전 strike 를 지우면 안 된다.** 판정 실패는 두
+        # 경로로 온다 — `position_size` 를 못 읽거나(NaN/부재), 거래소 probe 가
+        # 실패하거나(REST blip, 현실적). 둘 다 "불일치 없음" 이 아니라 "모름" 이다.
+        # 모름을 False 로 적으면 REST 한 번 흔들릴 때마다 strike 가 초기화돼 진짜
+        # 지속 발산이 영원히 2회차에 도달하지 못한다(가드 fail-open 무력화).
+        # 그래서 `None`(모름)이면 위에서 읽은 직전 값을 그대로 넘긴다.
 
-            # 7.5 BL-362 — runtime divergence safety net (money-path fail-closed).
-            # run_historical(strict=False) 가 PineRuntimeError 를 삼키고 계속 → state corruption
-            # 가능 → 오신호. errors 비어있지 않으면(어느 bar든) 세션 비활성화 + events INSERT/
-            # dispatch 차단. claim(UPDATE) + deactivate(UPDATE) 단일 commit (events 안 넣음).
-            if result.errors:
-                # errors[-1] = 가장 최근(최고 bar) runtime error. block-on-any 라 warmup
-                # corruption 도 포착(마지막 bar 만 필터링하지 않음).
-                category = _classify_live_divergence(result.errors[-1][1])
+        engine_position = _to_engine_position(result.strategy_state_report)
+        direction_mismatch_seen: bool | None = None
+        if engine_position is not None:
+            divergence_category = await _detect_position_divergence(
+                sess,
+                engine_position,
+                account_repo=account_repo,
+                order_repo=OrderRepository(session),
+            )
+            if divergence_category != _PROBE_FAILED:
+                direction_mismatch_seen = divergence_category == "direction"
+            direction_mismatch_persisted = (
+                direction_mismatch_seen is True and previous_direction_mismatch
+            )
+            if direction_mismatch_seen and not direction_mismatch_persisted:
+                # 첫 관측 — 다음 평가까지 유예한다. 플래그는 아래 upsert 로 넘어간다.
+                _count_safely(qb_live_position_divergence_total, category="direction_transient")
+            if direction_mismatch_persisted:
                 rows = await sess_repo.deactivate(
-                    sess.id, at=datetime.now(UTC), reason="runtime_divergence"
+                    sess.id, at=datetime.now(UTC), reason="position_divergence"
                 )
                 await sess_repo.commit()
-                if rows == 1:  # winner-only dedupe
+                if rows == 1:
                     _enqueue_conditional_entry_sweep()
                     await publish_realtime(
                         str(sess.user_id), "session_state", {"session_id": str(sess.id)}
                     )
-                    qb_live_signal_divergence_total.labels(stage="runtime", category=category).inc()
-                    qb_live_signal_evaluated_total.labels(
-                        interval=interval_value, outcome="divergence_blocked"
-                    ).inc()
+                    # ★★BL-580 — 세션 비활성화 `commit()` **뒤** · 아래
+                    #   `_fire_divergence_alert`(BL-362 무신호 차단 고지) **앞**이다.
+                    #   여기서 던지면 **세션은 죽었는데 사용자는 통보를 못 받는다.**
+                    _count_safely(
+                        qb_live_signal_divergence_total,
+                        stage="position",
+                        category="direction",
+                    )
+                    _count_safely(
+                        qb_live_signal_evaluated_total,
+                        interval=interval_value,
+                        outcome="divergence_blocked",
+                    )
                     _fire_divergence_alert(
                         session_id=sess.id,
-                        stage="runtime",
-                        category=category,
-                        raw_msg=result.errors[-1][1],
-                        error_count=len(result.errors),
-                        last_error_bar=result.errors[-1][0],
+                        stage="position",
+                        category="position_direction_mismatch",
+                        raw_msg="engine and exchange hold opposite sides for two evaluations",
+                        error_count=0,
+                        last_error_bar=-1,
                     )
-                    logger.error(
-                        "live_signal_runtime_divergence",
-                        extra={
-                            "session_id": str(sess.id),
-                            "category": category,
-                            "error_count": len(result.errors),
-                            "errors": result.errors[:10],
-                        },
-                    )
-                return {"deactivated": "runtime_divergence", "category": category}
-
-            if requires_gap_resync:
-                # BL-544 — 판정을 **엔진 ↔ 거래소 순포지션 일치**로 바꾼다.
+                return {"deactivated": "position_divergence", "category": "direction"}
+            if (
+                divergence_category is not None
+                and divergence_category != _PROBE_FAILED
+                and not direction_mismatch_seen
+            ):
+                # 죽이지는 않는다 — 크기를 재서 BL-522 설계 입력으로 삼는다.
+                # 차단 counter 와 분리한다(페이징 계약이 다르다).
                 #
-                # 예전 술어는 `exchange_positions == [] and carried_position_flat` 였다. 즉
-                # "양쪽 다 flat" 만 통과였고, 공백 중 실제로 체결된 진입은 **정상인데도**
-                # 매번 세션을 죽였다(실측 BL-544). 새 술어는 그 둘을 **크기까지 재는 하나의
-                # 술어로 일반화**한 것이다 — 둘 다 0 인 경우를 포함하므로 예전 통과 케이스는
-                # 그대로 통과하고, "둘이 같은 값으로 non-flat" 만 새로 통과한다.
-                #
-                # ★`exchange_positions is None`(REST 조회 실패)은 계속 mismatch 다. 예전에
-                # `None == []` 이 False 라서 **공짜로 얻고 있던** fail-closed 성질이며, 여기서
-                # 명시적으로 유지한다.
-                # ★leg 이 2개 이상(hedge)이면 거절한다. 순포지션은 long+short 를 상쇄해 0 으로
-                # 만들 수 있어, 예전 술어가 거절하던 상태를 조용히 통과시킨다.
-                seeded_ids = frozenset(result.ledger_seed_applied)
-                last_bar_index = len(ohlcv_rows) - 1
-                carried_position = _carried_position_size(
-                    result.strategy_state_report,
-                    last_bar_index=last_bar_index,
-                    seeded_ids=seeded_ids,
-                )
-                if carried_position is not None and seeded_ids:
-                    carried_position += _closed_seed_position(
-                        result.strategy_state_report,
-                        legs=ledger_seed.legs,
-                        seeded_ids=seeded_ids,
-                    )
-                gap_outcome = (
-                    "applied"
-                    if seeded_ids
-                    else ("already_open" if ledger_seed.legs else ledger_seed.outcome)
-                )
-                if gap_outcome != "not_probed":
-                    qb_live_gap_ledger_seed_total.labels(outcome=gap_outcome).inc()
-                if ledger_seed.order_ids or seeded_ids:
-                    logger.warning(
-                        "live_signal_gap_ledger_seed",
-                        extra={
-                            "session_id": str(sess.id),
-                            "symbol": sess.symbol,
-                            "outcome": gap_outcome,
-                            "order_ids": list(ledger_seed.order_ids),
-                            "trade_ids": sorted(seeded_ids),
-                            "ledger_net": str(ledger_seed.net),
-                            "carried_position": str(carried_position),
-                        },
-                    )
-                try:
-                    positions_aligned = (
-                        exchange_positions is not None
-                        and len(exchange_positions) <= 1
-                        and carried_position is not None
-                        and _classify_position_divergence(
-                            carried_position, _net_position_size(exchange_positions)
-                        )
-                        is None
-                    )
-                except ValueError:
-                    # 모르는 side 는 판정 불가다. 판정 못 한 것을 일치로 접으면 안 된다.
-                    positions_aligned = False
-                if positions_aligned:
-                    # try_claim_bar가 이미 최신 bar_time을 기록했다. 마지막 bar 신호만 이어서
-                    # 처리해 수면·배포 공백을 조용히 정상화한다.
-                    pass
-                else:
-                    category = "gap_resync_position_mismatch"
-                    rows = await sess_repo.deactivate(
-                        sess.id, at=datetime.now(UTC), reason="gap_resync_position_mismatch"
-                    )
-                    await sess_repo.commit()
-                    if rows == 1:
-                        _enqueue_conditional_entry_sweep()
-                        await publish_realtime(
-                            str(sess.user_id), "session_state", {"session_id": str(sess.id)}
-                        )
-                        qb_live_signal_skipped_total.labels(reason=category).inc()
-                        _fire_divergence_alert(
-                            session_id=sess.id,
-                            stage="gap_resync",
-                            category=category,
-                            raw_msg="exchange_or_simulated_position_not_flat",
-                            error_count=0,
-                            last_error_bar=-1,
-                        )
-                    return {"deactivated": category}
+                # ★`_count_safely` 로 감싼다. 이 자리는 `try_claim_bar` **뒤** · 단일
+                # commit **앞**이라, 여기서 던지면 claim 이 rollback 되고 다음 tick 이
+                # 같은 bar 를 다시 평가해 **매-tick 크래시 루프**가 된다. 그리고
+                # `divergence_category` 는 이제 런타임에 **새 child series 를 만들 수
+                # 있다**(engine_only 3분화) — multiprocess 모드에서 새 라벨 조합은 그
+                # 시점에 mmap 파일을 늘리므로 디스크 full·권한 오류로 던질 수 있다.
+                # 관측 전용 경로가 머니-패스를 멈추면 안 된다.
+                _count_safely(qb_live_position_divergence_total, category=divergence_category)
 
-            # 7.6 BL-530 — 엔진↔거래소 포지션 발산 감지.
-            #
-            # 지금까지 이 발산은 **close 가 거절될 때까지 보이지 않았다.** 계기를 perp 로
-            # 맞춰도(위 4단계) 진입 유실·부분체결로 재발할 수 있으므로 감지는 계기 수리와
-            # 독립적으로 필요하다. 조회 실패는 fail-open — REST 한 번 실패로 세션을 죽이지
-            # 않는다(이 파일의 다른 포지션 조회와 같은 계약).
-            #
-            # ★**방향 불일치는 한 번 봤다고 죽이지 않는다.** 거래소는 스톱을 **bar 안에서
-            # 실시간으로** 트리거하는데 엔진은 **bar 종가에만** 평가한다. stop-and-reverse
-            # 전략에서는 거래소가 먼저 반대편으로 넘어가고 엔진이 다음 bar 에 따라가는
-            # 구간이 정상적으로 존재한다 — 실측(2026-07-28 soak): 거래소가 17:46:28 에
-            # 롱으로 체결됐는데 엔진이 평가한 bar 는 17:45 종가라 아직 숏이었고, 초판
-            # 가드가 이 **자기해소되는 skew** 로 세션을 죽였다.
-            # 그래서 **판정된 평가 2회 연속으로 살아남은 경우에만** 차단한다. ★"2 bar" 가
-            # 아니라 "판정된 평가 2회" 다 — 판정 못 한 tick 은 세지도 지우지도 않으므로 두
-            # 관측이 시간상 멀리 떨어질 수 있다(BL-539). 한 bar 를 넘겨도
-            # 반대편이면 그건 스스로 풀리는 상태가 아니다.
-            #
-            # ★**판정하지 못한 tick 이 직전 strike 를 지우면 안 된다.** 판정 실패는 두
-            # 경로로 온다 — `position_size` 를 못 읽거나(NaN/부재), 거래소 probe 가
-            # 실패하거나(REST blip, 현실적). 둘 다 "불일치 없음" 이 아니라 "모름" 이다.
-            # 모름을 False 로 적으면 REST 한 번 흔들릴 때마다 strike 가 초기화돼 진짜
-            # 지속 발산이 영원히 2회차에 도달하지 못한다(가드 fail-open 무력화).
-            # 그래서 `None`(모름)이면 위에서 읽은 직전 값을 그대로 넘긴다.
+        for entry_skip in result.entry_skips:
+            reason = entry_skip.get("reason")
+            if not isinstance(reason, str) or reason not in (
+                "margin_insufficient",
+                "non_finite_qty",
+                "pyramiding_cap",
+                "session_closed",
+            ):
+                reason = "other"
+            qb_live_signal_entry_skipped_total.labels(reason=reason).inc()
+        for liquidation in result.liquidations:
+            direction = liquidation.get("direction")
+            if direction in ("long", "short"):
+                qb_live_signal_liquidation_total.labels(direction=direction).inc()
 
-            engine_position = _to_engine_position(result.strategy_state_report)
-            direction_mismatch_seen: bool | None = None
-            if engine_position is not None:
-                divergence_category = await _detect_position_divergence(
-                    sess,
-                    engine_position,
-                    account_repo=account_repo,
-                    order_repo=OrderRepository(session),
-                )
-                if divergence_category != _PROBE_FAILED:
-                    direction_mismatch_seen = divergence_category == "direction"
-                direction_mismatch_persisted = (
-                    direction_mismatch_seen is True and previous_direction_mismatch
-                )
-                if direction_mismatch_seen and not direction_mismatch_persisted:
-                    # 첫 관측 — 다음 평가까지 유예한다. 플래그는 아래 upsert 로 넘어간다.
-                    _count_safely(qb_live_position_divergence_total, category="direction_transient")
-                if direction_mismatch_persisted:
-                    rows = await sess_repo.deactivate(
-                        sess.id, at=datetime.now(UTC), reason="position_divergence"
-                    )
-                    await sess_repo.commit()
-                    if rows == 1:
-                        _enqueue_conditional_entry_sweep()
-                        await publish_realtime(
-                            str(sess.user_id), "session_state", {"session_id": str(sess.id)}
-                        )
-                        # ★★BL-580 — 세션 비활성화 `commit()` **뒤** · 아래
-                        #   `_fire_divergence_alert`(BL-362 무신호 차단 고지) **앞**이다.
-                        #   여기서 던지면 **세션은 죽었는데 사용자는 통보를 못 받는다.**
-                        _count_safely(
-                            qb_live_signal_divergence_total,
-                            stage="position",
-                            category="direction",
-                        )
-                        _count_safely(
-                            qb_live_signal_evaluated_total,
-                            interval=interval_value,
-                            outcome="divergence_blocked",
-                        )
-                        _fire_divergence_alert(
-                            session_id=sess.id,
-                            stage="position",
-                            category="position_direction_mismatch",
-                            raw_msg="engine and exchange hold opposite sides for two evaluations",
-                            error_count=0,
-                            last_error_bar=-1,
-                        )
-                    return {"deactivated": "position_divergence", "category": "direction"}
-                if (
-                    divergence_category is not None
-                    and divergence_category != _PROBE_FAILED
-                    and not direction_mismatch_seen
-                ):
-                    # 죽이지는 않는다 — 크기를 재서 BL-522 설계 입력으로 삼는다.
-                    # 차단 counter 와 분리한다(페이징 계약이 다르다).
-                    #
-                    # ★`_count_safely` 로 감싼다. 이 자리는 `try_claim_bar` **뒤** · 단일
-                    # commit **앞**이라, 여기서 던지면 claim 이 rollback 되고 다음 tick 이
-                    # 같은 bar 를 다시 평가해 **매-tick 크래시 루프**가 된다. 그리고
-                    # `divergence_category` 는 이제 런타임에 **새 child series 를 만들 수
-                    # 있다**(engine_only 3분화) — multiprocess 모드에서 새 라벨 조합은 그
-                    # 시점에 mmap 파일을 늘리므로 디스크 full·권한 오류로 던질 수 있다.
-                    # 관측 전용 경로가 머니-패스를 멈추면 안 된다.
-                    _count_safely(qb_live_position_divergence_total, category=divergence_category)
-
-            for entry_skip in result.entry_skips:
-                reason = entry_skip.get("reason")
-                if not isinstance(reason, str) or reason not in (
-                    "margin_insufficient",
-                    "non_finite_qty",
-                    "pyramiding_cap",
-                    "session_closed",
-                ):
-                    reason = "other"
-                qb_live_signal_entry_skipped_total.labels(reason=reason).inc()
-            for liquidation in result.liquidations:
-                direction = liquidation.get("direction")
-                if direction in ("long", "short"):
-                    qb_live_signal_liquidation_total.labels(direction=direction).inc()
-
-            # 8. transactional outbox — events INSERT + state upsert + commit (P1 #3)
-            signals_payload: list[dict[str, object]] = [
-                {
-                    "action": s.action,
-                    "direction": s.direction,
-                    "trade_id": s.trade_id,
-                    "qty": s.qty,
-                    "sequence_no": s.sequence_no,
-                    "comment": s.comment,
-                    # catch-up은 signal별 원래 bar 시각을 보존한다. 기본 호출의 None은
-                    # repository가 이번 last_bar_time으로 기존처럼 폴백한다.
-                    "bar_time": s.bar_time,
-                    # MP-1 — close signal 의 청산 realized PnL (entry 는 None).
-                    "realized_pnl": s.realized_pnl,
-                    # Phase 3 — entry signal 의 exit 레벨 (bracket placement + trailing). close 는 None.
-                    "take_profit": s.take_profit,
-                    "stop_loss": s.stop_loss,
-                    "trailing_stop": s.trailing_stop,
-                }
-                for s in result.signals
-            ]
-            existing_events = await event_repo.list_by_session(sess.id, limit=1000)
-            existing_keys = {
-                (e.bar_time, e.sequence_no, e.action, e.trade_id) for e in existing_events
+        # 8. transactional outbox — events INSERT + state upsert + commit (P1 #3)
+        signals_payload: list[dict[str, object]] = [
+            {
+                "action": s.action,
+                "direction": s.direction,
+                "trade_id": s.trade_id,
+                "qty": s.qty,
+                "sequence_no": s.sequence_no,
+                "comment": s.comment,
+                # catch-up은 signal별 원래 bar 시각을 보존한다. 기본 호출의 None은
+                # repository가 이번 last_bar_time으로 기존처럼 폴백한다.
+                "bar_time": s.bar_time,
+                # MP-1 — close signal 의 청산 realized PnL (entry 는 None).
+                "realized_pnl": s.realized_pnl,
+                # Phase 3 — entry signal 의 exit 레벨 (bracket placement + trailing). close 는 None.
+                "take_profit": s.take_profit,
+                "stop_loss": s.stop_loss,
+                "trailing_stop": s.trailing_stop,
             }
-            inserted_or_existing = await event_repo.insert_pending_events(
-                session_id=sess.id, bar_time=last_bar_time, signals=signals_payload
+            for s in result.signals
+        ]
+        existing_events = await event_repo.list_by_session(sess.id, limit=1000)
+        existing_keys = {(e.bar_time, e.sequence_no, e.action, e.trade_id) for e in existing_events}
+        inserted_or_existing = await event_repo.insert_pending_events(
+            session_id=sess.id, bar_time=last_bar_time, signals=signals_payload
+        )
+        new_events = [
+            e
+            for e in inserted_or_existing
+            if (e.bar_time, e.sequence_no, e.action, e.trade_id) not in existing_keys
+        ]
+        # 화면 총계 SSOT는 append-only LiveSignalEvent 원장이다.
+        # warmup 창이 과거 entry를 재현하지 못하면 창 안 close가 run_live 결과에서 사라진다(D2).
+        # 원장 합계는 창과 무관하게 단조이므로 화면 총계는 이 값을 사용한다.
+        ledger_realized_pnl, ledger_closed_trades = await event_repo.sum_realized_pnl_all(sess.id)
+
+        # BL-123 — JSONB 호환 sanitize (NaN/Infinity → None). run_historical 의
+        # warmup 중 ATR/EMA 등이 NaN 반환 가능 → PG strict JSONB reject.
+        sanitized_report = _sanitize_for_jsonb(result.strategy_state_report)
+        # 방향 불일치 1회차를 다음 평가로 넘긴다(위 7.6). 여기 얹는 이유는 이 dict 가
+        # 이미 매 tick upsert 되기 때문이다 — 새 컬럼도 새 저장소도 만들지 않는다.
+        # ★판정하지 못한 tick(`None`)은 직전 값을 그대로 넘긴다 — 지우지 않는다.
+        if isinstance(sanitized_report, dict):
+            sanitized_report[_DIRECTION_MISMATCH_KEY] = (
+                previous_direction_mismatch
+                if direction_mismatch_seen is None
+                else direction_mismatch_seen
             )
-            new_events = [
-                e
-                for e in inserted_or_existing
-                if (e.bar_time, e.sequence_no, e.action, e.trade_id) not in existing_keys
+            sanitized_report[_POSITION_EPOCH_KEY] = position_epoch.isoformat()
+        # BL-591 슬라이스 1 — 위에서 뜬 계측 스냅샷을 counter + 이 dict 에 남긴다.
+        # ★`engine_position` 은 `run_live` **결과**다(주입 가능 여부는 엔진이 flat 일
+        #   때만이므로 이 label 없이는 「주입 가능 tick 수」를 못 센다).
+        _record_ledger_shadow(
+            ledger_shadow,
+            engine_position=engine_position,
+            previous_report=previous_report,
+            report=sanitized_report,
+        )
+        # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
+        # 이번 tick 에 새로 INSERT 된 close event 만 curve 에 반영한다. warmup 창
+        # 재계산의 미세 변동은 point 를 추가하지 않는다.
+        # defensive: non-Decimal mock value 도 graceful (None 반환 = skip).
+        from src.trading.equity_calculator import append_equity_point
+
+        new_equity_curve: list[dict[str, object]] | None = None
+        try:
+            new_close_events = [
+                event
+                for event in new_events
+                if event.action == "close" and event.realized_pnl is not None
             ]
-            # 화면 총계 SSOT는 append-only LiveSignalEvent 원장이다.
-            # warmup 창이 과거 entry를 재현하지 못하면 창 안 close가 run_live 결과에서 사라진다(D2).
-            # 원장 합계는 창과 무관하게 단조이므로 화면 총계는 이 값을 사용한다.
-            ledger_realized_pnl, ledger_closed_trades = await event_repo.sum_realized_pnl_all(
-                sess.id
-            )
-
-            # BL-123 — JSONB 호환 sanitize (NaN/Infinity → None). run_historical 의
-            # warmup 중 ATR/EMA 등이 NaN 반환 가능 → PG strict JSONB reject.
-            sanitized_report = _sanitize_for_jsonb(result.strategy_state_report)
-            # 방향 불일치 1회차를 다음 평가로 넘긴다(위 7.6). 여기 얹는 이유는 이 dict 가
-            # 이미 매 tick upsert 되기 때문이다 — 새 컬럼도 새 저장소도 만들지 않는다.
-            # ★판정하지 못한 tick(`None`)은 직전 값을 그대로 넘긴다 — 지우지 않는다.
-            if isinstance(sanitized_report, dict):
-                sanitized_report[_DIRECTION_MISMATCH_KEY] = (
-                    previous_direction_mismatch
-                    if direction_mismatch_seen is None
-                    else direction_mismatch_seen
+            if new_close_events:
+                pnl_delta = sum(
+                    (Decimal(str(event.realized_pnl)) for event in new_close_events),
+                    Decimal("0"),
                 )
-                sanitized_report[_POSITION_EPOCH_KEY] = position_epoch.isoformat()
-            # BL-591 슬라이스 1 — 위에서 뜬 계측 스냅샷을 counter + 이 dict 에 남긴다.
-            # ★`engine_position` 은 `run_live` **결과**다(주입 가능 여부는 엔진이 flat 일
-            #   때만이므로 이 label 없이는 「주입 가능 tick 수」를 못 센다).
-            _record_ledger_shadow(
-                ledger_shadow,
-                engine_position=engine_position,
-                previous_report=previous_report,
-                report=sanitized_report,
-            )
-            # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
-            # 이번 tick 에 새로 INSERT 된 close event 만 curve 에 반영한다. warmup 창
-            # 재계산의 미세 변동은 point 를 추가하지 않는다.
-            # defensive: non-Decimal mock value 도 graceful (None 반환 = skip).
-            from src.trading.equity_calculator import append_equity_point
-
-            new_equity_curve: list[dict[str, object]] | None = None
-            try:
-                new_close_events = [
-                    event
-                    for event in new_events
-                    if event.action == "close" and event.realized_pnl is not None
-                ]
-                if new_close_events:
-                    pnl_delta = sum(
-                        (Decimal(str(event.realized_pnl)) for event in new_close_events),
-                        Decimal("0"),
-                    )
-                    # 영구 규칙: Decimal-first 합산 (calculator 안에서 처리)
-                    prev_curve = (
-                        previous_state.equity_curve
-                        if previous_state is not None and previous_state.equity_curve is not None
-                        else []
-                    )
-                    new_curve = append_equity_point(
-                        prev_curve,  # type: ignore[arg-type]
-                        timestamp_ms=int(last_bar_time.timestamp() * 1000),
-                        pnl_delta=pnl_delta,
-                    )
-                    # TypedDict → dict 호환 cast (runtime 동일 구조)
-                    new_equity_curve = [dict(p) for p in new_curve]
-            except (InvalidOperation, ValueError, TypeError) as exc:
-                # Decimal 변환 실패 (mock value / corrupt DB 등) — equity_curve skip + log.
-                # KillSwitch eval 자체는 절대 fail 금지 (BL-004 영구 규칙 정합).
-                logger.warning("equity_curve_skip session=%s err=%s", sess.id, exc)
-
-            await sess_repo.upsert_state(
-                session_id=sess.id,
-                last_strategy_state_report=sanitized_report
-                if isinstance(sanitized_report, dict)
-                else {},
-                total_closed_trades=ledger_closed_trades,
-                total_realized_pnl=ledger_realized_pnl,
-                equity_curve=new_equity_curve,
-            )
-
-            # LESSON-019 — claim UPDATE + events INSERT + state upsert 단일 commit
-            await sess_repo.commit()
-            await publish_realtime(str(sess.user_id), "session_state", {"session_id": str(sess.id)})
-
-        # 9. dispatch task enqueue — outbox commit 후 (visibility race 방지)
-        for ev in new_events:
-            if ev.status == LiveSignalEventStatus.pending:
-                dispatch_live_signal_event_task.apply_async(
-                    args=[str(ev.id)],
-                    expires=300,
+                # 영구 규칙: Decimal-first 합산 (calculator 안에서 처리)
+                prev_curve = (
+                    previous_state.equity_curve
+                    if previous_state is not None and previous_state.equity_curve is not None
+                    else []
                 )
+                new_curve = append_equity_point(
+                    prev_curve,  # type: ignore[arg-type]
+                    timestamp_ms=int(last_bar_time.timestamp() * 1000),
+                    pnl_delta=pnl_delta,
+                )
+                # TypedDict → dict 호환 cast (runtime 동일 구조)
+                new_equity_curve = [dict(p) for p in new_curve]
+        except (InvalidOperation, ValueError, TypeError) as exc:
+            # Decimal 변환 실패 (mock value / corrupt DB 등) — equity_curve skip + log.
+            # KillSwitch eval 자체는 절대 fail 금지 (BL-004 영구 규칙 정합).
+            logger.warning("equity_curve_skip session=%s err=%s", sess.id, exc)
 
-        await _reconcile_conditional_entries(
-            sess,
-            result,
-            parsed_settings,
-            sm,
-            bar_time=last_bar_time,
-            market_orders_in_flight=bool(new_events),
-            fallback_reference_price=_last_close_or_none(df),
+        await sess_repo.upsert_state(
+            session_id=sess.id,
+            last_strategy_state_report=sanitized_report
+            if isinstance(sanitized_report, dict)
+            else {},
+            total_closed_trades=ledger_closed_trades,
+            total_realized_pnl=ledger_realized_pnl,
+            equity_curve=new_equity_curve,
         )
 
-        qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()
-        return {
-            "evaluated": True,
-            "events_inserted": len(new_events),
-            "last_bar_time": last_bar_time.isoformat(),
-        }
+        # LESSON-019 — claim UPDATE + events INSERT + state upsert 단일 commit
+        await sess_repo.commit()
+        await publish_realtime(str(sess.user_id), "session_state", {"session_id": str(sess.id)})
+
+    # 9. dispatch task enqueue — outbox commit 후 (visibility race 방지)
+    for ev in new_events:
+        if ev.status == LiveSignalEventStatus.pending:
+            dispatch_live_signal_event_task.apply_async(
+                args=[str(ev.id)],
+                expires=300,
+            )
+
+    await _reconcile_conditional_entries(
+        sess,
+        result,
+        parsed_settings,
+        sm,
+        bar_time=last_bar_time,
+        market_orders_in_flight=bool(new_events),
+        fallback_reference_price=_last_close_or_none(df),
+    )
+
+    qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()
+    return {
+        "evaluated": True,
+        "events_inserted": len(new_events),
+        "last_bar_time": last_bar_time.isoformat(),
+    }
+
+
+async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict[str, Any]:
+    """Lock 안에서 실행되는 핵심 평가 — worker engine 수명만 소유한다.
+
+    ★★**이 함수는 예외를 삼키지 않는다.** `finally` 로 `engine.dispose()` 만 하고,
+    본체(`_evaluate_session_with_engine`)에서 나온 예외는 **그대로 위로 전파**된다.
+    받는 곳은 `_async_evaluate_all` 의 per-session `except Exception` 이고 거기서
+    `qb_live_signal_skipped_total(reason="eval_error")` 로 계상된다.
+    ⇒ 리컨사일러(`_reconcile_conditional_entries`)와 달리 **fail-open 이 이 함수 밖에 있다.**
+
+    ★`create_worker_engine_and_sm` 은 여기서 **모듈 전역으로** 읽는다 — 테스트 5건이
+    `monkeypatch.setattr(live_signal, "create_worker_engine_and_sm", …)` 로 이 자리를 바꾼다.
+    """
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        return await _evaluate_session_with_engine(session_id, interval_value, sm)
     finally:
         await engine.dispose()
 
