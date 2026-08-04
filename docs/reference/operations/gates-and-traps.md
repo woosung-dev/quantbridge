@@ -36,6 +36,28 @@ cd $QB/frontend && pnpm e2e:authed
 
 문서 구조·활성 Markdown 링크·폐기 경로는 루트에서 `make docs-audit`으로 검사한다.
 
+### 소크 (P0 [BL-003] 의 달력 시간 게이트)
+
+```bash
+# 소크를 커밋에 고정해 돌린다 — 그래야 backend/src 를 편집해도 워커가 재적재되지 않는다
+scripts/soak-stack.sh pin        # .soak/src 를 HEAD 에서 다시 뜬다 (backend/src 가 dirty 면 거부)
+scripts/soak-stack.sh up         # 3층 compose 로 기동 + celery ready 배너를 기다린다
+scripts/soak-stack.sh commit     # ★소크가 도는 커밋 — celery MainProcess 의 /proc 를 통해 읽는다
+scripts/soak-stack.sh status     # 고정 여부 · 커밋 · 활성 세션 · main 조상 여부
+
+# 「1주 안정 운영」을 기계가 판정한다 — PASS / FAIL / UNKNOWN, PASS 만 exit 0
+scripts/soak-gate.sh             # 표본을 남기고 판정
+scripts/soak-gate.sh --install   # 30분마다 자동 (표본이 없으면 C4 를 판정할 수 없다)
+scripts/soak-gate.sh --status
+```
+
+술어·창·리셋 규칙은 [`ADR-024`](../../decisions/024-soak-stability-gate.md). 계산부는 I/O 없는
+순수 함수(`backend/scripts/soak_gate_predicate.py`)라 손 계산과 대조할 수 있고, 정의는
+`backend/tests/scripts/test_soak_gate_predicate.py` 16테스트로 동결돼 있다.
+
+★**고정본 스택이 떠 있으면 `make up-isolated` 계열이 거부된다** — 같은 `container_name` 을
+덮어써 소크를 끊기 때문이다. 정말 덮어쓰려면 `QB_SOAK_OVERRIDE=1`.
+
 ## 2. 통과 가능한 게이트가 **아닌** 것
 
 - **`ruff format`** — 이 레포는 포매터를 게이트로 쓰지 않는다.

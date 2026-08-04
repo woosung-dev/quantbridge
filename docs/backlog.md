@@ -151,7 +151,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **Title:** Bybit mainnet 진입 runbook + smoke 스크립트
 **Category:** Tooling / Infra
 **Priority:** P0 (H1 Stealth 종료 직전)
-**Trigger:** Bybit Demo 1주 안정 운영 후 + BL-004 완료 후 (BL-004 = 완료, Sprint 28)
+**Trigger:** Bybit Demo 1주 안정 운영 후 + BL-004 완료 후 (BL-004 = 완료, Sprint 28). ★**「1주 안정 운영」은 2026-08-05 부터 기계가 판정한다** — `scripts/soak-gate.sh` 가 PASS/FAIL/UNKNOWN 을 내고 **PASS 만 exit 0** 이다. 술어·창·리셋 규칙 = [ADR-024](decisions/024-soak-stability-gate.md).
 **Est:** M (4-5h)
 **출처:** [2026-04-30 당시 `docs/TODO.md`의 mainnet 준비 항목](https://github.com/woosung-dev/quantbridge/blob/b2c1541054326b06acf5e64f25094b6d5a37ea10/docs/TODO.md#L650-L653)
 
@@ -166,6 +166,8 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **의존성:** BL-004(완료, Sprint 28 PR #108).
 
 **Status:** 🔴 **열려 있다.** mainnet runbook·smoke 스크립트 미착수. (위 두 줄의 BL-004 는 **참조**다 — 이 항목의 상태가 아니다. 이 구분이 없어서 낡은 산식이 BL-003 을 RESOLVED 로 세고 **P0 active 를 0 으로 보고했다.**)
+
+**게이트 현황 (2026-08-05 기계 판정 개시):** `scripts/soak-gate.sh` = **UNKNOWN `진행중`** — 세션 `cc19abd2` · 창 `2026-08-04T16:32:53Z ~` · 커밋 `f5f06886`. ★★★**세운 지 38분 만에 첫 `FAIL` 이 나왔다** — 세션 `39731d57` 이 `16:25:01Z` 에 `position_divergence` 로 죽었고 그 순간이 `phantom` 이었다(⇒ [BL-591]/[ADR-023] 재개 조건 충족). 재가동 완료. ★★★**과거 56.70h 는 소급 인정하지 않는다** — 30세션 전량에 술어를 재생하니 **귀속 가능이 0.46%** 였다(그 시절 워커는 움직이는 작업 트리를 mount 했다). 그리고 **역대 2위 8.65h(`0e15c3c0`)는 마지막 46.7분 동안 평가가 멈춰 있었다** — 「역대 최장 15.3h = 9%」는 두 겹으로 낙관이었다. 실격 4 / 비실격 26 으로 갈렸으므로 이 정의는 아무것도 안 거르지도, 전부 거르지도 않는다. **시계는 `scripts/soak-stack.sh` 가 소크를 커밋에 고정해 돌린다**(편집해도 워커가 재적재되지 않는다 — 음성 대조로 확인).
 
 ---
 
@@ -813,6 +815,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-591](#bl-591)    | ★**뿌리** — 엔진 포지션의 SSOT 가 없다. `run_live` 시뮬이 매 tick 봉을 재생해 포지션을 **도출**하고 정상 운행 중엔 현실로 **보정되지 않는다**. 슬라이스 1(계측) = **PR #539 OPEN**(통합 브랜치 `stage/engine-position-ssot`, 미머지). ★★★**슬라이스 2 미착수 확정** — 사전등록 V1 발동(④ = 0: 사망 2건의 상류에 `exchange_only` 0건 · 최악 상계 ≤1/21). ★★★**유도 함수 재설계 필요** — `trade_id` 는 trade 가 아니라 Pine 진입 규칙 이름이고(`PivRevSE` 56체결/19세션) 반전은 `:close:` 키를 안 만든다 ⇒ 판정 불가 **27.6%**(전량 `duplicate_open`) · **net 은 맞고 legs 는 틀리다**(오라클 11건: 오답 0 · 적중 4 중 3건이 `legs=2` 인데 거래소는 단일 포지션 — 나머지 1건은 반전 없는 먼지 세션이라 정확) | 발산 증상 BL 을 또 하나 열기 전에 · 소크가 또 죽었을 때                                                           | L            | 2026-08-03 breach-rejection-recovery                   |
 | [BL-592](#bl-592)    | 같은 Bybit 데모 계정이 `trading.exchange_accounts` 에 **2행**이라 청산 1건이 **2행으로 적재**되고, 주문을 안 가진 계정 쪽에서는 `ours` 가 **`unknown` 으로 오라벨**된다(실측 91/91 대칭). 원장 구멍 계측을 **3.7배 부풀린다** — [BL-591] 슬라이스 1 관측 전에 인지 필요                                                                                                                                                                                                                                                                                                                                                                                                                                    | `exchange_exits` 로 원장 구멍·귀속을 판정하기 전에                                                                | S            | 2026-08-04 engine-position-ssot                        |
 | [BL-593](#bl-593)    | 운영자 도구(`backend/scripts/verify_*.py` 등)가 `ClosePositionService` 를 못 써서 provider 를 **직접 호출** → 그 청산에 대응하는 `trading.orders` 행이 **없다**. 실측 `external_manual` **12건 / 103건(11.7%)**. [BL-591] C 안이 원장을 진실로 쓰므로 이 구멍이 곧 오주입 위험                                                                                                                                                                                                                                                                                                                                                                                                                             | 소크를 끄거나 거래소를 손으로 flat 으로 만들기 전에                                                               | S            | 2026-08-04 engine-position-ssot                        |
+| [BL-594](#bl-594)    | ★**Redis 가 재기동 불능인 채 6일 돌고 있었다** — `make down` 후 `unhealthy` 로 기동 실패. `appendonly.aof.4.incr.aof` 가 **35.6MB 중 30.8MB(86.6%) 판독 불가**. AOF 는 **기동 시에만 읽히므로** 떠 있는 프로세스에는 증상이 0 이고 healthcheck(`redis-cli ping`)도 구조적으로 못 본다. ⇒ 스택에 **재기동 내성이 없었다** — [BL-003] 의 168h 창 안에 재부팅이 들어오면 워커가 안 뜬다. 손상 원인 미조사                                                                                                                                                                                                                                                                                                     | 소크가 168h 를 향해 도는 동안 · 호스트 재부팅 전                                                                  | S            | 2026-08-05 soak-clock-restoration                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -6808,5 +6811,53 @@ interval 일반화(5m 에서 지평이 달라진다) · 사망 상관 **음성 �
 **Risk:** 🟡 도구 결함. 다만 [BL-591] C 안의 전제를 직접 갉는다.
 
 **연결:** [BL-591] (원장을 SSOT 로 쓰는 전제)
+
+---
+
+### BL-594
+
+**우선순위:** P2
+**카테고리:** Infra / 데이터 내구성 (Redis AOF)
+**Trigger:** 소크가 168h 를 향해 도는 동안 (재기동 1회면 드러난다) · 호스트 재부팅 전
+**Est:** S
+**상태:** ⬜ **Open**
+**출처:** 2026-08-05 soak-clock-restoration (완료 기준 「기존 워크플로를 실행해서 확인」 중 발견)
+
+**Redis 가 재기동을 못 하는 상태로 6일간 돌고 있었다 — 아무도 몰랐다.**
+
+`make down` 후 `make up-isolated` 가 `dependency failed to start: container quantbridge-redis is
+unhealthy` 로 실패했다. 로그:
+
+```
+# Bad file format reading the append only file appendonly.aof.4.incr.aof:
+  make a backup of your AOF file, then use ./redis-check-aof --fix <filename.manifest>
+```
+
+`redis-check-aof --fix` 실측 — **35,605,598 바이트 중 30,825,637 바이트(86.6%)가 판독 불가**였다
+(`ok_up_to=4779961`). base RDB(5,168 키)는 멀쩡했고 **incr AOF 만** 깨졌다. 절단 후 정상 기동.
+
+**왜 안 보였나.** `restart: unless-stopped` 인 컨테이너가 **6일 연속 살아 있었다**. AOF 는
+**기동 시에만 읽힌다** — 그래서 프로세스 메모리 위에서는 아무 증상이 없었다. 즉 이 스택은
+**재기동 내성이 없는 채로** 소크를 돌리고 있었다.
+
+**영향.** Redis 는 celery broker + result backend + redlock + 캐시다. 이번엔 활성 세션이 0이라
+피해가 없었지만, **소크 도중 호스트가 재부팅되면 워커가 안 뜬다.** [BL-003] 게이트가 168h 짜리
+달력 시간이라 그 창 안에 재부팅이 들어올 확률이 낮지 않다.
+
+**미조사.** 손상 원인은 안 밝혔다. 후보 — 하드 kill 중 쓰기 · 디스크 이슈 · Docker Desktop
+VM 의 파일시스템. 백업본이 있다(2026-08-05, 3.5MB tar.gz).
+
+**처리 방향:**
+
+1. **기동 내성을 상시 확인한다** — `scripts/soak-gate.sh` 나 nightly 가 `redis-check-aof`
+   (읽기 전용, `--fix` 없이)를 주기적으로 돌려 판독 가능 여부를 낸다. ★현행 healthcheck
+   (`redis-cli ping`)는 **떠 있는 프로세스에만 묻는다** — 이 결함을 구조적으로 못 본다
+2. 손상 원인 조사 — `appendfsync` 설정과 컨테이너 종료 경로(SIGTERM grace) 확인
+3. 필요하면 `auto-aof-rewrite-percentage` 로 incr 파일이 35MB 까지 자라지 않게 한다
+
+**Risk:** 🟡 데이터 손실은 캐시/broker 한정이라 작다. 다만 **가용성**이 [BL-003] 의 달력 시간에
+직접 걸린다.
+
+**연결:** [BL-003] (168h 창 안의 재기동 내성)
 
 ---
