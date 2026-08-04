@@ -73,6 +73,13 @@ QB_BE_PORT := $(shell expr 8100 + $(QB_SLOT))
 _guard-main-only:
 	@scripts/assert-main-checkout.sh "$(or $(MAKECMDGOALS),이 타깃)"
 
+# 소크 고정본 스택 보호 — up-isolated 계열은 같은 container_name 을 덮어써 돌고 있는 소크를
+# 끊는다. 같은 이유로 선행 타깃과 레시피 양쪽에 건다(위 §가드 설명과 동일한 논리).
+# ★고정본 스택이 안 떠 있으면 이 가드는 **아무 일도 하지 않는다** — 기존 워크플로의 의미 불변.
+.PHONY: _guard-no-pinned-soak
+_guard-no-pinned-soak:
+	@scripts/soak-stack.sh assert-not-pinned
+
 
 # 격리 모드 DB URL (host 5433 / container 내부 5432) — be-isolated / migrate-isolated 공통.
 # .env.local 변형 없이 inline override 패턴 (process env > pydantic-settings dotenv 우선순위).
@@ -183,15 +190,17 @@ dev-isolated: up-isolated migrate-isolated
 	  wait
 
 up-isolated: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
-up-isolated: _guard-main-only metrics-wipe
+up-isolated: _guard-main-only _guard-no-pinned-soak metrics-wipe
 	@scripts/assert-main-checkout.sh up-isolated || exit 1; \
+	  scripts/soak-stack.sh assert-not-pinned || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) up -d
 
 # Sprint 23 BL-101 — 코드 변경 후 image 재빌드 + 부팅. daily flow 영향 0.
 # 기본 up-isolated 는 빠른 부팅 유지 (image cache 사용).
 up-isolated-build: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
-up-isolated-build: _guard-main-only metrics-wipe
+up-isolated-build: _guard-main-only _guard-no-pinned-soak metrics-wipe
 	@scripts/assert-main-checkout.sh up-isolated-build || exit 1; \
+	  scripts/soak-stack.sh assert-not-pinned || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) up -d --build
 
 # Sprint 38 BL-181 — 격리 모드 + worker auto-rebuild on src 변경.
@@ -199,13 +208,32 @@ up-isolated-build: _guard-main-only metrics-wipe
 # `./backend/src` bind-mount + watchfiles wrapper 적용 (isolated.yml override).
 # host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
 # 패키지 변경은 image rebuild 의무 (ADR-019, docs/decisions/019-worker-auto-rebuild.md).
-up-isolated-watch: _guard-main-only metrics-prepare
+up-isolated-watch: _guard-main-only _guard-no-pinned-soak metrics-prepare
 	@scripts/assert-main-checkout.sh up-isolated-watch || exit 1; \
+	  scripts/soak-stack.sh assert-not-pinned || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
 
 down-isolated: _guard-main-only
 	@scripts/assert-main-checkout.sh down-isolated || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) down
+
+# ── 소크 스택 (BL-003 게이트) ────────────────────────────────────────────────
+# 워커가 작업 트리가 아니라 **고정된 커밋 스냅샷**(.soak/src)을 돌게 한다. 그래야
+# `backend/src` 를 편집해도 돌고 있는 소크가 죽지 않는다. 정본 = scripts/soak-stack.sh.
+# ★up-isolated 계열은 같은 container_name 을 덮어써 소크를 끊으므로 _guard-no-pinned-soak
+#   를 단다. 고정본 스택이 안 떠 있으면 이 가드는 아무 일도 하지 않는다(기존 의미 불변).
+
+soak-pin: _guard-main-only
+	@scripts/assert-main-checkout.sh soak-pin || exit 1; \
+	  scripts/soak-stack.sh pin $(COMMIT)
+
+up-soak: _guard-main-only
+	@scripts/assert-main-checkout.sh up-soak || exit 1; \
+	  scripts/soak-stack.sh up
+
+down-soak: _guard-main-only
+	@scripts/assert-main-checkout.sh down-soak || exit 1; \
+	  scripts/soak-stack.sh down
 
 logs-isolated:
 	docker compose $(ISOLATED_COMPOSE) logs -f
