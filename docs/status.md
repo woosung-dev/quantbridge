@@ -1,6 +1,32 @@
 # QuantBridge — Status
 
-> **업데이트:** 2026-08-04 (4차 — **소크를 내리고 축을 옮겼다**)
+> **업데이트:** 2026-08-04 (5차 — **핸들러를 보이게 만들고, nightly 가 거짓말을 멈췄다**)
+>
+> **★갈래 A — `live_signal.py` 해체 (행위 변경 0).** 4차가 [BL-580] 12곳의 감싸는 핸들러를
+> 통째로 오판한 것이 **두 회차 연속**이라, 수리가 아니라 **보이게 만드는 구조 작업**을 먼저 했다.
+> `_reconcile_conditional_entries` **876줄 / try 본문 845줄 / 중첩 3 → 46줄 / 8줄 / 1**,
+> `_evaluate_session_inner` **796 / 770 / 2 → 17 / 1 / 1**. 본체 운반자(`_inner`·`_with_engine`)에는
+> **`try` 가 하나도 없다** — 모든 핸들러가 이름 붙은 헬퍼로 옮겨졌다. 함수 45 → 71개,
+> **새 `.py` 소스 파일 0개**(파일 내부 분할만 — 그래야 래칫 9곳 중 1곳만 건드린다).
+> ★★★**codex 가 「행위 변경 0」을 한 번 반증했다** — lazy import 를 헬퍼로 옮기자 **실패 시점이
+> 커밋 뒤로 밀렸다**(`get_ccxt_provider_for_worker` 가 `order_repo.commit()` 뒤, `run_live` 가
+> `try_claim_bar` 뒤). 복원 후 재확인. ★**다중집합 비교는 문장 순서를 구조적으로 못 본다.**
+>
+> **★갈래 B — [BL-024] nightly real-broker.** 「skeleton 을 채운다」는 전제가 **실측으로 뒤집혔다**:
+> nightly 는 07-25~08-03 **10/10 실패**했고 지점은 pytest 가 아니라 `alembic upgrade head` 였다
+> (`secrets.TRADING_ENCRYPTION_KEYS_TEST` 부재 → 빈 문자열 → Settings ValidationError).
+> ⇒ **pytest 는 한 번도 실행된 적이 없고, `flaky-real-broker` 이슈 89건은 broker flakiness 의
+> 증거가 아니다.** 워크플로 9건 수리 + 계약 감사 13테스트(매 PR) + 자기정리 2층 하네스.
+> ★**실거래소는 1바이트도 검증되지 않았다** — 차단 사유 = Bybit demo 전용 키 2종 미발급.
+>
+> **게이트(통합본 실측):** BE **4026 passed / 45 skipped**(= 4013 + contract 13 − 삭제 1) ·
+> ruff 0 · mypy 0 (216) · bl-audit active **154** · bl-audit-test 5/0 · docs-audit clean ·
+> census **len 40 / sum 84 불변** · FE typecheck·lint 0 · vitest 1242 · e2e design-canon 32 · authed 69.
+> **celery 실주행**: 워커가 통합 코드로 재기동(md5 일치) 후 `evaluate_all` 2회 ·
+> `sweep_conditional_entries` 12회 성공 · 에러 0 · `live_signal.*` 4태스크 전부 등록.
+> ★단 `due_count: 0` 이라 **`_evaluate_session_inner` 본체는 미검증**이다(활성 세션 0).
+>
+> **★이전 회차 (4차 — 소크를 내리고 축을 옮겼다)**
 > **★소크는 중단됐다 (사용자 결정)** — `stop` → `flatten` 으로 **활성 세션 0 · FLAT=YES**.
 > ⇒ **`backend/src` 편집·BE pytest 전면 허용.** 아래 「소크가 돌고 있다」 문단들은 **낡았다.**
 > 근거: 08-01 이후 종료 7건 중 **5건이 `user_stopped`**(내가 코드 작업하려고 멈춘 것)이고
@@ -99,12 +125,47 @@
 
 ---
 
-## 다음 스프린트 — **[BL-580] 계측 가드 잔여 84곳** (발산 축은 동결)
+## 다음 스프린트 — **[BL-580] 잔여 84곳 수리** (이제 핸들러가 보인다) + **[BL-024] 실주문 leg**
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
-> ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다.** `CONTEXT.md` 는 반대다(읽어야 들어온다).
-> ★★**브랜치 규칙(사용자 확정)** — `stage/engine-position-ssot` 이 통합 브랜치다. **`main`
-> 머지는 검증이 다 끝난 뒤 한 번에** 한다. PR #539 는 **열어 둔다.**
+
+### ★무엇이 달라졌나 — 이번 회차가 만든 **선행 조건**
+
+[BL-580] 잔여 84곳 중 `live_signal.py` **34곳**은 이제 **이름 붙은 헬퍼 안**에 있다.
+운반자 함수(`_reconcile_conditional_entries_inner`·`_evaluate_session_with_engine`)에는
+**`try` 가 하나도 없고**, 감싸는 핸들러는 각 헬퍼가 소유하며 **docstring 에 적혀 있다**.
+⇒ 4차·3차가 두 번 연속 밟은 **「함수 하나 = 한 형태」 오판의 물리적 조건이 사라졌다.**
+★**그래도 산문으로 분류하지 마라** — 누적 판정 42곳에서 「가드 없이 유지」가 **0곳**이다. 주입으로 시작해라.
+
+### ★남은 구조 부채 (이번 회차가 **안 한 것**)
+
+- `_evaluate_session_with_engine` **506줄** — Kind B 추출(E8~E14) 미완. 프롬프트의 「200줄 이하」를
+  운반자 기준으로는 못 채웠다. ★단 **목표는 줄 수가 아니라 핸들러 가시성**이었고 그건 달성됐다
+  (최대 `try` 본문 845 → 8).
+- `_place_planned_entry` 236줄 · `_reconcile_conditional_entries_inner` 203줄 — 경계선.
+- `_async_dispatch_event` 256줄 · 최대 `try` 본문 **225줄** — ★**이번 범위 밖**이었다. 이제 이게 최대다.
+
+### ★[BL-024] — 사용자 액션이 차단 사유다
+
+실주문 leg(S2~S13)은 **Bybit demo 전용 API 키 2종**이 없어 착수 불가다.
+필요: 전용 서브계정(소크 계정과 **분리**) · 잔고 ≥200 USDT · Contract Trade+Read, Withdraw 금지 ·
+IP 제한 없음. 배치처 = `backend/.env.local` + repo secret `BYBIT_DEMO_API_KEY_TEST` /
+`BYBIT_DEMO_API_SECRET_TEST`. ★`TRADING_ENCRYPTION_KEYS_TEST` 는 **이제 불필요**하다(워크플로 리터럴).
+★**착수 전에 적대 검증이 남긴 것 3건을 먼저 봐라** — `_harness.py` 함수 본문의 **93%가 미실행**(F3),
+`flatten_one` 이 `submitted`→`filled` 대기 없이 `fetch_open_positions` 를 불러 **거짓 residual** 가능(F12),
+감사가 스텝 **순서**·`timeout-minutes` 를 안 본다(F6).
+
+### ★방법론 — 이번 회차가 실측으로 배운 것
+
+- **다중집합 비교는 문장 순서를 구조적으로 못 본다.** codex 가 그 축에서 MAJOR 를 냈다.
+  「정규 동치 0」을 「행위 변경 0」으로 갈음하지 마라.
+- **재적재의 지문은 `watchfiles` 로그가 아니라 celery 기동 배너**(`Connected to redis`→`mingle`→`ready.`)다.
+  `watchfiles` 는 조용하다. md5 일치는 **파일**의 증거이지 **프로세스**의 증거가 아니다.
+- **검증 도구를 먼저 적대 검증에 걸어라.** CONTROL 도구가 42건 주입 중 **16건 거짓 음성**이었다
+  (가장 큰 것: `except`/`else`/`finally` 구역 site 24개가 감싸는 `try` 를 통째로 잃음).
+  > ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다.** `CONTEXT.md` 는 반대다(읽어야 들어온다).
+  > ★★**브랜치 규칙(사용자 확정)** — `stage/engine-position-ssot` 이 통합 브랜치다. **`main`
+  > 머지는 검증이 다 끝난 뒤 한 번에** 한다. PR #539 는 **열어 둔다.**
 
 ### ★소크는 내려가 있다 (사용자 결정 2026-08-04)
 
