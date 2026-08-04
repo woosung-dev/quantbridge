@@ -262,8 +262,37 @@ E2E 스텝 **실행됨**(직전엔 skip) · `Upload pytest output` success(F2 �
 | **C. 프록시**                | 허용 지역 경유                                  | 시크릿·실패 모드가 하나씩 는다                         |
 | **D. 지리 차단을 명시 skip** | 403+CloudFront 감지 → 「측정 불가」 green skip  | ★**이슈는 멈추지만 검증도 0.** 위 셋의 임시 완충으로만 |
 
-★**A/B 를 정하기 전까지 nightly cron 은 매일 이 이슈를 다시 만든다.** 임시로 **D 를 넣거나
-`schedule:` 을 끄는 것**이 원장 오염을 막는다 — 그게 다음 세션의 **첫 작업**이다.
+★**사용자 판정(2026-08-04): B — 로컬 스케줄로 간다.** GitHub `schedule:` 은 껐고,
+`scripts/nightly-real-broker-local.sh` 가 **launchd 로 매일 03:00(로컬 시간대)** 돈다.
+
+```bash
+scripts/nightly-real-broker-local.sh --install     # launchd 등록 (완료됨)
+scripts/nightly-real-broker-local.sh --status      # 등록 상태 + 최근 판정 + 로그 목록
+scripts/nightly-real-broker-local.sh               # 지금 한 번 돌린다
+scripts/nightly-real-broker-local.sh --uninstall   # 해제
+```
+
+로그 = `~/Library/Logs/quantbridge/` (`last-result` 한 줄 + `run-<stamp>.log`).
+**판정 낱말 4종** — `PASS`(통과) / `SKIP`(의도된 건너뜀, exit 0) / `FAIL`(실패, exit 1) /
+`BLOCKED`(전제 미충족 = **측정 못 함**, exit 2).
+★**exit 0 이 「검증됐다」를 뜻하지 않는다** — SKIP 도 0 이다. 그래서 낱말을 따로 남긴다.
+
+**가드 5종 + 판별력(주입으로 증명, 대조군 PASS 확인 후 5/5)**:
+
+| 가드                          | 주입                  | 판정                                                           |
+| ----------------------------- | --------------------- | -------------------------------------------------------------- |
+| 메인 체크아웃 아님            | —                     | BLOCKED                                                        |
+| 자격증명 비었음               | 키를 빈 값으로        | ✅ BLOCKED                                                     |
+| DB 무응답 / 세션 수 판정 불가 | 쿼리를 깨뜨림         | ✅ BLOCKED (「판정 불가」를 「이상 없음」으로 접지 않는다)     |
+| ★**소크 충돌**                | 활성 세션 3개로 위장  | ✅ SKIP — 같은 Bybit 계정(uid 558689281)이라 포지션을 공유한다 |
+| 지리 차단                     | CloudFront 403 문자열 | ✅ BLOCKED (고장이 아니라 측정 불가)                           |
+| pytest 실패                   | `false`               | ✅ FAIL                                                        |
+
+★**첫 실행 실측(2026-08-04 23:34 KST)**: `1 passed, 1 skipped` — `fetch_balance` 가
+**실제 Bybit demo 에서 통과**했다. 이 프로젝트에서 스케줄 실행으로 실거래소 단언이 통과한 첫 사례다.
+(나머지 1건은 아직 skeleton skip — 그게 다음 회차의 본 작업이다.)
+
+★**A(self-hosted 러너)는 폐기가 아니라 보류**다. CI 통합이 필요해지면 그때 다시 판단한다.
 
 ### ★[BL-024] 실주문 leg — 코드 쪽은 착수 가능 (자격증명 배치 완료)
 
