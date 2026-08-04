@@ -612,6 +612,11 @@ scripts/soak-gate.sh             # [BL-003] 판정 — PASS / FAIL / UNKNOWN
 최근 90분 5개 = 워커 자식 1회 재활용). 남은 5,091 파일 기준 **약 42일**이다. ⇒ 상한은 소크 시간이
 아니라 **개발 재기동 예산**이다.
 
+★**2026-08-05 추가 — 고정본 전환의 순효과는 미검증이다.** watchfiles 가 사라져 「편집 → 워커
+재기동」 드라이버는 없어졌지만, `metrics-wipe` 로 0 에서 다시 시작한 창에서 **≈68/h** 가 관측됐다.
+같은 창에 게이트 수집기·`uv run`·호스트 uvicorn `--reload` 가 섞여 있어 **귀속시킬 수 없었고**,
+bind mount 라 파일 소유자로도 못 가른다(전부 호스트 uid 로 보인다). **조용한 창에서 다시 재라.**
+
 > ★★**`cd backend && set -a; . ./.env.local; set +a` 를 쓰지 마라.** 이미 `backend` 에 있으면
 > `cd` 가 실패해 **`set -a` 만 건너뛰고** 나머지는 `;` 로 계속 실행된다 — env 가 export 되지
 > 않은 채 pytest 가 5432 로 붙어 `InvalidPasswordError` **대량 거짓 red**.
