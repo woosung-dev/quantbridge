@@ -159,6 +159,11 @@ jobs:
         #   테스트에 들어가는데 300초는 빠듯하고, 그 초과는 broker flakiness 로 **오기록**된다
         #   — 이 워크플로가 이슈 89건을 만든 방식이 정확히 그것이다. 바깥 상한은
         #   잡 레벨 `timeout-minutes: 30` 이 이미 잡고 있다.
+        # ★`2>&1` 은 파이프 **앞**에 온다 — `tee` 는 stdout 만 받는다. 이게 없으면
+        #   `_harness.emit_residual_report` 가 stderr 로 쓰는 **RESIDUAL 블록이 아티팩트에도
+        #   이슈 본문에도 절대 들어가지 않는다**(아래 이슈 triage 4번이 도달 불가가 된다).
+        #   실측: `python -c '…stderr…' | tee f` → f 에 stdout 만 / `… 2>&1 | tee f` → 둘 다.
+        #   exit code 보존은 그대로다(둘 다 exit 1 확인).
         run: |
           uv run pytest tests/real_broker/ \
             --run-real-broker \
@@ -166,7 +171,7 @@ jobs:
             --tb=short \
             --timeout=600 \
             --timeout-method=signal \
-            | tee /tmp/real-broker-output.txt
+            2>&1 | tee /tmp/real-broker-output.txt
 
       # W8 — 실패 원인을 로그 링크 밖으로 꺼낸다. 지금까지 이슈 본문에는 증상이 없었다.
       - name: Upload pytest output

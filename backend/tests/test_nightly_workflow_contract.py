@@ -40,6 +40,15 @@ _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "nightly-real-broker.yml"
 _PYTEST_STEP_MARKER = "--run-real-broker"
 _ISSUE_STEP_MARKER = "issues.create"
 
+# ★게이트는 **정확한 형태**로 단언한다. `has_creds` 토큰 포함만 보면 `!= 'true'` /
+#   `== 'false'` 로 조건을 뒤집어도 감사가 통과한다(2026-08-04 적대 검증 F4).
+_HAS_CREDS_TRUE = "steps.preflight.outputs.has_creds == 'true'"
+
+
+def _normalize(text: str) -> str:
+    """줄바꿈·연속 공백을 단일 공백으로 접는다 (YAML 줄 접힘·들여쓰기 무시)."""
+    return re.sub(r"\s+", " ", text).strip()
+
 pytestmark = pytest.mark.skipif(not _WORKFLOW.exists(), reason="워크플로 파일이 없는 체크아웃")
 
 
@@ -224,8 +233,11 @@ def test_pytest_step_is_gated_on_credentials() -> None:
     step = _find_step(_PYTEST_STEP_MARKER)
     cond = _scalar(step, "if")
     assert cond is not None, "pytest 스텝에 `if:` 게이트가 없다"
-    assert "steps.preflight.outputs.has_creds" in cond, (
-        f"pytest 스텝이 preflight 출력으로 게이팅되지 않는다: if={cond!r}"
+    assert _normalize(cond) == _HAS_CREDS_TRUE, (
+        "pytest 스텝의 게이트가 정확히 "
+        f"`{_HAS_CREDS_TRUE}` 가 아니다: if={cond!r}\n"
+        "★부분문자열(`has_creds` 포함)로 재면 `!= 'true'` / `== 'false'` 로 **뒤집어도** "
+        "감사가 통과한다(2026-08-04 적대 검증 F4)."
     )
 
 
@@ -239,10 +251,11 @@ def test_issue_creation_step_is_gated_on_credentials() -> None:
     step = _find_step(_ISSUE_STEP_MARKER)
     cond = _scalar(step, "if")
     assert cond is not None, "이슈 생성 스텝에 `if:` 게이트가 없다"
-    assert "failure()" in cond, f"이슈 스텝이 실패 조건을 잃었다: if={cond!r}"
-    assert "has_creds" in cond, (
-        "이슈 생성 스텝이 자격증명 유무로 게이팅되지 않는다 — 자격증명 없이 난 실패가 "
-        f"다시 flaky 이슈로 등재된다(2026-08-03 까지 89건). if={cond!r}"
+    assert _normalize(cond) == f"failure() && {_HAS_CREDS_TRUE}", (
+        "이슈 생성 스텝의 게이트가 정확히 "
+        f"`failure() && {_HAS_CREDS_TRUE}` 가 아니다: if={cond!r}\n"
+        "자격증명 없이 난 실패가 다시 flaky 이슈로 등재된다(2026-08-03 까지 89건).\n"
+        "★부분문자열로 재면 조건을 **뒤집어도** 감사가 통과한다(적대 검증 F4)."
     )
 
 
@@ -274,6 +287,31 @@ def test_pytest_step_preserves_exit_code_through_the_pipe() -> None:
     assert shell is not None and "pipefail" in shell, (
         "pytest 스텝의 shell 에 `pipefail` 이 없다. `| tee` 가 exit code 를 삼켜 "
         f"실패가 green 으로 보고된다. shell={shell!r}"
+    )
+
+
+def test_pytest_step_redirects_stderr_into_the_tee() -> None:
+    """★`tee` 는 **stdout 만** 받는다 — RESIDUAL 은 stderr 로 나온다.
+
+    red 면 고장난 것: `backend/tests/real_broker/_harness.py:emit_residual_report` 가
+    RESIDUAL 블록을 `sys.stderr` 로 쓴다. `2>&1` 이 없으면 그 블록이
+    `/tmp/real-broker-output.txt` 에 **한 줄도 들어가지 않는다** ⇒ 아티팩트에도, 이슈
+    본문 인용에도 없고, 이슈 triage 4번(「RESIDUAL 블록이 위 출력에 있으면」)이
+    **도달 불가**가 된다. 거래소에 포지션이 남았다는 사실이 실행 페이지에서 사라진다.
+
+    실측(2026-08-04):
+      `python -c '…stdout…; …stderr…' | tee f`       → f 에 stdout 줄만
+      `python -c '…stdout…; …stderr…' 2>&1 | tee f`  → f 에 둘 다 (exit code 1 보존)
+
+    ★`2>&1` 은 파이프 **앞**에 와야 한다. 파이프 뒤에 두면 tee 의 stderr 를 돌리는 것이라
+    아무 효과가 없다.
+    """
+    step = _find_step(_PYTEST_STEP_MARKER)
+    body = _normalize(step)
+    assert "2>&1 | tee" in body, (
+        "pytest 스텝이 stderr 를 tee 로 넘기지 않는다. RESIDUAL 보고가 stderr 라 "
+        "아티팩트·이슈 본문에 **절대** 들어가지 않는다(적대 검증 F2). "
+        "`2>&1` 을 파이프 앞에 둬라."
     )
 
 

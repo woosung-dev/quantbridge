@@ -39,14 +39,22 @@ RESIDUAL 로 보고되고 **세션 exit code 를 1 로 만든다.**
 
 `ClosePositionService` 조립은 `backend/scripts/live_session_admin.py:_build_close_service`
 를 **그대로 재사용**한다. 그쪽은 `src/trading/dependencies.py` 의 조립을 옮겨온 것이며,
-dependencies 가 바뀌면 그쪽이 바뀌고 여기도 따라간다. SSOT 를 하나 더 만들지 않는다.
+dependencies 가 바뀌면 그쪽이 바뀌고 여기도 따라간다.
+
+★**단, DSN 기본값 리터럴은 예외이며 이 파일이 3번째 사본이다** — `tests/conftest.py:263`
+· `tests/real_broker/conftest.py` · 본 파일 `_effective_db_url`. 셋이 갈라지면 `drop_all`
+이 겨냥하는 DB 와 청산이 쓰는 DB 가 달라진다. 하나로 합치는 것이 옳지만 이번 회차 범위
+밖이다 — 갈라졌을 때 어디를 봐야 하는지만 여기 적어 둔다.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import importlib
 import os
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID
@@ -93,7 +101,89 @@ def register(target: CleanupTarget) -> CleanupTarget:
 
 
 # --------------------------------------------------------------------------
-# 배선 seam — 리허설이 여기를 갈아끼운다 (거래소/DB 없이 순서 계약을 검사하려고).
+# ★celery enqueue 차단 — 청산 구간에서 **직접** 재설치한다
+# --------------------------------------------------------------------------
+
+# (모듈 경로, task 심볼). 청산 경로가 실제로 건드리는 것들이다:
+#   deactivate            → live_signal.sweep_conditional_entries
+#   close_position        → trading.execute_order (dispatcher)
+#   _async_execute 체결 후 → trading.fetch_order_status · refresh_closed_pnl ·
+#                            measure_conditional_reversal
+_ENQUEUE_TARGETS: tuple[tuple[str, str], ...] = (
+    ("src.tasks.trading", "execute_order_task"),
+    ("src.tasks.trading", "fetch_order_status_task"),
+    ("src.tasks.trading", "refresh_closed_pnl_task"),
+    ("src.tasks.trading", "place_trailing_stop_task"),
+    ("src.tasks.trading", "measure_conditional_reversal_task"),
+    ("src.tasks.trading", "cancel_order_task"),
+    ("src.tasks.conditional_entry_recovery", "conditional_entry_recovery_task"),
+    ("src.tasks.live_signal", "sweep_conditional_entries_task"),
+    ("src.tasks.live_signal", "dispatch_live_signal_event_task"),
+    ("src.tasks.websocket_task", "run_bybit_public_ticker_stream"),
+    ("src.tasks.websocket_task", "run_bybit_private_stream"),
+)
+
+
+@contextlib.contextmanager
+def enqueue_block() -> Iterator[dict[str, list[Any]]]:
+    """`.delay` / `.apply_async` 를 캡처링 no-op 으로 바꾼다 (진입 시) / 되돌린다 (탈출 시).
+
+    ★★**왜 fixture 가 아니라 여기 있는가.** 이전 판은 function-scope autouse fixture 의
+    `monkeypatch` 로만 막았다. 그런데 자기정리는 **session fixture teardown(계층 1)** 과
+    **`pytest_sessionfinish`(계층 2)** 에서 도는데, function-scope monkeypatch 는 그
+    **둘보다 먼저** 원복된다. 실측(2026-08-04):
+
+        TEST-BODY            execute_order_task=BLOCKED  sweep_conditional_entries=BLOCKED
+        LAYER1-fixture       execute_order_task=REAL     sweep_conditional_entries=REAL
+        LAYER2-sessionfinish execute_order_task=REAL     sweep_conditional_entries=REAL
+
+    ⇒ 청산이 `deactivate` → `sweep_conditional_entries_task.apply_async` 와
+    `close_position` → `execute_order_task.delay` 를 **진짜로 발사**한다. 로컬
+    `quantbridge-worker` 는 **앱(개발) DB** 를 보므로 `sweep_conditional_entries` 가
+    소크 중인 실세션을 훑는다. 그래서 차단을 `run_cleanup` **안**으로 옮겨,
+    누가 부르든(계층 1이든 2든) 청산 구간에는 반드시 걸려 있게 했다.
+
+    ★**복원은 `delattr` 이다** — `monkeypatch` 는 undo 시 클래스에서 찾아둔 bound method 를
+    **인스턴스 `__dict__` 에 되쓴다**. 그래서 `'delay' in vars(task)` 로 차단 여부를 재면
+    원복 후에도 True 가 나온다(이 함정에 실제로 한 번 속았다). 여기서는 원래 인스턴스
+    속성이 없었으면 지워서 클래스 구현이 다시 보이게 한다.
+
+    Returns:
+        `{celery_task_name.method: [(args, kwargs), ...]}` 캡처 원장.
+    """
+    captured: dict[str, list[Any]] = {}
+    saved: list[tuple[Any, str, Any, bool]] = []
+
+    def _make(label: str) -> Any:
+        captured.setdefault(label, [])
+
+        def _noop(*args: object, **kwargs: object) -> None:
+            captured[label].append((args, kwargs))
+            return None
+
+        return _noop
+
+    try:
+        for module_path, attr in _ENQUEUE_TARGETS:
+            task = getattr(importlib.import_module(module_path), attr)
+            for method in ("delay", "apply_async"):
+                had_own = method in vars(task)
+                saved.append((task, method, vars(task).get(method), had_own))
+                setattr(task, method, _make(f"{task.name}.{method}"))
+        yield captured
+    finally:
+        for task, method, old, had_own in reversed(saved):
+            if had_own:
+                setattr(task, method, old)
+            else:
+                vars(task).pop(method, None)
+
+
+# --------------------------------------------------------------------------
+# 배선 seam — 프로덕션 조립을 지연 import 로 감싼 얇은 함수들.
+#   ★이 간접층은 「거래소·DB 없이 순서 계약만 구동」하는 임시 리허설을 위해 뒀다.
+#     그 리허설은 **레포에 없다**(일회성으로 돌리고 지웠다 — 5케이스 결과는 PR 본문에
+#     인용돼 있다). 즉 여기를 갈아끼우는 코드는 지금 저장소에 존재하지 않는다.
 # --------------------------------------------------------------------------
 
 
@@ -331,6 +421,10 @@ async def _cleanup_async(targets: list[CleanupTarget]) -> list[CleanupResult]:
 def run_cleanup(targets: list[CleanupTarget] | None = None) -> list[CleanupResult]:
     """미해결 타깃을 청산한다. 동기 진입점 (fixture teardown / sessionfinish 공용).
 
+    ★**enqueue 차단을 여기서 직접 건다** — 이 함수를 부르는 두 시점(계층 1 fixture
+    finalizer · 계층 2 `pytest_sessionfinish`)에서는 테스트 fixture 의 monkeypatch 가
+    **이미 원복돼 있다**. 자세한 근거와 실측은 `enqueue_block` 참조.
+
     ★DB 조립 자체가 실패해도 던지지 않는다 — 그 실패야말로 RESIDUAL 로 **보고돼야**
     하는 사건이다(청산했는지 알 수 없는 상태로 세션이 끝난다).
     """
@@ -338,7 +432,8 @@ def run_cleanup(targets: list[CleanupTarget] | None = None) -> list[CleanupResul
     if not pending:
         return []
     try:
-        return asyncio.run(_cleanup_async(pending))
+        with enqueue_block():
+            return asyncio.run(_cleanup_async(pending))
     except Exception as exc:
         return [
             CleanupResult(

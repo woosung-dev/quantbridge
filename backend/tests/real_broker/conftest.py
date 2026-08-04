@@ -158,54 +158,27 @@ def bybit_demo_test_credentials() -> tuple[str, str]:
 
 
 @pytest.fixture(autouse=True)
-def _no_op_enqueue(monkeypatch: pytest.MonkeyPatch) -> dict[str, list[Any]]:
-    """모든 celery enqueue 경로를 **캡처링 no-op** 으로 만든다.
+def _no_op_enqueue() -> Iterator[dict[str, list[Any]]]:
+    """테스트 **본문** 구간의 celery enqueue 를 캡처링 no-op 으로 만든다.
 
     ★로컬에는 `quantbridge-worker` 컨테이너가 떠 있고 6380 브로커를 **실제로 소비 중**이다.
-    이 fixture 를 빼면 우리 테스트가 **앱(개발) DB 를 보는 워커에게 태스크를 던진다** —
+    이게 없으면 우리 테스트가 **앱(개발) DB 를 보는 워커에게 태스크를 던진다** —
     `_test` DSN 가드를 통과해도 그쪽으로 새어나간다.
 
     ★`dependencies.py` 를 고치지 않는다. `_CeleryOrderDispatcher` 를 mock 으로 갈아끼우는
     대신 **task 객체의 `.delay` / `.apply_async` 자체**를 패치한다 ⇒ 프로덕션 배선이
     그대로 실행되면서 인자까지 검증할 수 있다(판별력이 오히려 올라간다).
 
-    autouse 다 — 실거래소 스위트에서 이걸 빠뜨릴 여지를 남기지 않는다.
+    ★★**이 fixture 는 청산 구간을 덮지 않는다.** function-scope 라 session fixture
+    finalizer(계층 1)와 `pytest_sessionfinish`(계층 2) **둘보다 먼저** 풀린다. 그 구간은
+    `_harness.run_cleanup` 이 `enqueue_block()` 을 **직접** 걸어서 덮는다. 차단 목록과
+    실측 근거는 `_harness.enqueue_block` 한 곳에 있다 — 여기서 목록을 복제하지 않는다.
 
-    Returns:
-        `{task_name: [(args, kwargs), ...]}` 캡처 원장.
+    Yields:
+        `{celery_task_name.method: [(args, kwargs), ...]}` 캡처 원장.
     """
-    from src.tasks import conditional_entry_recovery, live_signal, trading, websocket_task
-
-    captured: dict[str, list[Any]] = {}
-
-    def _make(label: str) -> Callable[..., None]:
-        captured.setdefault(label, [])
-
-        def _noop(*args: object, **kwargs: object) -> None:
-            captured[label].append((args, kwargs))
-            return None
-
-        return _noop
-
-    targets: list[tuple[Any, tuple[str, ...]]] = [
-        (trading.execute_order_task, ("delay", "apply_async")),
-        (trading.fetch_order_status_task, ("delay", "apply_async")),
-        (trading.refresh_closed_pnl_task, ("delay", "apply_async")),
-        (trading.place_trailing_stop_task, ("delay", "apply_async")),
-        (
-            conditional_entry_recovery.conditional_entry_recovery_task,
-            ("delay", "apply_async"),
-        ),
-        # `LiveSignalSessionService.deactivate` 가 stop 직후 이걸 enqueue 한다
-        # (`live_session_service.py:212-216`) — 자기정리 경로에서 반드시 걸린다.
-        (live_signal.sweep_conditional_entries_task, ("delay", "apply_async")),
-        (websocket_task.run_bybit_public_ticker_stream, ("delay", "apply_async")),
-        (websocket_task.run_bybit_private_stream, ("delay", "apply_async")),
-    ]
-    for task, methods in targets:
-        for method in methods:
-            monkeypatch.setattr(task, method, _make(f"{task.name}.{method}"))
-    return captured
+    with _harness.enqueue_block() as captured:
+        yield captured
 
 
 # --------------------------------------------------------------------------
