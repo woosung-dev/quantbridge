@@ -1065,6 +1065,854 @@ async def _write_back_confirmed_terminal(
     return status
 
 
+async def _reconcile_conditional_entries_inner(
+    sess: Any,
+    result: Any,
+    parsed_settings: StrategySettings,
+    sm: Any,
+    *,
+    bar_time: datetime,
+    fallback_reference_price: Decimal | None,
+) -> None:
+    """수렴 본체 — desired 상태를 거래소 resting 주문에 맞춘다.
+
+    ★**감싸는 핸들러: 없다.** 여기서 탈출한 예외는 전부
+    `_reconcile_conditional_entries` 의 fail-open `except Exception` 이 잡아
+    `stage="reconcile"` 로 계상하고 **정상 종료와 똑같이 `None` 을 반환**한다.
+    """
+    from src.tasks.celery_app import get_ccxt_provider_for_worker
+    from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
+    from src.trading.encryption import EncryptionService
+    from src.trading.exit_attribution import parse_our_order_link_id
+    from src.trading.kill_switch import (
+        CumulativeLossEvaluator,
+        DailyLossEvaluator,
+        KillSwitchEvaluator,
+        KillSwitchService,
+    )
+    from src.trading.providers import BybitFuturesProvider, _to_bybit_linear_symbol
+    from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
+    from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+    from src.trading.repositories.live_signal_session_repository import (
+        LiveSignalSessionRepository,
+    )
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.schemas import OrderRequest
+    from src.trading.services.account_service import ExchangeAccountService
+    from src.trading.services.conditional_entry_planner import (
+        RestingConditionalEntry,
+        build_conditional_entry_key,
+        build_market_converted_entry_key,
+        parse_conditional_entry_key,
+        plan_reconcile,
+    )
+    from src.trading.services.order_service import OrderService
+
+    async with sm() as session:
+        order_repo = OrderRepository(session)
+        local_orders = await order_repo.list_resting_conditional_entries(
+            sess.strategy_id, sess.exchange_account_id
+        )
+        desired = list(result.pending_orders)
+
+        # stop-entry를 쓰지 않는 전략에는 DB 조회 하나 외 비용을 지우고 REST를 절대 열지 않는다.
+        if not desired and not local_orders:
+            return
+
+        account_repo = ExchangeAccountRepository(session)
+        kse_repo = KillSwitchEventRepository(session)
+        active_kill_switch = await kse_repo.get_active(
+            strategy_id=sess.strategy_id, account_id=sess.exchange_account_id
+        )
+        cancel_reason = "desired_removed"
+        if not sess.is_active:
+            desired = []
+            cancel_reason = "session_inactive"
+        elif active_kill_switch is not None:
+            desired = []
+            cancel_reason = "kill_switch"
+
+        bybit_provider = BybitFuturesProvider()
+        exchange_service = ExchangeAccountService(
+            repo=account_repo,
+            crypto=EncryptionService(settings.trading_encryption_keys),
+            bybit_futures_provider=bybit_provider,
+        )
+        creds = await exchange_service.get_credentials_for_order(sess.exchange_account_id)
+
+        # BL-560 — terminal 확인 시 write-back 훅이 읽을 원본 행 (trailing_stop /
+        # reduce_only / id). DTO 인 `RestingConditionalEntry` 에는 없는 값들이다.
+        local_by_order_id = {str(order.id): order for order in local_orders}
+        actual_by_order_id: dict[str, RestingConditionalEntry] = {}
+        for order in local_orders:
+            parsed_key = parse_conditional_entry_key(order.idempotency_key)
+            if parsed_key is None or parsed_key[0] != sess.id or order.trigger_price is None:
+                continue
+            actual_by_order_id[str(order.id)] = RestingConditionalEntry(
+                trade_id=parsed_key[1],
+                order_id=str(order.id),
+                exchange_order_id=order.exchange_order_id,
+                stop_price=order.trigger_price,
+                quantity=order.quantity,
+                side=order.side.value,
+                trigger_direction=order.trigger_direction,
+                reduce_only=order.reduce_only,
+            )
+
+        exchange_orders = await bybit_provider.fetch_open_conditional_orders(
+            creds, sess.symbol, reduce_only=None
+        )
+        confirmed_order_ids: set[str] = set()
+        for exchange_order in exchange_orders:
+            linked_order_id = parse_our_order_link_id(exchange_order.order_link_id)
+            if linked_order_id is None:
+                continue
+            linked_order = await order_repo.get_by_id(linked_order_id)
+            if (
+                linked_order is None
+                or linked_order.strategy_id != sess.strategy_id
+                or linked_order.exchange_account_id != sess.exchange_account_id
+                or linked_order.trigger_price is None
+                or linked_order.reduce_only
+            ):
+                continue
+            parsed_key = parse_conditional_entry_key(linked_order.idempotency_key)
+            if parsed_key is None or parsed_key[0] != sess.id:
+                continue
+            # 가격·수량은 거래소 echo가 아니라 우리가 저장한 요청값이 SSOT다.
+            confirmed_order_ids.add(str(linked_order.id))
+            actual_by_order_id[str(linked_order.id)] = RestingConditionalEntry(
+                trade_id=parsed_key[1],
+                order_id=str(linked_order.id),
+                exchange_order_id=exchange_order.order_id,
+                stop_price=linked_order.trigger_price,
+                quantity=linked_order.quantity,
+                side=linked_order.side.value,
+                trigger_direction=linked_order.trigger_direction,
+                reduce_only=exchange_order.reduce_only,
+            )
+
+        # BL-500 — 거래소 부재가 로컬 행을 이긴다.
+        #
+        # `actual` 은 로컬 `pending`/`submitted` 행으로 먼저 채우고 거래소 응답으로
+        # 덮어쓰기만 했다(이중 등재 봉인, D4). 그래서 거래소엔 없고 DB 만 남은
+        # 주문이 desired 와 일치하면 계획기가 "이미 등재됨" 으로 보고 재등재하지
+        # 않아 그 trade_id 가 **영구 no-op** 이 된다.
+        #
+        # ★"목록에 없다" 는 부재의 증거로 **부족하다.** 세 가지가 겹친다.
+        #   (1) 주문 조회와 포지션 조회는 원자적 스냅샷이 아니다 — 방금 트리거된
+        #       주문은 open-order 에서 먼저 사라지고 포지션에는 늦게 뜬다.
+        #   (2) 응답이 열화(레이트리밋·부분 응답)됐을 수 있고, 그러면 살아 있는
+        #       주문 전체가 한 tick 에 "사라진" 것으로 보인다.
+        #   (3) 이 함수의 다른 모든 열화 입력은 fail-closed 인데(정밀도 실패·취소
+        #       실패·stand-down·시장가 지연) 여기만 "주문을 더 낸다" 방향이다.
+        #
+        # 그래서 후보마다 **거래소에 직접 물어** terminal 인지 확인한다. 확인하지
+        # 못하면 그대로 둔다. `exchange_order_id` 가 아직 없는 in-flight 행은 물어볼
+        # 대상 자체가 없으므로 건드리지 않는다(진짜 이중 등재 방어).
+        #
+        # ★상태 전이는 하지 않는다 — 그건 watchdog·`Reconciler` 책임이다. 여기서는
+        #   `actual` 에서만 뺀다.
+        fill_confirmed = False
+        for order_id, resting in list(actual_by_order_id.items()):
+            if order_id in confirmed_order_ids or resting.exchange_order_id is None:
+                continue
+            try:
+                # orderId 조회에서는 필터가 느슨해도, 조건부 주문임을 명시해 client-id
+                # 조회 경로와 같은 StopOrder 계약을 유지한다.
+                probe = await bybit_provider.fetch_order(
+                    creds, resting.exchange_order_id, sess.symbol, trigger=True
+                )
+            except Exception:
+                _count_safely(
+                    qb_live_conditional_reconcile_errors_total,
+                    stage="exchange_missing_probe_failed",
+                )
+                logger.warning(
+                    "live_conditional_reconcile_probe_failed",
+                    extra={
+                        "session_id": str(sess.id),
+                        "order_id": order_id,
+                        "exchange_order_id": resting.exchange_order_id,
+                    },
+                    exc_info=True,
+                )
+                continue
+            if probe.status not in ("filled", "cancelled", "rejected"):
+                continue  # 거래소는 아직 살아 있다고 말한다. 목록 쪽이 열화였다.
+            del actual_by_order_id[order_id]
+            # 체결이 확인됐다면 위(`:387`)에서 찍을 포지션 스냅샷이 그 체결보다
+            # 앞설 수 있다. 낡은 포지션으로 사이징하면 이중 포지션이 되므로 이번
+            # tick 은 등재하지 않는다.
+            if probe.status == "filled":
+                fill_confirmed = True
+            else:
+                # ★BL-580 — 한 줄 아래 `_count_safely` 가드가 이 줄에 가려 있었다.
+                #   여기서 던지면 그 가드도, 이 tick 의 등재 판단도 통째로 사라진다.
+                _count_safely(qb_live_conditional_reconcile_errors_total, stage="exchange_missing")
+            _count_safely(
+                qb_live_conditional_divergence_total,
+                event="exchange_divergence",
+                reason=_conditional_divergence_reason(
+                    "exchange_divergence", "exchange_missing_resting_order"
+                ),
+            )
+            logger.warning(
+                "live_conditional_exchange_divergence",
+                extra={
+                    "session_id": str(sess.id),
+                    "order_id": order_id,
+                    "exchange_order_id": resting.exchange_order_id,
+                    "reason": "exchange_missing_resting_order",
+                    "exchange_status": probe.status,
+                },
+            )
+            # ★BL-560 진짜 뿌리 — 여기서 **기록까지** 해야 한다. 예전엔 확인하고도
+            # `orders` 행을 그대로 둬서, 체결 사실이 세션이 죽을 때까지(스윕) 미뤄졌다.
+            # 실측: 주문 `9c7aef0b` 가 07:31~32 체결인데 `filled_at` 은 07:44:13 —
+            # 13분 동안 `list_fills_since` 에 안 잡혀 `_ledger_gap_seed` 가 못 읽었고,
+            # 엔진은 숏 / 거래소는 롱인 채로 돌다가 07:44:09 에 fail-closed 로 죽었다.
+            #
+            # ★등재 스킵(`fill_confirmed`)은 그대로 둔다 — 낡은 포지션 사이징을 막는
+            # fail-closed 다. 여기서 더하는 것은 **기록을 앞당기는 것**뿐이다.
+            #
+            # ★`trading.fetch_order_status` 예약이 아니라 직접 전이인 이유: 그 태스크는
+            # `trigger` 없이 조회한다(`tasks/trading.py:775`). 방금 우리가 `trigger=True`
+            # 로(`:878-880`) 받아 든 확정 응답이 이미 손에 있는데, 다른 질의 형태로 다시
+            # 물어 못 찾으면 ProviderError → retry → giveup 으로 **조용히 아무 일도 안
+            # 일어난다.** 없애려는 실패 모드를 그대로 재도입하는 셈이다.
+            won = await _write_back_confirmed_terminal(
+                order_repo,
+                order_id=UUID(order_id),
+                probe=probe,
+                hook_order=local_by_order_id.get(order_id),
+                now=datetime.now(UTC),
+            )
+            _count_safely(
+                qb_live_conditional_reconcile_errors_total,
+                stage=(
+                    f"terminal_write_back_{won}" if won is not None else "terminal_write_back_lost"
+                ),
+            )
+
+        try:
+            market_provider = get_ccxt_provider_for_worker()
+            await market_provider.exchange.load_markets()
+            market = market_provider.exchange.market(_to_bybit_linear_symbol(sess.symbol))
+            precision = market.get("precision") if isinstance(market, dict) else None
+            if not isinstance(precision, dict):
+                raise ValueError("conditional entry market precision is unavailable")
+            qty_step = Decimal(str(precision["amount"]))
+            price_tick = Decimal(str(precision["price"]))
+            if (
+                not qty_step.is_finite()
+                or not price_tick.is_finite()
+                or qty_step <= Decimal("0")
+                or price_tick <= Decimal("0")
+            ):
+                raise ValueError("conditional entry market precision is unavailable")
+        except Exception:
+            _count_safely(qb_live_conditional_reconcile_errors_total, stage="precision")
+            logger.exception(
+                "live_conditional_reconcile_precision_failed",
+                extra={"session_id": str(sess.id), "symbol": sess.symbol},
+            )
+            return
+
+        # ★계정 순포지션을 세션 target 에서 빼는 산술은 "이 계정·심볼의 포지션이 이
+        # 세션 것뿐" 이라는 전제 위에 선다. 그 전제가 깨지는 경우가 둘이고 둘 다
+        # 실주문을 파괴적으로 만든다.
+        #   (a) hedge mode — long/short 가 동시에 열려 순포지션이 우리 사이징 모델과
+        #       다른 의미가 된다.
+        #   (b) 같은 계정·심볼에 다른 전략 세션 — 활성 세션 unique 키가
+        #       `strategy_id` 를 포함하므로(`models.py` uq_live_sessions_active_unique)
+        #       구조적으로 허용된다. 전략 A 가 +1 보유 중 전략 B 가 -1 을 목표하면
+        #       B 는 수량 2 를 내 **A 의 포지션까지 닫고 반전**한다.
+        # 두 경우 모두 stand-down 한다 — 새로 등재하지 않고 이미 올려둔 우리 조건부
+        # 진입을 걷는다. 취소는 어느 경우에도 안전하고(포지션을 늘리지 않는다),
+        # 남겨두면 그게 잘못된 전제로 체결된다.
+        positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
+        hedge_mode = len(positions) > 1 or any(
+            position.position_idx not in (None, 0) for position in positions
+        )
+        session_repo = LiveSignalSessionRepository(session)
+        shares_account_symbol = any(
+            other.id != sess.id and other.symbol == sess.symbol
+            for other in await session_repo.list_active_by_account(sess.exchange_account_id)
+        )
+        stand_down_reason = (
+            "hedge_mode"
+            if hedge_mode
+            else "shared_account_symbol"
+            if shares_account_symbol
+            else None
+        )
+        current_position = Decimal("0")
+        if stand_down_reason is not None:
+            # ★★BL-580 — 이 줄이 던지면 **stand-down 자체가 일어나지 않는다.** 위 주석이
+            #   그 귀결을 적어 놨다("남겨두면 그게 잘못된 전제로 체결된다"). 바깥 except 가
+            #   `stage=reconcile` 로 삼켜 원인도 가려진다.
+            _count_safely(qb_live_conditional_reconcile_errors_total, stage="positions")
+            _count_safely(
+                qb_live_conditional_divergence_total,
+                event="stand_down",
+                reason=_conditional_divergence_reason("stand_down", stand_down_reason),
+            )
+            logger.error(
+                "live_conditional_stand_down",
+                extra={"session_id": str(sess.id), "reason": stand_down_reason},
+            )
+            desired = []
+            cancel_reason = stand_down_reason
+        else:
+            current_position = _net_position_size(positions)
+
+        reference_price = fallback_reference_price
+        allow_market_conversion = False
+        if desired:
+            exchange_reference_price = await bybit_provider.fetch_last_price(creds, sess.symbol)
+            if exchange_reference_price is None:
+                # ★BL-580 — 한 줄 아래 가드를 가리고 있었다.
+                _count_safely(qb_live_conditional_guard_total, outcome="reference_unavailable")
+                _count_safely(
+                    qb_live_conditional_divergence_total,
+                    event="degraded_input",
+                    reason=_conditional_divergence_reason(
+                        "degraded_input", "reference_price_unavailable"
+                    ),
+                )
+                logger.warning(
+                    "live_conditional_degraded_input",
+                    extra={
+                        "session_id": str(sess.id),
+                        "symbol": sess.symbol,
+                        "reason": "reference_price_unavailable",
+                    },
+                )
+            else:
+                reference_price = exchange_reference_price
+                allow_market_conversion = True
+
+        max_breach_pct = (
+            Decimal(str(parsed_settings.max_trigger_breach_pct))
+            if parsed_settings.max_trigger_breach_pct is not None
+            else None
+        )
+        max_reversal_overshoot_ratio = (
+            Decimal(str(parsed_settings.max_reversal_overshoot_ratio))
+            if parsed_settings.max_reversal_overshoot_ratio is not None
+            else None
+        )
+        plan = plan_reconcile(
+            desired=desired,
+            actual=tuple(actual_by_order_id.values()),
+            current_position=current_position,
+            qty_step=qty_step,
+            price_tick=price_tick,
+            reference_price=reference_price,
+            max_breach_pct=max_breach_pct,
+            max_reversal_overshoot_ratio=max_reversal_overshoot_ratio,
+            allow_market_conversion=allow_market_conversion,
+        )
+        for divergence in plan.divergences:
+            # BL-536 — 계획기 드롭은 지금까지 로그에만 있었다. 이 counter 는 **평가
+            # 발화 횟수**이지 유실 건수가 아니다(계획기는 순수 함수라 해결되지 않은
+            # leg 를 매 평가마다 다시 드롭한다). 아래 guard counter 와 겹쳐 오르는
+            # reason 이 둘 있으므로 합산하지 마라 — 상세는 metrics.py 주석.
+            _count_safely(
+                qb_live_conditional_plan_drop_evaluations_total,
+                reason=_plan_drop_reason(divergence.get("reason")),
+            )
+            # ★BL-580 — 이 둘은 `_count_safely` 바로 **뒤**라 S1 스윕(앞만 본다)이 놓쳤다.
+            #   던지면 `plan.divergences` 루프가 죽어 **남은 leg 의 드롭 계상과 로그가
+            #   통째로 사라지고** 바깥 except 가 `stage=reconcile` 로 원인을 가린다.
+            if divergence["reason"] == "breach_exceeds_cap":
+                _count_safely(qb_live_conditional_guard_total, outcome="breach_capped")
+            elif (
+                divergence["reason"] == "trigger_already_breached"
+                and divergence.get("had_resting") is True
+            ):
+                _count_safely(qb_live_conditional_guard_total, outcome="breach_with_resting")
+            # BL-561 — `backend/src` 에서 `extra=` 에 dict 를 unpack 하는 **유일한**
+            # 자리다. 계획기가 `name`/`module` 같은 LogRecord 예약 키를 추가하면
+            # stdlib `makeRecord` 가 KeyError 를 던져 **이 로그 줄이 예외로 바뀐다.**
+            # 그 닫힘은 `tests/common/test_logging_config.py` 의
+            # `test_only_dynamic_extra_site_cannot_produce_reserved_keys` 가 지킨다.
+            logger.warning(
+                "live_conditional_plan_drop",
+                extra={"session_id": str(sess.id), **divergence},
+            )
+
+        cancel_failed = False
+        cancel_raced = False
+        desired_trade_ids = {entry.trade_id for entry in desired}
+        for entry in plan.to_cancel:
+            try:
+                if entry.exchange_order_id is None:
+                    rows = await order_repo.transition_pending_to_cancelled(
+                        UUID(entry.order_id), cancelled_at=datetime.now(UTC)
+                    )
+                    if rows != 1:
+                        # BL-499 — 실행 워커가 `pending → submitted` 를 먼저 커밋했다.
+                        # 진짜 실패가 아니라 **경합 패배**다. 예외로 만들면 스택과
+                        # `stage="cancel"` 오류 metric 이 실패와 구분되지 않고, 그
+                        # 결과로 "이 경합이 실제로 나는가" 를 원장에서 물을 수 없다.
+                        # (preflight 가 이 구분 부재 때문에 잘못된 결론을 냈다.)
+                        fresh = await order_repo.get_state_and_exchange_id_fresh(
+                            UUID(entry.order_id)
+                        )
+                        if fresh is not None and fresh[0] != OrderState.pending:
+                            state, exchange_id = fresh
+                            # `submitted` + exchange id 없음은 janitor가 30분 뒤 거래소
+                            # client-id 조회로 확인한다. 즉시 경합을 재시도하지는 않는다.
+                            deferred = state == OrderState.submitted and exchange_id is None
+                            cancel_raced = True
+                            _count_safely(
+                                qb_live_conditional_reconcile_errors_total,
+                                stage="cancel_deferred" if deferred else "cancel_raced",
+                            )
+                            log = logger.warning
+                            log(
+                                "live_conditional_reconcile_cancel_deferred_to_janitor"
+                                if deferred
+                                else "live_conditional_reconcile_cancel_raced",
+                                extra={
+                                    "session_id": str(sess.id),
+                                    "order_id": entry.order_id,
+                                    "observed_state": state.value,
+                                    "has_exchange_order_id": exchange_id is not None,
+                                    "janitor_delay_minutes": (
+                                        _conditional_entry_janitor_delay_minutes()
+                                        if deferred
+                                        else None
+                                    ),
+                                },
+                            )
+                            continue
+                else:
+                    await bybit_provider.cancel_order(creds, entry.exchange_order_id, sess.symbol)
+                    rows = await order_repo.transition_to_cancelled(
+                        UUID(entry.order_id), cancelled_at=datetime.now(UTC)
+                    )
+                if rows != 1:
+                    raise RuntimeError("conditional entry cancel lost its state transition")
+                await order_repo.commit()
+                # OrderService.execute 가 생성 시 inc 했으므로 terminal 전이에서 dec.
+                # 조건부 진입은 교체·세션 종료로 반복 취소되므로 빠뜨리면 active gauge 가
+                # 단조 증가해 운영 경보가 왜곡된다(표준 취소 경로는 trading.py 가 dec 한다).
+                record_metric_safely(qb_active_orders.dec)
+                reason = (
+                    cancel_reason
+                    if not desired_trade_ids
+                    else "replaced"
+                    if entry.trade_id in desired_trade_ids
+                    else "desired_removed"
+                )
+                _count_safely(qb_live_conditional_cancelled_total, reason=reason)
+            except Exception:
+                cancel_failed = True
+                _count_safely(qb_live_conditional_reconcile_errors_total, stage="cancel")
+                logger.exception(
+                    "live_conditional_reconcile_cancel_failed",
+                    extra={"session_id": str(sess.id), "order_id": entry.order_id},
+                )
+        if cancel_failed:
+            return
+        if fill_confirmed:
+            # 위에서 거래소가 체결을 확인해 준 조건부 진입이 있다. 이번 tick 의
+            # `current_position` 은 그 체결보다 앞선 스냅샷일 수 있으므로 등재하지
+            # 않는다. 다음 tick 이 새 포지션으로 다시 계획한다.
+            return
+        if cancel_raced:
+            # ★패배해도 이번 tick 의 등재는 하지 않는다(fail-closed 유지).
+            #   `current_position` 은 취소 루프보다 **먼저** 찍은 스냅샷이라, 패배한
+            #   주문이 그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다.
+            #   다음 tick 이 새 포지션·거래소 스냅샷으로 다시 계획하면 된다.
+            return
+        to_place = plan.to_place
+        if not to_place:
+            return
+
+        evaluators: list[KillSwitchEvaluator] = [
+            CumulativeLossEvaluator(
+                order_repo,
+                threshold_percent=settings.kill_switch_cumulative_loss_percent,
+                capital_base=settings.kill_switch_capital_base_usd,
+                balance_provider=exchange_service,
+            ),
+            DailyLossEvaluator(
+                order_repo,
+                threshold_usd=settings.kill_switch_daily_loss_usd,
+            ),
+        ]
+        order_service = OrderService(
+            session=session,
+            repo=order_repo,
+            dispatcher=_CeleryOrderDispatcher(),
+            kill_switch=KillSwitchService(evaluators=evaluators, events_repo=kse_repo),
+            sessions_port=_StrategySessionsAdapter(session),
+            exchange_service=exchange_service,
+        )
+        for placement_index, planned_entry in enumerate(to_place):
+            try:
+                breach_pct: Decimal | None = None
+                if planned_entry.as_market:
+                    interval_seconds = {
+                        "1m": 60,
+                        "5m": 300,
+                        "15m": 900,
+                        "1h": 3600,
+                    }.get(str(sess.interval))
+                    if interval_seconds is None:
+                        # 미지 interval은 전환 창을 해석할 수 없다. 창 크기의 폴백은
+                        # 전환 허용 근거가 아니므로 시장가 전환만 명시적으로 막는다.
+                        _count_safely(qb_live_conditional_guard_total, outcome="convert_suppressed")
+                        logger.warning(
+                            "live_conditional_reconcile_market_convert_suppressed",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                                "reason": "unknown_interval",
+                                "interval": str(sess.interval),
+                            },
+                        )
+                        continue
+                    since = bar_time - timedelta(seconds=interval_seconds * 2)
+                    if await order_repo.has_recent_market_converted_entry(
+                        exchange_account_id=sess.exchange_account_id,
+                        strategy_id=sess.strategy_id,
+                        session_id=sess.id,
+                        since=since,
+                    ):
+                        _count_safely(qb_live_conditional_guard_total, outcome="convert_suppressed")
+                        logger.warning(
+                            "live_conditional_reconcile_market_convert_suppressed",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                                "since": since.isoformat(),
+                            },
+                        )
+                        continue
+
+                    conversion_reference_price = await bybit_provider.fetch_last_price(
+                        creds, sess.symbol
+                    )
+                    if conversion_reference_price is None:
+                        _count_safely(
+                            qb_live_conditional_guard_total, outcome="reference_unavailable"
+                        )
+                        logger.warning(
+                            "live_conditional_reconcile_market_convert_skipped",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                                "reason": "reference_price_unavailable",
+                            },
+                        )
+                        continue
+                    still_breached = (
+                        planned_entry.direction == "long"
+                        and planned_entry.trigger_price <= conversion_reference_price
+                    ) or (
+                        planned_entry.direction == "short"
+                        and planned_entry.trigger_price >= conversion_reference_price
+                    )
+                    if not still_breached:
+                        _count_safely(qb_live_conditional_guard_total, outcome="breach_reverted")
+                        logger.warning(
+                            "live_conditional_reconcile_market_convert_skipped",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                                "reason": "breach_reverted",
+                                "stop_price": str(planned_entry.trigger_price),
+                                "reference_price": str(conversion_reference_price),
+                            },
+                        )
+                        continue
+                    breach_pct = (
+                        abs(conversion_reference_price - planned_entry.trigger_price)
+                        / conversion_reference_price
+                        * Decimal("100")
+                    )
+                    if max_breach_pct is not None and breach_pct > max_breach_pct:
+                        # ★BL-580 — 한 줄 아래 가드를 가리고 있었다.
+                        _count_safely(qb_live_conditional_guard_total, outcome="breach_capped")
+                        _count_safely(
+                            qb_live_conditional_divergence_total,
+                            event="guard_drop",
+                            reason=_conditional_divergence_reason(
+                                "guard_drop", "breach_exceeds_cap"
+                            ),
+                        )
+                        logger.warning(
+                            "live_conditional_guard_drop",
+                            extra={
+                                "session_id": str(sess.id),
+                                "trade_id": planned_entry.trade_id,
+                                "reason": "breach_exceeds_cap",
+                                "direction": planned_entry.direction,
+                                "stop_price": str(planned_entry.trigger_price),
+                                "reference_price": str(conversion_reference_price),
+                                "breach_pct": str(breach_pct),
+                                "max_breach_pct": str(max_breach_pct),
+                            },
+                        )
+                        continue
+                # BL-523 게이트 A — 고정 SL 없는 트레일링 단독은 등재하지 않는다.
+                # 트레일링은 체결 **후** `set_trading_stop` 으로만 붙으므로(ccxt 는
+                # trailing + trigger 조합을 InvalidOrder 로 거부한다), SL 이 없으면
+                # 체결 순간부터 부착까지 무방비 포지션이 된다.
+                # ★시장가 진입 경로(`:2705-2718`)는 여기서 `mark_failed` 를 부르지만
+                #   조건부 진입에는 `live_signal_events` 행 자체가 없다. 이 파일의
+                #   다른 fail-closed 드롭과 같은 모양(guard counter + 발산 로그)으로 남긴다.
+                if planned_entry.trailing_stop is not None and planned_entry.stop_loss is None:
+                    _count_safely(
+                        qb_live_conditional_guard_total,
+                        outcome="bracket_trailing_only_dropped",
+                    )
+                    _count_safely(
+                        qb_live_conditional_divergence_total,
+                        event="guard_drop",
+                        reason=_conditional_divergence_reason(
+                            "guard_drop", "bracket_trailing_only"
+                        ),
+                    )
+                    logger.warning(
+                        "live_conditional_guard_drop",
+                        extra={
+                            "session_id": str(sess.id),
+                            "trade_id": planned_entry.trade_id,
+                            "reason": "bracket_trailing_only",
+                        },
+                    )
+                    continue
+
+                # BL-523 게이트 B — tpSize 정합. `_merge_exit_params`
+                # (`providers.py:462-465`)가 `takeProfit.price` 를 항상 넣어 ccxt 가
+                # `tpslMode=Partial` 로 라우팅하고, 그러면 `tpSize = 주문수량` 이 된다.
+                # 반전 주문은 주문수량 > 체결 후 포지션이라 거래소가 **진입 자체를**
+                # 거부한다. TP 만 떨어뜨리고 SL 은 유지한다 — 보호를 통째로 잃는 것보다
+                # 이익실현 하나를 잃는 편이 낫다.
+                # ★BL-562 — `resulting_position_qty` 는 **등재 시점 근사**다(계획기
+                #   docstring 참조). 여기가 유일하게 판정 가능한 지점이라 그렇다:
+                #   `tpSize` 는 등재할 때 확정되므로 체결 시점에 다시 재도 바꿀 것이 없다.
+                #   방향은 보수적이다 — 근사가 틀리면 TP 를 **잘못 드롭**할 뿐,
+                #   잘못 통과시키지 않는다.
+                take_profit = planned_entry.take_profit
+                if (
+                    take_profit is not None
+                    and planned_entry.quantity != planned_entry.resulting_position_qty
+                ):
+                    take_profit = None
+                    _count_safely(
+                        qb_live_conditional_guard_total, outcome="bracket_tp_dropped_size"
+                    )
+                    _count_safely(
+                        qb_live_conditional_divergence_total,
+                        event="guard_drop",
+                        reason=_conditional_divergence_reason(
+                            "guard_drop", "bracket_tp_size_mismatch"
+                        ),
+                    )
+                    logger.warning(
+                        "live_conditional_guard_drop",
+                        extra={
+                            "session_id": str(sess.id),
+                            "trade_id": planned_entry.trade_id,
+                            "reason": "bracket_tp_size_mismatch",
+                            "quantity": str(planned_entry.quantity),
+                            "resulting_position_qty": str(planned_entry.resulting_position_qty),
+                        },
+                    )
+
+                # ★`OrderRequest` 조립만 별도로 감싼다. 지금까지는 바깥
+                # `except Exception` 이 스키마 위반을 네트워크 실패와 **같은 라벨**로
+                # 삼켰다 — exit 레벨은 Pine float 에서 오므로 `decimal_places=8` 초과나
+                # `gt=0` 위반이 실제로 가능한 입력이고, 그것을 "거래소 장애" 로 읽으면
+                # 전략 결함을 인프라 결함으로 오진한다.
+                try:
+                    request = OrderRequest(
+                        strategy_id=sess.strategy_id,
+                        exchange_account_id=sess.exchange_account_id,
+                        symbol=sess.symbol,
+                        side=OrderSide(planned_entry.side),
+                        type=OrderType.market,
+                        quantity=planned_entry.quantity,
+                        price=None,
+                        trigger_price=None
+                        if planned_entry.as_market
+                        else planned_entry.trigger_price,
+                        trigger_direction=(
+                            None if planned_entry.as_market else planned_entry.trigger_direction
+                        ),
+                        trigger_by=None if planned_entry.as_market else "LastPrice",
+                        reduce_only=False,
+                        leverage=parsed_settings.leverage,
+                        margin_mode=parsed_settings.margin_mode,
+                        take_profit=take_profit,
+                        stop_loss=planned_entry.stop_loss,
+                        # ★싣되 거래소로는 나가지 않는다 — `tasks/trading.py:421` 와
+                        #   `providers.py:456` 이 둘 다 `reduce_only` 를 요구하므로
+                        #   entry 의 trailing 은 create_order 에 주입되지 않는다.
+                        #   체결 후 `_enqueue_trailing_if_intended` 가 부착한다.
+                        trailing_stop=planned_entry.trailing_stop,
+                    )
+                except ValidationError:
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total,
+                        stage="conditional_request_invalid",
+                    )
+                    logger.exception(
+                        "live_conditional_reconcile_request_invalid",
+                        extra={
+                            "session_id": str(sess.id),
+                            "trade_id": planned_entry.trade_id,
+                        },
+                    )
+                    continue
+                idempotency_key = (
+                    build_market_converted_entry_key(
+                        sess.id,
+                        planned_entry.trade_id,
+                        bar_time,
+                        planned_entry.trigger_price,
+                        planned_entry.quantity,
+                    )
+                    if planned_entry.as_market
+                    else build_conditional_entry_key(
+                        sess.id,
+                        planned_entry.trade_id,
+                        bar_time,
+                        planned_entry.trigger_price,
+                        planned_entry.quantity,
+                    )
+                )
+                if idempotency_key is None:
+                    # 되짚지 못할 key 로 발주하면 우리 주문을 영원히 남의 것으로 본다.
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total,
+                        stage="unrepresentable_key",
+                    )
+                    continue
+                await order_service.execute(
+                    request,
+                    idempotency_key=idempotency_key,
+                    body_hash=None,
+                )
+                _count_safely(
+                    qb_live_conditional_placed_total,
+                    direction=planned_entry.direction,
+                )
+                _count_safely(
+                    qb_live_conditional_guard_total,
+                    outcome=(
+                        "market_converted" if planned_entry.as_market else "conditional_placed"
+                    ),
+                )
+                # BL-523 — 붙일 브래킷이 **있었는가**. 이 라벨들의 비가 곧 §전제의 실측이다
+                # (조건부 진입은 체결 전까지 `open_trades` 에 없어 지금은 전량
+                # `bracket_unavailable` 이어야 한다).
+                #
+                # ★BL-563 — "있었는가" 는 **엔진이 공급한 원본 leg**(`planned_entry`)로
+                #   잰다. 게이트 뒤의 `request` 로 재면 게이트 B 가 드롭한 TP-only 반전이
+                #   `bracket_unavailable` 로 집계돼 "엔진이 아무것도 공급하지 않았다" 와
+                #   구별되지 않는다. 게이트가 전부 걷어낸 경우는 별도 축으로 센다.
+                #   세 라벨은 상호배타이며 합 = `qb_live_conditional_placed_total`.
+                #
+                # ★게이트 A(`:1263` trailing-only)는 여기 오기 전에 `continue` 로 빠진다 —
+                #   그건 브래킷이 아니라 **leg 자체**를 드롭하므로 주문이 발주되지 않는다.
+                #   이 축의 분모(등재 성공 수)에 넣으면 위 합 등식이 깨진다. 비대칭이
+                #   아니라 축이 다른 것이고, 그쪽은 `bracket_trailing_only_dropped` 다.
+                engine_supplied_bracket = (
+                    planned_entry.take_profit is not None
+                    or planned_entry.stop_loss is not None
+                    or planned_entry.trailing_stop is not None
+                )
+                bracket_on_the_wire = (
+                    request.take_profit is not None
+                    or request.stop_loss is not None
+                    or request.trailing_stop is not None
+                )
+                _count_safely(
+                    qb_live_conditional_guard_total,
+                    outcome=(
+                        "bracket_attached"
+                        if bracket_on_the_wire
+                        else "bracket_supplied_gate_dropped"
+                        if engine_supplied_bracket
+                        else "bracket_unavailable"
+                    ),
+                )
+                # BL-516 안 3 — 반전이면 크기를 버킷으로 남긴다. 수량은 합친 채로 둔다.
+                # ★BL-562 — 이것은 **등재 시점** 축이다(취소·재등재로 한 의도가 여러 번
+                #   오르고, 트리거 전 드리프트에 낡는다). **체결 시점** 축은 별도 counter
+                #   `qb_live_conditional_reversal_filled_total` 이고 발화 지점은 fill
+                #   훅(`tasks/trading.py:_enqueue_conditional_reversal_measure`)이다.
+                #   두 counter 를 합산하지 마라 — 이유는 `common/metrics.py` 주석.
+                if planned_entry.crosses_zero:
+                    _count_safely(
+                        qb_live_conditional_reversal_total,
+                        bucket=_reversal_overshoot_bucket(planned_entry.overshoot_ratio),
+                    )
+                if planned_entry.as_market:
+                    _count_safely(
+                        qb_live_conditional_divergence_total,
+                        event="market_converted",
+                        reason=_conditional_divergence_reason(
+                            "market_converted", "market_converted"
+                        ),
+                    )
+                    logger.warning(
+                        "live_conditional_market_converted",
+                        extra={
+                            "session_id": str(sess.id),
+                            "trade_id": planned_entry.trade_id,
+                            "reason": "market_converted",
+                            "stop_price": str(planned_entry.trigger_price),
+                            "breach_pct": str(breach_pct),
+                        },
+                    )
+                    # 시장가 전환은 포지션 스냅샷을 즉시 낡게 만든다. 이 tick의 나머지
+                    # 등재는 다음 tick의 새 포지션 스냅샷까지 미룬다.
+                    remaining_count = len(to_place) - placement_index - 1
+                    for _ in range(remaining_count):
+                        _count_safely(
+                            qb_live_conditional_reconcile_errors_total,
+                            stage="deferred_after_market_convert",
+                        )
+                    if remaining_count:
+                        logger.warning(
+                            "live_conditional_reconcile_deferred_after_market_convert",
+                            extra={
+                                "session_id": str(sess.id),
+                                "remaining_count": remaining_count,
+                            },
+                        )
+                    return
+            except (BalanceUnverified, MinNotionalNotMet, NotionalExceeded):
+                _count_safely(
+                    qb_live_conditional_reconcile_errors_total,
+                    stage=(
+                        "market_place_gate" if planned_entry.as_market else "conditional_place_gate"
+                    ),
+                )
+                logger.exception(
+                    "live_conditional_reconcile_place_failed",
+                    extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
+                )
+            except Exception:
+                _count_safely(
+                    qb_live_conditional_reconcile_errors_total,
+                    stage="market_place" if planned_entry.as_market else "conditional_place",
+                )
+                logger.exception(
+                    "live_conditional_reconcile_place_failed",
+                    extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
+                )
+
+
 async def _reconcile_conditional_entries(
     sess: Any,
     result: Any,
@@ -1082,6 +1930,13 @@ async def _reconcile_conditional_entries(
     반영되기 전의 포지션을 읽는다. 그 값으로 사이징하면 초과 수량 주문이 나간다 -
     실측 예: 청산 대기 중 포지션 +1 에서 target -0.5 를 보면 수량 1.5 를 등재하고,
     청산이 체결된 뒤 돌파가 오면 의도의 3배가 열린다. 한 tick 늦추는 편이 낫다.
+
+    ★★**이 함수가 리컨사일 전체의 fail-open 소유자다.** 본체
+    (`_reconcile_conditional_entries_inner`)에서 탈출한 **모든** 예외를 여기서 삼켜
+    `stage="reconcile"` 로 계상하고 **정상 종료와 똑같이 `None` 을 반환**한다.
+    그래서 호출자(평가 tick)는 곧바로 `outcome="success"` 를 계상한다 —
+    **리컨사일이 조용히 사라져도 성공으로 기록된다.** 지속 실패 시 resting 조건부
+    주문 수렴이 멈춘다.
     """
     if market_orders_in_flight:
         pending_orders = getattr(result, "pending_orders", None)
@@ -1093,851 +1948,14 @@ async def _reconcile_conditional_entries(
         _count_safely(qb_live_conditional_reconcile_errors_total, stage=stage)
         return
     try:
-        from src.tasks.celery_app import get_ccxt_provider_for_worker
-        from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
-        from src.trading.encryption import EncryptionService
-        from src.trading.exit_attribution import parse_our_order_link_id
-        from src.trading.kill_switch import (
-            CumulativeLossEvaluator,
-            DailyLossEvaluator,
-            KillSwitchEvaluator,
-            KillSwitchService,
+        await _reconcile_conditional_entries_inner(
+            sess,
+            result,
+            parsed_settings,
+            sm,
+            bar_time=bar_time,
+            fallback_reference_price=fallback_reference_price,
         )
-        from src.trading.providers import BybitFuturesProvider, _to_bybit_linear_symbol
-        from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
-        from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
-        from src.trading.repositories.live_signal_session_repository import (
-            LiveSignalSessionRepository,
-        )
-        from src.trading.repositories.order_repository import OrderRepository
-        from src.trading.schemas import OrderRequest
-        from src.trading.services.account_service import ExchangeAccountService
-        from src.trading.services.conditional_entry_planner import (
-            RestingConditionalEntry,
-            build_conditional_entry_key,
-            build_market_converted_entry_key,
-            parse_conditional_entry_key,
-            plan_reconcile,
-        )
-        from src.trading.services.order_service import OrderService
-
-        async with sm() as session:
-            order_repo = OrderRepository(session)
-            local_orders = await order_repo.list_resting_conditional_entries(
-                sess.strategy_id, sess.exchange_account_id
-            )
-            desired = list(result.pending_orders)
-
-            # stop-entry를 쓰지 않는 전략에는 DB 조회 하나 외 비용을 지우고 REST를 절대 열지 않는다.
-            if not desired and not local_orders:
-                return
-
-            account_repo = ExchangeAccountRepository(session)
-            kse_repo = KillSwitchEventRepository(session)
-            active_kill_switch = await kse_repo.get_active(
-                strategy_id=sess.strategy_id, account_id=sess.exchange_account_id
-            )
-            cancel_reason = "desired_removed"
-            if not sess.is_active:
-                desired = []
-                cancel_reason = "session_inactive"
-            elif active_kill_switch is not None:
-                desired = []
-                cancel_reason = "kill_switch"
-
-            bybit_provider = BybitFuturesProvider()
-            exchange_service = ExchangeAccountService(
-                repo=account_repo,
-                crypto=EncryptionService(settings.trading_encryption_keys),
-                bybit_futures_provider=bybit_provider,
-            )
-            creds = await exchange_service.get_credentials_for_order(sess.exchange_account_id)
-
-            # BL-560 — terminal 확인 시 write-back 훅이 읽을 원본 행 (trailing_stop /
-            # reduce_only / id). DTO 인 `RestingConditionalEntry` 에는 없는 값들이다.
-            local_by_order_id = {str(order.id): order for order in local_orders}
-            actual_by_order_id: dict[str, RestingConditionalEntry] = {}
-            for order in local_orders:
-                parsed_key = parse_conditional_entry_key(order.idempotency_key)
-                if parsed_key is None or parsed_key[0] != sess.id or order.trigger_price is None:
-                    continue
-                actual_by_order_id[str(order.id)] = RestingConditionalEntry(
-                    trade_id=parsed_key[1],
-                    order_id=str(order.id),
-                    exchange_order_id=order.exchange_order_id,
-                    stop_price=order.trigger_price,
-                    quantity=order.quantity,
-                    side=order.side.value,
-                    trigger_direction=order.trigger_direction,
-                    reduce_only=order.reduce_only,
-                )
-
-            exchange_orders = await bybit_provider.fetch_open_conditional_orders(
-                creds, sess.symbol, reduce_only=None
-            )
-            confirmed_order_ids: set[str] = set()
-            for exchange_order in exchange_orders:
-                linked_order_id = parse_our_order_link_id(exchange_order.order_link_id)
-                if linked_order_id is None:
-                    continue
-                linked_order = await order_repo.get_by_id(linked_order_id)
-                if (
-                    linked_order is None
-                    or linked_order.strategy_id != sess.strategy_id
-                    or linked_order.exchange_account_id != sess.exchange_account_id
-                    or linked_order.trigger_price is None
-                    or linked_order.reduce_only
-                ):
-                    continue
-                parsed_key = parse_conditional_entry_key(linked_order.idempotency_key)
-                if parsed_key is None or parsed_key[0] != sess.id:
-                    continue
-                # 가격·수량은 거래소 echo가 아니라 우리가 저장한 요청값이 SSOT다.
-                confirmed_order_ids.add(str(linked_order.id))
-                actual_by_order_id[str(linked_order.id)] = RestingConditionalEntry(
-                    trade_id=parsed_key[1],
-                    order_id=str(linked_order.id),
-                    exchange_order_id=exchange_order.order_id,
-                    stop_price=linked_order.trigger_price,
-                    quantity=linked_order.quantity,
-                    side=linked_order.side.value,
-                    trigger_direction=linked_order.trigger_direction,
-                    reduce_only=exchange_order.reduce_only,
-                )
-
-            # BL-500 — 거래소 부재가 로컬 행을 이긴다.
-            #
-            # `actual` 은 로컬 `pending`/`submitted` 행으로 먼저 채우고 거래소 응답으로
-            # 덮어쓰기만 했다(이중 등재 봉인, D4). 그래서 거래소엔 없고 DB 만 남은
-            # 주문이 desired 와 일치하면 계획기가 "이미 등재됨" 으로 보고 재등재하지
-            # 않아 그 trade_id 가 **영구 no-op** 이 된다.
-            #
-            # ★"목록에 없다" 는 부재의 증거로 **부족하다.** 세 가지가 겹친다.
-            #   (1) 주문 조회와 포지션 조회는 원자적 스냅샷이 아니다 — 방금 트리거된
-            #       주문은 open-order 에서 먼저 사라지고 포지션에는 늦게 뜬다.
-            #   (2) 응답이 열화(레이트리밋·부분 응답)됐을 수 있고, 그러면 살아 있는
-            #       주문 전체가 한 tick 에 "사라진" 것으로 보인다.
-            #   (3) 이 함수의 다른 모든 열화 입력은 fail-closed 인데(정밀도 실패·취소
-            #       실패·stand-down·시장가 지연) 여기만 "주문을 더 낸다" 방향이다.
-            #
-            # 그래서 후보마다 **거래소에 직접 물어** terminal 인지 확인한다. 확인하지
-            # 못하면 그대로 둔다. `exchange_order_id` 가 아직 없는 in-flight 행은 물어볼
-            # 대상 자체가 없으므로 건드리지 않는다(진짜 이중 등재 방어).
-            #
-            # ★상태 전이는 하지 않는다 — 그건 watchdog·`Reconciler` 책임이다. 여기서는
-            #   `actual` 에서만 뺀다.
-            fill_confirmed = False
-            for order_id, resting in list(actual_by_order_id.items()):
-                if order_id in confirmed_order_ids or resting.exchange_order_id is None:
-                    continue
-                try:
-                    # orderId 조회에서는 필터가 느슨해도, 조건부 주문임을 명시해 client-id
-                    # 조회 경로와 같은 StopOrder 계약을 유지한다.
-                    probe = await bybit_provider.fetch_order(
-                        creds, resting.exchange_order_id, sess.symbol, trigger=True
-                    )
-                except Exception:
-                    _count_safely(
-                        qb_live_conditional_reconcile_errors_total,
-                        stage="exchange_missing_probe_failed",
-                    )
-                    logger.warning(
-                        "live_conditional_reconcile_probe_failed",
-                        extra={
-                            "session_id": str(sess.id),
-                            "order_id": order_id,
-                            "exchange_order_id": resting.exchange_order_id,
-                        },
-                        exc_info=True,
-                    )
-                    continue
-                if probe.status not in ("filled", "cancelled", "rejected"):
-                    continue  # 거래소는 아직 살아 있다고 말한다. 목록 쪽이 열화였다.
-                del actual_by_order_id[order_id]
-                # 체결이 확인됐다면 위(`:387`)에서 찍을 포지션 스냅샷이 그 체결보다
-                # 앞설 수 있다. 낡은 포지션으로 사이징하면 이중 포지션이 되므로 이번
-                # tick 은 등재하지 않는다.
-                if probe.status == "filled":
-                    fill_confirmed = True
-                else:
-                    # ★BL-580 — 한 줄 아래 `_count_safely` 가드가 이 줄에 가려 있었다.
-                    #   여기서 던지면 그 가드도, 이 tick 의 등재 판단도 통째로 사라진다.
-                    _count_safely(
-                        qb_live_conditional_reconcile_errors_total, stage="exchange_missing"
-                    )
-                _count_safely(
-                    qb_live_conditional_divergence_total,
-                    event="exchange_divergence",
-                    reason=_conditional_divergence_reason(
-                        "exchange_divergence", "exchange_missing_resting_order"
-                    ),
-                )
-                logger.warning(
-                    "live_conditional_exchange_divergence",
-                    extra={
-                        "session_id": str(sess.id),
-                        "order_id": order_id,
-                        "exchange_order_id": resting.exchange_order_id,
-                        "reason": "exchange_missing_resting_order",
-                        "exchange_status": probe.status,
-                    },
-                )
-                # ★BL-560 진짜 뿌리 — 여기서 **기록까지** 해야 한다. 예전엔 확인하고도
-                # `orders` 행을 그대로 둬서, 체결 사실이 세션이 죽을 때까지(스윕) 미뤄졌다.
-                # 실측: 주문 `9c7aef0b` 가 07:31~32 체결인데 `filled_at` 은 07:44:13 —
-                # 13분 동안 `list_fills_since` 에 안 잡혀 `_ledger_gap_seed` 가 못 읽었고,
-                # 엔진은 숏 / 거래소는 롱인 채로 돌다가 07:44:09 에 fail-closed 로 죽었다.
-                #
-                # ★등재 스킵(`fill_confirmed`)은 그대로 둔다 — 낡은 포지션 사이징을 막는
-                # fail-closed 다. 여기서 더하는 것은 **기록을 앞당기는 것**뿐이다.
-                #
-                # ★`trading.fetch_order_status` 예약이 아니라 직접 전이인 이유: 그 태스크는
-                # `trigger` 없이 조회한다(`tasks/trading.py:775`). 방금 우리가 `trigger=True`
-                # 로(`:878-880`) 받아 든 확정 응답이 이미 손에 있는데, 다른 질의 형태로 다시
-                # 물어 못 찾으면 ProviderError → retry → giveup 으로 **조용히 아무 일도 안
-                # 일어난다.** 없애려는 실패 모드를 그대로 재도입하는 셈이다.
-                won = await _write_back_confirmed_terminal(
-                    order_repo,
-                    order_id=UUID(order_id),
-                    probe=probe,
-                    hook_order=local_by_order_id.get(order_id),
-                    now=datetime.now(UTC),
-                )
-                _count_safely(
-                    qb_live_conditional_reconcile_errors_total,
-                    stage=(
-                        f"terminal_write_back_{won}"
-                        if won is not None
-                        else "terminal_write_back_lost"
-                    ),
-                )
-
-            try:
-                market_provider = get_ccxt_provider_for_worker()
-                await market_provider.exchange.load_markets()
-                market = market_provider.exchange.market(_to_bybit_linear_symbol(sess.symbol))
-                precision = market.get("precision") if isinstance(market, dict) else None
-                if not isinstance(precision, dict):
-                    raise ValueError("conditional entry market precision is unavailable")
-                qty_step = Decimal(str(precision["amount"]))
-                price_tick = Decimal(str(precision["price"]))
-                if (
-                    not qty_step.is_finite()
-                    or not price_tick.is_finite()
-                    or qty_step <= Decimal("0")
-                    or price_tick <= Decimal("0")
-                ):
-                    raise ValueError("conditional entry market precision is unavailable")
-            except Exception:
-                _count_safely(qb_live_conditional_reconcile_errors_total, stage="precision")
-                logger.exception(
-                    "live_conditional_reconcile_precision_failed",
-                    extra={"session_id": str(sess.id), "symbol": sess.symbol},
-                )
-                return
-
-            # ★계정 순포지션을 세션 target 에서 빼는 산술은 "이 계정·심볼의 포지션이 이
-            # 세션 것뿐" 이라는 전제 위에 선다. 그 전제가 깨지는 경우가 둘이고 둘 다
-            # 실주문을 파괴적으로 만든다.
-            #   (a) hedge mode — long/short 가 동시에 열려 순포지션이 우리 사이징 모델과
-            #       다른 의미가 된다.
-            #   (b) 같은 계정·심볼에 다른 전략 세션 — 활성 세션 unique 키가
-            #       `strategy_id` 를 포함하므로(`models.py` uq_live_sessions_active_unique)
-            #       구조적으로 허용된다. 전략 A 가 +1 보유 중 전략 B 가 -1 을 목표하면
-            #       B 는 수량 2 를 내 **A 의 포지션까지 닫고 반전**한다.
-            # 두 경우 모두 stand-down 한다 — 새로 등재하지 않고 이미 올려둔 우리 조건부
-            # 진입을 걷는다. 취소는 어느 경우에도 안전하고(포지션을 늘리지 않는다),
-            # 남겨두면 그게 잘못된 전제로 체결된다.
-            positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
-            hedge_mode = len(positions) > 1 or any(
-                position.position_idx not in (None, 0) for position in positions
-            )
-            session_repo = LiveSignalSessionRepository(session)
-            shares_account_symbol = any(
-                other.id != sess.id and other.symbol == sess.symbol
-                for other in await session_repo.list_active_by_account(sess.exchange_account_id)
-            )
-            stand_down_reason = (
-                "hedge_mode"
-                if hedge_mode
-                else "shared_account_symbol"
-                if shares_account_symbol
-                else None
-            )
-            current_position = Decimal("0")
-            if stand_down_reason is not None:
-                # ★★BL-580 — 이 줄이 던지면 **stand-down 자체가 일어나지 않는다.** 위 주석이
-                #   그 귀결을 적어 놨다("남겨두면 그게 잘못된 전제로 체결된다"). 바깥 except 가
-                #   `stage=reconcile` 로 삼켜 원인도 가려진다.
-                _count_safely(qb_live_conditional_reconcile_errors_total, stage="positions")
-                _count_safely(
-                    qb_live_conditional_divergence_total,
-                    event="stand_down",
-                    reason=_conditional_divergence_reason("stand_down", stand_down_reason),
-                )
-                logger.error(
-                    "live_conditional_stand_down",
-                    extra={"session_id": str(sess.id), "reason": stand_down_reason},
-                )
-                desired = []
-                cancel_reason = stand_down_reason
-            else:
-                current_position = _net_position_size(positions)
-
-            reference_price = fallback_reference_price
-            allow_market_conversion = False
-            if desired:
-                exchange_reference_price = await bybit_provider.fetch_last_price(creds, sess.symbol)
-                if exchange_reference_price is None:
-                    # ★BL-580 — 한 줄 아래 가드를 가리고 있었다.
-                    _count_safely(qb_live_conditional_guard_total, outcome="reference_unavailable")
-                    _count_safely(
-                        qb_live_conditional_divergence_total,
-                        event="degraded_input",
-                        reason=_conditional_divergence_reason(
-                            "degraded_input", "reference_price_unavailable"
-                        ),
-                    )
-                    logger.warning(
-                        "live_conditional_degraded_input",
-                        extra={
-                            "session_id": str(sess.id),
-                            "symbol": sess.symbol,
-                            "reason": "reference_price_unavailable",
-                        },
-                    )
-                else:
-                    reference_price = exchange_reference_price
-                    allow_market_conversion = True
-
-            max_breach_pct = (
-                Decimal(str(parsed_settings.max_trigger_breach_pct))
-                if parsed_settings.max_trigger_breach_pct is not None
-                else None
-            )
-            max_reversal_overshoot_ratio = (
-                Decimal(str(parsed_settings.max_reversal_overshoot_ratio))
-                if parsed_settings.max_reversal_overshoot_ratio is not None
-                else None
-            )
-            plan = plan_reconcile(
-                desired=desired,
-                actual=tuple(actual_by_order_id.values()),
-                current_position=current_position,
-                qty_step=qty_step,
-                price_tick=price_tick,
-                reference_price=reference_price,
-                max_breach_pct=max_breach_pct,
-                max_reversal_overshoot_ratio=max_reversal_overshoot_ratio,
-                allow_market_conversion=allow_market_conversion,
-            )
-            for divergence in plan.divergences:
-                # BL-536 — 계획기 드롭은 지금까지 로그에만 있었다. 이 counter 는 **평가
-                # 발화 횟수**이지 유실 건수가 아니다(계획기는 순수 함수라 해결되지 않은
-                # leg 를 매 평가마다 다시 드롭한다). 아래 guard counter 와 겹쳐 오르는
-                # reason 이 둘 있으므로 합산하지 마라 — 상세는 metrics.py 주석.
-                _count_safely(
-                    qb_live_conditional_plan_drop_evaluations_total,
-                    reason=_plan_drop_reason(divergence.get("reason")),
-                )
-                # ★BL-580 — 이 둘은 `_count_safely` 바로 **뒤**라 S1 스윕(앞만 본다)이 놓쳤다.
-                #   던지면 `plan.divergences` 루프가 죽어 **남은 leg 의 드롭 계상과 로그가
-                #   통째로 사라지고** 바깥 except 가 `stage=reconcile` 로 원인을 가린다.
-                if divergence["reason"] == "breach_exceeds_cap":
-                    _count_safely(qb_live_conditional_guard_total, outcome="breach_capped")
-                elif (
-                    divergence["reason"] == "trigger_already_breached"
-                    and divergence.get("had_resting") is True
-                ):
-                    _count_safely(qb_live_conditional_guard_total, outcome="breach_with_resting")
-                # BL-561 — `backend/src` 에서 `extra=` 에 dict 를 unpack 하는 **유일한**
-                # 자리다. 계획기가 `name`/`module` 같은 LogRecord 예약 키를 추가하면
-                # stdlib `makeRecord` 가 KeyError 를 던져 **이 로그 줄이 예외로 바뀐다.**
-                # 그 닫힘은 `tests/common/test_logging_config.py` 의
-                # `test_only_dynamic_extra_site_cannot_produce_reserved_keys` 가 지킨다.
-                logger.warning(
-                    "live_conditional_plan_drop",
-                    extra={"session_id": str(sess.id), **divergence},
-                )
-
-            cancel_failed = False
-            cancel_raced = False
-            desired_trade_ids = {entry.trade_id for entry in desired}
-            for entry in plan.to_cancel:
-                try:
-                    if entry.exchange_order_id is None:
-                        rows = await order_repo.transition_pending_to_cancelled(
-                            UUID(entry.order_id), cancelled_at=datetime.now(UTC)
-                        )
-                        if rows != 1:
-                            # BL-499 — 실행 워커가 `pending → submitted` 를 먼저 커밋했다.
-                            # 진짜 실패가 아니라 **경합 패배**다. 예외로 만들면 스택과
-                            # `stage="cancel"` 오류 metric 이 실패와 구분되지 않고, 그
-                            # 결과로 "이 경합이 실제로 나는가" 를 원장에서 물을 수 없다.
-                            # (preflight 가 이 구분 부재 때문에 잘못된 결론을 냈다.)
-                            fresh = await order_repo.get_state_and_exchange_id_fresh(
-                                UUID(entry.order_id)
-                            )
-                            if fresh is not None and fresh[0] != OrderState.pending:
-                                state, exchange_id = fresh
-                                # `submitted` + exchange id 없음은 janitor가 30분 뒤 거래소
-                                # client-id 조회로 확인한다. 즉시 경합을 재시도하지는 않는다.
-                                deferred = state == OrderState.submitted and exchange_id is None
-                                cancel_raced = True
-                                _count_safely(
-                                    qb_live_conditional_reconcile_errors_total,
-                                    stage="cancel_deferred" if deferred else "cancel_raced",
-                                )
-                                log = logger.warning
-                                log(
-                                    "live_conditional_reconcile_cancel_deferred_to_janitor"
-                                    if deferred
-                                    else "live_conditional_reconcile_cancel_raced",
-                                    extra={
-                                        "session_id": str(sess.id),
-                                        "order_id": entry.order_id,
-                                        "observed_state": state.value,
-                                        "has_exchange_order_id": exchange_id is not None,
-                                        "janitor_delay_minutes": (
-                                            _conditional_entry_janitor_delay_minutes()
-                                            if deferred
-                                            else None
-                                        ),
-                                    },
-                                )
-                                continue
-                    else:
-                        await bybit_provider.cancel_order(
-                            creds, entry.exchange_order_id, sess.symbol
-                        )
-                        rows = await order_repo.transition_to_cancelled(
-                            UUID(entry.order_id), cancelled_at=datetime.now(UTC)
-                        )
-                    if rows != 1:
-                        raise RuntimeError("conditional entry cancel lost its state transition")
-                    await order_repo.commit()
-                    # OrderService.execute 가 생성 시 inc 했으므로 terminal 전이에서 dec.
-                    # 조건부 진입은 교체·세션 종료로 반복 취소되므로 빠뜨리면 active gauge 가
-                    # 단조 증가해 운영 경보가 왜곡된다(표준 취소 경로는 trading.py 가 dec 한다).
-                    record_metric_safely(qb_active_orders.dec)
-                    reason = (
-                        cancel_reason
-                        if not desired_trade_ids
-                        else "replaced"
-                        if entry.trade_id in desired_trade_ids
-                        else "desired_removed"
-                    )
-                    _count_safely(qb_live_conditional_cancelled_total, reason=reason)
-                except Exception:
-                    cancel_failed = True
-                    _count_safely(qb_live_conditional_reconcile_errors_total, stage="cancel")
-                    logger.exception(
-                        "live_conditional_reconcile_cancel_failed",
-                        extra={"session_id": str(sess.id), "order_id": entry.order_id},
-                    )
-            if cancel_failed:
-                return
-            if fill_confirmed:
-                # 위에서 거래소가 체결을 확인해 준 조건부 진입이 있다. 이번 tick 의
-                # `current_position` 은 그 체결보다 앞선 스냅샷일 수 있으므로 등재하지
-                # 않는다. 다음 tick 이 새 포지션으로 다시 계획한다.
-                return
-            if cancel_raced:
-                # ★패배해도 이번 tick 의 등재는 하지 않는다(fail-closed 유지).
-                #   `current_position` 은 취소 루프보다 **먼저** 찍은 스냅샷이라, 패배한
-                #   주문이 그 사이 체결되면 낡은 포지션 위에서 사이징한 주문이 나간다.
-                #   다음 tick 이 새 포지션·거래소 스냅샷으로 다시 계획하면 된다.
-                return
-            to_place = plan.to_place
-            if not to_place:
-                return
-
-            evaluators: list[KillSwitchEvaluator] = [
-                CumulativeLossEvaluator(
-                    order_repo,
-                    threshold_percent=settings.kill_switch_cumulative_loss_percent,
-                    capital_base=settings.kill_switch_capital_base_usd,
-                    balance_provider=exchange_service,
-                ),
-                DailyLossEvaluator(
-                    order_repo,
-                    threshold_usd=settings.kill_switch_daily_loss_usd,
-                ),
-            ]
-            order_service = OrderService(
-                session=session,
-                repo=order_repo,
-                dispatcher=_CeleryOrderDispatcher(),
-                kill_switch=KillSwitchService(evaluators=evaluators, events_repo=kse_repo),
-                sessions_port=_StrategySessionsAdapter(session),
-                exchange_service=exchange_service,
-            )
-            for placement_index, planned_entry in enumerate(to_place):
-                try:
-                    breach_pct: Decimal | None = None
-                    if planned_entry.as_market:
-                        interval_seconds = {
-                            "1m": 60,
-                            "5m": 300,
-                            "15m": 900,
-                            "1h": 3600,
-                        }.get(str(sess.interval))
-                        if interval_seconds is None:
-                            # 미지 interval은 전환 창을 해석할 수 없다. 창 크기의 폴백은
-                            # 전환 허용 근거가 아니므로 시장가 전환만 명시적으로 막는다.
-                            _count_safely(
-                                qb_live_conditional_guard_total, outcome="convert_suppressed"
-                            )
-                            logger.warning(
-                                "live_conditional_reconcile_market_convert_suppressed",
-                                extra={
-                                    "session_id": str(sess.id),
-                                    "trade_id": planned_entry.trade_id,
-                                    "reason": "unknown_interval",
-                                    "interval": str(sess.interval),
-                                },
-                            )
-                            continue
-                        since = bar_time - timedelta(seconds=interval_seconds * 2)
-                        if await order_repo.has_recent_market_converted_entry(
-                            exchange_account_id=sess.exchange_account_id,
-                            strategy_id=sess.strategy_id,
-                            session_id=sess.id,
-                            since=since,
-                        ):
-                            _count_safely(
-                                qb_live_conditional_guard_total, outcome="convert_suppressed"
-                            )
-                            logger.warning(
-                                "live_conditional_reconcile_market_convert_suppressed",
-                                extra={
-                                    "session_id": str(sess.id),
-                                    "trade_id": planned_entry.trade_id,
-                                    "since": since.isoformat(),
-                                },
-                            )
-                            continue
-
-                        conversion_reference_price = await bybit_provider.fetch_last_price(
-                            creds, sess.symbol
-                        )
-                        if conversion_reference_price is None:
-                            _count_safely(
-                                qb_live_conditional_guard_total, outcome="reference_unavailable"
-                            )
-                            logger.warning(
-                                "live_conditional_reconcile_market_convert_skipped",
-                                extra={
-                                    "session_id": str(sess.id),
-                                    "trade_id": planned_entry.trade_id,
-                                    "reason": "reference_price_unavailable",
-                                },
-                            )
-                            continue
-                        still_breached = (
-                            planned_entry.direction == "long"
-                            and planned_entry.trigger_price <= conversion_reference_price
-                        ) or (
-                            planned_entry.direction == "short"
-                            and planned_entry.trigger_price >= conversion_reference_price
-                        )
-                        if not still_breached:
-                            _count_safely(
-                                qb_live_conditional_guard_total, outcome="breach_reverted"
-                            )
-                            logger.warning(
-                                "live_conditional_reconcile_market_convert_skipped",
-                                extra={
-                                    "session_id": str(sess.id),
-                                    "trade_id": planned_entry.trade_id,
-                                    "reason": "breach_reverted",
-                                    "stop_price": str(planned_entry.trigger_price),
-                                    "reference_price": str(conversion_reference_price),
-                                },
-                            )
-                            continue
-                        breach_pct = (
-                            abs(conversion_reference_price - planned_entry.trigger_price)
-                            / conversion_reference_price
-                            * Decimal("100")
-                        )
-                        if max_breach_pct is not None and breach_pct > max_breach_pct:
-                            # ★BL-580 — 한 줄 아래 가드를 가리고 있었다.
-                            _count_safely(qb_live_conditional_guard_total, outcome="breach_capped")
-                            _count_safely(
-                                qb_live_conditional_divergence_total,
-                                event="guard_drop",
-                                reason=_conditional_divergence_reason(
-                                    "guard_drop", "breach_exceeds_cap"
-                                ),
-                            )
-                            logger.warning(
-                                "live_conditional_guard_drop",
-                                extra={
-                                    "session_id": str(sess.id),
-                                    "trade_id": planned_entry.trade_id,
-                                    "reason": "breach_exceeds_cap",
-                                    "direction": planned_entry.direction,
-                                    "stop_price": str(planned_entry.trigger_price),
-                                    "reference_price": str(conversion_reference_price),
-                                    "breach_pct": str(breach_pct),
-                                    "max_breach_pct": str(max_breach_pct),
-                                },
-                            )
-                            continue
-                    # BL-523 게이트 A — 고정 SL 없는 트레일링 단독은 등재하지 않는다.
-                    # 트레일링은 체결 **후** `set_trading_stop` 으로만 붙으므로(ccxt 는
-                    # trailing + trigger 조합을 InvalidOrder 로 거부한다), SL 이 없으면
-                    # 체결 순간부터 부착까지 무방비 포지션이 된다.
-                    # ★시장가 진입 경로(`:2705-2718`)는 여기서 `mark_failed` 를 부르지만
-                    #   조건부 진입에는 `live_signal_events` 행 자체가 없다. 이 파일의
-                    #   다른 fail-closed 드롭과 같은 모양(guard counter + 발산 로그)으로 남긴다.
-                    if planned_entry.trailing_stop is not None and planned_entry.stop_loss is None:
-                        _count_safely(
-                            qb_live_conditional_guard_total,
-                            outcome="bracket_trailing_only_dropped",
-                        )
-                        _count_safely(
-                            qb_live_conditional_divergence_total,
-                            event="guard_drop",
-                            reason=_conditional_divergence_reason(
-                                "guard_drop", "bracket_trailing_only"
-                            ),
-                        )
-                        logger.warning(
-                            "live_conditional_guard_drop",
-                            extra={
-                                "session_id": str(sess.id),
-                                "trade_id": planned_entry.trade_id,
-                                "reason": "bracket_trailing_only",
-                            },
-                        )
-                        continue
-
-                    # BL-523 게이트 B — tpSize 정합. `_merge_exit_params`
-                    # (`providers.py:462-465`)가 `takeProfit.price` 를 항상 넣어 ccxt 가
-                    # `tpslMode=Partial` 로 라우팅하고, 그러면 `tpSize = 주문수량` 이 된다.
-                    # 반전 주문은 주문수량 > 체결 후 포지션이라 거래소가 **진입 자체를**
-                    # 거부한다. TP 만 떨어뜨리고 SL 은 유지한다 — 보호를 통째로 잃는 것보다
-                    # 이익실현 하나를 잃는 편이 낫다.
-                    # ★BL-562 — `resulting_position_qty` 는 **등재 시점 근사**다(계획기
-                    #   docstring 참조). 여기가 유일하게 판정 가능한 지점이라 그렇다:
-                    #   `tpSize` 는 등재할 때 확정되므로 체결 시점에 다시 재도 바꿀 것이 없다.
-                    #   방향은 보수적이다 — 근사가 틀리면 TP 를 **잘못 드롭**할 뿐,
-                    #   잘못 통과시키지 않는다.
-                    take_profit = planned_entry.take_profit
-                    if (
-                        take_profit is not None
-                        and planned_entry.quantity != planned_entry.resulting_position_qty
-                    ):
-                        take_profit = None
-                        _count_safely(
-                            qb_live_conditional_guard_total, outcome="bracket_tp_dropped_size"
-                        )
-                        _count_safely(
-                            qb_live_conditional_divergence_total,
-                            event="guard_drop",
-                            reason=_conditional_divergence_reason(
-                                "guard_drop", "bracket_tp_size_mismatch"
-                            ),
-                        )
-                        logger.warning(
-                            "live_conditional_guard_drop",
-                            extra={
-                                "session_id": str(sess.id),
-                                "trade_id": planned_entry.trade_id,
-                                "reason": "bracket_tp_size_mismatch",
-                                "quantity": str(planned_entry.quantity),
-                                "resulting_position_qty": str(planned_entry.resulting_position_qty),
-                            },
-                        )
-
-                    # ★`OrderRequest` 조립만 별도로 감싼다. 지금까지는 바깥
-                    # `except Exception` 이 스키마 위반을 네트워크 실패와 **같은 라벨**로
-                    # 삼켰다 — exit 레벨은 Pine float 에서 오므로 `decimal_places=8` 초과나
-                    # `gt=0` 위반이 실제로 가능한 입력이고, 그것을 "거래소 장애" 로 읽으면
-                    # 전략 결함을 인프라 결함으로 오진한다.
-                    try:
-                        request = OrderRequest(
-                            strategy_id=sess.strategy_id,
-                            exchange_account_id=sess.exchange_account_id,
-                            symbol=sess.symbol,
-                            side=OrderSide(planned_entry.side),
-                            type=OrderType.market,
-                            quantity=planned_entry.quantity,
-                            price=None,
-                            trigger_price=None
-                            if planned_entry.as_market
-                            else planned_entry.trigger_price,
-                            trigger_direction=(
-                                None if planned_entry.as_market else planned_entry.trigger_direction
-                            ),
-                            trigger_by=None if planned_entry.as_market else "LastPrice",
-                            reduce_only=False,
-                            leverage=parsed_settings.leverage,
-                            margin_mode=parsed_settings.margin_mode,
-                            take_profit=take_profit,
-                            stop_loss=planned_entry.stop_loss,
-                            # ★싣되 거래소로는 나가지 않는다 — `tasks/trading.py:421` 와
-                            #   `providers.py:456` 이 둘 다 `reduce_only` 를 요구하므로
-                            #   entry 의 trailing 은 create_order 에 주입되지 않는다.
-                            #   체결 후 `_enqueue_trailing_if_intended` 가 부착한다.
-                            trailing_stop=planned_entry.trailing_stop,
-                        )
-                    except ValidationError:
-                        _count_safely(
-                            qb_live_conditional_reconcile_errors_total,
-                            stage="conditional_request_invalid",
-                        )
-                        logger.exception(
-                            "live_conditional_reconcile_request_invalid",
-                            extra={
-                                "session_id": str(sess.id),
-                                "trade_id": planned_entry.trade_id,
-                            },
-                        )
-                        continue
-                    idempotency_key = (
-                        build_market_converted_entry_key(
-                            sess.id,
-                            planned_entry.trade_id,
-                            bar_time,
-                            planned_entry.trigger_price,
-                            planned_entry.quantity,
-                        )
-                        if planned_entry.as_market
-                        else build_conditional_entry_key(
-                            sess.id,
-                            planned_entry.trade_id,
-                            bar_time,
-                            planned_entry.trigger_price,
-                            planned_entry.quantity,
-                        )
-                    )
-                    if idempotency_key is None:
-                        # 되짚지 못할 key 로 발주하면 우리 주문을 영원히 남의 것으로 본다.
-                        _count_safely(
-                            qb_live_conditional_reconcile_errors_total,
-                            stage="unrepresentable_key",
-                        )
-                        continue
-                    await order_service.execute(
-                        request,
-                        idempotency_key=idempotency_key,
-                        body_hash=None,
-                    )
-                    _count_safely(
-                        qb_live_conditional_placed_total,
-                        direction=planned_entry.direction,
-                    )
-                    _count_safely(
-                        qb_live_conditional_guard_total,
-                        outcome=(
-                            "market_converted" if planned_entry.as_market else "conditional_placed"
-                        ),
-                    )
-                    # BL-523 — 붙일 브래킷이 **있었는가**. 이 라벨들의 비가 곧 §전제의 실측이다
-                    # (조건부 진입은 체결 전까지 `open_trades` 에 없어 지금은 전량
-                    # `bracket_unavailable` 이어야 한다).
-                    #
-                    # ★BL-563 — "있었는가" 는 **엔진이 공급한 원본 leg**(`planned_entry`)로
-                    #   잰다. 게이트 뒤의 `request` 로 재면 게이트 B 가 드롭한 TP-only 반전이
-                    #   `bracket_unavailable` 로 집계돼 "엔진이 아무것도 공급하지 않았다" 와
-                    #   구별되지 않는다. 게이트가 전부 걷어낸 경우는 별도 축으로 센다.
-                    #   세 라벨은 상호배타이며 합 = `qb_live_conditional_placed_total`.
-                    #
-                    # ★게이트 A(`:1263` trailing-only)는 여기 오기 전에 `continue` 로 빠진다 —
-                    #   그건 브래킷이 아니라 **leg 자체**를 드롭하므로 주문이 발주되지 않는다.
-                    #   이 축의 분모(등재 성공 수)에 넣으면 위 합 등식이 깨진다. 비대칭이
-                    #   아니라 축이 다른 것이고, 그쪽은 `bracket_trailing_only_dropped` 다.
-                    engine_supplied_bracket = (
-                        planned_entry.take_profit is not None
-                        or planned_entry.stop_loss is not None
-                        or planned_entry.trailing_stop is not None
-                    )
-                    bracket_on_the_wire = (
-                        request.take_profit is not None
-                        or request.stop_loss is not None
-                        or request.trailing_stop is not None
-                    )
-                    _count_safely(
-                        qb_live_conditional_guard_total,
-                        outcome=(
-                            "bracket_attached"
-                            if bracket_on_the_wire
-                            else "bracket_supplied_gate_dropped"
-                            if engine_supplied_bracket
-                            else "bracket_unavailable"
-                        ),
-                    )
-                    # BL-516 안 3 — 반전이면 크기를 버킷으로 남긴다. 수량은 합친 채로 둔다.
-                    # ★BL-562 — 이것은 **등재 시점** 축이다(취소·재등재로 한 의도가 여러 번
-                    #   오르고, 트리거 전 드리프트에 낡는다). **체결 시점** 축은 별도 counter
-                    #   `qb_live_conditional_reversal_filled_total` 이고 발화 지점은 fill
-                    #   훅(`tasks/trading.py:_enqueue_conditional_reversal_measure`)이다.
-                    #   두 counter 를 합산하지 마라 — 이유는 `common/metrics.py` 주석.
-                    if planned_entry.crosses_zero:
-                        _count_safely(
-                            qb_live_conditional_reversal_total,
-                            bucket=_reversal_overshoot_bucket(planned_entry.overshoot_ratio),
-                        )
-                    if planned_entry.as_market:
-                        _count_safely(
-                            qb_live_conditional_divergence_total,
-                            event="market_converted",
-                            reason=_conditional_divergence_reason(
-                                "market_converted", "market_converted"
-                            ),
-                        )
-                        logger.warning(
-                            "live_conditional_market_converted",
-                            extra={
-                                "session_id": str(sess.id),
-                                "trade_id": planned_entry.trade_id,
-                                "reason": "market_converted",
-                                "stop_price": str(planned_entry.trigger_price),
-                                "breach_pct": str(breach_pct),
-                            },
-                        )
-                        # 시장가 전환은 포지션 스냅샷을 즉시 낡게 만든다. 이 tick의 나머지
-                        # 등재는 다음 tick의 새 포지션 스냅샷까지 미룬다.
-                        remaining_count = len(to_place) - placement_index - 1
-                        for _ in range(remaining_count):
-                            _count_safely(
-                                qb_live_conditional_reconcile_errors_total,
-                                stage="deferred_after_market_convert",
-                            )
-                        if remaining_count:
-                            logger.warning(
-                                "live_conditional_reconcile_deferred_after_market_convert",
-                                extra={
-                                    "session_id": str(sess.id),
-                                    "remaining_count": remaining_count,
-                                },
-                            )
-                        return
-                except (BalanceUnverified, MinNotionalNotMet, NotionalExceeded):
-                    _count_safely(
-                        qb_live_conditional_reconcile_errors_total,
-                        stage=(
-                            "market_place_gate"
-                            if planned_entry.as_market
-                            else "conditional_place_gate"
-                        ),
-                    )
-                    logger.exception(
-                        "live_conditional_reconcile_place_failed",
-                        extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
-                    )
-                except Exception:
-                    _count_safely(
-                        qb_live_conditional_reconcile_errors_total,
-                        stage="market_place" if planned_entry.as_market else "conditional_place",
-                    )
-                    logger.exception(
-                        "live_conditional_reconcile_place_failed",
-                        extra={"session_id": str(sess.id), "trade_id": planned_entry.trade_id},
-                    )
     except Exception:
         _count_safely(qb_live_conditional_reconcile_errors_total, stage="reconcile")
         logger.exception("live_conditional_reconcile_failed", extra={"session_id": str(sess.id)})

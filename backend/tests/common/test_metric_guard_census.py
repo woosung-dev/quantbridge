@@ -439,19 +439,19 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     # Tier 1 — 주문 접수·실행 enqueue 성공 직후. 던지면 성공이 실패로 기록된다.
     (
         "backend/src/tasks/live_signal.py",
-        "_reconcile_conditional_entries",
+        "_reconcile_conditional_entries_inner",
         "qb_live_conditional_placed_total",
         "성공 접수를 stage=conditional_place 실패로 계상",
     ),
     (
         "backend/src/tasks/live_signal.py",
-        "_reconcile_conditional_entries",
+        "_reconcile_conditional_entries_inner",
         "qb_live_conditional_guard_total",
         "위와 같음 + _GuardOutcomeCounter 는 ValueError 도 던진다",
     ),
     (
         "backend/src/tasks/live_signal.py",
-        "_reconcile_conditional_entries",
+        "_reconcile_conditional_entries_inner",
         "qb_live_conditional_reconcile_errors_total",
         "지연 return 을 건너뛰어 낡은 스냅샷 위 과잉 등재 (실측: execute await 2회)",
     ),
@@ -503,7 +503,7 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     #   DB 전이를 rollback 시킨다).
     (
         "backend/src/tasks/live_signal.py",
-        "_reconcile_conditional_entries",
+        "_reconcile_conditional_entries_inner",
         "qb_live_conditional_cancelled_total",
         "거래소 취소 성공 뒤. except 가 stage=cancel 실패로 계상하고 이후 reconcile 중단",
     ),
@@ -552,7 +552,7 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     ),
     (
         "backend/src/tasks/live_signal.py",
-        "_reconcile_conditional_entries",
+        "_reconcile_conditional_entries_inner",
         "qb_live_conditional_reconcile_errors_total",
         "★stand-down 직전 — 던지면 잘못된 전제 위 조건부 진입이 거래소에 남는다 (H4)",
     ),
