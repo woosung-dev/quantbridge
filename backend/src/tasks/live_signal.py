@@ -1065,6 +1065,223 @@ async def _write_back_confirmed_terminal(
     return status
 
 
+async def _probe_resting_order(
+    *,
+    sess: Any,
+    creds: Any,
+    bybit_provider: Any,
+    order_id: str,
+    exchange_order_id: str,
+) -> Any | None:
+    """거래소에 이 resting 주문의 현 상태를 직접 묻는다.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except Exception` →
+    `stage="exchange_missing_probe_failed"`.
+
+    ★반환 `None` 은 "주문이 없다" 가 아니라 **"조회에 실패했다(모른다)"** 다.
+    fail-closed 가 **반환 타입**이 된 것이고, 호출부는 `None` 을 받으면 그 주문을
+    건드리지 않는다. 두 뜻을 합치면 열화된 응답 한 번이 살아 있는 주문을 지운다.
+    """
+    try:
+        # orderId 조회에서는 필터가 느슨해도, 조건부 주문임을 명시해 client-id
+        # 조회 경로와 같은 StopOrder 계약을 유지한다.
+        return await bybit_provider.fetch_order(creds, exchange_order_id, sess.symbol, trigger=True)
+    except Exception:
+        _count_safely(
+            qb_live_conditional_reconcile_errors_total,
+            stage="exchange_missing_probe_failed",
+        )
+        logger.warning(
+            "live_conditional_reconcile_probe_failed",
+            extra={
+                "session_id": str(sess.id),
+                "order_id": order_id,
+                "exchange_order_id": exchange_order_id,
+            },
+            exc_info=True,
+        )
+        return None
+
+
+async def _reconcile_market_precision(sess: Any) -> tuple[Decimal, Decimal] | None:
+    """이 심볼의 `(qty_step, price_tick)`. `None` = 판정 불가.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except Exception` → `stage="precision"`.
+    반환 `None` 이면 호출부는 이번 tick 을 통째로 접는다(fail-closed).
+    """
+    from src.tasks.celery_app import get_ccxt_provider_for_worker
+    from src.trading.providers import _to_bybit_linear_symbol
+
+    try:
+        market_provider = get_ccxt_provider_for_worker()
+        await market_provider.exchange.load_markets()
+        market = market_provider.exchange.market(_to_bybit_linear_symbol(sess.symbol))
+        precision = market.get("precision") if isinstance(market, dict) else None
+        if not isinstance(precision, dict):
+            raise ValueError("conditional entry market precision is unavailable")
+        qty_step = Decimal(str(precision["amount"]))
+        price_tick = Decimal(str(precision["price"]))
+        if (
+            not qty_step.is_finite()
+            or not price_tick.is_finite()
+            or qty_step <= Decimal("0")
+            or price_tick <= Decimal("0")
+        ):
+            raise ValueError("conditional entry market precision is unavailable")
+    except Exception:
+        _count_safely(qb_live_conditional_reconcile_errors_total, stage="precision")
+        logger.exception(
+            "live_conditional_reconcile_precision_failed",
+            extra={"session_id": str(sess.id), "symbol": sess.symbol},
+        )
+        return None
+    return qty_step, price_tick
+
+
+async def _cancel_planned_entry(
+    entry: Any,
+    *,
+    sess: Any,
+    creds: Any,
+    bybit_provider: Any,
+    order_repo: Any,
+    cancel_reason: str,
+    desired_trade_ids: set[str],
+) -> Literal["cancelled", "raced", "deferred", "failed"]:
+    """계획기가 걷으라고 한 조건부 진입 하나를 취소한다.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except Exception` → `stage="cancel"`.
+    삼키고 `"failed"` 를 돌려주므로 호출부는 이번 tick 의 **등재를 접는다**(fail-closed).
+
+    반환값이 곧 이번 tick 의 진행 여부다:
+    `"cancelled"` 정상 · `"raced"`/`"deferred"` 경합 패배(등재 보류) · `"failed"` 취소 실패.
+    """
+    try:
+        if entry.exchange_order_id is None:
+            rows = await order_repo.transition_pending_to_cancelled(
+                UUID(entry.order_id), cancelled_at=datetime.now(UTC)
+            )
+            if rows != 1:
+                # BL-499 — 실행 워커가 `pending → submitted` 를 먼저 커밋했다.
+                # 진짜 실패가 아니라 **경합 패배**다. 예외로 만들면 스택과
+                # `stage="cancel"` 오류 metric 이 실패와 구분되지 않고, 그
+                # 결과로 "이 경합이 실제로 나는가" 를 원장에서 물을 수 없다.
+                # (preflight 가 이 구분 부재 때문에 잘못된 결론을 냈다.)
+                fresh = await order_repo.get_state_and_exchange_id_fresh(UUID(entry.order_id))
+                if fresh is not None and fresh[0] != OrderState.pending:
+                    state, exchange_id = fresh
+                    # `submitted` + exchange id 없음은 janitor가 30분 뒤 거래소
+                    # client-id 조회로 확인한다. 즉시 경합을 재시도하지는 않는다.
+                    deferred = state == OrderState.submitted and exchange_id is None
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total,
+                        stage="cancel_deferred" if deferred else "cancel_raced",
+                    )
+                    log = logger.warning
+                    log(
+                        "live_conditional_reconcile_cancel_deferred_to_janitor"
+                        if deferred
+                        else "live_conditional_reconcile_cancel_raced",
+                        extra={
+                            "session_id": str(sess.id),
+                            "order_id": entry.order_id,
+                            "observed_state": state.value,
+                            "has_exchange_order_id": exchange_id is not None,
+                            "janitor_delay_minutes": (
+                                _conditional_entry_janitor_delay_minutes() if deferred else None
+                            ),
+                        },
+                    )
+                    return "deferred" if deferred else "raced"
+        else:
+            await bybit_provider.cancel_order(creds, entry.exchange_order_id, sess.symbol)
+            rows = await order_repo.transition_to_cancelled(
+                UUID(entry.order_id), cancelled_at=datetime.now(UTC)
+            )
+        if rows != 1:
+            raise RuntimeError("conditional entry cancel lost its state transition")
+        await order_repo.commit()
+        # OrderService.execute 가 생성 시 inc 했으므로 terminal 전이에서 dec.
+        # 조건부 진입은 교체·세션 종료로 반복 취소되므로 빠뜨리면 active gauge 가
+        # 단조 증가해 운영 경보가 왜곡된다(표준 취소 경로는 trading.py 가 dec 한다).
+        record_metric_safely(qb_active_orders.dec)
+        reason = (
+            cancel_reason
+            if not desired_trade_ids
+            else "replaced"
+            if entry.trade_id in desired_trade_ids
+            else "desired_removed"
+        )
+        _count_safely(qb_live_conditional_cancelled_total, reason=reason)
+    except Exception:
+        _count_safely(qb_live_conditional_reconcile_errors_total, stage="cancel")
+        logger.exception(
+            "live_conditional_reconcile_cancel_failed",
+            extra={"session_id": str(sess.id), "order_id": entry.order_id},
+        )
+        return "failed"
+    return "cancelled"
+
+
+def _build_conditional_order_request(
+    planned_entry: Any,
+    *,
+    sess: Any,
+    parsed_settings: StrategySettings,
+    take_profit: Decimal | None,
+) -> Any | None:
+    """`OrderRequest` 를 조립한다. `None` = 스키마 위반이라 이 leg 를 버린다.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except ValidationError` →
+    `stage="conditional_request_invalid"`.
+
+    ★조립만 별도로 감싸는 이유: 지금까지는 바깥 `except Exception` 이 스키마 위반을
+    네트워크 실패와 **같은 라벨**로 삼켰다 — exit 레벨은 Pine float 에서 오므로
+    `decimal_places=8` 초과나 `gt=0` 위반이 실제로 가능한 입력이고, 그것을 "거래소 장애"
+    로 읽으면 전략 결함을 인프라 결함으로 오진한다.
+    """
+    from src.trading.schemas import OrderRequest
+
+    try:
+        return OrderRequest(
+            strategy_id=sess.strategy_id,
+            exchange_account_id=sess.exchange_account_id,
+            symbol=sess.symbol,
+            side=OrderSide(planned_entry.side),
+            type=OrderType.market,
+            quantity=planned_entry.quantity,
+            price=None,
+            trigger_price=None if planned_entry.as_market else planned_entry.trigger_price,
+            trigger_direction=(
+                None if planned_entry.as_market else planned_entry.trigger_direction
+            ),
+            trigger_by=None if planned_entry.as_market else "LastPrice",
+            reduce_only=False,
+            leverage=parsed_settings.leverage,
+            margin_mode=parsed_settings.margin_mode,
+            take_profit=take_profit,
+            stop_loss=planned_entry.stop_loss,
+            # ★싣되 거래소로는 나가지 않는다 — `tasks/trading.py:421` 와
+            #   `providers.py:456` 이 둘 다 `reduce_only` 를 요구하므로
+            #   entry 의 trailing 은 create_order 에 주입되지 않는다.
+            #   체결 후 `_enqueue_trailing_if_intended` 가 부착한다.
+            trailing_stop=planned_entry.trailing_stop,
+        )
+    except ValidationError:
+        _count_safely(
+            qb_live_conditional_reconcile_errors_total,
+            stage="conditional_request_invalid",
+        )
+        logger.exception(
+            "live_conditional_reconcile_request_invalid",
+            extra={
+                "session_id": str(sess.id),
+                "trade_id": planned_entry.trade_id,
+            },
+        )
+        return None
+
+
 async def _reconcile_conditional_entries_inner(
     sess: Any,
     result: Any,
@@ -1080,7 +1297,6 @@ async def _reconcile_conditional_entries_inner(
     `_reconcile_conditional_entries` 의 fail-open `except Exception` 이 잡아
     `stage="reconcile"` 로 계상하고 **정상 종료와 똑같이 `None` 을 반환**한다.
     """
-    from src.tasks.celery_app import get_ccxt_provider_for_worker
     from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
     from src.trading.encryption import EncryptionService
     from src.trading.exit_attribution import parse_our_order_link_id
@@ -1090,14 +1306,13 @@ async def _reconcile_conditional_entries_inner(
         KillSwitchEvaluator,
         KillSwitchService,
     )
-    from src.trading.providers import BybitFuturesProvider, _to_bybit_linear_symbol
+    from src.trading.providers import BybitFuturesProvider
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
     from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
     from src.trading.repositories.live_signal_session_repository import (
         LiveSignalSessionRepository,
     )
     from src.trading.repositories.order_repository import OrderRepository
-    from src.trading.schemas import OrderRequest
     from src.trading.services.account_service import ExchangeAccountService
     from src.trading.services.conditional_entry_planner import (
         RestingConditionalEntry,
@@ -1217,27 +1432,15 @@ async def _reconcile_conditional_entries_inner(
         for order_id, resting in list(actual_by_order_id.items()):
             if order_id in confirmed_order_ids or resting.exchange_order_id is None:
                 continue
-            try:
-                # orderId 조회에서는 필터가 느슨해도, 조건부 주문임을 명시해 client-id
-                # 조회 경로와 같은 StopOrder 계약을 유지한다.
-                probe = await bybit_provider.fetch_order(
-                    creds, resting.exchange_order_id, sess.symbol, trigger=True
-                )
-            except Exception:
-                _count_safely(
-                    qb_live_conditional_reconcile_errors_total,
-                    stage="exchange_missing_probe_failed",
-                )
-                logger.warning(
-                    "live_conditional_reconcile_probe_failed",
-                    extra={
-                        "session_id": str(sess.id),
-                        "order_id": order_id,
-                        "exchange_order_id": resting.exchange_order_id,
-                    },
-                    exc_info=True,
-                )
-                continue
+            probe = await _probe_resting_order(
+                sess=sess,
+                creds=creds,
+                bybit_provider=bybit_provider,
+                order_id=order_id,
+                exchange_order_id=resting.exchange_order_id,
+            )
+            if probe is None:
+                continue  # 조회 실패 = 모름. 살아 있을 수 있으니 건드리지 않는다.
             if probe.status not in ("filled", "cancelled", "rejected"):
                 continue  # 거래소는 아직 살아 있다고 말한다. 목록 쪽이 열화였다.
             del actual_by_order_id[order_id]
@@ -1295,29 +1498,10 @@ async def _reconcile_conditional_entries_inner(
                 ),
             )
 
-        try:
-            market_provider = get_ccxt_provider_for_worker()
-            await market_provider.exchange.load_markets()
-            market = market_provider.exchange.market(_to_bybit_linear_symbol(sess.symbol))
-            precision = market.get("precision") if isinstance(market, dict) else None
-            if not isinstance(precision, dict):
-                raise ValueError("conditional entry market precision is unavailable")
-            qty_step = Decimal(str(precision["amount"]))
-            price_tick = Decimal(str(precision["price"]))
-            if (
-                not qty_step.is_finite()
-                or not price_tick.is_finite()
-                or qty_step <= Decimal("0")
-                or price_tick <= Decimal("0")
-            ):
-                raise ValueError("conditional entry market precision is unavailable")
-        except Exception:
-            _count_safely(qb_live_conditional_reconcile_errors_total, stage="precision")
-            logger.exception(
-                "live_conditional_reconcile_precision_failed",
-                extra={"session_id": str(sess.id), "symbol": sess.symbol},
-            )
+        precision = await _reconcile_market_precision(sess)
+        if precision is None:
             return
+        qty_step, price_tick = precision
 
         # ★계정 순포지션을 세션 target 에서 빼는 산술은 "이 계정·심볼의 포지션이 이
         # 세션 것뿐" 이라는 전제 위에 선다. 그 전제가 깨지는 경우가 둘이고 둘 다
@@ -1447,75 +1631,19 @@ async def _reconcile_conditional_entries_inner(
         cancel_raced = False
         desired_trade_ids = {entry.trade_id for entry in desired}
         for entry in plan.to_cancel:
-            try:
-                if entry.exchange_order_id is None:
-                    rows = await order_repo.transition_pending_to_cancelled(
-                        UUID(entry.order_id), cancelled_at=datetime.now(UTC)
-                    )
-                    if rows != 1:
-                        # BL-499 — 실행 워커가 `pending → submitted` 를 먼저 커밋했다.
-                        # 진짜 실패가 아니라 **경합 패배**다. 예외로 만들면 스택과
-                        # `stage="cancel"` 오류 metric 이 실패와 구분되지 않고, 그
-                        # 결과로 "이 경합이 실제로 나는가" 를 원장에서 물을 수 없다.
-                        # (preflight 가 이 구분 부재 때문에 잘못된 결론을 냈다.)
-                        fresh = await order_repo.get_state_and_exchange_id_fresh(
-                            UUID(entry.order_id)
-                        )
-                        if fresh is not None and fresh[0] != OrderState.pending:
-                            state, exchange_id = fresh
-                            # `submitted` + exchange id 없음은 janitor가 30분 뒤 거래소
-                            # client-id 조회로 확인한다. 즉시 경합을 재시도하지는 않는다.
-                            deferred = state == OrderState.submitted and exchange_id is None
-                            cancel_raced = True
-                            _count_safely(
-                                qb_live_conditional_reconcile_errors_total,
-                                stage="cancel_deferred" if deferred else "cancel_raced",
-                            )
-                            log = logger.warning
-                            log(
-                                "live_conditional_reconcile_cancel_deferred_to_janitor"
-                                if deferred
-                                else "live_conditional_reconcile_cancel_raced",
-                                extra={
-                                    "session_id": str(sess.id),
-                                    "order_id": entry.order_id,
-                                    "observed_state": state.value,
-                                    "has_exchange_order_id": exchange_id is not None,
-                                    "janitor_delay_minutes": (
-                                        _conditional_entry_janitor_delay_minutes()
-                                        if deferred
-                                        else None
-                                    ),
-                                },
-                            )
-                            continue
-                else:
-                    await bybit_provider.cancel_order(creds, entry.exchange_order_id, sess.symbol)
-                    rows = await order_repo.transition_to_cancelled(
-                        UUID(entry.order_id), cancelled_at=datetime.now(UTC)
-                    )
-                if rows != 1:
-                    raise RuntimeError("conditional entry cancel lost its state transition")
-                await order_repo.commit()
-                # OrderService.execute 가 생성 시 inc 했으므로 terminal 전이에서 dec.
-                # 조건부 진입은 교체·세션 종료로 반복 취소되므로 빠뜨리면 active gauge 가
-                # 단조 증가해 운영 경보가 왜곡된다(표준 취소 경로는 trading.py 가 dec 한다).
-                record_metric_safely(qb_active_orders.dec)
-                reason = (
-                    cancel_reason
-                    if not desired_trade_ids
-                    else "replaced"
-                    if entry.trade_id in desired_trade_ids
-                    else "desired_removed"
-                )
-                _count_safely(qb_live_conditional_cancelled_total, reason=reason)
-            except Exception:
+            outcome = await _cancel_planned_entry(
+                entry,
+                sess=sess,
+                creds=creds,
+                bybit_provider=bybit_provider,
+                order_repo=order_repo,
+                cancel_reason=cancel_reason,
+                desired_trade_ids=desired_trade_ids,
+            )
+            if outcome == "failed":
                 cancel_failed = True
-                _count_safely(qb_live_conditional_reconcile_errors_total, stage="cancel")
-                logger.exception(
-                    "live_conditional_reconcile_cancel_failed",
-                    extra={"session_id": str(sess.id), "order_id": entry.order_id},
-                )
+            elif outcome in ("raced", "deferred"):
+                cancel_raced = True
         if cancel_failed:
             return
         if fill_confirmed:
@@ -1727,50 +1855,13 @@ async def _reconcile_conditional_entries_inner(
                         },
                     )
 
-                # ★`OrderRequest` 조립만 별도로 감싼다. 지금까지는 바깥
-                # `except Exception` 이 스키마 위반을 네트워크 실패와 **같은 라벨**로
-                # 삼켰다 — exit 레벨은 Pine float 에서 오므로 `decimal_places=8` 초과나
-                # `gt=0` 위반이 실제로 가능한 입력이고, 그것을 "거래소 장애" 로 읽으면
-                # 전략 결함을 인프라 결함으로 오진한다.
-                try:
-                    request = OrderRequest(
-                        strategy_id=sess.strategy_id,
-                        exchange_account_id=sess.exchange_account_id,
-                        symbol=sess.symbol,
-                        side=OrderSide(planned_entry.side),
-                        type=OrderType.market,
-                        quantity=planned_entry.quantity,
-                        price=None,
-                        trigger_price=None
-                        if planned_entry.as_market
-                        else planned_entry.trigger_price,
-                        trigger_direction=(
-                            None if planned_entry.as_market else planned_entry.trigger_direction
-                        ),
-                        trigger_by=None if planned_entry.as_market else "LastPrice",
-                        reduce_only=False,
-                        leverage=parsed_settings.leverage,
-                        margin_mode=parsed_settings.margin_mode,
-                        take_profit=take_profit,
-                        stop_loss=planned_entry.stop_loss,
-                        # ★싣되 거래소로는 나가지 않는다 — `tasks/trading.py:421` 와
-                        #   `providers.py:456` 이 둘 다 `reduce_only` 를 요구하므로
-                        #   entry 의 trailing 은 create_order 에 주입되지 않는다.
-                        #   체결 후 `_enqueue_trailing_if_intended` 가 부착한다.
-                        trailing_stop=planned_entry.trailing_stop,
-                    )
-                except ValidationError:
-                    _count_safely(
-                        qb_live_conditional_reconcile_errors_total,
-                        stage="conditional_request_invalid",
-                    )
-                    logger.exception(
-                        "live_conditional_reconcile_request_invalid",
-                        extra={
-                            "session_id": str(sess.id),
-                            "trade_id": planned_entry.trade_id,
-                        },
-                    )
+                request = _build_conditional_order_request(
+                    planned_entry,
+                    sess=sess,
+                    parsed_settings=parsed_settings,
+                    take_profit=take_profit,
+                )
+                if request is None:
                     continue
                 idempotency_key = (
                     build_market_converted_entry_key(

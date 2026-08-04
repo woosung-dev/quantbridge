@@ -503,7 +503,7 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     #   DB 전이를 rollback 시킨다).
     (
         "backend/src/tasks/live_signal.py",
-        "_reconcile_conditional_entries_inner",
+        "_cancel_planned_entry",
         "qb_live_conditional_cancelled_total",
         "거래소 취소 성공 뒤. except 가 stage=cancel 실패로 계상하고 이후 reconcile 중단",
     ),
