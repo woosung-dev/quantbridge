@@ -26,8 +26,14 @@
 > **판별력이 없다.** 「안 올랐다」를 판정으로 쓰지 않았다.
 >
 > **★소크가 돌고 있다 — 세션 `bbea6da4` · T0 `2026-08-04T02:54:15Z`**, 3차 회차 종료 시점
-> **3.4h 생존**(직전 사망 2건의 65분·105분을 모두 넘겼다). 앵커는 `.soak/session`.
-> **`backend/src` 편집·변이 테스트·BE pytest 금지.** ★생존 시간은 시계가 아니라 이 T0 로 재라.
+> **4.15h 생존**(직전 사망 2건의 65분·105분을 모두 넘겼다). 앵커는 `.soak/session`.
+> **`backend/src` 편집 금지** — ★단 그 이유는 pytest 가 아니라 **watchfiles 리로드로 워커가
+> 죽는 것**이다(§다음 스프린트 정정 블록). `backend/tests/` 편집과 단일 파일 pytest 는 안전하다.
+> ★생존 시간은 시계가 아니라 이 T0 로 재라.
+>
+> **★연장에서 전향 예측을 한 번 더 쟀다 = 미판정**(노출 0.149h, 문턱 6h). 누적 post-fix 는
+> 약 **6.8h / phantom 0** 이라 95% 상계가 0.49 → **0.44/h**. **0.25/h 로 낮추려면 총 12h —
+> 약 5시간이 더 필요하다.** 그동안 판별식을 **20 테스트로 경계까지 고정**했다.
 >
 > **업데이트(이전):** 2026-08-04 (후속 회차 — 축이 바뀌었다) — ★**아래 블록의 숫자는 그 회차
 > 시점이다.** 소크 생존 시간·사전등록 예측은 **위 3차 블록이 최신**이다.
@@ -109,8 +115,27 @@ uv run python scripts/classify_direction_divergence.py --log /tmp/wl.txt
 
 ### 본 작업 — 슬라이스 A 구현 (★소크가 **죽은 뒤**에)
 
-★**소크가 살아 있으면 착수하지 마라** — `backend/src` 편집이 필요하다. 살아 있으면 이번 회차처럼
+★**소크가 살아 있으면 착수하지 마라** — `backend/src` 편집이 필요하다. 살아 있으면
 **전향 예측만 판정하고 소크를 계속 굴려라.** 소크 달력 시간이 P0([BL-003])의 실질 게이트다.
+
+> ★★**금지의 이유를 정정한다 (2026-08-04 연장 실측).** 종전 문구 「BE pytest 금지 —
+> `drop_all` 이 소크 원장을 든 개발 DB 를 겨냥한다」는 **성립하지 않는다.** `_test_engine` 은
+> **autouse 가 아니고**(`conftest.py:293`) 대상은 `TEST_DATABASE_URL` > `DATABASE_URL` >
+> `…5432/quantbridge_test`(`:263-267`)라, `.env.local` 을 통째로 소싱하면 `quantbridge_test`
+> (소크 원장 `quantbridge` 와 **다른 DB**)를 친다. 순수 테스트 20개 전후로 원장을 세어
+> **손상 0** 을 실증했다. **진짜 위험한 것은 `DATABASE_URL` 만 단독 주입하는 경우뿐**이다.
+>
+> ⇒ **소크 중 실제 금지는 `backend/src` 편집이다.** 워커가
+> `watchfiles --filter python … /app/src` 라 저장할 때마다 리로드되고 **중간 상태가 깨져 있으면
+> 죽는다** — 실측 사고: 08-03 `16:57` `ModuleNotFoundError: src.tasks.conditional_entry_recovery`
+> → `16:58` `process already dead, exit code: 1`.
+> **`backend/tests/` 편집·단일 파일 pytest 는 안전하다**(watchfiles 대상이 아니다).
+
+★**판별식은 이미 경계까지 못박혀 있다** — `backend/tests/scripts/test_classify_direction_divergence.py`
+**20 테스트**(경계 `t_fill == horizon` → `replay_lag` · `unattributed` · 세션/심볼 오귀속 ·
+두 술어 비동치 · interval 일반화 · 사망 상관 음성 대조). **슬라이스 A 는 설계가 아니라 전사다.**
+★그 테스트가 오라클의 실제 결함을 잡았다 — 최신 체결을 `[-1]` 로 집어 **입력 정렬에 의존**했다
+(`max(key=filled_at)` 로 교체). **`order_repo` 결과의 정렬을 가정하지 마라.**
 
 `_subclassify_direction_divergence` 를 `_subclassify_engine_only_divergence`
 (`live_signal.py:773-814`)와 **대칭**으로 짠다. 설계·판별식·함정은 [BL-591] §슬라이스 설계에 있다.

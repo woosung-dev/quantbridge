@@ -273,7 +273,10 @@ def adjudicate(
             for f in owned.get(event.session_id, [])
             if f["symbol"] == event.symbol and f["filled_at"] <= event.at
         ]
-        last = candidates[-1] if candidates else None
+        # ★`[-1]` 이 아니라 `max` 다 — SQL 이 `ORDER BY filled_at` 로 주지만 그건 호출자의
+        # 사정이고, 정렬을 암묵 계약으로 두면 순서가 흐트러졌을 때 **갈래가 조용히 뒤집힌다**
+        # (오래된 체결을 집으면 무해가 유령이 된다). 단위 테스트가 이걸 잡았다.
+        last = max(candidates, key=lambda f: f["filled_at"]) if candidates else None
 
         if last is None:
             label = "unattributed"
