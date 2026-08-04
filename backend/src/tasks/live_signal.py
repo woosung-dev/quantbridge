@@ -433,6 +433,7 @@ def _ledger_gap_seed(fills: Sequence[Any], *, session_id: UUID, overflowed: bool
 
 if TYPE_CHECKING:  # ★런타임 import 는 함수 안에 둔다 (R2 — 이 모듈의 import 폐포 보존)
     from src.trading.ledger_position import LedgerPosition
+    from src.trading.models import LiveSignalState
 
 
 @dataclass(frozen=True, slots=True)
@@ -2429,6 +2430,249 @@ async def _async_evaluate_session(session_id: UUID, interval_value: str) -> dict
         )
 
 
+def _load_strategy_settings(strategy: Any, *, session_id: UUID) -> StrategySettings | str:
+    """전략 settings 파싱. 문자열을 돌려주면 그것이 곧 skip 사유다.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except ValidationError` →
+    `reason="invalid_settings"` 계상 + skip.
+
+    ★두 실패가 **같은 counter, 다른 응답**이다: 파싱 자체가 깨지면 `"invalid_settings"`,
+    파싱은 됐는데 비어 있으면 `"settings_unset"`. 둘을 합치면 「설정이 잘못됐다」와
+    「설정을 아직 안 했다」를 원장에서 구분할 수 없다.
+    """
+    try:
+        parsed: StrategySettings | None = validate_strategy_settings(strategy.settings)
+    except ValidationError as exc:
+        qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
+        logger.warning(
+            "live_signal_invalid_settings",
+            extra={"session_id": str(session_id), "error": str(exc)},
+        )
+        return "invalid_settings"
+    if parsed is None:
+        qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
+        return "settings_unset"
+    return parsed
+
+
+async def _probe_gap_resync_state(
+    sess: Any,
+    *,
+    session: Any,
+    account_repo: Any,
+    last_evaluated_bar_time: datetime | None,
+) -> tuple[list[Any] | None, _LedgerGapSeed]:
+    """평가 공백 뒤 재동기 판정에 쓸 `(거래소 포지션, 원장 seed)`.
+
+    ★**감싸는 핸들러: 이 함수가 둘 다 소유한다.** 둘 다 fail-open 이지만 **모름을 표현하는
+    방법이 다르다** — 그래서 한 함수 안에서 나란히 보이는 편이 안전하다:
+      · 포지션 조회 실패 → `None`(= 모름). 아래 정렬 판정이 mismatch 로 떨어뜨린다.
+      · 원장 조회 실패 → `outcome="fetch_failed"` seed(= seed 없음, 기존 fail-closed 유지).
+
+    BL-544 — 공백 창의 **주문 원장**을 읽는다. 재생은 이 사실을 모른다:
+    조건부 진입의 trigger 는 tick 마다 재도출되므로 공백이 지나면 재생은 그
+    체결을 아예 만들지 않는데, worker 가 멈춘 동안에도 `ws-stream` 은 살아 있어
+    체결은 원장에 남는다(실측: 세션 사망 4분 36초 **전에** 이미 filled).
+    ★조회는 여기, 판정은 호출부. seed 를 거래소에서 가져오면 그 대조가
+    동어반복이 되어 가드가 통째로 사라진다.
+    """
+    from src.trading.encryption import EncryptionService
+    from src.trading.providers import BybitFuturesProvider
+    from src.trading.services.account_service import ExchangeAccountService
+
+    exchange_positions: list[Any] | None = None
+    ledger_seed = _LEDGER_GAP_SEED_NONE
+    try:
+        bybit_provider = BybitFuturesProvider()
+        exchange_svc = ExchangeAccountService(
+            repo=account_repo,
+            crypto=EncryptionService(settings.trading_encryption_keys),
+            bybit_futures_provider=bybit_provider,
+        )
+        creds = await exchange_svc.get_credentials_for_order(sess.exchange_account_id)
+        exchange_positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
+    except Exception:
+        logger.warning(
+            "live_signal_gap_resync_position_fetch_failed",
+            exc_info=True,
+            extra={"session_id": str(sess.id), "symbol": sess.symbol},
+        )
+
+    if last_evaluated_bar_time is not None:
+        from src.trading.repositories.order_repository import (
+            LEDGER_FILL_SCAN_LIMIT,
+            OrderRepository,
+            SessionScope,
+        )
+
+        try:
+            fills = await OrderRepository(session).list_fills_since(
+                SessionScope.from_live_session(sess),
+                since=last_evaluated_bar_time,
+            )
+            ledger_seed = _ledger_gap_seed(
+                fills[:LEDGER_FILL_SCAN_LIMIT],
+                session_id=sess.id,
+                overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
+            )
+        except Exception:
+            # 조회 실패는 seed 없음 = 기존 fail-closed 판정 그대로다.
+            ledger_seed = _LedgerGapSeed(net=None, legs=(), outcome="fetch_failed", order_ids=())
+            logger.warning(
+                "live_signal_gap_ledger_fetch_failed",
+                exc_info=True,
+                extra={"session_id": str(sess.id), "symbol": sess.symbol},
+            )
+    return exchange_positions, ledger_seed
+
+
+def _extract_pyramiding(pine_source: str, *, session_id: UUID) -> int | None:
+    """전략 선언의 `pyramiding`. 못 읽으면 `None`(= 엔진 기본값).
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except Exception` fail-open.
+    선언 파싱 실패로 평가를 죽이지 않는다.
+    """
+    try:
+        return extract_content(pine_source).declaration.pyramiding
+    except Exception:
+        logger.warning(
+            "live_signal_pyramiding_extract_failed",
+            exc_info=True,
+            extra={"session_id": str(session_id)},
+        )
+        return None
+
+
+async def _run_live_or_deactivate(
+    *,
+    sess: Any,
+    sess_repo: Any,
+    strategy: Any,
+    df: Any,
+    run_live_kwargs: dict[str, Any],
+    interval_value: str,
+) -> Any | None:
+    """`run_live` 를 돌린다. `None` = 크래시라서 세션을 비활성화했다.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except Exception` →
+    `deactivate(reason="run_live_error")`. **재던지지 않는다.**
+
+    G2 — `run_live` 가 `result.errors` 로 surface 안 되는 예외를 raise 하는 경로:
+    parse SyntaxError / 미구현 na-semantics 의 raw ZeroDivisionError(`x/0`) /
+    math domain ValueError(`math.sqrt(-1)`) 등 (strict=False 의 except PineRuntimeError
+    가 안 잡음). 미처리 시 claim rollback + 세션 active 유지 → 매 tick crash-loop.
+    → 동일 fail-closed: 세션 비활성화 + metric + alert. (interpreter na-semantics
+    자체 수정은 BL-374 로 분리.)
+    """
+    from src.strategy.pine_v2.event_loop import run_live
+
+    try:
+        return run_live(strategy.pine_source, df, **run_live_kwargs)
+    except Exception as exc:
+        rows = await sess_repo.deactivate(sess.id, at=datetime.now(UTC), reason="run_live_error")
+        await sess_repo.commit()
+        if rows == 1:
+            _enqueue_conditional_entry_sweep()
+            await publish_realtime(str(sess.user_id), "session_state", {"session_id": str(sess.id)})
+            qb_live_signal_divergence_total.labels(stage="runtime", category="run_live_error").inc()
+            qb_live_signal_evaluated_total.labels(
+                interval=interval_value, outcome="divergence_blocked"
+            ).inc()
+            # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). Telegram까지
+            # fan-out하므로 호출부에서 예외 클래스명만 전달한다. 전체 원문은 아래 logger에만 남긴다.
+            _fire_divergence_alert(
+                session_id=sess.id,
+                stage="runtime",
+                category="run_live_error",
+                raw_msg=type(exc).__name__,
+                error_count=1,
+                last_error_bar=-1,
+            )
+            logger.exception(
+                "live_signal_run_live_crash",
+                extra={"session_id": str(sess.id), "error_type": type(exc).__name__},
+            )
+        return None
+
+
+def _positions_are_aligned(exchange_positions: list[Any] | None, carried_position: Any) -> bool:
+    """엔진 ↔ 거래소 순포지션이 일치하는가.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except ValueError → False`.
+    「**판정 불가를 일치로 접지 않는다**」가 이 함수 전체의 내용이다: 모르는 side 가 오면
+    `_net_position_size` 가 `ValueError` 를 던지는데, 그것을 `True` 로 접으면 공백 뒤
+    재동기 가드가 조용히 무력화된다.
+
+    ★`exchange_positions is None`(REST 조회 실패)도 계속 mismatch 다 — 예전에
+    `None == []` 이 False 라서 **공짜로 얻고 있던** fail-closed 성질이며 여기서 명시한다.
+    ★leg 이 2개 이상(hedge)이면 거절한다. 순포지션은 long+short 를 상쇄해 0 으로 만들 수
+    있어, 예전 술어가 거절하던 상태를 조용히 통과시킨다.
+    """
+    try:
+        return (
+            exchange_positions is not None
+            and len(exchange_positions) <= 1
+            and carried_position is not None
+            and _classify_position_divergence(
+                carried_position, _net_position_size(exchange_positions)
+            )
+            is None
+        )
+    except ValueError:
+        # 모르는 side 는 판정 불가다. 판정 못 한 것을 일치로 접으면 안 된다.
+        return False
+
+
+def _next_equity_curve(
+    new_events: Sequence[Any],
+    *,
+    previous_state: LiveSignalState | None,
+    last_bar_time: datetime,
+    session_id: UUID,
+) -> list[dict[str, object]] | None:
+    """이번 tick 의 equity curve. `None` = 추가할 point 가 없거나 값을 못 읽었다.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except (InvalidOperation, ValueError, TypeError)`.
+    **BL-004 영구 규칙이 반환 타입이 됐다**: KillSwitch 평가 경로는 절대 실패하면 안 되므로
+    equity curve 계산 실패는 삼키고 `None` 으로 내려간다.
+
+    Sprint 28 Slice 3 (BL-140b) — 이번 tick 에 새로 INSERT 된 close event 만 curve 에
+    반영한다. warmup 창 재계산의 미세 변동은 point 를 추가하지 않는다.
+    """
+    from src.trading.equity_calculator import append_equity_point
+
+    try:
+        new_close_events = [
+            event
+            for event in new_events
+            if event.action == "close" and event.realized_pnl is not None
+        ]
+        if not new_close_events:
+            return None
+        pnl_delta = sum(
+            (Decimal(str(event.realized_pnl)) for event in new_close_events),
+            Decimal("0"),
+        )
+        # 영구 규칙: Decimal-first 합산 (calculator 안에서 처리)
+        prev_curve = (
+            previous_state.equity_curve
+            if previous_state is not None and previous_state.equity_curve is not None
+            else []
+        )
+        new_curve = append_equity_point(
+            prev_curve,  # type: ignore[arg-type]
+            timestamp_ms=int(last_bar_time.timestamp() * 1000),
+            pnl_delta=pnl_delta,
+        )
+        # TypedDict → dict 호환 cast (runtime 동일 구조)
+        return [dict(p) for p in new_curve]
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        # Decimal 변환 실패 (mock value / corrupt DB 등) — equity_curve skip + log.
+        # KillSwitch eval 자체는 절대 fail 금지 (BL-004 영구 규칙 정합).
+        logger.warning("equity_curve_skip session=%s err=%s", session_id, exc)
+        return None
+
+
 async def _evaluate_session_with_engine(
     session_id: UUID, interval_value: str, sm: Any
 ) -> dict[str, Any]:
@@ -2450,7 +2694,6 @@ async def _evaluate_session_with_engine(
     ★9단계 enqueue 와 리컨사일 호출은 `async with sm()` **밖**에 남는다 — outbox
     visibility race 방지(커밋 뒤에 발주를 큐잉해야 한다).
     """
-    from src.strategy.pine_v2.event_loop import run_live
     from src.strategy.repository import StrategyRepository
     from src.tasks.celery_app import get_ccxt_provider_for_worker
     from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
@@ -2475,18 +2718,10 @@ async def _evaluate_session_with_engine(
         if strategy is None:
             qb_live_signal_skipped_total.labels(reason="strategy_missing").inc()
             return {"skipped": "strategy_missing"}
-        try:
-            parsed_settings: StrategySettings | None = validate_strategy_settings(strategy.settings)
-        except ValidationError as exc:
-            qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
-            logger.warning(
-                "live_signal_invalid_settings",
-                extra={"session_id": str(sess.id), "error": str(exc)},
-            )
-            return {"skipped": "invalid_settings"}
-        if parsed_settings is None:
-            qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
-            return {"skipped": "settings_unset"}
+        settings_outcome = _load_strategy_settings(strategy, session_id=sess.id)
+        if isinstance(settings_outcome, str):
+            return {"skipped": settings_outcome}
+        parsed_settings = settings_outcome
 
         # 3. account + Bybit Demo 강제 (P2 #1)
         account = await account_repo.get_by_id(sess.exchange_account_id)
@@ -2654,59 +2889,12 @@ async def _evaluate_session_with_engine(
         exchange_positions: list[Any] | None = None
         ledger_seed = _LEDGER_GAP_SEED_NONE
         if requires_gap_resync:
-            from src.trading.encryption import EncryptionService
-            from src.trading.providers import BybitFuturesProvider
-            from src.trading.services.account_service import ExchangeAccountService
-
-            try:
-                bybit_provider = BybitFuturesProvider()
-                exchange_svc = ExchangeAccountService(
-                    repo=account_repo,
-                    crypto=EncryptionService(settings.trading_encryption_keys),
-                    bybit_futures_provider=bybit_provider,
-                )
-                creds = await exchange_svc.get_credentials_for_order(sess.exchange_account_id)
-                exchange_positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
-            except Exception:
-                logger.warning(
-                    "live_signal_gap_resync_position_fetch_failed",
-                    exc_info=True,
-                    extra={"session_id": str(sess.id), "symbol": sess.symbol},
-                )
-
-            # BL-544 — 공백 창의 **주문 원장**을 읽는다. 재생은 이 사실을 모른다:
-            # 조건부 진입의 trigger 는 tick 마다 재도출되므로 공백이 지나면 재생은 그
-            # 체결을 아예 만들지 않는데, worker 가 멈춘 동안에도 `ws-stream` 은 살아 있어
-            # 체결은 원장에 남는다(실측: 세션 사망 4분 36초 **전에** 이미 filled).
-            # ★조회는 여기, 판정은 아래. seed 를 거래소에서 가져오면 아래 대조가
-            # 동어반복이 되어 가드가 통째로 사라진다.
-            if last_evaluated_bar_time is not None:
-                from src.trading.repositories.order_repository import (
-                    LEDGER_FILL_SCAN_LIMIT,
-                    OrderRepository,
-                    SessionScope,
-                )
-
-                try:
-                    fills = await OrderRepository(session).list_fills_since(
-                        SessionScope.from_live_session(sess),
-                        since=last_evaluated_bar_time,
-                    )
-                    ledger_seed = _ledger_gap_seed(
-                        fills[:LEDGER_FILL_SCAN_LIMIT],
-                        session_id=sess.id,
-                        overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
-                    )
-                except Exception:
-                    # 조회 실패는 seed 없음 = 기존 fail-closed 판정 그대로다.
-                    ledger_seed = _LedgerGapSeed(
-                        net=None, legs=(), outcome="fetch_failed", order_ids=()
-                    )
-                    logger.warning(
-                        "live_signal_gap_ledger_fetch_failed",
-                        exc_info=True,
-                        extra={"session_id": str(sess.id), "symbol": sess.symbol},
-                    )
+            exchange_positions, ledger_seed = await _probe_gap_resync_state(
+                sess,
+                session=session,
+                account_repo=account_repo,
+                last_evaluated_bar_time=last_evaluated_bar_time,
+            )
 
         # 7. run_live (warmup replay, Option B)
         df = _ohlcv_rows_to_dataframe(ohlcv_rows)
@@ -2761,15 +2949,7 @@ async def _evaluate_session_with_engine(
             else:
                 effective_capital = recalculated_capital
 
-        pyramiding: int | None = None
-        try:
-            pyramiding = extract_content(strategy.pine_source).declaration.pyramiding
-        except Exception:
-            logger.warning(
-                "live_signal_pyramiding_extract_failed",
-                exc_info=True,
-                extra={"session_id": str(sess.id)},
-            )
+        pyramiding = _extract_pyramiding(strategy.pine_source, session_id=sess.id)
         run_live_kwargs: dict[str, Any] = {
             "initial_capital": float(effective_capital),
             "live_position_size_pct": parsed_settings.position_size_pct,
@@ -2801,44 +2981,15 @@ async def _evaluate_session_with_engine(
         ledger_shadow = await _capture_ledger_shadow(
             sess, session=session, account_repo=account_repo
         )
-        try:
-            result = run_live(strategy.pine_source, df, **run_live_kwargs)
-        except Exception as exc:
-            # G2 — run_live 가 result.errors 로 surface 안 되는 예외를 raise 하는 경로:
-            # parse SyntaxError / 미구현 na-semantics 의 raw ZeroDivisionError(`x/0`) /
-            # math domain ValueError(`math.sqrt(-1)`) 등 (strict=False 의 except PineRuntimeError
-            # 가 안 잡음). 미처리 시 claim rollback + 세션 active 유지 → 매 tick crash-loop.
-            # → 동일 fail-closed: 세션 비활성화 + metric + alert. (interpreter na-semantics
-            # 자체 수정은 BL-374 로 분리.)
-            rows = await sess_repo.deactivate(
-                sess.id, at=datetime.now(UTC), reason="run_live_error"
-            )
-            await sess_repo.commit()
-            if rows == 1:
-                _enqueue_conditional_entry_sweep()
-                await publish_realtime(
-                    str(sess.user_id), "session_state", {"session_id": str(sess.id)}
-                )
-                qb_live_signal_divergence_total.labels(
-                    stage="runtime", category="run_live_error"
-                ).inc()
-                qb_live_signal_evaluated_total.labels(
-                    interval=interval_value, outcome="divergence_blocked"
-                ).inc()
-                # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). Telegram까지
-                # fan-out하므로 호출부에서 예외 클래스명만 전달한다. 전체 원문은 아래 logger에만 남긴다.
-                _fire_divergence_alert(
-                    session_id=sess.id,
-                    stage="runtime",
-                    category="run_live_error",
-                    raw_msg=type(exc).__name__,
-                    error_count=1,
-                    last_error_bar=-1,
-                )
-                logger.exception(
-                    "live_signal_run_live_crash",
-                    extra={"session_id": str(sess.id), "error_type": type(exc).__name__},
-                )
+        result = await _run_live_or_deactivate(
+            sess=sess,
+            sess_repo=sess_repo,
+            strategy=strategy,
+            df=df,
+            run_live_kwargs=run_live_kwargs,
+            interval_value=interval_value,
+        )
+        if result is None:
             return {"deactivated": "run_live_error"}
 
         # BL-536 — 엔진이 건너뛴 pending 진입 leg 계측. ★여기가 아니면 아래 조기
@@ -2933,19 +3084,7 @@ async def _evaluate_session_with_engine(
                         "carried_position": str(carried_position),
                     },
                 )
-            try:
-                positions_aligned = (
-                    exchange_positions is not None
-                    and len(exchange_positions) <= 1
-                    and carried_position is not None
-                    and _classify_position_divergence(
-                        carried_position, _net_position_size(exchange_positions)
-                    )
-                    is None
-                )
-            except ValueError:
-                # 모르는 side 는 판정 불가다. 판정 못 한 것을 일치로 접으면 안 된다.
-                positions_aligned = False
+            positions_aligned = _positions_are_aligned(exchange_positions, carried_position)
             if positions_aligned:
                 # try_claim_bar가 이미 최신 bar_time을 기록했다. 마지막 bar 신호만 이어서
                 # 처리해 수면·배포 공백을 조용히 정상화한다.
@@ -3136,41 +3275,12 @@ async def _evaluate_session_with_engine(
             previous_report=previous_report,
             report=sanitized_report,
         )
-        # Sprint 28 Slice 3 (BL-140b) — equity_curve append.
-        # 이번 tick 에 새로 INSERT 된 close event 만 curve 에 반영한다. warmup 창
-        # 재계산의 미세 변동은 point 를 추가하지 않는다.
-        # defensive: non-Decimal mock value 도 graceful (None 반환 = skip).
-        from src.trading.equity_calculator import append_equity_point
-
-        new_equity_curve: list[dict[str, object]] | None = None
-        try:
-            new_close_events = [
-                event
-                for event in new_events
-                if event.action == "close" and event.realized_pnl is not None
-            ]
-            if new_close_events:
-                pnl_delta = sum(
-                    (Decimal(str(event.realized_pnl)) for event in new_close_events),
-                    Decimal("0"),
-                )
-                # 영구 규칙: Decimal-first 합산 (calculator 안에서 처리)
-                prev_curve = (
-                    previous_state.equity_curve
-                    if previous_state is not None and previous_state.equity_curve is not None
-                    else []
-                )
-                new_curve = append_equity_point(
-                    prev_curve,  # type: ignore[arg-type]
-                    timestamp_ms=int(last_bar_time.timestamp() * 1000),
-                    pnl_delta=pnl_delta,
-                )
-                # TypedDict → dict 호환 cast (runtime 동일 구조)
-                new_equity_curve = [dict(p) for p in new_curve]
-        except (InvalidOperation, ValueError, TypeError) as exc:
-            # Decimal 변환 실패 (mock value / corrupt DB 등) — equity_curve skip + log.
-            # KillSwitch eval 자체는 절대 fail 금지 (BL-004 영구 규칙 정합).
-            logger.warning("equity_curve_skip session=%s err=%s", sess.id, exc)
+        new_equity_curve = _next_equity_curve(
+            new_events,
+            previous_state=previous_state,
+            last_bar_time=last_bar_time,
+            session_id=sess.id,
+        )
 
         await sess_repo.upsert_state(
             session_id=sess.id,
