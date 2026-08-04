@@ -17,7 +17,11 @@
 > (`secrets.TRADING_ENCRYPTION_KEYS_TEST` 부재 → 빈 문자열 → Settings ValidationError).
 > ⇒ **pytest 는 한 번도 실행된 적이 없고, `flaky-real-broker` 이슈 89건은 broker flakiness 의
 > 증거가 아니다.** 워크플로 9건 수리 + 계약 감사 13테스트(매 PR) + 자기정리 2층 하네스.
-> ★**실거래소는 1바이트도 검증되지 않았다** — 차단 사유 = Bybit demo 전용 키 2종 미발급.
+> ★**실거래소는 1바이트도 검증되지 않았다** — 그리고 **차단 사유가 바뀌었다**(같은 날 후속):
+> 키는 배치했는데(기존 데모 키 재사용, 새 발급 불요) 돌리자 **Bybit 이 GitHub 러너를 403 으로
+> 지리 차단**하는 것이 드러났다. 로컬(한국)은 같은 키로 성공한다. ⇒ **코드로 못 고친다.**
+> `schedule:` 을 끄고 `workflow_dispatch` 만 남겼다 — 켜 두면 매일 이슈가 쌓인다(이슈 #540).
+> 선택지 4안은 §다음 스프린트.
 >
 > **게이트(통합본 실측):** BE **4030 passed / 45 skipped**(= 4013 + contract 13 + 가시성 래칫 4 − 삭제 1) ·
 > ruff 0 · mypy 0 (216) · bl-audit active **154** · bl-audit-test 5/0 · docs-audit clean ·
