@@ -259,6 +259,10 @@ def test_run_live_consistent_with_run_historical_final_state() -> None:
         "pending_orders": [],
         "pending_order_skips": [],
         "window_bars": len(ohlcv),
+        # ADR-025 — 원장 권한 census 도 live 전용 키다. `ledger_conditional_fills` 를 안
+        # 넘긴 호출(= 백테스트와 같은 경로)에서는 **반드시 비어 있어야 한다.** 여기에 값이
+        # 생기면 라이브 전용 분기가 기본 경로로 샌 것이다.
+        "ledger_fill_census": {},
     }
 
 
@@ -393,9 +397,7 @@ def test_entry_skip_records_pyramiding_cap_with_capacity_positive_control() -> N
     capped = StrategyState(pyramiding=1)
     assert capped.entry("A", "long", qty=1.0, bar=0, fill_price=64.0) is not None
     assert capped.entry("B", "long", qty=1.0, bar=2, fill_price=64.0) is None
-    assert capped.entry_skips == [
-        {"bar_index": 2, "reason": "pyramiding_cap", "trade_id": "B"}
-    ]
+    assert capped.entry_skips == [{"bar_index": 2, "reason": "pyramiding_cap", "trade_id": "B"}]
 
 
 def test_entry_skip_records_session_gate_with_allowed_positive_control() -> None:
@@ -404,16 +406,12 @@ def test_entry_skip_records_session_gate_with_allowed_positive_control() -> None
 strategy("session entry")
 strategy.entry("L", strategy.long, qty=1)
 """
-    allowed = _ohlcv([64.0], start=datetime(2026, 5, 1, 0, tzinfo=UTC)).set_index(
-        "timestamp"
-    )
+    allowed = _ohlcv([64.0], start=datetime(2026, 5, 1, 0, tzinfo=UTC)).set_index("timestamp")
     allowed_result = run_historical(source, allowed, sessions_allowed=("asia",))
     assert allowed_result.strategy_state is not None
     assert allowed_result.strategy_state.entry_skips == []
 
-    blocked = _ohlcv([64.0], start=datetime(2026, 5, 1, 12, tzinfo=UTC)).set_index(
-        "timestamp"
-    )
+    blocked = _ohlcv([64.0], start=datetime(2026, 5, 1, 12, tzinfo=UTC)).set_index("timestamp")
     blocked_result = run_historical(source, blocked, sessions_allowed=("asia",))
     assert blocked_result.strategy_state is not None
     assert blocked_result.strategy_state.entry_skips == [
@@ -428,9 +426,7 @@ def test_when_false_does_not_record_a_phantom_session_closed_skip() -> None:
     없던 진입이 "거래 시간대 밖에서 막혔다" 로 둔갑해 메트릭과 화면에 유령 1건이
     뜬다. 두 분기 모두 `return None` 이라 실행 결과는 같고 사유만 정확해진다.
     """
-    blocked_bar = _ohlcv([64.0], start=datetime(2026, 5, 1, 12, tzinfo=UTC)).set_index(
-        "timestamp"
-    )
+    blocked_bar = _ohlcv([64.0], start=datetime(2026, 5, 1, 12, tzinfo=UTC)).set_index("timestamp")
 
     # 양성 대조군 — when 이 없으면 세션 밖 진입은 여전히 기록된다.
     positive = run_historical(
@@ -555,9 +551,7 @@ if bar_index == 1
 
     blocked = run_live(source, ohlcv, pyramiding=1)
     assert blocked.signals == []
-    assert blocked.entry_skips == [
-        {"bar_index": 1, "reason": "pyramiding_cap", "trade_id": "B"}
-    ]
+    assert blocked.entry_skips == [{"bar_index": 1, "reason": "pyramiding_cap", "trade_id": "B"}]
     assert blocked.strategy_state_report["last_bar_entry_skips"] == blocked.entry_skips
 
 

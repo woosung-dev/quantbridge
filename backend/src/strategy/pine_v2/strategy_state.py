@@ -14,6 +14,7 @@ Day 4 단순화:
 공개 API:
 - `StrategyState` — entry/close/close_all 호출 + 체결 결과
 """
+
 from __future__ import annotations
 
 import math
@@ -58,6 +59,7 @@ class PendingOrder:
     - direction='short', stop=price: SELL STOP (low <= price에서 fill, 돌파 매도)
     - limit 주문(가격 도달 시 지정가 체결)은 H1 MVP scope 외 — 추후 확장
     """
+
     id: str
     direction: Direction
     qty: float
@@ -115,13 +117,9 @@ class ExitOrder:
         if self.kind != ExitOrderKind.TRAILING_STOP or self.trail_offset is None:
             return
         if self.position_direction == "long":
-            self.trail_anchor = (
-                high if self.trail_anchor is None else max(self.trail_anchor, high)
-            )
+            self.trail_anchor = high if self.trail_anchor is None else max(self.trail_anchor, high)
         else:
-            self.trail_anchor = (
-                low if self.trail_anchor is None else min(self.trail_anchor, low)
-            )
+            self.trail_anchor = low if self.trail_anchor is None else min(self.trail_anchor, low)
 
     def _trail_stop_level(self) -> float | None:
         if self.trail_anchor is None or self.trail_offset is None:
@@ -130,9 +128,7 @@ class ExitOrder:
             return self.trail_anchor - self.trail_offset
         return self.trail_anchor + self.trail_offset
 
-    def try_fill_exit(
-        self, *, bar: int, open_: float, high: float, low: float
-    ) -> float | None:
+    def try_fill_exit(self, *, bar: int, open_: float, high: float, low: float) -> float | None:
         """이 bar OHLC 로 exit 체결 가능한지 판단. 체결가 반환, 아니면 None.
 
         placed_bar >= bar 면 같은 bar 즉시 체결 금지 (entry 관례 일치).
@@ -221,6 +217,58 @@ class LedgerSeedLeg:
     entry_price: float
 
 
+@dataclass(frozen=True, slots=True)
+class LedgerConditionalFill:
+    """주문 원장이 증언하는 **조건부 진입 체결** 1건 (ADR-025 / BL-595).
+
+    `LedgerSeedLeg`(포지션 스냅샷)와 다르다. 이쪽은 **사건**이다 — 「그 `trade_id` 의
+    조건부 진입이 이 시각에 이 가격으로 체결됐다」. 그래서 수량을 싣지 않는다:
+    원장의 `filled_quantity` 는 반전 시 청산+진입이 합쳐진 **병합 수량**(실측 0.058)이고
+    엔진의 leg 수량(0.0297)과 단위가 다르다. 병합 수량을 그대로 쓰면 이 레포가 [ADR-022]
+    에서 이미 덴 「net 은 맞고 legs 는 틀리다」를 반복한다. 수량은 엔진의 `PendingOrder.qty`
+    를 그대로 쓰고, 이 타입은 **체결 여부와 체결가**만 증언한다.
+
+    ★`filled_at` 은 거래소 체결시각이 아니라 **우리 관측시각**이다(`LedgerFill` docstring).
+    항상 실제보다 **늦으므로** 봉 귀속도 같거나 늦은 봉을 고른다 — 오차 방향이 한쪽이고
+    그 방향은 무해한 `replay_lag` 쪽이지 유령 쪽이 아니다.
+    """
+
+    trade_id: str
+    filled_at: datetime
+    fill_price: float
+
+
+@dataclass(frozen=True, slots=True)
+class ConditionalFillAuthority:
+    """라이브에서 조건부 진입 체결의 **권한자** — 봉 인덱스 → 그 봉이 증언하는 체결들.
+
+    ★**존재 자체가 신호다.** `None`(= 이 객체가 없다) 은 「모른다」이고 엔진이 종전대로
+    시뮬한다(= 백테스트). 이 객체가 있으면 — **`by_bar` 가 비어 있어도** — 「원장이 답했다」
+    이고 엔진은 증언 없는 체결을 만들지 않는다. 둘을 같은 값으로 접으면 판정 불가가 flat
+    으로 위장된다(`ledger_position.py` 가 같은 교훈을 적어 두었다).
+    """
+
+    by_bar: dict[int, tuple[LedgerConditionalFill, ...]]
+    # 창 시작보다 앞서 관측돼 어느 봉에도 못 얹은 체결 수. 「거래소에는 있는데 엔진이
+    # 표현할 수 없는 포지션」의 개수이며, 조용히 버리지 않으려고 세어 둔다.
+    dropped_before_window: int = 0
+    # ★census 를 셀 봉. `None` 이면 **모든 봉**에서 센다(단위 테스트용).
+    #
+    # ★★왜 필요한가 — 프로덕션 실측으로 확정된 것이다. 모든 봉에서 세면 매 tick 300봉
+    # warmup 을 **다시** 세어 카운터가 tick 당 **정확히 +121** 로 자란다(2026-08-05 소크
+    # 실측). 그러면 「이 tick 의 판정에서 [BL-595] 순간이 일어났나」를 그 값으로 물을 수
+    # 없다 — 사건과 무관하게 항상 크다. 사전등록 관측량이 **판별력 0** 이 되는 것이다.
+    # ⇒ 이 tick 이 **실제로 판정하는 봉**(마지막 봉)에서만 센다.
+    # ★한계: 더 앞선 봉에 얹힌 원장 체결은 **적용되지만 계상되지 않는다**(행위는 그대로).
+    census_bar: int | None = None
+
+    def for_bar(self, bar: int) -> tuple[LedgerConditionalFill, ...]:
+        return self.by_bar.get(bar, ())
+
+    def counts_census(self, bar: int) -> bool:
+        return self.census_bar is None or bar == self.census_bar
+
+
 @dataclass
 class TradeEvent:
     """Sprint 26 codex G.0 P1 #2 — bar-level entry/close/fill event log.
@@ -287,7 +335,9 @@ class StrategyState:
     # configure_sizing() 호출 시 초기화. 미호출 시 compute_qty()=1.0 fallback (기존 호환).
     initial_capital: float | None = None
     running_equity: float | None = None
-    default_qty_type: str | None = None  # "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None
+    default_qty_type: str | None = (
+        None  # "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None
+    )
     default_qty_value: float | None = None
     # BL-186a — 1.0 이하는 기존 현물 경로, 초과 시 격리 레버리지 모델을 적용한다.
     leverage: float = 1.0
@@ -306,6 +356,10 @@ class StrategyState:
     fill_timing: str = "bar_close"
     # next_bar_open 모드의 시장가 인텐트 큐 — process_market_intents 가 소비.
     pending_market_intents: list[MarketIntent] = field(default_factory=list)
+    # ADR-025 — 원장 권한이 켜진 재생에서 「시뮬이 하려던 것 vs 원장이 증언한 것」 census.
+    # 백테스트(권한 없음)에서는 **항상 비어 있다** — 그래서 최종상태 비교가 안 깨진다.
+    # 키: agree / engine_only_suppressed / ledger_only_adopted / ledger_only_orphan.
+    ledger_fill_census: dict[str, int] = field(default_factory=dict)
 
     def discard_state_before_epoch(self) -> None:
         """position epoch 이전 재생이 만든 포지션 및 손익 상태를 폐기한다.
@@ -404,9 +458,7 @@ class StrategyState:
         self.initial_capital = float(initial_capital)
         self.running_equity = float(initial_capital)
         self.default_qty_type = default_qty_type
-        self.default_qty_value = (
-            float(default_qty_value) if default_qty_value is not None else None
-        )
+        self.default_qty_value = float(default_qty_value) if default_qty_value is not None else None
         self.leverage = float(leverage)
 
     def compute_qty(self, *, fill_price: float) -> float:
@@ -528,8 +580,17 @@ class StrategyState:
         fill_price: float,
         comment: str,
         event_action: Literal["entry", "fill"],
+        enforce_margin: bool = True,
     ) -> Trade | None:
-        """마진 게이트 후 청산가를 계산해 Trade를 생성하는 유일한 관문."""
+        """마진 게이트 후 청산가를 계산해 Trade를 생성하는 유일한 관문.
+
+        ★`enforce_margin=False` 는 **원장이 증언한 체결**(ADR-025)에만 쓴다. 그 포지션은
+        이미 거래소에 존재하므로 여기서 거절해도 현실은 되돌아가지 않고, 엔진만 그 포지션을
+        모르는 상태가 유지된다 — 이 ADR 이 없애려는 바로 그 상태다.
+        `seed_positions_from_ledger`(`:357` 근방)가 같은 이유로 게이트를 안 돌린다.
+        ★단 `margin_used`/`liq_price` 는 **그대로 계산한다.** 비워두면 `check_liquidations`
+        가 이 포지션만 조용히 건너뛴다(그쪽 docstring 이 적어 둔 함정).
+        """
         margin_used: float | None = None
         liq_price: float | None = None
         if is_leverage_active(self.leverage):
@@ -542,17 +603,17 @@ class StrategyState:
                 available = self.running_equity - sum(
                     trade.margin_used or 0.0 for trade in self.open_trades.values()
                 )
-                if not margin_available_ok(required=required, available=available):
-                    self.warnings.append(
-                        f"strategy.entry({trade_id!r}): 증거금 부족으로 진입 skip"
-                    )
+                margin_used = required
+                if enforce_margin and not margin_available_ok(
+                    required=required, available=available
+                ):
+                    self.warnings.append(f"strategy.entry({trade_id!r}): 증거금 부족으로 진입 skip")
                     self._record_entry_skip(
                         bar=bar,
                         reason="margin_insufficient",
                         trade_id=trade_id,
                     )
                     return None
-                margin_used = required
             liq_price = liquidation_price(
                 entry_price=fill_price,
                 direction=direction,
@@ -635,11 +696,7 @@ class StrategyState:
         self.pending_market_intents = []
         for intent in intents:
             if intent.kind == "entry":
-                qty = (
-                    intent.qty
-                    if intent.qty is not None
-                    else self.compute_qty(fill_price=open_)
-                )
+                qty = intent.qty if intent.qty is not None else self.compute_qty(fill_price=open_)
                 self.entry(
                     intent.trade_id,
                     intent.direction,
@@ -685,9 +742,7 @@ class StrategyState:
         라이브 dispatch 대상에서만 빠진다.
         """
         opposite: Direction = "short" if new_direction == "long" else "long"
-        ids_to_flip = [
-            tid for tid, tr in self.open_trades.items() if tr.direction == opposite
-        ]
+        ids_to_flip = [tid for tid, tr in self.open_trades.items() if tr.direction == opposite]
         for tid in ids_to_flip:
             self.close(tid, bar=bar, fill_price=fill_price, broker_filled=broker_filled)
 
@@ -760,13 +815,9 @@ class StrategyState:
         # BL-104 — pyramiding cap (gated). 같은 방향 open 수가 한도 도달 시 skip.
         # None 이면 무효 → 기존 무제한 중첩 byte-identical.
         if self.pyramiding is not None:
-            same_dir = sum(
-                1 for t in self.open_trades.values() if t.direction == direction
-            )
+            same_dir = sum(1 for t in self.open_trades.values() if t.direction == direction)
             if same_dir >= self.pyramiding:
-                self.warnings.append(
-                    f"strategy.entry({trade_id!r}): pyramiding cap으로 진입 skip"
-                )
+                self.warnings.append(f"strategy.entry({trade_id!r}): pyramiding cap으로 진입 skip")
                 self._record_entry_skip(
                     bar=bar,
                     reason="pyramiding_cap",
@@ -843,6 +894,64 @@ class StrategyState:
         self.pending_exits.clear()
         return closed
 
+    def _authoritative_fill_candidates(
+        self,
+        authority: ConditionalFillAuthority,
+        *,
+        bar: int,
+        open_: float,
+        high: float,
+        low: float,
+    ) -> list[tuple[str, PendingOrder, float]]:
+        """원장이 이 봉에서 증언한 체결만 후보로 만든다 + census 를 센다 (ADR-025).
+
+        시뮬 판정(`try_fill`)은 **읽기 전용으로 함께 돌린다** — 체결 여부를 정하기 위해서가
+        아니라 「엔진이 체결했을 자리 vs 원장이 실제로 체결한 자리」를 세기 위해서다. 그
+        차이가 백테스트 낙관 편의의 첫 실측치이고, 지금은 아무도 그 값을 모른다.
+        """
+        witnessed = authority.for_bar(bar)
+        witnessed_ids = {fill.trade_id for fill in witnessed}
+        # ★계상은 이 tick 이 **실제로 판정하는 봉**에서만 한다. 모든 봉에서 세면 warmup 300봉을
+        #   매 tick 다시 세어 카운터가 사건과 무관하게 자란다(실측 tick 당 +121).
+        count = authority.counts_census(bar)
+
+        # ① 시뮬은 체결했을 텐데 원장이 증언하지 않는다 = 유령 차단 (BL-595 형 A).
+        if count:
+            for order_id, order in self.pending_orders.items():
+                if order_id in witnessed_ids:
+                    continue
+                if order.try_fill(bar, high, low, open_) is not None:
+                    self._bump_ledger_census("engine_only_suppressed")
+
+        candidates: list[tuple[str, PendingOrder, float]] = []
+        # 원장 순서가 곧 현실의 순서다 — 시뮬 경로의 "open 가격과의 거리" 휴리스틱을 쓸
+        # 이유가 없다(그건 intrabar path 를 모를 때의 최소 가정이었다).
+        # ★같은 봉에 같은 `trade_id` 증언이 둘이면 **마지막 것만** 쓴다. 그냥 순회하면
+        #   `pending_orders.pop` 이 루프 **뒤**에 있어 두 번째도 매칭되고, 반전 close+open 이
+        #   두 번 실행돼 없던 왕복 거래가 생긴다(codex challenge). 원장에 재발행·재관측이
+        #   섞이면 실제로 도달한다.
+        deduped: dict[str, LedgerConditionalFill] = {}
+        for fill in sorted(witnessed, key=lambda item: item.filled_at):
+            deduped[fill.trade_id] = fill
+        for fill in deduped.values():
+            witnessed_order = self.pending_orders.get(fill.trade_id)
+            if witnessed_order is None:
+                # 고아 — 엔진이 그 주문을 아예 안 들고 있다. **여기서는 아무것도 하지 않는다**
+                # (ADR-025 R4: 사망 5건 중 0건이라 관측되지 않은 경우에 기계를 짓지 않는다).
+                if count:
+                    self._bump_ledger_census("ledger_only_orphan")
+                continue
+            if count:
+                simulated = witnessed_order.try_fill(bar, high, low, open_)
+                self._bump_ledger_census(
+                    "agree" if simulated is not None else "ledger_only_adopted"
+                )
+            candidates.append((fill.trade_id, witnessed_order, fill.fill_price))
+        return candidates
+
+    def _bump_ledger_census(self, key: str) -> None:
+        self.ledger_fill_census[key] = self.ledger_fill_census.get(key, 0) + 1
+
     def check_pending_fills(
         self,
         *,
@@ -851,6 +960,7 @@ class StrategyState:
         high: float,
         low: float,
         bar_ts: datetime | None = None,
+        conditional_fill_authority: ConditionalFillAuthority | None = None,
     ) -> list[Trade]:
         """현재 bar OHLC로 pending 주문 체결 검사. 체결된 주문은 Trade로 전환.
 
@@ -860,38 +970,56 @@ class StrategyState:
         `bar_ts` 가 disallowed session 이면 fill 자체를 skip → pending_orders 는
         carry-over 되어 다음 allowed bar 에서 재시도. 단일 reference =
         `src.strategy.trading_sessions.is_allowed`.
+
+        ADR-025 (BL-595) — `conditional_fill_authority` 는 **라이브 전용**이다.
+
+        - `None`(기본, 백테스트) — 지금까지와 **byte-identical**. `try_fill` 이 체결을 정한다.
+        - 값 있음(라이브) — **원장이 증언한 체결만** 인정하고 체결가도 원장 값을 쓴다.
+          엔진의 시뮬 stop 과 거래소의 resting stop 은 수준도 수명도 다른 **다른 주문**이라
+          양쪽 모두 혼자 발화한다. 라이브에는 진짜 매칭엔진이 있으므로 시뮬 체결은 잉여다.
         """
         if self.sessions_allowed and bar_ts is not None:
             from src.strategy.trading_sessions import is_allowed
+
             if not is_allowed(list(self.sessions_allowed), bar_ts):
                 # disallowed session — fill skip, order 는 다음 bar 로 carry-over.
+                # ★원장 권한이 켜져 있어도 이 게이트가 먼저다: 금지 세션에서는 reconciler 가
+                #   거래소 주문을 걷어내는 것이 계약이고(`event_loop.py:353`), 그 계약을
+                #   여기서 뒤집으면 걷어내기와 채택이 서로를 지운다.
                 return []
 
-        # Same-bar 에 long stop + short stop 둘 다 trigger 되는 경우 결정성 확보:
-        # dict 순회 대신 먼저 체결 후보를 전부 수집한 뒤 "open 가격과의 거리 오름차순"
-        # 으로 정렬 → bar open 에서 가장 빨리 닿는 주문부터 순차 체결.
-        # TradingView 는 pessimistic simulation 을 기본으로 쓰지만 intrabar path 는 알 수 없으므로
-        # 거리 기반 결정론이 최소 가정이고, dict insertion order 의존보다 훨씬 안전하다.
-        candidates: list[tuple[str, PendingOrder, float]] = []
-        for order_id, order in self.pending_orders.items():
-            fill_price = order.try_fill(bar, high, low, open_)
-            if fill_price is None:
-                continue
-            candidates.append((order_id, order, fill_price))
-        candidates.sort(key=lambda c: abs(c[2] - open_))
+        if conditional_fill_authority is not None:
+            candidates = self._authoritative_fill_candidates(
+                conditional_fill_authority, bar=bar, open_=open_, high=high, low=low
+            )
+        else:
+            # Same-bar 에 long stop + short stop 둘 다 trigger 되는 경우 결정성 확보:
+            # dict 순회 대신 먼저 체결 후보를 전부 수집한 뒤 "open 가격과의 거리 오름차순"
+            # 으로 정렬 → bar open 에서 가장 빨리 닿는 주문부터 순차 체결.
+            # TradingView 는 pessimistic simulation 을 기본으로 쓰지만 intrabar path 는 알 수
+            # 없으므로 거리 기반 결정론이 최소 가정이고, dict insertion order 의존보다 훨씬 안전하다.
+            candidates = []
+            for order_id, order in self.pending_orders.items():
+                fill_price = order.try_fill(bar, high, low, open_)
+                if fill_price is None:
+                    continue
+                candidates.append((order_id, order, fill_price))
+            candidates.sort(key=lambda c: abs(c[2] - open_))
 
         filled: list[Trade] = []
         to_remove: list[str] = []
         for order_id, order, fill_price in candidates:
-            if not self._can_afford_entry(
+            # ★원장 권한 경로에서는 증거금 게이트를 돌리지 않는다 — `seed_positions_from_ledger`
+            #   가 같은 이유를 이미 적고 있다: **그 포지션은 이미 거래소에 존재한다.** 여기서
+            #   거절해도 현실은 되돌아가지 않고 엔진만 그 포지션을 모르는 상태가 유지된다
+            #   (= 이 ADR 이 없애려는 바로 그 상태).
+            if conditional_fill_authority is None and not self._can_afford_entry(
                 trade_id=order_id,
                 direction=order.direction,
                 qty=order.qty,
                 fill_price=fill_price,
             ):
-                self.warnings.append(
-                    f"strategy.entry({order_id!r}): 증거금 부족으로 진입 skip"
-                )
+                self.warnings.append(f"strategy.entry({order_id!r}): 증거금 부족으로 진입 skip")
                 self._record_entry_skip(
                     bar=bar,
                     reason="margin_insufficient",
@@ -922,6 +1050,10 @@ class StrategyState:
                 fill_price=fill_price,
                 comment=order.comment,
                 event_action="fill",
+                # ★원장이 증언한 체결에는 증거금 게이트를 걸지 않는다 — 위 `_can_afford_entry`
+                #   우회만으로는 절반이다. `_open_trade` 가 **또 하나의 게이트**를 갖고 있고,
+                #   거기서 막히면 엔진만 그 포지션을 모르는 상태가 그대로 남는다.
+                enforce_margin=conditional_fill_authority is None,
             )
             to_remove.append(order_id)
             if trade is not None:
@@ -1097,9 +1229,7 @@ class StrategyState:
             # intrabar path 미상 → SL 우선 = 실거래 최악가정 일치.
             candidates.sort(key=lambda c: SAME_BAR_FILL_PRIORITY.index(c[0].kind))
             leg, fill_price = candidates[0]
-            trade = self.close(
-                entry_id, bar=bar, fill_price=fill_price, comment=leg.comment
-            )
+            trade = self.close(entry_id, bar=bar, fill_price=fill_price, comment=leg.comment)
             if trade is not None:
                 trade.exit_kind = leg.kind
                 filled.append(trade)

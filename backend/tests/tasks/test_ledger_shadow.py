@@ -67,16 +67,24 @@ def test_hold_bucket_boundaries(ticks: int, bucket: str) -> None:
 # ── _record_ledger_shadow — 판정 ────────────────────────────────────
 
 
+def _shadow(*, derived: LedgerPosition, exchange_qty: Decimal | None) -> _LedgerShadow:
+    """슬라이스 1 계측만 보는 테스트용 생성자.
+
+    ★`conditional_fills` 는 ADR-025 의 **집행** 필드라 기본값을 두지 않았다(「모른다」와
+    「비었다」를 접지 않기 위해서다). 이 파일은 그 축을 안 보므로 여기서만 `None` 으로 고정한다 —
+    프로덕션 기본값을 만들지 않는다.
+    """
+    return _LedgerShadow(derived=derived, exchange_qty=exchange_qty, conditional_fills=None)
+
+
 def _record(shadow: _LedgerShadow, *, engine: Decimal | None = None, prev: Any = None) -> dict:
     report: dict[str, Any] = {}
-    _record_ledger_shadow(
-        shadow, engine_position=engine, previous_report=prev, report=report
-    )
+    _record_ledger_shadow(shadow, engine_position=engine, previous_report=prev, report=report)
     return report["_qb_ledger_shadow"]
 
 
 def test_agree_when_ledger_matches_exchange() -> None:
-    shadow = _LedgerShadow(
+    shadow = _shadow(
         derived=LedgerPosition(legs=(_leg(),), outcome="open"),
         exchange_qty=Decimal("0.03"),
     )
@@ -84,7 +92,7 @@ def test_agree_when_ledger_matches_exchange() -> None:
 
 
 def test_disagree_when_exchange_is_flat_but_ledger_is_not() -> None:
-    shadow = _LedgerShadow(
+    shadow = _shadow(
         derived=LedgerPosition(legs=(_leg(),), outcome="open"),
         exchange_qty=Decimal("0"),
     )
@@ -93,15 +101,13 @@ def test_disagree_when_exchange_is_flat_but_ledger_is_not() -> None:
 
 def test_probe_failed_is_not_disagree() -> None:
     """★섞으면 거래소 조회 장애가 발산으로 둔갑한다."""
-    shadow = _LedgerShadow(
-        derived=LedgerPosition(legs=(_leg(),), outcome="open"), exchange_qty=None
-    )
+    shadow = _shadow(derived=LedgerPosition(legs=(_leg(),), outcome="open"), exchange_qty=None)
     assert _record(shadow)["decision"] == "probe_failed"
 
 
 def test_undecidable_ledger_is_not_agree_even_if_exchange_flat() -> None:
     """★판정 불가를 flat 으로 접으면 「모른다」가 「비었다」로 둔갑한다."""
-    shadow = _LedgerShadow(
+    shadow = _shadow(
         derived=LedgerPosition(legs=None, outcome="overflow"), exchange_qty=Decimal("0")
     )
     recorded = _record(shadow)
@@ -111,9 +117,7 @@ def test_undecidable_ledger_is_not_agree_even_if_exchange_flat() -> None:
 
 
 def test_flat_ledger_and_flat_exchange_agree() -> None:
-    shadow = _LedgerShadow(
-        derived=LedgerPosition(legs=(), outcome="flat"), exchange_qty=Decimal("0")
-    )
+    shadow = _shadow(derived=LedgerPosition(legs=(), outcome="flat"), exchange_qty=Decimal("0"))
     assert _record(shadow)["decision"] == "agree"
 
 
@@ -123,9 +127,7 @@ def test_flat_ledger_and_flat_exchange_agree() -> None:
 )
 def test_engine_flat_label(engine: Decimal | None, expected: str) -> None:
     """★`agree` 만으로는 「주입 가능 tick」을 못 센다 — 주입은 엔진이 flat 일 때만이다."""
-    shadow = _LedgerShadow(
-        derived=LedgerPosition(legs=(), outcome="flat"), exchange_qty=Decimal("0")
-    )
+    shadow = _shadow(derived=LedgerPosition(legs=(), outcome="flat"), exchange_qty=Decimal("0"))
     assert _record(shadow, engine=engine)["engine_flat"] == expected
 
 
@@ -133,7 +135,7 @@ def test_engine_flat_label(engine: Decimal | None, expected: str) -> None:
 
 
 def test_hold_ticks_accumulates_while_disagreeing() -> None:
-    shadow = _LedgerShadow(
+    shadow = _shadow(
         derived=LedgerPosition(legs=(_leg(),), outcome="open"), exchange_qty=Decimal("0")
     )
     first = _record(shadow)
@@ -143,10 +145,10 @@ def test_hold_ticks_accumulates_while_disagreeing() -> None:
 
 
 def test_hold_ticks_resets_when_resolved() -> None:
-    disagreeing = _LedgerShadow(
+    disagreeing = _shadow(
         derived=LedgerPosition(legs=(_leg(),), outcome="open"), exchange_qty=Decimal("0")
     )
-    agreeing = _LedgerShadow(
+    agreeing = _shadow(
         derived=LedgerPosition(legs=(_leg(),), outcome="open"), exchange_qty=Decimal("0.03")
     )
     held = _record(disagreeing)
@@ -157,7 +159,7 @@ def test_hold_ticks_resets_when_resolved() -> None:
 
 def test_hold_ticks_ignores_malformed_previous_report() -> None:
     """이전 상태를 못 읽어도 던지지 않는다 — 계측은 발주를 막지 않는다."""
-    shadow = _LedgerShadow(
+    shadow = _shadow(
         derived=LedgerPosition(legs=(_leg(),), outcome="open"), exchange_qty=Decimal("0")
     )
     for prev in (None, {}, {"_qb_ledger_shadow": "not-a-dict"}, {"_qb_ledger_shadow": {}}):
@@ -166,9 +168,7 @@ def test_hold_ticks_ignores_malformed_previous_report() -> None:
 
 def test_record_tolerates_non_dict_report() -> None:
     """report 가 dict 가 아니어도 counter 는 오르고 예외는 안 난다."""
-    shadow = _LedgerShadow(
-        derived=LedgerPosition(legs=(), outcome="flat"), exchange_qty=Decimal("0")
-    )
+    shadow = _shadow(derived=LedgerPosition(legs=(), outcome="flat"), exchange_qty=Decimal("0"))
     _record_ledger_shadow(shadow, engine_position=None, previous_report=None, report=None)
 
 
@@ -193,9 +193,7 @@ def _patch_exchange(monkeypatch: pytest.MonkeyPatch, *, net: Decimal) -> None:
     monkeypatch.setattr(providers_module, "BybitFuturesProvider", lambda *a, **k: provider)
     service = MagicMock()
     service.get_credentials_for_order = AsyncMock(return_value=object())
-    monkeypatch.setattr(
-        account_service_module, "ExchangeAccountService", lambda *a, **k: service
-    )
+    monkeypatch.setattr(account_service_module, "ExchangeAccountService", lambda *a, **k: service)
 
 
 @pytest.mark.asyncio
@@ -208,9 +206,7 @@ async def test_capture_happy_path_derives_and_probes(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(order_repo_module, "OrderRepository", lambda _s: repo)
     _patch_exchange(monkeypatch, net=Decimal("0.03"))
 
-    shadow = await _capture_ledger_shadow(
-        _sess(), session=MagicMock(), account_repo=MagicMock()
-    )
+    shadow = await _capture_ledger_shadow(_sess(), session=MagicMock(), account_repo=MagicMock())
     assert shadow.derived.outcome == "no_fills"
     assert shadow.derived.undecidable is False
     assert shadow.exchange_qty == Decimal("0.03")
@@ -226,9 +222,7 @@ async def test_capture_absorbs_ledger_failure(monkeypatch: pytest.MonkeyPatch) -
             raise RuntimeError("ledger down")
 
     monkeypatch.setattr(order_repo_module, "OrderRepository", _Boom)
-    shadow = await _capture_ledger_shadow(
-        _sess(), session=MagicMock(), account_repo=MagicMock()
-    )
+    shadow = await _capture_ledger_shadow(_sess(), session=MagicMock(), account_repo=MagicMock())
     assert shadow.derived.outcome == "fetch_failed"
     assert shadow.derived.undecidable is True
 
@@ -248,8 +242,6 @@ async def test_capture_absorbs_exchange_failure(monkeypatch: pytest.MonkeyPatch)
             raise RuntimeError("exchange down")
 
     monkeypatch.setattr(account_service_module, "ExchangeAccountService", _BoomService)
-    shadow = await _capture_ledger_shadow(
-        _sess(), session=MagicMock(), account_repo=MagicMock()
-    )
+    shadow = await _capture_ledger_shadow(_sess(), session=MagicMock(), account_repo=MagicMock())
     assert shadow.exchange_qty is None
     assert shadow.derived.outcome == "no_fills"

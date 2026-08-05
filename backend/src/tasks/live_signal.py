@@ -42,6 +42,7 @@ from src.common.metrics import (
     qb_active_orders,
     qb_live_conditional_cancelled_total,
     qb_live_conditional_divergence_total,
+    qb_live_conditional_fill_ownership_total,
     qb_live_conditional_guard_total,
     qb_live_conditional_placed_total,
     qb_live_conditional_plan_drop_evaluations_total,
@@ -69,7 +70,7 @@ from src.core.config import settings
 from src.market_data.constants import to_ccxt_perpetual_symbol
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
-from src.strategy.pine_v2.strategy_state import LedgerSeedLeg
+from src.strategy.pine_v2.strategy_state import LedgerConditionalFill, LedgerSeedLeg
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.alerting import send_rule_alert
 from src.trading.exceptions import (
@@ -438,23 +439,110 @@ if TYPE_CHECKING:  # ★런타임 import 는 함수 안에 둔다 (R2 — 이 �
 
 @dataclass(frozen=True, slots=True)
 class _LedgerShadow:
-    """슬라이스 1 계측 스냅샷 (BL-591 / ADR-022). **아무 동작도 바꾸지 않는다.**
+    """`run_live` **직전**에 원장·거래소를 한 번 뜬 스냅샷.
 
-    ★`run_live` **직전**에 캡처한다 — 슬라이스 2 의 주입 판정 지점과 **같은 자리**다.
-    다른 자리에서 재면 여기서 나온 계수가 슬라이스 2 에서 무의미해진다.
+    ★두 소비자가 있고 성격이 다르다 — 섞어 읽지 마라.
 
-    `exchange_qty is None` = 거래소 조회 실패(**모름**)이며 `Decimal("0")`(flat)과 다르다.
+    - `derived` / `exchange_qty` — BL-591 / ADR-022 슬라이스 1 **계측 전용**. 아무 동작도
+      바꾸지 않는다. `exchange_qty is None` = 거래소 조회 실패(**모름**)이며 `Decimal("0")`
+      (flat)과 다르다.
+    - `conditional_fills` — ADR-025 / BL-595 **집행**. `run_live` 의 조건부 진입 체결 권한이다.
+      ★`None` = 「원장을 못 읽었다」 → 그 tick 만 현행 시뮬로 되돌린다 ·
+      `()` = 「원장이 답했는데 조건부 체결이 없다」 → 엔진은 아무것도 체결하지 않는다.
     """
 
     derived: LedgerPosition
     exchange_qty: Decimal | None
+    conditional_fills: tuple[LedgerConditionalFill, ...] | None
 
 
-async def _capture_ledger_shadow(sess: Any, *, session: Any, account_repo: Any) -> _LedgerShadow:
-    """원장 유도 포지션 + 거래소 스냅샷을 **계측용으로만** 뜬다 (BL-591 슬라이스 1).
+def _conditional_fills_from_ledger(
+    fills: Sequence[Any], *, session_id: UUID, overflowed: bool
+) -> tuple[LedgerConditionalFill, ...] | None:
+    """원장 체결 행 → 조건부 진입 체결 증언 (ADR-025). 판정 불가면 `None`.
 
-    ★실패를 전부 흡수한다. 이 함수가 던지면 **계측이 발주를 막는 것**이 되고, 그것은
+    ★`None` 을 내는 조건은 **「원장을 온전히 못 봤다」 하나뿐**이다:
+
+    - `overflowed` — 창 안 체결이 상한(`LEDGER_FILL_SCAN_LIMIT`)을 넘었다. 부분 원장으로
+      「증언이 없다」를 말하면 **엔진이 있는 포지션을 잃는다.**
+    - 체결가/시각이 판독 불가 — 그 한 건만 버리면 그 진입이 조용히 사라진다.
+
+    반대로 **조건부 진입이 하나도 없는 것은 정상**이고 `()` 를 낸다. 그 둘을 접으면 판정
+    불가가 flat 으로 위장된다(`ledger_position.py` 가 같은 교훈을 적고 있다).
+
+    ★청산 키(`:close:`)와 시장가 진입 키(`:entry:`)는 **대상이 아니다.** 이 권한은 조건부
+    진입(`cond`/`condmkt`)의 `check_pending_fills` 경로에만 걸린다 — 시장가 경로는 엔진이
+    먼저 결정하고 거래소가 뒤따르므로 「두 주문」 문제가 없다.
+    """
+    from src.trading.services.conditional_entry_planner import (
+        CONDITIONAL_ENTRY_KINDS,
+        parse_live_entry_key,
+    )
+
+    if overflowed:
+        return None
+    witnessed: list[LedgerConditionalFill] = []
+    for fill in fills:
+        parsed = parse_live_entry_key(fill.idempotency_key)
+        if parsed is None or parsed.kind not in CONDITIONAL_ENTRY_KINDS:
+            continue
+        if parsed.session_id != session_id:
+            continue
+        if fill.filled_quantity is None or fill.filled_quantity == 0:
+            continue
+        if fill.filled_price is None or fill.filled_price <= 0:
+            return None
+        if _is_partial_conditional_fill(fill, parsed):
+            # ★부분 체결은 엔진의 leg 의미론으로 표현할 수 없다. 채택하면 반전에서 부호가
+            #   뒤집혀 **없던 direction 발산을 만들고**, 안 채택하면 그 사실이 조용히 사라진다.
+            #   둘 다 틀리므로 그 tick 전체를 판정 불가로 떨어뜨린다(= 종전 동작).
+            #   ★실측 0/137 이다(조건부 진입 체결 전량 all-or-nothing) — 지금은 사문이고,
+            #   그래서 fail-open 진동 위험도 지금은 0 이다.
+            return None
+        witnessed.append(
+            LedgerConditionalFill(
+                trade_id=parsed.trade_id,
+                filled_at=fill.filled_at,
+                fill_price=float(fill.filled_price),
+            )
+        )
+    return tuple(witnessed)
+
+
+def _is_partial_conditional_fill(fill: Any, parsed: Any) -> bool:
+    """원장 행이 **주문 수량의 일부만** 체결했는가. 판독 불가면 부분으로 본다(보수적).
+
+    주문 수량은 키에 실려 있다 — `live:<sess>:cond:<bar_epoch>:<트리거>:<수량>:<trade_id>`.
+    `Order.quantity` 컬럼을 안 보는 이유는 이 함수가 받는 것이 `LedgerFill` 이라 그 컬럼이
+    없기 때문이고, 키 쪽이 **발주 시점의 의도**라 비교 대상으로 더 정확하다.
+    """
+    raw = getattr(parsed, "quantity", None)
+    if raw is None:
+        return False  # 키 형식이 수량을 안 싣는다 = 비교할 기준이 없다. 전량으로 본다.
+    try:
+        ordered = Decimal(str(raw))
+    except (InvalidOperation, ValueError, TypeError):
+        return True
+    if ordered <= 0:
+        return True
+    return Decimal(str(fill.filled_quantity)) < ordered
+
+
+async def _capture_ledger_shadow(
+    sess: Any, *, session: Any, account_repo: Any, window_start: datetime | None = None
+) -> _LedgerShadow:
+    """원장 유도 포지션 + 거래소 스냅샷을 뜬다 (BL-591 슬라이스 1 계측 + ADR-025 집행).
+
+    ★계측 쪽 실패는 전부 흡수한다. 이 함수가 던지면 **계측이 발주를 막는 것**이 되고, 그것은
     이 레포가 H8 로 이름 붙여 온 결함(계측 실패가 집행을 뒤집는다)과 같은 형태다.
+
+    ★`window_start` 는 ADR-025 전용이며 **조회를 하나 더 쓴다.** 계측용 조회를 재사용할 수
+    없는 이유가 실측으로 확정됐다(codex challenge P1) — 그쪽은 `since=세션 생성`이고 상한이
+    `LEDGER_FILL_SCAN_LIMIT`(200)이라, **세션 체결이 200건을 넘는 순간 영구히 `overflow`**
+    가 된다. 실측 체결률 2.55건/h 이면 약 **78시간**이고, [BL-003] 이 요구하는 168h 누적을
+    한 세션으로 채우려 하면 정확히 그 지점을 밟는다 — 즉 보호가 **가장 오래 산 세션에서
+    먼저 꺼진다.** 재생 창(300봉)만 보면 상한이 구조적으로 안 걸린다.
+    `None` 이면 조건부 체결을 조회하지 않는다(호출부가 그 tick 을 시뮬로 되돌린다).
     """
     from src.trading.ledger_position import LedgerPosition as _LP
     from src.trading.ledger_position import derive_open_position
@@ -464,17 +552,27 @@ async def _capture_ledger_shadow(sess: Any, *, session: Any, account_repo: Any) 
         SessionScope,
     )
 
+    conditional_fills: tuple[LedgerConditionalFill, ...] | None = None
     try:
         # ★`since` 는 **세션 생성 시각**이다. 짧은 창으로 잡으면 앞쪽 진입을 못 봐서
         #   열린 포지션을 놓치고 flat 으로 오인한다. 절단은 `overflow` 로 판정 불가가 된다.
-        fills = await OrderRepository(session).list_fills_since(
-            SessionScope.from_live_session(sess), since=sess.created_at
-        )
+        repo = OrderRepository(session)
+        scope = SessionScope.from_live_session(sess)
+        fills = await repo.list_fills_since(scope, since=sess.created_at)
+        overflowed = len(fills) > LEDGER_FILL_SCAN_LIMIT
         derived = derive_open_position(
             fills[:LEDGER_FILL_SCAN_LIMIT],
             session_id=sess.id,
-            overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
+            overflowed=overflowed,
         )
+        # ADR-025 — 여기부터는 계측이 아니라 **집행**이다.
+        if window_start is not None:
+            window_fills = await repo.list_fills_since(scope, since=window_start)
+            conditional_fills = _conditional_fills_from_ledger(
+                window_fills[:LEDGER_FILL_SCAN_LIMIT],
+                session_id=sess.id,
+                overflowed=len(window_fills) > LEDGER_FILL_SCAN_LIMIT,
+            )
     except Exception:
         logger.warning(
             "live_signal_ledger_shadow_fetch_failed",
@@ -482,6 +580,10 @@ async def _capture_ledger_shadow(sess: Any, *, session: Any, account_repo: Any) 
             extra={"session_id": str(sess.id)},
         )
         derived = _LP(legs=None, outcome="fetch_failed")
+        # ★fail-open — 그 tick 만 현행 시뮬로 되돌린다. 재생은 무상태라 다음 tick 에 원장이
+        #   읽히면 자가 교정된다. 여기서 `()` 를 내면 「원장이 답했는데 체결이 없다」가 되어
+        #   엔진이 **있는 포지션을 통째로 잃는다.**
+        conditional_fills = None
 
     exchange_qty: Decimal | None = None
     try:
@@ -505,7 +607,9 @@ async def _capture_ledger_shadow(sess: Any, *, session: Any, account_repo: Any) 
             extra={"session_id": str(sess.id), "symbol": sess.symbol},
         )
 
-    return _LedgerShadow(derived=derived, exchange_qty=exchange_qty)
+    return _LedgerShadow(
+        derived=derived, exchange_qty=exchange_qty, conditional_fills=conditional_fills
+    )
 
 
 def _hold_bucket(ticks: int) -> str:
@@ -928,6 +1032,50 @@ def _prime_divergence_series() -> None:
 
 
 _prime_divergence_series()
+
+
+# ADR-025 — prometheus label 로 승격을 허용하는 outcome 집합. 이 밖은 `other` 로 접는다.
+# `ledger_unreadable_fallback` 은 엔진이 아니라 호출부가 직접 올린다(원장을 못 읽은 tick 은
+# 엔진이 돌기 **전**에 결정되므로 census 에 안 실린다).
+_FILL_OWNERSHIP_OUTCOMES = frozenset(
+    {
+        "agree",
+        "engine_only_suppressed",
+        "ledger_only_adopted",
+        "ledger_only_orphan",
+        "ledger_fill_out_of_window",
+        "ledger_unreadable_fallback",
+        "other",
+    }
+)
+
+
+def _count_ledger_fill_census(strategy_state_report: object) -> None:
+    """엔진이 남긴 「시뮬 vs 원장」 census 를 metric 으로 올린다 (ADR-025 / BL-595).
+
+    `_count_pending_order_skips` 와 **같은 자리·같은 이유**로 부른다 — 더 뒤에 두면 runtime
+    divergence / gap mismatch / position divergence 가 각자 조기 return 하므로 그 tick 들이
+    통째로 안 보인다. 그리고 사망 직전 tick 이 정확히 그런 tick 이다.
+
+    ★`pine_v2` 안에서 세지 않는 이유도 같다 — `event_loop.py` 는 백테스트·옵티마이저·
+    스트레스가 재실행하는 같은 엔진이라, 거기서 발화시키면 백테스트마다 라이브 metric 이 오른다.
+    ★모르는 키를 **버리지 않는다** — 조용히 무해 취급하는 경로를 만들지 않는다([BL-596] 이
+    게이트에서 바로 그 결함으로 등재돼 있다). 다만 **label 로 그대로 승격하지도 않는다**:
+    엔진이 새 키를 내거나 report 가 오염되면 prometheus series 가 무제한 늘어난다
+    (codex challenge P2). 둘 다 피하는 답은 **알려진 집합 + `other` 버킷**이다 —
+    `other` 가 오르는 것이 보이면 그때 이름을 알아내면 된다.
+    """
+    if not isinstance(strategy_state_report, dict):
+        return
+    census = strategy_state_report.get("ledger_fill_census")
+    if not isinstance(census, dict):
+        return
+    for outcome, count in census.items():
+        if not isinstance(count, int) or count <= 0:
+            continue
+        label = outcome if outcome in _FILL_OWNERSHIP_OUTCOMES else "other"
+        for _ in range(count):
+            _count_safely(qb_live_conditional_fill_ownership_total, outcome=label)
 
 
 def _count_pending_order_skips(strategy_state_report: object) -> None:
@@ -3188,8 +3336,17 @@ async def _evaluate_session_with_engine(
         #   판정·발주 경로는 무변경이고 늘어난 것은 조회 횟수뿐이다
         #   (`test_live_signal_instrument_parity` 가 2회를 단언해 증식을 막는다).
         ledger_shadow = await _capture_ledger_shadow(
-            sess, session=session, account_repo=account_repo
+            sess, session=session, account_repo=account_repo, window_start=window_start
         )
+        # ── ADR-025 / BL-595 — 조건부 진입 체결의 권한을 원장에 넘긴다 ──────────────
+        # ★위 `_capture_ledger_shadow` 와 달리 **이건 집행이다.** `None` 이면 인자 자체를
+        #   넘기지 않아 기존 호출과 byte-identical 이고, 그 tick 만 현행 시뮬로 돌아간다.
+        if ledger_shadow.conditional_fills is None:
+            _count_safely(
+                qb_live_conditional_fill_ownership_total, outcome="ledger_unreadable_fallback"
+            )
+        else:
+            run_live_kwargs["ledger_conditional_fills"] = ledger_shadow.conditional_fills
         result = await _run_live_or_deactivate(
             sess=sess,
             sess_repo=sess_repo,
@@ -3205,6 +3362,7 @@ async def _evaluate_session_with_engine(
         # return 세 곳(runtime divergence / gap mismatch / position divergence)에서
         # 통째로 유실된다.
         _count_pending_order_skips(result.strategy_state_report)
+        _count_ledger_fill_census(result.strategy_state_report)
 
         # 7.5 BL-362 — runtime divergence safety net (money-path fail-closed).
         # run_historical(strict=False) 가 PineRuntimeError 를 삼키고 계속 → state corruption

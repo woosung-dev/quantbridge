@@ -15,8 +15,9 @@ TradingView Pine Script 전략을 가져와 **백테스트 → 스트레스 테�
 _Avoid_: Algorithm, Script(원본 코드 문자열은 `pine_source` 로 한정)
 
 **pine_v2**:
-Pine Script 를 트랜스파일 없이 AST 를 bar-by-bar 해석·실행하는 자체 인터프리터이자 백테스트·라이브 신호의 단일 진실(SSOT).
-_Avoid_: transpiler, "vectorbt 엔진", Pine v1(철거됨, Sprint 59)
+Pine Script 를 트랜스파일 없이 AST 를 bar-by-bar 해석·실행하는 자체 인터프리터이자 백테스트·라이브 **신호**의 단일 진실(SSOT).
+★**신호이지 체결이 아니다.** 백테스트에는 거래소가 없으므로 시뮬이 곧 거래소이고 체결도 pine*v2 가 정한다. 라이브에는 진짜 매칭엔진이 있으므로 **조건부 진입 체결의 권한은 주문 원장에 있다** — 원장이 증언하지 않은 체결을 엔진이 만들지 않고, 증언하면 엔진의 봉·트리거 판정과 무관하게 체결한다([ADR-025](docs/decisions/025-conditional-fill-ownership.md) / [BL-595]). 그 결과 **라이브 재생은 「전략 + OHLCV」만으로 재현되지 않는다** — 원장이 입력에 들어간다. 백테스트 경로는 인자 기본값으로 byte-identical 이며 테스트가 그 경계를 집행한다.
+\_Avoid*: transpiler, "vectorbt 엔진", Pine v1(철거됨, Sprint 59)
 
 **Track**:
 pine_v2 가 스크립트 선언을 분류해 실행 경로를 정하는 라우팅 분류 — **S**(strategy 선언 → native `run_historical`) / **A**(indicator|library + alert → `run_virtual_strategy` 가상 래퍼) / **M**(indicator|library, alert 없음 → 지표 pass-through `run_historical`). `library` 선언도 indicator 와 동일하게 alert 유무로 A/M 분기(`ast_classifier._classify_track`).
@@ -142,3 +143,4 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 
 - **2026-06-30** — 초안 작성(verification loop Stage 0). `docs/reference/{domain-overview,entities,state-machines}.md` + ADR-003/011/013/018/020 + 코드(`trading/models.py`, `pine_v2/compat.py`) 교차 ground. Flagged ambiguities 6건 중 3건은 Phase 2 문서 정정으로 연계.
 - **2026-06-30** — codex consult gate 7건 보정(직접 코드 검증 후 반영) — Track A/M 에 `library` 포함 / Degraded Pine·allow_degraded_pine 신설 / LiveSignalSession Bybit-demo 한정 명시 / ExchangeName 신설 + registry SSOT / demo 의미 거래소별 상이 / Kill Switch 트리거별 scope / Provider 라우팅 튜플 relationship.
+- **2026-08-05** — **pine_v2 정의 정밀화**([ADR-025] / [BL-595]). 「백테스트·라이브 신호의 단일 진실」은 **신호**에 대한 진술이고, 라이브의 **조건부 진입 체결** 권한은 주문 원장으로 옮겼다. 좁힌 것이 아니라 원래 그 문장이 뜻하던 경계를 코드와 맞춘 것이다 — 그동안 코드가 라이브에서도 체결을 정하고 있었고, 그것이 `position_divergence` 사망 5건의 뿌리였다. 대가는 **라이브 재현성**(원장이 재생 입력에 들어간다).

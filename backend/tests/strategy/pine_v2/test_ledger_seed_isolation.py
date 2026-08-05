@@ -33,8 +33,15 @@ _SYMBOL = "ledger_seed_legs"
 # 이 인자를 알아도 되는 파일. **늘리려면 근거를 여기 적어라.**
 #   event_loop.py — 인자를 정의하고 주입점(`:192`)을 갖는 곳.
 #   live_signal.py — 라이브 tick 에서만 채우는 유일한 호출자.
+#   track_runner.py — ★**가드**다(ADR-025, 2026-08-05 추가). 전달하지 않고 **거부한다.**
+#     그 파일의 `invoke(**kwargs)` 가 `run_historical` 로 splat 하므로, 백테스트 상류가 이
+#     인자를 넘기면 **어느 파일도 이름을 적지 않고** 엔진에 닿는다 — 이 문자열 검사만으로는
+#     구조적으로 못 막는다. 거부 동작은
+#     `test_conditional_fill_authority_isolation.py::test_backtest_dispatcher_rejects_live_only_kwargs`
+#     가 집행한다.
 _ALLOWED = {
     "strategy/pine_v2/event_loop.py",
+    "strategy/pine_v2/track_runner.py",
     "tasks/live_signal.py",
 }
 

@@ -845,6 +845,29 @@ qb_live_ledger_hold_resolved_total = Counter(
     labelnames=("bucket",),
 )
 
+# ADR-025 / BL-595 — 라이브 조건부 진입 체결의 **권한이 원장으로 넘어간 뒤**, 「엔진 시뮬이
+# 하려던 것」과 「원장이 실제로 증언한 것」이 얼마나 갈리는가. 매 tick 재생 전체에 대해 센다.
+#
+#   outcome: agree                    — 시뮬도 체결했을 자리에서 원장도 체결했다.
+#            engine_only_suppressed   — ★시뮬은 체결했을 텐데 원장에 없다 = [BL-595] **형 A 차단**.
+#                                       수리 전이라면 여기서 유령 포지션이 생겨 세션이 죽었다.
+#            ledger_only_adopted      — ★원장은 체결했는데 시뮬은 아직이다 = **형 B 차단**.
+#                                       엔진이 못 본 봉에서 거래소가 체결한 경우가 여기다.
+#            ledger_only_orphan       — 원장 체결의 `trade_id` 에 해당하는 pending 이 엔진에 없다.
+#                                       **아무 동작도 하지 않는다**(ADR-025 R4) — 발생률만 잰다.
+#            ledger_unreadable_fallback — 원장을 못 읽어 그 tick 만 **현행 시뮬로 되돌렸다**.
+#                                       ★조용히 되돌리면 "고쳤는데 왜 또 죽나" 를 못 푼다.
+#
+# ★`engine_only_suppressed` + `ledger_only_adopted` 는 이 수리의 **양성 대조**다. 둘 다 0 이면
+#   "고쳤다" 가 아니라 "그 경로를 안 밟았다" 이고, 그렇게 적어야 한다.
+# ★`agree` 대비 나머지의 비율이 **백테스트 낙관 편의의 첫 실측치**이기도 하다 — 지금은 아무도
+#   그 값을 모른다(Trust Layer 는 우리 자신의 얼린 출력과 대조할 뿐 외부 오라클이 없다).
+qb_live_conditional_fill_ownership_total = Counter(
+    "qb_live_conditional_fill_ownership_total",
+    "Live conditional entry fills: engine simulation vs order-ledger testimony (ADR-025)",
+    labelnames=("outcome",),
+)
+
 # Redis 실시간 팬아웃 발행 실패. user/event ID는 label로 사용하지 않는다.
 qb_rt_publish_failed_total = Counter(
     "qb_rt_publish_failed_total",
