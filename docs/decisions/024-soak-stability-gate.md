@@ -85,7 +85,7 @@ n=19). 무해 갈래를 사망 조건에 넣으면 게이트가 영영 안 닫�
 문장이 없다 — §판별식 2차 교체.
 
 ★**`phantom` 의 정의는 2026-08-05 에 **두 번** 교체됐다** — 「봉경계식」 → 「재무장 도장식」
-→ **「직접 회복 검사」**(현행, `PREDICATE_VERSION = 2026-08-05-recovery`).
+→ **「직접 회복 검사」**(현행, `PREDICATE_VERSION = 2026-08-05-recovery-ratchet`).
 근거·표·오차 방향은 §판별식 2차 교체 참조. 판정 코드는 게이트가 아니라
 [`classify_direction_divergence.py`](../../backend/scripts/classify_direction_divergence.py)
 에 있고, 게이트는 그 산출물(`verdicts[].label`)만 읽는다.
@@ -123,7 +123,7 @@ n=19). 무해 갈래를 사망 조건에 넣으면 게이트가 영영 안 닫�
 ## 판별식 2차 교체 — 재무장 도장식 → **직접 회복 검사** (2026-08-05 live-replay-visibility)
 
 > ★아래 §1차 교체 블록은 **지우지 않는다.** 무엇이 바뀌었는지 보이려면 옛 값이 있어야 한다.
-> 현행 판 = `PREDICATE_VERSION = "2026-08-05-recovery"`.
+> 현행 판 = `PREDICATE_VERSION = "2026-08-05-recovery-ratchet"` (§래칫 참조).
 
 ### 왜 또 바꾸나 — 재무장 도장은 **회복을 확인하지 않는다**
 
