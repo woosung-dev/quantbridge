@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -86,6 +86,31 @@ def _event(oracle: Any, at: datetime, *, session_id: UUID = SESSION_A) -> Any:
     )
 
 
+def _adjudicate(
+    oracle: Any,
+    events: list[Any],
+    sessions: dict[UUID, dict[str, Any]],
+    orders: list[dict[str, Any]],
+    *,
+    corpus_end: datetime | None = None,
+) -> list[Any]:
+    """`corpus_end` 기본값 = **마지막 관측 시각** = 로그가 거기서 끝났다.
+
+    ★기본값이 「끝났다」인 것은 의도다. 그러면 회복식이 판정 불가가 되어 종전 식으로
+    내려가므로, 아래 legacy 경계 테스트들이 **재무장식·봉경계식을 그대로** 검사한다.
+    회복식 자체를 검사하는 테스트는 `corpus_end` 를 **명시**한다 — 그게 그 테스트가
+    무엇을 보는지 드러내는 유일한 방법이다.
+    """
+    return list(
+        oracle.adjudicate(
+            events,
+            sessions,
+            orders,
+            corpus_end=corpus_end if corpus_end is not None else max(e.at for e in events),
+        )
+    )
+
+
 # --- floor_to_interval ---------------------------------------------------------
 
 
@@ -110,7 +135,9 @@ def test_fill_inside_the_forming_bar_is_replay_lag(oracle: Any) -> None:
     at = datetime(2026, 8, 4, 4, 17, 8, 667000, tzinfo=UTC)
     fill_at = datetime(2026, 8, 4, 4, 17, 8, 79000, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate([_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)])
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)]
+    )
 
     assert verdict.label == "replay_lag"
     assert verdict.gap_seconds == pytest.approx(0.588, abs=0.001)
@@ -121,7 +148,9 @@ def test_fill_before_the_horizon_is_phantom(oracle: Any) -> None:
     at = datetime(2026, 8, 3, 15, 53, 34, 291000, tzinfo=UTC)
     fill_at = datetime(2026, 8, 3, 15, 38, 24, 625000, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate([_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)])
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)]
+    )
 
     assert verdict.label == "phantom"
 
@@ -138,7 +167,9 @@ def test_fill_exactly_at_the_horizon_is_replay_lag(oracle: Any) -> None:
     at = datetime(2026, 8, 3, 23, 17, 21, 979000, tzinfo=UTC)
     horizon = datetime(2026, 8, 3, 23, 17, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate([_event(oracle, at)], {SESSION_A: _session()}, [_fill(horizon)])
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session()}, [_fill(horizon)]
+    )
 
     assert verdict.horizon == horizon
     assert verdict.label == "replay_lag"
@@ -149,7 +180,9 @@ def test_one_microsecond_before_the_horizon_is_phantom(oracle: Any) -> None:
     at = datetime(2026, 8, 3, 23, 17, 21, 979000, tzinfo=UTC)
     fill_at = datetime(2026, 8, 3, 23, 16, 59, 999999, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate([_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)])
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)]
+    )
 
     assert verdict.label == "phantom"
 
@@ -163,7 +196,9 @@ def test_bar_boundary_and_time_threshold_disagree_below_the_horizon(oracle: Any)
     at = datetime(2026, 8, 3, 10, 12, 36, tzinfo=UTC)
     fill_at = datetime(2026, 8, 3, 10, 11, 50, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate([_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)])
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)]
+    )
 
     assert verdict.gap_seconds == pytest.approx(46.0)
     assert verdict.label == "phantom"
@@ -182,8 +217,8 @@ def test_operator_flatten_without_idempotency_key_is_unattributed(oracle: Any) -
     at = datetime(2026, 8, 4, 1, 40, tzinfo=UTC)
     fill_at = datetime(2026, 8, 4, 1, 39, 14, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate(
-        [_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at, session_id=None)]
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at, session_id=None)]
     )
 
     assert verdict.label == "unattributed"
@@ -195,7 +230,8 @@ def test_another_sessions_fill_is_not_attributed(oracle: Any) -> None:
     at = datetime(2026, 8, 4, 4, 17, 8, 667000, tzinfo=UTC)
     fill_at = datetime(2026, 8, 4, 4, 17, 8, 79000, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate(
+    (verdict,) = _adjudicate(
+        oracle,
         [_event(oracle, at)],
         {SESSION_A: _session()},
         [_fill(fill_at, session_id=SESSION_B)],
@@ -208,7 +244,8 @@ def test_fill_on_another_symbol_is_not_attributed(oracle: Any) -> None:
     at = datetime(2026, 8, 4, 4, 17, 8, 667000, tzinfo=UTC)
     fill_at = datetime(2026, 8, 4, 4, 17, 8, 79000, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate(
+    (verdict,) = _adjudicate(
+        oracle,
         [_event(oracle, at)],
         {SESSION_A: _session()},
         [_fill(fill_at, symbol="ETH/USDT")],
@@ -221,7 +258,8 @@ def test_fill_after_the_observation_is_ignored(oracle: Any) -> None:
     """관측 뒤에 난 체결로 과거를 판정하지 않는다."""
     at = datetime(2026, 8, 4, 4, 17, 8, tzinfo=UTC)
 
-    (verdict,) = oracle.adjudicate(
+    (verdict,) = _adjudicate(
+        oracle,
         [_event(oracle, at)],
         {SESSION_A: _session()},
         [_fill(datetime(2026, 8, 4, 4, 17, 30, tzinfo=UTC))],
@@ -236,7 +274,7 @@ def test_latest_fill_wins_regardless_of_input_order(oracle: Any) -> None:
     early = _fill(datetime(2026, 8, 4, 3, 54, 44, tzinfo=UTC))  # horizon 아래 → phantom
     late = _fill(datetime(2026, 8, 4, 4, 17, 8, 79000, tzinfo=UTC))  # 봉 안 → replay_lag
 
-    (verdict,) = oracle.adjudicate([_event(oracle, at)], {SESSION_A: _session()}, [late, early])
+    (verdict,) = _adjudicate(oracle, [_event(oracle, at)], {SESSION_A: _session()}, [late, early])
 
     assert verdict.last_fill_at == late["filled_at"]
     assert verdict.label == "replay_lag"
@@ -250,11 +288,11 @@ def test_horizon_follows_the_session_interval(oracle: Any) -> None:
     at = datetime(2026, 8, 4, 4, 17, 8, tzinfo=UTC)
     fill_at = datetime(2026, 8, 4, 4, 16, tzinfo=UTC)
 
-    (one_minute,) = oracle.adjudicate(
-        [_event(oracle, at)], {SESSION_A: _session(interval="1m")}, [_fill(fill_at)]
+    (one_minute,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session(interval="1m")}, [_fill(fill_at)]
     )
-    (five_minute,) = oracle.adjudicate(
-        [_event(oracle, at)], {SESSION_A: _session(interval="5m")}, [_fill(fill_at)]
+    (five_minute,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session(interval="5m")}, [_fill(fill_at)]
     )
 
     assert one_minute.label == "phantom"  # horizon 04:17 > 04:16
@@ -271,7 +309,8 @@ def test_death_is_attributed_only_to_the_observation_at_the_deactivation(oracle:
     sess = _session(deactivated_at=second, deactivated_reason="position_divergence")
     fill_at = datetime(2026, 8, 3, 15, 38, 24, 625000, tzinfo=UTC)
 
-    verdicts = oracle.adjudicate(
+    verdicts = _adjudicate(
+        oracle,
         [_event(oracle, first), _event(oracle, second)],
         {SESSION_A: sess},
         [_fill(fill_at)],
@@ -285,17 +324,22 @@ def test_death_is_attributed_only_to_the_observation_at_the_deactivation(oracle:
 
 
 def test_a_replay_lag_that_died_breaks_the_correlation(oracle: Any) -> None:
-    """★음성 대조 — 무해 판정이 사망과 겹치면 판별식을 기각해야 한다.
+    """★음성 대조 — **독립 라벨**이 무해인데 사망과 겹치면 판별식을 기각해야 한다.
 
     이 단언이 없으면 `death_correlation_holds` 가 언제나 참인 동어반복일 수 있다.
+
+    ★단언 대상이 `label` 이 아니라 `independent_label` 인 이유 — 회복식은 이 상황
+    (후속 관측 없음 + 90초 안에 자동 사망)을 **`phantom` 으로 잡는다.** 그게 교체의 요점이다.
+    독립 검사는 원장 기반 라벨로 재야 하므로 여기도 그 라벨을 본다.
     """
     at = datetime(2026, 8, 4, 4, 17, 8, 667000, tzinfo=UTC)
     sess = _session(deactivated_at=at, deactivated_reason="position_divergence")
     fill_at = datetime(2026, 8, 4, 4, 17, 8, 79000, tzinfo=UTC)
 
-    verdicts = oracle.adjudicate([_event(oracle, at)], {SESSION_A: sess}, [_fill(fill_at)])
+    verdicts = _adjudicate(oracle, [_event(oracle, at)], {SESSION_A: sess}, [_fill(fill_at)])
 
-    assert verdicts[0].label == "replay_lag"
+    assert verdicts[0].independent_label == "replay_lag"
+    assert verdicts[0].recovery_label == "phantom"  # ★회복식은 이걸 잡는다
     assert verdicts[0].died_here is True
     assert oracle.summarize(verdicts).death_correlation_holds is False
 
@@ -304,7 +348,7 @@ def test_unknown_session_raises_instead_of_silently_dropping(oracle: Any) -> Non
     """분모가 말없이 줄어드는 것을 막는다."""
     at = datetime(2026, 8, 4, 4, 17, 8, tzinfo=UTC)
     with pytest.raises(ValueError):
-        oracle.adjudicate([_event(oracle, at)], {}, [])
+        _adjudicate(oracle, [_event(oracle, at)], {}, [])
 
 
 # --- 로그 파싱 -----------------------------------------------------------------
@@ -662,8 +706,8 @@ def _stream_phantom() -> list[dict[str, Any]]:
 
 def test_agreement_after_the_last_fill_is_phantom(oracle: Any) -> None:
     """`H > F` — 체결 뒤 재무장을 끝냈는데도 어긋나 있다 ⇒ 조정 주기를 넘겼다."""
-    (verdict,) = oracle.adjudicate(
-        [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, _stream_phantom()
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, _stream_phantom()
     )
 
     assert verdict.last_rearm_at == _at("2026-08-04 18:49:14")
@@ -674,8 +718,8 @@ def test_agreement_after_the_last_fill_is_phantom(oracle: Any) -> None:
 
 def test_a_fill_after_the_last_agreement_is_replay_lag(oracle: Any) -> None:
     """`F >= H` — 마지막 재무장 뒤에 거래소가 움직였다 ⇒ 아직 판정할 때가 아니다."""
-    (verdict,) = oracle.adjudicate(
-        [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, _stream_replay_lag()
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, _stream_replay_lag()
     )
 
     assert verdict.last_rearm_at == _at("2026-08-04 18:38:17")
@@ -689,7 +733,9 @@ def test_without_any_heartbeat_it_falls_back_to_the_horizon_predicate(oracle: An
     at = _at("2026-08-03 15:53:34.291")
     fill_at = _at("2026-08-03 15:38:24.625")
 
-    (verdict,) = oracle.adjudicate([_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)])
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session()}, [_fill(fill_at)]
+    )
 
     assert verdict.last_rearm_at is None
     assert verdict.rearm_label is None
@@ -707,7 +753,9 @@ def test_another_sessions_reversal_is_not_a_heartbeat(oracle: Any) -> None:
     orders = _stream_phantom()
     orders[-1] = {**orders[-1], "idempotency_key": f"live:{SESSION_B}:cond:x"}
 
-    (verdict,) = oracle.adjudicate([_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, orders)
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, orders
+    )
 
     assert verdict.last_rearm_at == _at("2026-08-04 18:38:17")
     assert verdict.label == "replay_lag"
@@ -717,7 +765,9 @@ def test_another_symbols_reversal_is_not_a_heartbeat(oracle: Any) -> None:
     orders = _stream_phantom()
     orders[-1] = {**orders[-1], "symbol": "ETH/USDT"}
 
-    (verdict,) = oracle.adjudicate([_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, orders)
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, orders
+    )
 
     assert verdict.last_rearm_at == _at("2026-08-04 18:38:17")
     assert verdict.label == "replay_lag"
@@ -727,7 +777,9 @@ def test_a_reversal_created_after_the_observation_is_ignored(oracle: Any) -> Non
     """관측 뒤에 찍힌 도장으로 과거를 판정하지 않는다."""
     at = _at("2026-08-04 18:45:00")  # `18:49:14` 도장보다 앞선다
 
-    (verdict,) = oracle.adjudicate([_event(oracle, at)], {SESSION_A: _session()}, _stream_phantom())
+    (verdict,) = _adjudicate(
+        oracle, [_event(oracle, at)], {SESSION_A: _session()}, _stream_phantom()
+    )
 
     assert verdict.last_rearm_at == _at("2026-08-04 18:38:17")
     assert verdict.label == "replay_lag"
@@ -737,9 +789,9 @@ def test_heartbeats_do_not_depend_on_input_order(oracle: Any) -> None:
     """★정렬을 암묵 계약으로 두지 않는다 (`candidates[-1]` 결함의 재무장판 회귀)."""
     forward = _stream_phantom()
 
-    (a,) = oracle.adjudicate([_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, forward)
-    (b,) = oracle.adjudicate(
-        [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, list(reversed(forward))
+    (a,) = _adjudicate(oracle, [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, forward)
+    (b,) = _adjudicate(
+        oracle, [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, list(reversed(forward))
     )
 
     assert a.last_rearm_at == b.last_rearm_at == _at("2026-08-04 18:49:14")
@@ -767,10 +819,277 @@ def test_the_label_does_not_depend_on_the_position_magnitudes(oracle: Any) -> No
         exchange=-0.029,
     )
 
-    (base,) = oracle.adjudicate([_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, orders)
-    (other,) = oracle.adjudicate([flipped], {SESSION_A: _session()}, orders)
+    (base,) = _adjudicate(oracle, [_event(oracle, _OBSERVED_AT)], {SESSION_A: _session()}, orders)
+    (other,) = _adjudicate(oracle, [flipped], {SESSION_A: _session()}, orders)
 
     assert base.label == other.label == "phantom"
+
+
+# ==============================================================================
+# ★현행 판별식 — 직접 회복 검사 (2026-08-05 2차 교체)
+# ==============================================================================
+#
+# 이 식은 원장을 아예 안 본다. 「같은 스트림의 다음 관측이 바로 다음 평가인가」 하나다.
+# 그래서 여기서 고정할 것도 셋뿐이다 — **경계**(1.5·I) · **꼬리 처리**(사망/절단) ·
+# **스트림 격리**(남의 관측을 빌리지 않는다).
+
+_RECOVERY_AT = _at("2026-08-04 16:24:01.674")
+
+
+def _recovery(
+    oracle: Any,
+    offsets_seconds: list[float],
+    *,
+    corpus_end_offset: float | None = None,
+    interval: str = "1m",
+    deactivated_at: datetime | None = None,
+    deactivated_reason: str | None = None,
+) -> list[Any]:
+    """`_RECOVERY_AT` 기준 상대 초로 관측을 만들고 재판정한다.
+
+    체결은 하나만 두고 `created_at` 을 주지 않는다 ⇒ 도장이 없어 재무장식은 판정하지
+    않는다. 그래야 **회복식이 채택됐는지**가 라벨에 그대로 드러난다.
+
+    `corpus_end_offset` 기본값 = **마지막 관측** — 로그가 거기서 끝났다는 뜻이고,
+    그러면 각 스트림의 마지막 관측은 판정 불가가 된다(그게 실제 창의 모습이다).
+    """
+    if corpus_end_offset is None:
+        corpus_end_offset = max(offsets_seconds)
+    events = [_event(oracle, _RECOVERY_AT + timedelta(seconds=off)) for off in offsets_seconds]
+    return _adjudicate(
+        oracle,
+        events,
+        {
+            SESSION_A: _session(
+                interval=interval,
+                deactivated_at=deactivated_at,
+                deactivated_reason=deactivated_reason,
+            )
+        },
+        [_fill(_RECOVERY_AT - timedelta(seconds=1))],
+        corpus_end=_RECOVERY_AT + timedelta(seconds=corpus_end_offset),
+    )
+
+
+def test_the_next_tick_still_diverging_is_phantom(oracle: Any) -> None:
+    """실측 `39731d57` `16:24 → 16:25` (간격 60.02초) — 안 나았다.
+
+    ★이 관측이 교체의 이유다. 재무장식은 여기에 `replay_lag` 을 붙였고, 60초 뒤 세션이
+    죽었다. 회복식은 원장을 안 보고 **다음 평가에도 어긋나 있었다**만으로 잡는다.
+    """
+    first, second = _recovery(oracle, [0.0, 60.02])
+
+    assert first.recovery_label == "phantom"
+    assert first.rearm_label is None  # 도장이 없다 — 재무장식은 판정 못 한다
+    assert first.label == "phantom"  # ⇒ 채택된 것은 회복식이다
+    assert first.next_gap_seconds == pytest.approx(60.02)
+    # 두 번째는 로그의 마지막 줄이라 후속자를 아직 못 봤다 ⇒ 판정 불가(§절단 약점).
+    assert second.recovery_label is None
+
+
+def test_a_later_observation_is_a_new_episode_not_a_continuation(oracle: Any) -> None:
+    """실측 `cc19abd2` `17:26 → 17:29` (180.2초) — 그 사이 두 평가가 나았다."""
+    (first, _) = _recovery(oracle, [0.0, 180.2], corpus_end_offset=600.0)
+
+    assert first.recovery_label == "replay_lag"
+
+
+def test_the_next_tick_boundary_is_inclusive_at_one_and_a_half_bars(oracle: Any) -> None:
+    """`gap == 1.5·I` 는 **유령** 쪽이다(`<=` 이 포함) — 경계를 못박는다.
+
+    실측 분리는 60초 vs 180초로 넓지만, 부등호가 뒤집히면 tick 지연이 큰 창에서
+    유령이 조용히 무해로 바뀐다. 방향이 fail-open 이라 여기서 고정한다.
+    """
+    (exactly,) = _recovery(oracle, [0.0, 90.0])[:1]
+    (just_past,) = _recovery(oracle, [0.0, 90.000001], corpus_end_offset=600.0)[:1]
+
+    assert exactly.recovery_label == "phantom"
+    assert just_past.recovery_label == "replay_lag"
+
+
+def test_the_next_tick_horizon_follows_the_session_interval(oracle: Any) -> None:
+    """문턱은 고정 초가 아니라 **그 세션의 봉 간격**을 따른다."""
+    (one_minute,) = _recovery(oracle, [0.0, 120.0], corpus_end_offset=900.0)[:1]
+    (five_minute,) = _recovery(oracle, [0.0, 120.0], corpus_end_offset=900.0, interval="5m")[:1]
+
+    assert one_minute.recovery_label == "replay_lag"  # 120 > 1.5 × 60
+    assert five_minute.recovery_label == "phantom"  # 120 <= 1.5 × 300
+
+
+def test_a_skipped_tick_gap_lands_in_the_ambiguous_band(oracle: Any) -> None:
+    """★경고 눈금의 **판별력 증명** — 「애매대 0건」이 뜻을 가지려면 채워질 수 있어야 한다.
+
+    tick 이 한 번 빠지면(`probe_failed`) 다음 발산은 `2·I` 뒤에 온다. 회복식은 그것을
+    `replay_lag` 이라 부르고(**fail-open 잔여**), `ambiguous_gap_band` 가 그 사실을 센다.
+    이 테스트가 없으면 실측의 `0건` 은 「그런 일이 없다」가 아니라 「못 센다」일 수 있다.
+    """
+    verdicts = _recovery(oracle, [0.0, 120.0], corpus_end_offset=900.0)
+    summary = oracle.summarize(verdicts)
+
+    assert verdicts[0].recovery_label == "replay_lag"
+    assert summary.ambiguous_gap_band == 1
+    assert summary.min_replay_lag_gap == pytest.approx(120.0)
+
+
+def test_an_automatic_death_right_after_the_observation_is_phantom(oracle: Any) -> None:
+    """후속 관측이 없는 이유가 **자동 사망**이면 나은 게 아니다 — 죽어서 끊긴 것이다."""
+    (verdict,) = _recovery(
+        oracle,
+        [0.0],
+        deactivated_at=_RECOVERY_AT + timedelta(seconds=0.001),
+        deactivated_reason="position_divergence",
+    )
+
+    assert verdict.recovery_label == "phantom"
+    assert verdict.died_here is True
+
+
+def test_a_user_stopped_tail_is_not_called_phantom(oracle: Any) -> None:
+    """★우리가 껐으면 회복할 기회를 우리가 뺏은 것이다 — 유령으로 접지 않는다.
+
+    실측 `4bf679af` / `bbea6da4` 가 `user_stopped` 다. 이걸 유령으로 세면 **운영자가
+    소크를 멈출 때마다 게이트가 실격**되고, 그건 판별식이 아니라 운영 행위를 재는 것이다.
+    """
+    (verdict,) = _recovery(
+        oracle,
+        [0.0],
+        deactivated_at=_RECOVERY_AT + timedelta(seconds=1),
+        deactivated_reason="user_stopped",
+    )
+
+    assert verdict.recovery_label is None
+
+
+def test_an_unknown_deactivation_reason_is_not_called_phantom(oracle: Any) -> None:
+    """★사유 NULL 은 실재한다 — 25세션 중 12세션([ADR-024] 창 정의 ①). 추측하지 않는다."""
+    (verdict,) = _recovery(
+        oracle, [0.0], deactivated_at=_RECOVERY_AT + timedelta(seconds=1), deactivated_reason=None
+    )
+
+    assert verdict.recovery_label is None
+
+
+def test_watching_long_enough_without_a_recurrence_is_replay_lag(oracle: Any) -> None:
+    """후속 관측이 없고 창이 충분히 길면 **나은 것**이다 — 그게 대다수 관측의 경로다."""
+    (verdict,) = _recovery(oracle, [0.0], corpus_end_offset=600.0)
+
+    assert verdict.recovery_label == "replay_lag"
+
+
+def test_a_truncated_log_is_undecidable_and_falls_back_to_the_rearm_predicate(
+    oracle: Any,
+) -> None:
+    """★이 식의 약점 — 창의 마지막 관측은 후속자가 아직 없다.
+
+    「없다」를 「나았다」로 접으면 fail-open 이므로 **판정하지 않고** 종전 식으로 내려간다.
+    여기서는 도장이 있으므로 재무장식이 받는다.
+    """
+    (verdict,) = _adjudicate(
+        oracle,
+        [_event(oracle, _OBSERVED_AT)],
+        {SESSION_A: _session()},
+        _stream_phantom(),
+        corpus_end=_OBSERVED_AT,  # 로그가 딱 여기서 끝났다
+    )
+
+    assert verdict.recovery_label is None
+    assert verdict.rearm_label == "phantom"
+    assert verdict.label == "phantom"
+    assert oracle.summarize([verdict]).recovery_undecided == 1
+
+
+def test_the_fallback_chain_reaches_the_horizon_predicate_when_no_stamp_exists(
+    oracle: Any,
+) -> None:
+    """강하는 두 단이다 — 회복식 → 재무장식 → 봉경계식. 마지막 단까지 내려가는 경로."""
+    (verdict,) = _recovery(oracle, [0.0])
+
+    assert verdict.recovery_label is None
+    assert verdict.rearm_label is None
+    assert verdict.label == verdict.horizon_label
+
+
+def test_the_recovery_label_does_not_borrow_another_sessions_observation(oracle: Any) -> None:
+    """다른 세션이 60초 뒤에 어긋났다고 이 세션이 안 나은 것은 아니다."""
+    events = [
+        _event(oracle, _RECOVERY_AT),
+        _event(oracle, _RECOVERY_AT + timedelta(seconds=60), session_id=SESSION_B),
+    ]
+    verdicts = _adjudicate(
+        oracle,
+        events,
+        {SESSION_A: _session(), SESSION_B: _session()},
+        [_fill(_RECOVERY_AT - timedelta(seconds=1))],
+        corpus_end=_RECOVERY_AT + timedelta(seconds=600),
+    )
+
+    assert verdicts[0].recovery_label == "replay_lag"
+    assert verdicts[0].next_observation_at is None
+
+
+def test_the_recovery_label_does_not_borrow_another_symbols_observation(oracle: Any) -> None:
+    """스트림은 (세션, 심볼) 이다 — 한 세션이 두 심볼을 들면 서로의 후속자가 아니다."""
+    other = oracle.DivergenceEvent(
+        at=_RECOVERY_AT + timedelta(seconds=60),
+        session_id=SESSION_A,
+        symbol="ETH/USDT",
+        category="direction",
+        engine=-0.0298,
+        exchange=0.029,
+    )
+    verdicts = _adjudicate(
+        oracle,
+        [_event(oracle, _RECOVERY_AT), other],
+        {SESSION_A: _session()},
+        [_fill(_RECOVERY_AT - timedelta(seconds=1))],
+        corpus_end=_RECOVERY_AT + timedelta(seconds=600),
+    )
+
+    assert verdicts[0].recovery_label == "replay_lag"
+
+
+def test_the_recovery_label_is_independent_of_input_order(oracle: Any) -> None:
+    """★정렬은 호출자의 사정이다 — 뒤섞여 오면 후속자가 조용히 바뀐다.
+
+    같은 함정을 최신 체결(`max` vs `[-1]`)에서 이미 한 번 밟았다.
+    """
+    forward = _recovery(oracle, [0.0, 60.0, 600.0], corpus_end_offset=1200.0)
+    shuffled = _recovery(oracle, [600.0, 0.0, 60.0], corpus_end_offset=1200.0)
+
+    assert [v.recovery_label for v in forward] == ["phantom", "replay_lag", "replay_lag"]
+    assert {v.event.at: v.recovery_label for v in shuffled} == {
+        v.event.at: v.recovery_label for v in forward
+    }
+
+
+def test_adjudicate_refuses_to_guess_the_corpus_end(oracle: Any) -> None:
+    """★`corpus_end` 에 기본값을 주지 않는다.
+
+    기본값을 「지금」으로 두면 **로그 절단이 회복으로 오독**되고, 그 방향은 게이트에서
+    fail-open 이다. 호출자가 무엇을 봤는지 말하게 강제한다.
+    """
+    with pytest.raises(TypeError):
+        oracle.adjudicate([_event(oracle, _RECOVERY_AT)], {SESSION_A: _session()}, [])
+
+
+# --- 코퍼스 지평 파싱 -----------------------------------------------------------
+
+
+def test_log_horizon_reads_every_line_not_just_divergences(oracle: Any) -> None:
+    """★발산 줄만 보면 창의 끝을 모른다 — 그게 「나았다」와 「아직 못 봄」을 가른다."""
+    lines = [
+        "[2026-08-05 05:01:50,825: WARNING/ForkPoolWorker-1] live_signal_position_divergence "
+        "session_id=aaaaaaaa-0000-4000-8000-000000000001 symbol=BTC/USDT category=direction "
+        "engine_position=-0.0298 exchange_position=0.029",
+        "[2026-08-05 05:59:12,001: INFO/MainProcess] Task live_signal.evaluate_all succeeded",
+    ]
+
+    assert oracle.parse_log_horizon(lines) == _at("2026-08-05 05:59:12.001")
+
+
+def test_log_horizon_is_none_when_nothing_carries_a_timestamp(oracle: Any) -> None:
+    """지평을 못 읽으면 `None` 이다 — 호출자가 마지막 관측으로 떨어뜨린다(판정 불가 증가)."""
+    assert oracle.parse_log_horizon(['  File "x.py", line 1, in <module>', "    raise"]) is None
 
 
 # ==============================================================================
@@ -1319,28 +1638,40 @@ _GOLDEN_ORDERS: list[tuple[str, str, str, str, str, str]] = [
     ),
 ]
 
-# (관측시각, 세션 접두사, 재무장식 라벨, 봉경계식 라벨, 사망)
-_GOLDEN_VERDICTS: list[tuple[str, str, str, str, bool]] = [
-    ("2026-08-03 10:12:36.166", "04097fdc", "replay_lag", "replay_lag", False),
-    ("2026-08-03 10:57:34.121", "04097fdc", "phantom", "phantom", False),
-    ("2026-08-03 10:58:34.218", "04097fdc", "phantom", "phantom", True),
-    ("2026-08-03 14:20:34.160", "a201a47b", "replay_lag", "replay_lag", False),
-    ("2026-08-03 14:55:34.300", "a201a47b", "replay_lag", "replay_lag", False),
-    ("2026-08-03 15:12:34.326", "a201a47b", "replay_lag", "replay_lag", False),
-    ("2026-08-03 15:38:34.166", "a201a47b", "replay_lag", "replay_lag", False),
-    ("2026-08-03 15:53:34.291", "a201a47b", "phantom", "phantom", False),
-    ("2026-08-03 15:54:34.409", "a201a47b", "phantom", "phantom", True),
-    ("2026-08-03 23:17:21.979", "4bf679af", "replay_lag", "replay_lag", False),
-    ("2026-08-04 04:17:08.667", "bbea6da4", "replay_lag", "replay_lag", False),
-    ("2026-08-04 16:24:01.674", "39731d57", "replay_lag", "replay_lag", False),
-    ("2026-08-04 16:25:01.694", "39731d57", "phantom", "phantom", True),
+# ★코퍼스 지평 = 창 B 워커 로그의 끝(`2026-08-05T01:21`, 교체 시점).
+#
+# 회복식은 「다음 관측이 없다」를 **회복**과 **아직 못 봄**으로 갈라야 하고, 그 경계가
+# 이 값이다. 빼면 각 세션의 마지막 관측이 전부 판정 불가가 되어 이 표가 회복식을 아예
+# 검사하지 못한다. ★코퍼스가 자라도 **이 값을 미래로 밀지 마라** — 그러면 교체 시점의
+# n=19 를 동결한다는 이 표의 계약이 깨진다([ADR-024] §아카이브 판).
+_GOLDEN_CORPUS_END = "2026-08-05 01:21:00.000"
+
+# (관측시각, 세션 접두사, 회복식 라벨, 재무장식 라벨, 봉경계식 라벨, 사망)
+_GOLDEN_VERDICTS: list[tuple[str, str, str, str, str, bool]] = [
+    ("2026-08-03 10:12:36.166", "04097fdc", "replay_lag", "replay_lag", "replay_lag", False),
+    ("2026-08-03 10:57:34.121", "04097fdc", "phantom", "phantom", "phantom", False),
+    ("2026-08-03 10:58:34.218", "04097fdc", "phantom", "phantom", "phantom", True),
+    ("2026-08-03 14:20:34.160", "a201a47b", "replay_lag", "replay_lag", "replay_lag", False),
+    ("2026-08-03 14:55:34.300", "a201a47b", "replay_lag", "replay_lag", "replay_lag", False),
+    ("2026-08-03 15:12:34.326", "a201a47b", "replay_lag", "replay_lag", "replay_lag", False),
+    ("2026-08-03 15:38:34.166", "a201a47b", "replay_lag", "replay_lag", "replay_lag", False),
+    ("2026-08-03 15:53:34.291", "a201a47b", "phantom", "phantom", "phantom", False),
+    ("2026-08-03 15:54:34.409", "a201a47b", "phantom", "phantom", "phantom", True),
+    ("2026-08-03 23:17:21.979", "4bf679af", "replay_lag", "replay_lag", "replay_lag", False),
+    ("2026-08-04 04:17:08.667", "bbea6da4", "replay_lag", "replay_lag", "replay_lag", False),
+    # ★★회복식이 뒤집은 **유일한 1건** — 재무장식은 「무해」라 했지만 **60.02초 뒤 사망의
+    #   첫 짝**이다. 직전 회차가 「`replay_lag` 12/12 생존은 과장이었다」고 스스로 정정한
+    #   바로 그 관측이고, 회복식은 그것을 처음부터 `phantom` 으로 판정한다.
+    ("2026-08-04 16:24:01.674", "39731d57", "phantom", "replay_lag", "replay_lag", False),
+    ("2026-08-04 16:25:01.694", "39731d57", "phantom", "phantom", "phantom", True),
     # ★재무장식이 뒤집은 4건 — 전부 `cc19abd2`, 전부 자가치유했고 전부 사망과 무관하다.
-    ("2026-08-04 17:26:01.788", "cc19abd2", "replay_lag", "phantom", False),
-    ("2026-08-04 17:29:01.989", "cc19abd2", "replay_lag", "phantom", False),
-    ("2026-08-04 17:50:01.750", "cc19abd2", "replay_lag", "phantom", False),
-    ("2026-08-04 18:07:01.829", "cc19abd2", "replay_lag", "phantom", False),
-    ("2026-08-04 18:50:01.926", "cc19abd2", "phantom", "phantom", False),
-    ("2026-08-04 18:51:01.769", "cc19abd2", "phantom", "phantom", True),
+    #   회복식도 같은 답을 낸다(간격 180~2580초 = 그 사이 나았다).
+    ("2026-08-04 17:26:01.788", "cc19abd2", "replay_lag", "replay_lag", "phantom", False),
+    ("2026-08-04 17:29:01.989", "cc19abd2", "replay_lag", "replay_lag", "phantom", False),
+    ("2026-08-04 17:50:01.750", "cc19abd2", "replay_lag", "replay_lag", "phantom", False),
+    ("2026-08-04 18:07:01.829", "cc19abd2", "replay_lag", "replay_lag", "phantom", False),
+    ("2026-08-04 18:50:01.926", "cc19abd2", "phantom", "phantom", "phantom", False),
+    ("2026-08-04 18:51:01.769", "cc19abd2", "phantom", "phantom", "phantom", True),
 ]
 
 
@@ -1376,33 +1707,68 @@ def golden(oracle: Any) -> list[Any]:
             engine=-0.0298,
             exchange=0.029,
         )
-        for at, prefix, _, _, _ in _GOLDEN_VERDICTS
+        for at, prefix, _, _, _, _ in _GOLDEN_VERDICTS
     ]
-    return list(oracle.adjudicate(events, sessions, orders))
+    return _adjudicate(oracle, events, sessions, orders, corpus_end=_at(_GOLDEN_CORPUS_END))
 
 
 def test_golden_every_observation_keeps_its_label(golden: list[Any]) -> None:
-    """실측 19건 전량 — 재무장식 라벨과 봉경계식 라벨을 **행 단위로** 동결한다."""
-    actual = [(v.event.at, v.label, v.horizon_label, v.died_here) for v in golden]
-    expected = [(_at(at), label, horizon, died) for at, _, label, horizon, died in _GOLDEN_VERDICTS]
+    """실측 19건 전량 — 식 **세 벌 전부**를 행 단위로 동결한다.
+
+    ★채택 라벨만 얼리면 「어느 식이 언제 갈리는지」가 사라진다. 2026-08-05 의 두 교체가
+    각각 4건·1건을 뒤집었고, 그 차이가 교체를 정당화하는 유일한 증거였다.
+    """
+    actual = [
+        (v.event.at, v.label, v.recovery_label, v.rearm_label, v.horizon_label, v.died_here)
+        for v in golden
+    ]
+    expected = [
+        (_at(at), recovery, recovery, rearm, horizon, died)
+        for at, _, recovery, rearm, horizon, died in _GOLDEN_VERDICTS
+    ]
     assert actual == expected
 
 
 def test_golden_totals(oracle: Any, golden: list[Any]) -> None:
-    """총계 — 교체가 `phantom` 11 → 7 로 줄인다. 늘리지 않는다."""
+    """총계 — 회복식이 `phantom` 을 **7 → 8 로 늘린다**. 줄이지 않는다.
+
+    ★방향이 중요하다. 게이트의 위험 축은 fail-**open** 이므로(phantom 이 줄면 `window_start`
+    가 앞당겨져 누적이 는다) **줄이는 교체가 위험한 교체**다. 이 단언이 반대로 뒤집히면
+    「게이트를 통과시키기 쉽게」 바꾼 것이다.
+    """
     summary = oracle.summarize(golden)
 
     assert len(golden) == 19
-    assert summary.counts == {"phantom": 7, "replay_lag": 12}
+    assert summary.counts == {"phantom": 8, "replay_lag": 11}
+    assert summary.rearm_counts == {"phantom": 7, "replay_lag": 12}
     assert summary.horizon_counts == {"phantom": 11, "replay_lag": 8}
+    assert summary.recovery_overrides == 1
+    assert summary.recovery_undecided == 0
     assert summary.rearm_overrides == 4
     assert summary.rearm_undecided == 0
 
 
-def test_golden_death_correlation_is_preserved(oracle: Any, golden: list[Any]) -> None:
-    """★유일한 독립 검사 — 사망 4/4 가 phantom, 무해 12/12 가 생존.
+def test_golden_recovery_phantoms_strictly_contain_the_rearm_phantoms(golden: list[Any]) -> None:
+    """★★교체가 「엄격해지는 방향」임을 **집합 연산으로** 못박는다.
 
-    교체가 이걸 깨뜨렸다면 그건 「게이트를 통과시키기 쉽게」 바꾼 것이다.
+    총계가 7→8 이라는 것만으로는 부족하다 — 어떤 관측을 빼고 둘을 새로 넣어도 8이 된다.
+    회복식의 `phantom` 집합이 재무장식의 것을 **완전히 포함**해야 「아무것도 사면(赦免)하지
+    않았다」가 참이다. 이게 red 면 교체가 어딘가를 관대하게 만든 것이다.
+    """
+    recovery = {v.event.at for v in golden if v.recovery_label == "phantom"}
+    rearm = {v.event.at for v in golden if v.rearm_label == "phantom"}
+
+    assert rearm < recovery, f"재무장식만 phantom 인 관측이 남았다: {sorted(rearm - recovery)}"
+    assert len(recovery - rearm) == 1
+
+
+def test_golden_death_correlation_is_preserved(oracle: Any, golden: list[Any]) -> None:
+    """★독립 검사 — 사망 4/4 가 phantom, 무해 12/12 가 생존.
+
+    ★★**이 검사는 채택 라벨이 아니라 `rearm_label` 로 잰다.** 회복식의 phantom 은
+    「다음 tick 도 어긋났다」이고 프로덕션 킬은 「연속 2회 판정된 tick」이라 거의 같은
+    신호다 — 그걸로 사망 상관을 재면 동어반복이 된다. 재무장식은 **원장**에서, 사망은
+    **tick 연속성**에서 오므로 그 둘만이 서로 독립이다.
     """
     summary = oracle.summarize(golden)
 
@@ -1413,14 +1779,48 @@ def test_golden_death_correlation_is_preserved(oracle: Any, golden: list[Any]) -
     assert summary.death_correlation_holds
 
 
-def test_golden_window_a_is_out_of_sample_and_unchanged(oracle: Any, golden: list[Any]) -> None:
-    """★재무장 규칙은 창 B(08-04 15:51~) 8건에서 유도했다.
+def test_golden_adopted_label_no_longer_calls_a_dying_tick_harmless(
+    oracle: Any, golden: list[Any]
+) -> None:
+    """★채택 라벨 기준으로는 `replay_lag 11/11` 이 **정정 없이** 참이다.
 
-    그 앞 창 A 의 **11건에서는 두 식이 11/11 일치**한다 — out-of-sample 이다.
+    재무장식에서는 `16:24:01` 이 `replay_lag` 인데 60초 뒤 세션이 죽어, 직전 회차가
+    「12/12 생존은 과장이었다」를 문서로 정정해야 했다. 회복식은 그 관측을 처음부터
+    `phantom` 으로 잡으므로 **정정할 문장이 생기지 않는다.**
+    """
+    summary = oracle.summarize(golden)
+
+    assert summary.adopted_replay_lag_total == 11
+    assert summary.adopted_replay_lag_survived == 11
+    assert summary.adopted_deaths_labelled_phantom == 4
+    assert summary.adopted_death_correlation_holds
+
+
+def test_golden_threshold_separation_stays_wide(oracle: Any, golden: list[Any]) -> None:
+    """★`1.5 · I` 문턱의 감사 눈금 — 실측 분리가 좁아지면 여기서 먼저 red 가 난다.
+
+    phantom 최대 간격 60.12초 vs replay_lag 최소 간격 180.20초 = **3배**. 문턱 90초는
+    양쪽 어디에도 붙어 있지 않다. `ambiguous_gap_band`(tick 한 번 건너뜀 구간)가 0 인 것이
+    「이 문턱이 아직 아무것도 자르지 않는다」의 증거다.
+    """
+    summary = oracle.summarize(golden)
+
+    assert summary.max_phantom_gap == pytest.approx(60.12, abs=0.01)
+    assert summary.min_replay_lag_gap == pytest.approx(180.20, abs=0.01)
+    assert summary.ambiguous_gap_band == 0
+
+
+def test_golden_window_a_is_out_of_sample_and_unchanged(oracle: Any, golden: list[Any]) -> None:
+    """★두 새 규칙 모두 창 B(08-04 15:51~) 8건에서 유도했다.
+
+    그 앞 창 A 의 **11건에서는 세 식이 11/11 일치**한다 — out-of-sample 이다.
     이 단언이 red 가 되면 「유도한 창에만 맞는 규칙」이라는 뜻이다.
     """
     window_a = [v for v in golden if v.event.at < _at("2026-08-04 15:51:00")]
 
     assert len(window_a) == 11
     assert all(v.label == v.horizon_label for v in window_a)
-    assert oracle.summarize(window_a).rearm_overrides == 0
+    assert all(v.recovery_label == v.horizon_label for v in window_a)
+    summary = oracle.summarize(window_a)
+    assert summary.rearm_overrides == 0
+    assert summary.recovery_overrides == 0

@@ -230,6 +230,44 @@ def test_phantom_is_a_disqualification_but_replay_lag_is_not(gate: Any) -> None:
     assert fatal.verdict == "FAIL"
 
 
+def test_a_later_archive_relabelling_the_same_observation_disqualifies_it(gate: Any) -> None:
+    """★★판별식의 **절단 약점**이 왜 ≤1 표본 주기만 노출되는지를 산문이 아니라 여기서 못박는다.
+
+    회복식(`classify_direction_divergence.py`)은 「같은 스트림의 다음 관측이 바로 다음
+    tick 인가」로 판정하므로, **창의 마지막 관측은 후속자가 아직 없어 판정 불가**이고 종전
+    식으로 내려간다. 그 순간 라벨이 `replay_lag` 이면 그 실행에서는 실격이 안 잡힌다.
+
+    그런데 `soak-gate.sh` 는 매 실행이 워커 로그를 **통째로** 재분류하고, 게이트는 **모든**
+    `.soak/phantom-*.json` 의 verdict 를 **합집합**으로 모은다. 그래서 다음 실행이 같은 `at`
+    을 `phantom` 으로 다시 매기면 `window_start` 가 **소급 정정**된다 — 노출은 표본 주기
+    (30분) 이하다.
+
+    ★이 성질이 없으면 절단 약점은 영구 fail-open 이다. 그러니 산문으로 두지 않는다.
+    """
+    older = {"at": "2026-08-04T11:00:00+00:00", "label": "replay_lag", "session_id": "x"}
+    newer = {"at": "2026-08-04T11:00:00+00:00", "label": "phantom", "session_id": "x"}
+
+    # 앞 실행만 있으면 무해로 읽힌다 — 그게 절단 순간의 모습이다.
+    assert gate.evaluate(_payload(phantom_observations=[older])).verdict == "PASS"
+
+    # 뒤 실행이 같은 관측을 다시 매기면 합집합이 실격을 되찾는다.
+    healed = gate.evaluate(_payload(phantom_observations=[older, newer]))
+    assert healed.verdict == "FAIL"
+    assert healed.conditions["C3_violations"] == ["2026-08-04T11:00:00+00:00 phantom x phantom"]
+
+
+def test_the_union_never_retracts_a_phantom_once_archived(gate: Any) -> None:
+    """★음성 대조 — 방향은 **한쪽뿐**이다. 뒤 실행이 무해로 바꿔도 실격은 안 사라진다.
+
+    이게 「옛 아카이브를 `.soak/superseded-<판>/` 로 **옮겨야** 개선이 게이트에 반영된다」
+    ([ADR-024] §아카이브 판)의 코드 쪽 근거다. 판별식을 고치는 것만으로는 취소되지 않는다.
+    """
+    phantom = {"at": "2026-08-04T11:00:00+00:00", "label": "phantom", "session_id": "x"}
+    retraction = {"at": "2026-08-04T11:00:00+00:00", "label": "replay_lag", "session_id": "x"}
+
+    assert gate.evaluate(_payload(phantom_observations=[phantom, retraction])).verdict == "FAIL"
+
+
 @pytest.mark.parametrize(
     "key",
     ["db_ok", "stack_pinned"],
