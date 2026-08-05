@@ -45,10 +45,20 @@
 > **소수점까지 동일**. **스팟만 27~36 USDT** 떨어져 있고 체결 조건을 **4/4 불만족**
 > ([BL-530] 수리 유지). ⇒ **가격 소스도 1분 타이밍도 원인이 아니다.**
 >
-> **게이트(커밋 후 실측):** `soak-gate.sh` **FAIL 실격** — C3 **3건** · 누적 **0h / 168h** ·
-> C4·C5 ✓. BE **4073 passed / 45 skipped** · ruff 0 · mypy 0 (216) · bl-audit active **156** /
-> 252 · docs-audit clean. **`backend/src` 0줄** · 마이그레이션 0 · FE 0.
+> **게이트(커밋 후 실측):** `scripts/final-gates.sh` **전건 통과(exit 0)** —
+> BE ruff/mypy · BL 감사 · 문서 감사 · **BE pytest 4078 passed / 45 skipped**(baseline 4052 +
+> 신규 26) · e2e design-canon + authed **69 passed** · CI 커버리지 **93.17%** · fresh DB alembic ·
+> frozen-lockfile · hooks grep · screen/codex/g9 signal. FE 게이트는 diff 0 이라 skip.
+> `soak-gate.sh` = **FAIL 실격** — C3 **3건** · 누적 **0h / 168h** · C4·C5 ✓.
+> **`backend/src` 0줄** · 마이그레이션 0 · FE 0.
+> ★**첫 final-gates 실행의 「커버리지 FAIL」은 거짓 red 였다** — 내가 돌아가는 중에 트리를
+> 고쳤다(이 레포가 두 번 밟았다고 적어둔 함정). 조용한 트리에서 재실행하니 통과했고
+> 커버리지는 처음부터 93.17% 였다.
 > 회고 = [dev-log](dev-log/2026-08-05-divergence-rejudgement.md).
+>
+> **★회차 끝 소크 상태** — 세션 `a16aa640` **생존 중**(T0 `00:34:22Z`, 약 3시간).
+> 그 사이 발산 **5건**이 났고 **전부 `replay_lag`**(두 판별식 모두), 세션은 안 죽었다.
+> ⇒ 코퍼스 **24건**. 고정 커밋 `f5f06886` 불변 · 재고정 안 함.
 >
 > ---
 >
