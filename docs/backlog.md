@@ -6996,6 +6996,10 @@ if str(obs.get("label", "")) == "phantom":
 
 - ①② 는 위 「상태」 참조. ②(모르는 라벨 케이스)를 **먼저** 넣어 red 를 확인하고 수리했다 —
   수리 전 `unattributed`/어휘 밖 라벨 둘 다 **`PASS`** 였다(실측).
+- ★**출처를 같이 낸다** (codex 적대 리뷰 P1). 라벨 이름만으로는 「frozenset 등재」와 「구판
+  아카이브 이동」 중 무엇을 해야 할지 못 고른다. `soak-gate.sh` 가 합병 때 각 관측에
+  `archive`/`predicate_version` 을 붙이고(기존 키 불변), 판정기가 `detail.divergence_labels
+.sources` 로 라벨별 총계 + 표본(상한 5건)을 낸다. 요약 줄에도 첫 출처 하나가 붙는다.
 - ③ **`unattributed` 를 게이트에서 「알려진-그러나-판정불가」로 명시했다** — 「그 밖」에
   맡기지 않았다. 근거: 두 갈래는 **조치가 다르다**. 어휘 밖 = 분류기가 게이트보다 앞서
   갔다는 뜻이라 사람이 **frozenset 을 갱신**해야 하고, `unattributed` = 세션에 귀속되지

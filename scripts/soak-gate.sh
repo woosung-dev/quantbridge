@@ -323,6 +323,11 @@ for p in sorted(state.glob("phantom-*.json")):
         versions.add(blob.get("predicate_version"))
     for v in blob.get("verdicts", []):
         if v.get("at"):
+            # ★출처를 붙인다 ([BL-596]) — 판독 불가 라벨이 게이트를 `측정불가` 로 세울 때
+            #   운영자가 「frozenset 등재」와 「구판 아카이브 이동」 중 무엇을 해야 하는지는
+            #   **어느 파일의 어느 판이었나**로만 갈린다. 기존 키는 안 건드리고 필드만 더한다.
+            v.setdefault("archive", p.name)
+            v.setdefault("predicate_version", blob.get("predicate_version"))
             phantoms.append(v)
 
 # ★★아카이브들이 **현행이 아닌 판별식**으로 매긴 라벨을 들고 있으면 알려야 한다.

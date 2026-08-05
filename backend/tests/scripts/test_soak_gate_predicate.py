@@ -317,10 +317,9 @@ def test_unattributed_stops_the_clock_instead_of_passing(gate: Any) -> None:
     assert verdict.verdict == "UNKNOWN"
     assert verdict.reason_word == "측정불가"
     assert verdict.conditions["C5"]["divergence_labels_readable"] is False
-    assert verdict.detail["divergence_labels"] == {
-        "undecidable": ["unattributed"],
-        "unknown": [],
-    }
+    buckets = verdict.detail["divergence_labels"]
+    assert buckets["undecidable"] == ["unattributed"]
+    assert buckets["unknown"] == []
 
 
 def test_an_observation_without_a_label_is_not_readable_either(gate: Any) -> None:
@@ -337,6 +336,62 @@ def test_an_observation_without_a_label_is_not_readable_either(gate: Any) -> Non
     )
     assert verdict.verdict == "UNKNOWN"
     assert verdict.detail["divergence_labels"]["unknown"] == [""]
+
+
+def test_the_report_names_where_an_unreadable_label_came_from(gate: Any) -> None:
+    """★라벨 이름만으로는 **조치를 고를 수 없다** — 출처가 같이 나와야 한다 (codex P1).
+
+    「frozenset 에 등재한다」와 「구판 아카이브를 `.soak/superseded-<판>/` 로 옮긴다」는 서로
+    다른 조치인데, 게이트 출력이 라벨 이름만 주면 운영자가 둘을 가를 수 없다. 그래서
+    `scripts/soak-gate.sh` 가 합병 때 `archive`/`predicate_version` 을 붙이고 판정기는 그것을
+    **라벨별로** 되돌려준다. ★같은 관측이 매 실행 재분류로 수백 건 불어나므로 표본은 상한을
+    두고 총계를 따로 낸다.
+    """
+    observations = [
+        {
+            "at": f"2026-08-04T11:0{i}:00+00:00",
+            "label": "totally_new_label",
+            "session_id": "39731d57-f3ec-45c4-b4e1-db304c72692e",
+            "archive": f"phantom-2026080{i}T000000Z.json",
+            "predicate_version": "2026-08-01-legacy-horizon",
+        }
+        for i in range(7)
+    ]
+    verdict = gate.evaluate(
+        _payload(phantom_observations=observations, since="2026-08-04T09:00:00+00:00")
+    )
+    entry = verdict.detail["divergence_labels"]["sources"]["totally_new_label"]
+
+    # 총계는 전량, 표본은 상한까지만
+    assert entry["count"] == 7
+    assert len(entry["samples"]) == gate.MAX_UNREADABLE_LABEL_SAMPLES
+    assert entry["samples"][0] == {
+        "archive": "phantom-20260800T000000Z.json",
+        "predicate_version": "2026-08-01-legacy-horizon",
+        "at": "2026-08-04T11:00:00+00:00",
+        "session": "39731d57",
+    }
+    # 요약 줄만 보는 실행(`--json` 아님)에서도 첫 출처가 보인다
+    assert "phantom-20260800T000000Z.json" in verdict.summary
+    assert "총 7건" in verdict.summary
+
+
+def test_a_source_less_observation_still_reports_what_it_has(gate: Any) -> None:
+    """출처 필드가 없는 payload(손으로 만든 것 · 옛 아카이브)도 판정은 그대로 간다.
+
+    없는 필드는 **빼고** 낸다 — `archive=None` 같은 항목을 보고에 실으면 「출처가 있는데
+    비었다」로 읽힌다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            phantom_observations=[{"at": "2026-08-04T11:00:00+00:00", "label": "unattributed"}],
+            since="2026-08-04T09:00:00+00:00",
+        )
+    )
+    assert verdict.verdict == "UNKNOWN"
+    assert verdict.detail["divergence_labels"]["sources"]["unattributed"]["samples"] == [
+        {"at": "2026-08-04T11:00:00+00:00"}
+    ]
 
 
 def test_an_unreadable_label_never_downgrades_a_disqualification(gate: Any) -> None:
@@ -391,7 +446,11 @@ def test_known_labels_only_is_judged_exactly_as_before(
     assert verdict.verdict == expected_verdict
     assert verdict.conditions["C1_cumulative_hours"] == pytest.approx(expected_hours)
     assert verdict.conditions["C5"]["divergence_labels_readable"] is True
-    assert verdict.detail["divergence_labels"] == {"undecidable": [], "unknown": []}
+    assert verdict.detail["divergence_labels"] == {
+        "undecidable": [],
+        "unknown": [],
+        "sources": {},
+    }
 
 
 @pytest.mark.parametrize(

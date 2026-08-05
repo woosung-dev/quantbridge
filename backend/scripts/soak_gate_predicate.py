@@ -68,6 +68,9 @@ UNDECIDABLE_DIVERGENCE_LABELS: frozenset[str] = frozenset({"unattributed"})
 KNOWN_DIVERGENCE_LABELS: frozenset[str] = (
     HARMLESS_DIVERGENCE_LABELS | DISQUALIFYING_DIVERGENCE_LABELS | UNDECIDABLE_DIVERGENCE_LABELS
 )
+# 판독 불가 라벨의 출처를 라벨당 몇 건까지 보고하나. 총계는 `count` 로 따로 낸다 —
+# 아카이브가 매 실행마다 로그 전량을 재분류하므로 같은 관측이 수백 건으로 불어난다.
+MAX_UNREADABLE_LABEL_SAMPLES = 5
 
 # 유도 계측이 「판정 불가」로 떨어지는 outcome 들. 보고 전용 — 문턱 없음.
 # 정본은 `backend/src/common/metrics.py:802-811`.
@@ -360,8 +363,15 @@ def sample_gaps(
     return gaps
 
 
-def unreadable_labels(observations: list[dict[str, Any]]) -> dict[str, list[str]]:
+def unreadable_labels(observations: list[dict[str, Any]]) -> dict[str, Any]:
     """무해(`replay_lag`)도 실격(`phantom`)도 아닌 라벨을 두 갈래로 갈라 돌려준다 ([BL-596]).
+
+    ★**라벨 이름만으로는 조치를 못 고른다** — 어휘 밖 라벨이면 frozenset 을 갱신해야 하고,
+    구판 아카이브가 남긴 것이면 `.soak/superseded-<판>/` 로 옮겨야 하는데 **둘 다 라벨은
+    똑같이 「모르는 것」으로 보인다.** 그래서 `sources` 에 **어느 아카이브 · 어느 판 · 언제 ·
+    어느 세션**을 같이 낸다(`scripts/soak-gate.sh` 가 합병 때 붙인다). 없는 필드는 뺀다 —
+    손으로 만든 payload 나 옛 아카이브에는 출처가 없을 수 있다.
+    ★폭주 방지: 라벨당 표본 `MAX_UNREADABLE_LABEL_SAMPLES` 건 + `count` 로 총계.
 
     ★**창으로 좁히지 않는다 — 코퍼스 전량을 본다.** 판독 못 하는 라벨의 위험은 「지금 창
     안에서 FAIL 을 놓친다」만이 아니다. `window_start` 는 **전 이력의 마지막 실격 시각**이고
@@ -374,11 +384,43 @@ def unreadable_labels(observations: list[dict[str, Any]]) -> dict[str, list[str]
       해소 경로는 둘 다 이미 있다: 위 frozenset 에 라벨을 제 갈래로 등재하거나, 옛 판의
       아카이브를 `.soak/superseded-<판>/` 로 옮긴다([ADR-024] §아카이브 판).
     """
-    seen = {str(obs.get("label", "")) for obs in observations}
+    sources: dict[str, dict[str, Any]] = {}
+    for obs in observations:
+        label = str(obs.get("label", ""))
+        if label in HARMLESS_DIVERGENCE_LABELS or label in DISQUALIFYING_DIVERGENCE_LABELS:
+            continue
+        entry = sources.setdefault(label, {"count": 0, "samples": []})
+        entry["count"] += 1
+        if len(entry["samples"]) < MAX_UNREADABLE_LABEL_SAMPLES:
+            sample = {
+                "archive": obs.get("archive"),
+                "predicate_version": obs.get("predicate_version"),
+                "at": obs.get("at"),
+                "session": str(obs.get("session_id", ""))[:8] or None,
+            }
+            entry["samples"].append({k: v for k, v in sample.items() if v})
+    seen = set(sources)
     return {
         "undecidable": sorted(seen & UNDECIDABLE_DIVERGENCE_LABELS),
         "unknown": sorted(seen - KNOWN_DIVERGENCE_LABELS),
+        "sources": {label: sources[label] for label in sorted(sources)},
     }
+
+
+def first_source_note(buckets: dict[str, Any]) -> str:
+    """요약 줄에 붙일 **첫 출처 한 건**. 나머지는 `detail.divergence_labels` 에 있다."""
+    for label in buckets["undecidable"] + buckets["unknown"]:
+        entry = buckets["sources"].get(label, {})
+        samples = entry.get("samples") or []
+        if not samples:
+            continue
+        first = samples[0]
+        where = " ".join(
+            str(first[k]) for k in ("archive", "predicate_version", "at", "session") if first.get(k)
+        )
+        tail = f", 총 {entry['count']}건" if entry.get("count", 0) > 1 else ""
+        return f" 첫 출처: {where}{tail}"
+    return ""
 
 
 # ---------------------------------------------------------------- 판정
@@ -511,7 +553,11 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         "stack_pinned": bool(payload.get("stack_pinned", False)),
         "phantom_archive": bool(log_coverage),
         "darkness_computed": darkness is not None,
-        "divergence_labels_readable": not any(label_buckets.values()),
+        # ★두 라벨 목록만 본다 — `any(values())` 로 쓰면 `sources` 같은 보고용 항이 늘 때
+        #   판정이 조용히 따라 움직인다.
+        "divergence_labels_readable": not (
+            label_buckets["undecidable"] or label_buckets["unknown"]
+        ),
     }
 
     # ── C4 표본 공백 (귀속 창 안에서만, **세션별로** 묻는다) ────────────────
@@ -565,8 +611,13 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         missing = [k for k, v in integrity.items() if not v]
         # 라벨은 키 이름만으로 알 수 없다 — 어느 라벨인지가 곧 다음 조치다(위 frozenset 등재 vs 사람 조사).
         # `label` 키 자체가 없는 옛 아카이브는 `""` 로 읽힌다 — 빈 낱말로 찍지 않는다.
-        offending = [lab or "(라벨 없음)" for bucket in label_buckets.values() for lab in bucket]
-        suffix = f" (판독 불가 라벨: {', '.join(offending)})" if offending else ""
+        unreadable = label_buckets["undecidable"] + label_buckets["unknown"]
+        offending = [lab or "(라벨 없음)" for lab in unreadable]
+        suffix = (
+            f" (판독 불가 라벨: {', '.join(offending)}.{first_source_note(label_buckets)})"
+            if offending
+            else ""
+        )
         return Verdict(
             "UNKNOWN",
             "측정불가",

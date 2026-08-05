@@ -7,7 +7,7 @@
 > **코드:** [`backend/scripts/soak_gate_predicate.py`](../../backend/scripts/soak_gate_predicate.py) (순수 함수) ·
 > [`scripts/soak-gate.sh`](../../scripts/soak-gate.sh) (수집·판정 CLI) ·
 > [`scripts/soak-stack.sh`](../../scripts/soak-stack.sh) (커밋 고정) ·
-> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **31테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 + [BL-596] 라벨 어휘 7건 추가) ·
+> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **33테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 + [BL-596] 라벨 어휘·출처 9건 추가) ·
 > [`backend/tests/scripts/test_classify_direction_divergence.py`](../../backend/tests/scripts/test_classify_direction_divergence.py) (판별식 동결 **66테스트**)
 
 ---
@@ -93,6 +93,9 @@ n=19). 무해 갈래를 사망 조건에 넣으면 게이트가 영영 안 닫�
 「유령이었다」로 바꾸는 반대 방향의 거짓말이다. ★판정 순서상 **FAIL 이 C5 보다 먼저**라 어휘
 검사가 진짜 실격을 UNKNOWN 으로 덮지 못한다(래칫). ★어휘가 갈리면 게이트는 그 아카이브가
 정리될 때까지 UNKNOWN 에 머문다 — 해소는 frozenset 등재 또는 §아카이브 판의 판 이동이다.
+★★**둘 중 무엇인지는 라벨 이름이 아니라 출처가 답한다** — `soak-gate.sh` 가 합병 때 관측마다
+`archive`/`predicate_version` 을 붙이고, 판정은 `detail.divergence_labels.sources` 로 라벨별
+총계 + 표본(상한 5건)을 낸다. 요약 줄에도 첫 출처가 실린다.
 
 ★**`phantom` 의 정의는 2026-08-05 에 **두 번** 교체됐다** — 「봉경계식」 → 「재무장 도장식」
 → **「직접 회복 검사」**(현행, `PREDICATE_VERSION = 2026-08-05-recovery-ratchet`).
