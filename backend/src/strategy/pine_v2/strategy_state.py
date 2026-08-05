@@ -252,9 +252,21 @@ class ConditionalFillAuthority:
     # 창 시작보다 앞서 관측돼 어느 봉에도 못 얹은 체결 수. 「거래소에는 있는데 엔진이
     # 표현할 수 없는 포지션」의 개수이며, 조용히 버리지 않으려고 세어 둔다.
     dropped_before_window: int = 0
+    # ★census 를 셀 봉. `None` 이면 **모든 봉**에서 센다(단위 테스트용).
+    #
+    # ★★왜 필요한가 — 프로덕션 실측으로 확정된 것이다. 모든 봉에서 세면 매 tick 300봉
+    # warmup 을 **다시** 세어 카운터가 tick 당 **정확히 +121** 로 자란다(2026-08-05 소크
+    # 실측). 그러면 「이 tick 의 판정에서 [BL-595] 순간이 일어났나」를 그 값으로 물을 수
+    # 없다 — 사건과 무관하게 항상 크다. 사전등록 관측량이 **판별력 0** 이 되는 것이다.
+    # ⇒ 이 tick 이 **실제로 판정하는 봉**(마지막 봉)에서만 센다.
+    # ★한계: 더 앞선 봉에 얹힌 원장 체결은 **적용되지만 계상되지 않는다**(행위는 그대로).
+    census_bar: int | None = None
 
     def for_bar(self, bar: int) -> tuple[LedgerConditionalFill, ...]:
         return self.by_bar.get(bar, ())
+
+    def counts_census(self, bar: int) -> bool:
+        return self.census_bar is None or bar == self.census_bar
 
 
 @dataclass
@@ -899,13 +911,17 @@ class StrategyState:
         """
         witnessed = authority.for_bar(bar)
         witnessed_ids = {fill.trade_id for fill in witnessed}
+        # ★계상은 이 tick 이 **실제로 판정하는 봉**에서만 한다. 모든 봉에서 세면 warmup 300봉을
+        #   매 tick 다시 세어 카운터가 사건과 무관하게 자란다(실측 tick 당 +121).
+        count = authority.counts_census(bar)
 
         # ① 시뮬은 체결했을 텐데 원장이 증언하지 않는다 = 유령 차단 (BL-595 형 A).
-        for order_id, order in self.pending_orders.items():
-            if order_id in witnessed_ids:
-                continue
-            if order.try_fill(bar, high, low, open_) is not None:
-                self._bump_ledger_census("engine_only_suppressed")
+        if count:
+            for order_id, order in self.pending_orders.items():
+                if order_id in witnessed_ids:
+                    continue
+                if order.try_fill(bar, high, low, open_) is not None:
+                    self._bump_ledger_census("engine_only_suppressed")
 
         candidates: list[tuple[str, PendingOrder, float]] = []
         # 원장 순서가 곧 현실의 순서다 — 시뮬 경로의 "open 가격과의 거리" 휴리스틱을 쓸
@@ -922,10 +938,14 @@ class StrategyState:
             if witnessed_order is None:
                 # 고아 — 엔진이 그 주문을 아예 안 들고 있다. **여기서는 아무것도 하지 않는다**
                 # (ADR-025 R4: 사망 5건 중 0건이라 관측되지 않은 경우에 기계를 짓지 않는다).
-                self._bump_ledger_census("ledger_only_orphan")
+                if count:
+                    self._bump_ledger_census("ledger_only_orphan")
                 continue
-            simulated = witnessed_order.try_fill(bar, high, low, open_)
-            self._bump_ledger_census("agree" if simulated is not None else "ledger_only_adopted")
+            if count:
+                simulated = witnessed_order.try_fill(bar, high, low, open_)
+                self._bump_ledger_census(
+                    "agree" if simulated is not None else "ledger_only_adopted"
+                )
             candidates.append((fill.trade_id, witnessed_order, fill.fill_price))
         return candidates
 

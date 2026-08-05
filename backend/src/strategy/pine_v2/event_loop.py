@@ -407,6 +407,9 @@ def _build_conditional_fill_authority(
     return ConditionalFillAuthority(
         by_bar={index: tuple(items) for index, items in by_bar.items()},
         dropped_before_window=dropped,
+        # ★census 는 이 tick 이 실제로 판정하는 봉에서만 센다. 안 그러면 warmup 재계상으로
+        #   카운터가 사건과 무관하게 자란다(실측 tick 당 +121 — 2026-08-05 소크).
+        census_bar=len(ohlcv) - 1,
     )
 
 

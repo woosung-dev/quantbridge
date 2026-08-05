@@ -176,7 +176,14 @@ def test_fill_observed_before_the_window_is_dropped() -> None:
 
 
 def test_fill_cannot_land_on_a_bar_before_the_order_exists() -> None:
-    """무장 이전 봉에 얹힌 증언은 **고아**다 — pending 이 아직 없기 때문이다."""
+    """무장 이전 봉에 얹힌 증언은 **고아**다 — pending 이 아직 없기 때문이다.
+
+    ★**행위는 계상되지만 census 에는 안 잡힌다.** census 는 이 tick 이 실제로 판정하는
+    마지막 봉에서만 센다 — 모든 봉에서 세면 warmup 300봉을 매 tick 다시 세어 카운터가
+    사건과 무관하게 자란다(프로덕션 실측 tick 당 **+121**). 그 값으로는 「이 tick 에
+    [BL-595] 순간이 있었나」를 물을 수 없다 = 사전등록 관측량의 판별력이 0 이 된다.
+    ⇒ 여기서 확인하는 것은 **포지션이 안 열린다**는 행위이고, 계상은 마지막 봉 전용이다.
+    """
     result = run_live(
         _STOP_ENTRY,
         _ohlcv([100.0, 100.0], high_mult=1.0),
@@ -187,7 +194,33 @@ def test_fill_cannot_land_on_a_bar_before_the_order_exists() -> None:
 
     report = _report(result)
     assert report["position_size"] == 0
-    assert report["ledger_fill_census"] == {"ledger_only_orphan": 1}
+    assert report["ledger_fill_census"] == {}
+
+
+def test_census_counts_only_the_bar_this_tick_decides_on() -> None:
+    """★계상 범위 — warmup 재계상을 막는다.
+
+    같은 증언을 **마지막 봉**에 얹으면 census 가 오르고, **그 앞 봉**에 얹으면 안 오른다.
+    이 둘이 갈리지 않으면 카운터가 사건과 무관하게 tick 마다 자란다(실측 +121/tick).
+    """
+    ohlcv = _ohlcv([100.0, 100.0, 100.0], high_mult=1.0)
+    at_last = run_live(
+        _STOP_ENTRY,
+        ohlcv,
+        ledger_conditional_fills=(
+            LedgerConditionalFill(trade_id="없는아이디", filled_at=_bar_time(2), fill_price=131.5),
+        ),
+    )
+    before_last = run_live(
+        _STOP_ENTRY,
+        ohlcv,
+        ledger_conditional_fills=(
+            LedgerConditionalFill(trade_id="없는아이디", filled_at=_bar_time(1), fill_price=131.5),
+        ),
+    )
+
+    assert _report(at_last)["ledger_fill_census"] == {"ledger_only_orphan": 1}
+    assert _report(before_last)["ledger_fill_census"] == {}
 
 
 # ── `check_pending_fills` 직접 계약 ───────────────────────────────────────────
