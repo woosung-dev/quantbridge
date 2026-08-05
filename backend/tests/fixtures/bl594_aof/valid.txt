@@ -1,0 +1,23 @@
+__last_incr=appendonly.aof.1.incr.aof
+Start checking Multi Part AOF
+Start to check BASE AOF (RDB format).
+[offset 0] Checking RDB file /data/appendonlydir/appendonly.aof.1.base.rdb
+[offset 26] AUX FIELD redis-ver = '7.4.9'
+[offset 40] AUX FIELD redis-bits = '64'
+[offset 52] AUX FIELD ctime = '1785940435'
+[offset 67] AUX FIELD used-mem = '981736'
+[offset 79] AUX FIELD aof-base = '1'
+[offset 88] Checksum OK
+[offset 88] \o/ RDB looks OK! \o/
+[info] 0 keys read
+[info] 0 expires
+[info] 0 already expired
+[info] 0 subexpires
+RDB preamble is OK, proceeding with AOF tail...
+AOF analyzed: filename=appendonly.aof.1.base.rdb, size=88, ok_up_to=88, ok_up_to_line=1, diff=0
+BASE AOF appendonly.aof.1.base.rdb is valid
+Start to check INCR files.
+AOF analyzed: filename=appendonly.aof.1.incr.aof, size=10007, ok_up_to=10007, ok_up_to_line=2106, diff=0
+INCR AOF appendonly.aof.1.incr.aof is valid
+All AOF files and manifest are valid
+__rc=0

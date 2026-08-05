@@ -150,63 +150,38 @@ bash "${ROOT}/scripts/soak-stack.sh" assert-not-pinned >/dev/null 2>&1 || STACK_
 #
 # ★`--fix` 를 절대 넘기지 않는다. 읽기 전용이다 (실측: `--fix` 없이 돌린 전후로 AOF
 #   3파일의 md5·크기·mtime 이 전부 불변).
-# ★★**종료 코드는 판별식이 될 수 없다** (스크래치 컨테이너 실측 2026-08-05):
-#     정상        exit 0  "All AOF files and manifest are valid"
-#     꼬리 절단   exit 1  "0x…: Expected to read 35 bytes, got 8 bytes"  → ★**서버는 뜬다**
-#                         (`aof-load-truncated yes` 기본값이 마지막 INCR 의 미완결 꼬리를 자른다)
-#     중간 손상   exit 1  "format error" / "0x…: Expected \r\n, got: 0d00" → ★**서버가 죽는다**
-#                         (= 프로덕션 서명 `Bad file format reading the append only file`)
-#   도는 redis 의 AOF 꼬리는 **언제든 미완결일 수 있다**. exit code 로 재면 멀쩡한 스택이
-#   거짓 `측정불가` 로 떨어진다. 그래서 **양성 서명만 통과**시킨다(default deny) — 아래 분류기.
+# ★★**종료 코드는 판별식이 될 수 없다** — 꼬리 절단은 exit 1 인데 서버는 뜬다. 판정 규칙과
+#   그 근거(실측 표)는 `backend/scripts/redis_aof_readability.py` 에 있고, 실측 캡처 6형이
+#   `backend/tests/scripts/test_redis_aof_readability.py` 로 동결돼 있다. **여기 복제하지 않는다.**
 # ★수집이 어떤 이유로든 실패하면 `aof_ok=0` 이다. redis 가 안 뜨는 것과 못 재는 것은
 #   구분되지 않지만, **둘 다 「재기동 내성을 증명하지 못했다」**이고 방향은 fail-closed 다.
+# ★★**외부 실행에 시간 제한을 건다** — docker daemon 이나 볼륨 I/O 가 멈추면 게이트 전체가
+#   무기한 대기해 **표본 수집까지 함께 멈춘다**(fail-closed 조차 아니다). 30초는 실측
+#   소요(수십 ms, 35MB AOF 에서도 1초 미만)에 비해 넉넉하다. 타임아웃이면 `__rc` 마커가
+#   안 남으므로 분류기가 그대로 `0` 을 낸다. (`timeout` 가드는 `pre-push-guard-test.sh` 선례)
 AOF_OK=0
-AOF_RAW="$(docker exec "${REDIS_CONTAINER}" sh -c '
+AOF_TIMEOUT_BIN=""
+for _c in timeout gtimeout; do
+  if command -v "${_c}" >/dev/null 2>&1; then AOF_TIMEOUT_BIN="${_c}"; break; fi
+done
+
+AOF_RAW=""
+if [ -n "${AOF_TIMEOUT_BIN}" ]; then
+  AOF_RAW="$("${AOF_TIMEOUT_BIN}" 30 docker exec "${REDIS_CONTAINER}" sh -c '
   m=/data/appendonlydir/appendonly.aof.manifest
   [ -f "$m" ] || { echo "__missing=$m"; exit 0; }
   echo "__last_incr=$(grep " type i" "$m" | tail -1 | cut -d" " -f2)"
   redis-check-aof "$m" 2>&1
   echo "__rc=$?"
 ' 2>/dev/null)"
+else
+  # 시간 제한 없이 도는 것보다 **못 쟀다**가 낫다 — 무기한 대기는 소크 증거를 함께 멈춘다.
+  echo "⚠ timeout(coreutils) 이 없다 — AOF 판독 검사를 건너뛴다. C5⑸ 는 측정 불가다." >&2
+fi
 
 AOF_FILE="$(mktemp)"
 printf '%s' "${AOF_RAW}" > "${AOF_FILE}"
-AOF_OK="$(python3 - "${AOF_FILE}" <<'PY'
-import pathlib, re, sys
-
-text = pathlib.Path(sys.argv[1]).read_text()
-rc = re.search(r"^__rc=(\d+)$", text, re.M)
-last_incr = re.search(r"^__last_incr=(.*)$", text, re.M)
-
-ok = False
-if rc is None:
-    # docker exec 실패 · 매니페스트 부재 — 잴 수 없었다.
-    ok = False
-elif int(rc.group(1)) == 0:
-    # ★exit 0 만으로 통과시키지 않는다. 종결 문장을 함께 요구한다 —
-    #   빈 출력이 우연히 0 을 내는 갈래를 막는다.
-    ok = "All AOF files and manifest are valid" in text
-else:
-    # 결함이 **마지막 INCR 파일의 꼬리 절단 하나뿐**일 때만 통과. 그 외 전부 거절.
-    #   ⑴ 「유효하지 않다」고 지목된 파일이 정확히 하나이고, 그게 매니페스트의 마지막 INCR
-    #   ⑵ 결함 줄(`0x…:`)이 전부 short read (= EOF 도달) 이고, 하나 이상 있다
-    #   ⑶ 어디에도 format error 가 없다
-    #   redis 의 기동 규칙(`aof-load-truncated yes` 는 **마지막** 파일의 EOF 절단만 봐준다)을
-    #   그대로 옮긴 것이다. 그보다 넓히면 fail-open 이 된다.
-    invalid = re.findall(r"^AOF (\S+) is not valid\.", text, re.M)
-    defects = re.findall(r"^0x\s+[0-9a-fA-F]+:\s*(.*)$", text, re.M)
-    short_reads = [d for d in defects if re.match(r"Expected to read \d+ bytes, got \d+ bytes", d)]
-    tail_name = last_incr.group(1).strip() if last_incr else ""
-    ok = (
-        tail_name != ""
-        and invalid == [tail_name]
-        and len(defects) > 0
-        and len(short_reads) == len(defects)
-        and "format error" not in text
-    )
-print("1" if ok else "0")
-PY
-)"
+AOF_OK="$(python3 "${ROOT}/backend/scripts/redis_aof_readability.py" "${AOF_FILE}")"
 [ "${AOF_OK}" = "1" ] || AOF_OK=0
 rm -f "${AOF_FILE}"
 

@@ -8,7 +8,9 @@
 > [`scripts/soak-gate.sh`](../../scripts/soak-gate.sh) (수집·판정 CLI) ·
 > [`scripts/soak-stack.sh`](../../scripts/soak-stack.sh) (커밋 고정) ·
 > [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **27테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 + C5⑸ `aof_ok` 3건 추가) ·
-> [`backend/tests/scripts/test_classify_direction_divergence.py`](../../backend/tests/scripts/test_classify_direction_divergence.py) (판별식 동결 **66테스트**)
+> [`backend/tests/scripts/test_classify_direction_divergence.py`](../../backend/tests/scripts/test_classify_direction_divergence.py) (판별식 동결 **66테스트**) ·
+> [`backend/scripts/redis_aof_readability.py`](../../backend/scripts/redis_aof_readability.py) (C5⑸ AOF 판정 규칙) ·
+> [`backend/tests/scripts/test_redis_aof_readability.py`](../../backend/tests/scripts/test_redis_aof_readability.py) (실측 캡처 7형 동결 **15테스트**)
 
 ---
 
@@ -81,15 +83,21 @@ celery 를 `watchfiles` 로 감싼다. `backend/src` 의 `.py` 를 **한 줄만 
 물으므로, 판독 불가 AOF 위에서 6일을 갔는데 아무 지표도 안 움직였다. 수집기는
 `redis-check-aof`(★`--fix` 없이 — 읽기 전용)를 돌리고 **양성 서명만 통과**시킨다:
 
-| AOF 상태  | check-aof                                      | 서버 기동            | `aof_ok` |
-| --------- | ---------------------------------------------- | -------------------- | -------- |
-| 정상      | exit 0 `All AOF files and manifest are valid`  | ✅                   | ✔        |
-| 꼬리 절단 | exit 1 `Expected to read N bytes, got M bytes` | ✅ (자동 절단)       | ✔        |
-| 중간 손상 | exit 1 `format error` / `Expected \r\n, got:`  | ❌ `Bad file format` | ✘        |
+| AOF 상태             | check-aof                                      | 서버 기동                                    | `aof_ok` |
+| -------------------- | ---------------------------------------------- | -------------------------------------------- | -------- |
+| 정상                 | exit 0 `All AOF files and manifest are valid`  | ✅                                           | ✔        |
+| 마지막 INCR 꼬리절단 | exit 1 `Expected to read N bytes, got M bytes` | ✅ (자동 절단)                               | ✔        |
+| **비마지막** 파일    | exit 1 **위와 같은 모양**                      | ❌ `the truncated file is not the last file` | ✘        |
+| 구분자 손상          | exit 1 `Expected \r\n, got:`                   | ✅ **뜬다**(로더가 CRLF 미검증 폐기)         | ✘★       |
+| 중간 손상            | exit 1 `AOF … format error`                    | ❌ `Bad file format`                         | ✘        |
 
 ★★**종료 코드로 재면 안 된다** — 도는 redis 의 AOF 꼬리는 언제든 미완결일 수 있고, 그 꼬리는
 `aof-load-truncated yes`(기본값)가 기동 시 잘라내므로 **무해**하다. exit code 를 그대로 쓰면
-멀쩡한 스택이 거짓 `측정불가` 로 떨어진다.
+멀쩡한 스택이 거짓 `측정불가` 로 떨어진다. ★반대로 「short read 면 통과」로 넓히면 **비마지막
+파일 절단**이 통과한다 — 출력이 같은 모양이고 **유일한 판별자가 「마지막 INCR 인가」**다.
+★구분자 손상은 **알려진 거짓 양성**이다(엄격 쪽이라 래칫에는 안전 — 거짓 PASS 는 못 만든다).
+판정 규칙의 정본은 [`redis_aof_readability.py`](../../backend/scripts/redis_aof_readability.py)
+이고 실측 캡처 7형이 그 테스트로 동결돼 있다.
 ★**알려진 한계** — `redis-check-aof` 는 **프레이밍만** 본다. 벌크 페이로드 안이 깨져 명령
 이름이 망가지면 check 는 `valid` 라고 하는데 서버는 `Unknown command` 로 죽는다(실측).
 즉 `aof_ok=✔` 는 「프레이밍이 성하다」이지 「반드시 뜬다」가 아니다. 더 강한 검사는 사본을

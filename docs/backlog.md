@@ -6944,18 +6944,28 @@ VM 의 파일시스템. 백업본이 있다(2026-08-05, 3.5MB tar.gz).
 2. 손상 원인 조사 — `appendfsync` 설정과 컨테이너 종료 경로(SIGTERM grace) 확인
 3. 필요하면 `auto-aof-rewrite-percentage` 로 incr 파일이 35MB 까지 자라지 않게 한다
 
-**2026-08-05 실측 (스크래치 컨테이너 — `quantbridge-*` 무접촉).** 손상 2종을 주입해
-`redis-check-aof` 출력과 **실제 기동 여부**를 대조했다.
+**2026-08-05 실측 (스크래치 컨테이너 — `quantbridge-*` 무접촉).** 손상 4종을 주입해
+`redis-check-aof` 출력과 **실제 기동 여부**를 대조했다. 캡처 원문은
+`backend/tests/fixtures/bl594_aof/` 에 7형으로 동결돼 있다.
 
-| 손상        | check-aof exit | 오류 문구                                   | 서버 기동            |
-| ----------- | -------------- | ------------------------------------------- | -------------------- |
-| 없음        | 0              | `All AOF files and manifest are valid`      | ✅                   |
-| 꼬리 절단   | **1**          | `Expected to read 35 bytes, got 8 bytes`    | ✅ (자동 절단)       |
-| 중간 쓰레기 | 1              | `format error` / `Expected \r\n, got: 0d00` | ❌ `Bad file format` |
+| 손상                 | exit | 오류 문구                               | 서버 기동                                    | `aof_ok` |
+| -------------------- | ---- | --------------------------------------- | -------------------------------------------- | -------- |
+| 없음                 | 0    | `All AOF files and manifest are valid`  | ✅                                           | ✔        |
+| 마지막 INCR 꼬리절단 | 1    | `Expected to read 5 bytes, got 1 bytes` | ✅ (자동 절단)                               | ✔        |
+| **비마지막** 파일    | 1    | **위와 같은 모양**                      | ❌ `the truncated file is not the last file` | ✘        |
+| 구분자 손상          | 1    | `Expected \r\n, got: 0000`              | ✅ **뜬다** (dbsize 300 전부 적재)           | ✘★       |
+| 명령 헤더 손상       | 1    | `AOF … format error`                    | ❌ `Bad file format` (프로덕션 서명)         | ✘        |
 
 ★**종료 코드는 판별식이 될 수 없다** — 꼬리 절단은 `aof-load-truncated yes`(기본값)가
 기동 시 잘라내므로 무해한데 exit 1 을 낸다. 도는 redis 의 꼬리는 언제든 미완결일 수 있으므로
 exit code 로 재면 멀쩡한 스택이 거짓 `측정불가` 가 된다. → 게이트는 **양성 서명만** 통과시킨다.
+★★반대로 「short read 면 통과」로 넓히면 **비마지막 파일 절단**이 통과한다 — 출력이 같은
+모양이고 **유일한 판별자가 「지목된 파일이 마지막 INCR 인가」**다. 그 하나로 기동이 갈린다.
+★★**구분자 손상은 알려진 거짓 양성이다** — check-aof 는 페이로드 뒤 `\r\n` 을 검증하는데
+**서버 로더는 그 2바이트를 검증 없이 버린다**. 방향이 엄격 쪽이라 래칫에는 안전하다.
+★이 표는 codex 리뷰 처분 중 **정정됐다** — 그전에는 `Expected \r\n, got:` 이면 서버가 죽는다고
+적혀 있었다. 그때 죽은 건 0바이트 64개가 구분자 **말고 더** 부순 경우였고, 순수 구분자
+손상만으로는 죽지 않는다(재측정으로 반증).
 
 ★★**알려진 한계** — `redis-check-aof` 는 **프레이밍만** 본다. 벌크 페이로드 안이 깨져 명령
 이름이 망가진 AOF 를 `All AOF files and manifest are valid` 로 통과시켰는데 그 AOF 로
