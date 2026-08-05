@@ -1,8 +1,31 @@
 # KST 03:00 (UTC 18:00) 매일 + 수동 trigger
 # Sprint 10 Phase C — Bybit Demo 실호출 E2E nightly regression
+#
+# ★2026-08-04 [BL-024] — 이 워크플로는 **10/10 실패**하고 있었고(07-25 ~ 08-03), 실패 지점은
+#   pytest 가 아니라 `alembic upgrade head` 였다. `secrets.TRADING_ENCRYPTION_KEYS_TEST` 가
+#   없어서 env 가 **빈 문자열**이 되고, `Settings` 검증이 import 시점에 죽었다.
+#   ⇒ **pytest 는 한 번도 실행된 적이 없다.** 그 10회가 만든 `flaky-real-broker` 이슈 89건은
+#   broker flakiness 의 증거가 **아니다**.
+#   계약은 `backend/tests/test_nightly_workflow_contract.py` 가 매 PR 에서 감사한다.
+#
+# ★★★2026-08-04 (같은 날, 그 수리 **뒤**) — 자격증명을 넣고 돌리자 **진짜 차단이 드러났다.**
+#   run 30917972735 은 이 워크플로 역사상 **pytest 가 처음 실행된 실행**이고, 이렇게 실패했다:
+#
+#     ProviderError: bybit GET https://api-demo.bybit.com/v5/market/instruments-info?category=spot
+#     403 Forbidden — The Amazon CloudFront distribution is configured to
+#                     block access from your country.
+#
+#   대조 실측(같은 키·같은 시각): **로컬(한국)은 성공**(fetch_balance USDT 190,352 / 3,091 마켓),
+#   **GitHub 러너는 403**. ⇒ 키 문제도 우리 코드 결함도 아니고 **러너의 지리 차단**이다.
+#   상세·선택지는 issue #540 과 `docs/status.md` §다음 스프린트.
+#
+# ★그래서 `schedule:` 을 **껐다** — 켜 두면 매일 밤 같은 이슈가 하나씩 쌓여 원장을 오염시킨다
+#   (그 오염을 지우려고 방금 89건을 닫았다). `workflow_dispatch` 는 남겨 둔다.
+#   ★**되살리는 조건** = self-hosted 러너(허용 지역) 또는 지리 차단을 「측정 불가」로 다루는
+#   명시적 skip 이 들어올 때. 그때 아래 두 줄의 주석만 풀면 된다.
 "on":
-  schedule:
-    - cron: "0 18 * * *"
+  # schedule:
+  #   - cron: "0 18 * * *"
   workflow_dispatch:
 
 name: Nightly Real Broker E2E
@@ -22,7 +45,10 @@ jobs:
         env:
           POSTGRES_USER: quantbridge
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: quantbridge
+          # W6 — 로컬/CI 가 같은 `_test` DSN 가드를 통과해야 한다. `tests/conftest.py` 의
+          # 세션 픽스처가 `drop_all` 을 돌리므로 개발 DB 이름(`quantbridge`)이면 안 된다.
+          # `ci.yml` backend 잡의 `db` 서비스와 같은 값이다.
+          POSTGRES_DB: quantbridge_test
         ports:
           - 5432:5432
         options: >-
@@ -41,14 +67,36 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge
+      # W6 — DATABASE_URL / TEST_DATABASE_URL 둘 다 `_test` 로 통일.
+      # `tests/conftest.py` 우선순위는 TEST_DATABASE_URL > DATABASE_URL 이라 둘 다 적는다.
+      DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+      TEST_DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+      # `Settings` 의 인프라 기본값은 docker-compose 서비스명(`redis://redis:6379/*`)이라
+      # 러너에서 해석되지 않는다. 아래 4종을 빠뜨리면 celery 계열이 죽는다(2026-08-01 CI 실측 5건).
+      # 이 목록은 `tests/test_nightly_workflow_contract.py` 가 `Settings` 와 대조해 강제한다.
       REDIS_URL: redis://localhost:6379/0
       CELERY_BROKER_URL: redis://localhost:6379/1
       CELERY_RESULT_BACKEND: redis://localhost:6379/2
       REDIS_LOCK_URL: redis://localhost:6379/3
       BYBIT_DEMO_API_KEY_TEST: ${{ secrets.BYBIT_DEMO_API_KEY_TEST }}
       BYBIT_DEMO_API_SECRET_TEST: ${{ secrets.BYBIT_DEMO_API_SECRET_TEST }}
-      TRADING_ENCRYPTION_KEYS: ${{ secrets.TRADING_ENCRYPTION_KEYS_TEST }}
+      # W1 — ★오늘의 실제 red 원인. 이 자리는 `${{ secrets.TRADING_ENCRYPTION_KEYS_TEST }}`
+      # 였고 그 secret 이 repo 에 없어 값이 **빈 문자열**이 됐다. `alembic/env.py` 가
+      # `src.core.config` 를 import 하는 순간 `Settings` 가 ValidationError 로 죽는다
+      # ⇒ `alembic upgrade head` 스텝에서 10/10 실패, **pytest 는 실행조차 안 됐다**.
+      #
+      # ★이 고장은 **alembic 스텝에만** 해당한다 — `tests/conftest.py:25-28` 은 빈
+      #   `TRADING_ENCRYPTION_KEYS` 를 감지하면 유효 Fernet 키를 즉석 생성해 채운다.
+      #   "빈 secret 이면 무조건 죽는다" 가 아니라 "pytest 밖이라서 죽는다" 다.
+      #
+      # ★`${{ secrets.X || '리터럴' }}` 폴백을 쓰지 않았다. 그 패턴은 이 레포 워크플로에
+      #   선례가 0건이고(2026-08-04 실측), GHA 가 빈 문자열을 falsy 로 보는지를 이 환경에서
+      #   **실행으로 검증할 수 없었다**(검증하려면 워크플로를 돌려야 한다). 틀리면 지금
+      #   고치는 바로 그 결함이 그대로 남는다. `ci.yml:153` 과 **같은 형태의 리터럴**을 쓴다.
+      # ★secret 으로 둘 이유도 없다 — 이 키가 암호화하는 것은 러너 안에서 만들어져 러너와
+      #   함께 사라지는 테스트 DB 행뿐이고, 실행 간에 아무것도 영속되지 않는다.
+      #   ⇒ 사용자가 발급해야 할 secret 은 Bybit demo **2종뿐**이다.
+      TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
 
     steps:
       - uses: actions/checkout@v4
@@ -71,22 +119,96 @@ jobs:
         # postgres service health-check 가 steps 실행 전 gate → race condition 없음
         run: uv run alembic upgrade head
 
-      - name: Run real_broker E2E (skeleton)
-        working-directory: backend
+      # W2 — 자격증명 부재를 「이상 없음」도 「장애」도 아닌 **제3의 상태**로 표면화한다.
+      # ★이 스텝이 green 인 것은 real_broker E2E 가 통과했다는 뜻이 아니다. 아무것도
+      #   측정하지 않았다는 뜻일 수 있다 — 어느 쪽인지는 step summary 가 말한다.
+      - name: Preflight — Bybit Demo credentials
+        id: preflight
         shell: bash -eo pipefail {0}
+        run: |
+          if [ -n "${BYBIT_DEMO_API_KEY_TEST}" ] && [ -n "${BYBIT_DEMO_API_SECRET_TEST}" ]; then
+            echo "has_creds=true" >> "$GITHUB_OUTPUT"
+            {
+              echo '### ✅ real_broker E2E 실행'
+              echo ''
+              echo 'Bybit Demo 자격증명이 주입됐다. 아래 pytest 결과가 실거래소 검증 결과다.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "has_creds=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=real_broker credentials absent::BYBIT_DEMO_API_KEY_TEST / BYBIT_DEMO_API_SECRET_TEST repo secret 이 없다. real_broker E2E 를 건너뛴다 — 이 실행은 '이상 없음' 이 아니라 '측정하지 않았다' 다."
+            {
+              echo '### ⚠️ real_broker E2E 미실행 — 자격증명 부재'
+              echo ''
+              echo '`BYBIT_DEMO_API_KEY_TEST` / `BYBIT_DEMO_API_SECRET_TEST` repo secret 이 설정돼 있지 않다.'
+              echo ''
+              echo '**이 실행은 실거래소를 1바이트도 검증하지 않았다.** 워크플로가 green 인 것은'
+              echo '테스트가 통과했다는 뜻이 아니라 테스트를 돌리지 않았다는 뜻이다.'
+              echo ''
+              echo '해소: Bybit demo 전용 API key 를 발급해 repo secret **2종**을 등록해라 —'
+              echo '`BYBIT_DEMO_API_KEY_TEST` / `BYBIT_DEMO_API_SECRET_TEST`.'
+              echo '(`TRADING_ENCRYPTION_KEYS` 는 secret 이 아니라 워크플로 리터럴이다 —'
+              echo ' 러너 안 테스트 DB 만 암호화하고 실행 간에 아무것도 영속되지 않는다.)'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # W5 — 이름에서 `(skeleton)` 제거. W3 — 자격증명이 있을 때만 돈다.
+      # ★W1 과 W3 는 **한 쌍**이다. W1 만 고치면 alembic 은 살아나지만 이 스텝이
+      #   `--run-real-broker` 를 조건 없이 불러 `real_broker/conftest.py` 의
+      #   `bybit_demo_test_credentials` 가 `pytest.fail` 을 내고 **그대로 red 다**.
+      #   자격증명 부재의 skip 은 **워크플로 레벨**의 책임이고, conftest 는 "명시적으로
+      #   불렀는데 키가 없다" 만 다룬다 — 두 층이 같은 일을 하지 않게 역할을 갈랐다.
+      - name: Run real_broker E2E
+        if: steps.preflight.outputs.has_creds == 'true'
+        working-directory: backend
+        # ★`bash -eo pipefail` 은 `| tee` 가 pytest 의 exit code 를 삼키는 것을 막는다.
+        #   실측: `bash -eo pipefail -c 'false | tee /dev/null'` → 1 / `bash -c` → 0.
+        shell: bash -eo pipefail {0}
+        # W7 — `--timeout-method=signal` 을 **명시**한다.
+        # ★이것은 살아 있는 버그의 수리가 아니다 — 실측으로 `pytest_timeout.DEFAULT_METHOD`
+        #   가 이미 `"signal"` 이라 동작상 중복이다. 그럼에도 적는 이유는 이 값에
+        #   **cleanup 의 생명줄이 걸려 있기 때문**이다: `thread` 방식은 `os._exit(1)` 이라
+        #   `pytest_sessionfinish` 백스톱(거래소 포지션 청산)이 **아예 실행되지 않는다**.
+        #   기본값에 의존하는 대신 의도를 고정하고, 감사가 그것을 지킨다.
+        #   ★절대 `thread` 로 바꾸지 마라.
+        # ★`--timeout` 300 → 600 은 별개 판단이다. 오늘 이 값은 발화하지 않는다(테스트가
+        #   전부 skip). 실주문 leg 이 들어오면 거래소 왕복 + 체결 확인 + 청산까지가 한
+        #   테스트에 들어가는데 300초는 빠듯하고, 그 초과는 broker flakiness 로 **오기록**된다
+        #   — 이 워크플로가 이슈 89건을 만든 방식이 정확히 그것이다. 바깥 상한은
+        #   잡 레벨 `timeout-minutes: 30` 이 이미 잡고 있다.
+        # ★`2>&1` 은 파이프 **앞**에 온다 — `tee` 는 stdout 만 받는다. 이게 없으면
+        #   `_harness.emit_residual_report` 가 stderr 로 쓰는 **RESIDUAL 블록이 아티팩트에도
+        #   이슈 본문에도 절대 들어가지 않는다**(아래 이슈 triage 4번이 도달 불가가 된다).
+        #   실측: `python -c '…stderr…' | tee f` → f 에 stdout 만 / `… 2>&1 | tee f` → 둘 다.
+        #   exit code 보존은 그대로다(둘 다 exit 1 확인).
         run: |
           uv run pytest tests/real_broker/ \
             --run-real-broker \
             -v \
             --tb=short \
-            --timeout=300 \
-            | tee /tmp/real-broker-output.txt
+            --timeout=600 \
+            --timeout-method=signal \
+            2>&1 | tee /tmp/real-broker-output.txt
 
+      # W8 — 실패 원인을 로그 링크 밖으로 꺼낸다. 지금까지 이슈 본문에는 증상이 없었다.
+      - name: Upload pytest output
+        if: always() && steps.preflight.outputs.has_creds == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-broker-output
+          path: /tmp/real-broker-output.txt
+          if-no-files-found: warn
+          retention-days: 30
+
+      # W4 — ★89개 이슈 생산기의 스위치. 자격증명이 없으면 실패해도 이슈를 만들지 않는다.
+      #      자격증명 없이 난 실패는 broker flakiness 가 아니라 **워크플로 결함**이다.
+      # W9 — 라벨은 `flaky-real-broker` 하나만 (스프린트 59 시대에 `sprint-10` 은 원장 오염).
       - name: Flaky detection — auto-label issue on failure
-        if: failure()
+        if: failure() && steps.preflight.outputs.has_creds == 'true'
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+
             // 라벨 사전 생성 (repo 에 없으면 422 에러 방지, 이미 있으면 catch 하고 계속)
             const ensureLabel = async (name, color, description) => {
               try {
@@ -103,24 +225,44 @@ jobs:
               }
             };
             await ensureLabel('flaky-real-broker', 'ffcc00', 'Nightly real broker E2E flakiness');
-            await ensureLabel('sprint-10', '0e8a16', 'H2 Sprint 10 관련');
+
+            // W8 — pytest 출력 tail 을 본문에 인용한다. 없으면 그 사실을 적는다.
+            let tail = '(no pytest output captured — 실패가 pytest 이전 단계였다)';
+            try {
+              const raw = fs.readFileSync('/tmp/real-broker-output.txt', 'utf8');
+              const lines = raw.split('\n');
+              tail = lines.slice(-60).join('\n');
+            } catch (err) {
+              // 파일 부재 = pytest 스텝 이전 실패. 위 기본 문구를 그대로 쓴다.
+            }
 
             const title = `[flaky-real-broker] Nightly failure ${new Date().toISOString().split('T')[0]}`;
-            const body = `Nightly real_broker E2E failed at ${new Date().toISOString()}.
-
-            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            Triage steps:
-            1. Bybit Demo status page — https://announcements.bybit.com/
-            2. Verify BYBIT_DEMO_API_KEY_TEST credentials (not expired)
-            3. Check qb_ccxt_request_errors_total metric from last successful run
-            4. Re-run via workflow_dispatch if transient
-            5. If persistent → add to TODO.md + Sprint 11 investigation`;
+            const body = [
+              `Nightly real_broker E2E failed at ${new Date().toISOString()}.`,
+              '',
+              `Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+              '',
+              '<details><summary>pytest output (tail 60)</summary>',
+              '',
+              '```',
+              tail,
+              '```',
+              '',
+              '</details>',
+              '',
+              'Triage steps:',
+              '1. Bybit Demo status page — https://announcements.bybit.com/',
+              '2. Verify BYBIT_DEMO_API_KEY_TEST credentials (not expired)',
+              '3. Check qb_ccxt_request_errors_total metric from last successful run',
+              '4. `RESIDUAL` 블록이 위 출력에 있으면 **거래소에 포지션이 남았다** — 먼저 그것부터 처리해라',
+              '5. Re-run via workflow_dispatch if transient',
+              '6. If persistent → `docs/backlog.md` 에 등재',
+            ].join('\n');
 
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
               title,
               body,
-              labels: ['flaky-real-broker', 'sprint-10']
+              labels: ['flaky-real-broker'],
             });

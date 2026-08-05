@@ -567,7 +567,15 @@ class TestEngineOnlySubclassification:
         )
 
         result = await live_signal_module._evaluate_session_inner(session_obj.id, "1m")
-        provider.fetch_open_positions.assert_awaited_once()
+        # ★조회 횟수는 **2회**다 (BL-591 / ADR-022 슬라이스 1).
+        #   ① `run_live` **직전** — 원장↔거래소 대조 계측(`_capture_ledger_shadow`).
+        #      슬라이스 2 의 veto 는 주입 **직전**에 판정해야 하므로 계측도 같은 자리여야
+        #      계수가 유효하다. `_detect_position_divergence` 는 `engine_position`(=run_live
+        #      **결과**)이 필요해 뒤로 갈 수밖에 없으니, 두 조회는 구조적으로 합칠 수 없다.
+        #   ② `run_live` 직후 — 기존 발산 판정.
+        # ★이 숫자가 3 이 되면 누군가 조회를 또 늘린 것이다. **늘리기 전에 근거를 여기 적어라** —
+        #   단언을 지우면 tick 당 거래소 호출이 조용히 증식한다.
+        assert provider.fetch_open_positions.await_count == 2
         return result, order_repo
 
     @pytest.mark.asyncio

@@ -1,0 +1,345 @@
+# 라이브 세션 운영자 도구 — 종료·청산을 **서비스 계층**으로 태워 원장에 남긴다 (BL-593)
+"""라이브 세션 운영 CLI.
+
+## 왜 이 스크립트가 있는가 (BL-593)
+
+`ClosePositionService` 는 `dependencies.py` 를 통해 **HTTP 에만 조립**돼 있었다. 그래서
+소크를 끄거나 거래소를 손으로 flat 으로 만들 때 운영자 스크립트가 그걸 못 쓰고
+`BybitFuturesProvider` 를 **직접 호출**했고, 그 청산에 대응하는 `trading.orders` 행이
+**남지 않았다**.
+
+2026-08-04 실측(`trading.exchange_exits`, 계정 `19a8166a`): 청산 **103건** 중 원장 밖
+(`external_manual`) **12건 = 11.7%** — 07-24/27/28/31, 08-01/03 **6일에 걸쳐 상시**다.
+
+★**앱 코드에는 원장을 건너뛰는 청산 경로가 없다.** `ClosePositionService.close_position` 은
+`OrderService.execute(...)` 를 타므로 `Order` 행을 남긴다. 문제는 **도구**였다.
+
+[BL-591] 이 채택한 설계는 **원장을 진실로 써서 엔진에 주입**한다(ADR-022). 원장에 없는
+청산이 있으면 틀린 포지션을 주입하게 되므로, 이 구멍은 그 전제를 직접 갉는다.
+
+## 왜 HTTP 가 아니라 서비스 계층인가
+
+`authenticate_clerk_request` 는 clerk SDK 가 **`azp` 클레임을 필수**로 요구하는데 Backend
+API 로 발급한 토큰에는 그게 없다(브라우저 발급 토큰에만 있다). 헤드리스 HTTP 는 구조적으로
+불가능하다. 선례 = `scripts/seed_dogfood.py`. HTTP + auth 계층만 우회하고 그 아래는 전부
+실제 경로를 탄다 — Kill Switch 게이트도 그대로 통과한다.
+
+## 사용
+
+    QB=/path/to/quant-bridge
+    set -a; . $QB/backend/.env.local; set +a; cd $QB/backend
+
+    uv run python scripts/live_session_admin.py status
+    uv run python scripts/live_session_admin.py stop    <session_id> --confirm
+    uv run python scripts/live_session_admin.py flatten <session_id> --confirm
+
+★**순서는 `stop` → `flatten` 이다.** 세션이 살아 있는 채로 청산하면 다음 tick 에 엔진이
+다시 진입한다. 반대로 세션만 끄는 것은 **거래소를 flat 으로 만들지 않는다** — 세션 행을
+지우거나 비활성화해도 포지션과 대기 주문은 그대로 남는다(3회 데인 함정).
+"""
+
+from __future__ import annotations
+
+import argparse
+import asyncio
+import sys
+from pathlib import Path
+from typing import Any
+from uuid import UUID
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "backend"))
+
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
+
+from src.strategy.repository import StrategyRepository  # noqa: E402
+from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
+from src.trading.dependencies import (  # noqa: E402
+    _CeleryOrderDispatcher,
+    _StrategySessionsAdapter,
+    get_bybit_futures_provider,
+    get_encryption_service,
+)
+from src.trading.models import LiveSignalSession  # noqa: E402
+from src.trading.repositories.exchange_account_repository import (  # noqa: E402
+    ExchangeAccountRepository,
+)
+from src.trading.repositories.kill_switch_event_repository import (  # noqa: E402
+    KillSwitchEventRepository,
+)
+from src.trading.repositories.live_signal_session_repository import (  # noqa: E402
+    LiveSignalSessionRepository,
+)
+from src.trading.repositories.order_repository import OrderRepository  # noqa: E402
+from src.trading.services.account_service import ExchangeAccountService  # noqa: E402
+from src.trading.services.close_service import ClosePositionService  # noqa: E402
+from src.trading.services.order_service import OrderService  # noqa: E402
+
+
+def _build_close_service(session: AsyncSession) -> ClosePositionService:
+    """`get_close_service` 와 **같은 배선**을 HTTP 밖에서 만든다.
+
+    ★배선을 여기서 새로 발명하지 않는다 — `dependencies.py` 의 조립을 그대로 옮긴 것이며,
+    그쪽이 바뀌면 여기도 바꿔야 한다. 이 도구의 목적은 "서비스를 우회하는 것" 이 아니라
+    **"서비스를 HTTP 없이 쓰는 것"** 이다.
+    """
+    from src.core.config import settings
+    from src.trading.kill_switch import (
+        CumulativeLossEvaluator,
+        DailyLossEvaluator,
+        KillSwitchEvaluator,
+        KillSwitchService,
+    )
+
+    bybit = get_bybit_futures_provider()
+    account_service = ExchangeAccountService(
+        repo=ExchangeAccountRepository(session),
+        crypto=get_encryption_service(),
+        bybit_futures_provider=bybit,
+    )
+    order_repo = OrderRepository(session)
+    evaluators: list[KillSwitchEvaluator] = [
+        CumulativeLossEvaluator(
+            order_repo,
+            threshold_percent=settings.kill_switch_cumulative_loss_percent,
+            capital_base=settings.kill_switch_capital_base_usd,
+            balance_provider=account_service,
+        ),
+        DailyLossEvaluator(
+            order_repo,
+            threshold_usd=settings.kill_switch_daily_loss_usd,
+        ),
+    ]
+    order_service = OrderService(
+        session=session,
+        repo=order_repo,
+        dispatcher=_CeleryOrderDispatcher(),
+        kill_switch=KillSwitchService(
+            evaluators=evaluators,
+            events_repo=KillSwitchEventRepository(session),
+        ),
+        sessions_port=_StrategySessionsAdapter(session),
+        exchange_service=account_service,
+    )
+    return ClosePositionService(
+        session_repo=LiveSignalSessionRepository(session),
+        account_repo=ExchangeAccountRepository(session),
+        strategy_repo=StrategyRepository(session),
+        account_service=account_service,
+        bybit_futures_provider=bybit,
+        order_service=order_service,
+    )
+
+
+async def _load_session(session: AsyncSession, session_id: UUID) -> LiveSignalSession:
+    sess = await LiveSignalSessionRepository(session).get_by_id(session_id)
+    if sess is None:
+        raise SystemExit(f"✗ 세션을 찾을 수 없다: {session_id}")
+    return sess
+
+
+async def _cmd_status(symbol: str) -> None:
+    """활성 세션 + **계정별 거래소 포지션**.
+
+    ★포지션 조회를 활성 세션에 매달지 않는다. 소크 재시작 직전은 세션이 **없는** 상태이고,
+    바로 그때 `FLAT=YES` 를 확인해야 하기 때문이다. 세션에 매달면 "세션이 없다 = 아무것도
+    출력 안 함" 이 되어 flat 이 아닌데 flat 으로 읽게 된다.
+    """
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            from sqlalchemy import text
+
+            rows = (
+                (
+                    await session.execute(
+                        text(
+                            "SELECT id, symbol, interval, "
+                            "  round(EXTRACT(epoch FROM (now() - created_at))/60.0, 1) AS mins "
+                            "FROM trading.live_signal_sessions "
+                            "WHERE is_active = true ORDER BY created_at"
+                        )
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            print(f"활성 세션: {len(rows)}개")
+            for row in rows:
+                print(f"  {row['id']}  {row['symbol']}  {row['interval']}  {row['mins']}분")
+
+            account_repo = ExchangeAccountRepository(session)
+            svc = ExchangeAccountService(
+                repo=account_repo,
+                crypto=get_encryption_service(),
+                bybit_futures_provider=get_bybit_futures_provider(),
+            )
+            accounts = (
+                (
+                    await session.execute(
+                        text(
+                            "SELECT id, COALESCE(label,'(no label)') AS label "
+                            "FROM trading.exchange_accounts ORDER BY created_at"
+                        )
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            print(f"\n거래소 포지션 ({symbol}):")
+            any_open = False
+            for account in accounts:
+                creds = await svc.get_credentials_for_order(account["id"])
+                positions = await get_bybit_futures_provider().fetch_open_positions(creds, symbol)
+                for pos in positions:
+                    any_open = True
+                    print(f"  {account['label']}: {pos.side} {pos.size}")
+                if not positions:
+                    print(f"  {account['label']}: 없음")
+            print(f"\nFLAT={'NO' if any_open else 'YES'}")
+    finally:
+        await engine.dispose()
+
+
+def _build_session_service(session: AsyncSession) -> Any:
+    """`get_live_signal_session_service` 와 **같은 배선**을 HTTP 밖에서 만든다.
+
+    ★`balance_service` 는 등재에 **필수**다 — 그게 `equity_baseline_usdt` 를 채운다.
+    손 INSERT 로 세션 행을 만들면 이 값이 비어 **첫 tick 에 자동 비활성화**된다(데인 함정).
+    """
+    from src.auth.repository import UserRepository
+    from src.common.redis_client import get_redis_lock_pool
+    from src.trading.services.balance_service import AccountBalanceService
+    from src.trading.services.live_session_service import LiveSignalSessionService
+
+    account_repo = ExchangeAccountRepository(session)
+    account_service = ExchangeAccountService(
+        repo=account_repo,
+        crypto=get_encryption_service(),
+        bybit_futures_provider=get_bybit_futures_provider(),
+    )
+    return LiveSignalSessionService(
+        repo=LiveSignalSessionRepository(session),
+        account_repo=account_repo,
+        strategy_repo=StrategyRepository(session),
+        balance_service=AccountBalanceService(
+            account_repo=account_repo,
+            account_service=account_service,
+            bybit_futures_provider=get_bybit_futures_provider(),
+            redis=get_redis_lock_pool(),
+        ),
+        user_repo=UserRepository(session),
+    )
+
+
+async def _cmd_start(strategy_id: UUID, account_id: UUID, symbol: str, interval: str) -> None:
+    """세션을 **서비스 계층으로** 등재한다 (소크 재시작).
+
+    ★HTTP 는 헤드리스 불가(Clerk `azp`)이고 손 INSERT 는 `equity_baseline_usdt` 를 건너뛴다.
+    ★등재 **전에** 거래소가 flat 인지 `status` 로 확인해라 — 세션 등재는 아무것도 청산하지 않는다.
+    """
+    from src.trading.schemas import RegisterLiveSessionRequest
+
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            account = await ExchangeAccountRepository(session).get_by_id(account_id)
+            if account is None:
+                raise SystemExit(f"✗ 거래소 계정을 찾을 수 없다: {account_id}")
+            service = _build_session_service(session)
+            request = RegisterLiveSessionRequest(
+                strategy_id=strategy_id,
+                exchange_account_id=account_id,
+                symbol=symbol,
+                interval=interval,
+            )
+            created = await service.register(account.user_id, request)
+            print(f"✓ 세션 등재: {created.id}")
+            print(f"  T0={created.created_at}  equity_baseline={created.equity_baseline_usdt}")
+            print("  ★`.soak/session` 을 이 id 로 갱신하고 `soak-observe.sh --baseline` 을 돌려라.")
+    finally:
+        await engine.dispose()
+
+
+async def _cmd_stop(session_id: UUID) -> None:
+    """세션만 비활성화한다. ★거래소는 이것으로 flat 이 되지 않는다."""
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            sess = await _load_session(session, session_id)
+            from src.trading.services.live_session_service import LiveSignalSessionService
+
+            # `balance_service` / `user_repo` 는 **등록 경로 전용**이다(equity baseline ·
+            # 데모 안정일수 검증). `deactivate` 는 둘 다 건드리지 않으므로 여기서는 넘기지
+            # 않는다 — 조립을 위해 안 쓰는 의존성을 억지로 만들지 않는다.
+            service = LiveSignalSessionService(
+                repo=LiveSignalSessionRepository(session),
+                account_repo=ExchangeAccountRepository(session),
+                strategy_repo=StrategyRepository(session),
+                balance_service=None,  # type: ignore[arg-type]
+            )
+            await service.deactivate(sess.user_id, session_id)
+            print(f"✓ 세션 비활성화: {session_id}")
+            print("  ★거래소는 아직 flat 이 아니다 — `flatten` 을 이어서 실행해라.")
+    finally:
+        await engine.dispose()
+
+
+async def _cmd_flatten(session_id: UUID) -> None:
+    """`ClosePositionService` 로 청산한다 — **`Order` 행이 남는다**(BL-593 의 핵심)."""
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        async with sm() as session:
+            sess = await _load_session(session, session_id)
+            service = _build_close_service(session)
+            try:
+                response = await service.close_position(sess.user_id, session_id)
+            except Exception as exc:  # HTTPException(409 no_open_position) 등
+                detail = getattr(exc, "detail", None) or str(exc)
+                if detail == "no_open_position":
+                    print("✓ 이미 flat 이다 (no_open_position). 주문을 내지 않았다.")
+                    return
+                raise SystemExit(f"✗ 청산 실패: {detail}") from exc
+            await session.commit()
+            print(f"✓ 청산 주문 접수: order_id={response.order_id} state={response.state}")
+            print("  ★원장에 남았다 — 체결은 비동기다. `exchange_exits` 에서")
+            print("    `external_manual` 이 늘지 않고 `ours` 가 느는지로 검증해라.")
+    finally:
+        await engine.dispose()
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    status_parser = sub.add_parser("status", help="활성 세션 + 계정별 거래소 포지션")
+    status_parser.add_argument("--symbol", default="BTC/USDT")
+
+    start_parser = sub.add_parser("start", help="세션 등재 (소크 재시작)")
+    start_parser.add_argument("--strategy-id", required=True)
+    start_parser.add_argument("--account-id", required=True)
+    start_parser.add_argument("--symbol", default="BTC/USDT")
+    start_parser.add_argument("--interval", default="1m", choices=("1m", "5m", "15m", "1h"))
+    start_parser.add_argument("--confirm", action="store_true", required=True)
+    for name, help_text in (
+        ("stop", "세션 비활성화 (거래소는 flat 안 됨)"),
+        ("flatten", "reduce-only 시장가 청산 — 원장에 남는다"),
+    ):
+        sp = sub.add_parser(name, help=help_text)
+        sp.add_argument("session_id")
+        sp.add_argument("--confirm", action="store_true", required=True)
+
+    args = parser.parse_args()
+    if args.command == "status":
+        asyncio.run(_cmd_status(args.symbol))
+    elif args.command == "start":
+        asyncio.run(
+            _cmd_start(UUID(args.strategy_id), UUID(args.account_id), args.symbol, args.interval)
+        )
+    elif args.command == "stop":
+        asyncio.run(_cmd_stop(UUID(args.session_id)))
+    elif args.command == "flatten":
+        asyncio.run(_cmd_flatten(UUID(args.session_id)))
+
+
+if __name__ == "__main__":
+    main()
