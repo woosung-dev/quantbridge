@@ -82,9 +82,7 @@ def _position(*, side: str, size: str) -> SimpleNamespace:
     return SimpleNamespace(side=side, size=Decimal(size))
 
 
-def _open_trade(
-    *, trade_id: str, direction: str, qty: float, entry_bar: int
-) -> dict[str, object]:
+def _open_trade(*, trade_id: str, direction: str, qty: float, entry_bar: int) -> dict[str, object]:
     """`Trade.to_dict()` 가 실제로 주는 키 부분집합. ★`qty` 를 빠뜨리면 판정이 못 읽는다."""
     return {"id": trade_id, "direction": direction, "qty": qty, "entry_bar": entry_bar}
 
@@ -207,9 +205,7 @@ def _install_evaluation(
     import src.trading.repositories.live_signal_session_repository as sess_repo_module
     import src.trading.repositories.order_repository as order_repo_module
 
-    monkeypatch.setattr(
-        order_repo_module, "OrderRepository", MagicMock(return_value=order_repo)
-    )
+    monkeypatch.setattr(order_repo_module, "OrderRepository", MagicMock(return_value=order_repo))
     monkeypatch.setattr(
         sess_repo_module, "LiveSignalSessionRepository", MagicMock(return_value=sess_repo)
     )
@@ -302,6 +298,9 @@ async def test_short_gap_catches_up_two_bars_without_duplicate_keys(
             "fill_timing": "bar_close",
             "emit_from_bar_time": t0,
             "position_epoch": t0,
+            # ADR-025 — 원장을 **읽었고** 조건부 진입 체결이 없었다. `()` 와 `None`(못 읽었다)
+            # 은 다른 상태이고, 여기서 `()` 가 나오는 것이 곧 「원장이 답했다」의 증거다.
+            "ledger_conditional_fills": (),
         }
     ]
     payload = event_repo.insert_pending_events.await_args.kwargs["signals"]

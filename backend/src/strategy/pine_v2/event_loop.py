@@ -19,6 +19,7 @@ ADR-011 §2.0.3 bar-by-bar 이벤트 루프 원칙 구현.
 from __future__ import annotations
 
 import math
+from bisect import bisect_right
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -35,7 +36,11 @@ from src.strategy.pine_v2.interpreter import (
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.pine_v2.runtime import PersistentStore
 from src.strategy.pine_v2.sizing import resolve_default_qty
-from src.strategy.pine_v2.strategy_state import LedgerSeedLeg
+from src.strategy.pine_v2.strategy_state import (
+    ConditionalFillAuthority,
+    LedgerConditionalFill,
+    LedgerSeedLeg,
+)
 
 
 @dataclass
@@ -82,6 +87,7 @@ def run_historical(
     fill_timing: str = "bar_close",
     position_epoch_bar: int | None = None,
     ledger_seed_legs: Sequence[LedgerSeedLeg] = (),
+    conditional_fill_authority: ConditionalFillAuthority | None = None,
 ) -> RunResult:
     """Pine 소스를 OHLCV bar-by-bar 실행.
 
@@ -105,6 +111,11 @@ def run_historical(
         ledger_seed_legs: 주문 원장이 증언하는 포지션. **마지막 bar 의 Pine 실행 직전**에
             채택한다(BL-544, 지점 근거는 아래 훅 주석). 비어 있으면 훅 자체가 돌지 않아
             기존 동작과 byte-identical 이다.
+        conditional_fill_authority: ADR-025 (BL-595) — **라이브 전용**. `None`(기본)이면
+            조건부 진입 체결을 종전대로 시뮬한다(= 백테스트, byte-identical). 값이 있으면
+            **원장이 증언한 체결만** 인정한다. `run_live` 만 채우며 `v2_adapter`(백테스트)·
+            Optimizer·Stress Test 는 이 인자를 모른다 —
+            `tests/strategy/pine_v2/test_conditional_fill_authority_isolation.py` 가 집행한다.
     """
     _validate_ohlcv(ohlcv)
     tree = parse_to_ast(source)
@@ -157,6 +168,7 @@ def run_historical(
             high=bar.current("high"),
             low=bar.current("low"),
             bar_ts=bar_ts_py,
+            conditional_fill_authority=conditional_fill_authority,
         )
         interp.strategy.check_liquidations(
             bar=bar.bar_index,
@@ -363,6 +375,34 @@ def _pending_fills_blocked_by_session(strategy_state: Any, last_bar_time: dateti
     return not is_allowed(list(strategy_state.sessions_allowed), last_bar_time)
 
 
+def _build_conditional_fill_authority(
+    ohlcv: pd.DataFrame, fills: Sequence[LedgerConditionalFill]
+) -> ConditionalFillAuthority:
+    """원장 체결을 봉 인덱스에 귀속시킨다 (ADR-025 / BL-595).
+
+    규칙 하나 — **`filled_at` 이하인 가장 늦은 봉**. 세 경계를 그 하나로 처리한다:
+
+    - 창 시작보다 앞선 체결은 **버린다.** 엔진이 표현할 수 있는 지평 밖이다(오늘도 진입 봉이
+      창을 벗어나면 재생이 그 포지션을 잃는다 — 이 함수가 그 문제를 만들지도 고치지도 않는다).
+    - 마지막 봉보다 뒤인 체결은 **마지막 봉에 얹힌다.** 관측시각이 봉 마감보다 늦는 것이
+      정상이고(`filled_at` 은 우리 관측시각이다), 여기서 버리면 엔진이 거래소를 못 따라간다 —
+      그게 [BL-595] 형 B(`39731d57`)가 죽은 이유다.
+    - 중간은 그 체결이 실제로 일어난 봉이거나 **그보다 늦은** 봉이다. 오차 방향이 한쪽이라
+      유령을 만들지 않는다.
+
+    ★비어 있는 `fills` 로도 **객체를 만든다.** 「원장이 답했는데 체결이 없었다」와 「원장을
+    못 읽었다」는 다른 상태이고, 후자는 호출부가 `None` 을 넘겨 표현한다.
+    """
+    bar_times = [_extract_bar_time(ohlcv, index) for index in range(len(ohlcv))]
+    by_bar: dict[int, list[LedgerConditionalFill]] = {}
+    for fill in fills:
+        index = bisect_right(bar_times, fill.filled_at) - 1
+        if index < 0:
+            continue
+        by_bar.setdefault(index, []).append(fill)
+    return ConditionalFillAuthority(by_bar={index: tuple(items) for index, items in by_bar.items()})
+
+
 def run_live(
     source: str,
     ohlcv: pd.DataFrame,
@@ -376,6 +416,7 @@ def run_live(
     emit_from_bar_time: datetime | None = None,
     position_epoch: datetime | None = None,
     ledger_seed_legs: Sequence[LedgerSeedLeg] = (),
+    ledger_conditional_fills: Sequence[LedgerConditionalFill] | None = None,
 ) -> LiveSignalResult:
     """Sprint 26 — Option B (warmup replay) 채택.
 
@@ -410,6 +451,11 @@ def run_live(
         ledger_seed_legs: 주문 원장이 증언하는 포지션. 마지막 bar 의 Pine 실행 직전에
             채택하며(BL-544), 채택된 trade id 는 `ledger_seed_applied` 로 돌려준다.
             비어 있으면 기존 동작과 byte-identical.
+        ledger_conditional_fills: ADR-025 (BL-595) — 주문 원장이 증언하는 **조건부 진입
+            체결**들. ★3-상태다: `None` = 「원장을 못 읽었다」 → 종전대로 시뮬(기존 동작
+            byte-identical) · `()` = 「원장이 답했는데 체결이 없다」 → **아무것도 체결하지
+            않는다** · 값 있음 = 그 체결들만, 원장 체결가로 인정한다. `None` 과 `()` 를 같은
+            값으로 접으면 판정 불가가 flat 으로 위장된다.
 
     Returns:
         LiveSignalResult — last_bar_time + signals + strategy_state_report + 누적 통계.
@@ -449,6 +495,12 @@ def run_live(
     historical_kwargs: dict[str, Any] = {}
     if position_epoch_bar is not None:
         historical_kwargs["position_epoch_bar"] = position_epoch_bar
+    if ledger_conditional_fills is not None:
+        # ★`None` 일 때는 인자 자체를 넘기지 않는다 — `ledger_seed_legs` 와 같은 관례이며,
+        #   "원장을 못 읽으면 기존 호출과 byte-identical" 을 호출 형태로도 유지한다.
+        historical_kwargs["conditional_fill_authority"] = _build_conditional_fill_authority(
+            ohlcv, ledger_conditional_fills
+        )
 
     # run_historical 전체 재실행 (warmup replay)
     qty_type, qty_value = resolve_default_qty(
@@ -663,6 +715,9 @@ def run_live(
         for order in pending_orders
     ]
     strategy_state_report["pending_order_skips"] = pending_order_skips
+    # ADR-025 — 「시뮬이 하려던 것 vs 원장이 증언한 것」. 권한이 꺼져 있으면 빈 dict 다.
+    # ★비어 있음과 없음을 가르지 않는다 — 소비자(`live_signal`)가 키별로 세기만 한다.
+    strategy_state_report["ledger_fill_census"] = dict(strategy_state.ledger_fill_census)
     # `placed_bar` 는 창 상대 인덱스라 그 자체로는 "창 이탈 임박" 을 판정할 수 없다.
     # 소비자가 headroom 을 계산할 수 있도록 창 크기를 함께 내보낸다.
     strategy_state_report["window_bars"] = len(ohlcv)
