@@ -1062,6 +1062,61 @@ def test_the_recovery_label_is_independent_of_input_order(oracle: Any) -> None:
     }
 
 
+# --- ★래칫: 교체는 앞 식이 실격시킨 것을 사면할 수 없다 --------------------------
+
+
+def test_the_recovery_label_cannot_pardon_a_rearm_phantom(oracle: Any) -> None:
+    """★★★codex 적대 리뷰(2026-08-05)가 낸 **반례**를 그대로 재현한다.
+
+    「회복식 phantom ⊇ 재무장식 phantom」은 관측 19건에서 **관측된 사실**이지 두 식의
+    성질이 아니다. `probe_failed` 로 tick 하나가 빠지면(`live_signal.py:725` — strike 는
+    보존되고 `direction` 줄은 안 남는다) 다음 관측이 `T + 2·I` 에 오고, 회복식은 그걸
+    `replay_lag` 으로 접는다. 재무장식이 `phantom` 이어도 채택이 덮어써서 **실격이 하나
+    사라지고** `window_start` 가 앞당겨진다 = **게이트 fail-open**.
+
+    ★이 상황은 골든 19건에 **없다** — 그래서 골든이 지킬 수 없고 이 테스트가 지킨다.
+    이 단언이 red 가 되면 판별식 교체가 「관대해지는 방향」으로 간 것이다.
+    """
+    observed = _OBSERVED_AT
+    later = observed + timedelta(seconds=120)  # tick 하나가 빠졌다 = 2 × 60초
+
+    verdicts = _adjudicate(
+        oracle,
+        [_event(oracle, observed), _event(oracle, later)],
+        {SESSION_A: _session()},
+        _stream_phantom(),
+        corpus_end=later + timedelta(seconds=600),
+    )
+
+    first = verdicts[0]
+    assert first.recovery_label == "replay_lag"  # 회복식은 사면하려 한다
+    assert first.rearm_label == "phantom"  # 앞 식은 실격이라 했다
+    assert first.label == "phantom", "래칫이 없다 — 교체가 실격 하나를 사면했다"
+
+
+def test_the_ratchet_does_not_invent_phantoms_when_neither_predicate_says_so(
+    oracle: Any,
+) -> None:
+    """★음성 대조 — 래칫은 **바닥**이지 상한이 아니다. 없던 유령을 만들지 않는다.
+
+    이 단언이 없으면 위 테스트를 `label = "phantom"` 을 무조건 넣어서도 통과시킬 수 있다.
+    """
+    observed = _OBSERVED_AT
+    later = observed + timedelta(seconds=120)
+
+    verdicts = _adjudicate(
+        oracle,
+        [_event(oracle, observed), _event(oracle, later)],
+        {SESSION_A: _session()},
+        _stream_replay_lag(),  # 재무장식도 무해라고 한다
+        corpus_end=later + timedelta(seconds=600),
+    )
+
+    assert verdicts[0].rearm_label == "replay_lag"
+    assert verdicts[0].recovery_label == "replay_lag"
+    assert verdicts[0].label == "replay_lag"
+
+
 def test_adjudicate_refuses_to_guess_the_corpus_end(oracle: Any) -> None:
     """★`corpus_end` 에 기본값을 주지 않는다.
 

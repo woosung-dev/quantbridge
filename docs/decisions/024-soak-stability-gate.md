@@ -7,7 +7,8 @@
 > **코드:** [`backend/scripts/soak_gate_predicate.py`](../../backend/scripts/soak_gate_predicate.py) (순수 함수) ·
 > [`scripts/soak-gate.sh`](../../scripts/soak-gate.sh) (수집·판정 CLI) ·
 > [`scripts/soak-stack.sh`](../../scripts/soak-stack.sh) (커밋 고정) ·
-> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 22테스트)
+> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **24테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 추가) ·
+> [`backend/tests/scripts/test_classify_direction_divergence.py`](../../backend/tests/scripts/test_classify_direction_divergence.py) (판별식 동결 **66테스트**)
 
 ---
 
@@ -179,6 +180,30 @@ P1(**TTL 부재**)으로 냈고 **미수리**로 남았다. 그 블록이 지목
 ★①만으로는 부족하다 — 하나를 빼고 둘을 넣어도 총계는 8이 된다. 그래서 ②를 **집합 연산**으로
 못박았다(`test_golden_recovery_phantoms_strictly_contain_the_rearm_phantoms`).
 
+### ★★★그런데 ②는 **관측된 사실이지 성질이 아니었다** — 래칫을 넣었다 (codex 적대 리뷰)
+
+codex 가 반례를 냈다: `probe_failed` 로 tick 하나가 빠지면(`live_signal.py:725` — strike 는
+보존되고 `direction` 줄은 **안 남는다**) 다음 관측이 `T + 2·I` 에 오고, 회복식은 그것을
+`replay_lag` 으로 접는다. 재무장식이 `phantom` 이어도 **채택이 덮어써서 실격 하나가
+사라진다** ⇒ `window_start` 가 앞당겨지고 누적이 는다 = **정확히 fail-open**.
+「7 → 8」도 「진부분집합」도 **n=19 에서만** 성립하므로 이 반례를 배제하지 못한다.
+
+⇒ **채택 규칙에 래칫을 걸었다 — 판별식 교체는 앞 식이 실격시킨 것을 사면할 수 없다.**
+
+```python
+if rearm_label == "phantom":
+    label = "phantom"
+```
+
+★**관측 19건에서는 아무것도 바꾸지 않는다**(이미 진부분집합이므로). 이 방어는 **관측되지
+않은 경로에서만** 발동하므로 골든이 지킬 수 없다 — 전용 테스트
+(`test_the_recovery_label_cannot_pardon_a_rearm_phantom` + 음성 대조)가 지킨다.
+판을 `2026-08-05-recovery-ratchet` 으로 올렸다.
+
+★「그럼 교체가 아니라 합집합 아니냐」는 반론은 유효하다. 답: **바닥일 뿐 상한이 아니다** —
+`replay_lag` 판정은 여전히 회복식이 하고 재무장식은 **거부권만** 갖는다. 그리고 그 방향은
+게이트에서 언제나 안전한 쪽이다. 이 규칙은 **다음 교체에도 적용된다**(래칫은 누적된다).
+
 ### ★★대가 — 사망 상관이 더 이상 독립 검사가 아니다
 
 회복식의 `phantom` 은 「다음 tick 도 어긋났다」이고 프로덕션 킬은 「연속 2회 **판정된** tick」
@@ -219,6 +244,21 @@ P1(**TTL 부재**)으로 냈고 **미수리**로 남았다. 그 블록이 지목
 ★**이건 지금까지 산문이었다.** `test_soak_gate_predicate.py` 에 두 테스트로 동결했다 —
 소급 정정 1건 + **음성 대조**(합집합은 phantom 을 **취소하지 않는다** — 그래서 옛 아카이브를
 「옮겨야」 개선이 반영된다는 §아카이브 판의 코드 쪽 근거이기도 하다).
+
+★★**정정 (codex 적대 리뷰 2026-08-05) — 「30분 이하」는 컨테이너 수명 안에서만 참이다.**
+`soak-gate.sh:177` 은 매 실행이 **현재 컨테이너의** `docker logs` 만 분류하고, 옛 아카이브를
+`--events-json` 으로 **다시 판정하지는 않는다.** 그래서:
+
+| 상황                            | 소급 정정                                        |
+| ------------------------------- | ------------------------------------------------ |
+| 같은 컨테이너 안의 다음 실행    | ✓ 된다 — 로그를 통째로 다시 읽어 후속자가 보인다 |
+| **워커 컨테이너가 재생성된 뒤** | ✗ **안 된다** — 그 관측이 새 입력에 없다         |
+
+⇒ 정확한 노출은 **「컨테이너 수명당 최대 1건」**(재생성 직전 tail 관측)이고, 그 라벨은
+아카이브에 `replay_lag` 으로 **영구히** 남는다. 그 시간 자체는 커버리지 자르기가 처리하지만
+**라벨은 얼어붙는다.** 위 두 테스트가 동결하는 것은 **게이트의 합집합 의미론**이지
+「파이프라인이 실제로 재판정한다」가 아니다 — 그건 지금 구현돼 있지 않다.
+(닫으려면 게이트가 아카이브 합집합을 `--events-json` 으로 되먹여야 한다. 이번 회차 범위 밖.)
 
 ### ★알려진 fail-open 1건 — 이번 회차는 수리하지 않는다
 

@@ -249,7 +249,10 @@ _IDEM_SESSION_PATTERN = re.compile(r"^live:(?P<session>[0-9a-fA-F-]{36}):")
 # `phantom` 7건을 보고했고 그중 4건은 새 분류기가 이미 `replay_lag` 으로 판정한 것이었다.
 # 방향은 fail-closed(과도하게 엄격) 지만, **개선이 게이트에 반영되지 않는다**는 뜻이다.
 # ⇒ 판을 올리면 옛 아카이브를 `.soak/superseded-<판>/` 로 옮긴다([ADR-024] §아카이브 판).
-PREDICATE_VERSION = "2026-08-05-recovery"
+# ★`-ratchet` 접미사 = 채택 규칙이 「앞 식이 실격시킨 것은 사면할 수 없다」로 바뀐 판이다
+#   (codex challenge 2026-08-05). 라벨이 달라질 수 있으므로 판을 올린다 — 방향은 **엄격**
+#   쪽뿐이라 옛 아카이브를 남겨도 거짓 PASS 는 안 되지만, 판이 섞이면 경고가 떠야 한다.
+PREDICATE_VERSION = "2026-08-05-recovery-ratchet"
 
 # 「바로 다음 평가」로 인정하는 간격 상한 = `1.5 × 봉 간격`.
 #
@@ -757,6 +760,21 @@ def adjudicate(
                 label = rearm_label
             else:
                 label = horizon_label
+            # ★★★래칫 — **교체는 앞 판별식이 실격시킨 것을 사면할 수 없다.**
+            #
+            # 「회복식 phantom ⊇ 재무장식 phantom」은 n=19 에서 **관측된 사실**이지 두 식의
+            # 성질이 아니다. codex 적대 리뷰(2026-08-05)가 반례를 냈다 — `probe_failed` 로
+            # tick 하나가 빠지면(`live_signal.py:725`, strike 는 보존되고 `direction` 줄은
+            # 안 남는다) 다음 관측이 `T+120s` 에 오고, 회복식은 그걸 `replay_lag` 으로 접는다.
+            # 재무장식이 `phantom` 이라 해도 채택이 덮어써서 **실격이 하나 사라진다** ⇒
+            # `window_start` 가 앞당겨지고 누적이 는다 = **게이트 fail-open**.
+            #
+            # ⇒ 채택 라벨의 **바닥**을 앞 식으로 깐다. 이 줄이 없으면 판별식 교체가
+            # 「관대해지는 방향」으로 갈 수 있고, 그건 이 게이트가 막으려는 바로 그것이다.
+            # ★관측 19건에서는 아무것도 바꾸지 않는다(이미 진부분집합이므로) — 이 방어는
+            # **관측되지 않은 경로에서만** 발동한다. 그래서 골든이 아니라 전용 테스트가 지킨다.
+            if rearm_label == "phantom":
+                label = "phantom"
 
         died_here = (
             deactivated_reason == "position_divergence"
@@ -1013,6 +1031,15 @@ async def _run(args: argparse.Namespace, raw: str) -> int:
         session_ids = {e.session_id for e in log_events}
         declared_horizon = parse_log_horizon(lines)
 
+    # ★호출자가 창의 끝을 **안다면** 그게 우선이다. `soak-gate.sh` 는 `docker logs
+    # --timestamps` 로 `LOG_LAST` 를 이미 갖고 있으면서 분류기에는 타임스탬프 **없이**
+    # 파이프한다 — 그러면 지평이 Docker 가 보장하는 로그 끝이 아니라 **앱 줄 정규식이 찾은
+    # 마지막 시각**이 되고, 그 포맷은 timezone 을 버리고 UTC 로 강제한다. 무타임스탬프
+    # 후행 줄·포맷 변경·비-UTC 워커가 tail 판정을 조용히 바꾼다(codex challenge 2026-08-05 P2).
+    # 인자를 받으면 그 경로가 아예 사라진다.
+    if args.corpus_end is not None:
+        declared_horizon = datetime.fromisoformat(args.corpus_end)
+
     engine, sm = create_worker_engine_and_sm()
     try:
         sessions = await _load_sessions(sm, session_ids)
@@ -1087,6 +1114,11 @@ def main() -> int:
         help="이전 --json 출력 / .soak 아카이브에서 관측을 되살려 재판정 (로그 대신)",
     )
     parser.add_argument("--since", help="이 ISO 시각 이후 관측만 (예: 2026-08-03T09:53:00+00:00)")
+    parser.add_argument(
+        "--corpus-end",
+        help="창의 끝(ISO). 회복식이 「나았다」와 「아직 못 봄」을 가르는 경계다. "
+        "안 주면 로그 전체의 최대 타임스탬프에서 유도한다 — 호출자가 알면 넘겨라.",
+    )
     parser.add_argument(
         "--category", default="direction", help="재판정할 category (기본: direction)"
     )
