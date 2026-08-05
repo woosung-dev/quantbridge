@@ -819,7 +819,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-593](#bl-593)    | 운영자 도구(`backend/scripts/verify_*.py` 등)가 `ClosePositionService` 를 못 써서 provider 를 **직접 호출** → 그 청산에 대응하는 `trading.orders` 행이 **없다**. 실측 `external_manual` **12건 / 103건(11.7%)**. [BL-591] C 안이 원장을 진실로 쓰므로 이 구멍이 곧 오주입 위험                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 소크를 끄거나 거래소를 손으로 flat 으로 만들기 전에                                                               | S            | 2026-08-04 engine-position-ssot                        |
 | [BL-595](#bl-595) ✅ | ★**엔진의 시뮬 stop 과 거래소의 resting stop 은 같은 주문이 아니었다** — 수준도 수명도 달라 양쪽 모두 혼자 발화했고 `position_divergence` 사망 **5건**이 전부 이것이다. **2026-08-05 Resolved** — 라이브 조건부 진입 체결의 권한을 **주문 원장**으로 옮겼다([ADR-025]). 원장이 증언 안 하면 엔진도 체결 안 하고(형 A 4건), 증언하면 봉·트리거 판정과 무관하게 체결한다(형 B 1건). 백테스트는 인자 기본값 `None` 으로 byte-identical. 사망 5건 전량을 얼려 재현(비트 단위 일치) → 수리 전 5/5 발산, 수리 후 5/5 일치. ★형 B 재판정: `39731d57` 은 거래소가 앞선 별개 현상이 아니라 **거짓 사망**(엔진이 2봉 뒤처졌고 다음 tick 에 따라잡았을 것)                                                                                                                       | ✅ 2026-08-05 conditional-stop-ownership                                                                          | L            | 2026-08-05 divergence-rejudgement                      |
 | [BL-594](#bl-594)    | ★**Redis 가 재기동 불능인 채 6일 돌고 있었다** — `make down` 후 `unhealthy` 로 기동 실패. `appendonly.aof.4.incr.aof` 가 **35.6MB 중 30.8MB(86.6%) 판독 불가**. AOF 는 **기동 시에만 읽히므로** 떠 있는 프로세스에는 증상이 0 이고 healthcheck(`redis-cli ping`)도 구조적으로 못 본다. ⇒ 스택에 **재기동 내성이 없었다** — [BL-003] 의 168h 창 안에 재부팅이 들어오면 워커가 안 뜬다. 손상 원인 미조사                                                                                                                                                                                                                                                                                                                                                                | 소크가 168h 를 향해 도는 동안 · 호스트 재부팅 전                                                                  | S            | 2026-08-05 soak-clock-restoration                      |
-| [BL-596](#bl-596)    | 게이트가 **모르는 라벨을 조용히 무해 취급**한다 — `soak_gate_predicate.py:191` 이 `label == "phantom"` 만 실격으로 세므로 `unattributed` 도, 앞으로 판별식이 낼 어떤 새 라벨도 **fail-open** 이다. 판별식은 2026-08-05 에만 두 번 바뀌었다(봉경계식 → 재무장식 → 회복식). 현행 회복식은 판정 불가를 새 라벨이 아니라 **종전 식으로 강하**시켜 이 경로를 피해 갔을 뿐 닫지는 않았다                                                                                                                                                                                                                                                                                                                                                                                    | 판별식이 새 라벨을 낼 때 · 또는 `unattributed` 가 실제로 관측될 때                                                | S            | 2026-08-05 live-replay-visibility                      |
+| [BL-596](#bl-596) ✅ | 게이트가 **모르는 라벨을 조용히 무해 취급**한다 — `soak_gate_predicate.py:191` 이 `label == "phantom"` 만 실격으로 세므로 `unattributed` 도, 앞으로 판별식이 낼 어떤 새 라벨도 **fail-open** 이다. 판별식은 2026-08-05 에만 두 번 바뀌었다(봉경계식 → 재무장식 → 회복식). 현행 회복식은 판정 불가를 새 라벨이 아니라 **종전 식으로 강하**시켜 이 경로를 피해 갔을 뿐 닫지는 않았다. **2026-08-05 Resolved** — 라벨 어휘를 명시적 3분할 frozenset 으로 읽고, 무해도 실격도 아닌 라벨(`unattributed` + 어휘 밖 + 키 결손)은 C5 를 떨어뜨려 `UNKNOWN 측정불가`. 소급 실격은 아니고, FAIL 이 C5 보다 먼저라 실격을 덮지도 않는다. 알려진 라벨만 있는 판정은 180 조합 전량 불변                                                                                            | 판별식이 새 라벨을 낼 때 · 또는 `unattributed` 가 실제로 관측될 때                                                | S            | 2026-08-05 live-replay-visibility                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -6957,7 +6957,12 @@ VM 의 파일시스템. 백업본이 있다(2026-08-05, 3.5MB tar.gz).
 **카테고리:** Ops / [BL-003] 게이트 (라벨 어휘의 fail-open)
 **Trigger:** 판별식이 새 라벨을 낼 때 · 또는 `unattributed` 가 실제로 관측될 때
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved (2026-08-05 gate596)** — 게이트가 라벨 어휘를 **명시적 3분할**로 읽는다
+(`soak_gate_predicate.py` 의 `HARMLESS`/`DISQUALIFYING`/`UNDECIDABLE_DIVERGENCE_LABELS`).
+무해도 실격도 아닌 라벨(`unattributed` + 어휘 밖 전부 + `label` 키 결손)은 **C5 측정 무결성**을
+떨어뜨려 `UNKNOWN 측정불가` 로 간다 — 무해로 접지도, 소급 실격으로 세지도 않는다. FAIL 판정이
+C5 보다 먼저라 진짜 실격을 UNKNOWN 으로 덮지 않는다(래칫). 알려진 라벨만 있는 payload 의 판정은
+**180 조합 전량 수리 전후 동일**(신설 키 2개 제외) — 동결 케이스로 테스트에 못박았다.
 **출처:** 2026-08-05 live-replay-visibility (판별식 2차 교체 중 발견 — 수리 안 하고 등재만)
 
 **게이트는 모르는 라벨을 조용히 「무해」로 접는다.**
@@ -6987,8 +6992,26 @@ if str(obs.get("label", "")) == "phantom":
 3. 판별식 쪽에서 `unattributed` 를 계속 낼지도 재판단한다 — 회복식은 원장을 안 보므로
    귀속 없이도 판정할 수 있다(현재는 종전 식과의 호환을 위해 그대로 둔다).
 
-**Risk:** 🟡 방향이 **fail-open** 이다 — 실격을 놓치면 `window_start` 가 앞당겨져 누적이 늘고
-[BL-003] 통과가 쉬워진다. 다만 현재 도달 빈도가 0 이라 P2 로 둔다.
+**수리 (2026-08-05 gate596) — ①② 완료, ③ 은 판별식 쪽 과제로 남긴다.**
+
+- ①② 는 위 「상태」 참조. ②(모르는 라벨 케이스)를 **먼저** 넣어 red 를 확인하고 수리했다 —
+  수리 전 `unattributed`/어휘 밖 라벨 둘 다 **`PASS`** 였다(실측).
+- ★**출처를 같이 낸다** (codex 적대 리뷰 P1). 라벨 이름만으로는 「frozenset 등재」와 「구판
+  아카이브 이동」 중 무엇을 해야 할지 못 고른다. `soak-gate.sh` 가 합병 때 각 관측에
+  `archive`/`predicate_version` 을 붙이고(기존 키 불변), 판정기가 `detail.divergence_labels
+.sources` 로 라벨별 총계 + 표본(상한 5건)을 낸다. 요약 줄에도 첫 출처 하나가 붙는다.
+- ③ **`unattributed` 를 게이트에서 「알려진-그러나-판정불가」로 명시했다** — 「그 밖」에
+  맡기지 않았다. 근거: 두 갈래는 **조치가 다르다**. 어휘 밖 = 분류기가 게이트보다 앞서
+  갔다는 뜻이라 사람이 **frozenset 을 갱신**해야 하고, `unattributed` = 세션에 귀속되지
+  않는 주문이 있다는 뜻이라 **[BL-592]/[BL-593] 쪽 조사**가 필요하다. 판정에 주는 영향은
+  같으므로(둘 다 C5 강하) 래칫은 유지되고, 보고(`detail.divergence_labels`)에서만 갈린다.
+  ★**판별식이 `unattributed` 를 계속 낼지는 여기서 정하지 않았다** — 판별식은 래칫으로
+  동결돼 있고([ADR-024] §판별식 2차 교체), 게이트는 그 산출물만 읽는다.
+
+**Risk:** 🟡 ~~방향이 **fail-open** 이다~~ → **닫혔다.** 이제 판독 못 하는 라벨은
+`window_start` 를 앞당기는 대신 게이트를 `UNKNOWN 측정불가` 로 세운다. 반대 방향의 대가는
+**한 건만 나와도 그 아카이브가 정리될 때까지 PASS 가 안 나온다**는 것이고, 그게 의도다
+(해소: frozenset 등재 또는 `.soak/superseded-<판>/` 이동).
 
 **연결:** [BL-003](#bl-003) · [ADR-024](decisions/024-soak-stability-gate.md) (§판별식 2차 교체) ·
 [BL-591](#bl-591) (라벨 어휘의 출처) · [BL-592](#bl-592) (`unattributed` 를 만드는 계정 중복)

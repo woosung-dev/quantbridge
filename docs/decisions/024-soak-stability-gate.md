@@ -7,7 +7,7 @@
 > **코드:** [`backend/scripts/soak_gate_predicate.py`](../../backend/scripts/soak_gate_predicate.py) (순수 함수) ·
 > [`scripts/soak-gate.sh`](../../scripts/soak-gate.sh) (수집·판정 CLI) ·
 > [`scripts/soak-stack.sh`](../../scripts/soak-stack.sh) (커밋 고정) ·
-> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **24테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 추가) ·
+> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **33테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 + [BL-596] 라벨 어휘·출처 9건 추가) ·
 > [`backend/tests/scripts/test_classify_direction_divergence.py`](../../backend/tests/scripts/test_classify_direction_divergence.py) (판별식 동결 **66테스트**)
 
 ---
@@ -68,21 +68,34 @@ celery 를 `watchfiles` 로 감싼다. `backend/src` 의 `.py` 를 **한 줄만 
 
 ### 조건 C1~C5 (전부 AND)
 
-| ID     | 조건            | 값                                                                    |
-| ------ | --------------- | --------------------------------------------------------------------- |
-| **C1** | 누적 clean 시간 | **≥ 168h**                                                            |
-| **C2** | 최장 연속 창    | **≥ 24h**                                                             |
-| **C3** | 실격 사건       | **0건**                                                               |
-| **C4** | tick 연속성     | 표본 간격 ≤ 1h · 연속 두 표본에서 bar time 이 얼어붙지 않음           |
-| **C5** | 측정 무결성     | DB 응답 · 스택이 고정본 · phantom 아카이브 존재 · 어둠 비율 계산 성공 |
+| ID     | 조건            | 값                                                                                              |
+| ------ | --------------- | ----------------------------------------------------------------------------------------------- |
+| **C1** | 누적 clean 시간 | **≥ 168h**                                                                                      |
+| **C2** | 최장 연속 창    | **≥ 24h**                                                                                       |
+| **C3** | 실격 사건       | **0건**                                                                                         |
+| **C4** | tick 연속성     | 표본 간격 ≤ 1h · 연속 두 표본에서 bar time 이 얼어붙지 않음                                     |
+| **C5** | 측정 무결성     | DB 응답 · 스택이 고정본 · phantom 아카이브 존재 · 어둠 비율 계산 성공 · **라벨 어휘 판독 가능** |
 
 **실격 사건 3종** — ⑴ 자동 사망(`SessionDeactivationReason` 에서 `user_stopped` 를 뺀 8종)
 ⑵ **phantom** 방향 발산 ⑶ **tick 정체**.
 ★**`replay_lag` 는 실격이 아니다** — 현행 회복식 기준 **11/11 자가치유**(2026-08-05 실측,
 n=19). 무해 갈래를 사망 조건에 넣으면 게이트가 영영 안 닫힌다.
+
 ★이 문장은 재무장식 시절 「12/12」였다가 codex 지적으로 「11건 회복 + 1건은 사망 직전 tick」
 으로 **정정해야 했다**. 회복식은 그 1건을 처음부터 `phantom` 으로 잡으므로 지금은 정정할
 문장이 없다 — §판별식 2차 교체.
+
+★★**라벨 어휘는 3분할이고, 넷째는 없다 — 「그 밖」은 무해가 아니라 측정 무결성 실패다**
+([BL-596], 2026-08-05 수리). 게이트는 알려진 무해 `{replay_lag}` / 알려진 실격 `{phantom}` /
+**판정 불가 `{unattributed}` ∪ 어휘 밖 전부**를 명시적으로 가른다(`soak_gate_predicate.py` 의
+`*_DIVERGENCE_LABELS` frozenset). 셋째 갈래는 **C5 를 떨어뜨려 `UNKNOWN 측정불가`** 로 간다 —
+무해로 접으면 실격을 놓쳐 `window_start` 가 앞당겨지고(fail-open), 소급 실격으로 세면 「모른다」를
+「유령이었다」로 바꾸는 반대 방향의 거짓말이다. ★판정 순서상 **FAIL 이 C5 보다 먼저**라 어휘
+검사가 진짜 실격을 UNKNOWN 으로 덮지 못한다(래칫). ★어휘가 갈리면 게이트는 그 아카이브가
+정리될 때까지 UNKNOWN 에 머문다 — 해소는 frozenset 등재 또는 §아카이브 판의 판 이동이다.
+★★**둘 중 무엇인지는 라벨 이름이 아니라 출처가 답한다** — `soak-gate.sh` 가 합병 때 관측마다
+`archive`/`predicate_version` 을 붙이고, 판정은 `detail.divergence_labels.sources` 로 라벨별
+총계 + 표본(상한 5건)을 낸다. 요약 줄에도 첫 출처가 실린다.
 
 ★**`phantom` 의 정의는 2026-08-05 에 **두 번** 교체됐다** — 「봉경계식」 → 「재무장 도장식」
 → **「직접 회복 검사」**(현행, `PREDICATE_VERSION = 2026-08-05-recovery-ratchet`).

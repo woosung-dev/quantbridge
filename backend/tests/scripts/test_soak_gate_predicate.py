@@ -268,6 +268,191 @@ def test_the_union_never_retracts_a_phantom_once_archived(gate: Any) -> None:
     assert gate.evaluate(_payload(phantom_observations=[phantom, retraction])).verdict == "FAIL"
 
 
+# ── 라벨 어휘 ([BL-596]) ─────────────────────────────────────────────────────
+
+
+def test_an_unknown_label_is_measurement_failure_not_silence(gate: Any) -> None:
+    """★게이트가 **모르는 라벨**을 조용히 무해로 접지 않는다 ([BL-596]).
+
+    판별식은 2026-08-05 하루에만 두 번 바뀌었다(봉경계식 → 재무장식 → 회복식). 라벨 어휘가
+    분류기 쪽에서 늘어났는데 게이트가 그걸 모르면 **그 관측 전부가 무해**가 되고, 실격을
+    놓치면 `window_start` 가 앞당겨져 누적이 는다 — 정확히 fail-open 이다.
+
+    ★단 **소급 실격도 아니다.** 모르는 라벨은 「그게 유령이었는지 아닌지 우리가 모른다」이지
+    「유령이었다」가 아니다. 그래서 C3 는 비고 C5(측정 무결성)가 떨어진다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            phantom_observations=[
+                {"at": "2026-08-04T11:00:00+00:00", "label": "totally_new_label", "session_id": "x"}
+            ],
+            since="2026-08-04T09:00:00+00:00",
+        )
+    )
+    assert verdict.verdict == "UNKNOWN"
+    assert verdict.reason_word == "측정불가"
+    assert verdict.conditions["C5"]["divergence_labels_readable"] is False
+    assert verdict.detail["divergence_labels"]["unknown"] == ["totally_new_label"]
+    # 실격으로 세지도 않는다 — T0 는 그대로다
+    assert verdict.conditions["C3_violations"] == []
+    assert verdict.detail["window_start"] == "2026-08-04T09:00:00+00:00"
+
+
+def test_unattributed_stops_the_clock_instead_of_passing(gate: Any) -> None:
+    """`unattributed` 는 「판정하지 못했다」이지 「무해하다」가 아니다 ([BL-596]).
+
+    세션 소유 체결이 없어(운영자 청산 등) 어느 식도 판정하지 못한 관측이다. 무해로 접으면
+    그 발산은 아무 데도 안 잡힌다. **어휘 밖 라벨과 같은 갈래로 떨어지되**, 보고에서는
+    갈라 보인다 — 조치가 다르기 때문이다(어휘 밖 = 게이트를 분류기에 맞춰라 /
+    `unattributed` = 그 발산은 사람이 봐야 한다).
+    """
+    verdict = gate.evaluate(
+        _payload(
+            phantom_observations=[
+                {"at": "2026-08-04T11:00:00+00:00", "label": "unattributed", "session_id": "x"}
+            ],
+            since="2026-08-04T09:00:00+00:00",
+        )
+    )
+    assert verdict.verdict == "UNKNOWN"
+    assert verdict.reason_word == "측정불가"
+    assert verdict.conditions["C5"]["divergence_labels_readable"] is False
+    buckets = verdict.detail["divergence_labels"]
+    assert buckets["undecidable"] == ["unattributed"]
+    assert buckets["unknown"] == []
+
+
+def test_an_observation_without_a_label_is_not_readable_either(gate: Any) -> None:
+    """`label` 키가 아예 없는 아카이브 항목도 무해가 아니다 — 「모른다」쪽으로 떨어진다.
+
+    현행 분류기는 언제나 `label` 을 쓰지만(`as_dict`), 게이트는 **옛 판의 아카이브**도 같이
+    읽는다. 형태가 다른 항목을 조용히 무해로 접으면 그게 곧 fail-open 이다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            phantom_observations=[{"at": "2026-08-04T11:00:00+00:00", "session_id": "x"}],
+            since="2026-08-04T09:00:00+00:00",
+        )
+    )
+    assert verdict.verdict == "UNKNOWN"
+    assert verdict.detail["divergence_labels"]["unknown"] == [""]
+
+
+def test_the_report_names_where_an_unreadable_label_came_from(gate: Any) -> None:
+    """★라벨 이름만으로는 **조치를 고를 수 없다** — 출처가 같이 나와야 한다 (codex P1).
+
+    「frozenset 에 등재한다」와 「구판 아카이브를 `.soak/superseded-<판>/` 로 옮긴다」는 서로
+    다른 조치인데, 게이트 출력이 라벨 이름만 주면 운영자가 둘을 가를 수 없다. 그래서
+    `scripts/soak-gate.sh` 가 합병 때 `archive`/`predicate_version` 을 붙이고 판정기는 그것을
+    **라벨별로** 되돌려준다. ★같은 관측이 매 실행 재분류로 수백 건 불어나므로 표본은 상한을
+    두고 총계를 따로 낸다.
+    """
+    observations = [
+        {
+            "at": f"2026-08-04T11:0{i}:00+00:00",
+            "label": "totally_new_label",
+            "session_id": "39731d57-f3ec-45c4-b4e1-db304c72692e",
+            "archive": f"phantom-2026080{i}T000000Z.json",
+            "predicate_version": "2026-08-01-legacy-horizon",
+        }
+        for i in range(7)
+    ]
+    verdict = gate.evaluate(
+        _payload(phantom_observations=observations, since="2026-08-04T09:00:00+00:00")
+    )
+    entry = verdict.detail["divergence_labels"]["sources"]["totally_new_label"]
+
+    # 총계는 전량, 표본은 상한까지만
+    assert entry["count"] == 7
+    assert len(entry["samples"]) == gate.MAX_UNREADABLE_LABEL_SAMPLES
+    assert entry["samples"][0] == {
+        "archive": "phantom-20260800T000000Z.json",
+        "predicate_version": "2026-08-01-legacy-horizon",
+        "at": "2026-08-04T11:00:00+00:00",
+        "session": "39731d57",
+    }
+    # 요약 줄만 보는 실행(`--json` 아님)에서도 첫 출처가 보인다
+    assert "phantom-20260800T000000Z.json" in verdict.summary
+    assert "총 7건" in verdict.summary
+
+
+def test_a_source_less_observation_still_reports_what_it_has(gate: Any) -> None:
+    """출처 필드가 없는 payload(손으로 만든 것 · 옛 아카이브)도 판정은 그대로 간다.
+
+    없는 필드는 **빼고** 낸다 — `archive=None` 같은 항목을 보고에 실으면 「출처가 있는데
+    비었다」로 읽힌다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            phantom_observations=[{"at": "2026-08-04T11:00:00+00:00", "label": "unattributed"}],
+            since="2026-08-04T09:00:00+00:00",
+        )
+    )
+    assert verdict.verdict == "UNKNOWN"
+    assert verdict.detail["divergence_labels"]["sources"]["unattributed"]["samples"] == [
+        {"at": "2026-08-04T11:00:00+00:00"}
+    ]
+
+
+def test_an_unreadable_label_never_downgrades_a_disqualification(gate: Any) -> None:
+    """★래칫 — 어휘 검사는 **관대해지는 방향으로 쓰이지 않는다.**
+
+    실격(FAIL)과 측정 무결성 실패(UNKNOWN)가 같은 창에 있으면 **FAIL 이 이긴다.** 반대로
+    접으면 모르는 라벨 하나를 섞는 것만으로 진짜 유령이 UNKNOWN 으로 덮인다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            phantom_observations=[
+                {"at": "2026-08-04T11:00:00+00:00", "label": "phantom", "session_id": "x"},
+                {
+                    "at": "2026-08-04T11:10:00+00:00",
+                    "label": "totally_new_label",
+                    "session_id": "x",
+                },
+            ],
+            since="2026-08-04T09:00:00+00:00",
+        )
+    )
+    assert verdict.verdict == "FAIL"
+    assert verdict.conditions["C5"]["divergence_labels_readable"] is False
+
+
+@pytest.mark.parametrize(
+    ("label", "expected_verdict", "expected_hours"),
+    [
+        (None, "PASS", 2.0),
+        ("replay_lag", "PASS", 2.0),
+        # 회고 실행(`--since`)은 창을 강제하므로 T0 리셋이 없다 — 실격이어도 누적은 2.0h 다
+        ("phantom", "FAIL", 2.0),
+    ],
+)
+def test_known_labels_only_is_judged_exactly_as_before(
+    gate: Any, label: str | None, expected_verdict: str, expected_hours: float
+) -> None:
+    """★동결 — 현행 코퍼스(라벨이 `phantom`/`replay_lag` 뿐)의 판정은 [BL-596] 수리 전후
+    **완전히 같다.**
+
+    어휘 검사는 새 갈래를 **추가**할 뿐 기존 갈래를 건드리지 않는다. 이 케이스가 없으면
+    「모르는 라벨을 잡았다」는 개선이 조용히 아는 라벨의 판정까지 바꿔도 안 보인다.
+    """
+    observations = (
+        []
+        if label is None
+        else [{"at": "2026-08-04T11:00:00+00:00", "label": label, "session_id": "x"}]
+    )
+    verdict = gate.evaluate(
+        _payload(phantom_observations=observations, since="2026-08-04T09:00:00+00:00")
+    )
+    assert verdict.verdict == expected_verdict
+    assert verdict.conditions["C1_cumulative_hours"] == pytest.approx(expected_hours)
+    assert verdict.conditions["C5"]["divergence_labels_readable"] is True
+    assert verdict.detail["divergence_labels"] == {
+        "undecidable": [],
+        "unknown": [],
+        "sources": {},
+    }
+
+
 @pytest.mark.parametrize(
     "key",
     ["db_ok", "stack_pinned"],
