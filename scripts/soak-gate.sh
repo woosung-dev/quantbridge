@@ -29,6 +29,7 @@ LABEL="dev.quantbridge.soak-gate"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
+REDIS_CONTAINER="${QB_REDIS_CONTAINER:-quantbridge-redis}"
 METRICS_URL="${QB_METRICS_URL:-http://localhost:8100/metrics}"
 
 mkdir -p "${STATE_DIR}" "${LOGDIR}"
@@ -139,6 +140,75 @@ FROM trading.live_signal_sessions WHERE deactivated_at IS NULL;")" || { DB_OK=0;
 # 스택이 고정본인가 — C5⑵
 STACK_PINNED=0
 bash "${ROOT}/scripts/soak-stack.sh" assert-not-pinned >/dev/null 2>&1 || STACK_PINNED=1
+
+# redis AOF 판독성 — C5⑸ ([BL-594])
+#
+# 재는 것은 「redis 가 떠 있는가」가 아니라 **「지금 재기동하면 뜨는가」**다. AOF 는
+# **기동 시에만** 읽히고 healthcheck(`redis-cli ping`)는 떠 있는 프로세스에만 물으므로,
+# 판독 불가 AOF 위에서도 ping 은 PONG 이다 — 실측으로 그렇게 6일을 갔다(2026-08-05,
+# 35.6MB 중 86.6% 판독 불가). 소크 창 안에 호스트 재부팅이 들어오면 그때 워커가 안 뜬다.
+#
+# ★`--fix` 를 절대 넘기지 않는다. 읽기 전용이다 (실측: `--fix` 없이 돌린 전후로 AOF
+#   3파일의 md5·크기·mtime 이 전부 불변).
+# ★★**종료 코드는 판별식이 될 수 없다** (스크래치 컨테이너 실측 2026-08-05):
+#     정상        exit 0  "All AOF files and manifest are valid"
+#     꼬리 절단   exit 1  "0x…: Expected to read 35 bytes, got 8 bytes"  → ★**서버는 뜬다**
+#                         (`aof-load-truncated yes` 기본값이 마지막 INCR 의 미완결 꼬리를 자른다)
+#     중간 손상   exit 1  "format error" / "0x…: Expected \r\n, got: 0d00" → ★**서버가 죽는다**
+#                         (= 프로덕션 서명 `Bad file format reading the append only file`)
+#   도는 redis 의 AOF 꼬리는 **언제든 미완결일 수 있다**. exit code 로 재면 멀쩡한 스택이
+#   거짓 `측정불가` 로 떨어진다. 그래서 **양성 서명만 통과**시킨다(default deny) — 아래 분류기.
+# ★수집이 어떤 이유로든 실패하면 `aof_ok=0` 이다. redis 가 안 뜨는 것과 못 재는 것은
+#   구분되지 않지만, **둘 다 「재기동 내성을 증명하지 못했다」**이고 방향은 fail-closed 다.
+AOF_OK=0
+AOF_RAW="$(docker exec "${REDIS_CONTAINER}" sh -c '
+  m=/data/appendonlydir/appendonly.aof.manifest
+  [ -f "$m" ] || { echo "__missing=$m"; exit 0; }
+  echo "__last_incr=$(grep " type i" "$m" | tail -1 | cut -d" " -f2)"
+  redis-check-aof "$m" 2>&1
+  echo "__rc=$?"
+' 2>/dev/null)"
+
+AOF_FILE="$(mktemp)"
+printf '%s' "${AOF_RAW}" > "${AOF_FILE}"
+AOF_OK="$(python3 - "${AOF_FILE}" <<'PY'
+import pathlib, re, sys
+
+text = pathlib.Path(sys.argv[1]).read_text()
+rc = re.search(r"^__rc=(\d+)$", text, re.M)
+last_incr = re.search(r"^__last_incr=(.*)$", text, re.M)
+
+ok = False
+if rc is None:
+    # docker exec 실패 · 매니페스트 부재 — 잴 수 없었다.
+    ok = False
+elif int(rc.group(1)) == 0:
+    # ★exit 0 만으로 통과시키지 않는다. 종결 문장을 함께 요구한다 —
+    #   빈 출력이 우연히 0 을 내는 갈래를 막는다.
+    ok = "All AOF files and manifest are valid" in text
+else:
+    # 결함이 **마지막 INCR 파일의 꼬리 절단 하나뿐**일 때만 통과. 그 외 전부 거절.
+    #   ⑴ 「유효하지 않다」고 지목된 파일이 정확히 하나이고, 그게 매니페스트의 마지막 INCR
+    #   ⑵ 결함 줄(`0x…:`)이 전부 short read (= EOF 도달) 이고, 하나 이상 있다
+    #   ⑶ 어디에도 format error 가 없다
+    #   redis 의 기동 규칙(`aof-load-truncated yes` 는 **마지막** 파일의 EOF 절단만 봐준다)을
+    #   그대로 옮긴 것이다. 그보다 넓히면 fail-open 이 된다.
+    invalid = re.findall(r"^AOF (\S+) is not valid\.", text, re.M)
+    defects = re.findall(r"^0x\s+[0-9a-fA-F]+:\s*(.*)$", text, re.M)
+    short_reads = [d for d in defects if re.match(r"Expected to read \d+ bytes, got \d+ bytes", d)]
+    tail_name = last_incr.group(1).strip() if last_incr else ""
+    ok = (
+        tail_name != ""
+        and invalid == [tail_name]
+        and len(defects) > 0
+        and len(short_reads) == len(defects)
+        and "format error" not in text
+    )
+print("1" if ok else "0")
+PY
+)"
+[ "${AOF_OK}" = "1" ] || AOF_OK=0
+rm -f "${AOF_FILE}"
 
 # 표본 append (창 안 tick 연속성의 유일한 증거원)
 if [ "${COLLECT}" = "1" ] && [ "${ACTIVE_OK}" = "1" ]; then
@@ -267,13 +337,14 @@ SESSIONS_FILE="$(mktemp)"
 printf '%s' "${SESSIONS_TSV}" > "${SESSIONS_FILE}"
 PAYLOAD="$(python3 - \
   "${STATE_DIR}" "${NOW}" "${DARKNESS}" "${DB_OK}" "${STACK_PINNED}" \
-  "${REQUIRE_HOURS}" "${REQUIRE_CONTINUOUS}" "${SINCE}" "${SESSIONS_FILE}" <<'PY'
+  "${REQUIRE_HOURS}" "${REQUIRE_CONTINUOUS}" "${SINCE}" "${SESSIONS_FILE}" "${AOF_OK}" <<'PY'
 import json, pathlib, sys
 
 state = pathlib.Path(sys.argv[1])
 now, darkness_raw, db_ok, stack_pinned = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 require_hours, require_continuous, since = sys.argv[6], sys.argv[7], sys.argv[8]
 sessions_tsv = pathlib.Path(sys.argv[9]).read_text()
+aof_ok = sys.argv[10]
 
 sessions = []
 for line in sessions_tsv.splitlines():
@@ -370,6 +441,7 @@ payload = {
     "darkness": json.loads(darkness_raw) if darkness_raw.strip() != "null" else None,
     "db_ok": db_ok == "1",
     "stack_pinned": stack_pinned == "1",
+    "aof_ok": aof_ok == "1",
     "thresholds": thresholds,
 }
 if since:

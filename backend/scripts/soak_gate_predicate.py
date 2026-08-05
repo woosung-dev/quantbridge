@@ -455,12 +455,19 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     # ★phantom 커버리지는 여기 없다 — boolean 이 아니라 **자르기**로 강제된다(위 clean 계산).
     #   덮이지 않은 시간은 「위반」이 되는 게 아니라 **애초에 안 세어진다.** 구조적 방어가
     #   문턱보다 강하다. 대신 잘려나간 양을 `unverified_hours` 로 **보고**한다.
+    #
+    # ★`aof_ok` = redis 가 **지금 재기동하면 뜨는가** ([BL-594]). healthcheck 는 떠 있는
+    #   프로세스에만 묻고 AOF 는 기동 시에만 읽히므로, 「살아 있다」는 재기동 가능의 증거가
+    #   아니다(실측 2026-08-05: 판독 불가 AOF 위에서 6일 연속 가동). 창 안에 재부팅이 들어오면
+    #   그때 워커가 안 뜬다 — 168h 짜리 달력 시간에 직접 걸린다.
+    #   ★키 부재는 `False` 다 — 수집이 죽었는데 초록으로 남으면 fail-open 이다.
     darkness = payload.get("darkness")
     integrity: dict[str, Any] = {
         "db_ok": bool(payload.get("db_ok", False)),
         "stack_pinned": bool(payload.get("stack_pinned", False)),
         "phantom_archive": bool(log_coverage),
         "darkness_computed": darkness is not None,
+        "aof_ok": bool(payload.get("aof_ok", False)),
     }
 
     # ── C4 표본 공백 (귀속 창 안에서만, **세션별로** 묻는다) ────────────────
