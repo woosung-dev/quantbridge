@@ -7,7 +7,7 @@
 > **코드:** [`backend/scripts/soak_gate_predicate.py`](../../backend/scripts/soak_gate_predicate.py) (순수 함수) ·
 > [`scripts/soak-gate.sh`](../../scripts/soak-gate.sh) (수집·판정 CLI) ·
 > [`scripts/soak-stack.sh`](../../scripts/soak-stack.sh) (커밋 고정) ·
-> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **24테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 추가) ·
+> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **27테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 + C5⑸ `aof_ok` 3건 추가) ·
 > [`backend/tests/scripts/test_classify_direction_divergence.py`](../../backend/tests/scripts/test_classify_direction_divergence.py) (판별식 동결 **66테스트**)
 
 ---
