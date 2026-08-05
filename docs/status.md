@@ -436,6 +436,18 @@
 | ③   | **양성 대조** — 조건부 진입 발주(원장)                                                                                 | **≥ 40건** | 6.5/h         | 78건           |
 | ④   | **양성 대조** — `qb_live_conditional_fill_ownership_total{outcome=engine_only_suppressed\|ledger_only_adopted\|agree}` | **≥ 5건**  | —             | ≈30~60건(추정) |
 
+★★★**④는 반드시 T0 스냅샷과의 차분으로 읽어라.** prometheus multiprocess mmap 이 워커
+재기동을 넘어 살아남아 절대값에 **수리 전 누적이 섞여 있다**(이 레포가 「출생일 다른 counter 는
+절대값 비교 불가」로 이미 덴 함정). **스냅샷(T0 `12:44:04Z` 직후, `12:49Z` 실측 — 이 값을 빼고 세라):**
+
+```
+outcome=agree 34.0 outcome=ledger_only_adopted 2.0 outcome=engine_only_suppressed 4861.0
+```
+
+★계상 단위 교체를 프로덕션에서 확인했다 — 교체 후 3 tick 연속 증분 **0**(교체 전 +121/tick).
+★그 직후 새 세션에서 `agree` 와 `ledger_only_adopted` 가 **각 +1** 발화했다 — 고친 단위로도
+관측량 ④ 가 살아 있다는 뜻이다(위 스냅샷은 그 발화를 **포함**한 값이다).
+
 ★★**④의 계상 단위를 프로덕션에서 고쳤다 — 그전 설계는 판별력이 0 이었다.** 처음엔 재생의
 **모든 봉**에서 셌는데, 소크에 올려 보니 warmup 300봉을 매 tick 다시 세어 카운터가 사건과
 무관하게 **tick 당 정확히 +121** 로 자랐다(45초 간격 실측 121 → 242 → 363). 그 값으로는
