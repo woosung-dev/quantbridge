@@ -201,9 +201,76 @@
 4. **살아남은 변이 = 진짜 구멍 → 그때만** 테스트를 쓰고 **같은 변이를 다시 주입해 red 를
    증명**한다. 판별력이 없으면 **커밋하지 않고 지운다.**
 
-### 3.1 결과
+### 3.1 결과 — **12/12 판정. 신규 테스트는 0건이다.**
 
-_(주입 실행 후 채운다.)_
+| #   | 판정                       | 죽인 테스트(첫 실패 / 실패 수)                                        | 예측        |
+| --- | -------------------------- | --------------------------------------------------------------------- | ----------- |
+| M1  | **KILLED**                 | `test_run_live_propagates_runtime_errors` (1건)                       | 적중        |
+| M2  | **KILLED**                 | `test_pending_fill_flip_close_is_not_dispatched` (2건)                | 적중        |
+| M3  | ~~SURVIVED~~ **등가 변이** | — (행위가 안 바뀐다. 아래 §3.2)                                       | **무효**    |
+| M3b | **KILLED**                 | `test_position_opened_on_epoch_bar_survives` (1건)                    | 적중(파일)  |
+| M4  | **KILLED**                 | `test_no_signals_when_entry_in_earlier_bar`                           | 적중(파일)  |
+| M5  | **KILLED**                 | `test_desired_set_is_empty_when_carried_into_disallowed_session`      | 적중        |
+| M6  | **KILLED**                 | `test_pending_orders_are_quantized_to_api_precision` 포함 **4건**     | 적중        |
+| M7  | **KILLED**                 | `test_ledger_seed_is_idempotent_when_replay_already_holds_a_position` | 적중        |
+| M8  | ~~SURVIVED~~ **등가 변이** | — (행위가 안 바뀐다. 아래 §3.2)                                       | **무효**    |
+| M8b | **KILLED**                 | `test_target_position_sums_same_side_in_decimal_space` (1건)          | 적중        |
+| M9  | **KILLED**                 | `test_run_live_drops_invalid_pending_order_legs`                      | 적중        |
+| M10 | **KILLED**                 | **12건** — 아래 §3.3                                                  | ★**빗나감** |
+| M11 | **KILLED**                 | `test_ledger_seed_is_idempotent_when_replay_already_holds_a_position` | 적중        |
+| M12 | **KILLED**                 | `test_run_live_consistent_with_run_historical_final_state`            | 적중        |
+
+⇒ **행위를 실제로 바꾸는 변이 12건이 전건 죽었다. 기존 망에 구멍이 없다** — 적어도 내가
+찔러 본 12곳에는. **그래서 새 테스트를 쓰지 않았다.** 여기서 하나라도 짓는 것이 곧 이 레포가
+4회 연속 밟은 판별력 0 하네스다.
+
+★**1단계는 `-x` 라 첫 실패만 보인다** — 「죽었다」는 알 수 있어도 「내가 지목한 테스트가
+잡았다」는 알 수 없다. 그래서 M1·M2·M6·M10·M3b·M8b 는 **`-x` 없이** 다시 돌려 실패 전량을
+모았다. 예측한 테스트가 실제로 그 목록에 있다.
+
+### 3.2 ★내 변이 2건이 **판별력 0** 이었다 — 「살아남았다」가 아니라 「행위가 안 바뀌었다」
+
+이 레포가 4회 연속 밟은 함정과 같은 것이고, **이번엔 결과를 오독하기 직전에 잡았다.**
+
+| 변이 | 왜 등가인가                                                                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| M3   | `position_epoch_bar == 0 → None` 붕괴를 없애면 `discard_state_before_epoch()` 가 **bar 0 에서** 돈다. 그 시점엔 열린 거래도 손익도 없어 **no-op** 이다 |
+| M8   | `Decimal(str(x))` → `Decimal(repr(float(x)))`. **Python 3 에서 float 의 `str` 과 `repr` 은 같다** — 바이트가 같다                                      |
+
+★**「SURVIVED」를 구멍으로 적었다면 있지도 않은 구멍을 두 개 보고했을 것이다.** 등가 변이는
+구멍의 증거가 **아니다** — 아무것도 안 바꿨으니 잡힐 것도 없다. 행위가 실제로 바뀌는
+M3b(off-by-one `>=` → `>`) · M8b(진짜 float 공간 합산)로 교체하니 **둘 다 예측한 테스트가
+잡았다.**
+
+★부수 관측 — M3 이 등가라는 것은 `if position_epoch_bar == 0: position_epoch_bar = None`
+가드가 **행위상 사문**이라는 뜻이다(방어·문서 목적으로는 유효). 지우지 않고 적어만 둔다.
+
+### 3.3 ★★★가장 큰 산출물 — M10 예측이 빗나갔고, 그 이유가 「구멍 2」의 진짜 반증이다
+
+M10 = **[BL-595] 형 A** 의 최소 모형이다(조건부 stop 을 봉 내 `high/low` 로 체결하지 않고
+봉이 트리거를 **열자마자** 넘은 경우만 체결). 「기존 망은 라이브를 안 보니 살아남을 것」으로
+예측했다. **12건이 죽였다:**
+
+| 파일                              | 테스트                                                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `test_run_live_pending_orders.py` | `test_internal_pending_stop_fill_opens_trade_without_live_signal` · `test_internal_pending_stop_fill_never_leaks_fill_signal`  |
+| `test_run_live_broker_flip.py`    | `test_broker_flip_close_side_would_have_matched_the_filled_leg` · `test_broker_flip_still_records_the_close_in_the_ledger`     |
+| `test_run_live_fill_timing.py`    | `test_stop_entry_is_unaffected_by_fill_timing`                                                                                 |
+| `test_pivot_and_stop_order.py`    | `test_stop_long_fills_when_high_breaks_above` · `test_stop_short_fills_when_low_breaks_below` · `test_stop_plus_mintick_usage` |
+| `test_leverage_engine.py`         | `test_margin_gate_skips_stop_fill_and_removes_pending_order`                                                                   |
+| `test_sltp_integration.py`        | `test_real_s1_pbr_sltp_pine_executes_and_sltp_fires` · `test_same_bar_dual_stop_trigger_is_deterministic`                      |
+| **`test_trust_layer_parity.py`**  | ★**`test_p3_execution_metrics_match_golden[s1_pbr]`**                                                                          |
+
+★★★**Trust Layer 골든이 잡았다 — `run_live` 를 한 번도 안 부르면서.** 이유는 단순하다:
+조건부 체결 로직은 `strategy_state.check_pending_fills` 에 있고 그건 **백테스트와 라이브가
+공유하는 머니-패스**다. ⇒ **「어느 진입점을 호출하는가」와 「어느 코드를 덮는가」는 다른
+질문이고, 「구멍 2」는 그 둘을 뒤섞었다.**
+
+★**그리고 이건 [BL-595] 에 설계 제약을 하나 준다.** 공유 코드를 고치면 **백테스트 골든이
+red 가 된다** — BL-595 가 「백테스트 경로 byte-identical 을 못박아야 한다」고 적어 둔 바로 그
+위험이 **이미 집행되고 있다**. ⇒ 대칭 수리는 `check_pending_fills` 를 바꾸는 것이 아니라
+**라이브 전용 경로에서만** 갈라져야 한다. 위 12건이 그 수리가 **의식적으로 뒤집어야 할
+목록**이다.
 
 ---
 
