@@ -151,3 +151,37 @@ codex 는 「문자열 화이트리스트가`**kwargs` 를 못 잡는다」고 �
   도 같다. `agree` 대비 나머지 비율이 **그 편의의 첫 실측치**가 된다 — 지금은 아무도 모른다.
 - **판별식** — 안 바꿨다. `39731d57` 의 `phantom` 라벨은 판별식 고장이 아니라 **세션이 회복
   전에 죽어 표본이 절단된** 결과다. 그건 [BL-596] 축이다.
+
+---
+
+## 9. 최종 게이트 · 소크 상태
+
+**`scripts/final-gates.sh --run conditional-stop-ownership`**
+
+- **커밋 `ca343e2a` — 전건 통과(exit 0).** BE **4171 passed / 45 skipped** · e2e **32 + 69** ·
+  BL 감사 3면 정합 active **156** · CI 커버리지·alembic·lockfile·hooks · signal 3종.
+- **최종 커밋 `85cd7444` 재실행 — `e2e authed` 1건 FAIL.** ★이 브랜치와 무관하다:
+  ⑴ 두 커밋 사이 **frontend diff 0줄** ⑵ 전체 스위트 3연속에서 **실패 라우트가 매번 바뀐다**
+  (`/strategies/:id/edit` → `/optimizer/:id` → `/strategies/:id/edit`, 항상 1/69)
+  ⑶ 신호가 `Encountered a script tag while rendering React component` + `Hydration failed` 로
+  **Next.js dev 오버레이/HMR 산물**이다. 단독 재실행 **3/3 PASS**. BE pytest 는 최종 커밋에서
+  **4172 passed / 45 skipped**.
+
+**소크** — 고정 커밋 **`85cd7444`** · **새 T0 = celery ready `2026-08-05T12:44:04Z`** ·
+세션 **`73eda5ef`**. `soak-gate.sh` = **`UNKNOWN 진행중`(exit 2) · 실격 0 · 누적 0.46h/168h**.
+★**게이트가 `FAIL` 을 벗어났다** — 창 시작이 마지막 사망(`09:12:53Z`)으로 잡혔고 그 뒤로
+실격 사건이 없다.
+
+**★★프로덕션 실증** — 중간 세션 `5a7147ba`(커밋 `ca343e2a`)에서
+`qb_live_conditional_fill_ownership_total` = **`agree` 17 · `ledger_only_adopted` 1**.
+`ledger_only_adopted` 가 **형 B 차단**이다 — 거래소가 체결했는데 엔진 시뮬은 아직인 tick 에서
+엔진이 따라갔고 다음 tick 에 시뮬이 합류해 `agree` 가 됐다. 옛 코드에서 이 순간이 `39731d57`
+을 죽였다. 채택 진입가 **64096.9** = **원장 체결가**(엔진 시뮬 stop 은 64096.**91**).
+
+## 10. 내 계측기가 또 두 번 틀렸다
+
+- **census 단위** — 재생의 **모든 봉**에서 세어 tick 당 **+121** 로 자랐다. 사전등록 관측량
+  ④ 가 사건과 무관하게 충족되는 **판별력 0** 상태였다. 소크에 올려 보고서야 알았다.
+- **`docker logs --since`** — `Z` 를 안 붙였더니 **로컬시간(KST)** 으로 해석돼 03:15 UTC 이후
+  전부가 매치됐다. 「12:15 이후 발산 11건」이 실은 **12:08 이후 0건**이었다.
+- **`soak-gate.sh | head` 뒤의 `$?`** — 또 파이프 함정. `head` 의 코드를 쟀다. 파일로 받아 재측정.

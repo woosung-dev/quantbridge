@@ -56,7 +56,39 @@
 > 창 지평 5시간(오늘과 같다) · 백테스트 체결 모델 보정(사용자 판정: **계측만**) ·
 > 판별식(안 바꿨다 — `39731d57` 의 `phantom` 은 표본 절단이지 판별식 고장이 아니다).
 >
+> **★★회차 끝 소크 상태 — 게이트가 `FAIL` 을 벗어났다.**
+> `scripts/soak-gate.sh` = **`UNKNOWN 진행중` (exit 2) · 실격 0건** · 누적 **0.46h / 168h**.
+> 창 시작이 마지막 사망(`09:12:53Z`)으로 잡혔고 그 뒤로 실격 사건이 없다.
+> 고정 커밋 **`85cd7444`** · **새 T0 = celery ready `2026-08-05T12:44:04Z`** ·
+> 세션 **`73eda5ef`**(`12:44:25Z` 생성). ★재고정 전에 거래소를 **flat 으로 맞췄다**
+> (직전 세션이 남긴 −0.029 를 reduce-only 시장가로 청산, sell 0.029 @ 64441.2 체결).
+>
+> **★★프로덕션 실증 — 수리가 발화했다.** 중간 세션(`5a7147ba`, `ca343e2a`)에서
+> `qb_live_conditional_fill_ownership_total` 이 **`agree` 17 · `ledger_only_adopted` 1** 을
+> 냈다. ★`ledger_only_adopted` 가 바로 **형 B 차단**이다 — 거래소가 체결했는데 엔진 시뮬은
+> 아직인 tick 에서 엔진이 따라갔고, 다음 tick 에 시뮬이 합류해 `agree` 가 됐다. 옛 코드에서
+> 이 순간이 `39731d57` 을 죽였다. 채택 진입가는 **64096.9** = **원장 체결가**다(엔진의 시뮬
+> stop 은 `trigger + mintick` = 64096.**91**). 첫 체결 이후 `position_divergence` **0건**.
+>
+> **★★직전 세션의 유산이 초기 `exchange_only` 를 만들었다** — 죽은 세션 `a16aa640` 이
+> 거래소에 −0.029 를 남겨, 새 세션이 엔진 flat 으로 시작해 11분간 어긋났다. `exchange_only`
+> 는 **fail-closed 가 아니라** 죽지 않고, 첫 체결에서 자가 해소됐다. ⇒ 그래서 이번 재고정
+> 전에는 flat 을 맞췄다(기록된 교훈의 재확인).
+>
 > **게이트(★커밋 후 · 조용한 트리 · 파이프 없이):** 아래 §최종 게이트.
+> `scripts/final-gates.sh --run conditional-stop-ownership` — **커밋 `ca343e2a` 에서 전건 통과
+> (exit 0)**: BE ruff/mypy · BL 감사(3면 정합 active **156**) · 문서 감사 ·
+> **BE pytest 4171 passed / 45 skipped** · e2e design-canon **32** + authed **69** ·
+> CI 커버리지 · fresh DB alembic · frozen-lockfile · hooks grep · screen/codex/g9 signal.
+> FE 게이트는 diff 0 이라 skip.
+> ★**최종 커밋 `85cd7444` 재실행에서는 `e2e authed` 1건이 FAIL 이다 — 이 브랜치와 무관하다.**
+> 근거 셋: ⑴ `ca343e2a`↔`85cd7444` 의 **frontend diff 가 0줄**이라 위 69 passed 가 그대로
+> 적용된다 ⑵ 전체 스위트 3연속 실행에서 **실패 라우트가 매번 바뀐다**(`/strategies/:id/edit`
+> → `/optimizer/:id` → `/strategies/:id/edit`, 항상 1/69) ⑶ 실패 신호가
+> `Encountered a script tag while rendering React component` + `Hydration failed` 로 **Next.js
+> dev 오버레이/HMR 산물**이고 백엔드가 만들 수 없다. 단독 재실행은 **3/3 PASS**.
+> ⇒ **FE dev 서버 재기동이 기록된 처방**이지만 내가 띄운 프로세스가 아니라 손대지 않았다.
+> BE pytest 는 최종 커밋에서 **4172 passed / 45 skipped**.
 > 회고 = [dev-log](dev-log/2026-08-05-conditional-stop-ownership.md).
 >
 > ---
