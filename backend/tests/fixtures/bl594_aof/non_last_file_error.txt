@@ -1,0 +1,24 @@
+__last_incr=appendonly.aof.4.incr.aof
+Start checking Multi Part AOF
+Start to check BASE AOF (RDB format).
+[offset 0] Checking RDB file /data/appendonlydir/appendonly.aof.2.base.rdb
+[offset 26] AUX FIELD redis-ver = '7.4.9'
+[offset 40] AUX FIELD redis-bits = '64'
+[offset 52] AUX FIELD ctime = '1785940484'
+[offset 67] AUX FIELD used-mem = '1090912'
+[offset 79] AUX FIELD aof-base = '1'
+[offset 81] Selecting DB ID 0
+[offset 4078] Checksum OK
+[offset 4078] \o/ RDB looks OK! \o/
+[info] 300 keys read
+[info] 0 expires
+[info] 0 already expired
+[info] 0 subexpires
+RDB preamble is OK, proceeding with AOF tail...
+AOF analyzed: filename=appendonly.aof.2.base.rdb, size=4078, ok_up_to=4078, ok_up_to_line=1, diff=0
+BASE AOF appendonly.aof.2.base.rdb is valid
+Start to check INCR files.
+0x            26fd: Expected to read 5 bytes, got 1 bytes
+AOF analyzed: filename=appendonly.aof.3.incr.aof, size=9982, ok_up_to=9973, ok_up_to_line=2101, diff=9
+AOF appendonly.aof.3.incr.aof is not valid. Use the --fix option to try fixing it.
+__rc=1

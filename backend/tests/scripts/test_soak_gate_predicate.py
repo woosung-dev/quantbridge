@@ -84,6 +84,7 @@ def _payload(**overrides: Any) -> dict[str, Any]:
         "darkness": {"undecidable": 0, "total": 10},
         "db_ok": True,
         "stack_pinned": True,
+        "aof_ok": True,
         "thresholds": {"require_hours": 1.0, "require_continuous_hours": 1.0},
     }
     base.update(overrides)
@@ -455,11 +456,44 @@ def test_known_labels_only_is_judged_exactly_as_before(
 
 @pytest.mark.parametrize(
     "key",
-    ["db_ok", "stack_pinned"],
+    ["db_ok", "stack_pinned", "aof_ok"],
 )
 def test_integrity_failure_is_unknown_never_pass(gate: Any, key: str) -> None:
     """★조회 실패를 「이상 없음」으로 접지 않는다."""
     verdict = gate.evaluate(_payload(**{key: False}))
+    assert verdict.verdict == "UNKNOWN"
+    assert verdict.reason_word == "측정불가"
+
+
+def test_readable_aof_is_required_for_pass(gate: Any) -> None:
+    """[BL-594] redis 가 재기동 가능해야 PASS 다 — 「지금 떠 있다」로는 부족하다.
+
+    AOF 는 **기동 시에만** 읽힌다. healthcheck(`redis-cli ping`)는 떠 있는 프로세스에만
+    물으므로 판독 불가 AOF 를 6일 동안 못 봤다(실측 2026-08-05: 35.6MB 중 86.6% 판독 불가).
+    소크 창 안에 호스트 재부팅이 들어오면 그 순간 워커가 안 뜬다.
+    """
+    ok = gate.evaluate(_payload())
+    assert ok.conditions["C5"]["aof_ok"] is True
+    assert ok.verdict == "PASS"
+
+    broken = gate.evaluate(_payload(aof_ok=False))
+    assert broken.conditions["C5"]["aof_ok"] is False
+    assert broken.verdict == "UNKNOWN"
+    assert "aof_ok" in broken.summary
+
+
+def test_absent_aof_key_is_not_a_pass(gate: Any) -> None:
+    """★키가 없으면 「이상 없음」이 아니라 **측정 못 했다**이다 (fail-closed).
+
+    수집기(`soak-gate.sh`)가 이 필드를 못 채우는 갈래 — docker exec 실패, 컨테이너 부재,
+    옛 payload — 가 전부 여기로 온다. 기본값을 `True` 로 두면 수집이 죽은 채 게이트가
+    초록으로 남는다(fail-open).
+    """
+    payload = _payload()
+    payload.pop("aof_ok")
+
+    verdict = gate.evaluate(payload)
+    assert verdict.conditions["C5"]["aof_ok"] is False
     assert verdict.verdict == "UNKNOWN"
     assert verdict.reason_word == "측정불가"
 

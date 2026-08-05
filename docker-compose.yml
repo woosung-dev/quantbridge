@@ -32,11 +32,22 @@ services:
 
   # Redis — 캐시 + Celery 브로커 + Celery 결과 백엔드
   # DB 0: 캐시, DB 1: Celery broker, DB 2: Celery result backend
+  #
+  # ★`--auto-aof-rewrite-min-size 8mb` — [BL-594]. redis 기본값은 64mb 이고, rewrite 는
+  #   **크기 조건과 증가율 조건을 둘 다** 넘어야 발동한다. base RDB 가 작으면(실측 88바이트)
+  #   증가율은 늘 만족하므로 **크기 조건만 남는다** — 그래서 incr 파일이 64MB 에 닿을 때까지
+  #   한 번도 rewrite 되지 않는다(실측: 10MB 를 넣어도 `aof_rewrites:0`). 프로덕션의 incr 이
+  #   6일 동안 35.6MB 로 자라 그중 86.6% 가 판독 불가가 된 채 재기동 불능이었던 경로다.
+  #   rewrite 는 메모리에서 base 를 새로 쓰고 **낡은 incr 파일을 지운다** — 즉 손상된 incr 을
+  #   폐기한다(실측: 손상 주입 → rewrite → 재기동 성공). 8mb 면 노출 창이 35.6MB → ~8MB 로
+  #   줄고, 관측된 쓰기량(~6MB/일) 기준 하루에 한 번꼴로 낡은 incr 이 폐기된다.
+  #   ★`appendfsync`(기본 everysec)와 `stop_grace_period` 는 **기각**했다 — 실측 근거는
+  #   `docs/backlog.md` [BL-594].
   redis:
     image: redis:7-alpine
     container_name: quantbridge-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --auto-aof-rewrite-min-size 8mb --maxmemory 512mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     volumes:
