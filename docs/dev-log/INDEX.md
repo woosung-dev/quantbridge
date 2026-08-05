@@ -11,6 +11,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-05 divergence-rejudgement** — ★★★**「두 현상」이 반증됐다** — 사망 4건 부검: 엔진이 앞선 3건 · **거래소가 앞선 1건**. 뿌리는 방향이 아니라 **엔진과 거래소가 서로 다른 stop 주문**을 든다는 것(신규 [BL-595]). ★판별식 교체(19건 전량 표: phantom **11→7**, 사망상관 4/4 보존, **FAIL 유지**). ★사전등록 미충족이라 **src 0줄** — [dev-log](2026-08-05-divergence-rejudgement.md)
 - **2026-08-05 soak-clock-restoration** — 소크를 **커밋에 고정**해 편집과 분리(음성 대조: 배너 1→2 vs 1→1) + 「1주 안정」을 기계 판정으로([ADR-024]). ★★★**게이트가 첫 5시간에 phantom 7건·사망 2건을 냈다** — BL-003 의 차단자는 달력 시간이 아니라 `phantom` 이다. ★★codex 가 **거짓 PASS 5경로** 적발 — [dev-log](2026-08-05-soak-clock-restoration.md)
 - **2026-08-04 handler-visibility-nightly-broker** — ★최대 `try` 본문 **845→8줄**, 새 `.py` 0개. ★★★**codex 가 「행위 변경 0」 반증** — lazy import 이동으로 **실패가 커밋 뒤로**(다중집합은 문장 순서를 못 본다). ★내 도구 42주입 중 **16 거짓 음성**. ★nightly 는 **10/10 alembic 사망**(이슈 89건 무효) — [dev-log](2026-08-04-handler-visibility.md)
 - **2026-08-04 direction-channel-decomposition** — ★★★**`direction` 은 두 현상** — 무해 `replay_lag` **7** : 치명 `phantom` **4**(경과 24.7초 vs 909초, 겹침 0, 사망 2/2). ★소크 중단·발산 축 **동결** → [BL-580] 12곳(census **96→84**). ★★「전부 같은 형태」를 **기존 테스트가 반증** — [dev-log](2026-08-04-direction-channel-decomposition.md)

@@ -3,33 +3,77 @@
 
 ## 왜 필요한가
 
-`qb_live_position_divergence_total{category="direction_transient"}` 은 **부호가 반대인 두
-현상을 한 라벨에 묻는다**:
+`qb_live_position_divergence_total{category="direction"}` 은 **낫는 발산과 안 낫는 발산을
+한 라벨에 묻는다**:
 
-- **`replay_lag`** — 조건부 주문이 **봉 중간에 거래소에서 체결**됐고 엔진은 봉 마감까지
-  그걸 못 본다. **거래소가 앞서고 엔진이 뒤진다.** 다음 tick 에 스스로 낫는다.
-- **`phantom`** — 엔진 시뮬이 체결로 친 주문이 **거래소에 아예 없다.** **엔진이 앞선다.**
-  낫지 않으며 연속 2회 판정으로 세션을 죽인다.
+- **`replay_lag`** — 다음 조정 주기 안에 스스로 낫는다. 무해.
+- **`phantom`** — 낫지 않으며 연속 2회 판정으로 세션을 죽인다. 치명.
 
 현행 코드는 이 둘을 **「연속 2회 판정」이라는 타이밍 대리 지표**로만 가른다
-(`live_signal.py:2734`). 이 스크립트는 그 대리 지표 대신 **원장의 체결 시각**으로 직접
-판정해, 프로덕션에 라벨을 넣기 전에 판별식을 검증한다.
+(`live_signal.py:3309-3318`). 이 스크립트는 그 대리 지표 대신 **원장**으로 직접 판정해,
+프로덕션에 라벨을 넣기 전에 판별식을 검증한다.
 
-## 판별식
+★★**「엔진이 앞선다 vs 거래소가 앞선다」로 갈리지 않는다 — 2026-08-05 반증.** 종전 문서는
+`phantom` 을 「엔진 시뮬이 체결로 친 주문이 거래소에 아예 없다(엔진이 앞선다)」로 정의했다.
+그런데 관측 **19건 전량**이 「크기 같고 부호 반대」인 **반전(side flip)** 이고, 사망 4건을
+엔진의 영속 보고서로 부검하니 **방향이 갈렸다**:
 
-엔진이 평가한 마지막 봉은 **닫힌 봉**이다 — `ccxt.py:145` 가
-`last_closed_ts = (now // tf) * tf - tf` 로 진행 중 봉을 잘라내고, `live_signal.py:2299`
-가 그 마지막 행의 **시가 시각**을 `last_bar_time` 으로 쓴다. 따라서 엔진의 가시 지평은
+- **엔진이 앞선 사망 3건** — `open_trades[].entry_bar` 가 창의 **마지막 봉**이다. 그중 2건은
+  엔진의 `entry_price` 가 거래소 resting 주문의 트리거와 **센트 단위로 같다**
+  (`64285.81`/트리거 `64285.80` · `63723.69`/`63723.60`) — 엔진만 그 주문을 체결로 쳤다.
+- **거래소가 앞선 사망 1건**(`39731d57`) — 엔진 포지션이 두 tick 에서 **비트 단위로 동일**
+  (`-0.029722343673419874`)하고 open trade 는 **19봉 전**에 개시됐다. 거래소의 stale stop
+  (트리거 `64071.9`)이 혼자 발화했고 엔진은 끝내 안 따라왔다.
 
-    horizon = last_bar_time + interval = floor(평가시각, interval)
+⇒ **뿌리는 방향이 아니다. 엔진의 시뮬 stop 과 거래소의 resting stop 이 서로 다른 주문**
+(수준도 수명도 다름)**이고, 그래서 양쪽 모두 혼자 발화할 수 있다**는 것이다. 실측: 재발주
+때마다 트리거가 평균 **62~271 USDT** 움직이는데 1분봉 range 는 **30~90** 이다.
 
-이고, 세션 소유 최신 체결 `t_fill` 에 대해
+## 판별식 — 「재무장 도장」 (2026-08-05 교체)
 
-| 조건                    | 라벨                       |
-| ----------------------- | -------------------------- |
-| `t_fill >= horizon`     | `replay_lag` (엔진이 아직 못 봄 — 무해) |
-| `t_fill <  horizon`     | `phantom` (엔진이 봤는데도 어긋남)      |
-| 세션 소유 체결이 없다   | `unattributed`             |
+★**경과 시간은 교란변수였다.** 종전 봉경계식은 「마지막 체결로부터 봉 경계를 넘었는가」로
+갈랐다. 그건 **얼마나 지났는가**를 묻는 것이고, 「60초면 엔진이 따라왔어야 한다」를 가정한다.
+실측은 그 가정을 부순다 — tick 이 봉 마감 뒤 **10~15초**에 돌고, 조건부 주문의 재발주 주기는
+**4~14분**이며, 재발주 때마다 트리거가 평균 **62~271 USDT** 움직인다(1분봉 range 는 30~90).
+그래서 봉 하나로는 「조정이 끝났는가」를 판정할 수 없다.
+
+대신 **시스템 자신의 조정 주기**를 쓴다. `conditional_entry_planner.py:502-589` 가
+
+    quantity = |target_position - current_position|
+
+로 수량을 정하고 `current_position` 은 **거래소 REST 읽기**(`live_signal.py:1517-1546`)다.
+따라서 원장의 주문 한 행에서
+
+    L      = ledger_net(order.created_at)          # 체결 원장의 부호 있는 순포지션
+    target = L + (+qty if side == buy else -qty)   # 그 주문이 겨냥한 포지션
+
+를 계산해 `L != 0` 이고 `sign(target) == -sign(L)` 이고 `|target| ~= |L|` 이면 그 주문은
+**반전 주문**이다 — 곧 **파이프라인이 체결을 인지하고 반대편을 다시 무장했다**는 시각 도장이다.
+이것을 **재무장 도장**이라 부른다.
+
+관측 시각 `T`, 마지막 세션 소유 체결 `F`, 마지막 재무장 도장 `H` 에 대해
+
+| 조건                | 라벨           | 뜻                                                                |
+| ------------------- | -------------- | ----------------------------------------------------------------- |
+| `H > F`             | **`phantom`**  | 체결 뒤 재무장을 **끝냈는데도** 어긋나 있다 ⇒ 조정 주기를 넘겼다 |
+| `F >= H`            | `replay_lag`   | 마지막 재무장 **뒤에** 거래소가 움직였다 ⇒ 아직 판정할 때가 아니다 |
+| 도장이 없다         | (봉경계식으로) | 재무장을 한 번도 못 봤다 — 아래 fallback                          |
+| 세션 소유 체결 없음 | `unattributed` | 운영자 청산 등                                                    |
+
+★★★**이건 인과 판정이 아니라 성숙도 프록시다 — 「누가 움직였나」를 말하지 않는다.**
+초안에서는 「2배 수량 주문 = 그 순간 엔진과 거래소가 **합의**했다」고 적었는데 **반증됐다**:
+`39731d57` 의 `16:24:11` 도장 시점에 엔진은 short(개시 봉 ~16:04), 거래소는 long(16:24:00
+체결)으로 **어긋나 있었다**(`live_signal_states.last_strategy_state_report` 실측).
+2배 수량은 **거래소 쪽만** 증언한다 — 엔진은 이미 그 방향을 들고 있어도 같은 `trade_id` 로
+pending stop 을 다시 무장할 수 있기 때문이다(`strategy_state.py:728-740`).
+
+★**누가 움직였는지의 인과 판정은 엔진의 영속 보고서로만 된다** —
+`last_strategy_state_report.open_trades[].entry_bar` 가 창의 마지막 봉이면 그 tick 에 엔진이
+움직인 것이다. 단 그 보고서는 **세션당 마지막 tick 한 벌**만 남으므로(같은 행을 덮어쓴다)
+과거 관측 전량에는 적용할 수 없다. 그래서 게이트는 프록시를 쓴다.
+
+★**도장이 없으면 종전 봉경계식으로 내려간다**(`horizon_label`). 도장은 「재무장했다」의
+양성 증거이지 「어긋났다」의 증거가 아니므로, 증거가 없는 구간을 유령으로 접지 않는다.
 
 ★**`unattributed` 는 실재한다** — 운영자 청산 주문은 `idempotency_key` 가 비어 있어 어느
 세션에도 귀속되지 않는다. 유령으로도 정상으로도 접지 않는다(`engine_only` 세분화 선례).
@@ -37,25 +81,38 @@
 ★**세션 귀속은 `idempotency_key` 로만 한다.** `trading.orders` 에는 `session_id` 가 없고,
 계정으로 귀속하면 [BL-592] 의 `exchange_accounts` 2행 중복에 걸려 **3.7배 부풀려진다.**
 
-## ★판별식은 한쪽으로만 틀린다 — `phantom` 은 믿을 수 있고 `replay_lag` 은 아니다
+## ★두 판별식 모두 한쪽으로만 틀린다 — `phantom` 은 믿을 수 있다
 
-`Order.filled_at` 은 **거래소 체결시각이 아니라 우리 관측시각**이다
-(`order_repository.py:53,107,129,212` — 이름과 달리 terminal 시각). 우리 타임스탬프는 실제
-체결보다 **항상 늦으므로** `t_fill >= horizon` 이 참으로 기울고, 그래서 이 판별식은
+- **재무장식** — 도장은 양성 증거다. 반전 주문이 안 나간 구간에는 도장이 안 찍히므로 `H` 가
+  과거에 머물고 라벨은 `replay_lag` 쪽으로 기운다 ⇒ **phantom 과소계상**.
+- **봉경계식** — `Order.filled_at` 은 거래소 체결시각이 아니라 **우리 관측시각**이다
+  (`order_repository.py:53,107,129,212` — 이름과 달리 terminal 시각). 우리 타임스탬프는
+  항상 더 늦으므로 `t_fill >= horizon` 이 참으로 기운다 ⇒ **phantom 과소계상**.
 
-- **`phantom` 을 과소계상한다** (진짜 phantom 을 `replay_lag` 로 놓칠 수 있다)
-- **`replay_lag` 을 과대계상하지 않는다** (무해를 유령으로 뒤집지 않는다)
+⇒ **`phantom` 라벨은 믿을 수 있다** — 이 방향의 오차는 **거짓 사망을 만들지 않는다.**
+반대로 「`replay_lag` 이니 무해」는 그만큼 믿을 수 없다. 봉경계식의 실측 최소 여유는
+**0.652초**(2026-08-03 23:17)로 경계는 실제로 붙는다.
 
-⇒ **`phantom` 라벨은 신뢰할 수 있다.** 슬라이스 2 가 「`phantom` 즉시 킬」을 채택한 근거가
-여기다 — 이 방향의 오차는 **거짓 사망을 만들지 않는다.** 반대로 「`replay_lag` 이니 무해」는
-그만큼 믿을 수 없다. 실측 최소 여유는 **0.652초**(2026-08-03 23:17)로, 경계는 실제로 붙는다.
+★**재무장식이 거짓 `phantom` 을 내려면** 마지막 도장 뒤에 **우리 원장에 없는 반전**이
+거래소에서 일어나야 한다. 운영자 청산은 포지션을 0 으로 만들 뿐이라 `direction` 이 아니라
+`exchange_only`/`engine_only` 로 분류되므로 이 경로가 아니다. 남는 것은 **같은 계정을 쓰는
+다른 전략의 반전**이고, 그건 [BL-592] 축의 별개 결함이다.
 
 ## ★이 오라클이 증명하는 것과 못 하는 것
 
-판별식을 관측 11건에서 **유도**했으므로 같은 11건에 잘 맞는 것은 검증이 아니다. 독립적인
-검사는 **사망 상관** 하나뿐이다 — 사망은 「연속 2회 판정」으로 정해지고 체결 경과시간과
-무관하게 결정되므로, `phantom` 쌍이 사망과 일치하면 서로 다른 두 신호가 만난 것이다.
+판별식을 관측에서 **유도**했으므로 같은 관측에 잘 맞는 것은 검증이 아니다. 독립적인
+검사는 **사망 상관** 하나뿐이다 — 사망은 「연속 2회 판정」으로 정해지고 체결 경과시간·주문
+수량과 **무관하게** 결정되므로, `phantom` 이 사망과 일치하면 서로 다른 두 신호가 만난 것이다.
 나머지는 **전향 예측**으로만 갚을 수 있다.
+
+★검증이 하나 더 있다 — 이 규칙은 **2026-08-04 15:51 이후 관측 8건**에서 유도했는데, 그 앞
+창의 **11건**(`.soak/direction-classification-20260804T0630Z.json`)에서는 봉경계식과
+**11/11 일치**한다. 그 11건은 out-of-sample 이다.
+
+★그리고 **아니라고 말할 수 있는 것도 재봤다**(2026-08-05) — 엔진이 재생하는 봉(`CCXTProvider`
+perp) · 내가 잰 공개 perp · **데모** perp 가 사망 4건의 해당 봉에서 **소수점까지 동일**했다.
+스팟만 27~36 USDT 떨어져 있고 체결 조건을 4/4 불만족(BL-530 수리가 유지되고 있다).
+⇒ **가격 소스 불일치도, 1분 타이밍도 이 발산의 원인이 아니다.**
 
 ## 사용
 
@@ -78,8 +135,10 @@ import asyncio
 import json
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -113,6 +172,23 @@ _TS_PATTERN = re.compile(
 # 검증 대상 코드와 독립이어야 한다.
 _IDEM_SESSION_PATTERN = re.compile(r"^live:(?P<session>[0-9a-fA-F-]{36}):")
 
+# ★판별식의 판(版). `--json` 출력과 `.soak/phantom-*.json` 아카이브에 함께 실린다.
+#
+# 왜 필요한가 — `scripts/soak-gate.sh` 는 **모든** 아카이브의 verdict 를 합집합으로 모으고
+# `(시각, 종류, 상세)` 로 dedup 한다. 그래서 **판별식을 개선해 `phantom` 을 하나 취소해도
+# 옛 아카이브의 그 라벨이 영원히 남는다** — 실측 2026-08-05: 교체 후 게이트가 여전히
+# `phantom` 7건을 보고했고 그중 4건은 새 분류기가 이미 `replay_lag` 으로 판정한 것이었다.
+# 방향은 fail-closed(과도하게 엄격) 지만, **개선이 게이트에 반영되지 않는다**는 뜻이다.
+# ⇒ 판을 올리면 옛 아카이브를 `.soak/superseded-<판>/` 로 옮긴다([ADR-024] §아카이브 판).
+PREDICATE_VERSION = "2026-08-05-rearm"
+
+# 반전 주문 판정의 상대 허용오차. 반전 수량은 `|target - current|` 이고 current 는 거래소가
+# 수량 스텝(BTC linear = 0.001)으로 양자화한 값이라 `|target|` 과 정확히 같지 않다 — 실측
+# `L=+0.030` 에 `sell 0.059` → `target=-0.029` (3.3% 차). 프로덕션이 같은 이유로 쓰는
+# `_POSITION_SIZE_REL_TOL`(`live_signal.py:238`)과 같은 5% 를 쓴다. 진짜 부분청산(실측
+# 0.001 vs 0.029 = 96.5% 차)과는 여전히 멀리 떨어져 있다.
+_REVERSAL_REL_TOL = Decimal("0.05")
+
 _INTERVAL_SECONDS: dict[str, int] = {
     "1m": 60,
     "3m": 180,
@@ -140,7 +216,16 @@ class DivergenceEvent:
 
 @dataclass
 class Verdict:
-    """한 관측의 재판정 결과."""
+    """한 관측의 재판정 결과.
+
+    라벨이 넷이다 — **셋을 병기하고 하나를 채택한다.** 지우면 두 식이 언제 갈리는지 보이지
+    않는다(2026-08-05 교체에서 실제로 4건이 갈렸다).
+
+    - `label` — **채택**. 재무장식이 판정하면 그것, 아니면 `horizon_label`.
+    - `rearm_label` — 재무장 도장식. 도장이 없으면 `None`(판정 안 함).
+    - `horizon_label` — 종전 봉경계식(`t_fill >= floor(관측시각, interval)`).
+    - `threshold_label` — 시간문턱식(`경과 < interval`). 참고용 — 채택된 적 없다.
+    """
 
     event: DivergenceEvent
     interval_seconds: int
@@ -148,7 +233,10 @@ class Verdict:
     last_fill_at: datetime | None
     last_fill_side: str | None
     last_fill_qty: str | None
+    last_rearm_at: datetime | None
     label: str
+    rearm_label: str | None
+    horizon_label: str
     threshold_label: str
     died_here: bool
 
@@ -166,9 +254,12 @@ class Verdict:
             "exchange": self.event.exchange,
             "last_fill_at": self.last_fill_at.isoformat() if self.last_fill_at else None,
             "last_fill_side": self.last_fill_side,
+            "last_rearm_at": (self.last_rearm_at.isoformat() if self.last_rearm_at else None),
             "gap_seconds": self.gap_seconds,
             "horizon": self.horizon.isoformat(),
             "label": self.label,
+            "rearm_label": self.rearm_label,
+            "horizon_label": self.horizon_label,
             "threshold_label": self.threshold_label,
             "died_here": self.died_here,
         }
@@ -225,8 +316,12 @@ async def _load_sessions(sm: Any, session_ids: set[UUID]) -> dict[UUID, dict[str
         return {row.id: dict(row._mapping) for row in rows}
 
 
-async def _load_fills(sm: Any, symbols: set[str]) -> list[dict[str, Any]]:
-    """창 안의 체결을 통째로 읽어 파이썬에서 세션 귀속한다.
+async def _load_orders(sm: Any, symbols: set[str]) -> list[dict[str, Any]]:
+    """창 안의 주문을 **상태 불문** 통째로 읽어 파이썬에서 세션 귀속한다.
+
+    ★`state = 'filled'` 로 좁히지 않는다 — 합의 하트비트는 **취소·거절된 주문의 수량**도
+    쓴다(수량은 발주 시점에 계산되므로 그 뒤의 운명과 무관하게 그 시점을 증언한다).
+    실측 사망 4건 중 3건의 결정적 하트비트가 **끝내 체결되지 않은 주문**이었다.
 
     SQL 로 `idempotency_key LIKE 'live:<uuid>:%'` 를 세션마다 돌리는 것보다 왕복이 적고,
     귀속 규칙이 한곳(`_IDEM_SESSION_PATTERN`)에만 있게 된다.
@@ -236,29 +331,111 @@ async def _load_fills(sm: Any, symbols: set[str]) -> list[dict[str, Any]]:
     async with sm() as db:
         rows = await db.execute(
             text(
-                "SELECT filled_at, symbol, side::text AS side, quantity, idempotency_key "
+                "SELECT created_at, filled_at, state::text AS state, symbol, "
+                "       side::text AS side, quantity, idempotency_key "
                 "FROM trading.orders "
-                "WHERE state = 'filled' AND filled_at IS NOT NULL AND symbol = ANY(:symbols) "
-                "ORDER BY filled_at"
+                "WHERE symbol = ANY(:symbols) "
+                "ORDER BY created_at"
             ),
             {"symbols": list(symbols)},
         )
         return [dict(row._mapping) for row in rows]
 
 
+# --- 합의 하트비트 (원장만 쓰는 순수 함수) --------------------------------------
+
+
+def signed_quantity(order: dict[str, Any]) -> Decimal:
+    """주문이 포지션을 움직이는 방향·크기. buy 는 +, sell 은 -."""
+    qty = Decimal(str(order["quantity"]))
+    return qty if str(order["side"]) == "buy" else -qty
+
+
+def is_filled(order: dict[str, Any]) -> bool:
+    """이 주문이 **실제로 체결됐는가.**
+
+    ★★`filled_at IS NOT NULL` 로 판정하면 **틀린다** — 이 컬럼은 이름과 달리 **terminal
+    시각**이라 취소·거절 주문에도 채워진다(`order_repository.py:53,107,129,212`).
+    실측 2026-08-05: 상태 필터를 빼고 원장을 읽자 취소 주문 12건이 체결로 섞여 들어와
+    순포지션이 망가지고 하트비트가 **전건 소실**됐다. 상태를 함께 봐야 한다.
+
+    `state` 키가 없는 입력은 체결로 본다 — 호출자가 이미 체결만 걸러 넘긴 경우다.
+    """
+    return str(order.get("state", "filled")) == "filled" and order.get("filled_at") is not None
+
+
+def ledger_net_at(orders: Sequence[dict[str, Any]], at: datetime) -> Decimal:
+    """`at` 시점까지 **체결된** 주문의 부호 있는 순포지션."""
+    net = Decimal("0")
+    for order in orders:
+        if is_filled(order) and order["filled_at"] <= at:
+            net += signed_quantity(order)
+    return net
+
+
+def is_rearm_stamp(order: dict[str, Any], ledger_before: Decimal) -> bool:
+    """이 주문이 **체결 인지 후 재무장을 끝냈다**는 증거인가.
+
+    반전 주문이면 참이다 — `quantity = |target - current|` 에서 `current` 는 거래소 읽기이므로
+    `target` 이 `ledger_before` 의 반대편에 같은 크기로 있다는 것은 **계획기가 그 체결을
+    반영한 뒤 반대편을 다시 무장했다**는 뜻이다.
+
+    ★★**엔진의 포지션은 증언하지 않는다.** 초안은 「그러므로 엔진도 같은 쪽에 있었다」고
+    적었는데 반증됐다 — 엔진은 이미 그 방향을 들고 있어도 같은 `trade_id` 로 pending stop 을
+    다시 무장할 수 있다(`strategy_state.py:728-740`). 실측 `39731d57` `16:24:11`: 엔진 short ·
+    거래소 long 인데 이 함수는 참을 낸다. 모듈 docstring §판별식 참조.
+
+    거짓이 되는 경우 — 최초 진입(`ledger_before == 0`) · 크기보정 주문(실측 `0.001`,
+    부호가 안 바뀐다) · 부분청산.
+    """
+    if ledger_before == 0:
+        return False
+    target = ledger_before + signed_quantity(order)
+    if target == 0:
+        return False
+    if (target > 0) == (ledger_before > 0):
+        return False  # 부호가 안 바뀌었다 — 반전이 아니다
+    magnitude, before = abs(target), abs(ledger_before)
+    return abs(magnitude - before) <= _REVERSAL_REL_TOL * max(magnitude, before)
+
+
+def find_rearm_stamps(orders: Sequence[dict[str, Any]]) -> list[datetime]:
+    """한 (세션, 심볼) 의 주문 흐름에서 재무장 도장 시각을 뽑는다.
+
+    ★`created_at` 이 없는 행은 하트비트가 될 수 없다 — 발주 시각을 모르면 「그 순간」을
+    증언할 수 없다. 조용히 지금으로 치지 않는다.
+    """
+    stamps: list[datetime] = []
+    for order in orders:
+        created_at = order.get("created_at")
+        if created_at is None:
+            continue
+        if is_rearm_stamp(order, ledger_net_at(orders, created_at)):
+            stamps.append(created_at)
+    return sorted(stamps)
+
+
 def adjudicate(
     events: list[DivergenceEvent],
     sessions: dict[UUID, dict[str, Any]],
-    fills: list[dict[str, Any]],
+    orders: list[dict[str, Any]],
 ) -> list[Verdict]:
-    """관측마다 세션 소유 최신 체결을 찾아 라벨을 매긴다."""
+    """관측마다 세션 소유 최신 체결·최신 하트비트를 찾아 라벨을 매긴다."""
     owned: dict[UUID, list[dict[str, Any]]] = {}
-    for fill in fills:
-        key = fill["idempotency_key"] or ""
+    for order in orders:
+        key = order["idempotency_key"] or ""
         match = _IDEM_SESSION_PATTERN.match(key)
         if match is None:
             continue  # 원장에 남았지만 세션 귀속 불가 — `unattributed` 의 원인이다
-        owned.setdefault(UUID(match.group("session")), []).append(fill)
+        owned.setdefault(UUID(match.group("session")), []).append(order)
+
+    # (세션, 심볼) 별 하트비트는 관측과 무관하므로 한 번만 계산한다.
+    rearm_index: dict[tuple[UUID, str], list[datetime]] = {}
+    for session_id, session_orders in owned.items():
+        for symbol in {str(o["symbol"]) for o in session_orders}:
+            rearm_index[(session_id, symbol)] = find_rearm_stamps(
+                [o for o in session_orders if str(o["symbol"]) == symbol]
+            )
 
     verdicts: list[Verdict] = []
     for event in events:
@@ -271,20 +448,30 @@ def adjudicate(
         candidates = [
             f
             for f in owned.get(event.session_id, [])
-            if f["symbol"] == event.symbol and f["filled_at"] <= event.at
+            if f["symbol"] == event.symbol and is_filled(f) and f["filled_at"] <= event.at
         ]
-        # ★`[-1]` 이 아니라 `max` 다 — SQL 이 `ORDER BY filled_at` 로 주지만 그건 호출자의
+        # ★`[-1]` 이 아니라 `max` 다 — SQL 이 `ORDER BY` 로 주지만 그건 호출자의
         # 사정이고, 정렬을 암묵 계약으로 두면 순서가 흐트러졌을 때 **갈래가 조용히 뒤집힌다**
         # (오래된 체결을 집으면 무해가 유령이 된다). 단위 테스트가 이걸 잡았다.
         last = max(candidates, key=lambda f: f["filled_at"]) if candidates else None
 
+        stamps = [h for h in rearm_index.get((event.session_id, event.symbol), []) if h <= event.at]
+        last_rearm = max(stamps) if stamps else None
+
         if last is None:
-            label = "unattributed"
-            threshold_label = "unattributed"
+            label = rearm_label = horizon_label = threshold_label = "unattributed"
         else:
-            label = "replay_lag" if last["filled_at"] >= horizon else "phantom"
+            horizon_label = "replay_lag" if last["filled_at"] >= horizon else "phantom"
             gap = (event.at - last["filled_at"]).total_seconds()
             threshold_label = "replay_lag" if gap < interval_seconds else "phantom"
+            if last_rearm is None:
+                # 재무장을 한 번도 못 봤다 — 재무장식은 판정하지 않고,
+                # 종전 봉경계식으로 내려간다(증거 부재를 유령으로 접지 않는다).
+                rearm_label = None
+                label = horizon_label
+            else:
+                rearm_label = "phantom" if last_rearm > last["filled_at"] else "replay_lag"
+                label = rearm_label
 
         deactivated_at = sess["deactivated_at"]
         died_here = (
@@ -301,7 +488,10 @@ def adjudicate(
                 last_fill_at=last["filled_at"] if last else None,
                 last_fill_side=last["side"] if last else None,
                 last_fill_qty=str(last["quantity"]) if last else None,
+                last_rearm_at=last_rearm,
                 label=label,
+                rearm_label=rearm_label,
+                horizon_label=horizon_label,
                 threshold_label=threshold_label,
                 died_here=died_here,
             )
@@ -314,11 +504,14 @@ class Summary:
     """사망 상관 — 이 오라클의 유일한 독립 검사."""
 
     counts: dict[str, int] = field(default_factory=dict)
+    horizon_counts: dict[str, int] = field(default_factory=dict)
     deaths_total: int = 0
     deaths_labelled_phantom: int = 0
     replay_lag_total: int = 0
     replay_lag_survived: int = 0
     predicate_disagreements: int = 0
+    rearm_overrides: int = 0
+    rearm_undecided: int = 0
 
     @property
     def death_correlation_holds(self) -> bool:
@@ -332,8 +525,17 @@ def summarize(verdicts: list[Verdict]) -> Summary:
     summary = Summary()
     for verdict in verdicts:
         summary.counts[verdict.label] = summary.counts.get(verdict.label, 0) + 1
-        if verdict.label != verdict.threshold_label:
+        summary.horizon_counts[verdict.horizon_label] = (
+            summary.horizon_counts.get(verdict.horizon_label, 0) + 1
+        )
+        # ★두 식의 불일치는 **봉경계식 vs 시간문턱식** 이다 — 채택 라벨과 비교하면
+        #   재무장식 교체가 이 숫자에 섞여 들어와 옛 관측과 비교할 수 없게 된다.
+        if verdict.horizon_label != verdict.threshold_label:
             summary.predicate_disagreements += 1
+        if verdict.rearm_label is None:
+            summary.rearm_undecided += 1
+        elif verdict.rearm_label != verdict.horizon_label:
+            summary.rearm_overrides += 1
         if verdict.died_here:
             summary.deaths_total += 1
             if verdict.label == "phantom":
@@ -349,7 +551,7 @@ def render(verdicts: list[Verdict], summary: Summary) -> str:
     out: list[str] = []
     header = (
         f"{'관측시각(UTC)':<26} {'세션':<9} {'엔진':>10} {'거래소':>8} "
-        f"{'최근체결':<13} {'경과(s)':>10} {'라벨':<14} 사망"
+        f"{'최근체결':<13} {'최근재무장':<13} {'경과(s)':>10} {'라벨':<12} {'봉경계식':<12} 사망"
     )
     out.append(header)
     out.append("-" * len(header))
@@ -360,14 +562,21 @@ def render(verdicts: list[Verdict], summary: Summary) -> str:
             f"{str(verdict.event.session_id)[:8]:<9} "
             f"{verdict.event.engine:>10.6f} {verdict.event.exchange:>8.3f} "
             f"{(verdict.last_fill_at.strftime('%m-%d %H:%M:%S') if verdict.last_fill_at else '-'):<13} "
+            f"{(verdict.last_rearm_at.strftime('%m-%d %H:%M:%S') if verdict.last_rearm_at else '-'):<13} "
             f"{(f'{gap:.2f}' if gap is not None else '-'):>10} "
-            f"{verdict.label:<14} {'★' if verdict.died_here else ''}"
+            f"{verdict.label:<12} {verdict.horizon_label:<12} {'★' if verdict.died_here else ''}"
         )
 
     out.append("")
     out.append(
         f"관측 {len(verdicts)}건 — "
         + " · ".join(f"{label} {count}" for label, count in sorted(summary.counts.items()))
+    )
+    out.append(
+        "  (종전 봉경계식이라면 — "
+        + " · ".join(f"{label} {count}" for label, count in sorted(summary.horizon_counts.items()))
+        + f"; 재무장식이 뒤집은 관측 {summary.rearm_overrides}건 · "
+        f"도장 없어 봉경계식으로 내려간 관측 {summary.rearm_undecided}건)"
     )
     out.append(
         f"사망 상관 (독립 검사): 사망 {summary.deaths_total}건 중 "
@@ -389,24 +598,73 @@ def render(verdicts: list[Verdict], summary: Summary) -> str:
     return "\n".join(out)
 
 
+def parse_events_json(blob: dict[str, Any], symbols: dict[UUID, str]) -> list[DivergenceEvent]:
+    """이전 `--json` 출력(또는 `.soak/phantom-*.json` 아카이브)에서 관측을 되살린다.
+
+    ★**워커 로그는 컨테이너 수명에 묶인다** — 재기동한 창의 관측은 로그로 다시 읽을 수 없고
+    아카이브에만 남는다. 판별식을 바꿀 때 **과거 관측 전량에 재적용**하려면 그 아카이브를
+    입력으로 받을 수 있어야 한다(그게 없으면 「바꾸기 전에 과거에 적용했다」를 못 한다).
+
+    `symbol` 은 아카이브에 없으므로 **세션 행에서 가져온다** — 추측하지 않는다.
+    """
+    events: list[DivergenceEvent] = []
+    for entry in blob.get("verdicts", []):
+        session_id = UUID(str(entry["session_id"]))
+        symbol = symbols.get(session_id)
+        if symbol is None:
+            raise ValueError(f"세션 행이 없다: {session_id}")
+        events.append(
+            DivergenceEvent(
+                at=datetime.fromisoformat(str(entry["at"])),
+                session_id=session_id,
+                symbol=symbol,
+                category="direction",
+                engine=float(entry["engine"]),
+                exchange=float(entry["exchange"]),
+            )
+        )
+    return sorted(events, key=lambda e: e.at)
+
+
 async def _run(args: argparse.Namespace, raw: str) -> int:
-    events = parse_log(raw.splitlines(), category=args.category)
-    if not events:
-        print(f"category={args.category} 관측이 없다 — 로그 창을 확인해라.", file=sys.stderr)
-        return 1
+    # 아카이브 입력은 심볼을 안 담으므로 세션 행을 먼저 읽어야 관측을 만들 수 있다.
+    # 로그 입력은 반대로 관측을 먼저 만들어야 세션 목록을 안다. 두 경로가 만나는 지점이
+    # `events` 이고, 그 전까지는 세션 id 집합만 공유한다.
+    archive: dict[str, Any] | None = None
+    log_events: list[DivergenceEvent] = []
+    if args.events_json is not None:
+        archive = json.loads(raw)
+        if not archive.get("verdicts"):
+            print(f"{args.events_json} 에 관측이 없다.", file=sys.stderr)
+            return 1
+        session_ids = {UUID(str(v["session_id"])) for v in archive["verdicts"]}
+    else:
+        log_events = parse_log(raw.splitlines(), category=args.category)
+        if not log_events:
+            print(f"category={args.category} 관측이 없다 — 로그 창을 확인해라.", file=sys.stderr)
+            return 1
+        session_ids = {e.session_id for e in log_events}
+
+    engine, sm = create_worker_engine_and_sm()
+    try:
+        sessions = await _load_sessions(sm, session_ids)
+        events = (
+            parse_events_json(archive, {sid: str(row["symbol"]) for sid, row in sessions.items()})
+            if archive is not None
+            else log_events
+        )
+        orders = await _load_orders(sm, {e.symbol for e in events})
+    finally:
+        await engine.dispose()
 
     if args.since is not None:
         cutoff = datetime.fromisoformat(args.since)
         events = [e for e in events if e.at >= cutoff]
+        if not events:
+            print(f"--since {args.since} 뒤에 관측이 없다.", file=sys.stderr)
+            return 1
 
-    engine, sm = create_worker_engine_and_sm()
-    try:
-        sessions = await _load_sessions(sm, {e.session_id for e in events})
-        fills = await _load_fills(sm, {e.symbol for e in events})
-    finally:
-        await engine.dispose()
-
-    verdicts = adjudicate(events, sessions, fills)
+    verdicts = adjudicate(events, sessions, orders)
     summary = summarize(verdicts)
 
     if args.json:
@@ -414,8 +672,12 @@ async def _run(args: argparse.Namespace, raw: str) -> int:
             json.dumps(
                 {
                     "generated_at": datetime.now(UTC).isoformat(),
+                    "predicate_version": PREDICATE_VERSION,
                     "verdicts": [v.as_dict() for v in verdicts],
                     "counts": summary.counts,
+                    "horizon_counts": summary.horizon_counts,
+                    "rearm_overrides": summary.rearm_overrides,
+                    "rearm_undecided": summary.rearm_undecided,
                     "deaths_total": summary.deaths_total,
                     "deaths_labelled_phantom": summary.deaths_labelled_phantom,
                     "replay_lag_total": summary.replay_lag_total,
@@ -438,18 +700,23 @@ def main() -> int:
         description="`direction` 발산을 원장 체결 시각으로 replay_lag / phantom 재판정한다 ([BL-591])."
     )
     parser.add_argument("--log", help="워커 로그 파일 (기본: stdin)")
+    parser.add_argument(
+        "--events-json",
+        help="이전 --json 출력 / .soak 아카이브에서 관측을 되살려 재판정 (로그 대신)",
+    )
     parser.add_argument("--since", help="이 ISO 시각 이후 관측만 (예: 2026-08-03T09:53:00+00:00)")
     parser.add_argument(
         "--category", default="direction", help="재판정할 category (기본: direction)"
     )
     parser.add_argument("--json", action="store_true", help="기계용 JSON 출력")
     args = parser.parse_args()
-    # 로그 읽기는 이벤트 루프 밖에서 한다 (ruff ASYNC240 — async 안의 blocking IO).
-    raw = (
-        Path(args.log).read_text(encoding="utf-8", errors="replace")
-        if args.log
-        else sys.stdin.read()
-    )
+    # 파일 읽기는 이벤트 루프 밖에서 한다 (ruff ASYNC240 — async 안의 blocking IO).
+    if args.events_json:
+        raw = Path(args.events_json).read_text(encoding="utf-8")
+    elif args.log:
+        raw = Path(args.log).read_text(encoding="utf-8", errors="replace")
+    else:
+        raw = sys.stdin.read()
     return asyncio.run(_run(args, raw))
 
 

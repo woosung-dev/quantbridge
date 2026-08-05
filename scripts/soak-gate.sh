@@ -187,13 +187,16 @@ import json, pathlib, sys
 
 src, dst, first, last = sys.argv[1:5]
 raw_text = pathlib.Path(src).read_text() if pathlib.Path(src).exists() else ""
-verdicts, ok, note = [], False, ""
+verdicts, ok, note, version = [], False, "", None
 try:
     blob = json.loads(raw_text)
     verdicts = blob.get("verdicts", [])
+    version = blob.get("predicate_version")
     ok, note = True, "json"
 except Exception:
     if "관측이 없다" in raw_text:
+        # 관측 0건은 실패가 아니다. 판을 못 읽었으므로 version 은 None 으로 남긴다 —
+        # 이 아카이브는 커버리지만 제공하고 라벨 판정에는 기여하지 않는다.
         ok, note = True, "no-observations"
     else:
         note = (raw_text.strip().splitlines() or ["(빈 출력)"])[-1][:200]
@@ -204,6 +207,9 @@ pathlib.Path(dst).write_text(
             "log_to": last,
             "classifier_ok": ok,
             "classifier_note": note,
+            # ★판별식의 판. 아카이브들이 서로 다른 판이면 게이트가 **옛 라벨을 영원히
+            #   합집합에 남긴다** — 판을 올렸으면 옛 아카이브를 옮겨야 한다(아래 경고).
+            "predicate_version": version,
             "verdicts": [
                 {"at": v.get("at"), "label": v.get("label"), "session_id": v.get("session_id")}
                 for v in verdicts
@@ -295,7 +301,7 @@ def read_jsonl(path):
 pin_events = read_jsonl(state / "pin-history.jsonl")
 samples = read_jsonl(state / "gate-samples.jsonl")
 
-phantoms, coverage = [], []
+phantoms, coverage, versions = [], [], set()
 for p in sorted(state.glob("phantom-*.json")):
     try:
         blob = json.loads(p.read_text())
@@ -308,9 +314,25 @@ for p in sorted(state.glob("phantom-*.json")):
             # 옛 아카이브에는 이 필드가 없다 — 없으면 인정하지 않는다(fail-closed).
             "classifier_ok": blob.get("classifier_ok") is True,
         })
+    if blob.get("verdicts"):
+        versions.add(blob.get("predicate_version"))
     for v in blob.get("verdicts", []):
         if v.get("at"):
             phantoms.append(v)
+
+# ★★아카이브들이 **서로 다른 판별식**으로 매긴 라벨을 섞어 들고 있으면 알려야 한다.
+#   실격 사건은 `(시각, 종류, 상세)` 로만 dedup 되므로, 판별식을 개선해 `phantom` 하나를
+#   취소해도 **옛 아카이브의 그 라벨이 합집합에 영원히 남는다**(실측 2026-08-05: 교체 후
+#   4건이 그렇게 남았다). 방향은 fail-closed 라 거짓 PASS 는 안 되지만, **개선이 게이트에
+#   반영되지 않는다.** 조용히 두지 않는다 — 옮기라고 말한다.
+if len(versions) > 1:
+    print(
+        "⚠⚠ phantom 아카이브가 서로 다른 판별식으로 매겨져 있다: "
+        + ", ".join(sorted(str(v) for v in versions))
+        + "\n   옛 라벨이 실격 목록에 그대로 남는다. 옛 아카이브를 "
+        ".soak/superseded-<판>/ 로 옮겨라 (ADR-024 §아카이브 판).",
+        file=sys.stderr,
+    )
 
 thresholds = {}
 if require_hours:
