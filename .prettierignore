@@ -1,1 +1,6 @@
 docs/archive/
+
+# [BL-595] 사망 재현 픽스처 — `backend/scripts/capture_bl595_death_fixtures.py` 가 쓰는 그대로
+# 둔다. prettier 가 OHLCV 배열을 다시 접으면 캡처를 재실행할 때마다 diff 가 나서
+# "얼렸다" 가 성립하지 않는다(실측: 재실행 1회에 12,000줄 diff).
+backend/tests/fixtures/bl595/
