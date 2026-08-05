@@ -817,6 +817,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-593](#bl-593)    | 운영자 도구(`backend/scripts/verify_*.py` 등)가 `ClosePositionService` 를 못 써서 provider 를 **직접 호출** → 그 청산에 대응하는 `trading.orders` 행이 **없다**. 실측 `external_manual` **12건 / 103건(11.7%)**. [BL-591] C 안이 원장을 진실로 쓰므로 이 구멍이 곧 오주입 위험                                                                                                                                                                                                                                                                                                                                                                                                                             | 소크를 끄거나 거래소를 손으로 flat 으로 만들기 전에                                                               | S            | 2026-08-04 engine-position-ssot                        |
 | [BL-595](#bl-595)    | ★**엔진의 시뮬 stop 과 거래소의 resting stop 은 같은 주문이 아니다** — 수준도 수명도 달라 **양쪽 모두 혼자 발화한다**. 사망 4건 부검: 엔진이 앞선 3건(그중 2건은 엔진 체결가 = 거래소 트리거, 센트 단위 일치) · **거래소가 앞선 1건**(`39731d57` — 엔진 포지션이 두 tick 에서 비트 단위 동일). 재발주마다 트리거가 평균 **62~271 USDT** 움직이는데 1분봉 range 는 **30~90** 이다. ★한쪽만 닫으면 현행 사망 2건 중 1건만 막는다 — **대칭 수리**(라이브에서 조건부 진입 체결을 거래소 원장에만 맡긴다)가 필요하고 그건 pine_v2 머니-패스 변경이다                                                                                                                                                            | ★이미 발화 — [BL-003] 게이트의 실질 차단자                                                                        | L            | 2026-08-05 divergence-rejudgement                      |
 | [BL-594](#bl-594)    | ★**Redis 가 재기동 불능인 채 6일 돌고 있었다** — `make down` 후 `unhealthy` 로 기동 실패. `appendonly.aof.4.incr.aof` 가 **35.6MB 중 30.8MB(86.6%) 판독 불가**. AOF 는 **기동 시에만 읽히므로** 떠 있는 프로세스에는 증상이 0 이고 healthcheck(`redis-cli ping`)도 구조적으로 못 본다. ⇒ 스택에 **재기동 내성이 없었다** — [BL-003] 의 168h 창 안에 재부팅이 들어오면 워커가 안 뜬다. 손상 원인 미조사                                                                                                                                                                                                                                                                                                     | 소크가 168h 를 향해 도는 동안 · 호스트 재부팅 전                                                                  | S            | 2026-08-05 soak-clock-restoration                      |
+| [BL-596](#bl-596)    | 게이트가 **모르는 라벨을 조용히 무해 취급**한다 — `soak_gate_predicate.py:191` 이 `label == "phantom"` 만 실격으로 세므로 `unattributed` 도, 앞으로 판별식이 낼 어떤 새 라벨도 **fail-open** 이다. 판별식은 2026-08-05 에만 두 번 바뀌었다(봉경계식 → 재무장식 → 회복식). 현행 회복식은 판정 불가를 새 라벨이 아니라 **종전 식으로 강하**시켜 이 경로를 피해 갔을 뿐 닫지는 않았다                                                                                                                                                                                                                                                                                                                         | 판별식이 새 라벨을 낼 때 · 또는 `unattributed` 가 실제로 관측될 때                                                | S            | 2026-08-05 live-replay-visibility                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
 
@@ -6821,7 +6822,15 @@ interval 일반화(5m 에서 지평이 달라진다) · 사망 상관 **음성 �
 **카테고리:** Trading / 라이브 신호 (조건부 진입 stop 의 소유권)
 **Trigger:** ★**이미 발화했다.** 현행 코드에서 관측된 `position_divergence` 사망 **2건**이 이것이고 **서로 반대 방향**이다.
 **Est:** L — 설계 선행 필요(머니-패스 변경 · 대칭 수리)
-**상태:** ⬜ **Open**
+**상태:** ⬜ **Open — ★2026-08-05 live-replay-visibility 에서 「첫 단계 = 회귀 테스트」 전제가
+실측으로 반증됐다. 그 회귀망은 이미 있다**: `tests/strategy/pine_v2/test_run_live_*.py`
+**7파일 · 89테스트**가 `run_live` 를 **직접 ~90회** 호출하고(Trust Layer 는 52테스트이며 확실히
+`run_live` 를 안 부르지만 그게 「눈이 없다」를 뜻하지 않는다), 이 BL 이 바꿀 **두 지점이 이미
+못 박혀 있다** — `test_internal_pending_stop_fill_opens_trade_without_live_signal`(엔진이 stop 을
+혼자 시뮬한다 = `cc19abd2` 형) · `test_ledger_seed_is_idempotent_when_replay_already_holds_a_position`
+(재생이 포지션을 들면 거래소 원장 seed 를 버린다 = `39731d57` 형의 차단자). ⇒ **선행 조건은
+테스트 신설이 아니라 「이 두 테스트를 의식적으로 뒤집는 설계」다.** 사전등록 변이 배터리 결과는
+[dev-log](dev-log/2026-08-05-live-replay-visibility.md) §3\*\*
 **출처:** 2026-08-05 divergence-rejudgement (사망 4건 부검 + 원장 실측)
 
 **엔진의 시뮬 stop 과 거래소의 resting stop 은 같은 주문이 아니다 — 그래서 양쪽 모두 혼자 발화한다.**
@@ -6858,8 +6867,20 @@ interval 일반화(5m 에서 지평이 달라진다) · 사망 상관 **음성 �
 - `pine_v2` 머니-패스 변경이다. `run_live` 에는 `position_epoch` / `ledger_seed_legs` 자리가
   이미 뚫려 있으므로(`event_loop.py:370-378`) 배관은 있으나, **백테스트 경로 byte-identical**
   을 테스트로 못박아야 한다.
-- ★**Trust Layer 23테스트가 `run_live` 를 0회 호출한다**([ADR-023] 실측) ⇒ 라이브가 갈라져도
-  CI 가 초록이다. **이 BL 의 첫 단계는 라이브 재생을 실제로 태우는 회귀 테스트**다.
+- ~~★**Trust Layer 23테스트가 `run_live` 를 0회 호출한다** ⇒ 라이브가 갈라져도 CI 가 초록이다.
+  **이 BL 의 첫 단계는 라이브 재생을 실제로 태우는 회귀 테스트**다.~~
+  → **2026-08-05 반증.** Trust Layer 는 **52테스트**이고(「23」은 낡았다) `run_live` 를 안 부르는
+  것은 맞지만, 그 밖에서 **7파일 89테스트가 직접 ~90회** 호출한다. 백테스트↔라이브 parity
+  오라클도 `test_run_live.py:239` 에 이미 있다. ⇒ **첫 단계는 테스트 신설이 아니다.**
+- ★★★**그리고 「어느 진입점을 호출하는가」는 「어느 코드를 덮는가」가 아니다.** 이 BL 의 형 A 를
+  최소 모형으로 주입하니(조건부 stop 을 봉 내 `high/low` 대신 봉 시가 돌파로만 체결)
+  **12개 테스트가 죽었고 그중 하나가 Trust Layer 골든**(`test_p3_execution_metrics_match_golden[s1_pbr]`)
+  이다 — `run_live` 를 한 번도 안 부르면서. 조건부 체결이 `strategy_state.check_pending_fills`
+  에 있고 그건 **백테스트와 라이브가 공유하는 머니-패스**이기 때문이다.
+  ⇒ **설계 제약**: 대칭 수리는 `check_pending_fills` 를 고치는 것이 아니라 **라이브 전용
+  경로에서만** 갈라져야 한다(공유 코드를 고치면 백테스트 골든이 red — 이 BL 이 우려한 바로
+  그 위험이 **이미 집행되고 있다**). 뒤집어야 할 12건 목록 =
+  [dev-log](dev-log/2026-08-05-live-replay-visibility.md) §3.3
 - 선행연구 대조: NautilusTrader 는 side flip 을 **조정 주문으로** 푼다. 그러나 그쪽 전략은
   **재생하지 않으므로** 이 원인 자체가 없다 ⇒ **조정([ADR-023])보다 생성 차단(본 항목)이 상류다.**
 
@@ -6920,5 +6941,49 @@ VM 의 파일시스템. 백업본이 있다(2026-08-05, 3.5MB tar.gz).
 직접 걸린다.
 
 **연결:** [BL-003] (168h 창 안의 재기동 내성)
+
+---
+
+### BL-596
+
+**우선순위:** P2
+**카테고리:** Ops / [BL-003] 게이트 (라벨 어휘의 fail-open)
+**Trigger:** 판별식이 새 라벨을 낼 때 · 또는 `unattributed` 가 실제로 관측될 때
+**Est:** S
+**상태:** ⬜ **Open**
+**출처:** 2026-08-05 live-replay-visibility (판별식 2차 교체 중 발견 — 수리 안 하고 등재만)
+
+**게이트는 모르는 라벨을 조용히 「무해」로 접는다.**
+
+`soak_gate_predicate.py:191` 은 실격을 이렇게 센다:
+
+```python
+if str(obs.get("label", "")) == "phantom":
+    ...  # 실격
+```
+
+곧 **`phantom` 이 아닌 모든 것이 무해**다. 분류기가 실제로 낼 수 있는 라벨은 넷이다 —
+`phantom` / `replay_lag` / `unattributed` / (판정 불가는 라벨이 아니라 강하). 그중
+**`unattributed` 는 「판정하지 못했다」이지 「무해하다」가 아니다.** 운영자 청산처럼 세션에
+귀속되지 않는 주문이 있으면 그 발산은 아무 데도 안 잡힌다.
+
+**왜 지금 안 고치나.** 이번 교체(재무장식 → 회복식)는 판정 불가를 **새 라벨로 내보내지 않고
+종전 식으로 강하**시켰으므로 이 경로에 도달하지 않는다. 즉 회피했을 뿐 닫지는 않았다.
+현재 코퍼스 31건에 `unattributed` 는 **0건**이다.
+
+**처리 방향 (택일이 아니라 순서다):**
+
+1. 게이트가 라벨 어휘를 **명시적으로** 나눈다 — 알려진 무해 `{replay_lag}` / 알려진 실격
+   `{phantom}` / **그 밖 = 측정 무결성 실패(UNKNOWN)**. 지금은 셋째 갈래가 없다.
+2. `test_soak_gate_predicate.py:210` 이 `replay_lag`/`phantom` 두 라벨만 못박고 있다 —
+   ★**모르는 라벨을 넣은 케이스가 없어서** 이 결함이 테스트를 통과한다. 그 케이스를 먼저 넣어라.
+3. 판별식 쪽에서 `unattributed` 를 계속 낼지도 재판단한다 — 회복식은 원장을 안 보므로
+   귀속 없이도 판정할 수 있다(현재는 종전 식과의 호환을 위해 그대로 둔다).
+
+**Risk:** 🟡 방향이 **fail-open** 이다 — 실격을 놓치면 `window_start` 가 앞당겨져 누적이 늘고
+[BL-003] 통과가 쉬워진다. 다만 현재 도달 빈도가 0 이라 P2 로 둔다.
+
+**연결:** [BL-003](#bl-003) · [ADR-024](decisions/024-soak-stability-gate.md) (§판별식 2차 교체) ·
+[BL-591](#bl-591) (라벨 어휘의 출처) · [BL-592](#bl-592) (`unattributed` 를 만드는 계정 중복)
 
 ---

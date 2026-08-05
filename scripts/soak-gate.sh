@@ -173,9 +173,14 @@ if [ "${COLLECT}" = "1" ]; then
     #   ★`cd backend && set -a; . ./.env.local` 금지 — 이미 backend 면 cd 가 실패해
     #   `set -a` 만 건너뛴다. 절대경로로 소싱한다.
     # 관측 0건이면 분류기는 exit 1 + 텍스트를 낸다 — 그건 실패가 아니라 「phantom 없음」이다.
+    # ★`--corpus-end` 로 **Docker 가 보장하는 로그 끝**을 넘긴다. 안 넘기면 분류기가
+    #   앱 줄 정규식에서 지평을 유도하는데, 그 포맷은 timezone 을 버리고 UTC 로 강제하며
+    #   무타임스탬프 후행 줄이 있으면 지평이 과소평가된다. 회복식은 그 지평으로
+    #   「나았다」와 「아직 못 봄」을 가르므로 조용히 판정이 흔들린다(codex P2 2026-08-05).
     ( set -a; . "${ROOT}/backend/.env.local"; set +a
       docker logs "${WORKER_CONTAINER}" 2>&1 \
-        | (cd "${ROOT}/backend" && uv run python scripts/classify_direction_divergence.py --json 2>&1)
+        | (cd "${ROOT}/backend" && uv run python scripts/classify_direction_divergence.py \
+             --json --corpus-end "${LOG_LAST}" 2>&1)
     ) > "${PHANTOM_JSON}.tmp" 2>/dev/null
     # ★★분류기 **성공 여부를 따로 기록**한다. 껍데기 아카이브(verdicts 0)를 커버리지로
     #   인정하면 「phantom 없음 + 검증된 로그」로 읽혀 그 시간이 credit 되고 진짜 phantom 도
