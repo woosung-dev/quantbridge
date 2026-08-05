@@ -7006,8 +7006,12 @@ exit code 로 재면 멀쩡한 스택이 거짓 `측정불가` 가 된다. → �
 (`soak_gate_predicate.py` 의 `HARMLESS`/`DISQUALIFYING`/`UNDECIDABLE_DIVERGENCE_LABELS`).
 무해도 실격도 아닌 라벨(`unattributed` + 어휘 밖 전부 + `label` 키 결손)은 **C5 측정 무결성**을
 떨어뜨려 `UNKNOWN 측정불가` 로 간다 — 무해로 접지도, 소급 실격으로 세지도 않는다. FAIL 판정이
-C5 보다 먼저라 진짜 실격을 UNKNOWN 으로 덮지 않는다(래칫). 알려진 라벨만 있는 payload 의 판정은
-**180 조합 전량 수리 전후 동일**(신설 키 2개 제외) — 동결 케이스로 테스트에 못박았다.
+C5 보다 먼저라 진짜 실격을 UNKNOWN 으로 덮지 않는다(래칫). ★**회귀 근거는 두 겹이고 강도가
+다르다** — ⑴ **레포에 커밋된 동결**은 `test_known_labels_only_is_judged_exactly_as_before` 로,
+알려진 라벨만 있는 payload **3케이스**(라벨 없음 · `replay_lag` · `phantom`)의 판정·누적·
+`divergence_labels_readable` 이 수리 전후 불변임을 못박는다. ⑵ 「**180 조합 전량 동일**(신설 키
+2개 제외)」은 **커밋되지 않은 오프라인 스윕 실측**이다 — 하네스가 레포에 없어 CI 가 다시 재지
+않는다(재현하려면 다시 짜야 한다). ⑴을 ⑵의 근거로 읽지 마라.
 **출처:** 2026-08-05 live-replay-visibility (판별식 2차 교체 중 발견 — 수리 안 하고 등재만)
 
 **게이트는 모르는 라벨을 조용히 「무해」로 접는다.**

@@ -151,7 +151,7 @@ bash "${ROOT}/scripts/soak-stack.sh" assert-not-pinned >/dev/null 2>&1 || STACK_
 # ★`--fix` 를 절대 넘기지 않는다. 읽기 전용이다 (실측: `--fix` 없이 돌린 전후로 AOF
 #   3파일의 md5·크기·mtime 이 전부 불변).
 # ★★**종료 코드는 판별식이 될 수 없다** — 꼬리 절단은 exit 1 인데 서버는 뜬다. 판정 규칙과
-#   그 근거(실측 표)는 `backend/scripts/redis_aof_readability.py` 에 있고, 실측 캡처 6형이
+#   그 근거(실측 표)는 `backend/scripts/redis_aof_readability.py` 에 있고, 실측 캡처 7형이
 #   `backend/tests/scripts/test_redis_aof_readability.py` 로 동결돼 있다. **여기 복제하지 않는다.**
 # ★수집이 어떤 이유로든 실패하면 `aof_ok=0` 이다. redis 가 안 뜨는 것과 못 재는 것은
 #   구분되지 않지만, **둘 다 「재기동 내성을 증명하지 못했다」**이고 방향은 fail-closed 다.
