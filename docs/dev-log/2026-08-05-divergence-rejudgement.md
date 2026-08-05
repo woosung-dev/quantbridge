@@ -238,14 +238,22 @@ NautilusTrader 의 `Position side flip` 은 **정규 시나리오**이고 그쪽
 
 ## 5. 게이트 (커밋 후 실측)
 
-| 게이트         | 값                                                       |
-| -------------- | -------------------------------------------------------- |
-| BE pytest      | **4073 passed / 45 skipped** (= baseline 4052 + 신규 21) |
-| ruff           | 0                                                        |
-| mypy           | 0 (216)                                                  |
-| bl-audit       | active **156** / 252                                     |
-| docs-audit     | clean                                                    |
-| `soak-gate.sh` | **FAIL 실격** — C3 3건 · 누적 0h / 168h                  |
+| 게이트           | 값                                                       |
+| ---------------- | -------------------------------------------------------- |
+| BE pytest        | **4078 passed / 45 skipped** (= baseline 4052 + 신규 26) |
+| ruff             | 0                                                        |
+| mypy             | 0 (216)                                                  |
+| bl-audit         | active **156** / 252                                     |
+| docs-audit       | clean                                                    |
+| e2e              | design-canon + authed **69 passed**                      |
+| CI 커버리지      | **93.17%** (문턱 90)                                     |
+| `final-gates.sh` | **전건 통과 (exit 0)** — signal 3종 포함                 |
+| `soak-gate.sh`   | **FAIL 실격** — C3 3건 · 누적 0h / 168h                  |
+
+★**첫 final-gates 실행의 「커버리지 FAIL」은 거짓 red 였다** — 내가 **돌아가는 중에 트리를
+고쳤다.** 이 레포가 「게이트 도중 트리 변경 = 거짓 red」를 두 번 밟았다고 적어둔 그 함정이고
+내가 세 번째로 밟았다. 조용한 트리에서 재실행하니 통과했고, 로그를 보면 커버리지는 **처음부터
+93.17%** 였다 — FAIL 은 그 pytest 실행이 내 중간 편집 상태(11건 red)를 물었기 때문이다.
 
 ## 6. 인계
 
