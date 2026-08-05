@@ -332,7 +332,7 @@ async def _load_orders(sm: Any, symbols: set[str]) -> list[dict[str, Any]]:
         rows = await db.execute(
             text(
                 "SELECT created_at, filled_at, state::text AS state, symbol, "
-                "       side::text AS side, quantity, idempotency_key "
+                "       side::text AS side, quantity, filled_quantity, idempotency_key "
                 "FROM trading.orders "
                 "WHERE symbol = ANY(:symbols) "
                 "ORDER BY created_at"
@@ -346,30 +346,74 @@ async def _load_orders(sm: Any, symbols: set[str]) -> list[dict[str, Any]]:
 
 
 def signed_quantity(order: dict[str, Any]) -> Decimal:
-    """주문이 포지션을 움직이는 방향·크기. buy 는 +, sell 은 -."""
+    """이 주문이 **겨냥한** 방향·크기. buy 는 +, sell 은 -.
+
+    ★`quantity`(요청량)다 — 재무장 도장은 **무엇을 주문했나**를 묻지 무엇이 체결됐나를
+    묻지 않는다. 원장 순포지션은 `signed_fill` 이 따로 계산한다.
+    """
     qty = Decimal(str(order["quantity"]))
     return qty if str(order["side"]) == "buy" else -qty
 
 
 def is_filled(order: dict[str, Any]) -> bool:
-    """이 주문이 **실제로 체결됐는가.**
+    """이 행이 **실제로 포지션을 만들었나.**
 
-    ★★`filled_at IS NOT NULL` 로 판정하면 **틀린다** — 이 컬럼은 이름과 달리 **terminal
-    시각**이라 취소·거절 주문에도 채워진다(`order_repository.py:53,107,129,212`).
-    실측 2026-08-05: 상태 필터를 빼고 원장을 읽자 취소 주문 12건이 체결로 섞여 들어와
-    순포지션이 망가지고 하트비트가 **전건 소실**됐다. 상태를 함께 봐야 한다.
+    ★★★**`state == 'filled'` 로 판정하면 안 된다 — 레포 정본이 이미 그렇게 적고 있다**
+    (`entry_completeness.attempt_has_fill`): `transition_to_cancelled`/`_rejected` 는
+    `filled_quantity` 가 0 이 아니면 체결분을 **보존한 채** 종결하므로 거래소에는 포지션이
+    남았는데 상태가 `cancelled` 인 행이 실재한다. 반대로 `filled` 인데 `filled_quantity` 가
+    NULL 이면 **판독 불가**이지 전량 체결이 아니다. ⇒ 판정은 **`filled_quantity > 0`** 이다.
+    (codex challenge 2026-08-05 적발 — 나는 `state == 'filled'` 로 짰다.)
 
-    `state` 키가 없는 입력은 체결로 본다 — 호출자가 이미 체결만 걸러 넘긴 경우다.
+    ★★그리고 `filled_at IS NOT NULL` 로도 판정하면 안 된다 — 이 컬럼은 이름과 달리
+    **terminal 시각**이라 취소·거절에도 채워진다(`order_repository.py:53,107,129,212`).
+    실측: 상태 필터를 빼고 원장을 읽자 취소 주문 12건이 체결로 섞여 순포지션이 망가지고
+    재무장 도장이 **전건 소실**됐다.
+
+    ★`filled_quantity` 키가 없는 입력(`state` 도 없는 단위 테스트 픽스처)은 호출자가 이미
+    체결만 걸러 넘긴 것으로 보고 `quantity` 를 쓴다.
     """
-    return str(order.get("state", "filled")) == "filled" and order.get("filled_at") is not None
+    if order.get("filled_at") is None:
+        return False
+    if "filled_quantity" in order:
+        raw = order["filled_quantity"]
+        return raw is not None and Decimal(str(raw)) > 0
+    # `filled_quantity` 를 아예 싣지 않는 호출자(단위 테스트 픽스처)는 상태로 판정한다.
+    # ★프로덕션 로더는 이제 그 컬럼을 **항상** 싣는다 — 이 갈래로 내려오지 않는다.
+    return str(order.get("state", "filled")) == "filled"
 
 
-def ledger_net_at(orders: Sequence[dict[str, Any]], at: datetime) -> Decimal:
-    """`at` 시점까지 **체결된** 주문의 부호 있는 순포지션."""
+def signed_fill(order: dict[str, Any]) -> Decimal:
+    """이 주문이 **실제로 움직인** 포지션. 체결분이 없으면 0.
+
+    ★`quantity` 가 아니라 `filled_quantity` 다 — 부분체결이면 요청량과 다르다.
+    전체 원장 실측 2026-08-05: `filled` **202행 중 65행**이 `filled_quantity <> quantity` 다
+    (단 이 회차 코퍼스 6세션 43행에서는 **0건**이라 19건 판정은 안 바뀐다).
+    """
+    if not is_filled(order):
+        return Decimal("0")
+    raw = order.get("filled_quantity")
+    if raw is None:
+        raw = order["quantity"]
+    qty = Decimal(str(raw))
+    return qty if str(order["side"]) == "buy" else -qty
+
+
+def ledger_net_at(
+    orders: Sequence[dict[str, Any]], at: datetime, *, exclude: dict[str, Any] | None = None
+) -> Decimal:
+    """`at` 시점까지 실제로 체결된 분의 부호 있는 순포지션.
+
+    ★`exclude` 는 **자기 자신**을 빼기 위한 것이다 — 시장가 주문은 생성과 terminal 기록이
+    같은 시각으로 찍힐 수 있고, 그러면 `filled_at <= created_at` 이 참이 되어 **자기 체결을
+    자기 발주 전 원장에 포함**한다(codex challenge 2026-08-05 적발 · 프로덕션 미관측).
+    """
     net = Decimal("0")
     for order in orders:
+        if exclude is not None and order is exclude:
+            continue
         if is_filled(order) and order["filled_at"] <= at:
-            net += signed_quantity(order)
+            net += signed_fill(order)
     return net
 
 
@@ -402,15 +446,17 @@ def is_rearm_stamp(order: dict[str, Any], ledger_before: Decimal) -> bool:
 def find_rearm_stamps(orders: Sequence[dict[str, Any]]) -> list[datetime]:
     """한 (세션, 심볼) 의 주문 흐름에서 재무장 도장 시각을 뽑는다.
 
-    ★`created_at` 이 없는 행은 하트비트가 될 수 없다 — 발주 시각을 모르면 「그 순간」을
+    ★`created_at` 이 없는 행은 도장이 될 수 없다 — 발주 시각을 모르면 「그 순간」을
     증언할 수 없다. 조용히 지금으로 치지 않는다.
+
+    ★`exclude=order` — 자기 체결을 자기 발주 전 원장에 넣지 않는다(위 `ledger_net_at`).
     """
     stamps: list[datetime] = []
     for order in orders:
         created_at = order.get("created_at")
         if created_at is None:
             continue
-        if is_rearm_stamp(order, ledger_net_at(orders, created_at)):
+        if is_rearm_stamp(order, ledger_net_at(orders, created_at, exclude=order)):
             stamps.append(created_at)
     return sorted(stamps)
 
@@ -619,8 +665,13 @@ def parse_events_json(blob: dict[str, Any], symbols: dict[UUID, str]) -> list[Di
                 session_id=session_id,
                 symbol=symbol,
                 category="direction",
-                engine=float(entry["engine"]),
-                exchange=float(entry["exchange"]),
+                # ★게이트 아카이브(`.soak/phantom-*.json`)는 `engine`/`exchange` 를
+                #   **버린다** — `{at, label, session_id}` 만 싣는다. 필수로 읽으면
+                #   그 아카이브를 재판정할 수 없다(codex challenge 2026-08-05: KeyError
+                #   재현). 라벨은 이 두 값에 의존하지 않으므로(전용 테스트로 고정)
+                #   없으면 0 으로 둔다 — 표시에만 쓰인다.
+                engine=float(entry.get("engine", 0.0)),
+                exchange=float(entry.get("exchange", 0.0)),
             )
         )
     return sorted(events, key=lambda e: e.at)

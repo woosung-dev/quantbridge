@@ -320,16 +320,31 @@ for p in sorted(state.glob("phantom-*.json")):
         if v.get("at"):
             phantoms.append(v)
 
-# ★★아카이브들이 **서로 다른 판별식**으로 매긴 라벨을 섞어 들고 있으면 알려야 한다.
+# ★★아카이브들이 **현행이 아닌 판별식**으로 매긴 라벨을 들고 있으면 알려야 한다.
 #   실격 사건은 `(시각, 종류, 상세)` 로만 dedup 되므로, 판별식을 개선해 `phantom` 하나를
 #   취소해도 **옛 아카이브의 그 라벨이 합집합에 영원히 남는다**(실측 2026-08-05: 교체 후
 #   4건이 그렇게 남았다). 방향은 fail-closed 라 거짓 PASS 는 안 되지만, **개선이 게이트에
 #   반영되지 않는다.** 조용히 두지 않는다 — 옮기라고 말한다.
-if len(versions) > 1:
+#
+# ★★`len(versions) > 1` 로 판정하면 안 된다 — **남은 아카이브가 전부 구버전이면 집합
+#   크기가 1 이라 경고가 안 뜬다**(codex challenge 2026-08-05 적발). 기준은 **현행 판**이고,
+#   현행 판은 이 실행이 방금 남긴 아카이브가 가지고 있다(가장 최근 = 지금 분류기의 판).
+current_version = None
+for p in sorted(state.glob("phantom-*.json"), reverse=True):
+    try:
+        blob = json.loads(p.read_text())
+    except Exception:
+        continue
+    if blob.get("verdicts") and blob.get("predicate_version"):
+        current_version = blob["predicate_version"]
+        break
+stale = {v for v in versions if v != current_version} if current_version else versions
+if stale:
     print(
-        "⚠⚠ phantom 아카이브가 서로 다른 판별식으로 매겨져 있다: "
-        + ", ".join(sorted(str(v) for v in versions))
-        + "\n   옛 라벨이 실격 목록에 그대로 남는다. 옛 아카이브를 "
+        "⚠⚠ phantom 아카이브가 현행이 아닌 판별식으로 매겨져 있다 — 현행 "
+        + f"{current_version!r}, 남아 있는 것: "
+        + ", ".join(sorted(repr(v) for v in stale))
+        + "\n   옛 라벨이 실격 목록에 그대로 남아 개선이 반영되지 않는다. 옛 아카이브를 "
         ".soak/superseded-<판>/ 로 옮겨라 (ADR-024 §아카이브 판).",
         file=sys.stderr,
     )

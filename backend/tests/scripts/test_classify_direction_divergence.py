@@ -489,6 +489,116 @@ def test_a_rearm_stamp_does_not_prove_the_engine_agrees(oracle: Any) -> None:
     # ★엔진은 이때 short 였다. 도장은 그것과 **무관하게** 찍힌다.
 
 
+def test_a_cancelled_order_that_carried_a_partial_fill_still_counts(oracle: Any) -> None:
+    """★★레포 정본(`entry_completeness.attempt_has_fill`)이 이미 말한다 — `state` 로 판정하면
+    안 된다. `transition_to_cancelled` 는 `filled_quantity` 가 0 이 아니면 **체결분을 보존한
+    채** 종결한다. 상태로 걸러내면 거래소에 남은 포지션을 원장에서 잃는다.
+    (codex challenge 2026-08-05 적발 — 나는 `state == 'filled'` 로 짰다.)
+    """
+    partial = {
+        **_order(
+            created_at=_at("2026-08-04 18:20:00"),
+            filled_at=_at("2026-08-04 18:20:02"),
+            state="cancelled",  # ← 상태는 취소인데
+            side="buy",
+            quantity="0.058",
+        ),
+        "filled_quantity": "0.029",  # ← 체결분이 남아 있다
+    }
+    assert oracle.is_filled(partial) is True
+    assert oracle.signed_fill(partial) == Decimal("0.029")
+    assert oracle.ledger_net_at([partial], _at("2026-08-04 18:30:00")) == Decimal("0.029")
+
+
+def test_a_filled_row_without_a_filled_quantity_is_unreadable_not_a_full_fill(
+    oracle: Any,
+) -> None:
+    """`filled` 인데 `filled_quantity` 가 NULL 이면 **판독 불가**다 — 전량 체결로 발명하지 않는다."""
+    unreadable = {
+        **_order(
+            created_at=_at("2026-08-04 18:20:00"),
+            filled_at=_at("2026-08-04 18:20:02"),
+            state="filled",
+            side="buy",
+            quantity="0.058",
+        ),
+        "filled_quantity": None,
+    }
+    assert oracle.is_filled(unreadable) is False
+    assert oracle.ledger_net_at([unreadable], _at("2026-08-04 18:30:00")) == Decimal("0")
+
+
+def test_partial_fill_moves_the_ledger_by_the_filled_amount_not_the_request(
+    oracle: Any,
+) -> None:
+    """전체 원장 실측: `filled` 202행 중 **65행**이 `filled_quantity <> quantity` 다."""
+    partial = {
+        **_order(
+            created_at=_at("2026-08-04 18:20:00"),
+            filled_at=_at("2026-08-04 18:20:02"),
+            state="filled",
+            side="sell",
+            quantity="0.058",
+        ),
+        "filled_quantity": "0.030",
+    }
+    assert oracle.signed_fill(partial) == Decimal("-0.030")
+
+
+def test_a_market_order_filled_at_its_own_creation_time_is_not_in_its_own_ledger(
+    oracle: Any,
+) -> None:
+    """★시장가 주문은 생성과 terminal 기록이 같은 시각으로 찍힐 수 있다.
+
+    그러면 `filled_at <= created_at` 이 참이 되어 **자기 체결이 자기 발주 전 원장에** 들어가고,
+    반전 판정이 뒤집혀 도장을 놓친다(codex challenge 2026-08-05 적발 · 프로덕션 미관측).
+    """
+    same = _at("2026-08-04 18:38:17")
+    seed = _order(
+        created_at=_at("2026-08-04 18:20:00"),
+        filled_at=_at("2026-08-04 18:20:02"),
+        state="filled",
+        side="buy",
+        quantity="0.029",
+    )
+    market_reversal = _order(
+        created_at=same,
+        filled_at=same,  # ← 같은 시각
+        state="filled",
+        side="sell",
+        quantity="0.058",
+    )
+    orders = [seed, market_reversal]
+
+    # 자기 자신을 빼지 않으면 L = +0.029 - 0.058 = -0.029 가 되어 반전이 아니게 된다.
+    assert oracle.ledger_net_at(orders, same, exclude=market_reversal) == Decimal("0.029")
+    assert oracle.find_rearm_stamps(orders) == [same]
+
+
+def test_a_gate_archive_without_engine_and_exchange_is_re_adjudicable(oracle: Any) -> None:
+    """★게이트 아카이브(`.soak/phantom-*.json`)는 `engine`/`exchange` 를 **버린다.**
+
+    필수로 읽으면 그걸 재판정할 수 없다(codex challenge 2026-08-05: `KeyError: 'engine'`
+    재현). ADR-024 가 「언제든 재판정할 수 있다」고 적었으므로 실제로 읽혀야 한다.
+    """
+    archive = {
+        "predicate_version": oracle.PREDICATE_VERSION,
+        "verdicts": [
+            {
+                "at": "2026-08-04T18:50:01.926000+00:00",
+                "label": "phantom",
+                "session_id": str(SESSION_A),
+            }
+        ],
+    }
+
+    (event,) = oracle.parse_events_json(archive, {SESSION_A: "BTC/USDT"})
+
+    assert event.at == _at("2026-08-04 18:50:01.926")
+    assert event.session_id == SESSION_A
+    assert event.symbol == "BTC/USDT"
+
+
 def test_a_partial_close_is_not_a_reversal(oracle: Any) -> None:
     """부분청산(0.001 vs 0.029 = 96.5% 차)은 허용오차 밖이다."""
     order = _order(
