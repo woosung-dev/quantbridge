@@ -282,9 +282,43 @@ red 가 된다** — BL-595 가 「백테스트 경로 byte-identical 을 못박
 
 ---
 
-## 4. 게이트 (커밋 후 실측)
+## 4. 게이트 (★커밋 후 · 조용한 트리 · 파이프 없이 실측)
 
-_(final-gates 실행 후 채운다.)_
+`scripts/final-gates.sh --run live-replay-visibility` = **전건 통과 (exit 0)**.
+
+| 게이트                         | 결과                                   |
+| ------------------------------ | -------------------------------------- |
+| BE ruff · mypy                 | PASS                                   |
+| BL 감사 · BL 감사 하네스       | PASS (3면 정합 · active **157** / 253) |
+| 문서 감사                      | PASS                                   |
+| **BE pytest**                  | **4102 passed / 45 skipped**           |
+| e2e design-canon / authed      | **32** / **69** passed                 |
+| CI 커버리지 잡                 | **93.17%** (문턱 90%)                  |
+| CI fresh DB alembic            | PASS                                   |
+| CI frozen-lockfile · hooks     | PASS                                   |
+| FE typecheck·lint·vitest·build | skip — **frontend diff 0**             |
+| screen.ok · codex.ok · g9.ok   | PASS                                   |
+
+**테스트 증분 = +24** (baseline 4078 → 4102), 전부 `tests/scripts/`:
+
+| 파일                                    | 이전 | 이후   | 증분    |
+| --------------------------------------- | ---- | ------ | ------- |
+| `test_classify_direction_divergence.py` | 46   | **68** | **+22** |
+| `test_soak_gate_predicate.py`           | 21   | **24** | **+3**  |
+
+커버리지 **93.17% — 직전 회차와 같다**(이 회차 코드는 `backend/scripts/` 라 측정 대상 밖).
+`backend/src` **0줄** · 마이그레이션 0 · FE 0.
+
+★**스크립트가 스스로 적어 둔 대로 「돌렸다」만 보증한다** — 위 숫자가 baseline 과 맞는지는
+사람이 본다. 4078 + 24 = 4102 이 정확히 맞고, 커버리지는 불변이다.
+
+★**게이트 도중 트리를 건드리지 않았다.** 이 레포가 세 번 밟은 함정이라 실행 시작 전에
+`git status` 로 clean 을 확인하고 끝날 때까지 아무 편집도 하지 않았다.
+
+★**단 이 회차에도 파이프 함정을 한 번 밟았다** — `docs-audit.sh 2>&1 | tail -4` 의 종료
+코드는 `tail` 의 것이라 `&&` 체인이 이어졌고, docs-audit 이 **red 인 채로 커밋이 나갔다**
+(INDEX 요약 318자 > 상한 300자). 뒤 커밋에서 잡았다. **게이트를 파이프에 넣지 마라 —
+문서에 적혀 있는데도 밟았다.**
 
 ## 5. 소크 상태 (회차 끝)
 

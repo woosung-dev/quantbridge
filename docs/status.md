@@ -59,8 +59,16 @@
 > (`soak_gate_predicate.py:191`). 이번 교체는 판정 불가를 새 라벨이 아니라 **종전 식으로
 > 강하**시켜 이 경로를 **회피**했을 뿐 닫지 않았다. 수리 안 함 · 등재만.
 >
-> **게이트(커밋 후 실측):** _아래 §게이트 절에 기록._
-> **`backend/src` 0줄**(변이 주입은 전부 원복) · 마이그레이션 0 · FE 0 · **소크 무중단**.
+> **게이트(★커밋 후 · 조용한 트리 · 파이프 없이 실측):** `scripts/final-gates.sh` **전건 통과
+> (exit 0)** — BE ruff/mypy · BL 감사(3면 정합 active **157**) · 문서 감사 ·
+> **BE pytest 4102 passed / 45 skipped**(baseline 4078 + **신규 24**, 전부 `tests/scripts/`) ·
+> e2e design-canon **32** + authed **69** · CI 커버리지 **93.17%**(불변) · fresh DB alembic ·
+> frozen-lockfile · hooks grep · screen/codex/g9 signal. FE 게이트는 diff 0 이라 skip.
+> `soak-gate.sh` = **FAIL 실격**(exit 1) — C3 **3건** · 누적 **0h / 168h** · C4·C5 ✓ ·
+> **전 이력 실격 10건**.
+> **`backend/src` 0줄**(변이 주입 12회는 전부 원복) · 마이그레이션 0 · FE 0 · **소크 무중단**.
+> ★**이 회차에도 파이프 함정을 한 번 밟았다** — `docs-audit.sh | tail` 의 exit code 는 `tail`
+> 의 것이라 red 인 채로 커밋이 나갔다(뒤 커밋에서 잡았다). 적어 둔 함정을 또 밟았다.
 > 회고 = [dev-log](dev-log/2026-08-05-live-replay-visibility.md).
 >
 > ---
