@@ -44,9 +44,11 @@ _SYMBOLS = (
 #   strategy_state.py — 타입과 권한자를 정의하고 `check_pending_fills` 분기를 갖는 곳.
 #   event_loop.py     — 두 진입점의 인자를 정의하고 봉 귀속(`_build_conditional_fill_authority`).
 #   live_signal.py    — 라이브 tick 에서만 원장을 읽어 채우는 유일한 호출자.
+#   track_runner.py   — **가드**다. 전달하지 않고 **거부한다**(아래 구조 테스트 참조).
 _ALLOWED = {
     "strategy/pine_v2/strategy_state.py",
     "strategy/pine_v2/event_loop.py",
+    "strategy/pine_v2/track_runner.py",
     "tasks/live_signal.py",
 }
 
@@ -121,3 +123,36 @@ def test_virtual_strategy_track_a_is_not_silently_diverged() -> None:
     body = virtual.read_text(encoding="utf-8")
     for symbol in _SYMBOLS:
         assert symbol not in body
+
+
+def test_backtest_dispatcher_rejects_live_only_kwargs() -> None:
+    """★문자열 화이트리스트로는 못 막는 경로를 **구조적으로** 막는다 (codex challenge P2).
+
+    `TrackRunner.invoke` 는 `**kwargs` 를 `run_historical` 로 **그대로 splat** 한다. 즉
+    백테스트 상류가 이 인자를 넘기면 **어느 파일도 그 이름을 적지 않고** 엔진에 도달할 수
+    있고, 위 화이트리스트 검사는 통과한다. 그래서 문 앞에서 거부한다.
+    """
+    import pytest
+
+    from src.strategy.pine_v2.track_runner import TrackRunner
+
+    for symbol in ("conditional_fill_authority", "ledger_seed_legs"):
+        with pytest.raises(ValueError, match="라이브 전용"):
+            TrackRunner.invoke(
+                "S", source="//@version=5\nindicator('x')", ohlcv=None, **{symbol: ()}
+            )
+
+
+def test_backtest_dispatcher_still_forwards_normal_kwargs() -> None:
+    """★음성 대조 — 위 거부가 정상 인자까지 막으면 백테스트가 통째로 죽는다."""
+    from src.strategy.pine_v2.track_runner import TrackRunner
+
+    calls: list[dict[str, object]] = []
+    original = TrackRunner._dispatch_table["S"]
+    TrackRunner._dispatch_table["S"] = lambda source, ohlcv, **kw: calls.append(kw) or "ok"
+    try:
+        TrackRunner.invoke("S", source="x", ohlcv=None, initial_capital=100.0, strict=False)
+    finally:
+        TrackRunner._dispatch_table["S"] = original
+
+    assert calls == [{"initial_capital": 100.0, "strict": False}]

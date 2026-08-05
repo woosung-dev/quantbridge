@@ -154,7 +154,12 @@ def test_fill_observed_after_the_last_bar_lands_on_the_last_bar() -> None:
 
 
 def test_fill_observed_before_the_window_is_dropped() -> None:
-    """창 시작보다 앞선 체결은 엔진이 표현할 수 있는 지평 밖이다 — 오늘과 같은 지평."""
+    """창 시작보다 앞선 체결은 엔진이 표현할 수 있는 지평 밖이다 — 오늘과 같은 지평.
+
+    ★**이건 안전성 주장이 아니라 한계의 동결이다**(codex challenge P2). 300봉(1분이면 5시간)
+    보다 오래 든 포지션은 오늘도 진입 봉이 창을 벗어나면 재생이 잃는다 — 이 수리가 그 문제를
+    만들지도 고치지도 않는다. 다만 **조용히 잃지는 않게** 세어서 내보낸다(아래 counter 테스트).
+    """
     result = run_live(
         _STOP_ENTRY,
         _ohlcv([100.0, 100.0], high_mult=1.0),
@@ -167,7 +172,7 @@ def test_fill_observed_before_the_window_is_dropped() -> None:
 
     report = _report(result)
     assert report["position_size"] == 0
-    assert report["ledger_fill_census"] == {}
+    assert report["ledger_fill_census"] == {"ledger_fill_out_of_window": 1}
 
 
 def test_fill_cannot_land_on_a_bar_before_the_order_exists() -> None:
@@ -289,3 +294,50 @@ def test_census_stays_empty_when_nothing_is_pending(authority: object) -> None:
     )
 
     assert state.ledger_fill_census == {}
+
+
+def test_duplicate_witness_in_one_bar_is_processed_once() -> None:
+    """★같은 봉에 같은 `trade_id` 증언이 둘이면 마지막 것만 쓴다 (codex challenge P2).
+
+    `pending_orders.pop` 이 루프 **뒤**에 있어, 그냥 순회하면 두 번째도 매칭돼 반전
+    close+open 이 두 번 돌고 **없던 왕복 거래**가 생긴다.
+    """
+    state = _state_with_pending()
+    filled = state.check_pending_fills(
+        bar=1,
+        open_=100.0,
+        high=100.0,
+        low=100.0,
+        conditional_fill_authority=ConditionalFillAuthority(
+            by_bar={
+                1: (
+                    LedgerConditionalFill(trade_id="E", filled_at=_bar_time(1), fill_price=131.5),
+                    LedgerConditionalFill(
+                        trade_id="E",
+                        filled_at=_bar_time(1) + timedelta(seconds=10),
+                        fill_price=140.0,
+                    ),
+                )
+            }
+        ),
+    )
+
+    assert [trade.id for trade in filled] == ["E"]
+    # 마지막 증언의 가격을 쓴다 — 그게 원장이 마지막으로 관측한 현실이다.
+    assert [trade.entry_price for trade in filled] == [140.0]
+    assert len(state.closed_trades) == 0
+
+
+def test_out_of_window_fill_is_counted_not_silently_dropped() -> None:
+    """★버린 것을 세어서 내보낸다 — 「거래소엔 있는데 엔진이 표현 못 하는 포지션」의 개수다."""
+    result = run_live(
+        _STOP_ENTRY,
+        _ohlcv([100.0, 100.0], high_mult=1.0),
+        ledger_conditional_fills=(
+            LedgerConditionalFill(
+                trade_id="E", filled_at=_START - timedelta(minutes=1), fill_price=131.5
+            ),
+        ),
+    )
+
+    assert _report(result)["ledger_fill_census"] == {"ledger_fill_out_of_window": 1}

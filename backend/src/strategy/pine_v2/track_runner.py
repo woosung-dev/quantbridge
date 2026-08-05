@@ -35,6 +35,12 @@ if TYPE_CHECKING:
     from src.strategy.pine_v2.compat import V2RunResult
 
 
+# 라이브 재생만 채우는 인자들. 백테스트 경로가 이걸 넘기면 골든이 조용히 갈린다.
+#   ledger_seed_legs           — BL-544 원장 포지션 seed
+#   conditional_fill_authority — ADR-025 조건부 진입 체결 권한
+_LIVE_ONLY_KWARGS = frozenset({"ledger_seed_legs", "conditional_fill_authority"})
+
+
 class TrackRunner:
     """Track S/A/M → runner 함수 매핑 + 통합 invoke()."""
 
@@ -72,6 +78,17 @@ class TrackRunner:
         if runner is None:
             raise ValueError(
                 f"parse_and_run_v2: unknown script track (track={track!r})"
+            )
+
+        # ★ADR-025 — 여기가 백테스트/Optimizer/Stress 가 엔진으로 들어오는 **유일한 문**이고
+        #   `**kwargs` 를 그대로 splat 한다. 그래서 라이브 전용 인자는 파일이 그 이름을 한 번도
+        #   적지 않아도 이 문을 통과할 수 있다 — 문자열 화이트리스트 테스트로는 못 막는다.
+        #   경계를 관례가 아니라 **집행**으로 만든다.
+        forbidden = _LIVE_ONLY_KWARGS.intersection(kwargs)
+        if forbidden:
+            raise ValueError(
+                "parse_and_run_v2: 라이브 전용 인자는 백테스트 경로로 넘길 수 없다 "
+                f"({sorted(forbidden)}) — ADR-025 / BL-544"
             )
 
         result = runner(source, ohlcv, **kwargs)

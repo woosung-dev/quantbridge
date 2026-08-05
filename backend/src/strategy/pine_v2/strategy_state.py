@@ -249,6 +249,9 @@ class ConditionalFillAuthority:
     """
 
     by_bar: dict[int, tuple[LedgerConditionalFill, ...]]
+    # 창 시작보다 앞서 관측돼 어느 봉에도 못 얹은 체결 수. 「거래소에는 있는데 엔진이
+    # 표현할 수 없는 포지션」의 개수이며, 조용히 버리지 않으려고 세어 둔다.
+    dropped_before_window: int = 0
 
     def for_bar(self, bar: int) -> tuple[LedgerConditionalFill, ...]:
         return self.by_bar.get(bar, ())
@@ -907,7 +910,14 @@ class StrategyState:
         candidates: list[tuple[str, PendingOrder, float]] = []
         # 원장 순서가 곧 현실의 순서다 — 시뮬 경로의 "open 가격과의 거리" 휴리스틱을 쓸
         # 이유가 없다(그건 intrabar path 를 모를 때의 최소 가정이었다).
+        # ★같은 봉에 같은 `trade_id` 증언이 둘이면 **마지막 것만** 쓴다. 그냥 순회하면
+        #   `pending_orders.pop` 이 루프 **뒤**에 있어 두 번째도 매칭되고, 반전 close+open 이
+        #   두 번 실행돼 없던 왕복 거래가 생긴다(codex challenge). 원장에 재발행·재관측이
+        #   섞이면 실제로 도달한다.
+        deduped: dict[str, LedgerConditionalFill] = {}
         for fill in sorted(witnessed, key=lambda item: item.filled_at):
+            deduped[fill.trade_id] = fill
+        for fill in deduped.values():
             witnessed_order = self.pending_orders.get(fill.trade_id)
             if witnessed_order is None:
                 # 고아 — 엔진이 그 주문을 아예 안 들고 있다. **여기서는 아무것도 하지 않는다**

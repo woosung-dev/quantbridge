@@ -34,6 +34,8 @@ from src.trading.models import OrderSide
 SESSION_ID = UUID("4bf679af-e535-402e-ba8e-8b91cebe3b51")
 OTHER_SESSION_ID = UUID("a16aa640-a045-4b5f-9c39-17c77a2dec1c")
 _FILLED_AT = datetime(2026, 8, 5, 9, 11, tzinfo=UTC)
+# 300봉 1분 창의 시작 — `_evaluate_session` 이 `ohlcv_rows[0]` 에서 뽑는 값과 같은 성격.
+_WINDOW_START = datetime(2026, 8, 5, 4, 12, tzinfo=UTC)
 
 
 def _sess() -> Any:
@@ -128,6 +130,48 @@ def test_empty_ledger_is_a_verdict_not_ignorance() -> None:
     assert _conditional_fills_from_ledger([], session_id=SESSION_ID, overflowed=False) == ()
 
 
+def test_partial_fill_is_undecidable() -> None:
+    """★부분 체결은 엔진의 leg 의미론으로 표현할 수 없다 — 그 tick 전체를 판정 불가로 떨어뜨린다.
+
+    채택하면 반전에서 부호가 뒤집혀 **없던 direction 발산**을 만들고, 조용히 빼면 그 체결이
+    사라진다. 둘 다 틀리므로 종전 동작(시뮬)으로 되돌린다.
+    ★실측 0/137 이다(조건부 진입 체결 전량 all-or-nothing) — 지금은 사문이고, 그래서 이
+    되돌림이 진동을 만들 위험도 지금은 0 이다.
+    """
+    # 키가 싣는 주문 수량은 0.058 인데 0.010 만 체결됐다.
+    assert (
+        _conditional_fills_from_ledger(
+            [_fill(key=_cond_key(), quantity=Decimal("0.010"))],
+            session_id=SESSION_ID,
+            overflowed=False,
+        )
+        is None
+    )
+
+
+def test_full_fill_matching_the_key_quantity_is_witnessed() -> None:
+    """★음성 대조 — 위 판정이 정상 전량 체결까지 삼키면 수리가 통째로 죽는다."""
+    witnessed = _conditional_fills_from_ledger(
+        [_fill(key=_cond_key(), quantity=Decimal("0.058"))],
+        session_id=SESSION_ID,
+        overflowed=False,
+    )
+
+    assert witnessed is not None
+    assert len(witnessed) == 1
+
+
+def test_overfill_is_not_treated_as_partial() -> None:
+    """수량이 키보다 **크면** 부분 체결이 아니다(거래소 반올림 등). 증언으로 받는다."""
+    witnessed = _conditional_fills_from_ledger(
+        [_fill(key=_cond_key(), quantity=Decimal("0.059"))],
+        session_id=SESSION_ID,
+        overflowed=False,
+    )
+
+    assert witnessed is not None and len(witnessed) == 1
+
+
 def test_overflow_is_undecidable() -> None:
     """부분 원장으로 「증언이 없다」를 말하면 엔진이 있는 포지션을 잃는다."""
     assert (
@@ -185,10 +229,55 @@ async def test_capture_carries_the_conditional_fills(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(order_repo_module, "OrderRepository", lambda _s: repo)
     _patch_exchange(monkeypatch)
 
-    shadow = await _capture_ledger_shadow(_sess(), session=MagicMock(), account_repo=MagicMock())
+    shadow = await _capture_ledger_shadow(
+        _sess(), session=MagicMock(), account_repo=MagicMock(), window_start=_WINDOW_START
+    )
 
     assert shadow.conditional_fills is not None
     assert [item.trade_id for item in shadow.conditional_fills] == ["PivRevLE"]
+
+
+@pytest.mark.asyncio
+async def test_conditional_fills_are_scanned_over_the_replay_window_not_the_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★codex challenge P1 — 세션 전체를 스캔하면 상한(200)에 걸려 보호가 **영구히** 꺼진다.
+
+    실측 체결률 2.55건/h ⇒ 약 78시간이면 상한이고, [BL-003] 의 168h 누적을 한 세션으로
+    채우려 하면 정확히 그 지점을 밟는다. 재생 창(300봉)만 보면 구조적으로 안 걸린다.
+    여기서는 두 조회의 `since` 가 실제로 다른지를 못박는다.
+    """
+    import src.trading.repositories.order_repository as order_repo_module
+
+    repo = MagicMock()
+    repo.list_fills_since = AsyncMock(return_value=[])
+    monkeypatch.setattr(order_repo_module, "OrderRepository", lambda _s: repo)
+    _patch_exchange(monkeypatch)
+    sess = _sess()
+
+    await _capture_ledger_shadow(
+        sess, session=MagicMock(), account_repo=MagicMock(), window_start=_WINDOW_START
+    )
+
+    since_values = [call.kwargs["since"] for call in repo.list_fills_since.await_args_list]
+    assert since_values == [sess.created_at, _WINDOW_START]
+
+
+@pytest.mark.asyncio
+async def test_no_window_means_no_authority(monkeypatch: pytest.MonkeyPatch) -> None:
+    """창을 모르면 조건부 체결을 조회하지 않는다 — 호출부가 시뮬로 되돌린다."""
+    import src.trading.repositories.order_repository as order_repo_module
+
+    repo = MagicMock()
+    repo.list_fills_since = AsyncMock(return_value=[_fill(key=_cond_key())])
+    monkeypatch.setattr(order_repo_module, "OrderRepository", lambda _s: repo)
+    _patch_exchange(monkeypatch)
+
+    shadow = await _capture_ledger_shadow(
+        _sess(), session=MagicMock(), account_repo=MagicMock(), window_start=None
+    )
+
+    assert shadow.conditional_fills is None
 
 
 @pytest.mark.asyncio
@@ -206,7 +295,9 @@ async def test_capture_falls_back_to_none_when_the_ledger_is_unreadable(
             raise RuntimeError("ledger down")
 
     monkeypatch.setattr(order_repo_module, "OrderRepository", _Boom)
-    shadow = await _capture_ledger_shadow(_sess(), session=MagicMock(), account_repo=MagicMock())
+    shadow = await _capture_ledger_shadow(
+        _sess(), session=MagicMock(), account_repo=MagicMock(), window_start=_WINDOW_START
+    )
 
     assert shadow.conditional_fills is None
 
@@ -233,12 +324,41 @@ def test_census_is_counted_once_per_occurrence(monkeypatch: pytest.MonkeyPatch) 
     assert sorted(seen) == ["agree", "agree", "ledger_only_adopted"]
 
 
-def test_unknown_census_key_is_not_silently_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
-    """★[BL-596] 이 게이트에서 등재한 결함(모르는 라벨을 조용히 무해 취급)을 여기 안 만든다."""
-    seen = _counts(monkeypatch)
-    _count_ledger_fill_census({"ledger_fill_census": {"미래의_새_라벨": 1}})
+def test_unknown_census_key_becomes_other_not_a_new_label(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★모르는 키를 **버리지도, label 로 승격하지도** 않는다.
 
-    assert seen == ["미래의_새_라벨"]
+    버리면 [BL-596] 의 결함(조용한 무해 취급)을 여기 다시 만드는 것이고, 그대로 승격하면
+    엔진이 새 키를 낼 때마다 prometheus series 가 무제한 늘어난다(codex challenge P2).
+    답은 `other` 버킷이다 — 오르는 게 보이면 그때 이름을 알아내면 된다.
+    """
+    seen = _counts(monkeypatch)
+    _count_ledger_fill_census({"ledger_fill_census": {"미래의_새_라벨": 3}})
+
+    assert seen == ["other", "other", "other"]
+
+
+def test_known_census_keys_keep_their_label(monkeypatch: pytest.MonkeyPatch) -> None:
+    """★음성 대조 — 위 접기가 알려진 라벨까지 삼키면 계측이 아무것도 못 말한다."""
+    seen = _counts(monkeypatch)
+    _count_ledger_fill_census(
+        {
+            "ledger_fill_census": {
+                "engine_only_suppressed": 1,
+                "ledger_only_adopted": 1,
+                "ledger_only_orphan": 1,
+                "ledger_fill_out_of_window": 1,
+            }
+        }
+    )
+
+    assert sorted(seen) == [
+        "engine_only_suppressed",
+        "ledger_fill_out_of_window",
+        "ledger_only_adopted",
+        "ledger_only_orphan",
+    ]
 
 
 @pytest.mark.parametrize(

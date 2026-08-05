@@ -395,12 +395,19 @@ def _build_conditional_fill_authority(
     """
     bar_times = [_extract_bar_time(ohlcv, index) for index in range(len(ohlcv))]
     by_bar: dict[int, list[LedgerConditionalFill]] = {}
+    dropped = 0
     for fill in fills:
         index = bisect_right(bar_times, fill.filled_at) - 1
         if index < 0:
+            # ★버린 것을 **세어서 내보낸다.** 창을 벗어난 체결은 「거래소에는 있는데 엔진이
+            #   표현할 수 없는 포지션」이라는 뜻이다. 조용히 버리면 그 손실이 관측되지 않는다.
+            dropped += 1
             continue
         by_bar.setdefault(index, []).append(fill)
-    return ConditionalFillAuthority(by_bar={index: tuple(items) for index, items in by_bar.items()})
+    return ConditionalFillAuthority(
+        by_bar={index: tuple(items) for index, items in by_bar.items()},
+        dropped_before_window=dropped,
+    )
 
 
 def run_live(
@@ -717,7 +724,13 @@ def run_live(
     strategy_state_report["pending_order_skips"] = pending_order_skips
     # ADR-025 — 「시뮬이 하려던 것 vs 원장이 증언한 것」. 권한이 꺼져 있으면 빈 dict 다.
     # ★비어 있음과 없음을 가르지 않는다 — 소비자(`live_signal`)가 키별로 세기만 한다.
-    strategy_state_report["ledger_fill_census"] = dict(strategy_state.ledger_fill_census)
+    census = dict(strategy_state.ledger_fill_census)
+    if ledger_conditional_fills is not None:
+        authority = historical_kwargs.get("conditional_fill_authority")
+        dropped = getattr(authority, "dropped_before_window", 0)
+        if dropped:
+            census["ledger_fill_out_of_window"] = dropped
+    strategy_state_report["ledger_fill_census"] = census
     # `placed_bar` 는 창 상대 인덱스라 그 자체로는 "창 이탈 임박" 을 판정할 수 없다.
     # 소비자가 headroom 을 계산할 수 있도록 창 크기를 함께 내보낸다.
     strategy_state_report["window_bars"] = len(ohlcv)

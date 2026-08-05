@@ -25,11 +25,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+from uuid import UUID
 
 import pandas as pd
 import pytest
@@ -41,12 +44,6 @@ _FIXTURE_DIR = Path(__file__).resolve().parents[2] / "fixtures" / "bl595"
 _PINE_SOURCE_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "pine_corpus_v2" / "s1_pbr.pine"
 )
-# 조건부 진입 key 의 두 형식. `conditional_entry_planner.CONDITIONAL_ENTRY_KINDS` 와 같은 값이며,
-# 여기서 다시 적는 이유는 이 테스트가 **원장 문자열의 소비자**이지 그 파서의 단위 테스트가
-# 아니기 때문이다. 두 값이 갈리면 아래 `test_fixture_shape` 가 잡는다.
-_CONDITIONAL_KINDS = ("cond", "condmkt")
-
-
 @dataclass(frozen=True, slots=True)
 class DeathFixture:
     prefix: str
@@ -83,32 +80,40 @@ def _run_kwargs(fixture: DeathFixture) -> dict[str, Any]:
     return kwargs
 
 
-def _conditional_fills(fixture: DeathFixture) -> list[Any]:
+def _conditional_fills(fixture: DeathFixture) -> Sequence[Any]:
     """원장이 증언하는 조건부 진입 체결 — 사망 tick 이 **볼 수 있었던 것만**.
+
+    ★**프로덕션 추출기를 통과시킨다**(`_conditional_fills_from_ledger`). 테스트 안에서 손으로
+    `LedgerConditionalFill` 을 조립하면 키 파싱·세션 대조·부분 체결·판독 불가 판정이 전부
+    빠져서, 추출기가 주문을 잘못 이어붙여도 이 픽스처는 초록이 된다(codex challenge P2).
+    입력은 원장 원본 필드 그대로다.
 
     `observed_before_death` 로 거르는 이유: 사망 시각 뒤에 관측된 체결을 넣으면 그 tick 이
     알 수 없었던 정보로 판정하는 것이 되어, 수리의 효과를 **과대평가**한다.
     """
-    from src.strategy.pine_v2.strategy_state import LedgerConditionalFill
+    from src.tasks.live_signal import _conditional_fills_from_ledger
 
-    fills = []
-    for order in fixture.payload["ledger_orders"]:
-        if order["entry_kind"] not in _CONDITIONAL_KINDS:
-            continue
-        if not order["observed_before_death"]:
-            continue
-        quantity = order["filled_quantity"]
-        price = order["filled_price"]
-        if quantity is None or price is None or Decimal(quantity) == 0:
-            continue
-        fills.append(
-            LedgerConditionalFill(
-                trade_id=order["trade_id"],
-                filled_at=datetime.fromisoformat(order["filled_at"]),
-                fill_price=float(price),
-            )
+    rows = [
+        SimpleNamespace(
+            idempotency_key=order["idempotency_key"],
+            filled_quantity=(
+                None if order["filled_quantity"] is None else Decimal(order["filled_quantity"])
+            ),
+            filled_price=(
+                None if order["filled_price"] is None else Decimal(order["filled_price"])
+            ),
+            filled_at=datetime.fromisoformat(order["filled_at"]),
         )
-    return fills
+        for order in fixture.payload["ledger_orders"]
+        if order["observed_before_death"] and order["filled_at"] is not None
+    ]
+    witnessed = _conditional_fills_from_ledger(
+        rows, session_id=UUID(fixture.payload["session_id"]), overflowed=False
+    )
+    assert witnessed is not None, (
+        f"{fixture.prefix}: 추출기가 이 원장을 판정 불가로 봤다 — 픽스처가 수리를 못 잰다"
+    )
+    return witnessed
 
 
 def _engine_position(fixture: DeathFixture, **extra: Any) -> Decimal:
