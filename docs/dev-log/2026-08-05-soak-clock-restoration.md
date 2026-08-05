@@ -301,6 +301,14 @@ base RDB(5,168 키)는 멀쩡했고 incr AOF 만 깨졌다.
 | docs-audit  | clean                                           |
 | final-gates | 전건                                            |
 
+★**final-gates 를 3회 돌렸다.** 2회차(커밋 `ad9f5c77` — 이 회차의 코드 전부)는 **전건
+통과 20/20**. 3회차(문서만 추가된 `caf6fd75`)에서 `e2e authed` 1건이 실패했다 —
+`/strategies/:id/edit` 의 **hydration mismatch console error 2건**(`console=2`).
+★**즉시 재실행에서 재현되지 않았고**(같은 스펙 13/13, `console=0`) 그 뒤 전체 authed 게이트도
+**69 passed**. 이 회차는 **FE 를 0줄** 바꿨고 앞선 두 실행은 통과했다.
+⇒ **「flake 였다」로 닫지 않고 관측으로 남긴다** — dev 서버의 간헐 hydration 불일치는
+잠재 결함일 수 있다. 재현되면 그때 판정한다.
+
 `backend/src` 는 **0줄** 바뀌었다(음성 대조 편집 2회는 md5 일치로 원복 확인).
 
 ---
