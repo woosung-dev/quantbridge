@@ -11,6 +11,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-05 conditional-stop-ownership** — ★**라이브 조건부 진입 체결 권한을 주문 원장으로** ([ADR-025], **BL-595 Resolved**). 사망 **5건 재현**(비트 일치) → 수리 전 5/5 발산, 후 5/5 일치. ★★**형 B 는 거짓 사망** — 엔진이 2봉 뒤졌을 뿐. ★★codex: **오래 산 세션에서 보호가 먼저 꺼진다**(78h) — [dev-log](2026-08-05-conditional-stop-ownership.md)
 - **2026-08-05 live-replay-visibility** — 판별식 = **직접 회복 검사**(원장 안 봄) · **FAIL 유지 · 실격 9→10**. ★★★**전제 반증** — `run_live` 는 이미 **89테스트가 ~90회** 호출. 변이 **12/12 KILLED ⇒ 신규 0**. ★[BL-595] 형 A 를 **Trust Layer 골든이 잡았다**. ★★codex: **진부분집합은 관측이다** → **래칫** — [dev-log](2026-08-05-live-replay-visibility.md)
 - **2026-08-05 divergence-rejudgement** — ★★★**「두 현상」이 반증됐다** — 사망 4건 부검: 엔진이 앞선 3건 · **거래소가 앞선 1건**. 뿌리는 방향이 아니라 **엔진과 거래소가 서로 다른 stop 주문**을 든다는 것(신규 [BL-595]). ★판별식 교체(19건 전량 표: phantom **11→7**, 사망상관 4/4 보존, **FAIL 유지**). ★사전등록 미충족이라 **src 0줄** — [dev-log](2026-08-05-divergence-rejudgement.md)
 - **2026-08-05 soak-clock-restoration** — 소크를 **커밋에 고정**해 편집과 분리(음성 대조: 배너 1→2 vs 1→1) + 「1주 안정」을 기계 판정으로([ADR-024]). ★★★**게이트가 첫 5시간에 phantom 7건·사망 2건을 냈다** — BL-003 의 차단자는 달력 시간이 아니라 `phantom` 이다. ★★codex 가 **거짓 PASS 5경로** 적발 — [dev-log](2026-08-05-soak-clock-restoration.md)
@@ -22,12 +23,12 @@
 - **2026-08-03 soak-divergence-root** — 소크를 65분에 끊은 발산. ★엔진은 취소를 못 본 게 아니라 **주문을 아예 모른다**(포지션 = `run_live` 시뮬). 뿌리는 계획기가 「대기 주문이 있다」만으로 시장가 전환을 껐다는 것 — 그 주문은 **발화 불가**였다. ★★한 번에 둘을 고치면 서로의 증거를 가린다. **BL-589/587/585/588 Resolved · 소크 재가동** — [dev-log](2026-08-03-soak-divergence-root.md)
 - **2026-08-03 backtest-metric-oracle** — 회귀망이 위험조정지표에 **감지력 0** 이었다(5벌 전부 sharpe=0·sortino/calmar=null). 컨벤션 대조 + 비축퇴 2벌로 채널 신설. **BL-461 Resolved** — 하루치 1h 봉이 **Sharpe 16.56** 을 보고했다. ★표적 2건 빗나감. ★★**소크가 65분에 죽었다 → BL-589(P1)** — [dev-log](2026-08-03-backtest-metric-oracle.md)
 - **2026-08-03 metric-guard-residual-sweep** — 발주 outbox **12곳** ⇒ **수리함 8 · 보류 4**(census 104→96). ★★★전부 「commit 뒤」인데 **한 자리만 fail-open `try` 안**이라 계측 실패가 **거절을 집행으로 뒤집었다**(flat 인데 청산 발주, 신규 H8). ★변이 M4 가 **오라클 구멍**을 드러냄. **BL-584 도달 불가** — [dev-log](2026-08-03-metric-guard-residual-sweep.md)
-- **2026-08-03 metric-guard-residual-close** — BL-580 잔여 **25곳** 주입 판정 ⇒ **수리함 23 · 판정 보류 2**(census 129→104). ★산문 2줄이 25곳을 잘못 뺐다(「blast radius 0」은 10/10 이 OSError 탈출). ★**내 하네스가 계약을 깨 도달 불가 분기를 「유해」로 만들 뻔했다**(codex G6) — [dev-log](2026-08-03-metric-guard-residual-close.md)
-- **2026-08-03 gate-trustworthiness** — 「전부 통과」가 증거가 되게 만든다. ★**순서는 랜덤이 아니었다**(`pytest-randomly` 미설치 ⇒ `-p no:randomly` no-op) — **수집 집합** 운이었다. 뿌리 = 정의 모듈 패치 창의 첫 적재가 가짜를 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개, 상시 가드 신설. **BL-583 Resolved** PR #528 — [dev-log](2026-08-03-gate-trustworthiness.md)
-- **2026-08-03 metric-guard-residual** — 「감쌀 필요 없다」의 근거를 고장 주입으로 재판정. 명시 4곳 **전건 반증** ⇒ 12곳 수리(census 141→129). **BL-582 「7종 도달 불가」→5종**(엔진 구동이 2종 반증). ★부수: **스위트가 실행 순서로 red/green 이 갈린다**(기존 테스트로 재현) ⇒ BL-583 PR #528 — [dev-log](2026-08-03-metric-guard-residual.md)
 
 ## 전체 이력
 
+- **2026-08-03 metric-guard-residual-close** — BL-580 잔여 **25곳** 주입 판정 ⇒ **수리함 23 · 판정 보류 2**(census 129→104). ★산문 2줄이 25곳을 잘못 뺐다(「blast radius 0」은 10/10 이 OSError 탈출). ★**내 하네스가 계약을 깨 도달 불가 분기를 「유해」로 만들 뻔했다**(codex G6) — [dev-log](2026-08-03-metric-guard-residual-close.md)
+- **2026-08-03 gate-trustworthiness** — 「전부 통과」가 증거가 되게 만든다. ★**순서는 랜덤이 아니었다**(`pytest-randomly` 미설치 ⇒ `-p no:randomly` no-op) — **수집 집합** 운이었다. 뿌리 = 정의 모듈 패치 창의 첫 적재가 가짜를 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개, 상시 가드 신설. **BL-583 Resolved** PR #528 — [dev-log](2026-08-03-gate-trustworthiness.md)
+- **2026-08-03 metric-guard-residual** — 「감쌀 필요 없다」의 근거를 고장 주입으로 재판정. 명시 4곳 **전건 반증** ⇒ 12곳 수리(census 141→129). **BL-582 「7종 도달 불가」→5종**(엔진 구동이 2종 반증). ★부수: **스위트가 실행 순서로 red/green 이 갈린다**(기존 테스트로 재현) ⇒ BL-583 PR #528 — [dev-log](2026-08-03-metric-guard-residual.md)
 - **2026-08-02 metric-guard-parity** — 계측 실패가 성공한 발주를 실패로 기록하고 **주문을 하나 더 냈다**(`assert 2 == 1`). 머니-패스 가드 **18곳**, census 159→141. ★백로그가 지목한 두 파일에 최강 P1 이 **없었다**. **BL-579 Resolved**, 신규 BL-580~582 — [dev-log](2026-08-02-metric-guard-parity.md)
 - **2026-08-02 context-budget-repair** — 문서를 읽는 비용. `INDEX.md` **−92.3%**(151,256→11,610 tok) · 자동 로드 고정비 **−42.2%** · 줄길이 상한 게이트 신설. ★**착수 전제 3건 반증** — `CONTEXT.md`·`.ai/rules` 는 자동 로드가 **아니다** [dev-log](2026-08-02-context-budget-repair.md)
 - **2026-08-02 canonical-measurement-surface** — 손 SQL 을 쓸 이유를 없앤 정본 술어 측정 표면 3종. **BL-576 프로덕션 발화 검증 통과**, **BL-577 전제 반증**(가드는 실재했다 — 내용 grep 은 파일명에만 있는 문자열을 못 잡는다), 신규 BL-579. PR #520 — [dev-log](2026-08-02-canonical-measurement-surface.md)
