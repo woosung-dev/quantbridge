@@ -45,6 +45,30 @@ AUTOMATIC_DEATH_REASONS: frozenset[str] = frozenset(
     }
 )
 
+# ── 방향 발산 라벨 어휘 ([BL-596]) ────────────────────────────────────────────
+#
+# 분류기(`backend/scripts/classify_direction_divergence.py`)가 내는 `verdicts[].label`
+# 은 **셋뿐**이고, 게이트는 그 셋을 여기서 **명시적으로** 가른다. 예전에는
+# `label == "phantom"` 하나만 보고 나머지를 전부 무해로 접었다 — 곧 `unattributed` 도,
+# 판별식이 앞으로 낼 어떤 새 라벨도 조용히 무해였다. 방향이 **fail-open** 이다:
+# 실격을 놓치면 `window_start` 가 앞당겨져 누적이 늘고 [BL-003] 통과가 쉬워진다.
+# 판별식은 2026-08-05 하루에만 두 번 바뀌었으므로(봉경계식 → 재무장식 → 회복식)
+# 「어휘는 안 변한다」는 가정을 코드에 둘 수 없다.
+#
+# ★셋째 갈래(`UNDECIDABLE` ∪ 어휘 밖)는 **무해도 실격도 아니다** — 「그게 유령이었는지
+#   우리가 모른다」이므로 C5(측정 무결성)를 떨어뜨려 UNKNOWN 으로 간다. 소급 실격이
+#   아닌 이유: 모르는 것을 실격으로 세면 그건 다른 방향의 거짓말이다.
+HARMLESS_DIVERGENCE_LABELS: frozenset[str] = frozenset({"replay_lag"})
+DISQUALIFYING_DIVERGENCE_LABELS: frozenset[str] = frozenset({"phantom"})
+# 「판정하지 못했다」 — 세션 소유 체결이 없어(운영자 청산 등) 어느 식도 판정을 못 한 것.
+# ★무해로 접으면 그 발산은 아무 데도 안 잡힌다. 어휘 밖 라벨과 **같은 갈래**로 떨어지되
+#   보고에서는 갈라 보인다 — 조치가 다르기 때문이다(어휘 밖 = 게이트를 분류기에 맞춰라 /
+#   `unattributed` = 그 발산을 사람이 봐야 한다).
+UNDECIDABLE_DIVERGENCE_LABELS: frozenset[str] = frozenset({"unattributed"})
+KNOWN_DIVERGENCE_LABELS: frozenset[str] = (
+    HARMLESS_DIVERGENCE_LABELS | DISQUALIFYING_DIVERGENCE_LABELS | UNDECIDABLE_DIVERGENCE_LABELS
+)
+
 # 유도 계측이 「판정 불가」로 떨어지는 outcome 들. 보고 전용 — 문턱 없음.
 # 정본은 `backend/src/common/metrics.py:802-811`.
 UNDECIDABLE_DERIVE_OUTCOMES: frozenset[str] = frozenset(
@@ -188,12 +212,13 @@ def find_disqualifications(
             )
 
     for obs in phantom_observations:
-        if str(obs.get("label", "")) == "phantom":
+        label = str(obs.get("label", ""))
+        if label in DISQUALIFYING_DIVERGENCE_LABELS:
             found.append(
                 Disqualification(
                     parse_ts(str(obs["at"])),
-                    "phantom",
-                    f"{str(obs.get('session_id', ''))[:8]} phantom",
+                    label,
+                    f"{str(obs.get('session_id', ''))[:8]} {label}",
                 )
             )
 
@@ -335,6 +360,27 @@ def sample_gaps(
     return gaps
 
 
+def unreadable_labels(observations: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """무해(`replay_lag`)도 실격(`phantom`)도 아닌 라벨을 두 갈래로 갈라 돌려준다 ([BL-596]).
+
+    ★**창으로 좁히지 않는다 — 코퍼스 전량을 본다.** 판독 못 하는 라벨의 위험은 「지금 창
+    안에서 FAIL 을 놓친다」만이 아니다. `window_start` 는 **전 이력의 마지막 실격 시각**이고
+    (`evaluate` 의 T0 계산), 기본 실행의 위반 스캔은 `window_start` **이전**으로도 뻗는다
+    (열려 있는 귀속 구간 전체). 그래서 창 밖의 한 건이라도 실은 `phantom` 이었다면 T0 가
+    앞당겨진 채 계산된다 — 좁히면 fail-open 이 그대로 남는다.
+
+    ★결과적으로 한 건만 나와도 게이트는 그 아카이브가 정리될 때까지 UNKNOWN 에 머문다.
+      그게 의도다 — 어휘가 갈렸다는 것은 **사람이 게이트를 분류기에 맞춰야 한다**는 뜻이고,
+      해소 경로는 둘 다 이미 있다: 위 frozenset 에 라벨을 제 갈래로 등재하거나, 옛 판의
+      아카이브를 `.soak/superseded-<판>/` 로 옮긴다([ADR-024] §아카이브 판).
+    """
+    seen = {str(obs.get("label", "")) for obs in observations}
+    return {
+        "undecidable": sorted(seen & UNDECIDABLE_DIVERGENCE_LABELS),
+        "unknown": sorted(seen - KNOWN_DIVERGENCE_LABELS),
+    }
+
+
 # ---------------------------------------------------------------- 판정
 
 
@@ -456,11 +502,16 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     #   덮이지 않은 시간은 「위반」이 되는 게 아니라 **애초에 안 세어진다.** 구조적 방어가
     #   문턱보다 강하다. 대신 잘려나간 양을 `unverified_hours` 로 **보고**한다.
     darkness = payload.get("darkness")
+    # ★라벨 어휘는 **여기**에 건다 ([BL-596]) — 무해도 실격도 아닌 셋째 갈래이므로.
+    #   실격으로 세면 「모른다」를 「유령이었다」로 바꾸는 것이고, 무해로 접으면 fail-open 이다.
+    #   판정 순서상 FAIL 이 C5 보다 먼저라(아래) **진짜 실격을 UNKNOWN 으로 덮지 않는다** = 래칫.
+    label_buckets = unreadable_labels(phantoms)
     integrity: dict[str, Any] = {
         "db_ok": bool(payload.get("db_ok", False)),
         "stack_pinned": bool(payload.get("stack_pinned", False)),
         "phantom_archive": bool(log_coverage),
         "darkness_computed": darkness is not None,
+        "divergence_labels_readable": not any(label_buckets.values()),
     }
 
     # ── C4 표본 공백 (귀속 창 안에서만, **세션별로** 묻는다) ────────────────
@@ -492,6 +543,7 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         "unattributed_hours": round(unattributed / 3600.0, 4),
         "unverified_hours": round(unverified_hours, 4),
         "disqualifications_all_time": [f"{d.at.isoformat()} {d.kind} {d.detail}" for d in disq],
+        "divergence_labels": label_buckets,
         "darkness": _darkness_report(darkness),
         "thresholds_are_default": (
             require_hours == DEFAULT_REQUIRE_HOURS
@@ -511,10 +563,14 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
 
     if not conditions["C5_ok"]:
         missing = [k for k, v in integrity.items() if not v]
+        # 라벨은 키 이름만으로 알 수 없다 — 어느 라벨인지가 곧 다음 조치다(위 frozenset 등재 vs 사람 조사).
+        # `label` 키 자체가 없는 옛 아카이브는 `""` 로 읽힌다 — 빈 낱말로 찍지 않는다.
+        offending = [lab or "(라벨 없음)" for bucket in label_buckets.values() for lab in bucket]
+        suffix = f" (판독 불가 라벨: {', '.join(offending)})" if offending else ""
         return Verdict(
             "UNKNOWN",
             "측정불가",
-            f"측정 무결성 미충족: {', '.join(missing)}",
+            f"측정 무결성 미충족: {', '.join(missing)}{suffix}",
             conditions,
             detail,
         )
