@@ -6909,7 +6909,7 @@ LONG(거래소와 일치)을 낸다 — 엔진은 늦었을 뿐이고 다음 tic
 **카테고리:** Infra / 데이터 내구성 (Redis AOF)
 **Trigger:** 소크가 168h 를 향해 도는 동안 (재기동 1회면 드러난다) · 호스트 재부팅 전
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⬜ **Open** — 구현·오프라인 검증 완료(게이트 C5⑸ `aof_ok` + `auto-aof-rewrite-min-size 8mb`, 스크래치 컨테이너 8상태 실측). **실제 소크 게이트 실행과 실제 재기동 검증(B2)은 미실시** — 그때까지 Open.
 **출처:** 2026-08-05 soak-clock-restoration (완료 기준 「기존 워크플로를 실행해서 확인」 중 발견)
 
 **Redis 가 재기동을 못 하는 상태로 6일간 돌고 있었다 — 아무도 몰랐다.**
@@ -6944,10 +6944,45 @@ VM 의 파일시스템. 백업본이 있다(2026-08-05, 3.5MB tar.gz).
 2. 손상 원인 조사 — `appendfsync` 설정과 컨테이너 종료 경로(SIGTERM grace) 확인
 3. 필요하면 `auto-aof-rewrite-percentage` 로 incr 파일이 35MB 까지 자라지 않게 한다
 
+**2026-08-05 실측 (스크래치 컨테이너 — `quantbridge-*` 무접촉).** 손상 2종을 주입해
+`redis-check-aof` 출력과 **실제 기동 여부**를 대조했다.
+
+| 손상        | check-aof exit | 오류 문구                                   | 서버 기동            |
+| ----------- | -------------- | ------------------------------------------- | -------------------- |
+| 없음        | 0              | `All AOF files and manifest are valid`      | ✅                   |
+| 꼬리 절단   | **1**          | `Expected to read 35 bytes, got 8 bytes`    | ✅ (자동 절단)       |
+| 중간 쓰레기 | 1              | `format error` / `Expected \r\n, got: 0d00` | ❌ `Bad file format` |
+
+★**종료 코드는 판별식이 될 수 없다** — 꼬리 절단은 `aof-load-truncated yes`(기본값)가
+기동 시 잘라내므로 무해한데 exit 1 을 낸다. 도는 redis 의 꼬리는 언제든 미완결일 수 있으므로
+exit code 로 재면 멀쩡한 스택이 거짓 `측정불가` 가 된다. → 게이트는 **양성 서명만** 통과시킨다.
+
+★★**알려진 한계** — `redis-check-aof` 는 **프레이밍만** 본다. 벌크 페이로드 안이 깨져 명령
+이름이 망가진 AOF 를 `All AOF files and manifest are valid` 로 통과시켰는데 그 AOF 로
+서버는 `Unknown command 'SE'` 를 내고 **exit 1** 했다. 즉 `aof_ok=true` 는 「프레이밍이
+성하다」이지 「반드시 뜬다」가 아니다. 기록된 프로덕션 고장(`Bad file format`)은 잡힌다.
+**후속 후보:** 사본을 별도 프로세스로 **띄워보는** 검사(진짜 재기동 오라클).
+
+**채택·기각.**
+
+- ✅ **`--auto-aof-rewrite-min-size 8mb`** — rewrite 는 크기·증가율을 **둘 다** 넘어야 발동하는데
+  base RDB 가 88바이트라 증가율은 늘 만족, **크기(기본 64mb)만 남는다**. 실측: 10MB 를 넣어도
+  `aof_rewrites:0`. 8mb 로 낮추니 자동 발동해 incr 이 삭제되고 on-disk 10.3MB → 0.57MB.
+  ★rewrite 는 **낡은 incr 파일을 지운다** — 손상된 incr 을 넣고 rewrite 하니 판독성이 회복되고
+  재기동에 성공했다. 즉 노출 창이 35.6MB → ~8MB, 관측 쓰기량(~6MB/일) 기준 하루 1회꼴 폐기.
+- ❌ **`stop_grace_period`** — 후보 원인 「하드 kill 중 쓰기」가 **2/2 반증**됐다. 쓰기 도중
+  SIGKILL(느린 루프 · 대량 파이프 적재) 둘 다 AOF 가 `diff=0` 유효였고 재기동도 됐다. 게다가
+  기록된 손상은 `ok_up_to=4,779,961 / size=35,605,598` — **파일 13% 지점**이라 꼬리 쓰기 경로가
+  만들 수 있는 모양이 아니다. 정상 종료도 0.31초(기본 유예 10초)라 늘릴 근거가 없다.
+- ❌ **`appendfsync` 변경** — fsync 정책은 **꼬리**의 내구성을 정하는데 기록된 손실은 중간이고
+  그 뒤로 30MB 가 더 있었다. `always` 는 브로커 쓰기마다 fsync 비용을 물린다. 기본 `everysec` 유지.
+- ❌ **`auto-aof-rewrite-percentage` 명시** — 이미 기본 100 이고 base 가 작아 **구속 조건이 아니다**.
+  적어도 동작이 안 바뀐다.
+
 **Risk:** 🟡 데이터 손실은 캐시/broker 한정이라 작다. 다만 **가용성**이 [BL-003] 의 달력 시간에
 직접 걸린다.
 
-**연결:** [BL-003] (168h 창 안의 재기동 내성)
+**연결:** [BL-003] (168h 창 안의 재기동 내성) · [ADR-024](decisions/024-soak-stability-gate.md) (C5⑸ `aof_ok`)
 
 ---
 
