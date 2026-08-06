@@ -94,10 +94,17 @@ function coverageTone(value: string | null): MetricTileTone {
 // 누적 워터폴이 나란히 서고, 이 세션의 기여가 0 이라는 사실은 배지 하나로만 남는다
 // (2026-08-06 qa 실측 — 소크 세션 2개가 정확히 그 상태였다).
 // 그래서 무표본 고지를 **스코프 카드 안**으로 내린다. 어느 축이 비었는지 그 카드가 스스로 말한다.
+//
+// ★문구는 **관측 사실만** 말한다. 「전략 누적에 이 세션 청산이 한 건도 없다」고 단정하면
+// 안 된다 — 백엔드가 그것을 보장하지 않는다. 주문 창은 `filled_at` 기준 반열림
+// `[started_at, ended_at)` 이라 세션 종료 뒤 체결(늦은 체결)은 **인접 세션 창으로** 잡히고
+// (`backend/src/trading/repositories/order_repository.py` 의 `_session_scope_where` 계약),
+// `parity_repository.load_parity_inputs` 는 이벤트(`session_ids`)와 주문 창(`scopes`)을 따로
+// 받는다. 그래서 세션 축은 매칭 0 인데 그 세션 이벤트의 청산이 전략 축에서는 매칭될 수 있다.
 const NO_MATCH_NOTICE: Record<ScopeKind, { title: string; body: string }> = {
   session: {
     title: "이 세션에는 매칭된 청산이 0건입니다.",
-    body: "옆 「전략 누적」 카드의 수치에는 이 세션의 청산이 한 건도 포함되지 않습니다.",
+    body: "옆 「전략 누적」은 같은 전략·계정·심볼의 다른 세션의 청산을 포함할 수 있습니다. 이 세션 몫을 따로 떼어 보여주지 않습니다.",
   },
   strategy: {
     title: "이 전략 누적에는 매칭된 청산이 0건입니다.",
