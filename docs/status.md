@@ -1,7 +1,32 @@
 # QuantBridge — Status
 
-> **업데이트:** 2026-08-05 — **엔진과 거래소가 같은 stop 주문을 들게 만들었다**
-> (conditional-stop-ownership · [BL-595] Resolved)
+> **업데이트:** 2026-08-06 — **밤샘 회차(night-watch): [ADR-025] Accepted · [BL-594]/[BL-596] Resolved · [BL-591] P2 강등**
+>
+> **★[ADR-025] 가 12h 전향 예측 전건 충족으로 Accepted 됐다** — 노출 12.28h 에서
+> ① `phantom` **0건**(p≈0.020 기각) · ② 자동 사망 **0건** · ③ 조건부 발주 **84건** ·
+> ④ 카운터 차분 **+223**(형 A 차단 +183 · 형 B 차단 +6 — 양쪽 수리 갈래 발화).
+> 실측 전문 = [ADR-025 §판정](decisions/025-conditional-fill-ownership.md).
+>
+> **★소크는 1회 계획 재기동으로 [BL-594] B2 를 실증했다** — redis 가
+> `--auto-aof-rewrite-min-size 8mb` 신설정으로 재생성·정상 기동. 게이트 C5 에 신설된
+> `aof_ok`(AOF 판독성) · `divergence_labels_readable`([BL-596] 미지 라벨 fail-closed) 둘 다
+> 프로덕션에서 ✓. **누적은 재기동을 넘어 이어졌다**(12.75h) — 연속 창만 새로 센다.
+> **고정 커밋 `3a90f80c` · 새 T0 = celery ready `2026-08-06T01:06:15Z` · 세션 `c160a1a9`**
+> (`01:06:46Z` 생성). ★재기동 전 flat 확인(`stop → flatten`, FLAT=YES).
+> ★**④ 차분의 새 기준 스냅샷(T0 `01:06:15Z` 직후 실측 — 이 값을 빼고 세라):**
+>
+> ```
+> outcome=agree 68.0 outcome=ledger_only_adopted 8.0 outcome=engine_only_suppressed 5044.0
+> ```
+>
+> 회고(반증 우선) = [dev-log](dev-log/2026-08-06-night-watch.md). 밤 diff = **`backend/src` 0줄 ·
+> FE 0줄** — 게이트 스크립트·compose·문서만. final-gates 2차 **전건 통과**(BE **4199/45** ·
+> e2e authed **69 전건**). ★1차의 e2e 1건 red 는 **소크 열린 포지션이 로케이터를 오염**시킨
+> 것([BL-597] 신규) — 알려진 hydration flake 와 **다른 축**이다.
+>
+> ---
+>
+> **★이전 회차 (conditional-stop-ownership — 엔진과 거래소가 같은 stop 주문을 들게 만들었다 · [BL-595] Resolved)**
 >
 > **★라이브 조건부 진입 체결의 권한이 pine_v2 에서 주문 원장으로 넘어갔다**
 > ([ADR-025](decisions/025-conditional-fill-ownership.md)). 원장이 증언하지 않으면 엔진도
@@ -416,14 +441,17 @@
 
 ---
 
-## 다음 스프린트 — **[BL-003] 소크를 실제로 돌려 [ADR-025] 를 갚는다**
+## 다음 스프린트 — **[BL-003] 시간을 쌓는다 (연속 24h + 누적 168h)**
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 
-### ★★★한 줄 — 코드 축은 닫혔고 이제 **시간**이 답한다
+### ★★★한 줄 — [ADR-025] 는 갚았다. 남은 것은 시간뿐이다
 
-[BL-595] 를 수리했고 사망 5건이 픽스처로 얼려졌다. 남은 것은 **그 수리가 프로덕션에서
-발화하는지**이고 그건 노출 시간으로만 갚인다. **첫 명령은 언제나 `scripts/soak-gate.sh` 다.**
+12h 전향 예측이 Accepted 로 닫혔고(2026-08-06, 위 배너) [BL-594]/[BL-596] 도 Resolved 다.
+소크는 **고정 `3a90f80c` · T0 `2026-08-06T01:06:15Z` · 세션 `c160a1a9`** 로 돌고 있다.
+남은 게이트는 C1(누적 168h — 현재 12.75h)과 C2(연속 24h)뿐이다. **첫 명령은 언제나
+`scripts/soak-gate.sh` 다.** 카운터 차분은 위 배너의 새 스냅샷(68/8/5044)을 빼고 세라.
+★아래 사전등록 표는 **판정이 끝난 역사 기록**이다(Accepted, [ADR-025 §판정]) — 재사용 금지.
 
 ### ★사전등록 — 전향 예측 (창과 함께)
 
