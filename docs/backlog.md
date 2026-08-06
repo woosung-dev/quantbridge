@@ -758,7 +758,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-532](#bl-532)    | `_sum_decimals` 사본이 `PARITY_DECIMAL_CONTEXT` 밖에서 돈다 (본 레포가 방금 세운 규칙과 불일치)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 다음 parity 손질 시                                                                                               | XS           | 2026-07-29 PR #496 코드리뷰                            |
 | [BL-533](#bl-533)    | 종료 세션 목록이 같은 엔드포인트를 두 쿼리 키로 조회해 미러 state 를 낳는다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 코크핏 손질 시                                                                                                    | XS           | 2026-07-29 PR #496 코드리뷰                            |
 | [BL-534](#bl-534)    | 외부 오라클 테스트가 27 leg Decimal 합산을 실제로 실행하지 않는다 (총계를 관측 1건에 몰아넣음)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | parity 산술을 손댈 때                                                                                             | XS           | 2026-07-29 PR #496 코드리뷰                            |
-| [BL-535](#bl-535)    | 🟡 부분 Resolved — ★백테스트는 스팟 봉으로 perp 전략을 검증한다 (적재는 착지, 결과 차 대조 미실시)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 백테스트를 라이브 판단 근거로 쓰기 전                                                                             | M            | 2026-07-28 live-close-completeness                     |
+| [BL-535](#bl-535) ✅ | ✅ Resolved 2026-08-06 backtest-reality-gap — 잔여였던 스팟/perp 결과 차 대조 실측 완료: 봉-매칭 진입쌍 144쌍 **전건 스팟이 위**, 중앙값 **+29.95 USDT**(사전등록 [25,42]·부호 적중, 1h 실측이 1m 재현). leverage=2 는 422 라 엔진 직접 호출로 우회                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 백테스트를 라이브 판단 근거로 쓰기 전                                                                             | M            | 2026-07-28 live-close-completeness                     |
 | [BL-536](#bl-536) ✅ | BL-522 진입 완결성 — 계기 정렬 후 유실 채널 5종 재측정 후 설계 (**재측정 완료 · 판정 「축소」 · 설계 = 저장소를 짓지 않는다**)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 실자금 cutover 전 필수                                                                                            | M            | 2026-07-28 live-close-completeness                     |
 | [BL-537](#bl-537)    | ~~활성 세션이 없으면 고아 포지션을 앱에서 청산할 수 없다~~ **✅ Resolved 2026-07-29 — ★전제 반증**(계정 스코프는 이미 닫힌다; 진짜 결함은 "누르면 실패하는 버튼")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | —                                                                                                                 | S            | 2026-07-28 live-close-completeness                     |
 | [BL-538](#bl-538)    | 발산 알림 본문이 모든 카테고리에 "전략 수정 후 재활성화" 라고 처방한다 (포지션 불일치엔 틀린 처방)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 운영 알림을 사람이 신뢰해야 할 때                                                                                 | S            | 2026-07-29 PR #497 사후 리뷰                           |
@@ -825,6 +825,13 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-600](#bl-600)    | `strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT 헌법의 _Avoid_ 이름과 **동음이의 충돌**(이쪽은 장중 시간대 필터). 값이 `Strategy.trading_sessions` **JSONB 에 영속**돼 단순 rename 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `trading_sessions` JSONB 를 마이그레이션할 때 · 도메인 용어 정리 시                                               | M            | 2026-08-06 dead-code-sweep                             |
 | [BL-601](#bl-601)    | 호출 0건 잔재 3종 — `OrderRepository.get_state_fresh` · `list_unsynced_reduce_only_since` · `scripts/fleet-dispatch-test.sh`. ★원안의 「고아 하니스 3종」은 **1종으로 정정**(나머지 둘은 final-gates 체인 안에 있다)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S            | 2026-08-06 dead-code-sweep                             |
 | [BL-602](#bl-602)    | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S            | 2026-08-06 e2e-consolidation                           |
+| [BL-603](#bl-603)    | ★백테스트 비용 가정이 라이브 실효의 **2.7배** — 가정 왕복 0.30%(fees 0.1+slip 0.05/leg) vs 원장 실측 왕복 **0.1101%**(taker 0.055%/leg 단일 성분, 84 event 중 77 이 8자리 일치·비-taker 잔차 0.03%). 매칭쌍 진입가 잔차 중앙 0.014% vs slippage 가정 0.05%                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 백테스트 손익을 라이브 예측치로 읽기 전 (비용 축이 3배 비관)                                                      | S            | 2026-08-06 backtest-reality-gap                        |
+| [BL-604](#bl-604)    | ★★백테스트와 라이브의 **진입 집합 자체가 갈린다** — 같은 창에서 백테스트 210 진입 vs 라이브 84, ±3봉 매칭 34쌍(40%)뿐. 매칭쌍 가격 잔차는 0.014% 로 미세한데 **백테스트가 예측 못 한 라이브 진입 46건이 net −92.81 = 전체 손실의 62%**. 동인 후보 3(롤링 300봉 pivot 상태 / 재무장 드리프트 62~271 / 세션 공백) — 미확정, 분리 측정이 다음 일                                                                                                                                                                                                                                                                                                                                                                                                                         | 백테스트를 라이브 판단 근거로 쓰기 전 (신호 축 예측력)                                                            | M            | 2026-08-06 backtest-reality-gap                        |
+| [BL-605](#bl-605)    | `exchange_exits` 가 같은 청산 event 를 **정확히 2행**(classification `ours`/`unknown` 쌍, payload 동일)으로 적재 — 실측 86 event = 172행. `SUM(closed_pnl)` 류 소비가 손익을 **정확히 2배** 계상한다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | exchange_exits 를 집계로 소비하는 코드를 추가하기 전                                                              | S            | 2026-08-06 backtest-reality-gap (eval2 실측)           |
+| [BL-606](#bl-606)    | outcome-parity 패널의 「매칭 없음」 경고가 **스코프 맹목** — `session.matched=0 && strategy.matched>0` 이면 침묵(`outcome-parity-panel.tsx:340`). 요청 세션 표본이 0 인데 31세션 누적 워터폴이 나란히 서고 구분은 배지뿐                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 세션 축이 빈 세션의 상세를 사용자가 읽기 전                                                                       | S            | 2026-08-06 backtest-reality-gap (qa D1)                |
+| [BL-607](#bl-607)    | outcome-parity 패널이 Decimal 원문을 그대로 렌더해 **타일 밖으로 넘친다** — 55노드 중 17 오버플로, 최악 51자리(scrollWidth 8.3배), 패널 폭 542px 고정이라 뷰포트 확대 무효                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | outcome-parity 표시 계층을 손댈 때                                                                                | S            | 2026-08-06 backtest-reality-gap (qa D2)                |
+| [BL-608](#bl-608)    | outcome-parity 패널 e2e **0건** + 단위테스트가 세션/전략 스코프 **비대칭 케이스 부재**(둘 다 빈 픽스처뿐이라 BL-606 조합을 못 잡는다) — PR #496 전례(green 인데 화면 도달 불가)가 겨냥한 바로 그 구멍                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | outcome-parity 표면을 다음에 만질 때 (회귀 안전망 먼저)                                                           | S            | 2026-08-06 backtest-reality-gap (qa D3)                |
+| [BL-609](#bl-609)    | `herdr-fleet.sh` 가 claude 워커에 `--model` 을 안 줘 **전역 기본 모델을 상속** — 실측: 역할표는 gen/qa=Opus 인데 Fable 로 부팅(전역 `~/.claude/settings.json`), 모델은 pane 화면에서만 보여 조용히 어긋난다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 다음 함대 부팅 전                                                                                                 | S            | 2026-08-06 backtest-reality-gap                        |
 | [BL-597](#bl-597) ✅ | e2e authed 가 **소크 상태와 결합** — 열린 포지션이 `/trading` 에 표를 추가해 느슨한 로케이터가 엉뚱한 표를 집는다(final-gates 1차 red, hydration flake 와 다른 축)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | e2e 로케이터 수리 전 · 소크 병행 게이트마다                                                                       | S            | 2026-08-06 night-watch                                 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
@@ -4254,7 +4261,7 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 
 ### BL-535
 
-**상태:** 🟡 **부분 Resolved (2026-07-30, PR #503 engine-exchange-alignment)** — 적재 경로는 실주행 확인(perp `BTC/USDT:USDT` 721행 신규 · 스팟 9337 불변), **스팟/perp 결과 차 대조는 미실시**. 근거: 본 섹션 「★실주행 검증」 마지막 문단("Resolved 가 아니라 **부분 완료**로 둔다") · `docs/archive/dev-log/index-full-2026-08-02.md` ("BL-535 부분", "잔여 = 스팟/perp 결과 차 대조 미실시").
+**상태:** ✅ **Resolved (2026-08-06 backtest-reality-gap)** — 잔여였던 **스팟/perp 결과 차 대조를 실측 완료**. 같은 전략(PbR·leverage=2)·같은 창(08-05~08-06, 1m)을 동결 CSV 로 엔진 직접 2회 실행: 봉-매칭 진입쌍 **144쌍 전건 스팟이 위**, 중앙값 **+29.95 USDT** — 사전등록 예측([25,42] 자릿수·부호) 적중, 1h 실측(25~42)이 1m 에서 재현. ★leverage=2 는 422 `mirror_not_allowed` 라 API 경로가 막혀 **엔진 직접 호출**로 우회했다(BL-186 잔여는 불변). 회고 = `docs/dev-log/2026-08-06-backtest-reality-gap.md`.
 
 **Title:** ★**백테스트는 스팟 봉으로 perp 전략을 검증한다** — 라이브만 계기를 맞춰 두 축이 갈렸다
 **Category:** Backend / market_data
@@ -7258,3 +7265,171 @@ reduce-only 동기화 복구용으로 보이므로, 그 복구 경로가 다른 
 **Risk:** 🟢 순수 정리.
 
 **출처:** 2026-08-06 dead-code-sweep
+
+---
+
+### BL-603
+
+**Priority:** P2
+**카테고리:** Backend / backtest 비용 모델
+**Trigger:** 백테스트 손익을 라이브 예측치로 읽기 전
+**Est:** S
+**상태:** ⬜ **Open**
+
+**백테스트 비용 가정이 라이브 실효 비용의 2.7배다.**
+
+**실측 (2026-08-06 backtest-reality-gap, 원장 dedup 84 event · 31.4h · 엔진 무경유 산술):**
+
+- 라이브 실효 비용 = **taker 0.055%/leg 단일 성분** — 잔차(`closed_pnl − gross`)가 84 event
+  전건 음수이고 77건이 소수 8자리까지 −0.055% 와 일치, 비-taker 잔차 합 +0.055 USDT(총비용의
+  0.03%). 펀딩 가설은 2×2 표로 반증(필요조건도 충분조건도 아님). 왕복 **0.1101%**.
+- 백테스트 기본 가정 = fees 0.1% + slippage 0.05% /leg = 왕복 **0.30%** (`engine/types.py:34-38`).
+- 매칭쌍(34) 진입가 잔차 중앙 **0.014%** — slippage 가정 0.05% 의 1/3 자릿수.
+- 크기 감각: 이 창의 라이브 Σgross +28.27 vs Σ비용 −172.83 — 비용이 전략 손익의 6.1배라
+  비용 가정의 2.7배 오차는 결과 부호를 좌우한다.
+
+**처방 후보(수리는 미착수):** 기본 fees/slippage 를 실측 기반으로 좁히거나, 거래소·모드별
+프리셋(Bybit demo taker 0.055%)을 둔다. BL-526 표면의 `house_default` 가정 표기도 함께.
+
+**Risk:** 🟡 판단 근거의 보수성 방향이 일관되게 비관(비용 과대)이라 안전하지만, 전략 선별을
+왜곡한다(비용 민감 전략을 부당하게 탈락).
+
+---
+
+### BL-604
+
+**Priority:** P1
+**카테고리:** Backend / 백테스트↔라이브 예측력 (신호 축)
+**Trigger:** 백테스트를 라이브 판단 근거로 쓰기 전
+**Est:** M
+**상태:** ⬜ **Open**
+
+**★백테스트와 라이브의 진입 집합 자체가 갈린다 — 예측 못 한 진입이 손실의 주인이다.**
+
+**실측 (2026-08-06 backtest-reality-gap, 같은 전략·같은 창 08-05T00:00Z~08-06T11:00Z):**
+
+- 백테스트 진입 **210** vs 라이브 진입 **84**. ±3봉 느슨 매칭 **34쌍(라이브의 40%)**.
+- 매칭쌍의 가격 잔차 중앙 **0.014%**(0.1% 초과 0) — 겹치면 거의 같은 값에 체결된다.
+- **live_only 46건의 확정 net −92.81 = 창 전체 손실(−149.85)의 62%** — 백테스트가 존재조차
+  예측 못 한 진입들이 손실 대부분을 만든다. backtest_only 173건의 기대 gross 는 +16.52.
+- 4단 워터폴(매칭 34, 감도): 기대 gross −8.84 → 가격 격차 +28.35 → 비용 −69.95 → net −50.45.
+
+**동인 후보 3 (미확정 — 분리 측정이 이 BL 의 일):** ⑴ 라이브는 롤링 300봉 워밍업 위 재생이라
+pivot 상태(`hprice`/`lprice` 영속 var)가 전구간 백테스트와 다르다 ⑵ 재무장 트리거 드리프트
+(봉당 62~271 USDT — 트리거 수준이 갈리면 교차 시각이 갈린다) ⑶ 세션 공백(창의 ~12%).
+분리 실험 1순위 = **라이브와 같은 300봉 롤링 재생으로 백테스트를 재실행**해 매칭률이
+40%→얼마로 움직이는지(도구는 `btgap_compare.py` 재사용).
+
+**Risk:** 🔴 이 축이 닫히기 전에는 「백테스트 숫자를 믿을 수 있는가」에 긍정 답을 줄 수 없다 —
+비용(BL-603)보다 상위의 병목.
+
+---
+
+### BL-605
+
+**Priority:** P2
+**카테고리:** Backend / trading (exchange_exits 적재)
+**Trigger:** exchange_exits 를 집계로 소비하는 코드를 추가하기 전
+**Est:** S
+**상태:** ⬜ **Open**
+
+**`exchange_exits` 가 같은 청산 event 를 정확히 2행으로 적재한다.**
+
+**실측 (2026-08-06, eval2):** 08-05 이후 172행 = **86 event × 정확히 2행**. 각 쌍은
+`closed_pnl`·`closed_size`·`avg_entry/exit_price`·`exchange_created_at` 이 한 필드도 다르지
+않고, 다른 것은 `id`·`matched_order_id`(ours 만 보유)·`classification`(`ours`/`unknown`)·
+`attribution_confidence` 뿐. ⇒ `SUM(closed_pnl)` 형 소비는 손익을 **정확히 2배** 계상한다
+(실측 −289.13 vs 진값 −144.57). `row_hash` 컬럼이 있는데도 중복이 들어온다 — 적재 경로가
+분류 pass 별로 행을 새로 쓰는 것으로 보인다(뿌리 미확정).
+
+**처방 후보:** 적재 시 `order_link_id` 단위 upsert 로 분류만 갱신, 또는 소비 계약에
+「`classification='ours'` 필터/`DISTINCT order_link_id` 의무」를 정본화. 기존 소비처 전수
+확인이 선행(이번 회차 도구는 dedup 를 자체 강제했다 — `btgap_compare.py`).
+
+**Risk:** 🟡 현재 프로덕션 소비처가 2배 계상을 하고 있는지 미확인 — 확인 자체가 이 BL 의
+첫 단계다.
+
+---
+
+### BL-606
+
+**Priority:** P3
+**카테고리:** Frontend / live-sessions (outcome-parity 정직성)
+**Trigger:** 세션 축이 빈 세션의 상세를 사용자가 읽기 전
+**Est:** S
+**상태:** ⬜ **Open**
+
+**outcome-parity 패널의 「매칭 없음」 경고가 스코프 맹목이다.**
+
+`outcome-parity-panel.tsx:340` 의 `hasMatchedClosures = session.matched > 0 ||
+strategy.matched > 0` 라서 **요청 세션이 완전히 비어도 전략 축에 매칭이 있으면 경고가 안
+뜬다.** 실측(2026-08-06 qa): 소크 세션 2개가 정확히 그 상태 — 세션 축 전항 「산출 불가」인데
+31세션 누적 워터폴(-73.55 net)이 나란히 렌더되고, 이 세션 기여 0 이라는 사실은 배지
+(`요청 세션` vs `세션 31건`)뿐. 부수: 세션 총계 타일 2개가 관측 0건에서 리터럴 `0` 을 neutral
+톤으로 렌더(「기대 0·실제 0 ⇒ 격차 없음」 오독 여지). 제안 = 경고 조건 스코프 분리 또는 세션
+스코프 카드 안 「이 세션 표본 0」 배너.
+
+**Risk:** 🟢 표시 계층. 단 Surface Trust 원칙(§7.3)의 표면이라 방치 시 신뢰 판단을 오도.
+
+---
+
+### BL-607
+
+**Priority:** P3
+**카테고리:** Frontend / live-sessions (표시 계층)
+**Trigger:** outcome-parity 표시 계층을 손댈 때
+**Est:** S
+**상태:** ⬜ **Open**
+
+**outcome-parity 패널이 Decimal 원문을 그대로 렌더해 타일 밖으로 넘친다.**
+
+실측(2026-08-06 qa): `data-testid` 노드 55개 중 **17개 오버플로**(뷰포트 1600·2560 동일).
+최악 `outcome-parity-strategy-sample-sd-net` = 51자리 문자열, scrollWidth 551px vs clientWidth
+66px(**8.3배**). 워터폴 값 3개는 부모 박스 밖으로 삐져나온다. 패널 폭이 542px 고정이라
+반응형 문제가 아니라 **표시 계층 반올림 부재**(`displayDecimal` 이 원값 그대로, 퍼센트만
+`toFixed`). NaN/Infinity 누수는 0(그 축은 건강).
+
+**Risk:** 🟢 표시만. 수리 시 반올림이 값 자체를 바꾸지 않게(표시 전용) 경계 주의.
+
+---
+
+### BL-608
+
+**Priority:** P3
+**카테고리:** Frontend / e2e·단위테스트 (outcome-parity 회귀 안전망)
+**Trigger:** outcome-parity 표면을 다음에 만질 때 (안전망 먼저)
+**Est:** S
+**상태:** ⬜ **Open**
+
+**outcome-parity 패널의 e2e 가 0건이고, 단위테스트는 비대칭 스코프 케이스가 없다.**
+
+실측(2026-08-06 qa): `frontend/e2e/**` 에 `outcome-parity` 문자열 **0건** — 화면 도달을
+자동으로 재는 곳이 없다(PR #496 전례: 게이트 전부 green 인데 화면 도달 불가). 단위테스트
+(`outcome-parity-panel.test.tsx`)의 `matched_count: 0` 케이스는 **두 스코프를 함께** 비워
+경고가 반드시 뜨는 픽스처뿐이라 BL-606 의 비대칭 조합(session 0 · strategy >0)과 라이브
+실측의 `null` 커버리지(`산출 불가`) 경로를 못 잡는다. 로케이터는 data-testid 기반으로
+(BL-597 소크 오염 축 회피 — qa 프로브가 실증한 규약).
+
+**Risk:** 🟢 안전망 부재 자체가 리스크. BL-606/607 수리 전에 이것부터.
+
+---
+
+### BL-609
+
+**Priority:** P3
+**카테고리:** DX / 함대 도구 (`scripts/herdr-fleet.sh`)
+**Trigger:** 다음 함대 부팅 전
+**Est:** S
+**상태:** ⬜ **Open**
+
+**herdr-fleet 의 claude 워커가 전역 기본 모델을 상속한다 — 역할표와 조용히 어긋난다.**
+
+실측(2026-08-06): `agent_args_for` 가 codex 에만 인자를 주고 claude 는 무인자라
+`~/.claude/settings.json` 의 전역 모델을 상속 — 역할표는 gen/qa=Opus 인데 **Fable 로
+부팅**됐고, 모델은 pane 화면에서만 보여 오케스트레이터 status 폴링으로는 안 보인다.
+사용자가 중간 발견. 수리 절차(실증): PID 특정 kill → `herdr agent start <name> --kind claude
+--pane <p> -- --model opus` → `--only` 재분배. 정본 수리 = `agent_args_for` 의 claude 케이스에
+`--model opus` (또는 `--agent claude:이름:모델` 문법) 추가.
+
+**Risk:** 🟢 도구. 단 모델 배정이 품질 가정의 일부인 회차에서는 조용한 어긋남이 산출물
+품질을 바꾼다.
