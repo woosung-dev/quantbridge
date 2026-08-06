@@ -12,7 +12,7 @@ precision 으로 변환을 확인한다.
 
 시크릿 하드코딩 금지 — 환경변수로 주입:
     BYBIT_DEMO_API_KEY=... BYBIT_DEMO_API_SECRET=... \
-      uv run python scripts/verify_mp4_precision_demo.py [--symbol BTC/USDT] [--place-and-cancel]
+      uv run python scripts/archive/verify_mp4_precision_demo.py [--symbol BTC/USDT] [--place-and-cancel]
 """
 
 from __future__ import annotations

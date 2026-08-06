@@ -5,7 +5,7 @@
 ## 핵심 원칙
 
 - Pine을 Python으로 변환해 `exec()`·`eval()`로 실행하지 않는다. `pine_v2`가 AST를 bar-by-bar로 해석한다.
-- 실행 엔진의 정본은 `pine_v2`다. vectorbt는 지표 계산 보조이며 실행 의미론을 결정하지 않는다.
+- 실행 엔진의 정본은 `pine_v2`다. ★2026-08-06 에 vectorbt 의존성은 **제거됐다** — 「지표 계산 보조」라는 서술도 드리프트였고(코드 import 0건), 지표는 `pine_v2/stdlib.py` 가 pandas/numpy 로 직접 계산한다.
 - 지원하지 않는 호출이 하나라도 있으면 부분 결과를 만들지 않고 Unsupported로 끝낸다.
 - TradingView와 달라질 수 있는 degraded 호출은 백테스트 제출 시 명시 동의 없이는 실행하지 않는다.
 
@@ -23,11 +23,11 @@ flowchart LR
     R --> X[Backtest · Stress Test · Optimizer]
 ```
 
-| Track | 분류 | 실행 계약 |
-| --- | --- | --- |
-| **S** | `strategy()` 선언 | 네이티브 `run_historical` 경로 |
-| **A** | `indicator()` 또는 `library` + alert | `VirtualStrategyWrapper`가 전략 이벤트로 투영 |
-| **M** | `indicator()` 또는 `library`, alert 없음 | 지표 pass-through로 `run_historical` 실행 |
+| Track | 분류                                     | 실행 계약                                     |
+| ----- | ---------------------------------------- | --------------------------------------------- |
+| **S** | `strategy()` 선언                        | 네이티브 `run_historical` 경로                |
+| **A** | `indicator()` 또는 `library` + alert     | `VirtualStrategyWrapper`가 전략 이벤트로 투영 |
+| **M** | `indicator()` 또는 `library`, alert 없음 | 지표 pass-through로 `run_historical` 실행     |
 
 분류 규칙의 정본은 `ast_classifier._classify_track`, 외부 진입점은 `compat.parse_and_run_v2`다. Track A는 `next_bar_open`을 그대로 재현하지 못할 때 경고를 남기고 bar-close로 실행한다.
 

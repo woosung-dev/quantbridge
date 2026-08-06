@@ -48,8 +48,12 @@ Backtest 시뮬레이션 내부의 개별 가상 체결 기록.
 _Avoid_: Optuna(채택 안 함)
 
 **vectorbt**:
-`ta.*` 지표 계산 가속에만 쓰는 보조 라이브러리(실행 엔진 아님 — ADR-011 강등).
-_Avoid_: backtest engine, 전략 실행기
+★**제거됨(2026-08-06)** — 묘비로 남긴다. ADR-011 이 실행 엔진에서 _지표 계산 전용_ 으로 강등했고,
+그 뒤 **의존성 자체가 제거**됐다. 강등 시점의 정의(「`ta.*` 지표 계산 가속」)조차 실제와 달랐다 —
+`backend/src` 는 vectorbt 를 **한 줄도 import 하지 않았고**(2026-08-06 실측: 언급 16곳 전부
+주석/독스트링), `ta.*` 는 `pine_v2/stdlib.py` 가 pandas/numpy 로 **직접** 계산한다.
+유일한 소비처는 라이브러리 설치 확인용 smoke 테스트 1개였다.
+_Avoid_: backtest engine, 전략 실행기, "지표 계산 가속"(이 표현도 드리프트였다)
 
 ### Execution Context
 
@@ -123,7 +127,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 > **Domain expert:** "아니요. **TradingSession** 테이블은 없습니다(phantom). 실제로는 **LiveSignalSession**(활성 세션) + 신호마다 **LiveSignalEvent**(outbox) + 거래소 **Order** 3개로 구성됩니다."
 >
 > **Dev:** "그럼 백테스트는 vectorbt 가 돌리는 거죠?"
-> **Domain expert:** "아니요. 실행 엔진은 **pine_v2** 인터프리터입니다. vectorbt 는 `ta.*` 지표 계산 보조일 뿐이고 트랜스파일도 하지 않습니다(ADR-003/011)."
+> **Domain expert:** "아니요. 실행 엔진은 **pine_v2** 인터프리터이고, vectorbt 는 **아예 없습니다**(2026-08-06 의존성 제거). 한동안 '지표 계산 보조'로 적혀 있었지만 그것도 실제와 달랐어요 — `backend/src` 는 vectorbt 를 한 줄도 import 하지 않았고 `ta.*` 는 `pine_v2/stdlib.py` 가 직접 계산합니다(ADR-003/011)."
 >
 > **Dev:** "트레일링 스톱은 진입 주문에 같이 넣나요?"
 > **Domain expert:** "절대 안 됩니다. `Order.trailing_stop` 은 _의도_ 만 영속하고, 체결 후 `set_trading_stop` 으로 포지션에 부착합니다. entry 에 넣으면 ccxt 가 trading-stop 으로 라우팅해 진입이 깨집니다."
@@ -131,7 +135,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 ## Flagged ambiguities
 
 - **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/reference/domain/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 완료(본 브랜치).
-- **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**, vectorbt 는 지표계산 전용(ADR-011). _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 완료(본 브랜치).
+- **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**. ★2026-08-06 에 한 겹 더 벗겼다 — 「vectorbt 는 지표계산 전용」이라는 강등 서술**조차** 드리프트였고(코드 import 0건), 의존성 자체를 제거했다. _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 완료.
 - **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `backend/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `backend/src/exchange/models.py` 표기 → Phase 2 정정 완료(본 브랜치).
 - **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. **ExchangeMode** = `demo | live` 뿐이고 demo 의미는 거래소별 상이(Bybit demo = 실 매칭엔진 / OKX demo = CCXT sandbox).
 - **"unsupported"**(parse_status) → 해소: 파서는 `ok`/`error` 만 set. 미지원 함수 판정은 백테스트 제출 시 **Coverage Analyzer**(ADR-003 all-or-nothing).
@@ -143,4 +147,9 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 
 - **2026-06-30** — 초안 작성(verification loop Stage 0). `docs/reference/{domain-overview,entities,state-machines}.md` + ADR-003/011/013/018/020 + 코드(`trading/models.py`, `pine_v2/compat.py`) 교차 ground. Flagged ambiguities 6건 중 3건은 Phase 2 문서 정정으로 연계.
 - **2026-06-30** — codex consult gate 7건 보정(직접 코드 검증 후 반영) — Track A/M 에 `library` 포함 / Degraded Pine·allow_degraded_pine 신설 / LiveSignalSession Bybit-demo 한정 명시 / ExchangeName 신설 + registry SSOT / demo 의미 거래소별 상이 / Kill Switch 트리거별 scope / Provider 라우팅 튜플 relationship.
+- **2026-08-06** — **vectorbt 항목을 묘비로 전환**(ci-diet 후속 dead-code-sweep). 의존성 4종
+  (`vectorbt` · `pandas-ta` · `aioboto3` · `orjson`)을 제거했고 lock 에서 **47 패키지**가 빠졌다
+  (numba · matplotlib · plotly · boto3 계열 포함). **numpy/pandas/scipy/scikit-learn 버전은 불변**이라
+  pine_v2 수치에 영향이 없다. ★교훈: 「지표 계산 전용으로 강등」이라는 **헌법의 서술 자체가 드리프트**
+  였다 — 강등 후 실제로는 import 0 건이었는데 아무도 다시 재지 않았다. **강등도 측정 대상이다.**
 - **2026-08-05** — **pine_v2 정의 정밀화**([ADR-025] / [BL-595]). 「백테스트·라이브 신호의 단일 진실」은 **신호**에 대한 진술이고, 라이브의 **조건부 진입 체결** 권한은 주문 원장으로 옮겼다. 좁힌 것이 아니라 원래 그 문장이 뜻하던 경계를 코드와 맞춘 것이다 — 그동안 코드가 라이브에서도 체결을 정하고 있었고, 그것이 `position_divergence` 사망 5건의 뿌리였다. 대가는 **라이브 재현성**(원장이 재생 입력에 들어간다).

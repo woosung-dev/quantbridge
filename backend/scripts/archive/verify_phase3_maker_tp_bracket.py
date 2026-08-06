@@ -13,7 +13,7 @@ TP/SL 이 reduce-only position-linked 주문으로 부착됐는지 데이터로 
 
 실행 (사용자가 키 보유 — 직접 실행):
     cd backend
-    uv run python scripts/verify_phase3_maker_tp_bracket.py \\
+    uv run python scripts/archive/verify_phase3_maker_tp_bracket.py \\
         --api-key "$BYBIT_DEMO_KEY" --api-secret "$BYBIT_DEMO_SECRET" \\
         --symbol "BTC/USDT:USDT" --quantity 0.001 --leverage 1
     # verdict 로직만 (네트워크/키 불필요): --selftest
