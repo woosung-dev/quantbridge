@@ -71,13 +71,16 @@ def btgap() -> Any:
 #     `abs(target − current)` 수량의 **병합 주문 1건**이라 반대편 청산과 신규 진입을
 #     한 장으로 처리한다 — 그래서 별도 청산 주문이 없다.
 #
-#   e1(+1분)  strict 쌍   · 청산 x1(+5분,  A)
-#   e2(+10분) loose  쌍   · 청산 x2(+15분, A)   ← 백테 진입봉이 +2봉 뒤
-#   e3(+30분) live_only   · 청산 x3(+35분, A)
-#   e4(+38분) strict 쌍   · 청산 x4(+50분, **갭**)  ← cross_window
+#   ★★link 은 **닫은 주문**을 가리킨다 — opener 는 그 직전 진입이다 (r3 실측).
+#     그래서 x1 은 e1 이 아니라 **e2** 에 링크된다.
+#
+#   e1(+1분)  strict 쌍   · 청산 x1(+5분,  A)   link=o-e2  → opener e1
+#   e2(+10분) loose  쌍   · 청산 x2(+15분, A)   link=o-e3  → opener e2
+#   e3(+30분) live_only   · 청산 x3(+35분, A)   link=o-e4  → opener e3
+#   e4(+38분) strict 쌍   · 청산 x4(+50분, **갭**) link=o-flat → opener e4 (via flatten)
 #   백테 idx2(+20분)      backtest_only
 #   x5(+70분, B) link 미해결(`o-ghost`) → ledger_only + flatten orphan
-#   x6(+75분, B) link `o-flat`(진입 아님) → non_entry_linked + flatten
+#   x6(+75분, B) link `o-flat2`(체결시각 없음) → non_entry_linked + flatten
 #
 #   ★수량은 버킷을 만들기 위한 예시값이다 — 경제적으로 정합한 반전 체인이 아니다.
 #     carry 검사는 「산술이 맞나」만 본다.
@@ -139,14 +142,23 @@ def _orders() -> list[dict[str, Any]]:
             filled_quantity="0.04",
             filled_at=iso(38, 30),
         ),
-        # 수동 정리 — 빈 key + reduce_only.
+        # 수동 정리 — 빈 key + reduce_only. 체결 시각이 있어 사슬에 꽂힌다.
         order_row(
             order_id="o-flat",
             side="sell",
             idempotency_key=None,
+            filled_quantity="0.04",
+            reduce_only=True,
+            filled_at=iso(50),
+        ),
+        # ★체결 시각이 없는 수동 정리 — 사슬에 꽂을 수 없어 `non_entry` 로 떨어진다.
+        order_row(
+            order_id="o-flat2",
+            side="sell",
+            idempotency_key=None,
             filled_quantity="0.01",
             reduce_only=True,
-            filled_at=iso(75),
+            filled_at=None,
         ),
     ]
 
@@ -156,7 +168,7 @@ def _events() -> list[dict[str, Any]]:
     return [
         exit_row(
             exit_id="x1",
-            order_link_id="o-e1",
+            order_link_id="o-e2",
             side="Sell",
             closed_pnl="1.3",
             closed_size="0.01",
@@ -166,7 +178,7 @@ def _events() -> list[dict[str, Any]]:
         ),
         exit_row(
             exit_id="x2",
-            order_link_id="o-e2",
+            order_link_id="o-e3",
             side="Sell",
             closed_pnl="0.5",
             closed_size="0.02",
@@ -176,7 +188,7 @@ def _events() -> list[dict[str, Any]]:
         ),
         exit_row(
             exit_id="x3",
-            order_link_id="o-e3",
+            order_link_id="o-e4",
             side="Buy",
             closed_pnl="-0.5",
             closed_size="0.01",
@@ -186,7 +198,7 @@ def _events() -> list[dict[str, Any]]:
         ),
         exit_row(
             exit_id="x4",
-            order_link_id="o-e4",
+            order_link_id="o-flat",
             side="Sell",
             closed_pnl="0.2",
             closed_size="0.04",
@@ -206,7 +218,7 @@ def _events() -> list[dict[str, Any]]:
         ),
         exit_row(
             exit_id="x6",
-            order_link_id="o-flat",  # 진입이 아닌 주문에 직결
+            order_link_id="o-flat2",  # 체결 시각이 없어 사슬에 못 꽂는다
             side="Sell",
             closed_pnl="-0.1",
             closed_size="0.01",
@@ -413,7 +425,8 @@ def test_unknown_side_is_not_guessed(btgap: Any) -> None:
 def test_ledger_links_to_orders_by_order_link_id(btgap: Any) -> None:
     built = _build(btgap)
     linked = btgap.link_ledger_to_orders(built["dedup"].events, built["corpus"].by_id)
-    assert linked["x1"].order_id == "o-e1"
+    # ★링크는 **닫은** 주문을 가리킨다 — x1(=e1 포지션의 손익)은 e2 에 링크된다.
+    assert linked["x1"].order_id == "o-e2"
     assert "x5" not in linked  # orders 에 없는 link 는 되짚지 못한다
 
 
@@ -692,7 +705,7 @@ def test_partial_fill_is_recorded_not_rejected(btgap: Any) -> None:
 def test_close_orders_are_not_counted_as_entries(btgap: Any) -> None:
     corpus = _build(btgap)["corpus"]
     assert [entry.order_id for entry in corpus.entries] == ["o-e1", "o-e2", "o-e3", "o-e4"]
-    assert [order.order_id for order in corpus.manual_flatten] == ["o-flat"]
+    assert [order.order_id for order in corpus.manual_flatten] == ["o-flat", "o-flat2"]
 
 
 def test_unfilled_entry_is_not_an_entry(btgap: Any) -> None:
@@ -939,10 +952,10 @@ def test_between_windows_excludes_before_first_and_after_last(btgap: Any) -> Non
 def test_flatten_is_counted_from_exits_not_orders(btgap: Any) -> None:
     """★실측: flatten 3 event 중 2건이 orders 에 없다 — orders 로 세면 과소계상된다."""
     flatten = _build(btgap)["report"]["buckets"]["manual_flatten"]
-    assert flatten["count"] == 2
-    assert flatten["from_order"] == 1  # o-flat 링크
+    assert flatten["count"] == 3
+    assert flatten["from_order"] == 2  # o-flat · o-flat2 링크
     assert flatten["orphan_in_exits_only"] == 1  # o-ghost 링크 (orders 에 없다)
-    assert flatten["net"] == "-1.2"
+    assert flatten["net"] == "-1.0"
 
 
 # --------------------------------------------------------------------------
@@ -1043,22 +1056,23 @@ def test_cli_match_rejects_mixed_intervals(btgap: Any, tmp_path: Any) -> None:
 
 
 def _preemption_corpus(btgap: Any) -> dict[str, Any]:
-    """★실측 00:34 사례와 동형 — 수동 flatten 이 FIFO 커서를 선점하는 배치.
+    """★FIFO 커서가 선점당하는 배치 — 실측 00:34 사례와 동형.
 
-    entry A 의 신호봉이 00:34:00, flatten 청산이 00:34:10 이다. 종전 FIFO 는 그 10초
-    차이만으로 flatten 손익을 A 에 붙이고 이후 전부를 한 칸씩 밀었다 — 실측에서 86 event
-    중 59 건이 직결과 다른 주문으로 갔고 loose 37쌍 중 28쌍이 남의 손익을 썼다.
+    사슬: A(신호봉 00:30) → flatten(00:34:10, A 의 포지션을 닫는다) → B(00:40) → C(00:50).
+    거기에 **A 이전부터 열려 있던 잔여 포지션**의 청산(`x-prior`, 00:31)이 하나 섞인다.
+
+    시간순 커서는 이 셋을 한 칸씩 밀어 넣는다. 링크 사슬은 안 밀린다.
     """
     orders = [
         order_row(
             order_id="o-A",
             side="buy",
             idempotency_key=conditional_entry_key(
-                bar_epoch=epoch(34), trigger="60000", quantity="0.01"
+                bar_epoch=epoch(30), trigger="60000", quantity="0.01"
             ),
             filled_price="60000",
             filled_quantity="0.01",
-            filled_at=iso(34, 5),
+            filled_at=iso(30, 5),
         ),
         order_row(
             order_id="o-B",
@@ -1071,6 +1085,16 @@ def _preemption_corpus(btgap: Any) -> dict[str, Any]:
             filled_at=iso(40, 5),
         ),
         order_row(
+            order_id="o-C",
+            side="buy",
+            idempotency_key=conditional_entry_key(
+                bar_epoch=epoch(50), trigger="62000", quantity="0.03"
+            ),
+            filled_price="62000",
+            filled_quantity="0.03",
+            filled_at=iso(50, 5),
+        ),
+        order_row(
             order_id="o-flat",
             side="sell",
             idempotency_key=None,
@@ -1080,33 +1104,35 @@ def _preemption_corpus(btgap: Any) -> dict[str, Any]:
         ),
     ]
     events = [
-        # ★선점자 — 신호봉 00:34:00 보다 10초 뒤다.
+        # A 이전부터 있던 포지션의 청산 — A 가 닫았다. A 앞에는 진입이 없다.
         exit_row(
-            exit_id="x-flat",
-            order_link_id="o-flat",
+            exit_id="x-prior",
+            order_link_id="o-A",
             closed_pnl="-9.9",
             closed_size="0.01",
             avg_entry_price="59000",
             avg_exit_price="58990",
-            exchange_created_at=iso(34, 10),
+            exchange_created_at=iso(31),
         ),
+        # A 의 포지션을 수동 정리가 닫았다.
         exit_row(
-            exit_id="x-A",
-            order_link_id="o-A",
+            exit_id="x-flat",
+            order_link_id="o-flat",
             closed_pnl="1.0",
             closed_size="0.01",
             avg_entry_price="60000",
             avg_exit_price="60110",
-            exchange_created_at=iso(36),
+            exchange_created_at=iso(34, 10),
         ),
+        # B 의 포지션을 C 가 닫았다.
         exit_row(
-            exit_id="x-B",
-            order_link_id="o-B",
+            exit_id="x-BC",
+            order_link_id="o-C",
             closed_pnl="2.0",
             closed_size="0.02",
             avg_entry_price="61000",
             avg_exit_price="61110",
-            exchange_created_at=iso(42),
+            exchange_created_at=iso(50),
         ),
     ]
     corpus = btgap.parse_orders(orders, session_ids=[SESSION_ID])
@@ -1114,15 +1140,20 @@ def _preemption_corpus(btgap: Any) -> dict[str, Any]:
     return {"corpus": corpus, "dedup": dedup}
 
 
-def test_link_wins_when_fifo_would_have_shifted_everything(btgap: Any) -> None:
-    """★flatten 선점 재발 방지 — 직결이 있으면 시간순 커서는 아무 힘이 없다."""
+def test_link_chain_survives_a_cursor_preemption(btgap: Any) -> None:
+    """★flatten 선점 재발 방지 — 링크가 있으면 시간순 커서는 아무 힘이 없다."""
     built = _preemption_corpus(btgap)
     attribution = btgap.attribute_ledger_events(built["corpus"], built["dedup"].events)
-    assert attribution.linked["o-A"].exit_id == "x-A"
-    assert attribution.linked["o-B"].exit_id == "x-B"
+    assert attribution.linked["o-A"].exit_id == "x-flat"  # A 의 포지션은 flatten 이 닫았다
+    assert attribution.linked["o-B"].exit_id == "x-BC"  # B 의 포지션은 C 가 닫았다
+    assert "o-C" not in attribution.linked  # C 의 포지션은 아직 안 닫혔다
+    assert [event.exit_id for event in attribution.no_predecessor] == ["x-prior"]
+    assert attribution.grade_of == {
+        "x-prior": "no_predecessor",
+        "x-flat": "linked_via_flatten",
+        "x-BC": "linked",
+    }
     assert attribution.inferred == {}
-    assert [event.exit_id for event in attribution.non_entry_linked] == ["x-flat"]
-    assert attribution.grade_of == {"x-flat": "non_entry", "x-A": "linked", "x-B": "linked"}
 
 
 def test_the_old_fifo_would_have_disagreed_on_the_same_input(btgap: Any) -> None:
@@ -1138,10 +1169,11 @@ def test_the_old_fifo_would_have_disagreed_on_the_same_input(btgap: Any) -> None
         ):
             fifo[entries[cursor].order_id] = event.exit_id
             cursor += 1
-    # 커서가 flatten 에 선점당해 A 는 **flatten 손익(−9.9)** 을 받고, 정작 A 의 청산
-    # (x-A, 00:36)은 다음 진입의 신호봉(00:40)보다 앞이라 **통째로 버려진다**.
-    assert fifo == {"o-A": "x-flat", "o-B": "x-B"}
-    assert "x-A" not in fifo.values()
+    # 잔여 청산이 커서를 선점한다 — A 는 남의 손익(−9.9)을 받고, A 의 진짜 청산
+    # (x-flat)은 다음 진입의 신호봉(00:40)보다 앞이라 **통째로 버려지며**, B 는 C 가
+    # 닫은 손익을 받는다. 한 건도 맞지 않는다.
+    assert fifo == {"o-A": "x-prior", "o-B": "x-BC"}
+    assert "x-flat" not in fifo.values()
     linked = btgap.attribute_ledger_events(built["corpus"], events).linked
     assert {order_id: event.exit_id for order_id, event in linked.items()} != fifo
 
@@ -1171,10 +1203,12 @@ def test_inferred_attribution_never_enters_the_matched_totals(btgap: Any) -> Non
 
 def test_attribution_grades_are_reported(btgap: Any) -> None:
     attribution = _build(btgap)["report"]["attribution"]
-    assert attribution["rule"] == "order_link_id first, fifo fallback"
+    assert attribution["rule"] == "predecessor of order_link_id target, fifo fallback"
     assert attribution["linked"] == 4
+    assert attribution["linked_via_flatten"] == 1  # x4 → o-flat 의 직전 진입 e4
     assert attribution["inferred"] == 0
-    assert attribution["non_entry_linked"] == 1  # x6 → o-flat
+    assert attribution["non_entry_linked"] == 1  # x6 → o-flat2 (체결 시각 없음)
+    assert attribution["no_predecessor"] == 0
     assert attribution["unattributed"] == 1  # x5 → 미해결 link
     assert attribution["link_collisions"] == 0
 
@@ -1184,10 +1218,10 @@ def test_two_events_linked_to_one_entry_do_not_overwrite(btgap: Any) -> None:
     corpus = btgap.parse_orders(_orders(), session_ids=[SESSION_ID])
     events = btgap.parse_ledger_rows(
         [
-            exit_row(exit_id="x1", order_link_id="o-e1", closed_pnl="1.3"),
+            exit_row(exit_id="x1", order_link_id="o-e2", closed_pnl="1.3"),
             exit_row(
                 exit_id="x1b",
-                order_link_id="o-e1",
+                order_link_id="o-e2",
                 closed_pnl="7.7",
                 exchange_created_at=iso(6),
             ),
@@ -1205,7 +1239,7 @@ def test_one_link_carrying_two_different_events_fails_loud_at_dedup(btgap: Any) 
     events.append(
         exit_row(
             exit_id="x1b",
-            order_link_id="o-e1",
+            order_link_id="o-e2",
             closed_pnl="7.7",
             exchange_created_at=iso(6),
         )
@@ -1216,27 +1250,11 @@ def test_one_link_carrying_two_different_events_fails_loud_at_dedup(btgap: Any) 
 
 def test_entry_price_agreement_is_exact_when_attribution_is_right(btgap: Any) -> None:
     agreement = _build(btgap)["report"]["attribution"]["entry_price_agreement"]
-    assert agreement["verdict"] == "measured"
+    assert agreement["verdict"] == "agrees"
     assert agreement["n"] == 4
     assert agreement["exact_matches"] == 4
+    assert agreement["beyond_tolerance"] == 0
     assert Decimal(agreement["max_abs_pct"]) == Decimal("0")
-
-
-def test_entry_price_agreement_catches_a_shifted_attribution(btgap: Any) -> None:
-    """★합계로는 못 잡는 자리 — 귀속을 한 칸 밀면 이 검사만 반응한다.
-
-    `price_gap` 은 합이라 actual 계열을 통째로 밀어도 양 끝만 바뀐다(telescoping).
-    그래서 "합이 0 에 가깝다" 는 귀속이 옳다는 증거가 **아니다**.
-    """
-    events = _events()
-    shifted = [
-        {**events[0], "order_link_id": "o-e2"},
-        {**events[1], "order_link_id": "o-e1"},
-        *events[2:],
-    ]
-    agreement = _build(btgap, events=shifted)["report"]["attribution"]["entry_price_agreement"]
-    assert agreement["exact_matches"] < agreement["n"]
-    assert Decimal(agreement["max_abs_pct"]) > Decimal("0")
 
 
 # --------------------------------------------------------------------------
@@ -1291,7 +1309,8 @@ def test_partition_closes_over_every_dedup_event(btgap: Any) -> None:
         "live_only": 1,  # x3
         "ambiguous": 0,
         "inferred": 0,
-        "non_entry_linked": 1,  # x6 → o-flat
+        "non_entry_linked": 1,  # x6 → o-flat2 (사슬에 못 꽂는다)
+        "no_predecessor": 0,
         "ledger_only": 1,  # x5 → 미해결 link
     }
 
@@ -1301,7 +1320,10 @@ def test_session_views_are_an_overlay_not_a_partition(btgap: Any) -> None:
     accounting = _build(btgap)["report"]["session_accounting"]
     assert accounting["overlay"] is True
     assert accounting["multi_view_events"] == [
-        {"exit_id": "x4", "views": ["cross_window", "gap_exit", "unattributed"]}
+        {
+            "exit_id": "x4",
+            "views": ["cross_window", "gap_exit", "manual_flatten", "unattributed"],
+        }
     ]
 
 
@@ -1329,3 +1351,233 @@ def test_duplicate_rows_that_disagree_fail_loud(btgap: Any) -> None:
 def test_identical_duplicate_rows_pass(btgap: Any) -> None:
     rows = as_dumped_rows([exit_row(exit_id="x", order_link_id="o-1", closed_pnl="1.0")])
     assert len(btgap.dedupe_ledger_rows(btgap.parse_ledger_rows(rows)).events) == 1
+
+
+# --------------------------------------------------------------------------
+# r3 — 반전 사슬에서 opener 는 링크 주문의 **직전 진입**이다
+#
+#   실덤프 판정: entry_price_agreement 가 직결 귀속에서 exact **0/81**
+#   (median 0.0716% · max 0.5976%) 이었고, 교차 근거로
+#   `linked.filled_price == event.avg_exit_price` 가 **82/82** 였다.
+#   ⇒ 링크된 주문은 opener 가 아니라 closer 다.
+# --------------------------------------------------------------------------
+
+# 반전 3왕복 + flatten 1. 조건부 진입은 `abs(target − current)` 병합 주문이라
+# **key 수량 ≠ 포지션 수량**이다 (r1 은 0.01→P1 0.01, r2 는 0.03→P2 0.02, r3 은 0.05→P3 0.03).
+_CHAIN_ORDERS = [
+    ("o-r1", "buy", 1, "0.01", "60000"),
+    ("o-r2", "sell", 10, "0.03", "60500"),
+    ("o-r3", "buy", 20, "0.05", "60200"),
+]
+
+
+def _reversal_chain(btgap: Any, *, with_leftover: bool = False) -> dict[str, Any]:
+    orders = [
+        order_row(
+            order_id=order_id,
+            side=side,
+            idempotency_key=conditional_entry_key(
+                bar_epoch=epoch(minute), trigger=price, quantity=quantity
+            ),
+            filled_price=price,
+            filled_quantity=quantity,
+            filled_at=iso(minute, 30),
+        )
+        for order_id, side, minute, quantity, price in _CHAIN_ORDERS
+    ] + [
+        order_row(
+            order_id="o-flat",
+            side="sell",
+            idempotency_key=None,
+            filled_quantity="0.03",
+            reduce_only=True,
+            filled_at=iso(30),
+        )
+    ]
+    events = [
+        # P1(롱 0.01, 60000→60500) 을 r2 가 닫았다.
+        exit_row(
+            exit_id="E1",
+            order_link_id="o-r2",
+            side="Sell",
+            closed_pnl="4.9",
+            closed_size="0.01",
+            avg_entry_price="60000",
+            avg_exit_price="60500",
+            exchange_created_at=iso(10),
+        ),
+        # P2(숏 0.02, 60500→60200) 를 r3 가 닫았다.
+        exit_row(
+            exit_id="E2",
+            order_link_id="o-r3",
+            side="Buy",
+            closed_pnl="5.9",
+            closed_size="0.02",
+            avg_entry_price="60500",
+            avg_exit_price="60200",
+            exchange_created_at=iso(20),
+        ),
+        # P3(롱 0.03, 60200→60900) 을 수동 정리가 닫았다.
+        exit_row(
+            exit_id="E3",
+            order_link_id="o-flat",
+            side="Sell",
+            closed_pnl="20.9",
+            closed_size="0.03",
+            avg_entry_price="60200",
+            avg_exit_price="60900",
+            exchange_created_at=iso(30),
+        ),
+    ]
+    if with_leftover:
+        # r1 이전부터 열려 있던 포지션 — r1 이 닫았다. r1 앞에는 진입이 없다.
+        events.insert(
+            0,
+            exit_row(
+                exit_id="E0",
+                order_link_id="o-r1",
+                side="Buy",
+                closed_pnl="-3.0",
+                closed_size="0.01",
+                avg_entry_price="59500",
+                avg_exit_price="59800",
+                exchange_created_at=iso(1),
+            ),
+        )
+    corpus = btgap.parse_orders(orders, session_ids=[SESSION_ID])
+    dedup = btgap.dedupe_ledger_rows(btgap.parse_ledger_rows(as_dumped_rows(events)))
+    return {"corpus": corpus, "dedup": dedup}
+
+
+def test_predecessor_rule_picks_each_positions_opener(btgap: Any) -> None:
+    """★수용 기준 1 — 반전 3왕복 + flatten 에서 opener 를 정확히 고른다."""
+    built = _reversal_chain(btgap)
+    attribution = btgap.attribute_ledger_events(built["corpus"], built["dedup"].events)
+    assert {order_id: event.exit_id for order_id, event in attribution.linked.items()} == {
+        "o-r1": "E1",  # P1 은 r1 이 열고 r2 가 닫았다
+        "o-r2": "E2",  # P2 는 r2 가 열고 r3 가 닫았다
+        "o-r3": "E3",  # P3 는 r3 가 열고 flatten 이 닫았다
+    }
+    assert attribution.grade_of == {
+        "E1": "linked",
+        "E2": "linked",
+        "E3": "linked_via_flatten",
+    }
+    assert attribution.via_flatten == 1
+    assert attribution.no_predecessor == []
+    assert attribution.inferred == {}
+
+
+def test_the_predecessor_rule_proves_itself_on_the_chain(btgap: Any) -> None:
+    """판별자가 스스로 수리를 증명한다 — opener 체결가 == event 진입가."""
+    built = _reversal_chain(btgap)
+    attribution = btgap.attribute_ledger_events(built["corpus"], built["dedup"].events)
+    agreement = btgap.entry_price_agreement(attribution, built["corpus"])
+    assert agreement["verdict"] == "agrees"
+    assert agreement["n"] == 3
+    assert agreement["exact_matches"] == 3
+    assert agreement["beyond_tolerance"] == 0
+    assert Decimal(agreement["median_pct"]) == Decimal("0")
+
+
+def test_the_direct_link_rule_is_wrong_on_the_same_chain(btgap: Any) -> None:
+    """★음성 대조 — 직전(r2) 규칙(링크를 그대로 opener 로)은 같은 픽스처에서 틀린다.
+
+    실덤프가 낸 서명(exact 0/N · median 0.07%대)이 여기서 그대로 재현된다.
+    """
+    built = _reversal_chain(btgap)
+    events = {event.exit_id: event for event in built["dedup"].events}
+    direct = btgap.LedgerAttribution(
+        # r2 규칙 = 링크된 주문 자신을 opener 로 삼는다.
+        linked={"o-r2": events["E1"], "o-r3": events["E2"]},
+        inferred={},
+        non_entry_linked=[events["E3"]],
+        no_predecessor=[],
+        unattributed=[],
+        grade_of={"E1": "linked", "E2": "linked", "E3": "non_entry"},
+        link_collisions=0,
+    )
+    agreement = btgap.entry_price_agreement(direct, built["corpus"])
+    assert agreement["verdict"] == "disagrees"
+    assert agreement["n"] == 2
+    assert agreement["exact_matches"] == 0
+    assert agreement["beyond_tolerance"] == 2
+    assert Decimal(agreement["median_pct"]) > Decimal("0.5")
+
+
+def test_leftover_position_has_no_predecessor_and_is_not_silently_attached(btgap: Any) -> None:
+    """★첫 진입에 붙이면 그 진입의 손익이 통째로 남의 것이 된다."""
+    built = _reversal_chain(btgap, with_leftover=True)
+    attribution = btgap.attribute_ledger_events(built["corpus"], built["dedup"].events)
+    assert [event.exit_id for event in attribution.no_predecessor] == ["E0"]
+    assert attribution.grade_of["E0"] == "no_predecessor"
+    # r1 은 여전히 자기 포지션(E1)을 받는다 — 잔여가 끼어들지 않았다.
+    assert attribution.linked["o-r1"].exit_id == "E1"
+
+
+def test_merged_entry_quantity_is_not_the_position_size(btgap: Any) -> None:
+    """★key 수량은 `abs(target − current)` 병합 수량이라 반전에서 포지션 수량의 2배다.
+
+    (`conditional_entry_planner.py:502`) 그래서 1차 키의 수량 동등 조건은 반전 진입에서
+    구조적으로 성립하지 않는다 — 첫 진입(무포지션에서 열기)만 맞는다.
+    """
+    built = _reversal_chain(btgap)
+    entries = {entry.order_id: entry for entry in built["corpus"].entries}
+    events = {event.exit_id: event for event in built["dedup"].events}
+    # r1 은 무포지션에서 열었으므로 key 수량 == 포지션 수량.
+    assert entries["o-r1"].key_quantity == events["E1"].closed_size == Decimal("0.01")
+    # r2 는 반전이라 key 수량(0.03) != 자기 포지션 수량(0.02).
+    assert entries["o-r2"].key_quantity == Decimal("0.03")
+    assert events["E2"].closed_size == Decimal("0.02")
+
+
+def test_agreement_tolerance_is_frozen(btgap: Any) -> None:
+    """★기준치 동결 — 틀린 귀속의 실측 신호(median 0.0716%)의 1/7.2 자리."""
+    assert Decimal("0.01") == btgap.ATTRIBUTION_AGREEMENT_TOLERANCE_PCT
+    built = _reversal_chain(btgap)
+    agreement = btgap.entry_price_agreement(
+        btgap.attribute_ledger_events(built["corpus"], built["dedup"].events),
+        built["corpus"],
+    )
+    assert agreement["tolerance_pct"] == "0.01"
+
+
+@pytest.mark.parametrize(
+    ("residual_pct", "expected"),
+    [("0.009", "agrees"), ("0.01", "agrees"), ("0.011", "disagrees"), ("0.0716", "disagrees")],
+)
+def test_agreement_verdict_boundary(btgap: Any, residual_pct: str, expected: str) -> None:
+    """문턱 양옆을 못박는다 — 실측 median 0.0716% 는 반드시 `disagrees` 다."""
+    built = _reversal_chain(btgap)
+    entries = {entry.order_id: entry for entry in built["corpus"].entries}
+    events = {event.exit_id: event for event in built["dedup"].events}
+    filled = Decimal(str(entries["o-r1"].filled_price))
+    drifted = filled * (Decimal("1") + Decimal(residual_pct) / Decimal("100"))
+    shifted = btgap.LedgerAttribution(
+        linked={"o-r1": _with_entry_price(btgap, events["E1"], drifted)},
+        inferred={},
+        non_entry_linked=[],
+        no_predecessor=[],
+        unattributed=[],
+        grade_of={"E1": "linked"},
+        link_collisions=0,
+    )
+    agreement = btgap.entry_price_agreement(shifted, built["corpus"])
+    assert agreement["verdict"] == expected
+
+
+def _with_entry_price(btgap: Any, event: Any, price: Decimal) -> Any:
+    """`LedgerRow` 는 frozen 이라 새로 만든다 (테스트 전용 헬퍼)."""
+    return btgap.LedgerRow(
+        exit_id=event.exit_id,
+        order_link_id=event.order_link_id,
+        matched_order_id=event.matched_order_id,
+        side=event.side,
+        closed_pnl=event.closed_pnl,
+        closed_size=event.closed_size,
+        avg_entry_price=price,
+        avg_exit_price=event.avg_exit_price,
+        exchange_created_at=event.exchange_created_at,
+        classification=event.classification,
+        attribution_confidence=event.attribution_confidence,
+    )

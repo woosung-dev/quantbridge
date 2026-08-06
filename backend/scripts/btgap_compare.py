@@ -116,6 +116,10 @@ ENTRY_BAR_TOLERANCE_BARS = 3
 # 2개 이상 들어오므로 판별력이 없다.
 TRIGGER_RELATIVE_TOLERANCE = Decimal("0.001")
 
+# ★귀속 판별자의 합격선 (%). 근거는 `entry_price_agreement` docstring — 틀린 귀속의
+# 실측 신호(median 0.0716%)의 1/7.2 이고, 옳은 귀속은 실측상 정확히 0 이어야 한다.
+ATTRIBUTION_AGREEMENT_TOLERANCE_PCT = Decimal("0.01")
+
 
 # --------------------------------------------------------------------------
 # 순수 값 — JSON 경계에서 Decimal/datetime 으로 올리는 자리
@@ -591,36 +595,96 @@ class LedgerAttribution:
     `inferred` 를 매칭 합계에 넣으면 그 차이가 사라진다.
     """
 
-    linked: dict[str, LedgerRow]  # 진입 order_id → event (직결)
-    inferred: dict[str, LedgerRow]  # 진입 order_id → event (FIFO 추정)
-    non_entry_linked: list[LedgerRow]  # 진입이 아닌 주문에 직결된 event
+    linked: dict[str, LedgerRow]  # opener order_id → event (링크의 직전 진입)
+    inferred: dict[str, LedgerRow]  # opener order_id → event (FIFO 추정)
+    non_entry_linked: list[LedgerRow]  # 사슬에 꽂을 수 없는 주문에 직결된 event
+    no_predecessor: list[LedgerRow]  # 사슬에 꽂았는데 앞이 없는 event
     unattributed: list[LedgerRow]  # 어디에도 못 붙은 event
-    grade_of: dict[str, str]  # exit_id → "linked" | "inferred" | "non_entry" | "none"
+    # exit_id → "linked" | "linked_via_flatten" | "inferred"
+    #         | "no_predecessor" | "non_entry" | "none"
+    grade_of: dict[str, str]
     link_collisions: int
+
+    @property
+    def via_flatten(self) -> int:
+        return sum(1 for grade in self.grade_of.values() if grade == "linked_via_flatten")
+
+
+def _opener_of(
+    target: LiveOrder,
+    chain: Sequence[LiveEntry],
+    index_of: Mapping[str, int],
+) -> tuple[LiveEntry | None, str]:
+    """링크된 주문이 **닫은** 포지션을 연 진입. 두 번째 값은 근거 등급이다.
+
+    | 등급                 | 뜻                                                     |
+    | -------------------- | ------------------------------------------------------ |
+    | `linked`             | 링크가 진입이라 사슬에서 직전 진입을 집었다            |
+    | `linked_via_flatten` | 링크가 사슬 밖 주문이라 체결 시각으로 꽂아 직전을 찾았다 |
+    | `no_predecessor`     | 꽂았는데 앞이 없다 (첫 진입 이전 잔여 포지션)          |
+    | `non_entry`          | 꽂을 수조차 없다 (그 주문에 시각이 없다)               |
+
+    ★`filled_at` 은 우리 관측시각이라 **봉 귀속에는 못 쓴다**. 여기서 쓰는 것은 봉
+    귀속이 아니라 **사슬 안 순서**뿐이고, key 가 없는 주문에는 다른 시각이 없다.
+    """
+    position = index_of.get(target.order_id)
+    if position is not None:
+        return (chain[position - 1], "linked") if position > 0 else (None, "no_predecessor")
+    if target.filled_at is None:
+        return None, "non_entry"
+    moment = int(target.filled_at.timestamp())
+    preceding = [
+        entry for entry in chain if entry.bar_epoch is not None and entry.bar_epoch <= moment
+    ]
+    if not preceding:
+        return None, "no_predecessor"
+    return preceding[-1], "linked_via_flatten"
 
 
 def attribute_ledger_events(
     corpus: OrderCorpus,
     events: Sequence[LedgerRow],
 ) -> LedgerAttribution:
-    """★직결 링크가 있으면 **무조건** 그것으로 귀속한다 (R11).
+    """★링크된 주문은 그 포지션을 **닫은** 쪽이다 — opener 는 그 **직전 진입**이다.
 
-    종전에는 시간순 FIFO 하나로만 붙였는데, 실측에서 그 방식이 직결 링크와 **86 event 중
-    59 건에서 다른 주문**을 골랐다. 원인은 커서 선점이다 — 수동 flatten(00:34:10)이 첫
-    진입의 신호봉(00:34:00)보다 뒤라는 이유만으로 커서를 가져가 이후 전부가 한 칸씩
-    밀렸다. 그 결과 loose 37쌍 중 28쌍이 **남의 청산 손익**을 actual 로 썼고,
-    `price_gap` 은 `+19.36` 이었는데 직결로 재면 `−0.36` 으로 **부호가 뒤집혔다**.
+    두 번의 실측이 이 함수를 두 번 고쳤다.
+
+    ⑴ **시간순 FIFO 폐기** — FIFO 는 직결 링크와 86 event 중 **59 건에서 다른 주문**을
+       골랐다. 커서 선점 때문이다: 수동 flatten(00:34:10)이 첫 진입의 신호봉(00:34:00)
+       뒤라는 이유만으로 커서를 가져가 이후 전부가 한 칸 밀렸다. loose 37쌍 중 28쌍이
+       **남의 청산 손익**을 actual 로 썼고 `price_gap` 은 `+19.36 → −0.36` 으로 뒤집혔다.
+
+    ⑵ ★**직결을 그대로 opener 로 쓰면 또 한 칸 밀린다** — 실덤프에서
+       `entry_price_agreement` 가 **exact 0/81**(median 0.0716% · max 0.5976%)을 냈고,
+       교차 근거로 `linked.filled_price == event.avg_exit_price` 가 **82/82** 였다.
+       즉 링크된 주문은 opener 가 아니라 **closer** 다.
+
+    이 전략의 반전 사슬이 그 이유다. 조건부 진입은 `abs(target − current)` 수량의
+    **병합 주문 1건**이라(`conditional_entry_planner.py:502`) 반대편 청산과 신규 진입을
+    한 장으로 처리한다(`strategy_state.py:1032-1039`, BL-560):
+
+        r_k 가 P_{k-1} 을 닫고 P_k 를 연다  ⇒  event E_{k-1} 은 r_k 에 링크된다
+        ⇒ E_{k-1} 의 opener = r_k 의 **직전 진입** r_{k-1}
+
+    그래서 진입을 `bar_epoch` 순 사슬로 세우고 링크 주문의 predecessor 를 집는다.
+    수동 정리처럼 사슬 밖 주문에 링크된 event 는 그 주문의 체결 시각으로 사슬에 꽂아
+    직전 진입을 찾고 `linked_via_flatten` 으로 **따로 표시**한다.
+
+    앞이 없으면(`no_predecessor`) 조용히 아무 데나 붙이지 않는다 — 세션 첫 진입 이전의
+    잔여 포지션이 실재하고, 그걸 첫 진입에 붙이면 그 진입의 손익이 통째로 남의 것이 된다.
 
     직결이 없는 event 만 FIFO 로 붙이고 `inferred` 로 표시한다. 그 값은 매칭 합계에
     들어가지 않는다 — 추정을 확정과 같은 칸에 넣지 않는다.
 
-    ★**닫힘은 옳음의 증거가 아니다.** 어느 귀속을 쓰든 버킷 합은 dedup Σ 로 닫힌다
-    (합이 닫히는 것은 파티션의 성질이지 귀속의 성질이 아니다). 그래서 근거 분포와
-    `avg_entry_price` 대조를 report 에 함께 낸다.
+    ★**닫힘은 옳음의 증거가 아니다.** 어느 귀속을 쓰든 버킷 합은 dedup Σ 로 닫힌다.
+    옳음을 재는 것은 `entry_price_agreement` 하나뿐이고, 그 값이 이 수리를 스스로
+    증명해야 한다.
     """
-    entry_ids = {entry.order_id for entry in corpus.entries}
+    chain = [entry for entry in corpus.entries if entry.bar_epoch is not None]
+    index_of = {entry.order_id: position for position, entry in enumerate(chain)}
     linked: dict[str, LedgerRow] = {}
     non_entry_linked: list[LedgerRow] = []
+    no_predecessor: list[LedgerRow] = []
     grade_of: dict[str, str] = {}
     link_collisions = 0
     needs_fallback: list[LedgerRow] = []
@@ -630,25 +694,22 @@ def attribute_ledger_events(
         if target is None:
             needs_fallback.append(event)
             continue
-        if target.order_id not in entry_ids:
-            non_entry_linked.append(event)
-            grade_of[event.exit_id] = "non_entry"
+        opener, grade = _opener_of(target, chain, index_of)
+        if opener is None:
+            (non_entry_linked if grade == "non_entry" else no_predecessor).append(event)
+            grade_of[event.exit_id] = grade
             continue
-        if target.order_id in linked:
+        if opener.order_id in linked:
             # 한 진입에 직결 event 가 둘이면 뒤엣것을 추정으로 내리지 않고 세어 둔다.
             link_collisions += 1
             needs_fallback.append(event)
             continue
-        linked[target.order_id] = event
-        grade_of[event.exit_id] = "linked"
+        linked[opener.order_id] = event
+        grade_of[event.exit_id] = grade
 
     # 직결이 없는 것만 종전 FIFO 로 붙인다 — 신호봉(bar_epoch) vs 거래소 시각.
     # ★`Order.filled_at` 은 여기서도 쓰지 않는다 (우리 관측시각이라 귀속을 늦춘다).
-    open_entries = [
-        entry
-        for entry in corpus.entries
-        if entry.bar_epoch is not None and entry.order_id not in linked
-    ]
+    open_entries = [entry for entry in chain if entry.order_id not in linked]
     inferred: dict[str, LedgerRow] = {}
     unattributed: list[LedgerRow] = []
     cursor = 0
@@ -667,6 +728,7 @@ def attribute_ledger_events(
         linked=linked,
         inferred=inferred,
         non_entry_linked=non_entry_linked,
+        no_predecessor=no_predecessor,
         unattributed=unattributed,
         grade_of=grade_of,
         link_collisions=link_collisions,
@@ -674,13 +736,22 @@ def attribute_ledger_events(
 
 
 def entry_price_agreement(attribution: LedgerAttribution, corpus: OrderCorpus) -> dict[str, Any]:
-    """★귀속이 **맞는지**를 가르는 유일한 행별 검사.
+    """★귀속이 **맞는지**를 가르는 유일한 행별 검사 — 그리고 이 도구의 자기 증명.
 
-    직결 event 의 `avg_entry_price` 는 그 진입 주문의 `filled_price` 와 같아야 한다.
-    귀속이 한 칸 밀리면(off-by-one) 이 값이 **다른 진입의 체결가**와 붙는다.
+    귀속된 event 의 `avg_entry_price` 는 그 opener 주문의 `filled_price` 와 같아야 한다.
+    귀속이 한 칸 밀리면 이 값이 **다른 진입의 체결가**와 붙는다.
 
     ★합계로는 이걸 못 잡는다. `price_gap` 은 합이라 actual 계열을 통째로 한 칸 밀어도
     양 끝만 바뀐다(telescoping) — 그래서 "합이 0 에 가깝다" 는 귀속의 증거가 아니다.
+    실제로 그 함정이 한 번 발동했다: 직결 귀속의 `price_gap` 은 −0.36 으로 예뻤는데
+    이 검사는 **exact 0/81** 이었다.
+
+    ★★**판정 문턱 `ATTRIBUTION_AGREEMENT_TOLERANCE_PCT = 0.01%` 의 근거** — 두 실측 사이에
+    잡았다. 위쪽: 틀린 귀속의 신호가 median **0.0716%**(문턱의 **7.2배**) · max 0.5976%.
+    아래쪽: 옳은 귀속은 **정확히 0** 이어야 한다 — 같은 덤프에서 청산 쪽 대조
+    (`linked.filled_price == avg_exit_price`)가 **82/82 exact** 였으므로 진입 쪽도 표현
+    오차가 없다. 문턱은 부분체결·수수료 반올림 여유만 남긴 값이고, 틀린 귀속을 통과시킬
+    만큼 넓지 않다.
     """
     entries = {entry.order_id: entry for entry in corpus.entries}
     residuals: list[Decimal] = []
@@ -700,15 +771,23 @@ def entry_price_agreement(attribution: LedgerAttribution, corpus: OrderCorpus) -
             * Decimal("100")
         )
     exact = sum(1 for value in residuals if value == Decimal("0"))
+    absolute = [abs(value) for value in residuals]
+    median = median_decimal(absolute)
+    tolerance = ATTRIBUTION_AGREEMENT_TOLERANCE_PCT
     return {
         "n": len(residuals),
-        "verdict": "measured" if residuals else "undetermined",
+        # ★표본이 없으면 "일치한다" 가 아니라 "잴 것이 없다" 다.
+        "verdict": (
+            "undetermined"
+            if not residuals or median is None
+            else ("agrees" if median <= tolerance else "disagrees")
+        ),
+        "tolerance_pct": decimal_text(tolerance),
         "unmeasurable": unknown,
         "exact_matches": exact,
-        "median_pct": decimal_text(median_decimal([abs(value) for value in residuals])),
-        "max_abs_pct": (
-            decimal_text(max(abs(value) for value in residuals)) if residuals else None
-        ),
+        "beyond_tolerance": sum(1 for value in absolute if value > tolerance),
+        "median_pct": decimal_text(median),
+        "max_abs_pct": decimal_text(max(absolute)) if absolute else None,
     }
 
 
@@ -1168,6 +1247,7 @@ def decompose(
         "ambiguous": [],
         "inferred": [],
         "non_entry_linked": [],
+        "no_predecessor": [],
         "ledger_only": [],
     }
     for event in events:
@@ -1176,7 +1256,11 @@ def decompose(
             partition["inferred"].append(event)
         elif grade == "non_entry":
             partition["non_entry_linked"].append(event)
-        elif grade == "linked":
+        elif grade == "no_predecessor":
+            # ★사슬에 앞이 없다 = 세션 첫 진입 이전의 잔여 포지션. 첫 진입에 붙이면
+            #   그 진입의 손익이 통째로 남의 것이 되므로 **보이게** 남긴다.
+            partition["no_predecessor"].append(event)
+        elif grade in ("linked", "linked_via_flatten"):
             order_id = entry_of_event.get(event.exit_id)
             if order_id in matched_entry_ids:
                 partition["matched"].append(event)
@@ -1426,7 +1510,10 @@ def _partition_payload(
         [event.closed_pnl for rows in partition.values() for event in rows]
     )
     return {
-        "definition": "matched + live_only + ambiguous + inferred + non_entry_linked + ledger_only",
+        "definition": (
+            "matched(strict+loose) + live_only + ambiguous + inferred "
+            "+ non_entry_linked + no_predecessor + ledger_only"
+        ),
         "note": "세션 축 뷰(session_accounting)는 파티션이 아니다 — 여기 숫자와 더하지 마라.",
         "counts": {name: len(rows) for name, rows in partition.items()},
         "nets": {
@@ -1542,10 +1629,15 @@ def build_report(
         },
         "attribution": {
             # ★귀속 근거를 값으로 남긴다 — `linked` 와 `inferred` 는 신뢰도가 다르다 (R11).
-            "rule": "order_link_id first, fifo fallback",
+            "rule": "predecessor of order_link_id target, fifo fallback",
+            "rule_note": (
+                "링크된 주문은 그 포지션을 **닫은** 쪽이다 — opener 는 사슬에서 그 직전 진입."
+            ),
             "linked": len(attribution.linked),
+            "linked_via_flatten": attribution.via_flatten,
             "inferred": len(attribution.inferred),
             "non_entry_linked": len(attribution.non_entry_linked),
+            "no_predecessor": len(attribution.no_predecessor),
             "unattributed": len(attribution.unattributed),
             "link_collisions": attribution.link_collisions,
             "inferred_net": decimal_text(
