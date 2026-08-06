@@ -53,7 +53,7 @@
 
 ## 관련 이슈 / 문서
 
-<!-- docs/dev-log/ 번호 / GitHub issue / Lesson 번호 (.ai/project/lessons.md) -->
+<!-- docs/dev-log/INDEX.md 요약 줄 / GitHub issue / Lesson 번호 (docs/lessons.md) -->
 <!-- BL ID 명시 의무: 해결 시 Resolved 표시 + 신규 등록 시 P0/P1/P2/P3 분류 -->
 
 ## 스크린샷 / 터미널 로그

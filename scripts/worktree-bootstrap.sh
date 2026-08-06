@@ -258,11 +258,11 @@ fi
 }
 
 # ── 4. 심볼릭 링크 복구 ─────────────────────────────────────────────────────
-# .worktreeinclude 는 심볼릭을 스킵한다. 대상(.ai/rules)은 트래킹되므로 링크만 다시 건다.
+# .worktreeinclude 는 심볼릭을 스킵한다. `.claude/rules/` 는 ADR-026 부터 트래킹되는
+# 실파일이라 체크아웃에 포함된다 — 여기서 만들 것은 CLAUDE.md 링크뿐이다.
 echo "▶ 심볼릭 링크"
-[ -e .claude/rules ] || { ln -s ../.ai/rules .claude/rules && ok ".claude/rules -> ../.ai/rules"; }
 [ -e .claude/CLAUDE.md ] || { ln -s ../AGENTS.md .claude/CLAUDE.md && ok ".claude/CLAUDE.md -> ../AGENTS.md"; }
-[ -e .claude/rules ] && [ -e .claude/CLAUDE.md ] && ok "이미 존재 (변경 없음)"
+[ -e .claude/CLAUDE.md ] && ok "이미 존재 (변경 없음)"
 
 # ── 5. 백엔드 테스트 env 를 슬롯 값으로 재작성 ──────────────────────────────
 # 앱 `DATABASE_URL` 은 건드리지 않는다 (공유).

@@ -75,8 +75,9 @@ LINE_CAPS = {
 }
 
 # 고정비 = 자동으로 컨텍스트에 들어가는 것.
-#   ★`CONTEXT.md` 와 `.ai/**` 는 **여기 없다** — CLAUDE.md 가 import 하지 않아 자동 로드가 아니다
-#     (2026-08-02 실측으로 확인). 필요할 때 손으로 여는 변동비다.
+#   ★`CONTEXT.md` 는 **여기 없다** — CLAUDE.md 가 import 하지 않아 자동 로드가 아니다. 변동비다.
+#   ★`.claude/rules/*.md` 는 셋 다 아니다 — `paths` glob 매칭 파일을 여는 순간에만 로드되는
+#     조건부 비용이다(ADR-026, Claude Code v2.0.64+). 여기서는 측정하지 않는다.
 IMPORT_RE = re.compile(r"^@(\S+)\s*$", re.MULTILINE)
 
 
@@ -148,7 +149,7 @@ VARIABLE = [
     "docs/dev-log/INDEX.md",
     "docs/reference/operations/gates-and-traps.md",
     "docs/reference/operations/workflows/generator-evaluator-pipeline.md",
-    ".ai/common/global.md",
+    "docs/lessons.md",
 ]
 variable_files = [row for name in VARIABLE if (row := measure(root / name))]
 
