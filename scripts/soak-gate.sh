@@ -29,6 +29,7 @@ LABEL="dev.quantbridge.soak-gate"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
+REDIS_CONTAINER="${QB_REDIS_CONTAINER:-quantbridge-redis}"
 METRICS_URL="${QB_METRICS_URL:-http://localhost:8100/metrics}"
 
 mkdir -p "${STATE_DIR}" "${LOGDIR}"
@@ -139,6 +140,50 @@ FROM trading.live_signal_sessions WHERE deactivated_at IS NULL;")" || { DB_OK=0;
 # 스택이 고정본인가 — C5⑵
 STACK_PINNED=0
 bash "${ROOT}/scripts/soak-stack.sh" assert-not-pinned >/dev/null 2>&1 || STACK_PINNED=1
+
+# redis AOF 판독성 — C5⑸ ([BL-594])
+#
+# 재는 것은 「redis 가 떠 있는가」가 아니라 **「지금 재기동하면 뜨는가」**다. AOF 는
+# **기동 시에만** 읽히고 healthcheck(`redis-cli ping`)는 떠 있는 프로세스에만 물으므로,
+# 판독 불가 AOF 위에서도 ping 은 PONG 이다 — 실측으로 그렇게 6일을 갔다(2026-08-05,
+# 35.6MB 중 86.6% 판독 불가). 소크 창 안에 호스트 재부팅이 들어오면 그때 워커가 안 뜬다.
+#
+# ★`--fix` 를 절대 넘기지 않는다. 읽기 전용이다 (실측: `--fix` 없이 돌린 전후로 AOF
+#   3파일의 md5·크기·mtime 이 전부 불변).
+# ★★**종료 코드는 판별식이 될 수 없다** — 꼬리 절단은 exit 1 인데 서버는 뜬다. 판정 규칙과
+#   그 근거(실측 표)는 `backend/scripts/redis_aof_readability.py` 에 있고, 실측 캡처 7형이
+#   `backend/tests/scripts/test_redis_aof_readability.py` 로 동결돼 있다. **여기 복제하지 않는다.**
+# ★수집이 어떤 이유로든 실패하면 `aof_ok=0` 이다. redis 가 안 뜨는 것과 못 재는 것은
+#   구분되지 않지만, **둘 다 「재기동 내성을 증명하지 못했다」**이고 방향은 fail-closed 다.
+# ★★**외부 실행에 시간 제한을 건다** — docker daemon 이나 볼륨 I/O 가 멈추면 게이트 전체가
+#   무기한 대기해 **표본 수집까지 함께 멈춘다**(fail-closed 조차 아니다). 30초는 실측
+#   소요(수십 ms, 35MB AOF 에서도 1초 미만)에 비해 넉넉하다. 타임아웃이면 `__rc` 마커가
+#   안 남으므로 분류기가 그대로 `0` 을 낸다. (`timeout` 가드는 `pre-push-guard-test.sh` 선례)
+AOF_OK=0
+AOF_TIMEOUT_BIN=""
+for _c in timeout gtimeout; do
+  if command -v "${_c}" >/dev/null 2>&1; then AOF_TIMEOUT_BIN="${_c}"; break; fi
+done
+
+AOF_RAW=""
+if [ -n "${AOF_TIMEOUT_BIN}" ]; then
+  AOF_RAW="$("${AOF_TIMEOUT_BIN}" 30 docker exec "${REDIS_CONTAINER}" sh -c '
+  m=/data/appendonlydir/appendonly.aof.manifest
+  [ -f "$m" ] || { echo "__missing=$m"; exit 0; }
+  echo "__last_incr=$(grep " type i" "$m" | tail -1 | cut -d" " -f2)"
+  redis-check-aof "$m" 2>&1
+  echo "__rc=$?"
+' 2>/dev/null)"
+else
+  # 시간 제한 없이 도는 것보다 **못 쟀다**가 낫다 — 무기한 대기는 소크 증거를 함께 멈춘다.
+  echo "⚠ timeout(coreutils) 이 없다 — AOF 판독 검사를 건너뛴다. C5⑸ 는 측정 불가다." >&2
+fi
+
+AOF_FILE="$(mktemp)"
+printf '%s' "${AOF_RAW}" > "${AOF_FILE}"
+AOF_OK="$(python3 "${ROOT}/backend/scripts/redis_aof_readability.py" "${AOF_FILE}")"
+[ "${AOF_OK}" = "1" ] || AOF_OK=0
+rm -f "${AOF_FILE}"
 
 # 표본 append (창 안 tick 연속성의 유일한 증거원)
 if [ "${COLLECT}" = "1" ] && [ "${ACTIVE_OK}" = "1" ]; then
@@ -267,13 +312,14 @@ SESSIONS_FILE="$(mktemp)"
 printf '%s' "${SESSIONS_TSV}" > "${SESSIONS_FILE}"
 PAYLOAD="$(python3 - \
   "${STATE_DIR}" "${NOW}" "${DARKNESS}" "${DB_OK}" "${STACK_PINNED}" \
-  "${REQUIRE_HOURS}" "${REQUIRE_CONTINUOUS}" "${SINCE}" "${SESSIONS_FILE}" <<'PY'
+  "${REQUIRE_HOURS}" "${REQUIRE_CONTINUOUS}" "${SINCE}" "${SESSIONS_FILE}" "${AOF_OK}" <<'PY'
 import json, pathlib, sys
 
 state = pathlib.Path(sys.argv[1])
 now, darkness_raw, db_ok, stack_pinned = sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 require_hours, require_continuous, since = sys.argv[6], sys.argv[7], sys.argv[8]
 sessions_tsv = pathlib.Path(sys.argv[9]).read_text()
+aof_ok = sys.argv[10]
 
 sessions = []
 for line in sessions_tsv.splitlines():
@@ -323,6 +369,11 @@ for p in sorted(state.glob("phantom-*.json")):
         versions.add(blob.get("predicate_version"))
     for v in blob.get("verdicts", []):
         if v.get("at"):
+            # ★출처를 붙인다 ([BL-596]) — 판독 불가 라벨이 게이트를 `측정불가` 로 세울 때
+            #   운영자가 「frozenset 등재」와 「구판 아카이브 이동」 중 무엇을 해야 하는지는
+            #   **어느 파일의 어느 판이었나**로만 갈린다. 기존 키는 안 건드리고 필드만 더한다.
+            v.setdefault("archive", p.name)
+            v.setdefault("predicate_version", blob.get("predicate_version"))
             phantoms.append(v)
 
 # ★★아카이브들이 **현행이 아닌 판별식**으로 매긴 라벨을 들고 있으면 알려야 한다.
@@ -370,6 +421,7 @@ payload = {
     "darkness": json.loads(darkness_raw) if darkness_raw.strip() != "null" else None,
     "db_ok": db_ok == "1",
     "stack_pinned": stack_pinned == "1",
+    "aof_ok": aof_ok == "1",
     "thresholds": thresholds,
 }
 if since:
