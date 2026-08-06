@@ -20,7 +20,7 @@ import re
 
 import pytest
 
-from tests.shard_paths import SHARDS_JSON, load_shards
+from tests.shard_paths import SHARDS_JSON, load_shards, pytest_args
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
@@ -74,6 +74,39 @@ def test_every_test_file_belongs_to_exactly_one_shard() -> None:
     )
 
 
+def test_emitted_pytest_args_carry_every_declared_ignore() -> None:
+    """★CI 가 실제로 쓰는 것은 선언 JSON 이 아니라 `pytest_args()` 의 출력이다.
+
+    ★codex P2 로 교체된 판정. 앞선 음성 대조는 `ignore` 배제를 `_owners()` 로 확인했는데,
+    `_owners()` 자체가 「ignore 는 제외한다」로 정의돼 있어 **같은 구현에 두 번 묻는
+    tautology** 였다 — `pytest_args()` 가 `--ignore=` 를 빼먹어도 통과했다.
+    여기서는 CI 스텝에 들어가는 문자열을 직접 본다.
+    """
+    for shard_id, spec in load_shards().items():
+        args = pytest_args(shard_id)
+        assert args, f"{shard_id}: 인자가 비었다 — pytest 가 전체 스위트로 떨어진다"
+        for ignored in spec["ignore"]:
+            assert f"--ignore={ignored}" in args, (
+                f"{shard_id}: 선언된 ignore 가 인자에 없다 → {ignored}\n"
+                f"실제 인자: {args}\n"
+                "이러면 그 파일이 두 샤드에서 중복 실행된다."
+            )
+        for path in spec["paths"]:
+            assert path in args, f"{shard_id}: 선언된 path 가 인자에 없다 → {path}"
+
+
+def test_no_shard_declares_empty_paths() -> None:
+    """★빈 `paths` 는 「안 돈다」가 아니라 **전체 스위트 재실행**이다 (codex P2).
+
+    위치인자 없이 pytest 를 부르면 `pyproject.toml` 의 `testpaths = ["tests"]` 로 떨어진다.
+    분할 감사는 빈 샤드를 고아로 세지 못하므로(아무 파일도 소유하지 않을 뿐이다) 별도로 막는다.
+    """
+    for shard_id, spec in load_shards().items():
+        assert spec["paths"], (
+            f"샤드 {shard_id!r} 의 paths 가 비었다 — 그 샤드가 조용히 전체 스위트를 다시 돈다"
+        )
+
+
 def test_shard_entries_all_exist_on_disk() -> None:
     """★경로 오타 = 조용한 누락. `paths`/`ignore` 항목이 실재하는지 본다.
 
@@ -113,11 +146,3 @@ def test_partition_audit_detects_anything_at_all() -> None:
     files = _all_test_files()
     assert len(files) > 100, f"테스트 파일 탐지가 {len(files)}개 — 워커가 죽었다"
     assert "tests/test_pytest_shard_partition.py" in files, "자기 자신을 못 찾는다"
-
-    shards = load_shards()
-    # `ignore` 가 실제로 배제하는지 — 배제 대상은 그 샤드의 소유가 아니어야 한다.
-    for shard_id, spec in shards.items():
-        for ignored in spec["ignore"]:
-            assert shard_id not in _owners(ignored, shards), (
-                f"{shard_id}.ignore 의 {ignored} 가 여전히 {shard_id} 소유다 — 배제 로직이 죽었다"
-            )

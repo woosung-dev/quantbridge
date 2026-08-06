@@ -42,6 +42,12 @@ jobs:
               - 'frontend/**'
             backend:
               - 'backend/**'
+              # ★워크플로 자체를 backend 트리거에 넣는다 (codex P1). 안 그러면
+              #   `.github/workflows/ci.yml` 만 고치는 PR 에서 backend 계열이 전부 skip 되고,
+              #   **샤드 배선·artifact·coverage 명령을 망가뜨려도 `ci` 가 초록**이다.
+              #   ci.yml 을 검증하는 감사 테스트(`test_pytest_shard_partition` ·
+              #   `test_ci_workflow_env_parity`)가 backend 스위트 안에 있으므로 이 연결이 맞다.
+              - '.github/workflows/**'
 
   documentation:
     runs-on: ubuntu-latest
@@ -126,7 +132,7 @@ jobs:
   #       합집합이라 래칫이 재는 값은 **정확히 같다** — 로컬에서 전체 실행과 샤드 3벌 합본의
   #       `coverage report` 가 **파일별로 byte-identical**(TOTAL 730/38/192/23/93%) 임을 확인했다.
   #     - 실행 검증: 샤드 3벌 합계 **4199 passed / 45 skipped** = 전체 1벌과 동일(누락 0).
-  #     - 수집 검증(현행 정의): 1039 + 78 + 3131 = **4248** = 전체 수집 4248.
+  #     - 수집 검증(현행 정의): 1039 + 78 + 3133 = **4250** = 전체 수집 4250.
   #       ★두 수가 다른 이유는 후자가 이 감사 파일 자신(4 테스트)을 포함하기 때문이다.
   #   ★샤드 경계를 손대면 `tests/test_pytest_shard_partition.py` 가 막는다.
   backend:
@@ -253,16 +259,25 @@ jobs:
       #   `coverage combine` 이 "Skipping duplicate data" 를 찍는다. 즉 **a 나 b 의 아티팩트가
       #   통째로 사라져도 최종 커버리지 수치는 1% 도 안 움직인다** — 커버리지로는 누락을 못 본다.
       #   기대 개수는 `shards.json` 에서 읽는다(하드코딩하면 샤드를 늘릴 때 조용히 어긋난다).
+      # ★개수가 아니라 **이름**으로 본다 (codex P2). `wc -l` 로 세면 엉뚱한 `.coverage.*`
+      #   (예: 실수로 커밋된 파일)이 빠진 샤드의 자리를 메워 통과할 수 있다.
+      #   기대 이름은 `shards.json` 키에서 만든다 — 하드코딩하면 샤드를 늘릴 때 어긋난다.
       - name: Verify every shard reported coverage
         shell: bash
         run: |
           set -euo pipefail
-          expected="$(uv run python -c "import json,pathlib;print(len(json.loads(pathlib.Path('tests/shards.json').read_text())))")"
-          found="$(find . -maxdepth 1 -name '.coverage.*' | wc -l | tr -d ' ')"
-          echo "coverage 조각: ${found}개 (기대 ${expected}개)"
-          find . -maxdepth 1 -name '.coverage.*' -print
-          if [ "$found" -ne "$expected" ]; then
-            echo "::error::coverage 조각이 ${found}개다 (기대 ${expected}개) — 샤드 하나가 결과를 못 올렸다"
+          ls -la .coverage.* 2>/dev/null || true
+          missing=""
+          for s in $(uv run python -c "import json,pathlib;print(' '.join(sorted(json.loads(pathlib.Path('tests/shards.json').read_text()))))"); do
+            if [ -s ".coverage.$s" ]; then
+              echo "  ✓ .coverage.$s"
+            else
+              echo "  ✗ .coverage.$s 없음/빈 파일"
+              missing="$missing $s"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::샤드 커버리지 조각 누락:$missing — 그 샤드는 결과를 못 올렸다"
             exit 1
           fi
       - name: Combine and enforce ratchet
@@ -317,12 +332,24 @@ jobs:
   #      새로 쪼갠 `backend_static` / `backend_coverage` 도 마찬가지로 넣는다.
   #   ⑵ 판정이 `== "failure"` 였다 — `cancelled` 는 **통과로 읽혔다**. `success`/`skipped` 만
   #      통과로 인정하도록 뒤집는다(모르는 상태가 생겨도 fail-closed).
+  #   ⑶ ★codex P1 — `changes` 가 needs 에 **없었다**(이 구멍은 본 변경 이전부터 있었다).
+  #      `changes` 가 실패하면 그 의존 잡들은 **`skipped`** 가 되고, ⑵ 규칙이 skipped 를 통과로
+  #      인정하므로 `documentation` 하나만 성공해도 `ci` 가 초록이었다. 즉 **경로 감지가 죽으면
+  #      게이트 전체가 조용히 사라진다.** `changes` 를 needs 에 넣어 닫는다.
   #   ★잡 id 에 하이픈 대신 밑줄을 쓴 이유: `needs.backend-static.result` 는 표현식에서
   #     뺄셈으로 파싱될 여지가 있어 대괄호 표기가 필요하다. 로컬에서 시험할 수 없는 문법이라
   #     모호함이 없는 쪽을 택했다.
   ci:
     needs:
-      [frontend, backend, backend_static, backend_coverage, e2e, documentation]
+      [
+        changes,
+        frontend,
+        backend,
+        backend_static,
+        backend_coverage,
+        e2e,
+        documentation,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -337,6 +364,7 @@ jobs:
               *) echo "::error::$1 = $2"; fail=1 ;;
             esac
           }
+          check changes          "${{ needs.changes.result }}"
           check frontend         "${{ needs.frontend.result }}"
           check backend          "${{ needs.backend.result }}"
           check backend_static   "${{ needs.backend_static.result }}"

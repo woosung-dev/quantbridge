@@ -103,7 +103,7 @@ flowchart TB
 스위트의 35% 라서다. 정의·근거 = [`backend/tests/shard_paths.py`](../../../backend/tests/shard_paths.py).
 
 **등가성은 증명됐다.** 전체 1벌 실행과 샤드 3벌 합본의 `coverage report` 가 **파일별로 완전히
-동일**(TOTAL `730 38 192 23 93%`)했고, 샤드 수집 합계 = 전체 수집(**4248**)이다.
+동일**(TOTAL `730 38 192 23 93%`)했고, 샤드 수집 합계 = 전체 수집(1039 + 78 + 3133 = **4250**)이다.
 
 ★**조각 개수 검사가 유일한 누락 탐지기다.** 샤드 a·b 의 데이터 파일은 내용이 동일해서
 (둘 다 trading 모듈을 import 로만 스친다) `coverage combine` 이 `Skipping duplicate data` 를 찍는다.
@@ -145,9 +145,30 @@ flowchart TB
 1. `documentation` 이 `needs` 에 **없었다** — `make docs-audit` 이 빨개도 `ci` 는 초록이었다.
 2. 판정이 `== "failure"` 였다 — `cancelled` 가 **통과로 읽혔다**. 이제 모르는 상태는 fail-closed.
 
+3. `changes` 가 `needs` 에 **없었다**(이 구멍은 2026-08-06 이전부터 있었다) — 경로 감지 잡이
+   실패하면 그 의존 잡이 전부 `skipped` 가 되고, 위 2번 규칙이 skipped 를 통과로 인정하므로
+   `documentation` 하나만 성공해도 `ci` 가 초록이었다. **경로 감지가 죽으면 게이트 전체가 조용히
+   사라지는** 경로다. codex 적대 리뷰가 잡았다.
+
 > 잡 id 에 하이픈 대신 밑줄(`backend_static`)을 쓴 이유: `needs.backend-static.result` 는 표현식에서
 > 뺄셈으로 파싱될 여지가 있어 대괄호 표기가 필요한데, 로컬에서 시험할 수 없는 문법이라 모호함이
 > 없는 쪽을 택했다.
+
+### 이 게이트가 **덮지 않는 것** (2026-08-06 codex 적대 리뷰 처분)
+
+정직하게 적어 둔다 — 나중에 이 목록을 「없는 위험」으로 읽지 마라.
+
+- ★**main 의 실제 커밋은 자동 검증되지 않는다.** `push: [main]` 을 뺐으므로 ⑴ 직접 push
+  ⑵ PR 검사 후 base 가 움직인 뒤의 머지 는 검사 없이 main 에 들어간다. 이 레포는 GitHub
+  branch protection 을 **쓸 수 없고**(private free — API 403), 직접 push 는 로컬 pre-push 훅과
+  규율로만 막힌다. 실질 방어선은 **순차 머지 + 머지 직전 `gh pr checks` 재확인**이다.
+- **merge queue 를 켜면 CI 가 아예 보고되지 않는다** — 트리거에 `merge_group` 이 없어서 큐의
+  합성 커밋에 `ci` 체크가 생기지 않는다. 큐를 도입하는 날 트리거를 같이 추가해라.
+- **env 감사는 키 존재만 본다** — 값이 `redis://redis:6379`(compose 호스트)나 빈 문자열로
+  바뀌어도 통과한다. 그 고장은 CI 에서 연결 실패로 시끄럽게 죽으므로 감사의 표적이 아니다.
+- **로컬 커버리지 방어선이 하나 줄었다** — `final-gates.sh` 의 커버리지 재현이 기본 skip 이므로
+  래칫은 이제 **PR CI 한 곳에서만** 판정된다. 그 잡 자체가 고장 나는 경로는 샤드 조각 이름 검사와
+  감사 테스트 2종이 막는다.
 
 ---
 

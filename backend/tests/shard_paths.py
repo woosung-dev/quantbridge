@@ -58,6 +58,15 @@ def pytest_args(shard_id: str) -> list[str]:
             f"정의는 {SHARDS_JSON} 에 있다."
         )
     spec = shards[shard_id]
+    # ★빈 `paths` 는 「아무것도 안 돈다」가 아니라 **전체 스위트 재실행**이다 (codex P2).
+    #   위치인자가 없으면 pytest 가 `pyproject.toml` 의 `testpaths = ["tests"]` 로 떨어져
+    #   그 샤드가 조용히 full suite 를 한 번 더 돈다. 분할 감사는 선언 JSON 만 보므로
+    #   빈 샤드를 고아로 세지 못한다 — 그래서 여기서 거부한다.
+    if not spec["paths"]:
+        raise SystemExit(
+            f"샤드 {shard_id!r} 의 paths 가 비었다 — 위치인자 없이 pytest 를 부르면 "
+            f"testpaths 기본값으로 **전체 스위트**가 다시 돈다. {SHARDS_JSON} 를 고쳐라."
+        )
     args = [*spec["paths"], *(f"--ignore={p}" for p in spec["ignore"])]
     bad = [a for a in args if a != "".join(a.split())]
     if bad:

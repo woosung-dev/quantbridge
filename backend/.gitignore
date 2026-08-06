@@ -9,6 +9,10 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .coverage
+# CI 샤드 부분 커버리지 조각. `.coverage` 패턴은 정확히 그 이름만 잡는다 —
+# 이게 없으면 `.coverage.a` 가 추적 대상이 되고, 실수로 커밋되면 CI 의 샤드 조각
+# 검사를 통과시켜 부분 데이터로 래칫을 판정하게 만든다.
+.coverage.*
 htmlcov/
 dist/
 build/
