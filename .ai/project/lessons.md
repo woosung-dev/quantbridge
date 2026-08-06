@@ -31,6 +31,7 @@
 | LESSON-039 | `.ai/common/global.md` §7.3            | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                           |
 | LESSON-040 | `.ai/common/global.md` §7.4            | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                    |
 | LESSON-063 | `.ai/common/global.md` §7.5            | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                           |
+| LESSON-066 | `.ai/stacks/fastapi/backend.md` §7     | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충) |
 
 ---
 
@@ -289,6 +290,16 @@
   ⑵ 상·하한을 구간으로 걸고 ⑶ 등록 직후 적대 검증자에게 **기각되는 관측 공간**을 그리게
   한다 — 기각 영역이 물리적으로 원격이면 그 지표는 적중해도 증거가 못 된다.
 - **1차 누적.**
+
+### LESSON-067 — codex evaluator 는 분산형(G.0 + slice spot + G.4)이 정본 패턴, 비용은 스코프의 함수 (6/6)
+
+- **상황:** Sprint 39/51~57/59/60 에 걸쳐 codex evaluator 호출 패턴을 6회 실측 — 단일 G.0
+  일괄(518k) vs 분산형(G.0 + slice spot + G.4). 분산형 비용은 스코프에 따라 216k~1.8M tokens
+  로 가변(revision 양 + 트랙 수의 함수)이며, spot 축소(Sprint 52 형)로 1/5 까지 줄었다.
+  「단일 worker single-day scope 자율 진행 가능」 판정도 같은 실측 계열에서 6/6 누적.
+- **해결:** evaluator 는 분산형을 기본으로 하되 slice spot 은 스코프가 좁으면 생략한다.
+  budget 은 고정값이 아니라 스코프 함수로 계획한다.
+- **6차 검증 (dev-log 삭제 전 등재 보충 — 원문은 git history `docs/dev-log/2026-05-1*-sprint5*-close.md`).**
 
 ---
 

@@ -18,8 +18,8 @@
 | --- | --- | --- |
 | [`reference/`](./reference/README.md) | 지금도 참인 도메인·아키텍처·운영·제품·API·설계 계약은 무엇인가 | 코드와 어긋나면 코드에 맞춰 고친다 |
 | [`decisions/`](./decisions/) | 왜 이 선택을 했는가 | 폐기해도 삭제하지 않고 `Superseded`로 남긴다 |
-| [`dev-log/INDEX.md`](./dev-log/INDEX.md) | 완료된 스프린트에서 무엇을 측정·결정했는가 | 결과와 근거를 append-only로 남긴다 |
-| `archive/`(`docs/archive/`) | 더는 현재 규칙이 아닌 상세 기록은 무엇인가 | 읽기 전용이다 |
+| [`dev-log/INDEX.md`](./dev-log/INDEX.md) | 완료된 스프린트에서 무엇을 측정·결정했는가 | 요약 색인만 유지. 회고 원문은 git history |
+| git history | 삭제된 과거 원문(구 `archive/`·`dev-log/*.md`)은 어디 있는가 | 2026-08-06 대개편에서 삭제 — `git show 0f0f0b06:docs/archive/<경로>` 로 조회 |
 | [`reports/`](./reports/) | 생성된 dogfood·retro 출력은 어디 있는가 | 코드 생성물이다. 수동 정본을 만들지 않는다 |
 
 루트의 사람용 정본은 [`README.md`](../README.md), [`AGENTS.md`](../AGENTS.md),
@@ -42,7 +42,7 @@
 ## 새 문서를 만들기 전
 
 1. 지금 실행할 일인가 → `status.md`, 아직 해결하지 못한 일인가 → `backlog.md`, 다음 후보인가 → `roadmap.md`에 먼저 둔다.
-2. 스프린트가 끝나도 계속 참인가 → `reference/`, 결정 이유인가 → `decisions/`, 결과 기록인가 → `dev-log/` 또는 `archive/`에 둔다.
+2. 스프린트가 끝나도 계속 참인가 → `reference/`, 결정 이유인가 → `decisions/`, 결과 기록인가 → `dev-log/INDEX.md` 요약 한 줄(원문은 커밋·git history)로 남긴다.
 3. 어느 경우에도 맞지 않으면 새 파일을 만들기 전에 독자와 수명을 먼저 정한다.
 
 스프린트 종료 시 작업 문서는 반드시 승격·강등·삭제 중 하나로 종결한다.

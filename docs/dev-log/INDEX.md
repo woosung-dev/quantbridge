@@ -1,8 +1,9 @@
 # Dev-log Index
 
-> 회고·ADR·dogfood 기록을 **찾기 위한** 색인. 요약은 최근 12회차만 한 줄씩 두고 나머지는 링크만 둔다.
+> 회고 기록을 **찾기 위한** 색인. 요약은 최근 12회차만 한 줄씩 두고 나머지는 날짜·제목만 둔다.
 > 이 파일은 매 세션 읽히므로 **줄당 300자 상한**을 `scripts/docs-audit.sh` 가 강제한다 (초과 시 exit 1).
-> 압축 전 원문(요약 전문 · H2 Sprint 서사 · Sprint 1-14 매트릭스) = `index-full-2026-08-02.md`.
+> ★**회고 원문은 2026-08-06 문서 대개편에서 삭제됐다** — 원문 조회는
+> `git show 0f0f0b06:docs/dev-log/<파일명>` (파일명 = `YYYY-MM-DD-슬러그.md`, 압축 전 색인 원문 = `git show 0f0f0b06:docs/archive/dev-log/index-full-2026-08-02.md`).
 
 ---
 
