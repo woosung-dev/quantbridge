@@ -11,6 +11,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-06 ci-diet** — CI **23~25분 → 14.8분**(PR #548/#549/#550 · 47 패키지 제거). ★★**12분 미달은 구조적** — 코퍼스 첫-접촉 비용이 샤드마다 중복(+519s 전부, [BL-598]). ★샤드 추정 **2.2배 오차** — `--durations` 는 「누가 먼저 돌았나」의 함수. ★★**§5 전제는 죽은 게 아니라 휴면**(3h22m 뒤 steps=0 재발). **public 전환** — [dev-log](2026-08-06-ci-diet.md)
 - **2026-08-06 night-watch** — ★**[ADR-025] Accepted**(12h 전향 예측 4/4 — phantom 0 · 발주 84 · 카운터 차분 +223) · **BL-594/596 Resolved · BL-591 P2 강등**. ★계획 재기동 1회로 B2 실증, 누적 12.75h 연속. ★★e2e red 는 flake 가 아니라 **소크 열린 포지션↔로케이터 결합**(BL-597) — [dev-log](2026-08-06-night-watch.md)
 - **2026-08-05 conditional-stop-ownership** — ★**라이브 조건부 진입 체결 권한을 주문 원장으로** ([ADR-025], **BL-595 Resolved**). 사망 **5건 재현**(비트 일치) → 수리 전 5/5 발산, 후 5/5 일치. ★★**형 B 는 거짓 사망** — 엔진이 2봉 뒤졌을 뿐. ★★codex: **오래 산 세션에서 보호가 먼저 꺼진다**(78h) — [dev-log](2026-08-05-conditional-stop-ownership.md)
 - **2026-08-05 live-replay-visibility** — 판별식 = **직접 회복 검사**(원장 안 봄) · **FAIL 유지 · 실격 9→10**. ★★★**전제 반증** — `run_live` 는 이미 **89테스트가 ~90회** 호출. 변이 **12/12 KILLED ⇒ 신규 0**. ★[BL-595] 형 A 를 **Trust Layer 골든이 잡았다**. ★★codex: **진부분집합은 관측이다** → **래칫** — [dev-log](2026-08-05-live-replay-visibility.md)
@@ -22,10 +23,10 @@
 - **2026-08-04 engine-position-ssot** — 슬라이스 1(계측) PR #539 OPEN, **슬라이스 2 미착수 확정**. ④ = 0(사망 2건 상류에 `exchange_only` 0건, 최악 ≤1/21). ★★★**net 은 맞고 legs 는 틀리다** — 외부 오라클 11건 오답 **0** 인데 적중 4 중 **3건이 `legs=2`**(거래소는 단일). 판정은 net, 주입은 legs. ⑤ 판정불가 **27.6%** — [dev-log](2026-08-04-engine-position-ssot.md)
 - **2026-08-03 breach-rejection-recovery** — 소크를 105분에 끊은 거절. ★가드는 **발주 시각에 옳았다** — 거래소가 2.1초 뒤 자기 시각으로 `110093` 거절, 그 뒤 **복구가 없어** 엔진 시뮬만 전진했다. 거절을 「돌파 확정 증거」로 읽고 시장가 전환 집행. ★거울 코드 `110092` 포함. 변이 **8/8** · 유도로 프로덕션 발화 확인. **BL-590 Resolved** — [dev-log](2026-08-03-breach-rejection-recovery.md)
 - **2026-08-03 soak-divergence-root** — 소크를 65분에 끊은 발산. ★엔진은 취소를 못 본 게 아니라 **주문을 아예 모른다**(포지션 = `run_live` 시뮬). 뿌리는 계획기가 「대기 주문이 있다」만으로 시장가 전환을 껐다는 것 — 그 주문은 **발화 불가**였다. ★★한 번에 둘을 고치면 서로의 증거를 가린다. **BL-589/587/585/588 Resolved · 소크 재가동** — [dev-log](2026-08-03-soak-divergence-root.md)
-- **2026-08-03 backtest-metric-oracle** — 회귀망이 위험조정지표에 **감지력 0** 이었다(5벌 전부 sharpe=0·sortino/calmar=null). 컨벤션 대조 + 비축퇴 2벌로 채널 신설. **BL-461 Resolved** — 하루치 1h 봉이 **Sharpe 16.56** 을 보고했다. ★표적 2건 빗나감. ★★**소크가 65분에 죽었다 → BL-589(P1)** — [dev-log](2026-08-03-backtest-metric-oracle.md)
 
 ## 전체 이력
 
+- **2026-08-03 backtest-metric-oracle** — 회귀망이 위험조정지표에 **감지력 0** 이었다(5벌 전부 sharpe=0·sortino/calmar=null). 컨벤션 대조 + 비축퇴 2벌로 채널 신설. **BL-461 Resolved** — 하루치 1h 봉이 **Sharpe 16.56** 을 보고했다. ★표적 2건 빗나감. ★★**소크가 65분에 죽었다 → BL-589(P1)** — [dev-log](2026-08-03-backtest-metric-oracle.md)
 - **2026-08-03 metric-guard-residual-sweep** — 발주 outbox 12곳 수리 8·보류 4, 신규 H8 — [dev-log](2026-08-03-metric-guard-residual-sweep.md)
 - **2026-08-03 metric-guard-residual-close** — BL-580 잔여 **25곳** 주입 판정 ⇒ **수리함 23 · 판정 보류 2**(census 129→104). ★산문 2줄이 25곳을 잘못 뺐다(「blast radius 0」은 10/10 이 OSError 탈출). ★**내 하네스가 계약을 깨 도달 불가 분기를 「유해」로 만들 뻔했다**(codex G6) — [dev-log](2026-08-03-metric-guard-residual-close.md)
 - **2026-08-03 gate-trustworthiness** — 「전부 통과」가 증거가 되게 만든다. ★**순서는 랜덤이 아니었다**(`pytest-randomly` 미설치 ⇒ `-p no:randomly` no-op) — **수집 집합** 운이었다. 뿌리 = 정의 모듈 패치 창의 첫 적재가 가짜를 **모듈 전역으로 영구 복사**. 오염원 4곳·전역 8개, 상시 가드 신설. **BL-583 Resolved** PR #528 — [dev-log](2026-08-03-gate-trustworthiness.md)
