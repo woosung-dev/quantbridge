@@ -1,11 +1,20 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     # stage/** — 리디자인 등 대형 작업의 웨이브 PR(base=stage/<theme>)에도 CI 발화
     branches: [main, "stage/**"]
+  # ★main 을 손으로 확인해야 할 때의 안전판. 상시 트리거는 아니다.
+  workflow_dispatch:
+
+# ★2026-08-06 — `push: [main]` 을 뺐다. 같은 내용이 PR 과 머지 직후 **두 번** 돌고 있었고
+#   (backend 잡 23분 × 2), `pull_request` 는 PR head 가 아니라 **머지 프리뷰**를 검사한다.
+#   실측 근거(run 31062441328 backend 잡 로그):
+#     git checkout --progress --force refs/remotes/pull/545/merge
+#     HEAD is now at 8fcee82 Merge c2702c15… into c620149…
+#   ⇒ 머지 결과는 이미 PR 에서 검사된다. 남는 위험은 **마지막 PR run 이후 base 가 움직인 경우**
+#   뿐이고, 이 레포는 순차 머지 + 로컬 `scripts/final-gates.sh` 로 그 구간을 덮는다.
+#   되살려야 하면 위 `workflow_dispatch` 로 손으로 돌리거나 이 블록을 되돌려라.
 
 # dorny/paths-filter가 PR 변경 파일 목록을 조회할 수 있도록 최소 권한 부여
 permissions:
@@ -33,6 +42,12 @@ jobs:
               - 'frontend/**'
             backend:
               - 'backend/**'
+              # ★워크플로 자체를 backend 트리거에 넣는다 (codex P1). 안 그러면
+              #   `.github/workflows/ci.yml` 만 고치는 PR 에서 backend 계열이 전부 skip 되고,
+              #   **샤드 배선·artifact·coverage 명령을 망가뜨려도 `ci` 가 초록**이다.
+              #   ci.yml 을 검증하는 감사 테스트(`test_pytest_shard_partition` ·
+              #   `test_ci_workflow_env_parity`)가 backend 스위트 안에 있으므로 이 연결이 맞다.
+              - '.github/workflows/**'
 
   documentation:
     runs-on: ubuntu-latest
@@ -80,10 +95,54 @@ jobs:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
           CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
 
+  # 정적 검사 — DB/redis 서비스가 필요 없으므로 컨테이너 초기화(실측 28s) 없이 병렬로 돈다.
+  backend_static:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-extras --dev
+      - run: uv run ruff check .
+      # mypy 는 cold 캐시에서 실측 32s 였다. 캐시 키에 `uv.lock` 을 넣어 의존성이 바뀌면 무효화한다.
+      - uses: actions/cache@v4
+        with:
+          path: backend/.mypy_cache
+          key: mypy-${{ runner.os }}-${{ hashFiles('backend/uv.lock') }}-${{ github.sha }}
+          restore-keys: |
+            mypy-${{ runner.os }}-${{ hashFiles('backend/uv.lock') }}-
+            mypy-${{ runner.os }}-
+      - run: uv run mypy src/
+
+  # ★pytest 를 3 샤드로 쪼갠다 (2026-08-06). 왜, 그리고 왜 이 경계인지는
+  #   `backend/tests/shard_paths.py` 독스트링에 실측과 함께 있다. 요약:
+  #     - 이 스텝 하나가 backend 잡 23분의 **94%(1313s)** 였다.
+  #     - 커버리지 계측 배율 **1.770배**(로컬 무계측 298.97s vs 계측 529.16s)지만
+  #       BL-308/309 래칫이 **full suite transitive 커버**를 요구하므로 끌 수 없다.
+  #     - 그래서 계측을 켠 채로 쪼개고 `backend_coverage` 잡이 `coverage combine` 한다.
+  #       합집합이라 래칫이 재는 값은 **정확히 같다** — 로컬에서 전체 실행과 샤드 3벌 합본의
+  #       `coverage report` 가 **파일별로 byte-identical**(TOTAL 730/38/192/23/93%) 임을 확인했다.
+  #     - 실행 검증: 샤드 3벌 합계 **4199 passed / 45 skipped** = 전체 1벌과 동일(누락 0).
+  #     - 수집 검증(현행 정의): 1039 + 78 + 3133 = **4250** = 전체 수집 4250.
+  #       ★두 수가 다른 이유는 후자가 이 감사 파일 자신(4 테스트)을 포함하기 때문이다.
+  #   ★샤드 경계를 손대면 `tests/test_pytest_shard_partition.py` 가 막는다.
   backend:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [a, b, c]
     defaults:
       run:
         working-directory: backend
@@ -119,8 +178,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: uv sync --all-extras --dev
-      - run: uv run ruff check .
-      - run: uv run mypy src/
+      # 마이그레이션 왕복 게이트. pytest 의 전제가 아니다 — `tests/conftest.py` 가
+      # `SQLModel.metadata.drop_all` + `create_all` 로 스키마를 다시 세운다.
       - run: uv run alembic upgrade head
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
@@ -134,10 +193,21 @@ jobs:
       # 안전 ratchet (타이트 tripwire flake 방지). 신규 미커버 분기 추가 시 CI 가 차단.
       # NOTE: 3 모듈 *합산* package gate (per-module 아님). 현재 모듈별 ≥94%라 masking
       # 위험 낮음 — 개별 모듈 strict ratchet 필요 시 별도 run/coverage config 로 분리.
-      - run: >
-          uv run pytest -v --durations=10
-          --cov=src.trading.registry --cov=src.trading.webhook --cov=src.trading.websocket
-          --cov-report=term-missing --cov-fail-under=90
+      # ★샤드는 판정하지 않는다 — `--cov-fail-under` 는 합본 뒤 `backend_coverage` 몫이다.
+      #   부분 데이터로 문턱을 재면 통과도 실패도 의미가 없다.
+      # ★`${SHARD_ARGS}` 는 **일부러 따옴표 없이** 펼친다(bash word-splitting). 경로에 공백이
+      #   있으면 조용히 쪼개지므로 `shard_paths.py` 가 공백 경로를 거부한다.
+      #   (zsh 는 기본적으로 split 하지 않는다 — 로컬 검증은 반드시 `bash -c` 로.)
+      - name: pytest (shard ${{ matrix.shard }})
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHARD_ARGS="$(uv run python -m tests.shard_paths '${{ matrix.shard }}')"
+          echo "shard ${{ matrix.shard }} → ${SHARD_ARGS}"
+          COVERAGE_FILE=".coverage.${{ matrix.shard }}" uv run pytest ${SHARD_ARGS} \
+            --durations=10 \
+            --cov=src.trading.registry --cov=src.trading.webhook --cov=src.trading.websocket \
+            --cov-report=
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           REDIS_URL: redis://localhost:6379/0
@@ -151,6 +221,71 @@ jobs:
           CELERY_RESULT_BACKEND: redis://localhost:6379/2
           REDIS_LOCK_URL: redis://localhost:6379/3
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
+      # ★`include-hidden-files: true` 가 **없으면 안 올라간다** — v4 는 dot 파일을 기본 제외한다.
+      #   그러면 아래 combine 이 조각 없이 돌고, 조용히 통과할 수 있다. `if-no-files-found: error`
+      #   와 combine 잡의 개수 검사가 그 경로를 이중으로 막는다.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.shard }}
+          path: backend/.coverage.${{ matrix.shard }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  # 샤드 부분 커버리지를 합쳐 BL-308/309 래칫을 **한 번** 판정한다. DB/redis 불요.
+  backend_coverage:
+    needs: [changes, backend]
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --all-extras --dev
+      - uses: actions/download-artifact@v4
+        with:
+          path: backend
+          pattern: coverage-*
+          merge-multiple: true
+      # ★조각 개수를 세는 것이 **유일한** 누락 탐지기다. 실측으로 확인한 사실:
+      #   샤드 a·b 의 데이터 파일은 내용이 동일해서(둘 다 trading 모듈을 import 로만 스친다)
+      #   `coverage combine` 이 "Skipping duplicate data" 를 찍는다. 즉 **a 나 b 의 아티팩트가
+      #   통째로 사라져도 최종 커버리지 수치는 1% 도 안 움직인다** — 커버리지로는 누락을 못 본다.
+      #   기대 개수는 `shards.json` 에서 읽는다(하드코딩하면 샤드를 늘릴 때 조용히 어긋난다).
+      # ★개수가 아니라 **이름**으로 본다 (codex P2). `wc -l` 로 세면 엉뚱한 `.coverage.*`
+      #   (예: 실수로 커밋된 파일)이 빠진 샤드의 자리를 메워 통과할 수 있다.
+      #   기대 이름은 `shards.json` 키에서 만든다 — 하드코딩하면 샤드를 늘릴 때 어긋난다.
+      - name: Verify every shard reported coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          ls -la .coverage.* 2>/dev/null || true
+          missing=""
+          for s in $(uv run python -c "import json,pathlib;print(' '.join(sorted(json.loads(pathlib.Path('tests/shards.json').read_text()))))"); do
+            if [ -s ".coverage.$s" ]; then
+              echo "  ✓ .coverage.$s"
+            else
+              echo "  ✗ .coverage.$s 없음/빈 파일"
+              missing="$missing $s"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::샤드 커버리지 조각 누락:$missing — 그 샤드는 결과를 못 올렸다"
+            exit 1
+          fi
+      - name: Combine and enforce ratchet
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run coverage combine
+          uv run coverage report --show-missing --fail-under=90
 
   # Sprint FE-01 LESSON-004 Playwright E2E — vitest jsdom 이 못 잡는 Fast Refresh /
   # StrictMode / React Query refetch 케이스를 실제 브라우저로 재현.
@@ -192,18 +327,48 @@ jobs:
           retention-days: 7
 
   # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
+  # ★2026-08-06 구멍 2개를 막았다.
+  #   ⑴ `documentation` 이 needs 에 **없었다** — `make docs-audit` 이 빨개도 `ci` 는 초록이었다.
+  #      새로 쪼갠 `backend_static` / `backend_coverage` 도 마찬가지로 넣는다.
+  #   ⑵ 판정이 `== "failure"` 였다 — `cancelled` 는 **통과로 읽혔다**. `success`/`skipped` 만
+  #      통과로 인정하도록 뒤집는다(모르는 상태가 생겨도 fail-closed).
+  #   ⑶ ★codex P1 — `changes` 가 needs 에 **없었다**(이 구멍은 본 변경 이전부터 있었다).
+  #      `changes` 가 실패하면 그 의존 잡들은 **`skipped`** 가 되고, ⑵ 규칙이 skipped 를 통과로
+  #      인정하므로 `documentation` 하나만 성공해도 `ci` 가 초록이었다. 즉 **경로 감지가 죽으면
+  #      게이트 전체가 조용히 사라진다.** `changes` 를 needs 에 넣어 닫는다.
+  #   ★잡 id 에 하이픈 대신 밑줄을 쓴 이유: `needs.backend-static.result` 는 표현식에서
+  #     뺄셈으로 파싱될 여지가 있어 대괄호 표기가 필요하다. 로컬에서 시험할 수 없는 문법이라
+  #     모호함이 없는 쪽을 택했다.
   ci:
-    needs: [frontend, backend, e2e]
+    needs:
+      [
+        changes,
+        frontend,
+        backend,
+        backend_static,
+        backend_coverage,
+        e2e,
+        documentation,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Summary
+        shell: bash
         run: |
-          echo "frontend=${{ needs.frontend.result }}"
-          echo "backend=${{ needs.backend.result }}"
-          echo "e2e=${{ needs.e2e.result }}"
-          if [[ "${{ needs.frontend.result }}" == "failure" || \
-                "${{ needs.backend.result }}" == "failure" || \
-                "${{ needs.e2e.result }}" == "failure" ]]; then
-            exit 1
-          fi
+          fail=0
+          check() {
+            echo "$1=$2"
+            case "$2" in
+              success|skipped) ;;
+              *) echo "::error::$1 = $2"; fail=1 ;;
+            esac
+          }
+          check changes          "${{ needs.changes.result }}"
+          check frontend         "${{ needs.frontend.result }}"
+          check backend          "${{ needs.backend.result }}"
+          check backend_static   "${{ needs.backend_static.result }}"
+          check backend_coverage "${{ needs.backend_coverage.result }}"
+          check e2e              "${{ needs.e2e.result }}"
+          check documentation    "${{ needs.documentation.result }}"
+          exit $fail

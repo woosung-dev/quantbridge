@@ -356,6 +356,47 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
   ⑤ 비-Mock 대역(`SimpleNamespace()`·`object()` 는 `__module__` 이 없고 `partial` 은 `functools`).
   **「가드 발화 0」을 「전역 오염 없음」으로 인용하지 마라.**
 
+### CI pytest 샤딩 (2026-08-06 ci-diet)
+
+- ★★★**커버리지 잡을 「별도 병렬 잡으로 옮기는」 것은 이득이 0 이다.** 그 잡이 여전히 full suite 를
+  돌아 **임계경로**가 된다(1313s). BL-308/309 래칫이 full-suite transitive 커버를 요구하므로 `ci` 가
+  그 잡을 기다려야 하고, 23분은 23분으로 남는다. **옮기는 게 아니라 쪼개야 한다** —
+  샤드마다 부분 데이터 → `coverage combine`(합집합) → `--fail-under` 1회.
+- ★★**`COVERAGE_CORE=sysmon` 은 이 레포에서 못 쓴다.** `coverage/env.py` 의
+  `branch_right_left = pep669 and PYVERSION > (3,14,0,a5)` 때문에 **Python 3.12 + `branch = true`** 조합은
+  `core.py` 가 sysmon 을 거부하고 ctrace 로 폴백한다. 계측 배율 실측 **1.770배**(무계측 298.97s vs 계측 529.16s).
+- ★★★**커버리지 수치는 샤드 누락을 못 본다.** 샤드 a·b 의 데이터 파일은 **내용이 동일**해서
+  `coverage combine` 이 `Skipping duplicate data` 를 찍는다 — 즉 **그 아티팩트가 통째로 사라져도 최종
+  수치가 안 움직인다.** 그래서 `backend_coverage` 는 조각 **개수**를 `shards.json` 키 개수와 대조한다.
+  ★`actions/upload-artifact@v4` 는 **dot 파일을 기본 제외**한다 — `include-hidden-files: true` 가 빠지면
+  정확히 그 상황이 된다(`if-no-files-found: error` 와 이중으로 막는다).
+- ★★★**`--durations` 순위로 샤드 경계를 정하면 틀린다 — 그 목록은 「누가 먼저 돌았나」의 함수다.**
+  코퍼스 스크립트를 **처음** 파싱하는 테스트가 비용을 전부 물고 이후는 거의 공짜다:
+  `test_ast_classifier[i3_drfx]` 는 **단독 42.66s** 인데 **전체 스위트 안에서는 4.58s** 다
+  (`i1_utbot` 12.06s vs 0.02s). 알파벳상 앞선 `test_alert_hook` 이 값을 치르는 바람에 이 테스트는
+  단일 실행 top-10 에 **아예 없었고**, 그 목록으로 잡은 추정이 **2.2배 빗나갔다**(샤드 a 385s→847s).
+  ⇒ **쪼개면 그 비용이 샤드마다 중복된다.** CI 3샤드 합 1796s vs 단일 1278s 의 **+519s 전부**가
+  이 중복이다. **이 스위트는 샤딩에 저항한다** — 3-way wall 14.8분이 한계고 재분배로 못 내려간다.
+  뿌리 = [BL-598].
+- ★★**「고정 오버헤드」로 오진하기 쉽다 — 내가 두 번 그랬다.** 처음엔 F≈305s 라고 모델링했는데,
+  샤드 b 로그가 반증했다: **70 테스트에 615.42s 인데 top-10 만 596s** 다(오버헤드 ~20s).
+  **한 샤드의 로그를 열어 테스트 시간과 총시간을 대조하기 전에는 오버헤드를 주장하지 마라.**
+- ★★**샤드 경계를 로컬 durations 로 정하면 틀린다(2).** CI/로컬 비율이 **균일하지 않다** —
+  `test_alert_hook[i3_drfx]` 는 2.73배인데 `test_ast_classifier[i3_drfx]` 는 **27.7배**다.
+  후자가 이상한 게 아니라 **첫-접촉 비용을 누가 무느냐가 바뀐 것**이다.
+- ★**`--durations=0` 은 전수가 아니다** — `--durations-min` 기본 5ms 아래는 안 찍힌다(4199 중 1016건만).
+  합계로 검산해라(291.4s / 298.97s).
+- ★★**샤드 3벌 합계 > 전체 1벌** — 로컬 688.9s vs 529.2s(**+30%**). 세션 startup·fixture 가 샤드마다
+  반복된다. 잡이 병렬이라 벽시계는 줄지만 **러너 분은 늘어난다**.
+- ★★★**등가성은 aggregate 로 주장하지 마라.** `TOTAL` 이 같아도 파일별로 다를 수 있다.
+  전체 1벌의 데이터를 따로 보관해 두고 `coverage report` 출력을 **diff** 해서 완전 일치를 보여라.
+- ★★**`$ARGS` 를 따옴표 없이 펼치는 검증은 반드시 `bash -c` 로 해라.** 이 세션 셸은 **zsh** 이고
+  zsh 는 기본적으로 word-splitting 을 **안 한다** — 인자 전체가 한 덩어리로 들어가 `pytest` 가
+  `ERROR: file or directory not found: tests/strategy --ignore=…` 로 죽는다. CI 는 bash 라 정상이다.
+  **하네스가 거짓 red 를 냈다.** 그래서 `shard_paths.py` 가 공백 경로를 거부해 그 가정을 집행한다.
+- ★**소크·다른 pytest 와 동시에 돌리지 마라.** `tests/conftest.py` 세션 픽스처가 `quantbridge_test` 에
+  `drop_all`+`create_all` 을 하므로 **진행 중인 다른 실행의 DB 를 도중에 날린다.**
+
 ### 신규 BE 필드는 FE `.strict()` 스키마와 **항상** 대조해라 (2026-07-30, codex 적대 리뷰 MAJOR)
 
 > ★★★**읽기 경로가 정상인 것은 쓰기 경로가 정상이라는 증거가 아니다.**

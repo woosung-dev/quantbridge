@@ -43,15 +43,8 @@ def _settings_infra_fields() -> dict[str, str]:
     return out
 
 
-def _backend_pytest_env_keys() -> set[str]:
-    """워크플로 backend 잡의 pytest 단계 `env:` 블록 키 집합.
-
-    YAML 파서를 새로 들이지 않고 텍스트로 읽는다 — 이 감사가 보려는 것은
-    "그 키가 거기 적혀 있는가" 하나뿐이다.
-    """
-    text = _WORKFLOW.read_text()
-    # pytest 실행 줄 뒤에 오는 첫 env 블록을 자른다.
-    marker = text.index("uv run pytest")
+def _env_keys_after(text: str, marker: int) -> set[str]:
+    """`marker` 위치 뒤에 오는 첫 `env:` 블록의 키 집합."""
     env_start = text.index("env:", marker)
     tail = text[env_start + len("env:") :]
     keys: set[str] = set()
@@ -68,18 +61,47 @@ def _backend_pytest_env_keys() -> set[str]:
     return keys
 
 
+def _backend_pytest_env_blocks() -> list[set[str]]:
+    """워크플로 안 **모든** pytest 실행 스텝의 `env:` 블록 키 집합.
+
+    YAML 파서를 새로 들이지 않고 텍스트로 읽는다 — 이 감사가 보려는 것은
+    "그 키가 거기 적혀 있는가" 하나뿐이다.
+
+    ★**2026-08-06 수리.** 원래는 `text.index("uv run pytest")` 로 **첫 매치 하나**만 봤다.
+    backend 잡을 샤드 matrix 로 쪼개면서 pytest 스텝이 늘어날 수 있게 됐고, 그러면 두 번째
+    이후 스텝의 env 누락이 **감사되지 않은 채 통과**한다. 이 레포는 열거식·첫매치식 배선이
+    조용히 새는 것을 반복해서 밟았다(playwright `testMatch` 고아 spec). 그래서 전수로 바꾼다.
+    """
+    text = _WORKFLOW.read_text()
+    blocks: list[set[str]] = []
+    pos = 0
+    while (marker := text.find("uv run pytest", pos)) != -1:
+        blocks.append(_env_keys_after(text, marker))
+        pos = marker + len("uv run pytest")
+    return blocks
+
+
 @pytest.mark.skipif(not _WORKFLOW.exists(), reason="워크플로 파일이 없는 체크아웃")
 def test_ci_injects_every_compose_default_setting() -> None:
-    """compose 호스트를 기본값으로 갖는 Settings 필드는 CI env 에 반드시 주입돼야 한다."""
+    """compose 호스트를 기본값으로 갖는 Settings 필드는 **모든** pytest 스텝 env 에 있어야 한다."""
     required = _settings_infra_fields()
     assert required, "감사 대상이 0개다 — 탐지 로직이 죽었는지 확인해라"
 
-    injected = _backend_pytest_env_keys()
-    missing = sorted(env for env in required.values() if env not in injected)
+    blocks = _backend_pytest_env_blocks()
+    assert blocks, (
+        "워크플로에서 `uv run pytest` 스텝을 하나도 못 찾았다 — 배선이 바뀌었는지 확인해라. "
+        "이 단언이 없으면 마커가 사라진 순간 감사가 **항상 통과**한다."
+    )
 
-    assert not missing, (
-        "CI 워크플로 backend pytest 단계 env 에 다음이 빠졌다: "
-        f"{missing}\n"
+    failures = [
+        (idx, sorted(env for env in required.values() if env not in injected))
+        for idx, injected in enumerate(blocks)
+        if any(env not in injected for env in required.values())
+    ]
+
+    assert not failures, (
+        "CI 워크플로 pytest 스텝 env 에 다음이 빠졌다(스텝 번호 → 누락): "
+        f"{failures}\n"
         "이 필드들은 기본값이 docker-compose 서비스명이라, 주입하지 않으면 러너에서 "
         "해석 불가 호스트로 연결을 시도한다(2026-08-01 실측: celery 계열 5건 실패). "
         f"확인 대상 필드 → 환경변수: {required}"
