@@ -1,135 +1,70 @@
 # QuantBridge
 
-> **TradingView Pine Script 전략 → 백테스트 → 스트레스 테스트 → 데모/라이브 트레이딩 파이프라인.**
-> Pine Script를 정직하게 파싱(미지원 함수 한 개라도 포함되면 전체 Unsupported 반환)하고, CCXT 기반으로 주요 거래소에 자동 주문을 집행한다. AES-256 API Key 암호화 + Kill Switch로 리스크 경계를 명시적으로 관리.
+[![CI](https://github.com/woosung-dev/quantbridge/actions/workflows/ci.yml/badge.svg)](https://github.com/woosung-dev/quantbridge/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12-blue)
+![Next.js](https://img.shields.io/badge/next.js-16-black)
+![License](https://img.shields.io/badge/license-private-lightgrey)
 
----
+> **TradingView Pine Script 전략 → 백테스트 → 스트레스 테스트 → 최적화 → 데모/라이브 트레이딩을 한 파이프라인으로.**
+> Pine Script 를 트랜스파일 없이 AST 로 해석·실행(`pine_v2` 인터프리터)하고, 미지원 함수가 하나라도 있으면
+> 전체 Unsupported 로 정직하게 거절하며, CCXT 로 거래소 주문을 집행한다. AES-256 API Key 암호화 + Kill Switch.
 
-## Tech Stack
+## Highlights
 
-| 레이어        | 기술                                                                                                                                          |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend      | Next.js 16 App Router · TypeScript Strict · Tailwind CSS v4 · shadcn/ui v4 (Base UI) · Monaco Editor · React Query · Zustand · Zod v4 · Clerk |
-| Backend       | FastAPI · SQLModel 2.0 · Celery + Redis · PostgreSQL + TimescaleDB · Alembic · Pydantic v2 · CCXT (async)                                     |
-| Parser        | 커스텀 Pine v4/v5 토크나이저·인터프리터 (`exec`/`eval` 금지 — ADR 003)                                                                        |
-| Backtest      | `pine_v2` 자체 AST 인터프리터 (bar-by-bar SSOT, ADR-011). 지표도 `pine_v2/stdlib.py` 가 pandas/numpy 로 직접 계산                             |
-| 패키지 매니저 | `uv` (backend) · `pnpm` (frontend)                                                                                                            |
-| 인증          | Clerk (Frontend + Backend JWT 검증)                                                                                                           |
+- **`pine_v2` 자체 인터프리터** — 백테스트·라이브 신호의 단일 진실. `exec`/`eval` 금지, bar-by-bar 이벤트 루프 (ADR-003/011)
+- **Trust Layer** — pine_v2 결과의 3-Layer parity 를 CI 가 회귀 검증 (ADR-020)
+- **라이브 안전 경계** — Kill Switch 리스크 게이트 · 조건부 체결 권한은 주문 원장 (ADR-025) · 현재 Bybit demo 전용
+- **검증 문화** — BE 4,199 / FE 1,084 테스트 (2026-08-06 실측) · `scripts/` 게이트 체인(bl-audit · docs-audit · soak-gate)
 
----
-
-## Quick Start (로컬 개발)
-
-### 1. Prerequisites
+## Quick Start
 
 ```bash
-# macOS 기준
-brew install node python@3.12 docker git
-npm install -g pnpm
+brew install node python@3.12 docker git && npm i -g pnpm
 curl -LsSf https://astral.sh/uv/install.sh | sh
+
+git clone https://github.com/woosung-dev/quantbridge.git quant-bridge && cd quant-bridge
+cp .env.example .env                             # docker compose 용
+cp backend/.env.example backend/.env.local       # pydantic-settings 용
+cp frontend/.env.example frontend/.env.local     # Next.js 용
+# [필수] 키 채우기: CLERK_SECRET_KEY · NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY · TRADING_ENCRYPTION_KEYS(아래)
+
+make dev          # db+redis 기동 → BE 8000 · FE 3000 (상세 타깃: make help)
 ```
 
-### 2. Clone + 환경 변수
-
-`.env.example`은 서비스별로 분리됨 (loader 관행에 맞춤). root는 docker compose가 자동 로드하는 `.env`, backend/frontend는 각 loader 관행인 `.env.local`.
+`TRADING_ENCRYPTION_KEYS`(거래소 API Key 암호화용 Fernet, **최초 1회만** — 변경 시 기존 키 복호화 불가):
 
 ```bash
-git clone <repo-url> quant-bridge
-cd quant-bridge
-
-# Root (docker compose) — 파일명 주의: .env (NOT .env.local)
-cp .env.example .env
-
-# Backend (pydantic-settings가 .env.local 읽음)
-cp backend/.env.example backend/.env.local
-
-# Frontend (Next.js가 .env.local 읽음)
-cp frontend/.env.example frontend/.env.local
+cd backend && KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())") \
+  && echo "TRADING_ENCRYPTION_KEYS=$KEY" >> .env.local && echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../.env && cd ..
+# 두 파일 값이 동일해야 compose 워커와 로컬 uvicorn 이 같은 키로 복호화한다
 ```
 
-필수 실값 교체 (각 파일 `[필수 …]` 마킹된 키):
+Smoke: `curl localhost:8000/health` → 200 · `open localhost:3000` → Clerk 로그인.
+상세 셋업·트러블슈팅 = [`docs/reference/operations/local-setup.md`](docs/reference/operations/local-setup.md) ·
+검증 게이트 = [`docs/reference/operations/gates-and-traps.md`](docs/reference/operations/gates-and-traps.md).
 
-- `backend/.env.local` + `.env`: `CLERK_SECRET_KEY` (Clerk Dashboard → API Keys → Secret keys), `TRADING_ENCRYPTION_KEYS` ([생성 방법](#3-trading_encryption_keys-생성-sprint-6))
-- `frontend/.env.local`: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (Clerk Dashboard → Publishable keys)
+## Architecture at a Glance
 
-> **왜 3파일?** docker compose는 `./env`만 자동 로드, backend pydantic-settings는 `backend/.env.local` → `backend/.env` 순서로 로드, Next.js는 `frontend/.env.local` 로드. 파일 하나에 몰면 "이 변수가 어디서 쓰이나?" 추론 필요 + loader 간 약속이 drift됨. 서비스별 분리가 turborepo/cal.com/Vercel 공식 예제 표준.
+FastAPI + SQLModel/SQLAlchemy 2.0 + Celery(prefork) + PostgreSQL/TimescaleDB + Redis 백엔드에
+Next.js 16(App Router) + React Query + Zustand + shadcn/ui v4 프론트. 핵심 도메인 6종 =
+Strategy(`pine_v2`) / Backtest / Stress Test / Optimizer / Trading / Market Data.
 
-### 3. `TRADING_ENCRYPTION_KEYS` 생성 (Sprint 6+)
-
-거래소 API Key AES-256 암호화용 Fernet 키. **최초 1회만 생성**, 변경 시 기존 암호화된 API Key 복호화 불가:
-
-```bash
-cd backend
-KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-echo "TRADING_ENCRYPTION_KEYS=$KEY" >> .env.local      # uvicorn/celery (로컬)
-echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../.env         # docker compose 컨테이너
-cd ..
-```
-
-두 파일 값이 **반드시 동일**해야 compose 워커와 로컬 uvicorn이 같은 키로 복호화 일관 유지.
-
-### 4. 인프라 + 서버
-
-```bash
-# Postgres + Redis + TimescaleDB (background)
-docker compose up -d db redis
-
-# Backend (마이그레이션 + API 서버 + Celery worker — 각 별도 터미널)
-cd backend
-uv sync                              # 의존성 설치
-uv run alembic upgrade head          # DB 스키마
-uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
-uv run celery -A src.tasks worker --loglevel=info --concurrency=4 --pool=prefork
-
-# Frontend (별도 터미널)
-cd frontend
-pnpm install
-pnpm dev                             # http://localhost:3000
-```
-
-### 5. Smoke 검증
-
-```bash
-curl http://localhost:8000/health                   # 200 {"status":"ok"}
-open http://localhost:8000/docs                     # Swagger UI
-open http://localhost:3000                          # FE 홈 → Clerk 로그인
-cd backend && uv run pytest -q                      # ~1831 tests pass (2026-05 기준)
-```
-
-상세 셋업·환경변수·트러블슈팅은 **[`docs/reference/operations/local-setup.md`](docs/reference/operations/local-setup.md)** 참조.
-
----
+- 시스템 조립: [`docs/reference/architecture/system-architecture.md`](docs/reference/architecture/system-architecture.md)
+- 데이터 흐름: [`docs/reference/architecture/data-flow.md`](docs/reference/architecture/data-flow.md)
+- Pine 실행: [`docs/reference/architecture/pine-execution-architecture.md`](docs/reference/architecture/pine-execution-architecture.md)
+- 패키지 매니저 `uv`(backend) · `pnpm`(frontend) · 인증 Clerk(FE + BE JWT)
 
 ## Documentation
 
-| 위치                                                                 | 용도                                                                 |
-| -------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| [`AGENTS.md`](AGENTS.md)                                             | 개발 원칙·스택 규칙·새 세션의 읽기 순서 (LLM/에이전트 + 개발자 공용) |
-| [`DESIGN.md`](DESIGN.md)                                             | Stage 2 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                   |
-| [`docs/README.md`](docs/README.md)                                   | 현행 문서 지도 — 상태·로드맵·백로그·정본의 진입점                    |
-| [`docs/status.md`](docs/status.md)                                   | 활성 또는 다음 스프린트의 실행 계약                                  |
-| `docs/archive/superpowers/plans/` | superpowers:writing-plans 산출물 (Sprint별 implementation plan)      |
-| `.claude/rules/`                                                     | 스택별 규칙 (backend.md, frontend.md, nextjs-shared.md — paths 매칭 시 자동 로드) |
-
----
-
-## Sprint 진행 요약 (2026-04-17 기준 — ⚠ Sprint 7c 에서 고정, 이력 스냅샷)
-
-> **현행 sprint 상태·이력은 [`docs/status.md`](docs/status.md) + [`docs/dev-log/INDEX.md`](docs/dev-log/INDEX.md) SSOT** (현재 Sprint 60+, Beta 진입). 아래 표는 Sprint 1-7c 초기 이력만.
-
-| Sprint      | 내용                                                                                           | 상태                        |
-| ----------- | ---------------------------------------------------------------------------------------------- | --------------------------- |
-| 1~4         | Pine Parser MVP · 구 vectorbt Engine(철거됨) · Strategy CRUD API · Celery + Backtest REST      | ✅ 완료                     |
-| 5 Stage A/B | DateTime tz-aware · TimescaleDB · CCXT + TimescaleProvider · docker-compose worker/beat        | ✅ 완료 (PR #6/#7)          |
-| 6           | Trading 데모 MVP — webhook 자동 집행 · Kill Switch · AES-256 API Key 암호화                    | ✅ 완료 (PR #9)             |
-| 7a          | Bybit Futures + Cross Margin — leverage · margin_mode · leverage cap                           | ✅ 완료 (PR #10, 524 tests) |
-| 7c          | FE 따라잡기 — Strategy CRUD UI (목록 · 3-step wizard · 편집 3탭 · delete 409 archive fallback) | ✅ 완료 (본 README와 함께)  |
-| 7b          | Trading Sessions + OKX 멀티 거래소                                                             | 🔜 다음                     |
-| 8+          | Binance mainnet 실거래 · Kill Switch `capital_base` 동적 바인딩                                | 예정                        |
-
-상세: [`AGENTS.md`](AGENTS.md) "현재 작업" 섹션.
-
----
+| 문서                                                             | 역할                                                                    |
+| ---------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [`CONTEXT.md`](CONTEXT.md)                                       | **도메인 헌법** — 용어/관계 SSOT. 도메인 작업 전 필독                   |
+| [`AGENTS.md`](AGENTS.md)                                         | 에이전트/개발자 오리엔테이션 — 읽기 순서·Golden Rules·커맨드            |
+| [`docs/README.md`](docs/README.md)                               | 문서 지도 — 상태 3종·reference·decisions·lessons 진입점                 |
+| [`docs/status.md`](docs/status.md)                               | 활성/다음 스프린트의 실행 계약                                          |
+| [`docs/decisions/`](docs/decisions/)                             | ADR 26편 — 왜 이 선택인가 (SSOT 원칙 = ADR-026)                         |
+| [`DESIGN.md`](DESIGN.md)                                         | 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                              |
+| `.claude/rules/`                                                 | 스택 규칙 (backend/frontend/nextjs-shared — `paths` 매칭 시 자동 로드)  |
 
 ## License
 
