@@ -75,14 +75,14 @@ flowchart TB
 
 ### 컨테이너 책임
 
-| 컨테이너 | 책임                                                                                                  | 이미지/런타임                       | 포트 |
-| -------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------- | ---- |
-| Frontend | Next.js 16 SSR/CSR, Clerk SDK, React Query, Zustand                                                   | `node:22`                           | 3000 |
-| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch                                              | `python:3.11-slim` + `uv`           | 8000 |
-| Worker   | Celery prefork, pine_v2 AST 인터프리터 백테스트 실행, OHLCV 수집 (지표 계산은 vectorbt 보조, ADR-011) | API와 동일 이미지                   | —    |
-| Beat     | Celery beat scheduler (stale reclaim, market_data sync)                                               | API와 동일 이미지                   | —    |
-| DB       | PostgreSQL 15 + TimescaleDB 확장                                                                      | `timescale/timescaledb:latest-pg15` | 5432 |
-| Redis    | Celery 브로커 + 결과 백엔드 + 캐시                                                                    | `redis:7-alpine`                    | 6379 |
+| 컨테이너 | 책임                                                                                                                      | 이미지/런타임                       | 포트 |
+| -------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ---- |
+| Frontend | Next.js 16 SSR/CSR, Clerk SDK, React Query, Zustand                                                                       | `node:22`                           | 3000 |
+| API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch                                                                  | `python:3.11-slim` + `uv`           | 8000 |
+| Worker   | Celery prefork, pine_v2 AST 인터프리터 백테스트 실행, OHLCV 수집 (지표도 pine_v2 직접 계산 — vectorbt 는 2026-08-06 제거) | API와 동일 이미지                   | —    |
+| Beat     | Celery beat scheduler (stale reclaim, market_data sync)                                                                   | API와 동일 이미지                   | —    |
+| DB       | PostgreSQL 15 + TimescaleDB 확장                                                                                          | `timescale/timescaledb:latest-pg15` | 5432 |
+| Redis    | Celery 브로커 + 결과 백엔드 + 캐시                                                                                        | `redis:7-alpine`                    | 6379 |
 
 > Frontend 개발 서버는 `pnpm dev`로 직접 실행한다. Worker와 Beat는 compose 서비스로 실행한다.
 
@@ -372,13 +372,13 @@ sequenceDiagram
 
 > 구현 메트릭의 정본은 [`backend/src/common/metrics.py`](../../../backend/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`roadmap.md`](../../roadmap.md)의 Beta·Deferred 게이트에서 관리한다.
 
-| 영역     | 현재 상태                                                               | 도입 sprint                              |
-| -------- | ----------------------------------------------------------------------- | ---------------------------------------- |
-| 로그     | stdlib `logging` + structured `extra={...}` 점진 도입                   | Sprint 9+                                |
-| 메트릭   | Prometheus `prometheus_client` (`/metrics`, Celery multiprocess 지원)  | Sprint 9 Phase D 이후 |
-| 알림     | Slack webhook (best-effort, BoundedSemaphore(8) + 15s timeout)          | Sprint 12 Phase A                        |
-| 트레이싱 | 미적용 — H2 후반 OpenTelemetry 검토                                     | TODO                                     |
-| 대시보드 | 외부 수집·대시보드 배포는 미결정                                         | Beta·Deferred                            |
+| 영역     | 현재 상태                                                             | 도입 sprint           |
+| -------- | --------------------------------------------------------------------- | --------------------- |
+| 로그     | stdlib `logging` + structured `extra={...}` 점진 도입                 | Sprint 9+             |
+| 메트릭   | Prometheus `prometheus_client` (`/metrics`, Celery multiprocess 지원) | Sprint 9 Phase D 이후 |
+| 알림     | Slack webhook (best-effort, BoundedSemaphore(8) + 15s timeout)        | Sprint 12 Phase A     |
+| 트레이싱 | 미적용 — H2 후반 OpenTelemetry 검토                                   | TODO                  |
+| 대시보드 | 외부 수집·대시보드 배포는 미결정                                      | Beta·Deferred         |
 
 ### 메트릭 카탈로그
 

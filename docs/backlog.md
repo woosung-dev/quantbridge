@@ -821,6 +821,9 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-594](#bl-594) ✅ | ★**Redis 가 재기동 불능인 채 6일 돌고 있었다** — `make down` 후 `unhealthy` 로 기동 실패. `appendonly.aof.4.incr.aof` 가 **35.6MB 중 30.8MB(86.6%) 판독 불가**. AOF 는 **기동 시에만 읽히므로** 떠 있는 프로세스에는 증상이 0 이고 healthcheck(`redis-cli ping`)도 구조적으로 못 본다. ⇒ 스택에 **재기동 내성이 없었다** — [BL-003] 의 168h 창 안에 재부팅이 들어오면 워커가 안 뜬다. 손상 원인 미조사                                                                                                                                                                                                                                                                                                                                                                | 소크가 168h 를 향해 도는 동안 · 호스트 재부팅 전                                                                  | S            | 2026-08-05 soak-clock-restoration                      |
 | [BL-596](#bl-596) ✅ | 게이트가 **모르는 라벨을 조용히 무해 취급**한다 — `soak_gate_predicate.py:191` 이 `label == "phantom"` 만 실격으로 세므로 `unattributed` 도, 앞으로 판별식이 낼 어떤 새 라벨도 **fail-open** 이다. 판별식은 2026-08-05 에만 두 번 바뀌었다(봉경계식 → 재무장식 → 회복식). 현행 회복식은 판정 불가를 새 라벨이 아니라 **종전 식으로 강하**시켜 이 경로를 피해 갔을 뿐 닫지는 않았다. **2026-08-05 Resolved** — 라벨 어휘를 명시적 3분할 frozenset 으로 읽고, 무해도 실격도 아닌 라벨(`unattributed` + 어휘 밖 + 키 결손)은 C5 를 떨어뜨려 `UNKNOWN 측정불가`. 소급 실격은 아니고, FAIL 이 C5 보다 먼저라 실격을 덮지도 않는다. 알려진 라벨만 있는 판정은 180 조합 전량 불변                                                                                            | 판별식이 새 라벨을 낼 때 · 또는 `unattributed` 가 실제로 관측될 때                                                | S            | 2026-08-05 live-replay-visibility                      |
 | [BL-598](#bl-598)    | ★**코퍼스 스크립트를 처음 파싱하는 테스트가 비용을 전부 문다** — `test_ast_classifier[i3_drfx]` 단독 **42.66s** vs 전체 스위트 안 **4.58s**. 프로세스 전역 비용이라 **쪼개면 샤드마다 중복**된다(CI 3샤드 합 1796s vs 단일 1278s, +519s 전부가 이 중복). 샤딩 저항의 뿌리이고 CI 14분 벽의 원인. 캐시 데코레이터는 **찾아봤고 없다** — 정체 규명이 먼저                                                                                                                                                                                                                                                                                                                                                                                                               | CI backend 를 14분 아래로 내리려 할 때 · pine_v2 코퍼스 테스트를 늘리기 전에                                      | M            | 2026-08-06 ci-diet                                     |
+| [BL-599](#bl-599)    | Pine v1 shim(`src/strategy/pine/` 135L)은 타입 4종만 재export 하는 껍데기지만 `BacktestOutcome.parse` 가 코어 DTO 필드라 **단독 철거 불가**. 소비처는 「2곳」보다 넓다 — 프로덕션 import 2 + 생성 site 10+ + 테스트 3파일                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `BacktestOutcome` 를 손볼 일이 생겼을 때 (단독으로 열지 마라)                                                     | M            | 2026-08-06 dead-code-sweep                             |
+| [BL-600](#bl-600)    | `strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT 헌법의 _Avoid_ 이름과 **동음이의 충돌**(이쪽은 장중 시간대 필터). 값이 `Strategy.trading_sessions` **JSONB 에 영속**돼 단순 rename 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `trading_sessions` JSONB 를 마이그레이션할 때 · 도메인 용어 정리 시                                               | M            | 2026-08-06 dead-code-sweep                             |
+| [BL-601](#bl-601)    | 호출 0건 잔재 3종 — `OrderRepository.get_state_fresh` · `list_unsynced_reduce_only_since` · `scripts/fleet-dispatch-test.sh`. ★원안의 「고아 하니스 3종」은 **1종으로 정정**(나머지 둘은 final-gates 체인 안에 있다)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S            | 2026-08-06 dead-code-sweep                             |
 | [BL-602](#bl-602)    | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S            | 2026-08-06 e2e-consolidation                           |
 | [BL-597](#bl-597) ✅ | e2e authed 가 **소크 상태와 결합** — 열린 포지션이 `/trading` 에 표를 추가해 느슨한 로케이터가 엉뚱한 표를 집는다(final-gates 1차 red, hydration flake 와 다른 축)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | e2e 로케이터 수리 전 · 소크 병행 게이트마다                                                                       | S            | 2026-08-06 night-watch                                 |
 
@@ -7174,3 +7177,84 @@ CI 3 샤드 합 **1796s** vs 단일 **1278s** 의 **+519s 전부**가 이 중복
 **연결:** [BL-583] (수집 집합이 결과를 바꾼 선례 — 같은 「무엇이 함께 도는가」 축)
 
 **출처:** 2026-08-06 ci-diet (CI run 31071389290 잡별 실측 부검)
+
+### BL-599
+
+**Priority:** P3
+**카테고리:** Backend / 죽은 코드 (Pine v1 shim)
+**Trigger:** `BacktestOutcome` 를 손볼 일이 생겼을 때 (단독으로 열지 마라 — 이득 대비 파급이 크다)
+**Est:** M
+**상태:** ⬜ **Open**
+
+**Pine v1 shim(`src/strategy/pine/`, 135L)은 타입 4종만 재export 하는 껍데기다.**
+lexer/parser/interpreter/stdlib/v4_to_v5/ast_nodes 6 모듈(2146L)은 이미 제거됐고, 남은 것은
+`ParseOutcome / SignalResult / SourceSpan / PineError` 뿐이다.
+
+**왜 아직 못 지우나.** `BacktestOutcome.parse: ParseOutcome` 이 코어 DTO 필드라서다. 소비처는
+**「2곳」보다 넓다**(2026-08-06 실측): 프로덕션 import 2곳(`backtest/engine/types.py:13` ·
+`v2_adapter.py:39`) + `BacktestOutcome(...)` 생성 site **10곳 이상**(v2_adapter) + 테스트 3파일
+(`tests/backtest/engine/test_types.py` · `tests/strategy/pine/test_types.py` · `test_errors.py`).
+`walk_forward.py` 도 `BacktestOutcome` 을 타입으로 받는다.
+
+**처리 방향:** shim 제거는 `BacktestOutcome.parse` 철거와 **동시에만** 의미가 있다.
+① 그 필드가 실제로 소비되는지(API 응답까지 나가는지) 먼저 추적 ② 안 나가면 필드 제거 +
+생성 site 정리 ③ 그 뒤 `src/strategy/pine/` 삭제. ★①을 건너뛰고 shim 만 옮기면 순환만 늘어난다.
+
+**Risk:** 🟢 순수 정리. 다만 코어 DTO 를 건드리므로 백테스트·최적화·스트레스 3 소비자에 동시 파급.
+
+**출처:** 2026-08-06 dead-code-sweep
+
+---
+
+### BL-600
+
+**Priority:** P3
+**카테고리:** Backend / 명명 (CONTEXT 헌법 충돌)
+**Trigger:** `trading_sessions` JSONB 키를 마이그레이션할 일이 생겼을 때 · 신규 도메인 용어 정리 시
+**Est:** M
+**상태:** ⬜ **Open**
+
+**`strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT.md 의 _Avoid_ 이름과 충돌한다.**
+헌법은 **TradingSession** 을 「미구현 phantom — 실제 lifecycle 은 LiveSignalSession + Order +
+LiveSignalEvent」로 못박아 두었는데, 이 파일은 같은 이름을 **장중 시간대 필터**(asia/london/ny)로
+쓴다. 의미가 다른 동음이의어라 헌법을 읽고 온 사람이 정확히 반대로 이해한다.
+
+★**단순 rename 이 아니다.** 이 값은 `Strategy.trading_sessions` **JSONB 에 문자열로 영속**되고
+(`SESSION_VALUES` frozenset), 백테스트 엔진과 라이브 executor 양쪽이 읽는다. 게다가 trading 도메인에
+`TradingSessionClosed` 예외와 `TradingSessionTzNaiveReject` 가 따로 있어 grep 만으로는 안 갈린다.
+
+**처리 방향:** ① JSONB 에 실제로 들어 있는 키/값 분포를 먼저 조사 ② 코드 심볼만 개명
+(`MarketSession` 등) 하고 **영속 값은 건드리지 않는** 안이 최소 ③ 예외 이름 2종도 같이 볼지 판단.
+
+**Risk:** 🟡 영속 데이터가 걸려 있어 rename 을 코드에만 적용해야 한다.
+
+**출처:** 2026-08-06 dead-code-sweep
+
+---
+
+### BL-601
+
+**Priority:** P3
+**카테고리:** Backend / 죽은 코드 (호출 0건)
+**Trigger:** `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕
+**Est:** S
+**상태:** ⬜ **Open**
+
+**호출자가 0인 채 남아 있는 것 3종** (2026-08-06 실측 — 정의 줄 외 참조 0):
+
+| 대상                                                          | 비고                                                       |
+| ------------------------------------------------------------- | ---------------------------------------------------------- |
+| `OrderRepository.get_state_fresh` (`order_repository.py:280`) | 테스트도 없다                                              |
+| `OrderRepository.list_unsynced_reduce_only_since` (`:733`)    | 테스트도 없다                                              |
+| `scripts/fleet-dispatch-test.sh`                              | 자기 docstring 외 참조 0. `fleet-dispatch.sh` 는 살아 있다 |
+
+★**원안의 「고아 하니스 3종」은 1종으로 정정한다** — `bl-audit-test.sh` ·
+`pre-push-guard-test.sh` · `sentinel_bl181_worker_reload.sh` 는 **고아가 아니다**(각각 backlog ·
+soak-gate 주석 · dev-log 가 참조하고, 앞의 둘은 `final-gates.sh` 체인 안에 있다).
+
+**처리 방향:** 지우기 전에 **왜 만들어졌는지** 한 번 본다 — `list_unsynced_reduce_only_since` 는
+reduce-only 동기화 복구용으로 보이므로, 그 복구 경로가 다른 방식으로 구현됐는지 확인 후 제거.
+
+**Risk:** 🟢 순수 정리.
+
+**출처:** 2026-08-06 dead-code-sweep

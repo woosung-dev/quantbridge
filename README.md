@@ -12,7 +12,7 @@
 | Frontend      | Next.js 16 App Router · TypeScript Strict · Tailwind CSS v4 · shadcn/ui v4 (Base UI) · Monaco Editor · React Query · Zustand · Zod v4 · Clerk |
 | Backend       | FastAPI · SQLModel 2.0 · Celery + Redis · PostgreSQL + TimescaleDB · Alembic · Pydantic v2 · CCXT (async)                                     |
 | Parser        | 커스텀 Pine v4/v5 토크나이저·인터프리터 (`exec`/`eval` 금지 — ADR 003)                                                                        |
-| Backtest      | `pine_v2` 자체 AST 인터프리터 (bar-by-bar SSOT, ADR-011). vectorbt 는 지표계산 보조                                                           |
+| Backtest      | `pine_v2` 자체 AST 인터프리터 (bar-by-bar SSOT, ADR-011). 지표도 `pine_v2/stdlib.py` 가 pandas/numpy 로 직접 계산                             |
 | 패키지 매니저 | `uv` (backend) · `pnpm` (frontend)                                                                                                            |
 | 인증          | Clerk (Frontend + Backend JWT 검증)                                                                                                           |
 
@@ -102,14 +102,14 @@ cd backend && uv run pytest -q                      # ~1831 tests pass (2026-05 
 
 ## Documentation
 
-| 위치                                                 | 용도                                                                                                        |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| [`AGENTS.md`](AGENTS.md)                             | 개발 원칙·스택 규칙·새 세션의 읽기 순서 (LLM/에이전트 + 개발자 공용)                                       |
-| [`DESIGN.md`](DESIGN.md)                             | Stage 2 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                                                          |
-| [`docs/README.md`](docs/README.md)                   | 현행 문서 지도 — 상태·로드맵·백로그·정본의 진입점                                                          |
-| [`docs/status.md`](docs/status.md)                   | 활성 또는 다음 스프린트의 실행 계약                                                                         |
-| [`docs/archive/superpowers/plans/`](docs/archive/superpowers/plans/) | superpowers:writing-plans 산출물 (Sprint별 implementation plan)                                             |
-| [`.ai/rules/`](.ai/rules/)                           | 스택별 강제 규칙 (backend.md, frontend.md, typescript.md 등)                                                |
+| 위치                                                                 | 용도                                                                 |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| [`AGENTS.md`](AGENTS.md)                                             | 개발 원칙·스택 규칙·새 세션의 읽기 순서 (LLM/에이전트 + 개발자 공용) |
+| [`DESIGN.md`](DESIGN.md)                                             | Stage 2 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                   |
+| [`docs/README.md`](docs/README.md)                                   | 현행 문서 지도 — 상태·로드맵·백로그·정본의 진입점                    |
+| [`docs/status.md`](docs/status.md)                                   | 활성 또는 다음 스프린트의 실행 계약                                  |
+| [`docs/archive/superpowers/plans/`](docs/archive/superpowers/plans/) | superpowers:writing-plans 산출물 (Sprint별 implementation plan)      |
+| [`.ai/rules/`](.ai/rules/)                                           | 스택별 강제 규칙 (backend.md, frontend.md, typescript.md 등)         |
 
 ---
 
@@ -119,7 +119,7 @@ cd backend && uv run pytest -q                      # ~1831 tests pass (2026-05 
 
 | Sprint      | 내용                                                                                           | 상태                        |
 | ----------- | ---------------------------------------------------------------------------------------------- | --------------------------- |
-| 1~4         | Pine Parser MVP · vectorbt Engine · Strategy CRUD API · Celery + Backtest REST                 | ✅ 완료                     |
+| 1~4         | Pine Parser MVP · 구 vectorbt Engine(철거됨) · Strategy CRUD API · Celery + Backtest REST      | ✅ 완료                     |
 | 5 Stage A/B | DateTime tz-aware · TimescaleDB · CCXT + TimescaleProvider · docker-compose worker/beat        | ✅ 완료 (PR #6/#7)          |
 | 6           | Trading 데모 MVP — webhook 자동 집행 · Kill Switch · AES-256 API Key 암호화                    | ✅ 완료 (PR #9)             |
 | 7a          | Bybit Futures + Cross Margin — leverage · margin_mode · leverage cap                           | ✅ 완료 (PR #10, 524 tests) |

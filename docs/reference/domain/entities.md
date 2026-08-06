@@ -54,7 +54,7 @@
 - **도메인:** backtest
 - **코드:** `backend/src/backtest/models.py` (`class Backtest`)
 - **테이블:** `backtests`
-- **책임:** `pine_v2` 인터프리터(SSOT) 백테스트 실행 결과. 입력 파라미터(불변) + 상태 + 결과(JSONB). (vectorbt 는 지표계산 보조로 강등, ADR-011)
+- **책임:** `pine_v2` 인터프리터(SSOT) 백테스트 실행 결과. 입력 파라미터(불변) + 상태 + 결과(JSONB). (vectorbt 는 ADR-011 로 강등된 뒤 2026-08-06 의존성 제거)
 - **PK:** UUID
 - **주요 필드:**
   - `id: UUID`, `user_id FK`, `strategy_id FK` (RESTRICT)

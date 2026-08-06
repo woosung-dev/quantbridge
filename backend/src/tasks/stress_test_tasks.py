@@ -1,7 +1,7 @@
 """run_stress_test_task — Celery prefork-safe Stress Test 실행기.
 
 src.tasks.backtest 패턴을 그대로 따른다:
-- 모듈 top-level 에서는 무거운 import (vectorbt, engine, async_session_factory) 금지.
+- 모듈 top-level 에서는 무거운 import (engine, async_session_factory) 금지.
 - Sprint 18 BL-080 Option C: run_in_worker_loop 안에서 engine/sessionmaker 매 호출 생성 후 dispose.
 """
 from __future__ import annotations

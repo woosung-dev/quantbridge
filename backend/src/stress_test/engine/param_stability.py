@@ -12,7 +12,7 @@ Sprint 51 = 9 cell. 확장은 BL 등재 후 dedicated queue + time limit 설계 
 BL-084 보존: 매 cell run_backtest() 새 호출 → 새 PersistentStore + Interpreter
 (Sprint 19 Resolved). state_isolation test 가 call count + cfg isolation spy.
 
-ADR-011 §6/§8 정합: vectorbt 직접 사용 X. run_backtest = pine_v2 v2_adapter alias.
+ADR-011 §6/§8 정합: run_backtest = pine_v2 v2_adapter alias.
 
 Sprint 53 BL-220 lift-up: 2D nested loop 을 `src.common.grid_sweep.run_grid_sweep`
 generic engine 으로 위임. BL-225 input_type validation + var_name cross-check +

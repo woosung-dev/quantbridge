@@ -261,9 +261,10 @@ class BacktestRepository:
     async def count_trades_by_direction(self, backtest_id: UUID) -> tuple[int, int, int]:
         """방향별 거래 수 집계 (open + closed 모두 포함).
 
-        Sprint 31-E (BL-155): metrics.long_count/short_count 가 vectorbt
-        `trades.long.count()` 기반으로 closed only 만 집계해 FE 거래 목록
-        (open + closed = trades.length) 과 1건 mismatch 발생. service layer
+        Sprint 31-E (BL-155): metrics.long_count/short_count 가 **closed only** 만
+        집계해 FE 거래 목록 (open + closed = trades.length) 과 1건 mismatch 발생.
+        (구 vectorbt `trades.long.count()` 시절의 의미를 pine_v2 `v2_adapter` 가
+        그대로 이어받았다 — 엔진만 바뀌었고 집계 모수는 같다.) service layer
         에서 본 helper 로 재계산해 사용자 시점 일관성 유지.
 
         Returns:

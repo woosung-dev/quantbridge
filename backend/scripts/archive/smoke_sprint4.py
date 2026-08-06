@@ -7,13 +7,14 @@
 
     # Terminal 2 — Smoke 스크립트 실행
     cd backend
-    uv run python scripts/smoke_sprint4.py [s1|s2|s3]
+    uv run python scripts/archive/smoke_sprint4.py [s1|s2|s3]
 
 HTTP/Clerk 우회 (로컬 smoke 목적):
 - BacktestService 직접 호출 (dependency injection 대신)
 - Celery broker 경로는 실제로 검증
 - HTTP 레이어는 이미 368 pytest로 커버됨
 """
+
 from __future__ import annotations
 
 import asyncio

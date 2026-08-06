@@ -2,7 +2,7 @@
 
 `parse_and_run_v2` 가 반환하는 `V2RunResult` (Track S/A/M) 의 `StrategyState`
 를 기존 엔진이 기대하는 `BacktestOutcome(BacktestResult(metrics, equity,
-trades))` 형태로 변환한다. vectorbt 는 사용하지 않으며, bar-by-bar 누적 PnL
+trades))` 형태로 변환한다. bar-by-bar 누적 PnL
 방식으로 equity curve 를 재구성한다.
 
 Decimal-first 합산 규칙 (CLAUDE.md LESSON) 준수 — 금융 수치는 float 공간에서
@@ -650,8 +650,8 @@ def _compute_metrics(
     tripwire 이다.
 
     Sprint 31 BL-154: pine_v2 엔진 production path 에 신규 12 metric 직접
-    계산 (vectorbt 의존 없이 RawTrade + equity Series 만 사용). vectorbt
-    `extract_metrics` (engine/metrics.py) 와 알고리즘 정합:
+    계산 (RawTrade + equity Series 만 사용). 구 vectorbt 기반
+    `extract_metrics` (engine/metrics.py — 파일은 남아 있다) 와 알고리즘 정합:
       - avg_holding_hours: (exit_bar - entry_bar) * freq_to_hours
       - consecutive_*_max: closed PnL 부호 streak
       - long/short_win_rate_pct: direction 별 win_rate
