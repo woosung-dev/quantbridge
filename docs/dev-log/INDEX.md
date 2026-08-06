@@ -11,6 +11,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-06 entry-set-divergence** — ★[BL-604] 동인 분리 → **프레임 반전**: 워밍업 기여 0건(B≡R(fill) multiset 동일)·세션 공백 0쌍·「예측 못 한 46건」은 키 규약 관측(체결 지연 57%가 ±3봉 밖). 장전봉 정렬 81/90=90%, 진짜 미예측 **2/90**. `replay`/`entrysets` 신설. FE 정직성 3종+BL-609 Resolved — [dev-log](2026-08-06-entry-set-divergence.md)
 - **2026-08-06 backtest-reality-gap** — ★백테스트↔라이브 원장 **첫 대조**. 병목은 비용·체결가가 아니라 **진입 집합** — 매칭 34/84, 예측 못 한 46건 = 손실 62%([BL-604]). 비용은 taker 0.055% 단일(가정의 1/2.7, [BL-603]). 스팟/perp 144쌍 전건 양수·중앙 +29.95(**BL-535 종결**). ★귀속 off-by-one 이 가격축 부호를 바꿨다 — [dev-log](2026-08-06-backtest-reality-gap.md)
 - **2026-08-06 ci-diet** — CI **23~25분 → 14.8분**(PR #548/#549/#550 · 47 패키지 제거). ★★**12분 미달은 구조적** — 코퍼스 첫-접촉 비용이 샤드마다 중복(+519s 전부, [BL-598]). ★샤드 추정 **2.2배 오차** — `--durations` 는 「누가 먼저 돌았나」의 함수. ★★**§5 전제는 죽은 게 아니라 휴면**(3h22m 뒤 steps=0 재발). **public 전환** — [dev-log](2026-08-06-ci-diet.md)
 - **2026-08-06 night-watch** — ★**[ADR-025] Accepted**(12h 전향 예측 4/4 — phantom 0 · 발주 84 · 카운터 차분 +223) · **BL-594/596 Resolved · BL-591 P2 강등**. ★계획 재기동 1회로 B2 실증, 누적 12.75h 연속. ★★e2e red 는 flake 가 아니라 **소크 열린 포지션↔로케이터 결합**(BL-597) — [dev-log](2026-08-06-night-watch.md)
@@ -22,10 +23,10 @@
 - **2026-08-04 direction-channel-decomposition** — ★★★**`direction` 은 두 현상** — 무해 `replay_lag` **7** : 치명 `phantom` **4**(경과 24.7초 vs 909초, 겹침 0, 사망 2/2). ★소크 중단·발산 축 **동결** → [BL-580] 12곳(census **96→84**). ★★「전부 같은 형태」를 **기존 테스트가 반증** — [dev-log](2026-08-04-direction-channel-decomposition.md)
 - **2026-08-04 engine-state-ssot** — 설계 회차(코드 0줄 · 소크 무중단). ★★★**기각 3건이 순환**이었다 — 「엔진에 쓸 자리가 없다」는 경계가 아니라 **고칠 결함**이다. ④=0 에 이어 **veto 절반까지** 꺼짐(사망 2건 모두 **이미 판정불가 뒤** 죽었다). ★**Trust Layer 23테스트가 `run_live` 0회 호출** ⇒ 갈라져도 CI green. **ADR-023 Proposed** — [dev-log](2026-08-04-engine-state-ssot.md)
 - **2026-08-04 engine-position-ssot** — 슬라이스 1(계측) PR #539 OPEN, **슬라이스 2 미착수 확정**. ④ = 0(사망 2건 상류에 `exchange_only` 0건, 최악 ≤1/21). ★★★**net 은 맞고 legs 는 틀리다** — 외부 오라클 11건 오답 **0** 인데 적중 4 중 **3건이 `legs=2`**(거래소는 단일). 판정은 net, 주입은 legs. ⑤ 판정불가 **27.6%** — [dev-log](2026-08-04-engine-position-ssot.md)
-- **2026-08-03 breach-rejection-recovery** — 소크를 105분에 끊은 거절. ★가드는 **발주 시각에 옳았다** — 거래소가 2.1초 뒤 자기 시각으로 `110093` 거절, 그 뒤 **복구가 없어** 엔진 시뮬만 전진했다. 거절을 「돌파 확정 증거」로 읽고 시장가 전환 집행. ★거울 코드 `110092` 포함. 변이 **8/8** · 유도로 프로덕션 발화 확인. **BL-590 Resolved** — [dev-log](2026-08-03-breach-rejection-recovery.md)
 
 ## 전체 이력
 
+- **2026-08-03 breach-rejection-recovery** — 소크를 105분에 끊은 거절. ★가드는 **발주 시각에 옳았다** — 거래소가 2.1초 뒤 자기 시각으로 `110093` 거절, 그 뒤 **복구가 없어** 엔진 시뮬만 전진했다. 거절을 「돌파 확정 증거」로 읽고 시장가 전환 집행. ★거울 코드 `110092` 포함. 변이 **8/8** · 유도로 프로덕션 발화 확인. **BL-590 Resolved** — [dev-log](2026-08-03-breach-rejection-recovery.md)
 - **2026-08-03 soak-divergence-root** — 소크를 65분에 끊은 발산. ★엔진은 취소를 못 본 게 아니라 **주문을 아예 모른다**(포지션 = `run_live` 시뮬). 뿌리는 계획기가 「대기 주문이 있다」만으로 시장가 전환을 껐다는 것 — 그 주문은 **발화 불가**였다. ★★한 번에 둘을 고치면 서로의 증거를 가린다. **BL-589/587/585/588 Resolved · 소크 재가동** — [dev-log](2026-08-03-soak-divergence-root.md)
 - **2026-08-03 backtest-metric-oracle** — 회귀망이 위험조정지표에 **감지력 0** 이었다(5벌 전부 sharpe=0·sortino/calmar=null). 컨벤션 대조 + 비축퇴 2벌로 채널 신설. **BL-461 Resolved** — 하루치 1h 봉이 **Sharpe 16.56** 을 보고했다. ★표적 2건 빗나감. ★★**소크가 65분에 죽었다 → BL-589(P1)** — [dev-log](2026-08-03-backtest-metric-oracle.md)
 - **2026-08-03 metric-guard-residual-sweep** — 발주 outbox 12곳 수리 8·보류 4, 신규 H8 — [dev-log](2026-08-03-metric-guard-residual-sweep.md)
