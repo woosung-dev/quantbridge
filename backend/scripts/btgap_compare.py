@@ -4,11 +4,20 @@
 
 ## 서브커맨드 셋
 
-| 명령     | 하는 일                                                                  |
-| -------- | ------------------------------------------------------------------------ |
-| `run`    | 얼린 OHLCV 로 엔진을 직접 재실행해 `trades.json` + digest 를 만든다      |
-| `match`  | `trades.json` × 라이브 원장을 **4단 분해**해 `report.json` 을 만든다     |
-| `s1diff` | 스팟/perp 두 `trades.json` 의 같은 신호봉 진입가 차 분포를 낸다          |
+| 명령        | 하는 일                                                                    |
+| ----------- | -------------------------------------------------------------------------- |
+| `run`       | 얼린 OHLCV 로 엔진을 직접 재실행해 `trades.json` + digest 를 만든다        |
+| `match`     | `trades.json` × 라이브 원장을 **4단 분해**해 `report.json` 을 만든다       |
+| `replay`    | 롤링 창 × `run_live` 로 **라이브 프로토콜**을 재생해 진입 집합 R 을 낸다   |
+| `entrysets` | B · R · L 세 진입 집합 중 **둘**을 정규화해 쌍별로 맞춘다                  |
+| `s1diff`    | 스팟/perp 두 `trades.json` 의 같은 신호봉 진입가 차 분포를 낸다            |
+
+## `run` 과 `replay` 는 **같은 엔진을 다른 프로토콜로** 돌린다
+
+`run` 은 전 구간을 한 번에 돌린다(백테스트). `replay` 는 매 봉마다 직전 300봉만 잘라
+`run_live` 를 다시 돌린다(라이브). 그 차이 하나가 「롤링 워밍업의 몫」이고, 그것을
+재려고 `replay` 가 있다. 그래서 `replay` 는 **원장 인자 4종을 넘기지 않는다** —
+넘기면 재는 대상이 「롤링 창」에서 「롤링 창 + 원장 체결 권한」으로 바뀐다.
 
 ## 대조가 서 있는 세 개의 못 (전부 코드가 정본이다)
 
@@ -75,6 +84,7 @@ import argparse
 import hashlib
 import json
 import sys
+from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -1958,6 +1968,655 @@ def _run_backtest(
 
 
 # --------------------------------------------------------------------------
+# `replay` — 라이브 프로토콜 재생 (롤링 창 × `run_live`)
+# --------------------------------------------------------------------------
+
+# 라이브가 매 tick 가져오는 봉 수. `tasks/live_signal._fetch_evaluation_bars` 의
+# `limit_bars=300` 이 정본이다 (perp 강제). 이 값이 곧 「엔진이 볼 수 있는 과거」다.
+REPLAY_WINDOW_BARS = 300
+
+# R 의 채널 셋. **셋은 서로 다른 단계를 잰다** — 섞어 세면 안 된다.
+#
+# | kind    | 무엇                                   | 봉의 의미        | 대응하는 L/B      |
+# | ------- | -------------------------------------- | ---------------- | ----------------- |
+# | `cond`  | 엔진이 장전한 조건부 진입 (재장전 포함) | **장전봉**       | L 의 `cond` key   |
+# | `entry` | 마지막 봉에서 나온 시장가 진입 signal   | **장전봉**       | L 의 `entry` key  |
+# | `fill`  | 마지막 봉에서 엔진이 **연** 포지션      | **체결봉**       | B 의 `entry_time` |
+#
+# ★`cond`/`entry` 는 L 과 같은 단계이고(둘 다 `ctx.bar_time` = 창의 마지막 봉),
+# `fill` 은 B 와 같은 단계다(둘 다 엔진 진입 봉). 그래서 R↔L 은 앞의 둘로,
+# B↔R(사전등록 ②의 `|B| − |R|`)은 `fill` 로 재야 분모의 뜻이 같다.
+REPLAY_KINDS: tuple[str, ...] = ("cond", "entry", "fill")
+
+# 거래소 눈금. 라이브는 `_reconcile_market_precision` 이 ccxt 로 읽지만 재생은 네트워크를
+# 타지 않으므로 인자로 받는다. 기본값은 **이 실험의 원장 덤프에서 실측한 값**이다 —
+# `cond` key 의 수량 표기가 `0.029`/`0.058` 뿐(3자리)이고 트리거는 `64105.5` 꼴(1자리)이라
+# BTCUSDT linear 의 `(qty_step, price_tick) = (0.001, 0.1)` 이다. 다른 심볼이면 바꿔라.
+REPLAY_QTY_STEP = Decimal("0.001")
+REPLAY_PRICE_TICK = Decimal("0.1")
+
+
+def _replay_frame(ohlcv_csv: Path) -> Any:
+    """CSV → **라이브가 `run_live` 에 넘기는 것과 같은 모양**의 프레임.
+
+    ★`_run_backtest` 와 다르다. 저쪽은 `timestamp` 를 **인덱스**로 세우지만
+    (`ohlcv.set_index`), 라이브는 `_ohlcv_rows_to_dataframe` 가 RangeIndex + tz-aware
+    `timestamp` **컬럼**을 준다. 그 차이는 관상용이 아니다 — `run_historical` 은
+    `ohlcv.index` 가 `DatetimeIndex` 일 때만 `BarContext(timestamps=...)` 를 채우므로
+    (`event_loop.py:125-130`), 인덱스로 세우면 세션 게이트가 보는 시각이 있고 없고가
+    갈린다. R 은 **라이브를 재생하는 것**이므로 라이브 쪽을 그대로 베낀다.
+    """
+    import pandas as pd
+
+    frame = pd.read_csv(ohlcv_csv, parse_dates=["timestamp"])
+    timestamps = pd.DatetimeIndex(frame["timestamp"])
+    if timestamps.tz is None:
+        timestamps = timestamps.tz_localize("UTC")
+    else:
+        timestamps = timestamps.tz_convert("UTC")
+    frame["timestamp"] = timestamps
+    return frame.reset_index(drop=True)
+
+
+def _engine_position(result: Any) -> Decimal:
+    """마지막 봉을 처리한 뒤의 엔진 순 포지션 (long +, short −).
+
+    ★`position_size` 는 엔진 안에서 float 로 누적된 값이다(실측 오염
+    `0.058998579999999995`). 여기서 Decimal 로 올리는 것은 **이후 산술**을 float 공간에서
+    하지 않기 위해서지, 누적 오차를 되돌리지는 못한다.
+    """
+    raw = result.strategy_state_report.get("position_size")
+    return Decimal(str(raw or 0))
+
+
+def _replay_conditional_rows(
+    result: Any,
+    *,
+    bar_epoch: int,
+    bar_time: str,
+    qty_step: Decimal,
+    price_tick: Decimal,
+) -> list[dict[str, Any]]:
+    """이 tick 에 라이브가 **거래소에 낼** 조건부 진입 = `pending_orders` 의 상.
+
+    `plan_reconcile` 의 산식을 **그대로, 같은 순서로** 쓴다
+    (`conditional_entry_planner.py:482-540`):
+
+    1. **목표 자체가 거래소 눈금 미만이면 등재하지 않는다** (`below_exchange_minimum`,
+       `planner:482-499`). `target != 0` 인데 `_normalize(|target|, qty_step) == 0` 인
+       경우이고, 잔여 드리프트와 **다르다** — 이쪽은 그 전략이 이 계정에서 영원히 한 주도
+       못 낸다는 뜻이다. 2번 검사로는 안 걸린다: 목표 `0.0005` · 포지션 `0.002` 면 차이가
+       `0.0015` 라 눈금 위다.
+    2. `수량 = _normalize(|target_position − 현재 포지션|, qty_step)` 이 **0 이면 낼 주문이
+       없다**. 엔진의 leg 수량(`entry_qty`)을 그대로 쓰면 같은 id 재발행(순 변화 0)이 주문
+       1건으로 둔갑하고 반전(청산+진입 병합)의 크기가 절반으로 계상된다. 실측으로 이
+       갈래가 흔하다 — 재발행 잔차가 `0.000044…` 로 남아 절삭 전 검사만으로는 안 걸린다.
+    3. **side 불일치도 등재하지 않는다.** 목표가 포지션의 반대편에 있으면
+       (`planner:526-540`) 라이브는 발산으로 기록하고 넘어간다.
+
+    ★재생은 거래소 상태를 모른다. 그래서 「현재 포지션」에 **엔진 포지션**을 넣는다 —
+    라이브의 reconciler 는 거래소 실포지션을 쓰고 그 값은 체결 때 이미 눈금으로 절삭돼
+    있다(실측: 엔진 `0.0297` ↔ 거래소 `0.029`). 그래서 **반전 수량이 한 눈금 어긋난다**
+    (재생 `0.059` ↔ 실측 key `0.058`). 그 어긋남과 「거래소가 엔진을 못 따라온 tick」이
+    바로 이 실험이 R↔L 잔차로 재려는 대상이다.
+
+    ★**재현하지 않는 게이트가 있다** — `trigger_already_breached` / 시장가 전환 /
+    breach cap / overshoot cap. 넷 다 **거래소 기준가와 resting 주문 상태**를 봐야 하고
+    그 둘은 얼린 입력에 없다. 그래서 R 의 `cond` 는 라이브가 실제로 등재한 것의
+    **상계**다 — 라이브가 드롭한 레그가 R 에는 남아 있을 수 있다.
+    """
+    from src.trading.services.conditional_entry_planner import _normalize
+
+    engine_position = _engine_position(result)
+    rows: list[dict[str, Any]] = []
+    for order in result.pending_orders:
+        target = Decimal(str(order.target_position))
+        if target != 0 and _normalize(abs(target), qty_step) == 0:
+            continue
+        place_qty = _normalize(abs(target - engine_position), qty_step)
+        if place_qty == 0:
+            continue
+        side = "buy" if target > engine_position else "sell"
+        if side != ("buy" if str(order.direction) == "long" else "sell"):
+            continue
+        rows.append(
+            {
+                "kind": "cond",
+                "bar_epoch": bar_epoch,
+                "bar_time": bar_time,
+                "direction": str(order.direction),
+                "trade_id": str(order.trade_id),
+                "trigger": decimal_text(_normalize(Decimal(str(order.stop_price)), price_tick)),
+                "qty": decimal_text(place_qty),
+                "entry_qty": decimal_text(Decimal(str(order.entry_qty))),
+                "target_position": decimal_text(target),
+                "engine_position": decimal_text(engine_position),
+            }
+        )
+    return rows
+
+
+def _replay_signal_rows(result: Any, *, bar_epoch: int, bar_time: str) -> list[dict[str, Any]]:
+    """마지막 봉의 **시장가 진입** signal. `run_live` 가 이미 마지막 봉으로 잘라 준다."""
+    rows: list[dict[str, Any]] = []
+    for signal in result.signals:
+        if signal.action != "entry":
+            continue
+        rows.append(
+            {
+                "kind": "entry",
+                "bar_epoch": bar_epoch,
+                "bar_time": bar_time,
+                "direction": str(signal.direction),
+                "trade_id": str(signal.trade_id),
+                "trigger": None,
+                "qty": decimal_text(Decimal(str(signal.qty))),
+                "entry_qty": decimal_text(Decimal(str(signal.qty))),
+                "target_position": None,
+                "engine_position": decimal_text(_engine_position(result)),
+            }
+        )
+    return rows
+
+
+def _replay_fill_rows(
+    result: Any, *, bar_epoch: int, bar_time: str, last_bar_index: int
+) -> list[dict[str, Any]]:
+    """마지막 봉에서 엔진이 **연** 포지션 = B 와 같은 단계의 진입.
+
+    ★`run_live().signals` 로는 못 구한다. 조건부 진입의 체결은 `broker_filled` 라
+    signal 변환에서 빠지므로(`event_loop.py:580`), signal 만 세면 stop 진입 전략의
+    체결이 통째로 0 이 된다. 그래서 상태 리포트의 거래 목록에서 진입 봉으로 고른다.
+
+    `trade_id` 는 **`comment` 뿐이고, 없으면 빈 문자열이다.** Pine 진입 id 로 떨어지면
+    안 된다 — B 쪽은 `v2_adapter.py:406` 이 `comment=t.comment or None` 이라 comment 없는
+    진입이 `null` 이 되고 `normalize_trades` 가 `""` 로 올린다. 여기서만 id 를 채우면
+    같은 진입인데 한쪽만 이름을 갖게 되고, `match_entries` 는 `comment is None` 에서 즉시
+    탈락시키므로 **B↔R 이 구조적으로 안 붙는다**(eval P2).
+    """
+    report = result.strategy_state_report
+    rows: list[dict[str, Any]] = []
+    trades = list(report.get("open_trades", [])) + list(report.get("closed_trades", []))
+    for trade in trades:
+        if trade.get("entry_bar") != last_bar_index:
+            continue
+        rows.append(
+            {
+                "kind": "fill",
+                "bar_epoch": bar_epoch,
+                "bar_time": bar_time,
+                "direction": str(trade["direction"]),
+                "trade_id": str(trade.get("comment") or "").strip(),
+                "trigger": decimal_text(Decimal(str(trade["entry_price"]))),
+                "qty": decimal_text(Decimal(str(trade["qty"]))),
+                "entry_qty": decimal_text(Decimal(str(trade["qty"]))),
+                "target_position": None,
+                "engine_position": decimal_text(_engine_position(result)),
+            }
+        )
+    return rows
+
+
+def _rearm_key(row: Mapping[str, Any]) -> tuple[str, str, str, str]:
+    """라이브가 **재등재**를 결정할 때 보는 튜플.
+
+    `plan_reconcile` 은 resting 주문과 `(side, 수량, 트리거, 트리거 방향)` 을 비교해
+    다르면 취소 후 재등재한다(`conditional_entry_planner.py:600-`). 재생은 거래소
+    resting 을 모르므로 **직전 봉의 desired** 와 비교한다 — 같은 규칙의 최선 근사다.
+    """
+    return (
+        str(row["trade_id"]),
+        str(row["direction"]),
+        str(row["trigger"]),
+        str(row["qty"]),
+    )
+
+
+def replay_live_protocol(
+    *,
+    source: str,
+    frame: Any,
+    window_bars: int,
+    start: datetime | None,
+    end: datetime | None,
+    initial_capital: float | None,
+    live_position_size_pct: float | None,
+    leverage: float,
+    pyramiding: int | None,
+    fill_timing: str,
+    sessions_allowed: tuple[str, ...] = (),
+    qty_step: Decimal = REPLAY_QTY_STEP,
+    price_tick: Decimal = REPLAY_PRICE_TICK,
+) -> dict[str, Any]:
+    """채점 창의 매 봉에서 **직전 `window_bars` 봉**으로 `run_live` 를 다시 돌린다.
+
+    ★**원장 인자 4종(`ledger_seed_legs` · `ledger_conditional_fills` ·
+    `position_epoch` · `emit_from_bar_time`)은 넘기지 않는다.** 이것이 실험의 통제다 —
+    넘기지 않으면 `conditional_fill_authority` 가 `None` 이라 조건부 체결이 백테스트와
+    같은 시뮬로 판정되고(`event_loop.py:508-513`), 마지막 봉 이벤트만 발행된다.
+    넣는 순간 R 은 「롤링 창의 몫」이 아니라 「롤링 창 + 원장 권한의 몫」이 된다.
+
+    ★`sessions_allowed` 는 **넘긴다** — 라이브가 항상 준다
+    (`live_signal.py:3316` = `tuple(strategy.trading_sessions or ())`). 빼면 금지 세션
+    게이트가 재생에서 사라져 R 이 라이브가 낼 수 없는 진입을 만든다. 기본값 `()` 는
+    `run_live` 기본값과 같아 「빈 목록 = 24h」라는 뜻까지 그대로다
+    (`trading_sessions.is_allowed`: 빈 목록이면 항상 True).
+    """
+    from src.strategy.pine_v2.event_loop import run_live
+
+    if window_bars < 1:
+        raise ValueError(f"--window-bars 는 1 이상이어야 한다: {window_bars}")
+
+    bar_times: list[datetime] = [
+        moment.to_pydatetime()
+        for moment in list(frame["timestamp"])  # tz-aware UTC
+    ]
+    entries: list[dict[str, Any]] = []
+    previous_pending: dict[str, tuple[str, str, str, str]] = {}
+    bars_evaluated = 0
+    bars_skipped_short_window = 0
+    bars_outside_window = 0
+
+    for index in range(len(frame)):
+        if index < window_bars - 1:
+            # 창이 안 차면 라이브가 볼 과거보다 **적게** 보게 된다 — 평가하지 않는다.
+            bars_skipped_short_window += 1
+            continue
+        bar_time = bar_times[index]
+        if (start is not None and bar_time < start) or (end is not None and bar_time >= end):
+            bars_outside_window += 1
+            # ★건너뛴 봉에서도 재장전 기억을 비우지 않는다. 채점 창 밖은 「평가하지
+            #   않는다」이지 「엔진이 없다」가 아니다 — 여기서 비우면 창 첫 봉이 항상
+            #   재장전으로 계상된다.
+            continue
+        window = frame.iloc[index - window_bars + 1 : index + 1].reset_index(drop=True)
+        result = run_live(
+            source,
+            window,
+            initial_capital=initial_capital,
+            live_position_size_pct=live_position_size_pct,
+            leverage=leverage,
+            pyramiding=pyramiding,
+            fill_timing=fill_timing,
+            sessions_allowed=sessions_allowed,
+        )
+        bars_evaluated += 1
+        bar_epoch = int(bar_time.timestamp())
+        bar_time_iso = _iso(bar_time) or ""
+        conditional = _replay_conditional_rows(
+            result,
+            bar_epoch=bar_epoch,
+            bar_time=bar_time_iso,
+            qty_step=qty_step,
+            price_tick=price_tick,
+        )
+        # 재장전만 남긴다 — 대기 주문은 트리거될 때까지 매 tick 다시 보이고, 라이브는
+        # 튜플이 같으면 재등재하지 않는다. 전부 실으면 R 이 「주문 수」가 아니라
+        # 「tick 수」가 된다.
+        current_pending: dict[str, tuple[str, str, str, str]] = {}
+        for row in conditional:
+            key = _rearm_key(row)
+            current_pending[str(row["trade_id"])] = key
+            if previous_pending.get(str(row["trade_id"])) != key:
+                entries.append(row)
+        previous_pending = current_pending
+        entries.extend(_replay_signal_rows(result, bar_epoch=bar_epoch, bar_time=bar_time_iso))
+        entries.extend(
+            _replay_fill_rows(
+                result,
+                bar_epoch=bar_epoch,
+                bar_time=bar_time_iso,
+                last_bar_index=len(window) - 1,
+            )
+        )
+
+    entries.sort(key=lambda row: (row["bar_epoch"], row["kind"], row["trade_id"]))
+    by_kind = {kind: sum(1 for row in entries if row["kind"] == kind) for kind in REPLAY_KINDS}
+    return {
+        "params": {
+            "window_bars": window_bars,
+            "initial_capital": initial_capital,
+            "live_position_size_pct": live_position_size_pct,
+            "leverage": leverage,
+            "pyramiding": pyramiding,
+            "fill_timing": fill_timing,
+            "sessions_allowed": list(sessions_allowed),
+            "qty_step": decimal_text(qty_step),
+            "price_tick": decimal_text(price_tick),
+            "scoring_window": {"start": _iso(start), "end": _iso(end)},
+            # ★넘기지 **않은** 인자를 이름으로 남긴다. 「안 넣었다」는 사후에 파일만
+            #   보고는 확인할 수 없고, 이 실험의 통제가 바로 그 미주입이다.
+            "ledger_arguments_omitted": [
+                "ledger_seed_legs",
+                "ledger_conditional_fills",
+                "position_epoch",
+                "emit_from_bar_time",
+            ],
+        },
+        "bars_total": len(frame),
+        "bars_evaluated": bars_evaluated,
+        "bars_skipped_short_window": bars_skipped_short_window,
+        "bars_outside_scoring_window": bars_outside_window,
+        "bar_first": _iso(bar_times[0]) if bar_times else None,
+        "bar_last": _iso(bar_times[-1]) if bar_times else None,
+        "entries_by_kind": by_kind,
+        "entries": entries,
+        "digest": trades_digest(entries),
+    }
+
+
+# --------------------------------------------------------------------------
+# `entrysets` — 진입 집합 정규화 + 쌍별 매칭
+# --------------------------------------------------------------------------
+
+ENTRY_SET_KINDS: tuple[str, ...] = ("trades", "replay", "orders")
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedEntry:
+    """세 산출물(B · R · L)을 하나의 축으로 올린 진입 1건.
+
+    ★`bar_epoch` 의 **뜻은 출처마다 다르다** — B/R`fill` 은 엔진 진입 봉,
+    L/R`cond`/R`entry` 는 장전봉이다. 그래서 이 타입은 단계를 통일하지 **않고**
+    `stage` 로 표시만 한다. 통일했다고 적으면 ±1~2봉 오프셋이 숫자 뒤로 숨는다.
+    """
+
+    source_id: str
+    bar_epoch: int
+    direction: str
+    trade_id: str
+    qty: Decimal | None
+    trigger: Decimal | None
+    stage: str  # "entry_bar" | "staged_bar"
+
+
+def normalize_trades(trades: Sequence[BacktestTrade], *, bar_seconds: int) -> list[NormalizedEntry]:
+    """B — `run` 산출 trades.json. 봉은 **엔진 진입 봉**이다.
+
+    `entry_time` 은 `_run_backtest` 가 `entry_bar_index` 를 봉 시각으로 되돌린 값이라
+    이미 봉 경계에 있지만, floor 는 `trade_bar_epoch` 와 **같은 함수**를 쓴다 — 여기서
+    다른 산식을 쓰면 기존 `match` 와 R 의 봉 귀속이 조용히 갈린다.
+    """
+    return [
+        NormalizedEntry(
+            source_id=f"trade:{trade.trade_index}",
+            bar_epoch=trade_bar_epoch(trade, bar_seconds=bar_seconds),
+            direction=trade.direction,
+            trade_id=trade.comment or "",
+            qty=Decimal(str(trade.size)),
+            trigger=Decimal(str(trade.entry_price)),
+            stage="entry_bar",
+        )
+        for trade in trades
+    ]
+
+
+def normalize_replay(payload: Any, *, kinds: Sequence[str]) -> list[NormalizedEntry]:
+    """R — `replay` 산출. `kinds` 로 채널을 고른다 (§REPLAY_KINDS 표)."""
+    wanted = set(kinds)
+    unknown = wanted - set(REPLAY_KINDS)
+    if unknown:
+        raise ValueError(f"모르는 replay kind: {sorted(unknown)}")
+    rows = payload["entries"] if isinstance(payload, dict) else payload
+    entries: list[NormalizedEntry] = []
+    for index, row in enumerate(rows):
+        kind = str(row["kind"])
+        if kind not in wanted:
+            continue
+        entries.append(
+            NormalizedEntry(
+                source_id=f"replay:{kind}:{index}",
+                bar_epoch=int(row["bar_epoch"]),
+                direction=str(row["direction"]),
+                trade_id=str(row["trade_id"]),
+                qty=to_decimal(row.get("qty")),
+                trigger=to_decimal(row.get("trigger")),
+                stage="entry_bar" if kind == "fill" else "staged_bar",
+            )
+        )
+    return entries
+
+
+@dataclass(frozen=True, slots=True)
+class NormalizedOrders:
+    entries: list[NormalizedEntry]
+    unparsable: int
+    no_bar_epoch: int
+
+
+def normalize_orders(
+    rows: Sequence[Mapping[str, Any]], *, session_ids: Sequence[UUID]
+) -> NormalizedOrders:
+    """L — orders.json. 판별은 `parse_live_entry_key` 하나뿐이다 (`parse_orders` 재사용).
+
+    되짚지 못한 행(수동 flatten · 청산 key · 웹훅)은 **버리지 않고 센다**.
+    """
+    corpus = parse_orders(rows, session_ids=session_ids)
+    entries: list[NormalizedEntry] = []
+    no_bar_epoch = 0
+    for entry in corpus.entries:
+        if entry.bar_epoch is None:
+            # key 는 우리 것인데 봉을 못 읽었다 = 봉 축에 세울 수 없다.
+            no_bar_epoch += 1
+            continue
+        entries.append(
+            NormalizedEntry(
+                source_id=f"order:{entry.order_id}",
+                bar_epoch=entry.bar_epoch,
+                direction=entry.direction,
+                trade_id=entry.trade_id,
+                qty=entry.key_quantity,
+                trigger=entry.trigger,
+                stage="staged_bar",
+            )
+        )
+    return NormalizedOrders(
+        entries=entries,
+        unparsable=len(corpus.manual_flatten) + len(corpus.other),
+        no_bar_epoch=no_bar_epoch,
+    )
+
+
+def _as_synthetic_trade(entry: NormalizedEntry) -> BacktestTrade:
+    """왼쪽 집합을 `match_entries` 의 「백테스트 쪽」 모양으로 올린다.
+
+    ★매칭 규칙을 새로 쓰지 않기 위한 어댑터다. `match_entries` 가 보는 필드는
+    `direction`/`comment`/`entry_time`/`size` 넷뿐이고, 나머지는 리포트에 안 실린다.
+    `trade_index` 는 원본 id 를 못 담으므로(정수) `source_id` 를 별도 맵으로 들고 간다.
+    """
+    return BacktestTrade(
+        trade_index=0,
+        direction=entry.direction,
+        status="closed",
+        entry_time=datetime.fromtimestamp(entry.bar_epoch, tz=UTC),
+        exit_time=None,
+        entry_price=entry.trigger if entry.trigger is not None else Decimal("0"),
+        exit_price=None,
+        size=entry.qty if entry.qty is not None else Decimal("0"),
+        pnl=Decimal("0"),
+        fees=Decimal("0"),
+        fee_paid=None,
+        slippage_paid=None,
+        comment=entry.trade_id or None,
+        exit_kind=None,
+    )
+
+
+def _as_synthetic_live_entry(entry: NormalizedEntry) -> LiveEntry:
+    """오른쪽 집합을 `match_entries` 의 「라이브 쪽」 모양으로 올린다."""
+    return LiveEntry(
+        order_id=entry.source_id,
+        idempotency_key="",
+        kind="normalized",
+        trade_id=entry.trade_id,
+        bar_epoch=entry.bar_epoch,
+        direction=entry.direction,
+        trigger=entry.trigger,
+        key_quantity=entry.qty,
+        filled_price=None,
+        filled_quantity=None,
+        filled_at=None,
+    )
+
+
+# 세션 창 포함 판정의 기준 시각. **봉 종료**다 (사전등록 정정 2차, 측정 전 동결).
+SESSION_BOUNDARY = "bar_close"
+
+
+def filter_by_sessions(
+    entries: Sequence[NormalizedEntry], windows: Sequence[SessionWindow], *, bar_seconds: int
+) -> tuple[list[NormalizedEntry], list[NormalizedEntry]]:
+    """세션 창 **안**과 **밖**으로 가른다 (실험 B — 사전등록 ③′).
+
+    창 판정은 `window_of` 그대로(`created_at <= t < deactivated_at`)이되, 그 `t` 가
+    **봉 종료 시각**(`bar_epoch + bar_seconds`)이다.
+
+    ★봉 시작으로 재면 안 된다. 세션은 봉 중간에 생성된다 — 실측 첫 세션이
+    `00:34:22`(봉 시작 +22.676s)이고 두 번째가 +25.2s 다. 봉 시작 기준이면 그 두 봉이
+    세션 밖으로 떨어지는데, 라이브는 그 봉을 실제로 평가해 주문을 냈다(L 에 실재).
+    즉 봉 시작 기준의 「제거」는 세션 공백의 관측이 아니라 **판별식의 인공물**이다.
+    사전등록 정정 2차가 이 규약을 측정 전에 동결했다.
+    """
+    kept: list[NormalizedEntry] = []
+    removed: list[NormalizedEntry] = []
+    for entry in entries:
+        moment = datetime.fromtimestamp(entry.bar_epoch + bar_seconds, tz=UTC)
+        (kept if window_of(moment, windows) is not None else removed).append(entry)
+    return kept, removed
+
+
+def _pair_row(pair: MatchedPair, *, left_ids: Sequence[str], bar_seconds: int) -> dict[str, Any]:
+    """매칭쌍 1행. ★출처는 **매칭이 실제로 고른** 왼쪽이다.
+
+    `(bar_epoch, direction, trade_id)` 맵으로 되짚으면 안 된다 — 수량만 다른 왼쪽이
+    둘이면 나중 것이 앞의 것을 덮어써서 리포트가 **매칭되지 않은 행**을 가리킨다.
+    `trade_index` 에 왼쪽 리스트의 위치를 실어 두었으므로 그것으로 직접 되짚는다.
+    """
+    trade_epoch = int(pair.trade.entry_time.timestamp())
+    # ★단위는 **봉**이다. 양쪽 epoch 이 모두 봉 경계라 나눗셈은 정확하다 —
+    #   초를 `delta_bars_…` 라는 이름으로 내면 1분봉 2봉 차가 120 으로 읽힌다.
+    delta_seconds = trade_epoch - (pair.entry.bar_epoch or 0)
+    return {
+        "grade": pair.grade,
+        "left_id": left_ids[pair.trade.trade_index],
+        "right_id": pair.entry.order_id,
+        "left_bar_epoch": trade_epoch,
+        "right_bar_epoch": pair.entry.bar_epoch,
+        "delta_bars_left_minus_right": delta_seconds // bar_seconds,
+        "direction": pair.trade.direction,
+        "trade_id": pair.trade.comment,
+    }
+
+
+def _key_counts(entries: Sequence[NormalizedEntry]) -> Counter[tuple[int, str, str]]:
+    return Counter((entry.bar_epoch, entry.direction, entry.trade_id or "") for entry in entries)
+
+
+def _key_rows(counts: Counter[tuple[int, str, str]]) -> list[dict[str, Any]]:
+    return [
+        {"bar_epoch": key[0], "direction": key[1], "trade_id": key[2], "count": count}
+        for key, count in sorted(counts.items())
+    ]
+
+
+def key_multiset_difference(
+    left: Sequence[NormalizedEntry], right: Sequence[NormalizedEntry]
+) -> dict[str, Any]:
+    """★「두 집합이 같다」를 **매칭과 무관하게** 판정한다.
+
+    pairs/ambiguous 카운트만으로는 서로 다른 multiset 을 배제하지 못한다 — 오른쪽
+    collision 은 `ambiguous` 로 빠지고 `right_only_rows` 에도 안 들어가므로, 카운트가
+    같아도 내용이 다를 수 있다. 「B ≡ R(fill)」 같은 주장은 이 블록이 증명한다.
+    """
+    left_counts = _key_counts(left)
+    right_counts = _key_counts(right)
+    return {
+        "key": ["bar_epoch", "direction", "trade_id"],
+        "equal": left_counts == right_counts,
+        "left_only_keys": _key_rows(left_counts - right_counts),
+        "right_only_keys": _key_rows(right_counts - left_counts),
+    }
+
+
+def compare_entry_sets(
+    left: Sequence[NormalizedEntry],
+    right: Sequence[NormalizedEntry],
+    *,
+    bar_seconds: int,
+    bar_tolerance: int = ENTRY_BAR_TOLERANCE_BARS,
+) -> dict[str, Any]:
+    """두 진입 집합을 **기존 `match_entries` 로** 맞춘다 — 새 규칙을 만들지 않는다.
+
+    ★비대칭이다. `match_entries` 는 오른쪽에서 같은 `(bar_epoch, direction)` 이 둘이면
+    **양쪽 다 ambiguous** 로 버리고, 왼쪽은 후보가 둘일 때만 버린다. 그러니 어느 쪽을
+    오른쪽에 두느냐가 숫자를 바꾼다 — 라이브(L)를 오른쪽에 두는 것이 기존 `match` 의
+    배치이고, 이 함수도 호출자가 그렇게 부르는 것을 전제로 리포트를 낸다.
+
+    ★분모를 하나로 정하지 않는다. 사전등록은 X↔L 을 `|L|` 로 재지만 B↔R 은 `|B|` 를
+    병기하라고 적혀 있다 — 둘 다 이름과 함께 낸다.
+    """
+    # ★`trade_index` 에 **왼쪽 리스트의 위치**를 싣는다 — 그게 행별 출처의 정본이다.
+    synthetic_trades = [
+        replace(_as_synthetic_trade(entry), trade_index=index) for index, entry in enumerate(left)
+    ]
+    left_ids = [entry.source_id for entry in left]
+    synthetic_entries = [_as_synthetic_live_entry(entry) for entry in right]
+
+    match = match_entries(
+        synthetic_trades, synthetic_entries, bar_seconds=bar_seconds, bar_tolerance=bar_tolerance
+    )
+    pairs = len(match.pairs)
+    return {
+        "left_count": len(left),
+        "right_count": len(right),
+        "strict_pairs": len(match.strict_pairs),
+        "loose_pairs": len(match.loose_pairs),
+        "pairs": pairs,
+        "ambiguous": len(match.ambiguous),
+        "left_only": len(match.backtest_only),
+        "right_only": len(match.live_only),
+        "match_rate": {
+            "vs_left": {
+                "denominator": "left_count",
+                "n": len(left),
+                "value": decimal_text(_ratio(Decimal(pairs), Decimal(len(left)))),
+            },
+            "vs_right": {
+                "denominator": "right_count",
+                "n": len(right),
+                "value": decimal_text(_ratio(Decimal(pairs), Decimal(len(right)))),
+            },
+        },
+        "key_multiset": key_multiset_difference(left, right),
+        "matched_rows": [
+            _pair_row(pair, left_ids=left_ids, bar_seconds=bar_seconds) for pair in match.pairs
+        ],
+        "left_only_rows": [
+            {
+                "bar_epoch": int(trade.entry_time.timestamp()),
+                "direction": trade.direction,
+                "trade_id": trade.comment,
+                "qty": decimal_text(trade.size),
+            }
+            for trade in match.backtest_only
+        ],
+        "right_only_rows": [
+            {
+                "id": entry.order_id,
+                "bar_epoch": entry.bar_epoch,
+                "direction": entry.direction,
+                "trade_id": entry.trade_id,
+                "qty": decimal_text(entry.key_quantity),
+            }
+            for entry in match.live_only
+        ],
+        "ambiguous_rows": [
+            {"id": item.entry.order_id, "reason": item.reason} for item in match.ambiguous
+        ],
+    }
+
+
+# --------------------------------------------------------------------------
 # `s1diff` — 스팟/perp 진입가 차
 # --------------------------------------------------------------------------
 
@@ -2144,6 +2803,163 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _resolve_pyramiding(source: str, override: int | None) -> int | None:
+    """라이브와 **같은 자리**에서 읽는다 — `tasks/live_signal._extract_pyramiding`.
+
+    그쪽은 `extract_content(pine_source).declaration.pyramiding` 이고 백테스트
+    (`compat.parse_and_run_v2`)도 같은 값을 쓴다. CLI 로 따로 받으면 B·R·라이브 셋이
+    서로 다른 cap 으로 돌 수 있으므로 **기본값은 소스에서 뽑고**, 명시 override 만 이긴다.
+    """
+    if override is not None:
+        return override
+    from src.strategy.pine_v2.ast_extractor import extract_content
+
+    pyramiding: int | None = extract_content(source).declaration.pyramiding
+    return pyramiding
+
+
+def _resolve_trading_sessions(raw: str | None) -> tuple[str, ...]:
+    """`--trading-sessions` → `run_live(sessions_allowed=…)` 의 튜플.
+
+    ★이름을 **검증한다**. `trading_sessions.is_allowed` 는 모르는 이름을 조용히
+    건너뛰므로(legacy 데이터로 executor 를 죽이지 않으려는 방어), 오타 하나가
+    「빈 목록 = 24h」가 아니라 **「아무 창에도 안 든다」 = 전 구간 금지**로 번역된다.
+    그 상태에서 R 은 진입 0 건이 되고 그건 결함이 아니라 발견처럼 읽힌다.
+    검증기는 스키마 계층이 쓰는 것과 같은 자리를 재사용한다.
+    """
+    if raw is None:
+        return ()
+    names = [part.strip() for part in raw.split(",") if part.strip()]
+    if not names:
+        return ()
+    from src.strategy.trading_sessions import validate_session_names
+
+    return tuple(validate_session_names(names))
+
+
+def _cmd_replay(args: argparse.Namespace) -> int:
+    source = Path(args.pine_source).read_text(encoding="utf-8")
+    payload = replay_live_protocol(
+        source=source,
+        frame=_replay_frame(Path(args.ohlcv_csv)),
+        window_bars=args.window_bars,
+        start=to_datetime(args.start),
+        end=to_datetime(args.end),
+        initial_capital=None if args.init_cash is None else float(args.init_cash),
+        live_position_size_pct=args.live_position_size_pct,
+        leverage=args.leverage,
+        pyramiding=_resolve_pyramiding(source, args.pyramiding),
+        fill_timing=args.fill_timing,
+        sessions_allowed=_resolve_trading_sessions(args.trading_sessions),
+        qty_step=args.qty_step,
+        price_tick=args.price_tick,
+    )
+    payload["ohlcv_csv"] = str(args.ohlcv_csv)
+    payload["freq"] = args.freq
+    _write_json(Path(args.out), payload)
+    print(
+        f"[replay] bars_evaluated={payload['bars_evaluated']} "
+        f"entries={len(payload['entries'])} by_kind={payload['entries_by_kind']} "
+        f"digest={payload['digest']}"
+    )
+    return 0
+
+
+def _load_entry_set(
+    path: Path,
+    kind: str,
+    *,
+    bar_seconds: int,
+    replay_kinds: Sequence[str],
+    session_ids: Sequence[UUID],
+) -> tuple[list[NormalizedEntry], dict[str, Any]]:
+    payload = _read_json(path)
+    if kind == "trades":
+        entries = normalize_trades(_trades_of(payload), bar_seconds=bar_seconds)
+        return entries, {"kind": kind, "path": str(path)}
+    if kind == "replay":
+        entries = normalize_replay(payload, kinds=replay_kinds)
+        return entries, {"kind": kind, "path": str(path), "replay_kinds": list(replay_kinds)}
+    if kind == "orders":
+        if not session_ids:
+            raise ValueError("--*-kind orders 는 --session-windows 가 있어야 한다 (세션 id 필요)")
+        normalized = normalize_orders(payload, session_ids=session_ids)
+        return normalized.entries, {
+            "kind": kind,
+            "path": str(path),
+            "unparsable_rows": normalized.unparsable,
+            "parsed_without_bar_epoch": normalized.no_bar_epoch,
+        }
+    raise ValueError(f"모르는 집합 종류: {kind}")
+
+
+def _cmd_entrysets(args: argparse.Namespace) -> int:
+    windows: list[SessionWindow] = []
+    session_ids: list[UUID] = []
+    bar_seconds = args.bar_seconds
+    if args.session_windows is not None:
+        sessions_raw = _read_json(Path(args.session_windows))
+        windows = parse_sessions(sessions_raw)
+        session_ids = [UUID(window.session_id) for window in windows]
+        # ★봉 길이가 세션과 다르면 ±3봉 허용창이 통째로 틀린다 — 조용히 넘기지 않는다.
+        session_bar_seconds = interval_seconds(_session_interval(sessions_raw))
+        if session_bar_seconds != bar_seconds:
+            raise ValueError(
+                f"--bar-seconds={bar_seconds} 가 세션 interval ({session_bar_seconds}s) 와 다르다"
+            )
+
+    replay_kinds = tuple(part.strip() for part in args.replay_kinds.split(",") if part.strip())
+    left, left_meta = _load_entry_set(
+        Path(args.left),
+        args.left_kind,
+        bar_seconds=bar_seconds,
+        replay_kinds=replay_kinds,
+        session_ids=session_ids,
+    )
+    right, right_meta = _load_entry_set(
+        Path(args.right),
+        args.right_kind,
+        bar_seconds=bar_seconds,
+        replay_kinds=replay_kinds,
+        session_ids=session_ids,
+    )
+
+    removed: list[NormalizedEntry] = []
+    if args.filter_left:
+        if not windows:
+            raise ValueError("--filter-left 는 --session-windows 가 있어야 한다")
+        left, removed = filter_by_sessions(left, windows, bar_seconds=bar_seconds)
+
+    report = compare_entry_sets(
+        left, right, bar_seconds=bar_seconds, bar_tolerance=args.bar_tolerance
+    )
+    report["left"] = left_meta
+    report["right"] = right_meta
+    report["bar_seconds"] = bar_seconds
+    report["bar_tolerance_bars"] = args.bar_tolerance
+    report["session_filter"] = {
+        "applied": bool(args.filter_left),
+        # ★어느 시각으로 쟀는지를 산출물에 남긴다 — 제거 수는 규약이 바뀌면 바뀐다.
+        "boundary": SESSION_BOUNDARY,
+        "windows": len(windows),
+        "removed_by_session_filter": len(removed),
+        "removed_rows": [
+            {"id": entry.source_id, "bar_epoch": entry.bar_epoch, "trade_id": entry.trade_id}
+            for entry in removed
+        ],
+    }
+    _write_json(Path(args.out), report)
+    print(
+        f"[entrysets] left={report['left_count']}({args.left_kind}) "
+        f"right={report['right_count']}({args.right_kind}) "
+        f"strict={report['strict_pairs']} loose={report['loose_pairs']} "
+        f"ambiguous={report['ambiguous']} "
+        f"rate_vs_right={report['match_rate']['vs_right']['value']} "
+        f"removed_by_session_filter={len(removed)}"
+    )
+    return 0
+
+
 def _session_interval(sessions_raw: Any) -> str:
     """세션들이 같은 봉 간격이어야 한다 — 다르면 봉 창을 하나로 못 잡는다."""
     rows = sessions_raw if isinstance(sessions_raw, list) else [sessions_raw]
@@ -2233,6 +3049,86 @@ def build_parser() -> argparse.ArgumentParser:
     match_parser.add_argument("--session", required=True)
     match_parser.add_argument("--out", required=True)
     match_parser.set_defaults(handler=_cmd_match)
+
+    replay_parser = sub.add_parser("replay", help="라이브 프로토콜 재생 → replay.json (R)")
+    replay_parser.add_argument("--pine-source", required=True)
+    replay_parser.add_argument("--ohlcv-csv", required=True)
+    replay_parser.add_argument("--freq", default="1m", help="기록용 라벨 (엔진에 안 들어간다)")
+    replay_parser.add_argument("--leverage", type=float, default=2.0)
+    replay_parser.add_argument(
+        "--init-cash",
+        type=Decimal,
+        default=None,
+        help="run_live(initial_capital=…) — 라이브의 equity baseline + carry PnL",
+    )
+    replay_parser.add_argument("--live-position-size-pct", type=float, default=None)
+    replay_parser.add_argument(
+        "--pyramiding",
+        type=int,
+        default=None,
+        help="미지정이면 라이브와 같이 Pine 선언에서 뽑는다 (_extract_pyramiding 과 동일)",
+    )
+    replay_parser.add_argument(
+        "--fill-timing",
+        choices=("bar_close", "next_bar_open"),
+        default="bar_close",
+        help="StrategySettings.fill_timing (기본값이 라이브 기본값과 같다)",
+    )
+    replay_parser.add_argument(
+        "--window-bars",
+        type=int,
+        default=REPLAY_WINDOW_BARS,
+        help="라이브가 매 tick 가져오는 봉 수 (live_signal._fetch_evaluation_bars limit_bars)",
+    )
+    replay_parser.add_argument(
+        "--trading-sessions",
+        default=None,
+        help="쉼표 구분 세션 이름 (asia/london/ny) — 라이브의 strategy.trading_sessions. "
+        "생략 = 빈 목록 = 24h (run_live 기본값과 같다)",
+    )
+    replay_parser.add_argument(
+        "--qty-step",
+        type=Decimal,
+        default=REPLAY_QTY_STEP,
+        help="거래소 수량 눈금 (라이브의 _reconcile_market_precision 대체 — 기본은 실측값)",
+    )
+    replay_parser.add_argument(
+        "--price-tick",
+        type=Decimal,
+        default=REPLAY_PRICE_TICK,
+        help="거래소 가격 눈금 (같은 이유)",
+    )
+    replay_parser.add_argument("--start", default=None, help="채점 창 시작 ISO8601 (포함)")
+    replay_parser.add_argument("--end", default=None, help="채점 창 끝 ISO8601 (배타)")
+    replay_parser.add_argument("--out", required=True)
+    replay_parser.set_defaults(handler=_cmd_replay)
+
+    entrysets_parser = sub.add_parser("entrysets", help="진입 집합 쌍별 매칭 → entrysets.json")
+    entrysets_parser.add_argument("--left", required=True)
+    entrysets_parser.add_argument("--left-kind", required=True, choices=ENTRY_SET_KINDS)
+    entrysets_parser.add_argument("--right", required=True)
+    entrysets_parser.add_argument("--right-kind", required=True, choices=ENTRY_SET_KINDS)
+    entrysets_parser.add_argument(
+        "--replay-kinds",
+        default="cond,entry",
+        help="replay 집합에서 쓸 채널 (cond,entry = 장전봉 / fill = 엔진 진입봉)",
+    )
+    entrysets_parser.add_argument(
+        "--session-windows",
+        default=None,
+        help="sessions.json — orders 파싱의 세션 id 출처이자 --filter-left 의 창",
+    )
+    entrysets_parser.add_argument(
+        "--filter-left",
+        action="store_true",
+        help="left 에서 세션 창 밖 진입을 제거한다 (실험 B — R′). ★파일만 주면 필터는 꺼져 "
+        "있다: 사전등록 ③ 이 R↔L 과 R′↔L 을 **둘 다** 요구하는데 L 파싱에도 같은 파일이 "
+        "필요해서다",
+    )
+    entrysets_parser.add_argument("--bar-seconds", type=int, default=60)
+    entrysets_parser.add_argument("--bar-tolerance", type=int, default=ENTRY_BAR_TOLERANCE_BARS)
+    entrysets_parser.add_argument("--out", required=True)
+    entrysets_parser.set_defaults(handler=_cmd_entrysets)
 
     s1_parser = sub.add_parser("s1diff", help="스팟/perp 진입가 차 → s1.json")
     s1_parser.add_argument("--spot", required=True)

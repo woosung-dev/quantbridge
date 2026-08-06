@@ -348,10 +348,16 @@ fi
 #      의도다 — 워커는 자기 워크트리만 만져야 한다. 대신 codex 워커에게 DB 를 타는 검증을
 #      시키면 안 된다(localhost TCP 가 Operation not permitted 로 막힌다 — 실측).
 #      docs/reference/operations/workflows/fleet-orchestration.md §3 의 라우팅 표를 봐라.
+#
+# ★claude 는 **모델을 명시**한다 (BL-609). 워커는 전역 설정(`~/.claude`)의 모델을
+#   상속하는데, 실측(2026-08-06 회차)에서 그 값이 Fable 이라 워커 두 기가 Fable 로 떠
+#   CONTROL 이 수동으로 교정해야 했다. 함대 워커의 작업 난도는 kind 로 정해지지
+#   사람의 마지막 `/model` 로 정해지지 않는다.
 agent_args_for() {
   case "$1" in
-    codex) printf '%s\n' -a never -s workspace-write ;;
-    *)     : ;;
+    codex)  printf '%s\n' -a never -s workspace-write ;;
+    claude) printf '%s\n' --model opus ;;
+    *)      : ;;
   esac
 }
 

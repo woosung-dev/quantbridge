@@ -1,6 +1,10 @@
 # QuantBridge — Refactoring Backlog
 
 > **Active 백로그.** 명백한 Resolved + stale 항목은 `_archived.md`, trigger 미도래 의도적 부활 가능 항목은 `_deferred.md`. 문서 경로 정합성은 `scripts/docs-audit.sh`로 검증한다.
+> ★**tombstone (ADR-026 §5).** 본문이 가리키는 `_archived.md`(Resolved + stale 137건)·`_deferred.md`(부활 가능 8건)는
+> 2026-08-06 문서 대개편에서 삭제됐다 — 원문 = `git show 0f0f0b06:docs/archive/refactoring-backlog/_archived.md`
+> (`_deferred.md` 동일 경로). `_deferred.md` 내용은 본 문서 말미 「Deferred」 섹션으로 승격돼 있다.
+> 그 뒤 강등분(2026-08-06 entry-set-divergence)의 본문 = `git show 23a9fcd4:docs/backlog.md`.
 >
 > **신규 sprint 진입 시 본 문서 review 의무** — 각 BL 의 trigger 가 도래했는지 확인 후 active TODO 로 승격할지 결정. `_deferred.md` 도 6-8주마다 재평가.
 
@@ -186,7 +190,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                    | Stage 2c 2차 fixture 활성화 후                  | S (1-2h)   | TODO.md L20-22                  |
 | [BL-522](#bl-522) | ★엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다 (유실 채널 5종)             | 실자금 cutover 전 필수                          | M-L        | 2026-07-28 live-entry-parity    |
 
-> Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 (`_archived.md`).
+> Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 (`_archived.md`). + BL-604 (2026-08-06 entry-set-divergence).
 
 ### BL-014
 
@@ -489,15 +493,12 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-601](#bl-601)    | 호출 0건 잔재 3종 — `OrderRepository.get_state_fresh` · `list_unsynced_reduce_only_since` · `scripts/fleet-dispatch-test.sh`. ★원안의 「고아 하니스 3종」은 **1종으로 정정**(나머지 둘은 final-gates 체인 안에 있다)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S            | 2026-08-06 dead-code-sweep                             |
 | [BL-602](#bl-602)    | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S            | 2026-08-06 e2e-consolidation                           |
 | [BL-603](#bl-603)    | ★백테스트 비용 가정이 라이브 실효의 **2.7배** — 가정 왕복 0.30%(fees 0.1+slip 0.05/leg) vs 원장 실측 왕복 **0.1101%**(taker 0.055%/leg 단일 성분, 84 event 중 77 이 8자리 일치·비-taker 잔차 0.03%). 매칭쌍 진입가 잔차 중앙 0.014% vs slippage 가정 0.05%                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 백테스트 손익을 라이브 예측치로 읽기 전 (비용 축이 3배 비관)                                                      | S            | 2026-08-06 backtest-reality-gap                        |
-| [BL-604](#bl-604)    | ★★백테스트와 라이브의 **진입 집합 자체가 갈린다** — 같은 창에서 백테스트 210 진입 vs 라이브 84, ±3봉 매칭 34쌍(40%)뿐. 매칭쌍 가격 잔차는 0.014% 로 미세한데 **백테스트가 예측 못 한 라이브 진입 46건이 net −92.81 = 전체 손실의 62%**. 동인 후보 3(롤링 300봉 pivot 상태 / 재무장 드리프트 62~271 / 세션 공백) — 미확정, 분리 측정이 다음 일                                                                                                                                                                                                                                                                                                                                                                                                                         | 백테스트를 라이브 판단 근거로 쓰기 전 (신호 축 예측력)                                                            | M            | 2026-08-06 backtest-reality-gap                        |
 | [BL-605](#bl-605)    | `exchange_exits` 가 같은 청산 event 를 **정확히 2행**(classification `ours`/`unknown` 쌍, payload 동일)으로 적재 — 실측 86 event = 172행. `SUM(closed_pnl)` 류 소비가 손익을 **정확히 2배** 계상한다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | exchange_exits 를 집계로 소비하는 코드를 추가하기 전                                                              | S            | 2026-08-06 backtest-reality-gap (eval2 실측)           |
-| [BL-606](#bl-606)    | outcome-parity 패널의 「매칭 없음」 경고가 **스코프 맹목** — `session.matched=0 && strategy.matched>0` 이면 침묵(`outcome-parity-panel.tsx:340`). 요청 세션 표본이 0 인데 31세션 누적 워터폴이 나란히 서고 구분은 배지뿐                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 세션 축이 빈 세션의 상세를 사용자가 읽기 전                                                                       | S            | 2026-08-06 backtest-reality-gap (qa D1)                |
-| [BL-607](#bl-607)    | outcome-parity 패널이 Decimal 원문을 그대로 렌더해 **타일 밖으로 넘친다** — 55노드 중 17 오버플로, 최악 51자리(scrollWidth 8.3배), 패널 폭 542px 고정이라 뷰포트 확대 무효                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | outcome-parity 표시 계층을 손댈 때                                                                                | S            | 2026-08-06 backtest-reality-gap (qa D2)                |
-| [BL-608](#bl-608)    | outcome-parity 패널 e2e **0건** + 단위테스트가 세션/전략 스코프 **비대칭 케이스 부재**(둘 다 빈 픽스처뿐이라 BL-606 조합을 못 잡는다) — PR #496 전례(green 인데 화면 도달 불가)가 겨냥한 바로 그 구멍                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | outcome-parity 표면을 다음에 만질 때 (회귀 안전망 먼저)                                                           | S            | 2026-08-06 backtest-reality-gap (qa D3)                |
-| [BL-609](#bl-609)    | `herdr-fleet.sh` 가 claude 워커에 `--model` 을 안 줘 **전역 기본 모델을 상속** — 실측: 역할표는 gen/qa=Opus 인데 Fable 로 부팅(전역 `~/.claude/settings.json`), 모델은 pane 화면에서만 보여 조용히 어긋난다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 다음 함대 부팅 전                                                                                                 | S            | 2026-08-06 backtest-reality-gap                        |
 | [BL-610](#bl-610)    | `entry_completeness.py:158` 의 `source=` 문자열이 문서 대개편으로 삭제된 dev-log 경로를 가리킨다 — 런타임 무해(값일 뿐)지만 근거 추적이 git history 경유로 바뀌었다. 소크 중 `backend/src` 무접촉 원칙으로 이연                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | BL-003 소크 창 종료 후 첫 backend/src 정리 회차                                                                   | XS           | 2026-08-06 docs-overhaul (fix-doc)                     |
+| [BL-611](#bl-611)    | ★**메타-방법론 영구 규칙이 자동 로드에서 빠졌다** — 구 `.ai/common/global.md` §7 은 `paths` 없는 `.claude/rules/global.md` 로 **매 세션 무조건** 들어왔다(2026-08-07 실측 재현). ADR-026 이 이를 `generator-evaluator-pipeline.md` §8 로 옮기면서 **열어야만 읽히는** 문서가 됐다 — kickoff preflight(§8.1)·codex finding 코드 대조(§8.3)가 조용히 누락될 수 있다 | 다음 Sprint kickoff (Type A/B) 전 | S            | 2026-08-07 docs-overhaul 리뷰                          |
+| [BL-612](#bl-612)    | `docs/dev-log/2026-08-06-entry-set-divergence.md` 버퍼가 `docs/lessons.md` 로 승격되지 않았다 — ADR-026 §3 은 「세션 종결 시 승격 의무, 승격하면 버퍼를 비운다」인데 회차는 끝났고(PR #553 머지) 버퍼는 9천자로 남아 있다(반증 카드 상한 1~2천자 초과) | 다음 문서 정리 회차 | XS           | 2026-08-07 docs-overhaul 리뷰                          |
 
-> Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`).
+> Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-597 (2026-08-06 entry-set-divergence).
 
 ### BL-186
 
@@ -1132,7 +1133,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ## P3 — Nice-to-have / 컨벤션 정합
 
-> 12 archived (BL-050/051/052/053/054/055/056/057/138/139/151/153). **활성 P3 = 8** (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen).
+> 12 archived (BL-050/051/052/053/054/055/056/057/138/139/151/153). **활성 P3 = 8** (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen). ★2026-08-06 entry-set-divergence 강등 = BL-606/607/608/609.
 
 ### BL-491
 
@@ -4561,35 +4562,6 @@ reduce-only 동기화 복구용으로 보이므로, 그 복구 경로가 다른 
 
 ---
 
-### BL-604
-
-**Priority:** P1
-**카테고리:** Backend / 백테스트↔라이브 예측력 (신호 축)
-**Trigger:** 백테스트를 라이브 판단 근거로 쓰기 전
-**Est:** M
-**상태:** ⬜ **Open**
-
-**★백테스트와 라이브의 진입 집합 자체가 갈린다 — 예측 못 한 진입이 손실의 주인이다.**
-
-**실측 (2026-08-06 backtest-reality-gap, 같은 전략·같은 창 08-05T00:00Z~08-06T11:00Z):**
-
-- 백테스트 진입 **210** vs 라이브 진입 **84**. ±3봉 느슨 매칭 **34쌍(라이브의 40%)**.
-- 매칭쌍의 가격 잔차 중앙 **0.014%**(0.1% 초과 0) — 겹치면 거의 같은 값에 체결된다.
-- **live_only 46건의 확정 net −92.81 = 창 전체 손실(−149.85)의 62%** — 백테스트가 존재조차
-  예측 못 한 진입들이 손실 대부분을 만든다. backtest_only 173건의 기대 gross 는 +16.52.
-- 4단 워터폴(매칭 34, 감도): 기대 gross −8.84 → 가격 격차 +28.35 → 비용 −69.95 → net −50.45.
-
-**동인 후보 3 (미확정 — 분리 측정이 이 BL 의 일):** ⑴ 라이브는 롤링 300봉 워밍업 위 재생이라
-pivot 상태(`hprice`/`lprice` 영속 var)가 전구간 백테스트와 다르다 ⑵ 재무장 트리거 드리프트
-(봉당 62~271 USDT — 트리거 수준이 갈리면 교차 시각이 갈린다) ⑶ 세션 공백(창의 ~12%).
-분리 실험 1순위 = **라이브와 같은 300봉 롤링 재생으로 백테스트를 재실행**해 매칭률이
-40%→얼마로 움직이는지(도구는 `btgap_compare.py` 재사용).
-
-**Risk:** 🔴 이 축이 닫히기 전에는 「백테스트 숫자를 믿을 수 있는가」에 긍정 답을 줄 수 없다 —
-비용(BL-603)보다 상위의 병목.
-
----
-
 ### BL-605
 
 **Priority:** P2
@@ -4611,93 +4583,23 @@ pivot 상태(`hprice`/`lprice` 영속 var)가 전구간 백테스트와 다르�
 「`classification='ours'` 필터/`DISTINCT order_link_id` 의무」를 정본화. 기존 소비처 전수
 확인이 선행(이번 회차 도구는 dedup 를 자체 강제했다 — `btgap_compare.py`).
 
-**Risk:** 🟡 현재 프로덕션 소비처가 2배 계상을 하고 있는지 미확인 — 확인 자체가 이 BL 의
-첫 단계다.
+**소비처 전수 (2026-08-06 entry-set-divergence, eval/codex 정적 전수 + CONTROL 코드·데이터
+대조):** 런타임 소비처 7곳 분류 완료 — eval 의 「확정 머니-패스 2배」 판정은 **CONTROL
+실측으로 조건부로 강등**됐다: `aggregate_closed_pnl()`(`exchange_exit_repository.py:43-58`,
+dedup 없는 `SUM`)이 `Order.realized_pnl` 로 흘러가는 경로(`tasks/trading.py:2110-2163`,
+backfill/resync)는 코드상 무방비가 맞지만, **실데이터에서 `ours`/`unknown` 2행은 서로 다른
+`exchange_account_id` 로 적재**돼 단일 계정 필터가 사실상의 dedup 역할을 한다(실기록
+reduce-only 3건 전부 1배 정확 — DB 실측). ⇒ 이 BL 의 실체는 「지금 2배가 흐른다」가 아니라
+**「dedup 이 명시적 설계가 아니라 계정 분리의 부수효과이고, 그 invariant 를 강제하는
+코드·테스트가 없다」**. 같은 계정 안에 같은 `exchange_order_id` 중복이 적재되는 형상이
+생기면 즉시 2배가 된다. 그 외: `parity_repository.py:430-478` `ledger_only_net` 은 분류
+필터로 조건부 · `tasks/trading.py:1852-1880`(알림)·`_derive_ledger_values`(2행 fail-closed)·
+count 류·`btgap_compare.py`(자체 dedup)는 무해. **테스트 사각 6곳** — `ours`/`unknown` 동일
+payload 쌍의 2배 방지를 검증하는 테스트가 0건(eval 전수 표 = PR 의
+`.claude/fleet/entryset/reports/eval-report.md` Phase 1).
 
----
-
-### BL-606
-
-**Priority:** P3
-**카테고리:** Frontend / live-sessions (outcome-parity 정직성)
-**Trigger:** 세션 축이 빈 세션의 상세를 사용자가 읽기 전
-**Est:** S
-**상태:** ⬜ **Open**
-
-**outcome-parity 패널의 「매칭 없음」 경고가 스코프 맹목이다.**
-
-`outcome-parity-panel.tsx:340` 의 `hasMatchedClosures = session.matched > 0 ||
-strategy.matched > 0` 라서 **요청 세션이 완전히 비어도 전략 축에 매칭이 있으면 경고가 안
-뜬다.** 실측(2026-08-06 qa): 소크 세션 2개가 정확히 그 상태 — 세션 축 전항 「산출 불가」인데
-31세션 누적 워터폴(-73.55 net)이 나란히 렌더되고, 이 세션 기여 0 이라는 사실은 배지
-(`요청 세션` vs `세션 31건`)뿐. 부수: 세션 총계 타일 2개가 관측 0건에서 리터럴 `0` 을 neutral
-톤으로 렌더(「기대 0·실제 0 ⇒ 격차 없음」 오독 여지). 제안 = 경고 조건 스코프 분리 또는 세션
-스코프 카드 안 「이 세션 표본 0」 배너.
-
-**Risk:** 🟢 표시 계층. 단 Surface Trust 원칙(§7.3)의 표면이라 방치 시 신뢰 판단을 오도.
-
----
-
-### BL-607
-
-**Priority:** P3
-**카테고리:** Frontend / live-sessions (표시 계층)
-**Trigger:** outcome-parity 표시 계층을 손댈 때
-**Est:** S
-**상태:** ⬜ **Open**
-
-**outcome-parity 패널이 Decimal 원문을 그대로 렌더해 타일 밖으로 넘친다.**
-
-실측(2026-08-06 qa): `data-testid` 노드 55개 중 **17개 오버플로**(뷰포트 1600·2560 동일).
-최악 `outcome-parity-strategy-sample-sd-net` = 51자리 문자열, scrollWidth 551px vs clientWidth
-66px(**8.3배**). 워터폴 값 3개는 부모 박스 밖으로 삐져나온다. 패널 폭이 542px 고정이라
-반응형 문제가 아니라 **표시 계층 반올림 부재**(`displayDecimal` 이 원값 그대로, 퍼센트만
-`toFixed`). NaN/Infinity 누수는 0(그 축은 건강).
-
-**Risk:** 🟢 표시만. 수리 시 반올림이 값 자체를 바꾸지 않게(표시 전용) 경계 주의.
-
----
-
-### BL-608
-
-**Priority:** P3
-**카테고리:** Frontend / e2e·단위테스트 (outcome-parity 회귀 안전망)
-**Trigger:** outcome-parity 표면을 다음에 만질 때 (안전망 먼저)
-**Est:** S
-**상태:** ⬜ **Open**
-
-**outcome-parity 패널의 e2e 가 0건이고, 단위테스트는 비대칭 스코프 케이스가 없다.**
-
-실측(2026-08-06 qa): `frontend/e2e/**` 에 `outcome-parity` 문자열 **0건** — 화면 도달을
-자동으로 재는 곳이 없다(PR #496 전례: 게이트 전부 green 인데 화면 도달 불가). 단위테스트
-(`outcome-parity-panel.test.tsx`)의 `matched_count: 0` 케이스는 **두 스코프를 함께** 비워
-경고가 반드시 뜨는 픽스처뿐이라 BL-606 의 비대칭 조합(session 0 · strategy >0)과 라이브
-실측의 `null` 커버리지(`산출 불가`) 경로를 못 잡는다. 로케이터는 data-testid 기반으로
-(BL-597 소크 오염 축 회피 — qa 프로브가 실증한 규약).
-
-**Risk:** 🟢 안전망 부재 자체가 리스크. BL-606/607 수리 전에 이것부터.
-
----
-
-### BL-609
-
-**Priority:** P3
-**카테고리:** DX / 함대 도구 (`scripts/herdr-fleet.sh`)
-**Trigger:** 다음 함대 부팅 전
-**Est:** S
-**상태:** ⬜ **Open**
-
-**herdr-fleet 의 claude 워커가 전역 기본 모델을 상속한다 — 역할표와 조용히 어긋난다.**
-
-실측(2026-08-06): `agent_args_for` 가 codex 에만 인자를 주고 claude 는 무인자라
-`~/.claude/settings.json` 의 전역 모델을 상속 — 역할표는 gen/qa=Opus 인데 **Fable 로
-부팅**됐고, 모델은 pane 화면에서만 보여 오케스트레이터 status 폴링으로는 안 보인다.
-사용자가 중간 발견. 수리 절차(실증): PID 특정 kill → `herdr agent start <name> --kind claude
---pane <p> -- --model opus` → `--only` 재분배. 정본 수리 = `agent_args_for` 의 claude 케이스에
-`--model opus` (또는 `--agent claude:이름:모델` 문법) 추가.
-
-**Risk:** 🟢 도구. 단 모델 배정이 품질 가정의 일부인 회차에서는 조용한 어긋남이 산출물
-품질을 바꾼다.
+**Risk:** 🟡 현재 형상에서는 1배가 실측 사실. 수리 범위 = invariant 명문화(적재 경로) +
+음성 대조 테스트 — 이번 회차 범위 밖.
 
 ---
 
@@ -4719,6 +4621,52 @@ strategy.matched > 0` 라서 **요청 세션이 완전히 비어도 전략 축�
 **Risk:** 🟢 주석 수준. 단 이 값을 UI/리포트가 링크로 렌더한다면 깨진 링크가 된다 — 수리 시 소비처 확인.
 
 ---
+---
+
+### BL-611
+
+**Priority:** P2
+**카테고리:** DX / 문서 로딩 (ADR-026 후속)
+**Trigger:** 다음 Sprint kickoff (Type A/B) 전
+**Est:** S
+**상태:** ⬜ **Open**
+
+**메타-방법론 영구 규칙이 「매 세션 자동 로드」에서 「열어야 읽힘」으로 강등됐다.**
+구 `.ai/common/global.md` 는 `paths` frontmatter 가 없어 `.claude/rules/global.md`(심볼릭) 경유로
+**무조건** 로드됐다 — 2026-08-07 실측 재현: 그 세션 컨텍스트에 `global.md` 가 들어와 있었고
+`paths` 가 있는 backend/frontend/nextjs-shared/typescript 는 로드되지 **않았다**.
+ADR-026 은 §7(메타-방법론 영구 규칙)을 `generator-evaluator-pipeline.md` §8 로 병합했는데,
+이 문서는 22,511 tok 이고 AGENTS.md 에 **링크로만** 걸린다. ADR 의 Consequences 는 「스택 규칙」
+누락만 적고 이 축은 짚지 않았다.
+후보 = ⑴ §8.1/§8.3 의 **강제 조항만** AGENTS.md 본문으로 승격(고정비 +200자 내외) ·
+⑵ `.claude/rules/` 에 `paths: ["docs/**"]` 규칙 파일 신설(ADR-026 재평가 트리거 ⑵에 걸린다) ·
+⑶ Sprint kickoff 체크리스트를 `status.md` 「다음 스프린트」 블록 템플릿에 못 박기.
+
+**Risk:** 🟡 규율 누락은 조용하다 — 위반해도 게이트가 red 로 안 변한다. 검출은 sprint close-out
+audit 뿐이라 발견이 회차 끝으로 밀린다.
+
+---
+
+### BL-612
+
+**Priority:** P3
+**카테고리:** Docs / dev-log 버퍼 (ADR-026 §3)
+**Trigger:** 다음 문서 정리 회차
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**entry-set-divergence 회차의 dev-log 버퍼가 승격되지 않은 채 남아 있다.**
+ADR-026 §3 은 dev-log 를 이력이 아니라 **입력 버퍼**로 규정하고 「세션 종결 시 `docs/lessons.md`
+승격이 의무, 승격하면 버퍼를 비운다」고 못 박는다. 그 회차는 PR #553 으로 종결됐는데
+`docs/dev-log/2026-08-06-entry-set-divergence.md` 는 14,480바이트(약 9천자)로 남아 있다 —
+§3 이 정한 반증 카드 상한(1~2천자)의 4~9배다. LESSON-072(사전등록 기각영역)는 이미 승격됐으나
+회차 고유 교훈(키 규약 관측 = 체결봉 vs 장전봉 · 저장 digest 비교의 변조 무방비 ·
+적중률은 판별 표면이 아니다)은 미승격이다.
+수리 = 미승격 교훈을 `docs/lessons.md` 에 등재 → 버퍼 삭제 → INDEX 줄을 `— dev-log` 형식으로 전환.
+
+**Risk:** 🟢 정보 유실은 없다(git + INDEX 한 줄). 다만 버퍼가 쌓이면 §3 의 3층 구조가 무너져
+INDEX·lessons·git 의 역할 분담이 다시 흐려진다.
+
 
 ## Deferred — trigger 미도래 · 의도적 부활 가능 (구 `_deferred.md` 승격, 2026-08-06)
 
