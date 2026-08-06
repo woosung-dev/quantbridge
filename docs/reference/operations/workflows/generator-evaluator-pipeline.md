@@ -1,9 +1,9 @@
 # Generator / Evaluator 파이프라인 — 구현은 codex, 판정은 Claude
 
-> **목적:** 생성 주체와 검증 주체를 분리해 circular oracle(`global.md` §7.3)을 절차가 아니라 **구조**로 차단한다.
+> **목적:** 생성 주체와 검증 주체를 분리해 circular oracle(본 문서 §8.3)을 절차가 아니라 **구조**로 차단한다.
 > **도입:** 2026-07-27 live-ops-hygiene 스프린트 (1/3 검증 시작).
-> **승격 경로:** 3회 검증 통과 시 `.ai/common/global.md` §6 승격 경로에 따라 영구 규칙 승격.
-> **근거:** `.ai/common/global.md` §7.1(kickoff preflight) · §7.3(circular oracle 금지) · `docs/reference/operations/gates-and-traps.md`.
+> **승격 경로:** 3회 검증 통과 시 [`docs/lessons.md`](../../../lessons.md) 헤더의 승격 경로에 따라 영구 규칙 승격.
+> **근거:** 본 문서 §8.1(kickoff preflight) · §8.3(circular oracle 금지) · `docs/reference/operations/gates-and-traps.md`. (구 `global.md` §7 은 ADR-026 으로 §8 에 병합.)
 
 ---
 
@@ -118,7 +118,7 @@ codex exec resume --last "<후속 지시>" < /dev/null    # 이어가기
 
 - ★**`< /dev/null` 필수.** 백그라운드에서 stdin 이 열려 있으면 무한 대기한다(워커 2기가 52분·38분을 그렇게 날렸다).
 - **BL 1건 = codex 1세션.** 여러 BL 을 한 세션에 넣으면 diff 가 섞여 변이 판별이 무뎌진다.
-- 태스크 스펙에 반드시 넣을 것 — G1 수용 기준 · `.ai/rules/` 레이어 규칙(Repository-only · `Decimal` · prefork-safe) · `docs/reference/operations/gates-and-traps.md` · **"스펙 밖 리팩토링 금지"**.
+- 태스크 스펙에 반드시 넣을 것 — G1 수용 기준 · `.claude/rules/` 레이어 규칙(Repository-only · `Decimal` · prefork-safe) · `docs/reference/operations/gates-and-traps.md` · **"스펙 밖 리팩토링 금지"**.
 
 ### G3 — 평가 (평가자) ★진짜 게이트
 
@@ -298,3 +298,56 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
 - `/metrics` 에 신규 카운터가 **이름만(HELP/TYPE) 보이고 샘플이 없으면** 백엔드를 재기동해라 — 배선 이전에 뜬 프로세스는 단일 프로세스 모드라 **API 자기 값만** 보여준다.
 - mmap 파일을 직접 열 때 `MmapedDict.read_all_values_from_file` 은 **4-튜플**을 준다. 2-튜플로 언팩하고 예외를 삼키면 **"전 파일에 metric 0개"** 라는 오답이 나온다.
 - 라벨 집합의 권위는 **문서가 아니라 코드**다(이번 회차에 문서 목록이 세 번 어긋났다).
+
+---
+
+## 8. 메타-방법론 영구 규칙 (구 `.ai/common/global.md` §7 — ADR-026 으로 본 문서에 병합)
+
+> 3/3 검증 통과한 sprint kickoff / mid-dogfood / post-merge 프로세스 규율. lessons 의 LESSON-037/038/039/040/063 에서 승격.
+> 위반 시 silent failure → wrong premise surgery → false PASS 누적 위험.
+> 승격 경로 자체는 [`docs/lessons.md`](../../../lessons.md) 헤더가 정본이다.
+
+### 8.1 Sprint kickoff 첫 step = baseline 재측정 preflight (LESSON-037)
+
+> Sprint kickoff 의 **첫 step = baseline 재측정 preflight 의무**. 본인 dogfood 인상 + plan 가정 + 사용자 prompt 가정 — 모두 실측 전 신뢰 금지.
+
+- plan 작성 직후 codex G0 1회 + fresh-context subagent 2-검토 권장. frame change 1회+ 발견 시 plan revision 의무.
+- Type A (신규 기능) 의무 / Type B (risk-critical) 권장 / Type C (hotfix) 면제 가능 / Type D (docs only) 면제.
+
+### 8.2 Docker worker auto-rebuild on PR merge (LESSON-038)
+
+> 모든 worker process (celery worker / beat / ws-stream) 코드 변경 영향 시 PR 머지 후 자동 rebuild 의무.
+
+- **첫 단계 = sentinel function 존재 startup health check** — silent failure 자동 detection (e.g. `_v2_buy_and_hold_curve` `hasattr` 검증).
+
+### 8.3 Surface Trust 차단 ≠ 기능 작동 (LESSON-039)
+
+> Surface Trust 차단 (UI false positive 차단) 과 기능 작동 (backend 정확 계산) 두 mechanism 분리 의무. mid-dogfood verification 시 양쪽 의무.
+
+- (a) Surface Trust 차단 작동 검증 (b) **기능 작동 직접 검증** — hand-computed minimal oracle 또는 deterministic fixture 로 외부 진실 도입.
+- engine 자체 generated 결과를 같은 engine 으로 검증 = **circular oracle 함정 (금지)** — 본 파이프라인이 구조로 차단하는 바로 그것.
+
+### 8.4 codex G.0 직후 rapid prereq verification spike (LESSON-040)
+
+> codex G.0 master plan validation 직후 + Sprint 진입 전 = **rapid prereq verification spike (10-30분)** 의무.
+
+- 가설별 1줄 query (DB SQL / Python diagnostic / runtime check) 로 surgery premise 검증. wrong premise 발견 시 plan footnote + Slice scope 즉시 갱신.
+- worker/runtime version 검증 (sentinel function 존재 / git commit hash 비교) Sprint 진입 첫 step 추가 권장.
+
+### 8.5 신규 도메인 / 큰 모듈 신설 직후 = `/deepen-modules` 1회 권장 (LESSON-063)
+
+> AI 누적 작성 코드는 **shallow module + locality 깨짐**을 누적시킨다 (Ousterhout). 신규 도메인 / 5+ 파일 모듈 신설 직후, stage→main 진입 전 1회 호출로 사전 차단.
+
+- **Iron Law:** 1회 호출 = 1 도메인만 audit. 전체 코드베이스 동시 audit 금지. Phase 3 사용자 승인 전 코드 수정 금지 — BL 등재만 허용.
+- **STOP conditions:** 해당 모듈 test coverage <70% → "test 우선" 권고로 종료 / Deep module 을 더 deep 화하지 않음.
+- 단일 grep 금지 — **직접 read + dispatch/co-change 전수 추적 의무** (stress_test-deepen 3차 검증에서 승격).
+
+### 적용 의무 시점
+
+| 시점                                   | 적용 규칙 |
+| -------------------------------------- | --------- |
+| Sprint kickoff (Type A/B)              | §8.1      |
+| codex G.0 master plan validation 직후  | §8.4      |
+| PR 머지 후 (worker 코드 영향 시)       | §8.2      |
+| Mid-dogfood verification               | §8.3      |
+| 신규 도메인 / 큰 모듈 신설 직후 (권장) | §8.5      |

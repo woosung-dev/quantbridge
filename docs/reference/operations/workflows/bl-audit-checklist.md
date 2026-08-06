@@ -2,7 +2,7 @@
 
 > **목적:** Sprint 시작 시 active BL trigger 도래 항목을 자동 식별 + sprint scope 결정에 반영.
 > **도입:** Sprint 28 Slice 1a (Phase C.2 prototype).
-> **승격 경로:** Sprint 29+ kickoff 시 동일 checklist 사용 시 영구 규칙 승격 (`.ai/project/lessons.md`).
+> **승격 경로:** Sprint 29+ kickoff 시 동일 checklist 사용 시 영구 규칙 승격 (`docs/lessons.md`).
 
 ## 사용법
 

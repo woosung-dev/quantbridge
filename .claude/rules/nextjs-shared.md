@@ -1,15 +1,13 @@
 ---
-description: Next.js 16 + shadcn/ui v4 + Zod v4 + 반응형 공통 패턴 (frontend.md, fullstack.md에서 참조)
+description: Next.js 16 + shadcn/ui v4 + Zod v4 + 반응형 + TypeScript 컨벤션 공통 패턴 (frontend.md 에서 참조)
 paths:
-  - "src/**/*.ts"
-  - "src/**/*.tsx"
   - "frontend/**/*.ts"
   - "frontend/**/*.tsx"
 ---
 
 # Next.js 공통 패턴
 
-> frontend.md와 fullstack.md에서 공통으로 참조하는 패턴.
+> `frontend.md` 가 참조하는 공통 패턴. TypeScript 컨벤션(구 `typescript.md`)도 여기로 병합 (ADR-026).
 > Clerk 인증은 각 스택 규칙에서 별도 정의 (FE-only vs Fullstack 패턴이 다름).
 
 ---
@@ -132,3 +130,12 @@ const handleSubmit = (data: FormData) => {
 - [ ] 모바일(320px)에서 가로 스크롤 발생하지 않음
 - [ ] 텍스트 오버플로우 처리 (`truncate` 또는 `break-words`)
 - [ ] 테이블은 `overflow-x-auto` 래퍼로 감싸기
+
+---
+
+## TypeScript 컨벤션 (구 `typescript.md` 병합)
+
+- **Strict 모드 필수**, `any` 사용 엄격히 금지 (부득이한 경우 `unknown` + Type Guard)
+- 모든 API 응답 타입은 명시적으로 정의
+- 네이밍 — Boolean: `is`/`has`/`should` 접두사 · 이벤트 핸들러: `handle` 접두사 · Props 이벤트: `on` 접두사
+- 파일 케이싱 — 컴포넌트: PascalCase · 훅: camelCase `use` 접두사 · 상수: UPPER_SNAKE_CASE

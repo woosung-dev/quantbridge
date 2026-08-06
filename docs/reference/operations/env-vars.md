@@ -9,7 +9,7 @@
 
 - 모든 환경 변수는 `.env.local` (로컬) 또는 배포 플랫폼 대시보드에서 관리
 - 코드에 하드코딩 **절대 금지** (CLAUDE.md Golden Rule)
-- 민감 값은 백엔드에서 `SecretStr` 타입으로 선언 (`.ai/stacks/fastapi/backend.md` §2)
+- 민감 값은 백엔드에서 `SecretStr` 타입으로 선언 (`.claude/rules/backend.md` §2)
 - `.env.example`에 없는 변수를 코드에서 참조 금지 (Golden Rule)
 
 ### 범례
@@ -129,7 +129,7 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 
 ## 11. Secret 관리 원칙
 
-> `.ai/common/global.md` §4 인용.
+> 구 `global.md` §4 에서 인용 — 원본은 ADR-026 으로 소멸, 본 문서가 정본이다.
 
 - **하드코딩 금지** — 모든 키는 환경 변수
 - **`SecretStr` 타입** — 백엔드 코드는 Pydantic Settings의 `SecretStr` 사용, `.get_secret_value()`로만 접근

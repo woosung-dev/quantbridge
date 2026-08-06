@@ -205,8 +205,8 @@ class OrderService:
 | Pine 미지원 함수   | 1개라도 포함 시 전체 "Unsupported" 반환 — 부분 실행 금지 (잘못된 결과 방지).                  |
 | 백테스트/최적화   | 반드시 Celery 비동기. API 핸들러 직접 실행 금지. 결과는 `result_jsonb` 컬럼.                 |
 | 거래소 API Key    | AES-256 (`Fernet`) 암호화 후 DB 저장. 평문 컬럼 금지.                                       |
-| OHLCV 시계열      | TimescaleDB hypertable (`market_data_*`) 에 저장. 일반 PostgreSQL 테이블 사용 금지.          |
-| 실시간 가격       | WebSocket + Zustand 캐시 (frontend). 백엔드는 `ws-stream` 별도 queue + `--pool=solo` worker. |
+| OHLCV 시계열      | TimescaleDB hypertable (`ts.ohlcv`) 에 저장. 일반 PostgreSQL 테이블 사용 금지.               |
+| 실시간 가격       | WebSocket + Zustand 캐시 (frontend). 백엔드는 `ws_stream` 별도 queue + prefork worker (Sprint 24 BL-012 prefork 복귀 — `docker-compose.yml` ws-stream 서비스가 정본). |
 
 ---
 
@@ -290,7 +290,7 @@ alembic downgrade -1
 ```
 backend/src/
 ├── [domain]/       # 도메인별 모듈 (router/service/repository/schemas/models)
-│   # e.g. backtest, stress_test, optimizer, strategy, trading, market_data, exchange
+│   # e.g. backtest, stress_test, optimizer, strategy, trading, market_data (exchange 는 trading 으로 통합 — ADR-018)
 ├── strategy/
 │   └── pine_v2/    # Pine Script v2 인터프리터 (SSOT — interpreter / stdlib / coverage)
 ├── tasks/          # Celery task entrypoints (prefork-safe pattern — §9)
@@ -384,7 +384,7 @@ async def _async_impl():
 
 새 Celery task 추가 시:
 1. 동일 child 의 N 번째 task 도 success 인지 라이브 검증 (즉시 3회 + 5분 cycle 30분 자동)
-2. ws_stream 같은 long-running 은 별도 queue (`task_routes`) + `--pool=solo` worker 권장 (Sprint 12 backend-ws-stream mirror)
+2. ws_stream 같은 long-running 은 별도 queue (`task_routes`) 로 분리 — pool 은 prefork 고정 (Sprint 12 solo → Sprint 24 BL-012 prefork 복귀, `docker-compose.yml` 이 정본)
 3. Sprint 19 BL-082 1h soak gate 통과 (RSS slope < 임계, fd 누수 없음)
 
 ### 9.6 Alert task pending observability (Sprint 19 BL-081)

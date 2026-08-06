@@ -109,7 +109,7 @@ cd backend && uv run pytest -q                      # ~1831 tests pass (2026-05 
 | [`docs/README.md`](docs/README.md)                                   | 현행 문서 지도 — 상태·로드맵·백로그·정본의 진입점                    |
 | [`docs/status.md`](docs/status.md)                                   | 활성 또는 다음 스프린트의 실행 계약                                  |
 | `docs/archive/superpowers/plans/` | superpowers:writing-plans 산출물 (Sprint별 implementation plan)      |
-| [`.ai/rules/`](.ai/rules/)                                           | 스택별 강제 규칙 (backend.md, frontend.md, typescript.md 등)         |
+| `.claude/rules/`                                                     | 스택별 규칙 (backend.md, frontend.md, nextjs-shared.md — paths 매칭 시 자동 로드) |
 
 ---
 

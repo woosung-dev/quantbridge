@@ -1126,7 +1126,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 남은 것: `dec()` **13곳**과 `tasks/trading.py`·`tasks/live_signal.py`의 다른 metric 호출. 이들은 terminal 전이 이후라 예외 시 Celery 재시도로 회복되므로 좌초시키지는 않지만, **불변식으로 못박는 것이 옳다.**
 
-**권장 접근:** 머니-패스의 모든 metric mutation 을 `record_metric_safely` 로 감싸고, 그 규칙을 `.ai/stacks/fastapi/backend.md` 에 등재한다.
+**권장 접근:** 머니-패스의 모든 metric mutation 을 `record_metric_safely` 로 감싸고, 그 규칙을 `.claude/rules/backend.md` 에 등재한다.
 **Risk:** 🟡
 
 ## P3 — Nice-to-have / 컨벤션 정합
@@ -1201,7 +1201,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 누적 위반 181 line 검출 (2026-05-15 audit) — auto-fix 가능
 **Est:** S (3-5h)
-**출처:** `2026-05-15-claudemd-align-audit.md` §6 Track C1, [LESSON-068](../.ai/project/lessons.md)
+**출처:** `2026-05-15-claudemd-align-audit.md` §6 Track C1, [LESSON-068](lessons.md)
 
 **현 상태:** docs/dev-log 161 + dogfood 12 + guides 8 = 181 line 한국어 sentence + `:` end-of-line 위반. false positive 0. lint mechanism 0 = LLM 매 generation 자연 위반.
 
@@ -1210,7 +1210,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 1. markdownlint custom rule 또는 ruff custom plugin 으로 한국어 콜론 종결 검출 (regex `[가-힣]+\s*:\s*$` minus 코드 fence + URL + table cell + frontmatter)
 2. auto-fix script — 검출 line `:` → `.` 일괄 sed (false positive 0 검증된 docs/\* scope 만)
 3. pre-commit hook 추가 + CI gate
-4. LESSON-068 2/3 누적 → 3차 시 `.ai/common/global.md` §5 mechanism 의무 영구 승격
+4. LESSON-068 2/3 누적 → 3차 시 문서 lint 영구 규칙 승격 (구 `global.md` §5 는 ADR-026 으로 소멸 — 승격처는 `scripts/docs-audit.sh` 확장)
 
 **영향 파일:** 새 lint config 1 + auto-fix script 1 + pre-commit hook 1 + 검출 181 line edit (auto-fix 1회).
 
@@ -1225,7 +1225,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 누적 누락 70 file 검출 (BE 14 + FE 56, 2026-05-15 audit). main.py / core/config.py / trading/registry.py / app/layout.tsx 등 핵심 file 포함
 **Est:** M (8-12h — lint rule 4-6h + 70 file 의미 있는 한국어 1줄 주석 작성 4-6h)
-**출처:** `2026-05-15-claudemd-align-audit.md` §6 Track C2, [LESSON-068](../.ai/project/lessons.md)
+**출처:** `2026-05-15-claudemd-align-audit.md` §6 Track C2, [LESSON-068](lessons.md)
 
 **현 상태:** BE 14/157 (8.9%) + FE 56/243 (23%) = 70 file 신규 source 첫 3줄 한국어 주석 누락. config / test / **init** / index.ts / \*.d.ts 제외. ESLint custom rule 부재 + ruff custom rule 부재.
 
@@ -1558,7 +1558,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Est:** S
 **출처:** 2026-07-28 live-ops-hygiene codex 최종 적대 리뷰
 
-**원인 / 영향:** `collapseRows`(`account-positions-table.tsx`)가 권한(`readOnly`)·귀속 세션·차단 사유를 해석해 대표 행과 청산 가능성을 결정한다. `.ai/rules/frontend.md` 의 view ↔ 비즈니스 로직 분리 원칙 위반이다.
+**원인 / 영향:** `collapseRows`(`account-positions-table.tsx`)가 권한(`readOnly`)·귀속 세션·차단 사유를 해석해 대표 행과 청산 가능성을 결정한다. `.claude/rules/frontend.md` 의 view ↔ 비즈니스 로직 분리 원칙 위반이다.
 
 ★**이번 스프린트의 P1 이 정확히 이 경계에서 나왔다** — hedge 의 두 leg 를 한 행으로 지운 것이 이 함수였다. 규칙 위반이 실제 결함으로 이어진 사례이므로 nit 로만 두지 않는다.
 
@@ -2119,7 +2119,7 @@ JOIN trading.orders ON exchange_order_id → 0 행
 
 **부분 완화 (2026-07-25, `stage/exit-attribution`):** `_assert_disposable_database` 가 DSN 의 DB 이름이 `_test` 로 끝나지 않으면 `RuntimeError` 를 던진다. 개발 DB DSN 으로 실행 시 파괴 대신 예외가 나는 것을 실증했다.
 
-**잔여 / 권장 접근:** ① 같은 폴백 구조가 `tests/conftest.py` 에도 있다(`TEST_DATABASE_URL > DATABASE_URL > default`) — 파괴성은 낮지만 동일 가드가 필요한지 검토 ② 로컬 개발 DB 주기 백업(`pg_dump` cron 또는 `make db-snapshot`)이 없다. dogfood 데이터는 재현 비용이 크고 API 키는 복구 불가다 ③ 서브에이전트에 DB env 를 넘길 때의 표준 레시피를 `.ai/rules` 로 승격 ④ **`alembic/env.py:40` 이 `settings.database_url` 을 주입하므로 수동 `alembic downgrade` 는 가드 없이 개발 DB 를 향한다** — `_assert_disposable_database` 는 pytest 경로만 막는다. CLI 경로 가드 또는 `make` 래퍼 검토.
+**잔여 / 권장 접근:** ① 같은 폴백 구조가 `tests/conftest.py` 에도 있다(`TEST_DATABASE_URL > DATABASE_URL > default`) — 파괴성은 낮지만 동일 가드가 필요한지 검토 ② 로컬 개발 DB 주기 백업(`pg_dump` cron 또는 `make db-snapshot`)이 없다. dogfood 데이터는 재현 비용이 크고 API 키는 복구 불가다 ③ 서브에이전트에 DB env 를 넘길 때의 표준 레시피를 `.claude/rules` 로 승격 ④ **`alembic/env.py:40` 이 `settings.database_url` 을 주입하므로 수동 `alembic downgrade` 는 가드 없이 개발 DB 를 향한다** — `_assert_disposable_database` 는 pytest 경로만 막는다. CLI 경로 가드 또는 `make` 래퍼 검토.
 
 ---
 
@@ -2973,7 +2973,7 @@ f"{reason}({stage}/{category}) 감지 — 세션을 비활성화했습니다(...
 **원인 / 영향:** DB `Numeric(18,8)` 인 `filled_quantity`/`filled_price` 가 seed 경로에서 `float` 로
 변환된다(`live_signal.py` seed leg 조립 · `strategy_state.py` `Trade.qty: float`). 예:
 `9999999999.99999999` 는 float 왕복 뒤 `10000000000.0`. seed 포지션의 수량·진입가·증거금 계산에
-반올림값이 들어간다. `AGENTS.md:122` 와 `.ai/stacks/fastapi/backend.md:50` 의 "금융 숫자는 Decimal,
+반올림값이 들어간다. `AGENTS.md` 와 `.claude/rules/backend.md` §2 의 "금융 숫자는 Decimal,
 float 금지" 를 형식상 위반한다.
 
 ★**이 변경이 새로 만든 문제는 아니다** — `StrategyState` 는 원래 float 기반이고(`Trade.qty: float`),

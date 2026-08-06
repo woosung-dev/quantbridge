@@ -1,7 +1,8 @@
 # Lessons Learned
 
 > AI가 실수를 교정받을 때마다 이 파일이 업데이트됩니다.
-> 반복 패턴은 `.ai/common/` 또는 `.ai/stacks/` 규칙으로 승격, 본 파일에는 1-line reference 만 보존합니다.
+> 반복 패턴(3회)은 `.claude/rules/` 스택 규칙 또는 해당 정본 축(ADR-026 7축)으로 승격, 본 파일에는 1-line reference 만 보존합니다.
+> 승격 경로(구 global.md §6): dev-log 반증 카드 → 본 파일 (3회 반복) → `.claude/rules/` 또는 정본 문서 → 삭제(모델 개선으로 불필요 시).
 
 ---
 
@@ -21,17 +22,17 @@
 
 | ID         | 승격 위치                              | 한 줄 요약                                                                                                          |
 | ---------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| LESSON-004 | `.ai/stacks/nextjs/frontend.md` §3 H-1 | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)       |
-| LESSON-005 | `.ai/stacks/nextjs/frontend.md` §3 H-2 | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                              |
-| LESSON-006 | `.ai/stacks/nextjs/frontend.md` §3 H-3 | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                    |
-| LESSON-019 | `.ai/stacks/fastapi/backend.md` §3     | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단) |
-| LESSON-020 | `.ai/stacks/fastapi/backend.md` §9.2   | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                              |
-| LESSON-037 | `.ai/common/global.md` §7.1            | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제)                           |
-| LESSON-038 | `.ai/common/global.md` §7.2            | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check                                |
-| LESSON-039 | `.ai/common/global.md` §7.3            | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                           |
-| LESSON-040 | `.ai/common/global.md` §7.4            | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                    |
-| LESSON-063 | `.ai/common/global.md` §7.5            | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                           |
-| LESSON-066 | `.ai/stacks/fastapi/backend.md` §7     | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충) |
+| LESSON-004 | `.claude/rules/frontend.md` §3 H-1 | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)       |
+| LESSON-005 | `.claude/rules/frontend.md` §3 H-2 | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                              |
+| LESSON-006 | `.claude/rules/frontend.md` §3 H-3 | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                    |
+| LESSON-019 | `.claude/rules/backend.md` §3     | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단) |
+| LESSON-020 | `.claude/rules/backend.md` §9.2   | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                              |
+| LESSON-037 | `generator-evaluator-pipeline.md` §8.1             | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제)                           |
+| LESSON-038 | `generator-evaluator-pipeline.md` §8.2             | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check                                |
+| LESSON-039 | `generator-evaluator-pipeline.md` §8.3             | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                           |
+| LESSON-040 | `generator-evaluator-pipeline.md` §8.4             | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                    |
+| LESSON-063 | `generator-evaluator-pipeline.md` §8.5             | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                           |
+| LESSON-066 | `.claude/rules/backend.md` §7     | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충) |
 
 ---
 
@@ -188,7 +189,7 @@
 
 ### LESSON-050 — Sprint kickoff design source 명시 의무
 
-- **해결:** 디자인 트랙 sprint kickoff prereq 첫 step = `docs/reference/prototypes/` + `DESIGN.md` + `*.pen` + Figma URL 모두 grep + 5지선다 prereq 옵션 (없음 + 4 source 종류). design source 누락 발견 시 즉시 Wave 2 추가 spawn.
+- **해결:** 디자인 트랙 sprint kickoff prereq 첫 step = `docs/reference/design/prototypes/` + `DESIGN.md` + `*.pen` + Figma URL 모두 grep + 5지선다 prereq 옵션 (없음 + 4 source 종류). design source 누락 발견 시 즉시 Wave 2 추가 spawn.
 
 ### LESSON-051 — Agent isolation worktree 4 spawn 시 baseline 정리 의무
 
@@ -223,7 +224,7 @@
 
 - **상황:** BL-205 `OrderReceipt` 3-state 가 단일 grep 으로 silent failure 등재됐으나 codex G.0 2차 재검증 결과 = 의도된 _create flow_ simplification, _fetch flow_ 는 별도 `OrderStatusFetch` 4-state. 코드 변경 0, ADR 문서화로 Resolved.
 - **해결:** (a) 단일 파일 grep 미확정 / (b) `_map_*` reverse 매핑 + consumer 전수 추적 / (c) BL 등재 전 codex G.0 cross-check. post-merge audit (Sprint 48 Worker E reverse-mapping audit) = positive validation safety net.
-- **3차 검증 (2026-06-30 stress_test-deepen):** BL-363 boilerplate 의 money-path 위험을 단일 grep 이 아니라 **직접 read(`service.py:298-411`) + git co-change 추적(`6c7adfba` WF 누락 → `ffb2299b` 별도 패치)** 으로 확정 — config-drift 가 실제 silent corruption 으로 한 번 물었음을 증명. `StressTestKind` dispatch 도 5 site/3 파일 전수 추적으로 over-eng(C3 거부) 판단. 단일 grep 이었으면 "boilerplate 추출" 표면 가치만 봤을 것 → 직접 read 가 money-path framing + git 실증을 끌어냄. **3/3 누적 → `.ai/common/global.md` §7.5 의 deepen-modules 절차에 "단일 grep 금지, 직접 read + dispatch/co-change 전수 추적 의무" 영구 승격 후보(사용자 검토).**
+- **3차 검증 (2026-06-30 stress_test-deepen):** BL-363 boilerplate 의 money-path 위험을 단일 grep 이 아니라 **직접 read(`service.py:298-411`) + git co-change 추적(`6c7adfba` WF 누락 → `ffb2299b` 별도 패치)** 으로 확정 — config-drift 가 실제 silent corruption 으로 한 번 물었음을 증명. `StressTestKind` dispatch 도 5 site/3 파일 전수 추적으로 over-eng(C3 거부) 판단. 단일 grep 이었으면 "boilerplate 추출" 표면 가치만 봤을 것 → 직접 read 가 money-path framing + git 실증을 끌어냄. **3/3 누적 → `generator-evaluator-pipeline.md` §8.5  의 deepen-modules 절차에 "단일 grep 금지, 직접 read + dispatch/co-change 전수 추적 의무" 영구 승격 후보(사용자 검토).**
 - **[LESSON-063 §7.5 4차 재현 corroboration]** multi-SSOT/평행정의 패턴: pine_v2 STDLIB(1) → backtest BacktestMetrics 24-field 4-site(2) → trading exit-field(3) → **stress_test cell 8-site + add-a-type 7파일 lockstep(4, git verbatim 2회)**. AI 누적 코드는 신규 도메인 타입 추가 시 N 타입 × M 레이어 평행 확장을 디폴트로 누적 → §7.5 `/deepen-modules` 신규 도메인 직후 의무 재확인.
 
 ### LESSON-065 — subagent review 2-stage 가 monkeypatch indirect dependency 못 잡음
@@ -236,7 +237,7 @@
 
 - **상황:** 2026-05-15 CLAUDE.md align audit Track C 검증 결과 — `~/.claude/CLAUDE.md` §5 (한국어 콜론 종결 금지) **181 line 위반** (docs/dev-log 161 + dogfood 12 + guides 8) + §6 (신규 source file 1줄 한국어 주석 의무) **70 file 누락** (BE 14/157 = 8.9% + FE 56/243 = 23%). main.py / core/config.py / trading/registry.py / app/layout.tsx 등 핵심 file 도 누락.
 - **원인:** lint mechanism 0 — markdownlint custom rule (한국어 sentence + `:` end-of-line) 부재 + ESLint custom rule (한국어 주석 첫 3줄 의무) 부재 + ruff custom rule 부재. LLM 매 generation 자연 위반 + reviewer 0 → 누적.
-- **해결 path:** (a) ruff custom plugin 또는 markdownlint custom rule 으로 §5 자동 검출 + auto-fix script (`:` → `.` 한국어 sentence ender 한정) (b) ESLint custom rule + ruff custom rule 으로 §6 누락 file 검출 + pre-commit hook (c) 누락 70 file 일괄 한국어 헤더 추가 sprint = BL-307. 1차 누적 (Sprint 60 Track C) — 3차 시 `.ai/common/global.md` §5/§6 mechanism 의무 영구 승격 path.
+- **해결 path:** (a) ruff custom plugin 또는 markdownlint custom rule 으로 §5 자동 검출 + auto-fix script (`:` → `.` 한국어 sentence ender 한정) (b) ESLint custom rule + ruff custom rule 으로 §6 누락 file 검출 + pre-commit hook (c) 누락 70 file 일괄 한국어 헤더 추가 sprint = BL-307. 1차 누적 (Sprint 60 Track C) — 3차 시 영구 규칙(문서 lint 축) 승격 path — 구 global.md §5/§6 은 ADR-026 으로 소멸, 승격처는 `docs-audit.sh` 확장.
 
 ### LESSON-069 — 저-카디널리티 라벨이 **위험도가 다른 갈래**를 합치면 큰 갈래가 작은 갈래를 묻는다 (1/3)
 
@@ -253,7 +254,7 @@
 - **일반 규칙 후보:** **저-카디널리티 라벨을 만들 때 "이 버킷 안의 두 값이 서로 다른 조치를
   요구하는가" 를 물어라.** 요구한다면 그 코드는 라벨이 될 수 없다. 그리고 **큰 갈래가 작은 갈래를
   묻는 방향**(무해가 다수, 위험이 소수)이면 평균이 안전을 말하게 된다.
-- **1차 누적.** 3회 시 `.ai/common/global.md` 승격 후보.
+- **1차 누적.** 3회 시 영구 규칙 승격 후보 (`generator-evaluator-pipeline.md` §8).
 
 ### LESSON-070 — 비중(%)을 인용하기 전에 **분모가 무엇을 세는지** 코드로 확인해라 (1/3)
 
@@ -310,5 +311,5 @@
 | 패턴                               | 도입 트리거                                                   | 현재 상태 |
 | ---------------------------------- | ------------------------------------------------------------- | --------- |
 | 코드 내 중첩 AGENTS.md             | 도메인 3 개 이상 + 각각 반직관적 비즈니스 규칙 3 개 이상 누적 | 미해당    |
-| Action-Based Routing (Context Map) | `.ai/rules/domain.md` 가 200 줄 초과 + 섹션 분리로도 부족     | 미해당    |
+| Action-Based Routing (Context Map) | (구 `.ai/rules/domain.md` 구상 — 부재) 도메인 규칙 파일이 200 줄 초과 + 섹션 분리로도 부족     | 미해당    |
 | 모노레포 규칙 분기                 | `apps/` 하위에 독립 `package.json` 이 2 개 이상 존재          | 미해당    |

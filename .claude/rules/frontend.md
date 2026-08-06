@@ -26,7 +26,7 @@ paths:
 
 ## 2. 핵심 제약 사항 (Strict Rules)
 
-> Next.js 16, Zod v4, shadcn/ui v4, 반응형 패턴은 **`.ai/rules/nextjs-shared.md`** 참조.
+> Next.js 16, Zod v4, shadcn/ui v4, 반응형 패턴은 **`.claude/rules/nextjs-shared.md`** 참조.
 
 ### Clerk (Next.js 16)
 
@@ -132,13 +132,12 @@ src/
 │       └── types.ts        # API Request/Response 타입
 ├── hooks/                  # 도메인 무관 공통 훅 (useDebounce 등)
 ├── lib/                    # Utility: API 클라이언트, 유틸리티, 상수
-├── store/                  # Global State: 앱 전역 Zustand (Theme 등)
-└── types/                  # 전역 공통 타입 (UUID, Timestamped 등)
+└── store/                  # Global State: 앱 전역 Zustand (Theme 등)
 ```
 
 ## 5. 반응형 (Responsive Design)
 
-> 반응형 규칙은 **`.ai/rules/nextjs-shared.md`** 참조.
+> 반응형 규칙은 **`.claude/rules/nextjs-shared.md`** 참조.
 
 ---
 

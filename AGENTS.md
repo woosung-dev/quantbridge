@@ -15,7 +15,7 @@
 > 어떤 상황에서도 타협 금지.
 
 - 환경 변수·API 키·시크릿을 코드에 하드코딩 금지 (`SecretStr` 사용)
-- DB 접근은 Repository layer 만 (`.ai/stacks/fastapi/backend.md` §3)
+- DB 접근은 Repository layer 만 (`.claude/rules/backend.md` §3)
 - `.env.example` 에 없는 환경 변수를 코드에서 참조 금지
 - 사용자 승인 없는 `git push` / 배포 금지 (main 직접 push 영구 차단)
 - LLM 생성 규칙 파일을 검토 없이 그대로 사용 금지
@@ -115,17 +115,14 @@ cd backend && set -a; . ./.env.local; set +a; uv run pytest -v
 
 ## 스택 규칙 참조
 
-> `.ai/rules/` 는 심볼릭 허브. 원본은 `.ai/common/`, `.ai/stacks/`, `.ai/project/`.
+★**`.claude/rules/*.md` 는 `paths` glob 에 맞는 파일을 여는 순간 자동 로드된다**(Claude Code v2.0.64+
+공식 지원 — [ADR-026](docs/decisions/026-documentation-ssot.md)이 구 `.ai/` 를 해체하고 이전).
+2026-08-02 「로더 없음」 실측은 구버전 시점의 결론이었다. 파일을 안 열고 설계만 논하는 세션에서는 직접 열어라.
 
-★**`.ai/rules/*.md` 는 자동 로드되지 않는다 — 필요할 때 직접 열어라.** 파일에 `paths`/`description`
-frontmatter 가 있지만 **Claude Code 에는 그것을 읽는 로더가 없다**(2026-08-02 실측 — `CLAUDE.md` 의 `@` import
-체인에도, `.claude/settings.json` 훅에도 없다). 「`global.md` 만 항상 로드된다」는 서술은 **거짓이었다**.
-
-자주 쓰는 진입점:
-
-- [`.ai/common/global.md`](.ai/common/global.md) — **§7.1** 스프린트 착수 baseline 재측정 · **§7.3** codex finding 코드 대조 의무
-- [`.ai/stacks/fastapi/backend.md`](.ai/stacks/fastapi/backend.md) §3 — Repository layer 규칙
-- [`.ai/project/lessons.md`](.ai/project/lessons.md) — 학습 기록, 실수 → 규칙 승격 path
+- [`.claude/rules/backend.md`](.claude/rules/backend.md) — §3 Repository layer · §9 Celery prefork-safe
+- [`.claude/rules/frontend.md`](.claude/rules/frontend.md) — §3 React Hooks 안전 H-1~H-3 · §6 error.tsx 의무
+- [`docs/lessons.md`](docs/lessons.md) — 반증 기록, 실수 → 규칙 승격 path
+- [`generator-evaluator-pipeline.md`](docs/reference/operations/workflows/generator-evaluator-pipeline.md) §8 — 메타-방법론 영구 규칙 (구 global.md §7: §8.1 kickoff preflight · §8.3 codex finding 코드 대조 의무)
 
 ---
 

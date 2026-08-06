@@ -67,7 +67,7 @@
 
 | Lesson 번호 | 내용 | 발견 sprint / context | 승격 여부                                            |
 | ----------- | ---- | --------------------- | ---------------------------------------------------- |
-| LESSON-XXX  | ...  | ...                   | `.ai/project/lessons.md` 또는 `.ai/common/global.md` |
+| LESSON-XXX  | ...  | ...                   | `docs/lessons.md` 또는 `generator-evaluator-pipeline.md` §8 |
 
 ### §6 — Dual Metric 측정 (의무, Sprint 28 도입)
 

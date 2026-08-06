@@ -98,7 +98,7 @@
 
 `page.tsx` 4개가 전부 얇다(6~51줄). **리디자인은 `_components` 만 손대면 된다.**
 
-**★ error.tsx 가 10개 라우트에서 부재**하고 P1 4개가 전부 포함된다. `.ai/stacks/nextjs/frontend.md` §6 이 의무로 규정하는데 미준수다.
+**★ error.tsx 가 10개 라우트에서 부재**하고 P1 4개가 전부 포함된다. `.claude/rules/frontend.md` §6 이 의무로 규정하는데 미준수다.
 
 ### 4.2 셸
 
