@@ -433,9 +433,21 @@ describe("OutcomeParityPanel", () => {
 
     const banner = screen.getByTestId("outcome-parity-session-no-matched-banner");
     expect(banner).toHaveTextContent("이 세션에는 매칭된 청산이 0건입니다.");
-    expect(banner).toHaveTextContent(
-      "「전략 누적」 카드의 수치에는 이 세션의 청산이 한 건도 포함되지 않습니다.",
-    );
+    expect(banner).toHaveTextContent("다른 세션의 청산을 포함할 수 있습니다");
+  });
+
+  // ★배너는 **관측 사실만** 말해야 한다. 「전략 누적에 이 세션 청산이 한 건도 없다」는
+  // 단정은 백엔드 계약이 보장하지 않는다 — 주문 창은 `filled_at` 기준 반열림
+  // `[started_at, ended_at)` 이라 세션 종료 뒤 체결(늦은 체결)은 **인접 세션 창으로**
+  // 잡힌다(`backend/src/trading/repositories/order_repository.py` 창 계약).
+  // 그러면 세션 축은 매칭 0 인데 그 세션 이벤트의 청산이 전략 축에서는 매칭될 수 있다
+  // (`parity_repository.load_parity_inputs` 가 이벤트와 주문 창을 따로 받는다).
+  it("세션 배너는 전략 누적에 이 세션 청산이 없다고 단정하지 않는다", () => {
+    renderLoaded(responseWith(SESSION_EMPTY_SCOPE, STRATEGY_LIVE_SCOPE));
+
+    const banner = screen.getByTestId("outcome-parity-session-no-matched-banner");
+    expect(banner).not.toHaveTextContent("한 건도");
+    expect(banner).not.toHaveTextContent("포함되지 않습니다");
   });
 
   it("매칭이 있는 스코프에는 매칭 0건 배너를 붙이지 않는다", () => {
@@ -509,6 +521,62 @@ describe("OutcomeParityPanel", () => {
     expect(screen.getByTestId("outcome-parity-session-waterfall-expected")).toHaveTextContent(
       "10.00",
     );
+  });
+
+  // ★반올림 경계 — `DISPLAY_FRACTION_DIGITS = 4` 의 양쪽을 값으로 못 박는다.
+  // 한 번의 렌더에 슬롯 6개를 서로 다른 경계값으로 채운다(픽스처를 늘리지 않는다).
+  it("반올림 경계: 정확 4자리·half-up 양방향·자리올림 carry·음수", () => {
+    const boundary: OutcomeParityScope = {
+      ...COMPLETE_SCOPE,
+      expected_gross: "1.2345", // 정확히 4자리 → 원문 그대로
+      actual_net: "1.23454", // 5번째 자리 4 → 내림
+      round_trip_notional: "1.23455", // 5번째 자리 5 → half-up 올림
+      actual_gross: "9.99995", // carry 가 정수부까지 전파
+      decomposable_expected_gross: "-1.23455", // 음수도 절댓값 기준 half-up
+      execution_gap: "-9.99995", // 음수 carry
+    };
+
+    renderLoaded(responseWith(boundary, boundary));
+
+    // ★정규식으로 **정확 매치**한다. `toHaveTextContent("1.2345")` 는 부분 문자열이라
+    // 반올림이 아예 없어도(`1.23454`) 통과한다 — 그 단언은 판별력이 0이다.
+    expect(screen.getByTestId("outcome-parity-session-expected-gross-total")).toHaveTextContent(
+      /^1\.2345$/,
+    );
+    expect(screen.getByTestId("outcome-parity-session-actual-net-total")).toHaveTextContent(
+      /^1\.2345$/,
+    );
+    expect(screen.getByTestId("outcome-parity-session-round-trip-notional")).toHaveTextContent(
+      /^1\.2346$/,
+    );
+    expect(screen.getByTestId("outcome-parity-session-actual-gross")).toHaveTextContent(
+      /^10\.0000$/,
+    );
+    expect(screen.getByTestId("outcome-parity-session-waterfall-expected")).toHaveTextContent(
+      /^-1\.2346$/,
+    );
+    expect(screen.getByTestId("outcome-parity-session-waterfall-execution-gap")).toHaveTextContent(
+      /^-10\.0000$/,
+    );
+  });
+
+  // ★signed zero 정책 — 표시 자릿수 아래의 음수는 `-0.0000` 으로 남긴다.
+  //
+  // `0.0000` 으로 정규화하지 않는 이유: 그러면 「정확히 0」과 「4자리 아래 음수」가 **같은
+  // 문자열**이 되고, 같은 노드의 tone(bearish)·`title`(원문)과 서로 모순된다. 이 패널의
+  // 원칙은 모르는/미세한 값을 0 으로 접지 않는 것이다. 부호는 표시에 남기고, 정확한 값은
+  // `title` 이 갖는다. 정규화로 바꾸려면 이 테스트를 먼저 바꿔야 한다.
+  it("표시 자릿수 아래 음수는 부호를 지우지 않고 -0.0000 으로 남긴다", () => {
+    const tiny: OutcomeParityScope = { ...COMPLETE_SCOPE, actual_net: "-0.00004" };
+
+    renderLoaded(responseWith(tiny, tiny));
+
+    const node = screen.getByTestId("outcome-parity-session-actual-net-total");
+    // 정확 매치 — 부분 문자열이면 원문 `-0.00004` 도 통과해 정책을 못 고정한다.
+    expect(node).toHaveTextContent(/^-0\.0000$/);
+    // tone 은 표시가 아니라 **원문** 기준이다 — 반올림이 색 정보를 지우지 않는다.
+    expect(node).toHaveClass("text-bearish");
+    expect(within(node).getByTitle("-0.00004")).toBeInTheDocument();
   });
 
   it("반올림은 톤 판정과 산출 불가 경로를 바꾸지 않는다", () => {
