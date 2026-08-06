@@ -13,7 +13,7 @@ BL-084 보존: 매 cell run_backtest() 새 호출 → 새 PersistentStore + Inte
 (Sprint 19 Resolved). 추가 검증은 test_cost_assumption_sensitivity_state_isolation
 (call count + cfg isolation spy, codex P2#9).
 
-ADR-011 §6/§8 정합: vectorbt 직접 사용 X. run_backtest = pine_v2 v2_adapter alias.
+ADR-011 §6/§8 정합: run_backtest = pine_v2 v2_adapter alias.
 
 Sprint 54 BL-227 lift-up: 2D nested loop 을 `src.common.grid_sweep.run_grid_sweep`
 generic engine 으로 위임. COST_ASSUMPTION_PARAM_KEYS (fees/slippage) + analyze_coverage

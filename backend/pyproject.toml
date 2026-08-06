@@ -18,15 +18,13 @@ dependencies = [
     "clerk-backend-api>=1.0.0",
     "cryptography>=42.0.0",
     "anthropic>=0.39.0",
-    "aioboto3>=13.2.0",
     "celery[redis]>=5.4.0",
     "redis>=5.1.0",
     "python-multipart>=0.0.12",
-    "orjson>=3.10.0",
+    # ★pandas/numpy 는 직접 의존이다 — `pine_v2/stdlib.py` 가 `ta.*` 지표를 직접 계산한다.
+    #   (2026-08-06 vectorbt/pandas-ta 제거 후에도 유지되는 이유)
     "pandas>=2.2.0",
     "numpy>=1.26.0",
-    "pandas-ta>=0.3.14b",
-    "vectorbt>=0.28,<0.29",
     "svix>=1.37.0",  # Clerk Webhook Svix 서명 검증
     "ccxt>=4.0.0",
     # Sprint 12 Phase C — Bybit V5 Private WebSocket (raw lib, 명시 dep)

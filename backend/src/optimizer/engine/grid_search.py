@@ -13,7 +13,7 @@ _MAX_GRID_CELLS) 가 아닌 ``_MAX_GRID_CELLS`` 만 강제. param_space cardinal
 
 BL-084 보존: 매 cell run_backtest() 새 호출 → 새 PersistentStore + Interpreter.
 
-ADR-011 §6/§8 정합: vectorbt 직접 사용 X. run_backtest = pine_v2 v2_adapter alias.
+ADR-011 §6/§8 정합: run_backtest = pine_v2 v2_adapter alias.
 
 LESSON-019 (commit-spy): 본 executor 자체는 DB 미접근. Service 가 호출 결과를
 result_jsonb 로 저장 + commit. spy 회귀는 Service test 책임.

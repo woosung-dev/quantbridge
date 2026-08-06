@@ -16,7 +16,7 @@ from src.strategy.pine_v2.exit_orders import ExitOrderKind
 
 @dataclass(frozen=True)
 class BacktestConfig:
-    """엔진 실행 설정 (pine_v2 path는 vectorbt 의존 없이 직접 PnL 계산).
+    """엔진 실행 설정 (pine_v2 가 bar-by-bar 로 PnL 을 직접 계산한다).
 
     Sprint 31 BL-156: leverage / include_funding 추가 — 응답 노출 (FE
     AssumptionsCard) 와 PRD `backtests.config` JSONB 5 가정 정합. 현재
@@ -172,7 +172,7 @@ class BacktestMetrics:
     max_drawdown: Decimal  # 음수 (-0.25 = -25%). leverage=1 시 [-1.0, 0.0].
     win_rate: Decimal  # 0.0 ~ 1.0
     num_trades: int
-    # 확장 지표 (vectorbt에서 추출; 기존 완료 백테스트는 None)
+    # 확장 지표 (구 vectorbt 경로에서 추출하던 값; 기존 완료 백테스트는 None)
     sortino_ratio: Decimal | None = None
     calmar_ratio: Decimal | None = None
     profit_factor: Decimal | None = None
@@ -210,7 +210,7 @@ class BacktestMetrics:
     # → frontend BH series 미렌더 + ChartLegend BH 항목 자동 hide. 거짓 trust
     # 차단 (Surface Trust ADR-019). partial silent line 금지.
     #
-    # vectorbt 경로 (extract_metrics) 는 ohlcv 미수신 → 항상 None.
+    # 구 vectorbt 경로 (extract_metrics) 는 ohlcv 미수신 → 항상 None 이었다.
     buy_and_hold_curve: list[tuple[str, Decimal]] | None = None
     # C14 (정직성 번들) — 헤드라인 net 표시용 총비용 분해. total_fees=순수 수수료,
     # total_slippage=순수 슬리피지. RawTrade.fees(결합) 와의 불변식:
@@ -256,7 +256,7 @@ class BacktestMetrics:
 
 @dataclass(frozen=True)
 class RawTrade:
-    """엔진 레벨 trade 레코드. vectorbt records_readable → 도메인 중립 DTO.
+    """엔진 레벨 trade 레코드. 구 vectorbt records_readable 을 대체한 도메인 중립 DTO.
 
     bar_index는 유지 (service layer에서 ohlcv.index로 datetime 변환).
     """

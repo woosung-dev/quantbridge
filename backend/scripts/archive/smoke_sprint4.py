@@ -14,6 +14,7 @@ HTTP/Clerk 우회 (로컬 smoke 목적):
 - Celery broker 경로는 실제로 검증
 - HTTP 레이어는 이미 368 pytest로 커버됨
 """
+
 from __future__ import annotations
 
 import asyncio
