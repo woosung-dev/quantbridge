@@ -84,6 +84,7 @@ import argparse
 import hashlib
 import json
 import sys
+from collections import Counter
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
@@ -2038,14 +2039,18 @@ def _replay_conditional_rows(
 ) -> list[dict[str, Any]]:
     """이 tick 에 라이브가 **거래소에 낼** 조건부 진입 = `pending_orders` 의 상.
 
-    `plan_reconcile` 의 산식을 **그대로** 쓴다 (`conditional_entry_planner.py:502-540`):
+    `plan_reconcile` 의 산식을 **그대로, 같은 순서로** 쓴다
+    (`conditional_entry_planner.py:482-540`):
 
-    1. `수량 = _normalize(|target_position − 현재 포지션|, qty_step)`. 엔진의 leg 수량
-       (`entry_qty`)을 그대로 쓰면 같은 id 재발행(순 변화 0)이 주문 1건으로 둔갑하고
-       반전(청산+진입 병합)의 크기가 절반으로 계상된다.
-    2. **수량이 0 이면 낼 주문이 없다.** 절삭 전에는 0 이 아니어도 절삭 후 0 이면
-       라이브는 취소만 하고 등재하지 않는다. 실측으로 이 갈래가 흔하다 — 같은 id
-       재발행의 잔차가 `0.000044…` 로 남아 절삭 전 검사만으로는 안 걸린다.
+    1. **목표 자체가 거래소 눈금 미만이면 등재하지 않는다** (`below_exchange_minimum`,
+       `planner:482-499`). `target != 0` 인데 `_normalize(|target|, qty_step) == 0` 인
+       경우이고, 잔여 드리프트와 **다르다** — 이쪽은 그 전략이 이 계정에서 영원히 한 주도
+       못 낸다는 뜻이다. 2번 검사로는 안 걸린다: 목표 `0.0005` · 포지션 `0.002` 면 차이가
+       `0.0015` 라 눈금 위다.
+    2. `수량 = _normalize(|target_position − 현재 포지션|, qty_step)` 이 **0 이면 낼 주문이
+       없다**. 엔진의 leg 수량(`entry_qty`)을 그대로 쓰면 같은 id 재발행(순 변화 0)이 주문
+       1건으로 둔갑하고 반전(청산+진입 병합)의 크기가 절반으로 계상된다. 실측으로 이
+       갈래가 흔하다 — 재발행 잔차가 `0.000044…` 로 남아 절삭 전 검사만으로는 안 걸린다.
     3. **side 불일치도 등재하지 않는다.** 목표가 포지션의 반대편에 있으면
        (`planner:526-540`) 라이브는 발산으로 기록하고 넘어간다.
 
@@ -2066,6 +2071,8 @@ def _replay_conditional_rows(
     rows: list[dict[str, Any]] = []
     for order in result.pending_orders:
         target = Decimal(str(order.target_position))
+        if target != 0 and _normalize(abs(target), qty_step) == 0:
+            continue
         place_qty = _normalize(abs(target - engine_position), qty_step)
         if place_qty == 0:
             continue
@@ -2121,9 +2128,11 @@ def _replay_fill_rows(
     signal 변환에서 빠지므로(`event_loop.py:580`), signal 만 세면 stop 진입 전략의
     체결이 통째로 0 이 된다. 그래서 상태 리포트의 거래 목록에서 진입 봉으로 고른다.
 
-    `trade_id` 는 **`comment`** 를 우선한다 — 매칭의 1차 키가 보는 백테스트 쪽 필드가
-    `RawTrade.comment` 이기 때문이다(`strict_key_matches` docstring). 비어 있으면 Pine
-    진입 id 로 떨어진다.
+    `trade_id` 는 **`comment` 뿐이고, 없으면 빈 문자열이다.** Pine 진입 id 로 떨어지면
+    안 된다 — B 쪽은 `v2_adapter.py:406` 이 `comment=t.comment or None` 이라 comment 없는
+    진입이 `null` 이 되고 `normalize_trades` 가 `""` 로 올린다. 여기서만 id 를 채우면
+    같은 진입인데 한쪽만 이름을 갖게 되고, `match_entries` 는 `comment is None` 에서 즉시
+    탈락시키므로 **B↔R 이 구조적으로 안 붙는다**(eval P2).
     """
     report = result.strategy_state_report
     rows: list[dict[str, Any]] = []
@@ -2131,14 +2140,13 @@ def _replay_fill_rows(
     for trade in trades:
         if trade.get("entry_bar") != last_bar_index:
             continue
-        comment = str(trade.get("comment") or "").strip()
         rows.append(
             {
                 "kind": "fill",
                 "bar_epoch": bar_epoch,
                 "bar_time": bar_time,
                 "direction": str(trade["direction"]),
-                "trade_id": comment or str(trade["id"]),
+                "trade_id": str(trade.get("comment") or "").strip(),
                 "trigger": decimal_text(Decimal(str(trade["entry_price"]))),
                 "qty": decimal_text(Decimal(str(trade["qty"]))),
                 "entry_qty": decimal_text(Decimal(str(trade["qty"]))),
@@ -2176,6 +2184,7 @@ def replay_live_protocol(
     leverage: float,
     pyramiding: int | None,
     fill_timing: str,
+    sessions_allowed: tuple[str, ...] = (),
     qty_step: Decimal = REPLAY_QTY_STEP,
     price_tick: Decimal = REPLAY_PRICE_TICK,
 ) -> dict[str, Any]:
@@ -2187,9 +2196,11 @@ def replay_live_protocol(
     같은 시뮬로 판정되고(`event_loop.py:508-513`), 마지막 봉 이벤트만 발행된다.
     넣는 순간 R 은 「롤링 창의 몫」이 아니라 「롤링 창 + 원장 권한의 몫」이 된다.
 
-    ★`sessions_allowed` 도 넘기지 않는다. 라이브는 `strategy.trading_sessions` 를
-    싣지만 그 값은 이 실험의 입력(얼린 CSV·원장 덤프)에 **없다**. 비어 있지 않은
-    전략이면 R 이 라이브보다 많이 진입한다 — report 에 적을 [확인 필요] 항목이다.
+    ★`sessions_allowed` 는 **넘긴다** — 라이브가 항상 준다
+    (`live_signal.py:3316` = `tuple(strategy.trading_sessions or ())`). 빼면 금지 세션
+    게이트가 재생에서 사라져 R 이 라이브가 낼 수 없는 진입을 만든다. 기본값 `()` 는
+    `run_live` 기본값과 같아 「빈 목록 = 24h」라는 뜻까지 그대로다
+    (`trading_sessions.is_allowed`: 빈 목록이면 항상 True).
     """
     from src.strategy.pine_v2.event_loop import run_live
 
@@ -2227,6 +2238,7 @@ def replay_live_protocol(
             leverage=leverage,
             pyramiding=pyramiding,
             fill_timing=fill_timing,
+            sessions_allowed=sessions_allowed,
         )
         bars_evaluated += 1
         bar_epoch = int(bar_time.timestamp())
@@ -2268,6 +2280,7 @@ def replay_live_protocol(
             "leverage": leverage,
             "pyramiding": pyramiding,
             "fill_timing": fill_timing,
+            "sessions_allowed": list(sessions_allowed),
             "qty_step": decimal_text(qty_step),
             "price_tick": decimal_text(price_tick),
             "scoring_window": {"start": _iso(start), "end": _iso(end)},
@@ -2279,7 +2292,6 @@ def replay_live_protocol(
                 "position_epoch",
                 "emit_from_bar_time",
             ],
-            "sessions_allowed_omitted": True,
         },
         "bars_total": len(frame),
         "bars_evaluated": bars_evaluated,
@@ -2447,35 +2459,82 @@ def _as_synthetic_live_entry(entry: NormalizedEntry) -> LiveEntry:
     )
 
 
-def filter_by_sessions(
-    entries: Sequence[NormalizedEntry], windows: Sequence[SessionWindow]
-) -> tuple[list[NormalizedEntry], list[NormalizedEntry]]:
-    """세션 창 **안**과 **밖**으로 가른다 (실험 B — 사전등록 ③).
+# 세션 창 포함 판정의 기준 시각. **봉 종료**다 (사전등록 정정 2차, 측정 전 동결).
+SESSION_BOUNDARY = "bar_close"
 
-    창 판정은 `window_of` 그대로다 — `created_at <= t < deactivated_at`.
+
+def filter_by_sessions(
+    entries: Sequence[NormalizedEntry], windows: Sequence[SessionWindow], *, bar_seconds: int
+) -> tuple[list[NormalizedEntry], list[NormalizedEntry]]:
+    """세션 창 **안**과 **밖**으로 가른다 (실험 B — 사전등록 ③′).
+
+    창 판정은 `window_of` 그대로(`created_at <= t < deactivated_at`)이되, 그 `t` 가
+    **봉 종료 시각**(`bar_epoch + bar_seconds`)이다.
+
+    ★봉 시작으로 재면 안 된다. 세션은 봉 중간에 생성된다 — 실측 첫 세션이
+    `00:34:22`(봉 시작 +22.676s)이고 두 번째가 +25.2s 다. 봉 시작 기준이면 그 두 봉이
+    세션 밖으로 떨어지는데, 라이브는 그 봉을 실제로 평가해 주문을 냈다(L 에 실재).
+    즉 봉 시작 기준의 「제거」는 세션 공백의 관측이 아니라 **판별식의 인공물**이다.
+    사전등록 정정 2차가 이 규약을 측정 전에 동결했다.
     """
     kept: list[NormalizedEntry] = []
     removed: list[NormalizedEntry] = []
     for entry in entries:
-        moment = datetime.fromtimestamp(entry.bar_epoch, tz=UTC)
+        moment = datetime.fromtimestamp(entry.bar_epoch + bar_seconds, tz=UTC)
         (kept if window_of(moment, windows) is not None else removed).append(entry)
     return kept, removed
 
 
-def _pair_row(
-    pair: MatchedPair, *, left_by_key: Mapping[tuple[int, str, str], str]
-) -> dict[str, Any]:
+def _pair_row(pair: MatchedPair, *, left_ids: Sequence[str], bar_seconds: int) -> dict[str, Any]:
+    """매칭쌍 1행. ★출처는 **매칭이 실제로 고른** 왼쪽이다.
+
+    `(bar_epoch, direction, trade_id)` 맵으로 되짚으면 안 된다 — 수량만 다른 왼쪽이
+    둘이면 나중 것이 앞의 것을 덮어써서 리포트가 **매칭되지 않은 행**을 가리킨다.
+    `trade_index` 에 왼쪽 리스트의 위치를 실어 두었으므로 그것으로 직접 되짚는다.
+    """
     trade_epoch = int(pair.trade.entry_time.timestamp())
-    key = (trade_epoch, pair.trade.direction, pair.trade.comment or "")
+    # ★단위는 **봉**이다. 양쪽 epoch 이 모두 봉 경계라 나눗셈은 정확하다 —
+    #   초를 `delta_bars_…` 라는 이름으로 내면 1분봉 2봉 차가 120 으로 읽힌다.
+    delta_seconds = trade_epoch - (pair.entry.bar_epoch or 0)
     return {
         "grade": pair.grade,
-        "left_id": left_by_key.get(key),
+        "left_id": left_ids[pair.trade.trade_index],
         "right_id": pair.entry.order_id,
         "left_bar_epoch": trade_epoch,
         "right_bar_epoch": pair.entry.bar_epoch,
-        "delta_bars_left_minus_right": trade_epoch - (pair.entry.bar_epoch or 0),
+        "delta_bars_left_minus_right": delta_seconds // bar_seconds,
         "direction": pair.trade.direction,
         "trade_id": pair.trade.comment,
+    }
+
+
+def _key_counts(entries: Sequence[NormalizedEntry]) -> Counter[tuple[int, str, str]]:
+    return Counter((entry.bar_epoch, entry.direction, entry.trade_id or "") for entry in entries)
+
+
+def _key_rows(counts: Counter[tuple[int, str, str]]) -> list[dict[str, Any]]:
+    return [
+        {"bar_epoch": key[0], "direction": key[1], "trade_id": key[2], "count": count}
+        for key, count in sorted(counts.items())
+    ]
+
+
+def key_multiset_difference(
+    left: Sequence[NormalizedEntry], right: Sequence[NormalizedEntry]
+) -> dict[str, Any]:
+    """★「두 집합이 같다」를 **매칭과 무관하게** 판정한다.
+
+    pairs/ambiguous 카운트만으로는 서로 다른 multiset 을 배제하지 못한다 — 오른쪽
+    collision 은 `ambiguous` 로 빠지고 `right_only_rows` 에도 안 들어가므로, 카운트가
+    같아도 내용이 다를 수 있다. 「B ≡ R(fill)」 같은 주장은 이 블록이 증명한다.
+    """
+    left_counts = _key_counts(left)
+    right_counts = _key_counts(right)
+    return {
+        "key": ["bar_epoch", "direction", "trade_id"],
+        "equal": left_counts == right_counts,
+        "left_only_keys": _key_rows(left_counts - right_counts),
+        "right_only_keys": _key_rows(right_counts - left_counts),
     }
 
 
@@ -2496,12 +2555,11 @@ def compare_entry_sets(
     ★분모를 하나로 정하지 않는다. 사전등록은 X↔L 을 `|L|` 로 재지만 B↔R 은 `|B|` 를
     병기하라고 적혀 있다 — 둘 다 이름과 함께 낸다.
     """
-    left_by_key: dict[tuple[int, str, str], str] = {}
-    synthetic_trades: list[BacktestTrade] = []
-    for index, entry in enumerate(left):
-        trade = replace(_as_synthetic_trade(entry), trade_index=index)
-        synthetic_trades.append(trade)
-        left_by_key[(entry.bar_epoch, entry.direction, entry.trade_id or "")] = entry.source_id
+    # ★`trade_index` 에 **왼쪽 리스트의 위치**를 싣는다 — 그게 행별 출처의 정본이다.
+    synthetic_trades = [
+        replace(_as_synthetic_trade(entry), trade_index=index) for index, entry in enumerate(left)
+    ]
+    left_ids = [entry.source_id for entry in left]
     synthetic_entries = [_as_synthetic_live_entry(entry) for entry in right]
 
     match = match_entries(
@@ -2529,7 +2587,10 @@ def compare_entry_sets(
                 "value": decimal_text(_ratio(Decimal(pairs), Decimal(len(right)))),
             },
         },
-        "matched_rows": [_pair_row(pair, left_by_key=left_by_key) for pair in match.pairs],
+        "key_multiset": key_multiset_difference(left, right),
+        "matched_rows": [
+            _pair_row(pair, left_ids=left_ids, bar_seconds=bar_seconds) for pair in match.pairs
+        ],
         "left_only_rows": [
             {
                 "bar_epoch": int(trade.entry_time.timestamp()),
@@ -2757,6 +2818,25 @@ def _resolve_pyramiding(source: str, override: int | None) -> int | None:
     return pyramiding
 
 
+def _resolve_trading_sessions(raw: str | None) -> tuple[str, ...]:
+    """`--trading-sessions` → `run_live(sessions_allowed=…)` 의 튜플.
+
+    ★이름을 **검증한다**. `trading_sessions.is_allowed` 는 모르는 이름을 조용히
+    건너뛰므로(legacy 데이터로 executor 를 죽이지 않으려는 방어), 오타 하나가
+    「빈 목록 = 24h」가 아니라 **「아무 창에도 안 든다」 = 전 구간 금지**로 번역된다.
+    그 상태에서 R 은 진입 0 건이 되고 그건 결함이 아니라 발견처럼 읽힌다.
+    검증기는 스키마 계층이 쓰는 것과 같은 자리를 재사용한다.
+    """
+    if raw is None:
+        return ()
+    names = [part.strip() for part in raw.split(",") if part.strip()]
+    if not names:
+        return ()
+    from src.strategy.trading_sessions import validate_session_names
+
+    return tuple(validate_session_names(names))
+
+
 def _cmd_replay(args: argparse.Namespace) -> int:
     source = Path(args.pine_source).read_text(encoding="utf-8")
     payload = replay_live_protocol(
@@ -2770,6 +2850,7 @@ def _cmd_replay(args: argparse.Namespace) -> int:
         leverage=args.leverage,
         pyramiding=_resolve_pyramiding(source, args.pyramiding),
         fill_timing=args.fill_timing,
+        sessions_allowed=_resolve_trading_sessions(args.trading_sessions),
         qty_step=args.qty_step,
         price_tick=args.price_tick,
     )
@@ -2847,7 +2928,7 @@ def _cmd_entrysets(args: argparse.Namespace) -> int:
     if args.filter_left:
         if not windows:
             raise ValueError("--filter-left 는 --session-windows 가 있어야 한다")
-        left, removed = filter_by_sessions(left, windows)
+        left, removed = filter_by_sessions(left, windows, bar_seconds=bar_seconds)
 
     report = compare_entry_sets(
         left, right, bar_seconds=bar_seconds, bar_tolerance=args.bar_tolerance
@@ -2858,6 +2939,8 @@ def _cmd_entrysets(args: argparse.Namespace) -> int:
     report["bar_tolerance_bars"] = args.bar_tolerance
     report["session_filter"] = {
         "applied": bool(args.filter_left),
+        # ★어느 시각으로 쟀는지를 산출물에 남긴다 — 제거 수는 규약이 바뀌면 바뀐다.
+        "boundary": SESSION_BOUNDARY,
         "windows": len(windows),
         "removed_by_session_filter": len(removed),
         "removed_rows": [
@@ -2996,6 +3079,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=REPLAY_WINDOW_BARS,
         help="라이브가 매 tick 가져오는 봉 수 (live_signal._fetch_evaluation_bars limit_bars)",
+    )
+    replay_parser.add_argument(
+        "--trading-sessions",
+        default=None,
+        help="쉼표 구분 세션 이름 (asia/london/ny) — 라이브의 strategy.trading_sessions. "
+        "생략 = 빈 목록 = 24h (run_live 기본값과 같다)",
     )
     replay_parser.add_argument(
         "--qty-step",

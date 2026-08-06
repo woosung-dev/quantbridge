@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -235,10 +236,15 @@ def test_ledger_arguments_are_never_passed_to_run_live(
             assert name not in kwargs, f"{name} 이 run_live 호출에 실렸다"
 
 
-def test_injected_arguments_are_exactly_the_five(
+def test_injected_arguments_are_exactly_the_six(
     btgap: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """주입 5종만 넘어간다 — 세트가 자라면 여기서 걸린다."""
+    """주입 6종만 넘어간다 — 세트가 자라면 여기서 걸린다.
+
+    ★`sessions_allowed` 가 6번째다. 라이브는 `tuple(strategy.trading_sessions or ())`
+    를 항상 준다(`live_signal.py:3316`). 빼면 금지 세션 게이트가 재생에서 사라져
+    R 이 라이브가 낼 수 없는 진입을 만든다.
+    """
     calls = _capture_run_live_kwargs(btgap, tmp_path, monkeypatch)
 
     assert calls
@@ -249,7 +255,68 @@ def test_injected_arguments_are_exactly_the_five(
             "leverage",
             "pyramiding",
             "fill_timing",
+            "sessions_allowed",
         }
+
+
+def test_empty_trading_sessions_means_no_gate(
+    btgap: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """★기본값(빈 튜플)은 미주입과 **같은 뜻**이다 — `run_live` 가 그때 프레임을 안 건드린다."""
+    calls = _capture_run_live_kwargs(btgap, tmp_path, monkeypatch)
+
+    assert calls
+    assert all(kwargs["sessions_allowed"] == () for kwargs in calls)
+
+
+def test_trading_sessions_reach_the_engine(
+    btgap: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--trading-sessions` 값이 `run_live(sessions_allowed=…)` 로 그대로 간다."""
+    from src.strategy.pine_v2 import event_loop
+
+    calls: list[dict[str, Any]] = []
+    real_run_live = event_loop.run_live
+
+    def _spy(source: str, ohlcv: Any, **kwargs: Any) -> Any:
+        calls.append(dict(kwargs))
+        return real_run_live(source, ohlcv, **kwargs)
+
+    monkeypatch.setattr(event_loop, "run_live", _spy)
+    _replay(btgap, tmp_path, extra=["--trading-sessions", "asia"])
+
+    assert calls
+    assert all(kwargs["sessions_allowed"] == ("asia",) for kwargs in calls)
+
+
+def test_disallowed_session_suppresses_entries(btgap: Any, tmp_path: Path) -> None:
+    """★음성 대조 — 금지 세션이면 진입이 사라진다.
+
+    「인자를 넘겼다」와 「그 인자가 결과를 바꾼다」는 다르다. 픽스처 봉은 전부
+    2026-08-05 00:00~00:07 UTC 라 `asia`(UTC 0-7시)면 통과, `london`(8-16시)이면
+    전 구간 금지다.
+    """
+    allowed = _replay(btgap, tmp_path, out_name="asia.json", extra=["--trading-sessions", "asia"])
+    blocked = _replay(
+        btgap, tmp_path, out_name="london.json", extra=["--trading-sessions", "london"]
+    )
+
+    assert allowed["entries_by_kind"]["entry"] > 0
+    assert blocked["entries_by_kind"]["entry"] == 0
+
+
+def test_trading_sessions_are_named_in_the_output(btgap: Any, tmp_path: Path) -> None:
+    payload = _replay(btgap, tmp_path, extra=["--trading-sessions", "asia,ny"])
+
+    assert payload["params"]["sessions_allowed"] == ["asia", "ny"]
+
+
+def test_unknown_session_name_is_refused(btgap: Any, tmp_path: Path) -> None:
+    """★오타는 「전 구간 금지」로 조용히 번역된다 — `is_allowed` 가 모르는 이름을
+    건너뛰기 때문이다(빈 목록이 아니라 「아무 창에도 안 든다」가 된다). 거부한다."""
+    _write_inputs(tmp_path)
+    with pytest.raises(ValueError):
+        btgap.main(_argv(tmp_path, out_name="x.json", extra=["--trading-sessions", "asai"]))
 
 
 def test_ledger_arguments_are_named_in_the_output(btgap: Any, tmp_path: Path) -> None:
@@ -257,6 +324,153 @@ def test_ledger_arguments_are_named_in_the_output(btgap: Any, tmp_path: Path) ->
     payload = _replay(btgap, tmp_path)
 
     assert payload["params"]["ledger_arguments_omitted"] == list(LEDGER_ARGUMENTS)
+
+
+# --------------------------------------------------------------------------
+# 3.5 `cond` 채널 — `plan_reconcile` 산식 이식이 **전수**인가
+# --------------------------------------------------------------------------
+
+
+def _snapshot(**overrides: Any) -> Any:
+    from src.strategy.pine_v2.event_loop import PendingOrderSnapshot
+
+    fields: dict[str, Any] = {
+        "trade_id": "L",
+        "direction": "long",
+        "target_position": Decimal("0.05"),
+        "entry_qty": Decimal("0.05"),
+        "stop_price": Decimal("60000.04"),
+        "placed_bar": 3,
+        "comment": "L",
+    }
+    fields.update(overrides)
+    return PendingOrderSnapshot(**fields)
+
+
+class _StubResult:
+    """`run_live` 반환의 최소 대역 — `cond` 산식만 보는 자리라 이걸로 충분하다."""
+
+    def __init__(self, *, pending: list[Any], position: str) -> None:
+        self.pending_orders = pending
+        self.signals: list[Any] = []
+        self.strategy_state_report = {
+            "position_size": float(position),
+            "open_trades": [],
+            "closed_trades": [],
+        }
+
+
+def _cond_rows(btgap: Any, *, pending: list[Any], position: str) -> list[dict[str, Any]]:
+    return btgap._replay_conditional_rows(
+        _StubResult(pending=pending, position=position),
+        bar_epoch=0,
+        bar_time="2026-08-05T00:00:00Z",
+        qty_step=Decimal("0.001"),
+        price_tick=Decimal("0.1"),
+    )
+
+
+def test_target_below_exchange_minimum_is_not_placed(btgap: Any) -> None:
+    """★`below_exchange_minimum` — **목표 자체**가 눈금 미만이면 라이브는 안 낸다.
+
+    잔여 드리프트(목표에 거의 도달)와 다르다: 이쪽은 그 전략이 이 계정에서 **영원히
+    한 주도 못 낸다**는 뜻이라 planner 가 별도 분기로 드롭한다
+    (`conditional_entry_planner.py:482-499`). 차이 `|0.0005 − 0.002| = 0.0015` 는
+    눈금 위라 절삭-0 검사만으로는 안 걸린다 — 그래서 별도 검사가 필요하다.
+    """
+    rows = _cond_rows(
+        btgap,
+        pending=[_snapshot(direction="short", target_position=Decimal("0.0005"))],
+        position="0.002",
+    )
+
+    assert rows == []
+
+
+def test_residual_below_step_is_not_placed(btgap: Any) -> None:
+    """절삭 후 수량 0 = 같은 id 재발행 — 라이브도 등재하지 않는다."""
+    rows = _cond_rows(
+        btgap,
+        pending=[_snapshot(target_position=Decimal("0.0500442"))],
+        position="0.05",
+    )
+
+    assert rows == []
+
+
+def test_side_mismatch_is_not_placed(btgap: Any) -> None:
+    """목표가 포지션의 반대편이면 라이브는 발산으로 적고 등재하지 않는다."""
+    rows = _cond_rows(
+        btgap,
+        pending=[_snapshot(direction="long", target_position=Decimal("0.02"))],
+        position="0.05",
+    )
+
+    assert rows == []
+
+
+def test_placeable_leg_uses_the_reconciler_formula(btgap: Any) -> None:
+    """★양성 대조 — 낼 수 있는 레그는 `_normalize(|target − pos|, step)` 로 나온다.
+
+    엔진 leg 수량(`entry_qty`)이 아니다. 반전이면 그 둘이 2배 갈린다.
+    """
+    rows = _cond_rows(
+        btgap,
+        pending=[_snapshot(target_position=Decimal("0.0297"), entry_qty=Decimal("0.0297"))],
+        position="-0.0297",
+    )
+
+    assert len(rows) == 1
+    assert rows[0]["qty"] == "0.059"  # |0.0297 − (−0.0297)| = 0.0594 → 절삭 0.059
+    assert rows[0]["entry_qty"] == "0.0297"
+    assert rows[0]["trigger"] == "60000.0"  # price_tick 0.1 로 절삭
+
+
+# --------------------------------------------------------------------------
+# 3.6 `fill` 채널의 `trade_id` 는 B normalizer 와 **같은 규약**인가
+# --------------------------------------------------------------------------
+
+NO_COMMENT_PINE = """//@version=5
+strategy("replay fixture — no comment")
+if bar_index == 3
+    strategy.entry("L", strategy.long)
+"""
+
+
+def test_fill_trade_id_matches_the_backtest_convention(btgap: Any, tmp_path: Path) -> None:
+    """★comment 없는 진입에서 B 와 R 의 `trade_id` 가 **같아야** 한다.
+
+    `v2_adapter.py:406` 이 `comment=t.comment or None` 이라 B 쪽은 `null` 이 되고
+    normalizer 가 `""` 로 올린다. R 이 Pine 진입 id(`"L"`)로 떨어지면 같은 진입인데
+    두 집합이 구조적으로 안 붙는다 — `match_entries` 는 `comment is None` 에서 즉시
+    탈락시키므로 **한쪽만 이름을 가진 상태가 최악**이다.
+    """
+    _write_inputs(tmp_path, pine=NO_COMMENT_PINE)
+    assert (
+        btgap.main(
+            [
+                "run",
+                "--pine-source",
+                str(tmp_path / "strategy.pine"),
+                "--ohlcv-csv",
+                str(tmp_path / "ohlcv.csv"),
+                "--freq",
+                "1m",
+                "--leverage",
+                "1.0",
+                "--out",
+                str(tmp_path / "trades.json"),
+            ]
+        )
+        == 0
+    )
+    backtest = json.loads((tmp_path / "trades.json").read_text(encoding="utf-8"))
+    replayed = _replay(btgap, tmp_path, pine=NO_COMMENT_PINE, out_name="replay.json")
+
+    assert backtest["trades"][0]["comment"] is None
+    fills = [row for row in replayed["entries"] if row["kind"] == "fill"]
+    assert fills
+    assert {row["trade_id"] for row in fills} == {""}
 
 
 # --------------------------------------------------------------------------

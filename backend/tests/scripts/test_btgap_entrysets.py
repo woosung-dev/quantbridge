@@ -178,7 +178,7 @@ def test_bar_offset_within_tolerance_degrades_to_loose(btgap: Any, tmp_path: Pat
 
     assert report["strict_pairs"] == 0
     assert report["loose_pairs"] == 1
-    assert report["matched_rows"][0]["delta_bars_left_minus_right"] == 120
+    assert report["matched_rows"][0]["delta_bars_left_minus_right"] == 2
 
 
 def test_beyond_tolerance_is_not_paired(btgap: Any, tmp_path: Path) -> None:
@@ -355,6 +355,129 @@ def test_session_file_alone_does_not_filter(btgap: Any, tmp_path: Path) -> None:
     assert report["left_count"] == 2
     assert report["session_filter"]["applied"] is False
     assert report["session_filter"]["removed_by_session_filter"] == 0
+
+
+def test_session_boundary_is_judged_on_bar_close(btgap: Any, tmp_path: Path) -> None:
+    """★세션 포함 판정은 **봉 종료** 기준이다 (사전등록 정정 2차, 측정 전 동결).
+
+    세션은 봉 **중간**에 생성된다 — 실측 첫 세션이 `00:34:22`(봉 시작 +22s)다. 봉
+    시작으로 재면 그 봉은 세션 밖으로 떨어지는데, 라이브는 그 봉을 평가해 실제로
+    주문을 냈다(L 에 2건 실재). 봉이 **닫히는 시점**엔 세션이 이미 살아 있으므로
+    봉 종료가 정본이다.
+
+    ★음성 대조가 같은 픽스처 안에 있다 — 세션 **종료** 직전 봉은 여전히 남고(포함),
+    종료 뒤 봉은 빠진다. 「전부 남긴다」로 고쳐도 통과하는 테스트가 아니다.
+    """
+    session_start = at(10).replace(second=22).isoformat()
+    report = _run(
+        btgap,
+        tmp_path,
+        left=replay_payload(
+            [
+                # 봉 시작 10:00 < 세션 생성 10:22 ≤ 봉 종료 11:00 → **남는다**
+                replay_row(minutes=10, trade_id="OnBoundary"),
+                replay_row(minutes=15, trade_id="Inside"),
+                # 세션 종료(20:00) 뒤 봉 → 빠진다
+                replay_row(minutes=25, trade_id="AfterEnd"),
+            ]
+        ),
+        left_kind="replay",
+        right=[live_order(minutes=15, order_id="o1", trade_id="Inside")],
+        right_kind="orders",
+        sessions=[session_row(created_at=session_start, deactivated_at=iso(20))],
+        extra=["--filter-left"],
+    )
+
+    removed = {row["trade_id"] for row in report["session_filter"]["removed_rows"]}
+    assert removed == {"AfterEnd"}, "봉 종료 기준이면 경계 봉은 남고 종료 뒤 봉만 빠진다"
+    assert report["left_count"] == 2
+    assert report["session_filter"]["removed_by_session_filter"] == 1
+    assert report["session_filter"]["boundary"] == "bar_close"
+
+
+def test_delta_is_reported_in_bars_not_seconds(btgap: Any, tmp_path: Path) -> None:
+    """★`delta_bars_…` 는 **봉** 수여야 한다.
+
+    초를 그 이름으로 내면 1분봉 2봉 차가 `120` 으로 나와 120봉처럼 읽힌다. 같은 2봉
+    차가 봉 길이에 따라 값이 변하면 그건 봉 단위가 아니다.
+    """
+    report = _run(
+        btgap,
+        tmp_path,
+        left=replay_payload([replay_row(minutes=12, kind="fill")]),
+        left_kind="replay",
+        right=[live_order(minutes=10, order_id="o1")],
+        right_kind="orders",
+        sessions=[session_row(created_at=iso(0))],
+        extra=["--replay-kinds", "fill"],
+    )
+
+    assert report["matched_rows"][0]["delta_bars_left_minus_right"] == 2
+
+
+def test_key_multiset_difference_is_reported(btgap: Any, tmp_path: Path) -> None:
+    """★「두 집합이 같다」를 **산출물이 직접** 증명해야 한다.
+
+    pairs/ambiguous 카운트만으로는 서로 다른 multiset 을 배제하지 못한다 — 오른쪽
+    collision 은 `ambiguous` 로 빠져 `right_only_rows` 에도 안 들어간다. 그래서
+    `(bar_epoch, direction, trade_id)` multiset 차집합을 매칭과 **무관하게** 낸다.
+    """
+    same = [replay_row(minutes=10), replay_row(minutes=20, trade_id="PbS")]
+    equal = _run(
+        btgap,
+        tmp_path,
+        left=replay_payload(same),
+        left_kind="replay",
+        right=replay_payload(same),
+        right_kind="replay",
+        out_name="equal.json",
+    )
+    assert equal["key_multiset"]["equal"] is True
+    assert equal["key_multiset"]["left_only_keys"] == []
+    assert equal["key_multiset"]["right_only_keys"] == []
+
+    differing = _run(
+        btgap,
+        tmp_path,
+        left=replay_payload(same),
+        left_kind="replay",
+        right=replay_payload([replay_row(minutes=10), replay_row(minutes=20, trade_id="OTHER")]),
+        right_kind="replay",
+        out_name="differ.json",
+    )
+    assert differing["key_multiset"]["equal"] is False
+    assert differing["key_multiset"]["left_only_keys"] == [
+        {"bar_epoch": epoch(20), "direction": "long", "trade_id": "PbS", "count": 1}
+    ]
+    assert differing["key_multiset"]["right_only_keys"] == [
+        {"bar_epoch": epoch(20), "direction": "long", "trade_id": "OTHER", "count": 1}
+    ]
+
+
+def test_matched_row_provenance_points_at_the_paired_left(btgap: Any, tmp_path: Path) -> None:
+    """★행별 출처는 **매칭이 실제로 고른** 왼쪽이어야 한다.
+
+    같은 `(봉, 방향, trade_id)` 에 수량만 다른 왼쪽이 둘이면, key 맵은 나중 것이
+    앞의 것을 덮어써서 리포트가 **매칭되지 않은 행**을 가리킨다.
+    """
+    report = _run(
+        btgap,
+        tmp_path,
+        left=replay_payload(
+            [
+                replay_row(minutes=10, qty="0.01"),
+                replay_row(minutes=10, qty="0.02"),
+            ]
+        ),
+        left_kind="replay",
+        right=[live_order(minutes=10, order_id="o1", qty="0.01")],
+        right_kind="orders",
+        sessions=[session_row(created_at=iso(0))],
+    )
+
+    assert report["strict_pairs"] == 1
+    # 수량 0.01 인 쪽이 strict 로 붙는다 — 출처도 그 행(index 0)이어야 한다.
+    assert report["matched_rows"][0]["left_id"] == "replay:cond:0"
 
 
 def test_orders_without_sessions_is_refused(btgap: Any, tmp_path: Path) -> None:
