@@ -95,7 +95,7 @@ flowchart TB
 
 | 단계   | 명령                                          | 목적                             |
 | ------ | --------------------------------------------- | -------------------------------- |
-| Verify | 조각 개수 == `shards.json` 키 개수            | **누락 탐지기** (아래 ★)         |
+| Verify | 조각 **이름** == `shards.json` 키             | **누락 탐지기** (아래 ★)         |
 | Gate   | `coverage combine` → `report --fail-under=90` | BL-308/309 래칫을 **한 번** 판정 |
 
 **샤드 경계는 실측이다.** `tests/strategy/pine_v2` 혼자 로컬 **164.0s / 56.3%** 라서 샤드 `b` 는
@@ -136,14 +136,15 @@ top-10 에 **아예 안 보였다.**
 **등가성은 증명됐다.** 전체 1벌 실행과 샤드 3벌 합본의 `coverage report` 가 **파일별로 완전히
 동일**(TOTAL `730 38 192 23 93%`)했고, 샤드 수집 합계 = 전체 수집(1039 + 78 + 3133 = **4250**)이다.
 
-★**조각 개수 검사가 유일한 누락 탐지기다.** 샤드 a·b 의 데이터 파일은 내용이 동일해서
+★**조각 「이름」 검사가 유일한 누락 탐지기다.** 샤드 a·b 의 데이터 파일은 내용이 동일해서
 (둘 다 trading 모듈을 import 로만 스친다) `coverage combine` 이 `Skipping duplicate data` 를 찍는다.
 즉 **a 나 b 의 아티팩트가 통째로 사라져도 최종 커버리지 수치는 안 움직인다** — 커버리지로는
 누락을 볼 수 없다. `upload-artifact` 의 `include-hidden-files: true` 가 빠지면 dot 파일이
 기본 제외되어 정확히 그 상황이 된다.
 
 ★**분할이 새면 `backend/tests/test_pytest_shard_partition.py` 가 막는다** — 모든 `test_*.py` 가
-정확히 한 샤드에 속하는지, `ci.yml` matrix id 가 `shards.json` 키와 같은지. 변이 4종 전건 red 확인.
+정확히 한 샤드에 속하는지, `ci.yml` matrix id 가 `shards.json` 키와 같은지, 빈 샤드가 없는지,
+`pytest_args()` 가 선언된 `--ignore` 를 실제로 내는지. **변이 6종 전건 red 확인.**
 
 ### 환경 변수 (CI 전용)
 
@@ -167,19 +168,22 @@ top-10 에 **아예 안 보였다.**
 `ci` job:
 
 - `if: always()` — 다른 job 결과와 무관하게 실행
-- `needs` = `frontend` · `backend` · `backend_static` · `backend_coverage` · `e2e` · `documentation`
+- `needs` = `changes` · `frontend` · `backend` · `backend_static` · `backend_coverage` · `e2e` · `documentation`
 - 판정은 **`success` 또는 `skipped` 가 아니면 실패**
 - skip은 통과로 간주 → docs only PR 머지 가능
 
-★**2026-08-06 에 구멍 2개를 막았다.**
+★**2026-08-06 에 구멍 3개를 막았다.**
 
 1. `documentation` 이 `needs` 에 **없었다** — `make docs-audit` 이 빨개도 `ci` 는 초록이었다.
 2. 판정이 `== "failure"` 였다 — `cancelled` 가 **통과로 읽혔다**. 이제 모르는 상태는 fail-closed.
-
 3. `changes` 가 `needs` 에 **없었다**(이 구멍은 2026-08-06 이전부터 있었다) — 경로 감지 잡이
    실패하면 그 의존 잡이 전부 `skipped` 가 되고, 위 2번 규칙이 skipped 를 통과로 인정하므로
    `documentation` 하나만 성공해도 `ci` 가 초록이었다. **경로 감지가 죽으면 게이트 전체가 조용히
    사라지는** 경로다. codex 적대 리뷰가 잡았다.
+
+★**경로 필터에 `.github/workflows/**`가 들어간 이유**(codex P1) — 안 그러면 워크플로만 고치는
+PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·coverage 명령을 망가뜨려도`ci` 가
+초록\*\*이다. ci.yml 을 검증하는 감사 테스트가 backend 스위트 안에 있으므로 이 연결이 맞다.
 
 > 잡 id 에 하이픈 대신 밑줄(`backend_static`)을 쓴 이유: `needs.backend-static.result` 는 표현식에서
 > 뺄셈으로 파싱될 여지가 있어 대괄호 표기가 필요한데, 로컬에서 시험할 수 없는 문법이라 모호함이
