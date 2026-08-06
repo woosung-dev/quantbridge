@@ -73,7 +73,7 @@ export const MOCK_LIVE_SESSION_LIST = {
       interval: "1m",
       is_active: false,
       last_evaluated_bar_time: "2026-08-06T01:03:00Z",
-      created_at: "2026-08-06T01:06:00Z",
+      created_at: "2026-08-06T00:06:00Z",
       deactivated_at: "2026-08-06T01:04:00Z",
       deactivated_reason: "user_stopped",
       equity_baseline_usdt: "1000",
