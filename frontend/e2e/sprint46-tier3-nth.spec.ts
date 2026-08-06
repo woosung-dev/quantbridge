@@ -503,7 +503,10 @@ test("#20 Backtest form — 422 friendly_message 카드 (BL-163)", async ({ page
           description: null,
           pine_source: "//@version=5\nstrategy('HA')\nheikinashi(request.security(...))\n",
           pine_version: "v5",
-          parse_status: "ok",
+          // ★삭제된 sprint32 원본과 동일하게 "unsupported" 다 — 폼의
+          //   `PARSE_STATUS_LABEL` "일부 미지원" 경로를 태우는 값이다(codex P2).
+          //   이관하면서 "ok" 로 바꿨다가 그 분기를 잃을 뻔했다.
+          parse_status: "unsupported",
           parse_errors: null,
           timeframe: "1h",
           symbol: "BTCUSDT",

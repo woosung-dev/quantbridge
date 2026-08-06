@@ -334,7 +334,14 @@ jobs:
       # ★`package.json` 에 스크립트로 넣지 않고 인라인이다 — 루트 prettier 가
       #   `frontend/*.json` 을 포맷할 때 `frontend/.prettierrc` 의 tailwind 플러그인을
       #   해석하지 못해 pre-commit 이 죽는다([BL-602]). 그 결함이 닫히면 스크립트로 옮겨라.
-      - run: pnpm exec playwright test --project=chromium --project=chromium-design-canon
+      # ★`chromium-live-smoke` 를 **명시적으로** 포함한다 (codex P1). 앵커 수리 전에는
+      #   `chromium` 의 느슨한 정규식이 `live-smoke.spec.ts` 를 덤으로 잡아 CI 가 그걸 돌고
+      #   있었다 — 즉 **그 중복이 실제로 일하고 있었다.** 앵커만 고치고 두면 live-smoke 가
+      #   CI 에서 0회가 된다(전용 `live-smoke.yml` 은 `frontend/src/**` 에만 발화해서
+      #   e2e·config 만 바뀐 PR 은 못 잡는다). 중복은 없애되 커버리지는 유지한다.
+      - run: >
+          pnpm exec playwright test
+          --project=chromium --project=chromium-live-smoke --project=chromium-design-canon
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4

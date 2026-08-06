@@ -25,19 +25,44 @@ import config from "../../playwright.config";
 
 const E2E_DIR = path.resolve(__dirname, "../../e2e");
 
-/** `e2e/` 안의 spec 파일명 (하위 디렉터리의 fixture/helper 는 spec 이 아니다). */
-function specFiles(): string[] {
-  return readdirSync(E2E_DIR)
-    .filter((f) => f.endsWith(".spec.ts"))
-    .sort();
+/**
+ * `e2e/` **재귀** spec 목록 (codex P2).
+ *
+ * ★playwright 는 `testDir` 아래를 재귀 수집한다. 직속 파일만 훑으면 앞으로 생길
+ * `e2e/foo/new.spec.ts` 가 고아여도 이 감사가 초록이다 — 감사가 막으려던 바로 그 구멍이
+ * 감사 자신에게 생긴다.
+ */
+function specFiles(dir = E2E_DIR, prefix = "e2e"): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const rel = `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules" || entry.name === ".auth") continue;
+      out.push(...specFiles(path.join(dir, entry.name), rel));
+    } else if (entry.name.endsWith(".spec.ts")) {
+      out.push(rel);
+    }
+  }
+  return out.sort();
 }
 
-/** playwright 가 그 파일을 이 project 에 넣는가 — testMatch/testIgnore 를 실제 값으로 평가. */
+/**
+ * playwright 가 그 파일을 이 project 에 넣는가 — testMatch/testIgnore 를 실제 값으로 평가.
+ *
+ * ★**모델링할 수 없는 형태는 통과시키지 않고 던진다** (codex P2). playwright 는 string 패턴을
+ * glob 으로, 경로를 절대경로로 다룬다. 여기서 그걸 `endsWith` 로 흉내 내면 감사는 초록인데
+ * 실제 배선은 다른 상태가 만들어질 수 있다. 현재 배선은 전부 RegExp 라 정확하고, 누군가
+ * string/glob 을 도입하는 순간 **조용히 부정확해지는 대신 빨개진다.**
+ */
 function matches(pattern: unknown, relPath: string): boolean {
   if (pattern instanceof RegExp) return pattern.test(relPath);
   if (Array.isArray(pattern)) return pattern.some((p) => matches(p, relPath));
-  if (typeof pattern === "string") return relPath.endsWith(pattern);
-  return false;
+  if (pattern === undefined || pattern === null) return false;
+  throw new Error(
+    `이 감사는 RegExp 패턴만 충실히 모델링한다. 받은 것: ${JSON.stringify(pattern)}\n` +
+      "playwright 의 glob/절대경로 의미론과 어긋날 수 있으므로 통과시키지 않는다. " +
+      "패턴을 RegExp 로 바꾸거나, 이 함수를 playwright 실제 의미론으로 확장해라.",
+  );
 }
 
 function owningProjects(relPath: string): string[] {
@@ -61,7 +86,7 @@ describe("e2e project 배선", () => {
     const duplicates: Array<[string, string[]]> = [];
 
     for (const f of files) {
-      const owners = owningProjects(`e2e/${f}`);
+      const owners = owningProjects(f);
       if (owners.length === 0) orphans.push(f);
       else if (owners.length > 1) duplicates.push([f, owners]);
     }
