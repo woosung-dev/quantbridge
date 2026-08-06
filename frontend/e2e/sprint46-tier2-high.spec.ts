@@ -95,7 +95,11 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
       "BYBI_PLAINTEXT_SECRET_FULL_VALUE_001",
     );
     // 응답으로 받은 list cell 은 masked 만 표시 (평문 절대 X).
-    const tableText = await page.locator("table").first().innerText();
+    // ★계정 표를 접근성 이름으로 집는다 — `.locator("table").first()` 는 소크 세션이
+    //   포지션을 들고 있으면 위쪽 포지션 표를 집어 거짓 red 를 냈다(BL-597).
+    const tableText = await page
+      .getByRole("table", { name: /거래소 계정/ })
+      .innerText();
     expect(tableText).not.toContain("BYBI_PLAINTEXT_KEY");
     expect(tableText).not.toContain("BYBI_PLAINTEXT_SECRET");
     expect(tableText).toContain("BYBI********KEY1");
