@@ -824,6 +824,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-599](#bl-599)    | Pine v1 shim(`src/strategy/pine/` 135L)은 타입 4종만 재export 하는 껍데기지만 `BacktestOutcome.parse` 가 코어 DTO 필드라 **단독 철거 불가**. 소비처는 「2곳」보다 넓다 — 프로덕션 import 2 + 생성 site 10+ + 테스트 3파일                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `BacktestOutcome` 를 손볼 일이 생겼을 때 (단독으로 열지 마라)                                                     | M            | 2026-08-06 dead-code-sweep                             |
 | [BL-600](#bl-600)    | `strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT 헌법의 _Avoid_ 이름과 **동음이의 충돌**(이쪽은 장중 시간대 필터). 값이 `Strategy.trading_sessions` **JSONB 에 영속**돼 단순 rename 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `trading_sessions` JSONB 를 마이그레이션할 때 · 도메인 용어 정리 시                                               | M            | 2026-08-06 dead-code-sweep                             |
 | [BL-601](#bl-601)    | 호출 0건 잔재 3종 — `OrderRepository.get_state_fresh` · `list_unsynced_reduce_only_since` · `scripts/fleet-dispatch-test.sh`. ★원안의 「고아 하니스 3종」은 **1종으로 정정**(나머지 둘은 final-gates 체인 안에 있다)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S            | 2026-08-06 dead-code-sweep                             |
+| [BL-602](#bl-602)    | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S            | 2026-08-06 e2e-consolidation                           |
 | [BL-597](#bl-597) ✅ | e2e authed 가 **소크 상태와 결합** — 열린 포지션이 `/trading` 에 표를 추가해 느슨한 로케이터가 엉뚱한 표를 집는다(final-gates 1차 red, hydration flake 와 다른 축)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | e2e 로케이터 수리 전 · 소크 병행 게이트마다                                                                       | S            | 2026-08-06 night-watch                                 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
@@ -7089,6 +7090,51 @@ e2e authed 가 **라이브 소크가 도는 개발 DB** 를 그대로 검사하�
 
 ---
 
+### BL-602
+
+**Priority:** P3
+**카테고리:** DX / 커밋 훅 (prettier 플러그인 해석)
+**Trigger:** `frontend/` 안의 `*.json` / `*.md` / `*.yml` 을 커밋해야 할 때
+**Est:** S
+**상태:** ⬜ **Open**
+
+**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다.**
+
+**실측 재현 (2026-08-06):**
+
+```
+$ ./node_modules/.bin/prettier --check frontend/package.json
+[error] Cannot find package 'prettier-plugin-tailwindcss' imported from .../quant-bridge/noop.js
+
+$ ./node_modules/.bin/prettier --check docs/reference/operations/gates-and-traps.md
+All matched files use Prettier code style!     ← 루트 밖 파일은 정상
+```
+
+**뿌리.** `frontend/.prettierrc` 가 `"plugins": ["prettier-plugin-tailwindcss"]` 를 선언한다.
+루트 `package.json` 의 lint-staged 는 `*.{json,md,yml,yaml}` 을 **레포 전역**으로 잡아 **루트**
+prettier 로 돌리는데, 루트 `node_modules` 는 husky/lint-staged/prettier **3개뿐**이라(설계상
+루트는 도구 전용) 그 플러그인을 해석하지 못한다. prettier 3.x 가 플러그인을 **CWD 기준**으로
+찾기 때문에 `frontend/node_modules` 에 있어도 못 본다.
+
+**증상.** `frontend/package.json` 을 포함해 커밋하면 pre-commit 이 `prettier --write` 에서
+죽고, 같은 실행에서 eslint 가 `KILLED` 로 함께 넘어져 원인이 가려진다. 이번 회차에는
+`package.json` 에 `e2e:ci` 스크립트를 넣으려다 막혀 **ci.yml 인라인으로 우회**했다.
+
+★**과거에 통과한 이력이 있다**(`frontend/package.json` 을 담은 커밋 4건). 그래서 「원래 안 되던
+것」이 아니라 **어느 시점에 깨진 것**이다 — prettier/pnpm 버전이나 hoisting 변화가 후보다.
+고치기 전에 **언제부터 깨졌는지 먼저 확인해라**(그 4 커밋 시점의 prettier 버전 대조).
+
+**처리 방향(택1, 조사 후 결정):** ① 루트 devDependencies 에 `prettier-plugin-tailwindcss` 추가
+② lint-staged 의 `*.{json,md,yml,yaml}` 글로브에서 `frontend/**` 를 빼고 frontend 전용 항목을 신설
+③ `frontend/.prettierrc` 의 plugins 를 해석 가능한 절대/상대 경로로.
+★**`--no-verify` 는 답이 아니다**(레포 규약 금지).
+
+**Risk:** 🟢 DX 문제이고 프로덕션 무관. 다만 **막히면 커밋 자체가 안 된다.**
+
+**출처:** 2026-08-06 e2e-consolidation (커밋 시도 중 실측 재현)
+
+---
+
 ### BL-598
 
 **Priority:** P2
@@ -7131,6 +7177,7 @@ CI 3 샤드 합 **1796s** vs 단일 **1278s** 의 **+519s 전부**가 이 중복
 **연결:** [BL-583] (수집 집합이 결과를 바꾼 선례 — 같은 「무엇이 함께 도는가」 축)
 
 **출처:** 2026-08-06 ci-diet (CI run 31071389290 잡별 실측 부검)
+
 ### BL-599
 
 **Priority:** P3

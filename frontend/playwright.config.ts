@@ -38,8 +38,11 @@ export default defineConfig({
       testMatch: /global\.setup\.ts$/,
     },
     {
+      // ★앵커가 필요하다. `/smoke\.spec\.ts$/` 는 접두가 없어 **`live-smoke.spec.ts` 까지**
+      //   잡았고, 전용 project(`chromium-live-smoke`)와 겹쳐 `pnpm e2e` 가 live-smoke 를
+      //   매번 덤으로 돌리고 있었다(2026-08-06 `e2e-project-wiring.test.ts` 가 실측으로 적발).
       name: "chromium",
-      testMatch: /smoke\.spec\.ts$/,
+      testMatch: /(^|\/)smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
     },
     // Sprint 31-D BL-157 — live dev smoke gate (.github/workflows/live-smoke.yml 전용).
@@ -74,8 +77,19 @@ export default defineConfig({
       //   W3-C — 고아 spec `sprint55-optimizer-bayesian` 재작성 후 재배선.
       // functional-parity — `authed-functional-parity` 추가 (주문취소 A2 / nav-count B2 /
       //   backtest_count B1 / 대시보드 링크 A1 회귀 가드 5 case).
-      testMatch:
-        /(trading-ui|dogfood-flow|live-session-flow|sprint32-dogfood-gate|backtest-live-mirror|sprint46-tier1-critical|sprint46-tier2-high|sprint46-tier3-nth|authed-canon-p1|authed-canon-remaining|sprint55-optimizer-bayesian|authed-functional-parity|authed-tier-c-cockpit|authed-settings-save)\.spec\.ts$/,
+      //
+      // ★2026-08-06 — **열거식을 뒤집었다.** 예전에는 파일명 14개를 여기 나열했고, 새 authed
+      //   spec 을 추가하면서 이 줄을 안 고치면 **그 spec 이 발견조차 안 됐다**(위 주석이 스스로
+      //   경고하던 "coverage 함정"이고 `sprint55-optimizer-bayesian` 이 실제로 고아였던 전력).
+      //   이제 **잔여 전체**를 가져가고 다른 project 몫만 `testIgnore` 로 뺀다 — 신규 authed
+      //   spec 은 파일을 만들기만 하면 자동으로 돈다.
+      //   ★열거식으로 되돌아가거나 배선이 겹치면 `src/__tests__/e2e-project-wiring.test.ts` 가 막는다.
+      testMatch: /\.spec\.ts$/,
+      testIgnore: [
+        /(^|\/)smoke\.spec\.ts$/, // chromium
+        /live-smoke\.spec\.ts$/, // chromium-live-smoke
+        /design-canon-.*\.spec\.ts$/, // chromium-design-canon
+      ],
       fullyParallel: false,
       use: {
         ...devices["Desktop Chrome"],

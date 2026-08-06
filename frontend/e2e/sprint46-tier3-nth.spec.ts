@@ -6,7 +6,13 @@
 
 import { expect, test } from "@playwright/test";
 
-import { API_ROUTES, fulfillJson } from "./fixtures/api-mock";
+import { API_ROUTES, fulfillJson, makeUnsupported422 } from "./fixtures/api-mock";
+import {
+  MOCK_BACKTEST_DETAIL as REPORT_DETAIL,
+  MOCK_BACKTEST_ID as REPORT_ID,
+  MOCK_CLOSED_TRADE,
+  routeBacktestDetail,
+} from "./fixtures/backtest-report";
 
 // ---------------------------------------------------------------------------
 // Mock fixtures
@@ -412,4 +418,138 @@ test("#16 Backtest result — 번호 섹션 IA 노출", async ({ page }) => {
   const nums = page.locator(".section .eyebrow .num");
   await expect(nums.first()).toHaveText("01");
   expect(await nums.count()).toBeGreaterThanOrEqual(10);
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+// #17~#19 — Surface Trust Recovery (구 `sprint32-dogfood-gate.spec.ts` 에서 이관)
+//
+// ★왜 여기로 옮겼나. 그 파일(306L)은 sprint46 tier 와 겹친다고 알려져 통합 대상이었지만,
+// 실제로 겹치는 것은 §3(422 friendly_message) **하나뿐**이었다 — 그건 tier1 #1 이
+// `fix → submit success` 까지 더 깊게 검사하므로 폐기했다. 나머지 셋은 **이 저장소에서
+// 유일하게** `equity-pane-wrapper` · `drawdown-pane-wrapper` · `axis-label-bar` ·
+// 차트 범례 3항목 · MDD `자본 초과` 캡션을 검사하고 있었다. 그냥 지웠으면 커버리지가 줄었다.
+//
+// 검증 영역: §1 chart shell(BL-169+170) · §2 MDD leverage 캡션(BL-156) · §4 축 라벨(BL-171+172).
+// ───────────────────────────────────────────────────────────────────────────
+
+test("#17 Backtest result — chart shell 2-pane + 범례 3항목 + MDD 카드", async ({
+  page,
+}) => {
+  await routeBacktestDetail(page, REPORT_DETAIL);
+  await page.goto(`/backtests/${REPORT_ID}`, { timeout: 60_000 });
+
+  // BL-169 — equity/drawdown 2-pane
+  await expect(page.getByTestId("equity-chart-v2")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("equity-pane-wrapper")).toBeVisible();
+  await expect(page.getByTestId("drawdown-pane-wrapper")).toBeVisible();
+
+  // BL-170 — Equity / Buy&Hold / Drawdown 3항목.
+  // ★KeyStatsStrip(성과 요약)도 role=list 라 반드시 "차트 범례" 로 scope 한다.
+  const legend = page.getByRole("list", { name: "차트 범례" });
+  await expect(legend.getByRole("listitem")).toHaveCount(3, { timeout: 5_000 });
+
+  // leverage=1 정상 시나리오 → KeyStatsStrip "최대 낙폭" 카드 자체는 visible.
+  await expect(page.getByText("최대 낙폭").first()).toBeVisible();
+});
+
+test("#18 Backtest result — MDD leverage 캡션 (leverage 5x + 자본 초과)", async ({
+  page,
+}) => {
+  await routeBacktestDetail(page, {
+    ...REPORT_DETAIL,
+    config: { ...REPORT_DETAIL.config, leverage: 5 },
+    metrics: {
+      ...REPORT_DETAIL.metrics,
+      max_drawdown: "-1.32",
+      mdd_exceeds_capital: true,
+    },
+  });
+  await page.goto(`/backtests/${REPORT_ID}`, { timeout: 60_000 });
+
+  // BL-156 buildMddCaption(leverage 5x + 자본 초과) → "leverage 5.0x · 자본 초과 손실".
+  await expect(page.getByText(/leverage 5\.0x.*자본 초과 손실/)).toBeVisible({
+    timeout: 15_000,
+  });
+});
+
+test("#19 Backtest result — 축 라벨 + trades 있는 상태의 차트 렌더", async ({ page }) => {
+  await routeBacktestDetail(page, REPORT_DETAIL, [MOCK_CLOSED_TRADE]);
+  await page.goto(`/backtests/${REPORT_ID}`, { timeout: 60_000 });
+
+  // BL-172 — equity / drawdown 두 pane 각각의 axis-label-bar
+  await expect(page.getByTestId("axis-label-bar-equity")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId("axis-label-bar-drawdown")).toBeVisible();
+  await expect(page.getByTestId("y-axis-label").first()).toBeVisible();
+  await expect(page.getByTestId("x-axis-label").first()).toBeVisible();
+
+  // BL-171 — trades prop → deriveTradeMarkers 경로에서도 차트가 살아 있는지.
+  await expect(page.getByTestId("equity-chart-v2")).toBeVisible();
+});
+
+test("#20 Backtest form — 422 friendly_message 카드 (BL-163)", async ({ page }) => {
+  // ★tier1 #1 과 중복이 아니다. tier1 은 `backtest-form-unsupported-card`(빌트인 UL)를
+  //   보고, 여기는 `backtest-form-friendly-message`(사람이 읽는 대안 안내)를 본다 —
+  //   `FormErrorInline` 이 내보내는 **서로 다른 두 요소**다(form-error-inline.tsx:127 vs :145).
+  //   구 sprint32 §3 을 「tier1 에 포함」이라 보고 버릴 뻔했는데, 실제로는 이 testid 를
+  //   검사하는 spec 이 저장소에 하나도 안 남게 되는 상태였다.
+  const HEIKINASHI_STRATEGY_ID = "947bc980-0000-4000-a000-000000000099";
+
+  await page.route(API_ROUTES.strategies, (route) =>
+    fulfillJson({
+      items: [
+        {
+          id: HEIKINASHI_STRATEGY_ID,
+          name: "heikinashi-bad",
+          description: null,
+          pine_source: "//@version=5\nstrategy('HA')\nheikinashi(request.security(...))\n",
+          pine_version: "v5",
+          // ★삭제된 sprint32 원본과 동일하게 "unsupported" 다 — 폼의
+          //   `PARSE_STATUS_LABEL` "일부 미지원" 경로를 태우는 값이다(codex P2).
+          //   이관하면서 "ok" 로 바꿨다가 그 분기를 잃을 뻔했다.
+          parse_status: "unsupported",
+          parse_errors: null,
+          timeframe: "1h",
+          symbol: "BTCUSDT",
+          tags: [],
+          trading_sessions: [],
+          settings: null,
+          pine_declared_qty: null,
+          is_archived: false,
+          created_at: "2026-05-01T00:00:00+00:00",
+          updated_at: "2026-05-01T00:00:00+00:00",
+        },
+      ],
+      total: 1,
+      page: 0,
+      limit: 20,
+      total_pages: 1,
+    })(route),
+  );
+
+  // 422 본문은 공유 헬퍼로 — 스펙마다 손으로 조립하던 것을 한 곳으로 모은다.
+  await page.route(API_ROUTES.backtests, (route, request) => {
+    if (request.method() === "POST") {
+      return fulfillJson(
+        makeUnsupported422(
+          ["heikinashi", "request.security"],
+          "heikinashi / request.security 는 Trust Layer 위반(결과 부정확 risk). PbR / RSI / EMA cross 같은 ADR-003 supported list 의 indicator 로 대체 가능합니다.",
+        ),
+        422,
+      )(route);
+    }
+    return fulfillJson({ items: [], total: 0, limit: 20, offset: 0 })(route);
+  });
+
+  await page.goto("/backtests/new", { timeout: 60_000 });
+  await expect(page.getByRole("heading", { name: "새 백테스트" })).toBeVisible({
+    timeout: 15_000,
+  });
+
+  await page.locator("#strategy-select").selectOption({ label: "heikinashi-bad" });
+  await page.getByTestId("backtest-submit").click({ force: true });
+
+  // ★전역 getByText 는 strict mode 위반이다 — 전략 chip/option/요약행에도 "heikinashi" 가 있다.
+  const friendly = page.getByTestId("backtest-form-friendly-message");
+  await expect(friendly).toBeVisible({ timeout: 10_000 });
+  await expect(friendly).toContainText(/Trust Layer 위반|ADR-003/);
 });
