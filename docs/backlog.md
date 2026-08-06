@@ -821,6 +821,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-594](#bl-594) ✅ | ★**Redis 가 재기동 불능인 채 6일 돌고 있었다** — `make down` 후 `unhealthy` 로 기동 실패. `appendonly.aof.4.incr.aof` 가 **35.6MB 중 30.8MB(86.6%) 판독 불가**. AOF 는 **기동 시에만 읽히므로** 떠 있는 프로세스에는 증상이 0 이고 healthcheck(`redis-cli ping`)도 구조적으로 못 본다. ⇒ 스택에 **재기동 내성이 없었다** — [BL-003] 의 168h 창 안에 재부팅이 들어오면 워커가 안 뜬다. 손상 원인 미조사                                                                                                                                                                                                                                                                                                                                                                | 소크가 168h 를 향해 도는 동안 · 호스트 재부팅 전                                                                  | S            | 2026-08-05 soak-clock-restoration                      |
 | [BL-596](#bl-596) ✅ | 게이트가 **모르는 라벨을 조용히 무해 취급**한다 — `soak_gate_predicate.py:191` 이 `label == "phantom"` 만 실격으로 세므로 `unattributed` 도, 앞으로 판별식이 낼 어떤 새 라벨도 **fail-open** 이다. 판별식은 2026-08-05 에만 두 번 바뀌었다(봉경계식 → 재무장식 → 회복식). 현행 회복식은 판정 불가를 새 라벨이 아니라 **종전 식으로 강하**시켜 이 경로를 피해 갔을 뿐 닫지는 않았다. **2026-08-05 Resolved** — 라벨 어휘를 명시적 3분할 frozenset 으로 읽고, 무해도 실격도 아닌 라벨(`unattributed` + 어휘 밖 + 키 결손)은 C5 를 떨어뜨려 `UNKNOWN 측정불가`. 소급 실격은 아니고, FAIL 이 C5 보다 먼저라 실격을 덮지도 않는다. 알려진 라벨만 있는 판정은 180 조합 전량 불변                                                                                            | 판별식이 새 라벨을 낼 때 · 또는 `unattributed` 가 실제로 관측될 때                                                | S            | 2026-08-05 live-replay-visibility                      |
 | [BL-598](#bl-598)    | ★**코퍼스 스크립트를 처음 파싱하는 테스트가 비용을 전부 문다** — `test_ast_classifier[i3_drfx]` 단독 **42.66s** vs 전체 스위트 안 **4.58s**. 프로세스 전역 비용이라 **쪼개면 샤드마다 중복**된다(CI 3샤드 합 1796s vs 단일 1278s, +519s 전부가 이 중복). 샤딩 저항의 뿌리이고 CI 14분 벽의 원인. 캐시 데코레이터는 **찾아봤고 없다** — 정체 규명이 먼저                                                                                                                                                                                                                                                                                                                                                                                                               | CI backend 를 14분 아래로 내리려 할 때 · pine_v2 코퍼스 테스트를 늘리기 전에                                      | M            | 2026-08-06 ci-diet                                     |
+| [BL-602](#bl-602)    | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S            | 2026-08-06 e2e-consolidation                           |
 | [BL-597](#bl-597) ✅ | e2e authed 가 **소크 상태와 결합** — 열린 포지션이 `/trading` 에 표를 추가해 느슨한 로케이터가 엉뚱한 표를 집는다(final-gates 1차 red, hydration flake 와 다른 축)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | e2e 로케이터 수리 전 · 소크 병행 게이트마다                                                                       | S            | 2026-08-06 night-watch                                 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale ([\_archived.md](archive/refactoring-backlog/_archived.md)).
@@ -7083,6 +7084,51 @@ e2e authed 가 **라이브 소크가 도는 개발 DB** 를 그대로 검사하�
 **상태:** ✅ **Resolved (2026-08-06 fix/bl597-e2e-table-locator)** — 처리 방향 ① 수리: 해당 spec 의 전역 `locator("table").first()` 를 접근성 이름 기반(`getByRole("table", { name: /거래소 계정/ })`)으로 교체. **판별력 실증** — 소크 포지션이 실제로 열린 조건에서 구 코드 1 failed · 수리본 passed(같은 세션, stash 왕복). ③ gates-and-traps 등재 완료. ②(화면 측 앵커)는 ①로 충분해 불필요 판정.
 
 **출처:** 2026-08-06 night-watch (final-gates 1차 red 부검)
+
+---
+
+### BL-602
+
+**Priority:** P3
+**카테고리:** DX / 커밋 훅 (prettier 플러그인 해석)
+**Trigger:** `frontend/` 안의 `*.json` / `*.md` / `*.yml` 을 커밋해야 할 때
+**Est:** S
+**상태:** ⬜ **Open**
+
+**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다.**
+
+**실측 재현 (2026-08-06):**
+
+```
+$ ./node_modules/.bin/prettier --check frontend/package.json
+[error] Cannot find package 'prettier-plugin-tailwindcss' imported from .../quant-bridge/noop.js
+
+$ ./node_modules/.bin/prettier --check docs/reference/operations/gates-and-traps.md
+All matched files use Prettier code style!     ← 루트 밖 파일은 정상
+```
+
+**뿌리.** `frontend/.prettierrc` 가 `"plugins": ["prettier-plugin-tailwindcss"]` 를 선언한다.
+루트 `package.json` 의 lint-staged 는 `*.{json,md,yml,yaml}` 을 **레포 전역**으로 잡아 **루트**
+prettier 로 돌리는데, 루트 `node_modules` 는 husky/lint-staged/prettier **3개뿐**이라(설계상
+루트는 도구 전용) 그 플러그인을 해석하지 못한다. prettier 3.x 가 플러그인을 **CWD 기준**으로
+찾기 때문에 `frontend/node_modules` 에 있어도 못 본다.
+
+**증상.** `frontend/package.json` 을 포함해 커밋하면 pre-commit 이 `prettier --write` 에서
+죽고, 같은 실행에서 eslint 가 `KILLED` 로 함께 넘어져 원인이 가려진다. 이번 회차에는
+`package.json` 에 `e2e:ci` 스크립트를 넣으려다 막혀 **ci.yml 인라인으로 우회**했다.
+
+★**과거에 통과한 이력이 있다**(`frontend/package.json` 을 담은 커밋 4건). 그래서 「원래 안 되던
+것」이 아니라 **어느 시점에 깨진 것**이다 — prettier/pnpm 버전이나 hoisting 변화가 후보다.
+고치기 전에 **언제부터 깨졌는지 먼저 확인해라**(그 4 커밋 시점의 prettier 버전 대조).
+
+**처리 방향(택1, 조사 후 결정):** ① 루트 devDependencies 에 `prettier-plugin-tailwindcss` 추가
+② lint-staged 의 `*.{json,md,yml,yaml}` 글로브에서 `frontend/**` 를 빼고 frontend 전용 항목을 신설
+③ `frontend/.prettierrc` 의 plugins 를 해석 가능한 절대/상대 경로로.
+★**`--no-verify` 는 답이 아니다**(레포 규약 금지).
+
+**Risk:** 🟢 DX 문제이고 프로덕션 무관. 다만 **막히면 커밋 자체가 안 된다.**
+
+**출처:** 2026-08-06 e2e-consolidation (커밋 시도 중 실측 재현)
 
 ---
 

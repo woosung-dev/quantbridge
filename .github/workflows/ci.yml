@@ -311,13 +311,30 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # 브라우저 바이너리 캐시 — cold install 실측 25s. 키에 pnpm-lock 을 넣어 playwright
+      # 버전이 바뀌면 무효화한다.
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+      # 캐시 hit 이어도 시스템 의존성(--with-deps)은 이미지에 없을 수 있어 항상 돌린다.
+      # 캐시가 있으면 바이너리 다운로드만 건너뛴다.
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm e2e
       # C 디자인 언어 이식 S0 — 디자인 캐논 게이트 (병행안).
       # 프로토타입 17벌 캘리브레이션(file://, 서버 불요) + 공개 라우트 런타임 토큰 검사.
       # P1 4라우트는 전부 authed 라 로컬 `pnpm e2e:authed` 몫이고 CI 에는 없다.
       # webServer 가 자동 기동하며 인증·백엔드 의존이 없다 (랜딩 CSS 변수만 읽는다).
-      - run: pnpm e2e:design-canon
+      #
+      # ★2026-08-06 — `pnpm e2e` + `pnpm e2e:design-canon` 2회 호출을 **한 번**으로 합쳤다.
+      #   따로 부르면 playwright 가 `webServer`(= `pnpm dev`)를 **두 번 기동**한다. Next.js dev
+      #   첫 페이지 렌더가 JIT 컴파일이라 그 기동 비용이 그대로 두 배가 된다.
+      #   ★벽시계 이득은 크지 않다 — 이 잡(실측 5.4분)은 frontend 잡(6.0분)보다 짧아 **임계경로가
+      #   아니다**. 얻는 것은 러너 분과 dev 서버 1회 기동이지 PR 대기시간이 아니다.
+      # ★`package.json` 에 스크립트로 넣지 않고 인라인이다 — 루트 prettier 가
+      #   `frontend/*.json` 을 포맷할 때 `frontend/.prettierrc` 의 tailwind 플러그인을
+      #   해석하지 못해 pre-commit 이 죽는다([BL-602]). 그 결함이 닫히면 스크립트로 옮겨라.
+      - run: pnpm exec playwright test --project=chromium --project=chromium-design-canon
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4

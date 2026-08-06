@@ -397,6 +397,33 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
 - ★**소크·다른 pytest 와 동시에 돌리지 마라.** `tests/conftest.py` 세션 픽스처가 `quantbridge_test` 에
   `drop_all`+`create_all` 을 하므로 **진행 중인 다른 실행의 DB 를 도중에 날린다.**
 
+### e2e spec 을 통합할 때 (2026-08-06 e2e-consolidation)
+
+- ★★★**「A 는 B 에 포함된다」를 assertion 단위로 확인하기 전에 지우지 마라 — 두 번 틀렸다.**
+  ⑴ 핸드오프는 `sprint32-dogfood-gate.spec.ts`(306L) 전체가 sprint46 tier 에 「거의 완전 포함」
+  이라 했지만, 실제로 겹치는 건 4 테스트 중 **1개**뿐이었다. 나머지 셋은 저장소에서 **유일하게**
+  `equity-pane-wrapper` · `drawdown-pane-wrapper` · `axis-label-bar` · 차트 범례 3항목 ·
+  MDD `자본 초과` 캡션을 검사하고 있었다.
+  ⑵ 그리고 **나도 같은 실수를 한 단계 아래에서 반복했다** — 그 「겹치는 1개」(422)마저 실제로는
+  다른 요소를 본다. tier1 은 `backtest-form-unsupported-card`(빌트인 UL), 구 sprint32 는
+  `backtest-form-friendly-message`(사람이 읽는 안내)로 **`FormErrorInline` 이 내보내는 별개 두
+  testid**다(`form-error-inline.tsx:127` vs `:145`). 그대로 뒀으면 후자를 검사하는 spec 이 0개가 됐다.
+  ⇒ **파일 이름·테스트 제목이 아니라 `getByTestId`/`getByRole` 인자를 grep 해서 대조해라.**
+- ★★**playwright `testMatch` 열거식은 조용히 샌다.** 새 spec 을 목록에 안 적으면 **발견조차 안 되고**
+  playwright 는 초록이다. 이제 `chromium-authed` 는 **잔여 전체**를 가져가고 다른 project 몫만
+  `testIgnore` 로 뺀다. `src/__tests__/e2e-project-wiring.test.ts` 가 고아·중복을 둘 다 막는다.
+- ★★**정규식에 앵커가 없으면 다른 spec 을 삼킨다.** `/smoke\.spec\.ts$/` 가 **`live-smoke.spec.ts`
+  까지** 잡아 전용 project 와 겹쳤고, `pnpm e2e` 가 live-smoke 를 매번 덤으로 돌리고 있었다.
+  감사 테스트를 **먼저 써서 red 로 확인**한 뒤 고쳤다(고아 0 · 중복 1 로 정확히 지목).
+- ★**config 를 파싱하지 말고 import 해라.** 정규식을 문자열로 다시 쓰면 실제 배선이 아니라 내
+  복사본을 검사하게 된다. 감사 통과 후에도 `playwright test --list` 로 **실제 선택 집합**을
+  대조해라(1 + 1 + 4 + 14 = 20 전량 일치 확인).
+- ★**`--list` 출력은 `[project] › file.spec.ts` 형식이다** — `e2e/` 접두를 기대한 grep 은 빈 결과를
+  내고, 그걸 「선택 0건」으로 오독하기 쉽다.
+- ★**e2e 를 로컬 검증할 땐 `PLAYWRIGHT_BASE_URL` 을 반드시 고정해라.** 안 주면 `webServer` +
+  `reuseExistingServer` 가 :3000 의 **남의 앱**을 그대로 쓴다(이 머신 :3000 = 다른 제품).
+  정체성 프로브(`<title>` 에 QuantBridge)를 먼저 통과시켜라.
+
 ### 신규 BE 필드는 FE `.strict()` 스키마와 **항상** 대조해라 (2026-07-30, codex 적대 리뷰 MAJOR)
 
 > ★★★**읽기 경로가 정상인 것은 쓰기 경로가 정상이라는 증거가 아니다.**
