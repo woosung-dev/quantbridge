@@ -2,12 +2,19 @@
 # 마지막 PR 전 게이트 체인 — 셸로 되는 것은 실행하고, 스킬로만 되는 것은 signal 파일로 강제한다.
 #
 # 왜 이 스크립트가 있나
-#   CI 는 러너 전역 미할당으로 `steps=0` 에 죽는다(billing). 로컬이 유일한 판단 근거인데,
 #   docs 에 "게이트 8종 생략 금지" 라고 적는 것만으로는 집행되지 않는다 — 이 레포는
 #   "수용 기준은 자기 집행되지 않는다"(적어놓고 미이행 2회)를 이미 배웠다. 그래서 실행한다.
 #
+#   ★2026-08-06 정정 — 원래 여기 적혀 있던 근거는 "CI 는 러너 전역 미할당으로 `steps=0` 에
+#   죽는다(billing). 로컬이 유일한 판단 근거" 였다. **그 전제는 이제 거짓이다** — CI 는 정상
+#   가동한다(최근 12 run 전건 완주). 그래서 §5 의 "CI 커버리지 잡" 재현은 **기본 skip** 이고
+#   `--with-ci-coverage` 로만 켠다. 그것은 §2 의 "BE pytest" 와 **같은 스위트를 계측만 켜고
+#   두 번째로 도는 순수 중복**이었다(로컬 실측 +230s ≈ 9분/회). 나머지 §5 3종은 초 단위라
+#   그대로 돈다.
+#
 # 사용법
 #   scripts/final-gates.sh --run <name> [--allow-dirty] [--skip-e2e] [--skip-ci-repro]
+#                                       [--with-ci-coverage]
 #
 #   스킬 게이트는 에이전트가 돌린 뒤 아래 파일을 남겨야 통과한다(내용은 근거 요약):
 #     .claude/gates/<run>/vercel.ok      /vercel-react-best-practices  (frontend/** diff 있을 때만 필수)
@@ -23,14 +30,15 @@
 # 종료 코드: 0 = 전건 통과 / 1 = 하나 이상 실패·미확인 또는 더러운 트리 거부
 set -uo pipefail
 
-RUN=""; SKIP_E2E=0; SKIP_CI=0; ALLOW_DIRTY=0
+RUN=""; SKIP_E2E=0; SKIP_CI=0; ALLOW_DIRTY=0; WITH_CI_COV=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --run) [ $# -ge 2 ] || { echo "--run 에 값이 필요하다" >&2; exit 1; }; RUN="$2"; shift 2 ;;
     --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --skip-e2e) SKIP_E2E=1; shift ;;
     --skip-ci-repro) SKIP_CI=1; shift ;;
-    -h|--help) sed -n '2,23p' "$0"; exit 0 ;;
+    --with-ci-coverage) WITH_CI_COV=1; shift ;;
+    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
 done
@@ -181,15 +189,25 @@ else
   fi
 fi
 
-# ── 5. CI 전용 스텝 재현 (GitHub CI 가 steps=0 으로 죽으므로 여기가 대체) ──
+# ── 5. CI 전용 스텝 재현 ────────────────────────────────────────────
+# ★"CI 커버리지 잡" 만 기본 skip 이다 (2026-08-06). 위 §2 "BE pytest" 가 이미 같은 스위트를
+#   돌았고, 여기는 거기에 계측만 얹어 **두 번째로** 도는 것이었다 — 로컬 실측 무계측 298.97s
+#   vs 계측 529.16s (배율 1.770) ⇒ 회당 ~9분이 순수 중복이었다. 커버리지 래칫(BL-308/309)은
+#   CI 의 `backend-coverage` 잡이 3 샤드를 `coverage combine` 해서 집행한다.
+#   ★그래도 남겨 두는 이유 — CI 를 못 믿을 사정이 생기면 `--with-ci-coverage` 로 되켠다.
+#   나머지 3종(fresh DB alembic / frozen-lockfile / hooks grep)은 초 단위라 **그대로 돈다**.
 if [ "$SKIP_CI" -eq 1 ]; then
   skip_gate "CI 커버리지 잡" "--skip-ci-repro"; skip_gate "CI fresh DB alembic" "--skip-ci-repro"
   skip_gate "CI frozen-lockfile" "--skip-ci-repro"; skip_gate "CI hooks grep" "--skip-ci-repro"
 else
-  run_gate "CI 커버리지 잡" "cov-fail-under=90" bash -c '
-    cd "$0/backend"; set -a; . ./.env.local; set +a
-    uv run pytest -q --cov=src.trading.registry --cov=src.trading.webhook \
-      --cov=src.trading.websocket --cov-report=term-missing --cov-fail-under=90' "$ROOT"
+  if [ "$WITH_CI_COV" -eq 1 ]; then
+    run_gate "CI 커버리지 잡" "cov-fail-under=90" bash -c '
+      cd "$0/backend"; set -a; . ./.env.local; set +a
+      uv run pytest -q --cov=src.trading.registry --cov=src.trading.webhook \
+        --cov=src.trading.websocket --cov-report=term-missing --cov-fail-under=90' "$ROOT"
+  else
+    skip_gate "CI 커버리지 잡" "기본 skip — CI backend-coverage 잡이 집행한다 (--with-ci-coverage 로 켠다)"
+  fi
 
   # fresh throwaway DB — 개발 DB 를 향하지 않게 이름을 고정하고, 반드시 _test 로 끝낸다.
   run_gate "CI fresh DB alembic" "throwaway" bash -c '

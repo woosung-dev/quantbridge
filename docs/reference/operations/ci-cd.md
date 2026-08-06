@@ -9,27 +9,46 @@
 
 ```mermaid
 flowchart TB
-    Trigger[push main / PR main]
-    Changes[changes\nframework: dorny/paths-filter]
-    FE[frontend\nlint + tsc + test]
-    BE[backend\nruff + mypy + alembic + pytest]
-    CI[ci summary\nfail if any failed]
+    Trigger[PR → main / stage/**]
+    Changes[changes\ndorny/paths-filter]
+    Doc[documentation\nmake docs-audit]
+    FE[frontend\nlint + tsc + test + build]
+    BES[backend_static\nruff + mypy • DB 불요]
+    BE[backend ×3 샤드\nalembic + pytest --cov]
+    BEC[backend_coverage\ncoverage combine + fail-under=90]
+    E2E[e2e\nplaywright]
+    CI[ci summary\nsuccess/skipped 아니면 실패]
 
     Trigger --> Changes
-    Changes -->|frontend changed| FE
-    Changes -->|backend changed| BE
+    Changes -->|frontend| FE
+    Changes -->|frontend| E2E
+    Changes -->|backend| BES
+    Changes -->|backend| BE
+    BE --> BEC
     FE --> CI
-    BE --> CI
+    BES --> CI
+    BEC --> CI
+    E2E --> CI
+    Doc --> CI
 ```
+
+### 트리거 — PR 만 (2026-08-06)
+
+`push: [main]` 을 뺐다. 같은 내용이 PR 과 머지 직후 **두 번** 돌고 있었고(backend 23분 × 2),
+`pull_request` 이벤트는 PR head 가 아니라 **머지 프리뷰**(`refs/pull/N/merge`)를 체크아웃하므로
+머지 결과는 이미 PR 에서 검사된다. 남는 위험은 마지막 PR run 이후 **base 가 움직인 경우**뿐이고,
+순차 머지 + 로컬 `scripts/final-gates.sh` 가 그 구간을 덮는다. main 을 손으로 확인해야 하면
+`workflow_dispatch` 로 돌린다.
 
 ### Changes-aware 분기
 
 - `dorny/paths-filter@v3`로 PR diff에서 변경된 경로 감지
-- `frontend/**` 변경 시만 frontend job 실행
-- `backend/**` 변경 시만 backend job 실행
+- `frontend/**` 변경 시만 frontend / e2e job 실행
+- `backend/**` 변경 시만 backend_static / backend / backend_coverage job 실행
 - 둘 다 변경 시 병렬 실행
 
-> PR이 docs only 변경이면 두 job 모두 skip — `ci` summary가 통과 처리.
+> PR이 docs only 변경이면 code job 이 전부 skip — `ci` summary가 통과 처리.
+> 단 `documentation` 잡은 **항상** 돌고 `ci` 가 그 결과를 본다(아래 §4).
 
 ---
 
@@ -51,22 +70,62 @@ flowchart TB
 
 ## 3. Backend Job
 
-| 단계      | 명령                                          | 목적                                        |
-| --------- | --------------------------------------------- | ------------------------------------------- |
-| Services  | TimescaleDB + Redis containers                | DB/Redis 의존 테스트                        |
-| Setup     | `astral-sh/setup-uv@v3` (cache) + Python 3.12 | uv lock 캐시                                |
-| Install   | `uv sync --all-extras --dev`                  | 의존성                                      |
-| Lint      | `uv run ruff check .`                         | 린트                                        |
-| Type      | `uv run mypy src/`                            | 타입                                        |
-| Migration | `uv run alembic upgrade head`                 | round-trip 게이트 (DB는 `quantbridge_test`) |
-| Test      | `uv run pytest -v`                            | pytest 전체                                 |
+**2026-08-06 — 잡 3벌로 쪼갰다.** pytest 한 스텝이 backend 잡 23분의 **94%(1313s)** 였다.
+
+`backend_static` (DB 불요)
+
+| 단계    | 명령                                          | 목적                          |
+| ------- | --------------------------------------------- | ----------------------------- |
+| Setup   | `astral-sh/setup-uv@v3` (cache) + Python 3.12 | uv lock 캐시                  |
+| Install | `uv sync --all-extras --dev`                  | 의존성                        |
+| Lint    | `uv run ruff check .`                         | 린트                          |
+| Cache   | `actions/cache` → `backend/.mypy_cache`       | mypy cold 실측 32s → 캐시 hit |
+| Type    | `uv run mypy src/`                            | 타입                          |
+
+`backend` (matrix `shard: [a, b, c]` — 각 샤드가 자기 DB/Redis 서비스를 갖는다)
+
+| 단계      | 명령                                                          | 목적                                        |
+| --------- | ------------------------------------------------------------- | ------------------------------------------- |
+| Services  | TimescaleDB + Redis containers                                | DB/Redis 의존 테스트                        |
+| Migration | `uv run alembic upgrade head`                                 | round-trip 게이트 (DB는 `quantbridge_test`) |
+| Test      | `uv run pytest $(python -m tests.shard_paths <샤드>) --cov=…` | 샤드 몫 + **부분** 커버리지 데이터          |
+| Upload    | `actions/upload-artifact` (`include-hidden-files: true`)      | `.coverage.<샤드>` 조각                     |
+
+`backend_coverage` (DB 불요)
+
+| 단계   | 명령                                          | 목적                             |
+| ------ | --------------------------------------------- | -------------------------------- |
+| Verify | 조각 개수 == `shards.json` 키 개수            | **누락 탐지기** (아래 ★)         |
+| Gate   | `coverage combine` → `report --fail-under=90` | BL-308/309 래칫을 **한 번** 판정 |
+
+**샤드 경계는 실측이다.** `tests/strategy/pine_v2` 혼자 로컬 **164.0s / 56.3%** 이고 CI 는 그
+구간이 **5.0배**(스위트 평균 4.27배) 느리다. 그래서 샤드 `b` 는 파일 **두 개**뿐이다 — 그 둘이
+스위트의 35% 라서다. 정의·근거 = [`backend/tests/shard_paths.py`](../../../backend/tests/shard_paths.py).
+
+**등가성은 증명됐다.** 전체 1벌 실행과 샤드 3벌 합본의 `coverage report` 가 **파일별로 완전히
+동일**(TOTAL `730 38 192 23 93%`)했고, 샤드 수집 합계 = 전체 수집(**4248**)이다.
+
+★**조각 개수 검사가 유일한 누락 탐지기다.** 샤드 a·b 의 데이터 파일은 내용이 동일해서
+(둘 다 trading 모듈을 import 로만 스친다) `coverage combine` 이 `Skipping duplicate data` 를 찍는다.
+즉 **a 나 b 의 아티팩트가 통째로 사라져도 최종 커버리지 수치는 안 움직인다** — 커버리지로는
+누락을 볼 수 없다. `upload-artifact` 의 `include-hidden-files: true` 가 빠지면 dot 파일이
+기본 제외되어 정확히 그 상황이 된다.
+
+★**분할이 새면 `backend/tests/test_pytest_shard_partition.py` 가 막는다** — 모든 `test_*.py` 가
+정확히 한 샤드에 속하는지, `ci.yml` matrix id 가 `shards.json` 키와 같은지. 변이 4종 전건 red 확인.
 
 ### 환경 변수 (CI 전용)
 
 - `DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test`
 - `REDIS_URL=redis://localhost:6379/0`
+- `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` / `REDIS_LOCK_URL` — celery 는 `REDIS_URL` 을
+  **안 읽는다**(`core/config.py` 별도 필드). 2026-08-01 에 이 셋이 없어 5건이 실패했다.
+- `TRADING_ENCRYPTION_KEYS`
 
 > CI services는 `localhost`로 노출됨 (Compose 내부 호스트명 아님).
+> ★이 목록을 손으로 관리하지 마라 — `backend/tests/test_ci_workflow_env_parity.py` 가
+> `Settings` 에서 compose 호스트 기본값을 갖는 필드를 뽑아 **모든** pytest 스텝 env 와 대조한다.
+> 로컬에서는 `.env.local` 이 전부 localhost 로 채워서 이 드리프트가 **구조적으로 안 보인다.**
 
 > CI Python 버전은 3.12, 로컬 권장은 3.11+. CLAUDE.md/regex `python>=3.11`에 부합.
 
@@ -77,8 +136,18 @@ flowchart TB
 `ci` job:
 
 - `if: always()` — 다른 job 결과와 무관하게 실행
-- frontend/backend 결과 파싱 → 둘 중 하나라도 failure이면 `exit 1`
+- `needs` = `frontend` · `backend` · `backend_static` · `backend_coverage` · `e2e` · `documentation`
+- 판정은 **`success` 또는 `skipped` 가 아니면 실패**
 - skip은 통과로 간주 → docs only PR 머지 가능
+
+★**2026-08-06 에 구멍 2개를 막았다.**
+
+1. `documentation` 이 `needs` 에 **없었다** — `make docs-audit` 이 빨개도 `ci` 는 초록이었다.
+2. 판정이 `== "failure"` 였다 — `cancelled` 가 **통과로 읽혔다**. 이제 모르는 상태는 fail-closed.
+
+> 잡 id 에 하이픈 대신 밑줄(`backend_static`)을 쓴 이유: `needs.backend-static.result` 는 표현식에서
+> 뺄셈으로 파싱될 여지가 있어 대괄호 표기가 필요한데, 로컬에서 시험할 수 없는 문법이라 모호함이
+> 없는 쪽을 택했다.
 
 ---
 

@@ -1,0 +1,20 @@
+{
+  "a": {
+    "paths": ["tests/strategy"],
+    "ignore": [
+      "tests/strategy/pine_v2/test_alert_hook.py",
+      "tests/strategy/pine_v2/test_trust_layer_parity.py"
+    ]
+  },
+  "b": {
+    "paths": [
+      "tests/strategy/pine_v2/test_alert_hook.py",
+      "tests/strategy/pine_v2/test_trust_layer_parity.py"
+    ],
+    "ignore": []
+  },
+  "c": {
+    "paths": ["tests"],
+    "ignore": ["tests/strategy"]
+  }
+}
