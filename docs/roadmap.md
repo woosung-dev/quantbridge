@@ -278,7 +278,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-473** [P1] Bybit private WS 인증 `expires` 창 +1s 가 왕복 지연에 먹혀 **라이브 체결 스트리밍이 죽어 있었다** — ✅ **dogfood-restore 완료**. 통제 실험(+1s 실패 / +10s·+60s 성공)으로 격리, 10s 로 확대
 - [x] **BL-474** [P2] 테스트 주문 다이얼로그가 **spot** 으로 나가는데 라이브 신호는 **linear perp** — ✅ **PR #484**. ★원인은 다이얼로그가 아니라 **webhook ingress 한 자리에서 3건 드롭**(leverage/margin_mode 미해결 + 프론트가 보내던 `reduce_only`·TP/SL 미독). `WebhookService.resolve_trading_params()` 신설 + settings 미설정 **422 fail-closed**. 실주문 dogfood 로 확인(주문 ID 숫자형→UUID). **출처 라벨·SessionScope 화면 검증도 여기서 완료** — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
 
-## 3) 리팩토링 부채 (**ACTIVE 143 · PARTIAL 4 · RESOLVED 57 · UNKNOWN 17 / 전체 221** — 2026-07-30 `scripts/bl-audit.sh` 실측)
+## 3) 리팩토링 부채 (**ACTIVE 166 · PARTIAL 6 · RESOLVED 0 · UNKNOWN 0 / 전체 172** — 2026-08-06 `scripts/bl-audit.sh` 실측, RESOLVED 94건은 문서 대개편에서 일괄 강등)
 
 > ★**직전 표기 `80 OPEN · P0 1 / P1 6 / P2 26 / P3 47` 은 stale 이었다.** 그 다음 표기
 > `active 140 / 전체 216` 은 낡은 인라인 awk 산식으로 잰 값이고, 그 산식은 **cross-ref 한 줄로
