@@ -494,10 +494,12 @@ docker logs quantbridge-worker 2>&1 | (cd backend && uv run python \
   scripts/classify_direction_divergence.py)          # 발산 재판정 (회복식)
 ```
 
-### ★[ADR-025] 는 아직 **Proposed** 다
+### ★[ADR-025] 판정 — **Accepted** (2026-08-06)
 
-사용자 판정 대기다. 위 전향 예측이 판정 근거가 된다 — 12h(가능하면 24h) 노출에서 ①②가 0 이고
-③④가 살아 있으면 Accepted 로 올린다.
+노출 12.28h 에서 사전등록 4관측량 전건 충족 — ① phantom **0건**(관측 4건 전부 `replay_lag`,
+p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 **84건**(≥40) · ④ 카운터 차분
+**+223**(형 A +183 · 형 B +6 — 양쪽 수리 갈래 발화). 실측 전문 =
+[ADR-025 §판정](decisions/025-conditional-fill-ownership.md).
 
 ### 그 다음 후보 (순서 없음)
 
