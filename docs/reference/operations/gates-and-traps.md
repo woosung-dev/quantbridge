@@ -72,6 +72,12 @@ scripts/soak-gate.sh --status
   (CI 는 `pnpm test -- --run` 을 쓴다 — `--` 구분자가 있어 동작한다.)
 - **`| tail` 로 파이프하지 마라.** 파이프라인 exit code 가 `tail` 것으로 바뀌어 실패가 사라진다.
 - **백그라운드 pytest 를 `| tail` 로 감싸면** 끝날 때까지 출력 파일이 비어 있다. 진행 중인지 죽은 건지는 `pgrep -f pytest` 로 본다.
+- ★★**소크 병행 e2e 는 라이브 상태와 결합한다** — e2e authed 는 소크가 도는 개발 DB 를 그대로
+  검사하므로, 소크 세션이 **포지션을 들고 있으면** `/trading` 에 포지션 표가 추가 렌더되고
+  `page.locator("table").first()` 류의 **전역·순서 의존 로케이터가 엉뚱한 표를 집는다**(BL-597,
+  2026-08-06 final-gates 1차 red 실측 — 서명은 hydration flake 와 달리 `toContain` 단언 실패였고,
+  같은 조건에서 이름 기반 로케이터(`getByRole("table", { name: … })`)는 통과했다).
+  표는 **접근성 이름으로** 집어라. 서명이 다른 red 를 기존 flake 로 접지 마라.
 - ★★**e2e 가 남의 앱을 검사할 수 있다.** `frontend/playwright.config.ts` 의 `baseURL` 기본값은 **3000** 인데 격리 스택 FE 는 **3100** 이다. 3000 을 다른 웹앱이 점유하면 캐논이 그 앱을 감사한다. 실측 정체성 프로브:
   ```
   http://localhost:3000  ->  <title>Nexus - AI 챗봇 포털</title>
