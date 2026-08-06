@@ -16,6 +16,10 @@ type ScopeKind = "session" | "strategy";
 const UNAVAILABLE = "산출 불가";
 // 이 값 미만이면 대조가 원장의 소수 위에서만 성립한다.
 const MATCH_COVERAGE_WARNING_THRESHOLD = 80;
+// BL-607 — 표시 자릿수 상한. 원장 Decimal 은 51자리까지 오는데 값 타일 폭은 66px 이라
+// 원문을 그대로 그리면 화면에서 잘린다(2026-08-06 qa 실측 scrollWidth 551px, 8.3배).
+// ★반올림은 **표시 전용**이다 — 값 자체는 손대지 않고 원문을 `title` 로 함께 남긴다.
+const DISPLAY_FRACTION_DIGITS = 4;
 
 function parsedNumber(value: string | null): number | null {
   if (value === null) return null;
@@ -23,8 +27,46 @@ function parsedNumber(value: string | null): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function displayDecimal(value: string | null): string {
-  return value ?? UNAVAILABLE;
+/** 자리올림을 문자열로 한다 — `Number` 를 태우면 51자리에서 정밀도가 먼저 죽는다. */
+function incrementDigits(digits: string): string {
+  const out = digits.split("");
+  for (let i = out.length - 1; i >= 0; i -= 1) {
+    if (out[i] !== "9") {
+      out[i] = String(Number(out[i]) + 1);
+      return out.join("");
+    }
+    out[i] = "0";
+  }
+  return `1${out.join("")}`;
+}
+
+/**
+ * 표시용 half-up 반올림. 소수 자릿수가 상한 이하이거나 예상 밖 형식이면 원문 그대로 둔다
+ * (모르는 형식을 반올림하는 척하지 않는다).
+ */
+function roundDecimalForDisplay(value: string): string {
+  const match = /^(-?)(\d+)\.(\d+)$/.exec(value);
+  if (!match) return value;
+
+  const sign = match[1] ?? "";
+  const integerPart = match[2] ?? "";
+  const fractionPart = match[3] ?? "";
+  if (fractionPart.length <= DISPLAY_FRACTION_DIGITS) return value;
+
+  const kept = `${integerPart}${fractionPart.slice(0, DISPLAY_FRACTION_DIGITS)}`;
+  const rounded =
+    Number(fractionPart.charAt(DISPLAY_FRACTION_DIGITS)) >= 5 ? incrementDigits(kept) : kept;
+  const pointAt = rounded.length - DISPLAY_FRACTION_DIGITS;
+  return `${sign}${rounded.slice(0, pointAt)}.${rounded.slice(pointAt)}`;
+}
+
+/**
+ * Decimal 표시 노드. 반올림한 값을 보여주고 **원문은 `title` 로 보존**한다.
+ * `null` 은 여전히 「산출 불가」다 — 부재를 0 으로 접지 않는다.
+ */
+function DecimalValue({ value }: { value: string | null }) {
+  if (value === null) return <>{UNAVAILABLE}</>;
+  return <span title={value}>{roundDecimalForDisplay(value)}</span>;
 }
 
 function displayPercent(value: string | null): string {
@@ -46,6 +88,22 @@ function coverageTone(value: string | null): MetricTileTone {
   const parsed = parsedNumber(value);
   return parsed !== null && parsed < MATCH_COVERAGE_WARNING_THRESHOLD ? "warn" : "neutral";
 }
+
+// BL-606 — 패널 머리의 「매칭 없음」 경고는 두 스코프의 OR 이라, 요청 세션이 완전히 비어도
+// 전략 축에 매칭이 있으면 **침묵한다**. 그러면 세션 축 전항이 「산출 불가」인 채로 31세션
+// 누적 워터폴이 나란히 서고, 이 세션의 기여가 0 이라는 사실은 배지 하나로만 남는다
+// (2026-08-06 qa 실측 — 소크 세션 2개가 정확히 그 상태였다).
+// 그래서 무표본 고지를 **스코프 카드 안**으로 내린다. 어느 축이 비었는지 그 카드가 스스로 말한다.
+const NO_MATCH_NOTICE: Record<ScopeKind, { title: string; body: string }> = {
+  session: {
+    title: "이 세션에는 매칭된 청산이 0건입니다.",
+    body: "옆 「전략 누적」 카드의 수치에는 이 세션의 청산이 한 건도 포함되지 않습니다.",
+  },
+  strategy: {
+    title: "이 전략 누적에는 매칭된 청산이 0건입니다.",
+    body: "같은 전략·계정·심볼의 다른 세션을 합쳐도 대조할 청산이 없습니다.",
+  },
+};
 
 function ScopeParity({
   kind,
@@ -72,6 +130,16 @@ function ScopeParity({
         </Badge>
       </div>
 
+      {scope.matched_count === 0 ? (
+        <div className="mb-3">
+          <StateBox
+            testId={`${scopeId}-no-matched-banner`}
+            title={NO_MATCH_NOTICE[kind].title}
+            body={NO_MATCH_NOTICE[kind].body}
+          />
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <MetricTile
           label={`매칭 청산 (${scopeLabel})`}
@@ -88,7 +156,7 @@ function ScopeParity({
         />
         <MetricTile
           label={`엔진 기대 gross (${scopeLabel})`}
-          value={displayDecimal(scope.expected_gross)}
+          value={<DecimalValue value={scope.expected_gross} />}
           tone={decimalTone(scope.expected_gross)}
           size="sm"
           sub="전 관측 합"
@@ -96,7 +164,7 @@ function ScopeParity({
         />
         <MetricTile
           label={`거래소 확정 net (${scopeLabel})`}
-          value={displayDecimal(scope.actual_net)}
+          value={<DecimalValue value={scope.actual_net} />}
           tone={decimalTone(scope.actual_net)}
           size="sm"
           sub="전 관측 합"
@@ -104,7 +172,7 @@ function ScopeParity({
         />
         <MetricTile
           label="왕복 notional"
-          value={displayDecimal(scope.round_trip_notional)}
+          value={<DecimalValue value={scope.round_trip_notional} />}
           size="sm"
           valueTestId={`${scopeId}-round-trip-notional`}
         />
@@ -135,7 +203,7 @@ function ScopeParity({
             />
             <MetricTile
               label="거래소 체결 gross (분해 가능분)"
-              value={displayDecimal(scope.actual_gross)}
+              value={<DecimalValue value={scope.actual_gross} />}
               tone={decimalTone(scope.actual_gross)}
               size="sm"
               variant="bare"
@@ -154,23 +222,23 @@ function ScopeParity({
                 <li className="flex items-center justify-between gap-3">
                   <span>엔진 기대 gross (분해 가능분)</span>
                   <span data-testid={`${scopeId}-waterfall-expected`}>
-                    {displayDecimal(scope.decomposable_expected_gross)}
+                    <DecimalValue value={scope.decomposable_expected_gross} />
                   </span>
                 </li>
                 <li className="flex items-center justify-between gap-3 border-t pt-2">
                   <span>+ 체결 격차 (분해 가능분)</span>
                   <span data-testid={`${scopeId}-waterfall-execution-gap`}>
-                    {displayDecimal(scope.execution_gap)}
+                    <DecimalValue value={scope.execution_gap} />
                   </span>
                 </li>
                 <li className="flex items-center justify-between gap-3 border-t pt-2">
                   <span>+ 비용 (수수료·펀딩 등 잔차)</span>
-                  <span data-testid={`${scopeId}-waterfall-cost`}>{displayDecimal(scope.cost)}</span>
+                  <span data-testid={`${scopeId}-waterfall-cost`}><DecimalValue value={scope.cost} /></span>
                 </li>
                 <li className="flex items-center justify-between gap-3 border-t pt-2 font-bold">
                   <span>= 거래소 확정 net (분해 가능분)</span>
                   <span data-testid={`${scopeId}-waterfall-actual-net`}>
-                    {displayDecimal(scope.decomposable_actual_net)}
+                    <DecimalValue value={scope.decomposable_actual_net} />
                   </span>
                 </li>
               </ol>
@@ -206,14 +274,14 @@ function ScopeParity({
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <MetricTile
                 label="표본 평균 순손익"
-                value={displayDecimal(scope.sample_mean_net)}
+                value={<DecimalValue value={scope.sample_mean_net} />}
                 tone={decimalTone(scope.sample_mean_net)}
                 size="sm"
                 valueTestId={`${scopeId}-sample-mean-net`}
               />
               <MetricTile
                 label="표본 순손익 표준편차"
-                value={displayDecimal(scope.sample_sd_net)}
+                value={<DecimalValue value={scope.sample_sd_net} />}
                 size="sm"
                 valueTestId={`${scopeId}-sample-sd-net`}
               />
@@ -242,7 +310,7 @@ function ScopeParity({
             />
             <MetricTile
               label="비용/엣지 배수"
-              value={displayDecimal(scope.cost_to_edge_ratio)}
+              value={<DecimalValue value={scope.cost_to_edge_ratio} />}
               size="sm"
               valueTestId={`${scopeId}-cost-to-edge-ratio`}
             />
