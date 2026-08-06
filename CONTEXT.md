@@ -4,7 +4,7 @@
 
 TradingView Pine Script 전략을 가져와 **백테스트 → 스트레스 테스트 → 최적화 → 데모/라이브 트레이딩** 한 파이프라인으로 잇는 퀀트 플랫폼. 본 문서는 도메인 용어의 canonical 정의와 경계를 고정하는 헌법이며, 충돌하는 명명/코드는 즉시 정렬한다.
 
-> **SSOT 위임:** 컬럼 정의 = [`docs/reference/domain/erd.md`](docs/reference/domain/erd.md) · 엔티티 책임 = [`docs/reference/domain/entities.md`](docs/reference/domain/entities.md) · 상태 전이 = [`docs/reference/domain/state-machines.md`](docs/reference/domain/state-machines.md) · 결정 근거 = `docs/dev-log/` ADR. 본 문서는 **용어/관계** 만 보유.
+> **SSOT 위임:** 컬럼 정의 = [`docs/reference/domain/erd.md`](docs/reference/domain/erd.md) · 엔티티 책임 = [`docs/reference/domain/entities.md`](docs/reference/domain/entities.md) · 상태 전이 = [`docs/reference/domain/state-machines.md`](docs/reference/domain/state-machines.md) · 결정 근거 = `docs/decisions/`(ADR). 본 문서는 **용어/관계** 만 보유.
 
 ## Language
 
@@ -16,8 +16,8 @@ _Avoid_: Algorithm, Script(원본 코드 문자열은 `pine_source` 로 한정)
 
 **pine_v2**:
 Pine Script 를 트랜스파일 없이 AST 를 bar-by-bar 해석·실행하는 자체 인터프리터이자 백테스트·라이브 **신호**의 단일 진실(SSOT).
-★**신호이지 체결이 아니다.** 백테스트에는 거래소가 없으므로 시뮬이 곧 거래소이고 체결도 pine*v2 가 정한다. 라이브에는 진짜 매칭엔진이 있으므로 **조건부 진입 체결의 권한은 주문 원장에 있다** — 원장이 증언하지 않은 체결을 엔진이 만들지 않고, 증언하면 엔진의 봉·트리거 판정과 무관하게 체결한다([ADR-025](docs/decisions/025-conditional-fill-ownership.md) / [BL-595]). 그 결과 **라이브 재생은 「전략 + OHLCV」만으로 재현되지 않는다** — 원장이 입력에 들어간다. 백테스트 경로는 인자 기본값으로 byte-identical 이며 테스트가 그 경계를 집행한다.
-\_Avoid*: transpiler, "vectorbt 엔진", Pine v1(철거됨, Sprint 59)
+★**신호이지 체결이 아니다.** 백테스트에는 거래소가 없으므로 시뮬이 곧 거래소이고 체결도 `pine_v2` 가 정한다. 라이브에는 진짜 매칭엔진이 있으므로 **조건부 진입 체결의 권한은 주문 원장에 있다** — 원장이 증언하지 않은 체결을 엔진이 만들지 않고, 증언하면 엔진의 봉·트리거 판정과 무관하게 체결한다([ADR-025](docs/decisions/025-conditional-fill-ownership.md) / [BL-595]). 그 결과 **라이브 재생은 「전략 + OHLCV」만으로 재현되지 않는다** — 원장이 입력에 들어간다. 백테스트 경로는 인자 기본값으로 byte-identical 이며 테스트가 그 경계를 집행한다.
+_Avoid_: transpiler, "vectorbt 엔진", Pine v1(철거됨, Sprint 59)
 
 **Track**:
 pine_v2 가 스크립트 선언을 분류해 실행 경로를 정하는 라우팅 분류 — **S**(strategy 선언 → native `run_historical`) / **A**(indicator|library + alert → `run_virtual_strategy` 가상 래퍼) / **M**(indicator|library, alert 없음 → 지표 pass-through `run_historical`). `library` 선언도 indicator 와 동일하게 alert 유무로 A/M 분기(`ast_classifier._classify_track`).
@@ -30,7 +30,7 @@ _Avoid_: parser(별개 — 파서는 문법만, 지원범위 판정은 안 함)
 create/update 시 파서가 즉시 set 하는 터미널 값으로 `ok` 또는 `error` 만 사용(`unsupported` 는 enum 예약·미사용).
 
 **Degraded Pine**:
-`heikinashi` / `request.security` / `timeframe.period` 처럼 supported 지만 TradingView 와 결과가 달라질 수 있는 호출 — backtest submit 시 `coverage.has_degraded` 이면 `allow_degraded_pine=true` 명시 동의 없이는 차단(Trust Layer, `backtest/service.py:168`).
+`heikinashi` / `request.security` / `timeframe.period` 처럼 supported 지만 TradingView 와 결과가 달라질 수 있는 호출 — backtest submit 시 `coverage.has_degraded` 이면 `allow_degraded_pine=true` 명시 동의 없이는 차단(Trust Layer, `backtest/service.py` 의 `has_degraded` 분기).
 
 ### Verification Context
 
@@ -61,8 +61,8 @@ _Avoid_: backtest engine, 전략 실행기, "지표 계산 가속"(이 표현도
 검증된 Strategy 를 거래소에서 데모/라이브로 실행하는 도메인(구 `exchange` 도메인 통합 — ADR-018).
 
 **LiveSignalSession**:
-한 Strategy 를 실시간 신호로 자동매매하는 활성 세션(`is_active` bool, user 당 active ≤ 5). **현재 Bybit + demo 계정만 허용** — live 는 `AccountModeNotAllowed`(BL-003 mainnet runbook 전, `live_session_service.py:102`).
-_Avoid_: **TradingSession**(미구현 phantom — 실제 lifecycle 은 LiveSignalSession + Order + LiveSignalEvent)
+한 Strategy 를 실시간 신호로 자동매매하는 활성 세션(`is_active` bool, user 당 active ≤ 5). **현재 Bybit + demo 계정만 허용** — live 는 `AccountModeNotAllowed`(BL-003 mainnet runbook 전, `trading/services/live_session_service.py`).
+_Avoid_: **TradingSession**(미구현 phantom — 실제 lifecycle 은 LiveSignalSession + Order + LiveSignalEvent). ★단 `strategy/trading_sessions.py` 의 `TradingSession(StrEnum)` 은 **별개 개념**(asia/london/ny 세션 시간대 게이트, Sprint 7d)으로 현역 — phantom 은 엔티티/테이블 이름으로서의 사용을 말한다.
 
 **LiveSignalEvent**:
 신호 평가와 주문 발주 사이의 transactional outbox 레코드(`pending → dispatched / failed`).

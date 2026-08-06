@@ -3,7 +3,7 @@
 > **새 AI 세션 첫 step — 3 종만 읽는다.** `CONTEXT.md` (도메인 헌법 — 용어/관계 SSOT) + 본 파일 + `docs/status.md`.
 > ★**`CONTEXT.md` 는 자동 로드가 아니다 — 읽어야 들어온다.** `CLAUDE.md` 가 import 하는 것은 본 파일
 > **하나뿐**이다(2026-08-02 실측). 「이미 로드돼 있으니 건너뛰라」는 지시가 오면 **그 지시가 틀린 것**이다.
-> ★**`docs/status.md` 최상단 「다음 스프린트」 블록이 다음에 무엇을 할지의 유일한 진입점이다.** 별도 킥오프
+> ★**`docs/status.md` 의 「다음 스프린트」 블록이 다음에 무엇을 할지의 유일한 진입점이다.** 별도 킥오프
 > 파일을 만들지 않는다 (근거: `docs/reference/operations/workflows/generator-evaluator-pipeline.md` §G8).
 > `docs/roadmap.md` (다음 후보) 와 `docs/backlog.md` (open BL) 은 **필요할 때 열어본다** — 통째로 읽지 않는다.
 > 본 파일은 **stable orientation** 만 보존. Sprint narrative 는 `docs/status.md`, 회고는 `docs/dev-log/INDEX.md`, 결정 근거는 `docs/decisions/`.
@@ -133,10 +133,10 @@ frontmatter 가 있지만 **Claude Code 에는 그것을 읽는 로더가 없다
 
 - 금융 숫자는 `Decimal` 사용 (float 금지). 합산: `Decimal(str(a)) + Decimal(str(b))` — float 공간 합산 후 변환 금지 (Sprint 4 D8 교훈)
 - 백테스트 / 최적화 / 스트레스 테스트는 반드시 Celery 비동기. API 핸들러 직접 실행 금지
-- Celery prefork-safe: `create_async_engine()` / vectorbt 등 무거운 객체는 module import 시점 호출 금지. Lazy init 함수로 worker 자식 fork 후 생성. Worker pool=prefork 고정 (Sprint 4 D3 교훈)
+- Celery prefork-safe: `create_async_engine()` / CCXT 클라이언트 등 무거운 객체는 module import 시점 호출 금지. Lazy init 함수로 worker 자식 fork 후 생성. Worker pool=prefork 고정 (Sprint 4 D3 교훈)
 - 거래소 API Key 는 AES-256 (Fernet) 암호화 저장 (평문 금지)
 - OHLCV 데이터는 TimescaleDB hypertable 에 저장
 - 실시간 데이터는 WebSocket + Zustand 캐시 (React Query 와 분리)
-- **백테스트 SSOT = `pine_v2` 자체 인터프리터**(AST + bar-by-bar 이벤트 루프). vectorbt 는 _지표 계산 전용_ 으로 강등 (ADR-011 §6/§8)
-- Pine Script → Python 변환 시 `exec()` / `eval()` 절대 금지 — 인터프리터 패턴 (`pine_v2`) 또는 RestrictedPython sandbox 강제 (ADR-003)
+- **백테스트 SSOT = `pine_v2` 자체 인터프리터**(AST + bar-by-bar 이벤트 루프). vectorbt 는 **제거됨**(2026-08-06 의존성 제거 — `CONTEXT.md` 묘비 참조, ADR-011)
+- Pine Script → Python 변환 시 `exec()` / `eval()` 절대 금지 — 인터프리터 패턴 (`pine_v2`) 강제 (ADR-003; sandbox 대안은 미채택)
 - Pine Script 미지원 함수 1 개라도 포함 시 전체 "Unsupported" 반환 — 부분 실행 금지 (잘못된 결과 방지) (ADR-003)
