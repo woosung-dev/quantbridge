@@ -32,7 +32,7 @@ TradingView Pine Script 전략을 가져와 같은 플랫폼에서 검증하고,
 ## 비범위와 의사결정 위치
 
 - 현재 scope 밖의 배포 토폴로지, 도메인·DNS, 외부 Beta, mainnet runbook은 [`roadmap.md`](../../roadmap.md)에서 trigger가 도래할 때 결정한다.
-- 특정 Sprint의 KPI, 구현률, dogfood 수치, 경쟁 비교는 현재 제품 계약이 아니다. 재사용 가치가 있는 근거만 [`archive/`](../../archive/)에서 찾는다.
+- 특정 Sprint의 KPI, 구현률, dogfood 수치, 경쟁 비교는 현재 제품 계약이 아니다. 재사용 가치가 있는 근거만 `archive/`(`docs/archive/`)에서 찾는다.
 - 상세 함수·DB 엔티티·API payload를 이 문서에 다시 쓰지 않는다. 코드와 도메인/API reference가 바뀌면 그 계약을 먼저 갱신한다.
 
 ## 변경 규칙

@@ -121,7 +121,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 - 요구사항 상세: [`requirements-overview.md`](./requirements-overview.md)
 - 도메인 모델: [`domain-overview.md`](../domain/domain-overview.md)
 - 시스템 설계: [`system-architecture.md`](../architecture/system-architecture.md)
-- 의사결정 트레일: [`dev-log/`](../../dev-log/) (ADR-001~012)
+- 의사결정 트레일: `dev-log/`(`docs/dev-log/`) (ADR-001~012)
 - 작업 추적: [`status.md`](../../status.md)
 
 ## 변경 이력

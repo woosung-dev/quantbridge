@@ -19,7 +19,7 @@
 | [`reference/`](./reference/README.md) | 지금도 참인 도메인·아키텍처·운영·제품·API·설계 계약은 무엇인가 | 코드와 어긋나면 코드에 맞춰 고친다 |
 | [`decisions/`](./decisions/) | 왜 이 선택을 했는가 | 폐기해도 삭제하지 않고 `Superseded`로 남긴다 |
 | [`dev-log/INDEX.md`](./dev-log/INDEX.md) | 완료된 스프린트에서 무엇을 측정·결정했는가 | 결과와 근거를 append-only로 남긴다 |
-| [`archive/`](./archive/) | 더는 현재 규칙이 아닌 상세 기록은 무엇인가 | 읽기 전용이다 |
+| `archive/`(`docs/archive/`) | 더는 현재 규칙이 아닌 상세 기록은 무엇인가 | 읽기 전용이다 |
 | [`reports/`](./reports/) | 생성된 dogfood·retro 출력은 어디 있는가 | 코드 생성물이다. 수동 정본을 만들지 않는다 |
 
 루트의 사람용 정본은 [`README.md`](../README.md), [`AGENTS.md`](../AGENTS.md),

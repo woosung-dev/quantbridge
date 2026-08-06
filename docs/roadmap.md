@@ -133,7 +133,7 @@ Evaluator 가 **「그 counter 하나에만 참」**이라고 반증하면서 �
 
 - **A2 가 공허하다** — 「C2 **제외** 유실률 0」인데 C2 는 애초에 유실률 분모에 없다 ⇒ **절대 발화 불가.**
 - **A5 에 숫자가 없다** — 「표본이 문턱 미달이면」이라 쓰고 문턱 미기재. A3 이 **N=1 에서 자동 100%** 를 낸다.
-- **A4 는 AND 인데 과거 기록 3곳이 OR** ([사전등록 감사](dev-log/2026-08-01-entry-completeness-rejudgement-prereg-audit.md) · [07-30 회고](dev-log/2026-07-30-close-mismatch-visibility.md)).
+- **A4 는 AND 인데 과거 기록 3곳이 OR** (사전등록 감사 · 07-30 회고).
   07-29 에 안 걸린 이유 = **그날 두 근거가 둘 다 참이라 AND/OR 이 같은 답을 냈다** = 판별력 0인 창에서 통과.
 
 ⇒ ~~**다음 회차 = 「세기 전에 가르고, 판정식을 집행 가능하게 만든다」**~~ ✅ **완료 (2026-08-02).**
@@ -304,13 +304,13 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 ### P1
 
-- [x] **BL-478 (c) ✅ Resolved** [P1] ★**라이브 자동매매가 진입 주문을 낸 적이 없었다** — (c) 세션 시작 차단 + evaluate 자동 종료로 해소. **(a) 조건부 주문 등재는 열려 있다** — `run_live` 가 `fill` 을 dispatch 제외하면서 "broker 가 자체 처리" 를 전제하는데 그 stop 주문을 거래소에 올린 적이 없다(`live_signal.py` 에 `trigger_price` 참조 0건). 청산만 나가 매번 110017. **`stop=` 진입 전략 한정**(시드 `s1_pbr` 이 100% 이 경로) · 회고 = [`dev-log/2026-07-26-live-entry-wiring.md`](dev-log/2026-07-26-live-entry-wiring.md)
+- [x] **BL-478 (c) ✅ Resolved** [P1] ★**라이브 자동매매가 진입 주문을 낸 적이 없었다** — (c) 세션 시작 차단 + evaluate 자동 종료로 해소. **(a) 조건부 주문 등재는 열려 있다** — `run_live` 가 `fill` 을 dispatch 제외하면서 "broker 가 자체 처리" 를 전제하는데 그 stop 주문을 거래소에 올린 적이 없다(`live_signal.py` 에 `trigger_price` 참조 0건). 청산만 나가 매번 110017. **`stop=` 진입 전략 한정**(시드 `s1_pbr` 이 100% 이 경로) · 회고 = `2026-07-26-live-entry-wiring.md`
 - [x] **BL-479 ✅ Resolved** [P1] 라이브 사이징 미배선 — `run_live` 가 사이징 인자 없이 `run_historical` 호출 → `compute_qty()` 항상 `1.0`(1 BTC ≈ $64,000). `position_size_pct` 는 라이브에서 **아무 데서도 안 읽힘**(유일 소비처가 백테스트 어댑터). Pine `default_qty_type` 선언조차 무시 · **BL-478 과 함께**
 
 - [x] **BL-486 ✅ Resolved** [P1] 라이브 사이징 equity 의 창 드리프트 — carry(`live_signal_events` 를 `bar_time < window_start` 로 자른 합)를 `initial_capital` 에 접고, **화면 총계는 원장 SSOT**(`sum_realized_pnl_all`)로 바꿔 창과 무관한 단조 값으로 만들었다. `equity_curve` 는 새 close 이벤트에만 append. 프로덕션 실증 = 화면 3건 `4.78803856` vs 원장 4건 `5.88683554` → 한 tick 만에 **바이트 동일**. ★**사이징 자본의 D2 일시 함몰은 남는다 → BL-489**
 - [x] **BL-483 ✅ Resolved** [P1] `leverage` 라이브 마진게이트 배선 + **무음 skip 표면화** — `entry_skips` 구조화 6지점(margin / non_finite_qty / pyramiding_cap / session_closed) + `qb_live_signal_entry_skipped_total`(divergence 아님) + 화면 행. ★배선이 켠 것은 게이트만이 아니었다 — `check_liquidations` 도 살아나 **실제 reduce-only 주문을 내는 머니-패스**라 청산 표면화를 함께 넣었다. cross 증거금 모델 부재는 **BL-490**
 - [x] **BL-481 / BL-482 ✅ Resolved** [P2/P3] `sessions_allowed` · `pyramiding` 라이브 배선 — ★`sessions_allowed` 는 넘기기만 하면 **조용한 no-op** 이었다(라이브 프레임이 `RangeIndex` + `timestamp` 컬럼). tz-aware 인덱스 복원 + fail-closed 로 수리하고 SSOT 불변식 감사를 **5계층**으로 확장했다
-- [x] **BL-488 ✅ Resolved** [P1] ★평가 갭이 orphan close 를 만든다 — 원인은 beat 가 아니라 `run_live` 의 마지막-bar 발행 계약이었다(실측 갭 131바 중 수면 76 + 배포 50, 서버 기전은 4바). `emit_from_bar_time` opt-in + 벽시계 상한 + resync + close 포지션 가드. 프로덕션에서 resync 발동 관측 · 회고 = [`dev-log/2026-07-27-live-conditional-entry.md`](dev-log/2026-07-27-live-conditional-entry.md) ~~ — 워커가 252 바 중 180 바만 평가(50분 구멍)했고, 구멍에 빠진 진입은 발주된 적 없는데 그 청산은 발주돼 `reduce_only` 주문이 `rejected`. 시뮬은 거래소가 준 적 없는 `+4.87330864` 를 이익 계상했다. 갭 감지 + 재동기화 설계 필요
+- [x] **BL-488 ✅ Resolved** [P1] ★평가 갭이 orphan close 를 만든다 — 원인은 beat 가 아니라 `run_live` 의 마지막-bar 발행 계약이었다(실측 갭 131바 중 수면 76 + 배포 50, 서버 기전은 4바). `emit_from_bar_time` opt-in + 벽시계 상한 + resync + close 포지션 가드. 프로덕션에서 resync 발동 관측 · 회고 = `2026-07-27-live-conditional-entry.md` ~~ — 워커가 252 바 중 180 바만 평가(50분 구멍)했고, 구멍에 빠진 진입은 발주된 적 없는데 그 청산은 발주돼 `reduce_only` 주문이 `rejected`. 시뮬은 거래소가 준 적 없는 `+4.87330864` 를 이익 계상했다. 갭 감지 + 재동기화 설계 필요
 - [x] **BL-530 ✅ Resolved** [P1] ★엔진과 거래소가 **서로 다른 상품**을 보고 있었다 — 엔진이 Bybit **스팟 1m 봉**을 재생하며 주문은 무기한선물에 냈다(`market_data/providers/ccxt.py:46` `defaultType: "spot"`). 라이브 OHLCV fetch 를 `to_ccxt_perpetual_symbol` 로 통과(**1사이트 · 마이그레이션 0**). 외부 오라클이 소수점까지 확정(스팟 고가 63541.7 = 시뮬 스톱 일치, perp 는 63499.4) · PR #497/#498
 - [x] **BL-537 ✅ Resolved** [P1] ★**전제가 반증됐다** — "활성 세션이 없으면 고아를 못 닫는다" 가 틀렸다. BL-498 이 이미 탈출구를 지어 뒀고(인위 고아 3중 실측: 죽은 세션이 귀속 → **202** → 원장 `reduce_only=t·filled·leverage=2` → 거래소 **flat**), **계정 스코프 엔드포인트를 짓지 않았다**. 진짜 결함은 **누르면 실패하는 버튼**(`close_service` 가 settings 로 422 거부하는데 `position_service` 는 그 게이트를 평가 안 함) + `leverage 0/None` 이면 청산이 조용히 **스팟**으로 · PR #501
 - [x] ★**BL-543 ✅ Resolved** [P1] **세션은 태어날 때부터 갈릴 수 있다** — `run_live` 는 300바를 재생하지만 dispatch 는 **마지막 바만**(`event_loop.py:410`). 재생 구간 포지션은 주문이 된 적 없는데 엔진에는 남는다. ✅ **2026-07-30 PR #503 으로 착지**(position epoch — 실주행 재측정에서 첫 평가 `position_size 0.0`, `engine_only` 증가 0). ★**(c) 잔여(>5분 공백 후 세션 사망)는 이 BL 의 결함이 아니라 반대 방향의 별건으로 판명 → [BL-544] 로 이관**했고 PR #506 으로 Resolved
@@ -435,7 +435,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 ## Beta · Deferred (사용자 결정 / 다음 단계 — 전량 미착수)
 
-> 코드로 종결 불가(사용자 manual/의지 게이트). SSOT = [`refactoring-backlog/_deferred.md`](archive/refactoring-backlog/_deferred.md).
+> 코드로 종결 불가(사용자 manual/의지 게이트). SSOT = `_deferred.md`.
 
 ### 그룹 4 — Beta 본격 진입 (사용자 manual · deploy-time)
 

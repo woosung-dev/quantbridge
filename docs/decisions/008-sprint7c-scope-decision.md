@@ -4,7 +4,7 @@
 > **작성 세션:** /office-hours (gstack skill, session 12, inner_circle tier)
 > **상태:** ✅ 구현 완료 (2026-04-17)
 > **구현 브랜치:** feat/sprint7c-strategy-ui
-> **관련 plan:** [`docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`](../archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md)
+> **관련 plan:** `docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md`
 
 ---
 
@@ -119,7 +119,7 @@ T1 착수 전에 Pine 소스 1개를 **현재 curl 방식**으로 등록·Parse�
 
 ### 선행 sprint 자산
 
-- Sprint 6 design doc: [`docs/archive/product/trading/2026-04-16-trading-demo-mvp-design.md`](../archive/product/trading/2026-04-16-trading-demo-mvp-design.md)
+- Sprint 6 design doc: `docs/archive/product/trading/2026-04-16-trading-demo-mvp-design.md`
 
 ### User-local (참조용, 프로젝트 미커밋)
 

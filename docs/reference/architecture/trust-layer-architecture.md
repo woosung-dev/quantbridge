@@ -1,6 +1,6 @@
 # Trust Layer 아키텍처
 
-> **역할:** Pine 실행 결과가 조용히 달라지는 회귀를 막는 현재 검증 계약의 진입점. 구현과 테스트가 정본이며, 결정 근거는 [`ADR-020`](../../decisions/020-trust-layer-ci-design.md), 2026-04 설계 초안은 [`archive`](../../archive/architecture/2026-04-23-trust-layer-architecture-design.md)에 보존한다.
+> **역할:** Pine 실행 결과가 조용히 달라지는 회귀를 막는 현재 검증 계약의 진입점. 구현과 테스트가 정본이며, 결정 근거는 [`ADR-020`](../../decisions/020-trust-layer-ci-design.md), 2026-04 설계 초안은 `archive`(`docs/archive/architecture/2026-04-23-trust-layer-architecture-design.md`)에 보존한다.
 
 ## 보장하는 것
 

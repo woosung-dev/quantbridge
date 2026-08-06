@@ -1,15 +1,15 @@
 # ADR-020: Trust Layer CI — 3-Layer Parity (P-1/2/3) 설계
 
-> **ADR-020 (구 ADR-013, 2026-05-29 정식 renumber):** 본 문서는 원래 ADR-013 으로 작성됐으나, Sprint 54 의 [Optimizer grammar ADR](../dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md) 도 동일 ID 를 사용해 충돌했다 ("ID 재사용 금지" global §3). 광범위하게 참조되는 Optimizer 측이 ADR-013 을 유지하고, 본 Trust Layer CI 문서를 **ADR-020** 으로 renumber 했다. 과거 sprint 로그/코드의 "ADR-013 §4·§10·§11" (parity / mutation oracle / stage 2c) 은 모두 본 문서(현 ADR-020)를 가리킨다.
+> **ADR-020 (구 ADR-013, 2026-05-29 정식 renumber):** 본 문서는 원래 ADR-013 으로 작성됐으나, Sprint 54 의 Optimizer grammar ADR(`docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md`) 도 동일 ID 를 사용해 충돌했다 ("ID 재사용 금지" global §3). 광범위하게 참조되는 Optimizer 측이 ADR-013 을 유지하고, 본 Trust Layer CI 문서를 **ADR-020** 으로 renumber 했다. 과거 sprint 로그/코드의 "ADR-013 §4·§10·§11" (parity / mutation oracle / stage 2c) 은 모두 본 문서(현 ADR-020)를 가리킨다.
 
-> **ADR ONLY:** 본 문서는 결정 근거다. 현재 Trust Layer 계약은 [`trust-layer-architecture.md`](../reference/architecture/trust-layer-architecture.md)와 코드·테스트가 맡는다. 당시 요구사항/SLO 초안은 [`archive/product/requirements/2026-04-23-trust-layer-requirements.md`](../archive/product/requirements/2026-04-23-trust-layer-requirements.md)에 보존한다.
+> **ADR ONLY:** 본 문서는 결정 근거다. 현재 Trust Layer 계약은 [`trust-layer-architecture.md`](../reference/architecture/trust-layer-architecture.md)와 코드·테스트가 맡는다. 당시 요구사항/SLO 초안은 `docs/archive/product/requirements/2026-04-23-trust-layer-requirements.md`에 보존한다.
 >
 > **상태:** 확정 (Accepted) — Stage 2 구현 완료. P-1/P-2 parity 는 CI 상시(`ci.yml` → `test_pynescript_baseline_parity.py` / `test_trust_layer_parity.py`), P-3 Mutation Oracle 은 nightly(`trust-layer-nightly.yml` Stage 2c). 2026-06-30 verification loop 에서 구현 증거 확인 후 초안→확정 (작성 2026-04-23).
 > **일자:** 2026-04-23
 > **관련 ADR:** [ADR-003](./003-pine-runtime-safety-and-parser-scope.md) (exec 금지), [ADR-004](./004-pine-parser-approach-selection.md) (AST 인터프리터), [ADR-011](./011-pine-execution-strategy-v4.md) (Tier 0~5), [ADR-012](./012-sprint-8a-tier0-final-report.md) (Tier-0 Foundation)
 > **상위 문서 (SSOT):** [`docs/reference/architecture/trust-layer-architecture.md`](../reference/architecture/trust-layer-architecture.md) (Path β Stage 0 산출)
 > **관련 Sprint:** Path β (Stage 0 문서 → Stage 1 설계 → Stage 2 구현) + Sprint Y1 Coverage Analyzer prerequisite
-> **참조 아키텍처 서베이:** [`docs/archive/superpowers/reports/2026-04-23-architecture-survey.html`](../archive/superpowers/reports/2026-04-23-architecture-survey.html)
+> **참조 아키텍처 서베이:** `docs/archive/superpowers/reports/2026-04-23-architecture-survey.html`
 
 ---
 

@@ -1,6 +1,6 @@
 # Pine 실행 아키텍처
 
-> **역할:** 현재 `pine_v2` 실행 계약의 진입점. 실제 구현은 [`backend/src/strategy/pine_v2/`](../../../backend/src/strategy/pine_v2/), 결정 이유는 [`ADR-011`](../../decisions/011-pine-execution-strategy-v4.md)·[`ADR-014`](../../decisions/014-sprint-8b-8c-pine-v2-expansion.md), 2026-04 설계 과정은 [`archive`](../../archive/architecture/2026-04-17-pine-execution-v4-design.md)에 보존한다.
+> **역할:** 현재 `pine_v2` 실행 계약의 진입점. 실제 구현은 [`backend/src/strategy/pine_v2/`](../../../backend/src/strategy/pine_v2/), 결정 이유는 [`ADR-011`](../../decisions/011-pine-execution-strategy-v4.md)·[`ADR-014`](../../decisions/014-sprint-8b-8c-pine-v2-expansion.md), 2026-04 설계 과정은 `archive`(`docs/archive/architecture/2026-04-17-pine-execution-v4-design.md`)에 보존한다.
 
 ## 핵심 원칙
 

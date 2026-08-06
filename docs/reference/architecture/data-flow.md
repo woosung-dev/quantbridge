@@ -353,7 +353,7 @@ sequenceDiagram
 
 ## 8.5 Worker Loop + Multi-Task Lifecycle (Sprint 18 BL-080 ✅)
 
-> 상세 패턴: [`system-architecture.md`](./system-architecture.md) §7.5. 회고: [`dev-log/2026-05-02-sprint18-bl080-architectural.md`](../../dev-log/2026-05-02-sprint18-bl080-architectural.md).
+> 상세 패턴: [`system-architecture.md`](./system-architecture.md) §7.5. 회고: `docs/dev-log/2026-05-02-sprint18-bl080-architectural.md`.
 
 Sprint 18 의 Option C 영속 `_WORKER_LOOP` 채택으로, **동일 worker child 가 mixed task type 을 sequential 처리** 가능 (Sprint 17 까지의 task 별 process isolation 가정 폐기). asyncpg connection 의 transport waiter 가 1st task loop 에 stale binding 되는 문제를 영속 loop 통일로 해소.
 

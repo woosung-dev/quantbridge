@@ -35,7 +35,7 @@
 > **소크 무중단**(창 `c160a1a9` 연속 유지) · `backend/src` **행위 0줄**(신규는
 > `backend/scripts/btgap_*` 2벌 + tests/scripts 4벌) · 마이그레이션 0 · FE 0.
 > 적재: `ts.ohlcv` 에 perp 1m **2,879행 신규**(스팟 행 불변 실측 — 음성 대조 ④a).
-> 회고(사전등록 원문 포함) = [dev-log](dev-log/2026-08-06-backtest-reality-gap.md).
+> 회고(사전등록 원문 포함) = dev-log(`docs/dev-log/2026-08-06-backtest-reality-gap.md`).
 >
 > ---
 >
@@ -79,7 +79,7 @@
 > 루트 prettier 가 `frontend/.prettierrc` 의 tailwind 플러그인을 해석 못 한다(실측 재현).
 > `--no-verify` 는 레포 규약상 금지다. 신규 = [BL-598] · [BL-599] · [BL-600] · [BL-601] · [BL-602].
 >
-> 회고(반증 우선) = [dev-log](dev-log/2026-08-06-ci-diet.md). `backend/src` 는 **주석·독스트링만**
+> 회고(반증 우선) = dev-log(`docs/dev-log/2026-08-06-ci-diet.md`). `backend/src` 는 **주석·독스트링만**
 > (행위 0줄) — **소크 무중단**, 창 `c160a1a9` 계속.
 >
 > ---
@@ -103,7 +103,7 @@
 > outcome=agree 68.0 outcome=ledger_only_adopted 8.0 outcome=engine_only_suppressed 5044.0
 > ```
 >
-> 회고(반증 우선) = [dev-log](dev-log/2026-08-06-night-watch.md). 밤 diff = **`backend/src` 0줄 ·
+> 회고(반증 우선) = dev-log(`docs/dev-log/2026-08-06-night-watch.md`). 밤 diff = **`backend/src` 0줄 ·
 > FE 0줄** — 게이트 스크립트·compose·문서만. final-gates 2차 **전건 통과**(BE **4199/45** ·
 > e2e authed **69 전건**). ★1차의 e2e 1건 red 는 **소크 열린 포지션이 로케이터를 오염**시킨
 > 것([BL-597] 신규) — 알려진 hydration flake 와 **다른 축**이다.
@@ -198,7 +198,7 @@
 > dev 오버레이/HMR 산물**이고 백엔드가 만들 수 없다. 단독 재실행은 **3/3 PASS**.
 > ⇒ **FE dev 서버 재기동이 기록된 처방**이지만 내가 띄운 프로세스가 아니라 손대지 않았다.
 > BE pytest 는 최종 커밋에서 **4172 passed / 45 skipped**.
-> 회고 = [dev-log](dev-log/2026-08-05-conditional-stop-ownership.md).
+> 회고 = dev-log(`docs/dev-log/2026-08-05-conditional-stop-ownership.md`).
 >
 > ---
 >
@@ -224,7 +224,7 @@
 > **거의 같은 신호**라 **사망 상관이 독립 검사가 아니게 된다.** `death_correlation_holds` 를
 > **`rearm_label` 기준**으로 계속 계산하고 채택 라벨 기준은 `adopted_*` 로 따로 보고한다.
 >
-> **★★★착수 전제 2건이 실측으로 반증됐다** ([dev-log](dev-log/2026-08-05-live-replay-visibility.md) §0).
+> **★★★착수 전제 2건이 실측으로 반증됐다** (dev-log(`docs/dev-log/2026-08-05-live-replay-visibility.md`) §0).
 > ⑴ **「Trust Layer 23테스트가 `run_live` 를 0회 부른다 ⇒ 라이브가 갈라져도 CI 초록」은 거짓**
 > — Trust Layer 는 **52테스트**이고 `run_live` 를 안 부르는 건 맞지만, 그 밖에서
 > **7파일 89테스트가 직접 ~90회** 호출한다. [BL-595] 의 두 형태도 **이미 못 박혀 있다**.
@@ -270,7 +270,7 @@
 > **`backend/src` 0줄**(변이 주입 12회는 전부 원복) · 마이그레이션 0 · FE 0 · **소크 무중단**.
 > ★**이 회차에도 파이프 함정을 한 번 밟았다** — `docs-audit.sh | tail` 의 exit code 는 `tail`
 > 의 것이라 red 인 채로 커밋이 나갔다(뒤 커밋에서 잡았다). 적어 둔 함정을 또 밟았다.
-> 회고 = [dev-log](dev-log/2026-08-05-live-replay-visibility.md).
+> 회고 = dev-log(`docs/dev-log/2026-08-05-live-replay-visibility.md`).
 >
 > ---
 >
@@ -328,7 +328,7 @@
 > ★**첫 final-gates 실행의 「커버리지 FAIL」은 거짓 red 였다** — 내가 돌아가는 중에 트리를
 > 고쳤다(이 레포가 두 번 밟았다고 적어둔 함정). 조용한 트리에서 재실행하니 통과했고
 > 커버리지는 처음부터 93.17% 였다.
-> 회고 = [dev-log](dev-log/2026-08-05-divergence-rejudgement.md).
+> 회고 = dev-log(`docs/dev-log/2026-08-05-divergence-rejudgement.md`).
 >
 > **★회차 끝 소크 상태** — 세션 `a16aa640` **생존 중**(T0 `00:34:22Z`, 약 3시간).
 > 그 사이 발산 **5건**이 났고 **전부 `replay_lag`**(두 판별식 모두), 세션은 안 죽었다.
@@ -846,7 +846,7 @@ scripts/soak-gate.sh             # [BL-003] 판정 — PASS / FAIL / UNKNOWN
 - **표적 = `direction`** 으로 옮긴 근거(`engine_only` **157배 감소**, 18.8/h → 0.12/h) →
   [ADR-023 §분해 완료](decisions/023-engine-state-ssot.md). **`engine_only` 는 다시 캐지 마라.**
 - **그 회차의 사전등록 예측** → 2026-08-04 3차에서 **미판정**으로 닫혔다(노출 1.40h, 문턱 5h/2h
-  미달). 경위는 [dev-log §1](dev-log/2026-08-04-direction-channel-decomposition.md).
+  미달). 경위는 dev-log §1(`docs/dev-log/2026-08-04-direction-channel-decomposition.md`).
 - **「반전 tick 에서 거래소가 못 따라오는 구간」이라는 물음** → 3차가 답했다. 그 전제는 채널의
   **4/11 에만** 해당한다 — [ADR-023 §재분해](decisions/023-engine-state-ssot.md).
 - **「이 개편을 할 것인가」 사용자 판정** → **보류**(라벨 분해 먼저). 위 블록 참조.
@@ -854,7 +854,7 @@ scripts/soak-gate.sh             # [BL-003] 판정 — PASS / FAIL / UNKNOWN
 ## ⛔ 종료 — **engine-position-ssot 슬라이스 1** (완료 · 참고자료)
 
 > ★**진입점은 여기가 아니라 위 블록이다.** 상세는
-> [dev-log](dev-log/2026-08-04-engine-position-ssot.md) · [ADR-022](decisions/022-engine-position-ssot.md).
+> dev-log(`docs/dev-log/2026-08-04-engine-position-ssot.md`) · [ADR-022](decisions/022-engine-position-ssot.md).
 
 ### 무엇을 했나
 
@@ -1012,7 +1012,7 @@ fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `No
 
 ## 완료 이력
 
-- 직전 회차 — [`direction-channel-decomposition`](dev-log/2026-08-04-direction-channel-decomposition.md)
+- 직전 회차 — `direction-channel-decomposition`(`docs/dev-log/2026-08-04-direction-channel-decomposition.md`)
   (**`backend/src` 0줄 · 소크 무중단 · 오라클 1파일**. ★★★**`direction` 은 두 현상이었다** —
   무해 `replay_lag` **7**(조건부가 봉 중간에 체결되고 **엔진이** 못 따라온다) : 치명 `phantom`
   **4**(엔진 시뮬이 체결로 친 주문이 거래소에 없다). 체결 경과 **24.7초 vs 909초**로 **37배
@@ -1027,7 +1027,7 @@ fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `No
   판별기로 못 쓴다. ★**신규 잠재 결함 2건**(D1 strike TTL 부재 · D2 시장가 반전이 발주 전 strike
   를 연다 — [BL-590] 복구가 그 가드에게 60초를 받는다). ★**내 계측기 2번 오류**(발산 시각을 초로
   잘라 갈래가 바뀜 · `2>&1` 을 리다이렉트 앞에 씀))
-- 그 앞 — [`engine-state-ssot`](dev-log/2026-08-04-engine-state-ssot.md)
+- 그 앞 — `engine-state-ssot`(`docs/dev-log/2026-08-04-engine-state-ssot.md`)
   (**[ADR-023] Proposed 신설 · 코드 0줄 · 소크 무중단**. ★★★**사망 경로의 축이 바뀐다** — ④=0 은
   주입 절반을 막았고, 이번에 **veto 절반까지** 막혔다: 유도가 **흡수 상태**라 사망 2건 모두 이미
   어두운 뒤 죽었고(`a201a47b` 17.3분→104.9분 · `04097fdc` 26.1분→65.0분), veto 는
@@ -1039,7 +1039,7 @@ fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `No
   `run_live` 를 0회 호출** ⇒ 라이브가 갈라져도 CI 는 구조적으로 green. ★★**새 위험 R1 — replay 가
   우연히 float 오차 청소부였다.** ★사전등록 예측 **적중** · 관측 2건 판정(`breach_with_resting` 은
   정상이고 확인식이 구조적 불가 · `terminal_write_back_*` 는 **성공인데 errors counter**))
-- 그 앞 — [`engine-position-ssot`](dev-log/2026-08-04-engine-position-ssot.md)
+- 그 앞 — `engine-position-ssot`(`docs/dev-log/2026-08-04-engine-position-ssot.md`)
   (슬라이스 1(계측) **PR #539 OPEN** · **슬라이스 2 미착수 확정**. ★★★**계측이 초록인데 주입될
   값이 틀렸다** — 유도 함수의 **net 은 맞고 legs 는 틀리다**(외부 오라클 11건: 오답 0, 적중 4가
   3건이 `legs=2` 인데 거래소는 단일 포지션 — 나머지 1건은 반전 없는 먼지 세션이라 정확했다).
@@ -1048,7 +1048,7 @@ fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `No
   사망 경로는 **반전**이고 반전은 tick 경계에서 flat 을 거치지 않는다. ★★**작은 창의 0 은 0 이
   아니다** — ⑤가 소크 19 tick 에서 0/19, 과거 29세션에서 **27.6%**. ★`trade_id` 는 trade 가 아니라
   Pine 진입 규칙 이름이고 **반전은 `:close:` 키를 만들지 않는다**)
-- 그 앞 — [`breach-rejection-recovery`](dev-log/2026-08-03-breach-rejection-recovery.md)
+- 그 앞 — `breach-rejection-recovery`(`docs/dev-log/2026-08-03-breach-rejection-recovery.md`)
   ([BL-590] **Resolved**. ★★★**가드가 뚫린 게 아니라 거절 뒤 복구가 없었다** — 계획기는
   발주 시각에 옳았고(카운터 차분이 연역 증명) 거래소가 2.1초 뒤 자기 시각으로 거절했다.
   ★★**이 클래스는 `110093` 단독이 아니다** — 거울 코드 `110092` 가 원장 4건 중 2건.
@@ -1056,37 +1056,37 @@ fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `No
   (내 fixture 가 시각을 **모듈 import 시점**에 고정). ★★**두 안전한 것이 합쳐져 결함이 됐다**
   — codex 가 「flake 아님」으로 판정한 값이 내가 만료 가드를 넣으면서 load-bearing 이 됐다.
   ★변이 **8/8** · 유도 주입으로 프로덕션 발화 확인)
-- 그 앞 — [`soak-divergence-root`](dev-log/2026-08-03-soak-divergence-root.md)
+- 그 앞 — `soak-divergence-root`(`docs/dev-log/2026-08-03-soak-divergence-root.md`)
   ([BL-589] **Resolved**. ★★★**엔진은 취소를 못 본 게 아니라 주문을 아예 모른다** — 포지션 출처가
   `run_live` 시뮬이라 「되돌리는 경로」가 애초에 없다. 뿌리는 계획기가 「대기 주문이 있다」만으로
   시장가 전환을 껐다는 것이고 **그 주문은 발화 불가**였다. ★★**한 번에 둘을 고치면 서로의 증거를
   가린다** — 술어만 먼저 넣으니 눈금 붕괴 구멍이 독립 red 로 남았다. ★★**boolean 판정을 피한
   대체 술어도 검증 대상**(`deactivated_reason` 이 25건 중 12건에서 거짓말))
-- 그 앞 — [`metric-guard-residual-sweep`](dev-log/2026-08-03-metric-guard-residual-sweep.md)
+- 그 앞 — `metric-guard-residual-sweep`(`docs/dev-log/2026-08-03-metric-guard-residual-sweep.md`)
   (발주 outbox **12곳** 판정 — **수리함 8 · 판정 보류 4**, census 104→96.
   ★★★**같은 함수·같은 metric·전부 「commit 뒤」인데 한 자리만 fail-open `try` 안**이라 계측
   실패가 **거절을 집행으로 뒤집었다** — 거래소가 flat 이라 거부한 청산에 실주문이 나갔다(신규
   라벨 **H8**). ★변이 M4 가 코드가 아니라 **오라클 구멍**을 드러냄(1578건 판별력 0) → 5종으로
   확장. **BL-584 현재 코퍼스 도달 불가 확정**)
-- 그 앞 — [`metric-guard-residual-close`](dev-log/2026-08-03-metric-guard-residual-close.md)
+- 그 앞 — `metric-guard-residual-close`(`docs/dev-log/2026-08-03-metric-guard-residual-close.md`)
   (BL-580 잔여 **25곳** 판정 — **수리함 23 · 판정 보류 2**, census 129→104.
   ★**산문 2줄이 25곳을 잘못 뺐다** — 「blast radius 0」은 10/10 이 도메인 예외 대신 OSError 를
   탈출시켰고, 「already_synced 수렴」은 7곳 중 1곳만 성립. ★**반쪽 수리는 사이트 주입 29건을
   전부 통과**한다(변이 M5). 신규 **BL-584**)
-- 그 앞 — [`gate-trustworthiness`](dev-log/2026-08-03-gate-trustworthiness.md)
+- 그 앞 — `gate-trustworthiness`(`docs/dev-log/2026-08-03-gate-trustworthiness.md`)
   (「전부 통과」를 증거로 만든다. ★**순서는 랜덤이 아니었다** — `pytest-randomly` 미설치로
   `-p no:randomly` 는 no-op, 흔들린 것은 **수집 집합**이다. 뿌리 = 정의 모듈 패치 창의 첫 적재가
   가짜를 **모듈 전역으로 영구 복사**. 오염원 4곳(전역 8개) 처분 + 상시 가드. **BL-583 Resolved**)
-- 그 앞 — [`metric-guard-residual`](dev-log/2026-08-03-metric-guard-residual.md)
+- 그 앞 — `metric-guard-residual`(`docs/dev-log/2026-08-03-metric-guard-residual.md`)
   (「감쌀 필요 없다」의 근거를 고장 주입으로 재판정 — 명시 4곳 **전건 반증**, 12곳 수리 ·
   census 141→129. **BL-582 「7종 도달 불가」→5종**. 신규 **BL-583** = 스위트 순서 의존)
-- 그 앞 — [`metric-guard-parity`](dev-log/2026-08-02-metric-guard-parity.md)
+- 그 앞 — `metric-guard-parity`(`docs/dev-log/2026-08-02-metric-guard-parity.md`)
   (계측 실패가 성공한 발주를 실패로 기록하고 **주문을 하나 더 냈다**. 가드 18곳 · census 159→141)
-- 그 앞 — [`context-budget-repair`](dev-log/2026-08-02-context-budget-repair.md)
+- 그 앞 — `context-budget-repair`(`docs/dev-log/2026-08-02-context-budget-repair.md`)
   (문서·계측만. `INDEX.md` **−92.3%** · 자동 로드 고정비 **−42.2%** · 줄길이 게이트 신설.
   ★**착수 전제 3건 반증** — `CONTEXT.md`·`.ai/rules` 는 자동 로드가 아니다)
-- 그 앞 — [`canonical-measurement-surface`](dev-log/2026-08-02-canonical-measurement-surface.md)
-- 그 앞 — [`divergence-label-split`](dev-log/2026-08-02-divergence-label-split.md)
+- 그 앞 — `canonical-measurement-surface`(`docs/dev-log/2026-08-02-canonical-measurement-surface.md`)
+- 그 앞 — `divergence-label-split`(`docs/dev-log/2026-08-02-divergence-label-split.md`)
 - 이번 주 완료 스프린트와 이전 회고 — [`dev-log/INDEX.md`](dev-log/INDEX.md)
-- 2026-07-26 이전 status 원문 — [`archive/status-history.md`](archive/status-history.md)
+- 2026-07-26 이전 status 원문 — `docs/archive/status-history.md`
 - 열린 BL의 현재 상태 — [`backlog.md`](backlog.md) (`scripts/bl-audit.sh`가 정본)
