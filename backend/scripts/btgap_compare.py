@@ -197,10 +197,13 @@ class BacktestTrade:
 
     @property
     def backtest_cost(self) -> Decimal:
-        """백테스트가 뺀 비용. 분해 필드가 없으면 결합 필드를 쓴다."""
-        if self.fee_paid is None or self.slippage_paid is None:
-            return Decimal(str(self.fees))
-        return Decimal(str(self.fee_paid)) + Decimal(str(self.slippage_paid))
+        """백테스트가 뺀 비용. ★정의는 **하나뿐이다** — 결합 필드 `fees`.
+
+        `fee_paid + slippage_paid` 로 재는 두 번째 정의를 두면 합계 마지막 자리에서
+        두 값이 갈리고, 그때 어느 쪽이 정본인지 아무도 모른다. 분해가 필요하면
+        `fee_paid`/`slippage_paid` 를 따로 보고 `split_residual` 로 어긋남을 본다.
+        """
+        return Decimal(str(self.fees))
 
 
 def parse_backtest_trades(rows: Sequence[Mapping[str, Any]]) -> list[BacktestTrade]:
@@ -472,6 +475,27 @@ def _ledger_group_key(row: LedgerRow) -> tuple[str, ...]:
     )
 
 
+def _assert_duplicates_agree(group: Sequence[LedgerRow]) -> None:
+    """같은 `order_link_id` 의 두 행은 payload 가 **같아야** 한다.
+
+    ★그 전제 위에서 「아무 행이나 대표로 올린다」가 성립한다. 검사 없이 승격하면
+    payload 가 갈렸을 때 어느 값이 살아남는지가 `classification` 정렬 운에 달린다 —
+    조용히 틀린 손익을 고르는 fail-**open** 이다. 그래서 여기서 크게 실패한다.
+    """
+    first = group[0]
+    for other in group[1:]:
+        differing = [
+            field
+            for field in ("closed_pnl", "closed_size", "avg_entry_price", "avg_exit_price", "side")
+            if getattr(first, field) != getattr(other, field)
+        ]
+        if differing:
+            raise ValueError(
+                f"같은 order_link_id({first.order_link_id!r}) 의 중복 행이 서로 다르다 — "
+                f"{first.exit_id} vs {other.exit_id}, 어긋난 필드: {differing}"
+            )
+
+
 def dedupe_ledger_rows(rows: Sequence[LedgerRow]) -> LedgerDedup:
     """★`order_link_id` 당 **1 event** 로 접는다.
 
@@ -491,6 +515,7 @@ def dedupe_ledger_rows(rows: Sequence[LedgerRow]) -> LedgerDedup:
     for group in grouped.values():
         if len(group) > 1:
             duplicate_groups += 1
+            _assert_duplicates_agree(group)
         events.append(
             sorted(
                 group,
@@ -558,31 +583,133 @@ def link_ledger_to_orders(
     return linked
 
 
-def attribute_ledger_rows(
-    entries: Sequence[LiveEntry],
-    events: Sequence[LedgerRow],
-) -> tuple[dict[str, LedgerRow], list[LedgerRow]]:
-    """원장 event 를 라이브 진입에 **시간순 FIFO** 로 붙인다.
+@dataclass(frozen=True, slots=True)
+class LedgerAttribution:
+    """원장 event 가 어느 진입의 결과인가 — 그리고 **무엇을 근거로** 그렇게 봤나.
 
-    ★`Order.filled_at` 을 쓰지 않는다 — 그건 우리 관측시각이라 귀속을 늦춘다. 진입 쪽
-    시각은 key 의 `bar_epoch`(신호봉), 원장 쪽은 거래소가 찍은 `exchange_created_at` 이다.
-
-    이 전략은 한 번에 한 포지션만 든다(반전 전략). 겹치는 포지션이 생겨 가정이 깨지면
-    남는 event 가 `ledger_only` 로 **보이게** 떨어진다 — 조용히 섞이지 않는다.
+    근거를 값으로 들고 다니는 이유는 하나다: `linked` 와 `inferred` 는 신뢰도가 다르고,
+    `inferred` 를 매칭 합계에 넣으면 그 차이가 사라진다.
     """
-    ordered_entries = [entry for entry in entries if entry.bar_epoch is not None]
-    assigned: dict[str, LedgerRow] = {}
-    unassigned: list[LedgerRow] = []
-    cursor = 0
+
+    linked: dict[str, LedgerRow]  # 진입 order_id → event (직결)
+    inferred: dict[str, LedgerRow]  # 진입 order_id → event (FIFO 추정)
+    non_entry_linked: list[LedgerRow]  # 진입이 아닌 주문에 직결된 event
+    unattributed: list[LedgerRow]  # 어디에도 못 붙은 event
+    grade_of: dict[str, str]  # exit_id → "linked" | "inferred" | "non_entry" | "none"
+    link_collisions: int
+
+
+def attribute_ledger_events(
+    corpus: OrderCorpus,
+    events: Sequence[LedgerRow],
+) -> LedgerAttribution:
+    """★직결 링크가 있으면 **무조건** 그것으로 귀속한다 (R11).
+
+    종전에는 시간순 FIFO 하나로만 붙였는데, 실측에서 그 방식이 직결 링크와 **86 event 중
+    59 건에서 다른 주문**을 골랐다. 원인은 커서 선점이다 — 수동 flatten(00:34:10)이 첫
+    진입의 신호봉(00:34:00)보다 뒤라는 이유만으로 커서를 가져가 이후 전부가 한 칸씩
+    밀렸다. 그 결과 loose 37쌍 중 28쌍이 **남의 청산 손익**을 actual 로 썼고,
+    `price_gap` 은 `+19.36` 이었는데 직결로 재면 `−0.36` 으로 **부호가 뒤집혔다**.
+
+    직결이 없는 event 만 FIFO 로 붙이고 `inferred` 로 표시한다. 그 값은 매칭 합계에
+    들어가지 않는다 — 추정을 확정과 같은 칸에 넣지 않는다.
+
+    ★**닫힘은 옳음의 증거가 아니다.** 어느 귀속을 쓰든 버킷 합은 dedup Σ 로 닫힌다
+    (합이 닫히는 것은 파티션의 성질이지 귀속의 성질이 아니다). 그래서 근거 분포와
+    `avg_entry_price` 대조를 report 에 함께 낸다.
+    """
+    entry_ids = {entry.order_id for entry in corpus.entries}
+    linked: dict[str, LedgerRow] = {}
+    non_entry_linked: list[LedgerRow] = []
+    grade_of: dict[str, str] = {}
+    link_collisions = 0
+    needs_fallback: list[LedgerRow] = []
+
     for event in events:
+        target = corpus.by_id.get(event.order_link_id) if event.order_link_id is not None else None
+        if target is None:
+            needs_fallback.append(event)
+            continue
+        if target.order_id not in entry_ids:
+            non_entry_linked.append(event)
+            grade_of[event.exit_id] = "non_entry"
+            continue
+        if target.order_id in linked:
+            # 한 진입에 직결 event 가 둘이면 뒤엣것을 추정으로 내리지 않고 세어 둔다.
+            link_collisions += 1
+            needs_fallback.append(event)
+            continue
+        linked[target.order_id] = event
+        grade_of[event.exit_id] = "linked"
+
+    # 직결이 없는 것만 종전 FIFO 로 붙인다 — 신호봉(bar_epoch) vs 거래소 시각.
+    # ★`Order.filled_at` 은 여기서도 쓰지 않는다 (우리 관측시각이라 귀속을 늦춘다).
+    open_entries = [
+        entry
+        for entry in corpus.entries
+        if entry.bar_epoch is not None and entry.order_id not in linked
+    ]
+    inferred: dict[str, LedgerRow] = {}
+    unattributed: list[LedgerRow] = []
+    cursor = 0
+    for event in sorted(needs_fallback, key=lambda row: (row.exchange_created_at, row.exit_id)):
         event_epoch = int(event.exchange_created_at.timestamp())
-        entry = ordered_entries[cursor] if cursor < len(ordered_entries) else None
+        entry = open_entries[cursor] if cursor < len(open_entries) else None
         if entry is not None and entry.bar_epoch is not None and entry.bar_epoch <= event_epoch:
-            assigned[entry.order_id] = event
+            inferred[entry.order_id] = event
+            grade_of[event.exit_id] = "inferred"
             cursor += 1
         else:
-            unassigned.append(event)
-    return assigned, unassigned
+            unattributed.append(event)
+            grade_of[event.exit_id] = "none"
+
+    return LedgerAttribution(
+        linked=linked,
+        inferred=inferred,
+        non_entry_linked=non_entry_linked,
+        unattributed=unattributed,
+        grade_of=grade_of,
+        link_collisions=link_collisions,
+    )
+
+
+def entry_price_agreement(attribution: LedgerAttribution, corpus: OrderCorpus) -> dict[str, Any]:
+    """★귀속이 **맞는지**를 가르는 유일한 행별 검사.
+
+    직결 event 의 `avg_entry_price` 는 그 진입 주문의 `filled_price` 와 같아야 한다.
+    귀속이 한 칸 밀리면(off-by-one) 이 값이 **다른 진입의 체결가**와 붙는다.
+
+    ★합계로는 이걸 못 잡는다. `price_gap` 은 합이라 actual 계열을 통째로 한 칸 밀어도
+    양 끝만 바뀐다(telescoping) — 그래서 "합이 0 에 가깝다" 는 귀속의 증거가 아니다.
+    """
+    entries = {entry.order_id: entry for entry in corpus.entries}
+    residuals: list[Decimal] = []
+    unknown = 0
+    for order_id, event in attribution.linked.items():
+        entry = entries.get(order_id)
+        if entry is None or entry.filled_price is None or event.avg_entry_price is None:
+            unknown += 1
+            continue
+        filled_price = Decimal(str(entry.filled_price))
+        if filled_price == Decimal("0"):
+            unknown += 1
+            continue
+        residuals.append(
+            (Decimal(str(event.avg_entry_price)) - filled_price)
+            / abs(filled_price)
+            * Decimal("100")
+        )
+    exact = sum(1 for value in residuals if value == Decimal("0"))
+    return {
+        "n": len(residuals),
+        "verdict": "measured" if residuals else "undetermined",
+        "unmeasurable": unknown,
+        "exact_matches": exact,
+        "median_pct": decimal_text(median_decimal([abs(value) for value in residuals])),
+        "max_abs_pct": (
+            decimal_text(max(abs(value) for value in residuals)) if residuals else None
+        ),
+    }
 
 
 # --------------------------------------------------------------------------
@@ -887,11 +1014,14 @@ def build_observations(
     pairs: Sequence[MatchedPair],
     assigned: Mapping[str, LedgerRow],
 ) -> ObservationSet:
-    """매칭 쌍 + 귀속된 원장 event → parity 관측.
+    """매칭 쌍 + **직결 귀속된** 원장 event → parity 관측.
 
     ★`actual_net` 은 **원장 순수 산술**(`closed_pnl`)이다 — `Order.realized_pnl` 이
     아니다(R2). 매칭됐지만 아직 청산이 없는 쌍은 관측이 **아니다**: `ParityObservation` 은
     확정 net 을 결측으로 표현할 수 없으므로 0 으로 메우는 대신 따로 센다.
+
+    ★호출부는 `attribution.linked` 만 넘긴다 (R11). FIFO 추정(`inferred`)을 여기 넣으면
+    추정이 확정과 같은 칸에 합산되어, 신뢰도 차이가 숫자에서 사라진다.
     """
     observations: list[ParityObservation] = []
     cost_terms: list[Decimal] = []
@@ -938,17 +1068,20 @@ def _ratio(numerator: Decimal, denominator: Decimal) -> Decimal | None:
     return None if denominator == Decimal("0") else numerator / denominator
 
 
-def cost_explanation(observation_set: ObservationSet) -> dict[str, Any]:
+def cost_explanation(observation_set: ObservationSet, *, verdict: bool = True) -> dict[str, Any]:
     """③ 을 **두 정의로** 낸다 (R3).
 
     ★합계를 먼저 낸 뒤 절대값을 씌우면(`preregistered`) 부호 상쇄가 분모를 0 쪽으로
     끌어당겨 비율이 폭발한다. 행별 절대값(`row_abs`)은 그 폭발이 없다. 그런데 판정은
     **사전등록 원문으로 한다** — 표본을 보고 정의를 갈아 끼우는 것이 곧 래칫 위반이다.
     상쇄 정도는 `cancellation_index` 로 옆에 병기해 판단 재료로 남긴다.
+
+    ★`verdict=False` (감도 블록) 이면 `verdict_definition` 자체를 **싣지 않는다** (R12).
+    같은 모양의 숫자가 옆에 있으면 소비자는 그것도 판정값으로 읽는다.
     """
     cost_terms = observation_set.cost_terms
     gap_terms = observation_set.gap_terms
-    return {
+    payload: dict[str, Any] = {
         "n": len(cost_terms),
         "preregistered": decimal_text(
             _ratio(abs(sum_decimals(cost_terms)), abs(sum_decimals(gap_terms)))
@@ -963,8 +1096,12 @@ def cost_explanation(observation_set: ObservationSet) -> dict[str, Any]:
             "numerator": decimal_text(cancellation_index(cost_terms)),
             "denominator": decimal_text(cancellation_index(gap_terms)),
         },
-        "verdict_definition": "preregistered",
     }
+    if verdict:
+        payload["verdict_definition"] = "preregistered"
+    else:
+        payload["not_a_verdict"] = True
+    return payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -990,6 +1127,8 @@ class Decomposition:
     ledger_only_count: int
     ledger_quantity_mismatch: int
     partial_fill_count: int
+    attribution: LedgerAttribution
+    partition: dict[str, list[LedgerRow]]
 
 
 def _optional_sum(values: Sequence[Decimal | None]) -> Decimal | None:
@@ -1010,25 +1149,54 @@ def decompose(
     판정 표본은 **strict 쌍만**이다. loose 는 같은 조립을 한 번 더 돌려 감도로 병기한다.
     """
     events = dedup.events
-    assigned, unassigned = attribute_ledger_rows(corpus.entries, events)
-    linked = link_ledger_to_orders(events, corpus.by_id)
+    attribution = attribute_ledger_events(corpus, events)
+    linked_orders = link_ledger_to_orders(events, corpus.by_id)
 
-    strict_set = build_observations(match.strict_pairs, assigned)
-    loose_set = build_observations(match.pairs, assigned) if match.loose_pairs else None
+    # ★직결 귀속만 관측이 된다 (R11).
+    strict_set = build_observations(match.strict_pairs, attribution.linked)
+    loose_set = build_observations(match.pairs, attribution.linked) if match.loose_pairs else None
 
-    live_only_events = [
-        assigned[entry.order_id] for entry in match.live_only if entry.order_id in assigned
-    ]
-    ambiguous_events = [
-        assigned[item.entry.order_id] for item in match.ambiguous if item.entry.order_id in assigned
-    ]
+    matched_entry_ids = {pair.entry.order_id for pair in match.pairs}
+    live_only_ids = {entry.order_id for entry in match.live_only}
+    ambiguous_ids = {item.entry.order_id for item in match.ambiguous}
+    entry_of_event = {event.exit_id: order_id for order_id, event in attribution.linked.items()}
+
+    # ★진짜 파티션 — 모든 dedup event 가 정확히 하나에 들어간다 (R13).
+    partition: dict[str, list[LedgerRow]] = {
+        "matched": [],
+        "live_only": [],
+        "ambiguous": [],
+        "inferred": [],
+        "non_entry_linked": [],
+        "ledger_only": [],
+    }
+    for event in events:
+        grade = attribution.grade_of.get(event.exit_id, "none")
+        if grade == "inferred":
+            partition["inferred"].append(event)
+        elif grade == "non_entry":
+            partition["non_entry_linked"].append(event)
+        elif grade == "linked":
+            order_id = entry_of_event.get(event.exit_id)
+            if order_id in matched_entry_ids:
+                partition["matched"].append(event)
+            elif order_id in live_only_ids:
+                partition["live_only"].append(event)
+            elif order_id in ambiguous_ids:
+                partition["ambiguous"].append(event)
+            else:
+                partition["ledger_only"].append(event)
+        else:
+            partition["ledger_only"].append(event)
+
     backtest_only_expected_gross = sum_decimals(
         [trade.expected_gross for trade in match.backtest_only]
     )
     live_only_actual_net = sum_decimals(
-        [event.closed_pnl for event in live_only_events + ambiguous_events]
+        [event.closed_pnl for event in partition["live_only"] + partition["ambiguous"]]
     )
-    ledger_only_net = sum_decimals([event.closed_pnl for event in unassigned])
+    ledger_only_net = sum_decimals([event.closed_pnl for event in partition["ledger_only"]])
+    unassigned = partition["ledger_only"]
 
     # ★flatten 계상은 orders 가 아니라 exits(dedup) 기준이다 (R8) — 실측에서 3 event 중
     #   2 건이 orders 에 아예 없었다.
@@ -1037,7 +1205,7 @@ def decompose(
     flatten_from_order = 0
     flatten_orphan = 0
     for event in events:
-        order = linked.get(event.exit_id)
+        order = linked_orders.get(event.exit_id)
         if order is not None and order.order_id in flatten_order_ids:
             flatten_events.append(event)
             flatten_from_order += 1
@@ -1049,7 +1217,7 @@ def decompose(
     ledger_quantity_mismatch = sum(
         1
         for event in events
-        if (order := linked.get(event.exit_id)) is not None
+        if (order := linked_orders.get(event.exit_id)) is not None
         and event.closed_size is not None
         and order.filled_quantity is not None
         and Decimal(str(event.closed_size)) != Decimal(str(order.filled_quantity))
@@ -1063,13 +1231,11 @@ def decompose(
         expected_only_pending_count=0,
         expected_only_failed_count=0,
         expected_only_dispatched_count=0,
-        actual_only_count=len(live_only_events) + len(ambiguous_events),
+        actual_only_count=len(partition["live_only"]) + len(partition["ambiguous"]),
         actual_only_net=live_only_actual_net,
         ledger_only_count=len(unassigned),
         ledger_only_net=ledger_only_net,
-        inferred_attribution_count=sum(
-            1 for event in events if event.attribution_confidence == "inferred"
-        ),
+        inferred_attribution_count=len(partition["inferred"]),
     )
     summary = summarize_parity(strict_set.observations, buckets)
     loose_summary = summarize_parity(loose_set.observations, buckets) if loose_set else None
@@ -1095,6 +1261,8 @@ def decompose(
         ledger_only_count=len(unassigned),
         ledger_quantity_mismatch=ledger_quantity_mismatch,
         partial_fill_count=sum(1 for entry in corpus.entries if entry.partially_filled),
+        attribution=attribution,
+        partition=partition,
     )
 
 
@@ -1111,12 +1279,18 @@ def session_boundary_accounting(
     trades: Sequence[BacktestTrade],
     match: MatchResult,
     assigned: Mapping[str, LedgerRow],
+    flatten_events: Sequence[LedgerRow],
 ) -> dict[str, Any]:
     """세션 경계에서 새는 것들을 **총계에 접지 않고** 버킷으로 병기한다.
 
     ★귀속 기본값은 **청산시각**이다. 반전 전략이라 진입창과 청산창이 갈리는 event 가
     실재하고(실측 6건, 그중 1건은 세션 사이 2.74h 무세션 구간을 통과했다), 어느 쪽으로
     귀속하느냐로 세션 단위 합계가 흔들린다 — 그 차이를 숨기지 않고 함께 낸다.
+
+    ★★**이 블록은 파티션이 아니라 「세션 축 뷰」다** (R13). 같은 event 가
+    `unattributed` · `gap_exit` · `cross_window` 에 **동시에** 들어갈 수 있다(실측 5건).
+    합이 닫히는 파티션은 `buckets.partition` 쪽이고, 여기 숫자를 서로 더하면 이중계상이
+    된다. 그래서 `overlay: true` 와 **어느 event 가 몇 개 뷰에 걸쳤는지**를 함께 낸다.
     """
     carry = [
         {
@@ -1173,6 +1347,7 @@ def session_boundary_accounting(
             cross_window.append(
                 {
                     "order_id": pair.entry.order_id,
+                    "exit_id": event.exit_id,
                     "entry_session": entry_window,
                     "exit_session": exit_window,
                     "held_seconds": int((event.exchange_created_at - entry_moment).total_seconds()),
@@ -1188,7 +1363,28 @@ def session_boundary_accounting(
         )
         for key in session_keys
     ]
+    # ★멀티뷰 event 를 이름으로 남긴다 — 안 남기면 "합쳐도 되나?" 를 아무도 못 답한다.
+    views_of: dict[str, list[str]] = {}
+    for event in unattributed_events:
+        views_of.setdefault(event.exit_id, []).append("unattributed")
+    for event in gap_events:
+        views_of.setdefault(event.exit_id, []).append("gap_exit")
+    for row in cross_window:
+        views_of.setdefault(str(row["exit_id"]), []).append("cross_window")
+    for event in flatten_events:
+        views_of.setdefault(event.exit_id, []).append("manual_flatten")
+
     return {
+        "overlay": True,
+        "overlay_note": (
+            "이 네 뷰는 파티션이 아니다 — 같은 event 가 여러 뷰에 들어간다. "
+            "합이 닫히는 파티션은 buckets.partition 이다."
+        ),
+        "multi_view_events": [
+            {"exit_id": exit_id, "views": sorted(views)}
+            for exit_id, views in sorted(views_of.items())
+            if len(views) > 1
+        ],
         "attribution_rule": "exit_time",
         "sessions": len(windows),
         "carry": carry,
@@ -1213,6 +1409,35 @@ def session_boundary_accounting(
             "by_entry_window": {key: decimal_text(value) for key, value in by_entry_window.items()},
             "max_abs_session_delta": decimal_text(max(deltas)) if deltas else None,
         },
+    }
+
+
+def _partition_payload(
+    partition: Mapping[str, Sequence[LedgerRow]], dedup: LedgerDedup
+) -> dict[str, Any]:
+    """★합이 닫히는 파티션. 모든 dedup event 가 정확히 하나의 칸에 들어간다 (R13).
+
+    닫힘 자체는 귀속이 옳다는 증거가 **아니다** — 어느 귀속을 쓰든 파티션이면 닫힌다.
+    여기서 닫힘을 재는 이유는 event 를 흘리거나 이중계상하지 않았음을 보이기 위해서다.
+    """
+    counted = sum(len(rows) for rows in partition.values())
+    total = sum_decimals([event.closed_pnl for event in dedup.events])
+    partition_total = sum_decimals(
+        [event.closed_pnl for rows in partition.values() for event in rows]
+    )
+    return {
+        "definition": "matched + live_only + ambiguous + inferred + non_entry_linked + ledger_only",
+        "note": "세션 축 뷰(session_accounting)는 파티션이 아니다 — 여기 숫자와 더하지 마라.",
+        "counts": {name: len(rows) for name, rows in partition.items()},
+        "nets": {
+            name: decimal_text(sum_decimals([event.closed_pnl for event in rows]))
+            for name, rows in partition.items()
+        },
+        "event_total": len(dedup.events),
+        "counted_total": counted,
+        "ledger_net_total": decimal_text(total),
+        "partition_net_total": decimal_text(partition_total),
+        "closes": counted == len(dedup.events) and partition_total == total,
     }
 
 
@@ -1267,7 +1492,10 @@ def build_report(
 ) -> dict[str, Any]:
     """report.json 본문. 표본 N · 시각 범위 · 버킷 계상 · 4단 워터폴을 모두 싣는다."""
     summary = decomposition.summary
-    assigned, _ = attribute_ledger_rows(corpus.entries, dedup.events)
+    attribution = decomposition.attribution
+    partition = decomposition.partition
+    # 판정 자격 = strict 쌍에서 **분해 가능한** 관측이 하나라도 있나 (R12).
+    eligible_for_verdict = summary.decomposable_count > 0
     entry_times = [trade.entry_time for trade in trades]
     ledger_times = [event.exchange_created_at for event in dedup.events]
     live_entries = [pair.entry for pair in match.pairs] + list(match.live_only)
@@ -1306,6 +1534,26 @@ def build_report(
             "ledger_quantity_mismatch": decomposition.ledger_quantity_mismatch,
             "match_coverage_pct": decimal_text(summary.match_coverage_pct),
             "net_sample": _sample_payload(summary),
+            # ★strict 분해 관측이 0 이면 워터폴·비율은 **판정이 아니다** (R12).
+            "eligible_for_verdict": eligible_for_verdict,
+            "verdict_blocked_reason": (
+                None if eligible_for_verdict else "strict 매칭에서 분해 가능한 관측이 0 건"
+            ),
+        },
+        "attribution": {
+            # ★귀속 근거를 값으로 남긴다 — `linked` 와 `inferred` 는 신뢰도가 다르다 (R11).
+            "rule": "order_link_id first, fifo fallback",
+            "linked": len(attribution.linked),
+            "inferred": len(attribution.inferred),
+            "non_entry_linked": len(attribution.non_entry_linked),
+            "unattributed": len(attribution.unattributed),
+            "link_collisions": attribution.link_collisions,
+            "inferred_net": decimal_text(
+                sum_decimals([event.closed_pnl for event in partition["inferred"]])
+            ),
+            "inferred_note": "추정 귀속은 매칭 합계에 넣지 않는다 — 별도 버킷으로만 센다.",
+            # 귀속이 한 칸 밀렸는지 가르는 **행별** 검사. 합계로는 절대 안 잡힌다.
+            "entry_price_agreement": entry_price_agreement(attribution, corpus),
         },
         "time_range": {
             "backtest_first_entry": _iso(min(entry_times)) if entry_times else None,
@@ -1370,6 +1618,9 @@ def build_report(
                 "net": decimal_text(decomposition.ledger_only_net),
                 "inferred_attribution_count": summary.buckets.inferred_attribution_count,
             },
+            # ★여기가 **합이 닫히는 유일한 파티션**이다 (R13). 세션 축 뷰
+            #   (`session_accounting`) 와 섞어 더하면 이중계상이 된다.
+            "partition": _partition_payload(partition, dedup),
         },
         "session_accounting": session_boundary_accounting(
             windows,
@@ -1377,7 +1628,8 @@ def build_report(
             dedup=dedup,
             trades=trades,
             match=match,
-            assigned=assigned,
+            assigned=attribution.linked,
+            flatten_events=decomposition.flatten_events,
         ),
         "waterfall": {
             "note": (
@@ -1403,7 +1655,9 @@ def build_report(
                 "effective_cost_pct_round_trip": decimal_text(
                     summary.effective_cost_pct_round_trip
                 ),
-                "explanation_ratio": cost_explanation(decomposition.observation_set),
+                "explanation_ratio": cost_explanation(
+                    decomposition.observation_set, verdict=eligible_for_verdict
+                ),
             },
             "stage_4_actual_net": decimal_text(summary.decomposable_actual_net),
             "undecomposed_net": decimal_text(summary.undecomposed_net),
@@ -1413,7 +1667,12 @@ def build_report(
             None
             if decomposition.loose_summary is None or decomposition.loose_observation_set is None
             else {
-                "note": "판정은 strict 만으로 한다. 이 블록은 loose 를 넣었을 때의 감도다.",
+                # ★R12 — 같은 모양의 숫자가 옆에 있으면 소비자는 그것도 판정으로 읽는다.
+                "note": (
+                    "★판정값이 아니다. 판정은 strict 만으로 한다 — 이 블록은 loose 를 "
+                    "넣었을 때 숫자가 얼마나 움직이는지 보는 감도 분석이다."
+                ),
+                "is_verdict": False,
                 "matched_count": decomposition.loose_summary.matched_count,
                 "stage_1_expected_gross": decimal_text(
                     decomposition.loose_summary.decomposable_expected_gross
@@ -1423,7 +1682,9 @@ def build_report(
                 "stage_4_actual_net": decimal_text(
                     decomposition.loose_summary.decomposable_actual_net
                 ),
-                "explanation_ratio": cost_explanation(decomposition.loose_observation_set),
+                "explanation_ratio": cost_explanation(
+                    decomposition.loose_observation_set, verdict=False
+                ),
             }
         ),
     }
@@ -1646,22 +1907,33 @@ def pair_by_signal_bar(
 
 
 def instrument_stats(trades: Sequence[BacktestTrade]) -> dict[str, Any]:
-    """계기 하나의 진입 수 · net_profit_abs · 비용 합."""
+    """계기 하나의 진입 수 · net_profit_abs · 비용 합.
+
+    ★`cost_total` 의 정의는 **하나뿐이다 — `Σ fees`**(결합 필드). `fee_paid` 와
+    `slippage_paid` 는 그 분해일 뿐이고, 따로 합산해서 비교하면 마지막 자리에서 어긋날
+    수 있다(`fee_paid + slippage_paid == fees` 는 거래 **한 건**의 불변식이지 합계의
+    불변식이 아니다). 두 벌을 나란히 headline 으로 내면 어느 쪽이 정본인지 사라지므로,
+    정본은 `cost_total` 하나로 두고 분해 합계의 어긋남은 `split_residual` 로 **보이게**
+    남긴다.
+    """
     fee_values = [t.fee_paid for t in trades]
     slip_values = [t.slippage_paid for t in trades]
+    fee_total = _optional_sum(fee_values)
+    slip_total = _optional_sum(slip_values)
+    cost_total = sum_decimals([t.fees for t in trades])
     return {
         "entries": len(trades),
         "net_profit_abs": decimal_text(sum_decimals([t.pnl for t in trades])),
-        "cost_total": decimal_text(sum_decimals([t.fees for t in trades])),
-        "fee_paid_total": (
-            decimal_text(sum_decimals([v for v in fee_values if v is not None]))
-            if trades and all(v is not None for v in fee_values)
-            else None
-        ),
-        "slippage_paid_total": (
-            decimal_text(sum_decimals([v for v in slip_values if v is not None]))
-            if trades and all(v is not None for v in slip_values)
-            else None
+        "cost_total": decimal_text(cost_total),
+        "cost_total_definition": "sum(RawTrade.fees)",
+        "fee_paid_total": decimal_text(fee_total),
+        "slippage_paid_total": decimal_text(slip_total),
+        "split_residual": (
+            None
+            if fee_total is None or slip_total is None
+            else decimal_text(
+                Decimal(str(fee_total)) + Decimal(str(slip_total)) - Decimal(str(cost_total))
+            )
         ),
     }
 
@@ -1676,12 +1948,20 @@ def build_s1diff(
 
     ★쌍이 0 이면 `undetermined` 다. 격차 0 으로 출력하면 "차이가 없다" 로 읽히는데
     실제로는 "잴 표본이 없다" 이다 — 그 둘은 다르다.
+
+    ★★**짝지어지지 못한 쪽을 함께 센다** (R14). 실측에서 144쌍은 spot 193 의 75% ·
+    perp 210 의 69% 다 — 나머지 25~31% 가 무보고로 빠지면 "짝지어진 것들끼리는 비슷하다"
+    가 **선택 편향인지 아닌지**를 아무도 검증할 수 없다.
     """
     pairs = pair_by_signal_bar(spot, perp, bar_seconds=bar_seconds)
     diffs = [
         Decimal(str(spot_trade.entry_price)) - Decimal(str(perp_trade.entry_price))
         for spot_trade, perp_trade in pairs
     ]
+    paired_spot = {id(trade) for trade, _ in pairs}
+    paired_perp = {id(trade) for _, trade in pairs}
+    unpaired_spot = [trade for trade in spot if id(trade) not in paired_spot]
+    unpaired_perp = [trade for trade in perp if id(trade) not in paired_perp]
     payload: dict[str, Any] = {
         "bar_seconds": bar_seconds,
         "pairs": {
@@ -1695,6 +1975,17 @@ def build_s1diff(
                 "negative": sum(1 for d in diffs if d < 0),
                 "zero": sum(1 for d in diffs if d == 0),
             },
+            # ★탈락분 — 무보고면 선택 편향 검증이 불가능하다 (R14).
+            "unpaired_spot": len(unpaired_spot),
+            "unpaired_perp": len(unpaired_perp),
+            "unpaired_spot_net": decimal_text(sum_decimals([trade.pnl for trade in unpaired_spot])),
+            "unpaired_perp_net": decimal_text(sum_decimals([trade.pnl for trade in unpaired_perp])),
+            "spot_pair_coverage_pct": decimal_text(
+                _ratio(Decimal(len(diffs)) * Decimal("100"), Decimal(len(spot)))
+            ),
+            "perp_pair_coverage_pct": decimal_text(
+                _ratio(Decimal(len(diffs)) * Decimal("100"), Decimal(len(perp)))
+            ),
         },
         "instruments": {
             "spot": instrument_stats(spot),

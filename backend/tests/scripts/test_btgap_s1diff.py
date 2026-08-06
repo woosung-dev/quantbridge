@@ -238,3 +238,104 @@ def test_cli_s1diff_writes_output(btgap: Any, tmp_path: Any) -> None:
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["pairs"]["n"] == 1
     assert payload["pairs"]["median_spot_minus_perp"] == "10"
+
+
+# --------------------------------------------------------------------------
+# R14 — 짝짓기 커버리지 (무보고 탈락은 선택 편향 검증을 막는다)
+# --------------------------------------------------------------------------
+
+
+def test_unpaired_counts_and_nets_are_reported(btgap: Any) -> None:
+    """★실측 144쌍 = spot 193 의 75% · perp 210 의 69% — 나머지를 안 세면
+    「짝지어진 것들끼리 비슷하다」가 선택 편향인지 아무도 못 가린다."""
+    spot = _trades(
+        btgap,
+        [
+            trade_row(trade_index=0, entry_time=iso(10), entry_price="60010", pnl="1.0"),
+            trade_row(trade_index=1, entry_time=iso(12), entry_price="61000", pnl="2.0"),
+        ],
+    )
+    perp = _trades(
+        btgap,
+        [
+            trade_row(trade_index=0, entry_time=iso(10), entry_price="60000", pnl="1.5"),
+            trade_row(trade_index=1, entry_time=iso(30), entry_price="63000", pnl="-3.0"),
+            trade_row(trade_index=2, entry_time=iso(40), entry_price="64000", pnl="0.5"),
+        ],
+    )
+    pairs = btgap.build_s1diff(spot, perp, bar_seconds=BAR_SECONDS)["pairs"]
+    assert pairs["n"] == 1
+    assert pairs["unpaired_spot"] == 1
+    assert pairs["unpaired_perp"] == 2
+    assert pairs["unpaired_spot_net"] == "2.0"
+    assert pairs["unpaired_perp_net"] == "-2.5"
+    assert Decimal(pairs["spot_pair_coverage_pct"]) == Decimal("50")
+    assert Decimal(pairs["perp_pair_coverage_pct"]) < Decimal("34")
+
+
+def test_full_coverage_reports_zero_unpaired(btgap: Any) -> None:
+    spot = _trades(btgap, [trade_row(trade_index=0, entry_time=iso(10), entry_price="60010")])
+    perp = _trades(btgap, [trade_row(trade_index=0, entry_time=iso(10), entry_price="60000")])
+    pairs = btgap.build_s1diff(spot, perp, bar_seconds=BAR_SECONDS)["pairs"]
+    assert pairs["unpaired_spot"] == 0
+    assert pairs["unpaired_perp"] == 0
+    assert Decimal(pairs["spot_pair_coverage_pct"]) == Decimal("100")
+
+
+def test_empty_sides_have_no_coverage_percentage(btgap: Any) -> None:
+    """0/0 을 100% 로 내면 「전건 짝지었다」로 읽힌다."""
+    pairs = btgap.build_s1diff([], [], bar_seconds=BAR_SECONDS)["pairs"]
+    assert pairs["spot_pair_coverage_pct"] is None
+    assert pairs["perp_pair_coverage_pct"] is None
+
+
+# --------------------------------------------------------------------------
+# 소소 — cost_total 은 정의가 하나뿐이다
+# --------------------------------------------------------------------------
+
+
+def test_cost_total_has_a_single_definition(btgap: Any) -> None:
+    trades = _trades(
+        btgap,
+        [
+            trade_row(
+                trade_index=0, entry_time=iso(10), fees="0.6", fee_paid="0.4", slippage_paid="0.2"
+            ),
+            trade_row(
+                trade_index=1, entry_time=iso(20), fees="0.4", fee_paid="0.25", slippage_paid="0.15"
+            ),
+        ],
+    )
+    stats = btgap.instrument_stats(trades)
+    assert stats["cost_total_definition"] == "sum(RawTrade.fees)"
+    assert stats["cost_total"] == "1.0"
+    assert Decimal(stats["split_residual"]) == Decimal("0")
+
+
+def test_split_residual_exposes_a_drifting_decomposition(btgap: Any) -> None:
+    """분해가 결합 필드와 어긋나면 **보이게** 남긴다 — 조용히 두 정의를 두지 않는다."""
+    trades = _trades(
+        btgap,
+        [
+            trade_row(
+                trade_index=0,
+                entry_time=iso(10),
+                fees="0.6",
+                fee_paid="0.4",
+                slippage_paid="0.30000001",
+            )
+        ],
+    )
+    stats = btgap.instrument_stats(trades)
+    assert stats["cost_total"] == "0.6"
+    assert Decimal(stats["split_residual"]) == Decimal("0.10000001")
+
+
+def test_missing_split_leaves_the_residual_undefined(btgap: Any) -> None:
+    trades = _trades(
+        btgap,
+        [trade_row(trade_index=0, entry_time=iso(10), fee_paid=None, slippage_paid=None)],
+    )
+    stats = btgap.instrument_stats(trades)
+    assert stats["split_residual"] is None
+    assert stats["cost_total"] is not None
