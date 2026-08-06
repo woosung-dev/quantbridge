@@ -7,7 +7,7 @@
 
     # Terminal 2 — Smoke 스크립트 실행
     cd backend
-    uv run python scripts/smoke_sprint4.py [s1|s2|s3]
+    uv run python scripts/archive/smoke_sprint4.py [s1|s2|s3]
 
 HTTP/Clerk 우회 (로컬 smoke 목적):
 - BacktestService 직접 호출 (dependency injection 대신)

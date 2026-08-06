@@ -454,8 +454,10 @@ class BacktestService:
     async def get(self, backtest_id: UUID, *, user_id: UUID) -> BacktestDetail:
         bt = await self._load_owned(backtest_id, user_id)
         # Sprint 31-E (BL-155): direction count consistency.
-        # metrics.long_count/short_count 는 vectorbt `trades.long.count()` 기반으로
-        # closed only 만 집계 → FE `trades.length` (open + closed) 와 1건 mismatch.
+        # metrics.long_count/short_count 는 **closed only** 만 집계한다
+        # (`v2_adapter.py` 가 `status == "closed"` 로 거른 뒤 센다. 구 vectorbt
+        # `trades.long.count()` 시절부터 같은 의미였고 엔진만 바뀌었다)
+        # → FE `trades.length` (open + closed) 와 1건 mismatch.
         # COMPLETED 상태일 때 trades 테이블에서 재집계해 사용자 시점 ("거래 목록"
         # 탭과 동일 모수) 으로 일관성 유지. 다른 상태는 trades 0건 → fallback.
         direction_counts: tuple[int, int, int] | None = None

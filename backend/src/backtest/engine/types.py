@@ -172,7 +172,9 @@ class BacktestMetrics:
     max_drawdown: Decimal  # 음수 (-0.25 = -25%). leverage=1 시 [-1.0, 0.0].
     win_rate: Decimal  # 0.0 ~ 1.0
     num_trades: int
-    # 확장 지표 (구 vectorbt 경로에서 추출하던 값; 기존 완료 백테스트는 None)
+    # 확장 지표 — **pine_v2 가 직접 계산해서 채운다**(`v2_adapter._build_metrics`).
+    # `None` 은 죽은 경로라서가 아니라 **이 필드가 생기기 전에 완료된 백테스트 행**의
+    # round-trip 호환용 기본값이다.
     sortino_ratio: Decimal | None = None
     calmar_ratio: Decimal | None = None
     profit_factor: Decimal | None = None
