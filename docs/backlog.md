@@ -495,6 +495,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-607](#bl-607)    | outcome-parity 패널이 Decimal 원문을 그대로 렌더해 **타일 밖으로 넘친다** — 55노드 중 17 오버플로, 최악 51자리(scrollWidth 8.3배), 패널 폭 542px 고정이라 뷰포트 확대 무효                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | outcome-parity 표시 계층을 손댈 때                                                                                | S            | 2026-08-06 backtest-reality-gap (qa D2)                |
 | [BL-608](#bl-608)    | outcome-parity 패널 e2e **0건** + 단위테스트가 세션/전략 스코프 **비대칭 케이스 부재**(둘 다 빈 픽스처뿐이라 BL-606 조합을 못 잡는다) — PR #496 전례(green 인데 화면 도달 불가)가 겨냥한 바로 그 구멍                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | outcome-parity 표면을 다음에 만질 때 (회귀 안전망 먼저)                                                           | S            | 2026-08-06 backtest-reality-gap (qa D3)                |
 | [BL-609](#bl-609)    | `herdr-fleet.sh` 가 claude 워커에 `--model` 을 안 줘 **전역 기본 모델을 상속** — 실측: 역할표는 gen/qa=Opus 인데 Fable 로 부팅(전역 `~/.claude/settings.json`), 모델은 pane 화면에서만 보여 조용히 어긋난다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 다음 함대 부팅 전                                                                                                 | S            | 2026-08-06 backtest-reality-gap                        |
+| [BL-610](#bl-610)    | `entry_completeness.py:158` 의 `source=` 문자열이 문서 대개편으로 삭제된 dev-log 경로를 가리킨다 — 런타임 무해(값일 뿐)지만 근거 추적이 git history 경유로 바뀌었다. 소크 중 `backend/src` 무접촉 원칙으로 이연                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | BL-003 소크 창 종료 후 첫 backend/src 정리 회차                                                                   | XS           | 2026-08-06 docs-overhaul (fix-doc)                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`).
 
@@ -4398,6 +4399,10 @@ prettier 로 돌리는데, 루트 `node_modules` 는 husky/lint-staged/prettier 
 
 **Risk:** 🟢 DX 문제이고 프로덕션 무관. 다만 **막히면 커밋 자체가 안 된다.**
 
+**잔존 기록 (2026-08-06 docs-overhaul):** 문서 대개편(fix-doc)에서 `frontend/README.md:39` 의
+구 `.ai/rules/frontend.md` 참조를 **이 트랩 때문에 못 고치고 이연**했다(md 스테이징 = pre-commit 사망).
+본 BL 해소 시 `frontend/README.md:39` → `.claude/rules/frontend.md` 갱신을 함께 처리할 것.
+
 **출처:** 2026-08-06 e2e-consolidation (커밋 시도 중 실측 재현)
 
 ---
@@ -4693,6 +4698,25 @@ strategy.matched > 0` 라서 **요청 세션이 완전히 비어도 전략 축�
 
 **Risk:** 🟢 도구. 단 모델 배정이 품질 가정의 일부인 회차에서는 조용한 어긋남이 산출물
 품질을 바꾼다.
+
+---
+
+### BL-610
+
+**Priority:** P3
+**카테고리:** Backend / trading (주석·메타데이터)
+**Trigger:** BL-003 소크 창 종료 후 첫 `backend/src` 정리 회차
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**`entry_completeness.py:158` 의 `source="docs/dev-log/2026-08-02-divergence-label-split.md"` 가
+삭제된 경로를 가리킨다.** 문서 대개편(ADR-026, fix-doc)이 dev-log 원문을 지웠다. 런타임 값이라
+동작은 무해하지만, 근거 추적이 `git show 0f0f0b06:docs/dev-log/...` 경유로 바뀌었다.
+소크 활성 중 `backend/src` 무접촉 원칙 때문에 이번 회차에서 고치지 않고 이연한다.
+수리 = 문자열을 tombstone 형식(`git:0f0f0b06 docs/dev-log/2026-08-02-divergence-label-split.md`)
+또는 현존 정본 경로로 교체 + 해당 값을 소비하는 곳이 있는지 grep 확인.
+
+**Risk:** 🟢 주석 수준. 단 이 값을 UI/리포트가 링크로 렌더한다면 깨진 링크가 된다 — 수리 시 소비처 확인.
 
 ---
 
