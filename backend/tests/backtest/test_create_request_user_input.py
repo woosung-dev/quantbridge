@@ -53,12 +53,16 @@ def _make_strategy() -> Strategy:
 # --- Test 1: schema default + 명시 override ---------------------------------
 
 
-def test_create_request_default_values_match_bybit_taker_standard() -> None:
-    """Sprint 31 BL-162a: 4 신규 필드 default = Bybit Perpetual taker 표준."""
+def test_create_request_default_values_match_measured_live_cost() -> None:
+    """★BL-603 — default 는 **거래소 공시 표준가가 아니라 라이브 원장 실측**이다.
+
+    이 테스트의 옛 이름은 `..._match_bybit_taker_standard` 였다. 그 이름 자체가 반증된
+    주장이었다 — 원장 84 event / 31.4h 실측은 taker 0.055%/leg 였고 공시 0.10% 가 아니었다.
+    """
     req = _make_request()
     assert req.leverage == Decimal("1.0")  # 1x 현물 기본
-    assert req.fees_pct == Decimal("0.001")  # 0.10%
-    assert req.slippage_pct == Decimal("0.0005")  # 0.05%
+    assert req.fees_pct == Decimal("0.00055")  # 0.055% (실측 taker)
+    assert req.slippage_pct == Decimal("0.00014")  # 0.014% (실측 진입가 잔차 중앙)
     assert req.include_funding is True  # 펀딩비 ON 기본
 
 

@@ -17,8 +17,9 @@ from src.backtest.engine.types import (
 def test_backtest_config_defaults():
     cfg = BacktestConfig()
     assert cfg.init_cash == Decimal("10000")
-    assert cfg.fees == 0.001
-    assert cfg.slippage == 0.0005
+    # BL-603 — 라이브 원장 실측 (taker 0.055%/leg · 진입가 잔차 중앙 0.014%).
+    assert cfg.fees == 0.00055
+    assert cfg.slippage == 0.00014
     assert cfg.freq == "1D"
 
 

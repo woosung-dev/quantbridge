@@ -31,8 +31,17 @@ class BacktestConfig:
     # maker(resting post-only limit) 체결은 limit/strategy.exit H2 NOP(BL-098/BL-104)
     # 라 producer 가 없어 비용모델상 미존재 → `maker_fee` config 는 실 producer
     # (BL-104) 도입 시 추가. 비용 공식 SSOT 는 v2_adapter._leg_cost.
-    fees: float = 0.001  # 0.1% (taker)
-    slippage: float = 0.0005  # 0.05% (taker market/stop 에만 적용; limit 제외)
+    # ★BL-603 (2026-08-07) — 두 값은 **라이브 원장 실측**이다. 예전 값(0.001 / 0.0005)은
+    # 거래소 공시 표준가에서 온 추정치였고, 실측 대비 왕복 2.7배(0.300% vs 0.1101%)로
+    # 비관이라 비용 민감 전략을 부당하게 탈락시켰다.
+    #   · fees — 원장 84 event / 31.4h 에서 잔차가 전건 음수이고 **77건이 소수 8자리까지**
+    #     taker 0.055%/leg 과 일치. 펀딩 가설은 2x2 표로 반증.
+    #   · slippage — 매칭쌍 34건의 진입가 잔차 **중앙 0.014%**.
+    # ★이 값을 고칠 때는 `backtest/schemas.py` 의 `fees_pct`/`slippage_pct` 도 **함께**
+    #   고쳐라. 그쪽 Pydantic 기본값이 항상 채워지므로 여기만 바꾸면 API 제출 경로는
+    #   안 바뀌고 두 SSOT 가 어긋난 채로 남는다.
+    fees: float = 0.00055  # 0.055% (taker — Bybit demo 실측)
+    slippage: float = 0.00014  # 0.014% (taker market/stop 에만 적용; limit 제외)
     # BL-104 — strategy.exit TP(resting limit) producer 도입 → maker 체결 활성.
     # maker_fee 는 TP exit leg 에만 적용 + slippage 면제(limit). taker(SL/Trail/
     # entry/market) 는 fees 사용. exit_kind 미태그 trade 는 전부 taker → 회귀 0.

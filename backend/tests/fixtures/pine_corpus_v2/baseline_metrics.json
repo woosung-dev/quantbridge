@@ -1,96 +1,96 @@
 {
   "schema_version": 2,
   "ohlcv_sha256": "1a99144813f15ebc029f4c2d18cf4e657eb54f1a7317e28820380b80ebec5038",
-  "pine_v2_commit": "66ea64dc",
+  "pine_v2_commit": "955b3666",
   "tool_versions": {
     "pynescript": "0.3.0",
     "python": "3.12"
   },
-  "generated_at": "2026-08-03T12:20:49Z",
+  "generated_at": "2026-08-07T07:22:04Z",
   "corpora": {
     "s1_pbr": {
       "metrics": {
-        "total_return": "-5.36696128",
+        "total_return": "-0.87075589",
         "sharpe_ratio": "0.00000000",
-        "max_drawdown": "-4.42941783",
-        "win_rate": "0.38494624",
+        "max_drawdown": "-1.08924839",
+        "win_rate": "0.44731183",
         "num_trades": 465,
-        "profit_factor": "0.73370684",
+        "profit_factor": "0.94637781",
         "sortino_ratio": null,
-        "calmar_ratio": null,
-        "avg_win": "0.01408262",
-        "avg_loss": "-0.01198646",
+        "calmar_ratio": "-0.90295707",
+        "avg_win": "0.01364104",
+        "avg_loss": "-0.01163821",
         "long_count": 260,
         "short_count": 205,
         "sharpe_convention": "unavailable_nonpositive_equity"
       },
       "var_series_digest": "sha256:868bb760d0cacb4cf9ce9073c7bf7d140b06b907573e8c0d2526242c75e8e6f7",
-      "trades_digest": "sha256:b04e1ddc0632bbde03cc32d83fd982ca649319bf18be7f1cd3319c3ba7a214e8",
+      "trades_digest": "sha256:fb5f8257c0b870ede8bee35d0db5b0de1ea2b79ff7116e66ef1407545f8b8da0",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T12:20:08Z"
+      "updated_at": "2026-08-07T07:21:23Z"
     },
     "s2_utbot": {
       "metrics": {
-        "total_return": "-7.19132278",
+        "total_return": "-2.98222648",
         "sharpe_ratio": "0.00000000",
-        "max_drawdown": "-7.07893439",
-        "win_rate": "0.27944573",
+        "max_drawdown": "-2.33849438",
+        "win_rate": "0.31408776",
         "num_trades": 433,
-        "profit_factor": "0.63219920",
+        "profit_factor": "0.81493982",
         "sortino_ratio": null,
         "calmar_ratio": null,
-        "avg_win": "0.01765886",
-        "avg_loss": "-0.01067292",
+        "avg_win": "0.01722978",
+        "avg_loss": "-0.00954451",
         "long_count": 216,
         "short_count": 217,
         "sharpe_convention": "unavailable_nonpositive_equity"
       },
       "var_series_digest": "sha256:e60b37b755aa304734e3d166443be51c9b276661424ecda2e18639e865559387",
-      "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
+      "trades_digest": "sha256:d01df52a74ae02d737308b36ca974362e0df657a2ee30bd8f043840f33e4378a",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T12:20:20Z"
+      "updated_at": "2026-08-07T07:21:35Z"
     },
     "s3_rsid": {
       "metrics": {
-        "total_return": "-1.08282050",
-        "sharpe_ratio": "0.00000000",
-        "max_drawdown": "-1.13081842",
-        "win_rate": "0.44615385",
+        "total_return": "0.18394417",
+        "sharpe_ratio": "0.29728813",
+        "max_drawdown": "-0.81715099",
+        "win_rate": "0.47692308",
         "num_trades": 65,
-        "profit_factor": "0.88071998",
-        "sortino_ratio": null,
-        "calmar_ratio": null,
-        "avg_win": "0.02375509",
-        "avg_loss": "-0.01978951",
+        "profit_factor": "1.02190595",
+        "sortino_ratio": "0.54995168",
+        "calmar_ratio": "0.49373887",
+        "avg_win": "0.02381557",
+        "avg_loss": "-0.01930495",
         "long_count": 65,
         "short_count": 0,
-        "sharpe_convention": "unavailable_nonpositive_equity"
+        "sharpe_convention": "tv_monthly_rfr2"
       },
       "var_series_digest": "sha256:2e43209dc6ce7416c1bbd1ce1c9ef56fe029ac52b97663a2072498041cadb9c0",
-      "trades_digest": "sha256:9913b3068b312577e812061db8421959b878669480c8583f204aa8d89f234e62",
+      "trades_digest": "sha256:383fef432d5c53f880d41cf47ec6d37e16b486c66545e50c69bee05ed48c9d2a",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T12:20:33Z"
+      "updated_at": "2026-08-07T07:21:48Z"
     },
     "i1_utbot": {
       "metrics": {
-        "total_return": "-7.19132278",
+        "total_return": "-2.98222648",
         "sharpe_ratio": "0.00000000",
-        "max_drawdown": "-7.07893439",
-        "win_rate": "0.27944573",
+        "max_drawdown": "-2.33849438",
+        "win_rate": "0.31408776",
         "num_trades": 433,
-        "profit_factor": "0.63219920",
+        "profit_factor": "0.81493982",
         "sortino_ratio": null,
         "calmar_ratio": null,
-        "avg_win": "0.01765886",
-        "avg_loss": "-0.01067292",
+        "avg_win": "0.01722978",
+        "avg_loss": "-0.00954451",
         "long_count": 216,
         "short_count": 217,
         "sharpe_convention": "unavailable_nonpositive_equity"
       },
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
-      "trades_digest": "sha256:87bb78b19cdce1c3399e2f9fd8242777aaeda5f4898f45ddb13902d95f5a64db",
+      "trades_digest": "sha256:d01df52a74ae02d737308b36ca974362e0df657a2ee30bd8f043840f33e4378a",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T12:20:36Z"
+      "updated_at": "2026-08-07T07:21:51Z"
     },
     "i2_luxalgo": {
       "metrics": {
@@ -111,7 +111,7 @@
       "var_series_digest": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
       "trades_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T12:20:45Z"
+      "updated_at": "2026-08-07T07:21:59Z"
     },
     "i3_drfx": {
       "note": "Skipped \u2014 is_runnable=false per Y1 Coverage Analyzer",
@@ -119,45 +119,45 @@
     },
     "s4_hma_curvature": {
       "metrics": {
-        "total_return": "-0.95443545",
-        "sharpe_ratio": "-2.30097687",
-        "max_drawdown": "-0.95443545",
-        "win_rate": "0.06584362",
+        "total_return": "-0.67327506",
+        "sharpe_ratio": "-7.58833734",
+        "max_drawdown": "-0.67342124",
+        "win_rate": "0.10288066",
         "num_trades": 243,
-        "profit_factor": "0.02077355",
-        "sortino_ratio": "-0.91713195",
-        "calmar_ratio": "-1.04561323",
-        "avg_win": "0.00234800",
-        "avg_loss": "-0.00649847",
+        "profit_factor": "0.05371118",
+        "sortino_ratio": "-0.99142834",
+        "calmar_ratio": "-1.32773100",
+        "avg_win": "0.00269755",
+        "avg_loss": "-0.00509779",
         "long_count": 117,
         "short_count": 126,
         "sharpe_convention": "tv_monthly_rfr2"
       },
       "var_series_digest": "sha256:fe75653c6f4b87338ba434a30e480455be5b0eac18d40a482c79b35bb29501bb",
-      "trades_digest": "sha256:186b29620a9ee77d590e2205f40cbb01927d612b333aa443c4a43fed1cbbea12",
+      "trades_digest": "sha256:b6739c615145213259d6e52c10fd4c697aadc3dcb544840120630c75d2fe2488",
       "warnings_digest": "sha256:9ba2cdb07efc5e38d0934242497ca965a5c3afd0cbb599d9546e3ab51035b9b1",
-      "updated_at": "2026-08-03T12:20:48Z"
+      "updated_at": "2026-08-07T07:22:02Z"
     },
     "s5_ema_trend": {
       "metrics": {
-        "total_return": "0.14864116",
-        "sharpe_ratio": "0.36060359",
-        "max_drawdown": "-0.11768574",
+        "total_return": "0.17019944",
+        "sharpe_ratio": "0.40970103",
+        "max_drawdown": "-0.10945135",
         "win_rate": "0.34782609",
         "num_trades": 23,
-        "profit_factor": "1.69122402",
-        "sortino_ratio": "0.84446947",
-        "calmar_ratio": "2.72519830",
-        "avg_win": "0.08023105",
-        "avg_loss": "-0.02345296",
+        "profit_factor": "1.85345188",
+        "sortino_ratio": "1.02881952",
+        "calmar_ratio": "3.38912912",
+        "avg_win": "0.08191857",
+        "avg_loss": "-0.02184955",
         "long_count": 23,
         "short_count": 0,
         "sharpe_convention": "tv_monthly_rfr2"
       },
       "var_series_digest": "sha256:c7f0b50a8c21928672fbc5f408fdd83fc82ab54fd4cb2832a97c269444fdad71",
-      "trades_digest": "sha256:125bbde47aab0aaac6b0be9ca5a40e2e7b6fa175ea130a13a72e9e5ebc8db79b",
+      "trades_digest": "sha256:ee462d0e52010912a761fd7909fe27e7b726520209490d769b5a3db15d6dfc16",
       "warnings_digest": "sha256:4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-      "updated_at": "2026-08-03T12:20:49Z"
+      "updated_at": "2026-08-07T07:22:04Z"
     }
   }
 }

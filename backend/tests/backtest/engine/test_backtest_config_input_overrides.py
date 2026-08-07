@@ -112,8 +112,9 @@ class TestBacktestConfigRegression:
         """기존 default 필드 값이 변경되지 않음 (Sprint 38 BL-188 v3 정합)."""
         cfg = BacktestConfig()
         assert cfg.init_cash == Decimal("10000")
-        assert cfg.fees == 0.001
-        assert cfg.slippage == 0.0005
+        # BL-603 — 라이브 원장 실측으로 교체(2026-08-07).
+        assert cfg.fees == 0.00055
+        assert cfg.slippage == 0.00014
         assert cfg.freq == "1D"
         assert cfg.trading_sessions == ()
         assert cfg.leverage == 1.0

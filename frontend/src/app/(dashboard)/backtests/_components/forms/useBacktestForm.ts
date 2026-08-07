@@ -91,8 +91,9 @@ export function useBacktestForm() {
       period_end: defaultPeriodEnd(),
       initial_capital: 10000,
       leverage: 1,
-      fees_pct: 0.001,
-      slippage_pct: 0.0005,
+      // ★BL-603 — 백엔드 `backtest/schemas.py` 기본값의 거울(라이브 원장 실측).
+      fees_pct: 0.00055,
+      slippage_pct: 0.00014,
       include_funding: true,
       fill_timing: "bar_close",
       default_qty_type: "strategy.percent_of_equity",

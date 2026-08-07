@@ -174,10 +174,14 @@ export const MOCK_OUTCOME_PARITY = {
   ledger_supported: true,
   strategy_session_count: 31,
   assumption: {
+    // ★BL-603 — `_house_default_assumption()` 은 `BacktestConfig()` 를 런타임에 읽으므로
+    // 이 픽스처도 새 기본값을 반영해야 실제 응답과 같다(taker 0.055 + slippage 0.014).
+    // 같은 파일 위쪽의 라이브 실측 `effective_cost_pct_round_trip: "0.1101"` 과 이제
+    // 자릿수가 맞는다 — 종전 0.21 은 그 실측의 약 2배였다.
     source: "house_default",
     taker_fee_pct: "0.055",
-    slippage_pct: "0.05",
+    slippage_pct: "0.014",
     maker_fee_pct: "0.02",
-    implied_round_trip_pct: "0.21",
+    implied_round_trip_pct: "0.138",
   },
 };

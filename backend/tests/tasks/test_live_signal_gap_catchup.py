@@ -114,6 +114,25 @@ def _fill(
     )
 
 
+def _resting_entry(
+    session_id: object,
+    *,
+    submitted_at: datetime | None,
+    created_at: datetime | None = None,
+    trade_id: str = "S",
+) -> SimpleNamespace:
+    """`list_resting_conditional_entries` 가 주는 미확정 조건부 진입 1건.
+
+    ★`idempotency_key` 는 실제 형식이어야 한다 — 판별자가 `parse_conditional_entry_key` 로
+    **세션을 좁히므로**, 형식이 틀리면 그 주문은 "다른 세션의 것" 으로 조용히 버려진다.
+    """
+    return SimpleNamespace(
+        idempotency_key=f"live:{session_id}:cond:1785337500:64472.4:0.058:{trade_id}",
+        submitted_at=submitted_at,
+        created_at=created_at if created_at is not None else submitted_at,
+    )
+
+
 def _strategy(strategy_id: object, *, fill_timing: str | None = None) -> SimpleNamespace:
     settings: dict[str, object] = {
         "leverage": 2,
@@ -170,6 +189,7 @@ def _install_evaluation(
     fill_timing: str | None = None,
     previous_state: object | None = None,
     ledger_fills: list[LedgerFill] | None = None,
+    resting_entries: list[object] | None = None,
 ) -> tuple[AsyncMock, AsyncMock, list[dict[str, Any]]]:
     """평가 경로를 메모리 의존성으로 고정하고 run_live kwargs를 수집한다."""
     _patch_engine(monkeypatch)
@@ -197,6 +217,12 @@ def _install_evaluation(
     # 이 조회를 쓰지 않는 기존 테스트의 의미가 바뀌지 않는다.
     order_repo = AsyncMock()
     order_repo.list_fills_since = AsyncMock(return_value=list(ledger_fills or []))
+    # BL-622 — 공백 재동기 **유예** 판별자가 이 조회를 읽는다. 기본값 `[]` 는 "이 세션에
+    # 미확정 조건부 진입 없음" 이라 유예가 안 걸리고, 이 인자를 안 쓰는 기존 테스트의
+    # 의미가 그대로 유지된다(전부 종전대로 즉시 판정한다).
+    order_repo.list_resting_conditional_entries = AsyncMock(
+        return_value=list(resting_entries or [])
+    )
 
     import src.strategy.pine_v2.event_loop as event_loop_module
     import src.strategy.repository as strategy_repo_module
@@ -623,6 +649,218 @@ async def test_long_gap_position_fetch_failure_deactivates(
     assert result == {"deactivated": "gap_resync_position_mismatch"}
     sess_repo.deactivate.assert_awaited_once()
     event_repo.insert_pending_events.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_long_gap_defers_judgement_while_ledger_still_catching_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★BL-622 재현 — 미확정 조건부 진입이 남아 있으면 판정을 **미룬다**.
+
+    실측(세션 c160a1a9, 2026-08-06): 거래소는 조건부 매도를 `20:17:19.519` 에 체결했는데
+    우리 원장은 `20:31:51.622` 에야 `filled` 로 기록했고, 판정은 그 **3.5초 전**인
+    `20:31:48.126` 에 났다. 그 순간 원장은 아직 `submitted` 라 seed 가 비었고, 엔진은 반전
+    전 포지션을 든 채 거래소와 대조돼 **정상인데도** 세션이 죽었다(19.42h 소크 창 폐기).
+
+    셋업은 바로 위 `..._without_ledger_basis_deactivates` 와 **미확정 주문 1건만** 다르다 —
+    그 한 건이 사망을 유예로 바꾼다.
+
+    ★★★`try_claim_bar` 를 **부르지 않았다**는 단언이 이 수리의 핵심이다. claim 은 성공 시
+    `last_evaluated_bar_time` 을 전진시키므로, claim 뒤에서 미루면 다음 tick 의 공백이 5분
+    안으로 줄어 **재동기 판정이 다시는 안 걸린다**(가드가 조용히 영구 OFF).
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    sess_repo, event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[],
+        # 실측 나이 16분 58초 — janitor 문턱(30분) 안이다.
+        resting_entries=[
+            _resting_entry(sess.id, submitted_at=datetime.now(UTC) - timedelta(minutes=17))
+        ],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result == {"skipped": "gap_resync_pending_ledger"}
+    sess_repo.try_claim_bar.assert_not_awaited()
+    sess_repo.deactivate.assert_not_awaited()
+    event_repo.insert_pending_events.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_long_gap_judgement_resumes_once_ledger_caught_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★BL-622 회복 — 주문이 종결되면 유예가 풀리고 그 tick 이 온전히 판정된다.
+
+    유예는 **끈적하지 않다**: 미확정 목록이 비는 순간 종전 경로가 그대로 돌아온다. 여기서는
+    원장이 따라잡아 seed 가 서므로 세션이 살고 이벤트도 나간다 — 유예가 그 창의 이벤트를
+    먹지 않는다는 뜻이다(claim 전에 미뤘으므로 봉이 소비되지 않았다).
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    last_signal = LiveSignal("close", "long", "L", 0.029, 0)
+    sess_repo, event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(
+            last_bar_time=t6,
+            signals=[last_signal],
+            open_trades=[_open_trade(trade_id="L", direction="long", qty=0.029, entry_bar=1)],
+            ledger_seed_applied=("L",),
+        ),
+        inserted_events=[_event(last_signal, sess.id)],
+        ledger_fills=[
+            _fill(
+                session_id=sess.id,
+                side=OrderSide.buy,
+                quantity="0.029",
+                price="64166.9",
+                filled_at=t0 + timedelta(minutes=3),
+            )
+        ],
+        # 주문이 `filled` 로 종결돼 더 이상 미확정이 아니다.
+        resting_entries=[],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    sess_repo.try_claim_bar.assert_awaited_once()
+    sess_repo.deactivate.assert_not_awaited()
+    event_repo.insert_pending_events.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_long_gap_other_session_resting_entry_does_not_defer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★음성 대조 — **다른 세션**의 미확정 주문은 이 세션의 판정을 미루지 못한다.
+
+    `list_resting_conditional_entries` 는 (strategy, account) 단위라 형제 세션의 주문도
+    함께 온다. 그것까지 유예 근거로 삼으면 남의 주문 하나로 이 세션의 fail-closed 가 꺼진다.
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    sess_repo, event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[],
+        resting_entries=[
+            _resting_entry(uuid4(), submitted_at=datetime.now(UTC) - timedelta(minutes=17))
+        ],
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result == {"deactivated": "gap_resync_position_mismatch"}
+    sess_repo.deactivate.assert_awaited_once()
+    event_repo.insert_pending_events.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_long_gap_stops_deferring_once_the_defer_budget_is_spent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★음성 대조(상한) — 유예를 `_MAX_GAP_RESYNC_DEFERS` 만큼 썼으면 더 안 미루고 판정한다.
+
+    ★**상한을 「주문 나이」로 재지 않는 이유가 이 테스트의 존재 이유다.** 조건부 진입은
+    트리거를 기다리며 **정상적으로** 오래 쉰다(실측: 사망 세션 118건 · 평균 resting 563초 ·
+    벽시계의 **95.1%** 를 덮는다). 나이로 끊으면 「거의 항상 미룰 수 있음」이 되어 진짜
+    발산까지 30분 미뤄진다. 재는 것은 주문의 나이가 아니라 **우리가 몇 번 미뤘는가**다.
+
+    여기서는 직전 리포트가 이미 상한만큼의 유예를 들고 있으므로, 미확정 주문이 **그대로
+    있어도** 종전 경로로 떨어져 fail-closed 가 집행된다.
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    sess_repo, event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[],
+        # 미확정 주문은 아직 있다 — 끊는 것은 주문이 아니라 예산이다.
+        resting_entries=[
+            _resting_entry(sess.id, submitted_at=datetime.now(UTC) - timedelta(minutes=1))
+        ],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={
+                live_signal_module._GAP_RESYNC_DEFER_KEY: (
+                    live_signal_module._MAX_GAP_RESYNC_DEFERS
+                )
+            },
+            equity_curve=None,
+        ),
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result == {"deactivated": "gap_resync_position_mismatch"}
+    sess_repo.try_claim_bar.assert_awaited_once()
+    sess_repo.deactivate.assert_awaited_once()
+    event_repo.insert_pending_events.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_deferring_carries_the_previous_report_forward(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★유예는 카운터를 올리되 **직전 리포트를 통째로 이어받는다.**
+
+    `upsert_state` 는 리포트를 교체하므로, 새 dict 로 덮으면 `_qb_position_epoch` 같은
+    가드 상태가 이 tick 에 조용히 사라진다 — 그러면 다음 tick 의 epoch 판정이 달라진다.
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    stored_epoch = datetime(2026, 4, 30, tzinfo=UTC)
+    sess_repo, _event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[],
+        resting_entries=[
+            _resting_entry(sess.id, submitted_at=datetime.now(UTC) - timedelta(minutes=1))
+        ],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={
+                "_qb_position_epoch": stored_epoch.isoformat(),
+                live_signal_module._GAP_RESYNC_DEFER_KEY: 1,
+            },
+            equity_curve=None,
+        ),
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result == {"skipped": "gap_resync_pending_ledger"}
+    sess_repo.upsert_state.assert_awaited_once()
+    written = sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"]
+    # 카운터는 1 → 2 로 오르고, 직전 epoch 은 살아남는다.
+    assert written[live_signal_module._GAP_RESYNC_DEFER_KEY] == 2
+    assert written["_qb_position_epoch"] == stored_epoch.isoformat()
 
 
 @pytest.mark.asyncio

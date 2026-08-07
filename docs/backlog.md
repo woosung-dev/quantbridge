@@ -190,7 +190,9 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                        | Stage 2c 2차 fixture 활성화 후             | S (1-2h) | TODO.md L20-22               |
 | [BL-522](#bl-522) | ★엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다 (유실 채널 5종) | 실자금 cutover 전 필수                     | M-L      | 2026-07-28 live-entry-parity |
 
-> Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 (`_archived.md`). + BL-604 (2026-08-06 entry-set-divergence).
+| [BL-619](#bl-619) | ★**라이브 파이프라인이 한 세션에 ~17분 멈췄고 뿌리를 모른다** — 평가(`live_signal_states` 마지막 쓰기 20:14:33)와 체결 관측(같은 창 872초 지연)이 **같은 창에 멈췄다가 같이 풀렸다**. 그 정지가 `requires_gap_resync` 를 열었고 그것이 [BL-622] 사망의 전제였다. ★워커 컨테이너 재생성으로 로그 소실 + 라이브 OHLCV 는 CCXT REST 라 DB 역추적 불가 ⇒ **판정 불가**(「이상 없음」 아님) | 다음 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검) | M | 2026-08-07 gap-resync-autopsy |
+
+> Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 (`_archived.md`). + BL-622 (2026-08-07 gap-resync-autopsy). + BL-604 (2026-08-06 entry-set-divergence).
 
 ### BL-014
 
@@ -539,7 +541,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-600](#bl-600) | `strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT 헌법의 _Avoid_ 이름과 **동음이의 충돌**(이쪽은 장중 시간대 필터). 값이 `Strategy.trading_sessions` **JSONB 에 영속**돼 단순 rename 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `trading_sessions` JSONB 를 마이그레이션할 때 · 도메인 용어 정리 시                                               | M            | 2026-08-06 dead-code-sweep                             |
 | [BL-601](#bl-601) | 호출 0건 잔재 3종 — `OrderRepository.get_state_fresh` · `list_unsynced_reduce_only_since` · `scripts/fleet-dispatch-test.sh`. ★원안의 「고아 하니스 3종」은 **1종으로 정정**(나머지 둘은 final-gates 체인 안에 있다)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S            | 2026-08-06 dead-code-sweep                             |
 | [BL-602](#bl-602) | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                                                                                                                                        | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S            | 2026-08-06 e2e-consolidation                           |
-| [BL-603](#bl-603) | ★백테스트 비용 가정이 라이브 실효의 **2.7배** — 가정 왕복 0.30%(fees 0.1+slip 0.05/leg) vs 원장 실측 왕복 **0.1101%**(taker 0.055%/leg 단일 성분, 84 event 중 77 이 8자리 일치·비-taker 잔차 0.03%). 매칭쌍 진입가 잔차 중앙 0.014% vs slippage 가정 0.05%                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 백테스트 손익을 라이브 예측치로 읽기 전 (비용 축이 3배 비관)                                                      | S            | 2026-08-06 backtest-reality-gap                        |
+| [BL-603](#bl-603) | ✅ 백테스트 비용 가정이 라이브 실효의 **2.7배** — 가정 왕복 0.30%(fees 0.1+slip 0.05/leg) vs 원장 실측 왕복 **0.1101%**(taker 0.055%/leg 단일 성분, 84 event 중 77 이 8자리 일치·비-taker 잔차 0.03%). 매칭쌍 진입가 잔차 중앙 0.014% vs slippage 가정 0.05%. **2026-08-07 Resolved** — 0.00055/0.00014(두 SSOT+FE 미러 4곳), 왕복 0.138%. 코퍼스 `num_trades` 불변·`s3_rsid` 부호 반전                                                                                                                                                                                                                                                                                                                                                                               | 백테스트 손익을 라이브 예측치로 읽기 전 (비용 축이 3배 비관)                                                      | S            | 2026-08-06 backtest-reality-gap                        |
 | [BL-605](#bl-605) | `exchange_exits` 가 같은 청산 event 를 **정확히 2행**(classification `ours`/`unknown` 쌍, payload 동일)으로 적재 — 실측 86 event = 172행. `SUM(closed_pnl)` 류 소비가 손익을 **정확히 2배** 계상한다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | exchange_exits 를 집계로 소비하는 코드를 추가하기 전                                                              | S            | 2026-08-06 backtest-reality-gap (eval2 실측)           |
 | [BL-610](#bl-610) | `entry_completeness.py:158` 의 `source=` 문자열이 문서 대개편으로 삭제된 dev-log 경로를 가리킨다 — 런타임 무해(값일 뿐)지만 근거 추적이 git history 경유로 바뀌었다. 소크 중 `backend/src` 무접촉 원칙으로 이연                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | BL-003 소크 창 종료 후 첫 backend/src 정리 회차                                                                   | XS           | 2026-08-06 docs-overhaul (fix-doc)                     |
 | [BL-611](#bl-611) | ✅ ★**메타-방법론 영구 규칙이 자동 로드에서 빠졌다** — 구 `.ai/common/global.md` §7 은 `paths` 없는 `.claude/rules/global.md` 로 **매 세션 무조건** 들어왔다(2026-08-07 실측 재현). ADR-026 이 이를 `generator-evaluator-pipeline.md` §8 로 옮기면서 **열어야만 읽히는** 문서가 됐다 — kickoff preflight(§8.1)·codex finding 코드 대조(§8.3)가 조용히 누락될 수 있다. **Resolved** — `AGENTS.md` 에 §8.1/§8.3 두 줄 인라인                                                                                                                                                                                                                                                                                                                                            | 다음 Sprint kickoff (Type A/B) 전                                                                                 | S            | 2026-08-07 docs-overhaul 리뷰                          |
@@ -551,7 +553,9 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-618](#bl-618) | ★**반응형 브레이크포인트 정본이 셋인데 서로 다르다** — `DESIGN.md` 가 자기 자신과 어긋나고(§10.2 「1200px↓ 사이드바 축소」 vs §10.6 「1024px~」), 2세대 `_kit.html` 실측(사이드바 232/64 · 컨테이너 1240 · 검색바 숨김 1024)과도 어긋나며(`DESIGN.md` 220/60 · 1200), `frontend/AGENTS.md` 는 Tailwind 기본값만 규정하고 셸 고유 값은 0건이다. `HANDOFF-react-port.md` 가 「1024px 아이콘 레일」을 🔴 미구현으로 등재해 둔 상태라 **어느 값이 정본인지부터 정해야** 그 구현을 시작할 수 있다                                                                                                                                                                                                                                                                          | 앱 셸 반응형(사이드바 축소·검색바 숨김·컨테이너 폭)을 다음에 손댈 때                                              | S            | 2026-08-07 prototype-canon-v2                          |
 | [BL-617](#bl-617) | ★**「과거 기록」이 아닌 운영 절차 4종이 working tree 밖으로 나갔다** — Cloud Run 런북(39KB)·Grafana 셋업·Bybit mainnet 체크리스트(11KB)·법무 임시 런북. ADR-026 의 분류 기준이 **위치**(폴더 이름)였지 미래 유용성이 아니었던 결과다. 머지 후 `docs/` 전체에서 Cloud Run·Grafana·Prometheus·mainnet·법무 언급 **0건**인데 `alerts.yml`·`Dockerfile`·워크플로 4종은 레포에 살아 있다. ★지금 되살리지 않는다 — 트리거 시점에 갱신해 재등재                                                                                                                                                                                                                                                                                                                              | [BL-071] 프로덕션 배포 발동 시 · Bybit mainnet 전환 시                                                            | S            | 2026-08-07 PR #554 리뷰                                |
 
-> Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-597 (2026-08-06 entry-set-divergence).
+| [BL-620](#bl-620) | ✅ **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구 ✗ 였다** — `soak-stack.sh up` 은 API 컨테이너를 안 띄우고 `:8100` 리스너가 0개라 **C1/C2 를 다 채워도 PASS 불가**였다. **Resolved** — 기본 취득을 HTTP → `backend/.metrics` **직독**으로 교체(워커가 같은 counter 를 거기 쓴다). ★PR #556 리뷰 후속: curl 갈래에도 `[ -n ]` 를 걸어 **`200 + 빈 본문` fail-open** 을 닫았고(초판은 직독 갈래에만 있었다), `QB_METRICS_DIR` 을 `.env.example` 에 등재했다(Golden Rule). 판정 `측정불가`→`진행중`, C5 전건 ✓. fail-closed 음성 대조 **3/3**. `QB_METRICS_URL` 명시 시 종전 HTTP 유지 | — | S | 2026-08-07 gap-resync-autopsy |
+
+> Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
 ### BL-186
 
@@ -4609,7 +4613,23 @@ reduce-only 동기화 복구용으로 보이므로, 그 복구 경로가 다른 
 **카테고리:** Backend / backtest 비용 모델
 **Trigger:** 백테스트 손익을 라이브 예측치로 읽기 전
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved (2026-08-07 gap-resync-autopsy 회차)** — 기본값을 실측으로 교체했다.
+`fees` 0.001→**0.00055** · `slippage` 0.0005→**0.00014** · `maker_fee` **불변**(Bybit maker
+0.02% 와 이미 일치). 왕복 **0.300%→0.138%**.
+★**두 SSOT 를 같이 옮겼다** — `engine/types.py:34-38` 만 고치면 `backtest/schemas.py` 의
+Pydantic 기본값이 항상 채워져 **사용자 제출 경로는 안 바뀐다**(실측 확인). FE 미러 4곳
+(`assumptions-card.tsx`·`useBacktestForm.ts`·`rerun-button.tsx`·`BacktestCostFieldSet.tsx`
+안내문)과 e2e `house_default` 픽스처도 함께. `_house_default_assumption()` 은 `BacktestConfig()`
+를 런타임에 읽어 **자동으로 따라온다**([BL-526] 표면).
+★**프리셋 안은 기각** — 백테스트 요청 스키마에 exchange/mode 필드가 **없어서**(`schemas.py:30-61`
+실측) 키로 삼을 축이 없다. 프리셋을 두려면 도메인 입력부터 신설해야 해서 범위 밖이다.
+★**손계산 오라클을 다시 손으로 계산했다**(`test_golden_oracle_ema_sltp.py`, LESSON-039
+anti-circular): entry taker 100×0.00055=0.055 + exit maker 110×0.0002=0.022 ⇒ fees 0.077 ·
+slippage 100×0.00014=0.014 · net 9.909. 엔진 출력과 **첫 시도에 일치**.
+★코퍼스 baseline 재생성(`regen_trust_layer_baseline.py --confirm`) — 변경 5% 초과라 근거를
+남긴다. **`num_trades` 는 7 코퍼스 전건 불변**(비용은 체결 집합을 안 바꾼다)이고 손익만 움직였다.
+`s3_rsid` 는 total_return **−1.083 → +0.184**, profit_factor **0.881 → 1.022** 로 **부호가
+뒤집혔다** — 이 BL 이 말한 「비용 민감 전략의 부당 탈락」의 실물이다.
 
 **백테스트 비용 가정이 라이브 실효 비용의 2.7배다.**
 
@@ -4921,6 +4941,180 @@ ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 
 
 **Risk:** 🟢 지금은 영향 없다. 단 트리거가 왔을 때 **이 항목이 없으면 그 문서들의 존재 자체를
 아무도 모른다** — `docs/archive/` 375파일에는 파일 목록 색인이 남아 있지 않기 때문이다.
+
+---
+
+### BL-622
+
+**Priority:** P1
+**카테고리:** Backend / 라이브 신호 (공백 재동기)
+**Trigger:** — (해결됨. 재발 시 = 유예 상한 재검토)
+**Est:** S
+**상태:** ✅ **Resolved (2026-08-07 gap-resync-autopsy 회차)**
+
+**공백 재동기 판정이 원장보다 먼저 뛰어 정상 세션을 죽였다 (19.42h 소크 창 폐기).**
+
+**부검 실측 (세션 `c160a1a9`, 2026-08-06).** 사전등록한 판정 규칙에 대입한 결과 **H3(관측 지연)**:
+
+| 관측량                                       | 값                                             | 출처                                 |
+| -------------------------------------------- | ---------------------------------------------- | ------------------------------------ |
+| `T_death`                                    | **20:31:48.126**                               | `live_signal_sessions`               |
+| 주문 `7e406c4e` **거래소** 체결시각          | **20:17:19.519**                               | `exchange_exits.exchange_updated_at` |
+| 우리 `filled_at`(= **관측**시각)             | **20:31:51.622** — 거래소보다 **872.1초** 늦음 | `trading.orders`                     |
+| 엔진 carried (마지막 성공 평가 20:14:33.924) | **long 0.029535828** (`PivRevLE` @64420.1)     | `live_signal_states`                 |
+| 거래소 실 순포지션 @ `T_death`               | **short 0.029**                                | 위 + `exchange_exits.closed_size`    |
+| 공백                                         | 20:14:33 → claim 한 bar 20:30:00 = **16분**    | 세션 행                              |
+
+★**계통 오차가 아니다.** 같은 세션의 다른 3건은 거래소 시각과 우리 `filled_at` 이 **50밀리초**
+차다(`f068c5a1` 0.050s · `30c68f4e` 0.053s · `1311b5b4` 0.050s). 이 한 건만 872초였다.
+
+**인과.** 파이프라인이 ~17분 멈춘 사이([BL-619]) 거래소가 대기 조건부를 체결해 롱 0.029 →
+숏 0.029 로 반전했고(sell 0.058 = 청산+신규), 복구 tick 에서 `_probe_gap_resync_state` 는
+거래소의 숏을 읽었지만 `list_fills_since` 는 **아직 `submitted` 인 그 주문을 못 봐** seed 가
+비었다 ⇒ 엔진은 반전 전 롱을 든 채 대조돼 `_positions_are_aligned` False → fail-closed 사망.
+**3.5초 뒤** 원장이 따라잡았다.
+
+**수리.** `live_signal.py` 의 `requires_gap_resync` 블록 **앞**(claim 전)에서, 이 세션 소유의
+미확정 조건부 진입이 있으면 **판정을 미룬다**(`_gap_resync_defer_reason`).
+판별자는 기존 `OrderRepository.list_resting_conditional_entries` 재사용 —
+`state IN (pending, submitted) AND trigger_price IS NOT NULL AND reduce_only = false` 이고
+`7e406c4e` 는 판정 시점에 정확히 그 상태였다. **새 쿼리도 새 저장소도 없다.**
+
+★★★**claim 앞이어야 한다.** `try_claim_bar` 는 성공 시 `last_evaluated_bar_time` 을 **무조건**
+전진시키므로, claim 뒤에서 미루고 `return` 하면 다음 tick 의 공백이 5분 안으로 줄어
+**`requires_gap_resync` 가 다시는 True 가 안 된다** — 세션이 낡은 엔진 포지션을 들고 조용히
+계속 돈다(죽는 것보다 나쁘다). 이 함정을 잡는 단언이 재현 테스트의
+`try_claim_bar.assert_not_awaited()` 다.
+
+★**fail-closed 를 약화시키지 않는다.** 미는 조건은 「**알려진 미확정**이 있다」이지 「모른다」가
+아니다. 미확정이 0건이면 종전과 100% 같은 경로다.
+★**상한은 「미룬 횟수」다 — 주문 나이가 아니다**(`_MAX_GAP_RESYNC_DEFERS = 3`, 카운터는
+`last_strategy_state_report._qb_gap_resync_defers`, 마이그레이션 0).
+
+★★★**초판은 janitor 문턱(30분)에 얹었고 그건 틀렸다 — PR #556 리뷰가 실측으로 반증했다.**
+조건부 진입은 트리거를 기다리며 **정상적으로** 오래 쉰다: 사망 세션 `c160a1a9` 의 조건부 진입
+**118건 · 평균 resting 563초 · 최대 2337초**, 그 resting 이 **벽시계의 95.1%** 를 덮는다.
+⇒ 나이로 끊으면 「거의 항상 미룰 수 있음」이 되어 「미확정 0건이면 종전과 동일」이 **4.9% 에만
+참**이고, 진짜 발산도 최대 30분 판정이 미뤄진다. 그리고 초판이 30분을 정당화한 근거는
+「부검 대상 주문의 나이 16분 58초가 문턱 안」이었는데, 그건 **문턱을 그 문턱이 덮어야 할
+데이터에서 유도한 것**이다 — 적합은 검증이 아니다. 부검 사례는 원장이 **3.5초** 뒤 따라잡았으니
+다음 1 tick 이면 충분했고, 3 tick 은 그 여유의 3배다.
+
+★**fail-open 이 아니다** — 카운터 쓰기가 실패하면 다음 tick 이 또 미루지만(상한 무력화) 평가는
+안 죽는다. 그 경우 `live_signal_gap_resync_defer_persist_failed` 로 반드시 남는다.
+
+**검증.** 결정론 테스트 5건(재현 / 회복 / 다른 세션 음성 대조 / **상한 소진** 음성 대조 /
+리포트 이어받기) + **변이 4/4 전건 적발**(유예 제거 · 상한 제거 → 항상 미룸 · 리포트 이어받기
+제거 · 세션 필터 제거 — 각각 의도한 테스트만 red). 유예를 claim 뒤로 옮기는 변이는 재현
+테스트의 `try_claim_bar.assert_not_awaited()` 가 잡는다.
+계측은 `qb_live_signal_skipped_total{reason="gap_resync_pending_ledger"}` 이며
+**[BL-580] 미가드 site 를 새로 만들지 않도록** `_count_safely` 로 감쌌다(census 84 불변).
+
+**Risk:** 🟢 미확정 0건이면 무동작. 최대 노출은 **3 tick**(1분봉 기준 약 2분)이고, 그 뒤에는
+미확정이 남아 있어도 종전 fail-closed 가 집행된다.
+
+---
+
+### BL-619
+
+**Priority:** P1
+**카테고리:** Backend / 라이브 신호 (가용성)
+**Trigger:** 다음 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검)
+**Est:** M
+**상태:** ⬜ **Open**
+
+**라이브 파이프라인이 한 세션에 대해 ~17분 멈췄고 뿌리를 모른다.**
+
+[BL-622] 부검의 **상류**다. 2026-08-06 20:14:33 ~ 20:31:48 사이에 세션 `c160a1a9` 는
+**평가도 멈췄고**(`live_signal_states` 마지막 쓰기 20:14:33.924, 다음 claim 이 20:30:00 bar)
+**체결 관측도 멈췄다**(같은 창에서 872초 지연). 둘이 같은 창이고 **같이 풀렸다** — 한 번의 정지가
+두 증상을 냈다는 뜻이다. 그 정지가 `requires_gap_resync` 를 열었고, 그것이 사망의 전제였다.
+
+★**판정 불가 — 「이상 없음」이 아니다.** 워커 컨테이너가 2026-08-07 03:35Z 경 재생성돼 사망
+시점 로그가 없다(`docker logs quantbridge-worker` 최초 줄이 재생성 시점). 라이브 OHLCV 는
+`ts.ohlcv` 가 아니라 CCXT REST(`live_signal.py:2885`, `fetch_ohlcv` 300봉)라 DB 로도 역추적이
+안 된다. ⇒ **다음 창에서 로그를 남긴 채 재관측한다.**
+
+★**그 「로그를 남긴 채」를 실제로 만드는 장치를 걸어 뒀다(2026-08-07 07:59Z~).**
+`.soak/logs/follow.sh` 가 `docker logs -f --timestamps quantbridge-worker` 를 따라가며
+`.soak/logs/worker-follow.log` 에 붙이고, **컨테이너가 재생성되면 5초 뒤 재접속**한다
+(`=== [follow] attach|detached <ts> ===` 마커가 그 경계를 남긴다). `.soak/` 는 비추적이라
+커밋에 안 들어간다. ★**이게 없으면 이 BL 의 Trigger 는 충족될 수 없다** — 재발해도 이번과
+똑같이 로그가 먼저 사라진다. 세션이 끝나도 살아 있도록 `nohup` 으로 분리했으나 **머신
+재부팅은 못 넘긴다** — 재기동 회차마다 살아 있는지 확인해라(`pgrep -f soak/logs/follow.sh`).
+
+**Risk:** 🟡 [BL-622] 수리가 이 정지의 **사망 전이**는 막지만 **정지 자체**는 안 막는다.
+17분 무평가 = 그 창의 신호를 안 낸다.
+
+---
+
+### BL-620
+
+**Priority:** P2
+**카테고리:** 운영 / BL-003 게이트
+**Trigger:** —
+**Est:** S
+**상태:** ✅ **Resolved (2026-08-07 gap-resync-autopsy 회차)** — 게이트의 기본 취득 경로를
+**HTTP → 멀티프로세스 디렉터리 직독**으로 바꿨다(`soak-gate.sh`). 워커가 `backend/.metrics`
+에 같은 counter 를 계속 쓰므로 API 프로세스가 필요 없다. 판정이 `UNKNOWN 측정불가` →
+**`UNKNOWN 진행중`** 으로 바뀌었고 C5 6개 서브조건 **전건 ✓** 다(어둠 88.0% — 보고 전용).
+★**fail-closed 는 그대로다 — 음성 대조 3/3:** 없는 dir → `측정불가` · 죽은 포트 URL 명시 →
+`측정불가` · 기본(직독) → ✓. 「취득 실패=null」과 「counter 부재=0/0」의 구분도 유지된다.
+★`QB_METRICS_URL` 을 **명시하면 종전대로 HTTP** 를 쓴다 — 원격 데몬 + ssh 터널 운영안
+(`docs/reports/2026-08-07-cloud-deploy-design.html`)이 그 override 를 전제하므로 보존했다.
+★판정 모듈(`soak_gate_predicate.py`)과 그 309 테스트는 **무변경** — 바뀐 것은 취득뿐이다.
+★**잔여(수리 안 함):** 어둠 비율이 **누적 절대값**이라 죽은 세션의 표본이 섞여 있다
+(mmap 이 살아남는다 — 이 레포의 「counter 출생일」 함정). 보고 전용이라 판정에 영향은 없지만,
+이 값을 **이번 창의 어둠**으로 읽으면 틀린다. 창 기준 차분이 필요하면 별도 BL 로 연다.
+
+**소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구히 ✗ 다.**
+
+**원인 확정 (2026-08-07, 재기동 직후 실측).** 게이트 결함이 **아니다** —
+`soak-gate.sh:286` 이 `METRICS_URL`(기본 `http://localhost:8100/metrics`)을 `curl` 해서
+`qb_live_ledger_derive_total{outcome}` 로 어둠 비율을 계산하는데, **`:8100` 에 리스너가
+없다**(`lsof -nP -iTCP:8100 -sTCP:LISTEN` 0행). `soak-stack.sh up` 이 띄우는 것은
+worker · beat · ws-stream · db · redis **5종뿐이고 API 컨테이너가 없다** — `/metrics` 는
+호스트 uvicorn(`make be-isolated`, port 8100)이 `backend/.metrics` 멀티프로세스 디렉터리를
+읽어 내주는 구조인데 그게 안 떠 있다. `soak-observe.sh` §4 도 같은 이유로 UNKNOWN 이다.
+★게이트는 **스크레이프 실패(null=측정불가)와 counter 부재(0/0=표본 없음)를 의도적으로
+구분**한다(`soak-gate.sh:282-284` 주석) — 즉 이 ✗ 는 fail-closed 가 **설계대로** 동작한 것이다.
+
+★**초판 서술 정정.** 이 항목을 처음 적을 때 「활성 세션 0·귀속 창 0개 때문으로 보인다」로
+`[확인 필요]` 를 달았는데 **틀렸다**. 세션을 띄운 뒤에도 ✗ 이고, 원인은 세션이 아니라
+엔드포인트 부재였다.
+
+**수리 후보:** ⑴ 소크 운영 절차에 「호스트 API 기동」을 넣는다(단 `make be-isolated` 는
+`migrate-isolated` 를 선행하므로 마이그레이션 승인이 필요하다) ⑵ 소크 스택에 metrics 전용
+경량 서비스를 넣는다 ⑶ 게이트가 `backend/.metrics` 를 **직접** 읽는다(HTTP 를 안 탄다).
+★어느 쪽이든 **C5 를 느슨하게 만드는 방향은 금지** — 측정불가를 0% 로 접으면 이 레포가
+이미 덴 「fail-open 게이트」다.
+
+**Risk:** 🔴 **C1/C2 를 아무리 채워도 PASS 가 안 난다.** [BL-003] 의 종료 조건이 구조적으로
+도달 불가라는 뜻이므로, 시간을 쌓기 **전에** 이것부터 정해야 한다.
+
+---
+
+### BL-621
+
+**Priority:** P3
+**카테고리:** Backend / 테스트 픽스처
+**Trigger:** 골든 케이스로 비용·손익 회귀를 판정하려 할 때
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**골든 `expected.json` 의 metric 블록이 낡았는데 아무도 대조하지 않는다.**
+
+`tests/backtest/engine/golden/ema_cross_atr_sltp_v5/expected.json` 의
+`total_return` 은 `-0.0003771138174282226845` 인데, **BL-603 교체 전 기본값으로 돌려도**
+`-0.000979728462339637565` 가 나온다 — 즉 **이번 회차 이전부터 낡아 있었다**(2026-08-07 실측).
+`test_golden_backtest.py` 가 `status` 와 `num_trades >= 0` 만 보고 「구체 metric 비교는 유보」라
+red 가 안 난다. `run_backtest` 는 `run_backtest_v2` 의 별칭이라(`engine/__init__.py:18`)
+호출 경로 차이도 아니다.
+
+**Risk:** 🟢 지금은 무해(미대조). 단 나중에 이 파일을 오라클로 승격하면 **틀린 값을 정본으로
+고정**하게 된다. 재생성 스크립트가 없어 손으로 만들어야 한다.
+
+---
 
 ### BL-618
 

@@ -121,8 +121,8 @@ export function BacktestCostFieldSet({
             </p>
           ) : null}
           <p className="field-hint">
-            소수 표기입니다. 0.001 은 0.10% 입니다. Bybit 테이커 기준이며 진입과
-            청산 양쪽에 각각 적용합니다.
+            소수 표기입니다. 0.00055 는 0.055% 입니다. Bybit demo 원장 실측 테이커
+            기준이며 진입과 청산 양쪽에 각각 적용합니다.
           </p>
         </div>
 
