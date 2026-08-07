@@ -15,7 +15,7 @@ FROM python:3.12-slim AS builder
 WORKDIR /app
 
 # uv 설치 (공식 이미지에서 binary copy)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /usr/local/bin/uv
 
 ENV UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
@@ -40,7 +40,7 @@ FROM python:3.12-slim AS runner
 WORKDIR /app
 
 # uv 는 entrypoint 에서 alembic 호출 시 사용
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.10.4 /uv /usr/local/bin/uv
 
 ENV UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/app/.venv \
