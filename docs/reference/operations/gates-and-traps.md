@@ -48,6 +48,8 @@ scripts/soak-stack.sh status     # 고정 여부 · 커밋 · 활성 세션 · m
 # 「1주 안정 운영」을 기계가 판정한다 — PASS / FAIL / UNKNOWN, PASS 만 exit 0
 scripts/soak-gate.sh             # 표본을 남기고 판정
 scripts/soak-gate.sh --install   # 30분마다 자동 (표본이 없으면 C4 를 판정할 수 없다)
+                                 # macOS = launchd / 리눅스 = systemd user timer
+                                 # ★리눅스는 lingering 이 필요하다 — 없으면 SSH 끊길 때 timer 도 멈춘다
 scripts/soak-gate.sh --status
 ```
 

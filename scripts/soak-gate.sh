@@ -8,7 +8,7 @@
 #   scripts/soak-gate.sh --since <ISO>   # 평가 창 시작을 강제 (자기시험·과거 재판정용)
 #   scripts/soak-gate.sh --no-collect    # 표본을 남기지 않고 지금 원장으로만 판정
 #   scripts/soak-gate.sh --require-hours N --require-continuous N   # ★자기시험 전용
-#   scripts/soak-gate.sh --install / --uninstall / --status         # launchd (30분마다)
+#   scripts/soak-gate.sh --install / --uninstall / --status         # 30분마다 (macOS launchd / 리눅스 systemd user timer)
 #
 # 종료 코드: 0 = PASS **만** / 1 = FAIL / 2 = UNKNOWN
 #   ★**UNKNOWN 을 PASS 로 접지 않는다.** 이 스크립트의 존재 이유가 그것이다.
@@ -24,9 +24,16 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 STATE_DIR="${ROOT}/.soak"
 PIN_HISTORY="${STATE_DIR}/pin-history.jsonl"
 SAMPLES="${STATE_DIR}/gate-samples.jsonl"
-LOGDIR="$HOME/Library/Logs/quantbridge"
-LABEL="dev.quantbridge.soak-gate"
-PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
+# ★스케줄러는 OS 마다 다르다 — macOS 는 launchd, 리눅스(클라우드 소크)는 systemd user timer.
+# 판정 술어는 한 줄도 갈리지 않는다. 갈리는 것은 「누가 30분마다 부르나」와 「로그가 어디 쌓이나」뿐이다.
+# 스케줄러 경로는 그걸 쓰는 함수 안에서만 산다 — 상단에서 OS 별로 갈리는 것은 LOGDIR 하나뿐이다.
+LABEL="dev.quantbridge.soak-gate"   # launchd Label 이자 systemd unit 이름 (둘 다 점을 허용한다)
+QB_OS="$(uname -s)"
+if [ "${QB_OS}" = "Darwin" ]; then
+  LOGDIR="$HOME/Library/Logs/quantbridge"
+else
+  LOGDIR="${XDG_STATE_HOME:-$HOME/.local/state}/quantbridge"
+fi
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
 REDIS_CONTAINER="${QB_REDIS_CONTAINER:-quantbridge-redis}"
@@ -40,10 +47,66 @@ COLLECT=1
 REQUIRE_HOURS=""
 REQUIRE_CONTINUOUS=""
 
+_install_systemd() {
+  # ★user timer 를 쓴다 — launchd LaunchAgent 와 같은 층(사용자 단위, sudo 불필요)이다.
+  # 대신 로그인 세션 없이 돌려면 lingering 이 필요하다. 아래에서 켜고, 실패하면 알려만 준다.
+  local paths="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+  local unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+  mkdir -p "${unit_dir}"
+  cat > "${unit_dir}/${LABEL}.service" <<UNIT_EOF
+[Unit]
+Description=QuantBridge soak gate ([BL-003] 168h/24h 판정기)
+
+[Service]
+Type=oneshot
+WorkingDirectory=${ROOT}
+Environment=PATH=${paths}
+ExecStart=/bin/bash ${ROOT}/scripts/soak-gate.sh
+UNIT_EOF
+  cat > "${unit_dir}/${LABEL}.timer" <<UNIT_EOF
+[Unit]
+Description=QuantBridge soak gate — 30분마다
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT_EOF
+  systemctl --user daemon-reload || { echo "✗ systemctl --user daemon-reload 실패" >&2; exit 1; }
+  systemctl --user enable --now "${LABEL}.timer" \
+    || { echo "✗ timer enable 실패" >&2; exit 1; }
+  # ★lingering 이 없으면 SSH 를 끊는 순간 user manager 가 죽어 timer 도 멈춘다 — 소크에 치명적.
+  if ! loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null | grep -qi '^yes$'; then
+    if ! loginctl enable-linger "$(id -un)" 2>/dev/null; then
+      echo "⚠ lingering 을 못 켰다 — SSH 를 끊으면 timer 가 멈춘다." >&2
+      echo "  직접 실행해라: sudo loginctl enable-linger $(id -un)" >&2
+    fi
+  fi
+  echo "✓ 설치 완료 — 30분마다 표본을 남기고 판정한다 (systemd user timer)"
+  echo "  ★표본이 없으면 tick 연속성(C4)을 판정할 수 없어 UNKNOWN(측정불가) 이 된다."
+  echo "  ★docker 를 sudo 없이 부를 수 있어야 한다: id -nG | grep docker"
+  echo "  로그: journalctl --user -u ${LABEL}.service"
+  exit 0
+}
+
+_uninstall_systemd() {
+  local unit_dir="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+  systemctl --user disable --now "${LABEL}.timer" 2>/dev/null || true
+  rm -f "${unit_dir}/${LABEL}.timer" "${unit_dir}/${LABEL}.service"
+  systemctl --user daemon-reload 2>/dev/null || true
+  echo "✓ 해제 완료 (표본·로그는 남긴다)"
+  exit 0
+}
+
 _install() {
+  [ "${QB_OS}" != "Darwin" ] && _install_systemd
   # ★PATH 를 명시하지 않으면 launchd 가 docker/python3 를 못 찾아 **조용히 실패**한다.
   local paths="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-  cat > "${PLIST}" <<PLIST_EOF
+  local plist="$HOME/Library/LaunchAgents/${LABEL}.plist"
+  cat > "${plist}" <<PLIST_EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -64,23 +127,38 @@ _install() {
 </dict>
 </plist>
 PLIST_EOF
-  launchctl unload "${PLIST}" 2>/dev/null || true
-  launchctl load "${PLIST}" || { echo "✗ launchctl load 실패" >&2; exit 1; }
+  launchctl unload "${plist}" 2>/dev/null || true
+  launchctl load "${plist}" || { echo "✗ launchctl load 실패" >&2; exit 1; }
   echo "✓ 설치 완료 — 30분마다 표본을 남기고 판정한다"
   echo "  ★표본이 없으면 tick 연속성(C4)을 판정할 수 없어 UNKNOWN(측정불가) 이 된다."
   exit 0
 }
 
 _uninstall() {
-  launchctl unload "${PLIST}" 2>/dev/null || true
-  rm -f "${PLIST}"
+  [ "${QB_OS}" != "Darwin" ] && _uninstall_systemd
+  local plist="$HOME/Library/LaunchAgents/${LABEL}.plist"
+  launchctl unload "${plist}" 2>/dev/null || true
+  rm -f "${plist}"
   echo "✓ 해제 완료 (표본·로그는 남긴다)"
   exit 0
 }
 
 _status() {
-  echo "── launchd ──"
-  launchctl list 2>/dev/null | grep -F "${LABEL}" || echo "  (등록 안 됨)"
+  # ★OS 를 안 가르면 리눅스에서 timer 가 멀쩡히 도는데도 「등록 안 됨」이 뜬다 — 거짓 상태 보고다.
+  if [ "${QB_OS}" = "Darwin" ]; then
+    echo "── launchd ──"
+    launchctl list 2>/dev/null | grep -F "${LABEL}" || echo "  (등록 안 됨)"
+  else
+    echo "── systemd user timer ──"
+    if systemctl --user is-active --quiet "${LABEL}.timer" 2>/dev/null; then
+      systemctl --user list-timers --no-pager --no-legend "${LABEL}.timer" 2>/dev/null \
+        | sed 's/^/  /' || true
+      loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null | grep -qi '^yes$' \
+        || echo "  ⚠ lingering 꺼짐 — SSH 끊기면 멈춘다 (sudo loginctl enable-linger $(id -un))"
+    else
+      echo "  (등록 안 됨)"
+    fi
+  fi
   echo "── 최근 판정 ──"
   [ -f "${LOGDIR}/soak-gate-last-result" ] && cat "${LOGDIR}/soak-gate-last-result" || echo "  (없음)"
   echo "── 표본 ──"
