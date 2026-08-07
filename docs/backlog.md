@@ -552,7 +552,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-616](#bl-616) | 부트스트랩을 **우회해 만든** 워크트리는 husky 훅이 없다 — `pnpm install` 을 건너뛰면 `prepare: husky` 가 안 돌아 `.husky/_`(미트래킹)가 안 생기고, git 은 없는 `core.hooksPath` 를 **경고 없이 무시**한다. 실태: 워크트리 5개 중 **4개 정상**, 우회 생성된 1개만 결손(2026-08-07 정상화 완료). ★남은 축 = **감지 수단이 없다** — 훅이 안 도는 실패 모드는 출력이 0줄이라 「통과」와 구별되지 않는다                                                                                                                                                                                                                                                                                                                                                                   | 워크트리에서 훅 미작동이 또 관측되면                                                                              | S            | 2026-08-07 ADR-027 회차 (자기 커밋에서 발견)           |
 | [BL-617](#bl-617) | ★**「과거 기록」이 아닌 운영 절차 4종이 working tree 밖으로 나갔다** — Cloud Run 런북(39KB)·Grafana 셋업·Bybit mainnet 체크리스트(11KB)·법무 임시 런북. ADR-026 의 분류 기준이 **위치**(폴더 이름)였지 미래 유용성이 아니었던 결과다. 머지 후 `docs/` 전체에서 Cloud Run·Grafana·Prometheus·mainnet·법무 언급 **0건**인데 `alerts.yml`·`Dockerfile`·워크플로 4종은 레포에 살아 있다. ★지금 되살리지 않는다 — 트리거 시점에 갱신해 재등재                                                                                                                                                                                                                                                                                                                              | [BL-071] 프로덕션 배포 발동 시 · Bybit mainnet 전환 시                                                            | S            | 2026-08-07 PR #554 리뷰                                |
 
-| [BL-620](#bl-620) | 🔴 **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 `darkness_computed` 가 영구 ✗** — `soak-gate.sh:286` 이 `:8100` 을 curl 하는데 리스너가 **0개**이고 `soak-stack.sh up` 은 worker/beat/ws-stream/db/redis **5종만** 띄운다(API 컨테이너 없음). 게이트 결함이 아니라 **fail-closed 가 설계대로** 동작한 것(스크레이프 실패=측정불가 ≠ counter 부재=0/0). ★**C1/C2 를 다 채워도 PASS 가 안 난다** — 시간을 쌓기 전에 정해야 한다 | 지금 (BL-003 종료 조건이 구조적으로 도달 불가) | S | 2026-08-07 gap-resync-autopsy |
+| [BL-620](#bl-620) | ✅ **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구 ✗ 였다** — `soak-stack.sh up` 은 API 컨테이너를 안 띄우고 `:8100` 리스너가 0개라 **C1/C2 를 다 채워도 PASS 불가**였다. **Resolved** — 기본 취득을 HTTP → `backend/.metrics` **직독**으로 교체(워커가 같은 counter 를 거기 쓴다). 판정 `측정불가`→`진행중`, C5 전건 ✓. fail-closed 음성 대조 **3/3**. `QB_METRICS_URL` 명시 시 종전 HTTP 유지 | — | S | 2026-08-07 gap-resync-autopsy |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -5022,6 +5022,14 @@ terminal 로 보낸다. 같은 문턱에서 미룸을 끊으면 janitor 가 판�
 `ts.ohlcv` 가 아니라 CCXT REST(`live_signal.py:2885`, `fetch_ohlcv` 300봉)라 DB 로도 역추적이
 안 된다. ⇒ **다음 창에서 로그를 남긴 채 재관측한다.**
 
+★**그 「로그를 남긴 채」를 실제로 만드는 장치를 걸어 뒀다(2026-08-07 07:59Z~).**
+`.soak/logs/follow.sh` 가 `docker logs -f --timestamps quantbridge-worker` 를 따라가며
+`.soak/logs/worker-follow.log` 에 붙이고, **컨테이너가 재생성되면 5초 뒤 재접속**한다
+(`=== [follow] attach|detached <ts> ===` 마커가 그 경계를 남긴다). `.soak/` 는 비추적이라
+커밋에 안 들어간다. ★**이게 없으면 이 BL 의 Trigger 는 충족될 수 없다** — 재발해도 이번과
+똑같이 로그가 먼저 사라진다. 세션이 끝나도 살아 있도록 `nohup` 으로 분리했으나 **머신
+재부팅은 못 넘긴다** — 재기동 회차마다 살아 있는지 확인해라(`pgrep -f soak/logs/follow.sh`).
+
 **Risk:** 🟡 [BL-618] 수리가 이 정지의 **사망 전이**는 막지만 **정지 자체**는 안 막는다.
 17분 무평가 = 그 창의 신호를 안 낸다.
 
@@ -5031,9 +5039,20 @@ terminal 로 보낸다. 같은 문턱에서 미룸을 끊으면 janitor 가 판�
 
 **Priority:** P2
 **카테고리:** 운영 / BL-003 게이트
-**Trigger:** C1/C2 창이 열린 뒤에도 ✗ 가 유지되면
+**Trigger:** —
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved (2026-08-07 gap-resync-autopsy 회차)** — 게이트의 기본 취득 경로를
+**HTTP → 멀티프로세스 디렉터리 직독**으로 바꿨다(`soak-gate.sh`). 워커가 `backend/.metrics`
+에 같은 counter 를 계속 쓰므로 API 프로세스가 필요 없다. 판정이 `UNKNOWN 측정불가` →
+**`UNKNOWN 진행중`** 으로 바뀌었고 C5 6개 서브조건 **전건 ✓** 다(어둠 88.0% — 보고 전용).
+★**fail-closed 는 그대로다 — 음성 대조 3/3:** 없는 dir → `측정불가` · 죽은 포트 URL 명시 →
+`측정불가` · 기본(직독) → ✓. 「취득 실패=null」과 「counter 부재=0/0」의 구분도 유지된다.
+★`QB_METRICS_URL` 을 **명시하면 종전대로 HTTP** 를 쓴다 — 원격 데몬 + ssh 터널 운영안
+(`docs/reports/2026-08-07-cloud-deploy-design.html`)이 그 override 를 전제하므로 보존했다.
+★판정 모듈(`soak_gate_predicate.py`)과 그 309 테스트는 **무변경** — 바뀐 것은 취득뿐이다.
+★**잔여(수리 안 함):** 어둠 비율이 **누적 절대값**이라 죽은 세션의 표본이 섞여 있다
+(mmap 이 살아남는다 — 이 레포의 「counter 출생일」 함정). 보고 전용이라 판정에 영향은 없지만,
+이 값을 **이번 창의 어둠**으로 읽으면 틀린다. 창 기준 차분이 필요하면 별도 BL 로 연다.
 
 **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구히 ✗ 다.**
 

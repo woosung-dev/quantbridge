@@ -30,7 +30,15 @@ PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
 REDIS_CONTAINER="${QB_REDIS_CONTAINER:-quantbridge-redis}"
-METRICS_URL="${QB_METRICS_URL:-http://localhost:8100/metrics}"
+# ★[BL-620] — 기본 취득 경로는 **HTTP 가 아니라 멀티프로세스 디렉터리 직독**이다.
+#   소크 스택(`soak-stack.sh up`)은 worker·beat·ws-stream·db·redis 5종만 띄우고 **API
+#   컨테이너가 없다**. `/metrics` 를 내주던 것은 호스트 uvicorn 이었고, 그게 안 떠 있으면
+#   C5⑷ 가 영구 ✗ 라 **C1/C2 를 다 채워도 PASS 가 구조적으로 불가능**했다(2026-08-07 실측:
+#   `:8100` 리스너 0개). 워커는 같은 counter 를 `backend/.metrics` 에 계속 쓰고 있으므로
+#   HTTP 를 거치지 않고 거기서 읽는다 — 「API 가 꺼지면 게이트가 장님」이라는 실패 계열이 사라진다.
+#   ★`QB_METRICS_URL` 을 **명시하면** 종전대로 HTTP 를 쓴다(원격 데몬 + ssh 터널 운영안 보존).
+METRICS_URL="${QB_METRICS_URL:-}"
+METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/backend/.metrics}"
 
 mkdir -p "${STATE_DIR}" "${LOGDIR}"
 
@@ -282,8 +290,25 @@ fi
 #   (측정 불가가 「어둠 0%」로 읽혔다). 그래서 curl 을 먼저 세우고 rc 를 본다.
 #   ★단 `total=0` 자체는 정상일 수 있다 — counter 가 아직 한 번도 발화하지 않은 경우다.
 #     그 둘을 구분해야 한다: 스크레이프 실패 = null(측정불가) / counter 부재 = 0/0(표본 없음).
+#   ★취득 실패의 정의는 **경로와 무관하게 같다** — 빈 출력이면 null 이다. 아래 파서는
+#     prometheus 텍스트 포맷만 보므로 HTTP 든 직독이든 같은 입력을 받는다.
 METRICS_RAW=""
-if METRICS_RAW="$(curl -sf --max-time 20 "${METRICS_URL}" 2>/dev/null)"; then
+METRICS_RC=1
+if [ -n "${METRICS_URL}" ]; then
+  METRICS_RAW="$(curl -sf --max-time 20 "${METRICS_URL}" 2>/dev/null)" && METRICS_RC=0
+elif [ -d "${METRICS_DIR}" ]; then
+  # ★`timeout` 없이 부르지 마라 — 게이트가 무기한 대기하면 표본 수집까지 멈춘다([BL-594] 교훈).
+  METRICS_RAW="$(cd "${ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
+    timeout 120 uv run python -c '
+import sys
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess
+
+registry = CollectorRegistry()
+multiprocess.MultiProcessCollector(registry)
+sys.stdout.buffer.write(generate_latest(registry))
+' 2>/dev/null)" && [ -n "${METRICS_RAW}" ] && METRICS_RC=0
+fi
+if [ "${METRICS_RC}" = "0" ]; then
   DARKNESS="$(printf '%s' "${METRICS_RAW}" | python3 -c '
 import re, sys, json
 und = {"overflow","foreign_fill","close_without_open","duplicate_open","unreadable"}
