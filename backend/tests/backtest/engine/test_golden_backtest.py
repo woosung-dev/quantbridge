@@ -14,6 +14,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from scripts.regen_trust_layer_baseline import metrics_snapshot
 from src.backtest.engine import run_backtest
 
 GOLDEN_DIR = Path(__file__).parent / "golden"
@@ -25,13 +26,13 @@ def _discover_cases() -> list[Path]:
     return [
         p
         for p in sorted(GOLDEN_DIR.iterdir())
-        if p.is_dir() and (p / "strategy.pine").exists() and (p / "expected.json").exists()
+        if p.is_dir() and (p / "strategy.pine").exists() and (p / "ohlcv.csv").exists()
     ]
 
 
 @pytest.mark.parametrize("case_dir", _discover_cases(), ids=lambda p: p.name)
 def test_backtest_golden_case_smoke(case_dir: Path) -> None:
-    """pine_v2 smoke — status=ok + num_trades 는 정수. 구체 metric 비교는 유보."""
+    """골든은 status·전 scalar metric·list digest·체결 봉 지점을 정확 비교한다."""
     src = (case_dir / "strategy.pine").read_text()
     expected = json.loads((case_dir / "expected.json").read_text())
     ohlcv = pd.read_csv(case_dir / "ohlcv.csv")
@@ -44,4 +45,16 @@ def test_backtest_golden_case_smoke(case_dir: Path) -> None:
         return
 
     assert out.result is not None
-    assert out.result.metrics.num_trades >= 0
+    actual_metrics, actual_list_digests = metrics_snapshot(
+        out.result.metrics,
+        str,
+    )
+    expected_backtest = expected["backtest"]
+    assert actual_metrics == expected_backtest["metrics"]
+    assert actual_list_digests == expected_backtest["metrics_list_digests"]
+    assert [trade.entry_bar_index for trade in out.result.trades] == expected["entries_indices"]
+    assert [
+        trade.exit_bar_index
+        for trade in out.result.trades
+        if trade.exit_bar_index is not None
+    ] == expected["exits_indices"]

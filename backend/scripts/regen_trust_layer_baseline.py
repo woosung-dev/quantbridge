@@ -29,13 +29,15 @@ Path β Stage 2a 의 범위는 스크립트 작성 + `--confirm` 게이트만. �
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import sys
+from dataclasses import fields, is_dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args, get_origin, get_type_hints
 
 import pandas as pd
 
@@ -134,25 +136,109 @@ def _normalize_metric(value: Any, normalize_decimal_fn: Any) -> Any:
     """Metric 단일 값을 Decimal string (8자리) 또는 None 으로 직렬화."""
     if value is None or _is_nan_like(value):
         return None
+    if isinstance(value, (bool, str)):
+        return value
     if isinstance(value, int) and not isinstance(value, bool):
         return value  # num_trades / long_count / short_count 는 정수
     return normalize_decimal_fn(value)
 
 
+def _annotation_contains(annotation: Any, expected: type[Any]) -> bool:
+    """Optional 을 포함한 annotation 안에 `expected` 타입이 있는지 판별."""
+    if annotation is expected or get_origin(annotation) is expected:
+        return True
+    return any(_annotation_contains(arg, expected) for arg in get_args(annotation))
+
+
+def _nested_dataclass_type(annotation: Any) -> type[Any] | None:
+    """Optional[Dataclass] annotation 에서 실제 dataclass 타입을 찾는다."""
+    if isinstance(annotation, type) and is_dataclass(annotation):
+        return annotation
+    for arg in get_args(annotation):
+        nested = _nested_dataclass_type(arg)
+        if nested is not None:
+            return nested
+    return None
+
+
+def _content_digest(value: Any) -> str:
+    """리스트 metric 내용의 안정 digest. 길이가 아니라 직렬화 내용에 묶는다."""
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        default=str,
+        ensure_ascii=False,
+    ).encode()
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
+def _flatten_dataclass_metrics(
+    data_type: type[Any],
+    value: Any,
+    prefix: str,
+    normalize_decimal_fn: Any,
+) -> dict[str, Any]:
+    """중첩 dataclass 를 `<prefix>.<field>` scalar 키로 평탄화한다."""
+    annotations = get_type_hints(data_type)
+    flattened: dict[str, Any] = {}
+    for item in fields(data_type):
+        item_value = getattr(value, item.name) if value is not None else None
+        item_type = annotations[item.name]
+        nested_type = _nested_dataclass_type(item_type)
+        key = f"{prefix}.{item.name}"
+        if nested_type is not None:
+            flattened.update(
+                _flatten_dataclass_metrics(
+                    nested_type,
+                    item_value,
+                    key,
+                    normalize_decimal_fn,
+                )
+            )
+        else:
+            flattened[key] = _normalize_metric(item_value, normalize_decimal_fn)
+    return flattened
+
+
+def metrics_snapshot(
+    metrics: Any,
+    normalize_decimal_fn: Any,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """BacktestMetrics 전 scalar + list metric digest 를 dataclass 정의에서 유도한다."""
+    annotations = get_type_hints(type(metrics))
+    scalar_metrics: dict[str, Any] = {}
+    list_digests: dict[str, str] = {}
+
+    for item in fields(metrics):
+        value = getattr(metrics, item.name)
+        annotation = annotations[item.name]
+        if _annotation_contains(annotation, list):
+            list_digests[item.name] = _content_digest(value)
+            continue
+
+        nested_type = _nested_dataclass_type(annotation)
+        if nested_type is not None:
+            scalar_metrics.update(
+                _flatten_dataclass_metrics(
+                    nested_type,
+                    value,
+                    item.name,
+                    normalize_decimal_fn,
+                )
+            )
+            continue
+
+        scalar_metrics[item.name] = _normalize_metric(value, normalize_decimal_fn)
+
+    return scalar_metrics, list_digests
+
+
 def _trade_to_dict(trade: Any) -> dict[str, Any]:
-    """RawTrade → digest 입력용 dict (Decimal 은 str 로)."""
+    """RawTrade 전 필드를 digest 입력 dict 로 직렬화한다."""
     return {
-        "trade_index": trade.trade_index,
-        "direction": trade.direction,
-        "status": trade.status,
-        "entry_bar_index": trade.entry_bar_index,
-        "exit_bar_index": trade.exit_bar_index,
-        "entry_price": str(trade.entry_price),
-        "exit_price": str(trade.exit_price) if trade.exit_price is not None else None,
-        "size": str(trade.size),
-        "pnl": str(trade.pnl),
-        "return_pct": str(trade.return_pct),
-        "fees": str(trade.fees),
+        item.name: (str(value) if isinstance(value, Decimal) else value)
+        for item in fields(trade)
+        for value in (getattr(trade, item.name),)
     }
 
 
@@ -209,24 +295,7 @@ def _runnable_corpus_record(corpus_id: str, ohlcv_df: pd.DataFrame) -> dict[str,
     m = outcome.result.metrics
     trades = outcome.result.trades
 
-    metrics_dict = {
-        "total_return": _normalize_metric(m.total_return, normalize_decimal),
-        "sharpe_ratio": _normalize_metric(m.sharpe_ratio, normalize_decimal),
-        "max_drawdown": _normalize_metric(m.max_drawdown, normalize_decimal),
-        "win_rate": _normalize_metric(m.win_rate, normalize_decimal),
-        "num_trades": m.num_trades,
-        "profit_factor": _normalize_metric(m.profit_factor, normalize_decimal),
-        "sortino_ratio": _normalize_metric(m.sortino_ratio, normalize_decimal),
-        "calmar_ratio": _normalize_metric(m.calmar_ratio, normalize_decimal),
-        "avg_win": _normalize_metric(m.avg_win, normalize_decimal),
-        "avg_loss": _normalize_metric(m.avg_loss, normalize_decimal),
-        "long_count": m.long_count if m.long_count is not None else 0,
-        "short_count": m.short_count if m.short_count is not None else 0,
-        # sharpe_ratio 는 degenerate 실행에서 전부 0 이라 값만으로는 monthly ↔ daily ↔
-        # unavailable ↔ unavailable_nonpositive_equity 가 뒤집혀도 diff 가 나지 않는다.
-        # 컨벤션을 따로 고정해야 그 뒤집힘이 P-3 에서 보인다 (schema_version 2).
-        "sharpe_convention": m.sharpe_convention,
-    }
+    metrics_dict, metrics_list_digests = metrics_snapshot(m, normalize_decimal)
 
     trades_list = [_trade_to_dict(t) for t in trades]
 
@@ -239,6 +308,7 @@ def _runnable_corpus_record(corpus_id: str, ohlcv_df: pd.DataFrame) -> dict[str,
 
     return {
         "metrics": metrics_dict,
+        "metrics_list_digests": metrics_list_digests,
         "var_series_digest": digest_sequence(var_series),
         "trades_digest": digest_sequence(trades_list),
         "warnings_digest": digest_sequence(warnings),

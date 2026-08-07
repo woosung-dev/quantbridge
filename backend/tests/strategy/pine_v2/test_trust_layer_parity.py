@@ -28,12 +28,14 @@ P-3 / Mutation / regen 은 fixture 생성 후 green (현재는 skipif).
 from __future__ import annotations
 
 import json
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import pytest
 
+from scripts.regen_trust_layer_baseline import _trade_to_dict, metrics_snapshot
 from src.strategy.pine_v2 import coverage as cov
 from src.strategy.pine_v2.interpreter import STDLIB_NAMES
 from tests.strategy.pine_v2._corpus import RUNNABLE_CORPUS as _RUNNABLE_CORPUS
@@ -209,22 +211,7 @@ def _extract_trades_and_runtime(
     if outcome.status != "ok" or outcome.result is None:
         raise RuntimeError(f"run_backtest_v2 failed: status={outcome.status} error={outcome.error}")
 
-    trades = [
-        {
-            "trade_index": t.trade_index,
-            "direction": t.direction,
-            "status": t.status,
-            "entry_bar_index": t.entry_bar_index,
-            "exit_bar_index": t.exit_bar_index,
-            "entry_price": str(t.entry_price),
-            "exit_price": str(t.exit_price) if t.exit_price is not None else None,
-            "size": str(t.size),
-            "pnl": str(t.pnl),
-            "return_pct": str(t.return_pct),
-            "fees": str(t.fees),
-        }
-        for t in outcome.result.trades
-    ]
+    trades = [_trade_to_dict(trade) for trade in outcome.result.trades]
 
     # var_series + warnings 는 parse_and_run_v2 재호출 (ADR-020 §4.3)
     v2 = parse_and_run_v2(source, ohlcv_df, strict=False)
@@ -276,7 +263,7 @@ _EXPECTED_SCHEMA_VERSION = 2
 )
 @pytest.mark.parametrize("corpus_id", RUNNABLE_CORPUS)
 def test_p3_execution_metrics_match_golden(corpus_id: str) -> None:
-    """P-3: 6 corpus × corpus_ohlcv_frozen.parquet → metrics + digests baseline 일치.
+    """P-3: corpus × frozen OHLCV → 전 scalar metric·list digest·기존 digest 일치.
 
     stdlib/interpreter/strategy_state 의 숫자 편차를 CI 에서 감지.
     허용 오차 = max(절대 0.001, 상대 0.1%) per ADR-020 §4.3.
@@ -300,52 +287,39 @@ def test_p3_execution_metrics_match_golden(corpus_id: str) -> None:
 
     actual = outcome.result.metrics
     expected_m = expected["metrics"]
-
-    # Decimal metric 비교
-    for key in _DECIMAL_METRIC_KEYS:
-        actual_val = getattr(actual, key)
-        expected_val = expected_m.get(key)
-        if expected_val is None:
-            is_none_like = actual_val is None or (
-                hasattr(actual_val, "is_nan") and actual_val.is_nan()
+    actual_m, actual_list_digests = metrics_snapshot(actual, normalize_decimal)
+    assert set(expected_m) == set(actual_m), (
+        f"{corpus_id}: scalar metric field set drift\n"
+        f"  baseline only={sorted(set(expected_m) - set(actual_m))}\n"
+        f"  actual only={sorted(set(actual_m) - set(expected_m))}\n"
+        "regen_trust_layer_baseline.py --confirm 로 baseline을 갱신하세요."
+    )
+    for key, actual_val in actual_m.items():
+        expected_val = expected_m[key]
+        if actual_val is None or expected_val is None:
+            assert actual_val == expected_val, (
+                f"{corpus_id}.{key}: actual={actual_val!r} baseline={expected_val!r}"
             )
-            assert is_none_like, f"{corpus_id}.{key}: baseline=None 이지만 actual={actual_val}"
+            continue
+        try:
+            Decimal(str(actual_val))
+            Decimal(str(expected_val))
+        except (InvalidOperation, TypeError, ValueError):
+            assert actual_val == expected_val, (
+                f"{corpus_id}.{key}: actual={actual_val!r} baseline={expected_val!r}"
+            )
         else:
-            assert actual_val is not None, (
-                f"{corpus_id}.{key}: actual=None, baseline={expected_val}"
-            )
             assert within_tolerance(actual_val, expected_val), (
                 f"{corpus_id}.{key}: 드리프트\n"
-                f"  actual={normalize_decimal(actual_val)} baseline={expected_val}\n"
+                f"  actual={actual_val} baseline={expected_val}\n"
                 "의도된 변경이면 regen_trust_layer_baseline.py --confirm 실행."
             )
 
-    # Integer metric 비교
-    for key in _INT_METRIC_KEYS:
-        actual_val = getattr(actual, key)
-        expected_val = expected_m.get(key, 0)
-        if actual_val is None:
-            actual_val = 0
-        assert actual_val == expected_val, (
-            f"{corpus_id}.{key}: expected={expected_val} actual={actual_val}"
-        )
-
-    # 문자열 metric 비교 (exact)
-    # ★`_INT_METRIC_KEYS` 루프처럼 `.get(key, <기본값>)` 을 쓰지 않는다 — 그러면 regen
-    #   누락으로 baseline 에 키가 없을 때 "기본값 == 기본값" 으로 조용히 통과한다.
-    #   키 부재는 통과가 아니라 실패다.
-    for key in _STR_METRIC_KEYS:
-        assert key in expected_m, (
-            f"{corpus_id}.{key}: baseline 에 키 없음 (schema_version 2 미만). "
-            "scripts/regen_trust_layer_baseline.py --confirm 로 재생성."
-        )
-        actual_val = getattr(actual, key)
-        expected_val = expected_m[key]
-        assert actual_val == expected_val, (
-            f"{corpus_id}.{key}: 컨벤션 드리프트\n"
-            f"  actual={actual_val!r} baseline={expected_val!r}\n"
-            "의도된 변경이면 regen_trust_layer_baseline.py --confirm 실행."
-        )
+    assert actual_list_digests == expected["metrics_list_digests"], (
+        f"{corpus_id}: metrics list digest drift\n"
+        f"  actual={actual_list_digests}\n"
+        f"  baseline={expected.get('metrics_list_digests')}"
+    )
 
     # Digest 비교 (길이 독립 fingerprint)
     trades, var_series, warnings = _extract_trades_and_runtime(source, ohlcv_df)
