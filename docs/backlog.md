@@ -547,7 +547,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-613](#bl-613) | `live_signal.py` 핸들러 가시화가 남긴 **줄 수 부채** — `_evaluate_session_with_engine` **506줄**(Kind B 추출 E8~E14 미완) · `_place_planned_entry` 236 · `_reconcile_conditional_entries_inner` 203 · `_async_dispatch_event` 256(최대 `try` 본문 **225줄** — 이제 이게 최대). ★가시성 목표(최대 try 845→8)는 달성됐고 줄 수는 못 채웠다                                                                                                                                                                                                                                                                                                                                                                                                                              | `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580] 착수 회차와 겹친다)                                             | M            | 2026-08-04 handler-visibility (status 승계)            |
 | [BL-614](#bl-614) | 2026-08-04 handler-visibility 회차 방법론 **3건이 `docs/lessons.md` 미승격** — dev-log 본문은 문서 대개편에서 삭제됐고 INDEX 한 줄과 git history 에만 남았다(다중집합↔문장 순서 · 재적재 지문 = celery 배너 · 검증 도구를 먼저 적대 검증)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 다음 문서 정리 회차 ([BL-612] 와 함께)                                                                            | XS           | 2026-08-04 handler-visibility (status 승계)            |
 | [BL-615](#bl-615) | 스택 규칙 파일이 공식 권장 크기의 **2배** — `backend/AGENTS.md` **416줄** · `frontend/AGENTS.md` **316줄** (Claude Code 문서 권장 = 파일당 200줄 이하, 「Longer files consume more context and reduce adherence」). 그 디렉터리 파일을 열 때마다 전량 로드된다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 스택 규칙을 다음에 손댈 때 ([ADR-027] 정착 후)                                                                    | S            | 2026-08-07 ADR-027 (배치 이전 중 실측)                 |
-| [BL-616](#bl-616) | ★★**워크트리에서 husky 훅이 하나도 돌지 않는다** — `core.hooksPath=.husky/_` 가 **상대 경로**인데 워크트리에는 그 디렉터리가 없다(미트래킹, `prepare` 가 생성). 대조 실측: 같은 브랜치 push 에 메인은 「main 직접 push 영구 금지」로 차단, 워크트리는 훅 로그 0줄로 통과. ⇒ pre-push 의 main 차단·브랜치 화이트리스트·FE 회귀 방어와 pre-commit 의 lint-staged 가 **전부 무력**. eslint·ruff 는 CI 가 받치지만 **prettier 는 CI 에 없다**                                                                                                                                                                                                                                                                                                                             | 다음 함대 부팅 전 (워크트리 병렬이 표준 워크플로다)                                                               | S            | 2026-08-07 ADR-027 회차 (자기 커밋에서 발견)           |
+| [BL-616](#bl-616) | 부트스트랩을 **우회해 만든** 워크트리는 husky 훅이 없다 — `pnpm install` 을 건너뛰면 `prepare: husky` 가 안 돌아 `.husky/_`(미트래킹)가 안 생기고, git 은 없는 `core.hooksPath` 를 **경고 없이 무시**한다. 실태: 워크트리 5개 중 **4개 정상**, 우회 생성된 1개만 결손(2026-08-07 정상화 완료). ★남은 축 = **감지 수단이 없다** — 훅이 안 도는 실패 모드는 출력이 0줄이라 「통과」와 구별되지 않는다                                                                                                                                                                                                                                                                                                                                                                   | 워크트리에서 훅 미작동이 또 관측되면                                                                              | S            | 2026-08-07 ADR-027 회차 (자기 커밋에서 발견)           |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -4822,54 +4822,42 @@ context and reduce adherence」. [ADR-027] 배치에서는 그 디렉터리 파�
 
 ### BL-616
 
-**Priority:** P1
-**카테고리:** DX / 커밋·푸시 가드 (워크트리 격리)
-**Trigger:** 다음 함대 부팅 전 — 워크트리 병렬이 이 레포의 표준 워크플로다
+**Priority:** P3
+**카테고리:** DX / 워크트리 부트스트랩 (훅 결손 감지)
+**Trigger:** 워크트리에서 훅 미작동이 또 관측되면
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⬜ **Open** — 관측된 결함(워크트리 1개의 훅 결손)은 2026-08-07 에 정상화했다. **감지 수단 부재**만 열려 있다.
 
-**워크트리에서 husky 훅이 하나도 돌지 않는다.**
+**부트스트랩을 우회해 만든 워크트리는 husky 훅이 없다.**
 
-**뿌리** — `git config core.hooksPath` 값이 `.husky/_` 로 **상대 경로**다. 워크트리에는 그 디렉터리가
-없다(`.husky/_` 는 트래킹되지 않고 `prepare` 스크립트가 `pnpm install` 때 생성한다). git 은 없는
-hooksPath 를 **조용히 무시**한다 — 경고도 exit code 도 없다.
+**사슬** — `herdr-fleet.sh:234` 가 워크트리 생성 후 `worktree-bootstrap.sh --adopt-env` 를 부르고,
+그것이 `pnpm install --frozen-lockfile`(:356)을 돌리면 `package.json` 의 `"prepare": "husky"` 가
+실행돼 `.husky/_` 가 생긴다. 이 경로를 건너뛰면 `.husky/_` 가 없고, git 은 존재하지 않는
+`core.hooksPath` 를 **경고도 exit code 도 없이 무시**한다.
 
-**대조 실측 (2026-08-07, 같은 브랜치 `fix-doc` 에 `git push --dry-run`):**
+**실태 (2026-08-07 전수 확인)** — 워크트리 5개 중 **4개는 정상**이었다(`node_modules` 가 실디렉터리 =
+`pnpm install` 을 거쳤다는 지문). 결손은 `node_modules` 를 **심볼릭으로 때운** 1개뿐이었고,
+`pnpm exec husky` 로 정상화해 메인과 파일 목록이 일치함을 확인했다.
 
-| 실행 위치     | 출력                                                        |
-| ------------- | ----------------------------------------------------------- |
-| 메인 체크아웃 | `ERROR: main 직접 push 영구 금지 — PR 경유 의무` → **차단** |
-| 워크트리      | `Everything up-to-date` — 훅 로그 **0줄**, 무조건 통과      |
+★★**이 항목은 처음에 「워크트리 전반의 구조적 결함, `core.hooksPath` 가 상대 경로라서」로 등재됐다가
+같은 회차에 반증됐다.** 표본 1개(결손 워크트리)만 보고 원인을 귀속했고 **정상 사례 4개를 확인하지
+않았다.** 이 레포가 반복해서 적어 온 「기저율 먼저」를 그대로 어겼다. 상대 경로는 문제가 아니다 —
+`.husky/pre-commit`·`pre-push` 는 트래킹되고, 없던 것은 husky 가 만드는 `_` wrapper 뿐이다.
 
-**무력해지는 것**
+**증상(그 워크트리에서 실제로 일어난 일)** — `pre-push` 의 main 직접 push 차단·브랜치 화이트리스트·
+FE 회귀 방어와 `pre-commit` 의 lint-staged 가 전부 무력이었고, 그 결과 prettier 위반 14파일이
+푸시됐다(같은 회차에 발견·수리). eslint·ruff 는 CI 가 받치지만 **prettier 검사 스텝은 CI 에 없다.**
 
-- `pre-push` — ★main/master 직접 push **영구 금지** · 브랜치 prefix 화이트리스트(`feat/*` 등) ·
-  FE 타입체크 + 테스트 회귀 방어. ⇒ **Golden Rule 「main 직접 push 영구 차단」의 집행 장치가 없다.**
-- `pre-commit` — `lint-staged`(eslint / ruff / prettier) 미실행.
+**남은 축 = 감지 수단이 없다.** 훅이 안 도는 실패 모드는 **출력이 0줄**이라 「통과했다」와 구별되지
+않는다. `worktree-bootstrap.sh` 는 env 파일 실재는 검증하지만 훅 작동은 검증하지 않으며, 애초에
+그 스크립트를 안 돌린 워크트리에는 그 검증도 닿지 않는다.
+★**판별법(수리 없이도 쓸 수 있다)** — 워크트리에서 `git push --dry-run <remote> <branch>` 를 돌려
+`→ pre-push:` 로 시작하는 줄이 하나도 없으면 훅이 없는 것이다.
+수리를 넣는다면 후보는 ⑴ 부트스트랩 검증에 `core.hooksPath` 실재 확인 한 줄 · ⑵ CI 에 prettier
+검사 추가(로컬 훅과 독립한 이중 안전망). **2026-08-07 사용자 판정: 둘 다 하지 않는다** — 도구 체인은
+이미 옳고 이번 사고는 「도구가 없어서」가 아니라 「도구를 안 거쳐서」 났다.
 
-**안전망의 구멍** — eslint(`pnpm lint`)와 ruff(`uv run ruff check .`)는 CI 가 받는다. 그러나
-**prettier 검사 스텝은 CI 에 없다**(`.github/workflows/` 전수 확인). ⇒ 워크트리에서 만든 포맷 위반은
-**어느 게이트에도 안 걸린다.**
-
-★**실증** — 본 회차가 워크트리에서 커밋한 4파일(`docs/backlog.md` · `dev-log/INDEX.md` ·
-`decisions/027-*.md` · `README.md`)이 prettier 위반인 채로 푸시됐고, 같은 회차의 사후 점검에서야
-발견해 수리했다. 그리고 밀린 브랜치 이름 `fix-doc` 은 화이트리스트에 **없는** 형태라 훅이 돌았다면
-푸시 자체가 거부됐을 것이다.
-
-★★**역설** — 이 가드는 Sprint 33 codex P1-1 이 「자율 병렬 worker isolation 영구」를 위해 세운 것인데,
-정작 **worker(워크트리)에서만 작동하지 않는다.**
-
-**수리 후보**
-
-⑴ `scripts/worktree-bootstrap.sh` 가 워크트리마다 `git config --worktree core.hooksPath <메인 절대경로>/.husky/_`
-를 박는다(가장 작다, 부트스트랩 1회) · ⑵ `.worktreeinclude` 에 `.husky/_` 추가(실디렉터리라 복사된다 —
-단 심볼릭이 아니어야 한다) · ⑶ `core.hooksPath` 를 리포지토리 절대경로로 전환 · ⑷ **CI 에 prettier 검사
-추가**(위 셋 중 무엇을 하든 안전망 이중화로 별도 가치가 있다).
-
-★**수리했으면 반드시 워크트리에서 `git push --dry-run` 대조로 재확인해라** — 훅이 안 도는 실패 모드는
-**출력이 없다**는 것이고, 그래서 「통과했다」와 구별되지 않는다.
-
-**Risk:** 🔴 사고 유형이 「조용한 통과」다. main 직접 push 를 워크트리에서 시도하면 막히지 않는다.
+**Risk:** 🟡 재발 시 조용하다. 단 정상 경로(herdr / `worktree-bootstrap.sh`)로 만든 워크트리는 영향 없다.
 
 ## Deferred — trigger 미도래 · 의도적 부활 가능 (구 `_deferred.md` 승격, 2026-08-06)
 
