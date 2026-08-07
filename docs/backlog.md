@@ -552,7 +552,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-616](#bl-616) | 부트스트랩을 **우회해 만든** 워크트리는 husky 훅이 없다 — `pnpm install` 을 건너뛰면 `prepare: husky` 가 안 돌아 `.husky/_`(미트래킹)가 안 생기고, git 은 없는 `core.hooksPath` 를 **경고 없이 무시**한다. 실태: 워크트리 5개 중 **4개 정상**, 우회 생성된 1개만 결손(2026-08-07 정상화 완료). ★남은 축 = **감지 수단이 없다** — 훅이 안 도는 실패 모드는 출력이 0줄이라 「통과」와 구별되지 않는다                                                                                                                                                                                                                                                                                                                                                                   | 워크트리에서 훅 미작동이 또 관측되면                                                                              | S            | 2026-08-07 ADR-027 회차 (자기 커밋에서 발견)           |
 | [BL-617](#bl-617) | ★**「과거 기록」이 아닌 운영 절차 4종이 working tree 밖으로 나갔다** — Cloud Run 런북(39KB)·Grafana 셋업·Bybit mainnet 체크리스트(11KB)·법무 임시 런북. ADR-026 의 분류 기준이 **위치**(폴더 이름)였지 미래 유용성이 아니었던 결과다. 머지 후 `docs/` 전체에서 Cloud Run·Grafana·Prometheus·mainnet·법무 언급 **0건**인데 `alerts.yml`·`Dockerfile`·워크플로 4종은 레포에 살아 있다. ★지금 되살리지 않는다 — 트리거 시점에 갱신해 재등재                                                                                                                                                                                                                                                                                                                              | [BL-071] 프로덕션 배포 발동 시 · Bybit mainnet 전환 시                                                            | S            | 2026-08-07 PR #554 리뷰                                |
 
-| [BL-620](#bl-620) | `scripts/soak-gate.sh` C5 의 `darkness_computed` 가 **✗** 다(측정 무결 위반) — 나머지 5개 서브조건은 전건 ✓ 인데 「어둠 비율: 계산 실패」로 나온다. 활성 세션 0·귀속 창 0개 때문으로 **보이지만 확인 안 했다**(`[확인 필요]`). C5 는 C1/C2 를 채워도 **PASS 를 막는다** | C1/C2 창이 열린 뒤에도 ✗ 가 유지되면 | S | 2026-08-07 gap-resync-autopsy |
+| [BL-620](#bl-620) | 🔴 **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 `darkness_computed` 가 영구 ✗** — `soak-gate.sh:286` 이 `:8100` 을 curl 하는데 리스너가 **0개**이고 `soak-stack.sh up` 은 worker/beat/ws-stream/db/redis **5종만** 띄운다(API 컨테이너 없음). 게이트 결함이 아니라 **fail-closed 가 설계대로** 동작한 것(스크레이프 실패=측정불가 ≠ counter 부재=0/0). ★**C1/C2 를 다 채워도 PASS 가 안 난다** — 시간을 쌓기 전에 정해야 한다 | 지금 (BL-003 종료 조건이 구조적으로 도달 불가) | S | 2026-08-07 gap-resync-autopsy |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -5035,14 +5035,30 @@ terminal 로 보낸다. 같은 문턱에서 미룸을 끊으면 janitor 가 판�
 **Est:** S
 **상태:** ⬜ **Open**
 
-**`scripts/soak-gate.sh` C5 의 `darkness_computed` 가 ✗ 다 (측정 무결 위반).**
+**소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구히 ✗ 다.**
 
-2026-08-07 06:46Z 실측: `db_ok=✓ stack_pinned=✓ phantom_archive=✓ divergence_labels_readable=✓
-aof_ok=✓` 인데 **`darkness_computed=✗`** 이고 「어둠 비율: ✗ 계산 실패 (C5 위반)」로 나온다.
-활성 세션 0 · 귀속 창 0개 상태에서 계산이 성립하지 않는 것으로 **보이지만 확인하지 않았다**
-([확인 필요]). 창이 열린 뒤에도 ✗ 면 게이트가 자기 무결 조건을 못 재는 것이다.
+**원인 확정 (2026-08-07, 재기동 직후 실측).** 게이트 결함이 **아니다** —
+`soak-gate.sh:286` 이 `METRICS_URL`(기본 `http://localhost:8100/metrics`)을 `curl` 해서
+`qb_live_ledger_derive_total{outcome}` 로 어둠 비율을 계산하는데, **`:8100` 에 리스너가
+없다**(`lsof -nP -iTCP:8100 -sTCP:LISTEN` 0행). `soak-stack.sh up` 이 띄우는 것은
+worker · beat · ws-stream · db · redis **5종뿐이고 API 컨테이너가 없다** — `/metrics` 는
+호스트 uvicorn(`make be-isolated`, port 8100)이 `backend/.metrics` 멀티프로세스 디렉터리를
+읽어 내주는 구조인데 그게 안 떠 있다. `soak-observe.sh` §4 도 같은 이유로 UNKNOWN 이다.
+★게이트는 **스크레이프 실패(null=측정불가)와 counter 부재(0/0=표본 없음)를 의도적으로
+구분**한다(`soak-gate.sh:282-284` 주석) — 즉 이 ✗ 는 fail-closed 가 **설계대로** 동작한 것이다.
 
-**Risk:** 🟡 C5 는 다른 조건이 다 ✓ 여도 **PASS 를 막는다** — C1/C2 를 채워도 이게 ✗ 면 못 통과한다.
+★**초판 서술 정정.** 이 항목을 처음 적을 때 「활성 세션 0·귀속 창 0개 때문으로 보인다」로
+`[확인 필요]` 를 달았는데 **틀렸다**. 세션을 띄운 뒤에도 ✗ 이고, 원인은 세션이 아니라
+엔드포인트 부재였다.
+
+**수리 후보:** ⑴ 소크 운영 절차에 「호스트 API 기동」을 넣는다(단 `make be-isolated` 는
+`migrate-isolated` 를 선행하므로 마이그레이션 승인이 필요하다) ⑵ 소크 스택에 metrics 전용
+경량 서비스를 넣는다 ⑶ 게이트가 `backend/.metrics` 를 **직접** 읽는다(HTTP 를 안 탄다).
+★어느 쪽이든 **C5 를 느슨하게 만드는 방향은 금지** — 측정불가를 0% 로 접으면 이 레포가
+이미 덴 「fail-open 게이트」다.
+
+**Risk:** 🔴 **C1/C2 를 아무리 채워도 PASS 가 안 난다.** [BL-003] 의 종료 조건이 구조적으로
+도달 불가라는 뜻이므로, 시간을 쌓기 **전에** 이것부터 정해야 한다.
 
 ---
 
