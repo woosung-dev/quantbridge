@@ -1,5 +1,7 @@
 // 온보딩 일러스트 SVG 프레임 — Sprint 42-polish W2-fidelity + Sprint 44 W F2
-// docs/reference/design/prototypes/05-onboarding.html 의 풍부한 inline SVG 를 4 variant 로 1:1 모방.
+// 1세대 프로토타입 05-onboarding.html 의 풍부한 inline SVG 를 4 variant 로 1:1 모방.
+// 그 파일은 삭제됐고 근거 원본은 태그 prototypes-gen1 에 동결됐다 (현행 정본 = shotgun-2026-07/screen-12):
+//   git show prototypes-gen1:docs/reference/design/prototypes/05-onboarding.html
 // - code: Pine Script 코드 카드 + dashed 화살표 + bridge target + spark
 // - chart: 백테스트 equity curve + chart bars + 축 + active dot
 // - trade: BTC/USDT 가격 + uptrend line + BUY 라벨 + arrow
@@ -82,7 +84,8 @@ export function IllustrationFrame({ variant }: IllustrationFrameProps) {
 
 /**
  * Code variant — Pine Script 카드 + dashed 화살표 + bridge target.
- * prototype 05-onboarding.html lines 654-757 1:1 transcription.
+ * 1세대 프로토타입 05-onboarding.html 의 654-757 행을 1:1 전사한 것이다. 그 행 범위는 아래에서 읽는다:
+ *   git show prototypes-gen1:docs/reference/design/prototypes/05-onboarding.html | sed -n '654,757p'
  */
 function CodeArt() {
   return (
