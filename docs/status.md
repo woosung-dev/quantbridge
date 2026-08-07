@@ -7,18 +7,44 @@
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다.
 
-### ★★★한 줄 — [ADR-025] 는 갚았다. 남은 것은 시간뿐이다
+### ★★★한 줄 — 소크가 **맥을 떠났다**. 이제 클라우드에서 시간을 쌓는다
 
-12h 전향 예측이 Accepted 로 닫혔고(2026-08-06, night-watch 회차) [BL-594]/[BL-596] 도 Resolved 다.
-소크는 **고정 `3a90f80c` · T0 `2026-08-06T01:06:15Z` · 세션 `c160a1a9`** 로 돌고 있다.
-남은 게이트는 C1(누적 168h)과 C2(연속 24h)뿐이다. **첫 명령은 언제나 `scripts/soak-gate.sh` 다.**
-카운터 차분은 night-watch 회차 배너의 스냅샷(**68/8/5044**)을 빼고 세라.
-★아래 사전등록 표는 **판정이 끝난 역사 기록**이다(Accepted, [ADR-025 §판정]) — 재사용 금지.
+2026-08-07 feat-deploy 회차에서 소크 스택 전체가 **오라클 클라우드로 이관**됐다(PR #557 머지,
+merge commit `acff6913`). 맥은 개발 전용으로 복귀했고 `backend/src` 무접촉·`make up` 금지 제약이
+함께 풀렸다.
 
-**★실측(2026-08-06 09:01Z, ci-diet 회차 끝):** 누적 **20.65h / 168h (12.3%)** · 최장 연속
-**12.28h / 24h** · 실격 **0건** · C4/C5 전건 ✓ · `UNKNOWN 진행중`(exit 2). 현재 창
-`c160a1a9` 는 `01:06:46Z` 부터 **연속 7.91h** ⇒ **연속 24h 목표 = 2026-08-07 10:06 KST**.
-★귀속 불가 시간 **56.44h** 은 계상되지 않는다(소급 불가, 기록된 값).
+★★★**첫 명령이 바뀌었다. 맥에서 `scripts/soak-gate.sh` 를 돌리지 마라** — 스택이 여기 없다.
+
+```bash
+ssh truewords-oracle 'cd ~/quantbridge && scripts/soak-gate.sh --status'          # 최대 30분 낡은 값
+ssh truewords-oracle 'cd ~/quantbridge && PATH=$HOME/.local/bin:$PATH \
+  QB_METRICS_URL=http://127.0.0.1:8100/metrics scripts/soak-gate.sh'              # 즉시 값
+```
+
+**★실측(2026-08-07 09:53Z, 이관 직후):** 누적 **0.29h / 168h** · 최장 연속 **0.22h / 24h** ·
+실격 **0건** · C3/C4/C5 **전건 ✓** · `UNKNOWN 진행중`(exit 2).
+고정 **`0c9ccc6`**(origin/main 조상 ✓) · 세션 **`39484a2c`** · T0 **`2026-08-07T09:39:38Z`**.
+⇒ **연속 24h 목표 = 2026-08-08 18:39 KST** · 누적 168h 목표 = 2026-08-14 18:39 KST(무중단 가정).
+
+**★서버 구성** — `truewords-oracle`(Ampere A1 arm64 · 2 OCPU/12 GB · 도쿄 · PAYG).
+compose 3층(base+isolated+soak) **무수정** · API 와 게이트는 **호스트 프로세스**(systemd user,
+lingering ON) · db/redis 는 `127.0.0.1:5433`/`:6380` · 소크 컨테이너 4종에 `mem_limit`.
+★같은 호스트에 사용자의 다른 개인 프로젝트(`truewords`, qdrant 2.6 GB)가 상주한다 — 2 OCPU 를
+공유하므로 **무거운 빌드는 소크를 굶길 수 있다**(FE 빌드는 맥에서 하고 산출물만 보내는 안이 1순위).
+
+★★★**`APP_ENV=production` 을 켜지 마라** — production 은 `PROMETHEUS_BEARER_TOKEN` 을 강제하는데
+게이트의 `/metrics` 스크레이프(`soak-gate.sh:286`)는 인증 헤더를 안 보낸다 → 401 → C5⑷
+`darkness_computed` 영구 false → **게이트가 조용히 영영 안 닫힌다.** 외부 노출 차단은 loopback
+바인딩으로 한다. ⇒ **FE 공개 배포와 현 게이트는 양립하지 않는다. 착수 전 이 충돌부터 결정해라.**
+
+**★이관이 고친 것과 못 고친 것을 섞지 마라.** 이관은 `gap_resync_position_mismatch`(호스트 슬립
+유래) 한 갈래만 없앤다. 역대 자동 사망 8건 중 **4건은 `position_divergence`** 이고 그건 서버로
+그대로 따라온다. 과거 맥에서 38분·138분·519분 만에 죽은 전례가 있다 — **누적 168h 의 실제
+차단자는 그쪽일 가능성이 높다.**
+
+**★미결(비용)** — Budget 미생성. 계정이 **PAYG + 카드 등록**이라 한도 초과가 곧 청구다. 진짜
+사전 차단은 Budget(알림)이 아니라 **Compartment Quota**(강제)다 —
+`zero compute-core quotas in tenancy` + `set compute-core quota standard-a1-core-count to 2 in tenancy`.
 
 **★backtest-reality-gap 회차가 이 블록에 더한 것 — 소크는 건드리지 않았다(창 연속 유지).**
 `ts.ohlcv` 에 perp 1m 2,879행이 새로 들어갔다(라이브는 이 테이블을 안 읽는다 — 실측으로
