@@ -46,6 +46,35 @@ lingering ON) · db/redis 는 `127.0.0.1:5433`/`:6380` · 소크 컨테이너 4�
 사전 차단은 Budget(알림)이 아니라 **Compartment Quota**(강제)다 —
 `zero compute-core quotas in tenancy` + `set compute-core quota standard-a1-core-count to 2 in tenancy`.
 
+### ★★★다음 회차 1순위 — **프론트엔드 오라클 배포** (사용자 요청, 2026-08-07)
+
+★사용자는 **처음부터 FE 도 클라우드에 올리길 원했다.** 설계서 §10 이 「범위 밖」으로 적었고
+그 스코프가 재확인 없이 이어졌다 — 이번 이관에 FE 가 빠진 것은 의도가 아니라 **누락**이다.
+
+**착수 전에 결정할 것 4가지 (코드보다 이게 먼저다)**
+
+1. ★★★**`APP_ENV=production` ↔ 게이트 충돌** — 위 항목 참조. FE 를 공개하려면 API 도 공개해야
+   하고 그러면 production 이 맞는데, production 은 게이트를 죽인다. **양립시킬 방법을 먼저 정해라**
+   (게이트 스크레이프에 bearer 주입 / `/metrics` 를 인증 밖 별도 바인딩 / production 대신 헤더만 수동 적용 등)
+2. ★★**빌드가 소크를 굶긴다** — `next build` 는 CPU 집약이고 2 OCPU 를 `truewords` 와 공유한다.
+   워커가 매분 300봉을 재생하는 중에 코어를 뺏기면 `tick_stall`·divergence 로 **자동 사망**할 수 있다.
+   ⇒ **맥에서 빌드하고 산출물만 서버로 전송하는 안이 1순위 후보**
+3. **도메인/공개 경로** — `NEXT_PUBLIC_API_URL` 은 **빌드 타임에 인라인**된다(`frontend/src/lib/api-base.ts:7`)
+   이므로 **도메인을 정한 뒤에** 빌드해야 한다. 서버에 `cloudflared` 터널이 이미 있으나 그것은
+   `truewords` 프로젝트의 것이다 — 재사용할지 별도로 낼지 결정 필요
+4. **Clerk production 인스턴스** — 공개 도메인에는 test 키가 못 쓰인다
+
+**현황 (2026-08-07 실측)**
+
+| 항목 | 상태 |
+|---|---|
+| `frontend/Dockerfile` | **없음** |
+| `next.config.ts` 의 `output: "standalone"` | **없음** (보안 헤더 설정만 있다) |
+| `next start` 스크립트 | 있음 → 호스트 프로세스 + systemd 로도 가능(API 와 같은 패턴) |
+| 필요 env | `NEXT_PUBLIC_API_URL` · `_WS_URL` · `_CLERK_PUBLISHABLE_KEY` · `_CLERK_SIGN_IN_URL` · `_WEBHOOK_BASE_URL` · `_ENABLE_TEST_ORDER` |
+| API 쪽 | `FRONTEND_URL`(CORS, 기본 `localhost:3000`) · 현재 `127.0.0.1:8100` 바인딩 |
+| 빌드 규모 | `node_modules` 789MB + `.next` 523MB ([ADR-010a](decisions/010a-dev-cpu-budget.md) 실측) · 서버 디스크 여유 71GB |
+
 **★backtest-reality-gap 회차가 이 블록에 더한 것 — 소크는 건드리지 않았다(창 연속 유지).**
 `ts.ohlcv` 에 perp 1m 2,879행이 새로 들어갔다(라이브는 이 테이블을 안 읽는다 — 실측으로
 확정, 소크 무영향). 신규 BL 7종(BL-603~BL-609) 중 **BL-604 — 진입 집합 불일치(P1) — 의
