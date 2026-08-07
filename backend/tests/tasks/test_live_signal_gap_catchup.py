@@ -223,7 +223,7 @@ def _install_evaluation(
     # 이 조회를 쓰지 않는 기존 테스트의 의미가 바뀌지 않는다.
     order_repo = AsyncMock()
     order_repo.list_fills_since = AsyncMock(return_value=list(ledger_fills or []))
-    # BL-618 — 공백 재동기 **유예** 판별자가 이 조회를 읽는다. 기본값 `[]` 는 "이 세션에
+    # BL-622 — 공백 재동기 **유예** 판별자가 이 조회를 읽는다. 기본값 `[]` 는 "이 세션에
     # 미확정 조건부 진입 없음" 이라 유예가 안 걸리고, 이 인자를 안 쓰는 기존 테스트의
     # 의미가 그대로 유지된다(전부 종전대로 즉시 판정한다).
     order_repo.list_resting_conditional_entries = AsyncMock(
@@ -661,7 +661,7 @@ async def test_long_gap_position_fetch_failure_deactivates(
 async def test_long_gap_defers_judgement_while_ledger_still_catching_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """★BL-618 재현 — 미확정 조건부 진입이 남아 있으면 판정을 **미룬다**.
+    """★BL-622 재현 — 미확정 조건부 진입이 남아 있으면 판정을 **미룬다**.
 
     실측(세션 c160a1a9, 2026-08-06): 거래소는 조건부 매도를 `20:17:19.519` 에 체결했는데
     우리 원장은 `20:31:51.622` 에야 `filled` 로 기록했고, 판정은 그 **3.5초 전**인
@@ -704,7 +704,7 @@ async def test_long_gap_defers_judgement_while_ledger_still_catching_up(
 async def test_long_gap_judgement_resumes_once_ledger_caught_up(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """★BL-618 회복 — 주문이 종결되면 유예가 풀리고 그 tick 이 온전히 판정된다.
+    """★BL-622 회복 — 주문이 종결되면 유예가 풀리고 그 tick 이 온전히 판정된다.
 
     유예는 **끈적하지 않다**: 미확정 목록이 비는 순간 종전 경로가 그대로 돌아온다. 여기서는
     원장이 따라잡아 seed 가 서므로 세션이 살고 이벤트도 나간다 — 유예가 그 창의 이벤트를

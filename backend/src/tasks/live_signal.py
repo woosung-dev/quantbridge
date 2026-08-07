@@ -2646,7 +2646,7 @@ async def _unreconciled_conditional_entries(sess: Any, *, session: Any) -> list[
     ★**감싸는 핸들러: 없다.** 순수 DB 읽기이고, 실패하면 호출부의 fail-closed 판정이
     그대로 돌아야 하므로 여기서 삼키지 않는다.
 
-    BL-618 — 공백 재동기 판정을 **미룰지** 정하는 판별자다. 반환이 비어 있으면 호출부는
+    BL-622 — 공백 재동기 판정을 **미룰지** 정하는 판별자다. 반환이 비어 있으면 호출부는
     종전과 100% 같은 경로를 탄다.
 
     ★`list_resting_conditional_entries` 는 (strategy, account) 단위라 **다른 세션의**
@@ -2673,7 +2673,7 @@ def _gap_resync_defer_reason(orders: Sequence[Any], *, now: datetime) -> str | N
 
     ★**감싸는 핸들러: 없다.** 순수 함수다.
 
-    BL-618 — 2026-08-06 사망 부검. 거래소는 조건부 진입을 **20:17:19.519** 에 체결했는데
+    BL-622 — 2026-08-06 사망 부검. 거래소는 조건부 진입을 **20:17:19.519** 에 체결했는데
     우리 원장은 **20:31:51.622** 에야 `filled` 로 기록했고, 판정은 그 **3.5초 전**에 났다.
     그 순간 `list_fills_since` 는 아직 `submitted` 인 그 주문을 못 보므로 seed 가 비고,
     엔진은 반전 전 포지션을 든 채 거래소와 대조돼 **정상인데도** 세션이 죽었다.
@@ -3289,7 +3289,7 @@ async def _evaluate_session_with_engine(
                 preflight_symbols=preflight_symbols,
             )
 
-        # 5.5 BL-618 — 원장이 아직 따라잡는 중이면 공백 재동기 **판정 자체를 미룬다.**
+        # 5.5 BL-622 — 원장이 아직 따라잡는 중이면 공백 재동기 **판정 자체를 미룬다.**
         #
         # ★**claim 앞이어야 한다.** `try_claim_bar` 는 성공 시 `last_evaluated_bar_time`
         # 을 **무조건** 전진시키므로, claim 뒤에서 미루고 `return` 하면 다음 tick 의
