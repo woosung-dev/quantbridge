@@ -833,7 +833,7 @@ async def test_deferring_carries_the_previous_report_forward(
     t6 = t0 + timedelta(minutes=6)
     sess = _session(last_evaluated_bar_time=t0)
     stored_epoch = datetime(2026, 4, 30, tzinfo=UTC)
-    sess_repo, event_repo, _run_kwargs = _install_evaluation(
+    sess_repo, _event_repo, _run_kwargs = _install_evaluation(
         monkeypatch,
         sess=sess,
         rows=_rows(t0, t6),
