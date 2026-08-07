@@ -16,13 +16,16 @@
 # 충돌 발생. base 와 isolated 는 mutually exclusive (ADR docs/decisions/019-worker-auto-rebuild.md).
 
 services:
+  # ★host 인터페이스를 loopback 으로 고정한다. base 의 `"5432:5432"` 는 `0.0.0.0` 바인딩이라
+  # 공개 VM(클라우드 소크)에서 방화벽 규칙 하나만 어긋나도 DB/redis 가 인터넷에 노출된다.
+  # 접근 경로는 그대로다 — `make be-isolated` 도 게이트 분류기도 `localhost:5433` 으로 붙는다.
   db:
     ports: !override
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
 
   redis:
     ports: !override
-      - "6380:6379"
+      - "127.0.0.1:6380:6379"
 
   backend-worker:
     volumes: !override
