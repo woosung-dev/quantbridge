@@ -44,17 +44,20 @@ class CreateBacktestRequest(BaseModel):
         max_digits=6,
         decimal_places=2,
     )
-    # 수수료 0 ~ 1% (Bybit/OKX taker 표준 0.10%).
+    # 수수료 0 ~ 1%. ★기본값은 **라이브 원장 실측** taker 0.055%/leg (BL-603, 2026-08-07) —
+    # 거래소 공시 표준가 0.10% 가 아니다. 엔진 SSOT 는 `engine/types.py` 의 `BacktestConfig`
+    # 이고 **두 리터럴은 같이 움직여야 한다**(여기만 두면 사용자 제출 경로가 옛 가정을 쓴다).
     fees_pct: Decimal = Field(
-        default=Decimal("0.001"),
+        default=Decimal("0.00055"),
         ge=Decimal("0"),
         le=Decimal("0.01"),
         max_digits=6,
         decimal_places=5,
     )
-    # 슬리피지 0 ~ 1% (호가창 평균 0.05%).
+    # 슬리피지 0 ~ 1%. ★기본값은 매칭쌍 34건의 진입가 잔차 **중앙 0.014%** 실측이다
+    # (BL-603) — 종전 표기 「호가창 평균 0.05%」는 실측으로 반증됐다.
     slippage_pct: Decimal = Field(
-        default=Decimal("0.0005"),
+        default=Decimal("0.00014"),
         ge=Decimal("0"),
         le=Decimal("0.01"),
         max_digits=6,

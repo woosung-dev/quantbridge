@@ -42,7 +42,8 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
       return;
     }
     // Sprint 31 BL-162a — 재실행 시 동일 cost/margin 가정 보존 (사용자가 직전
-    // backtest 와 동일 결과 기대). bt.config null (legacy) 시 Bybit 표준 default.
+    // backtest 와 동일 결과 기대). bt.config null (legacy) 시 BE 기본값과 같은 값으로
+    // 떨어진다 — ★BL-603 이후 그 기본값은 거래소 공시 표준가가 아니라 **라이브 원장 실측**이다.
     const cfg = backtest.config ?? null;
     create.mutate({
       strategy_id: backtest.strategy_id,
@@ -52,8 +53,8 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
       period_end: backtest.period_end,
       initial_capital: capital,
       leverage: cfg?.leverage ?? 1,
-      fees_pct: cfg?.fees ?? 0.001,
-      slippage_pct: cfg?.slippage ?? 0.0005,
+      fees_pct: cfg?.fees ?? 0.00055,
+      slippage_pct: cfg?.slippage ?? 0.00014,
       include_funding: cfg?.include_funding ?? true,
       // TV parity — 체결 타이밍 보존 (구 row = bar_close).
       fill_timing:

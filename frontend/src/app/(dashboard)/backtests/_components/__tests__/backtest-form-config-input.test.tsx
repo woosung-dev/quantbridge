@@ -72,8 +72,8 @@ describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
     const slippage = screen.getByLabelText("슬리피지") as HTMLInputElement;
     const leverage = screen.getByLabelText("레버리지 (배)") as HTMLInputElement;
 
-    expect(fees.value).toBe("0.001");
-    expect(slippage.value).toBe("0.0005");
+    expect(fees.value).toBe("0.00055");
+    expect(slippage.value).toBe("0.00014");
     expect(leverage.value).toBe("1");
     expect(leverage).toHaveAttribute("min", "1");
     expect(leverage).toHaveAttribute("max", "125");

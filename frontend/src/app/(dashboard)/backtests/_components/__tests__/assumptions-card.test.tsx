@@ -11,8 +11,8 @@ describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/
     // 포지션 모델 = "1x · 롱/숏" (BL-187a)
     expect(screen.getByText("1x · 롱/숏")).toBeInTheDocument();
     // 수수료/슬리피지 default
-    expect(screen.getByText("0.10%")).toBeInTheDocument();
-    expect(screen.getByText("0.050%")).toBeInTheDocument();
+    expect(screen.getByText("0.055%")).toBeInTheDocument();
+    expect(screen.getByText("0.014%")).toBeInTheDocument();
     // BL-187a: 레버리지 / 펀딩비 row 제거
     expect(screen.queryByText("레버리지")).toBeNull();
     expect(screen.queryByText("펀딩비 반영")).toBeNull();
@@ -34,10 +34,10 @@ describe("AssumptionsCard (Sprint 37 BL-187a — 라벨 simplify + 레버리지/
         config={{ fees: 0.0006, slippage: null }}
       />,
     );
-    // fees set → 0.06%
-    expect(screen.getByText("0.06%")).toBeInTheDocument();
-    // slippage null → default 0.050%
-    expect(screen.getByText("0.050%")).toBeInTheDocument();
+    // fees set → 0.060% (BL-603: 0.055% 를 살리려 소수 3자리로 넓혔다)
+    expect(screen.getByText("0.060%")).toBeInTheDocument();
+    // slippage null → default 0.014%
+    expect(screen.getByText("0.014%")).toBeInTheDocument();
     // 일부만 default 이므로 안내 문구 없음
     expect(
       screen.queryByTestId("assumptions-default-notice"),

@@ -5,17 +5,22 @@
 하드코딩하고, 엔진 출력이 그 손계산과 일치하는지 확인한다. 이 오라클이 PASS 해야만
 전체 golden expected.json 을 (신뢰된) 엔진으로 재생성할 자격이 생긴다.
 
-시나리오 (default cfg: taker_fee=0.001, slippage=0.0005, maker_fee=0.0002, qty=1):
+시나리오 (default cfg: taker_fee=0.00055, slippage=0.00014, maker_fee=0.0002, qty=1):
   bar0: flat. bar1: long entry @ close=100. bar2: TP limit 110 도달(high=111).
   → exit @ max(open=102, 110)=110, kind=TAKE_PROFIT(maker).
 
 손계산:
   gross_pnl = (110 - 100) * 1 = 10
-  entry leg (taker): fee = 100*0.001 = 0.1, slip = 100*0.0005 = 0.05
+  entry leg (taker): fee = 100*0.00055 = 0.055, slip = 100*0.00014 = 0.014
   exit leg (TP=maker): fee = 110*0.0002 = 0.022, slip = 0 (limit 면제)
-  total_fees = 0.1 + 0.022 = 0.122
-  total_slippage = 0.05
-  net_pnl = 10 - (0.122 + 0.05) = 9.828
+  total_fees = 0.055 + 0.022 = 0.077
+  total_slippage = 0.014
+  net_pnl = 10 - (0.077 + 0.014) = 9.909
+
+★BL-603(2026-08-07) 로 기본 비용 가정이 실측 기반으로 바뀌면서 위 숫자를 **다시 손으로
+계산했다**. 엔진 출력을 복사해 넣으면 이 파일이 존재할 이유가 사라진다(LESSON-039
+anti-circular) — `maker_fee` 는 불변이므로 exit leg 0.022 만 그대로다.
+`Decimal(str(cfg.fees))` 변환이라 부동소수 잡음 없이 위 값이 정확히 나온다.
 """
 from __future__ import annotations
 
@@ -65,10 +70,10 @@ def test_engine_matches_hand_oracle_tp_exit() -> None:
     # 손계산 기대값 (엔진 무관).
     assert t.exit_price == Decimal("110")
     assert t.exit_kind == ExitOrderKind.TAKE_PROFIT
-    assert t.pnl == Decimal("9.828")  # net
+    assert t.pnl == Decimal("9.909")  # net
     m = out.result.metrics
     assert m.total_fees is not None and m.total_slippage is not None
-    assert m.total_fees == Decimal("0.122")
-    assert m.total_slippage == Decimal("0.050")
+    assert m.total_fees == Decimal("0.077")
+    assert m.total_slippage == Decimal("0.014")
     # C14 불변식.
     assert m.total_fees + m.total_slippage == t.fees

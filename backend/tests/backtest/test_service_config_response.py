@@ -89,10 +89,10 @@ def test_to_detail_config_defaults_match_engine_defaults() -> None:
 
     # leverage default = 1.0 (현물 가정)
     assert detail.config.leverage == default_cfg.leverage == 1.0
-    # fees default = 0.001 (0.1%)
-    assert detail.config.fees == default_cfg.fees == 0.001
-    # slippage default = 0.0005 (0.05%)
-    assert detail.config.slippage == default_cfg.slippage == 0.0005
+    # fees default = 0.00055 (0.055% — BL-603 라이브 원장 실측)
+    assert detail.config.fees == default_cfg.fees == 0.00055
+    # slippage default = 0.00014 (0.014% — BL-603 진입가 잔차 중앙)
+    assert detail.config.slippage == default_cfg.slippage == 0.00014
     # include_funding default = False
     assert detail.config.include_funding == default_cfg.include_funding is False
 

@@ -23,7 +23,7 @@ describe("AssumptionsCard — Sprint 37 BL-187a graceful upgrade (fees/slippage)
     );
 
     // 실제값 — Bybit 표준이 아닌 사용자 입력값
-    expect(screen.getByText("0.06%")).toBeInTheDocument();
+    expect(screen.getByText("0.060%")).toBeInTheDocument();
     expect(screen.getByText("0.020%")).toBeInTheDocument();
 
     // (기본) 마크 전부 제거 — graceful upgrade 완성
@@ -51,9 +51,9 @@ describe("AssumptionsCard — Sprint 37 BL-187a graceful upgrade (fees/slippage)
     );
 
     // fees 실제값
-    expect(screen.getByText("0.06%")).toBeInTheDocument();
+    expect(screen.getByText("0.060%")).toBeInTheDocument();
     // slippage default
-    expect(screen.getByText("0.050%")).toBeInTheDocument();
+    expect(screen.getByText("0.014%")).toBeInTheDocument();
 
     // 일부만 default 이므로 전체 default 안내 문구 없음
     expect(
@@ -82,7 +82,7 @@ describe("AssumptionsCard — Sprint 37 BL-187a graceful upgrade (fees/slippage)
     );
 
     // 사용자 입력값 — fees / slippage 만 노출
-    expect(screen.getByText("0.08%")).toBeInTheDocument();
+    expect(screen.getByText("0.080%")).toBeInTheDocument();
     expect(screen.getByText("0.010%")).toBeInTheDocument();
     expect(screen.getByText("50,000 USDT")).toBeInTheDocument();
 
