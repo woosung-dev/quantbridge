@@ -2640,6 +2640,64 @@ def _load_strategy_settings(strategy: Any, *, session_id: UUID) -> StrategySetti
     return parsed
 
 
+async def _unreconciled_conditional_entries(sess: Any, *, session: Any) -> list[Any]:
+    """이 세션이 소유한 **아직 종결되지 않은** 조건부 진입 주문.
+
+    ★**감싸는 핸들러: 없다.** 순수 DB 읽기이고, 실패하면 호출부의 fail-closed 판정이
+    그대로 돌아야 하므로 여기서 삼키지 않는다.
+
+    BL-618 — 공백 재동기 판정을 **미룰지** 정하는 판별자다. 반환이 비어 있으면 호출부는
+    종전과 100% 같은 경로를 탄다.
+
+    ★`list_resting_conditional_entries` 는 (strategy, account) 단위라 **다른 세션의**
+    주문도 함께 온다. 그 주문 때문에 이 세션의 판정을 미루면 안 되므로
+    `parse_conditional_entry_key` 로 세션까지 좁힌다 — `idempotency_key` 가 세션을
+    보유하는 유일한 자리다(`live:<session_id>:cond:...`).
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+    from src.trading.services.conditional_entry_planner import parse_conditional_entry_key
+
+    orders = await OrderRepository(session).list_resting_conditional_entries(
+        sess.strategy_id, sess.exchange_account_id
+    )
+    mine = []
+    for order in orders:
+        parsed = parse_conditional_entry_key(order.idempotency_key)
+        if parsed is not None and parsed[0] == sess.id:
+            mine.append(order)
+    return mine
+
+
+def _gap_resync_defer_reason(orders: Sequence[Any], *, now: datetime) -> str | None:
+    """공백 재동기 판정을 미룰 근거가 있으면 그 사유, 없으면 `None`.
+
+    ★**감싸는 핸들러: 없다.** 순수 함수다.
+
+    BL-618 — 2026-08-06 사망 부검. 거래소는 조건부 진입을 **20:17:19.519** 에 체결했는데
+    우리 원장은 **20:31:51.622** 에야 `filled` 로 기록했고, 판정은 그 **3.5초 전**에 났다.
+    그 순간 `list_fills_since` 는 아직 `submitted` 인 그 주문을 못 보므로 seed 가 비고,
+    엔진은 반전 전 포지션을 든 채 거래소와 대조돼 **정상인데도** 세션이 죽었다.
+
+    ★**「모르면 통과」가 아니다.** 미는 조건은 「원장에 **알려진 미확정 주문이 있다**」이고,
+    그런 주문이 없으면 판정은 종전과 똑같이 즉시 집행된다. fail-closed 를 약화시키지 않는다.
+
+    ★**상한은 새 상수가 아니라 이미 있는 불변식이다.** `conditional_entry_janitor` 가
+    `_SCAN_STUCK_THRESHOLD_MINUTES` 를 넘긴 `submitted` 조건부 진입을 거래소 확인 뒤
+    terminal 로 보낸다(5분 beat). 그 문턱을 넘긴 주문까지 미루면 **미룸이 무한**해지므로
+    같은 문턱에서 미룸을 끊는다 — 그 뒤로는 janitor 가 주문을 종결시켜 이 판별자 자체가
+    비게 된다. 부검 대상 주문의 판정 시점 나이는 **16분 58초**로 이 문턱 안이다.
+    """
+    from src.tasks.orphan_scanner import _SCAN_STUCK_THRESHOLD_MINUTES
+
+    floor = now - timedelta(minutes=_SCAN_STUCK_THRESHOLD_MINUTES)
+    for order in orders:
+        # `pending` 은 아직 발주 전이라 `submitted_at` 이 없다 — 생성 시각으로 나이를 잰다.
+        placed_at = order.submitted_at or order.created_at
+        if placed_at is not None and placed_at > floor:
+            return "gap_resync_pending_ledger"
+    return None
+
+
 async def _probe_gap_resync_state(
     sess: Any,
     *,
@@ -3230,6 +3288,37 @@ async def _evaluate_session_with_engine(
                 preflight_cat=preflight_cat,
                 preflight_symbols=preflight_symbols,
             )
+
+        # 5.5 BL-618 — 원장이 아직 따라잡는 중이면 공백 재동기 **판정 자체를 미룬다.**
+        #
+        # ★**claim 앞이어야 한다.** `try_claim_bar` 는 성공 시 `last_evaluated_bar_time`
+        # 을 **무조건** 전진시키므로, claim 뒤에서 미루고 `return` 하면 다음 tick 의
+        # `elapsed` 가 5분 안으로 줄어 `requires_gap_resync` 가 **다시는 True 가 안 된다**
+        # — 세션이 낡은 엔진 포지션을 든 채 조용히 계속 돈다(죽는 것보다 나쁘다). 여기서
+        # 미루면 워터마크가 그대로라 다음 tick 이 같은 판정을 **온전히 다시** 밟고,
+        # 이 bar 의 이벤트도 유실되지 않는다(`run_live` 를 아직 돌리지 않았다).
+        if requires_gap_resync:
+            defer_reason = _gap_resync_defer_reason(
+                await _unreconciled_conditional_entries(sess, session=session),
+                now=datetime.now(UTC),
+            )
+            if defer_reason is not None:
+                # ★[BL-580] 미가드 site 를 새로 만들지 않는다 — 이 파일의 잔여 84곳은
+                # **갚아야 할 부채**이지 따라야 할 관행이 아니다. `_count_safely` 가
+                # `.labels()` 까지 감싸므로 mmap 확장 실패가 유예 판정을 못 뒤집는다.
+                _count_safely(qb_live_signal_skipped_total, reason=defer_reason)
+                logger.warning(
+                    "live_signal_gap_resync_deferred",
+                    extra={
+                        "session_id": str(sess.id),
+                        "symbol": sess.symbol,
+                        "last_evaluated_bar_time": last_evaluated_bar_time.isoformat()
+                        if last_evaluated_bar_time is not None
+                        else None,
+                        "last_bar_time": last_bar_time.isoformat(),
+                    },
+                )
+                return {"skipped": defer_reason}
 
         # 6. try_claim_bar winner-only (P2 #3)
         won = await sess_repo.try_claim_bar(sess.id, last_bar_time, uuid4())
