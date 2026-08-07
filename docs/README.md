@@ -22,6 +22,19 @@
 | git history                              | 삭제된 과거 원문(구 `archive/`·`dev-log/*.md`)은 어디 있는가   | 2026-08-06 대개편에서 삭제 — `git show 0f0f0b06:docs/archive/<경로>` 로 조회 |
 | [`reports/`](./reports/)                 | 생성된 dogfood·retro 출력은 어디 있는가                        | 코드 생성물이다. 수동 정본을 만들지 않는다                                   |
 
+★**삭제된 원문의 「목록」은 파일로 남아 있지 않다 — 명령으로 뽑는다.** `dev-log/INDEX.md`가 색인하는
+것은 회고뿐이고, 구 `archive/` 375파일에는 색인이 없다. 파일명을 모르면 위 `git show`를 칠 수 없다.
+
+```bash
+git ls-tree -r --name-only 0f0f0b06 -- docs/archive   # 삭제된 archive 375파일 목록
+git ls-tree -r --name-only 0f0f0b06 -- docs/dev-log   # 삭제된 회고 원문 135파일 목록
+git show 0f0f0b06:<위 목록의 경로>                     # 원문 조회
+```
+
+★**그 목록 안에 「과거 기록」이 아닌 것이 4건 있다** — Cloud Run 런북 · Grafana 셋업 ·
+Bybit mainnet 체크리스트 · 법무 임시 런북. 아직 실행하지 않은 절차라 배포·메인넷 착수 시
+여기서 꺼내 `reference/operations/`로 갱신 재등재한다 ([BL-617](./backlog.md#bl-617)).
+
 루트의 사람용 정본은 [`README.md`](../README.md), [`AGENTS.md`](../AGENTS.md),
 [`CONTEXT.md`](../CONTEXT.md), [`DESIGN.md`](../DESIGN.md)다. [`CLAUDE.md`](../CLAUDE.md)는
 `AGENTS.md`를 불러오는 Claude Code 호환 진입점이다.

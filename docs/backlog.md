@@ -542,12 +542,13 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-603](#bl-603) | ★백테스트 비용 가정이 라이브 실효의 **2.7배** — 가정 왕복 0.30%(fees 0.1+slip 0.05/leg) vs 원장 실측 왕복 **0.1101%**(taker 0.055%/leg 단일 성분, 84 event 중 77 이 8자리 일치·비-taker 잔차 0.03%). 매칭쌍 진입가 잔차 중앙 0.014% vs slippage 가정 0.05%                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 백테스트 손익을 라이브 예측치로 읽기 전 (비용 축이 3배 비관)                                                      | S            | 2026-08-06 backtest-reality-gap                        |
 | [BL-605](#bl-605) | `exchange_exits` 가 같은 청산 event 를 **정확히 2행**(classification `ours`/`unknown` 쌍, payload 동일)으로 적재 — 실측 86 event = 172행. `SUM(closed_pnl)` 류 소비가 손익을 **정확히 2배** 계상한다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | exchange_exits 를 집계로 소비하는 코드를 추가하기 전                                                              | S            | 2026-08-06 backtest-reality-gap (eval2 실측)           |
 | [BL-610](#bl-610) | `entry_completeness.py:158` 의 `source=` 문자열이 문서 대개편으로 삭제된 dev-log 경로를 가리킨다 — 런타임 무해(값일 뿐)지만 근거 추적이 git history 경유로 바뀌었다. 소크 중 `backend/src` 무접촉 원칙으로 이연                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | BL-003 소크 창 종료 후 첫 backend/src 정리 회차                                                                   | XS           | 2026-08-06 docs-overhaul (fix-doc)                     |
-| [BL-611](#bl-611) | ★**메타-방법론 영구 규칙이 자동 로드에서 빠졌다** — 구 `.ai/common/global.md` §7 은 `paths` 없는 `.claude/rules/global.md` 로 **매 세션 무조건** 들어왔다(2026-08-07 실측 재현). ADR-026 이 이를 `generator-evaluator-pipeline.md` §8 로 옮기면서 **열어야만 읽히는** 문서가 됐다 — kickoff preflight(§8.1)·codex finding 코드 대조(§8.3)가 조용히 누락될 수 있다                                                                                                                                                                                                                                                                                                                                                                                                     | 다음 Sprint kickoff (Type A/B) 전                                                                                 | S            | 2026-08-07 docs-overhaul 리뷰                          |
+| [BL-611](#bl-611) | ✅ ★**메타-방법론 영구 규칙이 자동 로드에서 빠졌다** — 구 `.ai/common/global.md` §7 은 `paths` 없는 `.claude/rules/global.md` 로 **매 세션 무조건** 들어왔다(2026-08-07 실측 재현). ADR-026 이 이를 `generator-evaluator-pipeline.md` §8 로 옮기면서 **열어야만 읽히는** 문서가 됐다 — kickoff preflight(§8.1)·codex finding 코드 대조(§8.3)가 조용히 누락될 수 있다. **Resolved** — `AGENTS.md` 에 §8.1/§8.3 두 줄 인라인                                                                                                                                                                                                                                                                                                                                            | 다음 Sprint kickoff (Type A/B) 전                                                                                 | S            | 2026-08-07 docs-overhaul 리뷰                          |
 | [BL-612](#bl-612) | `docs/dev-log/2026-08-06-entry-set-divergence.md` 버퍼가 `docs/lessons.md` 로 승격되지 않았다 — ADR-026 §3 은 「세션 종결 시 승격 의무, 승격하면 버퍼를 비운다」인데 회차는 끝났고(PR #553 머지) 버퍼는 9천자로 남아 있다(반증 카드 상한 1~2천자 초과)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 다음 문서 정리 회차                                                                                               | XS           | 2026-08-07 docs-overhaul 리뷰                          |
 | [BL-613](#bl-613) | `live_signal.py` 핸들러 가시화가 남긴 **줄 수 부채** — `_evaluate_session_with_engine` **506줄**(Kind B 추출 E8~E14 미완) · `_place_planned_entry` 236 · `_reconcile_conditional_entries_inner` 203 · `_async_dispatch_event` 256(최대 `try` 본문 **225줄** — 이제 이게 최대). ★가시성 목표(최대 try 845→8)는 달성됐고 줄 수는 못 채웠다                                                                                                                                                                                                                                                                                                                                                                                                                              | `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580] 착수 회차와 겹친다)                                             | M            | 2026-08-04 handler-visibility (status 승계)            |
 | [BL-614](#bl-614) | 2026-08-04 handler-visibility 회차 방법론 **3건이 `docs/lessons.md` 미승격** — dev-log 본문은 문서 대개편에서 삭제됐고 INDEX 한 줄과 git history 에만 남았다(다중집합↔문장 순서 · 재적재 지문 = celery 배너 · 검증 도구를 먼저 적대 검증)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 다음 문서 정리 회차 ([BL-612] 와 함께)                                                                            | XS           | 2026-08-04 handler-visibility (status 승계)            |
 | [BL-615](#bl-615) | 스택 규칙 파일이 공식 권장 크기의 **2배** — `backend/AGENTS.md` **416줄** · `frontend/AGENTS.md` **316줄** (Claude Code 문서 권장 = 파일당 200줄 이하, 「Longer files consume more context and reduce adherence」). 그 디렉터리 파일을 열 때마다 전량 로드된다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 스택 규칙을 다음에 손댈 때 ([ADR-027] 정착 후)                                                                    | S            | 2026-08-07 ADR-027 (배치 이전 중 실측)                 |
 | [BL-616](#bl-616) | 부트스트랩을 **우회해 만든** 워크트리는 husky 훅이 없다 — `pnpm install` 을 건너뛰면 `prepare: husky` 가 안 돌아 `.husky/_`(미트래킹)가 안 생기고, git 은 없는 `core.hooksPath` 를 **경고 없이 무시**한다. 실태: 워크트리 5개 중 **4개 정상**, 우회 생성된 1개만 결손(2026-08-07 정상화 완료). ★남은 축 = **감지 수단이 없다** — 훅이 안 도는 실패 모드는 출력이 0줄이라 「통과」와 구별되지 않는다                                                                                                                                                                                                                                                                                                                                                                   | 워크트리에서 훅 미작동이 또 관측되면                                                                              | S            | 2026-08-07 ADR-027 회차 (자기 커밋에서 발견)           |
+| [BL-617](#bl-617) | ★**「과거 기록」이 아닌 운영 절차 4종이 working tree 밖으로 나갔다** — Cloud Run 런북(39KB)·Grafana 셋업·Bybit mainnet 체크리스트(11KB)·법무 임시 런북. ADR-026 의 분류 기준이 **위치**(폴더 이름)였지 미래 유용성이 아니었던 결과다. 머지 후 `docs/` 전체에서 Cloud Run·Grafana·Prometheus·mainnet·법무 언급 **0건**인데 `alerts.yml`·`Dockerfile`·워크플로 4종은 레포에 살아 있다. ★지금 되살리지 않는다 — 트리거 시점에 갱신해 재등재                                                                                                                                                                                                                                                                                                                              | [BL-071] 프로덕션 배포 발동 시 · Bybit mainnet 전환 시                                                            | S            | 2026-08-07 PR #554 리뷰                                |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -4672,20 +4673,40 @@ payload 쌍의 2배 방지를 검증하는 테스트가 0건(eval 전수 표 = P
 
 ### BL-610
 
-**Priority:** P3
-**카테고리:** Backend / trading (주석·메타데이터)
+**Priority:** P2 (~~P3~~ — 2026-08-07 전수 재검출로 상향. 인덱스 행은 처음부터 P2 표에 있었고,
+사용자 표면 2곳이 확인돼 섹션 선언을 표에 맞춘다)
+**카테고리:** Backend / trading (문자열·메타데이터) + Frontend 주석
 **Trigger:** BL-003 소크 창 종료 후 첫 `backend/src` 정리 회차
-**Est:** XS
+**Est:** XS → **S** (1곳 → 10곳)
 **상태:** ⬜ **Open**
 
-**`entry_completeness.py:158` 의 `source="docs/dev-log/2026-08-02-divergence-label-split.md"` 가
-삭제된 경로를 가리킨다.** 문서 대개편(ADR-026, fix-doc)이 dev-log 원문을 지웠다. 런타임 값이라
-동작은 무해하지만, 근거 추적이 `git show 0f0f0b06:docs/dev-log/...` 경유로 바뀌었다.
-소크 활성 중 `backend/src` 무접촉 원칙 때문에 이번 회차에서 고치지 않고 이연한다.
-수리 = 문자열을 tombstone 형식(`git:0f0f0b06 docs/dev-log/2026-08-02-divergence-label-split.md`)
-또는 현존 정본 경로로 교체 + 해당 값을 소비하는 곳이 있는지 grep 확인.
+**코드·테스트·설정 10곳이 삭제된 문서 경로를 가리킨다.** 문서 대개편(ADR-026, fix-doc)이
+`docs/archive/`·dev-log 원문을 지웠다. 소크 활성 중 `backend/src` 무접촉 원칙 때문에 이번 회차에서
+고치지 않고 이연한다. **2026-08-07 PR #554 리뷰에서 전수 재검출** — 최초 등재 시엔 1곳만 잡았다.
 
-**Risk:** 🟢 주석 수준. 단 이 값을 UI/리포트가 링크로 렌더한다면 깨진 링크가 된다 — 수리 시 소비처 확인.
+★**그중 2곳은 사용자에게 그대로 보인다** (주석이 아니다):
+
+- `backend/src/backtest/service.py:191` — `StrategyDegraded.detail` 에 `"See docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md."` 가 들어가 **API 응답으로 나간다**
+- `backend/src/strategy/pine_v2/coverage.py:697` — heikinashi 경고 문자열의 `"참고: …"` 가 **UI 로 표면화된다**
+
+나머지 8곳 (동작 무해):
+
+- `backend/src/trading/entry_completeness.py:158` — `source=` 메타데이터 (최초 등재분)
+- `backend/prometheus/alerts.yml:14` · `backend/tests/strategy/pine_v2/{test_coverage_sprint21.py:197,test_dogfood_pine_corpus_e2e.py:56,test_trust_layer_parity.py:10}`
+- `frontend/src/__tests__/design-canon-tokens.test.ts:62` · `frontend/src/app/(dashboard)/backtests/_components/charts/equity-chart-v2.tsx:9` · `frontend/src/components/charts/trading-chart.tsx:4`
+
+수리 = tombstone 형식(`git:0f0f0b06 <경로>`) 또는 현존 정본 경로로 교체.
+재검출 명령 (게이트가 아니라 손으로 돌린다):
+
+```bash
+git grep -oE 'docs/(archive|dev-log)/[A-Za-z0-9_./-]+\.(md|html)' -- backend frontend \
+  | while IFS=: read -r f l p; do [ -e "$p" ] || echo "DANGLING $f -> $p"; done
+```
+
+★`scripts/docs-audit.sh:81~83,128` 의 4건은 **안내 메시지 문자열**이라 별개다 — 검사 로직은
+legacy 문자열의 존재 여부만 보므로 동작 영향이 없다. 같이 고쳐도 되고 두어도 된다.
+
+**Risk:** 🟡 8곳은 주석 수준이지만 **2곳은 사용자 표면**이다 — 지금도 없는 파일을 안내하고 있다.
 
 ---
 
@@ -4697,7 +4718,13 @@ payload 쌍의 2배 방지를 검증하는 테스트가 0건(eval 전수 표 = P
 **카테고리:** DX / 문서 로딩 (ADR-026 후속)
 **Trigger:** 다음 Sprint kickoff (Type A/B) 전
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved (2026-08-07, PR #554 리뷰 회차)** — 후보 ⑴ 채택. `AGENTS.md` 에
+`## 메타-방법론 (영구)` 블록 신설, §8.1(kickoff baseline preflight)·§8.3(codex finding 코드 대조)
+두 줄만 본문으로 승격하고 §8 전문은 링크로 남겼다. **§8.2/§8.4/§8.5 는 의도적으로 인라인하지
+않는다** — 그 셋은 트리거가 외부 사건(PR 머지 / codex G.0 산출물 / 신규 모듈 신설)이라 그 시점에
+문서를 여는 흐름이 이미 있다. §8.1·§8.3 만이 **아무 신호 없이 건너뛰어진다**.
+★**판정 방법은 하나뿐** — 새 세션을 띄워 그 블록이 컨텍스트에 들어오는지 육안 확인한다
+(루트 `AGENTS.md` 는 `CLAUDE.md` 가 import 하므로 무조건 로드된다).
 
 **메타-방법론 영구 규칙이 「매 세션 자동 로드」에서 「열어야 읽힘」으로 강등됐다.**
 구 `.ai/common/global.md` 는 `paths` frontmatter 가 없어 `.claude/rules/global.md`(심볼릭) 경유로
@@ -4858,6 +4885,41 @@ FE 회귀 방어와 `pre-commit` 의 lint-staged 가 전부 무력이었고, 그
 이미 옳고 이번 사고는 「도구가 없어서」가 아니라 「도구를 안 거쳐서」 났다.
 
 **Risk:** 🟡 재발 시 조용하다. 단 정상 경로(herdr / `worktree-bootstrap.sh`)로 만든 워크트리는 영향 없다.
+
+---
+
+### BL-617
+
+**Priority:** P3
+**카테고리:** Docs / 운영 절차 회수 (ADR-026 후속)
+**Trigger:** [BL-071](#deferred--trigger-미도래--의도적-부활-가능-구-_deferredmd-승격-2026-08-06) 발동 시 (프로덕션 배포) · Bybit mainnet 전환 시
+**Est:** S
+**상태:** ⬜ **Open**
+
+**「과거 기록」이 아닌 운영 절차 4종이 문서 대개편에서 working tree 밖으로 나갔다.**
+ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 **위치**(폴더 이름)였지
+**미래 유용성**이 아니었다. 그 결과 아직 **실행하지 않은 절차**가 「과거 원문」으로 함께 나갔다:
+
+| 문서 (`git show 0f0f0b06:<경로>`)                                       | 크기 | 언제 필요한가          |
+| ----------------------------------------------------------------------- | ---- | ---------------------- |
+| `docs/archive/operations/deployment/2026-05-05-cloud-run-runbook.md`    | 39KB | [BL-071] 프로덕션 배포 |
+| `docs/archive/operations/observability/grafana-cloud-setup.md`          | —    | 운영 관측성 켤 때      |
+| `docs/archive/operations/trading/2026-04-21-bybit-mainnet-checklist.md` | 11KB | demo → mainnet 전환    |
+| `docs/archive/operations/legal/2026-04-25-legal-temporary-runbook.md`   | —    | 외부 사용자 받기 전    |
+
+**측정 (2026-08-07)** — 머지 후 `docs/` 전체에서 **Cloud Run · Grafana · Prometheus · mainnet ·
+법무 언급이 0건**이 된다. 그런데 `backend/prometheus/alerts.yml` · `backend/Dockerfile` ·
+워크플로 4종은 **레포에 살아 있다** — 설정은 있고 「왜/어떻게」만 이력으로 빠지는 비대칭이다.
+
+★**지금 되살리지 않는 것이 맞다** — 넷 다 3개월 이상 낡았고, 실제 배포·전환 시점에 어차피 다시 쓴다.
+지금 `reference/` 로 옮기면 안 쓰는 채로 다시 썩는다. 필요한 것은 **꺼낼 수 있다는 사실의 보존**이고,
+그 경로는 [`docs/README.md`](./README.md) §문서의 수명과 위치에 명시했다.
+
+**수리** = 트리거 발동 시 위 경로에서 꺼내 **갱신한 뒤** `docs/reference/operations/` 로 재등재.
+그대로 복사하지 않는다 (낡은 절차를 정본으로 만드는 것이 더 나쁘다).
+
+**Risk:** 🟢 지금은 영향 없다. 단 트리거가 왔을 때 **이 항목이 없으면 그 문서들의 존재 자체를
+아무도 모른다** — `docs/archive/` 375파일에는 파일 목록 색인이 남아 있지 않기 때문이다.
 
 ## Deferred — trigger 미도래 · 의도적 부활 가능 (구 `_deferred.md` 승격, 2026-08-06)
 

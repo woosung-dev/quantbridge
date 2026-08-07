@@ -75,8 +75,14 @@ codex 는 **가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구�
 - [`backend/AGENTS.md`](backend/AGENTS.md) — FastAPI 3-Layer · Decimal-first · 도메인 규칙 표 · Celery prefork-safe (§2/§4/§9)
 - [`frontend/AGENTS.md`](frontend/AGENTS.md) — React Hooks 안전 H-1~H-3 · `error.tsx` 의무(§3/§6) ·
   Next.js 16 · Zod v4 · shadcn v4 · 반응형 · TS 컨벤션(**§7~§11**, 구 `nextjs-shared.md`)
-- [`generator-evaluator-pipeline.md`](docs/reference/operations/workflows/generator-evaluator-pipeline.md) §8 —
-  메타-방법론 영구 규칙 (§8.1 kickoff preflight · §8.3 codex finding 코드 대조 의무)
+
+## 메타-방법론 (영구) — 아무 신호 없이 건너뛰어지는 둘만 여기 둔다
+
+- ALWAYS — Sprint kickoff(Type A/B) 첫 step = **baseline 재측정 preflight**. 본인 인상·plan 가정·
+  사용자 prompt 가정 모두 실측 전 신뢰 금지
+- ALWAYS — codex finding 은 **코드 대조 후에만** 채택 (phantom finding 차단)
+- 나머지(§8.2/§8.4/§8.5)와 전문 =
+  [`generator-evaluator-pipeline.md`](docs/reference/operations/workflows/generator-evaluator-pipeline.md) §8
 
 ## 경로 → 용도 (Quick Reference)
 
