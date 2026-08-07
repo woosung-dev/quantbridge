@@ -259,9 +259,56 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **Est:** L (8h+)
 **출처:** CLAUDE.md Sprint 10 Phase C — "실제 E2E 로직은 nightly 첫 실행 시 credentials + seed data 하에 작성 예정"
 
-**상태:** 🟡 **열려 있다 (2026-08-04, `wt/e2e` — 워크플로·하네스만 수리, 실주문 leg 미착수).** ★★★**「skeleton 을 채운다」는 전제가 실측으로 뒤집혔다** — nightly 는 07-25~08-03 **10/10 실패**했고 지점은 pytest 가 아니라 `alembic upgrade head` 였다(`secrets.TRADING_ENCRYPTION_KEYS_TEST` 부재 → 빈 문자열 → `Settings` import 시점 ValidationError). ⇒ **pytest 는 한 번도 실행된 적이 없고, `flaky-real-broker` 이슈 89건(전부 OPEN)은 broker flakiness 의 증거가 아니다.** ★이 고장은 **alembic 스텝에만** 해당한다 — `tests/conftest.py:25-28` 이 pytest 에서는 빈 키를 즉석 Fernet 로 채운다. 이번 회차가 한 것: 워크플로 수리 9건(리터럴 키 · preflight `has_creds` 게이팅 · **이슈 생산기 스위치** · `_test` DSN · 아티팩트) + 계약 감사 `tests/test_nightly_workflow_contract.py`(marker 없음, 매 PR) + 자기정리 2층 하네스(`tests/real_broker/_harness.py`) + `_test` DSN 하드가드 + provider 경유 demo 엔드포인트 교정. ★**실거래소는 1바이트도 검증되지 않았다** — 잔여 = 실주문 leg(S2~S13), **차단 사유는 Bybit demo 전용 키 2종 미발급**(`BYBIT_DEMO_API_KEY_TEST` / `BYBIT_DEMO_API_SECRET_TEST`).
+**상태:** 🟡 **열려 있다 (2026-08-04, `wt/e2e` — 워크플로·하네스만 수리, 실주문 leg 미착수).** ★★★**「skeleton 을 채운다」는 전제가 실측으로 뒤집혔다** — nightly 는 07-25~08-03 **10/10 실패**했고 지점은 pytest 가 아니라 `alembic upgrade head` 였다(`secrets.TRADING_ENCRYPTION_KEYS_TEST` 부재 → 빈 문자열 → `Settings` import 시점 ValidationError). ⇒ **pytest 는 한 번도 실행된 적이 없고, `flaky-real-broker` 이슈 89건(전부 OPEN)은 broker flakiness 의 증거가 아니다.** ★이 고장은 **alembic 스텝에만** 해당한다 — `tests/conftest.py:25-28` 이 pytest 에서는 빈 키를 즉석 Fernet 로 채운다. 이번 회차가 한 것: 워크플로 수리 9건(리터럴 키 · preflight `has_creds` 게이팅 · **이슈 생산기 스위치** · `_test` DSN · 아티팩트) + 계약 감사 `tests/test_nightly_workflow_contract.py`(marker 없음, 매 PR) + 자기정리 2층 하네스(`tests/real_broker/_harness.py`) + `_test` DSN 하드가드 + provider 경유 demo 엔드포인트 교정. ★**실거래소는 1바이트도 검증되지 않았다** — 잔여 = 실주문 leg(S2~S13), ★**차단 사유는 2026-08-04 에 바뀌었다** — 키 2종은 배치 완료이고 진짜 차단은 **지리 차단**이었다. 실행 경로를 로컬 스케줄로 옮겨 이미 첫 통과를 봤다(아래 §실행 경로).
 
 **권장 접근:** 자격증명 2종 발급 후 실주문 leg 구현. ★체결 확인을 polling 으로 짜지 마라 — Bybit demo 시장가는 `create_order` 응답에서 `submitted` 로 오고(`providers.py:_map_ccxt_status`) 체결 확정은 WS 가 한다. `_async_fetch_order_status`(`tasks/trading.py:685-707`)를 명시적으로 태우는 설계여야 한다.
+
+### ★2026-08-04 — 자격증명을 넣자 **진짜 차단이 드러났다** (실행 경로 = 로컬 스케줄)
+
+**키 2종은 배치 완료다** — `backend/.env.local` + GitHub repo secret 동명 2종. 출처는
+`trading.exchange_accounts` `19a8166a`(label `bybit demo`, `exchange_uid` **558689281**)의 거래 가능 키
+(같은 uid 를 두 계정 행이 공유한다 — [BL-517](#bl-517)). ⇒ 「키 미발급」은 더는 차단 사유가 아니다.
+
+**그러자 이 워크플로 역사상 pytest 가 처음 실행됐고**(직전 102회는 전부 `alembic` 에서 사망)
+이렇게 실패했다 — nightly run `30917972735`:
+`403 Forbidden — The Amazon CloudFront distribution is configured to block access from your country`
+(`api-demo.bybit.com/v5/market/instruments-info`).
+
+**대조 실측(같은 키, 같은 시각)** — GitHub Actions 러너 `fetch_balance` **403 Forbidden** /
+로컬(한국) ✅ USDT 190,352.88 · `load_markets` ✅ 3,091 마켓. ⇒ **키 문제가 아니고 코드로 못 고친다.**
+판정은 이슈 #540.
+
+★**사용자 판정(2026-08-04) = B 안, 로컬 스케줄.** GitHub `schedule:` 은 껐고
+`scripts/nightly-real-broker-local.sh` 가 launchd 로 매일 03:00(로컬)에 돈다
+(`--install` / `--status` / `--uninstall`). 로그 = `~/Library/Logs/quantbridge/`.
+★A 안(self-hosted 러너)은 **폐기가 아니라 보류** — CI 통합이 필요해지면 그때 재판단한다.
+
+★**판정 낱말 4종** — `PASS` / `SKIP`(의도된 건너뜀, exit 0) / `FAIL`(exit 1) / `BLOCKED`(전제
+미충족 = **측정 못 함**, exit 2). **exit 0 이 「검증됐다」를 뜻하지 않는다** — SKIP 도 0 이다.
+
+★**가드 5종은 주입으로 판별력 5/5 를 증명했다** — 메인 체크아웃 아님 · 자격증명 빔 · DB 무응답
+(「판정 불가」를 「이상 없음」으로 접지 않는다) · **소크 충돌**(같은 uid 라 포지션 공유 ⇒ SKIP) ·
+지리 차단(CloudFront 403 ⇒ BLOCKED) · pytest 실패(⇒ FAIL).
+
+★**첫 실행 실측(2026-08-04 23:34 KST) = `1 passed, 1 skipped`** — `fetch_balance` 가 실제 Bybit demo
+에서 통과했다. 이 레포에서 스케줄 실행으로 실거래소 단언이 통과한 **첫 사례**다. ⇒ 위 상태 줄의
+「실거래소는 1바이트도 검증되지 않았다」는 이 시점부터 **더는 참이 아니다.** 나머지 1건은 skeleton
+skip 이고 그게 실주문 leg 의 본 작업이다.
+
+**착수 순서 (고정):**
+
+1. ★**충돌 가드 먼저.** nightly 는 03:00 에 도는데 그 시각 소크가 돌면 **같은 계정의 포지션을 서로
+   본다**. 진입 **전에** 활성 라이브 세션을 확인하고, 있으면 「소크가 돌고 있다」로 **명시적 skip**.
+   없으면 nightly 가 소크 포지션 때문에 오탐으로 빨개진다. 진짜 격리(별도 서브계정)는 소크 재개
+   시점의 별도 판단이다.
+2. **적대 검증 3건을 먼저 닫아라** — 실주문이 이 코드를 처음 실행시키는 순간 드러난다.
+   **F3** `tests/real_broker/_harness.py` 함수 본문 **93% 미실행**(사용 테스트 0개 — 깨진 게 아니라
+   **미검증**) · **F12** `flatten_one` 이 `submitted`→`filled` **대기 없이** `fetch_open_positions` 를
+   불러 **거짓 residual** 가능(위 §권장 접근의 `_async_fetch_order_status` 설계가 이것이다) ·
+   **F6** 계약 감사가 스텝 **순서**·`Upload pytest output` 존재·`timeout-minutes` 를 안 본다.
+3. 시나리오 **S2~S13** 구현. 최소 수량으로 — 비용이 아니라 **신호**가 목적이다.
+4. ★**멱등·자기정리.** 실패해도 거래소에 포지션·대기 주문을 남기지 마라. `stop` → `flatten` 순서
+   계약. **세션 비활성화는 아무것도 flat 하지 않는다** — 이 레포가 3회 덴 함정이다.
 
 ---
 
@@ -497,6 +544,8 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-610](#bl-610)    | `entry_completeness.py:158` 의 `source=` 문자열이 문서 대개편으로 삭제된 dev-log 경로를 가리킨다 — 런타임 무해(값일 뿐)지만 근거 추적이 git history 경유로 바뀌었다. 소크 중 `backend/src` 무접촉 원칙으로 이연                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | BL-003 소크 창 종료 후 첫 backend/src 정리 회차                                                                   | XS           | 2026-08-06 docs-overhaul (fix-doc)                     |
 | [BL-611](#bl-611)    | ★**메타-방법론 영구 규칙이 자동 로드에서 빠졌다** — 구 `.ai/common/global.md` §7 은 `paths` 없는 `.claude/rules/global.md` 로 **매 세션 무조건** 들어왔다(2026-08-07 실측 재현). ADR-026 이 이를 `generator-evaluator-pipeline.md` §8 로 옮기면서 **열어야만 읽히는** 문서가 됐다 — kickoff preflight(§8.1)·codex finding 코드 대조(§8.3)가 조용히 누락될 수 있다 | 다음 Sprint kickoff (Type A/B) 전 | S            | 2026-08-07 docs-overhaul 리뷰                          |
 | [BL-612](#bl-612)    | `docs/dev-log/2026-08-06-entry-set-divergence.md` 버퍼가 `docs/lessons.md` 로 승격되지 않았다 — ADR-026 §3 은 「세션 종결 시 승격 의무, 승격하면 버퍼를 비운다」인데 회차는 끝났고(PR #553 머지) 버퍼는 9천자로 남아 있다(반증 카드 상한 1~2천자 초과) | 다음 문서 정리 회차 | XS           | 2026-08-07 docs-overhaul 리뷰                          |
+| [BL-613](#bl-613)    | `live_signal.py` 핸들러 가시화가 남긴 **줄 수 부채** — `_evaluate_session_with_engine` **506줄**(Kind B 추출 E8~E14 미완) · `_place_planned_entry` 236 · `_reconcile_conditional_entries_inner` 203 · `_async_dispatch_event` 256(최대 `try` 본문 **225줄** — 이제 이게 최대). ★가시성 목표(최대 try 845→8)는 달성됐고 줄 수는 못 채웠다 | `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580] 착수 회차와 겹친다) | M            | 2026-08-04 handler-visibility (status 승계)            |
+| [BL-614](#bl-614)    | 2026-08-04 handler-visibility 회차 방법론 **3건이 `docs/lessons.md` 미승격** — dev-log 본문은 문서 대개편에서 삭제됐고 INDEX 한 줄과 git history 에만 남았다(다중집합↔문장 순서 · 재적재 지문 = celery 배너 · 검증 도구를 먼저 적대 검증) | 다음 문서 정리 회차 ([BL-612] 와 함께) | XS           | 2026-08-04 handler-visibility (status 승계)            |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -3696,11 +3745,11 @@ short stop 은 `110093`("expect Falling"). 거절 메시지는
 ★**가드 폭도 별도로 지킨다** — `.labels` 만 감싸고 `.inc()` 를 밖에 두는 **반쪽 수리는 사이트
 주입 29건을 전부 통과한다**(변이 M5 실측). `_count_safely` 전용 단위 테스트 2건이 그것을 막는다.
 
-**남은 96곳 — 파일별 분포 (개별 사유는 아직 없다. 「미판정」이지 「안전」이 아니다)**
+**남은 84곳 — 파일별 분포 (개별 사유는 아직 없다. 「미판정」이지 「안전」이 아니다)**
 
 | 건수 | 파일                                                                                                                                                                                       |
 | ---: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-|   46 | `backend/src/tasks/live_signal.py` (`_evaluate_session_inner` 21 · `_reconcile_conditional_entries` 12 · `_async_sweep_conditional_entries` 4 · **`_async_dispatch_event` 4 = 판정 보류**) |
+|   34 | `backend/src/tasks/live_signal.py` (`_evaluate_session_inner` 21 · `_async_sweep_conditional_entries` 4 · `_async_evaluate_all` 2 · `_async_evaluate_session` 2 · `_async_dispatch_pending` 1 · **`_async_dispatch_event` 4 = 판정 보류**) — `_reconcile_conditional_entries` 12 는 2026-08-04 전건 수리 |
 |   14 | `backend/src/tasks/trading.py`                                                                                                                                                             |
 |    5 | `backend/src/tasks/conditional_entry_janitor.py`                                                                                                                                           |
 |    4 | `backend/src/tasks/_ws_circuit_breaker.py`                                                                                                                                                 |
@@ -3708,8 +3757,24 @@ short stop 은 `110093`("expect Falling"). 거절 메시지는
 |    2 | `common/alert.py` · `common/metrics.py` · `trading/realtime_publisher.py` · `trading/webhook.py` · `trading/websocket/bybit_private_stream.py` (각 2)                                      |
 |    1 | 나머지 8개 파일 (각 1)                                                                                                                                                                     |
 
-★**누적 판정 42곳 중 「가드 없이 유지」 0곳이다**(9 + 25 + 이번 8). 잔여 96곳도
+★**누적 판정 42곳 중 「가드 없이 유지」 0곳이다**(9 + 25 + 이번 8). 잔여 84곳도
 산문으로 분류하지 말고 **주입으로 시작해라.**
+
+**착수 순서 — `live_signal.py` 34곳부터, 한 회차에 한 헬퍼 계열로 끊어라.**
+★**선행 조건은 이미 서 있다**(2026-08-04 handler-visibility): 그 34곳은 **이름 붙은 헬퍼 안**에
+있고, 운반자 함수(`_reconcile_conditional_entries_inner`·`_evaluate_session_with_engine`)에는
+**`try` 가 하나도 없으며** 감싸는 핸들러는 각 헬퍼가 소유하고 **docstring 에 적혀 있다**.
+⇒ 4차·3차가 두 번 연속 밟은 **「함수 하나 = 한 형태」 오판의 물리적 조건이 사라졌다.**
+★**그래도 산문으로 분류하지 마라** — 누적 42곳에서 「가드 없이 유지」가 0곳이다. 주입으로 시작해라.
+
+**방법 4단계 (이전 4회차가 확립한 것 — 바꾸지 마라):**
+
+1. 자리마다 **감싸는 핸들러를 코드로 확인**하고, 해악을 (a) 오기록 / (b) 조용한 중단 으로 갈라 적는다
+2. **고장 주입으로 판정**한다 — 산문으로 「~라서 안전하다」 쓰지 마라(누적 42곳에서 그 산문 **전건 반증**)
+3. 주입 판정이 안 되면 **「판정 보류」로 적고 하네스를 짓지 마라**(4회 연속 판별력 0 을 밟았다)
+4. 구조적 방어는 `tests/common/test_metric_guard_census.py` 의 AST 동결(**현재 40키 / 84곳**)
+
+★**census 숫자가 줄면 그만큼 `_FROZEN_CENSUS` 를 낮춰라** — 안 낮추면 다음 회차가 그 자리를 다시 판정한다.
 
 ### ★2026-08-03 — 「commit 뒤」는 형태가 아니다 (신규 라벨 **H8**)
 
@@ -4666,6 +4731,62 @@ ADR-026 §3 은 dev-log 를 이력이 아니라 **입력 버퍼**로 규정하�
 
 **Risk:** 🟢 정보 유실은 없다(git + INDEX 한 줄). 다만 버퍼가 쌓이면 §3 의 3층 구조가 무너져
 INDEX·lessons·git 의 역할 분담이 다시 흐려진다.
+---
+
+### BL-613
+
+**Priority:** P3
+**카테고리:** Backend / 구조 (핸들러 가시화 잔여)
+**Trigger:** `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580](#bl-580) 착수 회차와 겹친다)
+**Est:** M
+**상태:** ⬜ **Open**
+
+**2026-08-04 handler-visibility 회차가 「안 한 것」 — 줄 수 부채는 남았다.**
+그 회차의 목표는 줄 수가 아니라 **핸들러 가시성**이었고 그건 달성됐다(최대 `try` 본문 **845 → 8**).
+남은 것:
+
+- `_evaluate_session_with_engine` **506줄** — Kind B 추출(E8~E14) 미완. 프롬프트의 「200줄 이하」를
+  운반자 기준으로는 못 채웠다.
+- `_place_planned_entry` **236줄** · `_reconcile_conditional_entries_inner` **203줄** — 경계선.
+- `_async_dispatch_event` **256줄** · 최대 `try` 본문 **225줄** — 그 회차 **범위 밖**이었다.
+  ★**이제 이게 트리 최대다.**
+
+★[BL-580](#bl-580) 과 같은 파일을 건드리므로 **한 회차에 묶어라** — 따로 하면 같은 코드를 두 번 읽는다.
+★`_async_dispatch_event` 는 [BL-580] 쪽에서 **4곳이 판정 보류**로 잠겨 있다. 줄 수를 줄이겠다고
+그 4곳의 감싸는 핸들러를 바꾸면 보류 판정의 전제가 깨진다 — 손대려면 census 부터 다시 판정해라.
+
+**Risk:** 🟢 가시성은 이미 확보됐으므로 급하지 않다. 단 `_async_dispatch_event` 225줄 `try` 는
+다음 사고 때 「어느 핸들러가 삼켰나」를 다시 어렵게 만든다.
+
+---
+
+### BL-614
+
+**Priority:** P3
+**카테고리:** Docs / 교훈 승격 (ADR-026 §3)
+**Trigger:** 다음 문서 정리 회차 ([BL-612](#bl-612) 와 함께)
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**2026-08-04 handler-visibility 회차의 방법론 3건이 `docs/lessons.md` 에 없다.**
+그 회차 dev-log 본문은 문서 대개편(ADR-026)에서 삭제됐고, 지금은 `dev-log/INDEX.md` 한 줄과
+git history(`git show 0f0f0b06:docs/dev-log/2026-08-04-handler-visibility.md`)에만 있다.
+[BL-612](#bl-612) 와 축은 같지만 **대응이 다르다** — 저기는 버퍼가 남아 있고, 여기는 버퍼가
+이미 삭제돼서 승격할 원본을 git 에서 꺼내야 한다.
+
+미승격 3건:
+
+1. **다중집합 비교는 문장 순서를 구조적으로 못 본다.** codex 가 그 축에서 MAJOR 를 냈다 —
+   lazy import 를 헬퍼로 옮기자 **실패가 커밋 뒤로** 밀렸는데 다중집합 대조는 통과했다.
+   ⇒ 「정규 동치 0」을 「행위 변경 0」으로 갈음하지 마라.
+2. **재적재의 지문은 `watchfiles` 로그가 아니라 celery 기동 배너**(`Connected to redis`→`mingle`
+   →`ready.`)다. `watchfiles` 는 조용하다. **md5 일치는 파일의 증거이지 프로세스의 증거가 아니다.**
+3. **검증 도구를 먼저 적대 검증에 걸어라.** CONTROL 도구가 42건 주입 중 **16건 거짓 음성**이었다
+   (가장 큰 것: `except`/`else`/`finally` 구역 site 24개가 감싸는 `try` 를 통째로 잃음).
+
+**Risk:** 🟢 정보 유실은 없다(git + INDEX 한 줄). 다만 3건 다 **재발형 실수**라 승격 전까지는
+같은 함정을 다시 밟아도 막을 근거가 문서에 없다.
+
 
 
 ## Deferred — trigger 미도래 · 의도적 부활 가능 (구 `_deferred.md` 승격, 2026-08-06)
