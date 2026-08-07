@@ -1,7 +1,22 @@
 // 프로토타입 런타임 검사 — 실제 렌더 결과에서 가로스크롤/대비/포커스링/모션을 실측한다
-// 사용법: node runtime-check.mjs [파일명...]   (인자 없으면 screen-*.html 전부)
+//
+// 사용법
+//   node runtime-check.mjs [파일명...]                       인자 없으면 screen-*.html 17벌 (종전 동작)
+//   node runtime-check.mjs --base-url http://localhost:3107 --routes /,/pricing [옵션]
+//
+// 옵션 (--base-url 모드 전용)
+//   --routes /a,/b            검사할 라우트 목록 (생략 시 `/`)
+//   --theme light|dark        next-themes localStorage + colorScheme 을 강제한다
+//   --storage-state <path>    playwright storageState JSON (Clerk 인증 라우트용)
+//
+// ★임계값은 로컬 파일 모드와 앱 모드가 **같다**. 이 도구를 앱에 겨누는 유일한 이유가
+//   캘리브레이션된 임계값(AA 4.5/3 · canon 5.82 · tiny 9.4px · Tab 30회)을 물려받는 것이다.
+//
 // 필요: frontend/node_modules 의 playwright
-import { chromium } from '../../../frontend/node_modules/.pnpm/playwright@1.59.1/node_modules/playwright/index.mjs';
+// ★상대 깊이 주의 — 이 파일은 <repo>/docs/reference/design/prototypes/shotgun-2026-07/ 에 있다.
+//   `docs/` 재편(fcc36bf7)으로 두 단계 깊어졌는데 import 가 안 따라와서 ERR_MODULE_NOT_FOUND 로
+//   기동조차 못 하고 있었다. repo 루트까지는 다섯 단계다.
+import { chromium } from '../../../../../frontend/node_modules/.pnpm/playwright@1.59.1/node_modules/playwright/index.mjs';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -9,10 +24,49 @@ import { dirname, join } from 'node:path';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WIDTHS = [1440, 1024, 768, 375];
 
-const targets = process.argv.slice(2).filter((a) => !a.startsWith('--'));
-const files = targets.length
-  ? targets
-  : readdirSync(HERE).filter((f) => /^screen-.*\.html$/.test(f)).sort();
+// `--flag value` / `--flag=value` 둘 다 받는다. 위치 인자는 종전대로 파일명이다.
+const opts = {};
+const positional = [];
+{
+  const argv = process.argv.slice(2);
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a.startsWith('--')) {
+      positional.push(a);
+      continue;
+    }
+    const eq = a.indexOf('=');
+    if (eq > -1) opts[a.slice(2, eq)] = a.slice(eq + 1);
+    else if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) opts[a.slice(2)] = argv[++i];
+    else opts[a.slice(2)] = true;
+  }
+}
+const str = (k) => (typeof opts[k] === 'string' ? opts[k] : null);
+
+const baseUrl = str('base-url') ? str('base-url').replace(/\/+$/, '') : null;
+const theme = str('theme');
+const storageState = str('storage-state');
+const routes = (str('routes') || '')
+  .split(',')
+  .map((r) => r.trim())
+  .filter(Boolean);
+
+// 앱 모드는 dev 서버 JIT 컴파일을 기다려야 한다. 로컬 html 은 종전 값을 그대로 쓴다.
+const NAV_TIMEOUT = baseUrl ? 120_000 : 30_000;
+const SETTLE_MS = baseUrl ? 1500 : 700;
+
+const files = baseUrl
+  ? routes.length
+    ? routes
+    : ['/']
+  : positional.length
+    ? positional
+    : readdirSync(HERE).filter((f) => /^screen-.*\.html$/.test(f)).sort();
+
+const urlOf = (target) =>
+  baseUrl
+    ? baseUrl + (target.startsWith('/') ? target : `/${target}`)
+    : pathToFileURL(join(HERE, target)).href;
 
 // 페이지 안에서 실행되는 진단. 배경을 위로 거슬러 찾아 실제 대비를 계산한다.
 const AUDIT = () => {
@@ -121,22 +175,64 @@ const MOTION_AUDIT = () => {
   return bad;
 };
 
+console.log(
+  baseUrl
+    ? `대상: ${baseUrl} · 라우트 ${files.length}개 · theme=${theme ?? '(앱 기본값)'} · storageState=${storageState ? 'yes' : 'no'}`
+    : `대상: 로컬 html ${files.length}벌 (${HERE})`,
+);
+
 const browser = await chromium.launch();
 const results = [];
 
+// 테마·인증은 컨텍스트 옵션으로만 준다 — 페이지 안의 판정 로직(AUDIT)은 URL 도 테마도 모른다.
+const contextOptions = (extra) => ({
+  deviceScaleFactor: 1,
+  ...(storageState ? { storageState } : {}),
+  ...(theme ? { colorScheme: theme } : {}),
+  ...extra,
+});
+// next-themes(attribute="class", storageKey 기본값 "theme") 를 pre-paint 단계에서 고정한다.
+const applyTheme = async (ctx) => {
+  if (!theme) return;
+  await ctx.addInitScript((t) => {
+    try {
+      window.localStorage.setItem('theme', t);
+    } catch {
+      /* file:// 등 storage 불가 컨텍스트 — colorScheme 만으로 간다 */
+    }
+  }, theme);
+};
+
+// 앱 모드 pre-warm — dev 서버 첫 컴파일(5~30초)이 폭별 측정에 섞이지 않게 한 번 데운다.
+if (baseUrl) {
+  const wctx = await browser.newContext(contextOptions({ viewport: { width: 1440, height: 900 } }));
+  await applyTheme(wctx);
+  const wpage = await wctx.newPage();
+  for (const target of files) {
+    try {
+      await wpage.goto(urlOf(target), { waitUntil: 'load', timeout: NAV_TIMEOUT });
+      await wpage.waitForTimeout(500);
+    } catch (e) {
+      console.log(`   pre-warm 실패 ${target}: ${String(e).slice(0, 100)}`);
+    }
+  }
+  await wctx.close();
+}
+
 for (const file of files) {
-  const url = pathToFileURL(join(HERE, file)).href;
+  const url = urlOf(file);
   const res = { file, overflow: [], contrast: [], canon: [], tiny: [], focus: [], motion: [], console: [] };
 
   for (const w of WIDTHS) {
-    const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, deviceScaleFactor: 1 });
+    const ctx = await browser.newContext(contextOptions({ viewport: { width: w, height: 900 } }));
+    await applyTheme(ctx);
     const page = await ctx.newPage();
     page.on('console', (m) => {
       if (m.type() === 'error') res.console.push(`${w}px ${m.text().slice(0, 120)}`);
     });
     page.on('pageerror', (e) => res.console.push(`${w}px ${String(e).slice(0, 120)}`));
-    await page.goto(url, { waitUntil: 'load' });
-    await page.waitForTimeout(700);
+    await page.goto(url, { waitUntil: 'load', timeout: NAV_TIMEOUT });
+    await page.waitForTimeout(SETTLE_MS);
 
     const a = await page.evaluate(AUDIT);
     if (a.overflow.scrollWidth > a.overflow.innerWidth + 1) {
@@ -179,9 +275,12 @@ for (const file of files) {
   }
 
   // reduced motion
-  const rctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' });
+  const rctx = await browser.newContext(
+    contextOptions({ viewport: { width: 1440, height: 900 }, reducedMotion: 'reduce' }),
+  );
+  await applyTheme(rctx);
   const rpage = await rctx.newPage();
-  await rpage.goto(url, { waitUntil: 'load' });
+  await rpage.goto(url, { waitUntil: 'load', timeout: NAV_TIMEOUT });
   await rpage.waitForTimeout(400);
   res.motion = await rpage.evaluate(MOTION_AUDIT);
   await rctx.close();

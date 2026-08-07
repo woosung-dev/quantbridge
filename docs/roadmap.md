@@ -264,7 +264,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-462** [P3] Sharpe 목록 정렬 신·구 컨벤션 혼재 — `repository.py:75` 가 원시 JSONB 숫자만 캐스팅. 현재는 FE 고지로 대응, 완전 해소는 read-time recompute
 - [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기
 - [x] **BL-585** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 「켜거나 지우거나」에서 **지운다**를 골랐다. `jsonschema` 의존을 새로 들일 값이 없었고, 스키마가 선언하던 것 중 중복이 아니었던 유일한 검사(`corpora` 8벌)는 **키 집합 대조**로 강화해 테스트로 옮겼다. `^3\.1[12]$` 패턴을 남기면 `.python-version`·런타임 assert 와 함께 **세 번째 SSOT** 가 된다
-- [ ] **BL-586** [P3] P-3 골든이 `BacktestMetrics` 51 필드 중 **13개**만 고정 — TV parity 팩·비용 분해·per_side·excursion·청산 38개가 감지 대상 밖. `RawTrade` 도 22 중 11 필드만 digest
+- [x] **BL-586 ✅ Resolved** [P3] (2026-08-07 backtest-fidelity) — `regen_trust_layer_baseline.py` 의 키 리스트를 **하드코딩 → `dataclasses.fields()` 자동 유도**로 교체한 것이 수리의 핵심이다(손으로 적으면 다음에 필드가 늘어도 안 늘어난다). 스칼라 **46 전량** + 리스트 3종 digest + 중첩 2종 평탄화 + `RawTrade` **22 전량**. ★`RawTrade` 는 리스트/dict 형 필드가 **0개**라 BL 본문이 예상한 「리스트 직렬화 설계 선행」은 metrics 쪽에만 해당했다
 - [x] **BL-587** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — **원인 차단 + 탐지기 둘 다**. 차단 = `backend/.python-version` 3.12 핀. 탐지 = `test_envelope_*` 3건이 `ohlcv_sha256`·`schema_version`·`tool_versions.python` 을 실제로 읽는다(그전까지 읽는 곳 0곳). ★red 메시지에 「회귀가 아니라 regen 하고 값이 같은지 확인해라」를 박았다. 세 변조에 각각 자기 assert 만 red 로 판별력 확인
 - [x] **BL-588** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 5→7 로 맞추는 대신 **목록을 `_corpus.py` 하나로 합쳤다**(parity·regen·mutation 셋이 그것만 읽는다). ★실측: `_MUTATION_CORPORA` 의 5벌이 **정확히 위험조정지표가 축퇴한 5벌**이라 그 3지표의 산술 회귀가 구조적으로 감지 불가였다. nightly 183s→218s(+19%), 감지 결과 불변(기존 8변이는 `trades_digest` 로 이미 잡힌다)
 - [x] **BL-465** [P1] `_periodic_returns` 음수 자본 미차단 → 파산한 실행에 양수 샤프 — ✅ **dogfood-restore 완료**. 신규 마커 `unavailable_nonpositive_equity` + Trust Layer baseline 재생성(2/12 키 한정)
@@ -321,7 +321,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-541** [P2] 세션 행이 **아예 없는** 포지션(웹훅 경로·거래소 수동)은 여전히 못 닫는다 — ★**아직 실측된 적 없어 의도적으로 안 지었다.** 관측되면 착수(`Order.strategy_id` nullable 화는 금지 — kill-switch 가 전략별 합산이라 NULL 은 영구 불가시)
 - [x] **BL-542 ✅ Resolved** [P3] 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 — 거짓 양성 **확정** · **n=2**(계정 2/2) · **기전 확정**(2026-08-01: `providers.py:1201-1206` 주석이 "ccxt 는 커서를 첫 항목에 도장만 찍는다" 고 적어 놓고 `:1207` 이 그 커서를 "다음 페이지 있음" 으로 읽는다). 남은 것은 판정식 교체 + 회귀 가드 2케이스
 - [ ] **BL-015** [P1] OKX Private WS — (그룹 2 참조)
-- [ ] **BL-022** [P1] Golden expectations 재생성 — strategy.exit 지원 후
+- [x] **BL-022 ✅ Resolved** [P1] (2026-08-07 backtest-fidelity) — `backend/scripts/regen_golden.py` 신설(`--confirm` 없으면 exit 1 + 파일 0개 · `--case` · `--check` 는 의미 비교 후 차이 시 exit 1). ★**이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인**이다 — 같은 커밋 `cda575f2` 가 trust-layer baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으로 만들어야 해서 빠졌다
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
 - [ ] **BL-024** [P1] real_broker E2E 본 구현 — nightly cron (Bybit Demo creds)
 - [ ] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
