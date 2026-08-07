@@ -555,6 +555,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 
 | [BL-625](#bl-625) | ★**플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다** — 서버 `backend/.env.local` 이 `CLERK_SECRET_KEY=sk_test_...`(문자 그대로)인데 API 는 정상 기동하고 `/health` 200 을 냈다. 호스트 uvicorn 이 인증 경로를 한 번도 안 밟아서 드러나지 않았고, 브라우저 첫 로그인 요청이 **전건 401** 로 터지고서야 보였다. `_enforce_production_safety` 가 이 계열을 알지만 **`app_env == production` 일 때만** 검사한다. ★2차: 루트 `.env` 인라인 주석(`# [필수 …]`)을 안 떼고 값을 옮기면 한글이 섞여 401 이 아니라 **500**(clerk SDK 헤더 ascii 인코딩) | 새 호스트에 API 를 세울 때 · [BL-071] 발동 시 | S | 2026-08-07 fe-oracle-deploy |
 | [BL-624](#bl-624) | ★**게이트의 HTTP 갈래는 `PROMETHEUS_BEARER_TOKEN` 과 양립 불가** — `soak-gate.sh` 의 `curl -sf` 가 인증 헤더를 안 보내서 401 → `DARKNESS=null` → **C5⑷ 영구 ✗**. `APP_ENV=production` 과 무관하다(토큰이 있으면 development 에서도 강제). 2026-08-07 FE 배포 회차가 실측으로 물렸다 — 서버 체크아웃이 [BL-620] 이전이라 기본이 HTTP 였고 베어러를 켜자 즉시 C5 가 죽었다. ★판별자는 API 로그의 `GET /metrics` 유무다 — 게이트 출력의 `darkness_computed=✓` 는 **어느 경로로 성공했는지 말해주지 않는다**. 지금은 기본이 직독이라 미발동 | `QB_METRICS_URL`(원격 데몬 + ssh 터널 운영안)을 실제로 쓰려 할 때 | S | 2026-08-07 fe-oracle-deploy |
+| [BL-626](#bl-626) | `.soak/phantom-*.json` 이 상한 없이 쌓이고 판정기가 매번 전부를 읽는다 — 수집 실행마다 1개씩 새로 쓰는데 회수가 없다(2026-08-07 실측 4시간 29개, 30분 타이머만으로 하루 48개). 실격은 `(at, kind, detail)` dedup 이라 판정은 안전하지만 ⑴ 파싱 시간·디스크가 선형 증가 ⑵ `unreadable_labels` 의 `count` 는 dedup 되지 않아 `측정불가` 요약의 `총 N건` 이 아카이브 수만큼 부풀려진다. ★파일명 STAMP 이 1초 해상도라 같은 초 두 실행은 충돌 | `.soak/` 디스크 압박이 보일 때 · 게이트 1회 실행이 느려질 때 | XS | 2026-08-07 soak-unattended-watch |
 | [BL-623](#bl-623) | 서버 클론이 `--single-branch` 라 feature 브랜치가 기본 fetch 로 안 온다 — `remote.origin.fetch` 가 main 한 줄뿐이라 `git checkout <branch>` 가 `pathspec did not match` 로 죽는다. 우회는 refspec 명시. 근본 수리(`git remote set-branches origin '*'`)는 소크가 도는 서버의 git 설정 변경이라 이연 | 서버에서 feature 브랜치를 다시 받아야 할 때 | XS | 2026-08-07 fe-oracle-deploy |
 | [BL-620](#bl-620) | ✅ **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구 ✗ 였다** — `soak-stack.sh up` 은 API 컨테이너를 안 띄우고 `:8100` 리스너가 0개라 **C1/C2 를 다 채워도 PASS 불가**였다. **Resolved** — 기본 취득을 HTTP → `backend/.metrics` **직독**으로 교체(워커가 같은 counter 를 거기 쓴다). ★PR #556 리뷰 후속: curl 갈래에도 `[ -n ]` 를 걸어 **`200 + 빈 본문` fail-open** 을 닫았고(초판은 직독 갈래에만 있었다), `QB_METRICS_DIR` 을 `.env.example` 에 등재했다(Golden Rule). 판정 `측정불가`→`진행중`, C5 전건 ✓. fail-closed 음성 대조 **3/3**. `QB_METRICS_URL` 명시 시 종전 HTTP 유지 | — | S | 2026-08-07 gap-resync-autopsy |
 
@@ -5196,6 +5197,37 @@ FE 배포 회차가 공개 `/metrics` 를 막으려고 베어러 토큰을 켜�
 
 **Risk:** 🟡 그 override 를 쓰는 순간 **C1/C2 를 다 채워도 PASS 불가**가 된다 —
 [BL-620] 이 닫은 실패 계열이 override 갈래에 그대로 남아 있다.
+
+---
+
+### BL-626
+
+**Priority:** P3
+**카테고리:** 운영 / BL-003 게이트
+**Trigger:** `.soak/` 디스크 압박이 보일 때 · 게이트 1회 실행이 눈에 띄게 느려질 때
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**`.soak/phantom-*.json` 이 상한 없이 쌓이고, 판정기가 매번 그 전부를 읽는다.**
+
+`soak-gate.sh:294-360` 은 **수집 실행마다** phantom 아카이브를 새로 쓴다. 판정기는
+`soak_gate_predicate.py:462-484` 에서 **모든** 아카이브를 읽어 verdict 를 합집합한다. 회수·상한이
+없다. 2026-08-07 실측: 09:10~13:11 **4시간에 29개**(타이머 8회 + 수동 실행). 30분 타이머만으로도
+하루 48개, 한 달 1,400개다.
+
+판정은 안전하다 — 실격은 `(at, kind, detail)` 로 dedup 된다. 새는 것은 **둘**이다:
+⑴ 파싱 시간과 디스크가 선형으로 는다 ⑵ `unreadable_labels()[label]["count"]` 는 dedup 되지
+**않아** 같은 관측이 아카이브 수만큼 곱해진다 — `측정불가` 요약의 `총 N건` 이 부풀려진다.
+
+★파일명 `STAMP` 이 `date -u '+%Y%m%dT%H%M%SZ'` 로 **1초 해상도**라, 같은 초에 두 번 돌면
+파일이 충돌한다. 게이트에 flock 이 없으므로 타이머 두 개를 같이 돌리면 실제로 가능하다
+(그래서 `soak-watch.sh --install` 이 게이트 타이머를 끈다).
+
+**수리 후보(택1, 미결정):** ⑴ 커버리지에 실제로 기여하는 최근 N개만 남기고 회수
+⑵ `.soak/superseded-<판>/` 로 옮기는 기존 관례를 나이 기준으로 자동화 ⑶ 아카이브를 하나로
+append 하고 `log_to` 로 클립.
+
+**Risk:** 🟢 조용하고 느리다. 판정은 안 틀리지만 `총 N건` 수치를 인용하면 과대 계상된다.
 
 ---
 
