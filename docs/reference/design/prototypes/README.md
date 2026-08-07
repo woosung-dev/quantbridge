@@ -1,146 +1,107 @@
-# QuantBridge — Stage 2 프로토타입
+# QuantBridge 프로토타입 — 화면 캐논
 
-> **상태:** 확정 (2026-04-14)
-> **디자인 시스템:** [DESIGN.md](../../../../DESIGN.md)
-> **App Shell 패턴:** [DESIGN.md §10](../../../../DESIGN.md#10-app-shell-패턴-인증된-앱-페이지-공통)
-> **방법론:** [development-methodology.md](../../operations/workflows/development-methodology.md) (Stage 2)
+> **정본은 [`shotgun-2026-07/`](./shotgun-2026-07/) 하나다.** 2026-04 의 1세대 12벌은 2026-08-07 에
+> 삭제됐다 (아래 §1세대). 이 디렉터리 직하에 남은 것은 이 README 뿐이다.
+> **규약 본문 = [`shotgun-2026-07/_KIT.md`](./shotgun-2026-07/_KIT.md)** — 새 화면을 만들거나 기존
+> 화면을 고치기 전에 그 파일을 연다. 용어 SSOT 는 `shotgun-2026-07/terminology-ssot.md`,
+> 회차 기록은 `shotgun-2026-07/checklist.md` 다.
 
----
-
-## 프로토타입 목록
-
-### 🎨 마케팅 (외부 방문자)
-| # | 파일 | 화면 | URL (구현 시) | 테마 |
-|:-:|------|------|-------------|------|
-| 00 | [00-landing.html](./00-landing.html) | 랜딩 페이지 | `/` | Light + 플로팅 다크 쇼케이스 |
-
-### 🔐 인증 (비로그인/온보딩)
-| # | 파일 | 화면 | URL | 테마 |
-|:-:|------|------|-----|------|
-| 04 | [04-login.html](./04-login.html) | 로그인 / 회원가입 | `/sign-in`, `/sign-up` | Split-screen (다크 브랜드 + 라이트 폼) |
-| 05 | [05-onboarding.html](./05-onboarding.html) | 온보딩 (4단계) | `/onboarding` | Light (standalone, no App Shell) |
-| 11 | [11-error-pages.html](./11-error-pages.html) | 에러 페이지 (404 / 500 / 503) | `/404`, `/500`, `/503` | Light (standalone) |
-
-### 🧠 전략 (Strategies)
-| # | 파일 | 화면 | URL | 테마 |
-|:-:|------|------|-----|------|
-| 06 | [06-strategies-list.html](./06-strategies-list.html) | 전략 목록 | `/strategies` | Light + App Shell |
-| 07 | [07-strategy-create.html](./07-strategy-create.html) | 전략 생성 (3-step 위저드) | `/strategies/new` | Light + App Shell |
-| 01 | [01-strategy-editor.html](./01-strategy-editor.html) | 전략 편집 (Monaco) | `/strategies/[id]/edit` | Light + 다크 에디터 |
-
-### 📊 백테스트 (Backtests)
-| # | 파일 | 화면 | URL | 테마 |
-|:-:|------|------|-----|------|
-| 08 | [08-backtest-setup.html](./08-backtest-setup.html) | 백테스트 설정 | `/backtests/new` | Light + App Shell |
-| 09 | [09-backtests-list.html](./09-backtests-list.html) | 백테스트 목록 | `/backtests` | Light + App Shell |
-| 02 | [02-backtest-report.html](./02-backtest-report.html) | 백테스트 결과 리포트 | `/backtests/[id]` | Light + 다크 차트 |
-| 10 | [10-trades-detail.html](./10-trades-detail.html) | 거래 내역 상세 | `/backtests/[id]/trades` | Light + App Shell |
-
-### ⚡ 트레이딩 (Trading)
-| # | 파일 | 화면 | URL | 테마 |
-|:-:|------|------|-----|------|
-| 03 | [03-trading-dashboard.html](./03-trading-dashboard.html) | 트레이딩 대시보드 | `/dashboard` | **Full Dark** + App Shell |
-
----
-
-## 완성도 현황
-
-**총 12개 파일 / 35개 페이지 계획**
-
-| 구분 | 완료 | 남은 페이지 |
-|------|:---:|----------|
-| 랜딩/인증/에러 | 4개 | — |
-| Phase 1 MVP | **7개** ✅ | — |
-| Phase 2 (고급 백테스트) | 0개 | 8개 (멀티심볼, Monte Carlo, Walk-Forward, 최적화, 템플릿 등) |
-| Phase 3 (데모 트레이딩) | 0개 | 7개 (거래소 연동, 세션, 라이브 모니터링 등) |
-| Phase 4 (라이브) | 0개 | 5개 (라이브 전환, 리스크 관리, 알림, 리포트) |
-| 공통 설정 | 0개 | 4개 (프로필, 빌링, 알림센터, 도움말) |
-
-**Tier 1 (Phase 1 MVP) 완료** — MVP 개발에 필요한 모든 화면 확보.
-
----
-
-## 보는 방법
+## 보고 검사하는 법
 
 ```bash
-cd docs/prototypes
-python3 -m http.server 8899 --bind 127.0.0.1
-
-# 브라우저에서 http://localhost:8899/ 열기
+cd docs/reference/design/prototypes/shotgun-2026-07
+python3 serve.py                       # http://localhost:4173/viewer.html (no-store, 캐시 사고 방지)
+python3 preflight.py --all             # 정적 검사. FAIL 0 이어야 한다
+node runtime-check.mjs screen-NN-*.html  # 1440/1024/768/375 실측 (가로 스크롤·대비·포커스 링)
 ```
 
-각 파일을 브라우저로 직접 드래그해도 작동합니다 (Google Fonts 외부 로딩만 필요).
+`python3 -m http.server` 를 쓰지 마라 — `Cache-Control` 을 안 보내서 고친 화면이 안 바뀐 것처럼 보인다.
 
----
+## 2세대 캐논 20종
 
-## App Shell 통일 원칙
+**17벌** (`checklist.md` §최종 화면 세트)
 
-모든 인증된 앱 페이지 (01, 02, 03, 06, 07, 08, 09, 10)는 **동일한 App Shell** 구조를 공유:
+|  #  | 파일                        | 화면            |  #  | 파일                         | 화면            |
+| :-: | --------------------------- | --------------- | :-: | ---------------------------- | --------------- |
+| 01  | `screen-01-trading-cockpit` | 트레이딩 코크핏 | 10  | `screen-10-optimizer-detail` | 옵티마이저 상세 |
+| 02  | `screen-02-dashboard`       | 대시보드        | 11  | `screen-11-orders`           | 주문            |
+| 03  | `screen-03-backtests-list`  | 백테스트 목록   | 12  | `screen-12-onboarding`       | 온보딩          |
+| 04  | `screen-04-trade-detail`    | 트레이드 상세   | 13  | `screen-13-error-pages`      | 에러 · 유지보수 |
+| 05  | `screen-05-backtest-setup`  | 백테스트 설정   | 14  | `screen-14-landing`          | 랜딩            |
+| 06  | `screen-06-strategies-list` | 전략 목록       | 15  | `screen-15-login`            | 로그인          |
+| 07  | `screen-07-strategy-create` | 전략 생성       | 16  | `screen-16-pricing`          | 요금제          |
+| 08  | `screen-08-strategy-editor` | 전략 편집       | 17  | `screen-17-waitlist`         | 웨이트리스트    |
+| 09  | `screen-09-optimizer-list`  | 옵티마이저 목록 |     |                              |                 |
 
-### Sidebar (220px 고정 / 60px 축소 / 햄버거 모바일)
+**보조 3벌**
+
+| 파일                            | 역할                                                                                                                        |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `variant-c.html`                | **C 디자인 언어의 정본**(`_KIT.md:5`)이자 백테스트 리포트 화면. `screen-NN` 번호가 없는 이유는 셋 중 먼저 확정됐기 때문이다 |
+| `light-01-report.html`          | 백테스트 리포트 라이트 테마                                                                                                 |
+| `light-02-trading-cockpit.html` | 트레이딩 코크핏 라이트 테마                                                                                                 |
+
+`_kit.html` 은 화면이 아니라 **공용 셸**이다. 새 화면은 이것을 복사해서 시작하고, `PAGE-SPECIFIC`
+마커 위쪽 CSS 는 한 글자도 고치지 않는다 (`preflight.py` 가 바이트 비교로 잡는다).
+
+## 라우트 ↔ 캐논 (FE `page.tsx` 25개, 2026-08-07 실측)
+
+**캐논 보유 19**
+
+| 라우트                  | 캐논        | 라우트                   | 캐논                         |
+| ----------------------- | ----------- | ------------------------ | ---------------------------- |
+| `/`                     | `screen-14` | `/backtests`             | `screen-03`                  |
+| `/pricing`              | `screen-16` | `/backtests/new`         | `screen-05`                  |
+| `/waitlist`             | `screen-17` | `/backtests/[id]`        | **`variant-c`** + `light-01` |
+| `/sign-in`, `/sign-up`  | `screen-15` | `/backtests/[id]/trades` | `screen-04`                  |
+| `/onboarding`           | `screen-12` | `/optimizer`             | `screen-09`                  |
+| `/dashboard`            | `screen-02` | `/optimizer/[id]`        | `screen-10`                  |
+| `/strategies`           | `screen-06` | `/orders`                | `screen-11`                  |
+| `/strategies/new`       | `screen-07` | `/trading`               | `screen-01` + `light-02`     |
+| `/strategies/[id]/edit` | `screen-08` | `/maintenance`           | `screen-13` §03(503)         |
+
+`screen-13` 은 `not-found.tsx`(404)·`error.tsx`(500)도 함께 덮는다(`page.tsx` 가 아니라 위 25개 밖).
+
+**캐논 미보유 6** — `/admin/waitlist`(어드민) · `/disclaimer` · `/privacy` · `/terms` ·
+`/not-available`(지오블록 안내) · `/share/backtests/[token]`.
+앞 다섯은 `legal-page-shell` 계열 보일러플레이트라 캐논이 필요 없다.
+
+**캐논만 있고 라우트 없는 것은 0개** — 위 20종이 전부 소진된다.
+
+## 미설계 잔여
+
+- **공통 설정 4종** — 프로필 · 빌링 · 알림센터 · 도움말. 캐논도 라우트도 없다.
+- **Phase 4 라이브 5종** — 라이브 전환 · 리스크 관리 · 알림 · 리포트. ★**지금 대상이 아니다** —
+  실자금 라이브는 [BL-003](../../../backlog.md#bl-003) 뒤이고, 현재 계정 모드는 Bybit demo 뿐이다.
+
+## 1세대 (2026-04-14 ~ 2026-08-07, 삭제)
+
+`00-landing.html` ~ `11-error-pages.html` 12벌 + `INTERACTION_SPEC.md`. 태그 **`prototypes-gen1`**
+이 삭제 직전 커밋을 고정한다 — 태그를 지우지 마라. 지우면 squash·rebase 머지 후 fresh clone 에서
+아래 명령이 `not a valid object name` 으로 깨진다.
+
+```bash
+git ls-tree --name-only prototypes-gen1 -- docs/reference/design/prototypes/
+git show prototypes-gen1:docs/reference/design/prototypes/05-onboarding.html
 ```
-로고
-─────────
-대시보드
-전략
-템플릿
-백테스트
-트레이딩
-거래소
-─────────
-알림 (3)
-설정
-김지훈 프로필 (프로)
-```
 
-### Global Header (60px)
-```
-[브레드크럼] ... [⌘K 검색] ... [페이지별 CTA] [알림] [아바타]
-```
+**왜 지웠나.** 정본이 두 세대로 갈려 있으면 「어느 프로토타입이 맞나」가 모호해지고, 실제로
+2026-08 첫째 주에 그 모호성이 잘못된 진단을 낳았다. 구 README 는 2세대를 **한 번도 언급하지 않은 채**
+「Tier 1 완료 · Phase 2 0개」로 얼어 있었지만, 실제로는 Phase 2 「최적화」가 `screen-09`/`screen-10`
+으로 캐논이 생겨 구현까지 끝났고(`/optimizer`), Monte Carlo·Walk-Forward 는 별도 페이지가 아니라
+`/backtests/[id]` 안의 `stress-test-panel.tsx` 패널로 들어갔으며, Phase 3 「거래소 연동·세션·라이브
+모니터링」은 `screen-01`/`screen-11` 에 흡수됐다.
 
-**테마만 다르고 구조는 동일:**
-- 01, 02, 06, 07, 08, 09, 10 → Light 테마
-- 03 (대시보드) → Dark 테마 (트레이딩 UI 표준)
+**`INTERACTION_SPEC.md` 는 승계자 없이 폐기됐다.** 화면 종속이 아닌 공통 계약 7종을 2세대와 항목
+단위로 대조한 결과, **승격 대상이 0건**이었다 — 셋은 2세대가 이미 상위집합이고, **넷은 실측이
+반증**했다.
 
-**테마별 토큰:** DESIGN.md §10.4 "테마별 App Shell 색상" 참조
-
----
-
-## 프로토타입 역할
-
-1. **개발 스펙** — Frontend 구현 시 레퍼런스 (Next.js + shadcn/ui + Tailwind v4로 재구성)
-2. **UX 검증** — 구현 전 레이아웃/동선 문제 발견
-3. **이해관계자 합의** — 비주얼 톤/방향성 확인
-
-### 실제 구현 매핑
-
-| 프로토타입 요소 | 실제 구현 |
-|---------------|----------|
-| Monaco 풍 에디터 | `@monaco-editor/react` |
-| 캔들스틱/자산 곡선 차트 | TradingView Lightweight Charts v4 |
-| 히트맵/히스토그램 | Recharts 또는 Plotly |
-| 사이드바/카드/버튼 | shadcn/ui v4 컴포넌트 |
-| 테마 토큰 | `tailwind.config.ts` + CSS 변수 (DESIGN.md §14) |
-| 아이콘 | Lucide Icons (`lucide-react`) |
-| 폼 검증 | react-hook-form + Zod v4 |
-| 실시간 업데이트 | Socket.IO client + React Query |
-| 날짜 피커 | shadcn/ui DatePicker |
-| 테이블 | TanStack Table v8 |
-
-### 주의 사항
-
-- 정적 HTML이므로 **실제 인터랙션은 불가** (링크, 폼 제출 등)
-- Pine Script 코드는 시각 데모용 (실행 불가)
-- 차트는 모두 SVG로 수작업 — 실제는 차트 라이브러리 사용
-- Mock 데이터는 예시용 (샤프 2.47, 승률 68.4% 등)
-- 애니메이션은 CSS only (실제 구현 시 Framer Motion 등 고려)
-
----
-
-## Tier 진행 계획
-
-- **Tier 1 (Phase 1 MVP)** — ✅ 완료 (11개 페이지, 이 중 8개는 App Shell 공유)
-- **Tier 2 (Phase 2~4)** — 필요 시 추가 (PRD 확정 후 진행 권장)
-- **Tier 3 (공통 설정)** — 필요 시 추가 (프로필, 빌링, 알림센터, 도움말)
-
-**Stage 3 (스프린트 계획) 진입 가능 상태.**
+| 1세대 계약                | 판정 | 근거                                                                                                                                                                                                                                                                |
+| ------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 액션 버튼 동작 원칙       | 폐기 | 시각·카피 축은 `_KIT.md` §3 색 규율 + §8 문체가 덮고, 행동 축은 코드가 이미 그 패턴이다(`sonner` 24파일)                                                                                                                                                            |
+| 폼 검증                   | 폐기 | 스택은 `frontend/AGENTS.md` §1·§8 이 정본. ★「서버 에러는 인풋 아래」가 **코드와 어긋난다** — 실제는 폼 레벨 `root.serverError` 이고 필드 아래는 클라이언트 검증 전용이다                                                                                           |
+| 실시간 데이터             | 폐기 | ★**Socket.IO 는 이 레포에 없다**(FE·BE 의존성 0건). 실제는 네이티브 WS(`backend/src/realtime/router.py`) + React Query 무효화 힌트 + 폴링 병행                                                                                                                      |
+| 로딩/에러/빈 상태         | 폐기 | `_KIT.md` §1 #10 + §6 이 **상위집합**(무데이터 셀까지 4종). FE 축은 `frontend/AGENTS.md` §3·§6                                                                                                                                                                      |
+| 접근성                    | 폐기 | `_KIT.md` §1 #2/#3/#4/#11 + §4.10 + §7 `runtime-check.mjs` 가 **실측 가능한 형태의 상위집합**                                                                                                                                                                       |
+| 반응형                    | 폐기 | ★**4개 중 3개가 틀렸다** — `_kit.html` 실측은 1440 구간 없음(`max-width:1240px` 무조건) · 검색바 숨김 **1024**(1200 아님) · 사이드바 **64px**(60 아님). 768 햄버거만 일치                                                                                           |
+| Kill Switch 특별 주의사항 | 폐기 | ★**아키텍처가 다르다** — Kill Switch 는 버튼이 아니라 자동 게이트(`ensure_not_gated`)이고 `POST …/kill` 은 없다. 타이핑 확인·30초 쿨다운·전량 청산 버튼 전부 **0건**. 실재하는 건 감사 로그(`KillSwitchEvent` row)뿐이고 정본은 `../../domain/state-machines.md` 다 |
