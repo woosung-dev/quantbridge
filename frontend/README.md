@@ -67,4 +67,4 @@ src/
 
 1. `pnpm dlx shadcn@latest init` 후 Button/Card/Input 등 기본 컴포넌트 설치
 2. `features/strategy/api.ts` + `hooks.ts` — FastAPI `/strategies` 연동
-3. 랜딩 페이지 (`docs/reference/design/prototypes/00-landing.html`) → 실제 컴포넌트로 포팅
+3. 랜딩 페이지 (`docs/reference/design/prototypes/shotgun-2026-07/screen-14-landing.html`) → 실제 컴포넌트로 포팅

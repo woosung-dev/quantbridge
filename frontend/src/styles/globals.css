@@ -570,7 +570,9 @@ h6 {
 }
 
 /* ───────────────────────────────────────────────
- * Sprint 43 W7 — backtests-list prototype 09 정합
+ * Sprint 43 W7 — backtests-list 1세대 프로토타입 09 정합
+ * 근거 원본은 태그 prototypes-gen1 에 동결됐다 (현행 정본은 shotgun-2026-07/screen-03):
+ *   git show prototypes-gen1:docs/reference/design/prototypes/09-backtests-list.html
  * qb-pulse-dot: 실행 중 / 대기 중 status dot ring (primary 색)
  * qb-progress-indeterminate: 종료 시점 미상 진행률 bar (좌→우 슬라이드)
  * ───────────────────────────────────────────── */
@@ -586,7 +588,10 @@ h6 {
 
 /* ───────────────────────────────────────────────
  * Sprint 42-polish-2 W4-fidelity — backtest setup slider thumb cross-browser
- * prototype 08-backtest-setup.html .range-slider 1:1 정합:
+ * 1세대 프로토타입 08-backtest-setup.html 의 .range-slider 1:1 정합. 근거 원본은 태그
+ * prototypes-gen1 에 동결됐다 (현행 정본은 shotgun-2026-07/screen-05):
+ *   git show prototypes-gen1:docs/reference/design/prototypes/08-backtest-setup.html
+ * 정합 내용:
  *   - track 6px (radius 3px) + linear-gradient progress (--qb-slider-progress)
  *   - thumb 18×18 + 3px white border + 그림자 + hover scale
  *   - focus-visible ring
@@ -687,7 +692,9 @@ h6 {
 /* ───────────────────────────────────────────────
  * Sprint 44 W F1 + F2 통합 — fidelity iter 2 group A + B keyframes
  * fadeInUp: brand panel / value prop / feature card / onboarding illustration stagger entrance
- *   (prototype 04-login.html 536-545 + 00-landing.html 1:1, translateY 12px)
+ *   (1세대 프로토타입 04-login.html 536-545 + 00-landing.html 1:1, translateY 12px.
+ *    근거 원본은 태그 prototypes-gen1 에 동결 — 현행 정본은 shotgun-2026-07/screen-15·screen-14:
+ *      git show prototypes-gen1:docs/reference/design/prototypes/04-login.html)
  * heroEntrance: landing hero accent SVG underline scale + opacity (F1)
  * accordionSlide: waitlist FAQ details panel slide-down (F1)
  * subtleHover: strategies-list empty CTA 2s loop pulse (F1)

@@ -111,11 +111,26 @@ T1 착수 전에 Pine 소스 1개를 **현재 curl 방식**으로 등록·Parse�
 
 ### 프로젝트 내부 (Stage 2 Design System — Sprint 7c가 반드시 준수)
 
+> **묘비 (2026-08-07).** 아래 1세대 프로토타입 4종은 `docs/reference/design/prototypes/` 에서
+> **삭제**됐고 태그 **`prototypes-gen1`** 에 동결됐다. 현행 정본은 2세대
+> [`shotgun-2026-07/`](../reference/design/prototypes/shotgun-2026-07/) 이며 대응 화면은
+> `screen-06` · `screen-08` · `screen-07` 이다. `INTERACTION_SPEC.md` 는 승계자 없이 폐기됐다
+> (계약 7종이 전부 상위 정본에 있거나 실측으로 반증됨 — 대조표는
+> [`prototypes/README.md`](../reference/design/prototypes/README.md)).
+> 본 절의 판단 본문은 **2026-04-17 당시 기준으로 그대로 둔다** — 원문 조회는 아래 명령이다.
+>
+> ```bash
+> git show prototypes-gen1:docs/reference/design/prototypes/06-strategies-list.html
+> git show prototypes-gen1:docs/reference/design/prototypes/01-strategy-editor.html
+> git show prototypes-gen1:docs/reference/design/prototypes/07-strategy-create.html
+> git show prototypes-gen1:docs/reference/design/prototypes/INTERACTION_SPEC.md
+> ```
+
 - [DESIGN.md](../../DESIGN.md) — 색상·타이포·간격 토큰 SSOT (2026-04-14 확정)
-- [docs/reference/design/prototypes/06-strategies-list.html](../reference/design/prototypes/06-strategies-list.html) — `/strategies` reference
-- [docs/reference/design/prototypes/01-strategy-editor.html](../reference/design/prototypes/01-strategy-editor.html) — `/strategies/[id]/edit` reference (Monaco)
-- [docs/reference/design/prototypes/07-strategy-create.html](../reference/design/prototypes/07-strategy-create.html) — `/strategies/new` 3-step wizard reference
-- [docs/reference/design/prototypes/INTERACTION_SPEC.md](../reference/design/prototypes/INTERACTION_SPEC.md) — `@monaco-editor/react` + react-hook-form + 실시간 파싱 인터랙션 스펙
+- `docs/reference/design/prototypes/06-strategies-list.html` — `/strategies` reference (삭제, 위 묘비)
+- `docs/reference/design/prototypes/01-strategy-editor.html` — `/strategies/[id]/edit` reference (Monaco) (삭제, 위 묘비)
+- `docs/reference/design/prototypes/07-strategy-create.html` — `/strategies/new` 3-step wizard reference (삭제, 위 묘비)
+- `docs/reference/design/prototypes/INTERACTION_SPEC.md` — `@monaco-editor/react` + react-hook-form + 실시간 파싱 인터랙션 스펙 (삭제, 위 묘비)
 
 ### 선행 sprint 자산
 
