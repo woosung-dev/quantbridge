@@ -22,6 +22,7 @@ import pytest
 
 from src.backtest.engine import types as engine_types
 from src.backtest.engine.types import BacktestMetrics, RawTrade
+from tests.strategy.pine_v2._corpus import SKIPPED_CORPUS
 
 BACKEND_DIR = Path(__file__).resolve().parents[3]
 BASELINE_PATH = BACKEND_DIR / "tests" / "fixtures" / "pine_corpus_v2" / "baseline_metrics.json"
@@ -126,6 +127,23 @@ def _corpora(baseline: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return corpora
 
 
+def _is_skipped_entry(corpus_id: str, record: dict[str, Any]) -> bool:
+    """실행되지 않은 코퍼스인가 — 제외 근거는 `SKIPPED_CORPUS` 다.
+
+    ★「metrics 가 None 이면 그냥 넘긴다」로 쓰면 안 된다. 그러면 산출이 **전 코퍼스**를
+    None 으로 만들어도 통과한다(항진명제화). `_corpus.py` 의 SSOT 와 대조해서, 실행 대상인데
+    비어 있으면 **그 자리에서 실패**시킨다.
+    """
+    if record.get("metrics") is not None:
+        return False
+    assert corpus_id in SKIPPED_CORPUS, (
+        f"{corpus_id}: metrics 가 비었는데 SKIPPED_CORPUS 에 없다 "
+        f"(skip 정본 = {sorted(SKIPPED_CORPUS)}). 실행 대상 코퍼스가 산출을 못 남겼거나, "
+        f"skip 목록이 _corpus.py 와 어긋난다"
+    )
+    return True
+
+
 def test_metrics_dict_covers_all_scalar_backtest_metrics_fields(
     baseline: dict[str, Any],
 ) -> None:
@@ -135,11 +153,16 @@ def test_metrics_dict_covers_all_scalar_backtest_metrics_fields(
     assert scalars, "BacktestMetrics 스칼라를 하나도 못 유도했다 — 분류 로직 결함"
     assert nested_keys, "중첩 dataclass 평탄화 키를 못 유도했다 — 분류 로직 결함"
 
+    covered = 0
     for corpus_id, record in _corpora(baseline).items():
+        if _is_skipped_entry(corpus_id, record):
+            continue
+
         metrics = record.get("metrics")
         assert isinstance(metrics, dict), (
             f"{corpus_id}: metrics 가 dict 가 아니다 (got {type(metrics).__name__})"
         )
+        covered += 1
 
         missing_scalars = scalars - set(metrics)
         assert not missing_scalars, (
@@ -161,6 +184,12 @@ def test_metrics_dict_covers_all_scalar_backtest_metrics_fields(
                 f"{corpus_id}: metrics[{list_field}] 가 리스트 원문이다 — "
                 f"리스트 3종은 metrics_list_digests 로 간다"
             )
+
+    # ★음성 대조 — 실행 대상이 0으로 붕괴하면 위 단언은 한 번도 평가되지 않는다(항진명제).
+    assert covered >= 1, (
+        f"metrics 를 실제로 가진 코퍼스가 0이다 (전체 {len(_corpora(baseline))}개, "
+        f"skip 정본 {sorted(SKIPPED_CORPUS)}) — 이 시험은 아무것도 재지 못했다"
+    )
 
 
 def test_trade_dict_covers_all_rawtrade_fields() -> None:
@@ -198,6 +227,9 @@ def test_list_fields_have_digest_entries(baseline: dict[str, Any]) -> None:
 
     informative_corpora = 0
     for corpus_id, record in _corpora(baseline).items():
+        if _is_skipped_entry(corpus_id, record):
+            continue
+
         digests = record.get("metrics_list_digests")
         assert isinstance(digests, dict), (
             f"{corpus_id}: metrics_list_digests 가 없다 (got {type(digests).__name__}) — "
