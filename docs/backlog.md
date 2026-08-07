@@ -179,16 +179,16 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
-| ID                | 제목                                                                                   | Trigger                                    | Est      | 출처                         |
-| ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ | -------- | ---------------------------- |
-| [BL-014](#bl-014) | 🟡 부분 Resolved — Partial fill `cumExecQty` tracking (잔여 = BL-439/440/441)          | 🟡 2026-07-25 `stage/money-path-accuracy`  | M (4-5h) | TODO.md L709                 |
-| [BL-015](#bl-015) | OKX Private WS                                                                         | Bybit Demo 안정화 후                       | M (6-8h) | TODO.md L710                 |
-| [BL-022](#bl-022) | golden expectations 재생성                                                             | pine_v2 `strategy.exit` 도입 후            | M (3-4h) | TODO.md L17 (skip #1)        |
-| [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                                           | Trust Layer v2 검토 시                     | M (5-6h) | TODO.md L23 (skip #16)       |
-| [BL-024](#bl-024) | real_broker E2E 본 구현 (nightly cron)                                                 | Bybit Demo credentials + seed data 준비 시 | L (8h+)  | CLAUDE.md Sprint 10 Phase C  |
-| [BL-025](#bl-025) | autonomous-parallel-sprints 스킬 patch                                                 | on-demand (BUG-1/2/3 재발 시)              | S (2h)   | TODO.md L653                 |
-| [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                        | Stage 2c 2차 fixture 활성화 후             | S (1-2h) | TODO.md L20-22               |
-| [BL-522](#bl-522) | ★엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다 (유실 채널 5종) | 실자금 cutover 전 필수                     | M-L      | 2026-07-28 live-entry-parity |
+| ID                | 제목                                                                                                                                                                                                            | Trigger                                    | Est      | 출처                         |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ | -------- | ---------------------------- |
+| [BL-014](#bl-014) | 🟡 부분 Resolved — Partial fill `cumExecQty` tracking (잔여 = BL-439/440/441)                                                                                                                                   | 🟡 2026-07-25 `stage/money-path-accuracy`  | M (4-5h) | TODO.md L709                 |
+| [BL-015](#bl-015) | OKX Private WS                                                                                                                                                                                                  | Bybit Demo 안정화 후                       | M (6-8h) | TODO.md L710                 |
+| [BL-022](#bl-022) | ✅ golden expectations 재생성 — **Resolved** (2026-08-07 backtest-fidelity). `backend/scripts/regen_golden.py` 신설(`--confirm`/`--case`/`--check`). ★이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인이다 | pine_v2 `strategy.exit` 도입 후            | M (3-4h) | TODO.md L17 (skip #1)        |
+| [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                                                                                                                                                                    | Trust Layer v2 검토 시                     | M (5-6h) | TODO.md L23 (skip #16)       |
+| [BL-024](#bl-024) | real_broker E2E 본 구현 (nightly cron)                                                                                                                                                                          | Bybit Demo credentials + seed data 준비 시 | L (8h+)  | CLAUDE.md Sprint 10 Phase C  |
+| [BL-025](#bl-025) | autonomous-parallel-sprints 스킬 patch                                                                                                                                                                          | on-demand (BUG-1/2/3 재발 시)              | S (2h)   | TODO.md L653                 |
+| [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                                                                                                                                 | Stage 2c 2차 fixture 활성화 후             | S (1-2h) | TODO.md L20-22               |
+| [BL-522](#bl-522) | ★엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다 (유실 채널 5종)                                                                                                                          | 실자금 cutover 전 필수                     | M-L      | 2026-07-28 live-entry-parity |
 
 | [BL-619](#bl-619) | ★**라이브 파이프라인이 한 세션에 ~17분 멈췄고 뿌리를 모른다** — 평가(`live_signal_states` 마지막 쓰기 20:14:33)와 체결 관측(같은 창 872초 지연)이 **같은 창에 멈췄다가 같이 풀렸다**. 그 정지가 `requires_gap_resync` 를 열었고 그것이 [BL-622] 사망의 전제였다. ★워커 컨테이너 재생성으로 로그 소실 + 라이브 OHLCV 는 CCXT REST 라 DB 역추적 불가 ⇒ **판정 불가**(「이상 없음」 아님) | 다음 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검) | M | 2026-08-07 gap-resync-autopsy |
 
@@ -233,9 +233,17 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **Priority:** P1
 **Trigger:** pine_v2 `strategy.exit` 본격 지원 후
 **Est:** M (3-4h)
+**상태:** ✅ **Resolved** (2026-08-07 backtest-fidelity)
 **출처:** TODO.md L17 / `tests/backtest/engine/test_golden_backtest.py:19`
 
 **권장 접근:** legacy golden expectations 재생성 (pine_v2 strategy.exit 가 도입되면 expected 재계산). dette 카테고리 #1 해소.
+
+**수리 (2026-08-07).** `backend/scripts/regen_golden.py` 신설 —
+`--confirm` 없으면 exit 1 + 파일 0개 기록 · `--case <id>` 부분 실행 · `--check` 는 재생성본과 커밋본을
+**의미 비교**(키 순서 무관)하고 차이가 있으면 exit 1, 파일은 안 쓴다.
+케이스 발견은 `test_golden_backtest.py:_discover_cases()` 를 **재사용**한다(규칙이 갈리지 않게).
+★**이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인**이다 — 같은 회차 `cda575f2` 가 trust-layer
+baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으로 만들어야 해서 빠졌다.
 
 ---
 
@@ -532,7 +540,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-582](#bl-582) | divergence counter 13 series 중 **5종** 도달 불가 (2026-08-03 재판정 — 7종에서 축소. 2종은 엔진 구동으로 **반증**), 프로덕션 확인 3/8                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 반증된 2종이 프로덕션에서 발화하거나 `other` def-use 오라클이 red 일 때                                           | S            | 2026-08-02 metric-guard-parity                         |
 | [BL-584](#bl-584) | `BalanceUnverified` 가 라이브 dispatch 의 결정론적-거절 튜플 양쪽에 없다 — 소진 시 실제 사유가 `max_retries_exhausted` 로 덮인다. ★2026-08-03 **현재 코퍼스 도달 불가 확정**(계정 mode 는 생성 후 불변 · `mode=live` 계정 0건) ⇒ 수리 보류, Trigger 를 cutover 로 보강                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | **`mode=live` 계정이 생성될 때**(Wave 3 cutover), 또는 `outcome="max_retries_exhausted"` 창 차분이 0 을 벗어날 때 | S            | 2026-08-03 metric-guard-residual-close                 |
 | [BL-578](#bl-578) | 조건부 진입 `110092`/`110093` 거절 시 거래소가 준 정답(`current[...]`)을 버린다 — BL-536 재판정에서 유일하게 살아남은 채널의 잔여 (측정 완료 · 수리 보류)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | C1 거절이 하루 3건 이상으로 다시 오르거나 실자금 cutover 로 1건 비용이 달라질 때                                  | S            | 2026-08-01 entry-completeness-rejudgement              |
-| [BL-586](#bl-586) | P-3 골든이 `BacktestMetrics` **51 필드 중 13개**만 고정 — 38개가 회귀 감지 대상 밖(TV parity 팩 · 비용 분해 · per_side · excursion · 청산). `RawTrade` 도 22 중 11 필드만 digest                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때                                                             | M            | 2026-08-03 backtest-metric-oracle                      |
+| [BL-586](#bl-586) | ✅ **Resolved** 2026-08-07 backtest-fidelity — 키 리스트를 `dataclasses.fields()` 자동 유도로 교체(스칼라 46 전량 + 리스트 3종 digest + 중첩 2종 평탄화 + `RawTrade` 22 전량). 원 증상: P-3 골든이 `BacktestMetrics` **51 중 13**, `RawTrade` **22 중 11** 만 고정해 38+11 이 회귀 감지 밖                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때                                                             | M            | 2026-08-03 backtest-metric-oracle                      |
 | [BL-591](#bl-591) | ★**뿌리** — 엔진 포지션의 SSOT 가 없다. `run_live` 시뮬이 매 tick 봉을 재생해 포지션을 **도출**하고 정상 운행 중엔 현실로 **보정되지 않는다**. 슬라이스 1(계측) = **PR #539 OPEN**(통합 브랜치 `stage/engine-position-ssot`, 미머지). ★★★**슬라이스 2 미착수 확정** — 사전등록 V1 발동(④ = 0: 사망 2건의 상류에 `exchange_only` 0건 · 최악 상계 ≤1/21). ★★★**유도 함수 재설계 필요** — `trade_id` 는 trade 가 아니라 Pine 진입 규칙 이름이고(`PivRevSE` 56체결/19세션) 반전은 `:close:` 키를 안 만든다 ⇒ 판정 불가 **27.6%**(전량 `duplicate_open`) · **net 은 맞고 legs 는 틀리다**(오라클 11건: 오답 0 · 적중 4 중 3건이 `legs=2` 인데 거래소는 단일 포지션 — 나머지 1건은 반전 없는 먼지 세션이라 정확) ★**2026-08-05 P1→P2 강등**(잔여 = D1/D2 · 근거는 §상태 줄) | 발산 증상 BL 을 또 하나 열기 전에 · 소크가 또 죽었을 때                                                           | L            | 2026-08-03 breach-rejection-recovery                   |
 | [BL-592](#bl-592) | 같은 Bybit 데모 계정이 `trading.exchange_accounts` 에 **2행**이라 청산 1건이 **2행으로 적재**되고, 주문을 안 가진 계정 쪽에서는 `ours` 가 **`unknown` 으로 오라벨**된다(실측 91/91 대칭). 원장 구멍 계측을 **3.7배 부풀린다** — [BL-591] 슬라이스 1 관측 전에 인지 필요                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `exchange_exits` 로 원장 구멍·귀속을 판정하기 전에                                                                | S            | 2026-08-04 engine-position-ssot                        |
 | [BL-593](#bl-593) | 운영자 도구(`backend/scripts/verify_*.py` 등)가 `ClosePositionService` 를 못 써서 provider 를 **직접 호출** → 그 청산에 대응하는 `trading.orders` 행이 **없다**. 실측 `external_manual` **12건 / 103건(11.7%)**. [BL-591] C 안이 원장을 진실로 쓰므로 이 구멍이 곧 오주입 위험                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 소크를 끄거나 거래소를 손으로 flat 으로 만들기 전에                                                               | S            | 2026-08-04 engine-position-ssot                        |
@@ -554,6 +562,12 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-617](#bl-617) | ★**「과거 기록」이 아닌 운영 절차 4종이 working tree 밖으로 나갔다** — Cloud Run 런북(39KB)·Grafana 셋업·Bybit mainnet 체크리스트(11KB)·법무 임시 런북. ADR-026 의 분류 기준이 **위치**(폴더 이름)였지 미래 유용성이 아니었던 결과다. 머지 후 `docs/` 전체에서 Cloud Run·Grafana·Prometheus·mainnet·법무 언급 **0건**인데 `alerts.yml`·`Dockerfile`·워크플로 4종은 레포에 살아 있다. ★지금 되살리지 않는다 — 트리거 시점에 갱신해 재등재                                                                                                                                                                                                                                                                                                                              | [BL-071] 프로덕션 배포 발동 시 · Bybit mainnet 전환 시                                                            | S            | 2026-08-07 PR #554 리뷰                                |
 
 | [BL-625](#bl-625) | ★**플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다** — 서버 `backend/.env.local` 이 `CLERK_SECRET_KEY=sk_test_...`(문자 그대로)인데 API 는 정상 기동하고 `/health` 200 을 냈다. 호스트 uvicorn 이 인증 경로를 한 번도 안 밟아서 드러나지 않았고, 브라우저 첫 로그인 요청이 **전건 401** 로 터지고서야 보였다. `_enforce_production_safety` 가 이 계열을 알지만 **`app_env == production` 일 때만** 검사한다. ★2차: 루트 `.env` 인라인 주석(`# [필수 …]`)을 안 떼고 값을 옮기면 한글이 섞여 401 이 아니라 **500**(clerk SDK 헤더 ascii 인코딩) | 새 호스트에 API 를 세울 때 · [BL-071] 발동 시 | S | 2026-08-07 fe-oracle-deploy |
+| [BL-621](#bl-621) | ✅ **골든 `expected.json` 이 두 겹으로 낡아 있었다** — 손익 3지표가 2026-06-26(`80a2138e`) 이후 동결인데 그 뒤 ⑴ `cda575f2` 가 `ta.atr` 를 rolling SMA → Wilder RMA 로 바꾸고 ⑵ [BL-603] 이 비용 기본값을 내렸다. **Resolved** — 구 ATR + 구 비용을 **동시에** 되돌리자 4지표 전건 byte-identical 재현(⑴로 원인 특정). ★유일하게 보던 `num_trades` 는 네 조합 전부 14 라 **판별력 0** 이었다. `regen_golden.py` 신설 + `test_golden_backtest.py` 를 실제 오라클로 승격 | — | XS | 2026-08-07 gap-resync-autopsy |
+| [BL-627](#bl-627) | `regen_golden.py` 에 출력 경로 리다이렉트가 없어 라운드트립 시험이 **실제 `expected.json` 을 두 번 덮어쓰고 finally 에서 바이트 복원**한다 — 정상 종료 시 오염 0이지만 강제 종료되면 워킹 트리가 더러워진다. `--out-dir` 추가가 수리. ★부수: `--check` 의 「차이 없음」 종료 코드가 계약에 미명시 | `regen_golden.py` 를 CI·병렬 실행에 넣을 때 | XS | 2026-08-07 backtest-fidelity |
+| [BL-628](#bl-628) | 마케팅 푸터 법적 고지가 `--warning` 을 `--warning-subtle` 위에 얹어 **5.66:1**(캐논 5.82 미달, AA 통과) — 공개 4라우트 라이트 canon **68 > 다크 24** 미충족의 **단일 원인**이다(인증 12라우트 171 ≤ 255 충족 · 전체 16라우트 239 ≤ 279 충족). ★B2 가 만든 게 아니다 — 구팔레트에선 같은 자리가 **4.30:1 = AA 하드 실패**였다 | 라이트 공개 라우트 canon 을 다크 이하로 내리려 할 때 | XS | 2026-08-07 backtest-fidelity |
+| [BL-629](#bl-629) | `--chart-axis` 는 정의만 있고 **아무도 안 읽는 데드 토큰**이다 — `chart-tokens.ts:65` 는 `--text-muted` 를 축 색으로 읽고 `--chart-axis` 참조는 `frontend/src` 전체에 0건. 증거: 다크 `--text-muted` 는 캐논 교정으로 `#8b939c` 가 됐는데 `--chart-axis` 는 구값 `#7a828c` 에 남아 있다 | 차트 축 색을 손대려 할 때 · 토큰 정리 스윕 | XS | 2026-08-07 backtest-fidelity |
+| [BL-630](#bl-630) | `.pos`/`.neg` **단독**(`.num` 없이)은 여전히 `td` 색에 진다 — 핸드오프가 등재한 「표 손익 색이 죽었다」는 `td.num.pos`(명시도 0,3,3) 규칙으로 **이미 수리됐고**, 남은 구멍은 `.pos` 단독(0,1,0)이 `td`(0,2,3)에 지는 것이다. 지금 마크업이 항상 `.num` 과 함께 붙여 써서 미발현 — **관례가 지키고 있을 뿐 규칙이 아니다** | `<td>` 안에서 `.pos`/`.neg` 를 `.num` 없이 쓰게 될 때 | XS | 2026-08-07 backtest-fidelity |
+| [BL-631](#bl-631) | ★★**`runtime-check.mjs` 가 어느 게이트에도 안 붙어 있어 죽은 채로 방치됐다** — `docs/` 재편 커밋 `fcc36bf7` 이후 playwright import 상대깊이가 안 따라와 `ERR_MODULE_NOT_FOUND` 로 즉사했고, 그래서 핸드오프 §8.5 의 **「다크 17벌 17/17 PASS」는 그 커밋 이후 한 번도 재현된 적 없는 숫자**였다(이번 회차가 고쳐 재현). 뿌리는 경로가 아니라 **소유자 부재** — `pnpm test`·CI·`docs-audit` 어디도 안 부른다 | 다음에 `docs/` 를 재편하거나 프로토타입을 손대기 **전에** | S | 2026-08-07 backtest-fidelity |
 | [BL-624](#bl-624) | ★**게이트의 HTTP 갈래는 `PROMETHEUS_BEARER_TOKEN` 과 양립 불가** — `soak-gate.sh` 의 `curl -sf` 가 인증 헤더를 안 보내서 401 → `DARKNESS=null` → **C5⑷ 영구 ✗**. `APP_ENV=production` 과 무관하다(토큰이 있으면 development 에서도 강제). 2026-08-07 FE 배포 회차가 실측으로 물렸다 — 서버 체크아웃이 [BL-620] 이전이라 기본이 HTTP 였고 베어러를 켜자 즉시 C5 가 죽었다. ★판별자는 API 로그의 `GET /metrics` 유무다 — 게이트 출력의 `darkness_computed=✓` 는 **어느 경로로 성공했는지 말해주지 않는다**. 지금은 기본이 직독이라 미발동 | `QB_METRICS_URL`(원격 데몬 + ssh 터널 운영안)을 실제로 쓰려 할 때 | S | 2026-08-07 fe-oracle-deploy |
 | [BL-626](#bl-626) | `.soak/phantom-*.json` 이 상한 없이 쌓이고 판정기가 매번 전부를 읽는다 — 수집 실행마다 1개씩 새로 쓰는데 회수가 없다(2026-08-07 실측 4시간 29개, 30분 타이머만으로 하루 48개). 실격은 `(at, kind, detail)` dedup 이라 판정은 안전하지만 ⑴ 파싱 시간·디스크가 선형 증가 ⑵ `unreadable_labels` 의 `count` 는 dedup 되지 않아 `측정불가` 요약의 `총 N건` 이 아카이브 수만큼 부풀려진다. ★파일명 STAMP 이 1초 해상도라 같은 초 두 실행은 충돌 | `.soak/` 디스크 압박이 보일 때 · 게이트 1회 실행이 느려질 때 | XS | 2026-08-07 soak-unattended-watch |
 | [BL-623](#bl-623) | 서버 클론이 `--single-branch` 라 feature 브랜치가 기본 fetch 로 안 온다 — `remote.origin.fetch` 가 main 한 줄뿐이라 `git checkout <branch>` 가 `pathspec did not match` 로 죽는다. 우회는 refspec 명시. 근본 수리(`git remote set-branches origin '*'`)는 소크가 도는 서버의 git 설정 변경이라 이연 | 서버에서 feature 브랜치를 다시 받아야 할 때 | XS | 2026-08-07 fe-oracle-deploy |
@@ -3962,8 +3976,21 @@ Bybit **demo** 만 허용하고 이 거절은 `mode == live` 분기에서만 난
 **카테고리:** Backtest / Trust Layer (골든 커버리지 구멍)
 **Trigger:** TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때
 **Est:** M (baseline 크기 증가 + 리스트형 필드 직렬화 설계 선행)
-**상태:** 🟢 열려 있다
+**상태:** ✅ **Resolved** (2026-08-07 backtest-fidelity)
 **출처:** 2026-08-03 backtest-metric-oracle
+
+**수리 (2026-08-07).** `regen_trust_layer_baseline.py` 의 `metrics_dict` 와 `_trade_to_dict` 를
+**하드코딩 키 리스트에서 `dataclasses.fields()` 자동 유도로 교체**했다 — 이것이 수리의 핵심이다.
+키를 손으로 적으면 다음에 `types.py` 에 필드가 늘어도 여기가 안 늘어난다.
+
+- `BacktestMetrics` 51 = 스칼라 **46 전량** + 리스트 3종(`monthly_returns`·`drawdown_curve`·
+  `buy_and_hold_curve`)은 `metrics_list_digests` 로 접고 + 중첩 2종(`per_side`·`excursion_stats`)은
+  평탄화(`per_side.long.*` / `excursion_stats.*`).
+- `RawTrade` **22 전량**(digest 11 → 22). ★실측으로 확인: `RawTrade` 는 **리스트/dict 형 필드가 0개**라
+  digest 설계가 필요 없었다 — BL 본문이 예상한 「리스트 직렬화 설계 선행」은 metrics 쪽에만 해당했다.
+- `types.py:289` 의 "trust-layer trades digest(명시적 11-필드) 불변" 주석을 갱신했다.
+- 같은 digest 규칙을 `regen_golden.py`([BL-621]/[BL-022])와 공유한다.
+- 신규 가드 `tests/strategy/pine_v2/test_baseline_field_coverage.py`(evaluator 가 구현 전에 작성).
 
 P-3 골든이 고정하는 것은 `BacktestMetrics` **51 필드 중 13개**(이번 스프린트에서 12 → 13)뿐이다.
 **38개가 회귀 감지 대상 밖**이다 — TV parity 팩(`avg_holding_hours` · `consecutive_*_max` ·
@@ -5104,7 +5131,33 @@ worker · beat · ws-stream · db · redis **5종뿐이고 API 컨테이너가 �
 **카테고리:** Backend / 테스트 픽스처
 **Trigger:** 골든 케이스로 비용·손익 회귀를 판정하려 할 때
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved** (2026-08-07 backtest-fidelity)
+
+**★부검 결론 ⑴ 원인 특정 — 두 겹이었다.** 두 축을 **동시에** 되돌려야 기록값이 재현된다.
+
+| 조합                 | total_return                  | max_drawdown               | win_rate                           |
+| -------------------- | ----------------------------- | -------------------------- | ---------------------------------- |
+| 현행 ATR + 현행 비용 | -0.00075225935038332512252    | -0.0019096436091021742     | 0.2857142857…                      |
+| 현행 ATR + 구 비용   | -0.000979728462339637565      | -0.0020657351891689804     | 0.2142857142…                      |
+| 구 ATR + 현행 비용   | -0.00014915585433282336549    | -0.001306871746680595      | 0.2857142857…                      |
+| **구 ATR + 구 비용** | **-0.0003771138174282226845** | **-0.0014634176774924912** | **0.2142857142…** ★4지표 전건 일치 |
+
+원인 ⑴ `cda575f2`(2026-06-30, [BL-378] `ta.atr` rolling SMA → Wilder RMA) — 그 커밋은
+`stdlib.py`·trust-layer `baseline_metrics.json`·`test_stdlib.py` 를 건드렸고 **이 골든은 안 건드렸다.**
+이 케이스는 ATR 기반 SL/TP 전략이라 정면으로 영향을 받는다.
+원인 ⑵ [BL-603] — 2026-08-07 비용 기본값 인하 — 역시 이 골든을 재생성하지 않았다.
+
+★**왜 아무도 못 봤나** — `test_golden_backtest.py` 가 보던 유일한 값 `num_trades` 는 **네 조합 전부 14**
+라 **판별력 0** 이었다. 그리고 재생성 스크립트가 없었다([BL-022]).
+★값이 마지막으로 갱신된 커밋 = `80a2138e`(2026-06-26). 그 뒤 유일한 수정 `b97ac578`(2026-07-26)은
+**`sharpe_ratio`·`description` 만** 바꿨다.
+
+**수리** — `backend/scripts/regen_golden.py` 신설(`--confirm`/`--case`/`--check`) · `expected.json` 재생성
+(스칼라 전량 + 리스트 3종 digest) · `test_golden_backtest.py` 를 smoke 에서 **실제 오라클로 승격**
+(전 스칼라·digest·`entries_indices`/`exits_indices` 비교).
+
+**★교훈** — 「원인이 하나」를 가정하고 축을 하나씩 되돌리면 원인이 둘일 때 **전건 미확정**으로 떨어진다.
+직교 축의 **곱집합**을 재야 닫힌다.
 
 **골든 `expected.json` 의 metric 블록이 낡았는데 아무도 대조하지 않는다.**
 
@@ -5228,6 +5281,141 @@ FE 배포 회차가 공개 `/metrics` 를 막으려고 베어러 토큰을 켜�
 append 하고 `log_to` 로 클립.
 
 **Risk:** 🟢 조용하고 느리다. 판정은 안 틀리지만 `총 N건` 수치를 인용하면 과대 계상된다.
+
+---
+
+### BL-627
+
+**Priority:** P3
+**카테고리:** Test infra / 골든 재생성
+**Trigger:** `regen_golden.py` 를 CI 나 병렬 실행에 넣을 때
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**`regen_golden.py` 에 출력 경로 리다이렉트가 없다.**
+
+그래서 라운드트립 안정성을 재는 `test_golden_regen.py::test_regen_roundtrip_is_stable` 이
+**실제 `golden/<case>/expected.json` 을 두 번 덮어쓰고 `finally` 에서 바이트로 복원**한다.
+정상 종료 시 오염 0이지만 **프로세스가 강제 종료되면 워킹 트리가 더러워진다**
+(복구 = `git checkout -- backend/tests/backtest/engine/golden`).
+
+**수리 방향:** `--out-dir <path>` 를 받아 재생성 산출을 다른 곳에 쓸 수 있게 한다. 그러면 테스트가
+정본 파일을 건드리지 않고, `--check` 도 같은 경로를 재사용할 수 있다.
+
+★부수: `--check` 의 **「차이 없음」 종료 코드가 계약에 명시돼 있지 않다**(차이 있으면 1 만 명시).
+현재 구현은 0 을 내지만 시험이 그것을 단언하지 않으므로 계약에 적어 고정해야 한다.
+
+**Risk:** 🟢 지금은 무해(정상 종료 경로에서 오염 0).
+
+---
+
+### BL-628
+
+**Priority:** P3
+**카테고리:** Frontend / 디자인 토큰 (라이트 캐논)
+**Trigger:** 라이트 공개 라우트의 캐논 등급을 다크 이하로 내리려 할 때
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**마케팅 푸터 법적 고지 한 곳이 공개 라우트 라이트 캐논 미충족의 단일 원인이다.**
+
+2026-08-07 backtest-fidelity 회차가 B2 팔레트 적용 후 앱을 실제로 재서 발견했다.
+
+| 집합          | 라이트 canon | 다크 canon | 판정       |
+| ------------- | ------------ | ---------- | ---------- |
+| 인증 12라우트 | 171          | 255        | 충족       |
+| 공개 4라우트  | **68**       | 24         | **미충족** |
+| 전체 16라우트 | 239          | 279        | 충족       |
+
+원인 = `--warning` 을 `--warning-subtle` **위에** 얹는 조합으로 **5.66:1** (캐논 5.82 미달, WCAG AA 는 통과).
+캐논 임계는 「카드 위」 기준이라 중첩 표면에서 내려가는 것 자체는 다크 정본도 같다
+(`--card-2` 5.44 · `--card-3` 5.15).
+
+★**B2 가 만든 것이 아니다.** 같은 자리가 구팔레트에서는 **4.30:1 = AA 하드 실패**였다. B2 는 그것을
+5.66 으로 **올렸고**, 남은 것은 캐논 문턱까지의 0.16 이다. 색을 더 손대는 대신 **그 자리의 표면을
+바꾸는 것**(`--warning-subtle` 대신 `--card`)이 후보다.
+
+**Risk:** 🟢 AA 통과 상태. 캐논은 하드 실패가 아니라 지표다.
+
+---
+
+### BL-629
+
+**Priority:** P3
+**카테고리:** Frontend / 디자인 토큰 (데드 토큰)
+**Trigger:** 차트 축 색을 손대려 할 때 · 토큰 정리 스윕 때
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**`--chart-axis` 는 정의만 있고 아무도 안 읽는 데드 토큰이다.**
+
+`globals.css:66`(라이트) · `:458`(다크)에 정의돼 있는데 `chart-tokens.ts:65` 는
+`read("--text-muted", …)` 로 **`--text-muted` 를 축 색으로 읽는다.** `--chart-axis` 를 읽는 코드는
+`frontend/src` 전체에 **0건**(2026-08-07 실측).
+
+★증거가 하나 더 있다 — 다크 `--text-muted` 는 캐논 교정으로 `#8b939c` 가 됐는데 다크 `--chart-axis` 는
+**구값 `#7a828c` 에 남아 있다.** 아무도 안 읽으니 아무도 안 고쳤다.
+
+**수리 방향(택1):** ① 토큰을 지운다 ② `chart-tokens.ts` 가 `--chart-axis` 를 읽게 하고 값을
+`--text-muted` 와 동기화한다. ①이 단순하지만 ②는 「축 색을 본문 muted 와 독립으로 조정」 가능성을 남긴다.
+
+**Risk:** 🟢 무해. 단 다음 사람이 `--chart-axis` 를 고치고 화면이 안 바뀌어 시간을 태운다.
+
+---
+
+### BL-630
+
+**Priority:** P3
+**카테고리:** Frontend / CSS 명시도
+**Trigger:** `<td>` 안에서 `.pos`/`.neg` 를 `.num` 없이 쓰게 될 때
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**`.pos`/`.neg` **단독**은 여전히 `td` 색에 진다.**
+
+핸드오프 §8.5 가 등재한 「표의 손익 색이 두 테마 모두 죽어 있다」는 **이미 수리돼 있다** —
+`globals.css:1649-1650`(레이어드 `table.trades tbody td.num.pos`, 명시도 `0,3,3`)와
+`:2696-2697`(언레이어드 중복)이 `td.num`(`0,2,3`)을 이긴다(2026-08-07 실측).
+
+**남은 구멍은 다른 것이다.** `:986-987` 의 `.pos`/`.neg`(명시도 `0,1,0`)는 `td`(`:1633`, `0,2,3`)와
+`td.num`(`:1645`)에 **진다.** 즉 `<td class="pos">` 처럼 `.num` **없이** 쓰면 색이 죽는다.
+지금 마크업은 항상 `.num` 과 함께 붙여 쓰므로 발현되지 않는다 — **관례가 지키고 있을 뿐 규칙이 아니다.**
+
+★부수: `:1648` 주석이 "같은 명시도로 올려 되살린다" 라고 적었는데 실제 `td.num.pos` 는 클래스가
+하나 더 붙어 **한 단계 높은** 명시도다. 결과는 맞고 서술만 부정확하다.
+
+**수리 방향:** `table.trades tbody td.pos` / `td.neg` 규칙을 추가하거나, `td.num` 의 `color` 선언을
+걷어낸다. 후자가 근본이지만 KITPORT 센티넬 구역(983–1885)이라 `_kit.html` 과 함께 움직여야 한다.
+
+**Risk:** 🟢 현재 미발현.
+
+---
+
+### BL-631
+
+**Priority:** P2
+**카테고리:** DX / 디자인 게이트 (검사기가 죽은 채 방치됐다)
+**Trigger:** 다음에 `docs/` 를 재편하거나 프로토타입을 손댈 때 (그전에 붙이는 게 싸다)
+**Est:** S
+**상태:** ⬜ **Open**
+
+**`runtime-check.mjs` 가 어느 게이트에도 안 붙어 있어 죽은 채로 방치됐다.**
+
+2026-08-07 backtest-fidelity 회차 실측: 이 검사기는 **기동조차 못 하고 있었다.**
+`docs/` 재편 커밋 `fcc36bf7` 이 파일을 두 단계 깊은 곳으로 옮겼는데 playwright import 의 상대
+깊이(`../../../frontend/…`)가 안 따라와 **`ERR_MODULE_NOT_FOUND` 로 즉사**했다.
+
+★★**그래서 `HANDOFF-react-port.md` §8.5 의 「다크 17벌 17/17 PASS」는 그 커밋 이후 한 번도 재현된
+적이 없는 숫자였다.** 이번 회차가 깊이를 고쳐 17/17 을 실제로 재현했고, 그 값이 회귀 기준선이다.
+
+**뿌리는 경로가 아니라 소유자 부재다.** `pnpm test`·CI·`docs-audit.sh` 어디도 이 도구를 부르지 않는다.
+부르는 사람이 없으면 다음 이동에서 또 죽고, 또 아무도 모른다.
+
+**수리 방향:** ⑴ `frontend/package.json` 에 스크립트로 등재(★[BL-602] 때문에 그 파일 스테이징이
+지금 막혀 있다 — 선행 의존) 또는 ⑵ `scripts/` 에 얇은 래퍼를 두고 `docs-audit.sh` 가 **존재+기동만**
+확인(전 화면 실행은 느리다). ⑵가 싸고 「죽은 채 방치」를 정확히 막는다.
+
+**Risk:** 🟡 조용하다. 디자인 캐논 게이트 전체가 **없는 것과 같은 상태**로 임의 기간 지속될 수 있다.
 
 ---
 

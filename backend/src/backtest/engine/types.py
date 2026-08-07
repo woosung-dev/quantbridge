@@ -287,7 +287,11 @@ class RawTrade:
     # None = market close/flip/open → taker (byte-identical).
     exit_kind: ExitOrderKind | None = None
     # --- TV Trades parity 확장 (전부 optional 꼬리 추가 — frozen dataclass
-    # additive-safe + trust-layer trades digest(명시적 11-필드) 불변) ---
+    # additive-safe) ---
+    # ★2026-08-07 [BL-586] — trust-layer trades digest 는 더 이상 "명시적 11-필드
+    # 불변" 이 아니다. `regen_trust_layer_baseline.py` 가 `dataclasses.fields()` 로
+    # RawTrade 전 필드를 자동 유도하므로, 여기에 필드를 추가하면 baseline digest 가
+    # 함께 움직인다(추가 시 `--confirm` 재생성 의무).
     # run-up(MFE)/drawdown(MAE): 보유 구간 bar high/low 기반 gross(수수료 미차감)
     # 가격 excursion. 스캔 윈도 = (entry_bar, exit_bar] — entry bar 는 종가 체결
     # 이전 고저가 미보유 구간이라 제외, exit bar 는 full 포함(bar 근사, "TV 근사").
