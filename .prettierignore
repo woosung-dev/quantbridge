@@ -8,6 +8,9 @@ backend/tests/fixtures/bl595/
 # [BL-602] 루트 prettier 가 `frontend/.prettierrc` 의 `prettier-plugin-tailwindcss` 를 해석하지
 # 못해 죽는다(루트 node_modules 에 그 플러그인이 없다). [ADR-027] 이 스택 규칙을 그 디렉터리로
 # 옮기면서 이 함정의 표면이 넓어졌다 — 두 파일을 ignore 로 **회피**한다(근본 수리 아님).
-# ★BL-602 가 닫히면 아래 두 줄을 지워라.
+# ★BL-602 가 닫히면 아래 세 줄을 지워라.
 frontend/AGENTS.md
 frontend/CLAUDE.md
+# 2026-08-07 prototype-canon-v2 회차 추가 — 1세대 프로토타입 삭제로 :70 의 `00-landing.html`
+# 참조가 dangling 이 되는데, 이 파일을 스테이징하면 같은 트랩에 걸려 커밋이 죽는다.
+frontend/README.md
