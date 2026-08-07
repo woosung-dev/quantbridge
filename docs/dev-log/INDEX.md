@@ -14,7 +14,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
-- **2026-08-07 backtest-fidelity** — ★[BL-621] 원인은 **두 겹** — 구 ATR(`cda575f2`)+구 비용을 **동시에** 되돌려야 4지표 byte-identical(한 축씩은 전건 미확정). `num_trades` 는 네 조합 전부 14 = **판별력 0**. ★`runtime-check.mjs` 는 docs 재편 이후 **죽어 있었다** — 「17/17」은 미재현 숫자. ★라이트가 **AA 미달 116건**으로 배포 중 → B2 로 2건 — [dev-log](2026-08-07-backtest-fidelity.md)
+- **2026-08-07 backtest-fidelity** — ★[BL-621] 원인은 **두 겹** — 구 ATR(`cda575f2`)+구 비용을 **동시에** 되돌려야 4지표 byte-identical(한 축씩은 전건 미확정). ★`runtime-check.mjs` 는 docs 재편 이후 **죽어 있었다** — 「17/17」은 미재현 숫자. ★라이트가 **AA 미달 116건**으로 배포 중 → B2 로 2건 — [dev-log](2026-08-07-backtest-fidelity.md)
 - **2026-08-07 gap-resync-autopsy** — ★[BL-622] 사망 부검 **H3 확정**: 거래소 체결 `20:17:19.519` vs 우리 관측 `20:31:51.622`(**872초** 지연), 판정은 그 3.5초 전. 같은 세션 다른 3건은 **50ms** ⇒ 계통 아님. 수리 = claim **앞**에서 유예(변이 4/4 적발). [BL-603] 비용 0.300%→0.138% — `s3_rsid` 손익 **부호 반전**. LESSON-075/076
 - **2026-08-06 docs-overhaul(fix-doc)** — ★**[ADR-026] SSOT 7축 Accepted** · docs **39M→4.1M(−90%)** · `.ai/` 해체 → `.claude/rules/`. ★자동 로드 **v2.0.64+ 확인** — 08-02 「로더 없음」 실측은 버전 종속. RESOLVED 94·링크 240 강등, archive/dev-log 삭제(tombstone). ★내 회귀: 개행 넘는 링크 정규식이 BL-451/452 삼킴 → 복구·LESSON-073
 - **2026-08-06 entry-set-divergence** — ★[BL-604] 동인 분리 → **프레임 반전**: 워밍업 기여 0건(B≡R(fill) multiset 동일)·세션 공백 0쌍·「예측 못 한 46건」은 키 규약 관측(체결 지연 57%가 ±3봉 밖). 장전봉 정렬 81/90=90%, 진짜 미예측 **2/90**. `replay`/`entrysets` 신설. FE 정직성 3종+BL-609 Resolved — [dev-log](2026-08-06-entry-set-divergence.md)

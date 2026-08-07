@@ -140,8 +140,8 @@ prometheus 원문 2벌을 받아 `agree / (agree + engine_only_suppressed + ledg
 ★★★**[BL-621] 이 ⑴로 닫혔다 — 원인이 두 겹이었다.** 구 ATR(`cda575f2` 의 rolling SMA)과 구 비용을
 **동시에** 되돌리자 `expected.json` 4지표가 **byte-identical 재현**됐다. 한 축씩만 되돌리면 세 조합이
 전부 불일치라 **전건 미확정**이 된다(LESSON-077). ★이 골든이 유일하게 assert 하던 `num_trades` 는
-**네 조합 전부 14** — **판별력 0** 이었다. [BL-022]([`regen_golden.py`] 신설) · [BL-586](키 리스트를
-`dataclasses.fields()` **자동 유도**로 교체 — 스칼라 46 전량 + 리스트 3종 digest + `RawTrade` 22 전량)도
+**네 조합 전부 14** — **판별력 0** 이었다. [BL-022] — `regen_golden.py` 신설 — 와 [BL-586] — 키 리스트를
+`dataclasses.fields()` **자동 유도**로 교체, 스칼라 46 전량 + 리스트 3종 digest + `RawTrade` 22 전량 — 도
 함께 Resolved.
 ★★★**라이트 테마가 WCAG AA 미달로 배포돼 있었다** — 공개 4라우트 **AA 하드 실패 116건**이 B2 팔레트
 적용으로 **2건**(전부 Clerk dev 배지, 앱 생성 **0**)이 됐다. ⇒ B2 는 「탁해지는 대가로 캐논을 산다」가
