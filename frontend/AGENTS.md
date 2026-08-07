@@ -129,9 +129,10 @@ src/
 └── store/                  # Global State: 앱 전역 Zustand (Theme 등)
 ```
 
-## 5. 반응형 (Responsive Design)
+## 5. 반응형 — 본문은 §10
 
-> 반응형 규칙은 본 문서 **§10** 참조.
+> 반응형 규칙 본문은 병합된 **§10**(구 `nextjs-shared.md` §4)에 있다. 절 번호는
+> 외부 참조(ADR·reference)가 걸려 있어 당기지 않는다.
 
 ---
 
@@ -181,9 +182,6 @@ export type ActionResult<T> =
 
 - React Query `mutation.onError` 가 throw 처리하더라도, API wrapper 레이어는 `ActionResult` 로 typed result 노출. UI 가 `result.success` 분기로 disambiguate.
 
----
-
-> Clerk 인증은 각 스택 규칙에서 별도 정의 (FE-only vs Fullstack 패턴이 다름).
 
 ---
 

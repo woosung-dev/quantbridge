@@ -4,3 +4,10 @@ docs/archive/
 # 둔다. prettier 가 OHLCV 배열을 다시 접으면 캡처를 재실행할 때마다 diff 가 나서
 # "얼렸다" 가 성립하지 않는다(실측: 재실행 1회에 12,000줄 diff).
 backend/tests/fixtures/bl595/
+
+# [BL-602] 루트 prettier 가 `frontend/.prettierrc` 의 `prettier-plugin-tailwindcss` 를 해석하지
+# 못해 죽는다(루트 node_modules 에 그 플러그인이 없다). [ADR-027] 이 스택 규칙을 그 디렉터리로
+# 옮기면서 이 함정의 표면이 넓어졌다 — 두 파일을 ignore 로 **회피**한다(근본 수리 아님).
+# ★BL-602 가 닫히면 아래 두 줄을 지워라.
+frontend/AGENTS.md
+frontend/CLAUDE.md

@@ -18,14 +18,14 @@ TradingView Pine Script 전략을 가져와 같은 플랫폼에서 검증하고,
 
 ## 현재 범위
 
-| 영역 | 현재 계약 | 상세 정본 |
-| --- | --- | --- |
-| 전략 | Pine Script 등록·파싱·지원 범위 판정. 미지원 항목이 하나라도 있으면 부분 실행하지 않는다. | [`domain-overview.md`](../domain/domain-overview.md), [`supported-indicators.md`](../domain/supported-indicators.md) |
-| 백테스트 | `pine_v2`의 bar-by-bar 실행 결과와 리포트를 제공한다. | [`pine-execution-architecture.md`](../architecture/pine-execution-architecture.md) |
-| 검증 확장 | Monte Carlo, Walk-Forward, 파라미터 안정성 및 최적화는 같은 백테스트 계약을 재사용한다. | [`system-architecture.md`](../architecture/system-architecture.md) |
-| 시장 데이터 | OHLCV를 수집하고 TimescaleDB에 보관한다. | [`data-flow.md`](../architecture/data-flow.md) |
-| 트레이딩 | 사용자 계정 모드는 **Bybit Demo만** 허용하며, 주문 전 리스크 평가와 Kill Switch를 적용한다. | [`state-machines.md`](../domain/state-machines.md), [`endpoints.md`](../interfaces/endpoints.md) |
-| 신뢰·안전 | 실행·지원 범위·비용·리스크를 숨기지 않고, Pine 회귀는 Trust Layer CI로 방어한다. | [`trust-layer-architecture.md`](../architecture/trust-layer-architecture.md) |
+| 영역        | 현재 계약                                                                                   | 상세 정본                                                                                                            |
+| ----------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 전략        | Pine Script 등록·파싱·지원 범위 판정. 미지원 항목이 하나라도 있으면 부분 실행하지 않는다.   | [`domain-overview.md`](../domain/domain-overview.md), [`supported-indicators.md`](../domain/supported-indicators.md) |
+| 백테스트    | `pine_v2`의 bar-by-bar 실행 결과와 리포트를 제공한다.                                       | [`pine-execution-architecture.md`](../architecture/pine-execution-architecture.md)                                   |
+| 검증 확장   | Monte Carlo, Walk-Forward, 파라미터 안정성 및 최적화는 같은 백테스트 계약을 재사용한다.     | [`system-architecture.md`](../architecture/system-architecture.md)                                                   |
+| 시장 데이터 | OHLCV를 수집하고 TimescaleDB에 보관한다.                                                    | [`data-flow.md`](../architecture/data-flow.md)                                                                       |
+| 트레이딩    | 사용자 계정 모드는 **Bybit Demo만** 허용하며, 주문 전 리스크 평가와 Kill Switch를 적용한다. | [`state-machines.md`](../domain/state-machines.md), [`endpoints.md`](../interfaces/endpoints.md)                     |
+| 신뢰·안전   | 실행·지원 범위·비용·리스크를 숨기지 않고, Pine 회귀는 Trust Layer CI로 방어한다.            | [`trust-layer-architecture.md`](../architecture/trust-layer-architecture.md)                                         |
 
 > **경계:** 현재 계정 모드와 안전 규칙은 [`AGENTS.md`](../../../AGENTS.md)의 QuantBridge 고유 규칙이 정본이다. live/mainnet 공개·외부 Beta·프로덕션 배포는 구현 여부와 별개로 아직 제품 약속에 포함하지 않으며, 시작 조건은 roadmap의 Beta·Deferred 게이트를 따른다.
 

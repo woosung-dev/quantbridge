@@ -20,19 +20,19 @@
 
 > 본문은 해당 rule file에 있음. 본 파일은 reference table 만 유지.
 
-| ID         | 승격 위치                              | 한 줄 요약                                                                                                          |
-| ---------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| LESSON-004 | `frontend/AGENTS.md` §3 H-1 | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)       |
-| LESSON-005 | `frontend/AGENTS.md` §3 H-2 | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                              |
-| LESSON-006 | `frontend/AGENTS.md` §3 H-3 | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                    |
-| LESSON-019 | `backend/AGENTS.md` §3     | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단) |
-| LESSON-020 | `backend/AGENTS.md` §9.2   | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                              |
-| LESSON-037 | `generator-evaluator-pipeline.md` §8.1             | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제)                           |
-| LESSON-038 | `generator-evaluator-pipeline.md` §8.2             | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check                                |
-| LESSON-039 | `generator-evaluator-pipeline.md` §8.3             | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                           |
-| LESSON-040 | `generator-evaluator-pipeline.md` §8.4             | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                    |
-| LESSON-063 | `generator-evaluator-pipeline.md` §8.5             | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                           |
-| LESSON-066 | `backend/AGENTS.md` §7     | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충) |
+| ID         | 승격 위치                              | 한 줄 요약                                                                                                                    |
+| ---------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| LESSON-004 | `frontend/AGENTS.md` §3 H-1            | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)                 |
+| LESSON-005 | `frontend/AGENTS.md` §3 H-2            | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                                        |
+| LESSON-006 | `frontend/AGENTS.md` §3 H-3            | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                              |
+| LESSON-019 | `backend/AGENTS.md` §3                 | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단)           |
+| LESSON-020 | `backend/AGENTS.md` §9.2               | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                                        |
+| LESSON-037 | `generator-evaluator-pipeline.md` §8.1 | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제)                                     |
+| LESSON-038 | `generator-evaluator-pipeline.md` §8.2 | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check                                          |
+| LESSON-039 | `generator-evaluator-pipeline.md` §8.3 | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                                     |
+| LESSON-040 | `generator-evaluator-pipeline.md` §8.4 | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                              |
+| LESSON-063 | `generator-evaluator-pipeline.md` §8.5 | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                                     |
+| LESSON-066 | `backend/AGENTS.md` §7                 | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충) |
 
 ---
 
@@ -224,7 +224,7 @@
 
 - **상황:** BL-205 `OrderReceipt` 3-state 가 단일 grep 으로 silent failure 등재됐으나 codex G.0 2차 재검증 결과 = 의도된 _create flow_ simplification, _fetch flow_ 는 별도 `OrderStatusFetch` 4-state. 코드 변경 0, ADR 문서화로 Resolved.
 - **해결:** (a) 단일 파일 grep 미확정 / (b) `_map_*` reverse 매핑 + consumer 전수 추적 / (c) BL 등재 전 codex G.0 cross-check. post-merge audit (Sprint 48 Worker E reverse-mapping audit) = positive validation safety net.
-- **3차 검증 (2026-06-30 stress_test-deepen):** BL-363 boilerplate 의 money-path 위험을 단일 grep 이 아니라 **직접 read(`service.py:298-411`) + git co-change 추적(`6c7adfba` WF 누락 → `ffb2299b` 별도 패치)** 으로 확정 — config-drift 가 실제 silent corruption 으로 한 번 물었음을 증명. `StressTestKind` dispatch 도 5 site/3 파일 전수 추적으로 over-eng(C3 거부) 판단. 단일 grep 이었으면 "boilerplate 추출" 표면 가치만 봤을 것 → 직접 read 가 money-path framing + git 실증을 끌어냄. **3/3 누적 → `generator-evaluator-pipeline.md` §8.5  의 deepen-modules 절차에 "단일 grep 금지, 직접 read + dispatch/co-change 전수 추적 의무" 영구 승격 후보(사용자 검토).**
+- **3차 검증 (2026-06-30 stress_test-deepen):** BL-363 boilerplate 의 money-path 위험을 단일 grep 이 아니라 **직접 read(`service.py:298-411`) + git co-change 추적(`6c7adfba` WF 누락 → `ffb2299b` 별도 패치)** 으로 확정 — config-drift 가 실제 silent corruption 으로 한 번 물었음을 증명. `StressTestKind` dispatch 도 5 site/3 파일 전수 추적으로 over-eng(C3 거부) 판단. 단일 grep 이었으면 "boilerplate 추출" 표면 가치만 봤을 것 → 직접 read 가 money-path framing + git 실증을 끌어냄. **3/3 누적 → `generator-evaluator-pipeline.md` §8.5 의 deepen-modules 절차에 "단일 grep 금지, 직접 read + dispatch/co-change 전수 추적 의무" 영구 승격 후보(사용자 검토).**
 - **[LESSON-063 §7.5 4차 재현 corroboration]** multi-SSOT/평행정의 패턴: pine_v2 STDLIB(1) → backtest BacktestMetrics 24-field 4-site(2) → trading exit-field(3) → **stress_test cell 8-site + add-a-type 7파일 lockstep(4, git verbatim 2회)**. AI 누적 코드는 신규 도메인 타입 추가 시 N 타입 × M 레이어 평행 확장을 디폴트로 누적 → §7.5 `/deepen-modules` 신규 도메인 직후 의무 재확인.
 
 ### LESSON-065 — subagent review 2-stage 가 monkeypatch indirect dependency 못 잡음
@@ -292,6 +292,23 @@
   한다 — 기각 영역이 물리적으로 원격이면 그 지표는 적중해도 증거가 못 된다.
 - **1차 누적.**
 
+### LESSON-074 — 검사 도구를 **그 트리 밖에서** 겨누면 ignore 규칙이 대상을 통째로 삼킨다 (1/3)
+
+- **상황:** ADR-027 회차에서 prettier 검증을 레포 루트에 서서 워크트리 경로
+  (`.claude/worktrees/fix-doc/docs/*.md`)로 돌렸다. prettier 3.x 의 기본
+  `ignorePath` 는 `[".gitignore", ".prettierignore"]` 이고 `.gitignore` 에 `.claude/*` 가 있어
+  **0개 파일이 검사됐다.** 그런데 출력은 `All matched files use Prettier code style!` —
+  ★**존재하지 않는 파일을 줘도 같은 문장이 나온다.** 그 근거로 「prettier clean」을 3회 보고했고
+  전부 거짓이었다(트리 안에서 재실행하니 위반 4파일).
+- **왜 안 걸렸나:** 성공 메시지가 「검사했고 통과」와 「검사할 게 없었다」를 **구별하지 않는다.**
+  같은 회차에 [BL-616](backlog.md) 으로 pre-commit 훅까지 안 돌고 있었으므로 2차 방어도 없었다.
+- **해결:** ⑴ 검사는 **그 트리 안에서(cwd 를 옮겨) 상대 경로로** 실행한다 ⑵ 성공 메시지 대신
+  **검사한 개수**를 확인한다 — 없으면 **존재하지 않는 경로를 대조군**으로 넣어 같은 출력이 나오는지
+  본다(1분이면 판별된다) ⑶ ignore 규칙을 가진 도구(prettier · eslint · ruff · grep --exclude)는
+  **대상 경로가 ignore 대상인지부터** 묻는다.
+- **1차 누적.** ★이 레포의 반복 주제와 같은 축이다 — 「전체에서 가드 발화 0」은 창이 닫혀 있으면
+  아무 증명도 아니고, **적중은 판별 표면이 아니다.**
+
 ### LESSON-073 — 문서를 정규식으로 수술할 때 링크 매치는 줄 경계를 강제하라 (1/3)
 
 - **상황:** docs 대개편(fix-doc)에서 `\[[^\]]*\]\(([^)]+)\)` 로 링크를 일괄 강등하다 `[UTC 자정, +1d)`
@@ -318,8 +335,8 @@
 
 > 아래 조건이 충족되면 해당 패턴 도입을 검토한다. 그 전까지는 도입하지 않는다.
 
-| 패턴                               | 도입 트리거                                                   | 현재 상태 |
-| ---------------------------------- | ------------------------------------------------------------- | --------- |
-| 코드 내 중첩 AGENTS.md             | 도메인 3 개 이상 + 각각 반직관적 비즈니스 규칙 3 개 이상 누적 | 미해당    |
-| Action-Based Routing (Context Map) | (구 `.ai/rules/domain.md` 구상 — 부재) 도메인 규칙 파일이 200 줄 초과 + 섹션 분리로도 부족     | 미해당    |
-| 모노레포 규칙 분기                 | `apps/` 하위에 독립 `package.json` 이 2 개 이상 존재          | 미해당    |
+| 패턴                               | 도입 트리거                                                                                | 현재 상태 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------ | --------- |
+| 코드 내 중첩 AGENTS.md             | 도메인 3 개 이상 + 각각 반직관적 비즈니스 규칙 3 개 이상 누적                              | 미해당    |
+| Action-Based Routing (Context Map) | (구 `.ai/rules/domain.md` 구상 — 부재) 도메인 규칙 파일이 200 줄 초과 + 섹션 분리로도 부족 | 미해당    |
+| 모노레포 규칙 분기                 | `apps/` 하위에 독립 `package.json` 이 2 개 이상 존재                                       | 미해당    |

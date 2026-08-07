@@ -331,12 +331,12 @@ Stage 1 Day 3 오픈 질문 3 개 결정 + Gate-0 Opus evaluator Warning (W2/W3/
 
 **Opus Warning 반영**:
 
-|   #    | Warning                                                       | 반영 위치                                                                                                                      |
-| :----: | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| **W2** | Mutation M3 (strategy.entry 반환값) 가 "P-2 or P-3" 분류 모호 | `test_trust_layer_parity.py` 주석에 "Stage 2 실측 후 재분류" 명시. 현재는 양쪽 layer 중 하나라도 포착하면 PASS (SLO ≥7/8 기준) |
+|   #    | Warning                                                       | 반영 위치                                                                                                                            |
+| :----: | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| **W2** | Mutation M3 (strategy.entry 반환값) 가 "P-2 or P-3" 분류 모호 | `test_trust_layer_parity.py` 주석에 "Stage 2 실측 후 재분류" 명시. 현재는 양쪽 layer 중 하나라도 포착하면 PASS (SLO ≥7/8 기준)       |
 | **W3** | Dogfood D-C 판정 1주 sample size 불충분                       | `docs/archive/operations/dogfood/2026-04-23-dogfood-checklist.md` §3.3 에 "1~2주차는 관찰, **3주차부터 판정**" 단서 추가 (별도 커밋) |
-| **W4** | Decimal `getcontext().prec` 정책 문서화 누락                  | `_tolerance.py` 파일 docstring 에 "기본 `prec = 28` 유지 — metric 범위 [1e-4, 1e1] 에서 충분" 명시                             |
-| **W5** | `baseline_metrics.json` schema 에 외부 의존 버전 미기록       | `baseline_metrics.schema.json` 에 `tool_versions.pynescript / python` 필수 필드 추가. regen 시 자동 기록                       |
+| **W4** | Decimal `getcontext().prec` 정책 문서화 누락                  | `_tolerance.py` 파일 docstring 에 "기본 `prec = 28` 유지 — metric 범위 [1e-4, 1e1] 에서 충분" 명시                                   |
+| **W5** | `baseline_metrics.json` schema 에 외부 의존 버전 미기록       | `baseline_metrics.schema.json` 에 `tool_versions.pynescript / python` 필수 필드 추가. regen 시 자동 기록                             |
 
 **Stage 2 전 남은 결정 (Gate-1 에서 확정 대상)**:
 

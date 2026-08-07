@@ -56,15 +56,15 @@ Strategy(`pine_v2`) / Backtest / Stress Test / Optimizer / Trading / Market Data
 
 ## Documentation
 
-| 문서                                                             | 역할                                                                    |
-| ---------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [`CONTEXT.md`](CONTEXT.md)                                       | **도메인 헌법** — 용어/관계 SSOT. 도메인 작업 전 필독                   |
-| [`AGENTS.md`](AGENTS.md)                                         | 에이전트/개발자 오리엔테이션 — 읽기 순서·Golden Rules·커맨드            |
-| [`docs/README.md`](docs/README.md)                               | 문서 지도 — 상태 3종·reference·decisions·lessons 진입점                 |
-| [`docs/status.md`](docs/status.md)                               | 활성/다음 스프린트의 실행 계약                                          |
-| [`docs/decisions/`](docs/decisions/)                             | ADR 27편 — 왜 이 선택인가 (SSOT 원칙 = ADR-026·027)                         |
-| [`DESIGN.md`](DESIGN.md)                                         | 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                              |
-| `backend/AGENTS.md` · `frontend/AGENTS.md`                       | 스택 규칙 — 그 디렉터리 파일을 열면 자동 로드 (ADR-027)                 |
+| 문서                                       | 역할                                                         |
+| ------------------------------------------ | ------------------------------------------------------------ |
+| [`CONTEXT.md`](CONTEXT.md)                 | **도메인 헌법** — 용어/관계 SSOT. 도메인 작업 전 필독        |
+| [`AGENTS.md`](AGENTS.md)                   | 에이전트/개발자 오리엔테이션 — 읽기 순서·Golden Rules·커맨드 |
+| [`docs/README.md`](docs/README.md)         | 문서 지도 — 상태 3종·reference·decisions·lessons 진입점      |
+| [`docs/status.md`](docs/status.md)         | 활성/다음 스프린트의 실행 계약                               |
+| [`docs/decisions/`](docs/decisions/)       | ADR 27편 — 왜 이 선택인가 (SSOT 원칙 = ADR-026·027)          |
+| [`DESIGN.md`](DESIGN.md)                   | 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                   |
+| `backend/AGENTS.md` · `frontend/AGENTS.md` | 스택 규칙 — 그 디렉터리 파일을 열면 자동 로드 (ADR-027)      |
 
 ## License
 

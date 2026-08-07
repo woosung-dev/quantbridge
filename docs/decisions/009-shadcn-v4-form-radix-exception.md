@@ -17,8 +17,8 @@ Sprint 7c T1 Foundation 구현 중 `pnpm dlx shadcn@latest init` + `add` 실행 
 - **실제:** `frontend/src/components/ui/form.tsx:4-5`
 
   ```tsx
-  import type { Label as LabelPrimitive } from "radix-ui"
-  import { Slot } from "radix-ui"
+  import type { Label as LabelPrimitive } from "radix-ui";
+  import { Slot } from "radix-ui";
   ```
 
 - **원인:** shadcn v4 Nova preset의 component registry에서 `form` 항목이 empty. 구현자가 fallback으로 `https://ui.shadcn.com/r/styles/new-york-v4/form.json`에서 설치 → 이 버전은 `radix-ui` 기반. Nova preset이 Base-UI를 전면 채택했으나 form은 아직 마이그레이션 전.
@@ -62,18 +62,22 @@ Sprint 7c T1 Foundation 구현 중 `pnpm dlx shadcn@latest init` + `add` 실행 
 ## 영향 평가
 
 ### Bundle size
+
 - `radix-ui` umbrella에서 `Slot`, `Label` 2개만 tree-shaking → gzip ~1KB 미만. 유의미한 영향 없음.
 
 ### 번들 분석 확인 필요 여부
+
 - Sprint 7c 말미 `pnpm build` 성공 시 `.next/analyze/`로 확인 가능. 현재 `CLERK_PUBLISHABLE_KEY` 부재로 build 실패 상태 — 해결 후 확인.
 
 ### 마이그레이션 경로
+
 - Sprint 7d+ 후보:
   1. shadcn Nova preset registry에 `form` component shipped 여부 정기 확인
   2. 또는 `@base-ui/react`의 `Field` primitive를 활용한 custom `form.tsx` 구현 (react-hook-form `Controller` + Base-UI Field 합성)
 - 마이그레이션 완료 시 본 ADR의 예외 1을 폐기 + `radix-ui` 패키지 제거
 
 ### 테스트 영향
+
 - T4 (`/strategies/new` Step 3 metadata) + T5 (`/strategies/[id]/edit` metadata 탭)에서 Form 사용 시 Radix/Base-UI 혼용. 시각·동작 동일성 E2E QA에서 확인.
 
 ---

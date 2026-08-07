@@ -27,11 +27,11 @@ Decimal-first · prefork-safe)을 못 읽으면 **리뷰 품질이 조용히 떨
 2026-08-07, `backend/CLAUDE.md`(`@AGENTS.md` 한 줄) + `backend/AGENTS.md`(sentinel) 를 임시로 두고
 `backend/src/market_data/models.py` **하나를 Read** 했다. 세 파일이 **동시에** 컨텍스트에 들어왔다:
 
-| 로드된 것                     | 경로                     |
-| ----------------------------- | ------------------------ |
-| 하위 `CLAUDE.md`              | 디렉터리 진입 시 자동    |
-| 하위 `AGENTS.md`              | `@` import 를 따라 확장  |
-| `.claude/rules/backend.md`    | `paths: backend/**/*` 매칭 |
+| 로드된 것                  | 경로                       |
+| -------------------------- | -------------------------- |
+| 하위 `CLAUDE.md`           | 디렉터리 진입 시 자동      |
+| 하위 `AGENTS.md`           | `@` import 를 따라 확장    |
+| `.claude/rules/backend.md` | `paths: backend/**/*` 매칭 |
 
 ⇒ **`@` import 는 하위 `CLAUDE.md` 에서도 작동하고, 발화 시점은 `paths` 규칙과 동일하다.**
 

@@ -75,12 +75,12 @@ class AwareDateTime(TypeDecorator[datetime]):
 
 `backend/alembic/versions/20260416_1343_convert_datetime_to_timestamptz.py`로 11개 컬럼을 한 번에 변환.
 
-| 테이블 | 컬럼 |
-|--------|------|
-| `users` | `created_at`, `updated_at` |
-| `strategies` | `created_at`, `updated_at` |
-| `backtests` | `created_at`, `started_at`, `completed_at`, **`period_start`**, **`period_end`** |
-| `backtest_trades` | `entry_time`, `exit_time` |
+| 테이블            | 컬럼                                                                             |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `users`           | `created_at`, `updated_at`                                                       |
+| `strategies`      | `created_at`, `updated_at`                                                       |
+| `backtests`       | `created_at`, `started_at`, `completed_at`, **`period_start`**, **`period_end`** |
+| `backtest_trades` | `entry_time`, `exit_time`                                                        |
 
 ```sql
 ALTER TABLE backtests ALTER COLUMN created_at TYPE TIMESTAMPTZ
@@ -97,13 +97,13 @@ ALTER TABLE backtests ALTER COLUMN created_at TYPE TIMESTAMPTZ
 
 ## 거부한 대안
 
-| 대안 | 거부 이유 |
-|------|----------|
-| **naive 유지 + 직렬화 시점에서 변환** | drift 검출 수단이 없음. `_parse_utc_iso`처럼 production에서 silent하게 깨지는 패턴이 누적된다. M1 Task 8이 실제 사례. |
-| **컬럼만 TIMESTAMPTZ로 변경 (ORM 가드 없음)** | 누군가 `_utcnow()`를 다시 만들거나 `datetime.now()`를 쓰는 순간 회귀. Sprint 4에 한 번 우회한 전례가 있어 동일 사고 재발 가능성 높음. |
-| **datetime → date 분리 (시간 정보 제거)** | OHLCV/거래 시점은 millisecond 정밀도가 필수. 시간 정보 손실은 비현실적. |
-| **`datetime` 대신 `pendulum` 등 외부 라이브러리** | 의존성 + 학습 곡선. 표준 라이브러리 + Pydantic V2 `AwareDatetime`만으로 충분. |
-| **DB 트리거로 강제** | DB 레이어 강제는 ORM 우회 시 무력. 가드는 가장 가까운 레이어에 둬야 한다. |
+| 대안                                              | 거부 이유                                                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **naive 유지 + 직렬화 시점에서 변환**             | drift 검출 수단이 없음. `_parse_utc_iso`처럼 production에서 silent하게 깨지는 패턴이 누적된다. M1 Task 8이 실제 사례.                 |
+| **컬럼만 TIMESTAMPTZ로 변경 (ORM 가드 없음)**     | 누군가 `_utcnow()`를 다시 만들거나 `datetime.now()`를 쓰는 순간 회귀. Sprint 4에 한 번 우회한 전례가 있어 동일 사고 재발 가능성 높음. |
+| **datetime → date 분리 (시간 정보 제거)**         | OHLCV/거래 시점은 millisecond 정밀도가 필수. 시간 정보 손실은 비현실적.                                                               |
+| **`datetime` 대신 `pendulum` 등 외부 라이브러리** | 의존성 + 학습 곡선. 표준 라이브러리 + Pydantic V2 `AwareDatetime`만으로 충분.                                                         |
+| **DB 트리거로 강제**                              | DB 레이어 강제는 ORM 우회 시 무력. 가드는 가장 가까운 레이어에 둬야 한다.                                                             |
 
 ## 결과
 

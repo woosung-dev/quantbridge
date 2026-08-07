@@ -4,19 +4,19 @@
 
 ## 1. Tech Stack
 
-| 항목            | 기술                                                       |
-| --------------- | ---------------------------------------------------------- |
-| Framework       | FastAPI (100% Async)                                       |
-| ORM             | SQLModel + SQLAlchemy 2.0 (`asyncpg`)                      |
-| Validation      | Pydantic V2 + `pydantic-settings`                          |
-| Package Manager | `uv`                                                       |
-| Database        | PostgreSQL + **TimescaleDB hypertable** (OHLCV 시계열)      |
-| Cache / Broker  | Redis (Celery broker + 락 / 캐시)                          |
-| Async Worker    | Celery (prefork pool, `_WORKER_LOOP` 통일 — §8)            |
-| Auth            | Clerk JWT 검증 (`clerk_backend_api`)                       |
-| Exchange SDK    | CCXT (Bybit / OKX / Binance 등 데모·라이브)                |
-| 시크릿 암호화   | API 키는 AES-256 (Fernet) 암호화 저장                      |
-| 배포            | Docker compose (개발) / TBD (프로덕션 H2+)                 |
+| 항목            | 기술                                                   |
+| --------------- | ------------------------------------------------------ |
+| Framework       | FastAPI (100% Async)                                   |
+| ORM             | SQLModel + SQLAlchemy 2.0 (`asyncpg`)                  |
+| Validation      | Pydantic V2 + `pydantic-settings`                      |
+| Package Manager | `uv`                                                   |
+| Database        | PostgreSQL + **TimescaleDB hypertable** (OHLCV 시계열) |
+| Cache / Broker  | Redis (Celery broker + 락 / 캐시)                      |
+| Async Worker    | Celery (prefork pool, `_WORKER_LOOP` 통일 — §8)        |
+| Auth            | Clerk JWT 검증 (`clerk_backend_api`)                   |
+| Exchange SDK    | CCXT (Bybit / OKX / Binance 등 데모·라이브)            |
+| 시크릿 암호화   | API 키는 AES-256 (Fernet) 암호화 저장                  |
+| 배포            | Docker compose (개발) / TBD (프로덕션 H2+)             |
 
 > **참고**: 본 프로젝트는 백엔드에서 LLM SDK / Object Storage / Vector DB 를 사용하지 않는다. Pine Script 변환 등 AI 보조는 frontend → backend HTTP API 만 거쳐 진행한다.
 
@@ -193,14 +193,14 @@ class OrderService:
 
 ## 4. QuantBridge 도메인 고유 규칙
 
-| 영역              | 규칙                                                                                       |
-| ----------------- | ------------------------------------------------------------------------------------------ |
-| Pine Script 변환  | `exec()` / `eval()` 절대 금지 — 인터프리터 패턴 (`pine_v2`) 또는 sandbox 사용 (ADR-003).      |
-| Pine 미지원 함수   | 1개라도 포함 시 전체 "Unsupported" 반환 — 부분 실행 금지 (잘못된 결과 방지).                  |
-| 백테스트/최적화   | 반드시 Celery 비동기. API 핸들러 직접 실행 금지. 결과는 `result_jsonb` 컬럼.                 |
-| 거래소 API Key    | AES-256 (`Fernet`) 암호화 후 DB 저장. 평문 컬럼 금지.                                       |
-| OHLCV 시계열      | TimescaleDB hypertable (`ts.ohlcv`) 에 저장. 일반 PostgreSQL 테이블 사용 금지.               |
-| 실시간 가격       | WebSocket + Zustand 캐시 (frontend). 백엔드는 `ws_stream` 별도 queue + prefork worker (Sprint 24 BL-012 prefork 복귀 — `docker-compose.yml` ws-stream 서비스가 정본). |
+| 영역             | 규칙                                                                                                                                                                  |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pine Script 변환 | `exec()` / `eval()` 절대 금지 — 인터프리터 패턴 (`pine_v2`) 또는 sandbox 사용 (ADR-003).                                                                              |
+| Pine 미지원 함수 | 1개라도 포함 시 전체 "Unsupported" 반환 — 부분 실행 금지 (잘못된 결과 방지).                                                                                          |
+| 백테스트/최적화  | 반드시 Celery 비동기. API 핸들러 직접 실행 금지. 결과는 `result_jsonb` 컬럼.                                                                                          |
+| 거래소 API Key   | AES-256 (`Fernet`) 암호화 후 DB 저장. 평문 컬럼 금지.                                                                                                                 |
+| OHLCV 시계열     | TimescaleDB hypertable (`ts.ohlcv`) 에 저장. 일반 PostgreSQL 테이블 사용 금지.                                                                                        |
+| 실시간 가격      | WebSocket + Zustand 캐시 (frontend). 백엔드는 `ws_stream` 별도 queue + prefork worker (Sprint 24 BL-012 prefork 복귀 — `docker-compose.yml` ws-stream 서비스가 정본). |
 
 ---
 
@@ -249,6 +249,7 @@ async def get_status(
 ```
 
 **원칙:**
+
 - 장기 작업은 `202 Accepted` + task id 반환
 - 클라이언트는 polling 또는 WebSocket으로 상태 확인
 - DB에 `status` 컬럼으로 진행 상태 관리 (`pending | running | completed | failed | cancelled`)
@@ -319,9 +320,11 @@ def task_entry(payload: str) -> dict:
 ```
 
 **예외 (master process 만)**:
+
 - `celery_app.py:_on_worker_ready` — `@worker_ready.connect` 는 master process 에서 1회 실행. `_WORKER_LOOP` 비대상 → `asyncio.run()` 그대로.
 
 **worker_process_init / worker_process_shutdown signal**:
+
 ```python
 @worker_process_init.connect
 def _init(...):
@@ -377,6 +380,7 @@ async def _async_impl():
 ### 9.5 라이브 검증 의무 (sprint 신규 task type 추가 시)
 
 새 Celery task 추가 시:
+
 1. 동일 child 의 N 번째 task 도 success 인지 라이브 검증 (즉시 3회 + 5분 cycle 30분 자동)
 2. ws_stream 같은 long-running 은 별도 queue (`task_routes`) 로 분리 — pool 은 prefork 고정 (Sprint 12 solo → Sprint 24 BL-012 prefork 복귀, `docker-compose.yml` 이 정본)
 3. Sprint 19 BL-082 1h soak gate 통과 (RSS slope < 임계, fd 누수 없음)
