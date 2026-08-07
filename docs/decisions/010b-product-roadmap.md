@@ -1,6 +1,6 @@
 # ADR-010b: Product Roadmap 프레임 & 입력 결정 (재작성본)
 
-> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 ADR 재작성본. 당시 제품 로드맵 원문은 [`archive/product/2026-04-17-product-roadmap.md`](../archive/product/2026-04-17-product-roadmap.md)로 보존하며, **현재 로드맵 정본은 [`docs/roadmap.md`](../roadmap.md)**다.
+> **ADR ONLY (2026-05-04 cleanup):** 본 문서는 ADR 재작성본. 당시 제품 로드맵 원문은 `docs/archive/product/2026-04-17-product-roadmap.md`로 보존하며, **현재 로드맵 정본은 [`docs/roadmap.md`](../roadmap.md)**다.
 > **1차 초안 (010-product-roadmap.md)** = 2026-05-15 cleanup audit 으로 git rm 완료. 본문은 010b 와 동일 — 결정 근거 보존은 본 file 단독으로 충분. 1차 초안 자체는 git history 에서 조회 가능.
 >
 > **작성일:** 2026-04-17 (재작성)
@@ -154,7 +154,7 @@ H2 말에 Beta 5명 확보 실패 시 Launch 전략 재검토 (Build in public �
 - [docs/roadmap.md](../roadmap.md) — 현재 후보·방향의 정본
 - [docs/decisions/008-sprint7c-scope-decision.md](./008-sprint7c-scope-decision.md) — ADR-008, red flag 원출처
 - [docs/status.md](../status.md) — 기술 부채 목록
-- [docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md](../archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md) — H1 Sprint 7c 상세 plan
+- `docs/archive/superpowers/plans/2026-04-17-sprint7c-strategy-ui.md` — H1 Sprint 7c 상세 plan
 
 ### User-local (참조용, 프로젝트 미커밋)
 

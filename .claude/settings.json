@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "test -f docs/guides/bl-audit-checklist.md && echo '[gstack hook] BL audit checklist available — docs/guides/bl-audit-checklist.md (Sprint 28+)' || true",
+            "command": "test -f docs/reference/operations/workflows/bl-audit-checklist.md && echo '[gstack hook] BL audit checklist available — docs/reference/operations/workflows/bl-audit-checklist.md (Sprint 28+)' || true",
             "timeout": 5
           }
         ]

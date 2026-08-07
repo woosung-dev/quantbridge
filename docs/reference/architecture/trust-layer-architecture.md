@@ -1,17 +1,17 @@
 # Trust Layer 아키텍처
 
-> **역할:** Pine 실행 결과가 조용히 달라지는 회귀를 막는 현재 검증 계약의 진입점. 구현과 테스트가 정본이며, 결정 근거는 [`ADR-020`](../../decisions/020-trust-layer-ci-design.md), 2026-04 설계 초안은 [`archive`](../../archive/architecture/2026-04-23-trust-layer-architecture-design.md)에 보존한다.
+> **역할:** Pine 실행 결과가 조용히 달라지는 회귀를 막는 현재 검증 계약의 진입점. 구현과 테스트가 정본이며, 결정 근거는 [`ADR-020`](../../decisions/020-trust-layer-ci-design.md), 2026-04 설계 초안은 `archive`(`docs/archive/architecture/2026-04-23-trust-layer-architecture-design.md`)에 보존한다.
 
 ## 보장하는 것
 
 Trust Layer는 “더 많은 Pine을 실행한다”는 약속이 아니라, 지원 범위와 실행 결과의 변화를 감지하고 정직하게 드러내는 안전망이다.
 
-| 층 | 검증 대상 | 구현 근거 |
-| --- | --- | --- |
-| **P-1 AST Shape Parity** | parser가 frozen corpus의 AST 구조를 예기치 않게 바꾸지 않는가 | `test_pynescript_baseline_parity.py` |
-| **P-2 Coverage SSOT Sync** | 사용자에게 지원한다고 한 함수가 실제 interpreter에 존재하는가 | `test_trust_layer_parity.py` |
-| **P-3 Execution Golden** | 실행 결과·거래·경고가 기준선에서 드리프트하지 않는가 | `test_trust_layer_parity.py`와 frozen corpus |
-| **Mutation Oracle** | 위 검사가 의도적으로 주입한 의미론 오류를 실제로 잡는가 | `test_mutation_oracle.py` (`--run-mutations`) |
+| 층                         | 검증 대상                                                     | 구현 근거                                     |
+| -------------------------- | ------------------------------------------------------------- | --------------------------------------------- |
+| **P-1 AST Shape Parity**   | parser가 frozen corpus의 AST 구조를 예기치 않게 바꾸지 않는가 | `test_pynescript_baseline_parity.py`          |
+| **P-2 Coverage SSOT Sync** | 사용자에게 지원한다고 한 함수가 실제 interpreter에 존재하는가 | `test_trust_layer_parity.py`                  |
+| **P-3 Execution Golden**   | 실행 결과·거래·경고가 기준선에서 드리프트하지 않는가          | `test_trust_layer_parity.py`와 frozen corpus  |
+| **Mutation Oracle**        | 위 검사가 의도적으로 주입한 의미론 오류를 실제로 잡는가       | `test_mutation_oracle.py` (`--run-mutations`) |
 
 ## 동작 경계
 

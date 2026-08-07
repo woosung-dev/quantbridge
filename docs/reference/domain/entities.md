@@ -123,7 +123,7 @@
 
 `TradingSession`과 `LiveTrade`는 초기 계획에서만 쓰인 이름이다. 실제 테이블·모델은 생성되지 않았으며, ID 재사용 금지 원칙에 따라 결번으로 보존한다. 자동매매 lifecycle은 `LiveSignalSession` + `Order` + `LiveSignalEvent`가 표현한다.
 
-> **Order exit 필드 (Wave 1/2/3 + STEP B, 코드/erd.md SSOT):** `orders` 테이블이 라이브 손익보호 프리미티브 보유 — `reduce_only` / `trigger_price` / `trigger_by` / `take_profit` / `stop_loss` / `trigger_direction` / `oco_group_id` / `trailing_stop`. ★ **불변식: `Order.trailing_stop` = 영속된 트레일링 _의도_ 일 뿐, entry `create_order` 에 절대 주입 안 함** (ccxt 가 trailingStop 을 trading-stop 엔드포인트로 라우팅 → entry 깨짐). 체결 후 `place_trailing_stop` task 가 읽어 `set_trading_stop` 으로 포지션에 부착. 상세 = [`dev-log/2026-06-26-trailing-live-placement.md`](../../dev-log/2026-06-26-trailing-live-placement.md).
+> **Order exit 필드 (Wave 1/2/3 + STEP B, 코드/erd.md SSOT):** `orders` 테이블이 라이브 손익보호 프리미티브 보유 — `reduce_only` / `trigger_price` / `trigger_by` / `take_profit` / `stop_loss` / `trigger_direction` / `oco_group_id` / `trailing_stop`. ★ **불변식: `Order.trailing_stop` = 영속된 트레일링 _의도_ 일 뿐, entry `create_order` 에 절대 주입 안 함** (ccxt 가 trailingStop 을 trading-stop 엔드포인트로 라우팅 → entry 깨짐). 체결 후 `place_trailing_stop` task 가 읽어 `set_trading_stop` 으로 포지션에 부착. 상세 = `docs/dev-log/2026-06-26-trailing-live-placement.md`.
 
 ---
 
@@ -179,7 +179,7 @@
 
 ### Timestamp 정책
 
-- 모든 테이블에 `created_at`, `updated_at` 필수 (.ai/ spec)
+- 모든 테이블에 `created_at`, `updated_at` 필수 (`backend/AGENTS.md` 규칙)
 - Sprint 5 S3-05까지 naive UTC (Z 접미사 수동), 이후 tz-aware
 
 ### Decimal 정책

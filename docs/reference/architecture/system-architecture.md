@@ -298,7 +298,7 @@ graph TB
 
 ## 7.5 Celery prefork-safe 패턴 (Sprint 18 BL-080 ✅)
 
-> 상세 회고: [`dev-log/2026-05-02-sprint18-bl080-architectural.md`](../../dev-log/2026-05-02-sprint18-bl080-architectural.md). 표준 reference: [`backend/src/tasks/_worker_loop.py`](../../../backend/src/tasks/_worker_loop.py) + `backend/src/tasks/celery_app.py:_init_worker_state_after_fork`. 위반 audit: `tests/tasks/test_no_module_level_loop_bound_state.py` (Sprint 19 BL-084).
+> 상세 회고: `docs/dev-log/2026-05-02-sprint18-bl080-architectural.md`. 표준 reference: [`backend/src/tasks/_worker_loop.py`](../../../backend/src/tasks/_worker_loop.py) + `backend/src/tasks/celery_app.py:_init_worker_state_after_fork`. 위반 audit: `tests/tasks/test_no_module_level_loop_bound_state.py` (Sprint 19 BL-084).
 
 ### 문제 본질
 

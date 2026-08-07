@@ -4,7 +4,8 @@
 # 여기 적을 것 = "gitignore 인데 없으면 워크트리가 작동하지 않는 것" 뿐.
 #
 # ⚠️ 심볼릭 링크는 복사되지 않는다 (Claude Code 가 "Skipping symlink in .worktreeinclude" 로 건너뜀).
-#    `.claude/rules -> ../.ai/rules` 는 scripts/worktree-bootstrap.sh 가 재생성한다.
+#    `.claude/CLAUDE.md -> ../AGENTS.md` 는 scripts/worktree-bootstrap.sh 가 재생성한다.
+#    스택 규칙은 ADR-027 부터 `backend/AGENTS.md`·`frontend/AGENTS.md` — 체크아웃에 그냥 포함된다.
 #
 # ⚠️ 여기 나열된 파일에는 시크릿(거래소 키·Clerk·암호화 키)이 들어 있다.
 #    워크트리는 `.claude/worktrees/` 안(= gitignore) 이므로 커밋 경로에 노출되지 않지만,

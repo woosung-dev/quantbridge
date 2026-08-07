@@ -42,7 +42,7 @@ uv run alembic upgrade head
 
 ## 규칙
 
-자세한 아키텍처 규칙은 저장소 루트의 `.ai/rules/backend.md` 참조.
+자세한 아키텍처 규칙은 저장소 루트의 `backend/AGENTS.md` 참조.
 
 - **AsyncSession은 Repository만 보유.** Service는 Repository 주입 → 트랜잭션 경계 담당.
 - **`.dict()` 금지** → `.model_dump()`. **`session.exec()` 금지** → `await session.execute(...)`.

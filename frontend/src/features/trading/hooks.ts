@@ -15,7 +15,7 @@
 //    - submitted/pending → filled  → toast.success
 //    - submitted/pending → cancelled → toast.warning
 //    - submitted/pending → rejected  → toast.error
-//  LESSON-004 / H-1 (.ai/stacks/nextjs/frontend.md): useEffect dep 에 React Query data 객체 직접
+//  LESSON-004 / H-1 (frontend/AGENTS.md): useEffect dep 에 React Query data 객체 직접
 //  사용 금지. H-1 의 공식 대안은 "dep array 없는 sync useEffect" — 매 commit 직후 실행되며,
 //  prevStatesRef 로 실질 변경만 걸러내므로 중복 toast 위험 없음.
 

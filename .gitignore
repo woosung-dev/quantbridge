@@ -39,6 +39,10 @@ sprint*-day*-*.jpeg
 
 # === Node / Frontend ===
 node_modules/
+# ★슬래시로 끝나는 패턴은 **디렉터리만** 잡는다. 워크트리 부트스트랩이 만드는
+#   `node_modules -> ../../../node_modules` 는 심볼릭이라 안 걸려 `git add -A` 에 딸려 들어간다
+#   (2026-08-07 실측 — 실제로 한 번 커밋됐다). 슬래시 없는 형태를 함께 둔다.
+node_modules
 .next/
 .turbo/
 dist/
@@ -54,6 +58,8 @@ __pycache__/
 *.py[cod]
 *$py.class
 .venv/
+# 위 node_modules 와 같은 이유 — 워크트리의 `backend/.venv` 는 심볼릭이다.
+.venv
 venv/
 .pytest_cache/
 .mypy_cache/

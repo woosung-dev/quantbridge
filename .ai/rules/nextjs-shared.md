@@ -1,1 +1,0 @@
-../stacks/nextjs-shared.md
