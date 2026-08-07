@@ -44,15 +44,13 @@ C5 `darkness_computed=✗`(나머지 5개 서브조건은 ✓ — **[BL-620]**, 
 **★★★다음 행동 = 기다린다.** 남은 것은 시간이고 게이트는 이제 그 시간을 셀 수 있다.
 재기동 절차(다음에 또 죽었을 때 그대로 밟는다): ⑴ `live_session_admin.py status` 로
 **`FLAT=YES` 확인**(세션 `DELETE` 204 는 아무것도 flat 하지 않는다 — 3회 덴 함정)
-⑵ 아니면 같은 CLI `flatten <session_id> --confirm`(서비스 계층 경유 — 원장에 남는다)
-⑶ **사용자 승인** ⑷ `soak-stack.sh down` → `pin` → `up`(★돌고 있는 고정본 위에는 pin 이
-거부된다) ⑸ `live_session_admin.py start … --confirm` — **`up` 은 세션을 만들지 않는다.
-세션이 0이면 시계도 0이다** ⑹ `.soak/session` 은 **맨 uuid 가 아니라 `SESSION_ID=<uuid>`** 형식이다
-(`soak-observe.sh:66` 이 그 형식으로 쓰고 `. ` 로 소싱한다 — 맨 uuid 를 넣으면 조용히 깨진다)
-
-- `soak-observe.sh --baseline --session <uuid>`
-  (★`--baseline` 은 `--session` 을 **플래그로** 받는다 — 위치인자로 주면 `unknown arg`)
-  ⑺ `soak-gate.sh` 로 창 확인.
+⑵ 아니면 같은 CLI `flatten <session_id> --confirm`(서비스 계층 경유 — 원장에 남는다) ⑶ **사용자
+승인** ⑷ `soak-stack.sh down` → `pin` → `up`(★돌고 있는 고정본 위에는 pin 이 거부된다)
+⑸ `live_session_admin.py start … --confirm` — **`up` 은 세션을 만들지 않는다. 세션이 0이면
+시계도 0이다** ⑹ `.soak/session` 은 **맨 uuid 가 아니라 `SESSION_ID=<uuid>`** 형식이다
+(`soak-observe.sh:66` 이 그 형식으로 쓰고 `.` 로 소싱한다 — 맨 uuid 를 넣으면 조용히 깨진다)
+⑺ `soak-observe.sh --baseline --session <uuid>` (★`--session` 은 **플래그**다. 위치인자로 주면
+`unknown arg`) ⑻ `soak-gate.sh` 로 창 확인.
 
 **★backtest-reality-gap 회차가 이 블록에 더한 것 — 소크는 건드리지 않았다(창 연속 유지).**
 `ts.ohlcv` 에 perp 1m 2,879행이 새로 들어갔다(라이브는 이 테이블을 안 읽는다 — 실측으로
@@ -72,7 +70,7 @@ R(fill)의 key multiset 완전 동일) · 세션 공백 **0쌍** · 「예측 �
 (BL-606/607/608)과 BL-609 도 Resolved. 도구: `btgap_compare.py` 에 `replay`(라이브 프로토콜
 재생)·`entrysets`(진입 집합 매처) 신설 — 다음 대조는 재실행만 하면 된다.
 
-**★gap-resync-autopsy 회차가 이 블록에 더한 것 — 소크는 이미 죽어 있었고 켜지 않았다.**
+**★gap-resync-autopsy 회차가 이 블록에 더한 것 — 소크는 죽어 있었고 이 회차가 다시 켰다.**
 [BL-618] 수리(위) 외에 **[BL-603] 백테스트 비용 모델도 Resolved** 다. 기본값을 실측으로 좁혔다:
 `fees` 0.001→**0.00055**(taker 0.055%/leg) · `slippage` 0.0005→**0.00014**(진입가 잔차 중앙) ·
 `maker_fee` **불변**. 왕복 **0.300% → 0.138%**(라이브 실측 fee 왕복 0.1101%).
