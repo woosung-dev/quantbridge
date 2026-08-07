@@ -1,0 +1,23 @@
+# 이 이미지는 산출물만 담는다 (frontend/Dockerfile 머리말 참조).
+# 소스·의존성·테스트가 빌드 컨텍스트에 섞이면 전송량이 GB 단위로 뛴다
+# (실측 ADR-010a — node_modules 789MB · .next 523MB).
+
+node_modules
+.next/cache
+.next/trace
+
+src
+tests
+e2e
+
+.env
+.env.*
+!.env.example
+
+*.md
+.turbo
+coverage
+playwright-report
+test-results
+.vscode
+.idea

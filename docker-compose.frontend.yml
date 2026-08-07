@@ -1,0 +1,49 @@
+# QuantBridge Frontend — 오라클 A1 배포 스택 (2026-08-07 fe-oracle-deploy)
+#
+# ★독립 스택이다 — `docker-compose.yml` 계열(base/isolated/soak) 과 겹치는 서비스도
+# 네트워크도 없다. 그래서 이 파일을 올리고 내려도 [BL-003] 소크 창은 끊기지 않는다.
+#
+# 사용법 (서버에서만):
+#   docker compose -f docker-compose.frontend.yml -p quantbridge-fe up -d
+#   docker compose -f docker-compose.frontend.yml -p quantbridge-fe down
+#
+# 선행 조건:
+#   ⑴ `quantbridge-frontend:${QB_FRONTEND_TAG}` 이미지가 서버에 load 돼 있다
+#      (맥에서 `docker save | ssh … docker load` — 빌드는 서버에서 하지 않는다. 2 OCPU 공유)
+#   ⑵ 루트 `.env` 에 `QB_TUNNEL_TOKEN` · `QB_FRONTEND_TAG` · `CLERK_SECRET_KEY` 가 있다
+#
+# 공개 경로:
+#   브라우저 → Cloudflare(Access OTP) → cloudflared(host net) → 127.0.0.1:3200 → 이 FE
+#   브라우저 → Cloudflare              → cloudflared(host net) → 127.0.0.1:8100 → 호스트 uvicorn
+
+services:
+  # Next.js 16 standalone 런타임. `frontend/Dockerfile` 은 맥 빌드 산출물만 담는다.
+  frontend:
+    image: quantbridge-frontend:${QB_FRONTEND_TAG:?required — 맥에서 build 한 태그를 .env 에 적어라}
+    container_name: quantbridge-frontend
+    # ★루프백 전용 publish. cloudflared 가 host 네트워크에 있으므로 이것만으로 닿고,
+    # 호스트 iptables(INPUT 은 22 만 ACCEPT)가 외부 직접 접근을 막는다.
+    ports:
+      - "127.0.0.1:3200:3000"
+    environment:
+      # ★런타임 필수 — `frontend/src/proxy.ts` 의 clerkMiddleware 가 서버에서 검증한다.
+      # NEXT_PUBLIC_* 은 여기 없다: 빌드 타임에 번들로 인라인된다(`api-base.ts`).
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?required — Clerk Dashboard → API Keys}
+    # ★mem_limit 은 소크 스택과 같은 이유다(`docker-compose.soak.yml` 머리말) — 전역 OOM
+    # killer 의 표적을 우리로 고정한다. 이 호스트는 2 OCPU/12GB 를 다른 프로젝트와 공유한다.
+    mem_limit: 768m
+    restart: unless-stopped
+
+  # ★quantbridge 전용 터널. 기존 truewords 터널을 재사용하지 않는다 —
+  # 그쪽은 `truewords_truewords_net` 브리지 안에 있고 호스트 iptables 가 브리지→호스트를
+  # REJECT 하므로 호스트 uvicorn(`127.0.0.1:8100`)에 **구조적으로 닿을 수 없다**(2026-08-07 실측).
+  # host 네트워크로 띄우면 uvicorn 바인딩도 iptables 도 truewords 도 손대지 않는다.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: quantbridge-cloudflared
+    network_mode: host
+    command: tunnel --no-autoupdate run --token ${QB_TUNNEL_TOKEN:?required — Zero Trust → Tunnels}
+    mem_limit: 256m
+    restart: unless-stopped
+    depends_on:
+      - frontend

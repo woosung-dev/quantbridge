@@ -34,6 +34,14 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // 2026-08-07 fe-oracle-deploy — 오라클 A1(aarch64) 배포용 최소 런타임 산출물.
+  // 서버에 Node 가 없어 `next start` 를 쓸 수 없다 — standalone 의 `server.js` 를
+  // node:22-alpine 이미지에 얹는다 (빌드는 맥, 서버는 실행만).
+  output: "standalone",
+  // ★루트에 husky/prettier 용 `pnpm-lock.yaml` 이 있어 Next 가 workspace root 를
+  // 레포 루트로 추론한다. 그대로 두면 file tracing 이 루트 `node_modules` 까지 훑는다.
+  // 이 레포는 pnpm workspace 가 아니므로(`pnpm-workspace.yaml` 없음) frontend 로 고정한다.
+  outputFileTracingRoot: __dirname,
   async headers() {
     return [
       {
