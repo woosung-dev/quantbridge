@@ -553,6 +553,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-618](#bl-618) | ★**반응형 브레이크포인트 정본이 셋인데 서로 다르다** — `DESIGN.md` 가 자기 자신과 어긋나고(§10.2 「1200px↓ 사이드바 축소」 vs §10.6 「1024px~」), 2세대 `_kit.html` 실측(사이드바 232/64 · 컨테이너 1240 · 검색바 숨김 1024)과도 어긋나며(`DESIGN.md` 220/60 · 1200), `frontend/AGENTS.md` 는 Tailwind 기본값만 규정하고 셸 고유 값은 0건이다. `HANDOFF-react-port.md` 가 「1024px 아이콘 레일」을 🔴 미구현으로 등재해 둔 상태라 **어느 값이 정본인지부터 정해야** 그 구현을 시작할 수 있다                                                                                                                                                                                                                                                                          | 앱 셸 반응형(사이드바 축소·검색바 숨김·컨테이너 폭)을 다음에 손댈 때                                              | S            | 2026-08-07 prototype-canon-v2                          |
 | [BL-617](#bl-617) | ★**「과거 기록」이 아닌 운영 절차 4종이 working tree 밖으로 나갔다** — Cloud Run 런북(39KB)·Grafana 셋업·Bybit mainnet 체크리스트(11KB)·법무 임시 런북. ADR-026 의 분류 기준이 **위치**(폴더 이름)였지 미래 유용성이 아니었던 결과다. 머지 후 `docs/` 전체에서 Cloud Run·Grafana·Prometheus·mainnet·법무 언급 **0건**인데 `alerts.yml`·`Dockerfile`·워크플로 4종은 레포에 살아 있다. ★지금 되살리지 않는다 — 트리거 시점에 갱신해 재등재                                                                                                                                                                                                                                                                                                                              | [BL-071] 프로덕션 배포 발동 시 · Bybit mainnet 전환 시                                                            | S            | 2026-08-07 PR #554 리뷰                                |
 
+| [BL-625](#bl-625) | ★**플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다** — 서버 `backend/.env.local` 이 `CLERK_SECRET_KEY=sk_test_...`(문자 그대로)인데 API 는 정상 기동하고 `/health` 200 을 냈다. 호스트 uvicorn 이 인증 경로를 한 번도 안 밟아서 드러나지 않았고, 브라우저 첫 로그인 요청이 **전건 401** 로 터지고서야 보였다. `_enforce_production_safety` 가 이 계열을 알지만 **`app_env == production` 일 때만** 검사한다. ★2차: 루트 `.env` 인라인 주석(`# [필수 …]`)을 안 떼고 값을 옮기면 한글이 섞여 401 이 아니라 **500**(clerk SDK 헤더 ascii 인코딩) | 새 호스트에 API 를 세울 때 · [BL-071] 발동 시 | S | 2026-08-07 fe-oracle-deploy |
 | [BL-624](#bl-624) | ★**게이트의 HTTP 갈래는 `PROMETHEUS_BEARER_TOKEN` 과 양립 불가** — `soak-gate.sh` 의 `curl -sf` 가 인증 헤더를 안 보내서 401 → `DARKNESS=null` → **C5⑷ 영구 ✗**. `APP_ENV=production` 과 무관하다(토큰이 있으면 development 에서도 강제). 2026-08-07 FE 배포 회차가 실측으로 물렸다 — 서버 체크아웃이 [BL-620] 이전이라 기본이 HTTP 였고 베어러를 켜자 즉시 C5 가 죽었다. ★판별자는 API 로그의 `GET /metrics` 유무다 — 게이트 출력의 `darkness_computed=✓` 는 **어느 경로로 성공했는지 말해주지 않는다**. 지금은 기본이 직독이라 미발동 | `QB_METRICS_URL`(원격 데몬 + ssh 터널 운영안)을 실제로 쓰려 할 때 | S | 2026-08-07 fe-oracle-deploy |
 | [BL-623](#bl-623) | 서버 클론이 `--single-branch` 라 feature 브랜치가 기본 fetch 로 안 온다 — `remote.origin.fetch` 가 main 한 줄뿐이라 `git checkout <branch>` 가 `pathspec did not match` 로 죽는다. 우회는 refspec 명시. 근본 수리(`git remote set-branches origin '*'`)는 소크가 도는 서버의 git 설정 변경이라 이연 | 서버에서 feature 브랜치를 다시 받아야 할 때 | XS | 2026-08-07 fe-oracle-deploy |
 | [BL-620](#bl-620) | ✅ **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구 ✗ 였다** — `soak-stack.sh up` 은 API 컨테이너를 안 띄우고 `:8100` 리스너가 0개라 **C1/C2 를 다 채워도 PASS 불가**였다. **Resolved** — 기본 취득을 HTTP → `backend/.metrics` **직독**으로 교체(워커가 같은 counter 를 거기 쓴다). ★PR #556 리뷰 후속: curl 갈래에도 `[ -n ]` 를 걸어 **`200 + 빈 본문` fail-open** 을 닫았고(초판은 직독 갈래에만 있었다), `QB_METRICS_DIR` 을 `.env.example` 에 등재했다(Golden Rule). 판정 `측정불가`→`진행중`, C5 전건 ✓. fail-closed 음성 대조 **3/3**. `QB_METRICS_URL` 명시 시 종전 HTTP 유지 | — | S | 2026-08-07 gap-resync-autopsy |
@@ -5115,6 +5116,38 @@ red 가 안 난다. `run_backtest` 는 `run_backtest_v2` 의 별칭이라(`engin
 
 **Risk:** 🟢 지금은 무해(미대조). 단 나중에 이 파일을 오라클로 승격하면 **틀린 값을 정본으로
 고정**하게 된다. 재생성 스크립트가 없어 손으로 만들어야 한다.
+
+---
+
+### BL-625
+
+**Priority:** P2
+**카테고리:** 운영 / 배포 검증
+**Trigger:** 새 호스트에 API 를 세울 때 · [BL-071] 프로덕션 배포 발동 시
+**Est:** S
+**상태:** ⬜ **Open**
+
+**플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다.**
+
+2026-08-07 FE 배포 실측: 서버 `backend/.env.local` 이 `CLERK_SECRET_KEY=sk_test_...`(문자 그대로
+플레이스홀더)였는데 **API 는 정상 기동하고 `/health` 는 200 을 냈다.** 진짜 키는 루트 `.env` 에만
+있었고(compose 워커만 그걸 읽는다) 호스트 uvicorn 은 인증 경로를 **한 번도 밟은 적이 없어서**
+드러나지 않았다. 브라우저에서 로그인한 첫 요청이 **전건 401** 로 터지고 나서야 보였다.
+
+`_enforce_production_safety`(`config.py`)는 이 계열을 이미 안다 — `SECRET_KEY`·`CLERK_SECRET_KEY`·
+`WAITLIST_TOKEN_SECRET` 의 placeholder 를 기동 시점에 raise 한다. **단 `app_env == production`
+일 때만이다.** development/staging 은 통과시킨다.
+
+★같은 회차에 **2차 결함**도 물렸다 — 루트 `.env` 는 이 레포 관례상 `KEY=value  # [필수 …]` 로
+인라인 주석을 단다. 값을 `cut -d= -f2` 로 옮기면 주석의 한글이 값에 섞이고, 그러면 401 이 아니라
+**500** 이 난다(`clerk_backend_api` 가 헤더를 ascii 인코딩 → `UnicodeEncodeError`).
+두 실패의 **증상이 다르다**는 것이 오히려 진단을 도왔다.
+
+**수리 후보(택1, 미결정):** ⑴ placeholder 검사를 env 무관하게 **warning 으로** 항상 돌린다
+⑵ `/healthz` 에 「Clerk 키가 placeholder 아님」 서브체크를 넣는다 ⑶ 배포 런북의 검증을
+「로그인 후 데이터 화면」까지로 못박는다(이미 반영 — `frontend-deploy.md` §5).
+
+**Risk:** 🟡 조용하다. 새 호스트마다 재발하고, 발견 시점이 **사용자가 처음 화면을 열 때**다.
 
 ---
 

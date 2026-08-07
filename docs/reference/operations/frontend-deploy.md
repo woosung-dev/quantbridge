@@ -135,6 +135,17 @@ curl -s -o /dev/null -w "%{http_code}\n" https://qb-api.woosung.dev/metrics   # 
 마운트한다. `.env.local`·`.soak/session` 도 미추적이라 살아남는다. 단 **추적 파일 변경이 0건인지
 먼저 확인**해라.
 
+★★**서버 `backend/.env.local` 에 플레이스홀더 시크릿이 있어도 아무것도 안 잡는다.** 실측:
+`CLERK_SECRET_KEY=sk_test_...`(문자 그대로)인 채로 API 가 정상 기동하고 `/health` 는 200 을
+낸다 — 인증 경로를 밟는 요청이 처음 들어올 때 **전건 401** 로 드러난다. 진짜 키는 루트 `.env`
+에만 있었다. `APP_ENV=production` 이면 validator 가 기동 시점에 잡지만 development 는 통과시킨다.
+⇒ **배포 검증은 반드시 로그인 후 데이터 화면까지** 가야 한다. `/health` 200 은 아무 증거가 아니다.
+
+★★**`.env` 값에 인라인 주석이 붙는다** — 이 레포 관례가 `KEY=value    # [필수 …]` 다.
+`cut -d= -f2` 로 값을 옮기면 주석의 **한글이 값에 섞여 들어간다.** 그러면 401 이 아니라 **500** 이
+난다(`clerk_backend_api` 가 헤더를 ascii 로 인코딩 → `UnicodeEncodeError`). 값 추출은 항상
+`split("#")[0].strip()` 하고 `isascii()` 로 단언해라.
+
 ★**API 기동은 8초 걸린다.** `systemctl --user restart` 직후 6초에 curl 하면 `000` 이 나온다.
 
 ★**systemd user service 는 lingering 없이 ssh 세션과 함께 죽는다** — `loginctl enable-linger`.
