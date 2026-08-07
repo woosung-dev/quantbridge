@@ -23,10 +23,14 @@ from __future__ import annotations
 
 import itertools
 import json
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
+# `.` 뒤 숫자열 = 마이크로초. 날짜는 `-`, 시각은 `:` 로 갈리므로 첫 매치가 유일하다.
+_FRAC_RE = re.compile(r"\.(\d+)")
 
 # `SessionDeactivationReason` 에서 `user_stopped` 를 뺀 것 = **자동 사망**.
 # 정본은 `backend/src/trading/models.py:107-142`. 여기에 하드코딩하는 이유는 이 모듈이
@@ -92,6 +96,12 @@ def parse_ts(raw: str) -> datetime:
     # `+00` / `-05` 같은 시간대만 있는 꼬리에 분을 채운다
     if len(text) >= 3 and text[-3] in "+-":
         text = text + ":00"
+    # ★소수점 이하를 정확히 6자리로 맞춘다. Postgres 는 뒤 0 을 지워 `.79648`(5자리)로 내보내는데
+    # `fromisoformat` 이 임의 자릿수를 받아주기 시작한 것은 **Python 3.11** 부터다. 3.10 은
+    # 3자리/6자리만 허용해 ValueError 로 죽는다 — 게이트가 조용히 3.11+ 전용이었다
+    # (2026-08-07 실측: 맥 3.14.6 통과 / Ubuntu 22.04 의 3.10.12 크래시).
+    # 날짜는 `-`, 시각은 `:` 로 갈리므로 `.` 뒤 숫자는 마이크로초뿐이다.
+    text = _FRAC_RE.sub(lambda m: "." + m.group(1)[:6].ljust(6, "0"), text, count=1)
     return datetime.fromisoformat(text)
 
 

@@ -104,6 +104,27 @@ def test_automatic_reasons_match_the_enum(gate: Any) -> None:
     assert set(gate.AUTOMATIC_DEATH_REASONS) == canonical
 
 
+def test_parse_ts_reads_every_microsecond_width(gate: Any) -> None:
+    """Postgres 는 마이크로초의 뒤 0 을 지운다 — 그래서 자릿수가 1~6 으로 흔들린다.
+
+    `datetime.fromisoformat` 이 임의 자릿수를 받아주기 시작한 것은 **Python 3.11** 부터다.
+    3.10 은 3자리/6자리만 허용해 ValueError 로 죽는다. 이 테스트가 없으면 게이트는 개발자의
+    Python 버전에 조용히 묶인다 — 2026-08-07 에 실제로 그랬다(맥 3.14 통과 / 서버 3.10 크래시).
+    """
+    expected = gate.parse_ts("2026-07-27T03:02:25.796480+00:00")
+    for text in (
+        "2026-07-27T03:02:25.79648+00:00",  # ★5자리 — 서버를 죽인 실제 값
+        "2026-07-27 03:02:25.79648+00",  # psql 기본 표기
+        "2026-07-27T03:02:25.79648Z",
+    ):
+        assert gate.parse_ts(text) == expected, text
+
+    # 자릿수를 넘겨도 잘라 읽는다 (나노초 표기 방어)
+    assert gate.parse_ts("2026-07-27T03:02:25.7964801+00:00") == expected
+    # 소수점이 없는 표기는 그대로다
+    assert gate.parse_ts("2026-07-27T03:02:25+00:00").microsecond == 0
+
+
 # ── 낱말 매핑 ────────────────────────────────────────────────────────────────
 
 
