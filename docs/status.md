@@ -127,7 +127,7 @@ standalone **50MB** · arm64 이미지 **211MB** · 런타임 실측 FE **64MB/7
 스냅샷이지 추세가 아니다(2026-08-07 실측: 09:41 **2.9%**(1/35) → 13:11 **70.6%**(173/245),
 같은 날 같은 세션). 종전에 박혀 있던 37.9% 는 그래서 낡은 값이었다. **게이트 출력을 봐라.**
 
-**★backtest-fidelity 회차가 이 블록에 더한 것 — 소크는 무중단이다(창 연속 유지).**
+**★backtest-fidelity 회차가 이 블록에 더한 것 — ★★★소크가 이 회차 중 죽었다(무중단 아님).**
 `backend/src` 는 **주석 1블록**만 바뀌었다(행위 0줄). 판정식·실측·반증 전문 =
 [`dev-log/2026-08-07-backtest-fidelity.md`](dev-log/2026-08-07-backtest-fidelity.md).
 ★**A-1 판정식을 동결하고 도구를 만들었다** — `backend/scripts/fill_ownership_verdict.py` 가 T0/T1
@@ -135,7 +135,18 @@ prometheus 원문 2벌을 받아 `agree / (agree + engine_only_suppressed + ledg
 차분으로 낸다. 게이트 순차 4단(음수 차분 → 미지 라벨 → `D<30` → measured). **절대값 금지**이고
 합격/불합격 라벨을 안 붙인다(기준선이 없는 상태에서 문턱을 붙이면 그 문턱이 근거 없이 정본이 된다).
 
-<!-- STATUS-A1-RESULT -->
+★★★**소크 사망 — 세션 `39484a2c` 가 `2026-08-07T15:10:49Z` `position_divergence` 로 자동 사망했다.**
+직전 `phantom` **2건**(`15:09:49` · `15:10:49`). 게이트 **FAIL 실격** · C1 **0.0000h** · C2 **0.0000h**
+(사망 직전 값 C1 5.31h / C2 5.24h 가 전부 리셋). 분류기 `2026-08-05-recovery-ratchet`, `classifier_ok: true`.
+★**이 회차와 무관하다** — 서버 HEAD `0c75aaa3` · 고정 커밋 `0c9ccc68` 불변, 이 회차는 서버에 아무것도
+배포하지 않았다. ★★**[ADR-025] 판정에 대한 반례 후보** — ADR-025 는 노출 12.28h **phantom 0건**으로
+Accepted 됐는데 이 세션은 ~5.7h 에 **2건**이고 **둘 다 사망으로 이어졌다**(신규 **[BL-633]**).
+**다음 행동 = `scripts/soak-restart.sh`**(기본 dry-run, 집행은 `--confirm`, `FLAT=YES` 아니면 멈춘다).
+★**A-1 판정 = `undecidable`(`sample_below_threshold`)** — 창 `13:40:18Z`→`15:17:20Z`(1.617h),
+`N=Δagree 3` / `D=24`(agree 3 + engine_only_suppressed 18 + ledger_only_adopted 3), 문턱 30 미달.
+★★★**문턱이 실제로 발화했다** — 없었다면 `3/24 = 12.5%` 를 「첫 실측치」로 적었을 것이다.
+**비율을 인용하지 마라.** ★★**창은 내가 닫은 게 아니라 사망이 닫았다** — 카운터가 21분 멈춘 것을
+처음엔 「발화 버스트」로 읽었다. **관측량이 0 이 되면 가장 먼저 「관측 대상이 살아 있나」를 물어라.**
 
 ★★★**[BL-621] 이 ⑴로 닫혔다 — 원인이 두 겹이었다.** 구 ATR(`cda575f2` 의 rolling SMA)과 구 비용을
 **동시에** 되돌리자 `expected.json` 4지표가 **byte-identical 재현**됐다. 한 축씩만 되돌리면 세 조합이
