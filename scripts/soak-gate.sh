@@ -290,12 +290,16 @@ fi
 #   (측정 불가가 「어둠 0%」로 읽혔다). 그래서 curl 을 먼저 세우고 rc 를 본다.
 #   ★단 `total=0` 자체는 정상일 수 있다 — counter 가 아직 한 번도 발화하지 않은 경우다.
 #     그 둘을 구분해야 한다: 스크레이프 실패 = null(측정불가) / counter 부재 = 0/0(표본 없음).
-#   ★취득 실패의 정의는 **경로와 무관하게 같다** — 빈 출력이면 null 이다. 아래 파서는
-#     prometheus 텍스트 포맷만 보므로 HTTP 든 직독이든 같은 입력을 받는다.
+#   ★취득 실패의 정의는 **경로와 무관하게 같아야 한다** — rc 가 0 이어도 **본문이 비면
+#     null** 이다. 두 갈래 모두 `[ -n ... ]` 를 건다. 예전엔 직독 갈래에만 걸려 있었고,
+#     그래서 `200 + 빈 본문`(API 가 뜨는 중이거나 mmap 이 비었을 때)이 `측정불가` 가 아니라
+#     `0/0 표본없음` 으로 읽히는 **fail-open** 이 HTTP 쪽에만 남아 있었다. 이 파일이 산
+#     구분이 바로 그 둘이므로 비대칭을 남기면 안 된다.
 METRICS_RAW=""
 METRICS_RC=1
 if [ -n "${METRICS_URL}" ]; then
-  METRICS_RAW="$(curl -sf --max-time 20 "${METRICS_URL}" 2>/dev/null)" && METRICS_RC=0
+  METRICS_RAW="$(curl -sf --max-time 20 "${METRICS_URL}" 2>/dev/null)" \
+    && [ -n "${METRICS_RAW}" ] && METRICS_RC=0
 elif [ -d "${METRICS_DIR}" ]; then
   # ★`timeout` 없이 부르지 마라 — 게이트가 무기한 대기하면 표본 수집까지 멈춘다([BL-594] 교훈).
   METRICS_RAW="$(cd "${ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \

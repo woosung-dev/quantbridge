@@ -553,7 +553,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-618](#bl-618) | ★**반응형 브레이크포인트 정본이 셋인데 서로 다르다** — `DESIGN.md` 가 자기 자신과 어긋나고(§10.2 「1200px↓ 사이드바 축소」 vs §10.6 「1024px~」), 2세대 `_kit.html` 실측(사이드바 232/64 · 컨테이너 1240 · 검색바 숨김 1024)과도 어긋나며(`DESIGN.md` 220/60 · 1200), `frontend/AGENTS.md` 는 Tailwind 기본값만 규정하고 셸 고유 값은 0건이다. `HANDOFF-react-port.md` 가 「1024px 아이콘 레일」을 🔴 미구현으로 등재해 둔 상태라 **어느 값이 정본인지부터 정해야** 그 구현을 시작할 수 있다                                                                                                                                                                                                                                                                          | 앱 셸 반응형(사이드바 축소·검색바 숨김·컨테이너 폭)을 다음에 손댈 때                                              | S            | 2026-08-07 prototype-canon-v2                          |
 | [BL-617](#bl-617) | ★**「과거 기록」이 아닌 운영 절차 4종이 working tree 밖으로 나갔다** — Cloud Run 런북(39KB)·Grafana 셋업·Bybit mainnet 체크리스트(11KB)·법무 임시 런북. ADR-026 의 분류 기준이 **위치**(폴더 이름)였지 미래 유용성이 아니었던 결과다. 머지 후 `docs/` 전체에서 Cloud Run·Grafana·Prometheus·mainnet·법무 언급 **0건**인데 `alerts.yml`·`Dockerfile`·워크플로 4종은 레포에 살아 있다. ★지금 되살리지 않는다 — 트리거 시점에 갱신해 재등재                                                                                                                                                                                                                                                                                                                              | [BL-071] 프로덕션 배포 발동 시 · Bybit mainnet 전환 시                                                            | S            | 2026-08-07 PR #554 리뷰                                |
 
-| [BL-620](#bl-620) | ✅ **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구 ✗ 였다** — `soak-stack.sh up` 은 API 컨테이너를 안 띄우고 `:8100` 리스너가 0개라 **C1/C2 를 다 채워도 PASS 불가**였다. **Resolved** — 기본 취득을 HTTP → `backend/.metrics` **직독**으로 교체(워커가 같은 counter 를 거기 쓴다). 판정 `측정불가`→`진행중`, C5 전건 ✓. fail-closed 음성 대조 **3/3**. `QB_METRICS_URL` 명시 시 종전 HTTP 유지 | — | S | 2026-08-07 gap-resync-autopsy |
+| [BL-620](#bl-620) | ✅ **소크 스택에 `/metrics` 를 내주는 것이 없어 게이트 C5 가 영구 ✗ 였다** — `soak-stack.sh up` 은 API 컨테이너를 안 띄우고 `:8100` 리스너가 0개라 **C1/C2 를 다 채워도 PASS 불가**였다. **Resolved** — 기본 취득을 HTTP → `backend/.metrics` **직독**으로 교체(워커가 같은 counter 를 거기 쓴다). ★PR #556 리뷰 후속: curl 갈래에도 `[ -n ]` 를 걸어 **`200 + 빈 본문` fail-open** 을 닫았고(초판은 직독 갈래에만 있었다), `QB_METRICS_DIR` 을 `.env.example` 에 등재했다(Golden Rule). 판정 `측정불가`→`진행중`, C5 전건 ✓. fail-closed 음성 대조 **3/3**. `QB_METRICS_URL` 명시 시 종전 HTTP 유지 | — | S | 2026-08-07 gap-resync-autopsy |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -4988,18 +4988,30 @@ ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 
 
 ★**fail-closed 를 약화시키지 않는다.** 미는 조건은 「**알려진 미확정**이 있다」이지 「모른다」가
 아니다. 미확정이 0건이면 종전과 100% 같은 경로다.
-★**상한은 새 상수가 아니라 이미 있는 불변식이다** — `conditional_entry_janitor` 가
-`_SCAN_STUCK_THRESHOLD_MINUTES`(30분, 5분 beat)를 넘긴 `submitted` 조건부 진입을 거래소 확인 뒤
-terminal 로 보낸다. 같은 문턱에서 미룸을 끊으면 janitor 가 판별자를 비워 **미룸이 유한**하다.
-부검 대상 주문의 판정 시점 나이는 **16분 58초**로 문턱 안이었다.
+★**상한은 「미룬 횟수」다 — 주문 나이가 아니다**(`_MAX_GAP_RESYNC_DEFERS = 3`, 카운터는
+`last_strategy_state_report._qb_gap_resync_defers`, 마이그레이션 0).
 
-**검증.** 결정론 테스트 4건(재현 / 회복 / 다른 세션 음성 대조 / 상한 음성 대조) +
-**변이 4/4 전건 적발**(유예 제거 · 세션 필터 제거 · 상한 제거 · 유예를 claim 뒤로 이동 — 각각
-의도한 테스트 **하나만** red). 계측은 `qb_live_signal_skipped_total{reason="gap_resync_pending_ledger"}`
-이며 **[BL-580] 미가드 site 를 새로 만들지 않도록** `_count_safely` 로 감쌌다(census 84 불변).
+★★★**초판은 janitor 문턱(30분)에 얹었고 그건 틀렸다 — PR #556 리뷰가 실측으로 반증했다.**
+조건부 진입은 트리거를 기다리며 **정상적으로** 오래 쉰다: 사망 세션 `c160a1a9` 의 조건부 진입
+**118건 · 평균 resting 563초 · 최대 2337초**, 그 resting 이 **벽시계의 95.1%** 를 덮는다.
+⇒ 나이로 끊으면 「거의 항상 미룰 수 있음」이 되어 「미확정 0건이면 종전과 동일」이 **4.9% 에만
+참**이고, 진짜 발산도 최대 30분 판정이 미뤄진다. 그리고 초판이 30분을 정당화한 근거는
+「부검 대상 주문의 나이 16분 58초가 문턱 안」이었는데, 그건 **문턱을 그 문턱이 덮어야 할
+데이터에서 유도한 것**이다 — 적합은 검증이 아니다. 부검 사례는 원장이 **3.5초** 뒤 따라잡았으니
+다음 1 tick 이면 충분했고, 3 tick 은 그 여유의 3배다.
 
-**Risk:** 🟢 미확정 0건이면 무동작. 유예 상한이 janitor 문턱에 종속되므로 **그 상수를 바꾸면
-이 유예 창도 함께 바뀐다** — 두 자리를 같이 봐라.
+★**fail-open 이 아니다** — 카운터 쓰기가 실패하면 다음 tick 이 또 미루지만(상한 무력화) 평가는
+안 죽는다. 그 경우 `live_signal_gap_resync_defer_persist_failed` 로 반드시 남는다.
+
+**검증.** 결정론 테스트 5건(재현 / 회복 / 다른 세션 음성 대조 / **상한 소진** 음성 대조 /
+리포트 이어받기) + **변이 4/4 전건 적발**(유예 제거 · 상한 제거 → 항상 미룸 · 리포트 이어받기
+제거 · 세션 필터 제거 — 각각 의도한 테스트만 red). 유예를 claim 뒤로 옮기는 변이는 재현
+테스트의 `try_claim_bar.assert_not_awaited()` 가 잡는다.
+계측은 `qb_live_signal_skipped_total{reason="gap_resync_pending_ledger"}` 이며
+**[BL-580] 미가드 site 를 새로 만들지 않도록** `_count_safely` 로 감쌌다(census 84 불변).
+
+**Risk:** 🟢 미확정 0건이면 무동작. 최대 노출은 **3 tick**(1분봉 기준 약 2분)이고, 그 뒤에는
+미확정이 남아 있어도 종전 fail-closed 가 집행된다.
 
 ---
 

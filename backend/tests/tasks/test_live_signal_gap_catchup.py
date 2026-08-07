@@ -17,12 +17,6 @@ import pytest
 import src.tasks.celery_app
 import src.tasks.live_signal  # noqa: F401
 
-# BL-583 — 유예 판별자가 janitor 문턱을 `orphan_scanner` 에서 가져온다(lazy import). 그
-# 모듈이 **패치가 걸린 뒤** 처음 적재되면 자기 전역에 가짜 `OrderRepository` 를 복사해
-# 두고, monkeypatch 는 정의 모듈만 되돌리므로 대역이 프로덕션에 남는다. 여기서 미리 적재해
-# 그 순서를 못 만들게 한다.
-from src.tasks import orphan_scanner as _preload_orphan_scanner  # noqa: F401
-
 celery_module = sys.modules["src.tasks.celery_app"]
 live_signal_module = sys.modules["src.tasks.live_signal"]
 
@@ -780,15 +774,18 @@ async def test_long_gap_other_session_resting_entry_does_not_defer(
 
 
 @pytest.mark.asyncio
-async def test_long_gap_stale_resting_entry_past_janitor_threshold_does_not_defer(
+async def test_long_gap_stops_deferring_once_the_defer_budget_is_spent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """★음성 대조(상한) — janitor 문턱을 넘긴 미확정 주문은 유예를 만들지 않는다.
+    """★음성 대조(상한) — 유예를 `_MAX_GAP_RESYNC_DEFERS` 만큼 썼으면 더 안 미루고 판정한다.
 
-    `conditional_entry_janitor` 가 `_SCAN_STUCK_THRESHOLD_MINUTES` 를 넘긴 `submitted`
-    조건부 진입을 거래소 확인 뒤 terminal 로 보낸다. 그 문턱 밖까지 미루면 **미룸이
-    무한**해지므로 같은 문턱에서 끊는다 — 무한 유예는 「조용히 안 도는 세션」이라 사망보다
-    나쁘다.
+    ★**상한을 「주문 나이」로 재지 않는 이유가 이 테스트의 존재 이유다.** 조건부 진입은
+    트리거를 기다리며 **정상적으로** 오래 쉰다(실측: 사망 세션 118건 · 평균 resting 563초 ·
+    벽시계의 **95.1%** 를 덮는다). 나이로 끊으면 「거의 항상 미룰 수 있음」이 되어 진짜
+    발산까지 30분 미뤄진다. 재는 것은 주문의 나이가 아니라 **우리가 몇 번 미뤘는가**다.
+
+    여기서는 직전 리포트가 이미 상한만큼의 유예를 들고 있으므로, 미확정 주문이 **그대로
+    있어도** 종전 경로로 떨어져 fail-closed 가 집행된다.
     """
     t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
     t6 = t0 + timedelta(minutes=6)
@@ -800,17 +797,70 @@ async def test_long_gap_stale_resting_entry_past_janitor_threshold_does_not_defe
         run_result=_result(last_bar_time=t6, signals=[]),
         inserted_events=[],
         ledger_fills=[],
+        # 미확정 주문은 아직 있다 — 끊는 것은 주문이 아니라 예산이다.
         resting_entries=[
-            _resting_entry(sess.id, submitted_at=datetime.now(UTC) - timedelta(minutes=31))
+            _resting_entry(sess.id, submitted_at=datetime.now(UTC) - timedelta(minutes=1))
         ],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={
+                live_signal_module._GAP_RESYNC_DEFER_KEY: (
+                    live_signal_module._MAX_GAP_RESYNC_DEFERS
+                )
+            },
+            equity_curve=None,
+        ),
     )
     _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
 
     result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
 
     assert result == {"deactivated": "gap_resync_position_mismatch"}
+    sess_repo.try_claim_bar.assert_awaited_once()
     sess_repo.deactivate.assert_awaited_once()
     event_repo.insert_pending_events.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_deferring_carries_the_previous_report_forward(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★유예는 카운터를 올리되 **직전 리포트를 통째로 이어받는다.**
+
+    `upsert_state` 는 리포트를 교체하므로, 새 dict 로 덮으면 `_qb_position_epoch` 같은
+    가드 상태가 이 tick 에 조용히 사라진다 — 그러면 다음 tick 의 epoch 판정이 달라진다.
+    """
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t0)
+    stored_epoch = datetime(2026, 4, 30, tzinfo=UTC)
+    sess_repo, event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t0, t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[],
+        resting_entries=[
+            _resting_entry(sess.id, submitted_at=datetime.now(UTC) - timedelta(minutes=1))
+        ],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={
+                "_qb_position_epoch": stored_epoch.isoformat(),
+                live_signal_module._GAP_RESYNC_DEFER_KEY: 1,
+            },
+            equity_curve=None,
+        ),
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result == {"skipped": "gap_resync_pending_ledger"}
+    sess_repo.upsert_state.assert_awaited_once()
+    written = sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"]
+    # 카운터는 1 → 2 로 오르고, 직전 epoch 은 살아남는다.
+    assert written[live_signal_module._GAP_RESYNC_DEFER_KEY] == 2
+    assert written["_qb_position_epoch"] == stored_epoch.isoformat()
 
 
 @pytest.mark.asyncio

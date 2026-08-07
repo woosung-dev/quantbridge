@@ -251,6 +251,17 @@ _POSITION_EPOCH_KEY = "_qb_position_epoch"
 # ★새 컬럼도 새 저장소도 만들지 않는다(마이그레이션 0) — 이 dict 는 이미 매 tick upsert 된다.
 _LEDGER_SHADOW_KEY = "_qb_ledger_shadow"
 
+# BL-622 — 공백 재동기 판정을 **연속으로 미룬 횟수**. 같은 JSONB 리포트에 얹으므로
+# 마이그레이션이 없다. 평가가 한 번이라도 완주하면 그 tick 의 리포트에 이 키를 다시
+# 얹지 않으므로 **자연히 0 으로 돌아간다** — 미룸은 연속 구간에서만 의미가 있다.
+_GAP_RESYNC_DEFER_KEY = "_qb_gap_resync_defers"
+# ★상한을 **주문 나이**로 잡지 마라. 조건부 진입은 트리거를 기다리며 정상적으로 오래
+#   쉰다(실측: 사망 세션 118건 · 평균 resting 563초 · 벽시계의 **95.1%** 를 덮는다).
+#   나이로 끊으면 「거의 항상 미룸 가능」이 되어 진짜 발산까지 30분 미뤄진다. 재는 것은
+#   주문의 나이가 아니라 **우리가 얼마나 미뤘는가**다. 부검 사례는 다음 1 tick 이면 충분했다
+#   (원장이 3.5초 뒤 따라잡았다) — 3 tick 은 그 여유의 3배다.
+_MAX_GAP_RESYNC_DEFERS = 3
+
 # 거래소를 못 읽어 **판정 자체를 못 한** 경우. "불일치 없음"(None)과 반드시 구분해야 한다 —
 # 둘을 합치면 REST 가 한 번 흔들릴 때마다 직전 strike 가 지워져, 진짜 지속 발산이
 # 영원히 2회차에 도달하지 못한다(가드가 조용히 무력화된다).
@@ -2668,34 +2679,56 @@ async def _unreconciled_conditional_entries(sess: Any, *, session: Any) -> list[
     return mine
 
 
-def _gap_resync_defer_reason(orders: Sequence[Any], *, now: datetime) -> str | None:
-    """공백 재동기 판정을 미룰 근거가 있으면 그 사유, 없으면 `None`.
+async def _persist_gap_resync_defer(
+    sess: Any,
+    *,
+    sess_repo: Any,
+    event_repo: Any,
+    previous_report: Any,
+    deferred_so_far: int,
+) -> None:
+    """유예 횟수 +1 을 남긴다. 실패해도 **판정을 막지 않는다**.
+
+    ★**감싸는 핸들러: 이 함수가 소유한다** — `except Exception` fail-open.
+    이 쓰기가 실패하면 카운터가 안 올라 다음 tick 이 **또 미룬다**. 그건 최악이라도
+    미룸이 안 끊기는 것이고, 반대로 여기서 예외를 올리면 공백 tick 마다 평가가
+    크래시한다. 둘 중 전자가 덜 나쁘다 — 단 그때는 `_MAX_GAP_RESYNC_DEFERS` 가
+    무력해지므로 **로그로 반드시 남긴다.**
+
+    ★`upsert_state` 는 리포트를 **통째로 교체**한다. 직전 dict 를 복사해 얹지 않으면
+    `_qb_position_epoch`·`_qb_ledger_shadow` 가 이 tick 에 사라진다.
+    """
+    try:
+        report = dict(previous_report) if isinstance(previous_report, dict) else {}
+        report[_GAP_RESYNC_DEFER_KEY] = deferred_so_far + 1
+        realized, closed = await event_repo.sum_realized_pnl_all(sess.id)
+        await sess_repo.upsert_state(
+            session_id=sess.id,
+            last_strategy_state_report=report,
+            total_closed_trades=closed,
+            total_realized_pnl=realized,
+        )
+        await sess_repo.commit()
+    except Exception:
+        logger.exception(
+            "live_signal_gap_resync_defer_persist_failed",
+            extra={"session_id": str(sess.id), "deferred_so_far": deferred_so_far},
+        )
+
+
+def _gap_resync_defers_so_far(previous_report: Any) -> int:
+    """직전까지 이 세션이 공백 재동기 판정을 **연속으로 미룬 횟수**.
 
     ★**감싸는 핸들러: 없다.** 순수 함수다.
 
-    BL-622 — 2026-08-06 사망 부검. 거래소는 조건부 진입을 **20:17:19.519** 에 체결했는데
-    우리 원장은 **20:31:51.622** 에야 `filled` 로 기록했고, 판정은 그 **3.5초 전**에 났다.
-    그 순간 `list_fills_since` 는 아직 `submitted` 인 그 주문을 못 보므로 seed 가 비고,
-    엔진은 반전 전 포지션을 든 채 거래소와 대조돼 **정상인데도** 세션이 죽었다.
-
-    ★**「모르면 통과」가 아니다.** 미는 조건은 「원장에 **알려진 미확정 주문이 있다**」이고,
-    그런 주문이 없으면 판정은 종전과 똑같이 즉시 집행된다. fail-closed 를 약화시키지 않는다.
-
-    ★**상한은 새 상수가 아니라 이미 있는 불변식이다.** `conditional_entry_janitor` 가
-    `_SCAN_STUCK_THRESHOLD_MINUTES` 를 넘긴 `submitted` 조건부 진입을 거래소 확인 뒤
-    terminal 로 보낸다(5분 beat). 그 문턱을 넘긴 주문까지 미루면 **미룸이 무한**해지므로
-    같은 문턱에서 미룸을 끊는다 — 그 뒤로는 janitor 가 주문을 종결시켜 이 판별자 자체가
-    비게 된다. 부검 대상 주문의 판정 시점 나이는 **16분 58초**로 이 문턱 안이다.
+    ★**모르면 0 이다.** 값이 없거나 형이 깨졌으면 「아직 안 미뤘다」로 읽는다 — 이 값은
+    **미룸을 끊는 쪽**으로만 쓰이므로, 못 읽었을 때 크게 잡으면 미룰 수 있는 tick 을 못
+    미뤄 [BL-622] 가 되살아난다. 작게 잡는 실수는 최대 3 tick 만 손해다.
     """
-    from src.tasks.orphan_scanner import _SCAN_STUCK_THRESHOLD_MINUTES
-
-    floor = now - timedelta(minutes=_SCAN_STUCK_THRESHOLD_MINUTES)
-    for order in orders:
-        # `pending` 은 아직 발주 전이라 `submitted_at` 이 없다 — 생성 시각으로 나이를 잰다.
-        placed_at = order.submitted_at or order.created_at
-        if placed_at is not None and placed_at > floor:
-            return "gap_resync_pending_ledger"
-    return None
+    if not isinstance(previous_report, dict):
+        return 0
+    raw = previous_report.get(_GAP_RESYNC_DEFER_KEY)
+    return raw if isinstance(raw, int) and not isinstance(raw, bool) and raw >= 0 else 0
 
 
 async def _probe_gap_resync_state(
@@ -3289,6 +3322,17 @@ async def _evaluate_session_with_engine(
                 preflight_symbols=preflight_symbols,
             )
 
+        # ★state 는 여기서 **한 번만** 읽는다. 이전 epoch·방향 strike·equity curve 에 더해
+        #   아래 5.5 의 유예 횟수까지 같은 스냅샷을 봐야 한다. claim 은 `live_signal_sessions`
+        #   만 쓰고 이 행을 건드리지 않으므로 claim 앞으로 당겨도 값이 달라지지 않는다.
+        # ★`getattr(..., None)` 로 접지 마라. 컬럼이 사라지거나 이름이 바뀌면 그 순간부터
+        # 조용히 "직전 strike 없음" 이 되어 가드가 영구 OFF 로 위장한다. 없어도 되는 것은
+        # state 행뿐이므로 거기까지만 방어한다.
+        previous_state = await sess_repo.get_state(sess.id)
+        previous_report = (
+            previous_state.last_strategy_state_report if previous_state is not None else None
+        )
+
         # 5.5 BL-622 — 원장이 아직 따라잡는 중이면 공백 재동기 **판정 자체를 미룬다.**
         #
         # ★**claim 앞이어야 한다.** `try_claim_bar` 는 성공 시 `last_evaluated_bar_time`
@@ -3297,28 +3341,44 @@ async def _evaluate_session_with_engine(
         # — 세션이 낡은 엔진 포지션을 든 채 조용히 계속 돈다(죽는 것보다 나쁘다). 여기서
         # 미루면 워터마크가 그대로라 다음 tick 이 같은 판정을 **온전히 다시** 밟고,
         # 이 bar 의 이벤트도 유실되지 않는다(`run_live` 를 아직 돌리지 않았다).
-        if requires_gap_resync:
-            defer_reason = _gap_resync_defer_reason(
-                await _unreconciled_conditional_entries(sess, session=session),
-                now=datetime.now(UTC),
+        #
+        # ★**상한은 미룬 횟수로 잰다** — 주문 나이가 아니다. 조건부 진입은 트리거를 기다리며
+        # 정상적으로 오래 쉬므로(실측 95.1% 점유) 나이로 끊으면 사실상 상시 유예가 된다.
+        deferred_so_far = _gap_resync_defers_so_far(previous_report)
+        # ★`and` 는 왼쪽부터 단락 평가한다 — 공백이 아니거나 이미 상한이면 아래 DB 조회를
+        #   아예 하지 않는다(정상 tick 에 쿼리가 늘지 않는다).
+        if (
+            requires_gap_resync
+            and deferred_so_far < _MAX_GAP_RESYNC_DEFERS
+            and await _unreconciled_conditional_entries(sess, session=session)
+        ):
+            # ★[BL-580] 미가드 site 를 새로 만들지 않는다 — 이 파일의 잔여 84곳은
+            # **갚아야 할 부채**이지 따라야 할 관행이 아니다. `_count_safely` 가
+            # `.labels()` 까지 감싸므로 mmap 확장 실패가 유예 판정을 못 뒤집는다.
+            _count_safely(qb_live_signal_skipped_total, reason="gap_resync_pending_ledger")
+            logger.warning(
+                "live_signal_gap_resync_deferred",
+                extra={
+                    "session_id": str(sess.id),
+                    "symbol": sess.symbol,
+                    "deferred_so_far": deferred_so_far + 1,
+                    "max_defers": _MAX_GAP_RESYNC_DEFERS,
+                    "last_evaluated_bar_time": last_evaluated_bar_time.isoformat()
+                    if last_evaluated_bar_time is not None
+                    else None,
+                    "last_bar_time": last_bar_time.isoformat(),
+                },
             )
-            if defer_reason is not None:
-                # ★[BL-580] 미가드 site 를 새로 만들지 않는다 — 이 파일의 잔여 84곳은
-                # **갚아야 할 부채**이지 따라야 할 관행이 아니다. `_count_safely` 가
-                # `.labels()` 까지 감싸므로 mmap 확장 실패가 유예 판정을 못 뒤집는다.
-                _count_safely(qb_live_signal_skipped_total, reason=defer_reason)
-                logger.warning(
-                    "live_signal_gap_resync_deferred",
-                    extra={
-                        "session_id": str(sess.id),
-                        "symbol": sess.symbol,
-                        "last_evaluated_bar_time": last_evaluated_bar_time.isoformat()
-                        if last_evaluated_bar_time is not None
-                        else None,
-                        "last_bar_time": last_bar_time.isoformat(),
-                    },
-                )
-                return {"skipped": defer_reason}
+            # ★직전 리포트를 **통째로 이어받아** 카운터만 얹는다. 이 dict 는 epoch·strike·
+            #   ledger shadow 를 들고 있어서, 새 dict 로 덮으면 그것들이 조용히 사라진다.
+            await _persist_gap_resync_defer(
+                sess,
+                sess_repo=sess_repo,
+                event_repo=event_repo,
+                previous_report=previous_report,
+                deferred_so_far=deferred_so_far,
+            )
+            return {"skipped": "gap_resync_pending_ledger"}
 
         # 6. try_claim_bar winner-only (P2 #3)
         won = await sess_repo.try_claim_bar(sess.id, last_bar_time, uuid4())
@@ -3346,13 +3406,6 @@ async def _evaluate_session_with_engine(
         df = _ohlcv_rows_to_dataframe(ohlcv_rows)
         # state 행은 optional 이다. 이 조회는 이전 epoch 및 방향 strike, equity curve가
         # 같은 성공 평가 전 상태를 보게 하는 단일 읽기다.
-        previous_state = await sess_repo.get_state(sess.id)
-        # ★`getattr(..., None)` 로 접지 마라. 컬럼이 사라지거나 이름이 바뀌면 그 순간부터
-        # 조용히 "직전 strike 없음" 이 되어 가드가 영구 OFF 로 위장한다. 없어도 되는 것은
-        # state 행뿐이므로 거기까지만 방어한다.
-        previous_report = (
-            previous_state.last_strategy_state_report if previous_state is not None else None
-        )
         previous_direction_mismatch = (
             isinstance(previous_report, dict)
             and previous_report.get(_DIRECTION_MISMATCH_KEY) is True
