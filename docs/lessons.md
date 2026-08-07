@@ -1,8 +1,8 @@
 # Lessons Learned
 
 > AI가 실수를 교정받을 때마다 이 파일이 업데이트됩니다.
-> 반복 패턴(3회)은 `.claude/rules/` 스택 규칙 또는 해당 정본 축(ADR-026 7축)으로 승격, 본 파일에는 1-line reference 만 보존합니다.
-> 승격 경로(구 global.md §6): dev-log 반증 카드 → 본 파일 (3회 반복) → `.claude/rules/` 또는 정본 문서 → 삭제(모델 개선으로 불필요 시).
+> 반복 패턴(3회)은 스택 규칙(`backend/AGENTS.md`·`frontend/AGENTS.md`) 또는 해당 정본 축(ADR-026 7축)으로 승격, 본 파일에는 1-line reference 만 보존합니다.
+> 승격 경로(구 global.md §6): dev-log 반증 카드 → 본 파일 (3회 반복) → 스택 `AGENTS.md` 또는 정본 문서 → 삭제(모델 개선으로 불필요 시).
 
 ---
 
@@ -22,17 +22,17 @@
 
 | ID         | 승격 위치                              | 한 줄 요약                                                                                                          |
 | ---------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| LESSON-004 | `.claude/rules/frontend.md` §3 H-1 | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)       |
-| LESSON-005 | `.claude/rules/frontend.md` §3 H-2 | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                              |
-| LESSON-006 | `.claude/rules/frontend.md` §3 H-3 | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                    |
-| LESSON-019 | `.claude/rules/backend.md` §3     | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단) |
-| LESSON-020 | `.claude/rules/backend.md` §9.2   | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                              |
+| LESSON-004 | `frontend/AGENTS.md` §3 H-1 | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)       |
+| LESSON-005 | `frontend/AGENTS.md` §3 H-2 | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                              |
+| LESSON-006 | `frontend/AGENTS.md` §3 H-3 | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                    |
+| LESSON-019 | `backend/AGENTS.md` §3     | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단) |
+| LESSON-020 | `backend/AGENTS.md` §9.2   | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                              |
 | LESSON-037 | `generator-evaluator-pipeline.md` §8.1             | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제)                           |
 | LESSON-038 | `generator-evaluator-pipeline.md` §8.2             | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check                                |
 | LESSON-039 | `generator-evaluator-pipeline.md` §8.3             | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                           |
 | LESSON-040 | `generator-evaluator-pipeline.md` §8.4             | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                    |
 | LESSON-063 | `generator-evaluator-pipeline.md` §8.5             | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                           |
-| LESSON-066 | `.claude/rules/backend.md` §7     | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충) |
+| LESSON-066 | `backend/AGENTS.md` §7     | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충) |
 
 ---
 

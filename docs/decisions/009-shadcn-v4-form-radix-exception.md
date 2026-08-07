@@ -3,7 +3,7 @@
 > **작성일:** 2026-04-17
 > **작성 세션:** /superpowers:subagent-driven-development Sprint 7c T1 post-review
 > **관련 커밋:** `a6e99e4` (T1 Foundation)
-> **적용 규칙:** `.claude/rules/nextjs-shared.md`(구 `.ai/stacks/nextjs-shared.md`) §3 shadcn/ui v4
+> **적용 규칙:** `frontend/AGENTS.md`(구 `.ai/stacks/nextjs-shared.md` → `.claude/rules/`) **§9** shadcn/ui v4
 
 ---
 

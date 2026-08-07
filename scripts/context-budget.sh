@@ -76,7 +76,7 @@ LINE_CAPS = {
 
 # 고정비 = 자동으로 컨텍스트에 들어가는 것.
 #   ★`CONTEXT.md` 는 **여기 없다** — CLAUDE.md 가 import 하지 않아 자동 로드가 아니다. 변동비다.
-#   ★`.claude/rules/*.md` 는 셋 다 아니다 — `paths` glob 매칭 파일을 여는 순간에만 로드되는
+#   ★`backend/AGENTS.md`·`frontend/AGENTS.md` 는 셋 다 아니다 — 그 디렉터리 파일을 여는 순간에만 로드되는
 #     조건부 비용이다(ADR-026, Claude Code v2.0.64+). 여기서는 측정하지 않는다.
 IMPORT_RE = re.compile(r"^@(\S+)\s*$", re.MULTILINE)
 

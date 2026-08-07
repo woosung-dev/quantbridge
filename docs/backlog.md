@@ -546,6 +546,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-612](#bl-612)    | `docs/dev-log/2026-08-06-entry-set-divergence.md` 버퍼가 `docs/lessons.md` 로 승격되지 않았다 — ADR-026 §3 은 「세션 종결 시 승격 의무, 승격하면 버퍼를 비운다」인데 회차는 끝났고(PR #553 머지) 버퍼는 9천자로 남아 있다(반증 카드 상한 1~2천자 초과) | 다음 문서 정리 회차 | XS           | 2026-08-07 docs-overhaul 리뷰                          |
 | [BL-613](#bl-613)    | `live_signal.py` 핸들러 가시화가 남긴 **줄 수 부채** — `_evaluate_session_with_engine` **506줄**(Kind B 추출 E8~E14 미완) · `_place_planned_entry` 236 · `_reconcile_conditional_entries_inner` 203 · `_async_dispatch_event` 256(최대 `try` 본문 **225줄** — 이제 이게 최대). ★가시성 목표(최대 try 845→8)는 달성됐고 줄 수는 못 채웠다 | `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580] 착수 회차와 겹친다) | M            | 2026-08-04 handler-visibility (status 승계)            |
 | [BL-614](#bl-614)    | 2026-08-04 handler-visibility 회차 방법론 **3건이 `docs/lessons.md` 미승격** — dev-log 본문은 문서 대개편에서 삭제됐고 INDEX 한 줄과 git history 에만 남았다(다중집합↔문장 순서 · 재적재 지문 = celery 배너 · 검증 도구를 먼저 적대 검증) | 다음 문서 정리 회차 ([BL-612] 와 함께) | XS           | 2026-08-04 handler-visibility (status 승계)            |
+| [BL-615](#bl-615)    | 스택 규칙 파일이 공식 권장 크기의 **2배** — `backend/AGENTS.md` **416줄** · `frontend/AGENTS.md` **316줄** (Claude Code 문서 권장 = 파일당 200줄 이하, 「Longer files consume more context and reduce adherence」). 그 디렉터리 파일을 열 때마다 전량 로드된다 | 스택 규칙을 다음에 손댈 때 ([ADR-027] 정착 후) | S            | 2026-08-07 ADR-027 (배치 이전 중 실측)                 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -1177,7 +1178,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 남은 것: `dec()` **13곳**과 `tasks/trading.py`·`tasks/live_signal.py`의 다른 metric 호출. 이들은 terminal 전이 이후라 예외 시 Celery 재시도로 회복되므로 좌초시키지는 않지만, **불변식으로 못박는 것이 옳다.**
 
-**권장 접근:** 머니-패스의 모든 metric mutation 을 `record_metric_safely` 로 감싸고, 그 규칙을 `.claude/rules/backend.md` 에 등재한다.
+**권장 접근:** 머니-패스의 모든 metric mutation 을 `record_metric_safely` 로 감싸고, 그 규칙을 `backend/AGENTS.md` 에 등재한다.
 **Risk:** 🟡
 
 ## P3 — Nice-to-have / 컨벤션 정합
@@ -1609,7 +1610,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Est:** S
 **출처:** 2026-07-28 live-ops-hygiene codex 최종 적대 리뷰
 
-**원인 / 영향:** `collapseRows`(`account-positions-table.tsx`)가 권한(`readOnly`)·귀속 세션·차단 사유를 해석해 대표 행과 청산 가능성을 결정한다. `.claude/rules/frontend.md` 의 view ↔ 비즈니스 로직 분리 원칙 위반이다.
+**원인 / 영향:** `collapseRows`(`account-positions-table.tsx`)가 권한(`readOnly`)·귀속 세션·차단 사유를 해석해 대표 행과 청산 가능성을 결정한다. `frontend/AGENTS.md` 의 view ↔ 비즈니스 로직 분리 원칙 위반이다.
 
 ★**이번 스프린트의 P1 이 정확히 이 경계에서 나왔다** — hedge 의 두 leg 를 한 행으로 지운 것이 이 함수였다. 규칙 위반이 실제 결함으로 이어진 사례이므로 nit 로만 두지 않는다.
 
@@ -2170,7 +2171,7 @@ JOIN trading.orders ON exchange_order_id → 0 행
 
 **부분 완화 (2026-07-25, `stage/exit-attribution`):** `_assert_disposable_database` 가 DSN 의 DB 이름이 `_test` 로 끝나지 않으면 `RuntimeError` 를 던진다. 개발 DB DSN 으로 실행 시 파괴 대신 예외가 나는 것을 실증했다.
 
-**잔여 / 권장 접근:** ① 같은 폴백 구조가 `tests/conftest.py` 에도 있다(`TEST_DATABASE_URL > DATABASE_URL > default`) — 파괴성은 낮지만 동일 가드가 필요한지 검토 ② 로컬 개발 DB 주기 백업(`pg_dump` cron 또는 `make db-snapshot`)이 없다. dogfood 데이터는 재현 비용이 크고 API 키는 복구 불가다 ③ 서브에이전트에 DB env 를 넘길 때의 표준 레시피를 `.claude/rules` 로 승격 ④ **`alembic/env.py:40` 이 `settings.database_url` 을 주입하므로 수동 `alembic downgrade` 는 가드 없이 개발 DB 를 향한다** — `_assert_disposable_database` 는 pytest 경로만 막는다. CLI 경로 가드 또는 `make` 래퍼 검토.
+**잔여 / 권장 접근:** ① 같은 폴백 구조가 `tests/conftest.py` 에도 있다(`TEST_DATABASE_URL > DATABASE_URL > default`) — 파괴성은 낮지만 동일 가드가 필요한지 검토 ② 로컬 개발 DB 주기 백업(`pg_dump` cron 또는 `make db-snapshot`)이 없다. dogfood 데이터는 재현 비용이 크고 API 키는 복구 불가다 ③ 서브에이전트에 DB env 를 넘길 때의 표준 레시피를 `backend/AGENTS.md` 로 승격 ④ **`alembic/env.py:40` 이 `settings.database_url` 을 주입하므로 수동 `alembic downgrade` 는 가드 없이 개발 DB 를 향한다** — `_assert_disposable_database` 는 pytest 경로만 막는다. CLI 경로 가드 또는 `make` 래퍼 검토.
 
 ---
 
@@ -3024,7 +3025,7 @@ f"{reason}({stage}/{category}) 감지 — 세션을 비활성화했습니다(...
 **원인 / 영향:** DB `Numeric(18,8)` 인 `filled_quantity`/`filled_price` 가 seed 경로에서 `float` 로
 변환된다(`live_signal.py` seed leg 조립 · `strategy_state.py` `Trade.qty: float`). 예:
 `9999999999.99999999` 는 float 왕복 뒤 `10000000000.0`. seed 포지션의 수량·진입가·증거금 계산에
-반올림값이 들어간다. `AGENTS.md` 와 `.claude/rules/backend.md` §2 의 "금융 숫자는 Decimal,
+반올림값이 들어간다. `AGENTS.md` 와 `backend/AGENTS.md` §2 의 "금융 숫자는 Decimal,
 float 금지" 를 형식상 위반한다.
 
 ★**이 변경이 새로 만든 문제는 아니다** — `StrategyState` 는 원래 float 기반이고(`Trade.qty: float`),
@@ -4467,7 +4468,7 @@ prettier 로 돌리는데, 루트 `node_modules` 는 husky/lint-staged/prettier 
 
 **잔존 기록 (2026-08-06 docs-overhaul):** 문서 대개편(fix-doc)에서 `frontend/README.md:39` 의
 구 `.ai/rules/frontend.md` 참조를 **이 트랩 때문에 못 고치고 이연**했다(md 스테이징 = pre-commit 사망).
-본 BL 해소 시 `frontend/README.md:39` → `.claude/rules/frontend.md` 갱신을 함께 처리할 것.
+본 BL 해소 시 `frontend/README.md:39` → `frontend/AGENTS.md` 갱신을 함께 처리할 것.
 
 **출처:** 2026-08-06 e2e-consolidation (커밋 시도 중 실측 재현)
 
@@ -4704,7 +4705,7 @@ ADR-026 은 §7(메타-방법론 영구 규칙)을 `generator-evaluator-pipeline
 이 문서는 22,511 tok 이고 AGENTS.md 에 **링크로만** 걸린다. ADR 의 Consequences 는 「스택 규칙」
 누락만 적고 이 축은 짚지 않았다.
 후보 = ⑴ §8.1/§8.3 의 **강제 조항만** AGENTS.md 본문으로 승격(고정비 +200자 내외) ·
-⑵ `.claude/rules/` 에 `paths: ["docs/**"]` 규칙 파일 신설(ADR-026 재평가 트리거 ⑵에 걸린다) ·
+⑵ `docs/AGENTS.md` 신설([ADR-027] 배치에서는 `docs/` 파일을 여는 순간 로드된다 — 단 **kickoff 시점과 트리거가 어긋난다**: 규율이 필요한 때는 문서를 열기 **전**이다) ·
 ⑶ Sprint kickoff 체크리스트를 `status.md` 「다음 스프린트」 블록 템플릿에 못 박기.
 
 **Risk:** 🟡 규율 누락은 조용하다 — 위반해도 게이트가 red 로 안 변한다. 검출은 sprint close-out
@@ -4786,6 +4787,33 @@ git history(`git show 0f0f0b06:docs/dev-log/2026-08-04-handler-visibility.md`)�
 
 **Risk:** 🟢 정보 유실은 없다(git + INDEX 한 줄). 다만 3건 다 **재발형 실수**라 승격 전까지는
 같은 함정을 다시 밟아도 막을 근거가 문서에 없다.
+---
+
+### BL-615
+
+**Priority:** P3
+**카테고리:** Docs / 스택 규칙 크기 (ADR-027 후속)
+**Trigger:** 스택 규칙을 다음에 손댈 때 ([ADR-027](decisions/027-nested-agents-md.md) 정착 후)
+**Est:** S
+**상태:** ⬜ **Open**
+
+**스택 규칙이 공식 권장 크기의 2배다** — `backend/AGENTS.md` **416줄** · `frontend/AGENTS.md` **316줄**.
+Claude Code 메모리 문서는 파일당 **200줄 이하**를 권장하며 이유를 명시한다 — 「Longer files consume more
+context and reduce adherence」. [ADR-027] 배치에서는 그 디렉터리 파일을 여는 순간 **전량** 로드되므로,
+백엔드 작업 세션의 실질 고정비다(416줄 ≈ 11k tok).
+
+**덜어낼 1순위 = §1 Tech Stack 표** — 두 파일 모두 첫 절이 스택 나열인데, 이건 `pyproject.toml` ·
+`package.json` 에서 **추론 가능한 정보**다(구 `.ai/common/global.md` §5 가 「추론 가능한 정보 제외」를
+규정했던 바로 그 축이고, 그 규정은 ADR-026 으로 소멸했다). 2순위 = 코드 예시 블록 — 규칙 진술과
+예시가 1:1 로 붙어 있어 길이의 상당분을 차지한다.
+
+★**줄이면서 규칙을 지우지 마라.** 이 두 파일에는 `LESSON-004/005/006/019/020/066` 이 승격돼 있고
+`docs/lessons.md` 가 **§ 번호로** 그것을 가리킨다. 절을 재배치하면 그 표의 § 참조도 함께 갱신해야 한다
+(ADR-027 이 `nextjs-shared.md §3` → `frontend/AGENTS.md §9` 로 갱신한 것과 같은 작업).
+
+**Risk:** 🟢 동작에 영향 없다. 다만 「reduce adherence」가 사실이라면 **규칙이 안 지켜지는 쪽**으로
+조용히 샌다 — 게이트로는 안 잡힌다.
+
 
 
 

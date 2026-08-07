@@ -364,7 +364,7 @@ docker exec quantbridge-db psql -U quantbridge -d postgres -c 'DROP DATABASE qua
 | `/pnpm-lock.yaml`             | 루트 `pnpm install` 이 lockfile 없이 돌아, **pre-commit 훅이 `lint-staged` 를 못 찾고 조용히 죽는다** |
 
 **심볼릭 링크는 `.worktreeinclude` 로 복사되지 않는다** (Claude Code 가 건너뛴다).
-`.claude/CLAUDE.md -> ../AGENTS.md` 는 부트스트랩이 재생성한다. `.claude/rules/` 는 ADR-026 부터 트래킹되는 실파일이라 체크아웃에 그냥 포함된다.
+`.claude/CLAUDE.md -> ../AGENTS.md` 는 부트스트랩이 재생성한다. 스택 규칙은 ADR-027 부터 `backend/AGENTS.md`·`frontend/AGENTS.md`(+ 같은 자리 `CLAUDE.md`)라 체크아웃에 그냥 포함된다.
 
 루트 `CLAUDE.md` 는 git 이 심볼릭(mode 120000)으로 트래킹하므로 워크트리가 알아서 만든다.
 `.claude/skills/` 는 0B (전역 `~/.claude/skills` 사용) 라 복사 대상이 아니다.

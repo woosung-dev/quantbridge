@@ -118,7 +118,7 @@ codex exec resume --last "<후속 지시>" < /dev/null    # 이어가기
 
 - ★**`< /dev/null` 필수.** 백그라운드에서 stdin 이 열려 있으면 무한 대기한다(워커 2기가 52분·38분을 그렇게 날렸다).
 - **BL 1건 = codex 1세션.** 여러 BL 을 한 세션에 넣으면 diff 가 섞여 변이 판별이 무뎌진다.
-- 태스크 스펙에 반드시 넣을 것 — G1 수용 기준 · `.claude/rules/` 레이어 규칙(Repository-only · `Decimal` · prefork-safe) · `docs/reference/operations/gates-and-traps.md` · **"스펙 밖 리팩토링 금지"**.
+- 태스크 스펙에 반드시 넣을 것 — G1 수용 기준 · 스택 `AGENTS.md` 의 레이어 규칙(Repository-only · `Decimal` · prefork-safe) · `docs/reference/operations/gates-and-traps.md` · **"스펙 밖 리팩토링 금지"**.
 
 ### G3 — 평가 (평가자) ★진짜 게이트
 

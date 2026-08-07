@@ -1,6 +1,9 @@
 # ADR-026: 문서 SSOT — 질문 유형별 정본 분할과 로드 계층화
 
 > **상태:** 확정 (Accepted — 2026-08-06, 사용자 판정)
+> ★**§2 의 배치 결정만 [ADR-027](027-nested-agents-md.md) 로 Superseded (2026-08-07)** — 스택 규칙은
+> `.claude/rules/` 가 아니라 `backend/AGENTS.md`·`frontend/AGENTS.md` 에 둔다(codex 가 읽지 못한다는
+> 본 ADR 의 `[가정]` 이 그 배치에서 문제 자체로 사라진다). **§1·§3·§4·§5 는 그대로 유효하다.**
 > **일자:** 2026-08-06
 > **결정자:** woosung (기안: Claude)
 > **출처:** 2026-08-06 조사 3건 — Claude Code 로딩 메커니즘(공식 문서 + CHANGELOG) ·
@@ -44,6 +47,9 @@
 ⑥ 반증에 대해 **코드는 증인이 아니다.** 코드는 무엇을 하는지 말할 뿐, 무엇을 버렸는지는 말하지 않는다.
 
 ### 2. `.ai/` 를 해체한다
+
+> ★**배치 부분은 [ADR-027](027-nested-agents-md.md) 로 Superseded (2026-08-07).** 아래 「`.ai/` 를 없앤다」는
+> 유효하고, 옮겨 간 자리만 `.claude/rules/` → `backend/AGENTS.md`·`frontend/AGENTS.md` 로 바뀌었다.
 
 - `.ai/stacks/fastapi/backend.md` → `.claude/rules/backend.md` (실파일, `paths: ["backend/**"]`)
 - `.ai/stacks/nextjs/frontend.md` → `.claude/rules/frontend.md` (`paths: ["frontend/**"]`)

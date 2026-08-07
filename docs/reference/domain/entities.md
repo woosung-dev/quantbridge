@@ -179,7 +179,7 @@
 
 ### Timestamp 정책
 
-- 모든 테이블에 `created_at`, `updated_at` 필수 (`.claude/rules/backend.md` 규칙)
+- 모든 테이블에 `created_at`, `updated_at` 필수 (`backend/AGENTS.md` 규칙)
 - Sprint 5 S3-05까지 naive UTC (Z 접미사 수동), 이후 tz-aware
 
 ### Decimal 정책

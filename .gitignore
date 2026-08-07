@@ -15,8 +15,6 @@ sprint*-day*-*.jpeg
 # 프로젝트 고유 스킬을 만들면 그때 `!.claude/skills/` 를 추가한다 (개인용은 local-* 접두사).
 .claude/*
 !.claude/settings.json
-# 스택 규칙 실파일 (ADR-026 — .ai/ 해체로 이전, paths frontmatter 조건부 자동 로드)
-!.claude/rules/
 # 아래 셋은 위 .claude/* 로 이미 무시되지만, 작업 찌꺼기임을 명시해 둔다.
 # (worktrees 무시는 조사한 90개 중 20개가 쓰는 최다 패턴)
 .claude/plans/

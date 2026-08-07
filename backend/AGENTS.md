@@ -1,9 +1,3 @@
----
-description: FastAPI 및 Backend 아키텍처 규칙
-paths:
-  - "backend/**/*"
----
-
 # Backend Rules (FastAPI + SQLModel)
 
 ---

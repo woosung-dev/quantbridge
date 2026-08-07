@@ -6,14 +6,14 @@
 > 파일을 만들지 않는다 (`docs/reference/operations/workflows/generator-evaluator-pipeline.md` §G8).
 > `docs/roadmap.md`(다음 후보)와 `docs/backlog.md`(open BL)는 **필요할 때 grep 으로 연다** — 통째로 읽지 않는다.
 > 본 파일은 **오리엔테이션 전용**이다([ADR-026](docs/decisions/026-documentation-ssot.md)). 규칙 본문은
-> `.claude/rules/`, 결정 근거는 `docs/decisions/`, 반증 기록은 `docs/lessons.md` 가 정본이다.
+> `backend/AGENTS.md`·`frontend/AGENTS.md`, 결정 근거는 `docs/decisions/`, 반증 기록은 `docs/lessons.md` 가 정본이다.
 
 ---
 
 ## Golden Rules (Immutable)
 
 - NEVER — 환경 변수·API 키·시크릿을 코드에 하드코딩 (`SecretStr` 사용)
-- NEVER — Repository layer 밖에서 DB 접근 (`.claude/rules/backend.md` §3)
+- NEVER — Repository layer 밖에서 DB 접근 (`backend/AGENTS.md` §3)
 - NEVER — `.env.example` 에 없는 환경 변수를 코드에서 참조
 - NEVER — 사용자 승인 없는 `git push` / 배포 (main 직접 push 영구 차단)
 - NEVER — LLM 생성 규칙 파일을 검토 없이 그대로 사용
@@ -63,14 +63,18 @@ Trading(CCXT 주문 — 계정 모드는 **Bybit demo 만**) / Market Data(Times
 - NEVER — `DATABASE_URL` 만 단독 주입(서브에이전트 포함) — 세션 픽스처 `drop_all` 이 **개발 DB 를 겨냥**한다.
   상세·함정 전체: `gates-and-traps.md` §환경
 
-## 스택 규칙 (paths 매칭 시 자동 로드)
+## 스택 규칙 (그 디렉터리 파일을 열면 자동 로드)
 
-★`.claude/rules/*.md` 는 `paths` glob 에 맞는 파일을 여는 순간 자동 로드된다(Claude Code v2.0.64+, ADR-026).
-파일을 안 열고 설계만 논하는 세션에서는 직접 열어라.
+★`backend/` · `frontend/` 에 각각 `AGENTS.md`(규칙 본문) + `CLAUDE.md`(`@AGENTS.md` 한 줄)를 둔다.
+Claude Code 는 **그 디렉터리의 파일을 읽는 순간** 하위 `CLAUDE.md` 를 로드하고 import 를 따라
+`AGENTS.md` 까지 편다(2026-08-07 실측). codex 등 다른 에이전트는 `AGENTS.md` 를 직접 읽는다
+([ADR-027](docs/decisions/027-nested-agents-md.md)). 파일을 안 열고 설계만 논하는 세션에서는 직접 열어라.
+★**하위 `AGENTS.md` 는 루트를 덮어쓰지 말고 보강만 해라** — Claude 는 루트와 하위를 **이어붙이고**
+codex 는 **가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구가 다르게 행동한다.
 
-- [`.claude/rules/backend.md`](.claude/rules/backend.md) — FastAPI 3-Layer · Decimal-first · 도메인 규칙 표 · Celery prefork-safe (§2/§4/§9)
-- [`.claude/rules/frontend.md`](.claude/rules/frontend.md) — React Hooks 안전 H-1~H-3 · `error.tsx` 의무
-- [`.claude/rules/nextjs-shared.md`](.claude/rules/nextjs-shared.md) — Next.js 16 · Zod v4 · shadcn v4 · 반응형 · TS 컨벤션
+- [`backend/AGENTS.md`](backend/AGENTS.md) — FastAPI 3-Layer · Decimal-first · 도메인 규칙 표 · Celery prefork-safe (§2/§4/§9)
+- [`frontend/AGENTS.md`](frontend/AGENTS.md) — React Hooks 안전 H-1~H-3 · `error.tsx` 의무(§3/§6) ·
+  Next.js 16 · Zod v4 · shadcn v4 · 반응형 · TS 컨벤션(**§7~§11**, 구 `nextjs-shared.md`)
 - [`generator-evaluator-pipeline.md`](docs/reference/operations/workflows/generator-evaluator-pipeline.md) §8 —
   메타-방법론 영구 규칙 (§8.1 kickoff preflight · §8.3 codex finding 코드 대조 의무)
 
@@ -80,4 +84,4 @@ Trading(CCXT 주문 — 계정 모드는 **Bybit demo 만**) / Market Data(Times
 - `frontend/src/` — Next.js 16 FSD Lite (`app`/`components`/`features`/`hooks`/`lib`/`store`)
 - `scripts/` — 게이트·감사·함대 셸 (`bl-audit` · `docs-audit` · `context-budget` · `soak-gate` · `herdr-fleet`)
 - `docs/` — 상태 3종 + `reference/` + `decisions/` + `lessons.md` (지도: `docs/README.md`)
-- `.claude/rules/` — 스택 규칙 실파일 (트래킹됨, paths 조건부 자동 로드)
+- `backend/AGENTS.md` · `frontend/AGENTS.md` — 스택 규칙 (같은 자리 `CLAUDE.md` = `@AGENTS.md` 한 줄)

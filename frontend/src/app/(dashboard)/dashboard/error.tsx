@@ -1,7 +1,7 @@
 "use client";
 
 // 대시보드 라우트 에러 경계 (S7) — C 디자인 언어. render-time 예외를 catch 하고 reset 으로
-// 재시도한다 (.claude/rules/frontend.md §6). 페이지 내부의 fetch 실패는 각 카드가 자체
+// 재시도한다 (frontend/AGENTS.md §6). 페이지 내부의 fetch 실패는 각 카드가 자체
 // state-box 로 처리하므로, 여기는 그 위의 render 예외 안전망이다 (backtests/error.tsx 와 동형).
 
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";

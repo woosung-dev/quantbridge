@@ -258,7 +258,7 @@ fi
 }
 
 # ── 4. 심볼릭 링크 복구 ─────────────────────────────────────────────────────
-# .worktreeinclude 는 심볼릭을 스킵한다. `.claude/rules/` 는 ADR-026 부터 트래킹되는
+# .worktreeinclude 는 심볼릭을 스킵한다. 스택 규칙은 ADR-027 부터 `backend/AGENTS.md` 등
 # 실파일이라 체크아웃에 포함된다 — 여기서 만들 것은 CLAUDE.md 링크뿐이다.
 echo "▶ 심볼릭 링크"
 [ -e .claude/CLAUDE.md ] || { ln -s ../AGENTS.md .claude/CLAUDE.md && ok ".claude/CLAUDE.md -> ../AGENTS.md"; }

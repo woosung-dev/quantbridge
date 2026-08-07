@@ -9,7 +9,7 @@
 
 - 모든 환경 변수는 `.env.local` (로컬) 또는 배포 플랫폼 대시보드에서 관리
 - 코드에 하드코딩 **절대 금지** (CLAUDE.md Golden Rule)
-- 민감 값은 백엔드에서 `SecretStr` 타입으로 선언 (`.claude/rules/backend.md` §2)
+- 민감 값은 백엔드에서 `SecretStr` 타입으로 선언 (`backend/AGENTS.md` §2)
 - `.env.example`에 없는 변수를 코드에서 참조 금지 (Golden Rule)
 
 ### 범례
