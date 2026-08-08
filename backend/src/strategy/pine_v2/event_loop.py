@@ -81,6 +81,7 @@ def run_historical(
     default_qty_type: str | None = None,
     default_qty_value: float | None = None,
     leverage: float = 1.0,
+    taker_cost_rate: float = 0.0,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
     pyramiding: int | None = None,
@@ -102,6 +103,9 @@ def run_historical(
         default_qty_type: "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed" | None.
         default_qty_value: percent / cash / fixed value. None 또는 default_qty_type=None 시 무시.
         leverage: 1.0 초과 시 격리 증거금 게이트와 강제청산을 적용한다.
+        taker_cost_rate: BL-460 — leg 당 (수수료 + 슬리피지) 비율. 증거금 게이트가 보는
+            net 자본에만 반영하며 `strategy.equity`/`compute_qty` 의 gross 는 안 바꾼다.
+            0.0(기본)이면 두 자본이 같아 기존 판정과 byte-identical.
         sessions_allowed: BL-188 v3 — entry placement + pending fill 양쪽에 적용되는
             session gate. 비어있으면 24h. 비어있지 않으면 ohlcv.index 가 tz-aware
             DatetimeIndex 여야 함 (v2_adapter 가 422 reject 책임).
@@ -136,6 +140,7 @@ def run_historical(
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
             leverage=leverage,
+            taker_cost_rate=taker_cost_rate,
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
     interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).

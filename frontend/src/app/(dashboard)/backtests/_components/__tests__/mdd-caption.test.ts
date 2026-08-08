@@ -58,4 +58,31 @@ describe("buildMddCaption — leverage 가정 표시 정책 (Sprint 32-D)", () =
       }),
     ).toMatch(/자본 초과 손실/);
   });
+
+  // [BL-466] 승인안 (c) — L=1 도 자본을 초과해 손실할 수 있다. 캡션이 그것을
+  // 레버리지 탓으로 돌리지 않고, 막아줄 장치가 없었다는 사실까지 말해야 한다.
+  it("leverage=1 자본초과 → 강제청산 부재까지 고지한다", () => {
+    const caption = buildMddCaption({
+      leverage: 1,
+      mddBelowCapital: true,
+      mddExceedsCapital: true,
+      liquidationOccurred: null,
+    });
+
+    expect(caption).toBe(
+      "leverage 1x · 현물 · 자본 초과 손실 · 강제청산이 없어 실제로는 불가능한 결과",
+    );
+  });
+
+  it("레버리지 실행의 자본초과 문구는 1x 전용 문구를 쓰지 않는다", () => {
+    const caption = buildMddCaption({
+      leverage: 3,
+      mddBelowCapital: true,
+      mddExceedsCapital: true,
+      liquidationOccurred: null,
+    });
+
+    expect(caption).toBe("leverage 3.0x · 자본 초과 손실");
+    expect(caption).not.toMatch(/강제청산이 없어/);
+  });
 });

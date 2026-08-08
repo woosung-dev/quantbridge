@@ -363,8 +363,11 @@ export function EquityChartV2({
           <DrawdownPane drawdownData={drawdownData} height={bottomHeight} />
           <AxisLabelBar
             yAxisLabel={
+              // BL-466 — 종전 문구 "leverage 시 -100% 초과 가능" 은 원인을 레버리지로
+              // 돌렸지만, 자본 초과 손실은 **L=1 에서도** 일어난다(마진 게이트 no-op +
+              // 청산 없음). 원인 귀속을 빼고 사실만 적는다.
               mddExceedsCapital === true
-                ? "% (자본 대비 손실 · leverage 시 -100% 초과 가능)"
+                ? "% (자본 대비 손실 · -100% 초과 = 자본을 넘어선 손실)"
                 : "% (자본 대비 손실 · 0 ~ -100%)"
             }
             xAxisLabel={

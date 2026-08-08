@@ -263,7 +263,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-015** [P1] OKX Private WS — OKX 어댑터 REST 만, WS 부재로 fetch_order polling 부담 · 선행: OKX WS signing(Bybit Demo 안정화 후)
 - [x] **BL-186a** [P2] 레버리지 충실도 — ✅ **backtest-trust 완료**. ★TV/MT5 컨벤션(레버리지는 **수량을 바꾸지 않고** 필요증거금·청산가만 정함) → `compute_qty` 무변경 → 레버리지>1 에서도 TV parity 유지. 격리 청산 + 마진 게이트(단일 chokepoint) + FE 입력 재도입. L=1 byte-identical
 - [ ] **BL-186b** [P2] cross/tiered MM + 파산수수료 + 멀티거래소 + 펀딩-청산 상호작용 — 186a 이후 이연
-- [ ] **BL-460** [P2] 마진 게이트가 **gross 자본**으로 판정 — `running_equity` 가 수수료·슬리피지 차감 전이라(`close()` "fees=0 Sprint 37 가정") 실측 gross +38,679 vs net −53,670. 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 파괴 → 별도 설계 필요 · (실자금 레버리지 사용 전)
+- [x] **BL-460** [P2] 마진 게이트가 **gross 자본**으로 판정 — `running_equity` 가 수수료·슬리피지 차감 전이라(`close()` "fees=0 Sprint 37 가정") 실측 gross +38,679 vs net −53,670. 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 파괴 → 별도 설계 필요 · (실자금 레버리지 사용 전)
 - [x] **BL-461** [P3] `_periodic_returns` daily fallback 이 sub-daily 를 "1 bar = 1 day" 로 계산 — `resample("D").last()` 로 해결(2026-08-03 backtest-metric-oracle). 실측 왜곡 = 같은 자본 경로를 1h 로 적으면 Sharpe 가 참 값의 6배, 하루치 1h 봉에서는 Sharpe 16.56. 우려됐던 baseline 2 metric 확산은 **미발생** — 코퍼스 7벌이 전부 월간 경로라 regen 0행
 - [ ] **BL-462** [P3] Sharpe 목록 정렬 신·구 컨벤션 혼재 — `repository.py:75` 가 원시 JSONB 숫자만 캐스팅. 현재는 FE 고지로 대응, 완전 해소는 read-time recompute
 - [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기
@@ -272,7 +272,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-587** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — **원인 차단 + 탐지기 둘 다**. 차단 = `backend/.python-version` 3.12 핀. 탐지 = `test_envelope_*` 3건이 `ohlcv_sha256`·`schema_version`·`tool_versions.python` 을 실제로 읽는다(그전까지 읽는 곳 0곳). ★red 메시지에 「회귀가 아니라 regen 하고 값이 같은지 확인해라」를 박았다. 세 변조에 각각 자기 assert 만 red 로 판별력 확인
 - [x] **BL-588** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 5→7 로 맞추는 대신 **목록을 `_corpus.py` 하나로 합쳤다**(parity·regen·mutation 셋이 그것만 읽는다). ★실측: `_MUTATION_CORPORA` 의 5벌이 **정확히 위험조정지표가 축퇴한 5벌**이라 그 3지표의 산술 회귀가 구조적으로 감지 불가였다. nightly 183s→218s(+19%), 감지 결과 불변(기존 8변이는 `trades_digest` 로 이미 잡힌다)
 - [x] **BL-465** [P1] `_periodic_returns` 음수 자본 미차단 → 파산한 실행에 양수 샤프 — ✅ **dogfood-restore 완료**. 신규 마커 `unavailable_nonpositive_equity` + Trust Layer baseline 재생성(2/12 키 한정)
-- [ ] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
+- [x] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
 - [x] **BL-467** [P1] `backend-optimizer-heavy` OHLCV env 3종 부재로 **모든 optimizer 실행 실패** — ✅ **dogfood-restore 완료**
 - [ ] **BL-468** [P3] `OHLCV_FIXTURE_ROOT` CWD 상대 기본값 + `FixtureProvider` 가 canonical 슬래시 심볼 미지원
 - [ ] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead)
