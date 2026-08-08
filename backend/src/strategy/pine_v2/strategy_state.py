@@ -551,10 +551,17 @@ class StrategyState:
         self.entry_skips.append(skip)
 
     def _leg_cost(self, *, qty: float, price: float) -> float:
-        """단일 체결(leg)의 taker 비용. BL-460 게이트 전용 net 자본에만 쓴다.
+        """단일 체결(leg)의 비용 **추정치**. BL-460 게이트 전용 net 자본에만 쓴다.
 
-        `v2_adapter._leg_cost` 와 같은 공식(notional × 비율)이며, 그쪽이 리포트용
-        Decimal 정밀 비용의 SSOT 다. 여기서는 게이트 판정용 float 추정치면 충분하다.
+        `v2_adapter._leg_cost`(리포트용 Decimal 정밀 비용의 SSOT)와 같은 형태
+        (notional x 비율)지만 **단일 taker 비율**만 쓴다는 점이 다르다.
+
+        ★리포트는 BL-104 이후 TP(resting limit) 청산을 maker 로 라우팅한다
+        (`v2_adapter` 의 `fill_type_for` — maker 수수료 + 슬리피지 면제). 따라서 TP 가
+        섞인 실행에서 이 추정치는 실제 비용을 **과대**계상하고, 그만큼 `gate_equity` 가
+        실제 net 보다 낮게 간다. 게이트는 진입을 **막는** 쪽이라 과대계상은 안전 방향
+        (fail-closed)이다. 정확한 maker/taker 라우팅은 `exit_kind` 가 `close()` **뒤에**
+        태깅되는 현 구조를 바꿔야 해서 BL-460 슬라이스 밖에 둔다.
         """
         return abs(qty) * price * self.taker_cost_rate
 
