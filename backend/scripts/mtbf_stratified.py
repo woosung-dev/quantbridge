@@ -27,6 +27,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import sys
 from datetime import UTC, datetime
@@ -52,6 +53,16 @@ SELF_CHECK = [
     ("전 이력", None, 38, 107.12, 8, 13.39),
     ("2026-08-03 이후", "2026-08-03T00:00:00", 14, 60.91, 7, 8.70),
 ]
+
+# 실격 귀속 원장 ([BL-641]) — 위 층 경계는 **날짜**이고 사람이 손으로 넣는다. 원장은 **사인**으로
+# 층을 만든다. 종전에는 「오염 1건」 같은 주석으로만 적혀 있었고, 주석은 재현되지 않는다.
+LEDGER_DEFAULT = (
+    Path(__file__).resolve().parents[2]
+    / "docs"
+    / "reference"
+    / "operations"
+    / "soak-disqualifications.jsonl"
+)
 
 
 def _dt(text: str) -> datetime:
@@ -95,13 +106,50 @@ def mtbf_ci(exposure: float, deaths: int) -> tuple[float, float | None]:
     return low, high
 
 
+def load_operational_sessions(path: Path | None) -> set[str]:
+    """원장에서 **운영 사고**로 판정된 세션 사망의 세션 8자 접두사.
+
+    ★`kind == "auto_death"` 행만 본다 — MTBF 의 사망 사건은 **세션 종료**이고, `phantom` ·
+      `tick_stall` 은 게이트 실격이지 세션 사망이 아니다. 섞으면 한 사망을 두 번 뺀다.
+    ★★**`operational` 만 뺀다.** `undecided` 도 `code_defect` 도 사망으로 센다(엄격 쪽).
+      원장이 없거나 전부 깨져 있으면 이 집합은 비고, 그러면 「운영 사고 제외」 층은 전 이력과
+      **같은 값**이 된다 — 원장을 지워서 MTBF 를 좋게 만드는 경로가 없다.
+    """
+    if path is None or not path.exists():
+        return set()
+    out: set[str] = set()
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(row, dict) or "_comment" in row:
+            continue
+        if row.get("kind") == "auto_death" and row.get("cause_class") == "operational":
+            session = str(row.get("session", "")).strip()[:8]
+            if session:
+                out.add(session)
+    return out
+
+
 def summarize(
-    rows: list[dict[str, Any]], name: str, cutoff: str | None, note: str
+    rows: list[dict[str, Any]],
+    name: str,
+    cutoff: str | None,
+    note: str,
+    operational: set[str] | None = None,
 ) -> dict[str, Any]:
     bound = _dt(cutoff) if cutoff else None
+    excluded = operational or set()
     sel = [r for r in rows if bound is None or r["start"] >= bound]
     exposure = sum(r["hours"] for r in sel)
-    deaths = sum(1 for r in sel if r["auto_death"])
+    # ★운영 사고 사망은 **사망에서 빼되 노출은 남긴다** — 살아 있는 세션과 같은 우측 절단이다.
+    #   노출까지 빼면 「그 시간엔 코드가 안 돌았다」가 되는데 그건 거짓이다.
+    deaths = sum(1 for r in sel if r["auto_death"] and r["id"] not in excluded)
+    dropped = sum(1 for r in sel if r["auto_death"] and r["id"] in excluded)
     low, high = mtbf_ci(exposure, deaths)
     mtbf = exposure / deaths if deaths else None
     return {
@@ -110,7 +158,8 @@ def summarize(
         "n": len(sel),
         "exposure": exposure,
         "deaths": deaths,
-        "censored": sum(1 for r in sel if r["alive"]),
+        "censored": sum(1 for r in sel if r["alive"]) + dropped,
+        "operational_dropped": dropped,
         "longest": max((r["hours"] for r in sel), default=0.0),
         "reached_24h": sum(1 for r in sel if r["hours"] >= 24),
         "mtbf": mtbf,
@@ -153,6 +202,17 @@ def main() -> int:
         "--now",
         help="관측 마감 ISO8601 (기본 = 현재). 살아 있는 세션의 노출을 어디서 끊을지",
     )
+    parser.add_argument(
+        "--ledger",
+        type=Path,
+        default=LEDGER_DEFAULT,
+        help="실격 귀속 원장 (기본 = docs/reference/operations/soak-disqualifications.jsonl)",
+    )
+    parser.add_argument(
+        "--no-ledger",
+        action="store_true",
+        help="원장을 무시한다 — 음성 대조용. 이때 「운영 사고 제외」 층은 만들어지지 않는다",
+    )
     args = parser.parse_args()
 
     now = _dt(args.now) if args.now else datetime.now(UTC)
@@ -161,7 +221,18 @@ def main() -> int:
     if not rows:
         raise SystemExit("입력이 비었다")
 
+    operational = set() if args.no_ledger else load_operational_sessions(args.ledger)
     strata = [summarize(rows, name, cut, note) for name, cut, note in STRATA_CUTOFFS]
+    if operational:
+        strata.append(
+            summarize(
+                rows,
+                "운영 사고 제외(전 이력)",
+                None,
+                "원장이 operational 로 판정한 사망을 절단으로",
+                operational,
+            )
+        )
 
     print(f"관측 마감 {now.isoformat()}   원장 {len(rows)}행")
     print("\n▶ 층별 MTBF — ★점추정만 인용하지 마라. CI 를 같이 읽어라\n")
@@ -183,6 +254,25 @@ def main() -> int:
             f"{s['name']:22} {s['n']:>3} {s['exposure']:>8.2f}h {s['censored']:>4} "
             f"{s['deaths']:>4} {mtbf:>8}  {ci:>18}  {p168:>10}  {s['p168_ci_high'] * 100:>8.2f}%"
         )
+
+    print("\n▶ 실격 귀속 원장 ([BL-641])")
+    if args.no_ledger:
+        print("  원장을 무시했다 (--no-ledger) — 음성 대조 실행이다.")
+    elif not args.ledger.exists():
+        print(f"  원장이 없다 ({args.ledger}) — 모든 사망을 코드 결함으로 센다(엄격 쪽).")
+    elif not operational:
+        print(
+            "  원장에 `kind=auto_death` + `cause_class=operational` 인 행이 없다 — "
+            "층을 만들지 않는다.\n"
+            "  ★`undecided` 는 빼지 않는다. 판정을 안 한 것이 관대함을 사면 원장은 무의미해진다."
+        )
+    else:
+        dropped = strata[-1]["operational_dropped"]
+        print(
+            f"  운영 사고로 판정돼 **사망에서 빠진** 세션 {dropped}건: {', '.join(sorted(operational))}"
+        )
+        print("  ★노출은 그대로 남긴다 — 살아 있는 세션과 같은 우측 절단이다.")
+        print("  ★★이 층은 **반사실**이다. 게이트 판정과 무관하고, C1 은 이 값을 쓰지 않는다.")
 
     print("\n▶ 구간 겹침 — 겹치면 그 두 층은 **구분되지 않는다**")
     separated = 0
