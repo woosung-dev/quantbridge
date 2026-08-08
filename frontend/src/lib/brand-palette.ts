@@ -26,7 +26,7 @@ export const BRAND_PALETTE = {
     bearish: "#ad322a",
     success: "#034a35",
     destructive: "#a72424",
-    warning: "#875206",
+    warning: "#824e05", // [BL-628] 구 #875206 은 --warning-subtle 위 5.66 으로 캐논 5.82 미달
     chartEquity: "#883e07",
     chartBenchmark: "#1452db",
     chartCompare: "#7c3aed",

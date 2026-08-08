@@ -47,10 +47,14 @@
   --destructive-subtle: #fae9e8;
   --destructive-light: #fae9e8;
   --bearish: #ad322a; /* card 6.32 / bg 5.89 — bull 과 상호 1.58 (색각이상 분리도) */
-  --warning: #875206; /* card 6.37 / bg 5.94 — copper 와 상호 1.18 */
-  --warning-foreground: #ffffff;
+  /* [BL-628] card 6.78 / bg 6.33 / warning-subtle 6.03 / bg-alt 5.99 — 네 표면 전부 캐논
+     5.82 통과. 구 #875206 은 subtle 위 5.66 · bg-alt 위 5.62 로 미달이었고, 그 조합이
+     legal-notice-banner(전 라우트 상단)·chip.warn·data-tone=warning·ks-banner-warn·
+     notice-inline 10여 곳에서 동시에 쓰인다. copper 와 상호 1.11 (구 1.18). */
+  --warning: #824e05;
+  --warning-foreground: #ffffff; /* --warning 위 6.91 (구 6.48) */
   --warning-subtle: #f7efdc;
-  --accent-amber: #875206;
+  --accent-amber: #824e05; /* ★--warning 과 바이트 동일 유지 — 한쪽만 옮기면 앰버가 둘이 된다 */
   --accent-amber-light: #f7efdc;
 
   /* 보더 — 쿨 헤어라인 2단 */
@@ -1890,7 +1894,7 @@ h6 {
 }
 
 /* c-port-remaining(2026-07-21): 아래 화면 전용 블록들은 KITPORT 밖 언레이어드에만 추가한다.
-   (주석 개정 r9 — Turbopack 캐시 무효화 이력: globals.css 를 바꾼 모든 커밋 직후 이 줄을 갱신한다) */
+   (주석 개정 r10 — Turbopack 캐시 무효화 이력: globals.css 를 바꾼 모든 커밋 직후 이 줄을 갱신한다) */
 
 /* ==========================================================================
  * C 디자인 언어 화면 전용 CSS — /backtests 목록 (이식 S5).
