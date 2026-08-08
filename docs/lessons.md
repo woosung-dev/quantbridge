@@ -40,100 +40,66 @@
 
 > tombstone: LESSON-001~068 중 46건의 본문을 [lessons-archive-2026H1.md](archive/lessons-archive-2026H1.md) 로 이동 (원문 = 커밋 fc1854d5 의 docs/lessons.md).
 > tombstone: **LESSON-069/070/071** 본문을 2026-08-08 soak-window-and-gate-attribution 회차에서 이 표로 압축했다 (400줄 상한 초과 — 원문 = 커밋 `7a92e6c5` 의 `docs/lessons.md`). 셋 다 1/3 누적이었고 재발하면 표 행을 카드로 되살려라.
+> tombstone: **LESSON-072/073/074** 본문을 2026-08-08 soak-attribution-close 회차에서 이 표로 압축했다 (400줄 상한 초과 — 원문 = 커밋 `f5de962e` 의 `docs/lessons.md`). 셋 다 1/3 누적이었고 재발하면 표 행을 카드로 되살려라.
 
-| ID         | 한 줄 요약                                                                                              |
-| ---------- | ------------------------------------------------------------------------------------------------------- |
-| LESSON-001 | 사용자 Pine을 Python으로 동적 실행하면 코드 인젝션이므로 AST 인터프리터와 eval/exec 금지가 필요하다.    |
-| LESSON-002 | Celery OOM·crash 뒤 running으로 남는 좀비 task는 실패 훅·정기 정리·수동 취소 3층으로 복구한다.          |
-| LESSON-003 | Pine 파싱률 80% 이상 가정을 버리고 검증된 40% 패턴 지원과 투명한 Unsupported 처리를 택한다.             |
-| LESSON-007 | worktree의 git top-level은 main이 아닌 worktree 경로이므로 공통 git dir 또는 명시 경로를 쓴다.          |
-| LESSON-008 | Signal·IPC 식별자는 prefix를 포함한 full id로 고정하고 Monitor가 실제 signal 파일명을 검증한다.         |
-| LESSON-009 | Worker가 worktree 밖 main repo에 파일을 만들지 않도록 생성 경로를 worktree 내부로 제한한다.             |
-| LESSON-010 | stage worktree 생성 직후 backend .venv와 root·frontend node_modules 3개 symlink를 연결한다.             |
-| LESSON-011 | RedisLock의 빈 async with는 mutex가 아니며 correctness는 PG advisory lock과 UNIQUE로 보장한다.          |
-| LESSON-012 | slowapi 0.1.9 조합 오류는 request.state.view_rate_limit 선초기화 middleware로 막는다.                   |
-| LESSON-013 | worktree symlink 상대 경로는 링크 위치 기준이므로 3단계 prefix와 ls -L 검증이 필요하다.                 |
-| LESSON-014 | rate-limit endpoint의 ConnectionError를 막으려면 conftest에 모든 필수 env 기본값을 넣는다.              |
-| LESSON-015 | Redis DB 0~2는 cache·Celery가 쓰므로 분산 락과 rate-limit은 DB 3 이상으로 분리한다.                     |
-| LESSON-016 | Next.js 16의 edge middleware 파일명은 middleware.ts가 아니라 proxy.ts이며 실파일을 확인한다.            |
-| LESSON-017 | codex Generator-Evaluator 루프는 plan 작성 직후 G0 consult로 critical을 반영한 뒤 시작한다.             |
-| LESSON-018 | Heavy G-E 루프는 sprint scope를 실측보다 30~50% 키우므로 tier와 G4 반복 상한을 정한다.                  |
-| LESSON-026 | **init**.py re-export와 충돌하는 import a.b.c alias는 sys.modules 우회로 module을 참조한다.             |
-| LESSON-027 | \_WORKER_LOOP task의 inner 함수는 pytest-asyncio 호환을 위해 async 함수를 직접 await한다.               |
-| LESSON-028 | PostgreSQL JSONB에는 NaN·Infinity를 넣을 수 없으므로 재귀 sanitize로 None 변환을 의무화한다.            |
-| LESSON-029 | SQLAlchemy enum 자동 cast와 Alembic String 불일치를 피하려면 모델·migration 모두 String을 명시한다.     |
-| LESSON-030 | Bybit v5 leverage·margin mode의 not modified BadRequest는 provider 한정으로 idempotent 처리한다.        |
-| LESSON-031 | Bybit Linear 계약 symbol은 UI의 BTC/USDT를 ccxt unified BTC/USDT:USDT로 normalize한다.                  |
-| LESSON-032 | base-ui Select.Value의 raw ID 노출은 render prop으로 lookup name을 매핑해 해소한다.                     |
-| LESSON-033 | Sprint type A~D를 kickoff에서 분류해 신규 기능·BL·hotfix·docs 작업의 의무 강도를 다르게 둔다.           |
-| LESSON-034 | 3개월 이상 경과하고 dogfood 증거가 누적되면 office-hours를 재진행해 ADR addendum으로 보존한다.          |
-| LESSON-035 | sprint 종료는 self-assess·신규 BL·기존 P0 감소의 세 dual metric을 모두 만족해야 한다.                   |
-| LESSON-036 | Slice cascade는 stage branch를 base로 각 slice와 cleanup PR을 쌓고 사용자가 main에 병합한다.            |
-| LESSON-041 | Pine strategy의 default_qty_type·value가 한쪽만 있으면 ambiguous하므로 422로 거절한다.                  |
-| LESSON-042 | Live mirror position_size_pct와 manual default_qty를 함께 주면 422로 단일 sizing source를 강제한다.     |
-| LESSON-043 | engine이 1x equity basis뿐일 때 live leverage Nx는 422로 막고 manual sizing 경로를 제공한다.            |
-| LESSON-044 | 메인 세션은 표준 prefix, worktree worker는 worker-\* prefix를 써 pre-push와 작업 대상을 구분한다.       |
-| LESSON-045 | 다른 프로젝트 포트 충돌을 막으려면 isolated mode와 테스트 DB·Redis URL inline override를 사용한다.      |
-| LESSON-046 | 통합 dogfood는 G-E가 놓친 회귀를 idle CPU·base delta·navigate 변화 세 신호로 발견한다.                  |
-| LESSON-047 | Turbopack root를 잘못 지정하면 watcher storm이 나므로 lockfile 위치·fresh restart·idle CPU를 검증한다.  |
-| LESSON-048 | Playwright MCP 인증 cookie dogfood는 2/3 누적이며 자동화가 어려운 검증만 사용자에게 위임한다.           |
-| LESSON-049 | codex G.4의 P1/P2는 cmux signal reset과 즉시 fix를 우선하고 영향 없을 때만 defer한다.                   |
-| LESSON-050 | 디자인 sprint kickoff에는 prototypes·DESIGN·pen·Figma URL을 모두 grep해 design source를 명시한다.       |
-| LESSON-051 | agent worktree를 4개 spawn하기 전 dev server·Docker·install·prune baseline을 정리한다.                  |
-| LESSON-052 | Worker prompt 첫 단계에 pwd와 worktree cwd 검증을 넣어 메인 cwd면 즉시 중지시킨다.                      |
-| LESSON-053 | N=4 이상에서 agent tool isolation 한계가 드러나므로 독립 terminal·signal 가능한 cmux를 우선한다.        |
-| LESSON-054 | 핀테크 다크 테마는 유행보다 mental model 일관성을 우선하고 single-page 다크 회피를 검증한다.            |
-| LESSON-055 | Worker prompt에 첫 명령으로 절대 worktree path cd를 사전 명시해 main에서의 작업을 막는다.               |
-| LESSON-062 | ADR 결정이 AGENTS.md 표현과 어긋나면 ADR을 SSOT로 삼아 동시에 정합시킨다.                               |
-| LESSON-064 | /deepen-modules audit의 silent failure는 3/3 누적이며 직접 read와 전체 dispatch 경로 추적으로 판정한다. |
-| LESSON-065 | 2단계 subagent review는 monkeypatch 간접 의존성을 놓칠 수 있어 실제 dependency reach를 확인한다.        |
-| LESSON-067 | codex evaluator 분산형은 6/6 검증됐고 비용은 revision 양·트랙 수에 따른 scope 함수로 계획한다.          |
-| LESSON-068 | 한국어 docs lint 부재는 §5·§6 위반을 누적시키며 lint·hook·헤더 보강은 1/3 누적이다.                     |
-| LESSON-069 | 저-카디널리티 라벨이 위험도가 다른 갈래를 합치면 큰 갈래가 작은 갈래를 묻는다 — 라벨을 쪼개 재라.       |
-| LESSON-070 | 비중(%)을 인용하기 전에 분모가 무엇을 세는지 코드로 확인한다 — 분모가 틀리면 결론이 통째로 뒤집힌다.    |
-| LESSON-071 | 합계가 닫힌다는 것은 귀속이 옳다는 증거가 아니다 — 행별 판별자로 갈라야 한다.                           |
+| ID         | 한 줄 요약                                                                                                            |
+| ---------- | --------------------------------------------------------------------------------------------------------------------- |
+| LESSON-001 | 사용자 Pine을 Python으로 동적 실행하면 코드 인젝션이므로 AST 인터프리터와 eval/exec 금지가 필요하다.                  |
+| LESSON-002 | Celery OOM·crash 뒤 running으로 남는 좀비 task는 실패 훅·정기 정리·수동 취소 3층으로 복구한다.                        |
+| LESSON-003 | Pine 파싱률 80% 이상 가정을 버리고 검증된 40% 패턴 지원과 투명한 Unsupported 처리를 택한다.                           |
+| LESSON-007 | worktree의 git top-level은 main이 아닌 worktree 경로이므로 공통 git dir 또는 명시 경로를 쓴다.                        |
+| LESSON-008 | Signal·IPC 식별자는 prefix를 포함한 full id로 고정하고 Monitor가 실제 signal 파일명을 검증한다.                       |
+| LESSON-009 | Worker가 worktree 밖 main repo에 파일을 만들지 않도록 생성 경로를 worktree 내부로 제한한다.                           |
+| LESSON-010 | stage worktree 생성 직후 backend .venv와 root·frontend node_modules 3개 symlink를 연결한다.                           |
+| LESSON-011 | RedisLock의 빈 async with는 mutex가 아니며 correctness는 PG advisory lock과 UNIQUE로 보장한다.                        |
+| LESSON-012 | slowapi 0.1.9 조합 오류는 request.state.view_rate_limit 선초기화 middleware로 막는다.                                 |
+| LESSON-013 | worktree symlink 상대 경로는 링크 위치 기준이므로 3단계 prefix와 ls -L 검증이 필요하다.                               |
+| LESSON-014 | rate-limit endpoint의 ConnectionError를 막으려면 conftest에 모든 필수 env 기본값을 넣는다.                            |
+| LESSON-015 | Redis DB 0~2는 cache·Celery가 쓰므로 분산 락과 rate-limit은 DB 3 이상으로 분리한다.                                   |
+| LESSON-016 | Next.js 16의 edge middleware 파일명은 middleware.ts가 아니라 proxy.ts이며 실파일을 확인한다.                          |
+| LESSON-017 | codex Generator-Evaluator 루프는 plan 작성 직후 G0 consult로 critical을 반영한 뒤 시작한다.                           |
+| LESSON-018 | Heavy G-E 루프는 sprint scope를 실측보다 30~50% 키우므로 tier와 G4 반복 상한을 정한다.                                |
+| LESSON-026 | **init**.py re-export와 충돌하는 import a.b.c alias는 sys.modules 우회로 module을 참조한다.                           |
+| LESSON-027 | \_WORKER_LOOP task의 inner 함수는 pytest-asyncio 호환을 위해 async 함수를 직접 await한다.                             |
+| LESSON-028 | PostgreSQL JSONB에는 NaN·Infinity를 넣을 수 없으므로 재귀 sanitize로 None 변환을 의무화한다.                          |
+| LESSON-029 | SQLAlchemy enum 자동 cast와 Alembic String 불일치를 피하려면 모델·migration 모두 String을 명시한다.                   |
+| LESSON-030 | Bybit v5 leverage·margin mode의 not modified BadRequest는 provider 한정으로 idempotent 처리한다.                      |
+| LESSON-031 | Bybit Linear 계약 symbol은 UI의 BTC/USDT를 ccxt unified BTC/USDT:USDT로 normalize한다.                                |
+| LESSON-032 | base-ui Select.Value의 raw ID 노출은 render prop으로 lookup name을 매핑해 해소한다.                                   |
+| LESSON-033 | Sprint type A~D를 kickoff에서 분류해 신규 기능·BL·hotfix·docs 작업의 의무 강도를 다르게 둔다.                         |
+| LESSON-034 | 3개월 이상 경과하고 dogfood 증거가 누적되면 office-hours를 재진행해 ADR addendum으로 보존한다.                        |
+| LESSON-035 | sprint 종료는 self-assess·신규 BL·기존 P0 감소의 세 dual metric을 모두 만족해야 한다.                                 |
+| LESSON-036 | Slice cascade는 stage branch를 base로 각 slice와 cleanup PR을 쌓고 사용자가 main에 병합한다.                          |
+| LESSON-041 | Pine strategy의 default_qty_type·value가 한쪽만 있으면 ambiguous하므로 422로 거절한다.                                |
+| LESSON-042 | Live mirror position_size_pct와 manual default_qty를 함께 주면 422로 단일 sizing source를 강제한다.                   |
+| LESSON-043 | engine이 1x equity basis뿐일 때 live leverage Nx는 422로 막고 manual sizing 경로를 제공한다.                          |
+| LESSON-044 | 메인 세션은 표준 prefix, worktree worker는 worker-\* prefix를 써 pre-push와 작업 대상을 구분한다.                     |
+| LESSON-045 | 다른 프로젝트 포트 충돌을 막으려면 isolated mode와 테스트 DB·Redis URL inline override를 사용한다.                    |
+| LESSON-046 | 통합 dogfood는 G-E가 놓친 회귀를 idle CPU·base delta·navigate 변화 세 신호로 발견한다.                                |
+| LESSON-047 | Turbopack root를 잘못 지정하면 watcher storm이 나므로 lockfile 위치·fresh restart·idle CPU를 검증한다.                |
+| LESSON-048 | Playwright MCP 인증 cookie dogfood는 2/3 누적이며 자동화가 어려운 검증만 사용자에게 위임한다.                         |
+| LESSON-049 | codex G.4의 P1/P2는 cmux signal reset과 즉시 fix를 우선하고 영향 없을 때만 defer한다.                                 |
+| LESSON-050 | 디자인 sprint kickoff에는 prototypes·DESIGN·pen·Figma URL을 모두 grep해 design source를 명시한다.                     |
+| LESSON-051 | agent worktree를 4개 spawn하기 전 dev server·Docker·install·prune baseline을 정리한다.                                |
+| LESSON-052 | Worker prompt 첫 단계에 pwd와 worktree cwd 검증을 넣어 메인 cwd면 즉시 중지시킨다.                                    |
+| LESSON-053 | N=4 이상에서 agent tool isolation 한계가 드러나므로 독립 terminal·signal 가능한 cmux를 우선한다.                      |
+| LESSON-054 | 핀테크 다크 테마는 유행보다 mental model 일관성을 우선하고 single-page 다크 회피를 검증한다.                          |
+| LESSON-055 | Worker prompt에 첫 명령으로 절대 worktree path cd를 사전 명시해 main에서의 작업을 막는다.                             |
+| LESSON-062 | ADR 결정이 AGENTS.md 표현과 어긋나면 ADR을 SSOT로 삼아 동시에 정합시킨다.                                             |
+| LESSON-064 | /deepen-modules audit의 silent failure는 3/3 누적이며 직접 read와 전체 dispatch 경로 추적으로 판정한다.               |
+| LESSON-065 | 2단계 subagent review는 monkeypatch 간접 의존성을 놓칠 수 있어 실제 dependency reach를 확인한다.                      |
+| LESSON-067 | codex evaluator 분산형은 6/6 검증됐고 비용은 revision 양·트랙 수에 따른 scope 함수로 계획한다.                        |
+| LESSON-068 | 한국어 docs lint 부재는 §5·§6 위반을 누적시키며 lint·hook·헤더 보강은 1/3 누적이다.                                   |
+| LESSON-069 | 저-카디널리티 라벨이 위험도가 다른 갈래를 합치면 큰 갈래가 작은 갈래를 묻는다 — 라벨을 쪼개 재라.                     |
+| LESSON-070 | 비중(%)을 인용하기 전에 분모가 무엇을 세는지 코드로 확인한다 — 분모가 틀리면 결론이 통째로 뒤집힌다.                  |
+| LESSON-071 | 합계가 닫힌다는 것은 귀속이 옳다는 증거가 아니다 — 행별 판별자로 갈라야 한다.                                         |
+| LESSON-072 | 사전등록 비율 지표는 등록 전에 **기각 영역이 도달 가능한가**를 그려라 — 상쇄 구조·상하한을 안 정하면 항진명제가 된다. |
+| LESSON-073 | 문서를 정규식으로 수술할 때 링크 매치는 **줄 경계를 강제**하라 — 짝 없는 대괄호가 개행을 넘어 30줄을 삼켰다.          |
+| LESSON-074 | 검사 도구를 **그 트리 밖에서** 겨누면 ignore 규칙이 대상을 통째로 삼킨다 — 성공 메시지 말고 **검사한 개수**를 봐라.   |
 
 ---
 
 ## Active Candidates (3 회 검증 미달, 또는 sprint-specific)
-
-### LESSON-072 — 사전등록 지표는 등록 전에 「기각 영역이 도달 가능한가」를 그려라 (1/3)
-
-- **상황:** 같은 회차. 사전등록 ③(비용 설명 비율 ≥40%, Σ 후 절대값)이 실데이터에서 **거의
-  항진명제**였다 — FAIL 영역이 Σdiv > +253 / < −590 뿐(라이브 총손익의 9배 규모)이고 상한이
-  없어 134%·3095% 도 「PASS」로 읽힌다. 부호 상쇄 때문에 같은 총발산에서 밖-abs 정의는
-  49%~3095%(63배) 흔들린다(행별-abs 는 2.7배). 판정은 「미판정 + 정의 결함 병기」로 강등했다.
-- **해결:** 비율 지표는 ⑴ 분자·분모의 상쇄 구조(Σ 후 abs vs 행별 abs)를 등록 전에 정하고
-  ⑵ 상·하한을 구간으로 걸고 ⑶ 등록 직후 적대 검증자에게 **기각되는 관측 공간**을 그리게
-  한다 — 기각 영역이 물리적으로 원격이면 그 지표는 적중해도 증거가 못 된다.
-- **1차 누적.**
-
-### LESSON-074 — 검사 도구를 **그 트리 밖에서** 겨누면 ignore 규칙이 대상을 통째로 삼킨다 (1/3)
-
-- **상황:** ADR-027 회차에서 prettier 검증을 레포 루트에 서서 워크트리 경로
-  (`.claude/worktrees/fix-doc/docs/*.md`)로 돌렸다. prettier 3.x 의 기본
-  `ignorePath` 는 `[".gitignore", ".prettierignore"]` 이고 `.gitignore` 에 `.claude/*` 가 있어
-  **0개 파일이 검사됐다.** 그런데 출력은 `All matched files use Prettier code style!` —
-  ★**존재하지 않는 파일을 줘도 같은 문장이 나온다.** 그 근거로 「prettier clean」을 3회 보고했고
-  전부 거짓이었다(트리 안에서 재실행하니 위반 4파일).
-- **왜 안 걸렸나:** 성공 메시지가 「검사했고 통과」와 「검사할 게 없었다」를 **구별하지 않는다.**
-  같은 회차에 [BL-616](backlog.md) 으로 pre-commit 훅까지 안 돌고 있었으므로 2차 방어도 없었다.
-- **해결:** ⑴ 검사는 **그 트리 안에서(cwd 를 옮겨) 상대 경로로** 실행한다 ⑵ 성공 메시지 대신
-  **검사한 개수**를 확인한다 — 없으면 **존재하지 않는 경로를 대조군**으로 넣어 같은 출력이 나오는지
-  본다(1분이면 판별된다) ⑶ ignore 규칙을 가진 도구(prettier · eslint · ruff · grep --exclude)는
-  **대상 경로가 ignore 대상인지부터** 묻는다.
-- **1차 누적.** ★이 레포의 반복 주제와 같은 축이다 — 「전체에서 가드 발화 0」은 창이 닫혀 있으면
-  아무 증명도 아니고, **적중은 판별 표면이 아니다.**
-
-### LESSON-073 — 문서를 정규식으로 수술할 때 링크 매치는 줄 경계를 강제하라 (1/3)
-
-- **상황:** docs 대개편(fix-doc)에서 `\[[^\]]*\]\(([^)]+)\)` 로 링크를 일괄 강등하다 `[UTC 자정, +1d)`
-  처럼 짝 없는 대괄호가 매치를 열어 **개행을 넘어 30줄(BL-451/452 전체)을 삼켰다**. docs-audit 는
-  링크 실존만 보므로 못 잡았고, bl-audit 총계 감소(172→170)로만 드러났다.
-- **해결:** ⑴ 문자클래스에서 개행 제외(`[^\]\n]*` / `[^)\n]+`) ⑵ 수술 전후 불변량(섹션 수·헤딩
-  목록)을 기계 대조 ⑶ 복구 판정은 **수술 당시와 같은 디스크 상태 기준**이어야 한다 — 삭제 후에
-  돌린 복구가 `is_dir()` 의존 판정으로 정당한 변경까지 되돌렸다(오탐 3파일).
-- **1차 누적.**
 
 ### LESSON-075 — 「미룬다」를 판정 자리에 넣으면 그 판정은 다시 안 온다 (1/3)
 
@@ -371,6 +337,47 @@
   보였다(AssertionError 한 줄만 위에 찍혔다). ⇒ **하네스는 「몇 개 돌았나」를 스스로 세게 하거나
   `while read` 로 짜라.** 최종 결과: 변이 **8/8 적발** · sha256 복원 일치 · 음성 대조 양쪽 통과.
 - **2차 누적** (1차 = LESSON-072 「사전등록 변이가 판별력 0」).
+
+---
+
+### LESSON-088 — 「뿌리 미확정」이 적힌 항목의 **처방 후보를 상속하지 마라**. 뿌리를 모르는 처방은 증상의 모양만 베낀다 (1/3)
+
+- **상황:** [BL-605] — `exchange_exits` 가 같은 청산을 정확히 2행으로 적재 — 는 뿌리를 「적재 경로가
+  분류 pass 별로 행을 새로 쓰는 것으로 보인다(**뿌리 미확정**)」로 적고, 그 위에 처방 후보 둘을
+  올려 두었다 — ⑴ `order_link_id` 단위 upsert ⑵ 소비 계약에 dedup 의무 정본화. 이번 회차는 그
+  둘 중 하나를 고르라는 지시로 시작했다.
+- **반증:** 뿌리는 **코드가 아니라 데이터**였다. 스윕이 계정 **행**을 열거하는데
+  (`tasks/trading.py:1904-1906` → `exchange_account_repository.py:40-47`) DB 에 같은
+  `exchange_uid`(558689281)를 공유하는 계정 행이 **2개** 있었다. `compute_row_hash` 는 거래소 값만
+  해싱해 두 행의 `row_hash` 가 **같은데**, UNIQUE 축은 `(exchange_account_id, row_hash)` 라
+  **충돌하지 않는다**. ⇒ 배수 = 같은 uid 를 공유하는 계정 행 수. 실측 574행 = 287×2 이고
+  287개 해시 **전량**이 두 계정에 걸쳐 있어 셈이 정확히 닫혔다.
+- **두 후보가 왜 빗나갔나:** 둘 다 **「적재 코드가 잘못 쓴다」를 전제**로 삼았다. ⑴ 은 축이 다른
+  두 행을 unique 로 흡수하지 못하고, ⑵ 는 증상을 소비처마다 반복해 막을 뿐 적재를 안 고친다.
+  전제가 틀렸으므로 두 처방 모두 **표적 자체가 없었다**.
+- **해결:** ⑴ 「뿌리 미확정」이 본문에 있으면 처방 후보는 **가설이지 선택지가 아니다** — 고르기
+  전에 뿌리를 확정해라 ⑵ 뿌리 확정의 가장 싼 도구는 **셈이 닫히는지**다(574 = 287×2 이고 287/287
+  이 두 계정에 걸림 ⇒ 배수의 정체가 계정 수임이 즉시 나온다) ⑶ 같은 회차에서 **선례를 먼저 찾아라**
+  — 이 레포는 `exchange_uid` 형제를 펴는 관용구를 이미 3곳에 갖고 있었다.
+
+---
+
+### LESSON-089 — **판별력 수치는 스코프를 안 적으면 틀린다.** 결론이 맞아도 근거는 갈아 끼워야 한다 (1/3)
+
+- **상황:** [BL-639]는 「미조인 `exchange_exits` 로 배타성을 판정하면 상시 거부가 된다」를 적으면서
+  근거로 **「`matched_order_id IS NULL` 이 34행 / 유니크 27 = 전량을 고른다 ⇒ 판별력 0」**을 박아
+  두었다. 이 값은 `docs/backlog.md` 와 `live_session_admin.py` 주석 양쪽에 인용돼 있었다.
+- **반증:** 그 값은 **계정 스코프 없이 센 것**이다. 계정을 하나(`19a8166a`)로 좁히면 287행 중
+  **25행(8.7%)** 만 고른다 — `ours/exact` 262행은 **미조인 0** 이다. 「전량」도 「판별력 0」도
+  지금 데이터에서 성립하지 않는다. 게다가 남은 25행 중 `classification='unknown'` **8건은 전부
+  2026-08-07** 하루, 즉 이중 호스트 오염 창에만 몰려 있어 **판별력이 오히려 있다**.
+- **그런데 결론은 유지된다:** 남은 25건 중 12건이 `external_manual`(사용자 수동 청산)이라 정상
+  상황에서도 발생하고, `unknown` 8건의 적중은 **오염 창 1건에서 유도한 것이라 적합이지 검증이
+  아니다**(표본 1). resting 조건부 축은 그런 유도 없이 지금 이 순간의 점유를 직접 잰다.
+- **해결:** ⑴ 판별력 수치를 문서에 박을 때는 **모집단의 스코프**(계정·기간·상태 술어)를 같은
+  문장에 적어라 — 스코프 없는 「전량」은 재현 불가다 ⑵ **결론이 맞다는 것이 근거가 맞다는 뜻이
+  아니다.** 근거가 틀린 채 남으면 다음 사람이 그 수치로 다른 결정을 한다 ⑶ 인용된 수치는
+  **인용처까지 같이 고쳐라**(여기서는 백로그 본문·인덱스 표·코드 주석 3곳).
 
 ---
 
