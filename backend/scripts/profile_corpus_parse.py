@@ -14,13 +14,15 @@
 1. import 비용 — 서브프로세스에서 `classify_script` import 만. ANTLR DFA 상태 수도 함께 센다.
 2. 코퍼스 cold 1회차 — 한 프로세스에서 9벌을 순서대로 최초 파싱.
 3. 코퍼스 warm 2회차 — 같은 프로세스에서 재파싱. `cold - warm` = 첫-접촉 프리미엄.
-4. cold 램프(`--ramp`) — `i3_drfx` 를 1/8~8/8 로 잘라 순서대로 최초 파싱. 크기와 무관하게
-   평평하면 비용의 축은 「크기」가 아니라 「처음 보는 문법 결정(decision)」이다.
+4. cold 램프(`--ramp`) — `i3_drfx` 를 1/8~8/8 로 자르고 **조각마다 새 프로세스**로 최초 파싱.
+   시간이 「글자 수」와 「DFA 상태 수」 중 어느 축을 따라가는지 log-log 기울기로 가른다.
+   ★한 프로세스에서 이어 돌리면 뒤 조각이 앞 조각의 DFA 를 물려받아 cold 가 아니게 된다.
 5. warm 램프(`--ramp`) — 같은 조각들을 DFA 포화 상태에서 재파싱.
 6. solo(`--solo`) — 서브프로세스 1개당 파일 1개만 파싱. 워밍업의 파일 간 전이량(=샤딩 중복분).
 7. cProfile(`--cprofile`) — cold 파싱의 누적시간 상위 함수.
-8. **인과 대조(기본 포함)** — 같은 프로세스·같은 입력에서 ANTLR DFA 캐시**만** 비운다.
-   cold 비용이 되돌아오면 원인이 DFA 캐시 상태임이 상관이 아니라 인과로 확정된다.
+8. **인과 대조(기본 포함)** — 같은 프로세스·같은 입력에서 ANTLR 캐시**만** 비운다. cold 비용이
+   되돌아오면 원인이 캐시 상태임이 상관이 아니라 인과로 확정된다. 이어서 성분(`parser_dfa` /
+   `shared_ctx` / `lexer_dfa`)을 **하나씩** 비워 어느 것이 비용을 지는지까지 좁힌다.
 
 ★[5] 의 log-log 기울기는 **보조 증거일 뿐이다**. 잘린 조각마다 문법 구성이 달라 값이 울퉁불퉁
 하고(꼬리 구간은 오히려 sublinear), 기울기가 1 을 넘더라도 warm 합계 자체가 단독 실행 비용을
@@ -30,8 +32,8 @@
     cd backend && uv run python scripts/profile_corpus_parse.py            # 기본 1·2·3·8 (~3분)
     cd backend && uv run python scripts/profile_corpus_parse.py --ramp     # + 크기 램프
     cd backend && uv run python scripts/profile_corpus_parse.py --solo     # + 파일별 격리 프로세스
-    cd backend && uv run python scripts/profile_corpus_parse.py --all      # 전부 (~7분)
-    cd backend && uv run python scripts/profile_corpus_parse.py --cprofile # cold i3_drfx 상위 함수
+    cd backend && uv run python scripts/profile_corpus_parse.py --all      # 전부 ([7] 포함, ~12분)
+    cd backend && uv run python scripts/profile_corpus_parse.py --cprofile # [7] 만 (cold 상위 함수)
 
 DB·환경변수 불필요 — `classify_script` 는 순수 함수다.
 ★절대시간은 머신 부하에 민감하다(같은 cold 파싱이 41~68s 로 흔들린 실측이 있다). 결론은
@@ -122,13 +124,22 @@ def _loglog_slope(points: list[tuple[int, float]]) -> float:
     return num / den if den else float("nan")
 
 
-def _reset_antlr_caches() -> None:
+def _reset_antlr_caches(scope: str = "all") -> None:
     """ANTLR 의 프로세스 전역 워밍업 상태를 import 직후로 되돌린다.
 
     `decisionsToDFA` / `sharedContextCache` 는 generated 파서·렉서의 **클래스 속성**이고,
     파서 인스턴스는 생성 시점에 이 클래스 속성을 읽는다 (`PinescriptParser.__init__` →
     `ParserATNSimulator(self, self.atn, self.decisionsToDFA, self.sharedContextCache)`).
     따라서 클래스 속성을 새 객체로 갈아끼우면 다음 파싱부터 워밍업이 처음부터 다시 일어난다.
+
+    `scope` 로 **성분을 하나씩** 비울 수 있다. 셋을 한꺼번에 비우면 「ANTLR 캐시 상태가
+    원인」까지만 말할 수 있고 어느 성분인지는 못 가른다 — 성분 분리가 있어야 결론을
+    `parser_dfa` 로 좁힐 수 있다 (2026-08-08 codex 평가 지적을 받아 추가).
+
+    - `"parser_dfa"`  — `PinescriptParser.decisionsToDFA` 만
+    - `"shared_ctx"`  — `PinescriptParser.sharedContextCache` 만
+    - `"lexer_dfa"`   — `PinescriptLexer.decisionsToDFA` 만
+    - `"all"`         — 셋 전부
     """
     from antlr4.dfa.DFA import DFA
     from antlr4.PredictionContext import PredictionContextCache
@@ -137,13 +148,19 @@ def _reset_antlr_caches() -> None:
         PinescriptParser,
     )
 
-    PinescriptParser.decisionsToDFA = [
-        DFA(state, index) for index, state in enumerate(PinescriptParser.atn.decisionToState)
-    ]
-    PinescriptParser.sharedContextCache = PredictionContextCache()
-    PinescriptLexer.decisionsToDFA = [
-        DFA(state, index) for index, state in enumerate(PinescriptLexer.atn.decisionToState)
-    ]
+    if scope not in {"all", "parser_dfa", "shared_ctx", "lexer_dfa"}:
+        raise ValueError(f"unknown reset scope: {scope}")
+
+    if scope in {"all", "parser_dfa"}:
+        PinescriptParser.decisionsToDFA = [
+            DFA(state, index) for index, state in enumerate(PinescriptParser.atn.decisionToState)
+        ]
+    if scope in {"all", "shared_ctx"}:
+        PinescriptParser.sharedContextCache = PredictionContextCache()
+    if scope in {"all", "lexer_dfa"}:
+        PinescriptLexer.decisionsToDFA = [
+            DFA(state, index) for index, state in enumerate(PinescriptLexer.atn.decisionToState)
+        ]
 
 
 # --------------------------------------------------------------------------- #
@@ -251,6 +268,9 @@ def _ramp_slices(name: str) -> list[tuple[float, str]]:
     return slices
 
 
+# ★조각 하나당 프로세스 하나다. 한 프로세스에서 조각들을 이어서 돌리면 두 번째 행부터
+#   앞 조각이 만들어 둔 DFA 를 물려받아 **cold 측정이 아니게 되고**, 그 값으로 「크기와
+#   무관하다」를 주장하면 워밍업 효과를 크기 효과로 오인한다 (2026-08-08 codex 평가 지적).
 _COLD_RAMP_CHILD = """
 import json, sys, time
 sys.path.insert(0, ".")
@@ -259,29 +279,26 @@ from src.strategy.pine_v2.ast_classifier import classify_script
 from pynescript.ast.grammar.antlr4.generated.PinescriptParser import PinescriptParser
 
 name = sys.argv[1]
-fractions = json.loads(sys.argv[2])
+frac = float(sys.argv[2])
 path = Path("tests/fixtures/pine_corpus_v2") / (name + ".pine")
 lines = path.read_text().splitlines(keepends=True)
-out = []
-for frac in fractions:
-    count = max(1, int(len(lines) * frac))
-    source = "".join(lines[:count])
-    start = time.perf_counter()
-    try:
-        classify_script(source)
-        ok = True
-    except Exception:
-        ok = False
-    elapsed = time.perf_counter() - start
-    dfa = sum(len(d.states) for d in PinescriptParser.decisionsToDFA)
-    out.append({"frac": frac, "chars": len(source), "s": elapsed, "ok": ok, "dfa": dfa})
-print(json.dumps(out))
+count = max(1, int(len(lines) * frac))
+source = "".join(lines[:count])
+start = time.perf_counter()
+try:
+    classify_script(source)
+    ok = True
+except Exception:
+    ok = False
+elapsed = time.perf_counter() - start
+dfa = sum(len(d.states) for d in PinescriptParser.decisionsToDFA)
+print(json.dumps({"frac": frac, "chars": len(source), "s": elapsed, "ok": ok, "dfa": dfa}))
 """
 
 
 def section_cold_ramp(name: str = _HEADLINE) -> dict[str, Any]:
-    print(f"\n[4] cold 램프 — {name} 를 1/8~8/8 로 잘라 「처음」 파싱 (fresh process)")
-    samples = _run_child(_COLD_RAMP_CHILD, name, json.dumps(list(_RAMP_FRACTIONS)))
+    print(f"\n[4] cold 램프 — {name} 를 1/8~8/8 로 자르고 **조각마다 새 프로세스**로 최초 파싱")
+    samples = [_run_child(_COLD_RAMP_CHILD, name, repr(frac)) for frac in _RAMP_FRACTIONS]
     rows = [
         [
             f"{s['frac']:.3f}",
@@ -294,15 +311,20 @@ def section_cold_ramp(name: str = _HEADLINE) -> dict[str, Any]:
     ]
     print(_fmt_table(["frac", "chars", "cold_s", "dfa_total", "parse"], rows))
     ok = [s for s in samples if s["ok"]]
-    if ok:
-        grew = ok[-1]["chars"] / ok[0]["chars"]
-        lo = min(s["s"] for s in ok)
-        hi = max(s["s"] for s in ok)
+    result: dict[str, Any] = {"samples": samples}
+    if len(ok) >= 2:
+        by_chars = _loglog_slope([(s["chars"], s["s"]) for s in ok])
+        by_dfa = _loglog_slope([(s["dfa"], s["s"]) for s in ok])
+        result["slope_by_chars"] = by_chars
+        result["slope_by_dfa"] = by_dfa
+        print(f"    log-log 기울기: 시간~글자수 = {by_chars:.2f} · 시간~DFA상태수 = {by_dfa:.2f}")
         print(
-            f"    ★조각 크기는 {grew:.1f} 배로 커지는데 조각당 cold 비용은 {lo:.2f}~{hi:.2f}s 로 평평하다."
+            f"    크기 {ok[-1]['chars'] / ok[0]['chars']:.1f} 배 → "
+            f"cold 시간 {ok[-1]['s'] / ok[0]['s']:.1f} 배 · "
+            f"DFA 상태 {ok[-1]['dfa'] / ok[0]['dfa']:.1f} 배"
         )
-        print("      → cold 비용의 축은 「글자 수」가 아니라 「처음 보는 문법 결정」이다.")
-    return {"samples": samples}
+        print("      ★어느 축의 기울기가 1 에 가까운가가 「무엇이 비용을 지배하는가」다.")
+    return result
 
 
 def section_warm_ramp(name: str = _HEADLINE) -> dict[str, Any]:
@@ -427,13 +449,14 @@ def section_cprofile(name: str = _HEADLINE, top: int = 15) -> None:
 
 
 def section_dfa_control(name: str = _HEADLINE) -> dict[str, float]:
-    """같은 프로세스·같은 입력에서 DFA 캐시만 비우면 cold 비용이 돌아오는가.
+    """같은 프로세스·같은 입력에서 ANTLR 캐시를 비우면 cold 비용이 돌아오는가.
 
-    돌아온다면 원인은 import 도, 입력 크기도 아니고 **DFA 캐시의 상태**다.
+    돌아온다면 원인은 import 도, 입력 크기도 아니고 **캐시의 상태**다.
+    ★뒤이어 성분을 **하나씩** 비워, 셋 중 어느 것이 비용을 지고 있는지까지 가른다.
     """
     from src.strategy.pine_v2.ast_classifier import classify_script
 
-    print(f"\n[8] 인과 대조 — 같은 프로세스·같은 입력({name}), DFA 캐시만 비운다")
+    print(f"\n[8] 인과 대조 — 같은 프로세스·같은 입력({name}), ANTLR 캐시만 비운다")
     source = _read(name)
     rows: list[list[str]] = []
     measured: dict[str, float] = {}
@@ -447,23 +470,37 @@ def section_dfa_control(name: str = _HEADLINE) -> dict[str, float]:
 
     # 앞 섹션이 이미 DFA 를 데워 놨을 수 있으므로 먼저 비운다 — 라벨을 정직하게 유지한다.
     _reset_antlr_caches()
-    rows.append(["0 reset", "-", str(_dfa_state_count())])
+    rows.append(["0 reset all", "-", str(_dfa_state_count())])
     measure("1 cold")
     measure("2 warm")
     measure("3 warm")
     _reset_antlr_caches()
-    rows.append(["4 reset", "-", str(_dfa_state_count())])
+    rows.append(["4 reset all", "-", str(_dfa_state_count())])
     measure("5 post-reset")
     measure("6 warm again")
+
+    # ── 성분 분리 ──────────────────────────────────────────────
+    # 셋을 한꺼번에 비우면 「ANTLR 캐시가 원인」까지만 말할 수 있다. 하나씩 비워야
+    # 「parser DFA 가 원인」으로 좁혀진다 (2026-08-08 codex 평가 지적을 받아 추가).
+    for scope in ("parser_dfa", "shared_ctx", "lexer_dfa"):
+        _reset_antlr_caches(scope)
+        rows.append([f"reset {scope} only", "-", str(_dfa_state_count())])
+        measure(f"  → after {scope}")
+        measure("  → warm")
 
     print(_fmt_table(["단계", "seconds", "dfa"], rows))
     warm = measured["2 warm"]
     if warm > 0:
+        print("    성분별 배수 (warm 대비):")
+        for scope in ("parser_dfa", "shared_ctx", "lexer_dfa"):
+            ratio = measured[f"  → after {scope}"] / warm
+            verdict = "★비용을 진다" if ratio > 2 else "영향 없음"
+            print(f"      {scope:12s} {ratio:5.1f} 배  {verdict}")
         print(
             f"    ★워밍업 배수: cold/warm = {measured['1 cold'] / warm:.1f} 배, "
             f"리셋 직후/warm = {measured['5 post-reset'] / warm:.1f} 배"
         )
-        print("      입력도 프로세스도 그대로인데 비용이 되돌아온다 → 원인은 DFA 캐시 상태다.")
+        print("      입력도 프로세스도 그대로인데 비용이 되돌아온다 → 원인은 캐시 상태다.")
     return measured
 
 
@@ -474,8 +511,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="[BL-598] 코퍼스 첫-접촉 파싱 비용 프로파일")
     parser.add_argument("--ramp", action="store_true", help="[4][5] 크기 램프 (cold+warm)")
     parser.add_argument("--solo", action="store_true", help="[6] 파일별 격리 프로세스")
-    parser.add_argument("--cprofile", action="store_true", help="[7] cold 파싱 상위 함수만 낸다")
-    parser.add_argument("--all", action="store_true", help="[1]~[8] 전부 (~7분)")
+    parser.add_argument(
+        "--cprofile", action="store_true", help="[7] cold 파싱 상위 함수 (단독 지정 시 [7]만)"
+    )
+    parser.add_argument("--all", action="store_true", help="[1]~[8] 전부 ([7] 포함, ~12분)")
     args = parser.parse_args()
 
     print("=" * 78)
@@ -484,7 +523,8 @@ def main() -> int:
     print(f"python: {sys.version.split()[0]}")
     print("=" * 78)
 
-    if args.cprofile:
+    # `--cprofile` 단독 = [7] 만. `--all` 과 함께면 전 구간을 돌고 [7] 도 포함한다.
+    if args.cprofile and not args.all:
         section_cprofile()
         return 0
 
@@ -495,6 +535,10 @@ def main() -> int:
         section_warm_ramp()
     if args.solo or args.all:
         section_solo(corpus["cold"])
+    if args.all:
+        # ★[7] 은 프로세스를 데우므로 [8] 의 라벨을 오염시키지 않도록 [8] 앞에 둔다
+        #   ([8] 은 첫 단계에서 캐시를 통째로 비우므로 안전하다).
+        section_cprofile()
     section_dfa_control()
 
     print("\n" + "=" * 78)
