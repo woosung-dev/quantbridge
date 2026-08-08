@@ -88,6 +88,35 @@ export interface ThemeProbe {
   bodyBg: string;
 }
 
+/**
+ * 감사 폭 하나에 대한 **도달 증거**. 「측정 못 했다」가 「통과」로 보이는 것을 막는다.
+ *
+ * ★★이 인터페이스가 존재하는 이유 (2026-08-08 codex 평가 지적).
+ *   종전 `auditUrl` 은 `page.goto()` 의 **반환값을 버렸다.** 그래서 404·500·빈 fallback 을
+ *   재도 `hardFail=0 · canon=0` 이 나오고 게이트가 초록이 됐다 — 화면이 좋아서가 아니라
+ *   **잴 것이 없어서** 0 이었다. 이 레포가 반복해서 덴 계열이라 두 축을 결과에 싣는다:
+ *     - `status`   — 그 URL 이 정말 그 응답을 냈는가 (라우트가 사라지면 red)
+ *     - `examined` — 감사가 실제로 **몇 개**를 봤는가 (빈 DOM 이면 red)
+ *   판정은 spec 이 한다. 코어가 던지지 않는 이유는 정상 대상 중에 2xx 가 **아닌** 것이
+ *   이미 있기 때문이다 — `/qb-canon-404-probe`(404 프로브) · `/maintenance`(503 점검 화면).
+ *   「2xx 여야 한다」를 코어에 박으면 그 둘이 거짓 red 가 된다. 기대값은 대상마다 다르므로
+ *   대상을 아는 spec 이 들고 있어야 한다.
+ */
+export interface NavProbe {
+  /** 뷰포트 폭. */
+  w: number;
+  /**
+   * `page.goto()` 응답의 HTTP status. 응답 객체가 없으면 `null`
+   * (Playwright 는 `about:blank` · 같은 URL 의 해시만 바뀐 이동에서 `null` 을 준다).
+   * ★**`file://` 는 `null` 이 아니라 `200` 이다** — 2026-08-08 실측(캘리브레이션 프로토타입
+   *   17벌 전부 `status=[200]`). 「스킴이 http 가 아니면 null 이겠지」라고 적었다가 실측으로
+   *   뒤집혔다. 프로토타입 감사도 이 축을 쓸 수 있다는 뜻이다.
+   */
+  status: number | null;
+  /** AUDIT 이 실제로 대비를 계산한 텍스트 요소 수 (dedupe 전 원시 관측량). */
+  examined: number;
+}
+
 /** 한 대상(URL)의 감사 결과 전체. */
 export interface CanonAuditResult {
   /** 사람이 읽을 대상 이름. 프로토타입은 파일명, React 는 라우트 경로. */
@@ -102,6 +131,12 @@ export interface CanonAuditResult {
   console: string[];
   /** 테마를 강제한 경우에만 채워진다. `null` = 앱 기본값으로 돌았다(종전 동작). */
   themeProbe: ThemeProbe | null;
+  /**
+   * 감사 폭마다의 도달 증거(HTTP status · 관측량). `widths` 와 1:1 이다.
+   * ★reduced-motion 패스는 **같은 URL** 을 다시 열 뿐이라 여기 안 넣는다 — status 계열이
+   *   같고, 그 패스가 내는 소견(`motion`)은 이미 하드 실패로 센다.
+   */
+  probes: NavProbe[];
 }
 
 /**
@@ -167,6 +202,9 @@ export const AUDIT = () => {
     contrast: [] as ContrastFinding[],
     canon: [] as ContrastFinding[],
     tiny: [] as TinyFinding[],
+    // ★소견 수가 아니라 **관측량**이다. 소견 배열은 "나쁜 것" 만 담으므로 빈 DOM 과
+    //   완벽한 화면이 똑같이 0 으로 보인다. 이 값이 그 둘을 가른다.
+    examined: 0,
   };
 
   const seen = new Set<string>();
@@ -186,6 +224,7 @@ export const AUDIT = () => {
     if (!fg0) return;
     const bg = bgOf(el);
     const fg = fg0.a < 1 ? over(fg0, bg) : fg0;
+    out.examined++; // 여기까지 온 것 = 대비를 실제로 계산한 텍스트 요소
     const size = parseFloat(cs.fontSize);
     const weight = parseInt(cs.fontWeight, 10) || 400;
     const large = size >= 24 || (size >= 18.66 && weight >= 700);
@@ -380,6 +419,7 @@ export async function auditUrl(
     motion: [],
     console: [],
     themeProbe: null,
+    probes: [],
   };
 
   for (const w of widths) {
@@ -419,13 +459,16 @@ export async function auditUrl(
       res.console.push(`${w}px ${text.slice(0, 120)}`);
     });
 
-    await page.goto(url, { waitUntil: "load" });
+    // ★응답을 **버리지 않는다.** 버리면 404/500/빈 fallback 이 "소견 0" = 초록으로 보인다.
+    const response = await page.goto(url, { waitUntil: "load" });
+    const status = response ? response.status() : null;
     await page.waitForTimeout(settleMs);
     // ★prepare 보다 **먼저** 확인한다 — 실패를 테마 배선에 정확히 귀속시키기 위함이다.
     if (theme) res.themeProbe = await probeTheme(page, theme, `${label} @${w}px`);
     if (prepare) await prepare(page);
 
     const a = await page.evaluate(AUDIT);
+    res.probes.push({ w, status, examined: a.examined });
     if (a.overflow.scrollWidth > a.overflow.innerWidth + 1) {
       res.overflow.push({ w, scrollWidth: a.overflow.scrollWidth, innerWidth: a.overflow.innerWidth });
     }
@@ -484,11 +527,47 @@ export function hardFailCount(res: CanonAuditResult): number {
   );
 }
 
+/**
+ * 감사 중 관측된 HTTP status 의 **중복 없는** 목록.
+ * spec 이 「그 라우트가 정말 그 응답을 냈는가」를 단언하는 데 쓴다.
+ * ★`file://` 도 200 을 낸다(`NavProbe.status` 주석 참조) — `null` 은 사실상 안 나온다.
+ */
+export function auditStatuses(res: CanonAuditResult): Array<number | null> {
+  return [...new Set(res.probes.map((p) => p.status))];
+}
+
+/**
+ * 어느 폭에서든 감사가 실제로 본 텍스트 요소 수의 **최소값**.
+ * 감사를 한 번도 못 했으면 0 이다 — 「측정 못 했다」와 「깨끗하다」를 가르는 값.
+ */
+export function minExamined(res: CanonAuditResult): number {
+  if (res.probes.length === 0) return 0;
+  return Math.min(...res.probes.map((p) => p.examined));
+}
+
+/**
+ * canon 소견 중 **최악(최저) 대비값**. canon 이 비면 `null`.
+ *
+ * ★★개수 래칫만으로는 **최악값의 악화**를 못 본다 (2026-08-08 codex 평가 지적).
+ *   dedupe 키가 `color|round(size)|txt[0:20]` 이라, 어떤 항목이 사라지고 다른 항목이
+ *   생기면 **개수는 그대로인데** 최악 대비는 내려갈 수 있다. 개수와 최악값은 서로
+ *   독립한 두 축이므로 둘 다 래칫해야 한다.
+ */
+export function worstCanonRatio(res: CanonAuditResult): number | null {
+  if (res.canon.length === 0) return null;
+  return Math.min(...res.canon.map((c) => c.ratio));
+}
+
 /** 원본 `runtime-check.mjs:193-202` 과 같은 한 줄 요약 + 상세. 출력을 그대로 기록하기 위함. */
 export function formatCanonResult(res: CanonAuditResult): string {
   const bad = hardFailCount(res);
+  const worst = worstCanonRatio(res);
   const lines = [
     `${bad === 0 ? "PASS" : "FAIL"}  ${res.label}  overflow=${res.overflow.length} contrast=${res.contrast.length} focus=${res.focus.length} motion=${res.motion.length} canon=${res.canon.length} console=${res.console.length} tiny=${res.tiny.length}`,
+    // 도달 증거 — "무엇을 봤는가" 가 리포트에 남아야 "0 건" 이 의미를 갖는다.
+    `   reached: status=${JSON.stringify(auditStatuses(res))} examined=${JSON.stringify(
+      res.probes.map((p) => `${p.w}px:${p.examined}`),
+    )} minExamined=${minExamined(res)} worstCanon=${worst === null ? "-" : worst.toFixed(2)}`,
   ];
   if (res.themeProbe) {
     // 도달 증거를 로그에 남긴다 — "라이트를 쟀다" 는 주장을 나중에 사람이 대조할 수 있어야 한다.

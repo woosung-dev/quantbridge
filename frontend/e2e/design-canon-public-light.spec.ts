@@ -22,7 +22,14 @@
 
 import { expect, test } from "@playwright/test";
 
-import { auditUrl, formatCanonResult, hardFailCount } from "./design-canon-audit";
+import {
+  auditStatuses,
+  auditUrl,
+  formatCanonResult,
+  hardFailCount,
+  minExamined,
+  worstCanonRatio,
+} from "./design-canon-audit";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 
@@ -59,12 +66,67 @@ const LIGHT_BODY_BG = "rgb(244, 245, 246)";
  *     `--text-muted × [--card, --bg]`(6.35/5.92) 만 세므로 **계산으로는 안 보인다.**
  *     실화면 합성이 무엇을 더 잡는지의 실례이고, 토큰을 옮길 일이라 별건([BL-628] 계열)이다.
  */
-const LIGHT_BASELINE: Readonly<Record<string, { hardFail: number; canon: number }>> = {
-  "/": { hardFail: 0, canon: 2 },
-  "/waitlist": { hardFail: 0, canon: 6 },
-  "/pricing": { hardFail: 0, canon: 14 },
-  "/maintenance": { hardFail: 0, canon: 4 },
-  "/qb-canon-404-probe": { hardFail: 0, canon: 2 },
+interface LightLimits {
+  /** 하드 실패 상한. */
+  hardFail: number;
+  /** canon 소견 **개수** 상한(래칫). */
+  canon: number;
+  /**
+   * canon 소견 중 **최악(최저) 대비**의 하한(래칫).
+   *
+   * ★**개수와는 다른 축이다.** dedupe 키가 `color|round(size)|txt[0:20]` 이라 하나가 사라지고
+   *   다른 하나가 생기면 개수는 그대로인데 최악값만 나빠질 수 있다. 그 악화를 개수 래칫은
+   *   원리상 못 본다(2026-08-08 codex 평가 지적).
+   * ★**여유를 두지 않았다** — 현 실측값 그대로다. 여유를 두면 그만큼이 조용히 나빠질 수 있고
+   *   그러면 래칫의 뜻이 사라진다. 값이 dedupe 로 안정적이고 뷰포트·모션이 고정돼 있어
+   *   재현된다(`reducedMotion: "reduce"` + 고정 4폭).
+   * canon 이 비는 라우트는 `null`.
+   */
+  minContrast: number | null;
+  /**
+   * 이 라우트가 내야 하는 HTTP status.
+   * ★2xx 를 코어에 박지 않은 이유가 여기 있다 — `/qb-canon-404-probe` 는 **404 가 정상**이고
+   *   `/maintenance` 는 점검 화면이다. 기대값은 대상마다 다르므로 대상을 아는 이 표가 든다.
+   */
+  status: number;
+  /**
+   * 감사가 **최소한 이만큼은 봐야 한다**(모든 폭에서). 빈 DOM·라우트 소멸이 "소견 0" 으로
+   * 초록이 되는 fail-open 을 막는 하한이다.
+   * ★상한이 아니라 하한이므로 실측치에 **여유를 아래로** 둔다 — 콘텐츠가 늘면 통과해야 하고,
+   *   줄어드는 방향만 잡으면 된다. 실측치 자체를 박으면 문구 한 줄 추가에도 red 가 된다.
+   */
+  minElements: number;
+}
+
+/**
+ * 2026-08-08 실측(dev 3100, 라이트 4폭). `minContrast` 는 **그대로**, `minElements` 는
+ * 실측치의 약 2/3 로 내려 잡았다(문구 한 줄 추가로 red 가 되면 안 되므로).
+ *
+ * | 라우트                | status | minExamined 실측 | worstCanon 실측 |
+ * | --------------------- | ------ | ---------------- | --------------- |
+ * | `/`                   | 200    | 149              | 5.60            |
+ * | `/waitlist`           | 200    | 106              | 5.60            |
+ * | `/pricing`            | 200    | 165              | 5.60            |
+ * | `/maintenance`        | 200    | 30               | 5.60            |
+ * | `/qb-canon-404-probe` | 404    | 29               | 5.60            |
+ *
+ * ★`/maintenance` 는 **200 이다** — "503 점검 화면" 은 화면의 뜻이지 응답 코드가 아니다.
+ *   추정으로 503 을 박았으면 이 파일이 거짓 red 로 시작했다. 그래서 재고 적었다.
+ * ★두 하한이 서로를 보강한다 — 라우트가 통째로 not-found 로 바뀌면 `status` 가 먼저 잡고,
+ *   설령 200 을 유지해도 `/pricing` 하한 110 vs 404 화면 29 라 `minElements` 가 또 잡는다.
+ */
+const LIGHT_BASELINE: Readonly<Record<string, LightLimits>> = {
+  "/": { hardFail: 0, canon: 2, minContrast: 5.6, status: 200, minElements: 100 },
+  "/waitlist": { hardFail: 0, canon: 6, minContrast: 5.6, status: 200, minElements: 70 },
+  "/pricing": { hardFail: 0, canon: 14, minContrast: 5.6, status: 200, minElements: 110 },
+  "/maintenance": { hardFail: 0, canon: 4, minContrast: 5.6, status: 200, minElements: 20 },
+  "/qb-canon-404-probe": {
+    hardFail: 0,
+    canon: 2,
+    minContrast: 5.6,
+    status: 404,
+    minElements: 20,
+  },
 };
 
 test.describe("공개 라우트 라이트 테마 캐논 ([BL-648])", () => {
@@ -105,6 +167,19 @@ test.describe("공개 라우트 라이트 테마 캐논 ([BL-648])", () => {
       });
       process.stdout.write(formatCanonResult(res) + "\n");
 
+      // ── 도달 확인 (fail-open 차단) ────────────────────────────────────────
+      // ★★**이 두 단언이 나머지 셋에 의미를 준다.** 없으면 404·500·빈 fallback 을 재도
+      //   `hardFail=0 · canon=0` 이라 전부 초록이다 — 화면이 좋아서가 아니라 잴 것이 없어서.
+      expect(
+        auditStatuses(res),
+        `${path} 가 기대한 HTTP ${limits.status} 를 안 냈다 — 라우트가 사라졌거나 서버가 다른 것을 준다:\n${formatCanonResult(res)}`,
+      ).toEqual([limits.status]);
+      expect(
+        minExamined(res),
+        `${path} 에서 감사가 본 텍스트 요소가 하한 미만이다 — 빈 DOM 을 재고 "소견 0" 으로 통과할 뻔했다:\n${formatCanonResult(res)}`,
+      ).toBeGreaterThanOrEqual(limits.minElements);
+
+      // ── 본 판정 ─────────────────────────────────────────────────────────
       expect(
         hardFailCount(res),
         `${path} 라이트 하드 실패:\n${formatCanonResult(res)}`,
@@ -113,6 +188,19 @@ test.describe("공개 라우트 라이트 테마 캐논 ([BL-648])", () => {
         res.canon.length,
         `${path} 라이트 canon 래칫 초과 — 라이트 대비가 캐논(5.82) 아래로 내려갔다:\n${formatCanonResult(res)}`,
       ).toBeLessThanOrEqual(limits.canon);
+
+      // 개수 래칫이 못 보는 축 — 최악 대비값의 악화.
+      const worst = worstCanonRatio(res);
+      if (limits.minContrast !== null) {
+        expect(
+          worst,
+          `${path} canon 최악 대비 래칫 — 개수는 상한 안이어도 **가장 나쁜 값**이 내려갔다:\n${formatCanonResult(res)}`,
+        ).not.toBeNull();
+        expect(
+          worst ?? 0,
+          `${path} canon 최악 대비 ${worst} 가 래칫 ${limits.minContrast} 아래다:\n${formatCanonResult(res)}`,
+        ).toBeGreaterThanOrEqual(limits.minContrast);
+      }
     });
   }
 });
