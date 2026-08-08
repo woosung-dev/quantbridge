@@ -343,6 +343,18 @@ class StrategyState:
     leverage: float = 1.0
     # BL-186a — 실행 중 발생한 격리 강제청산 횟수.
     liquidation_count: int = 0
+    # BL-460 — 증거금 게이트 **전용** net 자본과 그 비용률.
+    #
+    # `running_equity` 는 gross 다(`close()` 가 pnl 만 누적 — "fees=0 Sprint 37 가정").
+    # 그 값은 `compute_qty`(percent_of_equity) 입력이자 Pine `strategy.equity` 라서
+    # net 으로 바꾸면 leverage=1 byte-identity 가 즉시 깨진다. 그래서 게이트가 볼
+    # 자본만 따로 누적한다 — 두 값은 **의도적으로 다르다**.
+    #
+    # `taker_cost_rate` = leg 당 (수수료 + 슬리피지) 비율. 엔진의 모든 체결은 taker
+    # 이므로(`v2_adapter._leg_cost` docstring 의 grounding) 단일 비율로 재현된다.
+    # 기본값 0.0 = 두 자본이 항상 같음 → 기존 전 호출부와 판정 구분 불가(회귀 0).
+    taker_cost_rate: float = 0.0
+    gate_equity: float | None = None
     # Sprint 38 BL-188 v3 — entry placement + pending fill 양쪽에 적용되는 trading session gate.
     # event_loop / virtual_strategy 가 cfg.trading_sessions 로 주입. 비어있으면 24h (회귀 0).
     # 단일 reference: src.strategy.trading_sessions.is_allowed (Live `is_allowed` 와 동일 함수).
@@ -381,6 +393,10 @@ class StrategyState:
         self.liquidation_count = 0
         if self.running_equity is not None:
             self.running_equity = self.initial_capital
+        # BL-460 — 게이트 전용 net 도 같은 이유로 되돌린다. 안 되돌리면 폐기된 재생이
+        # 물린 비용이 남아 게이트만 조용히 빡빡해진다.
+        if self.gate_equity is not None:
+            self.gate_equity = self.initial_capital
 
     def seed_positions_from_ledger(
         self, legs: Sequence[LedgerSeedLeg], *, bar: int
@@ -449,17 +465,22 @@ class StrategyState:
         default_qty_type: str | None = None,
         default_qty_value: float | None = None,
         leverage: float = 1.0,
+        taker_cost_rate: float = 0.0,
     ) -> None:
         """백테스트 시작 시 1회 호출. running_equity 초기화 + Pine default_qty_* 등록.
 
         BL-185: running_equity 갱신 = closed_trades PnL 누적 (fees=0 Sprint 37 가정).
         BL-186a: leverage 는 주문 수량이 아닌 증거금 게이트와 청산가에만 사용한다.
+        BL-460: taker_cost_rate 지정 시 게이트 전용 net 자본(`gate_equity`)이 leg 마다
+        비용을 차감한다. 미지정(0.0)이면 gross 와 항상 같아 기존 판정과 구분 불가하다.
         """
         self.initial_capital = float(initial_capital)
         self.running_equity = float(initial_capital)
         self.default_qty_type = default_qty_type
         self.default_qty_value = float(default_qty_value) if default_qty_value is not None else None
         self.leverage = float(leverage)
+        self.taker_cost_rate = float(taker_cost_rate)
+        self.gate_equity = float(initial_capital)
 
     def compute_qty(self, *, fill_price: float) -> float:
         """default_qty_type/value 기반 entry qty 계산.
@@ -529,6 +550,14 @@ class StrategyState:
             return
         self.entry_skips.append(skip)
 
+    def _leg_cost(self, *, qty: float, price: float) -> float:
+        """단일 체결(leg)의 taker 비용. BL-460 게이트 전용 net 자본에만 쓴다.
+
+        `v2_adapter._leg_cost` 와 같은 공식(notional × 비율)이며, 그쪽이 리포트용
+        Decimal 정밀 비용의 SSOT 다. 여기서는 게이트 판정용 float 추정치면 충분하다.
+        """
+        return abs(qty) * price * self.taker_cost_rate
+
     def _can_afford_entry(
         self,
         *,
@@ -541,8 +570,12 @@ class StrategyState:
 
         flip은 반대방향 전부와 동일 id를 청산하므로 그 증거금은 해제되고 PnL이
         실현된다. 두 효과를 모두 반영한 사후 상태로 판정해 주문 전체 거부와 맞춘다.
+
+        ★BL-460 — 기준 자본은 `running_equity`(gross)가 아니라 `gate_equity`(net)다.
+        청산될 포지션의 **exit leg 비용까지** 미리 빼야 실제로 close 가 일어난 뒤의
+        `_open_trade` 게이트와 같은 값에 도달한다(둘이 어긋나면 preflight 가 거짓말한다).
         """
-        if not is_leverage_active(self.leverage) or self.running_equity is None:
+        if not is_leverage_active(self.leverage) or self.gate_equity is None:
             return True
 
         opposite: Direction = "short" if direction == "long" else "long"
@@ -551,10 +584,11 @@ class StrategyState:
             for tid, trade in self.open_trades.items()
             if trade.direction == opposite or tid == trade_id
         }
-        post_close_equity = self.running_equity + sum(
+        post_close_equity = self.gate_equity + sum(
             (fill_price - trade.entry_price)
             * trade.qty
             * (1.0 if trade.direction == "long" else -1.0)
+            - self._leg_cost(qty=trade.qty, price=fill_price)
             for tid, trade in self.open_trades.items()
             if tid in closing_ids
         )
@@ -594,13 +628,14 @@ class StrategyState:
         margin_used: float | None = None
         liq_price: float | None = None
         if is_leverage_active(self.leverage):
-            if self.running_equity is not None:
+            if self.gate_equity is not None:
                 required = required_margin(
                     qty=qty,
                     price=fill_price,
                     leverage=self.leverage,
                 )
-                available = self.running_equity - sum(
+                # BL-460 — gross(`running_equity`)가 아니라 net(`gate_equity`) 기준.
+                available = self.gate_equity - sum(
                     trade.margin_used or 0.0 for trade in self.open_trades.values()
                 )
                 margin_used = required
@@ -631,6 +666,10 @@ class StrategyState:
             margin_used=margin_used,
         )
         self.open_trades[trade_id] = trade
+        # BL-460 — 진입 leg 비용은 체결 즉시 net 에서 뺀다. 청산 때 몰아서 빼면 포지션을
+        # 들고 있는 동안 게이트가 낙관적으로 보인다.
+        if self.gate_equity is not None:
+            self.gate_equity -= self._leg_cost(qty=qty, price=fill_price)
         self._record_event(
             bar=bar,
             action=event_action,
@@ -866,6 +905,10 @@ class StrategyState:
         # Sprint 37 BL-185: running_equity 갱신 (configure_sizing 호출된 경우만, fees=0 가정)
         if self.running_equity is not None:
             self.running_equity += trade.pnl
+        # BL-460 — 게이트 전용 net 은 같은 pnl 에서 exit leg 비용을 뺀 값으로 간다.
+        # 이 한 줄이 gross/net 괴리를 만드는 자리다(gross 는 위에서 그대로 둔다).
+        if self.gate_equity is not None:
+            self.gate_equity += trade.pnl - self._leg_cost(qty=trade.qty, price=fill_price)
         self.closed_trades.append(trade)
         # Sprint 26 P1 #2 — close event log (same-bar entry+close 모두 포착)
         self._record_event(

@@ -960,6 +960,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** 실자금 레버리지 백테스트 신뢰 필요 시 / BL-186b 진행 시
 **Est:** M (설계 선행 필요)
+**상태:** ✅ **Resolved** (2026-08-09 btfix) — 권장 접근 **(a)** 채택. 게이트 전용 net 누적치 `StrategyState.gate_equity` 를 신설하고 `_can_afford_entry`·`_open_trade` 가 그것만 본다. `running_equity` 는 **gross 그대로** 두었으므로 `compute_qty`·Pine `strategy.equity` 불변 → L=1 byte-identity 유지(golden·trust-layer baseline **무변경** 실측). 비용률은 `BacktestConfig.fees + slippage` 를 `taker_cost_rate` 로 배선(기본 0.0 = 회귀 0, leverage≤1 이면 게이트 자체가 no-op). 오라클 = `tests/strategy/pine_v2/test_margin_gate_net_equity.py`(수리 전 red 6/6 → green) + 배선 `tests/backtest/engine/test_margin_gate_cost_wiring.py`. ★**FE 고지가 거짓이 됐다** — `BacktestLeverageFieldSet.tsx:83` 의 "차감하기 전 자본으로 판정" 을 함께 정정했다. **잔여** = 사이징 기준(`percent_of_equity`)은 여전히 gross — BL 본문이 명시적으로 배제한 축이다.
 **출처:** 2026-07-26 backtest-trust 스프린트 실측 (BL-186a 구현 중 발견)
 
 **원인 / 영향:** `StrategyState.close()`(strategy_state.py:551)가 **gross pnl 만 누적**한다(docstring 의 "fees=0 Sprint 37 가정"). BL-186a 의 마진 게이트가 이 `running_equity` 에서 가용 증거금을 파생하므로, 거래가 쌓일수록 실제 순자산보다 낙관적으로 평가한다. 실측(`s1_pbr`, 초기 10,000): 종료 gross **+38,678.96** vs net(`total_return`) **−53,670** — 차이 약 **92,000**(465거래 × $42k notional × 0.15% × 2레그 ≈ $58,590 비용 미반영 + 복리). 즉 순자산이 깊은 마이너스일 때도 "증거금 충분" 으로 판정한다. **단 초기 판정은 정확**하다(초기 자본은 gross = net) — 실제로 corpus 의 내재 4.2x 를 3x 에서 정확히 거부했다.

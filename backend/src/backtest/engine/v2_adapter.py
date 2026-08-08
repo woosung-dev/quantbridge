@@ -102,6 +102,11 @@ def run_backtest_v2(
             form_default_qty_type=cfg.default_qty_type,
             form_default_qty_value=cfg.default_qty_value,
             leverage=cfg.leverage,
+            # BL-460 — 증거금 게이트가 gross 가 아닌 net 자본으로 판정하도록 leg 비용률을
+            # 넘긴다. 엔진의 모든 체결은 taker 이므로 fees + slippage 가 leg 당 비용률이다
+            # (`_leg_cost` 의 grounding 과 같은 전제). leverage<=1 이면 게이트 자체가
+            # no-op 이라 이 값은 아무 데도 안 쓰인다 → L=1 경로 byte-identical.
+            taker_cost_rate=cfg.fees + cfg.slippage,
             sessions_allowed=cfg.trading_sessions,
             # Sprint 51 BL-220 — pine_v2 input override (Param Stability grid sweep).
             # cfg.input_overrides=None 일 때 = 회귀 0 (기존 backtest path 변경 X).

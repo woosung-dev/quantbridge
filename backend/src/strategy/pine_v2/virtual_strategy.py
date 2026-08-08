@@ -171,6 +171,7 @@ def run_virtual_strategy(
     default_qty_type: str | None = None,
     default_qty_value: float | None = None,
     leverage: float = 1.0,
+    taker_cost_rate: float = 0.0,
     sessions_allowed: tuple[str, ...] = (),
     input_overrides: Mapping[str, Any] | None = None,
     pyramiding: int | None = None,
@@ -184,6 +185,7 @@ def run_virtual_strategy(
     BL-185 spot-equivalent: initial_capital 지정 시 configure_sizing 호출.
     process_bar 가 state.compute_qty(fill_price) 로 entry qty 계산.
     leverage 는 주문 수량이 아닌 격리 증거금 게이트와 청산가에만 적용한다.
+    BL-460: taker_cost_rate 는 그 게이트가 보는 net 자본에만 반영한다(gross 불변).
 
     BL-188 v3: sessions_allowed → state.sessions_allowed 주입. 비어있으면 24h.
     비어있지 않으면 ohlcv.index 가 tz-aware DatetimeIndex 여야 함 (v2_adapter 보증).
@@ -206,6 +208,7 @@ def run_virtual_strategy(
             default_qty_type=default_qty_type,
             default_qty_value=default_qty_value,
             leverage=leverage,
+            taker_cost_rate=taker_cost_rate,
         )
     interp.strategy.sessions_allowed = tuple(sessions_allowed)
     interp.strategy.pyramiding = pyramiding  # BL-104 — cap. None 시 무효(회귀 0).
