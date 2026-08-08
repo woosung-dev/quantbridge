@@ -368,9 +368,15 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
 - ★★**`final-gates.sh` 는 exit code 만 기록한다 — 테스트 개수를 찍지 않는다.** 스크립트 자신이 마지막 줄에
   그렇게 경고한다. **baseline 대조는 사람이 따로 해야 한다**(이번에 문서의 `FE 1231` 이 stale 이었고
   main 을 직접 재보니 **1232** 였다). **baseline 은 언제나 대조 대상이다.**
-- ★★**`pnpm e2e`(chromium 4건)는 게이트 체인 밖이 맞다.** 게이트가 도는 것은
+- ~~★★**`pnpm e2e`(chromium 4건)는 게이트 체인 밖이 맞다.** 게이트가 도는 것은
   `chromium-design-canon` · `chromium-authed` 라는 **다른 프로젝트**다. 게이트 로그에 `e2e ... PASS` 가
-  보인다고 BL-556 의 수동 1회가 면제되지 않는다.
+  보인다고 BL-556 의 수동 1회가 면제되지 않는다.~~
+  → ★**2026-08-08 [BL-556] 로 체인 안에 들어왔다.** 라벨 **`e2e chromium`**, 순서는
+  `chromium → design-canon → authed`. ★**이것만 영역 판정(`has_fe`)에 걸린다** — 다른 둘은
+  무조건 돈다(`authed` 는 backend 변경도 문다). 세 분기(`--skip-e2e` / 프로브 OK / 프로브 실패)
+  전부에서 같은 3행이 같은 순서로 나온다. **그리고 4건이 아니라 3건이다** —
+  `playwright test --project=chromium --list` = `Total: 3 tests in 1 file`. 「4건」은
+  BL-556 본문의 「4 passed」에서 나와 문서 5곳에 복제된 오기였다.
 - ★**`pnpm test --run` 은 Unknown option.** 이 레포는 `pnpm test`(= `vitest run`).
 - ★**`EXIT=$?` 를 파이프 뒤에 쓰면 마지막 명령(`tail`)의 종료코드를 읽는다.** `bl-audit.sh` 를 exit 0 으로
   오판할 뻔했다. 종료코드가 판정인 스크립트는 **파이프 없이** 돌리고 그 다음 줄에서 `$?` 를 읽어라.
