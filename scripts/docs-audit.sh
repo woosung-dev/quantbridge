@@ -315,6 +315,11 @@ else:
             # 매치 앞의 `~~` 가 홀수면 취소선 안 — 이미 끝난 지시다.
             if line.count("~~", 0, hit.start()) % 2 == 1:
                 continue
+            # ★인라인 코드(백틱) 안이면 **인용**이지 지시가 아니다. 코드펜스와 같은 논리다.
+            #   이 줄은 게이트가 자기 작성자를 문 자리에서 나왔다 — 이 규칙을 **설명하는** 문장이
+            #   규칙 자신을 `다음 행동 =` 로 인용하는데, 그것까지 세면 규칙을 문서화할 수 없다.
+            if line.count("`", 0, hit.start()) % 2 == 1:
+                continue
             live.append((lineno, line.strip()[:80]))
     if len(live) > 1:
         entry_hits.append(
