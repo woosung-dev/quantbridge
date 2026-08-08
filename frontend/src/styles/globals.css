@@ -62,16 +62,11 @@
   --border-dark: #cbd1d7;
 
   /* 차트 — equity = 시그널 코퍼 (브랜드 히어로 시리즈).
-     lib/chart-tokens.ts 가 해석, lib/brand-palette.ts 와 값 동기 의무. */
-  --chart-bullish: #074b34;
-  --chart-bearish: #ad322a;
-  --chart-area-top: rgba(136, 62, 7, 0.14);
-  --chart-area-bottom: rgba(136, 62, 7, 0);
-  --chart-line: #883e07;
-  --chart-grid: rgba(23, 26, 30, 0.07); /* --text-primary 기반 — 기준색 불변이라 그대로 */
-  /* ★데드 토큰. chart-tokens.ts:65 는 축 색으로 --text-muted 를 읽고 --chart-axis 는
-     어디서도 읽히지 않는다. 지우지 않고 --text-muted 와 값만 맞춰 둔다. */
-  --chart-axis: #585f68;
+     lib/chart-tokens.ts 가 해석, lib/brand-palette.ts 와 값 동기 의무.
+     ★[BL-629] 2026-08-08 — 데드 7종(bullish · bearish · line · area-top · area-bottom ·
+     grid · axis)을 삭제했다. 참조 0건이었고 chart-tokens.ts 는 축을 `--text-muted`,
+     그리드를 `--border`, 상승/하락을 `--bullish`/`--bearish` 로 읽는다. 정의 집합은
+     __tests__/chart-tokens-contract.test.ts 가 동결한다 — 늘리려면 그 목록부터 고쳐라. */
   --chart-equity: #883e07;
   --chart-benchmark: #1452db;
   --chart-compare: #7c3aed; /* 기준색 아님 — card 5.60 (AA 통과, 캐논 미달) */
@@ -457,13 +452,6 @@ h6 {
   --accent-amber-light: rgba(229, 169, 61, 0.12);
 
   /* 차트 (다크) — :root 값 상속 폐지, 테마 인지 승격. equity = 코퍼 */
-  --chart-bullish: #2dd4a7;
-  --chart-bearish: #f6685e;
-  --chart-area-top: rgba(240, 140, 46, 0.16);
-  --chart-area-bottom: rgba(240, 140, 46, 0);
-  --chart-line: #f08c2e;
-  --chart-grid: rgba(232, 234, 237, 0.07);
-  --chart-axis: #7a828c;
   --chart-equity: #f08c2e;
   --chart-benchmark: #6aa2f7;
   --chart-compare: #a78bfa;
@@ -1894,7 +1882,7 @@ h6 {
 }
 
 /* c-port-remaining(2026-07-21): 아래 화면 전용 블록들은 KITPORT 밖 언레이어드에만 추가한다.
-   (주석 개정 r10 — Turbopack 캐시 무효화 이력: globals.css 를 바꾼 모든 커밋 직후 이 줄을 갱신한다) */
+   (주석 개정 r11 — Turbopack 캐시 무효화 이력: globals.css 를 바꾼 모든 커밋 직후 이 줄을 갱신한다) */
 
 /* ==========================================================================
  * C 디자인 언어 화면 전용 CSS — /backtests 목록 (이식 S5).

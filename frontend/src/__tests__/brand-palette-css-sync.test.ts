@@ -50,7 +50,8 @@ const KEY_TO_VAR: ReadonlyArray<readonly [key: string, cssVar: string]> = [
   ["chartEquity", "--chart-equity"],
   ["chartBenchmark", "--chart-benchmark"],
   ["chartCompare", "--chart-compare"],
-  ["chartGrid", "--chart-grid"],
+  // [BL-629] chartGrid 삭제 — `--chart-grid` 는 참조 0건이었고 chart-tokens.ts 는
+  // 그리드 색으로 `--border` 를 읽는다. 팔레트 키와 CSS 토큰을 함께 지웠다.
   ["ddLine", "--chart-dd-line"],
   ["ddTop", "--chart-dd-top"],
   ["ddBottom", "--chart-dd-bottom"],
