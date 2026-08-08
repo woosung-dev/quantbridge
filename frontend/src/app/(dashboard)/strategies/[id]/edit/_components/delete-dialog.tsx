@@ -2,7 +2,8 @@
 
 // Sprint 7c T5: 2-phase 삭제 다이얼로그 — confirm → archive-fallback.
 // DELETE 409 (`strategy_has_backtests`) 감지 시 archive 제안으로 phase 전환.
-// Sprint FE-E: <768px 에서 bottom sheet 로 자동 전환 (thumb-reach 최적화).
+// Sprint FE-E: ≤768px 에서 bottom sheet 로 자동 전환 (thumb-reach 최적화).
+//   ★경계값 포함이다 — 뷰포트 정확히 768px 은 모바일이다 ([BL-644], 아래 :135 주석).
 // Sprint 44 W C4 — inline polish: warning icon + stagger entrance + destructive accent.
 
 import { useState } from "react";
@@ -132,7 +133,10 @@ function Body({
 
 export function DeleteDialog(props: DeleteDialogProps) {
   const [phase, setPhase] = useState<Phase>("confirm");
-  const isMobile = useMediaQuery("(max-width: 767px)");
+  // 경계는 768 — CSS 쪽 `@media (max-width: 768px)` 와 같은 축·같은 숫자를 쓴다.
+  // 767 이면 뷰포트 정확히 768px 에서 셸은 모바일(--sidebar-w:0 · drawer)인데
+  // 이 훅만 false 를 줘서 Dialog 가 떴다 ([BL-644]).
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const del = useDeleteStrategy({
     onSuccess: props.onDone,
     onError: (err) => {

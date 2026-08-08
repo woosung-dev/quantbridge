@@ -1,4 +1,4 @@
-// 법무 페이지 accent-amber callout — 중요 조항(Beta 단계 고지 / 투자 위험 등) 강조 박스. Sprint 43 W14.
+// 법무 페이지 warning callout — 중요 조항(Beta 단계 고지 / 투자 위험 등) 강조 박스. Sprint 43 W14.
 
 import type { ReactNode } from "react";
 

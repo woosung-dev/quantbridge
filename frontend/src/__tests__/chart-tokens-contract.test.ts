@@ -99,6 +99,10 @@ describe("chart-tokens.ts CSS 변수 계약 (이식 S1a 안전망)", () => {
   //
   // 늘리려면 먼저 답해라 — **이 토큰을 읽는 코드가 어디 있는가.** 읽는 코드가 있으면
   // CHART_TOKEN_CONTRACT 에도 들어가야 하고, 없으면 애초에 정의하지 마라.
+  //
+  // [BL-649] 2026-08-08 — 여기 있던 shadcn 카테고리 팔레트 `--chart-1..5` 를 지웠다.
+  // `--color-chart-N` 유틸 소비가 실측 0건이었고, `--chart-4`(#875206)는 [BL-628] 이전
+  // `--warning` 의 사본이라 이미 드리프트해 있었다 — 위 [BL-629] 와 같은 사고다.
   const CHART_VARS_FROZEN: readonly string[] = [
     // chart-tokens.ts 가 실제로 read() 하는 것
     "--chart-benchmark",
@@ -107,13 +111,6 @@ describe("chart-tokens.ts CSS 변수 계약 (이식 S1a 안전망)", () => {
     "--chart-dd-line",
     "--chart-dd-top",
     "--chart-equity",
-    // shadcn 카테고리 팔레트. @theme inline 이 --color-chart-N 으로 노출한다
-    // (유틸 소비는 2026-08-08 실측 0건 — 처분은 [BL-649]).
-    "--chart-1",
-    "--chart-2",
-    "--chart-3",
-    "--chart-4",
-    "--chart-5",
   ];
 
   it.each(["라이트 :root", "다크 .dark"] as const)(
