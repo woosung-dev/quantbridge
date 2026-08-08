@@ -186,6 +186,13 @@ async def _cmd_status(symbol: str) -> None:
                 .mappings()
                 .all()
             )
+            # 이 원장이 아는 주문 id 전량. 배타성 판별의 **소유권** 축이다.
+            # ★내부 id 가 그대로 `orderLinkId` 로 거래소에 나간다는 규약 때문에 이 대조가 결정적이다.
+            ledger_order_ids = {
+                str(row[0])
+                for row in (await session.execute(text("SELECT id FROM trading.orders"))).all()
+            }
+
             print(f"\n거래소 포지션 ({symbol}):")
             any_open = False
             for account in accounts:
@@ -196,7 +203,56 @@ async def _cmd_status(symbol: str) -> None:
                     print(f"  {account['label']}: {pos.side} {pos.size}")
                 if not positions:
                     print(f"  {account['label']}: 없음")
+
+            # ── 미체결(resting) 조건부 주문 + 소유권 ────────────────────────────
+            #
+            # ★★★왜 **체결 이력**이 아니라 **미체결 주문**을 보는가.
+            #   2026-08-08 실측: `trading.exchange_exits` 의 미조인 행은 **상시 존재한다**
+            #   (사망 창 6건 전부 unjoined·unknown). 「원장에 없는 체결 이력」으로 배타성을
+            #   판정하면 **상시 거부**가 되어 가드가 영영 안 열린다. resting 은 지금 이 순간
+            #   그 계정에 걸려 있는 주문이라 「다른 호스트가 붙어 있다」의 직접 증거다.
+            #
+            # ★`reduce_only=None` 이어야 한다 — 기본값 `True` 는 TP/SL 만 준다.
+            #   오염을 만드는 것은 **조건부 진입**(reduce-only 가 아니다)이다.
+            #
+            # ★★가드가 정상 재기동을 막지 않게 판별자는 반드시 `order_link_id` **소유권**이다.
+            #   우리 것까지 「남의 것」으로 세면 영원히 거부된다.
+            print(f"\n미체결 조건부 주문 ({symbol}):")
+            resting_total = 0
+            foreign: list[str] = []
+            for account in accounts:
+                creds = await svc.get_credentials_for_order(account["id"])
+                orders = await get_bybit_futures_provider().fetch_open_conditional_orders(
+                    creds, symbol, reduce_only=None
+                )
+                resting_total += len(orders)
+                for order in orders:
+                    link = order.order_link_id
+                    owned = link is not None and link in ledger_order_ids
+                    if not owned:
+                        foreign.append(
+                            f"{account['label']}:{order.order_id}:{link or '(link 없음)'}"
+                        )
+                    mark = "ours" if owned else "★FOREIGN"
+                    print(
+                        f"  {account['label']}: {order.side} {order.kind} qty={order.qty} "
+                        f"trigger={order.trigger_price} link={link or '-'} [{mark}]"
+                    )
+                if not orders:
+                    print(f"  {account['label']}: 없음")
+
+            # ★`FLAT=` 은 **한 줄만** 출력한다 — `soak-restart.sh` 가 sed 로 마지막 줄을 긁는다.
+            #   포지션 축과 resting 축을 한 낱말에 섞지 않는다. 섞으면 「무엇이 flat 이 아닌가」를
+            #   호출부가 되물을 수 없다.
             print(f"\nFLAT={'NO' if any_open else 'YES'}")
+            print(f"RESTING_CONDITIONAL={resting_total}")
+            print(f"FOREIGN_RESTING={len(foreign)}")
+            for item in foreign:
+                print(f"  FOREIGN {item}")
+            # 계정 배타성 — 원장이 소유권을 주장하지 못하는 resting 이 하나도 없을 때만 YES.
+            print(f"EXCLUSIVE={'NO' if foreign else 'YES'}")
+            # 재기동 전 「조용한 계정」 — 포지션 0 AND resting 0.
+            print(f"QUIET={'NO' if (any_open or resting_total) else 'YES'}")
     finally:
         await engine.dispose()
 
