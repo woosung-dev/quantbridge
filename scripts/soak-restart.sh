@@ -22,6 +22,9 @@
 #   · **`up` 은 세션을 만들지 않는다.** 세션이 0 이면 시계도 0 이다. ⑸ 를 빠뜨리면 스택은 도는데
 #     C1 이 안 오른다.
 #   · **돌고 있는 고정본 위에는 pin 이 거부된다**(`soak-stack.sh:94-99`, exit 2). 순서는 down → pin → up.
+#   · **down 직전에 원자료를 덤프한다.** `docker compose down` 이 컨테이너를 제거하면 `docker logs` 는
+#     사본 0으로 영구 소실된다. 2026-08-07 서버 세션(수명 5.52h, `position_divergence` 자동 사망)에서
+#     발산 관측 58줄이 워커 로그에만 있었고 서버엔 `.soak/logs` 가 없어 손으로 얼려야 했다.
 #   · **`up` 은 celery 기동 배너를 최대 600 초 기다린다**(`soak-stack.sh:168-191`). 타임아웃을 걸지 않는다.
 #   · **uuid 는 정규식으로 뽑는다.** `✓ 세션 등재: <uuid>` 는 멀티바이트 3 토큰이라
 #     `awk '{print $3}'` 이 `등재:` 를 준다.
@@ -35,6 +38,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
+WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
+METRICS_URL="${QB_METRICS_URL:-}"
+METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/backend/.metrics}"
 
 CONFIRM=0
 STRATEGY_ID=""
@@ -103,6 +109,74 @@ _admin() { # _admin <live_session_admin.py 인자...>
 
 _q() { docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "$1" 2>/dev/null; }
 
+# down 직전 원자료 덤프. ★**fail-closed** — 한 건이라도 실패하면 die 하고 down 은 호출되지 않는다.
+# 서브셸·명령치환·파이프에 물리지 마라. die 의 `exit` 이 삼켜져 fail-open 이 된다.
+_dump_evidence() {
+  local rc dir stamp session name file table raw
+
+  stamp="$(date -u '+%Y%m%dT%H%M%SZ')"
+  # 활성 세션이 있으면 그 uuid 앞 8자리로 이름 짓는다. 자동 사망 뒤라면 활성 세션이 없다 —
+  # 그때가 바로 증거가 제일 필요한 순간이므로 못 잡았다고 덤프를 거르지 않는다.
+  # ★STAMP 를 항상 붙인다. 같은 세션을 두 번 재기동해도 앞 회차 증거를 덮어쓰지 않는다.
+  session="$(_q "SELECT id FROM trading.live_signal_sessions
+                 WHERE deactivated_at IS NULL ORDER BY created_at DESC LIMIT 1")"
+  rc=$?
+  [ "${rc}" -eq 0 ] || die "활성 세션 조회 실패 — DB 가 안 뜬 채로 down 하면 원장 CSV 도 못 딴다" 1
+  if [ -n "${session}" ]; then name="${session:0:8}-${stamp}"; else name="pre-down-${stamp}"; fi
+  dir="${ROOT}/.soak/evidence/${name}"
+  mkdir -p "${dir}" || die "증거 디렉터리 생성 실패: ${dir}" 1
+
+  # ⓐ 워커 로그. ★`2>&1` 은 리다이렉트 **뒤에** 둔다 — celery 는 stderr 로 쓰므로
+  #   이걸 빠뜨리면 발산 관측 줄이 통째로 파일에 안 들어온다.
+  file="${dir}/worker.log"
+  docker logs --timestamps "${WORKER_CONTAINER}" > "${file}" 2>&1
+  rc=$?
+  [ "${rc}" -eq 0 ] || die "worker 로그 덤프 실패 (컨테이너가 이미 없나?): ${file}" 1
+  [ -s "${file}" ] || die "worker 로그 덤프가 비었다 — 빈 파일은 증거가 아니다: ${file}" 1
+
+  # ⓑ 원장 4종 CSV.
+  # ★`\copy` 를 쓰면 안 된다 — psql 이 **DB 컨테이너 안**에서 도니까 파일도 컨테이너 안에 쓰이고
+  #   down 과 함께 사라진다. 서버사이드 `COPY … TO STDOUT` 의 stdout 을 **호스트에서** 받아야
+  #   원자료가 컨테이너 밖에 남는다.
+  for table in orders exchange_exits live_signal_sessions live_signal_states; do
+    file="${dir}/${table}.csv"
+    docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge \
+      -Atc "COPY (SELECT * FROM trading.${table}) TO STDOUT WITH CSV HEADER" > "${file}"
+    rc=$?
+    [ "${rc}" -eq 0 ] || die "원장 ${table} CSV 덤프 실패: ${file}" 1
+    # HEADER 는 0행이어도 항상 나온다 ⇒ 빈 파일은 성공이 아니다.
+    [ -s "${file}" ] || die "원장 ${table} CSV 가 비었다 (헤더조차 없다): ${file}" 1
+  done
+
+  # ⓒ metrics. ★`backend/.metrics` 는 mmap 이라 cat/grep 이 안 된다 —
+  #   MultiProcessCollector 로 렌더해야 텍스트가 된다 (soak-gate.sh 와 같은 취득 방식).
+  raw=""
+  if [ -n "${METRICS_URL}" ]; then
+    raw="$(curl -sf --max-time 20 "${METRICS_URL}" 2>/dev/null)"
+  elif [ -d "${METRICS_DIR}" ]; then
+    # ★`timeout` 없이 부르지 마라 — 무기한 대기는 재기동을 통째로 멈춘다([BL-594] 교훈).
+    raw="$(cd "${ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
+      timeout 120 uv run python -c '
+import sys
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess
+
+registry = CollectorRegistry()
+multiprocess.MultiProcessCollector(registry)
+sys.stdout.buffer.write(generate_latest(registry))
+' 2>/dev/null)"
+  else
+    die "metrics 취득 경로가 없다 — QB_METRICS_URL 이나 ${METRICS_DIR} 중 하나가 있어야 한다" 1
+  fi
+  # ★rc 0 + 빈 본문 = 성공이 아니라 **측정불가**다. soak-gate.sh 가 산 구분이므로 여기서도 판다.
+  [ -n "${raw}" ] || die "metrics 취득 실패 또는 본문이 비었다 — 측정불가는 성공이 아니다" 1
+  printf '%s\n' "${raw}" > "${dir}/metrics.txt" || die "metrics 파일 저장 실패" 1
+
+  echo "   ✓ ${dir}"
+  for file in worker.log orders.csv exchange_exits.csv live_signal_sessions.csv live_signal_states.csv metrics.txt; do
+    echo "     · ${file} $(wc -l < "${dir}/${file}" | tr -d ' ') 줄"
+  done
+}
+
 MODE_LABEL="dry-run (집행하려면 --confirm)"
 [ "${CONFIRM}" = "1" ] && MODE_LABEL="집행"
 echo "══ 소크 재기동 — ${MODE_LABEL} ══"
@@ -152,6 +226,8 @@ if [ "${CONFIRM}" != "1" ]; then
 
 ⑷ soak-stack.sh down → pin → up
    ★돌고 있는 고정본 위엔 pin 이 거부된다(exit 2) · up 은 celery 배너를 최대 600초 기다린다
+   ★down 직전 .soak/evidence/<세션8자리>-<STAMP>/ 에 worker.log + 원장 4종 CSV + metrics.txt 를 덤프한다
+     (덤프가 실패하면 down 으로 넘어가지 않는다 — fail-closed)
 
 ⑸ live_session_admin.py start --strategy-id ${STRATEGY_ID} --account-id ${ACCOUNT_ID} \\
      --symbol ${SYMBOL} --interval ${INTERVAL} --confirm
@@ -201,6 +277,8 @@ echo
 
 # ── ⑷ down → pin → up ───────────────────────────────────────────────────────────
 echo "⑷ soak-stack.sh down → pin → up"
+echo "⑷-0 down 직전 원자료 덤프 (★down 이 컨테이너를 지우면 로그는 사본 0으로 영구 소실)"
+_dump_evidence
 bash "${SCRIPT_DIR}/soak-stack.sh" down || die "down 실패" 1
 bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (돌고 있는 고정본 위인가? backend/src 가 dirty 한가?)" 1
 echo "   … up 은 celery 기동 배너를 최대 600초 기다린다"

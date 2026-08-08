@@ -8,7 +8,7 @@
 #   scripts/soak-stack.sh up                  # 3층 compose 로 기동
 #   scripts/soak-stack.sh down                # 3층 compose 로 내림
 #   scripts/soak-stack.sh commit              # ★소크가 도는 커밋 — 프로세스 기준으로 조회
-#   scripts/soak-stack.sh status              # 고정 여부 · 커밋 · 활성 세션 · main 조상 여부
+#   scripts/soak-stack.sh status              # 고정 여부 · 커밋 · 누락 커밋 · 활성 세션 · main 조상
 #   scripts/soak-stack.sh assert-not-pinned   # Makefile 클로버 가드용 (고정본이 떠 있으면 1)
 #
 # 종료 코드: 0 = 정상 / 1 = 실패·거부 / 2 = 전제 미충족(측정 못 함)
@@ -79,6 +79,76 @@ _stack_is_pinned() {
   [ "${src}" = "${PINNED_MOUNT}" ]
 }
 
+# ------------------------------------------------------------------ 누락 커밋 조회
+#
+# ★「origin/main 의 조상인가」와 「빠뜨린 수리가 있는가」는 **다른 질문**이다.
+#   2026-08-07 서버 실측: 고정본 `0c9ccc68` 은 조상 YES 이면서 동시에 [BL-622] gap-resync
+#   유예 수리(`175690a7`)를 통째로 빠뜨리고 있었다. `_status` 는 YES 만 말했고 운영자는
+#   최신본이 도는 줄 알았다. 조상 여부는 **하한**이지 최신성의 증거가 아니다.
+#
+# 감시 경로의 근거 (2026-08-08 실측 · `0c9ccc68..origin/main` = 필터 없이 33커밋 → 9커밋):
+#   · `backend/src`     — `_pin` 이 `git archive <sha> backend/src` 로 **실제로 스냅샷하는
+#                         유일한 경로**. 여기가 낡으면 소크가 낡은 엔진을 돈다.
+#   · `backend/scripts` — 판정자 `soak_gate_predicate.py` 가 산다. 고정본 `0c9ccc68` 자신이
+#                         이 경로의 커밋이었다(parse_ts python 3.10 수리).
+#   · `scripts`         — 게이트 본체 `soak-gate.sh` 와 이 파일이 산다.
+#   `pin` 은 통상 HEAD 를 고정하므로 「고정 sha 뒤로 남은 커밋」은 곧 「이 체크아웃이
+#   origin/main 보다 뒤처졌다」와 같다. 스냅샷(`backend/src`)과 판정기(`scripts` 2종)는
+#   **같은 체크아웃**에서 나오므로 둘 다 본다. `docs/`·`frontend/` 는 뺀다 — 소크의 실행에도
+#   판정에도 들어가지 않는다.
+#   ★커밋 메시지 접두사로 거르지 마라 — 실측에서 `docs(...)` 2건이 `backend/src` 를 고쳤다.
+SOAK_WATCHED_PATHS=(backend/src backend/scripts scripts)
+# 운영자가 실제로 읽는 분량. 넘치면 개수만 말한다.
+MISSING_LIST_LIMIT=20
+
+# 고정 sha 이후 origin/main 에 들어온 감시 경로 커밋. 없으면 빈 출력 + 0.
+# ★`origin/main` 을 못 읽으면(단일브랜치 클론 · 오프라인 · fetch 전) **재지 못한 것**이다.
+#   빈 출력과 구분되도록 **2** 를 돌려준다 — 「빈 출력 + 0」만이 「없다」를 뜻한다.
+_missing_commits() {  # _missing_commits <sha> — 0 = 쟀다 / 2 = 못 쟀다
+  (cd "${ROOT}" && git rev-parse --verify --quiet origin/main >/dev/null 2>&1) || return 2
+  (cd "${ROOT}" && git log --oneline "$1..origin/main" -- "${SOAK_WATCHED_PATHS[@]}" 2>/dev/null)
+}
+
+# 누락 목록을 운영자가 읽을 형태로 찍는다. 상한을 넘으면 나머지는 개수로 접는다.
+_print_missing() {  # _print_missing <missing-text> <count>  ★stderr 로 보낼지는 호출부가 정한다
+  printf '%s\n' "$1" | head -n "${MISSING_LIST_LIMIT}" | sed 's/^/    /'
+  if [ "$2" -gt "${MISSING_LIST_LIMIT}" ]; then
+    echo "    … 외 $(($2 - MISSING_LIST_LIMIT))개"
+  fi
+}
+
+# 고정하려는 sha 뒤로 감시 경로 커밋이 남아 있으면 **거부**한다(호출부가 exit 2 를 낸다).
+# ★탈출구는 `QB_SOAK_OVERRIDE=1` — 이 파일이 이미 쓰는 관례(`_pin` 의 재고정 가드,
+#   `_assert_not_pinned`)를 그대로 따른다. 새 변수를 만들지 않는다.
+# ★못 쟀을 때는 **통과**시킨다. 이건 게이트가 아니라 운영자 가드이고, 판정 불가를 차단으로
+#   바꾸면 fetch 못 하는 환경에서 `pin` 이 통째로 불가능해진다(`assert-main-checkout.sh` 와
+#   같은 판단). 대신 「0 이라는 뜻이 아니다」를 명시적으로 말한다.
+_assert_no_missing_commits() {  # <sha> — 0 = 진행해도 된다 / 1 = 거부
+  local sha="$1" missing rc count
+  missing="$(_missing_commits "${sha}")"
+  rc=$?
+  if [ "${rc}" -eq 2 ]; then
+    echo "⚠ origin/main 을 못 읽어 누락 커밋을 **재지 못했다** (0 이라는 뜻이 아니다)." >&2
+    echo "  → 'git fetch origin main' 뒤 다시 해라." >&2
+    return 0
+  fi
+  [ -n "${missing}" ] || return 0
+
+  count="$(printf '%s\n' "${missing}" | wc -l | tr -d ' ')"
+  if [ "${QB_SOAK_OVERRIDE:-0}" = "1" ]; then
+    echo "⚠ QB_SOAK_OVERRIDE=1 — 누락 커밋 ${count}개를 알고도 고정한다." >&2
+    _print_missing "${missing}" "${count}" >&2
+    return 0
+  fi
+  echo "✗ 이 커밋 뒤로 origin/main 에 감시 경로 커밋이 ${count}개 남아 있다 — 낡은 코드를 소크하게 된다." >&2
+  echo "  감시 경로: ${SOAK_WATCHED_PATHS[*]}" >&2
+  echo "  빠진 것:" >&2
+  _print_missing "${missing}" "${count}" >&2
+  echo "  → 'git pull --ff-only origin main' 으로 따라잡은 뒤 다시 pin 해라." >&2
+  echo "  → 그래도 이 커밋을 고정해야겠으면 QB_SOAK_OVERRIDE=1 을 붙여라." >&2
+  return 1
+}
+
 # ------------------------------------------------------------------ pin
 
 _pin() {
@@ -113,6 +183,10 @@ _pin() {
   branch="$(cd "${ROOT}" && git rev-parse --abbrev-ref HEAD)"
   subject="$(cd "${ROOT}" && git log -1 --format=%s "${sha}")"
   now="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+  # ★「origin/main 의 조상」은 「최신」이 아니다 — 위 `_missing_commits` 주석의 실측 참조.
+  #   여기서 거부해야 `rm -rf ${SRC_DIR}` 전에 멈춘다(스냅샷을 깨고 나서 알면 늦다).
+  _assert_no_missing_commits "${sha}" || exit 2
 
   rm -rf "${SRC_DIR}"
   mkdir -p "${SRC_DIR}"
@@ -247,6 +321,19 @@ _status() {
       echo "  origin/main 의 조상: YES — 소크가 도는 코드는 main 에 있다"
     else
       echo "  origin/main 의 조상: NO — 아직 main 에 없는 코드를 소크 중이다"
+    fi
+    # ★조상이어도 최신은 아니다. 「그 뒤로 무엇이 들어왔나」를 함께 찍는다.
+    local missing rc count
+    missing="$(_missing_commits "${sha}")"
+    rc=$?
+    if [ "${rc}" -eq 2 ]; then
+      echo "  누락 커밋: 측정 못 함 — origin/main 을 못 읽었다 (0 이라는 뜻이 아니다)"
+    elif [ -z "${missing}" ]; then
+      echo "  누락 커밋: 0개 — 감시 경로(${SOAK_WATCHED_PATHS[*]})는 origin/main 과 같다"
+    else
+      count="$(printf '%s\n' "${missing}" | wc -l | tr -d ' ')"
+      echo "  누락 커밋: ${count}개 — 감시 경로(${SOAK_WATCHED_PATHS[*]})"
+      _print_missing "${missing}" "${count}"
     fi
   else
     echo "  (없음)"
