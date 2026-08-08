@@ -40,24 +40,34 @@ C1 168h 를 채우는 유일한 길은 **사망률을 낮추는 것**이고 사�
 **브랜치 `stage/soak-mortality-repair`** — 커밋 4개. 푸시 안 함 · PR 없음 · 머지 없음.
 `4c32c803` status 진입점 · `170c6ee4` [BL-610] 10곳 · `29106a39` [BL-619] 재관측 + [BL-653] 등재.
 
-| 위상                  | 상태                                                  | 확인 방법                       |
-| --------------------- | ----------------------------------------------------- | ------------------------------- |
-| P0 소크 down          | ✅ **C1 15.3007h 보존** · 실격 0 · pin `3f8af9dfe78e` | `scripts/soak-gate.sh`(서버)    |
-| P5b [BL-610]          | ✅ DANGLING 0건                                       | 백로그 `#bl-610` 의 재검출 명령 |
-| P4 [BL-619]           | ✅ 디스패치 정지 0건 · 상태 축은 [BL-653] 로 분리     | 위 ★P4 문단                     |
-| P1 오라클             | ⏳ 워커 `wt/oracle`(slot 9)                           | `git log wt/oracle --oneline`   |
-| P5 백테스트           | ⏳ 워커 `wt/btfix`(slot 10)                           | `git log wt/btfix --oneline`    |
-| P3 배타성             | ⏳ 워커 `wt/excl`(slot 11)                            | `git log wt/excl --oneline`     |
-| P2 킬 가드            | ⬜ **P1 산출물 대기**                                 | —                               |
-| P6 게이트 · P7 재기동 | ⬜                                                    | —                               |
+| 위상                  | 상태                                                                     | 확인 방법                                             |
+| --------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
+| P0 소크 down          | ✅ **C1 15.3007h 보존** · 실격 0 · pin `3f8af9dfe78e`                    | `scripts/soak-gate.sh`(서버)                          |
+| P5b [BL-610]          | ✅ DANGLING 0건                                                          | 백로그 `#bl-610` 의 재검출 명령                       |
+| P4 [BL-619]           | ✅ 디스패치 정지 0건 · 상태 축은 [BL-653] 로 분리                        | 위 ★P4 문단                                           |
+| P1 오라클             | ✅ **stage 머지 완료**(`b12b3059`) — tick 차분 오라클 427줄 + 픽스처 7건 | `backend/tests/tasks/test_live_signal_tick_oracle.py` |
+| P5 백테스트           | ⏳ `wt/btfix`(slot 10) — 커밋 2개, **검증 재개 중**                      | `git log wt/btfix --oneline`                          |
+| P3 배타성             | ⏳ `wt/excl`(slot 11) — 커밋 0 · 미커밋 3, **재개 중**                   | `git -C .claude/worktrees/excl status --short`        |
+| P2 킬 가드            | ⏳ `wt/killguard`(slot 12) — P1 위에서 착수                              | `git log wt/killguard --oneline`                      |
+| P6 게이트 · P7 재기동 | ⬜                                                                       | —                                                     |
 
-★★**워커 3개가 커밋 없이 죽었을 수 있다** — 전례가 있다(세션 한도로 죽었을 때 **생성은 남고
-검증이 날아갔다**). 각 워크트리에서 `git status` 로 **미커밋 산출물부터 확인해라.** 파일이 있는데
-커밋이 없으면 그 워커는 검증을 못 끝낸 것이다 — **테스트를 직접 돌려 red/green 을 다시 확인**해라.
-워크트리 = `.claude/worktrees/{oracle,btfix,excl}`.
+★★**2026-08-08 워커 2개가 API 오류(`Not logged in`)로 죽었고, 체크포인트가 예측한 그대로였다** —
+**생성은 남고 검증이 날아갔다.** `wt/btfix` 는 커밋 2개를 남겼지만 red 실증·codex·전체 테스트를
+못 했고, `wt/excl` 은 `trading.py:1909` 가 **정의 없는 헬퍼를 호출하는 중간 상태**로 멈췄다.
+⇒ **미커밋 파일을 산출물로 신뢰하지 마라. 테스트를 직접 돌려라.**
+워크트리 = `.claude/worktrees/{oracle,btfix,excl,killguard}`.
 
-**다음 행동 = 워크트리 3개(`oracle`·`btfix`·`excl`)의 산출물을 확인해 `stage/soak-mortality-repair`
-로 통합하고, P1 이 서 있으면 그 위에서 P2 킬 가드 창 재설계로 간다.** P2 표적 =
+★★★**환경 함정 — 이 레포는 `make up` 이 아니라 `make up-isolated` 다.**
+`backend/.env.local` 이 **5433/6380**(격리 포트)을 가리킨다. `make up` 을 돌렸다가 ⑴ 포트 5432 를
+**다른 프로젝트 `nexus_db` 가 이미 점유**해 db 기동이 실패하고 ⑵ 그 와중에 redis 가 **6379 로
+재생성**돼 env(6380)와 어긋났다. 수습 = `make down` → `make up-isolated`.
+★**워크트리 pytest DB 는 `--skip-db` 부트스트랩이 안 만든다.** slot 9~12 를 손으로 만들었다:
+`docker exec quantbridge-db psql -U quantbridge -d postgres -c "CREATE DATABASE quantbridge_w<N>_test"`.
+없으면 DB 의존 테스트가 **전량 error** 라 회귀처럼 보인다(P1 워커가 44건을 그렇게 봤고, 그 44건은
+baseline 과 동일했다).
+
+**다음 행동 = 워커 3개(`btfix`·`excl`·`killguard`)의 산출물을 검증까지 확인해
+`stage/soak-mortality-repair` 로 통합하고, 게이트 8종 → §G8 종결 → PR 로 간다.** P2 표적 =
 `live_signal.py:762-785`/`:780-781` 판정식 · `:3599-3617` 2 tick 킬 · `:3137-3171` 킬 경로 ·
 D1 strike TTL 부재(대조군 = 같은 파일의 gap-resync defer `:2720-2732`) · [ADR-025] §⑧ fail-open.
 
