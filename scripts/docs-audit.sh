@@ -253,6 +253,81 @@ if index_md.exists():
         if target and not (index_md.parent / target).resolve().exists():
             broken_links.append((index_md.relative_to(root), target))
 
+# ── 진입점 최신성 — `docs/status.md` ([BL-643] · §G8 7필드 계약) ──────
+# 왜 있나: 그 블록은 [ADR-026]·§G8 상 **다음 세션의 유일한 진입점**인데, 2026-08-08 실측에서
+#   이미 끝난 일을 지시하는 「다음 행동」이 2곳 살아 있는 동안 `bl-audit`·`docs-audit` 이
+#   **둘 다 exit 0** 이었다. 산문 처방은 그때가 세 번째였다(§G8 2026-07-27 · PR #562).
+#
+# ★★재는 것은 **구문**이지 낱말이 아니다. [BL-643] 이 기록한 초안은 「다음 행동」이라는
+#   **낱말**을 셌고, 그래서 규칙을 _설명하는_ 문장("살아 있는 「다음 행동」은 0개가 정상이다")
+#   까지 물어 오탐했다. 실행 지시는 레포 관례상 언제나 `다음 행동 = …` 형태다 — `=` 를 요구하면
+#   설명 문장 2건이 자동으로 빠진다. 2026-08-08 음성 대조:
+#     ce583eef^ (수리 전)  살아 있는 `다음 행동 =` **2건**  ← 진성 검출
+#     275d76a4 / HEAD      살아 있는 `다음 행동 =` **0건**  ← 오탐 0
+#
+# ★★★**파일 전체로 센다 — 블록별이 아니다.** 위 2건은 서로 **다른 섹션**에 하나씩 있었다.
+#   §G8 문구대로 「블록당 1개」로 세면 각 1건이라 **그 사고가 그대로 통과한다.**
+#
+# ★정직하게: 이것은 **모순(다중성) 탐지기이지 낡음 탐지기가 아니다.** 낡은 것이 하나뿐이면
+#   여전히 통과한다. 어구를 「다음 스텝」 등으로 바꿔도 눈이 먼다([BL-643] 미탐 2종).
+entry_hits: list[str] = []
+status_md = docs / "status.md"
+if not status_md.exists():
+    entry_hits.append("docs/status.md 가 없다 — 진입점 자체가 사라졌다")
+else:
+    status_lines = status_md.read_text(encoding="utf-8", errors="replace").split("\n")
+
+    # ⑴ ⓪ 다음 후보 표 — 후보가 3개 미만이면 「고르는 자리」가 아니다.
+    in_zero, in_fence, candidate_rows = False, False, 0
+    for line in status_lines:
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if line.startswith("###"):
+            in_zero = line.lstrip("# ").startswith("⓪")
+            continue
+        if not in_zero or not line.lstrip().startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if all(set(c) <= {"-", ":"} and c for c in cells):
+            continue  # 구분선
+        if cells and cells[0] in {"#", ""}:
+            continue  # 헤더
+        candidate_rows += 1
+    if candidate_rows < 3:
+        entry_hits.append(
+            f"⓪ 다음 후보 표의 행이 {candidate_rows}개다 (계약 ≥3) — "
+            "고를 수 없는 표는 진입점이 아니다"
+        )
+
+    # ⑵ 살아 있는 「다음 행동 = …」 ≤1. 취소선(`~~`) 안이면 끝난 것이다.
+    live: list[tuple[int, str]] = []
+    in_fence = False
+    for lineno, line in enumerate(status_lines, 1):
+        if line.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for hit in re.finditer(r"다음 행동\s*(?:=|＝)", line):
+            # 매치 앞의 `~~` 가 홀수면 취소선 안 — 이미 끝난 지시다.
+            if line.count("~~", 0, hit.start()) % 2 == 1:
+                continue
+            live.append((lineno, line.strip()[:80]))
+    if len(live) > 1:
+        entry_hits.append(
+            f"살아 있는 「다음 행동 =」이 {len(live)}개다 (계약 ≤1) — "
+            "끝난 것은 `~~옛 문장~~ → 날짜 + 새 사실` 로 바꿔라"
+        )
+        entry_hits.extend(f"  status.md:{n}: {t}" for n, t in live)
+
+if entry_hits:
+    print("▶ 진입점 최신성 — docs/status.md 가 §G8 7필드 계약을 어긴다 ([BL-643])")
+    for why in entry_hits:
+        print(f"  {why}")
+
 if broken_links:
     print("▶ Broken active Markdown links")
     for path, target in broken_links:
@@ -280,16 +355,17 @@ if orphan_hits:
     for rel, why in orphan_hits:
         print(f"  {rel}: {why}")
 
-if broken_links or legacy_hits or cap_hits or file_len_hits or orphan_hits:
+if broken_links or legacy_hits or cap_hits or file_len_hits or orphan_hits or entry_hits:
     print(
         f"✗ docs-audit failed: links={len(broken_links)}, "
         f"retired_paths={len(legacy_hits)}, long_lines={len(cap_hits)}, "
-        f"long_files={len(file_len_hits)}, orphan_tools={len(orphan_hits)}"
+        f"long_files={len(file_len_hits)}, orphan_tools={len(orphan_hits)}, "
+        f"entry_point={len(entry_hits)}"
     )
     raise SystemExit(1)
 
 print(
     "✓ docs-audit: active Markdown links, retired paths, line-length caps, "
-    "file-length caps, orphan tool startup are clean"
+    "file-length caps, orphan tool startup, status.md entry point are clean"
 )
 PY
