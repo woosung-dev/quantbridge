@@ -1,0 +1,124 @@
+{
+  "case_id": "direction_first_observation_is_granted_grace",
+  "_how": "엔진 롱 0.029 ↔ 거래소 숏 0.029, 직전 strike 없음 — 거래소는 bar 안에서 스톱을 트리거하고 엔진은 bar 종가에만 평가하므로 **1회 관측은 자기해소되는 skew** 다. 죽이지 않고 strike 만 다음 tick 으로 넘긴다. ★`direction_mismatch_persisted` 를 상수 True 로 만드는 변이가 여기서 세션을 죽인다 — red.",
+  "_contract": "`_judge_direction_strike` — had_previous_strike=False ⇒ kill=False · outcome=`direction_transient` · bar=이번 봉. 호출부가 그 결과를 `_qb_direction_mismatch_seen=True` **와 `_qb_direction_mismatch_bar`(TTL 기준점)** 로 함께 다음 tick 에 넘긴다. ★봉 시각을 안 남기면 다음 tick 의 TTL 이 기준점을 잃어 strike 가 영원히 산다.",
+  "input": {
+    "session": {
+      "is_active": true,
+      "symbol": "BTC/USDT",
+      "created_at": "2026-05-01T00:00:00+00:00",
+      "last_evaluated_bar_time": null,
+      "equity_baseline_usdt": "8192.00"
+    },
+    "strategy": {
+      "pine_source": "//@version=5\nstrategy('tick oracle')",
+      "position_size_pct": 10.0,
+      "leverage": 2.0
+    },
+    "ohlcv": [
+      [1777636800000, 100.0, 101.0, 99.0, 100.5, 10.0],
+      [1777636860000, 100.5, 102.0, 100.0, 101.5, 12.0],
+      [1777636920000, 101.5, 103.0, 101.0, 102.5, 11.0]
+    ],
+    "try_claim_bar": true,
+    "deactivate_rows": 1,
+    "carry": ["0", 0],
+    "ledger": ["0", 0],
+    "existing_events": [],
+    "inserted_events": [],
+    "previous_state": {
+      "last_strategy_state_report": {
+        "_qb_position_epoch": "2026-05-01T00:00:00+00:00",
+        "_qb_direction_mismatch_seen": false
+      },
+      "equity_curve": null
+    },
+    "exchange": [
+      {
+        "side": "short",
+        "size": "0.029"
+      }
+    ],
+    "run_live_result": {
+      "last_bar_time": "2026-05-01T12:02:00+00:00",
+      "signals": [],
+      "strategy_state_report": {
+        "open_trades": [],
+        "position_size": 0.029
+      },
+      "total_closed_trades": 0,
+      "total_realized_pnl": "0",
+      "errors": [],
+      "entry_skips": [],
+      "liquidations": []
+    }
+  },
+  "expected": {
+    "return": {
+      "evaluated": true,
+      "events_inserted": 0,
+      "last_bar_time": "2026-05-01T12:02:00+00:00"
+    },
+    "calls": {
+      "try_claim_bar": 1,
+      "deactivate": 0,
+      "commit": 1,
+      "upsert_state": 1,
+      "list_by_session": 1,
+      "insert_pending_events": 1,
+      "publish_realtime": 1,
+      "dispatch_apply_async": 0,
+      "send_rule_alert": 0,
+      "reconcile_conditional_entries": 1,
+      "fetch_open_positions": 2
+    },
+    "deactivate": null,
+    "upsert_state": {
+      "equity_curve": null,
+      "last_strategy_state_report": {
+        "_qb_direction_mismatch_bar": "2026-05-01T12:02:00+00:00",
+        "_qb_direction_mismatch_seen": true,
+        "_qb_ledger_shadow": {
+          "decision": "disagree",
+          "engine_flat": "false",
+          "exchange_net": "-0.029",
+          "hold_ticks": 1,
+          "ledger_net": "0",
+          "legs": 0,
+          "outcome": "no_fills"
+        },
+        "_qb_position_epoch": "2026-05-01T00:00:00+00:00",
+        "open_trades": [],
+        "position_size": 0.029
+      },
+      "session_id": "id:<session>",
+      "total_closed_trades": 0,
+      "total_realized_pnl": "dec:0"
+    },
+    "insert_pending_events": {
+      "bar_time": "dt:2026-05-01T12:02:00+00:00",
+      "session_id": "id:<session>",
+      "signals": []
+    },
+    "publish_realtime": [
+      "id:<user>",
+      "session_state",
+      {
+        "session_id": "id:<session>"
+      }
+    ],
+    "dispatch": [],
+    "alert": null,
+    "reconcile": {
+      "bar_time": "dt:2026-05-01T12:02:00+00:00",
+      "fallback_reference_price": "dec:102.5",
+      "market_orders_in_flight": false
+    },
+    "metrics": {
+      "qb_live_signal_evaluated_total{interval=1m,outcome=success}": 1.0,
+      "qb_live_position_divergence_total{category=direction_transient}": 1.0,
+      "qb_live_ledger_derive_total{outcome=no_fills}": 1.0,
+      "qb_live_ledger_veto_total{decision=disagree,engine_flat=false}": 1.0
+    }
+  }
+}

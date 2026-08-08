@@ -1,0 +1,122 @@
+{
+  "case_id": "ledger_unreadable_tick_defers_the_reconciler",
+  "_how": "`size_divergence_is_observed_not_killed` 와 **입력이 한 곳만 다르다** — 원장 조회가 실패한다(`ledger_fills: probe_error`). 짝 케이스에서 1 이던 `reconcile_conditional_entries` 가 여기서는 **0** 이다. ★[ADR-025] §⑧ 의 fail-open 을 되돌리는 변이(미룸을 지우고 그냥 리컨사일을 부르는 것)는 여기서 호출수 1 과 counter 부재로 red 가 된다. 짝 케이스가 그대로 살아 있으므로 「항상 미룸」 변이도 동시에 잡힌다.",
+  "_contract": "`_capture_ledger_shadow` 가 조회 실패를 `conditional_fills=None` 으로 접고, 평가 tick 은 그 술어로 `_reconcile_conditional_entries` 를 **부르지 않는다**. 시뮬이 채운 stop 때문에 pending 이 desired 에서 빠져 거래소의 살아 있는 resting 주문이 취소되는 것을 막는다. ★`qb_live_conditional_fill_ownership_total{outcome=ledger_unreadable_fallback}` 과 `qb_live_conditional_reconcile_errors_total{stage=deferred_ledger_unreadable}` 은 **같은 tick 을 세므로 둘 다 1** 이어야 한다 — 갈리면 한쪽 계측이 깨진 것이다. 미룸은 실패가 아니므로 tick 은 `outcome=success` 로 완주한다.",
+  "input": {
+    "session": {
+      "is_active": true,
+      "symbol": "BTC/USDT",
+      "created_at": "2026-05-01T00:00:00+00:00",
+      "last_evaluated_bar_time": null,
+      "equity_baseline_usdt": "8192.00"
+    },
+    "strategy": {
+      "pine_source": "//@version=5\nstrategy('tick oracle')",
+      "position_size_pct": 10.0,
+      "leverage": 2.0
+    },
+    "ohlcv": [
+      [1777636800000, 100.0, 101.0, 99.0, 100.5, 10.0],
+      [1777636860000, 100.5, 102.0, 100.0, 101.5, 12.0],
+      [1777636920000, 101.5, 103.0, 101.0, 102.5, 11.0]
+    ],
+    "try_claim_bar": true,
+    "deactivate_rows": 1,
+    "carry": ["0", 0],
+    "ledger": ["0", 0],
+    "existing_events": [],
+    "inserted_events": [],
+    "previous_state": {
+      "last_strategy_state_report": {
+        "_qb_position_epoch": "2026-05-01T00:00:00+00:00",
+        "_qb_direction_mismatch_seen": false
+      },
+      "equity_curve": null
+    },
+    "exchange": [
+      {
+        "side": "long",
+        "size": "0.001"
+      }
+    ],
+    "run_live_result": {
+      "last_bar_time": "2026-05-01T12:02:00+00:00",
+      "signals": [],
+      "strategy_state_report": {
+        "open_trades": [],
+        "position_size": 0.029
+      },
+      "total_closed_trades": 0,
+      "total_realized_pnl": "0",
+      "errors": [],
+      "entry_skips": [],
+      "liquidations": []
+    },
+    "ledger_fills": "probe_error"
+  },
+  "expected": {
+    "alert": null,
+    "calls": {
+      "commit": 1,
+      "deactivate": 0,
+      "dispatch_apply_async": 0,
+      "fetch_open_positions": 2,
+      "insert_pending_events": 1,
+      "list_by_session": 1,
+      "publish_realtime": 1,
+      "reconcile_conditional_entries": 0,
+      "send_rule_alert": 0,
+      "try_claim_bar": 1,
+      "upsert_state": 1
+    },
+    "deactivate": null,
+    "dispatch": [],
+    "insert_pending_events": {
+      "bar_time": "dt:2026-05-01T12:02:00+00:00",
+      "session_id": "id:<session>",
+      "signals": []
+    },
+    "metrics": {
+      "qb_live_conditional_fill_ownership_total{outcome=ledger_unreadable_fallback}": 1.0,
+      "qb_live_conditional_reconcile_errors_total{stage=deferred_ledger_unreadable}": 1.0,
+      "qb_live_ledger_derive_total{outcome=fetch_failed}": 1.0,
+      "qb_live_ledger_veto_total{decision=undecidable,engine_flat=false}": 1.0,
+      "qb_live_position_divergence_total{category=size}": 1.0,
+      "qb_live_signal_evaluated_total{interval=1m,outcome=success}": 1.0
+    },
+    "publish_realtime": [
+      "id:<user>",
+      "session_state",
+      {
+        "session_id": "id:<session>"
+      }
+    ],
+    "reconcile": null,
+    "return": {
+      "evaluated": true,
+      "events_inserted": 0,
+      "last_bar_time": "2026-05-01T12:02:00+00:00"
+    },
+    "upsert_state": {
+      "equity_curve": null,
+      "last_strategy_state_report": {
+        "_qb_direction_mismatch_seen": false,
+        "_qb_ledger_shadow": {
+          "decision": "undecidable",
+          "engine_flat": "false",
+          "exchange_net": "0.001",
+          "hold_ticks": 0,
+          "ledger_net": null,
+          "legs": null,
+          "outcome": "fetch_failed"
+        },
+        "_qb_position_epoch": "2026-05-01T00:00:00+00:00",
+        "open_trades": [],
+        "position_size": 0.029
+      },
+      "session_id": "id:<session>",
+      "total_closed_trades": 0,
+      "total_realized_pnl": "dec:0"
+    }
+  }
+}

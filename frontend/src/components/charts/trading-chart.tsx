@@ -1,7 +1,7 @@
 "use client";
 
 // Sprint 30-β (W2): lightweight-charts wrapper.
-// PRD §Phase 1 주 4 spec 정합 — 점진적 도입 (ADR docs/dev-log/2026-05-05-sprint30-chart-lib-decision.md).
+// PRD §Phase 1 주 4 spec 정합 — 점진적 도입 (ADR git:0ddf2b53 docs/dev-log/2026-05-05-sprint30-chart-lib-decision.md).
 // recharts 보존, 신규 차트만 lightweight-charts.
 //
 // LESSON-004 준수:

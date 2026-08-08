@@ -428,6 +428,11 @@ qb_live_conditional_cancelled_total = Counter(
 #
 # ★`deferred_market_inflight_noop` 는 이번 배포에서 태어난 새 series 다. 기존 라벨과 절대값을
 # 나란히 비교할 수 없고, 같은 관측 창의 차분만 비교해야 한다.
+#
+# ★`deferred_ledger_unreadable` — [ADR-025] §⑧. 원장을 못 읽어 그 tick 만 현행 시뮬로 되돌린
+# 경우다. 이것도 **실패가 아니라 미룸**이라 `deferred_market_inflight` 계열과 같은 성질이며,
+# 발생률은 `qb_live_conditional_fill_ownership_total{outcome=ledger_unreadable_fallback}` 과
+# **같은 tick 을 세므로** 두 값은 나란히 움직여야 한다(갈리면 한쪽 계측이 깨진 것이다).
 qb_live_conditional_reconcile_errors_total = Counter(
     "qb_live_conditional_reconcile_errors_total",
     "Live conditional entry reconciliation failures",

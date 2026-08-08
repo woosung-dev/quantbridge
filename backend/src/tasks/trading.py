@@ -49,6 +49,7 @@ from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
 from src.market_data.constants import to_bybit_raw_symbol
+from src.trading.account_identity import dedupe_accounts_by_exchange_uid
 from src.trading.alerting import send_rule_alert
 from src.trading.encryption import EncryptionService
 from src.trading.exceptions import (
@@ -1900,7 +1901,13 @@ async def _sweep_closed_pnl_with_session(
         "alerted": 0,
     }
     async with sm() as session:
-        accounts = await ExchangeAccountRepository(session).list_by_exchange(ExchangeName.bybit)
+        account_rows = await ExchangeAccountRepository(session).list_by_exchange(ExchangeName.bybit)
+
+    # ★BL-605 — 계정 **행**이 아니라 **실제 거래소 계정** 단위로 스윕한다. 같은
+    #   `exchange_uid` 를 공유하는 행이 각자 같은 closed-pnl 창을 조회하면 원장이 정확히
+    #   행 수만큼 부풀고(실측 574 = 287 x 2), `row_hash` 는 같은데 UNIQUE 축이
+    #   `(exchange_account_id, row_hash)` 라 충돌로 걸러지지도 않는다.
+    accounts = dedupe_accounts_by_exchange_uid(list(account_rows))
 
     for account in accounts:
         summary["accounts"] += 1

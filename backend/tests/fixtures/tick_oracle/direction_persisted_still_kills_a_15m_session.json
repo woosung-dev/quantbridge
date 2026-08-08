@@ -1,0 +1,117 @@
+{
+  "case_id": "direction_persisted_still_kills_a_15m_session",
+  "_how": "★★codex P1 회귀 — **15m 세션의 정상 연속 평가는 그대로 죽어야 한다.** 15m 의 다음 봉은 15분 뒤라 `requires_gap_resync`(고정 5분 문턱)를 **정상적으로도** 넘는다. 공백 술어를 그 플래그로 되돌리는 변이는 이 tick 을 「공백」으로 읽어 유예하고, 세션이 안 죽어 red 가 된다. ★1m 케이스만으로는 이 결함이 통째로 안 보인다 — 그래서 이 케이스는 interval 이 다르다.",
+  "_contract": "`_evaluation_is_gapped` 는 **세션 자신의 봉 길이**로 잰다: 12:30 − 12:15 = 15분 = 정확히 1봉 ⇒ 공백 아님. strike 봉 12:15 는 TTL(15m×3=45분) 안이므로 `_judge_direction_strike` 는 kill=True 를 낸다 ⇒ `_block_on_direction_divergence`(deactivate + commit + publish + 알림 1건 + `outcome=divergence_blocked`). 도달 경로는 짝 케이스와 같다 — 재동기는 carried(short 0.029)로 통과하고 7.6 이 최종 position_size(+0.029)로 direction 을 본다.",
+  "input": {
+    "session": {
+      "is_active": true,
+      "symbol": "BTC/USDT",
+      "created_at": "2026-05-01T00:00:00+00:00",
+      "last_evaluated_bar_time": "2026-05-01T12:15:00+00:00",
+      "equity_baseline_usdt": "8192.00"
+    },
+    "strategy": {
+      "pine_source": "//@version=5\nstrategy('tick oracle')",
+      "position_size_pct": 10.0,
+      "leverage": 2.0
+    },
+    "ohlcv": [
+      [1777636800000, 100.0, 101.0, 99.0, 100.5, 10.0],
+      [1777637700000, 100.5, 102.0, 100.0, 101.5, 12.0],
+      [1777638600000, 101.5, 103.0, 101.0, 102.5, 11.0]
+    ],
+    "try_claim_bar": true,
+    "deactivate_rows": 1,
+    "carry": ["0", 0],
+    "ledger": ["0", 0],
+    "existing_events": [],
+    "inserted_events": [],
+    "previous_state": {
+      "last_strategy_state_report": {
+        "_qb_position_epoch": "2026-05-01T00:00:00+00:00",
+        "_qb_direction_mismatch_seen": true,
+        "_qb_direction_mismatch_bar": "2026-05-01T12:15:00+00:00"
+      },
+      "equity_curve": null
+    },
+    "exchange": [
+      {
+        "side": "short",
+        "size": "0.029"
+      }
+    ],
+    "run_live_result": {
+      "last_bar_time": "2026-05-01T12:30:00+00:00",
+      "signals": [],
+      "strategy_state_report": {
+        "open_trades": [
+          {
+            "id": "t-carried",
+            "entry_bar": 0,
+            "direction": "short",
+            "qty": 0.029
+          }
+        ],
+        "position_size": 0.029
+      },
+      "total_closed_trades": 0,
+      "total_realized_pnl": "0",
+      "errors": [],
+      "entry_skips": [],
+      "liquidations": []
+    },
+    "interval": "15m"
+  },
+  "expected": {
+    "alert": {
+      "channel": "both",
+      "context": {
+        "category": "position_direction_mismatch",
+        "error_count": "0",
+        "last_error_bar": "-1",
+        "session_id": "id:<session>[:8]",
+        "stage": "position"
+      },
+      "message": "엔진↔거래소 포지션 방향 불일치(position/position_direction_mismatch) 감지 — 세션을 비활성화했습니다(오신호 dispatch 차단, 고정 SL/포지션은 거래소측 유지). 전략 수정 후 재활성화 필요. detail: engine and exchange hold opposite sides for two evaluations",
+      "title": "Live signal 세션 자동 비활성화 — 엔진↔거래소 포지션 방향 불일치"
+    },
+    "calls": {
+      "commit": 1,
+      "deactivate": 1,
+      "dispatch_apply_async": 0,
+      "fetch_open_positions": 3,
+      "insert_pending_events": 0,
+      "list_by_session": 0,
+      "publish_realtime": 1,
+      "reconcile_conditional_entries": 0,
+      "send_rule_alert": 1,
+      "try_claim_bar": 1,
+      "upsert_state": 0
+    },
+    "deactivate": {
+      "args": ["id:<session>"],
+      "at": "dt:<now>",
+      "reason": "position_divergence"
+    },
+    "dispatch": [],
+    "insert_pending_events": null,
+    "metrics": {
+      "qb_live_gap_ledger_seed_total{outcome=no_basis}": 1.0,
+      "qb_live_signal_divergence_total{category=direction,stage=position}": 1.0,
+      "qb_live_signal_evaluated_total{interval=15m,outcome=divergence_blocked}": 1.0
+    },
+    "publish_realtime": [
+      "id:<user>",
+      "session_state",
+      {
+        "session_id": "id:<session>"
+      }
+    ],
+    "reconcile": null,
+    "return": {
+      "category": "direction",
+      "deactivated": "position_divergence"
+    },
+    "upsert_state": null
+  }
+}

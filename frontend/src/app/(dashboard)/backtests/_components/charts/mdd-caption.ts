@@ -29,7 +29,12 @@ export function buildMddCaption({
   }
   if (exceedsCapital) {
     // 자본 초과 손실 — 사용자 신뢰 quality bar 의무 표시.
-    return `${leverageLabel} · 자본 초과 손실`;
+    // ★BL-466 — 1x 에서는 마진 게이트가 no-op 이고 강제청산도 없어서 손실이 자본을
+    //   넘어 계속 누적된다. 승인안 (c) 는 이 동작을 유지하는 대신 "실제로는 나올 수
+    //   없는 결과" 라는 것을 리포트가 말하게 한다.
+    return leverage === 1
+      ? `${leverageLabel} · 자본 초과 손실 · 강제청산이 없어 실제로는 불가능한 결과`
+      : `${leverageLabel} · 자본 초과 손실`;
   }
   if (leverage !== 1) {
     return `${leverageLabel} 가정`;

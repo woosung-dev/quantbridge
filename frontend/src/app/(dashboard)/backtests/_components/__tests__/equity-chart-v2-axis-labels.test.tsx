@@ -94,7 +94,9 @@ describe("EquityChartV2 — axis labels (Sprint 32-C BL-172)", () => {
     expect(ddAxis).toHaveTextContent(/1d 단위 캔들/);
   });
 
-  it("shows leverage warning in drawdown axis when mddExceedsCapital=true", () => {
+  // [BL-466] 자본 초과 손실은 L=1 에서도 일어나므로 축 라벨이 원인을 레버리지로
+  // 돌리면 안 된다. 사실(자본을 넘어선 손실)만 적는다.
+  it("shows capital-exceeded notice in drawdown axis when mddExceedsCapital=true", () => {
     render(
       <EquityChartV2
         equityCurve={EQUITY}
@@ -105,10 +107,11 @@ describe("EquityChartV2 — axis labels (Sprint 32-C BL-172)", () => {
     );
 
     const ddAxis = screen.getByTestId("axis-label-bar-drawdown");
-    expect(ddAxis).toHaveTextContent(/leverage 시 -100% 초과 가능/);
+    expect(ddAxis).toHaveTextContent(/-100% 초과 = 자본을 넘어선 손실/);
+    expect(ddAxis).not.toHaveTextContent(/leverage/);
   });
 
-  it("hides leverage warning when mddExceedsCapital=false", () => {
+  it("hides capital-exceeded notice when mddExceedsCapital=false", () => {
     render(
       <EquityChartV2
         equityCurve={EQUITY}
@@ -119,7 +122,8 @@ describe("EquityChartV2 — axis labels (Sprint 32-C BL-172)", () => {
     );
 
     const ddAxis = screen.getByTestId("axis-label-bar-drawdown");
-    expect(ddAxis).not.toHaveTextContent(/leverage 시/);
+    expect(ddAxis).toHaveTextContent(/0 ~ -100%/);
+    expect(ddAxis).not.toHaveTextContent(/자본을 넘어선 손실/);
   });
 
   it("falls back to '시간' when timeframe is undefined", () => {

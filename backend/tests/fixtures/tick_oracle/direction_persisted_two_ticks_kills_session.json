@@ -1,0 +1,107 @@
+{
+  "case_id": "direction_persisted_two_ticks_kills_session",
+  "_how": "같은 반대편이 **판정된 평가 2회 연속** 살아남았다 — 죽인다. 차단은 '죽였다' 만으로 부족하고 outbox INSERT 0 · state upsert 0 · dispatch 0 까지가 계약이다. ★`_block_on_direction_divergence` 를 no-op 으로 만들면 **반환 dict 는 그대로인데** deactivate/commit/alert/publish/counter 가 전부 0 이 된다 — 부작용 원장을 함께 얼렸기 때문에 red 다.",
+  "_contract": "`live_signal.py:3615-3617` → `_block_on_direction_divergence:3137-3171` — deactivate(reason='position_divergence') + commit + publish_realtime + `qb_live_signal_divergence_total{stage=position,category=direction}` + `qb_live_signal_evaluated_total{outcome=divergence_blocked}` + 알림 1건.",
+  "input": {
+    "session": {
+      "is_active": true,
+      "symbol": "BTC/USDT",
+      "created_at": "2026-05-01T00:00:00+00:00",
+      "last_evaluated_bar_time": null,
+      "equity_baseline_usdt": "8192.00"
+    },
+    "strategy": {
+      "pine_source": "//@version=5\nstrategy('tick oracle')",
+      "position_size_pct": 10.0,
+      "leverage": 2.0
+    },
+    "ohlcv": [
+      [1777636800000, 100.0, 101.0, 99.0, 100.5, 10.0],
+      [1777636860000, 100.5, 102.0, 100.0, 101.5, 12.0],
+      [1777636920000, 101.5, 103.0, 101.0, 102.5, 11.0]
+    ],
+    "try_claim_bar": true,
+    "deactivate_rows": 1,
+    "carry": ["0", 0],
+    "ledger": ["0", 0],
+    "existing_events": [],
+    "inserted_events": [],
+    "previous_state": {
+      "last_strategy_state_report": {
+        "_qb_position_epoch": "2026-05-01T00:00:00+00:00",
+        "_qb_direction_mismatch_seen": true
+      },
+      "equity_curve": null
+    },
+    "exchange": [
+      {
+        "side": "short",
+        "size": "0.029"
+      }
+    ],
+    "run_live_result": {
+      "last_bar_time": "2026-05-01T12:02:00+00:00",
+      "signals": [],
+      "strategy_state_report": {
+        "open_trades": [],
+        "position_size": 0.029
+      },
+      "total_closed_trades": 0,
+      "total_realized_pnl": "0",
+      "errors": [],
+      "entry_skips": [],
+      "liquidations": []
+    }
+  },
+  "expected": {
+    "return": {
+      "category": "direction",
+      "deactivated": "position_divergence"
+    },
+    "calls": {
+      "try_claim_bar": 1,
+      "deactivate": 1,
+      "commit": 1,
+      "upsert_state": 0,
+      "list_by_session": 0,
+      "insert_pending_events": 0,
+      "publish_realtime": 1,
+      "dispatch_apply_async": 0,
+      "send_rule_alert": 1,
+      "reconcile_conditional_entries": 0,
+      "fetch_open_positions": 2
+    },
+    "deactivate": {
+      "args": ["id:<session>"],
+      "at": "dt:<now>",
+      "reason": "position_divergence"
+    },
+    "upsert_state": null,
+    "insert_pending_events": null,
+    "publish_realtime": [
+      "id:<user>",
+      "session_state",
+      {
+        "session_id": "id:<session>"
+      }
+    ],
+    "dispatch": [],
+    "alert": {
+      "channel": "both",
+      "context": {
+        "category": "position_direction_mismatch",
+        "error_count": "0",
+        "last_error_bar": "-1",
+        "session_id": "id:<session>[:8]",
+        "stage": "position"
+      },
+      "message": "엔진↔거래소 포지션 방향 불일치(position/position_direction_mismatch) 감지 — 세션을 비활성화했습니다(오신호 dispatch 차단, 고정 SL/포지션은 거래소측 유지). 전략 수정 후 재활성화 필요. detail: engine and exchange hold opposite sides for two evaluations",
+      "title": "Live signal 세션 자동 비활성화 — 엔진↔거래소 포지션 방향 불일치"
+    },
+    "reconcile": null,
+    "metrics": {
+      "qb_live_signal_evaluated_total{interval=1m,outcome=divergence_blocked}": 1.0,
+      "qb_live_signal_divergence_total{category=direction,stage=position}": 1.0
+    }
+  }
+}

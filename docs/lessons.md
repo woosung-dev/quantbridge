@@ -20,19 +20,20 @@
 
 > 본문은 해당 rule file에 있음. 본 파일은 reference table 만 유지.
 
-| ID         | 승격 위치                              | 한 줄 요약                                                                                                                    |
-| ---------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| LESSON-004 | `frontend/AGENTS.md` §3 H-1            | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)                 |
-| LESSON-005 | `frontend/AGENTS.md` §3 H-2            | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                                        |
-| LESSON-006 | `frontend/AGENTS.md` §3 H-3            | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                              |
-| LESSON-019 | `backend/AGENTS.md` §3                 | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단)           |
-| LESSON-020 | `backend/AGENTS.md` §9.2               | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                                        |
-| LESSON-037 | `generator-evaluator-pipeline.md` §8.1 | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제)                                     |
-| LESSON-038 | `generator-evaluator-pipeline.md` §8.2 | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check                                          |
-| LESSON-039 | `generator-evaluator-pipeline.md` §8.3 | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                                     |
-| LESSON-040 | `generator-evaluator-pipeline.md` §8.4 | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                              |
-| LESSON-063 | `generator-evaluator-pipeline.md` §8.5 | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                                     |
-| LESSON-066 | `backend/AGENTS.md` §7                 | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충) |
+| ID         | 승격 위치                              | 한 줄 요약                                                                                                                                                                     |
+| ---------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| LESSON-004 | `frontend/AGENTS.md` §3 H-1            | `useEffect` dep 에 React Query data / Zustand selector / RHF watch / Zod parse 결과 사용 금지 (CPU 100% loop)                                                                  |
+| LESSON-005 | `frontend/AGENTS.md` §3 H-2            | `queryKey` 는 `userId` identity 사용 — Clerk `getToken` 직접 포함 금지                                                                                                         |
+| LESSON-006 | `frontend/AGENTS.md` §3 H-3            | React Compiler 호환 — render body 에서 `ref.current = value` 금지, deps-less `useEffect` 로 이동                                                                               |
+| LESSON-019 | `backend/AGENTS.md` §3                 | Service mutation 메서드는 `tests/<domain>/test_*_commits.py` 의 AsyncMock spy 회귀 의무 (broken-bug 3 회 재발 차단)                                                            |
+| LESSON-020 | `backend/AGENTS.md` §9.2               | Module-level `asyncio.<Semaphore/Lock/Event/Queue>` 추가 시 AST audit + allowlist 의무                                                                                         |
+| LESSON-037 | `generator-evaluator-pipeline.md` §8.1 | Sprint kickoff 첫 step = baseline 재측정 preflight 의무 (Type A 의무 / B 권장 / C/D 면제)                                                                                      |
+| LESSON-038 | `generator-evaluator-pipeline.md` §8.2 | Docker worker auto-rebuild on PR merge 의무 + sentinel function startup health check                                                                                           |
+| LESSON-039 | `generator-evaluator-pipeline.md` §8.3 | Surface Trust 차단 (UI false positive) ≠ 기능 작동 (BE 정확 계산). 두 mechanism 분리 의무                                                                                      |
+| LESSON-040 | `generator-evaluator-pipeline.md` §8.4 | codex G.0 직후 + Sprint 진입 전 = rapid prereq verification spike (10-30분) 의무                                                                                               |
+| LESSON-063 | `generator-evaluator-pipeline.md` §8.5 | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                                                                                      |
+| LESSON-066 | `backend/AGENTS.md` §7                 | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충)                                                  |
+| LESSON-092 | `backend/AGENTS.md` §10                | 검사기가 보는 표면 < 실패 표면이면 초록은 무의미 — 부작용까지 동결 · 순수 함수는 **배선**을 재는 케이스 필수 · 페이크는 제약 축을 흉내내라. 변이는 **도달 확인 후** 판정 (3/3) |
 
 ---
 
@@ -367,6 +368,23 @@
   수단은 **프로세스를 갈아 끼우는 것**이다(상태가 프로세스 전역이면 특히) ⑶ 그래도 **못 재는
   것을 적어라** — 여기서는 「셋 다 비어 있는 완전 cold 에서 각 성분의 단독 몫」이 미측정이고,
   캐시를 **끈 채로** 파싱할 수단이 없어 실험 설계 자체가 없다.
+
+---
+
+### LESSON-093 — **값이 도구의 한계와 일치하면 그것은 신호가 아니라 도구다** (1/3)
+
+- **상황:** [BL-619]의 닫는 조건 「로그가 남은 창에서 재관측」이 2026-08-08 처음 성립했다. 게이트
+  표본(`.soak/gate-samples.jsonl`)으로 `last_evaluated_bar_time` 정체를 재니 **10분 이상 35구간,
+  최대 31.0분** — 「재발했다」로 읽고 싶어지는 그림이다.
+- **반증:** 같은 표본의 **간격**이 중앙 13.9분 · **최대 31.0분**이었다. 관측된 「정체 31.0분」이
+  **표본 최대 간격과 정확히 같다** ⇒ 정지의 크기가 아니라 **관측 공백의 크기**일 수 있고 이
+  표본으로는 구분되지 않는다. 판정 대상(~17분)과 표본 해상도가 **같은 자릿수**였다.
+- **대조군이 판별력의 존재를 증명했다:** 같은 창을 워커 로그(60초 해상도)로 재면 `evaluate_all`
+  **919건 · 간격 최소=중앙=최대 60.0초 · 2분 이상 공백 0건**으로 깨끗하게 갈린다. 문제는 현상이
+  아니라 **표본**이고, 디스패치 축의 「재발 0」은 **유효한 음성 대조**다.
+- **해결:** ⑴ 정체·지연·공백을 재는 도구는 **자기 표본 간격을 같이 보고**해라 ⑵ **판정 대상보다
+  최소 2배 촘촘한 표본**을 요구해라 ⑶ 방향을 따져라 — 성긴 표본은 정체를 **못 보고**, 못 보면
+  실격을 **안 낸다**(fail-open ⇒ [BL-653]) ⑷ **재발 0건은 뿌리를 밝히지 않는다.**
 
 ---
 

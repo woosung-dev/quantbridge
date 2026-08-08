@@ -67,7 +67,7 @@ from src.common.metrics import (
 from src.common.metrics_multiproc import _count_safely, _touch_safely, record_metric_safely
 from src.common.redlock import RedisLock
 from src.core.config import settings
-from src.market_data.constants import to_ccxt_perpetual_symbol
+from src.market_data.constants import TIMEFRAME_SECONDS, to_ccxt_perpetual_symbol
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.strategy_state import LedgerConditionalFill, LedgerSeedLeg
@@ -243,6 +243,22 @@ _POSITION_SIZE_REL_TOL = Decimal("0.05")
 # (`pending_orders` / `window_bars` 등) 관행에 맞고, 밑줄 접두어로 엔진 산출물이 아님을
 # 표시한다. 엔진 키와 충돌하면 그 순간 판정이 조용히 틀리므로 이름을 겹치게 두지 마라.
 _DIRECTION_MISMATCH_KEY = "_qb_direction_mismatch_seen"
+
+# 위 strike 를 **언제** 봤는지. bool 하나만 넘기면 「2회 연속」이 시간 간격을 못 본다 —
+# 한 번 True 가 되면 다음 direction 관측이 몇 시간 뒤여도 무조건 킬이었다. 같은 JSONB
+# 리포트에 얹으므로 마이그레이션이 없고, 형식은 `_POSITION_EPOCH_KEY` 와 같다
+# (aware UTC isoformat 문자열).
+_DIRECTION_STRIKE_BAR_KEY = "_qb_direction_mismatch_bar"
+
+# strike 의 유효 수명 — **봉 수**로 잰다.
+# ★★벽시계 절대값으로 잡지 마라. 「15분」을 넣으면 1m 전략에선 15봉이지만 1h 전략에선
+#   한 봉도 못 채워 strike 가 **매번** 만료되고 가드가 통째로 꺼진다. 재는 양이 「봉 몇
+#   개가 지났나」이므로 단위도 봉이어야 한다(상수 재사용 사고와 같은 계열 — 유예 상한을
+#   다른 양에서 빌려오면 그 값은 여기서 아무것도 안 재게 된다).
+# 값 3 의 근거 — 자기해소 skew 는 **다음 봉 종가**에 풀린다(1봉). 2회차 관측이 정상적으로
+#   도착하는 자리는 N+1 이고, 그 사이 평가를 한두 번 놓쳐도(claim 상실 · probe 실패) 같은
+#   에피소드다. 3봉을 넘겨 도착한 관측은 같은 에피소드로 볼 근거가 없다.
+_DIRECTION_STRIKE_MAX_BARS = 3
 
 # position epoch 은 마지막 성공 평가 이후 실제 outbox 발행을 허용한 시각이다. 기존 JSONB
 # 리포트에만 저장하므로 마이그레이션 없이 재생 포지션을 거래소 상태와 정렬할 수 있다.
@@ -783,6 +799,126 @@ def _classify_position_divergence(engine: Decimal, exchange: Decimal) -> str | N
     if abs(engine - exchange) > larger * _POSITION_SIZE_REL_TOL:
         return "size"
     return None
+
+
+@dataclass(frozen=True, slots=True)
+class _DirectionStrike:
+    """방향 불일치 strike 창 판정 결과.
+
+    `kill` = 이번 tick 에서 세션을 죽이는가. `bar` = 다음 tick 으로 넘길 strike 의 봉 시각
+    (`None` = strike 를 남기지 않는다). `outcome` = 계상할 counter label.
+    """
+
+    kill: bool
+    bar: datetime | None
+    outcome: str
+
+
+def _direction_strike_bar(previous_report: Any) -> datetime | None:
+    """직전 strike 를 기록한 tick 의 **봉 시각**. 못 읽으면 None.
+
+    ★**감싸는 핸들러: 없다.** 순수 함수다.
+
+    ★**모르면 None 이고, 호출부는 그것을 「유예하지 않는다」로 읽는다.**
+    `_gap_resync_defers_so_far` 의 「모르면 0」과 방향이 **반대**인데, 쓰임이 반대이기
+    때문이다 — 저 값은 미룸을 **끊는** 쪽으로만 쓰여 작게 잡는 실수가 안전하지만, 이 값은
+    킬을 **미루는** 쪽으로만 쓰인다. 모름을 유예로 읽으면 이 키가 없는 리포트(이 수리보다
+    먼저 시작돼 아직 살아 있는 세션 · 오염된 dict)에서 킬이 **영원히** 안 걸린다.
+    """
+    if not isinstance(previous_report, dict):
+        return None
+    raw = previous_report.get(_DIRECTION_STRIKE_BAR_KEY)
+    if not isinstance(raw, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def _direction_strike_ttl(interval_value: str) -> timedelta | None:
+    """strike 만료 한도. 봉 길이를 모르면 None(= 만료시키지 않는다).
+
+    ★**감싸는 핸들러: 없다.** 순수 함수다.
+
+    ★모르는 interval 에서 만료시키면 가드가 조용히 꺼진다. 모름은 **오늘 행위 보존**이다.
+    """
+    seconds = TIMEFRAME_SECONDS.get(interval_value)
+    return None if seconds is None else timedelta(seconds=seconds * _DIRECTION_STRIKE_MAX_BARS)
+
+
+def _evaluation_is_gapped(
+    *,
+    last_evaluated_bar_time: datetime | None,
+    bar_time: datetime,
+    interval_value: str,
+) -> bool:
+    """직전 평가와 이번 평가 사이에 **봉을 건너뛰었는가**.
+
+    ★**감싸는 핸들러: 없다.** 순수 함수다.
+
+    ★★**`requires_gap_resync` 를 그대로 쓰면 안 된다 — 그건 다른 양을 잰다.** 그 술어의
+    문턱은 고정 5분(`_MAX_CATCHUP_WALL_CLOCK_GAP`)이라 **15m·1h 세션은 정상적인 다음 봉도
+    문턱을 넘는다**(900s·3600s > 300s). 그걸 공백 유예에 얹으면 그 두 interval 에서는 매
+    평가가 「공백」이 되어 direction 킬이 **영원히 안 걸린다**. 초판이 정확히 그 결함이었고
+    codex 평가가 잡았다(2026-08-09, 코드 대조 완료 — 1m·5m 은 무해, 15m·1h 만 파손).
+    ⇒ 공백은 **세션 자신의 봉 길이**로 잰다. 정상 연속 평가는 정확히 1봉이므로 공백이 아니고,
+    한 봉이라도 건너뛰면 공백이다.
+
+    ★모르면 False(= 공백 아님)다 — 모름으로 가드를 끄지 않는다. 첫 평가
+    (`last_evaluated_bar_time is None`)도 마찬가지이며, 그때는 애초에 직전 strike 가 없다.
+    """
+    if last_evaluated_bar_time is None:
+        return False
+    seconds = TIMEFRAME_SECONDS.get(interval_value)
+    if seconds is None:
+        return False
+    return bar_time - last_evaluated_bar_time > timedelta(seconds=seconds)
+
+
+def _judge_direction_strike(
+    *,
+    previous_strike_bar: datetime | None,
+    had_previous_strike: bool,
+    bar_time: datetime,
+    interval_value: str,
+    evaluation_gapped: bool,
+) -> _DirectionStrike:
+    """「방향 불일치를 **이번 tick 에 봤다**」는 전제에서 2회 연속 창을 판정한다.
+
+    ★**감싸는 핸들러: 없다.** 순수 함수이고, 호출부는 `direction_mismatch_seen is True`
+    일 때만 부른다.
+
+    ★**「2회 연속」은 두 관측 사이에 봉이 하나라도 지났을 때만 성립한다.** 이 가드의
+    근거 자체가 "거래소는 bar 안에서 실시간 트리거, 엔진은 bar 종가에만 평가" 라서
+    **다음 봉 종가에 스스로 풀리는** skew 이기 때문이다. 봉이 안 지났으면 엔진은 풀
+    기회를 한 번도 못 받았다 — 그걸 2회차로 세면 관측 지연을 발산으로 오판한다.
+    """
+    if not had_previous_strike:
+        # 1회차 — 다음 평가까지 유예하고 봉 시각을 남긴다.
+        return _DirectionStrike(kill=False, bar=bar_time, outcome="direction_transient")
+    if evaluation_gapped:
+        # ★두 관측 사이에 **평가 공백**이 있었다 — 「연속 2회」가 성립하지 않는다.
+        #   봉이 전진하지 않는 동안 tick 은 `try_claim_bar` 에서 떨어져 strike 를 건드리지도
+        #   않으므로(같은 봉은 두 번 판정될 수 없다), 공백은 **조용히** 두 관측을 이어 붙인다.
+        #   실측 2026-08-08: 디스패치는 60.0초 고정인데 `last_evaluated_bar_time` 은 10분 이상
+        #   정체가 35구간 — 디스패치와 봉 전진은 다른 시계다.
+        # ★TTL 과 겹치지 않는다. 둘은 서로 다른 양을 재고 **서로가 못 잡는 것을 잡는다**:
+        #   1m 에서는 TTL(3봉=3분)이 공백 문턱(5분)보다 촘촘하고, 1h 에서는 TTL(3시간)이
+        #   너무 헐거워 10분 공백을 못 잡지만 이 분기가 잡는다.
+        # ★이 판정은 리포트 dict 가 아니라 세션의 `last_evaluated_bar_time` 에서 나오므로
+        #   봉 시각이 없는 옛 strike 에도 유효하다 — 그래서 아래 None 검사보다 앞에 둔다.
+        return _DirectionStrike(kill=False, bar=bar_time, outcome="direction_strike_gapped")
+    if previous_strike_bar is None:
+        # 이 수리 이전에 기록된 strike(봉 시각이 없다). **오늘 행위를 그대로 보존**한다 —
+        # 여기서 유예하면 키 하나가 빠진 리포트만으로 가드를 끌 수 있다.
+        return _DirectionStrike(kill=True, bar=None, outcome="direction_persisted")
+    ttl = _direction_strike_ttl(interval_value)
+    if ttl is not None and bar_time - previous_strike_bar > ttl:
+        # 두 관측이 같은 에피소드가 아니다. 이번 것을 **1회차로 다시** 센다.
+        return _DirectionStrike(kill=False, bar=bar_time, outcome="direction_strike_expired")
+    return _DirectionStrike(kill=True, bar=previous_strike_bar, outcome="direction_persisted")
 
 
 def _to_engine_position(strategy_state_report: dict[str, Any]) -> Decimal | None:
@@ -3597,6 +3733,10 @@ async def _evaluate_session_with_engine(
 
         engine_position = _to_engine_position(result.strategy_state_report)
         direction_mismatch_seen: bool | None = None
+        # ★기본값 = **직전 값 그대로 이어받기**. 판정을 못 한 tick(`engine_position` 부재 ·
+        #   probe 실패)은 strike 를 지우지도 갱신하지도 않는다 — `_DIRECTION_MISMATCH_KEY`
+        #   와 **같은 규율**이고, 둘이 갈리면 플래그는 살아 있는데 봉 시각만 사라진다.
+        direction_strike_bar = _direction_strike_bar(previous_report)
         if engine_position is not None:
             divergence_category = await _detect_position_divergence(
                 sess,
@@ -3606,16 +3746,28 @@ async def _evaluate_session_with_engine(
             )
             if divergence_category != _PROBE_FAILED:
                 direction_mismatch_seen = divergence_category == "direction"
-            direction_mismatch_persisted = (
-                direction_mismatch_seen is True and previous_direction_mismatch
-            )
-            if direction_mismatch_seen and not direction_mismatch_persisted:
-                # 첫 관측 — 다음 평가까지 유예한다. 플래그는 아래 upsert 로 넘어간다.
-                _count_safely(qb_live_position_divergence_total, category="direction_transient")
-            if direction_mismatch_persisted:
-                return await _block_on_direction_divergence(
-                    sess, sess_repo, interval_value=interval_value
+            if direction_mismatch_seen:
+                strike = _judge_direction_strike(
+                    previous_strike_bar=direction_strike_bar,
+                    had_previous_strike=previous_direction_mismatch,
+                    bar_time=last_bar_time,
+                    interval_value=interval_value,
+                    evaluation_gapped=_evaluation_is_gapped(
+                        last_evaluated_bar_time=last_evaluated_bar_time,
+                        bar_time=last_bar_time,
+                        interval_value=interval_value,
+                    ),
                 )
+                direction_strike_bar = strike.bar
+                if strike.kill:
+                    return await _block_on_direction_divergence(
+                        sess, sess_repo, interval_value=interval_value
+                    )
+                # 유예 — 사유별로 계상하고 strike 는 아래 upsert 로 다음 tick 에 넘긴다.
+                _count_safely(qb_live_position_divergence_total, category=strike.outcome)
+            elif direction_mismatch_seen is False:
+                # 불일치가 사라졌다 — 플래그와 함께 봉 시각도 지운다.
+                direction_strike_bar = None
             if (
                 divergence_category is not None
                 and divergence_category != _PROBE_FAILED
@@ -3696,6 +3848,11 @@ async def _evaluate_session_with_engine(
                 if direction_mismatch_seen is None
                 else direction_mismatch_seen
             )
+            # strike 를 기록한 **봉 시각**을 함께 넘긴다(TTL 의 기준점).
+            # ★없으면 키를 아예 얹지 않는다 — null 을 남기면 다음 tick 의 reader 가
+            #   「strike 없음」과 「못 읽음」을 구분하지 못한다.
+            if direction_strike_bar is not None:
+                sanitized_report[_DIRECTION_STRIKE_BAR_KEY] = direction_strike_bar.isoformat()
             sanitized_report[_POSITION_EPOCH_KEY] = position_epoch.isoformat()
         # BL-591 슬라이스 1 — 위에서 뜬 계측 스냅샷을 counter + 이 dict 에 남긴다.
         # ★`engine_position` 은 `run_live` **결과**다(주입 가능 여부는 엔진이 flat 일
@@ -3735,15 +3892,31 @@ async def _evaluate_session_with_engine(
                 expires=300,
             )
 
-    await _reconcile_conditional_entries(
-        sess,
-        result,
-        parsed_settings,
-        sm,
-        bar_time=last_bar_time,
-        market_orders_in_flight=bool(new_events),
-        fallback_reference_price=_last_close_or_none(df),
-    )
+    # [ADR-025] §⑧ — 원장을 못 읽은 tick 은 리컨사일을 **통째로 한 tick 미룬다**.
+    # ★ADR 이 「문서화, 미수리」로 남긴 fail-open 이다. 그 tick 은 조건부 체결의 권한이
+    #   시뮬로 되돌아가는데(위 `ledger_unreadable_fallback`), 시뮬이 stop 을 채우면 그
+    #   pending 이 desired 에서 빠지고 아래 수렴이 거래소의 **살아 있는 resting 주문을
+    #   취소**한다. 다음 tick 에 원장이 복구되면 다시 등재 ⇒ 취소·재발주 왕복이고, 그
+    #   사이에 트리거가 오면 진입을 통째로 놓친다.
+    # ★**`market_orders_in_flight` 와 같은 이유·같은 처방이다** — 둘 다 "지금 읽은 desired
+    #   가 곧 틀릴 것을 이미 알고 있다" 는 상태다. 그럴 때는 한 tick 늦추는 편이 싸다:
+    #   **취소는 되돌릴 수 없지만 미룸은 되돌릴 수 있다.**
+    # ★술어를 여기서 다시 조회하지 않는다 — `run_live` 에 `ledger_conditional_fills` 를
+    #   넘겼는지와 **같은 값**을 봐야 "시뮬로 돌린 tick" 과 "미룬 tick" 이 어긋나지 않는다.
+    if ledger_shadow.conditional_fills is None:
+        _count_safely(
+            qb_live_conditional_reconcile_errors_total, stage="deferred_ledger_unreadable"
+        )
+    else:
+        await _reconcile_conditional_entries(
+            sess,
+            result,
+            parsed_settings,
+            sm,
+            bar_time=last_bar_time,
+            market_orders_in_flight=bool(new_events),
+            fallback_reference_price=_last_close_or_none(df),
+        )
 
     qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()
     return {

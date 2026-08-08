@@ -263,7 +263,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-015** [P1] OKX Private WS — OKX 어댑터 REST 만, WS 부재로 fetch_order polling 부담 · 선행: OKX WS signing(Bybit Demo 안정화 후)
 - [x] **BL-186a** [P2] 레버리지 충실도 — ✅ **backtest-trust 완료**. ★TV/MT5 컨벤션(레버리지는 **수량을 바꾸지 않고** 필요증거금·청산가만 정함) → `compute_qty` 무변경 → 레버리지>1 에서도 TV parity 유지. 격리 청산 + 마진 게이트(단일 chokepoint) + FE 입력 재도입. L=1 byte-identical
 - [ ] **BL-186b** [P2] cross/tiered MM + 파산수수료 + 멀티거래소 + 펀딩-청산 상호작용 — 186a 이후 이연
-- [ ] **BL-460** [P2] 마진 게이트가 **gross 자본**으로 판정 — `running_equity` 가 수수료·슬리피지 차감 전이라(`close()` "fees=0 Sprint 37 가정") 실측 gross +38,679 vs net −53,670. 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 파괴 → 별도 설계 필요 · (실자금 레버리지 사용 전)
+- [x] **BL-460** [P2] 마진 게이트가 **gross 자본**으로 판정 — `running_equity` 가 수수료·슬리피지 차감 전이라(`close()` "fees=0 Sprint 37 가정") 실측 gross +38,679 vs net −53,670. 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 파괴 → 별도 설계 필요 · (실자금 레버리지 사용 전)
 - [x] **BL-461** [P3] `_periodic_returns` daily fallback 이 sub-daily 를 "1 bar = 1 day" 로 계산 — `resample("D").last()` 로 해결(2026-08-03 backtest-metric-oracle). 실측 왜곡 = 같은 자본 경로를 1h 로 적으면 Sharpe 가 참 값의 6배, 하루치 1h 봉에서는 Sharpe 16.56. 우려됐던 baseline 2 metric 확산은 **미발생** — 코퍼스 7벌이 전부 월간 경로라 regen 0행
 - [ ] **BL-462** [P3] Sharpe 목록 정렬 신·구 컨벤션 혼재 — `repository.py:75` 가 원시 JSONB 숫자만 캐스팅. 현재는 FE 고지로 대응, 완전 해소는 read-time recompute
 - [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기
@@ -272,7 +272,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-587** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — **원인 차단 + 탐지기 둘 다**. 차단 = `backend/.python-version` 3.12 핀. 탐지 = `test_envelope_*` 3건이 `ohlcv_sha256`·`schema_version`·`tool_versions.python` 을 실제로 읽는다(그전까지 읽는 곳 0곳). ★red 메시지에 「회귀가 아니라 regen 하고 값이 같은지 확인해라」를 박았다. 세 변조에 각각 자기 assert 만 red 로 판별력 확인
 - [x] **BL-588** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 5→7 로 맞추는 대신 **목록을 `_corpus.py` 하나로 합쳤다**(parity·regen·mutation 셋이 그것만 읽는다). ★실측: `_MUTATION_CORPORA` 의 5벌이 **정확히 위험조정지표가 축퇴한 5벌**이라 그 3지표의 산술 회귀가 구조적으로 감지 불가였다. nightly 183s→218s(+19%), 감지 결과 불변(기존 8변이는 `trades_digest` 로 이미 잡힌다)
 - [x] **BL-465** [P1] `_periodic_returns` 음수 자본 미차단 → 파산한 실행에 양수 샤프 — ✅ **dogfood-restore 완료**. 신규 마커 `unavailable_nonpositive_equity` + Trust Layer baseline 재생성(2/12 키 한정)
-- [ ] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
+- [x] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
 - [x] **BL-467** [P1] `backend-optimizer-heavy` OHLCV env 3종 부재로 **모든 optimizer 실행 실패** — ✅ **dogfood-restore 완료**
 - [ ] **BL-468** [P3] `OHLCV_FIXTURE_ROOT` CWD 상대 기본값 + `FixtureProvider` 가 canonical 슬래시 심볼 미지원
 - [ ] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead)
@@ -332,7 +332,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-026** [P1] Mutation fixture 활성화 회귀 — skip #4-7,#9-15
 - [x] **BL-622 ✅ Resolved** [P1] (2026-08-07 gap-resync-autopsy) — `requires_gap_resync` 가 열린 채 시작한 세션이 재동기 전에 사망하던 경로. ★사망 판정은 H3(관측 지연) — 거래소 체결시각 20:17:19 vs 원장 20:31:51 로 **872초** 벌어졌고 판정은 그 3.5초 전에 떨어졌다. ★상수 재사용이 틀렸다는 것도 함께 확정 — janitor 30분은 **다른 양**을 잰다(조건부 resting 이 벽시계 95.1%)
 - [x] **BL-633 ✅ Resolved** [P1] (2026-08-08 bl003-unblock) — ★★판정 = **[ADR-025] 반례가 아니라 이중 호스트 오염**이다. 오라클 서버와 맥 로컬이 같은 Bybit demo 계정 `19a8166a…` 에 같은 전략·심볼·주기로 동시에 붙어 있었다. 근거 — 서버 `exchange_exits` 고유 `order_link_id` 27 중 **7건이 로컬 원장에만** 있고 귀속 불가 0 · 정본 항등식 `exchange = P0 + Σ(양쪽 호스트 체결)` **4/4**(반사실은 정의 4가지 어디서도 4/4 불가 · 최대 1/4) · 두 원장의 고유 `exchange_order_id` **27/27** 일치. ★계정은 세션 시작(09:39:38) **전부터** 오염돼 있었다(로컬 체결 07:42~09:03 5건) ⇒ 배타성 검사는 재기동이 아니라 **세션 시작** 시점에 건다 — [BL-634]
-- [ ] **BL-634** [P1] 계정 배타성 가드 부재 — 두 호스트면 **데이터베이스도 둘**이라 `live_signal_sessions` 의 `is_active` unique index 가 원리상 못 막는다. 각 DB 안에서는 제약이 정상 성립했고 둘을 합친 상태를 아는 주체가 없었다. ⇒ 가드는 **거래소 쪽 상태**를 봐야 한다 — `order_link_id` 소유권으로 「원장에 없는 미체결 조건부」를 세고 ≥1 이면 세션 시작을 거부. ★대상은 **미체결(resting)** 이어야 한다(체결 이력으로 걸면 미조인 exit 이 상시라 영구 거부)
+- [x] **BL-634 ✅ Resolved** [P1] (2026-08-09 excl) 계정 배타성 가드 부재 — 두 호스트면 **데이터베이스도 둘**이라 `live_signal_sessions` 의 `is_active` unique index 가 원리상 못 막는다. 각 DB 안에서는 제약이 정상 성립했고 둘을 합친 상태를 아는 주체가 없었다. ⇒ 가드는 **거래소 쪽 상태**를 봐야 한다 — `order_link_id` 소유권으로 「원장에 없는 미체결 조건부」를 세고 ≥1 이면 세션 시작을 거부. ★대상은 **미체결(resting)** 이어야 한다(체결 이력으로 걸면 미조인 exit 이 상시라 영구 거부)
 - [x] **BL-635 ✅ Resolved** [P1] 게이트 아카이브 오염이 라이브 기전이었다 — 타이머가 스택 부재 시 30분마다 오염본을 찍고 판정기가 크래시하며, 그 크래시가 **exit 1 = FAIL 과 구분되지 않는다**. 로컬 실측 9벌
 - [ ] **BL-636** [P2] `docs/backlog.md` 인덱스 표가 빈 줄로 끊겨 헤더 없는 조각을 만든다 — GFM 에서 표로 렌더되지 않고 `bl-audit.sh` 는 줄 형태만 봐서 이 파손을 감지하지 못한다
 - [x] **BL-637 ✅ Resolved** [P2] `bl-audit.sh` 가 **우선순위 배치**를 검사 축으로 갖지 않는다 — `Priority: P1` 인 BL 이 P2 표에 실려 있어도 「✓ 3면 정합 · exit 0」이 나온다 — ★2026-08-08 bl003-unblock 이 닫았다: 우선순위 배치가 4번째 검사 축이 됐고 주입 시험 2/2 로 판별력을 증명했다

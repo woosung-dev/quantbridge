@@ -75,7 +75,9 @@ def _make_strategy(user_id, settings=_VALID_SETTINGS) -> Strategy:
     )
 
 
-def _make_account(user_id, *, exchange=ExchangeName.bybit, mode=ExchangeMode.demo) -> ExchangeAccount:
+def _make_account(
+    user_id, *, exchange=ExchangeName.bybit, mode=ExchangeMode.demo
+) -> ExchangeAccount:
     return ExchangeAccount(
         id=uuid4(),
         user_id=user_id,
@@ -155,8 +157,11 @@ async def test_register_calls_repo_commit(monkeypatch: pytest.MonkeyPatch) -> No
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
     from src.tasks.websocket_task import run_bybit_public_ticker_stream
 
@@ -188,8 +193,11 @@ async def test_register_strategy_not_found_does_not_commit() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=None)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
 
     req = _make_req(uuid4(), uuid4())
@@ -214,8 +222,11 @@ async def test_register_settings_required_does_not_commit() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
 
     req = _make_req(strategy.id, uuid4())
@@ -240,8 +251,11 @@ async def test_register_invalid_settings_does_not_commit() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
 
     req = _make_req(strategy.id, uuid4())
@@ -269,15 +283,14 @@ async def test_register_account_mode_live_rejected() -> None:
     # W4 게이트가 AccountModeNotAllowed 보다 앞서므로, stub-block 을 검증하려면
     # stable user_repo 를 주입해 demo-stability 게이트를 통과시킨다.
     user_repo = AsyncMock()
-    user_repo.get_created_at = AsyncMock(
-        return_value=datetime.now(UTC) - timedelta(days=3650)
-    )
+    user_repo.get_created_at = AsyncMock(return_value=datetime.now(UTC) - timedelta(days=3650))
 
     svc = LiveSignalSessionService(
         repo=repo,
         account_repo=account_repo,
         strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
         user_repo=user_repo,
     )
 
@@ -304,8 +317,11 @@ async def test_register_exchange_okx_rejected() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
 
     req = _make_req(strategy.id, account.id)
@@ -334,8 +350,11 @@ async def test_register_quota_exceeded_does_not_commit() -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
 
     req = _make_req(strategy.id, account.id)
@@ -362,8 +381,11 @@ async def test_deactivate_calls_repo_commit() -> None:
     strategy_repo = AsyncMock()
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
 
     await svc.deactivate(user_id, sess.id)
@@ -389,8 +411,11 @@ async def test_deactivate_already_inactive_no_commit() -> None:
     strategy_repo = AsyncMock()
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
 
     await svc.deactivate(user_id, sess.id)
@@ -415,8 +440,11 @@ async def test_deactivate_ownership_violation_404() -> None:
     strategy_repo = AsyncMock()
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
 
     with pytest.raises(StrategyNotFoundError):
@@ -452,8 +480,11 @@ async def test_register_survives_ticker_kick_failure(monkeypatch) -> None:
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
 
     svc = LiveSignalSessionService(
-        repo=repo, account_repo=account_repo, strategy_repo=strategy_repo,
+        repo=repo,
+        account_repo=account_repo,
+        strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
     )
     from src.tasks.websocket_task import run_bybit_public_ticker_stream
 

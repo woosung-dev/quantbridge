@@ -194,7 +194,7 @@ def test_heikinashi_supported_with_dogfood_warning() -> None:
     """Sprint 29 Slice A (a): heikinashi → SUPPORTED + dogfood_only_warning 채워짐.
 
     Trust Layer 위반 인정 + dogfood-only flag.
-    참고: docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md
+    참고: git:590eeec9 docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md
     """
     src = """
 //@version=5

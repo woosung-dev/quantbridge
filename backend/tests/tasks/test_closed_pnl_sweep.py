@@ -15,11 +15,17 @@ from src.trading.models import ExchangeMode, ExchangeName, ExitClassification, O
 from src.trading.providers import ClosedOrderMeta, ClosedPnlSnapshot
 
 
-def _account() -> SimpleNamespace:
+def _account(
+    *, exchange_uid: str | None = None, read_only: bool | None = None
+) -> SimpleNamespace:
+    # `exchange_uid` 기본값이 None 인 것은 실제 컬럼 기본값과 같다 — uid 미상인 행은
+    # 서로 묶이지 않으므로 기존 단일 계정 테스트는 dedup 도입 전후로 동일하다.
     return SimpleNamespace(
         id=uuid4(),
         exchange=ExchangeName.bybit,
         mode=ExchangeMode.demo,
+        exchange_uid=exchange_uid,
+        read_only=read_only,
         api_key_encrypted=b"k",
         api_secret_encrypted=b"s",
         passphrase_encrypted=None,
@@ -93,7 +99,11 @@ class _State:
         self.rows = []
         self.pending_rows: list[SimpleNamespace] = []
         self.commits = 0
-        self.row_hashes: set[str] = set()
+        # ★UNIQUE 축은 `row_hash` 단독이 아니라 **(exchange_account_id, row_hash)** 다
+        #   (`ExchangeExitRepository.upsert_rows` 의 `index_elements`). 페이크가
+        #   `row_hash` 만으로 접으면 계정 행이 둘일 때 생기는 2배 적재를 **하네스가
+        #   가려** [BL-605] 회귀가 조용히 통과한다.
+        self.row_keys: set[tuple[UUID, str]] = set()
         self.matched_orders: list[SimpleNamespace] = []
         self.attribution_orders: list[SimpleNamespace] = []
         # BL-457 — 실재하는 우리 Order.id 집합. 비어 있으면 link-id 만으로는
@@ -145,8 +155,9 @@ def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> Non
         async def upsert_rows(self, rows):
             added = []
             for row in rows:
-                if row.row_hash not in state.row_hashes:
-                    state.row_hashes.add(row.row_hash)
+                key = (row.exchange_account_id, row.row_hash)
+                if key not in state.row_keys:
+                    state.row_keys.add(key)
                     state.pending_rows.append(row)
                     added.append(row.row_hash)
             return added
@@ -307,12 +318,13 @@ async def test_sweep_aggregates_ledger_rows_before_backfill(monkeypatch: pytest.
     # 이전 주기에 이미 커밋된 분할 행. 이번 조회에는 나타나지 않는다.
     state.rows.append(
         SimpleNamespace(
+            exchange_account_id=account.id,
             exchange_order_id="split-close",
             closed_pnl=Decimal("-0.02"),
             row_hash="previous-cycle-row",
         )
     )
-    state.row_hashes.add("previous-cycle-row")
+    state.row_keys.add((account.id, "previous-cycle-row"))
     _install_repositories(monkeypatch, state)
     provider = SimpleNamespace(
         fetch_closed_pnl_window=AsyncMock(
@@ -619,3 +631,71 @@ async def test_sweep_infers_the_strategy_across_the_exchange_symbol_space(
     assert len(state.rows) == 1
     assert state.rows[0].attribution_confidence == ExitAttribution.inferred
     assert state.rows[0].attributed_strategy_id == strategy_id
+
+
+@pytest.mark.asyncio
+async def test_sweep_visits_one_row_per_real_exchange_account(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[BL-605] — 같은 `exchange_uid` 를 공유하는 계정 **행 2개**는 스윕 1회다.
+
+    스윕은 `list_by_exchange` 가 준 **행**을 돌았다. 실측(2026-08-08)으로
+    `exchange_uid=558689281` 을 공유하는 행이 2개라(`bybit demo` ·
+    `bybit demo- aaa`) 같은 창을 두 번 조회했고, 두 행의 `row_hash` 는 입력이 전부
+    거래소 원본이라 **같은데** UNIQUE 축이 `(exchange_account_id, row_hash)` 라
+    충돌하지 않아 둘 다 적재됐다 — `exchange_exits` 574행 = 287 event x **정확히 2**.
+
+    수리 전 이 테스트는 `accounts=2` · `await_count=2` · `len(rows)=2` 로 red 다.
+    """
+    import src.tasks.trading as trading_mod
+
+    uid = "558689281"
+    primary = _account(exchange_uid=uid, read_only=False)
+    mirror = _account(exchange_uid=uid, read_only=True)
+    state = _State([primary, mirror])
+    # 두 행 중 어느 쪽으로 조회해도 거래소는 **같은 청산 event** 를 돌려준다.
+    state.matched_orders = [_order(primary.id, "our-close")]
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(return_value=[_snapshot("our-close", created_at_ms=1)]),
+        fetch_closed_order_meta=AsyncMock(),
+    )
+
+    summary = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=datetime(2026, 7, 25, tzinfo=UTC)
+    )
+
+    assert summary["accounts"] == 1
+    assert provider.fetch_closed_pnl_window.await_count == 1
+    # 원장 2배의 직접 관측. 계정 축을 접지 않으면 여기서 2가 된다.
+    assert summary["inserted"] == 1
+    assert len(state.rows) == 1
+    # 대표는 **주문을 낼 수 있는** 행이어야 한다. `read_only` 행을 대표로 뽑으면
+    # 그 계정의 원장·소유권을 대표하지 못한다.
+    assert state.rows[0].exchange_account_id == primary.id
+
+
+@pytest.mark.asyncio
+async def test_sweep_keeps_every_row_whose_exchange_account_is_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`exchange_uid` 가 `None` 인 행끼리는 묶지 않는다 — 실체를 모르기 때문이다.
+
+    미상인 것들을 한 덩어리로 접으면 **서로 다른 실제 계정**이 조용히 스윕에서
+    사라진다. 부풀린 원장보다 빠진 원장이 나쁘다.
+    """
+    import src.tasks.trading as trading_mod
+
+    state = _State([_account(), _account()])
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(return_value=[]),
+        fetch_closed_order_meta=AsyncMock(),
+    )
+
+    summary = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=datetime(2026, 7, 25, tzinfo=UTC)
+    )
+
+    assert summary["accounts"] == 2
+    assert provider.fetch_closed_pnl_window.await_count == 2

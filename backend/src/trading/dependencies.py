@@ -34,6 +34,7 @@ from src.trading.repositories.live_signal_session_repository import LiveSignalSe
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.repositories.parity_repository import ParityRepository
 from src.trading.repositories.webhook_secret_repository import WebhookSecretRepository
+from src.trading.services.account_exclusivity import AccountExclusivityService
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.balance_service import AccountBalanceService
@@ -205,6 +206,8 @@ async def get_balance_service(
 async def get_live_signal_session_service(
     session: AsyncSession = Depends(get_async_session),
     balance_service: AccountBalanceService = Depends(get_balance_service),
+    account_service: ExchangeAccountService = Depends(get_exchange_account_service),
+    bybit_futures_provider: BybitFuturesProvider = Depends(get_bybit_futures_provider),
 ) -> LiveSignalSessionService:
     """Sprint 26 — Live Signal Auto-Trading session 등록/조회/종료.
 
@@ -216,6 +219,12 @@ async def get_live_signal_session_service(
         account_repo=ExchangeAccountRepository(session),
         strategy_repo=StrategyRepository(session),
         balance_service=balance_service,
+        exclusivity_service=AccountExclusivityService(
+            account_repo=ExchangeAccountRepository(session),
+            order_repo=OrderRepository(session),
+            account_service=account_service,
+            bybit_futures_provider=bybit_futures_provider,
+        ),
         user_repo=UserRepository(session),
     )
 

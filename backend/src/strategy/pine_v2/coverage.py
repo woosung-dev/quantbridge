@@ -688,13 +688,15 @@ def analyze_coverage(source: str) -> CoverageReport:
     )
 
     # Sprint 29 Slice A: dogfood_only_warning — heikinashi Trust Layer 위반 감지
+    # ★근거 원문 = git:590eeec9 docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md
+    #   ([BL-610]) — 2026-05-15 삭제됐다. **경고 문자열에서는 뺐다**: 이 문자열은 UI 로
+    #   표면화되므로 없는 경로를 안내하면 안 되고, git 좌표는 사용자에게 쓸모가 없다.
     warning: str | None = None
     if "heikinashi" in used_funcs_all:
         warning = (
             "heikinashi() 사용 — Trust Layer 위반 (Sprint 29 ADR). "
             "Heikin-Ashi 캔들은 일반 OHLC 와 다른 변환이라 backtest 결과가 "
-            "Pine 원본과 다를 수 있음 (거짓 양성 risk). dogfood-only 사용 권장. "
-            "참고: docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md"
+            "Pine 원본과 다를 수 있음 (거짓 양성 risk). dogfood-only 사용 권장."
         )
 
     # Sprint 29 Slice B: unsupported_calls — line 번호 + workaround + category 포함
