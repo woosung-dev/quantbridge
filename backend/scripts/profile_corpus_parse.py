@@ -23,6 +23,9 @@
 8. **인과 대조(기본 포함)** — 같은 프로세스·같은 입력에서 ANTLR 캐시**만** 비운다. cold 비용이
    되돌아오면 원인이 캐시 상태임이 상관이 아니라 인과로 확정된다. 이어서 성분(`parser_dfa` /
    `shared_ctx` / `lexer_dfa`)을 **하나씩** 비워 어느 것이 비용을 지는지까지 좁힌다.
+   ★단 이 성분 루프는 회차마다 다시 데우므로 **independent 하지 않다** — [9] 를 봐라.
+9. 성분 independent control(`--components`) — 성분마다 **새 프로세스**에서 배경 워밍 이력을
+   똑같이 맞춘 뒤 그 성분만 비운다. [8] 성분 루프의 순서 의존을 없앤 판이다.
 
 ★[5] 의 log-log 기울기는 **보조 증거일 뿐이다**. 잘린 조각마다 문법 구성이 달라 값이 울퉁불퉁
 하고(꼬리 구간은 오히려 sublinear), 기울기가 1 을 넘더라도 warm 합계 자체가 단독 실행 비용을
@@ -32,12 +35,19 @@
     cd backend && uv run python scripts/profile_corpus_parse.py            # 기본 1·2·3·8 (~3분)
     cd backend && uv run python scripts/profile_corpus_parse.py --ramp     # + 크기 램프
     cd backend && uv run python scripts/profile_corpus_parse.py --solo     # + 파일별 격리 프로세스
-    cd backend && uv run python scripts/profile_corpus_parse.py --all      # 전부 ([7] 포함, ~12분)
+    cd backend && uv run python scripts/profile_corpus_parse.py --all      # 전부 ([7] 포함, ~16분)
     cd backend && uv run python scripts/profile_corpus_parse.py --cprofile # [7] 만 (cold 상위 함수)
+    cd backend && uv run python scripts/profile_corpus_parse.py --components # [9] 만 (~4분)
 
 DB·환경변수 불필요 — `classify_script` 는 순수 함수다.
 ★절대시간은 머신 부하에 민감하다(같은 cold 파싱이 41~68s 로 흔들린 실측이 있다). 결론은
 배수·순위·[8] 의 되돌아옴으로 읽어라, 절대초로 읽지 마라.
+
+★**zero-touch 계약과의 관계.** 이 스크립트는 `backend/src` 를 **읽기 전용으로 import** 한다 —
+쓰기도 생성도 없고, 부수효과는 `__pycache__/` 바이트코드뿐이다. 그 디렉터리는
+`.gitignore:57` · `backend/.gitignore:1` 에 등재돼 있고 소크 스택은 `.soak/src` **스냅샷을
+mount** 하므로, 이 스크립트를 돌려도 커밋되는 `backend/src` 변경은 0줄이고 소크 창에도
+닿지 않는다(계약이 사는 자리는 커밋 diff 이지 파일시스템이 아니다).
 """
 
 from __future__ import annotations
@@ -182,6 +192,12 @@ print(json.dumps({"import_s": elapsed, "dfa_after_import": dfa}))
 def section_import(repeats: int = 3) -> dict[str, Any]:
     print(f"\n[1] import 비용 — 서브프로세스 {repeats} 회 (bytecode 컴파일 편향 제거)")
     # 첫 회는 .pyc 컴파일이 섞이므로 버린다 (첫 실행이 17s, 이후 0.26s 로 관측됐다).
+    # ★**여기서 나오는 수치는 warm 프로세스 한정이다** (2026-08-08 codex 평가 지적).
+    #   버려지는 첫 회 17s 는 bytecode 컴파일 + OS 파일 캐시 워밍이고, **CI 는 cold 다** —
+    #   `.pyc` 가 없는 새 러너에서 샤드마다 이 17s 계열을 다시 무는지는 **이 도구가 안 잰다**.
+    #   따라서 「import 는 cold 합계의 0.4% 라 무시 가능」은 [BL-598] 이 재는 현상(같은 머신
+    #   warm 프로세스에서 42.66s vs 4.58s)에 대해서만 참이고, cold CI 축으로 일반화하면
+    #   안 된다. cold 축 = [BL-652] 미측정.
     _run_child(_IMPORT_CHILD)
     samples = [_run_child(_IMPORT_CHILD) for _ in range(repeats)]
     times = sorted(sample["import_s"] for sample in samples)
@@ -482,6 +498,14 @@ def section_dfa_control(name: str = _HEADLINE) -> dict[str, float]:
     # ── 성분 분리 ──────────────────────────────────────────────
     # 셋을 한꺼번에 비우면 「ANTLR 캐시가 원인」까지만 말할 수 있다. 하나씩 비워야
     # 「parser DFA 가 원인」으로 좁혀진다 (2026-08-08 codex 평가 지적을 받아 추가).
+    #
+    # ★★**이 루프는 independent control 이 아니다** (2026-08-08 2차 codex 평가 지적).
+    #   매 회차 끝에 `measure("  → warm")` 로 **다시 데우므로**, `shared_ctx` 차례가 왔을 때
+    #   parser DFA 는 이미 워밍돼 있다. 그래서 여기 나오는 1.0배는
+    #     「shared_ctx 는 무관하다」가 아니라
+    #     「**parser DFA 가 데워져 있으면** shared_ctx 는 추가 비용을 안 진다」
+    #   만 말한다. 성분의 **단독** 기여는 이 루프가 답하지 않는다.
+    #   답하는 것은 [9] `--components` — 성분마다 **새 프로세스**를 띄워 워밍 이력을 같게 맞춘다.
     for scope in ("parser_dfa", "shared_ctx", "lexer_dfa"):
         _reset_antlr_caches(scope)
         rows.append([f"reset {scope} only", "-", str(_dfa_state_count())])
@@ -494,14 +518,109 @@ def section_dfa_control(name: str = _HEADLINE) -> dict[str, float]:
         print("    성분별 배수 (warm 대비):")
         for scope in ("parser_dfa", "shared_ctx", "lexer_dfa"):
             ratio = measured[f"  → after {scope}"] / warm
-            verdict = "★비용을 진다" if ratio > 2 else "영향 없음"
+            verdict = "★비용을 진다" if ratio > 2 else "이 상태에서는 추가 비용 없음"
             print(f"      {scope:12s} {ratio:5.1f} 배  {verdict}")
+        print(
+            "      ★위 세 줄은 **직전 성분이 다시 데워진 상태**에서 잰 값이다 — "
+            "성분의 단독 기여가 아니다 ([9] `--components` 참조)."
+        )
         print(
             f"    ★워밍업 배수: cold/warm = {measured['1 cold'] / warm:.1f} 배, "
             f"리셋 직후/warm = {measured['5 post-reset'] / warm:.1f} 배"
         )
         print("      입력도 프로세스도 그대로인데 비용이 되돌아온다 → 원인은 캐시 상태다.")
     return measured
+
+
+# --------------------------------------------------------------------------- #
+# [9] 성분 independent control — 성분마다 새 프로세스
+# --------------------------------------------------------------------------- #
+
+# 한 프로세스 안에서 성분을 순서대로 비우면 뒤 성분은 앞 성분이 **다시 데워진** 상태에서
+# 측정된다([8] 주석). 여기서는 성분 하나당 프로세스 하나를 띄워, 리셋 직전 상태를
+# 「cold 1회 + warm 1회」로 **셋 다 똑같이** 맞춘다. 그래야 세 배수를 서로 비교할 수 있다.
+_COMPONENT_CHILD = """
+import json, sys, time
+sys.path.insert(0, ".")
+from pathlib import Path
+from antlr4.dfa.DFA import DFA
+from antlr4.PredictionContext import PredictionContextCache
+from src.strategy.pine_v2.ast_classifier import classify_script
+from pynescript.ast.grammar.antlr4.generated.PinescriptLexer import PinescriptLexer
+from pynescript.ast.grammar.antlr4.generated.PinescriptParser import PinescriptParser
+
+name = sys.argv[1]
+scope = sys.argv[2]
+source = (Path("tests/fixtures/pine_corpus_v2") / (name + ".pine")).read_text()
+
+def dfa_total():
+    return sum(len(d.states) for d in PinescriptParser.decisionsToDFA)
+
+def timed():
+    start = time.perf_counter()
+    classify_script(source)
+    return time.perf_counter() - start
+
+cold = timed()      # 이 프로세스의 첫 접촉 — 셋 다 여기서 같은 이력을 갖는다
+warm = timed()
+
+if scope == "parser_dfa":
+    PinescriptParser.decisionsToDFA = [
+        DFA(s, i) for i, s in enumerate(PinescriptParser.atn.decisionToState)
+    ]
+elif scope == "shared_ctx":
+    PinescriptParser.sharedContextCache = PredictionContextCache()
+elif scope == "lexer_dfa":
+    PinescriptLexer.decisionsToDFA = [
+        DFA(s, i) for i, s in enumerate(PinescriptLexer.atn.decisionToState)
+    ]
+else:
+    raise SystemExit("unknown scope: " + scope)
+
+after = timed()
+rewarm = timed()
+print(json.dumps({
+    "scope": scope, "cold_s": cold, "warm_s": warm,
+    "after_reset_s": after, "rewarm_s": rewarm, "dfa": dfa_total(),
+}))
+"""
+
+
+def section_components(name: str = _HEADLINE) -> dict[str, Any]:
+    """성분마다 **새 프로세스**에서 재는 independent control.
+
+    [8] 의 성분 루프는 회차마다 `→ warm` 으로 다시 데우므로, 두 번째·세 번째 성분은
+    「parser DFA 가 이미 워밍된 상태」를 배경으로 측정된다. 그 배치에서 나온 1.0배는
+    **성분의 단독 기여가 아니다.** 여기서는 프로세스를 갈아 배경을 셋 다 동일하게
+    (cold 1회 + warm 1회) 맞춘 뒤 그 성분만 비운다.
+
+    ★이 섹션이 답하는 것과 아닌 것.
+      - 답한다: 「배경 워밍 이력이 같을 때, 어느 성분을 비워야 비용이 되돌아오는가」
+      - 안 답한다: 「완전 cold 첫 파싱에서 각 성분이 몇 초씩 나눠 갖는가」. 셋 다 비어
+        있는 상태를 성분별로 쪼갤 방법이 없다 — 캐시를 「끈」 채로 파싱할 수 없기 때문이다.
+        그 분해는 **미측정**이다.
+    """
+    print(f"\n[9] 성분 independent control — 성분마다 **새 프로세스** ({name})")
+    print("    배경을 cold 1회 + warm 1회로 셋 다 동일하게 맞춘 뒤 그 성분만 비운다.")
+    rows: list[list[str]] = []
+    out: dict[str, Any] = {}
+    for scope in ("parser_dfa", "shared_ctx", "lexer_dfa"):
+        sample = _run_child(_COMPONENT_CHILD, name, scope)
+        out[scope] = sample
+        ratio = sample["after_reset_s"] / sample["warm_s"] if sample["warm_s"] else float("nan")
+        rows.append(
+            [
+                scope,
+                f"{sample['cold_s']:.3f}",
+                f"{sample['warm_s']:.3f}",
+                f"{sample['after_reset_s']:.3f}",
+                f"{sample['rewarm_s']:.3f}",
+                f"{ratio:.1f}x",
+            ]
+        )
+    print(_fmt_table(["scope", "cold_s", "warm_s", "after_reset_s", "rewarm_s", "배수"], rows))
+    print("    ★배수 = after_reset / warm. 같은 프로세스 안 비교라 머신 부하에 강하다.")
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -514,7 +633,12 @@ def main() -> int:
     parser.add_argument(
         "--cprofile", action="store_true", help="[7] cold 파싱 상위 함수 (단독 지정 시 [7]만)"
     )
-    parser.add_argument("--all", action="store_true", help="[1]~[8] 전부 ([7] 포함, ~12분)")
+    parser.add_argument(
+        "--components",
+        action="store_true",
+        help="[9] 성분마다 새 프로세스로 재는 independent control (단독 지정 시 [9]만, ~4분)",
+    )
+    parser.add_argument("--all", action="store_true", help="[1]~[9] 전부 ([7] 포함, ~16분)")
     args = parser.parse_args()
 
     print("=" * 78)
@@ -523,9 +647,12 @@ def main() -> int:
     print(f"python: {sys.version.split()[0]}")
     print("=" * 78)
 
-    # `--cprofile` 단독 = [7] 만. `--all` 과 함께면 전 구간을 돌고 [7] 도 포함한다.
+    # `--cprofile` / `--components` 단독 = 그 섹션만. `--all` 과 함께면 전 구간을 돈다.
     if args.cprofile and not args.all:
         section_cprofile()
+        return 0
+    if args.components and not args.all:
+        section_components()
         return 0
 
     section_import()
@@ -540,6 +667,8 @@ def main() -> int:
         #   ([8] 은 첫 단계에서 캐시를 통째로 비우므로 안전하다).
         section_cprofile()
     section_dfa_control()
+    if args.components or args.all:
+        section_components()
 
     print("\n" + "=" * 78)
     print("판별 규칙")
