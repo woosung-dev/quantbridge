@@ -55,7 +55,14 @@ scripts/soak-gate.sh --status
 
 술어·창·리셋 규칙은 [`ADR-024`](../../decisions/024-soak-stability-gate.md). 계산부는 I/O 없는
 순수 함수(`backend/scripts/soak_gate_predicate.py`)라 손 계산과 대조할 수 있고, 정의는
-`backend/tests/scripts/test_soak_gate_predicate.py` 22테스트로 동결돼 있다.
+`backend/tests/scripts/test_soak_gate_predicate.py` 로 동결돼 있다(개수는 세지 마라 — 세어 적으면
+낡는다. 이 줄에 「22테스트」라고 박혀 있던 값이 2026-08-08 에 이미 두 배 넘게 틀려 있었다).
+
+★**실격의 원인은 게이트가 모른다** — 사람이
+[`soak-disqualifications.jsonl`](soak-disqualifications.jsonl) 에 근거와 함께 등재하고, 게이트는
+그것을 **보고 줄 한 줄**로만 낸다(`★실격 귀속(보고 전용 · 판정 불참)`). 판정 C1~C5 는 원장이
+있든 없든 같은 값이다 — 계약과 기각된 대안은 [ADR-024 §실격 귀속 원장](../../decisions/024-soak-stability-gate.md).
+MTBF 층화는 `backend/scripts/mtbf_stratified.py` 가 그 원장을 읽어 자동으로 만든다.
 
 ★**고정본 스택이 떠 있으면 `make up-isolated` 계열이 거부된다** — 같은 `container_name` 을
 덮어써 소크를 끊기 때문이다. 정말 덮어쓰려면 `QB_SOAK_OVERRIDE=1`.
