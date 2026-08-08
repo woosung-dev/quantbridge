@@ -35,12 +35,14 @@ def _judge(
     had_previous_strike: bool = True,
     bar_time: datetime,
     interval_value: str = "1m",
+    evaluation_gapped: bool = False,
 ):
     return _judge_direction_strike(
         previous_strike_bar=previous_strike_bar,
         had_previous_strike=had_previous_strike,
         bar_time=bar_time,
         interval_value=interval_value,
+        evaluation_gapped=evaluation_gapped,
     )
 
 
@@ -117,6 +119,57 @@ def test_unknown_interval_never_expires_the_strike() -> None:
         interval_value="7m",
     )
     assert verdict.kill is True
+
+
+# ---------------------------------------------------------------------------
+# ② 평가 공백 — 공백을 사이에 둔 두 관측은 「연속」이 아니다
+# ---------------------------------------------------------------------------
+
+
+def test_evaluation_gap_between_the_two_observations_restarts_the_window() -> None:
+    """★공백이 있었으면 TTL 안이어도 죽이지 않는다.
+
+    strike 봉과 이번 봉은 **1봉** 차이라 TTL 은 이 케이스를 못 잡는다 — 이 분기만 잡는다.
+    """
+    verdict = _judge(
+        previous_strike_bar=_BAR,
+        bar_time=_BAR + timedelta(minutes=1),
+        evaluation_gapped=True,
+    )
+    assert verdict.kill is False
+    assert verdict.outcome == "direction_strike_gapped"
+    assert verdict.bar == _BAR + timedelta(minutes=1), "공백 뒤에는 이번 봉이 새 기준점이다"
+
+
+def test_evaluation_gap_grace_applies_to_strikes_without_a_recorded_bar() -> None:
+    """공백 판정은 리포트가 아니라 세션 상태에서 나오므로 **옛 strike 에도** 유효하다."""
+    verdict = _judge(previous_strike_bar=None, bar_time=_BAR, evaluation_gapped=True)
+    assert verdict.kill is False
+    assert verdict.outcome == "direction_strike_gapped"
+
+
+def test_gap_grace_does_not_swallow_the_ordinary_kill() -> None:
+    """★음성 대조 — 공백이 없으면 같은 입력이 그대로 죽어야 한다.
+
+    이게 없으면 「유예를 항상 적용」하는 변이가 위 두 케이스만으로는 안 잡힌다.
+    """
+    verdict = _judge(
+        previous_strike_bar=_BAR,
+        bar_time=_BAR + timedelta(minutes=1),
+        evaluation_gapped=False,
+    )
+    assert verdict.kill is True
+
+
+def test_first_observation_is_unaffected_by_the_gap_flag() -> None:
+    """1회차는 공백 여부와 무관하게 1회차다 — label 이 갈리면 계측이 거짓말한다."""
+    verdict = _judge(
+        previous_strike_bar=None,
+        had_previous_strike=False,
+        bar_time=_BAR,
+        evaluation_gapped=True,
+    )
+    assert verdict.outcome == "direction_transient"
 
 
 # ---------------------------------------------------------------------------

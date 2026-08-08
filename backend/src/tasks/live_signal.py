@@ -854,6 +854,7 @@ def _judge_direction_strike(
     had_previous_strike: bool,
     bar_time: datetime,
     interval_value: str,
+    evaluation_gapped: bool,
 ) -> _DirectionStrike:
     """「방향 불일치를 **이번 tick 에 봤다**」는 전제에서 2회 연속 창을 판정한다.
 
@@ -868,6 +869,18 @@ def _judge_direction_strike(
     if not had_previous_strike:
         # 1회차 — 다음 평가까지 유예하고 봉 시각을 남긴다.
         return _DirectionStrike(kill=False, bar=bar_time, outcome="direction_transient")
+    if evaluation_gapped:
+        # ★두 관측 사이에 **평가 공백**이 있었다 — 「연속 2회」가 성립하지 않는다.
+        #   봉이 전진하지 않는 동안 tick 은 `try_claim_bar` 에서 떨어져 strike 를 건드리지도
+        #   않으므로(같은 봉은 두 번 판정될 수 없다), 공백은 **조용히** 두 관측을 이어 붙인다.
+        #   실측 2026-08-08: 디스패치는 60.0초 고정인데 `last_evaluated_bar_time` 은 10분 이상
+        #   정체가 35구간 — 디스패치와 봉 전진은 다른 시계다.
+        # ★TTL 과 겹치지 않는다. 둘은 서로 다른 양을 재고 **서로가 못 잡는 것을 잡는다**:
+        #   1m 에서는 TTL(3봉=3분)이 공백 문턱(5분)보다 촘촘하고, 1h 에서는 TTL(3시간)이
+        #   너무 헐거워 10분 공백을 못 잡지만 이 분기가 잡는다.
+        # ★이 판정은 리포트 dict 가 아니라 세션의 `last_evaluated_bar_time` 에서 나오므로
+        #   봉 시각이 없는 옛 strike 에도 유효하다 — 그래서 아래 None 검사보다 앞에 둔다.
+        return _DirectionStrike(kill=False, bar=bar_time, outcome="direction_strike_gapped")
     if previous_strike_bar is None:
         # 이 수리 이전에 기록된 strike(봉 시각이 없다). **오늘 행위를 그대로 보존**한다 —
         # 여기서 유예하면 키 하나가 빠진 리포트만으로 가드를 끌 수 있다.
@@ -3710,6 +3723,7 @@ async def _evaluate_session_with_engine(
                     had_previous_strike=previous_direction_mismatch,
                     bar_time=last_bar_time,
                     interval_value=interval_value,
+                    evaluation_gapped=requires_gap_resync,
                 )
                 direction_strike_bar = strike.bar
                 if strike.kill:
