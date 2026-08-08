@@ -29,6 +29,25 @@ const FOCUS_WIDTH = 1440;
 /** 원본 `:154` 과 같은 Tab 횟수. */
 const FOCUS_TAB_COUNT = 30;
 
+/** 감사를 강제할 테마. */
+export type CanonTheme = "light" | "dark";
+
+/**
+ * next-themes 가 선택 테마를 적는 localStorage 키 (`ThemeProvider` 기본값).
+ *
+ * ★★`colorScheme` 만 줘서는 테마가 바뀌지 않는다 ([BL-648], 2026-08-08 실측).
+ *   `components/providers/app-providers.tsx` 가 `defaultTheme="dark"` 라, 저장된 선호값이
+ *   없으면 next-themes 는 `enableSystem` 이어도 시스템 값을 보지 않고 다크로 고정한다.
+ *   실측(`/`, 1440px):
+ *     - 옵션 없음                   → `<html class="… dark">`  body 배경 `rgb(11, 13, 15)`
+ *     - `colorScheme: "light"` 단독 → `<html class="… dark">`  body 배경 `rgb(11, 13, 15)`  ← 안 바뀐다
+ *     - localStorage `theme=light`  → `<html class="… light">` body 배경 `rgb(244, 245, 246)`
+ *   즉 **「컨텍스트를 라이트로 만들었다」와 「페이지가 라이트로 렌더됐다」는 다르다.**
+ *   그래서 아래 `probeTheme()` 이 매 컨텍스트마다 렌더된 결과를 실제로 읽어 확인한다 —
+ *   확인이 없으면 라이트 감사가 조용히 다크를 한 번 더 재고도 초록이 된다(fail-open).
+ */
+const THEME_STORAGE_KEY = "theme";
+
 export interface ContrastFinding {
   text: string;
   color: string;
@@ -61,6 +80,14 @@ export interface OverflowFinding {
   innerWidth: number;
 }
 
+/** 테마를 강제했을 때 **실제로 렌더된** 것. 도달 확인의 증거를 로그에 남기기 위함. */
+export interface ThemeProbe {
+  theme: CanonTheme;
+  htmlClass: string;
+  colorScheme: string;
+  bodyBg: string;
+}
+
 /** 한 대상(URL)의 감사 결과 전체. */
 export interface CanonAuditResult {
   /** 사람이 읽을 대상 이름. 프로토타입은 파일명, React 는 라우트 경로. */
@@ -73,6 +100,8 @@ export interface CanonAuditResult {
   focus: FocusFinding[];
   motion: MotionFinding[];
   console: string[];
+  /** 테마를 강제한 경우에만 채워진다. `null` = 앱 기본값으로 돌았다(종전 동작). */
+  themeProbe: ThemeProbe | null;
 }
 
 /**
@@ -247,6 +276,56 @@ export const FOCUS_PROBE = (): FocusFinding | null => {
   };
 };
 
+/** 렌더된 테마 지문을 페이지 안에서 뜬다. */
+export const THEME_PROBE = () => ({
+  htmlClass: document.documentElement.className,
+  colorScheme: document.documentElement.style.colorScheme,
+  bodyBg: getComputedStyle(document.body).backgroundColor,
+});
+
+/**
+ * 테마를 강제한 컨텍스트를 만든다. `theme` 이 없으면 종전과 완전히 같다
+ * (기존 4 spec — 캘리브레이션·공개·authed 2벌 — 의 동작을 바꾸지 않는다).
+ */
+async function newAuditContext(
+  browser: Browser,
+  base: BrowserContextOptions,
+  theme: CanonTheme | undefined,
+) {
+  const ctx = await browser.newContext(theme ? { ...base, colorScheme: theme } : base);
+  if (theme) {
+    await ctx.addInitScript(
+      ([key, value]) => {
+        try {
+          window.localStorage.setItem(key ?? "", value ?? "");
+        } catch {
+          // 저장소가 없는 출처(file:// 등). 조용히 넘어가도 probeTheme() 이 잡는다.
+        }
+      },
+      [THEME_STORAGE_KEY, theme],
+    );
+  }
+  return ctx;
+}
+
+/**
+ * 페이지가 **정말로** 그 테마로 렌더됐는지 확인하고 지문을 돌려준다.
+ * 어긋나면 던진다 — 조용히 다크를 재고 초록이 되는 fail-open 이 이 과업의 표적이다.
+ */
+async function probeTheme(page: Page, theme: CanonTheme, label: string): Promise<ThemeProbe> {
+  const seen = await page.evaluate(THEME_PROBE);
+  const classes = seen.htmlClass.split(/\s+/).filter(Boolean);
+  if (!classes.includes(theme)) {
+    throw new Error(
+      `테마 도달 실패 — ${label} 을 ${theme} 로 감사하려 했으나 <html> 클래스가 ` +
+        `"${seen.htmlClass}" 이고 body 배경이 ${seen.bodyBg} 다.\n` +
+        `컨텍스트를 ${theme} 로 만든 것과 페이지가 ${theme} 로 렌더된 것은 다르다. ` +
+        `next-themes 저장 키("${THEME_STORAGE_KEY}") 또는 attribute 설정이 바뀌었는지 확인해라.`,
+    );
+  }
+  return { theme, htmlClass: seen.htmlClass, colorScheme: seen.colorScheme, bodyBg: seen.bodyBg };
+}
+
 export interface AuditOptions {
   /** 사람이 읽을 대상 이름. 생략하면 URL. */
   label?: string;
@@ -263,6 +342,12 @@ export interface AuditOptions {
   prepare?: (page: Page) => Promise<void>;
   /** true 를 주면 그 콘솔 에러는 집계하지 않는다. 백엔드 부재 소음 제외용. */
   ignoreConsole?: (text: string) => boolean;
+  /**
+   * 강제할 테마. 주면 컨텍스트 `colorScheme` + next-themes 선호값을 함께 세우고
+   * **렌더 결과를 읽어 도달을 확인**한다(안 되면 던진다). 생략 = 앱 기본값(다크) = 종전 동작.
+   * ★next-themes 가 없는 대상(프로토타입 `file://`)에는 주지 마라 — 도달 확인이 실패한다.
+   */
+  theme?: CanonTheme;
 }
 
 /**
@@ -281,6 +366,7 @@ export async function auditUrl(
     contextOptions = {},
     prepare,
     ignoreConsole,
+    theme,
   } = options;
 
   const res: CanonAuditResult = {
@@ -293,28 +379,33 @@ export async function auditUrl(
     focus: [],
     motion: [],
     console: [],
+    themeProbe: null,
   };
 
   for (const w of widths) {
-    const ctx = await browser.newContext({
-      ...contextOptions,
-      viewport: { width: w, height: 900 },
-      deviceScaleFactor: 1,
-      // 대비/canon/overflow/포커스 표본은 반드시 **정지 상태**에서 떠야 한다.
-      // 캐논 하드 제약 11 — `prefers-reduced-motion: reduce` 에서 globals.css L1821 이
-      // `.rise { animation: none; opacity: 1 }` 로 강제한다(`.sk`/`.draw` 도 동). 즉 이 값은
-      // 애니메이션 완료 후 정지값과 같다.
-      //   실측(2026-07-21, /trading). full authed 스위트에서 "라이브 세션 시작" 버튼 텍스트
-      //   대비가 1.11:1 로 결정적 FAIL 했으나 단독 실행은 반복 PASS 였다. §05 폼은 .rise 스태거
-      //   지연 사슬의 최말단이라, load+settleMs 시점이 스위트 문맥의 수백 ms 타이밍 차이에서
-      //   입장 opacity 램프 중간을 찍었던 것이다(화면 결함이 아니라 표본 타이밍 결함).
-      //   reduce 로 램프를 없애 knife-edge 를 제거한다.
-      // ★프로토타입 canon 기준선은 애니메이션이 이미 끝난(520ms < settleMs 700) 정지값이라
-      //   불변이다. reduce 를 걸어도 같은 정지값을 재현하므로 캘리브레이션은 그대로 통과한다.
-      // ★아래 MOTION_AUDIT 컨텍스트(reduced-motion 누수 검사)는 절대 건드리지 않는다 —
-      //   그쪽은 CSS 미디어쿼리가 애니메이션을 죽이는지 자체를 검증하는 별개 mechanism 이다.
-      reducedMotion: "reduce",
-    });
+    const ctx = await newAuditContext(
+      browser,
+      {
+        ...contextOptions,
+        viewport: { width: w, height: 900 },
+        deviceScaleFactor: 1,
+        // 대비/canon/overflow/포커스 표본은 반드시 **정지 상태**에서 떠야 한다.
+        // 캐논 하드 제약 11 — `prefers-reduced-motion: reduce` 에서 globals.css L1821 이
+        // `.rise { animation: none; opacity: 1 }` 로 강제한다(`.sk`/`.draw` 도 동). 즉 이 값은
+        // 애니메이션 완료 후 정지값과 같다.
+        //   실측(2026-07-21, /trading). full authed 스위트에서 "라이브 세션 시작" 버튼 텍스트
+        //   대비가 1.11:1 로 결정적 FAIL 했으나 단독 실행은 반복 PASS 였다. §05 폼은 .rise 스태거
+        //   지연 사슬의 최말단이라, load+settleMs 시점이 스위트 문맥의 수백 ms 타이밍 차이에서
+        //   입장 opacity 램프 중간을 찍었던 것이다(화면 결함이 아니라 표본 타이밍 결함).
+        //   reduce 로 램프를 없애 knife-edge 를 제거한다.
+        // ★프로토타입 canon 기준선은 애니메이션이 이미 끝난(520ms < settleMs 700) 정지값이라
+        //   불변이다. reduce 를 걸어도 같은 정지값을 재현하므로 캘리브레이션은 그대로 통과한다.
+        // ★아래 MOTION_AUDIT 컨텍스트(reduced-motion 누수 검사)는 절대 건드리지 않는다 —
+        //   그쪽은 CSS 미디어쿼리가 애니메이션을 죽이는지 자체를 검증하는 별개 mechanism 이다.
+        reducedMotion: "reduce",
+      },
+      theme,
+    );
     const page = await ctx.newPage();
     page.on("console", (m) => {
       if (m.type() !== "error") return;
@@ -330,6 +421,8 @@ export async function auditUrl(
 
     await page.goto(url, { waitUntil: "load" });
     await page.waitForTimeout(settleMs);
+    // ★prepare 보다 **먼저** 확인한다 — 실패를 테마 배선에 정확히 귀속시키기 위함이다.
+    if (theme) res.themeProbe = await probeTheme(page, theme, `${label} @${w}px`);
     if (prepare) await prepare(page);
 
     const a = await page.evaluate(AUDIT);
@@ -357,14 +450,19 @@ export async function auditUrl(
   }
 
   // reduced motion
-  const rctx = await browser.newContext({
-    ...contextOptions,
-    viewport: { width: 1440, height: 900 },
-    reducedMotion: "reduce",
-  });
+  const rctx = await newAuditContext(
+    browser,
+    {
+      ...contextOptions,
+      viewport: { width: 1440, height: 900 },
+      reducedMotion: "reduce",
+    },
+    theme,
+  );
   const rpage = await rctx.newPage();
   await rpage.goto(url, { waitUntil: "load" });
   await rpage.waitForTimeout(400);
+  if (theme) await probeTheme(rpage, theme, `${label} @reduced-motion`);
   res.motion = await rpage.evaluate(MOTION_AUDIT);
   await rctx.close();
 
@@ -392,6 +490,13 @@ export function formatCanonResult(res: CanonAuditResult): string {
   const lines = [
     `${bad === 0 ? "PASS" : "FAIL"}  ${res.label}  overflow=${res.overflow.length} contrast=${res.contrast.length} focus=${res.focus.length} motion=${res.motion.length} canon=${res.canon.length} console=${res.console.length} tiny=${res.tiny.length}`,
   ];
+  if (res.themeProbe) {
+    // 도달 증거를 로그에 남긴다 — "라이트를 쟀다" 는 주장을 나중에 사람이 대조할 수 있어야 한다.
+    lines.push(
+      `   theme=${res.themeProbe.theme} html.class="${res.themeProbe.htmlClass}" ` +
+        `colorScheme=${res.themeProbe.colorScheme} body-bg=${res.themeProbe.bodyBg}`,
+    );
+  }
   if (res.overflow.length) lines.push(`   overflow: ${JSON.stringify(res.overflow)}`);
   res.contrast
     .slice(0, 8)
