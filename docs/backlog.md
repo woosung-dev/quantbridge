@@ -188,7 +188,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-024](#bl-024) | real_broker E2E 본 구현 (nightly cron)                                                                                                                                                                                                                                                                                                                                     | Bybit Demo credentials + seed data 준비 시                                   | L (8h+)  | CLAUDE.md Sprint 10 Phase C |
 | [BL-025](#bl-025) | autonomous-parallel-sprints 스킬 patch                                                                                                                                                                                                                                                                                                                                     | on-demand (BUG-1/2/3 재발 시)                                                | S (2h)   | TODO.md L653                |
 | [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                                                                                                                                                                                                                                                                                            | Stage 2c 2차 fixture 활성화 후                                               | S (1-2h) | TODO.md L20-22              |
-| [BL-619](#bl-619) | ★**라이브 파이프라인이 한 세션에 ~17분 멈췄고 뿌리를 모른다** — 서버 `.soak/logs` 는 존재하지 않아 로컬 전용 비추적 `.soak/logs/follow.sh` 가 서버에는 배포된 적 없다. 로그 소실은 그대로이며, 추적 `scripts/soak-logs-follow.sh` 와 systemd unit 승격 경로를 만든 뒤 다음 서버 소크에서 재관측해야 한다                                                                   | 다음 서버 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검) | M        | 2026-08-08 bl003-unblock    |
+| [BL-619](#bl-619) | 🟡 부분 — ★**라이브 파이프라인이 한 세션에 ~17분 멈췄고 뿌리를 모른다.** 관측 장치는 2026-08-08 에 서버로 올렸다(systemd user unit `soak-logs-follow`, 실측 active·871KB·세션 `a4f1cbfb` 로그 유입). ★그것은 Trigger 를 **충족 가능하게** 만든 것이지 뿌리를 안 것이 아니다 — 닫는 조건은 재관측 부검 그대로다                                                             | 다음 서버 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검) | M        | 2026-08-08 bl003-unblock    |
 | [BL-633](#bl-633) | ✅ **이중 호스트 오염 — 근인 확정** — 같은 Bybit demo 계정의 맥 로컬 체결이 서버 세션 `39484a2c` 를 죽였다. G-A4‴ 소유권 7/27(귀속 불가 0)·G-A6′ 정본 항등식 4/4(반사실은 정의 4가지 어디서도 4/4 불가, 최대 1/4)·G-A7 계정 결합 27/27 이 뒷받침한다. ★원안 G-A4′ 6/6·G-A6 3/3 은 회차 도중 반증돼 교체됐다. `phantom` 은 증상이며, 오염 창은 ADR-025 의 반례로 셀 수 없다 | — (부검 완료 · 후속은 BL-634 · BL-641 로 이관)                               | M        | 2026-08-08 bl003-unblock    |
 | [BL-634](#bl-634) | 같은 Bybit demo 계정에 두 호스트가 동시에 붙는 계정 배타성 가드 부재 — 두 DB 의 `live_signal_sessions` unique index 는 다른 호스트를 막지 못하며, 이번 `position_divergence` 사망의 직접 원인이다                                                                                                                                                                          | 실자금 전환 전 필수 / 두 번째 호스트를 다시 띄우기 전                        | M        | 2026-08-08 bl003-unblock    |
 | [BL-635](#bl-635) | ✅ **게이트 아카이브 오염이 라이브 기전이다** — 판독 불가 로그를 시간 credit 하지 않고 `UNKNOWN 측정불가`로 내리도록 `32ea2a5d` 에서 수리했다. 서버 systemd 만 대상이며 맥 launchd 타이머는 잔여다                                                                                                                                                                         | — (해결됨. 맥 launchd 잔여는 별도 후속)                                      | S        | 2026-08-08 bl003-unblock    |
@@ -5079,7 +5079,16 @@ ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 
 **카테고리:** Backend / 라이브 신호 (가용성)
 **Trigger:** 다음 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검)
 **Est:** M
-**상태:** ⬜ **Open**
+**상태:** 🟡 **부분 해결 — 관측 장치는 배치됐다. 뿌리는 여전히 모른다** (2026-08-08
+soak-exclusivity-and-observability 회차). 서버에 `dev.quantbridge.soak-logs-follow.service` 를
+설치했다(`--install` · linger 는 이미 `yes` 라 sudo 불필요). 실측: 서비스 `active` ·
+`~/quantbridge/.soak/logs/worker-follow.log` **871KB** · 활성 세션 `a4f1cbfb` 의
+`live_signal.evaluate_all` 이 실제로 찍힌다. ★**「설치 완료」 출력은 검증이 아니다** — 75초
+재측정으로 **+10,422 바이트**, 커서 `06:05:04Z → 06:15:03Z` 전진을 확인했다(멈춘 follow 와
+살아 있는 follow 는 파일 존재만으로는 구분되지 않는다). 회전 상한 32MB × 4벌.
+★**이것은 이 BL 을 닫지 않는다** — Trigger 가
+비로소 **충족 가능해진 것**이지 정지의 뿌리를 안 것이 아니다. 닫는 조건은 불변이다:
+같은 정지를 로그가 남아 있는 동안 재관측하고 부검한다.
 
 **라이브 파이프라인이 한 세션에 대해 ~17분 멈췄고 뿌리를 모른다.**
 
