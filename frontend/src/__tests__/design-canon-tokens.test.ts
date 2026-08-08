@@ -59,7 +59,7 @@ const TOKEN_MAP: ReadonlyArray<readonly [canon: string, app: string]> = [
 
 /**
  * 알려진 불일치 래칫. S1a 가 5건 전부 `.dark` 값 교정으로 해소하고 비웠다 (2026-07-20).
- * 근거는 `docs/archive/sprints/c-language-port/context-notes.md` §1 (프로토타입 22종 대조).
+ * 근거는 `git:0ddf2b53 docs/archive/sprints/c-language-port/context-notes.md` §1 (프로토타입 22종 대조).
  * 이제 22종 전부 값이 일치한다 — 새 불일치가 생기면 allowlist 가 비어 있어 즉시 빨개진다.
  */
 const KNOWN_MISMATCHES: ReadonlyArray<{ canon: string; fixedBy: string }> = [];

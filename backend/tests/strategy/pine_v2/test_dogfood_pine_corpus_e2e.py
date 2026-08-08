@@ -53,7 +53,7 @@ def test_utbot_minimal_runnable_after_sprint29_slice_a(
 
     Sprint 21 Trust Layer reject 정책 → Sprint 29 (a) 결정으로 전환.
     heikinashi 는 dogfood_only_warning 채워짐 (Trust Layer 위반 명시).
-    참고: docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md
+    참고: git:590eeec9 docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md
     """
     r = analyze_coverage(utbot_minimal)
     assert r.is_runnable, (

@@ -6,7 +6,7 @@
 // Sprint 32-C (BL-171 + BL-172): MarkerLayer (의미 있는 trade markers) +
 //   AxisLabelBar (Y축/X축 라벨) — ui-ux-pro-max P0 #1 + #5 해소.
 // 기존 equity-chart.tsx (recharts) 는 보존 (rollback path). 신규 차트만 lightweight-charts.
-// ADR: docs/dev-log/2026-05-05-sprint30-chart-lib-decision.md
+// ADR: git:0ddf2b53 docs/dev-log/2026-05-05-sprint30-chart-lib-decision.md
 //
 // ui-ux-pro-max 진단 (dogfood Day 4 = 5/10) 해소:
 // - P0 #1 Y축 단위 모호 (-9855.71 USDT vs %) → AxisLabelBar 로 Y/X 축 단위 명시

@@ -155,7 +155,7 @@ ENTRY_RACE_REJECTION_BASELINE = RecordedBaseline(
         (date(2026, 7, 27), 10),
         (date(2026, 7, 28), 20),
     ),
-    source="docs/dev-log/2026-08-02-divergence-label-split.md",
+    source="git:0ddf2b53 docs/dev-log/2026-08-02-divergence-label-split.md",
 )
 
 

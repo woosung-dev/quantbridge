@@ -180,6 +180,9 @@ class BacktestService:
         # heikinashi / request.security / timeframe.period 는 supported 로 graceful 실행되지만
         # Pine 원본과 결과 차이 가능 (Trust Layer 위반). dogfood-first — 사용자 명시 동의 없이
         # 본 strategy backtest 차단.
+        # ★근거 원문 = git:590eeec9 docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md
+        #   ([BL-610]) — 2026-05-15 삭제됐다. **응답 문자열에서는 뺐다**: 사용자에게 없는
+        #   경로를 안내하는 것이 지금까지의 동작이었고, git 좌표는 사용자에게 쓸모가 없다.
         if coverage.has_degraded and not data.allow_degraded_pine:
             degraded_list = list(coverage.degraded_calls)
             degraded_str = ", ".join(degraded_list)
@@ -187,8 +190,7 @@ class BacktestService:
                 detail=(
                     f"Strategy uses degraded Pine functions: {degraded_str}. "
                     f"Set `allow_degraded_pine=true` in request body to acknowledge "
-                    f"that backtest results may differ from Pine source. "
-                    f"See docs/dev-log/2026-05-04-sprint29-heikinashi-adr.md."
+                    f"that backtest results may differ from Pine source."
                 ),
                 degraded_calls=degraded_list,
             )

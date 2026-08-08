@@ -530,7 +530,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-598](#bl-598) | ★**코퍼스 스크립트를 처음 파싱하는 테스트가 비용을 전부 문다** — `test_ast_classifier[i3_drfx]` 단독 **42.66s** vs 전체 스위트 안 **4.58s**. 프로세스 전역 비용이라 **쪼개면 샤드마다 중복**된다(CI 3샤드 합 1796s vs 단일 1278s, +519s 전부가 이 중복). 샤딩 저항의 뿌리이고 CI 14분 벽의 원인. ★**2026-08-08 정체 확정** — ANTLR ALL(\*) DFA 캐시가 **파싱에 의해** 지연 구축되는 것(import 아님·크기 법칙 아님). 같은 프로세스·같은 입력에서 DFA 만 비우면 3.63s→**49.61s** 로 되돌아온다(인과 대조). ⇒ ② 는 **테스트 디스크 캐시로 닫힌다 — `backend/src` 0줄**. 도구 = `backend/scripts/profile_corpus_parse.py`. ★**규모 대조는 미대조** — ① 은 로컬 9프로세스(+52.89s)이고 CI 3샤드(+519s)와 **직접 대조되지 않았다**(약 10배 차) ⇒ 「+519s 전부가 이 중복」은 여전히 **미검증 가정**이다 | CI backend 를 14분 아래로 내리려 할 때 · pine_v2 코퍼스 테스트를 늘리기 전에                                    | M            | 2026-08-06 ci-diet                                           |
 | [BL-603](#bl-603) | ✅ 백테스트 비용 가정이 라이브 실효의 **2.7배** — 가정 왕복 0.30%(fees 0.1+slip 0.05/leg) vs 원장 실측 왕복 **0.1101%**(taker 0.055%/leg 단일 성분, 84 event 중 77 이 8자리 일치·비-taker 잔차 0.03%). 매칭쌍 진입가 잔차 중앙 0.014% vs slippage 가정 0.05%. **2026-08-07 Resolved** — 0.00055/0.00014(두 SSOT+FE 미러 4곳), 왕복 0.138%. 코퍼스 `num_trades` 불변·`s3_rsid` 부호 반전                                                                                                                                                                                                                                                                                                                                                                                                          | 백테스트 손익을 라이브 예측치로 읽기 전 (비용 축이 3배 비관)                                                    | S            | 2026-08-06 backtest-reality-gap                              |
 | [BL-605](#bl-605) | `exchange_exits` 가 같은 청산 event 를 **정확히 2행**(classification `ours`/`unknown` 쌍, payload 동일)으로 적재 — 실측 86 event = 172행. `SUM(closed_pnl)` 류 소비가 손익을 **정확히 2배** 계상한다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | exchange_exits 를 집계로 소비하는 코드를 추가하기 전                                                            | S            | 2026-08-06 backtest-reality-gap (eval2 실측)                 |
-| [BL-610](#bl-610) | `entry_completeness.py:158` 의 `source=` 문자열이 문서 대개편으로 삭제된 dev-log 경로를 가리킨다 — 런타임 무해(값일 뿐)지만 근거 추적이 git history 경유로 바뀌었다. 소크 중 `backend/src` 무접촉 원칙으로 이연                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | BL-003 소크 창 종료 후 첫 backend/src 정리 회차                                                                 | XS           | 2026-08-06 docs-overhaul (fix-doc)                           |
+| [BL-610](#bl-610) | ✅ 코드·테스트·설정 **10곳**이 삭제된 문서 경로를 가리킨다. 2026-08-08 수리 — 사용자 표면 2곳은 **참조 제거**(`git:<sha>` 좌표는 사용자에게 쓸모없다), 개발자 8곳은 **tombstone**. ★삭제 커밋이 **둘**이라 sha 도 둘(heikinashi ADR 4곳 = `590eeec9` · 나머지 `0ddf2b53`) · 종전 재검출 명령은 `-n` 누락으로 **전건 오탐**했다                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | BL-003 소크 창 종료 후 첫 backend/src 정리 회차                                                                 | XS           | 2026-08-06 docs-overhaul (fix-doc)                           |
 | [BL-611](#bl-611) | ✅ ★**메타-방법론 영구 규칙이 자동 로드에서 빠졌다** — 구 `.ai/common/global.md` §7 은 `paths` 없는 `.claude/rules/global.md` 로 **매 세션 무조건** 들어왔다(2026-08-07 실측 재현). ADR-026 이 이를 `generator-evaluator-pipeline.md` §8 로 옮기면서 **열어야만 읽히는** 문서가 됐다 — kickoff preflight(§8.1)·codex finding 코드 대조(§8.3)가 조용히 누락될 수 있다. **Resolved** — `AGENTS.md` 에 §8.1/§8.3 두 줄 인라인                                                                                                                                                                                                                                                                                                                                                                       | 다음 Sprint kickoff (Type A/B) 전                                                                               | S            | 2026-08-07 docs-overhaul 리뷰                                |
 | [BL-625](#bl-625) | ★**플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다** — 서버 `backend/.env.local` 이 `CLERK_SECRET_KEY=sk_test_...`(문자 그대로)인데 API 는 정상 기동하고 `/health` 200 을 냈다. 호스트 uvicorn 이 인증 경로를 한 번도 안 밟아서 드러나지 않았고, 브라우저 첫 로그인 요청이 **전건 401** 로 터지고서야 보였다. `_enforce_production_safety` 가 이 계열을 알지만 **`app_env == production` 일 때만** 검사한다. ★2차: 루트 `.env` 인라인 주석(`# [필수 …]`)을 안 떼고 값을 옮기면 한글이 섞여 401 이 아니라 **500**(clerk SDK 헤더 ascii 인코딩)                                                                                                                                                                                                                                 | 새 호스트에 API 를 세울 때 · [BL-071] 발동 시                                                                   | S            | 2026-08-07 fe-oracle-deploy                                  |
 | [BL-632](#bl-632) | 골든을 오라클로 승격했지만 그 기대값은 **엔진 자신의 출력**이다(회귀 감지기이지 정확성 오라클이 아니다). ★반순환 근거가 이 축을 안 덮는다 — 손계산 오라클 `test_golden_oracle_ema_sltp.py` 는 4봉·고정 stop/limit 이라 **`ta.atr` 를 한 번도 안 탄다**. ⇒ [BL-621] 의 낡음을 만든 바로 그 축이 **구조적으로 오라클 밖**이다. BL-621 본문의 「틀린 값을 정본으로 고정하게 된다」 경고에 아직 답하지 않았다                                                                                                                                                                                                                                                                                                                                                                                        | 골든 값이 또 어긋났을 때 · 백테스트 정확성을 대외 주장해야 할 때                                                | M            | 2026-08-07 backtest-fidelity                                 |
@@ -4933,11 +4933,25 @@ payload 쌍의 2배 방지를 검증하는 테스트가 0건(eval 전수 표 = P
 **카테고리:** Backend / trading (문자열·메타데이터) + Frontend 주석
 **Trigger:** BL-003 소크 창 종료 후 첫 `backend/src` 정리 회차
 **Est:** XS → **S** (1곳 → 10곳)
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved** (2026-08-08 soak-mortality-repair — 10/10 수리, 재검출 `DANGLING` 0건)
 
 **코드·테스트·설정 10곳이 삭제된 문서 경로를 가리킨다.** 문서 대개편(ADR-026, fix-doc)이
 `docs/archive/`·dev-log 원문을 지웠다. 소크 활성 중 `backend/src` 무접촉 원칙 때문에 이번 회차에서
 고치지 않고 이연한다. **2026-08-07 PR #554 리뷰에서 전수 재검출** — 최초 등재 시엔 1곳만 잡았다.
+
+★**2026-08-08 수리 — 두 갈래로 갈랐다.** 사용자 표면 2곳과 개발자 참조 8곳은 같은 처방을 못 쓴다:
+
+- **사용자 표면 2곳 = 참조 자체를 제거**했다. tombstone 은 `git:<sha>` 좌표라 API 응답·UI 문자열에
+  넣으면 사용자에게 쓸모가 없다. 남은 문장이 이미 필요한 정보를 다 준다(무엇이 왜 degraded 인지).
+  추적용 tombstone 은 **바로 위 코드 주석**으로 옮겼다.
+- **개발자 참조 8곳 = tombstone 접두사**. 경로는 **보존한다** — 원문을 꺼내려면 경로가 필요하다.
+
+★**삭제 커밋이 하나가 아니었다.** heikinashi ADR(4곳이 가리킨다)은 문서 대개편이 아니라
+**2026-05-15 `b9a51b6a`** 에서 이미 사라졌다 ⇒ 직전 `git:590eeec9`. 나머지 5경로는 대개편
+`94da86b1` 이므로 직전 `git:0ddf2b53`. **한 sha 로 전부 찍었으면 4곳이 빈 좌표를 가리켰다.**
+
+★**아래 재검출 명령을 갱신했다** — 종전 명령은 tombstone 을 인식하지 못한다. 경로 문자열을 그대로
+두는 것이 tombstone 의 목적이므로, 수리 후에도 종전 정규식은 10곳을 전부 `DANGLING` 으로 낸다.
 
 ★**그중 2곳은 사용자에게 그대로 보인다** (주석이 아니다):
 
@@ -4950,12 +4964,17 @@ payload 쌍의 2배 방지를 검증하는 테스트가 0건(eval 전수 표 = P
 - `backend/prometheus/alerts.yml:14` · `backend/tests/strategy/pine_v2/{test_coverage_sprint21.py:197,test_dogfood_pine_corpus_e2e.py:56,test_trust_layer_parity.py:10}`
 - `frontend/src/__tests__/design-canon-tokens.test.ts:62` · `frontend/src/app/(dashboard)/backtests/_components/charts/equity-chart-v2.tsx:9` · `frontend/src/components/charts/trading-chart.tsx:4`
 
-수리 = tombstone 형식(`git:0f0f0b06 <경로>`) 또는 현존 정본 경로로 교체.
-재검출 명령 (게이트가 아니라 손으로 돌린다):
+수리 = tombstone 형식(`git:<삭제직전sha> <경로>`) · 현존 정본 경로 · 사용자 표면이면 제거.
+재검출 명령 (게이트가 아니라 손으로 돌린다. ★`-n` 과 tombstone 제외가 둘 다 필요하다 —
+`-n` 이 없으면 `read` 의 필드가 밀려 `[ -e "$p" ]` 가 **빈 문자열을 검사해 전건 오탐**한다):
 
 ```bash
-git grep -oE 'docs/(archive|dev-log)/[A-Za-z0-9_./-]+\.(md|html)' -- backend frontend \
-  | while IFS=: read -r f l p; do [ -e "$p" ] || echo "DANGLING $f -> $p"; done
+git grep -noE '(git:[0-9a-f]{7,8} )?docs/(archive|dev-log)/[A-Za-z0-9_./-]+\.(md|html)' \
+  -- backend frontend \
+  | while IFS=: read -r f l p; do
+      case "$p" in git:*) continue;; esac
+      [ -e "$p" ] || echo "DANGLING $f:$l -> $p"
+    done
 ```
 
 ★`scripts/docs-audit.sh:81~83,128` 의 4건은 **안내 메시지 문자열**이라 별개다 — 검사 로직은
