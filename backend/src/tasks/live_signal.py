@@ -3859,15 +3859,29 @@ async def _evaluate_session_with_engine(
                 expires=300,
             )
 
-    await _reconcile_conditional_entries(
-        sess,
-        result,
-        parsed_settings,
-        sm,
-        bar_time=last_bar_time,
-        market_orders_in_flight=bool(new_events),
-        fallback_reference_price=_last_close_or_none(df),
-    )
+    # [ADR-025] §⑧ — 원장을 못 읽은 tick 은 리컨사일을 **통째로 한 tick 미룬다**.
+    # ★ADR 이 「문서화, 미수리」로 남긴 fail-open 이다. 그 tick 은 조건부 체결의 권한이
+    #   시뮬로 되돌아가는데(위 `ledger_unreadable_fallback`), 시뮬이 stop 을 채우면 그
+    #   pending 이 desired 에서 빠지고 아래 수렴이 거래소의 **살아 있는 resting 주문을
+    #   취소**한다. 다음 tick 에 원장이 복구되면 다시 등재 ⇒ 취소·재발주 왕복이고, 그
+    #   사이에 트리거가 오면 진입을 통째로 놓친다.
+    # ★**`market_orders_in_flight` 와 같은 이유·같은 처방이다** — 둘 다 "지금 읽은 desired
+    #   가 곧 틀릴 것을 이미 알고 있다" 는 상태다. 그럴 때는 한 tick 늦추는 편이 싸다:
+    #   **취소는 되돌릴 수 없지만 미룸은 되돌릴 수 있다.**
+    # ★술어를 여기서 다시 조회하지 않는다 — `run_live` 에 `ledger_conditional_fills` 를
+    #   넘겼는지와 **같은 값**을 봐야 "시뮬로 돌린 tick" 과 "미룬 tick" 이 어긋나지 않는다.
+    if ledger_shadow.conditional_fills is None:
+        _count_safely(qb_live_conditional_reconcile_errors_total, stage="deferred_ledger_unreadable")
+    else:
+        await _reconcile_conditional_entries(
+            sess,
+            result,
+            parsed_settings,
+            sm,
+            bar_time=last_bar_time,
+            market_orders_in_flight=bool(new_events),
+            fallback_reference_price=_last_close_or_none(df),
+        )
 
     qb_live_signal_evaluated_total.labels(interval=interval_value, outcome="success").inc()
     return {

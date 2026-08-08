@@ -293,7 +293,13 @@ async def run_tick(monkeypatch: pytest.MonkeyPatch, case: dict[str, Any]) -> dic
     import src.trading.repositories.order_repository as order_repository_mod
 
     order_repo = AsyncMock()
-    order_repo.list_fills_since = AsyncMock(return_value=[])
+    if spec.get("ledger_fills") == "probe_error":
+        # 원장 조회가 실패하면 `_capture_ledger_shadow` 가 `conditional_fills` 를 None 으로
+        # 접는다 — [ADR-025] §⑧ 의 fail-open tick 이다. 기본값(`[]`)은 그대로 두므로
+        # 이 knob 을 안 쓰는 기존 케이스의 관측 표면은 바뀌지 않는다.
+        order_repo.list_fills_since = AsyncMock(side_effect=RuntimeError("ledger down"))
+    else:
+        order_repo.list_fills_since = AsyncMock(return_value=[])
     order_repo.list_resting_conditional_entries = AsyncMock(return_value=[])
     monkeypatch.setattr(order_repository_mod, "OrderRepository", MagicMock(return_value=order_repo))
 
