@@ -173,7 +173,20 @@ be: metrics-prepare
 	  QB_METRICS_ROLE=api \
 	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
+# ★[BL-650] — Turbopack 영속 캐시가 자라면 `next dev` 가 **요청 0건에서** CPU 를 태우고
+#   낡은 CSS 를 재기동 너머로 계속 준다(음성 대조를 거짓 통과시킨다). 처방은 `rm -rf .next` 뿐이다.
+#   ★★임계 1GB 는 **정책이 아니라 관측 장치**다. 근거는 두 점뿐이다 — 1.99GB 에서 417% CPU /
+#   120초 타임아웃(2026-08-08 fe-canon-and-responsive), 593MB 에서 0.1% CPU / 0.61초
+#   (2026-08-08 재측정). 그 사이 어디가 문턱인지는 **아직 아무도 모른다.** 이 줄이 하는 일은
+#   경고를 남겨 다음 사람이 그 문턱을 실제로 재게 만드는 것이다. 숫자를 정본으로 인용하지 마라.
+FE_CACHE_WARN_MB ?= 1024
 fe:
+	@sz=$$(du -sm frontend/.next 2>/dev/null | cut -f1); \
+	if [ -n "$$sz" ] && [ "$$sz" -ge $(FE_CACHE_WARN_MB) ]; then \
+	  echo "⚠ frontend/.next 가 $${sz}MB 다 (경고선 $(FE_CACHE_WARN_MB)MB) — [BL-650]"; \
+	  echo "  dev 가 느리거나 CSS 변경이 안 먹으면 먼저: rm -rf frontend/.next"; \
+	  echo "  ★이 경고선은 문턱의 실측치가 아니다. 태우기 시작하는 크기를 재면 백로그에 적어라."; \
+	fi
 	cd frontend && pnpm dev
 
 # === 격리 모드 (3100 / 8100 / 5433 / 6380) ===
