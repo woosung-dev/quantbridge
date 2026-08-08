@@ -1,0 +1,513 @@
+"""[BL-598] 코퍼스 첫-접촉 파싱 비용의 정체를 재는 프로파일러.
+
+배경: `tests/strategy/pine_v2/test_ast_classifier.py::test_classify_script_matches_baseline`
+가 단독 실행 시 `i3_drfx` 하나에 40초대를 쓰는데 전체 스위트 안에서는 4초대다. 이 비용이
+프로세스 전역이라 CI 를 샤딩하면 샤드마다 중복된다.
+
+판별할 두 가설:
+- (a) **import 시점 워밍업** — `pynescript`/`src.strategy.pine_v2` import 자체가 비싸다.
+      참이면 처방은 테스트 픽스처 캐시이고 `backend/src` 수정이 불필요하다.
+- (b) **파서의 입력 크기 비선형** — 파싱 시간이 입력 크기에 초선형으로 자란다.
+      참이면 처방은 파서 구간 수정이다.
+
+측정 축:
+1. import 비용 — 서브프로세스에서 `classify_script` import 만. ANTLR DFA 상태 수도 함께 센다.
+2. 코퍼스 cold 1회차 — 한 프로세스에서 9벌을 순서대로 최초 파싱.
+3. 코퍼스 warm 2회차 — 같은 프로세스에서 재파싱. `cold - warm` = 첫-접촉 프리미엄.
+4. cold 램프(`--ramp`) — `i3_drfx` 를 1/8~8/8 로 잘라 순서대로 최초 파싱. 크기와 무관하게
+   평평하면 비용의 축은 「크기」가 아니라 「처음 보는 문법 결정(decision)」이다.
+5. warm 램프(`--ramp`) — 같은 조각들을 DFA 포화 상태에서 재파싱.
+6. solo(`--solo`) — 서브프로세스 1개당 파일 1개만 파싱. 워밍업의 파일 간 전이량(=샤딩 중복분).
+7. cProfile(`--cprofile`) — cold 파싱의 누적시간 상위 함수.
+8. **인과 대조(기본 포함)** — 같은 프로세스·같은 입력에서 ANTLR DFA 캐시**만** 비운다.
+   cold 비용이 되돌아오면 원인이 DFA 캐시 상태임이 상관이 아니라 인과로 확정된다.
+
+★[5] 의 log-log 기울기는 **보조 증거일 뿐이다**. 잘린 조각마다 문법 구성이 달라 값이 울퉁불퉁
+하고(꼬리 구간은 오히려 sublinear), 기울기가 1 을 넘더라도 warm 합계 자체가 단독 실행 비용을
+설명하지 못하면 (b) 는 기각된다. 판정의 주 근거는 [1]·[3]·[8] 이다.
+
+사용:
+    cd backend && uv run python scripts/profile_corpus_parse.py            # 기본 1·2·3·8 (~3분)
+    cd backend && uv run python scripts/profile_corpus_parse.py --ramp     # + 크기 램프
+    cd backend && uv run python scripts/profile_corpus_parse.py --solo     # + 파일별 격리 프로세스
+    cd backend && uv run python scripts/profile_corpus_parse.py --all      # 전부 (~7분)
+    cd backend && uv run python scripts/profile_corpus_parse.py --cprofile # cold i3_drfx 상위 함수
+
+DB·환경변수 불필요 — `classify_script` 는 순수 함수다.
+★절대시간은 머신 부하에 민감하다(같은 cold 파싱이 41~68s 로 흔들린 실측이 있다). 결론은
+배수·순위·[8] 의 되돌아옴으로 읽어라, 절대초로 읽지 마라.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import json
+import math
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+_BACKEND_DIR = Path(__file__).resolve().parents[1]
+if str(_BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_DIR))
+
+_CORPUS_DIR = _BACKEND_DIR / "tests" / "fixtures" / "pine_corpus_v2"
+_HEADLINE = "i3_drfx"
+_RAMP_FRACTIONS = (0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0)
+
+
+def _dfa_state_count() -> int:
+    """ANTLR ALL(*) 어댑티브 예측이 쌓아 둔 DFA 상태 총수.
+
+    `PinescriptParser.decisionsToDFA` 는 **클래스 속성**이라 프로세스 전역이다
+    (`pynescript/ast/grammar/antlr4/generated/PinescriptParser.py:346`).
+    이 값이 곧 「워밍업이 얼마나 진행됐나」다.
+    """
+    from pynescript.ast.grammar.antlr4.generated.PinescriptParser import (
+        PinescriptParser,
+    )
+
+    return sum(len(dfa.states) for dfa in PinescriptParser.decisionsToDFA)
+
+
+def _corpus_files() -> list[Path]:
+    return sorted(_CORPUS_DIR.glob("*.pine"))
+
+
+def _read(name: str) -> str:
+    return (_CORPUS_DIR / f"{name}.pine").read_text()
+
+
+def _run_child(program: str, *args: str) -> Any:
+    """backend/ 를 cwd 로 자식 파이썬을 띄우고 마지막 줄 JSON 을 회수한다.
+
+    `program` 은 이 파일 안의 리터럴 상수만 들어온다 (외부 입력 아님) — S603 면제 근거.
+    """
+    proc = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", program, *args],
+        cwd=_BACKEND_DIR,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return json.loads(proc.stdout.strip().splitlines()[-1])
+
+
+def _fmt_table(headers: list[str], rows: list[list[str]]) -> str:
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for index, cell in enumerate(row):
+            widths[index] = max(widths[index], len(cell))
+    head = "  ".join(h.ljust(widths[i]) for i, h in enumerate(headers))
+    sep = "  ".join("-" * w for w in widths)
+    body = ["  ".join(cell.ljust(widths[i]) for i, cell in enumerate(row)) for row in rows]
+    return "\n".join([head, sep, *body])
+
+
+def _loglog_slope(points: list[tuple[int, float]]) -> float:
+    """(size, seconds) 점들의 log-log 최소제곱 기울기. 1.0 = 선형, >1 = 초선형."""
+    usable = [(size, secs) for size, secs in points if size > 0 and secs > 0]
+    if len(usable) < 2:
+        return float("nan")
+    xs = [math.log(size) for size, _ in usable]
+    ys = [math.log(secs) for _, secs in usable]
+    count = len(xs)
+    mean_x = sum(xs) / count
+    mean_y = sum(ys) / count
+    num = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True))
+    den = sum((x - mean_x) ** 2 for x in xs)
+    return num / den if den else float("nan")
+
+
+def _reset_antlr_caches() -> None:
+    """ANTLR 의 프로세스 전역 워밍업 상태를 import 직후로 되돌린다.
+
+    `decisionsToDFA` / `sharedContextCache` 는 generated 파서·렉서의 **클래스 속성**이고,
+    파서 인스턴스는 생성 시점에 이 클래스 속성을 읽는다 (`PinescriptParser.__init__` →
+    `ParserATNSimulator(self, self.atn, self.decisionsToDFA, self.sharedContextCache)`).
+    따라서 클래스 속성을 새 객체로 갈아끼우면 다음 파싱부터 워밍업이 처음부터 다시 일어난다.
+    """
+    from antlr4.dfa.DFA import DFA
+    from antlr4.PredictionContext import PredictionContextCache
+    from pynescript.ast.grammar.antlr4.generated.PinescriptLexer import PinescriptLexer
+    from pynescript.ast.grammar.antlr4.generated.PinescriptParser import (
+        PinescriptParser,
+    )
+
+    PinescriptParser.decisionsToDFA = [
+        DFA(state, index) for index, state in enumerate(PinescriptParser.atn.decisionToState)
+    ]
+    PinescriptParser.sharedContextCache = PredictionContextCache()
+    PinescriptLexer.decisionsToDFA = [
+        DFA(state, index) for index, state in enumerate(PinescriptLexer.atn.decisionToState)
+    ]
+
+
+# --------------------------------------------------------------------------- #
+# [1] import 비용
+# --------------------------------------------------------------------------- #
+
+_IMPORT_CHILD = """
+import json, sys, time
+sys.path.insert(0, ".")
+start = time.perf_counter()
+from src.strategy.pine_v2.ast_classifier import classify_script
+elapsed = time.perf_counter() - start
+from pynescript.ast.grammar.antlr4.generated.PinescriptParser import PinescriptParser
+dfa = sum(len(d.states) for d in PinescriptParser.decisionsToDFA)
+print(json.dumps({"import_s": elapsed, "dfa_after_import": dfa}))
+"""
+
+
+def section_import(repeats: int = 3) -> dict[str, Any]:
+    print(f"\n[1] import 비용 — 서브프로세스 {repeats} 회 (bytecode 컴파일 편향 제거)")
+    # 첫 회는 .pyc 컴파일이 섞이므로 버린다 (첫 실행이 17s, 이후 0.26s 로 관측됐다).
+    _run_child(_IMPORT_CHILD)
+    samples = [_run_child(_IMPORT_CHILD) for _ in range(repeats)]
+    times = sorted(sample["import_s"] for sample in samples)
+    dfas = sorted({sample["dfa_after_import"] for sample in samples})
+    median = times[len(times) // 2]
+    print(
+        f"    classify_script import: "
+        f"min={times[0]:.3f}s  median={median:.3f}s  max={times[-1]:.3f}s"
+    )
+    print(f"    import 직후 ANTLR DFA 상태 수: {dfas}  <- 0 이면 import 는 워밍업이 아니다")
+    return {"import_min_s": times[0], "dfa_after_import": dfas}
+
+
+# --------------------------------------------------------------------------- #
+# [2][3] 코퍼스 cold / warm
+# --------------------------------------------------------------------------- #
+
+
+def section_corpus() -> dict[str, Any]:
+    from src.strategy.pine_v2.ast_classifier import classify_script
+
+    files = _corpus_files()
+    print("\n[2] 코퍼스 cold 1회차 + [3] warm 2회차 (단일 프로세스, 알파벳 순)")
+
+    cold: dict[str, float] = {}
+    dfa_after: dict[str, int] = {}
+    for path in files:
+        source = path.read_text()
+        start = time.perf_counter()
+        classify_script(source)
+        cold[path.stem] = time.perf_counter() - start
+        dfa_after[path.stem] = _dfa_state_count()
+
+    warm: dict[str, float] = {}
+    for path in files:
+        source = path.read_text()
+        start = time.perf_counter()
+        classify_script(source)
+        warm[path.stem] = time.perf_counter() - start
+
+    rows: list[list[str]] = []
+    for path in files:
+        name = path.stem
+        size = len(path.read_text())
+        rows.append(
+            [
+                name,
+                str(size),
+                f"{cold[name]:.3f}",
+                f"{warm[name]:.3f}",
+                f"{cold[name] - warm[name]:.3f}",
+                f"{1e6 * warm[name] / size:.1f}",
+                str(dfa_after[name]),
+            ]
+        )
+    print(
+        _fmt_table(
+            ["script", "chars", "cold_s", "warm_s", "premium_s", "warm_us/ch", "dfa"],
+            rows,
+        )
+    )
+    total_cold = sum(cold.values())
+    total_warm = sum(warm.values())
+    premium = total_cold - total_warm
+    share = 100.0 * premium / total_cold if total_cold else 0.0
+    print(
+        f"    합계 cold={total_cold:.2f}s  warm={total_warm:.2f}s  "
+        f"첫-접촉 프리미엄={premium:.2f}s ({share:.1f}%)"
+    )
+    return {"cold": cold, "warm": warm, "dfa_after": dfa_after}
+
+
+# --------------------------------------------------------------------------- #
+# [4][5] 크기 램프
+# --------------------------------------------------------------------------- #
+
+
+def _ramp_slices(name: str) -> list[tuple[float, str]]:
+    lines = _read(name).splitlines(keepends=True)
+    slices: list[tuple[float, str]] = []
+    for frac in _RAMP_FRACTIONS:
+        count = max(1, int(len(lines) * frac))
+        slices.append((frac, "".join(lines[:count])))
+    return slices
+
+
+_COLD_RAMP_CHILD = """
+import json, sys, time
+sys.path.insert(0, ".")
+from pathlib import Path
+from src.strategy.pine_v2.ast_classifier import classify_script
+from pynescript.ast.grammar.antlr4.generated.PinescriptParser import PinescriptParser
+
+name = sys.argv[1]
+fractions = json.loads(sys.argv[2])
+path = Path("tests/fixtures/pine_corpus_v2") / (name + ".pine")
+lines = path.read_text().splitlines(keepends=True)
+out = []
+for frac in fractions:
+    count = max(1, int(len(lines) * frac))
+    source = "".join(lines[:count])
+    start = time.perf_counter()
+    try:
+        classify_script(source)
+        ok = True
+    except Exception:
+        ok = False
+    elapsed = time.perf_counter() - start
+    dfa = sum(len(d.states) for d in PinescriptParser.decisionsToDFA)
+    out.append({"frac": frac, "chars": len(source), "s": elapsed, "ok": ok, "dfa": dfa})
+print(json.dumps(out))
+"""
+
+
+def section_cold_ramp(name: str = _HEADLINE) -> dict[str, Any]:
+    print(f"\n[4] cold 램프 — {name} 를 1/8~8/8 로 잘라 「처음」 파싱 (fresh process)")
+    samples = _run_child(_COLD_RAMP_CHILD, name, json.dumps(list(_RAMP_FRACTIONS)))
+    rows = [
+        [
+            f"{s['frac']:.3f}",
+            str(s["chars"]),
+            f"{s['s']:.3f}",
+            str(s["dfa"]),
+            "ok" if s["ok"] else "PARSE-FAIL",
+        ]
+        for s in samples
+    ]
+    print(_fmt_table(["frac", "chars", "cold_s", "dfa_total", "parse"], rows))
+    ok = [s for s in samples if s["ok"]]
+    if ok:
+        grew = ok[-1]["chars"] / ok[0]["chars"]
+        lo = min(s["s"] for s in ok)
+        hi = max(s["s"] for s in ok)
+        print(
+            f"    ★조각 크기는 {grew:.1f} 배로 커지는데 조각당 cold 비용은 {lo:.2f}~{hi:.2f}s 로 평평하다."
+        )
+        print("      → cold 비용의 축은 「글자 수」가 아니라 「처음 보는 문법 결정」이다.")
+    return {"samples": samples}
+
+
+def section_warm_ramp(name: str = _HEADLINE) -> dict[str, Any]:
+    from src.strategy.pine_v2.ast_classifier import classify_script
+
+    print("\n[5] warm 램프 — 같은 조각들을 DFA 포화 뒤 재파싱 (선형성 보조 증거)")
+    slices = _ramp_slices(name)
+    for _, source in slices:
+        # 먼저 전량 1회 파싱해 DFA 를 포화시킨다. 잘린 조각의 문법 오류는 여기서 무시.
+        with contextlib.suppress(Exception):
+            classify_script(source)
+
+    rows: list[list[str]] = []
+    points: list[tuple[int, float]] = []
+    for frac, source in slices:
+        start = time.perf_counter()
+        try:
+            classify_script(source)
+            ok = True
+        except Exception:  # 잘린 조각은 문법 오류일 수 있다 — 실패도 한 행으로 남긴다
+            ok = False
+        elapsed = time.perf_counter() - start
+        if ok:
+            points.append((len(source), elapsed))
+        rows.append(
+            [
+                f"{frac:.3f}",
+                str(len(source)),
+                f"{elapsed:.3f}",
+                f"{1e6 * elapsed / len(source):.1f}",
+                "ok" if ok else "PARSE-FAIL",
+            ]
+        )
+    print(_fmt_table(["frac", "chars", "warm_s", "us/ch", "parse"], rows))
+    slope = _loglog_slope(points)
+    print(f"    log-log 기울기 = {slope:.2f}  (1.00=선형)")
+    if len(points) >= 2:
+        size_ratio = points[-1][0] / points[0][0]
+        time_ratio = points[-1][1] / points[0][1]
+        print(f"    양 끝: 크기 {size_ratio:.1f} 배 → 시간 {time_ratio:.1f} 배")
+        mid = points[len(points) // 2]
+        tail_size = points[-1][0] / mid[0]
+        tail_time = points[-1][1] / mid[1]
+        print(f"    꼬리 절반(중간→끝): 크기 {tail_size:.1f} 배 → 시간 {tail_time:.1f} 배")
+        print("      ★꼬리가 sublinear 면 기울기는 성장법칙이 아니라 구문 밀도의 얼룩이다.")
+    return {"slope": slope, "points": points}
+
+
+# --------------------------------------------------------------------------- #
+# [6] solo — 워밍업의 파일 간 전이량
+# --------------------------------------------------------------------------- #
+
+_SOLO_CHILD = """
+import json, sys, time
+sys.path.insert(0, ".")
+from pathlib import Path
+from src.strategy.pine_v2.ast_classifier import classify_script
+from pynescript.ast.grammar.antlr4.generated.PinescriptParser import PinescriptParser
+
+path = Path("tests/fixtures/pine_corpus_v2") / (sys.argv[1] + ".pine")
+start = time.perf_counter()
+classify_script(path.read_text())
+elapsed = time.perf_counter() - start
+dfa = sum(len(d.states) for d in PinescriptParser.decisionsToDFA)
+print(json.dumps({"s": elapsed, "dfa": dfa}))
+"""
+
+
+def section_solo(cold_in_batch: dict[str, float]) -> dict[str, Any]:
+    print("\n[6] solo — 프로세스당 파일 1개만 파싱 (워밍업의 파일 간 전이량 = 샤딩 중복분)")
+    rows: list[list[str]] = []
+    solo: dict[str, float] = {}
+    for path in _corpus_files():
+        name = path.stem
+        result = _run_child(_SOLO_CHILD, name)
+        solo[name] = result["s"]
+        batch = cold_in_batch.get(name)
+        rows.append(
+            [
+                name,
+                str(len(path.read_text())),
+                f"{result['s']:.3f}",
+                "-" if batch is None else f"{batch:.3f}",
+                "-" if batch is None else f"{result['s'] - batch:+.3f}",
+                str(result["dfa"]),
+            ]
+        )
+    print(_fmt_table(["script", "chars", "solo_s", "batch_cold_s", "delta", "dfa"], rows))
+    print(
+        f"    solo 합계={sum(solo.values()):.2f}s — 프로세스 9 개로 쪼갰을 때의 총비용 (샤딩 최악)"
+    )
+    return {"solo": solo}
+
+
+# --------------------------------------------------------------------------- #
+# [7] cProfile
+# --------------------------------------------------------------------------- #
+
+
+def section_cprofile(name: str = _HEADLINE, top: int = 15) -> None:
+    import cProfile
+    import io
+    import pstats
+
+    from src.strategy.pine_v2.ast_classifier import classify_script
+
+    print(
+        f"\n[7] cProfile — cold {name}, 누적시간 상위 {top} (프로파일러가 절대시간을 3~4배 부풀린다)"
+    )
+    profiler = cProfile.Profile()
+    profiler.enable()
+    classify_script(_read(name))
+    profiler.disable()
+    buffer = io.StringIO()
+    pstats.Stats(profiler, stream=buffer).sort_stats("cumulative").print_stats(top)
+    print(buffer.getvalue())
+
+
+# --------------------------------------------------------------------------- #
+# [8] 인과 대조 — 이 스크립트에서 가장 강한 증거
+# --------------------------------------------------------------------------- #
+
+
+def section_dfa_control(name: str = _HEADLINE) -> dict[str, float]:
+    """같은 프로세스·같은 입력에서 DFA 캐시만 비우면 cold 비용이 돌아오는가.
+
+    돌아온다면 원인은 import 도, 입력 크기도 아니고 **DFA 캐시의 상태**다.
+    """
+    from src.strategy.pine_v2.ast_classifier import classify_script
+
+    print(f"\n[8] 인과 대조 — 같은 프로세스·같은 입력({name}), DFA 캐시만 비운다")
+    source = _read(name)
+    rows: list[list[str]] = []
+    measured: dict[str, float] = {}
+
+    def measure(label: str) -> None:
+        start = time.perf_counter()
+        classify_script(source)
+        elapsed = time.perf_counter() - start
+        measured[label] = elapsed
+        rows.append([label, f"{elapsed:.3f}", str(_dfa_state_count())])
+
+    # 앞 섹션이 이미 DFA 를 데워 놨을 수 있으므로 먼저 비운다 — 라벨을 정직하게 유지한다.
+    _reset_antlr_caches()
+    rows.append(["0 reset", "-", str(_dfa_state_count())])
+    measure("1 cold")
+    measure("2 warm")
+    measure("3 warm")
+    _reset_antlr_caches()
+    rows.append(["4 reset", "-", str(_dfa_state_count())])
+    measure("5 post-reset")
+    measure("6 warm again")
+
+    print(_fmt_table(["단계", "seconds", "dfa"], rows))
+    warm = measured["2 warm"]
+    if warm > 0:
+        print(
+            f"    ★워밍업 배수: cold/warm = {measured['1 cold'] / warm:.1f} 배, "
+            f"리셋 직후/warm = {measured['5 post-reset'] / warm:.1f} 배"
+        )
+        print("      입력도 프로세스도 그대로인데 비용이 되돌아온다 → 원인은 DFA 캐시 상태다.")
+    return measured
+
+
+# --------------------------------------------------------------------------- #
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="[BL-598] 코퍼스 첫-접촉 파싱 비용 프로파일")
+    parser.add_argument("--ramp", action="store_true", help="[4][5] 크기 램프 (cold+warm)")
+    parser.add_argument("--solo", action="store_true", help="[6] 파일별 격리 프로세스")
+    parser.add_argument("--cprofile", action="store_true", help="[7] cold 파싱 상위 함수만 낸다")
+    parser.add_argument("--all", action="store_true", help="[1]~[8] 전부 (~7분)")
+    args = parser.parse_args()
+
+    print("=" * 78)
+    print("[BL-598] 코퍼스 첫-접촉 파싱 비용 프로파일")
+    print(f"코퍼스: {_CORPUS_DIR}")
+    print(f"python: {sys.version.split()[0]}")
+    print("=" * 78)
+
+    if args.cprofile:
+        section_cprofile()
+        return 0
+
+    section_import()
+    corpus = section_corpus()
+    if args.ramp or args.all:
+        section_cold_ramp()
+        section_warm_ramp()
+    if args.solo or args.all:
+        section_solo(corpus["cold"])
+    section_dfa_control()
+
+    print("\n" + "=" * 78)
+    print("판별 규칙")
+    print("  (a) import 워밍업  — [1] import 가 [2] cold 합계 대비 무시할 수준이고 DFA=0 이면 기각")
+    print("  (b) 입력크기 비선형 — [3] warm 합계가 단독 실행 비용을 설명 못 하면 기각")
+    print("                        (--ramp 의 log-log 기울기는 보조 증거일 뿐이다)")
+    print("  둘 다 기각이고 [8] 에서 DFA 리셋만으로 cold 비용이 되돌아오면, 정체는")
+    print("  「파싱이 유발하는 프로세스 전역 ANTLR ALL(*) DFA 워밍업」이다.")
+    print("  ⇒ 처방은 테스트가 파싱 자체를 안 하게 만드는 것(디스크 캐시) — backend/src 불필요.")
+    print("=" * 78)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
