@@ -14,6 +14,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-08 fe-canon-and-responsive** — ★★★**검사기 부재 3연속** — 캐논 감사는 **다크만** 재고, 계약 테스트는 「정의된 걸 읽나」를 안 보고, e2e `sidebar` grep **0건**. ★★음성 대조가 **낡은 CSS 로 거짓 통과**. ★★★CPU 100% 범인은 FE 코드 아닌 **Turbopack 캐시 1.99GB**(idle 417%→**0.1%**) — [dev-log](2026-08-08-fe-canon-and-responsive.md)
 - **2026-08-08 soak-exclusivity-and-observability** — ★★★**MTBF 층화는 개선 증거가 아니다 — 95% CI 6쌍 전부 겹침**(P(168h) 상한 0.07% vs **38.11%**). 근거를 셈으로 교체(24h 도달 **0/39**). ★★★게이트 술어는 낱말 아닌 **구문**(`다음 행동 =`) ⇒ 예외 소멸, 변이 **6/6** — [dev-log](2026-08-08-soak-exclusivity-and-observability.md)
 - **2026-08-08 bl003-unblock** — ★★★근인은 [ADR-025] 반례가 아니라 **이중 호스트 오염**(같은 demo 계정): 소유권 **7/27** · 정본 항등식 **4/4**(반사실 최대 1/4) · 두 원장 `exchange_order_id` **27/27**. ★★**CONTROL 판정식 2개가 적대 검증에 반증**(판별력 0 · 항진명제). 게이트 크래시 fail-closed. **재기동 완료**(`a4f1cbfb`) — [dev-log](2026-08-08-bl003-unblock.md)
 - **2026-08-07 backtest-fidelity** — ★★A-1 **`undecidable`**(D=24<30) — **동결한 문턱이 발화해 12.5% 를 「첫 실측치」로 적는 걸 막았다**. ★창은 **사망이 닫았다**(`39484a2c` phantom 2건→`position_divergence`, **[BL-633]**). ★[BL-621] 원인 **두 겹**. ★라이트가 **AA 미달**로 배포 중 — [dev-log](2026-08-07-backtest-fidelity.md)

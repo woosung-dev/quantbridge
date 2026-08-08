@@ -171,7 +171,10 @@ else
 fi
 
 # ── 3. build ──────────────────────────────────────────────────────
-if [ "$has_fe" -eq 1 ]; then
+# ★`|| [ -z "$BASE" ]` 는 다른 FE 게이트(:142 :144 :167)와 같은 관용구다. build 에만 빠져
+#   있었다 — `merge-base origin/main HEAD` 가 실패하면 CHANGED 가 비어 has_fe=0 이 되고
+#   FE build 만 **조용히 skip** 된다. 나머지 넷은 그때 fail-safe 로 돌게 막아 뒀다.
+if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
   run_gate "FE build" "Clerk 키 필요" bash -c 'cd "$0/frontend" && pnpm build' "$ROOT"
 else
   skip_gate "FE build" "frontend diff 0"
@@ -179,17 +182,37 @@ fi
 
 # ── 4. e2e ────────────────────────────────────────────────────────
 # ★PLAYWRIGHT_BASE_URL 없으면 3000 의 남의 앱을 검사한다(거짓 그린 사고 이력).
+#
+# ★[BL-556] `e2e chromium` = `pnpm e2e` = `--project=chromium` = `e2e/smoke.spec.ts` **3 test**
+#   (랜딩 렌더 · /strategies→sign-in 리다이렉트 · 랜딩 콘솔 에러 0). CI(`ci.yml:342-344`)는
+#   이미 돌리는데 로컬 게이트에만 없었다. 종전 문서 5곳이 「4건」이라 적었으나 `--list` 실측은 3 이다.
+#   ★**이것만 영역 판정에 건다.** BE·DB·인증 무결합이라 `frontend/` diff 가 0 이면 잴 것이 없다.
+#   `design-canon`·`authed` 는 종전대로 무조건 돈다 — `authed` 는 backend 변경도 문다.
+#   영역(has_fe)과 서버(정체성 프로브)는 직교하므로 **중첩**한다. 조건식이 두 번 나오는 것은
+#   의도다: 세 분기 전부에서 표의 행 순서(chromium → design-canon → authed)를 고정한다.
 if [ "$SKIP_E2E" -eq 1 ]; then
+  skip_gate "e2e chromium" "--skip-e2e"
   skip_gate "e2e design-canon" "--skip-e2e"; skip_gate "e2e authed" "--skip-e2e"
 else
   title="$(curl -s "http://localhost:$FE_PORT" 2>/dev/null | grep -o '<title>[^<]*</title>' | head -1)"
   if printf '%s' "$title" | grep -q 'QuantBridge'; then
     echo "  정체성 프로브 OK — :$FE_PORT $title"
+    if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
+      run_gate "e2e chromium" ":$FE_PORT" env PLAYWRIGHT_BASE_URL="http://localhost:$FE_PORT" \
+        bash -c 'cd "$0/frontend" && pnpm e2e' "$ROOT"
+    else
+      skip_gate "e2e chromium" "frontend diff 0"
+    fi
     run_gate "e2e design-canon" ":$FE_PORT" env PLAYWRIGHT_BASE_URL="http://localhost:$FE_PORT" \
       bash -c 'cd "$0/frontend" && pnpm e2e:design-canon' "$ROOT"
     run_gate "e2e authed" ":$FE_PORT" env PLAYWRIGHT_BASE_URL="http://localhost:$FE_PORT" \
       bash -c 'cd "$0/frontend" && pnpm e2e:authed' "$ROOT"
   else
+    if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
+      record "e2e chromium" 1 "정체성 프로브 실패 — :$FE_PORT 가 QuantBridge 가 아니다"
+    else
+      skip_gate "e2e chromium" "frontend diff 0"
+    fi
     record "e2e design-canon" 1 "정체성 프로브 실패 — :$FE_PORT 가 QuantBridge 가 아니다"
     record "e2e authed"       1 "정체성 프로브 실패"
     printf '\n▶ e2e\n  → FAIL: :%s 에서 QuantBridge 를 못 찾았다 (got: %s). 서버를 띄우고 다시 돌려라.\n' "$FE_PORT" "${title:-없음}"

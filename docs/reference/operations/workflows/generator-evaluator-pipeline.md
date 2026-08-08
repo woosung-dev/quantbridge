@@ -166,7 +166,11 @@ git diff --name-only $(git merge-base origin/main HEAD)..HEAD   # path-filter �
 | backend  | `pytest --cov=src.trading.registry --cov=src.trading.webhook --cov=src.trading.websocket --cov-report=term-missing --cov-fail-under=90` |
 | backend  | fresh throwaway DB 에 `alembic upgrade head` (개발 DB 를 향하지 않게)                                                                   |
 | frontend | `pnpm build` · `pnpm install --frozen-lockfile` · rules-of-hooks eslint-disable 차단 grep                                               |
-| e2e      | `pnpm e2e`(project=chromium, 4건) — `e2e:design-canon`·`e2e:authed` 와 **별개**                                                         |
+
+~~`| e2e | pnpm e2e(project=chromium, 4건) — e2e:design-canon·e2e:authed 와 별개 |`~~
+★**2026-08-08 [BL-556] — 더 이상 CI 전용이 아니다.** `final-gates.sh` §4 가 라벨
+**`e2e chromium`** 으로 집행한다(영역 판정 `has_fe` 에 걸리는 유일한 e2e 게이트).
+**그리고 4건이 아니라 3건이다**(`--list` 실측 `Total: 3 tests in 1 file`).
 
 실측 소요 — BE pytest 4분 + 커버리지 7.6분 + FE vitest 20초 + e2e authed 3.6분 + canon·build 각 1분 ≈ **20분**. 그래서 **풀 게이트는 G7 에서 1회만** 돌리고 G3 중간에는 표적 서브셋만 돌린다.
 

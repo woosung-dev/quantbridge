@@ -42,6 +42,15 @@ const nextConfig: NextConfig = {
   // 레포 루트로 추론한다. 그대로 두면 file tracing 이 루트 `node_modules` 까지 훑는다.
   // 이 레포는 pnpm workspace 가 아니므로(`pnpm-workspace.yaml` 없음) frontend 로 고정한다.
   outputFileTracingRoot: __dirname,
+  // ★2026-08-08 — 위 한 줄은 **빌드 시 file tracing 만** 고정했다. 같은 workspace-root
+  // 오추론이 Turbopack 에도 걸려 `next dev` 의 **해석 뿌리가 레포 루트**였고, 그 증거가
+  // `Can't resolve 'tailwindcss' in '<레포 루트>'` 였다(루트 node_modules 엔 없다).
+  // 고정 후 실측: 그 에러 2건 → **0건**.
+  // ★★**이것은 CPU 문제의 해가 아니다.** 같은 회차에 `next dev` 가 요청 0건에서 417% CPU 를
+  // 태우는 사고가 있었는데, 이 고정을 넣고 A/B 로 재니 **415% → 415% 로 불변**이었다.
+  // 진범은 `.next/dev` Turbopack 영속 캐시(1.99GB)였고 그것을 치우자 417% → **0.1%** 였다.
+  // 두 결함을 한 줄로 묶어 적지 마라 — 이 주석의 초안이 정확히 그 실수를 했다.
+  turbopack: { root: __dirname },
   async headers() {
     return [
       {

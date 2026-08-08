@@ -88,4 +88,44 @@ describe("chart-tokens.ts CSS 변수 계약 (이식 S1a 안전망)", () => {
       `${token} 이 .dark 에 없다. 폴백으로 조용히 떨어진다`,
     ).toBe(true);
   });
+
+  // ── 역방향 래칫 [BL-629] ──
+  //
+  // 위 검사는 「있어야 할 것이 있는가」만 본다. 그래서 정의만 있고 아무도 안 읽는
+  // 토큰이 7종(axis · grid · bullish · bearish · line · area-top · area-bottom) 쌓여
+  // 있었고, 그중 다크 `--chart-axis` 는 캐논 교정에서 `--text-muted` 가 #8b939c 로
+  // 올라갈 때 따라오지 못해 구값 #7a828c 에 남았다 — **아무 검사도 그것을 못 봤다.**
+  // 7종을 지웠으니 이제 반대 방향을 잠근다: 정의 집합 자체를 동결한다.
+  //
+  // 늘리려면 먼저 답해라 — **이 토큰을 읽는 코드가 어디 있는가.** 읽는 코드가 있으면
+  // CHART_TOKEN_CONTRACT 에도 들어가야 하고, 없으면 애초에 정의하지 마라.
+  const CHART_VARS_FROZEN: readonly string[] = [
+    // chart-tokens.ts 가 실제로 read() 하는 것
+    "--chart-benchmark",
+    "--chart-compare",
+    "--chart-dd-bottom",
+    "--chart-dd-line",
+    "--chart-dd-top",
+    "--chart-equity",
+    // shadcn 카테고리 팔레트. @theme inline 이 --color-chart-N 으로 노출한다
+    // (유틸 소비는 2026-08-08 실측 0건 — 처분은 [BL-649]).
+    "--chart-1",
+    "--chart-2",
+    "--chart-3",
+    "--chart-4",
+    "--chart-5",
+  ];
+
+  it.each(["라이트 :root", "다크 .dark"] as const)(
+    "%s 의 --chart-* 정의 집합이 동결값과 같다",
+    (label) => {
+      const source = label.startsWith("라이트") ? rootTokens : darkTokens;
+      const defined = [...source].filter((n) => n.startsWith("--chart-")).sort();
+      expect(
+        defined,
+        `${label} 의 --chart-* 가 동결 목록과 다르다. 데드 토큰이 되살아났거나 ` +
+          `읽는 코드 없이 새 --chart-* 가 늘었다`,
+      ).toEqual([...CHART_VARS_FROZEN].sort());
+    },
+  );
 });
