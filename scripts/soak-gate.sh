@@ -70,6 +70,9 @@ Type=oneshot
 WorkingDirectory=${ROOT}
 Environment=PATH=${paths}
 ExecStart=/bin/bash ${ROOT}/scripts/soak-gate.sh
+# 게이트의 종료 코드는 0=PASS / 1=FAIL / 2=UNKNOWN 이지만 systemd 는 0 외를 전부 실패로 본다.
+# 그래서 dev.quantbridge.soak-gate.service 가 매 실행 failed 로 남아 status 를 건강 신호로 못 썼다(2026-08-08 실측, 8/8 failed).
+SuccessExitStatus=1 2
 UNIT_EOF
   cat > "${unit_dir}/${LABEL}.timer" <<UNIT_EOF
 [Unit]
@@ -295,10 +298,35 @@ STAMP="$(date -u '+%Y%m%dT%H%M%SZ')"
 PHANTOM_JSON="${STATE_DIR}/phantom-${STAMP}.json"
 LOG_FIRST=""
 LOG_LAST=""
+LOG_NOTE=""
+ISO_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T'
 if [ "${COLLECT}" = "1" ]; then
-  LOG_FIRST="$(docker logs --timestamps "${WORKER_CONTAINER}" 2>&1 | head -1 | cut -d' ' -f1)"
-  LOG_LAST="$(docker logs --timestamps "${WORKER_CONTAINER}" 2>&1 | tail -1 | cut -d' ' -f1)"
-  if [ -n "${LOG_FIRST}" ] && [ -n "${LOG_LAST}" ]; then
+  LOG_PROBE=""
+  LOG_PROBE="$(mktemp "${TMPDIR:-/tmp}/quantbridge-soak-gate.XXXXXX")" || {
+    LOG_NOTE="워커 로그 프로브 임시 파일 생성 실패"
+  }
+  if [ -z "${LOG_NOTE}" ]; then
+    docker logs --timestamps --tail 1 "${WORKER_CONTAINER}" > "${LOG_PROBE}" 2>&1
+    LOG_RC=$?
+    if [ "${LOG_RC}" -eq 0 ]; then
+      LOG_LAST="$(head -1 "${LOG_PROBE}" | cut -d' ' -f1)"
+      LOG_FIRST="$(docker logs --timestamps "${WORKER_CONTAINER}" 2>&1 | head -1 | cut -d' ' -f1)"
+      if ! [[ "${LOG_FIRST}" =~ ${ISO_RE} ]] || ! [[ "${LOG_LAST}" =~ ${ISO_RE} ]]; then
+        LOG_NOTE="워커 로그 타임스탬프가 비어 있거나 ISO 8601 형식이 아니다 (처음: ${LOG_FIRST:-없음}, 마지막: ${LOG_LAST:-없음})"
+      fi
+    else
+      LOG_PROBE_REASON="$(head -1 "${LOG_PROBE}")"
+      LOG_NOTE="워커 로그 조회 실패 (rc=${LOG_RC}): ${LOG_PROBE_REASON:0:160}"
+    fi
+  fi
+  [ -z "${LOG_PROBE}" ] || rm -f "${LOG_PROBE}"
+  if [ -n "${LOG_NOTE}" ]; then
+    LOG_FIRST=""
+    LOG_LAST=""
+    echo "⚠ ${LOG_NOTE}" >&2
+  fi
+
+  if [ -z "${LOG_NOTE}" ]; then
     # ★분류기는 backend 의존성(sqlalchemy/asyncpg)과 DATABASE_URL 이 있어야 돈다.
     #   시스템 python3 로 돌리면 조용히 실패해 **verdicts 가 늘 0** 이 된다(실측 2026-08-04).
     #   ★`cd backend && set -a; . ./.env.local` 금지 — 이미 backend 면 cd 가 실패해
@@ -313,34 +341,41 @@ if [ "${COLLECT}" = "1" ]; then
         | (cd "${ROOT}/backend" && uv run python scripts/classify_direction_divergence.py \
              --json --corpus-end "${LOG_LAST}" 2>&1)
     ) > "${PHANTOM_JSON}.tmp" 2>/dev/null
+  else
+    # 타임스탬프 검증 실패 시에는 분류하지 않고 빈 임시 결과만 남긴다.
+    : > "${PHANTOM_JSON}.tmp"
+  fi
     # ★★분류기 **성공 여부를 따로 기록**한다. 껍데기 아카이브(verdicts 0)를 커버리지로
     #   인정하면 「phantom 없음 + 검증된 로그」로 읽혀 그 시간이 credit 되고 진짜 phantom 도
     #   숨는다 — fail-open 이다(codex P1). 성공의 정의는 둘 중 하나뿐이다:
     #     ⑴ 파싱되는 JSON 을 냈다   ⑵ 「관측이 없다」를 명시적으로 냈다(정상적인 0건)
     #   그 외(의존성·DB·인자 실패)는 `classifier_ok=false` 로 남기고 커버리지에서 제외된다.
-    python3 - "${PHANTOM_JSON}.tmp" "${PHANTOM_JSON}" "${LOG_FIRST}" "${LOG_LAST}" <<'PY'
+  python3 - "${PHANTOM_JSON}.tmp" "${PHANTOM_JSON}" "${LOG_FIRST}" "${LOG_LAST}" "${LOG_NOTE}" <<'PY'
 import json, pathlib, sys
 
-src, dst, first, last = sys.argv[1:5]
+src, dst, first, last, log_note = sys.argv[1:6]
 raw_text = pathlib.Path(src).read_text() if pathlib.Path(src).exists() else ""
 verdicts, ok, note, version = [], False, "", None
-try:
-    blob = json.loads(raw_text)
-    verdicts = blob.get("verdicts", [])
-    version = blob.get("predicate_version")
-    ok, note = True, "json"
-except Exception:
-    if "관측이 없다" in raw_text:
-        # 관측 0건은 실패가 아니다. 판을 못 읽었으므로 version 은 None 으로 남긴다 —
-        # 이 아카이브는 커버리지만 제공하고 라벨 판정에는 기여하지 않는다.
-        ok, note = True, "no-observations"
-    else:
-        note = (raw_text.strip().splitlines() or ["(빈 출력)"])[-1][:200]
+if log_note:
+    ok, note, first, last = False, log_note, "", ""
+else:
+    try:
+        blob = json.loads(raw_text)
+        verdicts = blob.get("verdicts", [])
+        version = blob.get("predicate_version")
+        ok, note = True, "json"
+    except Exception:
+        if "관측이 없다" in raw_text:
+            # 관측 0건은 실패가 아니다. 판을 못 읽었으므로 version 은 None 으로 남긴다 —
+            # 이 아카이브는 커버리지만 제공하고 라벨 판정에는 기여하지 않는다.
+            ok, note = True, "no-observations"
+        else:
+            note = (raw_text.strip().splitlines() or ["(빈 출력)"])[-1][:200]
 pathlib.Path(dst).write_text(
     json.dumps(
         {
-            "log_from": first,
-            "log_to": last,
+            "log_from": first or None,
+            "log_to": last or None,
             "classifier_ok": ok,
             "classifier_note": note,
             # ★판별식의 판. 아카이브들이 서로 다른 판이면 게이트가 **옛 라벨을 영원히
@@ -355,10 +390,9 @@ pathlib.Path(dst).write_text(
     )
 )
 pathlib.Path(src).unlink(missing_ok=True)
-if not ok:
+if not ok and not log_note:
     print(f"⚠ phantom 분류기 실패 — 이 창은 커버리지로 인정되지 않는다: {note}", file=sys.stderr)
 PY
-  fi
 fi
 
 # 어둠 비율 — 보고 전용(문턱 없음). 스크레이프 **실패**는 C5⑷ 위반이다.

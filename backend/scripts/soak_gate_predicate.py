@@ -105,6 +105,47 @@ def parse_ts(raw: str) -> datetime:
     return datetime.fromisoformat(text)
 
 
+# ★기대 방향: 이 검사는 PASS 를 더 어렵게 만드는 것이 의도다. 게이트가 덜 재고도 초록에
+# 가까워지는 것을 막는다 — 퇴보로 읽고 되돌리지 마라.
+def parse_log_coverage(
+    entries: list[dict[str, Any]],
+) -> tuple[list[Interval], list[dict[str, Any]]]:
+    """분류 성공 아카이브만 읽고, 시각을 못 읽은 항목은 따로 돌려준다.
+
+    판독 불가 항목은 커버리지에서 제외해 그 시간을 credit 하지 않는다. 원본 문자열과
+    출처는 판정 결과가 운영자에게 실제 수집 고장을 가리키도록 보존한다.
+    """
+    coverage: list[Interval] = []
+    unreadable: list[dict[str, Any]] = []
+    for entry in entries:
+        if entry.get("classifier_ok") is not True:
+            continue
+        raw_from = str(entry["from"])
+        raw_to = str(entry["to"])
+        try:
+            coverage.append(Interval(parse_ts(raw_from), parse_ts(raw_to)))
+        except ValueError:
+            unreadable_entry = {"from": raw_from, "to": raw_to}
+            if entry.get("archive"):
+                unreadable_entry["archive"] = entry["archive"]
+            unreadable.append(unreadable_entry)
+    return coverage, unreadable
+
+
+def summarize_unreadable_log_coverage(entries: list[dict[str, Any]]) -> dict[str, Any]:
+    """판독 불가 로그 커버리지의 총계와 중복을 뺀 한정 표본을 만든다."""
+    samples: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in entries:
+        key = (str(entry["from"]), str(entry["to"]))
+        if key in seen:
+            continue
+        seen.add(key)
+        if len(samples) < MAX_UNREADABLE_LABEL_SAMPLES:
+            samples.append(entry)
+    return {"count": len(entries), "samples": samples}
+
+
 @dataclass(frozen=True)
 class Interval:
     start: datetime
@@ -472,11 +513,7 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     #   그걸 커버리지로 받으면 「phantom 0건 + 검증된 로그」로 읽혀 그 시간이 credit 되고
     #   진짜 phantom 도 숨는다 — 정확히 fail-open 이다(codex P1). 실제로 이 회차에서 시스템
     #   python3 로 돌려 verdicts 가 늘 0 이었던 전례가 있다.
-    log_coverage = [
-        Interval(parse_ts(str(c["from"])), parse_ts(str(c["to"])))
-        for c in payload.get("log_coverage", [])
-        if c.get("classifier_ok") is True
-    ]
+    log_coverage, unreadable_log_coverage = parse_log_coverage(payload.get("log_coverage", []))
     attribution = attribution_intervals(pin_events, now)
 
     # ── C3 — 실격 사건 ──────────────────────────────────────────────────────
@@ -613,6 +650,11 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
             and require_continuous == DEFAULT_REQUIRE_CONTINUOUS_HOURS
         ),
     }
+    # 깨끗한 입력의 JSON을 수리 전과 바이트 단위로 같게 하려고 오염이 있을 때만 넣는다.
+    if unreadable_log_coverage:
+        detail["unreadable_log_coverage"] = summarize_unreadable_log_coverage(
+            unreadable_log_coverage
+        )
 
     if violations:
         first = violations[0]
@@ -620,6 +662,18 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
             "FAIL",
             "실격",
             f"실격 사건 {len(violations)}건 — 최초 {first.at.isoformat()} {first.kind} ({first.detail}). T0 가 앞으로 당겨지고 누적이 0 으로 리셋된다.",
+            conditions,
+            detail,
+        )
+
+    # C3 뒤인 이유 = 래칫. 오염된 아카이브 한 건이 진짜 실격을 UNKNOWN 으로 덮으면 「죽었는데 안 죽은 걸로 보인다」가 된다. 실격은 무엇에도 덮이지 않는다.
+    # 일반 C5 앞인 이유 = 이것이 원인이고 C5 항들은 증상이다. 커버리지가 전부 읽히지 않으면 log_coverage 가 비어 phantom_archive 가 false 로 떨어지는데, 그 낱말은 운영자를 「분류기를 보라」로 보낸다. 진짜 고장은 docker logs 였다.
+    if unreadable_log_coverage:
+        report = detail["unreadable_log_coverage"]
+        return Verdict(
+            "UNKNOWN",
+            "측정불가",
+            f"판독 불가 로그 커버리지 {report['count']}건 — 그 시간은 계상하지 않는다.",
             conditions,
             detail,
         )

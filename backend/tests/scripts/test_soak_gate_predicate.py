@@ -769,3 +769,107 @@ def test_sample_gap_is_unknown_not_pass(gate: Any) -> None:
     assert verdict.verdict == "UNKNOWN"
     assert verdict.reason_word == "측정불가"
     assert verdict.conditions["C4_sample_gaps"]
+
+
+# ── 판독 불가 로그 커버리지 ([BL-003]) ──────────────────────────────────────
+
+
+def test_unparseable_log_coverage_yields_measurement_unavailable(
+    gate: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """이 수리는 PASS 를 더 어렵게 만든다. 게이트가 더 자주 UNKNOWN 에 머무는 것은 퇴보가
+    아니라 의도다 — 되돌리지 마라.
+
+    판독 불가 시각은 수집 실패이지 검증된 빈 로그가 아니다. 판정과 CLI 종료 코드가 모두
+    `측정불가` 계약을 지켜야 운영자가 실격과 구별할 수 있다.
+    """
+    from io import StringIO
+
+    polluted = _payload(log_coverage=[{"from": "Error", "to": "Error", "classifier_ok": True}])
+    verdict = gate.evaluate(polluted)
+
+    assert verdict.verdict == "UNKNOWN"
+    assert verdict.reason_word == "측정불가"
+    report = verdict.detail["unreadable_log_coverage"]
+    assert report["count"] == 1
+    assert report["samples"] == [{"from": "Error", "to": "Error"}]
+
+    stdin = StringIO(gate.json.dumps(polluted))
+    stdout = StringIO()
+    monkeypatch.setattr(gate.sys, "stdin", stdin)
+    monkeypatch.setattr(gate.sys, "stdout", stdout)
+
+    assert gate.main() == 2
+    assert gate.json.loads(stdout.getvalue())["reason_word"] == "측정불가"
+
+
+def test_unparseable_log_coverage_does_not_credit_time(gate: Any) -> None:
+    """이 수리는 PASS 를 더 어렵게 만든다. 게이트가 더 자주 UNKNOWN 에 머무는 것은 퇴보가
+    아니라 의도다 — 되돌리지 마라.
+
+    판독 불가 항목만 있을 때는 0시간이고, 정상 2시간과 섞여도 추가 시간을 credit 하지 않는다.
+    """
+    unreadable = {"from": "Error", "to": "Error", "classifier_ok": True}
+
+    only_unreadable = gate.evaluate(_payload(log_coverage=[unreadable]))
+    clean_payload = _payload()
+    clean = gate.evaluate(clean_payload)
+    mixed = gate.evaluate(_payload(log_coverage=[*clean_payload["log_coverage"], unreadable]))
+
+    assert only_unreadable.conditions["C1_cumulative_hours"] == 0.0
+    assert mixed.conditions["C1_cumulative_hours"] == clean.conditions["C1_cumulative_hours"]
+
+
+def test_disqualification_outranks_measurement_unavailable(gate: Any) -> None:
+    """이 수리는 PASS 를 더 어렵게 만든다. 게이트가 더 자주 UNKNOWN 에 머무는 것은 퇴보가
+    아니라 의도다 — 되돌리지 마라.
+
+    진짜 phantom 실격은 같은 입력의 판독 불가 커버리지보다 항상 앞선다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            phantom_observations=[
+                {"at": "2026-08-04T11:00:00+00:00", "label": "phantom", "session_id": "x"}
+            ],
+            log_coverage=[{"from": "Error", "to": "Error", "classifier_ok": True}],
+            since="2026-08-04T09:00:00+00:00",
+        )
+    )
+
+    assert verdict.verdict == "FAIL"
+    assert verdict.reason_word == "실격"
+
+
+def test_measurement_unavailable_never_precedes_the_disqualification_check(gate: Any) -> None:
+    """이 수리는 PASS 를 더 어렵게 만든다. 게이트가 더 자주 UNKNOWN 에 머무는 것은 퇴보가
+    아니라 의도다 — 되돌리지 마라.
+
+    네 조합은 C3 실격이 판독 불가 분기보다 먼저임을 고정하고, FAIL에서도 오염 보고가 남는지
+    확인한다.
+    """
+    phantom = [{"at": "2026-08-04T11:00:00+00:00", "label": "phantom", "session_id": "x"}]
+    unreadable = [{"from": "Error", "to": "Error", "classifier_ok": True}]
+    cases = {
+        (False, False): (_payload(), ("PASS", "")),
+        (False, True): (_payload(log_coverage=unreadable), ("UNKNOWN", "측정불가")),
+        (True, False): (
+            _payload(phantom_observations=phantom, since="2026-08-04T09:00:00+00:00"),
+            ("FAIL", "실격"),
+        ),
+        (True, True): (
+            _payload(
+                phantom_observations=phantom,
+                log_coverage=unreadable,
+                since="2026-08-04T09:00:00+00:00",
+            ),
+            ("FAIL", "실격"),
+        ),
+    }
+
+    verdicts = {combination: gate.evaluate(payload) for combination, (payload, _) in cases.items()}
+
+    assert {
+        combination: (verdict.verdict, verdict.reason_word)
+        for combination, verdict in verdicts.items()
+    } == {combination: expected for combination, (_, expected) in cases.items()}
+    assert verdicts[(True, True)].detail["unreadable_log_coverage"]["count"] == 1

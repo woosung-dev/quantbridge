@@ -22,6 +22,9 @@
 #   · **`up` 은 세션을 만들지 않는다.** 세션이 0 이면 시계도 0 이다. ⑸ 를 빠뜨리면 스택은 도는데
 #     C1 이 안 오른다.
 #   · **돌고 있는 고정본 위에는 pin 이 거부된다**(`soak-stack.sh:94-99`, exit 2). 순서는 down → pin → up.
+#   · **down 직전에 원자료를 덤프한다.** `docker compose down` 이 컨테이너를 제거하면 `docker logs` 는
+#     사본 0으로 영구 소실된다. 2026-08-07 서버 세션(수명 5.52h, `position_divergence` 자동 사망)에서
+#     발산 관측 58줄이 워커 로그에만 있었고 서버엔 `.soak/logs` 가 없어 손으로 얼려야 했다.
 #   · **`up` 은 celery 기동 배너를 최대 600 초 기다린다**(`soak-stack.sh:168-191`). 타임아웃을 걸지 않는다.
 #   · **uuid 는 정규식으로 뽑는다.** `✓ 세션 등재: <uuid>` 는 멀티바이트 3 토큰이라
 #     `awk '{print $3}'` 이 `등재:` 를 준다.
@@ -35,6 +38,9 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
+WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
+METRICS_URL="${QB_METRICS_URL:-}"
+METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/backend/.metrics}"
 
 CONFIRM=0
 STRATEGY_ID=""
@@ -103,6 +109,74 @@ _admin() { # _admin <live_session_admin.py 인자...>
 
 _q() { docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "$1" 2>/dev/null; }
 
+# down 직전 원자료 덤프. ★**fail-closed** — 한 건이라도 실패하면 die 하고 down 은 호출되지 않는다.
+# 서브셸·명령치환·파이프에 물리지 마라. die 의 `exit` 이 삼켜져 fail-open 이 된다.
+_dump_evidence() {
+  local rc dir stamp session name file table raw
+
+  stamp="$(date -u '+%Y%m%dT%H%M%SZ')"
+  # 활성 세션이 있으면 그 uuid 앞 8자리로 이름 짓는다. 자동 사망 뒤라면 활성 세션이 없다 —
+  # 그때가 바로 증거가 제일 필요한 순간이므로 못 잡았다고 덤프를 거르지 않는다.
+  # ★STAMP 를 항상 붙인다. 같은 세션을 두 번 재기동해도 앞 회차 증거를 덮어쓰지 않는다.
+  session="$(_q "SELECT id FROM trading.live_signal_sessions
+                 WHERE deactivated_at IS NULL ORDER BY created_at DESC LIMIT 1")"
+  rc=$?
+  [ "${rc}" -eq 0 ] || die "활성 세션 조회 실패 — DB 가 안 뜬 채로 down 하면 원장 CSV 도 못 딴다" 1
+  if [ -n "${session}" ]; then name="${session:0:8}-${stamp}"; else name="pre-down-${stamp}"; fi
+  dir="${ROOT}/.soak/evidence/${name}"
+  mkdir -p "${dir}" || die "증거 디렉터리 생성 실패: ${dir}" 1
+
+  # ⓐ 워커 로그. ★`2>&1` 은 리다이렉트 **뒤에** 둔다 — celery 는 stderr 로 쓰므로
+  #   이걸 빠뜨리면 발산 관측 줄이 통째로 파일에 안 들어온다.
+  file="${dir}/worker.log"
+  docker logs --timestamps "${WORKER_CONTAINER}" > "${file}" 2>&1
+  rc=$?
+  [ "${rc}" -eq 0 ] || die "worker 로그 덤프 실패 (컨테이너가 이미 없나?): ${file}" 1
+  [ -s "${file}" ] || die "worker 로그 덤프가 비었다 — 빈 파일은 증거가 아니다: ${file}" 1
+
+  # ⓑ 원장 4종 CSV.
+  # ★`\copy` 를 쓰면 안 된다 — psql 이 **DB 컨테이너 안**에서 도니까 파일도 컨테이너 안에 쓰이고
+  #   down 과 함께 사라진다. 서버사이드 `COPY … TO STDOUT` 의 stdout 을 **호스트에서** 받아야
+  #   원자료가 컨테이너 밖에 남는다.
+  for table in orders exchange_exits live_signal_sessions live_signal_states; do
+    file="${dir}/${table}.csv"
+    docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge \
+      -Atc "COPY (SELECT * FROM trading.${table}) TO STDOUT WITH CSV HEADER" > "${file}"
+    rc=$?
+    [ "${rc}" -eq 0 ] || die "원장 ${table} CSV 덤프 실패: ${file}" 1
+    # HEADER 는 0행이어도 항상 나온다 ⇒ 빈 파일은 성공이 아니다.
+    [ -s "${file}" ] || die "원장 ${table} CSV 가 비었다 (헤더조차 없다): ${file}" 1
+  done
+
+  # ⓒ metrics. ★`backend/.metrics` 는 mmap 이라 cat/grep 이 안 된다 —
+  #   MultiProcessCollector 로 렌더해야 텍스트가 된다 (soak-gate.sh 와 같은 취득 방식).
+  raw=""
+  if [ -n "${METRICS_URL}" ]; then
+    raw="$(curl -sf --max-time 20 "${METRICS_URL}" 2>/dev/null)"
+  elif [ -d "${METRICS_DIR}" ]; then
+    # ★`timeout` 없이 부르지 마라 — 무기한 대기는 재기동을 통째로 멈춘다([BL-594] 교훈).
+    raw="$(cd "${ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
+      timeout 120 uv run python -c '
+import sys
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess
+
+registry = CollectorRegistry()
+multiprocess.MultiProcessCollector(registry)
+sys.stdout.buffer.write(generate_latest(registry))
+' 2>/dev/null)"
+  else
+    die "metrics 취득 경로가 없다 — QB_METRICS_URL 이나 ${METRICS_DIR} 중 하나가 있어야 한다" 1
+  fi
+  # ★rc 0 + 빈 본문 = 성공이 아니라 **측정불가**다. soak-gate.sh 가 산 구분이므로 여기서도 판다.
+  [ -n "${raw}" ] || die "metrics 취득 실패 또는 본문이 비었다 — 측정불가는 성공이 아니다" 1
+  printf '%s\n' "${raw}" > "${dir}/metrics.txt" || die "metrics 파일 저장 실패" 1
+
+  echo "   ✓ ${dir}"
+  for file in worker.log orders.csv exchange_exits.csv live_signal_sessions.csv live_signal_states.csv metrics.txt; do
+    echo "     · ${file} $(wc -l < "${dir}/${file}" | tr -d ' ') 줄"
+  done
+}
+
 MODE_LABEL="dry-run (집행하려면 --confirm)"
 [ "${CONFIRM}" = "1" ] && MODE_LABEL="집행"
 echo "══ 소크 재기동 — ${MODE_LABEL} ══"
@@ -140,7 +214,8 @@ if [ "${CONFIRM}" != "1" ]; then
   cat << EOF
 ⑴ live_session_admin.py status 로 FLAT=YES 확인
    ★세션 DELETE 204 는 아무것도 flat 하지 않는다 (3회 덴 함정)
-   ★status 는 포지션만 본다 — resting 조건부 주문은 세지 않는다
+   ★status 는 이제 FLAT= 외에 RESTING_CONDITIONAL= · FOREIGN_RESTING= · EXCLUSIVE= · QUIET= 도 낸다.
+     ⑴-b 가 EXCLUSIVE≠YES 면 멈춘다 — 다른 호스트가 같은 계정에 붙어 있다는 뜻이다
      cd ${ROOT}/backend && uv run python scripts/live_session_admin.py status --symbol ${SYMBOL}
 
 ⑵ FLAT=NO 면 stop → flatten (★순서가 중요하다 — 세션이 살아 있으면 다음 tick 에 재진입한다)
@@ -152,6 +227,8 @@ if [ "${CONFIRM}" != "1" ]; then
 
 ⑷ soak-stack.sh down → pin → up
    ★돌고 있는 고정본 위엔 pin 이 거부된다(exit 2) · up 은 celery 배너를 최대 600초 기다린다
+   ★down 직전 .soak/evidence/<세션8자리>-<STAMP>/ 에 worker.log + 원장 4종 CSV + metrics.txt 를 덤프한다
+     (덤프가 실패하면 down 으로 넘어가지 않는다 — fail-closed)
 
 ⑸ live_session_admin.py start --strategy-id ${STRATEGY_ID} --account-id ${ACCOUNT_ID} \\
      --symbol ${SYMBOL} --interval ${INTERVAL} --confirm
@@ -165,7 +242,9 @@ if [ "${CONFIRM}" != "1" ]; then
    ★--session 은 플래그다. 위치인자로 주면 unknown arg (exit 64)
 
 ⑻ soak-gate.sh 로 창 확인
-   ★C2(최장 연속)는 리셋된다. C1(누적)은 유지된다
+   ★C2(최장 연속)는 리셋된다. ★★C1(누적)이 유지되는 것은 **re-pin 단독**일 때뿐이다 —
+     직전이 실격(자동사망·phantom·tick정체)이었으면 C1 도 이미 0 이다(`countable` 이 실격 시점에
+     열려 있던 귀속 구간을 통째 배제한다). 2026-08-08 실측: C1 5.31h → 0.0000h
 
 ══ dry-run 종료 — 아무것도 실행하지 않았다. 집행하려면 --confirm ══
 EOF
@@ -189,18 +268,50 @@ if [ "${FLAT}" != "YES" ]; then
   ACTIVE="$(_q "SELECT id FROM trading.live_signal_sessions WHERE deactivated_at IS NULL LIMIT 1")"
   echo "     cd ${ROOT}/backend && uv run python scripts/live_session_admin.py stop    ${ACTIVE:-<session_id>} --confirm"
   echo "     cd ${ROOT}/backend && uv run python scripts/live_session_admin.py flatten ${ACTIVE:-<session_id>} --confirm"
-  echo "   ★status 는 포지션만 본다 — resting 조건부 주문은 세지 않는다. 거래소에서 눈으로 확인해라."
   exit 1
 fi
 echo "   ✓ FLAT=YES"
+
+# ── ⑴-b 계정 배타성 ────────────────────────────────────────────────────────────
+#
+# ★★★2026-08-07 사망의 근인이 여기다. 오라클 서버와 맥 로컬이 **같은 Bybit demo 계정**
+#   (`19a8166a…`)에 같은 전략·심볼·주기로 동시에 붙어 있었고, 서버 엔진은 자기 1단위만
+#   아는데 거래소에는 로컬이 얹은 단위가 함께 있었다(거래소 0.087 = 서버 0.029 + 로컬 0.058).
+#   ⇒ `direction` 발산 → `position_divergence` 자동 사망, C1 5.31h → 0.
+#
+# ★**DB 제약은 이걸 원리상 못 막는다.** `live_signal_sessions` 의 unique index 는 `is_active`
+#   를 보는데, 호스트가 둘이면 **데이터베이스도 둘**이다. 각 DB 안에서는 제약이 정상 성립했고
+#   둘을 합친 상태를 아는 주체가 없었다. 그래서 가드는 **거래소 쪽 상태**를 본다.
+#
+# ★판별자는 `order_link_id` **소유권**이다. 우리 것까지 「남의 것」으로 세면 정상 재기동이
+#   영원히 거부된다 — 그 오탐이 이 가드의 가장 큰 위험이다.
+EXCLUSIVE="$(printf '%s\n' "${STATUS_OUT}" | sed -n 's/^EXCLUSIVE=\(.*\)$/\1/p' | tail -1)"
+if [ -z "${EXCLUSIVE}" ]; then
+  # 낡은 CLI 를 쓰는 체크아웃 — 「없다」를 「YES」로 읽지 않는다.
+  die "status 출력에 EXCLUSIVE= 가 없다 — live_session_admin.py 가 낡았다. 배타성을 못 쟀다" 2
+fi
+if [ "${EXCLUSIVE}" != "YES" ]; then
+  echo
+  echo "⑴-b EXCLUSIVE=${EXCLUSIVE} — **여기서 멈춘다.** 다른 호스트가 같은 계정에 붙어 있다."
+  printf '%s\n' "${STATUS_OUT}" | sed -n 's/^  FOREIGN /   남의 resting: /p'
+  echo "   → 그 호스트를 먼저 세워라. 로컬 맥이면:"
+  echo "     ★make down 만으로는 부족하다 — is_active 로 남은 세션이 다음 make up 에 되살아난다."
+  echo "     UPDATE trading.live_signal_sessions SET is_active=false, deactivated_at=now(),"
+  echo "            deactivated_reason='user_stopped' WHERE is_active OR deactivated_at IS NULL;"
+  echo "   → 그 뒤 남의 resting 조건부 주문을 거래소에서 취소하고 다시 돌려라."
+  exit 1
+fi
+echo "   ✓ EXCLUSIVE=YES (원장이 소유권을 주장 못 하는 resting 0건)"
 echo
-echo "⑵ (건너뜀 — 이미 flat 이다)"
+echo "⑵ (건너뜀 — 이미 flat 이고 계정도 배타적이다)"
 echo
 echo "⑶ 사용자 승인 — ✓ --confirm"
 echo
 
 # ── ⑷ down → pin → up ───────────────────────────────────────────────────────────
 echo "⑷ soak-stack.sh down → pin → up"
+echo "⑷-0 down 직전 원자료 덤프 (★down 이 컨테이너를 지우면 로그는 사본 0으로 영구 소실)"
+_dump_evidence
 bash "${SCRIPT_DIR}/soak-stack.sh" down || die "down 실패" 1
 bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (돌고 있는 고정본 위인가? backend/src 가 dirty 한가?)" 1
 echo "   … up 은 celery 기동 배너를 최대 600초 기다린다"
