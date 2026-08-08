@@ -1224,7 +1224,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-623](#bl-623) | 서버 클론이 `--single-branch` 라 feature 브랜치가 기본 fetch 로 안 온다 — `remote.origin.fetch` 가 main 한 줄뿐이라 `git checkout <branch>` 가 `pathspec did not match` 로 죽는다. 우회는 refspec 명시. 근본 수리(`git remote set-branches origin '*'`)는 소크가 도는 서버의 git 설정 변경이라 이연                                                                                                                                                                    | 서버에서 feature 브랜치를 다시 받아야 할 때                                                                       | XS        | 2026-08-07 fe-oracle-deploy                            |
 | [BL-638](#bl-638) | 🟡 `docs/archive/` 부재 — 2026-08-08 에 `lessons-archive-2026H1.md` 하나로 복원됐지만, `legacy_paths` 가 권장하는 하위 경로 4종은 여전히 없어 안내가 실행 불가다                                                                                                                                                                                                                                                                                                       | 문서 보관 경로를 다시 안내하거나 정리할 때                                                                        | S         | 2026-08-08 bl003-unblock                               |
 | [BL-640](#bl-640) | `.metrics` 가 컨테이너 세대를 넘어 누적된다 — `engine_only_suppressed` 합산 89 중 15가 이전 세대 값이라 창 안 차분에 창 밖 값이 섞인다                                                                                                                                                                                                                                                                                                                                 | 게이트가 `.metrics` 값을 창 기준으로 해석할 때                                                                    | S         | 2026-08-08 bl003-unblock                               |
-| [BL-644](#bl-644) | `delete-dialog.tsx:135` 만 `useMediaQuery("(max-width: 767px)")` 로 **767**, CSS 30곳은 전부 **768** — 정확히 768px 폭에서 CSS 는 모바일(사이드바 0)인데 JS 는 `isMobile=false` 다. 레포 유일의 JS 미디어쿼리                                                                                                                                                                                                                                                          | 반응형 셸을 다시 손댈 때                                                                                          | XS        | 2026-08-08 fe-canon-and-responsive                     |
+| [BL-644](#bl-644) | ✅ **Resolved — 767 → 768 한 줄.** 이 훅이 고르는 것은 Sheet vs Dialog 라 **셸의 모바일 판정과 같은 축**이고 셸은 `max-width:768px` 에서 넘어간다 ⇒ CSS 축에 붙였다. ★**세 축은 768 에서 전부 일치할 수 없다** — `min-width`·`max-width` 둘 다 경계값을 포함하므로 768 은 Tailwind `md:`(데스크탑)와 raw CSS(모바일)가 **동시에 참**인 유일한 점이다. 훅↔CSS 는 이제 일치, `md:`↔CSS 겹침은 이 BL 이전부터의 구조적 성질이라 그대로                                    | 반응형 셸을 다시 손댈 때                                                                                          | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-645](#bl-645) | `.searchbox` 는 CSS(`globals.css:1159-1178` 정의 · `:1853` 1024px 숨김)만 있고 **렌더하는 TSX 가 0건**이다(`dashboard-header.tsx:5` — 백엔드 검색이 없어 미이식). `DESIGN.md` §10.6 「1024px 검색 숨김」이 검증 불가였던 원인. 삭제할지 검색 기능과 함께 살릴지                                                                                                                                                                                                        | 백엔드 검색을 붙일 때 · CSS 정리 스윕                                                                             | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-646](#bl-646) | `@media (max-width: 900px)` **5곳**(`globals.css:1967 · 2035 · 2167 · 2262 · 3275`)이 `DESIGN.md`·`frontend/AGENTS.md`·`_kit.html` **어디에도 없는** 미등재 경계다. 정본에 올릴지 375/768/1024/1200 사다리로 흡수할지                                                                                                                                                                                                                                                  | 반응형 정본을 다시 손댈 때                                                                                        | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-647](#bl-647) | `frontend/AGENTS.md` §10 은 mobile-first 필수인데 `globals.css` 의 `@media` **30곳이 전부 `max-width`**(min-width 0건) = 100% desktop-first. 2026-08-08 에 규칙의 **사거리를 좁혀** 봉합했고(신규 Tailwind 컴포넌트만 필수) 전면 전환은 미결                                                                                                                                                                                                                           | CSS 규약을 집행 가능하게 만들 때                                                                                  | M         | 2026-08-08 fe-canon-and-responsive                     |
@@ -6144,7 +6144,7 @@ BL-003 의 Est 를 다시 잡기 전에 읽어야 한다.
 **카테고리:** Frontend / 반응형 일관성
 **Trigger:** 반응형 셸을 다시 손댈 때
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved** (2026-08-08, `stage/ztb-w3-responsive`)
 
 **JS 미디어쿼리 하나만 767px 이고 CSS 30곳은 768px 이다.**
 
@@ -6159,6 +6159,22 @@ BL-003 의 Est 를 다시 잡기 전에 읽어야 한다.
 **수리 방향:** 767 → 768 한 줄. `.tsx` 라 [BL-602] 무관.
 **Risk:** 🟢 1픽셀. 다만 고칠 때 `md:` 유틸(=768, min-width)과 CSS(=768, max-width)가
 **같은 숫자를 반대 방향으로** 쓴다는 것을 함께 확인해라.
+
+**해결(2026-08-08).** `delete-dialog.tsx:135` 767 → 768. 이 훅이 고르는 것은 Sheet(모바일)
+vs Dialog(데스크탑)이라 **셸의 모바일 판정과 같은 축**이고, 셸은 `@media (max-width: 768px)`
+에서 `--sidebar-w: 0` + 햄버거로 넘어간다 ⇒ CSS 축에 맞추는 것이 옳다.
+
+★**세 축은 768 에서 전부 일치할 수 없다.** 뷰포트 정확히 768px 에서:
+
+| 축                            | 방향        | 768px 에서         |
+| ----------------------------- | ----------- | ------------------ |
+| Tailwind `md:` 유틸           | `min-width` | **적용(데스크탑)** |
+| raw CSS `@media (max-width:)` | `max-width` | **적용(모바일)**   |
+| `useMediaQuery` (수정 후)     | `max-width` | **모바일**         |
+
+`min-width`·`max-width` 둘 다 경계값을 **포함**하므로 768 은 두 방향이 동시에 참인 유일한
+점이다. 이번 수정은 훅을 **CSS 축**에 붙였고, 남은 `md:` ↔ CSS 겹침은 이 BL 이전부터 있던
+구조적 성질이라 그대로다(정본 기술 = `frontend/AGENTS.md` §10 · `DESIGN.md` §4.3).
 
 ---
 
