@@ -87,9 +87,15 @@
 | `--warning` (+`-subtle`)            | `#824e05` / `#f7efdc` | `#e5a93d` / **10%** rgba               |
 
 ★라이트 `--warning` 은 [BL-628] 로 `#875206` → `#824e05` 다 — `--warning-subtle` 위에서
-5.66 이라 캐논 5.82 에 미달했다(AA 는 통과). `--accent-amber` 는 라이트에서 `--warning` 과
-**바이트 동일**을 유지한다. 다크 `--success-subtle` 은 `--success` 가 아니라 **`--bullish`
-파생**이다(구값은 앱 내부 모순이었다, `globals.css:441`).
+5.66 이라 캐논 5.82 에 미달했다(AA 는 통과). 다크 `--success-subtle` 은 `--success` 가 아니라
+**`--bullish` 파생**이다(구값은 앱 내부 모순이었다, `globals.css:441`).
+
+★**2026-08-08 [BL-649] — `--accent-amber` / `--accent-amber-light` 를 삭제했다**(라이트·다크·
+`@theme inline` 3면 6줄). 종전 이 자리는 「`--accent-amber` 는 라이트에서 `--warning` 과
+**바이트 동일**을 유지한다」였는데, 그 문장이 곧 삭제 사유다 — TSX 소비가 **0건**인데 같은
+값을 두 이름으로 들고 있었고, 다크에서는 이미 갈려 있었다(`-light` 0.12 vs
+`--warning-subtle` 0.10). 앰버가 필요하면 `--warning` / `--warning-subtle` 하나뿐이다.
+툼스톤은 `globals.css:57`.
 
 ### 2.3 차트 (테마 인지 — `:root`/`.dark` 양쪽 정의)
 
@@ -106,8 +112,13 @@
 다크 `--chart-axis` 는 캐논 교정이 `--text-muted` 를 옮길 때 따라오지 못해 구값에 남아
 있었고 **아무 검사도 그것을 못 봤다.** 이제 `--chart-*` 정의 집합을
 `src/__tests__/chart-tokens-contract.test.ts` 가 동결한다 — 늘리려면 「이 토큰을 읽는 코드가
-어디 있는가」를 먼저 답해야 한다. shadcn 카테고리 슬롯 `--chart-1..5` 는 별개로 존속한다
-(유틸 소비는 실측 0건 — 처분은 [BL-649]).
+어디 있는가」를 먼저 답해야 한다.
+
+★**2026-08-08 [BL-649] — shadcn 카테고리 슬롯 `--chart-1..5` 도 삭제했다**(3면 15줄). 종전
+이 자리는 「별개로 존속한다」였으나 존속시킬 이유가 소멸했다 — `--color-chart-N` 유틸 소비가
+**0건**이고, `--chart-4` 는 구 `--warning`(`#875206`) 사본이라 [BL-628] 이후 **드리프트한
+복사본**이었다. 삭제하려면 `chart-tokens-contract.test.ts` 의 역방향 래칫
+`CHART_VARS_FROZEN` 을 먼저 고쳐야 했다(래칫이 설계대로 물었다). 툼스톤은 `globals.css:118`.
 
 CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는 `lib/brand-palette.ts` 상수를 import — 하드코딩 hex 신규 작성 금지.
 
