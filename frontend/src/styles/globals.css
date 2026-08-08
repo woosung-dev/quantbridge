@@ -54,8 +54,10 @@
   --warning: #824e05;
   --warning-foreground: #ffffff; /* --warning 위 6.91 (구 6.48) */
   --warning-subtle: #f7efdc;
-  --accent-amber: #824e05; /* ★--warning 과 바이트 동일 유지 — 한쪽만 옮기면 앰버가 둘이 된다 */
-  --accent-amber-light: #f7efdc;
+  /* ★[BL-649] 2026-08-08 — `--accent-amber` / `--accent-amber-light` 를 삭제했다.
+     TSX 소비 0건인데 `@theme inline` 이 유틸까지 노출하고 있었고, 라이트에서는 위 두 줄과
+     값이 같은데 **다크에서는 이미 갈라져 있었다**(-light 0.12 vs --warning-subtle 0.10).
+     앰버가 필요하면 `--warning` / `--warning-subtle` 을 써라 — 이름은 하나여야 한다. */
 
   /* 보더 — 쿨 헤어라인 2단 */
   --border: #e2e5e9;
@@ -113,11 +115,10 @@
   --destructive-foreground: #ffffff;
   --input: #dce0e5; /* 중립 헤어라인 — 기준색 파생이 아니라 그대로 (--border 계열) */
   --ring: #883e07;
-  --chart-1: #883e07;
-  --chart-2: #034a35;
-  --chart-3: #a72424;
-  --chart-4: #875206;
-  --chart-5: #074b34;
+  /* ★[BL-649] 2026-08-08 — shadcn 카테고리 팔레트 `--chart-1..5` 를 삭제했다. `--color-chart-N`
+     유틸 소비 0건이었고, `--chart-4`(#875206)는 [BL-628] 이전 `--warning` 의 사본이라 이미
+     드리프트해 있었다. 차트 색은 `lib/chart-tokens.ts` 가 읽는 `--chart-equity` 계열이 정본이다.
+     정의 집합 동결 = __tests__/chart-tokens-contract.test.ts 의 CHART_VARS_FROZEN. */
   --sidebar: #fdfdfc;
   --sidebar-foreground: #171a1e;
   --sidebar-primary: #883e07;
@@ -365,8 +366,6 @@ h6 {
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-subtle: var(--warning-subtle);
-  --color-accent-amber: var(--accent-amber);
-  --color-accent-amber-light: var(--accent-amber-light);
   --color-border-default: var(--border);
   --color-border-dark: var(--border-dark);
   --color-card-raised: var(--card-raised);
@@ -385,11 +384,6 @@ h6 {
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -448,8 +442,6 @@ h6 {
   --warning: #e5a93d;
   --warning-foreground: #1a1006;
   --warning-subtle: rgba(229, 169, 61, 0.1); /* 캐논 --warn-soft */
-  --accent-amber: #e5a93d;
-  --accent-amber-light: rgba(229, 169, 61, 0.12);
 
   /* 차트 (다크) — :root 값 상속 폐지, 테마 인지 승격. equity = 코퍼 */
   --chart-equity: #f08c2e;
@@ -484,11 +476,6 @@ h6 {
   --destructive-foreground: #1a1006;
   --input: #2a2f35;
   --ring: #f08c2e;
-  --chart-1: #f08c2e;
-  --chart-2: #34d399;
-  --chart-3: #f6685e;
-  --chart-4: #e5a93d;
-  --chart-5: #2dd4a7;
   --sidebar: #0d0f12;
   --sidebar-foreground: #e8eaed;
   --sidebar-primary: #f08c2e;

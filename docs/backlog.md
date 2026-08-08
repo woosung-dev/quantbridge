@@ -1229,7 +1229,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-646](#bl-646) | ✅ **Resolved — ① 등재**(`DESIGN.md` §4.3.1 신설, 콘텐츠 그리드 전용 6번째 경계). 흡수 2안 **실측 기각**. ★★**전제가 틀렸다 — 그리드가 받는 폭은 뷰포트가 아니라 `.page` 콘텐츠 박스이고 뷰포트에 단조가 아니다**(`--sidebar-w` 가 1024 에서 232→64 계단): 뷰포트 1023→**1025** 에서 콘텐츠가 911→**745** 로 **166px 줄어든다**. ⇒ 1024 흡수는 **가장 넓을 때 접는다**(모순 166px), 768 흡수는 뷰포트 769(콘텐츠 657)에서 `.trade-detail-metrics` 3열 219px 씩이 되며 `.metric` +6px **실제 파손**(「시각」이 「시/각」으로 꺾임), 900 유지가 모순 42px 로 최소. 근본 해는 컨테이너 쿼리 → [BL-647]. ★`frontend/AGENTS.md` §10 표는 [BL-602] 로 **미반영** | 반응형 정본을 다시 손댈 때                                                                                        | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-647](#bl-647) | `frontend/AGENTS.md` §10 은 mobile-first 필수인데 `globals.css` 의 `@media` **30곳이 전부 `max-width`**(min-width 0건) = 100% desktop-first. 2026-08-08 에 규칙의 **사거리를 좁혀** 봉합했고(신규 Tailwind 컴포넌트만 필수) 전면 전환은 미결                                                                                                                                                                                                                                                                                                                                                                                                               | CSS 규약을 집행 가능하게 만들 때                                                                                  | M         | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-648](#bl-648) | ★**런타임 캐논 감사가 다크만 본다** — `design-canon-audit.ts:300` 이 테마를 강제 안 하고 `app-providers.tsx:21` 이 `defaultTheme="dark"` 라 4폭 전부 다크. 라이트 라우트 캐논 e2e 커버리지 **0**([BL-628] 이 그래서 안 물렸다). 또 **인증 셸의 렌더된 `.sidebar` 실폭**도 미측정(공개 라우트엔 `.sidebar` 가 없다)                                                                                                                                                                                                                                                                                                                                         | 라이트 테마 회귀가 한 번 더 나올 때                                                                               | S         | 2026-08-08 fe-canon-and-responsive                     |
-| [BL-649](#bl-649) | `--accent-amber`/`-light` 와 `--chart-1..5` 가 `@theme inline` 으로 노출돼 있으나 **TSX 소비 0건**이다. 라이트 `--accent-amber` 는 `--warning` 과 값 동일이고 다크 `-light` 는 이미 0.12 vs 0.10 으로 갈렸다. `--chart-4` 는 구 `--warning`(#875206) 사본으로 남았다                                                                                                                                                                                                                                                                                                                                                                                       | 토큰 정리 스윕                                                                                                    | XS        | 2026-08-08 fe-canon-and-responsive                     |
+| [BL-649](#bl-649) | ✅ **Resolved — ① 삭제**(라이트·다크·`@theme inline` 3면 21줄). ②(`var(--warning)` 별칭 강등)를 버린 이유 = **별칭도 이름이고 소비자 0건이면 값을 못 한다** — 남기면 `@theme inline` 이 계속 유틸을 찍어 다음 사람이 또 고민한다. ★**「소비 0건」은 맞았지만 「참조 0건」은 아니었다** — [BL-629] 역방향 래칫 `CHART_VARS_FROZEN` 이 `--chart-1..5` 를 동결 목록에 잠그고 있었고(주석이 스스로 「처분은 [BL-649]」라 지목), 목록을 안 고쳤으면 집합 동등 단언이 red — **래칫이 설계대로 물었다**. 부수로 댕글링 주석 2줄 `warning` 정정                                                                                                                    | 토큰 정리 스윕                                                                                                    | XS        | 2026-08-08 fe-canon-and-responsive                     |
 
 ### BL-491
 
@@ -6316,7 +6316,7 @@ KITPORT·화면 전용 CSS 는 그 파일의 desktop-first 관례를 따른다. 
 **카테고리:** Frontend / 데드 토큰
 **Trigger:** 토큰 정리 스윕
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved** (2026-08-08, `stage/ztb-w3-responsive`)
 
 **소비자가 없는 토큰이 두 묶음 남았다.**
 
@@ -6332,6 +6332,33 @@ KITPORT·화면 전용 CSS 는 그 파일의 desktop-first 관례를 따른다. 
 **수리 방향(택1):** ① 삭제 ② `--accent-amber` 를 `var(--warning)` 별칭으로 강등해 드리프트
 불가하게 만든다. ②가 이름을 살리면서 갈라짐을 막는다.
 **Risk:** 🟢 소비자 0건.
+
+**해결(2026-08-08) = ① 삭제**(12줄, 라이트/다크/`@theme inline` 3면 전부).
+
+②(별칭 강등)를 고르지 않은 이유 — **별칭도 이름이고, 이름은 소비자가 있을 때만 값을 한다.**
+소비 0건에서 `--accent-amber: var(--warning)` 을 남기면 드리프트는 막히지만 `@theme inline` 이
+계속 유틸(`bg-accent-amber` 등)을 찍어내 **다음 사람이 둘 중 무엇을 쓸지 다시 고민한다.**
+앰버가 필요하면 `--warning`/`--warning-subtle` 하나뿐이어야 한다.
+
+**착수 전 재확인한 소비 실측**(백로그 숫자를 그대로 믿지 않고 현재 파일 기준으로 다시 셌다):
+
+| 심볼                        | 선언                                                 | TSX/e2e 소비 |
+| --------------------------- | ---------------------------------------------------- | ------------ |
+| `--accent-amber` / `-light` | `:root` 2 · `.dark` 2 · `@theme inline` 2 = **6줄**  | **0건**      |
+| `--chart-1..5`              | `:root` 5 · `.dark` 5 · `@theme inline` 5 = **15줄** | **0건**      |
+
+★백로그 기술과 **다른 점 1건** — `--chart-1..5` 는 「소비 0건」이지만 **참조는 0건이 아니었다.**
+`__tests__/chart-tokens-contract.test.ts` 의 [BL-629] 역방향 래칫 `CHART_VARS_FROZEN` 이 다섯을
+**동결 목록에 넣어 잠그고** 있었다(그 주석이 「처분은 [BL-649]」라고 스스로 지목). 삭제하려면
+그 목록부터 고쳐야 했고, 안 고쳤으면 집합 동등 단언이 red 가 된다 — 래칫이 **설계대로 물었다**.
+
+부수: `disclaimer/page.tsx:1` · `_components/legal-callout.tsx:1` 의 주석이 `accent-amber` 를
+이름으로 부르고 있었다(실제 구현은 이미 `border-warning bg-warning-subtle text-warning`). 삭제로
+**댕글링이 되므로** 두 줄만 `warning` 으로 고쳤다.
+
+**검증:** `pnpm test` 209 files / 1292 tests green · `e2e:design-canon` 36 passed
+(`design-canon-tailwind-utilities` · `design-canon-runtime` 포함 — `@theme inline` 경로가
+살아 있음을 런타임에서 확인). 삭제 후 `--color-chart-` · `accent-amber` grep = 툼스톤 주석 외 0건.
 
 ---
 
