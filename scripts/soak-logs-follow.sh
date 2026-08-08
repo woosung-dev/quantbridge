@@ -270,7 +270,32 @@ _uninstall_systemd() {
   exit 0
 }
 
+# 같은 LOG_FILE 에 붙어 있는 **레거시 follower** 를 찾는다.
+#
+# ★★★2026-08-08 적대 검증이 잡은 결함 — [BL-619] 이 nohup 으로 띄운 `.soak/logs/follow.sh` 가
+#   맥에서 17시간 25분째 **같은 파일에 append 중**이었다(PID 96220 실측). 그 위에 이 유닛을 설치하면
+#   ⑴ 두 프로세스가 같은 fd 에 써서 줄이 섞이고 ⑵ 회전(`mv`) 뒤 레거시가 **회전본 inode 에 계속 써서**
+#   새 파일이 비는 — 즉 **보존이라는 목적 자체가 깨지는** 상태가 된다.
+#   ⇒ 설치 전에 감지하고 **거부**한다. 조용히 겹쳐 쓰는 것이 최악이다.
+_assert_no_legacy_follower() {
+  local pids
+  pids="$(pgrep -f 'soak/logs/follow\.sh' 2>/dev/null || true)"
+  [ -z "${pids}" ] && return 0
+  if [ "${QB_SOAK_OVERRIDE:-0}" = "1" ]; then
+    echo "⚠ QB_SOAK_OVERRIDE=1 — 레거시 follower(PID ${pids//$'\n'/ })가 도는 걸 알고도 설치한다." >&2
+    echo "  ★같은 ${LOG_FILE} 에 둘이 쓴다. 줄 섞임과 회전 실패를 감수하는 것이다." >&2
+    return 0
+  fi
+  echo "✗ 레거시 follower 가 같은 로그 파일에 쓰고 있다 — 설치를 거부한다." >&2
+  echo "    PID: ${pids//$'\n'/ }" >&2
+  echo "    파일: ${LOG_FILE}" >&2
+  echo "  → 먼저 세워라:  kill ${pids//$'\n'/ }" >&2
+  echo "  → 알고도 설치하려면 QB_SOAK_OVERRIDE=1 을 붙여라." >&2
+  exit 2
+}
+
 _install() {
+  _assert_no_legacy_follower
   [ "${QB_OS}" != "Darwin" ] && _install_systemd
 
   # launchd PATH를 명시하지 않으면 docker를 못 찾아 조용히 실패한다.
@@ -325,6 +350,21 @@ _status_systemd() {
     echo "유닛: 측정 불가"
     return 2
   fi
+  # ★★★2026-08-08 적대 검증이 잡은 사각 — **lingering 을 안 보면 사망 원인 1순위를 못 잰다.**
+  #   `_install_systemd` 는 `loginctl enable-linger` 가 실패해도 **경고만 하고 설치를 계속**한다.
+  #   그 조합에서는 유닛이 「활성」인 채로 ssh 세션이 끝나는 순간 죽는다 — 이 파일이 존재하는 이유
+  #   (nohup 이 세션을 못 넘는다)와 **같은 사망 모드**다. `soak-gate.sh` 가 이미 하는 검사를 옮겨 왔다.
+  if command -v loginctl > /dev/null 2>&1; then
+    if [ "$(_with_timeout 10 loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" = "yes" ]; then
+      echo "lingering: 켜짐"
+    else
+      echo "lingering: ★꺼짐 — ssh 세션이 끝나면 유닛이 함께 죽는다"
+      echo "  → sudo loginctl enable-linger $(id -un)"
+    fi
+  else
+    echo "lingering: 측정 불가 (loginctl 없음)"
+  fi
+
   _with_timeout 10 systemctl --user is-active --quiet "${LABEL}.service" > /dev/null 2>&1
   result=$?
   case "${result}" in

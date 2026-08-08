@@ -265,12 +265,42 @@ if [ "${FLAT}" != "YES" ]; then
   ACTIVE="$(_q "SELECT id FROM trading.live_signal_sessions WHERE deactivated_at IS NULL LIMIT 1")"
   echo "     cd ${ROOT}/backend && uv run python scripts/live_session_admin.py stop    ${ACTIVE:-<session_id>} --confirm"
   echo "     cd ${ROOT}/backend && uv run python scripts/live_session_admin.py flatten ${ACTIVE:-<session_id>} --confirm"
-  echo "   ★status 는 포지션만 본다 — resting 조건부 주문은 세지 않는다. 거래소에서 눈으로 확인해라."
   exit 1
 fi
 echo "   ✓ FLAT=YES"
+
+# ── ⑴-b 계정 배타성 ────────────────────────────────────────────────────────────
+#
+# ★★★2026-08-07 사망의 근인이 여기다. 오라클 서버와 맥 로컬이 **같은 Bybit demo 계정**
+#   (`19a8166a…`)에 같은 전략·심볼·주기로 동시에 붙어 있었고, 서버 엔진은 자기 1단위만
+#   아는데 거래소에는 로컬이 얹은 단위가 함께 있었다(거래소 0.087 = 서버 0.029 + 로컬 0.058).
+#   ⇒ `direction` 발산 → `position_divergence` 자동 사망, C1 5.31h → 0.
+#
+# ★**DB 제약은 이걸 원리상 못 막는다.** `live_signal_sessions` 의 unique index 는 `is_active`
+#   를 보는데, 호스트가 둘이면 **데이터베이스도 둘**이다. 각 DB 안에서는 제약이 정상 성립했고
+#   둘을 합친 상태를 아는 주체가 없었다. 그래서 가드는 **거래소 쪽 상태**를 본다.
+#
+# ★판별자는 `order_link_id` **소유권**이다. 우리 것까지 「남의 것」으로 세면 정상 재기동이
+#   영원히 거부된다 — 그 오탐이 이 가드의 가장 큰 위험이다.
+EXCLUSIVE="$(printf '%s\n' "${STATUS_OUT}" | sed -n 's/^EXCLUSIVE=\(.*\)$/\1/p' | tail -1)"
+if [ -z "${EXCLUSIVE}" ]; then
+  # 낡은 CLI 를 쓰는 체크아웃 — 「없다」를 「YES」로 읽지 않는다.
+  die "status 출력에 EXCLUSIVE= 가 없다 — live_session_admin.py 가 낡았다. 배타성을 못 쟀다" 2
+fi
+if [ "${EXCLUSIVE}" != "YES" ]; then
+  echo
+  echo "⑴-b EXCLUSIVE=${EXCLUSIVE} — **여기서 멈춘다.** 다른 호스트가 같은 계정에 붙어 있다."
+  printf '%s\n' "${STATUS_OUT}" | sed -n 's/^  FOREIGN /   남의 resting: /p'
+  echo "   → 그 호스트를 먼저 세워라. 로컬 맥이면:"
+  echo "     ★make down 만으로는 부족하다 — is_active 로 남은 세션이 다음 make up 에 되살아난다."
+  echo "     UPDATE trading.live_signal_sessions SET is_active=false, deactivated_at=now(),"
+  echo "            deactivated_reason='user_stopped' WHERE is_active OR deactivated_at IS NULL;"
+  echo "   → 그 뒤 남의 resting 조건부 주문을 거래소에서 취소하고 다시 돌려라."
+  exit 1
+fi
+echo "   ✓ EXCLUSIVE=YES (원장이 소유권을 주장 못 하는 resting 0건)"
 echo
-echo "⑵ (건너뜀 — 이미 flat 이다)"
+echo "⑵ (건너뜀 — 이미 flat 이고 계정도 배타적이다)"
 echo
 echo "⑶ 사용자 승인 — ✓ --confirm"
 echo

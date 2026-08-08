@@ -104,7 +104,24 @@ MISSING_LIST_LIMIT=20
 # 고정 sha 이후 origin/main 에 들어온 감시 경로 커밋. 없으면 빈 출력 + 0.
 # ★`origin/main` 을 못 읽으면(단일브랜치 클론 · 오프라인 · fetch 전) **재지 못한 것**이다.
 #   빈 출력과 구분되도록 **2** 를 돌려준다 — 「빈 출력 + 0」만이 「없다」를 뜻한다.
+#
+# ★★★2026-08-08 적대 검증이 잡은 fail-open — **낡은 remote-tracking ref 는 조용히 통과한다.**
+#   `origin/main` 은 로컬 ref 라 `git fetch` 없이는 갱신되지 않는데 이 레포의 어떤 스크립트도
+#   fetch 를 하지 않는다. 실험으로 재현했다 — fetch **전** rc=0 무음 통과 / fetch **후** rc=1 거부.
+#   즉 이 가드가 만들어진 계기(서버 체크아웃이 [BL-622] 수리를 빠뜨린 채 「조상: YES」였던 것)와
+#   **같은 형상의 환경에서 여전히 통과**했다. ⇒ 재기 전에 **직접 fetch 한다.**
+#   ★fetch 실패는 「0」이 아니라 「못 쟀다」(2)다 — 네트워크가 없다고 최신인 것이 아니다.
+QB_SOAK_FETCH_TIMEOUT="${QB_SOAK_FETCH_TIMEOUT:-20}"
+
 _missing_commits() {  # _missing_commits <sha> — 0 = 쟀다 / 2 = 못 쟀다
+  local to
+  # `timeout` 이 없으면(맥 기본) 붙이지 않는다 — 그래도 fetch 는 시도한다.
+  to="$(command -v timeout || command -v gtimeout || true)"
+  if [ -n "${to}" ]; then
+    (cd "${ROOT}" && "${to}" "${QB_SOAK_FETCH_TIMEOUT}" git fetch --quiet origin main >/dev/null 2>&1) || return 2
+  else
+    (cd "${ROOT}" && git fetch --quiet origin main >/dev/null 2>&1) || return 2
+  fi
   (cd "${ROOT}" && git rev-parse --verify --quiet origin/main >/dev/null 2>&1) || return 2
   (cd "${ROOT}" && git log --oneline "$1..origin/main" -- "${SOAK_WATCHED_PATHS[@]}" 2>/dev/null)
 }
