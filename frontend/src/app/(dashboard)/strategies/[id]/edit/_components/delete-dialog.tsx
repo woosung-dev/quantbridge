@@ -2,7 +2,8 @@
 
 // Sprint 7c T5: 2-phase 삭제 다이얼로그 — confirm → archive-fallback.
 // DELETE 409 (`strategy_has_backtests`) 감지 시 archive 제안으로 phase 전환.
-// Sprint FE-E: <768px 에서 bottom sheet 로 자동 전환 (thumb-reach 최적화).
+// Sprint FE-E: ≤768px 에서 bottom sheet 로 자동 전환 (thumb-reach 최적화).
+//   ★경계값 포함이다 — 뷰포트 정확히 768px 은 모바일이다 ([BL-644], 아래 :135 주석).
 // Sprint 44 W C4 — inline polish: warning icon + stagger entrance + destructive accent.
 
 import { useState } from "react";

@@ -150,6 +150,10 @@ def _reset_antlr_caches(scope: str = "all") -> None:
     - `"shared_ctx"`  — `PinescriptParser.sharedContextCache` 만
     - `"lexer_dfa"`   — `PinescriptLexer.decisionsToDFA` 만
     - `"all"`         — 셋 전부
+
+    ★드리프트 경고 — 같은 리셋 로직이 `_COMPONENT_CHILD` 안에 **verbatim 재구현**돼 있다
+    (child 는 별도 프로세스의 문자열 프로그램이라 import 로 공유가 구조적으로 불가능하다).
+    리셋 방식을 바꾸면 **두 곳을 함께 고쳐라.**
     """
     from antlr4.dfa.DFA import DFA
     from antlr4.PredictionContext import PredictionContextCache
@@ -564,6 +568,11 @@ def timed():
 cold = timed()      # 이 프로세스의 첫 접촉 — 셋 다 여기서 같은 이력을 갖는다
 warm = timed()
 
+# ★드리프트 경고 — 아래 리셋 3분기는 부모의 `_reset_antlr_caches()` 를 **verbatim 재구현**한 것이다.
+#   child 는 별도 프로세스에서 도는 **문자열 프로그램**이라 부모 함수를 import 로 공유할 수 없다.
+#   ⇒ ANTLR 리셋 방식이 바뀌면 **두 곳을 함께 고쳐라** (여기 + `_reset_antlr_caches`).
+#   한쪽만 고치면 [9] 의 independent control 과 [8] 의 성분 루프가 **서로 다른 것을 재고도**
+#   둘 다 초록으로 보인다.
 if scope == "parser_dfa":
     PinescriptParser.decisionsToDFA = [
         DFA(s, i) for i, s in enumerate(PinescriptParser.atn.decisionToState)
