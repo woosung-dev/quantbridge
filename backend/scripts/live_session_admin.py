@@ -54,13 +54,16 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 
 from src.strategy.repository import StrategyRepository  # noqa: E402
 from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
+from src.trading.account_identity import (  # noqa: E402
+    dedupe_accounts_by_exchange_uid,
+)
 from src.trading.dependencies import (  # noqa: E402
     _CeleryOrderDispatcher,
     _StrategySessionsAdapter,
     get_bybit_futures_provider,
     get_encryption_service,
 )
-from src.trading.models import LiveSignalSession  # noqa: E402
+from src.trading.models import ExchangeName, LiveSignalSession  # noqa: E402
 from src.trading.repositories.exchange_account_repository import (  # noqa: E402
     ExchangeAccountRepository,
 )
@@ -174,17 +177,22 @@ async def _cmd_status(symbol: str) -> None:
                 crypto=get_encryption_service(),
                 bybit_futures_provider=get_bybit_futures_provider(),
             )
-            accounts = (
-                (
-                    await session.execute(
-                        text(
-                            "SELECT id, COALESCE(label,'(no label)') AS label "
-                            "FROM trading.exchange_accounts ORDER BY created_at"
-                        )
-                    )
-                )
-                .mappings()
-                .all()
+            # ★BL-651 — 이 루프는 계정 **행**이 아니라 **실제 거래소 계정**을 돌아야 한다.
+            #   같은 `exchange_uid` 를 공유하는 행이 2개면 같은 계정을 두 번 조회하고,
+            #   거래소는 두 번 다 **같은 주문**을 돌려준다. 실측(2026-08-08):
+            #   `RESTING_CONDITIONAL=2` 인데 실제 조건부 주문은 1건(같은 `link=464fc5ed`),
+            #   flatten 직후엔 `=4` 인데 실제 2건 — 정확히 2배가 두 번 재현됐다.
+            #   존재 판정(`EXCLUSIVE`)은 배수에 불변이라 지금 깨지는 것은 없지만,
+            #   [BL-634] 가드가 이 **개수**를 문턱으로 쓰는 순간 틀린다.
+            #
+            # ★[BL-605] 의 스윕 루프 처방은 이 자리를 안 고친다 — 다른 루프다. 축만 같다.
+            #
+            # ★raw SQL 을 걷어내고 repository 를 쓴다 — `exchange_uid`·`read_only` 가
+            #   필요한데 그 둘은 이미 모델에 있고, Repository 밖 DB 접근은 금지다.
+            #   모집단이 「전 계정」에서 「bybit 계정」으로 좁아지는데, 이 함수는 어차피
+            #   `get_bybit_futures_provider()` 로만 조회하므로 **좁히는 쪽이 옳다**.
+            accounts = dedupe_accounts_by_exchange_uid(
+                list(await account_repo.list_by_exchange(ExchangeName.bybit))
             )
             # 이 원장이 아는 주문 id 전량. 배타성 판별의 **소유권** 축이다.
             # ★내부 id 가 그대로 `orderLinkId` 로 거래소에 나간다는 규약 때문에 이 대조가 결정적이다.
@@ -196,13 +204,14 @@ async def _cmd_status(symbol: str) -> None:
             print(f"\n거래소 포지션 ({symbol}):")
             any_open = False
             for account in accounts:
-                creds = await svc.get_credentials_for_order(account["id"])
+                label = account.label or "(no label)"
+                creds = await svc.get_credentials_for_order(account.id)
                 positions = await get_bybit_futures_provider().fetch_open_positions(creds, symbol)
                 for pos in positions:
                     any_open = True
-                    print(f"  {account['label']}: {pos.side} {pos.size}")
+                    print(f"  {label}: {pos.side} {pos.size}")
                 if not positions:
-                    print(f"  {account['label']}: 없음")
+                    print(f"  {label}: 없음")
 
             # ── 미체결(resting) 조건부 주문 + 소유권 ────────────────────────────
             #
@@ -225,7 +234,8 @@ async def _cmd_status(symbol: str) -> None:
             resting_total = 0
             foreign: list[str] = []
             for account in accounts:
-                creds = await svc.get_credentials_for_order(account["id"])
+                label = account.label or "(no label)"
+                creds = await svc.get_credentials_for_order(account.id)
                 orders = await get_bybit_futures_provider().fetch_open_conditional_orders(
                     creds, symbol, reduce_only=None
                 )
@@ -234,16 +244,14 @@ async def _cmd_status(symbol: str) -> None:
                     link = order.order_link_id
                     owned = link is not None and link in ledger_order_ids
                     if not owned:
-                        foreign.append(
-                            f"{account['label']}:{order.order_id}:{link or '(link 없음)'}"
-                        )
+                        foreign.append(f"{label}:{order.order_id}:{link or '(link 없음)'}")
                     mark = "ours" if owned else "★FOREIGN"
                     print(
-                        f"  {account['label']}: {order.side} {order.kind} qty={order.qty} "
+                        f"  {label}: {order.side} {order.kind} qty={order.qty} "
                         f"trigger={order.trigger_price} link={link or '-'} [{mark}]"
                     )
                 if not orders:
-                    print(f"  {account['label']}: 없음")
+                    print(f"  {label}: 없음")
 
             # ★`FLAT=` 은 **한 줄만** 출력한다 — `soak-restart.sh` 가 sed 로 마지막 줄을 긁는다.
             #   포지션 축과 resting 축을 한 낱말에 섞지 않는다. 섞으면 「무엇이 flat 이 아닌가」를
