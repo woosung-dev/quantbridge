@@ -214,7 +214,8 @@ if [ "${CONFIRM}" != "1" ]; then
   cat << EOF
 ⑴ live_session_admin.py status 로 FLAT=YES 확인
    ★세션 DELETE 204 는 아무것도 flat 하지 않는다 (3회 덴 함정)
-   ★status 는 포지션만 본다 — resting 조건부 주문은 세지 않는다
+   ★status 는 이제 FLAT= 외에 RESTING_CONDITIONAL= · FOREIGN_RESTING= · EXCLUSIVE= · QUIET= 도 낸다.
+     ⑴-b 가 EXCLUSIVE≠YES 면 멈춘다 — 다른 호스트가 같은 계정에 붙어 있다는 뜻이다
      cd ${ROOT}/backend && uv run python scripts/live_session_admin.py status --symbol ${SYMBOL}
 
 ⑵ FLAT=NO 면 stop → flatten (★순서가 중요하다 — 세션이 살아 있으면 다음 tick 에 재진입한다)
@@ -241,7 +242,9 @@ if [ "${CONFIRM}" != "1" ]; then
    ★--session 은 플래그다. 위치인자로 주면 unknown arg (exit 64)
 
 ⑻ soak-gate.sh 로 창 확인
-   ★C2(최장 연속)는 리셋된다. C1(누적)은 유지된다
+   ★C2(최장 연속)는 리셋된다. ★★C1(누적)이 유지되는 것은 **re-pin 단독**일 때뿐이다 —
+     직전이 실격(자동사망·phantom·tick정체)이었으면 C1 도 이미 0 이다(`countable` 이 실격 시점에
+     열려 있던 귀속 구간을 통째 배제한다). 2026-08-08 실측: C1 5.31h → 0.0000h
 
 ══ dry-run 종료 — 아무것도 실행하지 않았다. 집행하려면 --confirm ══
 EOF
