@@ -171,7 +171,10 @@ else
 fi
 
 # ── 3. build ──────────────────────────────────────────────────────
-if [ "$has_fe" -eq 1 ]; then
+# ★`|| [ -z "$BASE" ]` 는 다른 FE 게이트(:142 :144 :167)와 같은 관용구다. build 에만 빠져
+#   있었다 — `merge-base origin/main HEAD` 가 실패하면 CHANGED 가 비어 has_fe=0 이 되고
+#   FE build 만 **조용히 skip** 된다. 나머지 넷은 그때 fail-safe 로 돌게 막아 뒀다.
+if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
   run_gate "FE build" "Clerk 키 필요" bash -c 'cd "$0/frontend" && pnpm build' "$ROOT"
 else
   skip_gate "FE build" "frontend diff 0"
