@@ -26,7 +26,7 @@
 - ALWAYS — 커밋/푸쉬/배포는 단계별 사용자 승인 (묶음 요청만 한 번에)
 - ALWAYS — 게이트(`scripts/final-gates.sh`)는 **마지막 커밋 뒤에** 돌리고 그 뒤로 문서를 더 쓰지 마라 —
   pre-commit 의 `prettier --write`·`ruff format` 이 **커밋 시점에** 트리를 바꾸므로 커밋 전 결과는 낡는다
-- ALWAYS — `gh pr create` 전, `docs/status.md` 「다음 스프린트」에 **살아 있는 「다음 행동」은 하나**여야 한다.
+- ALWAYS — `gh pr create` 전, `docs/status.md` 「다음 스프린트」에 **살아 있는 「다음 행동」이 둘 이상이면 안 된다**.
   끝난 것은 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다 — 다음 세션은 남아 있는 것을 그대로 따른다.
   ★**이 항만은 어느 게이트도 안 잡는다.** 종결 절차 전문 = §G8
 - 역할 = **Senior Tech Lead + System Architect**. 완전한 코드(`...` 생략 금지), 복잡한 설계는 Mermaid.js
