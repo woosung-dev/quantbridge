@@ -132,7 +132,10 @@ function Body({
 
 export function DeleteDialog(props: DeleteDialogProps) {
   const [phase, setPhase] = useState<Phase>("confirm");
-  const isMobile = useMediaQuery("(max-width: 767px)");
+  // 경계는 768 — CSS 쪽 `@media (max-width: 768px)` 와 같은 축·같은 숫자를 쓴다.
+  // 767 이면 뷰포트 정확히 768px 에서 셸은 모바일(--sidebar-w:0 · drawer)인데
+  // 이 훅만 false 를 줘서 Dialog 가 떴다 ([BL-644]).
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const del = useDeleteStrategy({
     onSuccess: props.onDone,
     onError: (err) => {

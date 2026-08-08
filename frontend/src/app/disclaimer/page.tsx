@@ -1,4 +1,4 @@
-// Disclaimer (면책조항) — Beta 단계 초안. Sprint 43 W14: legal-page-shell + accent-amber risk callout.
+// Disclaimer (면책조항) — Beta 단계 초안. Sprint 43 W14: legal-page-shell + warning risk callout.
 
 import type { Metadata } from "next";
 
