@@ -453,7 +453,8 @@ SESSIONS_FILE="$(mktemp)"
 printf '%s' "${SESSIONS_TSV}" > "${SESSIONS_FILE}"
 PAYLOAD="$(python3 - \
   "${STATE_DIR}" "${NOW}" "${DARKNESS}" "${DB_OK}" "${STACK_PINNED}" \
-  "${REQUIRE_HOURS}" "${REQUIRE_CONTINUOUS}" "${SINCE}" "${SESSIONS_FILE}" "${AOF_OK}" <<'PY'
+  "${REQUIRE_HOURS}" "${REQUIRE_CONTINUOUS}" "${SINCE}" "${SESSIONS_FILE}" "${AOF_OK}" \
+  "${ROOT}" <<'PY'
 import json, pathlib, sys
 
 state = pathlib.Path(sys.argv[1])
@@ -461,6 +462,7 @@ now, darkness_raw, db_ok, stack_pinned = sys.argv[2], sys.argv[3], sys.argv[4], 
 require_hours, require_continuous, since = sys.argv[6], sys.argv[7], sys.argv[8]
 sessions_tsv = pathlib.Path(sys.argv[9]).read_text()
 aof_ok = sys.argv[10]
+repo_root = pathlib.Path(sys.argv[11])
 
 sessions = []
 for line in sessions_tsv.splitlines():
@@ -564,6 +566,12 @@ payload = {
     "stack_pinned": stack_pinned == "1",
     "aof_ok": aof_ok == "1",
     "thresholds": thresholds,
+    # ★실격 귀속 원장 ([BL-641]) — **보고 전용이고 판정에 참여하지 않는다.** 파일이 없으면
+    #   빈 목록이 실리고, 그러면 모든 실격이 `undecided` 로 보고된다(엄격 쪽). 이 축이
+    #   C1~C5 를 한 글자도 못 바꾼다는 것은 `test_soak_gate_predicate.py` 가 지킨다.
+    "disqualification_ledger": read_jsonl(
+        repo_root / "docs" / "reference" / "operations" / "soak-disqualifications.jsonl"
+    ),
 }
 if since:
     payload["since"] = since
@@ -647,6 +655,21 @@ if not d["thresholds_are_default"]:
 print("  전 이력 실격 사건 %d건" % len(d["disqualifications_all_time"]))
 for v in d["disqualifications_all_time"]:
     print("        · %s" % v)
+
+# ★귀속은 **보고 전용**이다 — 위 C1~C5 는 이 블록이 있든 없든 같은 값이다 ([BL-641]).
+att = d.get("disqualification_attribution")
+if att:
+    n = att["counts"]
+    print("  ★실격 귀속(보고 전용 · 판정 불참): 코드 결함 %d · 운영 사고 %d · 미판정 %d"
+          % (n.get("code_defect", 0), n.get("operational", 0), n.get("undecided", 0)))
+    if att["unregistered"]:
+        print("        원장 미등재 %d건 — undecided 로 센다 "
+              "(docs/reference/operations/soak-disqualifications.jsonl)" % len(att["unregistered"]))
+    if att["stale_ledger_rows"]:
+        print("        ⚠ 원장에만 있고 실격 목록에 없는 행 %d건 — 원장이 낡았다: %s"
+              % (len(att["stale_ledger_rows"]), ", ".join(att["stale_ledger_rows"][:3])))
+    if att["invalid_ledger_rows"]:
+        print("        ⚠ 판독 불가 원장 행 %d건 — undecided 로 센다" % att["invalid_ledger_rows"])
 PY
 rm -f "${RESULT_FILE}"
 printf '\n종료 코드 %s  (0=PASS 만 · 1=FAIL · 2=UNKNOWN)\n' "${RC}"

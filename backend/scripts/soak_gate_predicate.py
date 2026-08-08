@@ -474,6 +474,69 @@ def first_source_note(buckets: dict[str, Any]) -> str:
     return ""
 
 
+# ---------------------------------------------------------------- 실격 귀속 ([BL-641])
+#
+# ★★★**이 축은 판정에 참여하지 않는다.** C1~C5 는 원장이 있든 없든 **비트 단위로 같다**.
+#   게이트를 관대하게 만드는 변경은 [ADR-024] 가 (f)·(g) 에서 두 번 거부했고 여기서 셋째를
+#   만들지 않는다. 원장이 사는 것은 **MTBF 층화의 재현성**이다 — 지금은 창 4개를 사람이 손으로
+#   자르고, 그래서 같은 날 안에 낡았다([BL-641] Trigger 「회차마다 재측정」이 그래서 못 지켜진다).
+# ★★**반사실 C1(「운영 귀속을 빼면 몇 시간」)은 여기서 내지 않는다.** 낼 수 있는 척하면 다음
+#   사람이 그 숫자를 인용하고, 그것이 곧 문턱 완화의 입구다. 반사실은 층화 도구의 몫이다.
+# ★★**`undecided` 는 `code_defect` 와 똑같이 다룬다**(엄격 쪽). 등재를 빠뜨려도, 원장이 깨져도,
+#   미지 `cause_class` 를 만나도 **관대해지지 않는다** — 이것이 이 축의 fail-open 봉쇄다.
+CAUSE_CLASS_LENIENT = "operational"  # 유일하게 「코드 결함이 아니다」를 주장하는 낱말
+KNOWN_CAUSE_CLASSES: frozenset[str] = frozenset({"code_defect", CAUSE_CLASS_LENIENT, "undecided"})
+
+
+def attribute_disqualifications(
+    disq: list[Disqualification], ledger: list[dict[str, Any]] | None
+) -> dict[str, Any]:
+    """실격을 원장의 `cause_class` 로 분류한다 — **보고 전용**.
+
+    매칭 키는 `(at, kind)` 다. `detail` 은 세션 축약이라 판별식이 바뀌면 흔들린다.
+    ★매칭된 행은 **꺼낸다**(`pop`) — 남은 행은 「원장에 있는데 실격에는 없는 것」이고,
+      그것은 원장이 낡았거나 아카이브가 옮겨졌다는 신호다. 조용히 두면 다음 사람이
+      원장을 현행으로 읽는다.
+    """
+    rows: dict[tuple[datetime, str], str] = {}
+    invalid = 0
+    for row in ledger or []:
+        if not isinstance(row, dict) or "_comment" in row:
+            continue
+        raw_at, kind, cause = row.get("at"), row.get("kind"), row.get("cause_class")
+        if not raw_at or not kind or cause not in KNOWN_CAUSE_CLASSES:
+            invalid += 1
+            continue
+        try:
+            at = parse_ts(str(raw_at))
+        except ValueError:
+            invalid += 1
+            continue
+        rows[(at, str(kind))] = str(cause)
+
+    counts = dict.fromkeys(sorted(KNOWN_CAUSE_CLASSES), 0)
+    unregistered: list[str] = []
+    lenient_events: list[str] = []
+    for d in disq:
+        cause = rows.pop((d.at, d.kind), None)
+        if cause is None:
+            cause = "undecided"
+            unregistered.append(f"{d.at.isoformat()} {d.kind} {d.detail}")
+        counts[cause] += 1
+        if cause == CAUSE_CLASS_LENIENT:
+            lenient_events.append(f"{d.at.isoformat()} {d.kind} {d.detail}")
+
+    return {
+        "total": len(disq),
+        "counts": counts,
+        "operational_events": lenient_events,
+        "unregistered": unregistered,
+        "stale_ledger_rows": sorted(f"{at.isoformat()} {kind}" for at, kind in rows),
+        "invalid_ledger_rows": invalid,
+        "note": "보고 전용 — C1~C5 판정에 참여하지 않는다. 미등재·판독 불가는 undecided(엄격 쪽).",
+    }
+
+
 # ---------------------------------------------------------------- 판정
 
 
@@ -654,6 +717,12 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     if unreadable_log_coverage:
         detail["unreadable_log_coverage"] = summarize_unreadable_log_coverage(
             unreadable_log_coverage
+        )
+    # ★같은 이유로 원장을 **실은 실행에서만** 키를 넣는다 — 안 실으면 판정 JSON 이 종전과
+    #   바이트 단위로 같다. 이 축은 `conditions` 를 한 글자도 건드리지 않는다([BL-641]).
+    if payload.get("disqualification_ledger") is not None:
+        detail["disqualification_attribution"] = attribute_disqualifications(
+            disq, payload.get("disqualification_ledger")
         )
 
     if violations:

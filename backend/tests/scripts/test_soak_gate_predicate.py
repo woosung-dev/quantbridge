@@ -873,3 +873,196 @@ def test_measurement_unavailable_never_precedes_the_disqualification_check(gate:
         for combination, verdict in verdicts.items()
     } == {combination: expected for combination, (_, expected) in cases.items()}
     assert verdicts[(True, True)].detail["unreadable_log_coverage"]["count"] == 1
+
+
+# ── 실격 귀속 원장 ([BL-641]) ─────────────────────────────────────────────────
+#
+# ★이 절 전체가 지키는 것은 **하나**다: 귀속 축은 보고이지 판정이 아니다.
+#   게이트를 관대하게 만드는 변경은 [ADR-024] 가 (f)·(g) 에서 두 번 거부했고, 원장이
+#   셋째가 되지 않도록 여기서 못 박는다.
+
+LEDGER_DEATH_AT = "2026-08-04T11:00:00+00:00"
+
+
+def _ledger(cause: str = "operational") -> list[dict[str, Any]]:
+    return [
+        {"_comment": "스키마 설명 — 파서가 건너뛴다"},
+        {
+            "at": LEDGER_DEATH_AT,
+            "kind": "auto_death",
+            "session": "aaaaaaaa",
+            "reason": "position_divergence",
+            "cause_class": cause,
+            "evidence": "테스트",
+            "decided": "2026-08-08",
+        },
+    ]
+
+
+def test_the_attribution_ledger_never_moves_the_verdict(gate: Any) -> None:
+    """★핵심 오라클 — 원장을 실어도 C1~C5 는 **비트 단위로 같다**.
+
+    귀속이 판정에 새면 그 순간 이 축은 「통과를 사는 장치」가 된다. 가장 관대한 값
+    (`operational`)을 실어도 판정이 안 움직인다는 것이 그 봉쇄의 증거다.
+    """
+    without = gate.evaluate(_payload(sessions=[DEAD_SESSION]))
+    with_ledger = gate.evaluate(
+        _payload(sessions=[DEAD_SESSION], disqualification_ledger=_ledger("operational"))
+    )
+
+    assert (without.verdict, without.reason_word, without.summary) == (
+        with_ledger.verdict,
+        with_ledger.reason_word,
+        with_ledger.summary,
+    )
+    assert without.conditions == with_ledger.conditions
+    # 원장을 안 실은 실행의 JSON 은 이 기능이 없던 때와 바이트 단위로 같아야 한다.
+    assert "disqualification_attribution" not in without.detail
+    assert with_ledger.detail["disqualification_attribution"]["counts"]["operational"] == 1
+
+
+def test_an_unregistered_disqualification_counts_as_undecided(gate: Any) -> None:
+    """등재를 빠뜨린 실격은 **관대해지지 않는다** — `undecided` 로 센다."""
+    verdict = gate.evaluate(_payload(sessions=[DEAD_SESSION], disqualification_ledger=[]))
+    attribution = verdict.detail["disqualification_attribution"]
+
+    assert attribution["counts"] == {"code_defect": 0, "operational": 0, "undecided": 1}
+    assert len(attribution["unregistered"]) == 1
+
+
+@pytest.mark.parametrize(
+    "row",
+    [
+        pytest.param({"at": LEDGER_DEATH_AT, "kind": "auto_death"}, id="cause_class 누락"),
+        pytest.param(
+            {"at": LEDGER_DEATH_AT, "kind": "auto_death", "cause_class": "ops"},
+            id="미지 낱말",
+        ),
+        pytest.param(
+            {"at": "Error", "kind": "auto_death", "cause_class": "operational"},
+            id="판독 불가 시각",
+        ),
+        pytest.param(
+            {"kind": "auto_death", "cause_class": "operational"},
+            id="시각 누락",
+        ),
+    ],
+)
+def test_a_broken_ledger_row_is_never_lenient(gate: Any, row: dict[str, Any]) -> None:
+    """★fail-open 봉쇄 변이 — 원장이 깨지는 **모든** 방식이 `undecided` 로 떨어진다.
+
+    깨진 행을 `operational` 로 접으면 「원장을 망가뜨리면 관대해진다」가 되고, 그건
+    게이트를 공격하는 가장 싼 경로다.
+    """
+    verdict = gate.evaluate(_payload(sessions=[DEAD_SESSION], disqualification_ledger=[row]))
+    attribution = verdict.detail["disqualification_attribution"]
+
+    assert attribution["counts"]["operational"] == 0
+    assert attribution["counts"]["undecided"] == 1
+    assert attribution["invalid_ledger_rows"] == 1
+
+
+def test_a_ledger_row_that_matches_nothing_is_reported_as_stale(gate: Any) -> None:
+    """원장에만 있고 실격 목록엔 없는 행은 **원장이 낡았다**는 신호다 — 조용히 두지 않는다."""
+    stale = [
+        {
+            "at": "2020-01-01T00:00:00+00:00",
+            "kind": "auto_death",
+            "cause_class": "operational",
+        }
+    ]
+    verdict = gate.evaluate(_payload(sessions=[DEAD_SESSION], disqualification_ledger=stale))
+    attribution = verdict.detail["disqualification_attribution"]
+
+    assert attribution["stale_ledger_rows"] == ["2020-01-01T00:00:00+00:00 auto_death"]
+    assert attribution["counts"]["undecided"] == 1
+
+
+def test_a_different_kind_at_the_same_instant_needs_its_own_row(gate: Any) -> None:
+    """★[BL-633] 의 오염 창이 이 모양이었다 — 같은 초 안에 phantom 과 auto_death 가 같이 났다.
+
+    종류가 다르면 **다른 키**이므로 각자 원장 행이 필요하다. 하나만 등재하면 나머지는
+    `undecided` 로 남는다 — 관대해지지 않는다.
+    """
+    same_moment_phantom = [
+        {"at": LEDGER_DEATH_AT, "label": "phantom", "session_id": "aaaaaaaa"},
+    ]
+    verdict = gate.evaluate(
+        _payload(
+            sessions=[DEAD_SESSION],
+            phantom_observations=same_moment_phantom,
+            disqualification_ledger=_ledger("operational"),
+        )
+    )
+    attribution = verdict.detail["disqualification_attribution"]
+
+    assert attribution["total"] == 2
+    assert attribution["counts"] == {"code_defect": 0, "operational": 1, "undecided": 1}
+
+
+def test_one_ledger_row_attributes_exactly_one_disqualification(gate: Any) -> None:
+    """★한 행은 **하나만** 덮는다 — 같은 `(at, kind)` 실격이 둘이면 나머지는 `undecided` 다.
+
+    실격 dedup 키는 `(at, kind, detail)` 이라 **같은 순간 같은 종류의 서로 다른 세션**은
+    둘 다 남는다. 매칭이 행을 소비하지 않으면 원장 한 줄이 그 둘을 통째로 관대하게 만든다 —
+    등재 하나로 여러 실격을 사는 경로이므로 fail-open 이다.
+    """
+    two_sessions_one_instant = [
+        {"at": LEDGER_DEATH_AT, "label": "phantom", "session_id": "aaaaaaaa"},
+        {"at": LEDGER_DEATH_AT, "label": "phantom", "session_id": "bbbbbbbb"},
+    ]
+    ledger = [
+        {"at": LEDGER_DEATH_AT, "kind": "phantom", "cause_class": "operational"},
+    ]
+    verdict = gate.evaluate(
+        _payload(
+            sessions=[DEAD_SESSION],
+            phantom_observations=two_sessions_one_instant,
+            disqualification_ledger=ledger,
+        )
+    )
+    attribution = verdict.detail["disqualification_attribution"]
+
+    assert attribution["total"] == 3  # phantom 2 + auto_death 1
+    assert attribution["counts"]["operational"] == 1
+    assert attribution["counts"]["undecided"] == 2
+
+
+def test_a_matched_ledger_row_is_not_reported_as_stale(gate: Any) -> None:
+    """매칭된 행은 소비되므로 `stale` 목록에 남지 않는다.
+
+    ★남으면 「원장이 낡았다」 경고가 **매 실행 거짓으로** 뜨고, 그러면 진짜 낡음이 묻힌다.
+    """
+    verdict = gate.evaluate(
+        _payload(sessions=[DEAD_SESSION], disqualification_ledger=_ledger("code_defect"))
+    )
+    attribution = verdict.detail["disqualification_attribution"]
+
+    assert attribution["stale_ledger_rows"] == []
+    assert attribution["counts"]["code_defect"] == 1
+
+
+def test_the_shipped_ledger_is_readable_by_the_gate(gate: Any) -> None:
+    """레포에 실린 원장이 **이 파서의 어휘**를 지키는지 본다.
+
+    ★원장은 사람이 손으로 쓰는 파일이라 게이트와 갈릴 수 있고, 갈리면 조용히 전부
+      `undecided` 가 된다(엄격 쪽이라 안전하지만 **아무 정보도 안 준다**). 여기서 문다.
+    """
+    import json
+
+    ledger_path = (
+        Path(__file__).parents[3]
+        / "docs"
+        / "reference"
+        / "operations"
+        / "soak-disqualifications.jsonl"
+    )
+    rows = [json.loads(line) for line in ledger_path.read_text().splitlines() if line.strip()]
+    entries = [row for row in rows if "_comment" not in row]
+
+    assert entries, "원장이 비어 있다 — 등재된 실격이 하나도 없다"
+    for row in entries:
+        assert row["cause_class"] in gate.KNOWN_CAUSE_CLASSES, row
+        assert row["kind"] in {"auto_death", "phantom", "tick_stall"}, row
+        assert gate.parse_ts(row["at"])
+        assert row.get("evidence"), f"근거 없는 귀속은 등재할 수 없다: {row}"
