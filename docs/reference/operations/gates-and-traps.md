@@ -134,6 +134,15 @@ scripts/soak-restart.sh --confirm  # 집행 (⑴ FLAT=YES 아니면 그 자리�
 
 ### 환경
 
+- ★★**BE pytest 는 격리 포트(5433/6380)를 쓴다 — `make up` 으로 올린 기본 스택(5432/6379)에서는 안 돈다.**
+  `backend/.env.local` 의 `DATABASE_URL`·`TEST_DATABASE_URL`·`REDIS_URL` 이 전부 격리 포트를 가리킨다.
+  기본 스택에서 돌리면 **`6 failed / 604 errors`** 가 나는데 실패의 정체는 `asyncio/base_events.py` 의
+  `OSError`(연결 실패)이고, `test_migrations.py` 가 `sqlalchemy.exc.OperationalError` 로 먼저 눈에 띄어
+  **코드 회귀처럼 보인다**(2026-08-08 실측, 13분을 버렸다). ⇒ **게이트가 red 면 코드를 의심하기 전에
+  「내가 그 게이트를 올바른 환경에서 돌렸나」를 먼저 물어라.**
+  ★워커를 띄우고 싶지 않으면 `docker compose -f docker-compose.yml -f docker-compose.isolated.yml up -d db redis`
+  로 **두 서비스만** 올려라. 기본/격리는 `container_name` 이 같아 **동시 운영이 불가능하다** —
+  갈아탈 때는 먼저 `docker compose stop db redis && docker compose rm -f db redis` 로 비워라.
 - **BE pytest 는 `.env.local` 을 통째로 source 해야 한다.**
   ```bash
   set -a; source .env.local; set +a

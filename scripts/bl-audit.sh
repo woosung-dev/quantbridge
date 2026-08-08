@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # BL 상태 감사 — `docs/backlog.md` 각 섹션의 **상태:** / **Status:** 줄을 SSOT 로 읽고,
 # 인덱스 표의 ✅ 마커 · `docs/roadmap.md` 체크박스와 대조한다.
+# 여기에 **우선순위 배치**를 더해 4면을 본다 (BL-637) — 인덱스 행이 실린 `## Pn` 표와
+# 그 BL 섹션의 `**Priority:**` 가 갈리면 실패다.
 #
 # 왜 이 스크립트가 있나
 #   지금까지 "공식 산식" 은 backlog.md 헤더에 박힌 **인라인 awk 주석**이었고 사람이 복붙해 돌렸다.
@@ -31,7 +33,7 @@
 # 사용법
 #   scripts/bl-audit.sh [--list ACTIVE|PARTIAL|RESOLVED|UNKNOWN] [--no-crosscheck]
 #
-# 종료 코드: 0 = 불일치 0 & UNKNOWN 0 & 중복 상태줄 0 & 중복 섹션 헤더 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
+# 종료 코드: 0 = 불일치 0 & UNKNOWN 0 & 우선순위 오배치 0 & 중복 상태줄 0 & 중복 섹션 헤더 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
 #   ★`--list` 는 목록 출력 전용이라 **항상 0** 이다 — 게이트에는 인자 없는 형태를 쓴다.
 set -uo pipefail
 
@@ -40,7 +42,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --list) [ $# -ge 2 ] || { echo "--list 에 값이 필요하다" >&2; exit 1; }; LIST="$2"; shift 2 ;;
     --no-crosscheck) CROSSCHECK=0; shift ;;
-    -h|--help) sed -n '2,32p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
 done
@@ -117,10 +119,21 @@ NR == FNR {
   if ($0 ~ /^[ \t>]*<\/details>/)  { if (details > 0) details--; next }
   if (details > 0)                  next
 
+  # ★인덱스 표 행이 **어느 H2 아래**에 실려 있는지 기억한다 (BL-637). 종전 파서는 행을 정규식으로만
+  #   잡고 소속 섹션을 안 봤다 — 그래서 `**Priority:** P1` 인 BL 이 **P2 표**에 실려 있어도
+  #   "✓ 정합 · exit 0" 이 나왔다. 배치가 곧 사람이 읽는 우선순위이므로 이건 조용한 오보다.
+  # ★`## Deferred` · `## Beta 오픈 번들` · `## Cross-reference` 처럼 **P 섹션이 아닌 표**의 행은
+  #   배치 대상이 아니다(Deferred 표의 BL 은 섹션 자체가 없다 — 의도). cursec 을 비워 제외한다.
+  if ($0 ~ /^## /) {
+    cursec = ""
+    if (match($0, /^## P[0-9]/)) cursec = substr($0, 4, RLENGTH - 3)
+  }
+
   # 인덱스 표 행:  | [BL-543](#bl-543) | 제목 … |
   if ($0 ~ /^\|[ ]*\[BL-[0-9]+\]\(#bl-[0-9]+\)/) {
     match($0, /BL-[0-9]+/); rid = substr($0, RSTART, RLENGTH)
     rowline[rid] = FNR
+    rowsec[rid] = cursec
     if (index($0, "✅") > 0) rowmark[rid] = 1
     if (index($0, "🟡") > 0) rowpart[rid] = 1
   }
@@ -232,6 +245,26 @@ END {
   if (m == 0) printf "  없음\n"
   bad += m
 
+  # ★우선순위 배치 (BL-637) — 인덱스 행이 실린 `## Pn` 표 ↔ 그 섹션의 `**Priority:**`.
+  #   ★Priority 를 못 읽은 BL 도 **실패로 센다**(fail-closed). 못 읽으면 오배치 여부를 확인할
+  #     수 없는데, "확인 못 했다" 를 통과로 쓰면 표기를 P 없이 적는 것만으로 이 축이 꺼진다.
+  #     지금 원장은 199 섹션 전량이 P0~P3 로 파싱되므로 이 선택의 즉시 비용은 0 이다.
+  q = 0
+  if (CROSSCHECK == 1) {
+    for (i = 1; i <= n; i++) {
+      id = order[i]
+      if (!(id in rowline) || rowsec[id] == "") continue
+      if (prio[id] == "") {
+        if (q++ == 0) printf "\n▶ 우선순위 배치 — 인덱스 표의 `## Pn` ↔ 섹션 `**Priority:**`\n"
+        printf "  %-8s %s 표에 실렸는데 섹션에서 우선순위를 못 읽었다   표:%d 섹션:%d\n", id, rowsec[id], rowline[id], sec_line[id]
+      } else if (prio[id] != rowsec[id]) {
+        if (q++ == 0) printf "\n▶ 우선순위 배치 — 인덱스 표의 `## Pn` ↔ 섹션 `**Priority:**`\n"
+        printf "  %-8s %s 표에 실렸는데 섹션은 %s                     표:%d 섹션:%d\n", id, rowsec[id], prio[id], rowline[id], sec_line[id]
+      }
+    }
+  }
+  bad += q
+
   # ★중복 상태줄 = 실패 (BL-564). SSOT 는 하나여야 한다 — 둘이면 어느 쪽이 이기는지가
   #   서식 순서에 달리고, 폐기된 판정이 첫 줄이면 조용히 그게 이긴다.
   #   폐기 보존이 목적이면 `<details>` 로 접어라 (파서가 건너뛴다).
@@ -252,8 +285,10 @@ END {
   bad += o
 
   printf "\n════════════════════════════════════════\n"
-  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, d, h, o; exit 1 }
-  printf "✓ 3면(섹션 · 인덱스 표 · 로드맵) 정합. active=%d / 전체=%d\n", cnt["ACTIVE"] + 0, n
+  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 우선순위 배치 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, q, d, h, o; exit 1 }
+  # ★성공 줄에서 리터럴 `3면` 을 빼지 마라 — `scripts/bl-audit-test.sh` ② 가 "정상 원장 → exit 0"
+  #   의 증거로 그 문자열을 grep 한다. 축이 늘어도 "3면 + <새 축>" 꼴로 적어 하네스를 살려둔다.
+  printf "✓ 4면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치. active=%d / 전체=%d\n", cnt["ACTIVE"] + 0, n
   exit 0
 }
 ' "$BACKLOG" "$ROADMAP"

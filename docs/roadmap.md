@@ -331,11 +331,11 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
 - [ ] **BL-026** [P1] Mutation fixture 활성화 회귀 — skip #4-7,#9-15
 - [x] **BL-622 ✅ Resolved** [P1] (2026-08-07 gap-resync-autopsy) — `requires_gap_resync` 가 열린 채 시작한 세션이 재동기 전에 사망하던 경로. ★사망 판정은 H3(관측 지연) — 거래소 체결시각 20:17:19 vs 원장 20:31:51 로 **872초** 벌어졌고 판정은 그 3.5초 전에 떨어졌다. ★상수 재사용이 틀렸다는 것도 함께 확정 — janitor 30분은 **다른 양**을 잰다(조건부 resting 이 벽시계 95.1%)
-- [x] **BL-633 ✅ Resolved** [P1] (2026-08-08 bl003-unblock) — ★★판정 = **[ADR-025] 반례가 아니라 이중 호스트 오염**이다. 오라클 서버와 맥 로컬이 같은 Bybit demo 계정 `19a8166a…` 에 같은 전략·심볼·주기로 동시에 붙어 있었다. 근거 — 서버 `exchange_exits` 고유 `order_link_id` 27 중 **7건이 로컬 원장에만** 있고 귀속 불가 0 · 정본 항등식 `exchange = P0 + Σ(양쪽 호스트 체결)` **4/4**(반사실 서버만 0/4 · 로컬만 0/4) · 두 원장의 고유 `exchange_order_id` **27/27** 일치. ★계정은 세션 시작(09:39:38) **전부터** 오염돼 있었다(로컬 체결 07:42~09:03 5건) ⇒ 배타성 검사는 재기동이 아니라 **세션 시작** 시점에 건다 — [BL-634]
+- [x] **BL-633 ✅ Resolved** [P1] (2026-08-08 bl003-unblock) — ★★판정 = **[ADR-025] 반례가 아니라 이중 호스트 오염**이다. 오라클 서버와 맥 로컬이 같은 Bybit demo 계정 `19a8166a…` 에 같은 전략·심볼·주기로 동시에 붙어 있었다. 근거 — 서버 `exchange_exits` 고유 `order_link_id` 27 중 **7건이 로컬 원장에만** 있고 귀속 불가 0 · 정본 항등식 `exchange = P0 + Σ(양쪽 호스트 체결)` **4/4**(반사실은 정의 4가지 어디서도 4/4 불가 · 최대 1/4) · 두 원장의 고유 `exchange_order_id` **27/27** 일치. ★계정은 세션 시작(09:39:38) **전부터** 오염돼 있었다(로컬 체결 07:42~09:03 5건) ⇒ 배타성 검사는 재기동이 아니라 **세션 시작** 시점에 건다 — [BL-634]
 - [ ] **BL-634** [P1] 계정 배타성 가드 부재 — 두 호스트면 **데이터베이스도 둘**이라 `live_signal_sessions` 의 `is_active` unique index 가 원리상 못 막는다. 각 DB 안에서는 제약이 정상 성립했고 둘을 합친 상태를 아는 주체가 없었다. ⇒ 가드는 **거래소 쪽 상태**를 봐야 한다 — `order_link_id` 소유권으로 「원장에 없는 미체결 조건부」를 세고 ≥1 이면 세션 시작을 거부. ★대상은 **미체결(resting)** 이어야 한다(체결 이력으로 걸면 미조인 exit 이 상시라 영구 거부)
 - [x] **BL-635 ✅ Resolved** [P1] 게이트 아카이브 오염이 라이브 기전이었다 — 타이머가 스택 부재 시 30분마다 오염본을 찍고 판정기가 크래시하며, 그 크래시가 **exit 1 = FAIL 과 구분되지 않는다**. 로컬 실측 9벌
 - [ ] **BL-636** [P2] `docs/backlog.md` 인덱스 표가 빈 줄로 끊겨 헤더 없는 조각을 만든다 — GFM 에서 표로 렌더되지 않고 `bl-audit.sh` 는 줄 형태만 봐서 이 파손을 감지하지 못한다
-- [ ] **BL-637** [P2] `bl-audit.sh` 가 **우선순위 배치**를 검사 축으로 갖지 않는다 — `Priority: P1` 인 BL 이 P2 표에 실려 있어도 「✓ 3면 정합 · exit 0」이 나온다
+- [x] **BL-637 ✅ Resolved** [P2] `bl-audit.sh` 가 **우선순위 배치**를 검사 축으로 갖지 않는다 — `Priority: P1` 인 BL 이 P2 표에 실려 있어도 「✓ 3면 정합 · exit 0」이 나온다 — ★2026-08-08 bl003-unblock 이 닫았다: 우선순위 배치가 4번째 검사 축이 됐고 주입 시험 2/2 로 판별력을 증명했다
 - [ ] **BL-638** [P3] `docs/archive/` 부재 — `docs-audit.sh` 의 frozen 목록과 legacy_paths 권장 대체 경로가 존재하지 않는 디렉터리를 가리킨다
 - [ ] **BL-639** [P2] 미조인 `exchange_exits` 는 **상시 기저율**이다(27/27 전량) — 배타성을 「원장에 없는 체결 이력」으로 판정하면 상시 거부가 된다. 판정 대상은 **미체결 조건부 주문**이어야 한다는 설계 제약
 - [ ] **BL-640** [P3] `.metrics` 가 컨테이너 세대를 넘어 누적된다 — 파일이 역할+컨테이너 id 로 갈리는데 전 PID 합산은 창 값이 아니다(실측 `engine_only_suppressed` 89 중 **15가 이전 세대**). 회수 정책 없음
@@ -382,7 +382,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 - [ ] **BL-624** [P2] soak-gate 의 HTTP 갈래가 `PROMETHEUS_BEARER_TOKEN` 과 양립 불가 — `curl -sf` 가 인증 헤더를 안 보내 401 → `DARKNESS=null` → C5⑷ 영구 ✗. `APP_ENV=production` 과 무관하다(토큰이 있으면 development 에서도 강제). ★판별자는 API 로그의 `GET /metrics` 유무다 — 게이트 출력의 `darkness_computed=✓` 는 어느 경로로 성공했는지 말해주지 않는다. 지금은 기본이 `.metrics` 직독이라 미발동 · (`QB_METRICS_URL` 원격 운영안을 실제로 쓸 때)
 - [ ] **BL-625** [P2] 플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다 — 서버 `backend/.env.local` 의 `CLERK_SECRET_KEY` 가 문자 그대로 `sk_test_...` 인데 API 는 기동하고 `/health` 200 을 냈다(인증 경로를 한 번도 안 밟아서). `_enforce_production_safety` 는 이 계열을 알지만 `app_env == production` 일 때만 검사한다 · (새 호스트에 API 를 세울 때 · BL-071 발동 시)
-- [ ] **BL-631** [P2] `runtime-check.mjs` 가 어느 게이트에도 안 붙어 있어 죽은 채로 방치됐다 — `docs/` 재편 이후 playwright import 상대깊이가 안 따라와 `ERR_MODULE_NOT_FOUND` 로 즉사했고, 그래서 핸드오프의 「다크 17벌 17/17 PASS」는 그 커밋 이후 재현된 적 없는 숫자였다. 뿌리는 경로가 아니라 **소유자 부재** — `pnpm test`·CI·`docs-audit` 어디도 안 부른다 · (`docs/` 재편·프로토타입 수정 전)
+- [x] **BL-631 ✅ Resolved** [P2] `runtime-check.mjs` 가 어느 게이트에도 안 붙어 있어 죽은 채로 방치됐다 — `docs/` 재편 이후 playwright import 상대깊이가 안 따라와 `ERR_MODULE_NOT_FOUND` 로 즉사했고, 그래서 핸드오프의 「다크 17벌 17/17 PASS」는 그 커밋 이후 재현된 적 없는 숫자였다. 뿌리는 경로가 아니라 **소유자 부재** — `pnpm test`·CI·`docs-audit` 어디도 안 부른다 · (`docs/` 재편·프로토타입 수정 전) — ★2026-08-08 bl003-unblock 이 수리 방향 ⑵ 로 닫았다: `docs-audit.sh` 가 `runtime-check.mjs` 와 `regen_golden.py --check` 둘 다의 존재+기동을 확인한다. 회차 말 실측 17/17 exit 0
 - [ ] **BL-632** [P2] 골든을 오라클로 승격했지만 그 기대값은 **엔진 자신의 출력**이다 — 회귀 감지기이지 정확성 오라클이 아니다. 반순환 근거인 손계산 오라클 `test_golden_oracle_ema_sltp.py` 는 4봉·고정 stop/limit 이라 `ta.atr` 를 한 번도 안 탄다 ⇒ BL-621 의 낡음을 만든 그 축이 구조적으로 오라클 밖이다 · (골든 값이 또 어긋났을 때 · 백테스트 정확성을 대외 주장해야 할 때)
 
 ### P3 — 문서 lint
