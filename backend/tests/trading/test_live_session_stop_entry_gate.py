@@ -63,6 +63,7 @@ def _svc(*, pine_source: str, balance_service: AsyncMock | None = None, active_c
         account_repo=account_repo,
         strategy_repo=strategy_repo,
         balance_service=balance_service,
+        exclusivity_service=AsyncMock(),
     )
     request = RegisterLiveSessionRequest(
         strategy_id=strategy.id,

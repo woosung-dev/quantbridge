@@ -262,6 +262,31 @@ class SizingBaselineUnavailable(AppException):
         self.reason = reason
 
 
+class AccountNotExclusive(AppException):
+    """[BL-634] — 그 거래소 계정에 **이 원장이 모르는 미체결 조건부 주문**이 걸려 있다.
+
+    2026-08-08 부검(BL-633)이 확정한 사망 원인은 같은 Bybit demo 계정에 두 호스트가
+    동시에 붙은 것이었다. 호스트가 둘이면 **데이터베이스도 둘**이라
+    `uq_live_sessions_active_unique`(`models.py:471-487`, partial `is_active=true`)는
+    원리상 못 막는다 — 각 DB 안에서 제약은 정상 성립했고 **둘을 합친 상태를 아는 주체가
+    없었다**. 그래서 가드는 DB 가 아니라 **거래소 쪽 상태**를 본다.
+    """
+
+    status_code = 409
+    code = "account_not_exclusive"
+
+    def __init__(self, *, account_id: UUID, symbol: str, foreign: list[str]) -> None:
+        super().__init__(
+            f"거래소 계정에 이 원장이 발행하지 않은 미체결 조건부 주문이 {len(foreign)}건 "
+            f"있습니다 ({symbol}). 같은 계정에 다른 호스트가 붙어 있을 수 있어 세션을 "
+            "시작하지 않습니다. 해당 주문을 취소하거나 다른 호스트를 정지한 뒤 다시 "
+            "시도해주세요."
+        )
+        self.account_id = account_id
+        self.symbol = symbol
+        self.foreign = foreign
+
+
 class BalanceUnverified(AppException):
     """CF5 — live 모드에서 잔고 검증 불가 (fetch 실패/0) → 주문 거부 (fail-closed).
 

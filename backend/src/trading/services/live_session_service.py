@@ -39,6 +39,7 @@ from src.trading.repositories.live_signal_session_repository import (
     LiveSignalSessionRepository,
 )
 from src.trading.schemas import RegisterLiveSessionRequest
+from src.trading.services.account_exclusivity import AccountExclusivityService
 from src.trading.services.balance_service import AccountBalanceService
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ class LiveSignalSessionService:
         strategy_repo: StrategyRepository,
         *,
         balance_service: AccountBalanceService,
+        exclusivity_service: AccountExclusivityService,
         user_repo: UserRepository | None = None,
         max_active_per_user: int = 5,
     ) -> None:
@@ -72,6 +74,10 @@ class LiveSignalSessionService:
         self._account_repo = account_repo
         self._strategy_repo = strategy_repo
         self._balance_service = balance_service
+        # ★[BL-634] — 필수 인자다. 기본값 `None` 을 주면 「주입 안 하면 가드 없음」이
+        #   되어 새 조립 지점이 조용히 무방비로 태어난다(fail-open). 조립부가 늘 때마다
+        #   결정을 **드러내게** 만든다.
+        self._exclusivity_service = exclusivity_service
         self._user_repo = user_repo
         self._max_active_per_user = max_active_per_user
 
@@ -137,6 +143,16 @@ class LiveSignalSessionService:
                 account_id=account.id,
                 reason=balance.reason,
             )
+
+        # 3.5 [BL-634] 계정 배타성 — 거래소 계정이 이 원장의 것뿐일 때만 세션을 연다.
+        # ★자리가 여기인 이유: HTTP(`router.py:458`)와 운영 스크립트
+        #   (`live_session_admin.py:_cmd_start`)가 공유하는 **유일한 병목**이 `register()`
+        #   다. 종전의 유일한 강제는 `scripts/soak-restart.sh` 셸 한 곳이라 소크 재시작
+        #   경로에만 걸렸고, [BL-633] 의 사망은 **재기동이 아니라 세션 시작** 시점에
+        #   이미 오염된 계정 위에서 났다(로컬 체결 07:42~, 세션 시작 09:39).
+        # ★잔고 스냅샷 뒤 · quota lock 앞이다. 거래소 왕복 2회를 락 밖에서 끝내
+        #   사용자별 등록 직렬화를 늘리지 않는다(바로 위 잔고 조회와 같은 이유).
+        await self._exclusivity_service.ensure_exclusive(account, req.symbol)
 
         # 4. Quota lock (advisory + count_active + partial unique 이중 방어)
         # 잔고 조회를 락 앞에서 끝내 사용자별 등록 직렬화를 피한다.

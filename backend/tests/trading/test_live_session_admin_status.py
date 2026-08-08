@@ -202,3 +202,43 @@ async def test_status_keeps_accounts_whose_exchange_uid_is_unknown(
     assert "RESTING_CONDITIONAL=0" in out
     assert "QUIET=YES" in out
     assert [account_id for account_id, _ in calls] == [first.id, second.id]
+
+
+@pytest.mark.asyncio
+async def test_stop_can_still_assemble_the_session_service(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """`stop` 이 조립 단계에서 죽지 않는다 — [BL-634] 가 필수 인자를 늘렸을 때 깨진 자리.
+
+    ★이 테스트가 없어서 `_cmd_stop` 이 `TypeError` 로 즉사하는 것을 아무도 못 봤다.
+    mypy 는 `src/` 만 보고 `scripts/` 는 안 본다. `stop → flatten` 은 소크를 안전하게
+    내리는 유일한 순서라, 여기가 깨지면 운영자가 거래소를 flat 으로 만들 수 없다.
+    """
+    session_id = uuid4()
+    live = SimpleNamespace(id=session_id, user_id=uuid4())
+
+    @asynccontextmanager
+    async def _ctx():
+        yield SimpleNamespace()
+
+    class _SessionMaker:
+        def __call__(self):
+            return _ctx()
+
+    engine = SimpleNamespace(dispose=AsyncMock())
+    monkeypatch.setattr(admin, "create_worker_engine_and_sm", lambda: (engine, _SessionMaker()))
+    monkeypatch.setattr(admin, "_load_session", AsyncMock(return_value=live))
+    monkeypatch.setattr(admin, "ExchangeAccountRepository", lambda session: SimpleNamespace())
+    monkeypatch.setattr(admin, "StrategyRepository", lambda session: SimpleNamespace())
+
+    deactivate = AsyncMock()
+    monkeypatch.setattr(admin, "LiveSignalSessionRepository", lambda session: SimpleNamespace())
+    monkeypatch.setattr(
+        "src.trading.services.live_session_service.LiveSignalSessionService.deactivate",
+        deactivate,
+    )
+
+    await admin._cmd_stop(session_id)
+
+    deactivate.assert_awaited_once()
+    assert "세션 비활성화" in capsys.readouterr().out

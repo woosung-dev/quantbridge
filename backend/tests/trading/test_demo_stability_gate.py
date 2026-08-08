@@ -72,6 +72,7 @@ def _svc(*, strategy, account, created_at):
         account_repo=account_repo,
         strategy_repo=strategy_repo,
         balance_service=_make_balance_service(),
+        exclusivity_service=AsyncMock(),
         user_repo=user_repo,
     )
     return svc, repo, user_repo

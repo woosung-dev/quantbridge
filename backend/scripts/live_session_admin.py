@@ -74,6 +74,9 @@ from src.trading.repositories.live_signal_session_repository import (  # noqa: E
     LiveSignalSessionRepository,
 )
 from src.trading.repositories.order_repository import OrderRepository  # noqa: E402
+from src.trading.services.account_exclusivity import (  # noqa: E402
+    AccountExclusivityService,
+)
 from src.trading.services.account_service import ExchangeAccountService  # noqa: E402
 from src.trading.services.close_service import ClosePositionService  # noqa: E402
 from src.trading.services.order_service import OrderService  # noqa: E402
@@ -296,6 +299,15 @@ def _build_session_service(session: AsyncSession) -> Any:
             bybit_futures_provider=get_bybit_futures_provider(),
             redis=get_redis_lock_pool(),
         ),
+        # ★[BL-634] — 소크 재시작 경로도 같은 가드를 탄다. 종전의 유일한 강제는
+        #   `scripts/soak-restart.sh` 셸 한 곳이었고, 그 셸을 안 거치는 `_cmd_start`
+        #   직접 호출은 무방비였다.
+        exclusivity_service=AccountExclusivityService(
+            account_repo=account_repo,
+            order_repo=OrderRepository(session),
+            account_service=account_service,
+            bybit_futures_provider=get_bybit_futures_provider(),
+        ),
         user_repo=UserRepository(session),
     )
 
@@ -337,14 +349,20 @@ async def _cmd_stop(session_id: UUID) -> None:
             sess = await _load_session(session, session_id)
             from src.trading.services.live_session_service import LiveSignalSessionService
 
-            # `balance_service` / `user_repo` 는 **등록 경로 전용**이다(equity baseline ·
-            # 데모 안정일수 검증). `deactivate` 는 둘 다 건드리지 않으므로 여기서는 넘기지
-            # 않는다 — 조립을 위해 안 쓰는 의존성을 억지로 만들지 않는다.
+            # `balance_service` / `exclusivity_service` / `user_repo` 는 **등록 경로
+            # 전용**이다(equity baseline · 계정 배타성 · 데모 안정일수 검증).
+            # `deactivate` 는 셋 다 건드리지 않으므로 여기서는 넘기지 않는다 — 조립을
+            # 위해 안 쓰는 의존성을 억지로 만들지 않는다.
+            # ★[BL-634] 가 `exclusivity_service` 를 **필수 인자**로 만들었을 때 이 자리를
+            #   빠뜨려 `stop` 이 즉시 `TypeError` 로 죽었다. mypy 는 `src/` 만 보고
+            #   `scripts/` 는 안 보며, `_cmd_stop` 에는 테스트가 없었다 — 그래서 아래
+            #   `test_stop_can_still_assemble_the_session_service` 를 같이 뒀다.
             service = LiveSignalSessionService(
                 repo=LiveSignalSessionRepository(session),
                 account_repo=ExchangeAccountRepository(session),
                 strategy_repo=StrategyRepository(session),
                 balance_service=None,  # type: ignore[arg-type]
+                exclusivity_service=None,  # type: ignore[arg-type]
             )
             await service.deactivate(sess.user_id, session_id)
             print(f"✓ 세션 비활성화: {session_id}")

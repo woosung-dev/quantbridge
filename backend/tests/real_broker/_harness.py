@@ -214,6 +214,7 @@ def _build_session_service(db: AsyncSession) -> Any:
         account_repo=ExchangeAccountRepository(db),
         strategy_repo=StrategyRepository(db),
         balance_service=None,  # type: ignore[arg-type]
+        exclusivity_service=None,  # type: ignore[arg-type]
     )
 
 
