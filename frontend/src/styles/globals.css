@@ -1964,6 +1964,16 @@ h6 {
 .perf-basis { font-family: var(--f-mono); font-size: 0.74rem; color: var(--ink-3); margin-top: 7px; }
 .perf-note { font-size: 0.74rem; line-height: 1.5; color: var(--ink-3); }
 
+/* ★[BL-646] 2026-08-08 — 900 은 오타도 임의값도 아니다. 정본 사다리(375/768/1024/1200/1440)에
+   6번째로 **등재**했다: 셸에 개입하지 않는 **콘텐츠 그리드 전용** 경계. 전문 = DESIGN.md §4.3.1.
+   흡수 2안은 실측 기각했다. 그리드가 받는 폭은 뷰포트가 아니라 `.page` 콘텐츠 박스이고,
+   `--sidebar-w` 가 1024 에서 232→64 로 계단을 밟아 **뷰포트에 단조가 아니다**:
+     뷰포트  769  899  901  1023 | 1025  1200
+     콘텐츠  657  787  789   911 |  745   920      ← 1023→1025 에서 166px "줄어든다"
+   · 1024 흡수 = 콘텐츠 911 에서 접고 745 에서는 펼친 채 둔다(가장 넓을 때 접는다). 모순 166px
+   · 768  흡수 = 콘텐츠 657 까지 3열을 끌고 가 `.trade-detail-metrics` 가 +6px 넘친다(파손)
+   · 900  유지 = 모순 42px(745~787)로 최소 ⇒ 채택
+   근본 해는 컨테이너 쿼리다 — 900 은 그때까지의 최선일 뿐이다. */
 @media (max-width: 900px) {
   .perf-row { grid-template-columns: 1fr 1fr; row-gap: 14px; }
   .perf-row > .perf-id { grid-column: 1 / -1; }
@@ -2032,6 +2042,8 @@ table.trades tbody tr.trade-selected,
 table.trades tbody tr.trade-selected:hover { background: var(--copper-soft); }
 table.trades tbody tr.trade-selected td:first-child { box-shadow: inset 3px 0 0 var(--copper); }
 
+/* 900 = 콘텐츠 그리드 전용 경계. 근거 = DESIGN.md §4.3.1 ([BL-646]).
+   ★768 로 내리면 뷰포트 769(콘텐츠 657)에서 3열이 219px 씩이 되고 `.metric` 이 +6px 넘친다. */
 @media (max-width: 900px) {
   .trade-detail-metrics { grid-template-columns: 1fr; }
 }
@@ -2164,6 +2176,7 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
 .session-manage-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 .session-card-sub { margin-bottom: 16px; }
 
+/* 900 = 콘텐츠 그리드 전용 경계. 근거 = DESIGN.md §4.3.1 ([BL-646]). */
 @media (max-width: 900px) {
   .session-manage { grid-template-columns: 1fr; }
 }
@@ -2259,6 +2272,7 @@ table.trades tbody td.ord-error { color: var(--bear); white-space: normal; }
   cursor: pointer;
 }
 
+/* 900 = 콘텐츠 그리드 전용 경계. 근거 = DESIGN.md §4.3.1 ([BL-646]). */
 @media (max-width: 900px) {
   .report-analysis-grid {
     grid-template-columns: 1fr;
@@ -3287,6 +3301,7 @@ table.hm th[scope="row"] { text-align: right; }
   color: var(--warn);
 }
 
+/* 900 = 콘텐츠 그리드 전용 경계. 근거 = DESIGN.md §4.3.1 ([BL-646]). */
 @media (max-width: 900px) {
   .ob-panel { grid-template-columns: 1fr; }
   .ob-illus { display: none; }
