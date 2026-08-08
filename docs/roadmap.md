@@ -272,7 +272,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-587** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — **원인 차단 + 탐지기 둘 다**. 차단 = `backend/.python-version` 3.12 핀. 탐지 = `test_envelope_*` 3건이 `ohlcv_sha256`·`schema_version`·`tool_versions.python` 을 실제로 읽는다(그전까지 읽는 곳 0곳). ★red 메시지에 「회귀가 아니라 regen 하고 값이 같은지 확인해라」를 박았다. 세 변조에 각각 자기 assert 만 red 로 판별력 확인
 - [x] **BL-588** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 5→7 로 맞추는 대신 **목록을 `_corpus.py` 하나로 합쳤다**(parity·regen·mutation 셋이 그것만 읽는다). ★실측: `_MUTATION_CORPORA` 의 5벌이 **정확히 위험조정지표가 축퇴한 5벌**이라 그 3지표의 산술 회귀가 구조적으로 감지 불가였다. nightly 183s→218s(+19%), 감지 결과 불변(기존 8변이는 `trades_digest` 로 이미 잡힌다)
 - [x] **BL-465** [P1] `_periodic_returns` 음수 자본 미차단 → 파산한 실행에 양수 샤프 — ✅ **dogfood-restore 완료**. 신규 마커 `unavailable_nonpositive_equity` + Trust Layer baseline 재생성(2/12 키 한정)
-- [ ] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
+- [x] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
 - [x] **BL-467** [P1] `backend-optimizer-heavy` OHLCV env 3종 부재로 **모든 optimizer 실행 실패** — ✅ **dogfood-restore 완료**
 - [ ] **BL-468** [P3] `OHLCV_FIXTURE_ROOT` CWD 상대 기본값 + `FixtureProvider` 가 canonical 슬래시 심볼 미지원
 - [ ] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead)
