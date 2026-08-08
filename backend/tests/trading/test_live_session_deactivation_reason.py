@@ -168,9 +168,7 @@ async def test_deactivate_leaves_reason_untouched_when_already_inactive(
     first = await repo.deactivate(
         session.id, at=at, reason=SessionDeactivationReason.runtime_divergence
     )
-    second = await repo.deactivate(
-        session.id, at=at, reason=SessionDeactivationReason.user_stopped
-    )
+    second = await repo.deactivate(session.id, at=at, reason=SessionDeactivationReason.user_stopped)
 
     assert (first, second) == (1, 0)
     await db_session.refresh(session)
@@ -202,6 +200,7 @@ async def test_user_stop_records_user_stopped_reason() -> None:
         account_repo=AsyncMock(),
         strategy_repo=AsyncMock(),
         balance_service=AsyncMock(),
+        exclusivity_service=AsyncMock(),
     )
 
     await svc.deactivate(user_id, session_id)

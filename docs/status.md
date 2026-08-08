@@ -40,16 +40,16 @@ C1 168h 를 채우는 유일한 길은 **사망률을 낮추는 것**이고 사�
 **브랜치 `stage/soak-mortality-repair`** — 커밋 4개. 푸시 안 함 · PR 없음 · 머지 없음.
 `4c32c803` status 진입점 · `170c6ee4` [BL-610] 10곳 · `29106a39` [BL-619] 재관측 + [BL-653] 등재.
 
-| 위상                  | 상태                                                                     | 확인 방법                                             |
-| --------------------- | ------------------------------------------------------------------------ | ----------------------------------------------------- |
-| P0 소크 down          | ✅ **C1 15.3007h 보존** · 실격 0 · pin `3f8af9dfe78e`                    | `scripts/soak-gate.sh`(서버)                          |
-| P5b [BL-610]          | ✅ DANGLING 0건                                                          | 백로그 `#bl-610` 의 재검출 명령                       |
-| P4 [BL-619]           | ✅ 디스패치 정지 0건 · 상태 축은 [BL-653] 로 분리                        | 위 ★P4 문단                                           |
-| P1 오라클             | ✅ **stage 머지 완료**(`b12b3059`) — tick 차분 오라클 427줄 + 픽스처 7건 | `backend/tests/tasks/test_live_signal_tick_oracle.py` |
-| P5 백테스트           | ⏳ `wt/btfix`(slot 10) — 커밋 2개, **검증 재개 중**                      | `git log wt/btfix --oneline`                          |
-| P3 배타성             | ⏳ `wt/excl`(slot 11) — 커밋 0 · 미커밋 3, **재개 중**                   | `git -C .claude/worktrees/excl status --short`        |
-| P2 킬 가드            | ⏳ `wt/killguard`(slot 12) — P1 위에서 착수                              | `git log wt/killguard --oneline`                      |
-| P6 게이트 · P7 재기동 | ⬜                                                                       | —                                                     |
+| 위상                  | 상태                                                                     | 확인 방법                                                       |
+| --------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| P0 소크 down          | ✅ **C1 15.3007h 보존** · 실격 0 · pin `3f8af9dfe78e`                    | `scripts/soak-gate.sh`(서버)                                    |
+| P5b [BL-610]          | ✅ DANGLING 0건                                                          | 백로그 `#bl-610` 의 재검출 명령                                 |
+| P4 [BL-619]           | ✅ 디스패치 정지 0건 · 상태 축은 [BL-653] 로 분리                        | 위 ★P4 문단                                                     |
+| P1 오라클             | ✅ **stage 머지 완료**(`b12b3059`) — tick 차분 오라클 427줄 + 픽스처 7건 | `backend/tests/tasks/test_live_signal_tick_oracle.py`           |
+| P5 백테스트           | ✅ **stage 머지 완료** — [BL-460] net equity · [BL-466] (c) 고지         | `backend/tests/strategy/pine_v2/test_margin_gate_net_equity.py` |
+| P3 배타성             | ✅ **stage 머지 완료** — [BL-605]·[BL-651]·[BL-634]                      | `backend/src/trading/services/account_exclusivity.py`           |
+| P2 킬 가드            | ⏳ `wt/killguard`(slot 12) — P1 위에서 착수                              | `git log wt/killguard --oneline`                                |
+| P6 게이트 · P7 재기동 | ⬜                                                                       | —                                                               |
 
 ★★**2026-08-08 워커 2개가 API 오류(`Not logged in`)로 죽었고, 체크포인트가 예측한 그대로였다** —
 **생성은 남고 검증이 날아갔다.** `wt/btfix` 는 커밋 2개를 남겼지만 red 실증·codex·전체 테스트를
@@ -66,8 +66,19 @@ C1 168h 를 채우는 유일한 길은 **사망률을 낮추는 것**이고 사�
 없으면 DB 의존 테스트가 **전량 error** 라 회귀처럼 보인다(P1 워커가 44건을 그렇게 봤고, 그 44건은
 baseline 과 동일했다).
 
-**다음 행동 = 워커 3개(`btfix`·`excl`·`killguard`)의 산출물을 검증까지 확인해
-`stage/soak-mortality-repair` 로 통합하고, 게이트 8종 → §G8 종결 → PR 로 간다.** P2 표적 =
+★**P3 계정 축 결정이 함께 닫혔다** — 소유권 집합은 **`exchange_uid` 형제 행 전량**이고
+근거는 `backend/src/trading/services/account_exclusivity.py:_ownership_scope` 주석에 있다
+([BL-639] 실패 모드 3 종결). 스코프가 없으면 거부율이 원장 크기를 따라가 **판별력 0** 이 되고,
+반대로 행 하나로 좁히면 [BL-605] 의 2행 때문에 **우리 주문을 FOREIGN 으로 판정**해 정상 재기동을
+영구 차단한다. 양쪽 실패 모드 사이가 형제 행 전량이다.
+
+★★**P3a 의 유일한 미측정 항목 — P7 재기동 전에 눈으로 확인해라.** `live_session_admin.py status`
+의 `RESTING_CONDITIONAL` 이 **실제 미체결 주문 수와 일치하는지**(2배가 사라졌는지).
+이번 회차는 거래소 접촉 금지 제약으로 못 쟀다. ★비교 기준은 down 직전 CONTROL 실측이다 —
+`RESTING_CONDITIONAL=2` 인데 실제 **1건**, flatten 직후 `=4` 인데 실제 **2건**(둘 다 정확히 2배).
+
+**다음 행동 = `wt/killguard`(P2) 산출물을 검증까지 확인해 `stage/soak-mortality-repair` 로
+통합하고, 게이트 8종 → §G8 종결 → PR 로 간다.** P2 표적 =
 `live_signal.py:762-785`/`:780-781` 판정식 · `:3599-3617` 2 tick 킬 · `:3137-3171` 킬 경로 ·
 D1 strike TTL 부재(대조군 = 같은 파일의 gap-resync defer `:2720-2732`) · [ADR-025] §⑧ fail-open.
 
