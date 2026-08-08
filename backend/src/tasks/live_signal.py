@@ -848,6 +848,35 @@ def _direction_strike_ttl(interval_value: str) -> timedelta | None:
     return None if seconds is None else timedelta(seconds=seconds * _DIRECTION_STRIKE_MAX_BARS)
 
 
+def _evaluation_is_gapped(
+    *,
+    last_evaluated_bar_time: datetime | None,
+    bar_time: datetime,
+    interval_value: str,
+) -> bool:
+    """직전 평가와 이번 평가 사이에 **봉을 건너뛰었는가**.
+
+    ★**감싸는 핸들러: 없다.** 순수 함수다.
+
+    ★★**`requires_gap_resync` 를 그대로 쓰면 안 된다 — 그건 다른 양을 잰다.** 그 술어의
+    문턱은 고정 5분(`_MAX_CATCHUP_WALL_CLOCK_GAP`)이라 **15m·1h 세션은 정상적인 다음 봉도
+    문턱을 넘는다**(900s·3600s > 300s). 그걸 공백 유예에 얹으면 그 두 interval 에서는 매
+    평가가 「공백」이 되어 direction 킬이 **영원히 안 걸린다**. 초판이 정확히 그 결함이었고
+    codex 평가가 잡았다(2026-08-09, 코드 대조 완료 — 1m·5m 은 무해, 15m·1h 만 파손).
+    ⇒ 공백은 **세션 자신의 봉 길이**로 잰다. 정상 연속 평가는 정확히 1봉이므로 공백이 아니고,
+    한 봉이라도 건너뛰면 공백이다.
+
+    ★모르면 False(= 공백 아님)다 — 모름으로 가드를 끄지 않는다. 첫 평가
+    (`last_evaluated_bar_time is None`)도 마찬가지이며, 그때는 애초에 직전 strike 가 없다.
+    """
+    if last_evaluated_bar_time is None:
+        return False
+    seconds = TIMEFRAME_SECONDS.get(interval_value)
+    if seconds is None:
+        return False
+    return bar_time - last_evaluated_bar_time > timedelta(seconds=seconds)
+
+
 def _judge_direction_strike(
     *,
     previous_strike_bar: datetime | None,
@@ -3723,7 +3752,11 @@ async def _evaluate_session_with_engine(
                     had_previous_strike=previous_direction_mismatch,
                     bar_time=last_bar_time,
                     interval_value=interval_value,
-                    evaluation_gapped=requires_gap_resync,
+                    evaluation_gapped=_evaluation_is_gapped(
+                        last_evaluated_bar_time=last_evaluated_bar_time,
+                        bar_time=last_bar_time,
+                        interval_value=interval_value,
+                    ),
                 )
                 direction_strike_bar = strike.bar
                 if strike.kill:
@@ -3871,7 +3904,9 @@ async def _evaluate_session_with_engine(
     # ★술어를 여기서 다시 조회하지 않는다 — `run_live` 에 `ledger_conditional_fills` 를
     #   넘겼는지와 **같은 값**을 봐야 "시뮬로 돌린 tick" 과 "미룬 tick" 이 어긋나지 않는다.
     if ledger_shadow.conditional_fills is None:
-        _count_safely(qb_live_conditional_reconcile_errors_total, stage="deferred_ledger_unreadable")
+        _count_safely(
+            qb_live_conditional_reconcile_errors_total, stage="deferred_ledger_unreadable"
+        )
     else:
         await _reconcile_conditional_entries(
             sess,

@@ -315,7 +315,11 @@ async def run_tick(monkeypatch: pytest.MonkeyPatch, case: dict[str, Any]) -> dic
     monkeypatch.setattr(live_signal_module, "_reconcile_conditional_entries", reconcile)
 
     before = _metric_snapshot()
-    returned = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+    # ★interval 은 metric label 이 아니라 **판정 입력**이다(strike TTL·평가 공백이 봉 길이로
+    #   잰다). 1m 케이스만 있으면 15m·1h 에서만 깨지는 결함이 통째로 안 보인다.
+    returned = await live_signal_module._evaluate_session_inner(
+        sess.id, spec.get("interval", "1m")
+    )
     await _flush_pending_alerts()
     after = _metric_snapshot()
 

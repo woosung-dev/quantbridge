@@ -18,13 +18,18 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from src.market_data.constants import TIMEFRAME_SECONDS
 from src.tasks.live_signal import (
     _DIRECTION_STRIKE_BAR_KEY,
     _DIRECTION_STRIKE_MAX_BARS,
     _direction_strike_bar,
     _direction_strike_ttl,
+    _evaluation_is_gapped,
     _judge_direction_strike,
 )
+
+# 세션 interval 로 지원되는 값 (`live_signal_session_repository._INTERVAL_SECONDS_CASE`).
+_SUPPORTED_INTERVALS = ("1m", "5m", "15m", "1h")
 
 _BAR = datetime(2026, 5, 1, 12, 0, tzinfo=UTC)
 
@@ -124,6 +129,54 @@ def test_unknown_interval_never_expires_the_strike() -> None:
 # ---------------------------------------------------------------------------
 # ② 평가 공백 — 공백을 사이에 둔 두 관측은 「연속」이 아니다
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("interval", _SUPPORTED_INTERVALS)
+def test_a_normal_consecutive_bar_is_never_a_gap(interval: str) -> None:
+    """★★회귀 — **지원되는 모든 interval** 에서 정상 다음 봉은 공백이 아니다.
+
+    초판은 이 술어로 `requires_gap_resync`(고정 5분 문턱)를 그대로 썼고, 그러면 15m·1h 의
+    정상 다음 봉(900s·3600s)이 매번 문턱을 넘어 **그 두 interval 에서 direction 킬이
+    영원히 안 걸렸다**. 1m 픽스처만 있었으면 이 결함은 초록으로 통과한다 — 그래서 여기서
+    interval 전량을 돈다.
+    """
+    step = timedelta(seconds=TIMEFRAME_SECONDS[interval])
+    assert (
+        _evaluation_is_gapped(
+            last_evaluated_bar_time=_BAR, bar_time=_BAR + step, interval_value=interval
+        )
+        is False
+    )
+
+
+@pytest.mark.parametrize("interval", _SUPPORTED_INTERVALS)
+def test_a_skipped_bar_is_a_gap_at_every_interval(interval: str) -> None:
+    """음성 대조 — 한 봉이라도 건너뛰면 공백이다. 없으면 위 테스트는 상수 False 로도 통과한다."""
+    step = timedelta(seconds=TIMEFRAME_SECONDS[interval])
+    assert (
+        _evaluation_is_gapped(
+            last_evaluated_bar_time=_BAR, bar_time=_BAR + 2 * step, interval_value=interval
+        )
+        is True
+    )
+
+
+@pytest.mark.parametrize(
+    ("last_evaluated", "interval"),
+    [(None, "1m"), (_BAR, "7m")],
+)
+def test_unknown_inputs_are_not_treated_as_a_gap(
+    last_evaluated: datetime | None, interval: str
+) -> None:
+    """첫 평가·모르는 interval 은 공백이 아니다 — 모름으로 킬을 끄지 않는다."""
+    assert (
+        _evaluation_is_gapped(
+            last_evaluated_bar_time=last_evaluated,
+            bar_time=_BAR + timedelta(days=1),
+            interval_value=interval,
+        )
+        is False
+    )
 
 
 def test_evaluation_gap_between_the_two_observations_restarts_the_window() -> None:
