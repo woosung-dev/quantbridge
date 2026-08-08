@@ -49,7 +49,7 @@ C1 168h 를 채우는 유일한 길은 **사망률을 낮추는 것**이고 사�
 | P5 백테스트           | ✅ **stage 머지 완료** — [BL-460] net equity · [BL-466] (c) 고지         | `backend/tests/strategy/pine_v2/test_margin_gate_net_equity.py` |
 | P3 배타성             | ✅ **stage 머지 완료** — [BL-605]·[BL-651]·[BL-634]                      | `backend/src/trading/services/account_exclusivity.py`           |
 | P2 킬 가드            | ✅ **stage 머지 완료** — strike TTL 3봉 · 공백 유예 · §⑧ 미룸            | `backend/tests/tasks/test_live_signal_direction_strike.py`      |
-| P6 게이트 · P7 재기동 | ⏳ 게이트 8종 → PR · **P7 은 사용자 승인 + 머지 필요**                   | 아래 ★P7 제약                                                   |
+| P6 게이트 · P7 재기동 | ✅ 게이트 **8/8** · PR #570 머지(`fdc53c04`) · **재기동 완료**           | `scripts/soak-gate.sh`(서버)                                    |
 
 ★★**2026-08-08 워커 2개가 API 오류(`Not logged in`)로 죽었고, 체크포인트가 예측한 그대로였다** —
 **생성은 남고 검증이 날아갔다.** `wt/btfix` 는 커밋 2개를 남겼지만 red 실증·codex·전체 테스트를
@@ -83,12 +83,30 @@ baseline 과 동일했다).
 (취소는 비가역, 미룸은 가역). ★codex 가 잡은 것: `requires_gap_resync` 고정 5분을 공백 술어로
 쓰면 **15m·1h 은 정상 다음 봉도 문턱을 넘어** direction 킬이 영원히 안 걸린다 — 세션 봉 길이 기준으로 교체.
 
-**다음 행동 = 게이트 8종 초록을 확인하고 PR 을 만든 뒤, 사용자에게 ⑴ 머지 ⑵ P7 재기동 승인을
-받아라. ★P7 은 머지 없이는 의미가 없다** — `soak-stack.sh:171-174` 의 `_pin` 이 `HEAD` +
-`assert-main-checkout.sh` 를 요구하므로 브랜치 tip 은 pin 할 수 없고, 머지를 안 하면 소크가
-**수리 전 코드로 돈다.** 재기동 순서 = FLAT 확인 → down(이미 내려가 있다) → 서버 main ff →
-`pin` → `up`. ★재기동 전 거래소에 남은 조건부 주문 2건(`d655f560` FOREIGN sell · `8d4272fe` ours
-buy)을 정리해야 한다 — `soak-restart.sh:288-304` 가 `EXCLUSIVE≠YES` 면 die 한다.
+★★★**P7 집행 완료 (2026-08-08T23:16Z) — 착수 전 논거가 실측으로 확인됐다.**
+PR #570 머지(`fdc53c04`) → 서버 main ff → `pin fdc53c04` → `up` → `stop` → `flatten` →
+`start` → `soak-observe --baseline` → 게이트. **C1 이 이어졌다: 15.3007h → down → up →
+`15.3167h`** · 창 시작 `2026-08-07T15:10:49` 그대로 · 실격 **0** · C5 전건 ✓.
+⇒ **down 은 리셋이 아니라 미계상**이라는 전제가 참이었다. 새 세션 `de3db35a` · T0 `23:16:52Z`.
+
+★★**미측정 2건 중 하나가 닫혔다** — [BL-651] 2배가 **사라졌다.** 수리본으로 status 를 돌리니
+`RESTING_CONDITIONAL=1`(실제 1건)이고 계정이 **한 행만** 출력된다. 수리 전에는 `bybit demo` 와
+`bybit demo- aaa` 가 **둘 다** 나오며 `=2`(실제 1건) · flatten 직후 `=4`(실제 2건)였다.
+★[BL-634] 도 **프로덕션 음성 대조**를 얻었다 — 정상 상태에서 `register()` 가 세션을 통과시켰다.
+
+★★**P7 이 새 결함 2건을 드러냈다 ⇒ [BL-656].** ⑴ dry-run 이 **자기 설명문을 실행**했다
+(unquoted heredoc 안 백틱 ⇒ `countable: command not found`, ⑻ 문장이 잘려 출력) — 수리했다.
+⑵ `soak-restart.sh` 는 **완전 down 에서 못 돈다**(⑴ status 가 DB 를 읽는데 스택이 down 이면
+DB 도 없다 · ⑷ 는 이미 돌고 있는 스택을 전제) — 문서화만 했고 코드 방어는 미수리.
+★**`stop` 이 `flatten` 보다 먼저인 것이 실측으로 갈렸다** — P0 에서 세션을 살린 채 flatten 만
+했더니 엔진이 **재무장**해 `EXCLUSIVE=NO`·`FOREIGN_RESTING=2` 가 됐고, P7 에서 순서를 지키니
+`FLAT=YES · RESTING_CONDITIONAL=0 · QUIET=YES` 로 깨끗했다.
+
+**다음 행동 = 새 창(`de3db35a`, T0 `2026-08-08T23:16:52Z`)에서 사망률이 실제로 내려갔는지 본다.
+그것이 이 회차의 유일한 미판정 항목이고 [BL-003] 의 판정 기준이다.** 직전 39세션은 24h 도달
+**0건** · 최장 19.42h 였다. ★**점추정을 인용하지 마라**([BL-641] — 층화 CI 가 6쌍 전부 겹친다).
+살아 있는 근거는 셈이다. 창이 죽으면 그 자리에서 사인을 보고 셋 중 무엇이 열리는지
+정해라 — [BL-653] 게이트 표본 해상도 · [BL-654] 증거금 게이트 진입 비용 · [BL-656] 재기동 도구.
 
 ★**P1 이 관문이다.** `_evaluate_session_with_engine`(`live_signal.py:3174-3753`, 580줄)은 **직접
 호출 테스트가 0건**이고 비결정 5축(`uuid4` `:3384` · `datetime.now` · ccxt `:3283` · DB · prometheus)을

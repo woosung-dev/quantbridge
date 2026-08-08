@@ -547,6 +547,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-653](#bl-653) | ★**게이트의 `tick_stall` 표본이 재려는 신호보다 거칠다 — fail-open**. `_tick_stalls` 입력 ①(`gate-samples.jsonl`)의 표본 간격이 **중앙 13.9분 · 최대 31.0분**인데 [BL-619] 가 쫓는 정지는 **~17분**이다. 같은 자릿수라 놓칠 수 있고, 잡아도 크기를 못 잰다 — 실측으로 「bar-time 정체 31.0분」이 표본 최대 간격과 **정확히 같아** 정지인지 관측 공백인지 구분되지 않았다. 대조군 = 워커 로그는 60초 해상도라 디스패치 축에서 판별력이 있었다(919건·공백 0)                                                                                                                                                                                                                                                                                                                                       | BL-619 재관측 시 / 게이트 실격 판정을 신뢰해야 할 때                                                            | S            | 2026-08-08 soak-mortality-repair                             |
 | [BL-654](#bl-654) | 증거금 게이트가 **진입 비용을 안 본다** — `_can_afford_entry` 와 `_open_trade` 최종 검증 둘 다 초기 증거금만 비교하고 **바로 아래에서 차감하는 진입 leg 비용**을 빼지 않는다. 고레버리지에서 갈린다: 자본 $1,000 · 125x · 비용률 0.069% · 명목 $118,750 은 증거금 $950 으로 **통과**하는데 진입 수수료 $81.94 후 `gate_equity` 가 **$918.06 < 950** 이라 유지 증거금을 못 댄다. [BL-460] 이 고친 것은 gross/net 축이고 **이 축은 선재**다                                                                                                                                                                                                                                                                                                                                                        | 고레버리지 백테스트를 신뢰해야 할 때 / [BL-466] 후속                                                            | S            | 2026-08-08 soak-mortality-repair (codex challenge P1)        |
 | [BL-655](#bl-655) | `dedupe_accounts_by_exchange_uid` 는 **쓰기 가능한 형제 행이 둘이면** 주문을 누락한다 — 스윕이 대표 `account.id` 로만 매칭·backfill 하므로(`trading.py:1949`·`:1987`·`:2027`) 버려진 형제에 달린 주문의 청산이 `unknown` 이 되고 `realized_pnl` 이 미동기화된다. ★**현재 데이터에선 발화하지 않는다** — 실측 형제 2행 중 하나가 `read_only=t` 라 대표 선택 규칙 ⑵ 가 쓰기 가능한 행을 고른다. 막는 **DB 제약이 없다**는 것이 위험의 실체다                                                                                                                                                                                                                                                                                                                                                       | 같은 `exchange_uid` 에 쓰기 가능한 행이 2개 생기면 / 실자금 전환 전                                             | S            | 2026-08-08 soak-mortality-repair (codex challenge P2)        |
+| [BL-656](#bl-656) | `soak-restart.sh` 가 **완전 down 에서 올리기**를 못 다룬다 — ⑴ 의 `status` 가 DB 를 읽는데 스택이 내려가 있으면 DB 도 없어 `ConnectionRefusedError` 로 끝나고, ⑷ 는 `down→pin→up` 이라 **이미 돌고 있는 스택**을 전제한다. ★같은 dry-run 이 **자기 설명문을 실행**했다(unquoted heredoc 안 백틱 ⇒ `countable: command not found`, ⑻ 문장이 잘려 출력) — 이건 수리했고 정적 카운트 0건으로 동결                                                                                                                                                                                                                                                                                                                                                                                                   | 다음 소크 재기동 시                                                                                             | S            | 2026-08-08 soak-mortality-repair (P7)                        |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -6818,3 +6819,48 @@ golden 갱신 커밋에 적어라.
 정한 결정 — 스윕이 그것과 어긋나 있다) · [BL-592](#bl-592) (형제 행 오라벨의 원 관측)
 
 **출처:** 2026-08-08 soak-mortality-repair (codex challenge P2 — 전제는 현재 미성립, 코드 경로는 실재)
+
+---
+
+### BL-656
+
+**Priority:** P2
+**카테고리:** 운영 / 소크 재기동 도구
+**Trigger:** 다음 소크 재기동 시
+**Est:** S
+**상태:** ⬜ **Open**
+
+**`scripts/soak-restart.sh` 가 「완전 down 에서 올리기」를 못 다룬다 — 그리고 dry-run 이 자기 문장을 실행했다.**
+
+2026-08-08 soak-mortality-repair 의 P7 에서 둘 다 실측했다.
+
+★**결함 ① — dry-run 이 명령 치환을 했다(수리 완료).** `cat << EOF` 가 **unquoted heredoc** 이라
+설명문 안의 백틱이 명령으로 실행됐다: `soak-restart.sh: line 214: countable: command not found`.
+⑻ 설명이 그 자리만큼 **잘린 채** 출력됐다 — 읽는 사람은 문장이 깨진 줄 모른다. 같은 heredoc 이
+`${ROOT}`·`${SYMBOL}` 확장을 쓰므로 `<< 'EOF'` 로 못 바꾼다 ⇒ 백틱을 제거했다. 회귀 방지로
+「unquoted heredoc 안에 백틱·`$(` 가 없다」를 정적으로 셌다(현재 **0건**).
+
+★**결함 ② — 순서 전제가 뒤집혀 있다(미수리).** 이 스크립트는 ⑴ 에서 `status` 로 FLAT 을 보는데
+그것이 **DB 를 읽는다.** 스택이 내려가 있으면 DB 컨테이너도 없어 `ConnectionRefusedError` 로 끝난다.
+그런데 ⑷ 는 `down → pin → up` 이라 **이미 돌고 있는 스택**을 전제한다. ⇒ 「완전 down 에서 올리기」는
+이 스크립트로 **불가능**하다. P7 에서 손으로 밟은 순서가 정본이다:
+
+```
+soak-stack.sh pin → soak-stack.sh up → live_session_admin.py status(FLAT 확인)
+  → (FLAT=NO 면) stop → flatten → start → soak-observe.sh --baseline → soak-gate.sh
+```
+
+★**stop 이 flatten 보다 먼저인 것이 실측으로 갈렸다.** P0 에서는 세션이 살아 있는 채 flatten 만
+했더니 **엔진이 다음 tick 에 재무장**해 `EXCLUSIVE=NO` · `FOREIGN_RESTING=2` 가 됐다. P7 에서
+`stop → flatten` 순으로 하니 `FLAT=YES · RESTING_CONDITIONAL=0 · QUIET=YES` 로 깨끗했다.
+스크립트 ⑵ 의 「순서가 중요하다」는 경고가 **옳았고, 그것을 어긴 것은 사람이었다.**
+
+**처방 후보:** ⑴ `soak-stack.sh ps` 류로 스택 생존을 먼저 보고, down 이면 `pin → up` 을 **스스로**
+선행한다(가장 곧다) ⑵ `--from-down` 플래그로 순서를 갈라 준다 ⑶ 문서만 고치고 사람에게 맡긴다
+(이번 회차는 ⑶ 을 했다 — dry-run 머리에 전제와 손 순서를 박았다).
+
+**Risk:** 🟡 재기동은 드물지만 **틀리면 소크 창이 걸린다.** ②는 사람이 순서를 알면 우회 가능하다.
+
+**연결:** [BL-634](#bl-634) (배타성 가드가 재기동 경로의 전제) · [ADR-024](decisions/024-soak-stability-gate.md) (C1/C2 리셋 규칙)
+
+**출처:** 2026-08-08 soak-mortality-repair P7 (재기동을 실제로 밟다가 둘 다 물렸다)

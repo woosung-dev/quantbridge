@@ -212,6 +212,14 @@ echo
 #   「출력만」이라는 계약을 깬다. 실제 flat 여부는 --confirm 이 첫 단계로 직접 확인한다.
 if [ "${CONFIRM}" != "1" ]; then
   cat << EOF
+★★전제 — **스택이 돌고 있어야 이 스크립트가 돈다.** ⑴ 의 status 가 DB 를 읽는데,
+  스택이 내려가 있으면 DB 컨테이너도 없어 `ConnectionRefusedError` 로 끝난다. 그리고 ⑷ 의
+  pin 은 **돌고 있는 스택 위에서 거부**되므로 「이미 up」과 「완전 down」 중 이 스크립트가
+  다루는 것은 앞쪽뿐이다. 완전 down 에서 올릴 때는 이 스크립트를 쓰지 말고 손으로:
+    soak-stack.sh pin → soak-stack.sh up → live_session_admin.py status(FLAT 확인)
+    → (필요시) stop → flatten → start → soak-observe.sh --baseline → soak-gate.sh
+  (2026-08-08 soak-mortality-repair 에서 실제로 이 경로를 밟았다 — [BL-656])
+
 ⑴ live_session_admin.py status 로 FLAT=YES 확인
    ★세션 DELETE 204 는 아무것도 flat 하지 않는다 (3회 덴 함정)
    ★status 는 이제 FLAT= 외에 RESTING_CONDITIONAL= · FOREIGN_RESTING= · EXCLUSIVE= · QUIET= 도 낸다.
@@ -242,9 +250,11 @@ if [ "${CONFIRM}" != "1" ]; then
    ★--session 은 플래그다. 위치인자로 주면 unknown arg (exit 64)
 
 ⑻ soak-gate.sh 로 창 확인
-   ★C2(최장 연속)는 리셋된다. ★★C1(누적)이 유지되는 것은 **re-pin 단독**일 때뿐이다 —
-     직전이 실격(자동사망·phantom·tick정체)이었으면 C1 도 이미 0 이다(`countable` 이 실격 시점에
-     열려 있던 귀속 구간을 통째 배제한다). 2026-08-08 실측: C1 5.31h → 0.0000h
+   ★C2(최장 연속)는 리셋된다. ★★C1(누적)이 0 이 되는 것은 **직전이 실격일 때뿐**이다 —
+     실격(자동사망·phantom·tick정체)이었으면 predicate 의 countable 필터가 실격 시점에
+     열려 있던 귀속 구간을 통째 배제한다. 2026-08-08 실측: C1 5.31h → 0.0000h
+   ★★반대 방향도 실측했다(2026-08-08 soak-mortality-repair) — 실격 **없이** 내렸다 올리면
+     C1 은 이어진다: 15.3007h → down → up → **15.3167h**. down 은 리셋이 아니라 미계상이다.
 
 ══ dry-run 종료 — 아무것도 실행하지 않았다. 집행하려면 --confirm ══
 EOF
