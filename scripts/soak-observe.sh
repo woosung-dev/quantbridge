@@ -27,7 +27,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 STATE_DIR="${REPO_ROOT}/.soak"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
-METRICS_URL="${QB_METRICS_URL:-http://localhost:8100/metrics}"
+# ★취득 경로는 `soak-gate.sh` 와 **같아야 한다**([BL-642]) — `soak-stack.sh up` 은 API 컨테이너를
+#   띄우지 않아 `:8100` 에 리스너가 없다. 워커는 같은 counter 를 `backend/.metrics` 에 계속 쓰므로
+#   기본은 **직독**이고, `QB_METRICS_URL` 을 명시하면 종전 HTTP 를 쓴다(원격 운영안 보존).
+#   정본은 `soak-gate.sh` 의 취득 블록이다 — 갈라지면 여기를 그쪽에 맞춰라.
+METRICS_URL="${QB_METRICS_URL:-}"
+METRICS_DIR="${QB_METRICS_DIR:-${REPO_ROOT}/backend/.metrics}"
 # 유도 주입 표식 — 이 두 값의 이벤트는 합성이다(H8 분기 유도용). 통계에서 분리해 보여준다.
 PROBE_SEQ=9999
 PROBE_TRADE_ID="h8_probe"
@@ -57,6 +62,37 @@ q() {
 }
 
 hdr() { printf '\n\033[1m── %s\033[0m\n' "$1"; }
+
+# 지금 어느 경로로 긁는지 사람이 읽을 이름 — UNKNOWN 줄이 `:8100` 을 가리키면 오독한다.
+metrics_source() {
+  if [ -n "${METRICS_URL}" ]; then printf '%s' "${METRICS_URL}"
+  else printf '%s (직독)' "${METRICS_DIR}"; fi
+}
+
+# `soak-gate.sh` 취득 블록의 이식 — 성공 시 stdout 으로 metrics 원문, 실패 시 rc≠0.
+# ★rc 가 0 이어도 **본문이 비면 실패**다(200 + 빈 본문 = mmap 이 비었거나 API 기동 중).
+#   그 구분을 잃으면 「측정불가」가 「이상 없음」으로 읽히는 fail-open 이 된다.
+scrape_metrics() {
+  local raw=""
+  if [ -n "${METRICS_URL}" ]; then
+    raw="$(curl -sf --max-time 30 "${METRICS_URL}" 2>/dev/null)" || return 1
+  elif [ -d "${METRICS_DIR}" ]; then
+    # ★`timeout` 없이 부르지 마라 — 무기한 대기는 관측 자체를 멈춘다([BL-594] 교훈).
+    raw="$(cd "${REPO_ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
+      timeout 120 uv run python -c '
+import sys
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess
+
+registry = CollectorRegistry()
+multiprocess.MultiProcessCollector(registry)
+sys.stdout.buffer.write(generate_latest(registry))
+' 2>/dev/null)" || return 1
+  else
+    return 1
+  fi
+  [ -n "${raw}" ] || return 1
+  printf '%s\n' "${raw}"
+}
 
 mkdir -p "${STATE_DIR}"
 
@@ -117,13 +153,16 @@ SNAP="${STATE_DIR}/snap-$(date -u '+%Y%m%dT%H%M%SZ').txt"
 # ★`live_conditional_guard`/`plan_drop_evaluations` 는 BL-589 수리로 시장가 전환이 늘어나는
 # 것을 보기 위해 넣었다. 볼 눈금은 `breach_with_resting`(막힌 드롭) 대 `market_converted`(전환).
 # 절대값은 출생일이 달라 비교 불가 — **차분만** 본다.
-if ! curl -sf --max-time 30 "${METRICS_URL}" \
-     | grep -E '^qb_(live_signal_dispatch|live_signal_skipped|live_signal_evaluated|live_signal_divergence|live_conditional_reconcile_errors|live_conditional_guard|live_conditional_plan_drop_evaluations|live_position_divergence|metrics_mutation_failed|metrics_render_fallback)' \
-     | sort > "${SNAP}"; then
-  echo "  UNKNOWN — ${METRICS_URL} 스크레이프 실패"
+# ★취득과 필터를 **분리한다** — 붙여 두면 「매치 0건」(counter 가 아직 안 발화)이 파이프 rc 로
+#   「스크레이프 실패」와 같아진다. 취득 실패만 UNKNOWN 이고, series 0 은 표본 없음이다.
+if ! METRICS_RAW="$(scrape_metrics)"; then
+  echo "  UNKNOWN — $(metrics_source) 스크레이프 실패"
   FAILED=1
   rm -f "${SNAP}"
 else
+  printf '%s\n' "${METRICS_RAW}" \
+    | grep -E '^qb_(live_signal_dispatch|live_signal_skipped|live_signal_evaluated|live_signal_divergence|live_conditional_reconcile_errors|live_conditional_guard|live_conditional_plan_drop_evaluations|live_position_divergence|metrics_mutation_failed|metrics_render_fallback)' \
+    | sort > "${SNAP}"
   PREV="$(ls -1 "${STATE_DIR}"/snap-*.txt 2>/dev/null | grep -v "$(basename "${SNAP}")" | tail -1 || true)"
   if [ -z "${PREV}" ]; then
     echo "  (첫 스냅샷 — 차분 없음). 기록: ${SNAP##*/}, $(wc -l < "${SNAP}" | tr -d ' ') series"
@@ -161,12 +200,12 @@ q "SELECT left(e.id::text, 8) AS event, e.sequence_no, e.trade_id,
 
 # ── 6. /metrics 디렉터리 ─────────────────────────────────────────────────
 hdr "6. /metrics 멀티프로세스 디렉터리 (BL-581 Trigger = 20000 파일)"
-if [ -d "${REPO_ROOT}/backend/.metrics" ]; then
+if [ -d "${METRICS_DIR}" ]; then
   printf '  files=%s  size=%s\n' \
-    "$(find "${REPO_ROOT}/backend/.metrics" -maxdepth 1 -type f -name '*.db' | wc -l | tr -d ' ')" \
-    "$(du -sh "${REPO_ROOT}/backend/.metrics" | cut -f1)"
+    "$(find "${METRICS_DIR}" -maxdepth 1 -type f -name '*.db' | wc -l | tr -d ' ')" \
+    "$(du -sh "${METRICS_DIR}" | cut -f1)"
 else
-  echo "  UNKNOWN — backend/.metrics 없음"
+  echo "  UNKNOWN — ${METRICS_DIR} 없음"
   FAILED=1
 fi
 
