@@ -418,3 +418,28 @@ class MyService:
 _PENDING_ALERTS.add(task)
 task.add_done_callback(_PENDING_ALERTS.discard)
 ```
+
+---
+
+## 10. 검사기가 무엇을 보는지 증명해라 (LESSON-092 승격, 2026-08-08)
+
+> 한 회차에 **세 워커가 각자 「초록」을 얻고 셋 다 그것이 거짓임을 스스로 발견**했다. 셋 다
+> 원인이 같다 — **검사기가 보는 표면이 실제 실패 표면보다 좁았다.** 초록은 「통과했다」가 아니라
+> 「내가 본 것 중에는 없었다」만 말한다.
+
+**의무 규약 3종:**
+
+1. **행위 동결은 반환값이 아니라 부작용까지 얼려라.** no-op 변이는 반환값을 안 바꾼다 —
+   실측으로 `_block_on_direction_divergence` 를 no-op 으로 만들어도 `return`·`upsert_state`·
+   `insert_pending_events`·`dispatch`·`reconcile` 5개가 **완전 동일**했고, 잡은 것은 부작용
+   원장(deactivate · publish · alert · prometheus 델타)뿐이었다.
+   표준 reference: `backend/tests/tasks/test_live_signal_tick_oracle.py`.
+2. **새 순수 함수를 만들면 「그 함수」가 아니라 「그것을 쓰는 경로」를 재는 케이스를 최소 1개 둬라.**
+   단위 테스트가 순수 함수를 직접 호출하면 **호출부에서 그 함수를 떼어내는 변이가 red 0** 을 낸다.
+   순수 함수 정확성 ≠ 배선.
+3. **테스트 페이크는 프로덕션의 제약 축을 그대로 흉내내라.** `row_hash` 단독으로 dedup 하는
+   페이크는 실제 UNIQUE 축 `(exchange_account_id, row_hash)` 를 재현하지 못해, **재현하려던 결함
+   자체를 페이크 안에서 소멸**시켰다.
+
+**판별 절차 (셋 다 이걸로 잡혔다):** 변이를 심는다 → **그 변이가 도달했는지 따로 확인한다** →
+red 가 나는지 본다. **가운데 단계를 빼면 셋 다 놓친다** — 도달 못 한 변이의 red 0 은 무증거다.
