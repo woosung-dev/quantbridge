@@ -293,7 +293,13 @@ async def run_tick(monkeypatch: pytest.MonkeyPatch, case: dict[str, Any]) -> dic
     import src.trading.repositories.order_repository as order_repository_mod
 
     order_repo = AsyncMock()
-    order_repo.list_fills_since = AsyncMock(return_value=[])
+    if spec.get("ledger_fills") == "probe_error":
+        # 원장 조회가 실패하면 `_capture_ledger_shadow` 가 `conditional_fills` 를 None 으로
+        # 접는다 — [ADR-025] §⑧ 의 fail-open tick 이다. 기본값(`[]`)은 그대로 두므로
+        # 이 knob 을 안 쓰는 기존 케이스의 관측 표면은 바뀌지 않는다.
+        order_repo.list_fills_since = AsyncMock(side_effect=RuntimeError("ledger down"))
+    else:
+        order_repo.list_fills_since = AsyncMock(return_value=[])
     order_repo.list_resting_conditional_entries = AsyncMock(return_value=[])
     monkeypatch.setattr(order_repository_mod, "OrderRepository", MagicMock(return_value=order_repo))
 
@@ -309,7 +315,11 @@ async def run_tick(monkeypatch: pytest.MonkeyPatch, case: dict[str, Any]) -> dic
     monkeypatch.setattr(live_signal_module, "_reconcile_conditional_entries", reconcile)
 
     before = _metric_snapshot()
-    returned = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+    # ★interval 은 metric label 이 아니라 **판정 입력**이다(strike TTL·평가 공백이 봉 길이로
+    #   잰다). 1m 케이스만 있으면 15m·1h 에서만 깨지는 결함이 통째로 안 보인다.
+    returned = await live_signal_module._evaluate_session_inner(
+        sess.id, spec.get("interval", "1m")
+    )
     await _flush_pending_alerts()
     after = _metric_snapshot()
 
