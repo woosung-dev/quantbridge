@@ -257,7 +257,12 @@ function ScopeParity({
               label="매칭됐으나 비용 분해 불가"
               value={`${scope.undecomposed_count}건`}
               size="sm"
-              sub={`net ${scope.undecomposed_net}. 매칭 안에 포함되어 커버리지에서 이중 차감하지 않습니다.`}
+              sub={
+                <span className="break-words">
+                  net {scope.undecomposed_net}. 매칭 안에 포함되어 커버리지에서 이중 차감하지
+                  않습니다.
+                </span>
+              }
               valueTestId={`${scopeId}-undecomposed-count`}
             />
           </div>
@@ -347,21 +352,32 @@ function ScopeParity({
             label="엔진만 청산"
             value={`${scope.expected_only_count}건`}
             size="sm"
-            sub={`gross ${scope.expected_only_gross}. 대기 ${scope.expected_only_pending_count}건 · 실패 ${scope.expected_only_failed_count}건 · 발주 ${scope.expected_only_dispatched_count}건`}
+            sub={
+              <span className="break-words">
+                gross {scope.expected_only_gross}. 대기 {scope.expected_only_pending_count}건 ·
+                실패 {scope.expected_only_failed_count}건 · 발주{" "}
+                {scope.expected_only_dispatched_count}건
+              </span>
+            }
             valueTestId={`${scopeId}-expected-only-count`}
           />
           <MetricTile
             label="거래소만 청산"
             value={`${scope.actual_only_count}건`}
             size="sm"
-            sub={`net ${scope.actual_only_net}`}
+            sub={<span className="break-words">net {scope.actual_only_net}</span>}
             valueTestId={`${scopeId}-actual-only-count`}
           />
           <MetricTile
             label="원장에만 있는 청산"
             value={`${scope.ledger_only_count}건`}
             size="sm"
-            sub={`net ${scope.ledger_only_net}. 거래소 네이티브 TP/SL 등 로컬 주문 없이 실행된 청산입니다.`}
+            sub={
+              <span className="break-words">
+                net {scope.ledger_only_net}. 거래소 네이티브 TP/SL 등 로컬 주문 없이 실행된
+                청산입니다.
+              </span>
+            }
             valueTestId={`${scopeId}-ledger-only-count`}
           />
         </div>

@@ -1198,7 +1198,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-525](#bl-525) | 라이브가 Track A(indicator + alertcondition) 전략을 어떻게 다루는지 정의되지 않았다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Track A 로 라이브 세션을 열 때                                                                                    | S         | 2026-07-28 live-entry-parity                           |
 | [BL-539](#bl-539) | (P3) 방향 불일치 유예가 시간 경계가 없다 — 평가가 드문드문하면 오래된 strike 가 살아남는다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 발산 가드를 다시 손댈 때                                                                                          | S         | 2026-07-29 PR #497 사후 리뷰                           |
 | [BL-540](#bl-540) | (P3) `live_signal.py` 반복 3종 — deactivate 의식 6회 · provider+creds 4회 · category 가 맨 `str`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | 이 파일을 다시 크게 손댈 때                                                                                       | M         | 2026-07-29 PR #497 사후 리뷰                           |
-| [BL-548](#bl-548) | (P3) `OutcomeParityPanel` 이 375px 에서 본문 가로 스크롤 24px 을 만든다 (기존 결함)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | 모바일 폭 점검 시                                                                                                 | XS        | 2026-07-30 conditional-entry-alignment                 |
+| [BL-548](#bl-548) | ✅ **Resolved (2026-08-09, W3)** — (P3) `OutcomeParityPanel` 이 375px 에서 본문 가로 스크롤을 만든다. ★**24px 재현 실패** — [BL-607] 반올림이 그 경로를 이미 닫았다. 남은 경로는 반올림 없는 `sub` 캡션 4곳 — 51자리 Decimal 이 오면 **191px**. 넘치는 것이 표가 아니라 텍스트라 처방은 `break-words`                                                                                                                                                                                                                                                                                                                                                      | 모바일 폭 점검 시                                                                                                 | XS        | 2026-07-30 conditional-entry-alignment                 |
 | [BL-550](#bl-550) | (P3) 비활성 세션의 **세션별** 포지션 대조가 화면에 없다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 죽은 세션을 세션 단위로 대조해야 할 때                                                                            | S         | 2026-07-30 conditional-entry-alignment                 |
 | [BL-551](#bl-551) | (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 세션 상세를 링크로 공유해야 할 때                                                                                 | S         | 2026-07-30 conditional-entry-alignment                 |
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 그 게이지로 무언가를 판단하기 전                                                                                  | S         | 2026-07-30 live-entry-completeness                     |
@@ -3114,6 +3114,9 @@ float 금지" 를 형식상 위반한다.
 **Trigger:** 모바일 폭 점검 시
 **Est:** XS
 **출처:** 2026-07-30 conditional-entry-alignment 게이트 4 (MCP playwright 실브라우저)
+**상태:** ✅ **Resolved (2026-08-09, W3)** — 단 **적힌 24px 은 재현되지 않았고 결론만 살아남았다.**
+2026-08-09 실측(슬롯 11 dev + `chromium-authed`, 375×812): 실측 픽스처
+`MOCK_OUTCOME_PARITY` 위에서는 **수리 전에도 0px** 이다. 아래 §재판정 참조.
 
 **원인 / 영향:** `/trading` 에서 세션 상세를 열면 body 가 24px 가로 스크롤된다(375px 기준).
 인과 분리 실측 — 상세 닫힘 **0px** / 상세 열림 **24px** / 상세 열림 + `outcome-parity-panel`
@@ -3125,6 +3128,26 @@ float 금지" 를 형식상 위반한다.
 **권장 접근:** 패널 안 넓은 콘텐츠를 자기 `overflow-x:auto` 컨테이너로 감싼다 — 같은 화면의 세 표는
 이미 `div.table-wrap{overflow-x:auto}` 로 그렇게 하고 있다. 그 패턴을 패널에도 적용.
 **Risk:** 🟢
+
+**§재판정 (2026-08-09, W3)**
+
+★**24px 은 이미 남이 고쳤다.** 2026-07-30 관측 당시 값 타일은 원장 Decimal 원문을 그대로
+그렸고, [BL-607](#bl-607)(2026-08-06)이 `DecimalValue` 반올림을 넣으며 그 경로를 닫았다.
+그래서 오늘 실측 픽스처 위에서는 **수리 전에도 0px** 이다 — 이 BL 을 「그대로 재현 → 수리」로
+잡았으면 **판별력 0 인 테스트**를 초록으로 만들고 닫았을 것이다.
+
+★**남은 경로는 `sub` 캡션이다.** `DecimalValue` 는 값 타일에만 걸려 있고,
+`undecomposed_net` · `expected_only_gross` · `actual_only_net` · `ledger_only_net` 네 필드는
+`sub` 로 **원문 그대로** 보간된다. 51자리 Decimal 은 끊을 수 없는 한 낱말이라 자기 블록을
+넘긴다. 인과 분리 실측 — 상세 닫힘 **0** / 열림 **191** / 열림 + 패널 `display:none` **0**.
+
+★**처방을 `overflow-x:auto` 에서 `break-words` 로 바꿨다.** 넘치는 것이 표가 아니라 **텍스트**라서다.
+`frontend/AGENTS.md` §10 완료 체크리스트도 둘을 갈라 놓았다 — 표는 `overflow-x-auto` 래퍼,
+텍스트는 `truncate` 또는 `break-words`. 스크롤 컨테이너를 씌우면 캡션을 읽으려고 가로 스크롤을
+해야 한다. 변이 M — `break-words` 4곳을 지우면 **191px 로 복귀**(실측).
+
+회귀 픽스처는 `MOCK_OUTCOME_PARITY_LONG_LEDGER_SUB` 로 **따로 두었다** — 실측 픽스처는 이 네 자리가
+마침 `"0"`·`"20"` 이라 결함을 못 본다.
 
 ---
 

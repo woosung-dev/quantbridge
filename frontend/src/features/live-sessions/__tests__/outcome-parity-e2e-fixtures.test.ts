@@ -17,6 +17,7 @@ import {
   MOCK_LIVE_SESSION_LIST,
   MOCK_LIVE_SESSION_STATE,
   MOCK_OUTCOME_PARITY,
+  MOCK_OUTCOME_PARITY_LONG_LEDGER_SUB,
   MOCK_STRATEGY_LIST,
 } from "../../../../e2e/fixtures/outcome-parity";
 import { ExchangeAccountListResponseSchema } from "../../trading/schemas";
@@ -76,5 +77,21 @@ describe("outcome-parity e2e fixture 계약", () => {
     expect(parsed.session.match_coverage_pct).toBeNull();
     expect(parsed.strategy.matched_count).toBe(41);
     expect(parsed.strategy.sample_sd_net).toHaveLength(51);
+  });
+
+  // BL-548 — 오버플로 회귀 픽스처도 같은 계약 위에 있어야 한다. 그리고 이 픽스처가
+  // **실측 픽스처와 실제로 다른** 자리에서 다른지 못 박는다 — 같으면 판별력이 0 이다.
+  it("긴 원장 Decimal 픽스처가 스키마를 통과하고 sub 전용 네 필드에서만 갈린다", () => {
+    const parsed = OutcomeParityResponseSchema.parse(MOCK_OUTCOME_PARITY_LONG_LEDGER_SUB);
+
+    expect(parsed.strategy.undecomposed_net).toHaveLength(51);
+    expect(parsed.strategy.expected_only_gross).toHaveLength(51);
+    expect(parsed.strategy.actual_only_net).toHaveLength(51);
+    expect(parsed.strategy.ledger_only_net).toHaveLength(51);
+
+    // 실측 픽스처의 같은 자리는 짧다 — 그래서 그 위에서는 이 결함이 안 보인다.
+    const baseline = OutcomeParityResponseSchema.parse(MOCK_OUTCOME_PARITY);
+    expect(baseline.strategy.undecomposed_net).toBe("0");
+    expect(baseline.strategy.expected_only_gross).toBe("20");
   });
 });
