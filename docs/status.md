@@ -67,6 +67,16 @@ lint-staged 가 eslint 태스크를 `[KILLED]` 로 찍어 **eslint 실패처럼 
 ★**내 커밋 분할도 한 번 틀렸다** — `trading-cockpit.tsx` 의 [BL-663] 변경이 [BL-664] 커밋에 딸려 들어가
 **아직 없는 파일을 import 하는 중간 커밋**이 됐다. 되감아 둘을 한 커밋으로 합쳤다.
 **한 파일에 두 BL 이 걸리면 커밋은 나눌 수 없다** — 나누려면 파일을 먼저 나눠야 한다.
+★**em-dash 래칫(`design-canon-source.test.ts`)에 두 번 물렸다** — **주석에 쓴 `—` 도 센다**(노출 산문만
+세는 줄 알았다). `features/backtest/utils.ts` 허용 2인데 4가 됐다. 한글 문서 습관이 그대로 코드 주석에
+들어가면 이 게이트가 문다. **FE 주석에는 `—` 대신 `.` 이나 `·` 를 써라.**
+
+★★★**e2e authed 2건 실패는 내 회귀가 아니다 — 음성 대조로 확정했다.**
+`sprint46-tier1-critical.spec.ts:69`(#1 backtest form 422) · `sprint46-tier3-nth.spec.ts:489`(#20
+friendly_message) 둘 다 **backtest form 의 POST 가 안 나가는** 같은 뿌리다. `git checkout 85970b83 --
+frontend/src` 로 **main 코드에서 같은 두 건을 태우니 똑같이 실패**했다(1 passed / 2 failed 동일).
+★내 diff 는 `backtest-form.tsx` 를 안 건드리고, 그 파일이 `utils.ts` 에서 쓰는 것은 **`formatDateTime`
+하나**인데 그 함수는 무변경이다. ⇒ **기존 결함 또는 로컬 환경(격리 스택 데이터) 문제**다. 원인은 미규명.
 
 - ★★★**2026-08-09 status-triage-mass 가 ⓪ 표 후보 G 의 전제를 반증했다.** G 는
   「**ACTIVE 는 열려 있는 수가 아니라 닫혔다고 선언되지 않은 수다**」라고 적었는데, 상태줄 없는

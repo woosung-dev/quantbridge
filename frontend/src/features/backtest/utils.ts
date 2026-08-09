@@ -215,7 +215,7 @@ export function applyTradeFilterSort(
   //   무작위 순서면 ~22,000회(N·log₂N)이고 비교마다 **두 번** 파므로 최대 ~44,000회 파싱이다.
   //   그리고 그것이 검색창 키 입력 한 글자마다 다시 돈다. 사전계산은 입력과 무관하게 N회다.
   // ⇒ decorate·sort·undecorate 로 키를 **N회만** 판다.
-  // ★필터와 decorate 를 한 패스로 합친다(`js-combine-iterations`) — 중간 배열 하나를 안 만든다.
+  // ★필터와 decorate 를 한 패스로 합친다(`js-combine-iterations`). 중간 배열 하나를 안 만든다.
   const decorated: { item: TradeItem; index: number; key: number }[] = [];
   for (const t of trades) {
     if (filters.direction !== "all" && t.direction !== filters.direction) continue;
@@ -224,7 +224,7 @@ export function applyTradeFilterSort(
     decorated.push({ item: t, index: decorated.length, key: readSortKey(t, sortField) });
   }
 
-  // ★`sort` 인 것이 `js-tosorted-immutable` 위반이 아니다 — `decorated` 는 **이 함수가 방금 만든**
+  // ★`sort` 인 것이 `js-tosorted-immutable` 위반이 아니다. `decorated` 는 **이 함수가 방금 만든**
   //   지역 배열이고 입력 `trades` 는 건드리지 않는다. `toSorted` 를 쓰면 배열 하나를 더 만든다.
   // ★안정성은 계약이므로 엔진 stable 에 기대지 않고 원래 index 로 명시 tiebreak 한다.
   decorated.sort((a, b) => {
