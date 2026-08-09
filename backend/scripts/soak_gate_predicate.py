@@ -472,11 +472,24 @@ def unreadable_labels(observations: list[dict[str, Any]]) -> dict[str, Any]:
       아카이브를 `.soak/superseded-<판>/` 로 옮긴다([ADR-024] §아카이브 판).
     """
     sources: dict[str, dict[str, Any]] = {}
+    # ★[BL-626] — `count` 를 **관측 단위로 dedup 한다.** 매 게이트 실행이 워커 로그 전량을
+    #   다시 분류해 `.soak/phantom-*.json` 을 하나씩 더 남기므로, 같은 한 건의 관측이
+    #   아카이브 수만큼 들어온다. dedup 없이 세면 `총 N건` 이 **아카이브 개수에 비례해
+    #   부풀고**(실측 2026-08-09: 메인 체크아웃에 228벌), 읽는 사람은 「관측이 늘고 있다」로
+    #   읽는다. 실격 목록은 원래 `(at, kind, detail)` 로 접히는데(`find_disqualifications`)
+    #   이 요약만 안 접혀 있었다 — 같은 코퍼스에서 두 숫자가 어긋난다.
+    # ★키에 `archive` 를 넣지 않는다 — 그게 바로 부풀리는 축이다. 세는 것은 **관측**이다.
+    counted: dict[str, set[tuple[str, str, str]]] = {}
     for obs in observations:
         label = str(obs.get("label", ""))
         if label in HARMLESS_DIVERGENCE_LABELS or label in DISQUALIFYING_DIVERGENCE_LABELS:
             continue
         entry = sources.setdefault(label, {"count": 0, "samples": []})
+        key = (label, str(obs.get("at", "")), str(obs.get("session_id", "")))
+        seen_keys = counted.setdefault(label, set())
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
         entry["count"] += 1
         if len(entry["samples"]) < MAX_UNREADABLE_LABEL_SAMPLES:
             sample = {

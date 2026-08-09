@@ -9,6 +9,7 @@
 #   scripts/soak-gate.sh --no-collect    # 표본을 남기지 않고 지금 원장으로만 판정
 #   scripts/soak-gate.sh --require-hours N --require-continuous N   # ★자기시험 전용
 #   scripts/soak-gate.sh --install / --uninstall / --status         # 30분마다 (macOS launchd / 리눅스 systemd user timer)
+#   scripts/soak-gate.sh --prune-archives [--confirm]  # 상위집합에 덮인 phantom 아카이브 회수 (기본 dry-run)
 #
 # 종료 코드: 0 = PASS **만** / 1 = FAIL / 2 = UNKNOWN
 #   ★**UNKNOWN 을 PASS 로 접지 않는다.** 이 스크립트의 존재 이유가 그것이다.
@@ -181,11 +182,82 @@ _status() {
   exit 0
 }
 
+_prune_archives() { # $1 = "confirm" 이면 실제로 옮긴다
+  # `.soak/phantom-*.json` 회수 ([BL-626]). ★**기본은 dry-run** — 옮기려면 --confirm.
+  #
+  # ★★**개수 상한은 쓰지 않는다 — 그건 판정을 깎는다.** 아카이브는 커버리지 구간
+  #   (`log_from`~`log_to`)을 들고 있고 C1 은 **커버리지가 덮은 시간만** 센다. 실측
+  #   2026-08-09(메인 체크아웃 228벌): 「최근 50개만 남긴다」면 커버리지 시작이
+  #   `2026-08-04T15:51` → `2026-08-08T18:21` 로 **나흘치가 사라진다.** 168h 게이트를
+  #   30분 주기로 채우려면 ~336벌이 필요하므로 어떤 상수 N 도 안전하지 않다.
+  #
+  # ★그래서 기준은 개수가 아니라 **포함관계**다. 매 실행이 워커 로그 **전량**을 다시
+  #   분류하므로, 같은 `(log_from, predicate_version, classifier_ok)` 안에서는 `log_to` 가
+  #   가장 늦은 아카이브가 나머지의 **상위집합**이다 — 커버리지도(같은 시작·더 늦은 끝),
+  #   verdicts 도(같은 코퍼스·같은 판별식·더 긴 지평). 그것만 남기고 나머지를 옮긴다.
+  # ★`predicate_version` 을 키에 넣는 이유 — 새 판별식이 취소한 옛 라벨을 조용히 버리면
+  #   합집합 규율([ADR-024] §아카이브 판)이 깨진다. 판이 다르면 다른 그룹이다.
+  # ★`log_to` 가 ISO 로 안 읽히는 것은 **절대 회수하지 않는다** — 실측 10벌이 타임스탬프
+  #   자리에 문자 `Error` 를 들고 있고(launchd 파손), 그것들은 `unreadable_log_coverage` 로
+  #   C5 에 참여한다. 문자열 정렬로 재면 `Error` 가 ISO 보다 크게 나와 성한 것을 버린다.
+  # ★지우지 않는다 — `.soak/superseded-<STAMP>/` 로 **옮긴다**. 원자료는 되돌릴 수 있어야 한다.
+  local mode="${1:-dry}"
+  QB_PRUNE_MODE="${mode}" python3 - "${STATE_DIR}" <<'PY'
+import collections, json, os, pathlib, re, shutil, sys
+
+state = pathlib.Path(sys.argv[1])
+confirm = os.environ.get("QB_PRUNE_MODE") == "confirm"
+ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T")
+
+groups = collections.defaultdict(list)
+frozen = []
+for p in sorted(state.glob("phantom-*.json")):
+    try:
+        blob = json.loads(p.read_text())
+    except Exception:
+        frozen.append((p, "판독 불가 JSON"))
+        continue
+    to = str(blob.get("log_to") or "")
+    if not ISO.match(to):
+        frozen.append((p, f"log_to 가 ISO 가 아니다: {to!r}"))
+        continue
+    key = (blob.get("log_from"), blob.get("predicate_version"), blob.get("classifier_ok") is True)
+    groups[key].append((to, p))
+
+keep, drop = set(), []
+for members in groups.values():
+    members.sort()
+    keep.add(members[-1][1])
+    drop.extend(p for _, p in members[:-1])
+
+total = len(list(state.glob("phantom-*.json")))
+print(f"아카이브 {total}벌 · 그룹 {len(groups)}개 · 보존 {len(keep)}벌 · 회수 대상 {len(drop)}벌 · 손대지 않음 {len(frozen)}벌")
+for p, why in frozen[:3]:
+    print(f"  손대지 않음: {p.name} — {why}")
+if not confirm:
+    for p in drop[:3]:
+        print(f"  회수 대상(예): {p.name}")
+    print("dry-run — 아무것도 옮기지 않았다. 집행하려면 --prune-archives --confirm")
+    raise SystemExit(0)
+if not drop:
+    print("회수할 것이 없다.")
+    raise SystemExit(0)
+dest = state / f"superseded-{sorted(p.name for p in drop)[-1][8:24]}"
+dest.mkdir(parents=True, exist_ok=True)
+for p in drop:
+    shutil.move(str(p), str(dest / p.name))
+print(f"✓ {len(drop)}벌을 {dest} 로 옮겼다 (지우지 않았다)")
+PY
+  exit $?
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --install) _install ;;
     --uninstall) _uninstall ;;
     --status) _status ;;
+    --prune-archives)
+      if [ "${2:-}" = "--confirm" ]; then _prune_archives confirm; else _prune_archives dry; fi ;;
     --json) AS_JSON=1 ;;
     --no-collect) COLLECT=0 ;;
     --since) [ $# -ge 2 ] || { echo "--since 에 값이 없다" >&2; exit 1; }; SINCE="$2"; shift ;;

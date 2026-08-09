@@ -398,6 +398,38 @@ def test_the_report_names_where_an_unreadable_label_came_from(gate: Any) -> None
     assert "총 7건" in verdict.summary
 
 
+def test_the_same_observation_in_three_archives_counts_once(gate: Any) -> None:
+    """★[BL-626] 매 실행이 워커 로그 전량을 다시 분류해 아카이브를 하나씩 더 남긴다.
+
+    그래서 **한 건의 관측이 아카이브 수만큼** 들어온다. dedup 없이 세면 `총 N건` 이 아카이브
+    개수에 비례해 부풀고(실측 2026-08-09 메인 체크아웃 228벌) 읽는 사람은 「관측이 늘고
+    있다」로 읽는다. 실격 목록은 원래 `(at, kind, detail)` 로 접히므로 같은 코퍼스에서
+    **두 숫자가 어긋난다.** 세는 단위는 아카이브가 아니라 관측이다.
+
+    ★음성 대조는 위 `test_the_report_names_where_an_unreadable_label_came_from` 이다 —
+    `at` 이 서로 다른 7건은 여전히 `총 7건` 이어야 한다(dedup 이 1 로 뭉개지 않는다).
+    """
+    observations = [
+        {
+            "at": "2026-08-04T11:00:00+00:00",
+            "label": "totally_new_label",
+            "session_id": "39731d57-f3ec-45c4-b4e1-db304c72692e",
+            "archive": f"phantom-2026080{i}T000000Z.json",
+            "predicate_version": "2026-08-01-legacy-horizon",
+        }
+        for i in range(3)
+    ]
+    verdict = gate.evaluate(
+        _payload(phantom_observations=observations, since="2026-08-04T09:00:00+00:00")
+    )
+    entry = verdict.detail["divergence_labels"]["sources"]["totally_new_label"]
+    assert entry["count"] == 1, entry
+    # 표본 예산도 같은 관측을 3번 쓰지 않는다 — 가장 오래된 아카이브 하나가 조치의 표적이다.
+    assert len(entry["samples"]) == 1, entry
+    assert entry["samples"][0]["archive"] == "phantom-20260800T000000Z.json"
+    assert "총 " not in verdict.summary, verdict.summary
+
+
 def test_a_source_less_observation_still_reports_what_it_has(gate: Any) -> None:
     """출처 필드가 없는 payload(손으로 만든 것 · 옛 아카이브)도 판정은 그대로 간다.
 

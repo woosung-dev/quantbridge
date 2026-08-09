@@ -53,7 +53,18 @@ scripts/soak-gate.sh --install   # 30분마다 자동 (표본이 없으면 C4 �
                                  # macOS = launchd / 리눅스 = systemd user timer
                                  # ★리눅스는 lingering 이 필요하다 — 없으면 SSH 끊길 때 timer 도 멈춘다
 scripts/soak-gate.sh --status
+scripts/soak-gate.sh --prune-archives            # phantom 아카이브 회수 — 기본 dry-run, 옮기고 지우지 않는다
+scripts/soak-gate.sh --prune-archives --confirm  #   ★[BL-626] 기준은 개수가 아니라 **포함관계**다
 ```
+
+★**아카이브 회수에 개수 상한을 쓰지 마라 — 그것은 판정을 깎는다**([BL-626], 2026-08-09 실측).
+아카이브는 커버리지 구간(`log_from`~`log_to`)을 들고 있고 C1 은 **커버리지가 덮은 시간만** 센다.
+228벌에서 「최근 50개만 남긴다」면 커버리지 시작이 `08-04T15:51` → `08-08T18:21` 로 나흘치가
+사라진다. 168h 를 30분 주기로 채우려면 ~336벌이 필요하므로 **안전한 상수 N 은 없다.** 그래서
+`--prune-archives` 는 같은 `(log_from, predicate_version, classifier_ok)` 안에서 `log_to` 가 가장
+늦은 것만 남긴다(나머지의 상위집합). ★`log_to` 가 ISO 가 아닌 것은 **절대 회수하지 않는다** —
+파손본 10벌이 타임스탬프 자리에 문자 `Error` 를 들고 있고, 문자열 정렬로 재면 `'Error'` 가 ISO
+보다 커서 **파손본이 대표로 뽑히고 성한 것이 버려진다.**
 
 술어·창·리셋 규칙은 [`ADR-024`](../../decisions/024-soak-stability-gate.md). 계산부는 I/O 없는
 순수 함수(`backend/scripts/soak_gate_predicate.py`)라 손 계산과 대조할 수 있고, 정의는
