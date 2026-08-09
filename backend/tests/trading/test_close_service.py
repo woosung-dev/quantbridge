@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.trading.exceptions import ProviderError
 from src.trading.models import ExchangeMode, ExchangeName, Order, OrderSide, OrderState, OrderType
-from src.trading.providers import PositionSnapshot
+from src.trading.providers import ConditionalOrderSnapshot, PositionSnapshot
 from src.trading.services.close_service import ClosePositionService
 from src.trading.services.order_service import OrderService
 
@@ -36,10 +36,28 @@ def _position(
     )
 
 
+def _conditional(
+    order_id: str = "ex-cond-1", order_link_id: str | None = "link-1"
+) -> ConditionalOrderSnapshot:
+    """미체결 **조건부 진입** 한 건 — reduce_only=False 가 「진입」의 정의다."""
+    return ConditionalOrderSnapshot(
+        order_id=order_id,
+        side="buy",
+        kind="other",
+        price=None,
+        trigger_price=Decimal("100"),
+        qty=Decimal("0.029"),
+        reduce_only=False,
+        position_idx=0,
+        order_link_id=order_link_id,
+    )
+
+
 def _service(
     *,
     settings: dict[str, object] | None = _SETTINGS,
     positions: list[PositionSnapshot] | None = None,
+    conditional_orders: list[ConditionalOrderSnapshot] | None = None,
     mode: ExchangeMode = ExchangeMode.demo,
     exchange: ExchangeName = ExchangeName.bybit,
     read_only: bool | None = None,
@@ -68,7 +86,12 @@ def _service(
         find_by_id_and_owner=AsyncMock(return_value=SimpleNamespace(settings=settings))
     )
     account_service = SimpleNamespace(get_credentials_for_order=AsyncMock(return_value=object()))
-    provider = SimpleNamespace(fetch_open_positions=AsyncMock(return_value=positions or []))
+    # [BL-661] — 조건부 조회를 페이크에 **먼저** 심는다. 이게 없으면 `close_service` 가
+    # 그것을 부르는 순간 이 파일 전건이 `AttributeError` 로 죽는다(회귀가 아니라 페이크 구멍).
+    provider = SimpleNamespace(
+        fetch_open_positions=AsyncMock(return_value=positions or []),
+        fetch_open_conditional_orders=AsyncMock(return_value=conditional_orders or []),
+    )
     response = SimpleNamespace(id=uuid4(), state=OrderState.pending)
     orders = order_service or SimpleNamespace(execute=AsyncMock(return_value=(response, False)))
     return (
@@ -160,9 +183,7 @@ async def test_close_survives_non_finite_exchange_leverage(settings) -> None:
 
 async def test_close_rejects_non_owned_session() -> None:
     service, user_id, session, _ = _service(positions=[_position()])
-    service._session_repo.get_by_id = AsyncMock(
-        return_value=SimpleNamespace(user_id=uuid4())
-    )
+    service._session_repo.get_by_id = AsyncMock(return_value=SimpleNamespace(user_id=uuid4()))
 
     with pytest.raises(HTTPException) as exc_info:
         await service.close_position(user_id, session.id)
@@ -195,6 +216,64 @@ async def test_close_rejects_flat_or_hedged_position(positions, reason) -> None:
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == reason
     orders.execute.assert_not_awaited()
+
+
+async def test_close_still_returns_no_open_position_when_truly_flat() -> None:
+    """[BL-661] **음성 대조** — 포지션도 조건부도 없으면 계약은 한 글자도 안 바뀐다.
+
+    `detail` 은 여전히 **문자열** `no_open_position` 이다. 이걸 dict 로 바꾸면
+    `live_session_admin.py:385` 와 `real_broker/_harness.py:352` 의 `detail == "..."`
+    비교가 조용히 거짓이 되고, harness 의 멱등 흡수가 **거짓말**이 된다.
+    """
+    service, user_id, session, orders = _service(positions=[], conditional_orders=[])
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.close_position(user_id, session.id)
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "no_open_position"
+    orders.execute.assert_not_awaited()
+
+
+async def test_close_reports_resting_conditional_entries_when_flat() -> None:
+    """[BL-661] 포지션이 비어도 **미체결 조건부 진입**이 남아 있으면 flat 이 아니다.
+
+    그 주문은 나중에 트리거되어 아무도 안 보는 때 포지션을 연다. 종전에는 이 경우가
+    `no_open_position` 과 **구분되지 않아** 운영 CLI 가 「정리 완료」로 읽었다.
+    ★취소하지 않는다 — 보고만 한다(취소는 비가역, 미룸은 가역).
+    """
+    service, user_id, session, orders = _service(
+        positions=[],
+        conditional_orders=[_conditional("ex-cond-1"), _conditional("ex-cond-2")],
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await service.close_position(user_id, session.id)
+
+    assert exc_info.value.status_code == 409
+    detail = exc_info.value.detail
+    assert isinstance(detail, dict), "잔존 목록을 실으려면 detail 이 구조체여야 한다"
+    assert detail["code"] == "resting_conditional_entries"
+    assert detail["count"] == 2
+    assert [o["order_id"] for o in detail["orders"]] == ["ex-cond-1", "ex-cond-2"]
+    # 청산 주문은 나가지 않는다 — 포지션이 없으므로 낼 것이 없다.
+    orders.execute.assert_not_awaited()
+
+
+async def test_close_uses_reduce_only_none_when_querying_conditionals() -> None:
+    """[BL-661] `reduce_only=None` 은 **협상 불가 계약**이다.
+
+    기본값 `True` 는 TP/SL(reduce-only)만 준다. 우리가 찾는 것은 **진입**이라
+    `reduce_only=False` 다. `None` 이라야 필터가 꺼져 둘 다 온다 —
+    `providers.py:1276` 의 `if reduce_only is not None` 단락이 그 기전이다.
+    """
+    service, user_id, session, _ = _service(positions=[], conditional_orders=[_conditional()])
+
+    with pytest.raises(HTTPException):
+        await service.close_position(user_id, session.id)
+
+    provider = service._bybit_futures_provider  # type: ignore[attr-defined]
+    assert provider.fetch_open_conditional_orders.await_args.kwargs["reduce_only"] is None
 
 
 async def test_close_rejects_nonzero_position_index() -> None:
