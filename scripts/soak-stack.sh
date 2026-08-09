@@ -367,12 +367,35 @@ _status() {
 # ------------------------------------------------------------------ ps
 
 _ps() {
-  # 스택이 **살아 있나** — 종료 코드가 답이다 (0 = 하나라도 running / 1 = 완전 down) ([BL-656]).
+  # 스택이 **살아 있나** — 종료 코드가 답이다 ([BL-656]).
+  #   0 = 하나라도 running / 1 = 완전 down / **2 = 못 쟀다**(데몬에 못 닿는다).
   #
   # ★`status` 로는 이 질문에 답할 수 없다 — 그쪽은 DB 에 `psql` 을 쏘고(down 이면 실패) 산문을
   #   낸다. 재기동 스크립트가 갈래를 고르려면 **파싱 없는 종료 코드**가 필요하다.
   # ★「하나라도 running」이 기준인 이유 — 완전 down 만이 `pin → up` **선행**을 요구한다.
   #   반쯤 떠 있으면 종전 경로(`down → pin → up`)가 그대로 맞다. `down` 이 잔여를 치운다.
+  #
+  # ★★★**2 가 없으면 이 함수는 fail-open 이다** (2026-08-09 CONTROL 통합 리뷰에서 실측).
+  #   `docker inspect` 는 「데몬에 못 닿는다」와 「그런 컨테이너가 없다」를 **둘 다 exit 1** 로 낸다
+  #   — 구분이 불가능하다. 그래서 `DOCKER_HOST` 나 docker context 가 어긋나면 **살아 있는 스택이
+  #   「완전 down」으로 보인다.** 그 오독은 `soak-restart.sh` 에서 `down` 을 건너뛰고 곧장 `pin` 을
+  #   부르는데, `_pin` 의 보호(`:182` 「돌고 있는 고정본 위엔 pin 금지」)는 `_stack_is_pinned`
+  #   ·`_celery_main_pid` 로 판정하고 **그 둘도 같은 docker 로 간다** ⇒ 탐지기가 틀린 바로 그
+  #   조건에서 가드도 함께 눈이 먼다. **한 실패 모드가 탐지와 보호를 동시에 끈다.**
+  #   결과는 `.soak/src` 를 **살아 있는 컨테이너의 bind mount 원본 자리에서 덮어쓰는 것**이고,
+  #   그건 `:177-187` 이 P1 이라고 적어 둔 바로 그 사고다(창은 B 로 기록되는데 실제로는 A 가 돈다).
+  #   ★이 레포에 전례가 있다 — 클라우드 이관에서 `DOCKER_HOST` 원격 때문에 `stack_pinned` 가
+  #   영구 false 였다. 가정이 아니라 이미 밟은 조건이다.
+  #   ★종전 경로에는 이 구멍이 없었다 — 항상 `down` 을 먼저 했고 docker 가 죽어 있으면 그 `down`
+  #   이 실패해 die 했다(fail-closed). 구멍은 「완전 down 갈래」와 함께 새로 생겼다.
+  # ★판별자는 `docker version` 이다 — 서버 필드를 물으므로 **데몬 도달성만** 잰다
+  #   (실측: 도달 불가 exit 1 · 정상 exit 0 · 없는 컨테이너로는 흔들리지 않는다).
+  if ! docker version --format '{{.Server.Version}}' >/dev/null 2>&1; then
+    echo "  ✗ docker 데몬에 못 닿는다 — 스택 생존을 **측정하지 못했다**" >&2
+    echo "    DOCKER_HOST=${DOCKER_HOST:-(미설정)} · context=$(docker context show 2>/dev/null || echo '?')" >&2
+    echo "    → 이것을 '완전 down' 으로 읽으면 살아 있는 스택 위에 pin 이 떨어진다. 부르는 쪽은 멈춰라." >&2
+    return 2
+  fi
   local any=1 name state
   for name in "${DB_CONTAINER}" "${WORKER_CONTAINER}"; do
     state="$(docker inspect "${name}" --format '{{.State.Status}}' 2>/dev/null)"

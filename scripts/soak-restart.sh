@@ -106,8 +106,23 @@ fi
 # ★★**잔여 위험을 적어 둔다** — down 갈래에서는 FLAT 확인이 up **뒤로** 밀린다. 원장에
 #   활성 세션이 남아 있으면 up 이 그것을 재개하고 ⑴ 은 그 다음에 판정한다. 이 순서는 종전
 #   손 절차와 **같다**(그쪽도 pin → up → status 였다) — 새로 생긴 위험이 아니다.
+# ★★★**종료 코드 3값을 3값으로 받아라 — 2 를 1 로 접으면 fail-open 이다.**
+#   `ps` 는 0=하나라도 running / 1=완전 down / **2=못 쟀다**(docker 데몬 도달 불가)를 낸다.
+#   초판은 `|| STACK_UP=0` 으로 **1 과 2 를 한데 접었고**, 그래서 `DOCKER_HOST`·context 가
+#   어긋나 살아 있는 스택이 안 보이는 순간 「완전 down」으로 읽어 `down` 을 건너뛰고 곧장
+#   `pin` 을 불렀다. `_pin` 의 보호는 같은 docker 로 판정하므로 **함께 눈이 멀고**, 결과는
+#   살아 있는 컨테이너의 mount 원본(`.soak/src`)을 제자리에서 덮어쓰는 것이다
+#   (`soak-stack.sh:177-187` 이 P1 로 적어 둔 사고 · 이 레포는 원격 `DOCKER_HOST` 로 이미 밟았다).
+#   ⇒ **못 쟀으면 멈춘다.** 측정 실패를 상태로 바꾸지 마라.
 STACK_UP=1
-STACK_PS="$(bash "${SCRIPT_DIR}/soak-stack.sh" ps 2>&1)" || STACK_UP=0
+STACK_PS_RC=0
+STACK_PS="$(bash "${SCRIPT_DIR}/soak-stack.sh" ps 2>&1)" || STACK_PS_RC=$?
+case "${STACK_PS_RC}" in
+  0) STACK_UP=1 ;;
+  1) STACK_UP=0 ;;
+  *) printf '%s\n' "${STACK_PS}" | sed 's/^/   | /' >&2
+     die "스택 생존을 측정하지 못했다 (soak-stack.sh ps rc=${STACK_PS_RC}) — docker 데몬부터 확인해라. 못 쟀는데 진행하면 살아 있는 스택 위에 pin 이 떨어진다" 2 ;;
+esac
 
 _admin() { # _admin <live_session_admin.py 인자...>
   (

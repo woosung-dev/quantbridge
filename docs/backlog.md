@@ -7246,9 +7246,35 @@ soak-stack.sh pin → soak-stack.sh up → live_session_admin.py status(FLAT 확
 **해결 (2026-08-09, W1 — 처방 ⑴):** ⓿ 단계가 `soak-stack.sh ps` 로 갈래를 고른다.
 
 - 신설 `soak-stack.sh ps` — **DB 를 안 건드리는** 생존 확인. exit 0 = 하나라도 running /
-  1 = 완전 down. `status` 를 못 쓰는 이유는 그쪽이 `psql` 을 쏘기 때문이다(down 이면 그 자체가 못 돈다).
+  1 = 완전 down / **2 = 못 쟀다**. `status` 를 못 쓰는 이유는 그쪽이 `psql` 을 쏘기 때문이다(down 이면 그 자체가 못 돈다).
 - 살아 있으면 종전 경로 그대로(⑷ `down → pin → up`). 완전 down 이면 ⓿-b 가 `pin → up` 을
   선행하고 ⑷ 와 증거 덤프를 건너뛴다(`_dump_evidence` 는 fail-closed 라 컨테이너가 없으면 죽는다).
+
+★★★**통합 리뷰가 이 수리 자신에서 fail-open 을 1건 잡았다 (2026-08-09 CONTROL, 실측).**
+초판 `_ps` 는 「데몬에 못 닿는다」와 「그런 컨테이너가 없다」를 구분하지 않았고 `soak-restart.sh`
+`:110` 이 `|| STACK_UP=0` 으로 **rc 1 과 2 를 한데 접었다.** 뿌리는 도구 쪽이다 —
+`docker inspect` 는 두 경우를 **둘 다 exit 1** 로 낸다(실측: 도달 불가 1 · 없는 컨테이너 1).
+
+★**이 결함이 무서운 이유는 「탐지기와 보호가 같은 실패 모드를 공유한다」는 것이다.**
+`DOCKER_HOST`·docker context 가 어긋나면 **살아 있는 스택이 「완전 down」으로 보이고**, 그러면
+새 ⓿-b 갈래가 `down` 을 건너뛰고 곧장 `pin` 을 부른다. 그런데 `_pin` 의 보호
+(`soak-stack.sh:182` 「돌고 있는 고정본 위엔 pin 금지」)는 `_stack_is_pinned`·`_celery_main_pid`
+로 판정하고 **그 둘도 같은 docker 로 간다** ⇒ 탐지가 틀린 바로 그 조건에서 가드도 함께 눈이 먼다.
+결과는 살아 있는 컨테이너의 mount 원본 `.soak/src` 를 **제자리에서 덮어쓰는 것**이고, 그건
+`soak-stack.sh:177-187` 이 P1 로 적어 둔 사고다(창은 B 로 기록되는데 실제로는 A 가 돈다).
+★**가정이 아니다** — 이 레포는 클라우드 이관에서 원격 `DOCKER_HOST` 때문에 `stack_pinned` 가
+영구 false 인 조건을 이미 밟았다. ★**종전 경로엔 이 구멍이 없었다** — 항상 `down` 이 먼저였고
+docker 가 죽어 있으면 그 `down` 이 실패해 die 했다(fail-closed). **구멍은 이 수리와 함께 생겼다.**
+
+- **수리:** `_ps` 가 `docker version --format '{{.Server.Version}}'` 으로 **데몬 도달성만** 먼저
+  재고(실측: 도달 불가 exit 1 · 정상 0), 못 닿으면 **rc=2** 로 돌려준다. `soak-restart.sh` 는
+  `case` 로 3값을 3값으로 받아 **2 면 die** 한다. **측정 실패를 상태로 바꾸지 않는다.**
+- **red→green:** `DOCKER_HOST=tcp://127.0.0.1:1 scripts/soak-stack.sh ps` 가 **1 → 2**,
+  같은 조건의 `soak-restart.sh` 가 **「완전 down 갈래 진입」 → rc=2 로 정지**.
+- **변이 M — 3/3 판별.** `1|2) STACK_UP=0` 으로 초판을 복원하면 신규 3건이 정확히 red 가 된다
+  (`rc=0 로 끝났다` · **`pin 을 불렀다`** · `스택을 만졌다`). 하네스 **14 → 17건**.
+- **음성 대조 N:** 정상 docker 에서 `ps` 는 여전히 **0**(살아 있음)·**1**(컨테이너 없음)을 내고,
+  기존 14건이 전부 초록 유지 — 두 정상 갈래의 호출 순서(`ps down pin up` / `ps pin up`)가 불변이다.
 
 ★★★**구현 중 순서 결함 1건을 red 시험이 잡았다 — 내가 ⓿ 를 잘못된 자리에 뒀다.** 처음엔 ⑴
 바로 앞에 뒀는데, 완전 down 이면 그보다 **먼저** 도는 파라미터 조회(`_q` 원장 최근 세션)가 빈 값을

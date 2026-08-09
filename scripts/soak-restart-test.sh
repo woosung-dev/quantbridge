@@ -134,6 +134,30 @@ case "$OUT" in
 esac
 
 echo
+echo "── ①-b 못 쟀으면 멈춘다 (rc=2 를 rc=1 로 접으면 fail-open) ──"
+#
+# ★★★**초판이 여기서 fail-open 이었다** (2026-08-09 CONTROL 통합 리뷰 실측).
+#   `docker inspect` 는 「데몬에 못 닿는다」와 「그런 컨테이너가 없다」를 **둘 다 exit 1** 로 낸다.
+#   초판 `_ps` 는 그 둘을 구분하지 않았고 `soak-restart.sh` 는 `|| STACK_UP=0` 으로 **1 과 2 를
+#   한데 접었다** ⇒ `DOCKER_HOST`·context 가 어긋나 살아 있는 스택이 안 보이면 「완전 down」으로
+#   읽어 `down` 을 건너뛰고 곧장 `pin` 을 부른다. `_pin` 의 보호(`soak-stack.sh:182`)는
+#   `_stack_is_pinned`·`_celery_main_pid` 로 판정하는데 **그 둘도 같은 docker 로 간다** —
+#   탐지기가 틀린 바로 그 조건에서 가드도 눈이 먼다. 결과는 살아 있는 컨테이너의 mount 원본
+#   `.soak/src` 를 제자리에서 덮어쓰는 것(`soak-stack.sh:177-187` 의 P1).
+#   ★이 레포는 원격 `DOCKER_HOST` 로 이미 그 조건을 밟았다(클라우드 이관 · `stack_pinned` 영구 false).
+
+_run 2 --confirm
+[ "$LAST_RC" = 2 ] && _ok "ps=측정불가: rc=2 로 멈춘다" || _no "ps rc=2 인데 rc=$LAST_RC 로 끝났다 — 측정 실패가 상태로 바뀌었다" "$OUT"
+case "$LAST_CALLS" in
+  *" pin "*) _no "ps=측정불가인데 pin 을 불렀다 — 살아 있는 스택 위에 떨어질 수 있다" "$LAST_CALLS" ;;
+  *)         _ok "ps=측정불가: pin 을 부르지 않는다" ;;
+esac
+case "$LAST_CALLS" in
+  *" up "*|*" down "*) _no "ps=측정불가인데 스택을 만졌다" "$LAST_CALLS" ;;
+  *)                   _ok "ps=측정불가: 스택을 아예 만지지 않는다" ;;
+esac
+
+echo
 echo "── ② 집행 순서 — 로그가 오라클이다 ──"
 
 _run 1 --confirm
