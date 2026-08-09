@@ -222,6 +222,86 @@ class TestClassifyPositionDivergence:
         assert _classify_position_divergence(Decimal("1E-8"), Decimal("-1E-8")) == "direction"
 
 
+class TestStepDerivedSizeTolerance:
+    """[BL-545] 크기 허용치의 **축**을 포지션 크기에서 거래소 수량 step 으로 옮긴다.
+
+    표적은 「좁히기」가 아니라 「축 교체」다. 지금 식 `max(|e|,|x|) * 0.05` 는
+    0.029 포지션에서 약 1.5 step 이지만 **5.0 포지션에서는 250 step** 이다 —
+    허용치가 포지션에 비례해 자라는 것이 결함이다.
+
+    ★그냥 좁히면 안 되는 이유는 그대로다: 엔진은 float 누적, 거래소는 step 양자화라
+    의도가 같아도 두 값은 절대 같아지지 않는다. 그래서 하한을 **step** 으로 둔다.
+    """
+
+    STEP = Decimal("0.001")  # BTC linear 실측
+
+    def test_quantization_one_step_is_not_a_divergence(self) -> None:
+        """실측 쌍은 step 축에서도 계속 일치다 — [BL-544] 를 무효로 만들지 않는다."""
+        engine = Decimal("-0.029910810628287526")
+        exchange = Decimal("-0.029")
+        assert _classify_position_divergence(engine, exchange, qty_step=self.STEP) is None
+
+    def test_partial_fill_remainder_is_a_size_divergence(self) -> None:
+        """잡아야 할 것은 계속 잡는다 — 부분체결 잔량(0.001 vs 0.029)."""
+        assert (
+            _classify_position_divergence(Decimal("0.029"), Decimal("0.001"), qty_step=self.STEP)
+            == "size"
+        )
+
+    def test_two_steps_apart_is_a_divergence(self) -> None:
+        """★step 축이 **1 step 폭**이라는 증거 — 2 step 어긋나면 발산이다.
+
+        허용치를 step 으로 두되 무한대로 두지 않았다는 것을 이 케이스가 고정한다.
+        """
+        assert (
+            _classify_position_divergence(Decimal("0.031"), Decimal("0.029"), qty_step=self.STEP)
+            == "size"
+        )
+
+    def test_large_position_no_longer_gets_proportional_slack(self) -> None:
+        """★★[BL-545] 본체 — 큰 포지션에서 5% 는 250 step 이다.
+
+        종전 식은 5.0 과 4.9 를 **일치**로 통과시켰다(허용치 0.25). 0.1 BTC 가
+        어긋난 상태이고, 이것이 gap-resync 판정이 「구 게이트가 막던 불일치를
+        통과시킨다」의 실체다.
+        """
+        engine, exchange = Decimal("5.0"), Decimal("4.9")
+
+        # 종전 축(step 없음)에서는 통과한다 — 그것이 결함이다.
+        assert _classify_position_divergence(engine, exchange) is None
+        # step 축에서는 잡는다.
+        assert _classify_position_divergence(engine, exchange, qty_step=self.STEP) == "size"
+
+    def test_tolerance_falls_back_to_relative_when_step_is_unavailable(self) -> None:
+        """**음성 대조** — step 을 못 얻으면 종전 거동 그대로다(fail-open).
+
+        `_reconcile_market_precision` 은 실패 시 `None` 을 준다. 그때 판정을 더
+        엄격하게 만들면 거래소 조회 실패가 곧 세션 사망이 된다.
+        """
+        assert _classify_position_divergence(Decimal("5.0"), Decimal("4.9"), qty_step=None) is None
+        engine = Decimal("-0.029910810628287526")
+        assert _classify_position_divergence(engine, Decimal("-0.029"), qty_step=None) is None
+
+    def test_step_axis_does_not_touch_the_other_categories(self) -> None:
+        """**음성 대조** — direction·engine_only·exchange_only·dust 는 step 과 무관하다."""
+        assert (
+            _classify_position_divergence(Decimal("0.029"), Decimal("-0.029"), qty_step=self.STEP)
+            == "direction"
+        )
+        assert (
+            _classify_position_divergence(Decimal("0.029"), Decimal("0"), qty_step=self.STEP)
+            == "engine_only"
+        )
+        assert (
+            _classify_position_divergence(Decimal("0"), Decimal("0.029"), qty_step=self.STEP)
+            == "exchange_only"
+        )
+        assert (
+            _classify_position_divergence(Decimal("1E-9"), Decimal("-1E-9"), qty_step=self.STEP)
+            is None
+        )
+
+
 class TestDetectPositionDivergence:
     """fetch → 순포지션 → 분류 배선이 실제로 이어지는지."""
 
@@ -238,9 +318,7 @@ class TestDetectPositionDivergence:
             provider.fetch_open_positions = AsyncMock(side_effect=positions)
         else:
             provider.fetch_open_positions = AsyncMock(return_value=positions)
-        monkeypatch.setattr(
-            providers_mod, "BybitFuturesProvider", MagicMock(return_value=provider)
-        )
+        monkeypatch.setattr(providers_mod, "BybitFuturesProvider", MagicMock(return_value=provider))
         monkeypatch.setattr(encryption_mod, "EncryptionService", MagicMock())
         service = MagicMock()
         service.get_credentials_for_order = AsyncMock(return_value=MagicMock())
@@ -256,9 +334,7 @@ class TestDetectPositionDivergence:
         )
         sess = SimpleNamespace(id=uuid4(), symbol="BTC/USDT", exchange_account_id=uuid4())
 
-        result = await _detect_position_divergence(
-            sess, Decimal("0.029"), account_repo=AsyncMock()
-        )
+        result = await _detect_position_divergence(sess, Decimal("0.029"), account_repo=AsyncMock())
         assert result == "direction"
 
     @pytest.mark.asyncio
@@ -275,9 +351,7 @@ class TestDetectPositionDivergence:
         sess = SimpleNamespace(id=uuid4(), symbol="BTC/USDT", exchange_account_id=uuid4())
         before = _position_counter("probe_failed")
 
-        result = await _detect_position_divergence(
-            sess, Decimal("0.029"), account_repo=AsyncMock()
-        )
+        result = await _detect_position_divergence(sess, Decimal("0.029"), account_repo=AsyncMock())
 
         assert result == live_signal_module._PROBE_FAILED
         assert result is not None, "모름을 일치로 접으면 strike 가 조용히 지워진다"
@@ -341,9 +415,7 @@ class TestDivergenceFailClosed:
             live_signal_module.dispatch_live_signal_event_task, "apply_async", apply_async_spy
         )
         monkeypatch.setattr(live_signal_module, "publish_realtime", AsyncMock())
-        monkeypatch.setattr(
-            live_signal_module, "_reconcile_conditional_entries", AsyncMock()
-        )
+        monkeypatch.setattr(live_signal_module, "_reconcile_conditional_entries", AsyncMock())
         monkeypatch.setattr(
             live_signal_module,
             "_detect_position_divergence",
@@ -546,9 +618,7 @@ class TestEngineOnlySubclassification:
             ),
         )
         monkeypatch.setattr(live_signal_module, "publish_realtime", AsyncMock())
-        monkeypatch.setattr(
-            live_signal_module, "_reconcile_conditional_entries", AsyncMock()
-        )
+        monkeypatch.setattr(live_signal_module, "_reconcile_conditional_entries", AsyncMock())
 
         import src.trading.repositories.order_repository as order_repository_mod
 
