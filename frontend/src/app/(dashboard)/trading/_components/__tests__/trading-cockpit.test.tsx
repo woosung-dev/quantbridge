@@ -17,12 +17,38 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("@clerk/nextjs", () => ({
   useAuth: () => ({ userId: "user-1", isSignedIn: true, getToken: async () => "t" }),
 }));
+// BL-551 — 세션 선택이 useState 가 아니라 `?session=<id>` 다. 선례는 같은 레포의
+// `backtest-list.tsx` 의 `pushStatus`/`pushSort`(URLSearchParams 복사 → set → router.replace).
+//
+// ★이 하네스는 쓰기를 읽기로 되먹인다. `replace` 가 쿼리 문자열을 갱신하고, 시험은 `rerender`
+//   로 다음 렌더를 요청한다 — 실제 라우터가 하는 일과 같은 순서다. 클릭 직후 같은 렌더에서
+//   상세가 열리기를 기대하면 안 된다. 그것은 종전 useState 판의 동작이다.
+let queryString = "";
+const replaceMock = vi.fn((url: string) => {
+  const idx = url.indexOf("?");
+  queryString = idx === -1 ? "" : url.slice(idx + 1);
+});
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: replaceMock }),
+  usePathname: () => "/trading",
+  useSearchParams: () => new URLSearchParams(queryString),
+}));
 // ★키 팩토리는 흉내내지 않고 **진짜**를 쓴다 — query-keys 는 의존성 없는 leaf 라 배럴을 끌지 않는다.
 // 흉내내면 팩토리가 바뀌어도 이 시험이 초록이 된다.
 vi.mock("@/features/live-sessions", async () => ({
   liveSessionKeys: (await import("@/features/live-sessions/query-keys")).liveSessionKeys,
   LiveSessionDetail: () => <div data-testid="mock-detail" />,
-  LiveSessionForm: () => null,
+  // BL-551 — 선택을 쓰는 지점은 목록 클릭과 **여기** 둘이다. 종전 `() => null` mock 은
+  // `onSuccess` 경로를 한 번도 태우지 않아 한쪽만 URL 로 옮겨도 초록이었다.
+  LiveSessionForm: ({ onSuccess }: { onSuccess?: (session: { id: string }) => void }) => (
+    <button
+      type="button"
+      data-testid="mock-live-session-created"
+      onClick={() => onSuccess?.({ id: "created-session" })}
+    >
+      세션 생성됨
+    </button>
+  ),
   LiveSessionList: ({
     onSelect,
   }: {
@@ -108,6 +134,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date("2026-07-24T00:00:20.000Z"));
   vi.clearAllMocks();
+  queryString = "";
   setDefaults();
 });
 
@@ -172,19 +199,24 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
     expect(screen.queryByTestId("mock-detail")).not.toBeInTheDocument();
   });
 
+  // BL-551 — 아래 세 시험의 `rerender` 는 어서션이 아니라 **경로**의 변화다. 선택이 URL 로
+  // 옮겨갔으므로 클릭은 `router.replace` 를 부르고, 화면은 그 다음 렌더에서 바뀐다.
+  // 어서션 집합은 종전과 같다.
   it("목록에 남아 있으면 상세를 보여준다", () => {
-    render(<TradingCockpit />);
+    const { rerender } = render(<TradingCockpit />);
 
     fireEvent.click(screen.getByTestId("mock-live-session-select"));
+    rerender(<TradingCockpit />);
 
     expect(screen.getByTestId("mock-detail")).toBeInTheDocument();
     expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
   });
 
   it("최근 종료 세션을 선택해도 같은 상세 패널을 보여준다", () => {
-    render(<TradingCockpit />);
+    const { rerender } = render(<TradingCockpit />);
 
     fireEvent.click(screen.getByTestId("mock-inactive-live-session-select"));
+    rerender(<TradingCockpit />);
 
     expect(screen.getByTestId("mock-detail")).toBeInTheDocument();
     expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
@@ -201,12 +233,105 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
       isError: false,
       isPending: false,
     });
-    render(<TradingCockpit />);
+    const { rerender } = render(<TradingCockpit />);
 
     fireEvent.click(screen.getByTestId("mock-inactive-live-session-select"));
+    rerender(<TradingCockpit />);
 
     expect(screen.getByTestId("live-session-stopped-notice")).toBeInTheDocument();
     expect(screen.queryByTestId("mock-detail")).not.toBeInTheDocument();
+  });
+
+  // --- BL-551 — 세션 상세를 링크로 열 수 있어야 한다 -------------------------
+  //
+  // 착수 시점 실측: 선택은 `trading-cockpit.tsx:67` 의 `useState` 가 쥐고 있었고 trading 트리
+  // 전체에 `useSearchParams` 가 0건이었다. 새로고침하면 선택이 사라지고 특정 세션으로 링크할
+  // 수단이 없었다.
+  //
+  // ★목록 밖 세션은 원리상 열 수 없다 — `GET /live-sessions/{id}` 단건 엔드포인트가 없고,
+  //   목록은 활성 전체 + 최근 종료 20건뿐이다. 그래서 그 경우는 이미 있는
+  //   `live-session-stopped-notice` 로 떨어지는 것이 정답이고, 그것이 아래 음성 대조다.
+  it("?session=<id> 로 진입하면 그 세션 상세가 열린다", () => {
+    queryString = "session=session-1";
+
+    render(<TradingCockpit />);
+
+    expect(screen.getByTestId("mock-detail")).toBeInTheDocument();
+    // 읽기만으로 열려야 한다. 진입이 URL 을 다시 쓰면 히스토리를 흔든다.
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("목록에 없는 id 로 진입하면 중단 안내가 뜬다", () => {
+    // ★음성 대조. 딥링크가 "무슨 id 든 상세를 연다" 로 번지지 않는지 본다.
+    queryString = "session=gone-forever";
+
+    render(<TradingCockpit />);
+
+    expect(screen.getByTestId("live-session-stopped-notice")).toBeInTheDocument();
+    expect(screen.queryByTestId("mock-detail")).not.toBeInTheDocument();
+  });
+
+  it("목록을 불러오는 중에는 중단 안내를 띄우지 않는다", () => {
+    // ★딥링크가 생기면서 **처음 도달 가능해진** 경로다. 종전에는 마운트 시 선택이 언제나
+    //   비어 있어 이 분기가 열리지 않았다. `?session=` 을 달고 들어오면 목록 응답이 오기 전
+    //   한 프레임 동안 "밀려났습니다" 가 번쩍인다.
+    useLiveSessionsMock.mockReturnValue({ data: undefined, isError: false, isPending: true });
+    queryString = "session=session-1";
+
+    render(<TradingCockpit />);
+
+    expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
+  });
+
+  it("목록 조회가 실패했을 때는 중단 안내로 오진하지 않는다", () => {
+    // ★codex G1 발견 2. 목록 요청이 실패하면 `sessionItems` 가 비어 목록 밖 id 와 구분되지
+    //   않는다. 그대로 두면 네트워크 실패를 "종료 이력 20건에서 밀려났다" 로 잘못 설명한다.
+    //   목록 자체의 실패 표시는 `LiveSessionList` 가 이미 한다.
+    useLiveSessionsMock.mockReturnValue({ data: undefined, isError: true, isPending: false });
+    queryString = "session=session-1";
+
+    render(<TradingCockpit />);
+
+    expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
+  });
+
+  // ★`{ scroll: false }` 는 장식이 아니다 (codex G1 발견 1). Next 16 의 `router.replace` 는
+  //   기본으로 페이지 최상단으로 스크롤한다 (`node_modules/next/dist/docs/.../use-router.md`
+  //   의 "Disabling scroll to top"). 세션 목록은 화면 §07 이므로, 그냥 두면 상세를 열려던
+  //   사용자가 매 클릭마다 페이지 꼭대기로 튕긴다. 종전 useState 판에는 없던 부작용이다.
+  it("세션을 클릭하면 URL 에 session 파라미터를 replace 로 싣는다", () => {
+    render(<TradingCockpit />);
+
+    fireEvent.click(screen.getByTestId("mock-live-session-select"));
+
+    expect(replaceMock).toHaveBeenCalledTimes(1);
+    expect(replaceMock).toHaveBeenCalledWith("/trading?session=session-1", { scroll: false });
+  });
+
+  it("기존 쿼리 파라미터를 지우지 않는다", () => {
+    // `?tab=live-sessions` 는 읽는 코드가 없는 유물이지만 e2e 3종이 아직 goto 에 쓴다.
+    // 선택이 그것을 날려버리면 링크를 공유받은 쪽에서 경로가 달라진다.
+    queryString = "tab=live-sessions";
+
+    render(<TradingCockpit />);
+    fireEvent.click(screen.getByTestId("mock-live-session-select"));
+
+    expect(replaceMock).toHaveBeenCalledWith("/trading?tab=live-sessions&session=session-1", {
+      scroll: false,
+    });
+  });
+
+  it("새 세션을 만들면 그 세션도 같은 경로로 URL 에 실린다", () => {
+    // ★codex G1 발견(D9). 쓰기 지점은 둘인데 종전 mock 이 `LiveSessionForm: () => null` 이라
+    //   `onSuccess` 경로가 한 번도 검증되지 않았다. 한쪽만 URL 로 옮기면 새로 만든 세션이
+    //   새로고침에서 사라진다.
+    render(<TradingCockpit />);
+
+    fireEvent.click(screen.getByTestId("mock-live-session-created"));
+
+    expect(replaceMock).toHaveBeenCalledWith("/trading?session=created-session", {
+      scroll: false,
+    });
   });
 
   it("★계정 잔여 포지션 표에 활성 세션이 아니라 **등록된 모든 계정**을 넘긴다", () => {
