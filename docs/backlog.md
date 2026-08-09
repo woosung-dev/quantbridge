@@ -608,7 +608,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** Sprint 57+
 **Est:** M (8-12h, estimate)
-**출처:** ADR-013 §6 #8 deferred. Sprint 55 = inline SVG iteration-chart (1D best_so_far) 만 구현.
+**출처:** ADR-013 §6 #8 deferred (실체 = `git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` `:202` — [BL-504]). Sprint 55 = inline SVG iteration-chart (1D best_so_far) 만 구현.
 
 **권장 접근:** recharts 또는 plotly.js 의존성 추가 검토 + cross-page consistency 의무. Bayesian / Genetic 공용.
 
@@ -1203,7 +1203,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-551](#bl-551) | (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 세션 상세를 링크로 공유해야 할 때                                                                                 | S         | 2026-07-30 conditional-entry-alignment                 |
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 그 게이지로 무언가를 판단하기 전                                                                                  | S         | 2026-07-30 live-entry-completeness                     |
 | [BL-559](#bl-559) | (P3) 진입 완결성 도구 잔여 3건 — 세션 목록 절단 감지 · 사문 라벨 · janitor probe 전이                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 그 경로가 실측될 때                                                                                               | S         | 2026-07-30 live-entry-completeness                     |
-| [BL-564](#bl-564) | (P3) `bl-audit.sh` 가 코드펜스 · `<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 그 관용구가 상태줄을 품게 될 때                                                                                   | XS        | 2026-07-30 close-mismatch-soak                         |
+| [BL-564](#bl-564) | ✅ **Resolved** (2026-08-09 backlog-sweep) — `bl-audit.sh` 가 코드펜스 · `<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다. **처방 2건이 이미 구현돼 있었다**(`:114-120` 스킵 · `:268-288` 중복=exit 1)이고 Trigger 「게이트 체인 편입 전」도 도래(`final-gates.sh:151`). 코드 0줄                                                                                                                                                                                                                                                                                                                                                                       | 그 관용구가 상태줄을 품게 될 때                                                                                   | XS        | 2026-07-30 close-mismatch-soak                         |
 | [BL-573](#bl-573) | (P3) `engine_only` tick 당 `list_resting_conditional_entries` 2회 — 감지가 reconcile 보다 앞서 돌아 공유 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | tick 비용을 손댈 때 / 두 경로를 합칠 때                                                                           | S         | 2026-08-01 soak codex                                  |
 | [BL-581](#bl-581) | `/metrics` 영구 누적 **10277 파일 · 635MB · PID 1968** (counter 삭제 금지)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 20000 파일 초과 · 스크레이프 지연 · 여유 20G 미만                                                                 | M         | 2026-08-02 metric-guard-parity                         |
 | [BL-582](#bl-582) | divergence counter 13 series 중 **5종** 도달 불가 (2026-08-03 재판정 — 7종에서 축소. 2종은 엔진 구동으로 **반증**), 프로덕션 확인 3/8                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 반증된 2종이 프로덕션에서 발화하거나 `other` def-use 오라클이 red 일 때                                           | S         | 2026-08-02 metric-guard-parity                         |
@@ -1214,9 +1214,9 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-600](#bl-600) | `strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT 헌법의 _Avoid_ 이름과 **동음이의 충돌**(이쪽은 장중 시간대 필터). 값이 `Strategy.trading_sessions` **JSONB 에 영속**돼 단순 rename 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `trading_sessions` JSONB 를 마이그레이션할 때 · 도메인 용어 정리 시                                               | M         | 2026-08-06 dead-code-sweep                             |
 | [BL-601](#bl-601) | 호출 0건 잔재 3종 — `OrderRepository.get_state_fresh` · `list_unsynced_reduce_only_since` · `scripts/fleet-dispatch-test.sh`. ★원안의 「고아 하니스 3종」은 **1종으로 정정**(나머지 둘은 final-gates 체인 안에 있다)                                                                                                                                                                                                                                                                                                                                                                                                                                       | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S         | 2026-08-06 dead-code-sweep                             |
 | [BL-602](#bl-602) | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                             | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S         | 2026-08-06 e2e-consolidation                           |
-| [BL-612](#bl-612) | `docs/dev-log/2026-08-06-entry-set-divergence.md` 버퍼가 `docs/lessons.md` 로 승격되지 않았다 — ADR-026 §3 은 「세션 종결 시 승격 의무, 승격하면 버퍼를 비운다」인데 회차는 끝났고(PR #553 머지) 버퍼는 9천자로 남아 있다(반증 카드 상한 1~2천자 초과)                                                                                                                                                                                                                                                                                                                                                                                                     | 다음 문서 정리 회차                                                                                               | XS        | 2026-08-07 docs-overhaul 리뷰                          |
+| [BL-612](#bl-612) | ✅ **Resolved** (2026-08-09 backlog-sweep) — LESSON-095 압축 승격 → 버퍼 14,480B 삭제 → INDEX tombstone 전환. ★압축한 이유 = `lessons.md` **400줄 상한이 게이트 강제**(`docs-audit.sh:135`), 착수 시 380줄. ★**같은 위반 버퍼가 9건 더 있다**(최대 48,863B) — 본 항목 범위 밖. 원문: `docs/dev-log/2026-08-06-entry-set-divergence.md` 버퍼가 `docs/lessons.md` 로 승격되지 않았다 — ADR-026 §3 은 「세션 종결 시 승격 의무, 승격하면 버퍼를 비운다」인데 회차는 끝났고(PR #553 머지) 버퍼는 9천자로 남아 있다(반증 카드 상한 1~2천자 초과)                                                                                                                | 다음 문서 정리 회차                                                                                               | XS        | 2026-08-07 docs-overhaul 리뷰                          |
 | [BL-613](#bl-613) | `live_signal.py` 핸들러 가시화가 남긴 **줄 수 부채** — `_evaluate_session_with_engine` **506줄**(Kind B 추출 E8~E14 미완) · `_place_planned_entry` 236 · `_reconcile_conditional_entries_inner` 203 · `_async_dispatch_event` 256(최대 `try` 본문 **225줄** — 이제 이게 최대). ★가시성 목표(최대 try 845→8)는 달성됐고 줄 수는 못 채웠다                                                                                                                                                                                                                                                                                                                   | `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580] 착수 회차와 겹친다)                                             | M         | 2026-08-04 handler-visibility (status 승계)            |
-| [BL-614](#bl-614) | 2026-08-04 handler-visibility 회차 방법론 **3건이 `docs/lessons.md` 미승격** — dev-log 본문은 문서 대개편에서 삭제됐고 INDEX 한 줄과 git history 에만 남았다(다중집합↔문장 순서 · 재적재 지문 = celery 배너 · 검증 도구를 먼저 적대 검증)                                                                                                                                                                                                                                                                                                                                                                                                                  | 다음 문서 정리 회차 ([BL-612] 와 함께)                                                                            | XS        | 2026-08-04 handler-visibility (status 승계)            |
+| [BL-614](#bl-614) | ✅ **Resolved** (2026-08-09 backlog-sweep) — **LESSON-096** 승격(`git show 0f0f0b06:…` 에서 원문 회수). ★3건 중 ③(검증 도구 적대 검증)은 **새 항목을 만들지 않았다** — **LESSON-092 재발**이고 그건 이미 `backend/AGENTS.md` §10 으로 승격돼 있다(작성 규칙 = 같은 패턴이면 반복 횟수 증가). 원문: 2026-08-04 handler-visibility 회차 방법론 **3건이 `docs/lessons.md` 미승격** — dev-log 본문은 문서 대개편에서 삭제됐고 INDEX 한 줄과 git history 에만 남았다(다중집합↔문장 순서 · 재적재 지문 = celery 배너 · 검증 도구를 먼저 적대 검증)                                                                                                               | 다음 문서 정리 회차 ([BL-612] 와 함께)                                                                            | XS        | 2026-08-04 handler-visibility (status 승계)            |
 | [BL-615](#bl-615) | 스택 규칙 파일이 공식 권장 크기의 **2배** — `backend/AGENTS.md` **416줄** · `frontend/AGENTS.md` **316줄** (Claude Code 문서 권장 = 파일당 200줄 이하, 「Longer files consume more context and reduce adherence」). 그 디렉터리 파일을 열 때마다 전량 로드된다                                                                                                                                                                                                                                                                                                                                                                                             | 스택 규칙을 다음에 손댈 때 ([ADR-027] 정착 후)                                                                    | S         | 2026-08-07 ADR-027 (배치 이전 중 실측)                 |
 | [BL-616](#bl-616) | 부트스트랩을 **우회해 만든** 워크트리는 husky 훅이 없다 — `pnpm install` 을 건너뛰면 `prepare: husky` 가 안 돌아 `.husky/_`(미트래킹)가 안 생기고, git 은 없는 `core.hooksPath` 를 **경고 없이 무시**한다. 실태: 워크트리 5개 중 **4개 정상**, 우회 생성된 1개만 결손(2026-08-07 정상화 완료). ★남은 축 = **감지 수단이 없다** — 훅이 안 도는 실패 모드는 출력이 0줄이라 「통과」와 구별되지 않는다                                                                                                                                                                                                                                                        | 워크트리에서 훅 미작동이 또 관측되면                                                                              | S         | 2026-08-07 ADR-027 회차 (자기 커밋에서 발견)           |
 | [BL-618](#bl-618) | ✅ **문서를 코드에 맞췄다(①) + 경계 오라클 신설.** ★「1200px」는 **5곳이고 전부 콘텐츠 그리드 축**(셸 미개입) ⇒ 셸 경계는 1024/768 둘뿐. ★★**정본은 셋이 아니라 넷** — `@theme` 이 `sm:` 640→375 · `xl:` 1280→1200 으로 덮어 AGENTS.md 표가 **틀린 값**이었다. ★e2e `sidebar` grep 0건 → `design-canon-responsive.spec.ts` 신설. 잔여 [BL-644~647]                                                                                                                                                                                                                                                                                                         | 앱 셸 반응형(사이드바 축소·검색바 숨김·컨테이너 폭)을 다음에 손댈 때                                              | S         | 2026-08-07 prototype-canon-v2                          |
@@ -1237,6 +1237,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-648](#bl-648) | 🟡 **공개 라우트 라이트 런타임 커버리지 닫힘** — 처방 ②(`design-canon-public-light.spec.ts` 신설 + 감사 코어에 `theme` 옵션). ★**`colorScheme` 만으론 테마가 안 바뀐다**(`defaultTheme="dark"` ⇒ localStorage 선호값 필요) — `probeTheme()` 이 렌더 배경색을 읽어 도달 확인, 없으면 fail-open. ★★음성 대조: `--warning` 을 [BL-628] 회귀값으로 주입 ⇒ 새 spec **5/5 red**, **기존 다크 spec 은 5/5 초록**(AA 통과·캐논만 미달이라 하드 실패 게이트로 원리상 안 잡힌다). 복원 sha256 일치. 잔여 = **인증 셸 `.sidebar` 실폭**(소크 결합 [BL-597])                                                                                                           | 라이트 테마 회귀가 한 번 더 나올 때                                                                               | S         | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-649](#bl-649) | ✅ **Resolved — ① 삭제**(라이트·다크·`@theme inline` 3면 21줄). ②(`var(--warning)` 별칭 강등)를 버린 이유 = **별칭도 이름이고 소비자 0건이면 값을 못 한다** — 남기면 `@theme inline` 이 계속 유틸을 찍어 다음 사람이 또 고민한다. ★**「소비 0건」은 맞았지만 「참조 0건」은 아니었다** — [BL-629] 역방향 래칫 `CHART_VARS_FROZEN` 이 `--chart-1..5` 를 동결 목록에 잠그고 있었고(주석이 스스로 「처분은 [BL-649]」라 지목), 목록을 안 고쳤으면 집합 동등 단언이 red — **래칫이 설계대로 물었다**. 부수로 댕글링 주석 2줄 `warning` 정정                                                                                                                    | 토큰 정리 스윕                                                                                                    | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-652](#bl-652) | ★**[BL-598] 의 결론은 전부 warm 프로세스 한정이다 — cold 축은 미측정**. 프로파일러 `section_import` 이 **첫 서브프로세스(17초, bytecode 컴파일+파일 캐시 워밍 포함)를 버리고** 이후 0.26s 로 가설 (a) 를 기각했는데, **CI 러너는 매 잡이 cold** 이고 샤드를 나누면 샤드마다 cold 다. 버린 17초가 샤드 수만큼 반복되는지는 아무도 안 쟀다(3샤드면 최악 51초). [BL-598] ② 의 파싱 디스크 캐시는 **파싱 비용만** 지우고 import·bytecode 는 캐시 히트여도 일어나므로 이 축은 남는다                                                                                                                                                                            | [BL-598] ② 착수 시 · CI 샤드 수를 늘리려 할 때                                                                    | S         | 2026-08-08 zero-touch-bundle                           |
+| [BL-658](#bl-658) | `decisions/013-optimizer-strategy.md` 소급 작성 — ADR-013 은 결번인데 **실체는 삭제된 dev-log 로 git 에 살아 있다**(`94da86b1^`, 24,703B). [BL-504] 는 인용을 tombstone 경로로 돌려 닫았고, 남은 것은 **그 실체를 `decisions/` 로 승격**하는 일이다. 소급 작성은 결정을 새로 만드는 게 아니라 이미 실행된 결정을 기록하는 것이므로 **없는 근거를 지어내지 말고** `optimizer/executors/` 코드와 대조해야 한다                                                                                                                                                                                                                                               | Optimizer 설계를 실제로 바꿀 때 (알고리즘 교체 · scikit-optimize 이탈 · GA 파라미터 변경)                         | M         | 2026-08-09 backlog-sweep ([BL-504] 분리)               |
 
 ### BL-491
 
@@ -1443,12 +1444,36 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-397
 
-**Title:** 백테스트 리포트 섹션 탭 URL 딥링크 (`?section=`)
+**Title:** ~~백테스트 리포트 섹션 **탭** URL 딥링크 (`?section=`)~~ → **재기술: 10개 섹션 중 9개에 앵커 `id` 가 없다**
 **Category:** Frontend UX
 **Priority:** P3
 **Trigger:** 리포트 특정 섹션 공유 요구 시
-**Est:** XS-S (1-3h)
-**출처:** 2026-07-05 TV-parity sprint F2 (탭 상태 비제어 유지 결정)
+**Est:** ~~XS-S (1-3h)~~ → **XS** (프롭 하나를 9곳에 넘긴다)
+**상태:** ⬜ Open — 2026-08-09 backlog-sweep G0 에서 **전제가 반증돼 근거를 교체했다**. 종결 아님.
+**출처:** 2026-07-05 TV-parity sprint F2 (탭 상태 비제어 유지 결정) → **2026-08-09 그 탭이 더 이상 없다**
+
+★★**원 전제 반증 (2026-08-09 실측).** 이 항목은 「탭 상태가 비제어라 URL 에 실을 수 없다」를 전제로 썼다.
+그 탭이 **지금 존재하지 않는다** — `backtest-report-shell.tsx:8` 이 직접 적는다:
+「**이전 shadcn Tabs 5탭 IA 를 위 번호 섹션 구조로 재편했다**」(2026-07-05 리포트 IA 전면 재편).
+리포트 상세(`backtests/[id]/page.tsx` → `BacktestDetailView` → `BacktestReportShell`) 전체에
+`role="tablist"` · `aria-selected` · `TabsTrigger` 가 **0건**이다. ⇒ **`?section=` 쿼리는 표적이 사라졌다.**
+
+★**그런데 사용자 요구(「리포트 특정 섹션 공유」)는 아직 안 닫혔다.** 지금 구조는
+`<section className="section" id={id}>`(`:55`)라 **네이티브 `#fragment` 로 딥링크가 가능한데**,
+`id` 가 **옵셔널**(`id?: string`)이고 실제로 넘기는 호출부가 **1곳뿐**이다:
+
+| 축               | 실측                                                                                               |
+| ---------------- | -------------------------------------------------------------------------------------------------- |
+| `<Section>` 호출 | **10개** (`num="01"`~`"10"`, `:90`·`:102`·`:122`·`:137`·`:177`·`:197`·`:215`·`:230`·`:246`·`:267`) |
+| `id` 를 받는 것  | **1개** — `:236` `id={STRESS_ANCHOR}`(`:35` `"stress-test"`, 소비처 `:274` `ReportNextSteps`)      |
+| 결과             | 10개 중 **9개가 링크 불가**                                                                        |
+
+**재기술된 처방:** `?section=` 쿼리 파라미터·라우터 상태를 **만들지 마라**. 나머지 9개 `<Section>` 에
+안정적인 `id`(예: `key-stats` · `performance` · `trade-analytics` …)를 넘기면 끝이다. 이미 `STRESS_ANCHOR` 가
+그 선례이고 소비처까지 있다. **수용기준** = `/backtests/<id>#<section-id>` 로 열었을 때 해당 섹션으로 스크롤되고,
+음성 대조로 `#없는-id` 는 페이지 상단에 머문다.
+
+**Risk:** 🟢 렌더 트리 무변경(속성 하나 추가) · 기존 `stress-test` 앵커 불변이 회귀 판별자.
 
 ---
 
@@ -1504,7 +1529,15 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Title:** ~~pine_v2 bool 시리즈 na→False 실체화 — 워밍업 스퓨리어스 시그널~~ → **재분류: 엔진이 TV 정답, 버그 아님**
 **Category:** Backend / pine_v2 na-semantics
 **Priority:** ~~P2~~ → **CLOSED**
+**상태:** ✅ Resolved — ❌ CLOSED: not-a-bug (2026-07-12 재분류). 2026-08-09 backlog-sweep 에서 **상태줄만** 추가했다. 코드 0줄.
 **출처:** 2026-07-12 pine-batch QA 오라클 ② (`report.md` §4.2) → **2026-07-12 A+B+C Trust 번들에서 TV 공식문서로 반증**
+
+★**왜 2026-08-09 까지 ACTIVE 로 세어졌나.** `scripts/bl-audit.sh` 의 판정 우선순위는
+③ 「헤딩에 **✅**」 → RESOLVED 인데 이 헤딩은 **❌** 다. 상태줄이 없어 ⑤ 기본값 ACTIVE 로 떨어졌다.
+즉 176 은 **열려 있는 수가 아니라 「닫혔다고 선언되지 않은 수」**였고, 이 항목이 그 실례다.
+★**어휘 주의** — `verdict_of`(`bl-audit.sh:75-80`)가 아는 낱말은 ACTIVE/PARTIAL/RESOLVED 3계열뿐이고
+**`CLOSED` 를 모른다.** `lead()`(`:66-74`)는 `:**`·`—`·`.` 중 가장 앞에서 자르므로,
+상태줄을 `❌ CLOSED …` 로 시작하면 UNKNOWN 이 되어 **게이트가 exit 1** 이다. 그래서 `✅ Resolved` 로 시작한다.
 
 **재분류 결론:** BL-405 의 전제("Pine 비교는 na 를 반환하고 bool 시리즈에 na 가 보존된다")는 **TradingView 공식 문서로 반증됨** (r.jina.ai 리더로 verbatim 확보):
 
@@ -1610,24 +1643,42 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ### BL-504
 
-**Title:** ADR-013 / ADR-019 가 존재하지 않는데 진입 문서 4곳이 가리킨다
+**Title:** ~~ADR-013 / ADR-019 가 존재하지 않는데 진입 문서 4곳이 가리킨다~~ → **ADR-013 인용이 죽은 경로를 가리킨다 (019 는 실재)**
 **Category:** Docs / decisions (참조 정합)
 **Priority:** P3
 **Trigger:** Optimizer 설계 근거를 다시 물을 때 (알고리즘 교체 · scikit-optimize 이탈 · GA 파라미터 변경)
-**출처:** 2026-07-27 `/claude-md-improver` CLAUDE.md 감사
+**상태:** ✅ Resolved (2026-08-09 backlog-sweep) — 인용 4곳을 **git tombstone 경로**로 교정. 소급 ADR 작성은 [BL-658] 로 분리. 코드 0줄.
+**출처:** 2026-07-27 `/claude-md-improver` CLAUDE.md 감사 → **2026-08-09 전제 2건이 반증돼 근거 교체**
 
-**원인 / 영향:** `docs/decisions/` 는 001~012 · 014~018 · 020 · 021 로 **013 과 019 가 결번**이다. 그런데 다음이 ADR-013 을 실재하는 근거처럼 인용한다.
+★★**G0 반증 2건 (2026-08-09 실측).**
 
-- `AGENTS.md:67` — "Optimizer — Grid / Bayesian / Genetic 파라미터 최적화 (ADR-013)". **새 세션이 첫 step 에 읽는 3종 중 하나다.**
-- `CONTEXT.md:46` — 도메인 헌법의 Optimizer 정의
-- `docs/archive/product/2026-04-14-original-prd.md:8` — "scikit-optimize + 자체구현 GA (Optuna 아님 — ADR-013)"
-- `docs/backlog.md:589,708,1828` — BL-235 근거 및 "ADR-013 §6 #8 deferred" · "§7.2/§8.2 result grammar"
+1. **「013 과 019 가 결번」은 절반이 거짓이다.** `docs/decisions/` 실측 = 001~012 · **014~027**.
+   결번은 **013 하나뿐**이고 **`019-worker-auto-rebuild.md` 는 실재한다**(ADR-019 = BL-181 Docker worker
+   auto-rebuild, Sprint 38). 원 항목이 지목한 「ADR-019 오기」의 실체는 **`docs/dev-log/INDEX.md:141`**
+   (`2026-05-05 · ADR-019 Surface Trust Pillar`) 한 줄뿐이고, 이건 **결번이 아니라 ID 중복 호칭**이다.
+2. **`AGENTS.md:67` 인용은 이미 사라졌다.** 2026-08-06 문서 대개편([ADR-026])에서 `AGENTS.md` 가
+   오리엔테이션 전용으로 재작성되며 그 줄이 없어졌다. 현재 `grep -rn 'ADR-013' AGENTS.md` = **0건**.
 
-경위는 `docs/archive/status-history.md:564` 에 남아 있다 — PR #306 이 _"ADR-013 충돌 해소 (trust-layer → ADR-020, optimizer 013 유지)"_. trust-layer 는 020 으로 이동했는데, **013 을 유지하기로 한 optimizer ADR 은 끝내 작성되지 않았다.** ADR-019 도 같은 모양이다 — 실체는 `docs/dev-log/2026-05-05-sprint30-surface-trust-pillar-adr.md` 인데 당시 status 이력 등이 "ADR-019" 로 불렀다.
+★★★**그리고 진짜 뿌리는 「ADR 이 작성되지 않았다」가 아니었다 — 작성됐고, 나중에 삭제됐다.**
+실체 = `docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md`(**24,703바이트**), 도입 커밋
+`9c93fa70`(PR #258), **삭제 커밋 `94da86b1`**(2026-08-06 「delete archive/ and dev-log bodies」).
+인용된 절이 **전부 그 문서 안에 실재한다** — `## 6. Sprint 55+ kickoff 의무 checklist`(§6 #8 = BL-235 deferred,
+`:202`) · `### 7.2 보완 결정 (Sprint 55 lock)` · `### 8.2 보완 결정 (Sprint 56 lock)`.
+⇒ **인용은 유효했고 경로만 죽었다.** 「검증할 수 없는 근거」라는 원 진술은 **거짓**이다.
 
-영향은 조용하다. 인용된 `§6 #8` · `§7.2/§8.2` 는 **검증할 수 없는 근거**이고, Optimizer 설계를 바꿀 때 필독해야 할 문서가 열리지 않는다. `AGENTS.md` §문서의 자체 규칙(_"폐기는 삭제가 아니라 `Superseded` 표기"_)도 지금 상태로는 위반이다.
+**살아 있는 인용처 (2026-08-09 재측정 — 원 항목의 4곳과 다르다):**
 
-**권장 접근:** Sprint 53~57 dev-log + backlog 인용문(§6 #8 / §7.2 / §8.2)을 근거로 `013-optimizer-strategy.md` 를 소급 작성하고, ADR-019 는 dev-log 실체를 `decisions/019-*.md` 로 승격하거나 인용 4곳을 dev-log 경로로 교정한다. 소급 작성은 **결정을 새로 만드는 게 아니라 이미 실행된 결정을 기록**하는 것이므로, 없는 근거를 지어내지 말고 실제 코드(`optimizer/executors/`)와 대조한다.
+| 위치                                                                               | 조치                                             |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `CONTEXT.md:47`                                                                    | tombstone 경로 병기                              |
+| `docs/reference/domain/state-machines.md:174`                                      | ★**원 항목이 놓친 인용처** — tombstone 경로 병기 |
+| `docs/backlog.md:488`(BL-235 표) · `:611`(BL-235 출처) · `:1893`(BL-412 권장 접근) | tombstone 경로 병기                              |
+| ~~`AGENTS.md:67`~~                                                                 | **이미 소멸**(08-06 대개편)                      |
+| `docs/archive/product/…-original-prd.md:8`                                         | archive 는 과거 원문이라 손대지 않는다           |
+
+**조치(2026-08-09):** 위 인용처에 **`git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md`**
+를 병기했다. [ADR-026] 「과거 원문 = git history · 삭제 시 tombstone 1줄 의무」에 정확히 부합하는 처리이고,
+**없는 문서를 지어내지 않는다**. 소급 `decisions/013-optimizer-strategy.md` 작성은 별건(M 급) ⇒ **[BL-658]**.
 
 **Risk:** 🟢 (동작 무영향 · Optimizer 설계 변경 시에만 근거 부재가 드러난다).
 
@@ -1858,7 +1909,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 **원인 / 영향:** BE 는 typed 역직렬화 역량(`*_from_jsonb`)을 갖고도 read 응답을 untyped dict 로 흘려 FE zod 가 유일한 검증층. writer 변경 시 drift 를 BE 테스트가 못 잡음 (BL-388/392 harm-class).
 
-**권장 접근:** ADR-013 §7.2/§8.2 result grammar 를 정확히 mirror 하는 `OptimizationResultOut` 판별 유니온 추가 — 반드시 C-min 의 저하 경로(retro-incorrect row 404) 위에서 soft-validate. FE `schemas.ts` 와 필드 1:1 대조 테스트 동반.
+**권장 접근:** ADR-013 §7.2/§8.2 result grammar (실체 = `git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` — [BL-504]) 를 정확히 mirror 하는 `OptimizationResultOut` 판별 유니온 추가 — 반드시 C-min 의 저하 경로(retro-incorrect row 404) 위에서 soft-validate. FE `schemas.ts` 와 필드 1:1 대조 테스트 동반.
 
 **Risk:** 🟡 (구 row 실패율 상승 가능 — C-min 선행 완료로 완화됨).
 
@@ -3345,9 +3396,22 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 **카테고리:** Tooling / docs (BL 감사 스크립트)
 **Trigger:** `scripts/bl-audit.sh` 를 게이트 체인에 넣기 전
 **Est:** XS
-**상태:** 🟡 **열려 있다** — 2026-07-30 codex 적대 리뷰 MINOR.
+**상태:** ✅ Resolved (2026-08-09 backlog-sweep) — 처방 2건이 **이미 구현돼 있었고** Trigger 도 이미 도래했다. 코드 0줄.
 
-★**`bl-audit.sh` 가 코드펜스·`<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다.**
+★**2026-08-09 실측 — 이 항목은 「고쳐야 할 것」이 아니라 「닫혔다고 선언되지 않은 것」이었다.**
+처방 3축을 코드로 대조했다:
+
+| 처방                                 | 구현 위치                                    | 변이로 실증한 판별력                                                                |
+| ------------------------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 펜스·`<details>` 구간 건너뛰기       | `scripts/bl-audit.sh:114-120`                | 스킵 2줄을 제거하니 펜스 안 가짜 상태줄로 BL-627 이 **ACTIVE→RESOLVED 로 뒤집혔다** |
+| 중복 상태줄을 경고가 아니라 **실패** | `:268-272` 보고 + `:288` `exit 1`            | 중복 1줄 주입 시 `중복 상태줄 1 건` + **exit 1**(주입 없으면 exit 0)                |
+| Trigger 「게이트 체인 편입 전」      | `scripts/final-gates.sh:151`(+`:156` 하네스) | 이미 편입돼 있다 — Trigger 가 도래했고 조건도 갖춰졌다                              |
+
+★**덤으로 원안보다 넓어져 있었다** — 파서는 태그를 **줄 머리에서만** 인정하고(산문 오탐 차단),
+닫히지 않은 펜스·`<details>` 를 **서식 오류로 실패**시키며(`:283-284`), 중복 **섹션 헤더**까지 본다([BL-569]).
+★본문의 「현재 `UNKNOWN 17` 정리와 함께」는 낡았다 — 2026-08-09 실측 **UNKNOWN 0**.
+
+★**`bl-audit.sh` 가 코드펜스·`<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다.**(← 아래는 등재 당시 원문)
 
 **원인/영향.** 파서가 섹션 본문에서 첫 `**상태:**` / `**Status:**` 를 SSOT 로 잡는데,
 코드펜스 안이나 `<details>`(폐기된 옛 판정을 접어두는 관용구) 안의 줄도 후보가 된다.
@@ -5029,9 +5093,22 @@ audit 뿐이라 발견이 회차 끝으로 밀린다.
 **카테고리:** Docs / dev-log 버퍼 (ADR-026 §3)
 **Trigger:** 다음 문서 정리 회차
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ✅ Resolved (2026-08-09 backlog-sweep) — LESSON-095 승격 → 버퍼 삭제 → INDEX tombstone 전환. 코드 0줄.
 
-**entry-set-divergence 회차의 dev-log 버퍼가 승격되지 않은 채 남아 있다.**
+★**집행 기록 (2026-08-09).** ⑴ 회차 고유 교훈 3건(키 규약 = 체결봉 vs 장전봉 · 저장 digest 비교의 변조
+무방비 · 적중률은 판별 표면이 아니다)을 **LESSON-095** 한 항목으로 압축 승격 ⑵ 버퍼 14,480B 삭제
+⑶ `dev-log/INDEX.md:27` 을 `— dev-log (git show 4d072991:…)` tombstone 형식으로 전환.
+★**압축한 이유** — `docs/lessons.md` 는 **400줄 상한이 게이트로 강제**된다(`docs-audit.sh:135`,
+[BL-631] 계열). 착수 시점 380줄이라 여유가 20줄뿐이었다. 상한을 올려 통과시키지 않았다
+(그 파일이 「상한을 올려 통과시키지 마라 — 넘쳤다는 것은 승격 대상이 밀렸다는 신호다」라고 적는다).
+★**INDEX 줄도 300자 상한에 걸려 한 번 줄였다**(313자 → 통과). 게이트가 잡았다.
+
+★★**범위 밖으로 남긴 것 — 같은 위반이 이 항목 하나가 아니다.** 2026-08-09 실측: ADR-026 §3 의
+반증 카드 상한(1~2천자)을 넘는 dev-log 버퍼가 **9건**이고 최대는 `2026-08-08-bl003-unblock.md`
+**48,863B**(이 항목의 3.4배)다. 본 항목은 entry-set-divergence **1건**만 다룬다 —
+나머지 8건은 이 회차 비목표(신규 BL 사냥 금지)라 등재도 하지 않았다. **다음 문서 정리 회차의 표적이다.**
+
+**entry-set-divergence 회차의 dev-log 버퍼가 승격되지 않은 채 남아 있다.**(← 아래는 등재 당시 원문)
 ADR-026 §3 은 dev-log 를 이력이 아니라 **입력 버퍼**로 규정하고 「세션 종결 시 `docs/lessons.md`
 승격이 의무, 승격하면 버퍼를 비운다」고 못 박는다. 그 회차는 PR #553 으로 종결됐는데
 `docs/dev-log/2026-08-06-entry-set-divergence.md` 는 14,480바이트(약 9천자)로 남아 있다 —
@@ -5078,9 +5155,22 @@ INDEX·lessons·git 의 역할 분담이 다시 흐려진다.
 **카테고리:** Docs / 교훈 승격 (ADR-026 §3)
 **Trigger:** 다음 문서 정리 회차 ([BL-612](#bl-612) 와 함께)
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ✅ Resolved (2026-08-09 backlog-sweep) — LESSON-096 승격. 3건 중 1건은 **기존 항목 재발**로 기록. 코드 0줄.
 
-**2026-08-04 handler-visibility 회차의 방법론 3건이 `docs/lessons.md` 에 없다.**
+★**집행 기록 (2026-08-09).** 원문을 `git show 0f0f0b06:docs/dev-log/2026-08-04-handler-visibility.md`
+로 꺼내(sha 유효 확인) **LESSON-096** 으로 승격했다. 3건의 처리가 서로 다르다:
+
+| 미승격 3건                            | 처리                                                                                                                                                                                                                                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ① 다중집합은 문장 순서를 못 본다      | **LESSON-096 본문** — 「정규 동치 0」을 「행위 변경 0」으로 갈음하지 마라                                                                                                                                                                                             |
+| ② 재적재 지문 = celery 기동 배너      | **LESSON-096 본문** — md5 일치는 파일의 증거이지 프로세스의 증거가 아니다                                                                                                                                                                                             |
+| ③ 검증 도구를 먼저 적대 검증에 걸어라 | ★**새 항목을 만들지 않았다** — **LESSON-092**(검사기 표면 < 실패 표면, `backend/AGENTS.md` §10 승격)의 **재발**이다. `lessons.md` 작성 규칙이 「반복 패턴이 동일하면 새 항목 만들지 말고 기존 항목의 반복 횟수 증가」라고 적는다 ⇒ LESSON-096 안에 재발 기록만 남겼다 |
+
+★**③ 을 새 항목으로 세지 않은 것이 이 항목의 실질 판단이다.** 42건 주입 중 16건 거짓 음성
+(가장 큰 것 = `except`/`else`/`finally` 구역 site 24개가 감싸는 `try` 를 통째로 잃음)은 **현상이 다르고
+뿌리가 같다.** 뿌리로 세면 LESSON-092 는 이미 승격돼 규칙 파일에 있으므로 **행동 지침은 이미 존재한다.**
+
+**2026-08-04 handler-visibility 회차의 방법론 3건이 `docs/lessons.md` 에 없다.**(← 아래는 등재 당시 원문)
 그 회차 dev-log 본문은 문서 대개편(ADR-026)에서 삭제됐고, 지금은 `dev-log/INDEX.md` 한 줄과
 git history(`git show 0f0f0b06:docs/dev-log/2026-08-04-handler-visibility.md`)에만 있다.
 [BL-612](#bl-612) 와 축은 같지만 **대응이 다르다** — 저기는 버퍼가 남아 있고, 여기는 버퍼가
@@ -6911,3 +7001,38 @@ soak-stack.sh pin → soak-stack.sh up → live_session_admin.py status(FLAT 확
 **연결:** [BL-641](#bl-641) (게이트 해석) · [BL-653](#bl-653) (같은 게이트의 표본 해상도)
 
 **출처:** 2026-08-08 session-handoff (사용자가 로컬에서 게이트를 돌리다 발견)
+
+---
+
+### BL-658
+
+**Priority:** P3
+**카테고리:** Docs / decisions (소급 ADR)
+**Trigger:** Optimizer 설계를 실제로 바꿀 때 (알고리즘 교체 · scikit-optimize 이탈 · GA 파라미터 변경)
+**Est:** M
+**상태:** ⬜ Open — 2026-08-09 등재. **착수 금지**(이 회차 비목표 = M/L 급).
+
+**`decisions/013-optimizer-strategy.md` 를 소급 작성해 ADR-013 결번을 닫는다.**
+
+[BL-504](#bl-504) 가 2026-08-09 에 인용 축을 닫았다 — 살아 있는 인용 4곳에 git tombstone 경로를 병기했다.
+남은 것은 **실체를 `decisions/` 로 승격**하는 일이고, 그것은 별개 작업이다.
+
+**실체(확인됨):** `docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` — **24,703바이트**,
+도입 `9c93fa70`(PR #258), 삭제 `94da86b1`(2026-08-06 문서 대개편).
+읽는 법 = `git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md`.
+인용되는 절이 전부 그 안에 있다 — `## 6.`(§6 #8 = BL-235 deferred, `:202`) · `### 7.2` · `### 8.2` ·
+`## 5. References` · `## 7~9` Sprint 55/56/57 amendment 3종.
+
+★**소급 작성은 결정을 새로 만드는 게 아니라 이미 실행된 결정을 기록하는 것이다.**
+없는 근거를 지어내지 말고 실제 코드(`backend/src/optimizer/executors/`)와 **대조**해라 —
+dev-log 가 적은 결정과 코드가 어긋나면 **코드가 맞다**([ADR-026] 「지금 무엇을 하는가」 축).
+
+★**같이 볼 것 — ADR-019 는 결번이 아니다.** `decisions/019-worker-auto-rebuild.md` 가 실재한다(Sprint 38).
+`docs/dev-log/INDEX.md:141` 의 `2026-05-05 · ADR-019 Surface Trust Pillar` 는 **ID 중복 호칭**이므로
+그 줄을 고칠지도 이 작업에서 함께 정한다(고칠 거면 `020-trust-layer-ci-design.md:3` 의 renumber 서술과 정합시켜라).
+
+**Risk:** 🟢 동작 무영향. 비용은 24,703바이트를 읽고 코드와 대조하는 시간이다.
+
+**연결:** [BL-504](#bl-504) (인용 축 — 닫힘) · [ADR-026](decisions/026-documentation-ssot.md) (tombstone 규약)
+
+**출처:** 2026-08-09 backlog-sweep ([BL-504] G0 에서 실체가 git 에 살아 있음을 확인하고 분리)
