@@ -414,7 +414,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-394** [P3] BE 거래 분포/수익구조 집계 엔드포인트 (2000-cap 대체)
 - [ ] **BL-395** [P3] lightweight-charts v5 업그레이드 spike (멀티-pane)
 - [ ] **BL-396** [P3] /backtests/[id]/trades 서브페이지 TV 신규 컬럼 정렬
-- [ ] **BL-397** [P3] 리포트 섹션 탭 URL 딥링크 `?section=`
+- [x] **BL-397** [P3] 리포트 섹션 앵커 딥링크 `#<section-id>` — 2026-08-10 fe-shareable-urls. ★`?section=` 은 만들지 않았다(그 탭 IA 가 2026-07-05 에 사라졌다). ★★재기술된 처방 「프롭 하나면 끝난다」도 실측으로 반증됐다 — 상세 라우트가 prefetch 를 안 해 리포트가 늦게 삽입되므로 마운트 1회 해시 재조정이 함께 필요했다(e2e 가 `viewport ratio 0` 으로 잡았다).
 - [ ] **BL-403** [P3] recharts↔lwc↔inline-SVG 차트 3원화 해소 (BL-395 후)
 - [ ] **BL-408** [P3] 리포트/위저드 Precision Instrument 잔여물 팩 6건
 - [ ] **BL-415** [P3] .field-error FieldError 3사본 공용 승격
