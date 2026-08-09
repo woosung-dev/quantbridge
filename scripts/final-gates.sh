@@ -155,6 +155,18 @@ run_gate "BL 감사" "docs/backlog.md" bash "$ROOT/scripts/bl-audit.sh"
 #   임시 트리 fixture 로 그 회귀를 잡는다. 실제 `docs/` 는 건드리지 않는다.
 run_gate "BL 감사 하네스" "scripts/bl-audit.sh" bash "$ROOT/scripts/bl-audit-test.sh"
 
+# ★소크 재기동 갈래 하네스 ([BL-656]). 이 게이트가 붙은 이유가 그 BL 의 교훈이다 —
+#   2026-08-08 에 「unquoted heredoc 안 백틱 정적 카운트 0건으로 동결」이라 **기록만 하고**
+#   동결 장치를 안 뒀더니 하루 만에 백틱 1쌍이 되돌아와 dry-run 이 자기 설명문을 실행했다.
+#   「이미 up」/「완전 down」 두 갈래의 호출 **순서**와 그 정적 카운트를 함께 잡는다.
+#   실제 소크·docker·거래소를 건드리지 않는다 (mktemp 트리 + PATH 앞단 가짜).
+run_gate "소크 재기동 하네스" "scripts/soak-restart.sh" bash "$ROOT/scripts/soak-restart-test.sh"
+
+# ★함대 분배 하네스 (BL-601). `fleet-dispatch.sh` 는 herdr 함대 없이는 통째로 못 도므로
+#   판정 술어만 원본에서 sed 로 떼어내 stub 위에서 돌린다. 사본이 아니라 추출이라 이름이
+#   바뀌면 추출 실패로 크게 죽는다. 여기 걸기 전엔 호출자가 0이라 아무도 안 돌렸다.
+run_gate "함대 분배 하네스" "scripts/fleet-dispatch.sh" bash "$ROOT/scripts/fleet-dispatch-test.sh"
+
 # ★문서 감사 — 죽은 링크 · retired path · **요약 줄 길이 상한**.
 #   CI 의 documentation 잡(`make docs-audit`)이 같은 것을 돌지만 그건 **PR 을 연 뒤**다.
 #   줄 길이 회귀는 문서를 만지는 그 회차가 만들고 그 회차가 못 보므로, PR 전에 물게 한다

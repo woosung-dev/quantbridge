@@ -9,6 +9,7 @@ import {
   MOCK_LIVE_SESSION_LIST,
   MOCK_LIVE_SESSION_STATE,
   MOCK_OUTCOME_PARITY,
+  MOCK_OUTCOME_PARITY_LONG_LEDGER_SUB,
   MOCK_STRATEGY_LIST,
   SESSION_ID,
 } from "./fixtures/outcome-parity";
@@ -30,7 +31,7 @@ test.describe.configure({ mode: "serial" });
 
 // ★상세 하위 경로를 **먼저** 등록한다. 뒤에 등록한 catch-all 이 우선 매치되고
 // `route.fallback()` 으로 여기로 넘어온다 (live-session-flow.spec.ts 와 같은 패턴).
-async function mockTradingPage(page: Page) {
+async function mockTradingPage(page: Page, parity: unknown = MOCK_OUTCOME_PARITY) {
   await page.route(API_ROUTES.strategies, fulfillJson(MOCK_STRATEGY_LIST));
   await page.route(API_ROUTES.exchangeAccounts, fulfillJson(MOCK_EXCHANGE_ACCOUNT_LIST));
   await page.route(API_ROUTES.orders, fulfillJson({ items: [], total: 0 }));
@@ -50,7 +51,7 @@ async function mockTradingPage(page: Page) {
   );
   await page.route(
     `**/api/v1/live-sessions/${SESSION_ID}/outcome-parity**`,
-    fulfillJson(MOCK_OUTCOME_PARITY),
+    fulfillJson(parity),
   );
 
   await page.route(API_ROUTES.liveSessions, (route, request) => {
@@ -67,8 +68,8 @@ async function mockTradingPage(page: Page) {
   });
 }
 
-async function openSessionDetail(page: Page) {
-  await mockTradingPage(page);
+async function openSessionDetail(page: Page, parity: unknown = MOCK_OUTCOME_PARITY) {
+  await mockTradingPage(page, parity);
   await page.goto("/trading?tab=live-sessions");
 
   const card = page.getByTestId(`inactive-live-session-${SESSION_ID}`);
@@ -137,5 +138,25 @@ test.describe("outcome parity panel", () => {
     // 폰트·DPI 가 달라져도 원문 복귀를 반드시 잡고, 반올림된 6자리는 여유롭게 통과한다.
     const scrollWidth = await sd.evaluate((el) => el.scrollWidth);
     expect(scrollWidth).toBeLessThan(150);
+  });
+
+  // BL-548 — 375px 에서 이 패널이 문서 전체에 가로 스크롤을 낳는다.
+  //
+  // ★**실측 픽스처로는 이 결함이 안 보인다.** 2026-08-09 재현 결과 `MOCK_OUTCOME_PARITY`
+  // 위에서는 수리 전에도 오버플로가 0 이었다 — 그 응답의 `sub` 전용 네 필드가 마침
+  // `"0"`·`"20"` 으로 짧아서다. BL 이 적은 24px 은 BL-607(값 타일 반올림, 2026-08-06)이
+  // 이미 지웠다. 남은 경로는 **반올림을 안 거치는 `sub` 캡션**이고, 그 자리에 같은 원장이
+  // 주는 51자리 Decimal 이 들어오면 다시 넘친다(수리 전 191px).
+  //
+  // 그래서 판별력 있는 픽스처로 잰다. 인과 분리도 실측했다 —
+  // 상세 닫힘 **0** / 열림 **191** / 열림 + 패널 `display:none` **0**.
+  test("375px — 원장 Decimal 이 sub 로 와도 문서 가로 오버플로가 0이다", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await openSessionDetail(page, MOCK_OUTCOME_PARITY_LONG_LEDGER_SUB);
+
+    const overflow = await page.evaluate(
+      () => document.body.scrollWidth - document.body.clientWidth,
+    );
+    expect(overflow).toBe(0);
   });
 });

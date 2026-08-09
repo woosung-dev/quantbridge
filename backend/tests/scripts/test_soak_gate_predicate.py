@@ -398,6 +398,38 @@ def test_the_report_names_where_an_unreadable_label_came_from(gate: Any) -> None
     assert "총 7건" in verdict.summary
 
 
+def test_the_same_observation_in_three_archives_counts_once(gate: Any) -> None:
+    """★[BL-626] 매 실행이 워커 로그 전량을 다시 분류해 아카이브를 하나씩 더 남긴다.
+
+    그래서 **한 건의 관측이 아카이브 수만큼** 들어온다. dedup 없이 세면 `총 N건` 이 아카이브
+    개수에 비례해 부풀고(실측 2026-08-09 메인 체크아웃 228벌) 읽는 사람은 「관측이 늘고
+    있다」로 읽는다. 실격 목록은 원래 `(at, kind, detail)` 로 접히므로 같은 코퍼스에서
+    **두 숫자가 어긋난다.** 세는 단위는 아카이브가 아니라 관측이다.
+
+    ★음성 대조는 위 `test_the_report_names_where_an_unreadable_label_came_from` 이다 —
+    `at` 이 서로 다른 7건은 여전히 `총 7건` 이어야 한다(dedup 이 1 로 뭉개지 않는다).
+    """
+    observations = [
+        {
+            "at": "2026-08-04T11:00:00+00:00",
+            "label": "totally_new_label",
+            "session_id": "39731d57-f3ec-45c4-b4e1-db304c72692e",
+            "archive": f"phantom-2026080{i}T000000Z.json",
+            "predicate_version": "2026-08-01-legacy-horizon",
+        }
+        for i in range(3)
+    ]
+    verdict = gate.evaluate(
+        _payload(phantom_observations=observations, since="2026-08-04T09:00:00+00:00")
+    )
+    entry = verdict.detail["divergence_labels"]["sources"]["totally_new_label"]
+    assert entry["count"] == 1, entry
+    # 표본 예산도 같은 관측을 3번 쓰지 않는다 — 가장 오래된 아카이브 하나가 조치의 표적이다.
+    assert len(entry["samples"]) == 1, entry
+    assert entry["samples"][0]["archive"] == "phantom-20260800T000000Z.json"
+    assert "총 " not in verdict.summary, verdict.summary
+
+
 def test_a_source_less_observation_still_reports_what_it_has(gate: Any) -> None:
     """출처 필드가 없는 payload(손으로 만든 것 · 옛 아카이브)도 판정은 그대로 간다.
 
@@ -752,6 +784,120 @@ def test_frozen_bar_time_across_samples_disqualifies(gate: Any) -> None:
     )
     assert verdict.verdict == "FAIL"
     assert "tick_stall" in verdict.conditions["C3_violations"][0]
+
+
+def _frozen_bar_payload(sample_ats: list[str], frozen: str) -> dict[str, Any]:
+    """bar time 이 `frozen` 에 얼어붙은 세션을 `sample_ats` 시각에 관측한 입력."""
+    return _payload(
+        samples=[
+            {
+                "at": at,
+                "sessions": [
+                    {
+                        "id": "39731d57-f3ec-45c4-b4e1-db304c72692e",
+                        "last_evaluated_bar_time": frozen,
+                    }
+                ],
+            }
+            for at in sample_ats
+        ],
+        since="2026-08-04T09:00:00+00:00",
+    )
+
+
+def test_a_stall_no_bigger_than_the_sampling_grid_is_marked_undecidable(gate: Any) -> None:
+    """★[BL-653] 성긴 표본(31분)에서 잰 35분 정체는 **크기를 모른다** — 「구분 불가」로 적는다.
+
+    실측 근거: 서버 표본 125건의 간격이 중앙 13.9분 · 최대 31.0분인데 관측된 정체 크기
+    다수가 31.0분 = 표본 최대 간격과 정확히 일치했다. 그 숫자는 현상이 아니라 격자다.
+    """
+    verdict = gate.evaluate(
+        _frozen_bar_payload(
+            ["2026-08-04T11:00:00+00:00", "2026-08-04T11:31:00+00:00"],
+            frozen="2026-08-04T10:56:00+00:00",  # 두 번째 표본에서 lag 35.0분
+        )
+    )
+    line = verdict.conditions["C3_violations"][0]
+    assert "tick_stall" in line
+    assert "구분 불가" in line, line
+    assert "표본 간격 중앙 31.0분/최대 31.0분" in line, line
+
+
+def test_a_stall_many_samples_wide_is_not_marked_undecidable(gate: Any) -> None:
+    """★음성 대조 — 촘촘한 표본(60초)에서 잰 같은 정체는 「구분 불가」가 **아니다**.
+
+    이 짝이 없으면 앞 시험은 항진명제다(무조건 붙는 표시는 아무것도 판별하지 않는다).
+    """
+    verdict = gate.evaluate(
+        _frozen_bar_payload(
+            [f"2026-08-04T11:0{n}:00+00:00" for n in range(6)],  # 60초 간격 6건
+            frozen="2026-08-04T10:26:00+00:00",  # 첫 판정 시점 lag 35.0분
+        )
+    )
+    line = verdict.conditions["C3_violations"][0]
+    assert "tick_stall" in line
+    assert "구분 불가" not in line, line
+    assert "표본 간격 중앙 1.0분/최대 1.0분" in line, line
+    assert "크기 35.0배" in line, line
+
+
+def test_the_terminal_lag_axis_is_never_marked_undecidable(gate: Any) -> None:
+    """★종단 lag 은 `deactivated_at`×`last_evaluated_bar_time` — **둘 다 DB 값**이다.
+
+    표본 해상도에 의존하지 않으므로 여기에 「구분 불가」를 붙이면 정확한 값을 깎는 것이다.
+    """
+    verdict = gate.evaluate(
+        _payload(
+            sessions=[
+                {
+                    "id": "0e15c3c0-0000-4000-8000-000000000001",
+                    "created_at": "2026-08-04T10:00:00+00:00",
+                    "deactivated_at": "2026-08-04T11:00:00+00:00",
+                    "deactivated_reason": "user_stopped",
+                    "last_evaluated_bar_time": "2026-08-04T10:13:18+00:00",
+                    "interval_seconds": 60,
+                }
+            ],
+            samples=[],
+            since="2026-08-04T09:00:00+00:00",
+        )
+    )
+    line = verdict.conditions["C3_violations"][0]
+    assert "종단 lag 46.7분" in line, line
+    assert "구분 불가" not in line, line
+    assert "표본 간격" not in line, line
+
+
+def test_the_report_says_what_resolution_a_clean_run_was_measured_at(gate: Any) -> None:
+    """★[BL-653] 「실격 0」이 「정지 없음」으로 읽히지 않게 해상도를 함께 낸다."""
+    verdict = gate.evaluate(
+        _payload(
+            samples=[
+                {
+                    "at": at,
+                    "sessions": [
+                        {
+                            "id": "39731d57-f3ec-45c4-b4e1-db304c72692e",
+                            "last_evaluated_bar_time": at,
+                        }
+                    ],
+                }
+                for at in ("2026-08-04T11:00:00+00:00", "2026-08-04T11:10:00+00:00")
+            ],
+        )
+    )
+    assert verdict.conditions["C3_ok"] is True
+    assert verdict.detail["sample_resolution"] == {
+        "samples": 2,
+        "median_seconds": 600.0,
+        "max_seconds": 600.0,
+    }
+
+
+def test_a_run_without_samples_keeps_the_verdict_json_unchanged(gate: Any) -> None:
+    """표본이 없으면 `sample_resolution` 키를 아예 넣지 않는다 (바이트 동일 규율)."""
+    verdict = gate.evaluate(_payload(samples=[]))
+    assert "sample_resolution" not in verdict.detail
 
 
 def test_sample_gap_is_unknown_not_pass(gate: Any) -> None:

@@ -202,24 +202,33 @@ export function DashboardCockpit() {
                 {formatSignedUsd(agg.totalRealizedPnl)}
               </StatValue>
             </p>
+            {/* BL-424 — 내용을 **하나의 자식**으로 싼다. `.kpi-foot` 은 `display:flex` 라
+                (globals.css, KITPORT 정본 구간) 여러 줄 산문을 직접 넣으면 텍스트 노드마다
+                익명 flex item 이 생겨 좌우로 흩어지고 `<br />` 이 줄바꿈으로 작동하지 않는다.
+                2026-08-09 375px 실측 — 「건의 실현 손익 합입니다.」와 「미실현(추정)」이
+                본문 오른쪽에 붙어 한 덩어리로 뭉쳤다(BL-424 가 「밀착」이라 적은 그 모양).
+                flex item 이 하나면 그 안은 보통의 인라인 흐름이라 `<br />` 이 되살아난다.
+                ★`.kpi-foot` 자체는 못 고친다 — KITPORT 센티넬 안이라 무결성 가드가 막는다. */}
             <p className="kpi-foot">
-              USDT. 활성 세션 종료 거래 <span className="mono">{agg.totalClosedTrades}</span>건의
-              실현 손익 합입니다.
-              <br />
-              미실현(추정) {unrealized.total === null ? "—" : formatSignedUsd(unrealized.total)}
-              {/* BL-458 — 이 합계의 신뢰 등급. 채워진 세션 중 하나라도 소계를 안
-                  보고하면 집계가 null 이라 아무것도 그리지 않는다 — 반쪽 분할을
-                  전체인 것처럼 보여주지 않는다. */}
-              {agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null ? (
-                <>
-                  <br />
-                  이 중 {ORDER_REALIZED_PNL_SOURCE_LABEL.confirmed}{" "}
-                  {formatSignedUsd(agg.confirmedRealizedPnl)} ·{" "}
-                  {ORDER_REALIZED_PNL_SOURCE_LABEL.estimated}{" "}
-                  {formatSignedUsd(agg.estimatedRealizedPnl)} 입니다.{" "}
-                  {ORDER_REALIZED_PNL_SOURCE_HINT.estimated}.
-                </>
-              ) : null}
+              <span>
+                USDT. 활성 세션 종료 거래 <span className="mono">{agg.totalClosedTrades}</span>건의
+                실현 손익 합입니다.
+                <br />
+                미실현(추정) {unrealized.total === null ? "—" : formatSignedUsd(unrealized.total)}
+                {/* BL-458 — 이 합계의 신뢰 등급. 채워진 세션 중 하나라도 소계를 안
+                    보고하면 집계가 null 이라 아무것도 그리지 않는다 — 반쪽 분할을
+                    전체인 것처럼 보여주지 않는다. */}
+                {agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null ? (
+                  <>
+                    <br />
+                    이 중 {ORDER_REALIZED_PNL_SOURCE_LABEL.confirmed}{" "}
+                    {formatSignedUsd(agg.confirmedRealizedPnl)} ·{" "}
+                    {ORDER_REALIZED_PNL_SOURCE_LABEL.estimated}{" "}
+                    {formatSignedUsd(agg.estimatedRealizedPnl)} 입니다.{" "}
+                    {ORDER_REALIZED_PNL_SOURCE_HINT.estimated}.
+                  </>
+                ) : null}
+              </span>
             </p>
           </article>
 

@@ -50,7 +50,6 @@
 | ----------------------------------------------------------------------------------------- | ---------------- |
 | `market_data/providers/timescale.py:59` `get_ohlcv` 의 lock·gap·fetch·insert·get_range 키 | **신규(BL-535)** |
 | `backtest/service.py:551` `trade_ohlcv` 의 `get_range` — perp 우선, 없으면 legacy 스팟    | **신규(BL-535)** |
-| `tasks/market_data_backfill.py:93,98` row-count 질의 + 결과의 `storage_symbol`            | **신규(BL-535)** |
 | `tasks/live_signal.py:1359` CCXT `fetch_ohlcv` 인자                                       | 기존(BL-530)     |
 | `backtest/service.py:340` `funding_repo.get_funding_series(symbol=…)`                     | 기존(C6)         |
 
@@ -79,7 +78,8 @@ BL-454 가 지적한 결함이 정확히 그 형태였다. 그래서 **프로토
   회귀 잠금: `tests/market_data/test_backtest_instrument_parity.py::TestLegacySpotRowsAreUntouched`.
 - 이미 저장된 백테스트 결과(metrics·trades·equity_curve)는 재계산하지 않으므로 값이 바뀌지 않는다.
 - 시딩은 별도 작업이 아니다 — `TimescaleProvider` 가 cache-first 라 **백테스트 1회가 곧 perp 시딩**이다
-  (`Makefile:246` 의 dogfood-restore 선례와 같은 성질). `market_data.backfill_ohlcv` 도 같은 경로다.
+  (`Makefile:246` 의 dogfood-restore 선례와 같은 성질). ★이것이 [BL-469](../../backlog.md#bl-469) 에서
+  `market_data.backfill_ohlcv` 를 **되살리지 않고 제거한** 근거다 — 별도 백필 경로가 필요 없다.
 
 ### 3.1 `trade_ohlcv` 의 fallback 이 있는 이유
 

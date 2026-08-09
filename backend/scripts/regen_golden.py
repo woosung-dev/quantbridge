@@ -50,9 +50,7 @@ def _case_expected(case_dir: Path) -> dict[str, Any]:
     generated["backtest"] = backtest
     generated["entries_indices"] = [trade.entry_bar_index for trade in trades]
     generated["exits_indices"] = [
-        trade.exit_bar_index
-        for trade in trades
-        if trade.exit_bar_index is not None
+        trade.exit_bar_index for trade in trades if trade.exit_bar_index is not None
     ]
     return generated
 
@@ -79,10 +77,23 @@ def main() -> int:
     mode.add_argument("--check", action="store_true", help="재생성본과 커밋본을 비교만 한다.")
     case_names = {case.name: case for case in _discover_cases()}
     parser.add_argument("--case", choices=sorted(case_names), help="단일 골든 케이스만 처리한다.")
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        help=(
+            "재생성본을 정본 대신 <out-dir>/<case>/expected.json 에 쓴다 (--confirm 전용). "
+            "★씨앗(보존 필드)과 비교 기준은 언제나 정본이다 — 여기서 바뀌는 것은 쓰는 자리뿐이다."
+        ),
+    )
     args = parser.parse_args()
 
     if not args.confirm and not args.check:
         sys.stderr.write("ERROR: --confirm 또는 --check 플래그가 필요합니다.\n")
+        return 1
+
+    if args.out_dir is not None and not args.confirm:
+        # 조용히 무시하면 "다른 곳에 썼겠지" 라고 믿은 채 정본을 덮어쓸 수 있다.
+        sys.stderr.write("ERROR: --out-dir 은 --confirm 과 함께 써야 합니다.\n")
         return 1
 
     cases = [case_names[args.case]] if args.case else list(case_names.values())
@@ -102,8 +113,14 @@ def main() -> int:
                 differences.extend(case_differences)
             continue
 
-        expected_path.write_text(json.dumps(generated, indent=2, ensure_ascii=False) + "\n")
-        print(f"regenerated: {case_dir.name}")
+        write_path = (
+            args.out_dir / case_dir.name / "expected.json"
+            if args.out_dir is not None
+            else expected_path
+        )
+        write_path.parent.mkdir(parents=True, exist_ok=True)
+        write_path.write_text(json.dumps(generated, indent=2, ensure_ascii=False) + "\n")
+        print(f"regenerated: {case_dir.name} -> {write_path}")
 
     if differences:
         print("\n".join(differences))

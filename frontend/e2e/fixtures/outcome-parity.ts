@@ -185,3 +185,23 @@ export const MOCK_OUTCOME_PARITY = {
     implied_round_trip_pct: "0.138",
   },
 };
+
+// BL-548 — 원장 Decimal 이 `sub` 캡션으로만 렌더되는 네 필드에 들어온 경우.
+//
+// ★왜 별도 픽스처인가 — `MOCK_OUTCOME_PARITY` 는 2026-08-06 실측 그대로라 이 네 필드가
+// 마침 `"0"`·`"20"` 으로 짧다. 그 값 위에서는 375px 오버플로가 **수리 전에도 0** 이라
+// 회귀 테스트의 판별력이 0 이 된다(2026-08-09 실측으로 확인). 같은 응답의 다른 필드는
+// 이미 51자리로 오므로(`sample_sd_net`) 이 네 필드도 그럴 수 있다 — 그 경우를 고정한다.
+//
+// ★값 타일은 `DecimalValue` 가 반올림하지만(BL-607) `sub` 는 그 경로를 타지 않는다.
+// 51자리 숫자는 **끊을 수 없는 한 낱말**이라 자기 블록을 넘겨 body 를 넓힌다.
+export const MOCK_OUTCOME_PARITY_LONG_LEDGER_SUB = {
+  ...MOCK_OUTCOME_PARITY,
+  strategy: {
+    ...MOCK_OUTCOME_PARITY.strategy,
+    undecomposed_net: LONG_SD_NET,
+    expected_only_gross: LONG_SD_NET,
+    actual_only_net: LONG_SD_NET,
+    ledger_only_net: LONG_SD_NET,
+  },
+};

@@ -78,11 +78,15 @@ def test_process_identifier_sanitizes_role(tmp_path: Path, monkeypatch: pytest.M
 
 
 def test_gauge_multiprocess_modes_are_explicit() -> None:
-    """T2: 5개 gauge가 지정된 집계 시맨틱을 사용한다."""
+    """T2: 4개 gauge가 지정된 집계 시맨틱을 사용한다.
+
+    ★`qb_ws_orphan_buffer_size` 는 BL-448 에서 사라졌다 — 그 버퍼를 읽는 프로덕션 경로가
+    없어 gauge 가 구조적으로 「채워지기만 하는 값」이었다. 폐기는 이제
+    `qb_ws_orphan_discarded_total{reason}` Counter 가 센다.
+    """
     expected = {
         "qb_active_orders": "sum",
         "qb_redis_lock_pool_healthy": "mostrecent",
-        "qb_ws_orphan_buffer_size": "livesum",
         "qb_pending_alerts": "livesum",
         "qb_live_signal_outbox_pending_gauge": "mostrecent",
     }

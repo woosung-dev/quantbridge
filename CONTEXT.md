@@ -44,7 +44,7 @@ Backtest 시뮬레이션 내부의 개별 가상 체결 기록.
 완료된 Backtest 위에서 Monte Carlo / Walk-Forward / Cost-Assumption / Param-Stability 로 강건성을 평가하는 분석.
 
 **Optimizer**:
-한 Strategy 의 파라미터 공간을 Grid / Bayesian(scikit-optimize) / Genetic(자체 GA) 으로 탐색하는 실행(엔티티 = `OptimizationRun`, ADR-013).
+한 Strategy 의 파라미터 공간을 Grid / Bayesian(scikit-optimize) / Genetic(자체 GA) 으로 탐색하는 실행(엔티티 = `OptimizationRun`, ADR-013). ★**ADR-013 은 `docs/decisions/` 에 파일이 없다**(결번) — 실체는 삭제된 dev-log 이고 git 에 살아 있다: `git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` ([BL-504] · 소급 ADR 작성은 [BL-658]).
 _Avoid_: Optuna(채택 안 함)
 
 **vectorbt**:

@@ -96,6 +96,34 @@ if [ "${CONFIRM}" = "1" ]; then
   bash "${SCRIPT_DIR}/assert-main-checkout.sh" "soak-restart.sh --confirm" || exit 2
 fi
 
+# ── ⓿ 스택 생존 ([BL-656]) ─────────────────────────────────────────────────────
+#
+# ★종전에 이 스크립트가 다루는 것은 「이미 up」뿐이었다 — ⑴ 의 status 가 DB 를 읽는데 완전
+#   down 이면 DB 컨테이너도 없어 ConnectionRefusedError 로 끝나고, ⑷ 의 pin 은 반대로
+#   **돌고 있는 스택**을 전제한다. 그래서 완전 down 에서 올리는 순서가 **문서(:219)로만**
+#   있었다. 여기서 종료 코드로 갈라 그 순서를 스스로 밟는다.
+# ★`soak-stack.sh ps` 를 쓴다 — `status` 는 DB 에 psql 을 쏘므로 down 이면 그 자체가 못 돈다.
+# ★★**잔여 위험을 적어 둔다** — down 갈래에서는 FLAT 확인이 up **뒤로** 밀린다. 원장에
+#   활성 세션이 남아 있으면 up 이 그것을 재개하고 ⑴ 은 그 다음에 판정한다. 이 순서는 종전
+#   손 절차와 **같다**(그쪽도 pin → up → status 였다) — 새로 생긴 위험이 아니다.
+# ★★★**종료 코드 3값을 3값으로 받아라 — 2 를 1 로 접으면 fail-open 이다.**
+#   `ps` 는 0=하나라도 running / 1=완전 down / **2=못 쟀다**(docker 데몬 도달 불가)를 낸다.
+#   초판은 `|| STACK_UP=0` 으로 **1 과 2 를 한데 접었고**, 그래서 `DOCKER_HOST`·context 가
+#   어긋나 살아 있는 스택이 안 보이는 순간 「완전 down」으로 읽어 `down` 을 건너뛰고 곧장
+#   `pin` 을 불렀다. `_pin` 의 보호는 같은 docker 로 판정하므로 **함께 눈이 멀고**, 결과는
+#   살아 있는 컨테이너의 mount 원본(`.soak/src`)을 제자리에서 덮어쓰는 것이다
+#   (`soak-stack.sh:177-187` 이 P1 로 적어 둔 사고 · 이 레포는 원격 `DOCKER_HOST` 로 이미 밟았다).
+#   ⇒ **못 쟀으면 멈춘다.** 측정 실패를 상태로 바꾸지 마라.
+STACK_UP=1
+STACK_PS_RC=0
+STACK_PS="$(bash "${SCRIPT_DIR}/soak-stack.sh" ps 2>&1)" || STACK_PS_RC=$?
+case "${STACK_PS_RC}" in
+  0) STACK_UP=1 ;;
+  1) STACK_UP=0 ;;
+  *) printf '%s\n' "${STACK_PS}" | sed 's/^/   | /' >&2
+     die "스택 생존을 측정하지 못했다 (soak-stack.sh ps rc=${STACK_PS_RC}) — docker 데몬부터 확인해라. 못 쟀는데 진행하면 살아 있는 스택 위에 pin 이 떨어진다" 2 ;;
+esac
+
 _admin() { # _admin <live_session_admin.py 인자...>
   (
     set -a
@@ -181,6 +209,27 @@ MODE_LABEL="dry-run (집행하려면 --confirm)"
 [ "${CONFIRM}" = "1" ] && MODE_LABEL="집행"
 echo "══ 소크 재기동 — ${MODE_LABEL} ══"
 echo
+if [ "${STACK_UP}" = "1" ]; then
+  echo "⓿ 스택 생존: 살아 있다 → ⑷ 는 down → pin → up"
+else
+  echo "⓿ 스택 생존: **완전 down** → pin → up 을 선행하고 ⑷ 는 건너뛴다 ([BL-656])"
+fi
+printf '%s\n' "${STACK_PS}"
+echo
+
+# ★★**여기여야 한다 — 파라미터 조회보다 먼저다.** 완전 down 이면 아래 원장 조회(`_q`)부터
+#   빈 값을 내고 `--confirm` 이 exit 2 로 죽는다(실측: 「원장에 세션이 하나도 없다」).
+#   그러면 재기동은 `--strategy-id/--account-id` 를 손으로 줘야만 되고, 그건 이 BL 이
+#   없애려던 손 절차 그 자체다. 스택을 먼저 올려 놓으면 원장이 스스로 답한다.
+# ★⑷ 의 `down → pin → up` 을 여기서 쓰지 않는 이유 — 내릴 것이 없다. `down` 을 먼저 부르면
+#   없는 스택에 대고 compose 가 돌아 잡음만 낸다.
+if [ "${CONFIRM}" = "1" ] && [ "${STACK_UP}" = "0" ]; then
+  echo "⓿-b 완전 down 이므로 pin → up 을 선행한다 (⑷ 는 건너뛴다)"
+  bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (backend/src 가 dirty 한가?)" 1
+  echo "   … up 은 celery 기동 배너를 최대 600초 기다린다"
+  bash "${SCRIPT_DIR}/soak-stack.sh" up || die "up 실패 — 창을 열지 않았다" 1
+  echo
+fi
 
 # ── 전제: 재기동 파라미터를 원장에서 딴다 ───────────────────────────────────────
 # ★하드코딩하지 않는다. 최근 세션 행이 정본이다(2026-08-07 실측: 재기동 3 회 전부 동일).
@@ -212,13 +261,13 @@ echo
 #   「출력만」이라는 계약을 깬다. 실제 flat 여부는 --confirm 이 첫 단계로 직접 확인한다.
 if [ "${CONFIRM}" != "1" ]; then
   cat << EOF
-★★전제 — **스택이 돌고 있어야 이 스크립트가 돈다.** ⑴ 의 status 가 DB 를 읽는데,
-  스택이 내려가 있으면 DB 컨테이너도 없어 `ConnectionRefusedError` 로 끝난다. 그리고 ⑷ 의
-  pin 은 **돌고 있는 스택 위에서 거부**되므로 「이미 up」과 「완전 down」 중 이 스크립트가
-  다루는 것은 앞쪽뿐이다. 완전 down 에서 올릴 때는 이 스크립트를 쓰지 말고 손으로:
-    soak-stack.sh pin → soak-stack.sh up → live_session_admin.py status(FLAT 확인)
-    → (필요시) stop → flatten → start → soak-observe.sh --baseline → soak-gate.sh
-  (2026-08-08 soak-mortality-repair 에서 실제로 이 경로를 밟았다 — [BL-656])
+★★두 갈래 — 위 ⓿ 이 고른다 (2026-08-09 [BL-656] 로 자동화. 종전엔 문서로만 있었다).
+  · 스택 살아 있음 → ⑴ status … ⑷ 는 down → pin → up
+  · 완전 down      → ⓿ 이 pin → up 을 **선행**하고 ⑷ 를 건너뛴다. 그래야 ⑴ 의 status 가
+    DB 를 읽을 수 있다(down 이면 DB 컨테이너가 없어 ConnectionRefusedError 로 끝났다).
+    down 갈래에서는 덤프(⑷-0)도 건너뛴다 — 지울 컨테이너도, 남길 로그도 없다.
+  ★잔여 위험 — down 갈래는 FLAT 확인이 up 뒤로 밀린다. 원장에 활성 세션이 남아 있으면
+    up 이 그것을 재개하고 ⑴ 이 그 다음에 판정한다. 종전 손 절차와 같은 순서다.
 
 ⑴ live_session_admin.py status 로 FLAT=YES 확인
    ★세션 DELETE 204 는 아무것도 flat 하지 않는다 (3회 덴 함정)
@@ -319,13 +368,19 @@ echo "⑶ 사용자 승인 — ✓ --confirm"
 echo
 
 # ── ⑷ down → pin → up ───────────────────────────────────────────────────────────
-echo "⑷ soak-stack.sh down → pin → up"
-echo "⑷-0 down 직전 원자료 덤프 (★down 이 컨테이너를 지우면 로그는 사본 0으로 영구 소실)"
-_dump_evidence
-bash "${SCRIPT_DIR}/soak-stack.sh" down || die "down 실패" 1
-bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (돌고 있는 고정본 위인가? backend/src 가 dirty 한가?)" 1
-echo "   … up 은 celery 기동 배너를 최대 600초 기다린다"
-bash "${SCRIPT_DIR}/soak-stack.sh" up || die "up 실패 — 창을 열지 않았다" 1
+# ★down 갈래는 ⓿ 에서 이미 pin → up 을 했다. 덤프도 건너뛴다 — 지울 컨테이너도, 남길 로그도
+#   없었고 `_dump_evidence` 는 fail-closed 라 여기서 그냥 죽는다([BL-656]).
+if [ "${STACK_UP}" = "0" ]; then
+  echo "⑷ (건너뜀 — ⓿ 에서 pin → up 을 이미 했다. 덤프할 컨테이너도 없었다)"
+else
+  echo "⑷ soak-stack.sh down → pin → up"
+  echo "⑷-0 down 직전 원자료 덤프 (★down 이 컨테이너를 지우면 로그는 사본 0으로 영구 소실)"
+  _dump_evidence
+  bash "${SCRIPT_DIR}/soak-stack.sh" down || die "down 실패" 1
+  bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (돌고 있는 고정본 위인가? backend/src 가 dirty 한가?)" 1
+  echo "   … up 은 celery 기동 배너를 최대 600초 기다린다"
+  bash "${SCRIPT_DIR}/soak-stack.sh" up || die "up 실패 — 창을 열지 않았다" 1
+fi
 echo
 
 # ── ⑸ 세션 등재 ─────────────────────────────────────────────────────────────────

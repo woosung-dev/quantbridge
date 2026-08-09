@@ -24,7 +24,7 @@
 - **2026-08-07 backtest-fidelity** — ★★A-1 **`undecidable`**(D=24<30) — **동결한 문턱이 발화해 12.5% 를 「첫 실측치」로 적는 걸 막았다**. ★창은 **사망이 닫았다**(`39484a2c` phantom 2건→`position_divergence`, **[BL-633]**). ★[BL-621] 원인 **두 겹**. ★라이트가 **AA 미달**로 배포 중 — [dev-log](2026-08-07-backtest-fidelity.md)
 - **2026-08-07 gap-resync-autopsy** — ★[BL-622] 사망 부검 **H3 확정**: 거래소 체결 `20:17:19.519` vs 우리 관측 `20:31:51.622`(**872초** 지연), 판정은 그 3.5초 전. 같은 세션 다른 3건은 **50ms** ⇒ 계통 아님. 수리 = claim **앞**에서 유예(변이 4/4 적발). [BL-603] 비용 0.300%→0.138% — `s3_rsid` 손익 **부호 반전**. LESSON-075/076
 - **2026-08-06 docs-overhaul(fix-doc)** — ★**[ADR-026] SSOT 7축 Accepted** · docs **39M→4.1M(−90%)** · `.ai/` 해체 → `.claude/rules/`. ★자동 로드 **v2.0.64+ 확인** — 08-02 「로더 없음」 실측은 버전 종속. RESOLVED 94·링크 240 강등, archive/dev-log 삭제(tombstone). ★내 회귀: 개행 넘는 링크 정규식이 BL-451/452 삼킴 → 복구·LESSON-073
-- **2026-08-06 entry-set-divergence** — ★[BL-604] 동인 분리 → **프레임 반전**: 워밍업 기여 0건(B≡R(fill) multiset 동일)·세션 공백 0쌍·「예측 못 한 46건」은 키 규약 관측(체결 지연 57%가 ±3봉 밖). 장전봉 정렬 81/90=90%, 진짜 미예측 **2/90**. `replay`/`entrysets` 신설. FE 정직성 3종+BL-609 Resolved — [dev-log](2026-08-06-entry-set-divergence.md)
+- 2026-08-06 · entry-set-divergence — ★[BL-604] 「예측 못 한 46건」은 존재 격차가 아니라 **키 규약 관측**(B=체결봉 vs L=장전봉). 장전봉 정렬 81/90, 진짜 미예측 **2/90**. 승격 = LESSON-072 · **LESSON-095**. 버퍼 회수 [BL-612] — dev-log (`git show 4d072991:docs/dev-log/2026-08-06-entry-set-divergence.md`)
 - **2026-08-06 backtest-reality-gap** — ★백테스트↔라이브 원장 **첫 대조**. 병목은 비용·체결가가 아니라 **진입 집합** — 매칭 34/84, 예측 못 한 46건 = 손실 62%([BL-604]). 비용은 taker 0.055% 단일(가정의 1/2.7, [BL-603]). 스팟/perp 144쌍 전건 양수·중앙 +29.95(**BL-535 종결**). ★귀속 off-by-one 이 가격축 부호를 바꿨다 — dev-log
 
 ## 전체 이력

@@ -44,6 +44,8 @@ scripts/soak-stack.sh pin        # .soak/src 를 HEAD 에서 다시 뜬다 (back
 scripts/soak-stack.sh up         # 3층 compose 로 기동 + celery ready 배너를 기다린다
 scripts/soak-stack.sh commit     # ★소크가 도는 커밋 — celery MainProcess 의 /proc 를 통해 읽는다
 scripts/soak-stack.sh status     # 고정 여부 · 커밋 · 활성 세션 · main 조상 여부
+scripts/soak-stack.sh ps         # ★DB 를 안 건드리는 생존 확인 — exit 0 = 하나라도 running / 1 = 완전 down
+                                 #   status 는 psql 을 쏘므로 down 이면 그 자체가 못 돈다 ([BL-656])
 
 # 「1주 안정 운영」을 기계가 판정한다 — PASS / FAIL / UNKNOWN, PASS 만 exit 0
 scripts/soak-gate.sh             # 표본을 남기고 판정
@@ -51,7 +53,18 @@ scripts/soak-gate.sh --install   # 30분마다 자동 (표본이 없으면 C4 �
                                  # macOS = launchd / 리눅스 = systemd user timer
                                  # ★리눅스는 lingering 이 필요하다 — 없으면 SSH 끊길 때 timer 도 멈춘다
 scripts/soak-gate.sh --status
+scripts/soak-gate.sh --prune-archives            # phantom 아카이브 회수 — 기본 dry-run, 옮기고 지우지 않는다
+scripts/soak-gate.sh --prune-archives --confirm  #   ★[BL-626] 기준은 개수가 아니라 **포함관계**다
 ```
+
+★**아카이브 회수에 개수 상한을 쓰지 마라 — 그것은 판정을 깎는다**([BL-626], 2026-08-09 실측).
+아카이브는 커버리지 구간(`log_from`~`log_to`)을 들고 있고 C1 은 **커버리지가 덮은 시간만** 센다.
+228벌에서 「최근 50개만 남긴다」면 커버리지 시작이 `08-04T15:51` → `08-08T18:21` 로 나흘치가
+사라진다. 168h 를 30분 주기로 채우려면 ~336벌이 필요하므로 **안전한 상수 N 은 없다.** 그래서
+`--prune-archives` 는 같은 `(log_from, predicate_version, classifier_ok)` 안에서 `log_to` 가 가장
+늦은 것만 남긴다(나머지의 상위집합). ★`log_to` 가 ISO 가 아닌 것은 **절대 회수하지 않는다** —
+파손본 10벌이 타임스탬프 자리에 문자 `Error` 를 들고 있고, 문자열 정렬로 재면 `'Error'` 가 ISO
+보다 커서 **파손본이 대표로 뽑히고 성한 것이 버려진다.**
 
 술어·창·리셋 규칙은 [`ADR-024`](../../decisions/024-soak-stability-gate.md). 계산부는 I/O 없는
 순수 함수(`backend/scripts/soak_gate_predicate.py`)라 손 계산과 대조할 수 있고, 정의는
@@ -81,7 +94,16 @@ scripts/soak-watch-test.sh         # 판단 로직 하네스 (실측 캡처 픽�
 
 scripts/soak-restart.sh            # 기본 = dry-run. 재기동 8단계와 실제 값을 출력만 한다
 scripts/soak-restart.sh --confirm  # 집행 (⑴ FLAT=YES 아니면 그 자리에서 멈춘다)
+scripts/soak-restart-test.sh       # 갈래·순서 하네스 (final-gates.sh 「소크 재기동 하네스」)
 ```
+
+★**재기동은 스택 상태에 따라 두 갈래다 — ⓿ 이 `soak-stack.sh ps` 로 고른다**([BL-656], 2026-08-09).
+살아 있으면 종전대로 ⑷ 에서 `down → pin → up`. **완전 down 이면 파라미터 조회보다 먼저**
+`pin → up` 을 선행하고 ⑷ 와 증거 덤프를 건너뛴다. 순서가 여기여야 하는 이유는 실측이다 —
+스택이 없으면 원장 조회(`_q`)부터 빈 값을 내 `--confirm` 이 「원장에 세션이 하나도 없다」로
+exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 손으로 줘야 하고, 그것이
+이 스크립트가 없애려던 손 절차다. ★down 갈래는 FLAT 확인이 up 뒤로 밀린다 — 종전 손 절차와
+같은 순서이므로 새 위험은 아니지만, 원장에 활성 세션이 남아 있으면 up 이 그것을 재개한다.
 
 ★**watch 는 게이트 타이머를 대체한다 — 추가가 아니다.** 게이트를 **기본(수집) 모드로 정확히
 1회** 부른다. `--no-collect` 로 따로 도는 안은 기각됐다: 새 phantom 아카이브를 안 남겨

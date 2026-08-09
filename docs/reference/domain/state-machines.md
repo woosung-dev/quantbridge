@@ -173,6 +173,9 @@ stateDiagram-v2
 
 ## 4. Optimization — Grid / Bayesian / Genetic (Sprint 54-57 구현됨, ADR-013)
 
+> ★**ADR-013 은 `docs/decisions/` 에 파일이 없다**(결번). 실체는 삭제된 dev-log 이고 git 에 살아 있다 —
+> `git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` ([BL-504]).
+
 ### 전이도 (`optimizer/models.py:OptimizationStatus`)
 
 ```mermaid

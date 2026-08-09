@@ -1,21 +1,21 @@
 """Sprint 12 Phase C — StateHandler TDD.
 
-5 시나리오 (M2 Slim):
+4 시나리오 (M2 Slim, BL-448 로 5→4):
 1. orderLinkId == Order.id (UUID) → DB transition
 2. exchange_order_id fallback (orderLinkId 없거나 invalid)
-3. orphan event buffered when Order row 미존재
-4. orphan_buffer FIFO eviction at 1000 (G3 #2)
-5. Rejected status → Slack alert 호출
+3. Order row 미존재 → 전이 없이 폐기 + 폐기 축 계상 (구 "orphan event buffered")
+4. Rejected status → Slack alert 호출
 """
 
 from __future__ import annotations
 
-import time
 from decimal import Decimal
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
+from src.common.metrics import qb_ws_orphan_discarded_total
 from src.core.config import Settings
 from src.trading.models import (
     ExchangeAccount,
@@ -197,39 +197,46 @@ async def test_invalid_orderLinkId_falls_back_to_exchange_order_id(
     assert refreshed.state == OrderState.cancelled
 
 
-async def test_unknown_order_buffered_in_orphan_buffer(session_factory):
+async def test_unknown_order_is_discarded_without_transition(session_factory):
+    """로컬 행이 없는 이벤트는 폐기되고 아무 전이도 일으키지 않는다 (BL-448).
+
+    ★종전 이름은 `test_unknown_order_buffered_in_orphan_buffer` 였고 5초 버퍼의 내부
+    (`handler._orphan_buffer[fake_id]` 와 항목의 타임스탬프)를 직접 단언했다. 그 버퍼를
+    읽는 프로덕션 경로가 없었으므로(`replay_orphan` 호출자 0) 버퍼째 걷어냈고, 여기서 잴
+    것은 **관측 가능한 행위** — 전이 없음 + 폐기 계상 — 로 바뀌었다.
+    `_discard_orphan` 의 reason 축은 `test_state_handler_gaps.py` 가 잰다.
+    """
     handler = StateHandler(
         session_factory=session_factory, settings=_make_settings()
     )
-    fake_id = str(uuid4())
+    spy = AsyncMock(return_value=0)
+    handler._apply_transition = spy  # type: ignore[method-assign]
+    account_id = uuid4()
+    before = qb_ws_orphan_discarded_total.labels(
+        account_id=str(account_id), reason="terminal_event_lost"
+    )._value.get()  # type: ignore[attr-defined]
+
     await handler.handle_order_event(
-        uuid4(),
+        account_id,
         {
-            "orderLinkId": fake_id,
+            "orderLinkId": str(uuid4()),
             "orderId": "EX-NEW",
             "orderStatus": "Filled",
         },
     )
-    assert fake_id in handler._orphan_buffer
-    payload, ts = handler._orphan_buffer[fake_id]
-    assert payload["orderStatus"] == "Filled"
-    # 5s TTL 안
-    assert time.time() - ts < 1.0
 
-
-async def test_orphan_buffer_fifo_eviction_at_1000(session_factory):
-    """codex G3 #2 — FIFO max 1000."""
-    handler = StateHandler(
-        session_factory=session_factory, settings=_make_settings()
+    spy.assert_not_awaited()
+    assert (
+        qb_ws_orphan_discarded_total.labels(
+            account_id=str(account_id), reason="terminal_event_lost"
+        )._value.get()  # type: ignore[attr-defined]
+        == before + 1
     )
-    account_id = uuid4()
-    # 1005 개 enqueue → 1000 만 잔존, 가장 먼저 들어간 5개는 eviction
-    for i in range(1005):
-        await handler.handle_order_event(
-            account_id,
-            {"orderLinkId": str(uuid4()), "orderStatus": "Filled", "_idx": i},
-        )
-    assert len(handler._orphan_buffer) == 1000
+
+
+# tombstone — `test_orphan_buffer_fifo_eviction_at_1000` (codex G3 #2, FIFO max 1000) 은
+# BL-448 에서 삭제했다. 재던 대상인 버퍼 자체가 사라졌고, 그 버퍼는 재생 장치가 아니라
+# 지연된 폐기장이었다(호출자 0). 원문은 git history 에 있다.
 
 
 async def test_rejected_status_triggers_alert(

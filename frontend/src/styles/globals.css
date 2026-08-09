@@ -964,7 +964,15 @@ h6 {
  * ========================================================================== */
 @layer components {
   /* KITPORT-START — 무결성 가드(design-canon-kit-port.test.ts)가 이 경계 안을 _kit.html
-     공용 블록과 정규화 대조한다. 이 경계 안은 프로토타입 정본을 벗어나지 않는다. */
+     공용 블록과 정규화 대조한다. 이 경계 안은 프로토타입 정본을 벗어나지 않는다.
+
+     ★[BL-645] 이 경계 안의 `.searchbox`(정의 `.searchbox {` · 1024px 숨김 규칙)는
+     **렌더하는 TSX 가 0건이다** — 의도적 미이식이고 근거는
+     `components/layout/dashboard-header.tsx:5`(「검색창은 백엔드 검색 기능이 없어
+     이식하지 않는다(가짜 UI 방지)」). 그래서 `DESIGN.md` §10.6 의 「1024px~ 검색 숨김」은
+     화면으로 검증할 수 없다. 이 설명을 정의 자리에 두지 못하는 이유는 위 가드가
+     **주석까지 대조**하기 때문이다(2026-08-09 실측 — 정의 위 주석 한 줄로 가드가 빨개졌다).
+     지우려면 삭제든 주석이든 allowlist 등재가 선행이다. */
   .mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
   .pos { color: var(--bull); }
   .neg { color: var(--bear); }

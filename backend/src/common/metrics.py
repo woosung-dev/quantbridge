@@ -338,18 +338,25 @@ qb_redis_lock_pool_healthy = Gauge(
 )
 
 # --- Sprint 12 Phase C: Bybit Private WebSocket ---
-# 10. WebSocket order event arrived 이전에 REST 가 Order row 생성 못 함 → orphan buffer.
+# 10. 도착 축 — WS order event 가 왔는데 대응하는 local Order row 가 없다.
 qb_ws_orphan_event_total = Counter(
     "qb_ws_orphan_event_total",
     "WS order events arrived before local DB row exists (REST/WS race)",
     labelnames=("account_id",),
 )
 
-# 11. orphan buffer 현재 크기 (FIFO max 1000).
-qb_ws_orphan_buffer_size = Gauge(
-    "qb_ws_orphan_buffer_size",
-    "Current size of WS orphan buffer (capped at 1000)",
-    multiprocess_mode="livesum",
+# 11. 폐기 축 — 그 고아 이벤트를 실제로 버린 것 (BL-448).
+#
+# ★도착 축과 왜 둘인가. 종전에는 도착 카운터 하나뿐이라 **무엇을 잃었는지** 알 수 없었다.
+#   `reason` 이 그 축이다 — `terminal_event_lost` 는 머니-패스 손실(reconciler 가 회수해야
+#   하는 대상)이고 `non_terminal_ignored` 는 로컬 행이 있었어도 skip 했을 무해한 값이다.
+#   ★종전의 `qb_ws_orphan_buffer_size` gauge 는 여기서 사라졌다 — 그 버퍼를 읽는 프로덕션
+#   경로가 애초에 없어(`replay_orphan` 호출자 0) 버퍼째 걷어냈기 때문이다. 경보를 걸 자리는
+#   이제 버퍼 크기가 아니라 `reason="terminal_event_lost"` 의 증가율이다.
+qb_ws_orphan_discarded_total = Counter(
+    "qb_ws_orphan_discarded_total",
+    "WS order events discarded because no local order row matched (recovery is the reconciler)",
+    labelnames=("account_id", "reason"),
 )
 
 # 12. reconnect 직후 reconciliation 에서 exchange 에 없는 local active order.

@@ -2,18 +2,28 @@
 
 설계 (codex G0/G3 결정):
 - orderLinkId 우선 lookup (UUID(orderLinkId) → Order.id). exchange_order_id fallback.
-- REST/WS race buffer: 5s TTL, FIFO max 1000 entries (codex G3 #2 hard cap).
 - terminal status 만 transition: New (skip — 보통 REST 가 이미 submitted),
   Filled / Cancelled / Rejected. PartiallyFilled 는 MVP skip (codex G3 #8).
 - Rejected 시 Slack alert (Phase A send_critical_alert 재사용).
+
+★**고아 이벤트(로컬 행이 없는 WS 이벤트)의 복구 경로는 reconciler 하나뿐이다** (BL-448).
+원래는 REST/WS 경합용 5초 재생 버퍼(`_orphan_buffer` + `replay_orphan`)가 있었으나 **REST
+승자 경로가 그것을 부른 적이 없다** — 테스트에서만 호출됐다. 그래서 버퍼는 재생 장치가 아니라
+지연된 폐기장이었고(항목은 TTL 이나 FIFO 축출로만 빠져나갔다), 폐기 시점에 로그·메트릭이
+전무해 **유실이 관측되지 않았다.** 버퍼를 되살리는 대신 걷어내고 폐기를 그 자리에서 계상한다.
+
+복구는 `reconciliation.Reconciler` 가 맡는다 — reconnect/first-connect 직후
+(`bybit_private_stream.py:263`) local `pending`/`submitted` 를 거래소 스냅샷과 대조해 종결
+증거가 있으면 전이시킨다. 그래서 **우리가 발주한 주문**의 놓친 종결 이벤트는 회수된다.
+반대로 로컬 행이 끝내 안 생기는 이벤트(외부 주문 등)는 reconciler 가 local→exchange 단방향이라
+INSERT 하지 않으므로 회수되지 않는다 — 이건 의도한 것이고, 그 폐기를
+`qb_ws_orphan_discarded_total` 이 센다.
 """
 
 from __future__ import annotations
 
 import contextlib
 import logging
-import time
-from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -22,7 +32,7 @@ from uuid import UUID
 from src.common.alert import send_critical_alert
 from src.common.metrics import (
     qb_active_orders,
-    qb_ws_orphan_buffer_size,
+    qb_ws_orphan_discarded_total,
     qb_ws_orphan_event_total,
     record_partial_fill,
 )
@@ -33,10 +43,6 @@ from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.order_repository import OrderRepository
 
 logger = logging.getLogger(__name__)
-
-
-_ORPHAN_TTL_S = 5.0
-_ORPHAN_MAX = 1000
 
 
 # Bybit V5 orderStatus → local OrderState. PartiallyFilled / New 은 skip.
@@ -70,10 +76,6 @@ class StateHandler:
         # test injection — None 이면 Phase A send_critical_alert 사용
         self._alert_sender = alert_sender or send_critical_alert
         self._user_id = user_id
-        # orderLinkId / exchange_order_id → (payload, ts) FIFO
-        self._orphan_buffer: OrderedDict[str, tuple[dict[str, Any], float]] = (
-            OrderedDict()
-        )
 
     async def handle_order_event(
         self, account_id: UUID, payload: dict[str, Any]
@@ -97,10 +99,9 @@ class StateHandler:
                 )
 
             if order is None:
-                # REST 가 아직 Order row 생성 못 함 / exchange_order_id 미저장
-                # → 5s buffer (codex G0-7)
+                # 로컬 행이 없다 — 회수는 reconciler 몫이므로 여기선 폐기하고 계상한다.
                 key = order_link_id or exchange_order_id or ""
-                self._buffer_orphan(key, payload, account_id)
+                self._discard_orphan(key, payload, account_id)
                 return
 
             # terminal status 만 transition (codex G3 #10)
@@ -172,44 +173,36 @@ class StateHandler:
                         },
                     )
 
-    async def replay_orphan(self, key: str, account_id: UUID) -> bool:
-        """REST 응답 직후 호출 — buffer 에 있으면 재처리 + 제거. True if replayed."""
-        entry = self._orphan_buffer.pop(key, None)
-        qb_ws_orphan_buffer_size.set(len(self._orphan_buffer))
-        if entry is None:
-            return False
-        payload, _ = entry
-        await self.handle_order_event(account_id, payload)
-        return True
-
-    def _buffer_orphan(
+    def _discard_orphan(
         self, key: str, payload: dict[str, Any], account_id: UUID
     ) -> None:
-        """5s TTL + FIFO max 1000 (codex G3 #2)."""
-        # 새 entry 등록 (이미 있으면 갱신 + reorder)
-        self._orphan_buffer[key] = (payload, time.time())
-        self._orphan_buffer.move_to_end(key, last=True)
+        """로컬 행이 없는 WS 이벤트를 폐기하고 **폐기 축**으로 계상한다 (BL-448).
 
-        # FIFO eviction
-        while len(self._orphan_buffer) > _ORPHAN_MAX:
-            self._orphan_buffer.popitem(last=False)
+        ★도착 축(`qb_ws_orphan_event_total`)과 따로 세는 이유 — 도착 수만으로는 **무엇을
+        잃었는지** 알 수 없다. 종결 상태(`Filled`/`Cancelled`/`Rejected`) 이벤트를 잃는 것은
+        머니-패스 손실이고 reconciler 가 회수해야 할 대상인 반면, 비종결(`New` ·
+        `PartiallyFilled` 등)은 로컬 행이 있었어도 어차피 skip 했을 무해한 값이다. 한 카운터로
+        뭉치면 이 둘이 섞여 경보 문턱을 정할 수 없다.
 
-        # 5s TTL — 앞에서부터 stale 제거 (insertion order = 시간 순)
-        cutoff = time.time() - _ORPHAN_TTL_S
-        while self._orphan_buffer:
-            first_key = next(iter(self._orphan_buffer))
-            _, ts = self._orphan_buffer[first_key]
-            if ts >= cutoff:
-                break
-            self._orphan_buffer.popitem(last=False)
+        같은 이유로 종결 이벤트만 `warning` 으로 올린다. 종전 `logger.debug` 는 프로덕션
+        로그 레벨에서 아무것도 안 남겼다 — 「폐기 시점에 로그·메트릭·알림 전무」의 실체다.
+        """
+        status = str(payload.get("orderStatus", "") or "")
+        is_terminal = status in _BYBIT_TERMINAL_MAP
+        reason = "terminal_event_lost" if is_terminal else "non_terminal_ignored"
 
-        qb_ws_orphan_buffer_size.set(len(self._orphan_buffer))
         qb_ws_orphan_event_total.labels(account_id=str(account_id)).inc()
-        logger.debug(
-            "ws_orphan_buffered account=%s key=%s buffer_size=%d",
+        qb_ws_orphan_discarded_total.labels(
+            account_id=str(account_id), reason=reason
+        ).inc()
+
+        log = logger.warning if is_terminal else logger.debug
+        log(
+            "ws_orphan_discarded account=%s key=%s status=%s reason=%s",
             account_id,
             key,
-            len(self._orphan_buffer),
+            status or "unknown",
+            reason,
         )
 
     async def _apply_transition(

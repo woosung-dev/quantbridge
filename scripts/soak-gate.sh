@@ -9,6 +9,7 @@
 #   scripts/soak-gate.sh --no-collect    # 표본을 남기지 않고 지금 원장으로만 판정
 #   scripts/soak-gate.sh --require-hours N --require-continuous N   # ★자기시험 전용
 #   scripts/soak-gate.sh --install / --uninstall / --status         # 30분마다 (macOS launchd / 리눅스 systemd user timer)
+#   scripts/soak-gate.sh --prune-archives [--confirm]  # 상위집합에 덮인 phantom 아카이브 회수 (기본 dry-run)
 #
 # 종료 코드: 0 = PASS **만** / 1 = FAIL / 2 = UNKNOWN
 #   ★**UNKNOWN 을 PASS 로 접지 않는다.** 이 스크립트의 존재 이유가 그것이다.
@@ -181,11 +182,82 @@ _status() {
   exit 0
 }
 
+_prune_archives() { # $1 = "confirm" 이면 실제로 옮긴다
+  # `.soak/phantom-*.json` 회수 ([BL-626]). ★**기본은 dry-run** — 옮기려면 --confirm.
+  #
+  # ★★**개수 상한은 쓰지 않는다 — 그건 판정을 깎는다.** 아카이브는 커버리지 구간
+  #   (`log_from`~`log_to`)을 들고 있고 C1 은 **커버리지가 덮은 시간만** 센다. 실측
+  #   2026-08-09(메인 체크아웃 228벌): 「최근 50개만 남긴다」면 커버리지 시작이
+  #   `2026-08-04T15:51` → `2026-08-08T18:21` 로 **나흘치가 사라진다.** 168h 게이트를
+  #   30분 주기로 채우려면 ~336벌이 필요하므로 어떤 상수 N 도 안전하지 않다.
+  #
+  # ★그래서 기준은 개수가 아니라 **포함관계**다. 매 실행이 워커 로그 **전량**을 다시
+  #   분류하므로, 같은 `(log_from, predicate_version, classifier_ok)` 안에서는 `log_to` 가
+  #   가장 늦은 아카이브가 나머지의 **상위집합**이다 — 커버리지도(같은 시작·더 늦은 끝),
+  #   verdicts 도(같은 코퍼스·같은 판별식·더 긴 지평). 그것만 남기고 나머지를 옮긴다.
+  # ★`predicate_version` 을 키에 넣는 이유 — 새 판별식이 취소한 옛 라벨을 조용히 버리면
+  #   합집합 규율([ADR-024] §아카이브 판)이 깨진다. 판이 다르면 다른 그룹이다.
+  # ★`log_to` 가 ISO 로 안 읽히는 것은 **절대 회수하지 않는다** — 실측 10벌이 타임스탬프
+  #   자리에 문자 `Error` 를 들고 있고(launchd 파손), 그것들은 `unreadable_log_coverage` 로
+  #   C5 에 참여한다. 문자열 정렬로 재면 `Error` 가 ISO 보다 크게 나와 성한 것을 버린다.
+  # ★지우지 않는다 — `.soak/superseded-<STAMP>/` 로 **옮긴다**. 원자료는 되돌릴 수 있어야 한다.
+  local mode="${1:-dry}"
+  QB_PRUNE_MODE="${mode}" python3 - "${STATE_DIR}" <<'PY'
+import collections, json, os, pathlib, re, shutil, sys
+
+state = pathlib.Path(sys.argv[1])
+confirm = os.environ.get("QB_PRUNE_MODE") == "confirm"
+ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T")
+
+groups = collections.defaultdict(list)
+frozen = []
+for p in sorted(state.glob("phantom-*.json")):
+    try:
+        blob = json.loads(p.read_text())
+    except Exception:
+        frozen.append((p, "판독 불가 JSON"))
+        continue
+    to = str(blob.get("log_to") or "")
+    if not ISO.match(to):
+        frozen.append((p, f"log_to 가 ISO 가 아니다: {to!r}"))
+        continue
+    key = (blob.get("log_from"), blob.get("predicate_version"), blob.get("classifier_ok") is True)
+    groups[key].append((to, p))
+
+keep, drop = set(), []
+for members in groups.values():
+    members.sort()
+    keep.add(members[-1][1])
+    drop.extend(p for _, p in members[:-1])
+
+total = len(list(state.glob("phantom-*.json")))
+print(f"아카이브 {total}벌 · 그룹 {len(groups)}개 · 보존 {len(keep)}벌 · 회수 대상 {len(drop)}벌 · 손대지 않음 {len(frozen)}벌")
+for p, why in frozen[:3]:
+    print(f"  손대지 않음: {p.name} — {why}")
+if not confirm:
+    for p in drop[:3]:
+        print(f"  회수 대상(예): {p.name}")
+    print("dry-run — 아무것도 옮기지 않았다. 집행하려면 --prune-archives --confirm")
+    raise SystemExit(0)
+if not drop:
+    print("회수할 것이 없다.")
+    raise SystemExit(0)
+dest = state / f"superseded-{sorted(p.name for p in drop)[-1][8:24]}"
+dest.mkdir(parents=True, exist_ok=True)
+for p in drop:
+    shutil.move(str(p), str(dest / p.name))
+print(f"✓ {len(drop)}벌을 {dest} 로 옮겼다 (지우지 않았다)")
+PY
+  exit $?
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --install) _install ;;
     --uninstall) _uninstall ;;
     --status) _status ;;
+    --prune-archives)
+      if [ "${2:-}" = "--confirm" ]; then _prune_archives confirm; else _prune_archives dry; fi ;;
     --json) AS_JSON=1 ;;
     --no-collect) COLLECT=0 ;;
     --since) [ $# -ge 2 ] || { echo "--since 에 값이 없다" >&2; exit 1; }; SINCE="$2"; shift ;;
@@ -211,6 +283,36 @@ _q() {
 
 NOW="$(docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "SELECT now();" 2>/dev/null)"
 [ -n "${NOW}" ] || { DB_OK=0; NOW="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; }
+
+# 이 실행이 **어느 DB 를 봤는가** — 헤더에 찍는다 ([BL-657])
+#
+# ★위험은 「틀린다」가 아니라 **「틀린 티가 안 난다」**다. 소크는 클라우드 서버에 있는데
+#   같은 스크립트를 로컬에서 돌리면 로컬 docker 의 낡은 `quantbridge-db` 를 재고, 그 결과는
+#   오류가 아니라 **정상 서식의 숫자**로 나온다(2026-08-08 실측: C1 1.5574h 로컬 vs 15.5680h 서버).
+# ★★**갈리는 축은 `DATABASE_URL` 이 아니다.** C1~C5 의 입력은 위 `_q()` = `docker exec
+#   ${DB_CONTAINER} psql` 이므로 축은 「**어느 docker 데몬의 어느 컨테이너**인가」다.
+#   `DATABASE_URL` 은 phantom 분류기(:339)만 쓰지만 그 결과가 `unverified_hours` 로 C1 을
+#   깎으므로 함께 찍는다 — 둘이 어긋나 있으면 그 사실 자체가 신호다.
+# ★비밀번호를 절대 찍지 않는다 — 마지막 `@` 앞을 통째로 버려 host:port/dbname 만 남긴다.
+DB_ADDR="$(docker port "${DB_CONTAINER}" 5432/tcp 2>/dev/null | head -1)"
+[ -n "${DB_ADDR}" ] || DB_ADDR="(포트 미공개)"
+# dbname 은 하드코딩을 믿지 않고 **DB 에게 묻는다**.
+# ★`docker exec` 는 OCI 런타임 오류를 **stdout 으로** 낸다(실측: 컨테이너를 바꾸면 헤더에
+#   `exec: "psql": executable file not found` 가 그대로 실렸다). 식별자 서식이 아니면 버린다.
+DB_NAME_SEEN="$(_q "SELECT current_database();")"
+[[ "${DB_NAME_SEEN}" =~ ^[A-Za-z0-9_]+$ ]] || DB_NAME_SEEN="?"
+DOCKER_ENDPOINT="${DOCKER_HOST:-ctx:$(docker context show 2>/dev/null)}"
+DB_ENV_TARGET=""
+if [ -f "${ROOT}/backend/.env.local" ]; then
+  _dburl="$(grep -E '^[[:space:]]*DATABASE_URL=' "${ROOT}/backend/.env.local" | tail -1)"
+  _dburl="${_dburl#*=}"
+  _dburl="${_dburl%%[[:space:]]*}"   # 인라인 주석·후행 공백 (값에 공백은 없다)
+  _dburl="${_dburl//\"/}"
+  _dburl="${_dburl//\'/}"
+  _dburl="${_dburl##*@}"             # ★자격증명 폐기 (비밀번호에 `@` 가 있어도 안전)
+  DB_ENV_TARGET="${_dburl%%\?*}"
+fi
+[ -n "${DB_ENV_TARGET}" ] || DB_ENV_TARGET="(없음)"
 
 # 세션 원장. ★생존 판정은 `deactivated_at` — `is_active`/`reason` 은 판정에 쓰지 않는다.
 SESSIONS_TSV="$(_q "
@@ -611,6 +713,9 @@ if [ -n "${SINCE}" ]; then
 fi
 
 printf '\n══ [BL-003] 소크 안정 게이트 ══\n'
+# ★[BL-657] — 이 줄이 없으면 인용된 출력만 보고 로컬/서버를 가를 수 없다. 판정에는 참여하지 않는다.
+printf '대상: %s %s/%s · docker %s · 실행 %s · 분류기 %s\n' \
+  "${DB_CONTAINER}" "${DB_ADDR}" "${DB_NAME_SEEN}" "${DOCKER_ENDPOINT}" "$(hostname)" "${DB_ENV_TARGET}"
 printf '판정: %s %s\n' "${VERDICT}" "${WORD}"
 printf '%s\n\n' "${SUMMARY}"
 
@@ -635,6 +740,13 @@ for v in c["C3_violations"][:5]:
 print("  %s C4 표본 공백  %d건" % (mark(c["C4_ok"]), len(c["C4_sample_gaps"])))
 for g in c["C4_sample_gaps"][:3]:
     print("        · %s" % g)
+# ★[BL-653] — 「C3 실격 0」은 「정지가 없었다」가 아니다. 이 해상도보다 짧은 정체는 구조적으로 안 보인다.
+res = d.get("sample_resolution")
+if res:
+    print(
+        "        표본 해상도: %d건 · 간격 중앙 %.1f분/최대 %.1f분 (이보다 짧은 tick 정체는 판별 불가)"
+        % (res["samples"], res["median_seconds"] / 60.0, res["max_seconds"] / 60.0)
+    )
 print("  %s C5 측정 무결  %s" % (mark(c["C5_ok"]), " ".join("%s=%s" % (k, mark(v)) for k, v in c["C5"].items())))
 print()
 print("  창 시작: %s   현재: %s" % (d["window_start"], d["now"]))
