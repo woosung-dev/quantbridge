@@ -437,7 +437,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ### P3 — trading / live / money-path 하드닝
 
 - [ ] **BL-475** [P3] 서버 권위 risk% 사이징 미구현 — UI 문구는 정정했고(PR #484) risk% 는 실제 동작대로 **상한**으로 재정의. 진짜 수량 산출은 미착수
-- [x] **BL-477** [P3] API 키 2개가 같은 Bybit 서브계정 → 청산 원장 2행 적재 + 유령 `unknown`. **선재**, 금액은 안전(`aggregate_closed_pnl` 계정 스코프). 읽기 전용 계정 삭제 시 자연 소멸
+- [ ] **BL-477** [P3] API 키 2개가 같은 Bybit 서브계정 → 청산 원장 2행 적재 + 유령 `unknown`. **선재**, 금액은 안전(`aggregate_closed_pnl` 계정 스코프). 읽기 전용 계정 삭제 시 자연 소멸
 - [ ] **BL-367** [P3] \_async_dispatch_event 205 LOC + 8× mark_failed 추출
 - [ ] **BL-370** [P3] exit-field multi-SSOT 8필드 × 3 boundary type
 - [ ] **BL-371** [P3] ws-stream 고빈도 fill 스트레스 (orphan buffer cap 1000)
