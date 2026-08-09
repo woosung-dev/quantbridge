@@ -6,7 +6,7 @@
 // 데이터 흐름은 도메인 훅 재사용. 실시간 스트림은 WebSocket+Zustand로 별도 배선한다.
 // 프로토타입의 "총 세션" 카드는 사용자 확정 WS Tier 2 요구로 미실현 추정 KPI로 교체한다.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
 
@@ -15,19 +15,22 @@ import {
   LiveSessionForm,
   LiveSessionList,
   LiveSessionTable,
+  liveSessionKeys,
   useLiveSessions,
-  useUnrealizedPnlEstimate,
   type LiveSession,
 } from "@/features/live-sessions";
-import { useStrategies } from "@/features/strategy/hooks";
+import { strategyKeys, useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 import {
   ExchangeAccountsPanel,
   KillSwitchPanel,
   OrdersPanel,
+  tradingKeys,
   useExchangeAccounts,
   useKillSwitchEvents,
 } from "@/features/trading";
+import { alertRuleKeys } from "@/features/alert-rules/query-keys";
+import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import type { ExchangeAccount, KillSwitchEvent } from "@/features/trading/schemas";
 import { InfoIcon } from "@/components/info-icon";
 import { StateBox } from "@/components/state-box";
@@ -38,31 +41,13 @@ import { AccountBalanceSection } from "./account-balance-section";
 import { AccountPositionsTable } from "./account-positions-table";
 import { OpenPositionsTable } from "./open-positions-table";
 import { SessionDiagnostics } from "./session-diagnostics";
+import { UnrealizedPnlKpi } from "./unrealized-pnl-kpi";
 
 const STRATEGY_FETCH_LIMIT = 100;
-const TICKER_STALE_MS = 15_000;
-
-function useNowTick(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
-
-  return now;
-}
-
-function formatEstimatedPnl(value: number): string {
-  const sign = value > 0 ? "+" : value < 0 ? "-" : "";
-  return `${sign}${Math.abs(value).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} USDT`;
-}
 
 export function TradingCockpit() {
   const queryClient = useQueryClient();
+  const { uid } = useAuthCtx();
 
   // BL-423 — `true`(비활성 포함). 아래 LiveSessionList 도 `useLiveSessions(true)` 를 쓰므로
   // 여기서 `false` 를 쓰면 queryKey 가 갈려(`list` vs `listWithInactive`) **같은 화면이 목록을
@@ -121,9 +106,8 @@ export function TradingCockpit() {
         .map((session) => session.id),
     );
   }, [accountItems, activeSessions]);
-  const unrealized = useUnrealizedPnlEstimate(activeSessions);
-  const now = useNowTick(5_000);
-  const isTickerStale = unrealized.latestTs !== null && now - unrealized.latestTs > TICKER_STALE_MS;
+  // BL-663 — 미실현 손익 추정은 `<UnrealizedPnlKpi>` 안으로 내렸다. 그 훅이 WS ticker 를
+  // 구독하므로 여기서 부르면 활성 세션 심볼이 틱할 때마다 §01~§08 전체가 재조정된다.
   const accountsCount = accountItems.length;
   const unresolvedKs = ksItems.filter((e) => e.resolved_at == null).length;
 
@@ -189,9 +173,24 @@ export function TradingCockpit() {
     [accountItems],
   );
 
+  // BL-664 — 인자 없는 `invalidateQueries()` 는 **앱 캐시 전체**를 stale 로 만들어 마운트된 활성
+  // 쿼리를 모두 동시에 재요청시킨다(백테스트 목록·옵티마이저 실행 등 이 화면과 무관한 것 포함).
+  // 이 코크핏이 실제로 소비하는 도메인은 **넷**이다:
+  //   trading(계정·킬스위치·주문·잔고) · live-sessions(목록·상세·상태·포지션) ·
+  //   strategies(§07 폼/표의 전략명 매핑) · alert-rules(§08 진단의 세션 알림 규칙).
+  // ★alert-rules 는 codex 적대 리뷰가 잡았다 — 첫 판에서 빠뜨렸고, 종전의 무필터 호출은
+  //   그것까지 갱신하고 있었으므로 빠뜨린 채로 두면 **무효화 범위를 좁힌 것이 아니라 기능을 깬다.**
+  //   ⇒ 도메인을 하나 추가할 때는 §01~§08 자식이 부르는 훅을 전수로 다시 세라.
+  // ★키는 하드코딩하지 않고 도메인 팩토리 루트를 쓴다(frontend/AGENTS.md §3).
   const handleRefresh = () => {
-    // 폴링 스냅샷을 즉시 갱신 — 활성 쿼리 전부 invalidate.
-    void queryClient.invalidateQueries();
+    for (const queryKey of [
+      tradingKeys.all(uid),
+      liveSessionKeys.all(uid),
+      strategyKeys.all(uid),
+      alertRuleKeys.all(uid),
+    ]) {
+      void queryClient.invalidateQueries({ queryKey });
+    }
   };
 
   return (
@@ -293,22 +292,7 @@ export function TradingCockpit() {
             </p>
           </article>
 
-          <article className="card kpi">
-            <p className="kpi-label">미실현 손익 · 추정</p>
-            <p className="kpi-value mono" data-testid="kpi-unrealized-pnl">
-              {unrealized.total === null ? (
-                <span className="kpi-na">시세 수신 대기</span>
-              ) : (
-                <>
-                  {formatEstimatedPnl(unrealized.total)}
-                  {isTickerStale ? <span className="kpi-value-tag">시세 지연</span> : null}
-                </>
-              )}
-            </p>
-            <p className="kpi-foot">
-              실시간 마크가격 × 미청산 수량 추정치. §03 거래소 보고값(/positions)과 다를 수 있습니다.
-            </p>
-          </article>
+          <UnrealizedPnlKpi sessions={activeSessions} />
         </div>
       </section>
 

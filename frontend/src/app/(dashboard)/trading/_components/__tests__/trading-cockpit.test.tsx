@@ -1,5 +1,5 @@
 // 트레이딩 코크핏의 WS 미실현 손익 KPI 상태를 검증한다.
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const useLiveSessionsMock = vi.fn();
@@ -8,10 +8,19 @@ const useStrategiesMock = vi.fn();
 const useExchangeAccountsMock = vi.fn();
 const useKillSwitchEventsMock = vi.fn();
 
+// BL-664 — 종전 mock 은 렌더마다 **새 객체**를 돌려줘서 무엇으로 무효화했는지 검증할 수 없었다.
+// 모듈 레벨 안정 spy 로 바꾼다.
+const invalidateQueriesMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
-  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
 }));
-vi.mock("@/features/live-sessions", () => ({
+vi.mock("@clerk/nextjs", () => ({
+  useAuth: () => ({ userId: "user-1", isSignedIn: true, getToken: async () => "t" }),
+}));
+// ★키 팩토리는 흉내내지 않고 **진짜**를 쓴다 — query-keys 는 의존성 없는 leaf 라 배럴을 끌지 않는다.
+// 흉내내면 팩토리가 바뀌어도 이 시험이 초록이 된다.
+vi.mock("@/features/live-sessions", async () => ({
+  liveSessionKeys: (await import("@/features/live-sessions/query-keys")).liveSessionKeys,
   LiveSessionDetail: () => <div data-testid="mock-detail" />,
   LiveSessionForm: () => null,
   LiveSessionList: ({
@@ -40,10 +49,12 @@ vi.mock("@/features/live-sessions", () => ({
   useLiveSessions: () => useLiveSessionsMock(),
   useUnrealizedPnlEstimate: () => useUnrealizedPnlEstimateMock(),
 }));
-vi.mock("@/features/strategy/hooks", () => ({
+vi.mock("@/features/strategy/hooks", async () => ({
+  strategyKeys: (await import("@/features/strategy/query-keys")).strategyKeys,
   useStrategies: () => useStrategiesMock(),
 }));
-vi.mock("@/features/trading", () => ({
+vi.mock("@/features/trading", async () => ({
+  tradingKeys: (await import("@/features/trading/query-keys")).tradingKeys,
   ExchangeAccountsPanel: () => null,
   KillSwitchPanel: () => null,
   OrdersPanel: () => null,
@@ -220,5 +231,54 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
 
     const last = accountPositionsProps.mock.calls.at(-1)?.[0];
     expect(last.accounts.map((a: { id: string }) => a.id)).toEqual(["acc-1", "acc-2"]);
+  });
+
+  // --- BL-663 — 5초 틱의 재조정 범위 ---------------------------------------
+  // `AccountPositionsTable` 은 memo 가 없으므로 코크핏이 재렌더되면 반드시 다시 호출된다.
+  // ⇒ 그 호출 수가 곧 「코크핏이 재조정됐나」의 대리 측정이다.
+  it("★5초 틱이 코크핏 §01~§08 을 재조정하지 않는다 (KPI leaf 안에 갇혔다)", () => {
+    render(<TradingCockpit />);
+    const before = accountPositionsProps.mock.calls.length;
+    expect(before).toBeGreaterThan(0); // 대리 측정이 살아 있음을 먼저 확인한다
+
+    act(() => {
+      vi.advanceTimersByTime(15_000); // 5초 틱 3회분
+    });
+
+    expect(accountPositionsProps.mock.calls.length).toBe(before);
+    // 그러면서 KPI 자체는 계속 그려진다.
+    expect(screen.getByTestId("kpi-unrealized-pnl")).toBeInTheDocument();
+  });
+
+  // --- BL-664 — 새로고침의 무효화 범위 ------------------------------------
+  // ★네 번째 도메인 `alert-rules` 는 codex 적대 리뷰가 잡았다 — 첫 판은 셋만 무효화했고
+  //   §08 `SessionDiagnostics` 의 `useAlertRules`(`alert-rules/hooks.ts`)가 빠져 있었다.
+  //   종전 무필터 호출은 그것도 갱신했으므로 빠뜨리면 **기능이 깨진다**. 도메인이 늘면 여기에 더해라.
+  it("★새로고침이 이 화면의 네 도메인만 무효화한다 (앱 전체 캐시가 아니라)", async () => {
+    const { liveSessionKeys } = await import("@/features/live-sessions/query-keys");
+    const { tradingKeys } = await import("@/features/trading/query-keys");
+    const { strategyKeys } = await import("@/features/strategy/query-keys");
+    const { alertRuleKeys } = await import("@/features/alert-rules/query-keys");
+
+    render(<TradingCockpit />);
+    invalidateQueriesMock.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: /새로고침/ }));
+
+    // ⑴ 무필터 호출이 0회여야 한다 — 이것이 [BL-664] 의 결함 자체다.
+    expect(invalidateQueriesMock.mock.calls.every((c) => c[0]?.queryKey !== undefined)).toBe(true);
+
+    // ⑵ 정확히 세 도메인 루트. 팩토리 출력과 대조하므로 키가 바뀌면 이 시험이 깨진다.
+    const keys = invalidateQueriesMock.mock.calls.map((c) => c[0].queryKey);
+    expect(keys).toEqual([
+      tradingKeys.all("user-1"),
+      liveSessionKeys.all("user-1"),
+      strategyKeys.all("user-1"),
+      alertRuleKeys.all("user-1"),
+    ]);
+
+    // ⑶ 음성 대조 — 백테스트·옵티마이저 루트는 어느 호출에도 안 걸린다.
+    const roots = keys.map((k) => k[0]);
+    expect(roots).not.toContain("backtests");
+    expect(roots).not.toContain("optimizations");
   });
 });
