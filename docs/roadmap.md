@@ -418,7 +418,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-403** [P3] recharts↔lwc↔inline-SVG 차트 3원화 해소 (BL-395 후)
 - [ ] **BL-408** [P3] 리포트/위저드 Precision Instrument 잔여물 팩 6건
 - [ ] **BL-415** [P3] .field-error FieldError 3사본 공용 승격
-- [ ] **BL-424** [P3] 대시보드 실현손익 카드 foot 미실현 부기 밀착
+- [x] **BL-424** [P3] 대시보드 KPI foot 미실현 부기 밀착 — ✅ 2026-08-09 (W3). 재현됐고 원인은 폭이 아니라 `.kpi-foot` 의 `display:flex` 였다(여러 줄 산문이 익명 flex item 으로 흩어져 `<br />` 무력화). 내용을 `<span>` 하나로 싸 해결 — 줄 top 간격 [8,2,10]px → [2,20]px
 
 ### P3 — vercel / FE·optimizer polish
 

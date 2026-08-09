@@ -508,7 +508,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-529](#bl-529) | 같은 Bybit uid 를 두 계정 행이 스윕해 청산 원장이 2배로 적재된다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 전략 누적 지표를 신뢰해야 할 때                                                                                 | S            | 2026-07-28 live-outcome-parity                               |
 | [BL-531](#bl-531) | parity 표면의 `ParitySummary` -> `OutcomeParityScope` 평탄화가 shotgun surgery (지표 1개 추가 = 5파일 편집)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | parity 지표를 더 붙일 때                                                                                        | S            | 2026-07-29 PR #496 코드리뷰                                  |
 | [BL-532](#bl-532) | `_sum_decimals` 사본이 `PARITY_DECIMAL_CONTEXT` 밖에서 돈다 (본 레포가 방금 세운 규칙과 불일치)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 다음 parity 손질 시                                                                                             | XS           | 2026-07-29 PR #496 코드리뷰                                  |
-| [BL-533](#bl-533) | 종료 세션 목록이 같은 엔드포인트를 두 쿼리 키로 조회해 미러 state 를 낳는다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 코크핏 손질 시                                                                                                  | XS           | 2026-07-29 PR #496 코드리뷰                                  |
+| [BL-533](#bl-533) | ✅ **Resolved (2026-08-09, W3)** — 종료 세션 목록이 같은 엔드포인트를 두 쿼리 키로 조회해 미러 state 를 낳는다. ★**키 통일은 [BL-423] 때 이미 끝나 있었다** — 남은 일은 미러 `selectedInactiveSession` 제거뿐(참조 4→0)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 코크핏 손질 시                                                                                                  | XS           | 2026-07-29 PR #496 코드리뷰                                  |
 | [BL-534](#bl-534) | 외부 오라클 테스트가 27 leg Decimal 합산을 실제로 실행하지 않는다 (총계를 관측 1건에 몰아넣음)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | parity 산술을 손댈 때                                                                                           | XS           | 2026-07-29 PR #496 코드리뷰                                  |
 | [BL-538](#bl-538) | 발산 알림 본문이 모든 카테고리에 "전략 수정 후 재활성화" 라고 처방한다 (포지션 불일치엔 틀린 처방)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 운영 알림을 사람이 신뢰해야 할 때                                                                               | S            | 2026-07-29 PR #497 사후 리뷰                                 |
 | [BL-541](#bl-541) | 세션 행이 아예 없는 포지션(웹훅 경로·거래소 수동)은 여전히 앱에서 못 닫는다 — ★아직 실측된 적 없음                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | `no_owning_session` 이 실제로 관측될 때                                                                         | M            | 2026-07-29 live-orphan-close                                 |
@@ -1198,7 +1198,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-525](#bl-525) | 라이브가 Track A(indicator + alertcondition) 전략을 어떻게 다루는지 정의되지 않았다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Track A 로 라이브 세션을 열 때                                                                                    | S         | 2026-07-28 live-entry-parity                           |
 | [BL-539](#bl-539) | (P3) 방향 불일치 유예가 시간 경계가 없다 — 평가가 드문드문하면 오래된 strike 가 살아남는다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 발산 가드를 다시 손댈 때                                                                                          | S         | 2026-07-29 PR #497 사후 리뷰                           |
 | [BL-540](#bl-540) | (P3) `live_signal.py` 반복 3종 — deactivate 의식 6회 · provider+creds 4회 · category 가 맨 `str`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 이 파일을 다시 크게 손댈 때                                                                                       | M         | 2026-07-29 PR #497 사후 리뷰                           |
-| [BL-548](#bl-548) | (P3) `OutcomeParityPanel` 이 375px 에서 본문 가로 스크롤 24px 을 만든다 (기존 결함)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 모바일 폭 점검 시                                                                                                 | XS        | 2026-07-30 conditional-entry-alignment                 |
+| [BL-548](#bl-548) | ✅ **Resolved (2026-08-09, W3)** — (P3) `OutcomeParityPanel` 이 375px 에서 본문 가로 스크롤을 만든다. ★**24px 재현 실패** — [BL-607] 반올림이 그 경로를 이미 닫았다. 남은 경로는 반올림 없는 `sub` 캡션 4곳 — 51자리 Decimal 이 오면 **191px**. 넘치는 것이 표가 아니라 텍스트라 처방은 `break-words`                                                                                                                                                                                                                                                                                                                                                                                 | 모바일 폭 점검 시                                                                                                 | XS        | 2026-07-30 conditional-entry-alignment                 |
 | [BL-550](#bl-550) | (P3) 비활성 세션의 **세션별** 포지션 대조가 화면에 없다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 죽은 세션을 세션 단위로 대조해야 할 때                                                                            | S         | 2026-07-30 conditional-entry-alignment                 |
 | [BL-551](#bl-551) | (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 세션 상세를 링크로 공유해야 할 때                                                                                 | S         | 2026-07-30 conditional-entry-alignment                 |
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 그 게이지로 무언가를 판단하기 전                                                                                  | S         | 2026-07-30 live-entry-completeness                     |
@@ -1231,13 +1231,14 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-638](#bl-638) | 🟡 `docs/archive/` 부재 — 2026-08-08 에 `lessons-archive-2026H1.md` 하나로 복원됐지만, `legacy_paths` 가 권장하는 하위 경로 4종은 여전히 없어 안내가 실행 불가다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 문서 보관 경로를 다시 안내하거나 정리할 때                                                                        | S         | 2026-08-08 bl003-unblock                               |
 | [BL-640](#bl-640) | `.metrics` 가 컨테이너 세대를 넘어 누적된다 — `engine_only_suppressed` 합산 89 중 15가 이전 세대 값이라 창 안 차분에 창 밖 값이 섞인다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 게이트가 `.metrics` 값을 창 기준으로 해석할 때                                                                    | S         | 2026-08-08 bl003-unblock                               |
 | [BL-644](#bl-644) | ✅ **Resolved — 767 → 768 한 줄.** 이 훅이 고르는 것은 Sheet vs Dialog 라 **셸의 모바일 판정과 같은 축**이고 셸은 `max-width:768px` 에서 넘어간다 ⇒ CSS 축에 붙였다. ★**세 축은 768 에서 전부 일치할 수 없다** — `min-width`·`max-width` 둘 다 경계값을 포함하므로 768 은 Tailwind `md:`(데스크탑)와 raw CSS(모바일)가 **동시에 참**인 유일한 점이다. 훅↔CSS 는 이제 일치, `md:`↔CSS 겹침은 이 BL 이전부터의 구조적 성질이라 그대로                                                                                                                                                                                                                                                   | 반응형 셸을 다시 손댈 때                                                                                          | XS        | 2026-08-08 fe-canon-and-responsive                     |
-| [BL-645](#bl-645) | `.searchbox` 는 CSS(`globals.css:1159-1178` 정의 · `:1853` 1024px 숨김)만 있고 **렌더하는 TSX 가 0건**이다(`dashboard-header.tsx:5` — 백엔드 검색이 없어 미이식). `DESIGN.md` §10.6 「1024px 검색 숨김」이 검증 불가였던 원인. 삭제할지 검색 기능과 함께 살릴지                                                                                                                                                                                                                                                                                                                                                                                                                       | 백엔드 검색을 붙일 때 · CSS 정리 스윕                                                                             | XS        | 2026-08-08 fe-canon-and-responsive                     |
+| [BL-645](#bl-645) | ✅ **Resolved (2026-08-09, W3)** — ★**처방 ③「주석만 달면 끝」이 틀렸다** — 정의 자리는 KITPORT 센티넬 안이고 가드가 **주석까지 대조**해 한 줄에 빨개진다(② 와 같은 allowlist 선행). ★**「어디에도 안 적혀 있다」도 틀렸다** — `DESIGN.md` §10.6 이 이미 근거까지 적고 있었다. 진짜 결함은 **줄 번호가 낡은 것**(`1159-1178`·`:1853` → 실측 `1146-1165`·`:1840`). 근거는 가드 밖 2곳에 두고 CSS 규칙은 안 건드렸다                                                                                                                                                                                                                                                                    | 백엔드 검색을 붙일 때 · CSS 정리 스윕                                                                             | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-646](#bl-646) | ✅ **Resolved — ① 등재**(`DESIGN.md` §4.3.1 신설, 콘텐츠 그리드 전용 6번째 경계). 흡수 2안 **실측 기각**. ★★**전제가 틀렸다 — 그리드가 받는 폭은 뷰포트가 아니라 `.page` 콘텐츠 박스이고 뷰포트에 단조가 아니다**(`--sidebar-w` 가 1024 에서 232→64 계단): 뷰포트 1023→**1025** 에서 콘텐츠가 911→**745** 로 **166px 줄어든다**. ⇒ 1024 흡수는 **가장 넓을 때 접는다**(모순 166px), 768 흡수는 뷰포트 769(콘텐츠 657)에서 `.trade-detail-metrics` 3열 219px 씩이 되며 `.metric` +6px **실제 파손**(「시각」이 「시/각」으로 꺾임), 900 유지가 모순 42px 로 최소. 근본 해는 컨테이너 쿼리 → [BL-647]. ★`frontend/AGENTS.md` §10 표는 [BL-602] 로 **미반영**                            | 반응형 정본을 다시 손댈 때                                                                                        | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-647](#bl-647) | `frontend/AGENTS.md` §10 은 mobile-first 필수인데 `globals.css` 의 `@media` **30곳이 전부 `max-width`**(min-width 0건) = 100% desktop-first. 2026-08-08 에 규칙의 **사거리를 좁혀** 봉합했고(신규 Tailwind 컴포넌트만 필수) 전면 전환은 미결                                                                                                                                                                                                                                                                                                                                                                                                                                          | CSS 규약을 집행 가능하게 만들 때                                                                                  | M         | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-648](#bl-648) | 🟡 **공개 라우트 라이트 런타임 커버리지 닫힘** — 처방 ②(`design-canon-public-light.spec.ts` 신설 + 감사 코어에 `theme` 옵션). ★**`colorScheme` 만으론 테마가 안 바뀐다**(`defaultTheme="dark"` ⇒ localStorage 선호값 필요) — `probeTheme()` 이 렌더 배경색을 읽어 도달 확인, 없으면 fail-open. ★★음성 대조: `--warning` 을 [BL-628] 회귀값으로 주입 ⇒ 새 spec **5/5 red**, **기존 다크 spec 은 5/5 초록**(AA 통과·캐논만 미달이라 하드 실패 게이트로 원리상 안 잡힌다). 복원 sha256 일치. 잔여 = **인증 셸 `.sidebar` 실폭**(소크 결합 [BL-597])                                                                                                                                      | 라이트 테마 회귀가 한 번 더 나올 때                                                                               | S         | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-649](#bl-649) | ✅ **Resolved — ① 삭제**(라이트·다크·`@theme inline` 3면 21줄). ②(`var(--warning)` 별칭 강등)를 버린 이유 = **별칭도 이름이고 소비자 0건이면 값을 못 한다** — 남기면 `@theme inline` 이 계속 유틸을 찍어 다음 사람이 또 고민한다. ★**「소비 0건」은 맞았지만 「참조 0건」은 아니었다** — [BL-629] 역방향 래칫 `CHART_VARS_FROZEN` 이 `--chart-1..5` 를 동결 목록에 잠그고 있었고(주석이 스스로 「처분은 [BL-649]」라 지목), 목록을 안 고쳤으면 집합 동등 단언이 red — **래칫이 설계대로 물었다**. 부수로 댕글링 주석 2줄 `warning` 정정                                                                                                                                               | 토큰 정리 스윕                                                                                                    | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-652](#bl-652) | ★**[BL-598] 의 결론은 전부 warm 프로세스 한정이다 — cold 축은 미측정**. 프로파일러 `section_import` 이 **첫 서브프로세스(17초, bytecode 컴파일+파일 캐시 워밍 포함)를 버리고** 이후 0.26s 로 가설 (a) 를 기각했는데, **CI 러너는 매 잡이 cold** 이고 샤드를 나누면 샤드마다 cold 다. 버린 17초가 샤드 수만큼 반복되는지는 아무도 안 쟀다(3샤드면 최악 51초). [BL-598] ② 의 파싱 디스크 캐시는 **파싱 비용만** 지우고 import·bytecode 는 캐시 히트여도 일어나므로 이 축은 남는다                                                                                                                                                                                                       | [BL-598] ② 착수 시 · CI 샤드 수를 늘리려 할 때                                                                    | S         | 2026-08-08 zero-touch-bundle                           |
 | [BL-658](#bl-658) | `decisions/013-optimizer-strategy.md` 소급 작성 — ADR-013 은 결번인데 **실체는 삭제된 dev-log 로 git 에 살아 있다**(`94da86b1^`, 24,703B). [BL-504] 는 인용을 tombstone 경로로 돌려 닫았고, 남은 것은 **그 실체를 `decisions/` 로 승격**하는 일이다. 소급 작성은 결정을 새로 만드는 게 아니라 이미 실행된 결정을 기록하는 것이므로 **없는 근거를 지어내지 말고** `optimizer/executors/` 코드와 대조해야 한다                                                                                                                                                                                                                                                                          | Optimizer 설계를 실제로 바꿀 때 (알고리즘 교체 · scikit-optimize 이탈 · GA 파라미터 변경)                         | M         | 2026-08-09 backlog-sweep ([BL-504] 분리)               |
+| [BL-659](#bl-659) | `design-canon-calibration.spec.ts` 의 `screen-06-strategies-list.html` 케이스가 **간헐 실패**한다 — 2026-08-09 W3 에서 7회 중 2회. 같은 커밋에서 연속 3회는 42/42 green 이고 `git stash` 로 내 diff 를 걷어내도 통과/실패를 오갔다 ⇒ **코드 회귀가 아니다**. ★위험은 실패 자체가 아니라 **다음 회차가 이걸 자기 회귀로 오독하는 것**                                                                                                                                                                                                                                                                                                                                                  | 디자인 캐논 게이트가 빨개졌을 때 / 캐논 스윕 착수 시                                                              | XS        | 2026-08-09 backlog-sweep-4lane W3                      |
 
 ### BL-491
 
@@ -1983,10 +1984,36 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Trigger:** 대시보드 polish 시
 **Est:** XS (<1h)
 **출처:** 2026-07-24 opspack-ws2 D8b dogfood 스크린샷 (docs/archive/sprints/opspack-ws2/context-notes.md #18)
+**상태:** ✅ **Resolved (2026-08-09, W3)** — **재현됐다.** 단 원인은 「폭 부족」이 아니라
+`.kpi-foot` 의 `display:flex` 였다. 아래 §재판정 참조.
 
 **원인 / 영향:** foot 문장 줄바꿈 + 부기 병치로 간격이 타이트. 판독은 가능하나 밀도 과다.
 
 **권장 접근:** 부기를 별도 행/뱃지로 분리하거나 foot 문구 축약.
+
+**§재판정 (2026-08-09, W3)**
+
+★**대상 파일이 BL 표기와 달랐다.** 「실현손익 카드」가 아니라
+`dashboard/_components/dashboard-cockpit.tsx` 의 KPI foot 이다
+(`workspace-equity-card.tsx` 에는 `미실현` 문자열이 없다).
+
+★**재현 결과 — 밀착은 실재했고, 원인은 폭이 아니었다.** `globals.css:1381-1390` 의
+`.kpi-foot` 이 `display: flex; align-items: center; gap: 6px` 다. 그 안에 여러 줄 산문을
+**직접** 넣으면 텍스트 노드마다 **익명 flex item** 이 생겨 좌우로 흩어지고 `<br />` 이
+줄바꿈으로 작동하지 않는다. 375px 실측 스크린샷에서 「건의 실현 손익 합입니다.」와
+「미실현(추정) 0.00」이 본문 오른쪽에 세로로 뭉쳐 있었다 — BL 이 「밀착」이라 적은 그 모양이다.
+줄 상자 top 간격 실측 = 수리 전 **[8, 2, 10]px**(줄 조각 4개, line-height 19.46px 에 한참 못
+미친다) → 수리 후 **[2, 20]px**(진짜 줄바꿈 1회가 line-height 와 일치).
+
+★**처방은 「부기 분리」가 아니라 「flex item 을 하나로」다.** 내용을 `<span>` 하나로 싸면
+그 안은 보통의 인라인 흐름이라 `<br />` 이 되살아난다. `.kpi-foot` 규칙 자체는 **못 고친다** —
+KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은 벽을 실측했다).
+
+변이 M = 그 `<span>` 을 지우면 구조 래칫이 빨개지고 줄 간격이 **[8, 2, 10] 으로 복귀**한다.
+음성 대조 N = `dashboard-cockpit.test.tsx` 의 `미실현(추정) -3.20` 단언과 「KPI 라벨로
+미실현을 노출하지 않는다」계약이 **둘 다 불변**. vitest 209파일 / **1302**테스트 green.
+
+★**다른 `.kpi-foot` 소비자는 안 건드렸다** — 한 줄짜리 foot 은 flex 로도 정상이다.
 
 ---
 
@@ -2595,6 +2622,13 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Trigger:** 422 에러 표면을 공통화하고 싶을 때
 **Est:** S
 **출처:** 2026-07-26 live-entry-wiring
+**상태:** ✅ **Resolved (2026-08-09, W3)** — `parseError` 422 general 분기에
+`fm ?? innerDetail ?? fallback` 폴백 추가. red→green = `friendly_message` 없는 422 가
+`"API 422 /api/v1/live-sessions"` → 서버 `detail` 문구를 렌더하고 `"API 422"` 미포함.
+변이 M = 폴백을 `fm ?? fallback` 으로 되돌리면 그 테스트가 다시 빨개진다(실측).
+음성 대조 N = `friendly_message` 가 있으면 `detail.detail` 이 함께 있어도 여전히
+`friendly_message` 가 이긴다(전용 테스트로 고정). vitest 209파일 / 1300테스트 green.
+★**라이브 세션 폼 교체는 하지 않았다** — 별건이고 이 회차 범위 밖이다.
 
 **원인 / 영향:** `form-error-inline.tsx:93-97` 의 422 general 분기가 `friendly_message` 만 읽고, 없으면 `fallback = err.message` 로 떨어진다. 그 `err.message` 는 `"API 422 /api/v1/live-sessions"` 라 사람이 못 읽는다.
 
@@ -2973,6 +3007,27 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Trigger:** 코크핏 손질 시
 **Est:** XS
 **출처:** 2026-07-29 PR #496 코드리뷰 (Standards 축)
+**상태:** ✅ **Resolved (2026-08-09, W3)** — 단 **쿼리 키 통일은 이미 끝나 있었다.**
+`trading-cockpit.tsx:73` 은 [BL-423] 회차부터 `useLiveSessions(true)` 였고
+`live-sessions-list-query-dedupe.test.tsx` 가 그것을 래칫으로 잡고 있었다. 즉 이번에 남은
+일은 **미러 state 제거 하나**다 — 통일이 끝났는데도 `selectedInactiveSession` 이 남아
+같은 사실을 두 곳에 두고 있었다. red→green = 미러 참조 **4곳 → 0곳**(`useState` 1 ·
+`selected` 폴백 1 · `handleSessionSelect` 1 · `LiveSessionForm.onSuccess` 1).
+
+★**미러를 지우자 기존 테스트가 빨개졌고, 그게 진짜 결함을 드러냈다.** mock 이
+`{ id: "session-1", is_active: true }` **활성 1건만** 돌려줘서 `include_inactive=false` 를
+흉내내고 있었다 — 「최근 종료 세션 선택」테스트는 **미러 덕분에만** 통과하고 있었다.
+mock 을 실제 쿼리대로 고치고(비활성 1건 추가), 그 위에 **음성 대조**를 새로 넣었다:
+쿼리가 활성만 실어 오면 같은 클릭이 상세가 아니라 중단 안내로 떨어진다. 이 대조가
+변이 M 의 상설판이다 — 없으면 그 테스트는 「종료 세션이 목록에 있든 없든 통과」로 읽힌다.
+
+★**부수 — 소스 래칫의 오탐면을 고쳤다.** 그 래칫은 파일 원문을 훑어서 **주석에
+`useLiveSessions()` 를 인용하기만 해도** 빨개졌다(이번에 실제로 물렸다). 문장을 비틀지
+않고 술어를 고쳤다 — 주석을 걷어낸 뒤 매칭한다. 판별력 실측: 산문 인용 5/5 green ·
+코드를 실제로 되돌리면 red.
+
+검증 = vitest **209파일 / 1301테스트** green. `chromium-authed` 는 10건 실패지만
+**stash 대조로 전건 기존 실패**임을 확인했다(이 워크트리에 BE `:8111` 이 없다).
 
 **원인 / 영향:** 코크핏은 `useLiveSessions()`, 세션 리스트는 `useLiveSessions(true)` 를 쓴다. 같은 엔드포인트를 **서로 다른 쿼리 키로 2회** 조회하고, 그 때문에 `selectedInactiveSession` 미러 state 가 필요해졌다. 코크핏도 `true` 를 쓰면 미러가 사라진다.
 
@@ -3165,6 +3220,9 @@ float 금지" 를 형식상 위반한다.
 **Trigger:** 모바일 폭 점검 시
 **Est:** XS
 **출처:** 2026-07-30 conditional-entry-alignment 게이트 4 (MCP playwright 실브라우저)
+**상태:** ✅ **Resolved (2026-08-09, W3)** — 단 **적힌 24px 은 재현되지 않았고 결론만 살아남았다.**
+2026-08-09 실측(슬롯 11 dev + `chromium-authed`, 375×812): 실측 픽스처
+`MOCK_OUTCOME_PARITY` 위에서는 **수리 전에도 0px** 이다. 아래 §재판정 참조.
 
 **원인 / 영향:** `/trading` 에서 세션 상세를 열면 body 가 24px 가로 스크롤된다(375px 기준).
 인과 분리 실측 — 상세 닫힘 **0px** / 상세 열림 **24px** / 상세 열림 + `outcome-parity-panel`
@@ -3176,6 +3234,26 @@ float 금지" 를 형식상 위반한다.
 **권장 접근:** 패널 안 넓은 콘텐츠를 자기 `overflow-x:auto` 컨테이너로 감싼다 — 같은 화면의 세 표는
 이미 `div.table-wrap{overflow-x:auto}` 로 그렇게 하고 있다. 그 패턴을 패널에도 적용.
 **Risk:** 🟢
+
+**§재판정 (2026-08-09, W3)**
+
+★**24px 은 이미 남이 고쳤다.** 2026-07-30 관측 당시 값 타일은 원장 Decimal 원문을 그대로
+그렸고, [BL-607](#bl-607)(2026-08-06)이 `DecimalValue` 반올림을 넣으며 그 경로를 닫았다.
+그래서 오늘 실측 픽스처 위에서는 **수리 전에도 0px** 이다 — 이 BL 을 「그대로 재현 → 수리」로
+잡았으면 **판별력 0 인 테스트**를 초록으로 만들고 닫았을 것이다.
+
+★**남은 경로는 `sub` 캡션이다.** `DecimalValue` 는 값 타일에만 걸려 있고,
+`undecomposed_net` · `expected_only_gross` · `actual_only_net` · `ledger_only_net` 네 필드는
+`sub` 로 **원문 그대로** 보간된다. 51자리 Decimal 은 끊을 수 없는 한 낱말이라 자기 블록을
+넘긴다. 인과 분리 실측 — 상세 닫힘 **0** / 열림 **191** / 열림 + 패널 `display:none` **0**.
+
+★**처방을 `overflow-x:auto` 에서 `break-words` 로 바꿨다.** 넘치는 것이 표가 아니라 **텍스트**라서다.
+`frontend/AGENTS.md` §10 완료 체크리스트도 둘을 갈라 놓았다 — 표는 `overflow-x-auto` 래퍼,
+텍스트는 `truncate` 또는 `break-words`. 스크롤 컨테이너를 씌우면 캡션을 읽으려고 가로 스크롤을
+해야 한다. 변이 M — `break-words` 4곳을 지우면 **191px 로 복귀**(실측).
+
+회귀 픽스처는 `MOCK_OUTCOME_PARITY_LONG_LEDGER_SUB` 로 **따로 두었다** — 실측 픽스처는 이 네 자리가
+마침 `"0"`·`"20"` 이라 결함을 못 본다.
 
 ---
 
@@ -6488,7 +6566,10 @@ vs Dialog(데스크탑)이라 **셸의 모바일 판정과 같은 축**이고, �
 **카테고리:** Frontend / 데드 CSS
 **Trigger:** 백엔드 검색을 붙일 때 · CSS 정리 스윕
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved (2026-08-09, W3)** — 단 **처방 ③ 은 「가장 싸다」가 아니었다.**
+CSS 정의 자리에 주석을 달면 KITPORT 무결성 가드가 빨개진다(실측) — ② 와 **똑같이**
+allowlist 등재가 선행이다. 그래서 근거를 가드 밖 두 자리에 남기고 `globals.css` 규칙은
+건드리지 않았다. 아래 §재판정 참조.
 
 **`.searchbox` 는 CSS 만 있고 렌더하는 컴포넌트가 없다.**
 
@@ -6502,6 +6583,27 @@ KITPORT 센티넬 안에 있어 `_kit.html` 과 묶여 있으므로 지우려면
 **수리 방향(택1):** ① 검색 기능과 함께 살린다 ② KITPORT allowlist 에 올리고 삭제
 ③ 「의도적 미이식」 주석만 단다(가장 싸다).
 **Risk:** 🟢 무해. 비용은 사람의 오독뿐이다.
+
+**§재판정 (2026-08-09, W3)**
+
+★**「어디에도 안 적혀 있다」가 틀렸다.** `DESIGN.md` §10.6 은 **이미** 「검증 불가 — 검색창이
+렌더되지 않는다」를 근거(`dashboard-header.tsx:5`)와 함께 적고 있었고 이 BL 번호까지 달고
+있었다. 그래서 이번에 산 것은 「없던 설명을 새로 쓴 것」이 아니다.
+
+★**진짜 결함은 줄 번호가 낡았다는 것이었다.** 이 BL 과 `DESIGN.md` 가 함께 인용하던
+`globals.css:1159-1178`·`:1853` 은 지금 파일에서 각각 `.searchbox:hover` 중간과
+`@media (max-width: 1024px)` **바깥**을 가리킨다. 실측 정정 = 정의 **1146-1165** ·
+1024px 숨김 **1840**. 렌더 TSX 는 재확인해도 **0건**이다(유일한 `searchbox` 히트는
+`app/__tests__/not-found.test.tsx` 의 **ARIA role** 이라 이 CSS 클래스가 아니다).
+
+★**처방 ③ 이 무료가 아님을 실측으로 확정했다.** `design-canon-kit-port.test.ts` 의
+`normalize` 는 공백만 접고 **주석을 보존**한다. 정의 바로 위에 주석 한 줄을 넣자
+「이식 블록은 allowlist 를 제외하면 \_kit.html 공용 블록과 정규화 동일하다」가 빨개졌다.
+⇒ 다음 회차는 ③ 을 「XS 무비용」으로 잡지 마라 — ② 와 같은 선행 작업을 요구한다.
+
+**둔 자리 2곳 (둘 다 가드 밖):** `DESIGN.md` §10.6 · `globals.css` 의 `KITPORT-START`
+센티넬 머리 주석(가드가 이 주석의 `*/` **뒤**부터 대조하므로 안전 — 넣고 5/5 green 실측).
+검증 = kit-port 가드 5/5 · `e2e:design-canon` 42/42 · CSS 변경은 주석 블록 1개뿐.
 
 ---
 
@@ -7189,3 +7291,33 @@ dev-log 가 적은 결정과 코드가 어긋나면 **코드가 맞다**([ADR-02
 **연결:** [BL-504](#bl-504) (인용 축 — 닫힘) · [ADR-026](decisions/026-documentation-ssot.md) (tombstone 규약)
 
 **출처:** 2026-08-09 backlog-sweep ([BL-504] G0 에서 실체가 git 에 살아 있음을 확인하고 분리)
+
+---
+
+### BL-659
+
+**Priority:** P3
+**카테고리:** Test infra / 디자인 캐논 게이트
+**Trigger:** 디자인 캐논 게이트가 빨개졌을 때 / 캐논 스윕 착수 시
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**`design-canon-calibration.spec.ts` 의 `screen-06-strategies-list.html` 케이스가 간헐 실패한다.**
+
+2026-08-09 backlog-sweep-4lane W3 관측 — `pnpm e2e:design-canon` **7회 중 2회** 이 케이스
+하나만 빨개졌다(나머지 실행은 42/42). 같은 커밋에서 **연속 3회 42/42** 이고, `git stash` 로
+내 diff 를 걷어낸 뒤에도 같은 케이스가 통과/실패를 오갔다 — 즉 **코드 회귀가 아니다.**
+
+★**위험은 실패 자체가 아니라 오독이다.** 이 게이트는 W3 회차에서 [BL-548](#bl-548) ·
+[BL-645](#bl-645) 의 음성 대조로 쓰였다. 간헐 실패를 자기 변경의 회귀로 읽으면 멀쩡한
+수리를 되돌리게 된다. 이번 회차도 처음 빨개졌을 때 stash 대조를 하고서야 무관함을 확정했다.
+
+★**원인은 조사하지 않았다.** 대상이 정적 HTML 이라 서버 상태와 무관해 보이는데도 흔들린다는
+점이 단서다 — 폰트 로딩 타이밍 또는 대비 계산 경계값을 의심한다. **[가정]** 이며 미확인이다.
+
+**권장 접근:** 실패 실행의 하드 실패 목록을 성공 실행과 diff 해 흔들리는 항목을 특정한다.
+그 항목이 대비 경계값이면 임계 근처 표본을 고정하거나 폰트 로딩 완료를 기다린다.
+
+**Risk:** 🟢 게이트 신뢰성만 해당. 프로덕션 코드 영향 없음.
+
+**출처:** 2026-08-09 backlog-sweep-4lane W3 (BL-548·BL-645 음성 대조 중 관측)
