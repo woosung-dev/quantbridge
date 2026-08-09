@@ -144,9 +144,9 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 ## P0 — Dogfood / H1 종료 blocker
 
-| ID                | 제목                                        | Trigger              | Est      | 출처                 |
-| ----------------- | ------------------------------------------- | -------------------- | -------- | -------------------- |
-| [BL-003](#bl-003) | Bybit mainnet 진입 runbook + smoke 스크립트 | H1 Stealth 종료 직전 | M (4-5h) | 2026-04-30 TODO 이력 |
+| ID                | 제목                                                                                                                                                                                                                                                                                                     | Trigger              | Est      | 출처                 |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | -------- | -------------------- |
+| [BL-003](#bl-003) | 🟡 부분 해결 — Bybit mainnet 진입 runbook + smoke 스크립트. **2026-08-09 산출물 축 닫힘**(runbook·`bybit-smoke.sh`·시크릿 절차) · **Trigger 축 열림**(`soak-gate.sh` C1 26.54h/168h). ★본문 「소액 $10~50」·「base URL 매핑 필요」·「smoke 신규」·「별도 secret manager」 **4건이 코드 대조로 반증**됐다 | H1 Stealth 종료 직전 | M (4-5h) | 2026-04-30 TODO 이력 |
 
 > 추가 P0 — BL-005 본인 dogfood + BL-145 EffectiveLeverageEvaluator (deferred). Resolved P0 = BL-001/002/004 (`_archived.md`).
 
@@ -161,15 +161,93 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 **원인 / 영향:** dogfood 가 Bybit Demo 만으로는 H1 종료 gate 충족 안 됨. mainnet 전환 시 수동 step 누락 위험 (IP whitelist / 출금 권한 차단 / 레버리지 1:1 / 소액 시작).
 
-**권장 접근:**
+**권장 접근:** ★★★**2026-08-09 에 이 3줄 중 4건이 코드 대조로 반증됐다** — 아래 「반증」 표를 먼저 읽어라.
 
-1. Trigger 충족 시 당시 Bybit 정책·계정 모드에 맞춘 mainnet runbook 신규 작성 — IP whitelist · 출금 권한 OFF 확인 · 레버리지 1:1 · 소액 ($10-50) 시작 · Kill Switch 임계값 lower bound
-2. `scripts/bybit-smoke.sh` 신규 — mainnet credentials 로 read-only API 호출 (잔고 조회 + 1 USDT limit-order 후 즉시 cancel) dry-run
-3. `.env.production` 별도 secret manager + rotation 절차
+1. ~~Trigger 충족 시 당시 Bybit 정책·계정 모드에 맞춘 mainnet runbook 신규 작성~~ → **2026-08-09 작성 완료**
+   = [`bybit-mainnet-runbook.md`](reference/operations/bybit-mainnet-runbook.md). ★**Trigger 를 기다리지 않았다** —
+   Trigger 가 막는 것은 산출물의 **실행**이지 **작성**이 아니다.
+2. ~~`scripts/bybit-smoke.sh` 신규~~ → **2026-08-09 신규 + 기존 파이썬 재사용**(`bybit_demo_smoke.py` → `bybit_smoke.py`).
+3. ~~`.env.production` 별도 secret manager + rotation 절차~~ → **2026-08-09 절차 확정**(runbook §3).
+   보관처는 **오라클 서버 파일 단독**(사용자 결정) — `.env.prod.example` 이 전제하던 GCP Secret Manager 는 **현실과 어긋나 있었다**.
 
 **의존성:** BL-004(완료, Sprint 28 PR #108).
 
-**Status:** 🔴 **열려 있다.** mainnet runbook·smoke 스크립트 미착수. (위 두 줄의 BL-004 는 **참조**다 — 이 항목의 상태가 아니다. 이 구분이 없어서 낡은 산식이 BL-003 을 RESOLVED 로 세고 **P0 active 를 0 으로 보고했다.**)
+**Status:** 🟡 **부분 해결 — 산출물 축은 닫혔고 Trigger 축은 열려 있다** (2026-08-09 bl003-mainnet-runbook).
+★상태줄 어휘는 `bl-audit.sh:75-79` 의 `verdict_of` 가 읽는다 — `lead()` 가 `—` 앞까지만 자르므로
+**「부분 해결」을 그 앞에 둬야** PARTIAL 로 판정된다(「부분 —」 로 쓰면 UNKNOWN 이 된다, 2026-08-09 실측).
+★**「P0 가 전진했다」로 읽지 마라.** 이 항목의 완료는 두 축이고 이번에 닫힌 것은 ⑴뿐이다 —
+⑴ **산출물**(runbook + smoke + 시크릿 절차) = **닫힘** · ⑵ **Trigger**(`soak-gate.sh` PASS) = **열림**
+(2026-08-09 실측 C1 **26.54h/168h = 15.8%** · C2 15.30h/24h · 실격 0 · 24h 도달 **0/39**).
+쓸 수 있는 문장은 **「게이트가 열릴 때 4~5h 를 더 기다리지 않아도 되게 만들었다」**다.
+(위 두 줄의 BL-004 는 **참조**다 — 이 항목의 상태가 아니다. 이 구분이 없어서 낡은 산식이 BL-003 을 RESOLVED 로 세고 **P0 active 를 0 으로 보고했다.**)
+
+**산출물 (2026-08-09):**
+
+| 파일                                                                                                  | 무엇                                                                                           |
+| ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| [`docs/reference/operations/bybit-mainnet-runbook.md`](reference/operations/bybit-mainnet-runbook.md) | 전제조건 · cutover 2곳 · 시크릿 · Kill Switch 표 · 2단계 진입 · **rollback** · [확인 필요] 5건 |
+| `scripts/bybit-smoke.sh`                                                                              | 정문. `--dry-run` 기본 · **그 경로 네트워크 호출 0건**(정적+동적 대조) · fail-closed 검사 6종  |
+| `backend/scripts/bybit_smoke.py`                                                                      | `bybit_demo_smoke.py` rename. `--mode live` · `--market spot` · credentials **env 전용**       |
+| `backend/.env.prod.example` · `.env.example`                                                          | `KILL_SWITCH_*` mainnet 값 · `BYBIT_SMOKE_*` · 보관처 문구 교체                                |
+
+**★★★반증 (2026-08-09 — 이 회차의 최대 산출):**
+
+| 본문/코드 주석이 말한 것                                                           | 실측                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 「BybitDemo/Futures **base URL mainnet 매핑**」이 할 일 (`providers.py:2256-2257`) | **이미 있다.** `_apply_bybit_env`(`providers.py:2202-2210`)가 demo → `enable_demo_trading(True)` · **live → no-op(`api.bybit.com`)** 로 이미 가른다. 축은 `Credentials.environment`(`:108-109`) ⇒ **provider 본문을 새로 쓸 일이 없고 cutover 는 2줄이다** |
+| 소액 **$10~50** 시작                                                               | **그 자본으로는 세션이 주문을 0건 낸다.** 사이징은 자본 비례(`strategy_state.py:503-506`)이고 서버 실측 자본 190,034 USDT → 주문 0.058 BTC ⇒ `X_min = 190,034 × (0.001/0.058) ≈ **$3,276**`. ★BTC 가격도 pct 도 **소거된다**(비율만 쓴다)                  |
+| `scripts/bybit-smoke.sh` **신규**                                                  | 뼈대가 **이미 있었다** — `backend/scripts/bybit_demo_smoke.py` 221줄·6단계. 신규는 셸 래퍼뿐이다                                                                                                                                                           |
+| `.env.production` **별도 secret manager**                                          | `backend/.env.prod.example` 이 **이미 존재**했고 GCP Secret Manager 를 전제로 쓰여 있었다 — 그런데 **실제 배포는 오라클 docker compose** 다. 신규 작성이 아니라 **현실과 맞추는 개정**이 답이었다                                                          |
+
+**★부수 발견 (수리했다):**
+
+- `bybit_demo_smoke.py` 가 **`mode` 인자를 받고도 쓰지 않고** `enable_demo_trading(True)` 를 하드코딩했다.
+  choices 가 `demo` 뿐이라 무해했지만, live 를 여는 순간 **「live 를 지정했는데 demo 로 간다」**가 된다.
+- credentials 를 **argv 로** 넘기고 있었다(`--api-key`) — 같은 호스트의 아무 프로세스나 `ps` 로 읽는다.
+  demo 키에선 무해, mainnet 실키에선 아니다 ⇒ **env 우선 + argv fallback** 으로 교체.
+- ★**runbook 초안의 rollback 명령이 틀렸다** — `stop`/`flatten` 은 `session_id` 가 **positional** 이고
+  `--confirm` 이 **required** 다(`live_session_admin.py:409-415`). `--session-id` 로 적었다면 **실자금
+  rollback 이 그대로 실패**했을 것이다. 인용 17건 전수 대조로 잡았다.
+- ★**내 셸 검사 하나가 죽은 코드였다** — `case *[![:print:]]*` 는 이 맥의 UTF-8 로케일에서 한글을
+  **print 로 보고 통과**시켰다. 실제로 잡은 것은 `LC_ALL=C grep` 쪽이다(음성 대조 6/6 으로 확인).
+- ★**내 테스트 도구가 한 번 거짓말했다** — zsh `MULTIOS` 가 `2>&1 >/dev/null` 를 **양쪽으로** 보내
+  stdout 이 stderr 인 것처럼 보였다. stderr 를 파일로 받아 재측정.
+
+**★★★codex 적대 리뷰가 내 runbook 의 핵심 주장을 반박했다 (7건 제기 · 7건 전부 코드 재현):**
+
+지난 2회차에서 codex 는 **산출물 0**(파일만 읽고 exit 0)이었다. 이번엔 스펙에 **출력 형식을 강제**하고
+「주장 6개를 하나씩 반증해라」로 표적을 좁혔더니 4,518B 를 냈다. **계약을 바꾸니 결과가 바뀌었다.**
+
+| #   | 급  | 무엇                                                                                                                                                                 |
+| --- | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | P0  | **`close_service.py:92` 가 live 를 `422 live_mode_stub` 으로 거부** ⇒ runbook §7 **rollback 이 실자금에서 실패**한다. **나갈 문이 없는 채로 들어갈 뻔했다**          |
+| 2   | P0  | `close_service.py:100-104` 는 **포지션만** 보고 조건부 주문을 안 본다 + CLI 가 그 409 를 **성공으로 출력**(`live_session_admin.py:383-387`) ⇒ 신규 [BL-661](#bl-661) |
+| 3   | P1  | `live_signal.py:3383` 이 live 계정을 **평가에서 skip** ⇒ 세션을 열어도 **신호·주문 0건**                                                                             |
+| 4   | P1  | 파이썬이 `--api-key` argv 를 여전히 수용 ⇒ 셸에서 **live 일 때 거부**로 막았다                                                                                       |
+| 5   | P2  | 값 없는 `--mode` 가 **무한 루프**(`shift 2` 실패를 `set -e` 없이 삼킨다) — 실측 rc **124**                                                                           |
+| 6   | P2  | `REPLACE_ME` 가 플레이스홀더 검사를 **통과**(rc 0) ⇒ 패턴 추가 + **영숫자 16자** 구조 술어 병행                                                                      |
+| 7   | P2  | 「dry-run 외부 호출 0건」이 **부정확한 술어** — `stat`·`sed`·`grep` 은 돈다 ⇒ **「네트워크 호출 0건」**으로 교체                                                     |
+
+★★★**그 결과 「cutover 는 2곳」이 반증됐다 — 실제로는 6곳이다.**
+`grep -rn "ExchangeMode.demo" backend/src/` 전수: `live_session_service.py:115` ·
+`live_signal.py:3383` · `close_service.py:92` · `position_service.py:332` · `:427` (+`registry.py:43-44`).
+★**진입 자물쇠(⑵⑶)와 출구 자물쇠(⑷)가 다르다** ⇒ runbook 에 **「⑷ 를 먼저 풀어라」** 순서 규약을 넣었다.
+
+★**부수로 하나 더 반증됐다** — 「registry stub 이 안전장치다」도 **거짓**이다.
+`BybitFuturesProvider()` 를 **직접 생성**해 registry 를 우회하는 자리가 **13곳**이고
+(`grep -rn "Bybit\(Futures\|Demo\|Live\)Provider()" backend/src/` → 14줄 중 1줄은 주석),
+호스트를 정하는 것은 클래스가 아니라 `Credentials.environment` = **`account.mode`**
+(`account_service.py:92`)다. stub 이 지금 무해한 이유는 「stub 이 막아서」가 아니라
+**「세션·평가 게이트가 live 계정을 통과시키지 않아서」**다.
+
+**남은 것 (cutover 회차의 일):**
+
+1. **Trigger** — `soak-gate.sh` PASS. 이 축은 시간이 답한다.
+2. runbook §8 의 **[확인 필요] 5건** — 특히 `min_qty = 0.001 BTC`([가정]). §6 의 $3,276 이 여기 걸려 있다.
+3. cutover 코드 2곳 + 그때 red 가 될 테스트 2건(`test_live_session_commits.py:270,306` ·
+   `test_demo_stability_gate.py:100-108`). **「고쳐야 할 red」이지 회귀가 아니다.**
+4. `app_env=production` ↔ `soak-gate.sh` 무인증 조회 충돌(2026-08-07 실측) — 같은 API 인스턴스에서
+   둘을 돌릴 계획이면 선행 과제다.
 
 **게이트 현황 (2026-08-05 conditional-stop-ownership 재측정):** `scripts/soak-gate.sh` = **FAIL** (exit 1) — 누적 **0h / 168h**. ★**차단자 [BL-595] 를 이 회차에 수리했다**([ADR-025]) — 라이브 조건부 진입 체결의 권한을 주문 원장으로 옮겼고, 사망 **5건 전량을 얼려 재현**(영속 보고서와 비트 단위 일치)한 뒤 수리 전 5/5 `direction` 발산 → 수리 후 5/5 일치를 보였다. ★**착수 중에 소크 세션 `a16aa640` 이 죽었다**(08-05T09:12:53Z, 생존 8.642h) — 5번째 사망이자 워커 로그가 남은 유일한 건이라 오라클을 거래소 실측으로 교차검증하는 데 썼다(3/3 일치). 기저율 재측정: [BL-590] 이후 노출 **18.831h 에 자동 사망 3건 = 0.159/h(MTBF 6.3h)** · `phantom` 6건 = 0.319/h. ★★codex 가 **「가장 오래 산 세션에서 보호가 먼저 꺼지는」** 경로를 잡았다 — 원장 조회가 세션 스코프 + 상한 200 이라 체결 2.55건/h 로 **약 78시간**이면 영구 판정 불가가 된다(이 항목의 168h 누적 경로에서 정확히 밟는다). 재생 창 스코프로 바꿔 닫았다.
 
@@ -179,20 +257,21 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
-| ID                | 제목                                                                                                                                                                                                                                                                                                                                                                       | Trigger                                                                      | Est      | 출처                        |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | --------------------------- |
-| [BL-014](#bl-014) | 🟡 부분 Resolved — Partial fill `cumExecQty` tracking (잔여 = BL-439/440/441)                                                                                                                                                                                                                                                                                              | 🟡 2026-07-25 `stage/money-path-accuracy`                                    | M (4-5h) | TODO.md L709                |
-| [BL-015](#bl-015) | OKX Private WS                                                                                                                                                                                                                                                                                                                                                             | Bybit Demo 안정화 후                                                         | M (6-8h) | TODO.md L710                |
-| [BL-022](#bl-022) | ✅ golden expectations 재생성 — **Resolved** (2026-08-07 backtest-fidelity). `backend/scripts/regen_golden.py` 신설(`--confirm`/`--case`/`--check`). ★이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인이다                                                                                                                                                            | pine_v2 `strategy.exit` 도입 후                                              | M (3-4h) | TODO.md L17 (skip #1)       |
-| [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                                                                                                                                                                                                                                                                                                                               | Trust Layer v2 검토 시                                                       | M (5-6h) | TODO.md L23 (skip #16)      |
-| [BL-024](#bl-024) | real_broker E2E 본 구현 (nightly cron)                                                                                                                                                                                                                                                                                                                                     | Bybit Demo credentials + seed data 준비 시                                   | L (8h+)  | CLAUDE.md Sprint 10 Phase C |
-| [BL-025](#bl-025) | autonomous-parallel-sprints 스킬 patch                                                                                                                                                                                                                                                                                                                                     | on-demand (BUG-1/2/3 재발 시)                                                | S (2h)   | TODO.md L653                |
-| [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                                                                                                                                                                                                                                                                                            | Stage 2c 2차 fixture 활성화 후                                               | S (1-2h) | TODO.md L20-22              |
-| [BL-619](#bl-619) | 🟡 부분 — ★**라이브 파이프라인이 한 세션에 ~17분 멈췄고 뿌리를 모른다.** 관측 장치는 2026-08-08 에 서버로 올렸다(systemd user unit `soak-logs-follow`, 실측 active·871KB·세션 `a4f1cbfb` 로그 유입). ★그것은 Trigger 를 **충족 가능하게** 만든 것이지 뿌리를 안 것이 아니다 — 닫는 조건은 재관측 부검 그대로다                                                             | 다음 서버 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검) | M        | 2026-08-08 bl003-unblock    |
-| [BL-633](#bl-633) | ✅ **이중 호스트 오염 — 근인 확정** — 같은 Bybit demo 계정의 맥 로컬 체결이 서버 세션 `39484a2c` 를 죽였다. G-A4‴ 소유권 7/27(귀속 불가 0)·G-A6′ 정본 항등식 4/4(반사실은 정의 4가지 어디서도 4/4 불가, 최대 1/4)·G-A7 계정 결합 27/27 이 뒷받침한다. ★원안 G-A4′ 6/6·G-A6 3/3 은 회차 도중 반증돼 교체됐다. `phantom` 은 증상이며, 오염 창은 ADR-025 의 반례로 셀 수 없다 | — (부검 완료 · 후속은 BL-634 · BL-641 로 이관)                               | M        | 2026-08-08 bl003-unblock    |
-| [BL-634](#bl-634) | ✅ **`register()` 전제조건 가드** — 같은 Bybit demo 계정에 두 호스트가 동시에 붙는 계정 배타성 가드 부재 — 두 DB 의 `live_signal_sessions` unique index 는 다른 호스트를 막지 못하며, 이번 `position_divergence` 사망의 직접 원인이다                                                                                                                                      | 실자금 전환 전 필수 / 두 번째 호스트를 다시 띄우기 전                        | M        | 2026-08-08 bl003-unblock    |
-| [BL-635](#bl-635) | ✅ **게이트 아카이브 오염이 라이브 기전이다** — 판독 불가 로그를 시간 credit 하지 않고 `UNKNOWN 측정불가`로 내리도록 `32ea2a5d` 에서 수리했다. 서버 systemd 만 대상이며 맥 launchd 타이머는 잔여다                                                                                                                                                                         | — (해결됨. 맥 launchd 잔여는 별도 후속)                                      | S        | 2026-08-08 bl003-unblock    |
-| [BL-641](#bl-641) | 🟡 부분 — BL-003 의 실질 선행조건은 문턱이 아니라 **MTBF** 다. 층화 + 95% CI 를 [ADR-024] 에 등재하고 재측정 도구(`mtbf_stratified.py`)를 만들었다. ★★★**점추정을 인용하지 마라 — 네 층의 CI 가 6쌍 전부 겹친다.** 결론이 서는 근거는 셈이다: **24h 도달 0건/39세션 · 최장 19.42h**(요구치의 1/8.65)                                                                       | BL-003 재계획 시 즉시 / 소크 재기동 회차마다 재측정                          | M        | 2026-08-08 bl003-unblock    |
+| ID                | 제목                                                                                                                                                                                                                                                                                                                                                                       | Trigger                                                                      | Est      | 출처                             |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | -------------------------------- |
+| [BL-014](#bl-014) | 🟡 부분 Resolved — Partial fill `cumExecQty` tracking (잔여 = BL-439/440/441)                                                                                                                                                                                                                                                                                              | 🟡 2026-07-25 `stage/money-path-accuracy`                                    | M (4-5h) | TODO.md L709                     |
+| [BL-015](#bl-015) | OKX Private WS                                                                                                                                                                                                                                                                                                                                                             | Bybit Demo 안정화 후                                                         | M (6-8h) | TODO.md L710                     |
+| [BL-022](#bl-022) | ✅ golden expectations 재생성 — **Resolved** (2026-08-07 backtest-fidelity). `backend/scripts/regen_golden.py` 신설(`--confirm`/`--case`/`--check`). ★이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인이다                                                                                                                                                            | pine_v2 `strategy.exit` 도입 후                                              | M (3-4h) | TODO.md L17 (skip #1)            |
+| [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                                                                                                                                                                                                                                                                                                                               | Trust Layer v2 검토 시                                                       | M (5-6h) | TODO.md L23 (skip #16)           |
+| [BL-024](#bl-024) | real_broker E2E 본 구현 (nightly cron)                                                                                                                                                                                                                                                                                                                                     | Bybit Demo credentials + seed data 준비 시                                   | L (8h+)  | CLAUDE.md Sprint 10 Phase C      |
+| [BL-025](#bl-025) | autonomous-parallel-sprints 스킬 patch                                                                                                                                                                                                                                                                                                                                     | on-demand (BUG-1/2/3 재발 시)                                                | S (2h)   | TODO.md L653                     |
+| [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                                                                                                                                                                                                                                                                                            | Stage 2c 2차 fixture 활성화 후                                               | S (1-2h) | TODO.md L20-22                   |
+| [BL-619](#bl-619) | 🟡 부분 — ★**라이브 파이프라인이 한 세션에 ~17분 멈췄고 뿌리를 모른다.** 관측 장치는 2026-08-08 에 서버로 올렸다(systemd user unit `soak-logs-follow`, 실측 active·871KB·세션 `a4f1cbfb` 로그 유입). ★그것은 Trigger 를 **충족 가능하게** 만든 것이지 뿌리를 안 것이 아니다 — 닫는 조건은 재관측 부검 그대로다                                                             | 다음 서버 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검) | M        | 2026-08-08 bl003-unblock         |
+| [BL-633](#bl-633) | ✅ **이중 호스트 오염 — 근인 확정** — 같은 Bybit demo 계정의 맥 로컬 체결이 서버 세션 `39484a2c` 를 죽였다. G-A4‴ 소유권 7/27(귀속 불가 0)·G-A6′ 정본 항등식 4/4(반사실은 정의 4가지 어디서도 4/4 불가, 최대 1/4)·G-A7 계정 결합 27/27 이 뒷받침한다. ★원안 G-A4′ 6/6·G-A6 3/3 은 회차 도중 반증돼 교체됐다. `phantom` 은 증상이며, 오염 창은 ADR-025 의 반례로 셀 수 없다 | — (부검 완료 · 후속은 BL-634 · BL-641 로 이관)                               | M        | 2026-08-08 bl003-unblock         |
+| [BL-634](#bl-634) | ✅ **`register()` 전제조건 가드** — 같은 Bybit demo 계정에 두 호스트가 동시에 붙는 계정 배타성 가드 부재 — 두 DB 의 `live_signal_sessions` unique index 는 다른 호스트를 막지 못하며, 이번 `position_divergence` 사망의 직접 원인이다                                                                                                                                      | 실자금 전환 전 필수 / 두 번째 호스트를 다시 띄우기 전                        | M        | 2026-08-08 bl003-unblock         |
+| [BL-635](#bl-635) | ✅ **게이트 아카이브 오염이 라이브 기전이다** — 판독 불가 로그를 시간 credit 하지 않고 `UNKNOWN 측정불가`로 내리도록 `32ea2a5d` 에서 수리했다. 서버 systemd 만 대상이며 맥 launchd 타이머는 잔여다                                                                                                                                                                         | — (해결됨. 맥 launchd 잔여는 별도 후속)                                      | S        | 2026-08-08 bl003-unblock         |
+| [BL-661](#bl-661) | ⬜ **`flatten` 이 「이미 flat」으로 exit 0 하는데 조건부 주문은 남는다** — `close_service.py:100-104` 가 포지션만 보고 미체결 조건부 진입을 안 본다. 운영 CLI(`live_session_admin.py:383-387`)가 그 409 를 **성공으로 출력하고 return** 한다 ⇒ 고아 조건부가 나중에 트리거된다. [BL-003] rollback 이 이걸 **문서로만** 방어한다                                            | 실자금 전환 전 필수 / 조건부 진입 세션을 내릴 때                             | S        | 2026-08-09 bl003-mainnet-runbook |
+| [BL-641](#bl-641) | 🟡 부분 — BL-003 의 실질 선행조건은 문턱이 아니라 **MTBF** 다. 층화 + 95% CI 를 [ADR-024] 에 등재하고 재측정 도구(`mtbf_stratified.py`)를 만들었다. ★★★**점추정을 인용하지 마라 — 네 층의 CI 가 6쌍 전부 겹친다.** 결론이 서는 근거는 셈이다: **24h 도달 0건/39세션 · 최장 19.42h**(요구치의 1/8.65)                                                                       | BL-003 재계획 시 즉시 / 소크 재기동 회차마다 재측정                          | M        | 2026-08-08 bl003-unblock         |
 
 > Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 (`_archived.md`). + BL-622 (2026-08-07 gap-resync-autopsy). + BL-604 (2026-08-06 entry-set-divergence).
 
@@ -7481,5 +7560,44 @@ pre-commit 의 `prettier --write` 가 `*.json` 을 대상으로 하므로 커밋
 **Risk:** 🟢 값 정확성에는 영향이 없다. 다만 골든 갱신 diff 의 신호 대 잡음비를 망가뜨린다.
 
 **출처:** 2026-08-09 backlog-sweep-4lane (W2 — BL-627 수리 중 부수 발견)
+
+---
+
+### BL-661
+
+**Priority:** P1
+**카테고리:** Backend / trading (청산) · 운영 CLI
+**Trigger:** 실자금 전환 전 필수 / 조건부 진입을 쓰는 세션을 내릴 때
+**Est:** S
+**상태:** ⬜ **Open**
+
+**`flatten` 이 「이미 flat」을 내고 exit 0 하는데 조건부 주문은 남아 있다.**
+
+`close_service.py:100-104` 는 `fetch_open_positions` 결과만 보고 비면 `409 no_open_position`
+을 낸다. **미체결 조건부 진입 주문은 보지 않는다.** 그런데 운영 CLI
+(`live_session_admin.py:383-387`)가 그 예외를 잡아 **`✓ 이미 flat 이다 (no_open_position).
+주문을 내지 않았다.` 를 출력하고 `return`** 한다 — 종료 코드 **0**.
+
+⇒ **조건부 주문이 살아 있는 채로 「정리 완료」로 읽힌다.** 그 주문은 나중에 트리거되어
+아무도 보고 있지 않은 시점에 포지션을 연다.
+
+★**이 레포는 같은 계열을 이미 겪었다** — 2026-08-08 `down` 이후 `FLAT=YES` 인데 엔진이 재무장해
+`d655f560`(FOREIGN sell) + `8d4272fe`(ours buy)가 거래소에 남았고 `EXCLUSIVE=NO` 가 됐다.
+그때는 `soak-restart.sh:288-304` 가 die 해서 드러났지만, **`flatten` 자신은 조용했다.**
+
+**왜 지금 아픈가:** [BL-003] runbook §7 rollback 이 `flatten` → `status` 순서인데, `flatten` 이
+거짓 성공을 내면 **실자금에서 조건부 주문을 남긴 채 「내렸다」고 판단**하게 된다. runbook 은
+「`status` 의 `RESTING_CONDITIONAL` 을 반드시 눈으로 확인하라」로 **문서 방어만** 해 뒀다 —
+코드 방어가 아니다.
+
+**권장 접근:** `close_position` 이 포지션과 **조건부 주문을 함께** 보고, 포지션이 없어도
+미체결 조건부가 있으면 그것을 취소하도록. 조회 계약은 이미 있다 —
+`fetch_open_conditional_orders(creds, symbol, reduce_only=None)`
+(`live_session_admin.py:242-244` 가 쓴다. ★`reduce_only=None` 은 협상 불가 계약이다).
+CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최소한 조건부 잔량을 함께 찍어라.
+
+**Risk:** 🔴 실자금에서 고아 조건부 주문. 데모에서도 참이지만 손실이 가상이라 안 아팠다.
+
+**출처:** 2026-08-09 bl003-mainnet-runbook (codex 적대 리뷰 발견 2 — 코드 대조로 확정)
 
 ---

@@ -1,20 +1,32 @@
-"""Bybit Testnet Smoke Test — mainnet dogfood 전환 전 전체 경로 검증.
+"""Bybit Smoke Test — demo/mainnet 주문 경로 검증 ([BL-003]).
 
-실행 예:
-    cd backend
-    uv run python scripts/bybit_demo_smoke.py \\
-        --api-key "$BYBIT_TESTNET_KEY" \\
-        --api-secret "$BYBIT_TESTNET_SECRET" \\
-        --symbol "BTC/USDT:USDT" \\
-        --quantity 0.001 \\
-        --leverage 1
+★2026-08-09 `bybit_demo_smoke.py` 에서 rename 됐다. 이름이 `demo` 인 채로 live 를 다루면
+「데모니까 안전하겠지」 오독을 부르기 때문이다. 참조처는 자기 docstring 하나뿐이었다.
 
-검증 경로:
+★**직접 부르지 마라 — `scripts/bybit-smoke.sh` 가 정문이다.** 그 셸이 `--dry-run` 기본 ·
+시크릿 파일 권한 검사 · live 경고 배너를 건다. 본 모듈은 승인 뒤 실호출만 담당한다.
+
+실행 예 (셸을 거치는 정문):
+    scripts/bybit-smoke.sh --dry-run                    # 외부 호출 0건
+    scripts/bybit-smoke.sh --mode demo --confirm        # 데모 실호출
+    scripts/bybit-smoke.sh --mode live --market spot --confirm   # ★실자금
+
+검증 경로 (`--market linear`):
     1. fetch_balance → USDT > 0 확인
     2. set_margin_mode (cross) 성공
     3. set_leverage 성공
-    4. create_order (limit, best_bid - 1%) → exchange_order_id 수신
-    5. cancel_order 정상 종료
+    4. fetch_ticker → best_bid
+    5. create_order (limit, best_bid - 1%) → exchange_order_id 수신
+    6. cancel_order 정상 종료
+
+`--market spot` 은 2·3(마진/레버리지)을 건너뛴다 — spot 계정에 없는 개념이라 거래소가 거부한다.
+★단계 1 smoke($50)가 spot 인 이유: perp 최소 주문 0.001 BTC 는 명목 ~$100 이라 1x 증거금이
+자본을 넘는다. perp 경로는 단계 2 에서 검증한다(`docs/reference/operations/bybit-mainnet-runbook.md`).
+
+★**mode 는 실제로 분기한다.** rename 이전 판은 `mode` 를 인자로 받고도 쓰지 않고
+`enable_demo_trading(True)` 를 하드코딩했다 — choices 가 `demo` 뿐이라 무해했지만, live 를
+여는 순간 「live 를 지정했는데 demo 로 간다」가 된다. 분기 규약은 `providers.py:_apply_bybit_env`
+와 같다: demo → `enable_demo_trading(True)` · live → no-op(기본 `api.bybit.com`).
 
 모든 단계 JSON으로 로깅. 실패 시 exit code 1.
 """
@@ -25,6 +37,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -57,6 +70,7 @@ async def run_smoke(
     quantity: Decimal,
     leverage: int,
     mode: str = "demo",
+    market: str = "linear",
 ) -> int:
     """Return exit code (0=success, 1=failure)."""
     exchange = ccxt_async.bybit(
@@ -65,13 +79,18 @@ async def run_smoke(
             "secret": api_secret,
             "enableRateLimit": True,
             "timeout": 30000,
-            "options": {"defaultType": "linear", "testnet": False},
+            "options": {"defaultType": market, "testnet": False},
         }
     )
+    # `providers.py:_apply_bybit_env` 와 같은 규약 — demo 만 URL 을 교체한다.
     # enable_demo_trading(True) = URL 교체 + enableDemoTrading 플래그 세팅.
     # URL만 바꾸면 retCode:10032 (/v5/user/query-api 미지원 엔드포인트 호출).
-    exchange.enable_demo_trading(True)
-    log_event("smoke_config", endpoint="api-demo.bybit.com")
+    if mode == "demo":
+        exchange.enable_demo_trading(True)
+        endpoint = "api-demo.bybit.com"
+    else:
+        endpoint = "api.bybit.com"
+    log_event("smoke_config", endpoint=endpoint, mode=mode, market=market)
 
     try:
         # 1. Balance
@@ -87,15 +106,18 @@ async def run_smoke(
             log_event("smoke_fail", reason="zero_usdt_balance")
             return 1
 
-        # 2. Margin mode
-        log_event("smoke_step_start", step="set_margin_mode")
-        await exchange.set_margin_mode("cross", symbol)
-        log_event("smoke_step_ok", step="set_margin_mode", mode="cross")
+        # 2·3. Margin mode / leverage — spot 계정에는 없는 개념이라 거래소가 거부한다.
+        if market == "spot":
+            log_event("smoke_step_skip", step="set_margin_mode", reason="spot_market")
+            log_event("smoke_step_skip", step="set_leverage", reason="spot_market")
+        else:
+            log_event("smoke_step_start", step="set_margin_mode")
+            await exchange.set_margin_mode("cross", symbol)
+            log_event("smoke_step_ok", step="set_margin_mode", mode="cross")
 
-        # 3. Leverage
-        log_event("smoke_step_start", step="set_leverage")
-        await exchange.set_leverage(leverage, symbol)
-        log_event("smoke_step_ok", step="set_leverage", leverage=leverage)
+            log_event("smoke_step_start", step="set_leverage")
+            await exchange.set_leverage(leverage, symbol)
+            log_event("smoke_step_ok", step="set_leverage", leverage=leverage)
 
         # 4. Order price — best_bid - 1% (즉시 체결 방지)
         log_event("smoke_step_start", step="fetch_ticker")
@@ -139,6 +161,8 @@ async def run_smoke(
 
         log_event(
             "smoke_success",
+            mode=mode,
+            market=market,
             symbol=symbol,
             quantity=str(quantity),
             leverage=leverage,
@@ -171,14 +195,25 @@ async def run_smoke(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Bybit demo smoke test — mainnet 전환 전 전체 경로 검증"
+        description="Bybit smoke test — 주문 경로 검증 (정문은 scripts/bybit-smoke.sh)"
     )
-    parser.add_argument("--api-key", required=True, help="Bybit demo API key")
-    parser.add_argument("--api-secret", required=True, help="Bybit demo API secret")
+    # ★credentials 는 **env 가 정문**이다 — argv 로 넘기면 같은 호스트의 아무 프로세스나
+    # `ps` 로 평문 키를 읽는다. demo 키에서는 무해했지만 mainnet 실키에서는 아니다.
+    # `--api-key`/`--api-secret` 은 로컬 임시 검증용으로 남겨 두되 env 를 우선한다.
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("BYBIT_SMOKE_API_KEY"),
+        help="Bybit API key. ★기본 경로는 env BYBIT_SMOKE_API_KEY (argv 는 ps 노출)",
+    )
+    parser.add_argument(
+        "--api-secret",
+        default=os.environ.get("BYBIT_SMOKE_API_SECRET"),
+        help="Bybit API secret. ★기본 경로는 env BYBIT_SMOKE_API_SECRET",
+    )
     parser.add_argument(
         "--symbol",
         default="BTC/USDT:USDT",
-        help="Linear perp symbol (default: BTC/USDT:USDT)",
+        help="심볼. linear perp 은 BTC/USDT:USDT · spot 은 BTC/USDT (default: BTC/USDT:USDT)",
     )
     parser.add_argument(
         "--quantity",
@@ -194,11 +229,32 @@ def main() -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=["demo"],
+        choices=["demo", "live"],
         default="demo",
-        help="bybit 환경: demo(api-demo.bybit.com, mainnet 실제 가격)",
+        help=(
+            "bybit 환경: demo(api-demo.bybit.com, 가상 자금) · "
+            "live(api.bybit.com, ★실자금). 기본값은 demo 로 fail-safe."
+        ),
+    )
+    parser.add_argument(
+        "--market",
+        choices=["spot", "linear"],
+        default="linear",
+        help=(
+            "spot 이면 margin_mode/leverage 단계를 건너뛴다(spot 계정에 없는 개념). "
+            "default: linear — rename 이전 동작 보존"
+        ),
     )
     args = parser.parse_args()
+
+    # fail-closed — credentials 부재는 「데모로 폴백」이 아니라 즉시 거부다.
+    if not args.api_key or not args.api_secret:
+        print(
+            "credentials missing — set BYBIT_SMOKE_API_KEY / BYBIT_SMOKE_API_SECRET "
+            "(정문: scripts/bybit-smoke.sh)",
+            file=sys.stderr,
+        )
+        return 2
 
     if args.leverage < 1 or args.leverage > 20:
         print("leverage must be 1~20 for smoke test", file=sys.stderr)
@@ -212,6 +268,7 @@ def main() -> int:
             quantity=args.quantity,
             leverage=args.leverage,
             mode=args.mode,
+            market=args.market,
         )
     )
 
