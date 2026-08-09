@@ -708,10 +708,23 @@ transition: all 200ms ease;
 > §10.2 정정을 봐라 — 콘텐츠 그리드 축이다.
 >
 > ~~`1024px~ 검색 숨김`~~
-> ★**검증 불가 — 검색창이 렌더되지 않는다.** `.searchbox` CSS(`globals.css:1159-1178` 정의,
-> `:1853` 1024px 숨김)는 이식돼 있으나 **그것을 렌더하는 TSX 가 0건**이다
+> ★**검증 불가 — 검색창이 렌더되지 않는다.** `.searchbox` CSS(`globals.css:1146-1165` 정의,
+> `:1840` 1024px 숨김)는 이식돼 있으나 **그것을 렌더하는 TSX 가 0건**이다
 > (`components/layout/dashboard-header.tsx:5` — 「검색창은 백엔드 검색 기능이 없어 이식하지
 > 않는다(가짜 UI 방지)」). 데드 CSS 의 처분은 [BL-645].
+>
+> ★**2026-08-09 (W3) 정정 — 위 줄 번호가 낡아 있었다.** 종전 표기 `1159-1178`·`:1853` 은
+> 지금의 파일에서 각각 `.searchbox:hover` 중간과 `@media (max-width: 1024px)` 바깥을 가리켰다.
+> 실측 재확인 = 정의 **1146-1165** · 1024px 숨김 **1840** · 렌더 TSX **0건**
+> (`grep -rn searchbox frontend/src --include=*.tsx` 의 유일한 히트는
+> `app/__tests__/not-found.test.tsx` 의 ARIA role `searchbox` 로, 이 CSS 클래스가 아니다).
+>
+> ★**CSS 정의 자리에는 주석을 못 단다.** 그 구간은 `KITPORT-START`~`KITPORT-END` 센티넬
+> 안이고, 무결성 가드가 `_kit.html` 과 **주석까지 포함해** 정규화 대조한다
+> (`src/__tests__/design-canon-kit-port.test.ts` 의 `normalize` 는 공백만 접고 주석은 보존).
+> 2026-08-09 실측 — 정의 바로 위에 주석 한 줄을 넣자 그 가드가 빨개졌다. ⇒ 「주석만 달면
+> 끝」이 아니라 **삭제와 똑같이 allowlist 등재가 선행**이다. 그래서 근거는 이 문서와
+> 센티넬 머리 주석에 남기고 `globals.css` 본문은 건드리지 않았다.
 
 ---
 
