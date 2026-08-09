@@ -21,17 +21,18 @@ import { BACKTEST_STATUS_LABEL } from "@/features/backtest/labels";
 import type { BacktestSummary } from "@/features/backtest/schemas";
 import { formatDateTime, formatPercent } from "@/features/backtest/utils";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
-import {
-  useLiveSessions,
-  useLiveSessionsAggregate,
-  useUnrealizedPnlEstimate,
-} from "@/features/live-sessions";
+// BL-662 — 배럴(`@/features/live-sessions`)이 아니라 직접 경로로 받는다. 이 화면은 훅만 쓰고
+// 배럴이 함께 내보내는 세션 컴포넌트 4종을 하나도 렌더하지 않는다.
+// ★`useUnrealizedPnlEstimate` 는 `hooks` 가 아니라 `unrealized` 에 있다(배럴이 두 파일을 합친다).
+import { useLiveSessions, useLiveSessionsAggregate } from "@/features/live-sessions/hooks";
+import { useUnrealizedPnlEstimate } from "@/features/live-sessions/unrealized";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { StrategyListItem } from "@/features/strategy/schemas";
 import { useOptimizationRuns } from "@/features/optimizer/hooks";
 import { OPTIMIZATION_STATUS_LABEL } from "@/features/optimizer/labels";
 import type { OptimizationRunResponse } from "@/features/optimizer/schemas";
-import { useExchangeAccounts } from "@/features/trading";
+// BL-662 — 같은 이유. `@/features/trading` 배럴은 패널·다이얼로그 5종을 함께 내보낸다.
+import { useExchangeAccounts } from "@/features/trading/hooks";
 // BL-458 — 출처 어휘 SSOT. 블로터 칩·세션 상세 칩과 같은 두 단어를 쓴다.
 import {
   ORDER_REALIZED_PNL_SOURCE_HINT,

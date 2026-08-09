@@ -1,4 +1,5 @@
 // Next.js production config — Sprint 60 S5 BL-245/246/274 (P1-13 안전헤더 최소 gate)
+import bundleAnalyzer from "@next/bundle-analyzer";
 import type { NextConfig } from "next";
 
 // Multi-Agent QA 2026-05-13 발견 — landing/dashboard 모든 페이지 보안 헤더 0개.
@@ -61,4 +62,9 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// 2026-08-09 fe-perf-quartet [BL-662] — 번들 계측 전용. `ANALYZE=1` 일 때만 켜지므로
+// 평시 빌드는 이 래퍼를 통과만 한다. [BL-662] 의 근거는 「줄 수와 모듈 도달성」이지
+// 측정된 KB 가 아니었다 — 이 래퍼가 그 숫자를 만든다.
+const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === "1" });
+
+export default withBundleAnalyzer(nextConfig);
