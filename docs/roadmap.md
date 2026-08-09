@@ -447,7 +447,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-439** [P3] 부분체결 후 cancelled 청산 실체결 손익 누락
 - [ ] **BL-440** [P3] per-execution ledger(order_executions) — BL-014 원안 잔여
 - [ ] **BL-447** [P3] exchange_order_id write `""`/`"None"` 저장
-- [ ] **BL-448** [P3] WS replay_orphan 프로덕션 호출자 0 (dead code)
+- [x] **BL-448** [P3] WS replay_orphan 프로덕션 호출자 0 (dead code) — 2026-08-09 제거 + 폐기 축 메트릭 `qb_ws_orphan_discarded_total{reason}` 신설
 - [ ] **BL-449** [P3] Order.webhook_payload JSONB `'null'` 저장
 - [ ] **BL-450** [P3] get_daily_summary 테넌트 스코프 없음 · (Beta 다사용자)
 - [ ] **BL-452** [P3] 거래소 청산 원장 최근 7일만 (백필 불가)

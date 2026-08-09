@@ -1396,9 +1396,9 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Est:** S (2-4h)
 **출처:** `2026-06-26-trading-deepen-2.md`
 
-**현 상태:** `state_handler.py` orphan buffer FIFO cap 1000(`_ORPHAN_MAX`) + out-of-order WS fill message / supervisor crash-restart cycle 가 고빈도(>100 fills/s) 스트레스 테스트 미검증. 현재 데모 빈도엔 충분.
+**현 상태:** ~~`state_handler.py` orphan buffer FIFO cap 1000(`_ORPHAN_MAX`)~~ → **2026-08-09 [BL-448](#bl-448) 로 버퍼·cap·gauge 가 통째로 사라졌다** (읽는 프로덕션 경로가 없었다). 남은 관심사는 out-of-order WS fill message / supervisor crash-restart cycle 의 고빈도(>100 fills/s) 스트레스 테스트 미검증뿐이다. 현재 데모 빈도엔 충분.
 
-**권장 접근:** post-Beta 모니터링(`qb_ws_orphan_buffer_size` gauge alert >800) + 필요 시 concurrent ordering 테스트 추가. 현재는 등재만.
+**권장 접근:** post-Beta 모니터링 — ~~`qb_ws_orphan_buffer_size` gauge alert >800~~ → **`qb_ws_orphan_discarded_total{reason="terminal_event_lost"}` 증가율**(버퍼 크기라는 축 자체가 없어졌다) + 필요 시 concurrent ordering 테스트 추가. 현재는 등재만.
 
 **영향 파일:** `trading/websocket/state_handler.py` + 테스트.
 
@@ -1767,7 +1767,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 - ★**`_created` 시리즈 전면 소실.** 실측 — 미배선 API **30줄** → 배선 API **0줄**. `prometheus_client` 의 `_created` 는 `ValueClass` 를 거치지 않는 순수 float 이라 mmap 에 실리지 않는다. `rate()` 는 무영향이나 `_created` 기반 쿼리는 깨진다. **multiprocess 모드의 내재적 성질**이지 우리 버그가 아니다.
 - **프로덕션 경로가 테스트되지 않는다.** 테스트 env 에 `PROMETHEUS_MULTIPROC_DIR` 이 없어 전 스위트가 폴백을 탄다. **`/metrics` HTTP 를 multiproc 모드로 때리는 테스트가 0건**이다(신규 테스트도 `render_metrics()` 단위까지).
-- **`qb_ws_orphan_buffer_size` 값 범위 변화.** docstring 은 "capped at 1000" 인데 `concurrency=3` + `livesum` 이라 0~3000. 기존 임계 재조정 필요.
+- ~~**`qb_ws_orphan_buffer_size` 값 범위 변화.** docstring 은 "capped at 1000" 인데 `concurrency=3` + `livesum` 이라 0~3000. 기존 임계 재조정 필요.~~ → **2026-08-09 무효 — 그 gauge 는 [BL-448](#bl-448) 에서 삭제됐다**(버퍼째 제거). 이 항목이 재던 「livesum × concurrency 로 범위가 배수가 된다」는 성질 자체는 남은 `livesum` gauge(`qb_pending_alerts`)에 그대로 유효하다.
 - **`qb_redis_lock_pool_healthy` 가 fail-open.** `mostrecent` 는 죽은 프로세스가 남긴 `1` 을 계속 서빙한다 — 건강한 프로세스가 없어도 healthy=1. `livemostrecent`/`min` 이 후보이나 각각 다른 실패 모드가 있다.
 
 **권장 접근:** 위 4건을 `docs/reference/` 관측 계약 문서에 명시 + multiproc 모드 endpoint 테스트 추가.
@@ -2178,6 +2178,29 @@ JOIN trading.orders ON exchange_order_id → 0 행
 **원인 / 영향:** `state_handler.py:172-180` 의 `replay_orphan` 은 테스트에서만 호출된다. REST 응답 경로(`attach_exchange_order_id` / `transition_to_filled`)가 부르지 않아 5초 버퍼는 사실상 **무조건 폐기**로 동작한다. TTL 소거도 다음 `_buffer_orphan` 호출 시에만 도는 lazy 방식이라 백그라운드 타이머가 없고, **폐기 시점에는 로그·메트릭·알림이 전무**하다(버퍼 진입 카운터 `qb_ws_orphan_event_total` 만 있어 유실과 구분 불가).
 
 **권장 접근:** REST 승자 경로에서 `replay_orphan(key, account_id)` 을 호출해 배선하거나, 배선하지 않을 거면 버퍼·함수를 통째로 제거하고 reconciler 단일 복구 경로임을 명시한다. 폐기 시 metric 은 어느 쪽이든 필요하다.
+
+**상태:** ✅ **Resolved (2026-08-09, W2)** — 두 갈래 중 **제거 + 폐기 메트릭**(사용자 결정). 배선은
+money-path 의미를 바꾸므로 하지 않았다.
+
+**한 것:**
+
+- `_orphan_buffer` · `replay_orphan` · `_buffer_orphan` · `_ORPHAN_TTL_S` · `_ORPHAN_MAX` 제거.
+  reconciler 가 단일 복구 경로임을 모듈 docstring 에 근거와 함께 명시(회수되는 것 = 우리가 발주한
+  주문의 놓친 종결 이벤트, 회수 안 되는 것 = 로컬 행이 끝내 안 생기는 이벤트 — reconciler 는
+  local→exchange 단방향이라 INSERT 하지 않는다).
+- 신규 `qb_ws_orphan_discarded_total{account_id, reason}` — **폐기 축**. `reason` 은
+  `terminal_event_lost`(머니-패스 손실) / `non_terminal_ignored`(로컬 행이 있었어도 skip 했을 값).
+  ★한 축으로 뭉치지 않은 이유 = 그러면 경보 문턱을 정할 수 없다. 도착 축
+  `qb_ws_orphan_event_total` 은 대시보드 계약이라 **불변으로 뒀다**.
+- 종결 이벤트 폐기는 `logger.warning` 으로 승격(종전 `logger.debug` 는 프로덕션 레벨에서 무음이었다).
+- `qb_ws_orphan_buffer_size` Gauge 삭제 — 버퍼가 없으니 구조적으로 영원히 0 이다.
+
+**★G0 정정 2건 (2026-08-09 실측).** ① BL 본문의 `state_handler.py:172-180` 은 드리프트 — 실제
+정의는 `:175` 였다. ② 「테스트에서만 호출된다」는 `replay_orphan` 에 대해서만 참이고, 버퍼 자체는
+`test_state_handler.py` 의 **두 케이스가 더** 잡고 있었다(`test_unknown_order_buffered_in_orphan_buffer` ·
+`test_orphan_buffer_fifo_eviction_at_1000`). 즉 「`test_state_handler_gaps.py` 를 제외한 WS 테스트
+전량 불변」은 **달성 불가능한 음성 대조**였다 — 앞의 것은 행위 단언(전이 없음 + 폐기 계상)으로
+바꿨고 뒤의 것은 tombstone 주석과 함께 삭제했다.
 
 ---
 
