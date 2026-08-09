@@ -13,6 +13,7 @@
 import { expect, test } from "@playwright/test";
 
 import { API_ROUTES, fulfillJson } from "./fixtures/api-mock";
+import { MOCK_OUTCOME_PARITY } from "./fixtures/outcome-parity";
 
 // z.uuid() 준수 — variant nibble 은 [89ab] 여야 파싱을 통과한다.
 const ACCOUNT_ID = "a0000000-0000-4000-b000-000000000011";
@@ -85,10 +86,20 @@ test.beforeEach(async ({ page }) => {
     `**/api/v1/live-sessions/${SESSION_ID}/positions**`,
     fulfillJson({ items: [] }),
   );
+  // ★codex G6 발견 3. `LiveSessionDetail` 은 `OutcomeParityPanel` 을 **항상** 렌더하고
+  //   (`live-session-detail.tsx:238`) 그 패널은 `OutcomeParityResponseSchema` 를 요구한다.
+  //   catch-all 이 목록 payload 를 돌려주면 패널만 조용히 오류 상태가 되고, 루트 testid 만
+  //   보는 시험은 그대로 초록이다. 형식이 맞는 응답을 준다.
+  await page.route(
+    `**/api/v1/live-sessions/${SESSION_ID}/outcome-parity**`,
+    fulfillJson(MOCK_OUTCOME_PARITY),
+  );
 
   await page.route(API_ROUTES.liveSessions, (route, request) => {
     const url = request.url();
-    if (/\/live-sessions\/[^/]+\/(state|events|alert-rules|positions)/.test(url)) {
+    if (
+      /\/live-sessions\/[^/]+\/(state|events|alert-rules|positions|outcome-parity)/.test(url)
+    ) {
       return route.fallback();
     }
     return fulfillJson({ items: [MOCK_SESSION], total: 1 })(route);
@@ -96,10 +107,21 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("?session=<id> 로 진입하면 상세 패널이 열린다", async ({ page }) => {
+  const consoleErrors: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") consoleErrors.push(msg.text());
+  });
+
   await page.goto(`/trading?session=${SESSION_ID}`, { timeout: 60_000 });
 
-  await expect(page.getByTestId(`live-session-detail-${SESSION_ID}`)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId(`live-session-detail-${SESSION_ID}`)).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(page.getByTestId("live-session-stopped-notice")).toHaveCount(0);
+  // ★루트 testid 만 보면 하위 패널이 조용히 오류 상태여도 초록이다(codex G6 발견 3).
+  //   실제 오류 표면 하나를 함께 못 박는다.
+  await expect(page.getByTestId("outcome-parity-panel")).toBeVisible({ timeout: 30_000 });
+  expect(consoleErrors).toEqual([]);
 });
 
 test("목록 밖 id 로 진입하면 중단 안내가 뜬다", async ({ page }) => {

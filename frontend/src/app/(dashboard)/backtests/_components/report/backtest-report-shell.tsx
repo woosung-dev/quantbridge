@@ -76,6 +76,16 @@ export function BacktestReportShell({
 
   // 리포트는 React Query 완료 뒤에 삽입되어, 문서 로드 시점의 네이티브 fragment
   // 위치결정이 이미 끝날 수 있다. 마운트 뒤 해시 대상이 생긴 시점에 한 번 재조정한다.
+  //
+  // ★vercel-react-best-practices 대조 (2026-08-10) — 이 효과는 아래 둘에 걸리지 않는다.
+  //   `rerender-derived-state-no-effect` 는 **effect 안에서 setState 로 파생값을 만드는 것**을
+  //   막는다. 여기는 state 를 만들지 않고 DOM 만 만진다(스크롤은 파생값이 아니다).
+  //   `rerender-move-effect-to-event` 는 상호작용 로직을 다루는데, 이것은 상호작용이 아니라
+  //   **최초 진입 URL** 이라는 외부 입력을 한 번 맞추는 것이라 이벤트 핸들러가 될 자리가 없다.
+  //   ★이 효과를 없앨 수 있는 조건은 하나뿐이다 — **대상 엘리먼트가 최초 HTML 에 들어 있는 것**.
+  //   즉 상세 라우트를 서버에서 렌더(또는 prefetch + 하이드레이션)해야 한다. 클라이언트
+  //   Suspense 로 바꾸는 것만으로는 안 된다: fallback 뒤에 리포트를 꽂는 구조는 여전히
+  //   fragment 위치결정 이후이기 때문이다(codex G6 가 내 첫 주석의 이 부분을 반증했다) → [BL-681].
   useEffect(() => {
     const anchor = window.location.hash.slice(1);
     if (!anchor) return;

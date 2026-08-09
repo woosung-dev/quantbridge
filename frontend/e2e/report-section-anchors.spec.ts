@@ -16,6 +16,7 @@ import { API_ROUTES, fulfillJson } from "./fixtures/api-mock";
 import {
   MOCK_BACKTEST_DETAIL,
   MOCK_BACKTEST_ID,
+  MOCK_CLOSED_TRADE,
   routeBacktestDetail,
 } from "./fixtures/backtest-report";
 
@@ -46,6 +47,27 @@ test("#trades 로 진입하면 04 거래 내역 섹션이 뷰포트에 들어온
   // 축 2 — 뷰포트에 들어온 것만으로는 읽을 수 있다는 뜻이 아니다. 섹션 제목이
   // sticky 상단바 아래에 깔리면 사용자는 자기가 어느 섹션에 왔는지 못 본다.
   const heading = trades.locator("h2.section-title");
+  await expect(heading).toBeVisible();
+  const box = await heading.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeGreaterThanOrEqual(TOPBAR_H);
+});
+
+test("거래 표가 나중에 채워져도 마지막 섹션 앵커가 제자리에 선다", async ({ page }) => {
+  // ★codex G6 발견 4. 재조정 효과는 마운트에 **한 번만** 돈다. 그 뒤 거래 응답이 오면
+  //   04 의 스켈레톤이 실제 표로 바뀌면서 아래 섹션들이 밀린다. `#trades` 만 검사하면
+  //   그 축이 한 번도 겨눠지지 않는다 — 그래서 목록보다 아래에 있는 마지막 섹션을 잰다.
+  //   `beforeEach` 의 mock 을 거래 있는 응답으로 덮는다(뒤에 등록한 route 가 우선한다).
+  await routeBacktestDetail(page, MOCK_BACKTEST_DETAIL, [MOCK_CLOSED_TRADE]);
+
+  await page.goto(`/backtests/${MOCK_BACKTEST_ID}#next-steps`, { timeout: 60_000 });
+  await expect(page.getByTestId("backtest-report-shell")).toBeVisible({ timeout: 30_000 });
+
+  const last = page.locator("section#next-steps");
+  await expect(last).toHaveCount(1);
+  await expect(last).toBeInViewport();
+
+  const heading = last.locator("h2.section-title");
   await expect(heading).toBeVisible();
   const box = await heading.boundingBox();
   expect(box).not.toBeNull();

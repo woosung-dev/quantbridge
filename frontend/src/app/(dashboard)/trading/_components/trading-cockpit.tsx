@@ -97,10 +97,13 @@ export function TradingCockpit() {
   );
 
   const activeSessions = useMemo(() => sessionItems.filter((s) => s.is_active), [sessionItems]);
-  const handleSessionSelect = (session: Pick<LiveSession, "id"> | null) => {
+  // ★vercel-react-best-practices 대조 (2026-08-10) — `useCallback` 을 씌우지 않는다.
+  //   `rerender-memo` 의 이득은 **자식이 memo 일 때**만 생기는데 `LiveSessionList` 도
+  //   `LiveSessionForm` 도 memo 가 아닌 평범한 함수 컴포넌트다. 씌우면 이득 없는 배선만 는다.
+  //   종전 판도 렌더마다 새 함수였으므로 이 축에서 나빠진 것도 없다.
+  const handleSessionSelect = (session: Pick<LiveSession, "id">) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (session) params.set("session", session.id);
-    else params.delete("session");
+    params.set("session", session.id);
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
