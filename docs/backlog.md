@@ -1326,16 +1326,27 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P2
 **Trigger:** 대시보드 첫 로드 JS 를 줄이려 할 때 · 번들 분석을 돌릴 때
 **Est:** XS
-**상태:** ⬜ Open — 훅 4개를 로컬 배럴 2개로 받는데 그 배럴이 컴포넌트 9종을 re-export 하고, dashboard-cockpit 은 그중 **하나도 렌더하지 않는다** (2026-08-09 status-triage-mass — `/vercel-react-best-practices` 교차검증)
+**상태:** ✅ Resolved (2026-08-09 fe-perf-quartet) — 직접 경로 3줄로 `/dashboard` 클라이언트 JS **1,140,321 B → 954,447 B (−185,874 B · −181.5 kB · −16.3%)**, 청크 17→13, 9종 문자열 지문 **8/9 → 0/9**, `react-hook-form` 전이 의존 **제거**. 양성 대조 `/trading` 은 8/9·바이트 불변
 **출처:** 2026-08-09 status-triage-mass — `/vercel-react-best-practices` 교차검증
 
 **원인 / 영향:** `dashboard-cockpit.tsx:28` 이 `@/features/live-sessions` 에서 훅 3개(`useLiveSessions`·`useLiveSessionsAggregate`·`useUnrealizedPnlEstimate`)를, `:34` 가 `@/features/trading` 에서 `useExchangeAccounts` 를 받는다. 두 배럴은 컴포넌트 9종을 함께 re-export 한다(`features/live-sessions/index.ts:38-41` · `features/trading/index.ts:3-7`). grep 실측으로 dashboard-cockpit 은 그 9종을 하나도 렌더하지 않는다. `frontend/package.json` 에 `"sideEffects"` 필드가 **없어** 번들러가 모듈 평가를 버릴 근거도 없다.
 
 도달 범위 = `test-order-dialog`(605줄) · `outcome-parity-panel`(543) · `live-session-detail`(361) · `live-session-form`(234) · `activity-timeline-chart`(231) · `live-session-list`(227) · `orders-panel`(214) · `register-exchange-account-dialog`(198) · `exchange-accounts-panel`(135) · `live-session-table`(132) · `kill-switch-panel`(90) ≈ **3,000줄**과 전이 의존(`react-hook-form`·`sonner`·`ui/dialog`·`ui/select`). `kill-switch-banner.tsx:12` 도 같은 배럴을 쓴다.
 
-★**바이트는 안 쟀다** — 근거는 줄 수와 모듈 도달성이지 측정된 KB 가 아니다. 착수 시 `@next/bundle-analyzer` 로 먼저 재라. [BL-410] 은 **외부 패키지**(`radix-ui`) 배럴을 다루고 이 건은 **로컬 배럴 + 소비처**라 별개다 — 배럴 위반은 import 문이 아니라 **소비처**에 있다.
+★~~**바이트는 안 쟀다** — 착수 시 `@next/bundle-analyzer` 로 먼저 재라~~ → **2026-08-09 쟀고, 그 처방은 이 레포에서 안 돈다.** [BL-410] 은 **외부 패키지**(`radix-ui`) 배럴을 다루고 이 건은 **로컬 배럴 + 소비처**라 별개다 — 배럴 위반은 import 문이 아니라 **소비처**에 있다.
 
-**권장 접근:** `@/features/trading/hooks` 처럼 직접 경로로 바꾼다(2곳 + `kill-switch-banner.tsx:12`). 또는 `package.json` 에 `"sideEffects": false` 를 선언한다.
+**해결 (2026-08-09 fe-perf-quartet):** `dashboard-cockpit.tsx` 2곳(`@/features/live-sessions/hooks` + `@/features/live-sessions/unrealized`, `@/features/trading/hooks`) · `kill-switch-banner.tsx:12` 1곳을 직접 경로로. `trading-cockpit.tsx` 는 9종을 실제로 렌더하므로 **안 건드렸다**.
+
+★★★**이 건이 낸 반증 3개 — 셋 다 본문/처방이 틀렸다:**
+
+1. **`@next/bundle-analyzer` 는 이 레포에서 아무것도 못 낸다.** Next 16 은 Turbopack 이 기본 빌더이고 빌드 로그가 직접 말한다: `The Next Bundle Analyzer is not compatible with Turbopack builds, no report will be generated.` 대안 = `next experimental-analyze`(Turbopack 전용) 또는 `--webpack`(다른 번들러를 재므로 실제 산출물을 안 설명한다).
+2. **Next 16 Turbopack 은 `app-build-manifest.json` 을 안 만들고, 라우트 표에 `Size`/`First Load JS` 컬럼도 없다.** 실제 정본은 `.next/server/app/<route>/page_client-reference-manifest.js` 의 `__RSC_MANIFEST` 다.
+3. **「9종 ≈ 3,000줄」이 과대다.** 최대 항목 `test-order-dialog`(605줄)는 **`/dashboard`·`/trading` 어느 쪽 청크에도 없다** — Turbopack 이 이미 떨어냈거나 다른 경로로 로드된다. 실측 도달은 **8종**이고 전부 `static/chunks/0j5~b2~airf-9.js`(84,344 B) 한 청크에 몰려 있었다.
+
+★**측정기 자신이 한 번 반증됐다** — 1판은 `clientModules` 를 뒤졌는데 9종은 client boundary 진입점이 아니라 `"use client"` 컴포넌트 **안쪽**이라 거기 안 뜬다. **양성 대조 `/trading` 에서도 0/9** 가 나와서 판별력 0 임이 드러났고, 문자열 지문 검색으로 교체하자 `/trading` 8/9 가 나왔다. **양성 대조가 없었으면 「효과 0」을 그대로 보고했을 것이다.**
+
+★`"sideEffects": false` 는 **선언하지 않았다** — import 경로만으로 −181.5 kB 가 나와 델타가 0이 아니었고, 이 레포 유일 bare import 인 `layout.tsx:8`(`globals.css`)를 드롭할 위험만 남기 때문이다. 필요하면 `["*.css"]` 형태로 별도 회차에.
+
 **Risk:** 🟢
 
 ---
@@ -1347,14 +1358,20 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P2
 **Trigger:** 코크핏 반응성 불편 접수 시 · React Compiler 도입 검토 시
 **Est:** S
-**상태:** ⬜ Open — 5초 틱이 **연속값**을 state 에 넣는데 소비처는 불리언 하나뿐이고, FE 전체 `memo()` 0건 + React Compiler 미활성이라 전 서브트리가 재조정된다 (2026-08-09 status-triage-mass — `/vercel-react-best-practices` 교차검증)
+**상태:** ✅ Resolved (2026-08-09 fe-perf-quartet) — KPI 카드를 `unrealized-pnl-kpi.tsx` leaf 로 내려 5초 틱 **과 WS ticker 구독을 함께** 가뒀다. 회귀 = 5초 3회 전진 뒤 §03 자식 렌더 수 불변(변이 M4 로 빨간 것 확인). ★본문의 인과는 **불완전했다**(아래)
 **출처:** 2026-08-09 status-triage-mass — `/vercel-react-best-practices` 교차검증
 
 **원인 / 영향:** `trading-cockpit.tsx:45-54` 의 `useNowTick(5_000)` 이 5초마다 `setNow(Date.now())` 를 부른다. 그 값의 소비처는 `:125-126` 의 `isTickerStale` **불리언 하나**다. 프론트엔드 전체에 `memo()` 가 **0건**이고(grep 실측) React Compiler 도 꺼져 있다(`next.config.ts` 에 `reactCompiler` 없음 — `eslint-plugin-react-compiler` 는 린트만 한다).
 
 ⇒ 코크핏을 **열어 두기만 해도** 5초마다 KPI 4장·잔고·포지션 표 2개·킬스위치·주문 원장·계정 패널·세션 표·폼·목록·세션 상세 차트 2개·진단이 통째로 재조정된다. 배지 하나 갱신하려고 내는 비용이다.
 
-**권장 접근:** `rerender-derived-state` 처방대로 `isTickerStale` 만 파생 구독으로 뽑는다(연속값은 ref 로). 별도로 `next.config.ts` 의 `reactCompiler: true` 를 검토한다 — Next 16 이 지원하고, 켜면 `rerender-*` 계열을 수동으로 지킬 필요가 준다.
+~~**권장 접근:** `rerender-derived-state` 처방대로 `isTickerStale` 만 파생 구독으로 뽑는다(연속값은 ref 로).~~ → **2026-08-09 이 처방은 거의 아무것도 안 산다는 것이 코드 대조로 드러났다.**
+
+★★★**본문의 인과가 불완전했다 — 재조정 원천이 둘이다.** 같은 컴포넌트가 `useUnrealizedPnlEstimate` → `useRealtimeStore(useShallow(…))`(`unrealized.ts:122-130`)로 활성 세션 심볼의 WS ticker 를 구독한다. `applyTicker`(`realtime/store.ts:45-46`)가 매 틱 **새 `TickerEntry`** 를 넣으므로 shallow 비교가 깨져 **활성 세션 심볼이 틱할 때마다** 코크핏 전체가 재조정된다 — 5초보다 훨씬 잦다. 반대로 활성 세션이 0건이면 5초 틱만 남지만 그땐 `latestTs === null` 이라 `isTickerStale` 이 **항상 false** 다. ⇒ 「불리언만 뽑기」는 **활성 세션이 있을 때 효과 없고 없을 때 볼 것이 없다.** 해 = 두 원천을 **같은 leaf** 에 둔다.
+
+★★**사거리 정정(codex 적대 리뷰 C4 REFUTED).** 이 분리가 지키는 것은 코크핏 본체와 **§01~§07** 이다. **§08 은 아니다** — `session-diagnostics.tsx:241-242` 가 `useRealtimeStore` 의 `status`·`lastEventTs` 를 **스스로** 구독하고 `realtime-bridge.tsx:62` 가 ticker 를 포함한 모든 envelope 에서 `recordEvent` 를 부른다. 초안 주석은 「§01~§08 이 재조정되지 않는다」고 적었고 그것은 **거짓**이었다.
+
+★`reactCompiler: true` 검토는 **[BL-666]** 으로 분리했다(이 회차 범위 밖 — 켜지 않았다).
 **Risk:** 🟡 코크핏은 라이브 세션 감시 화면이라 체감이 크다.
 
 ---
@@ -1366,12 +1383,17 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P2
 **Trigger:** 새로고침 후 무관한 화면이 함께 재요청되는 것이 관측될 때
 **Est:** XS
-**상태:** ⬜ Open — `invalidateQueries()` 에 필터 인자가 없어 마운트된 활성 쿼리 전부가 동시에 재요청된다 (2026-08-09 status-triage-mass — `/vercel-react-best-practices` 교차검증)
+**상태:** ✅ Resolved (2026-08-09 fe-perf-quartet) — 이 화면이 소비하는 **네** 도메인 루트만 무효화한다(`trading`·`live-sessions`·`strategies`·`alert-rules`). 회귀 = 호출 4회·각 인자가 팩토리 출력·무인자 호출 0회(변이 M1·M5 로 빨간 것 확인)
 **출처:** 2026-08-09 status-triage-mass — `/vercel-react-best-practices` 교차검증
 
-**원인 / 영향:** `trading-cockpit.tsx:194` 의 `void queryClient.invalidateQueries()` 에 필터 인자가 없다. 「새로고침」 한 번에 앱 캐시의 **모든** 쿼리가 stale 이 되고, 마운트된 활성 쿼리가 전부 동시에 재요청된다 — 이 화면과 무관한 `useStrategies({limit:100})` · 백테스트 목록 · 옵티마이저 실행까지 포함된다.
+**원인 / 영향:** `trading-cockpit.tsx:194` 의 `void queryClient.invalidateQueries()` 에 필터 인자가 없다. 「새로고침」 한 번에 앱 캐시의 **모든** 쿼리가 stale 이 되고, 마운트된 활성 쿼리가 전부 동시에 재요청된다 — ~~이 화면과 무관한 `useStrategies({limit:100})`~~ · 백테스트 목록 · 옵티마이저 실행까지 포함된다.
 
-**권장 접근:** 이 화면이 실제로 쓰는 키만 무효화한다(`queryKey` 필터 또는 `predicate`). 회귀 = 새로고침 후 무관한 쿼리가 `fetchStatus: 'fetching'` 이 되지 않는지.
+★**본문 반증(2026-08-09):** 「이 화면과 **무관한** `useStrategies({limit:100})`」는 **거짓**이다 — `trading-cockpit.tsx:76-80` 이 그 쿼리를 **직접 호출**한다(§07 폼·표의 전략명 매핑). 무관한 예로 든 셋 중 하나가 자기 쿼리였다. 남은 두 예(백테스트·옵티마이저)만 유효하다.
+
+**해결 (2026-08-09 fe-perf-quartet):** 도메인 팩토리 루트 4개를 `queryKey` 필터로 돈다(키 하드코딩 금지 — `frontend/AGENTS.md` §3). `uid` 는 `useAuthCtx()`.
+
+★★★**첫 판이 기능을 깼고 codex 가 잡았다(C3 REFUTED).** 셋만 무효화했더니 §08 `SessionDiagnostics` 의 `useAlertRules`(키 루트 `alert-rules`, `session-diagnostics.tsx:112`)가 **빠졌다**. 종전의 무필터 호출은 그것까지 갱신하고 있었으므로 **범위를 좁힌 것이 아니라 기능을 깬 것**이었다. ⇒ **무효화 범위를 좁힐 때는 그 화면의 자식이 부르는 훅을 전수로 세라.** 「이 화면이 쓰는 것」은 직접 호출만이 아니라 렌더 트리 전체다.
+
 **Risk:** 🟢 정확성 문제는 없고 낭비만 있다.
 
 ---
@@ -7799,7 +7821,7 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 **Priority:** P3
 **Trigger:** 거래 상세·리포트 원장에서 검색·필터 반응이 굼뜰 때
 **Est:** XS
-**상태:** ⬜ Open — 정렬 키를 비교 함수 **안에서** 매번 파싱하고 검색 입력에 디바운스가 없다 (2026-08-09 status-triage-mass — `/vercel-react-best-practices` 교차검증)
+**상태:** ✅ Resolved (2026-08-09 fe-perf-quartet) — decorate·sort·undecorate 로 키를 N회만 파고, 검색은 기존 `useDebouncedValue`(200ms)를 물렸으며 memo dep 을 객체에서 스칼라 8개로 바꿨다. 회귀 3건(동점 안정성 · 디바운스 · 배지↔표↔CSV 스냅샷 일치)은 변이 M2·M3·M6 으로 빨간 것을 확인했다
 **출처:** 2026-08-09 status-triage-mass — `/vercel-react-best-practices` 교차검증
 
 **원인 / 영향:** `features/backtest/utils.ts:230-243` 의 comparator 가 `new Date(t.entry_time).getTime()` 을 **비교할 때마다** 판다. `trade-filter-row.tsx:104` 의 검색 입력은 `onChange` 로 곧장 `filters` 를 갱신하고, `filters` 는 정렬 `useMemo` 의 dep 다(`trade-detail-table.tsx:70-113`).
@@ -7808,7 +7830,86 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 
 ★레포에 `useDebouncedValue`(`features/strategy/utils.ts:28`)가 **이미 있는데** 여기선 안 쓴다.
 
-**권장 접근:** ⑴ 검색 입력에 기존 `useDebouncedValue` 를 물린다 ⑵ 정렬 전에 키를 1회 사전계산한다(2000회). 미리보기 25건만 필요한 곳은 전량 정렬 대신 부분 선택을 검토한다.
+**해결 (2026-08-09 fe-perf-quartet):** ⑴ `trade-detail-table.tsx` 가 `useDebouncedValue(filters.search, 200)` 를 쓴다 — **입력창은 계속 즉시값을 그린다**(굼뜨면 안 된다). ⑵ `applyTradeFilterSort` 를 decorate·sort·undecorate 로. ⑶ memo dep 을 객체 `filters` → 스칼라 필드 7개 + `debouncedSearch` 로(H-1 「scalar dep 선호」. 객체를 쓰면 키 한 글자마다 identity 가 갈려 그 memo 가 **사실상 없는 것과 같다**).
+
+★**⑶ 은 백로그가 안 적은 부분이고, 사실 ⑴·⑵ 보다 이것이 근본이다** — 디바운스를 물려도 dep 이 객체면 다른 필터 조작마다 여전히 전량 재계산된다.
+
+★**미리보기 25건 부분 선택은 하지 않았다** — ⑵ 로 파싱이 사라지면 남는 것은 숫자 비교뿐이라 복잡도만 산다(`trade-ledger-table.tsx:43-53` 그대로).
+
+★★**codex 적대 리뷰가 내가 만든 결함을 잡았다(C7 REFUTED · P1).** 배지 `countActiveFilters(filters)` 는 **즉시값**을 세는데 표·CSV(`handleExport` 는 `filtered` 를 쓴다)는 **200ms 늦은** 값을 쓴다 ⇒ 검색어를 치고 200ms 안에 CSV 를 누르면 배지는 「필터 1개」인데 CSV 는 **안 걸린 전량**이 나간다. 수리 = 배지도 같은 스냅샷(`{...filters, search: debouncedSearch}`)을 세게 했다. **즉시성이 필요한 것은 입력창 하나뿐이다.**
+
+★**주석의 셈도 반증됐다(codex P2).** 「2000건이면 비교 ~22,000회」는 **입력 의존값**이다 — V8 TimSort 는 이미 정렬된 입력에서 ~1,999회다. 사전계산은 입력과 무관하게 N회라는 것이 정확한 진술이다.
+
+★**착수 시점에 검색은 단위·e2e 어느 쪽에도 커버가 0건이었다** — 디바운스를 넣기 전엔 「검색이 여전히 거른다」조차 못 재고 있었다. 시험 2건을 신설했다.
 **Risk:** 🟢
+
+---
+
+### BL-666
+
+**Title:** `reactCompiler: true` 검토 — FE 전체 `memo()` 0건인 채로 수동 처방을 반복하고 있다
+**Category:** Frontend / 빌드
+**Priority:** P3
+**Trigger:** `rerender-*` 계열 결함이 또 등재될 때 · Next 16 업그레이드 회차
+**Est:** S
+**상태:** ⬜ Open — [BL-663] 에서 분리했다. 켜지 않았고 측정도 안 했다 (2026-08-09 fe-perf-quartet)
+**출처:** 2026-08-09 fe-perf-quartet ([BL-663] 범위 분리)
+
+**원인 / 영향:** `next.config.ts` 에 `reactCompiler` 가 없다. `eslint-plugin-react-compiler`(19.1.0-rc.2)는 devDependency 로 있지만 **린트만 한다.** 그래서 FE 전체에 `memo()`/`React.memo` 가 **0건**인 채로 재렌더 범위를 컴포넌트 분리로 하나씩 손봐 왔다([BL-663] 이 그 4번째다).
+
+**권장 접근:** ⑴ `reactCompiler: true` 를 켜고 빌드·번들·테스트 델타를 잰다 ⑵ H-3(render body 에서 `ref.current` 대입 금지, `frontend/AGENTS.md`)이 이미 컴파일러 호환을 전제하므로 위반 잔여를 먼저 센다 ⑶ 켠 뒤에도 [BL-663] 같은 **구독 위치** 문제는 안 사라진다는 것을 명시해라 — 컴파일러는 메모이제이션을 자동화하지 나쁜 구독 경계를 옮겨 주지 않는다.
+**Risk:** 🟡 빌드 전역 스위치라 회귀 표면이 넓다. 단독 회차로 잡아라.
+
+---
+
+### BL-667
+
+**Title:** `frontend/**` 의 json·md 를 스테이징하면 pre-commit 이 죽는다 (루트에 prettier 플러그인 부재)
+**Category:** DX / 게이트
+**Priority:** P3
+**Trigger:** `frontend/` 안의 json·md·yml 을 커밋할 때
+**상태:** 🟡 부분 해결 (2026-08-09 fe-perf-quartet) — 루트 devDependency 를 추가해 즉시 증상은 없앴다. 구조(두 곳이 같은 설정을 서로 다른 해석 뿌리로 읽는다)는 그대로다
+**Est:** XS
+**출처:** 2026-08-09 fe-perf-quartet (커밋이 실제로 막혀서 발견)
+
+**원인 / 영향:** `frontend/.prettierrc` 가 `"plugins": ["prettier-plugin-tailwindcss"]` 를 선언하는데 그 패키지는 **`frontend/node_modules` 에만** 있었다. 루트 `package.json` 의 lint-staged 는 `*.{json,md,yml,yaml}` 을 **레포 전역**으로 잡아(패턴에 슬래시가 없어 basename 매칭) `frontend/package.json` 같은 파일에도 루트 prettier 를 돌린다. 그러면 prettier 가 `frontend/.prettierrc` 를 찾아 읽고 플러그인을 **루트에서** 해석하려다 실패한다:
+
+```
+[error] Cannot find package 'prettier-plugin-tailwindcss' imported from <repo>/noop.js
+```
+
+★**기존 결함이다** — 손대지 않은 파일로 재현된다: `npx prettier --check frontend/tsconfig.json`. 오랫동안 `frontend/` 의 json 을 커밋한 회차가 없어 잠복해 있었다(직전 사례는 PR #463).
+
+★**증상이 원인을 숨긴다** — lint-staged 가 `prettier --write [FAILED]` 와 함께 eslint 태스크를 `[KILLED]` 로 찍어서 **eslint 가 실패한 것처럼 보인다.** 실제 실패는 prettier 하나뿐이다.
+
+**권장 접근:** 근본 해는 둘 중 하나다 — ⑴ 루트 lint-staged 의 json/md 글롭에서 `frontend/**` 를 제외하고 frontend 자신의 prettier 에 맡긴다 ⑵ 두 `.prettierrc` 를 하나로 합친다. 지금은 ⑶ **루트에 플러그인 추가**로 막아 뒀는데, 버전이 두 곳에서 각자 흘러가면 같은 파일을 두 도구가 다르게 포맷할 수 있다.
+**Risk:** 🟢 포맷만 건드린다.
+
+---
+
+### BL-668
+
+**Title:** `e2e:authed` backtest form 2건이 로컬에서만 빨갛다 (CI 는 초록)
+**Category:** DX / 테스트 환경
+**Priority:** P3
+**Trigger:** 로컬에서 `pnpm e2e:authed` 를 돌릴 때 · 격리 스택을 새로 만들 때
+**상태:** ⬜ Open — 원인 미규명. 코드가 아니라 환경이라는 것까지만 좁혔다 (2026-08-09 fe-perf-quartet)
+**출처:** 2026-08-09 fe-perf-quartet (final-gates 에서 발견 · 음성 대조 2회)
+
+**원인 / 영향:** `e2e/sprint46-tier1-critical.spec.ts:69`(#1 backtest form 422 unsupported_builtins)와 `e2e/sprint46-tier3-nth.spec.ts:489`(#20 friendly_message 카드)이 로컬 격리 스택(`:3100`/`:8100`)에서 일관 실패한다. 증상은 **하나**다 — `POST /api/v1/backtests` 가 아예 안 나가서 `waitForRequest` 가 15초 타임아웃한다. 폼 제출 **이전** 단계에서 막힌다는 뜻이다.
+
+★★**음성 대조 2회로 코드 축을 배제했다:**
+
+1. `git checkout 85970b83 -- frontend/src` 로 **main 코드**를 씌우고 같은 두 건을 태웠다 → **동일하게 2 failed / 1 passed.** 브랜치 회귀가 아니다.
+2. **CI 는 초록이다** — PR **#574 에서 `e2e` SUCCESS**, 그 뒤 #575·#576·#577 은 전부 문서 전용이라 `e2e` 가 SKIPPED. ⇒ CI 가 통과시킨 FE 코드가 지금 main 과 같다.
+
+⇒ 남은 축은 **로컬 격리 스택의 데이터/시드 상태**다. 폼이 제출까지 못 가는 것이므로 전략 목록·`parse_status`·coverage 전제가 CI 시드와 다를 가능성이 높다.
+
+★**이것이 게이트를 오염시킨다** — `final-gates.sh` 의 `e2e authed` 가 항상 FAIL 이면 그 게이트는 **신호를 잃는다**(진짜 회귀도 같은 빨강으로 보인다).
+
+★★**같은 회차에 별개의 flake 1건도 드러났다 — `e2e/trading-ui.spec.ts:108`(kill switch API 오류 → 황색 배너).** 전체 스위트 2회 중 **1회만** 실패했고(`ks-error-banner` 미발견 + 30초 테스트 타임아웃), **격리 실행 3/3 통과**했다. ★이 파일은 이 회차가 실제로 만진 `kill-switch-banner.tsx` 의 시험이라 회귀를 의심해 일부러 3회 태웠다 — **회귀가 아니라 flake 다.** 위 2건(항상 실패)과 **다른 현상**이므로 같이 묶어 고치지 마라.
+
+**권장 접근:** ⑴ `test-results/.../error-context.md` 와 trace 를 열어 어느 검증에서 멈추는지 본다 ⑵ CI 의 e2e 시드 절차와 로컬 격리 스택 시드를 대조한다 ⑶ 차이가 시드면 로컬 시드 타깃에 반영하고, 아니면 이 BL 의 전제를 다시 세운다.
+**Risk:** 🟢 프로덕션 코드 무관. 단 게이트 신뢰도를 깎는다.
 
 ---

@@ -9,7 +9,8 @@
 import { AlertTriangleIcon, ShieldAlertIcon } from "lucide-react";
 
 import { KILL_SWITCH_LABEL } from "@/features/trading/labels";
-import { useKillSwitchEvents } from "@/features/trading";
+// BL-662 — 배럴이 아니라 직접 경로. 이 배너는 훅 하나만 쓴다.
+import { useKillSwitchEvents } from "@/features/trading/hooks";
 
 // trigger_type → 한국어 레이블. 알 수 없는 값이면 원문 그대로 (fallback).
 const KS_TRIGGER_LABELS: Record<string, string> = {

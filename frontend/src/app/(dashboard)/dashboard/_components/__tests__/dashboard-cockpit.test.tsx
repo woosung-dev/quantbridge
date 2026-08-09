@@ -13,9 +13,12 @@ const useStrategiesMock = vi.fn();
 const useBacktestsMock = vi.fn();
 const useOptimizationRunsMock = vi.fn();
 
-vi.mock("@/features/live-sessions", () => ({
+// BL-662 — 코크핏이 배럴 대신 직접 경로로 받으므로 mock 도 같은 경로여야 한다.
+vi.mock("@/features/live-sessions/hooks", () => ({
   useLiveSessions: () => useLiveSessionsMock(),
   useLiveSessionsAggregate: () => useLiveSessionsAggregateMock(),
+}));
+vi.mock("@/features/live-sessions/unrealized", () => ({
   useUnrealizedPnlEstimate: () => useUnrealizedPnlEstimateMock(),
 }));
 vi.mock("@/features/strategy/hooks", () => ({
@@ -27,7 +30,7 @@ vi.mock("@/features/backtest/hooks", () => ({
 vi.mock("@/features/optimizer/hooks", () => ({
   useOptimizationRuns: () => useOptimizationRunsMock(),
 }));
-vi.mock("@/features/trading", () => ({
+vi.mock("@/features/trading/hooks", () => ({
   useExchangeAccounts: () => useExchangeAccountsMock(),
 }));
 vi.mock("@/components/charts/trading-chart", () => ({
