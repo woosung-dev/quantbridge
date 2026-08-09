@@ -1212,7 +1212,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-586](#bl-586) | ✅ **Resolved** 2026-08-07 backtest-fidelity — 키 리스트를 `dataclasses.fields()` 자동 유도로 교체(스칼라 46 전량 + 리스트 3종 digest + 중첩 2종 평탄화 + `RawTrade` 22 전량). 원 증상: P-3 골든이 `BacktestMetrics` **51 중 13**, `RawTrade` **22 중 11** 만 고정해 38+11 이 회귀 감지 밖                                                                                                                                                                                                                                                                                                                                                                 | TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때                                                             | M         | 2026-08-03 backtest-metric-oracle                      |
 | [BL-599](#bl-599) | Pine v1 shim(`src/strategy/pine/` 135L)은 타입 4종만 재export 하는 껍데기지만 `BacktestOutcome.parse` 가 코어 DTO 필드라 **단독 철거 불가**. 소비처는 「2곳」보다 넓다 — 프로덕션 import 2 + 생성 site 10+ + 테스트 3파일                                                                                                                                                                                                                                                                                                                                                                                                                                  | `BacktestOutcome` 를 손볼 일이 생겼을 때 (단독으로 열지 마라)                                                     | M         | 2026-08-06 dead-code-sweep                             |
 | [BL-600](#bl-600) | `strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT 헌법의 _Avoid_ 이름과 **동음이의 충돌**(이쪽은 장중 시간대 필터). 값이 `Strategy.trading_sessions` **JSONB 에 영속**돼 단순 rename 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `trading_sessions` JSONB 를 마이그레이션할 때 · 도메인 용어 정리 시                                               | M         | 2026-08-06 dead-code-sweep                             |
-| [BL-601](#bl-601) | 호출 0건 잔재 3종 — `OrderRepository.get_state_fresh` · `list_unsynced_reduce_only_since` · `scripts/fleet-dispatch-test.sh`. ★원안의 「고아 하니스 3종」은 **1종으로 정정**(나머지 둘은 final-gates 체인 안에 있다)                                                                                                                                                                                                                                                                                                                                                                                                                                       | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S         | 2026-08-06 dead-code-sweep                             |
+| [BL-601](#bl-601) | ✅ **호출 0건 잔재 3종 — 처리가 갈렸다.** 저장소 메서드 2건(`get_state_fresh` · `list_unsynced_reduce_only_since`)은 제거했고, `scripts/fleet-dispatch-test.sh` 는 **제거 대신 `final-gates.sh` 에 배선**했다. ★근거 반증 — 「나머지 둘은 final-gates 체인 안에 있다」가 절반 거짓이었다(체인 안은 `bl-audit-test.sh` 하나뿐). 그 하네스는 30/30 통과하고 원본 sed 추출이라 드리프트가 없다                                                                                                                                                                                                                                                                | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S         | 2026-08-06 dead-code-sweep                             |
 | [BL-602](#bl-602) | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                             | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S         | 2026-08-06 e2e-consolidation                           |
 | [BL-612](#bl-612) | `docs/dev-log/2026-08-06-entry-set-divergence.md` 버퍼가 `docs/lessons.md` 로 승격되지 않았다 — ADR-026 §3 은 「세션 종결 시 승격 의무, 승격하면 버퍼를 비운다」인데 회차는 끝났고(PR #553 머지) 버퍼는 9천자로 남아 있다(반증 카드 상한 1~2천자 초과)                                                                                                                                                                                                                                                                                                                                                                                                     | 다음 문서 정리 회차                                                                                               | XS        | 2026-08-07 docs-overhaul 리뷰                          |
 | [BL-613](#bl-613) | `live_signal.py` 핸들러 가시화가 남긴 **줄 수 부채** — `_evaluate_session_with_engine` **506줄**(Kind B 추출 E8~E14 미완) · `_place_planned_entry` 236 · `_reconcile_conditional_entries_inner` 203 · `_async_dispatch_event` 256(최대 `try` 본문 **225줄** — 이제 이게 최대). ★가시성 목표(최대 try 845→8)는 달성됐고 줄 수는 못 채웠다                                                                                                                                                                                                                                                                                                                   | `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580] 착수 회차와 겹친다)                                             | M         | 2026-08-04 handler-visibility (status 승계)            |
@@ -4790,9 +4790,32 @@ LiveSignalEvent」로 못박아 두었는데, 이 파일은 같은 이름을 **�
 **카테고리:** Backend / 죽은 코드 (호출 0건)
 **Trigger:** `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved (2026-08-09, W2)** — 저장소 메서드 2건은 제거, 하네스 1건은 **제거 대신 게이트 배선**.
 
-**호출자가 0인 채 남아 있는 것 3종** (2026-08-06 실측 — 정의 줄 외 참조 0):
+**★처리가 3종 동일하지 않다 — 근거가 하나 반증됐다 (2026-08-09).** 아래 「앞의 둘은
+`final-gates.sh` 체인 안에 있다」는 **절반이 거짓**이었다. 실측 — `final-gates.sh` 가 실제로
+부르는 것은 `bl-audit-test.sh` **하나뿐**(`:156`)이고, `pre-push-guard-test.sh` 는 산문 참조
+3곳(`.husky/pre-push:23` · `soak-gate.sh:250` · `lib/pre-push-ref-guard.sh:6`)만 있다. 즉
+`fleet-dispatch-test.sh` 를 지우고 `pre-push-guard-test.sh` 를 살리는 판별 기준이 성립하지 않는다.
+게다가 그 하네스는 **지금 30/30 통과**하고 원본에서 `sed` 로 술어를 떼어내므로 사본 드리프트가 없다
+(이름이 바뀌면 추출 실패로 죽는다 — 실측: `qb_injectable` 을 개명하니 exit 0 → **exit 1**).
+⇒ 「호출자 0」이라는 불만은 **삭제가 아니라 배선**으로 해소했다(`final-gates.sh` 신규 1줄).
+
+**처리 결과:**
+
+| 대상                                                          | 처리                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------- |
+| `OrderRepository.get_state_fresh` (`order_repository.py:280`) | **제거** — BL-499 도입, 호출자 소멸                           |
+| `OrderRepository.list_unsynced_reduce_only_since` (`:733`)    | **제거** — 복구 경로가 재구현돼 있다(아래)                    |
+| `scripts/fleet-dispatch-test.sh`                              | **존치 + `final-gates.sh` 배선** — 살아 있는 코드의 단언 30건 |
+
+**★`list_unsynced_reduce_only_since` 가 왜 죽었나 (코드 대조).** `6b200e59` 에서 도입됐고
+`0a8e229b`(exit-attribution)이 스윕을 **계정 독립 열거**로 재작성하면서 호출자가 사라졌다. 복구
+경로 자체는 살아 있다 — 대체물은 같은 파일의 `list_unsynced_reduce_only`(계정 스코프 · 시간창
+없음)이고 `src/tasks/trading.py:2118` 이 매 스윕마다 부른다. 즉 **기능이 아니라 시간창 술어만
+버려진 것**이라 제거가 안전하다.
+
+**원 관측 — 호출자가 0인 채 남아 있는 것 3종** (2026-08-06 실측 — 정의 줄 외 참조 0):
 
 | 대상                                                          | 비고                                                       |
 | ------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -4802,7 +4825,8 @@ LiveSignalEvent」로 못박아 두었는데, 이 파일은 같은 이름을 **�
 
 ★**원안의 「고아 하니스 3종」은 1종으로 정정한다** — `bl-audit-test.sh` ·
 `pre-push-guard-test.sh` · `sentinel_bl181_worker_reload.sh` 는 **고아가 아니다**(각각 backlog ·
-soak-gate 주석 · dev-log 가 참조하고, 앞의 둘은 `final-gates.sh` 체인 안에 있다).
+soak-gate 주석 · dev-log 가 참조한다). ~~앞의 둘은 `final-gates.sh` 체인 안에 있다~~ →
+**2026-08-09 반증 — 체인 안에 있는 것은 `bl-audit-test.sh` 하나뿐이다**(위 상태 블록 참조).
 
 **처리 방향:** 지우기 전에 **왜 만들어졌는지** 한 번 본다 — `list_unsynced_reduce_only_since` 는
 reduce-only 동기화 복구용으로 보이므로, 그 복구 경로가 다른 방식으로 구현됐는지 확인 후 제거.

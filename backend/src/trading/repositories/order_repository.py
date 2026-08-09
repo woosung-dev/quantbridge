@@ -277,20 +277,6 @@ class OrderRepository:
             return None
         return row[0], row[1]
 
-    async def get_state_fresh(self, order_id: UUID) -> OrderState | None:
-        """BL-499 — 식별맵을 우회해 DB 의 현재 `state` 를 읽는다. 행이 없으면 None.
-
-        ★`get_by_id` 로는 안 된다. 같은 세션이 이미 그 행을 적재했다면 SQLAlchemy
-        식별맵이 **적재 당시의 인스턴스**를 그대로 돌려주므로 경합 상대가 커밋한
-        최신 상태를 못 본다. 컬럼 하나만 select 하면 ORM 객체를 거치지 않아
-        READ COMMITTED 아래에서 항상 최신 커밋 값을 본다.
-        """
-        result = await self.session.execute(
-            select(cast(Any, Order.state)).where(Order.id == order_id)  # type: ignore[arg-type]
-        )
-        state: OrderState | None = result.scalar_one_or_none()
-        return state
-
     async def get_by_idempotency_key(self, key: str) -> Order | None:
         result = await self.session.execute(
             select(Order).where(Order.idempotency_key == key)  # type: ignore[arg-type]
@@ -365,10 +351,7 @@ class OrderRepository:
             .limit(limit + 1)
         )
         rows = (await self.session.execute(stmt)).all()
-        return [
-            LiveEntryKeyRow(idempotency_key=row[0], created_at=row[1])
-            for row in rows
-        ]
+        return [LiveEntryKeyRow(idempotency_key=row[0], created_at=row[1]) for row in rows]
 
     async def list_resting_intervals(
         self, *, since: datetime, until: datetime, limit: int
@@ -729,26 +712,6 @@ class OrderRepository:
             .values(realized_pnl=realized_pnl, realized_pnl_synced_at=synced_at)
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
-
-    async def list_unsynced_reduce_only_since(
-        self, cutoff: datetime, *, limit: int = 200
-    ) -> Sequence[Order]:
-        """거래소 확정 손익이 아직 없는 최근 reduce-only 체결 주문을 계정·심볼 순으로 조회한다."""
-        stmt = (
-            select(Order)
-            .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
-            .where(Order.reduce_only.is_(True))  # type: ignore[attr-defined]
-            .where(Order.filled_at >= cutoff)  # type: ignore[operator, arg-type]
-            .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
-            .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
-            .order_by(
-                Order.exchange_account_id,  # type: ignore[arg-type]
-                Order.symbol,
-                Order.filled_at,  # type: ignore[arg-type]
-            )
-            .limit(limit)
-        )
-        return (await self.session.execute(stmt)).scalars().all()
 
     async def list_by_exchange_order_ids(
         self, account_id: UUID, exchange_order_ids: Sequence[str]
