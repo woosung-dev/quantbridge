@@ -24,6 +24,7 @@ from __future__ import annotations
 import itertools
 import json
 import re
+import statistics
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -314,12 +315,14 @@ def _tick_stalls(
         for (prev_at, prev_bar), (cur_at, cur_bar) in itertools.pairwise(points):
             if prev_bar is None or cur_bar is None or prev_bar != cur_bar:
                 continue
-            if (cur_at - parse_ts(cur_bar)).total_seconds() > limit:
+            lag = (cur_at - parse_ts(cur_bar)).total_seconds()
+            if lag > limit:
                 stalls.append(
                     Disqualification(
                         cur_at,
                         "tick_stall",
-                        f"{sid[:8]} bar time 정지 {prev_at.isoformat()}~{cur_at.isoformat()}",
+                        f"{sid[:8]} bar time 정지 {prev_at.isoformat()}~{cur_at.isoformat()}"
+                        f" lag {lag / 60:.1f}분{_resolution_note(lag, _sample_gaps(points))}",
                     )
                 )
                 break  # 세션당 1건이면 창을 끊기에 충분하다
@@ -348,6 +351,39 @@ def _tick_stalls(
                 Disqualification(end, "tick_stall", f"{sid[:8]} 종단 lag {lag / 60:.1f}분")
             )
     return stalls
+
+
+def _sample_gaps(points: list[tuple[datetime, str | None]]) -> list[float]:
+    """연속 표본 사이의 간격(초). 점이 2개 미만이면 빈 리스트다."""
+    ats = sorted(p[0] for p in points)
+    return [(b - a).total_seconds() for a, b in itertools.pairwise(ats)]
+
+
+def _resolution_note(size_seconds: float, gaps: list[float]) -> str:
+    """정체 크기 옆에 **그것을 잰 자의 해상도**를 적는다 ([BL-653] 처방 ⑶).
+
+    ★**판정을 바꾸지 않는다 — 거짓 확신만 뺀다.** 실격 여부·건수·귀속은 이 문자열과
+    무관하다(귀속 매칭 키는 `(at, kind)` 이고 `detail` 을 보지 않는다).
+
+    이 축이 왜 필요한가 — ① 표본 기반 정체는 「표본을 언제 떴나」에 양자화된다. 2026-08-08
+    실측(서버 표본 125건)에서 표본 간격이 **중앙 13.9분 · 최대 31.0분**인데 관측된 정체 크기
+    다수가 **31.0분 = 표본 최대 간격과 정확히 일치**했다 — 그 숫자는 현상의 크기가 아니라
+    **관측 격자의 크기**다. 크기가 최대 간격의 **2배 미만**이면 그 정체를 가로지르는 표본이
+    두 개도 안 되므로 크기는 하한일 뿐이다 ⇒ 「구분 불가」.
+
+    ★②(종단 lag)에는 붙이지 않는다 — 그쪽은 `deactivated_at` 과 `last_evaluated_bar_time`
+    **둘 다 DB 값**이라 표본 해상도에 의존하지 않는다. 아무 데나 붙이면 정확한 값까지
+    「구분 불가」로 깎아 이 표시 자체가 무의미해진다.
+    """
+    if not gaps:
+        return ""
+    biggest = max(gaps)
+    ratio = size_seconds / biggest if biggest else 0.0
+    tag = ", 구분 불가" if ratio < 2.0 else ""
+    return (
+        f" (표본 간격 중앙 {statistics.median(gaps) / 60:.1f}분"
+        f"/최대 {biggest / 60:.1f}분 · 크기 {ratio:.1f}배{tag})"
+    )
 
 
 def _catching_up(points: list[tuple[datetime, str | None]]) -> bool:
@@ -713,6 +749,16 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
             and require_continuous == DEFAULT_REQUIRE_CONTINUOUS_HOURS
         ),
     }
+    # ★[BL-653] — 「C3 실격 0」은 「정지가 없었다」가 아니라 **「이 해상도로는 못 봤다」**다.
+    #   실격이 0건이면 위의 정체별 주석이 한 줄도 안 나오므로, 무엇으로 쟀는지를 여기 적는다.
+    #   표본이 있을 때만 키를 넣는다 — 빈 입력의 판정 JSON 을 종전과 바이트 단위로 유지한다.
+    gate_gaps = _sample_gaps([(parse_ts(str(s["at"])), None) for s in samples])
+    if gate_gaps:
+        detail["sample_resolution"] = {
+            "samples": len(samples),
+            "median_seconds": round(statistics.median(gate_gaps), 1),
+            "max_seconds": round(max(gate_gaps), 1),
+        }
     # 깨끗한 입력의 JSON을 수리 전과 바이트 단위로 같게 하려고 오염이 있을 때만 넣는다.
     if unreadable_log_coverage:
         detail["unreadable_log_coverage"] = summarize_unreadable_log_coverage(

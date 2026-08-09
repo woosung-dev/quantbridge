@@ -668,6 +668,13 @@ for v in c["C3_violations"][:5]:
 print("  %s C4 표본 공백  %d건" % (mark(c["C4_ok"]), len(c["C4_sample_gaps"])))
 for g in c["C4_sample_gaps"][:3]:
     print("        · %s" % g)
+# ★[BL-653] — 「C3 실격 0」은 「정지가 없었다」가 아니다. 이 해상도보다 짧은 정체는 구조적으로 안 보인다.
+res = d.get("sample_resolution")
+if res:
+    print(
+        "        표본 해상도: %d건 · 간격 중앙 %.1f분/최대 %.1f분 (이보다 짧은 tick 정체는 판별 불가)"
+        % (res["samples"], res["median_seconds"] / 60.0, res["max_seconds"] / 60.0)
+    )
 print("  %s C5 측정 무결  %s" % (mark(c["C5_ok"]), " ".join("%s=%s" % (k, mark(v)) for k, v in c["C5"].items())))
 print()
 print("  창 시작: %s   현재: %s" % (d["window_start"], d["now"]))
