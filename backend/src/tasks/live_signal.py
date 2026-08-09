@@ -238,6 +238,10 @@ _POSITION_DUST = Decimal("1E-8")
 # 실제로 잡아야 할 부분체결(실측 0.001 vs 0.029 = 96.5%)보다는 한참 아래여야 한다.
 _POSITION_SIZE_REL_TOL = Decimal("0.05")
 
+# step 축에서 쓰는 보조 비례항이다. 하한은 step 이 잡고, 포지션이 매우 클 때 float 누적
+# 잔재가 step 을 넘을 경우를 위한 여유다.
+_POSITION_SIZE_REL_TOL_SMALL = Decimal("0.001")
+
 # 방향 불일치를 **연속 2회** 봤는지 기억하는 자리. `last_strategy_state_report` JSONB 에
 # 얹으므로 **마이그레이션이 없다.** `run_live` 도 그 dict 에 자기 키를 얹으므로
 # (`pending_orders` / `window_bars` 등) 관행에 맞고, 밑줄 접두어로 엔진 산출물이 아님을
@@ -775,7 +779,9 @@ def _closed_seed_position(
     return net
 
 
-def _classify_position_divergence(engine: Decimal, exchange: Decimal) -> str | None:
+def _classify_position_divergence(
+    engine: Decimal, exchange: Decimal, *, qty_step: Decimal | None = None
+) -> str | None:
     """엔진이 믿는 포지션과 거래소 순포지션의 불일치를 분류한다. 일치하면 None.
 
     ★`direction` 만 fail-closed 대상이다. 엔진이 롱을 믿는데 거래소가 숏이면 엔진의
@@ -796,7 +802,12 @@ def _classify_position_divergence(engine: Decimal, exchange: Decimal) -> str | N
     if (engine > 0) != (exchange > 0):
         return "direction"
     larger = max(abs(engine), abs(exchange))
-    if abs(engine - exchange) > larger * _POSITION_SIZE_REL_TOL:
+    if qty_step is None or not qty_step.is_finite() or qty_step <= Decimal("0"):
+        # step 을 못 얻었다. 종전 축 그대로 — 조회 실패가 세션 사망이 되면 안 된다.
+        tolerance = larger * _POSITION_SIZE_REL_TOL
+    else:
+        tolerance = max(qty_step, larger * _POSITION_SIZE_REL_TOL_SMALL)
+    if abs(engine - exchange) > tolerance:
         return "size"
     return None
 
@@ -3010,7 +3021,9 @@ async def _run_live_or_deactivate(
         return None
 
 
-def _positions_are_aligned(exchange_positions: list[Any] | None, carried_position: Any) -> bool:
+def _positions_are_aligned(
+    exchange_positions: list[Any] | None, carried_position: Any, *, qty_step: Decimal | None = None
+) -> bool:
     """엔진 ↔ 거래소 순포지션이 일치하는가.
 
     ★**감싸는 핸들러: 이 함수가 소유한다** — `except ValueError → False`.
@@ -3029,7 +3042,7 @@ def _positions_are_aligned(exchange_positions: list[Any] | None, carried_positio
             and len(exchange_positions) <= 1
             and carried_position is not None
             and _classify_position_divergence(
-                carried_position, _net_position_size(exchange_positions)
+                carried_position, _net_position_size(exchange_positions), qty_step=qty_step
             )
             is None
         )
@@ -3698,7 +3711,36 @@ async def _evaluate_session_with_engine(
                         "carried_position": str(carried_position),
                     },
                 )
-            positions_aligned = _positions_are_aligned(exchange_positions, carried_position)
+            # step 은 **같은 방향의 서로 다른 수량**에서만 size 판정을 바꾼다. 나머지 갈래
+            # (flat·방향 불일치·판정 불가)에는 조회 **부작용조차** 더하지 않는다.
+            # ★무조건 부르면 tick 오라클 2건이 빨개진다(실측: direction 계열 픽스처 둘).
+            #   판정 결과는 같은데 `_reconcile_market_precision` 이 테스트 환경에서 실패해
+            #   `live_conditional_reconcile_precision_failed` 로그와 precision 에러 counter 를
+            #   남기기 때문이다. 오라클은 반환값이 아니라 **부작용 원장**을 얼린다.
+            gap_precision = None
+            if (
+                exchange_positions is not None
+                and len(exchange_positions) == 1
+                and carried_position is not None
+                and (
+                    (
+                        exchange_positions[0].side == "long"
+                        and carried_position > _POSITION_DUST
+                        and carried_position != exchange_positions[0].size
+                    )
+                    or (
+                        exchange_positions[0].side == "short"
+                        and carried_position < -_POSITION_DUST
+                        and carried_position != -exchange_positions[0].size
+                    )
+                )
+            ):
+                gap_precision = await _reconcile_market_precision(sess)
+            positions_aligned = _positions_are_aligned(
+                exchange_positions,
+                carried_position,
+                qty_step=gap_precision[0] if gap_precision is not None else None,
+            )
             if positions_aligned:
                 # try_claim_bar가 이미 최신 bar_time을 기록했다. 마지막 bar 신호만 이어서
                 # 처리해 수면·배포 공백을 조용히 정상화한다.
