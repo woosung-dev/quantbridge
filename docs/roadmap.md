@@ -458,7 +458,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ### P3 — 게이트·배포 운영
 
 - [ ] **BL-623** [P3] 서버 클론이 `--single-branch` 라 feature 브랜치가 기본 fetch 로 안 온다 — `remote.origin.fetch` 가 main 한 줄뿐이라 `git checkout <branch>` 가 `pathspec did not match` 로 죽는다. 우회는 refspec 명시, 근본 수리(`git remote set-branches origin '*'`)는 소크가 도는 서버의 git 설정 변경이라 이연
-- [ ] **BL-626** [P3] `.soak/phantom-*.json` 이 상한 없이 쌓이고 판정기가 매번 전부를 읽는다 — 수집 실행마다 1개씩 새로 쓰는데 회수가 없다(실측 4시간 29개). 실격은 dedup 이라 판정은 안전하지만 파싱 시간·디스크가 선형 증가하고, `unreadable_labels` 의 `count` 는 dedup 되지 않아 「총 N건」이 아카이브 수만큼 부풀려진다. ★파일명 STAMP 이 1초 해상도라 같은 초 두 실행은 충돌
+- [x] **BL-626** [P3] ✅ 2026-08-09 — `unreadable_labels` 의 `count` 를 **관측 단위**(`label, at, session_id`)로 dedup + opt-in 회수 `soak-gate.sh --prune-archives`(기본 dry-run, 옮기고 지우지 않는다). ★★★후보 「최근 N개만 남긴다」는 **판정을 깎아** 실측 반증(228벌에서 최근 50만 남기면 커버리지 나흘 소실 · 168h/30분이면 ~336벌 필요) ⇒ 기준을 **포함관계**로 교체. 228→66벌, 판정 diff 공집합. ★`log_to='Error'` 파손 10벌은 무접촉 — 문자열 정렬이면 파손본이 대표로 뽑힌다
 - [ ] **BL-627** [P3] `regen_golden.py` 에 출력 경로 리다이렉트가 없어 라운드트립 시험이 실제 `expected.json` 을 두 번 덮어쓰고 finally 에서 바이트 복원한다 — 정상 종료 시 오염 0이지만 강제 종료되면 워킹 트리가 더러워진다. `--out-dir` 추가가 수리 · 부수: `--check` 의 「차이 없음」 종료 코드가 계약에 미명시
 
 > **그룹3 미포함(상태 note):** BL-388(#391 완료→backtest-trust close) · BL-362(✅#369 완료) · BL-398/BL-186a(backtest-trust 계획됨).
