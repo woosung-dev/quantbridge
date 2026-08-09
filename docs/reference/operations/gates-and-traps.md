@@ -44,6 +44,8 @@ scripts/soak-stack.sh pin        # .soak/src 를 HEAD 에서 다시 뜬다 (back
 scripts/soak-stack.sh up         # 3층 compose 로 기동 + celery ready 배너를 기다린다
 scripts/soak-stack.sh commit     # ★소크가 도는 커밋 — celery MainProcess 의 /proc 를 통해 읽는다
 scripts/soak-stack.sh status     # 고정 여부 · 커밋 · 활성 세션 · main 조상 여부
+scripts/soak-stack.sh ps         # ★DB 를 안 건드리는 생존 확인 — exit 0 = 하나라도 running / 1 = 완전 down
+                                 #   status 는 psql 을 쏘므로 down 이면 그 자체가 못 돈다 ([BL-656])
 
 # 「1주 안정 운영」을 기계가 판정한다 — PASS / FAIL / UNKNOWN, PASS 만 exit 0
 scripts/soak-gate.sh             # 표본을 남기고 판정
@@ -81,7 +83,16 @@ scripts/soak-watch-test.sh         # 판단 로직 하네스 (실측 캡처 픽�
 
 scripts/soak-restart.sh            # 기본 = dry-run. 재기동 8단계와 실제 값을 출력만 한다
 scripts/soak-restart.sh --confirm  # 집행 (⑴ FLAT=YES 아니면 그 자리에서 멈춘다)
+scripts/soak-restart-test.sh       # 갈래·순서 하네스 (final-gates.sh 「소크 재기동 하네스」)
 ```
+
+★**재기동은 스택 상태에 따라 두 갈래다 — ⓿ 이 `soak-stack.sh ps` 로 고른다**([BL-656], 2026-08-09).
+살아 있으면 종전대로 ⑷ 에서 `down → pin → up`. **완전 down 이면 파라미터 조회보다 먼저**
+`pin → up` 을 선행하고 ⑷ 와 증거 덤프를 건너뛴다. 순서가 여기여야 하는 이유는 실측이다 —
+스택이 없으면 원장 조회(`_q`)부터 빈 값을 내 `--confirm` 이 「원장에 세션이 하나도 없다」로
+exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 손으로 줘야 하고, 그것이
+이 스크립트가 없애려던 손 절차다. ★down 갈래는 FLAT 확인이 up 뒤로 밀린다 — 종전 손 절차와
+같은 순서이므로 새 위험은 아니지만, 원장에 활성 세션이 남아 있으면 up 이 그것을 재개한다.
 
 ★**watch 는 게이트 타이머를 대체한다 — 추가가 아니다.** 게이트를 **기본(수집) 모드로 정확히
 1회** 부른다. `--no-collect` 로 따로 도는 안은 기각됐다: 새 phantom 아카이브를 안 남겨

@@ -547,7 +547,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-653](#bl-653) | ✅ **게이트가 자기 해상도를 자백한다 (처방 ⑶ — 판정 불변)**. ①(표본 기반) 정체에 `lag N분 (표본 간격 중앙 …/최대 … · 크기 N배[, 구분 불가])` 병기 · 실격 0건 실행도 `표본 해상도:` 한 줄 ⇒ **「C3 실격 0」을 「정지 없음」으로 못 읽는다**. ★「구분 불가」 = 크기 < 표본 최대 간격 × 2(정체를 가로지르는 표본이 둘도 안 되면 크기는 하한일 뿐). ★★**②(종단 lag)에는 붙이지 않는다** — `deactivated_at`×`last_evaluated_bar_time` 둘 다 DB 값이라 표본에 의존하지 않는다. 아무 데나 붙이면 정확한 값을 깎아 표시가 무의미해진다. 변이 3/3 red(문턱 0.0/1e9/주석 no-op) · 실측 재현(간격 31.0분 → 크기 1.1배 구분 불가) · N 판정 비트 diff 공집합                                                                                                                                                  | BL-619 재관측 시 / 게이트 실격 판정을 신뢰해야 할 때                                                            | S            | 2026-08-08 soak-mortality-repair                             |
 | [BL-654](#bl-654) | 증거금 게이트가 **진입 비용을 안 본다** — `_can_afford_entry` 와 `_open_trade` 최종 검증 둘 다 초기 증거금만 비교하고 **바로 아래에서 차감하는 진입 leg 비용**을 빼지 않는다. 고레버리지에서 갈린다: 자본 $1,000 · 125x · 비용률 0.069% · 명목 $118,750 은 증거금 $950 으로 **통과**하는데 진입 수수료 $81.94 후 `gate_equity` 가 **$918.06 < 950** 이라 유지 증거금을 못 댄다. [BL-460] 이 고친 것은 gross/net 축이고 **이 축은 선재**다                                                                                                                                                                                                                                                                                                                                                        | 고레버리지 백테스트를 신뢰해야 할 때 / [BL-466] 후속                                                            | S            | 2026-08-08 soak-mortality-repair (codex challenge P1)        |
 | [BL-655](#bl-655) | `dedupe_accounts_by_exchange_uid` 는 **쓰기 가능한 형제 행이 둘이면** 주문을 누락한다 — 스윕이 대표 `account.id` 로만 매칭·backfill 하므로(`trading.py:1949`·`:1987`·`:2027`) 버려진 형제에 달린 주문의 청산이 `unknown` 이 되고 `realized_pnl` 이 미동기화된다. ★**현재 데이터에선 발화하지 않는다** — 실측 형제 2행 중 하나가 `read_only=t` 라 대표 선택 규칙 ⑵ 가 쓰기 가능한 행을 고른다. 막는 **DB 제약이 없다**는 것이 위험의 실체다                                                                                                                                                                                                                                                                                                                                                       | 같은 `exchange_uid` 에 쓰기 가능한 행이 2개 생기면 / 실자금 전환 전                                             | S            | 2026-08-08 soak-mortality-repair (codex challenge P2)        |
-| [BL-656](#bl-656) | `soak-restart.sh` 가 **완전 down 에서 올리기**를 못 다룬다 — ⑴ 의 `status` 가 DB 를 읽는데 스택이 내려가 있으면 DB 도 없어 `ConnectionRefusedError` 로 끝나고, ⑷ 는 `down→pin→up` 이라 **이미 돌고 있는 스택**을 전제한다. ★같은 dry-run 이 **자기 설명문을 실행**했다(unquoted heredoc 안 백틱 ⇒ `countable: command not found`, ⑻ 문장이 잘려 출력) — 이건 수리했고 정적 카운트 0건으로 동결                                                                                                                                                                                                                                                                                                                                                                                                   | 다음 소크 재기동 시                                                                                             | S            | 2026-08-08 soak-mortality-repair (P7)                        |
+| [BL-656](#bl-656) | ✅ **⓿ 가 `soak-stack.sh ps`(신설, DB 무접촉)로 갈래를 고른다** — 완전 down 이면 **조회보다 먼저** `pin → up` + ⑷·덤프 건너뛰기. red→green: 같은 가짜 트리에서 `rc=2`·스택 호출 **0건** → `rc=0`·**`ps pin up`**. ★★★⓿ 를 ⑴ 앞에 뒀다가 red 에 잡혔다 — 거기선 원장 조회가 먼저 죽어 손으로 `--strategy-id` 를 줘야 한다(= 없애려던 손 절차). ★★★**결함 ①은 회귀해 있었다** — 「정적 카운트 0건으로 동결」이라 적었지만 **그 카운트를 도는 게이트가 없었다.** 신설 `soak-restart-test.sh`(14 단언 · 오라클 = 호출 순서)를 `final-gates.sh` 에 붙였다. 변이 4/4                                                                                                                                                                                                                                   | 다음 소크 재기동 시                                                                                             | S            | 2026-08-08 soak-mortality-repair (P7)                        |
 | [BL-657](#bl-657) | ✅ **게이트가 어느 DB 를 봤는지 헤더 한 줄로 찍는다** — `대상: <컨테이너> <host:port>/<dbname> · docker <endpoint> · 실행 <hostname> · 분류기 <host:port/db>`. ★★**BL 본문의 「`DATABASE_URL` 을 따라간다」는 C1~C5 에 대해 거짓** — `_q()` 는 `docker exec ${DB_CONTAINER} psql` 이라 갈리는 축은 **docker 데몬+컨테이너**다. `DATABASE_URL` 은 분류기 전용이지만 `unverified_hours` 로 C1 을 깎으므로 함께 찍는다(한쪽만 찍으면 새 fail-open — 실측으로 이 워크트리는 둘이 어긋난다). 변이 2/2 헤더 추종 · 음성 대조 판정 비트 전건 불변(벽시계만 차이) · 비밀번호 누출 0                                                                                                                                                                                                                      | 다음 게이트 실행 시 / 게이트 숫자를 인용하기 전                                                                 | S            | 2026-08-08 session-handoff                                   |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
@@ -6860,7 +6860,7 @@ golden 갱신 커밋에 적어라.
 **카테고리:** 운영 / 소크 재기동 도구
 **Trigger:** 다음 소크 재기동 시
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ✅ Resolved (2026-08-09, W1)
 
 **`scripts/soak-restart.sh` 가 「완전 down 에서 올리기」를 못 다룬다 — 그리고 dry-run 이 자기 문장을 실행했다.**
 
@@ -6896,6 +6896,44 @@ soak-stack.sh pin → soak-stack.sh up → live_session_admin.py status(FLAT 확
 **연결:** [BL-634](#bl-634) (배타성 가드가 재기동 경로의 전제) · [ADR-024](decisions/024-soak-stability-gate.md) (C1/C2 리셋 규칙)
 
 **출처:** 2026-08-08 soak-mortality-repair P7 (재기동을 실제로 밟다가 둘 다 물렸다)
+
+---
+
+**해결 (2026-08-09, W1 — 처방 ⑴):** ⓿ 단계가 `soak-stack.sh ps` 로 갈래를 고른다.
+
+- 신설 `soak-stack.sh ps` — **DB 를 안 건드리는** 생존 확인. exit 0 = 하나라도 running /
+  1 = 완전 down. `status` 를 못 쓰는 이유는 그쪽이 `psql` 을 쏘기 때문이다(down 이면 그 자체가 못 돈다).
+- 살아 있으면 종전 경로 그대로(⑷ `down → pin → up`). 완전 down 이면 ⓿-b 가 `pin → up` 을
+  선행하고 ⑷ 와 증거 덤프를 건너뛴다(`_dump_evidence` 는 fail-closed 라 컨테이너가 없으면 죽는다).
+
+★★★**구현 중 순서 결함 1건을 red 시험이 잡았다 — 내가 ⓿ 를 잘못된 자리에 뒀다.** 처음엔 ⑴
+바로 앞에 뒀는데, 완전 down 이면 그보다 **먼저** 도는 파라미터 조회(`_q` 원장 최근 세션)가 빈 값을
+내고 `--confirm` 이 「원장에 세션이 하나도 없다」로 **exit 2 · 스택 호출 0건**으로 죽었다. 그러면
+`--strategy-id/--account-id` 를 손으로 줘야 하고 **그게 이 BL 이 없애려던 손 절차 자체**다.
+⇒ ⓿-b 를 파라미터 조회 **앞으로** 옮겼다.
+
+- **red → green (같은 가짜 트리, 완전 down, `--confirm`):**
+  수리 전 = `rc=2` · 「원장에 세션이 하나도 없다」 · **스택 호출 0건**(시도조차 못 했다).
+  수리 후 = `rc=0` · 호출 순서 **`ps pin up observe gate`** · 세션 등재까지 끝났다.
+- **변이 M — 4/4 red, 방향 양쪽.** ⑴ ⓿ 분기 제거(`STACK_UP` 항상 1) → down 케이스 **4건 red**
+  ⑵ 항상 down 갈래(`STACK_UP` 항상 0) → up 케이스 **4건 red**(이 짝이 없으면 「늘 pin→up」 구현이 통과한다)
+  ⑶ heredoc 에 백틱 재삽입 → 정적 카운트 + 실행 단언 **2건 red**
+  ⑷ 안내문의 stop/flatten 순서 뒤집기 → **1건 red**. 변이가 도달했는지 매번 grep 으로 따로 확인했다.
+- **음성 대조 N:** ① up 갈래 호출 순서가 **`ps down pin up`** 으로 종전과 동일하고 덤프도 여전히
+  `down` 앞이다(하네스가 단언). ② `git diff` 상 ⑷ 본문은 `if/else` 로 감싼 것 외에 **한 줄도 안 바뀌었다.**
+  ③ dry-run 실행 출력에 `command not found` **0건**.
+- ★★★**결함 ① 은 「수리 완료」가 아니었다 — 회귀해 있었다.** 위 본문이 「정적 카운트 0건으로
+  동결」이라 적었지만 **그 카운트를 도는 게이트가 없었다.** 2026-08-09 실측: dry-run 이
+  `line 214: ConnectionRefusedError: command not found` 를 내고 그 낱말이 출력에서 사라져 있었다
+  (백틱을 되돌려 놓은 것은 **BL-656 이 ⑶ 로 박아 넣은 그 전제 문단 자신**이다).
+  ⇒ 백틱을 「」로 바꾸고 **`final-gates.sh` 에 「소크 재기동 하네스」를 붙였다** — 동결은 기록이
+  아니라 실행이다.
+- **신설 하네스** `scripts/soak-restart-test.sh` (14 단언, 전건 통과 = exit 0). mktemp 트리에
+  사본 + 가짜 `soak-stack.sh`·`assert-main-checkout.sh`·`soak-observe.sh`·`soak-gate.sh` +
+  PATH 앞단 가짜 `docker`·`uv`. **오라클은 호출 순서 로그**다(출력 문구로 재면 문구를 바꾸는
+  순간 판별력이 사라진다). 실제 소크·docker·거래소를 한 번도 건드리지 않는다.
+- ★하네스 자체의 결함 1건도 실행이 잡았다 — 가짜 `docker` 가 인자를 로그에 적었더니 **여러 줄
+  SQL 이 로그를 찢어** 인접 패턴(`ps pin up`)이 깨졌다. 인자를 안 적고 `grep -vx docker` 로 건다.
 
 ---
 

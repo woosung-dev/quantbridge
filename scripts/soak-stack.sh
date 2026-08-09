@@ -9,6 +9,7 @@
 #   scripts/soak-stack.sh down                # 3층 compose 로 내림
 #   scripts/soak-stack.sh commit              # ★소크가 도는 커밋 — 프로세스 기준으로 조회
 #   scripts/soak-stack.sh status              # 고정 여부 · 커밋 · 누락 커밋 · 활성 세션 · main 조상
+#   scripts/soak-stack.sh ps                  # ★DB 를 안 건드리는 생존 확인 — 0 = 하나라도 running / 1 = 완전 down
 #   scripts/soak-stack.sh assert-not-pinned   # Makefile 클로버 가드용 (고정본이 떠 있으면 1)
 #
 # 종료 코드: 0 = 정상 / 1 = 실패·거부 / 2 = 전제 미충족(측정 못 함)
@@ -363,6 +364,24 @@ _status() {
   echo "  ${active}"
 }
 
+# ------------------------------------------------------------------ ps
+
+_ps() {
+  # 스택이 **살아 있나** — 종료 코드가 답이다 (0 = 하나라도 running / 1 = 완전 down) ([BL-656]).
+  #
+  # ★`status` 로는 이 질문에 답할 수 없다 — 그쪽은 DB 에 `psql` 을 쏘고(down 이면 실패) 산문을
+  #   낸다. 재기동 스크립트가 갈래를 고르려면 **파싱 없는 종료 코드**가 필요하다.
+  # ★「하나라도 running」이 기준인 이유 — 완전 down 만이 `pin → up` **선행**을 요구한다.
+  #   반쯤 떠 있으면 종전 경로(`down → pin → up`)가 그대로 맞다. `down` 이 잔여를 치운다.
+  local any=1 name state
+  for name in "${DB_CONTAINER}" "${WORKER_CONTAINER}"; do
+    state="$(docker inspect "${name}" --format '{{.State.Status}}' 2>/dev/null)"
+    echo "  ${name}: ${state:-(없음)}"
+    [ "${state}" = "running" ] && any=0
+  done
+  return "${any}"
+}
+
 # ------------------------------------------------------------------ 가드
 
 _assert_not_pinned() {
@@ -388,7 +407,8 @@ case "${1:-}" in
   down)              _down ;;
   commit)            _commit ;;
   status)            _status ;;
+  ps)                _ps ;;
   assert-not-pinned) _assert_not_pinned ;;
   -h|--help)         sed -n '2,26p' "$0" ;;
-  *) echo "알 수 없는 인자: ${1:-(없음)} (pin / up / down / commit / status / assert-not-pinned)" >&2; exit 1 ;;
+  *) echo "알 수 없는 인자: ${1:-(없음)} (pin / up / down / commit / status / ps / assert-not-pinned)" >&2; exit 1 ;;
 esac
