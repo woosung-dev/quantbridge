@@ -207,15 +207,6 @@ export function applyTradeFilterSort(
   sortField: TradeSortField,
   sortDir: TradeSortDir,
 ): TradeItem[] {
-  const filtered = trades.filter((t) => {
-    if (filters.direction !== "all" && t.direction !== filters.direction) {
-      return false;
-    }
-    if (filters.result === "win" && !(t.pnl > 0)) return false;
-    if (filters.result === "loss" && t.pnl > 0) return false;
-    return true;
-  });
-
   const sign = sortDir === "asc" ? 1 : -1;
 
   // BL-665: 정렬 키를 비교 함수 **안에서** 파면 비교 횟수만큼 판다. `entry_time`/`exit_time` 은
@@ -223,9 +214,19 @@ export function applyTradeFilterSort(
   // ★비교 횟수는 **입력에 의존한다**. V8 TimSort 는 이미 정렬된 2000건에서 ~1,999회지만
   //   무작위 순서면 ~22,000회(N·log₂N)이고 비교마다 **두 번** 파므로 최대 ~44,000회 파싱이다.
   //   그리고 그것이 검색창 키 입력 한 글자마다 다시 돈다. 사전계산은 입력과 무관하게 N회다.
-  // ⇒ decorate·sort·undecorate 로 키를 **N회만** 판다(2000회).
+  // ⇒ decorate·sort·undecorate 로 키를 **N회만** 판다.
+  // ★필터와 decorate 를 한 패스로 합친다(`js-combine-iterations`) — 중간 배열 하나를 안 만든다.
+  const decorated: { item: TradeItem; index: number; key: number }[] = [];
+  for (const t of trades) {
+    if (filters.direction !== "all" && t.direction !== filters.direction) continue;
+    if (filters.result === "win" && !(t.pnl > 0)) continue;
+    if (filters.result === "loss" && t.pnl > 0) continue;
+    decorated.push({ item: t, index: decorated.length, key: readSortKey(t, sortField) });
+  }
+
+  // ★`sort` 인 것이 `js-tosorted-immutable` 위반이 아니다 — `decorated` 는 **이 함수가 방금 만든**
+  //   지역 배열이고 입력 `trades` 는 건드리지 않는다. `toSorted` 를 쓰면 배열 하나를 더 만든다.
   // ★안정성은 계약이므로 엔진 stable 에 기대지 않고 원래 index 로 명시 tiebreak 한다.
-  const decorated = filtered.map((item, index) => ({ item, index, key: readSortKey(item, sortField) }));
   decorated.sort((a, b) => {
     if (a.key < b.key) return -sign;
     if (a.key > b.key) return sign;
