@@ -162,6 +162,11 @@ run_gate "BL 감사 하네스" "scripts/bl-audit.sh" bash "$ROOT/scripts/bl-audi
 #   실제 소크·docker·거래소를 건드리지 않는다 (mktemp 트리 + PATH 앞단 가짜).
 run_gate "소크 재기동 하네스" "scripts/soak-restart.sh" bash "$ROOT/scripts/soak-restart-test.sh"
 
+# ★함대 분배 하네스 (BL-601). `fleet-dispatch.sh` 는 herdr 함대 없이는 통째로 못 도므로
+#   판정 술어만 원본에서 sed 로 떼어내 stub 위에서 돌린다. 사본이 아니라 추출이라 이름이
+#   바뀌면 추출 실패로 크게 죽는다. 여기 걸기 전엔 호출자가 0이라 아무도 안 돌렸다.
+run_gate "함대 분배 하네스" "scripts/fleet-dispatch.sh" bash "$ROOT/scripts/fleet-dispatch-test.sh"
+
 # ★문서 감사 — 죽은 링크 · retired path · **요약 줄 길이 상한**.
 #   CI 의 documentation 잡(`make docs-audit`)이 같은 것을 돌지만 그건 **PR 을 연 뒤**다.
 #   줄 길이 회귀는 문서를 만지는 그 회차가 만들고 그 회차가 못 보므로, PR 전에 물게 한다

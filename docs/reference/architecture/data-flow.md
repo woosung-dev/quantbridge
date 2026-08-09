@@ -278,7 +278,6 @@ sequenceDiagram
     participant Stream as websockets connection
     participant SH as StateHandler
     participant DB as PostgreSQL
-    participant Buf as orphan_buffer<br/>(FIFO max 1000)
     participant Beat as Celery Beat (5분)
     participant Rec as Reconciler
     participant CCXT as fetchOrder REST
@@ -293,8 +292,8 @@ sequenceDiagram
     alt UUID 매핑 OK
         SH->>DB: UPDATE state (terminal evidence only)
     else UUID 미상 / pending → terminal 점프
-        SH->>Buf: appendleft (FIFO 1000)
-        SH->>SH: qb_ws_orphan_event_total.inc()
+        SH->>SH: 폐기 — qb_ws_orphan_event_total.inc() (도착 축)
+        SH->>SH: qb_ws_orphan_discarded_total{reason}.inc() (폐기 축)
     end
 
     Note over Sup,Stream: 끊김 — supervisor 재시작

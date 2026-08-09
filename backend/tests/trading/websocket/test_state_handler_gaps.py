@@ -1,13 +1,19 @@
-# StateHandler 의 미커버 머니패스 분기(replay_orphan / orphan TTL / 비종료 status skip) 보강
-"""StateHandler 잔여 분기 TDD (BL-308, W3).
+# StateHandler 의 미커버 머니패스 분기(고아 폐기 계상 / 비종료 status skip) 보강
+"""StateHandler 잔여 분기 TDD (BL-308, W3 → BL-448 재작성, 2026-08-09).
 
-기존 test_state_handler.py 가 orderLinkId/exchange_order_id lookup, FIFO eviction,
-rejected alert, filled/trailing 을 덮는다. 본 파일은 baseline coverage 의 term-missing
-이 가리킨 잔여 분기만 추가(중복 금지):
-- replay_orphan found/missing (state_handler.py:142-150) — REST 응답 직후 orphan 재처리.
-  유실 시 = WS 가 REST 보다 먼저 도착한 fill 이 영구 미반영(silent fill drop).
-- orphan TTL(5s) eviction (state_handler.py:164-171) — FIFO(1000)는 기존 커버, TTL 미커버.
-- 비종료 status(New/PartiallyFilled) skip (state_handler.py:105) — fill-progress blind spot.
+기존 test_state_handler.py 가 orderLinkId/exchange_order_id lookup, rejected alert,
+filled/trailing 을 덮는다. 본 파일은 baseline coverage 의 term-missing 이 가리킨 잔여
+분기만 추가(중복 금지):
+
+- 고아 이벤트 폐기 계상 (`_discard_orphan`) — 로컬 행이 없는 WS 이벤트가 폐기될 때 **폐기
+  축** 카운터가 오르는가. 유실 시 = 놓친 체결이 원장 어디에도 안 남고 관측조차 안 된다.
+- 비종료 status(New/PartiallyFilled) skip — fill-progress blind spot.
+
+★**BL-448 로 사라진 것** — `replay_orphan` found/missing 과 orphan TTL eviction 을 재던 세
+케이스는 지웠다. 그 셋이 재던 5초 재생 버퍼를 **프로덕션이 한 번도 부르지 않았기 때문**이다
+(`replay_orphan` 호출자 0). 즉 그 테스트들은 테스트만이 도달하는 경로를 지키고 있었고,
+「REST 응답 직후 재처리」라는 시나리오는 프로덕션에 존재한 적이 없다. 회수 책임은
+reconciler 하나이며 그쪽은 `tests/trading/websocket/test_reconciliation*.py` 가 잰다.
 """
 
 from __future__ import annotations
@@ -19,6 +25,7 @@ from uuid import uuid4
 import pytest
 
 import src.trading.websocket.state_handler as state_handler_mod
+from src.common.metrics import qb_ws_orphan_discarded_total, qb_ws_orphan_event_total
 from src.core.config import Settings
 from src.trading.models import (
     ExchangeAccount,
@@ -30,6 +37,18 @@ from src.trading.models import (
     OrderType,
 )
 from src.trading.websocket.state_handler import StateHandler
+
+
+def _discarded(account_id, reason: str) -> float:
+    return qb_ws_orphan_discarded_total.labels(
+        account_id=str(account_id), reason=reason
+    )._value.get()  # type: ignore[attr-defined]
+
+
+def _arrived(account_id) -> float:
+    return qb_ws_orphan_event_total.labels(
+        account_id=str(account_id)
+    )._value.get()  # type: ignore[attr-defined]
 
 
 def _make_settings() -> Settings:
@@ -71,76 +90,63 @@ async def sample_order(db_session, strategy, user):
     return order, acc
 
 
-async def test_replay_orphan_found_reprocesses_event(
-    sample_order, session_factory, db_session
+async def test_orphan_terminal_event_is_counted_as_discarded(
+    session_factory, monkeypatch: pytest.MonkeyPatch
 ):
-    """buffer 에 있던 orphan fill → replay_orphan 이 재처리 + True + buffer 제거.
+    """로컬 행이 없는 **종결** 이벤트 → 폐기 축 카운터 +1 + WARNING 로그.
 
-    실제 시나리오: WS Filled 이벤트가 REST Order 생성보다 먼저 도착 → orphan buffer.
-    REST 응답 직후 replay_orphan 호출 → 이제 Order 존재 → filled 전이.
+    이것이 BL-448 의 red→green 이다. 종전에는 이 이벤트가 5초 버퍼에 들어갔다가 아무도
+    읽지 않은 채 TTL/FIFO 로 조용히 사라졌고, 폐기 시점의 로그·메트릭이 전무해 **유실을
+    도착 수와 구분할 수 없었다.**
+
+    ★`caplog` 를 안 쓴다 — 실측으로 이 시험이 **격리에서 green, 전체 스위트에서 red** 였다.
+    `caplog` 는 root 전파에 의존하는데 `logging_config.dictConfig` 는 root 핸들러를 **제거**
+    하므로, 그것을 밟는 시험이 먼저 돌면 레코드가 사라진다. 같은 함정을
+    `test_position_fanout.py:216` 이 이미 기록해 뒀고 거기 쓰인 관용구를 그대로 따른다.
     """
-    order, acc = sample_order
-    key = str(order.id)
-    # WS 가 먼저 도착했다고 가정 — buffer 에 직접 적재
-    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
-    handler._orphan_buffer[key] = (
-        {
-            "orderLinkId": key,
-            "orderId": "EX-REPLAY",
-            "orderStatus": "Filled",
-            "avgPrice": "50000.00",
-        },
-        0.0,
-    )
-
-    replayed = await handler.replay_orphan(key, acc.id)
-
-    assert replayed is True
-    assert key not in handler._orphan_buffer  # 재처리 후 제거
-    from sqlalchemy import select
-
-    stmt = select(Order).where(Order.id == order.id)  # type: ignore[arg-type]
-    refreshed = (await db_session.execute(stmt)).scalar_one()
-    assert refreshed.state == OrderState.filled
-    assert refreshed.filled_price == Decimal("50000.00")
-
-
-async def test_replay_orphan_missing_returns_false(session_factory):
-    """buffer 에 없는 key → False, no-op (handle_order_event 미호출)."""
-    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
-    result = await handler.replay_orphan("not-in-buffer", uuid4())
-    assert result is False
-
-
-async def test_orphan_buffer_ttl_eviction(session_factory, monkeypatch):
-    """5s TTL — stale orphan 은 다음 buffer 시 만료 제거(미처리).
-
-    fill silent-fail 위험 분기: REST 가 5s 넘게 늦으면 WS fill 이벤트가 영구 유실.
-    실제 clock 대기 대신 state_handler.time.time 을 monkeypatch 해 결정론적 검증.
-    """
-    clock = {"t": 1000.0}
-    monkeypatch.setattr(state_handler_mod.time, "time", lambda: clock["t"])
-
     handler = StateHandler(session_factory=session_factory, settings=_make_settings())
     account_id = uuid4()
-    key_old = str(uuid4())
-    key_new = str(uuid4())
+    before_lost = _discarded(account_id, "terminal_event_lost")
+    before_ignored = _discarded(account_id, "non_terminal_ignored")
+    before_arrived = _arrived(account_id)
 
-    # t=1000: 미지 order → orphan buffer 적재
-    await handler.handle_order_event(
-        account_id, {"orderLinkId": key_old, "orderStatus": "Filled"}
-    )
-    assert key_old in handler._orphan_buffer
-
-    # t=1010 (>5s 경과): 두 번째 buffer 시 TTL 이 key_old 를 만료 제거
-    clock["t"] = 1010.0
-    await handler.handle_order_event(
-        account_id, {"orderLinkId": key_new, "orderStatus": "Filled"}
+    warnings: list[str] = []
+    monkeypatch.setattr(
+        state_handler_mod.logger,
+        "warning",
+        lambda msg, *a, **k: warnings.append(str(msg)),
     )
 
-    assert key_old not in handler._orphan_buffer  # TTL eviction
-    assert key_new in handler._orphan_buffer
-    assert len(handler._orphan_buffer) == 1
+    await handler.handle_order_event(
+        account_id, {"orderLinkId": str(uuid4()), "orderStatus": "Filled"}
+    )
+
+    assert _discarded(account_id, "terminal_event_lost") == before_lost + 1
+    # 두 reason 이 서로를 오염시키지 않는다 — 그래야 경보 문턱을 걸 수 있다.
+    assert _discarded(account_id, "non_terminal_ignored") == before_ignored
+    # 도착 축은 그대로 살아 있다 (기존 대시보드 계약 불변).
+    assert _arrived(account_id) == before_arrived + 1
+    # 종결 폐기는 debug 가 아니라 warning 이어야 한다 — 종전엔 프로덕션 레벨에서 무음이었다.
+    assert [w for w in warnings if "ws_orphan_discarded" in w]
+
+
+async def test_orphan_non_terminal_event_uses_a_distinct_reason(session_factory):
+    """로컬 행이 없는 **비종결** 이벤트 → 다른 reason 으로 계상 (머니-패스 손실 아님).
+
+    로컬 행이 있었어도 `New` 는 어차피 skip 이므로 이 폐기는 무해하다. 종결 유실과 한
+    카운터로 뭉치면 경보가 상시 발화해 쓸모가 없어진다 — 축을 나눈 이유가 이것이다.
+    """
+    handler = StateHandler(session_factory=session_factory, settings=_make_settings())
+    account_id = uuid4()
+    before_lost = _discarded(account_id, "terminal_event_lost")
+    before_ignored = _discarded(account_id, "non_terminal_ignored")
+
+    await handler.handle_order_event(
+        account_id, {"orderLinkId": str(uuid4()), "orderStatus": "New"}
+    )
+
+    assert _discarded(account_id, "non_terminal_ignored") == before_ignored + 1
+    assert _discarded(account_id, "terminal_event_lost") == before_lost
 
 
 async def test_non_terminal_status_skips_transition(

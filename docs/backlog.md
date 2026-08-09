@@ -1212,7 +1212,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-586](#bl-586) | ✅ **Resolved** 2026-08-07 backtest-fidelity — 키 리스트를 `dataclasses.fields()` 자동 유도로 교체(스칼라 46 전량 + 리스트 3종 digest + 중첩 2종 평탄화 + `RawTrade` 22 전량). 원 증상: P-3 골든이 `BacktestMetrics` **51 중 13**, `RawTrade` **22 중 11** 만 고정해 38+11 이 회귀 감지 밖                                                                                                                                                                                                                                                                                                                                                                                            | TV parity 팩·비용 분해·청산 지표에서 회귀가 의심될 때                                                             | M         | 2026-08-03 backtest-metric-oracle                      |
 | [BL-599](#bl-599) | Pine v1 shim(`src/strategy/pine/` 135L)은 타입 4종만 재export 하는 껍데기지만 `BacktestOutcome.parse` 가 코어 DTO 필드라 **단독 철거 불가**. 소비처는 「2곳」보다 넓다 — 프로덕션 import 2 + 생성 site 10+ + 테스트 3파일                                                                                                                                                                                                                                                                                                                                                                                                                                                             | `BacktestOutcome` 를 손볼 일이 생겼을 때 (단독으로 열지 마라)                                                     | M         | 2026-08-06 dead-code-sweep                             |
 | [BL-600](#bl-600) | `strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT 헌법의 _Avoid_ 이름과 **동음이의 충돌**(이쪽은 장중 시간대 필터). 값이 `Strategy.trading_sessions` **JSONB 에 영속**돼 단순 rename 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | `trading_sessions` JSONB 를 마이그레이션할 때 · 도메인 용어 정리 시                                               | M         | 2026-08-06 dead-code-sweep                             |
-| [BL-601](#bl-601) | 호출 0건 잔재 3종 — `OrderRepository.get_state_fresh` · `list_unsynced_reduce_only_since` · `scripts/fleet-dispatch-test.sh`. ★원안의 「고아 하니스 3종」은 **1종으로 정정**(나머지 둘은 final-gates 체인 안에 있다)                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S         | 2026-08-06 dead-code-sweep                             |
+| [BL-601](#bl-601) | ✅ **호출 0건 잔재 3종 — 처리가 갈렸다.** 저장소 메서드 2건(`get_state_fresh` · `list_unsynced_reduce_only_since`)은 제거했고, `scripts/fleet-dispatch-test.sh` 는 **제거 대신 `final-gates.sh` 에 배선**했다. ★근거 반증 — 「나머지 둘은 final-gates 체인 안에 있다」가 절반 거짓이었다(체인 안은 `bl-audit-test.sh` 하나뿐). 그 하네스는 30/30 통과하고 원본 sed 추출이라 드리프트가 없다                                                                                                                                                                                                                                                                                           | `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕                                                           | S         | 2026-08-06 dead-code-sweep                             |
 | [BL-602](#bl-602) | ★**루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다** — `frontend/.prettierrc` 가 `prettier-plugin-tailwindcss` 를 선언하는데 lint-staged 는 **루트**에서 prettier 를 돌리고 루트 `node_modules` 엔 그 플러그인이 없다. ⇒ `frontend/package.json` 을 스테이징하는 커밋은 **pre-commit 에서 죽는다**(실측 재현)                                                                                                                                                                                                                                                                                                                                                        | `frontend/` 안의 json/md/yml 을 커밋해야 할 때 (지금은 우회 가능하지만 다음엔 막힌다)                             | S         | 2026-08-06 e2e-consolidation                           |
 | [BL-612](#bl-612) | ✅ **Resolved** (2026-08-09 backlog-sweep) — LESSON-095 압축 승격 → 버퍼 14,480B 삭제 → INDEX tombstone 전환. ★압축한 이유 = `lessons.md` **400줄 상한이 게이트 강제**(`docs-audit.sh:135`), 착수 시 380줄. ★**같은 위반 버퍼가 9건 더 있다**(최대 48,863B) — 본 항목 범위 밖. 원문: `docs/dev-log/2026-08-06-entry-set-divergence.md` 버퍼가 `docs/lessons.md` 로 승격되지 않았다 — ADR-026 §3 은 「세션 종결 시 승격 의무, 승격하면 버퍼를 비운다」인데 회차는 끝났고(PR #553 머지) 버퍼는 9천자로 남아 있다(반증 카드 상한 1~2천자 초과)                                                                                                                                           | 다음 문서 정리 회차                                                                                               | XS        | 2026-08-07 docs-overhaul 리뷰                          |
 | [BL-613](#bl-613) | `live_signal.py` 핸들러 가시화가 남긴 **줄 수 부채** — `_evaluate_session_with_engine` **506줄**(Kind B 추출 E8~E14 미완) · `_place_planned_entry` 236 · `_reconcile_conditional_entries_inner` 203 · `_async_dispatch_event` 256(최대 `try` 본문 **225줄** — 이제 이게 최대). ★가시성 목표(최대 try 845→8)는 달성됐고 줄 수는 못 채웠다                                                                                                                                                                                                                                                                                                                                              | `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580] 착수 회차와 겹친다)                                             | M         | 2026-08-04 handler-visibility (status 승계)            |
@@ -1222,7 +1222,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-618](#bl-618) | ✅ **문서를 코드에 맞췄다(①) + 경계 오라클 신설.** ★「1200px」는 **5곳이고 전부 콘텐츠 그리드 축**(셸 미개입) ⇒ 셸 경계는 1024/768 둘뿐. ★★**정본은 셋이 아니라 넷** — `@theme` 이 `sm:` 640→375 · `xl:` 1280→1200 으로 덮어 AGENTS.md 표가 **틀린 값**이었다. ★e2e `sidebar` grep 0건 → `design-canon-responsive.spec.ts` 신설. 잔여 [BL-644~647]                                                                                                                                                                                                                                                                                                                                    | 앱 셸 반응형(사이드바 축소·검색바 숨김·컨테이너 폭)을 다음에 손댈 때                                              | S         | 2026-08-07 prototype-canon-v2                          |
 | [BL-617](#bl-617) | ★**「과거 기록」이 아닌 운영 절차 4종이 working tree 밖으로 나갔다** — Cloud Run 런북(39KB)·Grafana 셋업·Bybit mainnet 체크리스트(11KB)·법무 임시 런북. ADR-026 의 분류 기준이 **위치**(폴더 이름)였지 미래 유용성이 아니었던 결과다. 머지 후 `docs/` 전체에서 Cloud Run·Grafana·Prometheus·mainnet·법무 언급 **0건**인데 `alerts.yml`·`Dockerfile`·워크플로 4종은 레포에 살아 있다. ★지금 되살리지 않는다 — 트리거 시점에 갱신해 재등재                                                                                                                                                                                                                                              | [BL-071] 프로덕션 배포 발동 시 · Bybit mainnet 전환 시                                                            | S         | 2026-08-07 PR #554 리뷰                                |
 | [BL-621](#bl-621) | ✅ **골든 `expected.json` 이 두 겹으로 낡아 있었다** — 손익 3지표가 2026-06-26(`80a2138e`) 이후 동결인데 그 뒤 ⑴ `cda575f2` 가 `ta.atr` 를 rolling SMA → Wilder RMA 로 바꾸고 ⑵ [BL-603] 이 비용 기본값을 내렸다. **Resolved** — 구 ATR + 구 비용을 **동시에** 되돌리자 4지표 전건 byte-identical 재현(⑴로 원인 특정). ★유일하게 보던 `num_trades` 는 네 조합 전부 14 라 **판별력 0** 이었다. `regen_golden.py` 신설 + `test_golden_backtest.py` 를 실제 오라클로 승격                                                                                                                                                                                                                | —                                                                                                                 | XS        | 2026-08-07 gap-resync-autopsy                          |
-| [BL-627](#bl-627) | `regen_golden.py` 에 출력 경로 리다이렉트가 없어 라운드트립 시험이 **실제 `expected.json` 을 두 번 덮어쓰고 finally 에서 바이트 복원**한다 — 정상 종료 시 오염 0이지만 강제 종료되면 워킹 트리가 더러워진다. `--out-dir` 추가가 수리. ★부수: `--check` 의 「차이 없음」 종료 코드가 계약에 미명시                                                                                                                                                                                                                                                                                                                                                                                     | `regen_golden.py` 를 CI·병렬 실행에 넣을 때                                                                       | XS        | 2026-08-07 backtest-fidelity                           |
+| [BL-627](#bl-627) | ✅ **`regen_golden.py` 에 출력 경로 리다이렉트가 없어 라운드트립 시험이 **실제 `expected.json` 을 두 번 덮어쓰고 finally 에서 바이트 복원**한다 — 정상 종료 시 오염 0이지만 강제 종료되면 워킹 트리가 더러워진다. `--out-dir` 추가가 수리. ★부수: `--check` 의 「차이 없음」 종료 코드가 계약에 미명시.** 2026-08-09 해결 — `--out-dir`(--confirm 전용) 신설, 시험은 tmp 로 쓰고 **정본 불변을 직접 단언**. ★제안된 변이(SIGKILL→dirty)는 재현 불가라 판별 가능한 변이 2종으로 교체했다                                                                                                                                                                                               | `regen_golden.py` 를 CI·병렬 실행에 넣을 때                                                                       | XS        | 2026-08-07 backtest-fidelity                           |
 | [BL-628](#bl-628) | ✅ **라이트 `--warning` `#875206`→`#824e05`** (subtle 6.03 / card 6.78 / bg 6.33 / bg-alt 5.99). ★자리는 마케팅 푸터가 **아니라** `legal-notice-banner.tsx:15`(전 라우트 상단). ★★**캐논 감사는 다크만 잰다** — 라이트를 재는 게이트가 0이었다 → `light-canon-contrast.test.ts` 신설. 잔여 [BL-648]                                                                                                                                                                                                                                                                                                                                                                                   | 라이트 공개 라우트 canon 을 다크 이하로 내리려 할 때                                                              | XS        | 2026-08-07 backtest-fidelity                           |
 | [BL-629](#bl-629) | ✅ **데드 `--chart-*` 7종 삭제**(axis·grid·bullish·bearish·line·area-top·area-bottom, 전부 참조 0건). `--chart-grid` 는 `brand-palette.ts`+sync 테스트도 동반. ★★**삭제를 지킬 것이 없었다** — 계약 테스트가 「정의된 것을 읽나」를 안 봤다 → **역방향 래칫**으로 정의 집합 동결                                                                                                                                                                                                                                                                                                                                                                                                      | 차트 축 색을 손대려 할 때 · 토큰 정리 스윕                                                                        | XS        | 2026-08-07 backtest-fidelity                           |
 | [BL-630](#bl-630) | ✅ **언레이어드 `table.trades tbody td.pos/.neg` 로 닫았다** — 명시도가 아니라 **캐스케이드 레이어**로 이긴다(KITPORT 무접촉). ★민짜 `.pos` 는 기각(표 밖 소비자까지 폭발). 오라클 = `design-canon-table-tone.spec.ts` 6조합×2테마, **역방향 2 포함**                                                                                                                                                                                                                                                                                                                                                                                                                                 | `<td>` 안에서 `.pos`/`.neg` 를 `.num` 없이 쓰게 될 때                                                             | XS        | 2026-08-07 backtest-fidelity                           |
@@ -1238,6 +1238,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-649](#bl-649) | ✅ **Resolved — ① 삭제**(라이트·다크·`@theme inline` 3면 21줄). ②(`var(--warning)` 별칭 강등)를 버린 이유 = **별칭도 이름이고 소비자 0건이면 값을 못 한다** — 남기면 `@theme inline` 이 계속 유틸을 찍어 다음 사람이 또 고민한다. ★**「소비 0건」은 맞았지만 「참조 0건」은 아니었다** — [BL-629] 역방향 래칫 `CHART_VARS_FROZEN` 이 `--chart-1..5` 를 동결 목록에 잠그고 있었고(주석이 스스로 「처분은 [BL-649]」라 지목), 목록을 안 고쳤으면 집합 동등 단언이 red — **래칫이 설계대로 물었다**. 부수로 댕글링 주석 2줄 `warning` 정정                                                                                                                                               | 토큰 정리 스윕                                                                                                    | XS        | 2026-08-08 fe-canon-and-responsive                     |
 | [BL-652](#bl-652) | ★**[BL-598] 의 결론은 전부 warm 프로세스 한정이다 — cold 축은 미측정**. 프로파일러 `section_import` 이 **첫 서브프로세스(17초, bytecode 컴파일+파일 캐시 워밍 포함)를 버리고** 이후 0.26s 로 가설 (a) 를 기각했는데, **CI 러너는 매 잡이 cold** 이고 샤드를 나누면 샤드마다 cold 다. 버린 17초가 샤드 수만큼 반복되는지는 아무도 안 쟀다(3샤드면 최악 51초). [BL-598] ② 의 파싱 디스크 캐시는 **파싱 비용만** 지우고 import·bytecode 는 캐시 히트여도 일어나므로 이 축은 남는다                                                                                                                                                                                                       | [BL-598] ② 착수 시 · CI 샤드 수를 늘리려 할 때                                                                    | S         | 2026-08-08 zero-touch-bundle                           |
 | [BL-658](#bl-658) | `decisions/013-optimizer-strategy.md` 소급 작성 — ADR-013 은 결번인데 **실체는 삭제된 dev-log 로 git 에 살아 있다**(`94da86b1^`, 24,703B). [BL-504] 는 인용을 tombstone 경로로 돌려 닫았고, 남은 것은 **그 실체를 `decisions/` 로 승격**하는 일이다. 소급 작성은 결정을 새로 만드는 게 아니라 이미 실행된 결정을 기록하는 것이므로 **없는 근거를 지어내지 말고** `optimizer/executors/` 코드와 대조해야 한다                                                                                                                                                                                                                                                                          | Optimizer 설계를 실제로 바꿀 때 (알고리즘 교체 · scikit-optimize 이탈 · GA 파라미터 변경)                         | M         | 2026-08-09 backlog-sweep ([BL-504] 분리)               |
+| [BL-660](#bl-660) | `regen_golden.py --confirm` 산출과 커밋본의 **포맷이 구조적으로 어긋난다** — pre-commit `prettier --write` 가 배열을 한 줄로 접고 스크립트는 `json.dumps(indent=2)` 로 원소당 한 줄을 쓴다. 그래서 정본 갱신 의도로 `--confirm` 을 돌리면 diff 에 **의미 없는 재포맷이 항상 섞인다**(실측 `+29/-2`). ★`--check` 는 **파싱된 값**을 비교하므로 이 어긋남을 구조적으로 못 본다                                                                                                                                                                                                                                                                                                          | 골든을 의도적으로 갱신할 때 / `regen_golden.py` 를 CI 에 넣을 때                                                  | XS        | 2026-08-09 backlog-sweep-4lane (W2, BL-627 부수)       |
 | [BL-659](#bl-659) | `design-canon-calibration.spec.ts` 의 `screen-06-strategies-list.html` 케이스가 **간헐 실패**한다 — 2026-08-09 W3 에서 7회 중 2회. 같은 커밋에서 연속 3회는 42/42 green 이고 `git stash` 로 내 diff 를 걷어내도 통과/실패를 오갔다 ⇒ **코드 회귀가 아니다**. ★위험은 실패 자체가 아니라 **다음 회차가 이걸 자기 회귀로 오독하는 것**                                                                                                                                                                                                                                                                                                                                                  | 디자인 캐논 게이트가 빨개졌을 때 / 캐논 스윕 착수 시                                                              | XS        | 2026-08-09 backlog-sweep-4lane W3                      |
 
 ### BL-491
@@ -1398,9 +1399,9 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Est:** S (2-4h)
 **출처:** `2026-06-26-trading-deepen-2.md`
 
-**현 상태:** `state_handler.py` orphan buffer FIFO cap 1000(`_ORPHAN_MAX`) + out-of-order WS fill message / supervisor crash-restart cycle 가 고빈도(>100 fills/s) 스트레스 테스트 미검증. 현재 데모 빈도엔 충분.
+**현 상태:** ~~`state_handler.py` orphan buffer FIFO cap 1000(`_ORPHAN_MAX`)~~ → **2026-08-09 [BL-448](#bl-448) 로 버퍼·cap·gauge 가 통째로 사라졌다** (읽는 프로덕션 경로가 없었다). 남은 관심사는 out-of-order WS fill message / supervisor crash-restart cycle 의 고빈도(>100 fills/s) 스트레스 테스트 미검증뿐이다. 현재 데모 빈도엔 충분.
 
-**권장 접근:** post-Beta 모니터링(`qb_ws_orphan_buffer_size` gauge alert >800) + 필요 시 concurrent ordering 테스트 추가. 현재는 등재만.
+**권장 접근:** post-Beta 모니터링 — ~~`qb_ws_orphan_buffer_size` gauge alert >800~~ → **`qb_ws_orphan_discarded_total{reason="terminal_event_lost"}` 증가율**(버퍼 크기라는 축 자체가 없어졌다) + 필요 시 concurrent ordering 테스트 추가. 현재는 등재만.
 
 **영향 파일:** `trading/websocket/state_handler.py` + 테스트.
 
@@ -1819,7 +1820,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 - ★**`_created` 시리즈 전면 소실.** 실측 — 미배선 API **30줄** → 배선 API **0줄**. `prometheus_client` 의 `_created` 는 `ValueClass` 를 거치지 않는 순수 float 이라 mmap 에 실리지 않는다. `rate()` 는 무영향이나 `_created` 기반 쿼리는 깨진다. **multiprocess 모드의 내재적 성질**이지 우리 버그가 아니다.
 - **프로덕션 경로가 테스트되지 않는다.** 테스트 env 에 `PROMETHEUS_MULTIPROC_DIR` 이 없어 전 스위트가 폴백을 탄다. **`/metrics` HTTP 를 multiproc 모드로 때리는 테스트가 0건**이다(신규 테스트도 `render_metrics()` 단위까지).
-- **`qb_ws_orphan_buffer_size` 값 범위 변화.** docstring 은 "capped at 1000" 인데 `concurrency=3` + `livesum` 이라 0~3000. 기존 임계 재조정 필요.
+- ~~**`qb_ws_orphan_buffer_size` 값 범위 변화.** docstring 은 "capped at 1000" 인데 `concurrency=3` + `livesum` 이라 0~3000. 기존 임계 재조정 필요.~~ → **2026-08-09 무효 — 그 gauge 는 [BL-448](#bl-448) 에서 삭제됐다**(버퍼째 제거). 이 항목이 재던 「livesum × concurrency 로 범위가 배수가 된다」는 성질 자체는 남은 `livesum` gauge(`qb_pending_alerts`)에 그대로 유효하다.
 - **`qb_redis_lock_pool_healthy` 가 fail-open.** `mostrecent` 는 죽은 프로세스가 남긴 `1` 을 계속 서빙한다 — 건강한 프로세스가 없어도 healthy=1. `livemostrecent`/`min` 이 후보이나 각각 다른 실패 모드가 있다.
 
 **권장 접근:** 위 4건을 `docs/reference/` 관측 계약 문서에 명시 + multiproc 모드 endpoint 테스트 추가.
@@ -2257,6 +2258,29 @@ JOIN trading.orders ON exchange_order_id → 0 행
 
 **권장 접근:** REST 승자 경로에서 `replay_orphan(key, account_id)` 을 호출해 배선하거나, 배선하지 않을 거면 버퍼·함수를 통째로 제거하고 reconciler 단일 복구 경로임을 명시한다. 폐기 시 metric 은 어느 쪽이든 필요하다.
 
+**상태:** ✅ **Resolved (2026-08-09, W2)** — 두 갈래 중 **제거 + 폐기 메트릭**(사용자 결정). 배선은
+money-path 의미를 바꾸므로 하지 않았다.
+
+**한 것:**
+
+- `_orphan_buffer` · `replay_orphan` · `_buffer_orphan` · `_ORPHAN_TTL_S` · `_ORPHAN_MAX` 제거.
+  reconciler 가 단일 복구 경로임을 모듈 docstring 에 근거와 함께 명시(회수되는 것 = 우리가 발주한
+  주문의 놓친 종결 이벤트, 회수 안 되는 것 = 로컬 행이 끝내 안 생기는 이벤트 — reconciler 는
+  local→exchange 단방향이라 INSERT 하지 않는다).
+- 신규 `qb_ws_orphan_discarded_total{account_id, reason}` — **폐기 축**. `reason` 은
+  `terminal_event_lost`(머니-패스 손실) / `non_terminal_ignored`(로컬 행이 있었어도 skip 했을 값).
+  ★한 축으로 뭉치지 않은 이유 = 그러면 경보 문턱을 정할 수 없다. 도착 축
+  `qb_ws_orphan_event_total` 은 대시보드 계약이라 **불변으로 뒀다**.
+- 종결 이벤트 폐기는 `logger.warning` 으로 승격(종전 `logger.debug` 는 프로덕션 레벨에서 무음이었다).
+- `qb_ws_orphan_buffer_size` Gauge 삭제 — 버퍼가 없으니 구조적으로 영원히 0 이다.
+
+**★G0 정정 2건 (2026-08-09 실측).** ① BL 본문의 `state_handler.py:172-180` 은 드리프트 — 실제
+정의는 `:175` 였다. ② 「테스트에서만 호출된다」는 `replay_orphan` 에 대해서만 참이고, 버퍼 자체는
+`test_state_handler.py` 의 **두 케이스가 더** 잡고 있었다(`test_unknown_order_buffered_in_orphan_buffer` ·
+`test_orphan_buffer_fifo_eviction_at_1000`). 즉 「`test_state_handler_gaps.py` 를 제외한 WS 테스트
+전량 불변」은 **달성 불가능한 음성 대조**였다 — 앞의 것은 행위 단언(전이 없음 + 폐기 계상)으로
+바꿨고 뒤의 것은 tombstone 주석과 함께 삭제했다.
+
 ---
 
 ### BL-449
@@ -2489,6 +2513,26 @@ JOIN trading.orders ON exchange_order_id → 0 행
 오늘 이게 안 아픈 이유 = `TimescaleProvider` 가 cache-miss 시 스스로 fetch 하므로 별도 백필이 필요 없다. 그래서 **경로 자체가 불필요할 수 있다** — 등록하기 전에 존치 여부부터 결정할 것.
 
 **Risk:** 🟢 (dead)
+
+**상태:** ✅ **Resolved (2026-08-09, W2)** — **등록하지 않고 제거**했다. `src/tasks/market_data_backfill.py`(141줄) + `tests/tasks/test_market_data_backfill.py`(164줄) 삭제.
+
+**존치 여부 판정 — 「등록 전에 결정하라」에 대한 코드 근거.** `TimescaleProvider.get_ohlcv` 는
+cache-first 다 — `find_gaps` 로 빈 구간을 찾아 그 구간만 `ccxt.fetch_ohlcv` → `insert_bulk` →
+`commit` 한다(`providers/timescale.py:62-81`). 그리고 그 함수를 **백테스트·옵티마이저·스트레스
+테스트 셋이 이미 부른다**(`backtest/service.py:295` · `optimizer/service.py:243` ·
+`stress_test/service.py:329`). 즉 시딩은 별도 작업이 아니라 **첫 조회의 부수효과**다 —
+`instrument-symbol-boundary.md` 가 이미 같은 말을 적어 뒀다(「백테스트 1회가 곧 perp 시딩」).
+따라서 백필 태스크를 살리는 것은 **죽은 경로를 되살리는 것**이지 능력을 되찾는 것이 아니다.
+
+**두 실행법이 **둘 다** 거짓이었다는 실측 (2026-08-09):**
+
+- `python -m src.tasks.market_data_backfill BTC/USDT 1h 60` → **출력 0줄·무동작**(`__main__` 블록 부재).
+- 워커 부팅을 흉내내 `include` 12개를 전부 import 한 뒤 레지스트리를 세니 **28개**가 잡혔고
+  `market_data.backfill_ohlcv` 는 **그 안에 없다**. `include` 에 `src.tasks.market_data_backfill`
+  이 없으므로 `.delay()`/`celery call` 은 `Received unregistered task` 로 끝난다.
+
+**★G0 경로 드리프트 정정.** BL 본문의 `celery_app.py:29-42` `include=[…]` **10개**는 낡았다 —
+실제는 **`celery_app.py:57-70` 의 12개**다.
 
 ---
 
@@ -4932,9 +4976,32 @@ LiveSignalEvent」로 못박아 두었는데, 이 파일은 같은 이름을 **�
 **카테고리:** Backend / 죽은 코드 (호출 0건)
 **Trigger:** `OrderRepository` 를 손볼 때 함께 · 다음 dead-code 스윕
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved (2026-08-09, W2)** — 저장소 메서드 2건은 제거, 하네스 1건은 **제거 대신 게이트 배선**.
 
-**호출자가 0인 채 남아 있는 것 3종** (2026-08-06 실측 — 정의 줄 외 참조 0):
+**★처리가 3종 동일하지 않다 — 근거가 하나 반증됐다 (2026-08-09).** 아래 「앞의 둘은
+`final-gates.sh` 체인 안에 있다」는 **절반이 거짓**이었다. 실측 — `final-gates.sh` 가 실제로
+부르는 것은 `bl-audit-test.sh` **하나뿐**(`:156`)이고, `pre-push-guard-test.sh` 는 산문 참조
+3곳(`.husky/pre-push:23` · `soak-gate.sh:250` · `lib/pre-push-ref-guard.sh:6`)만 있다. 즉
+`fleet-dispatch-test.sh` 를 지우고 `pre-push-guard-test.sh` 를 살리는 판별 기준이 성립하지 않는다.
+게다가 그 하네스는 **지금 30/30 통과**하고 원본에서 `sed` 로 술어를 떼어내므로 사본 드리프트가 없다
+(이름이 바뀌면 추출 실패로 죽는다 — 실측: `qb_injectable` 을 개명하니 exit 0 → **exit 1**).
+⇒ 「호출자 0」이라는 불만은 **삭제가 아니라 배선**으로 해소했다(`final-gates.sh` 신규 1줄).
+
+**처리 결과:**
+
+| 대상                                                          | 처리                                                          |
+| ------------------------------------------------------------- | ------------------------------------------------------------- |
+| `OrderRepository.get_state_fresh` (`order_repository.py:280`) | **제거** — BL-499 도입, 호출자 소멸                           |
+| `OrderRepository.list_unsynced_reduce_only_since` (`:733`)    | **제거** — 복구 경로가 재구현돼 있다(아래)                    |
+| `scripts/fleet-dispatch-test.sh`                              | **존치 + `final-gates.sh` 배선** — 살아 있는 코드의 단언 30건 |
+
+**★`list_unsynced_reduce_only_since` 가 왜 죽었나 (코드 대조).** `6b200e59` 에서 도입됐고
+`0a8e229b`(exit-attribution)이 스윕을 **계정 독립 열거**로 재작성하면서 호출자가 사라졌다. 복구
+경로 자체는 살아 있다 — 대체물은 같은 파일의 `list_unsynced_reduce_only`(계정 스코프 · 시간창
+없음)이고 `src/tasks/trading.py:2118` 이 매 스윕마다 부른다. 즉 **기능이 아니라 시간창 술어만
+버려진 것**이라 제거가 안전하다.
+
+**원 관측 — 호출자가 0인 채 남아 있는 것 3종** (2026-08-06 실측 — 정의 줄 외 참조 0):
 
 | 대상                                                          | 비고                                                       |
 | ------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -4944,7 +5011,8 @@ LiveSignalEvent」로 못박아 두었는데, 이 파일은 같은 이름을 **�
 
 ★**원안의 「고아 하니스 3종」은 1종으로 정정한다** — `bl-audit-test.sh` ·
 `pre-push-guard-test.sh` · `sentinel_bl181_worker_reload.sh` 는 **고아가 아니다**(각각 backlog ·
-soak-gate 주석 · dev-log 가 참조하고, 앞의 둘은 `final-gates.sh` 체인 안에 있다).
+soak-gate 주석 · dev-log 가 참조한다). ~~앞의 둘은 `final-gates.sh` 체인 안에 있다~~ →
+**2026-08-09 반증 — 체인 안에 있는 것은 `bl-audit-test.sh` 하나뿐이다**(위 상태 블록 참조).
 
 **처리 방향:** 지우기 전에 **왜 만들어졌는지** 한 번 본다 — `list_unsynced_reduce_only_since` 는
 reduce-only 동기화 복구용으로 보이므로, 그 복구 경로가 다른 방식으로 구현됐는지 확인 후 제거.
@@ -5764,7 +5832,40 @@ Trigger(「디스크 압박」·「눈에 띄게 느려짐」)는 둘 다 안 �
 **카테고리:** Test infra / 골든 재생성
 **Trigger:** `regen_golden.py` 를 CI 나 병렬 실행에 넣을 때
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ✅ **Resolved (2026-08-09, W2)** — `--out-dir <path>` 신설(`--confirm` 전용). 라운드트립
+시험은 이제 `tmp_path` 두 곳에 산출을 쓰고, **정본이 내용·mtime 모두 불변인지를 직접 단언**한다.
+백업/`finally` 복원은 삭제했다 — 그 복원 코드는 프로세스와 함께 죽으므로 애초에 강제 종료를
+막지 못했다. 부수 항목(`--check` 의 「차이 없음 = exit 0」)도 시험으로 고정했다.
+
+**red→green 실측:** 수리 전 코드로 이 시험을 돌리니 정본 mtime 이 `13:43:21 → 13:53:55` 로
+움직였다(= 두 번 덮어썼다). 수리 후에는 `13:43:21` 그대로다.
+
+**★변이 M — 「dirty 창」을 셈으로 실측했다. 위험은 truncate 경쟁이 아니라 포맷 차이다.**
+
+처음에 나는 이 변이가 재현 불가라고 판단했다가 **스스로 반증했다.** 오판의 뿌리 —
+`--check` 가 통과하니 재생성 산출이 커밋본과 바이트 동일할 거라 넘겨짚었다. **아니다.**
+`_differences()` 는 **파싱된 값**을 비교하므로 포맷에 무관하고, 커밋본은 pre-commit 의
+`prettier --write` 가 배열을 한 줄로 접어 둔 반면 `regen_golden.py` 는
+`json.dumps(indent=2)` 로 **원소당 한 줄**을 쓴다. 그래서 `--confirm` **1회만으로 트리가
+dirty** 해진다(실측 — `+29/-2`). SIGKILL 이 truncate 창에 떨어질 필요가 전혀 없었다.
+
+정본 sha 를 시험이 도는 내내 고빈도 표집해 창의 크기를 쟀다:
+
+|         | 표본 | 정본이 HEAD 와 다른 표본 |
+| ------- | ---- | ------------------------ |
+| 수리 전 | 906  | **288 (31.8%)**          |
+| 수리 후 | 912  | **0**                    |
+
+즉 **시험 실행 시간의 3분의 1 동안 정본이 더러웠고**, 그 사이 어디서 죽어도 `finally` 는
+프로세스와 함께 죽어 복원이 안 된다. 수리 후에는 그 창이 **0** 이다.
+
+보강 변이 2종(둘 다 정확히 한 시험만 red) — ① `--out-dir` 리다이렉트 무력화(항상 정본에 쓴다)
+→ `test_regen_roundtrip_is_stable`. ② `--check` 의 차이 없음 반환 `0→3`
+→ `test_regen_check_exits_zero_when_there_is_no_difference`.
+
+★**부수 발견(등재만, 착수 안 함):** `--confirm` 산출과 커밋본은 **포맷이 구조적으로 어긋난다** —
+`prettier` 가 커밋 시점에 접고 스크립트는 펴서 쓴다. 그래서 정본을 갱신할 의도로 `--confirm` 을
+돌리면 diff 에 **의미 없는 재포맷이 항상 섞인다**. `--check` 는 값 비교라 이걸 못 본다 → [BL-658](#bl-658).
 
 **`regen_golden.py` 에 출력 경로 리다이렉트가 없다.**
 
@@ -7321,3 +7422,38 @@ dev-log 가 적은 결정과 코드가 어긋나면 **코드가 맞다**([ADR-02
 **Risk:** 🟢 게이트 신뢰성만 해당. 프로덕션 코드 영향 없음.
 
 **출처:** 2026-08-09 backlog-sweep-4lane W3 (BL-548·BL-645 음성 대조 중 관측)
+
+---
+
+### BL-660
+
+**Priority:** P3
+**카테고리:** Test infra / 골든 재생성 (도구 산출 ↔ 포매터 충돌)
+**Trigger:** 골든을 의도적으로 갱신할 때 / `regen_golden.py` 를 CI 에 넣을 때
+**Est:** XS
+**상태:** ⬜ **Open**
+
+**`--confirm` 이 쓰는 포맷과 커밋본의 포맷이 구조적으로 다르다.**
+
+pre-commit 의 `prettier --write` 가 `*.json` 을 대상으로 하므로 커밋된
+`golden/<case>/expected.json` 은 배열이 **한 줄로 접혀** 있다. 반면 `regen_golden.py` 는
+`json.dumps(generated, indent=2)` 로 쓰므로 **원소당 한 줄**이다. 그래서 `--confirm` 을 한 번만
+돌려도 트리가 dirty 해진다 — 2026-08-09 실측 `+29/-2` (값은 하나도 안 바뀌고 전부 재포맷).
+
+★**`--check` 는 이 어긋남을 구조적으로 못 본다.** `_differences()` 가 비교하는 것은
+`json.loads` 한 **값**이라 포맷에 무관하기 때문이다. 즉 `--check` 는 green 인데 `--confirm` 은
+트리를 더럽히는 상태가 정상으로 유지된다.
+
+**왜 지금 아픈가 (실사례):** [BL-627](#bl-627) 을 고치면서 「`--check` 가 통과하니 산출이 커밋본과
+바이트 동일하겠지」라고 넘겨짚었다가 **자기 반증**했다. 이 어긋남이 바로 그때 `test_regen_roundtrip_is_stable`
+이 정본을 **시험 시간의 31.8%** 동안 dirty 로 만들던 실체다(표본 906 중 288).
+
+**처방 후보:** ⑴ 스크립트가 `prettier` 와 같은 서식으로 쓴다 ⑵ `.prettierignore` 에 golden 을 넣어
+`json.dumps` 서식을 정본으로 삼는다 ⑶ 쓰기 직후 `prettier --write` 를 부른다. ★어느 쪽이든 **한쪽을
+정본으로 정하는 것**이 요점이고, 정한 뒤에는 `--check` 가 서식까지 보게 할지 따로 정해야 한다.
+
+**Risk:** 🟢 값 정확성에는 영향이 없다. 다만 골든 갱신 diff 의 신호 대 잡음비를 망가뜨린다.
+
+**출처:** 2026-08-09 backlog-sweep-4lane (W2 — BL-627 수리 중 부수 발견)
+
+---

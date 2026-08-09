@@ -122,7 +122,7 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("backend/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconnect_total"): 1,
     ("backend/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
     ("backend/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
-    ("backend/src/trading/websocket/state_handler.py", "qb_ws_orphan_buffer_size"): 2,
+    ("backend/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): 1,
     ("backend/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): 1,
 }
 
@@ -393,7 +393,7 @@ c.inc()
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
     assert len(_FROZEN_CENSUS) == 40
-    assert sum(_FROZEN_CENSUS.values()) == 84
+    assert sum(_FROZEN_CENSUS.values()) == 83
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
