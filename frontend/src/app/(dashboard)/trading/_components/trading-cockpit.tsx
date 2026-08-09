@@ -80,18 +80,19 @@ export function TradingCockpit() {
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedInactiveSession, setSelectedInactiveSession] = useState<LiveSession | null>(null);
 
   // H-1 준수 — RQ data 객체를 dep 로 직접 쓰지 않고 .items/array 참조를 memoize.
   const sessionItems = useMemo<readonly LiveSession[]>(
     () => sessionsQ.data?.items ?? [],
     [sessionsQ.data?.items],
   );
+  // BL-533 — 종료 세션용 미러 state 를 두지 않는다. `useLiveSessions(true)` 가 비활성까지
+  // 실어 오므로 `sessionItems` 하나로 찾힌다. 미러는 코크핏이 `useLiveSessions()`(활성만)를
+  // 쓰던 시절 목록에 없는 세션을 붙들기 위한 우회였고, 키를 통일한 지금은 같은 사실을
+  // 두 곳에 두어 어긋날 수 있게 만들 뿐이다.
   const selected = useMemo(
-    () =>
-      sessionItems.find((session) => session.id === selectedId) ??
-      (selectedInactiveSession?.id === selectedId ? selectedInactiveSession : null),
-    [sessionItems, selectedId, selectedInactiveSession],
+    () => sessionItems.find((session) => session.id === selectedId) ?? null,
+    [sessionItems, selectedId],
   );
   const accountItems = useMemo<readonly ExchangeAccount[]>(
     () => accountsQ.data ?? [],
@@ -109,7 +110,6 @@ export function TradingCockpit() {
   const activeSessions = useMemo(() => sessionItems.filter((s) => s.is_active), [sessionItems]);
   const handleSessionSelect = (session: LiveSession) => {
     setSelectedId(session.id);
-    setSelectedInactiveSession(session.is_active === false ? session : null);
   };
   const demoSessionIds = useMemo(() => {
     const demoAccountIds = new Set(
@@ -422,7 +422,6 @@ export function TradingCockpit() {
                 activeSessionsCount={activeSessions.length}
                 onSuccess={(session) => {
                   setSelectedId(session.id);
-                  setSelectedInactiveSession(null);
                 }}
               />
             </div>

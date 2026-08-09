@@ -37,6 +37,11 @@ vi.mock("../api", () => ({
 import { useLiveSessions } from "../hooks";
 import { liveSessionKeys } from "../query-keys";
 
+/** 소스 래칫이 **코드**만 보게 한다 — 블록 주석과 줄 주석을 지운다. */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
 const COCKPIT = path.resolve(
   __dirname,
   "../../../app/(dashboard)/trading/_components/trading-cockpit.tsx",
@@ -118,10 +123,14 @@ describe("라이브 세션 목록 쿼리 (BL-423)", () => {
   });
 
   it("cockpit 이 비활성 포함으로 호출한다 — 호출부 래칫", () => {
-    const source = readFileSync(COCKPIT, "utf8");
+    // ★주석을 걷어내고 잰다. 이 래칫은 **호출부**를 재야 하는데 종전에는 파일 원문을 그대로
+    // 훑어서 산문에 그 호출 형태를 인용하기만 해도 빨개졌다(2026-08-09 실측 — BL-533 이
+    // 미러 state 를 지우며 남긴 「예전에는 활성만 조회했다」 설명이 이 래칫에 걸렸다).
+    // 반대 방향 오류가 더 나쁘다 — 주석에 형태만 적어두면 양성 단언이 **코드 없이도** 만족된다.
+    const source = stripComments(readFileSync(COCKPIT, "utf8"));
 
     expect(source).toContain("useLiveSessions(true)");
-    // `useLiveSessions()` 로 되돌아가면 키가 다시 갈린다.
+    // 인자 없는 호출로 되돌아가면 키가 다시 갈린다.
     expect(source).not.toContain("useLiveSessions()");
   });
 

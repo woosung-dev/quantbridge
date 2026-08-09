@@ -65,8 +65,17 @@ vi.mock("../session-diagnostics", () => ({ SessionDiagnostics: () => null }));
 import { TradingCockpit } from "../trading-cockpit";
 
 function setDefaults() {
+  // BL-533 — 코크핏은 `useLiveSessions(true)` 를 쓴다. 그 응답에는 **비활성 세션도 들어 있다**.
+  // 종전 mock 은 활성 1건만 돌려줘서 `include_inactive=false` 를 흉내내고 있었고, 그래서
+  // 「종료 세션 선택」테스트가 `selectedInactiveSession` 미러 state 덕에만 통과했다.
+  // 미러를 지우려면 mock 이 먼저 실제 쿼리를 닮아야 한다.
   useLiveSessionsMock.mockReturnValue({
-    data: { items: [{ id: "session-1", is_active: true }] },
+    data: {
+      items: [
+        { id: "session-1", is_active: true },
+        { id: "inactive-session", is_active: false },
+      ],
+    },
     isError: false,
     isPending: false,
   });
@@ -168,6 +177,25 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
 
     expect(screen.getByTestId("mock-detail")).toBeInTheDocument();
     expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
+  });
+
+  // BL-533 — 위 테스트가 **무엇 덕에** 통과하는지 못 박는다.
+  // 미러 state 를 지운 뒤로 종료 세션 상세는 오직 `useLiveSessions(true)` 가 비활성을
+  // 실어 오기 때문에 열린다. 쿼리가 활성만 돌려주도록 되돌아가면(=`useLiveSessions()`)
+  // 같은 클릭이 상세가 아니라 중단 안내로 떨어진다. 이 대조가 없으면 위 테스트는
+  // 「종료 세션이 목록에 있든 없든 통과」로 읽혀 판별력이 사라진다.
+  it("쿼리가 활성만 실어 오면 같은 클릭이 중단 안내로 떨어진다 (미러 없음의 증거)", () => {
+    useLiveSessionsMock.mockReturnValue({
+      data: { items: [{ id: "session-1", is_active: true }] },
+      isError: false,
+      isPending: false,
+    });
+    render(<TradingCockpit />);
+
+    fireEvent.click(screen.getByTestId("mock-inactive-live-session-select"));
+
+    expect(screen.getByTestId("live-session-stopped-notice")).toBeInTheDocument();
+    expect(screen.queryByTestId("mock-detail")).not.toBeInTheDocument();
   });
 
   it("★계정 잔여 포지션 표에 활성 세션이 아니라 **등록된 모든 계정**을 넘긴다", () => {
