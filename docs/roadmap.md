@@ -328,7 +328,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-022 ✅ Resolved** [P1] (2026-08-07 backtest-fidelity) — `backend/scripts/regen_golden.py` 신설(`--confirm` 없으면 exit 1 + 파일 0개 · `--case` · `--check` 는 의미 비교 후 차이 시 exit 1). ★**이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인**이다 — 같은 커밋 `cda575f2` 가 trust-layer baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으로 만들어야 해서 빠졌다
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
 - [ ] **BL-024** [P1] real_broker E2E 본 구현 — nightly cron (Bybit Demo creds)
-- [ ] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
+- [x] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
 - [ ] **BL-026** [P1] Mutation fixture 활성화 회귀 — skip #4-7,#9-15
 - [x] **BL-622 ✅ Resolved** [P1] (2026-08-07 gap-resync-autopsy) — `requires_gap_resync` 가 열린 채 시작한 세션이 재동기 전에 사망하던 경로. ★사망 판정은 H3(관측 지연) — 거래소 체결시각 20:17:19 vs 원장 20:31:51 로 **872초** 벌어졌고 판정은 그 3.5초 전에 떨어졌다. ★상수 재사용이 틀렸다는 것도 함께 확정 — janitor 30분은 **다른 양**을 잰다(조건부 resting 이 벽시계 95.1%)
 - [x] **BL-633 ✅ Resolved** [P1] (2026-08-08 bl003-unblock) — ★★판정 = **[ADR-025] 반례가 아니라 이중 호스트 오염**이다. 오라클 서버와 맥 로컬이 같은 Bybit demo 계정 `19a8166a…` 에 같은 전략·심볼·주기로 동시에 붙어 있었다. 근거 — 서버 `exchange_exits` 고유 `order_link_id` 27 중 **7건이 로컬 원장에만** 있고 귀속 불가 0 · 정본 항등식 `exchange = P0 + Σ(양쪽 호스트 체결)` **4/4**(반사실은 정의 4가지 어디서도 4/4 불가 · 최대 1/4) · 두 원장의 고유 `exchange_order_id` **27/27** 일치. ★계정은 세션 시작(09:39:38) **전부터** 오염돼 있었다(로컬 체결 07:42~09:03 5건) ⇒ 배타성 검사는 재기동이 아니라 **세션 시작** 시점에 건다 — [BL-634]
@@ -363,8 +363,8 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-373** [P2] OCO 형제취소 — standalone exit 시점 · (BL-365 도입 시)
 - [ ] **BL-375** [P2] trailing same-side stale 완전 닫기 — fill-time 소싱 · (Wave 3 전)
 - [ ] **BL-387** [P2] sizing-canonical config_payload untyped dict seam · (backtest/sizing 변경)
-- [ ] **BL-392** [P2] stress CA/PS 2D grid sweep DTO 8-site 통합
-- [ ] **BL-363** [P2] stress*test \_execute*\* 4-method boilerplate 추출
+- [x] **BL-392** [P2] stress CA/PS 2D grid sweep DTO 8-site 통합
+- [x] **BL-363** [P2] stress*test \_execute*\* 4-method boilerplate 추출
 
 ### P2 — pine_v2 / Track A / 옵티마이저
 
@@ -375,7 +375,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-393** [P2] pine_v2 strategy.exit trail_points 틱 시맨틱스 + mintick 하드코딩
 - [ ] **BL-441** [P2] entry 부분체결 시 pine_v2 warmup-replay 사이즈 발산
 - [ ] **BL-190** [P2] 백테스트 리포트 PDF export · (외부 인쇄 요청 시)
-- [ ] **BL-195** [P2] qb-form-slide-down 애니메이션 truncation
+- [x] **BL-195** [P2] qb-form-slide-down 애니메이션 truncation
 - [ ] **BL-235** [P2] N-dim acquisition surface viz (Bayesian) · (Sprint 57+)
 - [ ] **BL-236** [P2] objective_metric whitelist 자유화 (24+ 지표) · (Sprint 56+)
 - [ ] **BL-364** [P2] Optimizer string-label CategoricalField sweep
@@ -437,7 +437,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ### P3 — trading / live / money-path 하드닝
 
 - [ ] **BL-475** [P3] 서버 권위 risk% 사이징 미구현 — UI 문구는 정정했고(PR #484) risk% 는 실제 동작대로 **상한**으로 재정의. 진짜 수량 산출은 미착수
-- [ ] **BL-477** [P3] API 키 2개가 같은 Bybit 서브계정 → 청산 원장 2행 적재 + 유령 `unknown`. **선재**, 금액은 안전(`aggregate_closed_pnl` 계정 스코프). 읽기 전용 계정 삭제 시 자연 소멸
+- [x] **BL-477** [P3] API 키 2개가 같은 Bybit 서브계정 → 청산 원장 2행 적재 + 유령 `unknown`. **선재**, 금액은 안전(`aggregate_closed_pnl` 계정 스코프). 읽기 전용 계정 삭제 시 자연 소멸
 - [ ] **BL-367** [P3] \_async_dispatch_event 205 LOC + 8× mark_failed 추출
 - [ ] **BL-370** [P3] exit-field multi-SSOT 8필드 × 3 boundary type
 - [ ] **BL-371** [P3] ws-stream 고빈도 fill 스트레스 (orphan buffer cap 1000)
