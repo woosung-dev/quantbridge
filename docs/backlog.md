@@ -7886,3 +7886,30 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 **Risk:** 🟢 포맷만 건드린다.
 
 ---
+
+### BL-668
+
+**Title:** `e2e:authed` backtest form 2건이 로컬에서만 빨갛다 (CI 는 초록)
+**Category:** DX / 테스트 환경
+**Priority:** P3
+**Trigger:** 로컬에서 `pnpm e2e:authed` 를 돌릴 때 · 격리 스택을 새로 만들 때
+**상태:** ⬜ Open — 원인 미규명. 코드가 아니라 환경이라는 것까지만 좁혔다 (2026-08-09 fe-perf-quartet)
+**출처:** 2026-08-09 fe-perf-quartet (final-gates 에서 발견 · 음성 대조 2회)
+
+**원인 / 영향:** `e2e/sprint46-tier1-critical.spec.ts:69`(#1 backtest form 422 unsupported_builtins)와 `e2e/sprint46-tier3-nth.spec.ts:489`(#20 friendly_message 카드)이 로컬 격리 스택(`:3100`/`:8100`)에서 일관 실패한다. 증상은 **하나**다 — `POST /api/v1/backtests` 가 아예 안 나가서 `waitForRequest` 가 15초 타임아웃한다. 폼 제출 **이전** 단계에서 막힌다는 뜻이다.
+
+★★**음성 대조 2회로 코드 축을 배제했다:**
+
+1. `git checkout 85970b83 -- frontend/src` 로 **main 코드**를 씌우고 같은 두 건을 태웠다 → **동일하게 2 failed / 1 passed.** 브랜치 회귀가 아니다.
+2. **CI 는 초록이다** — PR **#574 에서 `e2e` SUCCESS**, 그 뒤 #575·#576·#577 은 전부 문서 전용이라 `e2e` 가 SKIPPED. ⇒ CI 가 통과시킨 FE 코드가 지금 main 과 같다.
+
+⇒ 남은 축은 **로컬 격리 스택의 데이터/시드 상태**다. 폼이 제출까지 못 가는 것이므로 전략 목록·`parse_status`·coverage 전제가 CI 시드와 다를 가능성이 높다.
+
+★**이것이 게이트를 오염시킨다** — `final-gates.sh` 의 `e2e authed` 가 항상 FAIL 이면 그 게이트는 **신호를 잃는다**(진짜 회귀도 같은 빨강으로 보인다).
+
+★★**같은 회차에 별개의 flake 1건도 드러났다 — `e2e/trading-ui.spec.ts:108`(kill switch API 오류 → 황색 배너).** 전체 스위트 2회 중 **1회만** 실패했고(`ks-error-banner` 미발견 + 30초 테스트 타임아웃), **격리 실행 3/3 통과**했다. ★이 파일은 이 회차가 실제로 만진 `kill-switch-banner.tsx` 의 시험이라 회귀를 의심해 일부러 3회 태웠다 — **회귀가 아니라 flake 다.** 위 2건(항상 실패)과 **다른 현상**이므로 같이 묶어 고치지 마라.
+
+**권장 접근:** ⑴ `test-results/.../error-context.md` 와 trace 를 열어 어느 검증에서 멈추는지 본다 ⑵ CI 의 e2e 시드 절차와 로컬 격리 스택 시드를 대조한다 ⑶ 차이가 시드면 로컬 시드 타깃에 반영하고, 아니면 이 BL 의 전제를 다시 세운다.
+**Risk:** 🟢 프로덕션 코드 무관. 단 게이트 신뢰도를 깎는다.
+
+---

@@ -76,7 +76,19 @@ lint-staged 가 eslint 태스크를 `[KILLED]` 로 찍어 **eslint 실패처럼 
 friendly_message) 둘 다 **backtest form 의 POST 가 안 나가는** 같은 뿌리다. `git checkout 85970b83 --
 frontend/src` 로 **main 코드에서 같은 두 건을 태우니 똑같이 실패**했다(1 passed / 2 failed 동일).
 ★내 diff 는 `backtest-form.tsx` 를 안 건드리고, 그 파일이 `utils.ts` 에서 쓰는 것은 **`formatDateTime`
-하나**인데 그 함수는 무변경이다. ⇒ **기존 결함 또는 로컬 환경(격리 스택 데이터) 문제**다. 원인은 미규명.
+하나**인데 그 함수는 무변경이다.
+★★**CI 대조가 결론을 좁혔다 — 코드가 아니라 로컬 환경이다.** PR **#574 에서 `e2e` 가 SUCCESS** 였고
+그 뒤 #575·#576·#577 은 **전부 문서 전용**(`e2e` SKIPPED)이라 CI 가 초록으로 본 FE 코드가 지금 main
+과 같다. ⇒ 같은 코드가 CI 에선 통과하고 이 맥에선 실패한다. **판별자는 격리 스택의 데이터**이고
+(POST 가 아예 안 나가므로 폼 검증 단계에서 막힌다) 이 회차는 거기까지만 좁혔다 → [BL-668].
+★**이 대조를 안 했으면 「내가 깼다」거나 「레포가 깨졌다」 중 하나를 잘못 적었을 것이다.**
+★**별개 flake 1건도 나왔다** — `trading-ui.spec.ts:108`(kill switch 황색 배너)이 전체 스위트 2회 중
+**1회만** 실패했고 **격리 3/3 통과**했다. 이 회차가 실제로 만진 `kill-switch-banner.tsx` 의 시험이라
+회귀를 의심해 3회 태웠다. **항상 실패하는 2건과 다른 현상이니 묶지 마라**(같은 [BL-668] 안에 구분해 적었다).
+
+★★**게이트 최종 = `e2e authed` 를 뺀 전건 PASS.** BE pytest · FE build · e2e chromium · e2e
+design-canon · CI 재현 3종 · 스킬 4종(vercel·screen·codex·G9) 전부 초록. `e2e authed` 만 위 사유로
+빨갛고 **그것을 초록으로 만들지 않았다** — 환경 축이라는 근거를 남기고 [BL-668] 로 넘긴다.
 
 - ★★★**2026-08-09 status-triage-mass 가 ⓪ 표 후보 G 의 전제를 반증했다.** G 는
   「**ACTIVE 는 열려 있는 수가 아니라 닫혔다고 선언되지 않은 수다**」라고 적었는데, 상태줄 없는
