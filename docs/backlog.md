@@ -2544,6 +2544,13 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Trigger:** 422 에러 표면을 공통화하고 싶을 때
 **Est:** S
 **출처:** 2026-07-26 live-entry-wiring
+**상태:** ✅ **Resolved (2026-08-09, W3)** — `parseError` 422 general 분기에
+`fm ?? innerDetail ?? fallback` 폴백 추가. red→green = `friendly_message` 없는 422 가
+`"API 422 /api/v1/live-sessions"` → 서버 `detail` 문구를 렌더하고 `"API 422"` 미포함.
+변이 M = 폴백을 `fm ?? fallback` 으로 되돌리면 그 테스트가 다시 빨개진다(실측).
+음성 대조 N = `friendly_message` 가 있으면 `detail.detail` 이 함께 있어도 여전히
+`friendly_message` 가 이긴다(전용 테스트로 고정). vitest 209파일 / 1300테스트 green.
+★**라이브 세션 폼 교체는 하지 않았다** — 별건이고 이 회차 범위 밖이다.
 
 **원인 / 영향:** `form-error-inline.tsx:93-97` 의 422 general 분기가 `friendly_message` 만 읽고, 없으면 `fallback = err.message` 로 떨어진다. 그 `err.message` 는 `"API 422 /api/v1/live-sessions"` 라 사람이 못 읽는다.
 
