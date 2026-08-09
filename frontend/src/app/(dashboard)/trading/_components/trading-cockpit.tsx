@@ -6,9 +6,10 @@
 // 데이터 흐름은 도메인 훅 재사용. 실시간 스트림은 WebSocket+Zustand로 별도 배선한다.
 // 프로토타입의 "총 세션" 카드는 사용자 확정 WS Tier 2 요구로 미실현 추정 KPI로 교체한다.
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCwIcon } from "lucide-react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import {
   LiveSessionDetail,
@@ -48,6 +49,9 @@ const STRATEGY_FETCH_LIMIT = 100;
 export function TradingCockpit() {
   const queryClient = useQueryClient();
   const { uid } = useAuthCtx();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   // BL-423 — `true`(비활성 포함). 아래 LiveSessionList 도 `useLiveSessions(true)` 를 쓰므로
   // 여기서 `false` 를 쓰면 queryKey 가 갈려(`list` vs `listWithInactive`) **같은 화면이 목록을
@@ -64,7 +68,7 @@ export function TradingCockpit() {
     is_archived: false,
   });
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedId = searchParams.get("session");
 
   // H-1 준수 — RQ data 객체를 dep 로 직접 쓰지 않고 .items/array 참조를 memoize.
   const sessionItems = useMemo<readonly LiveSession[]>(
@@ -93,8 +97,15 @@ export function TradingCockpit() {
   );
 
   const activeSessions = useMemo(() => sessionItems.filter((s) => s.is_active), [sessionItems]);
-  const handleSessionSelect = (session: LiveSession) => {
-    setSelectedId(session.id);
+  // ★vercel-react-best-practices 대조 (2026-08-10) — `useCallback` 을 씌우지 않는다.
+  //   `rerender-memo` 의 이득은 **자식이 memo 일 때**만 생기는데 `LiveSessionList` 도
+  //   `LiveSessionForm` 도 memo 가 아닌 평범한 함수 컴포넌트다. 씌우면 이득 없는 배선만 는다.
+  //   종전 판도 렌더마다 새 함수였으므로 이 축에서 나빠진 것도 없다.
+  const handleSessionSelect = (session: Pick<LiveSession, "id">) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("session", session.id);
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
   const demoSessionIds = useMemo(() => {
     const demoAccountIds = new Set(
@@ -404,9 +415,7 @@ export function TradingCockpit() {
                 strategies={formStrategies}
                 exchangeAccounts={formAccounts}
                 activeSessionsCount={activeSessions.length}
-                onSuccess={(session) => {
-                  setSelectedId(session.id);
-                }}
+                onSuccess={handleSessionSelect}
               />
             </div>
             <div className="card card-pad">
@@ -426,6 +435,20 @@ export function TradingCockpit() {
             {selected ? (
               <div className="card card-pad">
                 <LiveSessionDetail session={selected} />
+              </div>
+            ) : selectedId && sessionsQ.isPending ? (
+              <div className="card card-pad">
+                <StateBox
+                  title="세션 목록을 불러오는 중입니다."
+                  body="선택한 세션의 상세를 확인하고 있습니다."
+                />
+              </div>
+            ) : selectedId && sessionsQ.isError ? (
+              <div className="card card-pad">
+                <StateBox
+                  title="세션 목록을 불러오지 못했습니다."
+                  body="목록을 다시 불러오면 선택한 세션의 상세를 확인할 수 있습니다."
+                />
               </div>
             ) : selectedId ? (
               <div className="card card-pad">

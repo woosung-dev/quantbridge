@@ -1451,7 +1451,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-540](#bl-540) | (P3) `live_signal.py` 반복 3종 — deactivate 의식 6회 · provider+creds 4회 · category 가 맨 `str`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 이 파일을 다시 크게 손댈 때                                                                                       | M         | 2026-07-29 PR #497 사후 리뷰                           |
 | [BL-548](#bl-548) | ✅ **Resolved (2026-08-09, W3)** — (P3) `OutcomeParityPanel` 이 375px 에서 본문 가로 스크롤을 만든다. ★**24px 재현 실패** — [BL-607] 반올림이 그 경로를 이미 닫았다. 남은 경로는 반올림 없는 `sub` 캡션 4곳 — 51자리 Decimal 이 오면 **191px**. 넘치는 것이 표가 아니라 텍스트라 처방은 `break-words`                                                                                                                                                                                                                                                                                                                                                                                 | 모바일 폭 점검 시                                                                                                 | XS        | 2026-07-30 conditional-entry-alignment                 |
 | [BL-550](#bl-550) | (P3) 비활성 세션의 **세션별** 포지션 대조가 화면에 없다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 죽은 세션을 세션 단위로 대조해야 할 때                                                                            | S         | 2026-07-30 conditional-entry-alignment                 |
-| [BL-551](#bl-551) | (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 세션 상세를 링크로 공유해야 할 때                                                                                 | S         | 2026-07-30 conditional-entry-alignment                 |
+| [BL-551](#bl-551) | ✅ (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 세션 상세를 링크로 공유해야 할 때                                                                                 | S         | 2026-07-30 conditional-entry-alignment                 |
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 그 게이지로 무언가를 판단하기 전                                                                                  | S         | 2026-07-30 live-entry-completeness                     |
 | [BL-559](#bl-559) | 🟡 (P3) 진입 완결성 도구 잔여 3건 — 세션 목록 절단 감지 · 사문 라벨 · janitor probe 전이                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 그 경로가 실측될 때                                                                                               | S         | 2026-07-30 live-entry-completeness                     |
 | [BL-564](#bl-564) | ✅ **Resolved** (2026-08-09 backlog-sweep) — `bl-audit.sh` 가 코드펜스 · `<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다. **처방 2건이 이미 구현돼 있었다**(`:114-120` 스킵 · `:268-288` 중복=exit 1)이고 Trigger 「게이트 체인 편입 전」도 도래(`final-gates.sh:151`). 코드 0줄                                                                                                                                                                                                                                                                                                                                                                                                  | 그 관용구가 상태줄을 품게 될 때                                                                                   | XS        | 2026-07-30 close-mismatch-soak                         |
@@ -1713,7 +1713,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 리포트 특정 섹션 공유 요구 시
 **Est:** ~~XS-S (1-3h)~~ → **XS** (프롭 하나를 9곳에 넘긴다)
-**상태:** ⬜ Open — 2026-08-09 backlog-sweep G0 에서 **전제가 반증돼 근거를 교체했다**. 종결 아님.
+**상태:** ✅ Resolved — 2026-08-10 fe-shareable-urls. 앵커 10개 + 상단바 보정 + 마운트 1회 해시 재조정. ★**재기술된 처방마저 반증됐다** (아래 종결 절).
 **출처:** 2026-07-05 TV-parity sprint F2 (탭 상태 비제어 유지 결정) → **2026-08-09 그 탭이 더 이상 없다**
 
 ★★**원 전제 반증 (2026-08-09 실측).** 이 항목은 「탭 상태가 비제어라 URL 에 실을 수 없다」를 전제로 썼다.
@@ -1738,6 +1738,44 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 음성 대조로 `#없는-id` 는 페이지 상단에 머문다.
 
 **Risk:** 🟢 렌더 트리 무변경(속성 하나 추가) · 기존 `stress-test` 앵커 불변이 회귀 판별자.
+
+### ✅ 2026-08-10 fe-shareable-urls — 종결. ★**「프롭 하나면 끝난다」가 실측으로 반증됐다**
+
+위 재기술은 「나머지 9개 `<Section>` 에 안정적인 `id` 를 넘기면 끝이다」라고 적었다.
+**그대로 해봤더니 화면이 움직이지 않았다.** `id` 9개 + `scroll-mt` 만 넣은 판에서 e2e 실측:
+
+```
+Error: expect(locator).toBeInViewport() failed
+Locator:  locator('section#trades')
+Expected: in viewport
+Received: viewport ratio 0
+  9 × locator resolved to <section id="trades" aria-label="거래 내역" class="section scroll-mt-[76px]">…</section>
+```
+
+엘리먼트는 DOM 에 **있는데** 브라우저가 스크롤하지 않았다. 같은 실행에서 음성 대조(`#nope`)는
+green 을 유지했으므로 계측기 고장이 아니다. 뿌리 — `backtests/[id]/page.tsx` 는 서버 prefetch 도
+`HydrationBoundary` 도 없이 클라이언트 `BacktestDetailView` 만 렌더하고, 리포트는 React Query 가
+끝난 뒤에 삽입된다. **네이티브 fragment 위치결정은 문서 로드 시점에 한 번이고 다시 시도하지 않는다.**
+⇒ 마운트 1회 해시 재조정(`useEffect(…, [])` · `setState` 없음 · DOM 만 만진다)을 함께 넣어야 한다.
+
+★**두 번째 발견 — 지금 있던 `#stress-test` 딥링크도 제목이 가려지고 있었다.** `scroll-margin` 이
+레포 전체 0건인데 `.topbar` 는 `sticky; top:0; height:60px; z-index:110` 이다. `scroll-mt-[76px]`
+(60 + 여유 16)을 `<Section>` 에 준다. `globals.css` 의 `.section` 은 KITPORT 센티넬 안이라
+건드리면 `design-canon-kit-port.test.ts` 가 빨개진다 — 그래서 컴포넌트 쪽 유틸로 넣었다.
+
+**앵커 id** — `key-stats` · `benchmark` · `metrics` · `trades` · `distributions` ·
+`profit-structure` · `runup-drawdown` · `stress-test`(불변) · `assumptions` · `next-steps`.
+접두어 없이 기존 `stress-test` 선례와 한 벌로 간다.
+
+**검증** — vitest `backtest-report-shell.test.tsx` 10건(신규 5) · e2e `report-section-anchors.spec.ts`
+2건 · 표적 변이 **6종 전건 판별**(음성 대조 = §02 desc 문구 변경, 아무것도 안 뒤집음) ·
+sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹션 top 76 / 제목 top **107** =
+47px 여유 · `#nope` 는 `scrollY` 0 · 375px 가로 오버플로 0 · 콘솔 error 0).
+
+★**백로그의 「0건」 주장 하나도 틀렸다** — 「리포트 트리 전체에 `role="tablist"`·`TabsGrid` 0건」은
+**최상위 IA 만** 본 값이다. §07 `runup-drawdown-section.tsx` 가 shadcn `Tabs` 를, §02
+`equity-chart-v2.tsx` 가 `role="tablist"`/`aria-selected` 를 쓴다. 다만 그것들은 섹션 **안의 하위 뷰
+전환**이라 `?section=` 을 되살릴 근거는 아니다 — 처방은 그대로다.
 
 ---
 
@@ -2879,7 +2917,19 @@ cache-first 다 — `find_gaps` 로 빈 구간을 찾아 그 구간만 `ccxt.fet
 **Priority:** P3
 **Trigger:** BL-461(sub-daily fallback) 처리 시 함께
 **Est:** S
-**상태:** ⬜ Open — 목록 title 이 여전히 legacy/unavailable 일 때만 붙고, monthly/daily 는 undefined 라 각주가 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⬜ Open — 목록 title 이 여전히 legacy/unavailable 일 때만 붙고, monthly/daily 는 undefined 라 각주가 없다. (2026-08-09 status-triage-mass 확인) ★2026-08-10 fe-shareable-urls 가 **착수하지 않고 전제만 대조했다** — 아래 세 줄이 그 결과다.
+
+★★**2026-08-10 실측 — 본문 한 문장이 틀렸고, 도메인 값 하나가 빠져 있고, 처방이 하나 더 필요하다.**
+
+- **틀림:** 「리포트는 각주를 달지만 목록은 달지 않는다」 → 목록도 legacy·unavailable 에는 단다
+  (`backtest-list.tsx` 의 `sharpe.isLegacy || sharpe.isUnavailable` 조건). 비대칭은 **monthly/daily 에서만** 이다.
+  리포트는 `key-stats-strip.tsx` · `metric-groups-section.tsx` 둘 다 **컨벤션과 무관하게 항상** `sharpe.foot` 을 노출한다.
+- **누락:** 컨벤션 도메인은 3종이 아니라 **4종**이다 — `tv_monthly_rfr2` · `tv_daily_rfr2` ·
+  `unavailable` · **`unavailable_nonpositive_equity`**(`features/backtest/sharpe-convention.ts`).
+  처방이 `describeSharpe` 를 그대로 쓰면 넷 다 덮인다.
+- **미등재 구멍:** `hasMixedSharpeConventions` 는 `null`(legacy)과 non-null 이 섞일 때만 켜진다.
+  **monthly + daily 혼재는 둘 다 non-null 이라 무경고로 통과**한다 — 이 BL 이 지적한 바로 그 상황이
+  경고를 못 받는다. 정렬은 BE 가 `sharpe_ratio` 숫자만으로 하고 컨벤션은 보지 않는다(`backtest/repository.py`).
 
 **원인 / 영향:** `backtest-list.tsx` 는 legacy·unavailable 계열에만 `title` 을 단다. `tv_monthly_rfr2` 와 `tv_daily_rfr2` 는 **분모 기간이 다른 별개 척도**인데 목록에서는 둘 다 그냥 숫자로 보여 나란히 정렬된다. 리포트는 각주를 달지만 목록은 달지 않는다.
 
@@ -3687,13 +3737,42 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 **Priority:** P3
 **Trigger:** 세션 상세를 링크로 공유하거나 새로고침 보존이 필요할 때
 **Est:** S
-**상태:** ⬜ Open — 코크핏 선택은 여전히 useState(:82)이고 trading 트리 어디에도 useSearchParams/searchParams 사용이 없다 (2026-08-09 status-triage-mass 확인)
+**상태:** ✅ Resolved — 2026-08-10 fe-shareable-urls. 선택이 `?session=<id>` 로 옮겨갔고 딥링크·새로고침 보존이 실 DB 로 실증됐다. `backend/src` 0줄.
 **출처:** 2026-07-30 conditional-entry-alignment (BL-423 잔여 중 defer)
 
-**원인 / 영향:** `trading-cockpit.tsx:76-77` 의 `useState` 가 선택 상태를 쥔다. `useSearchParams`
+**원인 / 영향:** `trading-cockpit.tsx` 의 `useState` 가 선택 상태를 쥔다. `useSearchParams`
 사용처 0. 새로고침하면 선택이 사라지고 특정 세션 상세로 링크할 수 없다.
 부수: e2e 가 쓰는 `/trading?tab=live-sessions` 의 `tab` 파라미터는 **읽는 코드가 없는 유물**이다.
+★본문의 줄 인용 `:76-77`(인덱스 표는 `:82`)은 **2026-08-10 실측에서 둘 다 틀렸다** — 실제는 `:67` 이었다.
 **Risk:** 🟢
+
+### ✅ 2026-08-10 fe-shareable-urls — 종결
+
+`selectedId` 를 `searchParams.get("session")` 로 파생시키고, 선택 시
+`router.replace(url, { scroll: false })` 로 URL 에 싣는다(선례 = `backtest-list.tsx` 의
+`pushStatus`/`pushSort`). 쓰기 지점은 목록 클릭과 `LiveSessionForm.onSuccess` 둘 다이며 같은
+함수를 쓴다. **`useState` 미러를 두지 않는다** — [BL-533] 이 같은 이유로 미러를 지운 자리다.
+
+★**`{ scroll: false }` 는 장식이 아니다.** Next 16 의 `replace` 는 기본으로 페이지 최상단으로
+스크롤한다(설치된 문서 `use-router.md` §"Disabling scroll to top"). 세션 목록은 화면 §07 이라
+인자 하나짜리 호출이면 클릭마다 꼭대기로 튄다. **실측** — 클릭 직전 `scrollY` **7866**,
+클릭 직후에도 **7866 불변**(`?session=` 은 붙고 상세는 열림).
+
+★**목록을 못 읽은 상태를 「밀려났다」로 오진하지 않는다.** `isPending` 중에는 딥링크 진입 시
+「밀려났습니다」가 한 프레임 번쩍이고, `isError` 이면 **네트워크 실패를 종료 이력 20건 제한으로
+잘못 설명**한다. 둘 다 별도 분기로 갈랐다(codex G1 발견 2).
+
+★**목록 밖 id 는 원리상 열 수 없다** — `GET /live-sessions/{id}` 가 없고 목록은 활성 전체 +
+최근 종료 20건뿐이다. 그래서 기존 `live-session-stopped-notice` 로 떨어지는 것이 정답이고,
+그것이 이 회차의 음성 대조다. **backend 0줄이 성립하는 이유가 이것이다.**
+
+**검증** — vitest `trading-cockpit.test.tsx` 18건(신규 6) · e2e `live-session-deeplink.spec.ts` 3건 ·
+표적 변이 **7종 전건 판별**(음성 대조 = 안내 문구 변경, 아무것도 안 뒤집음) · sha256 복원 확인 ·
+MCP playwright 실 DB 검증(위 7866 실측 · 목록 밖 id 음성 대조 · 375px 가로 오버플로 0 · 콘솔 error 0).
+
+★**내 테스트가 잘못된 계약을 고정하고 있었다** — 처음 쓴 `toHaveBeenCalledWith("/trading?session=…")`
+는 인자 하나짜리 `replace` 를 기대했고, 그 형태가 바로 위 결함이다. codex 설계 검증을 **코드 쓰기
+전에** 건 것이 이것을 잡았다. 구현이 옳게 고쳤다면 내 시험이 그것을 red 로 만들었을 것이다.
 
 ---
 
@@ -8092,5 +8171,89 @@ Pydantic 스키마. ⑵ runbook §7 에서 `no_open_position` 의 새 의미와 
 
 **권장 접근:** ⑴ `test-results/.../error-context.md` 와 trace 를 열어 어느 검증에서 멈추는지 본다 ⑵ CI 의 e2e 시드 절차와 로컬 격리 스택 시드를 대조한다 ⑶ 차이가 시드면 로컬 시드 타깃에 반영하고, 아니면 이 BL 의 전제를 다시 세운다.
 **Risk:** 🟢 프로덕션 코드 무관. 단 게이트 신뢰도를 깎는다.
+
+---
+
+### BL-680
+
+**Title:** 공개 공유 URL `/share/backtests/[token]` 에는 리포트 섹션 앵커가 아예 없다
+**Category:** Frontend / backtest (공유)
+**Priority:** P3
+**Trigger:** 공유 링크로 특정 섹션을 가리키고 싶다는 요구가 나올 때
+**Est:** M (같은 데이터를 토큰 경로에서 다시 조립해야 한다)
+**상태:** ⬜ Open — 2026-08-10 fe-shareable-urls 에서 코드 대조로 확인. 사거리 밖이라 열어 둔다.
+**출처:** 2026-08-10 fe-shareable-urls, codex G1 설계 검증 발견 2
+
+**원인 / 영향:** [BL-397] 이 준 앵커 10개는 `/backtests/[id]` 의 `BacktestReportShell` 에만 있다.
+그런데 화면의 「공유」 버튼은 API 가 준 `share_url_path` 를 그대로 복사하고
+(`share-button.tsx:29-39`), 그 공개 URL 은 `/share/backtests/[token]` 이다.
+그 페이지는 `BacktestReportShell` 을 **참조조차 하지 않는다**(`page.tsx` 에 해당 import 0건,
+고정 `id=` 0건). 즉 **사용자가 실제로 공유하는 링크에는 `#trades` 가 붙을 대상이 없다.**
+
+★따라서 [BL-397] 이 닫은 것은 「로그인한 사용자끼리 주소창을 복사해 나누는 경로」다.
+공개 공유 경로는 별개이고, 두 화면이 같은 리포트를 서로 다른 컴포넌트로 그린다는 사실 자체가
+이 항목의 비용을 정한다.
+
+**Risk:** 🟢 (지금 깨진 것은 없다. 없는 기능이다)
+
+---
+
+### BL-681
+
+**Title:** 백테스트 상세 라우트가 Suspense 없이 클라이언트 `isLoading` 분기를 쓴다 — 앵커 재조정이 필요해진 뿌리
+**Category:** Frontend / backtest (렌더 경로)
+**Priority:** P3
+**Trigger:** 상세 라우트를 스트리밍으로 바꿀 때 / [BL-397] 의 해시 효과를 걷어내고 싶을 때
+**Est:** M
+**상태:** ⬜ Open — 2026-08-10 fe-shareable-urls 에서 실측. 이 회차 사거리 밖.
+**출처:** 2026-08-10 fe-shareable-urls, G5 `/vercel-react-best-practices` (`async-suspense-boundaries`)
+
+**원인 / 영향:** `backtests/[id]/page.tsx` 는 서버 prefetch 도 `HydrationBoundary` 도 없이
+클라이언트 `BacktestDetailView` 만 렌더하고, 그 컴포넌트는 `isLoading`/`isError` 를 손으로
+분기한다. `frontend/AGENTS.md` §3 이 명시적으로 금지하는 패턴이다
+(「`if (isLoading)` / `if (error)` 남발 금지 → `Suspense` + `ErrorBoundary` 로 위임」).
+
+★**이것이 [BL-397] 에서 마운트 1회 해시 재조정 `useEffect` 를 넣어야 했던 이유다.** 리포트가
+문서 로드 시점에 DOM 에 없으니 네이티브 fragment 위치결정이 빈손으로 끝난다.
+비교 대상 — 목록 라우트(`backtests/page.tsx`)는 이미 `auth()` + `prefetchQuery` +
+`HydrationBoundary` 를 쓴다. **같은 도메인 안에서 두 라우트가 다른 규약을 따르고 있다.**
+
+★★**단, 「Suspense 로 바꾸면 해결된다」는 틀렸다** — 이 항목의 첫 판이 그렇게 적었고
+codex G6 적대 리뷰가 반증했다. **클라이언트** Suspense fallback 뒤에 리포트를 꽂는 구조는
+여전히 fragment 위치결정 **이후**다. 효과를 없앨 수 있는 조건은 하나뿐이다 —
+**대상 엘리먼트가 최초 HTML 에 들어 있을 것**(서버 렌더 또는 prefetch + 하이드레이션).
+
+**권장 접근:** 상세 라우트를 목록 라우트와 같은 형태(서버 prefetch + `HydrationBoundary`)로
+맞춘 뒤, `backtest-report-shell.tsx` 의 해시 효과가 **없어도** e2e
+`report-section-anchors.spec.ts` 가 green 인지로 판정한다. 그 시험이 이미 판별자다.
+
+**Risk:** 🟡 (상세 화면 전체의 로딩 계약을 바꾼다 — 회귀 표면이 넓다)
+
+---
+
+### BL-682
+
+**Title:** 세션 생성 직후 잠깐 「목록에서 밀려났습니다」로 오진한다 (background refetch 창)
+**Category:** Frontend / live-sessions UX
+**Priority:** P3
+**Trigger:** 세션 생성 흐름을 손볼 때 / 사용자가 이 깜빡임을 보고할 때
+**Est:** S
+**상태:** ⬜ Open — 2026-08-10 fe-shareable-urls 의 codex G6 적대 리뷰가 제기. ★**이 diff 가 만든 것이 아니라 종전 `useState` 판에도 있던 동작**임을 코드 대조로 확인했다.
+**출처:** 2026-08-10 fe-shareable-urls, codex G6 발견 1
+
+**원인 / 영향:** `LiveSessionForm` 은 생성 성공 즉시 `onSuccess(session)` 을 부르고, 무효화 래퍼는
+목록 refetch 를 `await` 하지 않는다(`use-invalidating-mutation.ts`). **기존 목록 캐시가 있으면
+background refetch 중에도 `isPending` 은 false** 이므로, 코크핏은 「선택 id 는 있는데 목록에 없다」
+= `live-session-stopped-notice` 로 떨어진다. 새 응답이 오면 상세로 바뀐다.
+
+★**종전 판도 같았다** — `onSuccess` 가 `setSelectedId(session.id)` 를 했고 같은 3분기를 탔다.
+[BL-551] 이 그 id 를 URL 로 옮겼을 뿐 이 창은 그대로다. 즉 **회귀가 아니라 기존 결함의 재발견**이다.
+
+★현행 시험이 이것을 못 잡는 이유도 기록해 둔다 — vitest 는 `replace` 인자만 보고 다음 렌더를
+하지 않으며, e2e 는 폼 제출을 하지 않는다. **닫을 때 이 두 구멍을 함께 메워야 한다.**
+
+**권장 접근:** ⑴ 생성 응답으로 목록 캐시를 낙관적으로 채우거나 ⑵ `isFetching` 중에는 중단 안내
+대신 로딩 안내를 쓴다. ⑵ 는 [BL-551] 이 이미 만든 `isPending` 분기 옆이라 값싸다.
+**Risk:** 🟢 (자기 해소되는 깜빡임 · 데이터 오류 아님)
 
 ---

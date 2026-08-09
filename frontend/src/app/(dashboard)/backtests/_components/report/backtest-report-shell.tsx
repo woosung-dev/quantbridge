@@ -8,7 +8,7 @@
 // 이전 shadcn Tabs 5탭 IA 를 위 번호 섹션 구조로 재편했다.
 // trades 는 useAllBacktestTrades(200-cap 해소) 1회 로드 후 전 섹션 공유.
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
@@ -51,8 +51,9 @@ function Section({
   id?: string;
   ariaLabel: string;
 }) {
+  // sticky 상단바 60px + 여유 16px = 앵커 스크롤 보정 76px.
   return (
-    <section className="section" aria-label={ariaLabel} id={id}>
+    <section className="section scroll-mt-[76px]" aria-label={ariaLabel} id={id}>
       <header className="section-head">
         <p className="eyebrow">
           <span className="num">{num}</span> {eyebrow}
@@ -72,6 +73,24 @@ export function BacktestReportShell({
   const trades = useAllBacktestTrades(currentId);
   const tradeItems = trades.data?.items;
   const truncated = trades.data?.truncated ?? false;
+
+  // 리포트는 React Query 완료 뒤에 삽입되어, 문서 로드 시점의 네이티브 fragment
+  // 위치결정이 이미 끝날 수 있다. 마운트 뒤 해시 대상이 생긴 시점에 한 번 재조정한다.
+  //
+  // ★vercel-react-best-practices 대조 (2026-08-10) — 이 효과는 아래 둘에 걸리지 않는다.
+  //   `rerender-derived-state-no-effect` 는 **effect 안에서 setState 로 파생값을 만드는 것**을
+  //   막는다. 여기는 state 를 만들지 않고 DOM 만 만진다(스크롤은 파생값이 아니다).
+  //   `rerender-move-effect-to-event` 는 상호작용 로직을 다루는데, 이것은 상호작용이 아니라
+  //   **최초 진입 URL** 이라는 외부 입력을 한 번 맞추는 것이라 이벤트 핸들러가 될 자리가 없다.
+  //   ★이 효과를 없앨 수 있는 조건은 하나뿐이다 — **대상 엘리먼트가 최초 HTML 에 들어 있는 것**.
+  //   즉 상세 라우트를 서버에서 렌더(또는 prefetch + 하이드레이션)해야 한다. 클라이언트
+  //   Suspense 로 바꾸는 것만으로는 안 된다: fallback 뒤에 리포트를 꽂는 구조는 여전히
+  //   fragment 위치결정 이후이기 때문이다(codex G6 가 내 첫 주석의 이 부분을 반증했다) → [BL-681].
+  useEffect(() => {
+    const anchor = window.location.hash.slice(1);
+    if (!anchor) return;
+    document.getElementById(anchor)?.scrollIntoView();
+  }, []);
 
   const buyAndHoldPoints =
     bt.metrics?.buy_and_hold_curve?.map(([timestamp, value]) => ({
@@ -93,6 +112,7 @@ export function BacktestReportShell({
         title="성과 요약"
         desc="수수료와 슬리피지를 반영한 뒤의 값입니다."
         ariaLabel="성과 요약"
+        id="key-stats"
       >
         <KeyStatsStrip metrics={metrics} config={bt.config} />
       </Section>
@@ -105,6 +125,7 @@ export function BacktestReportShell({
           title="전략 대 벤치마크"
           desc="전략 자산 곡선과 같은 기간 매수 후 보유 곡선을 겹쳐 봅니다. 아래 띠는 같은 x축의 낙폭입니다."
           ariaLabel="자산 곡선"
+          id="benchmark"
         >
           <PerformanceChart
             currentId={currentId}
@@ -125,6 +146,7 @@ export function BacktestReportShell({
         title="상세 지표"
         desc="수익성, 위험, 거래 통계, 실행 품질 네 묶음으로 나눠 봅니다. 값이 없는 지표는 대시로 표시합니다."
         ariaLabel="상세 지표"
+        id="metrics"
       >
         <MetricGroupsSection
           metrics={metrics}
@@ -140,6 +162,7 @@ export function BacktestReportShell({
         title={`체결된 거래 ${metrics.num_trades}건`}
         desc="최근 순으로 정렬한 미리보기입니다. 전체 원장과 런업·드로다운 분해는 상세 보기에서 확인합니다."
         ariaLabel="거래 내역"
+        id="trades"
       >
         {trades.isLoading ? (
           <TradeSkeleton />
@@ -180,6 +203,7 @@ export function BacktestReportShell({
         title="거래 분포와 수익 분포"
         desc="체결된 거래를 승패와 손익 크기로 나눠 봅니다."
         ariaLabel="거래 분석"
+        id="distributions"
       >
         <div className="card">
           <div className="card-body">
@@ -200,6 +224,7 @@ export function BacktestReportShell({
         title="수익 구조와 벤치마킹"
         desc="순손익 분해, 전략 대 매수 후 보유 범위, 월별 수익 분포를 봅니다."
         ariaLabel="심화 분석"
+        id="profit-structure"
       >
         <DetailedResultsSection
           metrics={metrics}
@@ -218,6 +243,7 @@ export function BacktestReportShell({
         title="상승폭과 낙폭 에피소드"
         desc="에피소드별 상승폭과 낙폭, 지속 기간과 회복을 봅니다. 인트라바 값은 봉 고저 근사입니다."
         ariaLabel="런업 드로다운"
+        id="runup-drawdown"
       >
         <div className="card">
           <div className="card-body">
@@ -249,6 +275,7 @@ export function BacktestReportShell({
         title="가정과 데이터 출처"
         desc="숫자를 믿으려면 조건을 먼저 봐야 합니다. 이 실행에 적용된 가정을 그대로 적습니다."
         ariaLabel="실행 조건"
+        id="assumptions"
       >
         <AssumptionsCard
           initialCapital={bt.initial_capital}
@@ -270,6 +297,7 @@ export function BacktestReportShell({
         title="이 결과로 무엇을 할까요?"
         desc="한 번의 백테스트는 가설 하나입니다. 아래 순서대로 검증 강도를 올리는 것을 권합니다."
         ariaLabel="다음 단계"
+        id="next-steps"
       >
         <ReportNextSteps stressTestAnchorId={STRESS_ANCHOR} />
       </Section>
