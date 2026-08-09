@@ -210,6 +210,26 @@ describe("DashboardCockpit — 헤더·KPI 정직성", () => {
     expect(screen.getByTestId("kpi-pnl").parentElement).toHaveTextContent("미실현(추정) -3.20");
   });
 
+  // BL-424 — `.kpi-foot` 은 `globals.css` 에서 `display:flex` 다(KITPORT 정본이라 못 고친다).
+  // 그 안에 여러 줄 산문을 **직접** 넣으면 텍스트 노드마다 익명 flex item 이 생겨 좌우로
+  // 흩어지고 `<br />` 이 줄바꿈으로 작동하지 않는다 — 2026-08-09 375px 실측에서
+  // 「건의 실현 손익 합입니다.」와 「미실현(추정)」이 오른쪽에 뭉쳐 있었다.
+  // 그래서 자식을 **하나**로 유지한다. jsdom 은 레이아웃을 못 재지만 이 구조 불변식은 잰다.
+  it("손익 foot 은 flex 자식이 하나다 — 여러 줄 산문이 flex item 으로 흩어지지 않는다", () => {
+    render(<DashboardCockpit />);
+
+    const foot = screen.getByTestId("kpi-pnl").closest("article")!.querySelector(".kpi-foot")!;
+    expect(foot).not.toBeNull();
+    // 자식 노드 전체(텍스트 노드 포함)가 단 하나여야 한다. 텍스트 노드가 직접 붙으면
+    // 그것이 곧 익명 flex item 이다.
+    expect(foot.childNodes).toHaveLength(1);
+    expect((foot.firstChild as HTMLElement).tagName).toBe("SPAN");
+    // 줄바꿈은 그 하나의 자식 **안**에 살아 있어야 한다.
+    expect(foot.querySelectorAll("br").length).toBeGreaterThanOrEqual(1);
+    // 내용은 그대로다.
+    expect(foot).toHaveTextContent("미실현(추정) -3.20");
+  });
+
   it("거래소 연결 수를 리포트 칩에 정직하게 표기한다", () => {
     render(<DashboardCockpit />);
     expect(screen.getByText("거래소 1개 연결")).toBeInTheDocument();
