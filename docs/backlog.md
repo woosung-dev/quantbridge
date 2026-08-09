@@ -1768,7 +1768,7 @@ green 을 유지했으므로 계측기 고장이 아니다. 뿌리 — `backtest
 접두어 없이 기존 `stress-test` 선례와 한 벌로 간다.
 
 **검증** — vitest `backtest-report-shell.test.tsx` 10건(신규 5) · e2e `report-section-anchors.spec.ts`
-2건 · 표적 변이 **6종 전건 판별**(음성 대조 = §02 desc 문구 변경, 아무것도 안 뒤집음) ·
+**3건**(2026-08-10 정정 — 원문 「2건」은 오기다) · 표적 변이 **6종 전건 판별**(음성 대조 = §02 desc 문구 변경, 아무것도 안 뒤집음) ·
 sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹션 top 76 / 제목 top **107** =
 47px 여유 · `#nope` 는 `scrollY` 0 · 375px 가로 오버플로 0 · 콘솔 error 0).
 
@@ -3565,7 +3565,7 @@ f"{reason}({stage}/{category}) 감지 — 세션을 비활성화했습니다(...
 **Trigger:** 조건부 진입 세션이 실자금으로 가기 전 / 부분체결이 흔해질 때
 **Est:** S
 **출처:** 2026-07-30 conditional-entry-alignment codex 적대 리뷰 (P1 제기 → 오케스트레이터가 코드 대조 후 P2 로 강등)
-**상태:** ⬜ Open — 2026-08-10 guards-blind-spots 가 `tol = max(qty_step, larger*0.001)` 로 **구현했다가 되돌렸다**(변이 4/4 red 를 통과했는데도). codex 최종 리뷰가 **P1 2건을 냈고 둘 다 숫자로 재현됐다** — 아래 ★2026-08-10 절이 정본이다. **권장 접근 자체가 불완전하다**: 양자화 오차는 **leg 수**에 비례해 쌓이는데 순포지션은 그 수를 안 들고 있다
+**상태:** ⬜ Open — 2026-08-10 guards-blind-spots 가 `tol = max(qty_step, larger*0.001)` 로 **구현했다가 되돌렸다**(변이 4/4 red 를 통과했는데도). codex 최종 리뷰가 **P1 2건을 냈고 둘 다 숫자로 재현됐다** — 아래 ★2026-08-10 절이 정본이다. **권장 접근 자체가 불완전하다**: 양자화 오차는 **leg 수**에 비례해 쌓이는데 판정은 순포지션 하나만 받는다. ★단 **「leg 수를 못 구한다」는 거짓이다** — 2026-08-10 review-and-merge 가 `_carried_position_size` 에서 반증했다(아래 절)
 
 **원인 / 영향:** BL-544 가 gap-resync 판정을 `exchange_positions == [] and carried_flat`(무관용)에서
 `_classify_position_divergence(carried, exchange) is None`(엔진↔거래소 일치)로 일반화했다. 그런데 그 함수는
@@ -3605,10 +3605,24 @@ tick-oracle 픽스처 11종도 0~5% 밴드에 하나도 없다 ⇒ `[0.0345, 0.0
 | 최소 수량 · 엔진 `0.001` / 거래소 `0.002`(1 lot 차이)     | tol 0.00005 → **`size`** | tol 0.001 → **None**      | **진짜 불일치를 삼킨다** |
 
 ⇒ 내 변경은 **아파야 할 곳에서 더 관대해지고, 관대해야 할 곳에서 더 엄격해졌다.**
-뿌리는 하나다 — **절삭 오차는 `leg 수 × step` 으로 쌓이는데 순포지션에는 leg 수가 없다.**
-엔진은 leg 를 절삭하지 않고(`strategy_state.py:861`) 거래소는 leg 마다 절삭하므로
-(`providers.py:403`), 누적 드리프트는 포지션 크기가 아니라 **체결 횟수**를 따라간다.
-순포지션 하나만 보는 어떤 문턱도 두 실패 모드를 동시에 못 막는다.
+뿌리는 하나다 — **절삭 오차는 `leg 수 × step` 으로 쌓이는데 `_classify_position_divergence` 가
+받는 것은 순포지션 하나뿐이다.** 엔진은 leg 를 절삭하지 않고 거래소는 leg 마다 절삭하므로
+(`providers.py:404` `amount_to_precision`), 누적 드리프트는 포지션 크기가 아니라
+**체결 횟수**를 따라간다. 순포지션 하나만 보는 어떤 문턱도 두 실패 모드를 동시에 못 막는다.
+
+★★★**2026-08-10 review-and-merge 정정 — 「순포지션이 leg 수를 안 들고 있다」는 판정부에서 거짓이다.**
+2축 리뷰 Spec 축이 제기했고 코드로 재현했다. 판정이 쓰는 순포지션을 만드는 것은
+`_carried_position_size`(`backend/src/tasks/live_signal.py:712-746`)인데, 그 함수는
+`open_trades` **리스트를 leg 단위로 순회**하며 leg 마다 `qty` 를 읽어 net 을 누적한다.
+⇒ **leg 수도 leg 별 수량도 이미 그 자리에 있다.** 필요한 것은 새 데이터 원천이 아니라
+**반환값을 `net` 하나에서 `(net, legs)` 로 넓히는 것**이다 — 「입력 자료의 문제」라는 진단은
+맞지만 정확히는 **「자료가 없다」가 아니라 「있는 자료를 버리고 있다」**이다. 비용이 다르다.
+★단 **tick 관측부에는 진짜로 없다** — `live_signal.py:925-938` 이 다루는 `position_size` 는
+스칼라다. **두 자리를 섞지 마라.**
+★**되돌림 커밋(`e17a082c`)의 인용 2건이 모두 빗나갔다** — `strategy_state.py:861` 은 [BL-104]
+pyramiding cap 주석이고, `providers.py:403` 은 `load_markets()` 다(절삭은 `:404`).
+엔진 무절삭의 근거는 특정 줄이 아니라 **파일 1,321행 전체에 `amount_to_precision`·`quantize`
+호출이 0건**이라는 사실이다(2026-08-10 실측). **근거를 줄 번호로 적을 때 그 줄을 열어 봐라.**
 
 ★**되돌린 이유** — 첫 행은 `gap_resync_position_mismatch` 사망 경로이고, 그것은 역대 실격
 11건 중 **2건**의 라벨이다. 소크가 도는 중에 사망률을 올릴 수 있는 변경을 넣지 않는다.
@@ -3616,6 +3630,9 @@ tick-oracle 픽스처 11종도 0~5% 밴드에 하나도 없다 ⇒ `[0.0345, 0.0
 **다음 착수자에게** — 후보는 「leg 별 거래소 정밀도로 정규화한 기대 순포지션과 비교」다
 (codex 처방). 그러려면 판정이 순포지션이 아니라 **leg 목록**을 받아야 하므로
 `_classify_position_divergence` 의 시그니처 문제가 아니라 **입력 자료의 문제**다.
+★**그리고 그 자료는 이미 있다**(위 2026-08-10 정정) — 착수 지점은
+`_carried_position_size` 의 반환을 `(net, legs)` 로 넓히는 것이고, 그 함수는 이미 leg 를 돈다.
+**「원리상 불가능」으로 읽고 포기하지 마라.**
 되돌린 구현·테스트·변이 하네스는 git history 에 있다(`3cc33b75`·`dca6b11a` 와 그 revert).
 
 **권장 접근:** 상대 허용치를 **거래소 수량 step 에서 파생**시켜라 —
@@ -3766,7 +3783,8 @@ BE `GET /live-sessions/{id}/positions` 는 비활성 세션에도 200 을 주지
 최근 종료 20건뿐이다. 그래서 기존 `live-session-stopped-notice` 로 떨어지는 것이 정답이고,
 그것이 이 회차의 음성 대조다. **backend 0줄이 성립하는 이유가 이것이다.**
 
-**검증** — vitest `trading-cockpit.test.tsx` 18건(신규 6) · e2e `live-session-deeplink.spec.ts` 3건 ·
+**검증** — vitest `trading-cockpit.test.tsx` 18건(**신규 7** — 2026-08-10 정정, 11→18 이다) ·
+e2e `live-session-deeplink.spec.ts` 3건 ·
 표적 변이 **7종 전건 판별**(음성 대조 = 안내 문구 변경, 아무것도 안 뒤집음) · sha256 복원 확인 ·
 MCP playwright 실 DB 검증(위 7866 실측 · 목록 밖 id 음성 대조 · 375px 가로 오버플로 0 · 콘솔 error 0).
 
@@ -8255,5 +8273,141 @@ background refetch 중에도 `isPending` 은 false** 이므로, 코크핏은 「
 **권장 접근:** ⑴ 생성 응답으로 목록 캐시를 낙관적으로 채우거나 ⑵ `isFetching` 중에는 중단 안내
 대신 로딩 안내를 쓴다. ⑵ 는 [BL-551] 이 이미 만든 `isPending` 분기 옆이라 값싸다.
 **Risk:** 🟢 (자기 해소되는 깜빡임 · 데이터 오류 아님)
+
+---
+
+### BL-683
+
+**Title:** `useSearchParams` 가 Suspense 경계 없이 들어와 `/trading` 을 prerender 밖으로 밀어냈다
+**Category:** Frontend / trading (성능)
+**Priority:** P2
+**Trigger:** FE 성능 회차 · 또는 `/trading` 초기 페인트가 느리다는 보고
+**Est:** S (page.tsx 에 Suspense 한 겹 = 5분. 복원폭 측정이 그보다 오래 걸린다)
+**상태:** ⬜ Open — 2026-08-10 review-and-merge 2축 리뷰 Standards 축이 제기, **실측으로 확정**. 사용자 판정으로 머지를 막지 않고 등재했다
+**출처:** 2026-08-10 review-and-merge (PR #580 Standards 축)
+
+**원인 / 영향:** `trading-cockpit.tsx:54` 가 `useSearchParams()` 를 부르는데
+`(dashboard)/trading/page.tsx` 는 `<TradingCockpit />` 하나만 렌더하고 `<Suspense>` 경계가 없다.
+Next 16 은 static 세그먼트에서 이 훅을 만나면 **라우트 전체를 CSR 로 bail out** 한다.
+기존 `useSearchParams` 선례 둘(`backtests/`·`strategies/`)은 서버 `auth()` 로 이미 dynamic 이라
+이 문제가 없었다 — `/trading` 이 **첫 static 사례**다.
+
+**실측** (빌드 산출물 대조 — main `d277a54a` 빌드 vs 브랜치 `e9f01576` 빌드):
+
+| 축                              | main        | 브랜치      | 델타                     |
+| ------------------------------- | ----------- | ----------- | ------------------------ |
+| `.next/server/app/trading.html` | 65,097 B    | 41,439 B    | **−23,658 B**            |
+| `aria-label="트레이딩 개요"`    | 1건         | **0건**     | 코크핏이 통째로 사라졌다 |
+| `static/chunks` 총량            | 2,941,841 B | 2,955,844 B | +14,003 B (**+0.48%**)   |
+| 청크 파일 수                    | 57          | 57          | 0                        |
+
+★**음성 대조** — prerender 된 **16개 라우트 중 15개가 바이트 동일(+0)** 이고 `trading.html` 만
+줄었다. 빌드 조건 차이가 아니라 **이 변경이 원인**이다.
+★**잃은 것은 prerender HTML 뿐이고 클라이언트 JS 는 +0.48% 다.** 두 축을 섞어 말하지 마라 —
+[BL-662]~[BL-665] 가 판 것은 JS 축이고 이것은 HTML 축이다.
+
+**되찾을 수 있는 것의 크기 — fallback 수준이다.** `useSearchParams` 가 코크핏 **최상단**(`:54`)
+이라 `page.tsx` 를 `<Suspense>` 로 감싸면 경계가 **페이지 전체**를 삼킨다 ⇒ prerender 되는 것은
+fallback 껍데기뿐이고, **그 껍데기는 `trading/loading.tsx` 가 이미 준다.**
+65kB 를 통째로 되찾으려면 URL 을 읽는 부분만 작은 자식으로 격리해야 한다 — 그건 S 가 아니다.
+★`/trading` 은 `(dashboard)` **인증 라우트**라 공개 라우트보다 prerender 의 값이 낮다.
+
+**권장 접근:** `page.tsx` 에 `<Suspense>` 한 겹. 선례는 `backtests/[id]/trades/page.tsx:32`.
+그 뒤 **같은 방법으로 복원폭을 재라** — `.next/server/app/*.html` 전 라우트 크기 대조 +
+`aria-label` 존재 여부. 음성 대조(다른 15개 라우트 불변)를 반드시 함께 재라.
+
+**Risk:** 🟡 초기 페인트가 CSR 로 늦다. 기능 결함은 아니다.
+
+---
+
+### BL-684
+
+**Title:** `close_position` 이 포지션이 **있을 때는** 미체결 조건부 진입을 보고조차 하지 않는다
+**Category:** Backend / trading (청산) · 운영 CLI
+**Priority:** P1
+**Trigger:** [BL-003] runbook §7 rollback · 실자금 전환 전 필수
+**Est:** S
+**상태:** ⬜ Open — 2026-08-10 review-and-merge Spec 축이 제기, 코드로 재현. [BL-661] 이 닫은 것은 **포지션이 0 인 경로뿐**이다
+**출처:** 2026-08-10 review-and-merge (PR #579 Spec 축)
+
+**원인 / 영향:** [BL-661] 이 넣은 조건부 조회는 `close_service.py:103` 의 `if not positions:`
+**블록 안에만** 있다. 포지션이 있으면 `fetch_open_conditional_orders` 를 **한 번도 부르지 않고**
+`ClosePositionResponse` 를 돌려주고, CLI(`live_session_admin.py:402`)는
+`✓ 청산 주문 접수: order_id=… state=…` + **exit 0** 을 찍는다 — 조건부 잔량은 한 글자도 안 나온다.
+
+⇒ 포지션과 미체결 조건부 진입이 **함께** 있는 상태(runbook §7 rollback 의 정상 상황)에서
+[BL-661] 이 지목한 거짓 성공이 **더 흔한 경로에 그대로 남아 있다.** 포지션은 닫히고 조건부는
+산 채로 남는데 운영자는 「내렸다」고 읽는다.
+
+★[BL-661] 의 권장 접근 원문은 「`close_position` 이 포지션과 **조건부 주문을 함께** 보고」였다 —
+「포지션이 없을 때만」이 아니다. **부분 해결의 경계가 백로그 본문과 다르다.**
+
+**부수 — 이름이 동작보다 좁다.** `close_service.py:109` 의 `order.reduce_only is False` 는
+`providers.py:1253-1263` 이 `fetch_open_orders`(비-trigger)와 trigger 주문을 **합쳐서** 주므로
+**일반 미체결 지정가 진입도 통과시킨다**. 잡는 쪽으로는 안전하지만 메시지는 「조건부 진입」이라
+부른다 — 운영자가 화면에서 못 찾을 수 있다.
+
+**Risk:** 🔴 실자금에서 고아 조건부 주문 — [BL-661] 과 같은 위험이고 경로가 더 흔하다.
+
+---
+
+### BL-685
+
+**Title:** 마운트 1회 해시 재조정이 데이터 도착 뒤 성장에 밀리는지 **측정되지 않았다**
+**Category:** Frontend / backtest (리포트 앵커)
+**Priority:** P2
+**Trigger:** [BL-397] 앵커 불만 보고 · 또는 FE e2e 를 손보는 회차
+**Est:** S (픽스처 하나 + 시험 하나)
+**상태:** ⬜ Open — 2026-08-10 review-and-merge Spec 축이 제기. ★**「결함」이 아니라 「미측정」이다** — 제기한 리뷰어 본인이 「브라우저 scroll-anchoring 이 막을 수 있다, 측정하지 않았다」고 자인했다
+**출처:** 2026-08-10 review-and-merge (PR #580 Spec 축)
+
+**원인 / 영향 (제기된 기전 — 미확정):** `backtest-report-shell.tsx:89-93` 의 해시 재조정은
+`useEffect(…, [])` 라 마운트 1회만 돈다. 그 시점에 `:74` 의 `trades.data?.items` 는 `undefined`
+이고, §02(`#benchmark` — `#trades` **위**)의 `performance-chart.tsx:88-92` 는 trades 가 있을 때만
+caption + 120px pane 을 그린다 ⇒ §02 가 **스크롤이 끝난 뒤** 자라 `#trades` 를 아래로 민다.
+
+★**현 시험이 못 잡는 이유:** `report-section-anchors.spec.ts:37` 이 쓰는
+`fixtures/backtest-report.ts:82` 의 `trades` 기본값이 **`[]`** 라 `hasTrades` 가 false 다 ⇒
+**성장 경로를 아예 안 탄다.** 게다가 두 단언이 한쪽 방향이다(`toBeInViewport()` 에 ratio 없음 ·
+`box.y >= TOPBAR_H`) — 아래로 밀리는 드리프트는 red 를 못 만든다.
+
+**재는 법 (다음 회차가 0에서 시작하지 않도록):**
+
+1. `trades` 가 **있는** 픽스처를 만든다 — 현 기본값 `[]` 를 덮어야 한다.
+2. `/backtests/<id>#trades` 로 진입한다.
+3. §02 성장 **후** `#trades` 의 `box.y` 가 유지되는지 관측한다 — ratio 를 준
+   `toBeInViewport({ ratio })` 로. 한쪽 방향 단언으로는 이 현상을 못 잡는다.
+4. ★**로컬 e2e 는 [BL-668] 로 2건이 상시 red 다**(`sprint46-tier1-critical.spec.ts:69` ·
+   `sprint46-tier3-nth.spec.ts:489`). **새 red 를 그 둘과 분리해서 읽어라.**
+5. green 이면 원인은 브라우저 scroll-anchoring 이다 — **그 사실을 여기 적고 닫아라.**
+   「측정했더니 문제가 없었다」도 산출이다.
+
+**Risk:** 🟢 (미측정. 참으로 밝혀지면 🟡)
+
+---
+
+### BL-686
+
+**Title:** `scroll-mt-[76px]` 이 `--topbar-h` 토큰을 우회하고 같은 수를 네 곳에 다시 쓴다
+**Category:** Frontend / backtest (리포트 앵커) · 디자인 토큰
+**Priority:** P3
+**Trigger:** 탑바 높이를 바꿀 때 — 그때 네 곳이 따로 논다
+**Est:** XS
+**상태:** ⬜ Open — 2026-08-10 review-and-merge Standards 축이 제기, 코드 대조로 확인
+**출처:** 2026-08-10 review-and-merge (PR #580 Standards 축)
+
+**원인 / 영향:** `backtest-report-shell.tsx:56` 이 `className="section scroll-mt-[76px]"` 다.
+`globals.css:170` 이 `--topbar-h: 60px` 를 선언하고 7곳 이상이 `var(--topbar-h)` 로 소비하는데,
+이 60(+16 여백)은 **컴포넌트 클래스 · 그 주석 · 단위 시험의 정확-문자열 단언 · e2e `TOPBAR_H = 60`**
+**네 곳**에 다시 쓰여 있다.
+
+★**부수 — [BL-397] 이 스스로 정한 회귀 판별자를 움직였다.** 그 명세는 「**Risk:** 🟢 렌더 트리
+무변경(속성 하나 추가) · 기존 `stress-test` 앵커 불변이 회귀 판별자」라고 썼는데, `:56` 의 클래스가
+`id={STRESS_ANCHOR}`(`:262`) 를 포함한 **모든** 섹션에 붙어 그 앵커도 76px 이동했다.
+**판별자로 쓰려면 움직였다는 사실을 알고 써야 한다.**
+
+**권장 접근:** `scroll-mt-[calc(var(--topbar-h)+16px)]` 한 줄로 접는다.
+
+**Risk:** 🟢
 
 ---
