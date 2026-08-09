@@ -89,9 +89,15 @@ fi
 if [[ -z "${SYMBOL}" ]]; then
   if [[ "${MARKET}" == "spot" ]]; then SYMBOL="BTC/USDT"; else SYMBOL="BTC/USDT:USDT"; fi
 fi
-# 수량 기본값도 갈린다 — perp 최소 주문 0.001 BTC 는 명목 ~\$100 이라 spot 단계-1(\$50)에서 못 쓴다.
+# 수량 기본값도 갈린다 (2026-08-09 `load_markets` 실측 · BTC \$64,957):
+#   · perp `BTC/USDT:USDT` — min_amount **0.001 BTC**, min_cost 없음 ⇒ 최소 명목 **\$64.96**.
+#     단계-1 자본 \$50 으로는 1x 증거금이 모자라므로 spot 을 쓴다.
+#   · spot `BTC/USDT` — min_amount 1e-06 은 무의미하고 **min_cost \$5.0** 이 진짜 하한이다.
+#     0.0002 BTC = \$13(BTC \$65k) / \$10(BTC \$50k) 로 하한 위에 여유가 있다.
+#     ★초판은 0.0001(=\$6.5)이었다 — 하한에 너무 가까웠다.
+#     ★BTC 가 \$25,000 아래면 0.0002 도 \$5 미만이 된다. 그때는 --quantity 를 올려라.
 if [[ -z "${QUANTITY}" ]]; then
-  if [[ "${MARKET}" == "spot" ]]; then QUANTITY="0.0001"; else QUANTITY="0.001"; fi
+  if [[ "${MARKET}" == "spot" ]]; then QUANTITY="0.0002"; else QUANTITY="0.001"; fi
 fi
 
 if [[ -z "${ENV_FILE}" ]]; then
