@@ -101,7 +101,40 @@ class ClosePositionService:
             credentials, session.symbol
         )
         if not positions:
-            raise HTTPException(status_code=409, detail="no_open_position")
+            # BL-661 — `reduce_only=None`은 진입과 TP/SL을 함께 반환한다. flat 판정에는
+            # 진입만 필요하므로 `is False`로 다시 거른다. 고아 TP/SL만 남은 계정은 flat이다.
+            resting = await self._bybit_futures_provider.fetch_open_conditional_orders(
+                credentials, session.symbol, reduce_only=None
+            )
+            entries = [order for order in resting if order.reduce_only is False]
+            if not entries:
+                raise HTTPException(status_code=409, detail="no_open_position")
+
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "resting_conditional_entries",
+                    "count": len(entries),
+                    "message": (
+                        f"포지션은 없지만 미체결 조건부 진입 {len(entries)}건이 남아 있습니다."
+                    ),
+                    "orders": [
+                        {
+                            "order_id": order.order_id,
+                            "side": order.side,
+                            # Decimal은 JSONResponse가 직렬화하지 못하므로 문자열로 담는다.
+                            "qty": str(order.qty) if order.qty is not None else None,
+                            "trigger_price": (
+                                str(order.trigger_price)
+                                if order.trigger_price is not None
+                                else None
+                            ),
+                            "order_link_id": order.order_link_id,
+                        }
+                        for order in entries
+                    ],
+                },
+            )
         if len(positions) > 1:
             raise HTTPException(status_code=409, detail="hedge_unsupported")
 
