@@ -385,6 +385,19 @@ async def _cmd_flatten(session_id: UUID) -> None:
                 if detail == "no_open_position":
                     print("✓ 이미 flat 이다 (no_open_position). 주문을 내지 않았다.")
                     return
+                if isinstance(detail, dict) and detail.get("code") == "resting_conditional_entries":
+                    message = detail.get("message") or (
+                        f"포지션은 없지만 미체결 조건부 진입 {detail.get('count', 0)}건이 남아 있다."
+                    )
+                    print(f"✗ {message}")
+                    for order in detail.get("orders", []):
+                        print(
+                            f"  order_id={order['order_id']} side={order['side']} "
+                            f"qty={order['qty']} trigger={order['trigger_price']} "
+                            f"link={order['order_link_id'] or '-'}"
+                        )
+                    # 3은 일반 청산 실패 1과 달라야 자동화가 잔존 진입을 분기할 수 있다.
+                    raise SystemExit(3) from exc
                 raise SystemExit(f"✗ 청산 실패: {detail}") from exc
             await session.commit()
             print(f"✓ 청산 주문 접수: order_id={response.order_id} state={response.state}")
