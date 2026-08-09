@@ -212,6 +212,36 @@ _q() {
 NOW="$(docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge -Atc "SELECT now();" 2>/dev/null)"
 [ -n "${NOW}" ] || { DB_OK=0; NOW="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"; }
 
+# 이 실행이 **어느 DB 를 봤는가** — 헤더에 찍는다 ([BL-657])
+#
+# ★위험은 「틀린다」가 아니라 **「틀린 티가 안 난다」**다. 소크는 클라우드 서버에 있는데
+#   같은 스크립트를 로컬에서 돌리면 로컬 docker 의 낡은 `quantbridge-db` 를 재고, 그 결과는
+#   오류가 아니라 **정상 서식의 숫자**로 나온다(2026-08-08 실측: C1 1.5574h 로컬 vs 15.5680h 서버).
+# ★★**갈리는 축은 `DATABASE_URL` 이 아니다.** C1~C5 의 입력은 위 `_q()` = `docker exec
+#   ${DB_CONTAINER} psql` 이므로 축은 「**어느 docker 데몬의 어느 컨테이너**인가」다.
+#   `DATABASE_URL` 은 phantom 분류기(:339)만 쓰지만 그 결과가 `unverified_hours` 로 C1 을
+#   깎으므로 함께 찍는다 — 둘이 어긋나 있으면 그 사실 자체가 신호다.
+# ★비밀번호를 절대 찍지 않는다 — 마지막 `@` 앞을 통째로 버려 host:port/dbname 만 남긴다.
+DB_ADDR="$(docker port "${DB_CONTAINER}" 5432/tcp 2>/dev/null | head -1)"
+[ -n "${DB_ADDR}" ] || DB_ADDR="(포트 미공개)"
+# dbname 은 하드코딩을 믿지 않고 **DB 에게 묻는다**.
+# ★`docker exec` 는 OCI 런타임 오류를 **stdout 으로** 낸다(실측: 컨테이너를 바꾸면 헤더에
+#   `exec: "psql": executable file not found` 가 그대로 실렸다). 식별자 서식이 아니면 버린다.
+DB_NAME_SEEN="$(_q "SELECT current_database();")"
+[[ "${DB_NAME_SEEN}" =~ ^[A-Za-z0-9_]+$ ]] || DB_NAME_SEEN="?"
+DOCKER_ENDPOINT="${DOCKER_HOST:-ctx:$(docker context show 2>/dev/null)}"
+DB_ENV_TARGET=""
+if [ -f "${ROOT}/backend/.env.local" ]; then
+  _dburl="$(grep -E '^[[:space:]]*DATABASE_URL=' "${ROOT}/backend/.env.local" | tail -1)"
+  _dburl="${_dburl#*=}"
+  _dburl="${_dburl%%[[:space:]]*}"   # 인라인 주석·후행 공백 (값에 공백은 없다)
+  _dburl="${_dburl//\"/}"
+  _dburl="${_dburl//\'/}"
+  _dburl="${_dburl##*@}"             # ★자격증명 폐기 (비밀번호에 `@` 가 있어도 안전)
+  DB_ENV_TARGET="${_dburl%%\?*}"
+fi
+[ -n "${DB_ENV_TARGET}" ] || DB_ENV_TARGET="(없음)"
+
 # 세션 원장. ★생존 판정은 `deactivated_at` — `is_active`/`reason` 은 판정에 쓰지 않는다.
 SESSIONS_TSV="$(_q "
 SELECT id, created_at, COALESCE(deactivated_at::text,''), COALESCE(deactivated_reason,''),
@@ -611,6 +641,9 @@ if [ -n "${SINCE}" ]; then
 fi
 
 printf '\n══ [BL-003] 소크 안정 게이트 ══\n'
+# ★[BL-657] — 이 줄이 없으면 인용된 출력만 보고 로컬/서버를 가를 수 없다. 판정에는 참여하지 않는다.
+printf '대상: %s %s/%s · docker %s · 실행 %s · 분류기 %s\n' \
+  "${DB_CONTAINER}" "${DB_ADDR}" "${DB_NAME_SEEN}" "${DOCKER_ENDPOINT}" "$(hostname)" "${DB_ENV_TARGET}"
 printf '판정: %s %s\n' "${VERDICT}" "${WORD}"
 printf '%s\n\n' "${SUMMARY}"
 

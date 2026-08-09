@@ -548,7 +548,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-654](#bl-654) | 증거금 게이트가 **진입 비용을 안 본다** — `_can_afford_entry` 와 `_open_trade` 최종 검증 둘 다 초기 증거금만 비교하고 **바로 아래에서 차감하는 진입 leg 비용**을 빼지 않는다. 고레버리지에서 갈린다: 자본 $1,000 · 125x · 비용률 0.069% · 명목 $118,750 은 증거금 $950 으로 **통과**하는데 진입 수수료 $81.94 후 `gate_equity` 가 **$918.06 < 950** 이라 유지 증거금을 못 댄다. [BL-460] 이 고친 것은 gross/net 축이고 **이 축은 선재**다                                                                                                                                                                                                                                                                                                                                                        | 고레버리지 백테스트를 신뢰해야 할 때 / [BL-466] 후속                                                            | S            | 2026-08-08 soak-mortality-repair (codex challenge P1)        |
 | [BL-655](#bl-655) | `dedupe_accounts_by_exchange_uid` 는 **쓰기 가능한 형제 행이 둘이면** 주문을 누락한다 — 스윕이 대표 `account.id` 로만 매칭·backfill 하므로(`trading.py:1949`·`:1987`·`:2027`) 버려진 형제에 달린 주문의 청산이 `unknown` 이 되고 `realized_pnl` 이 미동기화된다. ★**현재 데이터에선 발화하지 않는다** — 실측 형제 2행 중 하나가 `read_only=t` 라 대표 선택 규칙 ⑵ 가 쓰기 가능한 행을 고른다. 막는 **DB 제약이 없다**는 것이 위험의 실체다                                                                                                                                                                                                                                                                                                                                                       | 같은 `exchange_uid` 에 쓰기 가능한 행이 2개 생기면 / 실자금 전환 전                                             | S            | 2026-08-08 soak-mortality-repair (codex challenge P2)        |
 | [BL-656](#bl-656) | `soak-restart.sh` 가 **완전 down 에서 올리기**를 못 다룬다 — ⑴ 의 `status` 가 DB 를 읽는데 스택이 내려가 있으면 DB 도 없어 `ConnectionRefusedError` 로 끝나고, ⑷ 는 `down→pin→up` 이라 **이미 돌고 있는 스택**을 전제한다. ★같은 dry-run 이 **자기 설명문을 실행**했다(unquoted heredoc 안 백틱 ⇒ `countable: command not found`, ⑻ 문장이 잘려 출력) — 이건 수리했고 정적 카운트 0건으로 동결                                                                                                                                                                                                                                                                                                                                                                                                   | 다음 소크 재기동 시                                                                                             | S            | 2026-08-08 soak-mortality-repair (P7)                        |
-| [BL-657](#bl-657) | 게이트가 **자기가 어느 DB 를 보는지 출력하지 않는다** — `.env.local` 의 `DATABASE_URL` 을 따라가므로 **로컬에서 돌리면 로컬 DB 를 잰다.** 실측 대조: C1 **1.5574h**(로컬) vs **15.5680h**(서버) · 창 시작 하루 차이 · 실격 14 vs 11. ★위험은 「틀린다」가 아니라 **「틀린 티가 안 난다」** — `C1 1.5574h` 는 정상 서식의 숫자고 판정도 평소와 같은 `UNKNOWN` 이다. ★부수: 클라우드 이관이 `phantom` 3건을 안 옮겨 원장 귀속도 갈린다(서버 7/3/1 vs 로컬 7/0/7)                                                                                                                                                                                                                                                                                                                                   | 다음 게이트 실행 시 / 게이트 숫자를 인용하기 전                                                                 | S            | 2026-08-08 session-handoff                                   |
+| [BL-657](#bl-657) | ✅ **게이트가 어느 DB 를 봤는지 헤더 한 줄로 찍는다** — `대상: <컨테이너> <host:port>/<dbname> · docker <endpoint> · 실행 <hostname> · 분류기 <host:port/db>`. ★★**BL 본문의 「`DATABASE_URL` 을 따라간다」는 C1~C5 에 대해 거짓** — `_q()` 는 `docker exec ${DB_CONTAINER} psql` 이라 갈리는 축은 **docker 데몬+컨테이너**다. `DATABASE_URL` 은 분류기 전용이지만 `unverified_hours` 로 C1 을 깎으므로 함께 찍는다(한쪽만 찍으면 새 fail-open — 실측으로 이 워크트리는 둘이 어긋난다). 변이 2/2 헤더 추종 · 음성 대조 판정 비트 전건 불변(벽시계만 차이) · 비밀번호 누출 0                                                                                                                                                                                                                      | 다음 게이트 실행 시 / 게이트 숫자를 인용하기 전                                                                 | S            | 2026-08-08 session-handoff                                   |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -6874,7 +6874,7 @@ soak-stack.sh pin → soak-stack.sh up → live_session_admin.py status(FLAT 확
 **카테고리:** 운영 / BL-003 게이트 (판정 신뢰성)
 **Trigger:** 다음 게이트 실행 시 / 게이트 숫자를 인용하기 전
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ✅ Resolved (2026-08-09, W1)
 
 **게이트가 자기가 어느 DB 를 보는지 출력하지 않는다 — 그래서 로컬 실행이 그럴듯한 거짓 창을 낸다.**
 
@@ -6911,3 +6911,36 @@ soak-stack.sh pin → soak-stack.sh up → live_session_admin.py status(FLAT 확
 **연결:** [BL-641](#bl-641) (게이트 해석) · [BL-653](#bl-653) (같은 게이트의 표본 해상도)
 
 **출처:** 2026-08-08 session-handoff (사용자가 로컬에서 게이트를 돌리다 발견)
+
+---
+
+**해결 (2026-08-09, W1 — 처방 ⑴):** `scripts/soak-gate.sh` 판정 헤더 바로 위에 한 줄이 뜬다.
+
+```
+══ [BL-003] 소크 안정 게이트 ══
+대상: quantbridge-db 127.0.0.1:5433/quantbridge · docker ctx:desktop-linux · 실행 MacBook-Pro-2.local · 분류기 localhost:5433/quantbridge
+판정: UNKNOWN 측정불가
+```
+
+★★★**위 본문의 「게이트는 `.env.local` 의 `DATABASE_URL` 을 따라간다」는 C1~C5 에 대해 거짓이다.**
+판정의 입력은 `soak-gate.sh:208-212` 의 `_q()` = `docker exec ${DB_CONTAINER} psql -U quantbridge -d quantbridge`
+이므로 로컬/서버를 가르는 축은 **어느 docker 데몬의 어느 컨테이너인가**다. `DATABASE_URL` 은 phantom
+분류기(`:339` 의 서브셸 소싱)만 쓴다 — 다만 그 결과가 `unverified_hours` 로 C1 을 깎으므로 무관하지도 않다.
+실측이 이 구분을 강제했다: 이 워크트리의 `DATABASE_URL` 은 `localhost:5433` 인데 `_q` 는 컨테이너
+`quantbridge-db` 로 간다. **`DATABASE_URL` 만 찍으면 BL-657 과 같은 계열의 새 fail-open** 이므로 양쪽을 다 찍는다.
+
+- **red:** 수리 전 게이트 출력에 DB 호스트·포트·DB명·실행 호스트 언급 **0건**(`grep -cEi "호스트|:5432|:5433|quantbridge-db|docker"` = 0).
+- **green:** 헤더 1줄. 필드 6개 모두 실측값이고 하드코딩 0.
+- **변이 M — 2/2 추종.** ⑴ `QB_DB_CONTAINER=quantbridge-redis` → `대상: quantbridge-redis (포트 미공개)/? …`
+  ⑵ `.env.local` 에 `DATABASE_URL=…@mutant.example:65432/mutantdb` 추가 → `분류기 mutant.example:65432/mutantdb`
+  (복원 후 sha256 동일). 리터럴 `@` 가 든 비밀번호(`u:p@ss@mutant2.example:1/db2`)도 `mutant2.example:1/db2` 로만 남았다.
+- **음성 대조 N — 판정 비트 전건 불변.** 수리 전/후를 `--no-collect` 로 떠서 `대상:` 줄만 빼고 `diff`:
+  차이는 `현재:` 벽시계 1줄뿐. 벽시계를 정규화하면 **diff 완전 공집합** — C1~C5 6비트 · 실격 9건 ·
+  귀속 창 0개 · 귀속 불가 110.11h 전부 동일.
+- **비밀번호 누출 0.** 마지막 `@` 앞을 통째로 버리므로 비밀번호에 `@` 가 있어도 안전. 실측 grep 0건.
+- **부수 처리:** 「원장은 서버 DB 를 전제로 쓰였다」를
+  `docs/reference/operations/soak-disqualifications.jsonl` 의 `_comment` 행에 적었다
+  (서버 11건 vs 로컬 14건 vs 이 워크트리 9건 — 같은 스크립트가 세 값을 낸다).
+- ★**자기 결함 1건을 변이가 잡았다.** `docker exec` 는 OCI 런타임 오류를 **stdout 으로** 내므로
+  초판 M1 에서 `exec: "psql": executable file not found` 가 dbname 자리에 그대로 실렸다 →
+  식별자 서식(`^[A-Za-z0-9_]+$`)이 아니면 `?` 로 버린다.
