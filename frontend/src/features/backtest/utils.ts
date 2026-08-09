@@ -218,13 +218,20 @@ export function applyTradeFilterSort(
 
   const sign = sortDir === "asc" ? 1 : -1;
 
-  return filtered.toSorted((a, b) => {
-    const av = readSortKey(a, sortField);
-    const bv = readSortKey(b, sortField);
-    if (av < bv) return -sign;
-    if (av > bv) return sign;
-    return 0;
+  // BL-665: 정렬 키를 비교 함수 **안에서** 파면 비교 횟수만큼 판다. `entry_time`/`exit_time` 은
+  // `new Date(...).getTime()` 이라 파싱 비용이 붙는다.
+  // ★비교 횟수는 **입력에 의존한다**. V8 TimSort 는 이미 정렬된 2000건에서 ~1,999회지만
+  //   무작위 순서면 ~22,000회(N·log₂N)이고 비교마다 **두 번** 파므로 최대 ~44,000회 파싱이다.
+  //   그리고 그것이 검색창 키 입력 한 글자마다 다시 돈다. 사전계산은 입력과 무관하게 N회다.
+  // ⇒ decorate·sort·undecorate 로 키를 **N회만** 판다(2000회).
+  // ★안정성은 계약이므로 엔진 stable 에 기대지 않고 원래 index 로 명시 tiebreak 한다.
+  const decorated = filtered.map((item, index) => ({ item, index, key: readSortKey(item, sortField) }));
+  decorated.sort((a, b) => {
+    if (a.key < b.key) return -sign;
+    if (a.key > b.key) return sign;
+    return a.index - b.index;
   });
+  return decorated.map((d) => d.item);
 }
 
 function readSortKey(t: TradeItem, field: TradeSortField): number {

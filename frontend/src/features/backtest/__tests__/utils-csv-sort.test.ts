@@ -125,4 +125,18 @@ describe("applyTradeFilterSort (Sprint 30-δ)", () => {
     );
     expect(sorted.map((t) => t.trade_index)).toEqual([2, 1, 3]);
   });
+
+  // BL-665 — decorate–sort–undecorate 로 바꾸면서 안정성이 계약임을 명시적으로 고정한다.
+  // ★착수 전 6케이스에는 **동점이 하나도 없어서** 안정 정렬을 실제로 재고 있지 않았다.
+  it("★동점 키는 입력 순서를 보존한다 (안정 정렬)", () => {
+    const tied: TradeItem[] = [
+      T({ trade_index: 7, pnl: 1, entry_time: "2026-02-01T00:00:00Z" }),
+      T({ trade_index: 8, pnl: 1, entry_time: "2026-02-01T00:00:00Z" }),
+      T({ trade_index: 9, pnl: 1, entry_time: "2026-02-01T00:00:00Z" }),
+    ];
+    for (const dir of ["asc", "desc"] as const) {
+      const sorted = applyTradeFilterSort(tied, { direction: "all", result: "all" }, "entry_time", dir);
+      expect(sorted.map((t) => t.trade_index)).toEqual([7, 8, 9]);
+    }
+  });
 });

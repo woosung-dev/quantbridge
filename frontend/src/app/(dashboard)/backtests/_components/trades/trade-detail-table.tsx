@@ -22,6 +22,7 @@ import {
   formatPercent,
   tradesToCsv,
 } from "@/features/backtest/utils";
+import { useDebouncedValue } from "@/features/strategy/utils";
 import { EMPTY_CELL } from "@/lib/labels";
 import { StateBox } from "@/components/state-box";
 
@@ -34,6 +35,9 @@ import {
 import { TradeRangeChart } from "@/app/(dashboard)/backtests/_components/trades/trade-range-chart";
 
 const PAGE_SIZE = 50;
+// BL-665 — 검색 디바운스. 선례는 diagnostics-strip(500ms)·new-strategy-wizard(300ms) 인데
+// 그 둘은 **네트워크 파싱**을 늦추고 여기는 **로컬 정렬**이라 체감 지연을 더 짧게 잡는다.
+const SEARCH_DEBOUNCE_MS = 200;
 // 번호·방향·진입시각·청산시각·진입가·청산가·수량·손익·수익률·수수료·청산사유·펼침
 const COL_COUNT = 12;
 
@@ -66,7 +70,13 @@ export function TradeDetailTable({
   const [page, setPage] = useState(0);
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
+  // BL-665 — 검색은 **입력 즉시** 반영하되(입력창은 계속 `filters.search` 를 그린다) 2000건
+  // 정렬·필터를 다시 도는 것은 늦춘다. 레포에 이미 있는 훅을 쓴다(선례: diagnostics-strip 500ms).
+  const debouncedSearch = useDebouncedValue(filters.search, SEARCH_DEBOUNCE_MS);
+
   // 기본 sort/filter(방향/결과) → 추가 filter(검색/기간/PnL) 적용.
+  // ★dep 은 객체 `filters` 가 아니라 **스칼라 필드**다(H-1 "scalar dep 선호"). 객체를 쓰면
+  //   키 한 글자마다 identity 가 갈려 이 memo 가 사실상 없는 것과 같아진다.
   const filtered = useMemo(() => {
     const base = applyTradeFilterSort(
       trades,
@@ -75,15 +85,15 @@ export function TradeDetailTable({
       sortDir,
     );
     return base.filter((t) => {
-      if (filters.search.trim() !== "") {
-        const q = filters.search.trim().toLowerCase();
+      if (debouncedSearch.trim() !== "") {
+        const q = debouncedSearch.trim().toLowerCase();
         const idxStr = t.trade_index.toString();
         // 번호 / 원시 enum(long·short) / 한국어 방향 라벨(롱·숏) 모두 검색 대상.
         const dirLabel = TRADE_DIRECTION_LABEL[t.direction];
         if (
           !idxStr.includes(q) &&
           !t.direction.toLowerCase().includes(q) &&
-          !dirLabel.includes(filters.search.trim())
+          !dirLabel.includes(debouncedSearch.trim())
         ) {
           return false;
         }
@@ -110,7 +120,18 @@ export function TradeDetailTable({
       }
       return true;
     });
-  }, [trades, filters, sortField, sortDir]);
+  }, [
+    trades,
+    filters.direction,
+    filters.result,
+    filters.periodStart,
+    filters.periodEnd,
+    filters.pnlMinPct,
+    filters.pnlMaxPct,
+    debouncedSearch,
+    sortField,
+    sortDir,
+  ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   // render-time clamp (H-1) — page state 를 effect 로 되돌리지 않는다.
@@ -120,7 +141,10 @@ export function TradeDetailTable({
     [filtered, safePage],
   );
 
-  const activeCount = countActiveFilters(filters);
+  // BL-665 — 배지는 표·CSV 와 **같은 스냅샷**을 세야 한다. 즉시값 `filters` 로 세면 검색어를 친
+  // 뒤 디바운스가 끝나기 전 200ms 동안 「필터 1개」라고 말하면서 표와 CSV 는 아직 안 걸린
+  // 전량을 보여준다(codex 적대 리뷰가 잡았다). 즉시성이 필요한 것은 **입력창 하나뿐**이다.
+  const activeCount = countActiveFilters({ ...filters, search: debouncedSearch });
 
   const handleResetFilters = () => {
     setFilters(DEFAULT_FILTERS);

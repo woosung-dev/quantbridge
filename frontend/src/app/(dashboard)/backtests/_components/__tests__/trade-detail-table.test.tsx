@@ -1,6 +1,6 @@
 // C 이식 S6 — TradeDetailTable 4상태(스켈레톤/에러/빈/데이터) + 페이저 + 방향 라벨 검증.
 
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TradeItem } from "@/features/backtest/schemas";
@@ -225,5 +225,75 @@ describe("TradeDetailTable — 4상태", () => {
       />,
     );
     expect(screen.getByLabelText("CSV 내보내기")).toBeDisabled();
+  });
+});
+
+// --- BL-665 — 검색 디바운스 -------------------------------------------------
+// ★착수 시점에 검색은 단위·e2e 어느 쪽에도 커버가 **0건**이었다. 디바운스를 넣기 전에
+//   「검색이 여전히 거른다」와 「거르는 것이 늦춰진다」를 둘 다 못 재고 있었다.
+describe("TradeDetailTable — 검색 디바운스 (BL-665)", () => {
+  const trades = Array.from({ length: 3 }, (_, i) => mkTrade(i + 1));
+
+  function renderTable() {
+    render(
+      <TradeDetailTable
+        trades={trades}
+        isLoading={false}
+        isError={false}
+        endpoint={ENDPOINT}
+        filenamePrefix="bt-test"
+      />,
+    );
+  }
+
+  it("입력 직후에는 아직 안 거르고, 디바운스가 지나야 거른다", () => {
+    vi.useFakeTimers();
+    try {
+      renderTable();
+      const rows = () => within(screen.getByRole("table")).getAllByRole("row").length - 1;
+      expect(rows()).toBe(3);
+
+      fireEvent.change(screen.getByLabelText("거래 검색"), { target: { value: "2" } });
+      // 입력값 자체는 즉시 반영된다 — 입력창이 굼떠지면 안 된다.
+      expect(screen.getByLabelText("거래 검색")).toHaveValue("2");
+      // 그러나 2000건 정렬·필터는 아직 안 돌았다.
+      expect(rows()).toBe(3);
+
+      // ★타이머 전진은 act 로 감싸야 debounce state 갱신이 커밋된다.
+      // ★타이머 전진은 act 로 감싸야 debounce state 갱신이 커밋된다.
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(rows()).toBe(1);
+      expect(screen.getByRole("table")).toHaveTextContent("2");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // codex 적대 리뷰 P1 — 배지가 즉시값을 세면 디바운스 창(200ms) 동안 표·CSV 와 어긋난다.
+  // 「필터 1개」라고 말하면서 CSV 는 안 걸린 전량을 내보내는 상태가 실재했다.
+  it("★활성 필터 배지가 표·CSV 와 같은 스냅샷을 센다 (디바운스 창 안에서도)", () => {
+    vi.useFakeTimers();
+    try {
+      renderTable();
+      // 배지는 activeCount>0 일 때만 렌더되고 `aria-label="활성 필터 N개"` 를 단다.
+      const badge = () => screen.queryByLabelText(/^활성 필터 \d+개$/)?.textContent ?? null;
+      const rows = () => within(screen.getByRole("table")).getAllByRole("row").length - 1;
+
+      expect(badge()).toBeNull();
+      fireEvent.change(screen.getByLabelText("거래 검색"), { target: { value: "2" } });
+      // 디바운스 창 안 — 표가 아직 3건이면 배지도 아직 필터를 세면 안 된다.
+      expect(rows()).toBe(3);
+      expect(badge()).toBeNull();
+
+      act(() => {
+        vi.advanceTimersByTime(250);
+      });
+      expect(rows()).toBe(1);
+      expect(badge()).toBe("필터 1개");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
