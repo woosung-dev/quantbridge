@@ -2435,6 +2435,26 @@ money-path 의미를 바꾸므로 하지 않았다.
 
 **Risk:** 🟢 (dead)
 
+**상태:** ✅ **Resolved (2026-08-09, W2)** — **등록하지 않고 제거**했다. `src/tasks/market_data_backfill.py`(141줄) + `tests/tasks/test_market_data_backfill.py`(164줄) 삭제.
+
+**존치 여부 판정 — 「등록 전에 결정하라」에 대한 코드 근거.** `TimescaleProvider.get_ohlcv` 는
+cache-first 다 — `find_gaps` 로 빈 구간을 찾아 그 구간만 `ccxt.fetch_ohlcv` → `insert_bulk` →
+`commit` 한다(`providers/timescale.py:62-81`). 그리고 그 함수를 **백테스트·옵티마이저·스트레스
+테스트 셋이 이미 부른다**(`backtest/service.py:295` · `optimizer/service.py:243` ·
+`stress_test/service.py:329`). 즉 시딩은 별도 작업이 아니라 **첫 조회의 부수효과**다 —
+`instrument-symbol-boundary.md` 가 이미 같은 말을 적어 뒀다(「백테스트 1회가 곧 perp 시딩」).
+따라서 백필 태스크를 살리는 것은 **죽은 경로를 되살리는 것**이지 능력을 되찾는 것이 아니다.
+
+**두 실행법이 **둘 다** 거짓이었다는 실측 (2026-08-09):**
+
+- `python -m src.tasks.market_data_backfill BTC/USDT 1h 60` → **출력 0줄·무동작**(`__main__` 블록 부재).
+- 워커 부팅을 흉내내 `include` 12개를 전부 import 한 뒤 레지스트리를 세니 **28개**가 잡혔고
+  `market_data.backfill_ohlcv` 는 **그 안에 없다**. `include` 에 `src.tasks.market_data_backfill`
+  이 없으므로 `.delay()`/`celery call` 은 `Received unregistered task` 로 끝난다.
+
+**★G0 경로 드리프트 정정.** BL 본문의 `celery_app.py:29-42` `include=[…]` **10개**는 낡았다 —
+실제는 **`celery_app.py:57-70` 의 12개**다.
+
 ---
 
 ### BL-470

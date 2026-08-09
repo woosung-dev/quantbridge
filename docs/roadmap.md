@@ -275,7 +275,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
 - [x] **BL-467** [P1] `backend-optimizer-heavy` OHLCV env 3종 부재로 **모든 optimizer 실행 실패** — ✅ **dogfood-restore 완료**
 - [ ] **BL-468** [P3] `OHLCV_FIXTURE_ROOT` CWD 상대 기본값 + `FixtureProvider` 가 canonical 슬래시 심볼 미지원
-- [ ] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead)
+- [x] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead) — 2026-08-09 **등록 않고 제거**(`TimescaleProvider.get_ohlcv` 가 cache-miss 시 스스로 fetch 하므로 별도 백필 경로가 불필요)
 - [ ] **BL-470** [P2] 캐논 감사 9건이 빈 DB 에서 조용히 통과(데이터 전제 부재)
 - [ ] **BL-471** [P3] `exchange_exits` row_hash 멱등 → 분류 로직 변경 시 기존 행 재분류 경로 부재
 - [ ] **BL-472** [P3] 백테스트 목록이 monthly/daily 컨벤션 각주 미표기
