@@ -200,6 +200,146 @@ async def test_conventions_are_compared_on_one_scale(db_session: AsyncSession) -
     ]
 
 
+@pytest.mark.asyncio
+async def test_annualization_factor_is_a_square_root(db_session: AsyncSession) -> None:
+    """계수가 √252/√12 인지를 **선형 252/12 와 갈라놓고** 못 박는다.
+
+    ★codex 적대 리뷰가 잡은 사각지대(2026-08-11). 실측 — 계수를 `Decimal(252)`/`Decimal(12)`
+    로 바꿔도 종전 4케이스는 **8 passed 로 초록**이었다. 위 `..._compared_on_one_scale` 은
+    두 계수 아래서 답이 같아 판별력이 0 이다.
+
+    일간 0.05 · 월간 0.7 로 두면 갈라진다.
+    - √: 0.05×15.87 = 0.794  <  0.7×3.46 = 2.425  → monthly 가 위
+    - 선형: 0.05×252 = 12.6  >  0.7×12 = 8.4      → daily 가 위
+    """
+    user_id, created = await _seed_rows(
+        db_session,
+        [
+            ("daily", _metrics("0.05", SHARPE_CONVENTION_DAILY)),
+            ("monthly", _metrics("0.7", SHARPE_CONVENTION_MONTHLY)),
+        ],
+    )
+    db_session.expunge_all()
+
+    assert await _ordered_names(db_session, user_id, created, order="desc") == [
+        "monthly",
+        "daily",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_json_null_and_unknown_convention_are_unknown_scale(
+    db_session: AsyncSession,
+) -> None:
+    """JSON `null` 과 모르는 문자열도 등급 1 이다 — 척도를 모르는 것은 매한가지다.
+
+    `->>` 는 키 부재와 JSON null 을 둘 다 SQL NULL 로 준다. 모르는 문자열은 `case` 의
+    `else_` 로 떨어진다 — 이건 의도한 설계지 사고가 아니므로 못 박아 둔다.
+    """
+    json_null = _metrics("50", None)
+    json_null["sharpe_convention"] = None
+    user_id, created = await _seed_rows(
+        db_session,
+        [
+            ("known", _metrics("0.1", SHARPE_CONVENTION_MONTHLY)),
+            ("json_null", json_null),
+            ("unknown_string", _metrics("40", "tv_weekly_rfr9")),
+            ("bankrupt", _metrics("0", SHARPE_CONVENTION_NONPOSITIVE_EQUITY)),
+        ],
+    )
+    db_session.expunge_all()
+
+    assert await _ordered_names(db_session, user_id, created, order="desc") == [
+        "known",
+        "json_null",
+        "unknown_string",
+        "bankrupt",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_missing_value_sinks_within_its_grade_not_below_it(
+    db_session: AsyncSession,
+) -> None:
+    """`sharpe_ratio` 키가 없어도 컨벤션이 있으면 등급 0 이다.
+
+    등급이 값보다 먼저이므로 값 없는 등급 0 행은 **등급 0 의 맨 뒤**이지 목록의 맨 뒤가
+    아니다. 두 키의 **순서를 뒤집으면**(값 먼저 · 등급 나중) 여기서 red 가 난다.
+
+    ★등급에 `nulls_last()` 를 얹는 변이는 red 가 **안 난다** — `case(...)` 에 `else_` 가
+    있어 등급은 NULL 이 될 수 없고 그 변이는 무의미하다(2026-08-11 실측). 이 주석을
+    「그것도 잡는다」로 읽지 마라.
+    """
+    valueless: dict[str, Any] = {
+        "total_return": "0.1",
+        "max_drawdown": "-0.1",
+        "num_trades": 3,
+        "sharpe_convention": SHARPE_CONVENTION_DAILY,
+    }
+    user_id, created = await _seed_rows(
+        db_session,
+        [
+            ("valued", _metrics("0.1", SHARPE_CONVENTION_DAILY)),
+            ("valueless", valueless),
+            ("legacy", _metrics("99", None)),
+        ],
+    )
+    db_session.expunge_all()
+
+    assert await _ordered_names(db_session, user_id, created, order="desc") == [
+        "valued",
+        "valueless",
+        "legacy",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_both_degenerate_conventions_sink_below_a_legacy_row(
+    db_session: AsyncSession,
+) -> None:
+    """`unavailable` 과 `unavailable_nonpositive_equity` 는 같은 등급 2 — 구 행보다 아래다."""
+    user_id, created = await _seed_rows(
+        db_session,
+        [
+            ("flat", _metrics("0", SHARPE_CONVENTION_UNAVAILABLE)),
+            ("bankrupt", _metrics("0", SHARPE_CONVENTION_NONPOSITIVE_EQUITY)),
+            ("legacy", _metrics("-999", None)),
+        ],
+    )
+    db_session.expunge_all()
+
+    ordered = await _ordered_names(db_session, user_id, created, order="desc")
+    assert ordered[0] == "legacy"  # raw -999 인데도 degenerate 위다
+    assert set(ordered[1:]) == {"flat", "bankrupt"}
+
+
+@pytest.mark.asyncio
+async def test_grade_order_survives_pagination(db_session: AsyncSession) -> None:
+    """페이지를 잘라 이어붙여도 전체 정렬과 같다 — 등급이 페이지 안에서만 도는 게 아니다."""
+    user_id, created = await _seed_rows(
+        db_session,
+        [
+            ("bankrupt", _metrics("0", SHARPE_CONVENTION_NONPOSITIVE_EQUITY)),
+            ("legacy", _metrics("99", None)),
+            ("low", _metrics("-0.3", SHARPE_CONVENTION_MONTHLY)),
+            ("high", _metrics("0.5", SHARPE_CONVENTION_MONTHLY)),
+        ],
+    )
+    db_session.expunge_all()
+
+    repo = BacktestRepository(db_session)
+    by_id = {record.id: name for name, record in created.items()}
+    paged: list[str] = []
+    for offset in (0, 2):
+        rows, total = await repo.list_by_user(
+            user_id, limit=2, offset=offset, order_by="sharpe_ratio", order="desc"
+        )
+        assert total == 4
+        paged.extend(by_id[row.id] for row in rows)
+
+    assert paged == ["high", "low", "legacy", "bankrupt"]
+
+
 # --- 음성 대조: 섞이지 않은 데이터셋에서는 신·구 정렬이 완전히 같아야 한다 -------------
 
 
