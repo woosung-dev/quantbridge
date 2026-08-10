@@ -169,6 +169,80 @@ printf '%s' "$OUT" | grep -q '중복 상태 줄' || _why="${_why}'중복 상태 
 printf '%s' "$OUT" | grep -q '섹션:1' || _why="${_why}★중복 상태줄이 섹션:1 이 아니다(id 단일 키 회귀) "
 report "⑤ 중복 상태줄이 그 섹션 줄번호를 가리킨다" "$_why"
 
+# ── ⑥ 새 어휘 DEFERRED 가 ACTIVE 와 **따로** 세어진다 (BL-694 계열, 2026-08-10) ──────────
+#   ★이 하네스의 존재 이유와 같은 계약이다 — "수동으로 한 번 돌려 봤다" 는 회귀를 못 막는다.
+#   ★카운트 줄을 재므로 `assert_case`(마커 1+1) 대신 커스텀 `_why` 를 쓴다.
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⏳ **대기 (트리거 미도래)** — 실자금 cutover 전.
+
+---
+
+### BL-002
+
+**우선순위:** P3
+**상태:** ⬜ Open — 지금 착수 가능.
+
+---
+EOF
+_why=""
+[ "$RC" -eq 0 ] || _why="${_why}종료코드=$RC(기대 0) "
+printf '%s' "$OUT" | grep -qE '^  DEFERRED +1$' || _why="${_why}★'DEFERRED 1' 이 아니다(어휘 미신설/오분류) "
+printf '%s' "$OUT" | grep -qE '^  ACTIVE +1$' || _why="${_why}★'ACTIVE 1' 이 아니다(DEFERRED 가 ACTIVE 로 샜다) "
+report "⑥ DEFERRED 가 ACTIVE 와 따로 세어진다" "$_why"
+
+# ── ⑦ 음성 대조 — 새 어휘가 **모든 것을 삼키지 않는다** ────────────────────────────
+#   ⑥ 만 있으면 `verdict_of` 가 무조건 DEFERRED 를 반환해도 통과한다. 판별력이 0인 가드는
+#   가드가 아니다 — ② 가 중복 검사에 대해 하는 일을 여기서 어휘에 대해 한다.
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⬜ Open — 지금 착수 가능.
+
+---
+
+### BL-002
+
+**우선순위:** P3
+**상태:** ✅ **Resolved** (fixture)
+
+---
+EOF
+_why=""
+[ "$RC" -eq 0 ] || _why="${_why}종료코드=$RC(기대 0) "
+printf '%s' "$OUT" | grep -qE '^  DEFERRED +0$' || _why="${_why}★'DEFERRED 0' 이 아니다(어휘가 무관한 항목을 삼킨다) "
+printf '%s' "$OUT" | grep -qE '^  ACTIVE +1$' || _why="${_why}'ACTIVE 1' 이 아니다 "
+report "⑦ 음성 대조 — DEFERRED 가 남을 삼키지 않는다" "$_why"
+
+# ── ⑧ DEFERRED 는 3면에서 **ACTIVE 와 같은 「미완」 쪽**이다 ────────────────────────
+#   인덱스 표 행에 ✅ 가 있으면 불일치. 이걸 안 걸면 새 어휘가 crosscheck 를 **끄는** 통로가 된다
+#   (지금은 ⏳ 가 UNKNOWN 이라 `if (v == "UNKNOWN") continue` 로 조용히 빠져나간다).
+run_fixture <<'EOF'
+## P3
+
+| ID                  | 제목        |
+| ------------------- | ----------- |
+| [BL-001](#bl-001)   | ✅ fixture  |
+
+### BL-001
+
+**우선순위:** P3
+**상태:** ⏳ **대기 (트리거 미도래)** — Beta 배포 후.
+
+---
+EOF
+#   ★`▶ 불일치` 를 마커로 쓰면 **항상 통과한다** — 그 블록 머리는 "없음" 일 때도 찍힌다
+#     (이 파일 59-61 이 경고한 그 함정에 이 케이스가 실제로 한 번 빠졌다). 본문 문장을 재라.
+_why=""
+[ "$RC" -eq 1 ] || _why="${_why}종료코드=$RC(기대 1) "
+printf '%s' "$OUT" | grep -q '섹션은 DEFERRED' || _why="${_why}★불일치 본문에 '섹션은 DEFERRED' 없음(crosscheck 가 새 어휘를 건너뛴다) "
+printf '%s' "$OUT" | grep -qE '^  UNKNOWN +0$' || _why="${_why}★UNKNOWN 이 0 이 아니다(어휘 미해석으로 exit 1 이 난 것뿐이다) "
+printf '%s' "$OUT" | grep -q '▶ 중복' && _why="${_why}★'▶ 중복' 이 잘못 발화 "
+report "⑧ DEFERRED + 표 행 ✅ → 불일치 exit 1" "$_why"
+
 echo
 printf '══ 통과 %d / 실패 %d ══\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1
