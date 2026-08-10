@@ -389,7 +389,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 ### P3 — 문서 lint
 
-- [ ] **BL-306** [P3] CLAUDE.md §5 한국어 콜론 종결 lint (181 위반, auto-fix)
+- [x] **BL-306** [P3] ~~CLAUDE.md §5 한국어 콜론 종결 lint (181 위반, auto-fix)~~ → **2026-08-10 기각.** 실측 201 매치 중 168 이 코드블록·리스트·표 도입부, 33 이 뒤 절을 여는 산문 콜론, **진짜 dangling 0건**. 「false positive 0」이 정반대였고 auto-fix 는 정상 문장 200줄을 파손한다
 - [ ] **BL-307** [P3] CLAUDE.md §6 한국어 file header lint + 70 file backfill
 
 ### P3 — pine_v2 엣지 / parity

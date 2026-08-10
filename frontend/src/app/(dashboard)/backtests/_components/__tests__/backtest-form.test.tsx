@@ -489,3 +489,59 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     expect(toastSuccess).toHaveBeenCalledWith("백테스트 요청됨");
   });
 });
+
+// ---------------------------------------------------------------------------
+// BL-698 — 제출이 실제로 mutate 에 도달하는가.
+//
+// ★위 묶음이 전부 `fireEvent.submit(form)` 인 것이 이 결함을 8일간 가렸다. submit 이벤트를
+//   직접 디스패치하면 브라우저의 native constraint validation 을 **통째로 우회**한다.
+//   실제 사용자는 요약 패널의 실행 버튼을 누르고, 그 경로에서는 폼이 constraint-invalid 이면
+//   submit 이벤트가 **발화조차 하지 않는다** — handleSubmit 도, onSubmit 도, mutate 도 안 돈다.
+//   그래서 증상이 「422 가 아니라 요청이 아예 안 나감」이었다.
+//   회귀 커밋 753f4bf6(BL-603): fees 0.0005→0.00055 로 좁히면서 step="0.0001" 격자를 벗어났다.
+// ---------------------------------------------------------------------------
+describe("BacktestForm — 제출이 mutate 에 도달한다 (BL-698)", () => {
+  it("요약 패널 실행 버튼 클릭이 create.mutate 를 호출한다", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("backtest-submit"));
+    });
+
+    // ★`vi.waitFor` 를 쓰지 않는다. RHF handleSubmit 은 `await act` 안에서 마이크로태스크까지
+    //   전부 flush 되므로 mutate 호출은 이 시점에 이미 확정이다. waitFor 를 끼우면 폴링 타임아웃이
+    //   유일한 실패 표면이 되어 **결함이 아니라 지연으로도 red** 가 된다 — 상시 red 게이트를
+    //   없애려는 회차가 새 flake 를 심으면 안 된다.
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+
+  it("기본값이 자기 step 격자를 위반하지 않는다 — 위반하면 제출이 조용히 삼켜진다", () => {
+    const { container } = render(<BacktestForm />);
+
+    for (const id of ["fees_pct", "slippage_pct", "initial_capital", "leverage"]) {
+      const el = container.querySelector<HTMLInputElement>(`#${id}`);
+      expect(el, `#${id} 가 렌더돼야 한다`).not.toBeNull();
+      expect(el?.validity.stepMismatch, `#${id} stepMismatch`).toBe(false);
+    }
+  });
+
+  it("step 격자 밖 레버리지(1.005)를 입력해도 제출이 막히지 않는다", async () => {
+    // RHF validate 는 1~125 라 1.005 를 통과시킨다. native validation 이 살아 있으면
+    // step="0.01" 격자를 벗어났다는 이유로 submit 이벤트가 삼켜져 사용자는 아무 반응도 못 본다.
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    const { container } = render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(container.querySelector<HTMLInputElement>("#leverage")!, {
+        target: { value: "1.005" },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("backtest-submit"));
+    });
+
+    expect(mutate).toHaveBeenCalledTimes(1);
+  });
+});

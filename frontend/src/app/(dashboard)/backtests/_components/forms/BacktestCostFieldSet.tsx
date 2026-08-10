@@ -100,11 +100,16 @@ export function BacktestCostFieldSet({
           <label className="field-label" htmlFor="fees_pct">
             테이커 수수료
           </label>
+          {/* BL-698 — 아래 fees_pct 와 slippage_pct 둘 다 step 은 "any" 로 둔다.
+              종전 step="0.0001" 은 BL-603(753f4bf6)이 좁힌 기본값 0.00055/0.00014 를 격자 밖으로
+              만들어 폼 전체를 constraint-invalid 로 떨어뜨렸다. 범위 검증은 각 RHF validate(0~0.01).
+              ★"0.00001" 같은 더 촘촘한 격자로 바꾸지 마라 — 소수 6자리 기본값이 오면 같은 결함이
+              그대로 재발한다. 스피너 화살표 간격을 잃는 대신 재발 면역을 산 것이다. */}
           <input
             className="input mono"
             id="fees_pct"
             type="number"
-            step="0.0001"
+            step="any"
             min={0}
             max={0.01}
             {...register("fees_pct", {
@@ -134,7 +139,7 @@ export function BacktestCostFieldSet({
             className="input mono"
             id="slippage_pct"
             type="number"
-            step="0.0001"
+            step="any"
             min={0}
             max={0.01}
             {...register("slippage_pct", {

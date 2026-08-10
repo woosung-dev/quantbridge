@@ -1603,10 +1603,11 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Title:** `~/.claude/CLAUDE.md` §5 한국어 콜론 종결 lint mechanism 도입
 **Category:** Docs / Lint
 **Priority:** P3
-**Trigger:** 누적 위반 181 line 검출 (2026-05-15 audit) — auto-fix 가능
-**Est:** S (3-5h)
-**상태:** ⬜ Open — lint 룰·auto-fix·pre-commit 훅 어느 것도 레포에 없고 위반은 181→197줄로 오히려 늘었다. (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 도래 — 트리거가 스스로 도래를 선언(누적 위반 181 line 검출 · auto-fix 가능) (2026-08-10 bl-trigger-triage)
+**Trigger:** ~~누적 위반 181 line 검출 (2026-05-15 audit) — auto-fix 가능~~ → **2026-08-10 반증**: 「위반」이 아니었다
+**Est:** ~~S (3-5h)~~ → 해당 없음 (고칠 대상 0건)
+**상태:** ✅ Resolved (기각) — 2026-08-10 backtest-submit-fix. **전제가 실측으로 반증됐다.**
+「181줄 위반 · false positive 0 · `:`→`.` 일괄 auto-fix」 셋 다 거짓이고, auto-fix 를 돌리면 문서 200줄이 손상된다.
+**트리거 판정:** 해소 (기각) — 트리거가 센 「위반 181 line」이 위반이 아니었다 (2026-08-10 backtest-submit-fix)
 **출처:** `2026-05-15-claudemd-align-audit.md` §6 Track C1, [LESSON-068](lessons.md)
 
 **현 상태:** docs/dev-log 161 + dogfood 12 + guides 8 = 181 line 한국어 sentence + `:` end-of-line 위반. false positive 0. lint mechanism 0 = LLM 매 generation 자연 위반.
@@ -1618,9 +1619,40 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 3. pre-commit hook 추가 + CI gate
 4. LESSON-068 2/3 누적 → 3차 시 문서 lint 영구 규칙 승격 (구 `global.md` §5 는 ADR-026 으로 소멸 — 승격처는 `scripts/docs-audit.sh` 확장)
 
-**영향 파일:** 새 lint config 1 + auto-fix script 1 + pre-commit hook 1 + 검출 181 line edit (auto-fix 1회).
+**영향 파일:** ~~새 lint config 1 + auto-fix script 1 + pre-commit hook 1 + 검출 181 line edit (auto-fix 1회).~~
+→ **없음.** 아래 기각 근거 참조.
 
-**Risk:** 🟢 (lint + docs only, code 영향 0).
+**Risk:** ~~🟢 (lint + docs only, code 영향 0)~~ → 🔴 **였다.** auto-fix 를 그대로 돌렸으면 정상 문장 200줄이 손상된다.
+
+---
+
+#### ✅ 기각 (2026-08-10 backtest-submit-fix) — 검출 규칙이 성립하지 않는다
+
+원장이 명시한 정규식(`[가-힣]\s*:\s*$` minus 코드펜스·URL·표 셀·frontmatter)을
+`git ls-files '*.md'` **전량**에 적용한 실측:
+
+| 항목                                         | 건수    |
+| -------------------------------------------- | ------- |
+| raw 매치                                     | **201** |
+| ├ 코드블록·리스트·표를 **여는 도입부**(정당) | 168     |
+| ├ 뒤 절을 여는 산문 콜론(정당)               | 33      |
+| └ **진짜 dangling 콜론(고칠 것)**            | **0**   |
+
+★**「false positive 0」이 정확히 뒤집혔다 — 실제 false positive 는 사실상 100% 다.**
+매치의 전부가 무언가를 **여는** 콜론이다. 예: `프론트엔드 구현 시 Tailwind 토큰으로 매핑:` 뒤에
+코드펜스, `새 Celery task 추가 시:` 뒤에 리스트, `레버리지별 롱 청산 임계 실측:` 뒤에 표.
+이를 `.` 로 치환하면 도입부 의미가 깨진다 — **auto-fix 는 수리가 아니라 파손이다.**
+
+원장 수치 「181 → 197줄로 늘었다」도 재현되지 않는다. 「197줄」의 근거였던 `docs/dev-log` 원문
+161건은 2026-08-06 에 삭제됐고, 현재 어떤 계수법으로도 181/197 이 나오지 않는다(201 / 33 / 0).
+
+**판정:** 한국어 콜론 종결은 이 레포에서 **검출 가능한 위반 클래스가 아니다.** 「문장 종결 콜론」과
+「도입부 콜론」을 구문만으로 가르는 규칙이 없고, 후자가 전부다. `scripts/docs-audit.sh` 확장은
+**잡을 것이 없는 규칙**을 추가하는 일이 되므로 하지 않는다. [BL-307] (§6 file header lint) 은 별개
+축이라 이 기각의 영향을 받지 않는다 — 위 「의존성: BL-306 과 묶음 sprint 가능」은 이제 성립하지 않는다.
+
+**LESSON-068 누적은 늘리지 않는다** — 이번 건은 「lint 부재가 위반을 누적시킨다」의 사례가 아니라
+**그 전제 자체의 반증**이다. 상세 = [LESSON-099].
 
 ---
 
@@ -8970,9 +9002,10 @@ sha256 복원 대조 완료. ★**도입 즉시 초록이라 비용이 0이다**
 **Priority:** P2
 **Trigger:** 즉시 — `scripts/final-gates.sh` 가 **모든 회차에서** rc=1 을 낸다
 **Est:** M (재현 + 원인 규명)
-**상태:** ⬜ Open — 2026-08-10 migration-guard 게이트 실행 중 발견. **선재 실패임을 main 실측으로 확정**했다.
-**트리거 판정:** 도래 — 트리거가 「즉시」이고, 게이트가 지금 실제로 붉다 (2026-08-10 migration-guard)
-**출처:** 2026-08-10 migration-guard (`final-gates.sh --run migration-guard`)
+**상태:** ✅ Resolved — 2026-08-10 backtest-submit-fix. **테스트 결함이 아니라 프로덕션 결함이었다.**
+백테스트 폼 제출이 `753f4bf6`(2026-08-07, BL-603) 이후 **main 에서 212 커밋 동안 죽어 있었다**.
+**트리거 판정:** 해소 — 원인 수정 후 red 3건 전건 green (2026-08-10 backtest-submit-fix)
+**출처:** 2026-08-10 migration-guard (`final-gates.sh --run migration-guard`) · 종결 = 2026-08-10 backtest-submit-fix
 
 **원인 / 영향:** 두 케이스가 red 다.
 
@@ -9004,5 +9037,84 @@ dev server(:3100) 상태 · 브랜치 스위칭 후 `.next` 캐시([BL-650] 과 
 ★**이 축을 먼저 쫓지 마라** — 재현이 안 되는 쪽보다 **항상 red 인 422 두 건**이 값이 크다.
 
 **Risk:** 🟡 (게이트가 상시 붉으면 게이트가 아니다. 단 프로덕션 경로 결함인지 테스트 결함인지 아직 모른다)
+
+---
+
+#### ✅ 종결 (2026-08-10 backtest-submit-fix) — **프로덕션 결함이었다**
+
+**근본 원인.** `<form id="backtest-setup-form">` 에 `noValidate` 가 없어 native constraint validation 이
+살아 있는데, 비용 필드 두 개의 기본값이 자기 `step` 격자를 어긴다:
+
+| 필드           | 기본값    | `step`     | `validity.stepMismatch` |
+| -------------- | --------- | ---------- | ----------------------- |
+| `fees_pct`     | `0.00055` | `"0.0001"` | **true**                |
+| `slippage_pct` | `0.00014` | `"0.0001"` | **true**                |
+
+폼이 constraint-invalid 이면 브라우저는 **submit 이벤트를 발화조차 하지 않는다.** 제출 버튼이
+`<form>` **밖**(요약 aside)에 `form={id}` 로 붙어 있어 native 경고 UI 조차 안 뜬다. ⇒ `handleSubmit`
+도, `onSubmit` 도, `create.mutate` 도, 토큰 획득도 **전부 안 돈다.** 그래서 증상이 「422 가 아니라
+요청이 아예 안 나감」이었다.
+
+**회귀 시점 = `753f4bf6`** (2026-08-07, [BL-603] "narrow default cost assumptions").
+`fees 0.001→0.00055` · `slippage 0.0005→0.00014` 로 좁히면서 Sprint 31 이래의 `step="0.0001"` 은
+그대로 뒀다. 종전 기본값 `0.0005` 는 격자에 맞아 통과했다. **`0.00055` 로 좁히는 순간 죽었다.**
+
+**수정 (프로덕션 3줄, `frontend/**`만 ·`backend/src`0줄):**`<form>`에`noValidate`+`fees_pct`·`slippage_pct`를`step="any"`. 범위 검증은 RHF `validate`(0~0.01)가 이미 이중화하고 있다.
+
+★**원장이 적어 둔 「권장 접근」은 틀렸다.** 실패 지점을 `sprint46-tier3-nth.spec.ts:553-554` 의
+**문구 assertion** 이라 적었으나, 실제 실패는 그보다 앞선 `tier1:124` 의
+`page.waitForRequest(POST /api/v1/backtests)` **15초 타임아웃**이다. 문구는 애초에 도달하지 않는다.
+⇒ 「응답 본문이 바뀌었나」 3후보(BE 422 메시지 / FE 카드 렌더 / 픽스처 Pine)는 **전부 무관**했다.
+
+★**기존 단위 테스트 17건이 왜 못 잡았나.** 전부 `fireEvent.submit(form)` 으로 submit 이벤트를 **직접
+디스패치**한다 — native validation 을 통째로 우회하는 경로다. 사용자가 밟는 `click` 경로를 재는
+케이스가 **하나도 없었다**. 신설 3건은 `fireEvent.click(getByTestId("backtest-submit"))` 을 쓴다.
+
+**변이 3종 전건 판별력 확인** — M1(step 되돌림) → T2 red · M2(`noValidate` 제거) → T3 red ·
+M3(둘 다) → T1·T2·T3 red. 두 수정은 제출 경로에 대해 **의도적 중복 방어**라 단일 변이는 한쪽만 죽인다.
+
+**검증:** vitest 1346/1346 · `tsc --noEmit` · `eslint` · `e2e:authed` red 3건 → **전건 green**(1회 소모).
+신설 테스트 **결정론 20/20**.
+
+**남긴 것:** 같은 클래스의 잠복 결함 → [BL-699]. 반증 카드 → [LESSON-097]·[LESSON-098].
+
+---
+
+### BL-699
+
+**Title:** RHF 폼 6개에 `noValidate` 가 없다 — [BL-698] 과 같은 클래스의 **잠복** 결함
+**Category:** Frontend / 폼 검증
+**Priority:** P3
+**Trigger:** 그 6개 폼 중 하나의 **기본값이 native 제약(step/min/max)을 어기는 순간** — 그때 제출이 조용히 죽는다
+**Est:** S (1-2h · 폼당 `noValidate` 1줄 + 클릭 경로 테스트)
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-10 backtest-submit-fix 에서 전수 스캔. **현재 활성 결함 0건.**
+**트리거 판정:** 미도래 — 6개 전건의 현재 기본값이 자기 제약 격자 안에 있음을 실측 확인 (2026-08-10 backtest-submit-fix)
+**출처:** 2026-08-10 backtest-submit-fix ([BL-698] 수리 중 부수 발견)
+
+**원인 / 영향:** [BL-698] 은 「기본값이 `step` 격자를 벗어나면 브라우저가 submit 이벤트를 발화조차
+하지 않는다」는 결함이었다. 그 조건의 **전건**은 `<form>` 에 `noValidate` 가 없는 것이다.
+실측 — 이 레포 RHF 폼 **9개 중 `noValidate` 는 3개뿐**이다:
+
+| `noValidate`                                     | 폼                                                                                                                                                                     |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 있음 (3, + BL-698 로 추가된 `backtest-form` = 4) | `waitlist-form-card` · `test-order-dialog` · `alert-rule-form`                                                                                                         |
+| **없음 (6)**                                     | `optimizer/{genetic,grid,bayesian}-search-form` · `strategies/[id]/edit/tab-metadata` · `live-sessions/live-session-form` · `trading/register-exchange-account-dialog` |
+
+★**지금 붉지 않다.** 6개의 native 제약을 전수 확인한 결과 전부 `step="any"` 이거나 정수 step +
+정수 경계라 기본값이 격자 안이다. 즉 **잠복**이지 발현이 아니다 — 그래서 ACTIVE 가 아니라 DEFERRED
+([ADR-028](decisions/028-backlog-deferred-verdict.md)).
+
+★**위험은 「지금 틀렸다」가 아니라 「조용히 틀려진다」다.** [BL-698] 은 폼 코드를 한 줄도 안 건드린
+커밋(`753f4bf6` — 기본값 상수만 좁혔다)이 만들었고, **212 커밋 동안 아무 게이트도 못 잡았다.**
+같은 일이 이 6개에서 일어나면 증상은 또 「버튼을 눌러도 아무 일이 없다」이고, 로그도 에러도 없다.
+
+**권장 접근:** 폼당 `noValidate` 1줄. 단 **넣기 전에** 그 폼의 native `min`/`max`/`required` 가
+RHF rule 로 이중화돼 있는지 확인해라 — 이중화가 없으면 `noValidate` 는 검증을 **없애는** 것이 된다
+([BL-698] 은 전건 이중화돼 있어 잃는 것이 0 이었다). 함께 각 폼에 **클릭 경로**(`fireEvent.submit`
+아님) 테스트 1건씩.
+
+**영향 파일:** 위 표의 6개 + 각 테스트.
+
+**Risk:** 🟢 (선제 조치. 단 RHF 이중화 확인을 건너뛰면 검증을 지우는 변경이 된다)
 
 ---
