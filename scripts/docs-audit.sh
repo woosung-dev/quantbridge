@@ -131,8 +131,14 @@ for rel, cap in line_caps.items():
 #   **어떤 게이트도 그걸 강제하지 않았다.** 기록된 규율은 안 지켜진다 — 게이트로 막는다
 #   (ADR-026 §3: 회고는 반증 카드 → lessons 승격 → 넘치면 archive 강등).
 # ★상한을 올려 통과시키지 마라. 넘쳤다는 것은 승격 대상이 밀렸다는 신호다.
+# ★`status.md` 는 2026-08-02 대개편에서 9,071 B 로 잘렸는데 **8일 만에 145,714 B(16배)** 가 됐다.
+#   대청소는 한 번 손으로 했고 아무것도 다음 번을 예약하지 않았다 — 위 규율이 여기서 그대로 재발했다.
+#   재보니 취소선(사문)은 **1.4%** 뿐이고 질량은 **끝난 회차 회고 산문**이었다. 그래서 상한이 요구하는
+#   동작은 「삭제」가 아니라 **강등**이다 — ADR-026 §3 이 이미 규정한 경로(dev-log → lessons 승격 →
+#   INDEX 한 줄)를 넘칠 때마다 밟게 한다. 2026-08-10 실측 = 648줄(회고 6블록 48,452자 강등 후).
 file_line_caps = {
     "docs/lessons.md": 400,
+    "docs/status.md": 700,
 }
 file_len_hits: list[tuple[str, int, int]] = []
 for rel, cap in file_line_caps.items():
@@ -353,7 +359,12 @@ if cap_hits:
 if file_len_hits:
     print("▶ 파일 줄 수 상한 초과 (한 줄의 길이가 아니라 **파일 전체의 줄 수**다)")
     for rel, count, cap in file_len_hits:
-        print(f"  {rel}: {count}줄 > 상한 {cap}줄 — docs/archive/ 로 승격 항목을 내려라")
+        # ★파일마다 내려갈 곳이 다르다. 한 문장으로 뭉치면 다음 사람이 엉뚱한 곳으로 간다.
+        where = {
+            "docs/lessons.md": "docs/archive/ 로 승격 항목을 내려라",
+            "docs/status.md": "끝난 회차 회고를 docs/dev-log/ 로 강등하고 INDEX 에 한 줄 남겨라 (ADR-026 §3)",
+        }.get(rel, "승격 대상을 내려라")
+        print(f"  {rel}: {count}줄 > 상한 {cap}줄 — {where}")
 
 if orphan_hits:
     print("▶ 소유자 없는 검사기가 기동 불가 (BL-631 — 아무도 안 부르면 죽어도 아무도 모른다)")
