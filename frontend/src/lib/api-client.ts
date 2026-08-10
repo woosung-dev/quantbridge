@@ -23,6 +23,29 @@ export interface RequestOptions extends Omit<RequestInit, "body"> {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+/**
+ * 에러 body 에서 도메인 코드를 찾는다.
+ *
+ * ★한 겹 파고드는 것이 핵심이다. FastAPI 는 `HTTPException(detail={"code": …})` 를
+ * `{"detail": {"code": …}}` 로 감싸 내보내므로, 최상위만 보면 도메인 코드는 **한 번도**
+ * 도달하지 않고 언제나 `"unknown_error"` 가 된다([BL-671] 원인). 그 함정을 이미 한 호출부가
+ * 손으로 우회하고 있었다(`features/alert-rules/components/alert-rule-form.tsx:31-44`) —
+ * 지식이 레포에 있었는데 클라이언트에 반영되지 않은 상태였다.
+ *
+ * 최상위를 먼저 보는 순서는 유지한다. 커스텀 핸들러가 최상위 `code` 를 내는 응답이 생기면
+ * 그쪽이 더 구체적이다.
+ */
+function resolveErrorCode(body: unknown): string {
+  if (body && typeof body === "object") {
+    if ("code" in body) return String((body as { code: unknown }).code);
+    const inner = "detail" in body ? (body as { detail: unknown }).detail : undefined;
+    if (inner && typeof inner === "object" && "code" in inner) {
+      return String((inner as { code: unknown }).code);
+    }
+  }
+  return "unknown_error";
+}
+
 function buildUrl(path: string, params?: RequestOptions["params"]): string {
   const url = new URL(path.startsWith("/") ? path : `/${path}`, API_BASE_URL);
   if (params) {
@@ -50,11 +73,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     // Sprint 14 Phase B-4 — error body size cap (8KB) + JSON detail 정규화.
     // 큰 HTML 에러 페이지 (Nginx/Cloudflare) 가 ApiError.detail 에 그대로 흘러가는 위험 회피.
     const detail = await readErrorBody(res);
-    const code =
-      detail && typeof detail === "object" && "code" in detail
-        ? String((detail as { code: unknown }).code)
-        : "unknown_error";
-    throw new ApiError(res.status, code, `API ${res.status} ${path}`, detail);
+    throw new ApiError(res.status, resolveErrorCode(detail), `API ${res.status} ${path}`, detail);
   }
 
   if (res.status === 204) return undefined as T;
