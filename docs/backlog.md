@@ -8962,3 +8962,40 @@ sha256 복원 대조 완료. ★**도입 즉시 초록이라 비용이 0이다**
 **Risk:** 🟢 (테스트 파일 1개. 단 위 의미 차이를 안 보면 계약이 뒤집힌다)
 
 ---
+
+### BL-698
+
+**Title:** `e2e authed` 백테스트 폼 422 케이스 2건이 **main 에서 이미 red** 다
+**Category:** Testing / 게이트 (e2e)
+**Priority:** P2
+**Trigger:** 즉시 — `scripts/final-gates.sh` 가 **모든 회차에서** rc=1 을 낸다
+**Est:** M (재현 + 원인 규명)
+**상태:** ⬜ Open — 2026-08-10 migration-guard 게이트 실행 중 발견. **선재 실패임을 main 실측으로 확정**했다.
+**트리거 판정:** 도래 — 트리거가 「즉시」이고, 게이트가 지금 실제로 붉다 (2026-08-10 migration-guard)
+**출처:** 2026-08-10 migration-guard (`final-gates.sh --run migration-guard`)
+
+**원인 / 영향:** 두 케이스가 red 다.
+
+- `e2e/sprint46-tier1-critical.spec.ts:69` — `#1 Backtest form — 422 unsupported_builtins UL hint → fix → submit success`
+- `e2e/sprint46-tier3-nth.spec.ts:489` — `#20 Backtest form — 422 friendly_message 카드 (BL-163)`
+
+★**내 회차 탓이 아님을 실측으로 갈랐다.** migration-guard 브랜치는 `frontend/` **0줄** ·
+`backend/src` **0줄**인데 `e2e authed` 가 FAIL 했다. `git checkout main` 후 같은 두 케이스만
+`--grep` 으로 돌렸더니 **main 에서도 정확히 그 2건이 red**(1 passed)였다. ⇒ 선재.
+
+★**게이트 구조상 이것이 지금 모든 회차를 막는다.** `final-gates.sh:220` 은 `e2e authed` 를
+**`has_fe` 와 무관하게 항상** 돌린다(`e2e chromium` 만 `frontend diff 0` 이면 skip). 따라서
+FE 를 한 줄도 안 건드린 회차도 rc=1 을 받고 「PR 을 만들지 마라」를 본다.
+그 상태가 계속되면 **게이트를 무시하는 습관**이 생기고, 그때 진짜 red 가 섞여 들어온다.
+
+**권장 접근:** 먼저 두 케이스가 무엇을 기대하는지 확인해라 — 실패 지점은
+`sprint46-tier3-nth.spec.ts:553-554` 의 `expect(friendly).toContainText(/Trust Layer 위반|ADR-003/)`
+이다. 즉 **422 응답 본문의 문구**를 재는 케이스이므로, 원인 후보는 ⑴ 백엔드 422 메시지가 바뀌었다
+⑵ FE 카드 렌더가 바뀌었다 ⑶ 픽스처 전략의 Pine 소스가 더 이상 그 422 를 안 낸다 셋이다.
+`test-results/.../error-context.md` 와 trace(zip)가 남아 있으니 **먼저 그것을 열어라** —
+재현부터 다시 만들지 마라.
+★**고치기 전에 언제부터 red 인지 이분해라.** 그래야 「무엇이 바꿨나」가 나온다.
+
+**Risk:** 🟡 (게이트가 상시 붉으면 게이트가 아니다. 단 프로덕션 경로 결함인지 테스트 결함인지 아직 모른다)
+
+---
