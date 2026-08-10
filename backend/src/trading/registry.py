@@ -1,11 +1,11 @@
-# trading provider registry — 3-tuple (exchange, mode, has_leverage) → factory dispatch
-"""Provider dispatch registry — Sprint 47 BL-202.
+# trading provider registry — (exchange, mode, has_leverage) 3-tuple → factory dispatch 레지스트리
+"""Provider dispatch registry — Sprint 47 BL-202 도입.
 
 `tasks/trading.py:_provider_for_account_and_leverage` 가 사용하던 3-tuple
 if-chain 을 dict registry 로 승격. 새 (exchange, mode, has_leverage) 조합 추가
 시 if-chain 갱신 대신 PROVIDER_REGISTRY 한 군데만 수정.
 
-Celery prefork-safe (CRITICAL):
+Celery prefork-safe (CRITICAL) 요건:
 - 본 모듈은 CCXT 클라이언트나 async engine 을 import 시점에 절대 인스턴스화하지 않는다.
 - factory 는 매 dispatch 호출마다 `Provider()` 를 생성하는 per-call factory.
 - Provider 클래스 자체의 `create_order` 안에서 ccxt 인스턴스가 생기고 finally close() 됨

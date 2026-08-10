@@ -1,7 +1,9 @@
+// Sprint 26: 라이브 세션 React Query 훅. 조회는 useLiveSessions/useLiveSessionState/
+// useLiveSessionEvents/useLiveSessionPositions/useAccountPositions/useLiveSessionOutcomeParity,
+// 변이는 useRegisterLiveSession/useDeactivateLiveSession/useClosePosition 이다. 세션별 상태·
+// 포지션을 useQueries 로 팬아웃해 합산하는 useLiveSessionsAggregate/useLiveSessionsPositions 도 포함.
 "use client";
 
-// Sprint 26 — Live Sessions React Query hooks.
-//
 // LESSON-004 의무:
 //  - H-1: useEffect dep array primitive only (`[data?.id, data?.is_active]`)
 //  - H-2: queryFn = module-level factory 호출식 (`makeXxxFetcher(...)`),

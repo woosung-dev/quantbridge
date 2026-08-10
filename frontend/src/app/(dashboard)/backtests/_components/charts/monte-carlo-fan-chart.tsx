@@ -1,9 +1,9 @@
-"use client";
-
-// Phase C: Monte Carlo fan chart.
+// Phase C: Monte Carlo fan chart — 시뮬레이션 결과를 median 라인 + 분위수 밴드로 시각화.
 // - equity_percentiles 는 "5"/"25"/"50"/"75"/"95" 키를 가진 dict (값은 number 배열, schema 에서 decimalString transform 완료).
 // - MVP: median line + p5~p95 outer band + p25~p75 inner band (stacked Area 로 fan).
 // - jsdom + ResizeObserver 미정의 환경에서도 warning 없이 렌더 가능하게 EquityChart 패턴 차용.
+
+"use client";
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";

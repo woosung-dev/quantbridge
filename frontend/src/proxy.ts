@@ -1,3 +1,6 @@
+// Clerk 인증 + geo-block 미들웨어 (Next.js 16 proxy.ts, 구 middleware.ts).
+// 공개 라우트가 아닌 모든 요청에 auth.protect() 를 걸고, 지정 국가는 /not-available 로,
+// 로그인된 사용자의 '/' 접근은 /strategies 로 리다이렉트한다.
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 

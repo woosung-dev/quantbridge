@@ -1,4 +1,4 @@
-"""Backtest REST API — 10 endpoints (7 owned + 3 share Sprint 41)."""
+"""Backtest REST API — 엔드포인트 10개 (자체 소유 7개 + Sprint 41 공유(share) 3개)."""
 
 from __future__ import annotations
 

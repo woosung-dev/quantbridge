@@ -1,8 +1,7 @@
+// Sprint FE-D: chip 스타일 태그 입력 컴포넌트.
+// Controlled 컴포넌트 — Enter / comma / Tab 으로 chip 추가, Backspace(빈 input)로 마지막
+// chip 을 제거한다. shadcn 토큰(border / ring / input)을 사용하며 색상 하드코딩은 금지한다.
 "use client";
-
-// Sprint FE-D: chip-style tag input.
-// Controlled — Enter / comma / Tab 으로 chip 추가, Backspace(빈 input) 로 마지막 chip 제거.
-// shadcn 토큰 (border / ring / input) 사용, 하드코딩 색상 금지.
 
 import { useState, type KeyboardEvent } from "react";
 import { XIcon } from "lucide-react";

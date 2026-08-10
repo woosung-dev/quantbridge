@@ -1,3 +1,11 @@
+"""FastAPI 애플리케이션 엔트리포인트.
+
+`create_app()` 이 CORS·보안 헤더·rate limit 미들웨어 설치, AppException/unhandled
+예외 핸들러 등록, 도메인 라우터(auth/strategy/backtest/trading/stress_test/optimizer 등)
+마운트, `/health`·`/metrics` 엔드포인트 노출을 담당한다. `lifespan()` 은 CCXTProvider·
+Redis lock pool·realtime listener 의 시작/종료 자원 라이프사이클을 관리한다.
+"""
+
 from __future__ import annotations
 
 import asyncio

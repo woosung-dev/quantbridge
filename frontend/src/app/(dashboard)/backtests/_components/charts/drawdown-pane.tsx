@@ -1,7 +1,5 @@
-"use client";
-
-// Sprint 32-B (BL-170): DrawdownPane — bottom pane (underwater plot).
-// Drawdown (red area). ui-ux-pro-max 진단 P0 #3/#5 (Drawdown 매핑 모호, 거래
+// Sprint 32-B (BL-170): DrawdownPane — 하단 pane (underwater plot). Drawdown(빨간 영역)을 표시.
+// ui-ux-pro-max 진단 P0 #3/#5 (Drawdown 매핑 모호, 거래
 // 마커 약자 의미 0 — 본 PR 은 시각 분리만, 마커 의미 명시는 Worker C 영역).
 //
 // Y축은 % (0 ~ -100% 일반, leverage 시 -200% 가능 — BL-156 Worker D 영역에서
@@ -13,6 +11,8 @@
 // 전부 "-0.1%" 로 붕괴한다 (minMove 는 percent 타입에서 무시됨).
 // → type=custom formatter 로 데이터는 비율(0 ~ -1) 유지, 라벨에서만 ×100
 //   (-0.30 → "-30.00%"). lastValueVisible 라벨도 동일 series formatter 를 탄다.
+
+"use client";
 
 import { useMemo } from "react";
 

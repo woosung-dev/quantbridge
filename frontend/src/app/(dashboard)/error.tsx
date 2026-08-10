@@ -1,10 +1,10 @@
+// Next.js 라우트 에러 경계(error.tsx) — Dashboard 라우트 그룹 스코프, app/error.tsx 보다 좁다.
+// 대시보드 shell은 유지하고 콘텐츠 영역만 에러 UI로 대체.
 "use client";
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
-// Dashboard 라우트 그룹 에러 바운더리 — app/error.tsx보다 좁은 scope.
-// 대시보드 shell은 유지하고 콘텐츠 영역만 에러 UI로 대체.
 export default function DashboardError({
   error,
   reset,

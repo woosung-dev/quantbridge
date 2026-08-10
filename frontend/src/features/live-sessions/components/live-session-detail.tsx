@@ -1,17 +1,16 @@
-"use client";
-
-// Sprint 26 — Live Session detail panel.
-// Sprint 27 BL-140 — Activity Timeline line chart (events 누적 시각화).
-//   진정한 equity curve (cumulative realized_pnl) 는 events 에 pnl 필드 없으므로
-//   BL-140b (BE state.realized_pnl_history JSONB 추가) 별도 sprint 로 분리.
-// Sprint 33-A (BL-150 partial) — recharts → lightweight-charts (ActivityTimelineChart).
-//   walk-forward / monte-carlo 차트는 Sprint 34 defer (lightweight-charts native 미지원).
+// Sprint 26 — 라이브 세션 상세 패널.
+// Sprint 27 BL-140 — Activity Timeline 라인 차트(이벤트 누적 시각화).
+//   진정한 equity curve(누적 realized_pnl)는 events 에 pnl 필드가 없어 만들 수 없으므로
+//   BL-140b(BE state.realized_pnl_history JSONB 추가)로 별도 sprint 에서 분리했다.
+// Sprint 33-A (BL-150 partial) — recharts 를 lightweight-charts 로 교체(ActivityTimelineChart).
+//   walk-forward / monte-carlo 차트는 lightweight-charts 가 native 미지원이라 Sprint 34 로 미뤘다.
 //
 // 표시:
-//  - Session 정보 (symbol/interval/last_evaluated_bar_time)
+//  - 세션 정보 (symbol/interval/last_evaluated_bar_time)
 //  - Open trades snapshot + 누적 통계 (closed_trades, realized_pnl)
-//  - Activity Timeline line chart (cumulative entry / close count + optional PnL)
-//  - Recent events log (action / direction / status / order_id)
+//  - Activity Timeline 라인 차트 (누적 entry / close 건수 + 선택적 PnL)
+//  - 최근 이벤트 로그 (action / direction / status / order_id)
+"use client";
 
 import { useMemo } from "react";
 

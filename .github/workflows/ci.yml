@@ -55,6 +55,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check active documentation links and retired paths
         run: make docs-audit
+      # ★[BL-307] 이 잡에 둔다 — `changes` 필터가 없어 **항상** 돈다.
+      #   frontend/backend 잡은 경로 게이팅이라, 신규 파일이 그 필터를 비껴가면 검사를 통째로
+      #   건너뛴다. 「신규 파일 차단」이 목적인 게이트를 조건부 잡에 두면 목적이 사라진다.
+      #   감사기는 로케일 판별력 자기검사에 실패하면 rc=3 으로 죽는다 — 러너 로케일이 어긋나도
+      #   거짓 초록이 나오지 않는다.
+      - name: Check Korean source file headers (BL-307)
+        run: make header-audit
 
   frontend:
     needs: changes

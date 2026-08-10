@@ -1,5 +1,5 @@
-# Optimizer Bayesian executor — Sprint 55 ADR-013 §6 #4, scikit-optimize ask-tell loop.
-"""Sprint 55 Phase 3 Optimizer Bayesian executor.
+# Optimizer Bayesian executor — Sprint 55 ADR-013 §6 #4, scikit-optimize ask-tell loop 실행기
+"""Sprint 55 Phase 3 Optimizer Bayesian 실행기.
 
 ParamSpace (BayesianHyperparamsField + IntegerField + CategoricalField) → skopt.Optimizer
 ask-tell main loop → 각 iteration run_backtest → objective_metric + direction 별 best

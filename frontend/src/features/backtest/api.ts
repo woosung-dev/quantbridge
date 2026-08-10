@@ -1,4 +1,6 @@
-// Sprint FE-04: Backtest REST client — apiFetch + Clerk JWT + Zod runtime parse.
+// Sprint FE-04: 백테스트 REST 클라이언트 — apiFetch + Clerk JWT + Zod 런타임 파싱으로
+// /api/v1/backtests(CRUD·진행률·거래 내역·공유 링크)와 /api/v1/stress-tests(몬테카를로·
+// 워크포워드·비용가정·파라미터 안정성 민감도 분석), 지표 변환(convert-indicator) 엔드포인트를 감싼다.
 
 import { apiFetch } from "@/lib/api-client";
 

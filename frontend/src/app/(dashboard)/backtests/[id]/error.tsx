@@ -1,6 +1,4 @@
-"use client";
-
-// Sprint 32 E (BL-163) — actionable error UX for backtest detail route.
+// Sprint 32 E (BL-163) — 백테스트 상세 라우트(Next.js 라우트 에러 경계)의 조치 가능한(actionable) 에러 UX.
 //
 // fullstack.md 패턴 차용 + 도메인 특화: backtest detail 로딩 실패 시 (네트워크 / 5xx /
 // strategy_not_runnable 422) 사용자에게 (1) 무엇이 실패했는지 (2) 어떻게 복구할지
@@ -9,6 +7,8 @@
 // 본 파일은 React render-time 예외만 catch (mutation onError 는 backtest-form.tsx
 // + backtest-detail-view.tsx 의 inline 처리). dashboard error.tsx (한 단계 위) 보다
 // 좁은 scope — 백테스트 상세 화면 컨텍스트 유지.
+
+"use client";
 
 import Link from "next/link";
 import { useEffect } from "react";

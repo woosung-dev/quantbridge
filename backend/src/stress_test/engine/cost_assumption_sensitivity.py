@@ -1,5 +1,5 @@
-# Cost Assumption Sensitivity — BacktestConfig fees x slippage 2D grid sweep
-"""Sprint 50 Cost Assumption Sensitivity engine.
+# Cost Assumption Sensitivity — BacktestConfig 의 fees x slippage 2D grid sweep 엔진
+"""Sprint 50 Cost Assumption Sensitivity 엔진.
 
 명명 (codex P1#2): fees x slippage 는 PnL 단계 cost 가정 sensitivity. strategy
 parameter (EMA period 등) sensitivity 와 본질이 다름. 진짜 Param Stability
@@ -20,6 +20,7 @@ generic engine 으로 위임. COST_ASSUMPTION_PARAM_KEYS (fees/slippage) + analy
 pre-flight + 2-key 강제 invariant 는 wrapper 안 `pre_validate` hook 로 유지
 (도메인 책임). param_stability.py 의 pattern mirror.
 """
+
 from __future__ import annotations
 
 from dataclasses import replace as dc_replace
@@ -146,9 +147,7 @@ def run_cost_assumption_sensitivity(
             param_grid=param_grid,
             cell_runner=_cell_runner,  # type: ignore[arg-type]
             max_cells=MAX_GRID_CELLS,
-            pre_validate=lambda g: _validate_param_grid_for_cost_assumption(
-                pine_source, g
-            ),
+            pre_validate=lambda g: _validate_param_grid_for_cost_assumption(pine_source, g),
         )
     except GridSweepCellError as exc:
         # cell_runner 안 ValueError → GridSweepCellError(ValueError). 기존 API 호환:

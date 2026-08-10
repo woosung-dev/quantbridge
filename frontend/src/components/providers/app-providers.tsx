@@ -1,3 +1,5 @@
+// 앱 전역 Provider 체인 진입점 — ThemeProvider(다크/라이트 테마) 와 ClerkThemeBridge
+// (Clerk 다국어·라우팅 + React Query) 를 조합한다.
 import { ThemeProvider } from "next-themes";
 import type { ReactNode } from "react";
 import { ClerkThemeBridge } from "./clerk-theme-bridge";

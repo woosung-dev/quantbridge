@@ -1,7 +1,6 @@
+// Sprint 26 — 라이브 세션 목록 + 중단(Stop) 확인 다이얼로그.
+// Sprint 33 BL-174 (list-only) — Empty/Failed/Loading 상태를 LiveSessionStateView 로 통일.
 "use client";
-
-// Sprint 26 — Live Sessions list + Stop confirm dialog.
-// Sprint 33 BL-174 list-only — Empty/Failed/Loading state 통일 (LiveSessionStateView).
 
 import { useState } from "react";
 import { AlertCircle, Loader2, Plus } from "lucide-react";

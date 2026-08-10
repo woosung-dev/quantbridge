@@ -1,3 +1,6 @@
+// 라이브 세션 성과 대조(outcome parity) 패널. useLiveSessionOutcomeParity 로 세션 축과 전략
+// 누적 축 두 스코프를 각각 매칭 커버리지·기대 gross/확정 net 워터폴·비용 분해·표본 성과
+// (엣지율·비용/엣지 배수)로 보여주고, 계정 원장 미귀속 건수와 비용 가정 대조도 함께 표시한다.
 "use client";
 
 import { MetricTile, type MetricTileTone } from "@/components/metric-tile";

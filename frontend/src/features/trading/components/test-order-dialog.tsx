@@ -1,9 +1,8 @@
+// Sprint 13 Phase B: dogfood 전용 테스트 주문 다이얼로그(shell).
+// production 환경에서는 NEXT_PUBLIC_ENABLE_TEST_ORDER=false(또는 미설정)면 렌더링하지 않는다.
+// 스키마는 test-order-schema.ts, HMAC 서명·발송 money-path 는 test-order-webhook.ts 가 맡는다.
+// 422/400 등 오류 시 setError("root.serverError")로 form 안에 인라인 표시한다.
 "use client";
-
-// Sprint 13 Phase B: dogfood-only Test Order Dialog (shell).
-// production env 에서는 NEXT_PUBLIC_ENABLE_TEST_ORDER=false (또는 미설정) → 미렌더.
-// 스키마 = test-order-schema.ts / HMAC 서명·발송 money-path = test-order-webhook.ts.
-// 422/400 등 error 시 setError("root.serverError") 로 form 안에 inline 표시.
 
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";

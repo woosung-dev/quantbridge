@@ -1,5 +1,5 @@
-# Param Stability — pine_v2 strategy input override 2D grid sweep (BL-220 Sprint 51)
-"""Sprint 51 Param Stability engine.
+# Param Stability — pine_v2 strategy input override 2D grid sweep 엔진 (BL-220 Sprint 51)
+"""Sprint 51 Param Stability 엔진.
 
 명명: pine_v2 input override (EMA period x stop loss % 등 strategy parameter sweep).
 Sprint 50 Cost Assumption Sensitivity (BacktestConfig fees x slippage = PnL 단계 cost
@@ -160,9 +160,7 @@ def run_param_stability(
         cfg = _build_config(backtest_config, overrides=dict(values))
         outcome = run_backtest(pine_source, ohlcv, cfg)
         if outcome.status != "ok" or outcome.result is None:
-            raise ValueError(
-                f"backtest failed at cell ({values}): status={outcome.status}"
-            )
+            raise ValueError(f"backtest failed at cell ({values}): status={outcome.status}")
         metrics = outcome.result.metrics
         # param_values dict 에서 row-major 순서 추출
         # (grid_sweep 가 invariant 보장: dict insertion = param_grid key 순서)

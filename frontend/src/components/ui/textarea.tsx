@@ -1,3 +1,5 @@
+// shadcn/ui 생성 원본 Textarea 컴포넌트 — 네이티브 <textarea> 를 그대로 감싼다.
+// 이 레포에서 min-height 를 96px(min-h-24)로 오버라이드했다(Sprint 7c T1, 아래 인라인 주석 근거).
 import * as React from "react"
 
 import { cn } from "@/lib/utils"

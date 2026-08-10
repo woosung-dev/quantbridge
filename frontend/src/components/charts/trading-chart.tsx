@@ -1,3 +1,5 @@
+// lightweight-charts 기반 트레이딩 차트 래퍼 — equity curve, benchmark/compare 라인,
+// drawdown 영역, per-trade PnL 히스토그램을 렌더링한다.
 "use client";
 
 // Sprint 30-β (W2): lightweight-charts wrapper.

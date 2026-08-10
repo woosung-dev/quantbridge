@@ -1,4 +1,6 @@
-// Optimizer REST client — apiFetch + Clerk JWT + Zod runtime parse.
+// 옵티마이저 REST 클라이언트 — apiFetch + Clerk JWT + Zod 런타임 파싱으로 /api/v1/optimizer 를
+// 감싼다. runs/grid-search(Sprint 54) · runs/bayesian(Sprint 55, ADR-013 §6 #5) ·
+// runs/genetic(Sprint 56, BL-233) 제출과 실행 상세/목록 조회를 제공한다.
 
 import { apiFetch } from "@/lib/api-client";
 

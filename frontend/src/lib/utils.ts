@@ -1,3 +1,4 @@
+// Tailwind 클래스 병합(cn) · 퍼센트 문자열 포맷팅(formatPercent) 등 프로젝트 전역 유틸리티 모음.
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 

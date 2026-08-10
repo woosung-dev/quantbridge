@@ -1,6 +1,10 @@
+// Sprint FE-04: 백테스트 React Query 훅 — Clerk JWT + userId 팩토리 패턴(LESSON-005).
+// 조회는 useBacktests/useBacktest/useBacktestProgress/useBacktestTrades/useAllBacktestTrades 등,
+// 변이는 useCreateBacktest/useCancelBacktest/useDeleteBacktest 와 스트레스 테스트
+// (useCreateMonteCarlo/useCreateWalkForward/useCreateCostAssumption/useCreateParamStability) 훅으로
+// 나눠 내보낸다.
 "use client";
 
-// Sprint FE-04: Backtest React Query hooks — Clerk JWT + userId factory pattern.
 // LESSON-005: queryKey factory `backtestKeys.list(userId, query)` — userId 첫 인자.
 //            queryFn은 모듈-level `makeXxxFetcher(...)` CallExpression 으로 @tanstack/query/exhaustive-deps 우회.
 // LESSON-004: polling refetchInterval은 error 시 false — 무한 루프/CPU 100% 방지.

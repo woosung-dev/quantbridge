@@ -1,3 +1,5 @@
+// 백테스트 목록 페이지 (/backtests, Server Component) — Clerk 토큰으로 React Query 를
+// 서버에서 prefetch(PAGE_SIZE=20) 한 뒤 HydrationBoundary 로 BacktestList 에 hydrate.
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import {
