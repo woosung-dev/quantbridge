@@ -4,15 +4,71 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Numeric, and_, delete, func, or_, select, text, update
+from sqlalchemy import Numeric, and_, case, delete, func, literal, or_, select, text, update
 from sqlalchemy.engine import Row
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
+from src.backtest.engine.metrics import (
+    SHARPE_CONVENTION_DAILY,
+    SHARPE_CONVENTION_MONTHLY,
+    SHARPE_CONVENTION_NONPOSITIVE_EQUITY,
+    SHARPE_CONVENTION_UNAVAILABLE,
+)
 from src.backtest.models import Backtest, BacktestStatus, BacktestTrade
+
+# --- [BL-462] Sharpe 정렬 등급 — 값 하나로는 의미가 다른 것들이 한 순위로 섞인다 ---
+#
+# 등급은 `metrics->>'sharpe_convention'` 으로만 판정한다. 값(`sharpe_ratio`)은 등급을
+# 정하지 않는다 — 파산 계좌의 0 과 무거래 계좌의 0 은 같은 숫자지만 같은 사실이 아니다.
+_SHARPE_GRADE_COMPARABLE = 0  # 척도를 아는 값 (tv_daily_rfr2 · tv_monthly_rfr2)
+_SHARPE_GRADE_UNKNOWN_SCALE = 1  # 컨벤션 키 부재 = 구 행. 어떤 척도인지 모른다
+_SHARPE_GRADE_DEGENERATE = 2  # 산출 불가. 저장된 0 은 「0 점」이 아니라 「없음」이다
+
+# 정렬 비교 **전용** 연율화 계수. `metrics.sharpe_ratio()` 의 "연율화하지 않는다" 는
+# 저장·표시 규약이고 그대로 유지된다 — 이 계수는 ORDER BY 안에만 있고 응답 payload 의
+# `sharpe_ratio` 에 닿지 않는다. 척도가 다른 두 컨벤션을 한 순위로 세우려면 비교 시점에
+# 같은 축으로 옮겨야 한다 (일간 √252 · 월간 √12).
+_SHARPE_ANNUALIZATION_FACTORS: dict[str, Decimal] = {
+    SHARPE_CONVENTION_DAILY: Decimal(252).sqrt(),
+    SHARPE_CONVENTION_MONTHLY: Decimal(12).sqrt(),
+}
+_SHARPE_DEGENERATE_CONVENTIONS = (
+    SHARPE_CONVENTION_UNAVAILABLE,
+    SHARPE_CONVENTION_NONPOSITIVE_EQUITY,
+)
+
+
+def _sharpe_sort_criteria(value: Any, *, order: str) -> list[Any]:
+    """[BL-462] Sharpe 정렬 키 = `(등급 ASC, 정규화값 order방향)`.
+
+    ★**등급은 `order` 와 무관하게 항상 ASC 다.** `order=asc`(나쁜 것 먼저)에서도
+    degenerate 는 맨 뒤다 — 「모르는 것」은 「가장 나쁜 것」이 아니다. 등급을 `order` 에
+    딸려 뒤집으면 파산 계좌가 -0.3 을 낸 정직한 전략보다 위로 올라온다.
+
+    컨벤션이 NULL(키 부재)이거나 알 수 없는 문자열이면 등급 1 — 척도 미상이다.
+    `serializers.metrics_to_jsonb` 가 None 필드의 키를 아예 생략하므로 구 행에는
+    `sharpe_convention` 키 자체가 없다.
+    """
+    convention = Backtest.metrics["sharpe_convention"].astext  # type: ignore[index]
+    grade = case(
+        (convention.in_(list(_SHARPE_ANNUALIZATION_FACTORS)), _SHARPE_GRADE_COMPARABLE),
+        (convention.in_(list(_SHARPE_DEGENERATE_CONVENTIONS)), _SHARPE_GRADE_DEGENERATE),
+        else_=_SHARPE_GRADE_UNKNOWN_SCALE,
+    )
+    normalized = case(
+        *[
+            (convention == name, value * literal(factor, Numeric))
+            for name, factor in _SHARPE_ANNUALIZATION_FACTORS.items()
+        ],
+        else_=value,
+    )
+    normalized_order = normalized.asc() if order == "asc" else normalized.desc()
+    return [grade.asc(), normalized_order.nulls_last()]
 
 
 class BacktestRepository:
@@ -76,16 +132,20 @@ class BacktestRepository:
             "num_trades": Backtest.metrics["num_trades"].astext.cast(Numeric),  # type: ignore[index]
         }
         sort_expression = sort_columns[order_by]
-        primary_order = sort_expression.asc() if order == "asc" else sort_expression.desc()
-        if order_by != "created_at":
-            primary_order = primary_order.nulls_last()
+        if order_by == "sharpe_ratio":
+            order_criteria = _sharpe_sort_criteria(sort_expression, order=order)
+        else:
+            primary_order = sort_expression.asc() if order == "asc" else sort_expression.desc()
+            if order_by != "created_at":
+                primary_order = primary_order.nulls_last()
+            order_criteria = [primary_order]
 
         stmt = (
             select(Backtest)
             .options(defer(Backtest.equity_curve))  # type: ignore[arg-type]
             .where(Backtest.user_id == user_id)  # type: ignore[arg-type]
             .order_by(
-                primary_order,
+                *order_criteria,
                 Backtest.created_at.desc(),  # type: ignore[attr-defined]
                 Backtest.id.desc(),  # type: ignore[attr-defined]
             )
