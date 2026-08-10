@@ -6,7 +6,7 @@ import sys
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import ANY, AsyncMock, MagicMock, call
+from unittest.mock import ANY, AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -207,10 +207,16 @@ def _patch_reconcile(
     account_repo = AsyncMock()
     # [BL-517] — stand-down 축이 `exchange_uid` 형제 행까지 본다. 기본값은 **uid 없음**이라
     # 자기 행만 보는 폴백을 타고, 그래서 기존 케이스의 관측 동작이 그대로 보존된다.
-    account_repo.get_by_id = AsyncMock(
-        return_value=account_row or SimpleNamespace(id=uuid4(), exchange_uid=None)
+    own_account_row = account_row or SimpleNamespace(id=uuid4(), exchange_uid=None)
+    account_repo.get_by_id = AsyncMock(return_value=own_account_row)
+    # ★페이크는 프로덕션의 제약 축을 그대로 흉내낸다(`backend/AGENTS.md` §10 규약 3).
+    #   실제 `list_by_exchange_uid` 는 `WHERE exchange_uid == uid ORDER BY created_at ASC`
+    #   (`exchange_account_repository.py:57-63`)라 **자기 행을 포함**한다. 페이크가 자기 행을
+    #   빼면 `ownership_scope_ids` 의 `if account.id not in ids` 폴백이 **테스트에서만** 발화해,
+    #   프로덕션에서 도달하지 않는 경로를 재게 된다 — 재현하려던 위상이 페이크 안에서 소멸한다.
+    account_repo.list_by_exchange_uid = AsyncMock(
+        return_value=[own_account_row, *sibling_accounts] if sibling_accounts else []
     )
-    account_repo.list_by_exchange_uid = AsyncMock(return_value=sibling_accounts or [])
     kill_switch_repo = AsyncMock()
     kill_switch_repo.get_active = AsyncMock(return_value=None)
 
@@ -963,10 +969,12 @@ async def test_exchange_uid_scope_controls_shared_account_symbol_stand_down(
     assert stand_down_reasons == (["shared_account_symbol"] if should_stand_down else [])
     if should_stand_down:
         harness.account_repo.list_by_exchange_uid.assert_awaited_once_with(exchange_uid)
-        assert harness.live_session_repo.list_active_by_account.await_args_list == [
-            call(sibling_account_id),
-            call(session.exchange_account_id),
-        ]
+        # ★집합으로 비교한다 — 실제 `list_by_exchange_uid` 는 `created_at ASC` 정렬이라
+        #   **순서는 데이터에 달렸고** 구현 계약이 아니다. 순서를 고정하면 DB 정렬이 바뀔 때
+        #   동작이 같은데도 red 가 난다. 재야 할 것은 「형제 행까지 물었나」다.
+        assert {
+            args.args[0] for args in harness.live_session_repo.list_active_by_account.await_args_list
+        } == {session.exchange_account_id, sibling_account_id}
         harness.order_service.execute.assert_not_awaited()
     else:
         harness.account_repo.list_by_exchange_uid.assert_not_awaited()

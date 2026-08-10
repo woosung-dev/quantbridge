@@ -183,11 +183,25 @@ async def test_flatten_cli_reports_accepted_order_on_success(
 
 
 @pytest.mark.asyncio
-async def test_flatten_cli_exits_4_when_accepted_order_has_resting_entries_or_unknown(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize(
+    ("entries", "unknown", "expected_marker"),
+    [
+        ([RestingEntryOrder(**_resting("ex-entry-remaining"))], False, "ex-entry-remaining"),
+        ([], True, "미체결 진입 주문 확인 실패"),
+    ],
+    ids=["entries-remain", "probe-failed"],
+)
+async def test_flatten_cli_exits_4_when_order_accepted_but_entries_unresolved(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    entries: list[RestingEntryOrder],
+    unknown: bool,
+    expected_marker: str,
 ) -> None:
     """BL-684 — 청산 접수 뒤 잔량·확인 실패는 실패 1이 아닌 전용 종료 코드 4다.
 
+    ★두 시나리오를 **한 함수에 이어 붙이지 않는다** — 앞이 죽으면 뒤가 아예 안 돌아
+    「둘 다 초록」과 「앞만 돌고 통과」가 구분되지 않는다.
     ★rc 만 재면 부족하다. **원장 검증 안내가 rc 4 경로에서도 살아 있어야** 한다 —
     잔량이 남은 회차가 그 안내를 가장 필요로 하는데, `raise SystemExit(4)` 를 안내보다
     앞에 두면 정확히 그 상황에서만 사라진다(실제로 그렇게 쓰였던 것을 고쳤다).
@@ -198,7 +212,8 @@ async def test_flatten_cli_exits_4_when_accepted_order_has_resting_entries_or_un
         outcome=ClosePositionResponse(
             order_id=order_id,
             state=OrderState.pending,
-            resting_entries=[RestingEntryOrder(**_resting("ex-entry-remaining"))],
+            resting_entries=entries,
+            resting_entries_unknown=unknown,
         ),
     )
 
@@ -209,23 +224,5 @@ async def test_flatten_cli_exits_4_when_accepted_order_has_resting_entries_or_un
     out = capsys.readouterr().out
     assert "청산 주문 접수" in out
     assert str(order_id) in out
-    assert "ex-entry-remaining" in out
-    assert "★원장에 남았다" in out, "잔량이 남은 경로에서 원장 검증 안내가 사라지면 안 된다"
-
-    _install(
-        monkeypatch,
-        outcome=ClosePositionResponse(
-            order_id=uuid4(),
-            state=OrderState.pending,
-            resting_entries_unknown=True,
-        ),
-    )
-
-    with pytest.raises(SystemExit) as unknown_exc_info:
-        await admin._cmd_flatten(uuid4())
-
-    assert _process_rc(unknown_exc_info.value) == 4
-    unknown_out = capsys.readouterr().out
-    assert "청산 주문 접수" in unknown_out
-    assert "미체결 진입 주문 확인 실패" in unknown_out
-    assert "★원장에 남았다" in unknown_out, "확인 실패 경로에서도 원장 검증 안내가 필요하다"
+    assert expected_marker in out
+    assert "★원장에 남았다" in out, "rc 4 경로에서 원장 검증 안내가 사라지면 안 된다"

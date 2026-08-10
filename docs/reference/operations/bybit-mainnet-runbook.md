@@ -358,9 +358,16 @@ uv run python scripts/live_session_admin.py stop <SESSION_UUID> --confirm
 uv run python scripts/live_session_admin.py flatten <SESSION_UUID> --confirm
 
 # ⑶ 확인 — FLAT=YES · RESTING_CONDITIONAL=0 · QUIET=YES 여야 한다
-#    ★★flatten 이 「✓ 이미 flat (no_open_position)」을 내고 **exit 0** 이어도 끝난 게 아니다.
-#      `close_service.py:102-104` 는 **포지션만** 보고 조건부 주문은 안 본다. 미체결 조건부
-#      진입이 남아 있으면 나중에 체결된다 — RESTING_CONDITIONAL 을 **반드시 눈으로** 확인해라.
+#    ★★2026-08-10 정정 — ~~「`close_service.py:102-104` 는 포지션만 보고 조건부 주문은
+#      안 본다」~~ 는 **두 경로 모두 거짓이 됐다**([BL-661]+[BL-684]). 이제 flatten 은
+#      포지션이 0 이든 아니든 미체결 진입 주문을 조회하고 **종료 코드로 구분한다**:
+#        0 = 진짜 flat, 또는 청산 접수 + 잔량 없음이 **확인됨**
+#        1 = 일반 청산 실패
+#        3 = 잔량 있음 · 청산 주문을 **안 냄**(포지션이 0 이었다)
+#        4 = 청산 주문 **접수됨** · 잔량이 남았거나 잔량을 **확인하지 못했다**
+#      ⇒ 「✓ 이미 flat」+ exit 0 은 이제 신뢰할 수 있다. 대신 **rc 3·4 를 자동화에서 갈라라.**
+#      ★rc 4 의 「확인하지 못했다」는 거래소 조회가 실패한 경우다 — 청산 주문은 나갔지만
+#        잔량 여부를 모른다. 그때는 아래 status 로 RESTING_CONDITIONAL 을 눈으로 확인해라.
 uv run python scripts/live_session_admin.py status --symbol <SYMBOL>
 ```
 

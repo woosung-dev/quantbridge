@@ -134,19 +134,13 @@ class ClosePositionService:
                     "detail": (
                         f"포지션은 없지만 미체결 진입 주문 {len(entries)}건이 남아 있습니다."
                     ),
+                    # ★`RestingEntryOrder` 를 거쳐 낸다 — 두 경로(409 raw dict · 200
+                    #   response_model)의 필드가 영구히 갈라지지 않게 하는 유일한 장치다.
+                    #   ★`mode="json"` 이 필수다: 이 경로는 `HTTPException(detail=…)` 로 나가
+                    #   **JSONResponse 가 직접** 직렬화하므로 `Decimal` 이 그대로면 터진다.
+                    #   200 경로는 Pydantic 이 직렬화하므로 그 제약이 없다.
                     "orders": [
-                        {
-                            "order_id": order.order_id,
-                            "side": order.side,
-                            # Decimal은 JSONResponse가 직렬화하지 못하므로 문자열로 담는다.
-                            "qty": str(order.qty) if order.qty is not None else None,
-                            "trigger_price": (
-                                str(order.trigger_price)
-                                if order.trigger_price is not None
-                                else None
-                            ),
-                            "order_link_id": order.order_link_id,
-                        }
+                        RestingEntryOrder.from_snapshot(order).model_dump(mode="json")
                         for order in entries
                     ],
                 },
@@ -167,6 +161,10 @@ class ClosePositionService:
         # BL-684 — 두 경로의 조회 실패 처리는 의도적으로 비대칭이다. flat 경로에서
         # fail-open 하면 실제 미체결 진입을 "flat"이라고 거짓 보고하지만, 열린 포지션
         # 경로에서 fail-closed 하면 조회 장애가 위험한 포지션 청산 자체를 봉쇄한다.
+        # ★포획을 `ProviderError` 로 좁히지 마라. 좁히면 예상 못 한 예외 하나가 청산을
+        #   막아 위 결정이 무효가 된다 — 여기서 중요한 것은 「무엇이 실패했나」가 아니라
+        #   「그래도 나갔나」다. 대신 예외 타입을 로그에 남기고, 사용자 문구는 원인을
+        #   단정하지 않는다(프로그래밍 오류를 「거래소 오류」라고 부르면 거짓 보고다).
         resting_entries_unknown = False
         try:
             entries = await self._fetch_resting_entries(credentials, session.symbol)
@@ -202,9 +200,7 @@ class ClosePositionService:
         )
         response, _ = await self._order_service.execute(request, idempotency_key=None, flatten=True)
         if resting_entries_unknown:
-            detail = (
-                "reduce-only market close accepted · 미체결 진입 주문 확인 실패(거래소 조회 오류)"
-            )
+            detail = "reduce-only market close accepted · 미체결 진입 주문 확인 실패"
         elif entries:
             detail = (
                 f"reduce-only market close accepted · 미체결 진입 주문 {len(entries)}건이 남아 있다"
@@ -215,17 +211,6 @@ class ClosePositionService:
             order_id=response.id,
             state=response.state,
             detail=detail,
-            resting_entries=[
-                RestingEntryOrder(
-                    order_id=order.order_id,
-                    side=order.side,
-                    qty=str(order.qty) if order.qty is not None else None,
-                    trigger_price=(
-                        str(order.trigger_price) if order.trigger_price is not None else None
-                    ),
-                    order_link_id=order.order_link_id,
-                )
-                for order in entries
-            ],
+            resting_entries=[RestingEntryOrder.from_snapshot(order) for order in entries],
             resting_entries_unknown=resting_entries_unknown,
         )

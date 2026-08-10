@@ -11,8 +11,9 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.trading.exceptions import ProviderError
 from src.trading.models import ExchangeMode, ExchangeName, Order, OrderSide, OrderState, OrderType
-from src.trading.providers import ConditionalOrderSnapshot, PositionSnapshot, ProviderError
+from src.trading.providers import ConditionalOrderSnapshot, PositionSnapshot
 from src.trading.services.close_service import ClosePositionService
 from src.trading.services.order_service import OrderService
 
@@ -385,10 +386,10 @@ async def test_close_continues_when_resting_entry_fetch_fails() -> None:
     orders.execute.assert_awaited_once()
     assert response.resting_entries_unknown is True
     assert response.resting_entries == []
-    assert (
-        response.detail
-        == "reduce-only market close accepted · 미체결 진입 주문 확인 실패(거래소 조회 오류)"
-    )
+    # ★문구가 원인을 단정하지 않는다 — 포획이 `except Exception` 이라 프로그래밍 오류도
+    #   여기로 오는데, 그것을 「거래소 조회 오류」라고 부르면 거짓 보고다. 원인은 로그의
+    #   `error=<예외 타입>` 에 남는다.
+    assert response.detail == "reduce-only market close accepted · 미체결 진입 주문 확인 실패"
 
 
 async def test_close_fetches_resting_entries_before_executing_close() -> None:
