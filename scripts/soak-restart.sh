@@ -40,6 +40,17 @@ ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
 METRICS_URL="${QB_METRICS_URL:-}"
+# ★`/metrics` 는 2026-08-11 부터 **토큰 없이 401** 이다(fail-closed 전환, [BL-704]).
+#   HTTP 갈래를 쓰려면 헤더를 보내야 한다 — 안 보내면 401 이 `curl -sf` 실패로 떨어져
+#   「지표 취득 실패」가 되고, `-f` 가 없던 절차에서는 401 본문이 **「지표 0건」처럼 읽힌다.**
+#   기본 경로(디렉터리 직독)는 인증이 없으므로 영향받지 않는다.
+METRICS_HDR=()
+_qb_tok="${PROMETHEUS_BEARER_TOKEN:-}"
+if [ -z "${_qb_tok}" ] && [ -f "${ROOT}/backend/.env.local" ]; then
+  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${ROOT}/backend/.env.local" | head -1)"
+fi
+[ -n "${_qb_tok}" ] && METRICS_HDR=(-H "Authorization: Bearer ${_qb_tok}")
+
 METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/backend/.metrics}"
 
 CONFIRM=0
@@ -180,7 +191,7 @@ _dump_evidence() {
   #   MultiProcessCollector 로 렌더해야 텍스트가 된다 (soak-gate.sh 와 같은 취득 방식).
   raw=""
   if [ -n "${METRICS_URL}" ]; then
-    raw="$(curl -sf --max-time 20 "${METRICS_URL}" 2>/dev/null)"
+    raw="$(curl -sf ${METRICS_HDR[@]+"${METRICS_HDR[@]}"} --max-time 20 "${METRICS_URL}" 2>/dev/null)"
   elif [ -d "${METRICS_DIR}" ]; then
     # ★`timeout` 없이 부르지 마라 — 무기한 대기는 재기동을 통째로 멈춘다([BL-594] 교훈).
     raw="$(cd "${ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \

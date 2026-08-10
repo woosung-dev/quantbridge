@@ -169,10 +169,17 @@ async def test_forced_service_exception_returns_json_not_text_traceback(
     finally:
         app.dependency_overrides.pop(get_optimizer_service, None)
 
-    # 0) ★도달 확인 — 422 면 요청 검증에서 튕겨 `_BoomService` 를 부르지도 못한 것이다.
-    #    아래 1~5 는 422 로도 전부 통과하므로 이 한 줄이 없으면 **무증거 초록**이 된다.
-    assert resp.status_code != 422, (
-        f"payload 가 낡아 요청 검증에서 422 로 튕겼다 — _BoomService 에 도달하지 못했다: "
+    # 0) ★도달 확인 — `_BoomService` 가 실제로 불렸다면 결과는 **500** 이다.
+    #    아래 1~5 는 4xx 로도 전부 통과하므로 이 한 줄이 없으면 **무증거 초록**이 된다.
+    #    ★★`!= 422` 로는 부족하다(2026-08-11 Opus 콜드 평가자): 422 만 배제하면 **429·403·400**
+    #    이 전부 초록으로 새고 `_BoomService` 는 여전히 미도달이다. 실제 경로가 있다 —
+    #    `optimizer/router.py:35` 이 `5/minute` 이고 키는 `ip:testclient`(`common/rate_limit.py:81`),
+    #    저장소가 **Redis** 라 1분 창이 pytest 실행 경계를 넘어 공유된다 ⇒ 같은 파일을 60초 안에
+    #    여러 번 돌리면 429 가 나고 종전 assert 로는 그것이 「통과」였다. 재려던 것은
+    #    **핸들러가 5xx 를 JSON 으로 감싸는가** 이므로 상태 코드를 못 박는다.
+    assert resp.status_code == 500, (
+        f"기대 500(핸들러가 감싼 unhandled exception), 실제 {resp.status_code} — "
+        f"_BoomService 에 도달하지 못했다(422=payload 낡음 · 429=rate limit · 403/401=인증): "
         f"{resp.text[:300]!r}"
     )
 

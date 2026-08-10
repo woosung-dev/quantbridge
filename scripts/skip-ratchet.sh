@@ -69,8 +69,21 @@ MIN_FILES = 200
 
 TARGETS = ("backend/tests", "backend/src")
 
-# 줄 맨 앞 앵커 + `skip` 직후가 `(` 또는 줄끝 ⇒ `skipif` 와 대입문과 인용문을 모두 배제한다.
-SKIP_DECORATOR = re.compile(r"^[ \t]*@pytest\.mark\.skip[ \t]*(\(|$)")
+# 줄 맨 앞 앵커 + `skip` 직후에 식별자 문자가 없다 ⇒ `skipif` 와 인용문을 배제한다.
+# ★2026-08-11 평가자 실측으로 **두 구멍**이 드러나 넓혔다:
+#   ⑴ 종전 `[ \t]*(\(|$)` 는 줄끝만 허용해서 `@pytest.mark.skip  # 3개월째 꺼져 있다` 를
+#      놓쳤다(CRLF 도 동일). pytest 는 그걸 `unconditional skip` 으로 보고한다 —
+#      **사유조차 없는 최악형이 무료 통과**였다.
+#   ⑵ `pytestmark = pytest.mark.skip(...)` 모듈 레벨 무조건 skip 은 `@` 앵커에 안 걸렸다.
+#      **파일을 통째로 끄는** 더 큰 같은 부채이고, 이 레포는 이미 `pytestmark =
+#      pytest.mark.skipif(` 를 2곳에서 쓴다 — 키워드 하나 차이다.
+SKIP_DECORATOR = re.compile(r"^[ \t]*@pytest\.mark\.skip(?![A-Za-z_])")
+SKIP_MODULE = re.compile(r"^[ \t]*pytestmark[ \t]*=.*pytest\.mark\.skip(?![A-Za-z_])")
+
+
+def is_unconditional_skip(line):
+    """데코레이터 형태 또는 모듈 레벨 형태. 둘 다 「무조건 꺼져 있다」다."""
+    return bool(SKIP_DECORATOR.search(line) or SKIP_MODULE.search(line))
 
 
 def verdict(count, files):
@@ -86,14 +99,20 @@ def verdict(count, files):
 _POSITIVE = (
     '@pytest.mark.skip(reason="x")',
     "    @pytest.mark.skip",
+    "@pytest.mark.skip  # 3개월째 꺼져 있다",          # 주석 꼬리 (2026-08-11 구멍 ⑴)
+    "@pytest.mark.skip\r",                            # CRLF
+    'pytestmark = pytest.mark.skip(reason="모듈 통째")',  # 모듈 레벨 (구멍 ⑵)
+    "pytestmark = [pytest.mark.asyncio, pytest.mark.skip]",  # 리스트 형태
 )
 _NEGATIVE = (
     '@pytest.mark.skipif(not _P.exists(), reason="미생성")',      # 조건부는 정상
     '    skip_mutation = pytest.mark.skip(reason="…")',           # conftest 프로그램적 마커
+    'pytestmark = pytest.mark.skipif(_P.exists(), reason="조건부")',  # 모듈 레벨이지만 조건부
+    "pytestmark = pytest.mark.real_broker",                        # 다른 마커
     "동안 아래 3건은 `@pytest.mark.skip(...)` 로 죽어 있었다",      # 독스트링 인용
 )
-_bad = [s for s in _POSITIVE if not SKIP_DECORATOR.search(s)]
-_bad += [s for s in _NEGATIVE if SKIP_DECORATOR.search(s)]
+_bad = [s for s in _POSITIVE if not is_unconditional_skip(s)]
+_bad += [s for s in _NEGATIVE if is_unconditional_skip(s)]
 if _bad:
     sys.stderr.write("✗ skip 판별기가 고장났다 — 어긋난 합성 입력:\n")
     for s in _bad:
@@ -131,7 +150,7 @@ for scope in TARGETS:
             try:
                 with open(full, encoding="utf-8", errors="replace") as fh:
                     for lineno, line in enumerate(fh, 1):
-                        if SKIP_DECORATOR.search(line):
+                        if is_unconditional_skip(line):
                             hits.append((rel, lineno, line.strip()))
             except OSError as exc:
                 sys.stderr.write("✗ 파일을 못 읽었다: %s (%s) — 판정을 포기한다.\n" % (rel, exc))
@@ -153,7 +172,7 @@ else:
         % (files, " / ".join("%s %d" % (s, per_scope[s]) for s in TARGETS), BASELINE, len(hits))
     )
     print("")
-    print("▶ 무조건 skip 데코레이터 (%d건)" % len(hits))
+    print("▶ 무조건 skip — 데코레이터·모듈레벨 (%d건)" % len(hits))
     if not hits:
         print("  없음")
     else:

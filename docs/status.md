@@ -408,6 +408,8 @@ C1 168h 를 채우는 유일한 길은 **사망률을 낮추는 것**이고 사�
 | **A** | ~~[BL-687] pre-commit backend 훅이 스테이징된 py **첫 하나만** 검사~~ → **2026-08-10 종결**                    | —   | —    | —      | —          | —                              | `"${0#backend/}" "${@#backend/}"`. 재현 `1 file reformatted`(b·c 무시) → 수리 `3 files reformatted` → **음성 대조 1파일**(빈 `$@` 가 전체를 안 잡는다) → 종단 `lint-staged`. ★**프론트 축은 실패 모드가 반대**(전량 린트 **14.7s**) ⇒ [BL-696]                                                                                                                                                                                                                                                                                     |
 | **B** | [BL-026] Mutation 「12 skip 일괄 활성화」 — ★**범위 재정의 선행**                                              | P1  | ★★   | ?      | **재산정** | 0줄                            | 도래는 맞다(트리거 줄 자신이 적었다). ★★**2026-08-11 실측이 제목·Est·권장접근을 셋 다 반증** — 「12 skip」의 출처 `docs/TODO.md` 는 `fcc36bf7` 에서 **삭제**돼 대상 집합이 없고, 무조건 skip 실측은 **6건**(mutation 관련 **1건**)이며 진짜 게이트는 `conftest.py:138-148` 마커다. 「하/S(1-2h)」는 근거 소멸                                                                                                                                                                                                                      |
 | **K** | [BL-701] soak-gate C1 판정식이 [ADR-024] 의 새 문턱(24h 창 3회)을 안 따라왔다                                  | P1  | ★★★★ | 중     | M          | **건드림**(`backend/scripts/`) | ★**2026-08-11 등재.** 사용자 결정으로 문턱이 교체됐는데 판정식은 `C1 ≥ 168h` 그대로다 ⇒ **같은 게이트가 두 문턱을 말한다.** P0 [BL-003] 의 종료 조건이 여기 걸려 있고, 안 고치면 다음 회차가 `/168h` 출력을 그대로 읽는다. 음성 대조가 명확하다(23.9h 창 3개 → **0/3**)                                                                                                                                                                                                                                                            |
+| **M** | [BL-704] `/metrics` fail-closed 를 지켜 주는 것이 실배포 호스트에는 없다                                       | P2  | ★★★  | 하     | S          | **건드림**                     | ★**2026-08-11 등재.** 부팅 가드가 `app_env=production` **문자열**만 보는데 실배포 호스트는 `APP_ENV` 미설정(기본 `development`)이다. 서버 실측 = 토큰 **설정됨** ⇒ 오늘은 안 깨진다. 그러나 보장하는 것이 **운영자의 손**뿐이고 재프로비저닝에서 빠뜨리면 **조용히 401** 이다. 처방은 startup 로그 1줄(부팅을 막지 않는다)                                                                                                                                                                                                         |
+| **N** | [BL-705] skip 래칫 스코프 하한이 합계다 + 스캔층 자기검사 부재                                                 | P2  | ★★★  | 하     | S          | 0줄                            | ★**2026-08-11 등재.** `backend/tests`(505파일)가 통째로 안 스캔돼도 `backend/src`(217)가 하한 200 을 넘겨 **「위반 0건 ✓」** 가 된다(평가자 실측). 자기검사가 스캔층을 안 덮어 그 변이를 못 잡는다 — **파일 트리 fixture 없이는 검사할 수 없다**는 것이 이 회차에 반증된 판단이다. 패턴 구멍 2종은 같은 회차에 닫았다                                                                                                                                                                                                              |
 | **J** | [BL-547] 원장 seed 가 다음 tick 에 조용한 고아가 될 수 있다                                                    | P2  | ★★   | 중     | M          | **건드림**                     | ★★★**2026-08-11 `/metrics` 1회 실측으로 「미도래」가 반증돼 ACTIVE 로 올라왔다** — `qb_live_position_divergence_total{category="exchange_only"}` = **3.0**. 트리거가 요구한 「실제로 오르는 것이 관측될 때」가 충족됐고, 본문의 「한 번도 오른 적이 없다」도 함께 무너졌다                                                                                                                                                                                                                                                         |
 | **C** | ~~[BL-451] 로컬 개발 DB 전소 가드 (부분 완화분 잔여)~~ → **2026-08-10 종결**                                   | —   | —    | —      | —          | **0줄**                        | ①판정 SSOT + 루트 conftest 승격(폴백 **금지**) ②`make db-snapshot`/`db-restore` ④`alembic` downgrade 가드(+`-x` 탈출구). ★난이도 「하/S」는 **틀렸다** — 실제 4h 남짓이고 CI 2곳이 함께 움직여야 했다. 배선 9건 · 변이 5/5 · 신규 [BL-697]                                                                                                                                                                                                                                                                                         |
 | **D** | [BL-591] 라이브 원장 슬라이스 1 계측                                                                           | P2  | ★★   | 중     | M          | **건드림**                     | 트리거가 「★**이미 발화했다**」로 선언(자동 종료 15회). ★소크 창 중 `backend/src` 접촉 — [BL-690] 이 「창을 버린다」를 반증했다(pin 은 C1·C2 를 리셋 안 한다)                                                                                                                                                                                                                                                                                                                                                                      |
@@ -523,8 +525,23 @@ ssh truewords-oracle 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'
 
 ### ★새 counter 를 읽는 법
 
+★★**2026-08-11 — `/metrics` 는 이제 토큰 없이 401 이다**(fail-closed 전환). 종전에 여기 있던
+`curl -s localhost:8100/metrics | grep …` 은 **`-f` 가 없어서 401 본문이 rc=0 으로 파이프에
+흘러들고 grep 이 0 매치**를 낸다 ⇒ 읽는 사람은 **「counter 미발화 = 이벤트 없음」으로 오독**한다.
+이 레포는 「이벤트 부재는 정지의 증거가 아니다」를 이미 한 번 밟았다. 아래를 써라.
+
 ```bash
-curl -s localhost:8100/metrics | grep qb_live_conditional_fill_ownership_total
+# ⑴ 권장 — 직독. 인증이 없고 게이트가 쓰는 것과 같은 경로다 ([BL-620])
+cd backend && PROMETHEUS_MULTIPROC_DIR=.metrics uv run python -c '
+import sys
+from prometheus_client import CollectorRegistry, generate_latest, multiprocess
+r = CollectorRegistry(); multiprocess.MultiProcessCollector(r)
+sys.stdout.buffer.write(generate_latest(r))' | grep qb_live_conditional_fill_ownership_total
+
+# ⑵ HTTP 로 봐야 하면 **`-f` 와 토큰을 반드시 함께** — 둘 중 하나만 빠지면 조용히 0 매치다
+TOKEN="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' backend/.env.local)"
+curl -sf -H "Authorization: Bearer ${TOKEN}" localhost:8100/metrics \
+  | grep qb_live_conditional_fill_ownership_total || echo "✗ 취득 실패 — 0 매치와 구별해라"
 ```
 
 | outcome                      | 뜻                                                                    |

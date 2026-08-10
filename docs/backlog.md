@@ -9300,3 +9300,77 @@ RHF rule 로 이중화돼 있는지 확인해라 — 이중화가 없으면 `noV
 **Risk:** 🟡 (P0 의 종료 조건을 바꾼다 — 반쪽이면 게이트가 두 문턱을 말한다)
 
 ---
+
+### BL-704
+
+**Title:** `/metrics` fail-closed 를 지켜 주는 것이 실배포 호스트에는 없다 — 부팅 가드가 `app_env=production` 만 본다
+**Category:** Backend / observability (설정 가드)
+**Priority:** P2
+**Trigger:** 즉시
+**Est:** S
+**상태:** ⬜ Open — 2026-08-11 ledger-truth 가 `/metrics` 를 fail-closed 로 뒤집으면서 실측·등재. 오늘은 토큰이 있어 깨지지 않는다.
+**트리거 판정:** 도래 — fail-closed 전환이 머지되는 순간부터 이 공백이 실재한다 (2026-08-11 ledger-truth)
+**출처:** 2026-08-11 ledger-truth (Opus 콜드 평가자 ① 정확성 렌즈 P1)
+
+**원인 / 영향:** `_verify_prometheus_bearer` 가 이제 토큰 미설정 시 **401** 이다. 이 전환을
+「안전하다」고 판단한 근거는 `core/config.py:396-405` 의 production validator 였는데, 그 가드는
+`:369` 의 **문자열 비교**(`app_env != "production"` 이면 early-return)에 걸려 있고 `:367` 이
+staging 을 명시 면제한다. **이 레포의 실배포 호스트는 `APP_ENV` 를 아예 설정하지 않아 기본값
+`development`(`config.py:33`)로 돈다**(`frontend-deploy.md:13`) ⇒ 부팅 가드의 보호를 **안 받는다.**
+
+**2026-08-11 실측 (서버 `.env.local`):** `APP_ENV=` **없음** · `PROMETHEUS_BEARER_TOKEN`
+**설정됨(비어 있지 않음)**. ⇒ **오늘 스크레이프는 깨지지 않는다.** 그러나 그것을 보장하는 것은
+**운영자의 손**이고 부팅 시점에 검사하는 것이 없다 — 재프로비저닝에서 그 줄을 빠뜨리면
+`/metrics` 는 **조용히 401** 이 되고 부팅은 성공한다.
+
+★**이 항목의 값은 「고치는 것」보다 「거짓 안심을 지운 것」에 있다.** 종전 코드 주석과 설정
+description 이 「production 에서는 토큰이 항상 있으므로 이 분기는 발화하지 않는다」를 단언하고
+있었고, 그 문장이 **오케스트레이터가 워커에게 준 전제**였다. 문구는 2026-08-11 에 정정했다
+(`main.py` docstring · `config.py` Field description).
+
+**권장 접근:** ⑴ startup 로그에 「`/metrics` 인증: 활성/**비활성**」 1줄을 찍어 배포 직후 눈으로
+확인 가능하게 한다(부팅을 막지 않으므로 dev 를 안 깬다). ⑵ 음성 대조 — 토큰을 지우고 부팅해
+그 줄이 「비활성」으로 바뀌는지 본다. ⑶ 더 나아가려면 노출 판정을 `app_env` 문자열이 아니라
+바인딩·프록시 설정으로 옮긴다.
+
+**Risk:** 🟡 (조용한 관측 상실. 지금은 토큰이 있어 미발동)
+
+---
+
+### BL-705
+
+**Title:** skip 래칫의 스코프 하한이 합계라 한쪽 스코프가 통째로 빠져도 초록이다 + 스캔층 자기검사 부재
+**Category:** Ops / 게이트 (판별력)
+**Priority:** P2
+**Trigger:** 즉시
+**Est:** S
+**상태:** ⬜ Open — 2026-08-11 ledger-truth 가 래칫을 신설하며 평가자가 잡은 잔여 2건. 패턴 구멍 2종은 같은 회차에 닫았다.
+**트리거 판정:** 도래 — 게이트가 이미 `final-gates.sh` 에 배선돼 돌고 있다 (2026-08-11 ledger-truth)
+**출처:** 2026-08-11 ledger-truth (Opus 콜드 평가자 ③ 빈입력초록 렌즈 P1 ×2)
+
+**원인 / 영향:** `scripts/skip-ratchet.sh` 의 하한 판정이 **두 스코프 합계**(`files < MIN_FILES`)다.
+`os.walk` 는 없는 디렉터리에서 조용히 0 을 내므로, 위반이 사는 `backend/tests`(505 파일)가
+**통째로 안 스캔돼도** `backend/src`(217)가 200 을 넘겨 「위반 0건 ✓ rc=0」이 된다(평가자 실측).
+`TARGETS` 두 항목 중 **하나만** 오타 나면 발화한다.
+
+★**자기검사가 스캔층을 전혀 덮지 않는다** — 입력이 「한 줄 문자열과 정수 둘」이라
+`TARGETS`·확장자 필터·hit 수집이 **무검증**이다. 실측 — 자기검사를 `if False:` 로 막고 정규식까지
+무력화하면 **rc=0**. 신설 시 「하네스를 따로 두면 또 하나의 고아 스크립트가 된다」는 이유로 별도
+`-test.sh` 를 뺐는데, **스캔층은 파일 트리 fixture 없이는 검사할 수 없다** — 그게
+`bl-audit-test.sh`·`header-audit-test.sh` 가 임시 트리를 쓰는 이유다. 그 판단이 반증됐다.
+
+**권장 접근:** ⑴ `MIN_FILES` 를 **스코프별 하한**으로(실측 tests 505 / src 217 의 70% 선).
+⑵ 스캔을 함수로 빼고 `scripts/skip-ratchet-test.sh` 에서 임시 트리로 돌린다 — 한쪽 스코프만
+삭제 → rc=3 · 위반 1건 → rc=1 · 무변화 → rc=0 · **양성 대조**(일치 시 침묵). ⑶ `MIN_FILES=200` 은
+실측 722 의 27.7% 라 파일 72% 손실까지 초록이다 — 함께 올린다. ⑷ `QB_SKIP_RATCHET_ROOT` 가
+설정돼 있으면 출력에 찍어라(셸 잔여 export 하나가 판정 대상 트리를 조용히 갈아치운다).
+
+**이미 닫은 것 (같은 회차, 변이로 rc=1 확인):** 주석 꼬리 bare `@pytest.mark.skip` ·
+`pytestmark = pytest.mark.skip(...)` 모듈 레벨 — 둘 다 **오늘 당장 쓸 수 있는 우회**였다.
+★남은 형태 하나 — 함수 몸통 안 `pytest.skip("…")` 인라인(`tests/real_broker/test_webhook_to_filled_e2e.py:97`).
+래칫은 「무조건 skip」을 **선언 형태**로 정의하므로 규정 위반은 아니지만, 「부채 0」이라고
+말할 수 있는 범위는 그보다 좁다.
+
+**Risk:** 🟡 (새 게이트가 조용히 눈이 멀 수 있다)
+
+---

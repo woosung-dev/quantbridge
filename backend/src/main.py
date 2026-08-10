@@ -111,8 +111,19 @@ def _verify_prometheus_bearer(
     미설정 시 `return` 으로 통과시켰고, 그게 BL-246 이 지적한 「public /metrics」의
     실제 표면이었다 — production 은 `core/config.py` 의 validator 가 부팅을 막아
     안전했지만 **그 외 모든 환경**(dev·local·스테이징·컨테이너 오조립)은 무인증 노출이다.
-    fail-open 을 fail-closed 로 뒤집는다. production 에서는 토큰이 **항상** 있으므로
-    이 분기는 발화하지 않는다.
+    fail-open 을 fail-closed 로 뒤집는다.
+
+    ★★**「production 에서는 토큰이 항상 있으므로 이 분기는 발화하지 않는다」로 읽지 마라 —
+    그 문장이 이 회차의 오류였다.** `core/config.py:369` 의 가드는 `app_env` 문자열이
+    정확히 `production` 일 때만 돈다(staging 은 `:367` 이 명시적으로 면제). 그런데
+    **이 레포의 실배포 호스트는 `APP_ENV` 를 아예 설정하지 않아 기본값 `development` 로
+    돈다**(`config.py:33` · `docs/reference/operations/frontend-deploy.md:13`). 즉 그 호스트는
+    부팅 가드의 보호를 **받지 않는다.**
+
+    2026-08-11 실측 — 그 호스트의 `.env.local` 에는 토큰이 **설정돼 있다**(비어 있지 않음).
+    그래서 오늘 스크레이프는 깨지지 않는다. 하지만 그것을 보장하는 것은 **운영자의 손**이고
+    부팅 시점에 검사하는 것이 아무것도 없다 ⇒ `.env.local` 을 재프로비저닝하면서 이 줄을
+    빠뜨리면 `/metrics` 가 **조용히 401** 이 되고 부팅은 성공한다. 그 공백은 [BL-704] 다.
     """
     expected = (
         settings.prometheus_bearer_token.get_secret_value()

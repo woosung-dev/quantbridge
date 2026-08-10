@@ -199,9 +199,13 @@ class Settings(BaseSettings):
         default=None,
         description=(
             "Bearer token for GET /metrics. 값이 설정되면 Grafana Cloud Agent 의 "
-            "bearer_token 과 일치해야 허용. 비어 있으면 /metrics 는 인증 없이 접근 가능 "
-            "(로컬 개발용). Sprint 9 Phase D. "
-            "Sprint 60 S5 BL-246: production env 시 의무 (validator 강제)."
+            "bearer_token 과 일치해야 허용. "
+            "★2026-08-11 계약 변경 — **비어 있으면 /metrics 는 401 이다**(fail-closed). "
+            "종전 서술 「비어 있으면 인증 없이 접근 가능(로컬 개발용)」은 이제 거짓이다. "
+            "Sprint 9 Phase D · Sprint 60 S5 BL-246. "
+            "★아래 validator 는 app_env=production 일 때만 이 값을 강제한다 — 기본값 "
+            "development 로 도는 호스트는 토큰 없이도 부팅하고 그때 /metrics 는 401 이다 "
+            "([BL-704])."
         ),
     )
 
