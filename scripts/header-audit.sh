@@ -3,33 +3,39 @@
 #
 # 무엇을 재는가
 #   대상: `backend/src/**/*.py` · `frontend/src/**/*.{ts,tsx}` (다른 확장자는 대상 아님).
-#   위반: 파일 첫 3줄 안, **주석/독스트링 영역**에 한글(`[가-힣]`)이 1자 이상 없다.
+#   위반: 파일 첫 3줄 안, **주석/독스트링 영역**에 한글(U+AC00~U+D7A3)이 1자 이상 없다.
 #   근거: 루트 `AGENTS.md:23` (「사고/계획/대화/문서/주석 = 한국어」).
 #
-# ★핵심 — 한글 "존재" 검사가 아니라 한글 "주석" 검사다.
+# ★핵심 ① — 한글 "존재" 검사가 아니라 한글 "주석" 검사다.
 #   `MESSAGE = "백테스트 실패"` 처럼 한글이 문자열 리터럴에만 있으면 그건 위반이다.
-#   그래서 각 줄이 주석/독스트링 **시작 토큰**으로 시작할 때만 그 구간을 검사 대상으로 본다.
-#   코드 줄은 절대 들여다보지 않는다 — `head -3 | grep '[가-힣]'` 로 짜면 이 구분이 사라진다.
-#   ★토큰 집합은 **언어별로 나누지 않고 합집합**(`#` `//` `/*` `"""` `'''`)으로 쓴다.
-#     `.py` 안의 `// 한국어` 나 `.ts` 안의 `# 한국어` 도 통과한다는 뜻이다. 의도한 관대함이다 —
-#     이 감사기는 「헤더가 한국어인가」를 재는 것이지 「주석 문법이 그 언어에 맞는가」를 재지
-#     않는다. 후자는 각 언어의 파서(ruff·tsc)가 이미 잡는다. (종전 주석은 언어별로 나뉜 것처럼
-#     적혀 있어 코드와 어긋났다 — 2026-08-10 `/code-review` Standards 축 검출.)
+#   그래서 각 줄에서 주석/독스트링 **구간만** 떼어 검사한다. 코드 구간은 절대 안 본다 —
+#   `head -3 | grep '[가-힣]'` 로 짜면 이 구분이 통째로 사라진다.
+#   ★토큰 집합은 **언어별로 나누지 않고 합집합**(`#` `//` `/*` `"""` `'''`)이다. `.py` 안의
+#     `// 한국어` 도 통과한다는 뜻이고, 의도한 관대함이다 — 이 감사기는 「헤더가 한국어인가」를
+#     재지 「주석 문법이 그 언어에 맞는가」를 재지 않는다. 후자는 ruff·tsc 가 이미 잡는다.
 #
-# 면제 (검사 대상에서 제외, `docs/backlog.md` BL-307 원장의 exempt list)
-#   경로에 `/tests/`·`/__tests__/`·`config`·`/generated/` 포함, 또는
-#   파일명이 `test_*.py`·`*_test.py`·`conftest.py`·`*.test.ts(x)`·`*.spec.ts(x)`·
+# ★핵심 ② — 판정은 **python3** 가 한다. 셸의 `grep '[가-힣]'` 이 아니다.
+#   2026-08-10 CI 실패로 확정된 사실이다: **GNU grep 은 `LANG=C.UTF-8` 에서 범위 표현식
+#   `[가-힣]` 을 거부한다** (`grep: Invalid collation character`). 대괄호 범위는 collation
+#   순서로 해석되는데 C.UTF-8 에 그 정의가 없다. 그리고 이 고장은 **로컬에서 재현되지 않는다** —
+#   macOS BSD grep 은 같은 로케일에서 멀쩡히 통과한다.
+#   ⇒ 우회로 셋을 실측해 전부 기각했다:
+#     ⑴ UTF-8 바이트 범위(`\xed[\x80-\x9e]…`) — grep 종류마다 다르게 깨진다(BSD 에서 미매치).
+#     ⑵ UTF-8 로케일 강제 — CI 가 이미 C.UTF-8 이고 그게 실패한 로케일이다.
+#     ⑶ 「비ASCII 문자면 한국어」 — ★**절대 안 된다.** 이 레포 영문 헤더는 em-dash(`—`)를
+#        쓰므로 `Provider registry — Sprint 47` 이 통과해 **거짓 초록**이 된다.
+#   python3 의 `str` 은 유니코드라 로케일과 무관하고, 실측상 750파일 전량 판정이 **0.06초**로
+#   종전 per-line grep(1.6초)보다도 빠르다.
+#
+# 면제 (`docs/backlog.md` BL-307 원장의 exempt list + 벤더 디렉터리)
+#   `frontend/src/components/ui/**` (shadcn 벤더 — `frontend/AGENTS.md:232` 가 직접 수정 금지.
+#     면제하지 않으면 이 게이트가 **금지된 수정을 영구히 강제**하고, `shadcn add` 재설치 한 번에
+#     헤더가 사라져 CI 가 빨개진다), 경로에 `/tests/`·`/__tests__/`·`config`·`/generated/` 포함,
+#   또는 파일명이 `test_*.py`·`*_test.py`·`conftest.py`·`*.test.ts(x)`·`*.spec.ts(x)`·
 #   `__init__.py`·`index.ts`·`index.tsx`·`*.d.ts`·`*.generated.*`.
 #
-# 종료 코드: 위반 0건 → 0 / 1건 이상 → 1.
+# 종료 코드: 위반 0건 → 0 / 1건 이상 → 1 / 판별력 자기검사 실패·python3 부재 → 3.
 # 인자: 없음 = 사람이 읽는 요약 + 위반 경로. `--list` = 위반 경로만 한 줄에 하나씩(그 외 출력 없음).
-#
-# ★이 레포 실측 함정
-#   - zsh/bash 단어분할: 파일 목록은 배열 + `find -print0` + `while IFS= read -r -d ''` 로만 돈다.
-#   - 경로에 공백·괄호가 있다 (`frontend/src/app/(dashboard)/...`) — 전부 배열/인용으로 다룬다.
-#   - 파이프가 `$?` 를 가린다 — 종료 코드 판정에 파이프를 끼우지 않는다.
-#   - macOS 기본 `bash` 는 3.2 다. `set -u` + 빈 배열 `"${arr[@]}"` 전개는 3.2 에서 unbound
-#     variable 로 죽는다(4.4 에서 고쳐진 버그) — `"${arr[@]+"${arr[@]}"}"` 가드로 우회한다.
 #
 # 사용법: scripts/header-audit.sh [--list]
 set -uo pipefail
@@ -42,20 +48,6 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 #   (2026-08-10 `/code-review` Spec 축 (c)1 검출.)
 [ -n "${QB_HEADER_AUDIT_ROOT:-}" ] && ROOT="$QB_HEADER_AUDIT_ROOT"
 
-# ── 판별력 자기검사 ──────────────────────────────────────────────
-# ★이 감사기의 전부는 `grep '[가-힣]'` 한 줄에 걸려 있다. 그런데 그 범위가 제대로 도는지는
-#   **로케일에 달렸다.** CI 러너(리눅스 GNU grep)와 개발 머신(macOS BSD grep)이 다르고,
-#   `LC_ALL=C` 로 떨어지면 멀티바이트 범위가 바이트로 해석될 수 있다.
-#   ⇒ 깨진 환경에서 이 스크립트는 **모든 파일을 「한글 없음」으로 읽어 전건 위반**을 내거나,
-#     반대로 아무거나 매치해 **전건 통과**를 낸다. 둘 다 조용하다.
-#   그래서 매 실행마다 양성·음성 한 쌍으로 판별력을 먼저 확인하고, 안 되면 **판정하지 않는다.**
-#   (판정할 수 없을 때 초록을 내는 것이 이 레포가 반복해 밟은 함정이다.)
-if ! printf '한' | grep -q '[가-힣]' || printf 'a' | grep -q '[가-힣]'; then
-  echo "✗ 이 환경의 grep 이 한글 범위 '[가-힣]' 를 판별하지 못한다 (로케일: LANG=${LANG:-unset} LC_ALL=${LC_ALL:-unset})." >&2
-  echo "  판정을 포기한다 — 초록을 내면 거짓 통과가 된다. UTF-8 로케일에서 다시 실행해라." >&2
-  exit 3
-fi
-
 LIST=0
 case "${1:-}" in
   "") ;;
@@ -63,142 +55,178 @@ case "${1:-}" in
   *) echo "알 수 없는 인자: $1 (지원: --list)" >&2; exit 1 ;;
 esac
 
-# ── 면제 판정 ────────────────────────────────────────────────────
-# rel = ROOT 기준 상대경로. 경로 부분 문자열 검사와 파일명(basename) 검사를 나눈다.
-is_exempt() {
-  local rel="$1" base="${1##*/}"
-  case "$rel" in
-    # ★`frontend/src/components/ui/` 는 shadcn 벤더 산출물이다. `frontend/AGENTS.md:232`
-    #   「`components/ui/` 직접 수정 금지 → 래핑 컴포넌트」가 명시 금지하고, 예외(ADR 009)는
-    #   「초기 설치 직후 1회성 DESIGN.md 토큰 reconciliation, 시각 토큰만」뿐이라 헤더 주석은
-    #   해당하지 않는다. ★면제하지 않으면 이 게이트가 **금지된 수정을 영구히 강제**하게 된다 —
-    #   `pnpm dlx shadcn add` 로 재설치하는 순간 헤더가 날아가 CI 가 빨개진다.
-    #   (2026-08-10 `/code-review` Standards 축 H1. 이 회차가 label.tsx·textarea.tsx 를
-    #    실제로 고쳤다가 되돌렸다.)
-    frontend/src/components/ui/*) return 0 ;;
-    */tests/*|*/__tests__/*|*config*|*/generated/*) return 0 ;;
-  esac
-  case "$base" in
-    test_*.py|*_test.py|conftest.py) return 0 ;;
-    *.test.ts|*.test.tsx|*.spec.ts|*.spec.tsx) return 0 ;;
-    __init__.py|index.ts|index.tsx) return 0 ;;
-    *.d.ts) return 0 ;;
-    *.generated.*) return 0 ;;
-  esac
-  return 1
+command -v python3 >/dev/null 2>&1 || {
+  echo "✗ python3 를 찾을 수 없다 — 이 감사기의 판정은 python3 가 한다 (셸 grep 은 로케일에 따라 한글 범위를 거부한다)." >&2
+  echo "  판정을 포기한다 — 초록을 내면 거짓 통과가 된다." >&2
+  exit 3
 }
 
-# ── 헤더 판정 ────────────────────────────────────────────────────
-# 첫 3줄을 순서대로 읽는다. 블록 주석/독스트링이 열려 있으면 그 줄 전체가 주석 영역이고
-# (⑦ — 본문 줄도 통과 대상), 아니면 그 줄이 주석 시작 토큰으로 시작할 때만 검사한다(⑨ 방어).
-# 한글을 찾으면 즉시 0(발견)을 반환하고, 첫 3줄을 다 봐도 없으면 1(미발견)을 반환한다.
-has_korean_header() {
-  local file="$1" lineno=0 line rest trimmed q body
-  local in_block=0 block_end=""
-  # ★`|| [ -n "$line" ]` 가 필요하다 — 마지막 줄에 개행이 없으면 `read` 가 그 줄을 읽고도
-  #   비영점을 반환해 **본문을 통째로 버린다.** 개행 없는 1줄짜리 파일이 전부 위반으로
-  #   잡히던 오탐(2026-08-10 `/code-review` Standards 축 검출).
-  while [ "$lineno" -lt 3 ] && { IFS= read -r line || [ -n "$line" ]; }; do
-    lineno=$((lineno + 1))
-    rest="$line"
+ROOT="$ROOT" LIST="$LIST" python3 - <<'PY'
+# -*- coding: utf-8 -*-
+"""소스 첫 3줄 한국어 헤더 감사 — 판정 본체. [BL-307]"""
+import os
+import re
+import sys
 
-    # ★한 줄 안에서 주석 영역이 **여러 번** 나타날 수 있다: `/* eslint-disable */ // 한국어`.
-    #   종전 구현은 첫 구간만 보고 나머지를 코드로 흘려 오탐을 냈다. 그래서 줄을 소진할 때까지
-    #   돈다 — 주석 텍스트만 모아 `body` 에 쌓고, 코드 구간을 만나면 그 줄은 거기서 끝낸다.
-    while [ -n "$rest" ]; do
-      if [ "$in_block" -eq 1 ]; then
-        if [[ "$rest" == *"$block_end"* ]]; then
-          body="$body${rest%%"$block_end"*}"
-          rest="${rest#*"$block_end"}"
-          in_block=0
-        else
-          body="$body$rest"; rest=""
-        fi
-        continue
-      fi
+ROOT = os.environ["ROOT"]
+LIST = os.environ["LIST"] == "1"
 
-      # 선행 공백 제거 (순수 bash 관용구 — 서브프로세스 없음)
-      trimmed="${rest#"${rest%%[![:space:]]*}"}"
-      if [ -z "$trimmed" ]; then rest=""; continue; fi
+HANGUL = re.compile(r"[가-힣]")
 
-      if [[ "$trimmed" == '#'* || "$trimmed" == '//'* ]]; then
-        body="$body$trimmed"; rest=""                       # 줄 끝까지 주석
-      elif [[ "$trimmed" == '"""'* || "$trimmed" == "'''"* ]]; then
-        q="${trimmed:0:3}"; rest="${trimmed:3}"
-        if [[ "$rest" == *"$q"* ]]; then
-          body="$body${rest%%"$q"*}"; rest="${rest#*"$q"}"
-        else
-          body="$body$rest"; rest=""; in_block=1; block_end="$q"
-        fi
-      elif [[ "$trimmed" == '/*'* ]]; then
-        rest="${trimmed:2}"
-        if [[ "$rest" == *'*/'* ]]; then
-          body="$body${rest%%'*/'*}"; rest="${rest#*'*/'}"
-        else
-          body="$body$rest"; rest=""; in_block=1; block_end='*/'
-        fi
-      else
-        rest=""   # 코드 구간 — 문자열 리터럴 안 한글은 여기서 절대 보지 않는다
-      fi
-    done
+# ── 판별력 자기검사 ──────────────────────────────────────────────
+# ★양성 하나로는 부족하다. 「비ASCII 면 한국어」로 퇴화한 구현도 양성은 통과하기 때문이다.
+#   그래서 em-dash 를 **음성 대조**로 세운다 — 이 레포 영문 헤더가 실제로 쓰는 문자이고,
+#   그 퇴화가 만드는 거짓 초록이 정확히 이 감사기가 막으려는 것이다.
+if not HANGUL.search("한") or HANGUL.search("a") or HANGUL.search("—"):
+    sys.stderr.write("✗ 한글 판별기가 고장났다 (양성 '한' / 음성 'a'·em-dash 대조 실패).\n")
+    sys.stderr.write("  판정을 포기한다 — 초록을 내면 거짓 통과가 된다.\n")
+    sys.exit(3)
 
-    [ -n "$body" ] && printf '%s' "$body" | grep -q '[가-힣]' && return 0
-  done < "$file"
-  return 1
-}
+TARGETS = (("backend/src", (".py",)), ("frontend/src", (".ts", ".tsx")))
 
-# ── 대상 수집 ────────────────────────────────────────────────────
-be_files=()
-while IFS= read -r -d '' f; do be_files+=("$f"); done \
-  < <(find "$ROOT/backend/src" -type f -name '*.py' -print0 2>/dev/null)
-fe_files=()
-while IFS= read -r -d '' f; do fe_files+=("$f"); done \
-  < <(find "$ROOT/frontend/src" \( -type f -name '*.ts' -o -type f -name '*.tsx' \) -print0 2>/dev/null)
+EXEMPT_BASENAMES = {"conftest.py", "__init__.py", "index.ts", "index.tsx"}
+EXEMPT_PATH_PARTS = ("/tests/", "/__tests__/", "/generated/")
 
-total_be=${#be_files[@]}
-total_fe=${#fe_files[@]}
-total=$((total_be + total_fe))
 
-violations=()
-checked=0
-exempted=0
+def is_exempt(rel: str) -> bool:
+    base = rel.rsplit("/", 1)[-1]
+    # shadcn 벤더 — frontend/AGENTS.md:232 가 직접 수정을 금지한다.
+    if rel.startswith("frontend/src/components/ui/"):
+        return True
+    probe = "/" + rel
+    if any(part in probe for part in EXEMPT_PATH_PARTS):
+        return True
+    if "config" in rel:
+        return True
+    if base in EXEMPT_BASENAMES:
+        return True
+    if base.endswith((".d.ts", ".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx", "_test.py")):
+        return True
+    if base.startswith("test_") and base.endswith(".py"):
+        return True
+    if ".generated." in base:
+        return True
+    return False
 
-for f in "${be_files[@]+"${be_files[@]}"}" "${fe_files[@]+"${fe_files[@]}"}"; do
-  rel="${f#"$ROOT"/}"
-  if is_exempt "$rel"; then
-    exempted=$((exempted + 1))
-    continue
-  fi
-  checked=$((checked + 1))
-  has_korean_header "$f" || violations+=("$rel")
-done
 
-n_violations=${#violations[@]}
+def comment_text(lines):
+    """첫 3줄에서 **주석/독스트링 구간만** 이어붙여 돌려준다.
 
-# ── 출력 ─────────────────────────────────────────────────────────
-if [ "$LIST" -eq 1 ]; then
-  for v in "${violations[@]+"${violations[@]}"}"; do printf '%s\n' "$v"; done
-else
-  printf '══ header-audit  root=%s ══\n' "$ROOT"
-  printf '  대상: backend/src/**/*.py + frontend/src/**/*.{ts,tsx}\n'
-  printf '  스캔 %d건 (BE .py %d + FE .ts/.tsx %d) · 면제 %d건 · 검사 %d건\n' \
-    "$total" "$total_be" "$total_fe" "$exempted" "$checked"
-  if [ "$total" -eq 0 ]; then
-    printf '  ⚠ 대상 확장자 파일이 0건이다 — ROOT 판정이 잘못됐을 수 있다 (ROOT=%s)\n' "$ROOT"
-  fi
-  printf '\n▶ 위반 — 첫 3줄에 한국어 주석 없음 (%d건)\n' "$n_violations"
-  if [ "$n_violations" -eq 0 ]; then
-    printf '  없음\n'
-  else
-    for v in "${violations[@]+"${violations[@]}"}"; do printf '  %s\n' "$v"; done
-  fi
-  echo
-  if [ "$n_violations" -eq 0 ]; then
-    printf '✓ 위반 0건\n'
-  else
-    printf '✗ 위반 %d건\n' "$n_violations"
-  fi
-fi
+    한 줄 안에 주석 구간이 **여러 번** 나올 수 있다(`/* eslint-disable */ // 한국어`).
+    그래서 줄을 소진할 때까지 돈다. 코드 구간을 만나면 그 줄은 거기서 끝낸다 —
+    문자열 리터럴 안 한글을 헤더로 세지 않기 위해서다.
+    """
+    out = []
+    in_block = False
+    block_end = ""
+    for line in lines:
+        rest = line
+        while rest:
+            if in_block:
+                idx = rest.find(block_end)
+                if idx >= 0:
+                    out.append(rest[:idx])
+                    rest = rest[idx + len(block_end):]
+                    in_block = False
+                else:
+                    out.append(rest)
+                    rest = ""
+                continue
 
-[ "$n_violations" -eq 0 ] && exit 0
-exit 1
+            trimmed = rest.lstrip()
+            if not trimmed:
+                rest = ""
+                continue
+
+            if trimmed.startswith("#") or trimmed.startswith("//"):
+                out.append(trimmed)          # 줄 끝까지 주석
+                rest = ""
+            elif trimmed.startswith('"""') or trimmed.startswith("'''"):
+                q = trimmed[:3]
+                tail = trimmed[3:]
+                idx = tail.find(q)
+                if idx >= 0:
+                    out.append(tail[:idx])
+                    rest = tail[idx + 3:]
+                else:
+                    out.append(tail)
+                    rest = ""
+                    in_block, block_end = True, q
+            elif trimmed.startswith("/*"):
+                tail = trimmed[2:]
+                idx = tail.find("*/")
+                if idx >= 0:
+                    out.append(tail[:idx])
+                    rest = tail[idx + 2:]
+                else:
+                    out.append(tail)
+                    rest = ""
+                    in_block, block_end = True, "*/"
+            else:
+                rest = ""                    # 코드 구간 — 여기는 절대 안 본다
+    return "".join(out)
+
+
+def has_korean_header(path: str) -> bool:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            lines = []
+            for _ in range(3):
+                line = fh.readline()
+                if not line:
+                    break
+                lines.append(line.rstrip("\n"))
+    except OSError:
+        return False
+    return bool(HANGUL.search(comment_text(lines)))
+
+
+violations = []
+total = checked = exempted = 0
+per_scope = {}
+
+for scope, exts in TARGETS:
+    base_dir = os.path.join(ROOT, scope)
+    count = 0
+    for dirpath, _dirnames, filenames in os.walk(base_dir):
+        for name in sorted(filenames):
+            if not name.endswith(exts):
+                continue
+            count += 1
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, ROOT)
+            if is_exempt(rel):
+                exempted += 1
+                continue
+            checked += 1
+            if not has_korean_header(full):
+                violations.append(rel)
+    per_scope[scope] = count
+    total += count
+
+violations.sort()
+
+if LIST:
+    for rel in violations:
+        print(rel)
+else:
+    print("══ header-audit  root=%s ══" % ROOT)
+    print("  대상: backend/src/**/*.py + frontend/src/**/*.{ts,tsx}")
+    print(
+        "  스캔 %d건 (BE .py %d + FE .ts/.tsx %d) · 면제 %d건 · 검사 %d건"
+        % (total, per_scope["backend/src"], per_scope["frontend/src"], exempted, checked)
+    )
+    if total == 0:
+        print("  ⚠ 대상 확장자 파일이 0건이다 — ROOT 판정이 잘못됐을 수 있다 (ROOT=%s)" % ROOT)
+    print("")
+    print("▶ 위반 — 첫 3줄에 한국어 주석 없음 (%d건)" % len(violations))
+    if not violations:
+        print("  없음")
+    else:
+        for rel in violations:
+            print("  %s" % rel)
+    print("")
+    print("✓ 위반 0건" if not violations else "✗ 위반 %d건" % len(violations))
+
+sys.exit(1 if violations else 0)
+PY
