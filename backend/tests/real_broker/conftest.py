@@ -34,6 +34,7 @@ from uuid import UUID
 
 import pytest
 
+from tests import _db_guard
 from tests.real_broker import _harness
 from tests.real_broker._harness import CleanupTarget
 
@@ -42,54 +43,21 @@ from tests.real_broker._harness import CleanupTarget
 # --------------------------------------------------------------------------
 
 
-def _effective_test_dsn() -> str:
-    """`tests/conftest.py` 와 **같은 우선순위**로 유효 DSN 을 고른다.
-
-    ★우선순위를 그대로 베끼는 것이 중요하다. 두 env 를 각각 검사하면, 슬롯 워크트리처럼
-    `DATABASE_URL` 은 개발 DB 를 가리키고 `TEST_DATABASE_URL` 만 `_test` 인 정상 배치에서
-    거짓 중단이 난다. 판정 대상은 **실제로 `drop_all` 이 겨냥할 그 DSN 하나**다
-    (`tests/conftest.py:263-267`).
-    """
-    return (
-        os.environ.get("TEST_DATABASE_URL")
-        or os.environ.get("DATABASE_URL")
-        or "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test"
-    )
-
-
 def pytest_configure(config: pytest.Config) -> None:
-    """`_test` 가 아닌 DB 를 물고 있으면 **세션을 즉시 끝낸다**.
+    """버려도 되지 않는 DB 를 물고 있으면 **세션을 즉시 끝낸다**.
 
     근거: `tests/conftest.py` 의 세션 픽스처가 `SQLModel.metadata.drop_all` 을 돌린다.
     `TEST_DATABASE_URL` 없이 `DATABASE_URL` 만 있으면 그것이 개발 DB 를 가리켜
     **개발 DB 테이블이 전부 날아간 전례**가 있다(`AGENTS.md` §BE pytest — env 소싱 의무).
 
-    ★`substring "_test"` 검사가 아니라 `make_url().database` 로 **DB 이름 자체**를 본다 —
-    username / password / host 에 `_test` 가 있으면 substring 검사는 통과해 버린다
-    (`tests/tasks/test_prefork_smoke_integration.py:30-62` 의 codex G.2 P1 #2 교훈).
-
-    ★`pytest.exit` 이지 `pytest.fail` 이 아니다. 하나의 테스트가 실패하는 것이 아니라
-    **세션이 계속되면 안 되는 상황**이다.
+    ★[BL-451] 판정 본문이 `tests/_db_guard.py` 로 옮겨갔다. 종전에는 이 파일이 우선순위와
+    `_test` 검사를 **베껴서** 갖고 있었는데, 그 사본은 `tests/real_broker/` 를 수집할 때만
+    로드되므로 `pytest tests/trading/` 는 맨몸이었다. 지금은 루트 `tests/conftest.py` 의
+    `pytest_configure` 가 같은 판정을 먼저 한다 — 여기 남은 것은 **이중 방어**다.
     """
-    from sqlalchemy.engine import make_url
-
-    dsn = _effective_test_dsn()
-    try:
-        db_name = make_url(dsn).database
-    except Exception as exc:
-        pytest.exit(
-            f"[real_broker] DSN 파싱 실패 — TEST_DATABASE_URL/DATABASE_URL 확인: {exc}",
-            returncode=3,
-        )
-    if not db_name or not db_name.endswith("_test"):
-        pytest.exit(
-            "[real_broker] 중단 — 유효 DSN 의 database="
-            f"'{db_name}' 가 '_test' 로 끝나지 않는다.\n"
-            "  tests/conftest.py 의 세션 픽스처가 이 DB 에 SQLModel.metadata.drop_all 을 "
-            "돌린다. 개발 DB 를 물고 있으면 테이블이 전부 날아간다.\n"
-            "  해소: `set -a; . backend/.env.local; set +a` 로 TEST_DATABASE_URL 을 export 해라.",
-            returncode=3,
-        )
+    reason = _db_guard.refusal_reason()
+    if reason is not None:
+        pytest.exit(f"[real_broker] {reason}", returncode=_db_guard.GUARD_EXIT_CODE)
 
 
 # --------------------------------------------------------------------------
@@ -107,9 +75,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     )
 
 
-def pytest_collection_modifyitems(
-    config: pytest.Config, items: list[pytest.Item]
-) -> None:
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """`--run-real-broker` 없으면 real_broker marker 아이템에 skip 마커를 **주입**한다.
 
     ★deselect 가 아니라 skip 이다 — 기본 스위트에서 **수집되고 skipped 로 보고**돼야

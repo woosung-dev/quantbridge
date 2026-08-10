@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 import pytest
 from alembic.config import Config
@@ -28,39 +27,29 @@ from src.trading.models import (  # noqa: F401
     Order,
     WebhookSecret,
 )
+from tests import _db_guard
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _resolved_test_db_url() -> str:
-    """Sprint 19 BL-083 (codex G.0 P1 #1): TEST_DATABASE_URL > DATABASE_URL > default.
-
-    Sprint 18 의 conftest.DB_URL 우선순위와 일치하여 격리 docker stack (5433) 에서
-    실행 시 정확한 DSN 사용.
+    """이 모듈이 파괴할 DB 의 DSN — 판정 본문은 `tests/_db_guard.py` 가 갖는다.
 
     ★exit-attribution — 이 모듈은 `command.downgrade(cfg, "base")` 로 **전 테이블을
     드롭**한다. `TEST_DATABASE_URL` 없이 `DATABASE_URL` 만 export 된 셸에서 이 파일을
-    돌리면 그 폴백이 개발 DB 를 향하고, 실제로 로컬 dogfood 데이터(주문 17행 · 거래소
-    계정의 암호화 API 키 · 전략 6종)가 전소했다. DSN 의 DB 이름을 검사해 구조적으로 막는다.
+    돌리면 종전에는 그 폴백이 개발 DB 를 향했고, 실제로 로컬 dogfood 데이터(주문 17행 ·
+    거래소 계정의 암호화 API 키 · 전략 6종)가 전소했다.
+
+    ★[BL-451] 판정을 여기서 **하지 않고** 위임한다. 종전에는 이 파일 안에만 가드가
+    있어서 `tests/conftest.py` 의 세션 픽스처(`drop_all`)와 `alembic` CLI 는 맨몸이었다 —
+    같은 판정이 세 곳에 흩어져 있으면 한 곳만 고쳐지는 날이 온다.
     """
-    url = (
-        os.environ.get("TEST_DATABASE_URL")
-        or os.environ.get("DATABASE_URL")
-        or "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test"
-    )
-    _assert_disposable_database(url)
-    return url
+    return _db_guard.resolve_test_dsn()
 
 
 def _assert_disposable_database(url: str) -> None:
-    """파괴적 마이그레이션 테스트가 버려도 되는 DB 를 향하는지 확인한다."""
-    database = urlsplit(url).path.lstrip("/").split("?", 1)[0]
-    if not database.endswith("_test"):
-        raise RuntimeError(
-            "test_migrations 는 downgrade base 로 전 테이블을 드롭한다. "
-            f"버려도 되는 DB(_test 접미사)만 허용하는데 '{database}' 를 받았다. "
-            "TEST_DATABASE_URL 을 함께 export 했는지 확인하라."
-        )
+    """파괴적 마이그레이션 테스트가 버려도 되는 DB 를 향하는지 확인한다 (위임)."""
+    _db_guard.assert_disposable(url)
 
 
 def _alembic_cfg() -> Config:

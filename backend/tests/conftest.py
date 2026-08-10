@@ -77,6 +77,7 @@ from src.trading.models import (  # noqa: F401 — metadata 등록 (trading.*)
     WebhookSecret,
 )
 from src.waitlist.models import WaitlistApplication  # noqa: F401 — metadata 등록
+from tests import _db_guard
 
 # -------------------------------------------------------------------------
 # Path β Stage 2c C-1 — Mutation Oracle marker 기반 실행 제어 (Gate-3 codex
@@ -84,6 +85,30 @@ from src.waitlist.models import WaitlistApplication  # noqa: F401 — metadata �
 # 자동 skip (CI 시간 예산 ≤3분 보호). `--run-mutations` 명시 시 실행.
 # ADR-020 §10.1 Q2 "nightly only" 결정의 실 구현.
 # -------------------------------------------------------------------------
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """[BL-451] ★파괴적 DB 경로의 **최상단** 가드 — 다른 어떤 것보다 먼저 판정한다.
+
+    red 면 고장난 것: `DATABASE_URL` 만 export 된 셸에서 스위트가 그대로 돌고,
+    `_test_engine` 의 `SQLModel.metadata.drop_all` 이 개발 DB 를 겨냥한다.
+
+    ★**왜 루트 conftest 인가.** 같은 판정이 `tests/real_broker/conftest.py` 에 있었지만
+    그 파일은 **그 디렉터리를 수집할 때만** 로드된다. 착수 시점 실측 —
+    `DATABASE_URL=<개발 DB>` 하나만 있는 셸에서
+
+        pytest tests/real_broker/       → rc=3  (막혔다)
+        pytest tests/trading/           → rc=0  ← 1088건 수집. 실행하면 drop_all 이 돈다
+        pytest tests/test_migrations.py → rc=0
+
+    루트 conftest 는 어느 하위 경로를 돌리든 로드되므로, 가드가 붙을 자리는 여기다.
+
+    ★`pytest.fail` 이 아니라 `pytest.exit` 이다 — 하나의 테스트가 실패하는 것이 아니라
+    **세션이 계속되면 안 되는 상황**이다(`tests/real_broker/conftest.py:71` 의 판단 승계).
+    """
+    reason = _db_guard.refusal_reason()
+    if reason is not None:
+        pytest.exit(f"[db-guard] {reason}", returncode=_db_guard.GUARD_EXIT_CODE)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -259,12 +284,13 @@ def _leaked_since_snapshot(item: pytest.Item) -> list[str]:
 # Sprint 18 BL-080 (codex G.0 P1 #7): 격리 docker stack 은 db host port 5433
 # (docker-compose.isolated.yml `db: 5433:5432`). 격리 stack 안에서 pytest 실행 시
 # `TEST_DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge_test`
-# env 를 export 후 실행. 우선순위: TEST_DATABASE_URL > DATABASE_URL > default.
-DB_URL = (
-    os.environ.get("TEST_DATABASE_URL")
-    or os.environ.get("DATABASE_URL")
-    or "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test"
-)
+# env 를 export 후 실행.
+#
+# ★[BL-451] 우선순위가 바뀌었다 — 종전 `TEST_DATABASE_URL > DATABASE_URL > default` 에서
+#   **`DATABASE_URL` 폴백이 빠졌다.** 아래 `_test_engine` 이 이 DSN 에
+#   `SQLModel.metadata.drop_all` 을 돌기 때문이다. 폴백이 개발 DB 를 겨냥해 실제로 전소시킨
+#   전례가 있다. 판정 본문과 이유는 `tests/_db_guard.py`.
+DB_URL = _db_guard.effective_dsn()
 
 
 def _to_psycopg2_url(asyncpg_url: str) -> str:
@@ -285,9 +311,7 @@ def _to_psycopg2_url(asyncpg_url: str) -> str:
     url = make_url(asyncpg_url)
     # asyncpg-only 옵션 제거 (psycopg2 가 reject 하는 키)
     asyncpg_only_keys = {"server_settings", "command_timeout", "ssl_negotiation"}
-    sanitized_query = {
-        k: v for k, v in url.query.items() if k not in asyncpg_only_keys
-    }
+    sanitized_query = {k: v for k, v in url.query.items() if k not in asyncpg_only_keys}
     sync_url = url.set(drivername="postgresql+psycopg2", query=sanitized_query)
     return sync_url.render_as_string(hide_password=False)
 

@@ -61,7 +61,7 @@ def _env_keys_after(text: str, marker: int) -> set[str]:
     return keys
 
 
-def _backend_pytest_env_blocks() -> list[set[str]]:
+def _backend_pytest_env_blocks(workflow: pathlib.Path | None = None) -> list[set[str]]:
     """워크플로 안 **모든** pytest 실행 스텝의 `env:` 블록 키 집합.
 
     YAML 파서를 새로 들이지 않고 텍스트로 읽는다 — 이 감사가 보려는 것은
@@ -72,7 +72,7 @@ def _backend_pytest_env_blocks() -> list[set[str]]:
     이후 스텝의 env 누락이 **감사되지 않은 채 통과**한다. 이 레포는 열거식·첫매치식 배선이
     조용히 새는 것을 반복해서 밟았다(playwright `testMatch` 고아 spec). 그래서 전수로 바꾼다.
     """
-    text = _WORKFLOW.read_text()
+    text = (workflow or _WORKFLOW).read_text()
     blocks: list[set[str]] = []
     pos = 0
     while (marker := text.find("uv run pytest", pos)) != -1:
@@ -105,6 +105,43 @@ def test_ci_injects_every_compose_default_setting() -> None:
         "이 필드들은 기본값이 docker-compose 서비스명이라, 주입하지 않으면 러너에서 "
         "해석 불가 호스트로 연결을 시도한다(2026-08-01 실측: celery 계열 5건 실패). "
         f"확인 대상 필드 → 환경변수: {required}"
+    )
+
+
+_TRUST_LAYER_WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "trust-layer-nightly.yml"
+
+
+@pytest.mark.parametrize(
+    "workflow",
+    [_WORKFLOW, _TRUST_LAYER_WORKFLOW],
+    ids=lambda p: p.name,
+)
+def test_every_pytest_step_declares_a_test_database_url(workflow: pathlib.Path) -> None:
+    """[BL-451] pytest 스텝 env 에 `TEST_DATABASE_URL` 이 있어야 한다.
+
+    red 면 고장난 것: `tests/_db_guard.py` 가 `DATABASE_URL` 폴백을 거부하므로 그 잡이
+    rc=3 으로 **세션 자체를 끝낸다**. 조용한 실패가 아니라 즉시 붉어지지만, 그때는 이미
+    푸시된 뒤다 — 이 테스트가 로컬에서 먼저 잡는다.
+
+    ★가드와 워크플로가 **같은 커밋에서** 움직여야 하는 관계다. 착수 시점 실측으로
+    `ci.yml` 과 `trust-layer-nightly.yml` 은 `DATABASE_URL` 만 주고 있었다.
+    ★`nightly-real-broker.yml` 은 여기서 안 본다 — 잡 레벨 env 라 스텝 스캔에 안 걸리고,
+    `test_nightly_workflow_contract.py::test_database_urls_point_at_a_test_database` 가
+    이미 두 키를 함께 잰다.
+    """
+    if not workflow.exists():
+        pytest.skip("워크플로 파일이 없는 체크아웃")
+
+    blocks = _backend_pytest_env_blocks(workflow)
+    assert blocks, (
+        f"{workflow.name} 에서 `uv run pytest` 스텝을 하나도 못 찾았다 — 배선이 바뀌었는지 "
+        "확인해라. 이 단언이 없으면 마커가 사라진 순간 감사가 **항상 통과**한다."
+    )
+
+    missing = [idx for idx, injected in enumerate(blocks) if "TEST_DATABASE_URL" not in injected]
+    assert not missing, (
+        f"{workflow.name} 의 pytest 스텝 {missing} 에 TEST_DATABASE_URL 이 없다. "
+        "tests/_db_guard.py 가 DATABASE_URL 폴백을 거부하므로 그 잡은 rc=3 으로 끝난다."
     )
 
 

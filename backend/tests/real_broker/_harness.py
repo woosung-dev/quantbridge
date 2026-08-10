@@ -249,12 +249,10 @@ def _provider() -> Any:
 
 
 def _effective_db_url() -> str:
-    """`tests/conftest.py:263-267` 과 같은 우선순위의 유효 테스트 DSN."""
-    return (
-        os.environ.get("TEST_DATABASE_URL")
-        or os.environ.get("DATABASE_URL")
-        or "postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test"
-    )
+    """유효 테스트 DSN — 판정 본문은 `tests/_db_guard.py` 가 갖는다 ([BL-451])."""
+    from tests import _db_guard
+
+    return _db_guard.effective_dsn()
 
 
 async def _execute_order_now(order_id: UUID) -> None:
