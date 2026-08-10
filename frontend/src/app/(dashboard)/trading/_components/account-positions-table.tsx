@@ -6,7 +6,13 @@ import { useIsMutating } from "@tanstack/react-query";
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
-import { describeApiError } from "@/lib/api-client";
+import {
+  isAccepted,
+  outcomeFromError,
+  outcomeFromResponse,
+  type CloseOutcome,
+} from "@/features/live-sessions/close-outcome";
+import { CloseOutcomePanel } from "@/features/live-sessions/components/close-outcome-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -174,17 +180,23 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
       ? { sessionId: closeTarget.closable_session_id, symbol: closeTarget.symbol }
       : undefined,
   );
-  const [closeError, setCloseError] = useState<string | null>(null);
+  const [closeOutcome, setCloseOutcome] = useState<CloseOutcome | null>(null);
 
   const handleClose = async () => {
     if (!closeTarget?.closable_session_id) return;
     try {
-      await closePosition.mutateAsync();
-      setCloseTarget(null);
+      const outcome = outcomeFromResponse(await closePosition.mutateAsync());
+      // 잔량도 없고 조회도 성공했으면 더 말할 것이 없다. 그때만 조용히 닫는다.
+      if (outcome.kind === "clean") {
+        setCloseTarget(null);
+        return;
+      }
+      setCloseOutcome(outcome);
     } catch (error) {
       // ★`ApiError.message` 는 `API 422 /api/v1/…` 라 사람에게 아무것도 알려주지 않는다.
       //   서버가 `detail` 에 실제 사유를 싣는다(`no_open_position`·`settings_unset` 등).
-      setCloseError(describeApiError(error, "청산 요청을 보내지 못했습니다."));
+      //   409 잔량은 문장 말고 주문 목록까지 들고 온다.
+      setCloseOutcome(outcomeFromError(error));
     }
   };
 
@@ -333,7 +345,7 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
                   key={`${row.accountId}-${row.symbol}-${row.position.side}-${index}`}
                   row={row}
                   onClose={(target) => {
-                    setCloseError(null);
+                    setCloseOutcome(null);
                     setCloseTarget(target);
                   }}
                 />
@@ -369,7 +381,7 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
         open={closeTarget !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setCloseError(null);
+            setCloseOutcome(null);
             setCloseTarget(null);
           }
         }}
@@ -381,18 +393,33 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
               이 작업은 {closeTarget?.symbol}의 거래소 계정 단위 순 포지션을 평탄화하는 감소전용 시장가 주문을 냅니다. 주문 원장에는 이 계정·심볼로 만든 가장 최근 세션의 전략으로 기록됩니다. 그 세션이 아직 활성이면 다음 평가에서 다시 진입할 수 있으며, 수동 청산은 봇을 중단하지 않습니다. 주문은 접수 후 비동기로 체결되므로 결과는 §05 주문 원장에서 확인하세요.
             </DialogDescription>
           </DialogHeader>
-          {closeError ? <p className="notice-inline" role="alert">{closeError}</p> : null}
+          <CloseOutcomePanel outcome={closeOutcome} />
           <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setCloseTarget(null)}
-              disabled={closePosition.isPending}
-            >
-              취소
-            </Button>
-            <Button variant="destructive" onClick={() => void handleClose()} disabled={closePosition.isPending}>
-              청산 실행
-            </Button>
+            {closeOutcome !== null && isAccepted(closeOutcome) ? (
+              // 주문은 이미 나갔다. 남은 동작은 「읽었다」뿐이고 재제출은 오답이다.
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCloseOutcome(null);
+                  setCloseTarget(null);
+                }}
+              >
+                확인
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setCloseTarget(null)}
+                  disabled={closePosition.isPending}
+                >
+                  취소
+                </Button>
+                <Button variant="destructive" onClick={() => void handleClose()} disabled={closePosition.isPending}>
+                  청산 실행
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

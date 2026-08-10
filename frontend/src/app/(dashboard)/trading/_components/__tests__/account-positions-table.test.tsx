@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useAccountPositions, useClosePosition } from "@/features/live-sessions/hooks";
 import type { AccountPositions } from "@/features/live-sessions/schemas";
+import { ApiError } from "@/lib/api-client";
 
 const mockUseIsMutating = vi.hoisted(() => vi.fn());
 
@@ -67,6 +68,26 @@ function payload(overrides: Partial<AccountPositions> = {}): AccountPositions {
   } as AccountPositions;
 }
 
+const RESTING_ORDER = {
+  order_id: "1a2b3c4d",
+  side: "buy",
+  qty: "0.029",
+  trigger_price: "64000",
+  order_link_id: "link-1",
+};
+
+/** 서버가 실제로 내는 202 body (`ClosePositionResponse`). */
+function closeResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    order_id: "o-1",
+    state: "submitted",
+    detail: "reduce-only market close accepted",
+    resting_entries: [],
+    resting_entries_unknown: false,
+    ...overrides,
+  };
+}
+
 function query(overrides: Record<string, unknown> = {}) {
   return {
     data: payload(),
@@ -99,7 +120,10 @@ describe("AccountPositionsTable", () => {
   });
 
   it("귀속 세션이 있으면 청산 버튼이 그 세션으로 요청한다", async () => {
-    closePosition.mockResolvedValue({});
+    // ★종전 픽스처는 `{}` 였다. 그것은 「응답 body 를 아무도 안 쓴다」는 사실을 시험으로
+    //   굳힌 것이고, 실제로 화면이 잔량을 못 보는 원인의 한 축이었다. 이제는 서버가
+    //   실제로 내는 모양을 준다.
+    closePosition.mockResolvedValue(closeResponse());
     render(<AccountPositionsTable accounts={[ACCOUNT]} />);
 
     fireEvent.click(screen.getByTestId("account-position-close-BTC/USDT"));
@@ -360,5 +384,74 @@ describe("AccountPositionsTable", () => {
     render(<AccountPositionsTable accounts={[ACCOUNT]} />);
 
     expect(screen.getByTestId("account-positions-error")).toBeInTheDocument();
+  });
+});
+
+// ★청산 결과 표면. CLI 는 rc 0/3/4 로 세 상태를 가르는데 화면은 오래 「접수」 하나만
+//   말했다. 여기서 재는 것은 **셋이 서로 다르게 보이는가** 다 — 특히 「잔량 없음」과
+//   「거래소에 못 물어봤다」가 같은 화면이면 고친 것이 없다.
+describe("AccountPositionsTable 청산 결과", () => {
+  async function closeAndWait(response: unknown, { reject = false } = {}) {
+    if (reject) closePosition.mockRejectedValue(response);
+    else closePosition.mockResolvedValue(response);
+    render(<AccountPositionsTable accounts={[ACCOUNT]} />);
+    fireEvent.click(screen.getByTestId("account-position-close-BTC/USDT"));
+    fireEvent.click(screen.getByRole("button", { name: "청산 실행" }));
+    await waitFor(() => expect(closePosition).toHaveBeenCalled());
+  }
+
+  it("잔량이 없으면 조용히 닫힌다", async () => {
+    await closeAndWait(closeResponse());
+
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "청산 실행" })).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("close-outcome-resting")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("close-outcome-unknown")).not.toBeInTheDocument();
+  });
+
+  it("접수 + 잔량이면 주문 목록을 보여주고 재제출을 막는다", async () => {
+    await closeAndWait(closeResponse({ resting_entries: [RESTING_ORDER] }));
+
+    const panel = await screen.findByTestId("close-outcome-resting");
+    expect(panel).toHaveTextContent("미체결 진입 주문 1건이 남아 있습니다.");
+    expect(screen.getByTestId("close-resting-entry")).toHaveTextContent("1a2b3c4d");
+    expect(screen.getByTestId("close-resting-entry")).toHaveTextContent("64000");
+    // 주문은 이미 나갔다.
+    expect(screen.queryByRole("button", { name: "청산 실행" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "확인" })).toBeInTheDocument();
+    // 음성 대조 — 미확인 상태와 겹치지 않는다.
+    expect(screen.queryByTestId("close-outcome-unknown")).not.toBeInTheDocument();
+  });
+
+  it("접수 + 잔량 미확인은 잔량 있음과 **다르게** 보인다", async () => {
+    await closeAndWait(closeResponse({ resting_entries_unknown: true }));
+
+    const panel = await screen.findByTestId("close-outcome-unknown");
+    expect(panel).toHaveTextContent("확인하지 못했습니다");
+    // ★빈 목록을 「잔량 없음」으로 그리지 않는다. 이것이 이 회차의 핵심 판정이다.
+    expect(screen.queryByTestId("close-outcome-resting")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("close-resting-entry")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "청산 실행" })).not.toBeInTheDocument();
+  });
+
+  it("409 잔량은 주문 목록까지 펴고 재시도를 남긴다", async () => {
+    await closeAndWait(
+      new ApiError(409, "resting_conditional_entries", "API 409 /x", {
+        detail: {
+          code: "resting_conditional_entries",
+          count: 1,
+          detail: "포지션은 없지만 미체결 진입 주문 1건이 남아 있습니다.",
+          orders: [RESTING_ORDER],
+        },
+      }),
+      { reject: true },
+    );
+
+    const panel = await screen.findByTestId("close-outcome-blocked");
+    expect(panel).toHaveTextContent("포지션은 없지만 미체결 진입 주문 1건이 남아 있습니다.");
+    expect(screen.getByTestId("close-resting-entry")).toHaveTextContent("1a2b3c4d");
+    // 주문을 내지 않았으므로 재시도가 유효하다.
+    expect(screen.getByRole("button", { name: "청산 실행" })).toBeInTheDocument();
   });
 });

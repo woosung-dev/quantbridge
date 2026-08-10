@@ -16,6 +16,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  isAccepted,
+  outcomeFromError,
+  outcomeFromResponse,
+  type CloseOutcome,
+} from "@/features/live-sessions/close-outcome";
+import { CloseOutcomePanel } from "@/features/live-sessions/components/close-outcome-panel";
+import {
   closePositionMutationKey,
   useClosePosition,
   useLiveSessionsPositions,
@@ -179,15 +186,20 @@ export function OpenPositionsTable({
       ? { sessionId: closeTarget.sessionId, symbol: closeTarget.symbol }
       : undefined,
   );
-  const [closeError, setCloseError] = useState<string | null>(null);
+  const [closeOutcome, setCloseOutcome] = useState<CloseOutcome | null>(null);
 
   const handleClose = async () => {
     if (!closeTarget) return;
     try {
-      await closePosition.mutateAsync();
-      setCloseTarget(null);
+      const outcome = outcomeFromResponse(await closePosition.mutateAsync());
+      // 잔량도 없고 조회도 성공했으면 더 말할 것이 없다. 그때만 조용히 닫는다.
+      if (outcome.kind === "clean") {
+        setCloseTarget(null);
+        return;
+      }
+      setCloseOutcome(outcome);
     } catch (error) {
-      setCloseError(error instanceof Error ? error.message : "청산 요청을 보내지 못했습니다.");
+      setCloseOutcome(outcomeFromError(error));
     }
   };
 
@@ -282,7 +294,7 @@ export function OpenPositionsTable({
                   resolveStrategyName={resolveStrategyName}
                   canClose={demoSessionIds.has(row.sessionId)}
                   onClose={(target) => {
-                    setCloseError(null);
+                    setCloseOutcome(null);
                     setCloseTarget(target);
                   }}
                 />
@@ -331,7 +343,7 @@ export function OpenPositionsTable({
         open={closeTarget !== null}
         onOpenChange={(open) => {
           if (!open) {
-            setCloseError(null);
+            setCloseOutcome(null);
             setCloseTarget(null);
           }
         }}
@@ -343,14 +355,33 @@ export function OpenPositionsTable({
               이 작업은 {closeTarget?.symbol}의 거래소 계정 단위 순 포지션을 평탄화하는 감소전용 시장가 주문을 냅니다. 세션이 활성 상태면 다음 평가에서 다시 진입할 수 있으며, 수동 청산은 봇을 중단하지 않습니다.
             </DialogDescription>
           </DialogHeader>
-          {closeError ? <p className="notice-inline" role="alert">{closeError}</p> : null}
+          <CloseOutcomePanel outcome={closeOutcome} />
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setCloseTarget(null)}>
-              취소
-            </Button>
-            <Button variant="destructive" onClick={() => void handleClose()} disabled={closePosition.isPending}>
-              청산 실행
-            </Button>
+            {closeOutcome !== null && isAccepted(closeOutcome) ? (
+              // 주문은 이미 나갔다. 남은 동작은 「읽었다」뿐이고 재제출은 오답이다.
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCloseOutcome(null);
+                  setCloseTarget(null);
+                }}
+              >
+                확인
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setCloseTarget(null)}
+                  disabled={closePosition.isPending}
+                >
+                  취소
+                </Button>
+                <Button variant="destructive" onClick={() => void handleClose()} disabled={closePosition.isPending}>
+                  청산 실행
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -7,6 +7,7 @@ import {
   useLiveSessionsPositions,
 } from "@/features/live-sessions/hooks";
 import type { LiveSession } from "@/features/live-sessions/schemas";
+import { ApiError } from "@/lib/api-client";
 
 const mockUseIsMutating = vi.hoisted(() => vi.fn());
 
@@ -46,6 +47,28 @@ function aggregate(overrides: Record<string, unknown> = {}) {
     refetch,
     ...overrides,
   } as never;
+}
+
+/** 청산 버튼이 뜨는 최소 행. 청산 결과 시험들이 공유한다. */
+function closableRow() {
+  return {
+    sessionId: session.id,
+    sessionLabel: "전략 A",
+    symbol: "BTCUSDT",
+    verdict: "match",
+    position: {
+      side: "long",
+      size: "1",
+      entry_price: "100",
+      mark_price: "100",
+      unrealized_pnl: "0",
+      take_profit_prices: [],
+      stop_loss_prices: [],
+      has_trailing_stop: false,
+      liquidation_price: null,
+      leverage: null,
+    },
+  };
 }
 
 beforeEach(() => {
@@ -288,30 +311,7 @@ describe("OpenPositionsTable", () => {
 
   it("청산 요청 실패는 확인창 안에 표시한다", async () => {
     closePosition.mockRejectedValueOnce(new Error("거래소 연결 실패"));
-    mockPositions.mockReturnValue(
-      aggregate({
-        rows: [
-          {
-            sessionId: session.id,
-            sessionLabel: "전략 A",
-            symbol: "BTCUSDT",
-            verdict: "match",
-            position: {
-              side: "long",
-              size: "1",
-              entry_price: "100",
-              mark_price: "100",
-              unrealized_pnl: "0",
-              take_profit_prices: [],
-              stop_loss_prices: [],
-              has_trailing_stop: false,
-              liquidation_price: null,
-              leverage: null,
-            },
-          },
-        ],
-      }),
-    );
+    mockPositions.mockReturnValue(aggregate({ rows: [closableRow()] }));
     render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
 
     fireEvent.click(screen.getByRole("button", { name: "청산" }));
@@ -319,6 +319,81 @@ describe("OpenPositionsTable", () => {
 
     await waitFor(() => expect(closePosition).toHaveBeenCalledWith());
     expect(await screen.findByRole("alert")).toHaveTextContent("거래소 연결 실패");
+  });
+
+  // ★이 표는 오랫동안 `error.message` 만 썼다. 그래서 서버가 한국어 사유를 실어 보내도
+  //   화면에는 `API 409 /api/v1/…` 가 떴다. 계정 표는 고쳐졌는데 여기만 안 고쳐진
+  //   비대칭이었고, 아래 두 시험이 그것을 고정한다.
+  it("도메인 거부는 서버가 보낸 사유를 보여준다", async () => {
+    closePosition.mockRejectedValueOnce(
+      new ApiError(409, "no_open_position", "API 409 /x", {
+        detail: { code: "no_open_position", detail: "이미 평탄한 상태입니다" },
+      }),
+    );
+    mockPositions.mockReturnValue(aggregate({ rows: [closableRow()] }));
+    render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "청산" }));
+    fireEvent.click(screen.getByRole("button", { name: "청산 실행" }));
+
+    const panel = await screen.findByTestId("close-outcome-failed");
+    expect(panel).toHaveTextContent("이미 평탄한 상태입니다");
+    expect(panel).not.toHaveTextContent("API 409");
+  });
+
+  it("409 잔량은 주문 목록을 편다", async () => {
+    closePosition.mockRejectedValueOnce(
+      new ApiError(409, "resting_conditional_entries", "API 409 /x", {
+        detail: {
+          code: "resting_conditional_entries",
+          count: 1,
+          detail: "포지션은 없지만 미체결 진입 주문 1건이 남아 있습니다.",
+          orders: [
+            {
+              order_id: "1a2b3c4d",
+              side: "buy",
+              qty: "0.029",
+              trigger_price: "64000",
+              order_link_id: null,
+            },
+          ],
+        },
+      }),
+    );
+    mockPositions.mockReturnValue(aggregate({ rows: [closableRow()] }));
+    render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "청산" }));
+    fireEvent.click(screen.getByRole("button", { name: "청산 실행" }));
+
+    expect(await screen.findByTestId("close-outcome-blocked")).toHaveTextContent(
+      "미체결 진입 주문 1건",
+    );
+    const entry = screen.getByTestId("close-resting-entry");
+    expect(entry).toHaveTextContent("1a2b3c4d");
+    // `order_link_id` 가 없으면 CLI 와 같은 자리표시자를 쓴다.
+    expect(entry).toHaveTextContent("link -");
+  });
+
+  it("접수 + 잔량 미확인은 잔량 있음과 다르게 보인다", async () => {
+    closePosition.mockResolvedValueOnce({
+      order_id: "o-1",
+      state: "submitted",
+      detail: "reduce-only market close accepted · 미체결 진입 주문 확인 실패",
+      resting_entries: [],
+      resting_entries_unknown: true,
+    });
+    mockPositions.mockReturnValue(aggregate({ rows: [closableRow()] }));
+    render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "청산" }));
+    fireEvent.click(screen.getByRole("button", { name: "청산 실행" }));
+
+    expect(await screen.findByTestId("close-outcome-unknown")).toHaveTextContent(
+      "확인하지 못했습니다",
+    );
+    expect(screen.queryByTestId("close-outcome-resting")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "청산 실행" })).not.toBeInTheDocument();
   });
 });
 
