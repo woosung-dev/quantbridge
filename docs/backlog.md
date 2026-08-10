@@ -33,10 +33,14 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 > ★이 수치는 손으로 세지 말고 기계적으로 재라 — 직전까지 "49 active" 로 여러 스프린트 동안 stale 했고, 그 다음 표기 "86 active / 전체 135" 도 실측(217 섹션)과 어긋나 있었다. **산식은 이제 문서 주석이 아니라 스크립트다:**
 >
 > ```bash
-> scripts/bl-audit.sh                 # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록
-> #                                     UNKNOWN · 3면 불일치 · 중복 상태줄 · 중복 섹션 헤더 · 미닫힌 펜스/<details> → exit 1
-> scripts/bl-audit.sh --list ACTIVE   # id / 우선순위 / 줄번호 만 (★목록 전용 — 항상 exit 0, 게이트에 쓰지 마라)
+> scripts/bl-audit.sh                   # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록
+> #                                       UNKNOWN · 3면 불일치 · 중복 상태줄 · 중복 섹션 헤더 · 미닫힌 펜스/<details> → exit 1
+> scripts/bl-audit.sh --list ACTIVE     # 트리거가 **도래한** 것 전량 (★목록 전용 — 항상 exit 0, 게이트에 쓰지 마라)
+> scripts/bl-audit.sh --list DEFERRED   # 트리거 **미도래**로 대기 중인 것
+> scripts/bl-trigger-sweep.sh --selftest  # ★도래 판정기의 판별력. 전량 스윕보다 **먼저** 돌려라
 > ```
+>
+> ★**2026-08-10 부터 판정어가 다섯이다** — `ACTIVE / DEFERRED / PARTIAL / RESOLVED / UNKNOWN`([ADR-028](decisions/028-backlog-deferred-verdict.md)). `DEFERRED`(상태줄 `⏳ **대기 (트리거 미도래)**`)는 🟡 와 마찬가지로 **active 로 세지 않는다.** 종전에는 「조건이 아직 안 왔다」를 적을 낱말이 없어 열린 항목이 **전부 ACTIVE** 로 떨어졌고, 그래서 ACTIVE 159 는 작업량이 아니라 **셈하는 규칙이 만든 수**였다(전량 판정 후 **9**). 미도래의 경계는 **외생 조건**(사용자 승인·cutover·Beta·소크·외부 관측·미해결 선행 BL)**과 동승 조건**(「그 파일을 다음에 열 때」류 — 단독 착수 시 값이 0이라고 트리거 자신이 선언한 것) **둘 다**를 포함한다. 3면에서 DEFERRED 는 **ACTIVE 와 같은 「미완」 쪽**이다. 각 섹션의 `**트리거 판정:**` 줄이 **무엇이 막는지**를 적는다.
 >
 > ★**낡은 산식(인라인 awk)은 폐기했다.** 그것은 "섹션 본문 어딘가에 `Resolved` 문자열이 있으면 RESOLVED" 였고, 그래서 **cross-ref 한 줄이 항목을 지웠다** — `BL-003`(P0, 열려 있음)이 자기 섹션의 `BL-004 ✅ Resolved` 두 줄 때문에 RESOLVED 로 집계돼 **공식 산식이 P0 active 를 0 으로 보고하고 있었다**(BL-499·BL-535 도 같은 뿌리). 새 산식의 SSOT 는 각 섹션의 `**상태:**` / `**Status:**` **줄 하나**이고, 근거가 없으면 추측하지 않고 **UNKNOWN 으로 남긴다**. 🟡 부분 Resolved 는 종전대로 active 로 세지 않는다.
 
@@ -316,7 +320,8 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 **Priority:** P1
 **Trigger:** Bybit Demo 안정화 후 (BL-001 watchdog 완료 + 1주 운영)
 **Est:** M (6-8h)
-**상태:** ⬜ Open — OKX 는 여전히 REST 전용 — private WS 스트림 파일이 없고 websocket_task.py:277 이 미구현을 주석으로 명시한다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — OKX 는 여전히 REST 전용 — private WS 스트림 파일이 없고 websocket_task.py:277 이 미구현을 주석으로 명시한다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 소크 창 미완(soak-gate rc=2 · C1 46.24h/168h). PASS 만 도래다([ADR-024]) (2026-08-10 bl-trigger-triage)
 **출처:** TODO.md L710
 
 **원인 / 영향:** Sprint 7d OKX 어댑터는 REST 만 보유. WS event 부재로 BL-001 의 fetch_order polling 부담 가중.
@@ -353,7 +358,8 @@ baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으�
 **Priority:** P1
 **Trigger:** Trust Layer v2 검토 시
 **Est:** M (5-6h)
-**상태:** ⬜ Open — M4 의 xfail(strict=False) 가 그대로 남아 있고 KIND-B/C·NaN-tolerance 재설계 흔적은 docs 외 코드에 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — M4 의 xfail(strict=False) 가 그대로 남아 있고 KIND-B/C·NaN-tolerance 재설계 흔적은 docs 외 코드에 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** TODO.md L23 / `tests/strategy/pine_v2/test_mutation_oracle.py:213`
 
 **권장 접근:** KIND-B/C 가 NaN-tolerance 한계로 mutation 구분 못 함 (현재 `xfail(strict=False)`). NaN-tolerance 알고리즘 정밀화 또는 KIND 분류 재설계.
@@ -370,6 +376,7 @@ baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으�
 **출처:** CLAUDE.md Sprint 10 Phase C — "실제 E2E 로직은 nightly 첫 실행 시 credentials + seed data 하에 작성 예정"
 
 **상태:** 🟡 **열려 있다 (2026-08-04, `wt/e2e` — 워크플로·하네스만 수리, 실주문 leg 미착수).** ★★★**「skeleton 을 채운다」는 전제가 실측으로 뒤집혔다** — nightly 는 07-25~08-03 **10/10 실패**했고 지점은 pytest 가 아니라 `alembic upgrade head` 였다(`secrets.TRADING_ENCRYPTION_KEYS_TEST` 부재 → 빈 문자열 → `Settings` import 시점 ValidationError). ⇒ **pytest 는 한 번도 실행된 적이 없고, `flaky-real-broker` 이슈 89건(전부 OPEN)은 broker flakiness 의 증거가 아니다.** ★이 고장은 **alembic 스텝에만** 해당한다 — `tests/conftest.py:25-28` 이 pytest 에서는 빈 키를 즉석 Fernet 로 채운다. 이번 회차가 한 것: 워크플로 수리 9건(리터럴 키 · preflight `has_creds` 게이팅 · **이슈 생산기 스위치** · `_test` DSN · 아티팩트) + 계약 감사 `tests/test_nightly_workflow_contract.py`(marker 없음, 매 PR) + 자기정리 2층 하네스(`tests/real_broker/_harness.py`) + `_test` DSN 하드가드 + provider 경유 demo 엔드포인트 교정. ★**실거래소는 1바이트도 검증되지 않았다** — 잔여 = 실주문 leg(S2~S13), ★**차단 사유는 2026-08-04 에 바뀌었다** — 키 2종은 배치 완료이고 진짜 차단은 **지리 차단**이었다. 실행 경로를 로컬 스케줄로 옮겨 이미 첫 통과를 봤다(아래 §실행 경로).
+**트리거 판정:** 도래 — 트리거가 요구한 credentials 는 본 섹션이 「키 2종은 배치 완료다」로 적었다. 잔여 차단(지리 403)은 트리거가 아니라 실행 경로 문제이고 로컬 스케줄로 첫 통과를 봤다 (2026-08-10 bl-trigger-triage)
 
 **권장 접근:** 자격증명 2종 발급 후 실주문 leg 구현. ★체결 확인을 polling 으로 짜지 마라 — Bybit demo 시장가는 `create_order` 응답에서 `submitted` 로 오고(`providers.py:_map_ccxt_status`) 체결 확정은 WS 가 한다. `_async_fetch_order_status`(`tasks/trading.py:685-707`)를 명시적으로 태우는 설계여야 한다.
 
@@ -444,6 +451,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 ### BL-026
 
 **상태:** 🟡 **열려 있다** — 본 섹션 `**Trigger:**` 줄의 ✅ 는 _Stage 2c 2차 fixture 활성화_(2026-04-23 완료)를 가리키고, 이 BL 자신은 같은 줄이 명시하듯 **"회귀 PR 생성 필요"** 상태다. 근거: 본 섹션 Trigger/권장 접근 줄 · `docs/roadmap.md:168` `- [ ] **BL-026**`.
+**트리거 판정:** 도래 — 트리거 줄 자신이 「✅ 2026-04-23 완료, 회귀 PR 생성 필요」로 도래를 적었다 (2026-08-10 bl-trigger-triage)
 
 **Title:** Mutation fixture 활성화 회귀 검토 (skip #4-7, #9-15)
 **Category:** Trust Layer / Test infra
@@ -483,7 +491,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P3
 **Trigger:** 진입 누락이 실측될 때
 **Est:** S
-**상태:** ⬜ Open — 첫 bar 커버리지 공백을 다루는 코드·테스트가 없다 — 평가 tick 지연 보정도, 재발행 보장도 미구현. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 첫 bar 커버리지 공백을 다루는 코드·테스트가 없다 — 평가 tick 지연 보정도, 재발행 보장도 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-27 live-conditional-entry
 
 **원인 / 영향:** 평가 tick 은 bar 종료 **56초 뒤**에 돈다(실측 16:17:56 tick 이 16:16 bar 를 읽음). 시뮬은 stop 을 다음 bar 전체에서 체결 가능하다고 보지만 거래소 주문은 그 bar 의 93% 가 지난 뒤 올라간다. PbR 처럼 매 bar 재발행하는 전략은 최초 1바만 해당하나, 한 번만 발행하는 전략은 그 bar 를 통째로 놓친다.
@@ -499,7 +508,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P3
 **Trigger:** BTCUSDT 외 심볼 지원 시
 **Est:** XS
-**상태:** ⬜ Open — 계획기는 여전히 qty_step 절삭만 하고 limits.amount.min 조회는 레포 어디에도 없다(있는 건 limits.cost.min 가드뿐). (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 계획기는 여전히 qty_step 절삭만 하고 limits.amount.min 조회는 레포 어디에도 없다(있는 건 limits.cost.min 가드뿐). (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-27 live-conditional-entry
 
 **원인 / 영향:** 조건부 진입 계획기는 `qty_step` 절삭만 한다. BTCUSDT 는 `limits.amount.min == qtyStep == 0.001` 이라 절삭이 최소수량을 겸하지만 일반 보장은 아니다. 둘이 다른 심볼에서는 스텝은 통과하고 최소수량은 미달인 주문이 매 tick 거부될 수 있다.
@@ -515,7 +525,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P3
 **Trigger:** 같은 바에 조건부 진입이 2건 이상 열리고 둘 다 트리거될 수 있을 때
 **Est:** S
-**상태:** ⬜ Open — 계획기는 여전히 trade_id 순 정렬(620-621)이고 엔진은 open 거리순(strategy_state.py:1057) — 정렬 통일도 독스트링 명시도 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 계획기는 여전히 trade_id 순 정렬(620-621)이고 엔진은 open 거리순(strategy_state.py:1057) — 정렬 통일도 독스트링 명시도 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-27 live-conditional-entry 작업 노트 (E1 적대 검증 §9(f), 종결 시 등재)
 
 **원인 / 영향:** 계획기는 `to_cancel`/`to_place` 를 **`trade_id` 순**으로 정렬한다(`conditional_entry_planner.py:179,297-298`). 반면 엔진의 같은 바 pending fill 후보는 **open 가격과의 거리순**으로 정렬한다(`strategy_state.py:765` `candidates.sort(key=lambda c: abs(c[2] - open_))`). 즉 두 조건부 진입이 같은 바에 둘 다 트리거되면 시뮬이 먼저 체결로 보는 쪽과 거래소에 먼저 올라가는 쪽이 다를 수 있다.
@@ -537,7 +548,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P3
 **Trigger:** 재등재 churn 이 잦아지거나(BL-486), 그 창에서 놓친 돌파가 실측될 때
 **Est:** M
-**상태:** ⬜ Open — cancel 루프(2456) 전량 후 place 루프(2501) 구조가 그대로고, amend/edit_order 는 레포 전체에 백로그 문장 외 구현이 0건이다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — cancel 루프(2456) 전량 후 place 루프(2501) 구조가 그대로고, amend/edit_order 는 레포 전체에 백로그 문장 외 구현이 0건이다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-27 live-conditional-entry 작업 노트 (종결 시 등재)
 
 **원인 / 영향:** reconcile 은 취소 루프를 **전부 끝낸 뒤** 등재 루프를 돈다(`tasks/live_signal.py:406-416` → `:462-492`). 의도한 순서지만(이중 등재 방지), 그 사이 수 초 동안 거래소에 그 stop 이 **없다**. 그 창에서 가격이 트리거를 지나가면 진입을 통째로 놓치고 시뮬만 진입했다고 믿는다 — BL-492 와 같은 발산의 다른 경로다. BL-486 창 드리프트로 재등재가 104분에 8건 나므로 창이 반복 열린다.
@@ -552,7 +564,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 
 ### BL-499
 
-**상태:** 🟡 **열려 있다 — 단 trigger 는 이제 발화 가능하다.** ★★2026-07-28 `feat/live-observability` 정정: 이 항목의 **Trigger("취소 실패 metric 이 관측되면")가 BL-506 이전에는 구조적으로 충족 불가**였다. 그 카운터는 worker 전용이라 어떤 스크레이프 경로에도 노출되지 않았기 때문이다(BL-506 이 그 모순을 지적했다). **BL-506 Resolved 로 관측 가능성 자체는 확보됐다** — 배선 후 `qb_live_conditional_reconcile_errors_total` 의 다른 라벨(`deferred_market_inflight` 8 · `positions` 3)이 실제로 관측된다.
+**상태:** ⏳ **대기 (트리거 미도래) — 단 trigger 는 이제 발화 가능하다.** ★★2026-07-28 `feat/live-observability` 정정: 이 항목의 **Trigger("취소 실패 metric 이 관측되면")가 BL-506 이전에는 구조적으로 충족 불가**였다. 그 카운터는 worker 전용이라 어떤 스크레이프 경로에도 노출되지 않았기 때문이다(BL-506 이 그 모순을 지적했다). **BL-506 Resolved 로 관측 가능성 자체는 확보됐다** — 배선 후 `qb_live_conditional_reconcile_errors_total` 의 다른 라벨(`deferred_market_inflight` 8 · `positions` 3)이 실제로 관측된다.
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 ★그럼에도 **1시간 40분 soak 에서 `cancel`/`cancel_raced`/`cancel_stalled` 는 시리즈조차 나타나지 않았다.** 여전히 **"관측 안 됨" 이지 "일어나지 않음이 증명됨" 이 아니다.** 근본 경합은 열려 있다.
 ★**부수 발견** — 라벨 있는 Counter 는 자식이 처음 생길 때 노출되므로, 이 항목들은 `/metrics` 에 **0 으로도 나오지 않는다. 시리즈가 아예 없다.** 대시보드에서 "아직 안 일어남" 과 "그런 metric 이 없음" 이 구분되지 않는다.
 
@@ -684,7 +697,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2 (deferrable)
 **Trigger:** 외부 사용자 요청 또는 인쇄 use case 발견 시
 **Est:** M (3-5h)
-**상태:** ⬜ Open — 사용자 결정 대기: PDF 관련 코드·의존성 0건이고, Trigger 자체가 외부 사용자 요청 + client/server 방식 선택이라 사용자 결정이 선행이다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 사용자 결정 대기: PDF 관련 코드·의존성 0건이고, Trigger 자체가 외부 사용자 요청 + client/server 방식 선택이라 사용자 결정이 선행이다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** Sprint 41 Worker H 결정 — share link 충분 P1 deferrable, demo 첫인상 단계 미구현
 
 **권장 접근:** share link 가 충분히 우선이라 demo 단계 미구현. 사용자 요청 시 jsPDF + html2canvas (client) 또는 Playwright (server-side) 둘 중 선택.
@@ -714,7 +728,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** Sprint 57+
 **Est:** M (8-12h, estimate)
-**상태:** ⬜ Open — Bayesian 시각화는 여전히 1D best_so_far inline SVG 뿐 — N차원 surface/parallel-coord 컴포넌트가 optimizer 디렉터리에 없다(2D heatmap 은 grid_search 전용). (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — Bayesian 시각화는 여전히 1D best_so_far inline SVG 뿐 — N차원 surface/parallel-coord 컴포넌트가 optimizer 디렉터리에 없다(2D heatmap 은 grid_search 전용). (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** ADR-013 §6 #8 deferred (실체 = `git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` `:202` — [BL-504]). Sprint 55 = inline SVG iteration-chart (1D best_so_far) 만 구현.
 
 **권장 접근:** recharts 또는 plotly.js 의존성 추가 검토 + cross-page consistency 의무. Bayesian / Genetic 공용.
@@ -728,7 +743,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** Sprint 56+
 **Est:** S (3-5h, estimate)
-**상태:** ⬜ Open — 3엔진 화이트리스트와 \_common.metric_value_for_objective switch 모두 sharpe/total_return/max_drawdown 3종 그대로 — 확장 미착수 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 3엔진 화이트리스트와 \_common.metric_value_for_objective switch 모두 sharpe/total_return/max_drawdown 3종 그대로 — 확장 미착수 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** Sprint 55 = `_SUPPORTED_OBJECTIVE_METRICS = {sharpe_ratio, total_return, max_drawdown}` 3종만 노출
 
 **권장 접근:** BacktestMetrics 24 metric (sortino_ratio / calmar_ratio / win_rate / profit_factor 등) 노출 검토. `_objective_from_metrics` switch + FE select option 확장.
@@ -758,7 +774,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** 사용자 string 카테고리 sweep 요청 시 (예: maType ∈ {ema,sma,wma})
 **Est:** M (4-6h)
-**상태:** ⬜ Open — GA·Bayesian 둘 다 비숫자 라벨을 여전히 명시 거부하고(BL-364 주석 포함), 테스트가 그 거부를 고정하고 있다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — GA·Bayesian 둘 다 비숫자 라벨을 여전히 명시 거부하고(BL-364 주석 포함), 테스트가 그 거부를 고정하고 있다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-05-30-full-inspection.md` appendix P1-9 (S4 Option A 후속)
 
 **원인 / 영향:** S4(Option A)는 비숫자 CategoricalField 를 명확히 거부(InvalidOperation 크래시 차단)했으나, 스키마 docstring 의 본래 의도(`pine input.string / 사용자 정의 선택지` = `['ema','sma']`)는 미지원 상태. GA/Bayesian 이 individual 을 Decimal(ordinal)로 표현하기 때문.
@@ -774,7 +791,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** trading deepening sprint 또는 OrderService 의존성 추가 시
 **Est:** S-M (3-5h)
-**상태:** ⬜ Open — 공유 factory(create_order_service_for_dispatch)는 레포에 없고, OrderService+킬스위치 인라인 조립이 dispatch 2곳·recovery 1곳·HTTP DI 로 4중 중복이다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 공유 factory(create_order_service_for_dispatch)는 레포에 없고, OrderService+킬스위치 인라인 조립이 dispatch 2곳·recovery 1곳·HTTP DI 로 4중 중복이다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-06-26-trading-deepen-2.md`
 
 **원인 / 영향:** `tasks/live_signal.py:650-682` 가 OrderService + 9 deps(order/account/kse repo, crypto, `BybitFuturesProvider()`, exchange_svc, 2 evaluator, ks_svc) 를 **인라인 조립** — `dependencies.py get_order_service`(HTTP 경로) 와 별도. 신규 인스턴스 vs singleton provider, threshold 값 등 **config drift** + 한쪽만 테스트되는 blind spot. money-path 조립이라 drift 시 dispatch 와 HTTP 가 다른 동작.
@@ -794,7 +812,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** trading deepening sprint 또는 4번째 provider / exchange 추가 시
 **Est:** S-M (3-5h)
-**상태:** ⬜ Open — `_merge_exit_params` 가 여전히 키명 인자를 받고 3 call site 가 "orderLinkId"/"triggerBy"/"clOrdId" 문자열을 그대로 넘긴다. `build_ccxt_params_for_order` 는 레포에 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — `_merge_exit_params` 가 여전히 키명 인자를 받고 3 call site 가 "orderLinkId"/"triggerBy"/"clOrdId" 문자열을 그대로 넘긴다. `build_ccxt_params_for_order` 는 레포에 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-06-26-trading-deepen-2.md`
 
 **원인 / 영향:** `providers.py:135-207` 의 `_merge_exit_params` 가 `client_order_id_key`/`trigger_by_key`/`trigger_direction_key`/`trailing_stop_key` 등 **ccxt 필드명을 caller 가 알아야 하는 param** 으로 받음 → 3 call site(`:299/:480/:752`)가 `"orderLinkId"`/`"triggerBy"` 등 문자열을 분산 보유. exchange-specific 지식이 함수 안에 은닉되지 못함 → 새 exchange 추가 시 call site 마다 키 지식 복제.
@@ -814,7 +833,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** trading deepening sprint 또는 provider 예외 처리 변경 시
 **Est:** S (2-4h)
-**상태:** ⬜ Open — 권장 helper(\_execute_create_order_with_ccxt) 가 레포에 없고 3 provider 의 try/except/finally+receipt 블록이 그대로 중복돼 있다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 권장 helper(\_execute_create_order_with_ccxt) 가 레포에 없고 3 provider 의 try/except/finally+receipt 블록이 그대로 중복돼 있다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-06-26-trading-deepen-2.md`
 
 **원인 / 영향:** `providers.py:279-349`(BybitDemo) / `:431-529`(BybitFutures) / `:728-795`(OkxDemo) 의 `create_order` 가 동일한 `try / except ProviderError / except ccxt BaseError / except Exception / finally close` + receipt 정규화 ~40 LOC 를 character-identical 복붙. 예외 처리 1곳 변경 시 3곳 동기화 누락 위험.
@@ -834,7 +854,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2 (bundle — 개별 항목 P2/P3 혼재)
 **Trigger:** Wave 3 실자금 cutover 전 (데모 기간엔 고정 bracket SL floor 가 모든 손실 경로 보호)
 **Est:** M (6-10h, 항목별 분리 가능)
-**상태:** ⬜ Open — 9항목 중 tick정규화·ccxt assert·docstring·hedge가드·alert정제·회귀테스트·dead param은 구현됨, 하드코딩 BybitFuturesProvider() registry 우회(trading.py:1369-1371)만 잔존 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 9항목 중 tick정규화·ccxt assert·docstring·hedge가드·alert정제·회귀테스트·dead param은 구현됨, 하드코딩 BybitFuturesProvider() registry 우회(trading.py:1369-1371)만 잔존 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-26 트레일링 PR 3-리뷰어 검증 (codex CLI + Opus 6-lens 워크플로 + adversarial verify). P1 blocker 0.
 
 **원인 / 영향:** STEP B 머지 전 Tier-1(false-flat 재시도 + 3 P2 테스트)은 본 PR 에서 해소. 아래는 adversarial 검증 통과한 잔여 follow-up. 전부 degraded-protection / 방어심화 / 문서 수준 (현재 무버그 또는 narrow). 라이브 실자금 진입 전 처리 권장.
@@ -860,7 +881,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2 (defer)
 **Trigger:** BL-365 standalone-trigger 발주 도입 시 (= app-side OCO 가 실제 필요해지는 시점)
 **Est:** S-M (3-5h)
-**상태:** ⬜ Open — oco_group_id 컬럼·전달만 존재하고 코드 주석이 여전히 'Wave 2 deferred' — sibling-cancel 오케스트레이션 코드는 레포에 없고 Trigger(BL-365 standalone 발주)도 미도래 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — oco_group_id 컬럼·전달만 존재하고 코드 주석이 여전히 'Wave 2 deferred' — sibling-cancel 오케스트레이션 코드는 레포에 없고 Trigger(BL-365 standalone 발주)도 미도래 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-28 grilling (트레일링 후속 scope 결정)
 
 **원인 / 영향:** `oco_group_id` DB 컬럼 + OrderSubmit 전달은 이미 존재하나 sibling-cancel 오케스트레이션은 미구현. 현재는 entry-attached bracket 이라 거래소가 네이티브 OCO(한 다리 체결 시 형제 자동취소)를 처리 → app-side sibling-cancel 은 YAGNI. standalone exit order(BL-365) 발주 시점에 두 다리가 독립 주문이 되면 그때 app-side 형제취소가 필요.
@@ -876,7 +898,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2 (latent harm-class — 코퍼스 8종 미트리거, 흔한 패턴)
 **Trigger:** pine_v2 robustness 후속
 **Est:** M (4-6h)
-**상태:** ⬜ Open — \_eval_subscript 가 여전히 \_var_series 만 보고 \_scope_stack 을 안 봄 — 추적도 unsupported reject 도 미구현. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — \_eval_subscript 가 여전히 \_var_series 만 보고 \_scope_stack 을 안 봄 — 추적도 unsupported reject 도 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-30 QA codex G2 challenge + 직접 재현
 
 **원인 / 영향:** `_eval_subscript`(interpreter.py:653)가 `x[1]`을 `_var_series`에서만 조회하는데, user function(`f(s) => ...`) 지역변수는 `_var_series`에 append 되지 않음. 재현: `f(s) => prev = s[1]` → `[nan]*N`(항상 na) vs top-level `close[1]` 정상. 코퍼스 8종은 미트리거(전부 인라인/builtin) 이나 `f(x)=>...x[1]...` (지표 함수 내 history 참조) 는 흔한 패턴 → 해당 전략 silent divergence. **권장:** user-function 스코프 변수 history 추적 또는 명시적 unsupported reject.
@@ -890,7 +913,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2 (신뢰 표면)
 **Trigger:** Track A 신뢰 표면 sprint
 **Est:** S-M (3-5h)
-**상태:** ⬜ Open — INFORMATION/UNKNOWN 이 여전히 무경고 continue 이고, v2_adapter 는 state.warnings 만 전파해 VirtualRunResult.warnings 유실 그대로. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — INFORMATION/UNKNOWN 이 여전히 무경고 continue 이고, v2_adapter 는 state.warnings 만 전파해 VirtualRunResult.warnings 유실 그대로. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-30 QA LuxAlgo 0-trade 추적 + codex G2
 
 **원인 / 영향:** `virtual_strategy.py:128-130` 가 INFORMATION/UNKNOWN alert 를 경고 없이 `continue` (docstring `:12` 은 "무시 + warning" 약속 — 계약 위반). LuxAlgo `alertcondition(.., 'Price broke the down-trendline upward')` → strict 기본 INFORMATION 키워드 `\btrendline\b` → 무경고 무시 → **0 trades, status=ok** (지표 수치는 정확). loose 모드(opt-in)면 directional. **추가:** 경고를 추가해도 `run_backtest_v2`(v2_adapter.py:181)가 `state.warnings`만 내보내 `VirtualRunResult.warnings` 유실. **권장:** (a) ignored actionable alert 시 wrapper.warnings 기록 + (b) VirtualRunResult.warnings → backtest parse warnings 전파. (strict 기본 정책 자체는 유지.)
@@ -904,7 +928,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2 (meta / 검증 인프라)
 **Trigger:** Trust Layer CI 강화
 **Est:** S (2-4h)
-**상태:** ⬜ Open — VirtualRunResult 에 warnings 만 있고 var_series 필드·반환이 여전히 없어 추출기 getattr 이 빈 dict 를 digest 한다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — VirtualRunResult 에 warnings 만 있고 var_series 필드·반환이 여전히 없어 추출기 getattr 이 빈 dict 를 digest 한다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-30 QA codex G2 + diff-challenge
 
 **원인 / 영향:** `VirtualRunResult`(virtual_strategy.py:61) 에 var_series 필드 부재 + 미반환. `test_trust_layer_parity.py:239` 의 golden 추출기가 `getattr(.., 'var_series', {})` → 빈 dict digest. 결과: Track A 전략(i2_luxalgo 등)의 지표 변화(예: ta.atr→slope)가 var_series_digest 에 반영 안 됨 → documented P-3 parity 검증이 부분 공허(BL-378 fix 시 i2_luxalgo baseline 불변이 이를 노출). **권장:** VirtualRunResult 에 var_series/warnings 노출 + 추출기 배선.
@@ -918,7 +943,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2 (투명성)
 **Trigger:** sizing 투명성 sprint
 **Est:** S (2-4h)
-**상태:** ⬜ Open — BE 는 sizing_source 를 config JSONB 에 저장하지만 BacktestConfigOut 에 없고, FE schemas.ts·AssumptionsCard 어디에도 sizing 표면화가 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — BE 는 sizing_source 를 config JSONB 에 저장하지만 BacktestConfigOut 에 없고, FE schemas.ts·AssumptionsCard 어디에도 sizing 표면화가 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-30 QA F1 (codex G2 = harm-class 아닌 transparency)
 
 **원인 / 영향:** `default_qty_type` 미지정 전략(PbR/UtBot)은 qty=1.0 (1 BTC/trade ≈ $42k notional vs $10k capital) → mdd=-16.95/-41.47, fees $156k. 엔진은 `mdd_exceeds_capital=True` 정직 flag + FE KPI 가 자본초과 손실 표시. **그러나** sizing_source 가 FE 결과 schema 부재(schemas.ts:254), AssumptionsCard 가 "1 BTC 고정수량 fallback" 미표면화(assumptions-card.tsx:88). **권장:** config 응답에 sizing_source/default_qty 포함 + fallback 시 경고 표시.
@@ -946,7 +972,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P3 (좁은 edge)
 **Trigger:** pine_v2 parity 후속
 **Est:** S (2-3h)
-**상태:** ⬜ Open — stdlib.py:308 이 여전히 `source is not None and not _is_na(source)` 로 na occurrence 를 skip 하고, na 기록을 강제하는 테스트도 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — stdlib.py:308 이 여전히 `source is not None and not _is_na(source)` 로 na occurrence 를 skip 하고, na 기록을 강제하는 테스트도 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-30 QA codex G2 + 직접 재현
 
 **원인 / 영향:** `stdlib.py:305-307` 가 `cond_bool and source not na` 일 때만 occurrence 기록. cond=true + source=na 인 occurrence 를 TV 는 기록(na 반환), QB 는 skip → 이전 non-na 반환. 재현: src=[10,na] → `valuewhen(cond,src,0)` QB=10, TV=na. RsiD `valuewhen(plFound, osc[lbR], 1)` (osc warmup 시 na) 후보. 좁은 edge. **권장:** cond=true occurrence 는 source 가 na 여도 기록.
@@ -960,7 +987,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P3 (경미)
 **Trigger:** pine_v2 coverage 후속
 **Est:** XS (1-2h)
-**상태:** ⬜ Open — PineVersion enum은 여전히 v4/v5뿐이고 \_detect_version이 v6를 v5로 반환하며, DB enum에도 v6 값이 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — PineVersion enum은 여전히 v4/v5뿐이고 \_detect_version이 v6를 v5로 반환하며, DB enum에도 v6 값이 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-30 QA F3
 
 **원인 / 영향:** `PineVersion` enum(strategy/models.py)이 v4/v5 뿐 → `_detect_version`(strategy/service.py)이 `//@version=6`(PbR, bs)를 v5 로 보고. 메타데이터 부정확(실행엔 무영향). **권장:** v6 enum 값 추가(alembic enum-add 패턴, LESSON-066).
@@ -974,7 +1002,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P3 (경미, 안전 측 — silent 아님)
 **Trigger:** pine_v2 coverage 후속
 **Est:** XS (1-2h)
-**상태:** ⬜ Open — interpreter/coverage 양쪽 \_V4_ALIASES 에 abs/max/min 만 있고 floor·ceil·round·sqrt bare 별칭이 여전히 없다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — interpreter/coverage 양쪽 \_V4_ALIASES 에 abs/max/min 만 있고 floor·ceil·round·sqrt bare 별칭이 여전히 없다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-30 QA F4
 
 **원인 / 영향:** `SUPPORTED_FUNCTIONS` 의 `_V4_ALIASES` 가 abs/max/min 만 포함, `floor`/`ceil`/`round`/`sqrt`(유효 Pine builtin) 부재 → v4 스크립트의 `floor()` 가 unsupported flag(preflight 차단). over-strict 이나 silent 아님(안전). **권장:** v4 bare math builtin 을 `math.*` 로 재라우팅하는 alias 추가.
@@ -988,7 +1017,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** backtest deepening sprint 또는 sizing 로직 변경 시
 **Est:** S-M (3-5h)
-**상태:** ⬜ Open — SizingCanonical 타입 VO 미도입 — dict[str,Any] seam 그대로. 단 config 조립은 .get 이 아니라 직접 인덱싱이라 drift 는 KeyError(무음 아님). (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — SizingCanonical 타입 VO 미도입 — dict[str,Any] seam 그대로. 단 config 조립은 .get 이 아니라 직접 인덱싱이라 drift 는 KeyError(무음 아님). (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-06-30-backtest-deepen.md` (codex challenge 최강 후보)
 
 **원인 / 영향:** `service.py:754-876` `_resolve_sizing_canonical` 이 6-key `dict[str, Any]` 를 반환하고 `service.py:188-212` 가 `.get('leverage', default)` 식으로 config_payload 를 손-조립한다. 두 dict 의 key 일치가 타입으로 보장되지 않아, resolve 쪽 key 가 rename 되면 조용히 default 로 떨어져 `sizing_source`/`leverage_basis` 가 잘못 영속될 수 있다(money-affecting). `dict[str, Any]` = Interface 가 거의 없는 shallow seam 이 백테스트 입력의 진실을 DB 경계로 흘려보낸다.
@@ -1030,7 +1060,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P3
 **Trigger:** pine_v2 robustness 후속 또는 실자금 cutover 전 (BL-376 후속)
 **Est:** S (2-4h)
-**상태:** ⬜ Open — entry stop/\_num 은 여전히 \_is_na 만 보고 isfinite 가드가 없고, \_coerce_length 에도 maxsize 상한이 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — entry stop/\_num 은 여전히 \_is_na 만 보고 isfinite 가드가 없고, \_coerce_length 에도 maxsize 상한이 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-30 BL-376 G2 codex challenge [P1#3/#4] + G3 fresh review [LOW]
 
 **원인 / 영향:** BL-376 이 na/inf 의 raw-예외-escape harm class 를 닫았으나, 다음 2종 잔여는 escape 가 아니거나(deterministic 오값) 별도 trigger 라 BL-376 scope 밖으로 이연:
@@ -1052,7 +1083,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** Wave 3 실자금 cutover 전 (데모 기간엔 고정 bracket SL floor 가 손실 경로 보호)
 **Est:** M (4-8h)
-**상태:** ⬜ Open — 거래소 fill-time 소싱 컬럼·경로가 없고 코드 주석 자체가 잔여 4건을 미해결로 기록 중이다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 거래소 fill-time 소싱 컬럼·경로가 없고 코드 주석 자체가 잔여 4건을 미해결로 기록 중이다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-06-29 BL-372 same-side stale fix 의 G1/G2 codex Evaluator (BL-372 가 common path 만 닫음)
 
 **원인 / 영향:** BL-372 가드(`position.createdTime > order.filled_at + 2s`)는 placement 창의 common(>2s) 구간만 닫는다. 4 narrow 잔여:
@@ -1075,7 +1107,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** pine_v2 parity 후속 또는 틱 기반 exit 전략 사용자 등장 시
 **Est:** M (4-6h — 실 심볼 mintick 소싱 결정 포함)
-**상태:** ⬜ Open — 처방 (a) 문서화만 완료; mintick 은 여전히 0.01 하드코딩이고 CCXT precision 소싱·틱 해석 opt-in config 는 코드에 전무. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 처방 (a) 문서화만 완료; mintick 은 여전히 0.01 하드코딩이고 CCXT precision 소싱·틱 해석 opt-in config 는 코드에 전무. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-05 TV-parity sprint — 사용자 전략(HMA+ATR+Curvature) 커버리지 판정
 
 **원인 / 영향:** TV 의 `trail_points`/`profit`/`loss` 는 **틱 단위**(값 × syminfo.mintick = 가격 오프셋). QB 인터프리터는 price-distance 로 해석(`interpreter.py` `_num` 근사, mintick=0.01 고정 — `interpreter.py:1131`). ATR 값을 trail_points 에 넣는 전략(사용자 전략 포함)은 TV 에선 초미세 트레일링(예: ATR 500 → $5)이 되어 승률 98%+ 의 **가짜 성적**이 나오고, QB 는 저자 의도(가격 거리)에 가깝게 동작 — 즉 발산의 원인이 TV 쪽 함정. 그러나 틱 단위를 의도한 전략은 QB 에서 발산.
@@ -1113,7 +1146,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** BL-488 해소 후 (진입 이벤트 신뢰가 선행 조건)
 **Est:** M (설계 선행 필요)
-**상태:** ⬜ Open — carry 는 여전히 bar_time < window_start 단일 절단(3445)이고 2-pass 재실행 흔적이 없다 — epoch 재계산(3562)은 다른 사고다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — carry 는 여전히 bar_time < window_start 단일 절단(3445)이고 2-pass 재실행 흔적이 없다 — epoch 재계산(3562)은 다른 사고다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-26 live-engine-parity. 적대적 검증 지적 → 프로덕션 실증.
 
 **원인 / 영향:** `run_live` 는 warmup 창을 flat 에서 재실행하므로 창 시작 이전에 진입한 포지션은 열려 있지 않다. `close()` 가 `None` 을 반환해 그 거래의 청산이 재현되지 않는데, 그 청산의 `bar_time` 은 아직 `>= window_start` 라 carry(`bar_time < window_start`)에도 잡히지 않는다. 진입이 창을 벗어난 순간부터 청산이 창을 벗어날 때까지(보유 기간 + 지표 warmup) 그 손익이 **0 회 계상**된다.
@@ -1145,7 +1179,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Priority:** P2
 **Trigger:** cross 계정 라이브 사용 시 / BL-186 풀 모델 진행 시
 **Est:** M-L (구조 변경)
-**상태:** ⬜ Open — 엔진 kwargs 에 margin_mode 가 여전히 없고(주석으로 명시) leverage_model 은 MMR 0.5% isolated 단일 모델 그대로다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 엔진 kwargs 에 margin_mode 가 여전히 없고(주석으로 명시) leverage_model 은 MMR 0.5% isolated 단일 모델 그대로다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 선행 BL-186=PARTIAL (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-26 live-engine-parity 적대적 검증 (BL-483 구현 중).
 
 **원인 / 영향:** `StrategySettings.margin_mode`(`cross`/`isolated`)가 엔진에 전달되지 않고 `strategy/pine_v2/leverage_model.py` 는 **isolated 전용**이다(MMR 0.5% 고정, `liquidation_price = entry x (1 - 1/lev + mmr)`). BL-483 이 `leverage` 를 배선하면서 `check_liquidations` 가 라이브에서 처음 활성화됐는데, **cross 계정은 실제보다 훨씬 이르게 강제 청산으로 판정**된다. 강제 청산은 실제 reduce-only 주문을 낸다.
@@ -1176,7 +1211,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P2
 **Trigger:** gauge 를 근거로 운영 판단·경보를 붙이려 할 때, 또는 실자금 cutover 전
 **Est:** M
-**상태:** ⬜ Open — gauge 는 여전히 multiprocess_mode="sum" + inc 1곳/dec 13곳 구조이고, DB 개수를 .set() 하는 스냅샷 경로가 코드·테스트 어디에도 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — gauge 는 여전히 multiprocess_mode="sum" + inc 1곳/dec 13곳 구조이고, DB 개수를 .set() 하는 스냅샷 경로가 코드·테스트 어디에도 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability — G1 codex 적대 검증이 예측하고 **soak 이 산술까지 맞춰 확증**
 
 **원인 / 영향:** `inc` 는 1곳(`order_service.py:431`, API+worker), `dec` 는 13곳(worker 11 · ws_stream 2 · API 1)에 흩어져 있다. multiprocess 모드에서 `sum` 은 **프로세스별 델타 파일의 합**이므로, 콜드 스타트로 파일이 비면 그 순간 in-flight 였던 주문의 `inc` 가 유실되고 `dec` 만 나중에 찍혀 **영구 −N 편향**이 남는다.
@@ -1199,7 +1235,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P2
 **Trigger:** 사용자가 계정을 여러 개 등록한 상태에서 세션을 시작할 때
 **Est:** S
-**상태:** ⬜ Open — register() 계정 게이트는 여전히 exchange/mode 만 검사하고 read_only 는 청산·표시 경로에만 있다; 세션 폼도 읽기 전용 배지/비활성화 없음. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — register() 계정 게이트는 여전히 exchange/mode 만 검사하고 read_only 는 청산·표시 경로에만 있다; 세션 폼도 읽기 전용 배지/비활성화 없음. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability — soak 세션 생성 중 화면 관측 + 코드 대조
 
 **원인 / 영향:** `LiveSignalSessionService.register()` 의 계정 게이트는 `account.exchange != bybit or account.mode != demo` **뿐**(`live_session_service.py:108-112`). `read_only` 는 검사하지 않는다. `read_only` 강제는 **청산**(`close_service.py:59-60` → 422)과 **표시**(`position_service.py:301-302`)에만 있다.
@@ -1244,7 +1281,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P2
 **Trigger:** 실자금 cutover 전
 **Est:** S
-**상태:** 🟡 **열려 있다 — 「계측 우선」으로 착수**(2026-07-30 close-mismatch-soak). 권장안 2종(leg 분리 / 발주 직전 재확인) 기각. 발주 형태 불변 + overshoot 계측 + 기본 비활성 캡.
+**상태:** ⏳ **대기 (트리거 미도래) — 「계측 우선」으로 착수**(2026-07-30 close-mismatch-soak). 권장안 2종(leg 분리 / 발주 직전 재확인) 기각. 발주 형태 불변 + overshoot 계측 + 기본 비활성 캡.
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability soak 실관측 + 코드 대조
 
 **원인 / 영향:** `live_signal.py:628` 이 조건부 진입 `OrderRequest` 를 **무조건 `reduce_only=False`** 로 만든다. `_action_is_reduce_only`(`:182-188`)는 **시장가 close 에만** 적용된다.
@@ -1323,7 +1361,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P2
 **Trigger:** 프로덕션 배포 시
 **Est:** S
-**상태:** ⬜ Open — API 컨테이너 서비스도, production 미설정 경고 로그도 아직 없다 — 폴백은 여전히 무증상이다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — API 컨테이너 서비스도, production 미설정 경고 로그도 아직 없다 — 폴백은 여전히 무증상이다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(Beta·프로덕션 배포). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability 적대 검증
 
 **원인 / 영향:** `docker-compose.yml` 에 API 서비스가 **없다**(호스트 uvicorn). `PROMETHEUS_MULTIPROC_DIR` 을 주입하는 곳은 compose 의 worker 4곳 + Makefile 2곳뿐이다. `Dockerfile` 이 `/metrics` 디렉토리를 만들어 두지만 **그 값을 주입하는 곳이 레포 전체에 없다.**
@@ -1499,7 +1538,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 백테스트↔라이브 폼 패리티 작업 시
 **Est:** S (2-3h)
-**상태:** ⬜ Open — live_blocked_leverage 분기와 liveLeverage===1 게이트가 그대로 있고 leverage 는 상수 1 로 초기화 — 미러 배선 미착수. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — live_blocked_leverage 분기와 liveLeverage===1 게이트가 그대로 있고 leverage 는 상수 1 로 초기화 — 미러 배선 미착수. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-26 live-engine-parity 적대적 검증.
 
 **원인 / 영향:** `useBacktestForm.ts` 의 `liveLeverage != null && liveLeverage !== 1` 이 `live_blocked_leverage` 를 내고 `BacktestSizingFieldSet.tsx` 가 "Live 미러" 옵션을 `liveLeverage === 1` 로 막는다. 원래 문구는 "백테스트의 1배 자기자본 기준과 비대칭" 이라 설명했는데 **거짓**이다. 같은 폼에 백테스트 레버리지 입력이 있고 `v2_adapter` 가 `leverage=cfg.leverage` 를 같은 엔진 게이트로 넣는다. BL-483 배선 후엔 라이브도 레버리지를 반영하므로 차단 사유가 더 이상 없다.
@@ -1521,7 +1561,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** backtest deepening sprint
 **Est:** M (4-6h)
-**상태:** ⬜ Open — metrics.py 는 실재하나 \_v2*\* finance 헬퍼 12개가 여전히 v2_adapter.py(1239줄) L935-1167 에 남아 있어 이동 미완. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — metrics.py 는 실재하나 \_v2*\* finance 헬퍼 12개가 여전히 v2_adapter.py(1239줄) L935-1167 에 남아 있어 이동 미완. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-06-30-backtest-deepen.md` (codex DOWNGRADE → `metrics.py` 부재 직접 검증 후 KEEP 정정)
 
 **원인 / 영향:** `v2_adapter.py` 의 본 책임은 V2RunResult → BacktestOutcome 변환(orchestration)인데, Sharpe/MaxDD/CAGR/win-rate/streak/monthly 등 도메인-비종속 finance math 함수가 같은 모듈에 혼재 = shallow-by-size, Locality 깨짐. stress_test 재사용은 speculative(현재 `result.metrics` 만 소비)라 추출 정당화는 locality 중심.
@@ -1543,7 +1584,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** backtest deepening 또는 `exit_kind` 의미 변경 시
 **Est:** XS-S (1-3h)
-**상태:** ⬜ Open — 라우팅 삼항식이 v2_adapter :354/:838 에 여전히 char-identical 복제 — 헬퍼 위임 없음(줄번호만 265/568→354/838로 이동). (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 라우팅 삼항식이 v2_adapter :354/:838 에 여전히 char-identical 복제 — 헬퍼 위임 없음(줄번호만 265/568→354/838로 이동). (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-06-30-backtest-deepen.md`
 
 **원인 / 영향:** exit leg maker/taker 분기 `fill_type_for(t.exit_kind) if t.exit_kind is not None else "taker"` 가 `v2_adapter.py:265`(\_build_raw_trades)와 `:568`(\_compute_metrics)에 character-identical 복제. L549 주석은 'SSOT 위임으로 중복 제거' 라 주장하나 실제 SSOT 는 `_leg_cost` 뿐이고 routing 분기는 미위임 → `exit_kind` 의미 변경 시 2곳 동시 수정(money-path 수수료/슬리피지). 작지만 확정된 Locality 결함.
@@ -1564,6 +1606,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Trigger:** 누적 위반 181 line 검출 (2026-05-15 audit) — auto-fix 가능
 **Est:** S (3-5h)
 **상태:** ⬜ Open — lint 룰·auto-fix·pre-commit 훅 어느 것도 레포에 없고 위반은 181→197줄로 오히려 늘었다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 도래 — 트리거가 스스로 도래를 선언(누적 위반 181 line 검출 · auto-fix 가능) (2026-08-10 bl-trigger-triage)
 **출처:** `2026-05-15-claudemd-align-audit.md` §6 Track C1, [LESSON-068](lessons.md)
 
 **현 상태:** docs/dev-log 161 + dogfood 12 + guides 8 = 181 line 한국어 sentence + `:` end-of-line 위반. false positive 0. lint mechanism 0 = LLM 매 generation 자연 위반.
@@ -1589,6 +1632,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Trigger:** 누적 누락 70 file 검출 (BE 14 + FE 56, 2026-05-15 audit). main.py / core/config.py / trading/registry.py / app/layout.tsx 등 핵심 file 포함
 **Est:** M (8-12h — lint rule 4-6h + 70 file 의미 있는 한국어 1줄 주석 작성 4-6h)
 **상태:** ⬜ Open — lint 룰(ESLint/ruff/pre-commit) 전무하고 main.py·config.py·layout.tsx 모두 여전히 헤더 없음 — 다만 근거였던 전역 §6 는 소멸 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 도래 — 트리거가 스스로 도래를 선언(누적 누락 70 file 검출) (2026-08-10 bl-trigger-triage)
 **출처:** `2026-05-15-claudemd-align-audit.md` §6 Track C2, [LESSON-068](lessons.md)
 
 **현 상태:** BE 14/157 (8.9%) + FE 56/243 (23%) = 70 file 신규 source 첫 3줄 한국어 주석 누락. config / test / **init** / index.ts / \*.d.ts 제외. ESLint custom rule 부재 + ruff custom rule 부재.
@@ -1615,7 +1659,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** trading deepening sprint (clean win, 단독 가치 낮음)
 **Est:** XS-S (1-2h)
-**상태:** ⬜ Open — \_async_dispatch_event(:4217~4472, 약 255 LOC)이 그대로 있고 mark_failed+commit+metric 반복이 9회, 추출 헬퍼는 부재. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — \_async_dispatch_event(:4217~4472, 약 255 LOC)이 그대로 있고 mark_failed+commit+metric 반복이 9회, 추출 헬퍼는 부재. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-06-26-trading-deepen-2.md`
 
 **현 상태:** `tasks/live_signal.py` `_async_dispatch_event`(:572-776, 205 LOC, nesting 4-5) 안에 `await event_repo.mark_failed(...) + commit() + qb_live_signal_dispatch_total.labels(...).inc() + return/raise` 패턴이 8회 반복(session_inactive / strategy_missing / invalid_settings / settings_unset / rejected / kill_switched / NotionalExceeded계열 / idempotency_conflict).
@@ -1635,7 +1680,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** exit-field 추가 시 3곳 동시 수정이 부담될 때 (현재는 견딜 만함)
 **Est:** S-M (3-5h)
-**상태:** ⬜ Open — OrderSubmit/Order/OrderRequest 3곳 exit-field 평행 정의가 그대로 살아 있고 ExitFields mixin 은 레포 전역 0건 — Trigger 도 미도래. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — OrderSubmit/Order/OrderRequest 3곳 exit-field 평행 정의가 그대로 살아 있고 ExitFields mixin 은 레포 전역 0건 — Trigger 도 미도래. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** `2026-06-26-trading-deepen-2.md`
 
 **현 상태:** `reduce_only`/`trigger_price`/`trigger_by`/`take_profit`/`stop_loss`/`trigger_direction`/`oco_group_id`/`trailing_stop` 8 필드가 `OrderSubmit`(dataclass, providers.py:67-83) / `Order`(SQLModel, models.py:193-218) / `OrderRequest`(pydantic, schemas.py:60-71) 3 boundary type 에 동일 타입·주석으로 재정의 (+ LiveSignalEvent subset). 필드 추가 시 3곳 동시 수정.
@@ -1675,7 +1721,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 2000+ trades 백테스트가 흔해질 때
 **Est:** M (4-6h)
-**상태:** ⬜ Open — BE 집계 엔드포인트가 없어 FE 가 2000건 cap 으로 전량을 끌어온다 — 단 페이지 fetch 는 이미 병렬이라 남은 것은 cap 과 전송량뿐 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — BE 집계 엔드포인트가 없어 FE 가 2000건 cap 으로 전량을 끌어온다 — 단 페이지 fetch 는 이미 병렬이라 남은 것은 cap 과 전송량뿐 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-05 TV-parity sprint F1/F3 (FE 파생 분포·waterfall 은 표본 근사 캡션으로 정직 고지 중)
 
 **원인 / 영향:** 수익 분포 histogram/거래 분포 donut/수익 구조 waterfall 이 FE 에서 전체 trades(최대 2000, 페이지 루프 10회)로 파생. 초과 시 "표본 기준" 근사. BE 집계 1 endpoint 면 정확+경량. **참고:** BE `gross_profit_abs`/`gross_loss_abs`/`per_side.*` 는 net(비용 차감 후) 기준 승/패 분해 — waterfall 용 비용 전(gross) 분해와 다름(FE `computeProfitStructure` 항등식 참조). 집계 endpoint 설계 시 두 정의 모두 제공 권장.
@@ -1689,7 +1736,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 차트 pane 4개+ 필요 또는 줌/팬 동기화 요구 시
 **Est:** M (6-8h, spike)
-**상태:** ⬜ Open — 여전히 lightweight-charts ^4.2.0 이고, 차트는 createChart 2회 호출로 독립 인스턴스를 쌓는다 — v5 네이티브 pane 미도입. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 여전히 lightweight-charts ^4.2.0 이고, 차트는 createChart 2회 호출로 독립 인스턴스를 쌓는다 — v5 네이티브 pane 미도입. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-05 TV-parity sprint F2 (v4.2 는 멀티-pane API 부재 → 독립 인스턴스 3개 스택, 시간축 미동기화)
 
 ---
@@ -1701,7 +1749,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 원장(trade-ledger-table)과 서브페이지 컬럼 비정합 불편 접수 시
 **Est:** S (2-3h)
-**상태:** ⬜ Open — 원장 CSV 는 cumulative_pnl·runup_abs·drawdown_abs·fee_paid·slippage_paid 를 내는데 서브페이지 상세는 손익·수익률·수수료 3종뿐 — 비정합 존속 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 원장 CSV 는 cumulative_pnl·runup_abs·drawdown_abs·fee_paid·slippage_paid 를 내는데 서브페이지 상세는 손익·수익률·수수료 3종뿐 — 비정합 존속 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-05 TV-parity sprint F4 (원장만 신규 컬럼 반영, 서브페이지는 무변경)
 
 ---
@@ -1786,7 +1835,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** SAR 사용 전략 등장 시
 **Est:** S-M (3-5h — AF/EP/flip 규칙 손유도)
-**상태:** ⬜ Open — SAR 구현·단위테스트는 있으나 전부 성질 검사뿐 — TV 손유도 오라클 값 대조는 코드·문서 어디에도 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — SAR 구현·단위테스트는 있으나 전부 성질 검사뿐 — TV 손유도 오라클 값 대조는 코드·문서 어디에도 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-05 TV-parity sprint P1-4 (wma/bb/mom/obv/cross 는 스팟 판정 완료 — bb=population stdev=TV biased 기본 ✓, mom/obv/cross ✓. sar 만 오라클 미작성)
 
 ---
@@ -1798,7 +1848,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** FE 훅 팩토리 후속 정비 시 (`use-auth-ctx` 소비 도메인 전수)
 **Est:** S (2-3h — 정책 결정 + 일괄 적용)
-**상태:** ⬜ Open — 사용자 결정 대기: optimizer만 enabled: userId != null 유지, 타 도메인은 여전히 무가드 발사 — (a)통일 vs (b)제거는 사용자 정책 결정이 선행 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 사용자 결정 대기: optimizer만 enabled: userId != null 유지, 타 도메인은 여전히 무가드 발사 — (a)통일 vs (b)제거는 사용자 정책 결정이 선행 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-05 PR #394 FE 리팩토링 번들 (훅 팩토리 SSOT 작업 중 발견, 2026-07-05 코드 재검증)
 
 **원인 / 영향:** `features/optimizer/hooks.ts:59,70` 만 `enabled: userId != null` 로 로그아웃 시 쿼리를 미발사한다. 나머지 도메인(backtest/strategy/trading/live-sessions/waitlist) list 훅은 가드 없이 `useAuthCtx` 의 `uid="anon"` sentinel + null token 으로 발사(401 → retry 1). PR #394 훅 팩토리(`use-auth-ctx`/`use-invalidating-mutation`/`query-poll`)는 폴링 가드만 SSOT 화했고 enabled 가드는 미흡수. 실버그는 아니나 로그아웃 시 도메인별 동작이 달라 디버깅·테스트 기대가 갈린다.
@@ -1816,7 +1867,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** **BL-395(lwc v5 spike) 완료 후** — 멀티-pane/커스텀 시리즈 확보가 수렴 가능성 판정의 전제
 **Est:** L (8-16h — 대상 플롯별 이식 난도 상이, spike 선행)
-**상태:** ⬜ Open — 3원화 대상 3계열(파일·의존성)이 전부 그대로 있고 선행 BL-395(lwc v5) 도 미완이라 Trigger 자체가 미도래. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 3원화 대상 3계열(파일·의존성)이 전부 그대로 있고 선행 BL-395(lwc v5) 도 미완이라 Trigger 자체가 미도래. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 선행 BL-395=ACTIVE (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-05 PR #394 FE 리팩토링 번들 (차트 지연로딩 정리 중 3원화 실측)
 
 **원인 / 영향:** 시계열=lightweight-charts(`trading-chart.tsx` 싱글턴 dynamic import + backtest equity/drawdown pane + live-sessions), 통계 플롯=recharts 5종(`charts/recharts-plots.ts` 단일 seam, 414KB), optimizer 2종(`genetic-generation-chart.tsx`/`bayesian-iteration-chart.tsx`)=recharts 의존 회피 목적의 손수 inline SVG — 사실상 3원화. 번들 이중 부담 + 스타일 토큰(`lib/chart-tokens.ts` 로 완충 중) 3중 유지보수 + 신규 차트마다 라이브러리 선택 부채. Sprint 30-β 결정("recharts 보존, 신규만 lwc")이 3원화로 표류했다.
@@ -1865,7 +1917,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 사용자 DrFXGOD 류 대형 indicator 수요 재확인 시
 **Est:** M (ta.alma/ta.dmi 각 2-3h + time() stub 1h) / ticker.new·security_lower_tf 는 별도 설계 필요
-**상태:** ⬜ Open — ta.alma/ta.dmi 는 TA_FUNCTIONS 에 없고 coverage 가 여전히 미지원 안내만 한다 — time 은 식별자만, 호출형 stub 없음 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — ta.alma/ta.dmi 는 TA_FUNCTIONS 에 없고 coverage 가 여전히 미지원 안내만 한다 — time 은 식별자만, 호출형 stub 없음 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-12 pine-batch QA (`docs/archive/qa/2026-07-12-pine-batch-1h4h/report.md` §2)
 
 **원인 / 영향:** G2(array 15종) 이후 DrFXGOD_indicator_hard(=i3_drfx) 의 잔여 차단 표면. (a) `ta.alma`(Arnaud Legoux MA)·`ta.dmi`(DMI/ADX) 는 순수 지표 — stdlib 추가로 feasible. (b) `time("")` 호출형은 timestamp stub 확장으로 feasible. (c) `ticker.new` + `request.security_lower_tf` 는 멀티심볼·하위 TF 데이터 패러다임 — 단일 TF 백테스트 전제 밖(거부 유지가 정직). (a)+(b) 만 구현해도 DrFXGOD 는 (c) 로 여전히 차단 — **전체 지원 목표가 아니라 (a)(b) 의 범용 가치로 판단할 것**.
@@ -1883,7 +1936,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 다음 FE polish 사이클 (BL-402 처리와 묶음 권장 — 파일 겹침)
 **Est:** S (2-3h — 전부 표시 전용)
-**상태:** ⬜ Open — 6건 중 1~5 (색명·radius·글래스·레이블·mono)는 v3 재작성으로 소멸했으나 6번 --destructive-light 중복 alias(=subtle 동일값, 사용처 6곳)와 영문 aria-label 다수가 남았다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 6건 중 1~5 (색명·radius·글래스·레이블·mono)는 v3 재작성으로 소멸했으나 6번 --destructive-light 중복 alias(=subtle 동일값, 사용처 6곳)와 영문 aria-label 다수가 남았다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-12 pine-batch QA 디자인 감사 (`docs/archive/qa/2026-07-12-pine-batch-1h4h/report.md` §6.1)
 
 **원인 / 영향:** W6 잔여물 + 리디자인 이후 미세 드리프트 묶음. (1) `charts/chart-legend.tsx:51`·`charts/equity-pane.tsx:78` aria-label "실선 녹색" — 실제 equity 색은 코퍼, 스크린리더에 틀린 색 전달 (P2급, 팩 내 최우선. E2E getByLabelText 2건 동반 수정). (2) `report/key-stats-strip.tsx:83`·`report/performance-chart.tsx:42` 히어로 카드 `rounded-xl`(14px) — DESIGN.md §5 카드 규격은 10px. (3) `charts/chart-legend.tsx:44` `bg-card/80 backdrop-blur` 글래스 잔존 — v3 플랫+1px 보더 원칙 위반 (스코프 내 유일). (4) `components/metric-tile.tsx:60` 레이블 sans 10px — §0.1 mono 11px tracking 0.14em 규격과 분열. (5) `report/trade-ledger-table.tsx` 금액 셀 mono/tabular 혼용. (6) `--destructive-light` alias 잔존 + 영문 aria-label("strategy select" 등). DESIGN.md §11 표의 "백테스트 결과 = Light" 는 v2 스냅샷 잔재 — 문서 정리 동반.
@@ -1901,7 +1955,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 다음 pine_v2 TV-parity 사이클 (BL-405 재분류 후속) — 특히 (a)는 실제 TradingView 그라운드트루스 확보 시
 **Est:** M ((a) ta.ema 시딩 조사 2-4h — 단 확정엔 실제 TV 실행 대조 필요 / (b) XS, 관측 무영향이라 저순위)
-**상태:** ⬜ Open — 사용자 결정 대기: (a) ta.ema 시딩은 여전히 SMA seed 그대로라 실제 TV 관측 없이는 대조 불가(순환검증), (b)는 nan 반환 그대로지만 관측 무영향. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 사용자 결정 대기: (a) ta.ema 시딩은 여전히 SMA seed 그대로라 실제 TV 관측 없이는 대조 불가(순환검증), (b)는 nan 반환 그대로지만 관측 무영향. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-12 A+B+C Trust 번들 — BL-405 재분류 과정에서 TV 문서 검증 + 회귀 테스트(`test_na_bool_tv_parity.py`)로 표면화
 
 **원인 / 영향:**
@@ -1923,6 +1978,7 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Trigger:** 구 백테스트가 목록에 남아 있는 동안
 **Est:** M (equity_curve 로딩 필요)
 **상태:** ⬜ Open — 정렬은 여전히 metrics->>'sharpe_ratio' 캐스팅 서버 정렬이고 equity_curve 는 defer 중 — FE 고지만 있고 처방(재계산·분리)은 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 도래 — 로컬 DB 실측: COMPLETED 백테스트에 `sharpe_convention` 마커 없는 구 컨벤션 1건이 남아 있고 신 컨벤션도 `tv_daily_rfr2`(2)/`tv_monthly_rfr2`(1) 로 섞여 있다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-26 backtest-trust 스프린트 (codex G0 P1 지적 → 수용)
 
 **원인 / 영향:** `backtest/repository.py:71-77` sort whitelist 가 `metrics->>'sharpe_ratio'` 를 Numeric 캐스팅해 **서버 정렬**하는데 convention 을 보지 않는다. 마커(`sharpe_convention`)는 혼재를 **보이게** 할 뿐 정렬을 **고치지는** 못한다 — 의미가 다른 값이 계속 한 순위로 섞인다.
@@ -1940,7 +1996,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 구 optimizer·stress 결과 재해석 필요 시
 **Est:** M (2 도메인 JSONB 스키마 확장)
-**상태:** ⬜ Open — sharpe_convention 마커는 backtest 계열에만 존재하고 optimizer/stress_test JSONB 는 여전히 순수 sharpe 값만 저장한다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — sharpe_convention 마커는 backtest 계열에만 존재하고 optimizer/stress_test JSONB 는 여전히 순수 sharpe 값만 저장한다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-26 backtest-trust 스프린트 (codex G0 P2 지적 → 스코프 밖 수용)
 
 **원인 / 영향:** `optimizer/serializers.py:104` 와 `stress_test/serializers.py:80,159` 가 각자 독립 JSONB 에 sharpe 를 저장한다. 본 스프린트는 **backtest metrics 만** 마킹했으므로 두 도메인의 과거 결과는 구·신 구분 없이 남는다. 신규 실행은 새 수식이지만 저장값에 그 사실이 기록되지 않는다.
@@ -2001,7 +2058,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 같은 계정·심볼에 세션이 여러 개 생긴 뒤 두 표에서 연달아 청산을 누를 때
 **Est:** S
-**상태:** ⬜ Open — mutationKey 가 여전히 ["close-position", sessionId, symbol] 이고 두 표 테스트도 같은 sessionId 를 주입한다 — 포지션 정체성 축 전환 흔적 없음 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — mutationKey 가 여전히 ["close-position", sessionId, symbol] 이고 두 표 테스트도 같은 sessionId 를 주입한다 — 포지션 정체성 축 전환 흔적 없음 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-ops-hygiene codex 최종 적대 리뷰 (재현 판정 후 등재)
 
 **원인 / 영향:** BL-502 의 `mutationKey` 는 `["close-position", sessionId, symbol]` 이다. 그런데 두 표가 같은 포지션에 대해 **서로 다른 `sessionId` 를 잡을 수 있다** — 계정 표는 그 계정·심볼의 **최신** 귀속 세션(비활성 포함, `position_service.py:283`)을 쓰고, 세션 표는 **활성** 세션별로 렌더한다. 최신 세션이 비활성이고 더 오래된 세션이 활성이면 두 키가 갈리고 lock 이 분리된다 → 같은 순 포지션에 감소전용 주문 2개가 나갈 수 있다(BL-502 가 없애려던 바로 그 상태).
@@ -2023,7 +2081,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 접기 규칙이 한 번 더 바뀔 때
 **Est:** S
-**상태:** ⬜ Open — features 분리 미실시. 단 :56 은 이미 모듈 레벨이라 분리는 성능을 안 바꾼다 — 실비용은 :248-301 조립·호출이 useMemo 밖인 것 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — features 분리 미실시. 단 :56 은 이미 모듈 레벨이라 분리는 성능을 안 바꾼다 — 실비용은 :248-301 조립·호출이 useMemo 밖인 것 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-ops-hygiene codex 최종 적대 리뷰
 
 **원인 / 영향:** `collapseRows`(`account-positions-table.tsx`)가 권한(`readOnly`)·귀속 세션·차단 사유를 해석해 대표 행과 청산 가능성을 결정한다. `frontend/AGENTS.md` 의 view ↔ 비즈니스 로직 분리 원칙 위반이다.
@@ -2043,7 +2102,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 스크레이프 지연이 눈에 띌 때, 또는 장기 무중단 가동 시
 **Est:** M
-**상태:** ⬜ Open — role별 dead-pid 접기 janitor(merge accumulate=False)가 코드·테스트 어디에도 없고, 있는 것은 콜드 스타트 wipe 뿐이다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — role별 dead-pid 접기 janitor(merge accumulate=False)가 코드·테스트 어디에도 없고, 있는 것은 콜드 스타트 wipe 뿐이다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability 적대 검증(프로세스 경계 렌즈)
 
 **원인 / 영향:** `mark_process_dead` 는 `gauge_live*` 파일만 지운다. `counter_`/`histogram_`/`gauge_sum_`/`gauge_mostrecent_` 는 **아무도 지우지 않는다**. `worker_max_tasks_per_child=250` 자식 교체마다 +4 파일, `uvicorn --reload`/watchfiles 재기동도 각각 새 식별자다. 수집기는 매 스크레이프마다 전 파일을 re-mmap + 키마다 `json.loads` 하므로 비용이 **O(F×K)** 다.
@@ -2064,7 +2124,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 운영 대시보드를 만들 때
 **Est:** S
-**상태:** ⬜ Open — 3종 처방 중 divergence 계측만 구현(BL-536), janitor 실적·완전체결 카운터는 여전히 부재. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 3종 처방 중 divergence 계측만 구현(BL-536), janitor 실적·완전체결 카운터는 여전히 부재. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability 적대 검증(거래소 실상 렌즈)
 
 **원인 / 영향:**
@@ -2107,7 +2168,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** metric 기반 운영 경보 도입 시
 **Est:** S
-**상태:** ⬜ Open — alerts.yml 은 여전히 alert 2개뿐이고 placed−cancelled recording rule 은 레포 어디에도 없다(record: 0건). (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — alerts.yml 은 여전히 alert 2개뿐이고 placed−cancelled recording rule 은 레포 어디에도 없다(record: 0건). (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability 적대 검증
 
 **원인 / 영향:** PbR 같은 전략은 매 bar 피벗이 움직여 `conditional_entry_planner.py:285-289` 가 항상 불일치 → **매 tick** `cancelled_total{reason="replaced"}` +1 · `placed_total` +1 이 정상이다. 병리(거절 루프)도 **같은 패턴**이라 두 카운터로는 구분할 수 없다. 유일한 신호는 `placed − cancelled` 의 발산인데 recording rule 이 없다.
@@ -2128,7 +2190,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** `/metrics` 소비자(대시보드·경보)를 만들 때
 **Est:** S
-**상태:** ⬜ Open — 4건 중 1건만 BL-448 로 소멸했고, 관측 계약 문서화도 multiproc /metrics HTTP 테스트도 레포에 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 4건 중 1건만 BL-448 로 소멸했고, 관측 계약 문서화도 multiproc /metrics HTTP 테스트도 레포에 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability 적대 검증(관측 계약 렌즈) + 실측
 
 **원인 / 영향:**
@@ -2150,7 +2213,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** outbox 적체 경보를 붙일 때
 **Est:** XS
-**상태:** ⬜ Open — limit=10_000 과 limit=50 두 .set() 이 그대로 공존하고 gauge 에 라벨도 없다 — 처방 미적용. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — limit=10_000 과 limit=50 두 .set() 이 그대로 공존하고 gauge 에 라벨도 없다 — 처방 미적용. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-observability G1 codex 적대 검증, 코드 재현 완료
 
 **원인 / 영향:** `live_signal.py:813` 은 `list_pending(limit=10_000)` 결과를 `.set()` 하고, `:1475` 는 `list_pending(limit=50)` 결과를 같은 gauge 에 `.set()` 한다. **마지막 writer 가 이긴다.** 실제 pending 이 50 을 넘으면 recovery task 가 **50 으로 덮어써** 적체 신호가 조용히 잘린다.
@@ -2206,7 +2270,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 다음 FE polish 사이클 (BL-408 과 묶음 가능)
 **Est:** S (2-4h — 전부 국소)
-**상태:** ⬜ Open — 8건 중 draft.ts version 스키마 1건만 구현, 배럴 2·webhook version·js 최적화 3·fitContent 설계 모두 코드에 그대로 남아 있다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 8건 중 draft.ts version 스키마 1건만 구현, 배럴 2·webhook version·js 최적화 3·fitContent 설계 모두 코드에 그대로 남아 있다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 선행 BL-408=ACTIVE (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-13 vercel 70룰 멀티에이전트 감사 (파인더 6 + 반박형 검증, 원시 24 → 확정 18 중 high/medium 10건은 stage/fe-react-audit PR #433 에서 해소 — 본 팩은 low 8건)
 
 **원인 / 영향:** (1) `components/ui/form.tsx:6` + `features/trading/index.ts:3` 배럴 import. (2) `features/strategy/webhook-secret-storage.ts:53` + `draft.ts:89` localStorage 버전 스키마 부재. (3) `features/backtest/utils.ts:218` 함수 결과 캐시 부재 + `equity-chart-v2.tsx:184` / `trade-stats-strip.tsx:113` filter/map 다중 순회. (4) `components/charts/trading-chart.tsx:300` data effect 의 `fitContent()` 가 매 sync 마다 실행되는 설계 — 근본 수정(최초 1회 제한)은 전 호출처 동작 변경이라 별도 검토 (PR #433 은 호출측 identity 안정화로 해소).
@@ -2224,7 +2289,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** optimizer 폼/리포트 다음 기능 사이클 (BL-235/236/364 중 아무거나 착수 시 동승 검토)
 **Est:** M (+80~120 LOC, FE 동형 유지 의무)
-**상태:** ⬜ Open — read 응답은 여전히 result: dict[str,Any] 이고 \_to_response 가 raw jsonb 를 그대로 흘린다 — OptimizationResultOut 유니온 자체가 레포에 없다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — read 응답은 여전히 result: dict[str,Any] 이고 \_to_response 가 raw jsonb 를 그대로 흘린다 — OptimizationResultOut 유니온 자체가 레포에 없다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 선행 BL-235=ACTIVE (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-13 optimizer deepen 감사 후보 C-full (C-min 은 동일 세션 해소 — get/list 손상 row 방어 대칭화, PR feat/optimizer-cmin-n2)
 
 **원인 / 영향:** BE 는 typed 역직렬화 역량(`*_from_jsonb`)을 갖고도 read 응답을 untyped dict 로 흘려 FE zod 가 유일한 검증층. writer 변경 시 drift 를 BE 테스트가 못 잡음 (BL-388/392 harm-class).
@@ -2242,7 +2308,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 주문 상세 화면/드로어가 디자인 캐논(프로토타입)에 추가될 때
 **Est:** S (2-4h)
-**상태:** ⬜ Open — FE 에 getOrder 배선도 상세 드로어도 없고 프로토타입 screen-11 에도 상세 affordance 가 없어 Trigger 자체가 미도래. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — FE 에 getOrder 배선도 상세 드로어도 없고 프로토타입 screen-11 에도 상세 affordance 가 없어 Trigger 자체가 미도래. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-23 functional-parity 스프린트 defer 판정
 
 **원인 / 영향:** 원장 행이 이미 전 필드(오류 메시지 전문 포함)를 인쇄해 실해는 낮음. 디자인 근거 없는 UI 신설은 캐논 위반이라 배선만 보류.
@@ -2258,7 +2325,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 스트레스 이력 화면이 디자인 캐논에 추가될 때
 **Est:** S-M (3-5h)
-**상태:** ⬜ Open — byBacktest 캐시는 여전히 useLatestStressTest 의 단일 Summary 이고 이력 리스트 화면·페이지 응답 재정의 모두 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — byBacktest 캐시는 여전히 useLatestStressTest 의 단일 Summary 이고 이력 리스트 화면·페이지 응답 재정의 모두 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-23 functional-parity 스프린트 defer 판정
 
 **원인 / 영향:** 리로드 소실(기능 격차의 본질)은 A7-lite 가 해소. 과거 실행 브라우징만 미지원.
@@ -2274,7 +2342,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 다음 폼 터치 사이클 또는 4번째 사본 등장 시
 **Est:** S (2-3h)
-**상태:** ⬜ Open — 공용 FieldError 승격 미실시(optimizer 로컬 정의 + raw .field-error 사본 다수), resolver 는 여전히 path.join(".") 평탄 키이고 재검증 테스트도 없다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 공용 FieldError 승격 미실시(optimizer 로컬 정의 + raw .field-error 사본 다수), resolver 는 여전히 path.join(".") 평탄 키이고 재검증 테스트도 없다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-23 BL-401 적대 평가 사소 지적 (waitlist/optimizer 2곳+@ 사본)
 
 **원인 / 영향:** waitlist·optimizer 가 동일 FieldError 를 로컬 복제. 또 커스텀 resolver 가 평탄 키(`parameters.0.max`)로 에러를 만들면 RHF per-field 재검증(dotted-path unset)이 못 지워 제출 재시도까지 stale 에러가 남을 수 있음 (중첩 경로 폼 첫 소비 사례).
@@ -2290,7 +2359,8 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** Beta 공개 배포 전 또는 realtime 다음 터치 시
 **Est:** S (2-4h)
-**상태:** ⬜ Open — pre-auth 글로벌 상한·rate-limit 코드가 전무하고 auth→realtime 역참조도 dependencies.py:13 에 그대로 남아 있다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — pre-auth 글로벌 상한·rate-limit 코드가 전무하고 auth→realtime 역참조도 dependencies.py:13 에 그대로 남아 있다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(Beta·프로덕션 배포). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-24 tc-realtime-be 적대 평가 잔여 리스크 2건
 
 **원인 / 영향:** accept 후 5s auth 창을 쥔 미인증 소켓의 동시 수 상한이 없음(per-user 상한은 인증 후에만 작동, Origin 은 비브라우저가 위조 가능 — 인증 자체는 별도라 보안 붕괴는 아님). 또 `src/auth/dependencies.py` 가 feature 도메인 `src.realtime.auth` 를 import 하는 방향 역전.
@@ -2347,7 +2417,8 @@ KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은
 **Priority:** P3
 **Trigger:** 거래소 계정 2개 이상 등록 시 (현 로컬 1계정 무해)
 **Est:** S-M (2-6h)
-**상태:** ⬜ Open — public ticker 가 여전히 private 과 같은 ws_stream 큐(concurrency=3 고정) — 분리·계정수 산정·starvation 회귀 테스트 전무. lease 갱신 유닛만 존재. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — public ticker 가 여전히 private 과 같은 ws_stream 큐(concurrency=3 고정) — 분리·계정수 산정·starvation 회귀 테스트 전무. lease 갱신 유닛만 존재. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-24 opspack-ws2 codex G0 + WA 적대평가 P3 관찰
 
 **원인 / 영향:** reconcile 이 활성 계정마다 장기 private stream 을 enqueue 하는데 계정 수 상한이 없어, 계정 N+1 > concurrency(3) 이면 public ticker 태스크가 큐에서 기아. 또한 60s refresh/lease-lost 루프는 코드 정독+프로브로만 검증(직접 단위 테스트 없음).
@@ -2363,7 +2434,8 @@ KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은
 **Priority:** P3
 **Trigger:** 전략 파라미터/수명주기 UI 요구 시
 **Est:** M (4-8h, BE 스키마 + FE)
-**상태:** ⬜ Open — StrategyListItem 에 파라미터 요약·lifecycle 필드가 여전히 없고 FE 주석도 미렌더 사유를 그대로 유지 중이다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — StrategyListItem 에 파라미터 요약·lifecycle 필드가 여전히 없고 FE 주석도 미렌더 사유를 그대로 유지 중이다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-24 perf-surface (캐논 프로토타입엔 존재하나 StrategyListItem 스키마에 파라미터·lifecycle 필드 없음 → §4.9 미렌더 유지)
 
 **원인 / 영향:** 캐논 screen 은 전략별 파라미터 요약 + 수명주기 칩을 그리나, `StrategyListItem` 에 해당 필드가 없어 perf-surface 는 성과 3칸만 노출하고 파라미터/칩은 의도적으로 미렌더. 데이터 모델 확장 전까지 표면 불가.
@@ -2379,7 +2451,8 @@ KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은
 **Priority:** P3
 **Trigger:** 공개 share 리포트에 구간 차트 요구 시
 **Est:** M (owner-authed OHLCV 엔드포인트를 token 기반 공개 경로로 확장)
-**상태:** ⬜ Open — owner-authed /trades/{i}/ohlcv 그대로이고 token 공개 OHLCV 경로도, share 페이지 trade 표도 없다 — 처방 미구현. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — owner-authed /trades/{i}/ohlcv 그대로이고 token 공개 OHLCV 경로도, share 페이지 trade 표도 없다 — 처방 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-24 perf-surface A4 (TradeDetailTable 은 owner-authed `/trades/{i}/ohlcv` 사용 → share 페이지는 미렌더가 정직. 현재 share 는 trade 표 자체가 없음)
 
 **원인 / 영향:** 미니차트 fetch 는 owner-authed 엔드포인트라 share(token) 컨텍스트에서 401. 현재 share 페이지는 Stat 카드+EquitySparkline 만 있고 trade 표가 없어 무해하나, 향후 share 에 trade 상세 도입 시 차트 공백.
@@ -2395,7 +2468,8 @@ KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은
 **Priority:** P3
 **Trigger:** 대시보드에서 최적화 best 성과를 목록 단계에서 보고 싶을 때
 **Est:** S-M (best_params 대응 backtest metric 역산 또는 denormalize)
-**상태:** ⬜ Open — §03 최적화 행의 수익률/MDD 칸이 여전히 EMPTY_CELL + "결과는 최적화 상세에서 확인" 고정이라 역산·objective 표기 미구현. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — §03 최적화 행의 수익률/MDD 칸이 여전히 EMPTY_CELL + "결과는 최적화 상세에서 확인" 고정이라 역산·objective 표기 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-24 perf-surface A3 (§03 병합에서 최적화 행은 수익률/MDD 를 `—`+"결과는 최적화 상세에서 확인" 으로 고정. best 지표 역산은 후속)
 
 **원인 / 영향:** OptimizationRun 은 param_space/result(iterations) 만 보유, best 조합의 백테스트 metric 은 목록에 없어 §03 최적화 행 성과 칸이 빈칸. 정직하나 정보 밀도 낮음.
@@ -2411,7 +2485,8 @@ KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은
 **Priority:** P3
 **Trigger:** 전략을 최근 성과 순으로 정렬하고 싶을 때
 **Est:** S (2-3h; BE latest_backtest 정렬 축 + FE SORT_OPTIONS 확장)
-**상태:** ⬜ Open — SORT_OPTIONS 는 여전히 recent/name 둘뿐이고 정렬은 클라 로컬, BE strategy 목록에 성과 정렬 축(sort 파라미터) 자체가 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — SORT_OPTIONS 는 여전히 recent/name 둘뿐이고 정렬은 클라 로컬, BE strategy 목록에 성과 정렬 축(sort 파라미터) 자체가 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-24 perf-surface A2 stretch 미실행 (SORT_OPTIONS 는 recent/name 만; 성과 3칸은 표기만, 정렬 축 부재)
 
 **원인 / 영향:** 성과 열은 노출됐으나 전략 목록은 마지막수정/이름 정렬만 지원. latest_backtest 성과 기준 정렬 부재로 우열 비교가 목록 단계에서 제한적.
@@ -2446,7 +2521,8 @@ KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은
 **Priority:** P3
 **Trigger:** 수동 청산 후 잔여 조건부 주문(standalone SL/Trail 등 flat 시 자동취소되지 않는 것)이 dangling 으로 남아 재진입 시 오발화하는 실사례가 확인될 때
 **Est:** M (post-fill flat 확인 mechanism + orderLinkId→세션 매핑)
-**상태:** ⬜ Open — 청산 후 잔여 조건부 주문 스윕 코드가 close_service 어디에도 없다; 계정 배타성만 갖춰졌고 post-fill flat 확인·세션 귀속 취소는 미구현. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 청산 후 잔여 조건부 주문 스윕 코드가 close_service 어디에도 없다; 계정 배타성만 갖춰졌고 post-fill flat 확인·세션 귀속 취소는 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 close-completeness (BL-434 분리 — codex G0 이 스윕에서 2 BLOCKING 발견해 이연)
 
 **원인 / 영향:** BL-434 의 완전 보고(display)는 완료. 청산 스윕(잔여 reduce-only 조건부 주문 취소)은 codex G0 이 2 BLOCKING 을 드러내 이연: (1) **타이밍** — `execute()` 성공 = 주문 accept(async)이지 fill 이 아님. 발주 직후 스윕하면 시장가 청산 미체결 중 보호 주문부터 취소 = 머니-패스 위험. (2) **교차 세션** — 조회는 account+symbol 단위. 같은 계정·심볼 공유 타 세션의 보호 주문까지 방향만 맞으면 취소(스냅샷에 세션 귀속 식별자 없음). dogfood 실측 = 포지션-부착 Partial 조건부 TP/SL 은 Bybit 이 flat 시 자동취소하므로(close 후 orders count=0) 이연은 안전. 스윕은 truly-standalone dangling 주문에만 필요.
@@ -2503,7 +2579,8 @@ JOIN trading.orders ON exchange_order_id → 0 행
 **Priority:** P3
 **Trigger:** limit 청산 경로가 생기거나, 부분체결 상태에서 사용자 취소가 가능해질 때
 **Est:** S (2-3h)
-**상태:** ⬜ Open — cancelled 승자 backfill 예약도, SUM 의 realized_pnl_synced_at 기준 확대도 미구현. limit 청산 매핑은 있으나 미배선이라 Trigger 미도래. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — cancelled 승자 backfill 예약도, SUM 의 realized_pnl_synced_at 기준 확대도 미구현. limit 청산 매핑은 있으나 미배선이라 Trigger 미도래. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 money-path-accuracy (codex G0 BLOCKING 을 실측 반박한 뒤 남은 진짜 잔여)
 
 **원인 / 영향:** closedPnl backfill 은 `state==filled` 인 reduce-only 주문만 대상으로 한다. 부분체결 뒤 `cancelled` 로 끝난 청산은 실제로 자금이 움직였는데도 `state==filled` 필터에 걸려 손익이 계상되지 않는다. **현재는 도달 불가** — 이 레포의 청산은 전부 `OrderType.market` 이고 Bybit 시장가 부분체결은 `PartiallyFilledCanceled` → ccxt `closed` → 우리 `filled` 로 매핑되기 때문이다. limit 청산이 도입되는 순간 활성화된다.
@@ -2514,7 +2591,8 @@ JOIN trading.orders ON exchange_order_id → 0 행
 
 ### BL-440
 
-**상태:** 🟡 **열려 있다** — 본 섹션의 "Resolved" 문자열은 **BL-014 를 가리키는 cross-ref**(출처 줄)이고, 이 BL 자신(`order_executions` per-execution ledger)은 **YAGNI 로 미착수**다. 근거: 본 섹션 `**권장 접근:**` 줄("실제 분석 수요가 생기기 전에는 만들지 않는다") · `docs/roadmap.md:262` `- [ ] **BL-440**`.
+**상태:** ⏳ **대기 (트리거 미도래)** — 본 섹션의 "Resolved" 문자열은 **BL-014 를 가리키는 cross-ref**(출처 줄)이고, 이 BL 자신(`order_executions` per-execution ledger)은 **YAGNI 로 미착수**다. 근거: 본 섹션 `**권장 접근:**` 줄("실제 분석 수요가 생기기 전에는 만들지 않는다") · `docs/roadmap.md:262` `- [ ] **BL-440**`.
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 
 **Title:** per-execution ledger (`order_executions`) — BL-014 원안의 잔여
 **Category:** Backend / trading
@@ -2536,7 +2614,8 @@ JOIN trading.orders ON exchange_order_id → 0 행
 **Priority:** P2
 **Trigger:** entry 부분체결이 1건이라도 실관측될 때
 **Est:** M (4-6h)
-**상태:** ⬜ Open — 부분체결 계측(qb_partial_fill_total)만 있고 warmup-replay 수량 보정도 세션 fail-closed 비활성화도 없다 — 조건부 진입 tick 판정 불가 처리가 전부. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 부분체결 계측(qb_partial_fill_total)만 있고 warmup-replay 수량 보정도 세션 fail-closed 비활성화도 없다 — 조건부 진입 tick 판정 불가 처리가 전부. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 money-path-accuracy
 
 **원인 / 영향:** entry 주문이 부분체결되면 거래소 실포지션은 시뮬레이션이 가정한 수량보다 작다. `run_live` 는 매 평가마다 전체 히스토리를 재실행하며 **자기 시뮬 포지션**을 기준으로 청산 수량을 산출하므로, 이후 close 신호가 실제 보유량보다 큰 수량을 요청한다. reduce-only 라 over-fill 은 막히지만 시뮬과 실계좌의 사이즈가 계속 어긋난다.
@@ -2552,7 +2631,8 @@ JOIN trading.orders ON exchange_order_id → 0 행
 **Priority:** P2
 **Trigger:** 실자금 전환 전 필수
 **Est:** M (4h — 리스크 게이트 변경이라 회귀 범위 넓음)
-**상태:** ⬜ Open — 분자는 여전히 strategy_id+filled 전 기간 합(시간창 없음), 분모는 trigger 시점 실잔고 — 스냅샷/기간창 처방 흔적 없음 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 분자는 여전히 strategy_id+filled 전 기간 합(시간창 없음), 분모는 trigger 시점 실잔고 — 스냅샷/기간창 처방 흔적 없음 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-attribution Plan 압박검증 + 실측
 
 **원인 / 영향:** `CumulativeLossEvaluator`(`kill_switch.py:97-136`)의 분자는 `strategy_id` + `state=filled` 전 기간 누적이고(시간창·`reduce_only`·`realized_pnl_synced_at` 필터 전무), 분모는 `balance_provider.fetch_balance_usdt` 로 조회한 **현재** 잔고다. ① 과거 데이터를 소급 삽입/보정하면 **오늘의 발주 게이트**가 즉시 반응한다 ② 앱 밖 외부 거래가 잔고를 줄이면 **분모가 이미 오염**되므로 그 손익을 분자에 넣으면 이중 반영, 안 넣어도 과대평가다. **실측 — 임계 10%, 분모 실잔고 190,679 USDT 기준 백필 후 loss% 는 0.00018%(여유 54,117배)라 현재 계정에선 발화하지 않는다.** 구조 결함이므로 실자금 전환 전에 닫아야 한다.
@@ -2568,7 +2648,8 @@ JOIN trading.orders ON exchange_order_id → 0 행
 **Priority:** P3
 **Trigger:** `exchange_order_id` 에 unique index 를 걸어야 할 때 (합성 행 도입 등)
 **Est:** S (2h)
-**상태:** ⬜ Open — sanitize 미적용 — WS 는 여전히 str(...,""), reconciler 는 str(exch.get("id",...)), transition_to_filled 는 str 무조건 write, 계정 스코프도 없다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — sanitize 미적용 — WS 는 여전히 str(...,""), reconciler 는 str(exch.get("id",...)), transition_to_filled 는 str 무조건 write, 계정 스코프도 없다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-attribution 적대 평가
 
 **원인 / 영향:** `state_handler.py:235` 는 `str(payload.get("orderId", ""))` 이라 WS 페이로드에 키가 없으면 **빈 문자열**을 저장한다. `reconciliation.py:233` 은 `str(exch.get("id", ...))` 인데 ccxt `safe_order` 가 `id` 키를 **항상 포함**하므로 값이 `None` 이어도 default 가 발동하지 않아 문자열 `"None"` 이 된다. 두 경로 모두 `transition_to_filled` 의 무조건 write 로 들어간다. partial unique index 가 걸린 상태라면 이 UPDATE 가 `IntegrityError` 로 실패해 **체결이 DB 에 기록되지 않는다.** 또한 `state_handler.py:251-263` 의 `_get_by_exchange_order_id` 는 계정 스코프가 없어 계정 간 id 충돌 시 `MultipleResultsFound` 로 터진다(Binance `orderId` 는 심볼별 int64).
@@ -2622,7 +2703,8 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P3
 **Trigger:** `webhook_payload IS NULL` 술어나 partial index 를 쓰려 할 때
 **Est:** S (1h, 마이그레이션 1)
-**상태:** ⬜ Open — webhook_payload 는 아직 plain JSONB 이고 'null' 정규화 마이그레이션도 없다 — none_as_null 은 ExchangeExit.raw 에만 적용됐다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — webhook_payload 는 아직 plain JSONB 이고 'null' 정규화 마이그레이션도 없다 — none_as_null 은 ExchangeExit.raw 에만 적용됐다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-attribution 적대 평가 실측
 
 **원인 / 영향:** `models.py:181-184` 가 `Column(JSONB, nullable=True)` 만 지정해 `none_as_null` 이 기본값 False 다. Python `None` 이 `'null'::jsonb` 로 직렬화되어 **DB 실측 17행 중 15행이 JSONB `'null'`** 이고 SQL NULL 은 레거시 시드 2행뿐이다. `webhook_payload IS NULL` 을 술어로 쓰면 레거시 2행만 잡는다.
@@ -2638,7 +2720,8 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P3
 **Trigger:** 사용자가 둘 이상 되는 시점 (Beta)
 **Est:** S (1h)
-**상태:** ⬜ Open — get_daily_summary(date) 는 여전히 date 인자 하나뿐이고 user/account 조인이 없어 전 테넌트 글로벌 합계다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — get_daily_summary(date) 는 여전히 date 인자 하나뿐이고 user/account 조인이 없어 전 테넌트 글로벌 합계다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(Beta·프로덕션 배포). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-attribution grounding 실측
 
 **원인 / 영향:** `order_repository.py:286-319` 의 `get_daily_summary` 는 `state='filled' AND filled_at ∈ [UTC 자정, +1d)` 만 걸고 user/strategy/account 스코프가 전혀 없다 — **전 테넌트 글로벌 합계**다. `dogfood_report.py:84` 가 이 값을 HTML 리포트에 싣는다. 단일 사용자 환경에선 무해하나 Beta 진입 시 남의 손익이 섞인다.
@@ -2655,6 +2738,7 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Trigger:** 즉시 (부분 완화 완료)
 **Est:** S (2h)
 **상태:** ⬜ Open — 잔여 4항목 중 ③(문서 승격)만 됐고 ①conftest 가드 없음 ②백업 레시피 부재(Makefile pg_dump 0건) ④alembic CLI 무가드. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 도래 — 트리거가 「즉시」다. 조건어가 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-attribution **실사고**
 
 **원인 / 영향:** `tests/test_migrations.py` 는 `command.downgrade(cfg, "base")` 로 전 테이블을 드롭한다. `_resolved_test_db_url()` 이 `TEST_DATABASE_URL` 없이 `DATABASE_URL` 로 폴백하므로, `DATABASE_URL` 만 export 된 셸에서 이 파일을 돌리면 **개발 DB 가 대상이 된다.** 실제로 이번 스프린트에서 적대 평가 서브에이전트가 그 셸 상태로 실행해 **로컬 개발 DB 가 전소했다** — 주문 17행 · 거래소 계정 1(암호화된 Bybit demo API 키) · 전략 6종 Pine 소스 · 세션 4 · 이벤트 10. `.env.local` 에 평문 키가 없어 API 키는 복구 불가였고 사용자가 재등록해야 했다.
@@ -2672,7 +2756,8 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P3
 **Trigger:** 아래 중 하나가 실제로 관측될 때 — ① 워커가 7일 넘게 정지한 실사례 ② 7일보다 오래된 미동기화 reduce-only 주문 관측 ③ 한 계정의 7일 청산이 500행 초과(`closed_pnl_window_truncated` 경고 발화) ④ `list_unsynced_reduce_only` 목록이 영구 좀비로 포화
 **Est:** M (4-6h — 일회성 catch-up 재도입)
-**상태:** ⬜ Open — 일회성 catch-up 경로가 레포에 없고, ASC 좀비 정렬(order_repository.py:769)과 meta 커서 tie(-1)도 그대로다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 일회성 catch-up 경로가 레포에 없고, ASC 좀비 정렬(order_repository.py:769)과 meta 커서 tie(-1)도 그대로다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-attribution **범위 축소** 결정 (`context-notes.md` §9)
 
 **원인 / 영향:** 스윕은 매 주기 `[now−7d, now]` **한 창만** 조회한다([BL-438](#bl-438) 축소). 여기서 파생되는 한계 4종을 **의도된 트레이드오프**로 수용했다.
@@ -2720,7 +2805,8 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P3
 **Trigger:** 수동 청산을 이벤트 타임라인에서 보고 싶을 때 · watchdog 규칙을 수동 청산에도 걸고 싶을 때
 **Est:** M (4-6h — 쓰기 경로 + 원자성 설계)
-**상태:** ⬜ Open — close_service 는 여전히 Order 만 만들고 이벤트를 안 남기며, 테스트가 'manual_close 는 세션 역인덱스에 안 잡힌다'를 그대로 고정하고 있다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — close_service 는 여전히 Order 만 만들고 이벤트를 안 남기며, 테스트가 'manual_close 는 세션 역인덱스에 안 잡힌다'를 그대로 고정하고 있다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-money-path — [BL-444](#bl-444) 안 (b) 기각분 분리 등재
 
 **원인 / 영향:** `ClosePositionService.close_position`(`close_service.py:78-95`)은 Order 만 만들고 `LiveSignalEvent` 를 만들지 않는다. [BL-444](#bl-444) 의 손익 집계 결함은 읽기 스코프 교체로 닫혔으나, **이벤트 FK 에 의존하는 나머지 두 기능은 여전히 수동 청산을 못 본다** — ① FE §07 이벤트 타임라인 ② `LiveSignalSessionRepository.find_active_by_order_id` 기반 watchdog 규칙 팬아웃(`tasks/trading.py:549-585`). TradingView 웹훅 주문도 같다.
@@ -2742,7 +2828,8 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P3
 **Trigger:** 세션 종료 직후 체결이 실제로 관측될 때 — `filled_at − created_at` 간극이 세션 종료 지연보다 클 때
 **Est:** M (3-4h — 대안마다 다른 결함이 있어 설계가 핵심)
-**상태:** ⬜ Open — 창은 여전히 filled_at 반열림 그대로이고(:225/:233/:238) 권장 선행조건인 filled_at−created_at 간극 실측 기록이 레포에 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 창은 여전히 filled_at 반열림 그대로이고(:225/:233/:238) 권장 선행조건인 filled_at−created_at 간극 실측 기록이 레포에 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-money-path [BL-445](#bl-445) 가 **수용한** 트레이드오프
 
 **원인 / 영향:** `_session_scope_where`(`order_repository.py`)가 창을 `Order.filled_at` 에 `[created_at, deactivated_at)` 로 건다. 청산을 누르고(202, `state=pending`) 곧바로 세션을 끈 뒤 체결이 도착하면 그 주문은 자기를 만든 세션에서 빠진다. 인접 세션이 있으면 **그쪽으로 귀속**되고, 없으면 **어느 세션에도 안 잡힌다.** 후자의 경우 Site 3(loss-limit)·Site 4(커브·대시보드 KPI) 양쪽에서 사라진다.
@@ -2787,7 +2874,8 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P3
 **Trigger:** 세션 종료와 체결이 같은 순간에 겹치는 것이 실제로 관측될 때
 **Est:** M (3-4h — 세션↔주문 단일 조인으로 재구성)
-**상태:** ⬜ Open — 세션 행을 파이썬에서 읽어 SessionScope 를 만든 뒤 별도 SELECT 로 주문을 조회하는 구조가 두 소비처에 그대로다 — 단일 조인 없음. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 세션 행을 파이썬에서 읽어 SessionScope 를 만든 뒤 별도 SELECT 로 주문을 조회하는 구조가 두 소비처에 그대로다 — 단일 조인 없음. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-money-path **최종 codex 누적 diff 리뷰** [P2]
 
 **원인 / 영향:** 두 소비처 모두 **세션 행을 먼저 읽고 → 별도 SELECT 로 주문을 조회**한다.
@@ -2830,7 +2918,8 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P3
 **Trigger:** fixture provider 를 실제로 쓸 때
 **Est:** S
-**상태:** ⬜ Open — config 기본값은 여전히 CWD 상대이고 fixture.py:30 이 심볼 슬래시를 그대로 경로에 넣는다 — 두 결함 모두 미수정. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — config 기본값은 여전히 CWD 상대이고 fixture.py:30 이 심볼 슬래시를 그대로 경로에 넣는다 — 두 결함 모두 미수정. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **원인 / 영향:** ① 코드 기본값 `"backend/data/fixtures/ohlcv"` 가 프로세스 CWD 상대인데 `make be`/`make be-isolated` 는 `cd backend` 후 실행하므로 `backend/backend/…` 로 풀린다(존재하지 않음). 오늘 무해한 이유는 host uvicorn 이 `FixtureProvider.get_ohlcv()` 를 실제로 호출하지 않기 때문뿐이다. ② `FixtureProvider` 는 `root / f"{symbol}_{tf}.csv"` 를 만드는데(`fixture.py:30`) canonical `BTC/USDT` 의 슬래시가 **경로 구분자**가 되어 `<root>/BTC/USDT_1h.csv` 를 찾는다. 커밋된 픽스처는 평면 `BTCUSDT_1h.csv` 뿐 — 레포의 빈 `backend/data/fixtures/ohlcv/BTC/` 디렉터리가 과거에 누가 여기 부딪힌 흔적이다.
 
@@ -2908,7 +2997,8 @@ cache-first 다 — `find_gaps` 로 빈 구간을 찾아 그 구간만 `ccxt.fet
 **Priority:** P3
 **Trigger:** 분류·귀속 로직 변경 시
 **Est:** S
-**상태:** ⬜ Open — on_conflict_do_nothing 멱등 적재가 그대로고, classification_version 컬럼도 재분류 마이그레이션도 레포에 전혀 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — on_conflict_do_nothing 멱등 적재가 그대로고, classification_version 컬럼도 재분류 마이그레이션도 레포에 전혀 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **원인 / 영향:** 원장 적재는 `row_hash` 로 멱등이라 이미 있는 행은 건너뛴다. 그래서 BL-457(#481)이 `classify_exit` 의미를 바꿨는데도 기존 행은 pre-fix 라벨로 고착돼 있다. 실측 — 현 개발 DB 4행 중 3행이 `ours` 인데 `matched_order_id` 는 전부 NULL 이고 `orders` 는 0행이다. 포스트-#481 로직이면 `unknown` 이 나와야 한다.
 
@@ -2925,7 +3015,8 @@ cache-first 다 — `find_gaps` 로 빈 구간을 찾아 그 구간만 `ccxt.fet
 **Priority:** P3
 **Trigger:** BL-461(sub-daily fallback) 처리 시 함께
 **Est:** S
-**상태:** ⬜ Open — 목록 title 이 여전히 legacy/unavailable 일 때만 붙고, monthly/daily 는 undefined 라 각주가 없다. (2026-08-09 status-triage-mass 확인) ★2026-08-10 fe-shareable-urls 가 **착수하지 않고 전제만 대조했다** — 아래 세 줄이 그 결과다.
+**상태:** ⏳ 대기 (트리거 미도래) — 목록 title 이 여전히 legacy/unavailable 일 때만 붙고, monthly/daily 는 undefined 라 각주가 없다. (2026-08-09 status-triage-mass 확인) ★2026-08-10 fe-shareable-urls 가 **착수하지 않고 전제만 대조했다** — 아래 세 줄이 그 결과다.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 ★★**2026-08-10 실측 — 본문 한 문장이 틀렸고, 도메인 값 하나가 빠져 있고, 처방이 하나 더 필요하다.**
 
@@ -2952,7 +3043,8 @@ cache-first 다 — `find_gaps` 로 빈 구간을 찾아 그 구간만 `ccxt.fet
 **Priority:** P3
 **Trigger:** 사이징 자동화가 실제로 필요해질 때
 **Est:** M
-**상태:** ⬜ Open — compute_position_size 는 레포 전체에서 backlog 문서에만 존재하고 quantity 도 여전히 Field(gt=0) 필수 — 수량 산출 미구현. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — compute_position_size 는 레포 전체에서 backlog 문서에만 존재하고 quantity 도 여전히 Field(gt=0) 필수 — 수량 산출 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-26 BL-474 작업 중 발견
 
 **원인 / 영향:** 테스트 주문 다이얼로그의 "리스크 %" 모드 문구는 _"수량은 서버가 잔고·리스크 기준으로 계산합니다 (서버 권위 사이징)"_ 였다. 그런 코드는 없다. `OrderService._validate_position_size`(`order_service.py:92-134`)는 `max_qty` 를 구해 **client 수량이 초과하면 거부**할 뿐 수량을 만들어내지 않는다. 게다가 그 모드는 payload 에서 `quantity` 를 빼고 보냈고 `parse_tv_payload:122` 는 `payload["quantity"]` 를 필수로 읽으므로 **전송하면 401** 이었다 — 한 번도 작동한 적 없는 경로다.
@@ -2972,7 +3064,8 @@ cache-first 다 — `find_gaps` 로 빈 구간을 찾아 그 구간만 `ccxt.fet
 **Priority:** P2
 **Trigger:** TradingView 실연동 전 / webhook 타임아웃 관측 시
 **Est:** M
-**상태:** ⬜ Open — webhook 라우터가 여전히 동기로 OrderService.execute 를 호출하고 가드의 CCXT 3회(mark/min_notional/balance)가 그대로 인라인이다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — webhook 라우터가 여전히 동기로 OrderService.execute 를 호출하고 가드의 CCXT 3회(mark/min_notional/balance)가 그대로 인라인이다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-26 BL-474 dogfood 실측
 
 **원인 / 영향:** BL-474 로 `leverage` 가 채워지면서 `order_service.py:218-266` 의 notional 가드가 webhook 경로에서 **처음으로 도달 가능**해졌다. 그 대가로 동기 HTTP 핸들러 안에 CCXT 왕복 3회가 들어왔다.
@@ -3176,7 +3269,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 
 **Title:** ★**엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다** — 유실 채널 ~~5종~~ **실측 1종**
 **Category:** Backend / trading (라이브 진입 완결성)
-**상태:** 🟢 **열려 있다 — 「축소」 (2026-08-01 entry-completeness-rejudgement).** 유실 채널 5종 중 **(2)(3) 은 유실 채널이 아님이 확정**, **(4)(5) 는 판별력을 증명한 계측기로 0**, 남은 것은 **(1) 잔여 거절 하나뿐 1건/2일**이다. 층위1 확정 거절률 **16.67% → 2.44%** · 에피소드 유실률 **2.08%**. **P1 → P2 강등** — 잔여 설계는 [BL-578](#bl-578), 재측정 근거는 [BL-536](#bl-536) §2026-08-01(Resolved). 아래 §채널 5종 크기 확정 참조.
+**상태:** ⏳ **대기 (트리거 미도래) — 「축소」 (2026-08-01 entry-completeness-rejudgement).** 유실 채널 5종 중 **(2)(3) 은 유실 채널이 아님이 확정**, **(4)(5) 는 판별력을 증명한 계측기로 0**, 남은 것은 **(1) 잔여 거절 하나뿐 1건/2일**이다. 층위1 확정 거절률 **16.67% → 2.44%** · 에피소드 유실률 **2.08%**. **P1 → P2 강등** — 잔여 설계는 [BL-578](#bl-578), 재측정 근거는 [BL-536](#bl-536) §2026-08-01(Resolved). 아래 §채널 5종 크기 확정 참조.
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **Priority:** **P2** (~~P1~~ — 2026-08-01 축소 판정으로 강등. ★Trigger 는 유지한다)
 **Trigger:** 실자금 cutover 전 필수
 **Est:** M-L
@@ -3265,7 +3359,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Priority:** P2
 **Trigger:** 실자금 cutover 전
 **Est:** M
-**상태:** 🟡 **열려 있다 — 범위 「축소」**(2026-07-30 close-mismatch-soak). 전제 반증: 엔진이 pending 진입에 exit 레그를 만들지 않아 실을 값이 없다. 배관+계측은 착지, 엔진 계약 변경은 크기 미확정으로 보류.
+**상태:** ⏳ **대기 (트리거 미도래) — 범위 「축소」**(2026-07-30 close-mismatch-soak). 전제 반증: 엔진이 pending 진입에 exit 레그를 만들지 않아 실을 값이 없다. 배관+계측은 착지, 엔진 계약 변경은 크기 미확정으로 보류.
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-entry-parity 적대 검증(백테스트 패리티 렌즈)
 
 **원인 / 영향:** reconcile 의 `OrderRequest`(`tasks/live_signal.py` 발주 루프)에 `take_profit`/`stop_loss`/`trailing_stop` 이 없다. 일반 LiveSignal 경로는 지정한다. 백테스트는 체결 직후 `check_exit_fills`(`event_loop.py`)로 브래킷이 활성화되므로 **라이브만 무방비**다. 조건부일 때는 트리거 전까지 잠재적이었지만 **시장가 전환은 즉시 포지션을 연다.**
@@ -3282,7 +3377,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Priority:** P2
 **Trigger:** limit 진입을 쓰는 전략을 지원할 때
 **Est:** M
-**상태:** ⬜ Open — entry 의 limit/trail/qty_percent 는 여전히 unsupported 로 버려지고, PendingOrder 에 limit_price 필드가 없다(있는 건 exit leg 뿐). (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — entry 의 limit/trail/qty_percent 는 여전히 unsupported 로 버려지고, PendingOrder 에 limit_price 필드가 없다(있는 건 exit leg 뿐). (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-entry-parity 스코프 조사
 
 **원인 / 영향:** `interpreter.py:1521-1523` 이 `limit`·`trail_points`·`trail_offset`·`qty_percent` 를 **미지원 인자로 걸러 경고만 남기고** 버린다. `stop` 이 없으면 그 진입은 `MarketIntent` 로 큐돼 **시장가로 체결**된다. `PendingOrder`/`PendingOrderSnapshot` 에 `limit_price` 필드 자체가 없어 라이브 reconciler 까지 도달하지 못한다.
@@ -3299,7 +3395,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Priority:** P3
 **Trigger:** Track A 전략으로 라이브 세션을 열 때
 **Est:** S
-**상태:** ⬜ Open — run_live 는 아직 run_historical 만 호출하고, trading 라우터/서비스 어디에도 Track 판정·422 가드가 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — run_live 는 아직 run_historical 만 호출하고, trading 라우터/서비스 어디에도 Track 판정·422 가드가 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-entry-parity codex G1 검증 #7 (재현 확인)
 
 **원인 / 영향:** `run_live`(`event_loop.py`)는 `run_historical` **만** 호출한다. Track A 를 처리하는 `run_virtual_strategy` 는 `TrackRunner._dispatch_table["A"]` 로만 도달한다. 즉 라이브 경로에 Track 분기가 없다. `fill_timing=next_bar_open` 이 Track A 에서 무시된다는 경고도 라이브에서는 발생하지 않는다(그 코드에 도달하지 않으므로).
@@ -3318,7 +3415,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Priority:** P2 (잠재 — 실데이터 미재현)
 **Trigger:** 기대치 정확도가 판정 입력으로 쓰이기 전
 **Est:** S
-**상태:** ⬜ Open — pnl_by_trade 는 여전히 t.id 단일 키 dict 이고 거짓 전제 주석도 그대로이며, catch-up 정상 경로도 유지된다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — pnl_by_trade 는 여전히 t.id 단일 키 dict 이고 거짓 전제 주석도 그대로이며, catch-up 정상 경로도 유지된다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-outcome-parity 적대 검증
 
 **원인 / 영향:** `event_loop.py` 의 `pnl_by_trade` 는 `strategy_state.closed_trades` 를 `t.id` 로 인덱싱하는데, 그 id 는 Pine 진입 이름(`"PivRevSE"` 등)이라 **거래마다 재사용**된다. 같은 dict 키에 여러 청산이 들어오면 **마지막 값만 남는다.**
@@ -3339,7 +3437,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Priority:** P2
 **Trigger:** 세션 손익 완결성이 필요할 때
 **Est:** M
-**상태:** ⬜ Open — created 창은 BL-536 진입 원장에만 열렸고, /state·손실한도·parity 3소비처는 여전히 terminal 창 기본값 + grace 없음 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — created 창은 BL-536 진입 원장에만 열렸고, /state·손실한도·parity 3소비처는 여전히 terminal 창 기본값 + grace 없음 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-28 live-outcome-parity 실측
 
 **원인 / 영향:** `SessionScope` 의 창은 `filled_at` 기준 반열림 `[started_at, ended_at)` 이고, 그 docstring 이 **"세션 종료 뒤 체결된 주문은 인접 세션이 있으면 그쪽으로, 없으면 어디에도 안 잡힌다"** 를 수용된 트레이드오프로 명시한다.
@@ -3385,7 +3484,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Priority:** P2
 **Trigger:** parity 지표를 더 붙일 때
 **Est:** S
-**상태:** ⬜ Open — \_to_scope 36필드 수동 평탄화·private \_session_scope_where import·linked/confirmed 술어 중복이 모두 그대로 남아 있다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — \_to_scope 36필드 수동 평탄화·private \_session_scope_where import·linked/confirmed 술어 중복이 모두 그대로 남아 있다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-29 PR #496 코드리뷰 (Standards 축)
 
 **원인 / 영향:** 순수 파생 `ParitySummary`(중첩 dataclass)를 응답 `OutcomeParityScope`(36 필드 평탄화)로 `_to_scope` 가 손으로 옮긴다. 지표 1개를 추가하면 **5파일**(순수 모듈 · 서비스 매핑 · 스키마 · zod · 패널)을 편집해야 한다.
@@ -3404,7 +3504,8 @@ b0a1c42a-aeb9-404e-89ec-b22ac939e126  -0.05935440   unknown         0277c150  (�
 **Priority:** P2
 **Trigger:** 다음 parity 손질 시
 **Est:** XS
-**상태:** ⬜ Open — \_sum_decimals 사본이 여전히 2벌이고 리포지토리 호출부 4곳(92·159·169·174)은 localcontext(PARITY_DECIMAL_CONTEXT) 밖 그대로다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — \_sum_decimals 사본이 여전히 2벌이고 리포지토리 호출부 4곳(92·159·169·174)은 localcontext(PARITY_DECIMAL_CONTEXT) 밖 그대로다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-29 PR #496 코드리뷰 (Standards 축, 평가자 재현 확인)
 
 **원인 / 영향:** `_sum_decimals` 가 `outcome_parity.py:130` 과 `parity_repository.py:59` 에 **2벌** 있고, 후자의 호출부(`:92, 159, 169, 174`)는 `localcontext(PARITY_DECIMAL_CONTEXT)` **밖**이다. 전자는 모든 산술을 `prec=50` 으로 감싼다.
@@ -3462,7 +3563,8 @@ mock 을 실제 쿼리대로 고치고(비활성 1건 추가), 그 위에 **음�
 **Priority:** P2
 **Trigger:** parity 산술을 손댈 때
 **Est:** XS
-**상태:** ⬜ Open — 오라클 총계를 관측 1건에 몰고 26건을 0으로 채우는 구조·테스트 이름 모두 그대로다(:47, :54-66). (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 오라클 총계를 관측 1건에 몰고 26건을 0으로 채우는 구조·테스트 이름 모두 그대로다(:47, :54-66). (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-29 PR #496 코드리뷰 (Spec 축)
 
 **원인 / 영향:** `test_outcome_parity.py:55-78` 이 SQL 오라클 **총계를 관측 1건에 통째로 넣고** 나머지 26건을 0 으로 채운다. 총계와 실효 비용률(0.05526%)은 맞지만 **27건 Decimal 합산 자체는 이 오라클이 검증하지 않는다.**
@@ -3483,7 +3585,8 @@ mock 을 실제 쿼리대로 고치고(비활성 1건 추가), 그 위에 **음�
 **Priority:** P2
 **Trigger:** 웹훅으로 포지션을 열기 시작할 때, 또는 `no_owning_session` 이 실제로 관측될 때
 **Est:** M
-**상태:** ⬜ Open — 차단 사유만 있고 원장 귀속 폴백은 미구현(position_service 는 세션 없으면 즉시 no_owning_session), Trigger 관측도 아직 없다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 차단 사유만 있고 원장 귀속 폴백은 미구현(position_service 는 세션 없으면 즉시 no_owning_session), Trigger 관측도 아직 없다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-29 live-orphan-close (BL-537 재현이 남긴 잔여)
 
 **원인 / 영향:** `Order.strategy_id` 가 `nullable=False` + FK RESTRICT(`models.py:172-178`)라 청산 원장 행에 전략이 반드시 필요하다. 세션에서 그걸 얻으므로 세션 행이 없으면 `no_owning_session` 으로 막힌다(`position_service.py:303`). 해당 클래스는 **웹훅 경로**(`router.py:99-183` 은 `LiveSignalSession` 없이 주문을 낸다)와 거래소에서 직접 연 포지션이다.
@@ -3502,7 +3605,8 @@ mock 을 실제 쿼리대로 고치고(비활성 1건 추가), 그 위에 **음�
 **Priority:** P2
 **Trigger:** 운영 알림을 사람이 신뢰해야 할 때
 **Est:** S
-**상태:** ⬜ Open — 메시지가 여전히 stage 분기 없는 단일 f-string 이고 '전략 수정 후 재활성화 필요' 하드코딩, remedy 원소 부재. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 메시지가 여전히 stage 분기 없는 단일 f-string 이고 '전략 수정 후 재활성화 필요' 하드코딩, remedy 원소 부재. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-29 PR #497 사후 리뷰 (Spec 축)
 
 **원인 / 영향:** `_alert_live_divergence`(`tasks/live_signal.py`)의 메시지가 단일 f-string 이고 **stage 분기가 없다**:
@@ -3548,7 +3652,8 @@ f"{reason}({stage}/{category}) 감지 — 세션을 비활성화했습니다(...
 **Priority:** P3
 **Trigger:** 이 파일을 다시 크게 손댈 때
 **Est:** M
-**상태:** ⬜ Open — get_state 는 1회로 줄었으나 deactivate 의식 중복(헬퍼로 쪼갰지만 본문 동일·테스트가 7건 동결)·provider+creds 5곳·category 맨 str 이 그대로다 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — get_state 는 1회로 줄었으나 deactivate 의식 중복(헬퍼로 쪼갰지만 본문 동일·테스트가 7건 동결)·provider+creds 5곳·category 맨 str 이 그대로다 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-29 PR #497 사후 리뷰 (Standards 축)
 
 **원인 / 영향:**
@@ -3573,7 +3678,8 @@ f"{reason}({stage}/{category}) 감지 — 세션을 비활성화했습니다(...
 **Trigger:** 조건부 진입 세션이 실자금으로 가기 전 / 부분체결이 흔해질 때
 **Est:** S
 **출처:** 2026-07-30 conditional-entry-alignment codex 적대 리뷰 (P1 제기 → 오케스트레이터가 코드 대조 후 P2 로 강등)
-**상태:** ⬜ Open — 2026-08-10 guards-blind-spots 가 `tol = max(qty_step, larger*0.001)` 로 **구현했다가 되돌렸다**(변이 4/4 red 를 통과했는데도). codex 최종 리뷰가 **P1 2건을 냈고 둘 다 숫자로 재현됐다** — 아래 ★2026-08-10 절이 정본이다. **권장 접근 자체가 불완전하다**: 양자화 오차는 **leg 수**에 비례해 쌓이는데 판정은 순포지션 하나만 받는다. ★단 **「leg 수를 못 구한다」는 거짓이다** — 2026-08-10 review-and-merge 가 `_carried_position_size` 에서 반증했다(아래 절)
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 guards-blind-spots 가 `tol = max(qty_step, larger*0.001)` 로 **구현했다가 되돌렸다**(변이 4/4 red 를 통과했는데도). codex 최종 리뷰가 **P1 2건을 냈고 둘 다 숫자로 재현됐다** — 아래 ★2026-08-10 절이 정본이다. **권장 접근 자체가 불완전하다**: 양자화 오차는 **leg 수**에 비례해 쌓이는데 판정은 순포지션 하나만 받는다. ★단 **「leg 수를 못 구한다」는 거짓이다** — 2026-08-10 review-and-merge 가 `_carried_position_size` 에서 반증했다(아래 절)
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 
 **원인 / 영향:** BL-544 가 gap-resync 판정을 `exchange_positions == [] and carried_flat`(무관용)에서
 `_classify_position_divergence(carried, exchange) is None`(엔진↔거래소 일치)로 일반화했다. 그런데 그 함수는
@@ -3670,7 +3776,8 @@ pyramiding cap 주석이고, `providers.py:403` 은 `load_markets()` 다(절삭�
 **Priority:** P2
 **Trigger:** 엔진 내부 수치 표현을 손댈 때 / 큰 notional 을 다룰 때
 **Est:** M (엔진 전반이 float 기반이라 국소 수정으로 안 끝난다)
-**상태:** ⬜ Open — seed 경로가 여전히 float(fill.filled_quantity/price) 로 강등하고, Trade.qty 도 float이며 dust 상한을 고정하는 테스트가 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — seed 경로가 여전히 float(fill.filled_quantity/price) 로 강등하고, Trade.qty 도 float이며 dust 상한을 고정하는 테스트가 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-30 conditional-entry-alignment codex 적대 리뷰 (확정)
 
 **원인 / 영향:** DB `Numeric(18,8)` 인 `filled_quantity`/`filled_price` 가 seed 경로에서 `float` 로
@@ -3743,7 +3850,8 @@ float 금지" 를 형식상 위반한다.
 **Priority:** P3
 **Trigger:** 죽은 세션의 포지션을 세션 단위로 대조해야 할 때
 **Est:** S
-**상태:** ⬜ Open — OpenPositionsTable 은 여전히 is_active 필터된 activeSessions 만 받는다 — 비활성 세션 per-session 대조 UI 미구현. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — OpenPositionsTable 은 여전히 is_active 필터된 activeSessions 만 받는다 — 비활성 세션 per-session 대조 UI 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-30 conditional-entry-alignment (BL-423 잔여 중 의도적 defer)
 
 **원인 / 영향:** `OpenPositionsTable`(`trading-cockpit.tsx:342`)은 `activeSessions` 만 받는다.
@@ -3809,7 +3917,8 @@ MCP playwright 실 DB 검증(위 7866 실측 · 목록 밖 id 음성 대조 · 3
 **Priority:** P2
 **Trigger:** ★`qb_live_position_divergence_total{category="exchange_only"}` 이 **실제로 오르는 것이 관측될 때**
 **Est:** M
-**상태:** ⬜ Open — seed 는 여전히 gap tick 1회에만 계산되고 `_qb_ledger_seed_since` watermark 는 레포에 0건 — 처방 미착수 (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — seed 는 여전히 gap tick 1회에만 계산되고 `_qb_ledger_seed_since` watermark 는 레포에 0건 — 처방 미착수 (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-30 conditional-entry-alignment — 워커 `bl544` 가 자기 구현의 한계로 스스로 올린 것(codex G1 F6), 오케스트레이터가 코드 대조로 확인
 
 **원인 / 영향:** `ledger_seed` 는 `if requires_gap_resync:` **안에서만** 계산된다(`live_signal.py:1678` 초기화 · `:1720` 계산). 다음 tick 은 공백이 아니므로 원장을 읽지 않는다. 재생이 그 진입을 스스로 다시 만들지 못하면 엔진은 **다시 flat** 이 되고, 그때 발산은 `exchange_only` 로 분류돼 **counter 만 올리고 세션을 죽이지 않는다**(`live_signal.py:1765-1772`). 즉 이론상 **시끄러운 사망이 한 tick 뒤 조용한 고아로 바뀔 수 있다.**
@@ -3865,7 +3974,8 @@ MCP playwright 실 DB 검증(위 7866 실측 · 목록 밖 id 음성 대조 · 3
 **Priority:** P2
 **Trigger:** 다음 soak / 조건부 진입 전략을 오래 굴릴 때 (기회주의적 확인)
 **Est:** XS (검증만 — 코드 변경 없음)
-**상태:** ⬜ Open — 코드 변경 없는 실주행 관측 항목 — 계측은 그대로 있고 관측된 outcome 은 no_basis 뿐, applied>0 근거 0건. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 코드 변경 없는 실주행 관측 항목 — 계측은 그대로 있고 관측된 outcome 은 no_basis 뿐, applied>0 근거 0건. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 소크 창 미완(soak-gate rc=2 · C1 46.24h/168h). PASS 만 도래다([ADR-024]) (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-30 conditional-entry-alignment soak 3 leg
 
 **원인 / 영향:** BL-544 의 핵심 기전은 둘이다 — (1) **판정 완화**(엔진↔거래소 순포지션 일치) (2) **원장 seed 주입**. soak 3 leg 이 3/3 생존했지만 **세 번 다 (1) 로 살았다** — 재생이 포지션을 스스로 재현해 seed 가 생략됐다(`already_open` / `no_basis` / `inadmissible`). `applied` 를 밟으려면 **대기 조건부 주문이 공백 중에 트리거**돼야 하는데 누적 공백 ~28분 동안 일어나지 않았다(시장 변동 의존이라 강제할 수 없다).
@@ -3918,7 +4028,8 @@ MCP playwright 실 DB 검증(위 7866 실측 · 목록 밖 id 음성 대조 · 3
 **Priority:** P3
 **Trigger:** 그 게이지로 무언가를 판단하기 전
 **Est:** S
-**상태:** ⬜ Open — Gauge 그대로이고 inc 1곳(order_service:457) vs dec 17곳 비대칭 유지 — created/terminal Counter도 terminal 단일 훅도 없다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — Gauge 그대로이고 inc 1곳(order_service:457) vs dec 17곳 비대칭 유지 — created/terminal Counter도 terminal 단일 훅도 없다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-30 live-entry-completeness (기존 BL 의 새 증거)
 
 **원인 / 영향:** 이미 등재된 "inc/dec 계약이 multiprocess 에서 절대값을 보장하지 못한다" 의
@@ -3941,7 +4052,8 @@ MCP playwright 실 DB 검증(위 7866 실측 · 목록 밖 id 음성 대조 · 3
 **Priority:** P2
 **Trigger:** 거절 코드로 채널을 가를 때
 **Est:** M
-**상태:** ⬜ Open — 구조화 코드 컬럼이 없고(models.py 에 error_message 문자열뿐), WS·submission 경로는 여전히 평문이라 retCode 정규식 파싱에 의존한다. (2026-08-09 status-triage-mass 확인)
+**상태:** ⏳ 대기 (트리거 미도래) — 구조화 코드 컬럼이 없고(models.py 에 error_message 문자열뿐), WS·submission 경로는 여전히 평문이라 retCode 정규식 파싱에 의존한다. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-30 live-entry-completeness (적대 검증 렌즈1)
 
 **원인 / 영향:** retCode JSON 을 원문에 싣는 것은 동기 `provider_failure: {ccxt}`
@@ -4028,7 +4140,8 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 **카테고리:** Backend / trading (라이브 청산 정합성)
 **Trigger:** `strategy.exit` 을 쓰는 전략을 라이브로 돌리기 **전**
 **Est:** S
-**상태:** 🔴 **열려 있다** — 2026-07-31 reversal-ledger-sync 에서 BL-560 을 고치며 **읽기만** 하고
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-07-31 reversal-ledger-sync 에서 BL-560 을 고치며 **읽기만** 하고
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 범위 밖으로 남긴 항목. 코드 수정 0.
 **출처:** 2026-07-31 reversal-ledger-sync (BL-560 4단계 판단)
 
@@ -4077,7 +4190,8 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
 **카테고리:** Backend / trading (체결 후속 훅 회수)
 **Trigger:** 트레일링을 쓰는 전략을 라이브로 상시 운용하기 **전**, 또는
 `terminal_hook_trailing_failed` counter 가 1건이라도 발화할 때
-**상태:** 🔴 **열려 있다** — 2026-07-31 reversal-ledger-sync 에서 **한계로 명시하고 남긴 것**.
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-07-31 reversal-ledger-sync 에서 **한계로 명시하고 남긴 것**.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-31 reversal-ledger-sync (codex 3차 리뷰 [3] 후속)
 
 ★**`place_trailing_stop` enqueue 가 실패하면 그 주문의 트레일링은 영구 유실이다.**
@@ -4119,7 +4233,8 @@ BL-563 이 같은 조건을 다른 각도에서 이미 경고하고 있다("`str
 **카테고리:** Backend / trading (조건부 진입 반전 계측)
 **Trigger:** BL-562 의 **체결시점** 반전 분포를 근거로 무언가를 판단하기 전
 **Est:** S
-**상태:** 🔴 **열려 있다** — 2026-08-01 ledgerhygiene 에서 실측. 아직 원인 미측정.
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-01 ledgerhygiene 에서 실측. 아직 원인 미측정.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-01 ledgerhygiene (BL-562 착지 후 첫 실측)
 
 ★**BL-562 의 체결시점 반전 계측이 11건 중 10건을 못 쟀다 — 분류된 건이 0 이다.**
@@ -4176,7 +4291,8 @@ BL-562 는 "증명하지 못하면 버킷에 넣지 않는다" 를 원칙으로 
 **카테고리:** Backend / trading (라이브 tick 중복 조회)
 **Trigger:** `live_signal` tick 비용을 손댈 때, 또는 발산 감지와 reconcile 을 한 자리로 합칠 때
 **Est:** S
-**상태:** 🔴 **열려 있다** — 2026-08-01 codex 적대 리뷰 #1 (CONTROL 코드 대조로 확인).
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-01 codex 적대 리뷰 #1 (CONTROL 코드 대조로 확인).
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-01 soak 후속 codex 리뷰
 
 ★**`engine_only` tick 마다 `list_resting_conditional_entries` 가 두 번 돈다 — 결과 공유가 구조적으로 불가능하다.**
@@ -4207,7 +4323,8 @@ BL-562 는 "증명하지 못하면 버킷에 넣지 않는다" 를 원칙으로 
 **카테고리:** Backend / trading (조회 절단이 분류를 뒤집는다)
 **Trigger:** 한 (strategy, account) 의 **동시 resting 이 20건을 넘긴 날**이 관측될 때 (아래 쿼리). 또는 `awaiting_trigger` / `unexplained` 분해를 근거로 쓰기 **전**
 **Est:** S
-**상태:** 🟢 **열려 있다 — 크기 측정 완료, 수리는 의도적으로 보류.** 2026-08-02 divergence-label-split.
+**상태:** ⏳ **대기 (트리거 미도래) — 크기 측정 완료, 수리는 의도적으로 보류.** 2026-08-02 divergence-label-split.
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-01 soak 후속 codex 리뷰
 
 ★**`LIMIT 100` 이 세션 필터보다 앞서 걸려, 현 세션의 resting 주문을 놓치고 `awaiting_trigger` 를 `unexplained` 로 오분류한다.**
@@ -4301,7 +4418,8 @@ SELECT strategy_id, exchange_account_id, max(run) FROM r GROUP BY 1,2 HAVING max
 **카테고리:** Backend / trading (실패 후 세션 재사용 — fail-open 계약)
 **Trigger:** 「발산 감지는 세션을 죽이지 않는다」를 근거로 쓰기 전, 또는 그 tick 의 DB 실패를 조사할 때
 **Est:** S
-**상태:** 🔴 **열려 있다** — 2026-08-01 codex 적대 리뷰 #5. ★**선재 패턴이고 회귀가 아니다.**
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-01 codex 적대 리뷰 #5. ★**선재 패턴이고 회귀가 아니다.**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-01 soak 후속 codex 리뷰
 
 ★**SELECT 가 실패하면 같은 `AsyncSession` 을 rollback/savepoint 없이 계속 쓴다 — aborted transaction 이면 「fail-open · 세션을 죽이지 않는다」 계약이 깨진다.**
@@ -4368,7 +4486,8 @@ GROUP BY 1 HAVING count(*) >= 3 ORDER BY 1"
 > 수정 후 실행 = **0행**(= 보류 유지). 판별력 확인 = 같은 쿼리의 `HAVING count(*) >= 1` 이 07-29(**2**)·07-31(**1**)을 돌려준다(창이 빈 게 아니다).
 
 **Est:** S
-**상태:** 🟢 **열려 있다 — 크기 측정 완료, 수리는 의도적으로 보류.** 2026-08-01 entry-completeness-rejudgement.
+**상태:** ⏳ **대기 (트리거 미도래) — 크기 측정 완료, 수리는 의도적으로 보류.** 2026-08-01 entry-completeness-rejudgement.
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-01 [BL-536](#bl-536) 재판정에서 유일하게 살아남은 채널(C1)의 잔여
 
 ★**조건부 진입이 `110092`/`110093` 으로 거절될 때 거래소는 정답(`current[...]`)을 함께 주는데 우리는 그 값을 버린다.**
@@ -4413,7 +4532,8 @@ short stop 은 `110093`("expect Falling"). 거절 메시지는
 **카테고리:** Backend / 관측 (계측 가드 잔여)
 **Trigger:** ★`qb_metrics_mutation_failed_total` 의 **창 차분이 0 을 벗어나는 순간** 즉시 승격. 절대값 아님 — `CounterBasis.delta` 로만 읽는다. 또는 잔여 96곳 중 어느 자리가 머니-패스·알림·내구 쓰기 경계에 새로 닿게 될 때
 **Est:** M
-**상태:** 🟢 **열려 있다 — 84곳.** 2026-08-04 direction-channel-decomposition 연장이 `_reconcile_conditional_entries` **12곳을 전건 수리**(96→84). 그 앞 회차가 발주 outbox 12곳 판정(수리 8 · 보류 4, 104→96). 그 앞이 25곳(129→104), 그 앞이 12곳(141→129). 2026-08-02 metric-guard-parity 에서 [BL-579](#bl-579) 분리.
+**상태:** ⏳ **대기 (트리거 미도래) — 84곳.** 2026-08-04 direction-channel-decomposition 연장이 `_reconcile_conditional_entries` **12곳을 전건 수리**(96→84). 그 앞 회차가 발주 outbox 12곳 판정(수리 8 · 보류 4, 104→96). 그 앞이 25곳(129→104), 그 앞이 12곳(141→129). 2026-08-02 metric-guard-parity 에서 [BL-579](#bl-579) 분리.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-02 metric-guard-parity (18곳 수리 후 잔여)
 
 가드 밖 mutation **84곳**(규칙 R1, `test_metric_guard_census.py` 가 정본이고 천장으로 고정).
@@ -4543,7 +4663,8 @@ short stop 은 `110093`("expect Falling"). 거절 메시지는
 **카테고리:** Backend / 운영 위생 (`/metrics` 영구 누적)
 **Trigger:** 파일 수가 20000 을 넘거나, `/metrics` 스크레이프 지연이 관측되거나, 디스크 여유가 20G 아래로 떨어질 때
 **Est:** M
-**상태:** 🟢 **열려 있다 — 측정 완료, 수리 보류.** 2026-08-02 metric-guard-parity (사용자 확정: 측정만).
+**상태:** ⏳ **대기 (트리거 미도래) — 측정 완료, 수리 보류.** 2026-08-02 metric-guard-parity (사용자 확정: 측정만).
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-02 [BL-579](#bl-579) 측정 중 별개 축으로 분리
 
 | 축           | 실측 (2026-08-02)                        | 실측 (2026-08-04 03:1x Z)              |
@@ -4594,7 +4715,8 @@ prefork 부모+자식 동시 생존 · reload drain 겹침 구간이 실재한�
 **카테고리:** Backend / 관측 (도달 불가 series)
 **Trigger:** `PendingOrderSnapshot` 이 exit level 을 갖게 되거나(엔진 계약 변경), `degraded_input` 이 자연 발화로 관측될 때
 **Est:** S
-**상태:** 🟢 **열려 있다 — 2026-08-03 metric-guard-residual 이 「7종」을 「5종」으로 축소 재판정.**
+**상태:** ⏳ **대기 (트리거 미도래) — 2026-08-03 metric-guard-residual 이 「7종」을 「5종」으로 축소 재판정.**
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 2종은 **엔진 실행으로 반증**됐고 남은 5종은 실행 가능한 구조 전제 게이트로 고정했다.
 **출처:** 2026-08-02 [BL-576](#bl-576) 잔여 검증 중 확정
 
@@ -4644,7 +4766,8 @@ prefork 부모+자식 동시 생존 · reload drain 겹침 구간이 실재한�
 **카테고리:** Backend / 관측 (라이브 발주 실패 사유 유실)
 **Trigger:** ★**`mode=live` 인 `ExchangeAccount` 가 처음 생성될 때**(Wave 3 cutover — 그 순간 도달 가능해진다). 또는 `qb_live_signal_dispatch_total{outcome="max_retries_exhausted"}` 의 창 차분이 0 을 벗어날 때
 **Est:** S
-**상태:** 🟢 **열려 있다 — 2026-08-03 metric-guard-residual-sweep 가 「현재 코퍼스 도달 불가」로 확정.**
+**상태:** ⏳ **대기 (트리거 미도래) — 2026-08-03 metric-guard-residual-sweep 가 「현재 코퍼스 도달 불가」로 확정.**
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 수리하지 않는다. 등재는 유지하되 Trigger 를 cutover 로 바꿨다.
 **출처:** 2026-08-03 metric-guard-residual-close (BL-580 A6/A7 판정 중)
 
@@ -4735,6 +4858,7 @@ trades digest(명시적 11-필드) 불변" 으로 그 결정을 명문화했다 
 6회**이고 그 **6/6 이 2시간 안에 죽었다**(104.9 · 91.4 · 84.3 · 65.0 · 21.5 · 18.0분).
 **Est:** L — **설계 결정 선행**(사용자). 구현 착수 전 이 절의 §설계 축을 확정해야 한다.
 **상태:** 🟢 **Open — 슬라이스 1(계측)은 PR #539 OPEN(미머지, 통합 브랜치). 슬라이스 2 는 사전등록 V1 발동으로 미착수 확정. ★2026-08-04 에 C 안이 「예방 전용·사망 경로 구조적 미도달」로 축소되고 사망 경로의 수리 축은 [ADR-023](decisions/023-engine-state-ssot.md)(Proposed)으로 이관됐다. ★★★2026-08-05 divergence-rejudgement — **슬라이스 B(킬 정책 교체)는 판별력 0 으로 판정되어 보류**(폐기 아님): 사망 4건 **전부**가 새 판별식으로도 `phantom` 이라 「즉시 킬」로도 그대로 죽고, 무해 12건 중 사망은 **0건**이라 「절대 안 킬」로 구제될 세션도 없다 ⇒ **이 정책으로 살아났을 세션이 0개다.** D1(strike TTL 부재)·D2 는 도달 가능하므로 폐기하지 않는다. ★★**「무해 7 : 치명 4」의 방향 서술도 반증됐다** — 사망 4건 부검에서 **거래소가 앞선 사망 1건**(`39731d57`)이 나왔다. **레버는 킬 정책이 아니라 [BL-595]**(엔진·거래소가 서로 다른 stop 주문을 든다)다. ★슬라이스 A 는 재개 조건이 발화했으나 **킬 결과를 바꾸지 않는다** — 관측 가치만 남는다. 판별식·테스트·오라클은 레포에 있다(2026-08-05 기준 41 테스트)** ★★★**2026-08-05 재판정 — P1→P2 강등**: P1 근거 「[BL-003] 의 실질 게이트」가 무너졌다 — 사망 5/5 는 [BL-595] 로 재귀속돼 [ADR-025](decisions/025-conditional-fill-ownership.md) 가 **상류에서** 닫았고, 자신의 레버 A·B·슬라이스 2 도 각자 죽었다. **본 BL 범위의 잔여 = D1/D2 뿐 · 프로덕션 미관측**([ADR-025] §남는 것 = 「관측만 한다」). 재개 조건 불변.
+**트리거 판정:** 도래 — 트리거가 「★이미 발화했다」로 선언(자동 종료 15회) (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-03 breach-rejection-recovery (증상 반복의 뿌리 재판정)
 
 ★★★**착수 전제 5건이 2026-08-04 실측으로 반증됐다. 아래 원문 숫자를 그대로 믿지 마라** —
@@ -5100,7 +5224,8 @@ interval 일반화(5m 에서 지평이 달라진다) · 사망 상관 **음성 �
 **카테고리:** Trading / 거래소 계정 (계측 정합성)
 **Trigger:** `exchange_exits` 로 원장 구멍·귀속을 판정하기 전에
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-04 engine-position-ssot ([BL-591] Q2 실측 중 발견)
 
 **같은 Bybit 데모 계정이 두 번 등록돼 있어 청산 원장이 이중 적재된다.**
@@ -5144,7 +5269,8 @@ interval 일반화(5m 에서 지평이 달라진다) · 사망 상관 **음성 �
 **카테고리:** Trading / 운영자 도구 (원장 완결성)
 **Trigger:** 소크를 끄거나 거래소를 손으로 flat 으로 만들기 전에
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 소크 창 미완(soak-gate rc=2 · C1 46.24h/168h). PASS 만 도래다([ADR-024]) (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-04 engine-position-ssot ([BL-591] Q2 실측 중 확정)
 
 **운영자 도구가 청산할 때 원장에 아무것도 안 남는다.**
@@ -5183,7 +5309,8 @@ interval 일반화(5m 에서 지평이 달라진다) · 사망 상관 **음성 �
 **카테고리:** DX / 커밋 훅 (prettier 플러그인 해석)
 **Trigger:** `frontend/` 안의 `*.json` / `*.md` / `*.yml` 을 커밋해야 할 때
 **Est:** S
-**상태:** ⬜ **Open** — ★2026-08-07 [ADR-027] 로 **표면이 넓어졌다**: 스택 규칙을 `frontend/AGENTS.md`·`frontend/CLAUDE.md` 로 옮기면서 이 함정에 걸리는 파일이 2개 늘었고, 당장은 `.prettierignore` **회피**로 막아 뒀다(근본 수리 아님). 회피 두 줄은 본 BL 해소 시 함께 지운다.
+**상태:** ⏳ **대기 (트리거 미도래)** — ★2026-08-07 [ADR-027] 로 **표면이 넓어졌다**: 스택 규칙을 `frontend/AGENTS.md`·`frontend/CLAUDE.md` 로 옮기면서 이 함정에 걸리는 파일이 2개 늘었고, 당장은 `.prettierignore` **회피**로 막아 뒀다(근본 수리 아님). 회피 두 줄은 본 BL 해소 시 함께 지운다.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **루트 prettier 가 `frontend/` 안의 json/md/yml 을 포맷하지 못한다.**
 
@@ -5243,7 +5370,8 @@ prettier 로 돌리는데, 루트 `node_modules` 는 husky/lint-staged/prettier 
 **카테고리:** Backend / 테스트 인프라 (코퍼스 첫-접촉 파싱 비용)
 **Trigger:** CI backend 를 **14분 아래**로 내리려 할 때 · pine_v2 코퍼스 테스트를 늘리기 전에
 **Est:** M
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **코퍼스 스크립트를 「처음」 파싱하는 테스트가 비용을 전부 물고, 이후는 거의 공짜다.**
 
@@ -5394,7 +5522,8 @@ warm 프로세스에서 단독 42.66s vs 스위트 안 4.58s)에 대해서만 �
 **카테고리:** Backend / 죽은 코드 (Pine v1 shim)
 **Trigger:** `BacktestOutcome` 를 손볼 일이 생겼을 때 (단독으로 열지 마라 — 이득 대비 파급이 크다)
 **Est:** M
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **Pine v1 shim(`src/strategy/pine/`, 135L)은 타입 4종만 재export 하는 껍데기다.**
 lexer/parser/interpreter/stdlib/v4_to_v5/ast_nodes 6 모듈(2146L)은 이미 제거됐고, 남은 것은
@@ -5422,7 +5551,8 @@ lexer/parser/interpreter/stdlib/v4_to_v5/ast_nodes 6 모듈(2146L)은 이미 제
 **카테고리:** Backend / 명명 (CONTEXT 헌법 충돌)
 **Trigger:** `trading_sessions` JSONB 키를 마이그레이션할 일이 생겼을 때 · 신규 도메인 용어 정리 시
 **Est:** M
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **`strategy/trading_sessions.py:26` 의 `TradingSession` 이 CONTEXT.md 의 _Avoid_ 이름과 충돌한다.**
 헌법은 **TradingSession** 을 「미구현 phantom — 실제 lifecycle 은 LiveSignalSession + Order +
@@ -5746,7 +5876,8 @@ INDEX·lessons·git 의 역할 분담이 다시 흐려진다.
 **카테고리:** Backend / 구조 (핸들러 가시화 잔여)
 **Trigger:** `live_signal.py` 를 다음에 크게 손댈 때 ([BL-580](#bl-580) 착수 회차와 겹친다)
 **Est:** M
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 선행 BL-580=ACTIVE (2026-08-10 bl-trigger-triage)
 
 **2026-08-04 handler-visibility 회차가 「안 한 것」 — 줄 수 부채는 남았다.**
 그 회차의 목표는 줄 수가 아니라 **핸들러 가시성**이었고 그건 달성됐다(최대 `try` 본문 **845 → 8**).
@@ -5815,7 +5946,8 @@ git history(`git show 0f0f0b06:docs/dev-log/2026-08-04-handler-visibility.md`)�
 **카테고리:** Docs / 스택 규칙 크기 (ADR-027 후속)
 **Trigger:** 스택 규칙을 다음에 손댈 때 ([ADR-027](decisions/027-nested-agents-md.md) 정착 후)
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **스택 규칙이 공식 권장 크기의 2배다** — `backend/AGENTS.md` **416줄** · `frontend/AGENTS.md` **316줄**.
 Claude Code 메모리 문서는 파일당 **200줄 이하**를 권장하며 이유를 명시한다 — 「Longer files consume more
@@ -5842,7 +5974,8 @@ context and reduce adherence」. [ADR-027] 배치에서는 그 디렉터리 파�
 **카테고리:** DX / 워크트리 부트스트랩 (훅 결손 감지)
 **Trigger:** 워크트리에서 훅 미작동이 또 관측되면
 **Est:** S
-**상태:** ⬜ **Open** — 관측된 결함(워크트리 1개의 훅 결손)은 2026-08-07 에 정상화했다. **감지 수단 부재**만 열려 있다.
+**상태:** ⏳ **대기 (트리거 미도래)** — 관측된 결함(워크트리 1개의 훅 결손)은 2026-08-07 에 정상화했다. **감지 수단 부재**만 열려 있다.
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 
 **부트스트랩을 우회해 만든 워크트리는 husky 훅이 없다.**
 
@@ -5883,7 +6016,8 @@ FE 회귀 방어와 `pre-commit` 의 lint-staged 가 전부 무력이었고, 그
 **카테고리:** Docs / 운영 절차 회수 (ADR-026 후속)
 **Trigger:** [BL-071](#deferred--trigger-미도래--의도적-부활-가능-구-_deferredmd-승격-2026-08-06) 발동 시 (프로덕션 배포) · Bybit mainnet 전환 시
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 
 **「과거 기록」이 아닌 운영 절차 4종이 문서 대개편에서 working tree 밖으로 나갔다.**
 ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 **위치**(폴더 이름)였지
@@ -6142,7 +6276,8 @@ red 가 안 난다. `run_backtest` 는 `run_backtest_v2` 의 별칭이라(`engin
 **카테고리:** 운영 / 배포 검증
 **Trigger:** 새 호스트에 API 를 세울 때 · [BL-071] 프로덕션 배포 발동 시
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 외생 조건(Beta·프로덕션 배포). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 
 **플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다.**
 
@@ -6174,7 +6309,8 @@ red 가 안 난다. `run_backtest` 는 `run_backtest_v2` 의 별칭이라(`engin
 **카테고리:** 운영 / 클라우드 서버 체크아웃
 **Trigger:** 서버에서 feature 브랜치를 다시 받아야 할 때
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **서버 클론이 `--single-branch` 라 feature 브랜치가 기본 fetch 로 오지 않는다.**
 
@@ -6194,7 +6330,8 @@ red 가 안 난다. `run_backtest` 는 `run_backtest_v2` 의 별칭이라(`engin
 **카테고리:** 운영 / BL-003 게이트
 **Trigger:** `QB_METRICS_URL`(원격 데몬 + ssh 터널 운영안)을 실제로 쓰려 할 때
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **게이트의 HTTP 갈래는 `PROMETHEUS_BEARER_TOKEN` 과 양립하지 않는다.**
 
@@ -6585,7 +6722,8 @@ ADR-025 를 시험한 창이 아니므로 **반례로 셀 수 없다**. 이것�
 **카테고리:** Backtest / Trust Layer (외부 오라클 부재)
 **Trigger:** 골든 값이 또 어긋났을 때 · 백테스트 정확성을 대외적으로 주장해야 할 때
 **Est:** M
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **골든을 오라클로 승격했지만 그 골든은 여전히 엔진 자신의 출력이다 — 그리고 반순환 근거가 ATR 축을 안 덮는다.**
 
@@ -6755,7 +6893,8 @@ ISO 8601 형식을 모두 검사해, 실패하면 커버리지를 비우고 `log
 **카테고리:** Docs / 백로그 인덱스 검사
 **Trigger:** 다음 백로그 인덱스를 편집할 때
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **backlog 인덱스 표가 파손돼도 `bl-audit.sh` 는 이를 감지하지 못 한다.**
 
@@ -6889,7 +7028,8 @@ EXCLUSIVE ⟺ ∀ resting conditional order o (reduce_only=None 전량) : o.orde
 **카테고리:** 운영 / 지표 세대 경계
 **Trigger:** 게이트가 `.metrics` 값을 창 기준으로 해석할 때
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **`.metrics` 합산은 죽은 컨테이너 세대의 값을 함께 센다.**
 
@@ -7239,7 +7379,8 @@ dev 서버(3111) + Playwright 하네스 실측:
 **카테고리:** Frontend / CSS 규약 집행
 **Trigger:** CSS 규약을 집행 가능하게 만들 때
 **Est:** M
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **mobile-first 규약과 코드가 정반대다.**
 
@@ -7499,7 +7640,8 @@ soft-delete 또는 재귀속이 선행이다.
 **카테고리:** Backend / 테스트 인프라 (cold CI import·bytecode 비용)
 **Trigger:** [BL-598] ② (파싱 디스크 캐시)를 착수할 때 · CI 샤드 수를 늘리려 할 때
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 선행 BL-598=ACTIVE (2026-08-10 bl-trigger-triage)
 
 **[BL-598] 이 재고 결론 낸 것은 전부 `warm` 프로세스다. cold 축은 아직 아무도 안 쟀다.**
 
@@ -7611,7 +7753,8 @@ import 와 bytecode 컴파일은 캐시 히트여도 일어난다.
 **카테고리:** Backend / backtest engine (모델 충실도)
 **Trigger:** 고레버리지 백테스트를 신뢰해야 할 때 / [BL-466] 후속
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **증거금 게이트가 진입 비용을 판정에 넣지 않는다.** `backend/src/strategy/pine_v2/strategy_state.py`
 의 `_open_trade` 최종 검증(`available = gate_equity - Σ margin_used`)과 `_can_afford_entry` 가
@@ -7644,7 +7787,8 @@ golden 갱신 커밋에 적어라.
 **카테고리:** Backend / trading (계정 축)
 **Trigger:** 같은 `exchange_uid` 에 **쓰기 가능한** 행이 2개 생기면 / 실자금 전환 전
 **Est:** S
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 
 **계정 dedup 이 쓰기 가능한 형제 행 둘을 만나면 주문을 누락한다.**
 [BL-605] 수리는 `dedupe_accounts_by_exchange_uid`(`backend/src/trading/account_identity.py`)로
@@ -7864,7 +8008,8 @@ docker 가 죽어 있으면 그 `down` 이 실패해 die 했다(fail-closed). **
 **카테고리:** Docs / decisions (소급 ADR)
 **Trigger:** Optimizer 설계를 실제로 바꿀 때 (알고리즘 교체 · scikit-optimize 이탈 · GA 파라미터 변경)
 **Est:** M
-**상태:** ⬜ Open — 2026-08-09 등재. **착수 금지**(이 회차 비목표 = M/L 급).
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-09 등재. **착수 금지**(이 회차 비목표 = M/L 급).
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **`decisions/013-optimizer-strategy.md` 를 소급 작성해 ADR-013 결번을 닫는다.**
 
@@ -7899,7 +8044,8 @@ dev-log 가 적은 결정과 코드가 어긋나면 **코드가 맞다**([ADR-02
 **카테고리:** Test infra / 디자인 캐논 게이트
 **Trigger:** 디자인 캐논 게이트가 빨개졌을 때 / 캐논 스윕 착수 시
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **`design-canon-calibration.spec.ts` 의 `screen-06-strategies-list.html` 케이스가 간헐 실패한다.**
 
@@ -7929,7 +8075,8 @@ dev-log 가 적은 결정과 코드가 어긋나면 **코드가 맞다**([ADR-02
 **카테고리:** Test infra / 골든 재생성 (도구 산출 ↔ 포매터 충돌)
 **Trigger:** 골든을 의도적으로 갱신할 때 / `regen_golden.py` 를 CI 에 넣을 때
 **Est:** XS
-**상태:** ⬜ **Open**
+**상태:** ⏳ **대기 (트리거 미도래)**
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 **`--confirm` 이 쓰는 포맷과 커밋본의 포맷이 구조적으로 다르다.**
 
@@ -8002,7 +8149,8 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 **Priority:** P2
 **Trigger:** [BL-517] 종결 + 거래소 접촉 검증이 가능한 회차
 **Est:** S
-**상태:** ⬜ Open — [BL-661] 이 거짓 성공만 없앴다(보고 + exit 3). 취소는 미착수
+**상태:** ⏳ 대기 (트리거 미도래) — [BL-661] 이 거짓 성공만 없앴다(보고 + exit 3). 취소는 미착수
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 guards-blind-spots (사용자 결정으로 범위 분리)
 
 **원인 / 영향:** [BL-661] 의 권장 접근은 「포지션이 없어도 미체결 조건부가 있으면 그것을
@@ -8030,7 +8178,8 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 **Priority:** P3
 **Trigger:** 문서 감사 시 / 그 문장을 근거로 쓸 때
 **Est:** XS
-**상태:** ⬜ Open
+**상태:** ⏳ 대기 (트리거 미도래)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 guards-blind-spots (사용자가 제기 → grep 으로 확정)
 
 **원인 / 영향:** `docs/status.md:396` 이 「원장 못 읽은 tick 은 리컨사일을 1 tick 미룬다
@@ -8147,7 +8296,8 @@ Pydantic 스키마. ⑵ runbook §7 에서 `no_open_position` 의 새 의미와 
 **Priority:** P3
 **Trigger:** `rerender-*` 계열 결함이 또 등재될 때 · Next 16 업그레이드 회차
 **Est:** S
-**상태:** ⬜ Open — [BL-663] 에서 분리했다. 켜지 않았고 측정도 안 했다 (2026-08-09 fe-perf-quartet)
+**상태:** ⏳ 대기 (트리거 미도래) — [BL-663] 에서 분리했다. 켜지 않았고 측정도 안 했다 (2026-08-09 fe-perf-quartet)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-09 fe-perf-quartet ([BL-663] 범위 분리)
 
 **원인 / 영향:** `next.config.ts` 에 `reactCompiler` 가 없다. `eslint-plugin-react-compiler`(19.1.0-rc.2)는 devDependency 로 있지만 **린트만 한다.** 그래서 FE 전체에 `memo()`/`React.memo` 가 **0건**인 채로 재렌더 범위를 컴포넌트 분리로 하나씩 손봐 왔다([BL-663] 이 그 4번째다).
@@ -8188,7 +8338,8 @@ Pydantic 스키마. ⑵ runbook §7 에서 `no_open_position` 의 새 의미와 
 **Category:** DX / 테스트 환경
 **Priority:** P3
 **Trigger:** 로컬에서 `pnpm e2e:authed` 를 돌릴 때 · 격리 스택을 새로 만들 때
-**상태:** ⬜ Open — 원인 미규명. 코드가 아니라 환경이라는 것까지만 좁혔다 (2026-08-09 fe-perf-quartet)
+**상태:** ⏳ 대기 (트리거 미도래) — 원인 미규명. 코드가 아니라 환경이라는 것까지만 좁혔다 (2026-08-09 fe-perf-quartet)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-09 fe-perf-quartet (final-gates 에서 발견 · 음성 대조 2회)
 
 **원인 / 영향:** `e2e/sprint46-tier1-critical.spec.ts:69`(#1 backtest form 422 unsupported_builtins)와 `e2e/sprint46-tier3-nth.spec.ts:489`(#20 friendly_message 카드)이 로컬 격리 스택(`:3100`/`:8100`)에서 일관 실패한다. 증상은 **하나**다 — `POST /api/v1/backtests` 가 아예 안 나가서 `waitForRequest` 가 15초 타임아웃한다. 폼 제출 **이전** 단계에서 막힌다는 뜻이다.
@@ -8216,7 +8367,8 @@ Pydantic 스키마. ⑵ runbook §7 에서 `no_open_position` 의 새 의미와 
 **Priority:** P3
 **Trigger:** 공유 링크로 특정 섹션을 가리키고 싶다는 요구가 나올 때
 **Est:** M (같은 데이터를 토큰 경로에서 다시 조립해야 한다)
-**상태:** ⬜ Open — 2026-08-10 fe-shareable-urls 에서 코드 대조로 확인. 사거리 밖이라 열어 둔다.
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 fe-shareable-urls 에서 코드 대조로 확인. 사거리 밖이라 열어 둔다.
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 fe-shareable-urls, codex G1 설계 검증 발견 2
 
 **원인 / 영향:** [BL-397] 이 준 앵커 10개는 `/backtests/[id]` 의 `BacktestReportShell` 에만 있다.
@@ -8240,7 +8392,8 @@ Pydantic 스키마. ⑵ runbook §7 에서 `no_open_position` 의 새 의미와 
 **Priority:** P3
 **Trigger:** 상세 라우트를 스트리밍으로 바꿀 때 / [BL-397] 의 해시 효과를 걷어내고 싶을 때
 **Est:** M
-**상태:** ⬜ Open — 2026-08-10 fe-shareable-urls 에서 실측. 이 회차 사거리 밖.
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 fe-shareable-urls 에서 실측. 이 회차 사거리 밖.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 fe-shareable-urls, G5 `/vercel-react-best-practices` (`async-suspense-boundaries`)
 
 **원인 / 영향:** `backtests/[id]/page.tsx` 는 서버 prefetch 도 `HydrationBoundary` 도 없이
@@ -8273,7 +8426,8 @@ codex G6 적대 리뷰가 반증했다. **클라이언트** Suspense fallback �
 **Priority:** P3
 **Trigger:** 세션 생성 흐름을 손볼 때 / 사용자가 이 깜빡임을 보고할 때
 **Est:** S
-**상태:** ⬜ Open — 2026-08-10 fe-shareable-urls 의 codex G6 적대 리뷰가 제기. ★**이 diff 가 만든 것이 아니라 종전 `useState` 판에도 있던 동작**임을 코드 대조로 확인했다.
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 fe-shareable-urls 의 codex G6 적대 리뷰가 제기. ★**이 diff 가 만든 것이 아니라 종전 `useState` 판에도 있던 동작**임을 코드 대조로 확인했다.
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 fe-shareable-urls, codex G6 발견 1
 
 **원인 / 영향:** `LiveSessionForm` 은 생성 성공 즉시 `onSuccess(session)` 을 부르고, 무효화 래퍼는
@@ -8300,7 +8454,8 @@ background refetch 중에도 `isPending` 은 false** 이므로, 코크핏은 「
 **Priority:** P2
 **Trigger:** FE 성능 회차 · 또는 `/trading` 초기 페인트가 느리다는 보고
 **Est:** S (page.tsx 에 Suspense 한 겹 = 5분. 복원폭 측정이 그보다 오래 걸린다)
-**상태:** ⬜ Open — 2026-08-10 review-and-merge 2축 리뷰 Standards 축이 제기, **실측으로 확정**. 사용자 판정으로 머지를 막지 않고 등재했다
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 review-and-merge 2축 리뷰 Standards 축이 제기, **실측으로 확정**. 사용자 판정으로 머지를 막지 않고 등재했다
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 review-and-merge (PR #580 Standards 축)
 
 **원인 / 영향:** `trading-cockpit.tsx:54` 가 `useSearchParams()` 를 부르는데
@@ -8375,7 +8530,8 @@ fallback 껍데기뿐이고, **그 껍데기는 `trading/loading.tsx` 가 이미
 **Priority:** P2
 **Trigger:** [BL-397] 앵커 불만 보고 · 또는 FE e2e 를 손보는 회차
 **Est:** S (픽스처 하나 + 시험 하나)
-**상태:** ⬜ Open — 2026-08-10 review-and-merge Spec 축이 제기. ★**「결함」이 아니라 「미측정」이다** — 제기한 리뷰어 본인이 「브라우저 scroll-anchoring 이 막을 수 있다, 측정하지 않았다」고 자인했다
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 review-and-merge Spec 축이 제기. ★**「결함」이 아니라 「미측정」이다** — 제기한 리뷰어 본인이 「브라우저 scroll-anchoring 이 막을 수 있다, 측정하지 않았다」고 자인했다
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 review-and-merge (PR #580 Spec 축)
 
 **원인 / 영향 (제기된 기전 — 미확정):** `backtest-report-shell.tsx:89-93` 의 해시 재조정은
@@ -8410,7 +8566,8 @@ caption + 120px pane 을 그린다 ⇒ §02 가 **스크롤이 끝난 뒤** 자�
 **Priority:** P3
 **Trigger:** 탑바 높이를 바꿀 때 — 그때 네 곳이 따로 논다
 **Est:** XS
-**상태:** ⬜ Open — 2026-08-10 review-and-merge Standards 축이 제기, 코드 대조로 확인
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 review-and-merge Standards 축이 제기, 코드 대조로 확인
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 review-and-merge (PR #580 Standards 축)
 
 **원인 / 영향:** `backtest-report-shell.tsx:56` 이 `className="section scroll-mt-[76px]"` 다.
@@ -8437,6 +8594,7 @@ caption + 120px pane 을 그린다 ⇒ §02 가 **스크롤이 끝난 뒤** 자�
 **Trigger:** 파이썬 파일을 2개 이상 한 커밋에 스테이징할 때 — 즉 거의 매 커밋
 **Est:** XS
 **상태:** ⬜ Open — 2026-08-10 close-ownership-axis 가 실측으로 재현. [BL-602]·[BL-667] 과 **다른 축**이다(그 둘은 prettier/frontend 축)
+**트리거 판정:** 도래 — 상태줄이 「2026-08-10 close-ownership-axis 가 실측으로 재현」이고 트리거가 「즉 거의 매 커밋」이다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 close-ownership-axis (커밋 중 관측 → `bash -c` 시맨틱으로 재현)
 
 **원인 / 영향:** 루트 `package.json` 의 lint-staged 가 backend 훅 3개를 이렇게 쓴다.
@@ -8511,7 +8669,8 @@ $ bash -c 'echo "받은 것: [$0] · 나머지: [$@]"' a.py b.py c.py
 **Priority:** P3
 **Trigger:** 같은 `exchange_uid` 행이 3개 이상으로 늘 때 — 지금은 실측 2행이라 무증상
 **Est:** XS
-**상태:** ⬜ Open — 2026-08-10 close-ownership-axis 가 [BL-517] 을 닫으며 **의도적으로 남겼다**(스코프)
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 close-ownership-axis 가 [BL-517] 을 닫으며 **의도적으로 남겼다**(스코프)
+**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 close-ownership-axis (Standards 축 · Spec 축 **양쪽이 독립 검출**)
 
 **원인 / 영향:** `live_signal.py` 의 `_resolve_current_position` 이 이렇게 돈다.
@@ -8546,7 +8705,8 @@ for account_id in scope_ids:
 **Priority:** P3
 **Trigger:** 다음에 `pin` 을 집행할 때 — 또는 사망 축 수정을 미룰지 판단할 때
 **Est:** XS
-**상태:** ⬜ Open — 2026-08-10 soak-pin-cost-correction 이 오해를 코드로 반증하고 문서 2곳을 고쳤다. **도구 문구는 아직 그대로**다
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 soak-pin-cost-correction 이 오해를 코드로 반증하고 문서 2곳을 고쳤다. **도구 문구는 아직 그대로**다
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 close-ownership-axis (세션 프롬프트의 절대 규칙이 코드에 반증되며 발각)
 
 **원인 / 영향:** `scripts/soak-stack.sh:185` 가 `down` 을 요구하며 이렇게 말한다.
@@ -8582,7 +8742,8 @@ for account_id in scope_ids:
 **Priority:** P3
 **Trigger:** 409 경로의 필드 타입을 바꿀 때 — 또는 그 docstring 을 근거로 삼을 때
 **Est:** XS
-**상태:** ⬜ Open — 2026-08-10 fe-close-surface 가 FE 쪽 계약을 읽다 발견. 스코프 밖이라 등재만
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 fe-close-surface 가 FE 쪽 계약을 읽다 발견. 스코프 밖이라 등재만
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 fe-close-surface (계약 조사 중 코드 대조)
 
 **원인 / 영향:** `backend/src/trading/schemas.py:132-139` 의 docstring 이 「문자열이 필요한
@@ -8611,7 +8772,8 @@ for account_id in scope_ids:
 **Priority:** P3
 **Trigger:** `ConditionalOrderSnapshot` 의 필드명을 바꿀 때
 **Est:** XS
-**상태:** ⬜ Open — 2026-08-10 fe-close-surface 가 FE 쪽 계약을 읽다 발견. 스코프 밖이라 등재만
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 fe-close-surface 가 FE 쪽 계약을 읽다 발견. 스코프 밖이라 등재만
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 fe-close-surface (계약 조사 중 코드 대조)
 
 **원인 / 영향:** `backend/src/trading/schemas.py:146-156` 의 시그니처가 `order: object` 라
@@ -8638,7 +8800,8 @@ for account_id in scope_ids:
 **Priority:** P3
 **Trigger:** 그 파일을 다음에 열 때
 **Est:** XS
-**상태:** ⬜ Open — 2026-08-10 fe-close-surface 가 만든 잉여. 남의 코드라 지우지 않고 등재만 (`CLAUDE.md` §3)
+**상태:** ⏳ 대기 (트리거 미도래) — 2026-08-10 fe-close-surface 가 만든 잉여. 남의 코드라 지우지 않고 등재만 (`CLAUDE.md` §3)
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-08-10 fe-close-surface
 
 **원인 / 영향:** `frontend/src/features/alert-rules/components/alert-rule-form.tsx:31-44` 의
@@ -8655,5 +8818,52 @@ for account_id in scope_ids:
 
 **권장 접근:** 그 파일을 다음에 만질 때 `error.code === "alert_rule_already_active"` 한 줄로 접는다.
 **Risk:** 🟢 (동작 무관. 읽는 비용만)
+
+---
+
+### BL-694
+
+**Title:** `## Deferred` H2 표와 판정어 `DEFERRED` 가 같은 것을 두 방식으로 말한다
+**Category:** Docs / 원장 정합
+**Priority:** P3
+**Trigger:** Deferred 표를 편집할 때 · 또는 6-8주 부활 재평가를 돌릴 때
+**Est:** S
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-10 bl-trigger-triage 가 등재만 하고 통합하지 않았다.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
+**출처:** 2026-08-10 bl-trigger-triage ([ADR-028](decisions/028-backlog-deferred-verdict.md) Consequences)
+
+**원인 / 영향:** `## Deferred — trigger 미도래 · 의도적 부활 가능` 표(BL-070~075 · BL-005 · BL-145,
+8건)는 **섹션이 없어서** `bl-audit` 집계 밖이다(의도). 그런데 [ADR-028] 이 같은 의미의 판정어
+`DEFERRED` 를 신설했으므로, 지금 원장은 「트리거 미도래」를 **두 방식으로** 말한다 — 섹션 있는
+151건은 판정어로, 표의 8건은 표 소속으로. 읽는 사람이 어느 쪽이 전부인지 못 고른다.
+
+**권장 접근:** 셋 중 하나. ⑴ 표의 8건에 섹션 + `⏳` 상태줄을 달아 판정어로 흡수(집계가 244→252,
+DEFERRED 159) ⑵ 표를 남기되 머리글에 「이 8건은 판정어 축 밖이다」를 명시 ⑶ 표를 `_deferred`
+tombstone 으로 되돌린다. **⑵ 가 가장 싸고 ⑴ 이 가장 정합적이다.**
+**Risk:** 🟢 문서 전용. 단 ⑴ 은 `bl-audit` 총계를 움직이므로 같은 커밋에서 수치 인용을 함께 고쳐라.
+
+---
+
+### BL-695
+
+**Title:** `**트리거 판정:**` 줄에 소유자가 없다 — 다음 BL 은 이 줄 없이 등재된다
+**Category:** Docs / 게이트
+**Priority:** P3
+**Trigger:** 즉시 — 규율이 기록만 돼 있고 어느 게이트도 안 잰다
+**Est:** XS
+**상태:** ⬜ Open — 2026-08-10 bl-trigger-triage 가 159/159 를 채웠지만 그것을 지키는 것이 없다.
+**트리거 판정:** 도래 — 규율이 기록만 된 상태이고, 이 레포는 「기록된 규율은 안 지켜진다」를 반복 실측했다([BL-631]·LESSON-078 과 같은 뿌리) (2026-08-10 bl-trigger-triage)
+**출처:** 2026-08-10 bl-trigger-triage (자기 산출물의 소유자 부재)
+
+**원인 / 영향:** 이 회차가 ACTIVE/DEFERRED 159건 전량에 `**트리거 판정:**` 줄을 달았고
+[ADR-028] §4 가 그것을 규약으로 적었다. **그런데 `bl-audit`·`docs-audit` 어느 쪽도 그 줄의
+존재를 재지 않는다.** ⇒ 다음 회차가 새 BL 을 등재하면 그 줄 없이 들어가고, 몇 회차 뒤
+「159/159」는 조용히 낡는다. `bl-trigger-sweep.sh` 는 **커버리지(트리거 줄)** 를 재지
+**판정 줄**을 재지 않는다 — 다른 양이다.
+
+**권장 접근:** `docs-audit.sh` 에 검사 1건 — ACTIVE·DEFERRED 판정을 받은 섹션에
+`**트리거 판정:**` 줄이 **정확히 1개** 있는가. 없으면 exit 1. 산식은 `bl-audit --list` 를
+되읽으면 되고 파서를 새로 쓰지 마라. ★같이 볼 것: 그 줄이 **2개**인 경우(중복 상태줄과 같은 사고).
+**Risk:** 🟢 게이트 추가. 지금 원장은 159/159 라 도입 즉시 초록이다 — **비용 0에 회귀만 막는다.**
 
 ---
