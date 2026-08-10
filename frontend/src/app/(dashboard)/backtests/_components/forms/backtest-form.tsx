@@ -118,11 +118,19 @@ export function BacktestForm() {
 
       <div className="setup-grid" data-testid="backtest-form-layout">
         {/* ==================== 좌 · 폼 ==================== */}
+        {/* BL-698 — noValidate 필수. native constraint validation 을 켜 두면 어느 필드 하나가
+            step/min/max 를 어기는 순간 브라우저가 submit 이벤트를 **발화조차 하지 않아**
+            제출이 조용히 죽는다(폼 밖 제출 버튼이라 native 경고 UI 도 안 뜬다).
+            이 폼의 모든 native 제약은 RHF rule 로 이미 이중화돼 있고(fees/slippage 0~0.01 ·
+            leverage 1~125 · capital>0), 레포에 `:invalid` CSS 는 0건이라 잃는 것이 없다.
+            ★[가정 아님] 실측: 이 레포 RHF 폼 9개 중 noValidate 는 3개뿐이라 **다수 관례가 아니다** —
+            나머지 6개는 [BL-699] 로 등록만 해 뒀다(현재 기본값이 제약을 어기는 폼은 여기뿐). */}
         <form
           id={FORM_ID}
           className="setup-main"
           onSubmit={handleSubmit(onSubmit)}
           aria-label="backtest-form"
+          noValidate
         >
           {/* ===== 01 전략 ===== */}
           <section className="section" aria-label="전략 선택">
