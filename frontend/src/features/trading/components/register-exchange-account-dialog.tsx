@@ -1,3 +1,6 @@
+// 거래소 계정 등록 다이얼로그. Bybit demo/live 모드로 API key/secret 을 입력받아
+// RegisterAccountRequestSchema(zodV4Resolver)로 검증한 뒤 useRegisterExchangeAccount
+// mutation 으로 등록한다. 현재 연결 거래소는 Bybit 하나뿐이라 passphrase 는 항상 null 로 보낸다.
 "use client";
 
 import { useState } from "react";

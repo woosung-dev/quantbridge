@@ -1,7 +1,5 @@
-"use client";
-
-// Sprint 32-B (BL-169): EquityPane — top pane.
-// Equity (solid, --chart-equity) + Buy & Hold (dashed, --chart-benchmark) line series.
+// Sprint 32-B (BL-169): EquityPane — 상단 pane. Equity(실선, --chart-equity)와
+// Buy & Hold(점선, --chart-benchmark) 라인 시리즈를 렌더링.
 //
 // Y축은 통화(USDT) 단위로 표시 (precision=2). 소수 % 기준은 계산 비용 + BE 계약상
 // equity_curve 가 자본금(USDT) 단위라 그대로 표시. 단위 모호 해소는 ChartLegend
@@ -10,6 +8,8 @@
 // LESSON-004 준수 + 성능: 이전 구현의 `[...data]` spread/inline object 가 부모
 // 리렌더마다 새 identity 를 만들어 TradingChart data effect(setData) 를 매번
 // 재실행시켰다 → readonly 배열 직접 전달 + module const options + useMemo 오버레이.
+
+"use client";
 
 import { useMemo } from "react";
 

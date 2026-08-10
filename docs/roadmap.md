@@ -390,7 +390,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ### P3 — 문서 lint
 
 - [x] **BL-306** [P3] ~~CLAUDE.md §5 한국어 콜론 종결 lint (181 위반, auto-fix)~~ → **2026-08-10 기각.** 실측 201 매치 중 168 이 코드블록·리스트·표 도입부, 33 이 뒤 절을 여는 산문 콜론, **진짜 dangling 0건**. 「false positive 0」이 정반대였고 auto-fix 는 정상 문장 200줄을 파손한다
-- [ ] **BL-307** [P3] CLAUDE.md §6 한국어 file header lint + 70 file backfill
+- [x] **BL-307** [P3] 한국어 file header lint + backfill — 2026-08-10 종결. `scripts/header-audit.sh` 1벌(BE·FE 공용) + 위반 **48 → 0** + pre-commit·CI 배선. ★「70 file」은 재측정 **48**, 근거였다던 전역 §6 소멸은 **반증**(루트 `AGENTS.md` 로 이사) — 코드의 90.6% 가 이미 규칙을 따르고 있었다
 
 ### P3 — pine_v2 엣지 / parity
 

@@ -1,21 +1,22 @@
-"""Trading session gate - hour-of-day filter for backtest + executor (Sprint 7d).
+"""Trading session 게이트 - 백테스트 + executor 용 hour-of-day 필터 (Sprint 7d).
 
-Empty list -> 24h (no filter). Allowed values: asia / london / ny.
+빈 리스트 -> 24시간 (필터 없음). 허용 값: asia / london / ny.
 
-Hour ranges are UTC, half-open [start, end) in hours:
+시간대는 UTC 기준, half-open [start, end) 구간:
 - asia   = [0, 7)   - UTC 00:00..06:59  (Asia/Tokyo 09:00-16:00)
 - london = [8, 16)  - UTC 08:00..15:59  (Europe/London 08:00-16:00)
 - ny     = [13, 20) - UTC 13:00..19:59  (America/New_York 09:00/09:30-16:00;
-                     the 13:30 NYSE open is rounded down to the 13:00 bucket -
-                     hour-granular by design, pinned in tests.)
+                     NYSE 개장 13:30 은 13:00 버킷으로 내림 처리됨 -
+                     설계상 시간(hour) 단위이며 테스트에 고정됨.)
 
-The filter is used in two places:
-1. Backtest engine - each bar's timestamp hour gates entries.
-2. Live executor - the current wall-clock UTC hour gates order acceptance.
+이 필터는 두 곳에서 사용된다:
+1. 백테스트 엔진 - 각 bar 의 timestamp hour 가 진입을 게이팅한다.
+2. 라이브 executor - 현재 wall-clock UTC hour 가 주문 접수를 게이팅한다.
 
-Both code paths pass a tz-aware datetime. Naive datetimes raise ValueError to
-prevent silent local-time interpretation.
+두 경로 모두 tz-aware datetime 을 전달해야 한다. naive datetime 은 암묵적
+local-time 해석을 막기 위해 ValueError 를 raise 한다.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -70,7 +71,5 @@ def validate_session_names(sessions: list[str]) -> list[str]:
     """
     invalid = [s for s in sessions if s not in SESSION_VALUES]
     if invalid:
-        raise ValueError(
-            f"unknown trading_sessions: {invalid}. Allowed: {sorted(SESSION_VALUES)}"
-        )
+        raise ValueError(f"unknown trading_sessions: {invalid}. Allowed: {sorted(SESSION_VALUES)}")
     return sessions

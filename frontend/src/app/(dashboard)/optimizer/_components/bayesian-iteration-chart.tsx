@@ -1,4 +1,4 @@
-// Sprint 55 — Bayesian iteration chart (acquisition_history line + random→acquisition vertical guide).
+// Sprint 55 — 베이지안 반복 차트 (acquisition_history 라인 + random→acquisition 경계 세로 가이드).
 "use client";
 
 import { useMemo } from "react";

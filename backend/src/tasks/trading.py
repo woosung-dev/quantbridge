@@ -1,6 +1,6 @@
-"""execute_order_task — Celery shared_task + prefork-safe per-call engine.
+"""execute_order_task — Celery shared_task, prefork-safe 하게 호출마다 새 engine 사용.
 
-Task 16: pending → submitted → provider.create_order → filled/rejected.
+Task 16: pending → submitted → provider.create_order → filled/rejected 상태로 전이.
 3-guard transitions via OrderRepository (Sprint 4 패턴).
 
 Sprint 17 Phase C (codex G.0 P1 #1 격상): module-level _worker_engine 제거.
@@ -10,7 +10,7 @@ Sprint 22 BL-091: provider dispatch 가 (account.exchange, account.mode,
 has_leverage) 3-tuple 기반 dynamic. settings.exchange_provider 는 dispatch path
 에서 더 이상 참조 안 됨 (test_config.py 호환용 dead config).
 - `_provider_for_account_and_leverage(exchange, mode, has_leverage)` = 본체
-- `_build_exchange_provider(account, submit)` = create_order path public dispatcher
+- `_build_exchange_provider(account, submit)` = create_order 경로의 public dispatcher
 - fetch 분기는 OrderSubmit 부재 → Order.leverage 직접 사용
 - UnsupportedExchangeError(ProviderError) → line 214 except 자동 catch (graceful rejected)
 """

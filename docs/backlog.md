@@ -1661,20 +1661,38 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Title:** `~/.claude/CLAUDE.md` §6 한국어 file header lint + 누락 70 file backfill
 **Category:** Lint / Source
 **Priority:** P3
-**Trigger:** 누적 누락 70 file 검출 (BE 14 + FE 56, 2026-05-15 audit). main.py / core/config.py / trading/registry.py / app/layout.tsx 등 핵심 file 포함
-**Est:** M (8-12h — lint rule 4-6h + 70 file 의미 있는 한국어 1줄 주석 작성 4-6h)
-**상태:** ⬜ Open — lint 룰(ESLint/ruff/pre-commit) 전무하고 main.py·config.py·layout.tsx 모두 여전히 헤더 없음 — 다만 근거였던 전역 §6 는 소멸 (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 도래 — 트리거가 스스로 도래를 선언(누적 누락 70 file 검출) (2026-08-10 bl-trigger-triage)
+**Trigger:** ~~누적 누락 70 file 검출 (BE 14 + FE 56, 2026-05-15 audit)~~ → **2026-08-10 재측정 48 file** (BE **13** + FE **35**). main.py / trading/registry.py / app/layout.tsx 는 누락 확인 · `core/config.py` 는 **exempt list 가 면제**(원장 내부 모순, 면제 유지로 확정)
+**Est:** ~~M (8-12h)~~ → **실제 ≈4h** (검출기 1벌 + 백필 48건 생성자 4기 병렬)
+**상태:** ✅ Resolved — 2026-08-10 bl-307-header-lint. `scripts/header-audit.sh` 신설(BE·FE 공용 1벌) + 위반 **48 → 0** + pre-commit·CI 배선. 하네스 14/14 · 변이 6종 전건 판별.
+**트리거 판정:** 해소 — 누락 전건 백필 + 신규 파일 차단 기구 배선 완료 (2026-08-10 bl-307-header-lint)
 **출처:** `2026-05-15-claudemd-align-audit.md` §6 Track C2, [LESSON-068](lessons.md)
 
-**현 상태:** BE 14/157 (8.9%) + FE 56/243 (23%) = 70 file 신규 source 첫 3줄 한국어 주석 누락. config / test / **init** / index.ts / \*.d.ts 제외. ESLint custom rule 부재 + ruff custom rule 부재.
+**현 상태:** ~~BE 14/157 + FE 56/243 = 70 file 누락~~ → **2026-08-10 종결.** 착수 시 실측 = 스캔 750 ·
+면제 242 · 검사 **508** · 위반 **48**(BE 13 + FE 35). 종료 시 **0**.
 
-**권장 접근:**
+★**「근거였던 전역 §6 는 소멸」이 반증됐다.** 규칙은 죽은 것이 아니라 **이사했다** — 루트
+[`AGENTS.md`](../AGENTS.md) §개발 원칙이 지금도 「사고/계획/대화/문서/주석 = **한국어**」를 명령한다.
+그리고 **코드가 관행을 증언했다**: 착수 시점에 이미 508개 중 **460개(90.6%)가 한국어 헤더 보유**
+(BE 175/188 = 93.1% · FE 285/320 = 89.1%). 죽은 규칙의 부활이 아니라 **미집행 9.4% 의 회수**였다.
 
-1. ESLint custom rule (`require-korean-file-header.js`) — 첫 3줄 안 한국어 char 검출 의무. exempt list = config / test / spec / d.ts / index / generated.
-2. ruff custom plugin 또는 pre-commit hook 으로 .py file 동일 검증.
-3. 누락 70 file 일괄 한국어 1줄 주석 추가 (의미 = file 역할 한 줄 — LLM 일괄 생성 가능).
-4. CI gate + pre-commit hook 추가. 신규 file 차단 mechanism.
+★**48건 중 27건은 「추가」가 아니라 「영→한 번역」이었다** — 이미 영어 헤더가 있었다. 번역 시
+Sprint/BL 참조와 기술 세부를 **버리지 않고 옮기는 것**이 실제 작업의 대부분이었다.
+
+**권장 접근 → 실제로 한 것:**
+
+1. ~~ESLint custom rule (`require-korean-file-header.js`)~~ → **`scripts/header-audit.sh` 1벌**(BE·FE 공용).
+   ESLint 로 하면 BE 는 별도 기구가 필요해 **면제 목록이 두 곳에 살고**, 그것이 이 레포가 반복해 겪은 표류다.
+2. ~~ruff custom plugin~~ → **불가능**. ruff 는 커스텀 룰 API 자체가 없다. ★**Biome 도 불가능** —
+   커스텀 룰 수단인 GritQL 이 **주석을 trivia 로 취급해 쿼리에서 볼 수 없다**(공식 문서 확인). 이 룰은 전부가 주석 검사다.
+3. ✅ 백필 **48건**(70 아님). 생성자 4기 병렬, 배치별 파일 집합이 서로 소.
+4. ✅ `Makefile: header-audit` · `.husky/pre-commit`(대상 소스 스테이징 시 **차단**) ·
+   `ci.yml` **`documentation` 잡**(경로 필터가 없어 **항상** 돈다 — 「신규 파일 차단」이 목적인
+   게이트를 조건부 잡에 두면 목적이 사라진다).
+
+★**검출기에 로케일 자기검사를 박았다.** 이 감사기의 전부는 `grep '[가-힣]'` 한 줄에 걸려 있고
+그 동작은 로케일에 달렸다(CI = GNU grep, 개발기 = BSD grep). 깨진 환경에서는 **전건 위반**이나
+**전건 통과** 중 하나가 조용히 나온다. ⇒ 매 실행마다 양성·음성 한 쌍으로 판별력을 확인하고
+실패하면 **rc=3 으로 판정을 포기**한다. 판정할 수 없을 때 초록을 내지 않는다.
 
 **영향 파일:** ESLint config 1 + ruff config 1 + pre-commit hook 1 + 70 file 첫 줄 주석 추가.
 
@@ -9121,5 +9139,36 @@ RHF rule 로 이중화돼 있는지 확인해라 — 이중화가 없으면 `noV
 **영향 파일:** 위 표의 6개 + 각 테스트.
 
 **Risk:** 🟢 (선제 조치. 단 RHF 이중화 확인을 건너뛰면 검증을 지우는 변경이 된다)
+
+---
+
+### BL-700
+
+**Title:** FE 헤더 주석과 `"use client"` 의 순서 관례가 두 갈래로 갈려 있다
+**Category:** Frontend / 컨벤션
+**Priority:** P3
+**Trigger:** `frontend/AGENTS.md` 를 손댈 회차 — 관례를 문서로 고정할 때 함께 처리한다
+**Est:** XS (문서 1줄 + 필요 시 정렬)
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-10 bl-307-header-lint 에서 발견. **둘 다 합법이고 게이트는 양쪽 다 통과한다** — 지금 고장난 것은 없다.
+**트리거 판정:** 미도래 — 동승 트리거(`frontend/AGENTS.md` 를 여는 회차). 단독 착수 시 값이 0이다 (2026-08-10 bl-307-header-lint)
+**출처:** 2026-08-10 bl-307-header-lint (`/code-review` Spec 축 (b)2)
+
+**원인 / 영향:** [BL-307] 이 헤더를 첫 3줄에 넣으면서 `"use client"` 와의 상대 순서를 정해야 했다.
+실측 — 레포에 **두 관례가 이미 공존**한다:
+
+| 관례                          | 표본                                                  |
+| ----------------------------- | ----------------------------------------------------- |
+| 주석 → `"use client"`         | `waitlist-filter-bar` · `waitlist-stats-strip` (다수) |
+| `"use client"` → 빈 줄 → 주석 | `waitlist-admin-view` · `components/ui/*` 6건         |
+
+[BL-307] 은 **다수 쪽(주석 먼저)**으로 통일했다. Next.js 는 지시문 앞에 주석만 있으면 합법이라
+둘 다 동작하고, `header-audit` 은 3줄 창 안이기만 하면 양쪽을 통과시킨다.
+
+**권장 접근:** `frontend/AGENTS.md` 에 한 줄로 고정하고(권장 = 주석 먼저), 어긋난 파일은
+**그 파일을 다음에 열 때** 맞춘다. 일괄 정렬은 값에 비해 diff 가 크다.
+
+**영향 파일:** `frontend/AGENTS.md` 1 + (동승) 해당 컴포넌트.
+
+**Risk:** 🟢 (순수 컨벤션. 동작 영향 0)
 
 ---

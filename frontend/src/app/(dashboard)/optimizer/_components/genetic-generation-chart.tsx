@@ -1,4 +1,4 @@
-// Sprint 56 BL-233 — Genetic generation chart (best_so_far line + generation boundary guides).
+// Sprint 56 BL-233 — 유전 알고리즘 세대 차트 (best_so_far 라인 + 세대 경계 가이드).
 "use client";
 
 import { useMemo } from "react";

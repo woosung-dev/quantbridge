@@ -1,9 +1,9 @@
-"use client";
-
-// Phase C: Walk-Forward bar chart — IS vs OOS return per fold + degradation ratio.
+// Phase C: Walk-Forward 막대 차트 — fold 별 IS vs OOS 수익률 + degradation ratio.
 // - degradation_ratio 는 문자열 (BE 가 Decimal or "Infinity" 로 직렬화).
 // - valid_positive_regime === false 이면 "N/A" 표기 (손실 구간).
 // - was_truncated 이면 folds/total_possible_folds 비율 노출.
+
+"use client";
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";

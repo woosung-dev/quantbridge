@@ -1,3 +1,9 @@
+"""SQLAlchemy AsyncEngine 및 AsyncSession 팩토리.
+
+`get_async_session()` 이 요청 1건당 세션을 yield 하는 FastAPI 의존성이며, commit 은
+호출한 Service 의 책임이다 (실패 시 자동 rollback).
+"""
+
 from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (

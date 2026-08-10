@@ -167,6 +167,14 @@ run_gate "소크 재기동 하네스" "scripts/soak-restart.sh" bash "$ROOT/scri
 #   바뀌면 추출 실패로 크게 죽는다. 여기 걸기 전엔 호출자가 0이라 아무도 안 돌렸다.
 run_gate "함대 분배 하네스" "scripts/fleet-dispatch.sh" bash "$ROOT/scripts/fleet-dispatch-test.sh"
 
+# ★소스 헤더 감사 + 그 하네스 ([BL-307]). 둘을 **함께** 건다 — 감사기만 걸면 레포가 이미
+#   0건이라 판정 로직을 통째로 지워도 초록이다(BL-569 가 `bl-audit` 에서 겪은 것과 같은 모양).
+#   ★하네스를 여기 안 걸면 호출자가 0이 되어 아무도 안 돌린다 — `fleet-dispatch-test` 가
+#   바로 그 상태였고 BL-601 이 그래서 이 자리를 만들었다.
+#   (2026-08-10 `/code-review` Standards 축 H2 「고아 하네스」 검출.)
+run_gate "소스 헤더 감사" "scripts/header-audit.sh" bash "$ROOT/scripts/header-audit.sh"
+run_gate "소스 헤더 하네스" "scripts/header-audit.sh" bash "$ROOT/scripts/header-audit-test.sh"
+
 # ★문서 감사 — 죽은 링크 · retired path · **요약 줄 길이 상한**.
 #   CI 의 documentation 잡(`make docs-audit`)이 같은 것을 돌지만 그건 **PR 을 연 뒤**다.
 #   줄 길이 회귀는 문서를 만지는 그 회차가 만들고 그 회차가 못 보므로, PR 전에 물게 한다

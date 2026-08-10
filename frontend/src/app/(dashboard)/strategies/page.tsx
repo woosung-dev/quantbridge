@@ -1,3 +1,5 @@
+// 전략 목록 페이지 (/strategies, Server Component) — Clerk 토큰으로 React Query 를
+// 서버에서 prefetch(archived 제외, PAGE_SIZE=20) 후 HydrationBoundary 로 StrategyList 에 hydrate.
 import type { Metadata } from "next";
 import { auth } from "@clerk/nextjs/server";
 import {

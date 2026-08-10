@@ -1,3 +1,7 @@
+"""도메인 공통 예외 계층 — `AppException` 베이스 + NotFound/PermissionDenied/Validation/
+UnsupportedPineScript 하위 클래스.
+"""
+
 from fastapi import status
 
 

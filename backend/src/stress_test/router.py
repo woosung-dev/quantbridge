@@ -1,11 +1,11 @@
-"""Stress Test REST API.
+"""Stress Test REST API 라우터.
 
-POST /stress-tests/monte-carlo                — submit MC (202)
-POST /stress-tests/walk-forward               — submit WFA (202)
-POST /stress-tests/cost-assumption-sensitivity — submit CA (202, Sprint 50)
-POST /stress-tests/param-stability            — submit PS (202, Sprint 51 BL-220)
-GET  /stress-tests                            — list (page)
-GET  /stress-tests/{id}                       — detail
+POST /stress-tests/monte-carlo                — MC 제출 (202)
+POST /stress-tests/walk-forward               — WFA 제출 (202)
+POST /stress-tests/cost-assumption-sensitivity — CA 제출 (202, Sprint 50)
+POST /stress-tests/param-stability            — PS 제출 (202, Sprint 51 BL-220)
+GET  /stress-tests                            — 목록 조회 (page)
+GET  /stress-tests/{id}                       — 상세 조회
 """
 
 from __future__ import annotations

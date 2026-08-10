@@ -1,3 +1,5 @@
+// 백테스트 상세 「거래 분석」 탭 — 방향(롱/숏) 분포·방향별 성과·승패 비율·평균 수익 vs 손실을
+// bar/badge 로 렌더링하는 클라이언트 컴포넌트. trades 미제공 시 집계(metrics) 기반만 표시.
 "use client";
 
 import { useMemo } from "react";

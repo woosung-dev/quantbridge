@@ -1,6 +1,8 @@
+// 옵티마이저 React Query 훅 — Clerk JWT + userId 팩토리 패턴(LESSON-005). 조회는
+// useOptimizationRuns/useOptimizationRun, 변이는 useSubmitGridSearch/useSubmitBayesianSearch/
+// useSubmitGeneticSearch(그리드서치·베이지안·유전 알고리즘 실행 제출) 훅으로 나눠 내보낸다.
 "use client";
 
-// Optimizer React Query hooks — Clerk JWT + userId factory pattern (LESSON-005).
 // polling refetchInterval = RUNNING/QUEUED 시 2s, COMPLETED/FAILED 시 false (LESSON-004 CPU 보호).
 
 import {

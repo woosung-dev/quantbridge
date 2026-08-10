@@ -17,7 +17,7 @@
         dev-isolated up-isolated up-isolated-build up-isolated-watch down-isolated logs-isolated be-isolated fe-isolated \
         migrate migrate-isolated wait-db-isolated seed \
         db-snapshot db-restore \
-        test be-test fe-test fe-e2e fe-e2e-authed lint typecheck docs-audit metrics-prepare metrics-wipe
+        test be-test fe-test fe-e2e fe-e2e-authed lint typecheck docs-audit header-audit metrics-prepare metrics-wipe
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
 METRICS_COMPOSE_FILES :=
@@ -127,6 +127,7 @@ help:
 	@echo "    make lint           # ruff + eslint"
 	@echo "    make typecheck      # mypy + tsc"
 	@echo "    make docs-audit     # 활성 문서 링크 + 폐기 경로 검사"
+	@echo "    make header-audit   # 소스 첫 3줄 한국어 헤더 주석 검사 (BL-307)"
 
 # Prometheus mmap 파일은 모든 writer가 멈춘 콜드 스타트에서만 제거한다.
 # 부분 재기동 타깃에는 metrics-wipe를 절대 붙이지 않는다.
@@ -408,3 +409,6 @@ typecheck:
 
 docs-audit:
 	scripts/docs-audit.sh
+
+header-audit:
+	scripts/header-audit.sh

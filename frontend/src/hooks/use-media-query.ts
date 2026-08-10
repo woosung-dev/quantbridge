@@ -1,3 +1,4 @@
+// SSR-safe 반응형 미디어쿼리 훅 — matchMedia 결과를 구독해 boolean 으로 반환한다.
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";

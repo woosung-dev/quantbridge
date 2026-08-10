@@ -1,3 +1,6 @@
+// 앱 최상위 Root Layout (app/layout.tsx, Server Component) — <html>/<body> 셸을 정의하고
+// AppProviders·LegalNoticeBanner·Toaster 를 조립한다. title 템플릿(metadata)과 다크/라이트
+// 테마 색(viewport.themeColor)도 여기서 export.
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { AppProviders } from "@/components/providers/app-providers";

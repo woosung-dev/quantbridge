@@ -1,4 +1,4 @@
-"""run_backtest_task + _execute + reclaim_stale_running."""
+"""run_backtest_task + _execute + reclaim_stale_running — 백테스트 실행/정리 Celery task 모음."""
 
 from __future__ import annotations
 

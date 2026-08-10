@@ -1,3 +1,4 @@
+// 전역 `?` 키보드 단축키 도움말 Dialog — 입력 요소 포커스 중에는 무시하고 그 외에는 `?` 로 연다.
 "use client";
 
 import { useEffect, useState } from "react";
