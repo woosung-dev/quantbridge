@@ -276,7 +276,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-467** [P1] `backend-optimizer-heavy` OHLCV env 3종 부재로 **모든 optimizer 실행 실패** — ✅ **dogfood-restore 완료**
 - [ ] **BL-468** [P3] `OHLCV_FIXTURE_ROOT` CWD 상대 기본값 + `FixtureProvider` 가 canonical 슬래시 심볼 미지원
 - [x] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead) — 2026-08-09 **등록 않고 제거**(`TimescaleProvider.get_ohlcv` 가 cache-miss 시 스스로 fetch 하므로 별도 백필 경로가 불필요)
-- [ ] **BL-470** [P2] 캐논 감사 9건이 빈 DB 에서 조용히 통과(데이터 전제 부재)
+- [x] **BL-470** [P2] 캐논 감사 9건이 빈 DB 에서 조용히 통과(데이터 전제 부재) — 2026-08-10 **4라우트 전부 `minExamined>0` + 데이터 전제 단정**, `/trades` 의 `test.skip` 을 `expect` 로 뒤집었다. ★종전 진단이 과소였다: skip 은 1건뿐이고 나머지 셋은 **초록**이었다. 고칠 도구(`minExamined`)는 감사 코어에 이미 있었고 spec 이 import 만 안 했다
 - [ ] **BL-471** [P3] `exchange_exits` row_hash 멱등 → 분류 로직 변경 시 기존 행 재분류 경로 부재
 - [ ] **BL-472** [P3] 백테스트 목록이 monthly/daily 컨벤션 각주 미표기
 - [x] **BL-473** [P1] Bybit private WS 인증 `expires` 창 +1s 가 왕복 지연에 먹혀 **라이브 체결 스트리밍이 죽어 있었다** — ✅ **dogfood-restore 완료**. 통제 실험(+1s 실패 / +10s·+60s 성공)으로 격리, 10s 로 확대
