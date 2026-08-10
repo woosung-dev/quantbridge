@@ -1,6 +1,7 @@
 # 라이브 세션의 단일 선물 포지션을 reduce-only 시장가로 청산하는 서비스
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -11,12 +12,14 @@ from pydantic import ValidationError
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
 from src.trading.models import ExchangeMode, ExchangeName, OrderSide, OrderType
-from src.trading.providers import BybitFuturesProvider
+from src.trading.providers import BybitFuturesProvider, ConditionalOrderSnapshot, Credentials
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
-from src.trading.schemas import ClosePositionResponse, OrderRequest
+from src.trading.schemas import ClosePositionResponse, OrderRequest, RestingEntryOrder
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.order_service import OrderService
+
+logger = logging.getLogger(__name__)
 
 # BL-537 — reduce-only 청산에서 leverage/margin_mode 는 **거래소로 가지 않는다**.
 # `BybitFuturesProvider.create_order` 가 `if not order.reduce_only:` 로 set_margin_mode 와
@@ -69,6 +72,21 @@ class ClosePositionService:
         self._bybit_futures_provider = bybit_futures_provider
         self._order_service = order_service
 
+    async def _fetch_resting_entries(
+        self, credentials: Credentials, symbol: str
+    ) -> list[ConditionalOrderSnapshot]:
+        """거래소의 일반·trigger 미체결 주문 중 **진입만** 반환한다.
+
+        ★`reduce_only=None` 은 협상 불가 계약이다. 기본값 `True` 는 TP/SL(reduce-only)만
+        주므로 그 기본값으로 물으면 표적인 **진입**을 통째로 놓친다. `None` 이라야 필터가
+        꺼져 둘 다 오고, 그 뒤 `is False` 로 진입만 남긴다.
+        ★고아 TP/SL 만 남은 계정은 **flat 이다** — 그래서 `is False` 로 다시 거른다.
+        """
+        resting = await self._bybit_futures_provider.fetch_open_conditional_orders(
+            credentials, symbol, reduce_only=None
+        )
+        return [order for order in resting if order.reduce_only is False]
+
     async def close_position(self, user_id: UUID, session_id: UUID) -> ClosePositionResponse:
         session = await self._session_repo.get_by_id(session_id)
         if session is None or session.user_id != user_id:
@@ -101,12 +119,10 @@ class ClosePositionService:
             credentials, session.symbol
         )
         if not positions:
-            # BL-661 — `reduce_only=None`은 진입과 TP/SL을 함께 반환한다. flat 판정에는
-            # 진입만 필요하므로 `is False`로 다시 거른다. 고아 TP/SL만 남은 계정은 flat이다.
-            resting = await self._bybit_futures_provider.fetch_open_conditional_orders(
-                credentials, session.symbol, reduce_only=None
-            )
-            entries = [order for order in resting if order.reduce_only is False]
+            # BL-661 — flat 판정은 거래소 잔량을 확인하지 못하면 성공을 말할 수 없다.
+            # 여기서는 예외를 전파해 fail-closed 한다. 공용 헬퍼가 `reduce_only=None`으로
+            # 일반 지정가·trigger 주문을 함께 읽고 `is False`인 진입만 남긴다.
+            entries = await self._fetch_resting_entries(credentials, session.symbol)
             if not entries:
                 raise HTTPException(status_code=409, detail="no_open_position")
 
@@ -115,8 +131,8 @@ class ClosePositionService:
                 detail={
                     "code": "resting_conditional_entries",
                     "count": len(entries),
-                    "message": (
-                        f"포지션은 없지만 미체결 조건부 진입 {len(entries)}건이 남아 있습니다."
+                    "detail": (
+                        f"포지션은 없지만 미체결 진입 주문 {len(entries)}건이 남아 있습니다."
                     ),
                     "orders": [
                         {
@@ -147,6 +163,26 @@ class ClosePositionService:
             side = OrderSide.buy
         else:
             raise HTTPException(status_code=409, detail="position_side_unsupported")
+
+        # BL-684 — 두 경로의 조회 실패 처리는 의도적으로 비대칭이다. flat 경로에서
+        # fail-open 하면 실제 미체결 진입을 "flat"이라고 거짓 보고하지만, 열린 포지션
+        # 경로에서 fail-closed 하면 조회 장애가 위험한 포지션 청산 자체를 봉쇄한다.
+        resting_entries_unknown = False
+        try:
+            entries = await self._fetch_resting_entries(credentials, session.symbol)
+        except Exception as exc:
+            logger.warning(
+                "close_position_resting_entries_fetch_failed",
+                extra={
+                    "session_id": str(session.id),
+                    "symbol": session.symbol,
+                    "error": type(exc).__name__,
+                },
+                exc_info=True,
+            )
+            entries = []
+            resting_entries_unknown = True
+
         request = OrderRequest(
             strategy_id=session.strategy_id,
             exchange_account_id=session.exchange_account_id,
@@ -165,8 +201,31 @@ class ClosePositionService:
             risk_percent=None,
         )
         response, _ = await self._order_service.execute(request, idempotency_key=None, flatten=True)
+        if resting_entries_unknown:
+            detail = (
+                "reduce-only market close accepted · 미체결 진입 주문 확인 실패(거래소 조회 오류)"
+            )
+        elif entries:
+            detail = (
+                f"reduce-only market close accepted · 미체결 진입 주문 {len(entries)}건이 남아 있다"
+            )
+        else:
+            detail = "reduce-only market close accepted"
         return ClosePositionResponse(
             order_id=response.id,
             state=response.state,
-            detail="reduce-only market close accepted",
+            detail=detail,
+            resting_entries=[
+                RestingEntryOrder(
+                    order_id=order.order_id,
+                    side=order.side,
+                    qty=str(order.qty) if order.qty is not None else None,
+                    trigger_price=(
+                        str(order.trigger_price) if order.trigger_price is not None else None
+                    ),
+                    order_link_id=order.order_link_id,
+                )
+                for order in entries
+            ],
+            resting_entries_unknown=resting_entries_unknown,
         )

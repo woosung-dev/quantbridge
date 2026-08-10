@@ -386,8 +386,8 @@ async def _cmd_flatten(session_id: UUID) -> None:
                     print("✓ 이미 flat 이다 (no_open_position). 주문을 내지 않았다.")
                     return
                 if isinstance(detail, dict) and detail.get("code") == "resting_conditional_entries":
-                    message = detail.get("message") or (
-                        f"포지션은 없지만 미체결 조건부 진입 {detail.get('count', 0)}건이 남아 있다."
+                    message = detail.get("detail") or (
+                        f"포지션은 없지만 미체결 진입 주문 {detail.get('count', 0)}건이 남아 있다."
                     )
                     print(f"✗ {message}")
                     for order in detail.get("orders", []):
@@ -401,8 +401,24 @@ async def _cmd_flatten(session_id: UUID) -> None:
                 raise SystemExit(f"✗ 청산 실패: {detail}") from exc
             await session.commit()
             print(f"✓ 청산 주문 접수: order_id={response.order_id} state={response.state}")
+            # ★BL-684 — 원장 검증 안내를 **rc 4 분기보다 먼저** 찍는다. 잔량이 남은 회차야말로
+            #   청산이 실제로 체결됐는지 확인해야 하는데, 안내를 exit 뒤에 두면 그 상황에서만
+            #   사라진다(가장 필요한 자리에서 없어진다).
             print("  ★원장에 남았다 — 체결은 비동기다. `exchange_exits` 에서")
             print("    `external_manual` 이 늘지 않고 `ours` 가 느는지로 검증해라.")
+            if response.resting_entries_unknown:
+                print("  ⚠ 미체결 진입 주문 확인 실패(거래소 조회 오류). 청산 주문은 접수됐다.")
+                # 4는 「주문 접수 + 잔량/확인 실패」다 — 「주문 미발행」인 3과도, 실패 1과도 다르다.
+                raise SystemExit(4)
+            if response.resting_entries:
+                print(f"  ⚠ 미체결 진입 주문 {len(response.resting_entries)}건이 남아 있다.")
+                for order in response.resting_entries:
+                    print(
+                        f"  order_id={order.order_id} side={order.side} "
+                        f"qty={order.qty} trigger={order.trigger_price} "
+                        f"link={order.order_link_id or '-'}"
+                    )
+                raise SystemExit(4)
     finally:
         await engine.dispose()
 
@@ -421,7 +437,10 @@ def main() -> None:
     start_parser.add_argument("--confirm", action="store_true", required=True)
     for name, help_text in (
         ("stop", "세션 비활성화 (거래소는 flat 안 됨)"),
-        ("flatten", "reduce-only 시장가 청산 — 원장에 남는다"),
+        (
+            "flatten",
+            "reduce-only 시장가 청산 — rc 0=flat/잔량 없음, 1=실패, 3=미발행 잔량, 4=접수 후 잔량/확인 실패",
+        ),
     ):
         sp = sub.add_parser(name, help=help_text)
         sp.add_argument("session_id")

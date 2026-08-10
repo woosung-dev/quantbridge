@@ -15,6 +15,9 @@ import pytest
 from fastapi import HTTPException
 
 import scripts.live_session_admin as admin
+from src.trading.models import OrderState
+from src.trading.schemas import ClosePositionResponse, RestingEntryOrder
+from tests.trading.test_close_service import _conditional, _service
 
 
 def _process_rc(exc: SystemExit) -> int:
@@ -124,6 +127,28 @@ async def test_flatten_cli_exits_3_when_conditionals_rest(
 
 
 @pytest.mark.asyncio
+async def test_flatten_cli_formats_actual_flat_resting_entry_detail(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """BL-672 — 서비스가 실제로 낸 detail 객체를 CLI가 그대로 소비한다."""
+    service, user_id, session, _ = _service(
+        positions=[], conditional_orders=[_conditional("ex-entry-actual")]
+    )
+    with pytest.raises(HTTPException) as exc_info:
+        await service.close_position(user_id, session.id)
+
+    _install(monkeypatch, outcome=HTTPException(status_code=409, detail=exc_info.value.detail))
+
+    with pytest.raises(SystemExit) as exit_info:
+        await admin._cmd_flatten(uuid4())
+
+    assert _process_rc(exit_info.value) == 3
+    out = capsys.readouterr().out
+    assert "포지션은 없지만 미체결 진입 주문 1건이 남아 있습니다." in out
+    assert "ex-entry-actual" in out
+
+
+@pytest.mark.asyncio
 async def test_flatten_cli_exits_1_on_other_failures(monkeypatch: pytest.MonkeyPatch) -> None:
     """**음성 대조** — 그 밖의 실패는 종전대로 1 이다. 3 을 남발하면 분기가 무의미해진다."""
     _install(monkeypatch, outcome=HTTPException(status_code=422, detail="live_mode_stub"))
@@ -140,8 +165,67 @@ async def test_flatten_cli_reports_accepted_order_on_success(
 ) -> None:
     """**음성 대조** — 포지션이 있으면 종전 청산 경로가 한 글자도 안 바뀐다."""
     order_id = uuid4()
-    _install(monkeypatch, outcome=SimpleNamespace(order_id=order_id, state="pending"))
+    _install(
+        monkeypatch,
+        outcome=ClosePositionResponse(order_id=order_id, state=OrderState.pending),
+    )
 
-    await admin._cmd_flatten(uuid4())
+    try:
+        await admin._cmd_flatten(uuid4())
+    except SystemExit as exc:
+        rc = _process_rc(exc)
+    else:
+        # `_cmd_flatten` 이 정상 반환하면 `asyncio.run()`의 프로세스 종료 코드는 0이다.
+        rc = 0
 
+    assert rc == 0
     assert str(order_id) in capsys.readouterr().out
+
+
+@pytest.mark.asyncio
+async def test_flatten_cli_exits_4_when_accepted_order_has_resting_entries_or_unknown(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """BL-684 — 청산 접수 뒤 잔량·확인 실패는 실패 1이 아닌 전용 종료 코드 4다.
+
+    ★rc 만 재면 부족하다. **원장 검증 안내가 rc 4 경로에서도 살아 있어야** 한다 —
+    잔량이 남은 회차가 그 안내를 가장 필요로 하는데, `raise SystemExit(4)` 를 안내보다
+    앞에 두면 정확히 그 상황에서만 사라진다(실제로 그렇게 쓰였던 것을 고쳤다).
+    """
+    order_id = uuid4()
+    _install(
+        monkeypatch,
+        outcome=ClosePositionResponse(
+            order_id=order_id,
+            state=OrderState.pending,
+            resting_entries=[RestingEntryOrder(**_resting("ex-entry-remaining"))],
+        ),
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        await admin._cmd_flatten(uuid4())
+
+    assert _process_rc(exc_info.value) == 4
+    out = capsys.readouterr().out
+    assert "청산 주문 접수" in out
+    assert str(order_id) in out
+    assert "ex-entry-remaining" in out
+    assert "★원장에 남았다" in out, "잔량이 남은 경로에서 원장 검증 안내가 사라지면 안 된다"
+
+    _install(
+        monkeypatch,
+        outcome=ClosePositionResponse(
+            order_id=uuid4(),
+            state=OrderState.pending,
+            resting_entries_unknown=True,
+        ),
+    )
+
+    with pytest.raises(SystemExit) as unknown_exc_info:
+        await admin._cmd_flatten(uuid4())
+
+    assert _process_rc(unknown_exc_info.value) == 4
+    unknown_out = capsys.readouterr().out
+    assert "청산 주문 접수" in unknown_out
+    assert "미체결 진입 주문 확인 실패" in unknown_out
+    assert "★원장에 남았다" in unknown_out, "확인 실패 경로에서도 원장 검증 안내가 필요하다"

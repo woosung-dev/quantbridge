@@ -123,10 +123,28 @@ class OrderResponse(BaseModel):
     trailing_stop: Decimal | None = None
 
 
+class RestingEntryOrder(BaseModel):
+    """청산 시점에 거래소에 남아 있던 미체결 진입 주문 1건.
+
+    trigger 주문뿐 아니라 일반 지정가 진입도 포함된다. provider가 비-trigger
+    `fetch_open_orders`와 trigger 주문을 합쳐 반환하기 때문이다. 수량·가격은
+    JSONResponse가 Decimal을 직렬화하지 못하므로 문자열로 둔다.
+    """
+
+    order_id: str
+    side: str
+    qty: str | None = None
+    trigger_price: str | None = None
+    order_link_id: str | None = None
+
+
 class ClosePositionResponse(BaseModel):
     order_id: UUID
     state: OrderState
     detail: str | None = None
+    resting_entries: list[RestingEntryOrder] = []
+    # 빈 목록만으로는 "잔량 없음"과 "거래소 조회 실패"를 구분할 수 없다.
+    resting_entries_unknown: bool = False
 
 
 class KillSwitchEventResponse(BaseModel):

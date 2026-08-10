@@ -11,9 +11,8 @@ import pytest
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.exceptions import ProviderError
 from src.trading.models import ExchangeMode, ExchangeName, Order, OrderSide, OrderState, OrderType
-from src.trading.providers import ConditionalOrderSnapshot, PositionSnapshot
+from src.trading.providers import ConditionalOrderSnapshot, PositionSnapshot, ProviderError
 from src.trading.services.close_service import ClosePositionService
 from src.trading.services.order_service import OrderService
 
@@ -256,6 +255,7 @@ async def test_close_reports_resting_conditional_entries_when_flat() -> None:
     assert isinstance(detail, dict), "잔존 목록을 실으려면 detail 이 구조체여야 한다"
     assert detail["code"] == "resting_conditional_entries"
     assert detail["count"] == 2
+    assert detail["detail"] == "포지션은 없지만 미체결 진입 주문 2건이 남아 있습니다."
     assert [o["order_id"] for o in detail["orders"]] == ["ex-cond-1", "ex-cond-2"]
     # 청산 주문은 나가지 않는다 — 포지션이 없으므로 낼 것이 없다.
     orders.execute.assert_not_awaited()
@@ -341,6 +341,76 @@ async def test_close_uses_reduce_only_none_when_querying_conditionals() -> None:
 
     provider = service._bybit_futures_provider  # type: ignore[attr-defined]
     assert provider.fetch_open_conditional_orders.await_args.kwargs["reduce_only"] is None
+
+
+async def test_close_reports_resting_entries_when_position_open() -> None:
+    """BL-684 — 열린 포지션에서도 남은 진입 주문을 응답으로 보고한다."""
+    service, user_id, session, orders = _service(
+        positions=[_position()],
+        conditional_orders=[_conditional("ex-entry-1"), _conditional("ex-entry-2")],
+    )
+
+    response = await service.close_position(user_id, session.id)
+
+    assert response.resting_entries_unknown is False
+    assert [order.order_id for order in response.resting_entries] == ["ex-entry-1", "ex-entry-2"]
+    assert response.detail == "reduce-only market close accepted · 미체결 진입 주문 2건이 남아 있다"
+    orders.execute.assert_awaited_once()
+    provider = service._bybit_futures_provider  # type: ignore[attr-defined]
+    assert provider.fetch_open_conditional_orders.await_count == 1
+    assert provider.fetch_open_conditional_orders.await_args.kwargs["reduce_only"] is None
+
+
+async def test_close_reports_no_resting_entries_when_position_open() -> None:
+    """BL-684 — 조회 성공의 빈 목록은 확인 실패와 구분해 기존 성공 문구를 보존한다."""
+    service, user_id, session, orders = _service(positions=[_position()], conditional_orders=[])
+
+    response = await service.close_position(user_id, session.id)
+
+    assert response.resting_entries == []
+    assert response.resting_entries_unknown is False
+    assert response.detail == "reduce-only market close accepted"
+    orders.execute.assert_awaited_once()
+
+
+async def test_close_continues_when_resting_entry_fetch_fails() -> None:
+    """BL-684 — 열린 포지션은 잔량 조회 장애가 있어도 청산 주문을 낸다."""
+    service, user_id, session, orders = _service(positions=[_position()])
+    service._bybit_futures_provider.fetch_open_conditional_orders = AsyncMock(  # type: ignore[attr-defined]
+        side_effect=ProviderError("bybit unreachable")
+    )
+
+    response = await service.close_position(user_id, session.id)
+
+    orders.execute.assert_awaited_once()
+    assert response.resting_entries_unknown is True
+    assert response.resting_entries == []
+    assert (
+        response.detail
+        == "reduce-only market close accepted · 미체결 진입 주문 확인 실패(거래소 조회 오류)"
+    )
+
+
+async def test_close_fetches_resting_entries_before_executing_close() -> None:
+    """BL-684 — 주문 접수 뒤 조회 예외가 500으로 보이는 모호함을 만들지 않는다."""
+    service, user_id, session, orders = _service(positions=[_position()])
+    provider = service._bybit_futures_provider  # type: ignore[attr-defined]
+    call_order: list[str] = []
+
+    async def _fetch_entries(*args, **kwargs):
+        call_order.append("fetch_entries")
+        return []
+
+    async def _execute(*args, **kwargs):
+        call_order.append("execute")
+        return orders.execute.return_value
+
+    provider.fetch_open_conditional_orders.side_effect = _fetch_entries
+    orders.execute.side_effect = _execute
+
+    await service.close_position(user_id, session.id)
+
+    assert call_order == ["fetch_entries", "execute"]
 
 
 async def test_close_rejects_nonzero_position_index() -> None:
