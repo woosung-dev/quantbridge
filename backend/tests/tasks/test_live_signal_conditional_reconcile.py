@@ -149,6 +149,9 @@ def _patch_reconcile(
     precision_error: Exception | None = None,
     execute_error: Exception | None = None,
     active_sessions: list[SimpleNamespace] | None = None,
+    active_sessions_by_account: dict[UUID, list[SimpleNamespace]] | None = None,
+    account_row: SimpleNamespace | None = None,
+    sibling_accounts: list[SimpleNamespace] | None = None,
     pending_cancel_rows: int = 1,
     fresh_state: OrderState | None = OrderState.submitted,
     fresh_exchange_order_id: str | None = "exchange-raced",
@@ -202,12 +205,30 @@ def _patch_reconcile(
     order_repo.commit = AsyncMock()
 
     account_repo = AsyncMock()
+    # [BL-517] — stand-down 축이 `exchange_uid` 형제 행까지 본다. 기본값은 **uid 없음**이라
+    # 자기 행만 보는 폴백을 타고, 그래서 기존 케이스의 관측 동작이 그대로 보존된다.
+    own_account_row = account_row or SimpleNamespace(id=uuid4(), exchange_uid=None)
+    account_repo.get_by_id = AsyncMock(return_value=own_account_row)
+    # ★페이크는 프로덕션의 제약 축을 그대로 흉내낸다(`backend/AGENTS.md` §10 규약 3).
+    #   실제 `list_by_exchange_uid` 는 `WHERE exchange_uid == uid ORDER BY created_at ASC`
+    #   (`exchange_account_repository.py:57-63`)라 **자기 행을 포함**한다. 페이크가 자기 행을
+    #   빼면 `ownership_scope_ids` 의 `if account.id not in ids` 폴백이 **테스트에서만** 발화해,
+    #   프로덕션에서 도달하지 않는 경로를 재게 된다 — 재현하려던 위상이 페이크 안에서 소멸한다.
+    account_repo.list_by_exchange_uid = AsyncMock(
+        return_value=[own_account_row, *sibling_accounts] if sibling_accounts else []
+    )
     kill_switch_repo = AsyncMock()
     kill_switch_repo.get_active = AsyncMock(return_value=None)
 
     # 같은 계정·심볼의 다른 활성 세션 = 계정 순포지션이 우리 것만이 아니라는 신호.
     live_session_repo = AsyncMock()
-    live_session_repo.list_active_by_account = AsyncMock(return_value=active_sessions or [])
+
+    def list_active_by_account(account_id: UUID) -> list[SimpleNamespace]:
+        if active_sessions_by_account is None:
+            return active_sessions or []
+        return active_sessions_by_account.get(account_id, active_sessions or [])
+
+    live_session_repo.list_active_by_account = AsyncMock(side_effect=list_active_by_account)
 
     import src.trading.repositories.exchange_account_repository as account_repo_module
     import src.trading.repositories.kill_switch_event_repository as kill_switch_repo_module
@@ -280,6 +301,8 @@ def _patch_reconcile(
 
     return SimpleNamespace(
         order_repo=order_repo,
+        account_repo=account_repo,
+        live_session_repo=live_session_repo,
         provider=provider,
         order_service=order_service,
         market_exchange=market_exchange,
@@ -902,6 +925,63 @@ async def test_other_strategy_session_on_same_account_symbol_stands_down(
 
     harness.order_service.execute.assert_not_awaited()
     harness.provider.cancel_order.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("exchange_uid", "should_stand_down"),
+    [("558689281", True), (None, False)],
+    ids=["uid-siblings", "uid-missing"],
+)
+async def test_exchange_uid_scope_controls_shared_account_symbol_stand_down(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    exchange_uid: str | None,
+    should_stand_down: bool,
+) -> None:
+    """UID 형제 행의 세션만 같은 실제 계정으로 보고 stand-down 한다 (BL-517)."""
+    session = _session()
+    sibling_account_id = uuid4()
+    sibling_session = SimpleNamespace(
+        id=uuid4(),
+        strategy_id=uuid4(),
+        exchange_account_id=sibling_account_id,
+        symbol=session.symbol,
+    )
+    harness = _patch_reconcile(
+        monkeypatch,
+        account_row=SimpleNamespace(id=session.exchange_account_id, exchange_uid=exchange_uid),
+        sibling_accounts=[SimpleNamespace(id=sibling_account_id)],
+        active_sessions_by_account={
+            session.exchange_account_id: [],
+            sibling_account_id: [sibling_session],
+        },
+    )
+    caplog.set_level(logging.ERROR, logger=live_signal_module.__name__)
+
+    await _reconcile(session, _result([_pending()]), harness)
+
+    stand_down_reasons = [
+        getattr(record, "reason", None)
+        for record in caplog.records
+        if record.message == "live_conditional_stand_down"
+    ]
+    assert stand_down_reasons == (["shared_account_symbol"] if should_stand_down else [])
+    if should_stand_down:
+        harness.account_repo.list_by_exchange_uid.assert_awaited_once_with(exchange_uid)
+        # ★집합으로 비교한다 — 실제 `list_by_exchange_uid` 는 `created_at ASC` 정렬이라
+        #   **순서는 데이터에 달렸고** 구현 계약이 아니다. 순서를 고정하면 DB 정렬이 바뀔 때
+        #   동작이 같은데도 red 가 난다. 재야 할 것은 「형제 행까지 물었나」다.
+        assert {
+            args.args[0] for args in harness.live_session_repo.list_active_by_account.await_args_list
+        } == {session.exchange_account_id, sibling_account_id}
+        harness.order_service.execute.assert_not_awaited()
+    else:
+        harness.account_repo.list_by_exchange_uid.assert_not_awaited()
+        harness.live_session_repo.list_active_by_account.assert_awaited_once_with(
+            session.exchange_account_id
+        )
+        harness.order_service.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio

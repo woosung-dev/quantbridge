@@ -1,4 +1,5 @@
 """trading 도메인 Pydantic V2 스키마."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -123,10 +124,45 @@ class OrderResponse(BaseModel):
     trailing_stop: Decimal | None = None
 
 
+class RestingEntryOrder(BaseModel):
+    """청산 시점에 거래소에 남아 있던 미체결 진입 주문 1건.
+
+    trigger 주문뿐 아니라 **일반 지정가 진입도 포함**된다. provider 가 비-trigger
+    `fetch_open_orders` 와 trigger 주문을 합쳐 반환하기 때문이다 — 이름을
+    `Conditional…` 로 좁히지 마라.
+
+    ★수량·가격은 `Decimal` 이다(§2 Decimal-first). 「JSONResponse 가 Decimal 을
+    직렬화하지 못한다」는 제약은 **`response_model` 경로에 해당하지 않는다** — 그 경로는
+    Pydantic 이 직렬화하고, 같은 파일의 `ExchangePositionSchema` 가 이미 `Decimal` 을
+    그대로 낸다. 문자열이 필요한 것은 `HTTPException(detail=<raw dict>)` 로 나가는
+    409 경로뿐이고, 거기서만 `str()` 로 담는다(`close_service.py`).
+    """
+
+    order_id: str
+    side: str
+    qty: Decimal | None = None
+    trigger_price: Decimal | None = None
+    order_link_id: str | None = None
+
+    @classmethod
+    def from_snapshot(cls, order: object) -> RestingEntryOrder:
+        """`ConditionalOrderSnapshot` → 응답 모델. 409 dict 경로와 필드가 갈라지지 않게 한다."""
+        return cls(
+            order_id=order.order_id,  # type: ignore[attr-defined]
+            side=order.side,  # type: ignore[attr-defined]
+            qty=order.qty,  # type: ignore[attr-defined]
+            trigger_price=order.trigger_price,  # type: ignore[attr-defined]
+            order_link_id=order.order_link_id,  # type: ignore[attr-defined]
+        )
+
+
 class ClosePositionResponse(BaseModel):
     order_id: UUID
     state: OrderState
     detail: str | None = None
+    resting_entries: list[RestingEntryOrder] = []
+    # 빈 목록만으로는 "잔량 없음"과 "거래소 조회 실패"를 구분할 수 없다.
+    resting_entries_unknown: bool = False
 
 
 class KillSwitchEventResponse(BaseModel):
@@ -448,9 +484,7 @@ class AccountPositionRow(BaseModel):
     symbol: str
     position: ExchangePositionSchema
     closable_session_id: UUID | None
-    close_blocked_reason: Literal[
-        "no_owning_session", "hedge_unsupported", "read_only_key"
-    ] | None
+    close_blocked_reason: Literal["no_owning_session", "hedge_unsupported", "read_only_key"] | None
 
 
 class AccountPositionsResponse(BaseModel):

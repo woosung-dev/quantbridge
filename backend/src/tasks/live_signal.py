@@ -1782,7 +1782,7 @@ async def _confirm_exchange_terminals(
 
 
 async def _resolve_current_position(
-    *, sess: Any, creds: Any, bybit_provider: Any, session: Any
+    *, sess: Any, creds: Any, bybit_provider: Any, session: Any, account_repo: Any
 ) -> tuple[Decimal, str | None]:
     """계정 순포지션과 stand-down 사유를 함께 판정한다.
 
@@ -1808,15 +1808,24 @@ async def _resolve_current_position(
     남겨두면 그게 잘못된 전제로 체결된다.
     """
     from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
+    from src.trading.services.account_exclusivity import ownership_scope_ids
 
     positions = await bybit_provider.fetch_open_positions(creds, sess.symbol)
     hedge_mode = len(positions) > 1 or any(
         position.position_idx not in (None, 0) for position in positions
     )
     session_repo = LiveSignalSessionRepository(session)
+    account = await account_repo.get_by_id(sess.exchange_account_id)
+    scope_ids = (
+        await ownership_scope_ids(account_repo, account)
+        if account is not None
+        else [sess.exchange_account_id]
+    )
+    others: list[Any] = []
+    for account_id in scope_ids:
+        others.extend(await session_repo.list_active_by_account(account_id))
     shares_account_symbol = any(
-        other.id != sess.id and other.symbol == sess.symbol
-        for other in await session_repo.list_active_by_account(sess.exchange_account_id)
+        other.id != sess.id and other.symbol == sess.symbol for other in others
     )
     stand_down_reason = (
         "hedge_mode" if hedge_mode else "shared_account_symbol" if shares_account_symbol else None
@@ -2413,7 +2422,11 @@ async def _reconcile_conditional_entries_inner(
         qty_step, price_tick = precision
 
         current_position, stand_down_reason = await _resolve_current_position(
-            sess=sess, creds=creds, bybit_provider=bybit_provider, session=session
+            sess=sess,
+            creds=creds,
+            bybit_provider=bybit_provider,
+            session=session,
+            account_repo=account_repo,
         )
         if stand_down_reason is not None:
             desired = []

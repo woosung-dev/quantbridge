@@ -1263,7 +1263,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P2
 **Trigger:** 사용자가 같은 거래소 계정을 키 두 개로 등록한 상태에서 세션 두 개를 돌릴 때
 **Est:** S
-**상태:** ⬜ Open — 2026-08-10 guards-blind-spots 가 **G0 전제 대조만** 하고 착수하지 않았다(예산). 핵심 주장은 확인됐고 **본문 주장 2건이 반박됐다** — 아래 ★2026-08-10 절을 먼저 읽어라. 다음 세션은 0에서 시작하지 않는다
+**상태:** ✅ Resolved — 2026-08-10 close-ownership-axis. `account_exclusivity._ownership_scope` 를 모듈 함수 `ownership_scope_ids` 로 추출해 stand-down 이 **재사용**한다(새 가드를 만들지 않았다 — 아래 반박 1 이 지목한 착수 지점 그대로). `_resolve_current_position` 이 `account_repo` 를 받아 uid 형제 행 전량의 활성 세션을 본다. `list_active_by_account` 자체는 **안 건드렸다**(소비자 3곳 중 stand-down 만 넓은 축이 필요하다) — 호출부에서 넓혔다. AST def-use 오라클이 요구하는 `stand_down_reason` 단일 `Assign` + `IfExp` 구조는 그대로다. 시험은 `exchange_uid` **한 필드만** 다른 양성/음성 쌍이고 `_resolve_current_position` 을 통과하는 경로로 잰다 — 순수 함수를 직접 부르면 배선 변이가 green 으로 탈출한다(`backend/AGENTS.md` §10-2). 변이 4/4 red(배선 변이 포함, 도달 확인)
 **출처:** 2026-07-28 live-observability 코드 대조 (실행 재현은 read_only 제약으로 불가)
 
 **원인 / 영향:** stand-down 술어는 `live_signal.py:462-464` → `list_active_by_account(sess.exchange_account_id)`, 구현은 `WHERE exchange_account_id == account_id`(`live_signal_session_repository.py:69-76`). **DB 행 id 축이다.**
@@ -8047,7 +8047,7 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 **Priority:** P2
 **Trigger:** 코크핏 청산 버튼으로 조건부 잔량을 봐야 할 때
 **Est:** S
-**상태:** ⬜ Open
+**상태:** 🟡 부분 해결 — 2026-08-10 close-ownership-axis 가 409 body 의 키를 레포 계약에 맞췄다(`message` → `detail`). 이제 `describeApiError` 의 `inner.detail` 경로가 한국어 문장을 읽는다. ★**소비자가 둘이었다** — CLI(`live_session_admin.py:389`)도 같은 키를 읽고 있어 함께 고쳤다(백로그 본문의 「유일한 HTTP 소비자」는 HTTP 축에 한해 참이다). 잔여 2건: `router.py` 의 409 `responses` 선언(OpenAPI) · FE 의 `orders` 목록 렌더. 이 회차는 `frontend/` 0줄 제약이라 FE 를 안 건드렸다
 **출처:** 2026-08-10 guards-blind-spots codex 최종 적대 리뷰 (P2 — 코드 대조로 확정)
 
 **원인 / 영향:** 서버는 `409 {"detail": {"code": "resting_conditional_entries", "message": …,
@@ -8073,7 +8073,7 @@ generic `API 409 …` 만 뜬다. `router.py:610` 에 409 `responses` 선언이 
 **Priority:** P3
 **Trigger:** `flatten` 출력 형식을 바꿀 때
 **Est:** XS
-**상태:** ⬜ Open
+**상태:** 🟡 부분 해결 — ⑴ **계약 단절은 2026-08-10 close-ownership-axis 가 메웠다**(스코프 OUT 이었으나 [BL-671] 의 키 변경이 정확히 이 구멍을 통과하는 바람에 시험이 필요했다). `test_live_session_admin_flatten.py::test_flatten_cli_formats_actual_flat_resting_entry_detail` 이 **서비스가 실제로 raise 한 detail 객체 그대로**를 CLI 포매터에 태운다 — 종전 수제 dict 는 `message` 키가 아예 없어 키 변경을 **못 잡았다**(실측). **코드는 안 건드렸다, 시험만 추가했다.** ⑵ runbook §7 갱신은 **미이행**
 **출처:** 2026-08-10 guards-blind-spots codex 최종 적대 리뷰 (P3 2건 — 코드 대조로 확정)
 
 **원인 / 영향 ⑴ 계약 단절.** `test_close_service.py` 는 실제 detail 에서 `order_id` 만 보고,
@@ -8327,7 +8327,7 @@ fallback 껍데기뿐이고, **그 껍데기는 `trading/loading.tsx` 가 이미
 **Priority:** P1
 **Trigger:** [BL-003] runbook §7 rollback · 실자금 전환 전 필수
 **Est:** S
-**상태:** ⬜ Open — 2026-08-10 review-and-merge Spec 축이 제기, 코드로 재현. [BL-661] 이 닫은 것은 **포지션이 0 인 경로뿐**이다
+**상태:** ✅ Resolved — 2026-08-10 close-ownership-axis. 포지션이 있는 경로에서도 미체결 진입 주문을 청산 주문 **앞에** 조회해 `ClosePositionResponse.resting_entries` 로 싣는다. 조회 실패는 청산을 막지 않고 `resting_entries_unknown` 으로 구분한다 — flat 경로의 fail-closed 와 **의도적 비대칭**이다(위험이 반대: flat 에서 fail-open 은 거짓 flat 보고, 포지션 경로에서 fail-closed 는 열린 포지션 봉쇄). CLI 는 rc **4** 신설(0=flat/잔량 없음 · 1=실패 · 3=잔량 있고 주문 미발행 · 4=주문 접수+잔량). 표적 변이 7/7 red(도달 확인 포함). 「조건부 진입」 문구는 **「미체결 진입 주문」**으로 고쳤다 — 필터가 일반 지정가도 잡으므로
 **출처:** 2026-08-10 review-and-merge (PR #579 Spec 축)
 
 **원인 / 영향:** [BL-661] 이 넣은 조건부 조회는 `close_service.py:103` 의 `if not positions:`
@@ -8409,5 +8409,115 @@ caption + 120px pane 을 그린다 ⇒ §02 가 **스크롤이 끝난 뒤** 자�
 **권장 접근:** `scroll-mt-[calc(var(--topbar-h)+16px)]` 한 줄로 접는다.
 
 **Risk:** 🟢
+
+---
+
+### BL-687
+
+**Title:** pre-commit 의 backend 훅이 스테이징된 py 파일 중 **첫 하나만** 검사한다
+**Category:** Infra / 개발 도구 (pre-commit)
+**Priority:** P2
+**Trigger:** 파이썬 파일을 2개 이상 한 커밋에 스테이징할 때 — 즉 거의 매 커밋
+**Est:** XS
+**상태:** ⬜ Open — 2026-08-10 close-ownership-axis 가 실측으로 재현. [BL-602]·[BL-667] 과 **다른 축**이다(그 둘은 prettier/frontend 축)
+**출처:** 2026-08-10 close-ownership-axis (커밋 중 관측 → `bash -c` 시맨틱으로 재현)
+
+**원인 / 영향:** 루트 `package.json` 의 lint-staged 가 backend 훅 3개를 이렇게 쓴다.
+
+```json
+"backend/**/*.py": [
+  "bash -c 'cd backend && .venv/bin/ruff check --fix --exit-non-zero-on-fix ${0#backend/}'",
+  "bash -c 'cd backend && .venv/bin/ruff check ${0#backend/}'",
+  "bash -c 'cd backend && .venv/bin/ruff format ${0#backend/}'"
+]
+```
+
+lint-staged 는 명령 뒤에 **파일 목록 전체**를 붙이는데, `bash -c 'cmd' f1 f2 f3` 에서 `$0` 는
+**`f1` 하나**이고 나머지는 `$@` 에 들어간다. 명령이 `${0#backend/}` 만 참조하므로 **두 번째
+이후 파일은 어떤 훅도 통과하지 않는다.**
+
+**재현 (실측):**
+
+```
+$ bash -c 'echo "받은 것: [$0] · 나머지: [$@]"' a.py b.py c.py
+받은 것: [a.py] · 나머지: [b.py c.py]
+```
+
+★**발각 경위** — py 5개를 한 커밋에 올렸는데 `ruff format` 이 [COMPLETED] 로 찍히고도
+`src/trading/schemas.py` 의 포맷 불일치가 **그대로 남았다**. 같은 ruff 버전(0.15.10)으로
+직접 돌리면 재포맷된다 ⇒ 훅이 그 파일에 **도달하지 않았다**.
+
+★**진짜 피해는 format 이 아니라 `ruff check --fix --exit-non-zero-on-fix` 다** — 두 번째
+이후 파일의 lint 오류가 **커밋을 못 막는다**. `final-gates` 가 전체를 보므로 최종 방어선은
+살아 있지만, pre-commit 이 「검사했다」고 말하는 범위가 실제보다 좁다.
+
+**권장 접근:** `${0#backend/}` → `"$@"` 형태로 바꾸고 `bash -c '…' _ "$@"` 처럼 `$0` 자리를
+더미로 채운다. 또는 lint-staged 함수형 설정으로 파일 목록을 직접 조립한다.
+
+**Risk:** 🟡 검사기가 「내가 본 것 중에는 없었다」만 말하는 전형(LESSON-092)
+
+---
+
+### BL-688
+
+**Title:** FE `ClosePositionResponseSchema` 가 [BL-684] 의 새 필드를 Zod 에서 버린다
+**Category:** Frontend / trading (청산) · API 계약
+**Priority:** P2
+**Trigger:** 코크핏 청산 버튼으로 조건부 잔량을 봐야 할 때 — [BL-671] 잔여와 같은 화면
+**Est:** S
+**상태:** ⬜ Open — 2026-08-10 close-ownership-axis Spec 축이 제기, 코드 대조로 확인
+**출처:** 2026-08-10 close-ownership-axis (PR Spec 축)
+
+**원인 / 영향:** [BL-684] 가 `ClosePositionResponse` 에 `resting_entries` 와
+`resting_entries_unknown` 을 실었는데, `frontend/src/features/live-sessions/schemas.ts:185-189`
+의 `ClosePositionResponseSchema` 는 `order_id`/`state`/`detail` **셋만** 선언한다.
+`z.object` 는 기본이 strip 이라 파싱은 성공하고 **새 필드는 조용히 사라진다.**
+
+⇒ CLI 는 rc 4 로 잔량을 알리는데 **웹 코크핏은 여전히 「청산 접수」만 보여준다.**
+[BL-684] 본문이 지목한 거짓 성공이 **화면 축에는 그대로 남아 있다.**
+
+★[BL-671] 의 잔여(FE 가 409 `orders` 를 렌더하지 않는다)와 **같은 화면·다른 경로**다 —
+저것은 409(진입만 남음), 이것은 200(청산 접수 + 잔량). 함께 고치는 것이 싸다.
+★2026-08-10 회차는 `frontend/` **0줄** 제약이라 손대지 않았다.
+
+**권장 접근:** Zod 스키마에 두 필드를 더하고, 코크핏이 `resting_entries` 를 목록으로,
+`resting_entries_unknown` 을 「확인 실패」 경고로 렌더한다. [BL-671] 과 한 회차로 묶어라.
+
+**Risk:** 🟡 운영자가 화면만 보면 고아 진입 주문을 못 본다
+
+---
+
+### BL-689
+
+**Title:** stand-down 이 uid 형제 행마다 세션 조회를 따로 돈다 (N+1)
+**Category:** Backend / trading (조건부 진입)
+**Priority:** P3
+**Trigger:** 같은 `exchange_uid` 행이 3개 이상으로 늘 때 — 지금은 실측 2행이라 무증상
+**Est:** XS
+**상태:** ⬜ Open — 2026-08-10 close-ownership-axis 가 [BL-517] 을 닫으며 **의도적으로 남겼다**(스코프)
+**출처:** 2026-08-10 close-ownership-axis (Standards 축 · Spec 축 **양쪽이 독립 검출**)
+
+**원인 / 영향:** `live_signal.py` 의 `_resolve_current_position` 이 이렇게 돈다.
+
+```python
+for account_id in scope_ids:
+    others.extend(await session_repo.list_active_by_account(account_id))
+```
+
+`list_active_by_account` 는 단일 id 만 받으므로 **형제 행 수만큼 쿼리가 는다.**
+`backend/AGENTS.md` §2 의 「N+1 방지」와 결이 다르다.
+
+★**이 회차가 안 고친 이유** — `list_active_by_account` 는 소비자가 3곳이고
+([BL-517] 이 넓힌 stand-down · `tasks/trading.py:501` · `websocket/position_fanout.py:69`)
+그중 stand-down 만 넓은 축이 필요하다. 시그니처를 바꾸면 나머지 둘의 의미도 함께 바뀐다.
+⇒ 복수형 메서드를 **새로** 추가하는 것이 옳고, 그건 이 회차 스코프 밖이었다.
+
+★**지금 무증상인 이유는 형제가 2행이라서다 — 가드가 아니라 데이터다.** [BL-605] 가
+신규 이중 적재를 막았지만 기존 574행은 그대로 두므로, 행 수는 줄지 않는다.
+
+**권장 접근:** `list_active_by_accounts(account_ids, *, symbol=None)` 를 리포지토리에 추가해
+한 쿼리로 접는다. 판정이 `any()` 라 심볼 필터를 repo 로 내리면 조기 종료도 산다.
+
+**Risk:** 🟢 (성능 축. 결과는 지금도 옳다)
 
 ---
