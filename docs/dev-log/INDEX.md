@@ -14,21 +14,23 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
-- **2026-08-10 fe-close-surface** — 청산 잔량의 화면 축 종결([BL-688]·[BL-470], [BL-671] FE 축). ★★★**초록으로 빠져나간 변이가 산출을 냈다** — 우선순위 반전이 green 통과해 내 주석의 인과가 안 성립함을 알려줬다. ★★프롬프트의 「재측정 불요」 2건 반증(성공은 **202** · 409 문장은 두 표 중 하나만 도달) — 본문은 `status.md` 의 현재 회차 블록
+- **2026-08-10 bl-trigger-triage** — 원장 판정어 `DEFERRED` 신설([ADR-028]) + ACTIVE **159건 전량** 트리거 판정 → **9**. ★★★**판정기 초판이 5건을 근거 없이 「도래」로 올렸다** — 트리거는 절의 접속인데 `BL의존` 축이 반쪽만 읽었다. **전량 스윕이 아니라 그 앞의 음성 대조가 잡았다.** ★★내 하네스 케이스가 「없음일 때도 찍히는 블록 머리」로 거짓 통과
+- **2026-08-10 fe-close-surface** — 청산 잔량의 화면 축 종결([BL-688]·[BL-470], [BL-671] FE 축). ★★★**초록으로 빠져나간 변이가 산출을 냈다** — 우선순위 반전이 green 통과해 내 주석의 인과가 안 성립함을 알려줬다. ★★프롬프트의 「재측정 불요」 2건 반증(성공은 **202** · 409 문장은 두 표 중 하나만 도달) — 본문은 [dev-log](2026-08-10-fe-close-surface.md)
 - **2026-08-10 close-ownership-axis** — [BL-684] P1 + [BL-517] 종결. ★★★**변이 6/6 red 를 통과한 구현에 P1** — `SystemExit(4)` 가 원장 검증 안내를 삼켰다. ★★반증 7건 중 **4건이 내 것**. 테스트 페이크가 프로덕션 제약 축을 안 흉내냈다 — [dev-log](2026-08-10-close-ownership-axis.md)
 - **2026-08-10 review-and-merge** — PR #579·#580 머지. ★★★**[ADR-024] C2 가 40세션 만에 처음 충족**(24.80h). ★★★프롬프트가 「반드시 남겨라」고 준 반증이 **절반만 참** — 순포지션은 leg 를 이미 순회한다. ★★되돌림 커밋 인용 2건이 빗나갔다 — **줄 번호를 근거로 쓸 땐 그 줄을 열어라** — [dev-log](2026-08-10-review-and-merge.md)
 - **2026-08-09 fe-perf-quartet** — [BL-662]~[BL-665] 전건 종결, `/dashboard` **−181.5kB 실측**. ★★★**내 측정기 1판이 판별력 0** — 양성 대조가 없었으면 「효과 0」을 보고했다. ★★`@next/bundle-analyzer` 는 이 레포에서 아무것도 못 낸다(Turbopack) — [dev-log](2026-08-09-fe-perf-quartet.md)
 - **2026-08-09 status-triage-mass** — 상태줄 없는 ACTIVE **116건 전량** 트리아주, r=**5.17%**. ★★★**원장은 부풀지 않았다, 그냥 크다.** ★★★표본 20건은 검정력이 없었고(0/20 vs 6/116) **음성 대조가 회차를 살렸다** — [dev-log](2026-08-09-status-triage-mass.md)
 - **2026-08-09 bl003-mainnet-runbook** — [BL-003] 산출물 축 종결 baseline. ★★내 「cutover 2곳」이 실제 **6곳**이었고 하나가 live 청산을 **422 로 막고** 있었다 — 나갈 문 없이 들어갈 뻔했다. ★진입 자물쇠와 출구 자물쇠는 다르다 — [dev-log](2026-08-09-bl003-mainnet-runbook.md)
 - **2026-08-08 soak-death-and-restart** — 소크 사망(`position_divergence`) 회차 기록 + 사전등록 전향 예측. `status.md` 에 22,727자로 남아 있던 것을 2026-08-10 에 강등했다 — [dev-log](2026-08-08-soak-death-and-restart.md)
+- **2026-08-08 soak-mortality-repair (체크포인트)** — 위상 진행 기록 + 재기동 절차. `status.md` 에 141줄로 남아 있던 것을 2026-08-10 에 강등했다 — 브랜치 `stage/soak-mortality-repair` 는 푸시·PR·머지 없이 남아 있다 — [dev-log](2026-08-08-soak-mortality-checkpoint.md)
 - **2026-08-08 soak-mortality-repair** — 6회차 연속 `backend/src` 0줄을 **의도적으로 끝냈다**(승인 down · C1 15.30h 보존). ★★★**검사기가 한 회차에 세 번 거짓 초록**(LESSON-092 승격): 반환값만 얼리면 킬 no-op 통과 · 순수 함수를 직접 재면 배선 되돌림 통과 · 페이크가 결함을 가림. ★★[BL-619] 재관측 = 디스패치 정지 **0/919**인데 상태 축은 **표본 해상도가 신호와 동급**이라 판별 불가([BL-653])
 - **2026-08-08 zero-touch-bundle** — `backend/src` **0줄** 회차 — 창 보호가 후보 순위를 지배했다. ★★★반증 3: [BL-646] 그리드가 받는 폭은 뷰포트가 아니다(1023→1025 에서 **-166px**) · [BL-598] 답은 (a)(b) 아닌 **파서 DFA**(14배) · 라이트 spec 이 **404·빈 DOM 에 5/5 초록**(fail-open, codex) — [dev-log](2026-08-08-zero-touch-bundle.md)
 - **2026-08-08 soak-attribution-close** — 원장 11건 전건 판정(defect 7·운영 3·미판정 1). ★★★**[BL-605] 뿌리는 코드가 아니라 데이터** — 같은 `exchange_uid` 계정 행 2개, 셈이 닫힌다(574=287×2 · 287/287). 처방 후보 2개 폐기. ★★[BL-639]「판별력 0·34행 전량」은 스코프 없이 센 값(좁히면 **8.7%**) — [dev-log](2026-08-08-soak-attribution-close.md)
-- **2026-08-08 soak-window-and-gate-attribution** — ★★★**ADR-024 가 자기가 기각한 (a)「연속 168h」를 코드로 집행 중**(§163↔§621 이 떨어져 있어 못 이었다). 실격 귀속 원장 — **판정 불참 · `undecided`=엄격**, 변이 **8/8**. ★★[BL-650] 재현 실패가 결과(593MB 에 idle **0.1%**) — [dev-log](2026-08-08-soak-window-and-gate-attribution.md)
-- **2026-08-08 fe-canon-and-responsive** — ★★★**검사기 부재 3연속** — 캐논 감사는 **다크만** 재고, 계약 테스트는 「정의된 걸 읽나」를 안 보고, e2e `sidebar` grep **0건**. ★★음성 대조가 **낡은 CSS 로 거짓 통과**. ★★★CPU 100% 범인은 FE 코드 아닌 **Turbopack 캐시 1.99GB**(idle 417%→**0.1%**) — [dev-log](2026-08-08-fe-canon-and-responsive.md)
 
 ## 전체 이력
 
+- **2026-08-08 soak-window-and-gate-attribution** — ★★★**ADR-024 가 자기가 기각한 (a)「연속 168h」를 코드로 집행 중**(§163↔§621 이 떨어져 있어 못 이었다). 실격 귀속 원장 — **판정 불참 · `undecided`=엄격**, 변이 **8/8**. ★★[BL-650] 재현 실패가 결과(593MB 에 idle **0.1%**) — [dev-log](2026-08-08-soak-window-and-gate-attribution.md)
+- **2026-08-08 fe-canon-and-responsive** — ★★★**검사기 부재 3연속** — 캐논 감사는 **다크만** 재고, 계약 테스트는 「정의된 걸 읽나」를 안 보고, e2e `sidebar` grep **0건**. ★★음성 대조가 **낡은 CSS 로 거짓 통과**. ★★★CPU 100% 범인은 FE 코드 아닌 **Turbopack 캐시 1.99GB**(idle 417%→**0.1%**) — [dev-log](2026-08-08-fe-canon-and-responsive.md)
 - **2026-08-08 soak-exclusivity-and-observability** — ★★★**MTBF 층화는 개선 증거가 아니다 — 95% CI 6쌍 전부 겹침**(P(168h) 상한 0.07% vs **38.11%**). 근거를 셈으로 교체(24h 도달 **0/39**). ★★★게이트 술어는 낱말 아닌 **구문**(`다음 행동 =`) ⇒ 예외 소멸, 변이 **6/6** — [dev-log](2026-08-08-soak-exclusivity-and-observability.md)
 - **2026-08-08 bl003-unblock** — ★★★근인은 [ADR-025] 반례가 아니라 **이중 호스트 오염**(같은 demo 계정): 소유권 **7/27** · 정본 항등식 **4/4**(반사실 최대 1/4) · 두 원장 `exchange_order_id` **27/27**. ★★**CONTROL 판정식 2개가 적대 검증에 반증**(판별력 0 · 항진명제). 게이트 크래시 fail-closed. **재기동 완료**(`a4f1cbfb`) — [dev-log](2026-08-08-bl003-unblock.md)
 - **2026-08-07 backtest-fidelity** — ★★A-1 **`undecidable`**(D=24<30) — **동결한 문턱이 발화해 12.5% 를 「첫 실측치」로 적는 걸 막았다**. ★창은 **사망이 닫았다**(`39484a2c` phantom 2건→`position_divergence`, **[BL-633]**). ★[BL-621] 원인 **두 겹**. ★라이트가 **AA 미달**로 배포 중 — [dev-log](2026-08-07-backtest-fidelity.md)
