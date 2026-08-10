@@ -17,9 +17,16 @@ Sprint kickoff 시 (sprint-kickoff-template.md 첫 작업) 본 checklist 1회 �
 ### A. Active BL 자동 추출
 
 ```bash
-scripts/bl-audit.sh                 # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록
-scripts/bl-audit.sh --list ACTIVE   # id / 우선순위 / 줄번호 만
+scripts/bl-audit.sh                   # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록
+scripts/bl-audit.sh --list ACTIVE     # id / 우선순위 / 줄번호 만 (= 트리거가 도래한 것 전량)
+scripts/bl-audit.sh --list DEFERRED   # 트리거 미도래로 대기 중인 것
 ```
+
+★**2026-08-10 부터 판정어가 다섯이다** — `ACTIVE / DEFERRED / PARTIAL / RESOLVED / UNKNOWN`
+([ADR-028](../../../decisions/028-backlog-deferred-verdict.md)). `DEFERRED`(상태줄 `⏳ **대기
+(트리거 미도래)**`)는 **active 로 세지 않는다.** ⇒ **`--list ACTIVE` 가 곧 「지금 단독 착수
+가능한 것」의 전량**이고, `docs/status.md` ⓪ 표는 그것에서 파생된다. 손으로 후보를 얹지 마라.
+아래 B 를 손으로 하지 말고 `scripts/bl-trigger-sweep.sh` 를 써라(`--selftest` 를 **먼저**).
 
 기대 결과: **P0 버킷은 스크립트가 항상 전량 펼친다** — 여기서 진행 중 P0 를 본다.
 2026-07-31 실측 기준 P0 ACTIVE = **BL-003** 1건(Bybit mainnet runbook). Sprint 28 진입 시점의

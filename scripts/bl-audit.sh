@@ -23,6 +23,15 @@
 #   ★4 가 핵심이다. 낡은 산식이 틀린 지점이 정확히 여기고, 여기서 추측하면 같은 사고가 반복된다.
 #   ★`🟡 부분 Resolved` = PARTIAL 이고 **active 로 세지 않는다** (backlog.md 헤더 규칙과 동일).
 #
+# DEFERRED — 5번째 판정어 (2026-08-10 bl-trigger-triage, [ADR-028])
+#   `⏳ **대기 (트리거 미도래)**` = **트리거 조건이 아직 안 왔다**. 종전에는 이걸 적을 낱말이
+#   없어서 열린 항목이 **전부 ACTIVE** 로 떨어졌고, 그래서 "ACTIVE 159" 는 작업량이 아니라
+#   **셈하는 규칙이 만든 수**였다. 경계 = 외생 조건(사용자 승인 · cutover · Beta · 소크 · 외부
+#   관측 · 선행 BL)**과** 동승 조건("그 파일을 다음에 열 때" — 단독 착수 시 값이 0)을 **둘 다** 포함한다.
+#   ⇒ ACTIVE 는 이제 「지금 단독으로 착수 가능」만 가리킨다.
+#   ★3면에서 DEFERRED 는 **ACTIVE 와 같은 「미완」 쪽**이다 — 인덱스 표에 ✅/🟡 가 있거나
+#     로드맵이 `[x]` 면 불일치다. 인덱스 표에 새 마커를 요구하지 않는다(드리프트 표면 신설 금지).
+#
 # 상태 근거에서 제외하는 구간 (BL-564)
 #   ` ``` ` 코드펜스와 `<details>…</details>` 는 통째로 건너뛴다. 펜스 안은 예시이고
 #   `<details>` 는 **폐기된 옛 판정을 접어두는 관용구**라(BL-553 에서 도입), 둘 다 SSOT 후보가
@@ -31,7 +40,7 @@
 #   구간이 안 닫히면 조용히 삼키는 대신 **실패**로 보고한다.
 #
 # 사용법
-#   scripts/bl-audit.sh [--list ACTIVE|PARTIAL|RESOLVED|UNKNOWN] [--no-crosscheck]
+#   scripts/bl-audit.sh [--list ACTIVE|DEFERRED|PARTIAL|RESOLVED|UNKNOWN] [--no-crosscheck]
 #
 # 종료 코드: 0 = 불일치 0 & UNKNOWN 0 & 우선순위 오배치 0 & 중복 상태줄 0 & 중복 섹션 헤더 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
 #   ★`--list` 는 목록 출력 전용이라 **항상 0** 이다 — 게이트에는 인자 없는 형태를 쓴다.
@@ -42,13 +51,13 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --list) [ $# -ge 2 ] || { echo "--list 에 값이 필요하다" >&2; exit 1; }; LIST="$2"; shift 2 ;;
     --no-crosscheck) CROSSCHECK=0; shift ;;
-    -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,43p' "$0"; exit 0 ;;   # ★헤더 주석에 줄을 더하면 이 범위를 함께 옮겨라
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
 done
 case "$LIST" in
-  ""|ACTIVE|PARTIAL|RESOLVED|UNKNOWN) ;;
-  *) echo "--list 는 ACTIVE|PARTIAL|RESOLVED|UNKNOWN 중 하나" >&2; exit 1 ;;
+  ""|ACTIVE|DEFERRED|PARTIAL|RESOLVED|UNKNOWN) ;;
+  *) echo "--list 는 ACTIVE|DEFERRED|PARTIAL|RESOLVED|UNKNOWN 중 하나" >&2; exit 1 ;;
 esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
@@ -73,6 +82,9 @@ function lead(s,   p, q) {
   return s
 }
 function verdict_of(t) {
+  # ★DEFERRED 를 ACTIVE 앞에 둔다 — "미도래" 를 적은 줄이 뒤에서 다른 어휘에 물리면
+  #   조용히 ACTIVE 로 되돌아가고, 그러면 이 어휘를 신설한 이유가 통째로 사라진다.
+  if (t ~ /미도래|Deferred/)                            return "DEFERRED"
   if (t ~ /열려|열림|미해결|미실시|미착수|Open/)        return "ACTIVE"
   if (t ~ /부분 Resolved|부분 해결|부분 완료|Partial/)  return "PARTIAL"
   if (t ~ /Resolved|해결 완료|완료/)                     return "RESOLVED"
@@ -198,21 +210,21 @@ END {
 
   printf "══ bl-audit  backlog=docs/backlog.md  roadmap=docs/roadmap.md  섹션=%d ══\n", n
 
-  printf "\n▶ 판정 (섹션 상태 줄이 SSOT · PARTIAL 은 active 로 세지 않는다)\n"
+  printf "\n▶ 판정 (섹션 상태 줄이 SSOT · PARTIAL/DEFERRED 는 active 로 세지 않는다)\n"
   for (i = 1; i <= n; i++) { id = order[i]; cnt[verdict[id]]++; pc[prio[id] "/" verdict[id]]++; pset[prio[id]] = 1 }
-  split("ACTIVE PARTIAL RESOLVED UNKNOWN", vs, " ")
-  for (k = 1; k <= 4; k++) printf "  %-9s %4d\n", vs[k], cnt[vs[k]] + 0
-  printf "  %-9s %4d   (= ACTIVE)\n", "active", cnt["ACTIVE"] + 0
+  split("ACTIVE DEFERRED PARTIAL RESOLVED UNKNOWN", vs, " ")
+  for (k = 1; k <= 5; k++) printf "  %-9s %4d\n", vs[k], cnt[vs[k]] + 0
+  printf "  %-9s %4d   (= ACTIVE · 지금 단독 착수 가능한 것만)\n", "active", cnt["ACTIVE"] + 0
   printf "  %-9s %4d\n", "전체", n
 
   printf "\n▶ P별 내역\n"
-  printf "  %-6s %8s %8s %9s %8s\n", "", "ACTIVE", "PARTIAL", "RESOLVED", "UNKNOWN"
+  printf "  %-6s %8s %9s %8s %9s %8s\n", "", "ACTIVE", "DEFERRED", "PARTIAL", "RESOLVED", "UNKNOWN"
   split("P0 P1 P2 P3", ps, " ")
   for (k = 1; k <= 4; k++) {
     p = ps[k]; if (!(p in pset)) continue
-    printf "  %-6s %8d %8d %9d %8d\n", p, pc[p "/ACTIVE"] + 0, pc[p "/PARTIAL"] + 0, pc[p "/RESOLVED"] + 0, pc[p "/UNKNOWN"] + 0
+    printf "  %-6s %8d %9d %8d %9d %8d\n", p, pc[p "/ACTIVE"] + 0, pc[p "/DEFERRED"] + 0, pc[p "/PARTIAL"] + 0, pc[p "/RESOLVED"] + 0, pc[p "/UNKNOWN"] + 0
   }
-  for (p in pset) if (p !~ /^P[0-3]$/) printf "  %-6s %8d %8d %9d %8d   ★우선순위 파싱 실패\n", (p == "" ? "(없음)" : p), pc[p "/ACTIVE"] + 0, pc[p "/PARTIAL"] + 0, pc[p "/RESOLVED"] + 0, pc[p "/UNKNOWN"] + 0
+  for (p in pset) if (p !~ /^P[0-3]$/) printf "  %-6s %8d %9d %8d %9d %8d   ★우선순위 파싱 실패\n", (p == "" ? "(없음)" : p), pc[p "/ACTIVE"] + 0, pc[p "/DEFERRED"] + 0, pc[p "/PARTIAL"] + 0, pc[p "/RESOLVED"] + 0, pc[p "/UNKNOWN"] + 0
 
   printf "\n▶ P0 전량 (blocker 버킷은 항상 펼친다)\n"
   for (i = 1; i <= n; i++) { id = order[i]; if (prio[id] == "P0") printf "  %-9s %-8s :%-5d %s\n", verdict[id], id, sec_line[id], evid[id] }
@@ -229,13 +241,16 @@ END {
     for (i = 1; i <= n; i++) {
       id = order[i]; v = verdict[id]
       if (v == "UNKNOWN") continue
+      # ★DEFERRED 는 ACTIVE 와 **같은 「미완」 쪽**이다 (2026-08-10, [ADR-028]). 여기서 빼면
+      #   새 어휘가 crosscheck 를 **끄는 통로**가 된다 — 상태줄 어휘 하나로 3면 계약이 꺼진다.
+      undone = (v == "ACTIVE" || v == "DEFERRED")
       if (id in rowline) {
-        if (v == "ACTIVE"   && ((id in rowmark) || (id in rowpart)))   { m++; printf "  %-8s 표 행에 ✅/🟡 인데 섹션은 ACTIVE          표:%d 섹션:%d\n", id, rowline[id], sec_line[id] }
+        if (undone          && ((id in rowmark) || (id in rowpart)))   { m++; printf "  %-8s 표 행에 ✅/🟡 인데 섹션은 %-8s      표:%d 섹션:%d\n", id, v, rowline[id], sec_line[id] }
         if (v == "RESOLVED" && !(id in rowmark))                       { m++; printf "  %-8s 섹션은 RESOLVED 인데 표 행에 ✅ 없음     표:%d 섹션:%d\n", id, rowline[id], sec_line[id] }
         if (v == "PARTIAL"  && !((id in rowmark) || (id in rowpart)))  { m++; printf "  %-8s 섹션은 PARTIAL 인데 표 행에 🟡 없음      표:%d 섹션:%d\n", id, rowline[id], sec_line[id] }
       }
       if (id in rmmark) {
-        if (v == "ACTIVE"   && rmmark[id] == "x")    { m++; printf "  %-8s 로드맵 [x] 인데 섹션은 ACTIVE            로드맵:%d 섹션:%d\n", id, rmline[id], sec_line[id] }
+        if (undone          && rmmark[id] == "x")    { m++; printf "  %-8s 로드맵 [x] 인데 섹션은 %-8s        로드맵:%d 섹션:%d\n", id, v, rmline[id], sec_line[id] }
         if (v == "RESOLVED" && rmmark[id] == " ")    { m++; printf "  %-8s 로드맵 [ ] 인데 섹션은 RESOLVED          로드맵:%d 섹션:%d\n", id, rmline[id], sec_line[id] }
       }
     }
@@ -288,7 +303,7 @@ END {
   if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 우선순위 배치 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, q, d, h, o; exit 1 }
   # ★성공 줄에서 리터럴 `3면` 을 빼지 마라 — `scripts/bl-audit-test.sh` ② 가 "정상 원장 → exit 0"
   #   의 증거로 그 문자열을 grep 한다. 축이 늘어도 "3면 + <새 축>" 꼴로 적어 하네스를 살려둔다.
-  printf "✓ 4면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치. active=%d / 전체=%d\n", cnt["ACTIVE"] + 0, n
+  printf "✓ 4면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치. active=%d / deferred=%d / 전체=%d\n", cnt["ACTIVE"] + 0, cnt["DEFERRED"] + 0, n
   exit 0
 }
 ' "$BACKLOG" "$ROADMAP"

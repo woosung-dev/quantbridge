@@ -44,6 +44,10 @@
 
 - NEVER — BL 상태를 손으로 세지 마라. `scripts/bl-audit.sh` 가 정본이며 3면(섹션 `**상태:**` 줄 · 인덱스 표 ·
   roadmap 체크박스)을 대조한다. BL 추가/해결 시 `**상태:**` 줄 의무 (없으면 `UNKNOWN`)
+- ★**판정어 5종** — `ACTIVE`(지금 단독 착수 가능) / `DEFERRED`(**트리거 미도래** — 상태줄 `⏳ **대기 (트리거
+미도래)**`) / `PARTIAL` / `RESOLVED` / `UNKNOWN`. DEFERRED 는 active 로 안 세고 3면에서는 ACTIVE 와 같은
+  「미완」 쪽이다([ADR-028](docs/decisions/028-backlog-deferred-verdict.md)). 도래 판정 = `scripts/bl-trigger-sweep.sh`
+  (**`--selftest` 를 전량 스윕보다 먼저**). ⓪ 표는 `--list ACTIVE` 에서 파생 — 손으로 후보를 얹지 마라
 - ALWAYS — 요약 줄 길이 상한 준수: `dev-log/INDEX.md` **300자** · `backlog.md`·`roadmap.md` **1,000자**
   (`scripts/docs-audit.sh` 강제). 읽는 비용은 `scripts/context-budget.sh` 로 잰다 (바이트 아닌 **문자**)
 - ALWAYS — 스프린트 종료 시 작업 문서는 승격(`reference/`)·강등·삭제 중 하나로 종결. 회고는 **반증 카드
