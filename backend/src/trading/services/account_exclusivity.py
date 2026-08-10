@@ -17,6 +17,45 @@ from src.trading.services.account_service import ExchangeAccountService
 logger = logging.getLogger(__name__)
 
 
+async def ownership_scope_ids(
+    account_repo: ExchangeAccountRepository, account: ExchangeAccount
+) -> list[UUID]:
+    """「이 계정과 **같은 실제 거래소 계정**인 DB 행」의 id 집합을 돌려준다.
+
+    ★반환값은 **계정 행 id** 다 — 그것을 무엇에 쓸지는 호출자가 정한다. 현재 소비자는 둘이고
+    좁히는 대상이 서로 다르다: 배타성 가드는 소유권 집합 `{Order.id}` 를(아래 `ensure_exclusive`),
+    stand-down 술어는 **활성 세션 목록**을 좁힌다(`tasks/live_signal.py` — [BL-517]).
+    ⇒ 이 함수를 「주문 소유권 전용」으로 읽지 마라. 두 가드가 같은 「같은 실제 계정인가」
+      질문을 하므로 답이 한 곳에서 나오는 것이고, 그것이 이 함수의 존재 이유다.
+
+    ★축 결정 = **등재 대상 계정과 `exchange_uid` 를 공유하는 계정 행 전체**. 근거는
+    양쪽 극단이 각각 다른 방식으로 틀리기 때문이다([BL-639] 실패 모드 3).
+
+    ⑴ **스코프 없음**(`SELECT id FROM trading.orders` 전량)은 「우리 것」 집합을
+       원장 크기만큼 키운다. 다른 실제 계정에 발행한 주문까지 이 계정의 소유로
+       세므로, 가드의 거부율이 **이 계정의 상태가 아니라 원장의 크기**를 따라간다.
+       같은 축 오류로 「미조인 34행 전량 ⇒ 판별력 0」을 만든 전례가 있다.
+    ⑵ **행 하나로 좁힘**(`exchange_account_id == account.id`)은 반대로 너무 좁다.
+       [BL-605] 가 증명했듯 같은 실제 계정이 **행 2개**로 존재한다. 우리가 행 A 로
+       낸 주문을 행 B 로 등재하며 조회하면 **우리 것을 FOREIGN 으로** 판정해
+       정상 재기동을 영구히 막는다(거짓 양성).
+    ⇒ 두 실패 모드를 동시에 피하는 축은 uid 형제 집합 하나뿐이다. 그리고 이것이
+      [BL-605]·[BL-651] 을 **먼저** 고친 이유다 — 축을 정하려면 행이 접혀 있어야 한다.
+
+    `exchange_uid` 가 `None` 이면 형제를 알 수 없으므로 자기 행만 쓴다. 이때 축은
+    ⑵ 로 퇴화하지만, 그것은 「모르는 것을 아는 척하지 않는다」의 결과다.
+    """
+    if account.exchange_uid is None:
+        return [account.id]
+    siblings = list(await account_repo.list_by_exchange_uid(account.exchange_uid))
+    # dedupe 는 대표 1행만 남기므로 여기서는 쓰지 않는다 — 소유권은 **행 전량**을
+    # 합집합해야 한다. 형제 행 각각이 자기 이름으로 주문을 낸 이력이 있기 때문이다.
+    ids = [sibling.id for sibling in siblings]
+    if account.id not in ids:
+        ids.append(account.id)
+    return ids
+
+
 class AccountExclusivityService:
     """세션 등재 전제조건 — 거래소 계정에 **남의 미체결 조건부 주문**이 없어야 한다.
 
@@ -106,34 +145,7 @@ class AccountExclusivityService:
             raise AccountNotExclusive(account_id=account.id, symbol=symbol, foreign=foreign)
 
     async def _ownership_scope(self, account: ExchangeAccount) -> list[UUID]:
-        """소유권 집합 `{Order.id}` 를 어느 **계정 축**으로 좁힐지 결정한다.
-
-        ★결정 = **등재 대상 계정과 `exchange_uid` 를 공유하는 계정 행 전체**. 근거는
-        양쪽 극단이 각각 다른 방식으로 틀리기 때문이다([BL-639] 실패 모드 3).
-
-        ⑴ **스코프 없음**(`SELECT id FROM trading.orders` 전량)은 「우리 것」 집합을
-           원장 크기만큼 키운다. 다른 실제 계정에 발행한 주문까지 이 계정의 소유로
-           세므로, 가드의 거부율이 **이 계정의 상태가 아니라 원장의 크기**를 따라간다.
-           같은 축 오류로 「미조인 34행 전량 ⇒ 판별력 0」을 만든 전례가 있다.
-        ⑵ **행 하나로 좁힘**(`exchange_account_id == account.id`)은 반대로 너무 좁다.
-           [BL-605] 가 증명했듯 같은 실제 계정이 **행 2개**로 존재한다. 우리가 행 A 로
-           낸 주문을 행 B 로 등재하며 조회하면 **우리 것을 FOREIGN 으로** 판정해
-           정상 재기동을 영구히 막는다(거짓 양성).
-        ⇒ 두 실패 모드를 동시에 피하는 축은 uid 형제 집합 하나뿐이다. 그리고 이것이
-          [BL-605]·[BL-651] 을 **먼저** 고친 이유다 — 축을 정하려면 행이 접혀 있어야 한다.
-
-        `exchange_uid` 가 `None` 이면 형제를 알 수 없으므로 자기 행만 쓴다. 이때 축은
-        ⑵ 로 퇴화하지만, 그것은 「모르는 것을 아는 척하지 않는다」의 결과다.
-        """
-        if account.exchange_uid is None:
-            return [account.id]
-        siblings = list(await self._account_repo.list_by_exchange_uid(account.exchange_uid))
-        # dedupe 는 대표 1행만 남기므로 여기서는 쓰지 않는다 — 소유권은 **행 전량**을
-        # 합집합해야 한다. 형제 행 각각이 자기 이름으로 주문을 낸 이력이 있기 때문이다.
-        ids = [sibling.id for sibling in siblings]
-        if account.id not in ids:
-            ids.append(account.id)
-        return ids
+        return await ownership_scope_ids(self._account_repo, account)
 
 
 def _as_uuid(value: str | None) -> UUID | None:
@@ -145,4 +157,4 @@ def _as_uuid(value: str | None) -> UUID | None:
         return None
 
 
-__all__ = ["AccountExclusivityService"]
+__all__ = ["AccountExclusivityService", "ownership_scope_ids"]
