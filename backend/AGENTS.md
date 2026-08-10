@@ -452,7 +452,7 @@ red 가 나는지 본다. **가운데 단계를 빼면 셋 다 놓친다** — �
 `DATABASE_URL`(개발 DB) 하나만 있는 셸에서 `pytest tests/trading/` 이 rc=0 으로 1088건을
 수집했고, 그 경로의 세션 픽스처는 `SQLModel.metadata.drop_all` 을 돈다.
 
-- **가드는 그 판정이 필요한 **모든** 진입점보다 위에 둬라.** pytest 라면 하위 conftest 가 아니라
+- **가드는 그 판정이 필요한 모든 진입점보다 위에 둬라.** pytest 라면 하위 conftest 가 아니라
   루트 `tests/conftest.py::pytest_configure` 다.
 - **가드가 못 보는 표면을 주석으로 적어라.** `alembic/env.py` 의 방향 가드는 `config.cmd_opts`
   가 `None` 인 프로그램 호출 경로를 감지하지 못한다 — 그 사실을 코드 옆에 남겨야 다음 사람이

@@ -92,8 +92,8 @@ def resolve_test_dsn() -> str:
     """판정을 통과한 DSN. 통과 못 하면 `NonDisposableDatabaseError`.
 
     세션 최상단(`pytest_configure`)이 이미 같은 판정을 하므로 정상 실행에서 이 예외는
-    올라오지 않는다. 그럼에도 남기는 이유는 **모듈을 직접 import 해 부르는 경로**
-    (`python -c`, 스크립트, 서브에이전트)가 맨몸으로 돌지 않게 하려는 것이다.
+    올라오지 않는다 — 이것은 `tests/test_migrations.py` 가 **자기 파일만 읽는 사람에게도**
+    무엇이 파괴적인지 보이게 하는 이중 방어다.
     """
     reason = refusal_reason()
     if reason is not None:

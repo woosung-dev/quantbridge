@@ -59,6 +59,10 @@ target_metadata = SQLModel.metadata
 #   `tests/_db_guard.py` + 루트 `tests/conftest.py::pytest_configure` 가 덮는다.
 #   초록은 「통과했다」가 아니라 「내가 본 것 중에는 없었다」만 말한다(`backend/AGENTS.md` §10).
 #
+# ★알면서 남긴 것: `--sql`(오프라인) downgrade 도 이 가드에 막힌다. 오프라인은 DB 에 붙지
+#   않으므로 막을 이유가 없지만, 막혀도 피해가 SQL 출력 한 번을 못 받는 것뿐이고 탈출구가
+#   있다. 방향 판정을 offline 여부로 한 겹 더 쪼개는 값보다 조건이 하나 느는 값이 크다.
+#
 # 탈출구: `alembic -x allow_destructive=1 downgrade -1`. env 변수가 아니라 CLI 인자다 —
 # `.env.example` 에 없는 환경 변수를 코드에서 참조하지 않는다(AGENTS.md Golden Rule).
 
@@ -80,8 +84,17 @@ def _is_destructive_invocation() -> bool:
 
 
 def _destructive_is_explicitly_allowed() -> bool:
-    """`-x allow_destructive=…` 로 사용자가 명시적으로 허용했는가."""
-    return bool(context.get_x_argument(as_dictionary=True).get("allow_destructive"))
+    """`-x allow_destructive=…` 로 사용자가 명시적으로 허용했는가.
+
+    ★**값을 본다.** 종전 초안은 `bool(...get("allow_destructive"))` 였는데 그러면
+    `-x allow_destructive=0` 이 **파괴를 허용**한다(`bool("0")` 은 참이다). 그리고 값 없는
+    `-x allow_destructive` 는 `""` 라 거꾸로 막힌다 — 두 표기의 결과가 정반대였다.
+    ⇒ 키가 있으면 기본 허용, 다만 **부정 리터럴은 부정으로 읽는다**.
+    """
+    raw = context.get_x_argument(as_dictionary=True).get("allow_destructive")
+    if raw is None:
+        return False
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
 
 
 def _guard_destructive_migrations() -> None:

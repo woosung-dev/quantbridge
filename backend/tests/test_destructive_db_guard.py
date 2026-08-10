@@ -33,6 +33,8 @@ from pathlib import Path
 
 import pytest
 
+from tests._db_guard import GUARD_EXIT_CODE as _GUARD_EXIT_CODE
+
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 # 붙지 않는 엔드포인트. 가드가 통째로 사라져도 여기로는 아무것도 파괴되지 않는다.
@@ -40,8 +42,10 @@ _UNREACHABLE = "127.0.0.1:1"
 _DEV_DSN = f"postgresql+asyncpg://u:p@{_UNREACHABLE}/quantbridge"
 _TEST_DSN = f"postgresql+asyncpg://u:p@{_UNREACHABLE}/quantbridge_test"
 
-# 세션 중단 가드가 쓰는 종료 코드 (`tests/real_broker/conftest.py` 의 기존 판단을 승계).
-_GUARD_EXIT_CODE = 3
+# ★rc 만으로 판정하지 않는다. `pytest_configure` 안에서 **아무 예외나** 터져도 pytest 는
+# INTERNALERROR 로 같은 rc=3 을 낸다 — 그러면 「가드가 막았다」와 「가드가 깨졌다」가 같은
+# 신호가 된다. 그래서 아래 케이스들은 rc 와 **이 접두**를 함께 본다(`conftest.py:111`).
+_PYTEST_GUARD_MARKER = "[db-guard]"
 
 # `alembic/env.py` 의 파괴 가드가 stderr 에 남기는 토큰. ★이 리터럴이 두 곳에 있다 —
 # 여기와 `backend/alembic/env.py`. 그 결합을 지키는 것이 이 파일의 ⑷ 계열이다.
@@ -120,12 +124,17 @@ def test_falling_back_to_database_url_ends_the_session(target: str) -> None:
     """
     result = _collect(target, _env(DATABASE_URL=_DEV_DSN))
 
+    blob = result.stdout + result.stderr
     assert result.returncode == _GUARD_EXIT_CODE, (
         f"{target} 수집이 rc={result.returncode} 로 끝났다 (기대 {_GUARD_EXIT_CODE}). "
         "폴백 가드가 이 경로에 배선되지 않았다.\n"
         f"--- stdout ---\n{result.stdout[-2000:]}\n--- stderr ---\n{result.stderr[-2000:]}"
     )
-    assert "TEST_DATABASE_URL" in result.stdout + result.stderr, (
+    assert _PYTEST_GUARD_MARKER in blob, (
+        f"rc 는 {_GUARD_EXIT_CODE} 인데 {_PYTEST_GUARD_MARKER} 마커가 없다 — 가드가 막은 것이 "
+        f"아니라 pytest 가 INTERNALERROR 로 죽었을 수 있다.\n--- 출력 ---\n{blob[-2000:]}"
+    )
+    assert "TEST_DATABASE_URL" in blob, (
         "중단은 했지만 메시지가 해소 방법(TEST_DATABASE_URL)을 안 알려준다"
     )
 
@@ -159,10 +168,12 @@ def test_a_test_database_url_that_is_not_disposable_ends_the_session() -> None:
     """
     result = _collect("tests/test_migrations.py", _env(TEST_DATABASE_URL=_DEV_DSN))
 
-    assert result.returncode == _GUARD_EXIT_CODE, (
-        f"rc={result.returncode} (기대 {_GUARD_EXIT_CODE}). "
+    blob = result.stdout + result.stderr
+    assert result.returncode == _GUARD_EXIT_CODE and _PYTEST_GUARD_MARKER in blob, (
+        f"rc={result.returncode} · 마커={_PYTEST_GUARD_MARKER in blob} "
+        f"(기대 rc={_GUARD_EXIT_CODE} + 마커 있음). "
         "database='quantbridge' 는 버려도 되는 DB 가 아니다.\n"
-        f"--- stdout ---\n{result.stdout[-2000:]}"
+        f"--- 출력 ---\n{blob[-2000:]}"
     )
 
 
@@ -176,10 +187,11 @@ def test_the_suffix_check_reads_the_database_name_not_the_whole_dsn() -> None:
     sneaky = f"postgresql+asyncpg://user_test:p@{_UNREACHABLE}/quantbridge"
     result = _collect("tests/test_migrations.py", _env(TEST_DATABASE_URL=sneaky))
 
-    assert result.returncode == _GUARD_EXIT_CODE, (
-        f"rc={result.returncode} — username 의 '_test' 에 속았다. "
-        "판정은 make_url().database 로 해야 한다.\n"
-        f"--- stdout ---\n{result.stdout[-2000:]}"
+    blob = result.stdout + result.stderr
+    assert result.returncode == _GUARD_EXIT_CODE and _PYTEST_GUARD_MARKER in blob, (
+        f"rc={result.returncode} · 마커={_PYTEST_GUARD_MARKER in blob} — "
+        "username 의 '_test' 에 속았다. 판정은 make_url().database 로 해야 한다.\n"
+        f"--- 출력 ---\n{blob[-2000:]}"
     )
 
 
@@ -235,6 +247,61 @@ def test_the_destructive_escape_hatch_is_wired() -> None:
 
     assert _ALEMBIC_GUARD_MARKER not in result.stdout + result.stderr, (
         "-x allow_destructive=1 를 줬는데도 가드가 막았다 — 탈출구가 배선되지 않았다.\n"
+        f"--- stderr ---\n{result.stderr[-2000:]}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# ⑸ 2층 방어 — 판정이 뚫려도 겨냥 대상 자체가 개발 DB 가 아니어야 한다
+# ---------------------------------------------------------------------------
+
+
+def test_the_targeted_dsn_never_falls_back_to_database_url() -> None:
+    """`effective_dsn()` 은 `DATABASE_URL` 을 **읽지 않는다**.
+
+    red 면 고장난 것: `refusal_reason()` 이 어떤 이유로든 뚫렸을 때(변이·리팩터·미래의
+    광범위한 `except`) 겨냥 대상이 곧바로 개발 DB 가 된다. 그 두 층이 서로의 구멍을 막는다는
+    것이 `tests/_db_guard.py` 모듈 독스트링의 주장이고, **이 테스트가 그 주장의 유일한 근거다.**
+
+    ★이 케이스는 배선이 아니라 **속성**을 잰다. 그래도 필요한 이유 — 코드 리뷰에서
+    `effective_dsn` 에 `or os.environ.get("DATABASE_URL")` 을 되살리는 변이가 심어졌을 때
+    이 파일의 다른 9건이 **전부 green** 이었다. `refusal_reason()` 이 env 를 독립적으로 먼저
+    보므로 어떤 배선 테스트도 그 층을 지나지 않는다 ⇒ 도달 0 인 층은 무증거다
+    (`backend/AGENTS.md` §10-2).
+    """
+    import os as _os
+    from unittest import mock
+
+    from tests import _db_guard
+
+    with mock.patch.dict(_os.environ, {"DATABASE_URL": _DEV_DSN}, clear=False):
+        _os.environ.pop("TEST_DATABASE_URL", None)
+        resolved = _db_guard.effective_dsn()
+
+    assert resolved == _db_guard.DEFAULT_TEST_DSN, (
+        f"effective_dsn() 이 '{resolved}' 를 돌려줬다 — DATABASE_URL 로 폴백했다. "
+        "판정이 뚫리는 순간 파괴 대상이 개발 DB 가 된다."
+    )
+
+
+@pytest.mark.parametrize("denial", ["0", "false", "no", "off"])
+def test_a_negative_escape_hatch_value_does_not_allow_destruction(denial: str) -> None:
+    """`-x allow_destructive=0` 은 허용이 아니라 **거부**로 읽혀야 한다.
+
+    red 면 고장난 것: 초안이 `bool(...get("allow_destructive"))` 였고 `bool("0")` 은 참이라
+    **`=0` 이 파괴를 허용**했다. 값 없는 `-x allow_destructive` 는 `""` 라 거꾸로 막혔다 —
+    두 표기의 결과가 정반대였다. 코드 리뷰(spec 축)가 실측으로 잡았다.
+    """
+    result = _alembic(
+        "-x",
+        f"allow_destructive={denial}",
+        "downgrade",
+        "base",
+        env=_env(DATABASE_URL=_DEV_DSN),
+    )
+
+    assert _ALEMBIC_GUARD_MARKER in result.stdout + result.stderr, (
+        f"-x allow_destructive={denial} 가 파괴를 허용했다.\n"
         f"--- stderr ---\n{result.stderr[-2000:]}"
     )
 
