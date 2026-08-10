@@ -28,19 +28,37 @@ from src.backtest.models import Backtest, BacktestStatus, BacktestTrade
 _SHARPE_GRADE_COMPARABLE = 0  # 척도를 아는 값 (tv_daily_rfr2 · tv_monthly_rfr2)
 _SHARPE_GRADE_UNKNOWN_SCALE = 1  # 컨벤션 키 부재 = 구 행. 어떤 척도인지 모른다
 _SHARPE_GRADE_DEGENERATE = 2  # 산출 불가. 저장된 0 은 「0 점」이 아니라 「없음」이다
+# 값 자체가 없다 — 미완료 실행(QUEUED/RUNNING/FAILED)은 `metrics` 가 NULL 이다.
+# ★종전 `sharpe DESC NULLS LAST` 는 이 행들을 **전체 맨 뒤**에 뒀다. 등급을 컨벤션으로만
+#   정하면 이 행들이 등급 1 로 떨어져 **완료된 degenerate 행보다 위로 올라온다** — 회귀다.
+#   `list_by_user` 에는 status 필터가 없어서 실제로 섞여 들어온다.
+_SHARPE_GRADE_NO_VALUE = 3
 
 # 정렬 비교 **전용** 연율화 계수. `metrics.sharpe_ratio()` 의 "연율화하지 않는다" 는
 # 저장·표시 규약이고 그대로 유지된다 — 이 계수는 ORDER BY 안에만 있고 응답 payload 의
-# `sharpe_ratio` 에 닿지 않는다. 척도가 다른 두 컨벤션을 한 순위로 세우려면 비교 시점에
-# 같은 축으로 옮겨야 한다 (일간 √252 · 월간 √12).
+# `sharpe_ratio` 에 닿지 않는다.
+#
+# ★분모는 **엔진이 쓰는 주기 정의와 같아야 한다** — `engine/metrics.py:70,74` 가
+#   monthly = `_RFR_ANNUAL / 12`, daily = `_RFR_ANNUAL / 365` 이고 daily 표본은
+#   `equity.resample("D")` 즉 **달력일**이다. 그래서 일간 계수는 √365 다.
+# ★★**거래일 252 를 쓰지 마라.** 2026-08-11 의 첫 구현이 √252 였고(동결 스펙의 오류),
+#   그러면 RFR 은 365 로 나누고 연율화는 252 로 하는 **서로 다른 축**이 된다. 이 레포는
+#   24/7 crypto 이고 문자열 `252` 는 `backend/src` 어디에도 없다 — 관례가 아니었다.
+#   순위가 실제로 갈리는 구간은 monthly/daily ∈ (√(252/12), √(365/12)) = (4.583, 5.514) 이고
+#   그 구간을 겨눈 단위 테스트가 없으면 계수를 되돌려도 아무것도 빨개지지 않는다.
 _SHARPE_ANNUALIZATION_FACTORS: dict[str, Decimal] = {
-    SHARPE_CONVENTION_DAILY: Decimal(252).sqrt(),
+    SHARPE_CONVENTION_DAILY: Decimal(365).sqrt(),
     SHARPE_CONVENTION_MONTHLY: Decimal(12).sqrt(),
 }
+# 알려진 degenerate 컨벤션 2종 — 명시적으로 적는다(무엇을 재는지 코드에서 읽혀야 한다).
 _SHARPE_DEGENERATE_CONVENTIONS = (
     SHARPE_CONVENTION_UNAVAILABLE,
     SHARPE_CONVENTION_NONPOSITIVE_EQUITY,
 )
+# ★그리고 **접두 규칙을 함께** 쓴다 — 정확일치만 두면 `engine/metrics.py` 에 5번째
+#   `unavailable_*` 컨벤션이 추가되는 순간 **조용히 등급 1**(= 정직한 음수보다 위)로 떨어진다.
+#   둘을 OR 로 묶으면 오늘의 2종은 명시적이고 내일의 추가분은 자동으로 잡힌다.
+_SHARPE_DEGENERATE_PREFIX = "unavailable"
 
 
 def _sharpe_sort_criteria(value: Any, *, order: str) -> list[Any]:
@@ -53,11 +71,23 @@ def _sharpe_sort_criteria(value: Any, *, order: str) -> list[Any]:
     컨벤션이 NULL(키 부재)이거나 알 수 없는 문자열이면 등급 1 — 척도 미상이다.
     `serializers.metrics_to_jsonb` 가 None 필드의 키를 아예 생략하므로 구 행에는
     `sharpe_convention` 키 자체가 없다.
+    ★**「키 부재」와 「키가 JSON null」은 `->>` 로는 구분되지 않는다** — 둘 다 SQL NULL 이고
+    `?` 연산자만 갈라 준다(psql 실측 `t|t|f|t`). 둘을 같은 등급으로 두는 것은 의도다.
+
+    ★**값이 없는 행은 등급 3 으로 전체 맨 뒤**다. 종전 `nulls_last()` 가 하던 일이고,
+    등급을 컨벤션으로만 정하면 미완료 실행이 완료된 degenerate 행을 앞지른다.
     """
     convention = Backtest.metrics["sharpe_convention"].astext  # type: ignore[index]
     grade = case(
+        (value.is_(None), _SHARPE_GRADE_NO_VALUE),
         (convention.in_(list(_SHARPE_ANNUALIZATION_FACTORS)), _SHARPE_GRADE_COMPARABLE),
-        (convention.in_(list(_SHARPE_DEGENERATE_CONVENTIONS)), _SHARPE_GRADE_DEGENERATE),
+        (
+            or_(
+                convention.in_(list(_SHARPE_DEGENERATE_CONVENTIONS)),
+                convention.like(f"{_SHARPE_DEGENERATE_PREFIX}%"),
+            ),
+            _SHARPE_GRADE_DEGENERATE,
+        ),
         else_=_SHARPE_GRADE_UNKNOWN_SCALE,
     )
     normalized = case(

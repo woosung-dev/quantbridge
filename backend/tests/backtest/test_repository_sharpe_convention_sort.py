@@ -261,10 +261,14 @@ async def test_json_null_and_unknown_convention_are_unknown_scale(
 async def test_missing_value_sinks_within_its_grade_not_below_it(
     db_session: AsyncSession,
 ) -> None:
-    """`sharpe_ratio` 키가 없어도 컨벤션이 있으면 등급 0 이다.
+    """`sharpe_ratio` 값이 없는 행은 **컨벤션이 있어도 목록 전체의 맨 뒤**다 (등급 3).
 
-    등급이 값보다 먼저이므로 값 없는 등급 0 행은 **등급 0 의 맨 뒤**이지 목록의 맨 뒤가
-    아니다. 두 키의 **순서를 뒤집으면**(값 먼저 · 등급 나중) 여기서 red 가 난다.
+    ★★**이 테스트는 2026-08-11 에 뒤집혔다.** 초판은 「컨벤션이 있으면 등급 0 이고, 값 없는
+    행은 **등급 0 의 맨 뒤**이지 목록의 맨 뒤가 아니다」를 못 박았다. 그것이 **회귀**였다 —
+    종전 `sharpe DESC NULLS LAST` 는 값 없는 행을 **전체 맨 뒤**에 뒀고, 등급을 컨벤션으로만
+    정하면 아직 결과가 없는 실행(QUEUED/RUNNING/FAILED — `list_by_user` 에 status 필터가
+    없다)이 **완료된 degenerate 행과 구 행을 앞지른다.** 아무 결과도 없는 실행이 끝난 실행
+    위에 오는 것은 사용자에게 거짓말이다. ⇒ `_SHARPE_GRADE_NO_VALUE = 3`.
 
     ★등급에 `nulls_last()` 를 얹는 변이는 red 가 **안 난다** — `case(...)` 에 `else_` 가
     있어 등급은 NULL 이 될 수 없고 그 변이는 무의미하다(2026-08-11 실측). 이 주석을
@@ -282,14 +286,86 @@ async def test_missing_value_sinks_within_its_grade_not_below_it(
             ("valued", _metrics("0.1", SHARPE_CONVENTION_DAILY)),
             ("valueless", valueless),
             ("legacy", _metrics("99", None)),
+            ("degenerate", _metrics("0", SHARPE_CONVENTION_NONPOSITIVE_EQUITY)),
+        ],
+    )
+    db_session.expunge_all()
+
+    # 등급 0 → 1 → 2 → 3. 값 없는 행이 degenerate·구 행보다 **뒤**여야 한다.
+    assert await _ordered_names(db_session, user_id, created, order="desc") == [
+        "valued",
+        "legacy",
+        "degenerate",
+        "valueless",
+    ]
+    # ★`order=asc` 에서도 맨 뒤다 — 「값이 없다」는 「가장 나쁘다」가 아니다.
+    assert (await _ordered_names(db_session, user_id, created, order="asc"))[-1] == "valueless"
+
+
+async def test_future_unavailable_convention_is_graded_degenerate_by_prefix(
+    db_session: AsyncSession,
+) -> None:
+    """아직 존재하지 않는 `unavailable_*` 컨벤션도 **degenerate** 로 떨어져야 한다.
+
+    ★왜 필요한가 — 등급 판정이 상수 정확일치**만** 이면, `engine/metrics.py` 에 5번째
+    `unavailable_*` 가 추가되는 순간 그 행이 **조용히 등급 1**(척도 미상)로 가고
+    **정직한 음수보다 위**에 온다. 그게 [BL-462] 가 없애려던 거짓말의 재발이다.
+    ⇒ 접두 규칙(`convention LIKE 'unavailable%'`)을 OR 로 함께 걸었다.
+
+    ★이 테스트는 **접두 규칙 제거 변이를 잡기 위해** 존재한다. 판별력을 얻으려면 구 행
+    (등급 1)이 픽스처에 있고 그 **원값이 degenerate 보다 낮아야** 한다 — 2026-08-11 실측에서
+    첫 판(정직한 음수 + 미래 degenerate 두 행)은 변이를 **못 잡았다**. 접두 규칙이 없으면
+    미래 degenerate 가 등급 2 대신 등급 1 로 가는데, 등급 1 행이 없으면 등급 1 과 등급 2 의
+    상대 순서가 관측되지 않아 두 경우가 **같은 순서**를 낸다.
+
+    구 행 원값 -99 · 미래 degenerate 0 으로 두면:
+      접두 있음 → 정직(등급0) · 구행(등급1, -99) · 미래deg(등급2, 0)
+      접두 없음 → 정직(등급0) · **미래deg(등급1, 0)** · 구행(등급1, -99)   ← 순서가 뒤집힌다
+    """
+    user_id, created = await _seed_rows(
+        db_session,
+        [
+            ("honest_negative", _metrics("-0.3", SHARPE_CONVENTION_DAILY)),
+            # 등급 1(척도 미상) — 원값을 degenerate 보다 **낮게** 둬서 판별력을 만든다.
+            ("legacy_low", _metrics("-99", None)),
+            # 오늘 코드에 없는 이름 — 접두 규칙만이 이걸 degenerate 로 본다.
+            ("future_degenerate", _metrics("0", "unavailable_flat_equity")),
         ],
     )
     db_session.expunge_all()
 
     assert await _ordered_names(db_session, user_id, created, order="desc") == [
-        "valued",
-        "valueless",
-        "legacy",
+        "honest_negative",
+        "legacy_low",
+        "future_degenerate",
+    ]
+
+
+async def test_daily_monthly_crossover_pins_the_annualization_factor(
+    db_session: AsyncSession,
+) -> None:
+    """일간 계수가 √365 임을 **순위로** 못 박는다 — √252 로 되돌리면 red 다.
+
+    ★이 테스트가 없으면 계수를 되돌려도 아무것도 빨개지지 않는다(2026-08-11 실측: 계수만
+    √252 로 바꿔도 전건 초록이었고, 로컬 DB 의 실제 3행은 두 계수에서 **순서가 동일**했다).
+    순위가 갈리는 구간은 monthly/daily ∈ (√(252/12), √(365/12)) = **(4.583, 5.514)** 뿐이다.
+
+    daily 0.1 · monthly 0.5 ⇒ 비 5.0 (구간 안):
+      √365 → daily 0.1×19.1050 = **1.9105** > monthly 0.5×3.4641 = 1.7321   ⇒ daily 가 위
+      √252 → daily 0.1×15.8745 = 1.5875  < monthly 1.7321                   ⇒ monthly 가 위
+    """
+    user_id, created = await _seed_rows(
+        db_session,
+        [
+            ("daily", _metrics("0.1", SHARPE_CONVENTION_DAILY)),
+            ("monthly", _metrics("0.5", SHARPE_CONVENTION_MONTHLY)),
+        ],
+    )
+    db_session.expunge_all()
+
+    assert await _ordered_names(db_session, user_id, created, order="desc") == [
+        "daily",
+        "monthly",
     ]
 
 
@@ -352,7 +428,14 @@ async def test_homogeneous_dataset_matches_legacy_order(
 
     기대 순서를 손으로 적지 않고 **종전 SQL 식을 그대로 실행해** 대조한다. 다르면 이
     변경이 무관한 것까지 흔들고 있다는 뜻이다(항진명제 방지).
+
+    ★★**기수 assert 가 없으면 이 테스트는 픽스처 0행에서 `[] == []` 로 초록이다.**
+    2026-08-11 실측 — `_seed_rows` 를 0행으로 강제하니 이 파일의 다른 6건은 전부 red 인데
+    이 2건(`desc`/`asc`)만 통과했다. 양변이 **둘 다 쿼리 산출물**이라 빈 입력이 「일치」로
+    샌다. 이 레포가 반복해서 밟은 그 함정이 **음성 대조 자신**에서 재발한 자리다
+    ([LESSON-101]). ⇒ 아래 `_EXPECTED_ROWS` 하한을 먼저 못 박는다.
     """
+    _EXPECTED_ROWS = 4
     user_id, created = await _seed_rows(
         db_session,
         [
@@ -380,7 +463,16 @@ async def test_homogeneous_dataset_matches_legacy_order(
     by_id = {record.id: name for name, record in created.items()}
     legacy_names = [by_id[row_id] for row_id in legacy_rows.scalars().all()]
 
-    assert await _ordered_names(db_session, user_id, created, order=order) == legacy_names
+    # ★빈 입력 방벽 — 이 둘이 없으면 `[] == []` 로 초록이 샌다(위 독스트링).
+    assert len(legacy_names) == _EXPECTED_ROWS, (
+        f"종전 정렬이 {len(legacy_names)}행을 냈다 (기대 {_EXPECTED_ROWS}) — "
+        "픽스처가 비었으면 아래 대조는 무증거다"
+    )
+    actual_names = await _ordered_names(db_session, user_id, created, order=order)
+    assert len(actual_names) == _EXPECTED_ROWS, (
+        f"신 정렬이 {len(actual_names)}행을 냈다 (기대 {_EXPECTED_ROWS})"
+    )
+    assert actual_names == legacy_names
 
 
 # --- 저장·표시 규약 불변: 정규화는 ORDER BY 안에만 있다 -------------------------------
