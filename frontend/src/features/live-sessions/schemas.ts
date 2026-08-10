@@ -182,12 +182,51 @@ export const AccountPositionsResponseSchema = z.object({
 });
 export type AccountPositions = z.infer<typeof AccountPositionsResponseSchema>;
 
+// ── 청산 ───────────────────────────────────────────────────────────────
+// 서버는 잔여 미체결 진입을 **두 경로**로 말한다. 둘은 같은 화면인데 뜻이 다르다.
+//   409 `resting_conditional_entries` — 포지션이 0이라 청산 주문을 **안 냈다** (CLI rc 3)
+//   202 `resting_entries[]`           — 청산은 **접수했고** 진입이 남아 있다 (CLI rc 4)
+// `qty`·`trigger_price` 는 백엔드에서 `Decimal` 이지만 와이어에서는 문자열이다
+// (409 는 `model_dump(mode="json")`, 202 는 Pydantic 직렬화). `ExchangePositionSchema`
+// 와 같은 규약이다.
+
+export const RestingEntryOrderSchema = z.object({
+  order_id: z.string(),
+  side: z.string(),
+  qty: z.string().nullable(),
+  trigger_price: z.string().nullable(),
+  order_link_id: z.string().nullable(),
+});
+export type RestingEntryOrder = z.infer<typeof RestingEntryOrderSchema>;
+
 export const ClosePositionResponseSchema = z.object({
   order_id: z.string(),
   state: z.string(),
   detail: z.string().nullable(),
+  // ★`.default()` 가 필수다. 이 두 필드가 없던 시절의 픽스처·구 응답이 파싱을 통과해야
+  //   하는데, 없다고 `undefined` 로 두면 소비자가 매번 방어해야 한다. 기본값은 서버
+  //   모델의 기본값과 같다(`ClosePositionResponse` = `[]` / `False`).
+  resting_entries: z.array(RestingEntryOrderSchema).default([]),
+  // 빈 목록만으로는 "잔량 없음"과 "거래소에 못 물어봤다"를 구분할 수 없다.
+  resting_entries_unknown: z.boolean().default(false),
 });
 export type ClosePositionResponse = z.infer<typeof ClosePositionResponseSchema>;
+
+/**
+ * 409 `{"detail": {...}}` 의 **안쪽** dict.
+ *
+ * ★같은 엔드포인트의 다른 409 는 `detail` 이 **평문 문자열**이다
+ * (`no_open_position` · `hedge_unsupported` · `position_side_unsupported`).
+ * 그래서 `code` 를 `z.literal` 로 못 박아 `safeParse` 가 그 셋을 **거부**하게 한다 —
+ * 이 스키마가 통과하는 것은 잔량 409 하나뿐이다.
+ */
+export const RestingEntriesConflictSchema = z.object({
+  code: z.literal("resting_conditional_entries"),
+  count: z.number(),
+  detail: z.string(),
+  orders: z.array(RestingEntryOrderSchema).default([]),
+});
+export type RestingEntriesConflict = z.infer<typeof RestingEntriesConflictSchema>;
 
 // ── Outcome parity response ───────────────────────────────────────────
 

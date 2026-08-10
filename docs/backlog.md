@@ -2883,11 +2883,19 @@ cache-first 다 — `find_gaps` 로 빈 구간을 찾아 그 구간만 `ccxt.fet
 **Priority:** P2
 **Trigger:** 다음 캐논 baseline 재측정 시
 **Est:** S
-**상태:** ⬜ Open — 잔여 spec 에만 시끄러운 실패가 들어갔고 p1 spec 은 여전히 데이터 없으면 test.skip — 행수·체결수 전제 단정은 어디에도 없다 (2026-08-09 status-triage-mass 확인)
+**상태:** ✅ Resolved — 2026-08-10 fe-close-surface. 4라우트 전부 `minExamined(res) > 0` 단정(감사 코어가 그 값을 이미 내주고 있었는데 spec 이 import 조차 안 했다) + `/backtests`·`/trading` 에 데이터 전제 단정 + `/backtests/:id/trades` 의 `test.skip` 을 `expect` 로 뒤집고 체결 행 ≥1 도 본다. 음성 대조 2건이 **skip 이 아니라 fail** 을 내는 것으로 확인. ★**종전 상태줄이 과소 진단이었다** — `test.skip` 은 `/trades` 1건뿐이고 나머지 셋은 skip 조차 없이 **초록**이었다(문제가 1건이 아니라 4건)
 
 **원인 / 영향:** authed 캐논 감사는 **렌더된 것**의 하드 실패 수만 센다. 빈 DB 에서는 `StateBox` 하나만 렌더되므로 11열 표·최대 585 체결 원장이 통째로 사라진 걸 **빨간 신호 없이** 놓친다. `authed-canon-p1.spec.ts:16-18` 이 baseline 측정 조건을 명시해 뒀다(`/backtests` 6건 · `/trades` 최대 585 체결 · `/trading` 거래소 1) — 즉 조건이 문서화돼 있는데 단정되지 않는다.
 
 **권장 접근:** 각 캐논 스펙에 데이터 전제 사전조건 단정 추가(없으면 skip 이 아니라 시끄럽게 실패). `make seed` 가 그 전제를 재현 가능하게 만들어 뒀다.
+
+★**2026-08-10 수리 시 드러난 것 2건.** ⑴ 그 baseline 주석 자체가 **이미 거짓**이었다 —
+「6건(완료 3·실패 3)」인데 실측은 **완료 7·실패 0**(체결 3,233)이다. 그래서 수리는 **개수를
+동결하지 않는다**. 세는 것은 「있는가」이고, 개수를 박으면 시드가 바뀔 때마다 그 단정이 다시
+거짓이 된다. ⑵ 고칠 도구가 **이미 코어에 있었다** — `design-canon-audit.ts:543` 의
+`minExamined()` 가 「측정 못 했다 vs 깨끗하다」를 가르라고 만들어졌는데 p1 spec 의 import 가
+그것만 빼놓았고, `formatCanonResult` 가 로그로 찍기만 했다. `authed-canon-remaining.spec.ts`
+는 같은 함정을 이미 `expect` 로 막아 뒀다. **패턴이 레포 안에 있었고 이 파일만 안 따라갔다.**
 
 **Risk:** 🟡 (감사 커버리지가 조용히 증발)
 
@@ -8047,7 +8055,7 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 **Priority:** P2
 **Trigger:** 코크핏 청산 버튼으로 조건부 잔량을 봐야 할 때
 **Est:** S
-**상태:** 🟡 부분 해결 — 2026-08-10 close-ownership-axis 가 409 body 의 키를 레포 계약에 맞췄다(`message` → `detail`). 이제 `describeApiError` 의 `inner.detail` 경로가 한국어 문장을 읽는다. ★**소비자가 둘이었다** — CLI(`live_session_admin.py:389`)도 같은 키를 읽고 있어 함께 고쳤다(백로그 본문의 「유일한 HTTP 소비자」는 HTTP 축에 한해 참이다). 잔여 2건: `router.py` 의 409 `responses` 선언(OpenAPI) · FE 의 `orders` 목록 렌더. 이 회차는 `frontend/` 0줄 제약이라 FE 를 안 건드렸다
+**상태:** 🟡 부분 해결 — 2026-08-10 close-ownership-axis 가 409 body 의 키를 레포 계약에 맞췄고(`message` → `detail`), 2026-08-10 fe-close-surface 가 **FE 축을 닫았다**: `RestingEntriesConflictSchema` 로 `orders` 를 펴고 `CloseOutcomePanel` 이 목록으로 그린다. 함께 `api-client.ts` 의 `code` 해석이 FastAPI 의 `{detail:{code}}` 한 겹을 파도록 고쳤다(종전에는 도메인 코드가 **언제나** `unknown_error` 였다). ★**본문의 「화면에 generic `API 409` 만 뜬다」는 두 표 중 하나에만 참이었다** — `account-positions-table` 은 이미 `describeApiError` 를 썼고 `open-positions-table` 만 `error.message` 였다. 그 비대칭도 함께 없앴다. **잔여 1건 = `router.py` 의 409 `responses` 선언(OpenAPI)**. 넣지 않은 이유는 아래 §OpenAPI 판단
 **출처:** 2026-08-10 guards-blind-spots codex 최종 적대 리뷰 (P2 — 코드 대조로 확정)
 
 **원인 / 영향:** 서버는 `409 {"detail": {"code": "resting_conditional_entries", "message": …,
@@ -8062,7 +8070,16 @@ generic `API 409 …` 만 뜬다. `router.py:610` 에 409 `responses` 선언이 
 
 **권장 접근:** 라우터에 409 error schema 를 선언하고, `api-client.ts` 가 중첩
 `detail.code`/`message`/`orders` 를 펴서 렌더하도록 맞춘다.
-**Risk:** 🟡 운영자가 화면만 보면 조건부 잔량을 못 본다
+
+**§OpenAPI 판단 (2026-08-10 fe-close-surface).** 409 `responses` 선언을 **넣지 않았다**.
+근거 셋이 전부 실측이다 — ⑴ `frontend/` 에 OpenAPI 코드젠이 **없다**(생성 타입 파일 0 ·
+codegen 스크립트 0). 화면은 수기 Zod 로만 계약을 아니까 선언이 화면에 도달하는 경로 자체가
+없다. ⑵ `responses=` 를 쓰는 라우트가 `backend/src` 전체에 **0건**이다 — 넣으면 FE 회차가
+선례 없는 관례를 연다. ⑶ `test_main_openapi_gating.py` 는 docs **노출** 게이팅만 재고, 에러
+응답 문서화를 요구하는 게이트는 없다. ⇒ 값이 0 인데 `backend/src` 를 건드리게 된다.
+**넣을 값이 생기는 시점은 FE 가 OpenAPI 에서 타입을 생성하기 시작할 때**다.
+
+**Risk:** 🟡 ~~운영자가 화면만 보면 조건부 잔량을 못 본다~~ → 🟢 화면 축은 닫혔다. 남은 것은 문서 축
 
 ---
 
@@ -8465,7 +8482,7 @@ $ bash -c 'echo "받은 것: [$0] · 나머지: [$@]"' a.py b.py c.py
 **Priority:** P2
 **Trigger:** 코크핏 청산 버튼으로 조건부 잔량을 봐야 할 때 — [BL-671] 잔여와 같은 화면
 **Est:** S
-**상태:** ⬜ Open — 2026-08-10 close-ownership-axis Spec 축이 제기, 코드 대조로 확인
+**상태:** ✅ Resolved — 2026-08-10 fe-close-surface. `RestingEntryOrderSchema` 신설 + 두 필드를 `.default()` 로 선언(서버 모델 기본값과 같게)했고, `close-outcome.ts` 가 응답/에러를 다섯 상태로 갈라 `CloseOutcomePanel` 이 그린다. 잔량 있음과 **확인 실패**가 서로 다른 `data-testid` 를 갖고 서로를 배제한다. 변이 6/6 red(도달 확인 포함) · e2e 5건이 실브라우저에서 판정 · Zod strip 을 되돌리면 e2e 3/5 가 빨개진다
 **출처:** 2026-08-10 close-ownership-axis (PR Spec 축)
 
 **원인 / 영향:** [BL-684] 가 `ClosePositionResponse` 에 `resting_entries` 와
@@ -8555,5 +8572,88 @@ for account_id in scope_ids:
 공백이 실격을 만드는 것이다 — 그것만이 창을 리셋한다」.
 
 **Risk:** 🟢 (문구. 단 이 문구가 만든 판단 오류는 🟡였다)
+
+---
+
+### BL-691
+
+**Title:** `RestingEntryOrder` docstring 이 409 직렬화를 `str()` 이라고 말하는데 코드는 `model_dump(mode="json")` 이다
+**Category:** Backend / trading (청산) · 문서(주석)
+**Priority:** P3
+**Trigger:** 409 경로의 필드 타입을 바꿀 때 — 또는 그 docstring 을 근거로 삼을 때
+**Est:** XS
+**상태:** ⬜ Open — 2026-08-10 fe-close-surface 가 FE 쪽 계약을 읽다 발견. 스코프 밖이라 등재만
+**출처:** 2026-08-10 fe-close-surface (계약 조사 중 코드 대조)
+
+**원인 / 영향:** `backend/src/trading/schemas.py:132-139` 의 docstring 이 「문자열이 필요한
+것은 `HTTPException(detail=<raw dict>)` 로 나가는 409 경로뿐이고, **거기서만 `str()` 로
+담는다**(`close_service.py`)」고 적었다. 그런데 실제 코드는
+`close_service.py:143` 에서 `RestingEntryOrder.from_snapshot(order).model_dump(mode="json")`
+을 쓴다. `str()` 을 직접 부르는 자리는 없다.
+
+**재현:** `grep -n 'str(' backend/src/trading/services/close_service.py` → 해당 호출 0건.
+`grep -n 'model_dump' 같은 파일` → `:143` 1건.
+
+★**결과는 같지만 기술이 낡았다.** 이 문장은 2026-08-10 close-ownership-axis 가 `str()` 방식을
+`model_dump(mode="json")` 로 바꾸면서 남은 잔재다(그 커밋이 「두 경로가 갈라지지 않게 하는
+유일한 장치」라고 쓴 것이 바로 이 교체다). 다음 사람이 docstring 을 믿고 `str()` 을 찾으면
+없는 것을 찾게 된다.
+
+**권장 접근:** 그 문단을 `model_dump(mode="json")` 으로 고친다. 한 문장이다.
+**Risk:** 🟢 (주석. 동작 무관)
+
+---
+
+### BL-692
+
+**Title:** `RestingEntryOrder.from_snapshot(order: object)` 이 정적 검증을 통째로 포기한다
+**Category:** Backend / trading (청산) · 타입
+**Priority:** P3
+**Trigger:** `ConditionalOrderSnapshot` 의 필드명을 바꿀 때
+**Est:** XS
+**상태:** ⬜ Open — 2026-08-10 fe-close-surface 가 FE 쪽 계약을 읽다 발견. 스코프 밖이라 등재만
+**출처:** 2026-08-10 fe-close-surface (계약 조사 중 코드 대조)
+
+**원인 / 영향:** `backend/src/trading/schemas.py:146-156` 의 시그니처가 `order: object` 라
+다섯 필드 접근이 전부 `# type: ignore[attr-defined]` 다. `ConditionalOrderSnapshot`
+(`providers.py:221-232`)에서 `trigger_price` 나 `order_link_id` 를 개명하면 **mypy 가 아무 말도
+안 하고** 런타임에 `AttributeError` 로 터진다. 그 자리는 청산 경로 한복판이다.
+
+★**409 경로는 더 나쁘다** — 거기서 터지면 「포지션 0 + 진입 잔량」이라는 이미 나쁜 상황에서
+500 이 된다.
+
+**재현:** `providers.py` 의 `ConditionalOrderSnapshot.trigger_price` 를 개명하고
+`uv run mypy backend/src/trading/schemas.py` → 0 errors. 그 뒤 `test_close_service.py` 만 빨개진다.
+
+**권장 접근:** `order: ConditionalOrderSnapshot` 으로 좁히고 `type: ignore` 5개를 지운다.
+순환 import 가 걸리면 `TYPE_CHECKING` 블록 + 문자열 어노테이션으로 충분하다.
+**Risk:** 🟢 (지금 동작은 옳다. 개명 안전망이 없을 뿐)
+
+---
+
+### BL-693
+
+**Title:** `alert-rule-form` 의 수동 2단계 `code` 폴백이 `api-client` 수리로 잉여가 됐다
+**Category:** Frontend / alert-rules · 정리
+**Priority:** P3
+**Trigger:** 그 파일을 다음에 열 때
+**Est:** XS
+**상태:** ⬜ Open — 2026-08-10 fe-close-surface 가 만든 잉여. 남의 코드라 지우지 않고 등재만 (`CLAUDE.md` §3)
+**출처:** 2026-08-10 fe-close-surface
+
+**원인 / 영향:** `frontend/src/features/alert-rules/components/alert-rule-form.tsx:31-44` 의
+`isDuplicateActiveRule` 은 `error.code` 를 먼저 보고 실패하면 `detail.detail.code` 로 한 겹 더
+판다. 그 두 번째 갈래는 `api-client.ts` 가 최상위 `code` 만 보던 시절의 우회다.
+
+2026-08-10 fe-close-surface 가 `resolveErrorCode` 로 그 한 겹을 클라이언트에서 파도록 고쳤으므로
+이제 **첫 줄에서 이미 참**이고 아래 9줄은 판정을 가르지 않는다.
+
+★**죽은 코드가 아니다** — 여전히 옳고, 지금도 같은 답을 낸다. 그래서 이 회차가 지우지 않았다.
+지울지 남길지는 그 파일을 소유한 회차가 정하는 것이 맞다.
+
+**재현:** `alert-rule-form.tsx:34-43` 을 지우고 alert-rules 테스트를 돌린다 → 전건 통과.
+
+**권장 접근:** 그 파일을 다음에 만질 때 `error.code === "alert_rule_already_active"` 한 줄로 접는다.
+**Risk:** 🟢 (동작 무관. 읽는 비용만)
 
 ---
