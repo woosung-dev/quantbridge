@@ -13,16 +13,24 @@
 // baseline 은 이식 전(pre-C) UI 의 상태다. S5~S8 이 라우트를 하나씩 다시 그리며 아래
 // allowlist 를 줄인다. canon 은 하드 실패가 아니라 지표다 (audit 코어 주석 참조).
 //
-// ★측정 조건 (2026-07-20). 백엔드 8000(DB 5436) 기동 + 데이터 있음:
-//   /backtests 6건(완료 3·실패 3) · /backtests/{id}/trades 최대 585 체결 · /trading 거래소 1.
-//   /dashboard 는 활성 세션 0(라이브 세션 데이터 없음)이라 빈 코크핏이다 — 채워지면 재측정 요.
+// ★측정 조건은 이제 **주석이 아니라 단정**이다 (아래 DATA_PRECONDITION).
+//   종전에는 조건을 여기 적어 두기만 했고 아무도 확인하지 않았다. 그래서 데이터가 비면
+//   `hardFailCount` 가 **렌더된 것**의 소견만 세므로 표가 통째로 사라져도 `0 ≤ 0` 이었다.
+//   `/backtests/:id/trades` 만 `test.skip` 으로 노랗게 넘어갔고 나머지 셋은 **초록**이었다.
+//   ⇒ 감사 커버리지가 조용히 증발하는 자리다.
+//
+// ★2026-08-10 실측으로 갱신. 종전 주석의 「/backtests 6건(완료 3·실패 3)」은 이미 거짓이었다
+//   (실측 7건 전건 완료 · 실패 0 · 체결 3,233). 그래서 **개수를 동결하지 않는다** — 세는 것은
+//   「있는가」이지 「몇 개인가」가 아니다. 개수는 시드마다 움직이고, 움직일 때마다 이 주석이
+//   다시 거짓이 된다.
+//   /dashboard 는 여전히 활성 세션 0(빈 코크핏)이라 데이터 전제를 걸지 않는다.
 
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Browser } from "@playwright/test";
 
-import { auditUrl, formatCanonResult, hardFailCount } from "./design-canon-audit";
+import { auditUrl, formatCanonResult, hardFailCount, minExamined } from "./design-canon-audit";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
 const STORAGE_STATE = resolve(__dirname, ".auth/storageState.json");
@@ -73,6 +81,37 @@ const auditOptions = {
   ignoreConsole,
 } as const;
 
+/**
+ * 라우트가 **실제로 무언가를 그리는지** 확인할 선택자.
+ *
+ * ★없으면 `test.skip` 이 아니라 시끄럽게 실패한다. 잔여 spec(`authed-canon-remaining`)이
+ * 같은 함정을 이미 이렇게 막았다 — 패턴이 레포 안에 있었고 이 파일만 안 따라갔다.
+ * `/dashboard` 는 활성 세션 0 이 baseline 이라 여기 없다.
+ */
+const DATA_PRECONDITION: Readonly<Record<string, { selector: string; why: string }>> = {
+  "/backtests": {
+    selector: 'a[href^="/backtests/"]',
+    why: "백테스트 목록이 비었다. 캐논 감사가 볼 표가 없다 (`make seed` 로 시딩하라)",
+  },
+  "/trading": {
+    selector: 'table[aria-label^="거래소 계정"] tbody tr',
+    why: "등록된 거래소 계정이 없다. /trading 이 빈 상태만 그린다 (`make seed`)",
+  },
+};
+
+/** 감사와 별개 컨텍스트로 한 번 열어 선택자를 센다. 감사 결과에는 DOM 이 없다. */
+async function countOn(browser: Browser, url: string, selector: string): Promise<number> {
+  const context = await browser.newContext({ storageState: STORAGE_STATE });
+  try {
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: "load" });
+    await page.waitForTimeout(1500);
+    return await page.locator(selector).count();
+  } finally {
+    await context.close();
+  }
+}
+
 test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 전용)", () => {
   // storageState 부재 시 조용한 skip 이 아니라 시끄럽게 실패시킨다(운영계약 §3ⓒ — skip 침묵 통과 방지).
   test("사전조건 — storageState 존재", () => {
@@ -85,8 +124,24 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
   for (const path of ["/dashboard", "/backtests", "/trading"] as const) {
     test(`${path} — 하드 실패 ≤ allowlist`, async ({ browser }) => {
       test.setTimeout(180_000);
+
+      const precondition = DATA_PRECONDITION[path];
+      if (precondition) {
+        const count = await countOn(browser, `${BASE_URL}${path}`, precondition.selector);
+        expect(count, `${path} 데이터 전제 미충족 — ${precondition.why}`).toBeGreaterThan(0);
+      }
+
       const res = await auditUrl(browser, `${BASE_URL}${path}`, { label: path, ...auditOptions });
       process.stdout.write(formatCanonResult(res) + "\n");
+
+      // ★「감사를 못 했다」와 「깨끗하다」를 가른다. `hardFailCount` 는 렌더된 것의 소견만
+      //   세므로 아무것도 안 그려지면 언제나 0 이다. 코어가 이 값을 내주고 있었는데
+      //   이 파일은 로그로만 찍고 아무도 단정하지 않았다.
+      expect(
+        minExamined(res),
+        `${path} — 감사가 본 텍스트 요소가 0개다. 초록이 아니라 미측정이다:\n${formatCanonResult(res)}`,
+      ).toBeGreaterThan(0);
+
       expect(
         hardFailCount(res),
         `${path} 하드 실패:\n${formatCanonResult(res)}`,
@@ -109,13 +164,32 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
     });
     await discovery.close();
 
-    test.skip(!href, "완료된 백테스트 상세 링크를 찾지 못했다 (데이터 없음)");
+    // ★종전에는 `test.skip` 이었다. 데이터가 없으면 노랗게 넘어갔고, 그 순간 이 라우트의
+    //   캐논 커버리지는 0 인데 스위트는 실패를 보고하지 않았다.
+    expect(
+      href,
+      "완료된 백테스트 상세 링크를 찾지 못했다 — 캐논 감사가 볼 원장이 없다 (`make seed`)",
+    ).toBeTruthy();
+
+    // 상세가 있어도 체결이 0행이면 원장 표가 그려지지 않는다. 링크 존재만으로는 부족하다.
+    const tradeRows = await countOn(
+      browser,
+      `${BASE_URL}${href}/trades`,
+      '[data-testid="trade-detail-table"] tbody tr',
+    );
+    expect(tradeRows, `${href}/trades 에 체결 행이 없다 — 표가 통째로 비어 있다`).toBeGreaterThan(
+      0,
+    );
 
     const res = await auditUrl(browser, `${BASE_URL}${href}/trades`, {
       label: `${href}/trades`,
       ...auditOptions,
     });
     process.stdout.write(formatCanonResult(res) + "\n");
+    expect(
+      minExamined(res),
+      `/trades — 감사가 본 텍스트 요소가 0개다. 초록이 아니라 미측정이다:\n${formatCanonResult(res)}`,
+    ).toBeGreaterThan(0);
     expect(hardFailCount(res), `/trades 하드 실패:\n${formatCanonResult(res)}`).toBeLessThanOrEqual(
       HARDFAIL_ALLOWLIST["/backtests/:id/trades"] ?? 0,
     );
