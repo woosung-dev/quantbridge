@@ -443,3 +443,20 @@ task.add_done_callback(_PENDING_ALERTS.discard)
 
 **판별 절차 (셋 다 이걸로 잡혔다):** 변이를 심는다 → **그 변이가 도달했는지 따로 확인한다** →
 red 가 나는지 본다. **가운데 단계를 빼면 셋 다 놓친다** — 도달 못 한 변이의 red 0 은 무증거다.
+
+### 10.1 가드는 「있다」가 아니라 「그 경로가 지나는가」로 재라 (2026-08-10 [BL-451])
+
+`_assert_disposable_database` 는 2026-07-25 실사고 직후 붙었고 2년 가까이 「있다」고 여겨졌다.
+실측하니 그것은 `tests/test_migrations.py` **파일 안에만** 있었고, 사본 하나는
+`tests/real_broker/conftest.py` 에 있었지만 그 파일은 **그 디렉터리를 수집할 때만** 로드됐다.
+`DATABASE_URL`(개발 DB) 하나만 있는 셸에서 `pytest tests/trading/` 이 rc=0 으로 1088건을
+수집했고, 그 경로의 세션 픽스처는 `SQLModel.metadata.drop_all` 을 돈다.
+
+- **가드는 그 판정이 필요한 **모든** 진입점보다 위에 둬라.** pytest 라면 하위 conftest 가 아니라
+  루트 `tests/conftest.py::pytest_configure` 다.
+- **가드가 못 보는 표면을 주석으로 적어라.** `alembic/env.py` 의 방향 가드는 `config.cmd_opts`
+  가 `None` 인 프로그램 호출 경로를 감지하지 못한다 — 그 사실을 코드 옆에 남겨야 다음 사람이
+  그 초록을 「전부 막혔다」로 읽지 않는다.
+- **막는 가드에는 「안 막는 것」의 음성 대조를 붙여라.** 방향을 안 보는 가드는 파괴를 막는 대신
+  `make migrate`·entrypoint·CI 를 죽인다. 그 대조는 **역방향 변이**(가드를 더 넓게 만드는 변이)
+  로만 판별력이 증명된다 — 정방향 변이만 돌리면 「너무 넓은 가드」가 초록으로 통과한다.

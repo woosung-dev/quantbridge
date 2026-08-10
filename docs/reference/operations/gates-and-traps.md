@@ -176,8 +176,12 @@ exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 �
   ```bash
   set -a; source .env.local; set +a
   ```
-  개별 export 금지. `DATABASE_URL` 만 있으면 `tests/test_migrations.py` 의 `downgrade(base)` 가 **개발 DB 를 향한다** — 실제로 주문 17행과 암호화된 API 키가 전소한 적이 있다. 지금은 `_assert_disposable_database` 가 DSN 이 `_test` 로 안 끝나면 막지만, 가드를 믿지 말고 3-env 를 함께 넣어라.
-- **수동 `alembic` 은 개발 DB 를 향한다.** 테스트 DB 에 마이그레이션을 돌리려면 `tests.test_migrations._alembic_cfg()` 를 재사용해라 (`_assert_disposable_database` 가 내장돼 있다).
+  개별 export 금지. `DATABASE_URL` 만 있으면 `tests/test_migrations.py` 의 `downgrade(base)` 가 **개발 DB 를 향했다** — 실제로 주문 17행과 암호화된 API 키가 전소한 적이 있다.
+  ★**2026-08-10 [BL-451] 이후 그 폴백은 사라졌다.** 판정 SSOT 는 `backend/tests/_db_guard.py` 이고 루트 `tests/conftest.py::pytest_configure` 가 **세션 최상단**에서 판정한다. `TEST_DATABASE_URL` 없이 `DATABASE_URL` 만 있으면 폴백이 아니라 **rc=3 으로 세션이 끝난다**. 그래도 3-env 를 함께 넣어라 — 가드는 「막는다」이지 「돌게 한다」가 아니다.
+  ★**종전 문장 「`_assert_disposable_database` 가 막는다」는 절반만 참이었다.** 그 가드는 `tests/test_migrations.py` 파일 안에만 있었고, 같은 판정의 사본이 `tests/real_broker/conftest.py` 에 있었지만 그 파일은 **그 디렉터리를 수집할 때만** 로드됐다. 실측 — `DATABASE_URL`(개발 DB) 하나만 있는 셸에서 `pytest tests/trading/` 이 **rc=0 으로 1088건을 수집**했고, 그 경로의 세션 픽스처는 `SQLModel.metadata.drop_all` 을 돈다.
+- **수동 `alembic downgrade` 는 개발 DB 를 향했다.** ★2026-08-10 이후 `backend/alembic/env.py` 가 **downgrade 만** 골라 막는다(`upgrade` 는 통과 — 안 그러면 `make migrate`·entrypoint·CI 가 함께 죽는다). 정당한 롤백은 `alembic -x allow_destructive=1 downgrade <rev>`.
+  ★**이 가드가 못 보는 표면이 하나 있다** — `command.downgrade(cfg, ...)` 처럼 파이썬에서 직접 부르면 `config.cmd_opts` 가 `None` 이라 방향을 알 수 없다. 그 표면은 pytest 쪽 가드가 덮는다.
+- ★**파괴적 작업 전에 찍어라 — `make db-snapshot`.** `.backups/<db>-<ts>.dump` 로 나온다(gitignore). 복원은 `make db-restore FILE=… TO=<대상 DB>` 이고 **`TO` 에 기본값이 없다** — 기본값을 개발 DB 로 두는 편의가 곧 이 항목이 막으려는 사고다. 2026-08-10 실측: 덤프 2.15MB → 임시 DB 복원에서 orders 823 · 암호화 API 키 2/2 가 왕복했다.
 - **`test_migrations.py` 가 `DuplicateColumn` 으로 실패하면 대개 코드 결함이 아니다.** conftest 의 `SQLModel.metadata.create_all` 이 신규 컬럼을 이미 만들어둔 상태에서 `alembic_version` 만 stale 인 경우다. `downgrade base → upgrade head` 로 재구축하면 풀린다.
 - compose 는 항상 두 파일을 겹쳐 쓴다. worker 만 재시작할 때는 **`--no-deps`** 를 붙여라.
   ```bash

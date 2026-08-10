@@ -350,7 +350,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [~] **BL-458** [P2] 머니-패스 5곳 realized_pnl_synced_at 미구분 — 🟡 **money-path-finish 부분 완료**. Site 3(알림)·Site 4(커브·KPI) 라벨+소계. **Site 1·2 게이트와 Site 5 는 의도적 혼재 유지**(확정만 좁히면 fail-open) · 병합 커브는 포인트별 출처 표현 불가 → 집계 라벨
 - [x] **BL-454** [P2] 세션 등록·TV 웹훅 심볼 미정규화 — ✅ **money-path-finish 완료**. `NormalizedSymbol` 공용 프리미티브 + 두 ingress + 거부 관측. ★의도된 동작 변경 = 활성 세션 유니크 충돌(KPI 이중 계상 차단)
 - [x] **BL-464** [P2] `attribute_exit` 이 거래소 원문↔canonical 심볼 비교로 `inferred` 귀속 구조적 사망 — ✅ **money-path-finish 완료**(신규 발견). ★픽스처 기본값이 한 스프린트 동안 가렸다
-- [ ] **BL-451** [P2] 파괴적 마이그레이션 테스트 env 폴백 dev DB drop 위험 — (부분 완화 완료)
+- [x] **BL-451** [P2] 파괴적 마이그레이션 테스트 env 폴백 dev DB drop 위험 — ✅ 2026-08-10 `stage/migration-guard`. 판정 SSOT `tests/_db_guard.py` + 루트 conftest 승격(폴백 금지) · `make db-snapshot`/`db-restore` · `alembic/env.py` downgrade 가드(+`-x` 탈출구). 배선 9건 · 변이 5/5
 
 ### P2 — 트레이딩/엔진 부채
 

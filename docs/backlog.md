@@ -2737,7 +2737,7 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P2
 **Trigger:** 즉시 (부분 완화 완료)
 **Est:** S (2h)
-**상태:** ⬜ Open — 잔여 4항목 중 ③(문서 승격)만 됐고 ①conftest 가드 없음 ②백업 레시피 부재(Makefile pg_dump 0건) ④alembic CLI 무가드. (2026-08-09 status-triage-mass 확인)
+**상태:** ✅ **Resolved** (2026-08-10, `stage/migration-guard`) — 잔여 3항목 전건 종결. ①판정 SSOT `tests/_db_guard.py` 신설 + 루트 `tests/conftest.py::pytest_configure` 로 **승격**하고 `DATABASE_URL` 폴백을 **금지**했다. ★종전 가드의 실체는 「conftest 에도 같은 폴백이 있다」가 아니라 **배선 부재**였다 — 착수 시 실측으로 `pytest tests/trading/` 이 개발 DB DSN 을 물고 rc=0 으로 1088건을 수집했다(그 경로의 세션 픽스처가 `drop_all` 을 돈다). ②`make db-snapshot`/`db-restore` 신설 — 덤프 2.15MB 생성 후 임시 DB 로 복원해 orders 823·strategies 3·**암호화 API 키 2/2** 왕복을 실증했다(개발 DB 무접촉). ③이미 됨 ④`alembic/env.py` 에 `downgrade` 전용 가드 + `-x allow_destructive=1` 탈출구 — `upgrade` 는 통과시켜 `make migrate`·entrypoint·CI 무영향(rc=0 실측). 배선 테스트 9건 + 변이 5/5 red(도달 5/5). 판정 사본 1곳 잔존 → [BL-697](#bl-697).
 **트리거 판정:** 도래 — 트리거가 「즉시」다. 조건어가 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-attribution **실사고**
 
@@ -8927,5 +8927,38 @@ sha256 복원 대조 완료. ★**도입 즉시 초록이라 비용이 0이다**
 ★**고치면 반드시 음성 대조를 해라** — 인용을 빠뜨리면 빈 인자가 들어가 지금과 같은 전량 린트로
 조용히 되돌아간다([BL-687] 수리에서 실제로 잰 축이다).
 **Risk:** 🟢 훅 설정 1줄. 단 FE 커밋 경로 전체가 걸리므로 종단(`pnpm exec lint-staged`)까지 재라.
+
+---
+
+### BL-697
+
+**Title:** 테스트 DSN 판정 사본이 `test_prefork_smoke_integration.py` 에 1곳 남았다
+**Category:** Testing / 안전 (판정 SSOT)
+**Priority:** P3
+**Trigger:** prefork integration 테스트를 다음에 손댈 때 · 또는 테스트 DSN 판정 규칙을 또 바꿀 때
+**Est:** XS
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-10 [BL-451] 수리 중 인접 관측. 위험은 낮고 **일관성**만 문제다.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 migration-guard)
+**출처:** 2026-08-10 migration-guard ([BL-451] ① 수리 중 전수 grep)
+
+**원인 / 영향:** [BL-451] 이 테스트 DSN 판정을 `tests/_db_guard.py` 한 곳으로 모으면서
+`tests/test_migrations.py` · `tests/real_broker/conftest.py` · `tests/real_broker/_harness.py`
+세 사본을 위임으로 바꿨다. **`tests/tasks/test_prefork_smoke_integration.py:42` 만 남았다** —
+`TEST_DATABASE_URL or DATABASE_URL` 폴백과 `make_url().database` + `_test` 검사를 자기 안에 갖고 있다.
+
+★**지금 위험하지 않은 이유 셋.** ⑴ 이 파일은 `@pytest.mark.integration` 이라 `--run-integration`
+없이는 수집돼도 **skip** 된다 ⑵ 파괴적 경로가 아니다(`drop_all`·`downgrade` 를 호출하지 않는다)
+⑶ 무엇보다 루트 `tests/conftest.py::pytest_configure` 가 **세션 최상단에서 먼저 판정**하므로
+그 폴백이 개발 DB 를 돌려주는 상태에는 애초에 도달할 수 없다.
+
+★**그럼에도 등재하는 이유.** 판정이 두 벌이면 한 벌만 고쳐지는 날이 온다 — 그것이 [BL-451] 의
+실사고 구조 그 자체였다. 그리고 이 사본은 폴백을 **허용**하므로, 루트 가드가 미래에 약해지면
+둘의 판정이 **어긋난 채로** 조용히 통과한다.
+
+**권장 접근:** `_verify_test_db_dsn()` 을 `_db_guard.refusal_reason()` 위임으로 바꾼다. 단
+이 파일의 계약은 「미명시면 **명시적 fail**」(silent skip 금지, codex G.0 P1 #2)이고 `_db_guard`
+의 기본값은 `DEFAULT_TEST_DSN` 폴백이라 **의미가 다르다** — 위임 시 그 차이를 어느 쪽으로
+맞출지 먼저 정해라. 그냥 갈아끼우면 codex P2 권고가 조용히 뒤집힌다.
+**Risk:** 🟢 (테스트 파일 1개. 단 위 의미 차이를 안 보면 계약이 뒤집힌다)
 
 ---
