@@ -104,9 +104,15 @@ def _verify_prometheus_bearer(
 ) -> None:
     """Prometheus 스크래퍼 용 bearer token 검증 (Sprint 9 Phase D).
 
-    settings.prometheus_bearer_token 이 설정된 경우에만 검증 활성.
-    비어 있으면 검증 스킵 (로컬 개발용). Grafana Cloud Agent 가 동일 토큰을
-    `bearer_token` 헤더로 전송해야 scrape 허용.
+    Grafana Cloud Agent 가 `settings.prometheus_bearer_token` 과 같은 값을
+    `Authorization: Bearer` 로 보내야 scrape 를 허용한다.
+
+    ★**토큰 미설정은 allow 가 아니라 deny 다** (2026-08-11 ledger-truth). 종전에는
+    미설정 시 `return` 으로 통과시켰고, 그게 BL-246 이 지적한 「public /metrics」의
+    실제 표면이었다 — production 은 `core/config.py` 의 validator 가 부팅을 막아
+    안전했지만 **그 외 모든 환경**(dev·local·스테이징·컨테이너 오조립)은 무인증 노출이다.
+    fail-open 을 fail-closed 로 뒤집는다. production 에서는 토큰이 **항상** 있으므로
+    이 분기는 발화하지 않는다.
     """
     expected = (
         settings.prometheus_bearer_token.get_secret_value()
@@ -114,7 +120,10 @@ def _verify_prometheus_bearer(
         else None
     )
     if not expected:
-        return  # 토큰 미설정 시 allow — dev/local 용
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="bearer token required (PROMETHEUS_BEARER_TOKEN unset)",
+        )
     if authorization is None or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -253,7 +262,7 @@ def create_app() -> FastAPI:
         """Prometheus text exposition format (Sprint 9 Phase D).
 
         Clerk 인증 제외, bearer token (settings.prometheus_bearer_token) 으로 보호.
-        settings.prometheus_bearer_token 이 None/empty 면 인증 없이 접근 가능 (dev/local).
+        토큰이 None/empty 면 **모든 요청이 401** 이다 (2026-08-11 fail-closed 전환).
         """
         return Response(content=render_metrics(), media_type=CONTENT_TYPE_LATEST)
 
