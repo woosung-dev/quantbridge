@@ -1,5 +1,5 @@
-# Param Stability — pine_v2 strategy input override 2D grid sweep 엔진 (BL-220 Sprint 51)
-"""Sprint 51 Param Stability 엔진.
+# 파라미터 안정성 — pine_v2 전략 input 을 덮어써 2D 격자로 훑는 sweep 엔진 (BL-220 · Sprint 51).
+"""Sprint 51 파라미터 안정성(Param Stability) 엔진.
 
 명명: pine_v2 input override (EMA period x stop loss % 등 strategy parameter sweep).
 Sprint 50 Cost Assumption Sensitivity (BacktestConfig fees x slippage = PnL 단계 cost

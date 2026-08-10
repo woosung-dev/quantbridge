@@ -8,9 +8,13 @@
 #
 # ★핵심 — 한글 "존재" 검사가 아니라 한글 "주석" 검사다.
 #   `MESSAGE = "백테스트 실패"` 처럼 한글이 문자열 리터럴에만 있으면 그건 위반이다.
-#   그래서 각 줄이 주석/독스트링 **시작 토큰**(py: `#` `"""` `'''` / ts·tsx: `//` `/*`)으로
-#   시작할 때만 그 줄(또는 블록 주석·독스트링이 열린 뒤 이어지는 줄)을 검사 대상으로 본다.
+#   그래서 각 줄이 주석/독스트링 **시작 토큰**으로 시작할 때만 그 구간을 검사 대상으로 본다.
 #   코드 줄은 절대 들여다보지 않는다 — `head -3 | grep '[가-힣]'` 로 짜면 이 구분이 사라진다.
+#   ★토큰 집합은 **언어별로 나누지 않고 합집합**(`#` `//` `/*` `"""` `'''`)으로 쓴다.
+#     `.py` 안의 `// 한국어` 나 `.ts` 안의 `# 한국어` 도 통과한다는 뜻이다. 의도한 관대함이다 —
+#     이 감사기는 「헤더가 한국어인가」를 재는 것이지 「주석 문법이 그 언어에 맞는가」를 재지
+#     않는다. 후자는 각 언어의 파서(ruff·tsc)가 이미 잡는다. (종전 주석은 언어별로 나뉜 것처럼
+#     적혀 있어 코드와 어긋났다 — 2026-08-10 `/code-review` Standards 축 검출.)
 #
 # 면제 (검사 대상에서 제외, `docs/backlog.md` BL-307 원장의 exempt list)
 #   경로에 `/tests/`·`/__tests__/`·`config`·`/generated/` 포함, 또는
@@ -31,6 +35,12 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+# ★`QB_HEADER_AUDIT_ROOT` — 검사 대상 트리를 갈아끼운다. pre-commit 훅이 **index 를 실체화한
+#   트리**를 넘기려고 쓴다. 훅이 작업 트리를 재면 「스테이징된 위반 + 언스테이지된 수정」이
+#   조용히 통과하고, 반대로 무관한 언스테이지 위반이 정상 커밋을 막는다 —
+#   `backend/AGENTS.md` §10.1 「검사기가 보는 표면 ≠ 실제 실패 표면」 그대로다.
+#   (2026-08-10 `/code-review` Spec 축 (c)1 검출.)
+[ -n "${QB_HEADER_AUDIT_ROOT:-}" ] && ROOT="$QB_HEADER_AUDIT_ROOT"
 
 # ── 판별력 자기검사 ──────────────────────────────────────────────
 # ★이 감사기의 전부는 `grep '[가-힣]'` 한 줄에 걸려 있다. 그런데 그 범위가 제대로 도는지는
@@ -58,6 +68,14 @@ esac
 is_exempt() {
   local rel="$1" base="${1##*/}"
   case "$rel" in
+    # ★`frontend/src/components/ui/` 는 shadcn 벤더 산출물이다. `frontend/AGENTS.md:232`
+    #   「`components/ui/` 직접 수정 금지 → 래핑 컴포넌트」가 명시 금지하고, 예외(ADR 009)는
+    #   「초기 설치 직후 1회성 DESIGN.md 토큰 reconciliation, 시각 토큰만」뿐이라 헤더 주석은
+    #   해당하지 않는다. ★면제하지 않으면 이 게이트가 **금지된 수정을 영구히 강제**하게 된다 —
+    #   `pnpm dlx shadcn add` 로 재설치하는 순간 헤더가 날아가 CI 가 빨개진다.
+    #   (2026-08-10 `/code-review` Standards 축 H1. 이 회차가 label.tsx·textarea.tsx 를
+    #    실제로 고쳤다가 되돌렸다.)
+    frontend/src/components/ui/*) return 0 ;;
     */tests/*|*/__tests__/*|*config*|*/generated/*) return 0 ;;
   esac
   case "$base" in
@@ -75,49 +93,56 @@ is_exempt() {
 # (⑦ — 본문 줄도 통과 대상), 아니면 그 줄이 주석 시작 토큰으로 시작할 때만 검사한다(⑨ 방어).
 # 한글을 찾으면 즉시 0(발견)을 반환하고, 첫 3줄을 다 봐도 없으면 1(미발견)을 반환한다.
 has_korean_header() {
-  local file="$1" lineno=0 line trimmed rest before q
+  local file="$1" lineno=0 line rest trimmed q body
   local in_block=0 block_end=""
-  while [ "$lineno" -lt 3 ] && IFS= read -r line; do
+  # ★`|| [ -n "$line" ]` 가 필요하다 — 마지막 줄에 개행이 없으면 `read` 가 그 줄을 읽고도
+  #   비영점을 반환해 **본문을 통째로 버린다.** 개행 없는 1줄짜리 파일이 전부 위반으로
+  #   잡히던 오탐(2026-08-10 `/code-review` Standards 축 검출).
+  while [ "$lineno" -lt 3 ] && { IFS= read -r line || [ -n "$line" ]; }; do
     lineno=$((lineno + 1))
+    rest="$line"
 
-    if [ "$in_block" -eq 1 ]; then
-      if [[ "$line" == *"$block_end"* ]]; then
-        before="${line%%"$block_end"*}"
-        printf '%s' "$before" | grep -q '[가-힣]' && return 0
-        in_block=0
-      else
-        printf '%s' "$line" | grep -q '[가-힣]' && return 0
+    # ★한 줄 안에서 주석 영역이 **여러 번** 나타날 수 있다: `/* eslint-disable */ // 한국어`.
+    #   종전 구현은 첫 구간만 보고 나머지를 코드로 흘려 오탐을 냈다. 그래서 줄을 소진할 때까지
+    #   돈다 — 주석 텍스트만 모아 `body` 에 쌓고, 코드 구간을 만나면 그 줄은 거기서 끝낸다.
+    while [ -n "$rest" ]; do
+      if [ "$in_block" -eq 1 ]; then
+        if [[ "$rest" == *"$block_end"* ]]; then
+          body="$body${rest%%"$block_end"*}"
+          rest="${rest#*"$block_end"}"
+          in_block=0
+        else
+          body="$body$rest"; rest=""
+        fi
+        continue
       fi
-      continue
-    fi
 
-    # 선행 공백 제거 (순수 bash 관용구 — 서브프로세스 없음)
-    trimmed="${line#"${line%%[![:space:]]*}"}"
+      # 선행 공백 제거 (순수 bash 관용구 — 서브프로세스 없음)
+      trimmed="${rest#"${rest%%[![:space:]]*}"}"
+      if [ -z "$trimmed" ]; then rest=""; continue; fi
 
-    if [[ "$trimmed" == '#'* ]]; then
-      printf '%s' "$trimmed" | grep -q '[가-힣]' && return 0
-    elif [[ "$trimmed" == '"""'* || "$trimmed" == "'''"* ]]; then
-      q="${trimmed:0:3}"; rest="${trimmed:3}"
-      if [[ "$rest" == *"$q"* ]]; then
-        before="${rest%%"$q"*}"
-        printf '%s' "$before" | grep -q '[가-힣]' && return 0
+      if [[ "$trimmed" == '#'* || "$trimmed" == '//'* ]]; then
+        body="$body$trimmed"; rest=""                       # 줄 끝까지 주석
+      elif [[ "$trimmed" == '"""'* || "$trimmed" == "'''"* ]]; then
+        q="${trimmed:0:3}"; rest="${trimmed:3}"
+        if [[ "$rest" == *"$q"* ]]; then
+          body="$body${rest%%"$q"*}"; rest="${rest#*"$q"}"
+        else
+          body="$body$rest"; rest=""; in_block=1; block_end="$q"
+        fi
+      elif [[ "$trimmed" == '/*'* ]]; then
+        rest="${trimmed:2}"
+        if [[ "$rest" == *'*/'* ]]; then
+          body="$body${rest%%'*/'*}"; rest="${rest#*'*/'}"
+        else
+          body="$body$rest"; rest=""; in_block=1; block_end='*/'
+        fi
       else
-        printf '%s' "$rest" | grep -q '[가-힣]' && return 0
-        in_block=1; block_end="$q"
+        rest=""   # 코드 구간 — 문자열 리터럴 안 한글은 여기서 절대 보지 않는다
       fi
-    elif [[ "$trimmed" == '//'* ]]; then
-      printf '%s' "$trimmed" | grep -q '[가-힣]' && return 0
-    elif [[ "$trimmed" == '/*'* ]]; then
-      rest="${trimmed:2}"
-      if [[ "$rest" == *'*/'* ]]; then
-        before="${rest%%\*/*}"
-        printf '%s' "$before" | grep -q '[가-힣]' && return 0
-      else
-        printf '%s' "$rest" | grep -q '[가-힣]' && return 0
-        in_block=1; block_end='*/'
-      fi
-    fi
-    # 그 외는 코드 줄 — 문자열 리터럴 안 한글은 여기서 절대 보지 않는다.
+    done
+
+    [ -n "$body" ] && printf '%s' "$body" | grep -q '[가-힣]' && return 0
   done < "$file"
   return 1
 }

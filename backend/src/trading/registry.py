@@ -1,5 +1,5 @@
-# trading provider registry — (exchange, mode, has_leverage) 3-tuple → factory dispatch 레지스트리
-"""Provider dispatch registry — Sprint 47 BL-202 도입.
+# 거래 provider 레지스트리 — (exchange, mode, has_leverage) 3-tuple 을 키로 factory 를 고르는 dispatch 표.
+"""Provider dispatch 레지스트리 — Sprint 47 BL-202 에서 도입했다.
 
 `tasks/trading.py:_provider_for_account_and_leverage` 가 사용하던 3-tuple
 if-chain 을 dict registry 로 승격. 새 (exchange, mode, has_leverage) 조합 추가

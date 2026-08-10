@@ -181,6 +181,36 @@ report "⑪ .md·.json 은 대상 아님 (정상 .py 1건 동반) → 통과" \
   "$( [ "$RC" -eq 0 ] || echo '대상 아닌 확장자를 잡았다')"
 
 echo
+echo "▶ 회귀 — 2026-08-10 /code-review 가 잡은 오탐 3종"
+
+# ★`put` 은 항상 개행을 붙이므로 이 케이스만 직접 쓴다. 개행 없는 마지막 줄을 `read` 가
+#   버려서 **정상 헤더 파일이 전부 위반**으로 잡히던 오탐.
+new_tree
+mkdir -p "$TMP/tree/frontend/src"
+printf '// 한국어 주석 (파일 끝에 개행 없음)' >"$TMP/tree/frontend/src/nonl.tsx"
+run
+report "⑭ 마지막 줄에 개행이 없어도 헤더를 읽는다" \
+  "$( { ! caught 'frontend/src/nonl.tsx' && [ "$RC" -eq 0 ]; } || echo '개행 없는 헤더를 버렸다')"
+
+# ★한 줄에 주석 구간이 둘. 종전 구현은 첫 구간만 보고 나머지를 코드로 흘렸다.
+new_tree
+put frontend/src/two.tsx '/* eslint-disable */ // 한국어 설명
+export const T = 1;'
+put backend/src/two.py '"""x"""  # 한국어 설명
+X = 1'
+run
+report "⑮ 한 줄에 주석 구간이 둘이어도 뒤쪽을 읽는다" \
+  "$( { ! caught 'frontend/src/two.tsx' && ! caught 'backend/src/two.py' && [ "$RC" -eq 0 ]; } || echo '닫는 구분자 뒤 주석을 못 봤다')"
+
+# ★shadcn 벤더 산출물. `frontend/AGENTS.md:232` 가 직접 수정을 금지하므로 면제해야 한다 —
+#   면제하지 않으면 게이트가 금지된 수정을 영구히 강제한다.
+new_tree
+put frontend/src/components/ui/button.tsx 'export const Button = () => null;'
+run
+report '⑯ components/ui/ (shadcn 벤더) 면제 → 통과' \
+  "$( [ "$RC" -eq 0 ] || echo '벤더 파일 수정을 강제하고 있다')"
+
+echo
 echo "▶ 계약 — 종료 코드와 --list"
 
 new_tree
