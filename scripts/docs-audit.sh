@@ -334,6 +334,65 @@ else:
         )
         entry_hits.extend(f"  status.md:{n}: {t}" for n, t in live)
 
+# ── 트리거 판정 줄 — ACTIVE/DEFERRED 섹션마다 정확히 1개 ([BL-695] · ADR-028 §4) ──
+# 왜 있나: 2026-08-10 bl-trigger-triage 가 159/159 를 채웠지만 **그걸 지키는 것이 0** 이었다.
+#   다음 회차가 BL 을 등재하면 그 줄 없이 들어가고 「159/159」는 조용히 낡는다. 이 레포는
+#   「기록된 규율은 안 지켜진다」를 반복 실측했다(BL-631·LESSON-078 · line_caps 주석).
+# ★판정은 `bl-audit.sh --list` 가 정본이다 — 상태줄 파서를 여기서 다시 쓰지 마라. 두 벌이 되면
+#   갈라지고, 갈라지는 순간 어느 쪽이 맞는지 아무도 모른다.
+# ★**정확히 1개**를 잰다. 0개(규율 누락)와 2개 이상(중복 상태줄과 같은 사고)이 둘 다 실패다.
+verdict_line_hits: list[str] = []
+bl_audit = root / "scripts" / "bl-audit.sh"
+backlog_md = docs / "backlog.md"
+if bl_audit.exists() and backlog_md.exists():
+    need: set[str] = set()
+    for verdict in ("ACTIVE", "DEFERRED"):
+        proc = subprocess.run(
+            ["bash", str(bl_audit), "--list", verdict],
+            capture_output=True, text=True,
+        )
+        for row in proc.stdout.splitlines():
+            head = row.split("\t", 1)[0].strip()
+            if head.startswith("BL-"):
+                need.add(head)
+
+    counts: dict[str, int] = {}
+    section: str | None = None
+    in_fence = False
+    for line in backlog_md.read_text(encoding="utf-8", errors="replace").split("\n"):
+        if re.match(r"^[ \t>]*```", line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        m = re.match(r"^### (BL-\d+)", line)
+        if m:
+            section = m.group(1)
+            continue
+        if re.match(r"^#{1,2} ", line):
+            section = None
+            continue
+        if section and line.startswith("**트리거 판정:**"):
+            counts[section] = counts.get(section, 0) + 1
+
+    for bl in sorted(need, key=lambda x: int(x[3:])):
+        n = counts.get(bl, 0)
+        if n != 1:
+            verdict_line_hits.append(
+                f"  {bl}: `**트리거 판정:**` 줄이 {n}개다 (계약 1개) — "
+                f"{'무엇이 막는지 적어라' if n == 0 else 'SSOT 는 하나여야 한다'}"
+            )
+
+if verdict_line_hits:
+    print(
+        "▶ 트리거 판정 줄 — ACTIVE/DEFERRED 는 `**트리거 판정:**` 을 정확히 1개 가진다 "
+        "([BL-695] · ADR-028 §4)"
+    )
+    for why in verdict_line_hits[:20]:
+        print(why)
+    if len(verdict_line_hits) > 20:
+        print(f"  … 외 {len(verdict_line_hits) - 20}건")
+
 if entry_hits:
     print("▶ 진입점 최신성 — docs/status.md 가 §G8 7필드 계약을 어긴다 ([BL-643])")
     for why in entry_hits:
@@ -371,17 +430,21 @@ if orphan_hits:
     for rel, why in orphan_hits:
         print(f"  {rel}: {why}")
 
-if broken_links or legacy_hits or cap_hits or file_len_hits or orphan_hits or entry_hits:
+if (
+    broken_links or legacy_hits or cap_hits or file_len_hits
+    or orphan_hits or entry_hits or verdict_line_hits
+):
     print(
         f"✗ docs-audit failed: links={len(broken_links)}, "
         f"retired_paths={len(legacy_hits)}, long_lines={len(cap_hits)}, "
         f"long_files={len(file_len_hits)}, orphan_tools={len(orphan_hits)}, "
-        f"entry_point={len(entry_hits)}"
+        f"entry_point={len(entry_hits)}, trigger_verdicts={len(verdict_line_hits)}"
     )
     raise SystemExit(1)
 
 print(
     "✓ docs-audit: active Markdown links, retired paths, line-length caps, "
-    "file-length caps, orphan tool startup, status.md entry point are clean"
+    "file-length caps, orphan tool startup, status.md entry point, "
+    "trigger verdict lines are clean"
 )
 PY
