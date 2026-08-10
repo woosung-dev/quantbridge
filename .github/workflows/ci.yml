@@ -210,6 +210,11 @@ jobs:
             --cov-report=
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+          # ★[BL-451] pytest 스텝에는 `TEST_DATABASE_URL` 이 **의무**다. `tests/_db_guard.py`
+          #   가 `DATABASE_URL` 폴백을 거부한다 — 그 폴백이 2026-07-25 에 로컬 개발 DB 를
+          #   전소시킨 경로다. 빠지면 세션이 rc=3 으로 즉시 끝난다(조용한 실패가 아니다).
+          #   `tests/test_ci_workflow_env_parity.py` 가 이 줄의 존재를 잰다.
+          TEST_DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           REDIS_URL: redis://localhost:6379/0
           # ★2026-08-01 — 이 셋이 없어서 5건이 실패하고 있었다. `Settings` 의 기본값은
           #   docker-compose 서비스명(`redis://redis:6379/*`)이라 러너에서 해석되지 않고

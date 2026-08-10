@@ -16,6 +16,7 @@
 .PHONY: help dev up down logs be fe \
         dev-isolated up-isolated up-isolated-build up-isolated-watch down-isolated logs-isolated be-isolated fe-isolated \
         migrate migrate-isolated wait-db-isolated seed \
+        db-snapshot db-restore \
         test be-test fe-test fe-e2e fe-e2e-authed lint typecheck docs-audit metrics-prepare metrics-wipe
 
 ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
@@ -113,6 +114,11 @@ help:
 	@echo "    scripts/worktree-bootstrap.sh   # 새 워크트리를 실행 가능 상태로 (슬롯·테스트DB·env)"
 	@echo "    docs/reference/operations/worktree-parallel.md   # 무엇이 병렬 가능하고 무엇이 불가능한가"
 	@echo "    * 슬롯 != 0 에서는 up/down/migrate/seed 계열이 거부된다 (공유 자원 보호)"
+	@echo ""
+	@echo "  DB 백업 / 복원 (BL-451 — 파괴적 작업 전에 찍어라)"
+	@echo "    make db-snapshot                    # 개발 DB → .backups/<db>-<ts>.dump"
+	@echo "    make db-snapshot DB=quantbridge_test"
+	@echo "    make db-restore FILE=... TO=<대상 DB>  # TO 는 기본값 없음 (안전장치)"
 	@echo ""
 	@echo "  품질"
 	@echo "    make test           # backend pytest + frontend vitest"
@@ -280,6 +286,47 @@ migrate-isolated: _guard-main-only wait-db-isolated
 migrate: _guard-main-only
 	@scripts/assert-main-checkout.sh migrate || exit 1; \
 	  cd backend && uv run alembic upgrade head
+
+# === DB 백업 / 복원 ([BL-451]) =============================================
+#
+# 2026-07-25 에 로컬 개발 DB 가 전소했다 — 주문 17행 · 암호화된 Bybit demo API 키 1 ·
+# 전략 6종 Pine 소스 · 세션 4 · 이벤트 10. `.env.local` 에 평문 키가 없어 **API 키는 복구
+# 불가**였고 사용자가 재등록해야 했다. 가드를 아무리 세워도 백업이 없으면 한 번의 사고가
+# 되돌릴 수 없는 사고다.
+#
+# ★대상 DB 를 **인자로 명시**한다. 기본/격리 스택은 `container_name` 이 같아 "지금 뜬 것" 에
+#   따라 대상이 갈리기 때문이다. 특히 `db-restore` 의 `TO=` 는 기본값이 없다 — 기본값을
+#   개발 DB 로 두면 그 편의가 곧 이 항목이 막으려는 사고다.
+#
+#   make db-snapshot                            # 개발 DB(quantbridge) → .backups/<db>-<ts>.dump
+#   make db-snapshot DB=quantbridge_test        # 다른 DB
+#   make db-restore FILE=.backups/x.dump TO=quantbridge_restore_probe
+BACKUP_DIR := .backups
+DB_USER := quantbridge
+DB ?= quantbridge
+
+db-snapshot: _guard-main-only
+	@scripts/assert-main-checkout.sh db-snapshot || exit 1; \
+	  mkdir -p $(BACKUP_DIR); \
+	  out="$(BACKUP_DIR)/$(DB)-$$(date -u +%Y%m%dT%H%M%SZ).dump"; \
+	  echo "▶ pg_dump $(DB) → $$out"; \
+	  if ! docker compose exec -T db pg_dump -U $(DB_USER) -d $(DB) -Fc > "$$out"; then \
+	    rm -f "$$out"; echo "  ✗ pg_dump 실패 — 빈 파일을 남기지 않는다" >&2; exit 1; \
+	  fi; \
+	  size=$$(wc -c < "$$out" | tr -d ' '); \
+	  if [ "$$size" -le 0 ]; then \
+	    rm -f "$$out"; echo "  ✗ 덤프 크기가 0 이다" >&2; exit 1; \
+	  fi; \
+	  echo "  ✓ $$out ($$size bytes)"
+
+db-restore: _guard-main-only
+	@scripts/assert-main-checkout.sh db-restore || exit 1; \
+	  test -n "$(FILE)" || { echo "FILE=<덤프 경로> 가 필요하다" >&2; exit 1; }; \
+	  test -f "$(FILE)" || { echo "$(FILE) 가 없다" >&2; exit 1; }; \
+	  test -n "$(TO)" || { echo "TO=<대상 DB> 가 필요하다 — 기본값을 두지 않는 것이 안전장치다" >&2; exit 1; }; \
+	  echo "▶ pg_restore $(FILE) → $(TO)"; \
+	  docker compose exec -T db pg_restore -U $(DB_USER) -d "$(TO)" --clean --if-exists < "$(FILE)"; \
+	  echo "  ✓ 복원 완료 → $(TO)"
 
 # dogfood 복원 시더 — 빈 DB 를 전 화면 사용 가능 상태로.
 # 전략·백테스트를 실 서비스 계층 + 실 Celery 로 만든다(HTTP/auth 만 우회 —

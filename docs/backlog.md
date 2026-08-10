@@ -2737,7 +2737,7 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Priority:** P2
 **Trigger:** 즉시 (부분 완화 완료)
 **Est:** S (2h)
-**상태:** ⬜ Open — 잔여 4항목 중 ③(문서 승격)만 됐고 ①conftest 가드 없음 ②백업 레시피 부재(Makefile pg_dump 0건) ④alembic CLI 무가드. (2026-08-09 status-triage-mass 확인)
+**상태:** ✅ **Resolved** (2026-08-10, `stage/migration-guard`) — 잔여 3항목 전건 종결. ①판정 SSOT `tests/_db_guard.py` 신설 + 루트 `tests/conftest.py::pytest_configure` 로 **승격**하고 `DATABASE_URL` 폴백을 **금지**했다. ★종전 가드의 실체는 「conftest 에도 같은 폴백이 있다」가 아니라 **배선 부재**였다 — 착수 시 실측으로 `pytest tests/trading/` 이 개발 DB DSN 을 물고 rc=0 으로 1088건을 수집했다(그 경로의 세션 픽스처가 `drop_all` 을 돈다). ②`make db-snapshot`/`db-restore` 신설 — 덤프 2.15MB 생성 후 임시 DB 로 복원해 orders 823·strategies 3·**암호화 API 키 2/2** 왕복을 실증했다(개발 DB 무접촉). ③이미 됨 ④`alembic/env.py` 에 `downgrade` 전용 가드 + `-x allow_destructive=1` 탈출구 — `upgrade` 는 통과시켜 `make migrate`·entrypoint·CI 무영향(rc=0 실측). 배선 테스트 **14건** + 변이 **8/8** red(도달 8/8). ★`/code-review` 가 변이 5/5 를 통과한 구현에서 결함 4건을 잡았다 — `-x allow_destructive=0` 이 파괴를 **허용**(`bool("0")`), `TEST_DATABASE_URL` 이 `.env.example` 에 **없음**(Golden Rule), rc=3 이 가드 고유 신호가 아님(INTERNALERROR 와 구분 불가), `effective_dsn()` 2층 방어에 **도달 0**. 넷 다 고치고 회귀 변이 M6·M7·M8 로 박았다. 판정 사본 1곳 잔존 → [BL-697](#bl-697).
 **트리거 판정:** 도래 — 트리거가 「즉시」다. 조건어가 없다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-25 exit-attribution **실사고**
 
@@ -8927,5 +8927,82 @@ sha256 복원 대조 완료. ★**도입 즉시 초록이라 비용이 0이다**
 ★**고치면 반드시 음성 대조를 해라** — 인용을 빠뜨리면 빈 인자가 들어가 지금과 같은 전량 린트로
 조용히 되돌아간다([BL-687] 수리에서 실제로 잰 축이다).
 **Risk:** 🟢 훅 설정 1줄. 단 FE 커밋 경로 전체가 걸리므로 종단(`pnpm exec lint-staged`)까지 재라.
+
+---
+
+### BL-697
+
+**Title:** 테스트 DSN 판정 사본이 `test_prefork_smoke_integration.py` 에 1곳 남았다
+**Category:** Testing / 안전 (판정 SSOT)
+**Priority:** P3
+**Trigger:** prefork integration 테스트를 다음에 손댈 때 · 또는 테스트 DSN 판정 규칙을 또 바꿀 때
+**Est:** XS
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-10 [BL-451] 수리 중 인접 관측. 위험은 낮고 **일관성**만 문제다.
+**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 migration-guard)
+**출처:** 2026-08-10 migration-guard ([BL-451] ① 수리 중 전수 grep)
+
+**원인 / 영향:** [BL-451] 이 테스트 DSN 판정을 `tests/_db_guard.py` 한 곳으로 모으면서
+`tests/test_migrations.py` · `tests/real_broker/conftest.py` · `tests/real_broker/_harness.py`
+세 사본을 위임으로 바꿨다. **`tests/tasks/test_prefork_smoke_integration.py:42` 만 남았다** —
+`TEST_DATABASE_URL or DATABASE_URL` 폴백과 `make_url().database` + `_test` 검사를 자기 안에 갖고 있다.
+
+★**지금 위험하지 않은 이유 셋.** ⑴ 이 파일은 `@pytest.mark.integration` 이라 `--run-integration`
+없이는 수집돼도 **skip** 된다 ⑵ 파괴적 경로가 아니다(`drop_all`·`downgrade` 를 호출하지 않는다)
+⑶ 무엇보다 루트 `tests/conftest.py::pytest_configure` 가 **세션 최상단에서 먼저 판정**하므로
+그 폴백이 개발 DB 를 돌려주는 상태에는 애초에 도달할 수 없다.
+
+★**그럼에도 등재하는 이유.** 판정이 두 벌이면 한 벌만 고쳐지는 날이 온다 — 그것이 [BL-451] 의
+실사고 구조 그 자체였다. 그리고 이 사본은 폴백을 **허용**하므로, 루트 가드가 미래에 약해지면
+둘의 판정이 **어긋난 채로** 조용히 통과한다.
+
+**권장 접근:** `_verify_test_db_dsn()` 을 `_db_guard.refusal_reason()` 위임으로 바꾼다. 단
+이 파일의 계약은 「미명시면 **명시적 fail**」(silent skip 금지, codex G.0 P1 #2)이고 `_db_guard`
+의 기본값은 `DEFAULT_TEST_DSN` 폴백이라 **의미가 다르다** — 위임 시 그 차이를 어느 쪽으로
+맞출지 먼저 정해라. 그냥 갈아끼우면 codex P2 권고가 조용히 뒤집힌다.
+**Risk:** 🟢 (테스트 파일 1개. 단 위 의미 차이를 안 보면 계약이 뒤집힌다)
+
+---
+
+### BL-698
+
+**Title:** `e2e authed` 백테스트 폼 422 케이스 2건이 **main 에서 이미 red** 다
+**Category:** Testing / 게이트 (e2e)
+**Priority:** P2
+**Trigger:** 즉시 — `scripts/final-gates.sh` 가 **모든 회차에서** rc=1 을 낸다
+**Est:** M (재현 + 원인 규명)
+**상태:** ⬜ Open — 2026-08-10 migration-guard 게이트 실행 중 발견. **선재 실패임을 main 실측으로 확정**했다.
+**트리거 판정:** 도래 — 트리거가 「즉시」이고, 게이트가 지금 실제로 붉다 (2026-08-10 migration-guard)
+**출처:** 2026-08-10 migration-guard (`final-gates.sh --run migration-guard`)
+
+**원인 / 영향:** 두 케이스가 red 다.
+
+- `e2e/sprint46-tier1-critical.spec.ts:69` — `#1 Backtest form — 422 unsupported_builtins UL hint → fix → submit success`
+- `e2e/sprint46-tier3-nth.spec.ts:489` — `#20 Backtest form — 422 friendly_message 카드 (BL-163)`
+
+★**내 회차 탓이 아님을 실측으로 갈랐다.** migration-guard 브랜치는 `frontend/` **0줄** ·
+`backend/src` **0줄**인데 `e2e authed` 가 FAIL 했다. `git checkout main` 후 같은 두 케이스만
+`--grep` 으로 돌렸더니 **main 에서도 정확히 그 2건이 red**(1 passed)였다. ⇒ 선재.
+
+★**게이트 구조상 이것이 지금 모든 회차를 막는다.** `final-gates.sh:220` 은 `e2e authed` 를
+**`has_fe` 와 무관하게 항상** 돌린다(`e2e chromium` 만 `frontend diff 0` 이면 skip). 따라서
+FE 를 한 줄도 안 건드린 회차도 rc=1 을 받고 「PR 을 만들지 마라」를 본다.
+그 상태가 계속되면 **게이트를 무시하는 습관**이 생기고, 그때 진짜 red 가 섞여 들어온다.
+
+**권장 접근:** 먼저 두 케이스가 무엇을 기대하는지 확인해라 — 실패 지점은
+`sprint46-tier3-nth.spec.ts:553-554` 의 `expect(friendly).toContainText(/Trust Layer 위반|ADR-003/)`
+이다. 즉 **422 응답 본문의 문구**를 재는 케이스이므로, 원인 후보는 ⑴ 백엔드 422 메시지가 바뀌었다
+⑵ FE 카드 렌더가 바뀌었다 ⑶ 픽스처 전략의 Pine 소스가 더 이상 그 422 를 안 낸다 셋이다.
+`test-results/.../error-context.md` 와 trace(zip)가 남아 있으니 **먼저 그것을 열어라** —
+재현부터 다시 만들지 마라.
+★**고치기 전에 언제부터 red 인지 이분해라.** 그래야 「무엇이 바꿨나」가 나온다.
+
+★**부수 관측 — `e2e design-canon` 은 불안정하다.** 같은 브랜치·같은 커밋에서 `final-gates.sh` 를
+두 번 돌렸는데 **1회차 PASS · 2회차 FAIL** 이었고, 곧바로 `pnpm e2e:design-canon` 을 단독으로
+돌리자 **42 passed** 였다. `frontend/` 0줄인 브랜치이므로 코드 원인이 아니다. 위 422 두 건과 달리
+**재현되지 않는다** — 두 축을 같은 항목으로 묶어 보지 마라. 후보: authed 스위트와의 간섭 ·
+dev server(:3100) 상태 · 브랜치 스위칭 후 `.next` 캐시([BL-650] 과 같은 계열).
+★**이 축을 먼저 쫓지 마라** — 재현이 안 되는 쪽보다 **항상 red 인 422 두 건**이 값이 크다.
+
+**Risk:** 🟡 (게이트가 상시 붉으면 게이트가 아니다. 단 프로덕션 경로 결함인지 테스트 결함인지 아직 모른다)
 
 ---
