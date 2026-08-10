@@ -541,6 +541,12 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
 - ★**e2e 를 로컬 검증할 땐 `PLAYWRIGHT_BASE_URL` 을 반드시 고정해라.** 안 주면 `webServer` +
   `reuseExistingServer` 가 :3000 의 **남의 앱**을 그대로 쓴다(이 머신 :3000 = 다른 제품).
   정체성 프로브(`<title>` 에 QuantBridge)를 먼저 통과시켜라.
+- ★★**`test.describe.configure({ mode: "serial" })` 은 음성 대조를 지운다.** serial 은 앞 시험이
+  깨지면 **뒤를 skip** 한다. 음성 대조를 뒤쪽에 두는 파일에서는 실패하는 순간 「구분이 되는가」라는
+  판정 자체가 사라지고, 리포트에는 `1 failed / N did not run` 만 남는다.
+  ★**`chromium-authed` 에는 얹을 이유도 없다** — config 가 이미 `fullyParallel: false` 이고
+  `pnpm e2e:authed` 가 `--workers=1` 을 준다(이중 보장). 공유 storageState flake 방지 목적이라면
+  **이미 달성돼 있다.** 2026-08-10 실측 — 신규 spec 5건 중 3건이 음성 대조라 serial 을 뺐다.
 
 ### 신규 BE 필드는 FE `.strict()` 스키마와 **항상** 대조해라 (2026-07-30, codex 적대 리뷰 MAJOR)
 
@@ -575,12 +581,40 @@ null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는
 
 - ★★**Bash 도구의 cwd 는 호출 간 유지된다.** `cd backend && set -a; . ./.env.local; set +a; uv run pytest` 를 **두 번째로** 부르면 `cd backend` 가 실패하고 `&&` 때문에 **`set -a` 가 안 돈다.** env 가 export 되지 않아 `localhost:5432` 로 붙고 대량 에러가 난다 — 코드 결함처럼 보이는 거짓 red 다. **절대경로로 `cd` 해라.**
 - ★★**부분 선택 실행은 격리가 깨진다.** `pytest tests/tasks/x.py tests/trading/ tests/strategy/` 조합에서 **30건이 실패**했지만 같은 테스트를 단건으로 돌리면 통과하고 **전체 스위트도 통과**한다. 판정 권위는 **전체 스위트**다.
+- ★★★**파이프에 넣은 게이트의 종료 코드는 파이프 **끝** 명령의 것이다.** `playwright … | tail -40`
+  의 rc 0 은 tail 의 성공이고, 그 뒤에 `2 failed` 가 숨어 있었다(2026-08-10 실측 — 하마터면 baseline
+  을 「전건 통과」로 적을 뻔했다). ⇒ **게이트는 파일로 받고(`> /tmp/g.txt; echo $?`) 출력을 읽어라.**
+  ★**zsh 에서 `${PIPESTATUS[0]}` 는 빈 문자열이다** — zsh 의 배열은 소문자 `pipestatus` 이고 1-기반이라
+  `${pipestatus[1]}` 이 첫 명령이다. bash 관용구를 그대로 쓰면 **아무 값도 안 나오는데 조용하다.**
+- ★★**zsh 는 `$VAR` 를 단어분리하지 않는다(`SH_WORD_SPLIT` off) — 변이 판정이 통째로 무효가 된다.**
+  `T="a.test.ts b.test.ts"; vitest run $T` 는 **한 인자**로 들어가 vitest 가 아무것도 매치하지 못하고,
+  `grep "Tests"` 가 침묵해 **「전부 초록」처럼 보인다**(2026-08-10 실측: 변이 3건의 판정이 공백이었다).
+  ⇒ **배열로 써라** — `T=(a.test.ts b.test.ts); vitest run "${T[@]}"`. 위 `$ARGS` 항목과 같은 뿌리이고
+  **이번엔 셸이 아니라 판정을 삼켰다.**
+- ★**`pnpm test --outputFile=…` 은 pnpm 이 인자를 삼킨다** — 리포터 옵션이 vitest 에 도달하지 않고
+  파일이 안 생긴다. `pnpm exec vitest run --outputFile=…` 로 **pnpm 을 우회**해라.
+- ★**`rm -rf` 는 권한에서 거부될 수 있다**(2026-08-09·08-10 연속 3회). 대안은 스크래치패드로
+  `mv` 해 격리하는 것이고, 결과는 같다. **cwd 착오로 「캐시 없음」이라 오판한 적이 있으니 절대경로로 재라.**
 
 ### 린트가 잡는 문자
 
 - **RUF003** — 주석 안의 `×`(MULTIPLICATION SIGN) 와 `−`(MINUS SIGN) 가 ruff 를 깬다. ASCII `x` 와 `-` 를 써라. 네 번 재발했다. `tests/` · `scripts/` · `alembic/versions/` 는 면제지만 `src/` 는 아니다.
 - **디자인 캐논 em-dash 래칫** — `frontend/src/__tests__/design-canon-source.test.ts` 가 노출 산문의 `—` 를 **파일별 정확 카운트로 양방향 동결**한다. 늘어도 줄어도 RED 다. `EM_DASH_ALLOWLIST` 를 올리지 말고 **문구에서 빼라**.
   ★ 이 래칫은 **FE 소스만 스캔한다.** 서버가 보내 화면에 렌더되는 문자열은 안 잡히므로 백엔드 문자열은 사람이 지켜야 한다.
+  ★★**주석은 안 센다** — `stripComments` 로 지운 뒤 세고 `__tests__` 는 제외한다(2026-08-10 코드 대조).
+  종전에 돌던 「FE 주석에 `—` 금지」는 **현행 코드에 거짓**이다. 잡히는 것은 **JSX/문자열 산문**뿐이고,
+  양옆이 둘 다 비단어인 고립 `—`(`<td>—</td>` 같은 자리표시자)도 정당하다.
+- **`@typescript-eslint/consistent-type-imports`** — 인라인 `import("@playwright/test").Page` 형태의
+  타입 주석이 **금지**다. pre-commit 에서만 물리므로 `tsc --noEmit` 초록을 근거로 넘기지 마라.
+  상단에서 `import { type Page } from "…"` 로 받아라.
+- **`docs-audit` 이 세는 것은 낱말이 아니라 구문 `다음 행동 =` 이다.** 그리고 **인라인 백틱 안은
+  건너뛴다**(`docs-audit.sh:317-322`) — 규칙을 설명하는 문장이 규칙 자신을 인용해야 하기 때문이다.
+  ⇒ 규칙을 인용할 때는 **문장을 비틀지 말고 백틱으로 감싸라.** 취소선(`~~`) 안도 세지 않는다.
+  ★종전 메모의 「인용문도 센다」는 **낡았다**(2026-08-10 코드 대조로 반증).
+- **`[BL-NNN]` 바로 뒤에 괄호로 설명을 붙이면 깨진 링크가 된다.** 그 괄호가 링크 타깃으로 읽혀
+  `docs-audit` 이 잡는다(실측 4건 RC=1). 설명은 **괄호 밖으로** 빼라 — `[BL-693] 전부 P3`.
+  ★**이 항목을 쓰다가 그 게이트에 물렸다** — 위반 예시를 그대로 적었더니 예시가 곧 위반이었다.
+  함정을 문서화할 때는 **위반형을 리터럴로 쓰지 말고 서술해라.**
 
 ### 언어·타입
 
