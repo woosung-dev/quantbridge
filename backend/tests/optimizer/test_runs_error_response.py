@@ -26,7 +26,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI, Response
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.models import User
@@ -35,6 +35,30 @@ from src.optimizer.router import (
     submit_genetic,
     submit_grid_search,
 )
+
+# ★2026-08-11 — 아래 HTTP integration 2건이 2026-05-14 부터 `@pytest.mark.skip("fixture
+#   DB password 환경 issue")` 로 죽어 있었다. **그 사유는 거짓이다** — DB 도 비밀번호도
+#   무관하고, 실제 원인은 이 payload 가 **낡았다**는 것이다. `CreateOptimizationRunRequest`
+#   는 `extra="forbid"` 인데 payload 가 `cost_assumption`·`max_concurrent_evaluations` 를
+#   보냈고, `ParamSpace` 는 그 사이 `objective_metric`·`direction`·`max_evaluations` 를
+#   필수로 얻었다. 그래서 두 건 다 요청 검증 단계에서 **422** 로 튕겼다.
+#
+# ★그리고 그 422 는 조용한 거짓 초록을 만들었다 — `test_forced_service_exception…` 은
+#   `status_code >= 400` 과 `detail` 키만 보므로 422 로도 통과한다. 즉 skip 을 떼자마자
+#   「통과」하지만 `_BoomService` 에는 **도달조차 못 한다.** 그래서 페이로드를 지금 스키마로
+#   고치고, 도달 여부를 상태코드로 못 박는다(422 는 실패로 본다).
+_PARAM_SPACE: dict = {
+    "schema_version": 1,
+    "objective_metric": "sharpe_ratio",
+    "direction": "maximize",
+    "max_evaluations": 10,
+    "parameters": {"length": {"kind": "integer", "min": 5, "max": 20, "step": 5}},
+}
+
+
+def _request_body(kind: str) -> dict:
+    """`CreateOptimizationRunRequest` 가 실제로 받는 3키 그대로 (extra="forbid")."""
+    return {"backtest_id": str(uuid4()), "kind": kind, "param_space": _PARAM_SPACE}
 
 
 def _has_response_parameter(fn) -> bool:
@@ -95,11 +119,9 @@ def test_submit_genetic_has_response_parameter_for_slowapi_headers() -> None:
 # ─────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="Sprint 60 S1 — fixture DB password 환경 issue (local + CI). signature inspect test 3 PASS evidence 충분. Sprint 61 BE test fixture BL 신규.")
 @pytest.mark.asyncio
 async def test_forced_service_exception_returns_json_not_text_traceback(
     app: FastAPI,
-    client: AsyncClient,
     db_session: AsyncSession,
     mock_clerk_auth: User,
 ) -> None:
@@ -108,6 +130,12 @@ async def test_forced_service_exception_returns_json_not_text_traceback(
     BL-244 fix 후에도 다른 unhandled exception 이 stack-trace 로 누설되면 안 됨.
     Sprint 32 BL-163 unhandled_exc_handler (json 정규화) + Sprint 54 BL-230
     OptimizationExecutionError(public, internal) 패턴 보존 검증.
+
+    ★공용 `client` 픽스처를 안 쓴다 — 그쪽 `ASGITransport` 는 `raise_app_exceptions=True`
+    (httpx 기본)라 starlette `ServerErrorMiddleware` 가 핸들러로 응답을 만들어 보낸 **뒤
+    다시 raise** 하는 예외를 호출부까지 올려버린다. 그러면 검사할 응답 자체가 손에
+    안 들어온다. 실서버(uvicorn)는 그 재-raise 를 삼키고 응답만 내보내므로, 그 계약을
+    재현하려면 `raise_app_exceptions=False` 여야 한다.
     """
     from src.optimizer.dependencies import get_optimizer_service
 
@@ -121,20 +149,39 @@ async def test_forced_service_exception_returns_json_not_text_traceback(
         async def submit_genetic(self, *args, **kwargs):
             raise RuntimeError("internal secret detail leak attempt 7f3a")
 
+    # ★프로덕션 경로를 재현한다. `app_env=production` 은 validator 가 `debug=False` 를
+    #   강제하지만(`core/config.py:372-374`) 로컬 `.env.local` 은 `DEBUG=true` 다. 그러면
+    #   starlette `ServerErrorMiddleware` 가 `unhandled_exc_handler` 대신 debug 분기로
+    #   빠져 **19,534바이트 text/plain 트레이스백**을 낸다(2026-08-11 실측). 그것은 의도된
+    #   dev 동작이지 BL-244 회귀가 아니다 — 이 테스트가 재려는 것은 프로덕션 계약이다.
+    #   미들웨어 스택은 첫 요청에서 lazy 로 세워지므로 여기서 None 으로 되돌리면 다시 선다.
+    app.debug = False
+    app.middleware_stack = None
+
     app.dependency_overrides[get_optimizer_service] = lambda: _BoomService()
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
     try:
-        resp = await client.post(
-            "/api/v1/optimizer/runs/grid-search",
-            json={
-                "backtest_id": str(uuid4()),
-                "kind": "grid_search",
-                "param_space": {"schema_version": 1, "parameters": {}},
-                "cost_assumption": {"fees_pct": "0.001", "slippage_pct": "0.0005"},
-                "max_concurrent_evaluations": 1,
-            },
-        )
+        async with AsyncClient(transport=transport, base_url="http://test") as boom_client:
+            resp = await boom_client.post(
+                "/api/v1/optimizer/runs/grid-search",
+                json=_request_body("grid_search"),
+            )
     finally:
         app.dependency_overrides.pop(get_optimizer_service, None)
+
+    # 0) ★도달 확인 — `_BoomService` 가 실제로 불렸다면 결과는 **500** 이다.
+    #    아래 1~5 는 4xx 로도 전부 통과하므로 이 한 줄이 없으면 **무증거 초록**이 된다.
+    #    ★★`!= 422` 로는 부족하다(2026-08-11 Opus 콜드 평가자): 422 만 배제하면 **429·403·400**
+    #    이 전부 초록으로 새고 `_BoomService` 는 여전히 미도달이다. 실제 경로가 있다 —
+    #    `optimizer/router.py:35` 이 `5/minute` 이고 키는 `ip:testclient`(`common/rate_limit.py:81`),
+    #    저장소가 **Redis** 라 1분 창이 pytest 실행 경계를 넘어 공유된다 ⇒ 같은 파일을 60초 안에
+    #    여러 번 돌리면 429 가 나고 종전 assert 로는 그것이 「통과」였다. 재려던 것은
+    #    **핸들러가 5xx 를 JSON 으로 감싸는가** 이므로 상태 코드를 못 박는다.
+    assert resp.status_code == 500, (
+        f"기대 500(핸들러가 감싼 unhandled exception), 실제 {resp.status_code} — "
+        f"_BoomService 에 도달하지 못했다(422=payload 낡음 · 429=rate limit · 403/401=인증): "
+        f"{resp.text[:300]!r}"
+    )
 
     # 1) response Content-Type 이 application/json (절대 text/plain 아님)
     assert "application/json" in resp.headers.get("content-type", ""), (
@@ -172,7 +219,6 @@ async def test_forced_service_exception_returns_json_not_text_traceback(
 # ─────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.skip(reason="Sprint 60 S1 — fixture DB password 환경 issue. signature inspect test 3 PASS evidence 충분.")
 @pytest.mark.asyncio
 async def test_submit_endpoints_return_202_json_not_500_stack_trace(
     app: FastAPI,
@@ -201,14 +247,15 @@ async def test_submit_endpoints_return_202_json_not_500_stack_trace(
                 backtest_id=uuid4(),
                 kind=kind,
                 status=OptimizationStatus.QUEUED,
-                param_space={"schema_version": 1, "parameters": {}},
-                best_params=None,
-                best_objective_value=None,
+                param_space=_PARAM_SPACE,
+                # ★`best_params`·`best_objective_value`·`task_id` 는 스키마에서 사라졌고
+                #   `result` 로 합쳐졌다. `extra="forbid"` 라 옛 이름은 그대로 터진다 —
+                #   이 파일이 3개월 skip 되어 있던 동안 벌어진 두 번째 드리프트다.
+                result=None,
                 error_message=None,
                 created_at=now,
                 started_at=None,
                 completed_at=None,
-                task_id=None,
             )
 
         async def submit_grid_search(self, *args, **kwargs):
@@ -230,14 +277,7 @@ async def test_submit_endpoints_return_202_json_not_500_stack_trace(
 
     try:
         for path, kind in payloads:
-            body = {
-                "backtest_id": str(uuid4()),
-                "kind": kind,
-                "param_space": {"schema_version": 1, "parameters": {}},
-                "cost_assumption": {"fees_pct": "0.001", "slippage_pct": "0.0005"},
-                "max_concurrent_evaluations": 1,
-            }
-            resp = await client.post(f"/api/v1/optimizer/runs/{path}", json=body)
+            resp = await client.post(f"/api/v1/optimizer/runs/{path}", json=_request_body(kind))
             assert "application/json" in resp.headers.get("content-type", ""), (
                 f"BL-244 — {path} response Content-Type: {resp.headers.get('content-type')}"
             )

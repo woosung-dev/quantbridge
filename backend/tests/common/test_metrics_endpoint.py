@@ -1,8 +1,10 @@
-"""GET /metrics endpoint — Sprint 9 Phase D.
+"""GET /metrics endpoint — Sprint 9 Phase D (2026-08-11 fail-closed 전환).
 
-- 토큰 미설정 (dev default) 시 인증 없이 200 + text/plain; version=0.0.4 반환
+- 토큰 **미설정** 시 401. ★종전 계약은 「dev default 는 인증 스킵 200」이었다 —
+  production 만 `core/config.py` validator 가 막았고 dev·local·스테이징·컨테이너
+  오조립은 전부 무인증 노출이었다. 그 fail-open 을 뒤집었다.
 - 토큰 설정 시: header 없음 → 401, 잘못된 토큰 → 403, 일치 → 200
-- 5 metric prefix 가 출력에 모두 포함
+- 5 metric prefix 가 출력에 모두 포함 (올바른 bearer 로만 볼 수 있다)
 """
 
 from __future__ import annotations
@@ -14,12 +16,30 @@ from pydantic import SecretStr
 from src.core.config import settings
 
 
-async def test_metrics_endpoint_returns_prometheus_format(client: AsyncClient) -> None:
-    """settings.prometheus_bearer_token=None (default) → 인증 스킵 → 200."""
+async def test_metrics_endpoint_denies_when_token_unset(client: AsyncClient) -> None:
+    """★settings.prometheus_bearer_token=None → 401 (2026-08-11 fail-closed 전환).
+
+    이 파일이 2026-08-11 이전에 못 박고 있던 계약은 정확히 그 반대(200)였다.
+    `_verify_prometheus_bearer` 를 `return` 으로 되돌리면 이 한 건이 red 가 된다.
+    """
     # 혹시 다른 테스트가 set 했을 가능성에 대비해 명시적으로 리셋
     settings.prometheus_bearer_token = None
 
     response = await client.get("/metrics")
+    assert response.status_code == 401, (
+        f"토큰 미설정 시 /metrics 는 401 이어야 한다, got {response.status_code}"
+    )
+
+
+async def test_metrics_endpoint_returns_prometheus_format(client: AsyncClient) -> None:
+    """올바른 bearer → 200 + Prometheus text format + 5 metric prefix."""
+    token = "secret-token-xyz"
+    settings.prometheus_bearer_token = SecretStr(token)
+    try:
+        response = await client.get("/metrics", headers={"Authorization": f"Bearer {token}"})
+    finally:
+        settings.prometheus_bearer_token = None
+
     assert response.status_code == 200
     ctype = response.headers["content-type"]
     # prometheus_client 는 "text/plain; version=0.0.4; charset=utf-8" 형식

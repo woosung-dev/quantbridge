@@ -46,6 +46,17 @@ REDIS_CONTAINER="${QB_REDIS_CONTAINER:-quantbridge-redis}"
 #   HTTP 를 거치지 않고 거기서 읽는다 — 「API 가 꺼지면 게이트가 장님」이라는 실패 계열이 사라진다.
 #   ★`QB_METRICS_URL` 을 **명시하면** 종전대로 HTTP 를 쓴다(원격 데몬 + ssh 터널 운영안 보존).
 METRICS_URL="${QB_METRICS_URL:-}"
+# ★`/metrics` 는 2026-08-11 부터 **토큰 없이 401** 이다(fail-closed 전환, [BL-704]).
+#   HTTP 갈래를 쓰려면 헤더를 보내야 한다 — 안 보내면 401 이 `curl -sf` 실패로 떨어져
+#   「지표 취득 실패」가 되고, `-f` 가 없던 절차에서는 401 본문이 **「지표 0건」처럼 읽힌다.**
+#   기본 경로(디렉터리 직독)는 인증이 없으므로 영향받지 않는다.
+METRICS_HDR=()
+_qb_tok="${PROMETHEUS_BEARER_TOKEN:-}"
+if [ -z "${_qb_tok}" ] && [ -f "${ROOT}/backend/.env.local" ]; then
+  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${ROOT}/backend/.env.local" | head -1)"
+fi
+[ -n "${_qb_tok}" ] && METRICS_HDR=(-H "Authorization: Bearer ${_qb_tok}")
+
 METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/backend/.metrics}"
 
 mkdir -p "${STATE_DIR}" "${LOGDIR}"
@@ -512,7 +523,7 @@ fi
 METRICS_RAW=""
 METRICS_RC=1
 if [ -n "${METRICS_URL}" ]; then
-  METRICS_RAW="$(curl -sf --max-time 20 "${METRICS_URL}" 2>/dev/null)" \
+  METRICS_RAW="$(curl -sf ${METRICS_HDR[@]+"${METRICS_HDR[@]}"} --max-time 20 "${METRICS_URL}" 2>/dev/null)" \
     && [ -n "${METRICS_RAW}" ] && METRICS_RC=0
 elif [ -d "${METRICS_DIR}" ]; then
   # ★`timeout` 없이 부르지 마라 — 게이트가 무기한 대기하면 표본 수집까지 멈춘다([BL-594] 교훈).

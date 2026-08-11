@@ -32,6 +32,17 @@ DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 #   기본은 **직독**이고, `QB_METRICS_URL` 을 명시하면 종전 HTTP 를 쓴다(원격 운영안 보존).
 #   정본은 `soak-gate.sh` 의 취득 블록이다 — 갈라지면 여기를 그쪽에 맞춰라.
 METRICS_URL="${QB_METRICS_URL:-}"
+# ★`/metrics` 는 2026-08-11 부터 **토큰 없이 401** 이다(fail-closed 전환, [BL-704]).
+#   HTTP 갈래를 쓰려면 헤더를 보내야 한다 — 안 보내면 401 이 `curl -sf` 실패로 떨어져
+#   「지표 취득 실패」가 되고, `-f` 가 없던 절차에서는 401 본문이 **「지표 0건」처럼 읽힌다.**
+#   기본 경로(디렉터리 직독)는 인증이 없으므로 영향받지 않는다.
+METRICS_HDR=()
+_qb_tok="${PROMETHEUS_BEARER_TOKEN:-}"
+if [ -z "${_qb_tok}" ] && [ -f "${REPO_ROOT}/backend/.env.local" ]; then
+  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${REPO_ROOT}/backend/.env.local" | head -1)"
+fi
+[ -n "${_qb_tok}" ] && METRICS_HDR=(-H "Authorization: Bearer ${_qb_tok}")
+
 METRICS_DIR="${QB_METRICS_DIR:-${REPO_ROOT}/backend/.metrics}"
 # 유도 주입 표식 — 이 두 값의 이벤트는 합성이다(H8 분기 유도용). 통계에서 분리해 보여준다.
 PROBE_SEQ=9999
@@ -75,7 +86,7 @@ metrics_source() {
 scrape_metrics() {
   local raw=""
   if [ -n "${METRICS_URL}" ]; then
-    raw="$(curl -sf --max-time 30 "${METRICS_URL}" 2>/dev/null)" || return 1
+    raw="$(curl -sf ${METRICS_HDR[@]+"${METRICS_HDR[@]}"} --max-time 30 "${METRICS_URL}" 2>/dev/null)" || return 1
   elif [ -d "${METRICS_DIR}" ]; then
     # ★`timeout` 없이 부르지 마라 — 무기한 대기는 관측 자체를 멈춘다([BL-594] 교훈).
     raw="$(cd "${REPO_ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \

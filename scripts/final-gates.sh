@@ -175,6 +175,17 @@ run_gate "함대 분배 하네스" "scripts/fleet-dispatch.sh" bash "$ROOT/scrip
 run_gate "소스 헤더 감사" "scripts/header-audit.sh" bash "$ROOT/scripts/header-audit.sh"
 run_gate "소스 헤더 하네스" "scripts/header-audit.sh" bash "$ROOT/scripts/header-audit-test.sh"
 
+# ★무조건 skip 래칫 (2026-08-11 ledger-truth). `@pytest.mark.skip` 데코레이터 개수를 동결한다.
+#   여기 걸린 이유 — 2026-05-14 에 「Sprint 61 follow-up」 사유로 심긴 5건이 **Sprint 61 이
+#   2026-05-17 에 끝나고도 3개월** 살아남았다. 대응 BL 은 0건이었고 어느 게이트도 안 물었다.
+#   pytest 는 skip 을 초록으로 보고하므로 **꺼진 테스트는 통과와 구분되지 않는다.**
+#   ★별도 하네스를 두지 않는다 — 이 스크립트가 매 실행마다 패턴 판별력(양성2·음성3)과
+#   판정 함수(초과/동률/빈입력)를 합성 입력으로 자기검사하고, 어긋나면 rc=3 으로 죽는다.
+#   (`bl-audit`·`header-audit` 이 별도 `-test.sh` 를 쓰는 것과 다른 선택이다. 저쪽은 판정이
+#   파일 트리 fixture 를 필요로 하지만, 여기 판정 입력은 **한 줄 문자열과 정수 둘**이라
+#   프로세스 안에서 끝난다 — 하네스를 만들면 그 자체가 또 하나의 고아 스크립트가 된다.)
+run_gate "무조건 skip 래칫" "scripts/skip-ratchet.sh" bash "$ROOT/scripts/skip-ratchet.sh"
+
 # ★문서 감사 — 죽은 링크 · retired path · **요약 줄 길이 상한**.
 #   CI 의 documentation 잡(`make docs-audit`)이 같은 것을 돌지만 그건 **PR 을 연 뒤**다.
 #   줄 길이 회귀는 문서를 만지는 그 회차가 만들고 그 회차가 못 보므로, PR 전에 물게 한다

@@ -59,18 +59,6 @@ _BASELINE_PRESENT = _BASELINE_METRICS.exists() and _OHLCV_FROZEN.exists()
 #   ([BL-588]). 예전엔 세 곳에 따로 적혀 있었고 그중 하나가 5벌에서 멈춰 있었다.
 RUNNABLE_CORPUS = _RUNNABLE_CORPUS
 
-# Mutation Oracle 8개 (ADR-020 §4.4). M3 는 Stage 2 실측 후 layer 재분류 (opus W2).
-MUTATION_IDS: tuple[str, ...] = (
-    "M1_sma_off_by_one",
-    "M2_rsi_divzero_guard_removed",
-    "M3_strategy_entry_return_none",
-    "M4_crossover_boundary_geq",
-    "M5_position_size_sign_flip",
-    "M6_decimal_float_leak",
-    "M7_persistent_rollback_missing",
-    "M8_alert_hook_duplicate",
-)
-
 
 # =====================================================================
 # P-1 AST Shape Parity — `test_pynescript_baseline_parity.py` 로 위임
@@ -178,8 +166,12 @@ def test_p2_supported_attributes_union_consistency() -> None:
     false-pass risk → explicit set 만 union. 본 test 는 SSOT 의무.
     """
     expected_union = (
-        cov._SERIES_ATTRS | cov._STRATEGY_ATTRS | cov._SYMINFO_ATTRS
-        | cov._CURRENCY_CONSTANTS | cov._STRATEGY_CONSTANTS_EXTRA | cov._TIMEFRAME_CONSTANTS
+        cov._SERIES_ATTRS
+        | cov._STRATEGY_ATTRS
+        | cov._SYMINFO_ATTRS
+        | cov._CURRENCY_CONSTANTS
+        | cov._STRATEGY_CONSTANTS_EXTRA
+        | cov._TIMEFRAME_CONSTANTS
     )
     assert expected_union == cov.SUPPORTED_ATTRIBUTES, (
         "SUPPORTED_ATTRIBUTES 가 6 하위 그룹 합집합과 불일치 "
@@ -388,9 +380,7 @@ def test_p3_baseline_metric_range_sanity(corpus_id: str) -> None:
     baseline = json.loads(_BASELINE_METRICS.read_text())
     corpus = baseline["corpora"].get(corpus_id, {})
     metrics = corpus.get("metrics")
-    assert metrics is not None, (
-        f"{corpus_id}: baseline metrics 누락 — regen 필요"
-    )
+    assert metrics is not None, f"{corpus_id}: baseline metrics 누락 — regen 필요"
 
     for key in _DECIMAL_METRIC_KEYS:
         value_str = metrics.get(key)
@@ -411,16 +401,22 @@ def test_p3_baseline_metric_range_sanity(corpus_id: str) -> None:
 
 
 # =====================================================================
-# Mutation Oracle (메타 게이트, nightly only)
+# Mutation Oracle — ★여기 없다. `test_mutation_oracle.py` 가 정본이다.
 # =====================================================================
-
-
-@pytest.mark.skip(reason="Mutation oracle 은 nightly workflow 또는 `pytest --run-mutations` 수동")
-@pytest.mark.parametrize("mutation_id", MUTATION_IDS)
-def test_mutation_is_detected_by_some_parity_layer(mutation_id: str) -> None:
-    """Mutation Oracle: 각 mutation 이 P-1/2/3 중 **최소 1 layer** 에 의해 포착된다."""
-    del mutation_id
-    pytest.skip("Mutation oracle — nightly only (Stage 2 후속)")
+#
+# 2026-08-11 tombstone. 여기 있던 `test_mutation_is_detected_by_some_parity_layer`
+# (+ 그것만 쓰던 `MUTATION_IDS` 8튜플)를 삭제했다. **죽은 껍데기였다** — 몸통 전체가
+# `del mutation_id; pytest.skip(...)` 였고, 그 위에 `@pytest.mark.skip` 데코레이터까지
+# 겹쳐 8건이 영구 skip 으로 집계됐다.
+#
+# ★실측으로 확정한 것(부검 근거): 이 테스트에는 `@pytest.mark.mutation` 마커가 **없었다.**
+#   그래서 `conftest.py` 의 `skip_mutation` 주입 경로를 애초에 타지 않았고, 데코레이터를
+#   떼도 `--run-mutations` 에서 여전히 8 skipped 였다 — 다만 사유가 데코레이터 문구에서
+#   몸통의 `pytest.skip` 문구로 바뀔 뿐이었다. 즉 **어떤 플래그로도 돌지 않는 코드**였다.
+#
+# 진짜 오라클: `tests/strategy/pine_v2/test_mutation_oracle.py` — M1~M8 각각이
+# `@pytest.mark.mutation` 을 달고 있어 `pytest --run-mutations` 로 실제 실행된다.
+# (삭제 원문은 git history: 이 커밋의 부모)
 
 
 # =====================================================================
