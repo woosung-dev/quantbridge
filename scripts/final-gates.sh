@@ -192,6 +192,12 @@ run_gate "무조건 skip 래칫" "scripts/skip-ratchet.sh" bash "$ROOT/scripts/s
 #   (2026-08-02 context-budget-repair: INDEX.md 한 줄이 4,607자였고 아무 게이트도 안 물었다).
 run_gate "문서 감사" "docs/**" bash "$ROOT/scripts/docs-audit.sh"
 
+# ★위 게이트의 **⓪ 표 정체성 축** 을 재는 하네스 ([BL-702]) — `bl-audit-test` 와 같은 이유다.
+#   레포의 ⓪ 표가 이미 원장과 일치하므로 정체성 판정을 통째로 지워도 「문서 감사」는 초록이다.
+#   ★특히 이 축이 막는 사고는 **빈 입력이 「일치」로 새는 것**이고, 그 rc=3 경로는 정상 레포에서는
+#   절대 발화하지 않는다 — 하네스만이 밟을 수 있다. 여기 안 걸면 호출자가 0이 된다(BL-601 의 그 상태).
+run_gate "문서 감사 하네스" "scripts/docs-audit.sh" bash "$ROOT/scripts/docs-audit-test.sh"
+
 # ── 2. 단위 ───────────────────────────────────────────────────────
 # ★env 소싱 의무 + cd 절대경로. `pnpm test --run` 은 Unknown option — `pnpm test` 가 이미 vitest run.
 run_gate "BE pytest" "env 소싱" bash -c 'cd "$0/backend"; set -a; . ./.env.local; set +a; uv run pytest -q' "$ROOT"

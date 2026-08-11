@@ -277,6 +277,9 @@ if index_md.exists():
 # ★정직하게: 이것은 **모순(다중성) 탐지기이지 낡음 탐지기가 아니다.** 낡은 것이 하나뿐이면
 #   여전히 통과한다. 어구를 「다음 스텝」 등으로 바꿔도 눈이 먼다([BL-643] 미탐 2종).
 entry_hits: list[str] = []
+# ⓪ 표의 **살아 있는** 행이 가리키는 BL id. 아래 zero_table_identity 축이 쓴다.
+zero_live_ids: set[str] = set()
+zero_table_seen = False
 status_md = docs / "status.md"
 if not status_md.exists():
     entry_hits.append("docs/status.md 가 없다 — 진입점 자체가 사라졌다")
@@ -302,6 +305,14 @@ else:
         if cells and cells[0] in {"#", ""}:
             continue  # 헤더
         candidate_rows += 1
+        zero_table_seen = True
+        # ★취소선 판정은 **후보 셀만** 본다. 행 전체로 재면 다른 셀(「왜 지금」)에 적은
+        #   `~~정정 이력~~` 이 살아 있는 후보를 죽은 것으로 읽는다 — 2026-08-11 에 행 G 가
+        #   정확히 그 형태였다(후보는 살아 있고 사유 셀만 취소선).
+        cand = cells[1] if len(cells) > 1 else ""
+        if "~~" in cand:
+            continue
+        zero_live_ids.update(re.findall(r"BL-\d+", cand))
     if candidate_rows < 3:
         entry_hits.append(
             f"⓪ 다음 후보 표의 행이 {candidate_rows}개다 (계약 ≥3) — "
@@ -344,17 +355,23 @@ else:
 verdict_line_hits: list[str] = []
 bl_audit = root / "scripts" / "bl-audit.sh"
 backlog_md = docs / "backlog.md"
+by_verdict: dict[str, set[str]] = {}
+verdict_text: dict[str, str] = {}
 if bl_audit.exists() and backlog_md.exists():
     need: set[str] = set()
-    for verdict in ("ACTIVE", "DEFERRED"):
+    for verdict in ("ACTIVE", "DEFERRED", "PARTIAL"):
         proc = subprocess.run(
             ["bash", str(bl_audit), "--list", verdict],
             capture_output=True, text=True,
         )
+        got: set[str] = set()
         for row in proc.stdout.splitlines():
             head = row.split("\t", 1)[0].strip()
             if head.startswith("BL-"):
-                need.add(head)
+                got.add(head)
+        by_verdict[verdict] = got
+        if verdict != "PARTIAL":
+            need |= got  # 트리거 판정 줄 의무는 아직 ACTIVE/DEFERRED 만 ([BL-703])
 
     counts: dict[str, int] = {}
     section: str | None = None
@@ -374,6 +391,7 @@ if bl_audit.exists() and backlog_md.exists():
             continue
         if section and line.startswith("**트리거 판정:**"):
             counts[section] = counts.get(section, 0) + 1
+            verdict_text.setdefault(section, line)
 
     for bl in sorted(need, key=lambda x: int(x[3:])):
         n = counts.get(bl, 0)
@@ -382,6 +400,55 @@ if bl_audit.exists() and backlog_md.exists():
                 f"  {bl}: `**트리거 판정:**` 줄이 {n}개다 (계약 1개) — "
                 f"{'무엇이 막는지 적어라' if n == 0 else 'SSOT 는 하나여야 한다'}"
             )
+
+# ── ⓪ 표 정체성 계약 — 살아 있는 행 == ACTIVE ∪ (PARTIAL ∧ 도래) ([BL-695] 와 같은 처방) ──
+# 왜 있나: ⓪ 표 **자신이** 「이 계약에는 아직 소유자가 없다 — 다음 회차가 BL 로 등록해
+#   `docs-audit` 축으로 박아라」를 적었다(2026-08-10 status-table-resync). 종전 축은 **행 수 ≥3**
+#   하나뿐이라, 종결된 [BL-698]·기각된 [BL-306] 이 살아 있는 행으로 남아 표를 그대로 읽으면
+#   **닫힌 결함이 ★★★ 최상위 추천**으로 보이는데도 통과했다.
+# ★판정은 `bl-audit.sh --list` 가 정본이다 — 상태줄 파서를 여기서 다시 쓰지 않는다(위 블록과 공용).
+# ★★**빈 집합이 「일치」로 새는 것**이 이 레포가 두 번 밟은 함정이다 ⇒ 양쪽이 비면 **rc=3 ABORT**.
+#   초록도 빨강도 내지 않고 판정을 포기한다 ([LESSON-101]).
+# ★PARTIAL 쪽은 지금 **구조적으로 공집합**이다 — PARTIAL 24건 중 `**트리거 판정:**` 줄을 가진
+#   것이 **0건**이다(2026-08-11 실측, 양성 대조 = ACTIVE 6/6 · DEFERRED 155/155). 술어는 여기
+#   완성돼 있고 데이터가 없다. 그 데이터를 채우는 것이 [BL-703] 다.
+zero_identity_hits: list[str] = []
+if by_verdict:
+    arrived_partial = {
+        b for b in by_verdict.get("PARTIAL", set())
+        if re.match(r"^\*\*트리거 판정:\*\*\s*도래", verdict_text.get(b, ""))
+    }
+    expected = by_verdict.get("ACTIVE", set()) | arrived_partial
+    if not expected and not zero_live_ids:
+        print("▶ ⓪ 표 정체성 — **판정 포기 (ABORT)**")
+        print("  기대 집합(ACTIVE ∪ PARTIAL∧도래)과 ⓪ 표의 살아 있는 행이 **둘 다 비었다.**")
+        print("  빈 입력을 「일치」로 통과시키지 않는다 ([LESSON-101]) — 먼저 확인해라:")
+        print("    bash scripts/bl-audit.sh --list ACTIVE      # 정본이 비었나")
+        print("    grep -n '^### ⓪' docs/status.md            # 표 헤딩이 살아 있나")
+        raise SystemExit(3)
+    missing = sorted(expected - zero_live_ids, key=lambda x: int(x[3:]))
+    extra = sorted(zero_live_ids - expected, key=lambda x: int(x[3:]))
+    for bl in missing:
+        why = "ACTIVE" if bl in by_verdict.get("ACTIVE", set()) else "PARTIAL∧도래"
+        zero_identity_hits.append(
+            f"  {bl}: 원장은 {why} 인데 ⓪ 표에 **살아 있는 행이 없다** — "
+            "고를 수 없으면 다음 회차가 못 본다"
+        )
+    for bl in extra:
+        zero_identity_hits.append(
+            f"  {bl}: ⓪ 표에 살아 있는데 원장에서는 ACTIVE 도 PARTIAL∧도래 도 아니다 — "
+            "끝났으면 `~~취소선~~`, 아니면 상태줄을 고쳐라"
+        )
+
+if zero_identity_hits:
+    print(
+        "▶ ⓪ 표 정체성 — 살아 있는 행 == `bl-audit --list ACTIVE` ∪ (PARTIAL ∧ 도래) "
+        "([BL-702] · 손으로 후보를 얹지 마라)"
+    )
+    for why in zero_identity_hits[:20]:
+        print(why)
+    if len(zero_identity_hits) > 20:
+        print(f"  … 외 {len(zero_identity_hits) - 20}건")
 
 if verdict_line_hits:
     print(
@@ -432,19 +499,20 @@ if orphan_hits:
 
 if (
     broken_links or legacy_hits or cap_hits or file_len_hits
-    or orphan_hits or entry_hits or verdict_line_hits
+    or orphan_hits or entry_hits or verdict_line_hits or zero_identity_hits
 ):
     print(
         f"✗ docs-audit failed: links={len(broken_links)}, "
         f"retired_paths={len(legacy_hits)}, long_lines={len(cap_hits)}, "
         f"long_files={len(file_len_hits)}, orphan_tools={len(orphan_hits)}, "
-        f"entry_point={len(entry_hits)}, trigger_verdicts={len(verdict_line_hits)}"
+        f"entry_point={len(entry_hits)}, trigger_verdicts={len(verdict_line_hits)}, "
+        f"zero_table_identity={len(zero_identity_hits)}"
     )
     raise SystemExit(1)
 
 print(
     "✓ docs-audit: active Markdown links, retired paths, line-length caps, "
-    "file-length caps, orphan tool startup, status.md entry point, "
+    "file-length caps, orphan tool startup, status.md entry point, ⓪ table identity, "
     "trigger verdict lines are clean"
 )
 PY
