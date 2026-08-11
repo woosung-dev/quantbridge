@@ -2,10 +2,15 @@
 # signal-check 판별력 하네스 — [BL-706]. 전건 통과 = 종료 코드 0.
 #
 # ★이 파일은 수리보다 **먼저** 쓰였다(G1 수용 기준 동결 — skip-ratchet-test.sh 와 같은 규율).
-#   1단계(행위 불변 추출 = 판정이 `[ -s ]` 뿐)에 대고 돌리면 **정확히 15건이 red** 여야 한다:
-#   ③④⑦⑨⑩⑪⑫⑬⑭⑮⑲⑳㉒㉓㉔. 전건 red 면 추출이 틀린 것(재현이 아니라 위장)이고,
+#   1단계(행위 불변 추출 = 판정이 `[ -s ]` 뿐)에 대고 돌리면 **정확히 16건이 red** 여야 한다:
+#   ③④⑦⑨⑩⑪⑫⑬⑭⑮⑲⑳㉒㉓㉔㉕. 전건 red 면 추출이 틀린 것(재현이 아니라 위장)이고,
 #   green 이 12건 이상이면 케이스가 무디다. ⑬ 의 red 사유는 rc 가 아니라 **경고 부재**다.
-#   (케이스 ㉔·⑩ 형태·앵커 13종은 G1 직후 codex 플랜 검증 F2~F5 를 채택해 개정했다.)
+#   (케이스 ㉔㉕·⑩ 형태·앵커는 G1 직후 codex 플랜 검증 F1~F5·H1~H9 를 채택해 개정했다 —
+#    특히 ㉕ 는 [치명적] F1(merge-base 실패가 초록으로 새는 경로) 수리의 유일한 증인이다.)
+#
+# ★정직한 한계 하나 더 (H9) — ㉑㉒㉓ 의 wire 스텁은 ROOT 에 **실 레포**를 넘긴다. 그래서
+#   안내문의 `git rev-parse HEAD` 와 「신호 파일:」 경로는 실 레포 것으로 찍히고, ㉒ 는 문구
+#   존재만 보므로 **경로 조립 오류는 못 잡는다** — 그것은 G4 의 실물 대조 2회가 잡는다.
 #
 # 무엇을 재는가 — 신호 **신선도** 판정(scripts/signal-check.sh)과 check_signal 배선이다.
 #   fixture = 임시 git 저장소 4벌(브랜치 지형·merge-base==HEAD·origin/main 부재·비저장소).
@@ -23,8 +28,8 @@
 # ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (pipefail 없는 셸에서 `| tail` 이 $? 를
 #   가린 실측 사고 이력 — pipefail 하에서는 보존되지만 규율은 유지한다).
 #
-# 사용법: scripts/signal-check-test.sh            # 24케이스 (상시 — final-gates 가 돌린다)
-#         scripts/signal-check-test.sh --mutants  # + 변이 M1~M9 · 음성 대조 N1~N3 (G4 에서 1회)
+# 사용법: scripts/signal-check-test.sh            # 25케이스 (상시 — final-gates 가 돌린다)
+#         scripts/signal-check-test.sh --mutants  # + 변이 M1~M10 · 음성 대조 N1~N3 (G4 에서 1회)
 
 set -uo pipefail
 
@@ -63,7 +68,10 @@ mkdir -p "$HOME"
 export GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME=qb GIT_AUTHOR_EMAIL=qb@example.invalid
 export GIT_COMMITTER_NAME=qb GIT_COMMITTER_EMAIL=qb@example.invalid
-unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_CEILING_DIRECTORIES 2>/dev/null || true
+# ★GIT_CONFIG_GLOBAL 은 HOME 재정의를 통째로 무력화한다 (H4) — 리다이렉션 env 전량을 걷는다.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_CEILING_DIRECTORIES \
+  GIT_CONFIG_GLOBAL GIT_CONFIG GIT_CONFIG_SYSTEM GIT_TEMPLATE_DIR GIT_NAMESPACE GIT_ALTERNATE_OBJECT_DIRECTORIES \
+  2>/dev/null || true
 
 # P2 — TMPDIR 이 어떤 저장소 안이면 케이스 ⑨ 가 거짓 초록이 된다.
 if git -C "$TMP" rev-parse --git-dir >/dev/null 2>&1; then
@@ -96,6 +104,11 @@ git -C "$TMP/repo" update-ref refs/remotes/origin/main "$A_C2"
 build_repo "$TMP/repo-mbhead"; B_C4="$C4"
 git -C "$TMP/repo-mbhead" update-ref refs/remotes/origin/main "$B_C4"
 build_repo "$TMP/repo-noorig"; N_C3="$C3"; N_C4="$C4"
+# repo-unrel — origin/main 이 **무관 이력**(orphan)이다: ref 존재 + merge-base rc=1 + 빈 출력.
+# F1 [치명적](merge-base 실패가 no-origin-main 으로 뭉개져 초록)의 유일한 fixture 다 (케이스 ㉕).
+build_repo "$TMP/repo-unrel";  U_C1="$C1"; U_C4="$C4"
+ORPH="$(git -C "$TMP/repo-unrel" commit-tree "${U_C1}^{tree}" -m orphan)"
+git -C "$TMP/repo-unrel" update-ref refs/remotes/origin/main "$ORPH"
 mkdir -p "$TMP/norepo/.claude/gates/t-run"
 
 # P3 — 지형 대조. fixture 가 깨지면 ③⑲ 가 엉뚱한 이유로 통과한다.
@@ -111,6 +124,12 @@ git -C "$TMP/repo" merge-base --is-ancestor "$A_C3" "$A_C2"; p3_rc=$?
 [ "$p3_rc" -eq 1 ] || p3_fail "c3-in-c2 판정 rc=$p3_rc (기대 1 = 조상 아님)"
 git -C "$TMP/repo" merge-base --is-ancestor "$A_C5" HEAD; p3_rc=$?
 [ "$p3_rc" -eq 1 ] || p3_fail "c5-in-HEAD 판정 rc=$p3_rc (기대 1 = 조상 아님)"
+# P3′ — 나머지 3벌 (H5). F1 이후 ⓐ/ⓑ 갈래가 ref 존재 여부에 걸리므로 전제를 재야 ⑬⑭㉕ 가 유효하다.
+[ "$(git -C "$TMP/repo-mbhead" merge-base origin/main HEAD)" = "$B_C4" ] || p3_fail "mbhead: mb != HEAD"
+git -C "$TMP/repo-noorig" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null && p3_fail "noorig 에 origin/main 이 있다"
+git -C "$TMP/repo-unrel" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null || p3_fail "unrel 에 origin/main 이 없다"
+git -C "$TMP/repo-unrel" merge-base refs/remotes/origin/main HEAD >/dev/null 2>&1; p3_rc=$?
+[ "$p3_rc" -eq 1 ] || p3_fail "unrel merge-base rc=$p3_rc (기대 1 = 무관 이력)"
 
 # ── 러너 ──────────────────────────────────────────────────────────
 CHECK_BIN="$CHECK"   # 변이 모드에서 사본으로 바뀐다
@@ -171,7 +190,7 @@ run_wire() { # run_wire <tree> <req 0|1>  — 추출된 check_signal 을 스텁 
 # ── 케이스 23건 (번호·기대값 = G1 동결 §2.3 그대로) ────────────────
 run_suite() {
   PASS=0; FAIL=0; RED_IDS=""
-  local why
+  local why rec_line
 
   # ① 신선 sha == HEAD — 양성 대조: 수리가 정상 신호를 죽이지 않는다
   sig "$TMP/repo" "commit: $A_C4" "화면 검증 근거 본문"
@@ -342,31 +361,35 @@ run_suite() {
   [ -z "$why" ] && ! has "[not-ancestor]" && why="[not-ancestor] 코드가 없다"
   report "⑲" "형제 브랜치 sha → rc1 [not-ancestor]" "$why"
 
-  # ⑳ 변이·배선 앵커 13종이 원본에 각 1회 — 이름이 바뀌면 §3 변이가 조용히 무증거가 되고,
-  #   배선(호출부·run_gate·Makefile)이 사라지면 고아 하네스가 된다 (F2 채택 — 텍스트 앵커로 집행,
-  #   행위 증거는 §6-4 실물 대조가 맡는다).
+  # ⑳ 변이·배선 앵커 14종이 규정 횟수로 원본에 존재 — 이름이 바뀌면 §3 변이가 조용히 무증거가
+  #   되고, 배선(호출부·run_gate·Makefile)이 사라지면 고아 하네스가 된다 (F2 — 텍스트 앵커로 집행,
+  #   행위 증거는 §6-4 실물 대조가 맡는다). ★A12 는 `check_signal "` **x4** — 특정 1줄만 세면
+  #   나머지 3 호출을 지워도 초록이다 (H2). ★A13 은 순서 결합 false red 를 피해 regex 다 (H6).
   OUT="$(python3 - "$CHECK" "$GATES" "$ROOT/Makefile" <<'PY'
+import re
 import sys
 
 sc = open(sys.argv[1], encoding="utf-8").read()
 fg = open(sys.argv[2], encoding="utf-8").read()
 mk = open(sys.argv[3], encoding="utf-8").read()
 anchors = [
-    ("A1", sc, '  if [ -n "$MERGE_BASE" ] && [ "$MERGE_BASE" = "$HEAD_SHA" ]; then'),
-    ("A2", sc, '  if [ "$sha" = "$HEAD_SHA" ]; then'),
-    ("A3", sc, '  if [ -z "$MERGE_BASE" ]; then'),
-    ("A4", sc, '  if [ "$anc" -ne 0 ]; then'),
-    ("A5", sc, '  if [ "$inmain" -eq 0 ]; then'),
-    ("A6", sc, '''head -n 1 "$SIGNAL_FILE" | tr -d '\\r' '''.strip()),
-    ("A7", sc, '''  if ! printf '%s' "$SHA_RAW" | grep -Eq '^[0-9a-fA-F]{7,40}$'; then'''),
-    ("A8", sc, '  finish 3 "abort" ""'),
-    ("A9", sc, r"sed -n 's/^[[:blank:]]*commit:[[:blank:]]*\([^[:blank:]]*\)[[:blank:]]*$/\1/p'"),
-    ("A10", fg, 'case "$RUN" in eod)'),
-    ("A11", fg, 'run_gate "신호 신선도 하네스" "scripts/signal-check.sh" bash "$ROOT/scripts/signal-check-test.sh"'),
-    ("A12", fg, 'check_signal "★G9 계획 vs 실제 구현" "g9.ok" 1 ""'),
-    ("A13", mk, "pre-push-guard skip-ratchet signal-check"),
+    ("A1", sc, '  if [ -n "$MERGE_BASE" ] && [ "$MERGE_BASE" = "$HEAD_SHA" ]; then', 1),
+    ("A2", sc, '  if [ "$sha" = "$HEAD_SHA" ]; then', 1),
+    ("A3", sc, '  if [ -z "$MERGE_BASE" ]; then', 1),
+    ("A4", sc, '  if [ "$anc" -ne 0 ]; then', 1),
+    ("A5", sc, '  if [ "$inmain" -eq 0 ]; then', 1),
+    ("A6", sc, '''head -n 1 "$SIGNAL_FILE" | tr -d '\\r' '''.strip(), 1),
+    ("A7", sc, '''  if ! printf '%s' "$SHA_RAW" | grep -Eq '^[0-9a-fA-F]{7,40}$'; then''', 1),
+    ("A8", sc, '  finish 3 "abort" ""', 1),
+    ("A9", sc, r"sed -n 's/^[[:blank:]]*commit:[[:blank:]]*\([^[:blank:]]*\)[[:blank:]]*$/\1/p'", 1),
+    ("A14", sc, '  if [ "$mb_rc" -ne 0 ] || [ -z "$MERGE_BASE" ]; then', 1),
+    ("A10", fg, 'case "$RUN" in eod)', 1),
+    ("A11", fg, 'run_gate "신호 신선도 하네스" "scripts/signal-check.sh" bash "$ROOT/scripts/signal-check-test.sh"', 1),
+    ("A12", fg, 'check_signal "', 4),
 ]
-bad = ["%s x%d" % (n, s.count(a)) for n, s, a in anchors if s.count(a) != 1]
+bad = ["%s x%d(기대%d)" % (n, s.count(a), w) for n, s, a, w in anchors if s.count(a) != w]
+if not re.search(r"for h in [^;]*\bsignal-check\b", mk):
+    bad.append("A13 (Makefile gate-harnesses 목록에 signal-check 부재)")
 if bad:
     print("앵커 이탈: " + " · ".join(bad))
     sys.exit(1)
@@ -375,7 +398,7 @@ PY
   RC=$?
   why=""
   [ "$RC" -eq 0 ] || why="$OUT"
-  report "⑳" "변이·배선 앵커 13종 각 1회 존재" "$why"
+  report "⑳" "변이·배선 앵커 14종 규정 횟수 존재" "$why"
 
   # ㉑ 배선: 신선 → record rc=0 + note 가 signal: 로 시작
   sig "$TMP/repo" "commit: $A_C4" "본문"
@@ -403,15 +426,30 @@ PY
   [ -z "$why" ] && [ "$(printf '%s\n' "$OUT" | grep -c '^REC|')" -eq 0 ] || { [ -n "$why" ] || why="record 가 불렸다 — req=0 인데 FAIL 로 올렸다"; }
   report "㉓" "배선: 낡음+req=0 → skip 강등" "$why"
 
-  # ㉔ 출력 계약 — `signal: <name> @ <short8> [head]` + 정확히 1줄 (F5). `signal:` 만 찍는
-  #   구현이 ①②⑧⑯ 을 전부 통과하는 구멍을 막는다. 추출본(코드 size·sha 없음)은 red.
+  # ㉔ 출력 계약 — `signal: <name> @ <short8> [code]` + 정확히 1줄 (F5). `signal:` 만 찍는
+  #   구현이 ①②⑧⑯ 을 전부 통과하는 구멍을 막는다. [head] 와 **[branch] 양쪽**을 잰다 (H3 —
+  #   전건 [head] 를 내는 구현 차단). 추출본(코드 size·sha 없음)은 red.
   sig "$TMP/repo" "commit: $A_C4" "본문"
   run_sig "$TMP/repo" --run t-run g9.ok
   why=""
   [ "$RC" -eq 0 ] || why="rc=$RC (기대 0)"
   [ -z "$why" ] && [ "$(printf '%s\n' "$OUT" | grep -c .)" -ne 1 ] && why="stdout 이 정확히 1줄이 아니다"
   [ -z "$why" ] && ! has "signal: g9.ok @ ${A_C4:0:8} [head]" && why="형식 위반 — '@ <short8> [head]' 가 없다: $OUT"
-  report "㉔" "출력 계약: @ short8 [head] · 정확히 1줄" "$why"
+  if [ -z "$why" ]; then
+    sig "$TMP/repo" "commit: $A_C3" "본문"
+    run_sig "$TMP/repo" --run t-run g9.ok
+    has "signal: g9.ok @ ${A_C3:0:8} [branch]" || why="형식 위반 — '@ <short8> [branch]' 가 없다: $OUT"
+  fi
+  report "㉔" "출력 계약: @ short8 [head]·[branch] · 1줄" "$why"
+
+  # ㉕ ★F1 [치명적]의 유일한 증인 — origin/main 존재 + merge-base 실패(무관 이력).
+  #   종전 스펙은 이 형상에서 sha==HEAD 면 signal[head] **초록**이었다. 판정 불가 = rc 3.
+  sig "$TMP/repo-unrel" "commit: $U_C4" "본문"
+  run_sig "$TMP/repo-unrel" --run t-run g9.ok
+  why=""
+  [ "$RC" -eq 3 ] || why="rc=$RC (기대 3) — merge-base 실패가 초록/낡음으로 위장됐다"
+  [ -z "$why" ] && ! has "[git-error]" && why="[git-error] 코드가 없다"
+  report "㉕" "origin/main 존재+merge-base 실패 → rc3 [git-error]" "$why"
 }
 
 # ── 변이 엔진 (사본 전용 — 앵커 소실 시 rc=9 로 크게 죽는다) ────────
@@ -434,6 +472,7 @@ MUT = {
     ),
     "M8": (" | tr -d '\\r'", ""),
     "M9": ('  finish 3 "abort" ""', '  finish 1 "abort" ""'),
+    "M10": ('  if [ "$mb_rc" -ne 0 ] || [ -z "$MERGE_BASE" ]; then', "  if false; then"),
     "N1": ("# signal-check — 스킬 게이트 신호의 **신선도** 판정. ([BL-706])", "#"),
     "N2": ('WHY="HEAD 와 동일"', 'WHY="현재 커밋과 같다"'),
     "N3": ('  if [ "$sha" = "$HEAD_SHA" ]; then', '  if [ "$HEAD_SHA" = "$sha" ]; then'),
@@ -453,11 +492,11 @@ PY
 run_mutants() {
   # 합격 = 각 M 의 red 집합이 기대와 **정확히** 일치(1건) · 각 N 은 red 0건.
   # red 0건인 M = 하네스가 눈이 멀었다(또는 등가 변이). 전건 red 인 M = 판별력 증거가 아니다.
-  local spec="M1=⑫ M2=③ M3=⑲ M4=⑭ M5=⑮ M6=⑪ M7=⑩ M8=⑯ M9=⑨ N1= N2= N3="
+  local spec="M1=⑫ M2=③ M3=⑲ M4=⑭ M5=⑮ M6=⑪ M7=⑩ M8=⑯ M9=⑨ M10=㉕ N1= N2= N3="
   local entry mid expect mrc verdict
   local mfail=0
   echo ""
-  echo "── 변이 M1~M9 · 음성 대조 N1~N3 (사본 주입 · 케이스 24건 전량 재실행) ──"
+  echo "── 변이 M1~M10 · 음성 대조 N1~N3 (사본 주입 · 케이스 25건 전량 재실행) ──"
   QUIET=1
   for entry in $spec; do
     mid="${entry%%=*}"; expect="${entry#*=}"
@@ -491,12 +530,12 @@ run_mutants() {
 
 # ── 실행 ──────────────────────────────────────────────────────────
 echo "══ signal-check 하네스 ══"
-echo "  fixture: git 저장소 3벌 + 비저장소 1벌 (tmp 트리)"
+echo "  fixture: git 저장소 4벌 + 비저장소 1벌 (tmp 트리)"
 echo ""
 
 run_suite
 echo ""
-echo "  케이스: ${PASS}/24 통과, ${FAIL} 실패"
+echo "  케이스: ${PASS}/25 통과, ${FAIL} 실패"
 if [ "$FAIL" -gt 0 ]; then
   echo "  red = [$RED_IDS]"
   exit 1
@@ -505,7 +544,7 @@ fi
 if [ "$MODE" = "--mutants" ]; then
   if run_mutants; then
     echo ""
-    echo "✓ 변이 12종 전건 판별 (M 각 1건 red · N 각 0건)"
+    echo "✓ 변이 13종 전건 판별 (M 각 정확 1건 red · N 각 0건)"
   else
     echo ""
     echo "✗ 변이 판별 실패 — 위 표를 봐라"
