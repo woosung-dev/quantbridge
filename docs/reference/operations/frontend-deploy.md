@@ -110,6 +110,8 @@ ssh <서버> 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'   # 실격 0 
 ssh <서버> 'curl -s -o /dev/null -w "%{http_code}\n" localhost:3200'          # 200
 curl -s https://qb-api.woosung.dev/health                                     # {"status":"ok",...}
 curl -s -o /dev/null -w "%{http_code}\n" https://qb-api.woosung.dev/metrics   # 401
+# ★401 **하나로는 못 가른다** — 아래 §5 참조. 부팅 로그 1줄이 판별자다 ([BL-704]).
+ssh <서버> 'docker logs <api 컨테이너> 2>&1 | grep -m1 metrics_auth='   # enabled 여야 한다
 ```
 
 그다음 브라우저 — Access OTP → 로그인 → `/strategies` 렌더(SSR 헤어핀 정상) →
@@ -122,6 +124,13 @@ curl -s -o /dev/null -w "%{http_code}\n" https://qb-api.woosung.dev/metrics   # 
 ★**게이트를 비로그인 ssh 셸에서 부르지 마라.** `ssh <서버> 'scripts/soak-gate.sh'` 는 PATH 에
 `uv` 가 없어 phantom 분류기가 실패하고, 그 창의 시간이 **커버리지에서 잘려나간다**(실측 8분).
 `bash -lc` 로 감싸라. systemd 타이머는 `Environment=PATH=` 로 명시돼 있어 영향받지 않는다.
+
+★★**`/metrics` 의 401 은 두 가지를 동시에 뜻한다 — 「보호 중」과 「관측 상실」.** 2026-08-11
+fail-closed 전환 이후 토큰이 **없어도** 401 이다(있으면 베어러 없는 요청이 401, 없으면 전건 401).
+즉 위 §4 의 `curl … # 401` 은 **판별자가 아니다.** 판별자는 부팅 로그 1줄이다 —
+`metrics_auth=enabled app_env=…`(정상) / `metrics_auth=DISABLED …`(토큰 누락, 스크레이프 전멸).
+★이 호스트는 `APP_ENV` 미설정이라 `core/config.py` 의 production validator 보호를 **안 받는다**.
+그래서 그 줄은 `app_env` 조건 **없이** 모든 환경에서 찍힌다([BL-704]).
 
 ★**게이트 스크립트는 소크 고정본이 아니라 체크아웃에서 돈다.** 서버 체크아웃이 낡으면 게이트도
 낡는다 — 2026-08-07 에 서버가 [BL-620] **이전** 커밋이라 HTTP 로 긁고 있었고, 그 상태에서

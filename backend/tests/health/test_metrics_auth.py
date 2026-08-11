@@ -68,6 +68,27 @@ async def test_metrics_401_when_token_unset(
 
 
 @pytest.mark.asyncio
+async def test_metrics_401_when_token_empty_string(
+    client: AsyncClient,
+) -> None:
+    """★빈 문자열도 「없음」이다 — [BL-704] 의 공용 술어를 **엔드포인트 경로로** 고정한다.
+
+    `_metrics_auth_token()` 을 직접 부르는 단위 테스트는 그 함수만 재고 **가드가 그것을
+    쓰는지**는 못 잰다([LESSON-092] §2). 부팅 로그 쪽 대응 케이스는
+    `test_metrics_auth_boot_log.py::test_boot_treats_empty_token_as_disabled` 이고,
+    둘이 같은 진리값을 요구하므로 술어가 갈라지면 **한쪽이 반드시 red** 다.
+    """
+    from src import main as main_module
+
+    with patch.object(main_module.settings, "prometheus_bearer_token", SecretStr("")):
+        resp = await client.get("/metrics")
+
+    assert resp.status_code == 401, (
+        f"빈 토큰은 미설정과 같아야 한다 (fail-closed), got {resp.status_code}"
+    )
+
+
+@pytest.mark.asyncio
 async def test_metrics_unauth_401_when_token_set(
     client: AsyncClient,
 ) -> None:
