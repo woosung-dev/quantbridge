@@ -370,8 +370,11 @@ if bl_audit.exists() and backlog_md.exists():
             if head.startswith("BL-"):
                 got.add(head)
         by_verdict[verdict] = got
-        if verdict != "PARTIAL":
-            need |= got  # 트리거 판정 줄 의무는 아직 ACTIVE/DEFERRED 만 ([BL-703])
+        # ★2026-08-11 [BL-703] — PARTIAL 도 의무 대상이다. 종전에는 여기에
+        #   `if verdict != "PARTIAL"` 가 있었고, 그래서 PARTIAL 24건이 판정줄 없이 통과했다.
+        #   그 면제가 아래 zero_table_identity 의 `PARTIAL ∧ 도래` 를 **구조적 공집합**으로
+        #   만들었다 — 술어는 완성돼 있는데 한쪽 입력에 데이터가 생길 수 없었다.
+        need |= got
 
     counts: dict[str, int] = {}
     section: str | None = None
@@ -409,9 +412,13 @@ if bl_audit.exists() and backlog_md.exists():
 # ★판정은 `bl-audit.sh --list` 가 정본이다 — 상태줄 파서를 여기서 다시 쓰지 않는다(위 블록과 공용).
 # ★★**빈 집합이 「일치」로 새는 것**이 이 레포가 두 번 밟은 함정이다 ⇒ 양쪽이 비면 **rc=3 ABORT**.
 #   초록도 빨강도 내지 않고 판정을 포기한다 ([LESSON-101]).
-# ★PARTIAL 쪽은 지금 **구조적으로 공집합**이다 — PARTIAL 24건 중 `**트리거 판정:**` 줄을 가진
-#   것이 **0건**이다(2026-08-11 실측, 양성 대조 = ACTIVE 6/6 · DEFERRED 155/155). 술어는 여기
-#   완성돼 있고 데이터가 없다. 그 데이터를 채우는 것이 [BL-703] 다.
+# ★~~PARTIAL 쪽은 지금 구조적으로 공집합이다~~ → **2026-08-11 [BL-703] 이 채웠다.** 24/24 가
+#   판정줄을 갖고 그중 **5건이 도래**([BL-438]·[BL-559]·[BL-639]·[BL-641]·[BL-672])다. 이 축이
+#   실제로 두 항을 다 쓰는 것은 그날이 처음이다.
+# ★★**「도래」는 볼드로 쓰지 마라** — 아래 정규식은 `**` 뒤에 곧바로 `도래` 를 요구한다.
+#   `**트리거 판정:** **도래** — …` 로 쓰면 **조용히 0 매치**가 되고, 그 항목은 ⓪ 표에서
+#   요구되지도 금지되지도 않는다(빈 집합이 「없음」으로 새는 이 레포의 상습 함정).
+#   2026-08-11 에 실제로 그렇게 썼다가 대조에서 잡았다.
 zero_identity_hits: list[str] = []
 if by_verdict:
     arrived_partial = {
@@ -452,8 +459,8 @@ if zero_identity_hits:
 
 if verdict_line_hits:
     print(
-        "▶ 트리거 판정 줄 — ACTIVE/DEFERRED 는 `**트리거 판정:**` 을 정확히 1개 가진다 "
-        "([BL-695] · ADR-028 §4)"
+        "▶ 트리거 판정 줄 — ACTIVE/DEFERRED/PARTIAL 은 `**트리거 판정:**` 을 정확히 1개 가진다 "
+        "([BL-695]·[BL-703] · ADR-028 §4)"
     )
     for why in verdict_line_hits[:20]:
         print(why)
