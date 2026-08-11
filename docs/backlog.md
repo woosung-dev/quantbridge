@@ -8409,8 +8409,8 @@ codegen 스크립트 0). 화면은 수기 Zod 로만 계약을 아니까 선언�
 **Priority:** P3
 **Trigger:** `flatten` 출력 형식을 바꿀 때
 **Est:** XS
-**상태:** 🟡 부분 해결 — ⑴ **계약 단절은 2026-08-10 close-ownership-axis 가 메웠다**(스코프 OUT 이었으나 [BL-671] 의 키 변경이 정확히 이 구멍을 통과하는 바람에 시험이 필요했다). `test_live_session_admin_flatten.py::test_flatten_cli_formats_actual_flat_resting_entry_detail` 이 **서비스가 실제로 raise 한 detail 객체 그대로**를 CLI 포매터에 태운다 — 종전 수제 dict 는 `message` 키가 아예 없어 키 변경을 **못 잡았다**(실측). **코드는 안 건드렸다, 시험만 추가했다.** ⑵ runbook §7 갱신은 **미이행**
-**트리거 판정:** 도래 — 잔여가 이미 0 이라 종결 판정만 남았다. ★상태줄의 「⑵ runbook §7 갱신은 **미이행**」이 **반증됐다** — `bybit-mainnet-runbook.md:363-372` 이 2026-08-10 정정으로 `no_open_position` 의 새 의미와 **rc 0/1/3/4 분기**를 이미 적고 있다([BL-661]+[BL-684] 인용). 원장이 「미이행」이라 말할 때 **문서에게 되물어라** (2026-08-11 bl-703-partial-verdicts)
+**상태:** ✅ **Resolved** (2026-08-11 bl-672-close) — 잔여 2건이 **둘 다 이미 이행돼 있었다.** ⑴ 계약 테스트 = `test_live_session_admin_flatten.py:130` `test_flatten_cli_formats_actual_flat_resting_entry_detail` (2026-08-10 close-ownership-axis 가 넣었다). ⑵ 「runbook §7 갱신 미이행」은 **반증됐다** — `bybit-mainnet-runbook.md:363-372` 이 2026-08-10 정정으로 `no_open_position` 의 새 의미와 **rc 0/1/3/4 분기**를 이미 적고 있다. ★**이 항목은 한 줄도 새로 짜지 않고 닫혔다** — 닫은 것은 코드가 아니라 **원장의 거짓 문장**이다. 「미이행」이라 적힌 것을 문서에게 되물었더니 이행돼 있었다([BL-307]·[BL-703] 에 이은 **네 번째** 실증)
+**트리거 판정:** ~~도래 — 잔여가 이미 0 이라 종결 판정만 남았다. ★상태줄의 「⑵ runbook §7 갱신은 **미이행**」이 **반증됐다** — `bybit-mainnet-runbook.md:363-372` 이 2026-08-10 정정으로 `no_open_position` 의 새 의미와 **rc 0/1/3/4 분기**를 이미 적고 있다([BL-661]+[BL-684] 인용). 원장이 「미이행」이라 말할 때 **문서에게 되물어라** (2026-08-11 bl-703-partial-verdicts)~~
 **출처:** 2026-08-10 guards-blind-spots codex 최종 적대 리뷰 (P3 2건 — 코드 대조로 확정)
 
 **원인 / 영향 ⑴ 계약 단절.** `test_close_service.py` 는 실제 detail 에서 `order_id` 만 보고,
