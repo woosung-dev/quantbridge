@@ -8,9 +8,10 @@
 #   (케이스 ㉔㉕·⑩ 형태·앵커는 G1 직후 codex 플랜 검증 F1~F5·H1~H9 를 채택해 개정했다 —
 #    특히 ㉕ 는 [치명적] F1(merge-base 실패가 초록으로 새는 경로) 수리의 유일한 증인이다.)
 #
-# ★정직한 한계 하나 더 (H9) — ㉑㉒㉓ 의 wire 스텁은 ROOT 에 **실 레포**를 넘긴다. 그래서
-#   안내문의 `git rev-parse HEAD` 와 「신호 파일:」 경로는 실 레포 것으로 찍히고, ㉒ 는 문구
-#   존재만 보므로 **경로 조립 오류는 못 잡는다** — 그것은 G4 의 실물 대조 2회가 잡는다.
+# ★정직한 한계 하나 더 — 신선도가 보증하는 것은 「이 브랜치 범위 안에서 쓰였다」까지다:
+#   같은 브랜치의 이전 커밋 신호는 이후 커밋에서도 초록이고(동결 케이스 ② 의 의도 — 회차
+#   실흐름), 로컬 origin/main ref 의 낡음과 **회차 슬러그 재사용**은 여기서 안 잰다(eod 만
+#   스크립트가 거부). 회차 = 브랜치 = 새 슬러그 규약(status ⓸ ④)이 그 나머지를 진다.
 #
 # 무엇을 재는가 — 신호 **신선도** 판정(scripts/signal-check.sh)과 check_signal 배선이다.
 #   fixture = 임시 git 저장소 4벌(브랜치 지형·merge-base==HEAD·origin/main 부재·비저장소).
@@ -21,6 +22,7 @@
 #   · 기본 ROOT 파생(`dirname $0/..`) — final-gates.sh 의 실물 실행이 매번 덮는다
 #   · 빈 저장소(커밋 0개 → abort[no-head]) · git 자체 실패(is-ancestor rc>1 → abort[git-error])
 #   · final-gates.sh 게이트 체인 전체 경로 — G4 의 실물 대조 2회가 정본 증거다
+#   · 케이스 ⑳ 의 배선 앵커(A11~A13)는 **텍스트 증거**다 — 배선의 행위 증거도 실물 대조 몫이다
 #
 # ★이 하네스가 final-gates.sh 를 부르고(케이스 ⑩) final-gates.sh 가 이 하네스를 부른다 —
 #   재귀가 아니다: 내부 호출은 `--run eod` 인자 검증에서 즉사한다.
@@ -29,7 +31,7 @@
 #   가린 실측 사고 이력 — pipefail 하에서는 보존되지만 규율은 유지한다).
 #
 # 사용법: scripts/signal-check-test.sh            # 25케이스 (상시 — final-gates 가 돌린다)
-#         scripts/signal-check-test.sh --mutants  # + 변이 M1~M10 · 음성 대조 N1~N3 (G4 에서 1회)
+#         scripts/signal-check-test.sh --mutants  # + 변이 M1~M11 · 음성 대조 N1~N3 (G4 에서 1회)
 
 set -uo pipefail
 
@@ -97,6 +99,10 @@ build_repo() { # build_repo <dir> → C1..C5 전역
   C5="$(git -C "$d" commit-tree "${C2}^{tree}" -p "$C2" -m c5)"
   git -C "$d" branch -q sibling "$C5"
   mkdir -p "$d/.claude/gates/t-run"
+  # wire 스텁(㉑㉒㉓)이 fixture 를 ROOT 로 넘길 수 있게 실물 판정기를 심볼릭 링크로 심는다 —
+  # 경로 조립까지 fixture 기준으로 재게 되어 종전의 「실 레포 ROOT」 한계(H9)가 사라진다.
+  mkdir -p "$d/scripts"
+  ln -s "$CHECK" "$d/scripts/signal-check.sh"
 }
 
 build_repo "$TMP/repo";        A_C2="$C2"; A_C3="$C3"; A_C4="$C4"; A_C5="$C5"
@@ -109,7 +115,8 @@ build_repo "$TMP/repo-noorig"; N_C3="$C3"; N_C4="$C4"
 build_repo "$TMP/repo-unrel";  U_C1="$C1"; U_C4="$C4"
 ORPH="$(git -C "$TMP/repo-unrel" commit-tree "${U_C1}^{tree}" -m orphan)"
 git -C "$TMP/repo-unrel" update-ref refs/remotes/origin/main "$ORPH"
-mkdir -p "$TMP/norepo/.claude/gates/t-run"
+mkdir -p "$TMP/norepo/.claude/gates/t-run" "$TMP/norepo/scripts"
+ln -s "$CHECK" "$TMP/norepo/scripts/signal-check.sh"
 
 # P3 — 지형 대조. fixture 가 깨지면 ③⑲ 가 엉뚱한 이유로 통과한다.
 # ★is-ancestor 는 rc=128 이 에러다 — 「조상 아님(rc=1)」과 구분해서 재야 미상 sha 가 안 샌다 (F7).
@@ -177,17 +184,20 @@ skip_gate() { printf 'SKIP|%s|%s\n' "$1" "$2"; }
 check_signal "테스트게이트" "$NAME" "$REQ" "fe diff 0"
 WIRE
 
-run_wire() { # run_wire <tree> <req 0|1>  — 추출된 check_signal 을 스텁 위에서 돈다
-  sed -n '/^check_signal() {/,/^}/p' "$GATES" >"$TMP/cs.sh"
+WIRE_SRC=""          # 변이 M11 전용 — 채워지면 check_signal 추출을 그 사본에서 한다
+run_wire() { # run_wire <tree> <req 0|1>  — 추출된 check_signal 을 스텁 위에서 돈다.
+  # ★env 주입이 아니라 **fixture 를 ROOT 로** 넘긴다(scripts/ 심볼릭 링크 경유) — check_signal
+  #   이 --root 를 명시하므로 env 백도어 경로가 아예 안 탄다(P2-1 수리의 배선 검증).
+  sed -n '/^check_signal() {/,/^}/p' "${WIRE_SRC:-$GATES}" >"$TMP/cs.sh"
   if ! grep -qF 'check_signal()' "$TMP/cs.sh"; then
     OUT="check_signal 추출 실패 — final-gates.sh 형태가 바뀌었다"; RC=9; ERR=""; return
   fi
-  OUT="$(QB_SIGNAL_ROOT="$1" bash "$TMP/wire.sh" "$ROOT" t-run "$2" g9.ok "$TMP/cs.sh" 2>"$TMP/err")"
+  OUT="$(bash "$TMP/wire.sh" "$1" t-run "$2" g9.ok "$TMP/cs.sh" 2>"$TMP/err")"
   RC=$?
   ERR="$(cat "$TMP/err")"
 }
 
-# ── 케이스 23건 (번호·기대값 = G1 동결 §2.3 그대로) ────────────────
+# ── 케이스 25건 (번호·기대값 = G1 동결 §2.3 그대로) ────────────────
 run_suite() {
   PASS=0; FAIL=0; RED_IDS=""
   local why rec_line
@@ -340,7 +350,14 @@ run_suite() {
   [ "$RC" -eq 0 ] || why="rc=$RC (기대 0)"
   [ -z "$why" ] && ! has_err "QB_SIGNAL_ROOT" && why="stderr 에 재정의 고지가 없다"
   [ -z "$why" ] && ! has_err "$TMP/repo" && why="고지에 대상 트리 경로가 없다"
-  report "⑰" "QB_SIGNAL_ROOT 재정의 고지(stderr)" "$why"
+  # --root 명시가 env 를 이긴다 (P2-1) — env 가 이기면 norepo 라 rc=3 이 났을 것이다.
+  if [ -z "$why" ]; then
+    OUT="$(QB_SIGNAL_ROOT="$TMP/norepo" bash "$CHECK_BIN" --root "$TMP/repo" --run t-run g9.ok 2>"$TMP/err")"
+    RC=$?
+    ERR="$(cat "$TMP/err")"
+    [ "$RC" -eq 0 ] || why="--root 가 env 를 못 이겼다 (rc=$RC)"
+  fi
+  report "⑰" "QB_SIGNAL_ROOT 고지 · --root 우선" "$why"
 
   # ⑱ 사용법 오류 — 「잘못 불렀다」(rc2)와 「낡았다」(rc1)를 분리한다. 경로 탈출 이름도 rc2 (F11).
   run_sig "$TMP/repo" --bogus g9.ok
@@ -350,6 +367,7 @@ run_suite() {
   if [ -z "$why" ]; then
     run_sig "$TMP/repo" --run t-run "../escape.ok"
     [ "$RC" -eq 2 ] || why="경로 탈출 이름이 rc=2 가 아니다 (rc=$RC)"
+    [ -z "$why" ] && [ -n "$OUT" ] && why="경로 탈출인데 stdout 이 침묵하지 않았다: $OUT"
   fi
   report "⑱" "모르는 플래그·경로 탈출 이름 → rc2" "$why"
 
@@ -429,7 +447,15 @@ PY
   why=""
   [ "$(printf '%s\n' "$OUT" | grep -c '^SKIP|')" -eq 1 ] || why="skip_gate 호출이 1회가 아니다"
   [ -z "$why" ] && [ "$(printf '%s\n' "$OUT" | grep -c '^REC|')" -eq 0 ] || { [ -n "$why" ] || why="record 가 불렸다 — req=0 인데 FAIL 로 올렸다"; }
-  report "㉓" "배선: 낡음+req=0 → skip 강등" "$why"
+  # ★판정 불가(rc=3)는 req=0 이어도 skip 으로 낮추면 안 된다 — fail-open (G6 F4).
+  if [ -z "$why" ]; then
+    run_wire "$TMP/norepo" 0
+    rec_line="$(printf '%s\n' "$OUT" | grep '^REC|' || true)"
+    [ -n "$rec_line" ] || why="rc3+req0 이 record 되지 않았다 (fail-open)"
+    [ -z "$why" ] && [ "$(printf '%s\n' "$OUT" | grep -c '^SKIP|')" -eq 0 ] || { [ -n "$why" ] || why="rc3+req0 이 skip 으로 낮아졌다"; }
+    [ -z "$why" ] && [ "$(printf '%s' "$rec_line" | cut -d'|' -f3)" != "3" ] && why="record rc=3 이 아니다: $rec_line"
+  fi
+  report "㉓" "배선: req=0 — 낡음은 skip · 판정불가는 FAIL" "$why"
 
   # ㉔ 출력 계약 — `signal: <name> @ <short8> [code]` + 정확히 1줄 (F5). `signal:` 만 찍는
   #   구현이 ①②⑧⑯ 을 전부 통과하는 구멍을 막는다. [head] 와 **[branch] 양쪽**을 잰다 (H3 —
@@ -478,6 +504,11 @@ MUT = {
     "M8": (" | tr -d '\\r'", ""),
     "M9": ('  finish 3 "abort" ""', '  finish 1 "abort" ""'),
     "M10": ('  if [ "$mb_rc" -ne 0 ] || [ -z "$MERGE_BASE" ]; then', "  if false; then"),
+    # M11 — check_signal 의 rc 삼킴(고전 사고: local 과 대입을 한 줄로). 대상은 final-gates 사본.
+    "M11": (
+        '  out="$(bash "$ROOT/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지\n  rc=$?',
+        '  local out="$(bash "$ROOT/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지\n  rc=$?',
+    ),
     "N1": ("# signal-check — 스킬 게이트 신호의 **신선도** 판정. ([BL-706])", "#"),
     "N2": ('WHY="HEAD 와 동일"', 'WHY="현재 커밋과 같다"'),
     "N3": ('  if [ "$sha" = "$HEAD_SHA" ]; then', '  if [ "$HEAD_SHA" = "$sha" ]; then'),
@@ -500,18 +531,22 @@ run_mutants() {
   # ★M9 기대 = ⑨㉕ **둘** — A14 가 동결 골격대로 abort() 를 호출하므로 abort 의 rc 를 무는
   #   변이는 abort 경로의 두 증인(⑨ 비저장소 · ㉕ merge-base 실패)을 함께 죽인다. 동결 초판의
   #   「⑨ 만」은 A14 골격과 자기모순이었다(생성자가 finish 3 분리로 회피했던 자리 — G6 기록).
-  local spec="M1=⑫ M2=③ M3=⑲ M4=⑭ M5=⑮ M6=⑪ M7=⑩ M8=⑯ M9=⑨㉕ M10=㉕ N1= N2= N3="
+  # ★M11 = check_signal rc 삼킴(콜드 리뷰 P3-1) — 배선 케이스 ㉒㉓ 만 죽는다(스코프 분리 증명).
+  local spec="M1=⑫ M2=③ M3=⑲ M4=⑭ M5=⑮ M6=⑪ M7=⑩ M8=⑯ M9=⑨㉕ M10=㉕ M11=㉒㉓ N1= N2= N3="
   local entry mid expect mrc verdict
   local mfail=0
   echo ""
-  echo "── 변이 M1~M10 · 음성 대조 N1~N3 (사본 주입 · 케이스 25건 전량 재실행) ──"
+  echo "── 변이 M1~M11 · 음성 대조 N1~N3 (사본 주입 · 케이스 25건 전량 재실행) ──"
   QUIET=1
   for entry in $spec; do
     mid="${entry%%=*}"; expect="${entry#*=}"
-    CHECK_BIN="$CHECK"; ARGPARSE_SRC=""
+    CHECK_BIN="$CHECK"; ARGPARSE_SRC=""; WIRE_SRC=""
     if [ "$mid" = "M7" ]; then
       make_mutant M7 "$GATES" "$TMP/mutant-gates.sh"; mrc=$?
       ARGPARSE_SRC="$TMP/mutant-gates.sh"
+    elif [ "$mid" = "M11" ]; then
+      make_mutant M11 "$GATES" "$TMP/mutant-gates.sh"; mrc=$?
+      WIRE_SRC="$TMP/mutant-gates.sh"
     else
       make_mutant "$mid" "$CHECK" "$TMP/mutant.sh"; mrc=$?
       CHECK_BIN="$TMP/mutant.sh"
@@ -532,7 +567,7 @@ run_mutants() {
       else printf '  ✓ %-3s → red 0건 (등가 확인)\n' "$mid"; fi
     fi
   done
-  QUIET=0; CHECK_BIN="$CHECK"; ARGPARSE_SRC=""
+  QUIET=0; CHECK_BIN="$CHECK"; ARGPARSE_SRC=""; WIRE_SRC=""
   return "$mfail"
 }
 
@@ -552,7 +587,7 @@ fi
 if [ "$MODE" = "--mutants" ]; then
   if run_mutants; then
     echo ""
-    echo "✓ 변이 13종 전건 판별 (M 각 기대 집합과 정확 일치 · N 각 0건)"
+    echo "✓ 변이 14종 전건 판별 (M 각 기대 집합과 정확 일치 · N 각 0건)"
   else
     echo ""
     echo "✗ 변이 판별 실패 — 위 표를 봐라"

@@ -50,7 +50,7 @@ while [ $# -gt 0 ]; do
   esac
 done
 [ -n "$RUN" ] || { echo "사용법: $0 --run <name> [--skip-e2e] [--skip-ci-repro]" >&2; exit 1; }
-case "$RUN" in *[!A-Za-z0-9._-]*) echo "--run 은 영숫자·점·밑줄·하이픈만" >&2; exit 1 ;; esac
+case "$RUN" in *..*|*[!A-Za-z0-9._-]*) echo "--run 은 영숫자·점·밑줄·하이픈만 (.. 금지)" >&2; exit 1 ;; esac
 case "$RUN" in eod) echo "✗ --run eod 는 금지다 — 앞 회차 신호를 물려받는다 ([BL-706]). 회차 슬러그를 써라: --run <회차이름>" >&2; exit 1 ;; esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
@@ -311,10 +311,14 @@ fi
 check_signal() {  # check_signal <label> <file> <required 0|1> <why>
   local label="$1" f="$2" req="$3" why="$4" out rc
   # ★두 줄로 나눈다. `local out="$(...)"` 는 rc 가 **local 의 것**(항상 0)이라 전건 PASS 가 된다.
-  out="$(bash "$ROOT/scripts/signal-check.sh" --run "$RUN" "$f")"   # ★파이프 금지
+  out="$(bash "$ROOT/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지
   rc=$?
   if [ "$rc" -eq 0 ]; then
     record "$label" 0 "$out"                       # → `signal: g9.ok @ 25e96fb7 [head] — …`
+  elif [ "$rc" -eq 3 ]; then
+    # ★판정 불가(git 이상)는 req=0 이어도 skip 으로 낮추지 않는다 — fail-open 금지 (G6 F4).
+    record "$label" "$rc" "★$out"
+    printf '\n▶ %s\n  → FAIL: %s\n' "$label" "$out"
   elif [ "$req" -eq 0 ]; then
     skip_gate "$label" "$why · $out"               # 필수 아님 → FAIL 로 올리지 않고 사유를 남긴다
   else

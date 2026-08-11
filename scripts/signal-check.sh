@@ -3,30 +3,41 @@
 set -uo pipefail
 
 usage() {
-  echo "사용법: $0 --run <run> <signal-file-name> | $0 -h|--help" >&2
+  echo "사용법: $0 [--root <repo>] --run <run> <signal-file-name> | $0 -h|--help" >&2
 }
 
 if [ "$#" -eq 1 ] && { [ "$1" = "-h" ] || [ "$1" = "--help" ]; }; then
-  printf '%s\n' "사용법: $0 --run <run> <signal-file-name> | $0 -h|--help"
+  printf '%s\n' "사용법: $0 [--root <repo>] --run <run> <signal-file-name> | $0 -h|--help"
   exit 0
 fi
 
-if [ "$#" -ne 3 ] || [ "$1" != "--run" ]; then
-  usage
-  exit 2
-fi
-
-RUN="$2"
-NAME="$3"
+RUN=""; NAME=""; ROOT_ARG=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --run)  [ "$#" -ge 2 ] || { usage; exit 2; }; RUN="$2"; shift 2 ;;
+    --root) [ "$#" -ge 2 ] || { usage; exit 2; }; ROOT_ARG="$2"; shift 2 ;;
+    -*) usage; exit 2 ;;
+    *) [ -z "$NAME" ] || { usage; exit 2; }; NAME="$1"; shift ;;
+  esac
+done
+[ -n "$RUN" ] && [ -n "$NAME" ] || { usage; exit 2; }
 case "$RUN" in
-  ""|*..*|*[!A-Za-z0-9._-]*) usage; exit 2 ;;
+  *..*|*[!A-Za-z0-9._-]*) usage; exit 2 ;;
 esac
 case "$NAME" in
-  ""|*..*|*[!A-Za-z0-9._-]*) usage; exit 2 ;;
+  *..*|*[!A-Za-z0-9._-]*) usage; exit 2 ;;
 esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
-if [ -n "${QB_SIGNAL_ROOT:-}" ]; then
+# ★우선순위: --root 명시 인자 > env > 파생. env 만 열어 두면 셸에 남은 export 하나로
+#   빈 신호 디렉터리에서도 PASS 행을 만들 수 있다(콜드 리뷰 P2-1 실증) — 호출부(final-gates)가
+#   --root 를 명시해 env 백도어를 닫는다. env 는 하네스 fixture 주입용으로 남긴다.
+if [ -n "$ROOT_ARG" ]; then
+  if [ -n "${QB_SIGNAL_ROOT:-}" ] && [ "$QB_SIGNAL_ROOT" != "$ROOT_ARG" ]; then
+    echo "★QB_SIGNAL_ROOT 는 무시된다 — --root 명시 인자가 이긴다: $ROOT_ARG" >&2
+  fi
+  ROOT="$ROOT_ARG"
+elif [ -n "${QB_SIGNAL_ROOT:-}" ]; then
   ROOT="$QB_SIGNAL_ROOT"
   echo "★QB_SIGNAL_ROOT 재정의 — 이 트리를 잰다: $ROOT" >&2
 fi
@@ -65,7 +76,7 @@ judge_freshness() { # <full-sha> → 0 신선 / 1 낡음 / 3 판정 불가. 사�
   if [ "$inmain" -eq 0 ]; then                                               # ← 앵커 A5
     CODE="origin-main"; WHY="origin/main 에 이미 있는 커밋 — 앞 회차가 남긴 신호다"; return 1
   fi
-  CODE="branch"; WHY="이 브랜치의 커밋 (merge-base 이후 · HEAD 의 조상)"; return 0
+  CODE="branch"; WHY="이 브랜치의 커밋 (HEAD-$(git -C "$ROOT" rev-list --count "$sha..$HEAD_SHA" 2>/dev/null || echo '?') · merge-base 이후)"; return 0
 }
 
 git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || abort "not-a-repo" "git 저장소가 아니다: $ROOT"
