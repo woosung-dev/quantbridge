@@ -77,9 +77,9 @@ class LiveSignalSessionRepository:
         if not strategy_ids:
             return set()
         result = await self.session.execute(
-            select(LiveSignalSession.strategy_id)
+            select(LiveSignalSession.strategy_id)  # type: ignore[call-overload]
             .where(LiveSignalSession.strategy_id.in_(strategy_ids))  # type: ignore[attr-defined]
-            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .where(LiveSignalSession.is_active == True)  # noqa: E712
             .distinct()
         )
         return set(result.scalars().all())

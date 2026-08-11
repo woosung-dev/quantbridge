@@ -66,7 +66,7 @@ class StrategyRepository:
         total = (await self.session.execute(count_stmt)).scalar_one()
 
         latest_completed = (
-            select(Backtest.strategy_id, Backtest.metrics)
+            select(Backtest.strategy_id, Backtest.metrics)  # type: ignore[call-overload]
             .where(Backtest.status == BacktestStatus.COMPLETED)
             .distinct(Backtest.strategy_id)
             .order_by(
