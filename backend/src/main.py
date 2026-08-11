@@ -99,6 +99,19 @@ async def unhandled_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
     )
 
 
+def _metrics_auth_token() -> str | None:
+    """`/metrics` 가 요구하는 토큰. 미설정·빈 문자열은 **둘 다 「없음」**이다.
+
+    ★엔드포인트 가드와 부팅 로그가 **이 술어 하나**를 공유한다([BL-704]). 두 벌로 두면
+    로그가 「활성」이라 말하는데 스크레이프는 401 인 상태가 생기고, 그 어긋남은
+    운영자에게 보이지 않는다 — 이 회차가 고치는 병과 정확히 같은 모양이다.
+    """
+    token = settings.prometheus_bearer_token
+    if token is None:
+        return None
+    return token.get_secret_value() or None
+
+
 def _verify_prometheus_bearer(
     authorization: str | None = Header(default=None),
 ) -> None:
@@ -121,15 +134,15 @@ def _verify_prometheus_bearer(
     부팅 가드의 보호를 **받지 않는다.**
 
     2026-08-11 실측 — 그 호스트의 `.env.local` 에는 토큰이 **설정돼 있다**(비어 있지 않음).
-    그래서 오늘 스크레이프는 깨지지 않는다. 하지만 그것을 보장하는 것은 **운영자의 손**이고
-    부팅 시점에 검사하는 것이 아무것도 없다 ⇒ `.env.local` 을 재프로비저닝하면서 이 줄을
-    빠뜨리면 `/metrics` 가 **조용히 401** 이 되고 부팅은 성공한다. 그 공백은 [BL-704] 다.
+    그래서 오늘 스크레이프는 깨지지 않는다. 하지만 그것을 보장하는 것은 **운영자의 손**이었다
+    ⇒ `.env.local` 을 재프로비저닝하면서 이 줄을 빠뜨리면 `/metrics` 가 **조용히 401** 이
+    되고 부팅은 성공한다.
+
+    ★[BL-704] — 그 공백은 이제 **부팅 로그 1줄**이 알린다(`lifespan()`). 부팅을 막지는
+    않는다(dev 를 깨지 않는다). 판정은 `_metrics_auth_token()` 하나를 공유하므로 로그와
+    이 가드가 갈라질 수 없다.
     """
-    expected = (
-        settings.prometheus_bearer_token.get_secret_value()
-        if settings.prometheus_bearer_token is not None
-        else None
-    )
+    expected = _metrics_auth_token()
     if not expected:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -155,7 +168,33 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     - CCXTProvider singleton (ohlcv_provider=timescale 일 때만)
     - Redis lock pool healthcheck (Sprint 10 A1) — 실패 시 degraded 모드
     - Sprint 23 BL-103: EXCHANGE_PROVIDER deprecation warning (staging/production)
+    - BL-704: `/metrics` 인증 활성 여부 1줄 (모든 환경 · 부팅을 막지 않는다)
     """
+    # BL-704 — `/metrics` 인증 상태를 **부팅 시점에** 말한다. 다른 자원보다 먼저 찍는다:
+    # 뒤쪽 startup 이 죽어도 이 사실은 로그에 남아야 한다.
+    #
+    # ★**`app_env` 로 감싸지 않는다.** 이 항목의 병이 정확히 그것이다 — `core/config.py` 의
+    #   production validator 는 `app_env` **문자열**이 `production` 일 때만 돌고(staging 은
+    #   명시 면제), 이 레포의 실배포 호스트는 `APP_ENV` 를 아예 설정하지 않아 기본값
+    #   `development` 로 돈다(`frontend-deploy.md:13`). 즉 **보호를 가장 못 받는 환경이
+    #   경고도 못 받는** 상태였다. `app_env` 는 조건이 아니라 **찍는 값**이다.
+    #
+    # ★fail-closed 이므로 「토큰 없음」의 결과는 노출이 아니라 **관측 상실**이다 —
+    #   스크레이프가 전건 401 이 되고 부팅은 성공한다. `curl /metrics` 의 401 만으로는
+    #   「보호 중」과 「관측 상실」을 **가를 수 없다**(`frontend-deploy.md` §4). 이 줄이 판별자다.
+    import logging
+
+    _boot_logger = logging.getLogger(__name__)
+    if _metrics_auth_token():
+        _boot_logger.info("metrics_auth=enabled app_env=%s", settings.app_env)
+    else:
+        _boot_logger.warning(
+            "metrics_auth=DISABLED app_env=%s — PROMETHEUS_BEARER_TOKEN 미설정이라 "
+            "/metrics 는 모든 스크레이프에 401 이다 (관측 상실, 부팅은 계속한다). "
+            "실배포 호스트라면 .env.local 의 그 줄이 빠졌는지 확인해라 [BL-704]",
+            settings.app_env,
+        )
+
     # Sprint 23 BL-103 — EXCHANGE_PROVIDER 가 dispatch path 미사용 (Sprint 22 BL-091).
     # staging/production 에서 non-default 값 설정 시 운영자에게 명시 warning.
     # development/test 는 silent (test_config.py 4건이 EXCHANGE_PROVIDER setenv).
