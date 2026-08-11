@@ -345,7 +345,7 @@ else:
         )
         entry_hits.extend(f"  status.md:{n}: {t}" for n, t in live)
 
-# ── 트리거 판정 줄 — ACTIVE/DEFERRED 섹션마다 정확히 1개 ([BL-695] · ADR-028 §4) ──
+# ── 트리거 판정 줄 — ACTIVE/DEFERRED/PARTIAL 섹션마다 정확히 1개 ([BL-695]·[BL-703] · ADR-028 §4) ──
 # 왜 있나: 2026-08-10 bl-trigger-triage 가 159/159 를 채웠지만 **그걸 지키는 것이 0** 이었다.
 #   다음 회차가 BL 을 등재하면 그 줄 없이 들어가고 「159/159」는 조용히 낡는다. 이 레포는
 #   「기록된 규율은 안 지켜진다」를 반복 실측했다(BL-631·LESSON-078 · line_caps 주석).

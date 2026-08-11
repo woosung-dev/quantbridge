@@ -23,7 +23,8 @@
 
 순서는 계약이었다: **판정 24/24 → 의무 확대.** 뒤집으면 24건이 즉시 red 다.
 
-1. `bl-trigger-sweep.sh` 대상을 `ACTIVE ∪ PARTIAL` 로 (33건, 커버리지 33/33)
+1. `bl-trigger-sweep.sh` 대상을 `ACTIVE ∪ PARTIAL` 로 — 착수 시 33건(ACTIVE 9 + PARTIAL 24),
+   [BL-703] 종결 후 **32건**(ACTIVE 8 + PARTIAL 24). 커버리지 32/32 · `**Trigger:**` 누락 0
 2. PARTIAL 24건 판정 — 각 건에 코드·게이트·본문 인용
 3. ⓪ 표에 도래 5건을 행 **O~S** 로
 4. `docs-audit.sh` 의 면제 제거
