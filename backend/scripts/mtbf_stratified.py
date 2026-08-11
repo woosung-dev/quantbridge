@@ -291,7 +291,9 @@ def main() -> int:
     print(
         f"  24h 도달 {sum(1 for r in rows if r['hours'] >= 24)}건 / {len(rows)}세션"
         f"  ·  최장 {max(r['hours'] for r in rows):.2f}h"
-        f"  ·  C1 요구치 168h = 최장의 {168 / max(r['hours'] for r in rows):.1f}배"
+        # ★C1 요구치는 2026-08-11 에 「누적 168h」 → 「≥24h 창 3회」로 바뀌었다 ([BL-701]).
+        #   여기서 168 을 인용하면 이 도구가 낡은 문턱을 되살린다.
+        f"  ·  C1 요구치 = 24h 창 3회 (달성 {sum(1 for r in rows if r['hours'] >= 24)}회)"
     )
     for r in rows:
         if r["alive"]:

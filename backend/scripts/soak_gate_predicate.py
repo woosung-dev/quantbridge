@@ -1,4 +1,7 @@
-"""[BL-003] 「데모 1주(168h) 안정 운영」 게이트의 **순수 판정 함수**.
+"""[BL-003] 「데모 1주 안정 운영」 게이트의 **순수 판정 함수**.
+
+★C1 문턱 = **≥24h 연속 무실격 창 3회** (2026-08-11 [BL-701] 이 「누적 168h」에서 교체).
+  누적 시간은 계속 보고하지만 **판정에 쓰지 않는다** — 아래 상수 주석 참조.
 
 stdin 으로 JSON 을 받아 stdout 으로 JSON 판정을 낸다. **I/O 도 DB 도 docker 도 없다** —
 수집은 `scripts/soak-gate.sh` 가 하고 여기는 계산만 한다. 그래야 같은 입력을 손으로 더한
@@ -83,6 +86,17 @@ UNDECIDABLE_DERIVE_OUTCOMES: frozenset[str] = frozenset(
     {"overflow", "foreign_fill", "close_without_open", "duplicate_open", "unreadable"}
 )
 
+# ★C1 의 문턱은 **누적 시간이 아니라 창의 개수**다 (2026-08-11 사용자 결정 · [ADR-024] §C1).
+#   종전 `C1 ≥ 168h` 는 실질적으로 「168시간 연속 무실격」이었고(실격이 창을 리셋한다)
+#   P(그 사건) = 4.115e-09 였다 — 39세션 중 24h 도달 0건. **P0 이 영구히 안 닫히는 문턱**이다.
+#   새 문턱 = 「`require_continuous_hours` 이상인 연속 무실격 창을 N회 달성」.
+# ★N=3 은 `[가정]`이다 ([ADR-024] §C1 Superseded 블록) — 근거가 생기면 여기만 바꾼다.
+# ★창의 단위는 **C2 가 재는 것과 같다**(귀속 구간별 병합 후의 interval). 두 축이 같은 단위를
+#   쓰므로 C2 = 「그런 창이 1개 이상」, C1 = 「3개 이상」이 된다. 단위를 갈라놓으면 같은
+#   게이트가 두 가지 「창」을 말하게 된다.
+DEFAULT_REQUIRE_WINDOWS = 3
+# ★아래는 **참고 전용**이다 — 더 이상 C1 의 문턱이 아니다. 누적 시간은 계속 보고한다
+#   (창이 얼마나 쌓였는지는 여전히 읽을 값이다). 판정에 쓰지 마라.
 DEFAULT_REQUIRE_HOURS = 168.0
 DEFAULT_REQUIRE_CONTINUOUS_HOURS = 24.0
 DEFAULT_TICK_BARS = 4  # 1봉은 구조적 지연(봉이 닫혀야 평가한다) + 연속 3봉 결손 = 정체
@@ -601,6 +615,7 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     require_continuous = float(
         thresholds.get("require_continuous_hours", DEFAULT_REQUIRE_CONTINUOUS_HOURS)
     )
+    require_windows = int(thresholds.get("require_windows", DEFAULT_REQUIRE_WINDOWS))
     tick_bars = int(thresholds.get("tick_bars", DEFAULT_TICK_BARS))
     max_gap = float(thresholds.get("max_sample_gap_seconds", DEFAULT_MAX_SAMPLE_GAP_SECONDS))
 
@@ -689,6 +704,13 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     merged = [iv for group in per_attribution_verified for iv in group]
     cumulative_hours = sum(iv.seconds for iv in merged) / 3600.0
     longest_hours = max((iv.seconds for iv in merged), default=0.0) / 3600.0
+    # ★C1 의 새 문턱 — **자격 창의 개수**를 센다 ([ADR-024] §C1, 2026-08-11 사용자 결정).
+    #   ★합을 세지 않는 것이 핵심이다: 23.9h 짜리 창 3개는 합이 71.7h 라 「누적」 셈으로는
+    #     그럴듯해 보이지만 **한 번도 24h 를 연속으로 버틴 적이 없으므로 0/3** 이다.
+    #     그 음성 대조가 이 술어의 판별력이고 테스트로 박혀 있다.
+    #   ★`merged` 는 귀속 구간별로 병합된 interval 이라 재고정 경계를 넘지 않는다 — 즉
+    #     「같은 커밋이 24h 를 버텼다」는 주장이 유지된다(C2 와 같은 단위, 위 상수 주석 참조).
+    qualifying_windows = [iv for iv in merged if iv.seconds >= require_continuous * 3600.0]
     attributed_hours = sum(iv.seconds for group in per_attribution_all for iv in group) / 3600.0
     unverified_hours = max(0.0, attributed_hours - cumulative_hours)
 
@@ -735,9 +757,15 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         entry.pop("_sid", None)
 
     conditions = {
+        # ── C1 = 자격 창의 **개수** ([ADR-024] §C1, 2026-08-11) ──
+        "C1_qualifying_windows": len(qualifying_windows),
+        "C1_required_windows": require_windows,
+        "C1_window_hours": require_continuous,
+        "C1_ok": len(qualifying_windows) >= require_windows,
+        # ★아래 둘은 **참고 전용**이다 — 판정에 쓰지 마라. 소비자가 `C1_required` 를
+        #   문턱으로 읽던 시절이 있었으므로 이름을 `legacy_` 로 바꿔 오독을 막는다.
         "C1_cumulative_hours": round(cumulative_hours, 4),
-        "C1_required": require_hours,
-        "C1_ok": cumulative_hours >= require_hours,
+        "C1_legacy_required_hours": require_hours,
         "C2_longest_hours": round(longest_hours, 4),
         "C2_required": require_continuous,
         "C2_ok": longest_hours >= require_continuous,
@@ -760,6 +788,9 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         "thresholds_are_default": (
             require_hours == DEFAULT_REQUIRE_HOURS
             and require_continuous == DEFAULT_REQUIRE_CONTINUOUS_HOURS
+            # ★새 문턱도 여기 들어와야 한다 — 빠뜨리면 `require_windows=1` 로 낮춘 실행이
+            #   「기본 문턱이었다」고 보고한다(문턱을 낮춰 통과시킨 것이 안 보인다).
+            and require_windows == DEFAULT_REQUIRE_WINDOWS
         ),
     }
     # ★[BL-653] — 「C3 실격 0」은 「정지가 없었다」가 아니라 **「이 해상도로는 못 봤다」**다.
@@ -834,12 +865,15 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
             detail,
         )
 
+    # ★문구에 **문턱을 하나만** 쓴다 ([BL-701]). 종전에는 새 문턱이 결정되고도 출력이
+    #   `누적 … / 168h` 를 찍어 **같은 게이트가 두 문턱을 말했다** — 다음 회차는 그 출력을
+    #   그대로 읽고 「아직 41% 다」로 판단한다. 누적은 `(참고)` 로 내리고 판정어에서 뺀다.
+    n_win = len(qualifying_windows)
     if not conditions["C1_ok"] or not conditions["C2_ok"]:
-        pct = (cumulative_hours / require_hours * 100.0) if require_hours else 0.0
         return Verdict(
             "UNKNOWN",
             "진행중",
-            f"누적 {cumulative_hours:.2f}h / {require_hours:.0f}h ({pct:.1f}%) · 최장 연속 {longest_hours:.2f}h / {require_continuous:.0f}h · 실격 0",
+            f"{require_continuous:.0f}h 창 {n_win}/{require_windows}회 · 최장 연속 {longest_hours:.2f}h / {require_continuous:.0f}h · 실격 0 (참고: 누적 {cumulative_hours:.2f}h)",
             conditions,
             detail,
         )
@@ -847,7 +881,7 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     return Verdict(
         "PASS",
         "",
-        f"누적 {cumulative_hours:.2f}h ≥ {require_hours:.0f}h · 최장 연속 {longest_hours:.2f}h ≥ {require_continuous:.0f}h · 실격 0 · 측정 무결",
+        f"{require_continuous:.0f}h 창 {n_win} ≥ {require_windows}회 · 최장 연속 {longest_hours:.2f}h ≥ {require_continuous:.0f}h · 실격 0 · 측정 무결 (참고: 누적 {cumulative_hours:.2f}h)",
         conditions,
         detail,
     )

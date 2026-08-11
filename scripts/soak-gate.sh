@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 #
-# [BL-003] 「Bybit Demo 1주(168h) 안정 운영」 게이트 — **판정기이자 증거 수집기**.
+# [BL-003] 「Bybit Demo 1주 안정 운영」 게이트 — **판정기이자 증거 수집기**.
+# ★C1 문턱 = **≥24h 창 3회** (2026-08-11 [BL-701]). ~~누적 168h~~ 는 참고값으로만 찍는다.
 #
 # 사용:
 #   scripts/soak-gate.sh                 # 표본을 남기고 판정한다
 #   scripts/soak-gate.sh --json          # 판정 JSON 전문
 #   scripts/soak-gate.sh --since <ISO>   # 평가 창 시작을 강제 (자기시험·과거 재판정용)
 #   scripts/soak-gate.sh --no-collect    # 표본을 남기지 않고 지금 원장으로만 판정
-#   scripts/soak-gate.sh --require-hours N --require-continuous N   # ★자기시험 전용
+#   scripts/soak-gate.sh --require-windows N --require-continuous N  # ★자기시험 전용
 #   scripts/soak-gate.sh --install / --uninstall / --status         # 30분마다 (macOS launchd / 리눅스 systemd user timer)
 #   scripts/soak-gate.sh --prune-archives [--confirm]  # 상위집합에 덮인 phantom 아카이브 회수 (기본 dry-run)
 #
@@ -66,6 +67,9 @@ AS_JSON=0
 COLLECT=1
 REQUIRE_HOURS=""
 REQUIRE_CONTINUOUS=""
+# ★C1 의 진짜 문턱은 이제 이것이다 ([BL-701]) — 자기시험이 낮출 수 있어야 한다.
+#   없으면 `--require-hours` 로는 아무것도 못 낮춘다(그 값은 참고용으로 강등됐다).
+REQUIRE_WINDOWS=""
 
 _install_systemd() {
   # ★user timer 를 쓴다 — launchd LaunchAgent 와 같은 층(사용자 단위, sudo 불필요)이다.
@@ -75,7 +79,7 @@ _install_systemd() {
   mkdir -p "${unit_dir}"
   cat > "${unit_dir}/${LABEL}.service" <<UNIT_EOF
 [Unit]
-Description=QuantBridge soak gate ([BL-003] 168h/24h 판정기)
+Description=QuantBridge soak gate ([BL-003] 24h창x3 판정기)
 
 [Service]
 Type=oneshot
@@ -274,6 +278,7 @@ while [ $# -gt 0 ]; do
     --since) [ $# -ge 2 ] || { echo "--since 에 값이 없다" >&2; exit 1; }; SINCE="$2"; shift ;;
     --require-hours) [ $# -ge 2 ] || { echo "--require-hours 에 값이 없다" >&2; exit 1; }; REQUIRE_HOURS="$2"; shift ;;
     --require-continuous) [ $# -ge 2 ] || { echo "--require-continuous 에 값이 없다" >&2; exit 1; }; REQUIRE_CONTINUOUS="$2"; shift ;;
+    --require-windows) [ $# -ge 2 ] || { echo "--require-windows 에 값이 없다" >&2; exit 1; }; REQUIRE_WINDOWS="$2"; shift ;;
     -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
@@ -567,6 +572,7 @@ printf '%s' "${SESSIONS_TSV}" > "${SESSIONS_FILE}"
 PAYLOAD="$(python3 - \
   "${STATE_DIR}" "${NOW}" "${DARKNESS}" "${DB_OK}" "${STACK_PINNED}" \
   "${REQUIRE_HOURS}" "${REQUIRE_CONTINUOUS}" "${SINCE}" "${SESSIONS_FILE}" "${AOF_OK}" \
+  "${REQUIRE_WINDOWS}" \
   "${ROOT}" <<'PY'
 import json, pathlib, sys
 
@@ -575,7 +581,9 @@ now, darkness_raw, db_ok, stack_pinned = sys.argv[2], sys.argv[3], sys.argv[4], 
 require_hours, require_continuous, since = sys.argv[6], sys.argv[7], sys.argv[8]
 sessions_tsv = pathlib.Path(sys.argv[9]).read_text()
 aof_ok = sys.argv[10]
-repo_root = pathlib.Path(sys.argv[11])
+# ★새 인자는 **끝에 붙였다** — 중간에 끼우면 뒤의 인덱스가 전부 밀린다(초판이 그랬다).
+require_windows = sys.argv[11]
+repo_root = pathlib.Path(sys.argv[12])
 
 sessions = []
 for line in sessions_tsv.splitlines():
@@ -666,6 +674,8 @@ if require_hours:
     thresholds["require_hours"] = float(require_hours)
 if require_continuous:
     thresholds["require_continuous_hours"] = float(require_continuous)
+if require_windows:
+    thresholds["require_windows"] = int(require_windows)
 
 payload = {
     "now": now.strip(),
@@ -710,13 +720,13 @@ SUMMARY="$(printf '%s' "${RESULT}" | python3 -c 'import json,sys; print(json.loa
 #   실행이다(장애 주입 시험도 여기 온다). 어느 쪽이든 `--status` 가 그걸 현행 판정으로
 #   보여주면 오독이다 — 실측으로 두 번 밟았다(문턱 0.1h PASS · 주입한 `측정불가`).
 #   `last-result` 는 **증거를 남기는 운영 실행**의 기록이다.
-if [ -z "${REQUIRE_HOURS}${REQUIRE_CONTINUOUS}${SINCE}" ] && [ "${COLLECT}" = "1" ]; then
+if [ -z "${REQUIRE_HOURS}${REQUIRE_CONTINUOUS}${REQUIRE_WINDOWS}${SINCE}" ] && [ "${COLLECT}" = "1" ]; then
   printf '%s  %s %s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')" "${VERDICT}" "${WORD}" "${SUMMARY}" \
     > "${LOGDIR}/soak-gate-last-result"
 fi
 
-if [ -n "${REQUIRE_HOURS}${REQUIRE_CONTINUOUS}" ]; then
-  echo "⚠⚠ 문턱이 기본값이 아니다 (--require-hours='${REQUIRE_HOURS}' --require-continuous='${REQUIRE_CONTINUOUS}')"
+if [ -n "${REQUIRE_HOURS}${REQUIRE_CONTINUOUS}${REQUIRE_WINDOWS}" ]; then
+  echo "⚠⚠ 문턱이 기본값이 아니다 (--require-hours='${REQUIRE_HOURS}' --require-continuous='${REQUIRE_CONTINUOUS}' --require-windows='${REQUIRE_WINDOWS}')"
   echo "   이 실행은 **자기시험**이다. 게이트 판정으로 인용하지 마라."
 fi
 if [ -n "${SINCE}" ]; then
@@ -743,7 +753,7 @@ def mark(ok):
     return "✓" if ok else "✗"
 
 
-print("  %s C1 누적       %.4fh / %.0fh" % (mark(c["C1_ok"]), c["C1_cumulative_hours"], c["C1_required"]))
+print("  %s C1 %.0fh 창    %d / %d회   (참고: 누적 %.4fh)" % (mark(c["C1_ok"]), c["C1_window_hours"], c["C1_qualifying_windows"], c["C1_required_windows"], c["C1_cumulative_hours"]))
 print("  %s C2 최장 연속  %.4fh / %.0fh" % (mark(c["C2_ok"]), c["C2_longest_hours"], c["C2_required"]))
 print("  %s C3 실격 사건  %d건" % (mark(c["C3_ok"]), len(c["C3_violations"])))
 for v in c["C3_violations"][:5]:
