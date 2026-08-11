@@ -25,19 +25,39 @@ trap 'rm -rf "$SB"' EXIT
 mkdir -p "$SB/scripts" "$SB/docs"
 cp "$ROOT/scripts/docs-audit.sh" "$SB/scripts/" || { echo "✗ docs-audit.sh 를 못 읽었다"; exit 2; }
 
-# 스텁 원장 — `CASE` 로 ACTIVE 집합을 바꾼다. 진짜 bl-audit 은 부르지 않는다(느리고, 실제 원장에 의존한다).
+# 스텁 원장 — `CASE` 로 ACTIVE/PARTIAL 집합을 바꾼다. 진짜 bl-audit 은 부르지 않는다
+# (느리고, 실제 원장에 의존한다).
+# ★PARTIAL 케이스 3종은 [BL-703] 이 추가했다 — 그전엔 스텁이 ACTIVE 만 낼 수 있어서
+#   `PARTIAL ∧ 도래` 갈래와 PARTIAL 판정줄 의무를 **하네스가 한 번도 밟지 않았다.**
 cat > "$SB/scripts/bl-audit.sh" <<'STUB'
 #!/usr/bin/env bash
 # $1 = --list, $2 = 판정어
 case "${CASE:-empty}" in
   empty)  : ;;                                             # ACTIVE·PARTIAL 전부 공집합
   ledger) [ "${2:-}" = "ACTIVE" ] && printf 'BL-999\tP1\t:1\n' ;;
+  # ★아래 셋은 ACTIVE BL-999 를 **함께** 낸다. PARTIAL 만 내면 기대 집합이 비어
+  #   rc=3 ABORT 가 먼저 걸려 재려던 축에 도달하지 못한다(설계 시 실제로 밟았다).
+  partial_arrived)
+    [ "${2:-}" = "ACTIVE" ]  && printf 'BL-999\tP1\t:1\n'
+    [ "${2:-}" = "PARTIAL" ] && printf 'BL-777\tP1\t:10\n' ;;
+  partial_waiting)
+    [ "${2:-}" = "ACTIVE" ]  && printf 'BL-999\tP1\t:1\n'
+    [ "${2:-}" = "PARTIAL" ] && printf 'BL-666\tP2\t:20\n' ;;
+  partial_noverdict)
+    [ "${2:-}" = "ACTIVE" ]  && printf 'BL-999\tP1\t:1\n'
+    [ "${2:-}" = "PARTIAL" ] && printf 'BL-555\tP3\t:30\n' ;;
 esac
 exit 0
 STUB
 chmod +x "$SB/scripts/bl-audit.sh"
-printf '# stub\n\n### BL-999\n\n**상태:** Open\n**트리거 판정:** 도래 — stub\n' \
-  > "$SB/docs/backlog.md"
+{
+  printf '# stub\n\n'
+  printf '### BL-999\n\n**상태:** Open\n**트리거 판정:** 도래 — stub\n\n'
+  printf '### BL-777\n\n**상태:** 부분\n**트리거 판정:** 도래 — stub partial arrived\n\n'
+  printf '### BL-666\n\n**상태:** 부분\n**트리거 판정:** 미도래 — stub partial waiting\n\n'
+  # ★BL-555 는 판정줄이 **없다**. 이것이 [BL-703] 변경의 판별자다.
+  printf '### BL-555\n\n**상태:** 부분\n'
+} > "$SB/docs/backlog.md"
 
 # ⓪ 표 = 취소선 3행(계약 ≥3 을 채운다) + 선택적 살아 있는 1행.
 mk_status() {
@@ -53,10 +73,11 @@ mk_status() {
 }
 
 FAIL=0
-run() {  # $1=CASE  $2=기대 rc  $3=정체성 축이 말해야 하나(yes/no)  $4=설명
+AXIS="⓪ 표 정체성"   # run() 이 「말했나」를 재는 축. 케이스별로 바꾼다.
+run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
   CASE="$1" bash "$SB/scripts/docs-audit.sh" > "$SB/out.txt" 2>&1
   local rc=$? spoke=no
-  grep -q "⓪ 표 정체성" "$SB/out.txt" && spoke=yes
+  grep -q "$AXIS" "$SB/out.txt" && spoke=yes
   if [ "$rc" = "$2" ] && [ "$spoke" = "$3" ]; then
     printf '  ✓ %s\n' "$4"
   else
@@ -66,7 +87,7 @@ run() {  # $1=CASE  $2=기대 rc  $3=정체성 축이 말해야 하나(yes/no)  
   fi
 }
 
-echo "▶ docs-audit ⓪ 표 정체성 축 — 판별력 4케이스"
+echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 축 — 판별력 7케이스"
 
 # ⑴ ★음성 대조가 아니라 **ABORT 대조**다. 양쪽이 비면 초록도 빨강도 내지 않는다.
 mk_status "";       run empty  3 yes "양쪽 공집합 → rc=3 ABORT (빈 입력을 「일치」로 통과시키지 않는다)"
@@ -81,8 +102,27 @@ mk_status "BL-888"; run empty  1 yes "표에 살아 있는 BL-888 · 원장 공�
 #   「⓪ 표 정체성」 줄이 나오면 이 검사기는 상시 빨강이고 판별력이 0 이다.
 mk_status "BL-999"; run ledger 1 no  "양성 대조: 원장 == 표 → 정체성 축 침묵"
 
+# ── [BL-703] PARTIAL 갈래 ─────────────────────────────────────────────
+# ★⑸⑹ 이 재는 것은 `PARTIAL ∧ 도래` 라는 **술어의 오른쪽 항**이다. 2026-08-11 이전에는
+#   PARTIAL 이 판정줄 의무 밖이라 그 항이 데이터로 채워질 수 없었고, 그래서 이 갈래는
+#   **한 번도 실행된 적이 없었다.** 코드는 있고 경로는 죽어 있는 상태였다.
+
+# ⑸ 도래한 PARTIAL 은 ACTIVE 와 똑같이 표에 있어야 한다.
+mk_status "BL-999"; run partial_arrived 1 yes "PARTIAL BL-777 이 도래인데 표에 없음 → 불일치(missing)"
+
+# ⑹ ★음성 대조 — **과다 포획** 검사. 미도래 PARTIAL 까지 요구하면 표가 원장 전량이 되어
+#   「고르는 자리」라는 목적이 무너진다. 침묵해야 한다.
+mk_status "BL-999"; run partial_waiting 1 no  "음성 대조: PARTIAL BL-666 은 미도래 → 표에 없어도 침묵"
+
+# ⑺ ★[BL-703] 본체의 판별자. 이 케이스는 변경 **전에는 침묵**한다 —
+#   종전 `if verdict != "PARTIAL"` 가 PARTIAL 을 의무 대상에서 빼고 있었기 때문이다.
+#   되돌리면 여기서 red 가 나야 하고, 안 나면 그 면제는 아무도 안 지키는 규율로 돌아간다.
+AXIS="트리거 판정 줄"
+mk_status "BL-999"; run partial_noverdict 1 yes "PARTIAL BL-555 에 판정줄 0개 → 트리거 판정 줄 축 발화"
+AXIS="⓪ 표 정체성"
+
 if [ "$FAIL" != 0 ]; then
-  echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 축이 판별력을 잃었다"
+  echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 축이 판별력을 잃었다"
   exit 1
 fi
-echo "✓ docs-audit 하네스 4/4 — ABORT · missing · extra · 양성 대조"
+echo "✓ docs-audit 하네스 7/7 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락"

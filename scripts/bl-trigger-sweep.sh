@@ -171,7 +171,12 @@ def machine(bk, t, vd):
 
 vd = verdicts()
 tg = triggers()
-targets = sorted((b for b, (v, _) in vd.items() if v == "ACTIVE"),
+# ★대상은 ACTIVE **와 PARTIAL** 둘 다다 ([BL-703], 2026-08-11).
+#   종전에는 ACTIVE 만이었고, 그래서 PARTIAL 24건이 이 판정기의 **구조적 사각지대**였다 —
+#   그 안에 P0 1건 + P1 4건이 있었는데 판정 대상이 아니라서 아무도 세지 않았다.
+#   RESOLVED/UNKNOWN 은 대상이 아니다(닫혔거나 상태줄 자체가 없다).
+TARGET_VERDICTS = ("ACTIVE", "PARTIAL")
+targets = sorted((b for b, (v, _) in vd.items() if v in TARGET_VERDICTS),
                  key=lambda x: int(x[3:]))
 
 # ── selftest — 판별력. 전량 스윕보다 **먼저** 통과해야 한다 ────────────
@@ -204,11 +209,31 @@ if MODE == "selftest":
             print(f"      근거: {ev}")
         if not ok:
             print(f"      트리거: {t[:100]}")
+
+    # ── 대상 집합 검사 ([BL-703], 2026-08-11) ─────────────────────────
+    # ★위 CASES 는 `machine()` 을 id 로 **직접** 부르므로 `targets` 를 좁혀도 전건 통과한다.
+    #   즉 2026-08-11 이전의 selftest 는 「무엇을 판정 대상으로 삼는가」에 대해 **판별력이 0**
+    #   이었고, `대상=ACTIVE` 로 PARTIAL 24건이 조용히 빠져 있던 것을 못 잡았다.
+    #   판정 로직만 재고 대상 집합을 안 재면, 스윕은 옳은 답을 **틀린 모집단**에 대해 낸다.
+    print("  ── 대상 집합 (판정 로직이 아니라 **모집단**을 잰다) ──")
+    SET_CASES = [
+        ("PARTIAL 이 대상에 든다", any(vd.get(b, ("", ""))[0] == "PARTIAL" for b in targets)),
+        ("ACTIVE 가 대상에 남아 있다", any(vd.get(b, ("", ""))[0] == "ACTIVE" for b in targets)),
+        # ★음성 대조 — 빈 대상은 「위반 0건」이 아니라 **측정 실패**다 ([LESSON-101]).
+        ("대상이 비어 있지 않다", len(targets) > 0),
+    ]
+    for label, ok in SET_CASES:
+        fails += 0 if ok else 1
+        print(f"  {'✓' if ok else '✗'} {label}")
+    if not targets:
+        print("      대상이 0건이다 — bl-audit 이 죽었거나 TARGET_VERDICTS 가 잘못됐다")
+
+    total = len(CASES) + len(SET_CASES)
     print()
     if fails:
         print(f"✗ 판별력 없음 — {fails}건이 안 갈렸다. **전량 스윕으로 가지 마라.**")
         sys.exit(1)
-    print(f"✓ {len(CASES)}/{len(CASES)} — 양성 2 · 음성 4 를 갈랐다. 전량 스윕 가능.")
+    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 3. 전량 스윕 가능.")
     sys.exit(0)
 
 # ── 전량 스윕 ──────────────────────────────────────────────────────────
@@ -226,7 +251,8 @@ if MODE == "tsv":
     for b, p, bk, got, ev, t in rows:
         print(f"{b}\t{p}\t{bk}\t{got}\t{ev}\t{t}")
 else:
-    print(f"══ bl-trigger-sweep  대상=ACTIVE {len(targets)}건  soak={SOAK} ══\n")
+    scope = " ∪ ".join(TARGET_VERDICTS)
+    print(f"══ bl-trigger-sweep  대상={scope} {len(targets)}건  soak={SOAK} ══\n")
     print("▶ 버킷 분포")
     for k, v in Counter(r[2] for r in rows).most_common():
         print(f"  {k:8} {v:4}")
@@ -236,7 +262,7 @@ else:
     print(f"\n▶ 커버리지  {len(rows)}/{len(targets)}")
 
 if missing:
-    print(f"\n✗ `**Trigger:**` 줄이 없는 ACTIVE {len(missing)}건 — "
+    print(f"\n✗ `**Trigger:**` 줄이 없는 대상 {len(missing)}건 — "
           f"판정 대상에서 조용히 빠진다: {' '.join(missing)}")
     sys.exit(1)
 sys.exit(0)
