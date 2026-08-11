@@ -305,14 +305,20 @@ fi
 
 # ── 6. 스킬 게이트 — signal 파일로만 통과한다 ────────────────────
 check_signal() {  # check_signal <label> <file> <required 0|1> <why>
-  local label="$1" f="$GATEDIR/$2" req="$3" why="$4"
-  if [ -s "$f" ]; then
-    record "$label" 0 "signal: $2"
+  local label="$1" f="$2" req="$3" why="$4" out rc
+  # ★두 줄로 나눈다. `local out="$(...)"` 는 rc 가 **local 의 것**(항상 0)이라 전건 PASS 가 된다.
+  out="$(bash "$ROOT/scripts/signal-check.sh" --run "$RUN" "$f")"   # ★파이프 금지
+  rc=$?
+  if [ "$rc" -eq 0 ]; then
+    record "$label" 0 "$out"                       # → `signal: g9.ok @ 25e96fb7 [head] — …`
   elif [ "$req" -eq 0 ]; then
-    skip_gate "$label" "$why"
+    skip_gate "$label" "$why · $out"               # 필수 아님 → FAIL 로 올리지 않고 사유를 남긴다
   else
-    record "$label" 1 "★미확인 — $2 를 남겨라"
-    printf '\n▶ %s\n  → FAIL: %s 가 없다. 스킬을 돌린 뒤 근거 요약을 그 파일에 적어라.\n' "$label" "$f"
+    record "$label" "$rc" "★$out"
+    printf '\n▶ %s\n  → FAIL: %s\n' "$label" "$out"
+    printf '     신호 파일: %s\n' "$ROOT/.claude/gates/$RUN/$f"
+    printf '     첫 줄에 `commit: %s` 를 적어라 — 신호는 **무엇을 검증했는지** 말해야 한다 ([BL-706]).\n' \
+      "$(git -C "$ROOT" rev-parse HEAD)"
   fi
 }
 check_signal "/vercel-react-best-practices" "vercel.ok" "$has_fe" "frontend diff 0"
