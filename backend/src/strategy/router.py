@@ -2,8 +2,10 @@
 
 T19: rotate-webhook-secret endpoint 추가 (ownership은 StrategyService.get으로 검증).
 """
+
 from __future__ import annotations
 
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request, Response
@@ -71,6 +73,8 @@ async def list_strategies(
     ),
     parse_status: ParseStatus | None = Query(None),
     is_archived: bool = Query(False),
+    order_by: Literal["updated_at", "name", "total_return", "sharpe_ratio"] = Query("updated_at"),
+    order: Literal["asc", "desc"] = Query("desc"),
     current_user: CurrentUser = Depends(get_current_user),
     service: StrategyService = Depends(get_strategy_service),
 ) -> StrategyListResponse:
@@ -82,6 +86,8 @@ async def list_strategies(
         offset=effective_offset,
         parse_status=parse_status,
         is_archived=is_archived,
+        order_by=order_by,
+        order=order,
     )
 
 
@@ -101,9 +107,7 @@ async def update_strategy(
     current_user: CurrentUser = Depends(get_current_user),
     service: StrategyService = Depends(get_strategy_service),
 ) -> StrategyResponse:
-    return await service.update(
-        strategy_id=strategy_id, owner_id=current_user.id, data=data
-    )
+    return await service.update(strategy_id=strategy_id, owner_id=current_user.id, data=data)
 
 
 @router.delete("/{strategy_id}", status_code=204)

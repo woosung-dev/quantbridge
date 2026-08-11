@@ -1,14 +1,13 @@
 "use client";
 
 // 전략 목록 — C 디자인 언어 이식 (screen-06). latest_backtest projection으로 최근 수익률/MDD/샤프를
-// 그린다. 파라미터 수·수명주기 칩(초안/검증됨/배포됨)은 스키마에 없어 렌더하지 않는다 (§4.9).
-// 상태 열은 실존 필드 parse_status 를 PARSE_STATUS_LABEL → CHIP_TONE_CLASS 로 파생한다.
+// 그리고, 서버가 내려주는 파라미터 수·수명주기 칩(초안/검증됨/배포됨)을 함께 표시한다.
+// 파싱 상태는 실존 필드 parse_status 를 필터 축으로 사용한다.
 //
 // screen-06 "01 필터" 구획 재도입 (W3-fix). 검색(전략명·전략 ID)·심볼 필터·정렬을 프로토타입의
-// .toolbar/.input/.select 구조로 그린다. 데이터가 6건 규모라 클라이언트 사이드 필터/정렬이며
-// 현재 페이지(≤20)에만 적용된다(hasMorePages 안내 문구가 그 범위를 밝힌다). 프로토타입 정렬의
-// "수익률 높은 순"·"샤프 높은 순" 은 성과 필드가 unbacked 라 제외하고, 상태 select 는 실존 필드
-// parse_status 토글(role=group)이 이미 담당하므로 여기 재현하지 않는다.
+// .toolbar/.input/.select 구조로 그린다. 검색·심볼·parse_status 필터는 현재 페이지에 적용하고,
+// 정렬은 URL 스칼라를 통해 서버에 위임한다. 상태 select 는 실존 필드 parse_status 토글(role=group)이
+// 이미 담당하므로 여기 재현하지 않는다.
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -24,10 +23,10 @@ import {
 
 import {
   PARSE_STATUS_FILTER_LABEL,
-  PARSE_STATUS_LABEL,
   STRATEGY_BACKTEST_COUNT_HINT,
   STRATEGY_EMPTY_REASON,
   STRATEGY_LIST_HEADER,
+  STRATEGY_LIFECYCLE_LABEL,
   type ParseStatusFilter,
 } from "@/features/strategy/labels";
 import { useStrategies } from "@/features/strategy/hooks";
@@ -43,7 +42,7 @@ const PAGE_SIZE = 20;
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/strategies";
 
-// parse_status 필터 옵션. 프로토타입 상태 필터(수명주기)가 unbacked 라 실존 필드로 대체한다.
+// parse_status 필터 옵션. 수명주기 칩과 별개로 파싱 결과를 좁히는 실존 필드다.
 const STATUS_FILTERS: ReadonlyArray<{ id: ParseStatusFilter }> = [
   { id: "all" },
   { id: "ok" },
@@ -51,11 +50,17 @@ const STATUS_FILTERS: ReadonlyArray<{ id: ParseStatusFilter }> = [
   { id: "error" },
 ];
 
-// 정렬 축은 backed 필드에만 건다. 프로토타입의 수익률·샤프 정렬은 성과 필드가 스키마에 없어(§4.9) 뺀다.
-type SortKey = "recent" | "name";
-const SORT_OPTIONS: ReadonlyArray<{ id: SortKey; label: string }> = [
-  { id: "recent", label: "마지막 수정 순" },
-  { id: "name", label: "이름 순" },
+type StrategyOrderBy = NonNullable<StrategyListQuery["order_by"]>;
+type StrategyOrder = NonNullable<StrategyListQuery["order"]>;
+const SORT_OPTIONS: ReadonlyArray<{
+  id: StrategyOrderBy;
+  order: StrategyOrder;
+  label: string;
+}> = [
+  { id: "updated_at", order: "desc", label: "마지막 수정 순" },
+  { id: "total_return", order: "desc", label: "수익률 높은 순" },
+  { id: "sharpe_ratio", order: "desc", label: "샤프 높은 순" },
+  { id: "name", order: "asc", label: "이름 순" },
 ];
 const SYMBOL_ALL = "all";
 
@@ -69,15 +74,21 @@ export function StrategyList() {
     ? (statusParam as ParseStatusFilter)
     : "all";
 
-  // 검색·심볼·정렬은 클라이언트 로컬 상태다(타이핑마다 라우터를 흔들지 않는다). parse_status 만
-  // URL 로 남긴다(기존 관례 유지). hook query 는 페이지네이션만 → queryKey identity 유지(H-2 정합).
+  const orderByParam = searchParams.get("order_by");
+  const orderParam = searchParams.get("order");
+  const orderBy: StrategyOrderBy = SORT_OPTIONS.some((option) => option.id === orderByParam)
+    ? (orderByParam as StrategyOrderBy)
+    : "updated_at";
+  const order: StrategyOrder = orderParam === "asc" ? "asc" : "desc";
+
+  // 검색·심볼은 클라이언트 로컬 상태로 두고, parse_status·정렬은 URL 스칼라로 유지한다.
+  // hook query가 URL 정렬 축·방향을 포함하므로 queryKey와 서버 요청이 함께 바뀐다(H-2 정합).
   const [searchText, setSearchText] = useState("");
   const [symbolFilter, setSymbolFilter] = useState<string>(SYMBOL_ALL);
-  const [sortKey, setSortKey] = useState<SortKey>("recent");
 
   const query = useMemo<StrategyListQuery>(
-    () => ({ limit: PAGE_SIZE, offset: 0, is_archived: false }),
-    [],
+    () => ({ limit: PAGE_SIZE, offset: 0, is_archived: false, order_by: orderBy, order }),
+    [orderBy, order],
   );
   const { data, isLoading, isError, error, refetch } = useStrategies(query);
 
@@ -94,7 +105,7 @@ export function StrategyList() {
     return Array.from(set).sort();
   }, [items]);
 
-  // 필터·정렬 파이프라인 — parse_status → 검색(이름/ID) → 심볼 → 정렬. 현재 페이지 한정.
+  // 필터 파이프라인 — parse_status → 검색(이름/ID) → 심볼. 정렬은 서버에서 처리한다.
   const filtered = useMemo<readonly StrategyListItem[]>(() => {
     const q = searchText.trim().toLowerCase();
     const matched = items.filter((s) => {
@@ -106,14 +117,8 @@ export function StrategyList() {
       }
       return true;
     });
-    const sorted = [...matched];
-    sorted.sort((a, b) =>
-      sortKey === "name"
-        ? a.name.localeCompare(b.name, "ko")
-        : b.updated_at.localeCompare(a.updated_at),
-    );
-    return sorted;
-  }, [items, activeStatus, symbolFilter, searchText, sortKey]);
+    return matched;
+  }, [items, activeStatus, symbolFilter, searchText]);
 
   const isFiltering = activeStatus !== "all" || symbolFilter !== SYMBOL_ALL || searchText.trim() !== "";
 
@@ -123,6 +128,15 @@ export function StrategyList() {
     else params.set("parse_status", id);
     const qs = params.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const pushSort = (nextOrderBy: StrategyOrderBy) => {
+    const option = SORT_OPTIONS.find((candidate) => candidate.id === nextOrderBy);
+    if (!option) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("order_by", option.id);
+    params.set("order", option.order);
+    router.replace(`${pathname}?${params.toString()}`);
   };
 
   const resetFilters = () => {
@@ -151,6 +165,7 @@ export function StrategyList() {
     name: hName,
     status: hStatus,
     symbolTimeframe: hSymbolTf,
+    paramCount: hParamCount,
     lastRunReturn: hLastRunReturn,
     maxDrawdown: hMaxDrawdown,
     sharpeRatio: hSharpeRatio,
@@ -235,8 +250,8 @@ export function StrategyList() {
               </select>
               <select
                 className="select"
-                value={sortKey}
-                onChange={(e) => setSortKey(e.target.value as SortKey)}
+                value={orderBy}
+                onChange={(e) => pushSort(e.target.value as StrategyOrderBy)}
                 aria-label="정렬 기준"
                 data-testid="strategy-sort"
               >
@@ -281,7 +296,7 @@ export function StrategyList() {
           </p>
           <h2 className="section-title">전략 {total}개</h2>
           <p className="section-desc">
-            마지막 수정이 최근인 순서로 정렬했습니다. 심볼과 주기는 그 전략에 저장된 기본값입니다.
+            선택한 기준으로 서버에서 정렬합니다. 심볼과 주기는 그 전략에 저장된 기본값입니다.
           </p>
         </header>
 
@@ -335,10 +350,9 @@ export function StrategyList() {
           </p>
           {hasMorePages ? (
             <p className="runs-summary" data-testid="strategy-filter-notice">
-              현재 페이지(20개)만 필터됩니다. Beta 에 서버 필터가 추가될 예정입니다.
+              정렬은 서버에서 전체 전략에 적용되며, 필터는 현재 페이지(20개)에만 적용됩니다.
             </p>
           ) : null}
-
           {isLoading ? (
             <ListSkeleton />
           ) : isError ? (
@@ -391,6 +405,9 @@ export function StrategyList() {
                     </th>
                     <th scope="col">{hSymbolTf}</th>
                     <th scope="col" className="num">
+                      {hParamCount}
+                    </th>
+                    <th scope="col" className="num">
                       {hLastRunReturn}
                     </th>
                     <th scope="col" className="num">
@@ -408,13 +425,15 @@ export function StrategyList() {
                 </thead>
                 <tbody>
                   {filtered.map((s) => {
-                    // 라벨·톤은 W1 용어 SSOT 에서만 온다 (원시 enum 렌더 금지 — no-raw-enum-labels 가드).
-                    const { label, tone, showCheckIcon } = PARSE_STATUS_LABEL[s.parse_status];
+                    // 수명주기 라벨·톤은 용어 SSOT 에서만 온다 (원시 enum 렌더 금지).
+                    const { label, tone, showCheckIcon } =
+                      STRATEGY_LIFECYCLE_LABEL[s.lifecycle ?? "draft"];
                     return (
                       <tr
                         key={s.id}
                         data-testid={`strategy-row-${s.id}`}
                         data-status={s.parse_status}
+                        data-lifecycle={s.lifecycle}
                       >
                         <td>
                           <Link className="strat-name" href={`/strategies/${s.id}/edit`}>
@@ -440,6 +459,7 @@ export function StrategyList() {
                             </span>
                           )}
                         </td>
+                        <td className="num">{s.param_count ?? EMPTY_CELL}</td>
                         <StrategyMetricCell
                           value={s.latest_backtest?.metrics?.total_return}
                           missing={s.latest_backtest == null}
@@ -535,6 +555,7 @@ function buildCsv(rows: readonly StrategyListItem[]): string {
     "전략명",
     "상태",
     "심볼 · 주기",
+    "파라미터",
     "최근 수익률",
     "MDD",
     "샤프",
@@ -543,14 +564,15 @@ function buildCsv(rows: readonly StrategyListItem[]): string {
   ];
   const lines = [header.map(csvField).join(",")];
   for (const s of rows) {
-    const statusLabel = PARSE_STATUS_LABEL[s.parse_status].label;
+    const lifecycleLabel = STRATEGY_LIFECYCLE_LABEL[s.lifecycle ?? "draft"].label;
     const symbolTf =
       s.symbol || s.timeframe ? `${s.symbol ?? ""} · ${s.timeframe ?? ""}`.trim() : "";
     lines.push(
       [
         s.name,
-        statusLabel,
+        lifecycleLabel,
         symbolTf,
+        String(s.param_count ?? EMPTY_CELL),
         s.latest_backtest?.metrics?.total_return != null
           ? formatPercent(s.latest_backtest.metrics.total_return)
           : EMPTY_CELL,
@@ -579,7 +601,7 @@ function ListSkeleton() {
         <tbody>
           {Array.from({ length: 6 }).map((_, i) => (
             <tr key={i}>
-              {Array.from({ length: 9 }).map((__, j) => (
+              {Array.from({ length: 10 }).map((__, j) => (
                 <td key={j}>
                   <span className="sk sk-cell" />
                 </td>

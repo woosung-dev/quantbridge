@@ -61,7 +61,12 @@ _SHARPE_DEGENERATE_CONVENTIONS = (
 _SHARPE_DEGENERATE_PREFIX = "unavailable"
 
 
-def _sharpe_sort_criteria(value: Any, *, order: str) -> list[Any]:
+def sharpe_sort_criteria(
+    value: Any,
+    *,
+    order: str,
+    convention: Any | None = None,
+) -> list[Any]:
     """[BL-462] Sharpe 정렬 키 = `(등급 ASC, 정규화값 order방향)`.
 
     ★**등급은 `order` 와 무관하게 항상 ASC 다.** `order=asc`(나쁜 것 먼저)에서도
@@ -77,7 +82,8 @@ def _sharpe_sort_criteria(value: Any, *, order: str) -> list[Any]:
     ★**값이 없는 행은 등급 3 으로 전체 맨 뒤**다. 종전 `nulls_last()` 가 하던 일이고,
     등급을 컨벤션으로만 정하면 미완료 실행이 완료된 degenerate 행을 앞지른다.
     """
-    convention = Backtest.metrics["sharpe_convention"].astext  # type: ignore[index]
+    if convention is None:
+        convention = Backtest.metrics["sharpe_convention"].astext  # type: ignore[index]
     grade = case(
         (value.is_(None), _SHARPE_GRADE_NO_VALUE),
         (convention.in_(list(_SHARPE_ANNUALIZATION_FACTORS)), _SHARPE_GRADE_COMPARABLE),
@@ -163,7 +169,7 @@ class BacktestRepository:
         }
         sort_expression = sort_columns[order_by]
         if order_by == "sharpe_ratio":
-            order_criteria = _sharpe_sort_criteria(sort_expression, order=order)
+            order_criteria = sharpe_sort_criteria(sort_expression, order=order)
         else:
             primary_order = sort_expression.asc() if order == "asc" else sort_expression.desc()
             if order_by != "created_at":

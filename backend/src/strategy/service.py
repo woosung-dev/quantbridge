@@ -26,6 +26,7 @@ from src.strategy.schemas import (
     ParseError,
     ParsePreviewResponse,
     StrategyCreateResponse,
+    StrategyLifecycle,
     StrategyListItem,
     StrategyListResponse,
     StrategyResponse,
@@ -36,12 +37,14 @@ from src.strategy.schemas import (
 
 if TYPE_CHECKING:
     from src.backtest.repository import BacktestRepository
+    from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
     from src.trading.services.webhook_secret_service import WebhookSecretService
 
 
 _VERSION_RE = re.compile(r"//\s*@version\s*=\s*(\d+)", re.MULTILINE)
 _STRATEGY_ENTRY_RE = re.compile(r"\bstrategy\.entry\s*\(", re.MULTILINE)
 _STRATEGY_EXIT_RE = re.compile(r"\bstrategy\.(?:close(?:_all)?|exit)\s*\(", re.MULTILINE)
+_INPUT_RE = re.compile(r"\binput(?:\.\w+)?\s*\(", re.MULTILINE)
 _CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
 _COMMENT_RE = re.compile(r"//[^\n]*")
 
@@ -150,10 +153,12 @@ class StrategyService:
         # 주입되면 create() 가 strategy + secret 을 단일 트랜잭션으로 commit.
         # None 이면 auto-issue 스킵 (테스트 / CLI 경로 호환).
         secret_svc: WebhookSecretService | None = None,
+        live_session_repo: LiveSignalSessionRepository | None = None,
     ) -> None:
         self.repo = repo
         self.backtest_repo = backtest_repo
         self._secret_svc = secret_svc
+        self.live_session_repo = live_session_repo
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
         status, version, warnings, errors, entry_count, exit_count, functions_used = _parse(
@@ -223,6 +228,8 @@ class StrategyService:
         offset: int,
         parse_status: ParseStatus | None,
         is_archived: bool,
+        order_by: str = "updated_at",
+        order: str = "desc",
     ) -> StrategyListResponse:
         items, total = await self.repo.list_by_owner(
             owner_id,
@@ -230,11 +237,14 @@ class StrategyService:
             offset=offset,
             parse_status=parse_status,
             is_archived=is_archived,
+            order_by=order_by,
+            order=order,
         )
 
         # response 호환성: page/total_pages는 limit/offset에서 역산.
         total_pages = (total + limit - 1) // limit if total > 0 else 0
         page = (offset // limit) + 1 if limit > 0 else 1
+        strategy_ids = [s.id for s in items]
         counts = (
             await self.backtest_repo.count_completed_by_strategy_ids([s.id for s in items])
             if self.backtest_repo is not None and items
@@ -244,6 +254,11 @@ class StrategyService:
             await self.backtest_repo.latest_completed_by_strategy_ids([s.id for s in items])
             if self.backtest_repo is not None and items
             else {}
+        )
+        active_strategy_ids = (
+            await self.live_session_repo.list_active_strategy_ids(strategy_ids)
+            if self.live_session_repo is not None and items
+            else set()
         )
         return StrategyListResponse(
             items=[
@@ -258,6 +273,16 @@ class StrategyService:
                             )
                             if (row := latest_backtests.get(s.id)) is not None
                             else None
+                        ),
+                        "param_count": len(_INPUT_RE.findall(_strip_comments(s.pine_source))),
+                        "lifecycle": (
+                            StrategyLifecycle.deployed
+                            if s.id in active_strategy_ids
+                            else (
+                                StrategyLifecycle.validated
+                                if counts.get(s.id, 0) > 0
+                                else StrategyLifecycle.draft
+                            )
                         ),
                     }
                 )

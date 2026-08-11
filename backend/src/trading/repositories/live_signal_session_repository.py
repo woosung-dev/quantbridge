@@ -72,6 +72,18 @@ class LiveSignalSessionRepository:
         )
         return result.scalars().all()
 
+    async def list_active_strategy_ids(self, strategy_ids: Sequence[UUID]) -> set[UUID]:
+        """주어진 전략 중 활성 라이브 세션이 있는 전략 ID를 집계한다."""
+        if not strategy_ids:
+            return set()
+        result = await self.session.execute(
+            select(LiveSignalSession.strategy_id)
+            .where(LiveSignalSession.strategy_id.in_(strategy_ids))  # type: ignore[attr-defined]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .distinct()
+        )
+        return set(result.scalars().all())
+
     async def list_recent_inactive_by_user(
         self, user_id: UUID, *, limit: int = _RECENT_INACTIVE_LIST_LIMIT
     ) -> Sequence[LiveSignalSession]:
@@ -119,7 +131,11 @@ class LiveSignalSessionRepository:
         return result.scalars().all()
 
     async def list_overlapping_window(
-        self, *, since: datetime, until: datetime | None = None, limit: int = SESSION_WINDOW_SCAN_LIMIT
+        self,
+        *,
+        since: datetime,
+        until: datetime | None = None,
+        limit: int = SESSION_WINDOW_SCAN_LIMIT,
     ) -> Sequence[LiveSignalSession]:
         """`[since, until)` 과 생존 구간이 겹치는 세션 (BL-536 오프라인 분해용).
 
