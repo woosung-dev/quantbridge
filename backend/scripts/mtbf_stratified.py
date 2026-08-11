@@ -10,12 +10,21 @@
 통계적으로 구분되지 않는다. 그래서 CI 와 겹침 검정을 **표와 같은 실행에서** 낸다 — 따로
 계산하게 두면 아무도 안 한다.
 
-입력 = `trading.live_signal_sessions` 를 `|` 로 뽑은 것 (stdin 또는 --input):
+입력 = `trading.live_signal_sessions` 를 `|` 로 뽑은 것 (stdin 또는 --input).
 
-    docker exec quantbridge-db psql -U quantbridge -d quantbridge -At -F'|' \\
-      -c "SELECT id, created_at, deactivated_at,
-                 coalesce(deactivated_reason::text, chr(45))
-            FROM trading.live_signal_sessions ORDER BY created_at"
+★★**원장은 서버에 있다 — 로컬 컨테이너에서 뽑지 마라.** 소크는 2026-08-07 에 클라우드로
+이관됐고 로컬 격리 스택 DB 에는 그 이전 데이터가 남아 있다(실측 대조: 로컬 실격 **14건** vs
+서버 **11건**, 창 시작 날짜도 다르다). 그리고 **로컬 값은 오류처럼 보이지 않는다** —
+`C1 1.5574h` 가 그럴듯하게 인쇄된다. 재현 명령은 이 한 줄이다:
+
+    ssh truewords-oracle 'bash -lc "docker exec quantbridge-db psql -U quantbridge \\
+      -d quantbridge -At -F\\"|\\" -c \\"SELECT id, created_at, deactivated_at, \\
+      coalesce(deactivated_reason::text, chr(45)) \\
+      FROM trading.live_signal_sessions ORDER BY created_at\\""' \\
+      | uv run --directory backend python scripts/mtbf_stratified.py
+
+★대조 근거: `scripts/soak-gate.sh` 의 실격 목록에 뜨는 `auto_death` 건수와 이 도구의 `사망`
+열이 같아야 한다(2026-08-12 실측 8 = 8).
 
 ★살아 있는 세션은 **우측 절단**이다 — 노출은 더하고 사망은 더하지 않는다. 빼면 노출을
 잃어 MTBF 가 비관 쪽으로, 사망으로 세면 낙관 쪽으로 틀어진다. 어느 쪽도 하지 않는다.
@@ -158,7 +167,12 @@ def summarize(
         "n": len(sel),
         "exposure": exposure,
         "deaths": deaths,
-        "censored": sum(1 for r in sel if r["alive"]) + dropped,
+        # ★절단 = 사망이 아닌 관측 **전부** 다. `alive + dropped` 만 세면 자동사망 어휘가 아닌
+        #   사인으로 끝난 세션(`user_stopped` · 사인 없음)이 사망에도 절단에도 안 잡혀
+        #   `사망 + 절단 != n` 이 된다 — 2026-08-12 실측에서 40행이 `8 + 1` 로 인쇄됐다.
+        #   산술(노출·MTBF)은 처음부터 맞았고 **표시만** 틀렸다. 그 31건은 살아 있는 세션과
+        #   같은 우측 절단이므로 여기 들어오는 것이 맞다.
+        "censored": len(sel) - deaths,
         "operational_dropped": dropped,
         "longest": max((r["hours"] for r in sel), default=0.0),
         "reached_24h": sum(1 for r in sel if r["hours"] >= 24),
