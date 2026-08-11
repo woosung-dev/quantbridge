@@ -1536,7 +1536,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-550](#bl-550) | (P3) 비활성 세션의 **세션별** 포지션 대조가 화면에 없다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | 죽은 세션을 세션 단위로 대조해야 할 때                                                                            | S         | 2026-07-30 conditional-entry-alignment                 |
 | [BL-551](#bl-551) | ✅ (P3) 라이브 세션 상세 진입이 URL 파라미터가 아니다 — 딥링크·새로고침 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | 세션 상세를 링크로 공유해야 할 때                                                                                 | S         | 2026-07-30 conditional-entry-alignment                 |
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | 그 게이지로 무언가를 판단하기 전                                                                                  | S         | 2026-07-30 live-entry-completeness                     |
-| [BL-559](#bl-559) | 🟡 (P3) 진입 완결성 도구 잔여 3건 — 세션 목록 절단 감지 · 사문 라벨 · janitor probe 전이                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | 그 경로가 실측될 때                                                                                               | S         | 2026-07-30 live-entry-completeness                     |
+| [BL-559](#bl-559) | ✅ (P3) 진입 완결성 도구 잔여 3건 — 세션 목록 절단 감지 · 사문 라벨(**기각**) · janitor probe 전이                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | 그 경로가 실측될 때                                                                                               | S         | 2026-07-30 live-entry-completeness                     |
 | [BL-564](#bl-564) | ✅ **Resolved** (2026-08-09 backlog-sweep) — `bl-audit.sh` 가 코드펜스 · `<details>` 안의 옛 상태줄을 SSOT 로 오인할 수 있다. **처방 2건이 이미 구현돼 있었다**(`:114-120` 스킵 · `:268-288` 중복=exit 1)이고 Trigger 「게이트 체인 편입 전」도 도래(`final-gates.sh:151`). 코드 0줄                                                                                                                                                                                                                                                                                                                                                                                                  | 그 관용구가 상태줄을 품게 될 때                                                                                   | XS        | 2026-07-30 close-mismatch-soak                         |
 | [BL-573](#bl-573) | (P3) `engine_only` tick 당 `list_resting_conditional_entries` 2회 — 감지가 reconcile 보다 앞서 돌아 공유 불가                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | tick 비용을 손댈 때 / 두 경로를 합칠 때                                                                           | S         | 2026-08-01 soak codex                                  |
 | [BL-581](#bl-581) | `/metrics` 영구 누적 **10277 파일 · 635MB · PID 1968** (counter 삭제 금지)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 20000 파일 초과 · 스크레이프 지연 · 여유 20G 미만                                                                 | M         | 2026-08-02 metric-guard-parity                         |
@@ -4230,7 +4230,7 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 **Priority:** P3
 **Trigger:** 그 경로가 실측될 때
 **Est:** S
-**상태:** 🟡 부분 해결 — ①limit+1 절단 감지·③janitor probe(trigger=True) 모두 구현됐고, ②사문 라벨 reduce_only_entry_ignored 제거만 남았다 (2026-08-09 status-triage-mass 코드 대조)
+**상태:** ✅ **Resolved (2026-08-11 gate-surface)** — ①③ 은 구현 완료였고 ②는 **기각**한다. 「사문 라벨을 제거하라」는 처방이 코드 대조로 반증됐다 — 그 라벨이 사문인 것은 **결함이 아니라 설계 의도의 결과**이고, 지우면 마지막 방어선이 발화하는 날의 유일한 증거가 사라진다 (근거는 아래 §2026-08-11)
 **트리거 판정:** 도래 — 잔여 ②에는 조건이 없다. Trigger 「그 경로가 실측될 때」는 **③ janitor probe** 를 가리키는데 상태줄이 ①③ 구현 완료를 적었고, 권장 접근은 ②를 「라벨 제거」로만 적었다(조건 없음). 코드 실측 — 사문 라벨 `reduce_only_entry_ignored` 가 `live_signal.py:1098` · `conditional_entry_planner.py:408` · `metrics.py:561` 3곳에 잔존 (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-07-30 live-entry-completeness (적대 검증 잔여)
 
@@ -4245,6 +4245,31 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 
 **권장 접근:** 1 은 즉시 고칠 수 있다(주문 쪽 패턴 복사). 2 는 라벨 제거. 3 은 **실측되면** 착수.
 **Risk:** 🟢
+
+**2026-08-11 gate-surface — ②를 기각한다 (코드 0줄).**
+
+전제는 맞다. 라벨은 프로덕션에서 **발화할 수 없다.** 단 그 이유가 결함이 아니다 —
+**상위 필터가 두 겹**이라서다:
+
+| 층                                              | 무엇을 하나                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------- |
+| `order_repository.py:294`                       | SQL `WHERE Order.reduce_only IS FALSE` (로컬 행 경로)         |
+| `live_signal.py:1653`                           | 거래소 응답 경로에서 `linked_order.reduce_only` 면 `continue` |
+| `conditional_entry_planner.py:404` (**남긴다**) | 위 둘이 깨져도 취소 대상으로 안 삼는다 — **마지막 방어선**    |
+
+★**그 분기는 죽은 코드가 아니라 의도된 안전망이다.** 코드 주석이 직접 적었다 — 「상위 계층이
+필터를 잘못 넘겨 섞여 들어와도 … **사용자 손절을 지우는 것이 이 스프린트가 낼 수 있는 최악의
+결함**이라 마지막 방어선을 여기 둔다」. 전용 회귀 테스트도 있다:
+`tests/trading/test_conditional_entry_planner.py:194`
+`test_reduce_only_resting_orders_are_never_cancelled` — 라벨을 지우려면 **이 테스트를 죽여야 한다.**
+
+★**손익 계산이 명확히 한쪽이다.** 아끼는 것은 Prometheus series **1개**(8개 중 1)이고,
+잃는 것은 상위 필터 회귀가 실제로 일어난 날 그것을 알아볼 **유일한 사유 문자열**이다
+(allowlist 정규화 때문에 라벨을 빼면 `other` 로 수렴해 다른 드롭들과 구분이 사라진다).
+
+⇒ **「사문이니 제거」는 사문인 이유를 안 본 처방이었다.** 원장이 「제거하라」고 말할 때도
+코드에게 되물어라 — [BL-307]·[BL-703]·[BL-672]·[BL-704] 에 이은 **다섯 번째** 실증이고,
+앞의 넷과 달리 이번엔 **처방 자체가 틀렸다**(전제는 맞았다).
 
 ---
 
