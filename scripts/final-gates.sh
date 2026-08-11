@@ -179,12 +179,15 @@ run_gate "소스 헤더 하네스" "scripts/header-audit.sh" bash "$ROOT/scripts
 #   여기 걸린 이유 — 2026-05-14 에 「Sprint 61 follow-up」 사유로 심긴 5건이 **Sprint 61 이
 #   2026-05-17 에 끝나고도 3개월** 살아남았다. 대응 BL 은 0건이었고 어느 게이트도 안 물었다.
 #   pytest 는 skip 을 초록으로 보고하므로 **꺼진 테스트는 통과와 구분되지 않는다.**
-#   ★별도 하네스를 두지 않는다 — 이 스크립트가 매 실행마다 패턴 판별력(양성2·음성3)과
-#   판정 함수(초과/동률/빈입력)를 합성 입력으로 자기검사하고, 어긋나면 rc=3 으로 죽는다.
-#   (`bl-audit`·`header-audit` 이 별도 `-test.sh` 를 쓰는 것과 다른 선택이다. 저쪽은 판정이
-#   파일 트리 fixture 를 필요로 하지만, 여기 판정 입력은 **한 줄 문자열과 정수 둘**이라
-#   프로세스 안에서 끝난다 — 하네스를 만들면 그 자체가 또 하나의 고아 스크립트가 된다.)
+#   ★~~별도 하네스를 두지 않는다 — 판정 입력이 「한 줄 문자열과 정수 둘」이라 프로세스 안에서
+#   끝나고, 하네스를 만들면 그 자체가 또 하나의 고아 스크립트가 된다.~~
+#   → **2026-08-11 [BL-705] 로 반증됐다.** 그 자기검사는 판정 함수와 정규식만 덮고 **스캔층을
+#   한 줄도 안 덮는다** — 하한이 두 스코프 **합계**였던 탓에 위반이 사는 `backend/tests`(505)가
+#   통째로 안 스캔돼도 `backend/src`(217)가 합계 하한을 넘겨 **「위반 0건 ✓ rc=0」** 이었다.
+#   스캔층은 **파일 트리 fixture 없이는 검사할 수 없다**(그게 `bl-audit-test`·`header-audit-test`
+#   가 임시 트리를 쓰는 이유다). 그래서 아래 하네스가 생겼다 — 실제 `backend/` 는 안 건드린다.
 run_gate "무조건 skip 래칫" "scripts/skip-ratchet.sh" bash "$ROOT/scripts/skip-ratchet.sh"
+run_gate "무조건 skip 하네스" "scripts/skip-ratchet.sh" bash "$ROOT/scripts/skip-ratchet-test.sh"
 
 # ★문서 감사 — 죽은 링크 · retired path · **요약 줄 길이 상한**.
 #   CI 의 documentation 잡(`make docs-audit`)이 같은 것을 돌지만 그건 **PR 을 연 뒤**다.
