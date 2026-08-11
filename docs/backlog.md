@@ -184,6 +184,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 (2026-08-09 실측 C1 **26.54h/168h = 15.8%** · C2 15.30h/24h · 실격 0 · 24h 도달 **0/39**).
 쓸 수 있는 문장은 **「게이트가 열릴 때 4~5h 를 더 기다리지 않아도 되게 만들었다」**다.
 (위 두 줄의 BL-004 는 **참조**다 — 이 항목의 상태가 아니다. 이 구분이 없어서 낡은 산식이 BL-003 을 RESOLVED 로 세고 **P0 active 를 0 으로 보고했다.**)
+**트리거 판정:** 미도래 — 소크 축. 2026-08-11 게이트 실측 `rc=2 UNKNOWN` · C1 **68.2197h**/168h · 24h 이상 창 **1/3**(15.30h · 0.01h · 52.91h). PASS 만 도래다([ADR-024]). ★사용자가 문턱을 「누적 24h × 3회」로 교체했지만 그 새 문턱으로도 1/3 이라 결론이 같다 (2026-08-11 bl-703-partial-verdicts)
 
 **산출물 (2026-08-09):**
 
@@ -310,6 +311,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 **권장 접근:** `order_executions` append-only table 신설 (order_id / executed_at / qty / price / fee). WS event 마다 row insert + Order.filled_quantity 누적 갱신.
 
 **상태:** 🟡 **부분 Resolved (2026-07-25, `stage/money-path-accuracy`).** 재프레임 후 원안(ledger 테이블)이 아닌 **거래소 확정 손익 도입**으로 해결했다 — 진짜 리스크는 부분체결 추적이 아니라 `Order.realized_pnl` 이 close 주문 _생성 시점_ pine_v2 시뮬레이션 값(수수료 0·바 종가·전량청산 가정)이고 체결 후 한 번도 보정되지 않는다는 점이었다(머니-패스 5곳이 이 값을 SUM). Bybit `/v5/position/closed-pnl` 의 `closedPnl`(net) 로 reduce-only 체결분을 overwrite + `realized_pnl_synced_at` 출처 마커 + 4 winner 공용 backfill task + beat 스윕. `filled_quantity` 는 4 체결 경로 전부 write + `qb_partial_fill_total` + API/블로터 노출로 dead 컬럼 해소. **잔여** = per-execution ledger([BL-440](#bl-440)) / cancelled 종료 부분체결([BL-439](#bl-439)) / entry 부분체결 발산([BL-441](#bl-441)). 검증 = 실 Bybit demo 3건 오라클 대조 일치 + 스윕 멱등 + 라이브 worker 회수 + Kill Switch SUM 이동 실증.
+**트리거 판정:** 미도래 — 이 섹션 자신의 잔여가 0 이다. 잔여 3갈래가 [BL-439]·[BL-440]·[BL-441] 로 분리됐고 셋 다 **DEFERRED**(2026-08-11 `bl-audit` 실측). Trigger 가 와도 여기서 착수할 것이 없다 (2026-08-11 bl-703-partial-verdicts)
 
 ---
 
@@ -510,6 +512,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Trigger:** 실자금 cutover 전, 또는 110093 거부가 잦아질 때
 **Est:** S-M
 **상태:** 🟡 부분 해결 — 권장안 (a) 시장가 근사가 110092/110093 복구 태스크로 배선·테스트까지 구현됨. 남은 것은 백테스트↔라이브 체결가 차이 문서화/결정뿐. (2026-08-09 status-triage-mass 코드 대조)
+**트리거 판정:** 미도래 — 외생 조건 2겹. 본문 권장 접근이 「**라이브 매매 의미를 바꾸므로 사용자 결정이 선행**한다」를 적었고, 실자금 cutover 는 [BL-003] 이 막고 있다 (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-07-27 live-conditional-entry dogfood 실측
 
 **원인 / 영향:** pine_v2 는 `low <= stop`(숏) / `high >= stop`(롱)을 즉시 체결로 보는데, 거래소는 이미 돌파된 트리거를 `retCode 110093` 으로 거부한다. 가격이 피벗을 지나가면 시뮬은 진입했다고 믿고 거래소엔 포지션이 없다. 104분 dogfood 에서 10건 관측. 참조가(마지막 종료 bar 종가) 사전 차단을 넣어 재시도 루프는 없앴지만 **시맨틱 차이 자체는 남는다**.
@@ -710,6 +713,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 ### BL-186
 
 **상태:** 🟡 **부분 Resolved (BL-186a, 2026-07-26 backtest-trust)** — 격리 단일 tier 레버리지 모델은 착지, **잔여 = BL-186b**(cross 마진 · tier 계단 MMR · 파산수수료 · 멀티거래소 · 펀딩-청산 상호작용). 근거: 본 섹션 `**🔸 부분 Resolved (BL-186a):**` 줄 · `docs/roadmap.md:114` `[x] BL-186a` / `docs/roadmap.md:115` `[ ] BL-186b`.
+**트리거 판정:** 미도래 — 외생 조건. Trigger 줄의 「Sprint 38+」는 만료된 좌표지만 **본문이 진짜 게이트를 적었다** — 원인/영향의 「실제 dogfood / Beta 사용자가 high-leverage strategy 운영 시」. Beta 미도달이고 선행 BL-185 는 섹션이 없어 기계가 못 읽는다 (2026-08-11 bl-703-partial-verdicts)
 
 **Title:** Full leverage + funding rate + maintenance margin + cross/isolated margin + liquidation 풀 모델
 **Category:** 트랜잭션 / Risk / Pine v2
@@ -997,6 +1001,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 **Trigger:** pine_v2 관측성 후속
 **Est:** S (2-3h)
 **상태:** 🟡 부분 해결 — 실행단계 PineRuntimeError·ValueError 는 이미 status=error 로 분기됐고, 잔여는 144줄 catch-all(+이를 고정한 테스트 1건)뿐. (2026-08-09 status-triage-mass 코드 대조)
+**트리거 판정:** 미도래 — 동승 조건(pine_v2 관측성 후속). 잔여는 `v2_adapter` 144줄 catch-all 하나뿐이라 단독 착수 시 값이 0이다 (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-06-30 QA codex G2 (G1 에서도 지적)
 
 **원인 / 영향:** `v2_adapter.py:126-133` generic `except Exception` → `status="parse_failed"`. parse 성공 후 실행 중 예외(TypeError 등)도 "parse failed"로 표시 → 사용자 원인 분류 오도. BL-376 이 na/inf escape 는 닫았으나 catch-all 잔존. **권장:** 실행-단계 예외를 `status="error"` 로 분기(parse 단계와 구분).
@@ -1422,6 +1427,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Trigger:** 실자금 cutover 전
 **Est:** S
 **상태:** 🟡 부분 해결 — qb_active_orders inc/dec 는 감싸졌으나 live_signal.py:4180 sweep_filled inc 가 래퍼 밖 — metric 실패가 filled 를 sweep_cancel_failed 로 뒤집는다. AGENTS.md … (2026-08-09 status-triage-mass 코드 대조)
+**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). [BL-003] 이 막고 있다. ★잔여 (`live_signal.py:4180` sweep_filled inc 가 래퍼 밖)는 **지금도 데모에서 발화 가능**하지만 Trigger 가 정한 창은 cutover 전이다 (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-07-28 live-observability G6 codex 최종 적대 리뷰 (P1 의 후속)
 
 **원인 / 영향:** BL-506 이 metric mutation 을 in-memory 증가에서 **공유 mmap 파일 쓰기**로 바꿨다. 그래서 read-only 마운트·ENOSPC·I/O 오류에 예외를 던질 수 있다.
@@ -1795,6 +1801,7 @@ Sprint/BL 참조와 기술 세부를 **버리지 않고 옮기는 것**이 실�
 **Trigger:** post-Beta 실거래 빈도 상승 시 (monitor)
 **Est:** S (2-4h)
 **상태:** 🟡 부분 해결 — 버퍼·cap·gauge 축은 BL-448 로 소멸하고 discarded 카운터·테스트가 대체됐다; 남은 건 out-of-order/고빈도 stress 테스트뿐(Trigger 미도래). (2026-08-09 status-triage-mass 코드 대조)
+**트리거 판정:** 미도래 — 외생 조건(post-Beta 실거래 빈도 상승). Beta 미도달. 본문도 「현재 데모 빈도엔 충분 · 현재는 등재만」으로 스스로 적었다 (2026-08-11 bl-703-partial-verdicts)
 **출처:** `2026-06-26-trading-deepen-2.md`
 
 **현 상태:** ~~`state_handler.py` orphan buffer FIFO cap 1000(`_ORPHAN_MAX`)~~ → **2026-08-09 [BL-448](#bl-448) 로 버퍼·cap·gauge 가 통째로 사라졌다** (읽는 프로덕션 경로가 없었다). 남은 관심사는 out-of-order WS fill message / supervisor crash-restart cycle 의 고빈도(>100 fills/s) 스트레스 테스트 미검증뿐이다. 현재 데모 빈도엔 충분.
@@ -2591,6 +2598,7 @@ KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은
 ### BL-434
 
 **상태:** 🟡 **부분 Resolved (2026-07-25 close-completeness)** — 완전 TP/SL **보고(display)** 는 착지, **청산 스윕은 [BL-437] 이연**(codex G0 2 BLOCKING). 근거: 본 섹션 `**⚠️ Partially Resolved …**` 리드인 줄 · 헤더 스프린트 변경 기록(`docs/backlog.md:23`, "BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연)").
+**트리거 판정:** 미도래 — 선행 [BL-437] 이 **DEFERRED**(2026-08-11 실측)이고, 남은 청산 스윕이 그쪽 몫이다. Trigger 의 앞절(코크핏 §03 표시)은 display 축이 이미 착지해 소멸했다 (2026-08-11 bl-703-partial-verdicts)
 
 **⚠️ Partially Resolved (2026-07-25 close-completeness)** — **완전 TP/SL 보고(display) 완료**: `fetch_open_conditional_orders`(2콜 union + orderId dedupe + stopOrderType 엄격분류) → position_service 조인(source-dedup·마크근접순) → §03 병합 표시(익절/손절 리스트) + has_trailing_stop 각주. dogfood 3계통(오라클 raw ↔ 앱 provider ↔ get_reconciliation 익절 66000/손절 62000). **청산 스윕은 BL-437 이연**(codex G0 2 BLOCKING: 타이밍 accept≠fill + account+symbol 공유 세션 오취소). dogfood 실측 = Partial 조건부 TP/SL 은 Bybit flat 시 자동취소(스윕 이연 안전).
 
@@ -2642,6 +2650,7 @@ KITPORT 센티넬 안이라 무결성 가드가 막는다([BL-645] 에서 같은
 **Risk:** 🔴 (리스크 게이트가 실현 손실의 일부를 못 본다 — 한도 초과를 늦게 감지)
 
 **상태:** 🟡 **부분 Resolved — 관측 원장(최근 7일) 까지 (2026-07-25, `stage/exit-attribution`).** 측정 스파이크가 전제를 뒤집었다 — 거래소 전용 행 4건(행 36.4% · |손익| 55.8%)은 **브래킷이 아니라 앱 밖 수동 청산**이었고, **브래킷 체결은 전 기간 0건**(조건부 주문 4건 전부 `Deactivated`, DB 17행 중 TP/SL 실은 주문 0)이라 이 구멍은 코드 경로상 실재하나 **프로덕션 관측 0 = 잠복**이다. 게다가 거래소 전용 4건 중 우리 포지션은 1건뿐이라 자동 계상은 오차단을 만든다. 사용자 확정 = **관측 원장까지**. 신규 `trading.exchange_exits`(행 단위 원본 + provenance) + 스윕을 계정 독립 열거·최근 7일 창·원장 집계 백필로 재작성 + 분류 7종/귀속 3등급(라벨 전용, `inferred` 는 머니-패스 미투입) + 신규 미귀속 행 1회성 알림.
+**트리거 판정:** 도래 — Trigger 줄 자신이 「즉시」다. 조건절이 없고 외생·동승 어휘도 없다(`bl-trigger-sweep` 의 `지금` 축이 낭독으로 같은 판정을 낸다) (2026-08-11 bl-703-partial-verdicts)
 
 **★범위 축소 (2026-07-25, 같은 브랜치).** 과거 90일까지 훑는 기계장치(`exchange_exit_sync_state` 워터마크 · 창 전진 · 잘림 처리)를 **머지 전에 걷어냈다.** 이유 = ① 그걸 만든 직접적 목적(20일 전 미동기화 4건 회수)이 로컬 개발 DB 전소로 소멸 ② 뒤집힌 측정을 스코프에 충분히 반영하지 못한 채 만들었다 ③ **실측 — 그 기계장치는 지속 기제가 아니라 ~13주기(약 65분) 후 영구 자기정지하는 일회성 catch-up 이었다**(워터마크는 주기당 7일 후퇴, horizon 은 매 주기 `now` 에서 재계산되어 전진 → `end_ms <= horizon_ms` 가 영구 latch, DB 영속이라 재시작으로도 안 풀림). 즉 정상 상태에서 축소 전후 동작은 동일하고, 실제로 없어진 것은 **일회성 90일 역사 수입** 하나다. 원장은 이제 **최근 7일만** 담는다 → [BL-452](#bl-452).
 
@@ -2888,6 +2897,7 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Risk:** 🟢 (현재 실제 발생한 크래시는 이미 수정됨. 이 항목은 재발 방지용 예방적 등재)
 
 **상태:** 🟡 **부분 Resolved — 권장안 (a) 까지 (2026-07-25, `stage/exit-money-path`).** `tasks/trading.py:1698` 의 마지막 `.value` 잔존(`qb_exchange_exit_rows_total` 라벨)을 `str(row.classification)` 로 바꿨다. 지금은 메모리 객체라 안전하지만, 소스가 재조회 경로로 바뀌는 리팩터 한 번이면 dogfood 때와 같은 크래시가 재현되는 자리였다(grep 결과 코드베이스에 남은 유일한 `.value`). 그리고 **감사 목록에서 빠져 있던 `ExchangeExit.attribution_confidence` 를 포함해 6개 필드 전부**에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만" 주석을 통일했다(`models.py:441 · 583 · 634 · 640 · 718 · 742`). 권장안 (b) 정적 가드와 (c) `sa.Enum` 복귀는 미착수.
+**트리거 판정:** 미도래 — 동승 조건. 「이 5개 필드에 `.value` 를 새로 쓰는 코드가 추가될 때」라 그 코드를 쓰는 회차에 붙는다. 단독 착수 시 값이 0이다 (2026-08-11 bl-703-partial-verdicts)
 
 ---
 
@@ -2955,6 +2965,7 @@ money-path 의미를 바꾸므로 하지 않았다.
 **Risk:** 🟡 (숫자의 신뢰 등급이 화면에 안 드러난다. 게이트 자체는 fail-loud 쪽이라 안전)
 
 **상태:** 🟡 **부분 Resolved (2026-07-26, `stage/money-path-finish`) — 사람이 읽는 2표면까지.** 사용자 결정 = "라벨 + 소계 · Site 3·4". **Site 3**(loss-limit 알림) = `sum_filled_realized_pnl_for_session` → `realized_pnl_split_for_session -> SessionRealizedPnl`(PG `FILTER` 한 문장 5 스칼라)로 개명·retype 해 "출처를 안 보고 합산" 을 표현 불가로 만들고, 본문에 `거래소 확정 X · 추정 Y` + 손익 미도착 체결 건수를 싣는다. **Site 4**(세션 커브·대시보드 §01 KPI) = 커브 포인트에 `source` + 평면 소계 4필드, FE 는 기존 SSOT(`ORDER_REALIZED_PNL_SOURCE_LABEL`)를 재사용해 새 어휘 0. **Site 1·2 게이트 수식과 Site 5 는 무변경** — 확정값만으로 좁히면 체결~스윕 도착 구간 손실이 사라지는 fail-open 이다. 대조군 seed 에 `synced_at` 을 심어 **가드레일이 그 fail-open 좁힘을 잡아내게** 강화했다.
+**트리거 판정:** 미도래 — 외생 조건(실자금 전환). [BL-003] 이 막고 있다 (2026-08-11 bl-703-partial-verdicts)
 
 **잔여** — ① Site 1·2 게이트는 여전히 추정·확정 혼재(의도) ② Site 5 일일 리포트 미표면화 ③ **포트폴리오 병합 커브는 포인트별 출처 표현 불가** — `mergeCumulativeCurves` 가 각 세션의 마지막 누적값을 carry-forward 해 더하므로 한 지점의 값은 대부분 과거 거래에서 실려온 값의 합이다. 집계 수준 라벨로 강등했고 구간별 표시는 세션 상세에서만 한다 ④ Site 4 는 `unrecorded_count` 를 세지 않는다(추가 왕복 0 을 택함 — 폴백은 `docs/archive/sprints/money-path-finish/operating-contract.md` §4).
 
@@ -3188,6 +3199,7 @@ TOTAL                4812 ms
 **Trigger:** 읽기 전용 계정 정리 시 또는 external-exit 알림이 시끄러워질 때
 **Est:** S
 **상태:** 🟡 부분 해결 — BL-605 dedupe 로 신규 이중 적재는 막혔으나 기존 574행이 남아 있다 — 잔여는 [BL-529] 와 같은 「이미 쌓인 거울 행 정리(사용자 승인)」 (2026-08-09 status-triage-mass 코드 대조)
+**트리거 판정:** 미도래 — 외생 조건이 **사용자 결정으로 닫혔다.** 2026-08-11 결정 = `exchange_accounts` `0277c150` **행을 삭제하지 않는다**(FK `ondelete="RESTRICT"` ×3 + `exchange_exits` 103행 ⇒ 지금 DELETE 는 500). 잔여 574행 정리는 그 결정이 뒤집혀야 열린다 (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-07-26 BL-474 dogfood 실측
 
 **원인 / 영향:** `exchange_accounts` 두 행(`19a8166a` "bybit demo" · `0277c150` "bybit demo- aaa")이 **같은 Bybit 데모 서브계정의 서로 다른 API 키**다. 스윕은 계정별로 `/v5/position/closed-pnl` 을 치므로 같은 청산이 두 번 적재되고, upsert 키에 `exchange_account_id` 가 들어가 중복으로 접히지 않는다.
@@ -3572,6 +3584,7 @@ DB·코드 대조 실측:
 **Trigger:** 전략 누적 지표를 신뢰해야 할 때
 **Est:** S
 **상태:** 🟡 부분 해결 — 스윕 uid dedup(BL-605)과 화면 문구는 구현됐다 — 잔여는 등록 시 uid 중복 경고와 이미 쌓인 거울 행/중복 계정 행 정리(사용자 승인). (2026-08-09 status-triage-mass 코드 대조)
+**트리거 판정:** 미도래 — 동승 조건(전략 누적 지표를 신뢰해야 할 때) + [BL-477] 과 같은 사용자 결정. 거울 행 정리 경로가 2026-08-11 에 닫혔다 (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-07-28 live-outcome-parity 실측
 
 **원인 / 영향:** `exchange_exits` 실측 — 계정 행이 2개(`0277c150` / `19a8166a`)인데 **둘 다 같은 Bybit uid** 를 가리켜 같은 청산이 계정별로 2행 적재된다. 한쪽은 32행 전부 `matched_order_id IS NULL` 이다.
@@ -4218,6 +4231,7 @@ sweep(`live_signal.py:2480`) · `exchange_rejected_at_submission`(`trading.py:54
 **Trigger:** 그 경로가 실측될 때
 **Est:** S
 **상태:** 🟡 부분 해결 — ①limit+1 절단 감지·③janitor probe(trigger=True) 모두 구현됐고, ②사문 라벨 reduce_only_entry_ignored 제거만 남았다 (2026-08-09 status-triage-mass 코드 대조)
+**트리거 판정:** 도래 — 잔여 ②에는 조건이 없다. Trigger 「그 경로가 실측될 때」는 **③ janitor probe** 를 가리키는데 상태줄이 ①③ 구현 완료를 적었고, 권장 접근은 ②를 「라벨 제거」로만 적었다(조건 없음). 코드 실측 — 사문 라벨 `reduce_only_entry_ignored` 가 `live_signal.py:1098` · `conditional_entry_planner.py:408` · `metrics.py:561` 3곳에 잔존 (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-07-30 live-entry-completeness (적대 검증 잔여)
 
 **원인 / 영향:** 세 건 모두 확인됐으나 이번 스코프 밖으로 남겼다.
@@ -6281,6 +6295,7 @@ soak-exclusivity-and-observability 회차). 서버에 `dev.quantbridge.soak-logs
 ★**이것은 이 BL 을 닫지 않는다** — Trigger 가
 비로소 **충족 가능해진 것**이지 정지의 뿌리를 안 것이 아니다. 닫는 조건은 불변이다:
 같은 정지를 로그가 남아 있는 동안 재관측하고 부검한다.
+**트리거 판정:** 미도래 — 외생 조건(재관측). 2026-08-11 게이트 실측 = **실격 0건 · C4 표본 공백 0건**이고, 본문의 첫 재관측(15.30h 창 · `evaluate_all` 919건 · 간격 최소=중앙=최대 60.0초)도 「재발 없음」이었다. **이벤트 부재는 정지의 증거가 아니지만, 관측되지 않은 것을 부검할 수도 없다** (2026-08-11 bl-703-partial-verdicts)
 
 ★★**2026-08-08 — 재관측이 처음 성립했고 결과는 「재발 없음」이다**(soak-mortality-repair).
 로그가 남은 첫 창(세션 `a4f1cbfb` · `2026-08-08T02:32:42Z`~`17:50:42Z` · **15.30h**)에서
@@ -7090,6 +7105,7 @@ P2 표는 `BL-617` 다음의 빈 줄 하나 때문에 BL-625/621/627/628/629/630
 **Trigger:** 문서 보관 경로를 다시 안내하거나 정리할 때
 **Est:** S
 **상태:** 🟡 **Partial (2026-08-08 bl003-unblock 회차)** — `docs/archive/` 디렉터리가 실재하게 됐고 `lessons-archive-2026H1.md` 가 들어갔다(lessons 442→341). ★**남은 것** — `docs-audit.sh` 의 `legacy_paths` 가 권장 대체 경로로 가리키는 `docs/archive/{operations,product,architecture,domain}/` 4종은 **여전히 없다**. 경로 존재 검사가 없어 게이트가 이를 안 잡는다.
+**트리거 판정:** 미도래 — 동승 조건(문서 보관 경로를 다시 안내하거나 정리할 때). 잔여는 `legacy_paths` 가 가리키는 `docs/archive/{operations,product,architecture,domain}/` 4종 부재이고, 그 안내를 고치는 회차에 붙는다 (2026-08-11 bl-703-partial-verdicts)
 
 **`docs/archive/` 부재로 권장 경로가 실행 불가였다.**
 
@@ -7114,6 +7130,7 @@ P2 표는 `BL-617` 다음의 빈 줄 하나 때문에 BL-625/621/627/628/629/630
 **Trigger:** BL-634 를 구현하기 전
 **Est:** S
 **상태:** 🟡 **부분 해결** (2026-08-08) — 판정식(`EXCLUSIVE`)과 **판별력 실측치**가 확정됐다. 남은 것은 실패 모드 3(소유권 집합의 계정 축)이고 그 결정은 [BL-634](#bl-634) 구현에 속한다
+**트리거 판정:** 도래 — 선행 [BL-634] 가 **2026-08-09 에 ✅ Resolved** 됐다(`account_exclusivity.py` 가드가 `register()` 전제조건으로 들어감). 즉 「구현하기 전」이라는 창은 **이미 지났고**, 남은 실패 모드 3(소유권 집합의 계정 축)은 그 결정 없이 머지됐다. ★기계는 「기 전」이 동승 어휘라 「판단 필요」를 냈다 — 사람이 본문 대조로 뒤집은 건이다 (2026-08-11 bl-703-partial-verdicts)
 
 **미조인 `exchange_exits` 는 상시 기저율이어서 배타성 판정의 근거가 될 수 없다.**
 
@@ -7318,6 +7335,7 @@ soak-exclusivity-and-observability 회차). ⑴ 층화 + **95% 신뢰구간**을
 ★★★**그 과정에서 이 BL 자신의 인용값이 반증됐다** — 아래 층화 표는 **점추정끼리 비교할 수
 없다**. 네 층의 CI 가 **6쌍 전부 겹친다**(상세 = [ADR-024] §층화). ⇒ 「수리로 MTBF 가 올랐다」도
 「내렸다」도 이 데이터로는 말할 수 없다. **닫는 조건은 불변** — 사망률이 실제로 내려가야 한다.
+**트리거 판정:** 도래 — Trigger 앞절이 발화했다. 「[BL-003] 재계획 시 즉시」인데 **2026-08-11 사용자 결정으로 C1 문턱이 「168h」에서 「누적 24h × 3회」로 교체**됐고(그 미반영이 [BL-701] 로 등재됐다), 뒷절 「소크 재기동 회차마다 재측정」도 2026-08-08 재기동으로 충족된다. ★기계는 트리거에 「소크」가 들어 있어 소크 축으로 버킷하고 미도래를 냈다 — **절의 접속을 반쪽만 읽은 것**이다 (2026-08-11 bl-703-partial-verdicts)
 
 **BL-003 의 실질 선행조건은 문턱이 아니라 MTBF 다.**
 
@@ -7587,6 +7605,7 @@ public 을 매 회 다시 돌려 초록을 확인한다. `authed-canon-*` 2벌�
 ★라이트 canon 잔량(2/6/14/4/2)은 전부 `--text-muted`(#585f68)가 `--card`/`--bg` **아닌** 표면에서
 5.60~5.64 인 것이다. 이 조합은 `light-canon-contrast.test.ts` 의 PAIRS 에 **없어 계산으로는 안 보인다**
 — 실화면 합성이 무엇을 더 잡는지의 실례. 토큰 이동은 별건이라 래칫으로 동결만 했다.
+**트리거 판정:** 미도래 — 외생 조건(라이트 테마 회귀 재발). 잔여인 인증 셸 `.sidebar` 실폭은 `chromium-authed` 몫이라 [BL-597] 소크 결합에도 걸리고, 2026-08-11 현재 `E2E_CLERK_*` 가 비어 authed 경로 자체가 안 돈다 (2026-08-11 bl-703-partial-verdicts)
 
 **런타임 캐논 감사가 다크 테마만 잰다.**
 
@@ -7676,6 +7695,7 @@ public 을 매 회 다시 돌려 초록을 확인한다. `authed-canon-*` 2벌�
 5벌**이고 합계 **8.5GB** 였다(`.next.stale-fp-20260723` **5.8G** · `.next.bak-turbocache` **2.0G** ·
 나머지 3벌 117M). 레포 26G → **18G**. ⑵ `make fe` 가 `.next` 크기를 재서 1GB 초과 시 경고한다
 (양성/음성 대조 2/2). **닫는 조건은 불변** — 「몇 GB에서 태우기 시작하나」를 재야 정책이 선다.
+**트리거 판정:** 미도래 — 앞절은 이 회차에 관측되지 않았고(dev 서버 미기동) 뒷절 「캐시 정책을 정할 때」는 동승이다. ★단 `frontend/.next` 는 2026-08-11 실측 **1.2GB** 로 `make fe` 경고선 1GB 를 이미 넘겼다 — 닫는 조건인 「몇 GB에서 태우기 시작하나」는 여전히 두 점(1.99GB 사망 · 593MB 무해)뿐이다 (2026-08-11 bl-703-partial-verdicts)
 
 ★★★**재현에 실패했고 그것이 이 회차의 결과다.** 593MB 캐시에 요청 1건을 먹인 뒤 재니
 **idle CPU 0.1% · `/` 0.61초 · RSS 945MB** 였다 — 아래 표의 `rm -rf` 후 값과 같다. 즉 증상은
@@ -8258,6 +8278,7 @@ pre-commit 의 `prettier --write` 가 `*.json` 을 대상으로 하므로 커밋
 **Trigger:** 실자금 전환 전 필수 / 조건부 진입을 쓰는 세션을 내릴 때
 **Est:** S
 **상태:** 🟡 부분 해결 — 2026-08-10 guards-blind-spots 에서 **거짓 성공을 없앴다**(보고 + exit 3). 포지션 0 인데 미체결 조건부 진입이 있으면 `409 detail={"code":"resting_conditional_entries",…}` 이고 CLI 가 잔량을 찍고 **exit 3** 으로 끝난다. **취소는 미구현**이라 부분이다 — 권장 접근의 「그것을 취소하도록」은 [BL-669](#bl-669) 로 분리했다. 변이 6/6 red · 음성 대조 green
+**트리거 판정:** 미도래 — 외생 조건(실자금 전환) + 동승(조건부 진입 세션을 내릴 때). 잔여인 「취소하도록」은 [BL-669] 로 분리됐고 그쪽은 **DEFERRED**(뒷절이 거래소 접촉 승인이다) (2026-08-11 bl-703-partial-verdicts)
 
 **`flatten` 이 「이미 flat」을 내고 exit 0 하는데 조건부 주문은 남아 있다.**
 
@@ -8353,6 +8374,7 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 **Trigger:** 코크핏 청산 버튼으로 조건부 잔량을 봐야 할 때
 **Est:** S
 **상태:** 🟡 부분 해결 — 2026-08-10 close-ownership-axis 가 409 body 의 키를 레포 계약에 맞췄고(`message` → `detail`), 2026-08-10 fe-close-surface 가 **FE 축을 닫았다**: `RestingEntriesConflictSchema` 로 `orders` 를 펴고 `CloseOutcomePanel` 이 목록으로 그린다. 함께 `api-client.ts` 의 `code` 해석이 FastAPI 의 `{detail:{code}}` 한 겹을 파도록 고쳤다(종전에는 도메인 코드가 **언제나** `unknown_error` 였다). ★**본문의 「화면에 generic `API 409` 만 뜬다」는 두 표 중 하나에만 참이었다** — `account-positions-table` 은 이미 `describeApiError` 를 썼고 `open-positions-table` 만 `error.message` 였다. 그 비대칭도 함께 없앴다. **잔여 1건 = `router.py` 의 409 `responses` 선언(OpenAPI)**. 넣지 않은 이유는 아래 §OpenAPI 판단
+**트리거 판정:** 미도래 — 동승 조건(코크핏 청산 버튼으로 조건부 잔량을 봐야 할 때). 잔여 1건 = `router.py` 의 409 `responses` OpenAPI 선언이고, 본문 §OpenAPI 판단이 넣지 않은 이유를 적어 뒀다 (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-08-10 guards-blind-spots codex 최종 적대 리뷰 (P2 — 코드 대조로 확정)
 
 **원인 / 영향:** 서버는 `409 {"detail": {"code": "resting_conditional_entries", "message": …,
@@ -8388,6 +8410,7 @@ codegen 스크립트 0). 화면은 수기 Zod 로만 계약을 아니까 선언�
 **Trigger:** `flatten` 출력 형식을 바꿀 때
 **Est:** XS
 **상태:** 🟡 부분 해결 — ⑴ **계약 단절은 2026-08-10 close-ownership-axis 가 메웠다**(스코프 OUT 이었으나 [BL-671] 의 키 변경이 정확히 이 구멍을 통과하는 바람에 시험이 필요했다). `test_live_session_admin_flatten.py::test_flatten_cli_formats_actual_flat_resting_entry_detail` 이 **서비스가 실제로 raise 한 detail 객체 그대로**를 CLI 포매터에 태운다 — 종전 수제 dict 는 `message` 키가 아예 없어 키 변경을 **못 잡았다**(실측). **코드는 안 건드렸다, 시험만 추가했다.** ⑵ runbook §7 갱신은 **미이행**
+**트리거 판정:** 도래 — 잔여가 이미 0 이라 종결 판정만 남았다. ★상태줄의 「⑵ runbook §7 갱신은 **미이행**」이 **반증됐다** — `bybit-mainnet-runbook.md:363-372` 이 2026-08-10 정정으로 `no_open_position` 의 새 의미와 **rc 0/1/3/4 분기**를 이미 적고 있다([BL-661]+[BL-684] 인용). 원장이 「미이행」이라 말할 때 **문서에게 되물어라** (2026-08-11 bl-703-partial-verdicts)
 **출처:** 2026-08-10 guards-blind-spots codex 최종 적대 리뷰 (P3 2건 — 코드 대조로 확정)
 
 **원인 / 영향 ⑴ 계약 단절.** `test_close_service.py` 는 실제 detail 에서 `order_id` 만 보고,
@@ -8462,6 +8485,7 @@ Pydantic 스키마. ⑵ runbook §7 에서 `no_open_position` 의 새 의미와 
 **Priority:** P3
 **Trigger:** `frontend/` 안의 json·md·yml 을 커밋할 때
 **상태:** 🟡 부분 해결 (2026-08-09 fe-perf-quartet) — 루트 devDependency 를 추가해 즉시 증상은 없앴다. 구조(두 곳이 같은 설정을 서로 다른 해석 뿌리로 읽는다)는 그대로다
+**트리거 판정:** 미도래 — 동승 조건(`frontend/` 안의 json·md·yml 을 커밋할 때). 즉시 증상은 루트 devDependency 로 닫혔고 잔여는 구조(두 곳이 같은 설정을 서로 다른 해석 뿌리로 읽는다)뿐이라 그 파일들을 건드리는 회차에 붙는다 (2026-08-11 bl-703-partial-verdicts)
 **Est:** XS
 **출처:** 2026-08-09 fe-perf-quartet (커밋이 실제로 막혀서 발견)
 
@@ -9372,6 +9396,7 @@ description 이 「production 에서는 토큰이 항상 있으므로 이 분기
 말할 수 있는 범위는 그보다 좁다.
 
 **Risk:** 🟡 (새 게이트가 조용히 눈이 멀 수 있다)
+
 ### BL-702
 
 **Title:** ⓪ 표 정체성 계약에 소유자가 없다 — 살아 있는 행이 원장과 갈려도 게이트가 침묵한다
