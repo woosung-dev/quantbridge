@@ -148,7 +148,7 @@ describe("BacktestList 성과 열", () => {
     expect(screen.getByTitle("구 기준(봉 수익률 · 무위험 0%) - 현재 기준과 비교 불가")).toHaveTextContent("1.50");
     expect(screen.getByTitle("변동이 없거나 기간이 짧아 산출되지 않았습니다")).toHaveTextContent("—");
     expect(screen.getByTestId("backtest-sharpe-sort-notice")).toHaveTextContent(
-      "구 기준과 현재 기준 샤프가 섞여 있어 정렬 순위를 그대로 신뢰할 수 없습니다.",
+      "구 기준 샤프는 현재 기준과 비교할 수 없어 정렬 시 비교 가능한 결과 뒤로 분리됩니다.",
     );
   });
 });
