@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { defineConfig, devices } from "@playwright/test";
 
 // Sprint FE-01 LESSON-004: React Query + Next.js 조합 infinite loop 검출용 E2E.
@@ -14,6 +17,33 @@ import { defineConfig, devices } from "@playwright/test";
 // chromium-authed 는 fullyParallel:false + --workers=1 (script 명시) 이중 보장 —
 // 공유 storageState flake 차단.
 const isCI = !!process.env.CI;
+const configuredBaseURL = process.env.PLAYWRIGHT_BASE_URL;
+
+function getWorktreeSlot(): number {
+  const slotPaths = [
+    resolve(process.cwd(), "../.worktree-slot"),
+    resolve(process.cwd(), ".worktree-slot"),
+  ];
+
+  for (const slotPath of slotPaths) {
+    try {
+      const contents = readFileSync(slotPath, "utf8");
+      const match = contents.match(/^QB_SLOT\s*=\s*(\d+)\s*$/m);
+      const slot = match ? Number(match[1]) : NaN;
+
+      if (Number.isSafeInteger(slot) && slot >= 0) {
+        return slot;
+      }
+    } catch {
+      // 다음 후보 경로를 시도한다.
+    }
+  }
+
+  return 0;
+}
+
+const fePort = 3100 + getWorktreeSlot();
+const defaultBaseURL = `http://localhost:${fePort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -23,7 +53,7 @@ export default defineConfig({
   workers: isCI ? 1 : undefined,
   reporter: isCI ? [["github"], ["list"]] : "list",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+    baseURL: configuredBaseURL ?? defaultBaseURL,
     trace: "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
@@ -101,8 +131,8 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: "pnpm dev",
-        url: "http://localhost:3000",
+        command: `pnpm dev -- --port ${fePort}`,
+        url: defaultBaseURL,
         reuseExistingServer: !isCI,
         timeout: isCI ? 240_000 : 120_000,
         stdout: "pipe",

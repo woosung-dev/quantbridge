@@ -24,7 +24,7 @@ const REQUIRED_ENV = [
 
 const STORAGE_PATH = "e2e/.auth/storageState.json";
 
-setup("authenticate", async ({ page }) => {
+setup("authenticate", async ({ page }, testInfo) => {
   // Sprint 46 W3: pre-warm 4 paths × Next.js cold JIT compile (5-30s each) →
   // 합산 1-2 분 소요. default 30s test timeout 으론 부족. 180s 로 확장.
   setup.setTimeout(240_000);
@@ -43,12 +43,26 @@ setup("authenticate", async ({ page }) => {
     }
   }
 
-  const baseUrl =
-    process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+  const baseUrl = testInfo.project.use.baseURL ?? "http://localhost:3100";
+  const signInUrl = new URL("/sign-in", baseUrl).toString();
 
   // 1) sign-in 페이지 방문 → 2) Testing Token 자동 첨부 → 3) clerk.signIn()
   // Sprint 46 W3: Next.js 16 dev cold compile 으로 첫 sign-in load 가 느릴 수 있어 timeout 120s.
-  await page.goto(`${baseUrl}/sign-in`, { timeout: 120_000 });
+  const signInResponse = await page.goto(signInUrl, { timeout: 120_000 });
+  const signInStatus = signInResponse?.status() ?? "응답 없음";
+  if (signInStatus !== 200) {
+    throw new Error(
+      `[e2e setup] sign-in HTTP status 검증 실패. 요청 URL: ${signInUrl}, 받은 status: ${signInStatus}. 이 포트에 다른 앱이 떠 있을 수 있다.`,
+    );
+  }
+
+  const pageTitle = await page.title();
+  if (!pageTitle.includes("QuantBridge")) {
+    throw new Error(
+      `[e2e setup] QuantBridge 정체성 확인 실패. 요청 URL: ${signInUrl}, 실제 title 원문: ${JSON.stringify(pageTitle)}`,
+    );
+  }
+
   await clerk.signIn({
     page,
     signInParams: {
@@ -66,9 +80,9 @@ setup("authenticate", async ({ page }) => {
     timeout: 30_000,
   });
   // 페이지 로드 완료 + 인증된 사용자만 보이는 heading (C 이식 screen-06: report-title "전략")
-  await expect(
-    page.getByRole("heading", { name: "전략", exact: true }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "전략", exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
 
   // 5) Pre-warm — chromium-authed 프로젝트의 첫 spec 이 dev server JIT compile 안 만나도록
   // 모든 protected page 미리 방문해서 컴파일 cache 채움. 각 페이지 첫 컴파일 5-30초.
