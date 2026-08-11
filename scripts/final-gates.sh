@@ -51,6 +51,7 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$RUN" ] || { echo "사용법: $0 --run <name> [--skip-e2e] [--skip-ci-repro]" >&2; exit 1; }
 case "$RUN" in *[!A-Za-z0-9._-]*) echo "--run 은 영숫자·점·밑줄·하이픈만" >&2; exit 1 ;; esac
+case "$RUN" in eod) echo "✗ --run eod 는 금지다 — 앞 회차 신호를 물려받는다 ([BL-706]). 회차 슬러그를 써라: --run <회차이름>" >&2; exit 1 ;; esac
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 SLOT=0
@@ -154,6 +155,9 @@ run_gate "BL 감사" "docs/backlog.md" bash "$ROOT/scripts/bl-audit.sh"
 #   통째로 지워도 "BL 감사" 는 초록이다 — 실제 사고를 막는 코드인데 되돌려도 아무도 못 잡는다.
 #   임시 트리 fixture 로 그 회귀를 잡는다. 실제 `docs/` 는 건드리지 않는다.
 run_gate "BL 감사 하네스" "scripts/bl-audit.sh" bash "$ROOT/scripts/bl-audit-test.sh"
+
+# [BL-706] 신호 신선도 판별력을 회차 종료 게이트에 연결한다.
+run_gate "신호 신선도 하네스" "scripts/signal-check.sh" bash "$ROOT/scripts/signal-check-test.sh"
 
 # ★소크 재기동 갈래 하네스 ([BL-656]). 이 게이트가 붙은 이유가 그 BL 의 교훈이다 —
 #   2026-08-08 에 「unquoted heredoc 안 백틱 정적 카운트 0건으로 동결」이라 **기록만 하고**

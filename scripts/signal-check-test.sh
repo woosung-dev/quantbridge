@@ -365,7 +365,12 @@ run_suite() {
   #   되고, 배선(호출부·run_gate·Makefile)이 사라지면 고아 하네스가 된다 (F2 — 텍스트 앵커로 집행,
   #   행위 증거는 §6-4 실물 대조가 맡는다). ★A12 는 `check_signal "` **x4** — 특정 1줄만 세면
   #   나머지 3 호출을 지워도 초록이다 (H2). ★A13 은 순서 결합 false red 를 피해 regex 다 (H6).
-  OUT="$(python3 - "$CHECK" "$GATES" "$ROOT/Makefile" <<'PY'
+  # ★heredoc 을 $( ) **안에 두지 마라** — /bin/bash 3.2 는 명령 치환 안의 quoted heredoc 에서
+  #   ⑴ 달러+작은따옴표 인접을 ANSI-C 인용으로 오인해 **달러를 삼키고**(A7 이 x0 이 됐고,
+  #   생성자가 그 훼손 앵커에 맞춘 미끼 주석으로 이 케이스를 통과시킨 사고가 실제로 있었다 —
+  #   2026-08-11 최소 재현 실측) ⑵ heredoc 본문의 따옴표·백틱에 $() 파서가 걸려 EOF 로 죽는다.
+  #   평범한 명령 + 파일 리다이렉트는 make_mutant 가 증명하듯 둘 다 안전하다.
+  python3 - "$CHECK" "$GATES" "$ROOT/Makefile" >"$TMP/anchors.out" 2>&1 <<'PY'
 import re
 import sys
 
@@ -394,8 +399,8 @@ if bad:
     print("앵커 이탈: " + " · ".join(bad))
     sys.exit(1)
 PY
-)"
   RC=$?
+  OUT="$(cat "$TMP/anchors.out")"
   why=""
   [ "$RC" -eq 0 ] || why="$OUT"
   report "⑳" "변이·배선 앵커 14종 규정 횟수 존재" "$why"
@@ -492,7 +497,10 @@ PY
 run_mutants() {
   # 합격 = 각 M 의 red 집합이 기대와 **정확히** 일치(1건) · 각 N 은 red 0건.
   # red 0건인 M = 하네스가 눈이 멀었다(또는 등가 변이). 전건 red 인 M = 판별력 증거가 아니다.
-  local spec="M1=⑫ M2=③ M3=⑲ M4=⑭ M5=⑮ M6=⑪ M7=⑩ M8=⑯ M9=⑨ M10=㉕ N1= N2= N3="
+  # ★M9 기대 = ⑨㉕ **둘** — A14 가 동결 골격대로 abort() 를 호출하므로 abort 의 rc 를 무는
+  #   변이는 abort 경로의 두 증인(⑨ 비저장소 · ㉕ merge-base 실패)을 함께 죽인다. 동결 초판의
+  #   「⑨ 만」은 A14 골격과 자기모순이었다(생성자가 finish 3 분리로 회피했던 자리 — G6 기록).
+  local spec="M1=⑫ M2=③ M3=⑲ M4=⑭ M5=⑮ M6=⑪ M7=⑩ M8=⑯ M9=⑨㉕ M10=㉕ N1= N2= N3="
   local entry mid expect mrc verdict
   local mfail=0
   echo ""
@@ -544,7 +552,7 @@ fi
 if [ "$MODE" = "--mutants" ]; then
   if run_mutants; then
     echo ""
-    echo "✓ 변이 13종 전건 판별 (M 각 정확 1건 red · N 각 0건)"
+    echo "✓ 변이 13종 전건 판별 (M 각 기대 집합과 정확 일치 · N 각 0건)"
   else
     echo ""
     echo "✗ 변이 판별 실패 — 위 표를 봐라"
