@@ -420,7 +420,7 @@ export function BacktestList() {
               </div>
               {hasMixedSharpeConventions ? (
                 <p className="runs-summary" data-testid="backtest-sharpe-sort-notice">
-                  구 기준과 현재 기준 샤프가 섞여 있어 정렬 순위를 그대로 신뢰할 수 없습니다.
+                  구 기준 샤프는 현재 기준과 비교할 수 없어 정렬 시 비교 가능한 결과 뒤로 분리됩니다.
                 </p>
               ) : null}
             </>
