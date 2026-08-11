@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -85,7 +86,13 @@ def _payload(**overrides: Any) -> dict[str, Any]:
         "db_ok": True,
         "stack_pinned": True,
         "aof_ok": True,
-        "thresholds": {"require_hours": 1.0, "require_continuous_hours": 1.0},
+        # ★`require_windows: 1` — C1 은 이제 **창의 개수** 문턱이다 ([BL-701]).
+        #   기본값 3 을 그대로 두면 2시간짜리 창 하나뿐인 이 픽스처가 PASS 를 못 낸다.
+        "thresholds": {
+            "require_hours": 1.0,
+            "require_continuous_hours": 1.0,
+            "require_windows": 1,
+        },
     }
     base.update(overrides)
     return base
@@ -199,7 +206,11 @@ def test_restarting_the_stack_opens_a_clean_window(gate: Any) -> None:
                     ],
                 }
             ],
-            thresholds={"require_hours": 0.5, "require_continuous_hours": 0.5},
+            thresholds={
+                "require_hours": 0.5,
+                "require_continuous_hours": 0.5,
+                "require_windows": 1,
+            },
         )
     )
     assert verdict.verdict == "PASS"
@@ -593,7 +604,9 @@ def test_repin_breaks_continuity_but_keeps_cumulative(gate: Any) -> None:
     )
     assert verdict.conditions["C1_cumulative_hours"] == pytest.approx(2.0)
     assert verdict.conditions["C2_longest_hours"] == pytest.approx(1.0)
-    assert verdict.verdict == "UNKNOWN"  # 누적은 찼지만 연속이 모자라다
+    # ★[BL-701] 이후 C1 도 「창 개수」다 — 재고정이 창을 둘로 쪼개 1.5h 짜리가 하나도 없다.
+    assert verdict.conditions["C1_qualifying_windows"] == 0
+    assert verdict.verdict == "UNKNOWN"  # 연속도 창 개수도 모자라다
 
 
 def test_unverified_tail_is_trimmed_not_credited(gate: Any) -> None:
@@ -1212,3 +1225,248 @@ def test_the_shipped_ledger_is_readable_by_the_gate(gate: Any) -> None:
         assert row["kind"] in {"auto_death", "phantom", "tick_stall"}, row
         assert gate.parse_ts(row["at"])
         assert row.get("evidence"), f"근거 없는 귀속은 등재할 수 없다: {row}"
+
+
+# ── C1 = 자격 창의 개수 ([BL-701] · [ADR-024] §C1 2026-08-11 문턱 교체) ──────
+
+
+def _windows_payload(hours: list[float], **overrides: Any) -> dict[str, Any]:
+    """`hours` 의 길이마다 **분리된** 창을 하나씩 만든다.
+
+    창을 가르는 것은 `down`/`up` 이다 — 그 사이의 공백은 귀속되지 않으므로 병합되지 않는다.
+    세션은 `user_stopped` 로 닫는다(사람이 멈춘 것은 실격이 아니다 — 위 규칙 참조).
+    ★C4(표본 공백)를 크게 열어 둔다. 여기서 재려는 것은 **C1 한 축**이고, 24h 창 3개를
+      1시간 격자로 덮으려면 표본 72개가 필요해 무엇을 재는 테스트인지 흐려진다.
+    """
+    base = datetime(2026, 8, 1, 0, 0, tzinfo=UTC)
+    gap = timedelta(minutes=10)
+
+    sessions, pins = [], []
+    cursor = base
+    for i, h in enumerate(hours):
+        start, end = cursor, cursor + timedelta(hours=h)
+        sessions.append(
+            {
+                "id": f"{i:08d}-0000-4000-8000-000000000001",
+                "created_at": start.isoformat(),
+                "deactivated_at": end.isoformat(),
+                "deactivated_reason": "user_stopped",
+                "last_evaluated_bar_time": (end - timedelta(seconds=60)).isoformat(),
+                "interval_seconds": 60,
+            }
+        )
+        pins.append({"event": "up", "sha": PIN_SHA, "at": start.isoformat()})
+        pins.append({"event": "down", "sha": PIN_SHA, "at": end.isoformat()})
+        cursor = end + gap
+
+    payload = _payload(
+        now=cursor.isoformat(),
+        sessions=sessions,
+        pin_events=pins,
+        samples=[],
+        log_coverage=[{"from": base.isoformat(), "to": cursor.isoformat(), "classifier_ok": True}],
+        thresholds={
+            "require_hours": 1.0,
+            "require_continuous_hours": 24.0,
+            "require_windows": 3,
+            "max_sample_gap_seconds": 10 * 24 * 3600,
+        },
+    )
+    payload.update(overrides)
+    return payload
+
+
+def test_three_full_windows_pass(gate: Any) -> None:
+    """양성 대조 — 24h 를 넘긴 창이 3개면 C1 이 찬다."""
+    verdict = gate.evaluate(_windows_payload([24.1] * 3))
+    assert verdict.conditions["C1_qualifying_windows"] == 3
+    assert verdict.conditions["C1_ok"] is True
+    assert verdict.verdict == "PASS"
+
+
+def test_three_almost_full_windows_are_zero_not_three(gate: Any) -> None:
+    """★음성 대조 — 23.9h 짜리 창 3개는 **0/3** 이다. 합이 71.7h 라도 아니다.
+
+    이것이 이 술어의 판별력 전부다. 종전 문턱(누적 시간의 합)으로 세면 71.7h 가 쌓인 것으로
+    보이지만, **한 번도 24h 를 연속으로 버틴 적이 없다.** 「누적」과 「연속 창의 개수」를
+    가르지 못하는 구현은 이 케이스에서 갈린다 ([BL-701] 권장 접근 ⑶ 이 지정한 대조).
+    """
+    payload = _windows_payload([23.9] * 3)
+    verdict = gate.evaluate(payload)
+
+    assert verdict.conditions["C1_cumulative_hours"] == pytest.approx(71.7, abs=1e-3)
+    assert verdict.conditions["C1_qualifying_windows"] == 0
+    assert verdict.conditions["C1_ok"] is False
+    assert verdict.verdict == "UNKNOWN"
+
+
+def test_a_window_exactly_at_the_bar_qualifies(gate: Any) -> None:
+    """경계는 **포함**이다 — 정확히 24.0h 는 자격이 있다(`>=`)."""
+    verdict = gate.evaluate(_windows_payload([24.0] * 3))
+    assert verdict.conditions["C1_qualifying_windows"] == 3
+    assert verdict.conditions["C1_ok"] is True
+
+
+def test_two_windows_are_not_enough(gate: Any) -> None:
+    """2/3 은 진행중이지 통과가 아니다 — 그리고 C2 는 이미 충족이다.
+
+    ★이 갈림이 [BL-701] 의 실제 상태다: 2026-08-11 실측이 `1/3` 이면서 `C2 ✓` 였다.
+      C2 만 보고 「24h 를 넘겼으니 됐다」로 읽으면 안 된다.
+    """
+    verdict = gate.evaluate(_windows_payload([24.1] * 2))
+    assert verdict.conditions["C1_qualifying_windows"] == 2
+    assert verdict.conditions["C1_ok"] is False
+    assert verdict.conditions["C2_ok"] is True
+    assert verdict.verdict == "UNKNOWN"
+
+
+def test_the_verdict_never_states_two_thresholds(gate: Any) -> None:
+    """★출력이 문턱을 **하나만** 말한다 ([BL-701] ⑵).
+
+    종전에는 새 문턱이 결정된 뒤에도 판정 문구가 `누적 … / 168h` 를 찍었다. 다음 회차는
+    그 줄을 읽고 「아직 41% 다」로 판단한다 — 원장이 회차를 잘못 이끄는 그 병이 판정식
+    층에서 재발한 것이다. 누적은 `(참고)` 로만 남는다.
+    """
+    for payload in (_windows_payload([23.9] * 3), _windows_payload([24.1] * 3)):
+        summary = gate.evaluate(payload).summary
+        assert "/ 168h" not in summary
+        assert "24h 창" in summary
+        assert "(참고: 누적" in summary
+
+
+def test_the_window_count_threshold_is_a_named_constant(gate: Any) -> None:
+    """N=3 은 `[가정]`이라 한 곳에만 있어야 한다 ([ADR-024] §C1)."""
+    assert gate.DEFAULT_REQUIRE_WINDOWS == 3
+    # 기본값을 쓰지 않은 실행은 `thresholds_are_default` 가 **거짓**이어야 한다 —
+    # 문턱을 낮춰 통과시킨 것이 보고에서 안 보이면 그게 거짓 그린이다.
+    lowered = gate.evaluate(_windows_payload([24.1], thresholds={"require_windows": 1}))
+    assert lowered.detail["thresholds_are_default"] is False
+
+
+def test_heterogeneous_windows_count_only_the_ones_over_the_bar(gate: Any) -> None:
+    """실제 소크의 모양 — 창 길이는 제각각이고 **문턱을 넘은 것만** 센다.
+
+    2026-08-11 서버 실측이 정확히 이 모양이었다: 귀속 창 `15.3007h · 0.0133h · 53.8225h`.
+    창이 3개 있으므로 「3회 달성」으로 읽고 싶어지지만, 24h 를 넘은 것은 **하나뿐**이라 1/3 이다.
+    ★C2(최장 53.82h)가 ✓ 인 것과 C1 이 1/3 인 것은 **동시에 참**이다 — 이 갈림을 못 보면
+      「24h 넘겼으니 됐다」로 읽는다.
+    """
+    verdict = gate.evaluate(_windows_payload([15.3007, 0.0133, 53.8225]))
+
+    assert verdict.conditions["C1_qualifying_windows"] == 1
+    assert verdict.conditions["C1_ok"] is False
+    assert verdict.conditions["C2_ok"] is True
+    assert verdict.verdict == "UNKNOWN"
+
+
+def test_the_shell_reads_only_keys_the_predicate_emits(gate: Any) -> None:
+    """`soak-gate.sh` 가 읽는 `conditions` 키가 전부 판정식에 실재하는지 본다.
+
+    ★[BL-701] 이 바로 이 두 층이 갈린 사고였다 — 문서는 새 문턱, 코드는 옛 문턱. 이번엔
+      **키 이름**이 갈릴 수 있다: 판정식에서 `C1_required` 를 지웠는데 셸이 그대로 읽으면
+      게이트가 서버에서 `KeyError` 로 죽는다. 로컬 pytest 는 셸을 안 부르므로 **초록이다.**
+      소유자 없는 계약은 안 지켜진다 — 여기서 문다.
+    """
+    import re
+
+    shell = (Path(__file__).parents[3] / "scripts" / "soak-gate.sh").read_text(encoding="utf-8")
+    referenced = set(re.findall(r'c\["([A-Za-z0-9_]+)"\]', shell))
+    assert referenced, "셸에서 conditions 참조를 하나도 못 찾았다 — 정규식이 낡았다"
+
+    emitted = set(gate.evaluate(_payload()).conditions)
+    missing = sorted(referenced - emitted)
+    assert not missing, f"셸이 읽는데 판정식이 안 내는 키: {missing}"
+
+    # ★반대 방향도 문다 (codex P2) — 옛 키가 되살아나도 위 검사는 초록이다.
+    #   `C1_required` 는 「누적 문턱」을 뜻했고, 되살아나면 소비자가 그걸 문턱으로 읽는다.
+    assert "C1_required" not in emitted, "옛 누적 문턱 키가 되살아났다 ([BL-701])"
+
+
+def test_the_shell_passes_as_many_argv_as_the_payload_builder_reads(gate: Any) -> None:
+    """`soak-gate.sh` 의 payload 빌더가 받는 인자 수와 읽는 최대 인덱스가 맞는지 본다.
+
+    ★[BL-701] 구현 중 실제로 깨뜨렸다 — `--require-windows` 를 인자 목록 **중간**에 끼웠더니
+      뒤의 `repo_root` 인덱스가 밀렸다. 이 heredoc 은 docker+DB 가 있어야 돌아서 로컬
+      pytest 가 **한 번도 부르지 않는다** ⇒ 서버에서만 `IndexError` 로 죽고, 그때는
+      무인 감시가 그걸 「게이트 크래시」로 알린다. 정합만이라도 여기서 문다.
+    ★`gate` 픽스처를 쓰지 않지만 파라미터로 받는다 — 이 파일의 다른 케이스와 같은 모양을
+      유지해 「왜 이것만 다르지」를 없앤다.
+    """
+    import re
+
+    shell = (Path(__file__).parents[3] / "scripts" / "soak-gate.sh").read_text(encoding="utf-8")
+    head = shell.index('PAYLOAD="$(python3 - \\')
+    fence = shell.index("<<'PY'", head)
+    passed = len(re.findall(r'"\$\{[A-Z_]+\}"', shell[head:fence]))
+    body = shell[fence : fence + 2000]
+    read_max = max(int(m) for m in re.findall(r"sys\.argv\[(\d+)\]", body))
+
+    assert passed == read_max, (
+        f"셸이 {passed}개를 넘기는데 파이썬은 argv[{read_max}] 까지 읽는다 — "
+        "새 인자는 **목록 끝에** 붙여라"
+    )
+
+    # ★개수만 재면 `ROOT` 와 `REQUIRE_WINDOWS` 를 **서로 바꿔도 초록**이다 (codex P2).
+    #   순서까지 못박는다 — 위치가 어긋나면 서버에서 경로를 문턱으로 읽는다.
+    order = re.findall(r'"\$\{([A-Z_]+)\}"', shell[head:fence])
+    assert order[-2:] == ["REQUIRE_WINDOWS", "ROOT"], (
+        f"인자 꼬리가 {order[-2:]} 다 — REQUIRE_WINDOWS 다음이 ROOT 여야 한다"
+    )
+
+
+def test_coverage_gaps_do_not_forge_three_runs_out_of_one(gate: Any) -> None:
+    """★한 번의 실행이 **커버리지 공백** 때문에 3회로 세어지면 안 된다 (codex P1, 2026-08-11).
+
+    `restrict()` 는 커버리지가 덮은 조각만 남기므로, 커버리지에 내부 공백이 있으면 **하나의
+    귀속 구간**이 여러 조각으로 쪼개진다. 옛 C1(합)에서는 무해했고 C2(max)에서는 오히려
+    보수적이었지만, 새 C1(개수)에서는 **셈을 부풀린다.**
+
+    그러면 「측정이 나쁠수록 점수가 오른다」가 된다 — 정확히 fail-open 이다. 그리고 문턱의
+    뜻도 무너진다: 「3회」는 **세 번의 독립된 생존 시행**을 요구하는 것이지, 한 번의 실행을
+    관측 공백으로 토막 낸 것이 아니다.
+
+    ⇒ 자격 창은 **귀속 구간당 최대 1개**로 센다. 구간을 가르는 것은 `down`/`up`·재고정·실격
+    같은 **운영 사건**이지 관측 공백이 아니다.
+    """
+    base = datetime(2026, 8, 1, tzinfo=UTC)
+    end = base + timedelta(hours=74)
+    payload = _payload(
+        now=end.isoformat(),
+        sessions=[
+            {
+                "id": "aaaaaaaa-0000-4000-8000-000000000001",
+                "created_at": base.isoformat(),
+                "deactivated_at": end.isoformat(),
+                "deactivated_reason": "user_stopped",
+                "last_evaluated_bar_time": (end - timedelta(seconds=60)).isoformat(),
+                "interval_seconds": 60,
+            }
+        ],
+        pin_events=[
+            {"event": "up", "sha": PIN_SHA, "at": base.isoformat()},
+            {"event": "down", "sha": PIN_SHA, "at": end.isoformat()},
+        ],
+        samples=[],
+        # 0~24h · 25~49h · 50~74h — 각 조각이 24h 이고 사이에 1h 공백이 둘 있다.
+        log_coverage=[
+            {
+                "from": (base + timedelta(hours=a)).isoformat(),
+                "to": (base + timedelta(hours=b)).isoformat(),
+                "classifier_ok": True,
+            }
+            for a, b in ((0, 24), (25, 49), (50, 74))
+        ],
+        thresholds={
+            "require_hours": 1.0,
+            "require_continuous_hours": 24.0,
+            "require_windows": 3,
+            "max_sample_gap_seconds": 10 * 24 * 3600,
+        },
+    )
+    verdict = gate.evaluate(payload)
+
+    assert verdict.conditions["C1_qualifying_windows"] == 1, (
+        "커버리지 공백이 단일 실행을 3회로 위조했다 — 측정이 나쁠수록 점수가 오른다"
+    )
+    assert verdict.conditions["C1_ok"] is False
+    assert verdict.verdict == "UNKNOWN"
