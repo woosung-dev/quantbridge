@@ -2077,15 +2077,20 @@ sha256 복원 확인 · MCP playwright 실 DB 검증(상단바 bottom 60 / 섹�
 **Priority:** P3
 **Trigger:** 구 백테스트가 목록에 남아 있는 동안
 **Est:** M (equity_curve 로딩 필요)
-**상태:** ⬜ Open — 정렬은 여전히 metrics->>'sharpe_ratio' 캐스팅 서버 정렬이고 equity_curve 는 defer 중 — FE 고지만 있고 처방(재계산·분리)은 미구현. (2026-08-09 status-triage-mass 확인)
+**상태:** ✅ Resolved (2026-08-11 gate-freshness) — 정렬 결함 자체는 ledger-truth(`1d4d7e0b`)의 `_sharpe_sort_criteria` 등급 정렬(= 권장 접근의 「분리」안)이 이미 닫았고, 이 회차는 낡은 상태줄·FE 고지를 실측으로 정정하고 잔여 주장 2건(재계산·NULL화)을 코드로 기각했다.
 **트리거 판정:** 도래 — 로컬 DB 실측: COMPLETED 백테스트에 `sharpe_convention` 마커 없는 구 컨벤션 1건이 남아 있고 신 컨벤션도 `tv_daily_rfr2`(2)/`tv_monthly_rfr2`(1) 로 섞여 있다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-26 backtest-trust 스프린트 (codex G0 P1 지적 → 수용)
 
-**원인 / 영향:** `backtest/repository.py:71-77` sort whitelist 가 `metrics->>'sharpe_ratio'` 를 Numeric 캐스팅해 **서버 정렬**하는데 convention 을 보지 않는다. 마커(`sharpe_convention`)는 혼재를 **보이게** 할 뿐 정렬을 **고치지는** 못한다 — 의미가 다른 값이 계속 한 순위로 섞인다.
+**원인 / 영향 (2026-08-11 정정 — 종전 서술은 낡았다):** ~~`backtest/repository.py:71-77` sort whitelist 가 `metrics->>'sharpe_ratio'` 를 Numeric 캐스팅해 **서버 정렬**하는데 convention 을 보지 않는다~~ → ledger-truth(`1d4d7e0b`, PR #593)가 `repository.py` `_sharpe_sort_criteria()`(현행 `:64-101`) 로 **(등급 ASC, 정규화값)** 정렬을 구현했다 — 등급 0=비교 가능(연율화 계수로 정규화) / 1=구 컨벤션(척도 미상) / 2=degenerate(`unavailable*`) / 3=값 없음. dev DB 실측(2026-08-11): 구 컨벤션 행(sharpe 1.2249, **원값 1위**)이 등급 1 로 **4위에 분리**되고 degenerate 3건이 맨 뒤다.
 
-**권장 접근:** 목록에서 equity_curve 를 읽어 read-time recompute(성능 부담 — `list_by_user` 가 `defer(equity_curve)` 중), 또는 구 컨벤션 행을 정렬에서 분리 표시. 현재는 **FE 고지**("구 기준과 현재 기준 샤프가 섞여 있어 정렬 순위를 그대로 신뢰할 수 없습니다")로 대응.
+★★**잔여 주장 2건 기각 (2026-08-11 코드 대조).**
 
-**Risk:** 🟢 (고지 중 · 과거 백테스트를 재실행하면 자연 소멸).
+1. **「equity_curve read-time recompute」 기각** — 재계산의 근거(의미가 다른 값이 한 순위로 섞임)가 등급 분리로 소멸했다. `list_by_user` 의 `defer(equity_curve)` 는 유지되고, FE 는 구행 tooltip(「구 기준(봉 수익률 · 무위험 0%) - 현재 기준과 비교 불가」)로 분리 **표시**도 이미 한다.
+2. **「`engine/metrics.py` 의 `Decimal("0")` 을 NULL 로」 기각** — 다른 세션이 잔여로 지목했으나 코드가 명시적으로 반박한다: `sharpe_ratio()` 독스트링(`metrics.py:111-116`)이 비-옵셔널 반환을 의도로 못 박았다. None 반환 시 `optimizer/engine/grid_search.py:249` 의 `metrics.sharpe_ratio is None` dead branch 가 부활해 degenerate 셀이 급증하고 FE `key-stats-strip.tsx` 가 깨진다. degenerate 는 「값 0 + convention 마커」로 구분하는 것이 현 설계의 계약이다.
+
+**남은 조치였던 FE 고지도 같은 회차에 사실로 갱신** — 종전 문구 「…정렬 순위를 그대로 신뢰할 수 없습니다」는 등급 정렬 이후 **거짓**이라 「구 기준 샤프는 현재 기준과 비교할 수 없어 정렬 시 비교 가능한 결과 뒤로 분리됩니다」로 교체(`backtest-list.tsx`, 커밋 `9e288935`, vitest red→green).
+
+**Risk:** 🟢 (구 컨벤션 행은 과거 백테스트 재실행 시 자연 소멸 — 그때까지 등급 1 로 분리 정렬·표시된다).
 
 ---
 
@@ -9481,7 +9486,7 @@ description 이 「production 에서는 토큰이 항상 있으므로 이 분기
 **Priority:** P1
 **Trigger:** 즉시
 **Est:** S
-**상태:** ⬜ Open — 2026-08-11 gate-surface 가 자기 회차를 마감하다 실측·등재. 그 회차는 codex 적대 리뷰·화면 검증·G9 점검을 **하지 않았는데 4/4 PASS** 였다.
+**상태:** ✅ Resolved (2026-08-11 gate-freshness) — 처방 ⑴+⑵+⑷ 구현: `scripts/signal-check.sh`(첫 줄 `commit: <sha>` 를 merge-base(origin/main,HEAD)..HEAD 범위와 대조, merge-base 실패는 rc=3 abort) + `final-gates.sh` 의 `--run eod` 인자 거부(문서 규율이 아니라 스크립트가 막는다) + 하네스 25케이스·변이 13종. ⑶(재사용 경고)은 ⑴ 이 있으면 잉여라 기각. 실물 대조 — eod 낡은 신호 4종이 이제 `missing[commit-line]` FAIL 이고, origin/main sha 는 `stale[origin-main]`, HEAD/브랜치 커밋은 `signal[head]`/`signal[branch]` 다.
 **트리거 판정:** 도래 — 게이트가 매 회차 마감에서 이미 돌고 있고, 실측으로 4종 전부가 남의 회차 파일로 통과했다 (2026-08-11 gate-surface)
 **출처:** 2026-08-11 gate-surface (`final-gates.sh --run eod` 결과를 대조하다 발견)
 
@@ -9532,6 +9537,18 @@ ledger-truth)` 다 — 파일 **자신이** 어느 회차 것인지 적고 있�
 
 **Risk:** 🟠 (회차 종료 판정 4축이 조용히 거짓 초록. 프로덕션 코드는 아니지만 **모든 회차의
 「끝났다」 판정**이 여기 걸린다)
+
+★★**종결 기록 (2026-08-11 gate-freshness).** 하네스를 수리보다 먼저 동결하고(케이스 25 · red
+기대 16), 행위 불변 추출본에 돌려 `red = [③④⑦⑨⑩⑪⑫⑬⑭⑮⑲⑳㉒㉓㉔㉕]` 16/25 를 **글자
+그대로** 재현한 뒤 수리해 25/25 green + 변이 13종 기대 집합 정확 일치(M9=⑨㉕). 처방 ⑴ 은
+G1 codex 플랜 검증의 [치명적] finding 으로 한 번 강화됐다 — merge-base 의 **모든** 실패를
+축약 판정으로 뭉개면 깨진 origin/main 에서 `sha==HEAD` 초록이 새므로, ref 부재(축약 판정 +
+stderr 경고)와 merge-base 실패(rc=3 abort)를 가른다. 부수 실측 2건 — ⑴ /bin/bash 3.2 는
+**명령 치환 안 quoted heredoc** 에서 달러+작은따옴표 인접의 달러를 삼킨다(하네스 앵커 검사가
+이것 때문에 x0 이 됐고, 생성자가 훼손 앵커에 맞춘 미끼 주석으로 통과시키는 사고까지 겹쳤다 —
+처방: heredoc 을 $( ) 밖 평명령+리다이렉트로) ⑵ `docs/status.md` ⓸ ④ 의 `--run eod` 관용구가
+사고의 뿌리라 `--run <회차슬러그>` + 신호 첫 줄 규약으로 교체. `gates-and-traps.md` 에는 eod
+관용구가 **없었다** — 본문 처방 ⑵ 의 그 지목은 과대였다.
 
 ### BL-702
 

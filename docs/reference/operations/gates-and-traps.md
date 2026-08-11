@@ -41,7 +41,7 @@ cd $QB/frontend && pnpm e2e:authed
 ```bash
 cd $QB && bash scripts/skip-ratchet.sh    # 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)
 cd $QB && make docs-audit                 # ⓪ 표 정체성 축 포함 (아래)
-cd $QB && make gate-harnesses             # ★게이트 하네스 8종 전량 (합계 12.2초)
+cd $QB && make gate-harnesses             # ★게이트 하네스 9종 전량 (합계 17.3초)
 ```
 
 - **`skip-ratchet`** — `@pytest.mark.skip` 데코레이터 **와** 모듈 레벨 `pytestmark = pytest.mark.skip(...)`
@@ -68,7 +68,7 @@ cd $QB && make gate-harnesses             # ★게이트 하네스 8종 전량 (
   `**트리거 판정:**` 줄이 **0건**이다~~ → **2026-08-11 [BL-703] 이 채웠다.** PARTIAL 전건이
   판정줄을 갖고 `docs-audit` 이 그 의무를 강제하므로, 이 축은 이제 **두 항을 다 쓴다**
   (착수 근거였던 「P0 1 + P1 4 가 올라온다」는 실측으로 반증됐다 — 올라온 것은 다른 5건이다).
-- **`make gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 8종.
+- **`make gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 9종.
   ★★**2026-08-11 실측 — CI 는 종전에 하네스를 하나도 돌지 않았다**(7종 전부 CI 호출 0).
   게이트 본체만 돌면 레포가 이미 깨끗하기 때문에 **판정 로직을 통째로 지워도 초록**이다
   (BL-569 가 `bl-audit` 에서, BL-601 이 `fleet-dispatch` 에서 겪은 그 모양). 종전에 그 회귀를
@@ -140,6 +140,7 @@ scripts/soak-watch-test.sh         # 판단 로직 하네스 (실측 캡처 픽�
 scripts/soak-restart.sh            # 기본 = dry-run. 재기동 8단계와 실제 값을 출력만 한다
 scripts/soak-restart.sh --confirm  # 집행 (⑴ FLAT=YES 아니면 그 자리에서 멈춘다)
 scripts/soak-restart-test.sh       # 갈래·순서 하네스 (final-gates.sh 「소크 재기동 하네스」)
+scripts/signal-check-test.sh       # 신호 신선도 하네스 ([BL-706] — 신호 첫 줄 `commit: <sha>` 대조. --mutants 로 변이 13종)
 ```
 
 ★**재기동은 스택 상태에 따라 두 갈래다 — ⓿ 이 `soak-stack.sh ps` 로 고른다**([BL-656], 2026-08-09).
