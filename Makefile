@@ -13,7 +13,7 @@
 #   make fe                     # 다른 터미널에서 프론트
 
 .DEFAULT_GOAL := help
-.PHONY: help dev up down logs be fe \
+.PHONY: help dev up down logs be fe gate-harnesses \
         dev-isolated up-isolated up-isolated-build up-isolated-watch down-isolated logs-isolated be-isolated fe-isolated \
         migrate migrate-isolated wait-db-isolated seed \
         db-snapshot db-restore \
@@ -409,6 +409,22 @@ typecheck:
 
 docs-audit:
 	scripts/docs-audit.sh
+
+# 게이트 하네스 전량 — **게이트가 무엇을 재는지 재는** 검사기들. 합계 8.5초(2026-08-11 실측).
+# ★왜 별 타깃인가: CI 는 종전에 **하네스를 하나도 돌지 않았다**(7종 전부 CI=0). 게이트 본체만
+#   돌면, 레포가 이미 깨끗하기 때문에 **판정 로직을 통째로 지워도 초록**이다 — BL-569 가
+#   `bl-audit` 에서, BL-601 이 `fleet-dispatch` 에서 겪은 그 모양이고, 종전에는 그것을 잡는 유일한
+#   자리가 회차 끝 로컬 `final-gates.sh` 1회였다. 즉 회귀를 **다음 회차 끝**까지 못 봤다.
+# ★docker·네트워크·거래소 의존 0 — 전부 mktemp 트리 + PATH 앞단 가짜다. `soak-restart-test` 는
+#   docker 를 언급하지만 **진짜 docker 를 부르지 않는다**(로그+exit 1 스텁을 PATH 앞단에 깔고
+#   돌려 17/17 통과 · 스텁 호출 0회로 확인, 2026-08-11).
+gate-harnesses:
+	@rc=0; for h in bl-audit header-audit fleet-dispatch soak-restart soak-watch docs-audit pre-push-guard; do \
+	  printf '\n▶ %s-test\n' "$$h"; \
+	  bash scripts/$$h-test.sh || rc=$$?; \
+	done; \
+	if [ "$$rc" != 0 ]; then echo; echo "✗ 하네스 실패 — 게이트가 판별력을 잃었다"; exit 1; fi; \
+	echo; echo "✓ 게이트 하네스 7종 전건 통과"
 
 header-audit:
 	scripts/header-audit.sh

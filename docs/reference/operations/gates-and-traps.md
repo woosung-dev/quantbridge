@@ -36,6 +36,37 @@ cd $QB/frontend && pnpm e2e:authed
 
 문서 구조·활성 Markdown 링크·폐기 경로는 루트에서 `make docs-audit`으로 검사한다.
 
+### 게이트 3종 신규 (2026-08-11 ledger-truth)
+
+```bash
+cd $QB && bash scripts/skip-ratchet.sh    # 무조건 skip 개수 동결 (baseline 0 · 스캔 하한 미달 → rc=3)
+cd $QB && make docs-audit                 # ⓪ 표 정체성 축 포함 (아래)
+cd $QB && make gate-harnesses             # ★게이트 하네스 7종 전량 (합계 8.5초)
+```
+
+- **`skip-ratchet`** — `@pytest.mark.skip` 데코레이터 **와** 모듈 레벨 `pytestmark = pytest.mark.skip(...)`
+  을 센다. `skipif` 와 `conftest` 의 프로그램적 마커는 **세지 않는다**. baseline 초과 → rc=1,
+  스캔 파일이 하한 미달 → **rc=3**(빈 입력을 초록으로 통과시키지 않는다).
+  ★왜 있나 — 2026-05-14 에 「Sprint 61 follow-up」 사유로 심긴 5건이 **Sprint 61 종료 후 3개월**
+  살아남았고 대응 BL 은 0건이었다. pytest 는 skip 을 초록으로 보고하므로 **꺼진 테스트는 통과와
+  구분되지 않는다.** 남은 사각 = 함수 몸통 안 `pytest.skip(...)` 인라인 · 스코프별 하한([BL-705]).
+- **`docs-audit` ⓪ 표 정체성 축** — 살아 있는 행 == `bl-audit --list ACTIVE ∪ (PARTIAL ∧ 도래)`.
+  취소선은 **후보 셀만** 본다(다른 셀의 `~~정정 이력~~` 을 「죽었다」로 읽으면 안 된다).
+  양쪽이 비면 **rc=3**. ★`(PARTIAL ∧ 도래)` 는 지금 **구조적 공집합**이다 — PARTIAL 24건 중
+  `**트리거 판정:**` 줄이 **0건**이라([BL-703]) P0 1 + P1 4 가 표에 못 올라온다.
+- **`make gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 7종.
+  ★★**2026-08-11 실측 — CI 는 종전에 하네스를 하나도 돌지 않았다**(7종 전부 CI 호출 0).
+  게이트 본체만 돌면 레포가 이미 깨끗하기 때문에 **판정 로직을 통째로 지워도 초록**이다
+  (BL-569 가 `bl-audit` 에서, BL-601 이 `fleet-dispatch` 에서 겪은 그 모양). 종전에 그 회귀를
+  잡는 유일한 자리가 **회차 끝 로컬 `final-gates.sh` 1회**였다 = 회귀를 **다음 회차 끝까지 못 본다.**
+  ⇒ CI `documentation` 잡(경로 필터가 없어 **항상** 돈다)에 배선했다.
+  **판별력 실증** — ⓪ 축의 불일치 수집을 죽이면 `make docs-audit` 은 **rc=0**(회귀 불가시)인데
+  `make gate-harnesses` 는 **rc≠0** 으로 잡는다.
+  ★**고아 하네스 2종을 같이 붙였다** — `soak-watch-test` · `pre-push-guard-test` 는 레포에
+  **존재하고 초록인데 호출자가 0** 이었다. docker·네트워크 의존은 0 이다(`soak-restart-test` 는
+  docker 를 언급하지만 로그+`exit 1` 스텁을 PATH 앞단에 깔고 돌려 **17/17 통과 · 스텁 호출 0회**로
+  확인했다 — 진짜 docker 를 부르지 않는다).
+
 ### 소크 (P0 [BL-003] 의 달력 시간 게이트)
 
 ```bash

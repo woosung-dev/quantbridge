@@ -198,6 +198,13 @@ run_gate "문서 감사" "docs/**" bash "$ROOT/scripts/docs-audit.sh"
 #   절대 발화하지 않는다 — 하네스만이 밟을 수 있다. 여기 안 걸면 호출자가 0이 된다(BL-601 의 그 상태).
 run_gate "문서 감사 하네스" "scripts/docs-audit.sh" bash "$ROOT/scripts/docs-audit-test.sh"
 
+# ★고아 하네스 2종을 여기 붙인다 (2026-08-11 실측). 둘 다 레포에 **존재하고 초록인데
+#   호출자가 0** 이었다 — `fleet-dispatch-test` 가 BL-601 이전에 있던 바로 그 상태다.
+#   아무도 안 부르는 검사기는 죽어도 아무도 모르고, 그 사이 문서는 「하네스가 있다」를 계속 인용한다
+#   (BL-631 · LESSON-078). 합쳐 3.2초라 안 걸 이유가 없었다.
+run_gate "소크 감시 하네스" "scripts/soak-watch.sh" bash "$ROOT/scripts/soak-watch-test.sh"
+run_gate "pre-push 가드 하네스" ".husky/pre-push" bash "$ROOT/scripts/pre-push-guard-test.sh"
+
 # ── 2. 단위 ───────────────────────────────────────────────────────
 # ★env 소싱 의무 + cd 절대경로. `pnpm test --run` 은 Unknown option — `pnpm test` 가 이미 vitest run.
 run_gate "BE pytest" "env 소싱" bash -c 'cd "$0/backend"; set -a; . ./.env.local; set +a; uv run pytest -q' "$ROOT"
