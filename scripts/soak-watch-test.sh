@@ -112,6 +112,21 @@ _fixture_new_format() {
 EOF
 }
 
+# ── 실측 아님: 오류 본문에만 `C1 ` 이 섞인 malformed 출력 (codex P2, 2026-08-11) ──
+# ★앵커가 「어디든 C1 이 있으면 정상」이면 이걸 통과시킨다 — 게이트는 죽었는데 정상 지문이 된다.
+_fixture_c1_in_error() {
+  cat << 'EOF'
+
+══ [BL-003] 소크 안정 게이트 ══
+판정: UNKNOWN 측정불가
+Traceback (most recent call last):
+  File "<stdin>", line 9, in <module>
+KeyError: 'C1 24h 창 을 계산하지 못했다'
+
+종료 코드 2  (0=PASS 만 · 1=FAIL · 2=UNKNOWN)
+EOF
+}
+
 # ── 하네스 배선 ─────────────────────────────────────────────────────────────────
 _build_tree() { # _build_tree — 사본 + 가짜 게이트 + 가짜 sender
   rm -rf "$TMP/tree"
@@ -303,6 +318,12 @@ assert_sent "⑪ 신 서식 → 정상 지문 · 크래시로 오판 안 함" 0 
 
 _run
 assert_silent "⑪ 신 서식 재실행 → 무발화" 0
+
+# ── ⑫ 오류 본문의 `C1 ` 을 정상 판정으로 읽지 않는다 (앵커가 너무 넓으면 여기서 죽는다) ──
+_reset_state
+_fixture_c1_in_error | _set_gate 2
+_run
+assert_sent "⑫ 조건 줄 없이 오류 본문에만 C1 → 크래시로 읽는다" 0 "크래시" "-"
 
 echo
 echo "══════════════════════════════════════════"

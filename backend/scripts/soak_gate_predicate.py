@@ -708,9 +708,19 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     #   ★합을 세지 않는 것이 핵심이다: 23.9h 짜리 창 3개는 합이 71.7h 라 「누적」 셈으로는
     #     그럴듯해 보이지만 **한 번도 24h 를 연속으로 버틴 적이 없으므로 0/3** 이다.
     #     그 음성 대조가 이 술어의 판별력이고 테스트로 박혀 있다.
-    #   ★`merged` 는 귀속 구간별로 병합된 interval 이라 재고정 경계를 넘지 않는다 — 즉
-    #     「같은 커밋이 24h 를 버텼다」는 주장이 유지된다(C2 와 같은 단위, 위 상수 주석 참조).
-    qualifying_windows = [iv for iv in merged if iv.seconds >= require_continuous * 3600.0]
+    #   ★★**귀속 구간당 최대 1개**로 센다 — `merged` 를 평평하게 훑으면 안 된다(codex P1).
+    #     `restrict()` 가 커버리지 안 덮인 구간을 잘라내므로 **커버리지에 내부 공백이 있으면
+    #     하나의 실행이 여러 조각**이 된다. 옛 C1(합)에서는 무해했고 C2(max)에서는 오히려
+    #     보수적이었지만, 개수를 세는 순간 그것이 **셈을 부풀린다**: 단일 74h 실행이
+    #     `0~24 · 25~49 · 50~74` 커버리지에서 **3회로 위조**돼 PASS 가 났다(재현 테스트 있음).
+    #     ⇒ 「측정이 나쁠수록 점수가 오른다」는 fail-open 이고, 문턱의 뜻도 무너진다 —
+    #     「3회」는 **세 번의 독립된 생존 시행**이지 한 실행을 관측 공백으로 토막 낸 것이 아니다.
+    #     창을 가르는 것은 `down`/`up`·재고정·실격 같은 **운영 사건**이다(= 귀속 구간의 경계).
+    qualifying_windows = [
+        group
+        for group in per_attribution_verified
+        if max((iv.seconds for iv in group), default=0.0) >= require_continuous * 3600.0
+    ]
     attributed_hours = sum(iv.seconds for group in per_attribution_all for iv in group) / 3600.0
     unverified_hours = max(0.0, attributed_hours - cumulative_hours)
 

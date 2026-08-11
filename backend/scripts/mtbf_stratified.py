@@ -292,8 +292,10 @@ def main() -> int:
         f"  24h 도달 {sum(1 for r in rows if r['hours'] >= 24)}건 / {len(rows)}세션"
         f"  ·  최장 {max(r['hours'] for r in rows):.2f}h"
         # ★C1 요구치는 2026-08-11 에 「누적 168h」 → 「≥24h 창 3회」로 바뀌었다 ([BL-701]).
-        #   여기서 168 을 인용하면 이 도구가 낡은 문턱을 되살린다.
-        f"  ·  C1 요구치 = 24h 창 3회 (달성 {sum(1 for r in rows if r['hours'] >= 24)}회)"
+        #   ★여기서 「달성 N회」를 찍지 마라 — 위 셈은 **원시 세션 수명**이라 귀속·커버리지·
+        #     실격·동시세션 병합을 안 거친다. 이 도구가 「3회 달성」이라 해도 판정식은
+        #     0/3 일 수 있다(codex P2, 2026-08-11). C1 의 정본은 `soak-gate.sh` 뿐이다.
+        f"  ·  C1 요구치 = 24h 창 3회 — **달성 수는 `soak-gate.sh` 로 읽어라**"
     )
     for r in rows:
         if r["alive"]:

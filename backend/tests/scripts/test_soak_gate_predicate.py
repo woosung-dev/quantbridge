@@ -1377,6 +1377,10 @@ def test_the_shell_reads_only_keys_the_predicate_emits(gate: Any) -> None:
     missing = sorted(referenced - emitted)
     assert not missing, f"셸이 읽는데 판정식이 안 내는 키: {missing}"
 
+    # ★반대 방향도 문다 (codex P2) — 옛 키가 되살아나도 위 검사는 초록이다.
+    #   `C1_required` 는 「누적 문턱」을 뜻했고, 되살아나면 소비자가 그걸 문턱으로 읽는다.
+    assert "C1_required" not in emitted, "옛 누적 문턱 키가 되살아났다 ([BL-701])"
+
 
 def test_the_shell_passes_as_many_argv_as_the_payload_builder_reads(gate: Any) -> None:
     """`soak-gate.sh` 의 payload 빌더가 받는 인자 수와 읽는 최대 인덱스가 맞는지 본다.
@@ -1401,3 +1405,68 @@ def test_the_shell_passes_as_many_argv_as_the_payload_builder_reads(gate: Any) -
         f"셸이 {passed}개를 넘기는데 파이썬은 argv[{read_max}] 까지 읽는다 — "
         "새 인자는 **목록 끝에** 붙여라"
     )
+
+    # ★개수만 재면 `ROOT` 와 `REQUIRE_WINDOWS` 를 **서로 바꿔도 초록**이다 (codex P2).
+    #   순서까지 못박는다 — 위치가 어긋나면 서버에서 경로를 문턱으로 읽는다.
+    order = re.findall(r'"\$\{([A-Z_]+)\}"', shell[head:fence])
+    assert order[-2:] == ["REQUIRE_WINDOWS", "ROOT"], (
+        f"인자 꼬리가 {order[-2:]} 다 — REQUIRE_WINDOWS 다음이 ROOT 여야 한다"
+    )
+
+
+def test_coverage_gaps_do_not_forge_three_runs_out_of_one(gate: Any) -> None:
+    """★한 번의 실행이 **커버리지 공백** 때문에 3회로 세어지면 안 된다 (codex P1, 2026-08-11).
+
+    `restrict()` 는 커버리지가 덮은 조각만 남기므로, 커버리지에 내부 공백이 있으면 **하나의
+    귀속 구간**이 여러 조각으로 쪼개진다. 옛 C1(합)에서는 무해했고 C2(max)에서는 오히려
+    보수적이었지만, 새 C1(개수)에서는 **셈을 부풀린다.**
+
+    그러면 「측정이 나쁠수록 점수가 오른다」가 된다 — 정확히 fail-open 이다. 그리고 문턱의
+    뜻도 무너진다: 「3회」는 **세 번의 독립된 생존 시행**을 요구하는 것이지, 한 번의 실행을
+    관측 공백으로 토막 낸 것이 아니다.
+
+    ⇒ 자격 창은 **귀속 구간당 최대 1개**로 센다. 구간을 가르는 것은 `down`/`up`·재고정·실격
+    같은 **운영 사건**이지 관측 공백이 아니다.
+    """
+    base = datetime(2026, 8, 1, tzinfo=UTC)
+    end = base + timedelta(hours=74)
+    payload = _payload(
+        now=end.isoformat(),
+        sessions=[
+            {
+                "id": "aaaaaaaa-0000-4000-8000-000000000001",
+                "created_at": base.isoformat(),
+                "deactivated_at": end.isoformat(),
+                "deactivated_reason": "user_stopped",
+                "last_evaluated_bar_time": (end - timedelta(seconds=60)).isoformat(),
+                "interval_seconds": 60,
+            }
+        ],
+        pin_events=[
+            {"event": "up", "sha": PIN_SHA, "at": base.isoformat()},
+            {"event": "down", "sha": PIN_SHA, "at": end.isoformat()},
+        ],
+        samples=[],
+        # 0~24h · 25~49h · 50~74h — 각 조각이 24h 이고 사이에 1h 공백이 둘 있다.
+        log_coverage=[
+            {
+                "from": (base + timedelta(hours=a)).isoformat(),
+                "to": (base + timedelta(hours=b)).isoformat(),
+                "classifier_ok": True,
+            }
+            for a, b in ((0, 24), (25, 49), (50, 74))
+        ],
+        thresholds={
+            "require_hours": 1.0,
+            "require_continuous_hours": 24.0,
+            "require_windows": 3,
+            "max_sample_gap_seconds": 10 * 24 * 3600,
+        },
+    )
+    verdict = gate.evaluate(payload)
+
+    assert verdict.conditions["C1_qualifying_windows"] == 1, (
+        "커버리지 공백이 단일 실행을 3회로 위조했다 — 측정이 나쁠수록 점수가 오른다"
+    )
+    assert verdict.conditions["C1_ok"] is False
+    assert verdict.verdict == "UNKNOWN"
