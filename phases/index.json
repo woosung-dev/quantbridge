@@ -7,7 +7,8 @@
     },
     {
       "dir": "bl709",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-13T00:12:25+0900"
     }
   ]
 }
