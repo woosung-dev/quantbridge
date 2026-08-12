@@ -7,10 +7,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrategyList } from "@/app/(dashboard)/strategies/_components/strategy-list";
 import { EMPTY_CELL } from "@/lib/labels";
 
+const replace = vi.fn();
+let queryString = "";
+
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace }),
   usePathname: () => "/strategies",
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(queryString),
 }));
 
 const mockUseStrategies = vi.fn();
@@ -40,6 +43,8 @@ function makeItem(overrides: Partial<Record<string, unknown>> = {}) {
     is_archived: false,
     created_at: "2026-04-14T09:00:00Z",
     updated_at: "2026-04-14T09:32:00Z",
+    param_count: 3,
+    lifecycle: "validated" as const,
     latest_backtest: {
       backtest_id: "00000000-0000-4000-8000-000000000999",
       completed_at: "2026-04-14T10:00:00Z",
@@ -67,6 +72,8 @@ function renderList() {
 describe("StrategyList — C 이식 시맨틱 구조", () => {
   afterEach(() => {
     cleanup();
+    queryString = "";
+    replace.mockReset();
     mockUseStrategies.mockReset();
   });
 
@@ -100,6 +107,7 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
       "전략명",
       "상태",
       "심볼 · 주기",
+      "파라미터",
       "최근 수익률",
       "MDD",
       "샤프",
@@ -108,15 +116,16 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
       "액션",
     ]);
     expect(within(table).getByTitle("완료된 백테스트 수입니다. 실행 중이거나 실패한 실행은 세지 않습니다.")).toHaveTextContent("백테스트");
-    // parse_status ok → "변환 가능" chip done (원시 enum 미노출)
+    // lifecycle validated → "검증됨" chip done (원시 enum 미노출)
     const row = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000001");
-    expect(within(row).getByText("변환 가능").className).toBe("chip done");
+    expect(within(row).getByText("검증됨").className).toBe("chip done");
     expect(within(row).getByText("MA Crossover Strategy").className).toBe("strat-name");
     expect(within(row).getByText("00000000")).toBeTruthy();
     expect(within(row).getByText("12.34%")).toBeTruthy();
     expect(within(row).getByText("-4.00%")).toBeTruthy();
     expect(within(row).getByText("1.50")).toBeTruthy();
-    expect(within(row).getByText("3").closest("td")).toHaveClass("num");
+    expect(row.querySelectorAll("td")[3]).toHaveTextContent("3");
+    expect(within(row).getByTestId("strategy-backtest-count")).toHaveClass("num");
     const emptyRow = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000002");
     expect(within(emptyRow).getByTitle("아직 백테스트를 실행하지 않았습니다.")).toHaveTextContent("0");
   });
@@ -218,6 +227,8 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
 describe("StrategyList — 01 필터 구획 (screen-06 재도입)", () => {
   afterEach(() => {
     cleanup();
+    queryString = "";
+    replace.mockReset();
     mockUseStrategies.mockReset();
   });
 
@@ -269,9 +280,10 @@ describe("StrategyList — 01 필터 구획 (screen-06 재도입)", () => {
     const symbolOpts = within(symbol).getAllByRole("option").map((o) => o.textContent);
     expect(symbolOpts).toEqual(["심볼 전체", "BTC/USDT", "ETH/USDT"]);
     const sort = screen.getByTestId("strategy-sort");
-    const sortOpts = within(sort).getAllByRole("option").map((o) => o.textContent);
-    // unbacked 성과 정렬(수익률/샤프) 미도입 — backed 2종만.
-    expect(sortOpts).toEqual(["마지막 수정 순", "이름 순"]);
+    const sortOpts = within(sort)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    expect(sortOpts).toEqual(["마지막 수정 순", "수익률 높은 순", "샤프 높은 순", "이름 순"]);
   });
 
   it("검색은 전략명·ID 를 클라이언트 사이드로 좁힌다", () => {
@@ -292,14 +304,42 @@ describe("StrategyList — 01 필터 구획 (screen-06 재도입)", () => {
     expect(within(rows[0]!).getByText("RSI Divergence v3")).toBeTruthy();
   });
 
-  it("이름 순 정렬은 로케일 순서로 재배열한다", () => {
+  it("이름 순 정렬은 URL과 서버 query 요청을 갱신한다", () => {
     mockUseStrategies.mockReturnValue(makeMulti());
     renderList();
     fireEvent.change(screen.getByTestId("strategy-sort"), { target: { value: "name" } });
-    const names = screen
-      .getAllByTestId(/^strategy-row-/)
-      .map((r) => within(r).getByRole("link", { name: /Strategy|Divergence|MeanRev/ }).textContent);
-    expect(names).toEqual(["Bollinger MeanRev", "MA Crossover Strategy", "RSI Divergence v3"]);
+    expect(replace).toHaveBeenCalledWith("/strategies?order_by=name&order=asc");
+    expect(mockUseStrategies).toHaveBeenLastCalledWith(
+      expect.objectContaining({ order_by: "updated_at", order: "desc" }),
+    );
+
+    cleanup();
+    queryString = "order_by=name&order=asc";
+    mockUseStrategies.mockReturnValue(makeMulti());
+    renderList();
+    expect(mockUseStrategies).toHaveBeenLastCalledWith(
+      expect.objectContaining({ order_by: "name", order: "asc" }),
+    );
+  });
+
+  it("파라미터 열과 세 수명주기 칩을 렌더한다", () => {
+    mockUseStrategies.mockReturnValue({
+      ...makeMulti(),
+      data: {
+        ...makeMulti().data,
+        items: [
+          makeItem({ id: "00000000-0000-4000-8000-000000000001", lifecycle: "draft" }),
+          makeItem({ id: "00000000-0000-4000-8000-000000000002", lifecycle: "validated" }),
+          makeItem({ id: "00000000-0000-4000-8000-000000000003", lifecycle: "deployed" }),
+        ],
+      },
+    });
+    renderList();
+
+    expect(screen.getByText("초안").className).toBe("chip");
+    expect(screen.getByText("검증됨").className).toBe("chip done");
+    expect(screen.getByText("배포됨").className).toBe("chip accent");
+    expect(screen.getAllByText("3").length).toBeGreaterThanOrEqual(3);
   });
 
   it("검색이 0건이면 빈 상태 + 필터 초기화 CTA 를 그린다", () => {

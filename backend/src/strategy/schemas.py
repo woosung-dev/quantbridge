@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
@@ -10,6 +11,14 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validato
 from src.backtest.schemas import BacktestMetricsSummary
 from src.strategy.models import ParseStatus, PineVersion
 from src.strategy.trading_sessions import validate_session_names
+
+
+class StrategyLifecycle(StrEnum):
+    """전략 목록에서 계산하는 파생 수명주기."""
+
+    draft = "draft"
+    validated = "validated"
+    deployed = "deployed"
 
 
 class CreateStrategyRequest(BaseModel):
@@ -181,6 +190,8 @@ class StrategyListItem(BaseModel):
     updated_at: AwareDatetime
     backtest_count: int = 0
     latest_backtest: LatestBacktestSummary | None = None
+    param_count: int = 0
+    lifecycle: StrategyLifecycle = StrategyLifecycle.draft
 
 
 class StrategyResponse(BaseModel):

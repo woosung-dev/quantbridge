@@ -21,8 +21,7 @@ export const PARSE_STATUS_LABEL: Record<ParseStatus, StatusLabelWithIcon> = {
 
 /**
  * 파싱 상태 필터 탭. 라벨은 배지(PARSE_STATUS_LABEL)와 같은 문자열을 쓴다.
- * 프로토타입 screen-06 의 상태 필터는 수명주기(배포됨/검증됨/초안)이지만 그 필드가
- * 스키마에 0건이라(§4.9), 실존 필드 parse_status 를 필터 축으로 쓴다. API 가
+ * 수명주기 칩과 별개로 실존 필드 parse_status 를 필터 축으로 쓴다. API 가
  * parse_status 쿼리를 지원한다(features/strategy/api.ts listStrategies).
  */
 export type ParseStatusFilter = "all" | ParseStatus;
@@ -34,10 +33,7 @@ export const PARSE_STATUS_FILTER_LABEL: Record<ParseStatusFilter, string> = {
 };
 
 /**
- * 전략 수명주기 상태.
- * 주의. 이 enum 은 현재 백엔드·프론트 스키마에 존재하지 않고 프로토타입 캐논에만 있다
- * (frontend/src/features/strategy/schemas.ts 에 대응 필드 0건).
- * 서버가 필드를 내려주기 전까지는 이 Record 를 화면에 연결하지 않는다.
+ * 전략 수명주기 상태. 백엔드 파생 필드와 프론트 스키마가 같은 enum 값을 사용한다.
  * screen-06-strategies-list.html:1260(배포됨) · :1281(검증됨) · :1302(초안)
  */
 export type StrategyLifecycle = "draft" | "validated" | "deployed";

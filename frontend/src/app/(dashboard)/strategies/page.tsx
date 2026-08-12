@@ -32,6 +32,8 @@ export default async function StrategiesPage() {
     limit: PAGE_SIZE,
     offset: 0,
     is_archived: false,
+    order_by: "updated_at",
+    order: "desc",
   };
 
   const queryClient = new QueryClient();

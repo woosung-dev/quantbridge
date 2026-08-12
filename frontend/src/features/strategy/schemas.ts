@@ -8,6 +8,9 @@ import { BacktestMetricsSummarySchema } from "@/features/backtest/schemas";
 export const ParseStatusSchema = z.enum(["ok", "unsupported", "error"]);
 export type ParseStatus = z.infer<typeof ParseStatusSchema>;
 
+export const StrategyLifecycleSchema = z.enum(["draft", "validated", "deployed"]);
+export type StrategyLifecycle = z.infer<typeof StrategyLifecycleSchema>;
+
 export const PineVersionSchema = z.enum(["v4", "v5"]);
 export type PineVersion = z.infer<typeof PineVersionSchema>;
 
@@ -108,6 +111,8 @@ export const StrategyListItemSchema = StrategyResponseSchema.omit({
   description: true,
 }).extend({
   backtest_count: z.number().int().optional(),
+  param_count: z.number().int().default(0),
+  lifecycle: StrategyLifecycleSchema.default("draft"),
   latest_backtest: z
     .object({
       backtest_id: z.uuid(),
@@ -162,5 +167,7 @@ export const StrategyListQuerySchema = z.object({
   offset: z.number().int().min(0).default(0),
   parse_status: ParseStatusSchema.optional(),
   is_archived: z.boolean().default(false),
+  order_by: z.enum(["updated_at", "name", "total_return", "sharpe_ratio"]).default("updated_at"),
+  order: z.enum(["asc", "desc"]).default("desc"),
 });
-export type StrategyListQuery = z.infer<typeof StrategyListQuerySchema>;
+export type StrategyListQuery = z.input<typeof StrategyListQuerySchema>;

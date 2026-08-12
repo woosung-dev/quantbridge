@@ -40,6 +40,8 @@ export async function listStrategies(
       offset: parsed.offset,
       parse_status: parsed.parse_status,
       is_archived: parsed.is_archived,
+      order_by: parsed.order_by,
+      order: parsed.order,
     },
   });
   return StrategyListResponseSchema.parse(raw);
