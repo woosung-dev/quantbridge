@@ -30,8 +30,9 @@ import {
   minExamined,
   worstCanonRatio,
 } from "./design-canon-audit";
+import { getBaseURL } from "./_base-url";
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const BASE_URL = getBaseURL();
 
 /** 백엔드 부재/개발키 콘솔 소음 필터. `design-canon-public.spec.ts` 와 같은 목록. */
 const EXPECTED_CONSOLE = [

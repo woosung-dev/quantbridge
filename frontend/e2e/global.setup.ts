@@ -15,6 +15,8 @@
 import { clerk, clerkSetup } from "@clerk/testing/playwright";
 import { expect, test as setup } from "@playwright/test";
 
+import { getBaseURL } from "./_base-url";
+
 const REQUIRED_ENV = [
   "CLERK_PUBLISHABLE_KEY",
   "CLERK_SECRET_KEY",
@@ -24,7 +26,7 @@ const REQUIRED_ENV = [
 
 const STORAGE_PATH = "e2e/.auth/storageState.json";
 
-setup("authenticate", async ({ page }, testInfo) => {
+setup("authenticate", async ({ page }) => {
   // Sprint 46 W3: pre-warm 4 paths × Next.js cold JIT compile (5-30s each) →
   // 합산 1-2 분 소요. default 30s test timeout 으론 부족. 180s 로 확장.
   setup.setTimeout(240_000);
@@ -43,7 +45,7 @@ setup("authenticate", async ({ page }, testInfo) => {
     }
   }
 
-  const baseUrl = testInfo.project.use.baseURL ?? "http://localhost:3100";
+  const baseUrl = getBaseURL();
   const signInUrl = new URL("/sign-in", baseUrl).toString();
 
   // 1) sign-in 페이지 방문 → 2) Testing Token 자동 첨부 → 3) clerk.signIn()

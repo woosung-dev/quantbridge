@@ -30,9 +30,10 @@ import { resolve } from "node:path";
 
 import { expect, test, type Browser } from "@playwright/test";
 
+import { getBaseURL } from "./_base-url";
 import { auditUrl, formatCanonResult, hardFailCount, minExamined } from "./design-canon-audit";
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const BASE_URL = getBaseURL();
 const STORAGE_STATE = resolve(__dirname, ".auth/storageState.json");
 
 /**
