@@ -16,7 +16,7 @@
       "status": "completed",
       "started_at": "2026-08-12T21:01:31+0900",
       "summary": "①처방 = 「file:// 대상만 hermetic」 — auditUrl 이 대상 스킴으로 갈라, 커밋된 정적 산출물일 때만 비-file: 요청을 goto 전에 빈 200(text/css)으로 봉인하고 봉인량을 NavProbe.sealed 로 리포트에 싣는다(subresourceFail=0 을 「네트워크 멀쩡」으로 오독하지 않게). 원인은 폰트 크기 반올림이 아니라 fonts.gstatic.com archivo woff2 404 → 콘솔 에러 → hardFail 이었다. ②3회 rc = 0/0/0, 22 passed ×3, ANSI 제거 후 감사 출력 112줄 전문 동일, sealed 는 19벌 전 폭 2 로 일정. CANON_BASELINE·LIGHT_BASELINE·spec 은 무변경(22/22 초록이 canon 수 기준선 일치의 증거). ③앱 쪽 보존 = 봉인은 http 대상에서 코드 경로조차 안 지난다 — design-canon-public 5 라우트 실측 초록에서 전 폭 sealed=0 이고 /qb-canon-404-probe 의 진짜 subresourceFail=1 은 그대로 관측됐다(억제 없음). authed-canon-p1 은 같은 getBaseURL() http 분기라 동일 경로지만 backend:8000 미가동이라 이번 회차에 실행하지 않았다.",
-      "completed_at": "2026-08-12T21:34:00+0900"
+      "completed_at": "2026-08-12T21:15:22+0900"
     },
     {
       "step": 3,
