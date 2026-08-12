@@ -145,6 +145,14 @@ export interface NavProbe {
    *   안 들어올 수 있다 — 이 값은 **하한**이다.
    */
   subresourceFail: number;
+  /**
+   * 그 폭에서 **봉인(빈 200 으로 대체)한 원격 요청 수**. `file://` 대상이 아니면 항상 `0`.
+   *
+   * ★이 축이 없으면 `subresourceFail=0` 을 사람이 「네트워크가 멀쩡했다」로 읽는다.
+   *   봉인한 뒤의 0 은 「실패할 것이 없었다」는 뜻이라 의미가 다르다. 둘이 리포트에서
+   *   같아 보이면 안 되므로 봉인량을 따로 싣는다([BL-708] · `NavProbe` 도입 취지와 같다).
+   */
+  sealed: number;
 }
 
 /**
@@ -153,6 +161,65 @@ export interface NavProbe {
  */
 function isDocumentNavigation(req: Request): boolean {
   return req.resourceType() === "document" && req.isNavigationRequest();
+}
+
+/**
+ * 감사 대상이 커밋된 정적 산출물(`file://`)인가. 봉인 대상을 가르는 유일한 축이다.
+ * 앱(`http://…`)은 언제나 false 라 아래 봉인이 **한 번도 걸리지 않는다**.
+ */
+function isFileTarget(url: string): boolean {
+  return url.startsWith("file:");
+}
+
+/**
+ * `file://` 대상의 **원격 서브리소스를 빈 200 으로 봉인**한다. 봉인 건수를 돌려주는 게터를 준다.
+ *
+ * ★왜 이 처방인가 ([BL-708] step 2, 2026-08-12 실측).
+ *   회차를 가르는 축은 **네트워크 하나**였다. 같은 커밋 baseline 실행에서
+ *     `screen-01` → `subresourceFail=[1440:2, 1024:2, 768:0, 375:0] console=2` FAIL
+ *     `screen-06` → `subresourceFail=[1440:0, 1024:0, 768:2, 375:0] console=1` FAIL
+ *   이고 둘 다 정체는 같은 `https://fonts.gstatic.com/s/archivo/v25/….woff2` **404** 였다.
+ *   콘솔 에러는 `hardFailCount()` 의 5개 항 중 하나라 **원격 404 1건 = 하드 실패 1건**이다.
+ *   ⇒ 「하드 실패 0」 계약이 구글 폰트 CDN 의 그 순간 응답에 매여 있었다.
+ *
+ * ★★기준선을 흔들지 않는다 — 봉인 **뒤** 독립 프로세스 3회가 전부 `22 passed` 였다.
+ *   `design-canon-calibration.spec.ts` 는 `CANON_BASELINE`/`LIGHT_BASELINE` 의 canon 수를
+ *   **정확히 일치**로 단정하므로, 초록 자체가 19벌 전건의 canon 수가 2026-07-20 정본과
+ *   같다는 증거다(표는 한 글자도 안 고쳤다). 3회의 감사 출력 112줄은 ANSI 제거 후 전문 동일이다.
+ *   봉인 **전** 실측도 같은 방향을 가리켰다 — 404 를 맞은 회차조차 `screen-01 canon=41` ·
+ *   `screen-06 canon=25` 로 기준선과 같았다. 당연하다: `AUDIT` 의 소견은 **색과 CSS 폰트
+ *   크기**만 보고, 그 둘은 어느 폰트 파일이 도착했는지에 안 움직인다.
+ *   ⇒ [BL-708] 원문이 의심한 「소수 폰트 크기(10.08px)가 안티에일리어싱에 흔들린다」는
+ *      기전이 아니다. 10.08px 는 `rem` 산술의 결정적 산물이고 회차마다 같았다.
+ *
+ * ★왜 「일괄 무시」가 아닌가.
+ *   콘솔 소견을 걸러내는 게 아니라 **환경을 고정**한다. 봉인은 `file://` 대상에만 걸리므로
+ *   앱 감사(`design-canon-public` · `authed-canon-p1`)는 코드 경로조차 안 지난다 —
+ *   거기서 원격 자산이 죽으면 종전대로 하드 실패한다. 무시 여부를 대상별로 정하는 권한은
+ *   `ignoreConsole` 로 spec 에 그대로 남는다(`NavProbe` 주석의 원칙과 같다).
+ *   ★실측으로 확인했다(2026-08-12, `design-canon-public` 5 라우트 초록): 앱 쪽 리포트는
+ *     전 폭 `sealed=0` 이고, `/qb-canon-404-probe` 의 진짜 `subresourceFail=1` 은 그대로
+ *     관측된다 — 봉인이 앱의 실패 관측을 덮지 않는다.
+ *
+ * ★대가. 프로토타입이 적어 둔 **원격 자산 URL 의 유효성**은 이제 캘리브레이션이 안 잰다.
+ *   그것은 원래 이 spec 의 계약이 아니었고(계약은 「이식된 감사 코어가 맞는가」),
+ *   제3자 CDN 을 계약에 넣어 둔 것이 바로 이 플레이크의 원인이었다.
+ *
+ * ★봉인 응답을 `text/css` 로 주는 이유. 프로토타입이 받는 원격 자산은 스타일시트 3종뿐이다
+ *   (`fonts.googleapis.com` · `cdn.jsdelivr.net` · 그 CSS 가 부르는 `fonts.gstatic.com`).
+ *   CSS 가 비면 woff2 요청 자체가 발생하지 않는다. `www.w3.org` 19건은 SVG `xmlns` 라
+ *   요청이 아니다.
+ */
+async function sealRemoteSubresources(page: Page): Promise<() => number> {
+  let sealed = 0;
+  await page.route(
+    (u) => u.protocol !== "file:",
+    async (route) => {
+      sealed++;
+      await route.fulfill({ status: 200, contentType: "text/css", body: "" });
+    },
+  );
+  return () => sealed;
 }
 
 /**
@@ -473,6 +540,9 @@ export async function auditUrl(
     probes: [],
   };
 
+  // 커밋된 정적 산출물은 자기 바이트만으로 렌더시킨다 — 회차를 가르던 유일한 축이 네트워크였다.
+  const hermetic = isFileTarget(url);
+
   for (const w of widths) {
     const ctx = await newAuditContext(
       browser,
@@ -498,6 +568,8 @@ export async function auditUrl(
       theme,
     );
     const page = await ctx.newPage();
+    // ★`goto` 보다 **먼저** 걸어야 초기 문서가 부르는 스타일시트까지 덮는다.
+    const sealedCount = hermetic ? await sealRemoteSubresources(page) : () => 0;
     // 서브리소스 실패 도달 증거([BL-708]). 폭마다 0 으로 시작해 **항상** probe 에 실린다 —
     // 「0 건이라 안 적혔다」와 「안 재서 없다」가 리포트에서 같아 보이면 안 된다.
     let subresourceFail = 0;
@@ -532,7 +604,7 @@ export async function auditUrl(
     if (prepare) await prepare(page);
 
     const a = await page.evaluate(AUDIT);
-    res.probes.push({ w, status, examined: a.examined, subresourceFail });
+    res.probes.push({ w, status, examined: a.examined, subresourceFail, sealed: sealedCount() });
     if (a.overflow.scrollWidth > a.overflow.innerWidth + 1) {
       res.overflow.push({ w, scrollWidth: a.overflow.scrollWidth, innerWidth: a.overflow.innerWidth });
     }
@@ -567,6 +639,8 @@ export async function auditUrl(
     theme,
   );
   const rpage = await rctx.newPage();
+  // 이 패스도 같은 URL 을 다시 여는 만큼 같은 봉인을 건다 — 한쪽만 봉하면 "hermetic" 이 거짓이 된다.
+  if (hermetic) await sealRemoteSubresources(rpage);
   await rpage.goto(url, { waitUntil: "load" });
   await rpage.waitForTimeout(400);
   if (theme) await probeTheme(rpage, theme, `${label} @reduced-motion`);
@@ -633,6 +707,8 @@ export function formatCanonResult(res: CanonAuditResult): string {
       res.probes.map((p) => `${p.w}px:${p.examined}`),
     )} subresourceFail=${JSON.stringify(
       res.probes.map((p) => `${p.w}px:${p.subresourceFail}`),
+    )} sealed=${JSON.stringify(
+      res.probes.map((p) => `${p.w}px:${p.sealed}`),
     )} minExamined=${minExamined(res)} worstCanon=${worst === null ? "-" : worst.toFixed(2)}`,
   ];
   if (res.themeProbe) {
