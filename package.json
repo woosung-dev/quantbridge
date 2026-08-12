@@ -22,7 +22,7 @@
       "bash -c 'cd backend && .venv/bin/ruff format \"${0#backend/}\" \"${@#backend/}\"'"
     ],
     "*.{json,md,yml,yaml}": [
-      "prettier --write"
+      "bash -c 'a=(); for f in \"$@\"; do [ -L \"$f\" ] || a+=(\"$f\"); done; [ ${#a[@]} -eq 0 ] || prettier --write \"${a[@]}\"' --"
     ]
   }
 }

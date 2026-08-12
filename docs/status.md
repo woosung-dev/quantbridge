@@ -299,9 +299,9 @@ eod 거부 + 하네스 25케이스/변이 13종) + BL-462 원장·FE 고지 정�
 
 ★**착수 전 표본 1건을 열어라.** 두 회차 연속 상속 사실이 낡았다 — 08-11 은 20개 중 2건, 08-12 는 **6건**. 표를 읽지 말고 도구를 돌려라.
 
-**다음 행동 = `ssh truewords-oracle 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'` 로 창을
-1회 판독하고, `bash scripts/bl-audit.sh --list ACTIVE`(+ PARTIAL 도래분) = ⓪ 표에서 사용자와 함께
-고른다.**
+~~**다음 행동 = soak-gate 로 창을 1회 판독하고 ⓪ 표에서 사용자와 함께 고른다.**~~ → **2026-08-12
+harness 부트스트랩으로 다음 회차가 이미 확정됐다. 다음 행동 = [`harness/README.md`](../harness/README.md)
+§4 를 읽고 **A =** [BL-708] 순수 as-is → **B =** [BL-709] 러너 AC 판정 순으로 step 파일을 써라. soak-gate 판독은 유지.**
 ★**착수 첫 명령 둘을 건너뛰지 마라** — ⑴ FE 를 건드릴 회차면 `rm -rf frontend/.next`
 (이 회차엔 **1.3GB** 였고 그 상태에서 dev 서버가 한 번 죽었다) ⑵ **`make be-isolated` 와
 `make fe-isolated` 를 짝으로** 띄워라(`:8100` + `:3100`). 짝이 어긋나면 화면이 조용히 비고
