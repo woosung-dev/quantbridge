@@ -1698,6 +1698,7 @@ Server Component 인데 **`searchParams` 를 받지 않고** `order_by: "updated
 | [BL-711](#bl-711) | `metrics` JSONB **손상값**이 정렬 캐스팅에서 목록 전체를 500 으로 만든다 — `astext.cast(Numeric)` 는 `{"total_return":"corrupt"}` 에서 `invalid input syntax for type numeric` 이다. 같은 응답 경로의 `metrics_summary_from_jsonb` 는 손상값을 `None` 으로 격리하는데 **정렬 경로만 그 방어를 우회**한다. ★**선재다** — `backtest/repository.py:165-168` 이 같은 패턴을 4축에 먼저 갖고 있다                                                                                                                                                                                                                                                                                          | 손상 `metrics` 가 관측될 때 / 정렬 축을 늘릴 때                                                                   | S         | 2026-08-12 surface-demo-pack (codex G6 #2)             |
 | [BL-712](#bl-712) | 전략 목록 **표시 정합 2건** — ⑴ `lifecycle` 이 `is_archived` 를 안 봐서 아카이브된 전략도 `validated`/`deployed` 로 응답한다(칩 4번째 값이 없다 = 사용자 결정) ⑵ 정렬 select 라벨이 **방향을 말하지 않는다** — `?order_by=total_return&order=asc` 로 진입하면 오름차순인데 라벨은 「수익률 높은 순」이다(UI 는 그 URL 을 만들지 않지만 공유·수동 편집으로 도달한다)                                                                                                                                                                                                                                                                                                                   | 전략 목록 표시를 다시 손댈 때 / 아카이브 화면을 낼 때                                                             | S         | 2026-08-12 surface-demo-pack (codex G6 #4·#12)         |
 | [BL-713](#bl-713) | e2e 정체성 프로브가 `<title>` **부분일치**라 고유 식별자가 아니다 — 다른 앱의 title 이 `QuantBridge` 를 포함하기만 하면 통과한다. 지금은 판별에 성공하지만(`"Nexus Admin"` 실측 red) 우연에 의존한다. 처방 = 고유 마커(예: `<meta name="qb-app" content="quantbridge">`)를 심고 프로브가 **그것**을 본다                                                                                                                                                                                                                                                                                                                                                                              | 정체성 프로브가 거짓 통과하는 것이 관측될 때 / 같은 호스트에 앱이 늘 때                                           | XS        | 2026-08-12 surface-demo-pack (codex G6 #10)            |
+| [BL-715](#bl-715) | ⏳ **원격 브랜치 잔재 23건 — 삭제 근거가 없어 보류**. 2026-08-12 회차가 원격 290건을 A(머지된 PR 보유 270)/B(닫힌 미머지 PR 6)/C(PR 이력 없음 14)로 갈라 267건을 지웠다. 남은 23 = C 14(미머지 커밋 80개) + **D 9**(이름축으로는 A 인데 **팁 sha 가 어떤 PR head 와도 불일치** — PR 페이지 복원 버튼이 되살리는 것은 PR head sha 이므로 이 팁은 안전망 밖이다. 미머지 커밋 72개). ★**diff 로는 판정할 수 없다** — 표본 8건이 파일 1,600여 개·+17만/−31만 을 냈고 그것은 브랜치 고유 작업이 아니라 3개월치 **시간 차이**였다. 판정하려면 미머지 커밋 152개를 커밋 단위로 읽어 main 반영 여부를 대조해야 한다                                                                           | 커밋 152개를 개별 대조할 시간이 확보될 때 / 잔재가 다시 성가셔질 때                                               | S-M       | 2026-08-12 branch-debris                               |
 
 ### BL-491
 
@@ -9955,5 +9956,85 @@ stderr 경고)와 merge-base 실패(rc=3 abort)를 가른다. 부수 실측 2건
 대상에 `PARTIAL` 을 더한다(그 순서를 바꾸면 24건이 즉시 red 다).
 
 **Risk:** 🟡 (P0·P1 5건이 진입점에서 안 보이는 상태가 유지된다)
+
+---
+
+### BL-715
+
+**Title:** 원격 브랜치 잔재 23건 — 삭제 근거가 없어 보류 (C 14 = PR 이력 없음 · D 9 = PR 은 있으나 팁 sha 가 안전망 밖)
+**Category:** Ops / 레포 위생
+**Priority:** P3
+**Trigger:** 커밋 152개를 개별 대조할 시간이 확보될 때 / 잔재가 다시 성가셔질 때
+**Est:** S-M
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-12 branch-debris 가 원격 290건 중 267건을 삭제하고 남긴 23건. 조사·표 작성까지 끝났고 **판정만 남았다**([ADR-028](decisions/028-backlog-deferred-verdict.md)).
+**트리거 판정:** 미도래 — 판정에 필요한 것은 미머지 커밋 152개의 내용 대조이고, 그 비용이 잔재의 비용보다 크다. 잔재 23건은 `git branch -r` 을 읽는 것 말고는 아무것도 막지 않는다
+**출처:** 2026-08-12 branch-debris
+
+**원인 / 영향:** 2026-08-12 회차가 원격 브랜치를 **GitHub PR 상태**로 갈랐다 (git 위상으로는 재확인할 수 없다 — squash 머지라 팁이 main 의 조상이 아니다):
+
+| 분류                            |  수 | 처분                    |
+| ------------------------------- | --: | ----------------------- |
+| A — 머지된 PR 보유              | 270 | 261건 삭제 · 9건은 D 로 |
+| B — 닫힌(미머지) PR = 버린 작업 |   6 | 6건 삭제                |
+| C — PR 이력 없음                |  14 | **보류** (본 BL)        |
+| D — A 인데 팁 sha 가 안전망 밖  |   9 | **보류** (본 BL)        |
+| 합계                            | 290 | 삭제 267 · 보류 23      |
+
+★**D 9건이 이 회차의 발견이다.** 프롬프트는 「A·B 는 PR 이 있으므로 GitHub 이 sha 를 보관하고 복원
+버튼이 살아 있다」를 삭제의 안전 근거로 세웠다. 그런데 복원 버튼이 되살리는 것은 **PR 의 head sha**
+이지 브랜치의 **현재 팁**이 아니다. 이 9건은 PR 머지 뒤 커밋이 더 쌓여 팁이 어떤 PR head 와도
+일치하지 않는다 ⇒ 지우면 미머지 커밋 72개가 안전망 밖에서 사라진다. 이름축(브랜치명 ↔ PR head ref)
+만으로 삭제했으면 못 봤고, **해시축(팁 sha ↔ PR head sha) 대조가 잡았다.**
+
+★**diff 로는 판정할 수 없다** — 2026-08-12 에 실패한 방법이다. 표본 8건이 `파일 1,600여 개 · +17만 /
+−31만` 을 냈는데 그것은 브랜치의 고유 작업이 아니라 **3개월치 시간 차이**다(브랜치가 그 시점의 레포
+전체를 들고 있다). 판정하려면 미머지 커밋 152개(C 80 + D 72)를 커밋 단위로 읽어 main 반영 여부를
+대조해야 한다.
+
+**잔재 23건 원장** (미머지 = `git rev-list --count main..origin/<브랜치>`)
+
+| 브랜치                                 | 마지막 커밋 | 미머지 | 분류                    |
+| -------------------------------------- | ----------- | -----: | ----------------------- |
+| `feat/tpsl-phase3-c-fe`                | 2026-06-26  |      1 | C (PR 이력 없음)        |
+| `feat/h2s11-a-geo-block`               | 2026-04-25  |      1 | C (PR 이력 없음)        |
+| `feat/h2s11-b-legal-temporary`         | 2026-04-25  |      2 | C (PR 이력 없음)        |
+| `feat/h2s11-c-waitlist`                | 2026-04-25  |      6 | C (PR 이력 없음)        |
+| `feat/h2s11-d-onboarding`              | 2026-04-25  |      5 | C (PR 이력 없음)        |
+| `feat/h2s11-e-service-lock`            | 2026-04-25  |     12 | C (PR 이력 없음)        |
+| `feat/h2s11-f-slowapi-minor`           | 2026-04-25  |     12 | C (PR 이력 없음)        |
+| `feat/h2s11-g-error-class-allowlist`   | 2026-04-25  |     12 | C (PR 이력 없음)        |
+| `feat/h2s12-a-slack`                   | 2026-04-25  |      3 | C (PR 이력 없음)        |
+| `feat/h2s12-c-bybit-ws`                | 2026-04-25  |      9 | C (PR 이력 없음)        |
+| `feat/h2s9-frontend-mcwfa`             | 2026-04-24  |      4 | C (PR 이력 없음)        |
+| `feat/h2s9-observability`              | 2026-04-24  |      6 | C (PR 이력 없음)        |
+| `feat/h2s9-stress-api`                 | 2026-04-24  |      4 | C (PR 이력 없음)        |
+| `feat/h2s9-stress-engine`              | 2026-04-24  |      3 | C (PR 이력 없음)        |
+| `worktree-feat-deploy`                 | 2026-08-07  |      3 | D (팁 sha 가 안전망 밖) |
+| `docs/post-503-sync`                   | 2026-07-30  |      2 | D (팁 sha 가 안전망 밖) |
+| `feat/live-observability`              | 2026-07-28  |      2 | D (팁 sha 가 안전망 밖) |
+| `stage/refactor-audit-tier1`           | 2026-05-13  |      2 | D (팁 sha 가 안전망 밖) |
+| `chore/sprint56-post-merge-followup`   | 2026-05-11  |      2 | D (팁 sha 가 안전망 밖) |
+| `stage/h2-sprint26-signal`             | 2026-05-04  |      9 | D (팁 sha 가 안전망 밖) |
+| `stage/h2-sprint27-beta-prereq-hotfix` | 2026-05-04  |      3 | D (팁 sha 가 안전망 밖) |
+| `stage/h2-sprint27-dogfood-day1`       | 2026-05-04  |      5 | D (팁 sha 가 안전망 밖) |
+| `feat/sprint6-trading-impl-v2`         | 2026-04-17  |     44 | D (팁 sha 가 안전망 밖) |
+
+C 14건 중 13건이 `feat/h2s9`~`h2s12` 계열이고 마지막 커밋이 2026-04-24~25 에 몰려 있다 — 한 회차가
+브랜치를 여러 개 끊어 놓고 PR 없이 접었을 가능성이 높다. `worktree-feat-deploy` 는 마지막 커밋이
+**2026-08-07(5일 전)** 로 유일하게 최근이며, 워크트리가 잡고 있는 `worktree-feat-deploy2` 와는
+**다른 브랜치**다.
+
+**처방 (다음 회차 몫)**
+
+1. D 9건 — 미머지 커밋 72개를 `git log main..origin/<브랜치>` 로 읽어 main 반영 여부 판정.
+   살릴 것이 있으면 cherry-pick, 없으면 삭제. 삭제 전 팁 sha 를 원장에 남긴다
+2. C 14건 — `feat/h2s9`~`h2s12` 13건을 한 덩어리로 판정(같은 회차 유래로 보인다).
+   `feat/tpsl-phase3-c-fe` 는 별건
+3. 삭제 시 이 회차의 4겹 검증(빈 입력 가드 · 양성 대조 · 음성 대조 전건 교차 · 분할 완전성)을 재사용
+
+**복구 근거:** 267건의 브랜치명·팁 sha·PR 번호는 `.git/branch-debris-restore-20260812.tsv` 에 있다
+(git 이 추적하지 않는다 — 로컬 사본이다). GitHub PR 페이지의 브랜치 복원 버튼도 살아 있다.
+
+**Risk:** 🟢 (잔재 23건은 `git branch -r` 가독성 말고는 아무것도 막지 않는다)
 
 ---
