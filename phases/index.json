@@ -1,3 +1,9 @@
 {
-  "phases": []
+  "phases": [
+    {
+      "dir": "bl708",
+      "status": "completed",
+      "completed_at": "2026-08-12T21:35:37+0900"
+    }
+  ]
 }
