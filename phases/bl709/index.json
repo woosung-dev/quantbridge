@@ -36,7 +36,7 @@
     {
       "step": 3,
       "name": "list-shared-whitelist",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm typecheck",
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm lint",
@@ -44,7 +44,10 @@
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && test \"$(grep -rn 'const STRATEGY_SORT_OPTIONS' src | wc -l | tr -d ' ')\" = \"1\"",
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && grep -q 'data-testid=\"strategy-sort\"' 'src/app/(dashboard)/strategies/_components/strategy-list.tsx'",
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm test"
-      ]
+      ],
+      "started_at": "2026-08-12T23:46:36+0900",
+      "summary": "① 로컬 SORT_OPTIONS를 삭제하고 ② URL 정규화·pushSort·select 조회를 공유 STRATEGY_SORT_OPTIONS/resolveStrategySort로 통일했으며 ③ 라벨·select 순서·strategy-sort data-testid 무변경을 diff와 전체 테스트로 확인했다.",
+      "completed_at": "2026-08-12T23:49:05+0900"
     },
     {
       "step": 4,
