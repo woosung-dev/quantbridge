@@ -24,7 +24,7 @@
       "status": "completed",
       "started_at": "2026-08-12T21:15:23+0900",
       "summary": "①판정 계약을 spec 상단에 명문화하고 단언을 `assertCalibrationContract()` 한 곳으로 합쳤다 — 세는 것(overflow·contrast·focus·motion·console 5축, `ignoreConsole` 미사용) / 안 세는 것(canon=드리프트 지표·tiny) / 새로 함께 단언하는 도달 증거(4폭 status=200 · minExamined>0 · 로컬 subresourceFail=0 · sealed>0)를 갈랐고, 하드 실패는 축 분해 + 코어 총합 이중 단언이라 코어가 6번째 축을 늘리면 그때 잡힌다. 종전 단언 2줄은 문자 그대로 유지했고 CANON/LIGHT 기준선 19줄·위생 3건은 무변경. 새 도달 단언의 판별력은 말이 아니라 변이로 확인 — `widths:[1440,375]` 로 1024·768 을 떨어뜨리자 종전 계약은 `screen-15-login canon=2 console=0` 으로 **초록**이고 새 단언만 red 였다(변이 도달은 examined 2폭으로 확인). ②독립 프로세스 3회 rc=0/0/0 · `22 passed` ×3 · 요약/도달 38줄이 ANSI 제거·정렬 후 전문 동일 · 19벌 전 폭 status=200·subresourceFail=0·sealed=2, 최저 canon 대비는 4.92/5.41/5.44 세 값 고정. ③WARN 강등(권장 접근 ⑵) **미채택** — 실측 최저 대비가 4.92:1 이라 하드 문턱 4.5 까지 여유가 0.42 뿐이고 ±0.5 밴드(4.0~5.0)가 그 여유를 통째로 삼켜 진짜 WCAG AA 위반 회귀를 WARN 으로 통과시킨다. 게다가 플레이크 기전은 문턱 근접이 아니라 원격 폰트 404 였고 step 2 봉인으로 이미 구조적으로 제거됐다 — 없는 병에 판별력을 지불하는 셈이라 안 했다.",
-      "completed_at": "2026-08-12T21:26:00+0900"
+      "completed_at": "2026-08-12T21:28:23+0900"
     },
     {
       "step": 4,
