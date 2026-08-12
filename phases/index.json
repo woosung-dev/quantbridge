@@ -1,3 +1,8 @@
 {
-  "phases": []
+  "phases": [
+    {
+      "dir": "bl708",
+      "status": "pending"
+    }
+  ]
 }

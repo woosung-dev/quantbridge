@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "bl708",
+  "steps": [
+    {
+      "step": 1,
+      "name": "canon-audit-subresource-evidence",
+      "status": "pending"
+    },
+    {
+      "step": 2,
+      "name": "canon-audit-determinism",
+      "status": "pending"
+    },
+    {
+      "step": 3,
+      "name": "calibration-verdict-contract",
+      "status": "pending"
+    },
+    {
+      "step": 4,
+      "name": "bl708-ledger-closeout",
+      "status": "pending"
+    }
+  ]
+}

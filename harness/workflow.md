@@ -1,19 +1,45 @@
 이 프로젝트는 Harness 프레임워크를 사용한다. 아래 워크플로우에 따라 작업을 진행하라.
 
-> ★**원문 그대로다** — 출처 `jha0313/harness_framework` 의 `.claude/commands/harness.md`.
-> 한 글자도 고치지 않았다. 이 레포에서만 달라지는 것은 아래 4줄뿐이고, 본문을 읽을 때
-> 그것만 치환해라. 슬래시 커맨드로 두지 않은 이유는 `.gitignore:16` 이 `.claude/*` 를
-> 통째로 무시해 팀에 공유되지 않기 때문이다([`README.md`](README.md) §5 플러그인화).
+> 출처 `jha0313/harness_framework` 의 `.claude/commands/harness.md`. **아래 §워크플로우는 원문이다.**
+> 슬래시 커맨드로 두지 않은 이유는 `.gitignore:16` 이 `.claude/*` 를 통째로 무시해 팀에 공유되지
+> 않기 때문이다([`README.md`](README.md) §5 플러그인화).
 >
-> | 원문                                     | 이 레포                                                                                          |
-> | ---------------------------------------- | ------------------------------------------------------------------------------------------------ |
-> | §A 의 `/docs/`(PRD·ARCHITECTURE·ADR)     | [`harness/docs/`](docs/) 심링크 4개 — `README.md` §2                                             |
-> | §D-3 AC 예시 `npm run build && npm test` | `cd <절대경로>/backend; set -a; . ./.env.local; set +a; uv run pytest` / `cd frontend && pnpm …` |
-> | §E 의 `--push`                           | **쓰지 마라** — 승인 없는 push 는 Golden Rule 위반                                               |
-> | §E 「자동 처리」의 가드레일 주입         | `docs/*.md` 가 아니라 `harness/docs/*.md` (`execute.py:182`)                                     |
->
-> ★**§E 를 실행하기 전에 [`README.md`](README.md) §3.1 의 위험 6건과 preflight 2개를 읽어라.**
-> 원본에 없는 내용이고, 이 레포에서 실제로 물 수 있는 것들이다.
+> ★**원문에서 실제로 달라진 것 4건** (`diff` 로 확인. 「한 글자도 안 고쳤다」는 거짓이다):
+> pre-commit prettier 가 ⑴ 표 정렬을 패딩하고 ⑵ 바깥 코드펜스를 3→4 backtick 으로 올렸으며
+> (원문은 ` ```markdown ` 안에 ` ```bash ` 를 넣은 **잘못된 중첩**이라 그대로 두면 렌더링이 깨진다)
+> ⑶ `docs/*.md` 를 `docs/\*.md` 로 이스케이프했다. ⑷ `--push` 줄에 금지 주석을 붙인 것은 내가 했다.
+
+## ★이 레포에서 치환할 것 — 원문을 그대로 따르면 막힌다
+
+**원문의 경로·명령은 Next.js 템플릿 프로젝트 기준이다.** 아래를 치환하지 않고 step 파일을 쓰면
+존재하지 않는 파일을 읽으라는 지시가 되고, AC 가 실행되지 않는다(2026-08-12 codex 리뷰 P1 3건).
+
+| 원문 위치                                            | 원문                                       | 이 레포                                                                                       |
+| ---------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| §A · §D-3「읽어야 할 파일」                          | `/docs/ARCHITECTURE.md` · `/docs/ADR.md`   | ★**그런 파일 없다.** 공통 규칙은 이미 주입되므로 여기엔 **이 step 에만 필요한 실제 경로**를 적어라 (`docs/reference/**`, 이전 step 산출물) |
+| §D-3 Acceptance Criteria                             | `npm run build` · `npm test`               | ★**루트 `package.json` 에 그 스크립트가 없다**(`scripts` = `prepare` 하나뿐). 아래 실제 커맨드를 써라 |
+| §D-3 검증 절차 2「아키텍처 체크리스트」              | `ARCHITECTURE.md` · `ADR` · `CLAUDE.md CRITICAL` | `AGENTS.md` Golden Rules · `backend/AGENTS.md` · `frontend/AGENTS.md`                     |
+| §E 실행                                              | `--push`                                   | **쓰지 마라** — 승인 없는 push 는 Golden Rule 위반                                            |
+| §E「자동 처리」가드레일 주입                         | `CLAUDE.md + docs/*.md`                    | `CLAUDE.md + harness/docs/*.md` (`execute.py:182`) — 슬롯 내용은 [`README.md`](README.md) §2   |
+
+**AC 에 실제로 쓸 커맨드** (`AGENTS.md` §Operational Commands · 워커 규칙 5):
+
+```bash
+# BE — ★cd 는 절대경로로. `cd backend && …` 를 같은 셸에서 두 번 돌리면 거짓 red 가 난다
+cd /Users/woosung/project/agy-project/quant-bridge/backend; set -a; . ./.env.local; set +a; uv run pytest tests/<대상>
+
+# FE
+cd frontend && pnpm test        # vitest
+cd frontend && pnpm typecheck
+cd frontend && pnpm build
+
+# 문서·게이트
+./scripts/docs-audit.sh
+./scripts/bl-audit.sh
+```
+
+★**§E 를 실행하기 전에 [`README.md`](README.md) §3.1 의 위험 6건과 preflight 2개를 읽어라.**
+원본에 없는 내용이고, 이 레포에서 실제로 물 수 있는 것들이다.
 
 ---
 
