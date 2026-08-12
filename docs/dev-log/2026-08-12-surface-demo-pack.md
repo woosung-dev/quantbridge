@@ -1,7 +1,7 @@
 # 2026-08-12 surface-demo-pack — 분석 표면 완결 + E2E 정상화 + 종단 데모
 
 > PR **#605**(BL-641 원장) · **#606**(BL-427+BL-430) · **#607**(E2E baseURL) 전부 머지.
-> main `69babb33`. 시각 리포트 = [`reports/2026-08-12-surface-demo-pack.html`](../reports/2026-08-12-surface-demo-pack.html).
+> main `69babb33`. 시각 리포트 = `docs/reports/2026-08-12-surface-demo-pack.html`.
 > ★그 HTML 은 **git 에 안 들어간다** — `.gitignore:106-109` 가 sprint retro HTML 을 의도적으로 제외하고
 > 템플릿·`auto-dogfood/` 만 추적한다(로컬 산출물 규약). 이 dev-log 가 추적되는 정본이다.
 > 역할 = CONTROL(평가자) + codex Generator 2레인(슬롯 9·10).
@@ -128,6 +128,9 @@ ReferenceError: exports is not defined in ES module scope
   **FE(3100) 는 BE(8100) 를 부른다** — 짝을 맞춰 띄워라(이 회차 최대 시간 손실의 뿌리).
 - 메인 `.next` 가 **1.3GB** 였고 그 상태에서 dev 서버가 한 번 죽었다([BL-650]). Makefile 이 1024MB
   에서 경고를 낸다.
+- ★**`.gitignore` 된 파일로 Markdown 링크를 만들면 로컬 `docs-audit` 은 통과하고 **CI 만** 죽는다.**
+  이 회차가 밟았다(`links=1`) — 리포트 HTML 을 링크로 걸었더니 새 체크아웃에 그 파일이 없었다.
+  미추적 산출물은 **평문 경로**로 적어라(그 README 의 다른 행들이 이미 그렇게 한다).
 - `design-canon-*` 는 **콜드 컴파일 경합에 플레이크**다(1회차 4건 → 2회차 42/42, 실패 4건 전부
   `ERR_CONNECTION_RESET`/`Timeout` 이고 단정 실패 0). 그와 **별개로** calibration 대비 측정 자체가
   비결정이다 → [BL-708].

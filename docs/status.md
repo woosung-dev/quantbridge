@@ -28,7 +28,7 @@
 → **2026-08-11 ledger-truth 가 그 회차를 닫았고, 2026-08-12 surface-demo-pack 이 그 다음을 닫았다**
 (PR **#605**·**#606**·**#607** 전부 머지, main `69babb33`).
 전문 = [`dev-log/2026-08-12-surface-demo-pack.md`](dev-log/2026-08-12-surface-demo-pack.md) ·
-시각 리포트 = [`reports/2026-08-12-surface-demo-pack.html`](reports/2026-08-12-surface-demo-pack.html).
+시각 리포트 = `docs/reports/2026-08-12-surface-demo-pack.html` (★`.gitignore` — 로컬 산출물).
 
 ★**2026-08-12 가 남기는 한 줄 = 「테스트가 자기 실패 원인으로 지목한 것은 관측이 아니라 추측일 수
 있다」.** authed 12건이 `make seed` 를 지시했는데 `make seed` 는 **전건 no-op** 이었고, 진짜 원인은
