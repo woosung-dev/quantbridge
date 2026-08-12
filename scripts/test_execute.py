@@ -461,14 +461,14 @@ class TestInvokeClaude:
             executor._invoke_claude(step, "preamble")
         assert exc_info.value.code == 1
 
-    def test_timeout_is_1800(self, executor):
+    def test_timeout_is_2700(self, executor):
         mock_result = MagicMock(returncode=0, stdout="{}", stderr="")
         step = {"step": 2, "name": "ui"}
 
         with patch("subprocess.run", return_value=mock_result) as mock_run:
             executor._invoke_claude(step, "preamble")
 
-        assert mock_run.call_args[1]["timeout"] == 1800
+        assert mock_run.call_args[1]["timeout"] == 2700
 
 
 # ---------------------------------------------------------------------------
