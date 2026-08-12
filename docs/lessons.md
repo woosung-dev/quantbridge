@@ -45,134 +45,78 @@
 > tombstone: **LESSON-075/076/077** 본문을 2026-08-08 zero-touch-bundle 회차에서 이 표로 압축했다 (400줄 상한 초과 — 원문 = 커밋 `41c58667` 의 `docs/lessons.md`). 셋 다 1/3 누적이었고 재발하면 표 행을 카드로 되살려라.
 > tombstone: **LESSON-078/079/080** 본문을 2026-08-08 session-handoff 회차에서 이 표로 압축했다 (400줄 상한 초과 — 원문 = 커밋 `a50c9eb3` 의 `docs/lessons.md`). 셋 다 1/3 누적이었고 재발하면 표 행을 카드로 되살려라.
 > tombstone: **LESSON-081/082/083** 본문을 2026-08-10 backtest-submit-fix 회차에서 이 표로 압축했다 (400줄 상한 초과 — 원문 = 커밋 `57c10222` 의 `docs/lessons.md`). 셋 다 1/3 누적이었고 재발하면 표 행을 카드로 되살려라.
+> tombstone: **LESSON-084/085/086** 본문을 2026-08-12 branch-debris 회차에서 이 표로 압축했다 (400줄 상한 초과 — 원문 = 커밋 `610306a5` 의 `docs/lessons.md`)
 
-| ID         | 한 줄 요약                                                                                                                     |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| LESSON-001 | 사용자 Pine을 Python으로 동적 실행하면 코드 인젝션이므로 AST 인터프리터와 eval/exec 금지가 필요하다.                           |
-| LESSON-002 | Celery OOM·crash 뒤 running으로 남는 좀비 task는 실패 훅·정기 정리·수동 취소 3층으로 복구한다.                                 |
-| LESSON-003 | Pine 파싱률 80% 이상 가정을 버리고 검증된 40% 패턴 지원과 투명한 Unsupported 처리를 택한다.                                    |
-| LESSON-007 | worktree의 git top-level은 main이 아닌 worktree 경로이므로 공통 git dir 또는 명시 경로를 쓴다.                                 |
-| LESSON-008 | Signal·IPC 식별자는 prefix를 포함한 full id로 고정하고 Monitor가 실제 signal 파일명을 검증한다.                                |
-| LESSON-009 | Worker가 worktree 밖 main repo에 파일을 만들지 않도록 생성 경로를 worktree 내부로 제한한다.                                    |
-| LESSON-010 | stage worktree 생성 직후 backend .venv와 root·frontend node_modules 3개 symlink를 연결한다.                                    |
-| LESSON-011 | RedisLock의 빈 async with는 mutex가 아니며 correctness는 PG advisory lock과 UNIQUE로 보장한다.                                 |
-| LESSON-012 | slowapi 0.1.9 조합 오류는 request.state.view_rate_limit 선초기화 middleware로 막는다.                                          |
-| LESSON-013 | worktree symlink 상대 경로는 링크 위치 기준이므로 3단계 prefix와 ls -L 검증이 필요하다.                                        |
-| LESSON-014 | rate-limit endpoint의 ConnectionError를 막으려면 conftest에 모든 필수 env 기본값을 넣는다.                                     |
-| LESSON-015 | Redis DB 0~2는 cache·Celery가 쓰므로 분산 락과 rate-limit은 DB 3 이상으로 분리한다.                                            |
-| LESSON-016 | Next.js 16의 edge middleware 파일명은 middleware.ts가 아니라 proxy.ts이며 실파일을 확인한다.                                   |
-| LESSON-017 | codex Generator-Evaluator 루프는 plan 작성 직후 G0 consult로 critical을 반영한 뒤 시작한다.                                    |
-| LESSON-018 | Heavy G-E 루프는 sprint scope를 실측보다 30~50% 키우므로 tier와 G4 반복 상한을 정한다.                                         |
-| LESSON-026 | **init**.py re-export와 충돌하는 import a.b.c alias는 sys.modules 우회로 module을 참조한다.                                    |
-| LESSON-027 | \_WORKER_LOOP task의 inner 함수는 pytest-asyncio 호환을 위해 async 함수를 직접 await한다.                                      |
-| LESSON-028 | PostgreSQL JSONB에는 NaN·Infinity를 넣을 수 없으므로 재귀 sanitize로 None 변환을 의무화한다.                                   |
-| LESSON-029 | SQLAlchemy enum 자동 cast와 Alembic String 불일치를 피하려면 모델·migration 모두 String을 명시한다.                            |
-| LESSON-030 | Bybit v5 leverage·margin mode의 not modified BadRequest는 provider 한정으로 idempotent 처리한다.                               |
-| LESSON-031 | Bybit Linear 계약 symbol은 UI의 BTC/USDT를 ccxt unified BTC/USDT:USDT로 normalize한다.                                         |
-| LESSON-032 | base-ui Select.Value의 raw ID 노출은 render prop으로 lookup name을 매핑해 해소한다.                                            |
-| LESSON-033 | Sprint type A~D를 kickoff에서 분류해 신규 기능·BL·hotfix·docs 작업의 의무 강도를 다르게 둔다.                                  |
-| LESSON-034 | 3개월 이상 경과하고 dogfood 증거가 누적되면 office-hours를 재진행해 ADR addendum으로 보존한다.                                 |
-| LESSON-035 | sprint 종료는 self-assess·신규 BL·기존 P0 감소의 세 dual metric을 모두 만족해야 한다.                                          |
-| LESSON-036 | Slice cascade는 stage branch를 base로 각 slice와 cleanup PR을 쌓고 사용자가 main에 병합한다.                                   |
-| LESSON-041 | Pine strategy의 default_qty_type·value가 한쪽만 있으면 ambiguous하므로 422로 거절한다.                                         |
-| LESSON-042 | Live mirror position_size_pct와 manual default_qty를 함께 주면 422로 단일 sizing source를 강제한다.                            |
-| LESSON-043 | engine이 1x equity basis뿐일 때 live leverage Nx는 422로 막고 manual sizing 경로를 제공한다.                                   |
-| LESSON-044 | 메인 세션은 표준 prefix, worktree worker는 worker-\* prefix를 써 pre-push와 작업 대상을 구분한다.                              |
-| LESSON-045 | 다른 프로젝트 포트 충돌을 막으려면 isolated mode와 테스트 DB·Redis URL inline override를 사용한다.                             |
-| LESSON-046 | 통합 dogfood는 G-E가 놓친 회귀를 idle CPU·base delta·navigate 변화 세 신호로 발견한다.                                         |
-| LESSON-047 | Turbopack root를 잘못 지정하면 watcher storm이 나므로 lockfile 위치·fresh restart·idle CPU를 검증한다.                         |
-| LESSON-048 | Playwright MCP 인증 cookie dogfood는 2/3 누적이며 자동화가 어려운 검증만 사용자에게 위임한다.                                  |
-| LESSON-049 | codex G.4의 P1/P2는 cmux signal reset과 즉시 fix를 우선하고 영향 없을 때만 defer한다.                                          |
-| LESSON-050 | 디자인 sprint kickoff에는 prototypes·DESIGN·pen·Figma URL을 모두 grep해 design source를 명시한다.                              |
-| LESSON-051 | agent worktree를 4개 spawn하기 전 dev server·Docker·install·prune baseline을 정리한다.                                         |
-| LESSON-052 | Worker prompt 첫 단계에 pwd와 worktree cwd 검증을 넣어 메인 cwd면 즉시 중지시킨다.                                             |
-| LESSON-053 | N=4 이상에서 agent tool isolation 한계가 드러나므로 독립 terminal·signal 가능한 cmux를 우선한다.                               |
-| LESSON-054 | 핀테크 다크 테마는 유행보다 mental model 일관성을 우선하고 single-page 다크 회피를 검증한다.                                   |
-| LESSON-055 | Worker prompt에 첫 명령으로 절대 worktree path cd를 사전 명시해 main에서의 작업을 막는다.                                      |
-| LESSON-062 | ADR 결정이 AGENTS.md 표현과 어긋나면 ADR을 SSOT로 삼아 동시에 정합시킨다.                                                      |
-| LESSON-064 | /deepen-modules audit의 silent failure는 3/3 누적이며 직접 read와 전체 dispatch 경로 추적으로 판정한다.                        |
-| LESSON-065 | 2단계 subagent review는 monkeypatch 간접 의존성을 놓칠 수 있어 실제 dependency reach를 확인한다.                               |
-| LESSON-067 | codex evaluator 분산형은 6/6 검증됐고 비용은 revision 양·트랙 수에 따른 scope 함수로 계획한다.                                 |
-| LESSON-068 | 한국어 docs lint 부재는 §5·§6 위반을 누적시키며 lint·hook·헤더 보강은 1/3 누적이다.                                            |
-| LESSON-069 | 저-카디널리티 라벨이 위험도가 다른 갈래를 합치면 큰 갈래가 작은 갈래를 묻는다 — 라벨을 쪼개 재라.                              |
-| LESSON-070 | 비중(%)을 인용하기 전에 분모가 무엇을 세는지 코드로 확인한다 — 분모가 틀리면 결론이 통째로 뒤집힌다.                           |
-| LESSON-071 | 합계가 닫힌다는 것은 귀속이 옳다는 증거가 아니다 — 행별 판별자로 갈라야 한다.                                                  |
-| LESSON-072 | 사전등록 비율 지표는 등록 전에 **기각 영역이 도달 가능한가**를 그려라 — 상쇄 구조·상하한을 안 정하면 항진명제가 된다.          |
-| LESSON-073 | 문서를 정규식으로 수술할 때 링크 매치는 **줄 경계를 강제**하라 — 짝 없는 대괄호가 개행을 넘어 30줄을 삼켰다.                   |
-| LESSON-074 | 검사 도구를 **그 트리 밖에서** 겨누면 ignore 규칙이 대상을 통째로 삼킨다 — 성공 메시지 말고 **검사한 개수**를 봐라.            |
-| LESSON-075 | 상수를 재사용하기 전에 그 상수가 **재는 양**이 내가 재려는 양과 같은지 물어라 — 되돌릴 수 없는 상태 전진 앞으로 유예를 옮긴다. |
-| LESSON-076 | 같은 값의 리터럴이 둘이면 「기본값을 바꿨다」가 거짓이 된다 — 리터럴 전수를 세고 어느 쪽이 이기는지 실행으로 확인해라.         |
-| LESSON-077 | 원인이 둘인데 축을 하나씩 되돌리면 **전건 미확정**으로 떨어진다 — 후보 축은 하나씩이 아니라 **곱집합**으로 재라.               |
-| LESSON-078 | 아무도 부르지 않는 검사기는 죽은 줄도 모르고 죽는다 — 검사기에도 「내가 불렸다」는 증거를 남겨라.                              |
-| LESSON-079 | 관측량이 0 이 되면 먼저 「관측 대상이 살아 있나」를 물어라 — 0 은 부재의 증거가 아니다.                                        |
-| LESSON-080 | 사전등록한 문턱은 그 문턱이 **막을 때** 값을 한다 — 통과만 하는 문턱은 등록 안 한 것과 같다.                                   |
-| LESSON-081 | 「무관하다」는 **공유 자원을 전부 세고 나서** 말해라 — 코드 축만 본 「무관」은 그 축에 한해서만 참이다.                        |
-| LESSON-082 | 잔차를 설명하는 식에 **그 잔차를 그대로 넣으면** 항진명제가 된다 — 「이 식이 거짓이 되는 세계」를 먼저 적어라.                 |
-| LESSON-083 | 관측 도구가 **자기 관측 대상을 오염**시킨다 — 부작용 없는 관측을 가정하지 말고, 오염이 FAIL 과 같은 코드로 새지 않게 하라.     |
+| ID         | 한 줄 요약                                                                                                                        |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| LESSON-001 | 사용자 Pine을 Python으로 동적 실행하면 코드 인젝션이므로 AST 인터프리터와 eval/exec 금지가 필요하다.                              |
+| LESSON-002 | Celery OOM·crash 뒤 running으로 남는 좀비 task는 실패 훅·정기 정리·수동 취소 3층으로 복구한다.                                    |
+| LESSON-003 | Pine 파싱률 80% 이상 가정을 버리고 검증된 40% 패턴 지원과 투명한 Unsupported 처리를 택한다.                                       |
+| LESSON-007 | worktree의 git top-level은 main이 아닌 worktree 경로이므로 공통 git dir 또는 명시 경로를 쓴다.                                    |
+| LESSON-008 | Signal·IPC 식별자는 prefix를 포함한 full id로 고정하고 Monitor가 실제 signal 파일명을 검증한다.                                   |
+| LESSON-009 | Worker가 worktree 밖 main repo에 파일을 만들지 않도록 생성 경로를 worktree 내부로 제한한다.                                       |
+| LESSON-010 | stage worktree 생성 직후 backend .venv와 root·frontend node_modules 3개 symlink를 연결한다.                                       |
+| LESSON-011 | RedisLock의 빈 async with는 mutex가 아니며 correctness는 PG advisory lock과 UNIQUE로 보장한다.                                    |
+| LESSON-012 | slowapi 0.1.9 조합 오류는 request.state.view_rate_limit 선초기화 middleware로 막는다.                                             |
+| LESSON-013 | worktree symlink 상대 경로는 링크 위치 기준이므로 3단계 prefix와 ls -L 검증이 필요하다.                                           |
+| LESSON-014 | rate-limit endpoint의 ConnectionError를 막으려면 conftest에 모든 필수 env 기본값을 넣는다.                                        |
+| LESSON-015 | Redis DB 0~2는 cache·Celery가 쓰므로 분산 락과 rate-limit은 DB 3 이상으로 분리한다.                                               |
+| LESSON-016 | Next.js 16의 edge middleware 파일명은 middleware.ts가 아니라 proxy.ts이며 실파일을 확인한다.                                      |
+| LESSON-017 | codex Generator-Evaluator 루프는 plan 작성 직후 G0 consult로 critical을 반영한 뒤 시작한다.                                       |
+| LESSON-018 | Heavy G-E 루프는 sprint scope를 실측보다 30~50% 키우므로 tier와 G4 반복 상한을 정한다.                                            |
+| LESSON-026 | **init**.py re-export와 충돌하는 import a.b.c alias는 sys.modules 우회로 module을 참조한다.                                       |
+| LESSON-027 | \_WORKER_LOOP task의 inner 함수는 pytest-asyncio 호환을 위해 async 함수를 직접 await한다.                                         |
+| LESSON-028 | PostgreSQL JSONB에는 NaN·Infinity를 넣을 수 없으므로 재귀 sanitize로 None 변환을 의무화한다.                                      |
+| LESSON-029 | SQLAlchemy enum 자동 cast와 Alembic String 불일치를 피하려면 모델·migration 모두 String을 명시한다.                               |
+| LESSON-030 | Bybit v5 leverage·margin mode의 not modified BadRequest는 provider 한정으로 idempotent 처리한다.                                  |
+| LESSON-031 | Bybit Linear 계약 symbol은 UI의 BTC/USDT를 ccxt unified BTC/USDT:USDT로 normalize한다.                                            |
+| LESSON-032 | base-ui Select.Value의 raw ID 노출은 render prop으로 lookup name을 매핑해 해소한다.                                               |
+| LESSON-033 | Sprint type A~D를 kickoff에서 분류해 신규 기능·BL·hotfix·docs 작업의 의무 강도를 다르게 둔다.                                     |
+| LESSON-034 | 3개월 이상 경과하고 dogfood 증거가 누적되면 office-hours를 재진행해 ADR addendum으로 보존한다.                                    |
+| LESSON-035 | sprint 종료는 self-assess·신규 BL·기존 P0 감소의 세 dual metric을 모두 만족해야 한다.                                             |
+| LESSON-036 | Slice cascade는 stage branch를 base로 각 slice와 cleanup PR을 쌓고 사용자가 main에 병합한다.                                      |
+| LESSON-041 | Pine strategy의 default_qty_type·value가 한쪽만 있으면 ambiguous하므로 422로 거절한다.                                            |
+| LESSON-042 | Live mirror position_size_pct와 manual default_qty를 함께 주면 422로 단일 sizing source를 강제한다.                               |
+| LESSON-043 | engine이 1x equity basis뿐일 때 live leverage Nx는 422로 막고 manual sizing 경로를 제공한다.                                      |
+| LESSON-044 | 메인 세션은 표준 prefix, worktree worker는 worker-\* prefix를 써 pre-push와 작업 대상을 구분한다.                                 |
+| LESSON-045 | 다른 프로젝트 포트 충돌을 막으려면 isolated mode와 테스트 DB·Redis URL inline override를 사용한다.                                |
+| LESSON-046 | 통합 dogfood는 G-E가 놓친 회귀를 idle CPU·base delta·navigate 변화 세 신호로 발견한다.                                            |
+| LESSON-047 | Turbopack root를 잘못 지정하면 watcher storm이 나므로 lockfile 위치·fresh restart·idle CPU를 검증한다.                            |
+| LESSON-048 | Playwright MCP 인증 cookie dogfood는 2/3 누적이며 자동화가 어려운 검증만 사용자에게 위임한다.                                     |
+| LESSON-049 | codex G.4의 P1/P2는 cmux signal reset과 즉시 fix를 우선하고 영향 없을 때만 defer한다.                                             |
+| LESSON-050 | 디자인 sprint kickoff에는 prototypes·DESIGN·pen·Figma URL을 모두 grep해 design source를 명시한다.                                 |
+| LESSON-051 | agent worktree를 4개 spawn하기 전 dev server·Docker·install·prune baseline을 정리한다.                                            |
+| LESSON-052 | Worker prompt 첫 단계에 pwd와 worktree cwd 검증을 넣어 메인 cwd면 즉시 중지시킨다.                                                |
+| LESSON-053 | N=4 이상에서 agent tool isolation 한계가 드러나므로 독립 terminal·signal 가능한 cmux를 우선한다.                                  |
+| LESSON-054 | 핀테크 다크 테마는 유행보다 mental model 일관성을 우선하고 single-page 다크 회피를 검증한다.                                      |
+| LESSON-055 | Worker prompt에 첫 명령으로 절대 worktree path cd를 사전 명시해 main에서의 작업을 막는다.                                         |
+| LESSON-062 | ADR 결정이 AGENTS.md 표현과 어긋나면 ADR을 SSOT로 삼아 동시에 정합시킨다.                                                         |
+| LESSON-064 | /deepen-modules audit의 silent failure는 3/3 누적이며 직접 read와 전체 dispatch 경로 추적으로 판정한다.                           |
+| LESSON-065 | 2단계 subagent review는 monkeypatch 간접 의존성을 놓칠 수 있어 실제 dependency reach를 확인한다.                                  |
+| LESSON-067 | codex evaluator 분산형은 6/6 검증됐고 비용은 revision 양·트랙 수에 따른 scope 함수로 계획한다.                                    |
+| LESSON-068 | 한국어 docs lint 부재는 §5·§6 위반을 누적시키며 lint·hook·헤더 보강은 1/3 누적이다.                                               |
+| LESSON-069 | 저-카디널리티 라벨이 위험도가 다른 갈래를 합치면 큰 갈래가 작은 갈래를 묻는다 — 라벨을 쪼개 재라.                                 |
+| LESSON-070 | 비중(%)을 인용하기 전에 분모가 무엇을 세는지 코드로 확인한다 — 분모가 틀리면 결론이 통째로 뒤집힌다.                              |
+| LESSON-071 | 합계가 닫힌다는 것은 귀속이 옳다는 증거가 아니다 — 행별 판별자로 갈라야 한다.                                                     |
+| LESSON-072 | 사전등록 비율 지표는 등록 전에 **기각 영역이 도달 가능한가**를 그려라 — 상쇄 구조·상하한을 안 정하면 항진명제가 된다.             |
+| LESSON-073 | 문서를 정규식으로 수술할 때 링크 매치는 **줄 경계를 강제**하라 — 짝 없는 대괄호가 개행을 넘어 30줄을 삼켰다.                      |
+| LESSON-074 | 검사 도구를 **그 트리 밖에서** 겨누면 ignore 규칙이 대상을 통째로 삼킨다 — 성공 메시지 말고 **검사한 개수**를 봐라.               |
+| LESSON-075 | 상수를 재사용하기 전에 그 상수가 **재는 양**이 내가 재려는 양과 같은지 물어라 — 되돌릴 수 없는 상태 전진 앞으로 유예를 옮긴다.    |
+| LESSON-076 | 같은 값의 리터럴이 둘이면 「기본값을 바꿨다」가 거짓이 된다 — 리터럴 전수를 세고 어느 쪽이 이기는지 실행으로 확인해라.            |
+| LESSON-077 | 원인이 둘인데 축을 하나씩 되돌리면 **전건 미확정**으로 떨어진다 — 후보 축은 하나씩이 아니라 **곱집합**으로 재라.                  |
+| LESSON-078 | 아무도 부르지 않는 검사기는 죽은 줄도 모르고 죽는다 — 검사기에도 「내가 불렸다」는 증거를 남겨라.                                 |
+| LESSON-079 | 관측량이 0 이 되면 먼저 「관측 대상이 살아 있나」를 물어라 — 0 은 부재의 증거가 아니다.                                           |
+| LESSON-080 | 사전등록한 문턱은 그 문턱이 **막을 때** 값을 한다 — 통과만 하는 문턱은 등록 안 한 것과 같다.                                      |
+| LESSON-081 | 「무관하다」는 **공유 자원을 전부 세고 나서** 말해라 — 코드 축만 본 「무관」은 그 축에 한해서만 참이다.                           |
+| LESSON-082 | 잔차를 설명하는 식에 **그 잔차를 그대로 넣으면** 항진명제가 된다 — 「이 식이 거짓이 되는 세계」를 먼저 적어라.                    |
+| LESSON-083 | 관측 도구가 **자기 관측 대상을 오염**시킨다 — 부작용 없는 관측을 가정하지 말고, 오염이 FAIL 과 같은 코드로 새지 않게 하라.        |
+| LESSON-084 | 점추정끼리 비교하기 전에 구간을 그려라 — 95% CI 가 겹치면 그 비교는 없는 것이고, 근거를 추정에서 셈으로 옮길 수 있는지 먼저 본다. |
+| LESSON-085 | 게이트 술어는 의미가 아니라 구문을 재라 — 예외 목록이 길어지면 술어 교체 신호이고, 게이트에 맞춰 글을 비틀지 말고 술어를 고친다.  |
+| LESSON-086 | 설계 문서가 기각한 안을 코드가 집행하고 있는지 확인해라 — 결정과 구현 두 절이 떨어져 있으면 아무도 잇지 않는다.                   |
 
 ---
 
 ## Active Candidates (3 회 검증 미달, 또는 sprint-specific)
-
-### LESSON-084 — 점추정끼리 비교하기 전에 **구간을 그려라**. 겹치면 그 비교는 없는 것이다 (1/3)
-
-- **상황:** 2026-08-08 soak-exclusivity-and-observability. MTBF 를 수리 시점으로 층화한 표가
-  「08-03 이후 8.70h → [ADR-025] 수리 이후 19.24h」로 읽혔고, 문서 세 곳이 그 방향을 인용하고
-  있었다. 95% 카이제곱 구간을 붙이자 네 층이 **6쌍 전부 겹쳤다** — 어느 두 층도 구분되지 않는다.
-  같은 데이터에서 P(168h) 의 CI 상한을 취하면 한 층은 0.07%, 다른 층은 **38.11%** 다.
-  「사실상 도달 불가」와 「그럭저럭 가능」이 한 표 안에 있었던 것이다.
-- **해결:** ⑴ 사망 수가 한 자리인 층에서 MTBF 점추정을 인용하지 마라 — d=1 이면 구간이 220배로
-  벌어진다 ⑵ **결론의 근거를 추정에서 셈으로 옮길 수 있는지 먼저 봐라.** 여기서는 옮길 수 있었다
-  (「24h 도달 0건 / 39세션 · 최장 19.42h · 요구치는 그 8.65배」). 결론은 살고 근거만 교체됐다
-  ⑶ 표를 다시 만들 도구를 남겨라 — 이 표는 **같은 날 안에** 낡았다(02:47Z 38행 → 06:15Z 39행,
-  살아 있는 세션은 우측 절단으로 넣는다).
-- **1차 누적.** ★층화 자체는 옳았다. 틀린 것은 **층끼리 비교해도 된다고 읽은 것**이다.
-
-### LESSON-085 — 게이트 술어는 **의미가 아니라 구문**을 재라. 예외 목록이 필요하면 술어가 틀린 것이다 (1/3)
-
-- **상황:** 같은 회차 [BL-643]. `docs/status.md` 진입점의 최신성을 잴 술어로 「비취소선
-  **「다음 행동」** ≤1」이 등재돼 있었고, 오탐을 피하려고 「⓪ 표 안쪽과 코드펜스를 제외」라는
-  예외가 달려 있었다. 그 예외를 다 적용해도 현재 트리가 FAIL 이다 — 걸리는 것이 규칙을 _설명하는_
-  문장이기 때문이다. 실행 지시는 언제나 `다음 행동 = …` 형태라 **`=` 를 요구하자 예외 목록이
-  통째로 불필요**해졌고(오탐 0), 음성 대조에서 수리 전 2건은 그대로 잡혔다.
-- **해결:** ⑴ 낱말이 아니라 그 낱말이 **실행 지시일 때만 갖는 구문 표지**를 찾아라
-  ⑵ 예외 목록이 길어지면 그것은 술어 교체 신호다 — 예외를 늘리는 방향은 오탐과 미탐을 함께 키운다
-  ⑶ ★**계약 문구를 그대로 집행하지 말고, 실제 사고가 그 문구를 통과하는지 먼저 재라.** 여기서는
-  「블록당 최대 1개」였는데 실제 사고의 2건이 **서로 다른 섹션**에 하나씩 있어 블록별로 세면
-  통과했다. 집행은 파일 전체로 넓히고, 규범 문구와의 비대칭을 문서에 적었다.
-- ★★★**그리고 그 게이트가 곧바로 자기 작성자를 물었다.** 술어를 착지시킨 뒤 회차 기록에 「술어를
-  `다음 행동 =` 로 좁혔다」고 쓰자 **그 설명 문장이 FAIL 을 냈다** — 코드펜스는 제외했는데 **인라인
-  코드(백틱)는 안 했던 것**이다. 규칙을 문서화할 수 없는 게이트는 틀린 게이트다. ★여기서 **문장을
-  비틀어 회피하지 말고 술어를 고쳐라** — 게이트에 맞춰 글을 쓰기 시작하면 게이트가 문서를 지배한다.
-  음성 대조로 판별력을 지켰다: 같은 문장에서 **백틱만 떼면 FAIL**(변이 8/8).
-- **1차 누적.** ★정직하게 한계를 함께 적어라 — 이것은 **모순 탐지기이지 낡음 탐지기가 아니다**
-  (단독으로 낡은 1건 · 어구 변형은 여전히 통과한다).
-
----
-
-### LESSON-086 — 설계 문서가 **기각한 안을 코드가 집행하고 있는지** 확인해라. 두 절이 떨어져 있으면 아무도 안 잇는다 (1/3)
-
-- **상황:** 2026-08-08 soak-window-and-gate-attribution. [ADR-024] §대안 (a)「연속 168h」를
-  **명시적으로 거부**한다 — 「재시작 한 번에 전부 잃는다 … 사실상 도달 불가다」. 그런데
-  `soak_gate_predicate.py:502` 의 `window_start = disq[-1].at` 가 실격 하나로 C1 을 0 으로
-  되돌리므로 **C1 은 (a) 그 자체**이고, 같은 문서가 채택했다는 (b)「4시간짜리 42개」는 구조적으로
-  불가능하다. 문서는 이 사실을 **절반만** 알고 있었다 — §163 이 「**서술**이 「누적」으로 읽히는
-  것이 문제」라고 봉합했지만, **§대안의 거부 사유가 그대로 현행 동작의 비용**이라는 것은 잇지
-  않았다(24h 도달 0/39 · 최장 19.42h · 요구치는 그 8.65배).
-- **왜 안 이어졌나:** 두 절이 **같은 파일의 서로 다른 자리**에 있고, 각 절은 자기 자리에서
-  완결돼 보인다. §163 을 읽는 사람은 「서술을 고쳤다」로 끝나고, §대안을 읽는 사람은 「(a)는
-  거부됐다」로 끝난다. 모순은 **둘을 같은 화면에 놓아야만** 보인다.
-- **해결:** ⑴ ADR 을 읽을 때 **「채택」 절과 「기각」 절을 대조**해라 — 기각 사유가 현행 동작을
-  설명하고 있으면 그 ADR 은 자기모순이다 ⑵ 발견하면 **한 절에 모아 등재**하고 판정(유지/변경)을
-  적어라. 여기서는 동작을 유지했다 — 셋 다 더 나쁘기 때문이다(문턱 인하 = 통과를 판다 · 클립 =
-  거짓 PASS 복원 · 사인별 리셋 = fail-open) ⑶ ★**「바꾸는 것은 동작이 아니라 대가를 아는가」가
-  정당한 결론이다.** 모순을 발견했다고 반드시 코드를 바꿔야 하는 것은 아니다.
-- **부수 산출 — 면제 없는 분류.** 「운영 사고면 리셋 면제」는 §대안 (h) 로 **기각**하고(판정
-  주체가 사람 ⇒ fail-open), 대신 **판정에 참여하지 않는 원장**을 세웠다. 계약 셋: 판정 불참 ·
-  `undecided`=`code_defect`(엄격) · 자동 유도 금지. **분류는 남기고 면제는 안 준다.**
-  ★그 원장이 만든 첫 층이 곧바로 자기를 겸손하게 만들었다 — 오염 1건을 빼도 MTBF 의 95% CI 가
-  전 이력과 **겹친다**. 장치가 결론을 사지 않는 것이 설계 목적이었다.
-- **1차 누적.**
 
 ### LESSON-087 — 변이가 **판별력 0** 으로 나오면 코드가 아니라 **테스트 이름**을 의심해라 (2/3 — LESSON-072 계열)
 
@@ -355,11 +299,12 @@
 - **해결:** 「이 규칙이 아직 유효한가」는 **문서 존재 여부가 아니라 코드 준수율**로 답해라. 준수율이 높으면 그 항목은 「죽은 규칙의 부활」이 아니라 **「미집행 잔여분의 회수」**이고, 성격이 다르면 난이도·리스크·정당성이 전부 달라진다. 이번엔 그래서 기각이 아니라 종결로 갔다(위반 48 → 0).
 - **1차 누적.** ★대조 — 같은 회차에 같은 출처(2026-05-15 감사)의 형제 항목 [BL-306] 은 **정반대로 기각**됐다. **출처가 같다고 운명이 같지 않다 — 항목마다 따로 재라.**
 
-### LESSON-101 — **검증 명령은 빈 입력을 받으면 「내가 기대한 답」을 낸다** (1/3 · 같은 회차 5회 발생)
+### LESSON-101 — **검증 명령은 빈 입력을 받으면 「내가 기대한 답」을 낸다** (2/3 · 5회 + 2026-08-12 2회)
 
 - **상황:** 대조·측정 스크립트를 짤 때마다 입력이 조용히 비었다. ⑴ 스크래치패드 경로 오류 → `diff` 실패를 `||` 분기가 「불일치」로 출력 ⑵ zsh 는 `for f in $files` 를 **단어분할하지 않는다** → 「전체=1, 누락 0」 ⑶ 「한글 있는 줄」만 검사해 docstring 본문 20건 오탐 ⑷ `git diff -- $P` 의 `$P` 미분할 → 매치 0건이 「변경 없음」 ⑸ `sed` 가 파이썬 리스트를 못 고쳐 「검사 0개 · 불일치 0개 · rc=0」.
 - **반증:** 다섯 건 **전부 내가 그 시점에 기대하던 답이 나왔다.** 수리 전이면 「불일치」, 수리 후면 「일치」, 코드 대조면 「변경 없음」. **기대와 일치하는 출력은 검증되지 않는다** — 그래서 다섯 번 반복됐다.
 - **해결:** 대조기는 **자기 입력이 비었는지를 먼저 말해야 한다.** ⑴ 양쪽 집합이 비면 `ABORT`(rc=3) ⑵ 대상 파일 수가 하한 미만이면 중단 ⑶ `diff`·`grep` 의 **실패 종료코드를 「차이 있음」과 같은 분기에 두지 마라.** 같은 원리를 산출물에도 박았다 — `header-audit.sh` 는 매 실행마다 `[가-힣]` 판별력을 양성·음성 쌍으로 자기검사하고, 실패하면 초록 대신 **rc=3 으로 판정을 포기**한다.
+- **2차 누적 (2026-08-12 branch-debris).** 병렬 fan-out 이 **두 번 조용히 0행**을 냈다 — `export -f`(zsh 에 없다)와 `xargs -d '\n'`(GNU 전용, BSD 는 무시). 둘 다 에러 없이 빈 결과였고, 첫 번째는 「276건 전건 조회」로, 두 번째는 「121건 전건 조회」로 보고될 뻔했다. 막은 것은 `[ "$(wc -l < out)" -eq "$N" ]` 가드 하나뿐이다. ⇒ **fan-out 의 산출 행 수를 입력 수와 대조하는 가드를 기본으로 걸어라.**
 - **1차 누적.** ★[LESSON-097]·[LESSON-098] 의 「초록은 검증이 아니다」를 **도구 자신**에 적용한 판이다. 판별력 검사를 스윕 앞에 세우라는 2026-08-10 bl-trigger-triage 의 교훈과 같은 뿌리이고, 이번엔 그 **검사 자신**이 고장난 사례다.
 
 ### LESSON-102 — **테스트가 자기 실패 원인으로 지목한 것은 관측이 아니라 추측일 수 있다** (1/3)
@@ -382,6 +327,20 @@
 - **반증:** 사실은 반대였다. codex 는 그 파일을 **실제로 만들었고**, 그 사이 내가 **다른 브랜치로 옮겨가 `git add -A` 로 커밋**해(`214dfeb1`, PR #608) 그 파일을 다른 PR 에 실어 보냈다. 워킹트리는 **한 벌**이고 그 파일은 untracked 였으므로 어느 브랜치에서 커밋하든 실린다. 그 뒤 원래 브랜치로 돌아오자 파일은 그 커밋과 함께 **사라졌고**, 남은 관측은 「없다」였다. `git show --stat 214dfeb1` 한 줄이 전부를 밝혔다.
 - **해결:** ⑴ **부재를 보면 「누가 안 만들었나」가 아니라 「어디로 갔나」를 먼저 물어라** — `git log --all -- <path>` · `git show --stat <내 최근 커밋>`. ⑵ 여러 레인이 **같은 체크아웃**을 공유하는 동안 `git add -A` 를 쓰지 마라. 경로를 명시하거나(`git add <paths>`) 레인마다 워크트리를 분리해라. ⑶ 생성자를 의심하기 전에 **내 커밋의 내용물**을 봐라 — 이번엔 내가 오염원이었다.
 - **1차 누적.** ★[LESSON-102]「테스트가 지목한 원인은 추측일 수 있다」의 **자기 적용판**이다. 그때는 남의 도구가 원인을 추측했고, 이번엔 **내가** 추측했다. 둘 다 관측 하나를 원인으로 승격시킨 것이 문제였다.
+
+### LESSON-105 — **결함을 고치는 코드가 새 항진명제를 만든다 — 「전건 통과」가 좋아 보이면 판별력부터 재라** (1/3)
+
+- **상황:** 2026-08-12 branch-debris. 로컬 브랜치 165건의 안전망을 판정하는데, 초판이 안전망을 **브랜치 이름 일치**로 봤다(같은 팁 sha 인데 이름이 달라 「안전망 없음」이 된 건이 있었다). 이름축을 sha 축으로 **고치면서** `git rev-list --all --remotes=origin` 을 썼다.
+- **반증:** `--all` 은 **로컬 ref 까지** 포함한다. 「원격에서 도달 가능한가」를 묻는데 로컬 브랜치 팁이 **자기 자신 때문에** 집합에 들어가 **165건 전부 「안전」**이 나왔다. 집합 크기 1,635 → `--all` 제거 후 **1,034**(601개가 가짜였다). 결함을 고친 커밋이 더 나쁜 결함을 심은 것이다.
+- **해결:** ⑴ **결과가 「전건 통과」로 나오면 그것이 단서다** — 유일한 경보가 「너무 좋아 보인다」였다. ⑵ 판별력 시험을 **판정 전에** 세워라: 음성(원격에 없는 커밋을 `git commit-tree` 로 만들어 「밖」 판정되는지) · 양성(`origin/main` 팁이 「안」 판정되는지). 이번엔 **고친 뒤에** 세웠고, 먼저 세웠으면 이 결함을 만들지 않았다. ⑶ 도달성·소속·포함을 묻는 술어는 **집합의 크기 변화**를 로그로 남겨라 — 1,635 → 1,034 라는 숫자가 없었으면 무엇이 달라졌는지 말할 수 없었다.
+- **1차 누적.** ★[LESSON-090]「음성 대조가 「도달」을 안 보면 fail-open 이다」와 같은 뿌리이되, 여기서는 대조가 아니라 **판정 술어 자체**가 항진명제였다. [LESSON-101] 이 「빈 입력이 기대한 답을 낸다」면 이것은 **「전체 입력이 기대한 답을 낸다」**이다.
+
+### LESSON-106 — **복구 안전망은 「무엇을 되살리는지」로 판정해라 — PR 복원 버튼은 브랜치 팁이 아니라 PR head sha 를 되살린다** (1/3)
+
+- **상황:** 같은 회차. 원격 브랜치 267건 삭제의 안전 근거는 「PR 이 있으므로 GitHub 이 sha 를 보관하고 복원 버튼이 살아 있다」였다(프롬프트가 준 전제). 브랜치명 ↔ PR head ref 로 맞추면 후보 276건이 전부 그 근거를 갖는 것처럼 보였다.
+- **반증:** 복원 버튼이 되살리는 것은 **PR 의 `head.sha`** 이지 브랜치의 **현재 팁**이 아니다. 팁 sha ↔ PR head sha 를 맞추자 **9건이 불일치**했다 — PR 이 머지된 뒤 커밋이 더 쌓인 브랜치들이고, 지웠으면 그 커밋들이 안전망 밖에서 사라졌다. 이름축만 썼으면 못 봤다. 뒤이어 codex 적대 리뷰가 「그 9건의 커밋 **전부**가 밖」이라는 내 문장도 반증했다(실제 72개 중 **62개**).
+- **해결:** ⑴ 안전망은 **이름이 아니라 해시**로 판정해라 — 이름이 다른데 sha 가 같은 짝도 있었다. ⑵ 「안전망이 있다」를 쓰기 전에 **그 안전망이 정확히 무엇을 되살리는지** 한 문장으로 적어라. 적을 수 없으면 아직 모르는 것이다. ⑶ 안전망 확인은 **표본이 아니라 전건**으로 — 표본 5/5 로 넘어갔다가 지적받고 121건 전건 조회했다(121/121 OK). ⑷ 되돌리기가 어려운 삭제는 **삭제 전에** 복구 원장(대상·sha·근거)을 파일로 남겨라.
+- **1차 누적.** ★[LESSON-094]「「보호해야 한다」는 규칙은 보호 대상이 실제로 결합돼 있는지부터 확인해라」의 파괴적 작업판이다. 그때는 보호 대상이 결합돼 있지 않았고, 여기서는 **보호 수단이 내가 생각한 것을 보호하지 않았다.**
 
 ---
 

@@ -25,16 +25,16 @@
 ### ⓵ 목표 · 왜 지금 · 비목표
 
 ~~**한 줄 = 원장이 6곳에서 거짓을 말하고 있었고 … ⓪ 표에 게이트를 박아 루프를 끊는다.**~~
-→ **2026-08-11 ledger-truth 가 그 회차를 닫았고, 2026-08-12 surface-demo-pack 이 그 다음을 닫았다**
-(PR **#605**·**#606**·**#607** 전부 머지, main `69babb33`).
-전문 = [`dev-log/2026-08-12-surface-demo-pack.md`](dev-log/2026-08-12-surface-demo-pack.md) ·
-시각 리포트 = `docs/reports/2026-08-12-surface-demo-pack.html` (★`.gitignore` — 로컬 산출물). ★**G6 적대 리뷰 12건 전건 처분** — 수리 4(그중 **P1**: 공개 e2e 스위트가 정체성 프로브를 안 탔다) · BL 신설 4([BL-710]~[BL-713]) · [BL-709] 독립 확인 1. 판별력 실측 = `:3003` 겨냥 시 `받은 status: 200, 실제 title 원문: "Nexus Admin"` — **status 만으로는 통과했다.**
+→ **2026-08-12 까지 세 회차가 닫혔다** — ledger-truth(08-11) · surface-demo-pack(PR #605~#607,
+[LESSON-102]·[BL-707]) · **branch-debris**(PR **#611**·**#612**, main `610306a5`).
+전문 = [`dev-log/2026-08-12-branch-debris.md`](dev-log/2026-08-12-branch-debris.md) ·
+[`dev-log/2026-08-12-surface-demo-pack.md`](dev-log/2026-08-12-surface-demo-pack.md).
 
-★**2026-08-12 가 남기는 한 줄 = 「테스트가 자기 실패 원인으로 지목한 것은 관측이 아니라 추측일 수
-있다」.** authed 12건이 `make seed` 를 지시했는데 `make seed` 는 **전건 no-op** 이었고, 진짜 원인은
-**BE 가 `:8100` 에 없었던 것**이다(브라우저 콘솔 `ERR_CONNECTION_REFUSED` **109건**). 짝을 맞추자
-authed **84/84** · 콘솔 **109 → 0**. **빈 화면에는 「없는 것」과 「못 가져오는 것」 둘이 있고 화면에서
-둘은 구분되지 않는다** → [LESSON-102] · [BL-707].
+★**2026-08-12 가 남기는 한 줄 = 「세는 것도 「안전하다」고 말하는 것도 내 판정기가 먼저 틀린다」.**
+브랜치 정리에서 분모(`git branch -r` 이 `origin/HEAD` 를 `origin` 으로 축약 → 291 이 실제 **290**) ·
+안전망 축(이름 → **sha**. 복원 버튼은 브랜치 팁이 아니라 **PR head sha** 를 되살린다) ·
+도달성 집합(`rev-list --all --remotes` 의 `--all` 이 로컬 ref 를 삼켜 **전건 「안전」인 항진명제**)이
+각각 틀렸고 **셋 다 삭제 전에** 잡혔다(→[LESSON-105]·[LESSON-106] · `gates-and-traps.md` §git). 결과 = 원격 290→23 · 로컬 177→51 · 보류 62건은 [BL-715].
 
 **다음 회차의 목표는 ⓪ 에서 고른다** — 손으로 후보를 얹지 마라(`docs-audit` 의 ⓪ 표 정체성 축이
 집행한다). 살아 있는 행은 `bash scripts/bl-audit.sh --list ACTIVE` ∪ (`PARTIAL` ∧ 도래)다.
