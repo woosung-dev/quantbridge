@@ -131,7 +131,7 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL
     ? undefined
     : {
-        command: `pnpm dev -- --port ${fePort}`,
+        command: `pnpm dev --port ${fePort}`,
         url: defaultBaseURL,
         reuseExistingServer: !isCI,
         timeout: isCI ? 240_000 : 120_000,
