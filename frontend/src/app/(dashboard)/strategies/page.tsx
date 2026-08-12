@@ -11,6 +11,7 @@ import {
 import { listStrategies } from "@/features/strategy/api";
 import { strategyKeys } from "@/features/strategy/query-keys";
 import type { StrategyListQuery } from "@/features/strategy/schemas";
+import { resolveStrategySort } from "@/features/strategy/sort";
 import { StrategyList } from "./_components/strategy-list";
 
 export const metadata: Metadata = {
@@ -25,21 +26,28 @@ function makePrefetchListFetcher(query: StrategyListQuery, token: string) {
   return () => listStrategies(query, token);
 }
 
-export default async function StrategiesPage() {
+export default async function StrategiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   // C 이식(screen-06) — parse_status 필터는 client-side(현재 페이지 한정)라 서버 쿼리는
   // 페이지네이션 고정값만 쓴다.
   //
-  // ★2026-08-12 주의 — 아래 값은 **기본 정렬에서만** client hook 의 queryKey 와 일치한다.
-  //   [BL-430] 이 정렬을 URL 스칼라(`order_by`/`order`)로 옮겼는데 이 Server Component 는
-  //   `searchParams` 를 읽지 않으므로, `/strategies?order_by=sharpe_ratio` 로 진입하면
-  //   prefetch 가 **빗나가고**(서버 작업이 버려진다) 클라이언트가 왕복을 한 번 더 한다.
-  //   기능은 옳고(데이터는 refetch 로 맞는다) 비용만 든다 — 수리는 [BL-709].
+  // URL 정렬은 배열 파라미터의 첫 값만 사용한 뒤 resolveStrategySort로 정규화한다.
+  // 이 결과를 query와 queryKey에 함께 사용해 client의 URL 스칼라 query와 키를 맞춘다.
+  const params = await searchParams;
+  const orderByParam = Array.isArray(params.order_by)
+    ? params.order_by[0]
+    : params.order_by;
+  const orderParam = Array.isArray(params.order) ? params.order[0] : params.order;
+  const sort = resolveStrategySort(orderByParam, orderParam);
+
   const query: StrategyListQuery = {
     limit: PAGE_SIZE,
     offset: 0,
     is_archived: false,
-    order_by: "updated_at",
-    order: "desc",
+    ...sort,
   };
 
   const queryClient = new QueryClient();

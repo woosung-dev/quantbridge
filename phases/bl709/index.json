@@ -28,7 +28,10 @@
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && grep -q 'StrategiesPage' 'src/app/(dashboard)/strategies/page.tsx' && ! grep -q 'order_by: \"updated_at\"' 'src/app/(dashboard)/strategies/page.tsx'",
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm test",
         "cd \"$(git rev-parse --show-toplevel)\" && test -z \"$(git diff main --name-only -- 'frontend/src/app/(dashboard)/strategies/_components')\""
-      ]
+      ],
+      "started_at": "2026-08-12T23:30:45+0900",
+      "status": "completed",
+      "summary": "배열형 order_by/order는 첫 값을 사용하고 resolveStrategySort로 화이트리스트 밖 입력을 기본값으로 정규화했으며, 주석은 이 결과를 query·queryKey에 함께 쓰는 원리를 설명하고 client의 limit=20/offset=0/is_archived=false/order_by/order query와 대조해 일치를 확인했다."
     },
     {
       "step": 3,
