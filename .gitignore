@@ -114,3 +114,6 @@ docs/reports/*.html
 # `make db-snapshot` 산출물. 개발 DB 덤프에는 암호화된 거래소 API 키가 들어 있다 —
 # 절대 커밋하지 않는다.
 .backups/
+
+# 데모 리허설 스크린샷 (G4 산출물 — 재생성 가능, 바이너리)
+frontend/e2e/.demo-shots/

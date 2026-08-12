@@ -27,7 +27,13 @@ function makePrefetchListFetcher(query: StrategyListQuery, token: string) {
 
 export default async function StrategiesPage() {
   // C 이식(screen-06) — parse_status 필터는 client-side(현재 페이지 한정)라 서버 쿼리는
-  // 페이지네이션 고정값만 쓴다. client hook(useStrategies)과 동일한 queryKey 를 위해 같은 query.
+  // 페이지네이션 고정값만 쓴다.
+  //
+  // ★2026-08-12 주의 — 아래 값은 **기본 정렬에서만** client hook 의 queryKey 와 일치한다.
+  //   [BL-430] 이 정렬을 URL 스칼라(`order_by`/`order`)로 옮겼는데 이 Server Component 는
+  //   `searchParams` 를 읽지 않으므로, `/strategies?order_by=sharpe_ratio` 로 진입하면
+  //   prefetch 가 **빗나가고**(서버 작업이 버려진다) 클라이언트가 왕복을 한 번 더 한다.
+  //   기능은 옳고(데이터는 refetch 로 맞는다) 비용만 든다 — 수리는 [BL-709].
   const query: StrategyListQuery = {
     limit: PAGE_SIZE,
     offset: 0,

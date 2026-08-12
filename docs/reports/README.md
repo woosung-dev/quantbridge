@@ -5,17 +5,18 @@
 
 ## 생성 대상
 
-| 파일 / 디렉토리                                                                                                | 일자         | 주제                                                  | 형식    |
-| -------------------------------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------- | ------- |
-| [`_template-h1-dogfood-retrospective.html`](./_template-h1-dogfood-retrospective.html)                         | template     | H1 dogfood 회고 dashboard 템플릿 (재사용)             | HTML    |
-| `2026-04-19-sprint-bcd-autonomous-retrospective.html` | 2026-04-19 | Sprint B/C/D 자율 병렬 retro (PR #29/#30/#31) | HTML |
-| `2026-04-19-sprint-pipeline-skills-design.html` | 2026-04-19 | Sprint pipeline skill 설계 dashboard | HTML |
-| `2026-04-20-autonomous-depth-chain-design.html` | 2026-04-20 | autonomous depth chain 디자인 (FE Polish Bundle 패턴) | HTML |
-| `2026-04-20-autonomous-depth-sprint-design.html` | 2026-04-20 | autonomous depth sprint 디자인 | HTML |
-| `2026-04-21-h1-closing-status-dashboard.html` | 2026-04-21 | H1 클로징 상태 dashboard | HTML |
-| `2026-04-22-dogfood-start-dashboard.html` | 2026-04-22 | testnet dogfood 시작 dashboard | HTML |
-| `session-2026-04-18-sprint-8a-tier0.html` | 2026-04-18 | Sprint 8a Tier-0 session (pine_v2 foundation) | HTML |
-| [`auto-dogfood/`](./auto-dogfood/)                                                                             | 2026-05-03 ~ | 자동 dogfood 일별 리포트 (HTML + JSON)                | sub-dir |
+| 파일 / 디렉토리                                                                        | 일자         | 주제                                                  | 형식    |
+| -------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------- | ------- |
+| [`_template-h1-dogfood-retrospective.html`](./_template-h1-dogfood-retrospective.html) | template     | H1 dogfood 회고 dashboard 템플릿 (재사용)             | HTML    |
+| `2026-04-19-sprint-bcd-autonomous-retrospective.html`                                  | 2026-04-19   | Sprint B/C/D 자율 병렬 retro (PR #29/#30/#31)         | HTML    |
+| `2026-04-19-sprint-pipeline-skills-design.html`                                        | 2026-04-19   | Sprint pipeline skill 설계 dashboard                  | HTML    |
+| `2026-04-20-autonomous-depth-chain-design.html`                                        | 2026-04-20   | autonomous depth chain 디자인 (FE Polish Bundle 패턴) | HTML    |
+| `2026-04-20-autonomous-depth-sprint-design.html`                                       | 2026-04-20   | autonomous depth sprint 디자인                        | HTML    |
+| `2026-04-21-h1-closing-status-dashboard.html`                                          | 2026-04-21   | H1 클로징 상태 dashboard                              | HTML    |
+| `2026-04-22-dogfood-start-dashboard.html`                                              | 2026-04-22   | testnet dogfood 시작 dashboard                        | HTML    |
+| `session-2026-04-18-sprint-8a-tier0.html`                                              | 2026-04-18   | Sprint 8a Tier-0 session (pine_v2 foundation)         | HTML    |
+| [`2026-08-12-surface-demo-pack.html`](./2026-08-12-surface-demo-pack.html)             | 2026-08-12   | surface-demo-pack 종단 데모 리허설 + 반증 6건 회고    | HTML    |
+| [`auto-dogfood/`](./auto-dogfood/)                                                     | 2026-05-03 ~ | 자동 dogfood 일별 리포트 (HTML + JSON)                | sub-dir |
 
 ### `auto-dogfood/` 자동 일별 리포트
 

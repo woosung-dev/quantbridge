@@ -707,6 +707,8 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-655](#bl-655) | `dedupe_accounts_by_exchange_uid` 는 **쓰기 가능한 형제 행이 둘이면** 주문을 누락한다 — 스윕이 대표 `account.id` 로만 매칭·backfill 하므로(`trading.py:1949`·`:1987`·`:2027`) 버려진 형제에 달린 주문의 청산이 `unknown` 이 되고 `realized_pnl` 이 미동기화된다. ★**현재 데이터에선 발화하지 않는다** — 실측 형제 2행 중 하나가 `read_only=t` 라 대표 선택 규칙 ⑵ 가 쓰기 가능한 행을 고른다. 막는 **DB 제약이 없다**는 것이 위험의 실체다                                                                                                                                                                                                                                                                                                                                                       | 같은 `exchange_uid` 에 쓰기 가능한 행이 2개 생기면 / 실자금 전환 전                                             | S            | 2026-08-08 soak-mortality-repair (codex challenge P2)        |
 | [BL-656](#bl-656) | ✅ **⓿ 가 `soak-stack.sh ps`(신설, DB 무접촉)로 갈래를 고른다** — 완전 down 이면 **조회보다 먼저** `pin → up` + ⑷·덤프 건너뛰기. red→green: 같은 가짜 트리에서 `rc=2`·스택 호출 **0건** → `rc=0`·**`ps pin up`**. ★★★⓿ 를 ⑴ 앞에 뒀다가 red 에 잡혔다 — 거기선 원장 조회가 먼저 죽어 손으로 `--strategy-id` 를 줘야 한다(= 없애려던 손 절차). ★★★**결함 ①은 회귀해 있었다** — 「정적 카운트 0건으로 동결」이라 적었지만 **그 카운트를 도는 게이트가 없었다.** 신설 `soak-restart-test.sh`(14 단언 · 오라클 = 호출 순서)를 `final-gates.sh` 에 붙였다. 변이 4/4                                                                                                                                                                                                                                   | 다음 소크 재기동 시                                                                                             | S            | 2026-08-08 soak-mortality-repair (P7)                        |
 | [BL-657](#bl-657) | ✅ **게이트가 어느 DB 를 봤는지 헤더 한 줄로 찍는다** — `대상: <컨테이너> <host:port>/<dbname> · docker <endpoint> · 실행 <hostname> · 분류기 <host:port/db>`. ★★**BL 본문의 「`DATABASE_URL` 을 따라간다」는 C1~C5 에 대해 거짓** — `_q()` 는 `docker exec ${DB_CONTAINER} psql` 이라 갈리는 축은 **docker 데몬+컨테이너**다. `DATABASE_URL` 은 분류기 전용이지만 `unverified_hours` 로 C1 을 깎으므로 함께 찍는다(한쪽만 찍으면 새 fail-open — 실측으로 이 워크트리는 둘이 어긋난다). 변이 2/2 헤더 추종 · 음성 대조 판정 비트 전건 불변(벽시계만 차이) · 비밀번호 누출 0                                                                                                                                                                                                                      | 다음 게이트 실행 시 / 게이트 숫자를 인용하기 전                                                                 | S            | 2026-08-08 session-handoff                                   |
+| [BL-707](#bl-707) | ★**authed e2e 실패 메시지가 「API 도달 불가」를 「데이터 없음」으로 오지목한다** — 12건이 `make seed`·「시딩 필요」를 지시했지만 실제 원인은 BE 가 `:8100` 에 없었던 것이고, `make seed` 는 전건 「이미 존재」였다. **「데이터가 없다」와 「데이터를 못 가져온다」는 화면에서 똑같이 비어 보인다.** 처방 = 그 단정들 앞에 **API 도달성 프로브**(1회 fetch + 콘솔 `ERR_CONNECTION_REFUSED` 카운트)를 두고, 도달 불가면 시딩이 아니라 **그 사실**을 말하게 한다                                                                                                                                                                                                                                                                                                                                    | authed e2e 를 다시 손댈 때 / 같은 오진이 재발할 때                                                              | S            | 2026-08-12 surface-demo-pack                                 |
+| [BL-708](#bl-708) | ★**`design-canon-calibration` 의 대비 측정이 회차마다 다른 파일에서 실패한다** — 3회 실행의 실패 집합이 `{screen-10}` → `{screen-08, screen-15}` → `{}` 로 **서로 겹치지 않는다**(실측값 `5.41:1` vs `5.82 필요`, 계산 폰트 10.08px). 「하드 실패 0」 계약이 **무증거로 새는 창**이 있다는 뜻이다. 처방 = 대비 계산의 비결정 원천(안티에일리어싱·소수 폰트 크기 반올림)을 고정하거나, 문턱 근처 값을 **WARN** 으로 내리고 하드 실패는 명확한 위반만 잡게 한다                                                                                                                                                                                                                                                                                                                                    | 캐논 감사 코어를 손댈 때 / 이 플레이크로 게이트가 막힐 때                                                       | S            | 2026-08-12 surface-demo-pack                                 |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -1518,6 +1520,116 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 
 ---
 
+### BL-707
+
+**Title:** authed e2e 실패 메시지가 「API 도달 불가」를 「데이터 없음」으로 오지목한다
+**Category:** 테스트 / 진단 품질
+**Priority:** P2
+**Trigger:** authed e2e 를 다시 손댈 때 / 같은 오진이 재발할 때
+**Est:** S
+**상태:** ⬜ Open — 처방 미착수. 2026-08-12 surface-demo-pack 에서 실측으로 등재했고, 이 회차가 그 오진에 실제로 걸렸다(원인 확정까지 `make seed` 실행 1회 + 브라우저 콘솔 판독 1회).
+**트리거 판정:** 도래 — 조건절이 없다. 발견 회차가 곧 착수 가능 시점이고 대상 파일도 확정돼 있다 (2026-08-12 surface-demo-pack)
+**출처:** 2026-08-12 surface-demo-pack (authed 12건 red 의 귀속을 정하다 발견)
+
+**원인 / 영향:** `pnpm e2e:authed` 12건이 이렇게 실패했다:
+
+```
+Error: /trading 데이터 전제 미충족 — 등록된 거래소 계정이 없다. /trading 이 빈 상태만 그린다 (`make seed`)
+Error: 완료된 백테스트 상세 링크를 찾지 못했다 — 캐논 감사가 볼 원장이 없다 (`make seed`)
+Error: 완료 optimizer run 상세 링크를 찾지 못했다 — 완료 run 시딩 필요
+Error: 완료 상태 백테스트를 목록에서 찾지 못했다 (백엔드 8000 에 완료 백테스트 시딩 필요)
+```
+
+지시대로 `make seed` 를 돌렸더니 **전건 「이미 존재」**(전략 스킵 3 · 실행 스킵 6)였다. DB 실측도
+같았다 — 한 사용자가 전략 3 · **완료 백테스트 7** 을 소유하고 있었다.
+
+진짜 원인은 **백엔드가 `:8100` 에 없었던 것**이다. `make fe-isolated`(`:3100`)는
+`NEXT_PUBLIC_API_URL=:8100` 을 쓰는데 떠 있던 BE 는 `make be`(`:8000`)였다. 브라우저 콘솔에
+`ERR_CONNECTION_REFUSED` **109건**이 찍혀 있었고, `make be-isolated` 로 `:8100` 을 띄운 뒤
+**authed 84/84 green · 콘솔 error 109 → 0** 이 됐다.
+
+★**「데이터가 없다」와 「데이터를 못 가져온다」는 화면에서 똑같이 비어 보인다.** 단정문이 빈
+목록을 보고 원인을 **추측해서** 적으면, 그 추측이 다음 사람의 30분을 가져간다.
+
+**권장 접근:** 그 단정들 앞에 **API 도달성 프로브**를 둔다 — `NEXT_PUBLIC_API_URL` 로 1회 fetch
+하거나 콘솔의 `ERR_CONNECTION_REFUSED` 를 세고, 도달 불가면 **시딩이 아니라 그 사실**을 말한다
+(`API 도달 불가: <url> — BE 가 떠 있는지 확인해라 (make be-isolated)`). 도달 가능한데 비어 있을
+때만 시딩을 지목한다.
+
+**Risk:** 🟡 프로덕션 무해. 다음 세션의 오진 비용이 위험이다.
+
+---
+
+### BL-708
+
+**Title:** `design-canon-calibration` 의 대비 측정이 회차마다 다른 파일에서 실패한다 (「하드 실패 0」 계약이 새는 창)
+**Category:** 테스트 / 게이트 판별력
+**Priority:** P2
+**Trigger:** 캐논 감사 코어를 손댈 때 / 이 플레이크로 게이트가 막힐 때
+**Est:** S
+**상태:** ⬜ Open — 처방 미착수. 2026-08-12 surface-demo-pack 이 3회 실행으로 비결정성을 확정했다.
+**트리거 판정:** 도래 — 조건절이 없다. 재현 절차와 실측 3회가 이미 있다 (2026-08-12 surface-demo-pack)
+**출처:** 2026-08-12 surface-demo-pack (E2E 회차의 red 귀속을 정하다 발견)
+
+**원인 / 영향:** `frontend/e2e/design-canon-calibration.spec.ts:95` 의 「하드 실패 0」 단정이
+회차마다 **다른 캐논 파일**에서 깨진다. 같은 코드·같은 커밋에서 3회 실행한 실패 집합:
+
+| 회차 | 실패 파일                                                 |
+| ---- | --------------------------------------------------------- |
+| 1    | `screen-10-optimizer-detail.html`                         |
+| 2    | `screen-08-strategy-editor.html` · `screen-15-login.html` |
+| 3    | 없음 (22 passed)                                          |
+
+**세 집합이 서로 겹치지 않는다** ⇒ 코드의 성질이 아니다. 실패 값은 문턱 바로 아래다 —
+`canon 1440px 5.41:1 (5.82 필요) rgb(173, 50, 42) 10.08px "숏"`. 계산 폰트 크기가 **10.08px**
+같은 소수라 대비 판정이 렌더 타이밍·안티에일리어싱에 흔들린다. 테스트 자신이 그 가능성을 적어
+뒀다 — 「runtime-check.mjs 는 PASS 였으므로 이식된 감사 코어가 틀렸다」.
+
+★**위험의 방향이 둘 다다.** 거짓 red 는 게이트를 막아 회차를 태우고, 거짓 green 은 **「하드 실패
+0」을 무증거로 만든다.** 이 회차는 거짓 red 쪽을 밟았다.
+
+**권장 접근:** ⑴ 대비 계산의 비결정 원천을 고정한다(소수 폰트 크기 반올림 규칙·`deviceScaleFactor`
+고정·측정 전 `fonts.ready` 대기) 또는 ⑵ 문턱 ±0.5 이내는 **WARN** 으로 내리고 하드 실패는 명확한
+위반만 잡게 한다. ★어느 쪽이든 **같은 커밋에서 N회 반복 실행이 같은 답을 내는지**를 수용 기준으로
+둬라 — 이 BL 을 만든 것이 바로 그 반복이다.
+
+**Risk:** 🟡 프로덕션 무해. 게이트 신뢰도가 위험이다.
+
+---
+
+### BL-709
+
+**Title:** 전략 목록 RSC prefetch 가 URL 정렬을 안 읽어 정렬 링크마다 클라이언트 왕복이 하나 더 든다
+**Category:** Frontend / 성능 (RSC ↔ React Query 정합)
+**Priority:** P3
+**Trigger:** 전략 목록을 다시 손댈 때 / 정렬 링크 공유가 실사용될 때
+**Est:** S
+**상태:** ⬜ Open — 처방 미착수. 2026-08-12 surface-demo-pack 의 G5(FE 성능 패스)가 **자기 회차가 만든 것**으로 찾아 등재했다.
+**트리거 판정:** 도래 — 조건절이 없다. 원인·처방·파일이 확정돼 있다 (2026-08-12 surface-demo-pack)
+**출처:** 2026-08-12 surface-demo-pack G5 (`/vercel-react-best-practices` waterfall 축)
+
+**원인 / 영향:** [BL-430] 이 정렬을 **URL 스칼라**(`order_by`/`order`)로 옮겼고 client hook 의
+queryKey 가 그것을 포함한다. 그런데 `frontend/src/app/(dashboard)/strategies/page.tsx` 는
+Server Component 인데 **`searchParams` 를 받지 않고** `order_by: "updated_at"` · `order: "desc"` 를
+하드코딩해 `prefetchQuery` 한다.
+
+⇒ `/strategies?order_by=sharpe_ratio&order=desc` 로 진입하면(정렬 후 새로고침 · 링크 공유 · 뒤로가기)
+**서버가 한 번 조회한 결과가 버려지고** 클라이언트가 같은 목록을 다시 가져온다. 기능은 옳다 —
+데이터는 refetch 로 맞는다. **비용만 든다**(서버 쿼리 1회 낭비 + 첫 콘텐츠까지 왕복 1회 추가).
+
+★**이 회차가 만든 것이다.** 종전에는 정렬이 클라이언트 로컬이라 prefetch 가 **항상** 맞았다.
+그리고 그 파일의 주석이 「client hook 과 **동일한 queryKey** 를 위해 같은 query」라고 단정하고
+있었는데 그 문장이 정렬 URL 에서 거짓이 됐다 — 같은 회차에서 **주석만** 정정했다.
+
+**권장 접근:** `searchParams`(Next 16 은 **`Promise<>`** — `await` 필수)를 받아 화이트리스트로
+검증한 뒤 같은 query 로 prefetch 한다. ★**화이트리스트를 두 벌로 만들지 마라** — 지금
+`SORT_OPTIONS` 는 client 파일(`strategy-list.tsx`) 안에 있고 export 되지 않는다. `features/strategy/`
+로 올려 **1벌을 공유**해야 하고, 그러지 않으면 축을 추가할 때 서버·클라이언트가 갈린다.
+
+**Risk:** 🟢 정확성 문제는 없고 낭비만 있다.
+
+---
+
 ## P3 — Nice-to-have / 컨벤션 정합
 
 > 12 archived (BL-050/051/052/053/054/055/056/057/138/139/151/153). ~~**활성 P3 = 8**~~ ★**stale** — 2026-08-08 `bl-audit.sh` 실측 P3 ACTIVE **101**. 이 파일 헤더 규약대로 집계 수치는 여기 박지 말고 스크립트를 돌려라 (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen). ★2026-08-06 entry-set-divergence 강등 = BL-606/607/608/609.
@@ -1574,6 +1686,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 | [BL-658](#bl-658) | `decisions/013-optimizer-strategy.md` 소급 작성 — ADR-013 은 결번인데 **실체는 삭제된 dev-log 로 git 에 살아 있다**(`94da86b1^`, 24,703B). [BL-504] 는 인용을 tombstone 경로로 돌려 닫았고, 남은 것은 **그 실체를 `decisions/` 로 승격**하는 일이다. 소급 작성은 결정을 새로 만드는 게 아니라 이미 실행된 결정을 기록하는 것이므로 **없는 근거를 지어내지 말고** `optimizer/executors/` 코드와 대조해야 한다                                                                                                                                                                                                                                                                          | Optimizer 설계를 실제로 바꿀 때 (알고리즘 교체 · scikit-optimize 이탈 · GA 파라미터 변경)                         | M         | 2026-08-09 backlog-sweep ([BL-504] 분리)               |
 | [BL-660](#bl-660) | `regen_golden.py --confirm` 산출과 커밋본의 **포맷이 구조적으로 어긋난다** — pre-commit `prettier --write` 가 배열을 한 줄로 접고 스크립트는 `json.dumps(indent=2)` 로 원소당 한 줄을 쓴다. 그래서 정본 갱신 의도로 `--confirm` 을 돌리면 diff 에 **의미 없는 재포맷이 항상 섞인다**(실측 `+29/-2`). ★`--check` 는 **파싱된 값**을 비교하므로 이 어긋남을 구조적으로 못 본다                                                                                                                                                                                                                                                                                                          | 골든을 의도적으로 갱신할 때 / `regen_golden.py` 를 CI 에 넣을 때                                                  | XS        | 2026-08-09 backlog-sweep-4lane (W2, BL-627 부수)       |
 | [BL-659](#bl-659) | `design-canon-calibration.spec.ts` 의 `screen-06-strategies-list.html` 케이스가 **간헐 실패**한다 — 2026-08-09 W3 에서 7회 중 2회. 같은 커밋에서 연속 3회는 42/42 green 이고 `git stash` 로 내 diff 를 걷어내도 통과/실패를 오갔다 ⇒ **코드 회귀가 아니다**. ★위험은 실패 자체가 아니라 **다음 회차가 이걸 자기 회귀로 오독하는 것**                                                                                                                                                                                                                                                                                                                                                  | 디자인 캐논 게이트가 빨개졌을 때 / 캐논 스윕 착수 시                                                              | XS        | 2026-08-09 backlog-sweep-4lane W3                      |
+| [BL-709](#bl-709) | ★**전략 목록 RSC prefetch 가 URL 정렬을 안 읽어 정렬 링크마다 왕복이 하나 더 든다** — [BL-430] 이 정렬을 URL 스칼라로 옮겼는데 `strategies/page.tsx` 는 `searchParams` 를 읽지 않고 `order_by:"updated_at"` 을 하드코딩해 prefetch 한다. `/strategies?order_by=sharpe_ratio` 진입 시 **서버 prefetch 가 버려지고** 클라이언트가 refetch 한다(기능은 옳고 비용만 든다). 처방 = `searchParams`(Next 16 은 `Promise<>`) 를 await 해 화이트리스트 검증 후 같은 query 로 prefetch — 화이트리스트를 `features/strategy/` 로 올려 client 와 **1벌 공유**해야 한다                                                                                                                            | 전략 목록을 다시 손댈 때 / 정렬 링크 공유가 실사용될 때                                                           | S         | 2026-08-12 surface-demo-pack (G5)                      |
 
 ### BL-491
 
