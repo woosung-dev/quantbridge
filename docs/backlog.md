@@ -9997,10 +9997,17 @@ stderr 경고)와 merge-base 실패(rc=3 abort)를 가른다. 부수 실측 2건
 원격에서 도달할 수 없고 어떤 PR 의 head sha 도 아니다. 즉 **이 랩톱에만 있다.** 원격 보류 23건
 (안전망 밖 142)보다 회수 불가능성이 크다.
 
-★**안전망 가설을 실증했다** — 「PR 이 있으면 브랜치를 지워도 GitHub 이 sha 를 보관한다」는
-프롬프트가 준 전제였다. 삭제한 267건에서 표본 5건을 뽑아 `gh api repos/:o/:r/commits/<sha>` 를
-쳤더니 **5/5 가 여전히 200 으로 sha 를 돌려준다**. 음성 대조로 가짜 sha(`000…0`)는 거부되므로
-이 확인은 판별력이 있다.
+★**안전망 가설을 실증했다 — 표본이 아니라 전건이다.** 「PR 이 있으면 브랜치를 지워도 GitHub 이
+sha 를 보관한다」는 프롬프트가 준 전제였다. 삭제한 267건에서 표본 5건을 뽑아
+`gh api repos/:o/:r/commits/<sha>` 를 쳤더니 5/5 가 sha 를 돌려줬다. **표본 5건은 121건을 입증하지
+않는다**(2026-08-12 codex 적대 리뷰의 지적) — 그래서 `-D` 로 지운 로컬 121건의 팁 sha를 **전건**
+조회했고 **121/121 OK, MISS 0** 이다. 음성 대조로 가짜 sha(`000…0`)는 `MISS`, `origin/main` 팁은
+`OK` 이므로 이 확인은 판별력이 있다.
+
+★**remote-tracking ref 가 stale 이면 이 판정은 무너진다** — `git rev-list --remotes=origin` 은
+**로컬의** `refs/remotes/origin/*` 을 읽는다. 지우기 전에 라이브 원격과 대조해야 한다. 이번 회차는
+`git ls-remote --heads origin` 과 대조해 **24개 브랜치가 sha 까지 완전 일치**함을 확인했다(차이는
+`origin/HEAD` 한 줄뿐). 가짜 stale ref 를 심으면 이 대조가 잡는다(판별력 확인).
 
 ★**D 9건이 이 회차의 발견이다.** 프롬프트는 「A·B 는 PR 이 있으므로 GitHub 이 sha 를 보관하고 복원
 버튼이 살아 있다」를 삭제의 안전 근거로 세웠다. 그런데 복원 버튼이 되살리는 것은 **PR 의 head sha**
@@ -10019,37 +10026,43 @@ PR head ref)만으로 삭제했으면 못 봤고, **해시축(팁 sha ↔ PR hea
 대조해야 한다.
 
 **잔재 23건 원장** — 미머지 = `git rev-list --count main..origin/<브랜치>` (위상적 수치다. squash 머지로
-내용은 이미 반영됐을 수 있다). **안전망 밖** = 그 커밋 중 어떤 PR 의 `head.sha` 도 아닌 것의 수 —
-PR 복원 버튼이 되살릴 수 없는 커밋이다 (PR head sha 집합 501개와 전건 대조).
+내용은 이미 반영됐을 수 있다). **PR 복원망 밖** = 그 커밋 중 어떤 PR 의 `head.sha` 도 아닌 것의 수
+(PR head sha 집합 501개와 전건 대조).
 
-| 브랜치                                 | 팁 sha     | 마지막 커밋 | 미머지 | 안전망 밖 | 분류 |
-| -------------------------------------- | ---------- | ----------- | -----: | --------: | ---- |
-| `feat/tpsl-phase3-c-fe`                | `3b8e589c` | 2026-06-26  |      1 |         1 | C    |
-| `feat/h2s11-a-geo-block`               | `a29067e0` | 2026-04-25  |      1 |         1 | C    |
-| `feat/h2s11-b-legal-temporary`         | `da18eb81` | 2026-04-25  |      2 |         2 | C    |
-| `feat/h2s11-c-waitlist`                | `aae3b5e7` | 2026-04-25  |      6 |         6 | C    |
-| `feat/h2s11-d-onboarding`              | `5cd93921` | 2026-04-25  |      5 |         5 | C    |
-| `feat/h2s11-e-service-lock`            | `76439a1a` | 2026-04-25  |     12 |        12 | C    |
-| `feat/h2s11-f-slowapi-minor`           | `739369ba` | 2026-04-25  |     12 |        12 | C    |
-| `feat/h2s11-g-error-class-allowlist`   | `0fb35351` | 2026-04-25  |     12 |        12 | C    |
-| `feat/h2s12-a-slack`                   | `13e7856f` | 2026-04-25  |      3 |         3 | C    |
-| `feat/h2s12-c-bybit-ws`                | `65bc86af` | 2026-04-25  |      9 |         9 | C    |
-| `feat/h2s9-frontend-mcwfa`             | `6c2b7ea7` | 2026-04-24  |      4 |         4 | C    |
-| `feat/h2s9-observability`              | `3452af9d` | 2026-04-24  |      6 |         6 | C    |
-| `feat/h2s9-stress-api`                 | `85ba39c2` | 2026-04-24  |      4 |         4 | C    |
-| `feat/h2s9-stress-engine`              | `648c578a` | 2026-04-24  |      3 |         3 | C    |
-| `worktree-feat-deploy`                 | `611442fb` | 2026-08-07  |      3 |         3 | D    |
-| `docs/post-503-sync`                   | `0f4061d0` | 2026-07-30  |      2 |         1 | D    |
-| `feat/live-observability`              | `7c6e8006` | 2026-07-28  |      2 |         1 | D    |
-| `stage/refactor-audit-tier1`           | `f751f200` | 2026-05-13  |      2 |         1 | D    |
-| `chore/sprint56-post-merge-followup`   | `79d5b8e8` | 2026-05-11  |      2 |         1 | D    |
-| `stage/h2-sprint26-signal`             | `cb8e62c8` | 2026-05-04  |      9 |         7 | D    |
-| `stage/h2-sprint27-beta-prereq-hotfix` | `54b99598` | 2026-05-04  |      3 |         2 | D    |
-| `stage/h2-sprint27-dogfood-day1`       | `12ecc15b` | 2026-05-04  |      5 |         4 | D    |
-| `feat/sprint6-trading-impl-v2`         | `170e9872` | 2026-04-17  |     44 |        42 | D    |
+★**이 23건은 지금 안전하다** — 원격 ref 가 살아 있으니 커밋도 원격에서 도달 가능하다. 아래의
+「PR 복원망 밖」은 **그 원격 브랜치까지 지웠을 때** 노출되는 수이지 현재 상태가 아니다.
+로컬 축의 「안전망 밖」과는 **다른 기준**이다(그쪽은 원격 도달성까지 포함해 이미 밖이다).
+2026-08-12 codex 적대 리뷰가 두 수치를 같은 이름으로 부른 것을 지적했고, 이 문단이 그 정정이다.
 
-합계: C 미머지 80 / 안전망 밖 **80** (PR 이 없으니 전부 밖) · D 미머지 72 / 안전망 밖 **62**
-(나머지 10개는 다른 PR 의 head sha 라 그 PR 의 복원 버튼이 되살린다). 총 152 중 **142** 가 밖이다.
+| 브랜치                                 | 팁 sha     | 마지막 커밋 | 미머지 | PR복원망 밖 | 분류 |
+| -------------------------------------- | ---------- | ----------- | -----: | ----------: | ---- |
+| `feat/tpsl-phase3-c-fe`                | `3b8e589c` | 2026-06-26  |      1 |           1 | C    |
+| `feat/h2s11-a-geo-block`               | `a29067e0` | 2026-04-25  |      1 |           1 | C    |
+| `feat/h2s11-b-legal-temporary`         | `da18eb81` | 2026-04-25  |      2 |           2 | C    |
+| `feat/h2s11-c-waitlist`                | `aae3b5e7` | 2026-04-25  |      6 |           6 | C    |
+| `feat/h2s11-d-onboarding`              | `5cd93921` | 2026-04-25  |      5 |           5 | C    |
+| `feat/h2s11-e-service-lock`            | `76439a1a` | 2026-04-25  |     12 |          12 | C    |
+| `feat/h2s11-f-slowapi-minor`           | `739369ba` | 2026-04-25  |     12 |          12 | C    |
+| `feat/h2s11-g-error-class-allowlist`   | `0fb35351` | 2026-04-25  |     12 |          12 | C    |
+| `feat/h2s12-a-slack`                   | `13e7856f` | 2026-04-25  |      3 |           3 | C    |
+| `feat/h2s12-c-bybit-ws`                | `65bc86af` | 2026-04-25  |      9 |           9 | C    |
+| `feat/h2s9-frontend-mcwfa`             | `6c2b7ea7` | 2026-04-24  |      4 |           4 | C    |
+| `feat/h2s9-observability`              | `3452af9d` | 2026-04-24  |      6 |           6 | C    |
+| `feat/h2s9-stress-api`                 | `85ba39c2` | 2026-04-24  |      4 |           4 | C    |
+| `feat/h2s9-stress-engine`              | `648c578a` | 2026-04-24  |      3 |           3 | C    |
+| `worktree-feat-deploy`                 | `611442fb` | 2026-08-07  |      3 |           3 | D    |
+| `docs/post-503-sync`                   | `0f4061d0` | 2026-07-30  |      2 |           1 | D    |
+| `feat/live-observability`              | `7c6e8006` | 2026-07-28  |      2 |           1 | D    |
+| `stage/refactor-audit-tier1`           | `f751f200` | 2026-05-13  |      2 |           1 | D    |
+| `chore/sprint56-post-merge-followup`   | `79d5b8e8` | 2026-05-11  |      2 |           1 | D    |
+| `stage/h2-sprint26-signal`             | `cb8e62c8` | 2026-05-04  |      9 |           7 | D    |
+| `stage/h2-sprint27-beta-prereq-hotfix` | `54b99598` | 2026-05-04  |      3 |           2 | D    |
+| `stage/h2-sprint27-dogfood-day1`       | `12ecc15b` | 2026-05-04  |      5 |           4 | D    |
+| `feat/sprint6-trading-impl-v2`         | `170e9872` | 2026-04-17  |     44 |          42 | D    |
+
+합계: C 미머지 80 / PR복원망 밖 **80** (PR 이 없으니 전부 밖) · D 미머지 72 / PR복원망 밖 **62**
+(나머지 10개는 다른 PR 의 head sha 라 그 PR 의 복원 버튼이 되살린다). 총 152 중 **142**.
+다시 말하지만 이 142 는 **원격 ref 까지 지웠을 때**의 노출분이다 — 지금은 원격이 안전망이다.
 
 C 14건 중 13건이 `feat/h2s9`~`h2s12` 계열이고 마지막 커밋이 2026-04-24~25 에 몰려 있다 — 한 회차가
 브랜치를 여러 개 끊어 놓고 PR 없이 접었을 가능성이 높다. `worktree-feat-deploy` 는 마지막 커밋이
@@ -10132,13 +10145,19 @@ C 14건 중 13건이 `feat/h2s9`~`h2s12` 계열이고 마지막 커밋이 2026-0
    그 뒤로는 원격 축 절차로 넘어간다
 4. 삭제 시 이 회차의 4겹 검증(빈 입력 가드 · 양성 대조 · 음성 대조 전건 교차 · 분할 완전성)을
    재사용하고, **판별력 시험을 먼저 세워라** — 이 회차의 안전망 집합이 항진명제였던 적이 있다
+5. 삭제 직전 **`git ls-remote --heads origin` 과 로컬 `refs/remotes/origin/*` 을 대조**해라.
+   `git rev-list --remotes=origin` 은 로컬 추적 ref 를 읽으므로 stale 이면 「원격에 있다」가
+   거짓이 된다. 대조 결과 차이가 `origin/HEAD` 한 줄뿐이어야 정상이다
+6. 안전망을 근거로 지울 때는 **후보 전건**의 sha 를 `gh api repos/:o/:r/commits/<sha>` 로 확인해라.
+   표본은 전건을 입증하지 않는다 (이번에 121/121 을 돌려 MISS 0 을 확인했다)
 
 **복구 근거**
 
 - 원격 267건의 브랜치명·팁 sha·PR 번호 → `.git/branch-debris-restore-20260812.tsv`
 - 로컬 126건의 브랜치명·팁 sha·안전망 종류 → `.git/local-debris-restore-20260812.tsv`
 - 둘 다 git 이 추적하지 않는 **로컬 사본**이다. 진짜 안전망은 GitHub 쪽이고, 삭제한 sha 를
-  GitHub 이 아직 서빙한다는 것은 표본 5/5 로 확인했다(위 「안전망 가설을 실증했다」 참조).
+  GitHub 이 아직 서빙한다는 것은 로컬 121건 **전건**(121/121 OK) + 원격 표본 5/5 로 확인했다
+  (위 「안전망 가설을 실증했다」 참조).
 
 **Risk:** 🟢 (잔재 23건은 `git branch -r` 가독성 말고는 아무것도 막지 않는다)
 
