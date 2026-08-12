@@ -125,7 +125,6 @@
 npm run build   # 컴파일 에러 없음
 npm test        # 테스트 통과
 ```
-````
 
 ## 검증 절차
 
@@ -143,15 +142,14 @@ npm test        # 테스트 통과
 
 - {이 step에서 하지 말아야 할 것. "X를 하지 마라. 이유: Y" 형식}
 - 기존 테스트를 깨뜨리지 마라
-
 ````
 
 ### E. 실행
 
 ```bash
 python3 scripts/execute.py {task-name}        # 순차 실행
-python3 scripts/execute.py {task-name} --push  # 실행 후 push
-````
+python3 scripts/execute.py {task-name} --push  # 실행 후 push  ← ★이 레포에서는 쓰지 마라
+```
 
 execute.py가 자동으로 처리하는 것:
 
