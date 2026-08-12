@@ -71,8 +71,12 @@ step 세션이 「다음 행동 = …」과 미해결 BL 수백 건을 손에 �
 
 ## 3. 실행
 
+★**러너(원본 §E)만으로는 못 돈다.** 그 앞의 **C(step 설계) · D(파일 생성)** 이 있어야
+`phases/<task>/` 가 생긴다. 그 절차와 **step 파일 템플릿·설계 원칙 7개**는
+[`workflow.md`](workflow.md) 에 **원문 그대로** 있다 — step 파일을 쓰기 전에 그걸 먼저 읽어라.
+
 ```bash
-python3 scripts/execute.py <phase-dir>          # 순차 실행
+python3 scripts/execute.py <phase-dir>          # 순차 실행 (원본 §E)
 ```
 
 - **`--push` 는 쓰지 마라.** 승인 없는 push 는 Golden Rule 위반이다.
