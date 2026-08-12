@@ -1,0 +1,58 @@
+{
+  "project": "QuantBridge",
+  "phase": "bl709",
+  "steps": [
+    {
+      "step": 1,
+      "name": "strategy-sort-module",
+      "status": "pending",
+      "ac": [
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm typecheck",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm lint",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && test -f src/features/strategy/sort.ts && grep -q 'export const STRATEGY_SORT_OPTIONS' src/features/strategy/sort.ts && grep -q 'export function resolveStrategySort' src/features/strategy/sort.ts",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm test src/features/strategy/__tests__/sort.test.ts",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm test",
+        "cd \"$(git rev-parse --show-toplevel)\" && test -z \"$(git diff main --name-only -- frontend/src/app)\""
+      ]
+    },
+    {
+      "step": 2,
+      "name": "page-prefetch-sort",
+      "status": "pending",
+      "ac": [
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm typecheck",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm lint",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && grep -qE 'searchParams: Promise<' 'src/app/(dashboard)/strategies/page.tsx' && grep -q 'await searchParams' 'src/app/(dashboard)/strategies/page.tsx' && grep -q 'resolveStrategySort' 'src/app/(dashboard)/strategies/page.tsx'",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && grep -q 'StrategiesPage' 'src/app/(dashboard)/strategies/page.tsx' && ! grep -q 'order_by: \"updated_at\"' 'src/app/(dashboard)/strategies/page.tsx'",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm test",
+        "cd \"$(git rev-parse --show-toplevel)\" && test -z \"$(git diff main --name-only -- 'frontend/src/app/(dashboard)/strategies/_components')\""
+      ]
+    },
+    {
+      "step": 3,
+      "name": "list-shared-whitelist",
+      "status": "pending",
+      "ac": [
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm typecheck",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm lint",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && grep -q 'features/strategy/sort' 'src/app/(dashboard)/strategies/_components/strategy-list.tsx' && ! grep -q 'const SORT_OPTIONS' 'src/app/(dashboard)/strategies/_components/strategy-list.tsx'",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && test \"$(grep -rn 'const STRATEGY_SORT_OPTIONS' src | wc -l | tr -d ' ')\" = \"1\"",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && grep -q 'data-testid=\"strategy-sort\"' 'src/app/(dashboard)/strategies/_components/strategy-list.tsx'",
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm test"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "bl709-ledger-closeout",
+      "status": "pending",
+      "ac": [
+        "cd \"$(git rev-parse --show-toplevel)\" && scripts/bl-audit.sh",
+        "cd \"$(git rev-parse --show-toplevel)\" && scripts/bl-audit.sh --list RESOLVED | grep -q 'BL-709'",
+        "cd \"$(git rev-parse --show-toplevel)\" && scripts/docs-audit.sh",
+        "cd \"$(git rev-parse --show-toplevel)\" && ! scripts/bl-audit.sh --list ACTIVE | grep -q 'BL-709' && ! scripts/bl-audit.sh --list DEFERRED | grep -q 'BL-709' && ! scripts/bl-audit.sh --list UNKNOWN | grep -q 'BL-709'",
+        "cd \"$(git rev-parse --show-toplevel)\" && test \"$(grep -c '다음 행동 =' docs/status.md)\" = \"13\"",
+        "cd \"$(git rev-parse --show-toplevel)\" && test \"$(git diff main --name-only -- frontend/ | LC_ALL=C sort | tr '\\n' '|')\" = \"frontend/src/app/(dashboard)/strategies/_components/strategy-list.tsx|frontend/src/app/(dashboard)/strategies/page.tsx|frontend/src/features/strategy/__tests__/sort.test.ts|frontend/src/features/strategy/sort.ts|\""
+      ]
+    }
+  ]
+}

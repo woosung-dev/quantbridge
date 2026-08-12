@@ -54,6 +54,7 @@ class StepExecutor:
     """Phase 디렉토리 안의 step들을 순차 실행하는 하네스."""
 
     MAX_RETRIES = 3
+    AC_TIMEOUT = 600  # AC 1건당 상한(초). 없으면 걸린 ac 하나가 러너를 영원히 잡는다.
     FEAT_MSG = "feat({phase}): step {num} — {name}"
     CHORE_MSG = "chore({phase}): step {num} output"
     TZ = timezone(timedelta(hours=9))
@@ -215,7 +216,10 @@ class StepExecutor:
             f"1. 이전 step에서 작성된 코드를 확인하고 일관성을 유지하라.\n"
             f"2. 이 step에 명시된 작업만 수행하라. 추가 기능이나 파일을 만들지 마라.\n"
             f"3. 기존 테스트를 깨뜨리지 마라.\n"
-            f"4. AC(Acceptance Criteria) 검증을 직접 실행하라.\n"
+            f"4. AC(Acceptance Criteria) 정본은 /phases/{self._phase_dir_name}/index.json 의 "
+            f"해당 step `ac` 배열이다. 각 원소를 bash -c 로 순서대로 직접 실행해 전건 rc=0 을 확인하라.\n"
+            f"   ★러너는 네 신고를 믿지 않고 같은 ac 를 **독립적으로 재실행**한다. 하나라도 rc≠0 이면 "
+            f"\"completed\" 는 취소되고 재시도로 돌아간다 — 자기신고만으로는 통과하지 못한다.\n"
             f"5. /phases/{self._phase_dir_name}/index.json의 해당 step status를 업데이트하라:\n"
             f"   - AC 통과 → \"completed\" + \"summary\" 필드에 이 step의 산출물을 한 줄로 요약\n"
             f"   - {self.MAX_RETRIES}회 수정 시도 후에도 실패 → \"error\" + \"error_message\" 기록\n"
@@ -236,7 +240,7 @@ class StepExecutor:
 
         prompt = preamble + step_file.read_text()
         result = subprocess.run(
-            ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json", prompt],
+            ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", prompt],
             cwd=self._root, capture_output=True, text=True, timeout=1800,
         )
 
@@ -288,6 +292,26 @@ class StepExecutor:
             index["created_at"] = self._stamp()
             self._write_json(self._index_file, index)
 
+    # --- AC 재실행 (B회차 개조) ---
+
+    def _run_acceptance(self, step: dict) -> Optional[str]:
+        """step 의 ac 배열을 순서대로 실행한다. 전건 rc=0 이면 None, 아니면 실패 리포트.
+
+        step 은 세션 호출 **전에** 읽힌 dict 이므로 세션이 자기 ac 를 지워도 무장 해제되지 않는다.
+        """
+        for cmd in step.get("ac", []):
+            try:
+                r = subprocess.run(
+                    ["bash", "-c", cmd], cwd=self._root,
+                    capture_output=True, text=True, timeout=self.AC_TIMEOUT,
+                )
+            except subprocess.TimeoutExpired:
+                return f"[AC TIMEOUT {self.AC_TIMEOUT}s] $ {cmd}"
+            if r.returncode != 0:
+                tail = (r.stdout + r.stderr)[-1200:]
+                return f"[AC FAILED rc={r.returncode}] $ {cmd}\n--- output tail ---\n{tail}"
+        return None
+
     # --- 실행 루프 ---
 
     def _execute_single_step(self, step: dict, guardrails: str) -> bool:
@@ -314,13 +338,24 @@ class StepExecutor:
             ts = self._stamp()
 
             if status == "completed":
+                ac_error = self._run_acceptance(step)
+                if ac_error is None:
+                    for s in index["steps"]:
+                        if s["step"] == step_num:
+                            s["completed_at"] = ts
+                    self._write_json(self._index_file, index)
+                    self._commit_step(step_num, step_name)
+                    print(f"  ✓ Step {step_num}: {step_name} [{elapsed}s]")
+                    return True
+
+                # 러너가 자기신고를 뒤집는다 — 이 회차의 헤드라인 지표.
+                print(f"  ↯ AC OVERTURN step {step_num}: 자기신고 completed 를 취소한다")
+                status = "error"
                 for s in index["steps"]:
                     if s["step"] == step_num:
-                        s["completed_at"] = ts
+                        s["status"] = "error"
+                        s["error_message"] = ac_error
                 self._write_json(self._index_file, index)
-                self._commit_step(step_num, step_name)
-                print(f"  ✓ Step {step_num}: {step_name} [{elapsed}s]")
-                return True
 
             if status == "blocked":
                 for s in index["steps"]:
