@@ -494,4 +494,4 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ### 즉시 이월 (다음 단계 후보)
 
 - [ ] **tasks 도메인 deepen** — 최대 미감사 **6,342 LOC** (2026-07-28 실측; `trading.py` 1,910 + `live_signal.py` 1,877, money-path Celery). ★기재됐던 4,098 은 **55% 낡은 값**이었다. Iron Law = 새 세션
-- [ ] **verification-loop 브랜치 종결** — `docs/verification-loop-2026-06-30` (origin 푸시됨, PR 미생성)
+- [x] **verification-loop 브랜치 종결 ✅ Resolved** — ~~`docs/verification-loop-2026-06-30` (origin 푸시됨, PR 미생성)~~ → **2026-08-12 branch-debris 점검에서 두 겹으로 거짓임이 드러났다.** ⑴ 「PR 미생성」이 거짓 — **PR #377 이 MERGED** 됐다(head `59b5ec60`). ⑵ 브랜치는 같은 회차가 원격·로컬 양쪽에서 삭제했다(팁 sha 가 그 PR 의 head 라 안전망 안). 이 항목은 **이미 끝난 일이 열린 채로 남아 있던 것**이다 — 로드맵 항목이 코드/`gh` 대조 없이 적히면 이렇게 사문이 된다
