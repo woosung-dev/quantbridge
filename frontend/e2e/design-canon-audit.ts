@@ -15,7 +15,7 @@
 // `?? 0` 폴백이 붙었다. parse() 는 정규식이 매치된 뒤에만 인덱싱하므로
 // 폴백이 실제로 쓰이는 경로는 없다 — 동작은 원본과 같다.
 
-import type { Browser, BrowserContextOptions, Page } from "@playwright/test";
+import type { Browser, BrowserContextOptions, Page, Request } from "@playwright/test";
 
 /** 원본 `runtime-check.mjs:10` 과 같은 4폭. */
 export const CANON_WIDTHS = [1440, 1024, 768, 375] as const;
@@ -115,6 +115,57 @@ export interface NavProbe {
   status: number | null;
   /** AUDIT 이 실제로 대비를 계산한 텍스트 요소 수 (dedupe 전 원시 관측량). */
   examined: number;
+  /**
+   * 그 폭에서 **실패한 서브리소스 요청 수**. 실패가 없으면 `0` — 항상 채운다([BL-708]).
+   *
+   * ★왜 이 축이 따로 필요한가 (2026-08-12 실측, [BL-708]).
+   *   `res.console` 은 `hardFailCount()` 의 5개 항 중 하나라 **콘솔 에러 1건 = 하드 실패 1건**
+   *   이다. 그런데 그 줄에 담기는 것은 `m.text()` 뿐이라
+   *   `768px Failed to load resource: the server responded with a status of 404 ()` 처럼
+   *   **어느 리소스인지가 빠진다.** 대상은 `file://` 프로토타입인데 `screen-*.html` 은
+   *   16~19줄에서 원격 폰트를 받으므로, 그 404 는 문서가 아니라 서브리소스일 수 있었다.
+   *   `status`/`examined` 는 문서 축이라 서브리소스가 죽어도 안 움직인다.
+   *
+   * ★독립 프로세스 전량 실행(22건) 6회로 관측한 것.
+   *   - 계측 **전** 3회: 3/3 초록. 19벌의 감사 출력이 `status` · `examined` · `canon` 까지
+   *     **전건 동일**했다 ⇒ 종전 리포트 표면에는 회차를 가르는 축이 하나도 없었다.
+   *   - 계측 **후** 3회: 초록 1 / red 2. red 2회는 **서로 다른 파일 · 서로 다른 폭**이다 —
+   *     `screen-06-strategies-list.html @1440px` · `light-01-report.html @768px`.
+   *   - 두 red 의 정체는 같다: `https://fonts.gstatic.com/s/archivo/v25/….woff2` **404**.
+   *     `fonts.gstatic.com` 은 `<link rel=preconnect>` 대상이면서 **woff2 본체 서빙처**다.
+   *     404 자체의 원인(레이트리밋인지 CDN 일시 오류인지)은 [확인 필요] — 이 step 범위 밖이다.
+   *   - ★같은 회차에서 `subresourceFail=2` 인데 `console=1` 이었다. **콘솔 축은 서브리소스
+   *     실패를 덜 센다.** 배수의 기전은 [확인 필요]. [가정] 같은 URL 이 두 번 요청되고
+   *     브라우저가 동일 문구의 콘솔 에러를 한 번만 흘린다.
+   *
+   * ★센 것은 `>=400` 응답 + `requestfailed`(net::ERR_ 계열) 이고, **메인 문서 내비게이션은
+   *   뺀다** — `/qb-canon-404-probe`(404 프로브)·`/maintenance`(503) 처럼 2xx 가 아닌 것이
+   *   정상 대상에 이미 있어서, 문서를 같이 세면 그 둘이 거짓 신호를 낸다.
+   * ★리스너는 `ctx.close()` 전까지만 산다. 정착(`settleMs`) 뒤에 도착하는 실패는 이 수에
+   *   안 들어올 수 있다 — 이 값은 **하한**이다.
+   */
+  subresourceFail: number;
+}
+
+/**
+ * 메인 프레임 문서 내비게이션 요청인가. 서브리소스 집계에서 빼기 위한 판정.
+ * `resourceType()==="document"` 만으로는 iframe 문서까지 포함되므로 내비게이션 여부를 같이 본다.
+ */
+function isDocumentNavigation(req: Request): boolean {
+  return req.resourceType() === "document" && req.isNavigationRequest();
+}
+
+/**
+ * 콘솔 에러 줄에 붙일 **출처 표기**.
+ *
+ * 브라우저가 내는 `Failed to load resource: …` 메시지는 본문에 URL 이 없고
+ * `ConsoleMessage.location().url` 에 실패한 리소스 URL 이 담긴다. 그것을 줄 끝에 붙여
+ * 「어느 리소스가 죽었나」를 사람이 리포트만 보고 알 수 있게 한다([BL-708]).
+ * 페이지 자신에서 난 에러(출처 = 대상 URL)는 새 정보가 없으므로 붙이지 않는다.
+ */
+function consoleOrigin(originUrl: string, pageUrl: string): string {
+  if (!originUrl || originUrl === pageUrl) return "";
+  return ` <- ${originUrl.slice(0, 160)}`;
 }
 
 /** 한 대상(URL)의 감사 결과 전체. */
@@ -132,7 +183,7 @@ export interface CanonAuditResult {
   /** 테마를 강제한 경우에만 채워진다. `null` = 앱 기본값으로 돌았다(종전 동작). */
   themeProbe: ThemeProbe | null;
   /**
-   * 감사 폭마다의 도달 증거(HTTP status · 관측량). `widths` 와 1:1 이다.
+   * 감사 폭마다의 도달 증거(HTTP status · 관측량 · 서브리소스 실패 수). `widths` 와 1:1 이다.
    * ★reduced-motion 패스는 **같은 URL** 을 다시 열 뿐이라 여기 안 넣는다 — status 계열이
    *   같고, 그 패스가 내는 소견(`motion`)은 이미 하드 실패로 센다.
    */
@@ -447,11 +498,24 @@ export async function auditUrl(
       theme,
     );
     const page = await ctx.newPage();
+    // 서브리소스 실패 도달 증거([BL-708]). 폭마다 0 으로 시작해 **항상** probe 에 실린다 —
+    // 「0 건이라 안 적혔다」와 「안 재서 없다」가 리포트에서 같아 보이면 안 된다.
+    let subresourceFail = 0;
+    page.on("response", (r) => {
+      if (isDocumentNavigation(r.request())) return;
+      if (r.status() >= 400) subresourceFail++;
+    });
+    page.on("requestfailed", (req) => {
+      if (isDocumentNavigation(req)) return;
+      subresourceFail++;
+    });
     page.on("console", (m) => {
       if (m.type() !== "error") return;
       const text = m.text();
+      // ★allowlist 는 **원문**으로 판정한다 — 출처를 덧붙이기 전이다. 덧붙인 뒤에 걸면
+      //   기존 `ignoreConsole` 정규식이 URL 문자열까지 훑게 돼 사거리가 조용히 넓어진다.
       if (ignoreConsole?.(text)) return;
-      res.console.push(`${w}px ${text.slice(0, 120)}`);
+      res.console.push(`${w}px ${text.slice(0, 120)}${consoleOrigin(m.location().url, url)}`);
     });
     page.on("pageerror", (e) => {
       const text = String(e);
@@ -468,7 +532,7 @@ export async function auditUrl(
     if (prepare) await prepare(page);
 
     const a = await page.evaluate(AUDIT);
-    res.probes.push({ w, status, examined: a.examined });
+    res.probes.push({ w, status, examined: a.examined, subresourceFail });
     if (a.overflow.scrollWidth > a.overflow.innerWidth + 1) {
       res.overflow.push({ w, scrollWidth: a.overflow.scrollWidth, innerWidth: a.overflow.innerWidth });
     }
@@ -567,6 +631,8 @@ export function formatCanonResult(res: CanonAuditResult): string {
     // 도달 증거 — "무엇을 봤는가" 가 리포트에 남아야 "0 건" 이 의미를 갖는다.
     `   reached: status=${JSON.stringify(auditStatuses(res))} examined=${JSON.stringify(
       res.probes.map((p) => `${p.w}px:${p.examined}`),
+    )} subresourceFail=${JSON.stringify(
+      res.probes.map((p) => `${p.w}px:${p.subresourceFail}`),
     )} minExamined=${minExamined(res)} worstCanon=${worst === null ? "-" : worst.toFixed(2)}`,
   ];
   if (res.themeProbe) {
