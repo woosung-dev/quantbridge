@@ -1580,7 +1580,13 @@ Error: 완료 상태 백테스트를 목록에서 찾지 못했다 (백엔드 80
 | 2    | `screen-08-strategy-editor.html` · `screen-15-login.html` |
 | 3    | 없음 (22 passed)                                          |
 
-**세 집합이 서로 겹치지 않는다** ⇒ 코드의 성질이 아니다. 실패 값은 문턱 바로 아래다 —
+**세 집합이 서로 겹치지 않는다** ⇒ 코드의 성질이 아니다.
+
+★★**2026-08-12 CI 가 원인 축을 좁혔다** — 같은 커밋(`214dfeb1`)에서 **1회차 pass → 2회차
+`screen-09`·`10`·`11`·`16` 4파일 fail → 3회차 pass** 였고, **2회차 안에서는 retry #1·#2 까지
+같은 파일이 실패**했다. 즉 **한 회차 안에서는 결정적이고 회차 사이에서만 갈린다** ⇒ 원인은
+테스트별 타이밍이 아니라 **런너/프로세스 단위 렌더 조건**(폰트 대체·`deviceScaleFactor`·
+서브픽셀 반올림)이다. ⇒ 처방에서 「대기를 늘린다」는 **틀린 방향**이다. 실패 값은 문턱 바로 아래다 —
 `canon 1440px 5.41:1 (5.82 필요) rgb(173, 50, 42) 10.08px "숏"`. 계산 폰트 크기가 **10.08px**
 같은 소수라 대비 판정이 렌더 타이밍·안티에일리어싱에 흔들린다. 테스트 자신이 그 가능성을 적어
 뒀다 — 「runtime-check.mjs 는 PASS 였으므로 이식된 감사 코어가 틀렸다」.
@@ -1687,6 +1693,10 @@ Server Component 인데 **`searchParams` 를 받지 않고** `order_by: "updated
 | [BL-660](#bl-660) | `regen_golden.py --confirm` 산출과 커밋본의 **포맷이 구조적으로 어긋난다** — pre-commit `prettier --write` 가 배열을 한 줄로 접고 스크립트는 `json.dumps(indent=2)` 로 원소당 한 줄을 쓴다. 그래서 정본 갱신 의도로 `--confirm` 을 돌리면 diff 에 **의미 없는 재포맷이 항상 섞인다**(실측 `+29/-2`). ★`--check` 는 **파싱된 값**을 비교하므로 이 어긋남을 구조적으로 못 본다                                                                                                                                                                                                                                                                                                          | 골든을 의도적으로 갱신할 때 / `regen_golden.py` 를 CI 에 넣을 때                                                  | XS        | 2026-08-09 backlog-sweep-4lane (W2, BL-627 부수)       |
 | [BL-659](#bl-659) | `design-canon-calibration.spec.ts` 의 `screen-06-strategies-list.html` 케이스가 **간헐 실패**한다 — 2026-08-09 W3 에서 7회 중 2회. 같은 커밋에서 연속 3회는 42/42 green 이고 `git stash` 로 내 diff 를 걷어내도 통과/실패를 오갔다 ⇒ **코드 회귀가 아니다**. ★위험은 실패 자체가 아니라 **다음 회차가 이걸 자기 회귀로 오독하는 것**                                                                                                                                                                                                                                                                                                                                                  | 디자인 캐논 게이트가 빨개졌을 때 / 캐논 스윕 착수 시                                                              | XS        | 2026-08-09 backlog-sweep-4lane W3                      |
 | [BL-709](#bl-709) | ★**전략 목록 RSC prefetch 가 URL 정렬을 안 읽어 정렬 링크마다 왕복이 하나 더 든다** — [BL-430] 이 정렬을 URL 스칼라로 옮겼는데 `strategies/page.tsx` 는 `searchParams` 를 읽지 않고 `order_by:"updated_at"` 을 하드코딩해 prefetch 한다. `/strategies?order_by=sharpe_ratio` 진입 시 **서버 prefetch 가 버려지고** 클라이언트가 refetch 한다(기능은 옳고 비용만 든다). 처방 = `searchParams`(Next 16 은 `Promise<>`) 를 await 해 화이트리스트 검증 후 같은 query 로 prefetch — 화이트리스트를 `features/strategy/` 로 올려 client 와 **1벌 공유**해야 한다                                                                                                                            | 전략 목록을 다시 손댈 때 / 정렬 링크 공유가 실사용될 때                                                           | S         | 2026-08-12 surface-demo-pack (G5)                      |
+| [BL-710](#bl-710) | 전략 목록 성과 정렬·파생 필드의 **규모 비용 3종** — ⑴ `latest_completed` 서브쿼리가 owner/page 로 스코프되지 않아 전역 백테스트 규모만큼 든다 ⑵ `pine_source` 를 전량 로드해 행마다 정규식을 돈다 ⑶ `live_signal_sessions` 에 `strategy_id` **선행 인덱스가 없다**(기존 3개는 `user_id`/`is_active` 선행). 현 규모(전략 3 · 백테스트 7 · 활성 세션 0)에서는 무해하다                                                                                                                                                                                                                                                                                                                  | 전략 목록이 느려질 때 / 전략·백테스트가 수천 건이 될 때                                                           | S-M       | 2026-08-12 surface-demo-pack (codex G6 #1·#5·#6)       |
+| [BL-711](#bl-711) | `metrics` JSONB **손상값**이 정렬 캐스팅에서 목록 전체를 500 으로 만든다 — `astext.cast(Numeric)` 는 `{"total_return":"corrupt"}` 에서 `invalid input syntax for type numeric` 이다. 같은 응답 경로의 `metrics_summary_from_jsonb` 는 손상값을 `None` 으로 격리하는데 **정렬 경로만 그 방어를 우회**한다. ★**선재다** — `backtest/repository.py:165-168` 이 같은 패턴을 4축에 먼저 갖고 있다                                                                                                                                                                                                                                                                                          | 손상 `metrics` 가 관측될 때 / 정렬 축을 늘릴 때                                                                   | S         | 2026-08-12 surface-demo-pack (codex G6 #2)             |
+| [BL-712](#bl-712) | 전략 목록 **표시 정합 2건** — ⑴ `lifecycle` 이 `is_archived` 를 안 봐서 아카이브된 전략도 `validated`/`deployed` 로 응답한다(칩 4번째 값이 없다 = 사용자 결정) ⑵ 정렬 select 라벨이 **방향을 말하지 않는다** — `?order_by=total_return&order=asc` 로 진입하면 오름차순인데 라벨은 「수익률 높은 순」이다(UI 는 그 URL 을 만들지 않지만 공유·수동 편집으로 도달한다)                                                                                                                                                                                                                                                                                                                   | 전략 목록 표시를 다시 손댈 때 / 아카이브 화면을 낼 때                                                             | S         | 2026-08-12 surface-demo-pack (codex G6 #4·#12)         |
+| [BL-713](#bl-713) | e2e 정체성 프로브가 `<title>` **부분일치**라 고유 식별자가 아니다 — 다른 앱의 title 이 `QuantBridge` 를 포함하기만 하면 통과한다. 지금은 판별에 성공하지만(`"Nexus Admin"` 실측 red) 우연에 의존한다. 처방 = 고유 마커(예: `<meta name="qb-app" content="quantbridge">`)를 심고 프로브가 **그것**을 본다                                                                                                                                                                                                                                                                                                                                                                              | 정체성 프로브가 거짓 통과하는 것이 관측될 때 / 같은 호스트에 앱이 늘 때                                           | XS        | 2026-08-12 surface-demo-pack (codex G6 #10)            |
 
 ### BL-491
 
@@ -7517,6 +7527,123 @@ ADR-024 리셋 표에 의해 실격은 C1 을 0 으로 되돌린다. 그러므�
 이 BL 은 BL-003 의 하위 작업이 아니라 게이트 해석이므로, BL-003 의 Est 를 다시 잡기 전에 읽어야 한다.
 
 **Risk:** 🔴 MTBF 를 개선하지 않으면 168h 연속 무실격 조건은 사실상 도달 불가다.
+
+### BL-710
+
+**Title:** 전략 목록 성과 정렬·파생 필드의 규모 비용 3종 (현 규모에서는 무해)
+**Category:** Backend / 성능
+**Priority:** P3
+**Trigger:** 전략 목록이 느려질 때 / 전략·백테스트가 수천 건이 될 때
+**Est:** S-M
+**상태:** ⏳ **대기 (트리거 미도래)** — 처방 미착수. 2026-08-12 codex G6 #1·#5·#6 을 평가자가 코드 대조로 채택했으나 발화 조건이 **규모**다.
+**트리거 판정:** 미도래 — **규모 조건**이다. 현 실측(전략 3 · 완료 백테스트 7 · 활성 세션 0)에서는 발화하지 않는다 (2026-08-12 surface-demo-pack)
+**출처:** 2026-08-12 surface-demo-pack G6
+
+**원인 / 영향:** 셋 다 [BL-430]/[BL-427] 구현이 만든 것이고 **현 규모에서는 측정 가능한 피해가 없다.**
+
+⑴ `backend/src/strategy/repository.py` 의 `latest_completed` 서브쿼리는 `status == COMPLETED` 만
+걸고 **owner 나 현재 페이지의 `strategy_id` 로 좁히지 않는다.** `DISTINCT ON` 이 1:1 을 보장하므로
+`total` 은 틀어지지 않지만, 비용이 **페이지 크기와 무관하게 전역 백테스트 수**에 비례한다.
+★처방은 1줄이다 — 서브쿼리에 `Backtest.user_id == owner_id` 를 더한다(조인이 이미 그 사용자의
+전략에만 붙으므로 **의미 보존**이다).
+
+⑵ `backend/src/strategy/service.py` 의 `param_count` 는 행마다 `_strip_comments` +
+`_strip_string_literals` + 정규식을 돈다. 그리고 `list_by_owner` 는 `defer` 가 없어 `pine_source` 를
+**전량 로드**한다. 10MB 소스 100건이면 요청당 약 1GB 문자열이다(`pine_source` 크기 상한도 없다).
+처방 = `param_count` 를 컬럼으로 영속(**alembic 필요**) 또는 목록 조회에서 `load_only`.
+
+⑶ `backend/src/trading/models.py:471-484` 의 인덱스 3개는 `(user_id, is_active)` ·
+`(is_active, last_evaluated_bar_time)` partial · `(user_id, strategy_id, exchange_account_id, symbol)`
+partial-unique 다 — **`strategy_id` 선행이 없다.** `list_active_strategy_ids` 의
+`strategy_id IN (...) AND is_active` 는 활성 세션 전량을 훑을 수 있다. 처방 = alembic 인덱스.
+
+**Risk:** 🟢 정확성 문제는 없다. 규모가 커지면 지연으로 나타난다.
+
+---
+
+### BL-711
+
+**Title:** `metrics` JSONB 손상값이 정렬 캐스팅에서 목록 전체를 500 으로 만든다 (선재 · 백테스트·전략 양쪽)
+**Category:** Backend / 견고성
+**Priority:** P3
+**Trigger:** 손상 `metrics` 가 관측될 때 / 정렬 축을 늘릴 때
+**Est:** S
+**상태:** ⏳ **대기 (트리거 미도래)** — 처방 미착수. 2026-08-12 codex G6 #2 채택 + **선재임을 함께 확인**했다(손상 행 관측 0).
+**트리거 판정:** 미도래 — 손상 `metrics` 행이 관측된 적이 없다. 발화 조건이 외생이다 (2026-08-12 surface-demo-pack)
+**출처:** 2026-08-12 surface-demo-pack G6
+
+**원인 / 영향:** 정렬 축은 `metrics["<key>"].astext.cast(Numeric)` 이다. 값이 숫자가 아니면
+PostgreSQL 이 `invalid input syntax for type numeric` 을 던져 **목록 요청 전체가 500** 이 된다.
+같은 응답 경로의 `metrics_summary_from_jsonb` 는 손상값을 `None` 으로 격리하는데 **정렬 경로만**
+그 방어를 우회한다.
+
+★**이 회차가 만든 것이 아니다** — `backend/src/backtest/repository.py:165-168` 이 동일한 패턴을
+4축(`total_return`·`max_drawdown`·`sharpe_ratio`·`num_trades`)에 **먼저** 갖고 있다. 전략 목록
+(`backend/src/strategy/repository.py`)이 그 노출을 물려받았을 뿐이다. **그래서 처방도 한 곳이 아니라
+두 도메인에 같이 가야 한다.**
+
+**권장 접근:** 캐스팅 앞에 숫자 판별을 두거나(정규식 `~ '^-?[0-9.]+$'` 후 캐스팅) 안전 캐스팅
+함수를 쓴다. ★**한 도메인만 고치면 다른 쪽이 남는다** — 두 파일을 같은 PR 에서 다뤄라.
+
+**Risk:** 🟡 발화하면 목록 화면이 통째로 죽는다. 다만 손상 행이 실제로 관측된 적은 없다.
+
+---
+
+### BL-712
+
+**Title:** 전략 목록 표시 정합 2건 — lifecycle 이 archived 를 안 보고, 정렬 라벨이 방향을 안 말한다
+**Category:** Frontend / backend (표시 계약)
+**Priority:** P3
+**Trigger:** 전략 목록 표시를 다시 손댈 때 / 아카이브 화면을 낼 때
+**Est:** S
+**상태:** ⏳ **대기 (트리거 미도래)** — 처방 미착수. 2026-08-12 codex G6 #4·#12 채택. ⑴은 **사용자 결정 선행**이다.
+**트리거 판정:** 미도래 — ⑴은 **사용자 결정 선행**(칩 4번째 값을 만들 것인가)이고 ⑵는 UI 가 만들지 않는 URL 에서만 보인다 (2026-08-12 surface-demo-pack)
+**출처:** 2026-08-12 surface-demo-pack G6
+
+**원인 / 영향:**
+
+⑴ `lifecycle` 파생은 `deployed → validated → draft` 3분기이고 **`is_archived` 를 보지 않는다.**
+아카이브된 전략을 `?is_archived=true` 로 조회하면 `validated`/`deployed` 칩이 그대로 나온다.
+`StrategyLifecycle` 에 `archived` 값이 없다. ★**캐논에도 칩이 3종뿐**이라(screen-06) 4번째를 만드는
+것은 디자인 결정이다 — 그래서 미도래로 둔다.
+
+⑵ 정렬 select 는 `order_by` 만 반영하고 라벨은 고정 문구(「수익률 높은 순」)다. UI 의 `pushSort` 는
+축마다 방향을 고정해 넣으므로 정상 경로에서는 어긋나지 않지만, `?order_by=total_return&order=asc`
+같은 URL(공유·수동 편집·뒤로가기)에서는 **오름차순 결과에 「높은 순」 라벨**이 붙는다.
+
+**권장 접근:** ⑴ 사용자와 칩 4번째 값을 정한 뒤 파생에 `is_archived` 를 더한다. ⑵ 라벨을
+`order` 에서 파생하거나, 화이트리스트 밖 조합을 기본값으로 정규화한다(후자가 [BL-709] 처방과 같은
+자리에서 처리된다).
+
+**Risk:** 🟢 데이터는 정확하고 라벨만 어긋난다.
+
+---
+
+### BL-713
+
+**Title:** e2e 정체성 프로브가 `<title>` 부분일치라 고유 식별자가 아니다
+**Category:** 테스트 / 게이트 판별력
+**Priority:** P3
+**Trigger:** 정체성 프로브가 거짓 통과하는 것이 관측될 때 / 같은 호스트에 앱이 늘 때
+**Est:** XS
+**상태:** ⏳ **대기 (트리거 미도래)** — 처방 미착수. 2026-08-12 codex G6 #10 채택. 현행 판별은 **실측으로 성공**하지만 우연에 의존한다.
+**트리거 판정:** 미도래 — 실측으로 지금은 판별한다(`"Nexus Admin"` red). 거짓 통과가 관측되면 도래다 (2026-08-12 surface-demo-pack)
+**출처:** 2026-08-12 surface-demo-pack G6
+
+**원인 / 영향:** `frontend/e2e/identity.setup.ts` 와 `global.setup.ts` 의 프로브는
+`title.includes("QuantBridge")` 다. 다른 앱의 title 이 그 문자열을 **포함하기만** 하면 통과한다
+(예: `QuantBridge migration docs`). 2026-08-12 실측에서는 `:3003` 의 title 이 `"Nexus Admin"` 이라
+정확히 red 가 났지만, 그것은 **이름이 겹치지 않았기 때문**이다.
+
+★같은 회차에 이 프로브가 **status 200 을 통과한 남의 앱**을 잡았다는 것을 기억해라 — status 만으로는
+못 잡았고 title 이 잡았다. 그 마지막 판별자가 부분일치라는 것이 이 BL 이다.
+
+**권장 접근:** 앱이 고유 마커를 내보내고 프로브가 그것을 본다 — 예: `<meta name="qb-app"
+content="quantbridge">` 또는 루트 요소의 `data-app` 속성. title 검사는 보조로 남겨도 된다.
+
+**Risk:** 🟢 지금은 판별한다. 우연이 깨지는 날 거짓 그린이 된다.
+
+---
 
 ## Deferred — trigger 미도래 · 의도적 부활 가능 (구 `_deferred.md` 승격, 2026-08-06)
 
