@@ -5,7 +5,8 @@
     {
       "step": 1,
       "name": "strategy-sort-module",
-      "status": "pending",
+      "status": "completed",
+      "summary": "STRATEGY_SORT_OPTIONS와 resolveStrategySort를 추가하고, 화이트리스트 밖 입력을 updated_at/desc로 정규화했으며 계약 테스트 4건을 통과시켰다.",
       "ac": [
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm typecheck",
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm lint",
@@ -13,7 +14,8 @@
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm test src/features/strategy/__tests__/sort.test.ts",
         "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm test",
         "cd \"$(git rev-parse --show-toplevel)\" && test -z \"$(git diff main --name-only -- frontend/src/app)\""
-      ]
+      ],
+      "started_at": "2026-08-12T22:47:03+0900"
     },
     {
       "step": 2,
@@ -54,5 +56,6 @@
         "cd \"$(git rev-parse --show-toplevel)\" && test \"$(git diff main --name-only -- frontend/ | LC_ALL=C sort | tr '\\n' '|')\" = \"frontend/src/app/(dashboard)/strategies/_components/strategy-list.tsx|frontend/src/app/(dashboard)/strategies/page.tsx|frontend/src/features/strategy/__tests__/sort.test.ts|frontend/src/features/strategy/sort.ts|\""
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-12T22:47:03+0900"
 }
