@@ -42,12 +42,17 @@ export default defineConfig({
       testMatch: /global\.setup\.ts$/,
     },
     {
+      name: "setup-identity",
+      testMatch: /identity\.setup\.ts$/,
+    },
+    {
       // ★앵커가 필요하다. `/smoke\.spec\.ts$/` 는 접두가 없어 **`live-smoke.spec.ts` 까지**
       //   잡았고, 전용 project(`chromium-live-smoke`)와 겹쳐 `pnpm e2e` 가 live-smoke 를
       //   매번 덤으로 돌리고 있었다(2026-08-06 `e2e-project-wiring.test.ts` 가 실측으로 적발).
       name: "chromium",
       testMatch: /(^|\/)smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup-identity"],
     },
     // Sprint 31-D BL-157 — live dev smoke gate (.github/workflows/live-smoke.yml 전용).
     // public pages (Clerk 미의존) console.error / pageerror 0 검증 — chart lib
@@ -58,6 +63,7 @@ export default defineConfig({
       name: "chromium-live-smoke",
       testMatch: /live-smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup-identity"],
     },
     // C 디자인 언어 이식 S0 — 인증 없는 디자인 캐논 게이트.
     // 공개 라우트만 쓰므로 CI 에서 돌릴 수 있다 (`pnpm e2e:design-canon`).
@@ -66,6 +72,7 @@ export default defineConfig({
       name: "chromium-design-canon",
       testMatch: /design-canon-.*\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup-identity"],
     },
     {
       name: "chromium-authed",
@@ -99,7 +106,7 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/storageState.json",
       },
-      dependencies: ["setup"],
+      dependencies: ["setup", "setup-identity"],
     },
   ],
   webServer: hasConfiguredBaseURL()
