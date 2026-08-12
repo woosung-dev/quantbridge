@@ -32,7 +32,7 @@
       "status": "completed",
       "started_at": "2026-08-12T21:28:24+0900",
       "summary": "①3면에서 바꾼 줄 4개 — `docs/backlog.md:1571` 상태줄 `⬜ Open` → `✅ Resolved (2026-08-12 harness A회차 feat-bl708)`(처방 ⑴ 채택·⑵ WARN 강등 기각 근거 포함), `docs/backlog.md:711` 인덱스 표 행 ✅ 부여 + 트리거 셀 `— (해결됨…)`, `docs/roadmap.md:346` 체크박스 `[ ]` → `[x] **BL-708 ✅ Resolved**`, `docs/status.md:421` ⓪ 표 **V 행** 후보 셀 취소선 + `→ **2026-08-12 종결**` 및 P/추천/난이도/소요 열 `—`. 세 줄 모두 「고쳤다」가 아니라 무엇이 반증됐고(원인은 반올림이 아니라 원격 폰트 404 — 지목한 것은 처방이 아니라 계측) 무엇이 근거인지(변이에서 종전 계약은 초록·새 단언만 red / 독립 3회 rc=0/0/0 · 출력 전문 동일 · 최저 대비 4.92/5.41/5.44 고정)를 적었다. ②`bl-audit` active **8 → 7**(RESOLVED 76 → 77, P2 ACTIVE 5 → 4, 불일치·UNKNOWN 0 유지), ⓪ 표 살아 있는 행 8 → 7 로 `docs-audit` 의 「살아 있는 행 == ACTIVE ∪ (PARTIAL ∧ 도래)」 정체성 유지(계약 하한 ≥3 여유). ③AC 전건 통과 — AC-1 rc=0 + `--list RESOLVED` 에 BL-708, AC-2 rc=0(인덱스 행이 1136자로 상한 1000 을 넘어 셀을 압축·재정렬해 961자로 착지), AC-3 ACTIVE/DEFERRED/UNKNOWN 어디에도 없음, AC-4 `다음 행동 =` 13줄 불변, AC-5 `frontend/`·`backend/`·`scripts/` 작업 트리 diff 공집합(코드 0줄).",
-      "completed_at": "2026-08-12T21:41:00+0900"
+      "completed_at": "2026-08-12T21:35:36+0900"
     }
   ],
   "created_at": "2026-08-12T20:49:34+0900"
