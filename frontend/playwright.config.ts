@@ -1,5 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
+import { getBaseURL, getFrontendPort, hasConfiguredBaseURL } from "./e2e/_base-url";
+
 // Sprint FE-01 LESSON-004: React Query + Next.js 조합 infinite loop 검출용 E2E.
 // vitest jsdom이 못 잡는 Fast Refresh / StrictMode / Query refetch 케이스 실제 브라우저 재현.
 //
@@ -14,6 +16,8 @@ import { defineConfig, devices } from "@playwright/test";
 // chromium-authed 는 fullyParallel:false + --workers=1 (script 명시) 이중 보장 —
 // 공유 storageState flake 차단.
 const isCI = !!process.env.CI;
+const baseURL = getBaseURL();
+const fePort = getFrontendPort();
 
 export default defineConfig({
   testDir: "./e2e",
@@ -23,7 +27,7 @@ export default defineConfig({
   workers: isCI ? 1 : undefined,
   reporter: isCI ? [["github"], ["list"]] : "list",
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
+    baseURL,
     trace: "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
@@ -98,11 +102,11 @@ export default defineConfig({
       dependencies: ["setup"],
     },
   ],
-  webServer: process.env.PLAYWRIGHT_BASE_URL
+  webServer: hasConfiguredBaseURL()
     ? undefined
     : {
-        command: "pnpm dev",
-        url: "http://localhost:3000",
+        command: `pnpm dev --port ${fePort}`,
+        url: baseURL,
         reuseExistingServer: !isCI,
         timeout: isCI ? 240_000 : 120_000,
         stdout: "pipe",

@@ -18,9 +18,10 @@ import { resolve } from "node:path";
 
 import { expect, test } from "@playwright/test";
 
+import { getBaseURL } from "./_base-url";
 import { auditUrl, formatCanonResult, hardFailCount } from "./design-canon-audit";
 
-const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+const BASE_URL = getBaseURL();
 const STORAGE_STATE = resolve(__dirname, ".auth/storageState.json");
 
 // 백엔드 부재/개발키 콘솔 소음은 캐논 위반이 아니다 (authed-canon-p1 과 동일 필터).
