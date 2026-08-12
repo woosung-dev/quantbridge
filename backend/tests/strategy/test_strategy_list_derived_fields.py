@@ -29,6 +29,11 @@ def _strategy(source: str) -> Strategy:
     "source",
     [
         '//@version=5\nstrategy("empty")',
+        '//@version=5\nstrategy("input(")',
+        """//@version=5
+strategy("input title")
+length = input.int(14, title="input.float(")
+""",
         """//@version=5
 strategy("mixed")
 length = input.int(14)

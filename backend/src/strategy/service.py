@@ -64,6 +64,43 @@ def _strip_comments(source: str) -> str:
     return _COMMENT_RE.sub("", source)
 
 
+def _strip_string_literals(source: str) -> str:
+    chars = list(source)
+    quote: str | None = None
+    escaped = False
+    in_comment = False
+
+    for index, char in enumerate(source):
+        if quote is None:
+            if in_comment:
+                if char == "\n":
+                    in_comment = False
+                continue
+            if source[index : index + 2] == "//":
+                in_comment = True
+                continue
+            if char in {"'", '"'}:
+                quote = char
+                chars[index] = " "
+            continue
+
+        if char == "\n":
+            chars[index] = char
+            quote = None
+            escaped = False
+            continue
+
+        chars[index] = " "
+        if escaped:
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == quote:
+            quote = None
+
+    return "".join(chars)
+
+
 def _collect_functions(source: str) -> list[str]:
     """소스 텍스트에서 호출된 함수명 best-effort 수집. 주석 제거 후 토큰 매칭."""
     clean = _strip_comments(source)
@@ -274,7 +311,11 @@ class StrategyService:
                             if (row := latest_backtests.get(s.id)) is not None
                             else None
                         ),
-                        "param_count": len(_INPUT_RE.findall(_strip_comments(s.pine_source))),
+                        "param_count": len(
+                            _INPUT_RE.findall(
+                                _strip_comments(_strip_string_literals(s.pine_source))
+                            )
+                        ),
                         "lifecycle": (
                             StrategyLifecycle.deployed
                             if s.id in active_strategy_ids
