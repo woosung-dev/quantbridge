@@ -5,6 +5,11 @@ docs/archive/
 # "얼렸다" 가 성립하지 않는다(실측: 재실행 1회에 12,000줄 diff).
 apps/api/tests/fixtures/bl595/
 
+# [BL-717/ADR-031] 계약 산출물은 export_openapi.py 의 json.dumps 가 포맷을 소유한다.
+# prettier 가 짧은 배열을 한 줄로 접어 커밋 시점에 재포맷하면 `--check`(byte 대조) drift
+# 게이트가 영구 빨강이 된다 — 1차 커밋에서 실측(797줄 diff). bl595 픽스처와 같은 축.
+contracts/openapi/
+
 # [BL-602] 루트 prettier 가 `apps/web/.prettierrc` 의 `prettier-plugin-tailwindcss` 를 해석하지
 # 못해 죽는다(루트 node_modules 에 그 플러그인이 없다). [ADR-027] 이 스택 규칙을 그 디렉터리로
 # 옮기면서 이 함정의 표면이 넓어졌다 — 두 파일을 ignore 로 **회피**한다(근본 수리 아님).

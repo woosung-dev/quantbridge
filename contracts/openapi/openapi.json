@@ -217,7 +217,12 @@
             "$ref": "#/components/schemas/WaitlistStatus"
           }
         },
-        "required": ["id", "status", "email", "invite_sent_at"],
+        "required": [
+          "id",
+          "status",
+          "email",
+          "invite_sent_at"
+        ],
         "title": "AdminApproveResponse",
         "type": "object"
       },
@@ -236,13 +241,20 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total"],
+        "required": [
+          "items",
+          "total"
+        ],
         "title": "AdminWaitlistListResponse",
         "type": "object"
       },
       "AlertChannel": {
         "description": "세션 알림 규칙의 전송 채널.",
-        "enum": ["slack", "telegram", "both"],
+        "enum": [
+          "slack",
+          "telegram",
+          "both"
+        ],
         "title": "AlertChannel",
         "type": "string"
       },
@@ -274,7 +286,10 @@
             "title": "Threshold Percent"
           }
         },
-        "required": ["rule_type", "channel"],
+        "required": [
+          "rule_type",
+          "channel"
+        ],
         "title": "AlertRuleCreateRequest",
         "type": "object"
       },
@@ -292,7 +307,10 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total"],
+        "required": [
+          "items",
+          "total"
+        ],
         "title": "AlertRuleListResponse",
         "type": "object"
       },
@@ -356,7 +374,10 @@
       },
       "AlertRuleType": {
         "description": "세션 알림 규칙의 발화 조건.",
-        "enum": ["loss_limit", "watchdog"],
+        "enum": [
+          "loss_limit",
+          "watchdog"
+        ],
         "title": "AlertRuleType",
         "type": "string"
       },
@@ -376,7 +397,11 @@
             "$ref": "#/components/schemas/BacktestStatus"
           }
         },
-        "required": ["backtest_id", "status", "message"],
+        "required": [
+          "backtest_id",
+          "status",
+          "message"
+        ],
         "title": "BacktestCancelResponse",
         "type": "object"
       },
@@ -405,7 +430,12 @@
             "type": "number"
           }
         },
-        "required": ["leverage", "fees", "slippage", "include_funding"],
+        "required": [
+          "leverage",
+          "fees",
+          "slippage",
+          "include_funding"
+        ],
         "title": "BacktestConfigOut",
         "type": "object"
       },
@@ -431,7 +461,11 @@
             "$ref": "#/components/schemas/BacktestStatus"
           }
         },
-        "required": ["backtest_id", "status", "created_at"],
+        "required": [
+          "backtest_id",
+          "status",
+          "created_at"
+        ],
         "title": "BacktestCreatedResponse",
         "type": "object"
       },
@@ -1421,12 +1455,19 @@
           },
           "prior": {
             "default": "uniform",
-            "enum": ["uniform", "log_uniform", "normal"],
+            "enum": [
+              "uniform",
+              "log_uniform",
+              "normal"
+            ],
             "title": "Prior",
             "type": "string"
           }
         },
-        "required": ["min", "max"],
+        "required": [
+          "min",
+          "max"
+        ],
         "title": "BayesianHyperparamsField",
         "type": "object"
       },
@@ -1457,12 +1498,19 @@
           },
           "prior": {
             "default": "uniform",
-            "enum": ["uniform", "log_uniform", "normal"],
+            "enum": [
+              "uniform",
+              "log_uniform",
+              "normal"
+            ],
             "title": "Prior",
             "type": "string"
           }
         },
-        "required": ["min", "max"],
+        "required": [
+          "min",
+          "max"
+        ],
         "title": "BayesianHyperparamsField",
         "type": "object"
       },
@@ -1472,7 +1520,10 @@
         "properties": {
           "encoding": {
             "default": "label",
-            "enum": ["label", "one_hot"],
+            "enum": [
+              "label",
+              "one_hot"
+            ],
             "title": "Encoding",
             "type": "string"
           },
@@ -1491,7 +1542,9 @@
             "type": "array"
           }
         },
-        "required": ["values"],
+        "required": [
+          "values"
+        ],
         "title": "CategoricalField",
         "type": "object"
       },
@@ -1530,7 +1583,10 @@
             "$ref": "#/components/schemas/OrderState"
           }
         },
-        "required": ["order_id", "state"],
+        "required": [
+          "order_id",
+          "state"
+        ],
         "title": "ClosePositionResponse",
         "type": "object"
       },
@@ -1545,7 +1601,10 @@
           "mode": {
             "default": "full",
             "description": "full=전체 코드 전달(B), sliced=슬라이싱 후 전달(C)",
-            "enum": ["full", "sliced"],
+            "enum": [
+              "full",
+              "sliced"
+            ],
             "title": "Mode",
             "type": "string"
           },
@@ -1556,7 +1615,9 @@
             "type": "string"
           }
         },
-        "required": ["code"],
+        "required": [
+          "code"
+        ],
         "title": "ConvertIndicatorRequest",
         "type": "object"
       },
@@ -1615,7 +1676,11 @@
             "type": "array"
           }
         },
-        "required": ["converted_code", "input_tokens", "output_tokens"],
+        "required": [
+          "converted_code",
+          "input_tokens",
+          "output_tokens"
+        ],
         "title": "ConvertIndicatorResponse",
         "type": "object"
       },
@@ -1643,7 +1708,9 @@
             "type": "object"
           }
         },
-        "required": ["param_grid"],
+        "required": [
+          "param_grid"
+        ],
         "title": "CostAssumptionParams",
         "type": "object"
       },
@@ -1659,7 +1726,10 @@
             "$ref": "#/components/schemas/CostAssumptionParams"
           }
         },
-        "required": ["backtest_id", "params"],
+        "required": [
+          "backtest_id",
+          "params"
+        ],
         "title": "CostAssumptionSubmitRequest",
         "type": "object"
       },
@@ -1720,7 +1790,10 @@
           },
           "fill_timing": {
             "default": "bar_close",
-            "enum": ["bar_close", "next_bar_open"],
+            "enum": [
+              "bar_close",
+              "next_bar_open"
+            ],
             "title": "Fill Timing",
             "type": "string"
           },
@@ -1811,13 +1884,24 @@
             "type": "string"
           },
           "timeframe": {
-            "enum": ["1m", "5m", "15m", "1h", "4h", "1d"],
+            "enum": [
+              "1m",
+              "5m",
+              "15m",
+              "1h",
+              "4h",
+              "1d"
+            ],
             "title": "Timeframe",
             "type": "string"
           },
           "trading_sessions": {
             "items": {
-              "enum": ["asia", "london", "ny"],
+              "enum": [
+                "asia",
+                "london",
+                "ny"
+              ],
               "type": "string"
             },
             "title": "Trading Sessions",
@@ -1851,7 +1935,11 @@
             "$ref": "#/components/schemas/ParamSpace-Input"
           }
         },
-        "required": ["backtest_id", "kind", "param_space"],
+        "required": [
+          "backtest_id",
+          "kind",
+          "param_space"
+        ],
         "title": "CreateOptimizationRunRequest",
         "type": "object"
       },
@@ -1919,7 +2007,10 @@
             "type": "array"
           }
         },
-        "required": ["name", "pine_source"],
+        "required": [
+          "name",
+          "pine_source"
+        ],
         "title": "CreateStrategyRequest",
         "type": "object"
       },
@@ -1936,7 +2027,12 @@
           },
           "exchange_capital": {
             "description": "예치 가능 자본 규모 — 1k USD 이상 권장",
-            "enum": ["under_1k", "1k_to_10k", "10k_to_100k", "over_100k"],
+            "enum": [
+              "under_1k",
+              "1k_to_10k",
+              "10k_to_100k",
+              "over_100k"
+            ],
             "title": "Exchange Capital",
             "type": "string"
           },
@@ -1962,13 +2058,22 @@
           },
           "pine_experience": {
             "description": "Pine Script 경험 수준",
-            "enum": ["none", "beginner", "intermediate", "expert"],
+            "enum": [
+              "none",
+              "beginner",
+              "intermediate",
+              "expert"
+            ],
             "title": "Pine Experience",
             "type": "string"
           },
           "tv_subscription": {
             "description": "TradingView 구독 등급 — Pro+ 이상 필수 (alert 발송 기능)",
-            "enum": ["pro", "pro_plus", "premium"],
+            "enum": [
+              "pro",
+              "pro_plus",
+              "premium"
+            ],
             "title": "Tv Subscription",
             "type": "string"
           }
@@ -2030,7 +2135,11 @@
             "title": "Step"
           }
         },
-        "required": ["min", "max", "step"],
+        "required": [
+          "min",
+          "max",
+          "step"
+        ],
         "title": "DecimalField",
         "type": "object"
       },
@@ -2060,7 +2169,11 @@
             "type": "string"
           }
         },
-        "required": ["min", "max", "step"],
+        "required": [
+          "min",
+          "max",
+          "step"
+        ],
         "title": "DecimalField",
         "type": "object"
       },
@@ -2077,7 +2190,10 @@
             "type": "string"
           }
         },
-        "required": ["timestamp", "value"],
+        "required": [
+          "timestamp",
+          "value"
+        ],
         "title": "EquityPoint",
         "type": "object"
       },
@@ -2151,12 +2267,19 @@
         "type": "object"
       },
       "ExchangeMode": {
-        "enum": ["demo", "live"],
+        "enum": [
+          "demo",
+          "live"
+        ],
         "title": "ExchangeMode",
         "type": "string"
       },
       "ExchangeName": {
-        "enum": ["bybit", "binance", "okx"],
+        "enum": [
+          "bybit",
+          "binance",
+          "okx"
+        ],
         "title": "ExchangeName",
         "type": "string"
       },
@@ -2569,7 +2692,10 @@
             "type": "integer"
           }
         },
-        "required": ["min", "max"],
+        "required": [
+          "min",
+          "max"
+        ],
         "title": "IntegerField",
         "type": "object"
       },
@@ -2584,7 +2710,10 @@
             "$ref": "#/components/schemas/WaitlistStatus"
           }
         },
-        "required": ["email", "status"],
+        "required": [
+          "email",
+          "status"
+        ],
         "title": "InviteTokenVerifyResponse",
         "type": "object"
       },
@@ -2707,7 +2836,11 @@
             ]
           }
         },
-        "required": ["backtest_id", "completed_at", "metrics"],
+        "required": [
+          "backtest_id",
+          "completed_at",
+          "metrics"
+        ],
         "title": "LatestBacktestSummary",
         "type": "object"
       },
@@ -2805,7 +2938,12 @@
             "type": "string"
           }
         },
-        "required": ["symbol", "side", "entry_price", "leverage"],
+        "required": [
+          "symbol",
+          "side",
+          "entry_price",
+          "leverage"
+        ],
         "title": "LiquidationPreviewRequest",
         "type": "object"
       },
@@ -2823,7 +2961,10 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total"],
+        "required": [
+          "items",
+          "total"
+        ],
         "title": "LiveSessionListResponse",
         "type": "object"
       },
@@ -2854,7 +2995,10 @@
             "type": "array"
           },
           "market_type": {
-            "enum": ["futures", "spot"],
+            "enum": [
+              "futures",
+              "spot"
+            ],
             "title": "Market Type",
             "type": "string"
           },
@@ -3023,7 +3167,9 @@
             "type": "array"
           }
         },
-        "required": ["items"],
+        "required": [
+          "items"
+        ],
         "title": "LiveSignalEventListResponse",
         "type": "object"
       },
@@ -3318,7 +3464,9 @@
             "$ref": "#/components/schemas/MonteCarloParams"
           }
         },
-        "required": ["backtest_id"],
+        "required": [
+          "backtest_id"
+        ],
         "title": "MonteCarloSubmitRequest",
         "type": "object"
       },
@@ -3351,13 +3499,24 @@
             "type": "string"
           }
         },
-        "required": ["time", "open", "high", "low", "close", "volume"],
+        "required": [
+          "time",
+          "open",
+          "high",
+          "low",
+          "close",
+          "volume"
+        ],
         "title": "OhlcvBar",
         "type": "object"
       },
       "OptimizationKindOut": {
         "description": "FE mirror — Sprint 56 = GENETIC 추가 (Sprint 55 Bayesian 패턴 mirror, BL-233).",
-        "enum": ["grid_search", "bayesian", "genetic"],
+        "enum": [
+          "grid_search",
+          "bayesian",
+          "genetic"
+        ],
         "title": "OptimizationKindOut",
         "type": "string"
       },
@@ -3514,7 +3673,12 @@
       },
       "OptimizationStatusOut": {
         "description": "FE mirror — StressTestStatus grammar 재사용.",
-        "enum": ["queued", "running", "completed", "failed"],
+        "enum": [
+          "queued",
+          "running",
+          "completed",
+          "failed"
+        ],
         "title": "OptimizationStatusOut",
         "type": "string"
       },
@@ -3618,7 +3782,10 @@
           "margin_mode": {
             "anyOf": [
               {
-                "enum": ["cross", "isolated"],
+                "enum": [
+                  "cross",
+                  "isolated"
+                ],
                 "type": "string"
               },
               {
@@ -3807,17 +3974,29 @@
         "type": "object"
       },
       "OrderSide": {
-        "enum": ["buy", "sell"],
+        "enum": [
+          "buy",
+          "sell"
+        ],
         "title": "OrderSide",
         "type": "string"
       },
       "OrderState": {
-        "enum": ["pending", "submitted", "filled", "rejected", "cancelled"],
+        "enum": [
+          "pending",
+          "submitted",
+          "filled",
+          "rejected",
+          "cancelled"
+        ],
         "title": "OrderState",
         "type": "string"
       },
       "OrderType": {
-        "enum": ["market", "limit"],
+        "enum": [
+          "market",
+          "limit"
+        ],
         "title": "OrderType",
         "type": "string"
       },
@@ -4250,7 +4429,12 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total", "limit", "offset"],
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
         "title": "Page[BacktestSummary]",
         "type": "object"
       },
@@ -4276,7 +4460,12 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total", "limit", "offset"],
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
         "title": "Page[OptimizationRunResponse]",
         "type": "object"
       },
@@ -4302,7 +4491,12 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total", "limit", "offset"],
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
         "title": "Page[StressTestSummary]",
         "type": "object"
       },
@@ -4328,7 +4522,12 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total", "limit", "offset"],
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
         "title": "Page[TradeItem]",
         "type": "object"
       },
@@ -4346,7 +4545,10 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total"],
+        "required": [
+          "items",
+          "total"
+        ],
         "title": "PaginatedExchangeAccounts",
         "type": "object"
       },
@@ -4357,7 +4559,11 @@
           "bayesian_acquisition": {
             "anyOf": [
               {
-                "enum": ["EI", "UCB", "PI"],
+                "enum": [
+                  "EI",
+                  "UCB",
+                  "PI"
+                ],
                 "type": "string"
               },
               {
@@ -4395,14 +4601,20 @@
             "title": "Crossover Rate"
           },
           "direction": {
-            "enum": ["maximize", "minimize"],
+            "enum": [
+              "maximize",
+              "minimize"
+            ],
             "title": "Direction",
             "type": "string"
           },
           "genetic_selection_method": {
             "anyOf": [
               {
-                "enum": ["tournament", "roulette"],
+                "enum": [
+                  "tournament",
+                  "roulette"
+                ],
                 "type": "string"
               },
               {
@@ -4492,7 +4704,10 @@
           },
           "schema_version": {
             "default": 1,
-            "enum": [1, 2],
+            "enum": [
+              1,
+              2
+            ],
             "title": "Schema Version",
             "type": "integer"
           }
@@ -4513,7 +4728,11 @@
           "bayesian_acquisition": {
             "anyOf": [
               {
-                "enum": ["EI", "UCB", "PI"],
+                "enum": [
+                  "EI",
+                  "UCB",
+                  "PI"
+                ],
                 "type": "string"
               },
               {
@@ -4548,14 +4767,20 @@
             "title": "Crossover Rate"
           },
           "direction": {
-            "enum": ["maximize", "minimize"],
+            "enum": [
+              "maximize",
+              "minimize"
+            ],
             "title": "Direction",
             "type": "string"
           },
           "genetic_selection_method": {
             "anyOf": [
               {
-                "enum": ["tournament", "roulette"],
+                "enum": [
+                  "tournament",
+                  "roulette"
+                ],
                 "type": "string"
               },
               {
@@ -4642,7 +4867,10 @@
           },
           "schema_version": {
             "default": 1,
-            "enum": [1, 2],
+            "enum": [
+              1,
+              2
+            ],
             "title": "Schema Version",
             "type": "integer"
           }
@@ -4680,7 +4908,9 @@
             "type": "object"
           }
         },
-        "required": ["param_grid"],
+        "required": [
+          "param_grid"
+        ],
         "title": "ParamStabilityParams",
         "type": "object"
       },
@@ -4696,7 +4926,10 @@
             "$ref": "#/components/schemas/ParamStabilityParams"
           }
         },
-        "required": ["backtest_id", "params"],
+        "required": [
+          "backtest_id",
+          "params"
+        ],
         "title": "ParamStabilitySubmitRequest",
         "type": "object"
       },
@@ -4722,7 +4955,10 @@
             "type": "string"
           }
         },
-        "required": ["code", "message"],
+        "required": [
+          "code",
+          "message"
+        ],
         "title": "ParseError",
         "type": "object"
       },
@@ -4796,7 +5032,10 @@
             "type": "array"
           }
         },
-        "required": ["status", "pine_version"],
+        "required": [
+          "status",
+          "pine_version"
+        ],
         "title": "ParsePreviewResponse",
         "type": "object"
       },
@@ -4808,12 +5047,18 @@
             "type": "string"
           }
         },
-        "required": ["pine_source"],
+        "required": [
+          "pine_source"
+        ],
         "title": "ParseRequest",
         "type": "object"
       },
       "ParseStatus": {
-        "enum": ["ok", "unsupported", "error"],
+        "enum": [
+          "ok",
+          "unsupported",
+          "error"
+        ],
         "title": "ParseStatus",
         "type": "string"
       },
@@ -4845,7 +5090,10 @@
         "type": "object"
       },
       "PineVersion": {
-        "enum": ["v4", "v5"],
+        "enum": [
+          "v4",
+          "v5"
+        ],
         "title": "PineVersion",
         "type": "string"
       },
@@ -4853,7 +5101,10 @@
         "description": "로컬 Pine open trade와 거래소 포지션의 읽기 전용 대조 결과.",
         "properties": {
           "local_source": {
-            "enum": ["strategy_state_report", "none"],
+            "enum": [
+              "strategy_state_report",
+              "none"
+            ],
             "title": "Local Source",
             "type": "string"
           },
@@ -4870,7 +5121,10 @@
             "type": "string"
           }
         },
-        "required": ["verdict", "local_source"],
+        "required": [
+          "verdict",
+          "local_source"
+        ],
         "title": "PositionDiffSchema",
         "type": "object"
       },
@@ -4920,7 +5174,12 @@
             "title": "Passphrase"
           }
         },
-        "required": ["exchange", "mode", "api_key", "api_secret"],
+        "required": [
+          "exchange",
+          "mode",
+          "api_key",
+          "api_secret"
+        ],
         "title": "RegisterAccountRequest",
         "type": "object"
       },
@@ -4934,7 +5193,12 @@
             "type": "string"
           },
           "interval": {
-            "enum": ["1m", "5m", "15m", "1h"],
+            "enum": [
+              "1m",
+              "5m",
+              "15m",
+              "1h"
+            ],
             "title": "Interval",
             "type": "string"
           },
@@ -5006,7 +5270,10 @@
             "title": "Trigger Price"
           }
         },
-        "required": ["order_id", "side"],
+        "required": [
+          "order_id",
+          "side"
+        ],
         "title": "RestingEntryOrder",
         "type": "object"
       },
@@ -5032,7 +5299,11 @@
             "type": "string"
           }
         },
-        "required": ["backtest_id", "share_token", "share_url_path"],
+        "required": [
+          "backtest_id",
+          "share_token",
+          "share_url_path"
+        ],
         "title": "ShareTokenResponse",
         "type": "object"
       },
@@ -5095,7 +5366,11 @@
             "title": "Profit Factor"
           }
         },
-        "required": ["net_profit_abs", "gross_profit_abs", "gross_loss_abs"],
+        "required": [
+          "net_profit_abs",
+          "gross_profit_abs",
+          "gross_loss_abs"
+        ],
         "title": "SideMetricsOut",
         "type": "object"
       },
@@ -5240,7 +5515,11 @@
       },
       "StrategyLifecycle": {
         "description": "전략 목록에서 계산하는 파생 수명주기.",
-        "enum": ["draft", "validated", "deployed"],
+        "enum": [
+          "draft",
+          "validated",
+          "deployed"
+        ],
         "title": "StrategyLifecycle",
         "type": "string"
       },
@@ -5402,7 +5681,13 @@
             "type": "integer"
           }
         },
-        "required": ["items", "total", "page", "limit", "total_pages"],
+        "required": [
+          "items",
+          "total",
+          "page",
+          "limit",
+          "total_pages"
+        ],
         "title": "StrategyListResponse",
         "type": "object"
       },
@@ -5554,7 +5839,12 @@
             "type": "string"
           }
         },
-        "required": ["stress_test_id", "kind", "status", "created_at"],
+        "required": [
+          "stress_test_id",
+          "kind",
+          "status",
+          "created_at"
+        ],
         "title": "StressTestCreatedResponse",
         "type": "object"
       },
@@ -5687,7 +5977,12 @@
       },
       "StressTestStatus": {
         "description": "Stress test 실행 라이프사이클.",
-        "enum": ["queued", "running", "completed", "failed"],
+        "enum": [
+          "queued",
+          "running",
+          "completed",
+          "failed"
+        ],
         "title": "StressTestStatus",
         "type": "string"
       },
@@ -5740,7 +6035,10 @@
         "type": "object"
       },
       "TradeDirection": {
-        "enum": ["long", "short"],
+        "enum": [
+          "long",
+          "short"
+        ],
         "title": "TradeDirection",
         "type": "string"
       },
@@ -6040,7 +6338,10 @@
         "type": "object"
       },
       "TradeStatus": {
-        "enum": ["open", "closed"],
+        "enum": [
+          "open",
+          "closed"
+        ],
         "title": "TradeStatus",
         "type": "string"
       },
@@ -6048,7 +6349,13 @@
         "description": "미지원 호출 상세 — DrFXGOD reject 응답에 line 번호 + 우회 안내 포함.",
         "properties": {
           "category": {
-            "enum": ["drawing", "data", "syntax", "math", "other"],
+            "enum": [
+              "drawing",
+              "data",
+              "syntax",
+              "math",
+              "other"
+            ],
             "title": "Category",
             "type": "string"
           },
@@ -6083,7 +6390,11 @@
             "title": "Workaround"
           }
         },
-        "required": ["name", "line", "category"],
+        "required": [
+          "name",
+          "line",
+          "category"
+        ],
         "title": "UnsupportedCallResponse",
         "type": "object"
       },
@@ -6199,7 +6510,10 @@
         "properties": {
           "fill_timing": {
             "default": "bar_close",
-            "enum": ["bar_close", "next_bar_open"],
+            "enum": [
+              "bar_close",
+              "next_bar_open"
+            ],
             "title": "Fill Timing",
             "type": "string"
           },
@@ -6210,7 +6524,10 @@
             "type": "integer"
           },
           "margin_mode": {
-            "enum": ["cross", "isolated"],
+            "enum": [
+              "cross",
+              "isolated"
+            ],
             "title": "Margin Mode",
             "type": "string"
           },
@@ -6250,7 +6567,11 @@
             "type": "integer"
           }
         },
-        "required": ["leverage", "margin_mode", "position_size_pct"],
+        "required": [
+          "leverage",
+          "margin_mode",
+          "position_size_pct"
+        ],
         "title": "UpdateStrategySettingsRequest",
         "type": "object"
       },
@@ -6341,7 +6662,11 @@
             "type": "string"
           }
         },
-        "required": ["loc", "msg", "type"],
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
         "title": "ValidationError",
         "type": "object"
       },
@@ -6357,7 +6682,10 @@
             "$ref": "#/components/schemas/WaitlistStatus"
           }
         },
-        "required": ["id", "status"],
+        "required": [
+          "id",
+          "status"
+        ],
         "title": "WaitlistApplicationAcceptedResponse",
         "type": "object"
       },
@@ -6464,7 +6792,12 @@
       },
       "WaitlistStatus": {
         "description": "신청서 상태.",
-        "enum": ["pending", "invited", "joined", "rejected"],
+        "enum": [
+          "pending",
+          "invited",
+          "joined",
+          "rejected"
+        ],
         "title": "WaitlistStatus",
         "type": "string"
       },
@@ -6636,7 +6969,10 @@
             "type": "integer"
           }
         },
-        "required": ["train_bars", "test_bars"],
+        "required": [
+          "train_bars",
+          "test_bars"
+        ],
         "title": "WalkForwardParams",
         "type": "object"
       },
@@ -6704,7 +7040,10 @@
             "$ref": "#/components/schemas/WalkForwardParams"
           }
         },
-        "required": ["backtest_id", "params"],
+        "required": [
+          "backtest_id",
+          "params"
+        ],
         "title": "WalkForwardSubmitRequest",
         "type": "object"
       },
@@ -6719,7 +7058,10 @@
             "type": "string"
           }
         },
-        "required": ["secret", "webhook_url"],
+        "required": [
+          "secret",
+          "webhook_url"
+        ],
         "title": "WebhookRotateResponse",
         "type": "object"
       }
@@ -6798,7 +7140,9 @@
           }
         },
         "summary": "Admin List",
-        "tags": ["waitlist"]
+        "tags": [
+          "waitlist"
+        ]
       }
     },
     "/api/v1/admin/waitlist/{application_id}/approve": {
@@ -6839,7 +7183,9 @@
           }
         },
         "summary": "Admin Approve",
-        "tags": ["waitlist"]
+        "tags": [
+          "waitlist"
+        ]
       }
     },
     "/api/v1/auth/me": {
@@ -6858,7 +7204,9 @@
           }
         },
         "summary": "Get Me",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/auth/webhook": {
@@ -6882,7 +7230,9 @@
           }
         },
         "summary": "Clerk Webhook",
-        "tags": ["auth"]
+        "tags": [
+          "auth"
+        ]
       }
     },
     "/api/v1/backtests": {
@@ -6935,7 +7285,10 @@
             "required": false,
             "schema": {
               "default": "desc",
-              "enum": ["asc", "desc"],
+              "enum": [
+                "asc",
+                "desc"
+              ],
               "title": "Order",
               "type": "string"
             }
@@ -6964,7 +7317,9 @@
           }
         },
         "summary": "List Backtests",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       },
       "post": {
         "description": "POST /backtests.\n\nSprint 9-6 E2: Idempotency-Key + 동일 body → `replayed=True` 반환 +\n응답 헤더 `X-Idempotency-Replayed: true`. 상태 코드는 replay/신규 모두\n202 유지 (\"Accepted\" 의미 — 신규 or 기존 queued 둘 다 async).",
@@ -7020,7 +7375,9 @@
           }
         },
         "summary": "Submit Backtest",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       }
     },
     "/api/v1/backtests/share/{token}": {
@@ -7061,7 +7418,9 @@
           }
         },
         "summary": "View Share",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       }
     },
     "/api/v1/backtests/{backtest_id}": {
@@ -7095,7 +7454,9 @@
           }
         },
         "summary": "Delete Backtest",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       },
       "get": {
         "operationId": "get_backtest_api_v1_backtests__backtest_id__get",
@@ -7134,7 +7495,9 @@
           }
         },
         "summary": "Get Backtest",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       }
     },
     "/api/v1/backtests/{backtest_id}/cancel": {
@@ -7175,7 +7538,9 @@
           }
         },
         "summary": "Cancel Backtest",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       }
     },
     "/api/v1/backtests/{backtest_id}/progress": {
@@ -7216,7 +7581,9 @@
           }
         },
         "summary": "Get Backtest Progress",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       }
     },
     "/api/v1/backtests/{backtest_id}/share": {
@@ -7251,7 +7618,9 @@
           }
         },
         "summary": "Revoke Share",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       },
       "post": {
         "description": "Owner 가 share_token 생성. 멱등 — active token 있으면 그대로 반환.\n\nsecrets.token_urlsafe(32) = 256-bit entropy. revoke 후 재생성 시 새 토큰 발급.",
@@ -7291,7 +7660,9 @@
           }
         },
         "summary": "Create Share",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       }
     },
     "/api/v1/backtests/{backtest_id}/trades": {
@@ -7355,7 +7726,9 @@
           }
         },
         "summary": "List Backtest Trades",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       }
     },
     "/api/v1/backtests/{backtest_id}/trades/{trade_index}/ohlcv": {
@@ -7405,7 +7778,9 @@
           }
         },
         "summary": "Get Trade Ohlcv",
-        "tags": ["backtests"]
+        "tags": [
+          "backtests"
+        ]
       }
     },
     "/api/v1/exchange-accounts": {
@@ -7424,7 +7799,9 @@
           }
         },
         "summary": "List Exchange Accounts",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       },
       "post": {
         "operationId": "register_exchange_account_api_v1_exchange_accounts_post",
@@ -7461,7 +7838,9 @@
           }
         },
         "summary": "Register Exchange Account",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/exchange-accounts/{account_id}": {
@@ -7495,7 +7874,9 @@
           }
         },
         "summary": "Delete Exchange Account",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/exchange-accounts/{account_id}/balance": {
@@ -7536,7 +7917,9 @@
           }
         },
         "summary": "Get Exchange Account Balance",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/exchange-accounts/{account_id}/positions": {
@@ -7578,7 +7961,9 @@
           }
         },
         "summary": "Get Exchange Account Positions",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/kill-switch/events": {
@@ -7635,7 +8020,9 @@
           }
         },
         "summary": "List Kill Switch Events",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/kill-switch/events/{event_id}/resolve": {
@@ -7688,7 +8075,9 @@
           }
         },
         "summary": "Resolve Kill Switch",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/liquidation/preview": {
@@ -7728,7 +8117,9 @@
           }
         },
         "summary": "Preview Liquidation",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions": {
@@ -7769,7 +8160,9 @@
           }
         },
         "summary": "List Live Sessions",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       },
       "post": {
         "description": "Sprint 26 — Live Session 등록.\n\nBybit Demo 한정 (BL-003 mainnet runbook 완료 전까지). 사용자별 ≤ 5 active.\nStrategy.settings (leverage/margin_mode/position_size_pct) 사전 설정 의무.",
@@ -7807,7 +8200,9 @@
           }
         },
         "summary": "Create Live Session",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions/{session_id}": {
@@ -7841,7 +8236,9 @@
           }
         },
         "summary": "Delete Live Session",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions/{session_id}/alert-rules": {
@@ -7882,7 +8279,9 @@
           }
         },
         "summary": "List Alert Rules",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       },
       "post": {
         "operationId": "create_alert_rule_api_v1_live_sessions__session_id__alert_rules_post",
@@ -7931,7 +8330,9 @@
           }
         },
         "summary": "Create Alert Rule",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions/{session_id}/alert-rules/{rule_id}": {
@@ -7975,7 +8376,9 @@
           }
         },
         "summary": "Delete Alert Rule",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions/{session_id}/events": {
@@ -8029,7 +8432,9 @@
           }
         },
         "summary": "List Live Session Events",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions/{session_id}/outcome-parity": {
@@ -8071,7 +8476,9 @@
           }
         },
         "summary": "Get Live Session Outcome Parity",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions/{session_id}/positions": {
@@ -8112,7 +8519,9 @@
           }
         },
         "summary": "Get Live Session Positions",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions/{session_id}/positions/close": {
@@ -8153,7 +8562,9 @@
           }
         },
         "summary": "Close Live Session Position",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/live-sessions/{session_id}/state": {
@@ -8195,7 +8606,9 @@
           }
         },
         "summary": "Get Live Session State",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/optimizer/runs": {
@@ -8267,7 +8680,9 @@
           }
         },
         "summary": "List Optimization Runs",
-        "tags": ["optimizer"]
+        "tags": [
+          "optimizer"
+        ]
       }
     },
     "/api/v1/optimizer/runs/bayesian": {
@@ -8307,7 +8722,9 @@
           }
         },
         "summary": "Submit Bayesian",
-        "tags": ["optimizer"]
+        "tags": [
+          "optimizer"
+        ]
       }
     },
     "/api/v1/optimizer/runs/genetic": {
@@ -8347,7 +8764,9 @@
           }
         },
         "summary": "Submit Genetic",
-        "tags": ["optimizer"]
+        "tags": [
+          "optimizer"
+        ]
       }
     },
     "/api/v1/optimizer/runs/grid-search": {
@@ -8387,7 +8806,9 @@
           }
         },
         "summary": "Submit Grid Search",
-        "tags": ["optimizer"]
+        "tags": [
+          "optimizer"
+        ]
       }
     },
     "/api/v1/optimizer/runs/{run_id}": {
@@ -8429,7 +8850,9 @@
           }
         },
         "summary": "Get Optimization Run",
-        "tags": ["optimizer"]
+        "tags": [
+          "optimizer"
+        ]
       }
     },
     "/api/v1/orders": {
@@ -8504,7 +8927,9 @@
           }
         },
         "summary": "List Orders",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/orders/{order_id}": {
@@ -8545,7 +8970,9 @@
           }
         },
         "summary": "Get Order",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/orders/{order_id}/cancel": {
@@ -8587,7 +9014,9 @@
           }
         },
         "summary": "Cancel Order",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/api/v1/strategies": {
@@ -8670,7 +9099,12 @@
             "required": false,
             "schema": {
               "default": "updated_at",
-              "enum": ["updated_at", "name", "total_return", "sharpe_ratio"],
+              "enum": [
+                "updated_at",
+                "name",
+                "total_return",
+                "sharpe_ratio"
+              ],
               "title": "Order By",
               "type": "string"
             }
@@ -8681,7 +9115,10 @@
             "required": false,
             "schema": {
               "default": "desc",
-              "enum": ["asc", "desc"],
+              "enum": [
+                "asc",
+                "desc"
+              ],
               "title": "Order",
               "type": "string"
             }
@@ -8710,7 +9147,9 @@
           }
         },
         "summary": "List Strategies",
-        "tags": ["strategies"]
+        "tags": [
+          "strategies"
+        ]
       },
       "post": {
         "description": "Sprint 13 Phase A.1.4: response 에 webhook_secret plaintext 1회 포함.\n\nFrontend 가 sessionStorage 캐시 (TTL 30분) 로 후속 Test Order Dialog 에서 재사용.\nGET / list 응답은 StrategyResponse 유지 — webhook_secret 노출 X.",
@@ -8748,7 +9187,9 @@
           }
         },
         "summary": "Create Strategy",
-        "tags": ["strategies"]
+        "tags": [
+          "strategies"
+        ]
       }
     },
     "/api/v1/strategies/convert-indicator": {
@@ -8787,7 +9228,9 @@
           }
         },
         "summary": "Convert Indicator",
-        "tags": ["indicator-convert"]
+        "tags": [
+          "indicator-convert"
+        ]
       }
     },
     "/api/v1/strategies/parse": {
@@ -8826,7 +9269,9 @@
           }
         },
         "summary": "Parse Preview",
-        "tags": ["strategies"]
+        "tags": [
+          "strategies"
+        ]
       }
     },
     "/api/v1/strategies/{strategy_id}": {
@@ -8860,7 +9305,9 @@
           }
         },
         "summary": "Delete Strategy",
-        "tags": ["strategies"]
+        "tags": [
+          "strategies"
+        ]
       },
       "get": {
         "operationId": "get_strategy_api_v1_strategies__strategy_id__get",
@@ -8899,7 +9346,9 @@
           }
         },
         "summary": "Get Strategy",
-        "tags": ["strategies"]
+        "tags": [
+          "strategies"
+        ]
       },
       "put": {
         "operationId": "update_strategy_api_v1_strategies__strategy_id__put",
@@ -8948,7 +9397,9 @@
           }
         },
         "summary": "Update Strategy",
-        "tags": ["strategies"]
+        "tags": [
+          "strategies"
+        ]
       }
     },
     "/api/v1/strategies/{strategy_id}/rotate-webhook-secret": {
@@ -8990,7 +9441,9 @@
           }
         },
         "summary": "Rotate Webhook Secret",
-        "tags": ["strategies"]
+        "tags": [
+          "strategies"
+        ]
       }
     },
     "/api/v1/strategies/{strategy_id}/settings": {
@@ -9042,7 +9495,9 @@
           }
         },
         "summary": "Update Strategy Settings",
-        "tags": ["strategies"]
+        "tags": [
+          "strategies"
+        ]
       }
     },
     "/api/v1/stress-tests": {
@@ -9113,7 +9568,9 @@
           }
         },
         "summary": "List Stress Tests",
-        "tags": ["stress_test"]
+        "tags": [
+          "stress_test"
+        ]
       }
     },
     "/api/v1/stress-tests/cost-assumption-sensitivity": {
@@ -9153,7 +9610,9 @@
           }
         },
         "summary": "Submit Cost Assumption Sensitivity",
-        "tags": ["stress_test"]
+        "tags": [
+          "stress_test"
+        ]
       }
     },
     "/api/v1/stress-tests/monte-carlo": {
@@ -9192,7 +9651,9 @@
           }
         },
         "summary": "Submit Monte Carlo",
-        "tags": ["stress_test"]
+        "tags": [
+          "stress_test"
+        ]
       }
     },
     "/api/v1/stress-tests/param-stability": {
@@ -9232,7 +9693,9 @@
           }
         },
         "summary": "Submit Param Stability",
-        "tags": ["stress_test"]
+        "tags": [
+          "stress_test"
+        ]
       }
     },
     "/api/v1/stress-tests/walk-forward": {
@@ -9271,7 +9734,9 @@
           }
         },
         "summary": "Submit Walk Forward",
-        "tags": ["stress_test"]
+        "tags": [
+          "stress_test"
+        ]
       }
     },
     "/api/v1/stress-tests/{stress_test_id}": {
@@ -9312,7 +9777,9 @@
           }
         },
         "summary": "Get Stress Test",
-        "tags": ["stress_test"]
+        "tags": [
+          "stress_test"
+        ]
       }
     },
     "/api/v1/waitlist": {
@@ -9351,7 +9818,9 @@
           }
         },
         "summary": "Submit Application",
-        "tags": ["waitlist"]
+        "tags": [
+          "waitlist"
+        ]
       }
     },
     "/api/v1/waitlist/invite/{token}": {
@@ -9393,7 +9862,9 @@
           }
         },
         "summary": "Verify Invite",
-        "tags": ["waitlist"]
+        "tags": [
+          "waitlist"
+        ]
       }
     },
     "/api/v1/webhooks/{strategy_id}": {
@@ -9462,7 +9933,9 @@
           }
         },
         "summary": "Receive Webhook",
-        "tags": ["trading"]
+        "tags": [
+          "trading"
+        ]
       }
     },
     "/health": {
@@ -9485,7 +9958,9 @@
           }
         },
         "summary": "Health",
-        "tags": ["meta"]
+        "tags": [
+          "meta"
+        ]
       }
     },
     "/healthz": {
@@ -9503,7 +9978,9 @@
           }
         },
         "summary": "Healthz",
-        "tags": ["meta"]
+        "tags": [
+          "meta"
+        ]
       }
     },
     "/livez": {
@@ -9521,7 +9998,9 @@
           }
         },
         "summary": "Livez",
-        "tags": ["meta"]
+        "tags": [
+          "meta"
+        ]
       }
     }
   }
