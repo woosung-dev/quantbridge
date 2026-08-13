@@ -94,8 +94,14 @@ $DIRTY_PATHS"
 fi
 
 has_fe=0; has_be=0
-printf '%s\n' "$CHANGED" | grep -q '^apps/web/' && has_fe=1
-printf '%s\n' "$CHANGED" | grep -q '^apps/api/'  && has_be=1
+# ★grep -q 금지 (2026-08-13 실측) — pipefail 아래서 -q 는 첫 매치에 조기 종료하고, 목록이 파이프
+#   버퍼(64KB)를 넘으면 printf 가 SIGPIPE(141)로 죽어 **매치 성공이 파이프라인 실패**가 된다.
+#   이 재배치 PR(1,549 경로·83KB)에서 has_fe/has_be 가 실행마다 뒤집히는 비결정을 실증했다.
+#   grep -c 는 입력을 끝까지 읽어 SIGPIPE 가 없다.
+fe_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/web/')"
+be_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/api/')"
+[ "${fe_n:-0}" -gt 0 ] && has_fe=1
+[ "${be_n:-0}" -gt 0 ] && has_be=1
 
 NAMES=(); CODES=(); NOTES=()
 record() { NAMES+=("$1"); CODES+=("$2"); NOTES+=("${3:-}"); }
