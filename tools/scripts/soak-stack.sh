@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 #
-# 소크 스택 — 워커가 **고정된 커밋 스냅샷**을 돌게 한다. 그래야 `backend/src` 를 편집해도
+# 소크 스택 — 워커가 **고정된 커밋 스냅샷**을 돌게 한다. 그래야 `apps/api/src` 를 편집해도
 # 돌고 있는 소크가 죽지 않고, 「이 사망이 어느 버전 것인가」에 답이 있다. ([BL-003] 게이트)
 #
 # 사용:
-#   scripts/soak-stack.sh pin [<commitish>]   # .soak/src 를 그 커밋에서 다시 뜬다 (기본 HEAD)
-#   scripts/soak-stack.sh up                  # 3층 compose 로 기동
-#   scripts/soak-stack.sh down                # 3층 compose 로 내림
-#   scripts/soak-stack.sh commit              # ★소크가 도는 커밋 — 프로세스 기준으로 조회
-#   scripts/soak-stack.sh status              # 고정 여부 · 커밋 · 누락 커밋 · 활성 세션 · main 조상
-#   scripts/soak-stack.sh ps                  # ★DB 를 안 건드리는 생존 확인 — 0 = 하나라도 running / 1 = 완전 down
-#   scripts/soak-stack.sh assert-not-pinned   # Makefile 클로버 가드용 (고정본이 떠 있으면 1)
+#   tools/scripts/soak-stack.sh pin [<commitish>]   # .soak/src 를 그 커밋에서 다시 뜬다 (기본 HEAD)
+#   tools/scripts/soak-stack.sh up                  # 3층 compose 로 기동
+#   tools/scripts/soak-stack.sh down                # 3층 compose 로 내림
+#   tools/scripts/soak-stack.sh commit              # ★소크가 도는 커밋 — 프로세스 기준으로 조회
+#   tools/scripts/soak-stack.sh status              # 고정 여부 · 커밋 · 누락 커밋 · 활성 세션 · main 조상
+#   tools/scripts/soak-stack.sh ps                  # ★DB 를 안 건드리는 생존 확인 — 0 = 하나라도 running / 1 = 완전 down
+#   tools/scripts/soak-stack.sh assert-not-pinned   # Makefile 클로버 가드용 (고정본이 떠 있으면 1)
 #
 # 종료 코드: 0 = 정상 / 1 = 실패·거부 / 2 = 전제 미충족(측정 못 함)
 #
 # ★설계 근거 (전부 이 레포가 실제로 덴 것):
-#   · **커밋되지 않은 코드를 소크하지 않는다.** `backend/src` 가 dirty 면 pin 을 거부한다 —
+#   · **커밋되지 않은 코드를 소크하지 않는다.** `apps/api/src` 가 dirty 면 pin 을 거부한다 —
 #     소크와 작업 트리가 갈리는 순간 「어느 버전이 죽었나」가 판정 비용이 된다.
 #   · **파일의 증거와 프로세스의 증거를 구분한다.** `cat /app/src/__soak_commit__` 은
 #     파일의 증거일 뿐이다. `commit` 은 **celery MainProcess 의 /proc/<pid>/root** 를 통해
@@ -27,14 +27,14 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 STATE_DIR="${ROOT}/.soak"
 SRC_DIR="${STATE_DIR}/src"
 STAMP_FILE="${SRC_DIR}/__soak_commit__"
 PIN_HISTORY="${STATE_DIR}/pin-history.jsonl"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
-COMPOSE=(-f "${ROOT}/docker-compose.yml" -f "${ROOT}/docker-compose.isolated.yml" -f "${ROOT}/docker-compose.soak.yml")
+COMPOSE=(--project-directory "${ROOT}" -f "${ROOT}/infra/compose/docker-compose.yml" -f "${ROOT}/infra/compose/docker-compose.isolated.yml" -f "${ROOT}/infra/compose/docker-compose.soak.yml")
 
 # 소크 스택의 mount 인지 판정하는 지문. compose 가 상대경로를 절대경로로 펴므로 그 형태로 본다.
 PINNED_MOUNT="${ROOT}/.soak/src"
@@ -43,7 +43,7 @@ die() { echo "✗ $1" >&2; exit "${2:-1}"; }
 
 # 창(window) 경계의 SSOT. ★귀속 구간을 여는 것은 `pin` 이 아니라 **`up`** 이다 —
 # 스냅샷을 다시 떠도 이미 돌고 있는 프로세스는 구 모듈을 쥐고 있다. `pin` 은 귀속이 흐려지는
-# 시점이므로 **닫는다**. 판정은 backend/scripts/soak_gate_predicate.py 가 한다.
+# 시점이므로 **닫는다**. 판정은 apps/api/scripts/soak_gate_predicate.py 가 한다.
 _record_event() {  # _record_event <pin|up|down> <sha> <ISO8601Z>
   mkdir -p "${STATE_DIR}"
   printf '{"event":"%s","sha":"%s","at":"%s"}\n' "$1" "$2" "$3" >> "${PIN_HISTORY}"
@@ -88,17 +88,17 @@ _stack_is_pinned() {
 #   최신본이 도는 줄 알았다. 조상 여부는 **하한**이지 최신성의 증거가 아니다.
 #
 # 감시 경로의 근거 (2026-08-08 실측 · `0c9ccc68..origin/main` = 필터 없이 33커밋 → 9커밋):
-#   · `backend/src`     — `_pin` 이 `git archive <sha> backend/src` 로 **실제로 스냅샷하는
+#   · `apps/api/src`     — `_pin` 이 `git archive <sha> apps/api/src` 로 **실제로 스냅샷하는
 #                         유일한 경로**. 여기가 낡으면 소크가 낡은 엔진을 돈다.
-#   · `backend/scripts` — 판정자 `soak_gate_predicate.py` 가 산다. 고정본 `0c9ccc68` 자신이
+#   · `apps/api/scripts` — 판정자 `soak_gate_predicate.py` 가 산다. 고정본 `0c9ccc68` 자신이
 #                         이 경로의 커밋이었다(parse_ts python 3.10 수리).
 #   · `scripts`         — 게이트 본체 `soak-gate.sh` 와 이 파일이 산다.
 #   `pin` 은 통상 HEAD 를 고정하므로 「고정 sha 뒤로 남은 커밋」은 곧 「이 체크아웃이
-#   origin/main 보다 뒤처졌다」와 같다. 스냅샷(`backend/src`)과 판정기(`scripts` 2종)는
-#   **같은 체크아웃**에서 나오므로 둘 다 본다. `docs/`·`frontend/` 는 뺀다 — 소크의 실행에도
+#   origin/main 보다 뒤처졌다」와 같다. 스냅샷(`apps/api/src`)과 판정기(`scripts` 2종)는
+#   **같은 체크아웃**에서 나오므로 둘 다 본다. `docs/`·`apps/web/` 는 뺀다 — 소크의 실행에도
 #   판정에도 들어가지 않는다.
-#   ★커밋 메시지 접두사로 거르지 마라 — 실측에서 `docs(...)` 2건이 `backend/src` 를 고쳤다.
-SOAK_WATCHED_PATHS=(backend/src backend/scripts scripts)
+#   ★커밋 메시지 접두사로 거르지 마라 — 실측에서 `docs(...)` 2건이 `apps/api/src` 를 고쳤다.
+SOAK_WATCHED_PATHS=(apps/api/src apps/api/scripts scripts)
 # 운영자가 실제로 읽는 분량. 넘치면 개수만 말한다.
 MISSING_LIST_LIMIT=20
 
@@ -172,7 +172,7 @@ _assert_no_missing_commits() {  # <sha> — 0 = 진행해도 된다 / 1 = 거부
 _pin() {
   local target="${1:-HEAD}"
 
-  bash "${ROOT}/scripts/assert-main-checkout.sh" "soak-stack.sh pin" || exit 2
+  bash "${ROOT}/tools/scripts/assert-main-checkout.sh" "soak-stack.sh pin" || exit 2
 
   # ★★돌고 있는 고정본 위에 다시 pin 하지 않는다.
   #   `.soak/src` 는 **실행 중 컨테이너의 bind mount 원본**이다. 제자리에서 지우고 다시 쓰면
@@ -182,15 +182,15 @@ _pin() {
   if [ "${QB_SOAK_OVERRIDE:-0}" != "1" ] && _stack_is_pinned && [ -n "$(_celery_main_pid)" ]; then
     echo "✗ 고정본 스택이 돌고 있다 — 그 위에 다시 pin 하면 기록 커밋과 실행 코드가 갈린다." >&2
     echo "  현재 고정: $(cut -d' ' -f1 "${STAMP_FILE}" 2>/dev/null || echo '?')" >&2
-    echo "  → 'scripts/soak-stack.sh down' 으로 내린 뒤 pin 해라 (연속 창은 끊긴다)." >&2
+    echo "  → 'tools/scripts/soak-stack.sh down' 으로 내린 뒤 pin 해라 (연속 창은 끊긴다)." >&2
     exit 2
   fi
 
-  # ★커밋되지 않은 backend/src 를 소크하지 않는다. 이게 이 도구의 존재 이유의 절반이다.
+  # ★커밋되지 않은 apps/api/src 를 소크하지 않는다. 이게 이 도구의 존재 이유의 절반이다.
   local dirty
-  dirty="$(cd "${ROOT}" && git status --porcelain -- backend/src)"
+  dirty="$(cd "${ROOT}" && git status --porcelain -- apps/api/src)"
   if [ -n "${dirty}" ]; then
-    echo "✗ backend/src 가 dirty 하다 — 커밋되지 않은 코드를 소크할 수 없다." >&2
+    echo "✗ apps/api/src 가 dirty 하다 — 커밋되지 않은 코드를 소크할 수 없다." >&2
     echo "${dirty}" | sed 's/^/    /' >&2
     echo "  → 커밋한 뒤 다시 pin 해라. (소크가 도는 커밋이 조회 가능해야 한다)" >&2
     exit 2
@@ -208,9 +208,9 @@ _pin() {
 
   rm -rf "${SRC_DIR}"
   mkdir -p "${SRC_DIR}"
-  # `git archive` 는 **추적된 파일만** 담는다. backend/src 의 미추적은 __pycache__ 뿐이고
+  # `git archive` 는 **추적된 파일만** 담는다. apps/api/src 의 미추적은 __pycache__ 뿐이고
   # 이미지가 PYTHONDONTWRITEBYTECODE=1 이라 없어도 된다(2026-08-04 실측).
-  (cd "${ROOT}" && git archive "${sha}" backend/src) | tar -x --strip-components=2 -C "${SRC_DIR}" \
+  (cd "${ROOT}" && git archive "${sha}" apps/api/src) | tar -x --strip-components=2 -C "${SRC_DIR}" \
     || die "스냅샷 생성 실패" 1
 
   [ -f "${SRC_DIR}/tasks/celery_app.py" ] || die "스냅샷이 비었다 — tasks/celery_app.py 가 없다" 1
@@ -229,9 +229,9 @@ _pin() {
 # ------------------------------------------------------------------ up / down
 
 _up() {
-  bash "${ROOT}/scripts/assert-main-checkout.sh" "soak-stack.sh up" || exit 2
+  bash "${ROOT}/tools/scripts/assert-main-checkout.sh" "soak-stack.sh up" || exit 2
   [ -f "${STAMP_FILE}" ] || die "고정본이 없다 — 먼저 'soak-stack.sh pin' 을 해라" 2
-  mkdir -p "${ROOT}/backend/.metrics" && chmod 0777 "${ROOT}/backend/.metrics"
+  mkdir -p "${ROOT}/apps/api/.metrics" && chmod 0777 "${ROOT}/apps/api/.metrics"
 
   # ★스택이 이미 고정본으로 돌고 있으면 **새 창만 연다.**
   #   실격 사건(사망·phantom·정체)은 그 창이 닫힐 때까지 FAIL 로 남는다 — 그래서 「인지했고
@@ -284,7 +284,7 @@ _up() {
 }
 
 _down() {
-  bash "${ROOT}/scripts/assert-main-checkout.sh" "soak-stack.sh down" || exit 2
+  bash "${ROOT}/tools/scripts/assert-main-checkout.sh" "soak-stack.sh down" || exit 2
   local sha
   sha="$(cut -d' ' -f1 "${STAMP_FILE}" 2>/dev/null || echo '-')"
   (cd "${ROOT}" && docker compose "${COMPOSE[@]}" down) || die "compose down 실패" 1
@@ -415,7 +415,7 @@ _assert_not_pinned() {
   if _stack_is_pinned; then
     echo "✗ 지금 떠 있는 것은 **소크 고정본 스택**이다 — 이 타깃은 그것을 덮어써 소크를 끊는다." >&2
     echo "  고정 커밋: $(cut -d' ' -f1 "${STAMP_FILE}" 2>/dev/null || echo '?')" >&2
-    echo "  → 소크를 끝낼 생각이면 'scripts/soak-stack.sh down' 을 먼저 해라." >&2
+    echo "  → 소크를 끝낼 생각이면 'tools/scripts/soak-stack.sh down' 을 먼저 해라." >&2
     echo "  → 정말 덮어쓰려면 QB_SOAK_OVERRIDE=1 을 붙여라." >&2
     exit 1
   fi

@@ -443,7 +443,7 @@ def test_regen_script_without_confirm_fails() -> None:
         [py, str(_REGEN_SCRIPT)],
         capture_output=True,
         text=True,
-        cwd=_REGEN_SCRIPT.parents[1],  # backend/
+        cwd=_REGEN_SCRIPT.parents[1],  # apps/api/
         timeout=30,
     )
     assert result.returncode != 0, (
@@ -515,7 +515,7 @@ def test_envelope_python_minor_matches_runtime() -> None:
 
     ★[BL-587] 이 이 채널의 부재로 생겼다 — `requires-python = ">=3.12"` 만 있고 핀이 없어
     워크트리 bootstrap 의 `uv sync` 가 3.13 을 집었고, CI(3.12)가 재현 못 하는 baseline 이
-    만들어졌다. 원인 차단은 `backend/.python-version`, 이 assert 는 **그 핀이 풀렸을 때의
+    만들어졌다. 원인 차단은 `apps/api/.python-version`, 이 assert 는 **그 핀이 풀렸을 때의
     탐지기**다. 둘 다 필요하다.
     """
     import sys as _sys
@@ -524,7 +524,7 @@ def test_envelope_python_minor_matches_runtime() -> None:
     declared = json.loads(_BASELINE_METRICS.read_text()).get("tool_versions", {}).get("python")
     assert declared == runtime, (
         f"정답지는 python {declared} 에서, 지금 스위트는 python {runtime} 에서 돈다.\n"
-        f"  ★핀은 `backend/.python-version` 이다 — 풀렸는지 먼저 봐라.{_ENVELOPE_RED_MEANS}"
+        f"  ★핀은 `apps/api/.python-version` 이다 — 풀렸는지 먼저 봐라.{_ENVELOPE_RED_MEANS}"
     )
 
 

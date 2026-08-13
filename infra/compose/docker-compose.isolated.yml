@@ -9,7 +9,7 @@
 # append 가 아니라 완전 대체. base 의 command/ports 와 충돌하지 않도록 명시.
 #
 # BL-181 — backend-worker / backend-ws-stream / backend-beat 3 서비스에 한해
-# `./backend/src` host 디렉터리를 `:ro` bind-mount 하고 watchfiles wrapper 로 celery 를 감싼다.
+# `./apps/api/src` host 디렉터리를 `:ro` bind-mount 하고 watchfiles wrapper 로 celery 를 감싼다.
 # host src 가 SoT 이므로 `:ro` 안전. 패키지 추가는 image rebuild 가 의무 (별도 ADR).
 #
 # WARNING: base mode (`make up`) 와 isolated mode 동시 운영 시 `quantbridge-*` container_name
@@ -29,8 +29,8 @@ services:
 
   backend-worker:
     volumes: !override
-      - ./backend/src:/app/src:ro
-      - ./backend/.metrics:/metrics
+      - ./apps/api/src:/app/src:ro
+      - ./apps/api/.metrics:/metrics
     command: !override
       - "uv"
       - "run"
@@ -42,8 +42,8 @@ services:
 
   backend-ws-stream:
     volumes: !override
-      - ./backend/src:/app/src:ro
-      - ./backend/.metrics:/metrics
+      - ./apps/api/src:/app/src:ro
+      - ./apps/api/.metrics:/metrics
     command: !override
       - "uv"
       - "run"
@@ -57,8 +57,8 @@ services:
   # 다른 3 워커와 코드 세대가 갈린다(§7.2 가 막으려는 stale worker 상황 그 자체).
   backend-optimizer-heavy:
     volumes: !override
-      - ./backend/src:/app/src:ro
-      - ./backend/.metrics:/metrics
+      - ./apps/api/src:/app/src:ro
+      - ./apps/api/.metrics:/metrics
     command: !override
       - "uv"
       - "run"
@@ -70,8 +70,8 @@ services:
 
   backend-beat:
     volumes: !override
-      - ./backend/src:/app/src:ro
-      - ./backend/.metrics:/metrics
+      - ./apps/api/src:/app/src:ro
+      - ./apps/api/.metrics:/metrics
       - beat-data:/data
     command: !override
       - "uv"

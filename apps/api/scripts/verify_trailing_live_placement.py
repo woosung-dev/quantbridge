@@ -9,7 +9,7 @@ read-back 으로 data-driven 판정(반환값 신뢰 금지 = false-PASS 차단)
 실자금 아님(가상자금). dispatch provider = BybitFuturesProvider(linear), BybitDemoProvider(spot) 아님.
 
 실행 (사용자가 키 보유 — 직접 실행):
-    cd backend
+    cd apps/api
     uv run python scripts/verify_trailing_live_placement.py \\
         --api-key "$BYBIT_DEMO_KEY" --api-secret "$BYBIT_DEMO_SECRET" \\
         --symbol "BTC/USDT:USDT" --quantity 0.001 --leverage 1 --distance 200

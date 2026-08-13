@@ -23,10 +23,10 @@
 # 어휘 (판정 결과가 들어갈 자리)
 #   도래     → `**상태:**` 를 `⬜ Open` 계열로 유지
 #   미도래   → `**상태:** ⏳ **대기 (트리거 미도래)**` + `**트리거 판정:**` 줄
-#   (판정어 DEFERRED 의 계약 = `scripts/bl-audit.sh` 헤더 · [ADR-028])
+#   (판정어 DEFERRED 의 계약 = `tools/scripts/bl-audit.sh` 헤더 · [ADR-028])
 #
 # 사용법
-#   scripts/bl-trigger-sweep.sh [--soak PASS|FAIL|UNKNOWN] [--selftest] [--tsv]
+#   tools/scripts/bl-trigger-sweep.sh [--soak PASS|FAIL|UNKNOWN] [--selftest] [--tsv]
 #
 #   --selftest  판별력 검사. **전량 스윕 전에 이걸 먼저 통과시켜라.**
 #   --tsv       id/P/버킷/기계판정/트리거 를 TSV 로. 기본은 요약만.
@@ -46,7 +46,7 @@ while [ $# -gt 0 ]; do
 done
 case "$SOAK" in PASS|FAIL|UNKNOWN) ;; *) echo "--soak 는 PASS|FAIL|UNKNOWN 중 하나" >&2; exit 1 ;; esac
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 export QB_ROOT="$ROOT" QB_SOAK="$SOAK" QB_MODE="$MODE"
 
 python3 - <<'PY'
@@ -64,7 +64,7 @@ def verdicts():
     out = {}
     for v in ("ACTIVE", "DEFERRED", "PARTIAL", "RESOLVED", "UNKNOWN"):
         r = subprocess.run(
-            ["bash", os.path.join(ROOT, "scripts", "bl-audit.sh"), "--list", v],
+            ["bash", os.path.join(ROOT, "tools", "scripts", "bl-audit.sh"), "--list", v],
             capture_output=True, text=True,
         )
         for line in r.stdout.splitlines():

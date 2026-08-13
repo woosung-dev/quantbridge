@@ -1,5 +1,5 @@
 // Sprint FE-04: Backtest domain Zod schemas.
-// BE는 Decimal 필드를 @field_serializer로 **문자열** 로 직렬화 (backend/src/backtest/schemas.py).
+// BE는 Decimal 필드를 @field_serializer로 **문자열** 로 직렬화 (apps/api/src/backtest/schemas.py).
 // 따라서 응답 파싱 시 str → number transform + Number.isFinite 가드가 필수.
 // 요청은 BE가 Pydantic Decimal 파싱을 지원하므로 number 그대로 전송.
 
@@ -624,7 +624,7 @@ export type CreateWalkForwardRequest = z.infer<
 >;
 
 // Sprint 52 BL-224 P2 — param_grid superRefine 공통 helper (codex G.0 P1 권고).
-// BE `backend/src/stress_test/schemas.py:144-164,212-227` 의 grid validator 와 정합:
+// BE `apps/api/src/stress_test/schemas.py:144-164,212-227` 의 grid validator 와 정합:
 // - 정확히 2 key
 // - 각 key 의 value list non-empty
 // - 전체 cell ≤ 9 (∏len(values))
@@ -632,7 +632,7 @@ export type CreateWalkForwardRequest = z.infer<
 const MAX_GRID_CELLS = 9 as const;
 
 // Decimal string 검증: numeric parse 가능 + finite (NaN/Infinity reject) + non-empty.
-// BE mirror: backend/src/common/strict_decimal_input.py StrictDecimalInput 와 정합 (BL-226).
+// BE mirror: apps/api/src/common/strict_decimal_input.py StrictDecimalInput 와 정합 (BL-226).
 function isFiniteDecimalString(s: string): boolean {
   if (s.length === 0) return false;
   // strict decimal grammar — optional sign + digits + optional fraction

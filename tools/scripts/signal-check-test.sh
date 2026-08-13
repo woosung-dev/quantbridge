@@ -13,7 +13,7 @@
 #   실흐름), 로컬 origin/main ref 의 낡음과 **회차 슬러그 재사용**은 여기서 안 잰다(eod 만
 #   스크립트가 거부). 회차 = 브랜치 = 새 슬러그 규약(status ⓸ ④)이 그 나머지를 진다.
 #
-# 무엇을 재는가 — 신호 **신선도** 판정(scripts/signal-check.sh)과 check_signal 배선이다.
+# 무엇을 재는가 — 신호 **신선도** 판정(tools/scripts/signal-check.sh)과 check_signal 배선이다.
 #   fixture = 임시 git 저장소 4벌(브랜치 지형·merge-base==HEAD·origin/main 부재·비저장소).
 #   본체 케이스 ③ = 「낡은 신호(origin/main 에 이미 있는 sha, 파일은 비어 있지 않음)」 —
 #   구 판정 `[ -s ]` 가 PASS 하던 바로 그 형상이다(2026-08-11 실측: eod/ 4종 전부 남의 회차).
@@ -30,14 +30,14 @@
 # ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (pipefail 없는 셸에서 `| tail` 이 $? 를
 #   가린 실측 사고 이력 — pipefail 하에서는 보존되지만 규율은 유지한다).
 #
-# 사용법: scripts/signal-check-test.sh            # 25케이스 (상시 — final-gates 가 돌린다)
-#         scripts/signal-check-test.sh --mutants  # + 변이 M1~M11 · 음성 대조 N1~N3 (G4 에서 1회)
+# 사용법: tools/scripts/signal-check-test.sh            # 25케이스 (상시 — final-gates 가 돌린다)
+#         tools/scripts/signal-check-test.sh --mutants  # + 변이 M1~M11 · 음성 대조 N1~N3 (G4 에서 1회)
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
-CHECK="$ROOT/scripts/signal-check.sh"
-GATES="$ROOT/scripts/final-gates.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+CHECK="$ROOT/tools/scripts/signal-check.sh"
+GATES="$ROOT/tools/scripts/final-gates.sh"
 [ -f "$CHECK" ] || { echo "✗ 판정 스크립트가 없다: $CHECK" >&2; exit 1; }
 [ -f "$GATES" ] || { echo "✗ final-gates.sh 가 없다: $GATES" >&2; exit 1; }
 command -v git >/dev/null 2>&1 || { echo "✗ git 이 없다 — 판정을 포기한다." >&2; exit 3; }
@@ -101,8 +101,8 @@ build_repo() { # build_repo <dir> → C1..C5 전역
   mkdir -p "$d/.claude/gates/t-run"
   # wire 스텁(㉑㉒㉓)이 fixture 를 ROOT 로 넘길 수 있게 실물 판정기를 심볼릭 링크로 심는다 —
   # 경로 조립까지 fixture 기준으로 재게 되어 종전의 「실 레포 ROOT」 한계(H9)가 사라진다.
-  mkdir -p "$d/scripts"
-  ln -s "$CHECK" "$d/scripts/signal-check.sh"
+  mkdir -p "$d/tools/scripts"
+  ln -s "$CHECK" "$d/tools/scripts/signal-check.sh"
 }
 
 build_repo "$TMP/repo";        A_C2="$C2"; A_C3="$C3"; A_C4="$C4"; A_C5="$C5"
@@ -115,8 +115,8 @@ build_repo "$TMP/repo-noorig"; N_C3="$C3"; N_C4="$C4"
 build_repo "$TMP/repo-unrel";  U_C1="$C1"; U_C4="$C4"
 ORPH="$(git -C "$TMP/repo-unrel" commit-tree "${U_C1}^{tree}" -m orphan)"
 git -C "$TMP/repo-unrel" update-ref refs/remotes/origin/main "$ORPH"
-mkdir -p "$TMP/norepo/.claude/gates/t-run" "$TMP/norepo/scripts"
-ln -s "$CHECK" "$TMP/norepo/scripts/signal-check.sh"
+mkdir -p "$TMP/norepo/.claude/gates/t-run" "$TMP/norepo/tools/scripts"
+ln -s "$CHECK" "$TMP/norepo/tools/scripts/signal-check.sh"
 
 # P3 — 지형 대조. fixture 가 깨지면 ③⑲ 가 엉뚱한 이유로 통과한다.
 # ★is-ancestor 는 rc=128 이 에러다 — 「조상 아님(rc=1)」과 구분해서 재야 미상 sha 가 안 샌다 (F7).
@@ -186,7 +186,7 @@ WIRE
 
 WIRE_SRC=""          # 변이 M11 전용 — 채워지면 check_signal 추출을 그 사본에서 한다
 run_wire() { # run_wire <tree> <req 0|1>  — 추출된 check_signal 을 스텁 위에서 돈다.
-  # ★env 주입이 아니라 **fixture 를 ROOT 로** 넘긴다(scripts/ 심볼릭 링크 경유) — check_signal
+  # ★env 주입이 아니라 **fixture 를 ROOT 로** 넘긴다(tools/scripts/ 심볼릭 링크 경유) — check_signal
   #   이 --root 를 명시하므로 env 백도어 경로가 아예 안 탄다(P2-1 수리의 배선 검증).
   sed -n '/^check_signal() {/,/^}/p' "${WIRE_SRC:-$GATES}" >"$TMP/cs.sh"
   if ! grep -qF 'check_signal()' "$TMP/cs.sh"; then
@@ -407,7 +407,7 @@ anchors = [
     ("A9", sc, r"sed -n 's/^[[:blank:]]*commit:[[:blank:]]*\([^[:blank:]]*\)[[:blank:]]*$/\1/p'", 1),
     ("A14", sc, '  if [ "$mb_rc" -ne 0 ] || [ -z "$MERGE_BASE" ]; then', 1),
     ("A10", fg, 'case "$RUN" in eod)', 1),
-    ("A11", fg, 'run_gate "신호 신선도 하네스" "scripts/signal-check.sh" bash "$ROOT/scripts/signal-check-test.sh"', 1),
+    ("A11", fg, 'run_gate "신호 신선도 하네스" "tools/scripts/signal-check.sh" bash "$ROOT/tools/scripts/signal-check-test.sh"', 1),
     ("A12", fg, 'check_signal "', 4),
 ]
 bad = ["%s x%d(기대%d)" % (n, s.count(a), w) for n, s, a, w in anchors if s.count(a) != w]
@@ -506,8 +506,8 @@ MUT = {
     "M10": ('  if [ "$mb_rc" -ne 0 ] || [ -z "$MERGE_BASE" ]; then', "  if false; then"),
     # M11 — check_signal 의 rc 삼킴(고전 사고: local 과 대입을 한 줄로). 대상은 final-gates 사본.
     "M11": (
-        '  out="$(bash "$ROOT/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지\n  rc=$?',
-        '  local out="$(bash "$ROOT/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지\n  rc=$?',
+        '  out="$(bash "$ROOT/tools/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지\n  rc=$?',
+        '  local out="$(bash "$ROOT/tools/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지\n  rc=$?',
     ),
     "N1": ("# signal-check — 스킬 게이트 신호의 **신선도** 판정. ([BL-706])", "#"),
     "N2": ('WHY="HEAD 와 동일"', 'WHY="현재 커밋과 같다"'),

@@ -8,7 +8,7 @@
 
 ## 1. 이게 무엇인가 — 우리 함대와 어떻게 다른가
 
-`scripts/execute.py` 는 **오케스트레이터를 LLM 에서 스크립트로 내린다.** `claude -p` 를 step 마다
+`tools/scripts/execute.py` 는 **오케스트레이터를 LLM 에서 스크립트로 내린다.** `claude -p` 를 step 마다
 새 프로세스로 띄우고, 부모 컨텍스트가 아예 없으며, 유일한 보고 채널이 파일(`phases/*/index.json`)이다.
 
 |                | herdr 함대                        | claude 서브에이전트    | harness `claude -p`      |
@@ -26,7 +26,7 @@
 ## 2. 원본과의 차이 — **1줄뿐이다**
 
 ```python
-# scripts/execute.py:182
+# tools/scripts/execute.py:182
 docs_dir = ROOT / "harness" / "docs"   # 원본: ROOT / "docs"
 ```
 
@@ -49,8 +49,8 @@ step 세션이 「다음 행동 = …」과 미해결 BL 수백 건을 손에 �
 | ----------------- | --------------------------------------- | --------------- |
 | `PRD.md`          | `01-domain.md` → `CONTEXT.md`           | 무엇을 만드나   |
 | `ARCHITECTURE.md` | `02-structure.md` → `AGENTS.md`         | 어디에 두나     |
-| `ADR.md`          | `03-backend.md` → `backend/AGENTS.md`   | 무엇으로 만드나 |
-| `UI_GUIDE.md`     | `04-frontend.md` → `frontend/AGENTS.md` | 어떻게 보이나   |
+| `ADR.md`          | `03-backend.md` → `apps/api/AGENTS.md`   | 무엇으로 만드나 |
+| `UI_GUIDE.md`     | `04-frontend.md` → `apps/web/AGENTS.md` | 어떻게 보이나   |
 
 심링크라 **사본이 생기지 않는다**(ADR-026 SSOT). 파일명이 곧 주입 순서이자 섹션 헤더다.
 
@@ -76,19 +76,19 @@ step 세션이 「다음 행동 = …」과 미해결 BL 수백 건을 손에 �
 [`workflow.md`](workflow.md) 에 **원문 그대로** 있다 — step 파일을 쓰기 전에 그걸 먼저 읽어라.
 
 ```bash
-python3 scripts/execute.py <phase-dir>          # 순차 실행 (원본 §E)
+python3 tools/scripts/execute.py <phase-dir>          # 순차 실행 (원본 §E)
 ```
 
 - **`--push` 는 쓰지 마라.** 승인 없는 push 는 Golden Rule 위반이다.
 - **실행 위치는 호출자가 정한다.** `ROOT = Path(__file__).parent.parent`(`:22`)라서
-  워크트리 안의 `scripts/execute.py` 를 부르면 ROOT 가 그 워크트리가 된다 — **코드 수정 0**.
+  워크트리 안의 `tools/scripts/execute.py` 를 부르면 ROOT 가 그 워크트리가 된다 — **코드 수정 0**.
   워크트리에서 돌리면 파일시스템 격리가 붙고 `--dangerously-skip-permissions`(`:239`)의
   블라스트 반경이 브랜치 하나로 묶인다.
 - ★**celery 를 타는 step(백테스트·라이브신호·옵티마이저)은 워크트리에서 못 돈다** —
   worker 가 메인의 `src` 를 mount 한다. 그 step 은 메인 체크아웃에서 돌려라
   ([`worktree-parallel.md`](../docs/reference/operations/worktree-parallel.md)).
 
-테스트: `python3 -m pytest scripts/test_execute.py` (원본 51건. 픽스처 2곳만 슬롯 경로로 맞췄다.)
+테스트: `python3 -m pytest tools/scripts/test_execute.py` (원본 51건. 픽스처 2곳만 슬롯 경로로 맞췄다.)
 
 ★**「51 passed」를 실행기가 검증됐다는 뜻으로 읽지 마라.** 실측 — 테스트 12개 클래스는 전부
 헬퍼 단위이고, **순차 실행 루프는 한 줄도 안 탄다**: `run()` · `_execute_single_step` ·
@@ -170,7 +170,7 @@ step 이 무엇을 돌릴지는 여전히 프리앰블(코드)과 러너의 diff
 ★**하네스 자체의 오버헤드는 1분 미만이다.** 66분은 전부 게이트였다.
 
 ★**arm B 가 자기 입으로 이유를 말했다** — 「**프로젝트 규칙의 마지막 커밋 후 게이트 의무에 따라**
-`scripts/final-gates.sh` 를 실행하겠습니다」. 그리고 막히자 스스로 우회했다: 인자 없이 실행(rc=1) →
+`tools/scripts/final-gates.sh` 를 실행하겠습니다」. 그리고 막히자 스스로 우회했다: 인자 없이 실행(rc=1) →
 `--run eod`([BL-706] 으로 금지) → **자기가 슬러그를 지어냄**(`execprobe-b-step1`).
 
 **인과는 3단계다.** ⑴ `_load_guardrails`(`:183`)가 슬롯 4파일을 **필터 없이** 주입한다 ⑵ 그중
@@ -244,7 +244,7 @@ typecheck·lint·`git diff`·`bl-audit`·`docs-audit`** 이다 — CONTROL 이 �
 > ★**SHA 는 main 조상인 `8abd0d67`(PR #616)을 쓴다** — 처음엔 이 회차 브랜치 커밋을 적었는데, squash
 > 머지 뒤에는 그 커밋이 main 에서 도달 불가라 **새 클론에서 열리지 않는 tombstone** 이 됐을 것이다.
 > tombstone 의 SHA 는 **main 조상인지 먼저 확인해라**(`git merge-base --is-ancestor <sha> origin/main`).
-> 러너가 **쓰기만 하고 다시 읽지 않는** 파일이라(`scripts/execute.py:138`·`:261`) 재실행에 영향이 없고,
+> 러너가 **쓰기만 하고 다시 읽지 않는** 파일이라(`tools/scripts/execute.py:138`·`:261`) 재실행에 영향이 없고,
 > 이 문서의 아래 표가 그 안의 수치를 이미 뽑아 두었다. `step*.md`·`index.json` 은 남긴다(입력이다).
 >
 > ★★**지우면서 나온 실측 하나 — 실행기가 바뀌면 산출물 부피가 160배 달라진다.**
@@ -306,7 +306,7 @@ AC 버그가 이제 측정 오차가 아니라 **회차를 막는 red** 가 된�
 ## 5. 판정 후 갈 곳
 
 - **값을 냈다** → ADR-029 로 승격 + `docs/reference/operations/workflows/` 로 이동, 팀 플러그인화
-- **안 냈다** → `scripts/execute.py`·`harness/`·`phases/` 삭제 + tombstone 1줄
+- **안 냈다** → `tools/scripts/execute.py`·`harness/`·`phases/` 삭제 + tombstone 1줄
 - 어느 쪽이든 반증 카드 1~2천자 → `docs/lessons.md` → `dev-log/INDEX.md` 한 줄 (ADR-026 §3)
 
 ### 2회차 끝난 시점의 판정 근거 — ★**최종 판정은 사용자와 함께 낸다** (2026-08-13 현재 미결)

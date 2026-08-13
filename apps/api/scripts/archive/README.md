@@ -10,5 +10,5 @@
 | `verify_mp4_precision_demo.py`      | MP4 정밀도 1회 확인용                                |
 | `verify_phase3_maker_tp_bracket.py` | Phase 3 maker TP 브래킷 1회 확인용                   |
 
-**2026-08-06 dead-code-sweep** — `backend/` 전체에서 이 셋을 부르는 곳은 자기 docstring 뿐이었다.
+**2026-08-06 dead-code-sweep** — `apps/api/` 전체에서 이 셋을 부르는 곳은 자기 docstring 뿐이었다.
 지우지 않고 옮긴 이유는 거래소 상호작용 절차가 적혀 있어 참조 가치가 남아서다.

@@ -3,13 +3,13 @@
 # ★왜 멀티스테이지 빌드가 아닌가 — 서버(오라클 A1)는 2 OCPU 를 다른 프로젝트와 공유하고
 #   그 위에서 [BL-003] 소크가 돌고 있다. 빌드가 CPU 를 먹으면 소크 워커가 굶는다.
 #   그래서 `pnpm build` 는 맥에서 돌리고 이 이미지는 산출물만 담는다.
-#   전제: `cd frontend && pnpm build` 가 선행돼 `.next/standalone` 이 존재한다.
+#   전제: `cd apps/web && pnpm build` 가 선행돼 `.next/standalone` 이 존재한다.
 #
 # ★아키텍처 — 맥(darwin/arm64) → 서버(aarch64) 동일. `--platform linux/arm64` 로 빌드하면
 #   에뮬레이션 없이 네이티브로 만들어진다.
 #
 # 사용법:
-#   cd frontend && pnpm build
+#   cd apps/web && pnpm build
 #   docker build --platform linux/arm64 -t quantbridge-frontend:<tag> .
 #   docker save quantbridge-frontend:<tag> | gzip | ssh <서버> 'gunzip | docker load'
 FROM node:22-alpine

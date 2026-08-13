@@ -9,7 +9,7 @@ uv sync
 cp .env.example .env.local      # backend 전용 env (pydantic-settings 자동 로드)
 ```
 
-> `.env.example`은 **서비스별 분리**. backend는 `backend/.env.example` 사용. docker compose는 루트 `./.env`, Next.js는 `frontend/.env.local` — 전체 구조는 [루트 README](../README.md#2-clone--환경-변수) + [local-setup.md](../docs/reference/operations/local-setup.md#2-클론--환경-설정) 참조.
+> `.env.example`은 **서비스별 분리**. backend는 `apps/api/.env.example` 사용. docker compose는 루트 `./.env`, Next.js는 `apps/web/.env.local` — 전체 구조는 [루트 README](../README.md#2-clone--환경-변수) + [local-setup.md](../docs/reference/operations/local-setup.md#2-클론--환경-설정) 참조.
 
 ## 실행
 
@@ -42,7 +42,7 @@ uv run alembic upgrade head
 
 ## 규칙
 
-자세한 아키텍처 규칙은 저장소 루트의 `backend/AGENTS.md` 참조.
+자세한 아키텍처 규칙은 저장소 루트의 `apps/api/AGENTS.md` 참조.
 
 - **AsyncSession은 Repository만 보유.** Service는 Repository 주입 → 트랜잭션 경계 담당.
 - **`.dict()` 금지** → `.model_dump()`. **`session.exec()` 금지** → `await session.execute(...)`.

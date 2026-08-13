@@ -209,7 +209,7 @@ def _patch_reconcile(
     # 자기 행만 보는 폴백을 타고, 그래서 기존 케이스의 관측 동작이 그대로 보존된다.
     own_account_row = account_row or SimpleNamespace(id=uuid4(), exchange_uid=None)
     account_repo.get_by_id = AsyncMock(return_value=own_account_row)
-    # ★페이크는 프로덕션의 제약 축을 그대로 흉내낸다(`backend/AGENTS.md` §10 규약 3).
+    # ★페이크는 프로덕션의 제약 축을 그대로 흉내낸다(`apps/api/AGENTS.md` §10 규약 3).
     #   실제 `list_by_exchange_uid` 는 `WHERE exchange_uid == uid ORDER BY created_at ASC`
     #   (`exchange_account_repository.py:57-63`)라 **자기 행을 포함**한다. 페이크가 자기 행을
     #   빼면 `ownership_scope_ids` 의 `if account.id not in ids` 폴백이 **테스트에서만** 발화해,

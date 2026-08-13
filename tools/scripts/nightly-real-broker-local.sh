@@ -9,10 +9,10 @@
 #   ⇒ 코드로 못 고친다. `nightly-real-broker.yml` 의 `schedule:` 은 그래서 꺼져 있고,
 #   이 스크립트가 그 자리를 대신한다. 상세 = issue #540 · `docs/status.md` §다음 스프린트.
 #
-# 설치:  scripts/nightly-real-broker-local.sh --install     (launchd, 매일 03:00 KST)
-# 해제:  scripts/nightly-real-broker-local.sh --uninstall
-# 수동:  scripts/nightly-real-broker-local.sh                (지금 한 번 돈다)
-# 상태:  scripts/nightly-real-broker-local.sh --status
+# 설치:  tools/scripts/nightly-real-broker-local.sh --install     (launchd, 매일 03:00 KST)
+# 해제:  tools/scripts/nightly-real-broker-local.sh --uninstall
+# 수동:  tools/scripts/nightly-real-broker-local.sh                (지금 한 번 돈다)
+# 상태:  tools/scripts/nightly-real-broker-local.sh --status
 #
 # 종료 코드: 0 = 통과 또는 **의도된 skip** / 1 = 실패 / 2 = 전제 미충족(측정 못 함)
 #   ★0 이 「검증됐다」를 뜻하지 않는다 — skip 도 0 이다. 무엇이었는지는 로그 마지막 줄이 말한다.
@@ -23,7 +23,7 @@ set -uo pipefail
 LABEL="dev.quantbridge.nightly-real-broker"
 PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 LOGDIR="$HOME/Library/Logs/quantbridge"
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 
 mkdir -p "$LOGDIR"
 
@@ -42,7 +42,7 @@ _install() {
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>${ROOT}/scripts/nightly-real-broker-local.sh</string>
+    <string>${ROOT}/tools/scripts/nightly-real-broker-local.sh</string>
   </array>
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
@@ -106,13 +106,13 @@ echo "══ real_broker E2E (로컬) — $(date '+%Y-%m-%d %H:%M:%S %Z') ══
 echo "  repo: $ROOT"
 
 # 1) 메인 체크아웃인가 — 워크트리에서는 컨테이너·앱 DB 를 공유해 다른 벌을 깬다
-bash "$ROOT/scripts/assert-main-checkout.sh" "nightly-real-broker-local" \
+bash "$ROOT/tools/scripts/assert-main-checkout.sh" "nightly-real-broker-local" \
   || _verdict BLOCKED "메인 체크아웃이 아니다" 2
 
-# 2) env 소싱 — ★`cd backend && set -a; . ./.env.local` 형태 금지.
+# 2) env 소싱 — ★`cd apps/api && set -a; . ./.env.local` 형태 금지.
 #    이미 backend 면 `cd` 가 실패해 `set -a` 만 건너뛰고 나머지가 실행돼 대량 거짓 red 가 난다.
-[ -f "$ROOT/backend/.env.local" ] || _verdict BLOCKED "backend/.env.local 이 없다" 2
-set -a; . "$ROOT/backend/.env.local"; set +a
+[ -f "$ROOT/apps/api/.env.local" ] || _verdict BLOCKED "apps/api/.env.local 이 없다" 2
+set -a; . "$ROOT/apps/api/.env.local"; set +a
 
 # 3) 자격증명 — 없으면 「측정 안 했다」이지 「이상 없다」가 아니다
 if [ -z "${BYBIT_DEMO_API_KEY_TEST:-}" ] || [ -z "${BYBIT_DEMO_API_SECRET_TEST:-}" ]; then
@@ -138,7 +138,7 @@ echo "  ✓ 전제: 메인 체크아웃 · 자격증명 있음 · DB 응답 · �
 
 # 6) 실행 — ★`2>&1` 은 파이프 **앞**에. `tee` 는 stdout 만 받는다(하네스의 RESIDUAL 은 stderr 다).
 #    ★파이프로 감싸도 exit code 를 잃지 않게 PIPESTATUS 로 받는다.
-cd "$ROOT/backend"
+cd "$ROOT/apps/api"
 uv run pytest tests/real_broker/ \
   --run-real-broker \
   -v --tb=short \

@@ -21,7 +21,7 @@ export function expectStorageStateReady(): void {
         "",
         "[e2e:authed] storageState.json missing.",
         "  Regenerate: pnpm e2e:authed (global.setup.ts auto-issues via clerk.signIn())",
-        "  Prereq: frontend/.env.local must contain CLERK_PUBLISHABLE_KEY,",
+        "  Prereq: apps/web/.env.local must contain CLERK_PUBLISHABLE_KEY,",
         "          CLERK_SECRET_KEY, E2E_CLERK_USER_EMAIL, E2E_CLERK_USER_PASSWORD.",
         "",
       ].join("\n"),

@@ -19,7 +19,7 @@
 을 본다. compose 기본값 주입 감사(`_settings_infra_fields`)는 **같은 탐지기를 재사용**한다 —
 탐지기가 죽으면 두 감사가 함께 죽어야지 한쪽만 조용히 통과하면 안 된다.
 
-**YAML 파서를 새로 들이지 않는다** — `pyyaml` 은 `backend/pyproject.toml` 에 선언돼 있지
+**YAML 파서를 새로 들이지 않는다** — `pyyaml` 은 `apps/api/pyproject.toml` 에 선언돼 있지
 않고(전이 의존), 이 감사가 보려는 것은 "그 스텝의 그 키가 무엇인가" 뿐이다. 대신
 스텝 경계는 들여쓰기로 자르고, **자른 결과가 비지 않았는지를 별도 테스트가 단언**한다.
 """
@@ -33,7 +33,7 @@ import pytest
 
 from tests.test_ci_workflow_env_parity import _settings_infra_fields
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "nightly-real-broker.yml"
 
 # 감사가 이름으로 찾는 스텝들. 이름이 바뀌면 파서가 못 찾고 자기검증이 red 가 된다.
@@ -162,7 +162,7 @@ def test_audit_parses_the_job_env_at_all() -> None:
 def test_encryption_key_is_usable_without_any_repo_secret() -> None:
     """W1 — ★10/10 실패의 실제 원인. 이 값이 secret 에만 의존하면 alembic 부터 죽는다.
 
-    red 면 고장난 것: `backend/alembic/env.py:24` 가 `src.core.config` 를 import 하고,
+    red 면 고장난 것: `apps/api/alembic/env.py:24` 가 `src.core.config` 를 import 하고,
     `Settings` 가 **import 시점에** `TRADING_ENCRYPTION_KEYS` 를 검증한다(빈 문자열 =
     ValidationError) ⇒ `alembic upgrade head` 스텝이 죽고 **pytest 는 실행조차 안 된다**.
 
@@ -226,7 +226,7 @@ def test_preflight_step_publishes_has_creds_output() -> None:
 def test_pytest_step_is_gated_on_credentials() -> None:
     """W3 — 자격증명이 없는데 `--run-real-broker` 를 부르면 conftest 가 `pytest.fail` 한다.
 
-    red 면 고장난 것: `backend/tests/real_broker/conftest.py` 의
+    red 면 고장난 것: `apps/api/tests/real_broker/conftest.py` 의
     `bybit_demo_test_credentials` 가 env 부재 시 `pytest.fail` 로 red 를 낸다(의도된 계약).
     그 red 는 broker 결함이 아니라 **워크플로가 조건 없이 불렀다**는 뜻이다.
     """
@@ -293,7 +293,7 @@ def test_pytest_step_preserves_exit_code_through_the_pipe() -> None:
 def test_pytest_step_redirects_stderr_into_the_tee() -> None:
     """★`tee` 는 **stdout 만** 받는다 — RESIDUAL 은 stderr 로 나온다.
 
-    red 면 고장난 것: `backend/tests/real_broker/_harness.py:emit_residual_report` 가
+    red 면 고장난 것: `apps/api/tests/real_broker/_harness.py:emit_residual_report` 가
     RESIDUAL 블록을 `sys.stderr` 로 쓴다. `2>&1` 이 없으면 그 블록이
     `/tmp/real-broker-output.txt` 에 **한 줄도 들어가지 않는다** ⇒ 아티팩트에도, 이슈
     본문 인용에도 없고, 이슈 triage 4번(「RESIDUAL 블록이 위 출력에 있으면」)이
@@ -323,7 +323,7 @@ def test_pytest_step_uses_signal_timeout_method() -> None:
     **의도를 고정하는 것**이 목적이다: 누군가 `thread` 로 바꾸면(또는 상류 기본값이
     바뀌면) `os._exit(1)` 이 돌아 아래가 침묵으로 사라진다.
 
-    red 면 고장난 것: `backend/tests/real_broker/conftest.py` 의
+    red 면 고장난 것: `apps/api/tests/real_broker/conftest.py` 의
     `pytest_sessionfinish` 백스톱(거래소 포지션 청산)이 timeout 시 실행되지 않는다 ⇒
     Bybit demo 계정에 포지션이 남은 채 세션이 "통과" 로 끝난다.
     """
@@ -350,9 +350,9 @@ def test_no_step_is_still_labelled_skeleton() -> None:
 def test_database_urls_point_at_a_test_database() -> None:
     """W6 — `tests/conftest.py` 세션 픽스처의 `drop_all` 이 겨냥할 DB 이름을 고정한다.
 
-    red 면 고장난 것: `backend/tests/conftest.py` 가 `TEST_DATABASE_URL` >
+    red 면 고장난 것: `apps/api/tests/conftest.py` 가 `TEST_DATABASE_URL` >
     `DATABASE_URL` 순으로 DSN 을 고르고 그 DB 에 `SQLModel.metadata.drop_all` 을 돈다.
-    이름이 `_test` 로 끝나지 않으면 `backend/tests/real_broker/conftest.py` 의 DSN
+    이름이 `_test` 로 끝나지 않으면 `apps/api/tests/real_broker/conftest.py` 의 DSN
     하드가드가 세션을 즉시 중단시킨다(= 실행 자체가 불가능해진다).
     """
     from sqlalchemy.engine import make_url
@@ -379,7 +379,7 @@ def test_database_urls_point_at_a_test_database() -> None:
 def test_nightly_injects_every_compose_default_setting() -> None:
     """compose 호스트를 기본값으로 갖는 `Settings` 필드는 nightly env 에도 주입돼야 한다.
 
-    red 면 고장난 것: `backend/src/core/config.py` 의 그 필드 기본값이 docker-compose
+    red 면 고장난 것: `apps/api/src/core/config.py` 의 그 필드 기본값이 docker-compose
     서비스명(`redis://redis:6379/*`, `@db:5432/*`)이라 러너에서 해석되지 않는다.
     ci.yml 에서 실제로 이 누락으로 5건이 죽었다(2026-08-01). nightly 는 지금까지
     **감사 대상이 아니었다** — 그게 이 파일이 신설된 이유 중 하나다.

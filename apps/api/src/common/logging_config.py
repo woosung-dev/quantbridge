@@ -1,6 +1,6 @@
 """구조화 로그 렌더 — `extra=` 필드를 ` key=value` 로 살려낸다 (BL-561).
 
-배경. `backend/src` 에는 로깅 설정이 **아예 없었다**. 그래서 두 프로세스가 서로 다르게
+배경. `apps/api/src` 에는 로깅 설정이 **아예 없었다**. 그래서 두 프로세스가 서로 다르게
 깨져 있었다:
 
 - **celery worker** — `worker_hijack_root_logger` 기본 True → celery 포매터가 root 를
@@ -165,7 +165,7 @@ def build_logging_config(level: str = "INFO") -> dict[str, Any]:
         },
         # ★root 에만 붙이고 개별 로거의 `propagate` 는 건드리지 않는다.
         # propagate 를 끊으면 pytest caplog 이 조용히 빈 목록을 준다
-        # (`backend/tests/trading/test_reconcile_fetcher.py:115` 의 flaky 이력).
+        # (`apps/api/tests/trading/test_reconcile_fetcher.py:115` 의 flaky 이력).
         "root": {"handlers": ["console"], "level": normalize_level(level)},
     }
 

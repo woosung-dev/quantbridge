@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     # 실측으로 `event_loop`/`interpreter`/`stdlib`/`sizing`/`rendering` 등 **8 모듈**이
     # `src.tasks.live_signal` 의 top-level 폐포에 새로 들어왔다(6 -> 14).
     #
-    # 그것이 위험한 이유는 celery worker 가 `backend/src` 를 bind-mount + watchfiles 로
+    # 그것이 위험한 이유는 celery worker 가 `apps/api/src` 를 bind-mount + watchfiles 로
     # 물기 때문이다. `event_loop.py` 편집 중간 상태가 지금까지는 **한 세션의 평가 실패**
     # (그래서 fail-closed 비활성화가 돌 수 있었다)였는데, top-level 로 올리면
     # **`src.tasks.live_signal` 모듈 import 실패 = celery 태스크 미등록**이 된다.

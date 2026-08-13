@@ -29,7 +29,7 @@
 안전하므로(거짓 `측정불가`는 만들어도 거짓 PASS 는 못 만든다) 통과시키지 않는다.
 
 그래서 규칙은 **양성 서명만 통과**(default deny)한다. 아래 `classify()` 가 정본이고
-`backend/tests/scripts/test_redis_aof_readability.py` 가 실측 캡처 7형으로 동결한다.
+`apps/api/tests/scripts/test_redis_aof_readability.py` 가 실측 캡처 7형으로 동결한다.
 
 ★**알려진 한계** — `redis-check-aof` 는 **프레이밍만** 본다. 벌크 페이로드 안이 깨져 명령
 이름이 망가지면 `valid` 라고 하는데 서버는 `Unknown command` 로 죽는다(실측). 즉 이 함수의

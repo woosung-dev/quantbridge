@@ -3,7 +3,7 @@
 Harness Step Executor — phase 내 step을 순차 실행하고 자가 교정한다.
 
 Usage:
-    python3 scripts/execute.py <phase-dir> [--push]
+    python3 tools/scripts/execute.py <phase-dir> [--push]
 """
 
 import argparse
@@ -19,7 +19,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 
 
 @contextlib.contextmanager
@@ -220,7 +220,7 @@ class StepExecutor:
             f"해당 step `ac` 배열이다. 각 원소를 bash -c 로 순서대로 직접 실행해 전건 rc=0 을 확인하라.\n"
             f"   ★러너는 네 신고를 믿지 않고 같은 ac 를 **독립적으로 재실행**한다. 하나라도 rc≠0 이면 "
             f"\"completed\" 는 취소되고 재시도로 돌아간다 — 자기신고만으로는 통과하지 못한다.\n"
-            f"   ★검증은 그 `ac` 배열이 **전부**다. `scripts/final-gates.sh`·backend 전량 pytest·e2e 를 "
+            f"   ★검증은 그 `ac` 배열이 **전부**다. `tools/scripts/final-gates.sh`·backend 전량 pytest·e2e 를 "
             f"돌리지 말고 `.claude/gates/` 에 신호 파일을 만들지 마라. 이유: 그 게이트는 회차 단위이고 "
             f"PR 직전에 사람이 한 번 돌린다 — step 마다 돌리면 회차가 수십 분씩 늘어난다(2026-08-13 실측 66분).\n"
             f"5. /phases/{self._phase_dir_name}/index.json의 해당 step status를 업데이트하라:\n"

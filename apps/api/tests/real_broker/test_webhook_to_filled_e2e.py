@@ -70,7 +70,7 @@ async def test_tv_webhook_to_bybit_demo_filled(
 
     **본 테스트는 구현 skeleton.** 실주문 leg 은 전용 Bybit demo 키(`BYBIT_DEMO_API_KEY_TEST`
     / `BYBIT_DEMO_API_SECRET_TEST`)가 발급된 뒤에 작성한다 — 지금은 repo secret 에도
-    `backend/.env.local` 에도 없다.
+    `apps/api/.env.local` 에도 없다.
 
     Implementation TODO (자격증명 도착 후):
     - strategy_id seed — 테스트 user + strategy + exchange_account(demo) 생성

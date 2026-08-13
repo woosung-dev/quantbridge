@@ -138,7 +138,7 @@ async def get_item_service(
 
 - 모든 service mutation 메서드 (`save/update/delete` 호출 + commit 책임 보유) 는 `tests/<domain>/test_*_commits.py` 에 **AsyncMock spy 회귀 테스트 1건 필수**
 - spy 표준: `repo.commit.assert_awaited_once()` (default commit) 또는 `repo.commit.assert_not_called()` (atomic 옵션)
-- 표준 reference: `backend/tests/trading/test_webhook_secret_commits.py` 의 `test_issue_default_calls_repo_commit` / `test_order_service_execute_calls_outer_commit` / `test_register_calls_repo_commit`
+- 표준 reference: `apps/api/tests/trading/test_webhook_secret_commits.py` 의 `test_issue_default_calls_repo_commit` / `test_order_service_execute_calls_outer_commit` / `test_register_calls_repo_commit`
 
 **예시 패턴:**
 
@@ -230,7 +230,7 @@ async def stream(
 ### Celery shared_task (QuantBridge 표준)
 
 ```python
-# backend/src/tasks/backtest.py
+# apps/api/src/tasks/backtest.py
 @shared_task(name="backtest.run")
 def run_backtest_task(backtest_id: str) -> dict:
     from src.tasks._worker_loop import run_in_worker_loop
@@ -283,7 +283,7 @@ alembic downgrade -1
 ## 8. 백엔드 폴더 구조
 
 ```
-backend/src/
+apps/api/src/
 ├── [domain]/       # 도메인별 모듈 (router/service/repository/schemas/models)
 │   # e.g. backtest, stress_test, optimizer, strategy, trading, market_data (exchange 는 trading 으로 통합 — ADR-018)
 ├── strategy/
@@ -311,7 +311,7 @@ backend/src/
 **모든 Celery task entry point** 는 `asyncio.run(coro)` 대신 `run_in_worker_loop(coro)` 사용.
 
 ```python
-# backend/src/tasks/<task_module>.py
+# apps/api/src/tasks/<task_module>.py
 @shared_task(name="domain.task_name")
 def task_entry(payload: str) -> dict:
     from src.tasks._worker_loop import run_in_worker_loop
@@ -371,7 +371,7 @@ async def _async_impl():
         await engine.dispose()
 ```
 
-이유: connection pool stale connection 누수 방어 (loop binding 과 별개). `backend/src/tasks/backtest.py:31-91` 가 표준 reference.
+이유: connection pool stale connection 누수 방어 (loop binding 과 별개). `apps/api/src/tasks/backtest.py:31-91` 가 표준 reference.
 
 ### 9.4 금지 — `run_in_worker_loop` 안에서 `run_in_worker_loop` (nested)
 
@@ -393,13 +393,13 @@ async def _async_impl():
 
 1. fire-and-forget alert task 는 `track_pending_alert(task)` helper 사용. `_PENDING_ALERTS.add(task)` 직접 호출 금지.
 2. `track_pending_alert` 가 `qb_pending_alerts` Prometheus Gauge inc + idempotent `add_done_callback` (set membership 검사로 외부 drain + done callback 중복 dec underflow 방지).
-3. 표준 reference: `backend/src/common/alert.py:track_pending_alert` + `backend/src/trading/kill_switch.py:225` (migration 패턴).
+3. 표준 reference: `apps/api/src/common/alert.py:track_pending_alert` + `apps/api/src/trading/kill_switch.py:225` (migration 패턴).
 4. 운영 임계값: `qb_pending_alerts > 50` 시 Slack/Grafana alert 권장 (Sprint 20+ BL-089 wire-up).
 
 **예시 패턴**:
 
 ```python
-# backend/src/<domain>/<service>.py
+# apps/api/src/<domain>/<service>.py
 import asyncio
 from src.common.alert import send_critical_alert, track_pending_alert
 
@@ -433,7 +433,7 @@ task.add_done_callback(_PENDING_ALERTS.discard)
    실측으로 `_block_on_direction_divergence` 를 no-op 으로 만들어도 `return`·`upsert_state`·
    `insert_pending_events`·`dispatch`·`reconcile` 5개가 **완전 동일**했고, 잡은 것은 부작용
    원장(deactivate · publish · alert · prometheus 델타)뿐이었다.
-   표준 reference: `backend/tests/tasks/test_live_signal_tick_oracle.py`.
+   표준 reference: `apps/api/tests/tasks/test_live_signal_tick_oracle.py`.
 2. **새 순수 함수를 만들면 「그 함수」가 아니라 「그것을 쓰는 경로」를 재는 케이스를 최소 1개 둬라.**
    단위 테스트가 순수 함수를 직접 호출하면 **호출부에서 그 함수를 떼어내는 변이가 red 0** 을 낸다.
    순수 함수 정확성 ≠ 배선.

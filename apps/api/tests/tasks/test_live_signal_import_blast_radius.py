@@ -4,7 +4,7 @@
 
 ## 왜 이 감사가 필요한가
 
-celery worker 는 `backend/src` 를 bind-mount 하고 **watchfiles** 로 문다. 그래서 편집
+celery worker 는 `apps/api/src` 를 bind-mount 하고 **watchfiles** 로 문다. 그래서 편집
 중간 상태가 그대로 worker 에 들어간다. 그때 무엇이 죽는지가 import 위치로 갈린다:
 
 - **지연 import** (함수 안) — `pine_v2` 가 반쯤 저장된 순간에 도는 평가 **한 건**이 실패한다.

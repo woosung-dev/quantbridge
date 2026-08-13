@@ -3,11 +3,11 @@
 # herdr 워크트리 함대 부팅 — ★**오케스트레이터가 있는 워크스페이스에 워커 탭을 띄운다.**
 #
 # 사용법:
-#   scripts/herdr-fleet.sh --agent claude:bl537 --agent claude:bl536 --agent codex:impl
-#   scripts/herdr-fleet.sh --agent claude:a --agent codex:b --label "QB 실험"
-#   scripts/herdr-fleet.sh --agent claude:a --base origin/main --skip-deps
-#   scripts/herdr-fleet.sh --layout panes --agent claude:a --agent claude:b   # 한 창 그리드
-#   scripts/herdr-fleet.sh --teardown            # 이 워크스페이스의 워커 화면만 닫는다
+#   tools/scripts/herdr-fleet.sh --agent claude:bl537 --agent claude:bl536 --agent codex:impl
+#   tools/scripts/herdr-fleet.sh --agent claude:a --agent codex:b --label "QB 실험"
+#   tools/scripts/herdr-fleet.sh --agent claude:a --base origin/main --skip-deps
+#   tools/scripts/herdr-fleet.sh --layout panes --agent claude:a --agent claude:b   # 한 창 그리드
+#   tools/scripts/herdr-fleet.sh --teardown            # 이 워크스페이스의 워커 화면만 닫는다
 #
 #   `--layout tabs` (기본) — 워커마다 탭 1개:
 #   [스페이스: 퀀트브릿지]  ← 오케스트레이터 세션이 이미 있는 그 워크스페이스
@@ -41,7 +41,7 @@
 #
 # ⚠️ CONTROL(= 현재 탭, 메인 체크아웃)이 필요한 이유 — 워크트리에서는 celery 경유 검증
 #    (백테스트·라이브신호·옵티마이저)이 **구조적으로 불가능**하다. worker 컨테이너가 메인의
-#    `./backend/src` 를 bind-mount 하므로 워크트리 코드는 실행되지 않는다. 테스트는 통과하는데
+#    `./apps/api/src` 를 bind-mount 하므로 워크트리 코드는 실행되지 않는다. 테스트는 통과하는데
 #    돌아간 게 내 코드가 아닌 침묵 실패다. 상세: docs/reference/operations/worktree-parallel.md §3.
 
 set -euo pipefail
@@ -188,7 +188,7 @@ done
 GIT_DIR="$(git rev-parse --absolute-git-dir)"
 GIT_COMMON="$(cd "$(git rev-parse --git-common-dir)" && pwd)"
 [ "$GIT_DIR" = "$GIT_COMMON" ] || die "여기는 워크트리다. 함대는 메인 체크아웃에서 띄워라:
-    cd $(dirname "$GIT_COMMON") && scripts/herdr-fleet.sh ..."
+    cd $(dirname "$GIT_COMMON") && tools/scripts/herdr-fleet.sh ..."
 MAIN_ROOT="$(git rev-parse --show-toplevel)"
 cd "$MAIN_ROOT"
 
@@ -229,9 +229,9 @@ for spec in "${SPECS[@]}"; do
 
   # `.worktreeinclude` 는 Claude Code 의 EnterWorktree 기능이라 `git worktree add` 에는
   # 적용되지 않는다. --adopt-env 가 그 자리를 메운다 (없으면 부트스트랩이 fail-closed 로 죽는다).
-  [ -x "$wt/scripts/worktree-bootstrap.sh" ] \
-    || die "$name 의 브랜치에 scripts/worktree-bootstrap.sh 가 없다 — base 가 너무 오래됐다."
-  ( cd "$wt" && ./scripts/worktree-bootstrap.sh --adopt-env "${BOOTSTRAP_ARGS[@]+"${BOOTSTRAP_ARGS[@]}"}" ) \
+  [ -x "$wt/tools/scripts/worktree-bootstrap.sh" ] \
+    || die "$name 의 브랜치에 tools/scripts/worktree-bootstrap.sh 가 없다 — base 가 너무 오래됐다."
+  ( cd "$wt" && ./tools/scripts/worktree-bootstrap.sh --adopt-env "${BOOTSTRAP_ARGS[@]+"${BOOTSTRAP_ARGS[@]}"}" ) \
     || die "$name 부트스트랩 실패 — 위 출력을 봐라. 슬롯 없이 pane 을 띄우면 포트와 테스트 DB 가 겹친다."
 
   slot="$(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$wt/.worktree-slot" 2>/dev/null || true)"
@@ -388,7 +388,7 @@ for p in "${PANES[@]}"; do
     herdr 는 에이전트 이름을 전역으로 잡는다(워크스페이스가 달라도 충돌한다).
     위 에러의 workspace_id / pane_id 를 보고 그 화면을 먼저 닫아라:
       herdr workspace close <그 workspace_id>     # 옛 2×2 함대 잔재라면
-      scripts/herdr-fleet.sh --teardown           # 이 워크스페이스의 워커 탭이라면
+      tools/scripts/herdr-fleet.sh --teardown           # 이 워크스페이스의 워커 탭이라면
     ★닫기 전에 그 워커가 커밋 안 한 작업을 들고 있지 않은지 먼저 봐라:
       git -C $MAIN_ROOT/.claude/worktrees/${NAMES[$i]} status --short
     원문: $_err" ;;
@@ -442,6 +442,6 @@ cat <<EOF
 CONTROL 에서만 되는 것 — celery 경유 검증(백테스트·라이브신호·옵티마이저) · make up/seed/migrate ·
 게이트 종합 · 머지. 워크트리 pane 에서 그걸 시도하면 Makefile 가드가 거부한다(make 종료 코드 2).
 
-정리:  scripts/herdr-fleet.sh --teardown        # 워커 화면만 닫는다 (CONTROL 자리는 유지)
+정리:  tools/scripts/herdr-fleet.sh --teardown        # 워커 화면만 닫는다 (CONTROL 자리는 유지)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EOF

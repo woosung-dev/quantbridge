@@ -2,8 +2,8 @@
 # Bybit smoke — 주문 경로 1회 검증의 **정문** ([BL-003]).
 #
 # 사용:
-#   scripts/bybit-smoke.sh                                   # dry-run (기본) · 네트워크 호출 0건
-#   scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot --confirm
+#   tools/scripts/bybit-smoke.sh                                   # dry-run (기본) · 네트워크 호출 0건
+#   tools/scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot --confirm
 #
 # 종료 코드: 0=검사 통과(또는 실호출 성공) · 1=검사/실행 실패 · 2=사용법 오류
 #
@@ -16,7 +16,7 @@
 #     뭉뚱그려 적어 codex 가 정당하게 반박했다 — 2026-08-09.)
 #     ★정적 술어(재현 가능): `uv run` 은 파일에 3번 나오지만 **실행되는 자리는 `_execute()`
 #     하나**이고 나머지 둘은 이 주석과 `CMD_DISPLAY` 문자열이다. 감사 명령 =
-#       awk '/^_execute\(\)/{f=1} f&&/uv run/{print NR} /^}/{if(f)f=0}' scripts/bybit-smoke.sh
+#       awk '/^_execute\(\)/{f=1} f&&/uv run/{print NR} /^}/{if(f)f=0}' tools/scripts/bybit-smoke.sh
 #     이 한 줄만 찍혀야 한다.
 #   · **credentials 는 argv 로 넘기지 않는다.** 같은 호스트의 아무 프로세스나 `ps` 로 읽는다.
 #     env 로만 건네고, 이 스크립트는 값을 **한 번도 출력하지 않는다**(길이만 보고한다).
@@ -31,7 +31,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 MODE="demo"
 MARKET="linear"
@@ -172,7 +172,7 @@ fi
 
 # ── 실호출 (여기서만 외부에 나간다) ───────────────────────────────────────────
 _execute() {
-  cd "${REPO_ROOT}/backend" || die "backend 디렉터리 없음"
+  cd "${REPO_ROOT}/apps/api" || die "backend 디렉터리 없음"
   BYBIT_SMOKE_API_KEY="${RAW_KEY}" \
   BYBIT_SMOKE_API_SECRET="${RAW_SECRET}" \
     uv run python scripts/bybit_smoke.py \

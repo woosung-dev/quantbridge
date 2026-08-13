@@ -3,7 +3,7 @@
 ## 왜 fixture 가 손으로 쓴 문자열이 아닌가
 
 이 분류기의 위험은 로직이 아니라 **redis 가 실제로 무엇을 출력하는가**에 있다. 그래서
-`backend/tests/fixtures/bl594_aof/*.txt` 는 전부 **스크래치 컨테이너(`redis:7-alpine`,
+`apps/api/tests/fixtures/bl594_aof/*.txt` 는 전부 **스크래치 컨테이너(`redis:7-alpine`,
 7.4.9)에서 받아온 원문**이다. 각 파일의 출처(2026-08-05):
 
 | 파일                       | 만든 방법                                              | 서버 실제 기동                               | 판정 |

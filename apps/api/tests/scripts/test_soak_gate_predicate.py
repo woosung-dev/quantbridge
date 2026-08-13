@@ -1210,7 +1210,7 @@ def test_the_shipped_ledger_is_readable_by_the_gate(gate: Any) -> None:
     import json
 
     ledger_path = (
-        Path(__file__).parents[3]
+        Path(__file__).parents[4]
         / "docs"
         / "reference"
         / "operations"
@@ -1369,7 +1369,7 @@ def test_the_shell_reads_only_keys_the_predicate_emits(gate: Any) -> None:
     """
     import re
 
-    shell = (Path(__file__).parents[3] / "scripts" / "soak-gate.sh").read_text(encoding="utf-8")
+    shell = (Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh").read_text(encoding="utf-8")
     referenced = set(re.findall(r'c\["([A-Za-z0-9_]+)"\]', shell))
     assert referenced, "셸에서 conditions 참조를 하나도 못 찾았다 — 정규식이 낡았다"
 
@@ -1394,7 +1394,7 @@ def test_the_shell_passes_as_many_argv_as_the_payload_builder_reads(gate: Any) -
     """
     import re
 
-    shell = (Path(__file__).parents[3] / "scripts" / "soak-gate.sh").read_text(encoding="utf-8")
+    shell = (Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh").read_text(encoding="utf-8")
     head = shell.index('PAYLOAD="$(python3 - \\')
     fence = shell.index("<<'PY'", head)
     passed = len(re.findall(r'"\$\{[A-Z_]+\}"', shell[head:fence]))

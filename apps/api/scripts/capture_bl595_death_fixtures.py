@@ -27,10 +27,10 @@
 
 ## 사용
 
-    cd backend && set -a; . ./.env.local; set +a; uv run python scripts/capture_bl595_death_fixtures.py
+    cd apps/api && set -a; . ./.env.local; set +a; uv run python scripts/capture_bl595_death_fixtures.py
 
 기본은 `deactivated_reason='position_divergence'` 세션 전량. `--session <prefix>` 로 좁힌다.
-`--out` 기본값 = `backend/tests/fixtures/bl595/`.
+`--out` 기본값 = `apps/api/tests/fixtures/bl595/`.
 """
 
 from __future__ import annotations
@@ -46,8 +46,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "backend"))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "apps" / "api"))
 
 from sqlalchemy import text  # noqa: E402
 
@@ -311,7 +311,7 @@ async def _build_fixture(session: Any, row: dict[str, Any]) -> dict[str, Any]:
     return {
         "_comment": (
             "[BL-595] position_divergence 사망 tick 의 run_live 입력. "
-            "capture: backend/scripts/capture_bl595_death_fixtures.py — 손으로 고치지 마라."
+            "capture: apps/api/scripts/capture_bl595_death_fixtures.py — 손으로 고치지 마라."
         ),
         "session_id": str(session_id),
         "session_prefix": str(session_id)[:8],
@@ -385,7 +385,7 @@ def main() -> int:
     parser.add_argument("--session", help="세션 id 앞 8자리로 좁힌다")
     parser.add_argument(
         "--out",
-        default=str(REPO_ROOT / "backend" / "tests" / "fixtures" / "bl595"),
+        default=str(REPO_ROOT / "apps" / "api" / "tests" / "fixtures" / "bl595"),
         help="픽스처 출력 디렉터리",
     )
     args = parser.parse_args()

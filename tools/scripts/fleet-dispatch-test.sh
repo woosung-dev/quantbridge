@@ -13,12 +13,12 @@
 #   못 잡는다 워커 루프의 제어 흐름(R1-② 실패 수집·요약·종료 코드) · herdr 실호출.
 #            그건 CONTROL 이 실경로에서 잰다.
 #
-# 사용법: scripts/fleet-dispatch-test.sh
+# 사용법: tools/scripts/fleet-dispatch-test.sh
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
-SRC="$ROOT/scripts/fleet-dispatch.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+SRC="$ROOT/tools/scripts/fleet-dispatch.sh"
 [ -f "$SRC" ] || { echo "✗ 원본이 없다: $SRC" >&2; exit 1; }
 
 # 실제 파일에서 술어만 떼어낸다. 하나라도 못 찾으면 그 자리에서 죽는다 —

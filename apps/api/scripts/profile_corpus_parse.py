@@ -6,7 +6,7 @@
 
 판별할 두 가설:
 - (a) **import 시점 워밍업** — `pynescript`/`src.strategy.pine_v2` import 자체가 비싸다.
-      참이면 처방은 테스트 픽스처 캐시이고 `backend/src` 수정이 불필요하다.
+      참이면 처방은 테스트 픽스처 캐시이고 `apps/api/src` 수정이 불필요하다.
 - (b) **파서의 입력 크기 비선형** — 파싱 시간이 입력 크기에 초선형으로 자란다.
       참이면 처방은 파서 구간 수정이다.
 
@@ -32,21 +32,21 @@
 설명하지 못하면 (b) 는 기각된다. 판정의 주 근거는 [1]·[3]·[8] 이다.
 
 사용:
-    cd backend && uv run python scripts/profile_corpus_parse.py            # 기본 1·2·3·8 (~3분)
-    cd backend && uv run python scripts/profile_corpus_parse.py --ramp     # + 크기 램프
-    cd backend && uv run python scripts/profile_corpus_parse.py --solo     # + 파일별 격리 프로세스
-    cd backend && uv run python scripts/profile_corpus_parse.py --all      # 전부 ([7] 포함, ~16분)
-    cd backend && uv run python scripts/profile_corpus_parse.py --cprofile # [7] 만 (cold 상위 함수)
-    cd backend && uv run python scripts/profile_corpus_parse.py --components # [9] 만 (~4분)
+    cd apps/api && uv run python scripts/profile_corpus_parse.py            # 기본 1·2·3·8 (~3분)
+    cd apps/api && uv run python scripts/profile_corpus_parse.py --ramp     # + 크기 램프
+    cd apps/api && uv run python scripts/profile_corpus_parse.py --solo     # + 파일별 격리 프로세스
+    cd apps/api && uv run python scripts/profile_corpus_parse.py --all      # 전부 ([7] 포함, ~16분)
+    cd apps/api && uv run python scripts/profile_corpus_parse.py --cprofile # [7] 만 (cold 상위 함수)
+    cd apps/api && uv run python scripts/profile_corpus_parse.py --components # [9] 만 (~4분)
 
 DB·환경변수 불필요 — `classify_script` 는 순수 함수다.
 ★절대시간은 머신 부하에 민감하다(같은 cold 파싱이 41~68s 로 흔들린 실측이 있다). 결론은
 배수·순위·[8] 의 되돌아옴으로 읽어라, 절대초로 읽지 마라.
 
-★**zero-touch 계약과의 관계.** 이 스크립트는 `backend/src` 를 **읽기 전용으로 import** 한다 —
+★**zero-touch 계약과의 관계.** 이 스크립트는 `apps/api/src` 를 **읽기 전용으로 import** 한다 —
 쓰기도 생성도 없고, 부수효과는 `__pycache__/` 바이트코드뿐이다. 그 디렉터리는
-`.gitignore:57` · `backend/.gitignore:1` 에 등재돼 있고 소크 스택은 `.soak/src` **스냅샷을
-mount** 하므로, 이 스크립트를 돌려도 커밋되는 `backend/src` 변경은 0줄이고 소크 창에도
+`.gitignore:57` · `apps/api/.gitignore:1` 에 등재돼 있고 소크 스택은 `.soak/src` **스냅샷을
+mount** 하므로, 이 스크립트를 돌려도 커밋되는 `apps/api/src` 변경은 0줄이고 소크 창에도
 닿지 않는다(계약이 사는 자리는 커밋 diff 이지 파일시스템이 아니다).
 """
 
@@ -94,7 +94,7 @@ def _read(name: str) -> str:
 
 
 def _run_child(program: str, *args: str) -> Any:
-    """backend/ 를 cwd 로 자식 파이썬을 띄우고 마지막 줄 JSON 을 회수한다.
+    """apps/api/ 를 cwd 로 자식 파이썬을 띄우고 마지막 줄 JSON 을 회수한다.
 
     `program` 은 이 파일 안의 리터럴 상수만 들어온다 (외부 입력 아님) — S603 면제 근거.
     """
@@ -686,7 +686,7 @@ def main() -> int:
     print("                        (--ramp 의 log-log 기울기는 보조 증거일 뿐이다)")
     print("  둘 다 기각이고 [8] 에서 DFA 리셋만으로 cold 비용이 되돌아오면, 정체는")
     print("  「파싱이 유발하는 프로세스 전역 ANTLR ALL(*) DFA 워밍업」이다.")
-    print("  ⇒ 처방은 테스트가 파싱 자체를 안 하게 만드는 것(디스크 캐시) — backend/src 불필요.")
+    print("  ⇒ 처방은 테스트가 파싱 자체를 안 하게 만드는 것(디스크 캐시) — apps/api/src 불필요.")
     print("=" * 78)
     return 0
 

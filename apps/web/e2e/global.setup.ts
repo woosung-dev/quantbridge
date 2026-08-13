@@ -3,7 +3,7 @@
 // `clerkSetup()` 단독으로는 인증되지 않음. Testing Token 은 bot detection bypass 만,
 // user login 별도 호출 필요 → `clerk.signIn()` 으로 자동화.
 //
-// Required env (frontend/.env.local 채워야 함):
+// Required env (apps/web/.env.local 채워야 함):
 //   CLERK_PUBLISHABLE_KEY    (test runner 용 — NEXT_PUBLIC_ prefix 와 별도)
 //   CLERK_SECRET_KEY         (Testing Token 발급)
 //   E2E_CLERK_USER_EMAIL     (Clerk Dashboard 에서 dev 계정 1개)
@@ -40,7 +40,7 @@ setup("authenticate", async ({ page }) => {
   for (const key of REQUIRED_ENV) {
     if (!process.env[key]) {
       throw new Error(
-        `[e2e setup] ${key} 미설정. frontend/.env.local 채울 것 (.env.example Sprint 25 섹션 참조).`,
+        `[e2e setup] ${key} 미설정. apps/web/.env.local 채울 것 (.env.example Sprint 25 섹션 참조).`,
       );
     }
   }

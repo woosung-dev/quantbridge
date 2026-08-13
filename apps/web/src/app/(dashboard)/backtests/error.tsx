@@ -1,7 +1,7 @@
 "use client";
 
 // 백테스트 목록 라우트 에러 경계 (S5) — C 디자인 언어. render-time 예외를 catch 하고
-// reset 으로 재시도한다 (frontend/AGENTS.md §6). 목록 내부의 fetch 실패는
+// reset 으로 재시도한다 (apps/web/AGENTS.md §6). 목록 내부의 fetch 실패는
 // BacktestList 가 자체 state-box 로 처리하므로, 여기는 그 위의 render 예외 안전망이다.
 
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";

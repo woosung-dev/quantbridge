@@ -14,16 +14,16 @@
 #
 # ★fixture 는 임시 트리에 만든다 — 실제 `docs/` 를 절대 건드리지 않는다.
 #   `bl-audit.sh` 는 `dirname $0/..` 를 ROOT 로 잡고 `docs/{backlog,roadmap}.md` 를 읽으므로,
-#   스크립트 사본을 `$TMP/tree/scripts/` 에 두면 그 옆의 fixture 원장을 읽는다.
+#   스크립트 사본을 `$TMP/tree/tools/scripts/` 에 두면 그 옆의 fixture 원장을 읽는다.
 #
 # ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (`| tail` 이 $? 를 가린다 — 실측 사고 이력).
 #
-# 사용법: scripts/bl-audit-test.sh
+# 사용법: tools/scripts/bl-audit-test.sh
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
-AUDIT="$ROOT/scripts/bl-audit.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+AUDIT="$ROOT/tools/scripts/bl-audit.sh"
 [ -f "$AUDIT" ] || { echo "✗ 감사 스크립트가 없다: $AUDIT" >&2; exit 1; }
 
 TMP="$(mktemp -d)"
@@ -36,12 +36,12 @@ RC=0
 
 run_fixture() { # stdin = backlog 본문  → $OUT / $RC
   rm -rf "$TMP/tree"
-  mkdir -p "$TMP/tree/scripts" "$TMP/tree/docs"
-  cp "$AUDIT" "$TMP/tree/scripts/bl-audit.sh"
+  mkdir -p "$TMP/tree/tools/scripts" "$TMP/tree/docs"
+  cp "$AUDIT" "$TMP/tree/tools/scripts/bl-audit.sh"
   cat >"$TMP/tree/docs/backlog.md"
   : >"$TMP/tree/docs/roadmap.md" # 체크박스 없음 = 로드맵 축 중립
   # ★파이프 없음. 명령 치환의 종료 코드가 곧 스크립트의 종료 코드다.
-  OUT="$(bash "$TMP/tree/scripts/bl-audit.sh" 2>&1)"
+  OUT="$(bash "$TMP/tree/tools/scripts/bl-audit.sh" 2>&1)"
   RC=$?
 }
 

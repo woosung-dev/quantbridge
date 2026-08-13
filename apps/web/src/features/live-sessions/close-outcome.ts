@@ -4,7 +4,7 @@
 //   같은 갈래를 각자 구현하면 곧 갈라진다 — 실제로 그렇게 갈라져 있었다(한쪽만
 //   `describeApiError` 를 썼다). 판정은 여기 한 곳에 두고 표현은 패널 하나가 맡는다.
 //
-// ★갈래는 CLI(`backend/scripts/live_session_admin.py:374-423`)의 종료 코드와 1:1 이다.
+// ★갈래는 CLI(`apps/api/scripts/live_session_admin.py:374-423`)의 종료 코드와 1:1 이다.
 //   rc 0 = clean · rc 3 = blocked_resting · rc 4 = accepted_with_resting|accepted_unknown ·
 //   rc 1 = failed. 화면이 CLI 보다 적게 말하면 그것이 [BL-688] 이 지목한 구멍이다.
 

@@ -192,7 +192,7 @@ export function TradingCockpit() {
   // ★alert-rules 는 codex 적대 리뷰가 잡았다 — 첫 판에서 빠뜨렸고, 종전의 무필터 호출은
   //   그것까지 갱신하고 있었으므로 빠뜨린 채로 두면 **무효화 범위를 좁힌 것이 아니라 기능을 깬다.**
   //   ⇒ 도메인을 하나 추가할 때는 §01~§08 자식이 부르는 훅을 전수로 다시 세라.
-  // ★키는 하드코딩하지 않고 도메인 팩토리 루트를 쓴다(frontend/AGENTS.md §3).
+  // ★키는 하드코딩하지 않고 도메인 팩토리 루트를 쓴다(apps/web/AGENTS.md §3).
   const handleRefresh = () => {
     for (const queryKey of [
       tradingKeys.all(uid),

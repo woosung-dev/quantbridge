@@ -17,7 +17,7 @@
 # 판정 근거는 git 이다 — 워크트리에서만 git-dir 과 git-common-dir 이 갈린다.
 # 슬롯 번호(`QB_SLOT`)로 판정하지 않는다. 그건 `make QB_SLOT=0` 한 줄로 꺼진다.
 #
-# 사용법:  scripts/assert-main-checkout.sh [타깃이름]
+# 사용법:  tools/scripts/assert-main-checkout.sh [타깃이름]
 # 종료:    0 = 메인 체크아웃(진행해도 된다) / 1 = 워크트리(거부)
 
 set -uo pipefail

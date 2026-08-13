@@ -40,7 +40,7 @@ _CHECK = "deactivated_reason IS NULL OR deactivated_reason IN ({})".format(
 
 
 # BL-571 (a) — 운영자가 soak 중 psql 로 직접 써넣은 값. 코드가 만든 적이 없다
-# (`backend/` · `scripts/` grep 0건). 셋 다 "사람이 창을 닫았다" 이므로 정본 `user_stopped` 로 접는다.
+# (`apps/api/` · `scripts/` grep 0건). 셋 다 "사람이 창을 닫았다" 이므로 정본 `user_stopped` 로 접는다.
 _OPERATOR_WRITTEN = ("soak_closed_by_operator", "interim_window_stop", "prefix_w1_window_done")
 
 

@@ -108,7 +108,7 @@ class Settings(BaseSettings):
         description="RUNNING stress test 가 몇 초 초과 시 stale → FAILED reclaim. 기본 30분.",
     )
     ohlcv_fixture_root: str = Field(
-        default="backend/data/fixtures/ohlcv",
+        default="apps/api/data/fixtures/ohlcv",
         description="FixtureProvider가 OHLCV CSV를 읽는 루트 경로. 프로세스 CWD 기준.",
     )
 

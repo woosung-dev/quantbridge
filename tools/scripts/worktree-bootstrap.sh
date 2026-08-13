@@ -3,11 +3,11 @@
 # 워크트리 병렬 작업 부트스트랩 — 새 워크트리를 "실행 가능한" 상태로 만든다.
 #
 # 사용법:
-#   scripts/worktree-bootstrap.sh              # 슬롯 자동 할당 + deps 설치
-#   scripts/worktree-bootstrap.sh --slot 2     # 슬롯 지정 (다른 워크트리가 쥔 번호면 거부한다)
-#   scripts/worktree-bootstrap.sh --skip-deps  # deps 설치 생략
-#   scripts/worktree-bootstrap.sh --skip-db    # 테스트 DB 생성 생략 (문서/계획 전용 워크트리)
-#   scripts/worktree-bootstrap.sh --adopt-env  # env 가 없으면 죽지 말고 메인에서 복사해 온다
+#   tools/scripts/worktree-bootstrap.sh              # 슬롯 자동 할당 + deps 설치
+#   tools/scripts/worktree-bootstrap.sh --slot 2     # 슬롯 지정 (다른 워크트리가 쥔 번호면 거부한다)
+#   tools/scripts/worktree-bootstrap.sh --skip-deps  # deps 설치 생략
+#   tools/scripts/worktree-bootstrap.sh --skip-db    # 테스트 DB 생성 생략 (문서/계획 전용 워크트리)
+#   tools/scripts/worktree-bootstrap.sh --adopt-env  # env 가 없으면 죽지 말고 메인에서 복사해 온다
 #                                              # (git worktree add / herdr 로 만든 워크트리용 — §3)
 #
 # 재실행은 안전하다 — 이미 슬롯이 있으면 그 번호를 유지한다(바뀌면 떠 있는 서버와 어긋난다).
@@ -26,7 +26,7 @@
 # 추가 컨테이너는 필요 없다.
 #
 # ⚠️ 이 스크립트로도 해결되지 않는 구조적 제약 — docs/reference/operations/worktree-parallel.md §3 참조.
-#    celery worker 컨테이너가 메인 체크아웃의 `./backend/src` 를 bind-mount 하므로,
+#    celery worker 컨테이너가 메인 체크아웃의 `./apps/api/src` 를 bind-mount 하므로,
 #    워크트리에서 고친 백엔드 코드는 백테스트/라이브신호/옵티마이저에 반영되지 않는다.
 
 set -euo pipefail
@@ -83,7 +83,7 @@ port_busy() {
 
 write_slot_file() {
   cat > "$WT_ROOT/.worktree-slot" <<EOF
-# scripts/worktree-bootstrap.sh 생성 — Makefile 이 -include 로 읽는다. 커밋 대상 아님.
+# tools/scripts/worktree-bootstrap.sh 생성 — Makefile 이 -include 로 읽는다. 커밋 대상 아님.
 QB_SLOT = $1
 # Makefile 의 guard-main-only 가 "메인은 여기다" 를 출력할 때 쓴다.
 # 여기 박아두는 이유 — 없으면 make 가 타깃마다 git 을 한 번씩 더 불러야 한다.
@@ -231,7 +231,7 @@ if [ "$ADOPT_ENV" -eq 1 ]; then adopt_env; fi
 
 echo "▶ env 파일 (.worktreeinclude 복사분)"
 MISSING=""
-for f in backend/.env.local frontend/.env.local .env; do
+for f in apps/api/.env.local apps/web/.env.local .env; do
   if [ -f "$f" ]; then ok "$f"; else MISSING="$MISSING $f"; fi
 done
 if [ -n "$MISSING" ]; then
@@ -258,7 +258,7 @@ fi
 }
 
 # ── 4. 심볼릭 링크 복구 ─────────────────────────────────────────────────────
-# .worktreeinclude 는 심볼릭을 스킵한다. 스택 규칙은 ADR-027 부터 `backend/AGENTS.md` 등
+# .worktreeinclude 는 심볼릭을 스킵한다. 스택 규칙은 ADR-027 부터 `apps/api/AGENTS.md` 등
 # 실파일이라 체크아웃에 포함된다 — 여기서 만들 것은 CLAUDE.md 링크뿐이다.
 echo "▶ 심볼릭 링크"
 [ -e .claude/CLAUDE.md ] || { ln -s ../AGENTS.md .claude/CLAUDE.md && ok ".claude/CLAUDE.md -> ../AGENTS.md"; }
@@ -285,11 +285,11 @@ set_env_var() {
   rm -f "$tmp"
 }
 
-echo "▶ backend/.env.local 슬롯 반영"
+echo "▶ apps/api/.env.local 슬롯 반영"
 TEST_DB_URL="postgresql+asyncpg://quantbridge:password@localhost:5433/${TEST_DB}"
 TEST_LOCK_URL="redis://localhost:6380/${LOCK_DB}"
 
-set_env_var TEST_DATABASE_URL "$TEST_DB_URL" backend/.env.local
+set_env_var TEST_DATABASE_URL "$TEST_DB_URL" apps/api/.env.local
 ok "TEST_DATABASE_URL → $TEST_DB"
 
 # ⚠️ `TEST_REDIS_LOCK_URL` 만 써서는 격리가 **작동하지 않는다.** `conftest.py:50` 은
@@ -298,8 +298,8 @@ ok "TEST_DATABASE_URL → $TEST_DB"
 #    그 분기가 거짓이 되어 모든 워크트리가 lock DB 3 을 계속 공유한다.
 #    그래서 둘 다 쓴다. 앱 서버 쪽은 `make be-isolated` 가 inline 으로 3 을 덮으므로
 #    런타임 락은 공유 그대로다 — 앱 DB 를 공유하니 런타임 락도 공유하는 것이 맞다.
-set_env_var TEST_REDIS_LOCK_URL "$TEST_LOCK_URL" backend/.env.local
-set_env_var REDIS_LOCK_URL "$TEST_LOCK_URL" backend/.env.local
+set_env_var TEST_REDIS_LOCK_URL "$TEST_LOCK_URL" apps/api/.env.local
+set_env_var REDIS_LOCK_URL "$TEST_LOCK_URL" apps/api/.env.local
 ok "REDIS_LOCK_URL + TEST_REDIS_LOCK_URL → db $LOCK_DB"
 
 # ── 6. Makefile 이 읽을 슬롯 파일 ───────────────────────────────────────────
@@ -338,7 +338,7 @@ else
   if [ "$STAMPED" = "1" ]; then
     ok "alembic_version (이미 존재)"
   else
-    (cd backend && DATABASE_URL="$TEST_DB_URL" uv run alembic upgrade head >/dev/null 2>&1) \
+    (cd apps/api && DATABASE_URL="$TEST_DB_URL" uv run alembic upgrade head >/dev/null 2>&1) \
       && ok "alembic upgrade head → $TEST_DB" \
       || die "alembic upgrade 실패 — test_migrations 5 건이 DuplicateTable 로 깨진다."
   fi
@@ -355,8 +355,8 @@ else
   # `Command "lint-staged" not found` 로 죽고, 훅이 무력화된 채로 커밋이 통과한다(실측).
   pnpm install --frozen-lockfile >/dev/null 2>&1 && ok "루트 node_modules (husky/lint-staged)" \
     || echo "  ! 루트 pnpm install 실패 — pre-commit 훅이 무력화된다. pnpm-lock.yaml 복사 여부를 확인해라."
-  (cd frontend && pnpm install --frozen-lockfile) && ok "frontend/node_modules"
-  (cd backend && uv sync) && ok "backend/.venv"
+  (cd apps/web && pnpm install --frozen-lockfile) && ok "apps/web/node_modules"
+  (cd apps/api && uv sync) && ok "apps/api/.venv"
 fi
 
 # ── 9. 요약 ─────────────────────────────────────────────────────────────────
@@ -365,7 +365,7 @@ cat <<EOF
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 슬롯 $SLOT 준비 완료 — $WT_ROOT
 
-  BE 테스트   cd backend && set -a; . ./.env.local; set +a; uv run pytest
+  BE 테스트   cd apps/api && set -a; . ./.env.local; set +a; uv run pytest
               (env 소싱 필수 — AGENTS.md §BE pytest. 안 하면 5432 로 붙는다)
   BE 서버     make be-isolated      → http://localhost:$BE_PORT
               (슬롯 ≠ 0 이면 migrate-isolated 선행이 자동으로 빠진다 — QB_MIGRATE_DONE 불필요)

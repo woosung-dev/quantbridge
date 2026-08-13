@@ -18,12 +18,12 @@
 #
 # ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (`| tail` 이 $? 를 가린다 — 실측 사고 이력).
 #
-# 사용법: scripts/soak-watch-test.sh
+# 사용법: tools/scripts/soak-watch-test.sh
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
-WATCH="$ROOT/scripts/soak-watch.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+WATCH="$ROOT/tools/scripts/soak-watch.sh"
 [ -f "$WATCH" ] || {
   echo "✗ 감시 스크립트가 없다: $WATCH" >&2
   exit 1
@@ -130,8 +130,8 @@ EOF
 # ── 하네스 배선 ─────────────────────────────────────────────────────────────────
 _build_tree() { # _build_tree — 사본 + 가짜 게이트 + 가짜 sender
   rm -rf "$TMP/tree"
-  mkdir -p "$TMP/tree/scripts"
-  cp "$WATCH" "$TMP/tree/scripts/soak-watch.sh"
+  mkdir -p "$TMP/tree/tools/scripts"
+  cp "$WATCH" "$TMP/tree/tools/scripts/soak-watch.sh"
 
   cat > "$TMP/fake-sender.sh" << 'EOF'
 #!/usr/bin/env bash
@@ -152,8 +152,8 @@ _set_gate() { # stdin = 게이트가 낼 stdout,  $1 = 게이트 종료 코드
     cat
     echo 'GATEEOF'
     echo "exit $1"
-  } > "$TMP/tree/scripts/soak-gate.sh"
-  chmod +x "$TMP/tree/scripts/soak-gate.sh"
+  } > "$TMP/tree/tools/scripts/soak-gate.sh"
+  chmod +x "$TMP/tree/tools/scripts/soak-gate.sh"
 }
 
 _run() { # _run [sender]  → $OUT / $RC / $SENT
@@ -162,7 +162,7 @@ _run() { # _run [sender]  → $OUT / $RC / $SENT
   OUT="$(QB_SOAK_WATCH_STATE="$TMP/state" \
     QB_SOAK_NOTIFY_CMD="${1:-$TMP/fake-sender.sh}" \
     QB_FAKE_SENT="$TMP/sent" \
-    bash "$TMP/tree/scripts/soak-watch.sh" 2>&1)"
+    bash "$TMP/tree/tools/scripts/soak-watch.sh" 2>&1)"
   RC=$?
   SENT="$(cat "$TMP/sent" 2>/dev/null)"
 }

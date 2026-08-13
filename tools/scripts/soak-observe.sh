@@ -4,8 +4,8 @@
 # 세션 임시 디렉터리에만 있었고 전부 사라졌다).
 #
 # 사용:
-#   scripts/soak-observe.sh --baseline --session <uuid>   # 소크 시작 시 1회
-#   scripts/soak-observe.sh                               # 이후 하루 한 번
+#   tools/scripts/soak-observe.sh --baseline --session <uuid>   # 소크 시작 시 1회
+#   tools/scripts/soak-observe.sh                               # 이후 하루 한 번
 #
 # 설계 원칙 — 전부 이 레포가 실제로 데인 함정에서 나왔다:
 #   · 창은 시계가 아니라 **세션 created_at** 으로 잡는다(now()-6h 가 직전 소크 22건을 끌어왔다).
@@ -24,11 +24,11 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 STATE_DIR="${REPO_ROOT}/.soak"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 # ★취득 경로는 `soak-gate.sh` 와 **같아야 한다**([BL-642]) — `soak-stack.sh up` 은 API 컨테이너를
-#   띄우지 않아 `:8100` 에 리스너가 없다. 워커는 같은 counter 를 `backend/.metrics` 에 계속 쓰므로
+#   띄우지 않아 `:8100` 에 리스너가 없다. 워커는 같은 counter 를 `apps/api/.metrics` 에 계속 쓰므로
 #   기본은 **직독**이고, `QB_METRICS_URL` 을 명시하면 종전 HTTP 를 쓴다(원격 운영안 보존).
 #   정본은 `soak-gate.sh` 의 취득 블록이다 — 갈라지면 여기를 그쪽에 맞춰라.
 METRICS_URL="${QB_METRICS_URL:-}"
@@ -38,12 +38,12 @@ METRICS_URL="${QB_METRICS_URL:-}"
 #   기본 경로(디렉터리 직독)는 인증이 없으므로 영향받지 않는다.
 METRICS_HDR=()
 _qb_tok="${PROMETHEUS_BEARER_TOKEN:-}"
-if [ -z "${_qb_tok}" ] && [ -f "${REPO_ROOT}/backend/.env.local" ]; then
-  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${REPO_ROOT}/backend/.env.local" | head -1)"
+if [ -z "${_qb_tok}" ] && [ -f "${REPO_ROOT}/apps/api/.env.local" ]; then
+  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${REPO_ROOT}/apps/api/.env.local" | head -1)"
 fi
 [ -n "${_qb_tok}" ] && METRICS_HDR=(-H "Authorization: Bearer ${_qb_tok}")
 
-METRICS_DIR="${QB_METRICS_DIR:-${REPO_ROOT}/backend/.metrics}"
+METRICS_DIR="${QB_METRICS_DIR:-${REPO_ROOT}/apps/api/.metrics}"
 # 유도 주입 표식 — 이 두 값의 이벤트는 합성이다(H8 분기 유도용). 통계에서 분리해 보여준다.
 PROBE_SEQ=9999
 PROBE_TRADE_ID="h8_probe"
@@ -89,7 +89,7 @@ scrape_metrics() {
     raw="$(curl -sf ${METRICS_HDR[@]+"${METRICS_HDR[@]}"} --max-time 30 "${METRICS_URL}" 2>/dev/null)" || return 1
   elif [ -d "${METRICS_DIR}" ]; then
     # ★`timeout` 없이 부르지 마라 — 무기한 대기는 관측 자체를 멈춘다([BL-594] 교훈).
-    raw="$(cd "${REPO_ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
+    raw="$(cd "${REPO_ROOT}/apps/api" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
       timeout 120 uv run python -c '
 import sys
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess

@@ -2,7 +2,7 @@
 # skip-ratchet — 무조건 skip 된 pytest 테스트 개수를 래칫으로 동결한다. (2026-08-11 ledger-truth)
 #
 # 무엇을 재는가
-#   대상: `backend/tests/**/*.py` · `backend/src/**/*.py`.
+#   대상: `apps/api/tests/**/*.py` · `apps/api/src/**/*.py`.
 #   위반: **데코레이터 형태의 무조건 skip** — 줄 맨 앞(들여쓰기 허용)에 `@pytest.mark.skip`
 #         이 오고 그 뒤가 `(` 또는 줄끝인 것. baseline 초과 시 rc=1.
 #
@@ -25,8 +25,8 @@
 #
 # ★핵심 ④ — 하한은 **스코프별**이다. `grep` 이 아무것도 못 찾은 것과 「위반 0건」은 다른
 #   사건이고, 그 판정을 **합계로 하면 한쪽 스코프가 통째로 사라져도 초록**이 된다([BL-705]).
-#   실측 — 수리 전에는 위반이 사는 `backend/tests`(505파일)가 통째로 안 스캔돼도
-#   `backend/src`(217)가 합계 하한 200 을 넘겨 「위반 0건 ✓ rc=0」이었다. `os.walk` 는 없는
+#   실측 — 수리 전에는 위반이 사는 `apps/api/tests`(505파일)가 통째로 안 스캔돼도
+#   `apps/api/src`(217)가 합계 하한 200 을 넘겨 「위반 0건 ✓ rc=0」이었다. `os.walk` 는 없는
 #   디렉터리에서 조용히 0 을 내므로 `TARGETS` 두 항목 중 **하나만 오타 나면** 발화한다.
 #   ⇒ ⑴ 스코프 경로 부재 → rc=3 ⑵ 스코프별 파일 수 < 그 스코프 하한 → rc=3.
 #   하한값은 2026-08-11 실측(tests 505 / src 217)의 **70% 선**이다. 종전 200 은 합계 722 의
@@ -37,7 +37,7 @@
 #   `TARGETS`·확장자 필터·hit 수집·스코프별 셈이 무검증이다(실측: 자기검사를 `if False:` 로
 #   막고 정규식까지 무력화해도 rc=0). 신설 시 「하네스를 따로 두면 또 하나의 고아 스크립트가
 #   된다」는 이유로 별도 `-test.sh` 를 뺐는데, **스캔층은 파일 트리 fixture 없이는 검사할 수
-#   없다** — 그 판단이 [BL-705] 로 반증됐다. 정본 = `scripts/skip-ratchet-test.sh`(11케이스,
+#   없다** — 그 판단이 [BL-705] 로 반증됐다. 정본 = `tools/scripts/skip-ratchet-test.sh`(11케이스,
 #   `final-gates.sh`·`make gate-harnesses`·CI `documentation` 잡에 배선).
 #   ★★위 ③의 자기검사는 **정상 상태에서는 절대 발화하지 않으므로 그것을 통째로 지워도
 #     게이트가 초록**이다(2026-08-11 실측 — 자기검사 2종을 무력화해도 rc=0). 그 사각은
@@ -52,10 +52,10 @@
 #            자기검사 실패·스코프 경로 부재·스코프별 하한 미달·python3 부재 → 3.
 # 인자: 없음 = 요약 + 위반 경로. `--list` = 위반 위치만 한 줄에 하나씩.
 #
-# 사용법: scripts/skip-ratchet.sh [--list]
+# 사용법: tools/scripts/skip-ratchet.sh [--list]
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 # 하네스·수동 대조용 — 검사 대상 트리를 갈아끼운다 (`header-audit.sh` 와 같은 관용구).
 [ -n "${QB_SKIP_RATCHET_ROOT:-}" ] && ROOT="$QB_SKIP_RATCHET_ROOT"
 
@@ -86,7 +86,7 @@ OVERRIDE = os.environ.get("OVERRIDE", "")
 BASELINE = 0
 # 스코프별 스캔 하한 — 2026-08-11 실측(tests 505 / src 217)의 70% 선([BL-705]).
 # ★합계로 재지 마라. 합계는 한쪽 스코프가 통째로 사라져도 다른 쪽이 메워 초록을 낸다.
-MIN_FILES = {"backend/tests": 350, "backend/src": 150}
+MIN_FILES = {"apps/api/tests": 350, "apps/api/src": 150}
 
 # ★대상은 하한 dict 에서 파생한다 — 두 벌로 두면 하나만 고쳐져 조용히 갈라진다.
 TARGETS = tuple(MIN_FILES)
@@ -129,7 +129,7 @@ def scan(root):
     """(hits, per_scope) — 파일 트리를 실제로 훑는 유일한 자리.
 
     ★이 층은 위 자기검사가 **한 줄도 못 덮는다**(입력이 파일 트리다).
-      판별력은 `scripts/skip-ratchet-test.sh` 가 임시 트리로 잰다 — [BL-705].
+      판별력은 `tools/scripts/skip-ratchet-test.sh` 가 임시 트리로 잰다 — [BL-705].
     """
     hits = []
     per_scope = {}
@@ -245,7 +245,7 @@ else:
         print("✗ %s" % why)
         print("  「스캔 0건」과 「위반 0건」은 다른 사건이다 — 초록을 내지 않는다 ([BL-705]).")
     elif rc == 1:
-        print("✗ %s — 사유와 BL 번호를 scripts/skip-ratchet.sh 헤더에 적고 baseline 을 올려라." % why)
+        print("✗ %s — 사유와 BL 번호를 tools/scripts/skip-ratchet.sh 헤더에 적고 baseline 을 올려라." % why)
     else:
         print("✓ %s" % why)
         if len(hits) < BASELINE:

@@ -17,7 +17,7 @@ import { SessionEndedReason } from "../components/session-ended-reason";
 
 const BACKEND_MODELS = path.resolve(
   __dirname,
-  "../../../../../backend/src/trading/models.py",
+  "../../../../../../apps/api/src/trading/models.py",
 );
 
 /** BE enum 블록에서 사유 문자열을 뽑는다. 블록을 못 찾으면 실패 — 조용히 통과하면 가드가 죽는다. */

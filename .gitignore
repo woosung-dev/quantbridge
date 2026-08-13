@@ -51,14 +51,14 @@ coverage/
 *.tsbuildinfo
 .pnpm-store/
 # Clerk keyless mode 로컬 상태 (Next.js가 자동 생성)
-frontend/.clerk/
+apps/web/.clerk/
 
 # === Python / Backend ===
 __pycache__/
 *.py[cod]
 *$py.class
 .venv/
-# 위 node_modules 와 같은 이유 — 워크트리의 `backend/.venv` 는 심볼릭이다.
+# 위 node_modules 와 같은 이유 — 워크트리의 `apps/api/.venv` 는 심볼릭이다.
 .venv
 venv/
 .pytest_cache/
@@ -85,9 +85,9 @@ tmp_code/
 .context/
 
 # === Playwright (Sprint FE-01 LESSON-004 E2E) ===
-frontend/playwright-report/
-frontend/test-results/
-frontend/playwright/.cache/
+apps/web/playwright-report/
+apps/web/test-results/
+apps/web/playwright/.cache/
 
 # === Root 부트스트랩 아티팩트 ===
 # Root package.json은 husky/lint-staged/prettier 용. lockfile은 로컬에서만 생성.
@@ -97,7 +97,7 @@ frontend/playwright/.cache/
 .worktrees/
 .gstack/
 # 워크트리별 슬롯 (포트/테스트DB 오프셋). 워크트리마다 값이 달라야 하므로 절대 커밋하지 않는다.
-# scripts/worktree-bootstrap.sh 생성 · Makefile 이 -include 로 읽는다.
+# tools/scripts/worktree-bootstrap.sh 생성 · Makefile 이 -include 로 읽는다.
 .worktree-slot
 
 # === Docs cleanup (2026-05-15 CLAUDE.md align audit) ===
@@ -107,7 +107,7 @@ docs/_archive/
 docs/reports/*.html
 !docs/reports/_template-*.html
 !docs/reports/auto-dogfood/
-# 데모 소크 관측 상태 — 세션 앵커 + /metrics 스냅샷 (scripts/soak-observe.sh)
+# 데모 소크 관측 상태 — 세션 앵커 + /metrics 스냅샷 (tools/scripts/soak-observe.sh)
 .soak/
 
 # === DB 백업 (BL-451) ===
@@ -116,4 +116,4 @@ docs/reports/*.html
 .backups/
 
 # 데모 리허설 스크린샷 (G4 산출물 — 재생성 가능, 바이너리)
-frontend/e2e/.demo-shots/
+apps/web/e2e/.demo-shots/

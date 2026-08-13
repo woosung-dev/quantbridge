@@ -18,7 +18,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const GLOBALS = resolve(__dirname, "../styles/globals.css");
-const KIT = resolve(__dirname, "../../../docs/reference/design/prototypes/shotgun-2026-07/_kit.html");
+const KIT = resolve(__dirname, "../../../../docs/reference/design/prototypes/shotgun-2026-07/_kit.html");
 
 /** 공백/개행/들여쓰기를 단일 공백으로 접는다. prettier 재포맷을 무력화하되 값·주석은 보존한다. */
 function normalize(css: string): string {

@@ -28,7 +28,7 @@ case "$NAME" in
   *..*|*[!A-Za-z0-9._-]*) usage; exit 2 ;;
 esac
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 # ★우선순위: --root 명시 인자 > env > 파생. env 만 열어 두면 셸에 남은 export 하나로
 #   빈 신호 디렉터리에서도 PASS 행을 만들 수 있다(콜드 리뷰 P2-1 실증) — 호출부(final-gates)가
 #   --root 를 명시해 env 백도어를 닫는다. env 는 하네스 fixture 주입용으로 남긴다.

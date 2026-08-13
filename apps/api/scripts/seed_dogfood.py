@@ -23,7 +23,7 @@ HTTP 시딩은 구조적으로 불가능하다. 그래서 HTTP + auth 계층만 
 
 ## 사용
 
-    cd backend && set -a; source .env.local; set +a
+    cd apps/api && set -a; source .env.local; set +a
     uv run python scripts/seed_dogfood.py --confirm                # 전체
     uv run python scripts/seed_dogfood.py --confirm --only legacy  # 하나만
 
@@ -41,8 +41,8 @@ from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "backend"))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "apps" / "api"))
 
 from sqlalchemy import select  # noqa: E402
 
@@ -70,16 +70,16 @@ INITIAL_CAPITAL = Decimal("10000")
 # 켠 실행을 따로 한 번 만든다.
 INCLUDE_FUNDING = False
 
-PINE_PBR = REPO_ROOT / "backend/tests/fixtures/pine_corpus_v2/s1_pbr.pine"
+PINE_PBR = REPO_ROOT / "apps/api/tests/fixtures/pine_corpus_v2/s1_pbr.pine"
 # ★`tmp_code/pine_code/` 를 쓰면 안 된다 — `.gitignore:65` 로 무시되는 untracked
 #   경로다. `PbR_strategy_easy.pine` 과 md5 동일(31b0674d…)이라 손실 없이 대체된다.
-PINE_EMA = REPO_ROOT / "frontend/public/samples/ema-crossover.pine"
+PINE_EMA = REPO_ROOT / "apps/web/public/samples/ema-crossover.pine"
 # ★옵티마이저 전용. Grid Search MVP 는 `input.int`/`input.float` 만 sweep 하고
 #   bare `input(4, …)` 은 `input.generic` 으로 분류돼 거부된다(`grid_search.py:168`).
 #   s1_pbr 은 bare input 만 쓴다 → 옵티마이저 베이스로 못 쓴다. s4 는 타입 입력 7개.
 #   EMA 도 타입 입력이지만 그쪽은 degenerate 실행이 **최신이어야** 전략목록에서
 #   D1 이 재현되므로 백테스트를 더 붙이면 안 된다.
-PINE_HMA = REPO_ROOT / "backend/tests/fixtures/pine_corpus_v2/s4_hma_curvature.pine"
+PINE_HMA = REPO_ROOT / "apps/api/tests/fixtures/pine_corpus_v2/s4_hma_curvature.pine"
 
 
 def _utc(y: int, m: int, d: int) -> datetime:

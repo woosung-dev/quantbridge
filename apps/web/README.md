@@ -10,9 +10,9 @@ cp .env.example .env.local       # frontend 전용 env (Next.js 자동 로드)
 pnpm dev                         # http://localhost:3000
 ```
 
-> `.env.example`은 **서비스별 분리**. frontend는 `frontend/.env.example` 사용 (NEXT_PUBLIC_* 3개만). backend/docker 전체 구조는 [루트 README](../README.md#2-clone--환경-변수) + [local-setup.md](../docs/reference/operations/local-setup.md#2-클론--환경-설정) 참조.
+> `.env.example`은 **서비스별 분리**. frontend는 `apps/web/.env.example` 사용 (NEXT_PUBLIC_* 3개만). apps/api/docker 전체 구조는 [루트 README](../README.md#2-clone--환경-변수) + [local-setup.md](../docs/reference/operations/local-setup.md#2-클론--환경-설정) 참조.
 
-## 필수 환경 변수 (`frontend/.env.example` 참조)
+## 필수 환경 변수 (`apps/web/.env.example` 참조)
 
 | 변수 | 용도 |
 |------|------|
@@ -20,7 +20,7 @@ pnpm dev                         # http://localhost:3000
 | `NEXT_PUBLIC_API_URL` | FastAPI 백엔드 URL (기본 `http://localhost:8000`) |
 | `NEXT_PUBLIC_WS_URL` | WebSocket URL (Sprint 8+ 실시간) |
 
-> `CLERK_SECRET_KEY`는 **backend 전용** (`backend/.env.local`). Next.js에서는 미사용.
+> `CLERK_SECRET_KEY`는 **backend 전용** (`apps/api/.env.local`). Next.js에서는 미사용.
 
 ## 스크립트
 

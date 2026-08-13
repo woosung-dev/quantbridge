@@ -4,7 +4,7 @@
 ADR-020 §4.3 명세:
 - BTCUSDT 1h, 2024-01-01 00:00:00 UTC ~ 2024-06-30 23:00:00 UTC (~4,320 bars)
 - Bybit public klines API (무인증)
-- 출력: `backend/tests/fixtures/pine_corpus_v2/corpus_ohlcv_frozen.parquet`
+- 출력: `apps/api/tests/fixtures/pine_corpus_v2/corpus_ohlcv_frozen.parquet`
 - sha256 hex 를 stdout 으로 출력 — baseline_metrics.json 의 `ohlcv_sha256` 에 기록
 
 사용법::

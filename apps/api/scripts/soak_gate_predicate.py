@@ -37,7 +37,7 @@ from typing import Any
 _FRAC_RE = re.compile(r"\.(\d+)")
 
 # `SessionDeactivationReason` 에서 `user_stopped` 를 뺀 것 = **자동 사망**.
-# 정본은 `backend/src/trading/models.py:107-142`. 여기에 하드코딩하는 이유는 이 모듈이
+# 정본은 `apps/api/src/trading/models.py:107-142`. 여기에 하드코딩하는 이유는 이 모듈이
 # 앱 코드를 import 하지 않는 순수 함수이기 때문이다 — 어긋나면
 # `tests/scripts/test_soak_gate_predicate.py` 가 정본과 대조해 실패시킨다.
 AUTOMATIC_DEATH_REASONS: frozenset[str] = frozenset(
@@ -55,7 +55,7 @@ AUTOMATIC_DEATH_REASONS: frozenset[str] = frozenset(
 
 # ── 방향 발산 라벨 어휘 ([BL-596]) ────────────────────────────────────────────
 #
-# 분류기(`backend/scripts/classify_direction_divergence.py`)가 내는 `verdicts[].label`
+# 분류기(`apps/api/scripts/classify_direction_divergence.py`)가 내는 `verdicts[].label`
 # 은 **셋뿐**이고, 게이트는 그 셋을 여기서 **명시적으로** 가른다. 예전에는
 # `label == "phantom"` 하나만 보고 나머지를 전부 무해로 접었다 — 곧 `unattributed` 도,
 # 판별식이 앞으로 낼 어떤 새 라벨도 조용히 무해였다. 방향이 **fail-open** 이다:
@@ -81,7 +81,7 @@ KNOWN_DIVERGENCE_LABELS: frozenset[str] = (
 MAX_UNREADABLE_LABEL_SAMPLES = 5
 
 # 유도 계측이 「판정 불가」로 떨어지는 outcome 들. 보고 전용 — 문턱 없음.
-# 정본은 `backend/src/common/metrics.py:802-811`.
+# 정본은 `apps/api/src/common/metrics.py:802-811`.
 UNDECIDABLE_DERIVE_OUTCOMES: frozenset[str] = frozenset(
     {"overflow", "foreign_fill", "close_without_open", "duplicate_open", "unreadable"}
 )

@@ -14,7 +14,7 @@ import {
   SESSION_ID,
 } from "./fixtures/outcome-parity";
 
-// BL-608 — outcome-parity 패널 e2e 안전망 (그전까지 `frontend/e2e/**` 에 이 문자열 0건).
+// BL-608 — outcome-parity 패널 e2e 안전망 (그전까지 `apps/web/e2e/**` 에 이 문자열 0건).
 //
 // ★로케이터는 **data-testid 와 값(title 문자열)만** 쓴다 (BL-597 규약). 상세가 열린
 // `/trading` 에는 `<table>` 이 5개 있고 「산출 불가」 는 페이지에서 11회 매치된다

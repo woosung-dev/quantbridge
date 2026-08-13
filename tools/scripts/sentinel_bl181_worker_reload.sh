@@ -9,8 +9,8 @@ set -eu
 
 # resolve repo root from script location (worktree-safe — no hardcoded path)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-MARKER_FILE="${REPO_ROOT}/backend/src/__sentinel_bl181__.py"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+MARKER_FILE="${REPO_ROOT}/apps/api/src/__sentinel_bl181__.py"
 CONTAINER="quantbridge-worker"
 
 if ! docker ps --format '{{.Names}}' | grep -qx "${CONTAINER}"; then

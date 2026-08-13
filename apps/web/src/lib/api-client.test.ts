@@ -53,7 +53,7 @@ describe("describeApiError", () => {
 });
 
 // ★`ApiError.code` 해석은 **`apiFetch` 를 통해** 잰다. 코드 해석 함수만 직접 부르면
-//   그 함수를 호출부에서 떼어내는 변이가 초록으로 빠져나간다(`backend/AGENTS.md` §10-2 와
+//   그 함수를 호출부에서 떼어내는 변이가 초록으로 빠져나간다(`apps/api/AGENTS.md` §10-2 와
 //   같은 규약). 여기서는 `fetch` 만 갈아 끼운다.
 describe("apiFetch — ApiError.code", () => {
   afterEach(() => {

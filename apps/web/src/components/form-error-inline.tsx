@@ -92,7 +92,7 @@ function parseError(err: unknown): Parsed | null {
       };
     }
     // BL-485 — `friendly_message` 는 BE 화이트리스트 2종에만 붙는다
-    // (`backend/src/main.py:51,56` — StrategyNotRunnable / StrategyDegraded).
+    // (`apps/api/src/main.py:51,56` — StrategyNotRunnable / StrategyDegraded).
     // 나머지 422 는 그 필드가 없어 `err.message` 로 떨어지는데, 그 값은 프로덕션에서
     // 언제나 `API 422 <path>` 다(`lib/api-client.ts:57`). 서버가 준 문장이 `detail.detail`
     // 에 이미 있으므로 HTTP 잡음보다 그것을 먼저 쓴다.

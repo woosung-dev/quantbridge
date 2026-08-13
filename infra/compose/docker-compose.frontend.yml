@@ -17,7 +17,7 @@
 #   브라우저 → Cloudflare              → cloudflared(host net) → 127.0.0.1:8100 → 호스트 uvicorn
 
 services:
-  # Next.js 16 standalone 런타임. `frontend/Dockerfile` 은 맥 빌드 산출물만 담는다.
+  # Next.js 16 standalone 런타임. `apps/web/Dockerfile` 은 맥 빌드 산출물만 담는다.
   frontend:
     image: quantbridge-frontend:${QB_FRONTEND_TAG:?required — 맥에서 build 한 태그를 .env 에 적어라}
     container_name: quantbridge-frontend
@@ -26,7 +26,7 @@ services:
     ports:
       - "127.0.0.1:3200:3000"
     environment:
-      # ★런타임 필수 — `frontend/src/proxy.ts` 의 clerkMiddleware 가 서버에서 검증한다.
+      # ★런타임 필수 — `apps/web/src/proxy.ts` 의 clerkMiddleware 가 서버에서 검증한다.
       # NEXT_PUBLIC_* 은 여기 없다: 빌드 타임에 번들로 인라인된다(`api-base.ts`).
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?required — Clerk Dashboard → API Keys}
     # ★mem_limit 은 소크 스택과 같은 이유다(`docker-compose.soak.yml` 머리말) — 전역 OOM

@@ -74,7 +74,7 @@ import {
   type CanonAuditResult,
 } from "./design-canon-audit";
 
-const PROTOTYPE_DIR = resolve(__dirname, "../../docs/reference/design/prototypes/shotgun-2026-07");
+const PROTOTYPE_DIR = resolve(__dirname, "../../../docs/reference/design/prototypes/shotgun-2026-07");
 
 /**
  * 2026-07-20 실측 기준선. `node docs/reference/design/prototypes/shotgun-2026-07/runtime-check.mjs` 출력.

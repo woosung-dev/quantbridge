@@ -1914,7 +1914,7 @@ def _count_plan_divergences(divergences: Sequence[Any], *, sess: Any) -> None:
             and divergence.get("had_resting") is True
         ):
             _count_safely(qb_live_conditional_guard_total, outcome="breach_with_resting")
-        # BL-561 — `backend/src` 에서 `extra=` 에 dict 를 unpack 하는 **유일한**
+        # BL-561 — `apps/api/src` 에서 `extra=` 에 dict 를 unpack 하는 **유일한**
         # 자리다. 계획기가 `name`/`module` 같은 LogRecord 예약 키를 추가하면
         # stdlib `makeRecord` 가 KeyError 를 던져 **이 로그 줄이 예외로 바뀐다.**
         # 그 닫힘은 `tests/common/test_logging_config.py` 의

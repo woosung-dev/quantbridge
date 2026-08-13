@@ -65,7 +65,7 @@ describe("FormErrorInline", () => {
   });
 
   // BL-485 — `friendly_message` 는 BE 화이트리스트 2종(`StrategyNotRunnable` /
-  // `StrategyDegraded`)에만 붙는다(`backend/src/main.py:51,56`). 나머지 422 는 그 필드가
+  // `StrategyDegraded`)에만 붙는다(`apps/api/src/main.py:51,56`). 나머지 422 는 그 필드가
   // 없어 `err.message` 로 떨어지는데, 그 값은 프로덕션에서 **언제나** `API 422 <path>` 다
   // (`lib/api-client.ts:57`). 즉 사용자는 서버가 준 문장 대신 HTTP 잡음을 본다.
   it("422 + friendly_message 없음 → detail.detail 을 렌더하고 'API 422' 를 안 보여준다", () => {

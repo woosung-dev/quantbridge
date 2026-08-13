@@ -3,7 +3,7 @@
 backend.md §3 의무: service mutation 메서드 (save/update/delete + commit) 모두
 spy 회귀 1건 의무. broken bug 재발 (Sprint 6 → 13 → 15-A 패턴) 방어.
 
-표준 reference: backend/tests/trading/test_webhook_secret_commits.py.
+표준 reference: apps/api/tests/trading/test_webhook_secret_commits.py.
 """
 
 from __future__ import annotations

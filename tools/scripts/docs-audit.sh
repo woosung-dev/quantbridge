@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 
 python3 - "$ROOT" <<'PY'
 from __future__ import annotations
@@ -56,8 +56,8 @@ markdown_roots = [
     root / "AGENTS.md",
     root / "CONTEXT.md",
     root / "DESIGN.md",
-    root / "backend" / "README.md",
-    root / "frontend" / "README.md",
+    root / "apps" / "api" / "README.md",
+    root / "apps" / "web" / "README.md",
 ]
 for start in markdown_roots:
     for path in text_files(start):
@@ -86,8 +86,8 @@ legacy_paths = {
     "docs/guides/": "docs/reference/operations/workflows/",
 }
 legacy_hits: list[tuple[Path, str, str]] = []
-audit_script = root / "scripts" / "docs-audit.sh"
-for start in (docs, root / "backend", root / "frontend", root / "scripts", root / "Makefile", root / "docker-compose.isolated.yml"):
+audit_script = root / "tools" / "scripts" / "docs-audit.sh"
+for start in (docs, root / "apps" / "api", root / "apps" / "web", root / "tools" / "scripts", root / "Makefile", root / "infra" / "compose" / "docker-compose.isolated.yml"):
     if not start.exists():
         continue
     for path in text_files(start):
@@ -165,7 +165,7 @@ for rel, cap in file_line_caps.items():
 #   [가정] GitHub `ubuntu-latest` 러너 이미지에는 node 가 PATH 에 있다 — 이 레포에서 실행으로
 #   확인한 적은 없다. 만약 CI `documentation` job 이 여기서 빨개지면 그 job 에
 #   `actions/setup-node` 를 더해라. 상한처럼 **검사를 끄지 마라.**
-# ★`frontend/node_modules` 미설치는 이 게이트의 책임이 아니다(CI `documentation` job 은
+# ★`apps/web/node_modules` 미설치는 이 게이트의 책임이 아니다(CI `documentation` job 은
 #   pnpm install 을 안 한다). 끊긴 지점이 없는 `node_modules` 자체면 건너뛰고,
 #   그 위쪽(= 상대 깊이)이 끊겼으면 실패로 올린다. 둘을 구분하는 것이 이 검사의 핵심이다.
 orphan_tools = [
@@ -174,9 +174,9 @@ orphan_tools = [
         "why": "프로토타입·앱 런타임 검사기 (BL-631)",
     },
     {
-        "path": "backend/scripts/regen_golden.py",
+        "path": "apps/api/scripts/regen_golden.py",
         "why": "백테스트 골든 재생성/대조기 `--check` (BL-631 계열)",
-        "import_root": "backend",
+        "import_root": "apps/api",
         "packages": ("src", "scripts", "tests"),
     },
 ]
@@ -353,7 +353,7 @@ else:
 #   갈라지고, 갈라지는 순간 어느 쪽이 맞는지 아무도 모른다.
 # ★**정확히 1개**를 잰다. 0개(규율 누락)와 2개 이상(중복 상태줄과 같은 사고)이 둘 다 실패다.
 verdict_line_hits: list[str] = []
-bl_audit = root / "scripts" / "bl-audit.sh"
+bl_audit = root / "tools" / "scripts" / "bl-audit.sh"
 backlog_md = docs / "backlog.md"
 by_verdict: dict[str, set[str]] = {}
 verdict_text: dict[str, str] = {}
@@ -431,7 +431,7 @@ if by_verdict:
         print("▶ ⓪ 표 정체성 — **판정 포기 (ABORT)**")
         print("  기대 집합(ACTIVE ∪ PARTIAL∧도래)과 ⓪ 표의 살아 있는 행이 **둘 다 비었다.**")
         print("  빈 입력을 「일치」로 통과시키지 않는다 ([LESSON-101]) — 먼저 확인해라:")
-        print("    bash scripts/bl-audit.sh --list ACTIVE      # 정본이 비었나")
+        print("    bash tools/scripts/bl-audit.sh --list ACTIVE      # 정본이 비었나")
         print("    grep -n '^### ⓪' docs/status.md            # 표 헤딩이 살아 있나")
         raise SystemExit(3)
     missing = sorted(expected - zero_live_ids, key=lambda x: int(x[3:]))

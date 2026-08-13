@@ -439,7 +439,7 @@ describe("OutcomeParityPanel", () => {
   // ★배너는 **관측 사실만** 말해야 한다. 「전략 누적에 이 세션 청산이 한 건도 없다」는
   // 단정은 백엔드 계약이 보장하지 않는다 — 주문 창은 `filled_at` 기준 반열림
   // `[started_at, ended_at)` 이라 세션 종료 뒤 체결(늦은 체결)은 **인접 세션 창으로**
-  // 잡힌다(`backend/src/trading/repositories/order_repository.py` 창 계약).
+  // 잡힌다(`apps/api/src/trading/repositories/order_repository.py` 창 계약).
   // 그러면 세션 축은 매칭 0 인데 그 세션 이벤트의 청산이 전략 축에서는 매칭될 수 있다
   // (`parity_repository.load_parity_inputs` 가 이벤트와 주문 창을 따로 받는다).
   it("세션 배너는 전략 누적에 이 세션 청산이 없다고 단정하지 않는다", () => {

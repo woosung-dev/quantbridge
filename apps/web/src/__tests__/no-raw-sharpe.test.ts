@@ -2,7 +2,7 @@
 //
 // 왜 필요한가. `sharpe_ratio()` 는 degenerate 실행(거래 0 · 자본 평탄)에서
 // **의도적으로 `Decimal("0")` + convention `"unavailable"`** 을 반환한다
-// (`backend/src/backtest/engine/metrics.py:76-103`). None 을 반환하면 optimizer
+// (`apps/api/src/backtest/engine/metrics.py:76-103`). None 을 반환하면 optimizer
 // dead branch 가 되살아나고 FE `.toFixed(2)` 가 깨지기 때문이다. 그래서 값만 보고
 // null 검사만 하면 **degenerate 를 자신만만한 `0.00` 으로 인쇄**한다 — 같은
 // 백테스트를 리포트는 `—` 로, 대시보드는 `0.00` 으로 보여주는 모순이 된다.

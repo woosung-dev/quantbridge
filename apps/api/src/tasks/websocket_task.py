@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 
 # Sprint 24 BL-011: process-local `_PROCESS_ACTIVE_STREAMS` + `_PROCESS_LOCK` 제거.
-# Redis distributed lease (`backend/src/tasks/_ws_lease.py:acquire_ws_lease`) 로 교체.
+# Redis distributed lease (`apps/api/src/tasks/_ws_lease.py:acquire_ws_lease`) 로 교체.
 # multi-account / prefork (BL-012) 환경 지원.
 
 # G4 fix #4: stop_event 글로벌 dict — worker_shutdown signal 이 모든 active stream

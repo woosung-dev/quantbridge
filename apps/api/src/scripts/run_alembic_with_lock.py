@@ -13,7 +13,7 @@ CLI:
     python -m src.scripts.run_alembic_with_lock --lock-key 1903723824 --timeout 30
 
 사용처:
-- ``backend/docker-entrypoint.sh`` 의 ``run_alembic_with_lock()`` shell 함수.
+- ``apps/api/docker-entrypoint.sh`` 의 ``run_alembic_with_lock()`` shell 함수.
 
 설계 결정:
 - ``pg_try_advisory_lock`` (non-blocking) + sleep loop. ``pg_advisory_lock``

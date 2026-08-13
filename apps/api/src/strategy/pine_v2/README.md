@@ -4,7 +4,7 @@
 
 ## 라이선스 경계 (엄수)
 
-- **pynescript:** LGPL-3.0. `backend/pyproject.toml`에 버전 pin된 PyPI 의존성으로만 사용.
+- **pynescript:** LGPL-3.0. `apps/api/pyproject.toml`에 버전 pin된 PyPI 의존성으로만 사용.
 - **절대 금지:**
   - 이 디렉토리에 pynescript 소스 복사
   - pynescript 내부 구현을 QB 코드로 재작성 (공개 API만 호출)
@@ -15,7 +15,7 @@
 
 ## 기존 `pine/` 모듈과의 관계
 
-- `backend/src/strategy/pine/`는 Sprint 7b까지 건드리지 않음 (dogfood 복구 경로)
+- `apps/api/src/strategy/pine/`는 Sprint 7b까지 건드리지 않음 (dogfood 복구 경로)
 - `pine_v2/`가 Tier-0 (파서) → Tier-3 (strategy 네이티브)까지 완성되면 `pine/`에서 교체
 - 교체 시점: Sprint 8c 종료 예정
 

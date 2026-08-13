@@ -36,7 +36,7 @@ DEFAULT_TEST_DSN = "postgresql+asyncpg://quantbridge:password@localhost:5432/qua
 # 세션 중단 종료 코드. `tests/real_broker/conftest.py` 가 쓰던 값을 그대로 승계한다.
 GUARD_EXIT_CODE = 3
 
-_HOWTO = "해소: `cd backend && set -a; . ./.env.local; set +a` 로 TEST_DATABASE_URL 을 export 해라."
+_HOWTO = "해소: `cd apps/api && set -a; . ./.env.local; set +a` 로 TEST_DATABASE_URL 을 export 해라."
 
 
 class NonDisposableDatabaseError(RuntimeError):

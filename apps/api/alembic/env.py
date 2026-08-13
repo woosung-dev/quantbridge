@@ -57,7 +57,7 @@ target_metadata = SQLModel.metadata
 # ★**이 가드가 못 보는 표면이 하나 있다** — `command.downgrade(cfg, "base")` 처럼 파이썬에서
 #   직접 부르면 `config.cmd_opts` 가 `None` 이라 방향을 알 수 없다. 그 표면은
 #   `tests/_db_guard.py` + 루트 `tests/conftest.py::pytest_configure` 가 덮는다.
-#   초록은 「통과했다」가 아니라 「내가 본 것 중에는 없었다」만 말한다(`backend/AGENTS.md` §10).
+#   초록은 「통과했다」가 아니라 「내가 본 것 중에는 없었다」만 말한다(`apps/api/AGENTS.md` §10).
 #
 # ★알면서 남긴 것: `--sql`(오프라인) downgrade 도 이 가드에 막힌다. 오프라인은 DB 에 붙지
 #   않으므로 막을 이유가 없지만, 막혀도 피해가 SQL 출력 한 번을 못 받는 것뿐이고 탈출구가

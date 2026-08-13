@@ -23,7 +23,7 @@ make up-isolated
 # Auto dogfood 실행 (env 명시)
 TEST_DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge \\
 TEST_REDIS_LOCK_URL=redis://localhost:6380/3 \\
-python backend/scripts/run_auto_dogfood.py
+python apps/api/scripts/run_auto_dogfood.py
 ```
 
 출력:
@@ -46,8 +46,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-# Sprint 25 — script 실행 cwd 무관하게 동작 (repo root / backend/ 어디서든 OK).
-_BACKEND_DIR = Path(__file__).resolve().parent.parent  # backend/
+# Sprint 25 — script 실행 cwd 무관하게 동작 (repo root / apps/api/ 어디서든 OK).
+_BACKEND_DIR = Path(__file__).resolve().parent.parent  # apps/api/
 _REPO_ROOT = _BACKEND_DIR.parent
 _REPORT_DIR = _REPO_ROOT / "docs" / "reports" / "auto-dogfood"
 _TEST_PATH = "tests/integration/test_auto_dogfood.py"
@@ -95,7 +95,7 @@ def _run_pytest() -> tuple[int, str, str, dict[str, Any] | None]:
         cmd += ["--json-report", f"--json-report-file={json_path}"]
 
     # cmd 는 hard-coded list (사용자 입력 무관) — S603 false positive.
-    # cwd 는 동적 — script 자체 위치 기반 (repo root / backend/ 어디서든 호출 가능).
+    # cwd 는 동적 — script 자체 위치 기반 (repo root / apps/api/ 어디서든 호출 가능).
     proc = subprocess.run(  # noqa: S603
         cmd, capture_output=True, text=True, cwd=_BACKEND_DIR, check=False
     )

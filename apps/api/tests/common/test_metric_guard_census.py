@@ -1,6 +1,6 @@
 """R1 metric guard census.
 
-대상 = ``backend/src/**/*.py``.
+대상 = ``apps/api/src/**/*.py``.
 
 site는 다음 AST ``Call`` 이다.
 
@@ -33,7 +33,7 @@ from src.common.metrics import _LIVE_CONDITIONAL_GUARD_OUTCOMES
 _MUTATION_METHODS = frozenset({"inc", "dec", "observe", "set"})
 _GUARD_FUNCTIONS = frozenset({"record_metric_safely", "_count_safely", "_touch_safely"})
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
-_REPOSITORY_ROOT = _BACKEND_ROOT.parent
+_REPOSITORY_ROOT = _BACKEND_ROOT.parent.parent
 _SOURCE_ROOT = _BACKEND_ROOT / "src"
 
 _CENSUS_RULE_FAILURE_MESSAGE = """
@@ -48,17 +48,17 @@ unguarded site belongs to a money path.
 
 
 _FROZEN_CENSUS: dict[tuple[str, str], int] = {
-    ("backend/src/common/alert.py", "qb_pending_alerts"): 2,
-    ("backend/src/common/metrics.py", "qb_ccxt_request_duration_seconds"): 1,
-    ("backend/src/common/metrics.py", "qb_ccxt_request_errors_total"): 1,
-    ("backend/src/common/metrics_multiproc.py", "qb_metrics_mutation_failed_total"): 1,
-    ("backend/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): 1,
-    ("backend/src/common/redis_client.py", "qb_redis_lock_pool_healthy"): 1,
-    ("backend/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
-    ("backend/src/tasks/_ws_circuit_breaker.py", "qb_ws_auth_circuit_total"): 4,
-    ("backend/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
+    ("apps/api/src/common/alert.py", "qb_pending_alerts"): 2,
+    ("apps/api/src/common/metrics.py", "qb_ccxt_request_duration_seconds"): 1,
+    ("apps/api/src/common/metrics.py", "qb_ccxt_request_errors_total"): 1,
+    ("apps/api/src/common/metrics_multiproc.py", "qb_metrics_mutation_failed_total"): 1,
+    ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): 1,
+    ("apps/api/src/common/redis_client.py", "qb_redis_lock_pool_healthy"): 1,
+    ("apps/api/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
+    ("apps/api/src/tasks/_ws_circuit_breaker.py", "qb_ws_auth_circuit_total"): 4,
+    ("apps/api/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
     (
-        "backend/src/tasks/conditional_entry_janitor.py",
+        "apps/api/src/tasks/conditional_entry_janitor.py",
         "qb_live_conditional_reconcile_errors_total",
     ): 5,
     # ★2026-08-04 direction-channel-decomposition 연장 — `_reconcile_conditional_entries`
@@ -76,9 +76,9 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     #   `execute` 를 함께 건너뛰므로 잘못된 주문이 나가지 않는다.
     # ★내가 처음 12곳을 전부 (b)로 적었고 **테스트가 그 일반화를 반증했다.** 직전 회차의
     #   「8곳 중 1곳만 fail-open `try` 안」과 같은 함정이다.
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 3,
-    ("backend/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
-    ("backend/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 3,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     # ★2026-08-03 metric-guard-residual-sweep — 12곳 중 8곳 수리. 잔여 4곳은 **판정 보류**
     #   (프로덕션 도달 경로를 한 줄로 못 적어 주입 하네스를 만들지 않았다. 만들면 프로덕션이
     #   못 만드는 상태를 손조립해 「실측 유해」로 적게 된다 — [BL-582] 함정의 거울상):
@@ -91,39 +91,39 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     #     `:3278` idempotency_conflict — ★**도달 불가**. 유일 raise 지점
     #        (`order_service.py:369`)이 `if body_hash is not None` 안인데 `:3246` 은
     #        `body_hash=None` 을 넘긴다. 그 `except` 는 이 호출자에게 사문(死文)이다.
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_dispatch_total"): 4,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 4,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): 1,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_eval_duration_seconds"): 1,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 6,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_outbox_pending_gauge"): 2,
-    ("backend/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 10,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_dispatch_total"): 4,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 4,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): 1,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_eval_duration_seconds"): 1,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 6,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_outbox_pending_gauge"): 2,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 10,
     # ★`tasks/trading.py` · `trading/router.py` 의 `qb_active_orders` 는 2026-08-03
     #   metric-guard-residual 이 전건 감쌌다. Counter 는 0 인 키를 만들지 않으므로 항목
     #   자체를 지운다 — `: 0` 으로 남기면 `actual == _FROZEN_CENSUS` 가 영구 red 다.
     #   ★2026-08-03 metric-guard-residual-close 가 같은 이유로 두 항목을 더 지웠다:
     #   `tasks/trading.py`+`qb_closed_pnl_backfill_total`(15) ·
     #   `services/order_service.py`+`qb_order_rejected_total`(10).
-    ("backend/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
-    ("backend/src/tasks/trading.py", "qb_exchange_exit_link_unverified_total"): 1,
-    ("backend/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
-    ("backend/src/tasks/trading.py", "qb_order_snapshot_fallback_total"): 2,
-    ("backend/src/tasks/trading.py", "qb_trailing_placement_total"): 9,
-    ("backend/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): 1,
-    ("backend/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
-    ("backend/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
-    ("backend/src/trading/providers.py", "qb_closed_pnl_backfill_total"): 1,
-    ("backend/src/trading/realtime_publisher.py", "qb_rt_publish_failed_total"): 1,
-    ("backend/src/trading/realtime_publisher.py", "qb_rt_publish_invalid_total"): 1,
-    ("backend/src/trading/webhook.py", "qb_order_rejected_total"): 1,
-    ("backend/src/trading/webhook.py", "qb_webhook_symbol_rejected_total"): 1,
-    ("backend/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconcile_skipped_total"): 1,
-    ("backend/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconnect_total"): 1,
-    ("backend/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
-    ("backend/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
-    ("backend/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): 1,
-    ("backend/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): 1,
+    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
+    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_link_unverified_total"): 1,
+    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
+    ("apps/api/src/tasks/trading.py", "qb_order_snapshot_fallback_total"): 2,
+    ("apps/api/src/tasks/trading.py", "qb_trailing_placement_total"): 9,
+    ("apps/api/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): 1,
+    ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
+    ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
+    ("apps/api/src/trading/providers.py", "qb_closed_pnl_backfill_total"): 1,
+    ("apps/api/src/trading/realtime_publisher.py", "qb_rt_publish_failed_total"): 1,
+    ("apps/api/src/trading/realtime_publisher.py", "qb_rt_publish_invalid_total"): 1,
+    ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): 1,
+    ("apps/api/src/trading/webhook.py", "qb_webhook_symbol_rejected_total"): 1,
+    ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconcile_skipped_total"): 1,
+    ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconnect_total"): 1,
+    ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
+    ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
+    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): 1,
+    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): 1,
 }
 
 
@@ -456,62 +456,62 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     # (파일, 함수, metric, 이유)
     # Tier 1 — 주문 접수·실행 enqueue 성공 직후. 던지면 성공이 실패로 기록된다.
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_place_planned_entry",
         "qb_live_conditional_placed_total",
         "성공 접수를 stage=conditional_place 실패로 계상",
     ),
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_place_planned_entry",
         "qb_live_conditional_guard_total",
         "위와 같음 + _GuardOutcomeCounter 는 ValueError 도 던진다",
     ),
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_place_planned_entry",
         "qb_live_conditional_reconcile_errors_total",
         "지연 return 을 건너뛰어 낡은 스냅샷 위 과잉 등재 (실측: execute await 2회)",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "_do_place_trailing_stop",
         "qb_trailing_placement_total",
         "중복 set_trading_stop + 거짓 trailing_unprotected critical alert",
     ),
     # Tier 2 — 내구 쓰기와 체결 후처리 훅 사이의 gauge. 던지면 후처리가 통째로 유실된다.
     (
-        "backend/src/trading/websocket/state_handler.py",
+        "apps/api/src/trading/websocket/state_handler.py",
         "handle_order_event",
         "qb_active_orders",
         "WS fill 주 경로. 23줄 아래 가드와 그 전용 회귀 테스트를 도달 불가로 만든다",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "_execute_with_session",
         "qb_active_orders",
         "REST 동기 fill. max_retries=0 이라 회수 경로가 없다",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "_fetch_order_status_with_session",
         "qb_active_orders",
         "watchdog fill",
     ),
     (
-        "backend/src/trading/websocket/reconciliation.py",
+        "apps/api/src/trading/websocket/reconciliation.py",
         "run",
         "qb_active_orders",
         "reconciler fill",
     ),
     (
-        "backend/src/tasks/conditional_entry_janitor.py",
+        "apps/api/src/tasks/conditional_entry_janitor.py",
         "_async_conditional_entry_janitor",
         "qb_active_orders",
         "janitor fill",
     ),
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_write_back_confirmed_terminal",
         "qb_active_orders",
         "BL-567 이 '트레일링 영구 유실' 로 등재한 격리 블록의 한 줄 위",
@@ -520,31 +520,31 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     #   파일 안에** 남아 있었다. 4곳은 `commit()` **앞**이라 더 나쁘다(계측 예외가 terminal
     #   DB 전이를 rollback 시킨다).
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_cancel_planned_entry",
         "qb_live_conditional_cancelled_total",
         "거래소 취소 성공 뒤. except 가 stage=cancel 실패로 계상하고 이후 reconcile 중단",
     ),
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_async_sweep_conditional_entries",
         "qb_active_orders",
         "★commit 앞 + except 가 rollback — 계측 예외가 terminal DB 전이를 되돌린다",
     ),
     (
-        "backend/src/tasks/conditional_entry_janitor.py",
+        "apps/api/src/tasks/conditional_entry_janitor.py",
         "_async_conditional_entry_janitor",
         "qb_active_orders",
         "★commit 앞 + rollback (2곳)",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "_execute_with_session",
         "qb_active_orders",
         "reject 경로 commit 뒤 (2곳). 같은 문자열이 3곳이라 하나만 남기면 잘못된 패턴이 복제된다",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "_fetch_order_status_with_session",
         "qb_active_orders",
         "같은 형태 — 일관성 유지",
@@ -557,31 +557,31 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     #   새 raw 가 생기고 여기 자리가 raw 로 되돌아가면 **상쇄돼 통과**한다(2026-08-02 codex G1
     #   MAJOR#7). 그래서 자리마다 여기에 남긴다.
     (
-        "backend/src/trading/router.py",
+        "apps/api/src/trading/router.py",
         "cancel_order",
         "qb_active_orders",
         "commit 뒤 — 던지면 확정된 취소가 HTTP 500 으로 보고된다 (H1, 주입 확인)",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "_cancel_order_with_session",
         "qb_active_orders",
         "commit 뒤 + 바로 아래 로그가 거래소 취소를 남기는 유일한 라인 (H1)",
     ),
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_resolve_current_position",
         "qb_live_conditional_reconcile_errors_total",
         "★stand-down 직전 — 던지면 잘못된 전제 위 조건부 진입이 거래소에 남는다 (H4)",
     ),
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_block_on_direction_divergence",
         "qb_live_signal_divergence_total",
         "★세션 자동 비활성화 commit 뒤 · 무신호 차단 고지 앞 — 세션이 조용히 죽는다 (H2)",
     ),
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_block_on_direction_divergence",
         "qb_live_signal_evaluated_total",
         "위와 같은 블록 — 둘 다 감싸야 고지에 도달한다",
@@ -596,31 +596,31 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     #   `tests/tasks/test_closed_pnl_sweep_metric_failure.py` ·
     #   `tests/tasks/test_refresh_closed_pnl.py`.
     (
-        "backend/src/trading/services/order_service.py",
+        "apps/api/src/trading/services/order_service.py",
         "_execute_inner",
         "qb_order_rejected_total",
         "★거절 8곳 — 도메인 예외가 삼켜지면 4xx 가 500 이 되고 호출자 기록 분기가 빠진다 (H5·H4)",
     ),
     (
-        "backend/src/trading/services/order_service.py",
+        "apps/api/src/trading/services/order_service.py",
         "_validate_position_size",
         "qb_order_rejected_total",
         "risk 사이징 거절 — 구체 타입 catch 는 없지만 4xx 가 500 이 된다 (H5)",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "_refresh_closed_pnl_with_session",
         "qb_closed_pnl_backfill_total",
         "★종결 skip 5곳 + applied/already_synced — 정상 종결이 재시도로 오분류된다 (H6·H1)",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "refresh_closed_pnl_task",
         "qb_closed_pnl_backfill_total",
         "★포기 알림 바로 앞 — 던지면 알림이 1건 더가 아니라 0건이 된다 (H2)",
     ),
     (
-        "backend/src/tasks/trading.py",
+        "apps/api/src/tasks/trading.py",
         "_sweep_closed_pnl_with_session",
         "qb_closed_pnl_backfill_total",
         "★계정 격리 handler 의 첫 줄 + 신규 청산 알림 앞 + 원장 적재 앞 (H4·H2·H7)",
@@ -637,14 +637,14 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
     #    천장**(`test_unguarded_mutation_count...`)이 한다. 잔여 4곳이 raw 로 남아 있으므로
     #    수리한 자리가 raw 로 되돌아가면 그 `(파일, metric)` 개수가 4를 넘어 red 가 된다.
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "_async_dispatch_event",
         "qb_live_signal_dispatch_total",
         "★발주 outbox 종결 7곳 — flat 청산 거부가 집행으로 뒤집히고(H8), "
         "kill-switch·도메인 거절의 타입이 소실돼 무재시도 분기를 건너뛴다 (H6·H5)",
     ),
     (
-        "backend/src/tasks/live_signal.py",
+        "apps/api/src/tasks/live_signal.py",
         "dispatch_live_signal_event_task",
         "qb_live_signal_dispatch_total",
         "★재시도 소진 포기 기록 — 던지면 포기 반환이 사라지고 사유가 어디에도 안 남는다 (H6·H2)",

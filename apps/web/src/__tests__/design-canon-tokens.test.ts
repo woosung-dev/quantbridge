@@ -15,14 +15,14 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const REPO_ROOT = resolve(__dirname, "../../..");
+const REPO_ROOT = resolve(__dirname, "../../../..");
 const CANON_HTML = resolve(
   REPO_ROOT,
   "docs/reference/design/prototypes/shotgun-2026-07/variant-c.html",
 );
 const GLOBALS_CSS = resolve(
   REPO_ROOT,
-  "frontend/src/styles/globals.css",
+  "apps/web/src/styles/globals.css",
 );
 
 /**

@@ -16,9 +16,9 @@ from pynescript.ast.error import SyntaxError as PineSyntaxError
 
 from src.strategy.pine_v2.ast_extractor import uses_stop_entry
 
-_REPO_ROOT = Path(__file__).parents[4]
-_CORPUS_DIR = _REPO_ROOT / "backend/tests/fixtures/pine_corpus_v2"
-_EMA_CROSSOVER = _REPO_ROOT / "frontend/public/samples/ema-crossover.pine"
+_REPO_ROOT = Path(__file__).parents[5]
+_CORPUS_DIR = _REPO_ROOT / "apps/api/tests/fixtures/pine_corpus_v2"
+_EMA_CROSSOVER = _REPO_ROOT / "apps/web/public/samples/ema-crossover.pine"
 
 
 # 아래 코퍼스 표는 사람이 `grep -c 'stop='`로 검산할 수 있어 파서만으로 증명하는 순환을 막는다.

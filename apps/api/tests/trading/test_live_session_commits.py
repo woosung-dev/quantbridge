@@ -3,7 +3,7 @@
 Sprint 6 (webhook_secret) → Sprint 13 (OrderService) → Sprint 15-A (ExchangeAccount)
 패턴 4번째 재발 방어. AsyncMock spy 가 commit 누락 broken bug 의 본질을 직접 검증.
 
-표준 reference: backend/tests/trading/test_webhook_secret_commits.py + test_strategy_commits.py.
+표준 reference: apps/api/tests/trading/test_webhook_secret_commits.py + test_strategy_commits.py.
 """
 
 from __future__ import annotations

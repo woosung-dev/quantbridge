@@ -397,7 +397,7 @@ def test_scenario6_summary_parse_smoke() -> None:
     import importlib.util
     from pathlib import Path
 
-    # backend/scripts/run_auto_dogfood.py 동적 import (sys.path 미등록 회피)
+    # apps/api/scripts/run_auto_dogfood.py 동적 import (sys.path 미등록 회피)
     script_path = Path(__file__).parents[2] / "scripts" / "run_auto_dogfood.py"
     spec = importlib.util.spec_from_file_location("run_auto_dogfood", script_path)
     assert spec is not None and spec.loader is not None

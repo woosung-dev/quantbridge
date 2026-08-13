@@ -5,7 +5,7 @@ Sprint 6 (webhook_secret) → Sprint 13 (OrderService) → Sprint 15-A (Exchange
 read-your-writes 통과 = false-positive. AsyncMock spy 가 Sprint 6 broken bug 의
 본질 (commit 호출 누락) 을 직접 검증.
 
-표준 reference: backend/tests/trading/test_webhook_secret_commits.py.
+표준 reference: apps/api/tests/trading/test_webhook_secret_commits.py.
 """
 
 from __future__ import annotations

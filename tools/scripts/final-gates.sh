@@ -20,11 +20,11 @@
 #   초 단위라 그대로 돈다. ★steps=0 이 다시 보이면 `--with-ci-coverage` 로 되켜라.
 #
 # 사용법
-#   scripts/final-gates.sh --run <name> [--allow-dirty] [--skip-e2e] [--skip-ci-repro]
+#   tools/scripts/final-gates.sh --run <name> [--allow-dirty] [--skip-e2e] [--skip-ci-repro]
 #                                       [--with-ci-coverage]
 #
 #   스킬 게이트는 에이전트가 돌린 뒤 아래 파일을 남겨야 통과한다(내용은 근거 요약):
-#     .claude/gates/<run>/vercel.ok      /vercel-react-best-practices  (frontend/** diff 있을 때만 필수)
+#     .claude/gates/<run>/vercel.ok      /vercel-react-best-practices  (apps/web/** diff 있을 때만 필수)
 #     .claude/gates/<run>/screen.ok      MCP playwright  또는  gstack /browse  (무엇으로 했는지 적어라)
 #     .claude/gates/<run>/codex.ok       /codex 적대 리뷰 — findings 전건 처분 결과
 #     .claude/gates/<run>/g9.ok          계획 vs 실제 구현 최종 점검 표
@@ -53,7 +53,7 @@ done
 case "$RUN" in *..*|*[!A-Za-z0-9._-]*) echo "--run 은 영숫자·점·밑줄·하이픈만 (.. 금지)" >&2; exit 1 ;; esac
 case "$RUN" in eod) echo "✗ --run eod 는 금지다 — 앞 회차 신호를 물려받는다 ([BL-706]). 회차 슬러그를 써라: --run <회차이름>" >&2; exit 1 ;; esac
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 SLOT=0
 [ -f "$ROOT/.worktree-slot" ] && SLOT="$(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$ROOT/.worktree-slot" | tr -d ' ')"
 : "${SLOT:=0}"
@@ -70,7 +70,7 @@ else
 fi
 # ★워킹트리 미커밋 변경 (BL-549).
 #   --no-renames    rename 을 `R old -> new` 한 줄이 아니라 D/A 두 줄로 준다. 한 줄로 받아 파싱하면
-#                   **원래 경로를 버려서** `git mv frontend/a.ts docs/a.ts` 를 has_fe=0 으로 오판한다
+#                   **원래 경로를 버려서** `git mv apps/web/a.ts docs/a.ts` 를 has_fe=0 으로 오판한다
 #                   (codex G1 P1 — 실측 확인).
 #   core.quotePath=false   비ASCII 경로에 `"\355\225..."` 이스케이프가 붙는 것을 막는다. 공백 포함
 #                   경로는 그래도 따옴표가 붙으므로 아래 sed 가 벗긴다. (`-z` 는 쓸 수 없다 —
@@ -87,15 +87,15 @@ if [ "$DIRTY" -gt 0 ]; then
   DIRTY_PATHS="$(printf '%s\n' "$DIRTY_RAW" | sed -e '/^$/d' -e 's/^...//' -e 's/^"//' -e 's/"$//')"
 fi
 
-# --allow-dirty 면 영역 판정을 **워킹트리까지** 넓힌다 (커밋 안 한 frontend/ 변경도 FE 게이트를 켠다).
+# --allow-dirty 면 영역 판정을 **워킹트리까지** 넓힌다 (커밋 안 한 apps/web/ 변경도 FE 게이트를 켠다).
 if [ "$ALLOW_DIRTY" -eq 1 ] && [ -n "$DIRTY_PATHS" ]; then
   CHANGED="$CHANGED
 $DIRTY_PATHS"
 fi
 
 has_fe=0; has_be=0
-printf '%s\n' "$CHANGED" | grep -q '^frontend/' && has_fe=1
-printf '%s\n' "$CHANGED" | grep -q '^backend/'  && has_be=1
+printf '%s\n' "$CHANGED" | grep -q '^apps/web/' && has_fe=1
+printf '%s\n' "$CHANGED" | grep -q '^apps/api/'  && has_be=1
 
 NAMES=(); CODES=(); NOTES=()
 record() { NAMES+=("$1"); CODES+=("$2"); NOTES+=("${3:-}"); }
@@ -135,49 +135,49 @@ fi
 
 # ── 1. lint / type ────────────────────────────────────────────────
 if [ "$has_be" -eq 1 ] || [ -z "$BASE" ]; then
-  run_gate "BE ruff"    "backend/**"  bash -c 'cd "$0/backend" && uv run ruff check .' "$ROOT"
-  run_gate "BE mypy"    "backend/**"  bash -c 'cd "$0/backend" && uv run mypy src/'   "$ROOT"
+  run_gate "BE ruff"    "apps/api/**"  bash -c 'cd "$0/apps/api" && uv run ruff check .' "$ROOT"
+  run_gate "BE mypy"    "apps/api/**"  bash -c 'cd "$0/apps/api" && uv run mypy src/'   "$ROOT"
 else
   skip_gate "BE ruff" "backend diff 0"; skip_gate "BE mypy" "backend diff 0"
 fi
 if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
-  run_gate "FE typecheck" "frontend/**" bash -c 'cd "$0/frontend" && pnpm typecheck' "$ROOT"
-  run_gate "FE lint"      "frontend/**" bash -c 'cd "$0/frontend" && pnpm lint'      "$ROOT"
+  run_gate "FE typecheck" "apps/web/**" bash -c 'cd "$0/apps/web" && pnpm typecheck' "$ROOT"
+  run_gate "FE lint"      "apps/web/**" bash -c 'cd "$0/apps/web" && pnpm lint'      "$ROOT"
 else
   skip_gate "FE typecheck" "frontend diff 0"; skip_gate "FE lint" "frontend diff 0"
 fi
 
 # ★BL 감사 — docs/ 만 읽으므로 영역 판정·cd 와 무관하게 항상 돈다 (BL-564).
 #   ★파이프를 붙이지 마라. run_gate 가 rc 를 직접 읽는다.
-run_gate "BL 감사" "docs/backlog.md" bash "$ROOT/scripts/bl-audit.sh"
+run_gate "BL 감사" "docs/backlog.md" bash "$ROOT/tools/scripts/bl-audit.sh"
 
 # ★위 게이트의 **중복 검사 자체**를 재는 하네스 (BL-569). 원장이 깨끗하면 중복 탐지 로직을
 #   통째로 지워도 "BL 감사" 는 초록이다 — 실제 사고를 막는 코드인데 되돌려도 아무도 못 잡는다.
 #   임시 트리 fixture 로 그 회귀를 잡는다. 실제 `docs/` 는 건드리지 않는다.
-run_gate "BL 감사 하네스" "scripts/bl-audit.sh" bash "$ROOT/scripts/bl-audit-test.sh"
+run_gate "BL 감사 하네스" "tools/scripts/bl-audit.sh" bash "$ROOT/tools/scripts/bl-audit-test.sh"
 
 # [BL-706] 신호 신선도 판별력을 회차 종료 게이트에 연결한다.
-run_gate "신호 신선도 하네스" "scripts/signal-check.sh" bash "$ROOT/scripts/signal-check-test.sh"
+run_gate "신호 신선도 하네스" "tools/scripts/signal-check.sh" bash "$ROOT/tools/scripts/signal-check-test.sh"
 
 # ★소크 재기동 갈래 하네스 ([BL-656]). 이 게이트가 붙은 이유가 그 BL 의 교훈이다 —
 #   2026-08-08 에 「unquoted heredoc 안 백틱 정적 카운트 0건으로 동결」이라 **기록만 하고**
 #   동결 장치를 안 뒀더니 하루 만에 백틱 1쌍이 되돌아와 dry-run 이 자기 설명문을 실행했다.
 #   「이미 up」/「완전 down」 두 갈래의 호출 **순서**와 그 정적 카운트를 함께 잡는다.
 #   실제 소크·docker·거래소를 건드리지 않는다 (mktemp 트리 + PATH 앞단 가짜).
-run_gate "소크 재기동 하네스" "scripts/soak-restart.sh" bash "$ROOT/scripts/soak-restart-test.sh"
+run_gate "소크 재기동 하네스" "tools/scripts/soak-restart.sh" bash "$ROOT/tools/scripts/soak-restart-test.sh"
 
 # ★함대 분배 하네스 (BL-601). `fleet-dispatch.sh` 는 herdr 함대 없이는 통째로 못 도므로
 #   판정 술어만 원본에서 sed 로 떼어내 stub 위에서 돌린다. 사본이 아니라 추출이라 이름이
 #   바뀌면 추출 실패로 크게 죽는다. 여기 걸기 전엔 호출자가 0이라 아무도 안 돌렸다.
-run_gate "함대 분배 하네스" "scripts/fleet-dispatch.sh" bash "$ROOT/scripts/fleet-dispatch-test.sh"
+run_gate "함대 분배 하네스" "tools/scripts/fleet-dispatch.sh" bash "$ROOT/tools/scripts/fleet-dispatch-test.sh"
 
 # ★소스 헤더 감사 + 그 하네스 ([BL-307]). 둘을 **함께** 건다 — 감사기만 걸면 레포가 이미
 #   0건이라 판정 로직을 통째로 지워도 초록이다(BL-569 가 `bl-audit` 에서 겪은 것과 같은 모양).
 #   ★하네스를 여기 안 걸면 호출자가 0이 되어 아무도 안 돌린다 — `fleet-dispatch-test` 가
 #   바로 그 상태였고 BL-601 이 그래서 이 자리를 만들었다.
 #   (2026-08-10 `/code-review` Standards 축 H2 「고아 하네스」 검출.)
-run_gate "소스 헤더 감사" "scripts/header-audit.sh" bash "$ROOT/scripts/header-audit.sh"
-run_gate "소스 헤더 하네스" "scripts/header-audit.sh" bash "$ROOT/scripts/header-audit-test.sh"
+run_gate "소스 헤더 감사" "tools/scripts/header-audit.sh" bash "$ROOT/tools/scripts/header-audit.sh"
+run_gate "소스 헤더 하네스" "tools/scripts/header-audit.sh" bash "$ROOT/tools/scripts/header-audit-test.sh"
 
 # ★무조건 skip 래칫 (2026-08-11 ledger-truth). `@pytest.mark.skip` 데코레이터 개수를 동결한다.
 #   여기 걸린 이유 — 2026-05-14 에 「Sprint 61 follow-up」 사유로 심긴 5건이 **Sprint 61 이
@@ -186,37 +186,37 @@ run_gate "소스 헤더 하네스" "scripts/header-audit.sh" bash "$ROOT/scripts
 #   ★~~별도 하네스를 두지 않는다 — 판정 입력이 「한 줄 문자열과 정수 둘」이라 프로세스 안에서
 #   끝나고, 하네스를 만들면 그 자체가 또 하나의 고아 스크립트가 된다.~~
 #   → **2026-08-11 [BL-705] 로 반증됐다.** 그 자기검사는 판정 함수와 정규식만 덮고 **스캔층을
-#   한 줄도 안 덮는다** — 하한이 두 스코프 **합계**였던 탓에 위반이 사는 `backend/tests`(505)가
-#   통째로 안 스캔돼도 `backend/src`(217)가 합계 하한을 넘겨 **「위반 0건 ✓ rc=0」** 이었다.
+#   한 줄도 안 덮는다** — 하한이 두 스코프 **합계**였던 탓에 위반이 사는 `apps/api/tests`(505)가
+#   통째로 안 스캔돼도 `apps/api/src`(217)가 합계 하한을 넘겨 **「위반 0건 ✓ rc=0」** 이었다.
 #   스캔층은 **파일 트리 fixture 없이는 검사할 수 없다**(그게 `bl-audit-test`·`header-audit-test`
-#   가 임시 트리를 쓰는 이유다). 그래서 아래 하네스가 생겼다 — 실제 `backend/` 는 안 건드린다.
-run_gate "무조건 skip 래칫" "scripts/skip-ratchet.sh" bash "$ROOT/scripts/skip-ratchet.sh"
-run_gate "무조건 skip 하네스" "scripts/skip-ratchet.sh" bash "$ROOT/scripts/skip-ratchet-test.sh"
+#   가 임시 트리를 쓰는 이유다). 그래서 아래 하네스가 생겼다 — 실제 `apps/api/` 는 안 건드린다.
+run_gate "무조건 skip 래칫" "tools/scripts/skip-ratchet.sh" bash "$ROOT/tools/scripts/skip-ratchet.sh"
+run_gate "무조건 skip 하네스" "tools/scripts/skip-ratchet.sh" bash "$ROOT/tools/scripts/skip-ratchet-test.sh"
 
 # ★문서 감사 — 죽은 링크 · retired path · **요약 줄 길이 상한**.
 #   CI 의 documentation 잡(`make docs-audit`)이 같은 것을 돌지만 그건 **PR 을 연 뒤**다.
 #   줄 길이 회귀는 문서를 만지는 그 회차가 만들고 그 회차가 못 보므로, PR 전에 물게 한다
 #   (2026-08-02 context-budget-repair: INDEX.md 한 줄이 4,607자였고 아무 게이트도 안 물었다).
-run_gate "문서 감사" "docs/**" bash "$ROOT/scripts/docs-audit.sh"
+run_gate "문서 감사" "docs/**" bash "$ROOT/tools/scripts/docs-audit.sh"
 
 # ★위 게이트의 **⓪ 표 정체성 축** 을 재는 하네스 ([BL-702]) — `bl-audit-test` 와 같은 이유다.
 #   레포의 ⓪ 표가 이미 원장과 일치하므로 정체성 판정을 통째로 지워도 「문서 감사」는 초록이다.
 #   ★특히 이 축이 막는 사고는 **빈 입력이 「일치」로 새는 것**이고, 그 rc=3 경로는 정상 레포에서는
 #   절대 발화하지 않는다 — 하네스만이 밟을 수 있다. 여기 안 걸면 호출자가 0이 된다(BL-601 의 그 상태).
-run_gate "문서 감사 하네스" "scripts/docs-audit.sh" bash "$ROOT/scripts/docs-audit-test.sh"
+run_gate "문서 감사 하네스" "tools/scripts/docs-audit.sh" bash "$ROOT/tools/scripts/docs-audit-test.sh"
 
 # ★고아 하네스 2종을 여기 붙인다 (2026-08-11 실측). 둘 다 레포에 **존재하고 초록인데
 #   호출자가 0** 이었다 — `fleet-dispatch-test` 가 BL-601 이전에 있던 바로 그 상태다.
 #   아무도 안 부르는 검사기는 죽어도 아무도 모르고, 그 사이 문서는 「하네스가 있다」를 계속 인용한다
 #   (BL-631 · LESSON-078). 합쳐 3.2초라 안 걸 이유가 없었다.
-run_gate "소크 감시 하네스" "scripts/soak-watch.sh" bash "$ROOT/scripts/soak-watch-test.sh"
-run_gate "pre-push 가드 하네스" ".husky/pre-push" bash "$ROOT/scripts/pre-push-guard-test.sh"
+run_gate "소크 감시 하네스" "tools/scripts/soak-watch.sh" bash "$ROOT/tools/scripts/soak-watch-test.sh"
+run_gate "pre-push 가드 하네스" ".husky/pre-push" bash "$ROOT/tools/scripts/pre-push-guard-test.sh"
 
 # ── 2. 단위 ───────────────────────────────────────────────────────
 # ★env 소싱 의무 + cd 절대경로. `pnpm test --run` 은 Unknown option — `pnpm test` 가 이미 vitest run.
-run_gate "BE pytest" "env 소싱" bash -c 'cd "$0/backend"; set -a; . ./.env.local; set +a; uv run pytest -q' "$ROOT"
+run_gate "BE pytest" "env 소싱" bash -c 'cd "$0/apps/api"; set -a; . ./.env.local; set +a; uv run pytest -q' "$ROOT"
 if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
-  run_gate "FE vitest" "pnpm test" bash -c 'cd "$0/frontend" && pnpm test' "$ROOT"
+  run_gate "FE vitest" "pnpm test" bash -c 'cd "$0/apps/web" && pnpm test' "$ROOT"
 else
   skip_gate "FE vitest" "frontend diff 0"
 fi
@@ -226,7 +226,7 @@ fi
 #   있었다 — `merge-base origin/main HEAD` 가 실패하면 CHANGED 가 비어 has_fe=0 이 되고
 #   FE build 만 **조용히 skip** 된다. 나머지 넷은 그때 fail-safe 로 돌게 막아 뒀다.
 if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
-  run_gate "FE build" "Clerk 키 필요" bash -c 'cd "$0/frontend" && pnpm build' "$ROOT"
+  run_gate "FE build" "Clerk 키 필요" bash -c 'cd "$0/apps/web" && pnpm build' "$ROOT"
 else
   skip_gate "FE build" "frontend diff 0"
 fi
@@ -237,7 +237,7 @@ fi
 # ★[BL-556] `e2e chromium` = `pnpm e2e` = `--project=chromium` = `e2e/smoke.spec.ts` **3 test**
 #   (랜딩 렌더 · /strategies→sign-in 리다이렉트 · 랜딩 콘솔 에러 0). CI(`ci.yml:342-344`)는
 #   이미 돌리는데 로컬 게이트에만 없었다. 종전 문서 5곳이 「4건」이라 적었으나 `--list` 실측은 3 이다.
-#   ★**이것만 영역 판정에 건다.** BE·DB·인증 무결합이라 `frontend/` diff 가 0 이면 잴 것이 없다.
+#   ★**이것만 영역 판정에 건다.** BE·DB·인증 무결합이라 `apps/web/` diff 가 0 이면 잴 것이 없다.
 #   `design-canon`·`authed` 는 종전대로 무조건 돈다 — `authed` 는 backend 변경도 문다.
 #   영역(has_fe)과 서버(정체성 프로브)는 직교하므로 **중첩**한다. 조건식이 두 번 나오는 것은
 #   의도다: 세 분기 전부에서 표의 행 순서(chromium → design-canon → authed)를 고정한다.
@@ -250,14 +250,14 @@ else
     echo "  정체성 프로브 OK — :$FE_PORT $title"
     if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
       run_gate "e2e chromium" ":$FE_PORT" env PLAYWRIGHT_BASE_URL="http://localhost:$FE_PORT" \
-        bash -c 'cd "$0/frontend" && pnpm e2e' "$ROOT"
+        bash -c 'cd "$0/apps/web" && pnpm e2e' "$ROOT"
     else
       skip_gate "e2e chromium" "frontend diff 0"
     fi
     run_gate "e2e design-canon" ":$FE_PORT" env PLAYWRIGHT_BASE_URL="http://localhost:$FE_PORT" \
-      bash -c 'cd "$0/frontend" && pnpm e2e:design-canon' "$ROOT"
+      bash -c 'cd "$0/apps/web" && pnpm e2e:design-canon' "$ROOT"
     run_gate "e2e authed" ":$FE_PORT" env PLAYWRIGHT_BASE_URL="http://localhost:$FE_PORT" \
-      bash -c 'cd "$0/frontend" && pnpm e2e:authed' "$ROOT"
+      bash -c 'cd "$0/apps/web" && pnpm e2e:authed' "$ROOT"
   else
     if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
       record "e2e chromium" 1 "정체성 프로브 실패 — :$FE_PORT 가 QuantBridge 가 아니다"
@@ -283,7 +283,7 @@ if [ "$SKIP_CI" -eq 1 ]; then
 else
   if [ "$WITH_CI_COV" -eq 1 ]; then
     run_gate "CI 커버리지 잡" "cov-fail-under=90" bash -c '
-      cd "$0/backend"; set -a; . ./.env.local; set +a
+      cd "$0/apps/api"; set -a; . ./.env.local; set +a
       uv run pytest -q --cov=src.trading.registry --cov=src.trading.webhook \
         --cov=src.trading.websocket --cov-report=term-missing --cov-fail-under=90' "$ROOT"
   else
@@ -295,13 +295,13 @@ else
     db="quantbridge_ci_repro_test"
     docker exec quantbridge-db psql -U quantbridge -d postgres -q -c "DROP DATABASE IF EXISTS $db;" >/dev/null || exit 1
     docker exec quantbridge-db psql -U quantbridge -d postgres -q -c "CREATE DATABASE $db;" >/dev/null || exit 1
-    cd "$0/backend"; set -a; . ./.env.local; set +a
+    cd "$0/apps/api"; set -a; . ./.env.local; set +a
     DATABASE_URL="postgresql+asyncpg://quantbridge:password@localhost:5433/$db" uv run alembic upgrade head' "$ROOT"
 
-  run_gate "CI frozen-lockfile" "pnpm" bash -c 'cd "$0/frontend" && pnpm install --frozen-lockfile' "$ROOT"
+  run_gate "CI frozen-lockfile" "pnpm" bash -c 'cd "$0/apps/web" && pnpm install --frozen-lockfile' "$ROOT"
 
   run_gate "CI hooks grep" "rules-of-hooks 차단" bash -c '
-    cd "$0/frontend"
+    cd "$0/apps/web"
     if grep -rn "eslint-disable.*react-hooks/rules-of-hooks" src/; then
       echo "rules-of-hooks eslint-disable 가 발견됐다 — CI 가 차단한다"; exit 1
     fi' "$ROOT"
@@ -311,7 +311,7 @@ fi
 check_signal() {  # check_signal <label> <file> <required 0|1> <why>
   local label="$1" f="$2" req="$3" why="$4" out rc
   # ★두 줄로 나눈다. `local out="$(...)"` 는 rc 가 **local 의 것**(항상 0)이라 전건 PASS 가 된다.
-  out="$(bash "$ROOT/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지
+  out="$(bash "$ROOT/tools/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지
   rc=$?
   if [ "$rc" -eq 0 ]; then
     record "$label" 0 "$out"                       # → `signal: g9.ok @ 25e96fb7 [head] — …`

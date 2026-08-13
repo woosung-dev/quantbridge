@@ -4,7 +4,7 @@
 // prefix 사용했지만 실제 frontend api.ts 는 `trading/` 없는 `/api/v1/...` 직접 사용.
 // 활성화 시 unmocked → real backend leak. 본 파일이 정확한 prefix 단일 정의.
 //
-// 검증 대상 (frontend/src/features/{strategy,trading,backtest}/api.ts):
+// 검증 대상 (apps/web/src/features/{strategy,trading,backtest}/api.ts):
 //   /api/v1/strategies         (+ /parse, /:id, /:id/tags 등)
 //   /api/v1/orders
 //   /api/v1/kill-switch/events

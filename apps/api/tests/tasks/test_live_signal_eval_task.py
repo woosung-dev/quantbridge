@@ -56,7 +56,7 @@ _STOP_ENTRY_SOURCE = (
     Path(__file__).parents[1] / "fixtures" / "pine_corpus_v2" / "s1_pbr.pine"
 ).read_text()
 _MARKET_ENTRY_SOURCE = (
-    Path(__file__).parents[3] / "frontend" / "public" / "samples" / "ema-crossover.pine"
+    Path(__file__).parents[4] / "apps" / "web" / "public" / "samples" / "ema-crossover.pine"
 ).read_text()
 
 

@@ -15,12 +15,12 @@ on:
     # stage/** — 리디자인 등 대형 작업의 웨이브 PR(base=stage/<theme>)에도 발화
     branches: [main, "stage/**"]
     paths:
-      - "frontend/src/**/*.ts"
-      - "frontend/src/**/*.tsx"
+      - "apps/web/src/**/*.ts"
+      - "apps/web/src/**/*.tsx"
       # css-only PR(디자인 토큰 globals.css 등)도 차트 crash 게이트 대상 — BL-157 계열
-      - "frontend/src/**/*.css"
-      - "frontend/package.json"
-      - "frontend/pnpm-lock.yaml"
+      - "apps/web/src/**/*.css"
+      - "apps/web/package.json"
+      - "apps/web/pnpm-lock.yaml"
 
 permissions:
   contents: read
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 8
     defaults:
       run:
-        working-directory: frontend
+        working-directory: apps/web
     env:
       # Clerk dev key — public/anon. dev server 가 sign-in 페이지 prerender 안 해도 됨
       # (public pages 만 smoke). secret 미설정 시 placeholder 동작 확인용.
@@ -53,7 +53,7 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
+          cache-dependency-path: apps/web/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       # webServer (playwright.config.ts) 가 자동으로 `pnpm dev` 띄우고
@@ -65,5 +65,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: live-smoke-playwright-report
-          path: frontend/playwright-report/
+          path: apps/web/playwright-report/
           retention-days: 7

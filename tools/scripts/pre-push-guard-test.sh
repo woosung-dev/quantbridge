@@ -18,13 +18,13 @@
 #   없고, 그러면 그 자체가 부작용이다). 대신 위 마커 단언이 그 자리를 메운다 — 폴백으로 빠지는 순간
 #   red 이므로, 현재 브랜치가 무엇이든 "삭제를 현재 브랜치로 판정하는 회귀" 를 잡는다.
 #
-# 사용법: scripts/pre-push-guard-test.sh
+# 사용법: tools/scripts/pre-push-guard-test.sh
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 HOOK="$ROOT/.husky/pre-push"
-LIB="$ROOT/scripts/lib/pre-push-ref-guard.sh"
+LIB="$ROOT/tools/scripts/lib/pre-push-ref-guard.sh"
 [ -f "$HOOK" ] || { echo "✗ 훅이 없다: $HOOK" >&2; exit 1; }
 [ -f "$LIB" ]  || { echo "✗ 판정 lib 이 없다: $LIB" >&2; exit 1; }
 
@@ -164,7 +164,7 @@ rm -rf "$_tmp"
 
 # ── 보조: 순수 함수 단독 (⑤-a) ────────────────────────────────────────────────
 # ★보조다. 이것만으로는 호출부 회귀를 못 잡는다 (위 마커 단언이 그 몫이다).
-# shellcheck source=scripts/lib/pre-push-ref-guard.sh
+# shellcheck source=tools/scripts/lib/pre-push-ref-guard.sh
 . "$LIB"
 
 assert_verdict() {  # assert_verdict <기대> <local_ref> <local_sha> <remote_ref> <remote_sha> [bypass]

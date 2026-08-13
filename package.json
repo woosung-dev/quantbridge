@@ -2,7 +2,7 @@
   "name": "quantbridge-root",
   "version": "0.0.0",
   "private": true,
-  "description": "QuantBridge 루트 — husky pre-commit 훅 및 레포 전역 도구 전용 (frontend/backend는 각자 독립)",
+  "description": "QuantBridge 루트 — husky pre-commit 훅 및 레포 전역 도구 전용 (apps/web/backend는 각자 독립)",
   "scripts": {
     "prepare": "husky"
   },
@@ -13,13 +13,13 @@
     "prettier-plugin-tailwindcss": "^0.6.0"
   },
   "lint-staged": {
-    "frontend/**/*.{ts,tsx,js,jsx}": [
+    "apps/web/**/*.{ts,tsx,js,jsx}": [
       "bash -c 'cd frontend && pnpm exec eslint --fix --no-warn-ignored --'"
     ],
-    "backend/**/*.py": [
-      "bash -c 'cd backend && .venv/bin/ruff check --fix --exit-non-zero-on-fix \"${0#backend/}\" \"${@#backend/}\"'",
-      "bash -c 'cd backend && .venv/bin/ruff check \"${0#backend/}\" \"${@#backend/}\"'",
-      "bash -c 'cd backend && .venv/bin/ruff format \"${0#backend/}\" \"${@#backend/}\"'"
+    "apps/api/**/*.py": [
+      "bash -c 'cd backend && .venv/bin/ruff check --fix --exit-non-zero-on-fix \"${0#apps/api/}\" \"${@#apps/api/}\"'",
+      "bash -c 'cd backend && .venv/bin/ruff check \"${0#apps/api/}\" \"${@#apps/api/}\"'",
+      "bash -c 'cd backend && .venv/bin/ruff format \"${0#apps/api/}\" \"${@#apps/api/}\"'"
     ],
     "*.{json,md,yml,yaml}": [
       "bash -c 'a=(); for f in \"$@\"; do [ -L \"$f\" ] || a+=(\"$f\"); done; [ ${#a[@]} -eq 0 ] || prettier --write \"${a[@]}\"' --"

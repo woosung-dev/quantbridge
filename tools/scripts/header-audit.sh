@@ -2,7 +2,7 @@
 # header-audit — 소스 파일 첫 3줄 안에 "한국어 주석"이 있는지 감사한다. [BL-307]
 #
 # 무엇을 재는가
-#   대상: `backend/src/**/*.py` · `frontend/src/**/*.{ts,tsx}` (다른 확장자는 대상 아님).
+#   대상: `apps/api/src/**/*.py` · `apps/web/src/**/*.{ts,tsx}` (다른 확장자는 대상 아님).
 #   위반: 파일 첫 3줄 안, **주석/독스트링 영역**에 한글(U+AC00~U+D7A3)이 1자 이상 없다.
 #   근거: 루트 `AGENTS.md:23` (「사고/계획/대화/문서/주석 = 한국어」).
 #
@@ -28,7 +28,7 @@
 #   종전 per-line grep(1.6초)보다도 빠르다.
 #
 # 면제 (`docs/backlog.md` BL-307 원장의 exempt list + 벤더 디렉터리)
-#   `frontend/src/components/ui/**` (shadcn 벤더 — `frontend/AGENTS.md:232` 가 직접 수정 금지.
+#   `apps/web/src/components/ui/**` (shadcn 벤더 — `apps/web/AGENTS.md:232` 가 직접 수정 금지.
 #     면제하지 않으면 이 게이트가 **금지된 수정을 영구히 강제**하고, `shadcn add` 재설치 한 번에
 #     헤더가 사라져 CI 가 빨개진다), 경로에 `/tests/`·`/__tests__/`·`config`·`/generated/` 포함,
 #   또는 파일명이 `test_*.py`·`*_test.py`·`conftest.py`·`*.test.ts(x)`·`*.spec.ts(x)`·
@@ -37,14 +37,14 @@
 # 종료 코드: 위반 0건 → 0 / 1건 이상 → 1 / 판별력 자기검사 실패·python3 부재 → 3.
 # 인자: 없음 = 사람이 읽는 요약 + 위반 경로. `--list` = 위반 경로만 한 줄에 하나씩(그 외 출력 없음).
 #
-# 사용법: scripts/header-audit.sh [--list]
+# 사용법: tools/scripts/header-audit.sh [--list]
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 # ★`QB_HEADER_AUDIT_ROOT` — 검사 대상 트리를 갈아끼운다. pre-commit 훅이 **index 를 실체화한
 #   트리**를 넘기려고 쓴다. 훅이 작업 트리를 재면 「스테이징된 위반 + 언스테이지된 수정」이
 #   조용히 통과하고, 반대로 무관한 언스테이지 위반이 정상 커밋을 막는다 —
-#   `backend/AGENTS.md` §10.1 「검사기가 보는 표면 ≠ 실제 실패 표면」 그대로다.
+#   `apps/api/AGENTS.md` §10.1 「검사기가 보는 표면 ≠ 실제 실패 표면」 그대로다.
 #   (2026-08-10 `/code-review` Spec 축 (c)1 검출.)
 [ -n "${QB_HEADER_AUDIT_ROOT:-}" ] && ROOT="$QB_HEADER_AUDIT_ROOT"
 
@@ -82,7 +82,7 @@ if not HANGUL.search("한") or HANGUL.search("a") or HANGUL.search("—"):
     sys.stderr.write("  판정을 포기한다 — 초록을 내면 거짓 통과가 된다.\n")
     sys.exit(3)
 
-TARGETS = (("backend/src", (".py",)), ("frontend/src", (".ts", ".tsx")))
+TARGETS = (("apps/api/src", (".py",)), ("apps/web/src", (".ts", ".tsx")))
 
 EXEMPT_BASENAMES = {"conftest.py", "__init__.py", "index.ts", "index.tsx"}
 EXEMPT_PATH_PARTS = ("/tests/", "/__tests__/", "/generated/")
@@ -90,8 +90,8 @@ EXEMPT_PATH_PARTS = ("/tests/", "/__tests__/", "/generated/")
 
 def is_exempt(rel: str) -> bool:
     base = rel.rsplit("/", 1)[-1]
-    # shadcn 벤더 — frontend/AGENTS.md:232 가 직접 수정을 금지한다.
-    if rel.startswith("frontend/src/components/ui/"):
+    # shadcn 벤더 — apps/web/AGENTS.md:232 가 직접 수정을 금지한다.
+    if rel.startswith("apps/web/src/components/ui/"):
         return True
     probe = "/" + rel
     if any(part in probe for part in EXEMPT_PATH_PARTS):
@@ -211,10 +211,10 @@ if LIST:
         print(rel)
 else:
     print("══ header-audit  root=%s ══" % ROOT)
-    print("  대상: backend/src/**/*.py + frontend/src/**/*.{ts,tsx}")
+    print("  대상: apps/api/src/**/*.py + apps/web/src/**/*.{ts,tsx}")
     print(
         "  스캔 %d건 (BE .py %d + FE .ts/.tsx %d) · 면제 %d건 · 검사 %d건"
-        % (total, per_scope["backend/src"], per_scope["frontend/src"], exempted, checked)
+        % (total, per_scope["apps/api/src"], per_scope["apps/web/src"], exempted, checked)
     )
     if total == 0:
         print("  ⚠ 대상 확장자 파일이 0건이다 — ROOT 판정이 잘못됐을 수 있다 (ROOT=%s)" % ROOT)

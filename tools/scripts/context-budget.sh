@@ -20,13 +20,13 @@
 #     어긋날 수 있다(codex MINOR, 2026-08-02). 그래서 출력 컬럼 이름이 `~tok`(estimated)다.
 #
 # 사용법
-#   bash scripts/context-budget.sh              # 사람이 읽는 표
-#   bash scripts/context-budget.sh --json       # 기계 대조용 (before/after diff)
-#   bash scripts/context-budget.sh --memory <path>   # MEMORY.md 경로 직접 지정
+#   bash tools/scripts/context-budget.sh              # 사람이 읽는 표
+#   bash tools/scripts/context-budget.sh --json       # 기계 대조용 (before/after diff)
+#   bash tools/scripts/context-budget.sh --memory <path>   # MEMORY.md 경로 직접 지정
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 
 JSON=0
 MEMORY_OVERRIDE=""
@@ -76,7 +76,7 @@ LINE_CAPS = {
 
 # 고정비 = 자동으로 컨텍스트에 들어가는 것.
 #   ★`CONTEXT.md` 는 **여기 없다** — CLAUDE.md 가 import 하지 않아 자동 로드가 아니다. 변동비다.
-#   ★`backend/AGENTS.md`·`frontend/AGENTS.md` 는 셋 다 아니다 — 그 디렉터리 파일을 여는 순간에만 로드되는
+#   ★`apps/api/AGENTS.md`·`apps/web/AGENTS.md` 는 셋 다 아니다 — 그 디렉터리 파일을 여는 순간에만 로드되는
 #     조건부 비용이다(ADR-026, Claude Code v2.0.64+). 여기서는 측정하지 않는다.
 IMPORT_RE = re.compile(r"^@(\S+)\s*$", re.MULTILINE)
 

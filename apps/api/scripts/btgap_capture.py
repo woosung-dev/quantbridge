@@ -24,7 +24,7 @@
 
 ## 사용
 
-    cd backend && uv run python scripts/btgap_capture.py \\
+    cd apps/api && uv run python scripts/btgap_capture.py \\
         --category linear --symbol BTCUSDT --interval 1 \\
         --start 2026-08-05T00:00:00Z --end 2026-08-05T06:00:00Z \\
         --out ../tmp_code/btgap/perp

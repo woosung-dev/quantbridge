@@ -8,7 +8,7 @@
 #   ★그리고 이 축이 막으려는 사고는 정확히 **빈 입력이 「일치」로 새는 것**이다 — 이 레포가
 #   2026-08-10 에 두 번 밟았다. 그 rc=3 경로를 여기서 **실제로 발화시킨다.**
 #
-# 사용법: scripts/docs-audit-test.sh
+# 사용법: tools/scripts/docs-audit-test.sh
 #
 # ★진짜 `docs-audit.sh` 를 겨눈다 — 사본이 아니다. 임시 트리에 **스텁 `bl-audit.sh`** 와
 #   최소 `docs/` 를 세우고, 진짜 스크립트를 그 위에서 돌린다(`soak-watch-test.sh` 와 같은 수법).
@@ -18,18 +18,18 @@
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 SB="$(mktemp -d "${TMPDIR:-/tmp}/docs-audit-test.XXXXXX")"
 trap 'rm -rf "$SB"' EXIT
 
-mkdir -p "$SB/scripts" "$SB/docs"
-cp "$ROOT/scripts/docs-audit.sh" "$SB/scripts/" || { echo "✗ docs-audit.sh 를 못 읽었다"; exit 2; }
+mkdir -p "$SB/tools/scripts" "$SB/docs"
+cp "$ROOT/tools/scripts/docs-audit.sh" "$SB/tools/scripts/" || { echo "✗ docs-audit.sh 를 못 읽었다"; exit 2; }
 
 # 스텁 원장 — `CASE` 로 ACTIVE/PARTIAL 집합을 바꾼다. 진짜 bl-audit 은 부르지 않는다
 # (느리고, 실제 원장에 의존한다).
 # ★PARTIAL 케이스 3종은 [BL-703] 이 추가했다 — 그전엔 스텁이 ACTIVE 만 낼 수 있어서
 #   `PARTIAL ∧ 도래` 갈래와 PARTIAL 판정줄 의무를 **하네스가 한 번도 밟지 않았다.**
-cat > "$SB/scripts/bl-audit.sh" <<'STUB'
+cat > "$SB/tools/scripts/bl-audit.sh" <<'STUB'
 #!/usr/bin/env bash
 # $1 = --list, $2 = 판정어
 case "${CASE:-empty}" in
@@ -49,7 +49,7 @@ case "${CASE:-empty}" in
 esac
 exit 0
 STUB
-chmod +x "$SB/scripts/bl-audit.sh"
+chmod +x "$SB/tools/scripts/bl-audit.sh"
 {
   printf '# stub\n\n'
   printf '### BL-999\n\n**상태:** Open\n**트리거 판정:** 도래 — stub\n\n'
@@ -75,7 +75,7 @@ mk_status() {
 FAIL=0
 AXIS="⓪ 표 정체성"   # run() 이 「말했나」를 재는 축. 케이스별로 바꾼다.
 run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
-  CASE="$1" bash "$SB/scripts/docs-audit.sh" > "$SB/out.txt" 2>&1
+  CASE="$1" bash "$SB/tools/scripts/docs-audit.sh" > "$SB/out.txt" 2>&1
   local rc=$? spoke=no
   grep -q "$AXIS" "$SB/out.txt" && spoke=yes
   if [ "$rc" = "$2" ] && [ "$spoke" = "$3" ]; then

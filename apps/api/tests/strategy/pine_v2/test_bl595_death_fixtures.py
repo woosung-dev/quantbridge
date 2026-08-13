@@ -15,7 +15,7 @@
 
 ## 픽스처는 네트워크도 DB 도 안 탄다
 
-`backend/scripts/capture_bl595_death_fixtures.py` 가 한 번 뜬 JSON 만 읽는다. Pine 소스는
+`apps/api/scripts/capture_bl595_death_fixtures.py` 가 한 번 뜬 JSON 만 읽는다. Pine 소스는
 `tests/fixtures/pine_corpus_v2/s1_pbr.pine` 을 쓴다 — 소크가 돌리는 전략과 **md5 동일**이며
 픽스처가 그 md5 를 실어 대조한다(다르면 skip 이 아니라 **fail** 이다. 조용히 넘어가면
 「그 전략을 검증했다」가 거짓이 된다).

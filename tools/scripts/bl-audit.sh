@@ -40,7 +40,7 @@
 #   구간이 안 닫히면 조용히 삼키는 대신 **실패**로 보고한다.
 #
 # 사용법
-#   scripts/bl-audit.sh [--list ACTIVE|DEFERRED|PARTIAL|RESOLVED|UNKNOWN] [--no-crosscheck]
+#   tools/scripts/bl-audit.sh [--list ACTIVE|DEFERRED|PARTIAL|RESOLVED|UNKNOWN] [--no-crosscheck]
 #
 # 종료 코드: 0 = 불일치 0 & UNKNOWN 0 & 우선순위 오배치 0 & 중복 상태줄 0 & 중복 섹션 헤더 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
 #   ★`--list` 는 목록 출력 전용이라 **항상 0** 이다 — 게이트에는 인자 없는 형태를 쓴다.
@@ -60,7 +60,7 @@ case "$LIST" in
   *) echo "--list 는 ACTIVE|DEFERRED|PARTIAL|RESOLVED|UNKNOWN 중 하나" >&2; exit 1 ;;
 esac
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 BACKLOG="$ROOT/docs/backlog.md"
 ROADMAP="$ROOT/docs/roadmap.md"
 for f in "$BACKLOG" "$ROADMAP"; do
@@ -301,7 +301,7 @@ END {
 
   printf "\n════════════════════════════════════════\n"
   if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 우선순위 배치 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, q, d, h, o; exit 1 }
-  # ★성공 줄에서 리터럴 `3면` 을 빼지 마라 — `scripts/bl-audit-test.sh` ② 가 "정상 원장 → exit 0"
+  # ★성공 줄에서 리터럴 `3면` 을 빼지 마라 — `tools/scripts/bl-audit-test.sh` ② 가 "정상 원장 → exit 0"
   #   의 증거로 그 문자열을 grep 한다. 축이 늘어도 "3면 + <새 축>" 꼴로 적어 하네스를 살려둔다.
   printf "✓ 4면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치. active=%d / deferred=%d / 전체=%d\n", cnt["ACTIVE"] + 0, cnt["DEFERRED"] + 0, n
   exit 0

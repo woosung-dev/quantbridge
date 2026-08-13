@@ -40,7 +40,7 @@ export const TradingSessionSchema = z.enum(["asia", "london", "ny"]);
 export type TradingSession = z.infer<typeof TradingSessionSchema>;
 
 // Sprint 27 BL-137 — trading settings (Live Signal Auto-Trading 의 leverage/margin/size).
-// Backend StrategySettings (backend/src/strategy/schemas.py:72-87) 와 동일 spec.
+// Backend StrategySettings (apps/api/src/strategy/schemas.py:72-87) 와 동일 spec.
 export const MarginModeSchema = z.enum(["cross", "isolated"]);
 export type MarginMode = z.infer<typeof MarginModeSchema>;
 

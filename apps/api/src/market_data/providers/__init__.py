@@ -1,6 +1,6 @@
 """OHLCVProvider Protocol — backtest 도메인이 OHLCV를 조회하는 추상 경계.
 
-Sprint 4: FixtureProvider (backend/data/fixtures/ohlcv/).
+Sprint 4: FixtureProvider (apps/api/data/fixtures/ohlcv/).
 Sprint 5: TimescaleProvider 추가 예정 (TimescaleDB hypertable).
 """
 from __future__ import annotations

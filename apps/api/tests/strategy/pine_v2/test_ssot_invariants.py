@@ -175,7 +175,7 @@ _BL188_D2_SOURCES: frozenset[str] = frozenset({"pine", "form", "live", "fallback
 
 
 def _scan_canonical_sources_from_service() -> set[str]:
-    """`backend/src/backtest/service.py` 에서 `_canonical_dict(source="...")` 호출의 source 인자 set.
+    """`apps/api/src/backtest/service.py` 에서 `_canonical_dict(source="...")` 호출의 source 인자 set.
 
     AST 기반 정적 스캔 — runtime import 가 외부 의존 (DB/Celery) 을 끌어올 수
     있어 ssot audit 는 source 텍스트 파싱으로만 검증.

@@ -3,10 +3,10 @@
 # 함대 워커에 일을 던지고 상태를 본다. 오케스트레이터(CONTROL, 슬롯 0)에서만 돈다.
 #
 # 사용법:
-#   scripts/fleet-dispatch.sh --run <이름>                 # tasks/*.md 를 각 워커 pane 에 주입
-#   scripts/fleet-dispatch.sh --run <이름> --status        # 상태 종합 (반복 호출용)
-#   scripts/fleet-dispatch.sh --run <이름> --only a,b      # 일부만 재분배
-#   scripts/fleet-dispatch.sh --run <이름> --force         # idle 이 아닌 워커에도 주입(입력이 섞인다)
+#   tools/scripts/fleet-dispatch.sh --run <이름>                 # tasks/*.md 를 각 워커 pane 에 주입
+#   tools/scripts/fleet-dispatch.sh --run <이름> --status        # 상태 종합 (반복 호출용)
+#   tools/scripts/fleet-dispatch.sh --run <이름> --only a,b      # 일부만 재분배
+#   tools/scripts/fleet-dispatch.sh --run <이름> --force         # idle 이 아닌 워커에도 주입(입력이 섞인다)
 #
 # 계약과 절차는 docs/reference/operations/workflows/fleet-orchestration.md. 여기 복사하지 않는다 — 두 벌이 되면 갈린다.
 #
@@ -262,7 +262,7 @@ echo "▶ 분배 — run '$RUN'"
 for w in "${WORKERS[@]}"; do
   wt="$MAIN_ROOT/.claude/worktrees/$w"
   [ -d "$wt" ] || die "워크트리가 없다: $wt
-    먼저 띄워라: scripts/herdr-fleet.sh --agent claude:$w ..."
+    먼저 띄워라: tools/scripts/herdr-fleet.sh --agent claude:$w ..."
   [ -f "$wt/.worktree-slot" ] || die "$w 에 슬롯이 없다 — 부트스트랩이 안 됐다."
   slot="$(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$wt/.worktree-slot")"
 
@@ -494,9 +494,9 @@ if [ "${#FAILED[@]}" -gt 0 ]; then
     _retry="${_retry:+$_retry,}${_f%%|*}"
   done
   echo "  ★조용히 성공을 보고하지 않는다 (BL-552). 위 워커만 --only 로 다시 분배해라:"
-  echo "    scripts/fleet-dispatch.sh --run $RUN --only $_retry"
+  echo "    tools/scripts/fleet-dispatch.sh --run $RUN --only $_retry"
   exit 1
 fi
 
 echo
-echo "폴링:  scripts/fleet-dispatch.sh --run $RUN --status"
+echo "폴링:  tools/scripts/fleet-dispatch.sh --run $RUN --status"

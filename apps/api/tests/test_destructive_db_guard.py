@@ -48,7 +48,7 @@ _TEST_DSN = f"postgresql+asyncpg://u:p@{_UNREACHABLE}/quantbridge_test"
 _PYTEST_GUARD_MARKER = "[db-guard]"
 
 # `alembic/env.py` 의 파괴 가드가 stderr 에 남기는 토큰. ★이 리터럴이 두 곳에 있다 —
-# 여기와 `backend/alembic/env.py`. 그 결합을 지키는 것이 이 파일의 ⑷ 계열이다.
+# 여기와 `apps/api/alembic/env.py`. 그 결합을 지키는 것이 이 파일의 ⑷ 계열이다.
 _ALEMBIC_GUARD_MARKER = "QB-GUARD-DESTRUCTIVE-ALEMBIC"
 
 
@@ -267,7 +267,7 @@ def test_the_targeted_dsn_never_falls_back_to_database_url() -> None:
     `effective_dsn` 에 `or os.environ.get("DATABASE_URL")` 을 되살리는 변이가 심어졌을 때
     이 파일의 다른 9건이 **전부 green** 이었다. `refusal_reason()` 이 env 를 독립적으로 먼저
     보므로 어떤 배선 테스트도 그 층을 지나지 않는다 ⇒ 도달 0 인 층은 무증거다
-    (`backend/AGENTS.md` §10-2).
+    (`apps/api/AGENTS.md` §10-2).
     """
     import os as _os
     from unittest import mock

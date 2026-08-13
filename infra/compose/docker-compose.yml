@@ -17,7 +17,7 @@ services:
       - "5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
-      - ./docker/db/init:/docker-entrypoint-initdb.d:ro
+      - ./infra/db/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:
         [
@@ -63,7 +63,7 @@ services:
   # Backtest worker — Celery prefork (vectorbt/asyncpg fork-safe)
   backend-worker:
     build:
-      context: ./backend
+      context: ./apps/api
     container_name: quantbridge-worker
     command: uv run celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2
     depends_on:
@@ -87,7 +87,7 @@ services:
       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
     volumes:
-      - ./backend/.metrics:/metrics
+      - ./apps/api/.metrics:/metrics
     restart: unless-stopped
     networks:
       - quantbridge
@@ -100,7 +100,7 @@ services:
   # 이 signal_all_stop_events() 호출 (codex G.0 P1 #2). multi-account 사용자 지원.
   backend-ws-stream:
     build:
-      context: ./backend
+      context: ./apps/api
     container_name: quantbridge-ws-stream
     # 계정 N개 private stream + public ticker 1개이므로 N + 1 ≤ concurrency를 유지한다.
     # Sprint 12 G4 revisit `--pool=solo` 한계 해소 — prefork child 가 worker_process_shutdown
@@ -123,7 +123,7 @@ services:
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     volumes:
-      - ./backend/.metrics:/metrics
+      - ./apps/api/.metrics:/metrics
     restart: unless-stopped
     networks:
       - quantbridge
@@ -133,7 +133,7 @@ services:
   # soft_time_limit=600 / time_limit=660 은 optimizer_tasks.py 데코레이터 에서 설정.
   backend-optimizer-heavy:
     build:
-      context: ./backend
+      context: ./apps/api
     container_name: quantbridge-optimizer-heavy
     command: uv run celery -A src.tasks.celery_app worker -Q optimizer_heavy --pool=prefork --concurrency=1 --loglevel=info
     depends_on:
@@ -150,7 +150,7 @@ services:
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       # optimizer.run 은 이 큐로만 라우팅되고(`celery_app.py` task_routes) 이 컨테이너가
       # 유일한 소비자다. 아래 3종이 없으면 `ohlcv_provider` 가 코드 기본값 "fixture" 로
-      # 떨어지고 `ohlcv_fixture_root` 는 CWD(/app) 상대라 `/app/backend/data/...` 로 풀려
+      # 떨어지고 `ohlcv_fixture_root` 는 CWD(/app) 상대라 `/app/apps/api/data/...` 로 풀려
       # 존재하지 않는다 → 모든 optimizer 실행이 OHLCVFixtureNotFound 로 죽는다.
       # backend-worker 와 동일하게 맞춘다.
       OHLCV_PROVIDER: ${OHLCV_PROVIDER:-timescale}
@@ -161,7 +161,7 @@ services:
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     volumes:
-      - ./backend/.metrics:/metrics
+      - ./apps/api/.metrics:/metrics
     restart: unless-stopped
     networks:
       - quantbridge
@@ -171,7 +171,7 @@ services:
   # backend-worker 와 동일 env 셋업.
   backend-beat:
     build:
-      context: ./backend
+      context: ./apps/api
     container_name: quantbridge-beat
     command: uv run celery -A src.tasks.celery_app beat --loglevel=info --schedule=/data/celerybeat-schedule
     depends_on:
@@ -196,7 +196,7 @@ services:
       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     volumes:
-      - ./backend/.metrics:/metrics
+      - ./apps/api/.metrics:/metrics
       - beat-data:/data
     restart: unless-stopped
     networks:
@@ -205,7 +205,7 @@ services:
 volumes:
   db-data:
   redis-data:
-  # beat-data 소유권은 backend/Dockerfile 의 /data seed(appuser)가 첫 생성 시 복사됨.
+  # beat-data 소유권은 apps/api/Dockerfile 의 /data seed(appuser)가 첫 생성 시 복사됨.
   # 픽스 이전에 만들어진 root-소유 볼륨은 `docker volume rm <project>_beat-data` 후 재생성.
   beat-data:
 

@@ -2,11 +2,11 @@
 
 실행 방법:
     # Terminal 1 — Celery worker 기동
-    cd backend
+    cd apps/api
     uv run celery -A src.tasks worker --pool=prefork --concurrency=1 --loglevel=info
 
     # Terminal 2 — Smoke 스크립트 실행
-    cd backend
+    cd apps/api
     uv run python scripts/archive/smoke_sprint4.py [s1|s2|s3]
 
 HTTP/Clerk 우회 (로컬 smoke 목적):

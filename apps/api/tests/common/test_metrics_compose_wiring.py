@@ -6,7 +6,7 @@ from pathlib import Path
 
 import yaml
 
-_ROOT = Path(__file__).parents[3]
+_ROOT = Path(__file__).parents[4]
 _MAKEFILE = _ROOT / "Makefile"
 _SERVICES = (
     "backend-worker",
@@ -30,8 +30,8 @@ def _metrics_mount(service: dict[str, object]) -> str | None:
 
 def test_isolated_volume_overrides_retain_metrics_bind() -> None:
     """T10: 모든 isolated volume override가 base metrics mount를 유지한다."""
-    base = _load_compose(_ROOT / "docker-compose.yml")
-    isolated = _load_compose(_ROOT / "docker-compose.isolated.yml")
+    base = _load_compose(_ROOT / "infra" / "compose" / "docker-compose.yml")
+    isolated = _load_compose(_ROOT / "infra" / "compose" / "docker-compose.isolated.yml")
     base_services = base["services"]
     isolated_services = isolated["services"]
 
@@ -44,7 +44,7 @@ def test_isolated_volume_overrides_retain_metrics_bind() -> None:
 
 def test_worker_roles_and_metrics_directory_are_wired() -> None:
     """T11: 모든 writer 컨테이너가 /metrics와 서로 다른 안전한 role을 쓴다."""
-    compose = _load_compose(_ROOT / "docker-compose.yml")
+    compose = _load_compose(_ROOT / "infra" / "compose" / "docker-compose.yml")
     services = compose["services"]
     roles = []
 

@@ -1,7 +1,7 @@
 """Week 3 Day 2 — s1_pbr.pine E2E 실행 + 기존 pine/ 모듈 대조.
 
 실제 TradingView Pivot Reversal Strategy (Pine v6 공식 내장) 전체를 pine_v2로 실행.
-Phase -1 findings에 따르면 기존 `backend/src/strategy/pine/` 모듈은
+Phase -1 findings에 따르면 기존 `apps/api/src/strategy/pine/` 모듈은
 s1_pbr에 대해 stdlib 단계(ta.pivothigh 미지원)에서 실패. pine_v2는 완주.
 
 이 파일이 본 Sprint 8a Tier-0의 **최종 증명** — 실제 TV 공개 전략이 완주하여

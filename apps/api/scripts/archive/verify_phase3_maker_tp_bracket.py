@@ -12,7 +12,7 @@ TP/SL 이 reduce-only position-linked 주문으로 부착됐는지 데이터로 
 따라서 검증은 fetch_open_orders 상세를 data-driven 으로 판정한다(빈 position 필드 ≠ 실패).
 
 실행 (사용자가 키 보유 — 직접 실행):
-    cd backend
+    cd apps/api
     uv run python scripts/archive/verify_phase3_maker_tp_bracket.py \\
         --api-key "$BYBIT_DEMO_KEY" --api-secret "$BYBIT_DEMO_SECRET" \\
         --symbol "BTC/USDT:USDT" --quantity 0.001 --leverage 1
@@ -47,7 +47,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 from uuid import uuid4
 
-# scripts/ 직접 실행 시 backend/ 를 sys.path 에 추가 (src import).
+# scripts/ 직접 실행 시 apps/api/ 를 sys.path 에 추가 (src import).
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import ccxt.async_support as ccxt_async

@@ -13,11 +13,11 @@
 #     정지 구간을 한 번 이미 잃었다.
 #
 # 사용:
-#   scripts/soak-logs-follow.sh run          # 포그라운드 follow 루프 (서비스가 호출)
-#   scripts/soak-logs-follow.sh --install    # OS별 사용자 서비스 설치·즉시 시작
-#   scripts/soak-logs-follow.sh --uninstall  # 서비스 해제 (로그·회전본은 보존)
-#   scripts/soak-logs-follow.sh --status     # 유닛·로그 상태
-#   scripts/soak-logs-follow.sh -h|--help    # 이 사용법
+#   tools/scripts/soak-logs-follow.sh run          # 포그라운드 follow 루프 (서비스가 호출)
+#   tools/scripts/soak-logs-follow.sh --install    # OS별 사용자 서비스 설치·즉시 시작
+#   tools/scripts/soak-logs-follow.sh --uninstall  # 서비스 해제 (로그·회전본은 보존)
+#   tools/scripts/soak-logs-follow.sh --status     # 유닛·로그 상태
+#   tools/scripts/soak-logs-follow.sh -h|--help    # 이 사용법
 #
 # 종료 코드 (`--status`): 0 = 유닛 활성 / 1 = 유닛 부재·비활성 / 2 = 측정 불가
 #   ★UNKNOWN을 PASS로 접지 않는다. 「잴 수 없음」과 「없음」은 다른 상태다.
@@ -25,7 +25,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 LABEL="dev.quantbridge.soak-logs-follow"     # launchd Label 이자 systemd unit 이름
 QB_OS="$(uname -s)"
 # soak-gate.sh:32-36과 같은 규칙이다. 이것은 서비스 자신의 stdout/stderr 보관처다.
@@ -228,7 +228,7 @@ Description=QuantBridge soak worker log follow ([BL-619] 정지 구간 로그 �
 Type=simple
 WorkingDirectory=${ROOT}
 Environment=PATH=${paths}
-ExecStart=/bin/bash ${ROOT}/scripts/soak-logs-follow.sh run
+ExecStart=/bin/bash ${ROOT}/tools/scripts/soak-logs-follow.sh run
 Restart=always
 RestartSec=10
 
@@ -311,7 +311,7 @@ _install() {
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>${ROOT}/scripts/soak-logs-follow.sh</string>
+    <string>${ROOT}/tools/scripts/soak-logs-follow.sh</string>
     <string>run</string>
   </array>
   <key>KeepAlive</key><true/>

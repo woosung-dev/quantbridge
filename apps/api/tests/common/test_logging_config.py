@@ -126,7 +126,7 @@ def test_only_dynamic_extra_site_cannot_produce_reserved_keys():
     """`extra={..., **divergence}` (`tasks/live_signal.py` 의 `live_conditional_plan_drop` 발화)가
     예약 키를 만들 수 있는가.
 
-    ★`backend/src` 전체에서 `extra=` 에 dict 를 unpack 하는 곳은 이 **한 자리뿐**이고,
+    ★`apps/api/src` 전체에서 `extra=` 에 dict 를 unpack 하는 곳은 이 **한 자리뿐**이고,
     그 dict 는 `conditional_entry_planner.plan_reconcile` 이 만든다. 거기서 append 되는
     dict 는 전부 **리터럴 키**라 키 집합이 닫혀 있다 — 그래서 sanitize 가드를 넣지 않았다.
 
@@ -286,7 +286,7 @@ def test_configure_logging_installs_formatter_on_root(_restore_root_logging: Non
 def test_root_config_does_not_touch_propagation():
     """개별 로거 `propagate` 를 끊으면 caplog 이 조용히 빈 목록을 준다.
 
-    `backend/tests/trading/test_reconcile_fetcher.py:115` 가 겪었던 flaky 의 재발 방지.
+    `apps/api/tests/trading/test_reconcile_fetcher.py:115` 가 겪었던 flaky 의 재발 방지.
     """
     config = build_logging_config("INFO")
     assert "loggers" not in config

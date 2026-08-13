@@ -111,7 +111,7 @@ def bybit_demo_test_credentials() -> tuple[str, str]:
             "env 가 필요하다.\n"
             "  CI: repo secret 으로 주입한다 (nightly-real-broker.yml 의 preflight 가 "
             "부재를 먼저 판정하므로, 여기까지 왔다면 워크플로 게이팅이 깨진 것이다).\n"
-            "  로컬: backend/.env.local 에 두 값을 넣고 `set -a; . ./.env.local; set +a`.\n"
+            "  로컬: apps/api/.env.local 에 두 값을 넣고 `set -a; . ./.env.local; set +a`.\n"
             "  ★Bybit demo(api-demo.bybit.com)와 testnet(api-testnet.bybit.com)은 별개 "
             "플랫폼이고 키 네임스페이스가 다르다 — demo 키를 발급해라."
         )

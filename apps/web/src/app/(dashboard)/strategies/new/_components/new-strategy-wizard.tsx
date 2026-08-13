@@ -43,7 +43,7 @@ const TIMEFRAME_OPTIONS = ["15m", "1h", "4h", "1d"] as const;
 // 지원 함수 사전(04 진단) — pine-lexicon 정적 상수를 삽입 순서대로 나열한다. 동기 데이터라
 // 로딩/스켈레톤 상태가 없다(§4.9 가짜 로딩 금지). 실제 지원 여부 판정은 서버 파서가 한다.
 const LEXICON_ENTRIES = Object.entries(PINE_FUNCTION_LEXICON);
-// 레포 내 실존 예제 스크립트. frontend/public/samples/ema-crossover.pine (정적 자산).
+// 레포 내 실존 예제 스크립트. apps/web/public/samples/ema-crossover.pine (정적 자산).
 const EXAMPLE_PINE_URL = "/samples/ema-crossover.pine";
 
 export function NewStrategyWizard() {

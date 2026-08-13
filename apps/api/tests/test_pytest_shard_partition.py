@@ -24,11 +24,11 @@ from tests.shard_paths import SHARDS_JSON, load_shards, pytest_args
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
-_WORKFLOW = _BACKEND.parent / ".github" / "workflows" / "ci.yml"
+_WORKFLOW = _BACKEND.parent.parent / ".github" / "workflows" / "ci.yml"
 
 
 def _all_test_files() -> set[str]:
-    """`backend/` 기준 상대경로로 `tests/` 아래 모든 `test_*.py`."""
+    """`apps/api/` 기준 상대경로로 `tests/` 아래 모든 `test_*.py`."""
     return {
         str(p.relative_to(_BACKEND))
         for p in _TESTS_DIR.rglob("test_*.py")

@@ -3,7 +3,7 @@
 # 왜 별 파일인가
 #   `.husky/pre-push` 는 **메인 워크트리에서만** 판정 분기를 탄다(git_dir == git_common_dir).
 #   판정을 훅 안에 인라인으로 두면 워커 워크트리에서는 그 분기를 안 타서 **로직이 아예 안 돈다** —
-#   즉 시험할 수 없다. 판정을 여기로 빼서 훅과 하네스(scripts/pre-push-guard-test.sh)가
+#   즉 시험할 수 없다. 판정을 여기로 빼서 훅과 하네스(tools/scripts/pre-push-guard-test.sh)가
 #   **같은 한 벌**을 쓴다.
 #
 # 계약

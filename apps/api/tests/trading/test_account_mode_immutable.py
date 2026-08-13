@@ -13,7 +13,7 @@ from __future__ import annotations
 def test_no_exchange_account_mutation_endpoint() -> None:
     """ExchangeAccount /exchange-accounts route 에 PUT/PATCH 부재 회귀 가드.
 
-    Sprint 22 시점 router (`backend/src/trading/router.py:127-192`):
+    Sprint 22 시점 router (`apps/api/src/trading/router.py:127-192`):
     - POST /exchange-accounts (register)
     - GET /exchange-accounts (list)
     - DELETE /exchange-accounts/{id} (remove)

@@ -9,11 +9,11 @@
 #   ★이 스크립트는 **판정 로직을 한 줄도 갖지 않는다.** 게이트의 출력을 읽고 「달라졌나」만 본다.
 #
 # 사용:
-#   scripts/soak-watch.sh              # 1 회 감시 (타이머가 부르는 형태)
-#   scripts/soak-watch.sh --dry-run    # 게이트는 부르되 알림은 쏘지 않고 판단만 출력
-#   scripts/soak-watch.sh --status     # 마지막 지문 · heartbeat · 타이머 상태
-#   scripts/soak-watch.sh --install    # systemd user timer 30 분 (★게이트 타이머는 끈다)
-#   scripts/soak-watch.sh --uninstall  # watch 타이머 해제 (게이트 타이머를 되살린다)
+#   tools/scripts/soak-watch.sh              # 1 회 감시 (타이머가 부르는 형태)
+#   tools/scripts/soak-watch.sh --dry-run    # 게이트는 부르되 알림은 쏘지 않고 판단만 출력
+#   tools/scripts/soak-watch.sh --status     # 마지막 지문 · heartbeat · 타이머 상태
+#   tools/scripts/soak-watch.sh --install    # systemd user timer 30 분 (★게이트 타이머는 끈다)
+#   tools/scripts/soak-watch.sh --uninstall  # watch 타이머 해제 (게이트 타이머를 되살린다)
 #
 # 종료 코드: 0 = 감시 주기 정상 수행 / 1 = **감시자 자신이 실패**(알림 전송 실패 · 게이트 부재)
 #   ★게이트 판정은 종료 코드로 새어나오지 않는다. 게이트가 FAIL 이어도 **알림이 나갔으면 0** 이다.
@@ -34,12 +34,12 @@
 #   · **상태 파일을 `.` 로 소싱하지 않는다.** `.soak/session` 이 맨 uuid 로 쓰여 `command not found`
 #     로 죽어 있는 것을 2026-08-07 에 실측했다. 여기서는 `key=value` 를 명시적으로 파싱한다.
 #   · **토큰은 URL 경로에 있다.** URL 을 echo 하지 않고 `set -x` 를 켜지 않는다
-#     (`backend/src/common/telegram_alert.py:52-65` 의 `_safe_err` 가 같은 이유로 존재한다).
+#     (`apps/api/src/common/telegram_alert.py:52-65` 의 `_safe_err` 가 같은 이유로 존재한다).
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 GATE="${SCRIPT_DIR}/soak-gate.sh"
 
 # 상태 파일은 **`.soak/` 밖**에 둔다 — 게이트의 표본(gate-samples.jsonl)과 섞이면 안 된다.
@@ -50,7 +50,7 @@ else
   _DEFAULT_LOGDIR="${XDG_STATE_HOME:-${HOME}/.local/state}/quantbridge"
 fi
 STATE_FILE="${QB_SOAK_WATCH_STATE:-${_DEFAULT_LOGDIR}/soak-watch.state}"
-ENV_FILE="${QB_SOAK_ENV_FILE:-${ROOT}/backend/.env.local}"
+ENV_FILE="${QB_SOAK_ENV_FILE:-${ROOT}/apps/api/.env.local}"
 
 TELEGRAM_TIMEOUT="${QB_SOAK_TELEGRAM_TIMEOUT:-15}"
 GATE_TIMEOUT="${QB_SOAK_GATE_TIMEOUT:-600}"
@@ -101,7 +101,7 @@ _notify() { # _notify <본문>  → 0 = 보냄 / 1 = 실패
     return $?
   fi
 
-  # 크레덴셜 — ★절대경로로 소싱한다. `cd backend && . ./.env.local` 은 이미 backend 에 있으면
+  # 크레덴셜 — ★절대경로로 소싱한다. `cd apps/api && . ./.env.local` 은 이미 backend 에 있으면
   #   `cd` 가 실패해 `set -a` 만 건너뛰고 나머지가 이어져 env 가 export 되지 않는다(금지된 형태).
   if [ ! -f "${ENV_FILE}" ]; then
     echo "✗ env 파일이 없다: ${ENV_FILE}" >&2

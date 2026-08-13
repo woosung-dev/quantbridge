@@ -22,7 +22,7 @@ import re
 
 import pytest
 
-_REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[3]
 _WORKFLOW = _REPO_ROOT / ".github" / "workflows" / "ci.yml"
 
 # 기본값이 compose 서비스명을 가리키는 호스트 토큰. 러너에서 해석되지 않는다.

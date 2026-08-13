@@ -24,7 +24,7 @@
 발주는 `execute_order_task.delay` 가 한다. 자세한 근거는 `_execute_order_now` 참조.
 
 ★**세션 비활성화는 아무것도 flat 하지 않는다.** 이 레포가 3회 덴 함정이고
-`backend/scripts/live_session_admin.py:36-38` 이 같은 말을 한다. 반대로 `close_position` 은
+`apps/api/scripts/live_session_admin.py:36-38` 이 같은 말을 한다. 반대로 `close_position` 은
 `is_active` 를 보지 않고 `get_by_id` 만 하므로 **비활성 세션도 청산할 수 있다** —
 그래서 `stop` → `flatten` 순서가 성립한다.
 
@@ -37,7 +37,7 @@ RESIDUAL 로 보고되고 **세션 exit code 를 1 로 만든다.**
 
 ## 배선을 여기서 발명하지 않는다
 
-`ClosePositionService` 조립은 `backend/scripts/live_session_admin.py:_build_close_service`
+`ClosePositionService` 조립은 `apps/api/scripts/live_session_admin.py:_build_close_service`
 를 **그대로 재사용**한다. 그쪽은 `src/trading/dependencies.py` 의 조립을 옮겨온 것이며,
 dependencies 가 바뀌면 그쪽이 바뀌고 여기도 따라간다.
 
@@ -473,7 +473,7 @@ def format_residual_report(results: list[CleanupResult]) -> str:
             f"  positions       : {', '.join(r.positions) if r.positions else '(조회 결과 없음/판정 불가)'}",
             f"  detail          : {r.detail}",
             "  손으로 처리:",
-            "    set -a; . backend/.env.local; set +a; cd backend",
+            "    set -a; . apps/api/.env.local; set +a; cd apps/api",
             f"    uv run python scripts/live_session_admin.py stop {t.live_session_id} --confirm",
             f"    uv run python scripts/live_session_admin.py flatten {t.live_session_id} --confirm",
             "    uv run python scripts/live_session_admin.py status",

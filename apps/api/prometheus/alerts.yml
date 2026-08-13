@@ -5,7 +5,7 @@
 #
 # 적용:
 # 1. Grafana Cloud / 운영 Prometheus 의 ``rule_files`` 배열에 본 파일 path 추가.
-# 2. ``promtool check rules backend/prometheus/alerts.yml`` 로 syntax 검증.
+# 2. ``promtool check rules apps/api/prometheus/alerts.yml`` 로 syntax 검증.
 # 3. Alertmanager 라우팅 (Slack / PagerDuty) 는 별도 alertmanager.yml 에서 정의.
 #
 # Sprint 19 BL-081 wire 와 정합 — qb_pending_alerts gauge 가 src/common/alert.py 의

@@ -14,7 +14,7 @@ Cloud Run / docker-compose healthcheck 는 본 endpoint 를 호출. 모든 dep �
   위해 backend prod 에서는 worker 1+ 필요).
 
 테스트:
-- ``backend/tests/health/test_health_extended.py`` 가 mock 으로 dep fail 시뮬.
+- ``apps/api/tests/health/test_health_extended.py`` 가 mock 으로 dep fail 시뮬.
 """
 
 from __future__ import annotations

@@ -228,7 +228,7 @@ test("#12 FormErrorInline a11y — role/aria + icon visible", async ({ page }) =
 
   // 페이지 자체에 lucide AlertTriangle/OctagonX SVG 가 렌더 가능한 환경 — DOM 에
   // svg 요소 존재 확인 (FormErrorInline 미렌더 시점에는 아직 noop, 컴포넌트 단위
-  // 단위 테스트 frontend/src/components/__tests__/form-error-inline.test.tsx 가
+  // 단위 테스트 apps/web/src/components/__tests__/form-error-inline.test.tsx 가
   // role="alert" + icon 정합성을 이미 보장).
   // E2E 레벨 a11y smoke: 페이지 viewport contrast 정상 + heading 노출로 충분.
   const hasSvg = await page.locator("svg").count();

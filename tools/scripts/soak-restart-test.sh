@@ -19,12 +19,12 @@
 # ★음성 대조가 이 하네스의 존재 이유다 — down 갈래만 재면 「항상 pin→up 을 선행한다」는
 #   구현도 통과한다. up 갈래에서 **선행이 없고 ⑷ 가 down→pin→up 을 한다**를 함께 단언한다.
 #
-# 사용법: scripts/soak-restart-test.sh
+# 사용법: tools/scripts/soak-restart-test.sh
 
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
-REAL="$ROOT/scripts/soak-restart.sh"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+REAL="$ROOT/tools/scripts/soak-restart.sh"
 [ -f "$REAL" ] || {
   echo "✗ 대상 스크립트가 없다: $REAL" >&2
   exit 1
@@ -49,27 +49,27 @@ _no() {
 _make_tree() {
   local ps_rc="$1" tmp
   tmp="$(mktemp -d)"
-  mkdir -p "$tmp/scripts" "$tmp/backend/scripts" "$tmp/backend/.metrics" "$tmp/bin" "$tmp/.soak"
-  cp "$REAL" "$tmp/scripts/soak-restart.sh"
-  : > "$tmp/backend/.env.local"
+  mkdir -p "$tmp/tools/scripts" "$tmp/apps/api/scripts" "$tmp/apps/api/.metrics" "$tmp/bin" "$tmp/.soak"
+  cp "$REAL" "$tmp/tools/scripts/soak-restart.sh"
+  : > "$tmp/apps/api/.env.local"
 
-  cat > "$tmp/scripts/soak-stack.sh" << FAKE
+  cat > "$tmp/tools/scripts/soak-stack.sh" << FAKE
 #!/usr/bin/env bash
 echo "\$1" >> "$tmp/calls.log"
 [ "\$1" = ps ] && { echo "  fake-db: $([ "$ps_rc" = 0 ] && echo running || echo '(없음)')"; exit $ps_rc; }
 exit 0
 FAKE
-  cat > "$tmp/scripts/assert-main-checkout.sh" << 'FAKE'
+  cat > "$tmp/tools/scripts/assert-main-checkout.sh" << 'FAKE'
 #!/usr/bin/env bash
 exit 0
 FAKE
-  cat > "$tmp/scripts/soak-observe.sh" << FAKE
+  cat > "$tmp/tools/scripts/soak-observe.sh" << FAKE
 #!/usr/bin/env bash
 echo observe >> "$tmp/calls.log"
 printf 'SESSION_ID=%s\n' "$UUID" > "$tmp/.soak/session"
 exit 0
 FAKE
-  cat > "$tmp/scripts/soak-gate.sh" << FAKE
+  cat > "$tmp/tools/scripts/soak-gate.sh" << FAKE
 #!/usr/bin/env bash
 echo gate >> "$tmp/calls.log"
 echo "판정: UNKNOWN 진행중"
@@ -100,7 +100,7 @@ esac
 echo "qb_fake_metric 1"
 exit 0
 FAKE
-  chmod +x "$tmp"/scripts/*.sh "$tmp"/bin/*
+  chmod +x "$tmp"/tools/scripts/*.sh "$tmp"/bin/*
   printf '%s' "$tmp"
 }
 
@@ -108,7 +108,7 @@ _run() { # _run <ps_rc> <추가 인자...> → stdout+stderr, calls.log 는 $LAS
   local tree rc
   tree="$(_make_tree "$1")"
   shift
-  OUT="$(cd "$tree" && PATH="$tree/bin:$PATH" bash "$tree/scripts/soak-restart.sh" "$@" 2>&1)"
+  OUT="$(cd "$tree" && PATH="$tree/bin:$PATH" bash "$tree/tools/scripts/soak-restart.sh" "$@" 2>&1)"
   rc=$?
   # ★순서 단언은 **스택 호출만** 본다 — 사이사이 끼는 `docker exec psql` 은 이 질문과 무관하고,
   #   그걸 안 걸러내면 인접 패턴(`ps pin up`)이 DB 조회 한 줄에 깨진다(첫 판에 실제로 깨졌다).

@@ -4,25 +4,25 @@
 # ★C1 문턱 = **≥24h 창 3회** (2026-08-11 [BL-701]). ~~누적 168h~~ 는 참고값으로만 찍는다.
 #
 # 사용:
-#   scripts/soak-gate.sh                 # 표본을 남기고 판정한다
-#   scripts/soak-gate.sh --json          # 판정 JSON 전문
-#   scripts/soak-gate.sh --since <ISO>   # 평가 창 시작을 강제 (자기시험·과거 재판정용)
-#   scripts/soak-gate.sh --no-collect    # 표본을 남기지 않고 지금 원장으로만 판정
-#   scripts/soak-gate.sh --require-windows N --require-continuous N  # ★자기시험 전용
-#   scripts/soak-gate.sh --install / --uninstall / --status         # 30분마다 (macOS launchd / 리눅스 systemd user timer)
-#   scripts/soak-gate.sh --prune-archives [--confirm]  # 상위집합에 덮인 phantom 아카이브 회수 (기본 dry-run)
+#   tools/scripts/soak-gate.sh                 # 표본을 남기고 판정한다
+#   tools/scripts/soak-gate.sh --json          # 판정 JSON 전문
+#   tools/scripts/soak-gate.sh --since <ISO>   # 평가 창 시작을 강제 (자기시험·과거 재판정용)
+#   tools/scripts/soak-gate.sh --no-collect    # 표본을 남기지 않고 지금 원장으로만 판정
+#   tools/scripts/soak-gate.sh --require-windows N --require-continuous N  # ★자기시험 전용
+#   tools/scripts/soak-gate.sh --install / --uninstall / --status         # 30분마다 (macOS launchd / 리눅스 systemd user timer)
+#   tools/scripts/soak-gate.sh --prune-archives [--confirm]  # 상위집합에 덮인 phantom 아카이브 회수 (기본 dry-run)
 #
 # 종료 코드: 0 = PASS **만** / 1 = FAIL / 2 = UNKNOWN
 #   ★**UNKNOWN 을 PASS 로 접지 않는다.** 이 스크립트의 존재 이유가 그것이다.
 #   낱말은 셋뿐이라 `진행중`(시간 부족)과 `측정불가`(잴 수 없음)는 **사유 낱말**로 가른다.
 #
 # 술어와 창 정의: docs/decisions/024-soak-stability-gate.md
-# 계산: backend/scripts/soak_gate_predicate.py (순수 함수 — I/O 없음, 손 계산과 대조 가능)
+# 계산: apps/api/scripts/soak_gate_predicate.py (순수 함수 — I/O 없음, 손 계산과 대조 가능)
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 STATE_DIR="${ROOT}/.soak"
 PIN_HISTORY="${STATE_DIR}/pin-history.jsonl"
 SAMPLES="${STATE_DIR}/gate-samples.jsonl"
@@ -43,7 +43,7 @@ REDIS_CONTAINER="${QB_REDIS_CONTAINER:-quantbridge-redis}"
 #   소크 스택(`soak-stack.sh up`)은 worker·beat·ws-stream·db·redis 5종만 띄우고 **API
 #   컨테이너가 없다**. `/metrics` 를 내주던 것은 호스트 uvicorn 이었고, 그게 안 떠 있으면
 #   C5⑷ 가 영구 ✗ 라 **C1/C2 를 다 채워도 PASS 가 구조적으로 불가능**했다(2026-08-07 실측:
-#   `:8100` 리스너 0개). 워커는 같은 counter 를 `backend/.metrics` 에 계속 쓰고 있으므로
+#   `:8100` 리스너 0개). 워커는 같은 counter 를 `apps/api/.metrics` 에 계속 쓰고 있으므로
 #   HTTP 를 거치지 않고 거기서 읽는다 — 「API 가 꺼지면 게이트가 장님」이라는 실패 계열이 사라진다.
 #   ★`QB_METRICS_URL` 을 **명시하면** 종전대로 HTTP 를 쓴다(원격 데몬 + ssh 터널 운영안 보존).
 METRICS_URL="${QB_METRICS_URL:-}"
@@ -53,12 +53,12 @@ METRICS_URL="${QB_METRICS_URL:-}"
 #   기본 경로(디렉터리 직독)는 인증이 없으므로 영향받지 않는다.
 METRICS_HDR=()
 _qb_tok="${PROMETHEUS_BEARER_TOKEN:-}"
-if [ -z "${_qb_tok}" ] && [ -f "${ROOT}/backend/.env.local" ]; then
-  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${ROOT}/backend/.env.local" | head -1)"
+if [ -z "${_qb_tok}" ] && [ -f "${ROOT}/apps/api/.env.local" ]; then
+  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${ROOT}/apps/api/.env.local" | head -1)"
 fi
 [ -n "${_qb_tok}" ] && METRICS_HDR=(-H "Authorization: Bearer ${_qb_tok}")
 
-METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/backend/.metrics}"
+METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/apps/api/.metrics}"
 
 mkdir -p "${STATE_DIR}" "${LOGDIR}"
 
@@ -85,7 +85,7 @@ Description=QuantBridge soak gate ([BL-003] 24h창x3 판정기)
 Type=oneshot
 WorkingDirectory=${ROOT}
 Environment=PATH=${paths}
-ExecStart=/bin/bash ${ROOT}/scripts/soak-gate.sh
+ExecStart=/bin/bash ${ROOT}/tools/scripts/soak-gate.sh
 # 게이트의 종료 코드는 0=PASS / 1=FAIL / 2=UNKNOWN 이지만 systemd 는 0 외를 전부 실패로 본다.
 # 그래서 dev.quantbridge.soak-gate.service 가 매 실행 failed 로 남아 status 를 건강 신호로 못 썼다(2026-08-08 실측, 8/8 failed).
 SuccessExitStatus=1 2
@@ -142,7 +142,7 @@ _install() {
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>${ROOT}/scripts/soak-gate.sh</string>
+    <string>${ROOT}/tools/scripts/soak-gate.sh</string>
   </array>
   <key>StartInterval</key><integer>1800</integer>
   <key>RunAtLoad</key><true/>
@@ -319,8 +319,8 @@ DB_NAME_SEEN="$(_q "SELECT current_database();")"
 [[ "${DB_NAME_SEEN}" =~ ^[A-Za-z0-9_]+$ ]] || DB_NAME_SEEN="?"
 DOCKER_ENDPOINT="${DOCKER_HOST:-ctx:$(docker context show 2>/dev/null)}"
 DB_ENV_TARGET=""
-if [ -f "${ROOT}/backend/.env.local" ]; then
-  _dburl="$(grep -E '^[[:space:]]*DATABASE_URL=' "${ROOT}/backend/.env.local" | tail -1)"
+if [ -f "${ROOT}/apps/api/.env.local" ]; then
+  _dburl="$(grep -E '^[[:space:]]*DATABASE_URL=' "${ROOT}/apps/api/.env.local" | tail -1)"
   _dburl="${_dburl#*=}"
   _dburl="${_dburl%%[[:space:]]*}"   # 인라인 주석·후행 공백 (값에 공백은 없다)
   _dburl="${_dburl//\"/}"
@@ -346,7 +346,7 @@ FROM trading.live_signal_sessions WHERE deactivated_at IS NULL;")" || { DB_OK=0;
 
 # 스택이 고정본인가 — C5⑵
 STACK_PINNED=0
-bash "${ROOT}/scripts/soak-stack.sh" assert-not-pinned >/dev/null 2>&1 || STACK_PINNED=1
+bash "${ROOT}/tools/scripts/soak-stack.sh" assert-not-pinned >/dev/null 2>&1 || STACK_PINNED=1
 
 # redis AOF 판독성 — C5⑸ ([BL-594])
 #
@@ -358,8 +358,8 @@ bash "${ROOT}/scripts/soak-stack.sh" assert-not-pinned >/dev/null 2>&1 || STACK_
 # ★`--fix` 를 절대 넘기지 않는다. 읽기 전용이다 (실측: `--fix` 없이 돌린 전후로 AOF
 #   3파일의 md5·크기·mtime 이 전부 불변).
 # ★★**종료 코드는 판별식이 될 수 없다** — 꼬리 절단은 exit 1 인데 서버는 뜬다. 판정 규칙과
-#   그 근거(실측 표)는 `backend/scripts/redis_aof_readability.py` 에 있고, 실측 캡처 7형이
-#   `backend/tests/scripts/test_redis_aof_readability.py` 로 동결돼 있다. **여기 복제하지 않는다.**
+#   그 근거(실측 표)는 `apps/api/scripts/redis_aof_readability.py` 에 있고, 실측 캡처 7형이
+#   `apps/api/tests/tools/scripts/test_redis_aof_readability.py` 로 동결돼 있다. **여기 복제하지 않는다.**
 # ★수집이 어떤 이유로든 실패하면 `aof_ok=0` 이다. redis 가 안 뜨는 것과 못 재는 것은
 #   구분되지 않지만, **둘 다 「재기동 내성을 증명하지 못했다」**이고 방향은 fail-closed 다.
 # ★★**외부 실행에 시간 제한을 건다** — docker daemon 이나 볼륨 I/O 가 멈추면 게이트 전체가
@@ -388,7 +388,7 @@ fi
 
 AOF_FILE="$(mktemp)"
 printf '%s' "${AOF_RAW}" > "${AOF_FILE}"
-AOF_OK="$(python3 "${ROOT}/backend/scripts/redis_aof_readability.py" "${AOF_FILE}")"
+AOF_OK="$(python3 "${ROOT}/apps/api/scripts/redis_aof_readability.py" "${AOF_FILE}")"
 [ "${AOF_OK}" = "1" ] || AOF_OK=0
 rm -f "${AOF_FILE}"
 
@@ -447,16 +447,16 @@ if [ "${COLLECT}" = "1" ]; then
   if [ -z "${LOG_NOTE}" ]; then
     # ★분류기는 backend 의존성(sqlalchemy/asyncpg)과 DATABASE_URL 이 있어야 돈다.
     #   시스템 python3 로 돌리면 조용히 실패해 **verdicts 가 늘 0** 이 된다(실측 2026-08-04).
-    #   ★`cd backend && set -a; . ./.env.local` 금지 — 이미 backend 면 cd 가 실패해
+    #   ★`cd apps/api && set -a; . ./.env.local` 금지 — 이미 backend 면 cd 가 실패해
     #   `set -a` 만 건너뛴다. 절대경로로 소싱한다.
     # 관측 0건이면 분류기는 exit 1 + 텍스트를 낸다 — 그건 실패가 아니라 「phantom 없음」이다.
     # ★`--corpus-end` 로 **Docker 가 보장하는 로그 끝**을 넘긴다. 안 넘기면 분류기가
     #   앱 줄 정규식에서 지평을 유도하는데, 그 포맷은 timezone 을 버리고 UTC 로 강제하며
     #   무타임스탬프 후행 줄이 있으면 지평이 과소평가된다. 회복식은 그 지평으로
     #   「나았다」와 「아직 못 봄」을 가르므로 조용히 판정이 흔들린다(codex P2 2026-08-05).
-    ( set -a; . "${ROOT}/backend/.env.local"; set +a
+    ( set -a; . "${ROOT}/apps/api/.env.local"; set +a
       docker logs "${WORKER_CONTAINER}" 2>&1 \
-        | (cd "${ROOT}/backend" && uv run python scripts/classify_direction_divergence.py \
+        | (cd "${ROOT}/apps/api" && uv run python scripts/classify_direction_divergence.py \
              --json --corpus-end "${LOG_LAST}" 2>&1)
     ) > "${PHANTOM_JSON}.tmp" 2>/dev/null
   else
@@ -532,7 +532,7 @@ if [ -n "${METRICS_URL}" ]; then
     && [ -n "${METRICS_RAW}" ] && METRICS_RC=0
 elif [ -d "${METRICS_DIR}" ]; then
   # ★`timeout` 없이 부르지 마라 — 게이트가 무기한 대기하면 표본 수집까지 멈춘다([BL-594] 교훈).
-  METRICS_RAW="$(cd "${ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
+  METRICS_RAW="$(cd "${ROOT}/apps/api" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
     timeout 120 uv run python -c '
 import sys
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess
@@ -703,7 +703,7 @@ PY
 )"
 rm -f "${SESSIONS_FILE}"
 
-RESULT="$(printf '%s' "${PAYLOAD}" | python3 "${ROOT}/backend/scripts/soak_gate_predicate.py")"
+RESULT="$(printf '%s' "${PAYLOAD}" | python3 "${ROOT}/apps/api/scripts/soak_gate_predicate.py")"
 RC=$?
 
 if [ "${AS_JSON}" = "1" ]; then

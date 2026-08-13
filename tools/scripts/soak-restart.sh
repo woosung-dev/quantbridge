@@ -9,9 +9,9 @@
 #   경고하고 있었는데도 그렇게 됐다 — 절차서는 지켜지지 않는다. 스크립트로 만든다.
 #
 # 사용:
-#   scripts/soak-restart.sh              # 기본 = dry-run. 8 단계와 **실제 값**을 출력만 한다
-#   scripts/soak-restart.sh --confirm    # 집행
-#   scripts/soak-restart.sh --strategy-id <uuid> --account-id <uuid> --confirm
+#   tools/scripts/soak-restart.sh              # 기본 = dry-run. 8 단계와 **실제 값**을 출력만 한다
+#   tools/scripts/soak-restart.sh --confirm    # 집행
+#   tools/scripts/soak-restart.sh --strategy-id <uuid> --account-id <uuid> --confirm
 #
 # 종료 코드: 0 = 정상 / 1 = 실패·거부 / 2 = 전제 미충족(측정 못 함)
 #
@@ -30,13 +30,13 @@
 #     `awk '{print $3}'` 이 `등재:` 를 준다.
 #   · **`.soak/session` 을 손으로 쓰지 않는다.** ⑺ 의 `soak-observe.sh --baseline` 만이 올바른
 #     `SESSION_ID=<uuid>` 형식을 쓴다. `--session` 은 **플래그**다(위치인자면 `unknown arg` exit 64).
-#   · **env 는 절대경로로 소싱한다.** `cd backend && set -a; . ./.env.local` 은 이미 backend 에
+#   · **env 는 절대경로로 소싱한다.** `cd apps/api && set -a; . ./.env.local` 은 이미 backend 에
 #     있으면 `cd` 가 실패해 `set -a` 만 건너뛰고 나머지가 이어진다(레포 금지 관용구).
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-ROOT="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
 DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
 METRICS_URL="${QB_METRICS_URL:-}"
@@ -46,12 +46,12 @@ METRICS_URL="${QB_METRICS_URL:-}"
 #   기본 경로(디렉터리 직독)는 인증이 없으므로 영향받지 않는다.
 METRICS_HDR=()
 _qb_tok="${PROMETHEUS_BEARER_TOKEN:-}"
-if [ -z "${_qb_tok}" ] && [ -f "${ROOT}/backend/.env.local" ]; then
-  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${ROOT}/backend/.env.local" | head -1)"
+if [ -z "${_qb_tok}" ] && [ -f "${ROOT}/apps/api/.env.local" ]; then
+  _qb_tok="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' "${ROOT}/apps/api/.env.local" | head -1)"
 fi
 [ -n "${_qb_tok}" ] && METRICS_HDR=(-H "Authorization: Bearer ${_qb_tok}")
 
-METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/backend/.metrics}"
+METRICS_DIR="${QB_METRICS_DIR:-${ROOT}/apps/api/.metrics}"
 
 CONFIRM=0
 STRATEGY_ID=""
@@ -139,9 +139,9 @@ _admin() { # _admin <live_session_admin.py 인자...>
   (
     set -a
     # shellcheck disable=SC1091
-    . "${ROOT}/backend/.env.local"
+    . "${ROOT}/apps/api/.env.local"
     set +a
-    cd "${ROOT}/backend" || exit 1
+    cd "${ROOT}/apps/api" || exit 1
     uv run python scripts/live_session_admin.py "$@"
   )
 }
@@ -187,14 +187,14 @@ _dump_evidence() {
     [ -s "${file}" ] || die "원장 ${table} CSV 가 비었다 (헤더조차 없다): ${file}" 1
   done
 
-  # ⓒ metrics. ★`backend/.metrics` 는 mmap 이라 cat/grep 이 안 된다 —
+  # ⓒ metrics. ★`apps/api/.metrics` 는 mmap 이라 cat/grep 이 안 된다 —
   #   MultiProcessCollector 로 렌더해야 텍스트가 된다 (soak-gate.sh 와 같은 취득 방식).
   raw=""
   if [ -n "${METRICS_URL}" ]; then
     raw="$(curl -sf ${METRICS_HDR[@]+"${METRICS_HDR[@]}"} --max-time 20 "${METRICS_URL}" 2>/dev/null)"
   elif [ -d "${METRICS_DIR}" ]; then
     # ★`timeout` 없이 부르지 마라 — 무기한 대기는 재기동을 통째로 멈춘다([BL-594] 교훈).
-    raw="$(cd "${ROOT}/backend" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
+    raw="$(cd "${ROOT}/apps/api" && PROMETHEUS_MULTIPROC_DIR="${METRICS_DIR}" \
       timeout 120 uv run python -c '
 import sys
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess
@@ -236,7 +236,7 @@ echo
 #   없는 스택에 대고 compose 가 돌아 잡음만 낸다.
 if [ "${CONFIRM}" = "1" ] && [ "${STACK_UP}" = "0" ]; then
   echo "⓿-b 완전 down 이므로 pin → up 을 선행한다 (⑷ 는 건너뛴다)"
-  bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (backend/src 가 dirty 한가?)" 1
+  bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (apps/api/src 가 dirty 한가?)" 1
   echo "   … up 은 celery 기동 배너를 최대 600초 기다린다"
   bash "${SCRIPT_DIR}/soak-stack.sh" up || die "up 실패 — 창을 열지 않았다" 1
   echo
@@ -389,7 +389,7 @@ else
   echo "⑷-0 down 직전 원자료 덤프 (★down 이 컨테이너를 지우면 로그는 사본 0으로 영구 소실)"
   _dump_evidence
   bash "${SCRIPT_DIR}/soak-stack.sh" down || die "down 실패" 1
-  bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (돌고 있는 고정본 위인가? backend/src 가 dirty 한가?)" 1
+  bash "${SCRIPT_DIR}/soak-stack.sh" pin || die "pin 실패 (돌고 있는 고정본 위인가? apps/api/src 가 dirty 한가?)" 1
   echo "   … up 은 celery 기동 배너를 최대 600초 기다린다"
   bash "${SCRIPT_DIR}/soak-stack.sh" up || die "up 실패 — 창을 열지 않았다" 1
 fi

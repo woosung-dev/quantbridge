@@ -6,7 +6,7 @@
 
 ## 사용
 
-    cd backend && set -a; source .env.local; set +a
+    cd apps/api && set -a; source .env.local; set +a
 
     # 세션 하나
     uv run python scripts/entry_completeness_report.py --session-id <uuid>
@@ -52,8 +52,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "backend"))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT / "apps" / "api"))
 
 from src.tasks._worker_engine import create_worker_engine_and_sm  # noqa: E402
 from src.trading.entry_completeness import (  # noqa: E402

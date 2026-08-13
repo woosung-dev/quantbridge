@@ -9,7 +9,7 @@ from typing import Annotated
 
 from pydantic import BeforeValidator
 
-# FE mirror: frontend/src/features/backtest/schemas.ts:477-483 `isFiniteDecimalString`
+# FE mirror: apps/web/src/features/backtest/schemas.ts:477-483 `isFiniteDecimalString`
 # regex `^-?\d+(\.\d+)?$` 와 정확 정합. `1e-3`, `.5`, `+1`, `NaN`, `Infinity` reject.
 _STRICT_DECIMAL_RE = re.compile(r"^-?\d+(\.\d+)?$")
 

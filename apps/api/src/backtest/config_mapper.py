@@ -1,5 +1,5 @@
 # Backtest 의 DB row 를 engine BacktestConfig 로 복원하는 module-level helper
-"""Sprint 52 BL-222 P1 — `backend/src/backtest/service.py` 의 private
+"""Sprint 52 BL-222 P1 — `apps/api/src/backtest/service.py` 의 private
 `BacktestService._build_engine_config(bt)` 를 module-level 로 추출.
 
 추출 동기 (codex G.0 P1, 2026-05-11): StressTestService 의 worker entry
