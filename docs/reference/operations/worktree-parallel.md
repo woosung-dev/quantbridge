@@ -1,8 +1,12 @@
 # 워크트리 병렬 작업 — 무엇이 되고 무엇이 안 되는가
 
 > 정본. 2026-07-29 실측 기준. 코드와 어긋나면 코드가 맞다.
-> 도구: `.worktreeinclude` · `tools/scripts/worktree-bootstrap.sh` · `tools/scripts/herdr-fleet.sh` ·
-> `tools/scripts/fleet-dispatch.sh` · `Makefile` 의 `QB_SLOT` / `qb-guard`. 함대 운용은 [`fleet-orchestration.md`](./workflows/fleet-orchestration.md).
+> 도구: `.worktreeinclude` · `tools/scripts/worktree-bootstrap.sh` · `Makefile` 의 `QB_SLOT` / `qb-guard`.
+>
+> ★**tombstone (2026-08-13, [ADR-030](../../decisions/030-harness-pilot-verdict.md)).** herdr 함대 축
+> (`tools/scripts/herdr-fleet.sh` · `tools/scripts/fleet-dispatch.sh` · `workflows/fleet-orchestration.md`)을
+> 제거했다 — 조종 장치 회수. 원문 = `git show c3a39d0d:<경로>`. **워크트리·슬롯 축은 그대로다** —
+> 부트스트랩과 `QB_SLOT` 은 `make up-isolated` 계열이 의존하므로 이 문서의 나머지는 전부 유효하다.
 
 ---
 
@@ -22,9 +26,8 @@
 핵심: **격리가 필요한 건 검증 단계뿐이다.** 코드를 쓰고 정적 검사를 돌리는 데까지는 워크트리만 있으면 된다.
 
 실무 상한은 12 이 아니라 **2~4벌**이다 — 한 화면에 그 이상 띄우면 읽히지 않고, `.next` 캐시가
-워크트리마다 순증한다(§7). `tools/scripts/herdr-fleet.sh` 는 **워커 1~4** 를 받는다(한 사람이 동시에 감독할 수 있는 수).
-워커가 3 이하면 남는 칸이 CONTROL(메인, 슬롯 0)이고, **4 를 주면 CONTROL 칸이 없어져** celery
-검증·게이트·머지를 할 자리가 화면에서 사라진다(그때는 경고를 낸다).
+워크트리마다 순증한다(§7). 워커가 3 이하면 남는 칸이 CONTROL(메인, 슬롯 0)이고, **4 를 쓰면
+CONTROL 칸이 없어져** celery 검증·게이트·머지를 할 자리가 화면에서 사라진다.
 
 ---
 
@@ -120,36 +123,17 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 **런타임 락은 슬롯과 무관하게 공유**된다. 앱 DB 를 공유하는 이상 런타임 락도 공유하는 것이 맞다.
 갈라지는 건 pytest 안의 락뿐이다.
 
-### 2.3 herdr — 오케스트레이터 옆에 워커 탭으로 띄우기
+### 2.3 herdr 로 워커 탭을 띄울 때 — ★래퍼 스크립트는 제거됐다
 
-`tools/scripts/herdr-fleet.sh` 가 워크트리 생성 → 부트스트랩 → **탭 배치** → 에이전트 기동까지 한다.
+> **tombstone (2026-08-13, [ADR-030](../../decisions/030-harness-pilot-verdict.md)).** 여기 있던
+> `tools/scripts/herdr-fleet.sh` 운용절(커맨드·탭 배치도·`--teardown` 규약)과 `fleet-dispatch.sh`
+> 분배절을 지웠다 — 조종 장치 축 회수. 원문 = `git show c3a39d0d:docs/reference/operations/worktree-parallel.md`
+> 및 `git show c3a39d0d:docs/reference/operations/workflows/fleet-orchestration.md`.
+> **아래는 herdr CLI 자체의 성질**이라 래퍼와 무관하게 남는다 — 수동으로 띄울 때 그대로 문다.
 
-```bash
-# ★오케스트레이터 세션이 떠 있는 그 탭에서 (메인 체크아웃)
-tools/scripts/herdr-fleet.sh --agent claude:bl537 --agent claude:bl536 --agent codex:impl
-tools/scripts/herdr-fleet.sh --teardown          # 워커 탭만 닫는다 (현재 탭은 유지)
-```
-
-```
-[스페이스: 퀀트브릿지]   ← 오케스트레이터가 이미 있는 그 워크스페이스
-┌──────────┬──────────┬──────────┬──────────┐
-│ 1 (현재) │ bl537·s1 │ bl536·s2 │ impl·s3  │  ← 탭 줄
-│ CONTROL  │ 워크트리 │ 워크트리 │ 워크트리 │
-└──────────┴──────────┴──────────┴──────────┘
-```
-
-★**워크스페이스를 새로 만들지 않는다** (2026-07-30 사용자 결정으로 변경). 예전에는
-`herdr workspace create` 로 별도 워크스페이스에 2×2 pane 을 깔았는데, 그러면 오케스트레이터가
-있는 스페이스와 **다른 곳**에 떠서 진행을 보려면 스페이스를 갈아타야 했고 오케스트레이터
-화면에서는 워커가 아예 안 보였다. 지금은 `herdr tab create --workspace <현재>` 로 **같은
-워크스페이스의 탭**으로 붙인다.
-
-★**CONTROL 은 만들지 않는다** — 스크립트를 돌린 그 탭(메인 체크아웃, 슬롯 0)이 곧 CONTROL 이다.
-그래서 `--control-agent` 플래그도 없앴다.
-
-**프롬프트는 주입하지 않는다.** 부팅까지가 스크립트의 일이고 첫 지시는 사람이 한다.
-herdr 는 `agent prompt <t> "<지시>" --wait --until done --timeout <ms>` 로 주입+대기를 한 커맨드에
-제공하지만, 이 레포는 "자동화된 거짓 그린" 을 반복해서 밟았다. 사람이 루프 안에 있는 채로 굳힌다.
+**프롬프트 주입은 사람이 한다.** herdr 는 `agent prompt <t> "<지시>" --wait --until done --timeout <ms>`
+로 주입+대기를 한 커맨드에 제공하지만, 이 레포는 "자동화된 거짓 그린" 을 반복해서 밟았다.
+사람이 루프 안에 있는 채로 굳힌다.
 
 알아둘 것 — 전부 실측으로 밟았다.
 
@@ -157,20 +141,18 @@ herdr 는 `agent prompt <t> "<지시>" --wait --until done --timeout <ms>` 로 �
    그렇다. 게다가 `--cwd` 가 없으면 **그때 포커스된 workspace 의 레포**에 만든다 — 조사 중 이걸로
    엉뚱한 레포에 워크트리가 생겼다. herdr CLI 의 플래그를 알아보려면 argless 대신 `--bogus` 같은
    무효 플래그를 줘라(그건 usage 를 낸다). 확실한 방법은 `herdr completion zsh` 나 `herdr api schema`.
-2. **함대는 `herdr worktree create` 를 쓰지 않는다.** 그건 워크트리마다 **자기 workspace 를 새로
-   만든다**(실측). 생성은 `git worktree add`, 배치는 `herdr tab create --cwd` 다.
+2. **`herdr worktree create` 는 워크트리마다 자기 workspace 를 새로 만든다**(실측). 오케스트레이터가
+   있는 스페이스와 **다른 곳**에 떠서 화면에서 워커가 안 보인다. 생성은 `git worktree add`,
+   배치는 `herdr tab create --cwd`(같은 워크스페이스의 탭) 를 써라.
 3. **`herdr tab create` 는 응답에 `root_pane` 을 함께 준다** — pane 을 cwd 로 역추적할 필요가 없다.
    역추적하면 같은 워크트리를 가리키는 낡은 pane 과 헷갈린다.
-4. ★**에이전트 이름은 herdr 안에서 전역이다.** 이전 함대를 안 닫고 같은 이름으로 다시 띄우면
-   워크스페이스가 달라도 `agent_name_taken` 으로 죽는다(실측). 재시도로 안 풀리므로 스크립트가
-   그 자리에서 진단과 함께 멈춘다 — 옛 화면을 먼저 닫아라.
-5. **`--teardown` 은 워커 탭만 닫는다.** 판별은 라벨이 아니라 **cwd 가 `.claude/worktrees/` 아래인지**로
-   한다(사람이 탭 이름을 바꿔도 찾는다). 현재 탭은 절대 닫지 않고, 워크트리·브랜치·슬롯 DB 도
-   지우지 않는다(커밋 안 한 작업이 있을 수 있어 사람 판단이다).
+4. ★**에이전트 이름은 herdr 안에서 전역이다.** 이전 워커를 안 닫고 같은 이름으로 다시 띄우면
+   워크스페이스가 달라도 `agent_name_taken` 으로 죽는다(실측). 재시도로 안 풀린다 — 옛 화면을 먼저 닫아라.
+5. **워커 탭 판별은 라벨이 아니라 cwd 가 `.claude/worktrees/` 아래인지로 한다**(사람이 탭 이름을
+   바꿔도 찾는다). 워크트리·브랜치·슬롯 DB 는 자동으로 지우지 마라 — 커밋 안 한 작업이 있을 수 있다.
 
 `.worktreeinclude` 는 **Claude Code 의 `EnterWorktree` 기능이지 git 기능이 아니다.** herdr 나 수동
-`git worktree add` 로 만든 워크트리에는 적용되지 않으므로 부트스트랩을 `--adopt-env` 로 부른다
-(§6). 함대 스크립트는 항상 그렇게 부른다.
+`git worktree add` 로 만든 워크트리에는 적용되지 않으므로 부트스트랩을 `--adopt-env` 로 부른다 (§6).
 
 ### 지시가 붙지 않을 수 있다 — `agent_prompt_stalled` (2026-07-30 실측)
 
@@ -276,9 +258,6 @@ quantbridge_test_w{N}      ❌ RuntimeError · 실측으로 5 failed
 ### 새 워크트리
 
 ```bash
-# 여러 벌을 한 화면에 — 워크트리 생성부터 에이전트 기동까지 한 번에 (§2.3)
-tools/scripts/herdr-fleet.sh --agent claude:bl537 --agent codex:impl
-
 # Claude Code 세션에서 (.worktreeinclude 가 자동 적용된다)
 #   EnterWorktree
 
@@ -337,9 +316,7 @@ PLAYWRIGHT_BASE_URL=http://localhost:310N pnpm e2e
 ### 정리
 
 ```bash
-# 함대로 띄웠다면 화면부터 — 워커 탭만 닫는다(오케스트레이터 탭은 유지)
-tools/scripts/herdr-fleet.sh --teardown
-
+# herdr 로 띄웠다면 화면부터 — 워커 탭만 닫는다(오케스트레이터 탭은 유지, §2.3-5)
 # 워크트리 자체는 항상 손으로 확인하고 지운다 — 에이전트가 커밋 안 한 작업을 들고 있을 수 있다
 git -C .claude/worktrees/<이름> status --short
 git worktree remove .claude/worktrees/<이름>

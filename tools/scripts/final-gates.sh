@@ -172,15 +172,15 @@ run_gate "신호 신선도 하네스" "tools/scripts/signal-check.sh" bash "$ROO
 #   실제 소크·docker·거래소를 건드리지 않는다 (mktemp 트리 + PATH 앞단 가짜).
 run_gate "소크 재기동 하네스" "tools/scripts/soak-restart.sh" bash "$ROOT/tools/scripts/soak-restart-test.sh"
 
-# ★함대 분배 하네스 (BL-601). `fleet-dispatch.sh` 는 herdr 함대 없이는 통째로 못 도므로
-#   판정 술어만 원본에서 sed 로 떼어내 stub 위에서 돌린다. 사본이 아니라 추출이라 이름이
-#   바뀌면 추출 실패로 크게 죽는다. 여기 걸기 전엔 호출자가 0이라 아무도 안 돌렸다.
-run_gate "함대 분배 하네스" "tools/scripts/fleet-dispatch.sh" bash "$ROOT/tools/scripts/fleet-dispatch-test.sh"
+# ★tombstone (2026-08-13, [ADR-030]). 여기 있던 「함대 분배 하네스」(`fleet-dispatch-test.sh`)를
+#   `herdr-fleet.sh`·`fleet-dispatch.sh` 와 함께 제거했다 — 조종 장치 축 회수.
+#   원문 = `git show c3a39d0d:tools/scripts/fleet-dispatch-test.sh`. 근거 = `docs/decisions/030-harness-pilot-verdict.md`
 
 # ★소스 헤더 감사 + 그 하네스 ([BL-307]). 둘을 **함께** 건다 — 감사기만 걸면 레포가 이미
 #   0건이라 판정 로직을 통째로 지워도 초록이다(BL-569 가 `bl-audit` 에서 겪은 것과 같은 모양).
-#   ★하네스를 여기 안 걸면 호출자가 0이 되어 아무도 안 돌린다 — `fleet-dispatch-test` 가
-#   바로 그 상태였고 BL-601 이 그래서 이 자리를 만들었다.
+#   ★하네스를 여기 안 걸면 호출자가 0이 되어 아무도 안 돌린다 — 구 `fleet-dispatch-test` 가
+#   바로 그 상태였고 BL-601 이 그래서 이 자리를 만들었다 (그 하네스 자신은 2026-08-13
+#   [ADR-030] 으로 함대와 함께 제거됐다 — **교훈만 남긴다**).
 #   (2026-08-10 `/code-review` Standards 축 H2 「고아 하네스」 검출.)
 run_gate "소스 헤더 감사" "tools/scripts/header-audit.sh" bash "$ROOT/tools/scripts/header-audit.sh"
 run_gate "소스 헤더 하네스" "tools/scripts/header-audit.sh" bash "$ROOT/tools/scripts/header-audit-test.sh"
@@ -212,7 +212,7 @@ run_gate "문서 감사" "docs/**" bash "$ROOT/tools/scripts/docs-audit.sh"
 run_gate "문서 감사 하네스" "tools/scripts/docs-audit.sh" bash "$ROOT/tools/scripts/docs-audit-test.sh"
 
 # ★고아 하네스 2종을 여기 붙인다 (2026-08-11 실측). 둘 다 레포에 **존재하고 초록인데
-#   호출자가 0** 이었다 — `fleet-dispatch-test` 가 BL-601 이전에 있던 바로 그 상태다.
+#   호출자가 0** 이었다 — 구 `fleet-dispatch-test` 가 BL-601 이전에 있던 바로 그 상태다.
 #   아무도 안 부르는 검사기는 죽어도 아무도 모르고, 그 사이 문서는 「하네스가 있다」를 계속 인용한다
 #   (BL-631 · LESSON-078). 합쳐 3.2초라 안 걸 이유가 없었다.
 run_gate "소크 감시 하네스" "tools/scripts/soak-watch.sh" bash "$ROOT/tools/scripts/soak-watch-test.sh"
