@@ -37,7 +37,8 @@ const config = [
   },
   prettier,
   {
-    ignores: [".next*/**", "node_modules/**", "dist/**", "coverage/**"],
+    // src/**/generated/** — 코드젠 산출물(BL-717 PoC). header-audit 의 /generated/ 면제와 같은 축.
+    ignores: [".next*/**", "node_modules/**", "dist/**", "coverage/**", "src/**/generated/**"],
   },
   {
     rules: {
