@@ -58,7 +58,7 @@ abort() { # 판정 불가. ★초록을 내지 않는다.
 judge_freshness() { # <full-sha> → 0 신선 / 1 낡음 / 3 판정 불가. 사유는 CODE·WHY.
   local sha="$1" anc inmain
   if [ -n "$MERGE_BASE" ] && [ "$MERGE_BASE" = "$HEAD_SHA" ]; then           # ← 앵커 A1
-    CODE="no-branch-commits"; WHY="브랜치 커밋이 0개다 (merge-base == HEAD)"; return 1
+    CODE="no-branch-commits"; WHY="브랜치 커밋이 0개다 (merge-base == HEAD) — 이 회차의 PR 브랜치에서 머지 전에 신호를 다시 취득해라"; return 1
   fi
   if [ "$sha" = "$HEAD_SHA" ]; then                                          # ← 앵커 A2
     CODE="head"; WHY="HEAD 와 동일"; return 0
