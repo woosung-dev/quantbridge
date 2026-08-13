@@ -27,7 +27,7 @@ API 로 발급한 토큰에는 그게 없다(브라우저 발급 토큰에만 �
 ## 사용
 
     QB=/path/to/quant-bridge
-    set -a; . $QB/apps/api/.env.local; set +a; cd $QB/backend
+    set -a; . $QB/apps/api/.env.local; set +a; cd $QB/apps/api
 
     uv run python scripts/live_session_admin.py status
     uv run python scripts/live_session_admin.py stop    <session_id> --confirm

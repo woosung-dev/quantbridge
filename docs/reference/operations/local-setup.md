@@ -72,10 +72,10 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_... # 동일 값 (Next.js 노출용)
 ```bash
 cd apps/api
 KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-# 3곳 모두에 추가 (docker compose: root / uvicorn: backend / 기타 검증 스크립트)
+# 3곳 모두에 추가 (docker compose: root / uvicorn: apps/api / 기타 검증 스크립트)
 echo "TRADING_ENCRYPTION_KEYS=$KEY" >> .env.local
-echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../.env.local
-cd ..
+echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../../.env.local
+cd ../..
 ```
 
 > **rotation 전략:** 콤마 구분으로 여러 키 허용 (`TRADING_ENCRYPTION_KEYS=new_key,old_key`). 첫 번째 키가 encrypt, 나머지는 decrypt 허용 — 무중단 키 교체.
@@ -87,10 +87,10 @@ cd ..
 ## 3. 인프라 기동 (DB + Redis)
 
 ```bash
-docker compose up -d
+make up   # = docker compose --project-directory . -f infra/compose/docker-compose.yml up -d
 
-# healthy 확인
-docker compose ps
+# healthy 확인 (compose 를 직접 부를 땐 반드시 위 플래그 2종을 함께 — 프로젝트명·볼륨이 루트 파생이다, ADR-029)
+docker compose --project-directory . -f infra/compose/docker-compose.yml ps
 # NAME                STATUS
 # quantbridge-db      Up (healthy)
 # quantbridge-redis   Up (healthy)

@@ -48,7 +48,7 @@ from typing import Any
 
 # Sprint 25 — script 실행 cwd 무관하게 동작 (repo root / apps/api/ 어디서든 OK).
 _BACKEND_DIR = Path(__file__).resolve().parent.parent  # apps/api/
-_REPO_ROOT = _BACKEND_DIR.parent
+_REPO_ROOT = _BACKEND_DIR.parent.parent
 _REPORT_DIR = _REPO_ROOT / "docs" / "reports" / "auto-dogfood"
 _TEST_PATH = "tests/integration/test_auto_dogfood.py"
 

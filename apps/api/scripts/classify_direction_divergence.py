@@ -185,7 +185,7 @@ perp) · 내가 잰 공개 perp · **데모** perp 가 사망 4건의 해당 봉
 ## 사용
 
     QB=/path/to/quant-bridge
-    set -a; . $QB/apps/api/.env.local; set +a; cd $QB/backend
+    set -a; . $QB/apps/api/.env.local; set +a; cd $QB/apps/api
 
     docker logs quantbridge-worker 2>&1 \\
       | uv run python scripts/classify_direction_divergence.py

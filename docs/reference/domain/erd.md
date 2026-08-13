@@ -466,7 +466,7 @@ CREATE INDEX ix_ohlcv_symbol_tf_time_desc ON ts.ohlcv (symbol, timeframe, time);
   - `acquire_fetch_lock` — `pg_advisory_xact_lock(hashtext(symbol:tf:start:end))` (동시 fetch race 방지)
 - Provider: `TimescaleProvider` cache → CCXT fallback fetch + advisory lock + insert (자세한 flow는 [`data-flow.md`](../architecture/data-flow.md) §OHLCV cache)
 
-> ohlcv 마이그레이션 자체가 `CREATE EXTENSION` + `CREATE SCHEMA`까지 책임 — `docker/db/init/01-timescaledb.sql`이 누락된 환경(test/fresh)에서도 단독 동작 보장.
+> ohlcv 마이그레이션 자체가 `CREATE EXTENSION` + `CREATE SCHEMA`까지 책임 — `infra/db/init/01-timescaledb.sql`이 누락된 환경(test/fresh)에서도 단독 동작 보장.
 
 ### trading.funding_rates (✅ Sprint 6+ 구현 — 일반 테이블, hypertable 아님)
 

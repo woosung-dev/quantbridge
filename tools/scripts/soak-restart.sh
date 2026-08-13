@@ -284,7 +284,7 @@ if [ "${CONFIRM}" != "1" ]; then
    ★세션 DELETE 204 는 아무것도 flat 하지 않는다 (3회 덴 함정)
    ★status 는 이제 FLAT= 외에 RESTING_CONDITIONAL= · FOREIGN_RESTING= · EXCLUSIVE= · QUIET= 도 낸다.
      ⑴-b 가 EXCLUSIVE≠YES 면 멈춘다 — 다른 호스트가 같은 계정에 붙어 있다는 뜻이다
-     cd ${ROOT}/backend && uv run python scripts/live_session_admin.py status --symbol ${SYMBOL}
+     cd ${ROOT}/apps/api && uv run python scripts/live_session_admin.py status --symbol ${SYMBOL}
 
 ⑵ FLAT=NO 면 stop → flatten (★순서가 중요하다 — 세션이 살아 있으면 다음 tick 에 재진입한다)
      … live_session_admin.py stop    <session_id> --confirm
@@ -337,8 +337,8 @@ if [ "${FLAT}" != "YES" ]; then
   echo "⑵ FLAT=${FLAT:-불명} — **여기서 멈춘다.** 자동 flatten 은 하지 않는다."
   echo "   사람이 판단하고 직접 실행해라 (★순서는 stop → flatten):"
   ACTIVE="$(_q "SELECT id FROM trading.live_signal_sessions WHERE deactivated_at IS NULL LIMIT 1")"
-  echo "     cd ${ROOT}/backend && uv run python scripts/live_session_admin.py stop    ${ACTIVE:-<session_id>} --confirm"
-  echo "     cd ${ROOT}/backend && uv run python scripts/live_session_admin.py flatten ${ACTIVE:-<session_id>} --confirm"
+  echo "     cd ${ROOT}/apps/api && uv run python scripts/live_session_admin.py stop    ${ACTIVE:-<session_id>} --confirm"
+  echo "     cd ${ROOT}/apps/api && uv run python scripts/live_session_admin.py flatten ${ACTIVE:-<session_id>} --confirm"
   exit 1
 fi
 echo "   ✓ FLAT=YES"

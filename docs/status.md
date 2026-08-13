@@ -474,12 +474,12 @@ ADR-024 가 적어 둔 「역대 2위 8.65h」도 이미 5위였다. **인용하
 
 ```bash
 QB=/Users/woosung/project/agy-project/quant-bridge
-rm -rf $QB/frontend/.next                       # ★FE 회차면 먼저 ([BL-650])
-cd $QB/frontend && pnpm test                    # 디자인 가드 포함
-cd $QB/frontend && pnpm typecheck               # ★2026-08-08 추가 — 빠뜨려 TS 에러를 놓친 적이 있다
-cd $QB/frontend && pnpm lint                    # ★같은 이유
-cd $QB/frontend && pnpm e2e                     # chromium 3건 (게이트에 들어왔다)
-cd $QB/frontend && pnpm e2e:design-canon        # table-tone·responsive 포함
+rm -rf $QB/apps/web/.next                       # ★FE 회차면 먼저 ([BL-650])
+cd $QB/apps/web && pnpm test                    # 디자인 가드 포함
+cd $QB/apps/web && pnpm typecheck               # ★2026-08-08 추가 — 빠뜨려 TS 에러를 놓친 적이 있다
+cd $QB/apps/web && pnpm lint                    # ★같은 이유
+cd $QB/apps/web && pnpm e2e                     # chromium 3건 (게이트에 들어왔다)
+cd $QB/apps/web && pnpm e2e:design-canon        # table-tone·responsive 포함
 QB2=$QB; set -a; . $QB2/backend/.env.local; set +a; cd $QB2/backend && uv run pytest
 cd $QB && bash tools/scripts/bl-audit.sh; bash tools/scripts/docs-audit.sh
 ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/soak-gate.sh"'
@@ -662,7 +662,7 @@ bind mount 라 파일 소유자로도 못 가른다(전부 호스트 uid 로 보
 > ★★**`cd apps/api && set -a; . ./.env.local; set +a` 를 쓰지 마라.** 이미 `apps/api` 에 있으면
 > `cd` 가 실패해 **`set -a` 만 건너뛰고** 나머지는 `;` 로 계속 실행된다 — env 가 export 되지
 > 않은 채 pytest 가 5432 로 붙어 `InvalidPasswordError` **대량 거짓 red**.
-> **`QB=…; set -a; . $QB/backend/.env.local; set +a; cd $QB/backend`** 로 써라.
+> **`QB=…; set -a; . $QB/apps/api/.env.local; set +a; cd $QB/apps/api`** 로 써라.
 > ★**브랜치 접두사는 `stage/`** · `QB_PRE_PUSH_BYPASS=1` 금지.
 > ★**pre-commit 이 `ruff format`·`prettier --write` 를 돌린다** — **커밋 후 게이트를 다시 재라**.
 > ★**표적 변이는 CONTROL 이 직접 집행**(`git checkout` 금지, sha256 복원 대조). 치환 문자열이

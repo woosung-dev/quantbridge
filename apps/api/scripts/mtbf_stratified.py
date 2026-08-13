@@ -21,9 +21,9 @@
       -d quantbridge -At -F\\"|\\" -c \\"SELECT id, created_at, deactivated_at, \\
       coalesce(deactivated_reason::text, chr(45)) \\
       FROM trading.live_signal_sessions ORDER BY created_at\\""' \\
-      | uv run --directory backend python scripts/mtbf_stratified.py
+      | uv run --directory apps/api python scripts/mtbf_stratified.py
 
-★대조 근거: `scripts/soak-gate.sh` 의 실격 목록에 뜨는 `auto_death` 건수와 이 도구의 `사망`
+★대조 근거: `tools/scripts/soak-gate.sh` 의 실격 목록에 뜨는 `auto_death` 건수와 이 도구의 `사망`
 열이 같아야 한다(2026-08-12 실측 8 = 8).
 
 ★살아 있는 세션은 **우측 절단**이다 — 노출은 더하고 사망은 더하지 않는다. 빼면 노출을

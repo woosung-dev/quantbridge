@@ -62,8 +62,8 @@ cp apps/web/.env.example apps/web/.env.local
 cd apps/api
 KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
 echo "TRADING_ENCRYPTION_KEYS=$KEY" >> .env.local      # uvicorn/celery (로컬)
-echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../.env         # docker compose 컨테이너
-cd ..
+echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../../.env      # docker compose 컨테이너 (레포 루트)
+cd ../..
 ```
 
 두 파일 값이 **반드시 동일**해야 compose 워커와 로컬 uvicorn이 같은 키로 복호화 일관 유지.

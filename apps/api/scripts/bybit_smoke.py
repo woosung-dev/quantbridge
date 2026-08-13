@@ -3,13 +3,13 @@
 ★2026-08-09 `bybit_demo_smoke.py` 에서 rename 됐다. 이름이 `demo` 인 채로 live 를 다루면
 「데모니까 안전하겠지」 오독을 부르기 때문이다. 참조처는 자기 docstring 하나뿐이었다.
 
-★**직접 부르지 마라 — `scripts/bybit-smoke.sh` 가 정문이다.** 그 셸이 `--dry-run` 기본 ·
+★**직접 부르지 마라 — `tools/scripts/bybit-smoke.sh` 가 정문이다.** 그 셸이 `--dry-run` 기본 ·
 시크릿 파일 권한 검사 · live 경고 배너를 건다. 본 모듈은 승인 뒤 실호출만 담당한다.
 
 실행 예 (셸을 거치는 정문):
-    scripts/bybit-smoke.sh --dry-run                    # 외부 호출 0건
-    scripts/bybit-smoke.sh --mode demo --confirm        # 데모 실호출
-    scripts/bybit-smoke.sh --mode live --market spot --confirm   # ★실자금
+    tools/scripts/bybit-smoke.sh --dry-run                    # 외부 호출 0건
+    tools/scripts/bybit-smoke.sh --mode demo --confirm        # 데모 실호출
+    tools/scripts/bybit-smoke.sh --mode live --market spot --confirm   # ★실자금
 
 검증 경로 (`--market linear`):
     1. fetch_balance → USDT > 0 확인
@@ -195,7 +195,7 @@ async def run_smoke(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Bybit smoke test — 주문 경로 검증 (정문은 scripts/bybit-smoke.sh)"
+        description="Bybit smoke test — 주문 경로 검증 (정문은 tools/scripts/bybit-smoke.sh)"
     )
     # ★credentials 는 **env 가 정문**이다 — argv 로 넘기면 같은 호스트의 아무 프로세스나
     # `ps` 로 평문 키를 읽는다. demo 키에서는 무해했지만 mainnet 실키에서는 아니다.
@@ -251,7 +251,7 @@ def main() -> int:
     if not args.api_key or not args.api_secret:
         print(
             "credentials missing — set BYBIT_SMOKE_API_KEY / BYBIT_SMOKE_API_SECRET "
-            "(정문: scripts/bybit-smoke.sh)",
+            "(정문: tools/scripts/bybit-smoke.sh)",
             file=sys.stderr,
         )
         return 2

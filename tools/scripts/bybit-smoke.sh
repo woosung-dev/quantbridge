@@ -165,7 +165,7 @@ CMD_DISPLAY="uv run python scripts/bybit_smoke.py --mode ${MODE} --market ${MARK
 if [[ "${CONFIRM}" != "yes" ]]; then
   printf '  ── dry-run — 네트워크 호출 0건. 거래소에 아무것도 보내지 않았다.\n'
   printf '  실행될 명령 (credentials 는 env 로만 건넨다 · argv 노출 없음):\n'
-  printf '    cd %s/backend && %s\n' "${REPO_ROOT}" "${CMD_DISPLAY}"
+  printf '    cd %s/apps/api && %s\n' "${REPO_ROOT}" "${CMD_DISPLAY}"
   printf '\n  실행하려면 --confirm 을 붙여라. ★live 는 사용자 승인 뒤에만.\n'
   exit 0
 fi

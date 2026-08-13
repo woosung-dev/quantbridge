@@ -83,7 +83,7 @@ C5⑷ 가 영구 ✗ 가 된다([BL-624]).
 
 ```bash
 QB=/Users/woosung/project/agy-project/quant-bridge
-cd $QB/frontend
+cd $QB/apps/web
 # .env.production.local 에 NEXT_PUBLIC_* 4종 (gitignored). 도메인이 바뀌면 반드시 재빌드.
 pnpm build
 TAG=$(git rev-parse --short HEAD)

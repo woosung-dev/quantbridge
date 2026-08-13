@@ -15,21 +15,21 @@ QB=/Users/woosung/project/agy-project/quant-bridge
 cd $QB && make up-isolated && make migrate-isolated
 
 # BE — ruff / mypy / pytest
-cd $QB/backend && uv run ruff check .
-cd $QB/backend && uv run mypy src/
-cd $QB/backend && set -a; source .env.local; set +a; uv run pytest -q
+cd $QB/apps/api && uv run ruff check .
+cd $QB/apps/api && uv run mypy src/
+cd $QB/apps/api && set -a; source .env.local; set +a; uv run pytest -q
 
 # FE — typecheck / vitest / eslint
-cd $QB/frontend && pnpm typecheck
-cd $QB/frontend && pnpm test
-cd $QB/frontend && pnpm lint
-cd $QB/frontend && pnpm build          # Clerk 키 필요
+cd $QB/apps/web && pnpm typecheck
+cd $QB/apps/web && pnpm test
+cd $QB/apps/web && pnpm lint
+cd $QB/apps/web && pnpm build          # Clerk 키 필요
 
 # 디자인 캐논 런타임 (dev 서버 자동 기동, 인증 불요)
-cd $QB/frontend && pnpm e2e:design-canon
+cd $QB/apps/web && pnpm e2e:design-canon
 
 # e2e authed (apps/web/.env.local 에 Clerk 4종 필요, 로컬 전용 — CI 에 없다)
-cd $QB/frontend && pnpm e2e:authed
+cd $QB/apps/web && pnpm e2e:authed
 ```
 
 `make lint` / `make typecheck` / `make test` 는 위를 FE+BE 로 묶은 것이다. 단 **env 를 source 하지 않으므로** BE pytest 는 셸에 3-env 가 이미 있어야 한다.
@@ -215,9 +215,10 @@ exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 �
   `OSError`(연결 실패)이고, `test_migrations.py` 가 `sqlalchemy.exc.OperationalError` 로 먼저 눈에 띄어
   **코드 회귀처럼 보인다**(2026-08-08 실측, 13분을 버렸다). ⇒ **게이트가 red 면 코드를 의심하기 전에
   「내가 그 게이트를 올바른 환경에서 돌렸나」를 먼저 물어라.**
-  ★워커를 띄우고 싶지 않으면 `docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml up -d db redis`
-  로 **두 서비스만** 올려라. 기본/격리는 `container_name` 이 같아 **동시 운영이 불가능하다** —
-  갈아탈 때는 먼저 `docker compose stop db redis && docker compose rm -f db redis` 로 비워라.
+  ★워커를 띄우고 싶지 않으면 `DC="docker compose --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml"; $DC up -d db redis`
+  로 **두 서비스만** 올려라 (★`--project-directory .` 를 빼면 프로젝트명·볼륨이 `infra/compose` 기준으로
+  파생돼 기존 볼륨이 고아가 된다 — ADR-029). 기본/격리는 `container_name` 이 같아 **동시 운영이
+  불가능하다** — 갈아탈 때는 먼저 `$DC stop db redis && $DC rm -f db redis` 로 비워라.
 - **BE pytest 는 `.env.local` 을 통째로 source 해야 한다.**
   ```bash
   set -a; source .env.local; set +a

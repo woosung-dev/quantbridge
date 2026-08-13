@@ -8,43 +8,47 @@
 
 ## 1. 서비스 구성
 
-| 서비스           | 이미지                                            | 컨테이너 명          | 포트 | 헬스체크         | 영속 볼륨    |
-| ---------------- | ------------------------------------------------- | -------------------- | ---- | ---------------- | ------------ |
-| `db`             | `timescale/timescaledb:2.14.2-pg15`               | `quantbridge-db`     | 5432 | `pg_isready`     | `db-data`    |
-| `redis`          | `redis:7-alpine`                                  | `quantbridge-redis`  | 6379 | `redis-cli ping` | `redis-data` |
-| `backend-worker` | `quant-bridge-backend-worker` (build `./backend`) | `quantbridge-worker` | —    | —                | —            |
-| `backend-beat`   | `quant-bridge-backend-beat` (build `./backend`)   | `quantbridge-beat`   | —    | —                | `beat-data`  |
+| 서비스           | 이미지                                             | 컨테이너 명          | 포트 | 헬스체크         | 영속 볼륨    |
+| ---------------- | -------------------------------------------------- | -------------------- | ---- | ---------------- | ------------ |
+| `db`             | `timescale/timescaledb:2.14.2-pg15`                | `quantbridge-db`     | 5432 | `pg_isready`     | `db-data`    |
+| `redis`          | `redis:7-alpine`                                   | `quantbridge-redis`  | 6379 | `redis-cli ping` | `redis-data` |
+| `backend-worker` | `quant-bridge-backend-worker` (build `./apps/api`) | `quantbridge-worker` | —    | —                | —            |
+| `backend-beat`   | `quant-bridge-backend-beat` (build `./apps/api`)   | `quantbridge-beat`   | —    | —                | `beat-data`  |
 
-> Backend API (uvicorn)와 Frontend (Next.js dev)는 호스트에서 직접 실행 권장 — HMR/디버깅 편의. Worker/Beat는 Sprint 5 M4 T31에서 compose에 통합 완료 (단일 `docker compose up -d`).
+> Backend API (uvicorn)와 Frontend (Next.js dev)는 호스트에서 직접 실행 권장 — HMR/디버깅 편의. Worker/Beat는 Sprint 5 M4 T31에서 compose에 통합 완료 (단일 `make up`).
 
 ---
 
 ## 2. 자주 쓰는 명령
 
 ```bash
+# ★레포 루트에서. compose 직접 호출은 플래그 2종이 필수다 — 프로젝트명·볼륨·컨텍스트가
+#   체크아웃 루트에서 파생돼야 기존 볼륨이 고아가 되지 않는다 (ADR-029). 정문은 make up/down/logs.
+DC="docker compose --project-directory . -f infra/compose/docker-compose.yml"
+
 # 시작 (background)
-docker compose up -d
+$DC up -d
 
 # 상태 확인 (healthy 여부)
-docker compose ps
+$DC ps
 
 # 로그 (실시간)
-docker compose logs -f db
-docker compose logs -f redis
+$DC logs -f db
+$DC logs -f redis
 
 # 중지 (볼륨 보존)
-docker compose down
+$DC down
 
 # 중지 + 볼륨 삭제 (DB 초기화)
-docker compose down -v
+$DC down -v
 
 # 단일 서비스 재시작
-docker compose restart db
+$DC restart db
 
 # 컨테이너 내부 진입
-docker compose exec db bash
-docker compose exec db psql -U quantbridge -d quantbridge
-docker compose exec redis redis-cli
+$DC exec db bash
+$DC exec db psql -U quantbridge -d quantbridge
+$DC exec redis redis-cli
 ```
 
 ---
@@ -56,7 +60,7 @@ docker compose exec redis redis-cli
 - `db-data` — PostgreSQL 데이터 디렉토리
 - `redis-data` — Redis AOF (append-only file)
 
-> `docker compose down -v`는 두 볼륨 모두 삭제. **개발 데이터 손실 주의.**
+> `$DC down -v`는 두 볼륨 모두 삭제. **개발 데이터 손실 주의.**
 
 ### Redis 영속화
 
@@ -86,9 +90,9 @@ OHLCV 시계열 hypertable과 일반 도메인 테이블을 **같은 DB**에서 
 
 ### TimescaleDB extension 활성화
 
-`docker/db/init/` 디렉토리 (compose가 마운트)의 SQL 스크립트가 컨테이너 첫 부팅 시 실행.
+`infra/db/init/` 디렉토리 (compose가 마운트)의 SQL 스크립트가 컨테이너 첫 부팅 시 실행.
 
-> [확인 필요] `docker/db/init/` 내용 — extension 자동 활성화 스크립트 존재 여부. 누락 시 `CREATE EXTENSION IF NOT EXISTS timescaledb;` 추가 필요. Sprint 5 도입 시점에 검증.
+> [확인 필요] `infra/db/init/` 내용 — extension 자동 활성화 스크립트 존재 여부. 누락 시 `CREATE EXTENSION IF NOT EXISTS timescaledb;` 추가 필요. Sprint 5 도입 시점에 검증.
 
 ### 테스트 DB 분리
 
@@ -102,17 +106,17 @@ OHLCV 시계열 hypertable과 일반 도메인 테이블을 **같은 DB**에서 
 ### DB 완전 초기화 (테이블 + 데이터 삭제)
 
 ```bash
-docker compose down -v
-docker compose up -d
+$DC down -v
+$DC up -d
 cd apps/api && uv run alembic upgrade head
 ```
 
 ### Redis 캐시 flush
 
 ```bash
-docker compose exec redis redis-cli -n 0 FLUSHDB   # 캐시만
-docker compose exec redis redis-cli -n 1 FLUSHDB   # Celery 큐만
-docker compose exec redis redis-cli FLUSHALL       # 전체
+$DC exec redis redis-cli -n 0 FLUSHDB   # 캐시만
+$DC exec redis redis-cli -n 1 FLUSHDB   # Celery 큐만
+$DC exec redis redis-cli FLUSHALL       # 전체
 ```
 
 > Celery 큐 flush는 in-flight task 손실 — 워커 정지 후 실행 권장.
@@ -162,12 +166,12 @@ docker compose exec redis redis-cli FLUSHALL       # 전체
 
 ### 9.2 healthcheck failing
 
-- 컨테이너 로그 확인: `docker compose logs db`
+- 컨테이너 로그 확인: `$DC logs db`
 - 디스크 공간 부족, 권한 문제, 메모리 한계 등 점검
 
 ### 9.3 마이그레이션 후 데이터 깨짐
 
-- 로컬: `docker compose down -v` 후 재기동 + `alembic upgrade head`
+- 로컬: `$DC down -v` 후 재기동 + `alembic upgrade head`
 - 프로덕션: 절대 `down -v` 금지. `alembic downgrade` + 백업 복원
 
 ---
