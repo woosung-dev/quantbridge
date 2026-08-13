@@ -1,5 +1,7 @@
 # QuantBridge — Backend
 
+> 위치: `apps/api/` (구 `backend/` — 2026-08-13 [ADR-029](../../docs/decisions/029-monorepo-standard-layout.md) 재배치)
+
 FastAPI + SQLModel + Celery. 100% 비동기. 3-Layer(Router/Service/Repository) 도메인 모듈러.
 
 ## 준비
