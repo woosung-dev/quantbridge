@@ -261,10 +261,17 @@ eod 거부 + 하네스 25케이스/변이 13종) + BL-462 원장·FE 고지 정�
 .claude/worktrees/` · `git for-each-ref refs/heads/` 로 제거 전후 2회 측정. ★**버전 관리 밖이라
 사후 재현은 후행값만 된다**) · `backlog.md` RESOLVED **78건 접기**(본문 −146,412자 제거. ★최종
 파일 크기는 여기 박지 않는다 — 이 문단 자신이 바꾼다, `wc -m` 으로 재라) · `dev-log/` 본문
-**25건(224,137자) git 강등** + 그것을 가리키던 참조 **37곳** 정리(링크 35 + 평문 2).
-★**남은 부채 2건을 다음 세션이 상속한다** — ⑴ `.claude/worktrees/labelsplit` 이 **미커밋 4건**(`metrics.py` ·
-`live_signal.py` · 테스트 2벌)을 안고 살아 있다 ⑵ **dev-log 22회차가 `lessons.md` 승격 없이 내려갔다**
-(`lessons.md` 362/400줄, 여유 38줄). 착수 전 `scripts/soak-gate.sh` 판독은 유지.
+**25건(224,137자) git 강등** + 그것을 가리키던 참조 **37곳** 정리(링크 35 + 평문 2) ·
+**폴더 축 2차 정리**(`.claude` **2.0G → 40K** — 워크트리 11벌 전량 · fleet · plans · 지난 회차 신호
+47벌 · `.backups` 덤프 · `tmp_code` · 캐시 3종 · 빈 디렉터리 7. 전부 gitignored 라 커밋 밖이다) ·
+`phases/bl709/step{2,3,4}-output.json` **2,476,261 bytes** 제거(러너가 쓰기만 하고 안 읽는다).
+★**`.soak`·`.agents`·`docs/dev-log/INDEX.md` 는 건드리지 않았다** — 각각 살아 있는 소크 창 /
+스킬 심볼릭 링크 28개의 실체 / ADR-026 발견 층이다.
+★**남은 부채 1건을 다음 세션이 상속한다** — **dev-log 22회차가 `lessons.md` 승격 없이 내려갔다**
+([BL-716] P1, `lessons.md` 362/400줄이라 자리 확보가 선행). ~~labelsplit 워크트리~~ →
+**2026-08-13 해소** — 미커밋 4건을 `wt/labelsplit` 에 WIP 커밋(`2f91bdb7`)으로 박고 제거했다.
+★**그중 354줄짜리 신규 테스트가 untracked 였다** — 커밋 없이 워크트리만 지웠으면 소실됐다.
+착수 전 `scripts/soak-gate.sh` 판독은 유지.
 ★**착수 첫 명령 둘을 건너뛰지 마라** — ⑴ FE 를 건드릴 회차면 `rm -rf frontend/.next`
 (이 회차엔 **1.3GB** 였고 그 상태에서 dev 서버가 한 번 죽었다) ⑵ **`make be-isolated` 와
 `make fe-isolated` 를 짝으로** 띄워라(`:8100` + `:3100`). 짝이 어긋나면 화면이 조용히 비고

@@ -239,6 +239,16 @@ typecheck·lint·`git diff`·`bl-audit`·`docs-audit`** 이다 — CONTROL 이 �
 
 ### B회차 실측 (2026-08-13, `feat-bl709` · [BL-709])
 
+> ★**tombstone (2026-08-13 docs-diet).** 이 회차의 `phases/bl709/step{2,3,4}-output.json` **3벌
+> (2,476,261 bytes)**을 레포에서 지웠다 — 원문 = `git show 4f921a50:phases/bl709/step<N>-output.json`.
+> 러너가 **쓰기만 하고 다시 읽지 않는** 파일이라(`scripts/execute.py:138`·`:261`) 재실행에 영향이 없고,
+> 이 문서의 아래 표가 그 안의 수치를 이미 뽑아 두었다. `step*.md`·`index.json` 은 남긴다(입력이다).
+>
+> ★★**지우면서 나온 실측 하나 — 실행기가 바뀌면 산출물 부피가 160배 달라진다.**
+> A회차(claude) `step*-output.json` = **3,266~3,649 bytes/step**, B회차(codex) = **556,923~1,288,225
+> bytes/step**. codex 는 전체 트랜스크립트를 통째로 싣는다. 3회차를 돌린다면 **이 부피도 비용 축에
+> 넣어라** — 지금 표의 「같이 재는 것」에는 이 항목이 없었다.
+
 **판본:** `index.json` step 에 `ac` 배열 + `execute.py` 가 `bash -c` 로 재실행해 exit code 로 판정
 (`_run_acceptance` · `AC_TIMEOUT=600`). 자기신고 `completed` 를 **받아들이기 전에** 돌리고,
 하나라도 rc≠0 이면 `↯ AC OVERTURN` 후 기존 retry 경로로 보낸다. **실행기도 `codex exec` 로 바꿨다.**
