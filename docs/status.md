@@ -277,6 +277,18 @@ uninstall 순서 엄수)을 실행한다.**
 `phases/bl709/step{2,3,4}-output.json` **2,476,261 bytes** 제거(러너가 쓰기만 하고 안 읽는다).
 ★**`.soak`·`.agents`·`docs/dev-log/INDEX.md` 는 건드리지 않았다** — 각각 살아 있는 소크 창 /
 스킬 심볼릭 링크 28개의 실체 / ADR-026 발견 층이다.
+
+### ★2026-08-13 contract-poc — [BL-717] 종결 (branch `feat/bl717-contract-poc`)
+
+머지된 #619 위에서 갭 감사가 lint-staged `cd frontend/backend` 잔존 P1 을 먼저 잡아 PR #622 로
+분리 수리(양·음성 대조)했고, 이어서 [BL-717] 을 같은 세션에서 이행했다. 결과 = 결정적 export
+`contracts/openapi/openapi.json`(2회 sha 동일·`--check` 양음성) + 후보 판정 **orval(client:'zod')
+채택**(zod v4 직출력 · tsc strict · 수기 zod/v4 와 공존 vitest 3/3 — 셋째 테스트가 **datetime
+엄격도 역전**을 고정: 계약 Z-only vs 수기 offset 허용, BE 실직렬화 실측 전 런타임 투입 금지).
+hey-api 는 0.99/0.98 모두 자체 TS7 의존 크래시로 실행 불가 탈락. 전문 = [ADR-031]. CI drift
+배선·수기 대체 범위는 ADR-031 §비결정 — ⓪ 표 경유로 별도 회차. ★이 절은 「다음 행동」을 새로
+만들지 않는다 — 살아 있는 지시(위 monorepo-realign 절)는 BL-719 종결 회차(PR #623)가 회수한다.
+
 ★**남은 부채 1건을 다음 세션이 상속한다** — **dev-log 22회차가 `lessons.md` 승격 없이 내려갔다**
 ([BL-716] P1, `lessons.md` 362/400줄이라 자리 확보가 선행). ~~labelsplit 워크트리~~ →
 **2026-08-13 해소** — 미커밋 4건을 `wt/labelsplit` 에 WIP 커밋(`2f91bdb7`)으로 박고 제거했다.

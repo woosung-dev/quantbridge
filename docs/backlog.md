@@ -704,7 +704,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-707](#bl-707) | ★**authed e2e 실패 메시지가 「API 도달 불가」를 「데이터 없음」으로 오지목한다** — 12건이 `make seed`·「시딩 필요」를 지시했지만 실제 원인은 BE 가 `:8100` 에 없었던 것이고, `make seed` 는 전건 「이미 존재」였다. **「데이터가 없다」와 「데이터를 못 가져온다」는 화면에서 똑같이 비어 보인다.** 처방 = 그 단정들 앞에 **API 도달성 프로브**(1회 fetch + 콘솔 `ERR_CONNECTION_REFUSED` 카운트)를 두고, 도달 불가면 시딩이 아니라 **그 사실**을 말하게 한다                                                                                                                                                                                                                                                                                                                                          | authed e2e 를 다시 손댈 때 / 같은 오진이 재발할 때                                                              | S            | 2026-08-12 surface-demo-pack                                 |
 | [BL-708](#bl-708) | ✅ **비결정 원천은 반올림이 아니라 원격 폰트 404 였다** — 지목한 것은 처방이 아니라 **계측**(`NavProbe.subresourceFail`)이다. 계측 전 3회는 19벌 출력이 status/examined/canon 까지 **전건 동일**이라 갈리는 축이 0이었다. 처방 = 「**file:// 대상만 hermetic**」 — 커밋된 정적 산출물일 때만 비-file 요청을 goto 전에 빈 200 으로 봉인하고 봉인량을 `sealed` 로 싣는다(`subresourceFail=0` 을 「네트워크 멀쩡」으로 오독 금지). 판정 계약은 spec 상단 명문화 + `assertCalibrationContract()` 1곳 통합 + **도달 증거**(4폭 status=200 · minExamined>0 · subresourceFail=0 · sealed>0) 동반 단언 — 변이 `widths:[1440,375]` 에서 종전 계약은 **초록**이고 새 단언만 red. 독립 3회 rc=0/0/0 · `22 passed`×3 · 출력 전문 동일 · 최저 대비 4.92/5.41/5.44 고정. ⑵ WARN 강등 **기각**(여유 0.42 < 밴드 ±0.5) | — (해결됨. 봉인은 http 대상의 코드 경로를 안 지난다)                                                            | S            | 2026-08-12 surface-demo-pack                                 |
 | [BL-714](#bl-714) | ★**마감 게이트가 전제하는 브랜치 상태가 문서에 없다** — `signal-check.sh` 의 앵커 A1 이 `merge-base == HEAD` 를 **먼저** 보고 `no-branch-commits` rc=1 을 내므로, 회차를 증분 머지해 main 이 깨끗해진 뒤에는 신호 4종이 **구조적으로 초록이 될 수 없다**(sha 가 HEAD 와 같아도 A2 에 닿지 못한다). A1 자체는 옳다 — 그것이 없으면 main 에서 아무 신호나 통과한다. 갭은 **문서**다: §G8 과 ⓸ ④ 는 「마지막 커밋 뒤 게이트」라고만 하고 **「그 커밋이 아직 머지되지 않은 브랜치에 있어야 한다」를 말하지 않는다**. 2026-08-12 회차가 CI 확인 후 즉시 머지(사용자 결정)했다가 정확히 그 상태에 빠졌다                                                                                                                                                                                                     | 마감 절차를 다시 쓸 때 / 같은 상태에 또 빠질 때                                                                 | XS-S         | 2026-08-12 surface-demo-pack                                 |
-| [BL-717](#bl-717) | ⏳ **API 계약축 PoC — OpenAPI export + 생성 client 후보 비교**. 회사 표준의 계약축(contracts/ OpenAPI SSOT)이 없다(실측: codegen 의존성 0 · export 스크립트/CI 0 · FE 는 수기 `api-client.ts`+Zod). 처방 = ① `apps/api` 에 결정적 openapi.json export(정렬 직렬화) → `contracts/openapi/` ② 엔드포인트 2~3개로 후보 3종(`openapi-typescript`+`openapi-fetch` / `orval` / `@hey-api/openapi-ts` — 착수 시 현행성 재확인) 생성 비교. AC = tsc strict · **zod v4(`zod/v4` import) 호환 실증** · 수기 타입과 구조 diff · CI drift 게이트(재실행 diff=0) 스케치 · 번들 수치. ★전면 전환은 비목표 — 채택 후보 1개와 범위만 결론(ADR-030 초안)                                                                                                                                                                | PR-1(ADR-029 재배치) 머지 후                                                                                    | M            | 2026-08-13 monorepo-realign                                  |
+| [BL-717](#bl-717) | ✅ **API 계약축 PoC — Resolved** (2026-08-13 contract-poc, [ADR-031]). 결정적 export `contracts/openapi/openapi.json`(2회 sha 동일·`--check` 양음성 실증) + 후보 판정 = **orval(client:'zod') 채택**(zod v4 직출력·tsc strict·수기와 공존 vitest 3/3). hey-api 는 자체 TS7 의존 크래시로 실행 불가 탈락. ★구조 diff 핵심 = **datetime 엄격도 역전**(계약 Z-only vs 수기 offset 허용 — BE 실직렬화 실측 전 런타임 투입 금지). 번들 3endpoint 2.9KB gz. CI 배선·전면 전환은 [ADR-031] §비결정                                                                                                                                                                                                                                                                                                            | PR-1(ADR-029 재배치) 머지 후                                                                                    | M            | 2026-08-13 monorepo-realign                                  |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -7404,10 +7404,16 @@ C 14건 중 13건이 `feat/h2s9`~`h2s12` 계열이고 마지막 커밋이 2026-0
 **Priority:** P2
 **Trigger:** PR-1(모노레포 재배치, [ADR-029]) 머지 후
 **Est:** M
-**상태:** ⏳ **대기 (트리거 미도래)** — 회사 표준 구조의 계약축(`contracts/` OpenAPI SSOT → 생성 client)이
-QuantBridge 에 없다. 실측(2026-08-13): FE codegen 의존성 0 · openapi export 스크립트/CI 스텝 0 ·
-FE 는 수기 `apps/web/src/lib/api-client.ts` + Zod v4 스키마 체계다.
-**트리거 판정:** 미도래 — `contracts/` 배치와 client 생성 경로가 신 레이아웃(apps/)을 전제한다. PR-1 미머지.
+**상태:** ✅ **Resolved** (2026-08-13 contract-poc, [ADR-031]) — AC 5종 전부 이행. ① 결정적 export
+(`apps/api/scripts/export_openapi.py` → `contracts/openapi/openapi.json`, 2회 sha 동일 + `--check`
+양·음성 실증) ② 후보 판정 = **orval(client:'zod') 채택** — zod v4 API 직출력·tsc strict·수기(zod/v4)와
+런타임 공존 vitest 3/3. openapi-typescript 는 타입 전용 차점, hey-api 는 0.99/0.98 모두 자체 TS7
+의존과 비호환 크래시로 **실행 불가 탈락** ③ 구조 diff: Decimal→string 충실 · **datetime 엄격도
+역전**(계약 Z-only vs 수기 offset 허용 — BE 실직렬화 실측 전 런타임 경계 투입 금지) ④ drift 게이트
+스케치(ci.yml 미배선 — 도입 회차 몫) ⑤ 번들 = 3endpoint 2.9KB min+gz(zod external·현재 delta 0,
+ANALYZE 대비는 판별력 0 이라 esbuild 한계비용으로 대체·사유 ADR 명기). 전면 전환·CI 배선·datetime
+실측은 [ADR-031] §비결정.
+~~**트리거 판정:** 미도래 — PR-1 미머지.~~ → **2026-08-13 도래**(PR #619 머지)·같은 날 이행.
 **출처:** 2026-08-13 monorepo-realign (사용자 결정 ③ 「PoC 먼저」)
 
 **처방:**
@@ -7421,7 +7427,8 @@ FE 는 수기 `apps/web/src/lib/api-client.ts` + Zod v4 스키마 체계다.
    `apps/web/AGENTS.md` §8 — v3 경로 `"zod"` 금지와 공존하는가) ⑶ 기존 `features/[domain]/api.ts`
    수기 타입과 생성 타입의 구조 diff 리포트 ⑷ CI drift 게이트 스케치(export 재실행 diff=0)
    ⑸ 번들 영향 수치(`ANALYZE=1`).
-4. 결론 = 채택 후보 1개 + 도입 범위. **전면 전환은 비목표** — 별도 회차(ADR-030 초안으로 기록).
+4. 결론 = 채택 후보 1개 + 도입 범위. **전면 전환은 비목표** — 별도 회차(~~ADR-030~~ →
+   **[ADR-031]** 로 기록 — 030 은 harness-pilot-verdict 가 선점, PR #623).
 
 ### BL-718
 
