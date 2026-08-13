@@ -38,7 +38,21 @@ const config = [
   prettier,
   {
     // src/**/generated/** — 코드젠 산출물(BL-717 PoC). header-audit 의 /generated/ 면제와 같은 축.
-    ignores: [".next*/**", "node_modules/**", "dist/**", "coverage/**", "src/**/generated/**"],
+    // ★`test-results/` · `playwright-report/` 는 **실행 산출물**이다(둘 다 `.gitignore` 에 있다).
+    //   Playwright 는 실패 시 `test-results/.playwright-artifacts-*/traces/resources/*.js` 로
+    //   페이지의 **minified 번들 사본**을 떨군다. 그것까지 lint 하면 남의 코드가 우리 규칙에
+    //   걸려 `no-unused-vars` **error** 가 나고, 그 결과 「e2e 를 돌린 뒤 lint 를 돌리면 red」가
+    //   된다(2026-08-14 실측 — `final-gates` 가 FE lint FAIL 1건을 냈고 원인이 이것이었다).
+    //   게이트 순서상 lint 가 e2e 보다 앞이라 평소엔 안 걸리고 **연속 실행에서만** 걸린다.
+    ignores: [
+      ".next*/**",
+      "node_modules/**",
+      "dist/**",
+      "coverage/**",
+      "src/**/generated/**",
+      "test-results/**",
+      "playwright-report/**",
+    ],
   },
   {
     rules: {
