@@ -5141,8 +5141,10 @@ context and reduce adherence」. [ADR-027] 배치에서는 그 디렉터리 파�
 
 **부트스트랩을 우회해 만든 워크트리는 husky 훅이 없다.**
 
-**사슬** — `herdr-fleet.sh:234` 가 워크트리 생성 후 `worktree-bootstrap.sh --adopt-env` 를 부르고,
-그것이 `pnpm install --frozen-lockfile`(:356)을 돌리면 `package.json` 의 `"prepare": "husky"` 가
+**사슬** — ~~`herdr-fleet.sh:234` 가 워크트리 생성 후 `worktree-bootstrap.sh --adopt-env` 를 부르고~~
+(★2026-08-13 [ADR-030] 이 `herdr-fleet.sh` 를 제거 — 앞 고리는 이제 없다. 현행 진입은
+`tools/scripts/worktree-bootstrap.sh --adopt-env` **직접 호출**이고 뒤 고리는 그대로다),
+그 부트스트랩이 `pnpm install --frozen-lockfile`(:356)을 돌리면 `package.json` 의 `"prepare": "husky"` 가
 실행돼 `.husky/_` 가 생긴다. 이 경로를 건너뛰면 `.husky/_` 가 없고, git 은 존재하지 않는
 `core.hooksPath` 를 **경고도 exit code 도 없이 무시**한다.
 
@@ -7461,7 +7463,10 @@ backend 3레인 발화 + FE 정상 skip 을 실증. 이행 중 실물 결함 1�
    ③ `scripts/soak-stack.sh down`(★소크 창 단절 불가피 — 머지 타이밍은 PASS 표본 직후 권장)
    ④ `git pull` ⑤ `mkdir -p apps/api/.metrics && mv backend/.metrics/*.db apps/api/.metrics/`
    (prometheus counter 연속) + 서버 `.env` 의 구경로 명시값 점검 ⑥ `tools/scripts/soak-stack.sh pin
-<merge-sha>` → `up` ⑦ `tools/scripts/soak-gate.sh --install` + 수동 1회 PASS.
+<merge-sha>` → `up` ⑦ `tools/scripts/soak-gate.sh --install` + 수동 1회 ~~PASS~~ 판독
+   (★2026-08-13 이행이 이 전제를 반증 — PASS 판정은 C1 「24h 창 3회」라 **리셋 직후 정의상 불가**.
+   실측 가능한 AC 는 「게이트 실행 정상 + C5 측정 무결 6/6 + stack_pinned ✓」이고 그것으로 판정했다.
+   codex 적대 리뷰 G6-F1 이 절차·기록의 이 불일치를 지적해 여기 박는다).
 2. **맥 LaunchAgent** — `tools/scripts/nightly-real-broker-local.sh --install` 재실행
    (plist ProgramArguments·WorkingDirectory 가 구 `scripts/` 절대경로).
 3. **각 체크아웃 untracked 이행** — `.env.local` 2벌 mv · `.venv` 는 mv 금지(`cd apps/api && uv sync`
