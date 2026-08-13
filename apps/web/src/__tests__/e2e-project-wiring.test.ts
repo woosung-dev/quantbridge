@@ -111,4 +111,17 @@ describe("e2e project 배선", () => {
         "잔여 전체를 가져가고 다른 project 몫만 testIgnore 로 빼는 형태여야 한다.",
     ).toBe(false);
   });
+
+  it("authed 전용 도달성 setup 만 chromium-authed 를 막는다", () => {
+    const projects = config.projects ?? [];
+    const reachability = projects.find((p) => p.name === "setup-authed-reachability");
+    const authed = projects.find((p) => p.name === "chromium-authed");
+    const publicChromium = projects.find((p) => p.name === "chromium");
+
+    expect(reachability, "authed 도달성 setup project 가 사라졌다").toBeTruthy();
+    expect(reachability?.testMatch).toEqual(/authed-reachability\.setup\.ts$/);
+    expect(reachability?.dependencies).toEqual(["setup", "setup-identity"]);
+    expect(authed?.dependencies).toEqual(["setup-authed-reachability"]);
+    expect(publicChromium?.dependencies).toEqual(["setup-identity"]);
+  });
 });
