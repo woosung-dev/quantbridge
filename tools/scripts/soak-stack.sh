@@ -210,7 +210,9 @@ _pin() {
   mkdir -p "${SRC_DIR}"
   # `git archive` 는 **추적된 파일만** 담는다. apps/api/src 의 미추적은 __pycache__ 뿐이고
   # 이미지가 PYTHONDONTWRITEBYTECODE=1 이라 없어도 된다(2026-08-04 실측).
-  (cd "${ROOT}" && git archive "${sha}" apps/api/src) | tar -x --strip-components=2 -C "${SRC_DIR}" \
+  # ★strip-components 는 아카이브 경로의 **단 수**다 — apps/api/src = 3 (구 backend/src = 2).
+  #   ADR-029 재배치 롤아웃에서 2 로 남아 「스냅샷이 비었다」로 실측 발화(2026-08-13 소크 서버).
+  (cd "${ROOT}" && git archive "${sha}" apps/api/src) | tar -x --strip-components=3 -C "${SRC_DIR}" \
     || die "스냅샷 생성 실패" 1
 
   [ -f "${SRC_DIR}/tasks/celery_app.py" ] || die "스냅샷이 비었다 — tasks/celery_app.py 가 없다" 1
