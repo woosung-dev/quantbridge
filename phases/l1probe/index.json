@@ -1,0 +1,19 @@
+{
+  "project": "QuantBridge",
+  "phase": "l1probe",
+  "steps": [
+    {
+      "step": 1,
+      "name": "sandbox-boundary-probe",
+      "status": "completed",
+      "summary": "SANDBOX-NET=성공 (rc=0, HTTP 200) SANDBOX-BE=거부 (파이프라인 rc=0이나 uv 캐시 초기화에서 Operation not permitted) SANDBOX-GATE=거부 (파이프라인 rc=0이나 dirty worktree 안내와 기존 변경 목록 출력)",
+      "ac": [
+        "cd \"$(git rev-parse --show-toplevel)/frontend\" && pnpm typecheck",
+        "cd \"$(git rev-parse --show-toplevel)\" && grep -q 'SANDBOX-NET=' phases/l1probe/index.json && grep -q 'SANDBOX-BE=' phases/l1probe/index.json && grep -q 'SANDBOX-GATE=' phases/l1probe/index.json",
+        "cd \"$(git rev-parse --show-toplevel)\" && test -z \"$(git diff HEAD --name-only -- frontend/ backend/ docs/ scripts/)\""
+      ],
+      "started_at": "2026-08-13T10:58:27+0900"
+    }
+  ],
+  "created_at": "2026-08-13T10:58:27+0900"
+}

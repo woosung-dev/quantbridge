@@ -433,10 +433,13 @@ class TestInvokeClaude:
             output = executor._invoke_claude(step, preamble)
 
         # B회차 개조 — 실행기가 claude -p 에서 codex exec 로 바뀌었다.
+        # L1 — 샌드박스로 범위를 강제한다. workspace-write 는 네트워크를 막으므로
+        # BE pytest·e2e·게이트가 구조적으로 불가능해진다 (금지 문장 없이 금지된다).
         cmd = mock_run.call_args[0][0]
         assert cmd[0] == "codex"
         assert "exec" in cmd
-        assert "--dangerously-bypass-approvals-and-sandbox" in cmd
+        assert cmd[cmd.index("-s") + 1] == "workspace-write"
+        assert "--dangerously-bypass-approvals-and-sandbox" not in cmd
         assert "--output-format" not in cmd  # claude 전용 플래그
         assert "PREAMBLE" in cmd[-1]
         assert "UI를 구현하세요" in cmd[-1]

@@ -240,7 +240,7 @@ class StepExecutor:
 
         prompt = preamble + step_file.read_text()
         result = subprocess.run(
-            ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", prompt],
+            ["codex", "exec", "-s", "workspace-write", prompt],
             cwd=self._root, capture_output=True, text=True, timeout=2700,
         )
 
