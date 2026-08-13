@@ -12,7 +12,8 @@
         "cd \"$(git rev-parse --show-toplevel)\" && grep -q 'SANDBOX-NET=' phases/l1probe/index.json && grep -q 'SANDBOX-BE=' phases/l1probe/index.json && grep -q 'SANDBOX-GATE=' phases/l1probe/index.json",
         "cd \"$(git rev-parse --show-toplevel)\" && test -z \"$(git diff HEAD --name-only -- frontend/ backend/ docs/ scripts/)\""
       ],
-      "started_at": "2026-08-13T10:58:27+0900"
+      "started_at": "2026-08-13T10:58:27+0900",
+      "completed_at": "2026-08-13T11:04:58+0900"
     }
   ],
   "created_at": "2026-08-13T10:58:27+0900"
