@@ -240,7 +240,10 @@ typecheck·lint·`git diff`·`bl-audit`·`docs-audit`** 이다 — CONTROL 이 �
 ### B회차 실측 (2026-08-13, `feat-bl709` · [BL-709])
 
 > ★**tombstone (2026-08-13 docs-diet).** 이 회차의 `phases/bl709/step{2,3,4}-output.json` **3벌
-> (2,476,261 bytes)**을 레포에서 지웠다 — 원문 = `git show 4f921a50:phases/bl709/step<N>-output.json`.
+> (2,476,261 bytes)**을 레포에서 지웠다 — 원문 = `git show 8abd0d67:phases/bl709/step<N>-output.json`.
+> ★**SHA 는 main 조상인 `8abd0d67`(PR #616)을 쓴다** — 처음엔 이 회차 브랜치 커밋을 적었는데, squash
+> 머지 뒤에는 그 커밋이 main 에서 도달 불가라 **새 클론에서 열리지 않는 tombstone** 이 됐을 것이다.
+> tombstone 의 SHA 는 **main 조상인지 먼저 확인해라**(`git merge-base --is-ancestor <sha> origin/main`).
 > 러너가 **쓰기만 하고 다시 읽지 않는** 파일이라(`scripts/execute.py:138`·`:261`) 재실행에 영향이 없고,
 > 이 문서의 아래 표가 그 안의 수치를 이미 뽑아 두었다. `step*.md`·`index.json` 은 남긴다(입력이다).
 >
