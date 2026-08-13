@@ -65,7 +65,8 @@ Trading(CCXT 주문 — 계정 모드는 **Bybit demo 만**) / Market Data(Times
 - 기본: `make up` / `make be` / `make fe` → 3000/8000/5432/6379 · 격리: `make up-isolated` 계열 →
   3100/8100/5433/6380. 자세한 타깃은 `make help`
 - 워크트리 병렬 = **슬롯**(FE `3100+N` / BE `8100+N` / pytest DB `quantbridge_w{N}_test`).
-  `tools/scripts/herdr-fleet.sh`(★메인 체크아웃 전용) · 워크트리 단독은 `./tools/scripts/worktree-bootstrap.sh --adopt-env`
+  `./tools/scripts/worktree-bootstrap.sh --adopt-env` 가 슬롯·테스트DB·env 를 붙인다.
+  ★herdr 함대 래퍼(`herdr-fleet.sh`·`fleet-dispatch.sh`)는 **2026-08-13 제거**([ADR-030](docs/decisions/030-harness-pilot-verdict.md))
 - NEVER — 워크트리에서 `make up`/`down`/`migrate`/`seed` — 컨테이너·앱 DB 는 1벌 공유라 함께 깨진다
 - NEVER — 워크트리에서 celery 경유 검증(백테스트·라이브신호·옵티마이저) — worker 는 메인의 `src` 를
   mount 하므로 **내 코드가 아니라 메인 코드가 돈다**(침묵 실패).
@@ -99,6 +100,6 @@ codex 는 **가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구�
 
 - `apps/api/src/<도메인>/` — router/service/repository/schemas/models · `apps/api/src/strategy/pine_v2/` — 인터프리터 SSOT
 - `apps/web/src/` — Next.js 16 FSD Lite (`app`/`components`/`features`/`hooks`/`lib`/`store`)
-- `tools/scripts/` — 게이트·감사·함대 셸 (`bl-audit` · `docs-audit` · `context-budget` · `soak-gate` · `herdr-fleet`)
+- `tools/scripts/` — 게이트·감사 셸 (`final-gates` · `bl-audit` · `docs-audit` · `context-budget` · `soak-gate`) + 그 하네스 `*-test.sh` 8종
 - `docs/` — 상태 3종 + `reference/` + `decisions/` + `lessons.md` (지도: `docs/README.md`)
 - `apps/api/AGENTS.md` · `apps/web/AGENTS.md` — 스택 규칙 (같은 자리 `CLAUDE.md` = `@AGENTS.md` 한 줄)
