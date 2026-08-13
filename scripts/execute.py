@@ -220,12 +220,16 @@ class StepExecutor:
             f"해당 step `ac` 배열이다. 각 원소를 bash -c 로 순서대로 직접 실행해 전건 rc=0 을 확인하라.\n"
             f"   ★러너는 네 신고를 믿지 않고 같은 ac 를 **독립적으로 재실행**한다. 하나라도 rc≠0 이면 "
             f"\"completed\" 는 취소되고 재시도로 돌아간다 — 자기신고만으로는 통과하지 못한다.\n"
+            f"   ★검증은 그 `ac` 배열이 **전부**다. `scripts/final-gates.sh`·backend 전량 pytest·e2e 를 "
+            f"돌리지 말고 `.claude/gates/` 에 신호 파일을 만들지 마라. 이유: 그 게이트는 회차 단위이고 "
+            f"PR 직전에 사람이 한 번 돌린다 — step 마다 돌리면 회차가 수십 분씩 늘어난다(2026-08-13 실측 66분).\n"
             f"5. /phases/{self._phase_dir_name}/index.json의 해당 step status를 업데이트하라:\n"
             f"   - AC 통과 → \"completed\" + \"summary\" 필드에 이 step의 산출물을 한 줄로 요약\n"
             f"   - {self.MAX_RETRIES}회 수정 시도 후에도 실패 → \"error\" + \"error_message\" 기록\n"
             f"   - 사용자 개입이 필요한 경우 (API 키, 인증, 수동 설정 등) → \"blocked\" + \"blocked_reason\" 기록 후 즉시 중단\n"
-            f"6. 모든 변경사항을 커밋하라:\n"
-            f"   {commit_example}\n\n---\n\n"
+            f"6. **커밋하지 마라. 커밋은 러너가 한다** (`{commit_example}` 형식으로 자동 생성된다).\n"
+            f"   이유: 네가 커밋하면 「마지막 커밋 뒤에는 게이트」 같은 회차 단위 규칙의 트리거가 당겨지고, "
+            f"러너 커밋과 겹쳐 step 당 커밋이 2개가 된다.\n\n---\n\n"
         )
 
     # --- Claude 호출 ---
