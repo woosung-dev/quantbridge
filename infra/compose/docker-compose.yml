@@ -1,0 +1,214 @@
+# QuantBridge — 로컬 개발 환경
+# Phase 0 Session 1 (ADR-002)
+# 실행: docker compose up -d
+
+services:
+  # PostgreSQL + TimescaleDB extension (단일 인스턴스)
+  # OHLCV 시계열은 hypertable로, 일반 테이블은 public 스키마로 분리 운영
+  db:
+    image: timescale/timescaledb:2.14.2-pg15
+    container_name: quantbridge-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-quantbridge}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-quantbridge}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./infra/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-quantbridge} -d ${POSTGRES_DB:-quantbridge}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantbridge
+
+  # Redis — 캐시 + Celery 브로커 + Celery 결과 백엔드
+  # DB 0: 캐시, DB 1: Celery broker, DB 2: Celery result backend
+  #
+  # ★`--auto-aof-rewrite-min-size 8mb` — [BL-594]. redis 기본값은 64mb 이고, rewrite 는
+  #   **크기 조건과 증가율 조건을 둘 다** 넘어야 발동한다. base RDB 가 작으면(실측 88바이트)
+  #   증가율은 늘 만족하므로 **크기 조건만 남는다** — 그래서 incr 파일이 64MB 에 닿을 때까지
+  #   한 번도 rewrite 되지 않는다(실측: 10MB 를 넣어도 `aof_rewrites:0`). 프로덕션의 incr 이
+  #   6일 동안 35.6MB 로 자라 그중 86.6% 가 판독 불가가 된 채 재기동 불능이었던 경로다.
+  #   rewrite 는 메모리에서 base 를 새로 쓰고 **낡은 incr 파일을 지운다** — 즉 손상된 incr 을
+  #   폐기한다(실측: 손상 주입 → rewrite → 재기동 성공). 8mb 면 노출 창이 35.6MB → ~8MB 로
+  #   줄고, 관측된 쓰기량(~6MB/일) 기준 하루에 한 번꼴로 낡은 incr 이 폐기된다.
+  #   ★`appendfsync`(기본 everysec)와 `stop_grace_period` 는 **기각**했다 — 실측 근거는
+  #   `docs/backlog.md` [BL-594].
+  redis:
+    image: redis:7-alpine
+    container_name: quantbridge-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --auto-aof-rewrite-min-size 8mb --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - quantbridge
+
+  # Backtest worker — Celery prefork (vectorbt/asyncpg fork-safe)
+  backend-worker:
+    build:
+      context: ./apps/api
+    container_name: quantbridge-worker
+    command: uv run celery -A src.tasks.celery_app worker --loglevel=info --pool=prefork --concurrency=2
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      PROMETHEUS_MULTIPROC_DIR: /metrics
+      QB_METRICS_ROLE: worker
+      LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      OHLCV_PROVIDER: ${OHLCV_PROVIDER:-timescale}
+      OHLCV_FIXTURE_ROOT: /app/data/fixtures/ohlcv
+      DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
+      BACKTEST_STALE_THRESHOLD_SECONDS: ${BACKTEST_STALE_THRESHOLD_SECONDS:-1800}
+      PINE_ALERT_HEURISTIC_MODE: ${PINE_ALERT_HEURISTIC_MODE:-strict}
+      TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
+    volumes:
+      - ./apps/api/.metrics:/metrics
+    restart: unless-stopped
+    networks:
+      - quantbridge
+
+  # Sprint 12 Phase C — Bybit Private WebSocket stream worker
+  # ws_stream queue 전용 (concurrency=1 — codex G3 #5/#7 dogfood 1-user 가정).
+  # acks_late + reject_on_worker_lost 는 celery_app.conf 에서 설정.
+  # Sprint 24 BL-012: prefork 복귀 (Sprint 12 G4 revisit `--pool=solo` 한계 해소).
+  # Redis distributed lease (BL-011, src/tasks/_ws_lease.py) + worker_process_shutdown
+  # 이 signal_all_stop_events() 호출 (codex G.0 P1 #2). multi-account 사용자 지원.
+  backend-ws-stream:
+    build:
+      context: ./apps/api
+    container_name: quantbridge-ws-stream
+    # 계정 N개 private stream + public ticker 1개이므로 N + 1 ≤ concurrency를 유지한다.
+    # Sprint 12 G4 revisit `--pool=solo` 한계 해소 — prefork child 가 worker_process_shutdown
+    # 에서 signal_all_stop_events() 호출 (celery_app.py 참조). dogfood multi-account 지원.
+    command: uv run celery -A src.tasks.celery_app worker -Q ws_stream --pool=prefork --concurrency=3 --loglevel=info
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      PROMETHEUS_MULTIPROC_DIR: /metrics
+      QB_METRICS_ROLE: wsstream
+      LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    volumes:
+      - ./apps/api/.metrics:/metrics
+    restart: unless-stopped
+    networks:
+      - quantbridge
+
+  # Sprint 57 BL-237 — Optimizer heavy queue dedicated worker.
+  # optimizer_heavy queue 전용 (concurrency=1 — 단일 optimizer run = CPU/메모리 집중 작업).
+  # soft_time_limit=600 / time_limit=660 은 optimizer_tasks.py 데코레이터 에서 설정.
+  backend-optimizer-heavy:
+    build:
+      context: ./apps/api
+    container_name: quantbridge-optimizer-heavy
+    command: uv run celery -A src.tasks.celery_app worker -Q optimizer_heavy --pool=prefork --concurrency=1 --loglevel=info
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      PROMETHEUS_MULTIPROC_DIR: /metrics
+      QB_METRICS_ROLE: optheavy
+      LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      # optimizer.run 은 이 큐로만 라우팅되고(`celery_app.py` task_routes) 이 컨테이너가
+      # 유일한 소비자다. 아래 3종이 없으면 `ohlcv_provider` 가 코드 기본값 "fixture" 로
+      # 떨어지고 `ohlcv_fixture_root` 는 CWD(/app) 상대라 `/app/apps/api/data/...` 로 풀려
+      # 존재하지 않는다 → 모든 optimizer 실행이 OHLCVFixtureNotFound 로 죽는다.
+      # backend-worker 와 동일하게 맞춘다.
+      OHLCV_PROVIDER: ${OHLCV_PROVIDER:-timescale}
+      OHLCV_FIXTURE_ROOT: /app/data/fixtures/ohlcv
+      DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
+      TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    volumes:
+      - ./apps/api/.metrics:/metrics
+    restart: unless-stopped
+    networks:
+      - quantbridge
+
+  # Beat scheduler — reclaim_stale_running 5분 주기 (M3 T29) + ws_reconcile 5분 (Sprint 12)
+  # Settings() 가 src.core.config import 시 trading_encryption_keys 등 require →
+  # backend-worker 와 동일 env 셋업.
+  backend-beat:
+    build:
+      context: ./apps/api
+    container_name: quantbridge-beat
+    command: uv run celery -A src.tasks.celery_app beat --loglevel=info --schedule=/data/celerybeat-schedule
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      PROMETHEUS_MULTIPROC_DIR: /metrics
+      QB_METRICS_ROLE: beat
+      LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
+      REDIS_URL: redis://redis:6379/0
+      REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/2
+      OHLCV_PROVIDER: ${OHLCV_PROVIDER:-timescale}
+      OHLCV_FIXTURE_ROOT: /app/data/fixtures/ohlcv
+      DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
+      BACKTEST_STALE_THRESHOLD_SECONDS: ${BACKTEST_STALE_THRESHOLD_SECONDS:-1800}
+      PINE_ALERT_HEURISTIC_MODE: ${PINE_ALERT_HEURISTIC_MODE:-strict}
+      TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+    volumes:
+      - ./apps/api/.metrics:/metrics
+      - beat-data:/data
+    restart: unless-stopped
+    networks:
+      - quantbridge
+
+volumes:
+  db-data:
+  redis-data:
+  # beat-data 소유권은 apps/api/Dockerfile 의 /data seed(appuser)가 첫 생성 시 복사됨.
+  # 픽스 이전에 만들어진 root-소유 볼륨은 `docker volume rm <project>_beat-data` 후 재생성.
+  beat-data:
+
+networks:
+  quantbridge:
+    driver: bridge

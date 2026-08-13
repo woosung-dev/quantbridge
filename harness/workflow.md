@@ -14,28 +14,28 @@
 **원문의 경로·명령은 Next.js 템플릿 프로젝트 기준이다.** 아래를 치환하지 않고 step 파일을 쓰면
 존재하지 않는 파일을 읽으라는 지시가 되고, AC 가 실행되지 않는다(2026-08-12 codex 리뷰 P1 3건).
 
-| 원문 위치                                            | 원문                                       | 이 레포                                                                                       |
-| ---------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| §A · §D-3「읽어야 할 파일」                          | `/docs/ARCHITECTURE.md` · `/docs/ADR.md`   | ★**그런 파일 없다.** 공통 규칙은 이미 주입되므로 여기엔 **이 step 에만 필요한 실제 경로**를 적어라 (`docs/reference/**`, 이전 step 산출물) |
-| §D-3 Acceptance Criteria                             | `npm run build` · `npm test`               | ★**루트 `package.json` 에 그 스크립트가 없다**(`scripts` = `prepare` 하나뿐). 아래 실제 커맨드를 써라 |
-| §D-3 검증 절차 2「아키텍처 체크리스트」              | `ARCHITECTURE.md` · `ADR` · `CLAUDE.md CRITICAL` | `AGENTS.md` Golden Rules · `backend/AGENTS.md` · `frontend/AGENTS.md`                     |
-| §E 실행                                              | `--push`                                   | **쓰지 마라** — 승인 없는 push 는 Golden Rule 위반                                            |
-| §E「자동 처리」가드레일 주입                         | `CLAUDE.md + docs/*.md`                    | `CLAUDE.md + harness/docs/*.md` (`execute.py:182`) — 슬롯 내용은 [`README.md`](README.md) §2   |
+| 원문 위치                               | 원문                                             | 이 레포                                                                                                                                    |
+| --------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| §A · §D-3「읽어야 할 파일」             | `/docs/ARCHITECTURE.md` · `/docs/ADR.md`         | ★**그런 파일 없다.** 공통 규칙은 이미 주입되므로 여기엔 **이 step 에만 필요한 실제 경로**를 적어라 (`docs/reference/**`, 이전 step 산출물) |
+| §D-3 Acceptance Criteria                | `npm run build` · `npm test`                     | ★**루트 `package.json` 에 그 스크립트가 없다**(`scripts` = `prepare` 하나뿐). 아래 실제 커맨드를 써라                                      |
+| §D-3 검증 절차 2「아키텍처 체크리스트」 | `ARCHITECTURE.md` · `ADR` · `CLAUDE.md CRITICAL` | `AGENTS.md` Golden Rules · `apps/api/AGENTS.md` · `apps/web/AGENTS.md`                                                                     |
+| §E 실행                                 | `--push`                                         | **쓰지 마라** — 승인 없는 push 는 Golden Rule 위반                                                                                         |
+| §E「자동 처리」가드레일 주입            | `CLAUDE.md + docs/*.md`                          | `CLAUDE.md + harness/docs/*.md` (`execute.py:182`) — 슬롯 내용은 [`README.md`](README.md) §2                                               |
 
 **AC 에 실제로 쓸 커맨드** (`AGENTS.md` §Operational Commands · 워커 규칙 5):
 
 ```bash
-# BE — ★cd 는 절대경로로. `cd backend && …` 를 같은 셸에서 두 번 돌리면 거짓 red 가 난다
+# BE — ★cd 는 절대경로로. `cd apps/api && …` 를 같은 셸에서 두 번 돌리면 거짓 red 가 난다
 cd /Users/woosung/project/agy-project/quant-bridge/backend; set -a; . ./.env.local; set +a; uv run pytest tests/<대상>
 
 # FE
-cd frontend && pnpm test        # vitest
-cd frontend && pnpm typecheck
-cd frontend && pnpm build
+cd apps/web && pnpm test        # vitest
+cd apps/web && pnpm typecheck
+cd apps/web && pnpm build
 
 # 문서·게이트
-./scripts/docs-audit.sh
-./scripts/bl-audit.sh
+./tools/scripts/docs-audit.sh
+./tools/scripts/bl-audit.sh
 ```
 
 ★**§E 를 실행하기 전에 [`README.md`](README.md) §3.1 의 위험 6건과 preflight 2개를 읽어라.**
@@ -173,8 +173,8 @@ npm test        # 테스트 통과
 ### E. 실행
 
 ```bash
-python3 scripts/execute.py {task-name}        # 순차 실행
-python3 scripts/execute.py {task-name} --push  # 실행 후 push  ← ★이 레포에서는 쓰지 마라
+python3 tools/scripts/execute.py {task-name}        # 순차 실행
+python3 tools/scripts/execute.py {task-name} --push  # 실행 후 push  ← ★이 레포에서는 쓰지 마라
 ```
 
 execute.py가 자동으로 처리하는 것:

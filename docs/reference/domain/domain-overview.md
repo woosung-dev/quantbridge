@@ -1,20 +1,20 @@
 # QuantBridge 도메인 개요
 
-> **역할:** 도메인 경계와 책임의 짧은 지도. 구현은 `backend/src/<domain>/`, DB 관계는 [`erd.md`](./erd.md), 상태 전이는 [`state-machines.md`](./state-machines.md), API 경계는 [`endpoints.md`](../interfaces/endpoints.md)가 정본이다.
+> **역할:** 도메인 경계와 책임의 짧은 지도. 구현은 `apps/api/src/<domain>/`, DB 관계는 [`erd.md`](./erd.md), 상태 전이는 [`state-machines.md`](./state-machines.md), API 경계는 [`endpoints.md`](../interfaces/endpoints.md)가 정본이다.
 
 ## 경계
 
-| 도메인 | 책임 | 주요 영속 모델 |
-| --- | --- | --- |
-| `auth` | Clerk 검증과 사용자 동기화 | User |
-| `strategy` | Pine 등록·파싱·지원 범위·`pine_v2` 실행 준비 | Strategy |
-| `backtest` | 비동기 실행과 결과·거래 보관 | Backtest, BacktestTrade |
-| `market_data` | OHLCV·Funding 수집과 TimescaleDB 보관 | OHLCV, FundingRate |
-| `stress_test` | Monte Carlo·Walk-Forward·민감도 분석 | StressTest |
-| `optimizer` | Grid·Bayesian·Genetic 탐색 | OptimizationRun |
-| `trading` | Demo 계정·주문·리스크·Kill Switch·LiveSignal session | ExchangeAccount, Order, LiveSignalSession |
-| `realtime` | 브라우저 WebSocket fan-out | 영속 모델 없음 |
-| `waitlist` | Beta 전 대기자 접수 | WaitlistApplication |
+| 도메인        | 책임                                                 | 주요 영속 모델                            |
+| ------------- | ---------------------------------------------------- | ----------------------------------------- |
+| `auth`        | Clerk 검증과 사용자 동기화                           | User                                      |
+| `strategy`    | Pine 등록·파싱·지원 범위·`pine_v2` 실행 준비         | Strategy                                  |
+| `backtest`    | 비동기 실행과 결과·거래 보관                         | Backtest, BacktestTrade                   |
+| `market_data` | OHLCV·Funding 수집과 TimescaleDB 보관                | OHLCV, FundingRate                        |
+| `stress_test` | Monte Carlo·Walk-Forward·민감도 분석                 | StressTest                                |
+| `optimizer`   | Grid·Bayesian·Genetic 탐색                           | OptimizationRun                           |
+| `trading`     | Demo 계정·주문·리스크·Kill Switch·LiveSignal session | ExchangeAccount, Order, LiveSignalSession |
+| `realtime`    | 브라우저 WebSocket fan-out                           | 영속 모델 없음                            |
+| `waitlist`    | Beta 전 대기자 접수                                  | WaitlistApplication                       |
 
 `exchange`는 별도 도메인이 아니다. 거래소 계정과 provider dispatch는 `trading`이 소유한다.
 
@@ -46,7 +46,7 @@ flowchart LR
 
 ## 새 도메인을 추가할 때
 
-1. `backend/src/<domain>/`의 코드 경계를 먼저 정한다.
+1. `apps/api/src/<domain>/`의 코드 경계를 먼저 정한다.
 2. router 등록, schema, repository, migration과 테스트를 함께 추가한다.
 3. API 기준 경로가 새로 생기면 [`endpoints.md`](../interfaces/endpoints.md)를 갱신한다.
 4. 영속 관계나 상태가 새로 생기면 ERD·상태 머신을 같은 변경에서 갱신한다.

@@ -7,12 +7,12 @@
 > [`ADR-022`](022-engine-position-ssot.md) (원장 유도 포지션) · [`ADR-024`](024-soak-stability-gate.md) (판별식) ·
 > [`ADR-020`](020-trust-layer-ci-design.md) (Trust Layer — 본 ADR 이 그 골든에 걸린다) ·
 > [`ADR-011`](011-pine-execution-strategy-v4.md) (pine_v2 = 백테스트 SSOT) · [BL-595] · [BL-003]
-> **코드:** [`strategy_state.py:846`](../../backend/src/strategy/pine_v2/strategy_state.py) (`check_pending_fills`) ·
-> `strategy_state.py:68` (`PendingOrder.try_fill`) · [`event_loop.py:154`](../../backend/src/strategy/pine_v2/event_loop.py) (호출) ·
+> **코드:** [`strategy_state.py:846`](../../apps/api/src/strategy/pine_v2/strategy_state.py) (`check_pending_fills`) ·
+> `strategy_state.py:68` (`PendingOrder.try_fill`) · [`event_loop.py:154`](../../apps/api/src/strategy/pine_v2/event_loop.py) (호출) ·
 > `event_loop.py:69` (`run_historical`) · `event_loop.py:366` (`run_live`) ·
-> [`live_signal.py:453`](../../backend/src/tasks/live_signal.py) (`_capture_ledger_shadow`) ·
-> [`order_repository.py:534`](../../backend/src/trading/repositories/order_repository.py) (`list_fills_since`) ·
-> [`conditional_entry_planner.py:270`](../../backend/src/trading/services/conditional_entry_planner.py) (`parse_live_entry_key`)
+> [`live_signal.py:453`](../../apps/api/src/tasks/live_signal.py) (`_capture_ledger_shadow`) ·
+> [`order_repository.py:534`](../../apps/api/src/trading/repositories/order_repository.py) (`list_fills_since`) ·
+> [`conditional_entry_planner.py:270`](../../apps/api/src/trading/services/conditional_entry_planner.py) (`parse_live_entry_key`)
 > **픽스처:** `backend/tests/fixtures/bl595/*.json` (캡처 = `backend/scripts/capture_bl595_death_fixtures.py`)
 
 ---

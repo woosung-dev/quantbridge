@@ -1,7 +1,7 @@
 # QuantBridge — 엔티티 카탈로그 (ENT-###)
 
 > **목적:** 도메인 엔티티의 책임·핵심 필드·상태·코드 위치 인덱스.
-> **SSOT:** 컬럼 정의는 [`erd.md`](./erd.md), 실 SQLModel은 `backend/src/<domain>/models.py`.
+> **SSOT:** 컬럼 정의는 [`erd.md`](./erd.md), 실 SQLModel은 `apps/api/src/<domain>/models.py`.
 > 정확한 컬럼은 코드 `models.py`와 `erd.md`가 정본이다. `ENT-007`·`ENT-008`은 초기 계획에만 있던 결번이며, 라이브 거래 lifecycle은 `live_signal_sessions` + `orders` + `live_signal_events`가 표현한다.
 
 ---
@@ -9,7 +9,7 @@
 ## ENT-001 — User
 
 - **도메인:** auth
-- **코드:** `backend/src/auth/models.py` (`class User`)
+- **코드:** `apps/api/src/auth/models.py` (`class User`)
 - **테이블:** `users`
 - **책임:** Clerk 동기화된 사용자 계정. 모든 도메인의 권한 단위.
 - **PK:** `id: UUID` (`uuid4`). Clerk user_id 는 별도 `clerk_user_id` (UK, VARCHAR max 64) — 내부 PK ↔ 외부 ID 분리.
@@ -27,7 +27,7 @@
 ## ENT-002 — Strategy
 
 - **도메인:** strategy
-- **코드:** `backend/src/strategy/models.py` (`class Strategy`)
+- **코드:** `apps/api/src/strategy/models.py` (`class Strategy`)
 - **테이블:** `strategies`
 - **책임:** Pine Script 원본 + 파싱 결과 + Live Signal 설정의 진실. (트랜스파일 아님 — `pine_v2` AST 인터프리터, ADR-003)
 - **PK:** UUID
@@ -52,7 +52,7 @@
 ## ENT-003 — Backtest
 
 - **도메인:** backtest
-- **코드:** `backend/src/backtest/models.py` (`class Backtest`)
+- **코드:** `apps/api/src/backtest/models.py` (`class Backtest`)
 - **테이블:** `backtests`
 - **책임:** `pine_v2` 인터프리터(SSOT) 백테스트 실행 결과. 입력 파라미터(불변) + 상태 + 결과(JSONB). (vectorbt 는 ADR-011 로 강등된 뒤 2026-08-06 의존성 제거)
 - **PK:** UUID
@@ -77,7 +77,7 @@
 ## ENT-004 — BacktestTrade
 
 - **도메인:** backtest
-- **코드:** `backend/src/backtest/models.py` (`class BacktestTrade`)
+- **코드:** `apps/api/src/backtest/models.py` (`class BacktestTrade`)
 - **테이블:** `backtest_trades`
 - **책임:** 백테스트 시뮬레이션의 개별 거래 기록.
 - **PK:** UUID
@@ -100,7 +100,7 @@
 ## ENT-005 — StressTest
 
 - **도메인:** stress_test
-- **코드:** `backend/src/stress_test/models.py`
+- **코드:** `apps/api/src/stress_test/models.py`
 - **테이블:** `stress_tests`
 - **책임:** Backtest 결과 위에서 Monte Carlo / Walk-Forward / 파라미터 안정성 분석.
 - **핵심 필드:** `backtest_id`, `kind`, `params`, `status`, `result`, `error`.
@@ -111,7 +111,7 @@
 ## ENT-006 — Optimization
 
 - **도메인:** optimizer
-- **코드:** `backend/src/optimizer/models.py`
+- **코드:** `apps/api/src/optimizer/models.py`
 - **테이블:** `optimization_runs`
 - **책임:** 파라미터 grid/Bayesian/genetic 탐색 결과.
 - **핵심 필드:** `backtest_id`, `kind`, `param_space`, `status`, `result`, `error_message`.
@@ -129,8 +129,8 @@
 
 ## ENT-009 — ExchangeAccount _(구현됨 Sprint 6 — `exchange_accounts`, AES-256 암호화; 코드/erd.md SSOT)_
 
-- **도메인:** trading (구 `exchange` 도메인 통합 — ADR-018, `backend/src/exchange/` 부재)
-- **코드:** `backend/src/trading/models.py` (`class ExchangeAccount`)
+- **도메인:** trading (구 `exchange` 도메인 통합 — ADR-018, `apps/api/src/exchange/` 부재)
+- **코드:** `apps/api/src/trading/models.py` (`class ExchangeAccount`)
 - **테이블:** `exchange_accounts`
 - **책임:** 사용자별 거래소 API Key 보관 + 권한 메타.
 - **핵심 필드:** `user_id`, `exchange`, `mode`, 암호화된 API key/secret/passphrase, `label`, 거래소 UID/권한 메타.
@@ -144,7 +144,7 @@
 ## ENT-010 — OHLCV _(Sprint 5 M2 ✅ 활성)_
 
 - **도메인:** market_data
-- **코드:** `backend/src/market_data/models.py`, `repository.py`, `providers/timescale.py`
+- **코드:** `apps/api/src/market_data/models.py`, `repository.py`, `providers/timescale.py`
 - **테이블:** `ts.ohlcv` (TimescaleDB hypertable, `ts` schema 격리)
 - **책임:** 거래소별 시계열 가격 데이터. Backtest의 OHLCV 캐시 + CCXT fallback fetch.
 - **필드 (실제):**
@@ -163,7 +163,7 @@
 ## ENT-011 — FundingRate
 
 - **도메인:** trading (시장 데이터 수집 계약)
-- **코드:** `backend/src/trading/models.py` (`class FundingRate`)
+- **코드:** `apps/api/src/trading/models.py` (`class FundingRate`)
 - **테이블:** `trading.funding_rates` (일반 테이블)
 - **책임:** Perpetual Futures funding rate 시계열.
 - **핵심 필드:** `funding_timestamp`, `exchange`, `symbol`, `funding_rate: Decimal`.
@@ -179,7 +179,7 @@
 
 ### Timestamp 정책
 
-- 모든 테이블에 `created_at`, `updated_at` 필수 (`backend/AGENTS.md` 규칙)
+- 모든 테이블에 `created_at`, `updated_at` 필수 (`apps/api/AGENTS.md` 규칙)
 - Sprint 5 S3-05까지 naive UTC (Z 접미사 수동), 이후 tz-aware
 
 ### Decimal 정책
@@ -189,7 +189,7 @@
 
 ### JSONB 직렬화 정책
 
-- Decimal → str (`metrics_to_jsonb`, `equity_curve_to_jsonb` — `backend/src/backtest/serializers.py`)
+- Decimal → str (`metrics_to_jsonb`, `equity_curve_to_jsonb` — `apps/api/src/backtest/serializers.py`)
 - naive UTC datetime → ISO 8601 Z 수동 포맷
 
 ---

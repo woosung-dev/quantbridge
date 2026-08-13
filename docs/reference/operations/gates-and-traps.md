@@ -15,21 +15,21 @@ QB=/Users/woosung/project/agy-project/quant-bridge
 cd $QB && make up-isolated && make migrate-isolated
 
 # BE — ruff / mypy / pytest
-cd $QB/backend && uv run ruff check .
-cd $QB/backend && uv run mypy src/
-cd $QB/backend && set -a; source .env.local; set +a; uv run pytest -q
+cd $QB/apps/api && uv run ruff check .
+cd $QB/apps/api && uv run mypy src/
+cd $QB/apps/api && set -a; source .env.local; set +a; uv run pytest -q
 
 # FE — typecheck / vitest / eslint
-cd $QB/frontend && pnpm typecheck
-cd $QB/frontend && pnpm test
-cd $QB/frontend && pnpm lint
-cd $QB/frontend && pnpm build          # Clerk 키 필요
+cd $QB/apps/web && pnpm typecheck
+cd $QB/apps/web && pnpm test
+cd $QB/apps/web && pnpm lint
+cd $QB/apps/web && pnpm build          # Clerk 키 필요
 
 # 디자인 캐논 런타임 (dev 서버 자동 기동, 인증 불요)
-cd $QB/frontend && pnpm e2e:design-canon
+cd $QB/apps/web && pnpm e2e:design-canon
 
-# e2e authed (frontend/.env.local 에 Clerk 4종 필요, 로컬 전용 — CI 에 없다)
-cd $QB/frontend && pnpm e2e:authed
+# e2e authed (apps/web/.env.local 에 Clerk 4종 필요, 로컬 전용 — CI 에 없다)
+cd $QB/apps/web && pnpm e2e:authed
 ```
 
 `make lint` / `make typecheck` / `make test` 는 위를 FE+BE 로 묶은 것이다. 단 **env 를 source 하지 않으므로** BE pytest 는 셸에 3-env 가 이미 있어야 한다.
@@ -39,7 +39,7 @@ cd $QB/frontend && pnpm e2e:authed
 ### 게이트 3종 신규 (2026-08-11 ledger-truth)
 
 ```bash
-cd $QB && bash scripts/skip-ratchet.sh    # 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)
+cd $QB && bash tools/scripts/skip-ratchet.sh    # 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)
 cd $QB && make docs-audit                 # ⓪ 표 정체성 축 포함 (아래)
 cd $QB && make gate-harnesses             # ★게이트 하네스 9종 전량 (합계 17.3초)
 ```
@@ -51,10 +51,10 @@ cd $QB && make gate-harnesses             # ★게이트 하네스 9종 전량 (
   살아남았고 대응 BL 은 0건이었다. pytest 는 skip 을 초록으로 보고하므로 **꺼진 테스트는 통과와
   구분되지 않는다.**
   ★★**2026-08-11 [BL-705] — 하한이 두 스코프 「합계」였다.** `os.walk` 는 없는 디렉터리에서
-  조용히 0 을 내므로, 위반이 사는 `backend/tests`(505)가 통째로 안 스캔돼도 `backend/src`(217)가
+  조용히 0 을 내므로, 위반이 사는 `apps/api/tests`(505)가 통째로 안 스캔돼도 `apps/api/src`(217)가
   합계 하한 200 을 넘겨 **「위반 0건 ✓ rc=0」** 이었다(`TARGETS` 두 항목 중 하나만 오타 나면
   발화). 하한을 **스코프별**(tests 350 / src 150 = 실측의 70% 선)로 바꾸고 경로 부재를 따로
-  판정한다. ★그리고 그 회귀를 잡는 것은 자기검사가 아니라 **`scripts/skip-ratchet-test.sh`**
+  판정한다. ★그리고 그 회귀를 잡는 것은 자기검사가 아니라 **`tools/scripts/skip-ratchet-test.sh`**
   (임시 트리 11케이스)다 — 자기검사의 입력은 「한 줄 문자열과 정수」라 **스캔층을 한 줄도
   안 덮는다.** 「하네스는 고아가 된다」는 신설 시 판단이 여기서 반증됐다.
   ★★**자기검사는 정상 상태에서 절대 발화하지 않는다 ⇒ 그것을 통째로 지워도 게이트는 초록**
@@ -84,22 +84,22 @@ cd $QB && make gate-harnesses             # ★게이트 하네스 9종 전량 (
 ### 소크 (P0 [BL-003] 의 달력 시간 게이트)
 
 ```bash
-# 소크를 커밋에 고정해 돌린다 — 그래야 backend/src 를 편집해도 워커가 재적재되지 않는다
-scripts/soak-stack.sh pin        # .soak/src 를 HEAD 에서 다시 뜬다 (backend/src 가 dirty 면 거부)
-scripts/soak-stack.sh up         # 3층 compose 로 기동 + celery ready 배너를 기다린다
-scripts/soak-stack.sh commit     # ★소크가 도는 커밋 — celery MainProcess 의 /proc 를 통해 읽는다
-scripts/soak-stack.sh status     # 고정 여부 · 커밋 · 활성 세션 · main 조상 여부
-scripts/soak-stack.sh ps         # ★DB 를 안 건드리는 생존 확인 — exit 0 = 하나라도 running / 1 = 완전 down
+# 소크를 커밋에 고정해 돌린다 — 그래야 apps/api/src 를 편집해도 워커가 재적재되지 않는다
+tools/scripts/soak-stack.sh pin        # .soak/src 를 HEAD 에서 다시 뜬다 (apps/api/src 가 dirty 면 거부)
+tools/scripts/soak-stack.sh up         # 3층 compose 로 기동 + celery ready 배너를 기다린다
+tools/scripts/soak-stack.sh commit     # ★소크가 도는 커밋 — celery MainProcess 의 /proc 를 통해 읽는다
+tools/scripts/soak-stack.sh status     # 고정 여부 · 커밋 · 활성 세션 · main 조상 여부
+tools/scripts/soak-stack.sh ps         # ★DB 를 안 건드리는 생존 확인 — exit 0 = 하나라도 running / 1 = 완전 down
                                  #   status 는 psql 을 쏘므로 down 이면 그 자체가 못 돈다 ([BL-656])
 
 # 「1주 안정 운영」을 기계가 판정한다 — PASS / FAIL / UNKNOWN, PASS 만 exit 0
-scripts/soak-gate.sh             # 표본을 남기고 판정
-scripts/soak-gate.sh --install   # 30분마다 자동 (표본이 없으면 C4 를 판정할 수 없다)
+tools/scripts/soak-gate.sh             # 표본을 남기고 판정
+tools/scripts/soak-gate.sh --install   # 30분마다 자동 (표본이 없으면 C4 를 판정할 수 없다)
                                  # macOS = launchd / 리눅스 = systemd user timer
                                  # ★리눅스는 lingering 이 필요하다 — 없으면 SSH 끊길 때 timer 도 멈춘다
-scripts/soak-gate.sh --status
-scripts/soak-gate.sh --prune-archives            # phantom 아카이브 회수 — 기본 dry-run, 옮기고 지우지 않는다
-scripts/soak-gate.sh --prune-archives --confirm  #   ★[BL-626] 기준은 개수가 아니라 **포함관계**다
+tools/scripts/soak-gate.sh --status
+tools/scripts/soak-gate.sh --prune-archives            # phantom 아카이브 회수 — 기본 dry-run, 옮기고 지우지 않는다
+tools/scripts/soak-gate.sh --prune-archives --confirm  #   ★[BL-626] 기준은 개수가 아니라 **포함관계**다
 ```
 
 ★**아카이브 회수에 개수 상한을 쓰지 마라 — 그것은 판정을 깎는다**([BL-626], 2026-08-09 실측).
@@ -112,15 +112,15 @@ scripts/soak-gate.sh --prune-archives --confirm  #   ★[BL-626] 기준은 개�
 보다 커서 **파손본이 대표로 뽑히고 성한 것이 버려진다.**
 
 술어·창·리셋 규칙은 [`ADR-024`](../../decisions/024-soak-stability-gate.md). 계산부는 I/O 없는
-순수 함수(`backend/scripts/soak_gate_predicate.py`)라 손 계산과 대조할 수 있고, 정의는
-`backend/tests/scripts/test_soak_gate_predicate.py` 로 동결돼 있다(개수는 세지 마라 — 세어 적으면
+순수 함수(`apps/api/scripts/soak_gate_predicate.py`)라 손 계산과 대조할 수 있고, 정의는
+`apps/api/tests/tools/scripts/test_soak_gate_predicate.py` 로 동결돼 있다(개수는 세지 마라 — 세어 적으면
 낡는다. 이 줄에 「22테스트」라고 박혀 있던 값이 2026-08-08 에 이미 두 배 넘게 틀려 있었다).
 
 ★**실격의 원인은 게이트가 모른다** — 사람이
 [`soak-disqualifications.jsonl`](soak-disqualifications.jsonl) 에 근거와 함께 등재하고, 게이트는
 그것을 **보고 줄 한 줄**로만 낸다(`★실격 귀속(보고 전용 · 판정 불참)`). 판정 C1~C5 는 원장이
 있든 없든 같은 값이다 — 계약과 기각된 대안은 [ADR-024 §실격 귀속 원장](../../decisions/024-soak-stability-gate.md).
-MTBF 층화는 `backend/scripts/mtbf_stratified.py` 가 그 원장을 읽어 자동으로 만든다.
+MTBF 층화는 `apps/api/scripts/mtbf_stratified.py` 가 그 원장을 읽어 자동으로 만든다.
 
 ★**고정본 스택이 떠 있으면 `make up-isolated` 계열이 거부된다** — 같은 `container_name` 을
 덮어써 소크를 끊기 때문이다. 정말 덮어쓰려면 `QB_SOAK_OVERRIDE=1`.
@@ -131,16 +131,16 @@ MTBF 층화는 `backend/scripts/mtbf_stratified.py` 가 그 원장을 읽어 자
 재기동까지 **13시간**이 비었고 그 시간은 C1 에 소급되지 않는다. 감시자가 그 지연을 30분으로 줄인다.
 
 ```bash
-scripts/soak-watch.sh              # 게이트 1회 호출 + 지문 변화 시에만 텔레그램
-scripts/soak-watch.sh --dry-run    # 게이트는 부르되 알림은 안 쏘고 판단만 출력
-scripts/soak-watch.sh --install    # systemd user timer 30분 (★게이트 타이머는 꺼진다)
-scripts/soak-watch.sh --status     # 마지막 지문 · heartbeat · 타이머 상태
-scripts/soak-watch-test.sh         # 판단 로직 하네스 (실측 캡처 픽스처, 전건 통과 = exit 0)
+tools/scripts/soak-watch.sh              # 게이트 1회 호출 + 지문 변화 시에만 텔레그램
+tools/scripts/soak-watch.sh --dry-run    # 게이트는 부르되 알림은 안 쏘고 판단만 출력
+tools/scripts/soak-watch.sh --install    # systemd user timer 30분 (★게이트 타이머는 꺼진다)
+tools/scripts/soak-watch.sh --status     # 마지막 지문 · heartbeat · 타이머 상태
+tools/scripts/soak-watch-test.sh         # 판단 로직 하네스 (실측 캡처 픽스처, 전건 통과 = exit 0)
 
-scripts/soak-restart.sh            # 기본 = dry-run. 재기동 8단계와 실제 값을 출력만 한다
-scripts/soak-restart.sh --confirm  # 집행 (⑴ FLAT=YES 아니면 그 자리에서 멈춘다)
-scripts/soak-restart-test.sh       # 갈래·순서 하네스 (final-gates.sh 「소크 재기동 하네스」)
-scripts/signal-check-test.sh       # 신호 신선도 하네스 ([BL-706] — 신호 첫 줄 `commit: <sha>` 대조. --mutants 로 변이 13종)
+tools/scripts/soak-restart.sh            # 기본 = dry-run. 재기동 8단계와 실제 값을 출력만 한다
+tools/scripts/soak-restart.sh --confirm  # 집행 (⑴ FLAT=YES 아니면 그 자리에서 멈춘다)
+tools/scripts/soak-restart-test.sh       # 갈래·순서 하네스 (final-gates.sh 「소크 재기동 하네스」)
+tools/scripts/signal-check-test.sh       # 신호 신선도 하네스 ([BL-706] — 신호 첫 줄 `commit: <sha>` 대조. --mutants 로 변이 13종)
 ```
 
 ★**재기동은 스택 상태에 따라 두 갈래다 — ⓿ 이 `soak-stack.sh ps` 로 고른다**([BL-656], 2026-08-09).
@@ -200,7 +200,7 @@ exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 �
   2026-08-06 final-gates 1차 red 실측 — 서명은 hydration flake 와 달리 `toContain` 단언 실패였고,
   같은 조건에서 이름 기반 로케이터(`getByRole("table", { name: … })`)는 통과했다).
   표는 **접근성 이름으로** 집어라. 서명이 다른 red 를 기존 flake 로 접지 마라.
-- ★★**e2e 가 남의 앱을 검사할 수 있다.** `frontend/playwright.config.ts` 의 `baseURL` 기본값은 **3000** 인데 격리 스택 FE 는 **3100** 이다. 3000 을 다른 웹앱이 점유하면 캐논이 그 앱을 감사한다. 실측 정체성 프로브:
+- ★★**e2e 가 남의 앱을 검사할 수 있다.** `apps/web/playwright.config.ts` 의 `baseURL` 기본값은 **3000** 인데 격리 스택 FE 는 **3100** 이다. 3000 을 다른 웹앱이 점유하면 캐논이 그 앱을 감사한다. 실측 정체성 프로브:
   ```
   http://localhost:3000  ->  <title>Nexus - AI 챗봇 포털</title>
   http://localhost:3100  ->  <title>QuantBridge</title>
@@ -210,39 +210,40 @@ exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 �
 ### 환경
 
 - ★★**BE pytest 는 격리 포트(5433/6380)를 쓴다 — `make up` 으로 올린 기본 스택(5432/6379)에서는 안 돈다.**
-  `backend/.env.local` 의 `DATABASE_URL`·`TEST_DATABASE_URL`·`REDIS_URL` 이 전부 격리 포트를 가리킨다.
+  `apps/api/.env.local` 의 `DATABASE_URL`·`TEST_DATABASE_URL`·`REDIS_URL` 이 전부 격리 포트를 가리킨다.
   기본 스택에서 돌리면 **`6 failed / 604 errors`** 가 나는데 실패의 정체는 `asyncio/base_events.py` 의
   `OSError`(연결 실패)이고, `test_migrations.py` 가 `sqlalchemy.exc.OperationalError` 로 먼저 눈에 띄어
   **코드 회귀처럼 보인다**(2026-08-08 실측, 13분을 버렸다). ⇒ **게이트가 red 면 코드를 의심하기 전에
   「내가 그 게이트를 올바른 환경에서 돌렸나」를 먼저 물어라.**
-  ★워커를 띄우고 싶지 않으면 `docker compose -f docker-compose.yml -f docker-compose.isolated.yml up -d db redis`
-  로 **두 서비스만** 올려라. 기본/격리는 `container_name` 이 같아 **동시 운영이 불가능하다** —
-  갈아탈 때는 먼저 `docker compose stop db redis && docker compose rm -f db redis` 로 비워라.
+  ★워커를 띄우고 싶지 않으면 `DC="docker compose --project-directory . -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml"; $DC up -d db redis`
+  로 **두 서비스만** 올려라 (★`--project-directory .` 를 빼면 프로젝트명·볼륨이 `infra/compose` 기준으로
+  파생돼 기존 볼륨이 고아가 된다 — ADR-029). 기본/격리는 `container_name` 이 같아 **동시 운영이
+  불가능하다** — 갈아탈 때는 먼저 `$DC stop db redis && $DC rm -f db redis` 로 비워라.
 - **BE pytest 는 `.env.local` 을 통째로 source 해야 한다.**
   ```bash
   set -a; source .env.local; set +a
   ```
   개별 export 금지. `DATABASE_URL` 만 있으면 `tests/test_migrations.py` 의 `downgrade(base)` 가 **개발 DB 를 향했다** — 실제로 주문 17행과 암호화된 API 키가 전소한 적이 있다.
-  ★**2026-08-10 [BL-451] 이후 그 폴백은 사라졌다.** 판정 SSOT 는 `backend/tests/_db_guard.py` 이고 루트 `tests/conftest.py::pytest_configure` 가 **세션 최상단**에서 판정한다. `TEST_DATABASE_URL` 없이 `DATABASE_URL` 만 있으면 폴백이 아니라 **rc=3 으로 세션이 끝난다**. 그래도 3-env 를 함께 넣어라 — 가드는 「막는다」이지 「돌게 한다」가 아니다.
+  ★**2026-08-10 [BL-451] 이후 그 폴백은 사라졌다.** 판정 SSOT 는 `apps/api/tests/_db_guard.py` 이고 루트 `tests/conftest.py::pytest_configure` 가 **세션 최상단**에서 판정한다. `TEST_DATABASE_URL` 없이 `DATABASE_URL` 만 있으면 폴백이 아니라 **rc=3 으로 세션이 끝난다**. 그래도 3-env 를 함께 넣어라 — 가드는 「막는다」이지 「돌게 한다」가 아니다.
   ★**종전 문장 「`_assert_disposable_database` 가 막는다」는 절반만 참이었다.** 그 가드는 `tests/test_migrations.py` 파일 안에만 있었고, 같은 판정의 사본이 `tests/real_broker/conftest.py` 에 있었지만 그 파일은 **그 디렉터리를 수집할 때만** 로드됐다. 실측 — `DATABASE_URL`(개발 DB) 하나만 있는 셸에서 `pytest tests/trading/` 이 **rc=0 으로 1088건을 수집**했고, 그 경로의 세션 픽스처는 `SQLModel.metadata.drop_all` 을 돈다.
-- **수동 `alembic downgrade` 는 개발 DB 를 향했다.** ★2026-08-10 이후 `backend/alembic/env.py` 가 **downgrade 만** 골라 막는다(`upgrade` 는 통과 — 안 그러면 `make migrate`·entrypoint·CI 가 함께 죽는다). 정당한 롤백은 `alembic -x allow_destructive=1 downgrade <rev>`.
+- **수동 `alembic downgrade` 는 개발 DB 를 향했다.** ★2026-08-10 이후 `apps/api/alembic/env.py` 가 **downgrade 만** 골라 막는다(`upgrade` 는 통과 — 안 그러면 `make migrate`·entrypoint·CI 가 함께 죽는다). 정당한 롤백은 `alembic -x allow_destructive=1 downgrade <rev>`.
   ★**이 가드가 못 보는 표면이 하나 있다** — `command.downgrade(cfg, ...)` 처럼 파이썬에서 직접 부르면 `config.cmd_opts` 가 `None` 이라 방향을 알 수 없다. 그 표면은 pytest 쪽 가드가 덮는다.
 - ★**파괴적 작업 전에 찍어라 — `make db-snapshot`.** `.backups/<db>-<ts>.dump` 로 나온다(gitignore). 복원은 `make db-restore FILE=… TO=<대상 DB>` 이고 **`TO` 에 기본값이 없다** — 기본값을 개발 DB 로 두는 편의가 곧 이 항목이 막으려는 사고다. 2026-08-10 실측: 덤프 2.15MB → 임시 DB 복원에서 orders 823 · 암호화 API 키 2/2 가 왕복했다.
 - **`test_migrations.py` 가 `DuplicateColumn` 으로 실패하면 대개 코드 결함이 아니다.** conftest 의 `SQLModel.metadata.create_all` 이 신규 컬럼을 이미 만들어둔 상태에서 `alembic_version` 만 stale 인 경우다. `downgrade base → upgrade head` 로 재구축하면 풀린다.
 - compose 는 항상 두 파일을 겹쳐 쓴다. worker 만 재시작할 때는 **`--no-deps`** 를 붙여라.
   ```bash
-  docker compose -f docker-compose.yml -f docker-compose.isolated.yml ... --no-deps
+  docker compose -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.isolated.yml ... --no-deps
   ```
 - Docker VM 디스크가 차면 Postgres 가 무한 크래시 루프에 빠진다. **`docker builder prune -f` 만 안전**하다 (볼륨·이미지 prune 금지).
-- ★**워커는 `backend/src` 를 `/app/src` 로 bind-mount + watchfiles 로 문다.** 작업 중인 코드가 실거래 세션에 **즉시** 반영된다. 관측에는 유용하지만(수정 전후를 실데이터로 잡을 수 있다) **변이 스크립트를 돌리기 전에는 워커를 멈춰라** — 문법을 깨는 변이면 평가가 예외로 죽고 세션이 자동 비활성화된다.
+- ★**워커는 `apps/api/src` 를 `/app/src` 로 bind-mount + watchfiles 로 문다.** 작업 중인 코드가 실거래 세션에 **즉시** 반영된다. 관측에는 유용하지만(수정 전후를 실데이터로 잡을 수 있다) **변이 스크립트를 돌리기 전에는 워커를 멈춰라** — 문법을 깨는 변이면 평가가 예외로 죽고 세션이 자동 비활성화된다.
   ★★**변이 스크립트만의 문제가 아니다. 평범한 여러-단계 편집도 같은 함정이다.** 호출부를 먼저 넣고 헬퍼를 나중에 정의하는 순간, 그 **사이**에 watchfiles 가 중간 상태를 물어 `NameError` 로 평가가 죽고 세션이 fail-closed 비활성화된다. 2026-07-27 실측 — 활성 라이브 세션이 `live_signal_run_live_crash / NameError: name '_pending_fills_blocked_by_session' is not defined` 로 종료됐다(포지션·미체결은 0이라 피해는 없었다). **라이브 경로 모듈(`event_loop.py` / `strategy_state.py` / `tasks/live_signal.py`)을 편집할 때는 활성 세션이 없는지 먼저 확인하거나 beat 를 멈춰라.** 편집이 원자적일 거라고 가정하지 마라.
 - ★**`codex exec -s workspace-write` 의 쓰기 루트 = 호출 시점 cwd.** 다른 디렉터리에서 부르면 대상 밖 파일 패치가 권한 거부되고 **0건 변경**으로 조용히 끝난다. 호출 전에 `pwd` 로 리포 루트를 확인해라. 그리고 `codex exec` 는 10분을 넘길 수 있어 Bash 상한(600000ms)에 걸리는데, **그때도 파일은 이미 쓰여 있을 수 있다** — 죽었다고 재실행하기 전에 `git status` 부터 봐라.
 - ★**codex 샌드박스는 격리 Postgres(5433)에 못 붙는다.** 실DB 테스트가 `PermissionError` 로 `errors` 에 잡힌다. **메인 세션이 다시 돌려야 진짜 결과가 나온다**(실측: codex "7 errors" → 메인에서 282 passed). 그리고 **codex 자기보고를 재검증해라** — "gates-and-traps 에 승격했다" 고 보고했지만 파일이 미변경인 사례가 있었다.
-- ★★★**`make up` / `make up-isolated` 는 세션을 만들지 않지만 `is_active` 로 남아 있던 세션을 되살린다.** 그리고 그 부활한 세션은 소크와 **같은 Bybit demo 계정**에 붙는다. 2026-08-07 실측 — 로컬 세션 `fcf1dcbe`(08:52 생성)가 13:52 의 `make up` 으로 부활해 16:44 까지 발주했고, 서버 소크 세션 `39484a2c` 를 `position_divergence` 로 죽였다. ★★**그런데 `is_active` 를 끄는 것만으로는 부족하다** — 이미 **체결된 포지션**은 그대로 남는다. 2026-08-08 재부검 실측: 로컬은 `make up` **전인** 07:42·07:50·08:10·08:51·09:03 에 이미 체결했고, 로컬 워커가 멈춰 있던 09:23~13:53 구간에도 서버가 09:35·09:36·09:37 에 `category=exchange_only engine_position=0.0 exchange_position=0.029` 를 관측했다 — 그 0.029 는 로컬 `541c6ee1`(09:03:53 buy 0.029)의 포지션이다. **호스트를 세워도 포지션은 계정에 남아 계속 발산을 만든다.** ⇒ **로컬 스택을 켜야 하면 ⑴ 켜기 전에 `live_signal_sessions` 의 `is_active` 를 끄고 ⑵ 거래소가 실제로 flat 인지(`FLAT=YES` **AND** resting 조건부 0) 확인해라.** 판정 도구 = `backend/scripts/live_session_admin.py status` 의 `FLAT=` · `RESTING_CONDITIONAL=` · `EXCLUSIVE=` 세 줄. ⇒ 원장만 읽으면 되는 경우엔 스택 전체 대신 `docker compose up -d db` 로 **db 서비스 하나만** 올려라 — 워커가 없으므로 세션 부활도 발주도 구조적으로 불가능하다.
-- ★**워커 로그 follow 는 `scripts/soak-logs-follow.sh` 가 정본이다** — `--install` 은 systemd user unit(+`loginctl enable-linger`) / macOS launchd 로 승격하고, `--status` 가 유닛 생존과 로그 나이를 답한다. ★**`nohup` 판(`.soak/logs/follow.sh`)은 ssh 세션·재부팅을 못 넘는다** — 같은 `LOG_FILE` 에 둘이 붙으면 줄이 섞이므로 `--install` 전에 `pgrep -f 'soak/logs/follow.sh'` 로 옛 프로세스를 먼저 죽여라.
+- ★★★**`make up` / `make up-isolated` 는 세션을 만들지 않지만 `is_active` 로 남아 있던 세션을 되살린다.** 그리고 그 부활한 세션은 소크와 **같은 Bybit demo 계정**에 붙는다. 2026-08-07 실측 — 로컬 세션 `fcf1dcbe`(08:52 생성)가 13:52 의 `make up` 으로 부활해 16:44 까지 발주했고, 서버 소크 세션 `39484a2c` 를 `position_divergence` 로 죽였다. ★★**그런데 `is_active` 를 끄는 것만으로는 부족하다** — 이미 **체결된 포지션**은 그대로 남는다. 2026-08-08 재부검 실측: 로컬은 `make up` **전인** 07:42·07:50·08:10·08:51·09:03 에 이미 체결했고, 로컬 워커가 멈춰 있던 09:23~13:53 구간에도 서버가 09:35·09:36·09:37 에 `category=exchange_only engine_position=0.0 exchange_position=0.029` 를 관측했다 — 그 0.029 는 로컬 `541c6ee1`(09:03:53 buy 0.029)의 포지션이다. **호스트를 세워도 포지션은 계정에 남아 계속 발산을 만든다.** ⇒ **로컬 스택을 켜야 하면 ⑴ 켜기 전에 `live_signal_sessions` 의 `is_active` 를 끄고 ⑵ 거래소가 실제로 flat 인지(`FLAT=YES` **AND** resting 조건부 0) 확인해라.** 판정 도구 = `apps/api/scripts/live_session_admin.py status` 의 `FLAT=` · `RESTING_CONDITIONAL=` · `EXCLUSIVE=` 세 줄. ⇒ 원장만 읽으면 되는 경우엔 스택 전체 대신 `docker compose up -d db` 로 **db 서비스 하나만** 올려라 — 워커가 없으므로 세션 부활도 발주도 구조적으로 불가능하다.
+- ★**워커 로그 follow 는 `tools/scripts/soak-logs-follow.sh` 가 정본이다** — `--install` 은 systemd user unit(+`loginctl enable-linger`) / macOS launchd 로 승격하고, `--status` 가 유닛 생존과 로그 나이를 답한다. ★**`nohup` 판(`.soak/logs/follow.sh`)은 ssh 세션·재부팅을 못 넘는다** — 같은 `LOG_FILE` 에 둘이 붙으면 줄이 섞이므로 `--install` 전에 `pgrep -f 'soak/logs/follow.sh'` 로 옛 프로세스를 먼저 죽여라.
 - ★**서버 게이트는 언제나 `ssh <서버> 'bash -lc "…"'` 로 불러라.** 비로그인 셸엔 PATH 에 `uv` 가 없어 phantom 분류기가 실패하고 그 구간이 커버리지에서 잘려나간다(2026-08-07 실측 8분 손실).
 - ★**서버 `psql` 은 SQL 을 파일로 넣어라** — `scp` → `docker cp` → `psql -f`. 따옴표가 ssh · `bash -lc` · `docker exec` 로 3중 중첩되면 ssh 를 넘어가면서 깨진다(2026-08-08 재현).
-- ★**`.metrics` 는 프로세스 역할 + 컨테이너 id 로 파일이 갈린다.** 파일명은 `counter_<role>-<HOSTNAME>-<pid>.db` 이고 `<role>` 은 `worker`/`api`/`beat`/`wsstream`/`optheavy`, `<HOSTNAME>` 은 컨테이너 id 다(`backend/src/common/metrics_multiproc.py:105-107` 이 접두사를 만든다). 디렉터리는 마운트라 **죽은 컨테이너의 파일이 그대로 남는다.** ⇒ **전 PID 합산은 「지금 창」의 값이 아니다** — 2026-08-08 실측에서 `engine_only_suppressed` 합산 89 중 **15** 가 이전 컨테이너 것이었다. 창 값을 원하면 현재 컨테이너 id 로 먼저 걸러라.
+- ★**`.metrics` 는 프로세스 역할 + 컨테이너 id 로 파일이 갈린다.** 파일명은 `counter_<role>-<HOSTNAME>-<pid>.db` 이고 `<role>` 은 `worker`/`api`/`beat`/`wsstream`/`optheavy`, `<HOSTNAME>` 은 컨테이너 id 다(`apps/api/src/common/metrics_multiproc.py:105-107` 이 접두사를 만든다). 디렉터리는 마운트라 **죽은 컨테이너의 파일이 그대로 남는다.** ⇒ **전 PID 합산은 「지금 창」의 값이 아니다** — 2026-08-08 실측에서 `engine_only_suppressed` 합산 89 중 **15** 가 이전 컨테이너 것이었다. 창 값을 원하면 현재 컨테이너 id 로 먼저 걸러라.
 
 ### 라이브 신호 도메인
 
@@ -379,7 +380,7 @@ exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 �
   **celery 는 `REDIS_URL` 을 읽지 않는다 — 별도 설정이다**(`core/config.py:64-67`).
 - ★★**로컬 CI 재현은 이 계열을 구조적으로 못 잡는다** — `.env.local` 이 그 값들을 모두
   `localhost` 로 채운다. "CI 와 같은 스크립트를 돌렸다" 는 **같은 pytest 명령**일 뿐이다.
-  ⇒ 감사 테스트 `backend/tests/test_ci_workflow_env_parity.py` 가 대신 대조한다(변이로 판별력 증명).
+  ⇒ 감사 테스트 `apps/api/tests/test_ci_workflow_env_parity.py` 가 대신 대조한다(변이로 판별력 증명).
 - ★**`env -u` 로 지워도 소용없다** — pydantic-settings 의 `env_file` 이 `.env.local` 에서 다시 채운다.
   CI 를 재현하려면 **지우지 말고 CI 실효값으로 덮어써라**.
 - ★**시각 의존 테스트는 스스로 만료된다** — `since=datetime(2026, 7, 25, 1)` 하드코딩 + 7일 롤링 클램프가
@@ -400,7 +401,7 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
   변수가 아니다** — 2026-08-01 실측: 같은 세션에서 맨 컬럼 `SELECT is_active` 는 **`t/f`**,
   캐스트 `SELECT is_active::text || …` 는 **`true/false`** 를 냈다. **가르는 건 플래그가 아니라
   캐스트다.** ⇒ 표기를 확인하는 게 아니라 **nullable 텍스트 컬럼**(`deactivated_reason` 등)으로
-  판정해라. `scripts/soak-observe.sh` 가 그 형태다.
+  판정해라. `tools/scripts/soak-observe.sh` 가 그 형태다.
 - ★★**`psql -c` 에 세미콜론 여러 개는 암묵적 단일 트랜잭션**이라 뒤 문장의 실패가 앞 UPDATE 를
   통째로 롤백한다(2026-08-01 실측). **`-c` 하나에 문장 하나**로 써라. archive 에만 남아 있던
   것을 2026-08-03 에 승격했다.
@@ -466,7 +467,7 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
   지우지 말고 `<details>` 로 접어라 — 파서가 ` ``` ` 펜스와 `<details>` 구간을 건너뛴다.
   ★`--list` 는 **항상 exit 0** 이다. 게이트에는 인자 없는 형태만 쓴다.
 - ★**`bl-audit.sh` 의 중복 검사는 원장이 깨끗하면 아무 일도 안 한다** — 즉 그 로직을 지워도 「BL 감사」는
-  초록이다. 그래서 `scripts/bl-audit-test.sh`(라벨 `BL 감사 하네스`)가 체인에 함께 있다. 임시 트리
+  초록이다. 그래서 `tools/scripts/bl-audit-test.sh`(라벨 `BL 감사 하네스`)가 체인에 함께 있다. 임시 트리
   fixture 로 돌리므로 `docs/` 를 건드리지 않는다. 변이 3종(섹션 헤더 탐지 제거 / dup 키를 BL id 로
   되돌림 / 상태줄 탐지 제거) 전건 red 확인.
 - ★**판정어는 2026-08-10 부터 다섯이다** — `ACTIVE / DEFERRED / PARTIAL / RESOLVED / UNKNOWN`
@@ -476,7 +477,7 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
   ★**어휘는 `**상태:**` 줄 맨 앞에 둬라** — `lead()` 가 첫 `—`/`.`/`:**` 에서 자르므로 뒤로 밀면 UNKNOWN 이다.
   ★**「없어야 할 마커」를 `▶ 블록 머리`로 주면 안 되는 예외가 있다** — `▶ 불일치`·`▶ UNKNOWN` 은
   「없음」일 때도 **항상 찍힌다.** 그 둘은 본문 문장으로 재라(케이스 ⑧ 이 실제로 거짓 통과했다).
-- ★**트리거 도래 판정은 `scripts/bl-trigger-sweep.sh`** 다. **`--selftest` 를 전량 스윕보다 먼저 돌려라** —
+- ★**트리거 도래 판정은 `tools/scripts/bl-trigger-sweep.sh`** 다. **`--selftest` 를 전량 스윕보다 먼저 돌려라** —
   양성 2 + 음성 4 를 못 가르면 전량 판정은 값이 0이다. 실제로 초판이 판별력 검사에서 두 번 잡혔다
   (①`지금` 축 누락으로 양성 2건 유실 ②`BL의존` 축이 **절의 접속을 반쪽만 읽어** 5건을 근거 없이 도래로 올림).
 - ★**`git merge-tree` 는 커밋을 받는다.** 트리 해시를 넘기면 거짓 충돌처럼 보인다.
@@ -572,8 +573,8 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
 - ★**문서를 한 곳만 고치면 자기모순이 된다.** CONTEXT.md 에 「드리프트 정정 완료」를 적었으면
   같은 주장을 하는 다른 문서(README · 아키텍처 2종 · entities)도 같이 고쳐라. codex 가 잡았다.
 - ★**파일을 옮기면 그 파일 안의 usage 안내도 옮겨라** — 아카이브한 스크립트 3종이 여전히
-  `scripts/<name>.py` 를 안내해 즉시 실패했다.
-- ★**`docs/archive/` 는 문서 전용이다.** 은퇴한 스크립트는 `backend/scripts/archive/` 로.
+  `tools/scripts/<name>.py` 를 안내해 즉시 실패했다.
+- ★**`docs/archive/` 는 문서 전용이다.** 은퇴한 스크립트는 `apps/api/scripts/archive/` 로.
 
 ### e2e spec 을 통합할 때 (2026-08-06 e2e-consolidation)
 
@@ -619,7 +620,7 @@ FE `StrategySettingsSchema` 는 `.strict()` 라 모르는 키에서 **파싱이 
 
 ★**GET 응답에는 그 키가 없어서**(BE 가 DB JSONB 를 그대로 돌려준다) **화면을 3개 돌아도 안 잡힌다.**
 저장 경로에서만 터진다. 실제로 워커·평가자 둘 다 "동작 영향 없음" 으로 오판했고 codex 가 잡았다.
-→ **BE 설정 스키마에 필드를 더하면 같은 PR 에서 `frontend/src/features/strategy/schemas.ts` 를 고쳐라.**
+→ **BE 설정 스키마에 필드를 더하면 같은 PR 에서 `apps/web/src/features/strategy/schemas.ts` 를 고쳐라.**
 
 ★**그리고 `nullable` 필드면 FE 폼의 초기값 정규화까지 같은 PR 에서 해라** (2026-08-01, BL-570).
 `schemas.ts` 를 맞추는 건 **파싱**을 맞추는 것이고, 깨지는 다음 자리는 **폼 초기값**이다 —
@@ -633,13 +634,13 @@ null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는
 - ★★**`MmapedDict.read_all_values_from_file` 은 4-튜플을 준다.** `for k, v in ...` 로 풀면 `ValueError` 가 나고, 그걸 `except: pass` 로 삼키면 **"1389개 파일 전부에 metric 0개"** 라는 오답이 나온다. **측정값이 0이면 대상보다 계측기를 먼저 의심해라.**
 - ★★**변이가 두 구현이 동치인 지점에 떨어지면 아무것도 증명하지 못한다.** "fail-closed 를 조기 `return` 으로" 변이를 **취소 루프 뒤**에 넣었더니 `to_place=()` 와 의미가 같아 통과했다. 앞으로 옮기니 즉시 잡혔다. **탈출을 보고 "테스트가 약하다" 로 바로 가지 마라 — 변이가 실제로 무엇을 바꿨는지 먼저 봐라.** (같은 회차에서 2번 발생: 다른 하나는 두 가드가 같은 mock 을 써서 서로를 가린 경우였다.)
 - ★**변이 대상 테스트 파일을 맞게 골라라.** 리포지토리 SQL 을 겨눈 변이를 서비스 테스트(리포지토리를 mock 함)로 재면 영원히 통과한다.
-- ★★★**내용 grep 은 「파일명에만 있는 문자열」을 구조적으로 못 잡는다** (2026-08-02). BL-577 은 `grep -rn "no-raw-enum-labels" .` 로 「그 가드는 이 레포에 존재하지 않는다」고 결론 냈는데, **가드는 `frontend/src/__tests__/no-raw-enum-labels.test.ts` 로 실재했다** — 그 파일이 자기 이름을 본문에 **0회** 쓰기 때문이다. 그 오진 위에서 backlog 가 「우회 코드를 되돌려라」고 지시했고, **그대로 했으면 CI 가 red** 가 됐다. ⇒ **「없다」를 결론으로 낼 때는 내용 grep 하나로 끝내지 마라 — 파일명(`find` · `ls`)과 실행(그 테스트가 CI 에서 도는가)까지 세 축으로 확인해라.**
+- ★★★**내용 grep 은 「파일명에만 있는 문자열」을 구조적으로 못 잡는다** (2026-08-02). BL-577 은 `grep -rn "no-raw-enum-labels" .` 로 「그 가드는 이 레포에 존재하지 않는다」고 결론 냈는데, **가드는 `apps/web/src/__tests__/no-raw-enum-labels.test.ts` 로 실재했다** — 그 파일이 자기 이름을 본문에 **0회** 쓰기 때문이다. 그 오진 위에서 backlog 가 「우회 코드를 되돌려라」고 지시했고, **그대로 했으면 CI 가 red** 가 됐다. ⇒ **「없다」를 결론으로 낼 때는 내용 grep 하나로 끝내지 마라 — 파일명(`find` · `ls`)과 실행(그 테스트가 CI 에서 도는가)까지 세 축으로 확인해라.**
 - ★★**라벨 있는 counter 는 첫 발화 전까지 series 가 존재하지 않는다** (2026-08-02). 라벨 **없는** counter 는 import 시점에 0 으로 실체화되지만, 라벨 있는 쪽은 `.labels()` 가 불리기 전까지 mmap 에 항목이 없다. 그래서 창 시작 스냅샷에 그 series 가 없고 `CounterBasis.unknown` 으로 **비교가 거부**된다 ⇒ **신설 counter 를 프로덕션에서 증명하려는 바로 그 순간에 계측이 구조적으로 불가능**하다. **미리 실체화해라**(`live_signal._touch_safely` — `record_metric_safely` 로 감싼 **무증분** `.labels()`. `_count_safely` 는 `.inc()` 하므로 초기화에 쓰면 차분이 발화 수보다 커진다).
 - ★**소크 종료가 자동 flat 이 아니다** (2026-08-02). 세션 `DELETE` 가 **204** 를 줘도 거래소에 **포지션과 resting 조건부 주문이 남는다.** 실측: DELETE 2건 성공 뒤 포지션 0.03 + resting 1건 잔존. **주문 취소 → 포지션 청산**을 따로 하고 **raw HMAC 으로 재조회**해 `FLAT=YES` 를 확인해라. 착수 시점 flat 확인도 의무다 — 직전 소크의 **고아 포지션**(활성 세션 0인데 포지션 존재)이 남아 있으면 발화 원인이 오염된다.
 
 ### 셸·게이트가 거짓 red 를 내는 경로 (2026-07-28)
 
-- ★★**Bash 도구의 cwd 는 호출 간 유지된다.** `cd backend && set -a; . ./.env.local; set +a; uv run pytest` 를 **두 번째로** 부르면 `cd backend` 가 실패하고 `&&` 때문에 **`set -a` 가 안 돈다.** env 가 export 되지 않아 `localhost:5432` 로 붙고 대량 에러가 난다 — 코드 결함처럼 보이는 거짓 red 다. **절대경로로 `cd` 해라.**
+- ★★**Bash 도구의 cwd 는 호출 간 유지된다.** `cd apps/api && set -a; . ./.env.local; set +a; uv run pytest` 를 **두 번째로** 부르면 `cd apps/api` 가 실패하고 `&&` 때문에 **`set -a` 가 안 돈다.** env 가 export 되지 않아 `localhost:5432` 로 붙고 대량 에러가 난다 — 코드 결함처럼 보이는 거짓 red 다. **절대경로로 `cd` 해라.**
 - ★★**부분 선택 실행은 격리가 깨진다.** `pytest tests/tasks/x.py tests/trading/ tests/strategy/` 조합에서 **30건이 실패**했지만 같은 테스트를 단건으로 돌리면 통과하고 **전체 스위트도 통과**한다. 판정 권위는 **전체 스위트**다.
 - ★★★**파이프에 넣은 게이트의 종료 코드는 파이프 **끝** 명령의 것이다.** `playwright … | tail -40`
   의 rc 0 은 tail 의 성공이고, 그 뒤에 `2 failed` 가 숨어 있었다(2026-08-10 실측 — 하마터면 baseline
@@ -707,8 +708,8 @@ null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는
 
 ### 린트가 잡는 문자
 
-- **RUF003** — 주석 안의 `×`(MULTIPLICATION SIGN) 와 `−`(MINUS SIGN) 가 ruff 를 깬다. ASCII `x` 와 `-` 를 써라. 네 번 재발했다. `tests/` · `scripts/` · `alembic/versions/` 는 면제지만 `src/` 는 아니다.
-- **디자인 캐논 em-dash 래칫** — `frontend/src/__tests__/design-canon-source.test.ts` 가 노출 산문의 `—` 를 **파일별 정확 카운트로 양방향 동결**한다. 늘어도 줄어도 RED 다. `EM_DASH_ALLOWLIST` 를 올리지 말고 **문구에서 빼라**.
+- **RUF003** — 주석 안의 `×`(MULTIPLICATION SIGN) 와 `−`(MINUS SIGN) 가 ruff 를 깬다. ASCII `x` 와 `-` 를 써라. 네 번 재발했다. `tests/` · `tools/scripts/` · `alembic/versions/` 는 면제지만 `src/` 는 아니다.
+- **디자인 캐논 em-dash 래칫** — `apps/web/src/__tests__/design-canon-source.test.ts` 가 노출 산문의 `—` 를 **파일별 정확 카운트로 양방향 동결**한다. 늘어도 줄어도 RED 다. `EM_DASH_ALLOWLIST` 를 올리지 말고 **문구에서 빼라**.
   ★ 이 래칫은 **FE 소스만 스캔한다.** 서버가 보내 화면에 렌더되는 문자열은 안 잡히므로 백엔드 문자열은 사람이 지켜야 한다.
   ★★**주석은 안 센다** — `stripComments` 로 지운 뒤 세고 `__tests__` 는 제외한다(2026-08-10 코드 대조).
   종전에 돌던 「FE 주석에 `—` 금지」는 **현행 코드에 거짓**이다. 잡히는 것은 **JSX/문자열 산문**뿐이고,
@@ -803,9 +804,9 @@ null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는
 
 - `main` / `master` push **영구 차단** (bypass 불가)
 - `feat/*` `fix/*` `chore/*` `docs/*` `test/*` `refactor/*` `hotfix/*` 만 허용. 그 외는 `QB_PRE_PUSH_BYPASS=1` 필요
-- `frontend/` 변경 시 `pnpm typecheck && pnpm test`
-- `backend/` 변경 시 `uv run ruff check . && uv run mypy src/` (**pytest 는 opt-in** — `QB_RUN_PYTEST=1`)
-- `backend/.env.local` 에서 **`TEST_` 접두 변수만** 자동 export. `DATABASE_URL` 은 안 들어온다
+- `apps/web/` 변경 시 `pnpm typecheck && pnpm test`
+- `apps/api/` 변경 시 `uv run ruff check . && uv run mypy src/` (**pytest 는 opt-in** — `QB_RUN_PYTEST=1`)
+- `apps/api/.env.local` 에서 **`TEST_` 접두 변수만** 자동 export. `DATABASE_URL` 은 안 들어온다
 
 ## 5. 격리 스택
 

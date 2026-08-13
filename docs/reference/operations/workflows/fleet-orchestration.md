@@ -101,9 +101,9 @@
 ```
 ① 분해     오케스트레이터가 BL/스프린트를 읽고 A/B/C 로 쪼갠다 → tasks/*.md
    ★정지점 1 — 분배안을 사람에게 보이고 승인받는다 (가장 싼 수정 지점)
-② 부팅     scripts/herdr-fleet.sh --agent claude:a --agent claude:b --agent codex:c
-③ 분배     scripts/fleet-dispatch.sh --run <run>
-④ 폴링     scripts/fleet-dispatch.sh --run <run> --status     (반복 호출)
+② 부팅     tools/scripts/herdr-fleet.sh --agent claude:a --agent claude:b --agent codex:c
+③ 분배     tools/scripts/fleet-dispatch.sh --run <run>
+④ 폴링     tools/scripts/fleet-dispatch.sh --run <run> --status     (반복 호출)
 ⑤ 통합     stage/<theme> 에 워커별 순차 squash merge (§5)
 ⑥ 검증     통합 브랜치에서 전체 게이트 + celery 경유 + e2e
    ★정지점 2 — PR 생성 전 사람 승인
@@ -166,8 +166,8 @@ A 와 B 가 각각 맞는데 합치면 깨지는 상호작용 결함이 정확�
    ```bash
    cd <워크트리>/backend; set -a; . ./.env.local; set +a; uv run pytest
    ```
-   `cd backend && set -a; ...` 를 같은 셸에서 두 번 돌리면 **거짓 red 가 난다**(실측).
-   Bash 툴은 cwd 가 호출 간에 유지되므로 2회차의 `cd backend` 가 실패하고, `&&` 때문에
+   `cd apps/api && set -a; ...` 를 같은 셸에서 두 번 돌리면 **거짓 red 가 난다**(실측).
+   Bash 툴은 cwd 가 호출 간에 유지되므로 2회차의 `cd apps/api` 가 실패하고, `&&` 때문에
    `set -a` 만 건너뛴다. 뒤의 `.  ./.env.local` 은 `;` 라 그대로 돌지만 **export 가 아니라 셸
    지역 변수 대입**이 되어 pytest 가 5432 로 떨어진다. 코드는 멀쩡한데 빨간불이 뜬다.
 6. ★**celery 를 타는 것(백테스트·라이브신호·옵티마이저)은 네 코드로 안 돈다.** worker 컨테이너가

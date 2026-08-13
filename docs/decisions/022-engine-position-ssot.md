@@ -3,7 +3,7 @@
 > **상태:** 확정 (Accepted)
 > **일자:** 2026-08-04
 > **출처:** 2026-08-04 engine-position-ssot ([BL-591] §설계 축 4개 질문의 사용자 확정)
-> **관련:** [`tasks/live_signal.py:2528`](../../backend/src/tasks/live_signal.py) (`run_live` 재생) · `live_signal.py:2248` (동어반복 금지 제약) · `live_signal.py:494-516` (발산 분류기) · [`pine_v2/event_loop.py:192`](../../backend/src/strategy/pine_v2/event_loop.py) (주입점) · [`pine_v2/strategy_state.py:331-357`](../../backend/src/strategy/pine_v2/strategy_state.py) (`seed_positions_from_ledger`)
+> **관련:** [`tasks/live_signal.py:2528`](../../apps/api/src/tasks/live_signal.py) (`run_live` 재생) · `live_signal.py:2248` (동어반복 금지 제약) · `live_signal.py:494-516` (발산 분류기) · [`pine_v2/event_loop.py:192`](../../apps/api/src/strategy/pine_v2/event_loop.py) (주입점) · [`pine_v2/strategy_state.py:331-357`](../../apps/api/src/strategy/pine_v2/strategy_state.py) (`seed_positions_from_ledger`)
 
 ---
 

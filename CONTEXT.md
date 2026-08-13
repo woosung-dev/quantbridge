@@ -50,7 +50,7 @@ _Avoid_: Optuna(채택 안 함)
 **vectorbt**:
 ★**제거됨(2026-08-06)** — 묘비로 남긴다. ADR-011 이 실행 엔진에서 _지표 계산 전용_ 으로 강등했고,
 그 뒤 **의존성 자체가 제거**됐다. 강등 시점의 정의(「`ta.*` 지표 계산 가속」)조차 실제와 달랐다 —
-`backend/src` 는 vectorbt 를 **한 줄도 import 하지 않았고**(2026-08-06 실측: 언급 16곳 전부
+`apps/api/src` 는 vectorbt 를 **한 줄도 import 하지 않았고**(2026-08-06 실측: 언급 16곳 전부
 주석/독스트링), `ta.*` 는 `pine_v2/stdlib.py` 가 pandas/numpy 로 **직접** 계산한다.
 유일한 소비처는 라이브러리 설치 확인용 smoke 테스트 1개였다.
 _Avoid_: backtest engine, 전략 실행기, "지표 계산 가속"(이 표현도 드리프트였다)
@@ -127,7 +127,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 > **Domain expert:** "아니요. **TradingSession** 테이블은 없습니다(phantom). 실제로는 **LiveSignalSession**(활성 세션) + 신호마다 **LiveSignalEvent**(outbox) + 거래소 **Order** 3개로 구성됩니다."
 >
 > **Dev:** "그럼 백테스트는 vectorbt 가 돌리는 거죠?"
-> **Domain expert:** "아니요. 실행 엔진은 **pine_v2** 인터프리터이고, vectorbt 는 **아예 없습니다**(2026-08-06 의존성 제거). 한동안 '지표 계산 보조'로 적혀 있었지만 그것도 실제와 달랐어요 — `backend/src` 는 vectorbt 를 한 줄도 import 하지 않았고 `ta.*` 는 `pine_v2/stdlib.py` 가 직접 계산합니다(ADR-003/011)."
+> **Domain expert:** "아니요. 실행 엔진은 **pine_v2** 인터프리터이고, vectorbt 는 **아예 없습니다**(2026-08-06 의존성 제거). 한동안 '지표 계산 보조'로 적혀 있었지만 그것도 실제와 달랐어요 — `apps/api/src` 는 vectorbt 를 한 줄도 import 하지 않았고 `ta.*` 는 `pine_v2/stdlib.py` 가 직접 계산합니다(ADR-003/011)."
 >
 > **Dev:** "트레일링 스톱은 진입 주문에 같이 넣나요?"
 > **Domain expert:** "절대 안 됩니다. `Order.trailing_stop` 은 _의도_ 만 영속하고, 체결 후 `set_trading_stop` 으로 포지션에 부착합니다. entry 에 넣으면 ccxt 가 trading-stop 으로 라우팅해 진입이 깨집니다."
@@ -136,7 +136,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 
 - **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/reference/domain/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 완료(본 브랜치).
 - **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**. ★2026-08-06 에 한 겹 더 벗겼다 — 「vectorbt 는 지표계산 전용」이라는 강등 서술**조차** 드리프트였고(코드 import 0건), 의존성 자체를 제거했다. _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 완료.
-- **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `backend/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `backend/src/exchange/models.py` 표기 → Phase 2 정정 완료(본 브랜치).
+- **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `apps/api/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `apps/api/src/exchange/models.py` 표기 → Phase 2 정정 완료(본 브랜치).
 - **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. **ExchangeMode** = `demo | live` 뿐이고 demo 의미는 거래소별 상이(Bybit demo = 실 매칭엔진 / OKX demo = CCXT sandbox).
 - **"unsupported"**(parse_status) → 해소: 파서는 `ok`/`error` 만 set. 미지원 함수 판정은 백테스트 제출 시 **Coverage Analyzer**(ADR-003 all-or-nothing).
 - **"transpile"** → 해소: pine_v2 는 AST 를 해석(interpret)하며 Python 으로 트랜스파일하지 않음(`exec`/`eval` 금지, ADR-003).

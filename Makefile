@@ -19,11 +19,15 @@
         db-snapshot db-restore \
         test be-test fe-test fe-e2e fe-e2e-authed lint typecheck docs-audit header-audit metrics-prepare metrics-wipe
 
-ISOLATED_COMPOSE := -f docker-compose.yml -f docker-compose.isolated.yml
-METRICS_COMPOSE_FILES :=
+# ★compose 파일은 infra/compose/ 에 있지만 프로젝트 디렉터리는 체크아웃 루트로 고정한다.
+# 프로젝트명(=볼륨 소유)과 volume 상대경로가 **파일 위치가 아니라 루트에서 파생**돼야
+# 기존 볼륨이 고아가 되지 않는다 (ADR-029).
+COMPOSE_FLAGS := --project-directory . -f infra/compose/docker-compose.yml
+ISOLATED_COMPOSE := $(COMPOSE_FLAGS) -f infra/compose/docker-compose.isolated.yml
+METRICS_COMPOSE_FILES := $(COMPOSE_FLAGS)
 METRICS_WRITER_SERVICES := backend-worker backend-ws-stream backend-optimizer-heavy backend-beat
 
-# 워크트리 병렬 슬롯 — scripts/worktree-bootstrap.sh 가 워크트리 루트에 `.worktree-slot` 을 쓴다.
+# 워크트리 병렬 슬롯 — tools/scripts/worktree-bootstrap.sh 가 워크트리 루트에 `.worktree-slot` 을 쓴다.
 # 파일이 없으면(= 메인 체크아웃) 슬롯 0 이고, 그때 포트는 기존 값 3100/8100 과 정확히 같다.
 # 컨테이너(5433/6380)는 슬롯과 무관하게 공유한다 — container_name 이 고정이라 스택은 1벌뿐이다.
 -include .worktree-slot
@@ -72,14 +76,14 @@ QB_BE_PORT := $(shell expr 8100 + $(QB_SLOT))
 # 변수로 두면 `make 'qb-guard=@:' seed` 로 빈 명령으로 덮여 그대로 통과한다(실측).
 .PHONY: _guard-main-only
 _guard-main-only:
-	@scripts/assert-main-checkout.sh "$(or $(MAKECMDGOALS),이 타깃)"
+	@tools/scripts/assert-main-checkout.sh "$(or $(MAKECMDGOALS),이 타깃)"
 
 # 소크 고정본 스택 보호 — up-isolated 계열은 같은 container_name 을 덮어써 돌고 있는 소크를
 # 끊는다. 같은 이유로 선행 타깃과 레시피 양쪽에 건다(위 §가드 설명과 동일한 논리).
 # ★고정본 스택이 안 떠 있으면 이 가드는 **아무 일도 하지 않는다** — 기존 워크플로의 의미 불변.
 .PHONY: _guard-no-pinned-soak
 _guard-no-pinned-soak:
-	@scripts/soak-stack.sh assert-not-pinned
+	@tools/scripts/soak-stack.sh assert-not-pinned
 
 
 # 격리 모드 DB URL (host 5433 / container 내부 5432) — be-isolated / migrate-isolated 공통.
@@ -110,8 +114,8 @@ help:
 	@echo "    make fe-isolated       # frontend Next.js (port 3100)"
 	@echo ""
 	@echo "  워크트리 병렬 — 현재 슬롯 $(QB_SLOT) (FE $(QB_FE_PORT) / BE $(QB_BE_PORT))"
-	@echo "    scripts/herdr-fleet.sh          # herdr 2x2 함대 — 워크트리 3 + CONTROL 1 (메인에서)"
-	@echo "    scripts/worktree-bootstrap.sh   # 새 워크트리를 실행 가능 상태로 (슬롯·테스트DB·env)"
+	@echo "    tools/scripts/herdr-fleet.sh          # herdr 2x2 함대 — 워크트리 3 + CONTROL 1 (메인에서)"
+	@echo "    tools/scripts/worktree-bootstrap.sh   # 새 워크트리를 실행 가능 상태로 (슬롯·테스트DB·env)"
 	@echo "    docs/reference/operations/worktree-parallel.md   # 무엇이 병렬 가능하고 무엇이 불가능한가"
 	@echo "    * 슬롯 != 0 에서는 up/down/migrate/seed 계열이 거부된다 (공유 자원 보호)"
 	@echo ""
@@ -132,21 +136,21 @@ help:
 # Prometheus mmap 파일은 모든 writer가 멈춘 콜드 스타트에서만 제거한다.
 # 부분 재기동 타깃에는 metrics-wipe를 절대 붙이지 않는다.
 metrics-prepare:
-	mkdir -p backend/.metrics
-	chmod 0777 backend/.metrics
+	mkdir -p apps/api/.metrics
+	chmod 0777 apps/api/.metrics
 
 # ★실패가 아니라 건너뛴다 — `up*` 은 이미 떠 있는 스택을 재조정할 때도 쓰는 멱등 커맨드다.
 # wipe 는 전제조건이 아니라 위생 단계이므로, 살아 있는 writer 가 있으면 조용히가 아니라
 # 시끄럽게 알리고 넘어간다(지우면 그 writer 가 고아 inode 에 쓰게 되어 지표가 무음 손실된다).
 metrics-wipe: metrics-prepare
-	@scripts/assert-main-checkout.sh metrics-wipe || exit 1; \
+	@tools/scripts/assert-main-checkout.sh metrics-wipe || exit 1; \
 	writers="$$(docker compose $(METRICS_COMPOSE_FILES) ps -q $(METRICS_WRITER_SERVICES))"; status=$$?; \
 	if [ $$status -ne 0 ]; then \
 		echo "metrics-wipe: SKIPPED — compose ps failed; preserving metric files (fail-closed)"; \
 	elif [ -n "$$writers" ]; then \
 		echo "metrics-wipe: SKIPPED — metric writers running"; \
 	else \
-		find backend/.metrics -maxdepth 1 -type f -name '*.db' -delete; \
+		find apps/api/.metrics -maxdepth 1 -type f -name '*.db' -delete; \
 		echo "metrics-wipe: WIPED — no metric writers running"; \
 	fi
 
@@ -164,19 +168,19 @@ dev: up
 	  wait
 
 up: _guard-main-only metrics-wipe
-	@scripts/assert-main-checkout.sh up || exit 1; \
-	  docker compose up -d
+	@tools/scripts/assert-main-checkout.sh up || exit 1; \
+	  docker compose $(COMPOSE_FLAGS) up -d
 
 down: _guard-main-only
-	@scripts/assert-main-checkout.sh down || exit 1; \
-	  docker compose down
+	@tools/scripts/assert-main-checkout.sh down || exit 1; \
+	  docker compose $(COMPOSE_FLAGS) down
 
 logs:
-	docker compose logs -f
+	docker compose $(COMPOSE_FLAGS) logs -f
 
 be: metrics-prepare
-	cd backend && \
-	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/backend/.metrics \
+	cd apps/api && \
+	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/apps/api/.metrics \
 	  QB_METRICS_ROLE=api \
 	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
 
@@ -188,13 +192,13 @@ be: metrics-prepare
 #   경고를 남겨 다음 사람이 그 문턱을 실제로 재게 만드는 것이다. 숫자를 정본으로 인용하지 마라.
 FE_CACHE_WARN_MB ?= 1024
 fe:
-	@sz=$$(du -sm frontend/.next 2>/dev/null | cut -f1); \
+	@sz=$$(du -sm apps/web/.next 2>/dev/null | cut -f1); \
 	if [ -n "$$sz" ] && [ "$$sz" -ge $(FE_CACHE_WARN_MB) ]; then \
-	  echo "⚠ frontend/.next 가 $${sz}MB 다 (경고선 $(FE_CACHE_WARN_MB)MB) — [BL-650]"; \
-	  echo "  dev 가 느리거나 CSS 변경이 안 먹으면 먼저: rm -rf frontend/.next"; \
+	  echo "⚠ apps/web/.next 가 $${sz}MB 다 (경고선 $(FE_CACHE_WARN_MB)MB) — [BL-650]"; \
+	  echo "  dev 가 느리거나 CSS 변경이 안 먹으면 먼저: rm -rf apps/web/.next"; \
 	  echo "  ★이 경고선은 문턱의 실측치가 아니다. 태우기 시작하는 크기를 재면 백로그에 적어라."; \
 	fi
-	cd frontend && pnpm dev
+	cd apps/web && pnpm dev
 
 # === 격리 모드 (3100 / 8100 / 5433 / 6380) ===
 
@@ -211,49 +215,49 @@ dev-isolated: up-isolated migrate-isolated
 
 up-isolated: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
 up-isolated: _guard-main-only _guard-no-pinned-soak metrics-wipe
-	@scripts/assert-main-checkout.sh up-isolated || exit 1; \
-	  scripts/soak-stack.sh assert-not-pinned || exit 1; \
+	@tools/scripts/assert-main-checkout.sh up-isolated || exit 1; \
+	  tools/scripts/soak-stack.sh assert-not-pinned || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) up -d
 
 # Sprint 23 BL-101 — 코드 변경 후 image 재빌드 + 부팅. daily flow 영향 0.
 # 기본 up-isolated 는 빠른 부팅 유지 (image cache 사용).
 up-isolated-build: METRICS_COMPOSE_FILES := $(ISOLATED_COMPOSE)
 up-isolated-build: _guard-main-only _guard-no-pinned-soak metrics-wipe
-	@scripts/assert-main-checkout.sh up-isolated-build || exit 1; \
-	  scripts/soak-stack.sh assert-not-pinned || exit 1; \
+	@tools/scripts/assert-main-checkout.sh up-isolated-build || exit 1; \
+	  tools/scripts/soak-stack.sh assert-not-pinned || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) up -d --build
 
 # Sprint 38 BL-181 — 격리 모드 + worker auto-rebuild on src 변경.
 # backend-worker / backend-ws-stream / backend-beat 3 서비스 한정으로
-# `./backend/src` bind-mount + watchfiles wrapper 적용 (isolated.yml override).
+# `./apps/api/src` bind-mount + watchfiles wrapper 적용 (isolated.yml override).
 # host src 변경 시 컨테이너 안 celery 가 자동 reload → 수동 rebuild 제거.
 # 패키지 변경은 image rebuild 의무 (ADR-019, docs/decisions/019-worker-auto-rebuild.md).
 up-isolated-watch: _guard-main-only _guard-no-pinned-soak metrics-prepare
-	@scripts/assert-main-checkout.sh up-isolated-watch || exit 1; \
-	  scripts/soak-stack.sh assert-not-pinned || exit 1; \
+	@tools/scripts/assert-main-checkout.sh up-isolated-watch || exit 1; \
+	  tools/scripts/soak-stack.sh assert-not-pinned || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) up -d --build backend-worker backend-ws-stream backend-beat
 
 down-isolated: _guard-main-only
-	@scripts/assert-main-checkout.sh down-isolated || exit 1; \
+	@tools/scripts/assert-main-checkout.sh down-isolated || exit 1; \
 	  docker compose $(ISOLATED_COMPOSE) down
 
 # ── 소크 스택 (BL-003 게이트) ────────────────────────────────────────────────
 # 워커가 작업 트리가 아니라 **고정된 커밋 스냅샷**(.soak/src)을 돌게 한다. 그래야
-# `backend/src` 를 편집해도 돌고 있는 소크가 죽지 않는다. 정본 = scripts/soak-stack.sh.
+# `apps/api/src` 를 편집해도 돌고 있는 소크가 죽지 않는다. 정본 = tools/scripts/soak-stack.sh.
 # ★up-isolated 계열은 같은 container_name 을 덮어써 소크를 끊으므로 _guard-no-pinned-soak
 #   를 단다. 고정본 스택이 안 떠 있으면 이 가드는 아무 일도 하지 않는다(기존 의미 불변).
 
 soak-pin: _guard-main-only
-	@scripts/assert-main-checkout.sh soak-pin || exit 1; \
-	  scripts/soak-stack.sh pin $(COMMIT)
+	@tools/scripts/assert-main-checkout.sh soak-pin || exit 1; \
+	  tools/scripts/soak-stack.sh pin $(COMMIT)
 
 up-soak: _guard-main-only
-	@scripts/assert-main-checkout.sh up-soak || exit 1; \
-	  scripts/soak-stack.sh up
+	@tools/scripts/assert-main-checkout.sh up-soak || exit 1; \
+	  tools/scripts/soak-stack.sh up
 
 down-soak: _guard-main-only
-	@scripts/assert-main-checkout.sh down-soak || exit 1; \
-	  scripts/soak-stack.sh down
+	@tools/scripts/assert-main-checkout.sh down-soak || exit 1; \
+	  tools/scripts/soak-stack.sh down
 
 logs-isolated:
 	docker compose $(ISOLATED_COMPOSE) logs -f
@@ -276,17 +280,17 @@ wait-db-isolated:
 # host uvicorn 이 docker-entrypoint.sh 안 타는 점을 보강. process env override 로
 # .env.local 의 5432 default 를 5433 으로 변경. up-isolated 후 db healthy 대기.
 migrate-isolated: _guard-main-only wait-db-isolated
-	@scripts/assert-main-checkout.sh migrate-isolated || exit 1; \
+	@tools/scripts/assert-main-checkout.sh migrate-isolated || exit 1; \
 	  echo "▶ alembic upgrade head (격리 DB 5433)"
-	@scripts/assert-main-checkout.sh migrate-isolated || exit 1; \
-	  cd backend && \
+	@tools/scripts/assert-main-checkout.sh migrate-isolated || exit 1; \
+	  cd apps/api && \
 	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
 	  uv run alembic upgrade head
 
 # 기본 모드 마이그레이션 — host 5432.
 migrate: _guard-main-only
-	@scripts/assert-main-checkout.sh migrate || exit 1; \
-	  cd backend && uv run alembic upgrade head
+	@tools/scripts/assert-main-checkout.sh migrate || exit 1; \
+	  cd apps/api && uv run alembic upgrade head
 
 # === DB 백업 / 복원 ([BL-451]) =============================================
 #
@@ -307,11 +311,11 @@ DB_USER := quantbridge
 DB ?= quantbridge
 
 db-snapshot: _guard-main-only
-	@scripts/assert-main-checkout.sh db-snapshot || exit 1; \
+	@tools/scripts/assert-main-checkout.sh db-snapshot || exit 1; \
 	  mkdir -p $(BACKUP_DIR); \
 	  out="$(BACKUP_DIR)/$(DB)-$$(date -u +%Y%m%dT%H%M%SZ).dump"; \
 	  echo "▶ pg_dump $(DB) → $$out"; \
-	  if ! docker compose exec -T db pg_dump -U $(DB_USER) -d $(DB) -Fc > "$$out"; then \
+	  if ! docker compose $(COMPOSE_FLAGS) exec -T db pg_dump -U $(DB_USER) -d $(DB) -Fc > "$$out"; then \
 	    rm -f "$$out"; echo "  ✗ pg_dump 실패 — 빈 파일을 남기지 않는다" >&2; exit 1; \
 	  fi; \
 	  size=$$(wc -c < "$$out" | tr -d ' '); \
@@ -321,12 +325,12 @@ db-snapshot: _guard-main-only
 	  echo "  ✓ $$out ($$size bytes)"
 
 db-restore: _guard-main-only
-	@scripts/assert-main-checkout.sh db-restore || exit 1; \
+	@tools/scripts/assert-main-checkout.sh db-restore || exit 1; \
 	  test -n "$(FILE)" || { echo "FILE=<덤프 경로> 가 필요하다" >&2; exit 1; }; \
 	  test -f "$(FILE)" || { echo "$(FILE) 가 없다" >&2; exit 1; }; \
 	  test -n "$(TO)" || { echo "TO=<대상 DB> 가 필요하다 — 기본값을 두지 않는 것이 안전장치다" >&2; exit 1; }; \
 	  echo "▶ pg_restore $(FILE) → $(TO)"; \
-	  docker compose exec -T db pg_restore -U $(DB_USER) -d "$(TO)" --clean --if-exists < "$(FILE)"; \
+	  docker compose $(COMPOSE_FLAGS) exec -T db pg_restore -U $(DB_USER) -d "$(TO)" --clean --if-exists < "$(FILE)"; \
 	  echo "  ✓ 복원 완료 → $(TO)"
 
 # dogfood 복원 시더 — 빈 DB 를 전 화면 사용 가능 상태로.
@@ -337,8 +341,8 @@ db-restore: _guard-main-only
 #   make seed            전체
 #   make seed ONLY=daily 하나만
 seed: _guard-main-only
-	@scripts/assert-main-checkout.sh seed || exit 1; \
-	  cd backend && set -a; . ./.env.local; set +a; \
+	@tools/scripts/assert-main-checkout.sh seed || exit 1; \
+	  cd apps/api && set -a; . ./.env.local; set +a; \
 	  uv run python scripts/seed_dogfood.py --confirm $(if $(ONLY),--only $(ONLY),)
 
 # 환경변수는 process env > dotenv 우선순위 (pydantic-settings).
@@ -360,7 +364,7 @@ be-isolated: migrate-isolated
 endif
 endif
 be-isolated: metrics-prepare
-	cd backend && \
+	cd apps/api && \
 	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
 	  REDIS_URL=redis://localhost:6380/0 \
 	  CELERY_BROKER_URL=redis://localhost:6380/1 \
@@ -368,12 +372,12 @@ be-isolated: metrics-prepare
 	  REDIS_LOCK_URL=redis://localhost:6380/3 \
 	  FRONTEND_URL=http://localhost:$(QB_FE_PORT) \
 	  WAITLIST_INVITE_BASE_URL=http://localhost:$(QB_FE_PORT)/invite \
-	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/backend/.metrics \
+	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/apps/api/.metrics \
 	  QB_METRICS_ROLE=api \
 	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port $(QB_BE_PORT)
 
 fe-isolated:
-	cd frontend && \
+	cd apps/web && \
 	  NEXT_PUBLIC_API_URL=http://localhost:$(QB_BE_PORT) \
 	  NEXT_PUBLIC_WS_URL=ws://localhost:$(QB_BE_PORT) \
 	  PORT=$(QB_FE_PORT) \
@@ -384,31 +388,31 @@ fe-isolated:
 test: be-test fe-test
 
 be-test:
-	cd backend && uv run pytest -v
+	cd apps/api && uv run pytest -v
 
 fe-test:
-	cd frontend && pnpm test
+	cd apps/web && pnpm test
 
 # Sprint 25 — Playwright E2E 분기:
 #   fe-e2e          smoke.spec.ts 만 (chromium project, public routes, Clerk 불요)
 #   fe-e2e-authed   chromium-authed (trading-ui + dogfood-flow). Clerk dev keys + storageState 필수.
 #                    NODE_ENV=production 차단. global.setup.ts 가 매 실행 시 storageState 갱신.
 fe-e2e:
-	cd frontend && pnpm e2e
+	cd apps/web && pnpm e2e
 
 fe-e2e-authed:
-	cd frontend && pnpm e2e:authed
+	cd apps/web && pnpm e2e:authed
 
 lint:
-	cd backend && uv run ruff check .
-	cd frontend && pnpm lint
+	cd apps/api && uv run ruff check .
+	cd apps/web && pnpm lint
 
 typecheck:
-	cd backend && uv run mypy src/
-	cd frontend && pnpm tsc --noEmit
+	cd apps/api && uv run mypy src/
+	cd apps/web && pnpm tsc --noEmit
 
 docs-audit:
-	scripts/docs-audit.sh
+	tools/scripts/docs-audit.sh
 
 # 게이트 하네스 전량 — **게이트가 무엇을 재는지 재는** 검사기들. 합계 17.3초(2026-08-11 재실측 ·
 # `signal-check-test` 추가 후 — git fixture 4벌 생성이 +5초. `skip-ratchet-test` 2.9초 포함).
@@ -422,10 +426,10 @@ docs-audit:
 gate-harnesses:
 	@rc=0; for h in bl-audit header-audit fleet-dispatch soak-restart soak-watch docs-audit pre-push-guard skip-ratchet signal-check; do \
 	  printf '\n▶ %s-test\n' "$$h"; \
-	  bash scripts/$$h-test.sh || rc=$$?; \
+	  bash tools/scripts/$$h-test.sh || rc=$$?; \
 	done; \
 	if [ "$$rc" != 0 ]; then echo; echo "✗ 하네스 실패 — 게이트가 판별력을 잃었다"; exit 1; fi; \
 	echo; echo "✓ 게이트 하네스 9종 전건 통과"
 
 header-audit:
-	scripts/header-audit.sh
+	tools/scripts/header-audit.sh

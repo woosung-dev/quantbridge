@@ -21,8 +21,8 @@
 > ★★`docs-audit.sh` 가 이 블록을 검사한다([BL-643]) — ⓪ 표 행 **≥3** ·
 > 살아 있는 **`다음 행동 =`** ≤1(파일 전체). 낡은 지시는 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꿔라.
 >
-> ★★★**착수 전 첫 명령 둘** — ⑴ `scripts/soak-gate.sh`(서버, `bash -lc` 필수)
-> ⑵ FE 를 건드릴 회차라면 **`rm -rf frontend/.next`**. ⑵ 는 농담이 아니다: 2026-08-08 에
+> ★★★**착수 전 첫 명령 둘** — ⑴ `tools/scripts/soak-gate.sh`(서버, `bash -lc` 필수)
+> ⑵ FE 를 건드릴 회차라면 **`rm -rf apps/web/.next`**. ⑵ 는 농담이 아니다: 2026-08-08 에
 > Turbopack 영속 캐시가 1.99GB 까지 자라 `next dev` 가 **요청 0건에서 417% CPU** 를 태우고
 > 머신을 두 번 죽였다. 게다가 낡은 CSS 를 **서버 재기동을 넘어** 계속 줘서 음성 대조를
 > 거짓 통과시켰다([BL-650]).
@@ -42,7 +42,7 @@
 각각 틀렸고 **셋 다 삭제 전에** 잡혔다(→[LESSON-105]·[LESSON-106] · `gates-and-traps.md` §git). 결과 = 원격 290→23 · 로컬 177→51 · 보류 62건은 [BL-715].
 
 **다음 회차의 목표는 ⓪ 에서 고른다** — 손으로 후보를 얹지 마라(`docs-audit` 의 ⓪ 표 정체성 축이
-집행한다). 살아 있는 행은 `bash scripts/bl-audit.sh --list ACTIVE` ∪ (`PARTIAL` ∧ 도래)다.
+집행한다). 살아 있는 행은 `bash tools/scripts/bl-audit.sh --list ACTIVE` ∪ (`PARTIAL` ∧ 도래)다.
 
 **비목표(불변)** — 거래소 쓰기([BL-669]) · `exchange_accounts` 행 삭제([BL-477]·[BL-529]·[BL-592]) ·
 alembic 마이그레이션. 셋 다 사용자 결정 대기다.
@@ -57,13 +57,13 @@ alembic 마이그레이션. 셋 다 사용자 결정 대기다.
 - ★**환경 짝 먼저** — `make fe-isolated`(`:3100`) 는 **BE `:8100`** 을 부른다. `make be` 는 `:8000`
   이므로 **짝을 맞춰 `make be-isolated` 를 띄워라.** 이 한 줄을 몰라 2026-08-12 회차가 authed 12건을
   「미시딩」으로 두 번 오진했다([BL-707]). `make fe` 는 `:3000` 이고 게이트가 보는 포트가 아니다.
-- **정렬·파생 필드의 정본 2곳** — `backend/src/backtest/repository.py`(`sharpe_sort_criteria` =
-  등급 4단 + 정규화 · **베끼지 말고 재사용해라**) · `backend/src/strategy/repository.py`
+- **정렬·파생 필드의 정본 2곳** — `apps/api/src/backtest/repository.py`(`sharpe_sort_criteria` =
+  등급 4단 + 정규화 · **베끼지 말고 재사용해라**) · `apps/api/src/strategy/repository.py`
   (`list_by_owner` = `DISTINCT ON` LEFT JOIN 후 정렬 → 페이지네이션)
-- **E2E base URL 은 1벌이다** — `frontend/e2e/_base-url.ts`. `?? "http://localhost:3000"` 을
+- **E2E base URL 은 1벌이다** — `apps/web/e2e/_base-url.ts`. `?? "http://localhost:3000"` 을
   **다시 만들지 마라**(사본 5벌이 CI 를 190ms 만에 죽였다)
-- **판정 스크립트 2벌** — `scripts/bl-audit.sh --list <판정어>` 가 정본이고
-  `scripts/bl-trigger-sweep.sh` 가 `ACTIVE ∪ PARTIAL` 을 훑는다. **파서를 3벌로 만들지 마라**
+- **판정 스크립트 2벌** — `tools/scripts/bl-audit.sh --list <판정어>` 가 정본이고
+  `tools/scripts/bl-trigger-sweep.sh` 가 `ACTIVE ∪ PARTIAL` 을 훑는다. **파서를 3벌로 만들지 마라**
 - ★**[BL-003] 을 이어받는다면 첫 파일은 하나다** —
   [`bybit-mainnet-runbook.md`](reference/operations/bybit-mainnet-runbook.md).
   **§0(착수 전 재측정)을 먼저 돌려라** — 이 문서의 실측에는 유효기한이 있다.
@@ -108,22 +108,22 @@ PR CI 가 red** 다.~~ → **2026-08-11 에 그 단위(⓪ 표 정체성 게이�
 ```bash
 # ① 세션 첫 명령 — 순서 고정. ★bash -lc 필수(비로그인 셸엔 uv PATH 가 없다)
 launchctl unload ~/Library/LaunchAgents/dev.quantbridge.soak-gate.plist  # 게이트에 flock 이 없다
-ssh truewords-oracle 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'
+ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/soak-gate.sh"'
 #   ★`/metrics` 는 **1회만** 읽는다 — 두 번 읽으면 근거들이 서로 다른 시점을 가리킨다.
-#     서버 `backend/.metrics` 직독([BL-620]). 방법은 `soak-gate.sh:517-527` 과 같은 것을 쓴다
+#     서버 `apps/api/.metrics` 직독([BL-620]). 방법은 `soak-gate.sh:517-527` 과 같은 것을 쓴다
 
 # ② 항목별 표적 명령
-cd backend && set -a; . ./.env.local; set +a; uv run pytest -q       # ★.env.local **통째** 소싱
-cd backend && … uv run pytest --run-mutations tests/strategy/pine_v2/test_trust_layer_parity.py
-cd frontend && pnpm vitest run --coverage                            # 단위 3 — ★문턱 금지
-bash scripts/bl-audit.sh; bash scripts/docs-audit.sh                 # 둘 다 종료 코드 0
+cd apps/api && set -a; . ./.env.local; set +a; uv run pytest -q       # ★.env.local **통째** 소싱
+cd apps/api && … uv run pytest --run-mutations tests/strategy/pine_v2/test_trust_layer_parity.py
+cd apps/web && pnpm vitest run --coverage                            # 단위 3 — ★문턱 금지
+bash tools/scripts/bl-audit.sh; bash tools/scripts/docs-audit.sh                 # 둘 다 종료 코드 0
 
 # ③ smoke 도구 — dry-run 은 네트워크 호출 0건이다. 마음 놓고 돌려라
-scripts/bybit-smoke.sh --env-file <시크릿파일> --mode demo
+tools/scripts/bybit-smoke.sh --env-file <시크릿파일> --mode demo
 #   ★--confirm 은 거래소에 실제로 나간다. **사용자 승인 뒤에만.**
 
 # ④ 하루 끝 — 마지막 커밋 뒤, 클린 트리. 그 뒤로 문서를 더 쓰지 마라
-scripts/final-gates.sh --run <회차슬러그>   # ★--run eod 금지 — 스크립트가 거부한다([BL-706])
+tools/scripts/final-gates.sh --run <회차슬러그>   # ★--run eod 금지 — 스크립트가 거부한다([BL-706])
 #   신호 4종(.ok)은 이 회차 것으로 새로 취득 — 각 파일 첫 줄 = `commit: $(git rev-parse HEAD)`
 ```
 
@@ -250,13 +250,23 @@ eod 거부 + 하네스 25케이스/변이 13종) + BL-462 원장·FE 고지 정�
 → ★**2026-08-13 B회차 종료** ([BL-709] ✅ · `feat/bl709`) — 러너 뒤집기 **0/18** · CONTROL 사후 **24/24 참** · `ac` 훼손 0 · 저작 **6분 10초**(개조 2:21 + step 3:49) · 커밋 10. ★★**회차를 한 번 죽인 것은 대조해 둔 as-is 위험 6건이 아니라 없던 7번째**(`TimeoutExpired` 미처리) — 그때 트리에 남은 것이 정확히 B 가 막으려던 상태다(**AC 0건 실행 + `completed` 커밋**). ★실행기도 codex 로 바뀌어 **축이 둘**이니 결과를 한 축에 귀속하지 마라. 전문 = [`harness/README.md`](../harness/README.md) §4·§5.
 
 ~~**다음 행동 = harness 파일럿 판정을 사용자와 함께 낸다 — 승격(ADR-029) / 삭제(+tombstone) / 3회차 중 하나.**~~
-→ ★**2026-08-13 사용자 판정 = 「일단 유지」**(보류). 삭제도 3회차도 하지 않고 `harness/` · `scripts/execute.py` 를
+→ ★**2026-08-13 사용자 판정 = 「일단 유지」**(보류). 삭제도 3회차도 하지 않고 `harness/` · `tools/scripts/execute.py` 를
 현 상태 그대로 둔다. ⇒ **`harness/README.md` §5 의 세 갈래는 여전히 열려 있고, 이 보류가 그중 하나를 고른 것이 아니다.**
 ★남은 사실 2건은 그대로다 — ⑴ 2회차 불일치 0 은 **결정적 AC 만 준 결과**라 원래 질문(자기채점이 뚫리는가)은
 **아직 안 물어졌다** ⑵ 재개하려면 조건은 실행기를 claude 로 되돌려 축 분리 + 비결정적 AC 혼입이다(step 파일은
 실행기와 무관해 저작 비용 0).
 
-**다음 행동 = 이번 docs-diet 회차(2026-08-13)를 커밋·PR 로 닫고, ⓪ 표에서 다음 항목을 고른다.**
+~~**다음 행동 = 이번 docs-diet 회차(2026-08-13)를 커밋·PR 로 닫고, ⓪ 표에서 다음 항목을 고른다.**~~
+→ **2026-08-13 PR #618 로 종결.** 같은 날 **monorepo-realign 회차가 열렸다** — 사용자 결정(대상 = 이
+레포 단독 · 전면 물리 재배치 + 표준 풀 정렬 · 계약축 PoC 는 [BL-717] · 제2앱 없음)에 따라
+`backend/→apps/api` · `frontend/→apps/web` · `scripts/→tools/scripts` · compose 4벌→`infra/compose/` ·
+`docker/db→infra/db` 재배치를 [ADR-029] 로 확정하고 브랜치 `refactor/monorepo-realign` 에 3커밋
+(M1 순수 mv 1,492 rename / M2 기계 표면 146파일 / M3 문서)으로 실었다. 검증 = 전량 pytest
+4604 passed·vitest 1351·게이트 하네스 9종·compose config AC(프로젝트명 3층 불변).
+
+**다음 행동 = `refactor/monorepo-realign` PR-1 을 push → CI 에서 `changes` outputs 2종 true + 전 잡
+non-skipped 를 확인 → 사용자 승인으로 머지 → 즉시 [BL-719] 롤아웃 lockstep(소크 서버 유닛 pull-전
+uninstall 순서 엄수)을 실행한다.**
 이 회차가 한 것 = 워크트리 **16G→2.0G**(clean 10벌 제거, 브랜치 ref 16개 전건 보존 — `du -sh
 .claude/worktrees/` · `git for-each-ref refs/heads/` 로 제거 전후 2회 측정. ★**버전 관리 밖이라
 사후 재현은 후행값만 된다**) · `backlog.md` RESOLVED **78건 접기**(본문 −146,412자 제거. ★최종
@@ -271,8 +281,8 @@ eod 거부 + 하네스 25케이스/변이 13종) + BL-462 원장·FE 고지 정�
 ([BL-716] P1, `lessons.md` 362/400줄이라 자리 확보가 선행). ~~labelsplit 워크트리~~ →
 **2026-08-13 해소** — 미커밋 4건을 `wt/labelsplit` 에 WIP 커밋(`2f91bdb7`)으로 박고 제거했다.
 ★**그중 354줄짜리 신규 테스트가 untracked 였다** — 커밋 없이 워크트리만 지웠으면 소실됐다.
-착수 전 `scripts/soak-gate.sh` 판독은 유지.
-★**착수 첫 명령 둘을 건너뛰지 마라** — ⑴ FE 를 건드릴 회차면 `rm -rf frontend/.next`
+착수 전 `tools/scripts/soak-gate.sh` 판독은 유지.
+★**착수 첫 명령 둘을 건너뛰지 마라** — ⑴ FE 를 건드릴 회차면 `rm -rf apps/web/.next`
 (이 회차엔 **1.3GB** 였고 그 상태에서 dev 서버가 한 번 죽었다) ⑵ **`make be-isolated` 와
 `make fe-isolated` 를 짝으로** 띄워라(`:8100` + `:3100`). 짝이 어긋나면 화면이 조용히 비고
 authed 가 12건 red 가 되는데, 그 실패 메시지는 **원인을 「미시딩」으로 오지목한다**([BL-707]).
@@ -299,13 +309,13 @@ authed 가 12건 red 가 되는데, 그 실패 메시지는 **원인을 「미�
 | 포트 함정 | ★**`:3101` 은 남의 앱**(`nexus_clarification_admin`)이고 `:3003` 은 Nexus Admin(그 `/sign-in` = **404**). 워크트리 **슬롯 1 금지** — 슬롯 2·3 을 써라           |
 | 워크트리  | 11개 전부 이전 회차 잔재 — 손대지 않는다                                                                                                                        |
 
-★★★**소크와 개발은 결합돼 있지 않다 — 「창이 살아 있으면 `backend/src` 무접촉」은 틀린 규칙이었다.**
+★★★**소크와 개발은 결합돼 있지 않다 — 「창이 살아 있으면 `apps/api/src` 무접촉」은 틀린 규칙이었다.**
 2026-08-08 코드로 확정했다:
 
-- `scripts/soak-stack.sh:212` — `.soak/src` 는 `git archive <sha> backend/src` 로 뜬 **스냅샷**이다.
+- `tools/scripts/soak-stack.sh:212` — `.soak/src` 는 `git archive <sha> apps/api/src` 로 뜬 **스냅샷**이다.
   작업 트리가 아니다.
 - `docker-compose.soak.yml:35,51,68,86` — 워커는 `./.soak/src:/app/src:**ro**` 를 mount 한다.
-  `backend/src` 를 **직접 보지 않는다.**
+  `apps/api/src` 를 **직접 보지 않는다.**
 - `.github/workflows/` 에 **배포 워크플로가 없다.** main 머지는 서버에 아무것도 하지 않는다
   (실증: 지금도 서버 체크아웃은 `fdc53c04` 인데 main 은 `17f70b5c` 다).
 
@@ -352,20 +362,20 @@ authed 가 12건 red 가 되는데, 그 실패 메시지는 **원인을 「미�
 > 판정줄 의무 밖이라 「도래」로 판별될 수가 없었고, 그래서 이 표는 **ACTIVE 와 같았다.**
 > 지금은 PARTIAL 전건이 판정을 갖는다. `docs-audit` 이 양쪽을 다 강제한다.
 > ★**수를 여기 박지 마라** — 착수 당시 24/24 · 도래 5(O~S)였고 같은 날 Q([BL-672])가
-> 닫히면서 곧바로 낡았다. 세는 것은 `bash scripts/bl-audit.sh --list PARTIAL` 이다.
+> 닫히면서 곧바로 낡았다. 세는 것은 `bash tools/scripts/bl-audit.sh --list PARTIAL` 이다.
 > **손으로 후보를 추가하지 마라.** 원장에서 도래 판정을 바꾸면 이 표가 따라온다.
 >
 > ★★★**2026-08-10 status-table-resync — 이 계약이 하루 만에 깨졌다.** 종전 서문이 「아래 8행」이라
 > 수를 박아 뒀는데 정작 9행이었다(회차가 손으로 **I** 를 얹었다 — 이 표 자신의 「추가하지 마라」
 > 위반). 그리고 종결된 [BL-698]·기각된 [BL-306] 이 살아 있는 행으로 남아, 표를 그대로 읽으면
 > **닫힌 결함이 ★★★ 최상위 추천**으로 보였다. **어느 게이트도 이걸 안 잡는다** —
-> `docs-audit` 은 이 표에 대해 **행 수 ≥3** 만 본다(`scripts/docs-audit.sh:286-307`).
+> `docs-audit` 은 이 표에 대해 **행 수 ≥3** 만 본다(`tools/scripts/docs-audit.sh:286-307`).
 > ★**이 계약에는 아직 소유자가 없다** — 다음 회차가 BL 로 등록해 `docs-audit` 축으로 박아라
 > ([BL-695] 가 `**트리거 판정:**` 줄에 대해 한 것과 같은 처방). 대조 방법은 이 회차가 세웠다:
 > 살아 있는 행의 BL id 집합 == `--list ACTIVE` 집합, **양쪽이 비면 ABORT**(빈 입력이 「일치」로
 > 새는 것이 이 회차가 두 번 밟은 함정이다).
 
-| #     | 후보 (= ACTIVE ∪ (PARTIAL ∧ 도래))                                                                                    | P   | 추천 | 난이도 | 소요       | `backend/src`                  | 왜 지금 (= 트리거 도래 근거)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| #     | 후보 (= ACTIVE ∪ (PARTIAL ∧ 도래))                                                                                    | P   | 추천 | 난이도 | 소요       | `apps/api/src`                 | 왜 지금 (= 트리거 도래 근거)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | ----- | --------------------------------------------------------------------------------------------------------------------- | --- | ---- | ------ | ---------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **A** | ~~[BL-687] pre-commit backend 훅이 스테이징된 py **첫 하나만** 검사~~ → **2026-08-10 종결**                           | —   | —    | —      | —          | —                              | `"${0#backend/}" "${@#backend/}"`. 재현 `1 file reformatted`(b·c 무시) → 수리 `3 files reformatted` → **음성 대조 1파일**(빈 `$@` 가 전체를 안 잡는다) → 종단 `lint-staged`. ★**프론트 축은 실패 모드가 반대**(전량 린트 **14.7s**) ⇒ [BL-696]                                                                                                                                                                                                                                                                                     |
 | **B** | [BL-026] Mutation 「12 skip 일괄 활성화」 — ★**범위 재정의 선행**                                                     | P1  | ★★   | ?      | **재산정** | 0줄                            | 도래는 맞다(트리거 줄 자신이 적었다). ★★**2026-08-11 실측이 제목·Est·권장접근을 셋 다 반증** — 「12 skip」의 출처 `docs/TODO.md` 는 `fcc36bf7` 에서 **삭제**돼 대상 집합이 없고, 무조건 skip 실측은 **6건**(mutation 관련 **1건**)이며 진짜 게이트는 `conftest.py:138-148` 마커다. 「하/S(1-2h)」는 근거 소멸                                                                                                                                                                                                                      |
@@ -381,7 +391,7 @@ authed 가 12건 red 가 되는데, 그 실패 메시지는 **원인을 「미�
 | **S** | ~~[BL-559] 사문 라벨 `reduce_only_entry_ignored` 제거~~ → **2026-08-11 기각으로 종결** (코드 0줄)                     | —   | —    | —      | —          | **0줄**                        | ★**전제는 맞고 처방이 틀렸다.** 라벨이 발화 못 하는 이유는 결함이 아니라 **상위 필터 2겹**(`order_repository.py:294` SQL · `live_signal.py:1653`)이고, 계획기의 그 분기는 그 둘이 깨져도 **사용자 손절을 안 지우는 마지막 방어선**이다(주석·전용 회귀 테스트 `test_conditional_entry_planner.py:194`). 아끼는 것은 series 1개, 잃는 것은 그 회귀의 유일한 증거                                                                                                                                                                     |
 | **J** | [BL-547] 원장 seed 가 다음 tick 에 조용한 고아가 될 수 있다                                                           | P2  | ★★   | 중     | M          | **건드림**                     | ★★★**2026-08-11 `/metrics` 1회 실측으로 「미도래」가 반증돼 ACTIVE 로 올라왔다** — `qb_live_position_divergence_total{category="exchange_only"}` = **3.0**. 트리거가 요구한 「실제로 오르는 것이 관측될 때」가 충족됐고, 본문의 「한 번도 오른 적이 없다」도 함께 무너졌다                                                                                                                                                                                                                                                         |
 | **C** | ~~[BL-451] 로컬 개발 DB 전소 가드 (부분 완화분 잔여)~~ → **2026-08-10 종결**                                          | —   | —    | —      | —          | **0줄**                        | ①판정 SSOT + 루트 conftest 승격(폴백 **금지**) ②`make db-snapshot`/`db-restore` ④`alembic` downgrade 가드(+`-x` 탈출구). ★난이도 「하/S」는 **틀렸다** — 실제 4h 남짓이고 CI 2곳이 함께 움직여야 했다. 배선 9건 · 변이 5/5 · 신규 [BL-697]                                                                                                                                                                                                                                                                                         |
-| **D** | [BL-591] 라이브 원장 슬라이스 1 계측                                                                                  | P2  | ★★   | 중     | M          | **건드림**                     | 트리거가 「★**이미 발화했다**」로 선언(자동 종료 15회). ★소크 창 중 `backend/src` 접촉 — [BL-690] 이 「창을 버린다」를 반증했다(pin 은 C1·C2 를 리셋 안 한다)                                                                                                                                                                                                                                                                                                                                                                      |
+| **D** | [BL-591] 라이브 원장 슬라이스 1 계측                                                                                  | P2  | ★★   | 중     | M          | **건드림**                     | 트리거가 「★**이미 발화했다**」로 선언(자동 종료 15회). ★소크 창 중 `apps/api/src` 접촉 — [BL-690] 이 「창을 버린다」를 반증했다(pin 은 C1·C2 를 리셋 안 한다)                                                                                                                                                                                                                                                                                                                                                                     |
 | **E** | ~~[BL-462] 백테스트 목록 Sharpe 정렬이 신·구 컨벤션을 섞어 센다~~ → **2026-08-11 종결**                               | —   | —    | —      | —          | **0줄**                        | ★**정렬은 이미 고쳐져 있었다** — ledger-truth(`1d4d7e0b`)의 등급 정렬이 권장 접근 「분리」의 구현. 앱 경로 실측: 구 컨벤션 행(원값 **1위**)이 4위로 분리. 이 회차는 **거짓이 된 기록 둘**(상태줄·FE 고지 문구)을 정정하고 잔여 주장 2건을 코드로 기각 — recompute(근거 소멸)·`Decimal("0")`→NULL(`metrics.py:111-116` 독스트링 + `grid_search.py:249` dead branch 가 반박). 화면 검증 = playwright authed 1 passed                                                                                                                 |
 | **F** | ~~[BL-307] 한국어 file header 누락~~ → **2026-08-10 종결** · ~~[BL-306] 콜론 종결 lint~~ → **2026-08-10 기각**        | —   | —    | —      | —          | **0줄**(주석만)                | `scripts/header-audit.sh` 1벌(BE·FE 공용) · 위반 **48 → 0** · pre-commit·CI 배선. ★**「70 file」은 48**(BE 13+FE 35)이었고 그중 **27건은 영→한 번역**이었다. ★**「근거였던 전역 §6 소멸」이 반증** — 규칙은 루트 `AGENTS.md` 로 이사했고, 착수 시점에 **508개 중 460개(90.6%)가 이미 준수** 중이었다(코드가 관행의 증인). ★**ruff·Biome 둘 다 구현 불가** — ruff 는 커스텀 룰 API 부재, Biome 은 GritQL 이 **주석을 못 본다**(trivia). 상세 = `dev-log/2026-08-10-bl307-header-lint.md`                                            |
 | **G** | [BL-024] real_broker E2E 본 구현 (nightly cron) — ★**소크와 상호배타**                                                | P1  | ☆    | 상     | L 8h+      | 0줄                            | ~~잔여 차단이 **지리 403**~~ → ★★★**2026-08-11 정정: 진짜 차단자는 「소크와 같은 Bybit demo 계정」이다.** 근거는 우리 코드 — `nightly-real-broker-local.sh:135` 이 「소크가 돌고 있다 … 같은 Bybit 계정이라 포지션을 공유한다」로 SKIP 한다(종료 코드 **0**). 로컬 nightly **8회 중 6회**가 실거래소를 못 쟀고(SKIP 4 · BLOCKED 2), 「PASS 2」도 **둘 다 `1 passed, 1 skipped`** 다. **2026-08-11 사용자 결정 = 2번째 계정 발급 안 함** ⇒ [BL-003] 이 창을 노리는 한 **영구 SKIP**. 지금 착수하면 8~20h 를 태우고 결과는 SKIP 이다 |
@@ -393,7 +403,7 @@ authed 가 12건 red 가 되는데, 그 실패 메시지는 **원인을 「미�
 | **X** | [BL-714] 마감 게이트가 전제하는 **브랜치 상태**가 문서에 없다                                                         | P2  | ★★★  | 하     | XS-S       | 0줄                            | ★**2026-08-12 도래 — 이 회차가 실제로 빠졌다.** 증분 머지 후 main 에서 신호 4종이 전부 `stale[no-branch-commits]` rc=1 이었다(sha 가 HEAD 와 같아도 A1 이 A2 앞이다). ★**A1 을 없애는 것은 처방이 아니다** — 그러면 main 에서 `commit: $(git rev-parse HEAD)` 한 줄로 4종이 통과한다([BL-706] 이 막으려던 것). 갭은 **문서의 전제 누락**이다                                                                                                                                                                                       |
 
 ★난이도·소요는 `[가정]`이고 preflight 에서 재측정한다.
-★**이 표에 없던 것들은 사라진 것이 아니다** — `scripts/bl-audit.sh --list DEFERRED` 151건이
+★**이 표에 없던 것들은 사라진 것이 아니다** — `tools/scripts/bl-audit.sh --list DEFERRED` 151건이
 트리거 미도래로 대기 중이고, 각 섹션의 `**트리거 판정:**` 줄이 **무엇이 막는지**를 적고 있다.
 ★**종전 표의 F·J·E 는 전부 내려갔다.** F([BL-477]+[BL-529])는 PARTIAL 이라 ACTIVE 가 아니고,
 J 의 안전한 XS 3건([BL-385]·[BL-386]·[BL-534])과 E([BL-654])는 **동승 트리거**다 —
@@ -418,7 +428,7 @@ down 직전 것이고 사흘이 지났다.** 그리고 「C2 는 max 라 재기�
 
 ### ★pin 의 비용 — 「C2 가 0 이 된다」는 거짓이다 (2026-08-10 확정)
 
-**코드 근거 3줄** (`backend/scripts/soak_gate_predicate.py`):
+**코드 근거 3줄** (`apps/api/scripts/soak_gate_predicate.py`):
 
 ```python
 window_start = disq[-1].at                                    # :614  창 시작 = 마지막 **실격**
@@ -464,15 +474,15 @@ ADR-024 가 적어 둔 「역대 2위 8.65h」도 이미 5위였다. **인용하
 
 ```bash
 QB=/Users/woosung/project/agy-project/quant-bridge
-rm -rf $QB/frontend/.next                       # ★FE 회차면 먼저 ([BL-650])
-cd $QB/frontend && pnpm test                    # 디자인 가드 포함
-cd $QB/frontend && pnpm typecheck               # ★2026-08-08 추가 — 빠뜨려 TS 에러를 놓친 적이 있다
-cd $QB/frontend && pnpm lint                    # ★같은 이유
-cd $QB/frontend && pnpm e2e                     # chromium 3건 (게이트에 들어왔다)
-cd $QB/frontend && pnpm e2e:design-canon        # table-tone·responsive 포함
+rm -rf $QB/apps/web/.next                       # ★FE 회차면 먼저 ([BL-650])
+cd $QB/apps/web && pnpm test                    # 디자인 가드 포함
+cd $QB/apps/web && pnpm typecheck               # ★2026-08-08 추가 — 빠뜨려 TS 에러를 놓친 적이 있다
+cd $QB/apps/web && pnpm lint                    # ★같은 이유
+cd $QB/apps/web && pnpm e2e                     # chromium 3건 (게이트에 들어왔다)
+cd $QB/apps/web && pnpm e2e:design-canon        # table-tone·responsive 포함
 QB2=$QB; set -a; . $QB2/backend/.env.local; set +a; cd $QB2/backend && uv run pytest
-cd $QB && bash scripts/bl-audit.sh; bash scripts/docs-audit.sh
-ssh truewords-oracle 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'
+cd $QB && bash tools/scripts/bl-audit.sh; bash tools/scripts/docs-audit.sh
+ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/soak-gate.sh"'
 ```
 
 ★`pnpm e2e` 계열은 **dev 서버가 `:3100`(=3100+SLOT)에 떠 있어야** 한다 —
@@ -483,7 +493,7 @@ ssh truewords-oracle 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'
 
 - ★★**`chromium-authed` e2e 는 소크 상태에 결합된다**([BL-597]). red 면 코드가 아니라 소크를
   먼저 의심해라. `chromium` · `chromium-design-canon` 은 안전하다.
-- ★**`frontend/` 안 json/yml 을 스테이징하지 마라**([BL-602]). 단 `frontend/AGENTS.md` ·
+- ★**`apps/web/` 안 json/yml 을 스테이징하지 마라**([BL-602]). 단 `apps/web/AGENTS.md` ·
   `CLAUDE.md` · `README.md` 는 `.prettierignore` 에 있어 **안전하다**(2026-08-08 실증).
 - ★거래소를 건드리는 모든 것은 사용자 승인.
 
@@ -494,7 +504,7 @@ ssh truewords-oracle 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'
 > 아래는 특정 회차가 아니라 **소크를 굴릴 때마다 다시 밟는 함정**들이다. 회차별 숫자는
 > dev-log 로 갔다 — 여기에 낡은 T0/baseline 을 남겨두면 다음 사람이 죽은 세션을 현행으로 읽는다
 > (2026-08-03 실측 사고: 이 절이 이미 죽은 세션의 창 종료 시각을 가리키고 있었다).
-> ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다.** `CONTEXT.md`·`docs/` 정본은 반대다(읽어야 들어온다). (`backend/AGENTS.md`·`frontend/AGENTS.md` 는 ADR-027 부터 그 디렉터리 파일을 열면 자동 로드.)
+> ★**`AGENTS.md` 는 읽지 마라 — 자동 로드된다.** `CONTEXT.md`·`docs/` 정본은 반대다(읽어야 들어온다). (`apps/api/AGENTS.md`·`apps/web/AGENTS.md` 는 ADR-027 부터 그 디렉터리 파일을 열면 자동 로드.)
 
 ### ★새 counter 를 읽는 법
 
@@ -505,14 +515,14 @@ ssh truewords-oracle 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'
 
 ```bash
 # ⑴ 권장 — 직독. 인증이 없고 게이트가 쓰는 것과 같은 경로다 ([BL-620])
-cd backend && PROMETHEUS_MULTIPROC_DIR=.metrics uv run python -c '
+cd apps/api && PROMETHEUS_MULTIPROC_DIR=.metrics uv run python -c '
 import sys
 from prometheus_client import CollectorRegistry, generate_latest, multiprocess
 r = CollectorRegistry(); multiprocess.MultiProcessCollector(r)
 sys.stdout.buffer.write(generate_latest(r))' | grep qb_live_conditional_fill_ownership_total
 
 # ⑵ HTTP 로 봐야 하면 **`-f` 와 토큰을 반드시 함께** — 둘 중 하나만 빠지면 조용히 0 매치다
-TOKEN="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' backend/.env.local)"
+TOKEN="$(sed -n 's/^PROMETHEUS_BEARER_TOKEN=//p' apps/api/.env.local)"
 curl -sf -H "Authorization: Bearer ${TOKEN}" localhost:8100/metrics \
   | grep qb_live_conditional_fill_ownership_total || echo "✗ 취득 실패 — 0 매치와 구별해라"
 ```
@@ -534,10 +544,10 @@ curl -sf -H "Authorization: Bearer ${TOKEN}" localhost:8100/metrics \
 ### 첫 명령 (순서 있음)
 
 ```bash
-scripts/soak-gate.sh                 # ★첫 명령. PASS/FAIL/UNKNOWN + 누적 시간
-scripts/soak-stack.sh status         # 고정 커밋 · 활성 세션 · main 조상 여부
-scripts/soak-stack.sh commit         # 소크가 **실제로 돌리는** 커밋 (프로세스 기준)
-docker logs quantbridge-worker 2>&1 | (cd backend && uv run python \
+tools/scripts/soak-gate.sh                 # ★첫 명령. PASS/FAIL/UNKNOWN + 누적 시간
+tools/scripts/soak-stack.sh status         # 고정 커밋 · 활성 세션 · main 조상 여부
+tools/scripts/soak-stack.sh commit         # 소크가 **실제로 돌리는** 커밋 (프로세스 기준)
+docker logs quantbridge-worker 2>&1 | (cd apps/api && uv run python \
   scripts/classify_direction_divergence.py)          # 발산 재판정 (회복식)
 ```
 
@@ -562,9 +572,9 @@ p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 *
 **★ci-diet 회차 신규 5종** — **[BL-598]** 코퍼스 첫-접촉 파싱 비용(CI 14분 벽의 뿌리. ★캐시
 데코레이터는 **찾아봤고 없다** — 프로파일이 먼저다) · **[BL-599]** Pine v1 shim +
 `BacktestOutcome.parse`(단독 철거 불가) · **[BL-600]** `TradingSession` 동음이의(JSONB 영속) ·
-**[BL-601]** 호출 0건 잔재 3종 · **[BL-602]** 루트 prettier 가 `frontend/` json 을 못 포맷
+**[BL-601]** 호출 0건 잔재 3종 · **[BL-602]** 루트 prettier 가 `apps/web/` json 을 못 포맷
 (**지금 막힌다** — 위 §한 줄 참조).
-★소크가 도는 동안은 [BL-598]/[BL-601]/[BL-602] 처럼 **`backend/src` 무접촉**으로 끝나는 것만
+★소크가 도는 동안은 [BL-598]/[BL-601]/[BL-602] 처럼 **`apps/api/src` 무접촉**으로 끝나는 것만
 안전하다. [BL-599]/[BL-600] 은 코어 DTO·JSONB 를 건드리므로 창을 내리기 전엔 열지 마라.
 
 ---
@@ -598,12 +608,12 @@ p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 *
    컨테이너 15). **이벤트 직후 읽기로 판정하지 마라.** 하루 1회 관측엔 영향 없다.
 5. ★**`idle` 은 완료가 아니다** · **Clerk JWT 는 60초** · **`:3000` 은 다른 앱(Kairos)** ·
    API 는 `:8100`, DB 는 `:5433`(격리 스택).
-6. ★★**게이트를 파이프에 넣지 마라** · **`cd backend && set -a; . ./.env.local` 금지**(아래 참조).
+6. ★★**게이트를 파이프에 넣지 마라** · **`cd apps/api && set -a; . ./.env.local` 금지**(아래 참조).
 7. ★**세션 등재는 HTTP 로 헤드리스 불가**(Clerk 가 `azp` 를 요구). 서비스 계층 직접 호출이
-   유일한 길이다(`backend/scripts/seed_dogfood.py:11-19` 선례). **손 INSERT 는 금지** —
+   유일한 길이다(`apps/api/scripts/seed_dogfood.py:11-19` 선례). **손 INSERT 는 금지** —
    `equity_baseline_usdt` 를 건너뛰어 첫 tick 에 자동 비활성화된다.
-8. ★★**재기동은 손으로 밟지 마라 — `scripts/soak-restart.sh`** 가 8단계를 집행한다(기본 dry-run,
-   `--confirm` 으로 집행, `FLAT=YES` 아니면 정지). **감시는 `scripts/soak-watch.sh --install`** 이
+8. ★★**재기동은 손으로 밟지 마라 — `tools/scripts/soak-restart.sh`** 가 8단계를 집행한다(기본 dry-run,
+   `--confirm` 으로 집행, `FLAT=YES` 아니면 정지). **감시는 `tools/scripts/soak-watch.sh --install`** 이
    맡는다(30분마다 게이트 1회 + 지문 변화 시 텔레그램). ★watch 는 게이트 타이머를 **대체**한다 —
    게이트에 flock 이 없어 둘을 같이 돌리면 표본이 경합한다. 정본 =
    [`gates-and-traps.md` §소크 무인 감시](reference/operations/gates-and-traps.md).
@@ -639,7 +649,7 @@ p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 *
 
 ★**[BL-581] 은 소크 창의 상한이 아니다**(2026-08-04 정정). 워커 커맨드가
 `uv run watchfiles --filter python celery … /app/src` 이고 `/metrics` 파일은 **PID 당** 생기므로,
-증가 드라이버는 **`backend/src` 편집으로 인한 워커 재기동**이다. 실측: 편집 세션 시간대 **~600/h**
+증가 드라이버는 **`apps/api/src` 편집으로 인한 워커 재기동**이다. 실측: 편집 세션 시간대 **~600/h**
 (08-03 08시 584 · 17시 829 · 08-04 01시 595) vs **조용한 소크 시간대 ~4–5/h**(08-04 00시 4개 ·
 최근 90분 5개 = 워커 자식 1회 재활용). 남은 5,091 파일 기준 **약 42일**이다. ⇒ 상한은 소크 시간이
 아니라 **개발 재기동 예산**이다.
@@ -649,10 +659,10 @@ p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 *
 같은 창에 게이트 수집기·`uv run`·호스트 uvicorn `--reload` 가 섞여 있어 **귀속시킬 수 없었고**,
 bind mount 라 파일 소유자로도 못 가른다(전부 호스트 uid 로 보인다). **조용한 창에서 다시 재라.**
 
-> ★★**`cd backend && set -a; . ./.env.local; set +a` 를 쓰지 마라.** 이미 `backend` 에 있으면
+> ★★**`cd apps/api && set -a; . ./.env.local; set +a` 를 쓰지 마라.** 이미 `apps/api` 에 있으면
 > `cd` 가 실패해 **`set -a` 만 건너뛰고** 나머지는 `;` 로 계속 실행된다 — env 가 export 되지
 > 않은 채 pytest 가 5432 로 붙어 `InvalidPasswordError` **대량 거짓 red**.
-> **`QB=…; set -a; . $QB/backend/.env.local; set +a; cd $QB/backend`** 로 써라.
+> **`QB=…; set -a; . $QB/apps/api/.env.local; set +a; cd $QB/apps/api`** 로 써라.
 > ★**브랜치 접두사는 `stage/`** · `QB_PRE_PUSH_BYPASS=1` 금지.
 > ★**pre-commit 이 `ruff format`·`prettier --write` 를 돌린다** — **커밋 후 게이트를 다시 재라**.
 > ★**표적 변이는 CONTROL 이 직접 집행**(`git checkout` 금지, sha256 복원 대조). 치환 문자열이

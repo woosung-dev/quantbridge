@@ -16,7 +16,7 @@
 // ★상대 깊이 주의 — 이 파일은 <repo>/docs/reference/design/prototypes/shotgun-2026-07/ 에 있다.
 //   `docs/` 재편(fcc36bf7)으로 두 단계 깊어졌는데 import 가 안 따라와서 ERR_MODULE_NOT_FOUND 로
 //   기동조차 못 하고 있었다. repo 루트까지는 다섯 단계다.
-import { chromium } from '../../../../../frontend/node_modules/.pnpm/playwright@1.59.1/node_modules/playwright/index.mjs';
+import { chromium } from '../../../../../apps/web/node_modules/.pnpm/playwright@1.59.1/node_modules/playwright/index.mjs';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';

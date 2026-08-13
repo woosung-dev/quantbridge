@@ -4,8 +4,8 @@
 # 여기 적을 것 = "gitignore 인데 없으면 워크트리가 작동하지 않는 것" 뿐.
 #
 # ⚠️ 심볼릭 링크는 복사되지 않는다 (Claude Code 가 "Skipping symlink in .worktreeinclude" 로 건너뜀).
-#    `.claude/CLAUDE.md -> ../AGENTS.md` 는 scripts/worktree-bootstrap.sh 가 재생성한다.
-#    스택 규칙은 ADR-027 부터 `backend/AGENTS.md`·`frontend/AGENTS.md` — 체크아웃에 그냥 포함된다.
+#    `.claude/CLAUDE.md -> ../AGENTS.md` 는 tools/scripts/worktree-bootstrap.sh 가 재생성한다.
+#    스택 규칙은 ADR-027 부터 `apps/api/AGENTS.md`·`apps/web/AGENTS.md` — 체크아웃에 그냥 포함된다.
 #
 # ⚠️ 여기 나열된 파일에는 시크릿(거래소 키·Clerk·암호화 키)이 들어 있다.
 #    워크트리는 `.claude/worktrees/` 안(= gitignore) 이므로 커밋 경로에 노출되지 않지만,
@@ -13,10 +13,10 @@
 
 # 백엔드 — 없으면 uvicorn/pytest 가 5432 기본값으로 붙어 격리 스택을 못 찾는다.
 # TEST_DATABASE_URL 도 여기 있다 (없으면 conftest 가 개발 DB 를 drop_all 한다 — AGENTS.md 경고).
-backend/.env.local
+apps/api/.env.local
 
 # 프론트 — Clerk 키. 없으면 dev 서버가 부팅 단계에서 죽고 e2e:authed 가 전멸한다.
-frontend/.env.local
+apps/web/.env.local
 
 # compose 용 — POSTGRES_* / TRADING_ENCRYPTION_KEYS. `make up-isolated` 가 읽는다.
 .env

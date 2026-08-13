@@ -6,7 +6,7 @@
 > 반복해서 겪었다.
 >
 > **범위** — 이 문서는 **진입 절차 + 되돌리는 절차**다. 실행 자격(soak 168h)은 별개 축이고
-> `scripts/soak-gate.sh` 가 판정한다.
+> `tools/scripts/soak-gate.sh` 가 판정한다.
 
 ---
 
@@ -14,14 +14,14 @@
 
 ```bash
 # ⑴ Trigger — PASS(exit 0)만이 자격이다. UNKNOWN(2)·FAIL(1)이면 여기서 멈춘다.
-ssh truewords-oracle 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'
+ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/soak-gate.sh"'
 
 # ⑵ 서버 egress IP — Bybit IP whitelist 에 넣을 값. ssh HostName 과 같은지 매번 확인해라.
 ssh truewords-oracle 'bash -lc "curl -s https://api.ipify.org; echo"'
 
 # ⑶ 아래 §2 의 코드 인용이 아직 유효한지
-grep -n "ExchangeMode.live" backend/src/trading/registry.py
-grep -n "AccountModeNotAllowed" backend/src/trading/services/live_session_service.py
+grep -n "ExchangeMode.live" apps/api/src/trading/registry.py
+grep -n "AccountModeNotAllowed" apps/api/src/trading/services/live_session_service.py
 ```
 
 **2026-08-09 실측값** (그대로 믿지 말고 위를 돌려라):
@@ -50,7 +50,7 @@ grep -n "AccountModeNotAllowed" backend/src/trading/services/live_session_servic
 
 레포 쪽:
 
-- [ ] `scripts/soak-gate.sh` **PASS(exit 0)** — §0⑴.
+- [ ] `tools/scripts/soak-gate.sh` **PASS(exit 0)** — §0⑴.
 - [ ] **데모 안정성 게이트** — `live_session_service.py:110-111` 이 live 경로에서만
       `_enforce_demo_stability` 를 부른다(`:194-204`). `_MIN_DEMO_STABLE_DAYS = **7**`(`:48`)이고
       재는 값은 **`user.created_at` 경과일**이다. 조회 실패는 `days_elapsed=0` 으로 **fail-closed**.
@@ -60,14 +60,14 @@ grep -n "AccountModeNotAllowed" backend/src/trading/services/live_session_servic
 
 ## 2. cutover 코드 변경 — **6곳이다**
 
-★**2026-08-09 회차는 이 변경을 하지 않았다.** 소크 창이 진행 중인 실험이라 `backend/src` 를
+★**2026-08-09 회차는 이 변경을 하지 않았다.** 소크 창이 진행 중인 실험이라 `apps/api/src` 를
 건드리지 않았다. 아래는 **위치와 근거**이고, 실제 변경은 cutover 회차의 일이다.
 
 > ★★★**초안은 「2곳뿐」이라고 적었고 그것은 거짓이었다** (2026-08-09 codex 적대 리뷰 + 코드 대조).
 > 빠진 넷 중 하나(`close_service.py:92`)는 **나갈 문을 막는다** — 그것만 놓치면 실자금 포지션을
 > 열고 **§7 rollback 이 422 로 실패**한다. 아래 표가 전수다.
 >
-> 재현: `grep -rn "ExchangeMode.demo" backend/src/` → `environment` 기본값·docstring 을 빼면
+> 재현: `grep -rn "ExchangeMode.demo" apps/api/src/` → `environment` 기본값·docstring 을 빼면
 > 게이트 **5곳**이 남고, 여기에 `registry.py` stub 을 더해 6곳이다.
 
 | #   | 자리                                   | 풀지 않으면                                                    | 급   |
@@ -83,7 +83,7 @@ grep -n "AccountModeNotAllowed" backend/src/trading/services/live_session_servic
 있는데 앱으로 닫을 수 없다.** 그 상태에서 남는 수단은 Bybit 콘솔 수동 청산뿐이고, 그것은
 원장에 `external_manual` 로 남아 대조가 깨진다.
 
-### ⑴ `backend/src/trading/registry.py:43-44`
+### ⑴ `apps/api/src/trading/registry.py:43-44`
 
 ```python
 # 현재 — 둘 다 stub 으로 간다
@@ -99,7 +99,7 @@ stub** 이다. cutover = demo 와 같은 provider 로 교체:
 (ExchangeName.bybit, ExchangeMode.live, True): providers.BybitFuturesProvider,
 ```
 
-### ⑵ `backend/src/trading/services/live_session_service.py:115-119`
+### ⑵ `apps/api/src/trading/services/live_session_service.py:115-119`
 
 ```python
 if account.exchange != ExchangeName.bybit or account.mode != ExchangeMode.demo:
@@ -119,7 +119,7 @@ tasks/live_signal.py:621,967,2385,2898,4302
 tasks/trading.py:1371,1538,1699,1919,2218
 tasks/alert_rules.py:67 · tasks/conditional_entry_recovery.py:195
 trading/dependencies.py:59            # module-level singleton
-# 재현: grep -rn "Bybit\(Futures\|Demo\|Live\)Provider()" backend/src/
+# 재현: grep -rn "Bybit\(Futures\|Demo\|Live\)Provider()" apps/api/src/
 #   → 14줄이 나오고 그중 trading.py:1736 은 주석이다
 ```
 
@@ -156,9 +156,9 @@ if environment == ExchangeMode.demo:
 
 ### 회귀 방어
 
-- `backend/tests/trading/test_live_session_commits.py:270,306` 이 `AccountModeNotAllowed` 를
+- `apps/api/tests/trading/test_live_session_commits.py:270,306` 이 `AccountModeNotAllowed` 를
   단언한다 — ⑵ 를 풀면 **이 테스트가 red 가 되는 것이 정상**이다. 함께 갱신해라.
-- `backend/tests/trading/test_demo_stability_gate.py:100-108` 은 「N일 경과 → 게이트 통과 →
+- `apps/api/tests/trading/test_demo_stability_gate.py:100-108` 은 「N일 경과 → 게이트 통과 →
   live stub 도달」을 단언한다. ⑴ 을 바꾸면 stub 이 사라지므로 이 테스트도 갱신 대상이다.
 - ★**둘 다 「고쳐야 할 red」이지 회귀가 아니다.** 구분해서 커밋해라.
 
@@ -167,7 +167,7 @@ if environment == ExchangeMode.demo:
 ## 3. 시크릿 절차
 
 **보관처 = 오라클 서버 파일 단독** (2026-08-09 사용자 결정). 원본은 서버에 한 벌만 두고
-로컬에는 두지 않는다. 서버는 이미 루트 `.env`(0600) + `backend/.env.local`(0600) 을 같은
+로컬에는 두지 않는다. 서버는 이미 루트 `.env`(0600) + `apps/api/.env.local`(0600) 을 같은
 방식으로 들고 있다(2026-08-09 실측).
 
 ### 생성
@@ -187,7 +187,7 @@ chmod 600 ~/quantbridge/.env.production
 
 > ★★★**위 두 값은 플레이스홀더다.** 문자 그대로 실행하지 마라 — 이 레포는 사용자가
 > 플레이스홀더를 그대로 붙여넣은 전례가 있다(2026-08-07 FE 배포, `CLERK_SECRET_KEY`).
-> `scripts/bybit-smoke.sh` 가 잡는다 — 패턴(`PASTE`/`YOUR_`/`REPLACE`/`여기에` …)뿐 아니라
+> `tools/scripts/bybit-smoke.sh` 가 잡는다 — 패턴(`PASTE`/`YOUR_`/`REPLACE`/`여기에` …)뿐 아니라
 > **영숫자 16자 이상**이라는 구조적 술어까지 건다. ★단 **패턴 목록은 완전할 수 없다**
 > (`REPLACE_ME` 가 초판을 그대로 통과했다) — 셸을 최후 방어선으로 믿지 마라.
 
@@ -196,13 +196,13 @@ chmod 600 ~/quantbridge/.env.production
 이 레포 관례상 env 파일은 `KEY=value  # [필수 …]` 로 쓴다. **`.env.production` 에서는
 금지다.** 값에 주석이나 한글이 섞이면 401 이 아니라 **500** 이 난다([BL-625] 2차 결함 —
 SDK 가 헤더를 ascii 인코딩하며 `UnicodeEncodeError`). 증상이 달라 진단이 늦는다.
-`scripts/bybit-smoke.sh` 가 이것을 사전 검사한다.
+`tools/scripts/bybit-smoke.sh` 가 이것을 사전 검사한다.
 
 ### 회전
 
 1. Bybit 콘솔에서 **새 키 발급** (기존 키는 아직 살려 둔다).
 2. 서버 `~/quantbridge/.env.production` 을 새 값으로 교체 (`umask 077` 유지).
-3. `scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot`
+3. `tools/scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot`
    — dry-run 으로 형식 검사.
 4. 세션을 태우는 중이면 **먼저 §7 로 내리고** 재기동한다.
 5. Bybit 콘솔에서 **구 키 폐기**.
@@ -216,7 +216,7 @@ SDK 가 헤더를 ascii 인코딩하며 `UnicodeEncodeError`). 증상이 달라 
 `config.py:358-407` 의 `_enforce_production_safety` 가 부팅 시점에 검사한다 —
 `SECRET_KEY` / `CLERK_SECRET_KEY` / `WAITLIST_TOKEN_SECRET` placeholder + `PROMETHEUS_BEARER_TOKEN`
 필수. ★**`app_env == production` 일 때만이다**([BL-625]) — development 로 두면 플레이스홀더가
-어느 게이트에도 안 걸리고 `/health` 는 200 을 낸다. 목록 전문 = `backend/.env.prod.example`.
+어느 게이트에도 안 걸리고 `/health` 는 200 을 낸다. 목록 전문 = `apps/api/.env.prod.example`.
 
 ★**`app_env=production` 은 게이트를 죽인다** — bearer 강제 vs `soak-gate.sh` 의 무인증 조회.
 2026-08-07 에 실측으로 밟았다. mainnet 세션과 소크 게이트를 같은 API 인스턴스에서 돌릴
@@ -227,7 +227,7 @@ SDK 가 헤더를 ascii 인코딩하며 `UnicodeEncodeError`). 증상이 달라 
 ## 4. Kill Switch — `.env` 오버라이드
 
 2026-08-09 사용자 결정 = **`.env` 오버라이드만**. `config.py` 기본값은 건드리지 않는다
-(데모 소크 창의 처치를 바꾸지 않기 위해). `KILL_SWITCH_*` 4종은 `backend/.env.example:97-100`
+(데모 소크 창의 처치를 바꾸지 않기 위해). `KILL_SWITCH_*` 4종은 `apps/api/.env.example:97-100`
 에 이미 있고, `Settings.model_config(case_sensitive=False)` 라 env 가 그대로 이긴다.
 
 ### ★현재 기본값은 소액에서 판별력이 0 이다
@@ -271,10 +271,10 @@ capital_base fallback $10,000.
 
 ```bash
 # ⑴ dry-run — 네트워크 호출 0건. 시크릿 파일 권한·형식만 본다.
-scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot
+tools/scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot
 
 # ⑵ ★사용자 승인 후에만 — 실제 주문이 나간다
-scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot --confirm
+tools/scripts/bybit-smoke.sh --env-file ~/quantbridge/.env.production --mode live --market spot --confirm
 ```
 
 통과 기준 = `smoke_success` 이벤트 + 종료 코드 **0**. `create_order` 는 best_bid −1% 라
@@ -332,7 +332,7 @@ X_min = 190,034 × (min_qty / 0.058)
    ★**⑷ `close_service.py:92` 를 먼저 풀어라** — 나갈 문이다.
 3. mainnet `ExchangeAccount` 를 `mode=live` 로 등록한다.
 4. **세션 1개만** 연다. `max_active_per_user` 는 **5**(`live_session_service.py:71`)지만 첫 회는 1이다.
-5. `backend/scripts/live_session_admin.py status --symbol <SYMBOL>` 로 확인 —
+5. `apps/api/scripts/live_session_admin.py status --symbol <SYMBOL>` 로 확인 —
    `EXCLUSIVE=YES` 여야 한다. 아니면 §7 로 즉시 내려라.
 
 ---
@@ -342,7 +342,7 @@ X_min = 190,034 × (min_qty / 0.058)
 **진입 절차만 있는 runbook 은 절반이다.** 아래는 위에서 아래로, 중간에서 멈추지 않는다.
 
 ```bash
-cd ~/quantbridge/backend
+cd ~/quantbridge/apps/api
 
 # ⑴ 세션을 먼저 멈춘다 — flatten 보다 stop 이 앞이다.
 #    ★순서가 실측으로 갈렸다: 세션을 살린 채 flatten 만 하면 엔진이 재무장해
@@ -442,4 +442,4 @@ asyncio.run(main())
 - [ADR-024] `docs/decisions/024-soak-stability-gate.md` — Trigger 판정 규약
 - [BL-634]/[BL-633] — 계정 배타성. §1 의 "키를 새로 발급" 이 여기서 나왔다
 - [BL-625] — 플레이스홀더 시크릿이 development 에서 안 걸린다. §3
-- `scripts/bybit-smoke.sh` · `backend/scripts/bybit_smoke.py` — §5 의 도구
+- `tools/scripts/bybit-smoke.sh` · `apps/api/scripts/bybit_smoke.py` — §5 의 도구

@@ -1,7 +1,7 @@
 # QuantBridge — ERD (Entity Relationship Diagram)
 
 > **기준:** Sprint 62 shipped 스키마 — 16 테이블 전수 (2026-05-29 reconcile).
-> **SSOT:** 각 도메인 `backend/src/<domain>/models.py` + `backend/alembic/versions/`. 본 문서와 코드 충돌 시 코드 우선.
+> **SSOT:** 각 도메인 `apps/api/src/<domain>/models.py` + `apps/api/alembic/versions/`. 본 문서와 코드 충돌 시 코드 우선.
 > **DB:** PostgreSQL 15+ (메인, `public` 스키마) + `trading` 스키마 (거래) + `ts` 스키마 (TimescaleDB hypertable) + Redis (캐시/Celery)
 >
 > **2026-05-29 reconcile 완료:** 다이어그램 전체 재작성 — 16 shipped 테이블 (`users`·`strategies`·`backtests`·`backtest_trades`·`stress_tests`·`optimization_runs`·`exchange_accounts`·`orders`·`kill_switch_events`·`webhook_secrets`·`funding_rates`·`live_signal_sessions`·`live_signal_states`·`live_signal_events`·`waitlist_applications`·`ts.ohlcv`). 구 다이어그램의 phantom `trading_sessions`·`live_trades` (구현된 적 없음 — 실제는 `orders` + `live_signal_*`) 제거. 컬럼/FK/인덱스는 `models.py` 기준 검증.
@@ -433,7 +433,7 @@ erDiagram
 ### ts.ohlcv (hypertable, ✅ Sprint 5 M2 활성)
 
 ```sql
--- 마이그레이션 파일: backend/alembic/versions/20260416_1458_create_ohlcv_hypertable.py
+-- 마이그레이션 파일: apps/api/alembic/versions/20260416_1458_create_ohlcv_hypertable.py
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 CREATE SCHEMA IF NOT EXISTS ts;
 
@@ -460,20 +460,20 @@ CREATE INDEX ix_ohlcv_symbol_tf_time_desc ON ts.ohlcv (symbol, timeframe, time);
 
 **운영 정책:**
 
-- Repository: `OHLCVRepository` (`backend/src/market_data/repository.py`)
+- Repository: `OHLCVRepository` (`apps/api/src/market_data/repository.py`)
   - `insert_bulk` — `ON CONFLICT (time, symbol, timeframe) DO NOTHING` (idempotent)
   - `find_gaps` — `generate_series` + `EXCEPT` + ROW_NUMBER island grouping
   - `acquire_fetch_lock` — `pg_advisory_xact_lock(hashtext(symbol:tf:start:end))` (동시 fetch race 방지)
 - Provider: `TimescaleProvider` cache → CCXT fallback fetch + advisory lock + insert (자세한 flow는 [`data-flow.md`](../architecture/data-flow.md) §OHLCV cache)
 
-> ohlcv 마이그레이션 자체가 `CREATE EXTENSION` + `CREATE SCHEMA`까지 책임 — `docker/db/init/01-timescaledb.sql`이 누락된 환경(test/fresh)에서도 단독 동작 보장.
+> ohlcv 마이그레이션 자체가 `CREATE EXTENSION` + `CREATE SCHEMA`까지 책임 — `infra/db/init/01-timescaledb.sql`이 누락된 환경(test/fresh)에서도 단독 동작 보장.
 
 ### trading.funding_rates (✅ Sprint 6+ 구현 — 일반 테이블, hypertable 아님)
 
 선물 포지션 PnL 보정용 funding rate 기록 (Bybit/OKX USDT Perpetual 8시간 정산). 시계열 데이터이나 hypertable 이 아닌 `trading` 스키마 일반 테이블이다.
 
 ```sql
--- 마이그레이션: backend/alembic/versions/20260421_0001_add_funding_rates_table.py
+-- 마이그레이션: apps/api/alembic/versions/20260421_0001_add_funding_rates_table.py
 CREATE TABLE trading.funding_rates (
     id UUID PRIMARY KEY,
     symbol VARCHAR(32) NOT NULL,

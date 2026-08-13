@@ -70,7 +70,6 @@ ORDER BY 5 DESC;
 
 close 유실의 대부분은 **진입이 라이브에서 완결되지 않은 것의 하류**다. 조건부 진입은 `idempotency_key` 로 갈린다(`cond:` = 조건부 등재, `condmkt:` = 시장가 전환, 나머지 = 일반 신호).
 
-
 > ★★**이 `split_part(idempotency_key, ':', 3)` 은 kind 를 오분류한다** (2026-08-02 codex MINOR#3).
 > 시장가 진입 key 는 `live:<sess>:<bar_time ISO>:<seq>:entry:<trade>` 인데 **ISO 시각이 `:` 를 포함**해
 > 3번째 조각이 `entry` 가 아니라 `2026-07-29T01` 이 된다. **귀속의 권위는 `parse_live_entry_key` 하나다.**
@@ -156,7 +155,6 @@ for m in reg.collect():
 
 유효한 분모는 **주문 원장**뿐이다.
 
-
 > ★★**이 `split_part(idempotency_key, ':', 3)` 은 kind 를 오분류한다** (2026-08-02 codex MINOR#3).
 > 시장가 진입 key 는 `live:<sess>:<bar_time ISO>:<seq>:entry:<trade>` 인데 **ISO 시각이 `:` 를 포함**해
 > 3번째 조각이 `entry` 가 아니라 `2026-07-29T01` 이 된다. **귀속의 권위는 `parse_live_entry_key` 하나다.**
@@ -194,7 +192,7 @@ ORDER BY 4 DESC;
 > 시각을 안 맞추면 거짓 위반이 난다(2026-07-30 실측: 원장 9(10:06) vs counter 11(10:20) → 같은
 > 시점에서는 **14 >= 14, 잔차 0**).
 >
-> **이 검산은 이제 도구가 자동으로 한다** — `backend/scripts/entry_completeness_report.py`
+> **이 검산은 이제 도구가 자동으로 한다** — `apps/api/scripts/entry_completeness_report.py`
 > (`--metrics-before` / `--metrics-after` 로 창 양 끝 `/metrics` 덤프를 준다).
 
 > **유실률 = `rejected` / (`filled` + `rejected`)** — 2026-07-29 실측 2/(10+2) = **16.7%**

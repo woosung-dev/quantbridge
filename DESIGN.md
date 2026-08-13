@@ -2,7 +2,7 @@
 
 > **상태:** 확정 — "Precision Instrument" v3
 > **일자:** 2026-07-06 (v3 초판, W1 PR-2)
-> **구현 SSOT:** `frontend/src/styles/globals.css` (토큰) + `frontend/src/lib/brand-palette.ts` (hex 상수, CSS 변수 못 읽는 소비자용) — 두 파일과 본 문서는 항상 같은 커밋에서 동기.
+> **구현 SSOT:** `apps/web/src/styles/globals.css` (토큰) + `apps/web/src/lib/brand-palette.ts` (hex 상수, CSS 변수 못 읽는 소비자용) — 두 파일과 본 문서는 항상 같은 커밋에서 동기.
 
 ---
 
@@ -194,7 +194,7 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 
 ### 4.2 Max Width & Container
 
-**정본 = `frontend/src/styles/globals.css`.** 아래는 사본이다.
+**정본 = `apps/web/src/styles/globals.css`.** 아래는 사본이다.
 
 | 컨테이너                | max-width  | 정의 위치                                          |
 | ----------------------- | ---------- | -------------------------------------------------- |
@@ -218,7 +218,7 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 ### 4.3 반응형 브레이크포인트
 
 **정본 = `globals.css:204-211` 의 `@theme` 블록.** ★Tailwind v4 **기본값이 아니다** —
-`sm:` 과 `xl:`, `2xl:` 이 재정의돼 있다. 전문·사용 건수는 `frontend/AGENTS.md` §10.
+`sm:` 과 `xl:`, `2xl:` 이 재정의돼 있다. 전문·사용 건수는 `apps/web/AGENTS.md` §10.
 
 | 접두사 | 이 레포    | Tailwind v4 기본 | 그리드 변경 / 용도                                        |
 | ------ | ---------- | ---------------- | --------------------------------------------------------- |
@@ -312,7 +312,7 @@ Tailwind 접두사가 없고(`--breakpoint-*` 미정의) raw CSS 전용이며, *
 
 ## 7. 컴포넌트 패턴
 
-> **v3 note:** 아래 코드 샘플 일부는 v2 시절 스냅샷. 구현 SSOT 는 `frontend/src/components/ui/` — v3 원칙(플랫 + 1px 보더, hover 색 변화만, focus ring 2px, 배지 = 4px 태그)은 §0/§6 참조. 샘플과 코드가 다르면 코드가 정답.
+> **v3 note:** 아래 코드 샘플 일부는 v2 시절 스냅샷. 구현 SSOT 는 `apps/web/src/components/ui/` — v3 원칙(플랫 + 1px 보더, hover 색 변화만, focus ring 2px, 배지 = 4px 태그)은 §0/§6 참조. 샘플과 코드가 다르면 코드가 정답.
 
 ### 7.1 버튼
 
@@ -716,7 +716,7 @@ transition: all 200ms ease;
 > ★**2026-08-09 (W3) 정정 — 위 줄 번호가 낡아 있었다.** 종전 표기 `1159-1178`·`:1853` 은
 > 지금의 파일에서 각각 `.searchbox:hover` 중간과 `@media (max-width: 1024px)` 바깥을 가리켰다.
 > 실측 재확인 = 정의 **1146-1165** · 1024px 숨김 **1840** · 렌더 TSX **0건**
-> (`grep -rn searchbox frontend/src --include=*.tsx` 의 유일한 히트는
+> (`grep -rn searchbox apps/web/src --include=*.tsx` 의 유일한 히트는
 > `app/__tests__/not-found.test.tsx` 의 ARIA role `searchbox` 로, 이 CSS 클래스가 아니다).
 >
 > ★**CSS 정의 자리에는 주석을 못 단다.** 그 구간은 `KITPORT-START`~`KITPORT-END` 센티넬

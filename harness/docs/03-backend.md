@@ -1,1 +1,1 @@
-../../backend/AGENTS.md
+../../apps/api/AGENTS.md

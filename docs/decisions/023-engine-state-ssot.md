@@ -11,12 +11,12 @@
 > [`ADR-020`](020-trust-layer-ci-design.md) (Trust Layer — 본 ADR 이 구멍을 지적한다) ·
 > [`ADR-011`](011-pine-execution-strategy-v4.md) (pine_v2 = 백테스트 SSOT) ·
 > [`ADR-003`](003-pine-runtime-safety-and-parser-scope.md) (Coverage all-or-nothing) · [BL-591]
-> **코드:** [`event_loop.py:69`](../../backend/src/strategy/pine_v2/event_loop.py) (`run_historical`) ·
+> **코드:** [`event_loop.py:69`](../../apps/api/src/strategy/pine_v2/event_loop.py) (`run_historical`) ·
 > `event_loop.py:366` (`run_live`) · `event_loop.py:192` (주입점) ·
-> [`strategy_state.py:265`](../../backend/src/strategy/pine_v2/strategy_state.py) (필드 정의) ·
+> [`strategy_state.py:265`](../../apps/api/src/strategy/pine_v2/strategy_state.py) (필드 정의) ·
 > `strategy_state.py:310` (`discard_state_before_epoch`) · `:331` (`seed_positions_from_ledger`) ·
-> [`interpreter.py:310`](../../backend/src/strategy/pine_v2/interpreter.py) (상태 주입 seam) ·
-> [`live_signal.py:2528`](../../backend/src/tasks/live_signal.py) (`run_live` 호출)
+> [`interpreter.py:310`](../../apps/api/src/strategy/pine_v2/interpreter.py) (상태 주입 seam) ·
+> [`live_signal.py:2528`](../../apps/api/src/tasks/live_signal.py) (`run_live` 호출)
 
 ---
 
