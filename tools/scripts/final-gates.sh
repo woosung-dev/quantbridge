@@ -54,6 +54,14 @@ case "$RUN" in *..*|*[!A-Za-z0-9._-]*) echo "--run 은 영숫자·점·밑줄·�
 case "$RUN" in eod) echo "✗ --run eod 는 금지다 — 앞 회차 신호를 물려받는다 ([BL-706]). 회차 슬러그를 써라: --run <회차이름>" >&2; exit 1 ;; esac
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+if git -C "$ROOT" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1; then
+  MERGE_BASE="$(git -C "$ROOT" merge-base refs/remotes/origin/main HEAD 2>/dev/null || true)"
+  HEAD_SHA="$(git -C "$ROOT" rev-parse --verify --quiet "HEAD^{commit}" 2>/dev/null || true)"
+  if [ -n "$MERGE_BASE" ] && [ "$MERGE_BASE" = "$HEAD_SHA" ]; then
+    echo "✗ 브랜치 커밋이 0개다 (merge-base == HEAD) — 이 회차의 PR 브랜치에서 머지 전에 final-gates.sh 를 돌려라." >&2
+    exit 1
+  fi
+fi
 SLOT=0
 [ -f "$ROOT/.worktree-slot" ] && SLOT="$(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$ROOT/.worktree-slot" | tr -d ' ')"
 : "${SLOT:=0}"

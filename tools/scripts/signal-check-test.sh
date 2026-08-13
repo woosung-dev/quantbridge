@@ -30,8 +30,8 @@
 # ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (pipefail 없는 셸에서 `| tail` 이 $? 를
 #   가린 실측 사고 이력 — pipefail 하에서는 보존되지만 규율은 유지한다).
 #
-# 사용법: tools/scripts/signal-check-test.sh            # 25케이스 (상시 — final-gates 가 돌린다)
-#         tools/scripts/signal-check-test.sh --mutants  # + 변이 M1~M11 · 음성 대조 N1~N3 (G4 에서 1회)
+# 사용법: tools/scripts/signal-check-test.sh            # 26케이스 (상시 — final-gates 가 돌린다)
+#         tools/scripts/signal-check-test.sh --mutants  # + 변이 M1~M12 · 음성 대조 N1~N3 (G4 에서 1회)
 
 set -uo pipefail
 
@@ -141,6 +141,7 @@ git -C "$TMP/repo-unrel" merge-base refs/remotes/origin/main HEAD >/dev/null 2>&
 # ── 러너 ──────────────────────────────────────────────────────────
 CHECK_BIN="$CHECK"   # 변이 모드에서 사본으로 바뀐다
 ARGPARSE_SRC=""      # 변이 M7 전용 — 채워지면 케이스 ⑩ 이 prologue 추출본을 돈다
+ENTRY_GUARD_SRC=""   # 변이 M12 전용 — 채워지면 케이스 ㉖ 이 prologue 추출본을 돈다
 QUIET=0
 PASS=0; FAIL=0; RED_IDS=""
 
@@ -197,7 +198,7 @@ run_wire() { # run_wire <tree> <req 0|1>  — 추출된 check_signal 을 스텁 
   ERR="$(cat "$TMP/err")"
 }
 
-# ── 케이스 25건 (번호·기대값 = G1 동결 §2.3 그대로) ────────────────
+# ── 케이스 26건 (번호·기대값 = G1 동결 §2.3 그대로) ────────────────
 run_suite() {
   PASS=0; FAIL=0; RED_IDS=""
   local why rec_line
@@ -481,6 +482,26 @@ PY
   [ "$RC" -eq 3 ] || why="rc=$RC (기대 3) — merge-base 실패가 초록/낡음으로 위장됐다"
   [ -z "$why" ] && ! has "[git-error]" && why="[git-error] 코드가 없다"
   report "㉕" "origin/main 존재+merge-base 실패 → rc3 [git-error]" "$why"
+
+  # ㉖ final-gates 입구 가드 — merge-base==HEAD 면 체인 시작 전 거부하고, origin/main 부재는 발화하지 않는다.
+  local entry_guard_src="${ENTRY_GUARD_SRC:-$GATES}"
+  for tree in "$TMP/repo-mbhead" "$TMP/repo-noorig"; do
+    sed '/^SLOT=0/,$d' "$entry_guard_src" >"$tree/tools/scripts/final-gates-prologue.sh"
+  done
+  OUT="$(bash "$TMP/repo-mbhead/tools/scripts/final-gates-prologue.sh" --run t-run 2>"$TMP/err")"; RC=$?
+  ERR="$(cat "$TMP/err")"
+  why=""
+  [ "$RC" -ne 0 ] || why="rc=0 — 브랜치 커밋 0개인데 입구에서 거부되지 않았다"
+  [ -z "$why" ] && ! has_err "브랜치 커밋이 0개다" && why="거부 문구에 현재 상태가 없다"
+  [ -z "$why" ] && ! has_err "이 회차의 PR 브랜치에서" && why="거부 문구에 PR 브랜치 안내가 없다"
+  [ -z "$why" ] && ! has_err "머지 전에" && why="거부 문구에 머지 전 실행 안내가 없다"
+  if [ -z "$why" ]; then
+    OUT="$(bash "$TMP/repo-noorig/tools/scripts/final-gates-prologue.sh" --run t-run 2>"$TMP/err")"; RC=$?
+    ERR="$(cat "$TMP/err")"
+    [ "$RC" -eq 0 ] || why="origin/main 부재인데 rc=$RC — 입구 가드가 발화했다"
+    [ -z "$why" ] && { has "브랜치 커밋이 0개다" || has_err "브랜치 커밋이 0개다"; } && why="origin/main 부재인데 브랜치 0커밋 거부가 발화했다"
+  fi
+  report "㉖" "final-gates: mb==HEAD 거부 · noorig 비발화" "$why"
 }
 
 # ── 변이 엔진 (사본 전용 — 앵커 소실 시 rc=9 로 크게 죽는다) ────────
@@ -509,6 +530,7 @@ MUT = {
         '  out="$(bash "$ROOT/tools/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지\n  rc=$?',
         '  local out="$(bash "$ROOT/tools/scripts/signal-check.sh" --root "$ROOT" --run "$RUN" "$f")"   # ★파이프 금지\n  rc=$?',
     ),
+    "M12": ('if git -C "$ROOT" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1; then', "if false; then"),
     "N1": ("# signal-check — 스킬 게이트 신호의 **신선도** 판정. ([BL-706])", "#"),
     "N2": ('WHY="HEAD 와 동일"', 'WHY="현재 커밋과 같다"'),
     "N3": ('  if [ "$sha" = "$HEAD_SHA" ]; then', '  if [ "$HEAD_SHA" = "$sha" ]; then'),
@@ -532,21 +554,25 @@ run_mutants() {
   #   변이는 abort 경로의 두 증인(⑨ 비저장소 · ㉕ merge-base 실패)을 함께 죽인다. 동결 초판의
   #   「⑨ 만」은 A14 골격과 자기모순이었다(생성자가 finish 3 분리로 회피했던 자리 — G6 기록).
   # ★M11 = check_signal rc 삼킴(콜드 리뷰 P3-1) — 배선 케이스 ㉒㉓ 만 죽는다(스코프 분리 증명).
-  local spec="M1=⑫ M2=③ M3=⑲ M4=⑭ M5=⑮ M6=⑪ M7=⑩ M8=⑯ M9=⑨㉕ M10=㉕ M11=㉒㉓ N1= N2= N3="
+  # ★M12 = final-gates 입구 거부 무력화 — 케이스 ㉖ 만 죽는다.
+  local spec="M1=⑫ M2=③ M3=⑲ M4=⑭ M5=⑮ M6=⑪ M7=⑩ M8=⑯ M9=⑨㉕ M10=㉕ M11=㉒㉓ M12=㉖ N1= N2= N3="
   local entry mid expect mrc verdict
   local mfail=0
   echo ""
-  echo "── 변이 M1~M11 · 음성 대조 N1~N3 (사본 주입 · 케이스 25건 전량 재실행) ──"
+  echo "── 변이 M1~M12 · 음성 대조 N1~N3 (사본 주입 · 케이스 26건 전량 재실행) ──"
   QUIET=1
   for entry in $spec; do
     mid="${entry%%=*}"; expect="${entry#*=}"
-    CHECK_BIN="$CHECK"; ARGPARSE_SRC=""; WIRE_SRC=""
+    CHECK_BIN="$CHECK"; ARGPARSE_SRC=""; ENTRY_GUARD_SRC=""; WIRE_SRC=""
     if [ "$mid" = "M7" ]; then
       make_mutant M7 "$GATES" "$TMP/mutant-gates.sh"; mrc=$?
       ARGPARSE_SRC="$TMP/mutant-gates.sh"
     elif [ "$mid" = "M11" ]; then
       make_mutant M11 "$GATES" "$TMP/mutant-gates.sh"; mrc=$?
       WIRE_SRC="$TMP/mutant-gates.sh"
+    elif [ "$mid" = "M12" ]; then
+      make_mutant M12 "$GATES" "$TMP/mutant-gates.sh"; mrc=$?
+      ENTRY_GUARD_SRC="$TMP/mutant-gates.sh"
     else
       make_mutant "$mid" "$CHECK" "$TMP/mutant.sh"; mrc=$?
       CHECK_BIN="$TMP/mutant.sh"
@@ -567,7 +593,7 @@ run_mutants() {
       else printf '  ✓ %-3s → red 0건 (등가 확인)\n' "$mid"; fi
     fi
   done
-  QUIET=0; CHECK_BIN="$CHECK"; ARGPARSE_SRC=""; WIRE_SRC=""
+  QUIET=0; CHECK_BIN="$CHECK"; ARGPARSE_SRC=""; ENTRY_GUARD_SRC=""; WIRE_SRC=""
   return "$mfail"
 }
 
@@ -578,7 +604,7 @@ echo ""
 
 run_suite
 echo ""
-echo "  케이스: ${PASS}/25 통과, ${FAIL} 실패"
+echo "  케이스: ${PASS}/26 통과, ${FAIL} 실패"
 if [ "$FAIL" -gt 0 ]; then
   echo "  red = [$RED_IDS]"
   exit 1
@@ -587,7 +613,7 @@ fi
 if [ "$MODE" = "--mutants" ]; then
   if run_mutants; then
     echo ""
-    echo "✓ 변이 14종 전건 판별 (M 각 기대 집합과 정확 일치 · N 각 0건)"
+    echo "✓ 변이 15종 전건 판별 (M 각 기대 집합과 정확 일치 · N 각 0건)"
   else
     echo ""
     echo "✗ 변이 판별 실패 — 위 표를 봐라"
