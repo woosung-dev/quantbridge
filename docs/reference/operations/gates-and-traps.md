@@ -82,6 +82,46 @@ cd $QB && make gate-harnesses             # ★게이트 하네스 8종 전량 (
   docker 를 언급하지만 로그+`exit 1` 스텁을 PATH 앞단에 깔고 돌려 **17/17 통과 · 스텁 호출 0회**로
   확인했다 — 진짜 docker 를 부르지 않는다).
 
+### 신호 4종 (`.claude/gates/<run>/`) — 판정식 · rc 규약 · ★브랜치 전제 ([BL-706]·[BL-714])
+
+`final-gates.sh` 는 스킬 실행의 증거로 파일 4개를 요구한다. 각 파일 **첫 줄은 `commit: <sha>`**
+(hex 7~40, `rev-parse` 로 해석)여야 하고, 그 sha 의 **신선도**를 `signal-check.sh` 가 판정한다.
+
+| 파일        | 무엇의 증거                      | 필수 여부                    |
+| ----------- | -------------------------------- | ---------------------------- |
+| `vercel.ok` | `/vercel-react-best-practices`   | `apps/web/**` diff 있을 때만 |
+| `screen.ok` | MCP playwright 또는 `/browse`    | 항상                         |
+| `codex.ok`  | `/codex` 적대 리뷰 findings 처분 | 항상                         |
+| `g9.ok`     | 계획 vs 실제 구현 최종 점검 표   | 항상                         |
+
+**신선도 판정 — 앵커 A1~A5 를 이 순서로 본다** (`signal-check.sh:60-79`):
+
+| 앵커 | 조건                                       | CODE                | rc  |
+| ---- | ------------------------------------------ | ------------------- | --- |
+| A1   | `merge-base(origin/main,HEAD)` **== HEAD** | `no-branch-commits` | 1   |
+| A2   | `sha == HEAD`                              | `head`              | 0   |
+| A3   | `origin/main` 부재                         | `no-origin-main`    | 1   |
+| A4   | `sha` 가 HEAD 의 조상이 **아님**           | `not-ancestor`      | 1   |
+| A5   | `sha` 가 merge-base 의 조상                | `origin-main`       | 1   |
+| —    | 그 외 (브랜치 범위 안)                     | `branch`            | 0   |
+
+**rc 규약** = `0` 신선 / `1` 낡음·부재·형식위반 / `2` 사용법 / **`3` 판정 불가(abort — ★초록을 내지 않는다)**.
+호출부 `final-gates.sh:check_signal()` 에서 **rc=3 은 필수 여부와 무관하게 FAIL** 이다(fail-open 금지).
+
+★★**브랜치 전제 — A1 이 A2 **앞**에 있다는 뜻은 이것이다.** 전건 머지돼 `merge-base == HEAD` 가 된
+main 에서는 신호 sha 가 HEAD 와 **정확히 같아도** `stale[no-branch-commits]` rc=1 이다. 즉
+**「마지막 커밋 뒤에 게이트」는 「그 회차의 PR 브랜치에서, 머지 전에」를 함께 뜻한다.**
+2026-08-12 회차가 먼저 머지한 뒤 신호를 취득해 4종을 초록으로 만들 수 없었다 ⇒ [BL-714].
+
+★**이 전제는 이제 문서 규율이 아니라 스크립트가 막는다** — `final-gates.sh` 가 인자 파싱 직후
+`merge-base == HEAD` 를 검사해 **게이트 체인 진입 전에 거부**한다([BL-706] 의 `--run eod` 거부와 같은 문형).
+`origin/main` 이 없는 저장소에서는 발화하지 않는다. 하네스 케이스 **㉖** 이 양·음성 양쪽을 고정한다.
+
+★**A1 을 우회하는 「범위 탈출구」는 기각됐다**([BL-714] 2026-08-14). A1 의 방어 대상은 정확히 1개
+상태이고 그 유일한 증인이 케이스 **⑫** 인데, `--range` 로 merge-base 를 사람이 대체하게 하면 ⑫ 가
+green 이 되어 **증인이 사라진다**. 신호 첫 줄에 `range:` 를 적는 안도 기각 — squash 머지라 브랜치
+팁이 HEAD 의 조상이 아니어서 제3자·CI 가 그 범위의 실재를 검증할 수 없다.
+
 ### 소크 (P0 [BL-003] 의 달력 시간 게이트)
 
 ```bash

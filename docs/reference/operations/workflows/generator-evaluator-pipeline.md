@@ -319,6 +319,11 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
 
 - plan 작성 직후 codex G0 1회 + fresh-context subagent 2-검토 권장. frame change 1회+ 발견 시 plan revision 의무.
 - Type A (신규 기능) 의무 / Type B (risk-critical) 권장 / Type C (hotfix) 면제 가능 / Type D (docs only) 면제.
+- ★**2026-08-14 재계수 — 이 규칙의 근거는 일화가 아니라 기저율이다.** 모집단 = `dev-log/INDEX.md` 의
+  2026-08-07~08-12 회차 **22줄**. 그중 **12줄**이 「착수 전제·상속 사실이 실측으로 반증됐다」였다
+  (L30·32·36·39·41·43·44·48·49·51·53·54). 반증된 것은 원장 수치 · 프롬프트가 준 「실측」 ·
+  앞 회차의 처방 후보 · 내 자신의 인상까지 전 계열이다. ⇒ **preflight 를 건너뛴 회차의 기대값은
+  「전제 중 절반이 틀린 채로 구현 시작」이다.** ([LESSON-088]·[LESSON-099]·[LESSON-100] 이 각각의 판)
 
 ### 8.2 Docker worker auto-rebuild on PR merge (LESSON-038)
 
@@ -348,6 +353,28 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
 - **STOP conditions:** 해당 모듈 test coverage <70% → "test 우선" 권고로 종료 / Deep module 을 더 deep 화하지 않음.
 - 단일 grep 금지 — **직접 read + dispatch/co-change 전수 추적 의무** (stress_test-deepen 3차 검증에서 승격).
 
+### 8.6 대조기·판정기는 **자기 입력이 비었는지를 먼저 말해야 한다** (LESSON-101 — 3/3 승격)
+
+> **초록은 「통과했다」가 아니라 「아무것도 안 봤다」일 수 있다.** 검증 명령이 빈 입력을 받으면
+> **그 시점에 내가 기대하던 답**을 낸다 — 수리 전이면 「불일치」, 수리 후면 「일치」. 기대와 일치하는
+> 출력은 검증되지 않으므로 이 병은 조용히 반복된다.
+
+- **의무 ⑴ — 빈 입력에서 초록을 내지 마라.** 양쪽 집합이 비면 `ABORT`(rc=3). 대상 파일 수가 하한
+  미만이면 중단. 「검사 0개 · 불일치 0개 · rc=0」은 **판정이 아니라 판정 실패**다.
+- **의무 ⑵ — `diff`·`grep` 의 실패 종료코드를 「차이 있음」과 같은 분기에 두지 마라.** 경로 오타 하나가
+  「불일치 발견」으로 둔갑한다.
+- **의무 ⑶ — fan-out 의 stderr 를 버리지 마라.** 산출 행 수를 입력 수와 대조하는 가드를 기본으로 걸어라
+  (`[ "$(wc -l < out)" -eq "$N" ]`). 2026-08-12 에 두 번의 0행이 「276건 전건 조회」·「121건 전건 조회」로
+  보고될 뻔했고, 조용하게 만든 것은 **내가 붙인 `2>/dev/null`** 이었다.
+- **의무 ⑷ — 판별력을 스윕 **앞**에 세워라.** 검사기 자신이 양성·음성 쌍으로 자기검사하고, 실패하면
+  초록 대신 **rc=3 으로 판정을 포기**해라 (`header-audit.sh` 가 이 형태의 정본이다).
+- **★역방향도 같다** — 남의 도구가 빈 입력에 **그럴듯한 원인을 붙여 red** 를 내기도 한다([LESSON-102]).
+  **초록도 red 도 「무엇을 봤는지」를 물어라.**
+
+**승격 근거 (스코프 명시 — [LESSON-089])** — 모집단 = `docs/dev-log/INDEX.md` 의 2026-08-07~08-12 회차
+**22줄**. 그중 이 패턴이 **12줄**(L23·25·28·29·32·36·39·42·43·48·52·54). 카드 자신의 기존 누적 2회를
+더하면 **14회**다. 승격 문턱 3회를 크게 넘었고, 2026-08-14 gate-surface-close 가 독립 재계수했다.
+
 ### 적용 의무 시점
 
 | 시점                                   | 적용 규칙 |
@@ -357,3 +384,4 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
 | PR 머지 후 (worker 코드 영향 시)       | §8.2      |
 | Mid-dogfood verification               | §8.3      |
 | 신규 도메인 / 큰 모듈 신설 직후 (권장) | §8.5      |
+| **대조기·판정기·게이트를 새로 짤 때**  | **§8.6**  |
