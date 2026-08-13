@@ -432,11 +432,12 @@ class TestInvokeClaude:
         with patch("subprocess.run", return_value=mock_result) as mock_run:
             output = executor._invoke_claude(step, preamble)
 
+        # B회차 개조 — 실행기가 claude -p 에서 codex exec 로 바뀌었다.
         cmd = mock_run.call_args[0][0]
-        assert cmd[0] == "claude"
-        assert "-p" in cmd
-        assert "--dangerously-skip-permissions" in cmd
-        assert "--output-format" in cmd
+        assert cmd[0] == "codex"
+        assert "exec" in cmd
+        assert "--dangerously-bypass-approvals-and-sandbox" in cmd
+        assert "--output-format" not in cmd  # claude 전용 플래그
         assert "PREAMBLE" in cmd[-1]
         assert "UI를 구현하세요" in cmd[-1]
 
@@ -460,14 +461,87 @@ class TestInvokeClaude:
             executor._invoke_claude(step, "preamble")
         assert exc_info.value.code == 1
 
-    def test_timeout_is_1800(self, executor):
+    def test_timeout_is_2700(self, executor):
         mock_result = MagicMock(returncode=0, stdout="{}", stderr="")
         step = {"step": 2, "name": "ui"}
 
         with patch("subprocess.run", return_value=mock_result) as mock_run:
             executor._invoke_claude(step, "preamble")
 
-        assert mock_run.call_args[1]["timeout"] == 1800
+        assert mock_run.call_args[1]["timeout"] == 2700
+
+
+# ---------------------------------------------------------------------------
+# _run_acceptance + AC 뒤집기 (B회차 개조 — 러너가 ac 를 재실행해 exit code 로 판정)
+#
+# ★이 두 클래스만 순차 실행 루프(_execute_single_step)를 실제로 탄다. 나머지 12개
+#   클래스는 전부 헬퍼 단위다 (harness/README.md §3).
+# ---------------------------------------------------------------------------
+
+class TestRunAcceptance:
+    def test_no_ac_field_passes(self, executor):
+        assert executor._run_acceptance({"step": 2, "name": "ui"}) is None
+
+    def test_all_zero_rc_passes(self, executor):
+        assert executor._run_acceptance({"ac": ["true", "exit 0"]}) is None
+
+    def test_nonzero_rc_reports_command_and_rc(self, executor):
+        report = executor._run_acceptance({"ac": ["true", "echo BOOM >&2; exit 3"]})
+        assert report is not None
+        assert "rc=3" in report
+        assert "echo BOOM" in report
+        assert "BOOM" in report  # 출력 꼬리가 실려야 다음 시도가 본다
+
+    def test_stops_at_first_failure(self, executor, tmp_path):
+        marker = tmp_path / "second-ac-ran"
+        executor._run_acceptance({"ac": ["exit 1", f"touch {marker}"]})
+        assert not marker.exists()
+
+    def test_timeout_is_reported_not_raised(self, executor):
+        with patch.object(ex.StepExecutor, "AC_TIMEOUT", 1):
+            report = executor._run_acceptance({"ac": ["sleep 5"]})
+        assert report is not None
+        assert "AC TIMEOUT" in report
+
+
+class TestAcOverturn:
+    """자기신고 completed 를 ac 가 뒤집는지 — 이 회차의 헤드라인 기전."""
+
+    @staticmethod
+    def _self_report_completed(executor):
+        """세션이 index.json 에 completed 를 써넣는 것을 흉내낸다."""
+        def _fake_invoke(step, preamble):
+            index = executor._read_json(executor._index_file)
+            for s in index["steps"]:
+                if s["step"] == step["step"]:
+                    s["status"] = "completed"
+                    s["summary"] = "self-reported"
+            executor._write_json(executor._index_file, index)
+            return {"exitCode": 0}
+        return _fake_invoke
+
+    def test_passing_ac_accepts_completed(self, executor):
+        step = {"step": 2, "name": "ui", "ac": ["true"]}
+        with patch.object(executor, "_invoke_claude", side_effect=self._self_report_completed(executor)), \
+             patch.object(executor, "_commit_step") as commit:
+            assert executor._execute_single_step(step, "") is True
+        assert commit.call_count == 1
+        status = [s for s in executor._read_json(executor._index_file)["steps"] if s["step"] == 2][0]
+        assert status["status"] == "completed"
+
+    def test_failing_ac_overturns_and_retries(self, executor):
+        step = {"step": 2, "name": "ui", "ac": ["exit 1"]}
+        invoke = MagicMock(side_effect=self._self_report_completed(executor))
+        with patch.object(executor, "_invoke_claude", invoke), \
+             patch.object(executor, "_commit_step"), \
+             pytest.raises(SystemExit) as exc_info:
+            executor._execute_single_step(step, "")
+
+        assert exc_info.value.code == 1
+        assert invoke.call_count == ex.StepExecutor.MAX_RETRIES  # 뒤집힌 뒤 재시도로 갔다
+        final = [s for s in executor._read_json(executor._index_file)["steps"] if s["step"] == 2][0]
+        assert final["status"] == "error"
+        assert "[AC FAILED rc=1]" in final["error_message"]
 
 
 # ---------------------------------------------------------------------------

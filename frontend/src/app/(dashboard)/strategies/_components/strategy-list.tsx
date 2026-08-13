@@ -31,6 +31,7 @@ import {
 } from "@/features/strategy/labels";
 import { useStrategies } from "@/features/strategy/hooks";
 import type { ParseStatus, StrategyListItem, StrategyListQuery } from "@/features/strategy/schemas";
+import { STRATEGY_SORT_OPTIONS, resolveStrategySort } from "@/features/strategy/sort";
 import { formatDateTime } from "@/features/strategy/utils";
 import { formatPercent } from "@/features/backtest/utils";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
@@ -51,17 +52,6 @@ const STATUS_FILTERS: ReadonlyArray<{ id: ParseStatusFilter }> = [
 ];
 
 type StrategyOrderBy = NonNullable<StrategyListQuery["order_by"]>;
-type StrategyOrder = NonNullable<StrategyListQuery["order"]>;
-const SORT_OPTIONS: ReadonlyArray<{
-  id: StrategyOrderBy;
-  order: StrategyOrder;
-  label: string;
-}> = [
-  { id: "updated_at", order: "desc", label: "마지막 수정 순" },
-  { id: "total_return", order: "desc", label: "수익률 높은 순" },
-  { id: "sharpe_ratio", order: "desc", label: "샤프 높은 순" },
-  { id: "name", order: "asc", label: "이름 순" },
-];
 const SYMBOL_ALL = "all";
 
 export function StrategyList() {
@@ -76,10 +66,7 @@ export function StrategyList() {
 
   const orderByParam = searchParams.get("order_by");
   const orderParam = searchParams.get("order");
-  const orderBy: StrategyOrderBy = SORT_OPTIONS.some((option) => option.id === orderByParam)
-    ? (orderByParam as StrategyOrderBy)
-    : "updated_at";
-  const order: StrategyOrder = orderParam === "asc" ? "asc" : "desc";
+  const { order_by: orderBy, order } = resolveStrategySort(orderByParam, orderParam);
 
   // 검색·심볼은 클라이언트 로컬 상태로 두고, parse_status·정렬은 URL 스칼라로 유지한다.
   // hook query가 URL 정렬 축·방향을 포함하므로 queryKey와 서버 요청이 함께 바뀐다(H-2 정합).
@@ -131,7 +118,7 @@ export function StrategyList() {
   };
 
   const pushSort = (nextOrderBy: StrategyOrderBy) => {
-    const option = SORT_OPTIONS.find((candidate) => candidate.id === nextOrderBy);
+    const option = STRATEGY_SORT_OPTIONS.find((candidate) => candidate.id === nextOrderBy);
     if (!option) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("order_by", option.id);
@@ -255,7 +242,7 @@ export function StrategyList() {
                 aria-label="정렬 기준"
                 data-testid="strategy-sort"
               >
-                {SORT_OPTIONS.map((o) => (
+                {STRATEGY_SORT_OPTIONS.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.label}
                   </option>
