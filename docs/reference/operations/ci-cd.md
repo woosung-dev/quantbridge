@@ -37,14 +37,14 @@ flowchart TB
 `push: [main]` 을 뺐다. 같은 내용이 PR 과 머지 직후 **두 번** 돌고 있었고(backend 23분 × 2),
 `pull_request` 이벤트는 PR head 가 아니라 **머지 프리뷰**(`refs/pull/N/merge`)를 체크아웃하므로
 머지 결과는 이미 PR 에서 검사된다. 남는 위험은 마지막 PR run 이후 **base 가 움직인 경우**뿐이고,
-순차 머지 + 로컬 `scripts/final-gates.sh` 가 그 구간을 덮는다. main 을 손으로 확인해야 하면
+순차 머지 + 로컬 `tools/scripts/final-gates.sh` 가 그 구간을 덮는다. main 을 손으로 확인해야 하면
 `workflow_dispatch` 로 돌린다.
 
 ### Changes-aware 분기
 
 - `dorny/paths-filter@v3`로 PR diff에서 변경된 경로 감지
-- `frontend/**` 변경 시만 frontend / e2e job 실행
-- `backend/**` 변경 시만 backend_static / backend / backend_coverage job 실행
+- `apps/web/**` 변경 시만 frontend / e2e job 실행
+- `apps/api/**` 변경 시만 backend_static / backend / backend_coverage job 실행
 - 둘 다 변경 시 병렬 실행
 
 > PR이 docs only 변경이면 code job 이 전부 skip — `ci` summary가 통과 처리.
@@ -79,7 +79,7 @@ flowchart TB
 | Setup   | `astral-sh/setup-uv@v3` (cache) + Python 3.12 | uv lock 캐시                  |
 | Install | `uv sync --all-extras --dev`                  | 의존성                        |
 | Lint    | `uv run ruff check .`                         | 린트                          |
-| Cache   | `actions/cache` → `backend/.mypy_cache`       | mypy cold 실측 32s → 캐시 hit |
+| Cache   | `actions/cache` → `apps/api/.mypy_cache`      | mypy cold 실측 32s → 캐시 hit |
 | Type    | `uv run mypy src/`                            | 타입                          |
 
 `backend` (matrix `shard: [a, b, c]` — 각 샤드가 자기 DB/Redis 서비스를 갖는다)
@@ -99,7 +99,7 @@ flowchart TB
 | Gate   | `coverage combine` → `report --fail-under=90` | BL-308/309 래칫을 **한 번** 판정 |
 
 **샤드 경계는 실측이다.** `tests/strategy/pine_v2` 혼자 로컬 **164.0s / 56.3%** 라서 샤드 `b` 는
-파일 **두 개**뿐이다. 정의·근거 = [`backend/tests/shard_paths.py`](../../../backend/tests/shard_paths.py).
+파일 **두 개**뿐이다. 정의·근거 = [`apps/api/tests/shard_paths.py`](../../../apps/api/tests/shard_paths.py).
 
 **★첫 CI run(31071389290)이 착수 추정을 반증했다 — 추정을 지우고 실측으로 갈아 끼운다.**
 
@@ -142,7 +142,7 @@ top-10 에 **아예 안 보였다.**
 누락을 볼 수 없다. `upload-artifact` 의 `include-hidden-files: true` 가 빠지면 dot 파일이
 기본 제외되어 정확히 그 상황이 된다.
 
-★**분할이 새면 `backend/tests/test_pytest_shard_partition.py` 가 막는다** — 모든 `test_*.py` 가
+★**분할이 새면 `apps/api/tests/test_pytest_shard_partition.py` 가 막는다** — 모든 `test_*.py` 가
 정확히 한 샤드에 속하는지, `ci.yml` matrix id 가 `shards.json` 키와 같은지, 빈 샤드가 없는지,
 `pytest_args()` 가 선언된 `--ignore` 를 실제로 내는지. **변이 6종 전건 red 확인.**
 
@@ -155,7 +155,7 @@ top-10 에 **아예 안 보였다.**
 - `TRADING_ENCRYPTION_KEYS`
 
 > CI services는 `localhost`로 노출됨 (Compose 내부 호스트명 아님).
-> ★이 목록을 손으로 관리하지 마라 — `backend/tests/test_ci_workflow_env_parity.py` 가
+> ★이 목록을 손으로 관리하지 마라 — `apps/api/tests/test_ci_workflow_env_parity.py` 가
 > `Settings` 에서 compose 호스트 기본값을 갖는 필드를 뽑아 **모든** pytest 스텝 env 와 대조한다.
 > 로컬에서는 `.env.local` 이 전부 localhost 로 채워서 이 드리프트가 **구조적으로 안 보인다.**
 
@@ -220,7 +220,7 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 ### CI 실패 → 즉시 fix 원칙
 
 - 로컬 ruff 통과해도 CI 엄격 (Sprint 4 D1)
-- `.ruff_cache` stale 가능성 — `rm -rf backend/.ruff_cache` 후 재실행
+- `.ruff_cache` stale 가능성 — `rm -rf apps/api/.ruff_cache` 후 재실행
 - `--no-verify` 절대 금지 (사용자 명시 승인 시만)
 
 ---
@@ -277,7 +277,7 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 
 ### 9.4 frontend job: tsc 에러
 
-- 로컬 IDE TypeScript 버전과 CI 버전 차이 — `frontend/tsconfig.json` strict 옵션 일치 확인
+- 로컬 IDE TypeScript 버전과 CI 버전 차이 — `apps/web/tsconfig.json` strict 옵션 일치 확인
 
 ---
 

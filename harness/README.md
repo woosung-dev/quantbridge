@@ -49,7 +49,7 @@ step 세션이 「다음 행동 = …」과 미해결 BL 수백 건을 손에 �
 | ----------------- | --------------------------------------- | --------------- |
 | `PRD.md`          | `01-domain.md` → `CONTEXT.md`           | 무엇을 만드나   |
 | `ARCHITECTURE.md` | `02-structure.md` → `AGENTS.md`         | 어디에 두나     |
-| `ADR.md`          | `03-backend.md` → `apps/api/AGENTS.md`   | 무엇으로 만드나 |
+| `ADR.md`          | `03-backend.md` → `apps/api/AGENTS.md`  | 무엇으로 만드나 |
 | `UI_GUIDE.md`     | `04-frontend.md` → `apps/web/AGENTS.md` | 어떻게 보이나   |
 
 심링크라 **사본이 생기지 않는다**(ADR-026 SSOT). 파일명이 곧 주입 순서이자 섹션 헤더다.

@@ -9,7 +9,7 @@
 
 - 모든 환경 변수는 `.env.local` (로컬) 또는 배포 플랫폼 대시보드에서 관리
 - 코드에 하드코딩 **절대 금지** (CLAUDE.md Golden Rule)
-- 민감 값은 백엔드에서 `SecretStr` 타입으로 선언 (`backend/AGENTS.md` §2)
+- 민감 값은 백엔드에서 `SecretStr` 타입으로 선언 (`apps/api/AGENTS.md` §2)
 - `.env.example`에 없는 변수를 코드에서 참조 금지 (Golden Rule)
 
 ### 범례
@@ -143,7 +143,7 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 
 1. `.env.example`에 추가 (의미·필수 시점·획득법 주석 포함)
 2. 본 문서 카탈로그 업데이트
-3. 백엔드: `backend/src/core/config.py` Settings 클래스에 필드 추가 (`SecretStr` 여부 결정)
+3. 백엔드: `apps/api/src/core/config.py` Settings 클래스에 필드 추가 (`SecretStr` 여부 결정)
 4. 프론트: `NEXT_PUBLIC_*` prefix 필요 시 명시
 5. 코드 변경과 같은 PR로 묶어 커밋
 

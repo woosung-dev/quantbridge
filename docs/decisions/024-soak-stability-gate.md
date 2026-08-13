@@ -4,13 +4,13 @@
 > **일자:** 2026-08-05
 > **출처:** 2026-08-05 soak-clock-restoration ([BL-003] 게이트가 달력 시간인데 그 시계가 멈춰 있었다)
 > **관련:** [BL-003] · [BL-591] · [ADR-022](022-engine-position-ssot.md) · [BL-590] · [BL-589]
-> **코드:** [`backend/scripts/soak_gate_predicate.py`](../../backend/scripts/soak_gate_predicate.py) (순수 함수) ·
-> [`scripts/soak-gate.sh`](../../scripts/soak-gate.sh) (수집·판정 CLI) ·
-> [`scripts/soak-stack.sh`](../../scripts/soak-stack.sh) (커밋 고정) ·
-> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../backend/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **36테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 + [BL-596] 라벨 어휘·출처 9건 + C5⑸ `aof_ok` 3건 추가) ·
-> [`backend/tests/scripts/test_classify_direction_divergence.py`](../../backend/tests/scripts/test_classify_direction_divergence.py) (판별식 동결 **66테스트**) ·
-> [`backend/scripts/redis_aof_readability.py`](../../backend/scripts/redis_aof_readability.py) (C5⑸ AOF 판정 규칙) ·
-> [`backend/tests/scripts/test_redis_aof_readability.py`](../../backend/tests/scripts/test_redis_aof_readability.py) (실측 캡처 7형 동결 **15테스트**)
+> **코드:** [`backend/scripts/soak_gate_predicate.py`](../../apps/api/scripts/soak_gate_predicate.py) (순수 함수) ·
+> [`scripts/soak-gate.sh`](../../tools/scripts/soak-gate.sh) (수집·판정 CLI) ·
+> [`scripts/soak-stack.sh`](../../tools/scripts/soak-stack.sh) (커밋 고정) ·
+> [`backend/tests/scripts/test_soak_gate_predicate.py`](../../apps/api/tests/scripts/test_soak_gate_predicate.py) (정의 동결 **36테스트** — 2026-08-05 아카이브 합집합 소급 정정 2건 + [BL-596] 라벨 어휘·출처 9건 + C5⑸ `aof_ok` 3건 추가) ·
+> [`backend/tests/scripts/test_classify_direction_divergence.py`](../../apps/api/tests/scripts/test_classify_direction_divergence.py) (판별식 동결 **66테스트**) ·
+> [`backend/scripts/redis_aof_readability.py`](../../apps/api/scripts/redis_aof_readability.py) (C5⑸ AOF 판정 규칙) ·
+> [`backend/tests/scripts/test_redis_aof_readability.py`](../../apps/api/tests/scripts/test_redis_aof_readability.py) (실측 캡처 7형 동결 **15테스트**)
 
 ---
 
@@ -100,7 +100,7 @@ celery 를 `watchfiles` 로 감싼다. `backend/src` 의 `.py` 를 **한 줄만 
 멀쩡한 스택이 거짓 `측정불가` 로 떨어진다. ★반대로 「short read 면 통과」로 넓히면 **비마지막
 파일 절단**이 통과한다 — 출력이 같은 모양이고 **유일한 판별자가 「마지막 INCR 인가」**다.
 ★구분자 손상은 **알려진 거짓 양성**이다(엄격 쪽이라 래칫에는 안전 — 거짓 PASS 는 못 만든다).
-판정 규칙의 정본은 [`redis_aof_readability.py`](../../backend/scripts/redis_aof_readability.py)
+판정 규칙의 정본은 [`redis_aof_readability.py`](../../apps/api/scripts/redis_aof_readability.py)
 이고 실측 캡처 7형이 그 테스트로 동결돼 있다.
 ★**알려진 한계** — `redis-check-aof` 는 **프레이밍만** 본다. 벌크 페이로드 안이 깨져 명령
 이름이 망가지면 check 는 `valid` 라고 하는데 서버는 `Unknown command` 로 죽는다(실측).
@@ -131,7 +131,7 @@ n=19). 무해 갈래를 사망 조건에 넣으면 게이트가 영영 안 닫�
 ★**`phantom` 의 정의는 2026-08-05 에 **두 번** 교체됐다** — 「봉경계식」 → 「재무장 도장식」
 → **「직접 회복 검사」**(현행, `PREDICATE_VERSION = 2026-08-05-recovery-ratchet`).
 근거·표·오차 방향은 §판별식 2차 교체 참조. 판정 코드는 게이트가 아니라
-[`classify_direction_divergence.py`](../../backend/scripts/classify_direction_divergence.py)
+[`classify_direction_divergence.py`](../../apps/api/scripts/classify_direction_divergence.py)
 에 있고, 게이트는 그 산출물(`verdicts[].label`)만 읽는다.
 
 ★★★**첫 창에서 그 우려가 그대로 실현됐다 (2026-08-05, 게이트 가동 첫 5시간).**
@@ -213,7 +213,7 @@ n=19). 무해 갈래를 사망 조건에 넣으면 게이트가 영영 안 닫�
 
 ### 코드 근거 — 사라진 시간은 어디에도 나타나지 않는다
 
-[`soak_gate_predicate.py`](../../backend/scripts/soak_gate_predicate.py) 의
+[`soak_gate_predicate.py`](../../apps/api/scripts/soak_gate_predicate.py) 의
 
 ```python
 countable = [a for a in attribution if a.start >= window_start]
@@ -372,7 +372,7 @@ self-check 는 원장 앞 38행을 잘라 이 회차 값을 재현한다 — 실
 
 [BL-641] 의 Trigger 는 「소크 재기동 회차마다 재측정」인데, 종전의 층 경계는 **날짜 상수 4개**를
 사람이 손으로 넣는 것이었고 사인은 「오염 1건」 같은 **주석**으로만 적혀 있었다. 주석은 재현되지
-않는다. 원장이 있으면 [`mtbf_stratified.py`](../../backend/scripts/mtbf_stratified.py) 가
+않는다. 원장이 있으면 [`mtbf_stratified.py`](../../apps/api/scripts/mtbf_stratified.py) 가
 「운영 사고 제외」 층을 **자동으로** 만든다 — 운영 사고 사망을 **사망에서만 빼고 노출은 남기는**
 우측 절단이다(노출까지 빼면 「그 시간엔 코드가 안 돌았다」가 되는데 그건 거짓이다).
 
@@ -688,7 +688,7 @@ FAIL 은 운영자가 `scripts/soak-stack.sh up` 으로 **새 창을 열 때까�
 
 - 아래로 — 역대 최장은 **15.28h**(`e1f6d84c`)다. 24h 는 그 1.6배라 새 기록을 요구한다.
 - 위로 — 원장 스캔 상한 `LEDGER_FILL_SCAN_LIMIT = 200`
-  ([`order_repository.py:185`](../../backend/src/trading/repositories/order_repository.py))이
+  ([`order_repository.py:185`](../../apps/api/src/trading/repositories/order_repository.py))이
   실측 체결률에서 **약 37시간**이면 `overflow` 로 떨어진다([BL-591] 부수 관측). 48h 를 걸면
   BL-003 이 그 수리에 종속된다. 24h 는 그 지평 **아래**라 다른 BL 에 종속되지 않는다.
 

@@ -80,10 +80,10 @@ Guard #3: post-engine (결과 저장 직전)
 
 ### 코드 위치
 
-- 전이 검증/디스패치: `backend/src/backtest/service.py` (`BacktestService`)
-- 워커 실행: `backend/src/tasks/backtest.py` (`run_backtest_task`, `_execute`)
-- 조건부 UPDATE: `backend/src/backtest/repository.py`
-- Reclaim: `backend/src/tasks/backtest.py` `reclaim_stale_running` + `@worker_ready` hook in `celery_app.py`
+- 전이 검증/디스패치: `apps/api/src/backtest/service.py` (`BacktestService`)
+- 워커 실행: `apps/api/src/tasks/backtest.py` (`run_backtest_task`, `_execute`)
+- 조건부 UPDATE: `apps/api/src/backtest/repository.py`
+- Reclaim: `apps/api/src/tasks/backtest.py` `reclaim_stale_running` + `@worker_ready` hook in `celery_app.py`
 
 ---
 
@@ -122,8 +122,8 @@ stateDiagram-v2
 
 ### 코드 위치
 
-- `backend/src/strategy/service.py` (`StrategyService`)
-- 파서 + 인터프리터 (SSOT): `backend/src/strategy/pine_v2/` (`parser_adapter` / `interpreter` / `coverage` / `stdlib`)
+- `apps/api/src/strategy/service.py` (`StrategyService`)
+- 파서 + 인터프리터 (SSOT): `apps/api/src/strategy/pine_v2/` (`parser_adapter` / `interpreter` / `coverage` / `stdlib`)
 
 ---
 

@@ -1,7 +1,7 @@
 # QuantBridge — 시스템 아키텍처
 
 > **목적:** C4 Level 1~2 (System Context + Container) 다이어그램 + 인증/인가 경계.
-> **SSOT:** 컴포넌트 코드는 `frontend/`, `backend/`. 인프라는 `docker-compose.yml`, `.github/workflows/ci.yml`.
+> **SSOT:** 컴포넌트 코드는 `apps/web/`, `apps/api/`. 인프라는 `docker-compose.yml`, `.github/workflows/ci.yml`.
 > 데이터 흐름 시퀀스는 [`data-flow.md`](./data-flow.md), 도메인 경계는 [`domain-overview.md`](../domain/domain-overview.md).
 
 ---
@@ -166,7 +166,7 @@ flowchart LR
 
 ### 디스패처 추상화
 
-`TaskDispatcher` Protocol (`backend/src/common/task_dispatcher.py`):
+`TaskDispatcher` Protocol (`apps/api/src/common/task_dispatcher.py`):
 
 - `CeleryDispatcher` — 프로덕션
 - `NoopDispatcher` — 테스트 (큐 없이 즉시 실행 안 함)
@@ -224,10 +224,10 @@ flowchart TB
 
 `OHLCVProvider` 추상 인터페이스는 두 가지 구현체와 두 가지 lifecycle 패턴을 갖는다.
 
-| Provider            | 사용처                            | Lifecycle                                    | 의존성                                    |
-| ------------------- | --------------------------------- | -------------------------------------------- | ----------------------------------------- |
-| `FixtureProvider`   | dev/test 기본, CI                 | stateless (instance per request)             | CSV (`backend/data/fixtures/ohlcv/*.csv`) |
-| `TimescaleProvider` | 운영 (`OHLCV_PROVIDER=timescale`) | per-request, but `CCXTProvider` is singleton | DB cache + CCXTProvider                   |
+| Provider            | 사용처                            | Lifecycle                                    | 의존성                                     |
+| ------------------- | --------------------------------- | -------------------------------------------- | ------------------------------------------ |
+| `FixtureProvider`   | dev/test 기본, CI                 | stateless (instance per request)             | CSV (`apps/api/data/fixtures/ohlcv/*.csv`) |
+| `TimescaleProvider` | 운영 (`OHLCV_PROVIDER=timescale`) | per-request, but `CCXTProvider` is singleton | DB cache + CCXTProvider                    |
 
 ### CCXTProvider singleton 패턴
 
@@ -298,7 +298,7 @@ graph TB
 
 ## 7.5 Celery prefork-safe 패턴 (Sprint 18 BL-080 ✅)
 
-> 상세 회고: `docs/dev-log/2026-05-02-sprint18-bl080-architectural.md`. 표준 reference: [`backend/src/tasks/_worker_loop.py`](../../../backend/src/tasks/_worker_loop.py) + `backend/src/tasks/celery_app.py:_init_worker_state_after_fork`. 위반 audit: `tests/tasks/test_no_module_level_loop_bound_state.py` (Sprint 19 BL-084).
+> 상세 회고: `docs/dev-log/2026-05-02-sprint18-bl080-architectural.md`. 표준 reference: [`apps/api/src/tasks/_worker_loop.py`](../../../apps/api/src/tasks/_worker_loop.py) + `apps/api/src/tasks/celery_app.py:_init_worker_state_after_fork`. 위반 audit: `tests/tasks/test_no_module_level_loop_bound_state.py` (Sprint 19 BL-084).
 
 ### 문제 본질
 
@@ -370,7 +370,7 @@ sequenceDiagram
 
 ## 8. Observability (Sprint 10/12 도입 ✅)
 
-> 구현 메트릭의 정본은 [`backend/src/common/metrics.py`](../../../backend/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`roadmap.md`](../../roadmap.md)의 Beta·Deferred 게이트에서 관리한다.
+> 구현 메트릭의 정본은 [`apps/api/src/common/metrics.py`](../../../apps/api/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`roadmap.md`](../../roadmap.md)의 Beta·Deferred 게이트에서 관리한다.
 
 | 영역     | 현재 상태                                                             | 도입 sprint           |
 | -------- | --------------------------------------------------------------------- | --------------------- |

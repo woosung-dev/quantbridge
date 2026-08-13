@@ -51,7 +51,7 @@ curl -I -H "CF-IPCountry: US" https://quantbridge.ai/not-available
 
 ## L2: Next.js `proxy.ts`
 
-Next.js 16 App Router 에서는 `proxy.ts` (기존 `middleware.ts` 후속) 에서 geo header 기반 redirect 구현. Sprint 11 Phase A 에서 `frontend/src/proxy.ts` 에 추가됨 (`isRestrictedCountry` 호출).
+Next.js 16 App Router 에서는 `proxy.ts` (기존 `middleware.ts` 후속) 에서 geo header 기반 redirect 구현. Sprint 11 Phase A 에서 `apps/web/src/proxy.ts` 에 추가됨 (`isRestrictedCountry` 호출).
 
 ### 동작
 
@@ -72,7 +72,7 @@ curl -I -H "CF-IPCountry: US" http://localhost:3000/strategies
 
 ## L3: Clerk webhook — `country_code` 저장 + 차단
 
-`backend/src/auth/service.py::handle_clerk_event` 가 `user.created` 이벤트 수신 시:
+`apps/api/src/auth/service.py::handle_clerk_event` 가 `user.created` 이벤트 수신 시:
 
 1. `public_metadata.country` 추출 → 2 자리 ISO 3166-1 alpha-2 정규화.
 2. `RESTRICTED_COUNTRIES` (US + EU 27 + GB) 에 포함 시 `GeoBlockedCountryError(country)` raise → 400 `geo_blocked_country`.
@@ -109,7 +109,7 @@ Sprint 11 Phase A 는 metric 을 추가하지 않음. 후속 Phase/Sprint 에서
 - `qb_geo_block_redirect_total{layer="L2", country}` — proxy.ts 에서 redirect 발생
 - `qb_geo_block_rejected_total{layer="L3", country}` — webhook 에서 400 응답
 
-추가 시 `backend/src/common/metrics.py` 확장.
+추가 시 `apps/api/src/common/metrics.py` 확장.
 
 ---
 
@@ -121,11 +121,11 @@ Custom rule 을 **Disable** 토글. DNS / 트래픽 영향 없음.
 
 ### L2 (proxy.ts)
 
-`frontend/src/proxy.ts` 에서 geo check 블록 제거 + redeploy. 또는 `isRestrictedCountry` 상시 `false` 반환하도록 hotfix.
+`apps/web/src/proxy.ts` 에서 geo check 블록 제거 + redeploy. 또는 `isRestrictedCountry` 상시 `false` 반환하도록 hotfix.
 
 ### L3 (Clerk webhook)
 
-`backend/src/auth/service.py` 에서 `GeoBlockedCountryError` raise 조건을 주석 처리. 다음 배포에서 반영.
+`apps/api/src/auth/service.py` 에서 `GeoBlockedCountryError` raise 조건을 주석 처리. 다음 배포에서 반영.
 
 모든 계층 동시 롤백은 정책 변경 (Beta scope 확장) 시에만.
 

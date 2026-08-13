@@ -14,13 +14,13 @@
 **원문의 경로·명령은 Next.js 템플릿 프로젝트 기준이다.** 아래를 치환하지 않고 step 파일을 쓰면
 존재하지 않는 파일을 읽으라는 지시가 되고, AC 가 실행되지 않는다(2026-08-12 codex 리뷰 P1 3건).
 
-| 원문 위치                                            | 원문                                       | 이 레포                                                                                       |
-| ---------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| §A · §D-3「읽어야 할 파일」                          | `/docs/ARCHITECTURE.md` · `/docs/ADR.md`   | ★**그런 파일 없다.** 공통 규칙은 이미 주입되므로 여기엔 **이 step 에만 필요한 실제 경로**를 적어라 (`docs/reference/**`, 이전 step 산출물) |
-| §D-3 Acceptance Criteria                             | `npm run build` · `npm test`               | ★**루트 `package.json` 에 그 스크립트가 없다**(`scripts` = `prepare` 하나뿐). 아래 실제 커맨드를 써라 |
-| §D-3 검증 절차 2「아키텍처 체크리스트」              | `ARCHITECTURE.md` · `ADR` · `CLAUDE.md CRITICAL` | `AGENTS.md` Golden Rules · `apps/api/AGENTS.md` · `apps/web/AGENTS.md`                     |
-| §E 실행                                              | `--push`                                   | **쓰지 마라** — 승인 없는 push 는 Golden Rule 위반                                            |
-| §E「자동 처리」가드레일 주입                         | `CLAUDE.md + docs/*.md`                    | `CLAUDE.md + harness/docs/*.md` (`execute.py:182`) — 슬롯 내용은 [`README.md`](README.md) §2   |
+| 원문 위치                               | 원문                                             | 이 레포                                                                                                                                    |
+| --------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| §A · §D-3「읽어야 할 파일」             | `/docs/ARCHITECTURE.md` · `/docs/ADR.md`         | ★**그런 파일 없다.** 공통 규칙은 이미 주입되므로 여기엔 **이 step 에만 필요한 실제 경로**를 적어라 (`docs/reference/**`, 이전 step 산출물) |
+| §D-3 Acceptance Criteria                | `npm run build` · `npm test`                     | ★**루트 `package.json` 에 그 스크립트가 없다**(`scripts` = `prepare` 하나뿐). 아래 실제 커맨드를 써라                                      |
+| §D-3 검증 절차 2「아키텍처 체크리스트」 | `ARCHITECTURE.md` · `ADR` · `CLAUDE.md CRITICAL` | `AGENTS.md` Golden Rules · `apps/api/AGENTS.md` · `apps/web/AGENTS.md`                                                                     |
+| §E 실행                                 | `--push`                                         | **쓰지 마라** — 승인 없는 push 는 Golden Rule 위반                                                                                         |
+| §E「자동 처리」가드레일 주입            | `CLAUDE.md + docs/*.md`                          | `CLAUDE.md + harness/docs/*.md` (`execute.py:182`) — 슬롯 내용은 [`README.md`](README.md) §2                                               |
 
 **AC 에 실제로 쓸 커맨드** (`AGENTS.md` §Operational Commands · 워커 규칙 5):
 

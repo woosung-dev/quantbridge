@@ -4,8 +4,8 @@
 
 ## 변경 파일 / 스코프
 
-- [ ] frontend
-- [ ] backend
+- [ ] apps/web (frontend)
+- [ ] apps/api (backend)
 - [ ] infra / CI / hooks
 - [ ] docs / rules
 

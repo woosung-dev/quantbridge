@@ -19,12 +19,13 @@
 
 생성된 앱 → **API Keys** 메뉴:
 
-| 키 | 환경 변수 | 노출 위치 |
-|----|-----------|-----------|
-| **Secret key** (`sk_test_...`) | `CLERK_SECRET_KEY` | 백엔드 only — 절대 FE 노출 금지 |
-| **Publishable key** (`pk_test_...`) | `CLERK_PUBLISHABLE_KEY` + `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | FE에 노출 가능 |
+| 키                                  | 환경 변수                                                     | 노출 위치                       |
+| ----------------------------------- | ------------------------------------------------------------- | ------------------------------- |
+| **Secret key** (`sk_test_...`)      | `CLERK_SECRET_KEY`                                            | 백엔드 only — 절대 FE 노출 금지 |
+| **Publishable key** (`pk_test_...`) | `CLERK_PUBLISHABLE_KEY` + `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | FE에 노출 가능                  |
 
 복사 → `.env.local`의 해당 키에 붙여넣기:
+
 ```env
 CLERK_SECRET_KEY=sk_test_xxxxx
 CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
@@ -37,7 +38,7 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx   # 동일값
 
 QuantBridge 백엔드는 Clerk JWKS endpoint를 사용해 JWT 서명 검증.
 
-- 코드 위치: `backend/src/auth/clerk.py` 또는 `backend/src/auth/dependencies.py`
+- 코드 위치: `apps/api/src/auth/clerk.py` 또는 `apps/api/src/auth/dependencies.py`
 - JWKS URL: Clerk SDK가 `CLERK_SECRET_KEY` 기반으로 자동 fetch + 캐시
 - 검증 항목: signature, exp, iss
 
@@ -53,6 +54,7 @@ QuantBridge 백엔드는 Clerk JWKS endpoint를 사용해 JWT 서명 검증.
 ### 4.1 로컬 개발 (Sprint 3~6)
 
 `.env.local`에 placeholder 유지:
+
 ```env
 CLERK_WEBHOOK_SECRET=whsec_placeholder_sprint7_real_value
 ```
@@ -87,14 +89,16 @@ CLERK_WEBHOOK_SECRET=whsec_placeholder_sprint7_real_value
 
 ### 5.1 Clerk SDK 설치
 
-`frontend/package.json`에 이미 포함:
+`apps/web/package.json`에 이미 포함:
+
 ```json
 "@clerk/nextjs": "^x.y.z"
 ```
 
 ### 5.2 ClerkProvider 래핑
 
-`frontend/src/app/layout.tsx` (이미 셋업됨):
+`apps/web/src/app/layout.tsx` (이미 셋업됨):
+
 ```tsx
 import { ClerkProvider } from "@clerk/nextjs";
 
@@ -109,7 +113,8 @@ export default function RootLayout({ children }) {
 
 ### 5.3 환경 변수 확인
 
-`frontend/.env.local`:
+`apps/web/.env.local`:
+
 ```env
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
 ```
@@ -120,11 +125,11 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
 
 ## 6. dev / prod 인스턴스 분리
 
-| 환경 | Clerk 앱 | 키 prefix |
-|------|----------|-----------|
-| local / dev | `QuantBridge Dev` | `sk_test_...`, `pk_test_...` |
-| staging | (Sprint 7+) `QuantBridge Staging` | 동일 `_test_` 또는 별도 prod |
-| production | (Sprint 7+) `QuantBridge Prod` | `sk_live_...`, `pk_live_...` |
+| 환경        | Clerk 앱                          | 키 prefix                    |
+| ----------- | --------------------------------- | ---------------------------- |
+| local / dev | `QuantBridge Dev`                 | `sk_test_...`, `pk_test_...` |
+| staging     | (Sprint 7+) `QuantBridge Staging` | 동일 `_test_` 또는 별도 prod |
+| production  | (Sprint 7+) `QuantBridge Prod`    | `sk_live_...`, `pk_live_...` |
 
 > dev/prod 사용자 데이터는 분리됨. 마이그레이션 도구는 Clerk Dashboard 제공.
 
@@ -133,6 +138,7 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx
 ## 7. 검증
 
 ### 7.1 백엔드 JWT 검증 동작
+
 ```bash
 # 1. FE에서 로그인 후 JWT 추출 (브라우저 dev tools → Application → Cookies → __session)
 # 2. curl로 보호 엔드포인트 호출
@@ -141,10 +147,12 @@ curl -H "Authorization: Bearer <JWT>" http://localhost:8000/auth/me
 ```
 
 ### 7.2 Webhook (로컬 mock)
-- 테스트: `cd backend && uv run pytest tests/auth/test_clerk_webhook.py`
+
+- 테스트: `cd apps/api && uv run pytest tests/auth/test_clerk_webhook.py`
 - 모든 케이스 pass 확인
 
 ### 7.3 Webhook (실제 Clerk → 로컬)
+
 - ngrok 등으로 로컬 8000 포트를 공개 URL로 노출
 - Clerk Dashboard에 ngrok URL 등록
 - Clerk Dashboard에서 user 생성 → 백엔드 로그에 webhook 수신 확인
@@ -154,15 +162,18 @@ curl -H "Authorization: Bearer <JWT>" http://localhost:8000/auth/me
 ## 8. 자주 발생하는 문제
 
 ### 8.1 JWT 검증 실패 (`auth.invalid_token`)
+
 - `CLERK_SECRET_KEY` 누락/오타
 - 토큰 만료 — 새 세션 발급
 - 다른 Clerk 인스턴스의 토큰 — dev/prod 키 혼동 확인
 
 ### 8.2 Webhook 서명 검증 실패
+
 - `CLERK_WEBHOOK_SECRET` 미설정 또는 잘못된 endpoint의 secret
 - timestamp drift — 서버 시간 동기화 (NTP)
 
 ### 8.3 FE에서 `Missing Publishable Key`
+
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` 미설정
 - prefix 누락 (`NEXT_PUBLIC_` 필수)
 - Next.js 재시작 필요 (env 변경 후)
@@ -174,7 +185,7 @@ curl -H "Authorization: Bearer <JWT>" http://localhost:8000/auth/me
 - Clerk 공식 Next.js: https://clerk.com/docs/quickstarts/nextjs
 - Clerk 공식 FastAPI: https://clerk.com/docs/quickstarts/fastapi (또는 백엔드 SDK 문서)
 - Svix 서명 검증: https://docs.svix.com/receiving/verifying-payloads/how
-- 본 프로젝트 백엔드 코드: `backend/src/auth/`
+- 본 프로젝트 백엔드 코드: `apps/api/src/auth/`
 
 ---
 

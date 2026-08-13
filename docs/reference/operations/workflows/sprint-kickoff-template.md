@@ -84,7 +84,7 @@ Sprint 1~4 패턴 답습:
 - `.desc()`, `.asc()`, `.in_()`: `# type: ignore[attr-defined]`
 - `Result.rowcount`: `# type: ignore[attr-defined]`
 - `datetime|None < cutoff`: `# type: ignore[arg-type,operator]`
-- 패턴은 `backend/src/strategy/repository.py` (Sprint 3) 참조
+- 패턴은 `apps/api/src/strategy/repository.py` (Sprint 3) 참조
 
 ### D3. Celery prefork-safe
 - `create_async_engine()` 모듈 import 시점 호출 금지 (master 프로세스 → fork 후 자식이 corrupt pool 상속)
@@ -155,7 +155,7 @@ Milestone 단위 checkpoint:
 
 - `docs/archive/superpowers/specs/YYYY-MM-DD-<topic>-design.md` — spec 포맷
 - `docs/archive/superpowers/plans/YYYY-MM-DD-<topic>.md` — plan 포맷
-- `backend/AGENTS.md` — Router/Service/Repository 3-Layer 규칙
+- `apps/api/AGENTS.md` — Router/Service/Repository 3-Layer 규칙
 - `generator-evaluator-pipeline.md` §8 — 메타-방법론 영구 규칙 (구 global.md §7)
 - `CLAUDE.md` — 프로젝트 고유 규칙 (Celery 비동기, Decimal, AES-256)
 

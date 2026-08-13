@@ -9,7 +9,7 @@ uv sync
 cp .env.example .env.local      # backend 전용 env (pydantic-settings 자동 로드)
 ```
 
-> `.env.example`은 **서비스별 분리**. backend는 `apps/api/.env.example` 사용. docker compose는 루트 `./.env`, Next.js는 `apps/web/.env.local` — 전체 구조는 [루트 README](../README.md#2-clone--환경-변수) + [local-setup.md](../docs/reference/operations/local-setup.md#2-클론--환경-설정) 참조.
+> `.env.example`은 **서비스별 분리**. backend는 `apps/api/.env.example` 사용. docker compose는 루트 `./.env`, Next.js는 `apps/web/.env.local` — 전체 구조는 [루트 README](../../README.md#2-clone--환경-변수) + [local-setup.md](../../docs/reference/operations/local-setup.md#2-클론--환경-설정) 참조.
 
 ## 실행
 

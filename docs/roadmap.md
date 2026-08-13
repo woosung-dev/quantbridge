@@ -12,7 +12,7 @@
 >
 > **그 앞:** 2026-07-31 (**reversal-ledger-sync 완료 · PR #TBD** — ★★★**코드 대조로 세운 뿌리 가설을 실주행이 반증했다.** 엔진이 자기 반전 체결의 청산 leg 를 재발신하는 게 아니라 **엔진이 체결을 13분 38초 동안 몰랐다** — 리컨사일러가 거래소에 물어 `filled` 을 **7번 확인하고도** 원장에 기록하지 않았다(세션 `70063496` · 주문 `9c7aef0b`). 직전 회차의 「6/6 이 +50~104초」는 **두 가설 모두와 맞아 판별력이 없었고**, **BL-561(포매터)이 착지한 뒤에야** 갈렸다 — 선행 지정이 실제로 뿌리를 바꿨다. ★★**BL-560 은 「고쳤다」로 닫지 않는다** — 수정은 들어갔으나 `_write_back_confirmed_terminal` 이 최종 창에서 **한 번도 발화하지 않았다**(프로덕션 미검증). `same_side` 는 4창 4.48h 동안 **0건 · 청산 시도 0건**이라 **W2/W3 판정 불가**(이 구간 PbR 은 전량 조건부 진입만 낸다). 간접 신호만 개선: 미기록 반복 **7→0회** · divergence **41.6→12/h** · 세션 생존 **0.36h(fail-closed)→0.86h**. ★codex 적대 리뷰 **3회에 MAJOR 8건** — **거짓 그린 4건** · 죽은 배선 2곳 · 틀린 anchor · 거짓 주장 1건. BL-561/562/563/564 착지, `bl-audit` **exit 0 게이트 편입**. 신규 BL-565/566.)
 >
-> **그 앞:** 2026-07-30 (**close-mismatch-soak 완료 · PR #513 머지 @bc0046b6** — ★★**BL-560 이 실재로 확정됐다: `reduce_only_same_side` 2.60건/h · 청산 시도의 46.2%**(6/13, 창 3h20m, 사전등록 **V3**). `reduce_only_violation` 차분 **0** = 이 6건은 예전이면 전부 「유령 포지션」으로 묻혔다. ★★★**6/6 전건이 「직전 체결과 같은 방향」이고 체결 후 50~104초** — buy 체결로 롱인데 엔진이 buy reduce-only 를 보낸다 ⇒ **엔진이 자기 반전 체결의 청산 leg 를 미반영**(거절은 원인이 아니라 결과). **원칙대로 고치지 않았다** — 크기·뿌리 확정이 산출물. ★★BL-523 전제 반증(`place_exit` 가 `open_trades` 만 타깃 + `s1_pbr` 은 `strategy.exit` 0건 ⇒ **붙일 값이 없다**, 실주행 `bracket_unavailable` 100%) · BL-516 권장안 2종 기각(술어 4곳이 고아 주문 + **그 거절을 오히려 늘린다**) · `scripts/bl-audit.sh` 신설(**공식 산식이 P0 를 0 으로 보고 중이었다**). ★★★codex 가 FE strict 파손 적발 — **GET 은 멀쩡, 저장에서만 터져 화면 3개를 돌고도 놓쳤다**. 신규 BL-561~564.)
+> **그 앞:** 2026-07-30 (**close-mismatch-soak 완료 · PR #513 머지 @bc0046b6** — ★★**BL-560 이 실재로 확정됐다: `reduce_only_same_side` 2.60건/h · 청산 시도의 46.2%**(6/13, 창 3h20m, 사전등록 **V3**). `reduce_only_violation` 차분 **0** = 이 6건은 예전이면 전부 「유령 포지션」으로 묻혔다. ★★★**6/6 전건이 「직전 체결과 같은 방향」이고 체결 후 50~104초** — buy 체결로 롱인데 엔진이 buy reduce-only 를 보낸다 ⇒ **엔진이 자기 반전 체결의 청산 leg 를 미반영**(거절은 원인이 아니라 결과). **원칙대로 고치지 않았다** — 크기·뿌리 확정이 산출물. ★★BL-523 전제 반증(`place_exit` 가 `open_trades` 만 타깃 + `s1_pbr` 은 `strategy.exit` 0건 ⇒ **붙일 값이 없다**, 실주행 `bracket_unavailable` 100%) · BL-516 권장안 2종 기각(술어 4곳이 고아 주문 + **그 거절을 오히려 늘린다**) · `tools/scripts/bl-audit.sh` 신설(**공식 산식이 P0 를 0 으로 보고 중이었다**). ★★★codex 가 FE strict 파손 적발 — **GET 은 멀쩡, 저장에서만 터져 화면 3개를 돌고도 놓쳤다**. 신규 BL-561~564.)
 >
 > **그 앞:** 2026-07-30 (**close-mismatch-visibility 완료 · PR #511 머지 @75722cbe** — ★★★**착수 전제가 반박됐다.** `deferred_market_inflight`(C2)는 유실 채널이 아니라 **「청산 tick 수」** 였다(events 9건 전량 `close`, counter 9와 1:1, 게다가 `desired` 를 **읽기 전**에 증가). 「합의 75%」의 분모가 틀렸고 **BL-536 「축소」 판정을 철회**했다. 공개 Bybit kline 2호스트 교차(151 bar 불일치 0)로 그 9번의 defer 는 **대가 0**(하한). ★★★**진짜 신호는 `110017` 두 갈래가 한 라벨에 묻혀 있던 것** — `same side`(엔진↔거래소 **반대 방향**) **9건/5세션** vs `position is zero` 30건. **무해가 3배라 위험을 수적으로 가렸다.** 정본 2곳이 이미 금지한 매핑이었다. 화면은 그 9건 **전부를 초록**으로 보여줬다. 라벨 분리 + `order_state` 표시 + 결정론 회귀. 변이 11종 전건 판별. **soak 미실시 → 다음 회차 첫 step.** 신규 BL-560.)
 >
@@ -269,7 +269,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-463** [P3] optimizer·stress_test 저장 sharpe 도 컨벤션 미표기
 - [x] **BL-585** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 「켜거나 지우거나」에서 **지운다**를 골랐다. `jsonschema` 의존을 새로 들일 값이 없었고, 스키마가 선언하던 것 중 중복이 아니었던 유일한 검사(`corpora` 8벌)는 **키 집합 대조**로 강화해 테스트로 옮겼다. `^3\.1[12]$` 패턴을 남기면 `.python-version`·런타임 assert 와 함께 **세 번째 SSOT** 가 된다
 - [x] **BL-586 ✅ Resolved** [P3] (2026-08-07 backtest-fidelity) — `regen_trust_layer_baseline.py` 의 키 리스트를 **하드코딩 → `dataclasses.fields()` 자동 유도**로 교체한 것이 수리의 핵심이다(손으로 적으면 다음에 필드가 늘어도 안 늘어난다). 스칼라 **46 전량** + 리스트 3종 digest + 중첩 2종 평탄화 + `RawTrade` **22 전량**. ★`RawTrade` 는 리스트/dict 형 필드가 **0개**라 BL 본문이 예상한 「리스트 직렬화 설계 선행」은 metrics 쪽에만 해당했다
-- [x] **BL-587** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — **원인 차단 + 탐지기 둘 다**. 차단 = `backend/.python-version` 3.12 핀. 탐지 = `test_envelope_*` 3건이 `ohlcv_sha256`·`schema_version`·`tool_versions.python` 을 실제로 읽는다(그전까지 읽는 곳 0곳). ★red 메시지에 「회귀가 아니라 regen 하고 값이 같은지 확인해라」를 박았다. 세 변조에 각각 자기 assert 만 red 로 판별력 확인
+- [x] **BL-587** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — **원인 차단 + 탐지기 둘 다**. 차단 = `apps/api/.python-version` 3.12 핀. 탐지 = `test_envelope_*` 3건이 `ohlcv_sha256`·`schema_version`·`tool_versions.python` 을 실제로 읽는다(그전까지 읽는 곳 0곳). ★red 메시지에 「회귀가 아니라 regen 하고 값이 같은지 확인해라」를 박았다. 세 변조에 각각 자기 assert 만 red 로 판별력 확인
 - [x] **BL-588** [P3] ✅ Resolved (2026-08-03 soak-divergence-root) — 5→7 로 맞추는 대신 **목록을 `_corpus.py` 하나로 합쳤다**(parity·regen·mutation 셋이 그것만 읽는다). ★실측: `_MUTATION_CORPORA` 의 5벌이 **정확히 위험조정지표가 축퇴한 5벌**이라 그 3지표의 산술 회귀가 구조적으로 감지 불가였다. nightly 183s→218s(+19%), 감지 결과 불변(기존 8변이는 `trades_digest` 로 이미 잡힌다)
 - [x] **BL-465** [P1] `_periodic_returns` 음수 자본 미차단 → 파산한 실행에 양수 샤프 — ✅ **dogfood-restore 완료**. 신규 마커 `unavailable_nonpositive_equity` + Trust Layer baseline 재생성(2/12 키 한정)
 - [x] **BL-466** [P2] 레버리지 1 백테스트가 자본을 무제한 음수로 몰 수 있다 — 마진 게이트 no-op(설계) + 청산 없음. 실측 초기자본 21.8배 손실
@@ -286,18 +286,18 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 > ★**BL 총계를 적는 자리는 이 문서 전체에서 여기 하나다.** 다른 자리에 숫자를 복제하지 마라 —
 > 표기가 5벌로 갈려 서로 모순한 원인이 정확히 그 복제였다.
-> **2026-08-08 `bash scripts/bl-audit.sh` 실측 = ACTIVE 178 · PARTIAL 6 · RESOLVED 7 ·
+> **2026-08-08 `bash tools/scripts/bl-audit.sh` 실측 = ACTIVE 178 · PARTIAL 6 · RESOLVED 7 ·
 > UNKNOWN 0 / 전체 191.** P별 ACTIVE = **P0 1 · P1 7 · P2 71 · P3 99**.
-> ★**이 값은 커밋마다 낡는다 — 손으로 세지 말고 `bash scripts/bl-audit.sh` 를 다시 돌려라.**
+> ★**이 값은 커밋마다 낡는다 — 손으로 세지 말고 `bash tools/scripts/bl-audit.sh` 를 다시 돌려라.**
 > 판정 SSOT 는 `docs/backlog.md` 각 섹션의 `**상태:**` 줄이고 산식은
-> [`scripts/bl-audit.sh`](../scripts/bl-audit.sh) 다. PARTIAL 은 active 로 세지 않는다.
+> [`tools/scripts/bl-audit.sh`](../tools/scripts/bl-audit.sh) 다. PARTIAL 은 active 로 세지 않는다.
 > 낡은 인라인 awk 산식은 폐기다 — cross-ref 한 줄이 항목을 지워서 BL-003 P0 를
 > RESOLVED 로 집계하고 **P0 active 를 0 으로 보고**했다.
 > ★과거 스냅샷 표기 4벌과 그 증감 귀속 서술은 **git history 로 내렸다** —
 > 원문 = `git show fc1854d5:docs/roadmap.md` (2026-08-08 bl003-unblock 직전 tip).
 > ★그중 **숫자가 아닌 두 줄**은 여기 남긴다 — 둘 다 「모른다」를 명시한 기록이라 지우면 안다는 뜻이 된다:
 > ⑴ 낡은 인라인 awk 산식이 **cross-ref 한 줄로 항목을 지워** [BL-003] P0 를 RESOLVED 로 세고 P0 active 를
-> 0 으로 보고했다. 산식은 이제 `scripts/bl-audit.sh` 이고 판정 SSOT 는 섹션의 `**상태:**` 줄이다.
+> 0 으로 보고했다. 산식은 이제 `tools/scripts/bl-audit.sh` 이고 판정 SSOT 는 섹션의 `**상태:**` 줄이다.
 > ⑵ 한때 UNKNOWN 17건이 있었고 2026-08-05 실측에서 0 이 됐는데, **그 17건이 어떻게 사라졌는지는
 > 확인하지 않았다**(상태 줄 보강인지 산식 변경인지 미확인). 새로 생기면 스크립트 출력에 목록이 나온다.
 > **추측으로 메우지 마라.**
@@ -325,7 +325,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-541** [P2] 세션 행이 **아예 없는** 포지션(웹훅 경로·거래소 수동)은 여전히 못 닫는다 — ★**아직 실측된 적 없어 의도적으로 안 지었다.** 관측되면 착수(`Order.strategy_id` nullable 화는 금지 — kill-switch 가 전략별 합산이라 NULL 은 영구 불가시)
 - [x] **BL-542 ✅ Resolved** [P3] 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 — 거짓 양성 **확정** · **n=2**(계정 2/2) · **기전 확정**(2026-08-01: `providers.py:1201-1206` 주석이 "ccxt 는 커서를 첫 항목에 도장만 찍는다" 고 적어 놓고 `:1207` 이 그 커서를 "다음 페이지 있음" 으로 읽는다). 남은 것은 판정식 교체 + 회귀 가드 2케이스
 - [ ] **BL-015** [P1] OKX Private WS — (그룹 2 참조)
-- [x] **BL-022 ✅ Resolved** [P1] (2026-08-07 backtest-fidelity) — `backend/scripts/regen_golden.py` 신설(`--confirm` 없으면 exit 1 + 파일 0개 · `--case` · `--check` 는 의미 비교 후 차이 시 exit 1). ★**이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인**이다 — 같은 커밋 `cda575f2` 가 trust-layer baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으로 만들어야 해서 빠졌다
+- [x] **BL-022 ✅ Resolved** [P1] (2026-08-07 backtest-fidelity) — `apps/api/scripts/regen_golden.py` 신설(`--confirm` 없으면 exit 1 + 파일 0개 · `--case` · `--check` 는 의미 비교 후 차이 시 exit 1). ★**이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인**이다 — 같은 커밋 `cda575f2` 가 trust-layer baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으로 만들어야 해서 빠졌다
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
 - [ ] **BL-024** [P1] real_broker E2E 본 구현 — nightly cron (Bybit Demo creds)
 - [x] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
@@ -341,6 +341,9 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-640** [P3] `.metrics` 가 컨테이너 세대를 넘어 누적된다 — 파일이 역할+컨테이너 id 로 갈리는데 전 PID 합산은 창 값이 아니다(실측 `engine_only_suppressed` 89 중 **15가 이전 세대**). 회수 정책 없음
 - [ ] 🟡 **BL-641 부분** [P1] [BL-003] 의 실질 선행조건은 **MTBF 를 24h 이상으로 올리는 것**이다 — C1 은 실격 시 0 으로 리셋된다(단 문턱은 2026-08-11 에 「누적 168h」→「누적 24h × 3회」로 교체됐다, [BL-701]). 2026-08-08 에 층화 + 95% CI 등재 · 재측정 도구 착지, **2026-08-12 재측정**. ★**점추정 인용 금지(CI 가 재측정 후에도 전 쌍 겹침 — 13.39h→24.17h 로 1.8배인데 「올랐다」를 못 말한다)** — 결론의 근거는 셈이다: **24h 도달 1건/40세션 · 최장 65.28h · 노출 +86h 에 자동 사망 0건**. 셈은 움직였고 닫는 조건(사망률이 실제로 내려간다)은 며칠 단위 관측이라 미충족
 - [ ] **BL-716** [P1] ⏳ 대기 (트리거 미도래) — dev-log 22회차의 반증 카드가 `lessons.md` 승격 없이 git 으로 내려갔다(2026-08-13 docs-diet). ADR-026 §3 은 승격이 **의무**이고 §5 는 「git 은 **발견 매체가 아니다**」다 — 3층 중 **가운데(지식 정본)가 비었다**. 발견 층은 살아 있다(★★★반증이 INDEX 한 줄씩). ★선행 = `lessons.md` 자리 확보(362/400줄). ★처방은 **회차별 1:1 승격이 아니라 반복 3회 이상 패턴만** 올리는 것 — 초벌 후보 3종(검사기 판별력 0 · 변이 전건 red 통과 · 착수 전제 반증)
+- [ ] **BL-719** [P1] ⏳ 대기 (트리거 미도래 — PR-1 머지 직후 즉시) — 재배치 머지가 깨는 레포 밖 상태 3종 lockstep 재설치: 소크 서버 유닛(pull 전 uninstall → pin/up → install) · 맥 LaunchAgent 재설치 · 체크아웃별 untracked 이행 + 워크트리 재생성 + canary 소PR (ADR-029)
+- [ ] **BL-717** [P2] ⏳ 대기 (트리거 미도래 — PR-1 머지 후) — API 계약축 PoC: `contracts/openapi/` 결정적 export + 엔드포인트 2~3개로 client 후보 3종 비교(openapi-typescript+openapi-fetch / orval / hey-api), AC = tsc strict · zod v4 호환 · 구조 diff · drift 게이트 스케치 · 번들 수치. 전면 전환은 비목표
+- [ ] **BL-718** [P3] ⏳ 대기 (트리거 미도래 — PR-1 머지 후) — CODEOWNERS 도입(`/apps/`·`/infra/`·`/tools/`·`/docs/decisions/` 구획). 브랜치 보호 없음 실측 = 강제력 0 명시
 - [x] **BL-642 ✅ Resolved** [P2] `soak-observe.sh` 가 게이트와 같은 취득 경로를 쓴다 — 기본 `.metrics` 직독 · `QB_METRICS_URL` 명시 시 HTTP. 5경로 격리 검증 5/5(직독 244 series · 200+빈 본문은 실패로 유지), 음성 대조 rc=7
 - [x] **BL-643 ✅ Resolved** [P2] `docs/status.md` 진입점의 최신성을 `docs-audit.sh` 가 집행한다 — 술어 2개(⓪ 표 행수 ≥3 · 살아 있는 `다음 행동 =` ≤1). 낱말이 아니라 **구문**을 재서 오탐 0, **파일 전체**로 세서 「블록당 1개」가 놓치던 실제 사고를 문다. 변이 6/6 · 음성 대조 `ce583eef^` 2건 검출. 산문 처방 3회 실패 뒤 첫 집행처
 - [ ] **BL-707** [P2] authed e2e 실패 메시지가 「API 도달 불가」를 「데이터 없음」으로 오지목한다 — 12건이 `make seed` 를 지시했지만 `make seed` 는 전건 「이미 존재」였고 진짜 원인은 BE 가 `:8100` 에 없었던 것(콘솔 `ERR_CONNECTION_REFUSED` 109건). 처방 = 단정 앞에 **API 도달성 프로브**
@@ -389,14 +392,14 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ### P2 — 게이트·배포·오라클 신뢰
 
 - [ ] **BL-624** [P2] soak-gate 의 HTTP 갈래가 `PROMETHEUS_BEARER_TOKEN` 과 양립 불가 — `curl -sf` 가 인증 헤더를 안 보내 401 → `DARKNESS=null` → C5⑷ 영구 ✗. `APP_ENV=production` 과 무관하다(토큰이 있으면 development 에서도 강제). ★판별자는 API 로그의 `GET /metrics` 유무다 — 게이트 출력의 `darkness_computed=✓` 는 어느 경로로 성공했는지 말해주지 않는다. 지금은 기본이 `.metrics` 직독이라 미발동 · (`QB_METRICS_URL` 원격 운영안을 실제로 쓸 때)
-- [ ] **BL-625** [P2] 플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다 — 서버 `backend/.env.local` 의 `CLERK_SECRET_KEY` 가 문자 그대로 `sk_test_...` 인데 API 는 기동하고 `/health` 200 을 냈다(인증 경로를 한 번도 안 밟아서). `_enforce_production_safety` 는 이 계열을 알지만 `app_env == production` 일 때만 검사한다 · (새 호스트에 API 를 세울 때 · BL-071 발동 시)
+- [ ] **BL-625** [P2] 플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다 — 서버 `apps/api/.env.local` 의 `CLERK_SECRET_KEY` 가 문자 그대로 `sk_test_...` 인데 API 는 기동하고 `/health` 200 을 냈다(인증 경로를 한 번도 안 밟아서). `_enforce_production_safety` 는 이 계열을 알지만 `app_env == production` 일 때만 검사한다 · (새 호스트에 API 를 세울 때 · BL-071 발동 시)
 - [x] **BL-631 ✅ Resolved** [P2] `runtime-check.mjs` 가 어느 게이트에도 안 붙어 있어 죽은 채로 방치됐다 — `docs/` 재편 이후 playwright import 상대깊이가 안 따라와 `ERR_MODULE_NOT_FOUND` 로 즉사했고, 그래서 핸드오프의 「다크 17벌 17/17 PASS」는 그 커밋 이후 재현된 적 없는 숫자였다. 뿌리는 경로가 아니라 **소유자 부재** — `pnpm test`·CI·`docs-audit` 어디도 안 부른다 · (`docs/` 재편·프로토타입 수정 전) — ★2026-08-08 bl003-unblock 이 수리 방향 ⑵ 로 닫았다: `docs-audit.sh` 가 `runtime-check.mjs` 와 `regen_golden.py --check` 둘 다의 존재+기동을 확인한다. 회차 말 실측 17/17 exit 0
 - [ ] **BL-632** [P2] 골든을 오라클로 승격했지만 그 기대값은 **엔진 자신의 출력**이다 — 회귀 감지기이지 정확성 오라클이 아니다. 반순환 근거인 손계산 오라클 `test_golden_oracle_ema_sltp.py` 는 4봉·고정 stop/limit 이라 `ta.atr` 를 한 번도 안 탄다 ⇒ BL-621 의 낡음을 만든 그 축이 구조적으로 오라클 밖이다 · (골든 값이 또 어긋났을 때 · 백테스트 정확성을 대외 주장해야 할 때)
 
 ### P3 — 문서 lint
 
 - [x] **BL-306** [P3] ~~CLAUDE.md §5 한국어 콜론 종결 lint (181 위반, auto-fix)~~ → **2026-08-10 기각.** 실측 201 매치 중 168 이 코드블록·리스트·표 도입부, 33 이 뒤 절을 여는 산문 콜론, **진짜 dangling 0건**. 「false positive 0」이 정반대였고 auto-fix 는 정상 문장 200줄을 파손한다
-- [x] **BL-307** [P3] 한국어 file header lint + backfill — 2026-08-10 종결. `scripts/header-audit.sh` 1벌(BE·FE 공용) + 위반 **48 → 0** + pre-commit·CI 배선. ★「70 file」은 재측정 **48**, 근거였다던 전역 §6 소멸은 **반증**(루트 `AGENTS.md` 로 이사) — 코드의 90.6% 가 이미 규칙을 따르고 있었다
+- [x] **BL-307** [P3] 한국어 file header lint + backfill — 2026-08-10 종결. `tools/scripts/header-audit.sh` 1벌(BE·FE 공용) + 위반 **48 → 0** + pre-commit·CI 배선. ★「70 file」은 재측정 **48**, 근거였다던 전역 §6 소멸은 **반증**(루트 `AGENTS.md` 로 이사) — 코드의 90.6% 가 이미 규칙을 따르고 있었다
 
 ### P3 — pine_v2 엣지 / parity
 
@@ -432,7 +435,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-410** [P3] FE vercel-react 감사 low 잔여 8건 (BL-408 묶음)
 - [ ] **BL-412** [P3] optimizer result read-side 판별 유니온
 - [x] **BL-628 ✅ Resolved (2026-08-08 fe-canon-and-responsive — 라이트 `--warning` `#875206`→`#824e05` (4표면 캐논 통과) + 라이트 캐논 래칫 신설)** [P3] 마케팅 푸터 법적 고지가 `--warning` 을 `--warning-subtle` 위에 얹어 **5.66:1** — 캐논 5.82 미달(AA 는 통과)이고, 공개 4라우트 라이트 canon **68 > 다크 24** 미충족의 **단일 원인**이다(인증 12라우트·전체 16라우트는 충족). ★구팔레트에선 같은 자리가 **4.30:1 = AA 하드 실패**였다
-- [x] **BL-629 ✅ Resolved (2026-08-08 fe-canon-and-responsive — 데드 `--chart-*` **7종** 삭제 + 정의 집합 동결 래칫)** [P3] `--chart-axis` 는 정의만 있고 아무도 안 읽는 **데드 토큰** — `chart-tokens.ts:65` 가 `--text-muted` 를 축 색으로 읽고 `--chart-axis` 참조는 `frontend/src` 전체에 0건. 증거: 다크 `--text-muted` 는 캐논 교정으로 `#8b939c` 가 됐는데 `--chart-axis` 는 구값 `#7a828c` 에 남아 있다
+- [x] **BL-629 ✅ Resolved (2026-08-08 fe-canon-and-responsive — 데드 `--chart-*` **7종** 삭제 + 정의 집합 동결 래칫)** [P3] `--chart-axis` 는 정의만 있고 아무도 안 읽는 **데드 토큰** — `chart-tokens.ts:65` 가 `--text-muted` 를 축 색으로 읽고 `--chart-axis` 참조는 `apps/web/src` 전체에 0건. 증거: 다크 `--text-muted` 는 캐논 교정으로 `#8b939c` 가 됐는데 `--chart-axis` 는 구값 `#7a828c` 에 남아 있다
 - [x] **BL-630 ✅ Resolved (2026-08-08 fe-canon-and-responsive — 언레이어드 `td.pos/.neg` 로 캐스케이드 구멍 차단 + e2e 6조합 오라클)** [P3] `.pos`/`.neg` **단독**(`.num` 없이)은 여전히 `td` 색에 진다 — `td.num.pos`(명시도 0,3,3)로 이미 수리된 자리 말고, `.pos` 단독(0,1,0)이 `td`(0,2,3)에 지는 구멍이 남았다. 지금 마크업이 늘 `.num` 과 함께 써서 미발현 — **관례가 지키고 있을 뿐 규칙이 아니다**
 
 ### P3 — 진단/네비 (프로토타입 잔여와 중첩)

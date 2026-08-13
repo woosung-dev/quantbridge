@@ -1,20 +1,20 @@
 # API 경계
 
-> **정본:** 각 도메인의 `backend/src/<domain>/router.py`와 FastAPI OpenAPI다. 개발 환경에서는 `/openapi.json`·`/docs`·`/redoc`에서 전체 schema를 확인한다. production은 공개를 막을 수 있으므로, 이 문서는 사람이 빠르게 경계를 찾는 지도만 유지한다.
+> **정본:** 각 도메인의 `apps/api/src/<domain>/router.py`와 FastAPI OpenAPI다. 개발 환경에서는 `/openapi.json`·`/docs`·`/redoc`에서 전체 schema를 확인한다. production은 공개를 막을 수 있으므로, 이 문서는 사람이 빠르게 경계를 찾는 지도만 유지한다.
 
 ## 진입점
 
-| 경계 | Router | 기준 경로 |
-| --- | --- | --- |
-| 상태 확인·metrics | `health/router.py`, `main.py` | `/health`, `/healthz`, `/livez`, `/metrics` |
-| 인증 | `auth/router.py` | `/api/v1/auth` |
-| 전략·변환 | `strategy/router.py`, `strategy/convert/router.py` | `/api/v1/strategies` |
-| 백테스트 | `backtest/router.py` | `/api/v1/backtests` |
-| 스트레스 테스트 | `stress_test/router.py` | `/api/v1/stress-tests` |
-| 최적화 | `optimizer/router.py` | `/api/v1/optimizer` |
-| 거래소 계정·주문·세션·Webhook | `trading/router.py` | `/api/v1` 아래 trading route |
-| Waitlist | `waitlist/router.py` | `/api/v1` 아래 waitlist route |
-| 실시간 브라우저 연결 | `realtime/router.py` | `/api/v1/realtime/ws` |
+| 경계                          | Router                                             | 기준 경로                                   |
+| ----------------------------- | -------------------------------------------------- | ------------------------------------------- |
+| 상태 확인·metrics             | `health/router.py`, `main.py`                      | `/health`, `/healthz`, `/livez`, `/metrics` |
+| 인증                          | `auth/router.py`                                   | `/api/v1/auth`                              |
+| 전략·변환                     | `strategy/router.py`, `strategy/convert/router.py` | `/api/v1/strategies`                        |
+| 백테스트                      | `backtest/router.py`                               | `/api/v1/backtests`                         |
+| 스트레스 테스트               | `stress_test/router.py`                            | `/api/v1/stress-tests`                      |
+| 최적화                        | `optimizer/router.py`                              | `/api/v1/optimizer`                         |
+| 거래소 계정·주문·세션·Webhook | `trading/router.py`                                | `/api/v1` 아래 trading route                |
+| Waitlist                      | `waitlist/router.py`                               | `/api/v1` 아래 waitlist route               |
+| 실시간 브라우저 연결          | `realtime/router.py`                               | `/api/v1/realtime/ws`                       |
 
 ## 공통 계약
 

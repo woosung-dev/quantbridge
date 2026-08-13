@@ -2,13 +2,13 @@
 
 > **목적**: TradingView Pine Script 의 어떤 strategy/indicator 가 QuantBridge 백테스트로 실행 가능한지 명시. **trust layer 철학**: 커버리지보다 정직함 — 미지원은 명시적으로 reject.
 >
-> **SSOT**: `backend/src/strategy/pine_v2/coverage.py` 의 `SUPPORTED_FUNCTIONS` + `SUPPORTED_ATTRIBUTES`
+> **SSOT**: `apps/api/src/strategy/pine_v2/coverage.py` 의 `SUPPORTED_FUNCTIONS` + `SUPPORTED_ATTRIBUTES`
 
 ---
 
 ## 1. 검증된 Strategy/Indicator (qualified corpus)
 
-회귀 corpus로 쓰는 대표 항목. `backend/tests/fixtures/pine_corpus_v2/` 에 fixture와 테스트가 있다.
+회귀 corpus로 쓰는 대표 항목. `apps/api/tests/fixtures/pine_corpus_v2/` 에 fixture와 테스트가 있다.
 
 | Name              | Fixture              | Type                            | Note                                                  |
 | ----------------- | -------------------- | ------------------------------- | ----------------------------------------------------- |
@@ -146,11 +146,11 @@ backtest 실행 시 `pre-flight coverage analyzer` 가 즉시 reject. 별도 spr
 
 새 indicator 의 stdlib 함수가 필요하면:
 
-1. `backend/src/strategy/pine_v2/stdlib.py` — 함수 구현
-2. `backend/src/strategy/pine_v2/interpreter.py` `_STDLIB_NAMES` 또는 `_eval_attribute()` 등록
-3. **`backend/src/strategy/pine_v2/coverage.py`** SUPPORTED set 등록 (SSOT)
-4. `backend/tests/strategy/pine_v2/test_stdlib_<func>.py` — 단위 테스트
-5. fixture 추가 (선택) — `backend/tests/fixtures/pine_corpus_v2/`
+1. `apps/api/src/strategy/pine_v2/stdlib.py` — 함수 구현
+2. `apps/api/src/strategy/pine_v2/interpreter.py` `_STDLIB_NAMES` 또는 `_eval_attribute()` 등록
+3. **`apps/api/src/strategy/pine_v2/coverage.py`** SUPPORTED set 등록 (SSOT)
+4. `apps/api/tests/strategy/pine_v2/test_stdlib_<func>.py` — 단위 테스트
+5. fixture 추가 (선택) — `apps/api/tests/fixtures/pine_corpus_v2/`
 
 > **Golden Rule (CLAUDE.md)**: Pine Script 미지원 함수 1개라도 포함 시 전체 "Unsupported" 반환. 부분 실행 금지 (잘못된 결과 방지).
 

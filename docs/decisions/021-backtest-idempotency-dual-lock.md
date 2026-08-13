@@ -3,7 +3,7 @@
 > **상태:** 확정 (Accepted)
 > **일자:** 2026-06-30
 > **출처:** 2026-06-30 verification loop / backtest-deepen (`docs/dev-log/2026-06-30-backtest-deepen.md`) 의 후보 C3 — improve-codebase-architecture audit 가 제안, codex challenge 가 KILL.
-> **관련:** [`backtest/service.py:99-144`](../../backend/src/backtest/service.py) (Redis mutex + replay) · `service.py:904-914` (body-hash) · [`backtest/repository.py:245-263`](../../backend/src/backtest/repository.py) (PG advisory lock)
+> **관련:** [`backtest/service.py:99-144`](../../apps/api/src/backtest/service.py) (Redis mutex + replay) · `service.py:904-914` (body-hash) · [`backtest/repository.py:245-263`](../../apps/api/src/backtest/repository.py) (PG advisory lock)
 
 ---
 

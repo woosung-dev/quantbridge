@@ -10,7 +10,7 @@ cp .env.example .env.local       # frontend 전용 env (Next.js 자동 로드)
 pnpm dev                         # http://localhost:3000
 ```
 
-> `.env.example`은 **서비스별 분리**. frontend는 `apps/web/.env.example` 사용 (NEXT_PUBLIC_* 3개만). apps/api/docker 전체 구조는 [루트 README](../README.md#2-clone--환경-변수) + [local-setup.md](../docs/reference/operations/local-setup.md#2-클론--환경-설정) 참조.
+> `.env.example`은 **서비스별 분리**. frontend는 `apps/web/.env.example` 사용 (NEXT_PUBLIC_* 3개만). apps/api/docker 전체 구조는 [루트 README](../../README.md#2-clone--환경-변수) + [local-setup.md](../../docs/reference/operations/local-setup.md#2-클론--환경-설정) 참조.
 
 ## 필수 환경 변수 (`apps/web/.env.example` 참조)
 

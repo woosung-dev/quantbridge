@@ -1,7 +1,7 @@
 # QuantBridge — FE 오라클 배포 런북
 
 > **대상:** `qb.woosung.dev`(FE) · `qb-api.woosung.dev`(API) — 오라클 Always Free A1(도쿄, aarch64).
-> **정본:** 이 문서 + `docker-compose.frontend.yml` + `frontend/Dockerfile`.
+> **정본:** 이 문서 + `docker-compose.frontend.yml` + `apps/web/Dockerfile`.
 > **첫 도입:** 2026-08-07 fe-oracle-deploy 회차. 소크([BL-003]) 창을 끊지 않고 올렸다.
 
 ---
@@ -41,7 +41,7 @@ FE 컨테이너 ─(SSR 헤어핀)─→ qb-api.woosung.dev ┘
 나머지를 REJECT 하므로 **브리지→호스트 `127.0.0.1:8100` 경로가 구조적으로 없다**. host 네트워크로
 띄우면 uvicorn 바인딩도 iptables 도 남의 프로젝트도 손대지 않는다.
 
-**⑶ 호스트명 2개다.** `NEXT_PUBLIC_API_URL` 은 **빌드 타임 인라인**(`frontend/src/lib/api-base.ts`)
+**⑶ 호스트명 2개다.** `NEXT_PUBLIC_API_URL` 은 **빌드 타임 인라인**(`apps/web/src/lib/api-base.ts`)
 이라 도메인을 정한 뒤에 빌드해야 한다. 단일 호스트 + Next rewrites 는 CORS 를 없애주지만
 **WebSocket 을 안 넘긴다** — 이 앱은 `/realtime/ws` 를 쓴다.
 
@@ -61,7 +61,7 @@ XHR 도 FE 컨테이너의 SSR 헤어핀도 그 리다이렉트를 못 따라간
 
 ### 3.2 최초 1회 (서버 env)
 
-`~/quantbridge/backend/.env.local`:
+`~/quantbridge/apps/api/.env.local`:
 
 ```
 FRONTEND_URL=https://qb.woosung.dev              # CORS(main.py) + WS origin 검사(realtime/router.py)
@@ -90,7 +90,7 @@ TAG=$(git rev-parse --short HEAD)
 docker build --platform linux/arm64 -t quantbridge-frontend:$TAG .
 docker save quantbridge-frontend:$TAG | gzip -1 | ssh <서버> 'gunzip | docker load'
 ssh <서버> "sed -i 's/^QB_FRONTEND_TAG=.*/QB_FRONTEND_TAG=$TAG/' ~/quantbridge/.env"
-ssh <서버> 'cd ~/quantbridge && docker compose -f docker-compose.frontend.yml -p quantbridge-fe up -d'
+ssh <서버> 'cd ~/quantbridge && docker compose -f infra/compose/docker-compose.frontend.yml -p quantbridge-fe up -d'
 ```
 
 실측: standalone 50MB · 이미지 211MB · 빌드 약 1분.
@@ -106,7 +106,7 @@ ssh <서버> 'cd ~/quantbridge && docker compose -f docker-compose.frontend.yml 
 
 ```bash
 # ★게이트가 최우선. 반드시 `bash -lc` 로 불러라 (아래 §5 첫 함정)
-ssh <서버> 'bash -lc "cd ~/quantbridge && scripts/soak-gate.sh"'   # 실격 0 · C5 전건 ✓
+ssh <서버> 'bash -lc "cd ~/quantbridge && tools/scripts/soak-gate.sh"'   # 실격 0 · C5 전건 ✓
 ssh <서버> 'curl -s -o /dev/null -w "%{http_code}\n" localhost:3200'          # 200
 curl -s https://qb-api.woosung.dev/health                                     # {"status":"ok",...}
 curl -s -o /dev/null -w "%{http_code}\n" https://qb-api.woosung.dev/metrics   # 401
@@ -121,7 +121,7 @@ ssh <서버> 'docker logs <api 컨테이너> 2>&1 | grep -m1 metrics_auth='   # 
 
 ## 5. 함정 (전부 실측으로 물린 것)
 
-★**게이트를 비로그인 ssh 셸에서 부르지 마라.** `ssh <서버> 'scripts/soak-gate.sh'` 는 PATH 에
+★**게이트를 비로그인 ssh 셸에서 부르지 마라.** `ssh <서버> 'tools/scripts/soak-gate.sh'` 는 PATH 에
 `uv` 가 없어 phantom 분류기가 실패하고, 그 창의 시간이 **커버리지에서 잘려나간다**(실측 8분).
 `bash -lc` 로 감싸라. systemd 타이머는 `Environment=PATH=` 로 명시돼 있어 영향받지 않는다.
 
@@ -140,11 +140,11 @@ fail-closed 전환 이후 토큰이 **없어도** 401 이다(있으면 베어러
 ★**서버 클론이 `--single-branch`(main 전용)다.** feature 브랜치는 refspec 을 명시해야 온다:
 `git fetch origin <branch>:refs/remotes/origin/<branch>`([BL-623]).
 
-★**체크아웃 전환은 소크에 안전하다** — 워커는 `.soak/src`(미추적 스냅샷)와 `backend/.metrics` 만
+★**체크아웃 전환은 소크에 안전하다** — 워커는 `.soak/src`(미추적 스냅샷)와 `apps/api/.metrics` 만
 마운트한다. `.env.local`·`.soak/session` 도 미추적이라 살아남는다. 단 **추적 파일 변경이 0건인지
 먼저 확인**해라.
 
-★★**서버 `backend/.env.local` 에 플레이스홀더 시크릿이 있어도 아무것도 안 잡는다.** 실측:
+★★**서버 `apps/api/.env.local` 에 플레이스홀더 시크릿이 있어도 아무것도 안 잡는다.** 실측:
 `CLERK_SECRET_KEY=sk_test_...`(문자 그대로)인 채로 API 가 정상 기동하고 `/health` 는 200 을
 낸다 — 인증 경로를 밟는 요청이 처음 들어올 때 **전건 401** 로 드러난다. 진짜 키는 루트 `.env`
 에만 있었다. `APP_ENV=production` 이면 validator 가 기동 시점에 잡지만 development 는 통과시킨다.
