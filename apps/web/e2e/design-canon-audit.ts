@@ -145,6 +145,15 @@ export interface NavProbe {
    *   안 들어올 수 있다 — 이 값은 **하한**이다.
    */
   subresourceFail: number;
+  /**
+   * 전송 자체가 실패한 서브리소스 요청 수(`requestfailed`). `subresourceFail` 의 **부분집합**이다.
+   * ★`subresourceFail` 과 갈라 두는 이유 — **응답이 왔다는 것은 도달했다는 뜻이다.**
+   *   401/403/404/429 는 서버가 살아서 답한 것이고 이 레포는 그 셋을 정상으로 문서화했다.
+   *   도달성을 물을 때 쓸 축은 이쪽이다 ([BL-707] 이 본 `ERR_CONNECTION_REFUSED` 가 여기 들어온다).
+   */
+  transportFail: number;
+  /** 전송 실패가 난 호스트 목록(정렬·중복 제거). */
+  transportFailHosts: string[];
   /** 실패한 서브리소스를 실제로 요청한 호스트. 중복 없이 정렬해 리포트·진단에 남긴다. */
   subresourceFailHosts: string[];
   /**
@@ -589,6 +598,8 @@ export async function auditUrl(
     // 「0 건이라 안 적혔다」와 「안 재서 없다」가 리포트에서 같아 보이면 안 된다.
     let subresourceFail = 0;
     const subresourceFailHosts = new Set<string>();
+    let transportFail = 0;
+    const transportFailHosts = new Set<string>();
     const recordSubresourceFailHost = (requestURL: string): void => {
       try {
         const host = new URL(requestURL).host;
@@ -608,6 +619,18 @@ export async function auditUrl(
       if (isDocumentNavigation(req)) return;
       subresourceFail++;
       recordSubresourceFailHost(req.url());
+      // ★전송 실패만 따로 센다 — **응답이 왔다는 것 자체가 도달의 증거**이기 때문이다.
+      //   401/403/404/429 는 서버가 살아서 답한 것이라 `subresourceFail` 에는 들어가지만
+      //   도달성 판정에 쓰면 안 된다(그 셋은 이 레포가 이미 정상으로 문서화했다 —
+      //   `authed-canon-p1.spec.ts` 의 `EXPECTED_CONSOLE`). [BL-707] 이 실제로 본 신호는
+      //   `ERR_CONNECTION_REFUSED`, 즉 **응답이 아예 없는** 이 갈래다.
+      transportFail++;
+      try {
+        const host = new URL(req.url()).host;
+        if (host) transportFailHosts.add(host);
+      } catch {
+        // URL 로 해석 못 하는 값은 건수만 남긴다.
+      }
     });
     page.on("console", (m) => {
       if (m.type() !== "error") return;
@@ -638,6 +661,8 @@ export async function auditUrl(
       examined: a.examined,
       subresourceFail,
       subresourceFailHosts: [...subresourceFailHosts].sort(),
+      transportFail,
+      transportFailHosts: [...transportFailHosts].sort(),
       sealed: sealedCount(),
     });
     if (a.overflow.scrollWidth > a.overflow.innerWidth + 1) {

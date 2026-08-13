@@ -17,6 +17,8 @@ export function assertAuthedReachability(res: CanonAuditResult): void {
   const summary = summarizeAuthedReachability(res.probes, res.url);
   const message = `${formatAuthedReachabilityFailure(res.label, summary)}\n${res.url}`;
 
-  expect(summary.probeCount, message).toBeGreaterThan(0);
+  // ★`probeCount > 0` 을 따로 단언하지 않는다. `isAuthedReachable` 이 이미 그 항을 포함하므로
+  //   중복인데, 그보다 나쁜 것은 **먼저 발화해 진단 문구를 가로챈다**는 점이다 — probe 0 에서
+  //   사람이 보는 것이 「관측하지 못했다」가 아니라 `toBeGreaterThan(0)` 이 된다(2026-08-14 실측).
   expect(isAuthedReachable(summary), message).toBe(true);
 }

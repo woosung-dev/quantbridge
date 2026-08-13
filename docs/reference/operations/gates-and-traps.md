@@ -181,7 +181,8 @@ tools/scripts/soak-watch-test.sh         # 판단 로직 하네스 (실측 캡�
 tools/scripts/soak-restart.sh            # 기본 = dry-run. 재기동 8단계와 실제 값을 출력만 한다
 tools/scripts/soak-restart.sh --confirm  # 집행 (⑴ FLAT=YES 아니면 그 자리에서 멈춘다)
 tools/scripts/soak-restart-test.sh       # 갈래·순서 하네스 (final-gates.sh 「소크 재기동 하네스」)
-tools/scripts/signal-check-test.sh       # 신호 신선도 하네스 ([BL-706] — 신호 첫 줄 `commit: <sha>` 대조. --mutants 로 변이 13종)
+tools/scripts/signal-check-test.sh       # 신호 신선도 하네스 ([BL-706] — 신호 첫 줄 `commit: <sha>` 대조. --mutants 로 변이·음성대조 전량)
+#                                        # ★종수를 여기 박지 마라 — 스크립트가 스스로 센다(13→14→15 로 두 번 낡았다)
 ```
 
 ★**재기동은 스택 상태에 따라 두 갈래다 — ⓿ 이 `soak-stack.sh ps` 로 고른다**([BL-656], 2026-08-09).
