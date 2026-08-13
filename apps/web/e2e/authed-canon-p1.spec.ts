@@ -31,6 +31,7 @@ import { resolve } from "node:path";
 import { expect, test, type Browser } from "@playwright/test";
 
 import { getBaseURL } from "./_base-url";
+import { assertAuthedReachability } from "./authed-reachability-assert";
 import { auditUrl, formatCanonResult, hardFailCount, minExamined } from "./design-canon-audit";
 
 const BASE_URL = getBaseURL();
@@ -44,7 +45,6 @@ const STORAGE_STATE = resolve(__dirname, ".auth/storageState.json");
 const EXPECTED_CONSOLE = [
   /failed to fetch/i,
   /networkerror/i,
-  /net::err_/i,
   /failed to load resource.*\b40[13]\b/i,
   // 리소스 로드 429(레이트리밋)만 무시한다 — 연속 4폭 감사가 백엔드를 치면 나는 스위트 환경
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
@@ -126,14 +126,15 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
     test(`${path} — 하드 실패 ≤ allowlist`, async ({ browser }) => {
       test.setTimeout(180_000);
 
+      const res = await auditUrl(browser, `${BASE_URL}${path}`, { label: path, ...auditOptions });
+      process.stdout.write(formatCanonResult(res) + "\n");
+      assertAuthedReachability(res);
+
       const precondition = DATA_PRECONDITION[path];
       if (precondition) {
         const count = await countOn(browser, `${BASE_URL}${path}`, precondition.selector);
         expect(count, `${path} 데이터 전제 미충족 — ${precondition.why}`).toBeGreaterThan(0);
       }
-
-      const res = await auditUrl(browser, `${BASE_URL}${path}`, { label: path, ...auditOptions });
-      process.stdout.write(formatCanonResult(res) + "\n");
 
       // ★「감사를 못 했다」와 「깨끗하다」를 가른다. `hardFailCount` 는 렌더된 것의 소견만
       //   세므로 아무것도 안 그려지면 언제나 0 이다. 코어가 이 값을 내주고 있었는데
@@ -187,6 +188,7 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
       ...auditOptions,
     });
     process.stdout.write(formatCanonResult(res) + "\n");
+    assertAuthedReachability(res);
     expect(
       minExamined(res),
       `/trades — 감사가 본 텍스트 요소가 0개다. 초록이 아니라 미측정이다:\n${formatCanonResult(res)}`,

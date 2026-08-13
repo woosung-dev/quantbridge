@@ -145,6 +145,8 @@ export interface NavProbe {
    *   안 들어올 수 있다 — 이 값은 **하한**이다.
    */
   subresourceFail: number;
+  /** 실패한 서브리소스를 실제로 요청한 호스트. 중복 없이 정렬해 리포트·진단에 남긴다. */
+  subresourceFailHosts: string[];
   /**
    * 그 폭에서 **봉인(빈 200 으로 대체)한 원격 요청 수**. `file://` 대상이 아니면 항상 `0`.
    *
@@ -334,7 +336,8 @@ export const AUDIT = () => {
       .trim();
     if (!txt) return;
     const cs = getComputedStyle(el);
-    if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.15) return;
+    if (cs.visibility === "hidden" || cs.display === "none" || parseFloat(cs.opacity) < 0.15)
+      return;
     if (el.closest('[aria-hidden="true"]')) return; // 장식 요소는 대비 대상이 아니다
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) return;
@@ -375,10 +378,22 @@ export const AUDIT = () => {
     const inactive = !!el.closest(':disabled,[disabled],[aria-disabled="true"]');
     if (cr < need && !inactive && !seen.has(key)) {
       seen.add(key);
-      out.contrast.push({ text: txt.slice(0, 42), color: cs.color, size, ratio: +cr.toFixed(2), need });
+      out.contrast.push({
+        text: txt.slice(0, 42),
+        color: cs.color,
+        size,
+        ratio: +cr.toFixed(2),
+        need,
+      });
     } else if (cr < canonNeed && !seen.has("c" + key)) {
       seen.add("c" + key);
-      out.canon.push({ text: txt.slice(0, 42), color: cs.color, size, ratio: +cr.toFixed(2), need: canonNeed });
+      out.canon.push({
+        text: txt.slice(0, 42),
+        color: cs.color,
+        size,
+        ratio: +cr.toFixed(2),
+        need: canonNeed,
+      });
     }
     if (size < 9.4 && !seen.has("t" + key)) {
       // C 정본 최소치 0.68rem=9.52px 보다 작은 것만
@@ -573,13 +588,26 @@ export async function auditUrl(
     // 서브리소스 실패 도달 증거([BL-708]). 폭마다 0 으로 시작해 **항상** probe 에 실린다 —
     // 「0 건이라 안 적혔다」와 「안 재서 없다」가 리포트에서 같아 보이면 안 된다.
     let subresourceFail = 0;
+    const subresourceFailHosts = new Set<string>();
+    const recordSubresourceFailHost = (requestURL: string): void => {
+      try {
+        const host = new URL(requestURL).host;
+        if (host) subresourceFailHosts.add(host);
+      } catch {
+        // 브라우저가 URL 로 해석할 수 없는 값은 건수만 남긴다.
+      }
+    };
     page.on("response", (r) => {
       if (isDocumentNavigation(r.request())) return;
-      if (r.status() >= 400) subresourceFail++;
+      if (r.status() >= 400) {
+        subresourceFail++;
+        recordSubresourceFailHost(r.url());
+      }
     });
     page.on("requestfailed", (req) => {
       if (isDocumentNavigation(req)) return;
       subresourceFail++;
+      recordSubresourceFailHost(req.url());
     });
     page.on("console", (m) => {
       if (m.type() !== "error") return;
@@ -604,9 +632,20 @@ export async function auditUrl(
     if (prepare) await prepare(page);
 
     const a = await page.evaluate(AUDIT);
-    res.probes.push({ w, status, examined: a.examined, subresourceFail, sealed: sealedCount() });
+    res.probes.push({
+      w,
+      status,
+      examined: a.examined,
+      subresourceFail,
+      subresourceFailHosts: [...subresourceFailHosts].sort(),
+      sealed: sealedCount(),
+    });
     if (a.overflow.scrollWidth > a.overflow.innerWidth + 1) {
-      res.overflow.push({ w, scrollWidth: a.overflow.scrollWidth, innerWidth: a.overflow.innerWidth });
+      res.overflow.push({
+        w,
+        scrollWidth: a.overflow.scrollWidth,
+        innerWidth: a.overflow.innerWidth,
+      });
     }
     if (SAMPLED_WIDTHS.includes(w)) {
       a.contrast.forEach((c) => res.contrast.push({ w, ...c }));
@@ -707,6 +746,8 @@ export function formatCanonResult(res: CanonAuditResult): string {
       res.probes.map((p) => `${p.w}px:${p.examined}`),
     )} subresourceFail=${JSON.stringify(
       res.probes.map((p) => `${p.w}px:${p.subresourceFail}`),
+    )} subresourceFailHosts=${JSON.stringify(
+      res.probes.map((p) => `${p.w}px:${p.subresourceFailHosts.join(",") || "-"}`),
     )} sealed=${JSON.stringify(
       res.probes.map((p) => `${p.w}px:${p.sealed}`),
     )} minExamined=${minExamined(res)} worstCanon=${worst === null ? "-" : worst.toFixed(2)}`,
@@ -722,14 +763,20 @@ export function formatCanonResult(res: CanonAuditResult): string {
   res.contrast
     .slice(0, 8)
     .forEach((c) =>
-      lines.push(`   contrast ${c.w}px ${c.ratio}:1 (${c.need} 필요) ${c.color} ${c.size}px "${c.text}"`),
+      lines.push(
+        `   contrast ${c.w}px ${c.ratio}:1 (${c.need} 필요) ${c.color} ${c.size}px "${c.text}"`,
+      ),
     );
   res.canon
     .slice(0, 4)
     .forEach((c) =>
-      lines.push(`   canon ${c.w}px ${c.ratio}:1 (${c.need} 필요) ${c.color} ${c.size}px "${c.text}"`),
+      lines.push(
+        `   canon ${c.w}px ${c.ratio}:1 (${c.need} 필요) ${c.color} ${c.size}px "${c.text}"`,
+      ),
     );
-  res.focus.slice(0, 8).forEach((f) => lines.push(`   focus 링 없음: ${f.tag}.${f.cls} "${f.label}"`));
+  res.focus
+    .slice(0, 8)
+    .forEach((f) => lines.push(`   focus 링 없음: ${f.tag}.${f.cls} "${f.label}"`));
   res.motion
     .slice(0, 5)
     .forEach((m) => lines.push(`   reduced-motion 누수: ${m.cls} ${m.name} ${m.dur}`));
