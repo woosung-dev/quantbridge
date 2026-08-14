@@ -101,6 +101,22 @@ _verdict() {  # _verdict <PASS|SKIP|FAIL|BLOCKED> <한 줄 사유> <exit code>
   exit "$3"
 }
 
+# ★★rc 만 보면 「돌았다」와 「쟀다」를 구분하지 못한다 — pytest 는 스위트를 통째로 skip 해도
+#   **exit 0** 이다. 실측(2026-08-10~08-14 로그 5회 연속): `1 passed, 1 skipped` 인데 판정은
+#   매번 PASS 였고, 그 `1 skipped` 가 **실거래소 leg 그 자체**였다. 즉 이 스크립트는 5일 동안
+#   「실거래소를 1바이트도 재지 않았다」를 「통과」라고 적어 왔다. [BL-024]
+#
+#   ★양성 대조(정본을 겨눈다 — 사본을 만들지 마라):
+#       eval "$(sed -n '/^_skipped_count()/,/^}/p' tools/scripts/nightly-real-broker-local.sh)"
+#       _skipped_count ~/Library/Logs/quantbridge/run-20260814-030005.log   # → 1
+_skipped_count() {  # _skipped_count <로그파일> → 마지막 pytest 요약 줄의 skipped 수 (판독 불가 시 0)
+  local line n
+  line="$(grep -E '^=+ .*(passed|failed|error|skipped|no tests ran).*=+$' "$1" 2>/dev/null | tail -1)"
+  [ -n "$line" ] || { echo 0; return 0; }
+  n="$(printf '%s\n' "$line" | grep -Eo '[0-9]+ skipped' | grep -Eo '^[0-9]+' | head -1)"
+  echo "${n:-0}"
+}
+
 exec > >(tee -a "$LOG") 2>&1
 echo "══ real_broker E2E (로컬) — $(date '+%Y-%m-%d %H:%M:%S %Z') ══"
 echo "  repo: $ROOT"
@@ -151,5 +167,12 @@ if [ "$RC" -ne 0 ] && grep -qi "block access from your country\|CloudFront distr
   _verdict BLOCKED "Bybit 이 이 위치를 차단했다 (VPN/네트워크 확인) — 고장이 아니라 측정 불가" 2
 fi
 
-[ "$RC" -eq 0 ] && _verdict PASS "real_broker 스위트 통과" 0
+# 8) ★rc 0 을 곧바로 PASS 로 접지 않는다 — skip 된 테스트가 있으면 그만큼은 **재지 않았다**.
+#    이 스위트에서 skip 은 곧 「실거래소 미접촉」이므로 PASS 로 적으면 원장이 거짓이 된다.
+if [ "$RC" -eq 0 ]; then
+  SKIPPED="$(_skipped_count "$LOG")"
+  [ "$SKIPPED" -gt 0 ] && _verdict SKIP \
+    "pytest 가 ${SKIPPED}건을 skip 했다 — exit 0 이지만 그만큼은 실거래소를 재지 않았다" 0
+  _verdict PASS "real_broker 스위트 통과 (skip 0건)" 0
+fi
 _verdict FAIL "real_broker 스위트 실패 — 로그를 봐라: $LOG" 1
