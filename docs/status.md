@@ -282,27 +282,15 @@ tick_stall 실격 1건(13:03Z)은 **down 창 자체**다 — operational 등재,
 
 ### ★2026-08-13 contract-poc — [BL-717] 종결 (강등 — 전문 = [ADR-031])
 
-> tombstone: 회고 본문 7줄을 2026-08-14 real-broker-e2e 회차에서 이 줄로 압축했다 (`docs/status.md` 700줄 상한 — ADR-026 §3). 원문 = `git show cca30519:docs/status.md` (283~289행).
-> 결정적 export `contracts/openapi.json` + **orval(client:'zod') 채택** · hey-api 는 TS7 크래시로 탈락 · 런타임 투입 판정은 [ADR-031] §비결정 — ⓪ 표 경유 별도 회차.
+> 결정적 export `contracts/openapi.json` + **orval(client:'zod') 채택**(hey-api 는 TS7 크래시로 탈락) · 런타임 투입 판정은 [ADR-031] §비결정. tombstone: 본문 7줄 → `git show cca30519:docs/status.md` (283~289행).
 
-### ★2026-08-14 gate-surface-close — [BL-716]·[BL-707]·[BL-714]·[BL-715] 4건 종결 (강등)
+### ★2026-08-14 gate-surface-close — [BL-716]·[BL-707]·[BL-714]·[BL-715] 4건 종결 (강등 — 본문 = git)
 
-> tombstone: 회고 전문(34줄)을 2026-08-14 gate-pointer-axis 회차에서 이 3줄로 압축했다
-> (`docs/status.md` 700줄 상한 — ADR-026 §3). 원문 = 커밋 `4e9968e4` 의 `docs/status.md`.
-> 발견 색인 = `docs/dev-log/INDEX.md` 「2026-08-14 gate-surface-close」 · 반증 = 각 BL 섹션.
-
-★★★**한 줄 = 「원장이 적어 둔 처방은 도래 판정과 함께 낡는다」** — 4건 전부 **트리거는 옳았고
-처방이 틀렸다**([BL-715] 는 수치의 **방향까지** 뒤집혀 있었다). ★회차 중 §8.6 을 두 번 밟았고 둘 다
-「어느 트리를 재는가」였다 ⇒ **초록도 red 도 「어느 트리에서 났는지」를 먼저 물어라.**
+> ★★★한 줄 = **「원장이 적어 둔 처방은 도래 판정과 함께 낡는다」** — 4건 전부 트리거는 옳았고 처방이 틀렸다([BL-715] 는 방향까지 뒤집혀 있었다). ★회차 중 §8.6 을 두 번 밟았고 둘 다 「어느 트리를 재는가」였다. tombstone: 원문 = 커밋 `4e9968e4`, 압축본 = `git show 1c38b40f:docs/status.md`.
 
 ### ★2026-08-14 gate-pointer-axis — [BL-720]·[BL-722]·[BL-723] 3건 종결 (강등 — 본문 = git)
 
-CONTROL + `codex exec` 워커 2벌. **PR #627 머지(`5736ee40`)로 종결.** 하네스 9→10종.
-★★★한 줄 = **「스텁 초록 ≠ 정본 초록」** — 하네스 11/11 이던 축이 진짜 `docs/lessons.md` 에서
-오탐 3건, 적대 프로브에서 구멍 2건. 승격 = [LESSON-108](lessons.md).
-★그 회차의 인계(**소크 7일째 정지** · [BL-003] 창 C1 0/3)는 아래 `real-broker-e2e` 회차가 **순서로**
-답한다 — 소크를 켜면 [BL-024] 창이 닫히므로 **BL-024 를 먼저** 끝내고 그 뒤 소크를 재기동한다.
-★tombstone: 회고 본문 **56줄 → git**. 원문 = `git show 3e3e0174:docs/status.md` (303~358행).
+> **PR #627 머지(`5736ee40`)로 종결** · 하네스 9→10종. ★★★한 줄 = **「스텁 초록 ≠ 정본 초록」** — 하네스 11/11 이던 축이 정본 `lessons.md` 에서 오탐 3건, 적대 프로브에서 구멍 2건([LESSON-108]). tombstone: 원문 = `git show 3e3e0174:docs/status.md` (303~358행).
 
 ## ★2026-08-14 — `real-broker-e2e` 회차 ([BL-024] 실주문 leg · 로컬 축)
 
@@ -361,21 +349,19 @@ watchdog `_async_fetch_order_status` 로 `filled` 확정 → 2층 하네스 청�
 ★**부수 수리** — `_verdict` 가 rc 만 보고 PASS 를 찍어 **08-10~08-14 5일 연속** `1 passed, 1 skipped` 를
 「통과」로 적고 있었다(그 skipped 가 실거래소 leg 그 자체다). rc 0 을 판정으로 갈랐다.
 
-★★**codex 적대 리뷰 3건이 전부 참이었다**(phantom 0 · 코드 대조로 채택 — 15분 타임박스 안에 끝났다).
-그리고 **셋 다 내 첫 수리판이 `fail-open` 이었다는 같은 병**이다:
-⑴ **P2 경합** — 판정이 `$LOG` 를 읽는데 그 파일은 최상단 `exec > >(tee -a "$LOG")` 가 **비동기**로
-쓴다. pytest 직후 읽으면 요약 줄이 아직 없어 「판독 불가 = 0 = PASS」가 된다(기존 지리차단 판정도
-같은 패턴이었다) ⇒ pytest 출력을 **동기 파이프라인** `| tee "$PYTEST_OUT"` 으로 받아 그것을 읽는다.
-⑵ **P2 fail-open** — 「요약 줄 없음 = 0 skipped」가 기본값이라 `--collect-only`·ANSI 색상·`xfailed` 가
-전부 PASS 로 샌다 ⇒ 함수를 `_pytest_summary_line`(찾기)과 `_count_outcome`(세기)로 **갈라서** 호출부가
-빈 줄을 **BLOCKED** 로 처리하게 했다. `passed == 0` 도 BLOCKED 다.
-⑶ **P1 이름이 거짓** — 파일명은 `webhook_to_filled` 인데 HTTP·HMAC·payload 파싱을 **한 줄도 안 탄다**.
-그 층만 깨진 회귀에서 이 테스트는 거래소 주문까지 성공하고도 초록이다 ⇒ 함수명을
-`test_order_service_to_bybit_demo_filled` 로 바꾸고 모듈 docstring 에 **재지 않는 것**을 명시했다.
-재대조 **12/12**(양성 5 = 실제 로그 · 변종 5 = xfailed/xpassed/no-tests-ran/error/정상 ·
-음성 2 = `--collect-only`·ANSI **둘 다 BLOCKED**) · 정본 경로 재실행 = `PASS (passed 2 · 미실행 0)`.
-★내가 따로 찾은 P3 도 같이 고쳤다 — 테스트 파일이 DSN 교체를 **손으로 재구현**하고 있었다
-([LESSON-109] 가 말한 「한 곳만 고쳤다」의 씨앗) ⇒ `_test_dsn_in_effect` 를 쓰게 했다.
+★★**codex 적대 리뷰 3건이 전부 참이었다**(phantom 0 · 15분 타임박스 안 · 처분 전문 =
+`.claude/gates/real-broker-e2e/codex.ok`). **셋 다 내 첫 수리판이 `fail-open` 이었다는 같은 병**이다 —
+⑴ 판정이 읽는 `$LOG` 를 최상단 `exec > >(tee -a)` 가 **비동기**로 써서 요약 줄이 아직 없을 수 있다
+(기존 지리차단 판정도 같은 패턴) ⇒ 동기 파이프라인 `| tee "$PYTEST_OUT"`. ⑵ 「요약 줄 없음 =
+0 skipped」라 `--collect-only`·ANSI·`xfailed` 가 PASS 로 샌다 ⇒ 찾기/세기 함수를 **갈라** 빈 줄을
+**BLOCKED** 로. ⑶ 파일명은 `webhook_to_filled` 인데 HTTP·HMAC 을 **한 줄도 안 탄다** ⇒ 함수명 교체 +
+docstring 에 **재지 않는 것** 명시. ★내가 따로 찾은 P3 = 테스트가 DSN 교체를 **손으로 재구현**
+([LESSON-109] 의 씨앗) ⇒ `_test_dsn_in_effect` 사용. 재대조 **12/12** · 정본 재실행 `PASS (passed 2 · 미실행 0)`.
+
+★**그리고 이 회차가 자기 함정을 두 번 밟았다.** ⓐ `deferred.txt` 를 「소멸」로 보고했는데 cwd 가
+`apps/api` 라 상대경로가 빗나갔고 실제로는 남아 있었다(§7⑤ 그대로). ⓑ 리뷰 결과를 status 에 적은 뒤
+`--deferred-only` 만 돌렸는데 **그 모드는 docs-audit 을 안 돈다** — 700줄 상한 초과를 CI 가 잡았다.
+⇒ 「게이트는 마지막 커밋 뒤에」는 **`--pre-pr` 까지** 다시 돌리는 것을 뜻한다.
 
 **다음 행동 = 이 PR 이 머지되면 `tools/scripts/soak-restart.sh --confirm` 으로 소크를 재기동한다**
 (거래소 flat 확인 완료 · 파라미터는 원장 최근 세션에서 자동 추출됨).
