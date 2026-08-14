@@ -104,6 +104,6 @@ codex 는 **가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구�
 
 - `apps/api/src/<도메인>/` — router/service/repository/schemas/models · `apps/api/src/strategy/pine_v2/` — 인터프리터 SSOT
 - `apps/web/src/` — Next.js 16 FSD Lite (`app`/`components`/`features`/`hooks`/`lib`/`store`)
-- `tools/scripts/` — 게이트·감사 셸 (`final-gates` · `bl-audit` · `docs-audit` · `context-budget` · `soak-gate`) + 그 하네스 `*-test.sh` 9종
+- `tools/scripts/` — 게이트·감사 셸 (`final-gates` · `bl-audit` · `docs-audit` · `context-budget` · `soak-gate`) + 그 하네스 `*-test.sh` 10종
 - `docs/` — 상태 3종 + `reference/` + `decisions/` + `lessons.md` (지도: `docs/README.md`)
 - `apps/api/AGENTS.md` · `apps/web/AGENTS.md` — 스택 규칙 (같은 자리 `CLAUDE.md` = `@AGENTS.md` 한 줄)

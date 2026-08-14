@@ -394,7 +394,8 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
 **2026-08-14 실측** — `tools/scripts/` 의 판정 아닌 스크립트 중 하네스를 가진 것은 **0건**이고,
 하네스 9종은 **전부 판정기**다(`bl-audit`·`docs-audit`·`header-audit`·`skip-ratchet`·`signal-check`·
 `final-gates`·`soak-watch`·`soak-restart`·`pre-push-guard`). 규칙은 이미 그렇게 굴러가고 있었고
-이 절은 그것을 적어 둘 뿐이다.
+이 절은 그것을 적어 둘 뿐이다. ★**같은 날 스윕이 등재한 사각 [BL-722] 를 그 다음 회차가 닫아
+`assert-main-checkout` 이 10번째가 됐다** — 이 절은 규칙을 적었고, 그 규칙이 곧바로 한 건을 잡았다.
 
 **증명하는 방법은 셋이고, 어느 것이든 된다:**
 

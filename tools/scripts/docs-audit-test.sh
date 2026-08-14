@@ -24,6 +24,7 @@ trap 'rm -rf "$SB"' EXIT
 
 mkdir -p "$SB/tools/scripts" "$SB/docs"
 cp "$ROOT/tools/scripts/docs-audit.sh" "$SB/tools/scripts/" || { echo "✗ docs-audit.sh 를 못 읽었다"; exit 2; }
+printf '# stub AGENTS\n' > "$SB/AGENTS.md"
 
 # 스텁 원장 — `CASE` 로 ACTIVE/PARTIAL 집합을 바꾼다. 진짜 bl-audit 은 부르지 않는다
 # (느리고, 실제 원장에 의존한다).
@@ -72,6 +73,77 @@ mk_status() {
   } > "$SB/docs/status.md"
 }
 
+# `lessons.md` 는 기본적으로 없다. BL-720 케이스만 필요한 최소 표/카드를 세워 각 축이
+# 다른 축의 실제 문서 상태에 의존하지 않게 한다.
+mk_lessons() {
+  case "$1" in
+    duplicate_id)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-101 | `AGENTS.md` | 표에 이미 있는 ID |\n\n---\n\n'
+        printf '### LESSON-101 — 카드가 같은 ID를 재사용\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    ordered_ids)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-004 | `AGENTS.md` | 승격된 ID |\n\n---\n\n'
+        printf '### LESSON-087 — 첫 카드\n\n### LESSON-088 — 둘째 카드\n\n### LESSON-090 — 셋째 카드\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    broken_pointer)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-004 | `backend/AGENTS.md` | 옮겨져 사라진 포인터 |\n\n---\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    live_pointers)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-004 | `AGENTS.md` | 루트 파일 포인터 |\n'
+        printf '| LESSON-005 | `tools/scripts/docs-audit.sh` | 스크립트 포인터 |\n\n---\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    # ★★2026-08-14 적대 프로브 P1·P2 가 **실제로 뚫었던** 입력이다. 종전 정규식은
+    #   `^### LESSON-(\d+)` / `^\|\s*LESSON-(\d+)\s*\|` 라 마크다운 장식이 붙으면 ID 를
+    #   못 봤고, 그러면 중복이 그대로 통과했다 — 이 축이 막으려는 사고(`8abd0d67` 의 중복
+    #   101)의 **서식만 바꾼 판**이다. 장식 허용을 되돌리면 이 둘이 red 가 된다.
+    decorated_dup_table)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| **LESSON-101** | `AGENTS.md` | 표 ID 를 볼드로 감쌌다 |\n\n---\n\n'
+        printf '### LESSON-101 — 카드가 같은 ID를 재사용\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    decorated_dup_heading)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-101 | `AGENTS.md` | 표 행 |\n\n---\n\n'
+        printf '### [LESSON-101](#lesson-101) — 헤딩을 링크로 감쌌다\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    # ★실제 `docs/lessons.md` 가 이 축의 첫 판에 낸 **오탐 3건**을 그대로 옮겼다
+    #   (2026-08-14 실측 — LESSON-019·020·063 의 승격 위치 칸). 셋 다 `/` 를 품거나
+    #   `.md` 로 끝나 보이지만 **경로가 아니다**. 배제 규칙을 되돌리면 여기서 red 가 난다.
+    nonpath_spans)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-004 | `AGENTS.md` | 살아 있는 포인터 (대조군) |\n'
+        printf '| LESSON-019 | `tests/<domain>/test_*_commits.py` | 자리표시자 + 글롭 |\n'
+        printf '| LESSON-020 | `asyncio.<Semaphore/Lock/Event/Queue>` | 코드 표현식 |\n'
+        printf '| LESSON-063 | `/deepen-modules` | 슬래시 커맨드 |\n\n---\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+  esac
+}
+
 FAIL=0
 AXIS="⓪ 표 정체성"   # run() 이 「말했나」를 재는 축. 케이스별로 바꾼다.
 run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
@@ -81,13 +153,13 @@ run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
   if [ "$rc" = "$2" ] && [ "$spoke" = "$3" ]; then
     printf '  ✓ %s\n' "$4"
   else
-    printf '  ✗ %s\n      rc=%s (기대 %s) · 정체성축발화=%s (기대 %s)\n' "$4" "$rc" "$2" "$spoke" "$3"
+    printf '  ✗ %s\n      rc=%s (기대 %s) · %s축발화=%s (기대 %s)\n' "$4" "$rc" "$2" "$AXIS" "$spoke" "$3"
     sed 's/^/      | /' "$SB/out.txt" | head -6
     FAIL=1
   fi
 }
 
-echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 축 — 판별력 7케이스"
+echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 + BL-720 지식 정본 축 — 판별력 14케이스"
 
 # ⑴ ★음성 대조가 아니라 **ABORT 대조**다. 양쪽이 비면 초록도 빨강도 내지 않는다.
 mk_status "";       run empty  3 yes "양쪽 공집합 → rc=3 ABORT (빈 입력을 「일치」로 통과시키지 않는다)"
@@ -121,8 +193,42 @@ AXIS="트리거 판정 줄"
 mk_status "BL-999"; run partial_noverdict 1 yes "PARTIAL BL-555 에 판정줄 0개 → 트리거 판정 줄 축 발화"
 AXIS="⓪ 표 정체성"
 
+# ── [BL-720] lessons.md 지식 정본 축 ──────────────────────────────────
+# ⑻⑼은 카드 헤딩과 승격 표의 ID를 합쳐 보는지, 그리고 유일·오름차순일 때 침묵하는지를
+# 함께 재한다. ⑽⑾은 표 안의 코드 스팬만 경로로 보고 살아 있는 포인터는 과다 포획하지 않는지 재한다.
+mk_status "BL-999"; mk_lessons duplicate_id
+AXIS="LESSON ID 유일성"
+run ledger 1 yes "카드 LESSON-101 + 승격 표 LESSON-101 → LESSON ID 유일성 축 발화"
+
+mk_status "BL-999"; mk_lessons ordered_ids
+run ledger 1 no "양성 대조: 087·088·090 + 표 004는 유일·오름차순 → LESSON ID 유일성 축 침묵"
+
+mk_status "BL-999"; mk_lessons broken_pointer
+AXIS="승격 표 포인터"
+run ledger 1 yes '승격 표 `backend/AGENTS.md` 가 없음 → 승격 표 포인터 축 발화'
+
+mk_status "BL-999"; mk_lessons live_pointers
+run ledger 1 no "음성 대조: AGENTS.md 등 살아 있는 승격 표 포인터만 → 승격 표 포인터 축 침묵"
+
+# ⑿ ★두 번째 음성 대조 — **과다 포획**. 이 축의 첫 판이 실제 `lessons.md` 에서 낸 오탐 3건이
+#   그대로 입력이다. 「`/` 를 포함하거나 `.md` 로 끝난다」만으로 후보를 고르면 자리표시자·
+#   코드 표현식·슬래시 커맨드가 전부 「없는 파일」이 된다. 오탐이 나오는 검사기는 꺼진다.
+mk_status "BL-999"; mk_lessons nonpath_spans
+run ledger 1 no "음성 대조: 자리표시자·코드 표현식·슬래시 커맨드 → 승격 표 포인터 축 침묵"
+
+# ⒀⒁ ★적대 프로브가 **실제로 뚫은** 입력 2종(2026-08-14). 마크다운 장식 하나로 ID 정규식을
+#   비껴가면 중복이 초록으로 샜다 — 이 축이 막으려는 사고의 서식만 바꾼 판이다.
+#   ⑿ 와 같은 규율: **뚫린 입력을 그대로 케이스로 심는다.** 장식 허용을 되돌리면 여기가 red.
+AXIS="LESSON ID 유일성"
+mk_status "BL-999"; mk_lessons decorated_dup_table
+run ledger 1 yes "적대 P1: 표 ID 볼드 | **LESSON-101** | + 같은 번호 카드 → 발화"
+
+mk_status "BL-999"; mk_lessons decorated_dup_heading
+run ledger 1 yes "적대 P2: 헤딩 링크 ### [LESSON-101](...) + 표 같은 번호 → 발화"
+AXIS="⓪ 표 정체성"
+
 if [ "$FAIL" != 0 ]; then
-  echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 축이 판별력을 잃었다"
+  echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 / BL-720 지식 정본 축이 판별력을 잃었다"
   exit 1
 fi
-echo "✓ docs-audit 하네스 7/7 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락"
+echo "✓ docs-audit 하네스 14/14 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락 · LESSON ID · 승격 표 포인터 · 비경로 스팬 과다포획 · 장식 우회 2종"
