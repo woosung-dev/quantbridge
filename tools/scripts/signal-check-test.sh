@@ -409,7 +409,11 @@ anchors = [
     ("A14", sc, '  if [ "$mb_rc" -ne 0 ] || [ -z "$MERGE_BASE" ]; then', 1),
     ("A10", fg, 'case "$RUN" in eod)', 1),
     ("A11", fg, 'run_gate "신호 신선도 하네스" "tools/scripts/signal-check.sh" bash "$ROOT/tools/scripts/signal-check-test.sh"', 1),
-    ("A12", fg, 'check_signal "', 4),
+    # ★2026-08-14 — 배선 호출이 `check_signal` → `signal_gate`(모드 디스패치 wrapper)로 옮겼다.
+    #   세는 **의도는 불변**이다: 「신호 게이트가 4벌 배선돼 있는가」. 하나를 지우면 3이 되어
+    #   ⑳ 이 발화한다(수정 직후 양성 대조로 확인). wrapper 내부의 `check_signal "$@"` 는 1회라
+    #   옛 앵커를 그대로 두면 x1 이 되어 **의도와 무관하게** red 였다.
+    ("A12", fg, 'signal_gate "', 4),
 ]
 bad = ["%s x%d(기대%d)" % (n, s.count(a), w) for n, s, a, w in anchors if s.count(a) != w]
 if not re.search(r"for h in [^;]*\bsignal-check\b", mk):
