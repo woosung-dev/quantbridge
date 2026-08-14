@@ -19,6 +19,7 @@ import { resolve } from "node:path";
 import { expect, test } from "@playwright/test";
 
 import { getBaseURL } from "./_base-url";
+import { assertAuthedReachability } from "./authed-reachability-assert";
 import { auditUrl, formatCanonResult, hardFailCount } from "./design-canon-audit";
 
 const BASE_URL = getBaseURL();
@@ -28,7 +29,6 @@ const STORAGE_STATE = resolve(__dirname, ".auth/storageState.json");
 const EXPECTED_CONSOLE = [
   /failed to fetch/i,
   /networkerror/i,
-  /net::err_/i,
   /failed to load resource.*\b40[13]\b/i,
   // 리소스 로드 429(레이트리밋)만 무시한다 — 연속 4폭 감사가 백엔드를 치면 나는 스위트 환경
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
@@ -98,6 +98,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       test.setTimeout(180_000);
       const res = await auditUrl(browser, `${BASE_URL}${path}`, { label: path, ...auditOptions });
       process.stdout.write(formatCanonResult(res) + "\n");
+      assertAuthedReachability(res);
       expect(
         hardFailCount(res),
         `${path} 하드 실패:\n${formatCanonResult(res)}`,
@@ -131,6 +132,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       ...auditOptions,
     });
     process.stdout.write(formatCanonResult(res) + "\n");
+    assertAuthedReachability(res);
     expect(
       hardFailCount(res),
       `${editHref} 하드 실패:\n${formatCanonResult(res)}`,
@@ -162,6 +164,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       ...auditOptions,
     });
     process.stdout.write(formatCanonResult(res) + "\n");
+    assertAuthedReachability(res);
     expect(
       hardFailCount(res),
       `/optimizer/:id 하드 실패:\n${formatCanonResult(res)}`,
@@ -207,6 +210,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       },
     });
     process.stdout.write(formatCanonResult(res) + "\n");
+    assertAuthedReachability(res);
     expect(
       hardFailCount(res),
       `/backtests/:id 하드 실패:\n${formatCanonResult(res)}`,

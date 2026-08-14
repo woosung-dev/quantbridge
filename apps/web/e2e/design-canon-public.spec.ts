@@ -23,6 +23,9 @@ const BASE_URL = getBaseURL();
 const EXPECTED_CONSOLE = [
   /failed to fetch/i,
   /networkerror/i,
+  // ★`net::err_` 는 **공개 라우트에서는 의도적으로 남긴다** — 공개 페이지는 백엔드 없이도
+  //   정상 렌더가 계약이라 전송 실패가 캐논 위반이 아니다. authed 2벌에서만 제거했다
+  //   ([BL-707] — 그쪽은 도달 불가가 곧 결함이다). 빠뜨린 것이 아니다.
   /net::err_/i,
   /\b40[0-9]\b/,
   /\b50[0-9]\b/,

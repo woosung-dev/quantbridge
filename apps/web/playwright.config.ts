@@ -46,6 +46,12 @@ export default defineConfig({
       testMatch: /identity\.setup\.ts$/,
     },
     {
+      // authed API 요청을 실제 브라우저에서 한 번 관측한다. 공개 project 는 물지 않는다.
+      name: "setup-authed-reachability",
+      testMatch: /authed-reachability\.setup\.ts$/,
+      dependencies: ["setup", "setup-identity"],
+    },
+    {
       // ★앵커가 필요하다. `/smoke\.spec\.ts$/` 는 접두가 없어 **`live-smoke.spec.ts` 까지**
       //   잡았고, 전용 project(`chromium-live-smoke`)와 겹쳐 `pnpm e2e` 가 live-smoke 를
       //   매번 덤으로 돌리고 있었다(2026-08-06 `e2e-project-wiring.test.ts` 가 실측으로 적발).
@@ -106,7 +112,7 @@ export default defineConfig({
         ...devices["Desktop Chrome"],
         storageState: "e2e/.auth/storageState.json",
       },
-      dependencies: ["setup", "setup-identity"],
+      dependencies: ["setup-authed-reachability"],
     },
   ],
   webServer: hasConfiguredBaseURL()

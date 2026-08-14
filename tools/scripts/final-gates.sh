@@ -37,7 +37,7 @@
 # 종료 코드: 0 = 전건 통과 / 1 = 하나 이상 실패·미확인 또는 더러운 트리 거부
 set -uo pipefail
 
-RUN=""; SKIP_E2E=0; SKIP_CI=0; ALLOW_DIRTY=0; WITH_CI_COV=0
+RUN=""; SKIP_E2E=0; SKIP_CI=0; ALLOW_DIRTY=0; WITH_CI_COV=0; MODE="full"; DRY=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --run) [ $# -ge 2 ] || { echo "--run 에 값이 필요하다" >&2; exit 1; }; RUN="$2"; shift 2 ;;
@@ -45,6 +45,11 @@ while [ $# -gt 0 ]; do
     --skip-e2e) SKIP_E2E=1; shift ;;
     --skip-ci-repro) SKIP_CI=1; shift ;;
     --with-ci-coverage) WITH_CI_COV=1; shift ;;
+    # ★모드 3종은 상호 배타다. 두 번 주면 마지막이 이기는 게 아니라 거부한다 — 어느 쪽이
+    #   이겼는지 사람이 못 읽는 상태로 15분을 태우는 것이 이 스크립트의 원래 병이었다.
+    --pre-pr)         [ "$MODE" = "full" ] || { echo "✗ 모드는 하나만: 이미 $MODE" >&2; exit 1; }; MODE="pre-pr"; shift ;;
+    --deferred-only)  [ "$MODE" = "full" ] || { echo "✗ 모드는 하나만: 이미 $MODE" >&2; exit 1; }; MODE="deferred-only"; shift ;;
+    --dry-run)        DRY=1; shift ;;
     -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
@@ -54,6 +59,14 @@ case "$RUN" in *..*|*[!A-Za-z0-9._-]*) echo "--run 은 영숫자·점·밑줄·�
 case "$RUN" in eod) echo "✗ --run eod 는 금지다 — 앞 회차 신호를 물려받는다 ([BL-706]). 회차 슬러그를 써라: --run <회차이름>" >&2; exit 1 ;; esac
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+if git -C "$ROOT" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1; then
+  MERGE_BASE="$(git -C "$ROOT" merge-base refs/remotes/origin/main HEAD 2>/dev/null || true)"
+  HEAD_SHA="$(git -C "$ROOT" rev-parse --verify --quiet "HEAD^{commit}" 2>/dev/null || true)"
+  if [ -n "$MERGE_BASE" ] && [ "$MERGE_BASE" = "$HEAD_SHA" ]; then
+    echo "✗ 브랜치 커밋이 0개다 (merge-base == HEAD) — 이 회차의 PR 브랜치에서 머지 전에 final-gates.sh 를 돌려라." >&2
+    exit 1
+  fi
+fi
 SLOT=0
 [ -f "$ROOT/.worktree-slot" ] && SLOT="$(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$ROOT/.worktree-slot" | tr -d ' ')"
 : "${SLOT:=0}"
@@ -103,17 +116,55 @@ be_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/api/')"
 [ "${fe_n:-0}" -gt 0 ] && has_fe=1
 [ "${be_n:-0}" -gt 0 ] && has_be=1
 
-NAMES=(); CODES=(); NOTES=()
-record() { NAMES+=("$1"); CODES+=("$2"); NOTES+=("${3:-}"); }
+NAMES=(); CODES=(); NOTES=(); SECS=()
+record() { NAMES+=("$1"); CODES+=("$2"); NOTES+=("${3:-}"); SECS+=("${4:-}"); }
+
+# ── 유예 집합 — `--pre-pr` 이 미루고 `--deferred-only` 가 그것만 돈다 ────────────
+#
+# ★왜 이 여섯인가 (2026-08-14 실측). 전량 1회가 15~20분인데 그 대부분이 이 여섯이고,
+#   **CI 가 같은 것을 이미 샤딩해서 돈다**(`ci.yml` 의 `backend`·`backend_coverage`·`e2e` 잡).
+#   즉 로컬 전량 실행은 CI 를 직렬로·비샤딩으로 한 번 더 하는 것이었다. 나머지 20종은
+#   합쳐도 1분 안쪽이라(FE build 17초가 그중 최장) 중간에 몇 번을 돌려도 싸다.
+# ★★그러나 **유예는 면제가 아니다.** 미룬 것을 원장에 적고 종결 문구를 다르게 낸다 —
+#   같은 「✓ 전건 통과」를 내면 「초록인데 안 봤다」가 되고, 그게 이 레포가 반복해 덴 병이다.
+DEFERRABLE="BE pytest|e2e chromium|e2e design-canon|e2e authed|CI fresh DB alembic|CI 커버리지 잡"
+# ★신호 4종도 유예 대상이다. `--pre-pr` 은 「코드가 성립하나」를 묻는 중간 검사라 아직 스킬을
+#   안 돌렸을 수 있다. 종결 판정(=신호가 이 회차 것인가)은 `--deferred-only` 가 진다.
+DEFERRABLE="$DEFERRABLE|/vercel-react-best-practices|화면 검증 (playwright 또는 /browse)|/codex 적대 리뷰|★G9 계획 vs 실제 구현"
+DEFERRED_NAMES=()
+
+is_deferrable() { case "|$DEFERRABLE|" in *"|$1|"*) return 0 ;; *) return 1 ;; esac; }
+
+# 이 모드에서 이 게이트를 도는가. 0=돈다 / 1=이 모드가 미룬다(또는 대상이 아니다)
+mode_runs() {
+  case "$MODE" in
+    full)          return 0 ;;
+    pre-pr)        is_deferrable "$1" && return 1 || return 0 ;;
+    deferred-only) is_deferrable "$1" && return 0 || return 1 ;;
+  esac
+}
+
+defer_gate() {  # defer_gate <label> <사유>
+  DEFERRED_NAMES+=("$1"); record "$1" "~" "$2"
+  printf '\n▶ %s\n  → 유예 (%s)\n' "$1" "$2"
+}
 
 run_gate() {  # run_gate <label> <note> <command...>
   local label="$1" note="$2"; shift 2
+  if ! mode_runs "$label"; then
+    if [ "$MODE" = "pre-pr" ]; then defer_gate "$label" "--pre-pr — push 뒤 --deferred-only 로 돈다"
+    else record "$label" "-" "--deferred-only — 이 모드 대상이 아니다"
+         printf '\n▶ %s\n  → 건너뜀 (--deferred-only)\n' "$label"; fi
+    return
+  fi
+  if [ "$DRY" -eq 1 ]; then record "$label" "?" "$note (계획)"; printf '\n▶ %s\n  → 계획만 (--dry-run)\n' "$label"; return; fi
   printf '\n▶ %s\n' "$label"
+  local t0=$SECONDS
   # ★파이프로 감싸지 않는다 — exit code 가 가려진다(실측 사고 이력).
   "$@"
   local rc=$?
-  record "$label" "$rc" "$note"
-  printf '  → exit=%d\n' "$rc"
+  record "$label" "$rc" "$note" "$((SECONDS-t0))"
+  printf '  → exit=%d (%ds)\n' "$rc" "$((SECONDS-t0))"
 }
 
 skip_gate() { record "$1" "-" "$2"; printf '\n▶ %s\n  → 건너뜀 (%s)\n' "$1" "$2"; }
@@ -123,7 +174,9 @@ DIRTY_NOTE=""
 echo "══ final-gates  run=$RUN  slot=$SLOT  base=${BASE:0:8}  fe_diff=$has_fe be_diff=$has_be dirty=$DIRTY$DIRTY_NOTE ══"
 
 # ★더러운 트리는 기본 거부 (BL-549). 헤더를 먼저 찍고 거부한다 — 왜 멈췄는지가 숫자와 함께 남아야 한다.
-if [ "$DIRTY" -gt 0 ] && [ "$ALLOW_DIRTY" -eq 0 ]; then
+#   단 `--dry-run` 은 **아무것도 돌리지 않으므로** 거짓 그린이 성립하지 않는다. BL-549 가 막으려는
+#   것은 「안 돈 게이트가 통과로 읽히는 것」인데, dry-run 은 자기가 안 돌았다고 표에 적는다.
+if [ "$DIRTY" -gt 0 ] && [ "$ALLOW_DIRTY" -eq 0 ] && [ "$DRY" -eq 0 ]; then
   echo
   echo "✗ 워킹트리에 미커밋 변경 $DIRTY 건 — 이 상태로는 게이트를 돌리지 않는다."
   echo
@@ -247,7 +300,27 @@ fi
 #   `design-canon`·`authed` 는 종전대로 무조건 돈다 — `authed` 는 backend 변경도 문다.
 #   영역(has_fe)과 서버(정체성 프로브)는 직교하므로 **중첩**한다. 조건식이 두 번 나오는 것은
 #   의도다: 세 분기 전부에서 표의 행 순서(chromium → design-canon → authed)를 고정한다.
-if [ "$SKIP_E2E" -eq 1 ]; then
+# ★★모드·dry-run 판정은 **정체성 프로브보다 먼저** 온다 (2026-08-14, CI 가 잡았다).
+#   아래 프로브 실패 분기는 `record` 를 **직접** 부르므로 `run_gate` 의 모드 디스패치와
+#   `--dry-run` 을 **둘 다 우회**한다. 그대로 두면 서버가 없는 환경(CI · 개발 중인 로컬)에서
+#   `--pre-pr` 이 e2e 를 DEFER 가 아니라 **FAIL** 로 적어, 「중간에 싸게 돌린다」는 이 모드의
+#   존재 이유가 무너진다. 프로브 자체가 curl 이라 dry-run 에서 도는 것도 「계획만」과 어긋난다.
+if [ "$DRY" -eq 1 ]; then
+  # ★계획 표에서도 **모드별 마크가 실행 때와 같아야** 한다. 여기서 유예를 skip 으로 적으면
+  #   `--pre-pr` 의 유예 수와 `--deferred-only` 의 실행 수가 어긋나 분할 상보성이 깨진다
+  #   (하네스 케이스 ③④ 가 그것을 잡는다 — 실제로 이 줄을 그렇게 잡았다).
+  for _g in "e2e chromium" "e2e design-canon" "e2e authed"; do
+    if   mode_runs "$_g";           then record "$_g" "?" "e2e (계획)"
+    elif [ "$MODE" = "pre-pr" ];    then record "$_g" "~" "--pre-pr — push 뒤 --deferred-only 로 돈다"
+    else                                 record "$_g" "-" "--deferred-only — 이 모드 대상이 아니다"; fi
+  done
+elif ! mode_runs "e2e authed"; then   # 세 레인은 같은 유예 집합이라 한 번에 가른다
+  for _g in "e2e chromium" "e2e design-canon" "e2e authed"; do
+    if [ "$MODE" = "pre-pr" ]; then defer_gate "$_g" "--pre-pr — push 뒤 --deferred-only 로 돈다"
+    else record "$_g" "-" "--deferred-only — 이 모드 대상이 아니다"
+         printf '\n▶ %s\n  → 건너뜀 (--deferred-only)\n' "$_g"; fi
+  done
+elif [ "$SKIP_E2E" -eq 1 ]; then
   skip_gate "e2e chromium" "--skip-e2e"
   skip_gate "e2e design-canon" "--skip-e2e"; skip_gate "e2e authed" "--skip-e2e"
 else
@@ -314,6 +387,19 @@ else
 fi
 
 # ── 6. 스킬 게이트 — signal 파일로만 통과한다 ────────────────────
+# ★모드 디스패치는 `check_signal` **밖**에 둔다. 그 함수의 배선(=`record`/`skip_gate` 를 정확히
+#   1회 부른다)은 `signal-check-test.sh` 케이스 ㉑㉒㉓ 이 호출 횟수로 고정한 계약이라,
+#   본문에 분기를 더하면 그 하네스가 red 가 된다 — 2026-08-14 에 실제로 그렇게 잡혔다.
+signal_gate() {  # signal_gate <label> <file> <required 0|1> <why>
+  if ! mode_runs "$1"; then
+    if [ "$MODE" = "pre-pr" ]; then defer_gate "$1" "--pre-pr — 신호는 종결 시점에 잰다"
+    else record "$1" "-" "--deferred-only — 이 모드 대상이 아니다"; fi
+    return
+  fi
+  if [ "$DRY" -eq 1 ]; then record "$1" "?" "신호 $2 (계획)"; return; fi
+  check_signal "$@"
+}
+
 check_signal() {  # check_signal <label> <file> <required 0|1> <why>
   local label="$1" f="$2" req="$3" why="$4" out rc
   # ★두 줄로 나눈다. `local out="$(...)"` 는 rc 가 **local 의 것**(항상 0)이라 전건 PASS 가 된다.
@@ -335,10 +421,10 @@ check_signal() {  # check_signal <label> <file> <required 0|1> <why>
       "$(git -C "$ROOT" rev-parse HEAD)"
   fi
 }
-check_signal "/vercel-react-best-practices" "vercel.ok" "$has_fe" "frontend diff 0"
-check_signal "화면 검증 (playwright 또는 /browse)" "screen.ok" 1 ""
-check_signal "/codex 적대 리뷰" "codex.ok" 1 ""
-check_signal "★G9 계획 vs 실제 구현" "g9.ok" 1 ""
+signal_gate "/vercel-react-best-practices" "vercel.ok" "$has_fe" "frontend diff 0"
+signal_gate "화면 검증 (playwright 또는 /browse)" "screen.ok" 1 ""
+signal_gate "/codex 적대 리뷰" "codex.ok" 1 ""
+signal_gate "★G9 계획 vs 실제 구현" "g9.ok" 1 ""
 
 # ── 결과 ──────────────────────────────────────────────────────────
 echo
@@ -347,17 +433,53 @@ if [ "$DIRTY" -gt 0 ]; then
   printf "  %-4s  %-38s %s\n" "DIRT" "워킹트리 미커밋 $DIRTY 건" \
     "--allow-dirty — 영역 판정에 포함됨. 이 결과는 커밋되지 않은 코드의 것이다."
 fi
-fail=0
+fail=0; total_s=0
 for i in "${!NAMES[@]}"; do
   c="${CODES[$i]}"
-  if [ "$c" = "-" ]; then mark="skip"
+  if   [ "$c" = "-" ]; then mark="skip"
+  elif [ "$c" = "~" ]; then mark="DEFER"
+  elif [ "$c" = "?" ]; then mark="plan"
   elif [ "$c" = "0" ]; then mark="PASS"
   else mark="FAIL"; fail=$((fail+1)); fi
-  printf "  %-4s  %-38s %s\n" "$mark" "${NAMES[$i]}" "${NOTES[$i]}"
+  el=""; [ -n "${SECS[$i]}" ] && { el="$(printf '%4ds' "${SECS[$i]}")"; total_s=$((total_s+SECS[i])); }
+  printf "  %-5s %-6s %-38s %s\n" "$mark" "$el" "${NAMES[$i]}" "${NOTES[$i]}"
 done
 echo "═════════════════════════════════════════"
+[ "$total_s" -gt 0 ] && printf "  실행 합계 %ds (%dm%02ds) — 어느 게이트가 비싼지는 위 열이 말한다\n" \
+  "$total_s" "$((total_s/60))" "$((total_s%60))"
+
+# ── 유예 원장 — 미룬 것은 파일로 남는다. 「초록인데 안 봤다」를 막는 유일한 장치다 ──
+LEDGER="$ROOT/.claude/gates/$RUN/deferred.txt"
+if [ "$DRY" -eq 1 ]; then
+  echo "▶ --dry-run — 계획만 출력했다. 아무 게이트도 돌지 않았다."
+  exit 0
+fi
+
 if [ "$fail" -gt 0 ]; then
   echo "✗ ${fail} 건 실패/미확인 — PR 을 만들지 마라."
   exit 1
 fi
-echo "✓ 전건 통과. ★단 이 스크립트는 '돌렸다' 만 보증한다 — 숫자가 baseline 과 맞는지는 사람이 본다."
+
+case "$MODE" in
+  pre-pr)
+    mkdir -p "$(dirname "$LEDGER")"
+    { echo "run: $RUN"; echo "sha: $(git -C "$ROOT" rev-parse HEAD)"; echo "mode: pre-pr";
+      echo "# 아래는 --pre-pr 이 **미룬** 게이트다. push 뒤 --deferred-only 로 돌려서 이 파일을 지워라.";
+      printf '%s\n' "${DEFERRED_NAMES[@]}"; } > "$LEDGER"
+    echo "✓ pre-PR 통과 — 단 **${#DEFERRED_NAMES[@]}종을 아직 안 돌렸다.** 이것은 종결 판정이 아니다."
+    printf '    %s\n' "${DEFERRED_NAMES[@]}"
+    echo
+    echo "  다음: PR 을 올린 뒤 CI 와 **나란히** 로컬에서"
+    echo "    $0 --run $RUN --deferred-only"
+    echo "  유예 원장: ${LEDGER#$ROOT/}"
+    ;;
+  deferred-only)
+    rm -f "$LEDGER"
+    echo "✓ 유예분 통과 — 유예 원장 해제. 이제 종결 조건이 전부 충족됐다."
+    echo "  ★단 이 스크립트는 '돌렸다' 만 보증한다 — 숫자가 baseline 과 맞는지는 사람이 본다."
+    ;;
+  *)
+    rm -f "$LEDGER"
+    echo "✓ 전건 통과. ★단 이 스크립트는 '돌렸다' 만 보증한다 — 숫자가 baseline 과 맞는지는 사람이 본다."
+    ;;
+esac

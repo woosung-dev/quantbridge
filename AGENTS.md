@@ -24,7 +24,11 @@
 - ALWAYS — 코드 작성 전 「어떤 설계 문서 + 어떤 방향」 짧게 브리핑, 코드 수정 시 관련 문서 **동일 세션** 갱신
 - ALWAYS — 확인된 사실 / 추론(`[가정]`) / 확인 필요(`[확인 필요]`) 구분 표기
 - ALWAYS — 커밋/푸쉬/배포는 단계별 사용자 승인 (묶음 요청만 한 번에)
-- ALWAYS — 게이트(`tools/scripts/final-gates.sh`)는 **마지막 커밋 뒤에** 돌리고 그 뒤로 문서를 더 쓰지 마라 —
+- ALWAYS — 게이트는 **2단**이다(2026-08-14). 중간·PR 직전 = `final-gates.sh --run <슬러그> --pre-pr`
+  (무거운 9종 유예, ~1분) → PR push → **CI 와 나란히** `--deferred-only`(BE pytest 379초 + e2e).
+  유예분은 `.claude/gates/<슬러그>/deferred.txt` 에 남고 `--deferred-only` 통과가 그것을 지운다 —
+  **원장이 남아 있으면 종결이 아니다.** 전량 1회로 가려면 플래그 없이 돌려라
+- ALWAYS — 게이트는 **마지막 커밋 뒤에** 돌리고 그 뒤로 문서를 더 쓰지 마라 —
   pre-commit 의 `prettier --write`·`ruff format` 이 **커밋 시점에** 트리를 바꾸므로 커밋 전 결과는 낡는다
 - ALWAYS — `gh pr create` 전, `docs/status.md` 에 **살아 있는 「다음 행동 = …」이 둘 이상이면 안 된다**.
   끝난 것은 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다 — 다음 세션은 남아 있는 것을 그대로 따른다.
@@ -100,6 +104,6 @@ codex 는 **가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구�
 
 - `apps/api/src/<도메인>/` — router/service/repository/schemas/models · `apps/api/src/strategy/pine_v2/` — 인터프리터 SSOT
 - `apps/web/src/` — Next.js 16 FSD Lite (`app`/`components`/`features`/`hooks`/`lib`/`store`)
-- `tools/scripts/` — 게이트·감사 셸 (`final-gates` · `bl-audit` · `docs-audit` · `context-budget` · `soak-gate`) + 그 하네스 `*-test.sh` 8종
+- `tools/scripts/` — 게이트·감사 셸 (`final-gates` · `bl-audit` · `docs-audit` · `context-budget` · `soak-gate`) + 그 하네스 `*-test.sh` 9종
 - `docs/` — 상태 3종 + `reference/` + `decisions/` + `lessons.md` (지도: `docs/README.md`)
 - `apps/api/AGENTS.md` · `apps/web/AGENTS.md` — 스택 규칙 (같은 자리 `CLAUDE.md` = `@AGENTS.md` 한 줄)
