@@ -637,12 +637,12 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------ | ------------------------------------------------------------ |
 | [BL-720](#bl-720) | ✅ **Resolved (2026-08-14 gate-pointer-axis)** — 축 **2종** 신설(LESSON ID 유일성·오름차순 = 헤딩 ∪ 승격 표 · 승격 표 백틱 포인터 실재). 하네스 7→**12 케이스**. ★**처방 ②(`legacy_paths` 확장)는 착수 전 반증돼 폐기** — 살아 있는 문서에 `backend/`·`frontend/` 리터럴이 **147줄**이고 [ADR-029] 매핑 표 자신을 포함해 대부분이 고칠 수 없는 정당한 인용이다(부분문자열 매치라 예외 불가). 죽은 포인터는 새 축이 이유 불문 잡으므로 흡수했다. ★**새 축의 첫 판이 실제 트리에서 오탐 3건**(자리표시자·코드 표현식·슬래시 커맨드) — 스텁만 봤으면 못 봤다                                                                                                                                                                                                                                              | 도래 — 결손 3종이 실측 확정                                                                                     | S            | 2026-08-14 gate-surface-close                                |
 | [BL-725](#bl-725) | `exchange_exits` **중복 290행** — 같은 uid 에 계정 행이 둘이라 각자 같은 창을 적재했고 UNIQUE 축이 `(exchange_account_id, row_hash)` 라 안 걸린다. 원장 882행 = 고유 **592** + 중복 290(잉여 −517.84). ★[BL-605] 수리는 작동 중이고 **신규 적재는 2026-08-08 에 멈췄다** — 잔재다. 중복쌍이 서로 다른 라벨을 받는 편향 동반                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 동승 — `exchange_accounts` 행 축 결정 대기                                                                      | S (30분)     | 2026-08-14 money-path-attribution                            |
-| [BL-726](#bl-726) | ✅ `rejected` reduce-only 46건 `realized_pnl` **+55.32** — **Resolved (기각)** (2026-08-14 `dde53e68`/#631 + 코드 대조). 모순이 아니었다: 값은 **생성 시점**에 실리고(`order_service.py:393,427`) 46건은 `idempotency_key` 가 전부 `live:` 라 생산자가 `live_signal.py:4406`(MP-1) = **pine_v2 시뮬 추정치**다. `exchange_order_id` 는 46건 전부 **NULL**(거래소 미도달, `110017`/`10005`). ⇒ `state==filled` 필터가 **옳다**. ★원장 처방 ⑵ 는 이 46건에 **no-op** 이고 채택하면 게이트가 되레 느슨해진다. 동작 변경 0                                                                                                                                                                                                                                                                                 | —                                                                                                               | S (1h)       | 2026-08-14 money-path-attribution                            |
+| [BL-726](#bl-726) | ✅ `rejected` reduce-only 46건 `realized_pnl` **+55.32** — **Resolved (기각)** (2026-08-14 `dde53e68`/#631 + 코드 대조). 모순이 아니었다: 값은 **생성 시점**에 실리는 **체결 전 추정치**다(`order_service.py:393,427` — 라이브·웹훅 두 축 모두). `exchange_order_id` 는 46건 전부 **NULL** = **주문 ID 미발급·미체결**(`110017`/`10005` 는 거래소가 **반환한** retCode 이므로 「미도달」이 아니다). ⇒ `state==filled` 필터가 **옳다**. ★원장 처방 ⑵ 는 이 46건에 **no-op** 이고 채택하면 게이트가 되레 느슨해진다. 동작 변경 0                                                                                                                                                                                                                                                                         | —                                                                                                               | S (1h)       | 2026-08-14 money-path-attribution                            |
 | [BL-727](#bl-727) | ✅ `soak-gate.sh` 판정 본체의 맨 `python3` — **Resolved** (2026-08-14 `dde53e68`/#631). `:706`·`:714`~`:716` 을 `uv run python` 으로 + **빈 출력 fail-closed**. 종전에는 맥 3.9 의 `itertools.pairwise` 부재로 죽고도 진행해 **빈 `판정:` 줄**을 찍는 fail-open 이었다. 맥 음성 대조 3단계로 판별력 증명                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | —                                                                                                               | XS (10분)    | 2026-08-14 money-path-attribution                            |
 | [BL-729](#bl-729) | 전략 채택 근거가 된 백테스트 **4벌이 낡은 비용 가정**(`fees 0.001`/`slippage 0.0005`, 2026-07-26 생성)으로 돌았다 — [BL-603] 이 08-07 에 실측 `0.00055`/`0.00014` 로 교체한 값이다. 왕복 0.30% vs 실측 0.138% = **2.2배 비관**. `config_mapper.py:102-104` 가 저장값을 복원하므로 **재실행해도 안 고쳐진다**. 처방 = Cost-Assumption 스트레스 테스트를 실측점 포함 격자로 1회                                                                                                                                                                                                                                                                                                                                                                                                                          | 즉시 — 소크 전략을 다시 고를 때의 입력 (소크 정지 창에서)                                                       | S (1h)       | 2026-08-14 money-path-close                                  |
 | [BL-730](#bl-730) | FE 비용 기본값 **drift 2곳** — [BL-603] 은 「FE 미러 4곳」이라 적었지만 실제 5곳이었다. `features/backtest/schemas.ts:81,87` zod `.default(0.001/0.0005)` · `onboarding/_components/step-3-backtest.tsx:77-78` **하드코딩 submit**. ★후자가 실사고 — 폼을 안 거쳐 **신규 사용자의 첫 백테스트가 왕복 0.30%** 로 돈다. 인접 3번째 = `stress-test-panel.tsx:93-94` 격자에 현재 기본값이 없음                                                                                                                                                                                                                                                                                                                                                                                                             | ★이미 발화 — 온보딩 프로덕션 경로                                                                               | XS (15분)    | 2026-08-14 money-path-close                                  |
 | [BL-731](#bl-731) | `list_synced_with_exchange_exit` 의 **`LIMIT 500`** — [BL-438] 수리로 재검증 모집단이 `reduce_only` **73건 → 원장 증언 563건**이 되어 가장 오래된 **63건이 영구 제외**된다. 미동기화 축은 배수(drain)되지만 **동기화 축은 단조 증가**라 안 풀린다. 처방 = 상한 확대(미봉) 말고 **원장 합계 ≠ 저장값** 행으로 모집단을 좁혀라(`resync_*` 의 `IS DISTINCT FROM` 가드를 SQL 로 끌어올리면 0 에 수렴)                                                                                                                                                                                                                                                                                                                                                                                                      | ★이미 발화 조건 성립 — 수리가 머지됐다                                                                          | S (1h)       | 2026-08-14 money-path-close                                  |
-| [BL-733](#bl-733) | 체결 직후 refresh **2곳**이 아직 `reduce_only` 게이트 — [BL-438] 은 스윕 축만 고쳤다. 반전 주문 확정 손익이 **최대 5분** 늦고 그 창이 kill-switch 사각이다. ★**필터만 지우면 더 나빠진다** — entry 마다 `transient` 4회 재시도 뒤 **운영자 알림**이 나간다. 처방 = 기존 `_reversal_bucket_at_fill` 을 게이트로 재사용하고 `unmeasured_*` 는 스윕에 맡겨라                                                                                                                                                                                                                                                                                                                                                                                                                                              | 도래 — 나머지 2곳이 유일 잔여                                                                                   | M (2-3h)     | 2026-08-14 money-path-close                                  |
+| [BL-733](#bl-733) | 체결 직후 refresh **2곳**이 아직 `reduce_only` 게이트 — [BL-438] 은 스윕 축만 고쳤다. 반전 주문 확정 손익이 **최대 5분** 늦고 그 창이 kill-switch 사각이다. ★**필터만 지우면 더 나빠진다** — **정상 선물 entry** 가 `transient` 4회 재시도 뒤 **운영자 알림**을 낸다. 처방 = 기존 `_reversal_bucket_at_fill` 을 게이트로 재사용하고 `unmeasured_*` 는 스윕에 맡겨라                                                                                                                                                                                                                                                                                                                                                                                                                                    | 도래 — 나머지 2곳이 유일 잔여                                                                                   | M (2-3h)     | 2026-08-14 money-path-close                                  |
 | [BL-721](#bl-721) | ✅ **게이트 2단 분할 — Resolved (2026-08-14 gate-2stage)** — 전량 1회 **15~20분**의 대부분을 여섯이 먹고 **CI 가 같은 것을 이미 샤딩해서 돈다**(BE pytest **379초**·e2e ~400초 vs 나머지 20종 합계 1분 안쪽). ⇒ `--pre-pr`(유예) → PR push → **CI 와 나란히** `--deferred-only`. ★유예는 면제가 아니다 — 유예 원장 파일 + 다른 종결 문구, `--deferred-only` 통과만이 원장을 지운다. 하네스 `final-gates-test.sh` 신설(8종→**9종**)                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 회고에서 실측                                                                                            | S            | 2026-08-14 gate-surface-close 회고                           |
 | [BL-723](#bl-723) | ✅ **Resolved (2026-08-14 gate-pointer-axis)** — **비싼 게이트에만 영역 판정이 없었다.** `BE ruff`·`BE mypy`·`FE vitest`·`FE build`·`e2e chromium` 은 `has_be`/`has_fe` 에 걸려 있는데 **가장 비싼 셋**(`BE pytest` **357초** · `e2e authed` **268초** · `e2e design-canon` **42초**)만 무조건 돌았다. 앱 코드 diff 0 인 회차에서 **11분 10초**를 태웠고 같은 회차에 CI 는 `backend`·`e2e` 잡을 전부 skip 했다 — 로컬이 CI 보다 더 돌면서 잴 것은 없었다. 처방 = `BE pytest`→`has_be` · `design-canon`→`has_fe` · `authed`→`has_fe∥has_be`. 하네스 8→**9 케이스**(⑤⑥① 환경 의존 동반 수리)                                                                                                                                                                                                             | 도래 — 실측이 있고 처방이 우리 손 안에 있다                                                                     | XS           | 2026-08-14 gate-pointer-axis                                 |
 | [BL-522](#bl-522) | ★엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다 (유실 채널 5종)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 실자금 cutover 전 필수                                                                                          | M-L          | 2026-07-28 live-entry-parity                                 |
@@ -2323,8 +2323,9 @@ JOIN 은 같은 Order 를 N번 돌려주고 `limit` 예산을 잠식한다. **�
 앞선다. 재-pin 이 배포다.
 **종전 상태 (2026-08-14 money-path-attribution, 참고):** 🟡 부분 해결 — 진단이 교체된 시점의 기록.
 구멍은 「청산이 DB 에 안 남는다」가 아니라 **「청산은 `exact` 561건으로 남아 있는데 `list_unsynced_reduce_only` 의 `reduce_only=true` 필터가 백필을 막는다」**이고, 규모는 **490건 / −1,023.87 USDT** 다 — 거래소 실현손익 전량(−1,125.81) 대비 **90.9%**.
-★#631 코드 주석의 **93.1%** 는 분모가 다르다(주문 행이 있는 분 = −1,101.89 기준). 혼동을 막으려면
-분모를 함께 적어라 (codex Q2). 종전 상태줄(2026-07-25) 원문은 이 줄 아래 유지한다 — 그 시점 판단의 기록이다.
+★**분모를 반드시 함께 적어라** (codex Q2 + 2차 리뷰 #1). 90.9% = `1,023.87 / 1,125.81`(거래소
+실현손익 전량). `order_repository.py:780` 의 **93.1%** 는 이 회차가 「−1,101.89 기준」이라 추정했으나
+그 산술은 **92.9%** 라 맞지 않는다 — 93.1% 의 분모는 **미상**이다. 어느 쪽도 확정 인용하지 마라. 종전 상태줄(2026-07-25) 원문은 이 줄 아래 유지한다 — 그 시점 판단의 기록이다.
 
 **종전 판단 (2026-07-25 원문, 참고 — 상태 판정에 쓰지 않는다):** 부분 Resolved — 관측 원장(최근 7일) 까지 (`stage/exit-attribution`). 측정 스파이크가 전제를 뒤집었다 — 거래소 전용 행 4건(행 36.4% · |손익| 55.8%)은 **브래킷이 아니라 앱 밖 수동 청산**이었고, **브래킷 체결은 전 기간 0건**(조건부 주문 4건 전부 `Deactivated`, DB 17행 중 TP/SL 실은 주문 0)이라 이 구멍은 코드 경로상 실재하나 **프로덕션 관측 0 = 잠복**이다. 게다가 거래소 전용 4건 중 우리 포지션은 1건뿐이라 자동 계상은 오차단을 만든다. 사용자 확정 = **관측 원장까지**. 신규 `trading.exchange_exits`(행 단위 원본 + provenance) + 스윕을 계정 독립 열거·최근 7일 창·원장 집계 백필로 재작성 + 분류 7종/귀속 3등급(라벨 전용, `inferred` 는 머니-패스 미투입) + 신규 미귀속 행 1회성 알림.
 **트리거 판정:** 도래 — Trigger 줄 자신이 「즉시」다. 조건절이 없고 외생·동승 어휘도 없다(`bl-trigger-sweep` 의 `지금` 축이 낭독으로 같은 판정을 낸다) (2026-08-11 bl-703-partial-verdicts)
@@ -8023,12 +8024,20 @@ rejected | reduce_only=t | realized_pnl 채움 | 46건 | +55.32 USDT
 
 **상태:** ✅ **Resolved — 기각 판정 (2026-08-14 `dde53e68` / #631 + money-path-close 코드 대조).**
 **모순이 아니었다.** `Order.realized_pnl` 은 **생성 시점**에 실린다(`order_service.py:393,427`
-`realized_pnl=req.realized_pnl`) — 46건은 `idempotency_key` 가 전부 `live:` 접두라 생산자가
-`live_signal.py:4406`(MP-1)이고 값은 **pine_v2 시뮬 청산손익**이다. 거래소 확정치를 쓰는 유일한
-경로 `backfill_exchange_realized_pnl` 은 `state==filled` 를 요구하므로 `rejected` 행에 들어갈 수
-없다. 거래소가 증언한다 — `exchange_order_id` 가 **46건 전부 NULL**(도달조차 못 했다)이고
+`realized_pnl=req.realized_pnl`). 생산자는 둘이고 **둘 다 체결 전 추정치**다 —
+라이브 축 `live_signal.py:4406`(MP-1, `LiveSignalEvent.realized_pnl` = pine_v2 시뮬) ·
+웹훅 축 `router.py:161`(TV alert 필드). ★**어느 쪽이든 결론이 같다.**
+★`idempotency_key` 의 `live:` 접두는 **생산자 증명이 못 된다**(codex F1) — 웹훅도 호출자가 준
+`Idempotency-Key` 를 그대로 저장한다(`router.py:100-175`). 정본 판별 = `LiveSignalEvent.order_id`
+조인(`models.py:674`). 거래소 확정치를 쓰는 경로는 `backfill_exchange_realized_pnl` **과**
+`resync_exchange_realized_pnl`(`order_repository.py:828`) **둘**이고(codex F3) **둘 다**
+`state==filled` 를 요구하므로 `rejected` 행에 들어갈 수 없다.
+증거 — `exchange_order_id` 가 **46건 전부 NULL**(주문 ID 미발급 · 미체결)이고
 `error_message` 는 `110017 "current position is zero"` 30건 · `110017 "reduce-only order has same
-side"` 15건 · `10005` 1건이다. ⇒ **evaluator 의 `state==filled` 필터가 옳다. 동작 변경 0.**
+side"` 15건 · `10005` 1건이다.
+★**「거래소에 도달조차 못 했다」로 읽지 마라**(codex F2) — `110017`·`10005` 는 **거래소가 반환한
+retCode** 라 요청은 거래소까지 갔고 거절당했다. 정확히는 **「주문 ID 가 발급되지 않았고 체결되지
+않았다」**이다. ⇒ **evaluator 의 `state==filled` 필터가 옳다. 동작 변경 0.**
 ★**원장의 처방 ⑵(「필터를 `realized_pnl_synced_at IS NOT NULL` 로 넓힌다」)는 이 46건에 no-op**
 이다(그 컬럼이 46건 전부 NULL). 게다가 채택하면 **아직 백필 안 된 `filled` 주문의 추정 손익까지**
 SUM 에서 빠져 게이트가 일시적으로 느슨해진다 — 지금 필터가 더 안전한 쪽이다. 판정 근거는
@@ -8265,17 +8274,27 @@ live_signal_gap_ledger_seed session=e9c504f1 symbol=BTC/USDT
 > "열고 (부분)닫은" 창을 엔진 상태로 되돌리려면 **공백 이전 포지션**을 알아야 하는데
 > 이 창에는 그 정보가 없다.
 
-관측된 `outcome=already_open` 은 채택 규칙을 통과했다는 뜻(전부 같은 side · reduce-only 0 ·
-trade id 중복 없음)이고, 그 위에서 `ledger_net=0.06` vs `carried_position=0` 이 어긋났다.
-⇒ **축은 「수량 접기」가 아니라 「창이 공백 이전 포지션을 모른다」**이고, 그것은
-[BL-547](#bl-547)(원장 seed 는 그 tick 한 번만 산다) 영역이다.
+★★**2차 적대 리뷰가 여기서 한 겹 더 벗겼다 — `ledger_net` 은 사망 판정 입력이 아니다.**
+실제 판정은 `live_signal.py:3716` 의
+`_positions_are_aligned(exchange_positions, carried_position)` 이고, 어긋나면
+`_block_on_gap_mismatch` 로 간다. 즉 대조되는 두 값은 **거래소 포지션**과 **엔진 이월
+포지션**이지 `ledger_net` 이 아니다. 로그의 `ledger_net=0.06` 은 **진단 텔레메트리**다.
+(부수 확정: `_ledger_gap_seed` 가 `net` **과 `legs` 를 둘 다** 만든다(`:434-459`) —
+`derive_open_position` 은 별도 shadow telemetry 전용이다.)
+
+⇒ **「창 축이다」도 아직 단정할 수 없다.** 공백 이전 포지션을 실제로 대조하기 전에는 가설이다.
+남은 축은 셋 — ⑴ 시간축([BL-622] 재발) ⑵ 창 축([BL-547] 계열) ⑶ `carried_position` 산출
+자체(`_carried_position_size` + `_closed_seed_position`, `:3682-3692`).
 
 **권장 접근:** ★**먼저 판정해라 — BL-622 재발인가 별건인가.** 살아 있는 가설 둘:
 ⑴ **시간축**(BL-622 H3 재발) = 거래소 체결과 원장 기록의 관측 지연으로 유예 창이 모자랐다 —
 판별 = 사망 직전 체결의 거래소 시각 vs `orders.filled_at` 격차를 재라.
 ⑵ **창 축**([BL-547] 계열) = gap 창이 공백 이전 포지션을 모른 채 legs 를 채택했다 —
 판별 = 그 창에 들어간 체결 목록(`ledger_seed.order_ids`)과 공백 **이전** 포지션을 나란히 재라.
+⑶ **`carried_position` 산출 축** = 엔진 이월값 자체가 틀렸다 —
+판별 = `_carried_position_size`/`_closed_seed_position` 이 그 시점에 낸 값 vs 거래소 실제 포지션.
 ★**수량축 가설은 죽었다. 되살리지 마라** — 위 코드 인용이 그것을 닫는다.
+★**`ledger_net` 을 판정 입력으로 취급하지 마라** — 로그일 뿐이다.
 ★**재기동 전에 거래소 포지션을 확인해라** — 마지막 체결이 `buy 0.06` 이고 세션이 그 뒤 죽었다.
 고아 포지션 위에 새 세션을 얹으면 [BL-024] 회차가 밟은 함정을 반복한다.
 
@@ -8310,9 +8329,11 @@ kill-switch 는 그 창 동안 손실을 과소평가한다.
 `closed-pnl` 원장에 대응 행이 없으므로 `fetch_closed_pnl` 이 `None` → `transient` →
 **4회 재시도** → `_alert_closed_pnl_unbackfilled` **운영자 알림**을 낸다
 (`tasks/trading.py:1783-1791` 실측). 거짓 알림이 쌓이면 알림 자체가 무의미해진다.
-★**「entry 마다」는 과장이다**(codex F8) — `exchange_order_id` 없음 · 비지원 거래소 ·
-`leverage is None` 은 `transient` 가 아니라 즉시 `skipped` 로 끝난다(`trading.py:1493-1505`).
-알림이 나는 것은 **정상 선물 entry** 축에 한한다.
+★**「entry 마다」는 과장이다**(codex F8) — `_refresh_closed_pnl_with_session` 의 조기 종료는
+`order_missing` · `not_filled` · `not_reduce_only` · `no_exchange_order_id` · `account_missing` ·
+`unsupported_exchange` · `decrypt_failed` · `no_filled_at` · `already_synced` 로 **9종**이다
+(`trading.py:1489-1560`). `transient` → 재시도 → 알림 경로로 가는 것은 **정상 Bybit 선물 ·
+`filled` · 필수 데이터 보유** 주문뿐이다.
 
 **권장 접근:** 체결 시점에는 원장 행이 아직 없으므로 [BL-438] 의 EXISTS 축을 그대로 쓸 수 없다.
 쓸 수 있는 것은 **체결 후 포지션 관측**이고, 그 판정기가 이미 있다 —
