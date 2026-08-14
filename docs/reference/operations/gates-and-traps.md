@@ -96,6 +96,26 @@ cd $QB && make gate-harnesses             # ★게이트 하네스 10종 전량 
 | CI fresh DB alembic · 커버리지                                |                                 수십 초~ | ✅                             |
 | 나머지 21종 (ruff·mypy·typecheck·lint·감사·하네스 10종·build) | 합계 **1분 안쪽** (최장 = FE build 17초) | 일부만                         |
 
+★★**유예 ≠ 무조건 실행. 영역 판정이 먼저다** (2026-08-14 · [BL-723]). `--deferred-only` 가 도는
+것은 「유예분 ∩ **영역이 살아 있는 것**」이다. 종전에는 가장 비싼 셋만 영역 판정 밖에 있어서,
+`apps/web`·`apps/api` diff 가 **0줄**인 회차에서 **11분 10초**가 그냥 탔다(BE pytest 357초 ·
+e2e authed 268초 · design-canon 42초). 같은 회차에 CI 는 `backend`·`e2e` 잡을 **전부 skip** 했다 —
+로컬이 CI 보다 더 돌면서 잴 것은 없었다.
+
+| 게이트                               | 영역 술어               | 왜                                                   |
+| ------------------------------------ | ----------------------- | ---------------------------------------------------- |
+| BE ruff · mypy · **pytest**          | `has_be`                | `apps/api/**` 가 안 바뀌면 잴 것이 없다              |
+| FE typecheck · lint · vitest · build | `has_fe`                | `apps/web/**` 동일                                   |
+| `/vercel-react-best-practices`       | `has_fe`                | 신호 게이트도 같은 술어                              |
+| e2e chromium · **design-canon**      | `has_fe`                | 랜딩·hermetic `file://` — 서버 무결합                |
+| **e2e authed**                       | `has_fe` **∥** `has_be` | 로그인 후 데이터 화면 — **BE 가 죽으면 화면이 빈다** |
+| 감사·하네스·CI 재현·신호 3종         | 없음 (항상)             | 레포 전역 규율이라 영역이 없다                       |
+
+★`|| [ -z "$BASE" ]` **fail-safe 는 전부 유지한다** — `merge-base origin/main HEAD` 가 실패하면
+영역이 0 으로 보이므로, 그때는 **돈다**. 조용한 skip 이 조용한 초록보다 나쁘다.
+★세 e2e 레인 영역이 전부 비면 **정체성 프로브(curl)도 안 돈다** — 잴 것이 없는데 서버를
+요구하면 docs 만 고친 회차가 e2e **FAIL** 로 막힌다(종전 동작).
+
 ```bash
 # ⑴ 중간·PR 직전 — 무거운 9종을 유예한다 (~1분)
 tools/scripts/final-gates.sh --run <슬러그> --pre-pr

@@ -64,15 +64,20 @@ report() { # report <번호> <라벨> <why(빈 문자열이면 통과)>
   fi
 }
 
-run_suite() { # 케이스 8건
+run_suite() { # 케이스 9건
   local why full_plan pre_plan pre_defer def_plan def_skip m
 
   # ① full 모드는 아무것도 유예하지 않는다
+  # ★하한은 **계획 수가 아니라 게이트 행 수**로 잰다 (2026-08-14 · [BL-723]).
+  #   종전 `full_plan >= 20` 은 영역 판정이 넓어질수록 줄어드는 양이라 **환경 의존**이었다 —
+  #   앱 코드 diff 0 인 브랜치에서 정확히 20 이 나와 한 칸 남았다. 재려던 것은 「게이트 목록이
+  #   통째로 사라지지 않았나」이고, 그건 plan+skip 합계가 답한다(⑥ 과 같은 병이다).
   why=""
   full_plan="$(plan_count plan)"
+  local full_rows=$(( full_plan + $(plan_count skip) ))
   [ "$(plan_count DEFER)" = "0" ] || why="full 모드가 유예했다 ($(plan_count DEFER)건)"
-  [ "${full_plan:-0}" -ge 20 ] || why="${why}${why:+ · }full 계획이 ${full_plan}건뿐이다 (≥20 기대)"
-  report "①" "full — 유예 0 · 계획 ${full_plan}건" "$why"
+  [ "${full_rows:-0}" -ge 20 ] || why="${why}${why:+ · }full 게이트 행이 ${full_rows}건뿐이다 (≥20 기대)"
+  report "①" "full — 유예 0 · 계획 ${full_plan}건 / 전체 행 ${full_rows}건" "$why"
 
   # ② --pre-pr 은 유예한다
   why=""
@@ -94,12 +99,22 @@ run_suite() { # 케이스 8건
     why="pre-pr($pre_plan) + deferred-only($def_plan) ≠ full($full_plan) — 사라지거나 겹친 게이트가 있다"
   report "④" "분할 상보성 pre-pr + deferred-only == full" "$why"
 
-  # ⑤ 무거운 게이트는 --pre-pr 에서 유예된다 (대표 2종)
+  # ⑤ 무거운 게이트는 --pre-pr 에서 유예된다.
+  # ★대표를 **영역 판정 밖의 유예 대상**으로 바꿨다 (2026-08-14 · [BL-723]). 종전 대표
+  #   `BE pytest`·`e2e authed` 는 이제 영역 게이트라 앱 코드 diff 0 인 트리에서 DEFER 가 아니라
+  #   **skip** 이다 — ⑥ 이 죽어 있던 것과 **정확히 같은 병**이고, 이번엔 옮겨 심지 않는다.
   why=""
-  for m in "BE pytest" "e2e authed"; do
+  for m in "CI fresh DB alembic" "/codex 적대 리뷰"; do
     [ "$(mark_of "$m" --pre-pr)" = "DEFER" ] || why="${why}${why:+ · }'$m' 가 --pre-pr 에서 유예되지 않았다"
   done
-  report "⑤" "BE pytest · e2e authed 는 --pre-pr 에서 DEFER" "$why"
+  # 영역 게이트인 유예 대상은 **조건부**로 잰다 — 영역이 살아 있을 때(full=plan)만 DEFER 여야 한다.
+  for m in "BE pytest" "e2e authed"; do
+    if [ "$(mark_of "$m")" = "plan" ]; then
+      [ "$(mark_of "$m" --pre-pr)" = "DEFER" ] ||
+        why="${why}${why:+ · }'$m' 가 full=plan 인데 --pre-pr 에서 유예되지 않았다"
+    fi
+  done
+  report "⑤" "무거운 게이트는 --pre-pr 에서 DEFER (영역 게이트는 영역이 살아 있을 때)" "$why"
 
   # ⑥ 싼 게이트는 --pre-pr 에서도 돈다.
   # ★★대표를 **영역 판정 밖의 게이트**로 바꿨다(2026-08-14). 종전 판본은 `BE ruff`·`FE build` 가
@@ -134,16 +149,41 @@ run_suite() { # 케이스 8건
   bash "$TARGET" --run harness-probe --pre-pr --deferred-only >/dev/null 2>&1 && why="두 모드를 함께 받았다"
   bash "$TARGET" --run harness-probe --no-such-flag >/dev/null 2>&1 && why="${why}${why:+ · }미상 플래그를 받았다"
   report "⑧" "모드 배타 · 미상 플래그 거부" "$why"
+
+  # ⑨ ★비싼 게이트도 **영역 판정에 걸려 있다** ([BL-723]).
+  # 왜 있나 — 2026-08-14 실측: 앱 코드 diff 가 0 인 회차에서 `BE pytest` **357초**,
+  #   `e2e authed` **268초**, `e2e design-canon` **42초**가 그냥 탔다. 같은 회차에 CI 는
+  #   `backend`·`e2e` 잡을 전부 skip 했다 — **로컬이 CI 보다 더 돌면서 잴 것은 없었다.**
+  #   싼 형제(`BE ruff`·`e2e chromium`)는 이미 걸려 있었으므로 비대칭이 결함이다.
+  # ★★단언을 **환경 독립**으로 짠다 — 「skip 이어야 한다」로 쓰면 diff 가 있는 브랜치에서
+  #   상시 red 다(⑥ 이 정확히 그 병으로 죽어 있었다). 대신 **형제와 같은 마크**를 요구한다:
+  #   diff 가 있으면 둘 다 plan, 없으면 둘 다 skip. 어느 트리에서도 참이다.
+  local be_ruff be_pytest e2e_chr e2e_canon e2e_auth
+  why=""
+  be_ruff="$(mark_of "BE ruff")";        be_pytest="$(mark_of "BE pytest")"
+  e2e_chr="$(mark_of "e2e chromium")";   e2e_canon="$(mark_of "e2e design-canon")"
+  e2e_auth="$(mark_of "e2e authed")"
+  [ "$be_pytest" = "$be_ruff" ] ||
+    why="'BE pytest'($be_pytest) 가 'BE ruff'($be_ruff) 와 다르다 — 같은 has_be 여야 한다"
+  [ "$e2e_canon" = "$e2e_chr" ] ||
+    why="${why}${why:+ · }'e2e design-canon'($e2e_canon) 가 'e2e chromium'($e2e_chr) 와 다르다 — 같은 has_fe 여야 한다"
+  # authed = has_fe **또는** has_be. 둘 다 죽었으면(=형제 둘 다 skip) authed 도 skip 이어야 한다.
+  # ★그 반대는 요구하지 않는다 — BE 만 바뀐 트리에서 chromium 은 skip 인데 authed 는 돌아야 한다.
+  if [ "$e2e_chr" = "skip" ] && [ "$be_ruff" = "skip" ]; then
+    [ "$e2e_auth" = "skip" ] ||
+      why="${why}${why:+ · }FE·BE 둘 다 diff 0 인데 'e2e authed' 가 $e2e_auth 다"
+  fi
+  report "⑨" "비싼 게이트도 영역 판정에 걸린다 (pytest~ruff · canon~chromium · authed=fe|be)" "$why"
 }
 
 run_suite
 echo
-echo "  케이스: $((8 - FAIL))/8 통과, ${FAIL} 실패"
+echo "  케이스: $((9 - FAIL))/9 통과, ${FAIL} 실패"
 
 # ── 변이 — 케이스가 실제로 모드 디스패치를 보고 있는지 증명한다 ────────────────
 if [ "${1:-}" = "--mutants" ]; then
   echo
-  echo "── 변이 M1~M3 (사본 주입 · 케이스 8건 전량 재실행) ──"
+  echo "── 변이 M1~M3 (사본 주입 · 케이스 9건 전량 재실행) ──"
   BASE_RED="$RED_IDS"
   MUT_FAIL=0
 
@@ -181,8 +221,11 @@ PY
   # M2 — deferred-only 가 전부 돈다 ⇒ 분할이 깨진다
   mutate M2 '    deferred-only) is_deferrable "$1" && return 0 || return 1 ;;' \
              '    deferred-only) return 0 ;;' "③"
-  # M3 — 유예 목록이 비면 --pre-pr 이 아무것도 안 미룬다
-  mutate M3 'DEFERRABLE="BE pytest|e2e chromium' 'DEFERRABLE="__none__|e2e chromium' "⑤"
+  # M3 — 유예 목록에서 대표를 빼면 --pre-pr 이 그것을 안 미룬다.
+  # ★앵커를 `BE pytest` → `CI fresh DB alembic` 으로 옮겼다 ([BL-723]) — `BE pytest` 는 이제
+  #   영역 게이트라 앱 코드 diff 0 인 트리에서 **DEFERRABLE 에서 빼도 마크가 안 갈린다**
+  #   (영역이 먼저 skip 한다). 그 앵커로는 변이가 보이지 않는다.
+  mutate M3 '|CI fresh DB alembic|' '|__none__|' "⑤"
 
   # ★음성 대조 — 주석만 바꾼 사본은 red 0건이어야 한다 (변이 엔진 자체가 red 를 만들지 않는다)
   echo
