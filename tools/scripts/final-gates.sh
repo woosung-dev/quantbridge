@@ -300,7 +300,27 @@ fi
 #   `design-canon`·`authed` 는 종전대로 무조건 돈다 — `authed` 는 backend 변경도 문다.
 #   영역(has_fe)과 서버(정체성 프로브)는 직교하므로 **중첩**한다. 조건식이 두 번 나오는 것은
 #   의도다: 세 분기 전부에서 표의 행 순서(chromium → design-canon → authed)를 고정한다.
-if [ "$SKIP_E2E" -eq 1 ]; then
+# ★★모드·dry-run 판정은 **정체성 프로브보다 먼저** 온다 (2026-08-14, CI 가 잡았다).
+#   아래 프로브 실패 분기는 `record` 를 **직접** 부르므로 `run_gate` 의 모드 디스패치와
+#   `--dry-run` 을 **둘 다 우회**한다. 그대로 두면 서버가 없는 환경(CI · 개발 중인 로컬)에서
+#   `--pre-pr` 이 e2e 를 DEFER 가 아니라 **FAIL** 로 적어, 「중간에 싸게 돌린다」는 이 모드의
+#   존재 이유가 무너진다. 프로브 자체가 curl 이라 dry-run 에서 도는 것도 「계획만」과 어긋난다.
+if [ "$DRY" -eq 1 ]; then
+  # ★계획 표에서도 **모드별 마크가 실행 때와 같아야** 한다. 여기서 유예를 skip 으로 적으면
+  #   `--pre-pr` 의 유예 수와 `--deferred-only` 의 실행 수가 어긋나 분할 상보성이 깨진다
+  #   (하네스 케이스 ③④ 가 그것을 잡는다 — 실제로 이 줄을 그렇게 잡았다).
+  for _g in "e2e chromium" "e2e design-canon" "e2e authed"; do
+    if   mode_runs "$_g";           then record "$_g" "?" "e2e (계획)"
+    elif [ "$MODE" = "pre-pr" ];    then record "$_g" "~" "--pre-pr — push 뒤 --deferred-only 로 돈다"
+    else                                 record "$_g" "-" "--deferred-only — 이 모드 대상이 아니다"; fi
+  done
+elif ! mode_runs "e2e authed"; then   # 세 레인은 같은 유예 집합이라 한 번에 가른다
+  for _g in "e2e chromium" "e2e design-canon" "e2e authed"; do
+    if [ "$MODE" = "pre-pr" ]; then defer_gate "$_g" "--pre-pr — push 뒤 --deferred-only 로 돈다"
+    else record "$_g" "-" "--deferred-only — 이 모드 대상이 아니다"
+         printf '\n▶ %s\n  → 건너뜀 (--deferred-only)\n' "$_g"; fi
+  done
+elif [ "$SKIP_E2E" -eq 1 ]; then
   skip_gate "e2e chromium" "--skip-e2e"
   skip_gate "e2e design-canon" "--skip-e2e"; skip_gate "e2e authed" "--skip-e2e"
 else
