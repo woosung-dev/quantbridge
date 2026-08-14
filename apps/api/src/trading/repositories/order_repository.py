@@ -37,6 +37,25 @@ _HAS_EXCHANGE_EXIT_ROW = (
     .exists()
 )
 
+# 그 주문에 대한 **원장 청산 손익 합계** ([BL-731]). 분할 행을 합치므로 `SUM` 이다.
+# ★계정 축이 걸려 있으므로 [BL-725] 의 중복 290행은 이 합계를 부풀리지 않는다 — 그 중복은
+#   같은 Bybit uid 의 **앱 계정 행 둘** 사이로 갈라져 있고, 한 계정 안에서는
+#   `Index("uq_exchange_exits_row", "exchange_account_id", "row_hash", unique=True)` 가 막는다.
+#   같은 근거가 `exchange_exit_repository.aggregate_closed_pnl` 독스트링에 이미 적혀 있다.
+# ★원장 행이 없으면 `NULL` 이다. `IS DISTINCT FROM` 은 그것을 「다르다」로 읽으므로
+#   **반드시 `_HAS_EXCHANGE_EXIT_ROW` 와 함께** 써라 — 혼자 쓰면 원장에 증거가 없는 주문까지
+#   재검증 대상이 되고 스윕은 `ledger_pnl is None` 으로 걸러 매 tick 헛돈다.
+# ★`type: ignore` 자리가 위와 다르다 — `select(ExchangeExit.id)` 는 `call-overload` 를 눌러
+#   뒤 체인이 `Any` 가 되지만, `select(func.sum(...))` 은 그 오버로드에 안 걸려 타입이 살아남고
+#   `.where()` 인자에서 걸린다(SQLModel 속성이 인스턴스 타입으로 추론된다). 그래서 `arg-type` 이다.
+_EXCHANGE_EXIT_PNL_SUM = (
+    select(func.sum(ExchangeExit.closed_pnl))
+    .where(ExchangeExit.exchange_account_id == Order.exchange_account_id)  # type: ignore[arg-type]
+    .where(ExchangeExit.exchange_order_id == Order.exchange_order_id)  # type: ignore[arg-type]
+    .correlate(Order)
+    .scalar_subquery()
+)
+
 # ★`src.trading.services.*` 를 모듈 수준에서 import 하지 마라 — 순환이다.
 #   `services/__init__` 이 `order_service` 를 물고, 그게 `kill_switch` 를 거쳐 이 파일로
 #   되돌아온다(`ImportError: partially initialized module`). 그래서 이 파일의 기존
@@ -812,6 +831,18 @@ class OrderRepository:
         ★[BL-438] — 술어를 위 미동기화 쪽과 **함께** 바꾼다. 한쪽만 원장 조인으로
         넓히면 새로 백필된 `reduce_only=false` 490건이 `synced_at` 은 갖는데 정정 경로에는
         영영 안 들어와, 부분합 고정을 되돌리는 이 안전망이 그 주문들에만 사라진다.
+
+        ★★**[BL-731] — 「이미 일치하는 행」은 모집단에서 뺀다.** [BL-438] 이 대상 선정을 원장
+        EXISTS 로 바꾸면서 모집단이 `reduce_only` 73건 → **563건**(서버 실측)이 됐다. 그중
+        대다수는 이미 일치하는데도 `limit` 예산을 먹고, `filled_at desc` 정렬이라 **가장
+        오래된 63건이 밀려난다** — 그리고 다음 tick 에도 같은 이유로 밀리므로 **영구 제외**다.
+
+        미동기화 축과 성질이 다르다: 그쪽은 백필에 성공하면 모집단에서 빠져 **배수**되지만,
+        동기화 축은 **단조 증가**라 한 번 상한을 넘으면 스스로 줄지 않는다.
+
+        ⇒ 상한을 키우는 대신 `resync_exchange_realized_pnl` 이 이미 갖고 있는
+        `IS DISTINCT FROM` 가드를 **SQL 술어로 끌어올린다**. 정정된 행은 다음 tick 에 술어에서
+        빠지므로 모집단이 **0 으로 수렴**하고 상한이 무의미해진다 — 정렬을 바꿀 필요도 없다.
         """
         stmt = (
             select(Order)
@@ -820,6 +851,7 @@ class OrderRepository:
             .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
+            .where(Order.realized_pnl.is_distinct_from(_EXCHANGE_EXIT_PNL_SUM))  # type: ignore[union-attr]
             .order_by(Order.filled_at.desc())  # type: ignore[union-attr]
             .limit(limit)
         )
