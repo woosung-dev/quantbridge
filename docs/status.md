@@ -292,32 +292,22 @@ tick_stall 실격 1건(13:03Z)은 **down 창 자체**다 — operational 등재,
 
 > **PR #627 머지(`5736ee40`)로 종결** · 하네스 9→10종. ★★★한 줄 = **「스텁 초록 ≠ 정본 초록」** — 하네스 11/11 이던 축이 정본 `lessons.md` 에서 오탐 3건, 적대 프로브에서 구멍 2건([LESSON-108]). tombstone: 원문 = `git show 3e3e0174:docs/status.md` (303~358행).
 
-## ★2026-08-14 — `real-broker-e2e` 회차 ([BL-024] 실주문 leg · 로컬 축)
+## ★2026-08-14 — `real-broker-e2e` 회차 ([BL-024] 실주문 leg · 로컬 축 · **PR #628 머지**)
 
-**왜 지금인가 — 창이 열려 있다.** [BL-024] 와 소크는 같은 Bybit demo 계정(uid 558689281)을 놓고
-**상호배타**이고(`tools/scripts/nightly-real-broker-local.sh:133-135` 가 활성 세션 ≠0 이면 SKIP),
-2026-08-14 실측으로 **활성 세션 = 0** 이다. 소크는 C1 = 24h × 3회라 켜는 순간 최소 수일 닫힌다.
-⇒ **시간 단위 작업(BL-024) → 일 단위 무인 작업(소크 재기동)** 순서가 곧 결정이다.
+**왜 지금이었나 — 창이 열려 있었다.** [BL-024] 와 소크는 같은 Bybit demo 계정(uid 558689281)을 놓고
+**상호배타**다(`nightly-real-broker-local.sh:133-135` 가 활성 세션 ≠0 이면 SKIP). 착수 시 0 이었고,
+소크는 C1 = 24h × 3회라 켜는 순간 수일 닫힌다 ⇒ **시간 단위(BL-024) → 일 단위(소크)** 순서가 결정이었다.
 
-**착수 preflight 로 원장 처방 3건이 코드에 반증됐다:**
+**착수 preflight 가 원장 처방 3건을 코드로 반증했다** (전문 = `docs/backlog.md` [BL-024] 상태줄):
+⑴ 「skeleton 을 채운다」는 **여전히 유효**했다(`pytest.skip` 이 살아 있었다 — 원장이 반증한 것은
+「그것만 하면 nightly 가 통과한다」였지 skeleton 의 존재가 아니다). ⑵ ★「Bybit Demo **Spot**
+BTC/USDT」는 하네스를 **거짓 안전망**으로 만든다(flat 판정이 `fetch_open_positions` 인데 spot 엔
+포지션이 없다) ⇒ linear perp. ⑶ ★`db_session` 픽스처 금지 — savepoint commit 이 하네스가 여는
+**별도 엔진**에서 안 보여 전건 `undecidable` 이 된다.
 
-⑴ **「skeleton 을 채운다」는 여전히 유효하다** — `tests/real_broker/test_webhook_to_filled_e2e.py:97` 의
-`pytest.skip("Phase C skeleton…")` 이 **살아 있다**. 로컬 nightly 「1 passed, 1 skipped」의 skipped 가
-정확히 이것이고, passed 는 DB 를 안 쓰는 `test_kill_switch_capital_base.py` 다. 원장이 반증한 것은
-「그것만 하면 nightly 가 통과한다」였지 skeleton 의 존재가 아니었다.
-
-⑵ ★**skeleton 의 「Bybit Demo Spot BTC/USDT」는 틀렸다.** 청산 하네스는 `fetch_open_positions`
-(`tests/real_broker/_harness.py:376`)로 flat 을 판정하는데 **Spot 에는 포지션 개념이 없다** —
-무엇을 사든 항상 `flat` 을 보고하는 **거짓 안전망**이 된다. ⇒ linear futures `BTC/USDT:USDT` 여야 한다.
-
-⑶ ★**`db_session` 픽스처를 쓰면 하네스가 전건 `undecidable` 이 된다.** `tests/conftest.py:340-363` 은
-connection + outer tx + savepoint 라 `commit()` 이 savepoint 재시작일 뿐 **다른 커넥션에서 안 보인다**.
-그런데 `_harness._open_db()` 는 `create_worker_engine_and_sm()` 으로 **별도 엔진**을 연다 ⇒
-「live session 행이 없다」. 원장에도 skeleton 주석에도 이 경고가 없다.
-
-**사용자 결정 3건 (2026-08-14):** ⓐ 경로 = **service-level**(HTTP webhook 층은 다음 회차 — `app`
-픽스처의 `get_async_session` override 를 커밋 세션으로 갈아야 한다) · ⓑ **로컬 축만**(CI 는 지리 403
-이라 secret 등록 이득이 신호 정직성뿐 — 별건 BL) · ⓒ **이 회차 끝에 소크 재기동**.
+**사용자 결정 4건 (2026-08-14):** ⓐ 경로 = **service-level**(HTTP webhook 층은 다음 회차) ·
+ⓑ **로컬 축만**(CI 는 지리 403 이라 실검증은 로컬이 한다 — 별건 BL) · ⓒ 고아 포지션 청산 승인 ·
+ⓓ **게이트·PR 을 먼저 닫고 머지 후 main 에서 소크 재기동**.
 
 ★**부수 — ADR-029 이전 판 `backend/AGENTS.md` 가 되살아나 있었다**(untracked · `b932439b^` 와 바이트
 일치). codex 는 **가까운 `AGENTS.md` 만** 보므로([ADR-027](decisions/027-nested-agents-md.md)) 잔존물이
@@ -349,24 +339,35 @@ watchdog `_async_fetch_order_status` 로 `filled` 확정 → 2층 하네스 청�
 
 ★★**codex 적대 리뷰 3건이 전부 참이었다**(phantom 0 · 15분 타임박스 안 · 처분 전문 =
 `.claude/gates/real-broker-e2e/codex.ok`). **셋 다 내 첫 수리판이 `fail-open` 이었다는 같은 병**이다 —
-⑴ 판정이 읽는 `$LOG` 를 최상단 `exec > >(tee -a)` 가 **비동기**로 써서 요약 줄이 아직 없을 수 있다
-(기존 지리차단 판정도 같은 패턴) ⇒ 동기 파이프라인 `| tee "$PYTEST_OUT"`. ⑵ 「요약 줄 없음 =
-0 skipped」라 `--collect-only`·ANSI·`xfailed` 가 PASS 로 샌다 ⇒ 찾기/세기 함수를 **갈라** 빈 줄을
-**BLOCKED** 로. ⑶ 파일명은 `webhook_to_filled` 인데 HTTP·HMAC 을 **한 줄도 안 탄다** ⇒ 함수명 교체 +
-docstring 에 **재지 않는 것** 명시. ★내가 따로 찾은 P3 = 테스트가 DSN 교체를 **손으로 재구현**
-([LESSON-109] 의 씨앗) ⇒ `_test_dsn_in_effect` 사용. 재대조 **12/12** · 정본 재실행 `PASS (passed 2 · 미실행 0)`.
+⑴ 판정이 읽는 `$LOG` 를 `exec > >(tee -a)` 가 **비동기**로 써서 요약 줄이 아직 없을 수 있다 ⇒ 동기
+파이프라인 `| tee "$PYTEST_OUT"`. ⑵ 「요약 줄 없음 = 0 skipped」라 `--collect-only`·ANSI·`xfailed` 가
+PASS 로 샌다 ⇒ 찾기/세기 함수를 **갈라** 빈 줄을 **BLOCKED** 로. ⑶ 파일명은 `webhook_to_filled` 인데
+HTTP·HMAC 을 **한 줄도 안 탄다** ⇒ 함수명 교체 + docstring 에 재지 않는 것 명시. 재대조 **12/12**.
 
 ★**그리고 이 회차가 자기 함정을 두 번 밟았다.** ⓐ `deferred.txt` 를 「소멸」로 보고했는데 cwd 가
 `apps/api` 라 상대경로가 빗나갔고 실제로는 남아 있었다(§7⑤ 그대로). ⓑ 리뷰 결과를 status 에 적은 뒤
 `--deferred-only` 만 돌렸는데 **그 모드는 docs-audit 을 안 돈다** — 700줄 상한 초과를 CI 가 잡았다.
 ⇒ 「게이트는 마지막 커밋 뒤에」는 **`--pre-pr` 까지** 다시 돌리는 것을 뜻한다.
 
-**다음 행동 = 이 PR 이 머지되면 `tools/scripts/soak-restart.sh --confirm` 으로 소크를 재기동한다**
-(거래소 flat 확인 완료 · 파라미터는 원장 최근 세션에서 자동 추출됨).
-★**소크 재기동은 개발 스택을 갈아끼운다** — 지금 도는 `quantbridge-*` 6종은 프로젝트 `quant-bridge`
-**2층**(`docker-compose.yml`+`isolated.yml`)이고 `soak-stack.sh` 는 **같은 프로젝트명 3층**(`+soak.yml`)
-이라, `down`→`pin`→`up` 이 그 6종을 소크 고정본으로 바꾼다. 그래서 **게이트·PR 을 먼저 닫는다**
-(2026-08-14 사용자 결정). 그 뒤 축 = 소크 실격 원장 desync 4건 · [BL-641].
+~~**다음 행동 = 이 PR 이 머지되면 소크를 재기동한다**~~ → **2026-08-14 완료 (아래).**
+★**소크 재기동은 개발 스택을 갈아끼운다** — 도는 `quantbridge-*` 6종은 프로젝트 `quant-bridge`
+**2층**(`+isolated.yml`)이고 `soak-stack.sh` 는 **같은 프로젝트명 3층**(`+soak.yml`)이라
+`down`→`pin`→`up` 이 그 6종을 소크 고정본으로 바꾼다. 그래서 게이트·PR 을 먼저 닫았다.
+
+### ★소크 재기동 완료 (2026-08-14 05:53Z) — 7일 정지가 끝났다
+
+**PR #628 머지(`4b11da26`) 직후 main 에서 집행했다**(사용자 결정 = 머지 후 main). 실측 4축:
+`.soak/pin-history.jsonl` = `pin`+`up` **둘 다 `4b11da26`** · 활성 세션 **1**(`e9c504f1`) ·
+컨테이너 6종 Up · `soak-gate` rc=**2 UNKNOWN**(창이 방금 열려 C1 미충족 — 정상).
+★**C2 는 리셋됐고 C1 은 유지된다** — 재기동은 새 창을 열 뿐이다. C5 측정 무결 6/6 ✓ ·
+`stack_pinned` ✓ (2026-08-14 오전의 ✗ 가 해소됐다).
+
+**다음 행동 = ⓪ 표에서 다음 항목을 사용자와 고른다.** 인계 3건 —
+⑴ ★**소크 실격 원장이 낡았다**: `soak-disqualifications.jsonl` 에만 있고 실격 목록에 없는 행
+**4건**(2026-08-07T15:09~15:10 phantom 2 + auto_death 1) · 원장 미등재 **6건**(undecided 로 계상).
+⑵ [BL-641] soak C1 문턱 해석 — MTBF 재측정. ⑶ [BL-024] 잔여 = HTTP webhook 층 · CI 축.
+★**소크가 도는 동안 [BL-024] nightly 는 매일 SKIP 으로 찍힌다** — 같은 Bybit 계정이라 정상이고,
+이제 그 SKIP 이 PASS 로 위장되지 않는다(이번 회차 `_verdict` 수리).
 
 ### ★환경 상태 (2026-08-08 23:30Z 정리 — 다음 세션이 그대로 이어받는다)
 
