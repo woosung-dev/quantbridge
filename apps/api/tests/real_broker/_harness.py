@@ -363,6 +363,60 @@ async def flatten_one(db: AsyncSession, target: CleanupTarget) -> CleanupResult:
             ),
         )
 
+    # 2.5 ★★★계정 배타성 — **닫기 전에** 이 계정이 우리만의 것인지 판정한다.
+    #
+    #   `close_position` 은 계정 포지션을 **소유권을 보지 않고** 닫는다. 그래서 다른 호스트가
+    #   같은 Bybit demo 계정에 붙어 있으면 그쪽 포지션까지 닫는다. 2026-08-14 실측 —
+    #   서버 소크 세션 `de3db35a` 가 그렇게 죽었다:
+    #
+    #     04:44:07  소크 sell 0.058                       → 서버 숏 −0.029
+    #     04:49:56  Buy 0.029 CreateByUser link=(empty)   ← 이 하네스의 청산
+    #     04:50:27  exchange_position=+0.001              ← 남은 잔량, 관측치와 정확히 일치
+    #     04:51:27  같은 값 2연속 → strike kill → position_divergence 사망
+    #
+    #   그때 4단계 verify-flat 은 `positions` 가 비었으므로 **성공으로 보고**했다 — 남의
+    #   포지션을 닫았다는 것을 구조적으로 알 수 없었다. [BL-633] 의 재발이고 경로만 다르다.
+    #
+    # ★판정기를 새로 만들지 않는다 — `live_session_admin.find_foreign_resting` 이 이미
+    #   `order_link_id` 소유권으로 판정한다. 이 하네스는 `_test_dsn_in_effect()` 아래에서
+    #   **테스트 DB** 를 열고 있으므로 그 원장에는 테스트 주문만 있고, 남의 조건부 진입은
+    #   자동으로 FOREIGN 이 된다.
+    #
+    # ★fail-closed 다. 조회가 실패해도 청산하지 않는다 — 「남이 있는지 모른다」에서 닫는 것이
+    #   바로 위 사고다. 결과 status 는 `undecidable` 이고, 그것이 `flat` 이 아니므로 집계
+    #   보고서에서 RESIDUAL 로 세어져 세션 exit code 를 1 로 만든다(둘은 다른 층위다).
+    # ★`account_id` 를 넘겨 **그 계정의 uid 형제만** 본다. 안 넘기면 무관한 계정의 FOREIGN
+    #   하나가 깨끗한 타깃의 청산까지 영구히 막는다(2026-08-15 codex P2).
+    #
+    # ★★**이 가드가 막지 못하는 것**(2026-08-15 codex P1 · [BL-738] 로 등재):
+    #   ⑴ 남이 **resting 없이** 포지션만 갖고 있으면(시장가 진입 · 이미 체결된 조건부)
+    #      `foreign=[]` 로 통과한다 — 「빈 목록 = 계정 배타적」은 성립하지 않는다.
+    #   ⑵ probe 와 실제 청산 사이에 락이 없어 그 틈에 남이 들어오면 그대로 닫는다.
+    #   근본 해결은 거래소 계정 분리이고, 그 전까지 이 가드는 **2026-08-14 형태의 사고**
+    #   (남이 조건부를 걸어 둔 채 도는 소크)를 막는 데까지다.
+    try:
+        from scripts.live_session_admin import find_foreign_resting
+
+        foreign = await find_foreign_resting(db, target.symbol, account_id=target.account_id)
+    except Exception as exc:
+        return CleanupResult(
+            target=target,
+            status="undecidable",
+            detail=(
+                f"계정 배타성 판정 실패: {type(exc).__name__}: {exc} — "
+                "남의 포지션을 닫을 위험이 있어 청산하지 않는다"
+            ),
+        )
+    if foreign:
+        return CleanupResult(
+            target=target,
+            status="undecidable",
+            detail=(
+                "이 계정에 남의 resting 조건부 주문이 있다 — 다른 호스트가 같은 거래소 계정에 "
+                f"붙어 있다. close_position 은 소유권을 보지 않으므로 청산하지 않는다: {foreign}"
+            ),
+        )
+
     # 3. flatten — 409 no_open_position 은 성공으로 흡수한다(멱등).
     flatten_detail = "close_position 접수"
     order_id: UUID | None = None

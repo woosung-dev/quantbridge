@@ -43,6 +43,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -144,6 +145,106 @@ async def _load_session(session: AsyncSession, session_id: UUID) -> LiveSignalSe
     return sess
 
 
+@dataclass(frozen=True, slots=True)
+class RestingRow:
+    """resting 조건부 주문 하나 + 소유권 판정. `owned=False` 가 FOREIGN 이다."""
+
+    label: str
+    order: Any
+    owned: bool
+
+    def describe(self) -> str:
+        link = self.order.order_link_id or "(link 없음)"
+        return f"{self.label}:{self.order.order_id}:{link}"
+
+
+async def scan_resting_conditionals(
+    session: AsyncSession, symbol: str, *, account_id: UUID | None = None
+) -> list[RestingRow]:
+    """계정별 resting 조건부 주문을 **한 번만** 조회하고 소유권을 판정한다.
+
+    ★**`_cmd_status` 에서 뽑아낸 판정 본문이다** — 인라인으로 두면 화면 밖에서 재사용할 수
+    없었다. `_cmd_status` 는 이제 이것을 부르고 **출력만** 한다(출력 문구·순서는 그대로다 —
+    `soak-restart.sh` 가 `FLAT=` 등을 sed 로 긁는다).
+
+    ★★★**조회 결과를 그대로 돌려주는 이유** — 초판은 `list[str]` 만 돌려줬고 `_cmd_status` 가
+    출력을 위해 거래소를 **다시** 읽었다. 그래서 [BL-651] 회귀
+    (`test_status_counts_resting_orders_once_per_real_exchange_account`)가 red 가 됐다.
+    「계정당 조회 1회」는 그 회귀가 지키는 계약이고, 한 출력 안에 서로 다른 시점이 섞이면
+    `RESTING_CONDITIONAL` 과 `FOREIGN_RESTING` 이 다른 순간을 말한다(2026-08-15 codex P1).
+
+    ★★**초판은 `"<label>:<id>:<link>"` 를 만들고 `split(":", 2)[1]` 로 되짚었다.** label 에는
+    `:` 금지가 없으므로(`schemas.py:32`) `server:primary` 같은 라벨에서 실제 FOREIGN 행이
+    `[ours]` 로 찍혔다. 이제 구조체를 돌려주므로 되짚기 자체가 없다(codex P2).
+
+    ★판별자는 반드시 `order_link_id` **소유권**이다. 「resting 이 있다」만으로 막으면 우리
+    자신의 주문에도 걸려 정상 재기동이 영원히 거부된다.
+
+    ★`reduce_only=None` 이어야 한다 — 기본값 `True` 는 TP/SL 만 준다. 오염을 만드는 것은
+    **조건부 진입**(reduce-only 가 아니다)이다.
+
+    ★호출자의 DB 가 판정 범위를 정한다. 하네스는 **테스트 DB** 를 열고 있으므로 그 원장에는
+    테스트가 만든 주문만 있고, 남의 조건부 진입은 자동으로 FOREIGN 이 된다.
+
+    Args:
+        account_id: 주면 **그 계정과 같은 `exchange_uid`** 만 본다. 무관한 계정의 FOREIGN
+            하나가 깨끗한 타깃의 청산까지 영구히 막는 것을 피한다(codex P2). `None` 이면
+            전 bybit 계정 — `_cmd_status` 는 계정 전체를 보여주는 것이 목적이라 그쪽이다.
+    """
+    from sqlalchemy import text
+
+    account_repo = ExchangeAccountRepository(session)
+    svc = ExchangeAccountService(
+        repo=account_repo,
+        crypto=get_encryption_service(),
+        bybit_futures_provider=get_bybit_futures_provider(),
+    )
+    accounts = dedupe_accounts_by_exchange_uid(
+        list(await account_repo.list_by_exchange(ExchangeName.bybit))
+    )
+    if account_id is not None:
+        # ★대표 행이 target 자신이 아닐 수 있다(dedupe 가 uid 별로 하나를 고른다).
+        #   그래서 id 가 아니라 **uid** 로 좁힌다. uid 를 못 읽으면 좁히지 않는다 —
+        #   모르는 것을 좁힘의 근거로 쓰면 가드가 조용히 넓은 눈을 감는다.
+        target = await account_repo.get_by_id(account_id)
+        target_uid = getattr(target, "exchange_uid", None) if target is not None else None
+        if target_uid:
+            accounts = [a for a in accounts if a.exchange_uid == target_uid]
+
+    ledger_order_ids = {
+        str(row[0]) for row in (await session.execute(text("SELECT id FROM trading.orders"))).all()
+    }
+    rows: list[RestingRow] = []
+    for account in accounts:
+        label = account.label or "(no label)"
+        creds = await svc.get_credentials_for_order(account.id)
+        orders = await get_bybit_futures_provider().fetch_open_conditional_orders(
+            creds, symbol, reduce_only=None
+        )
+        for order in orders:
+            link = order.order_link_id
+            rows.append(
+                RestingRow(
+                    label=label, order=order, owned=link is not None and link in ledger_order_ids
+                )
+            )
+    return rows
+
+
+async def find_foreign_resting(
+    session: AsyncSession, symbol: str, *, account_id: UUID | None = None
+) -> list[str]:
+    """남의 것으로 판정된 resting 조건부 주문의 설명 목록. 빈 목록 = 그 범위에서 배타적.
+
+    `scan_resting_conditionals` 의 얇은 래퍼다 — 호출자가 「막을지 말지」만 알면 될 때 쓴다.
+    ★단 **이것이 「계정이 깨끗하다」를 뜻하지는 않는다.** resting 주문이 없는 진입(시장가 ·
+    이미 체결된 조건부)은 이 축에 안 잡히고, probe 와 실제 청산 사이의 경쟁도 막지 못한다
+    (2026-08-15 codex P1 — [BL-738] 로 등재했다).
+    """
+    rows = await scan_resting_conditionals(session, symbol, account_id=account_id)
+    return [row.describe() for row in rows if not row.owned]
+
+
 async def _cmd_status(symbol: str) -> None:
     """활성 세션 + **계정별 거래소 포지션**.
 
@@ -197,12 +298,7 @@ async def _cmd_status(symbol: str) -> None:
             accounts = dedupe_accounts_by_exchange_uid(
                 list(await account_repo.list_by_exchange(ExchangeName.bybit))
             )
-            # 이 원장이 아는 주문 id 전량. 배타성 판별의 **소유권** 축이다.
-            # ★내부 id 가 그대로 `orderLinkId` 로 거래소에 나간다는 규약 때문에 이 대조가 결정적이다.
-            ledger_order_ids = {
-                str(row[0])
-                for row in (await session.execute(text("SELECT id FROM trading.orders"))).all()
-            }
+            # ★소유권 축(원장 주문 id 전량)은 `find_foreign_resting` 안으로 옮겼다.
 
             print(f"\n거래소 포지션 ({symbol}):")
             any_open = False
@@ -234,26 +330,24 @@ async def _cmd_status(symbol: str) -> None:
             # ★★가드가 정상 재기동을 막지 않게 판별자는 반드시 `order_link_id` **소유권**이다.
             #   우리 것까지 「남의 것」으로 세면 영원히 거부된다.
             print(f"\n미체결 조건부 주문 ({symbol}):")
-            resting_total = 0
-            foreign: list[str] = []
+            # ★소유권 판정 본문은 `scan_resting_conditionals` 가 갖는다 — 여기서 베끼지 않는다.
+            #   두 벌이 되면 하네스가 부르는 판정과 화면이 보여주는 판정이 갈린다.
+            # ★★**거래소는 그 함수 안에서 계정당 한 번만 읽는다.** 출력하려고 여기서 다시 읽으면
+            #   [BL-651] 회귀가 red 가 되고, 한 출력 안에 서로 다른 시점이 섞인다.
+            resting_rows = await scan_resting_conditionals(session, symbol)
+            resting_total = len(resting_rows)
+            foreign = [row.describe() for row in resting_rows if not row.owned]
             for account in accounts:
                 label = account.label or "(no label)"
-                creds = await svc.get_credentials_for_order(account.id)
-                orders = await get_bybit_futures_provider().fetch_open_conditional_orders(
-                    creds, symbol, reduce_only=None
-                )
-                resting_total += len(orders)
-                for order in orders:
-                    link = order.order_link_id
-                    owned = link is not None and link in ledger_order_ids
-                    if not owned:
-                        foreign.append(f"{label}:{order.order_id}:{link or '(link 없음)'}")
-                    mark = "ours" if owned else "★FOREIGN"
+                mine = [row for row in resting_rows if row.label == label]
+                for row in mine:
+                    order = row.order
+                    mark = "ours" if row.owned else "★FOREIGN"
                     print(
                         f"  {label}: {order.side} {order.kind} qty={order.qty} "
-                        f"trigger={order.trigger_price} link={link or '-'} [{mark}]"
+                        f"trigger={order.trigger_price} link={order.order_link_id or '-'} [{mark}]"
                     )
-                if not orders:
+                if not mine:
                     print(f"  {label}: 없음")
 
             # ★`FLAT=` 은 **한 줄만** 출력한다 — `soak-restart.sh` 가 sed 로 마지막 줄을 긁는다.
