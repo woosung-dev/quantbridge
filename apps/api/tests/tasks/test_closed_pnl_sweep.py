@@ -15,9 +15,7 @@ from src.trading.models import ExchangeMode, ExchangeName, ExitClassification, O
 from src.trading.providers import ClosedOrderMeta, ClosedPnlSnapshot
 
 
-def _account(
-    *, exchange_uid: str | None = None, read_only: bool | None = None
-) -> SimpleNamespace:
+def _account(*, exchange_uid: str | None = None, read_only: bool | None = None) -> SimpleNamespace:
     # `exchange_uid` 기본값이 None 인 것은 실제 컬럼 기본값과 같다 — uid 미상인 행은
     # 서로 묶이지 않으므로 기존 단일 계정 테스트는 dedup 도입 전후로 동일하다.
     return SimpleNamespace(
@@ -141,6 +139,15 @@ def _sessionmaker(state: _State):
 def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> None:
     import src.tasks.trading as trading_mod
 
+    # ★[BL-438] 페이크도 프로덕션 술어의 **제약 축**을 흉내낸다 — 백필 후보의 정의는
+    #   「원장에 그 주문의 청산 행이 있는가」이고 `reduce_only` 가 아니다. 페이크가
+    #   `unsynced_orders` 를 그대로 돌려주면 술어를 없애는 변이가 하네스 안에서 소멸해
+    #   조용히 통과한다(LESSON-092 ③ — 페이크는 프로덕션의 제약 축을 흉내내라).
+    def ledger_order_ids(account_id: UUID) -> set[str]:
+        return {
+            row.exchange_order_id for row in state.rows if row.exchange_account_id == account_id
+        }
+
     class AccountRepository:
         def __init__(self, session: MagicMock) -> None:
             self.session = session
@@ -166,9 +173,9 @@ def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> Non
             sums: dict[str, Decimal] = {}
             for row in state.rows:
                 if row.exchange_order_id in order_ids:
-                    sums[row.exchange_order_id] = sums.get(
-                        row.exchange_order_id, Decimal("0")
-                    ) + row.closed_pnl
+                    sums[row.exchange_order_id] = (
+                        sums.get(row.exchange_order_id, Decimal("0")) + row.closed_pnl
+                    )
             return sums
 
         async def list_by_row_hashes(self, account_id: UUID, hashes):
@@ -190,21 +197,33 @@ def _install_repositories(monkeypatch: pytest.MonkeyPatch, state: _State) -> Non
             # 드러나야 BL-457 회귀가 조용히 통과하지 못한다.
             return frozenset(state.existing_order_ids) & frozenset(order_ids)
 
-        async def list_unsynced_reduce_only(self, account_id: UUID):
-            return state.unsynced_orders
+        async def list_unsynced_with_exchange_exit(self, account_id: UUID):
+            seen = ledger_order_ids(account_id)
+            return [
+                o
+                for o in state.unsynced_orders
+                if o.exchange_order_id in seen and o.realized_pnl_synced_at is None
+            ]
 
         async def backfill_exchange_realized_pnl(self, order_id: UUID, *, realized_pnl, synced_at):
+            # ★실제 UPDATE 는 `realized_pnl_synced_at IS NULL` 을 요구한다 — 같은 주문에
+            #   두 번째 호출은 rowcount 0 이다. 페이크가 늘 1 을 돌려주면 **멱등을 재는
+            #   테스트가 항진명제**가 된다(두 번째 회차도 무조건 applied 로 센다).
+            order = next((o for o in state.unsynced_orders if o.id == order_id), None)
+            if order is None or order.realized_pnl_synced_at is not None:
+                return 0
+            order.realized_pnl_synced_at = synced_at
+            order.realized_pnl = realized_pnl
             state.backfills.append((order_id, realized_pnl))
             return 1
 
-        async def list_synced_reduce_only(self, account_id: UUID):
-            return state.synced_orders
+        async def list_synced_with_exchange_exit(self, account_id: UUID):
+            seen = ledger_order_ids(account_id)
+            return [o for o in state.synced_orders if o.exchange_order_id in seen]
 
         async def resync_exchange_realized_pnl(self, order_id: UUID, *, realized_pnl, synced_at):
             # 실제 CAS 는 값이 같으면 rowcount 0 이다. 페이크도 같은 계약을 흉내낸다.
-            stored = next(
-                (o.realized_pnl for o in state.synced_orders if o.id == order_id), None
-            )
+            stored = next((o.realized_pnl for o in state.synced_orders if o.id == order_id), None)
             if stored == realized_pnl:
                 return 0
             state.resyncs.append((order_id, realized_pnl))
@@ -301,7 +320,89 @@ async def test_sweep_continues_when_meta_lookup_fails(monkeypatch: pytest.Monkey
 
 
 @pytest.mark.asyncio
-async def test_sweep_aggregates_ledger_rows_before_backfill(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_sweep_backfills_a_reversal_close_that_carries_no_reduce_only_flag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[BL-438] 종단 — `reduce_only=false` 반전 청산이 백필된다.
+
+    소크 전략은 반전 주문(`sell 0.058 = 2×0.029`)으로 청산한다. 반전에는 `reduce_only`
+    를 걸 수 없어(걸면 거래소가 포지션 크기까지만 체결해 반전이 깨진다) 종전 술어는
+    이 주문을 후보에서 배제했고, 그렇게 실현손익의 93.1%(490건 / −1,023.87 USDT)가
+    kill-switch 입력에서 빠져 있었다.
+
+    ★두 번 돌려 **멱등**도 같이 고정한다 — 두 번째 회차는 원장도 백필도 안 늘어야 한다.
+    """
+    import src.tasks.trading as trading_mod
+
+    now = datetime(2026, 7, 25, tzinfo=UTC)
+    account = _account()
+    state = _State([account])
+    reversal = _order(account.id, "reversal-close", reduce_only=False)
+    state.unsynced_orders = [reversal]
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(
+            return_value=[_snapshot("reversal-close", created_at_ms=2, closed_pnl="-2.09")]
+        ),
+        fetch_closed_order_meta=AsyncMock(return_value={}),
+    )
+
+    first = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=now
+    )
+
+    assert first["backfilled"] == 1, "reduce_only 가 아니어도 원장이 증언하면 백필된다"
+    assert state.backfills == [(reversal.id, Decimal("-2.09"))]
+
+    second = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=now
+    )
+
+    assert second["inserted"] == 0, "같은 청산 행이 두 번 적재되면 안 된다"
+    assert second["backfilled"] == 0, "이미 확정된 주문을 다시 백필하면 안 된다"
+    assert state.backfills == [(reversal.id, Decimal("-2.09"))]
+    assert len(state.rows) == 1
+
+
+@pytest.mark.asyncio
+async def test_sweep_skips_orders_the_ledger_never_saw(monkeypatch: pytest.MonkeyPatch) -> None:
+    """[BL-438] 음성 대조 — 원장에 청산 행이 없는 주문은 백필되지 않는다.
+
+    ★위 종단 테스트만으로는 판별력이 부족하다. 술어를 통째로 없애도(= 모든 미동기화
+    체결 주문을 후보로) 그 테스트는 초록이다. 「안 걸리는 것이 있다」를 재야 술어가
+    실제로 무언가를 거른다는 증거가 된다 — 진입 주문에 남의 손익이 얹히는 것이
+    [BL-438] 이 막으려는 이중계상이다.
+    """
+    import src.tasks.trading as trading_mod
+
+    now = datetime(2026, 7, 25, tzinfo=UTC)
+    account = _account()
+    state = _State([account])
+    entry = _order(account.id, "entry-only", reduce_only=False)
+    close = _order(account.id, "real-close", reduce_only=False)
+    state.unsynced_orders = [entry, close]
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        # 원장은 청산 주문 하나만 증언한다.
+        fetch_closed_pnl_window=AsyncMock(
+            return_value=[_snapshot("real-close", created_at_ms=2, closed_pnl="-3.00")]
+        ),
+        fetch_closed_order_meta=AsyncMock(return_value={}),
+    )
+
+    summary = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=now
+    )
+
+    assert summary["backfilled"] == 1
+    assert state.backfills == [(close.id, Decimal("-3.00"))]
+    assert entry.realized_pnl_synced_at is None, "진입 주문은 확정 표시가 붙으면 안 된다"
+
+
+@pytest.mark.asyncio
+async def test_sweep_aggregates_ledger_rows_before_backfill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """백필은 이번 조회 결과가 아니라 **원장 전체**를 집계해야 한다.
 
     한 청산 주문이 여러 행으로 쪼개지고 그 행들이 서로 다른 주기에 적재되면, 이번
@@ -352,7 +453,9 @@ async def test_sweep_alerts_only_new_external_rows(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(trading_mod, "send_rule_alert", send_alert)
     provider = SimpleNamespace(
         fetch_closed_pnl_window=AsyncMock(return_value=[_snapshot("external", created_at_ms=1)]),
-        fetch_closed_order_meta=AsyncMock(return_value={"external": ClosedOrderMeta("external", "CreateByUser", None, None)}),
+        fetch_closed_order_meta=AsyncMock(
+            return_value={"external": ClosedOrderMeta("external", "CreateByUser", None, None)}
+        ),
     )
 
     first = await trading_mod._sweep_closed_pnl_with_session(
@@ -368,13 +471,20 @@ async def test_sweep_alerts_only_new_external_rows(monkeypatch: pytest.MonkeyPat
 
 
 @pytest.mark.asyncio
-async def test_sweep_skips_rows_without_created_or_updated_time(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_sweep_skips_rows_without_created_or_updated_time(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import src.tasks.trading as trading_mod
 
     state = _State([_account()])
     _install_repositories(monkeypatch, state)
     provider = SimpleNamespace(
-        fetch_closed_pnl_window=AsyncMock(return_value=[_snapshot("missing-time", created_at_ms=None), _snapshot("valid", created_at_ms=1)]),
+        fetch_closed_pnl_window=AsyncMock(
+            return_value=[
+                _snapshot("missing-time", created_at_ms=None),
+                _snapshot("valid", created_at_ms=1),
+            ]
+        ),
         fetch_closed_order_meta=AsyncMock(return_value={}),
     )
 
@@ -485,9 +595,7 @@ async def test_sweep_counts_rows_it_cannot_persist_as_malformed(
     state = _State([_account()])
     _install_repositories(monkeypatch, state)
     provider = SimpleNamespace(
-        fetch_closed_pnl_window=AsyncMock(
-            return_value=[_snapshot("no-time", created_at_ms=None)]
-        ),
+        fetch_closed_pnl_window=AsyncMock(return_value=[_snapshot("no-time", created_at_ms=None)]),
         fetch_closed_order_meta=AsyncMock(return_value={}),
     )
     counter = trading_mod.qb_closed_pnl_backfill_total.labels(outcome="malformed_row")
@@ -526,7 +634,9 @@ async def test_sweep_does_not_claim_an_unmatched_row_as_ours_without_an_order_ro
         ),
         fetch_closed_order_meta=AsyncMock(
             return_value={
-                "exchange-exit": ClosedOrderMeta("exchange-exit", "CreateByUser", None, foreign_uuid)
+                "exchange-exit": ClosedOrderMeta(
+                    "exchange-exit", "CreateByUser", None, foreign_uuid
+                )
             }
         ),
     )

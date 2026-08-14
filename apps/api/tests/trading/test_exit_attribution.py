@@ -39,19 +39,49 @@ def _fact(
         ("createbypartialtakeprofit", ExitClassification.bracket_tp),
         ("CreateByStopLoss", ExitClassification.bracket_sl),
         ("CreateByTrailingStop", ExitClassification.trailing),
-        ("CreateByLiquidation", ExitClassification.liquidation),
+        # ★[BL-728] — 여기 있던 `"CreateByLiquidation"` 은 **Bybit 이 내지 않는 값**이었다.
+        #   종전 구현이 `"liquidation" in create_type` 이라 그 가짜 값에는 걸렸고, 그래서
+        #   이 파라미터가 초록인 채로 진짜 강제청산(`CreateByLiq`)이 `unknown` 으로 샜다.
+        #   실제 enum 만 남긴다.
+        ("CreateByLiq", ExitClassification.liquidation),
+        ("createbyliq", ExitClassification.liquidation),
+        ("CreateByMmRateClose", ExitClassification.liquidation),
+        # ADL 은 접미사 변종이 실재하므로 부분문자열 축을 유지한다.
         ("CreateByAdl", ExitClassification.liquidation),
+        ("CreateByAdl_PassThrough", ExitClassification.liquidation),
         ("CreateByUser", ExitClassification.external_manual),
     ],
 )
 def test_classify_exit_known_create_types_case_insensitively(
     create_type: str, expected: ExitClassification
 ) -> None:
-    assert classify_exit(
-        matched_order_id=None,
-        meta=ClosedOrderMeta("exchange", create_type, None, None),
-        known_order_ids=frozenset(),
-    ) == expected
+    assert (
+        classify_exit(
+            matched_order_id=None,
+            meta=ClosedOrderMeta("exchange", create_type, None, None),
+            known_order_ids=frozenset(),
+        )
+        == expected
+    )
+
+
+def test_classify_exit_no_longer_matches_liquidation_by_substring() -> None:
+    """[BL-728] 음성 대조 — 부분문자열 판정이 실제로 없어졌는지 재는 유일한 케이스.
+
+    ★위 파라미터 표만으로는 판별력이 없다. `"liquidation" in create_type` 를 그대로 두고
+    `_LIQUIDATION_CREATE_TYPES` 를 **추가**하기만 해도 표는 전건 초록이다. 부분문자열 축이
+    죽었다는 것은 「부분문자열로만 걸리던 값이 이제 안 걸린다」로만 증명된다.
+
+    `CreateByLiquidation` 은 Bybit 이 내지 않는 값이다 — 모르는 값이므로 `unknown` 이 정답이다.
+    """
+    assert (
+        classify_exit(
+            matched_order_id=None,
+            meta=ClosedOrderMeta("exchange", "CreateByLiquidation", None, None),
+            known_order_ids=frozenset(),
+        )
+        == ExitClassification.unknown
+    )
 
 
 def test_classify_exit_requires_membership_for_the_link_id_path() -> None:
@@ -79,17 +109,22 @@ def test_classify_exit_unknown_fallbacks() -> None:
         classify_exit(matched_order_id=None, meta=None, known_order_ids=frozenset())
         == ExitClassification.unknown
     )
-    assert classify_exit(
-        matched_order_id=None,
-        meta=ClosedOrderMeta("exchange", "CreateBySystem", None, None),
-        known_order_ids=frozenset(),
-    ) == ExitClassification.unknown
+    assert (
+        classify_exit(
+            matched_order_id=None,
+            meta=ClosedOrderMeta("exchange", "CreateBySystem", None, None),
+            known_order_ids=frozenset(),
+        )
+        == ExitClassification.unknown
+    )
 
 
 def test_attribute_exit_requires_matching_entry_price_and_open_position() -> None:
     exit_at = datetime(2026, 7, 2, tzinfo=UTC)
     entry = _fact()
-    closing_sell = _fact(side_is_buy=False, reduce_only=True, filled_at=exit_at - timedelta(hours=1))
+    closing_sell = _fact(
+        side_is_buy=False, reduce_only=True, filled_at=exit_at - timedelta(hours=1)
+    )
 
     assert attribute_exit(
         symbol="BTC/USDT",
@@ -125,7 +160,9 @@ def test_attribute_exit_infers_only_one_matching_entry() -> None:
 
 def test_attribute_exit_reproduces_observed_orphans_conservatively() -> None:
     exit_at = datetime(2026, 7, 2, tzinfo=UTC)
-    orders = [_fact(price=price) for price in ("62879.4", "62871.8", "62848.5", "62846.3", "62846.2")]
+    orders = [
+        _fact(price=price) for price in ("62879.4", "62871.8", "62848.5", "62846.3", "62846.2")
+    ]
 
     outcomes = [
         attribute_exit(
@@ -266,9 +303,12 @@ def test_attribute_exit_compares_symbol_strings_exactly() -> None:
         our_filled_orders=[_fact()],
     ) == (ExitAttribution.none, None)
     # 같은 공간으로 맞추면 성립한다.
-    assert attribute_exit(
-        symbol="BTC/USDT",
-        avg_entry_price=Decimal("100"),
-        exit_at=exit_at,
-        our_filled_orders=[_fact()],
-    )[0] is ExitAttribution.inferred
+    assert (
+        attribute_exit(
+            symbol="BTC/USDT",
+            avg_entry_price=Decimal("100"),
+            exit_at=exit_at,
+            our_filled_orders=[_fact()],
+        )[0]
+        is ExitAttribution.inferred
+    )

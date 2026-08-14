@@ -1,4 +1,5 @@
 """KillSwitch evaluator 단독 검증 — timing 없는 결정적 probe."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -31,9 +32,7 @@ async def strat_account(db_session, user, strategy):
     return strategy, acc
 
 
-async def _make_filled_order(
-    db_session, strategy, account, *, pnl: Decimal, filled_at: datetime
-):
+async def _make_filled_order(db_session, strategy, account, *, pnl: Decimal, filled_at: datetime):
     o = Order(
         strategy_id=strategy.id,
         exchange_account_id=account.id,
@@ -50,9 +49,7 @@ async def _make_filled_order(
     return o
 
 
-async def test_cumulative_loss_evaluator_not_gated_when_below_threshold(
-    db_session, strat_account
-):
+async def test_cumulative_loss_evaluator_not_gated_when_below_threshold(db_session, strat_account):
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
     from src.trading.repositories.order_repository import OrderRepository
 
@@ -66,9 +63,7 @@ async def test_cumulative_loss_evaluator_not_gated_when_below_threshold(
         threshold_percent=Decimal("10"),
         capital_base=Decimal("10000"),
     )
-    result = await ev.evaluate(
-        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
-    )
+    result = await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert result.gated is False
 
@@ -92,9 +87,7 @@ async def test_cumulative_loss_evaluator_gated_when_exceeds(db_session, strat_ac
         threshold_percent=Decimal("10"),
         capital_base=Decimal("10000"),
     )
-    result = await ev.evaluate(
-        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
-    )
+    result = await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert result.gated is True
     assert result.trigger_type == "cumulative_loss"
@@ -116,9 +109,7 @@ async def test_daily_loss_evaluator_sums_today_only(db_session, strat_account):
         db_session, strategy, account, pnl=Decimal("-1000"), filled_at=yesterday
     )
     # 오늘 -$400 (< threshold $500)
-    await _make_filled_order(
-        db_session, strategy, account, pnl=Decimal("-400"), filled_at=now
-    )
+    await _make_filled_order(db_session, strategy, account, pnl=Decimal("-400"), filled_at=now)
 
     ev = DailyLossEvaluator(OrderRepository(db_session), threshold_usd=Decimal("500"))
     result = await ev.evaluate(EvaluationContext(strategy.id, account.id, now))
@@ -133,12 +124,8 @@ async def test_daily_loss_evaluator_gated_when_today_exceeds(db_session, strat_a
     strategy, account = strat_account
     now = datetime.now(UTC)
 
-    await _make_filled_order(
-        db_session, strategy, account, pnl=Decimal("-300"), filled_at=now
-    )
-    await _make_filled_order(
-        db_session, strategy, account, pnl=Decimal("-300"), filled_at=now
-    )
+    await _make_filled_order(db_session, strategy, account, pnl=Decimal("-300"), filled_at=now)
+    await _make_filled_order(db_session, strategy, account, pnl=Decimal("-300"), filled_at=now)
 
     ev = DailyLossEvaluator(OrderRepository(db_session), threshold_usd=Decimal("500"))
     result = await ev.evaluate(EvaluationContext(strategy.id, account.id, now))
@@ -150,6 +137,7 @@ async def test_daily_loss_evaluator_gated_when_today_exceeds(db_session, strat_a
 
 
 # ── Sprint 8+ dynamic capital_base via BalanceProvider ────────────────
+
 
 class _StubBalanceProvider:
     """BalanceProvider Protocol fake. 생성 시 지정한 값을 그대로 반환."""
@@ -185,9 +173,7 @@ async def test_cumulative_loss_uses_dynamic_capital_when_provider_returns_value(
         capital_base=Decimal("10000"),  # config fallback
         balance_provider=provider,
     )
-    result = await ev.evaluate(
-        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
-    )
+    result = await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert result.gated is True
     assert result.trigger_value == Decimal("20.00")
@@ -216,17 +202,13 @@ async def test_cumulative_loss_falls_back_to_config_when_provider_returns_none(
         capital_base=Decimal("10000"),
         balance_provider=provider,
     )
-    result = await ev.evaluate(
-        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
-    )
+    result = await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert result.gated is False  # 10.00 > 10 이 아니므로 통과
     assert provider.call_count == 1
 
 
-async def test_cumulative_loss_ignores_zero_or_negative_dynamic_capital(
-    db_session, strat_account
-):
+async def test_cumulative_loss_ignores_zero_or_negative_dynamic_capital(db_session, strat_account):
     """동적 capital이 0 이하로 들어오면 fallback (계좌 이관 중 edge case)."""
     from decimal import Decimal
 
@@ -246,9 +228,7 @@ async def test_cumulative_loss_ignores_zero_or_negative_dynamic_capital(
         capital_base=Decimal("20000"),
         balance_provider=provider,
     )
-    result = await ev.evaluate(
-        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
-    )
+    result = await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert result.gated is False  # fallback 20000 사용 → 10% 경계
 
@@ -311,9 +291,7 @@ async def test_cumulative_loss_falls_back_when_provider_raises(
         balance_provider=provider,
     )
 
-    result = await ev.evaluate(
-        EvaluationContext(strategy.id, account.id, datetime.now(UTC))
-    )
+    result = await ev.evaluate(EvaluationContext(strategy.id, account.id, datetime.now(UTC)))
 
     assert result.gated is True
     assert result.trigger_value == Decimal("15.00")
@@ -322,9 +300,7 @@ async def test_cumulative_loss_falls_back_when_provider_raises(
     assert any("balance_provider_failed" in m for m in captured_warnings)
 
 
-async def test_cumulative_loss_provider_called_on_every_trigger(
-    db_session, strat_account
-):
+async def test_cumulative_loss_provider_called_on_every_trigger(db_session, strat_account):
     """BL-004 ADR-006 결의: KillSwitch trigger 시점 *매번* fetch (Option A).
 
     cache 0 — 동일 evaluator instance 가 N 회 evaluate 호출 시 N 회 provider 호출.
@@ -355,9 +331,7 @@ async def test_cumulative_loss_provider_called_on_every_trigger(
     assert provider.call_count == 3
 
 
-async def test_daily_loss_uses_exchange_backfilled_manual_close_pnl(
-    db_session, strat_account
-):
+async def test_daily_loss_uses_exchange_backfilled_manual_close_pnl(db_session, strat_account):
     """수동 청산은 생성 시 realized_pnl이 NULL이어도 backfill 뒤 거래소 값으로 한 번 집계한다.
 
     이는 pine_v2 추정값 대신 확정 closedPnl이 Kill Switch 손실 판단을 바꾸는 의도적 money-path 변경이다.
@@ -397,3 +371,69 @@ async def test_daily_loss_uses_exchange_backfilled_manual_close_pnl(
     assert result.gated is True
     # DailyLossEvaluator 는 부호 있는 당일 합계를 그대로 trigger_value 로 돌려준다.
     assert result.trigger_value == Decimal("-600")
+
+
+# ── [BL-726] rejected 주문의 realized_pnl 은 SUM 에 들어가면 안 된다 ──────────
+
+
+async def test_evaluators_exclude_rejected_orders_carrying_an_estimated_pnl(
+    db_session, strat_account
+):
+    """[BL-726] 판정 — `state == filled` 필터가 옳다.
+
+    서버 DB 실측에 `rejected` + `reduce_only=true` + `realized_pnl` 채움 46건 / **+55.32
+    USDT** 가 있었다. 「값이 채워졌다(=청산으로 봤다)」와 「rejected(=발주 실패)」가 모순으로
+    보이지만, `Order.realized_pnl` 은 **생성 시점**(`order_service.py`, `state=pending`)에
+    TradingView alert 가 준 **추정치**로 쓰이고, 거래소 확정치를 넣는 유일한 경로
+    `backfill_exchange_realized_pnl` 은 `state == filled` 를 요구한다 — 즉 그 값은
+    **체결된 적 없는 주문의 추정치**다.
+
+    ★부호가 **+** 라 SUM 에 넣으면 손실이 줄어 보인다. 게이트를 느슨하게 만드는 방향이라
+    이 회귀는 「안 들어간다」를 양쪽 evaluator 에서 함께 고정한다.
+    """
+    from src.trading.kill_switch import (
+        CumulativeLossEvaluator,
+        DailyLossEvaluator,
+        EvaluationContext,
+    )
+    from src.trading.repositories.order_repository import OrderRepository
+
+    strategy, account = strat_account
+    now = datetime.now(UTC)
+
+    # 실현된 손실 −100 (filled).
+    await _make_filled_order(db_session, strategy, account, pnl=Decimal("-100"), filled_at=now)
+
+    # 발주가 거부됐지만 생성 시점 추정치 +90 을 그대로 들고 있는 행.
+    rejected = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        side=OrderSide.sell,
+        type=OrderType.market,
+        quantity=Decimal("0.01"),
+        state=OrderState.rejected,
+        reduce_only=True,
+        realized_pnl=Decimal("90"),
+        filled_at=now,
+    )
+    db_session.add(rejected)
+    await db_session.flush()
+    await db_session.commit()
+
+    repo = OrderRepository(db_session)
+
+    # ⑴ Strategy 축 — 손실이 −100 그대로여야 한다. +90 이 섞이면 −10 이 되어
+    #    문턱 5%(=1,000 중 50)를 못 넘고 게이트가 열린다.
+    cumulative = await CumulativeLossEvaluator(
+        repo, threshold_percent=Decimal("5"), capital_base=Decimal("1000")
+    ).evaluate(EvaluationContext(strategy.id, account.id, now))
+    assert cumulative.gated is True
+    assert cumulative.trigger_value == Decimal("10.00")  # |−100| / 1000 * 100
+
+    # ⑵ 계정 축 — 당일 합계도 −100 이어야 한다.
+    daily = await DailyLossEvaluator(repo, threshold_usd=Decimal("50")).evaluate(
+        EvaluationContext(strategy.id, account.id, now)
+    )
+    assert daily.gated is True
+    assert daily.trigger_value == Decimal("-100")

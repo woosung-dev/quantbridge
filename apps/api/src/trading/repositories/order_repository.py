@@ -15,10 +15,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.trading.models import (
     ExchangeAccount,
+    ExchangeExit,
     LiveSignalSession,
     Order,
     OrderSide,
     OrderState,
+)
+
+# 「이 주문이 청산했는가」의 정본 술어 — 거래소 원장이 그 주문의 청산 행을 갖고 있는가([BL-438]).
+# ★`JOIN` 이 아니라 `EXISTS` 다. `Order : ExchangeExit` 는 1:N(분할 행 — 한 청산이 여러 행으로
+#   쪼개져 적재된다)이라 JOIN 은 같은 Order 를 N번 돌려준다. 그러면 ⑴ `limit` 예산이 분할 행
+#   수에 잠식돼 오래된 주문이 영영 안 돌아오고 ⑵ 스윕 루프가 같은 주문을 N번 돌아
+#   `applied`/`already_synced` 계수가 부풀어 관측이 거짓말을 한다. EXISTS 는 행을 복제하지 않는다.
+# ★계정 축을 함께 건다 — `exchange_order_id` 는 거래소가 발급하므로 계정 간 충돌이 가능하고,
+#   `list_by_exchange_order_ids` 가 같은 이유로 계정 스코프를 쓴다.
+_HAS_EXCHANGE_EXIT_ROW = (
+    select(ExchangeExit.id)  # type: ignore[call-overload]
+    .where(ExchangeExit.exchange_account_id == Order.exchange_account_id)
+    .where(ExchangeExit.exchange_order_id == Order.exchange_order_id)  # type: ignore[arg-type]
+    .correlate(Order)  # type: ignore[arg-type]
+    .exists()
 )
 
 # ★`src.trading.services.*` 를 모듈 수준에서 import 하지 마라 — 순환이다.
@@ -755,15 +771,28 @@ class OrderRepository:
         )
         return frozenset((await self.session.execute(stmt)).scalars().all())
 
-    async def list_unsynced_reduce_only(
+    async def list_unsynced_with_exchange_exit(
         self, account_id: UUID, *, limit: int = 500
     ) -> Sequence[Order]:
-        """시간창 없이 미동기화 reduce-only 체결 주문 전량을 조회한다."""
+        """시간창 없이 **원장이 청산으로 증언하는** 미동기화 체결 주문 전량을 조회한다.
+
+        ★[BL-438] 2026-08-14 — 이 술어는 `reduce_only=true` 였고 그것이 실현손익의
+        **93.1%(490건 / -1,023.87 USDT)를 백필에서 통째로 배제**하고 있었다. 소크 전략은
+        **반전 주문**(`sell 0.058 = 2 x 0.029`)으로 청산하는데 반전에는 `reduce_only` 를
+        걸 수 없다 — 걸면 거래소가 포지션 크기까지만 체결해 반전이 깨진다.
+
+        `reduce_only` 는 「내가 요청한 안전장치」이지 「이 주문이 청산했는가」의 답이
+        아니다([ADR-032](../../../../docs/decisions/032-no-hedge-mode.md)). Bybit one-way 는
+        수량이 포지션을 넘으면 반전하고, OKX 의 `reduceOnly` 는 net mode 전용이며
+        `sz > 포지션`이면 주문 자체를 거부한다 — 어느 계약에서도 등가가 성립하지 않는다.
+        판정의 정본은 **거래소 원장이 그 주문의 청산 행을 갖고 있는가**이고, 그것이
+        `_HAS_EXCHANGE_EXIT_ROW` 다.
+        """
         stmt = (
             select(Order)
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
             .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
-            .where(Order.reduce_only.is_(True))  # type: ignore[attr-defined]
+            .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_(None))  # type: ignore[union-attr]
             .order_by(Order.filled_at.asc())  # type: ignore[union-attr]
@@ -771,20 +800,24 @@ class OrderRepository:
         )
         return (await self.session.execute(stmt)).scalars().all()
 
-    async def list_synced_reduce_only(
+    async def list_synced_with_exchange_exit(
         self, account_id: UUID, *, limit: int = 500
     ) -> Sequence[Order]:
-        """이미 거래소 확정으로 표시된 reduce-only 체결 주문.
+        """이미 거래소 확정으로 표시된 체결 주문 중 원장에 청산 행이 있는 것.
 
         체결 직후 refresh 는 원장을 거치지 않고 **단일 조회 결과**를 CAS 한다. 분할 행
         중 일부만 보이는 순간에 걸리면 부분합이 synced 로 고정되고, 미동기화 술어를 쓰는
         스윕은 그 주문을 영영 건너뛴다. 원장 합계와 대조해 되돌릴 수 있게 따로 조회한다.
+
+        ★[BL-438] — 술어를 위 미동기화 쪽과 **함께** 바꾼다. 한쪽만 원장 조인으로
+        넓히면 새로 백필된 `reduce_only=false` 490건이 `synced_at` 은 갖는데 정정 경로에는
+        영영 안 들어와, 부분합 고정을 되돌리는 이 안전망이 그 주문들에만 사라진다.
         """
         stmt = (
             select(Order)
             .where(Order.exchange_account_id == account_id)  # type: ignore[arg-type]
             .where(Order.state == OrderState.filled)  # type: ignore[arg-type]
-            .where(Order.reduce_only.is_(True))  # type: ignore[attr-defined]
+            .where(_HAS_EXCHANGE_EXIT_ROW)
             .where(Order.exchange_order_id.is_not(None))  # type: ignore[union-attr]
             .where(Order.realized_pnl_synced_at.is_not(None))  # type: ignore[union-attr]
             .order_by(Order.filled_at.desc())  # type: ignore[union-attr]
