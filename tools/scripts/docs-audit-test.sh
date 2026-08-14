@@ -24,6 +24,7 @@ trap 'rm -rf "$SB"' EXIT
 
 mkdir -p "$SB/tools/scripts" "$SB/docs"
 cp "$ROOT/tools/scripts/docs-audit.sh" "$SB/tools/scripts/" || { echo "✗ docs-audit.sh 를 못 읽었다"; exit 2; }
+printf '# stub AGENTS\n' > "$SB/AGENTS.md"
 
 # 스텁 원장 — `CASE` 로 ACTIVE/PARTIAL 집합을 바꾼다. 진짜 bl-audit 은 부르지 않는다
 # (느리고, 실제 원장에 의존한다).
@@ -72,6 +73,44 @@ mk_status() {
   } > "$SB/docs/status.md"
 }
 
+# `lessons.md` 는 기본적으로 없다. BL-720 케이스만 필요한 최소 표/카드를 세워 각 축이
+# 다른 축의 실제 문서 상태에 의존하지 않게 한다.
+mk_lessons() {
+  case "$1" in
+    duplicate_id)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-101 | `AGENTS.md` | 표에 이미 있는 ID |\n\n---\n\n'
+        printf '### LESSON-101 — 카드가 같은 ID를 재사용\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    ordered_ids)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-004 | `AGENTS.md` | 승격된 ID |\n\n---\n\n'
+        printf '### LESSON-087 — 첫 카드\n\n### LESSON-088 — 둘째 카드\n\n### LESSON-090 — 셋째 카드\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    broken_pointer)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-004 | `backend/AGENTS.md` | 옮겨져 사라진 포인터 |\n\n---\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+    live_pointers)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-004 | `AGENTS.md` | 루트 파일 포인터 |\n'
+        printf '| LESSON-005 | `tools/scripts/docs-audit.sh` | 스크립트 포인터 |\n\n---\n'
+      } > "$SB/docs/lessons.md"
+      ;;
+  esac
+}
+
 FAIL=0
 AXIS="⓪ 표 정체성"   # run() 이 「말했나」를 재는 축. 케이스별로 바꾼다.
 run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
@@ -81,13 +120,13 @@ run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
   if [ "$rc" = "$2" ] && [ "$spoke" = "$3" ]; then
     printf '  ✓ %s\n' "$4"
   else
-    printf '  ✗ %s\n      rc=%s (기대 %s) · 정체성축발화=%s (기대 %s)\n' "$4" "$rc" "$2" "$spoke" "$3"
+    printf '  ✗ %s\n      rc=%s (기대 %s) · %s축발화=%s (기대 %s)\n' "$4" "$rc" "$2" "$AXIS" "$spoke" "$3"
     sed 's/^/      | /' "$SB/out.txt" | head -6
     FAIL=1
   fi
 }
 
-echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 축 — 판별력 7케이스"
+echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 + BL-720 지식 정본 축 — 판별력 11케이스"
 
 # ⑴ ★음성 대조가 아니라 **ABORT 대조**다. 양쪽이 비면 초록도 빨강도 내지 않는다.
 mk_status "";       run empty  3 yes "양쪽 공집합 → rc=3 ABORT (빈 입력을 「일치」로 통과시키지 않는다)"
@@ -121,8 +160,26 @@ AXIS="트리거 판정 줄"
 mk_status "BL-999"; run partial_noverdict 1 yes "PARTIAL BL-555 에 판정줄 0개 → 트리거 판정 줄 축 발화"
 AXIS="⓪ 표 정체성"
 
+# ── [BL-720] lessons.md 지식 정본 축 ──────────────────────────────────
+# ⑻⑼은 카드 헤딩과 승격 표의 ID를 합쳐 보는지, 그리고 유일·오름차순일 때 침묵하는지를
+# 함께 재한다. ⑽⑾은 표 안의 코드 스팬만 경로로 보고 살아 있는 포인터는 과다 포획하지 않는지 재한다.
+mk_status "BL-999"; mk_lessons duplicate_id
+AXIS="LESSON ID 유일성"
+run ledger 1 yes "카드 LESSON-101 + 승격 표 LESSON-101 → LESSON ID 유일성 축 발화"
+
+mk_status "BL-999"; mk_lessons ordered_ids
+run ledger 1 no "양성 대조: 087·088·090 + 표 004는 유일·오름차순 → LESSON ID 유일성 축 침묵"
+
+mk_status "BL-999"; mk_lessons broken_pointer
+AXIS="승격 표 포인터"
+run ledger 1 yes '승격 표 `backend/AGENTS.md` 가 없음 → 승격 표 포인터 축 발화'
+
+mk_status "BL-999"; mk_lessons live_pointers
+run ledger 1 no "음성 대조: AGENTS.md 등 살아 있는 승격 표 포인터만 → 승격 표 포인터 축 침묵"
+AXIS="⓪ 표 정체성"
+
 if [ "$FAIL" != 0 ]; then
-  echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 축이 판별력을 잃었다"
+  echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 / BL-720 지식 정본 축이 판별력을 잃었다"
   exit 1
 fi
-echo "✓ docs-audit 하네스 7/7 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락"
+echo "✓ docs-audit 하네스 11/11 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락 · LESSON ID · 승격 표 포인터"

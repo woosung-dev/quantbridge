@@ -149,6 +149,53 @@ for rel, cap in file_line_caps.items():
     if count > cap:
         file_len_hits.append((rel, count, cap))
 
+# ── lessons.md 지식 정본 — ID 유일성/오름차순 + 승격 표 포인터 ───────────
+# 왜 있나 (BL-720): `lessons.md` 는 줄 수와 Markdown 링크만 검사했으므로, 승격 표에 이미
+# 있는 LESSON ID 를 카드로 다시 올린 중복과 코드 스팬으로 적힌 죽은 승격 포인터가 rc=0 으로
+# 통과했다. 표는 "본문은 저기 있다"는 유일한 포인터다.
+# ★판정 집합은 카드 헤딩과 승격 표 **둘을 합친다**. 하나만 보면 표↔카드 중복이 다시 샌다.
+# ★결번은 정상이다. 금지하는 것은 중복과 카드 헤딩의 역순뿐이다.
+lesson_id_hits: list[str] = []
+promotion_pointer_hits: list[tuple[str, str]] = []
+lessons_md = docs / "lessons.md"
+if lessons_md.exists():
+    lessons_text = lessons_md.read_text(encoding="utf-8", errors="replace")
+    heading_ids = [
+        int(raw)
+        for raw in re.findall(r"^### LESSON-(\d+)\b", lessons_text, re.MULTILINE)
+    ]
+
+    # 승격 표만 고른다. 본문 전체의 코드 스팬으로 넓히면 `useEffect`·`H-1` 같은 비경로
+    # 표기까지 경로 검사로 오인한다.
+    promotion_ids: list[int] = []
+    promotion = re.search(r"^## 영구 승격 완료(?:\s|$)", lessons_text, re.MULTILINE)
+    promotion_text = ""
+    if promotion:
+        boundary = re.compile(r"^(?:---\s*$|## )", re.MULTILINE).search(lessons_text, promotion.end())
+        promotion_text = lessons_text[promotion.end():boundary.start() if boundary else len(lessons_text)]
+        for line in promotion_text.splitlines():
+            row = re.match(r"^\|\s*LESSON-(\d+)\s*\|", line)
+            if row:
+                promotion_ids.append(int(row.group(1)))
+
+        for raw_span in re.findall(r"`([^`]+)`", promotion_text):
+            candidate = raw_span.strip()
+            if "/" not in candidate and not candidate.endswith(".md"):
+                continue
+            if not (root / candidate).exists():
+                promotion_pointer_hits.append((candidate, "레포 루트 기준 파일이 없다"))
+
+    all_ids = heading_ids + promotion_ids
+    for lesson_id in sorted({value for value in all_ids if all_ids.count(value) > 1}):
+        lesson_id_hits.append(
+            f"  LESSON-{lesson_id:03d}: 카드 헤딩·승격 표 합계가 {all_ids.count(lesson_id)}개다 (계약 1개)"
+        )
+    for previous, current in zip(heading_ids, heading_ids[1:]):
+        if current < previous:
+            lesson_id_hits.append(
+                f"  LESSON-{previous:03d} 뒤에 LESSON-{current:03d} 이 왔다 — 카드 헤딩은 오름차순이어야 한다"
+            )
+
 # ── 소유자 없는 검사기 — 존재 + 기동 가능 확인 ─────────────────
 # 왜 있나 (BL-631 · LESSON-078):
 #   `runtime-check.mjs` 는 `pnpm test` · CI · docs-audit 어디도 부르지 않았다. 그래서 docs/ 재편
@@ -500,6 +547,20 @@ if file_len_hits:
         }.get(rel, "승격 대상을 내려라")
         print(f"  {rel}: {count}줄 > 상한 {cap}줄 — {where}")
 
+if lesson_id_hits:
+    print("▶ LESSON ID 유일성 + 오름차순 — 카드 헤딩과 영구 승격 표를 합쳐 검사한다 (BL-720)")
+    for why in lesson_id_hits[:20]:
+        print(why)
+    if len(lesson_id_hits) > 20:
+        print(f"  … 외 {len(lesson_id_hits) - 20}건")
+
+if promotion_pointer_hits:
+    print("▶ 승격 표 포인터 — `## 영구 승격 완료` 표의 경로형 코드 스팬은 실재해야 한다 (BL-720)")
+    for candidate, why in promotion_pointer_hits[:20]:
+        print(f"  docs/lessons.md: `{candidate}` — {why}")
+    if len(promotion_pointer_hits) > 20:
+        print(f"  … 외 {len(promotion_pointer_hits) - 20}건")
+
 if orphan_hits:
     print("▶ 소유자 없는 검사기가 기동 불가 (BL-631 — 아무도 안 부르면 죽어도 아무도 모른다)")
     for rel, why in orphan_hits:
@@ -507,12 +568,14 @@ if orphan_hits:
 
 if (
     broken_links or legacy_hits or cap_hits or file_len_hits
-    or orphan_hits or entry_hits or verdict_line_hits or zero_identity_hits
+    or lesson_id_hits or promotion_pointer_hits or orphan_hits or entry_hits
+    or verdict_line_hits or zero_identity_hits
 ):
     print(
         f"✗ docs-audit failed: links={len(broken_links)}, "
         f"retired_paths={len(legacy_hits)}, long_lines={len(cap_hits)}, "
         f"long_files={len(file_len_hits)}, orphan_tools={len(orphan_hits)}, "
+        f"lesson_ids={len(lesson_id_hits)}, promotion_pointers={len(promotion_pointer_hits)}, "
         f"entry_point={len(entry_hits)}, trigger_verdicts={len(verdict_line_hits)}, "
         f"zero_table_identity={len(zero_identity_hits)}"
     )
@@ -520,7 +583,7 @@ if (
 
 print(
     "✓ docs-audit: active Markdown links, retired paths, line-length caps, "
-    "file-length caps, orphan tool startup, status.md entry point, ⓪ table identity, "
-    "trigger verdict lines are clean"
+    "file-length caps, LESSON ID uniqueness/order, promotion table pointers, orphan tool startup, "
+    "status.md entry point, ⓪ table identity, trigger verdict lines are clean"
 )
 PY
