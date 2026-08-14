@@ -352,10 +352,42 @@ ID 가 수집에서 빠졌고, 그러면 **이 축이 막으려는 사고를 서
 ★그 과정에서 **내 프로브 자신이 한 번 깨졌다**(이름의 백틱이 셸 치환) — 고쳐 다시 재고서야
 판정했다. **깨진 검사기의 결과는 초록이든 빨강이든 못 믿는다.**
 
-**다음 행동 = 이번 회차(`stage/gate-pointer-axis`)를 커밋·PR 로 닫고, ⓪ 표에서 다음 항목을 사용자와
-고른다.** 인계 = **소크가 7일째 정지**다(아래 환경 표) — `.soak/pin-history.jsonl` 마지막이
-2026-08-07 `down` 이고 [BL-003] 창은 C1 0/3 · C2 0.91h 로 사실상 0 이다. 재기동할지, 아니면
-[BL-003] 자체를 재평가할지가 결정 사항이다.
+~~**다음 행동 = 이번 회차(`stage/gate-pointer-axis`)를 커밋·PR 로 닫고, ⓪ 표에서 다음 항목을 사용자와
+고른다.** 인계 = **소크가 7일째 정지**다(아래 환경 표) …~~
+→ **2026-08-14 — 그 회차는 PR #627 로 닫혔다(`5736ee40`).** 인계였던 「소크 재기동 vs [BL-003] 재평가」는
+아래 `real-broker-e2e` 회차가 **순서로** 답한다 — 소크를 켜면 [BL-024] 창이 닫히므로 **BL-024 를 먼저** 끝낸다.
+
+## ★2026-08-14 — `real-broker-e2e` 회차 ([BL-024] 실주문 leg · 로컬 축)
+
+**왜 지금인가 — 창이 열려 있다.** [BL-024] 와 소크는 같은 Bybit demo 계정(uid 558689281)을 놓고
+**상호배타**이고(`tools/scripts/nightly-real-broker-local.sh:133-135` 가 활성 세션 ≠0 이면 SKIP),
+2026-08-14 실측으로 **활성 세션 = 0** 이다. 소크는 C1 = 24h × 3회라 켜는 순간 최소 수일 닫힌다.
+⇒ **시간 단위 작업(BL-024) → 일 단위 무인 작업(소크 재기동)** 순서가 곧 결정이다.
+
+**착수 preflight 로 원장 처방 3건이 코드에 반증됐다:**
+
+⑴ **「skeleton 을 채운다」는 여전히 유효하다** — `tests/real_broker/test_webhook_to_filled_e2e.py:97` 의
+`pytest.skip("Phase C skeleton…")` 이 **살아 있다**. 로컬 nightly 「1 passed, 1 skipped」의 skipped 가
+정확히 이것이고, passed 는 DB 를 안 쓰는 `test_kill_switch_capital_base.py` 다. 원장이 반증한 것은
+「그것만 하면 nightly 가 통과한다」였지 skeleton 의 존재가 아니었다.
+
+⑵ ★**skeleton 의 「Bybit Demo Spot BTC/USDT」는 틀렸다.** 청산 하네스는 `fetch_open_positions`
+(`tests/real_broker/_harness.py:376`)로 flat 을 판정하는데 **Spot 에는 포지션 개념이 없다** —
+무엇을 사든 항상 `flat` 을 보고하는 **거짓 안전망**이 된다. ⇒ linear futures `BTC/USDT:USDT` 여야 한다.
+
+⑶ ★**`db_session` 픽스처를 쓰면 하네스가 전건 `undecidable` 이 된다.** `tests/conftest.py:340-363` 은
+connection + outer tx + savepoint 라 `commit()` 이 savepoint 재시작일 뿐 **다른 커넥션에서 안 보인다**.
+그런데 `_harness._open_db()` 는 `create_worker_engine_and_sm()` 으로 **별도 엔진**을 연다 ⇒
+「live session 행이 없다」. 원장에도 skeleton 주석에도 이 경고가 없다.
+
+**사용자 결정 3건 (2026-08-14):** ⓐ 경로 = **service-level**(HTTP webhook 층은 다음 회차 —
+`app` 픽스처의 `get_async_session` override 가 savepoint `db_session` 이라 커밋 세션으로 갈아야 한다) ·
+ⓑ **로컬 축만**(CI 는 지리 403 으로 Bybit 에 못 닿고 `schedule:` 도 꺼져 있어 secret 등록 이득이
+신호 정직성뿐 — 별건 BL) · ⓒ **이 회차 끝에 소크 재기동**.
+
+**다음 행동 = [BL-024] 실주문 leg 을 `test_webhook_to_filled_e2e.py` 에 구현하고, AC 3종(양성 ·
+guard 미등록 음성 대조 · nightly 정본 경로)을 메인 체크아웃에서 실행한 뒤, 거래소 flat 을 확인하고
+소크를 재기동한다.**
 
 ### ★환경 상태 (2026-08-08 23:30Z 정리 — 다음 세션이 그대로 이어받는다)
 
