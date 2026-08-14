@@ -647,6 +647,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-733](#bl-733) | ✅ **체결 직후 refresh `reduce_only` 게이트 — Resolved** (2026-08-15). `_reversal_bucket_at_fill` 을 재사용해 **반전이 증명된 leg 만** 예약(`unmeasured_*` 는 스윕에 맡긴다). ★실행측 게이트엔 테스트가 **0건**이었다 — 지워도 31 passed 였다. 그 그물도 함께 신설                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 나머지 2곳이 유일 잔여                                                                                   | M (2-3h)     | 2026-08-14 money-path-close                                  |
 | [BL-736](#bl-736) | 로컬 Docker VM **94% / 3.1G** — `MISCONF … No space left on device` 로 Redis AOF 가 죽자 celery 가 `Unrecoverable error` 로 통째 정지했다(2026-08-14T06:04:11Z). ★**처방 반증(2026-08-15)** — `docker image prune -f` 실측 **0B**다(dangling 이 아니라 태그된 미사용 이미지라 `-a` 가 필요). 그 5.5GB 는 전부 **남의 프로젝트 이미지**이고 볼륨 19.59GB 에도 남의 DB 가 섞여 있다 ⇒ **안전한 자동 회수 경로가 없다**                                                                                                                                                                                                                                                                                                                                                                                   | 도래 — 06:04Z 실사고 로그                                                                                       | S (1h)       | 2026-08-15 soak-survival                                     |
 | [BL-737](#bl-737) | 서버 `dev.quantbridge.soak-watch.service` 가 **failed** — 표본 타이머는 정상인데 **알림 축만** 죽어 있다. 2026-08-14 사망을 아무도 몰랐던 이유다. ★문서는 watch 가 게이트 타이머를 「대체」한다는데 실태는 반대다 — 정본을 함께 정해라                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 도래 — failed 실측                                                                                              | S (1h)       | 2026-08-15 soak-survival                                     |
+| [BL-741](#bl-741) | `conftest` 의 `create_all` 이 만든 스키마 위에서 **새 migration 이 `DuplicateTable` 로 죽는다**. 둘은 서로를 모르고, 종전엔 migration 이 squash base **하나뿐**이라 안 드러났다 — [BL-731] 이 두 번째를 더하며 발화. ★CI(fresh DB)는 안 걸리고 **로컬에서 pytest 를 돌린 개발자만** 걸린다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 도래 — 실제 red                                                                                                 | S (1-2h)     | 2026-08-15 soak-survival                                     |
 | [BL-738](#bl-738) | [BL-734] 가드의 **한계 3종** — ⑴ 남이 resting 없이 포지션만 가지면 통과한다(「빈 목록 = 배타적」은 거짓) ⑵ probe↔청산 **경쟁**에는 fail-closed 가 아니다 ⑶ `scan_resting_conditionals` 가 Repository 밖에서 DB 를 읽는다(AGENTS.md §3). 근본 해결은 거래소 계정 분리                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 미도래 — 가드가 열린 관측 없음                                                                                  | M (2-3h)     | 2026-08-15 soak-survival                                     |
 | [BL-721](#bl-721) | ✅ **게이트 2단 분할 — Resolved (2026-08-14 gate-2stage)** — 전량 1회 **15~20분**의 대부분을 여섯이 먹고 **CI 가 같은 것을 이미 샤딩해서 돈다**(BE pytest **379초**·e2e ~400초 vs 나머지 20종 합계 1분 안쪽). ⇒ `--pre-pr`(유예) → PR push → **CI 와 나란히** `--deferred-only`. ★유예는 면제가 아니다 — 유예 원장 파일 + 다른 종결 문구, `--deferred-only` 통과만이 원장을 지운다. 하네스 `final-gates-test.sh` 신설(8종→**9종**)                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 회고에서 실측                                                                                            | S            | 2026-08-14 gate-surface-close 회고                           |
 | [BL-723](#bl-723) | ✅ **Resolved (2026-08-14 gate-pointer-axis)** — **비싼 게이트에만 영역 판정이 없었다.** `BE ruff`·`BE mypy`·`FE vitest`·`FE build`·`e2e chromium` 은 `has_be`/`has_fe` 에 걸려 있는데 **가장 비싼 셋**(`BE pytest` **357초** · `e2e authed` **268초** · `e2e design-canon` **42초**)만 무조건 돌았다. 앱 코드 diff 0 인 회차에서 **11분 10초**를 태웠고 같은 회차에 CI 는 `backend`·`e2e` 잡을 전부 skip 했다 — 로컬이 CI 보다 더 돌면서 잴 것은 없었다. 처방 = `BE pytest`→`has_be` · `design-canon`→`has_fe` · `authed`→`has_fe∥has_be`. 하네스 8→**9 케이스**(⑤⑥① 환경 의존 동반 수리)                                                                                                                                                                                                             | 도래 — 실측이 있고 처방이 우리 손 안에 있다                                                                     | XS           | 2026-08-14 gate-pointer-axis                                 |
@@ -8676,3 +8677,49 @@ signal_gate "화면 검증 (playwright 또는 /browse)" "screen.ok" 1 ""
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 관측만 확보됐다. Sharpe 를 판단 입력으로 쓰는 회차가 오거나 다른 grid sweep 에서 같은 값이 보이면 연다 (2026-08-15 soak-survival)
 **트리거 판정:** 미도래 — Sharpe 를 판단에 쓰는 회차가 아직 없다 (2026-08-15 soak-survival)
+
+---
+
+### BL-741
+
+**Title:** `conftest` 의 `create_all` 이 만든 스키마 위에서 **새 migration 이 충돌**한다
+**Category:** 테스트 인프라 / alembic
+**Priority:** P2
+**Trigger:** ★**이미 발화했다** — 2026-08-15 [BL-731] 인덱스 migration 이 로컬에서 `test_migrations.py` 6건을 red 로 만들었다
+**Est:** S (1-2h — 설계 결정이 선행)
+**출처:** 2026-08-15 soak-survival ([BL-731] 인덱스 추가 중 발견)
+
+**원인 / 영향:** 테스트 DB 는 두 주체가 만든다 —
+
+- `tests/conftest.py` 세션 픽스처의 `SQLModel.metadata.create_all` (모델을 그대로 반영)
+- `alembic upgrade head` (`test_migrations.py` · `CI fresh DB alembic` 게이트)
+
+**둘은 서로를 모른다.** 2026-08-15 실측: `alembic_version = 20260801_0001`(새 migration 이전)인데
+`create_all` 이 만든 `ix_exchange_exits_account_order` 는 **이미 존재**했다. 그 상태로
+`upgrade head` 가 돌면 `DuplicateTable: relation ... already exists` 로 죽는다.
+
+★**종전에 안 드러난 이유** — migration 이 squash 된 base(`20260801_0001`) **하나뿐**이었다.
+`create_all` 이 만드는 것과 base 가 만드는 것이 같고 `alembic_version` 은 이미 head 라
+`upgrade` 가 no-op 이었다. **[BL-731] 이 두 번째 migration 을 더하면서 순차 적용이 처음 생겼다.**
+
+★**CI 는 안 걸린다** — `CI fresh DB alembic` 게이트가 throwaway DB 에 alembic 만 돌린다.
+걸리는 것은 **로컬에서 pytest 를 한 번이라도 돌린 개발자**다. 그리고 증상이
+「내 migration 이 깨졌다」로 보여서 원인을 엉뚱한 데서 찾게 된다(이번에 그랬다).
+
+★즉시 해소법: `drop index if exists trading.<이름>` 후 재실행. **이것은 우회이지 수리가 아니다** —
+다음 migration 마다 반복된다.
+
+**권장 접근:** 세 갈래 중 결정이 필요하다.
+⑴ **테스트 DB 도 alembic 으로만 만든다** — `create_all` 을 걷어낸다. 가장 정합적이지만 픽스처
+속도가 느려지고(모든 migration 순차 적용) 실패 지점이 늘어난다.
+⑵ **`create_all` 전에 DB 를 항상 비운다** — 지금도 `drop_all` 은 하는데 **인덱스가 남는 경로**가
+있다는 뜻이므로 그 경로부터 찾아야 한다.
+⑶ migration 을 `IF NOT EXISTS` 로 쓴다 — 가장 싸지만 **「적용됐는가」를 흐린다**. 권하지 않는다.
+
+★어느 쪽이든 **재발 회귀 테스트**가 함께 가야 한다 — 「create_all 로 만든 DB 에 upgrade head 를
+돌리면 통과한다」를 단언하는 케이스가 지금 없다.
+
+**Risk:** 🟡 (프로덕션 무관. 개발자 시간을 먹고 **원인을 오도한다**)
+
+**상태:** ⬜ Open — 미착수. 2026-08-15 회차는 `drop index` 우회로 넘어갔다 (2026-08-15 soak-survival)
+**트리거 판정:** 도래 — 실제로 red 를 만들었다 (2026-08-15 soak-survival)

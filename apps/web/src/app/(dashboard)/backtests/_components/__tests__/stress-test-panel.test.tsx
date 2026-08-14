@@ -143,6 +143,19 @@ describe("StressTestPanel", () => {
     expect(arg.params.param_grid.slippage).toHaveLength(3);
   });
 
+  // ★[BL-730 / codex Standards-5] — 기본값을 넣느라 **보수적 상단을 지우지 않았다**.
+  //   종전 격자의 상단(fees 0.002 · slippage 0.001)은 과거 실행과의 비교 기준이라
+  //   유지해야 한다. 「기본값 포함」과 「상단 보존」은 양립 가능하므로 둘 다 단언한다.
+  it("BL-730: 격자가 종전 상단(0.002 / 0.001)을 유지한다", () => {
+    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /Cost Assumption/ }),
+    );
+    const grid = caMutation.mutate.mock.calls[0]?.[0].params.param_grid;
+    expect(grid.fees).toContain("0.002");
+    expect(grid.slippage).toContain("0.001");
+  });
+
   // ★[BL-730] — 값이 아니라 **계약**을 잰다. 종전 케이스는 격자 리터럴 6개를 그대로 베껴
   //   단언했는데, 그래서 격자 최저점이 실제 기본값(0.00055/0.00014)보다 낮아도 초록이었다.
   //   기본값이 격자 밖이면 「지금 설정으로 돌리면 어떻게 되나」를 이 패널로 재현할 수 없다.
@@ -155,6 +168,10 @@ describe("StressTestPanel", () => {
     const grid = caMutation.mutate.mock.calls[0]?.[0].params.param_grid;
     expect(grid.fees).toContain(String(DEFAULT_FEES_PCT));
     expect(grid.slippage).toContain(String(DEFAULT_SLIPPAGE_PCT));
+    // ★민감도 격자는 **서로 다른 3점**이어야 한다 — [base, base, base] 도 위 두 단언을
+    //   통과하는데 그건 민감도를 전혀 재지 않는다 (2026-08-15 codex Standards-6).
+    expect(new Set(grid.fees).size).toBe(3);
+    expect(new Set(grid.slippage).size).toBe(3);
   });
 
   it("MC completed 상태에서 summary table + fan chart 둘 다 렌더 (BL-183)", () => {

@@ -1554,6 +1554,21 @@ async def _refresh_closed_pnl_with_session(
         creds, symbol, order_id=exchange_order_id, since=filled_at
     )
     if snapshot is None:
+        if reversal:
+            # ★★[BL-733 / 2026-08-15 codex Spec-1] — **반전 경로는 재시도하지 않는다.**
+            #   `_reversal_bucket_at_fill` 독스트링(`:1608-1610`)이 **알려진 위양성**을 명시한다:
+            #   조건부 주문 등재 뒤 같은 방향 포지션이 새로 열리고 포지션 조회가 체결 전
+            #   스냅샷을 주면 **증량 entry 가 반전으로 잡힌다**. 단일 스냅샷으로는 원리적으로
+            #   구별 불가다. 그 휴리스틱을 `transient` 권한까지 승격하면 정상 entry 가
+            #   4회 재시도 뒤 `_alert_closed_pnl_unbackfilled` 운영자 알림을 낸다 —
+            #   그것이 [BL-733] 이 막으려던 바로 그 사고다.
+            #   ⇒ 반전 판정이 틀렸을 때의 대가를 **「늦음」으로 묶어 둔다.** 5분 beat 스윕은
+            #   원장 기준이라 진짜 반전이면 결국 맞춘다.
+            _count_safely(qb_closed_pnl_backfill_total, outcome="skipped_reversal_pending")
+            return {
+                "skipped": "reversal_pending_ledger",
+                "order_id": str(order_id),
+            }
         return {
             "transient": "closed_pnl_not_yet_available",
             "order_id": str(order_id),
@@ -1749,11 +1764,23 @@ async def _measure_conditional_reversal_with_session(
     # ★[BL-733] — 반전이 **확정된** leg 만 확정 손익 조회를 예약한다.
     #   여기가 그 판정이 이미 끝난 유일한 자리다. 새 판정기를 만들지 않는다.
     if _is_confirmed_reversal(bucket):
-        refresh_closed_pnl_task.apply_async(
-            args=[str(order_id)],
-            kwargs={"reversal": True},
-            countdown=_CLOSED_PNL_ENQUEUE_COUNTDOWN,
-        )
+        # ★예약 실패가 **계측을 오염시키지 않게** 삼킨다 (2026-08-15 codex Standards-3).
+        #   여기서 던지면 바깥 `measure_conditional_reversal_task` 의 except 가
+        #   `unmeasured_error` 를 **한 번 더** 계상해, 한 체결이 `2x` + `unmeasured_error`
+        #   두 라벨로 잡힌다 — 이 파일이 지키는 「체결당 1회」 계약이 깨진다.
+        #   손익 자체는 5분 스윕이 받으므로 예약 실패는 늦음일 뿐이다.
+        try:
+            refresh_closed_pnl_task.apply_async(
+                args=[str(order_id)],
+                kwargs={"reversal": True},
+                countdown=_CLOSED_PNL_ENQUEUE_COUNTDOWN,
+            )
+        except Exception:
+            logger.warning(
+                "reversal_refresh_enqueue_failed",
+                exc_info=True,
+                extra={"order_id": str(order_id), "bucket": bucket},
+            )
     return {"bucket": bucket, "order_id": str(order_id)}
 
 
@@ -1809,6 +1836,20 @@ def refresh_closed_pnl_task(self: Any, order_id: str, reversal: bool = False) ->
     ★`reversal` 은 [BL-733] 이 더한 갈래다 — 반전이 증명된 leg 만 True 로 예약된다
     (`_measure_conditional_reversal_with_session`). 위치 인자가 아니라 kwarg 로 보내므로
     큐에 남은 옛 메시지는 기본값 False 로 종전 동작을 탄다.
+
+    ★★**반대 방향(새 메시지 → 옛 워커)은 이 기본값이 못 막는다** (2026-08-15 codex Standards-2).
+    옛 워커의 시그니처에는 `reversal` 이 없어 `TypeError` 가 난다. 다만 이 레포에는
+    **rolling deploy 가 없다** — `.github/workflows/` 에 배포 워크플로가 없고(ci · live-smoke ·
+    nightly 뿐) 소크 배포는 `soak-stack.sh down → pin → up` 전체 재기동이라 구/신 워커가
+    **동시에 사는 창이 구조적으로 없다**. 남는 위험은 **롤백**이다 — 새 코드가 발행한 메시지가
+    큐에 남은 채 옛 pin 으로 되돌리면 그 메시지들이 죽는다.
+    ⇒ 그때의 대가는 「그 leg 의 refresh 가 5분 스윕까지 밀림」이고 손익은 스윕이 맞춘다.
+    큐를 비우고 롤백하거나, 스윕 한 주기를 기다려라.
+
+    ★**at-least-once 중복** (codex Spec-4) — `task_acks_late=True`(`celery_app.py:95`)라
+    measure 태스크가 publish 뒤 ACK 전에 죽으면 같은 refresh 가 두 번 발행된다.
+    `backfill_exchange_realized_pnl` 이 CAS 라 **DB 는 안전**하고, 반전 경로는 원장이 없으면
+    재시도 없이 `skipped` 이므로 **중복 알림도 안 난다**. 남는 것은 provider 호출 1회 낭비다.
     """
     from src.tasks._worker_loop import run_in_worker_loop
 

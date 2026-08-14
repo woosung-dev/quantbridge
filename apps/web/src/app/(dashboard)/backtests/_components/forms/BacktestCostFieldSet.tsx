@@ -156,7 +156,7 @@ export function BacktestCostFieldSet({
             </p>
           ) : null}
           <p className="field-hint">
-            소수 표기입니다. 0.0005 는 0.05% 입니다. 불리한 방향으로만 적용하고
+            소수 표기입니다. 0.00014 는 0.014% 입니다. 불리한 방향으로만 적용하고
             유리한 체결은 가정하지 않습니다.
           </p>
         </div>

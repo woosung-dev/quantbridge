@@ -293,6 +293,10 @@ async def test_task_body_counts_the_bucket_it_measured(monkeypatch: pytest.Monke
     )
     provider = AsyncMock()
     provider.fetch_position = AsyncMock(return_value=_position("long", Decimal("8")))
+    # ★[BL-733] 이후 confirmed reversal 은 refresh 를 **예약**한다. stub 하지 않으면 이 단위
+    #   테스트가 **실 Redis broker 에 의존**하게 되고, 브로커가 없으면 무관하게 red 가 난다
+    #   (2026-08-15 codex Standards-4 — 실제로 그렇게 실패했다).
+    monkeypatch.setattr(t.refresh_closed_pnl_task, "apply_async", lambda *a, **kw: None)
 
     result = await t._measure_conditional_reversal_with_session(
         order_id, _sessionmaker(order, account), provider=provider

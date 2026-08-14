@@ -149,3 +149,61 @@ async def test_reversal_flag_defaults_to_false(monkeypatch: pytest.MonkeyPatch) 
     )
 
     assert result["skipped"] == "not_reduce_only"
+
+
+@pytest.mark.asyncio
+async def test_reversal_without_ledger_row_does_not_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """계약 4 — 반전 경로에서 원장이 비면 **재시도하지 않는다** (2026-08-15 codex Spec-1).
+
+    `_reversal_bucket_at_fill` 는 **알려진 위양성**을 갖는다 — 조건부 주문 등재 뒤 같은 방향
+    포지션이 새로 열리고 포지션 조회가 체결 전 스냅샷이면 증량 entry 가 반전으로 잡힌다.
+    단일 스냅샷으로는 원리적으로 구별 불가라 그 함수가 고의로 남긴 한계다.
+
+    그 휴리스틱을 `transient` 권한까지 승격하면 **정상 entry 가 4회 재시도 뒤 운영자 알림**을
+    낸다 — [BL-733] 이 막으려던 사고 그 자체다. 그래서 반전 경로의 원장 부재는 `skipped` 이고
+    5분 스윕이 받는다. **판정이 틀렸을 때의 대가를 「늦음」으로 묶어 두는 것**이 이 계약이다.
+    """
+    import src.tasks.trading as trading_mod
+
+    order = _order()
+    order.reduce_only = False
+    _install(monkeypatch, order)
+    provider = _provider(None)  # 원장에 대응 행이 없다
+    first, second = MagicMock(), MagicMock()
+    first.get = AsyncMock(return_value=_account())
+    second.commit = AsyncMock()
+
+    result = await trading_mod._refresh_closed_pnl_with_session(
+        order.id, _sessionmaker([first, second]), provider=provider, reversal=True
+    )
+
+    assert result["skipped"] == "reversal_pending_ledger"
+    assert "transient" not in result
+
+
+@pytest.mark.asyncio
+async def test_reduce_only_without_ledger_row_still_retries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """★음성 대조 — reduce-only 는 종전대로 `transient` 다 (재시도 사다리 보존).
+
+    이것이 없으면 「반전만 예외」가 아니라 「전부 재시도 없음」으로 넓힌 판본도 통과한다.
+    reduce-only 청산은 원장에 **반드시** 대응 행이 생기므로, 없으면 그것은 정산 지연이고
+    재시도가 옳다.
+    """
+    import src.tasks.trading as trading_mod
+
+    order = _order()  # reduce_only=True
+    _install(monkeypatch, order)
+    provider = _provider(None)
+    first, second = MagicMock(), MagicMock()
+    first.get = AsyncMock(return_value=_account())
+    second.commit = AsyncMock()
+
+    result = await trading_mod._refresh_closed_pnl_with_session(
+        order.id, _sessionmaker([first, second]), provider=provider
+    )
+
+    assert result["transient"] == "closed_pnl_not_yet_available"

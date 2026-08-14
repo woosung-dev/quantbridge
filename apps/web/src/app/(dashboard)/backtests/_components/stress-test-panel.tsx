@@ -93,17 +93,18 @@ export function StressTestPanel({ backtestId }: Props) {
     //   어느 칸도 운영 실측과 대응하지 않는다. [BL-698] 이 같은 병의 다른 판이었다
     //   (`step="0.0001"` 격자가 기본값을 입력 불가로 만들었다).
     //
-    // ★배수는 기본값 기준으로 잡는다 — 1x / 약 2x / 약 4x. 숫자를 손으로 쓰지 않는다.
-    const feeBase = DEFAULT_FEES_PCT;
-    const slipBase = DEFAULT_SLIPPAGE_PCT;
+    // ★★기본값을 **넣되 종전 상단을 지운다**는 뜻이 아니다 (2026-08-15 codex Standards-5).
+    //   초판은 배수 1x/2x/4x 로 잡았는데, 그러면 slippage 상단이 0.001 → 0.00056 으로
+    //   **거의 절반**이 된다 — 사용자가 보던 보수적 시나리오와 과거 실행과의 비교 범위가
+    //   함께 사라진다. 기본값 포함과 상단 보존은 **양립 가능**하므로 둘 다 한다:
+    //   최저점 = 현재 기본값, 나머지 둘 = 종전 격자의 중간·상단.
+    const grid = {
+      fees: [String(DEFAULT_FEES_PCT), "0.001", "0.002"],
+      slippage: [String(DEFAULT_SLIPPAGE_PCT), "0.0005", "0.001"],
+    };
     caMutation.mutate({
       backtest_id: backtestId,
-      params: {
-        param_grid: {
-          fees: [String(feeBase), String(feeBase * 2), String(feeBase * 4)],
-          slippage: [String(slipBase), String(slipBase * 2), String(slipBase * 4)],
-        },
-      },
+      params: { param_grid: grid },
     });
   };
 
