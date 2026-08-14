@@ -1,10 +1,28 @@
-"""TV 주문 leg가 Bybit Demo linear 선물에서 체결까지 이어지는지 검증한다.
+"""주문 leg가 Bybit Demo linear 선물에서 **실제 체결**까지 이어지는지 검증한다.
 
-실거래소 청산 하네스는 별도 worker 엔진으로 DB를 다시 열므로, seed는 savepoint 기반
-`db_session`이 아니라 `_test_engine`에서 만든 세션으로 실제 commit한다. 또한 spot은
-포지션 조회로 flat을 판정할 수 없어 거짓 안전망이 되므로 `BTC/USDT:USDT` linear perp만
-사용한다. 청산 finalizer가 계정과 라이브 세션을 다시 읽어야 하므로 테스트 본문에서
-seed를 정리하지 않는다.
+## ★이 파일이 재지 **않는** 것 — 이름에 속지 마라
+
+파일명은 `webhook_to_filled` 이지만 이 스위트는 **HTTP webhook 층을 타지 않는다.**
+진입점은 `OrderService.execute(OrderRequest)` 이고, 그 앞의 라우터·HMAC 서명 검증
+(`WebhookService.ensure_authorized`)·TV payload 파싱(`parse_tv_payload`)·
+`exchange_account_id` 추출은 **한 줄도 실행되지 않는다.** ⇒ 그 층만 깨진 회귀에서는
+이 테스트가 **거래소 주문까지 성공하고도 초록**이다(2026-08-14 codex 적대 리뷰 P1).
+
+그 층의 커버리지는 `tests/trading/test_router_orders.py`(HTTP/authz)와
+`tests/trading/test_webhook_*.py` 가 갖는다 — 단 **거래소는 mock 이다.**
+「HTTP 부터 실거래소까지」를 한 줄로 잇는 판은 아직 없다. 그것을 채우려면
+`app` 픽스처의 `get_async_session` override 를 savepoint `db_session` 이 아니라
+아래와 같은 **커밋 세션**으로 갈아야 한다 — 별건으로 남겼다([BL-024] 잔여).
+
+## 왜 커밋 세션인가 · 왜 linear perp 인가
+
+- 청산 하네스는 `create_worker_engine_and_sm()` 으로 **별도 엔진**을 연다. savepoint 기반
+  `db_session` 의 commit 은 그 엔진에서 **안 보여서** 청산이 전건 `undecidable` 이 된다.
+  ⇒ `_test_engine` 에서 만든 세션으로 실제 commit 한다.
+- flat 판정이 `fetch_open_positions` 라 **spot 에는 포지션이 없어** 무엇을 사든 flat 이
+  나온다(거짓 안전망). ⇒ `BTC/USDT:USDT` linear perp 만 쓴다.
+- 청산 finalizer 가 계정·라이브 세션 행을 **테스트 함수가 끝난 뒤** 다시 읽으므로
+  본문에서 seed 를 지우지 않는다.
 """
 
 from __future__ import annotations
@@ -17,7 +35,6 @@ import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from src.auth.models import User
-from src.core import config
 from src.core.config import settings
 from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.tasks.trading import _async_fetch_order_status
@@ -52,13 +69,17 @@ class _NoopKillSwitch:
 
 
 @pytest.mark.asyncio
-async def test_tv_webhook_to_bybit_demo_filled(
+async def test_order_service_to_bybit_demo_filled(
     _test_engine,
     bybit_demo_test_credentials: tuple[str, str],
     broker_flat_guard,
     _no_op_enqueue: dict[str, list[object]],
 ) -> None:
-    """주문 원장 생성·실발주·watchdog 체결 확정과 청산 등록 순서를 함께 검증한다."""
+    """주문 원장 생성·실발주·watchdog 체결 확정과 청산 등록 순서를 함께 검증한다.
+
+    ★이름이 `webhook` 이 아닌 이유는 모듈 docstring 을 봐라 — 진입점은 `OrderService` 이고
+    HTTP·HMAC 층은 **이 테스트가 재지 않는다.**
+    """
     api_key, api_secret = bybit_demo_test_credentials
     crypto = EncryptionService(settings.trading_encryption_keys)
     session_factory = async_sessionmaker(_test_engine, expire_on_commit=False)
@@ -136,10 +157,11 @@ async def test_tv_webhook_to_bybit_demo_filled(
         assert submitted_order is not None
         assert submitted_order.exchange_order_id is not None
 
-        previous_database_url = config.settings.database_url
+        # ★DSN 교체를 손으로 재구현하지 마라 — `_test_dsn_in_effect` 가 정본이다.
+        #   이 회차의 결함이 정확히 「같은 교체를 한 곳에서만 했다」였다([LESSON-109]).
+        #   `_async_fetch_order_status` 도 `create_worker_engine_and_sm()` 을 타므로 같은 계약이다.
         order_after_watchdog = None
-        config.settings.database_url = _harness._effective_db_url()
-        try:
+        with _harness._test_dsn_in_effect():
             for retry in range(4):
                 await _async_fetch_order_status(response.id, attempt=1)
                 session.expire_all()
@@ -151,8 +173,6 @@ async def test_tv_webhook_to_bybit_demo_filled(
                     break
                 if retry < 3:
                     await asyncio.sleep(2)
-        finally:
-            config.settings.database_url = previous_database_url
 
         assert order_after_watchdog is not None
         assert order_after_watchdog.state == OrderState.filled, (

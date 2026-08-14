@@ -359,8 +359,23 @@ watchdog `_async_fetch_order_status` 로 `filled` 확정 → 2층 하네스 청�
 **남의 포지션 때문에** 실패했을 것이다.
 
 ★**부수 수리** — `_verdict` 가 rc 만 보고 PASS 를 찍어 **08-10~08-14 5일 연속** `1 passed, 1 skipped` 를
-「통과」로 적고 있었다(그 skipped 가 실거래소 leg 그 자체다). `_skipped_count` 로 rc 0 을 PASS(skip 0)와
-SKIP(skip>0)으로 갈랐다 — 정본 로그 대조 **9/9**(양성 5 = 실제 로그 · 음성 4).
+「통과」로 적고 있었다(그 skipped 가 실거래소 leg 그 자체다). rc 0 을 판정으로 갈랐다.
+
+★★**codex 적대 리뷰 3건이 전부 참이었다**(phantom 0 · 코드 대조로 채택 — 15분 타임박스 안에 끝났다).
+그리고 **셋 다 내 첫 수리판이 `fail-open` 이었다는 같은 병**이다:
+⑴ **P2 경합** — 판정이 `$LOG` 를 읽는데 그 파일은 최상단 `exec > >(tee -a "$LOG")` 가 **비동기**로
+쓴다. pytest 직후 읽으면 요약 줄이 아직 없어 「판독 불가 = 0 = PASS」가 된다(기존 지리차단 판정도
+같은 패턴이었다) ⇒ pytest 출력을 **동기 파이프라인** `| tee "$PYTEST_OUT"` 으로 받아 그것을 읽는다.
+⑵ **P2 fail-open** — 「요약 줄 없음 = 0 skipped」가 기본값이라 `--collect-only`·ANSI 색상·`xfailed` 가
+전부 PASS 로 샌다 ⇒ 함수를 `_pytest_summary_line`(찾기)과 `_count_outcome`(세기)로 **갈라서** 호출부가
+빈 줄을 **BLOCKED** 로 처리하게 했다. `passed == 0` 도 BLOCKED 다.
+⑶ **P1 이름이 거짓** — 파일명은 `webhook_to_filled` 인데 HTTP·HMAC·payload 파싱을 **한 줄도 안 탄다**.
+그 층만 깨진 회귀에서 이 테스트는 거래소 주문까지 성공하고도 초록이다 ⇒ 함수명을
+`test_order_service_to_bybit_demo_filled` 로 바꾸고 모듈 docstring 에 **재지 않는 것**을 명시했다.
+재대조 **12/12**(양성 5 = 실제 로그 · 변종 5 = xfailed/xpassed/no-tests-ran/error/정상 ·
+음성 2 = `--collect-only`·ANSI **둘 다 BLOCKED**) · 정본 경로 재실행 = `PASS (passed 2 · 미실행 0)`.
+★내가 따로 찾은 P3 도 같이 고쳤다 — 테스트 파일이 DSN 교체를 **손으로 재구현**하고 있었다
+([LESSON-109] 가 말한 「한 곳만 고쳤다」의 씨앗) ⇒ `_test_dsn_in_effect` 를 쓰게 했다.
 
 **다음 행동 = 이 PR 이 머지되면 `tools/scripts/soak-restart.sh --confirm` 으로 소크를 재기동한다**
 (거래소 flat 확인 완료 · 파라미터는 원장 최근 세션에서 자동 추출됨).
