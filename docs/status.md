@@ -108,7 +108,11 @@ tools/scripts/bybit-smoke.sh --env-file <시크릿파일> --mode demo
 #   ★--confirm 은 거래소에 실제로 나간다. **사용자 승인 뒤에만.**
 
 # ④ 하루 끝 — 마지막 커밋 뒤, 클린 트리. 그 뒤로 문서를 더 쓰지 마라
-tools/scripts/final-gates.sh --run <회차슬러그>   # ★--run eod 금지 — 스크립트가 거부한다([BL-706])
+tools/scripts/final-gates.sh --run <회차슬러그> --pre-pr   # 무거운 9종 유예 (~1분) — 여기까지가 PR 전
+#   → PR push → CI 와 **나란히** 로컬에서:
+tools/scripts/final-gates.sh --run <회차슬러그> --deferred-only   # BE pytest 379초 + e2e + 신호 4종
+#   ★--run eod 금지 — 스크립트가 거부한다([BL-706]). 전량 1회로 가려면 플래그 없이 돌려라
+#   ★유예 원장 `.claude/gates/<슬러그>/deferred.txt` 가 남아 있으면 **종결이 아니다**
 #   신호 4종(.ok)은 이 회차 것으로 새로 취득 — 각 파일 첫 줄 = `commit: $(git rev-parse HEAD)`
 ```
 
