@@ -641,12 +641,13 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-725](#bl-725) | `exchange_exits` **중복 290행** — 같은 uid 에 계정 행이 둘이라 각자 같은 창을 적재했고 UNIQUE 축이 `(exchange_account_id, row_hash)` 라 안 걸린다. 원장 882행 = 고유 **592** + 중복 290(잉여 −517.84). ★[BL-605] 수리는 작동 중이고 **신규 적재는 2026-08-08 에 멈췄다** — 잔재다. 중복쌍이 서로 다른 라벨을 받는 편향 동반                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 동승 — `exchange_accounts` 행 축 결정 대기                                                                      | S (30분)     | 2026-08-14 money-path-attribution                            |
 | [BL-726](#bl-726) | ✅ `rejected` reduce-only 46건 `realized_pnl` **+55.32** — **Resolved (기각)** (2026-08-14 `dde53e68`/#631 + 코드 대조). 모순이 아니었다: 값은 **생성 시점**에 실리는 **체결 전 추정치**다(`order_service.py:393,427` — 라이브·웹훅 두 축 모두). `exchange_order_id` 는 46건 전부 **NULL** = **주문 ID 미발급·미체결**(`110017`/`10005` 는 거래소가 **반환한** retCode 이므로 「미도달」이 아니다). ⇒ `state==filled` 필터가 **옳다**. ★원장 처방 ⑵ 는 이 46건에 **no-op** 이고 채택하면 게이트가 되레 느슨해진다. 동작 변경 0                                                                                                                                                                                                                                                                         | —                                                                                                               | S (1h)       | 2026-08-14 money-path-attribution                            |
 | [BL-727](#bl-727) | ✅ `soak-gate.sh` 판정 본체의 맨 `python3` — **Resolved** (2026-08-14 `dde53e68`/#631). `:706`·`:714`~`:716` 을 `uv run python` 으로 + **빈 출력 fail-closed**. 종전에는 맥 3.9 의 `itertools.pairwise` 부재로 죽고도 진행해 **빈 `판정:` 줄**을 찍는 fail-open 이었다. 맥 음성 대조 3단계로 판별력 증명                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | —                                                                                                               | XS (10분)    | 2026-08-14 money-path-attribution                            |
-| [BL-729](#bl-729) | 전략 채택 근거가 된 백테스트 **4벌이 낡은 비용 가정**(`fees 0.001`/`slippage 0.0005`, 2026-07-26 생성)으로 돌았다 — [BL-603] 이 08-07 에 실측 `0.00055`/`0.00014` 로 교체한 값이다. 왕복 0.30% vs 실측 0.138% = **2.2배 비관**. `config_mapper.py:102-104` 가 저장값을 복원하므로 **재실행해도 안 고쳐진다**. 처방 = Cost-Assumption 스트레스 테스트를 실측점 포함 격자로 1회                                                                                                                                                                                                                                                                                                                                                                                                                          | 즉시 — 소크 전략을 다시 고를 때의 입력 (소크 정지 창에서)                                                       | S (1h)       | 2026-08-14 money-path-close                                  |
-| [BL-730](#bl-730) | FE 비용 기본값 **drift 2곳** — [BL-603] 은 「FE 미러 4곳」이라 적었지만 실제 5곳이었다. `features/backtest/schemas.ts:81,87` zod `.default(0.001/0.0005)` · `onboarding/_components/step-3-backtest.tsx:77-78` **하드코딩 submit**. ★후자가 실사고 — 폼을 안 거쳐 **신규 사용자의 첫 백테스트가 왕복 0.30%** 로 돈다. 인접 3번째 = `stress-test-panel.tsx:93-94` 격자에 현재 기본값이 없음                                                                                                                                                                                                                                                                                                                                                                                                             | ★이미 발화 — 온보딩 프로덕션 경로                                                                               | XS (15분)    | 2026-08-14 money-path-close                                  |
-| [BL-731](#bl-731) | `list_synced_with_exchange_exit` 의 **`LIMIT 500`** — [BL-438] 수리로 재검증 모집단이 `reduce_only` **73건 → 원장 증언 563건**이 되어 가장 오래된 **63건이 영구 제외**된다. 미동기화 축은 배수(drain)되지만 **동기화 축은 단조 증가**라 안 풀린다. 처방 = 상한 확대(미봉) 말고 **원장 합계 ≠ 저장값** 행으로 모집단을 좁혀라(`resync_*` 의 `IS DISTINCT FROM` 가드를 SQL 로 끌어올리면 0 에 수렴)                                                                                                                                                                                                                                                                                                                                                                                                      | ★이미 발화 조건 성립 — 수리가 머지됐다                                                                          | S (1h)       | 2026-08-14 money-path-close                                  |
-| [BL-733](#bl-733) | 체결 직후 refresh **2곳**이 아직 `reduce_only` 게이트 — [BL-438] 은 스윕 축만 고쳤다. 반전 주문 확정 손익이 **최대 5분** 늦고 그 창이 kill-switch 사각이다. ★**필터만 지우면 더 나빠진다** — **정상 선물 entry** 가 `transient` 4회 재시도 뒤 **운영자 알림**을 낸다. 처방 = 기존 `_reversal_bucket_at_fill` 을 게이트로 재사용하고 `unmeasured_*` 는 스윕에 맡겨라                                                                                                                                                                                                                                                                                                                                                                                                                                    | 도래 — 나머지 2곳이 유일 잔여                                                                                   | M (2-3h)     | 2026-08-14 money-path-close                                  |
+| [BL-729](#bl-729) | ✅ **낡은 비용 가정 백테스트 — Resolved** (2026-08-15). Cost-Assumption 9-cell 을 **실측점 포함 격자**로 돌려 판독: 실측 `−7.74%` vs 저장값 `−22.59%` ⇒ **[BL-724] 유지**(부호가 안 바뀐다). ★부수 — 왕복 비용 2.17배에 손실 2.92배로 **비선형**이라 선형 외삽은 틀린다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 즉시 — 소크 전략을 다시 고를 때의 입력 (소크 정지 창에서)                                                       | S (1h)       | 2026-08-14 money-path-close                                  |
+| [BL-730](#bl-730) | ✅ **FE 비용 기본값 drift — Resolved** (2026-08-15). 리터럴 **5벌**을 `cost-defaults.ts` 하나로 모았다(이미 맞던 3벌 포함 — 안 모으면 다음 조정에 같은 3/5 문제). 온보딩 payload 테스트 신설 + stress 프리셋 격자를 기본값 기준 1x/2x/4x 로                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | ★이미 발화 — 온보딩 프로덕션 경로                                                                               | XS (15분)    | 2026-08-14 money-path-close                                  |
+| [BL-731](#bl-731) | ✅ **`list_synced_with_exchange_exit` LIMIT 500 — Resolved** (2026-08-15). `IS DISTINCT FROM` 을 SQL 술어로 끌어올려 모집단이 **0 으로 수렴**한다 — 상한도 정렬도 안 바꿨다. 수리 전 red 선확인                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ★이미 발화 조건 성립 — 수리가 머지됐다                                                                          | S (1h)       | 2026-08-14 money-path-close                                  |
+| [BL-733](#bl-733) | ✅ **체결 직후 refresh `reduce_only` 게이트 — Resolved** (2026-08-15). `_reversal_bucket_at_fill` 을 재사용해 **반전이 증명된 leg 만** 예약(`unmeasured_*` 는 스윕에 맡긴다). ★실행측 게이트엔 테스트가 **0건**이었다 — 지워도 31 passed 였다. 그 그물도 함께 신설                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 나머지 2곳이 유일 잔여                                                                                   | M (2-3h)     | 2026-08-14 money-path-close                                  |
 | [BL-736](#bl-736) | 로컬 Docker VM **94% / 3.1G** — `MISCONF … No space left on device` 로 Redis AOF 가 죽자 celery 가 `Unrecoverable error` 로 통째 정지했다(2026-08-14T06:04:11Z). ★**처방 반증(2026-08-15)** — `docker image prune -f` 실측 **0B**다(dangling 이 아니라 태그된 미사용 이미지라 `-a` 가 필요). 그 5.5GB 는 전부 **남의 프로젝트 이미지**이고 볼륨 19.59GB 에도 남의 DB 가 섞여 있다 ⇒ **안전한 자동 회수 경로가 없다**                                                                                                                                                                                                                                                                                                                                                                                   | 도래 — 06:04Z 실사고 로그                                                                                       | S (1h)       | 2026-08-15 soak-survival                                     |
 | [BL-737](#bl-737) | 서버 `dev.quantbridge.soak-watch.service` 가 **failed** — 표본 타이머는 정상인데 **알림 축만** 죽어 있다. 2026-08-14 사망을 아무도 몰랐던 이유다. ★문서는 watch 가 게이트 타이머를 「대체」한다는데 실태는 반대다 — 정본을 함께 정해라                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 도래 — failed 실측                                                                                              | S (1h)       | 2026-08-15 soak-survival                                     |
+| [BL-741](#bl-741) | `conftest` 의 `create_all` 이 만든 스키마 위에서 **새 migration 이 `DuplicateTable` 로 죽는다**. 둘은 서로를 모르고, 종전엔 migration 이 squash base **하나뿐**이라 안 드러났다 — [BL-731] 이 두 번째를 더하며 발화. ★CI(fresh DB)는 안 걸리고 **로컬에서 pytest 를 돌린 개발자만** 걸린다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 도래 — 실제 red                                                                                                 | S (1-2h)     | 2026-08-15 soak-survival                                     |
 | [BL-738](#bl-738) | [BL-734] 가드의 **한계 3종** — ⑴ 남이 resting 없이 포지션만 가지면 통과한다(「빈 목록 = 배타적」은 거짓) ⑵ probe↔청산 **경쟁**에는 fail-closed 가 아니다 ⑶ `scan_resting_conditionals` 가 Repository 밖에서 DB 를 읽는다(AGENTS.md §3). 근본 해결은 거래소 계정 분리                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 미도래 — 가드가 열린 관측 없음                                                                                  | M (2-3h)     | 2026-08-15 soak-survival                                     |
 | [BL-721](#bl-721) | ✅ **게이트 2단 분할 — Resolved (2026-08-14 gate-2stage)** — 전량 1회 **15~20분**의 대부분을 여섯이 먹고 **CI 가 같은 것을 이미 샤딩해서 돈다**(BE pytest **379초**·e2e ~400초 vs 나머지 20종 합계 1분 안쪽). ⇒ `--pre-pr`(유예) → PR push → **CI 와 나란히** `--deferred-only`. ★유예는 면제가 아니다 — 유예 원장 파일 + 다른 종결 문구, `--deferred-only` 통과만이 원장을 지운다. 하네스 `final-gates-test.sh` 신설(8종→**9종**)                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 회고에서 실측                                                                                            | S            | 2026-08-14 gate-surface-close 회고                           |
 | [BL-723](#bl-723) | ✅ **Resolved (2026-08-14 gate-pointer-axis)** — **비싼 게이트에만 영역 판정이 없었다.** `BE ruff`·`BE mypy`·`FE vitest`·`FE build`·`e2e chromium` 은 `has_be`/`has_fe` 에 걸려 있는데 **가장 비싼 셋**(`BE pytest` **357초** · `e2e authed` **268초** · `e2e design-canon` **42초**)만 무조건 돌았다. 앱 코드 diff 0 인 회차에서 **11분 10초**를 태웠고 같은 회차에 CI 는 `backend`·`e2e` 잡을 전부 skip 했다 — 로컬이 CI 보다 더 돌면서 잴 것은 없었다. 처방 = `BE pytest`→`has_be` · `design-canon`→`has_fe` · `authed`→`has_fe∥has_be`. 하네스 8→**9 케이스**(⑤⑥① 환경 의존 동반 수리)                                                                                                                                                                                                             | 도래 — 실측이 있고 처방이 우리 손 안에 있다                                                                     | XS           | 2026-08-14 gate-pointer-axis                                 |
@@ -8169,10 +8170,37 @@ API 로 격자를 직접 주거나 프리셋을 고쳐라(→ [BL-730](#bl-730) 
 
 **Risk:** 🟡 (전략 채택/기각 판단이 2.2배 비관인 비용 위에 서 있다 — 쓸 만한 전략을 부당 탈락시킬 수 있다)
 
-**상태:** ⬜ Open — 미착수. 실측치만 확보됐다 (2026-08-14 money-path-close)
+**상태:** ✅ **Resolved (2026-08-15 soak-survival)** — Cost-Assumption 축을 **실측점 포함 격자**로 1회 돌려 판독했다. 판정 = **[BL-724] 유지**(비용 축으로 구제되지 않는다)
 **트리거 판정:** 도래 — Trigger 줄에 조건절이 없다. 다만 착수는 소크 정지 창에 맞춘다 (2026-08-14 money-path-close)
 
 ---
+
+## ★2026-08-15 실측 — 「해석적 재계산」을 측정으로 바꿨다
+
+`a22faccb`(BTC/USDT 1h · 2025-07-01~2026-07-25 · 9337 bars)를 `run_cost_assumption_sensitivity`
+로 9-cell 돌렸다. **격자 최저점을 실측값에 맞췄다** — 종전 FE 프리셋에는 그 점이 없었다([BL-730]).
+
+```
+      fees   slippage   total_return       max_dd   trades
+   0.00055    0.00014        −7.737%       −4.530%    1029   ← 실측 (BL-603)
+   0.00055    0.00028       −10.304%       −6.083%    1029
+   0.00055     0.0005       −14.337%       −8.910%    1029
+    0.0011    0.00014       −17.820%      −11.812%    1029
+     0.001     0.0005       −22.587%      −16.688%    1029   ← 저장된 낡은 값
+```
+
+**판정 = [BL-724] 유지.** 비용을 실측으로 낮춰도 **부호가 안 바뀐다**(−22.59% → −7.74%).
+전략 채택 근거가 낡은 가정이었던 것은 맞지만, 고쳐도 결론은 그대로다.
+
+★★**부수 발견 — 비용과 손실은 선형이 아니다.** 왕복 비용은 `0.0015/0.00069` = **2.17배**인데
+손실은 `22.59/7.74` = **2.92배**다. 비용이 체결·청산 경로 자체를 바꾸기 때문이고, 그래서
+「왕복 0.30% → 0.138% 니까 손실도 절반쯤」이라는 **선형 외삽은 틀린다**. [BL-724] 의
+해석적 재계산(`[가정]` net ≈ −69,538)도 같은 이유로 점추정으로만 써야 한다.
+
+★**미해결 관측 하나** — 9 cell 전부 `sharpe=0` 인데 `is_degenerate=False` 다(trades 1029).
+degenerate 판정이 `num_trades=0 또는 NaN sharpe` 인데 둘 다 아닌 채로 0 이 나왔다.
+비용 민감도 결론에는 영향이 없어(총수익·MDD 로 판정) 이번 회차에서 파지 않았지만,
+Sharpe 를 판단에 쓰려면 먼저 확인해야 한다 → [BL-740].
 
 ### BL-730
 
@@ -8211,7 +8239,7 @@ FE 단일 상수(`assumptions-card.tsx:20-21` 의 `DEFAULT_FEES`/`DEFAULT_SLIPPA
 
 **Risk:** 🟡 (신규 사용자가 보는 첫 숫자가 2.2배 비관 — 전략을 부당 탈락시킨다)
 
-**상태:** ⬜ Open — 미착수 (2026-08-14 money-path-close)
+**상태:** ✅ **Resolved (2026-08-15 soak-survival)** — FE 리터럴 5벌을 `features/backtest/cost-defaults.ts` 단일 상수로 모았다(이미 맞던 3벌 포함 — 안 모으면 다음 조정 때 같은 3/5 문제가 난다). 온보딩 제출 payload 테스트 신설 + stress 프리셋 격자를 기본값 기준 1x/2x/4x 로 교체
 **트리거 판정:** 도래 — 온보딩 경로가 이미 프로덕션에서 그 값을 보낸다 (2026-08-14 money-path-close)
 
 ---
@@ -8250,7 +8278,7 @@ CAS 로 얼린 경우」를 되돌리는 안전망이고, 그 refresh 경로(`_e
 
 **Risk:** 🟡 (안전망이 조용히 일부 모집단을 안 본다 — 지금은 무해하나 게이트를 여는 순간 실피해)
 
-**상태:** ⬜ Open — 미착수 (2026-08-14 money-path-close)
+**상태:** ✅ **Resolved (2026-08-15 soak-survival)** — `IS DISTINCT FROM` 가드를 SQL 술어로 끌어올려 모집단이 0 으로 수렴한다. 상한도 정렬도 안 바꿨다. 수리 전 red 를 먼저 확인
 **트리거 판정:** 도래 — [BL-438](#bl-438) 수리가 머지돼 모집단 증가 조건이 이미 성립했다 (2026-08-14 money-path-close)
 
 ---
@@ -8377,7 +8405,7 @@ submitted_at)` 으로 반전 여부를 판정하고 **증명 못 하면 `unmeasu
 
 **Risk:** 🟡 (지연 5분 — 손익 자체는 스윕이 결국 맞춘다. 다만 그 5분이 kill-switch 창이다)
 
-**상태:** ⬜ Open — 미착수 (2026-08-14 money-path-close)
+**상태:** ✅ **Resolved (2026-08-15 soak-survival)** — `_reversal_bucket_at_fill` 판정을 재사용해 **반전이 증명된 leg 만** refresh 를 예약한다(`unmeasured_*` 는 스윕에 맡긴다). 실행측 게이트에 회귀 테스트 신설 — 종전엔 그 게이트를 지우면 31 passed 였다
 **트리거 판정:** 도래 — [BL-438](#bl-438) 이 머지돼 나머지 2곳이 유일한 잔여가 됐다 (2026-08-14 money-path-close)
 
 ---
@@ -8620,3 +8648,78 @@ signal_gate "화면 검증 (playwright 또는 /browse)" "screen.ok" 1 ""
 
 **상태:** ⬜ Open — 미착수 (2026-08-15 soak-survival)
 **트리거 판정:** 도래 — 이 회차가 실제로 그 자리에서 멈췄다 (2026-08-15 soak-survival)
+
+---
+
+### BL-740
+
+**Title:** Cost-Assumption 9-cell 이 전부 `sharpe=0` 인데 `is_degenerate=False` 다
+**Category:** Backend / stress_test (지표 계산)
+**Priority:** P3
+**Trigger:** Sharpe 를 **판단 입력으로 쓰기 전에** / 또는 다른 grid sweep 에서 같은 값이 보이면
+**Est:** S (1h — 계산 경로 추적)
+**출처:** 2026-08-15 soak-survival ([BL-729] 판독 중 부수 관측)
+
+**원인 / 영향:** `run_cost_assumption_sensitivity` 를 `a22faccb`(1029 trades)로 9-cell 돌렸더니
+**모든 cell 의 `sharpe` 가 `0`** 이었다. `GridSweepMetricsCell.is_degenerate` 는
+「`num_trades=0` 또는 NaN sharpe」일 때 참인데 **`False`** 다 — 즉 계산이 정상 종료하고
+0 을 냈다는 뜻이다. 같은 실행에서 `total_return`·`max_drawdown` 은 cell 마다 정상적으로 갈렸다
+(−7.74% ~ −22.59% / −4.53% ~ −16.69%).
+
+★[BL-729] 의 결론에는 **영향이 없다** — 그 판정은 총수익·MDD 로 했고 Sharpe 를 안 썼다.
+그래서 이번 회차에서 파지 않았다. 다만 **화면은 이 값을 보여준다**.
+
+★두 갈래 중 어느 쪽인지가 먼저다: ⑴ 계산이 실제로 0 을 내는 것(수익률 표준편차 산출 경로) 인지
+⑵ `metrics_cell` 매핑에서 필드가 안 실리는 것인지. 후자면 `is_degenerate` 도 못 잡는 것이
+당연하고, 그렇다면 **NaN 만 보는 degenerate 판정 자체가 좁다**.
+
+**Risk:** 🟢 (표시 축. 지금 무엇을 깨지는 않지만 **0 은 「나쁜 Sharpe」로 읽힌다** — 부재와 구별 불가)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 관측만 확보됐다. Sharpe 를 판단 입력으로 쓰는 회차가 오거나 다른 grid sweep 에서 같은 값이 보이면 연다 (2026-08-15 soak-survival)
+**트리거 판정:** 미도래 — Sharpe 를 판단에 쓰는 회차가 아직 없다 (2026-08-15 soak-survival)
+
+---
+
+### BL-741
+
+**Title:** `conftest` 의 `create_all` 이 만든 스키마 위에서 **새 migration 이 충돌**한다
+**Category:** 테스트 인프라 / alembic
+**Priority:** P2
+**Trigger:** ★**이미 발화했다** — 2026-08-15 [BL-731] 인덱스 migration 이 로컬에서 `test_migrations.py` 6건을 red 로 만들었다
+**Est:** S (1-2h — 설계 결정이 선행)
+**출처:** 2026-08-15 soak-survival ([BL-731] 인덱스 추가 중 발견)
+
+**원인 / 영향:** 테스트 DB 는 두 주체가 만든다 —
+
+- `tests/conftest.py` 세션 픽스처의 `SQLModel.metadata.create_all` (모델을 그대로 반영)
+- `alembic upgrade head` (`test_migrations.py` · `CI fresh DB alembic` 게이트)
+
+**둘은 서로를 모른다.** 2026-08-15 실측: `alembic_version = 20260801_0001`(새 migration 이전)인데
+`create_all` 이 만든 `ix_exchange_exits_account_order` 는 **이미 존재**했다. 그 상태로
+`upgrade head` 가 돌면 `DuplicateTable: relation ... already exists` 로 죽는다.
+
+★**종전에 안 드러난 이유** — migration 이 squash 된 base(`20260801_0001`) **하나뿐**이었다.
+`create_all` 이 만드는 것과 base 가 만드는 것이 같고 `alembic_version` 은 이미 head 라
+`upgrade` 가 no-op 이었다. **[BL-731] 이 두 번째 migration 을 더하면서 순차 적용이 처음 생겼다.**
+
+★**CI 는 안 걸린다** — `CI fresh DB alembic` 게이트가 throwaway DB 에 alembic 만 돌린다.
+걸리는 것은 **로컬에서 pytest 를 한 번이라도 돌린 개발자**다. 그리고 증상이
+「내 migration 이 깨졌다」로 보여서 원인을 엉뚱한 데서 찾게 된다(이번에 그랬다).
+
+★즉시 해소법: `drop index if exists trading.<이름>` 후 재실행. **이것은 우회이지 수리가 아니다** —
+다음 migration 마다 반복된다.
+
+**권장 접근:** 세 갈래 중 결정이 필요하다.
+⑴ **테스트 DB 도 alembic 으로만 만든다** — `create_all` 을 걷어낸다. 가장 정합적이지만 픽스처
+속도가 느려지고(모든 migration 순차 적용) 실패 지점이 늘어난다.
+⑵ **`create_all` 전에 DB 를 항상 비운다** — 지금도 `drop_all` 은 하는데 **인덱스가 남는 경로**가
+있다는 뜻이므로 그 경로부터 찾아야 한다.
+⑶ migration 을 `IF NOT EXISTS` 로 쓴다 — 가장 싸지만 **「적용됐는가」를 흐린다**. 권하지 않는다.
+
+★어느 쪽이든 **재발 회귀 테스트**가 함께 가야 한다 — 「create_all 로 만든 DB 에 upgrade head 를
+돌리면 통과한다」를 단언하는 케이스가 지금 없다.
+
+**Risk:** 🟡 (프로덕션 무관. 개발자 시간을 먹고 **원인을 오도한다**)
+
+**상태:** ⬜ Open — 미착수. 2026-08-15 회차는 `drop index` 우회로 넘어갔다 (2026-08-15 soak-survival)
+**트리거 판정:** 도래 — 실제로 red 를 만들었다 (2026-08-15 soak-survival)

@@ -530,7 +530,20 @@ async def _filled_order(
     return order
 
 
-async def _exit_row(db_session, account, *, exchange_order_id: str, row_hash: str) -> None:
+async def _exit_row(
+    db_session,
+    account,
+    *,
+    exchange_order_id: str,
+    row_hash: str,
+    closed_pnl: Decimal = Decimal("-1.5"),
+) -> None:
+    """원장 청산 행 하나.
+
+    ★`closed_pnl` 기본값은 `_filled_order` 가 넣는 `realized_pnl=-1` 과 **다르다**(불일치).
+    「이미 일치하는 행」을 만들려면 `-1` 을 명시적으로 넘겨라 — [BL-731] 의 재검증 모집단
+    술어가 그 둘을 갈라야 한다.
+    """
     from src.trading.models import ExchangeExit, ExitAttribution, ExitClassification
 
     db_session.add(
@@ -540,7 +553,7 @@ async def _exit_row(db_session, account, *, exchange_order_id: str, row_hash: st
             row_hash=row_hash,
             symbol="BTC/USDT",
             side="Sell",
-            closed_pnl=Decimal("-1.5"),
+            closed_pnl=closed_pnl,
             exchange_created_at=datetime.now(UTC),
             classification=ExitClassification.ours,
             attribution_confidence=ExitAttribution.exact,
@@ -703,3 +716,99 @@ async def test_synced_selection_follows_the_same_ledger_predicate(db_session, st
     rows = await OrderRepository(db_session).list_synced_with_exchange_exit(account.id)
 
     assert [o.id for o in rows] == [synced.id]
+
+
+async def test_synced_selection_drops_rows_whose_ledger_already_matches(
+    db_session, strategy, account
+):
+    """[BL-731] — 재검증 모집단은 **「원장 합계 ≠ 저장값」인 행만**이어야 한다.
+
+    ★**이 테스트가 잡는 것은 상한이 아니라 「무엇이 상한을 먹는가」다.** #631 이 대상 선정을
+    원장 EXISTS 로 바꾸면서 모집단이 `reduce_only` 73건 → 563건이 됐다. 그중 대다수는 **이미
+    일치**하는데도 자리를 차지하고, `filled_at desc` 정렬이라 **가장 오래된 것부터 밀려난다**.
+    밀려난 행은 다음 tick 에도 같은 이유로 밀리므로 **영구 제외**다.
+
+    ★미동기화 축(`list_unsynced_*`)과 성질이 다르다 — 그쪽은 백필에 성공하면 모집단에서
+    빠져 배수되지만, 동기화 축은 **단조 증가**라 한 번 상한을 넘으면 스스로 줄지 않는다.
+
+    ★상한을 키우는 것은 미봉이다. 술어가 「일치하는 행」을 걸러내면 모집단이 **0 으로 수렴**하고
+    상한이 무의미해진다. 처리된 행은 다음 tick 에 술어에서 빠지므로 정렬을 바꿀 필요도 없다.
+
+    ★**501건을 만들지 않는다** — `limit` 이 인자이므로 작은 수로 같은 구조를 만든다.
+    운영 기본값이 500 이라는 것과 이 테스트가 재는 성질은 별개다.
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    base = datetime.now(UTC)
+
+    # 가장 오래된 행 = **불일치**(저장값 -1 vs 원장 -1.5). 반드시 잡혀야 하는 유일한 행이다.
+    stale = await _filled_order(
+        db_session,
+        strategy,
+        account,
+        exchange_order_id="stale-mismatch",
+        reduce_only=False,
+        filled_at=base - timedelta(days=10),
+        synced_at=base - timedelta(days=10),
+    )
+    await _exit_row(
+        db_session,
+        account,
+        exchange_order_id="stale-mismatch",
+        row_hash="h-stale",
+        closed_pnl=Decimal("-1.5"),
+    )
+
+    # 최신 3건 = **이미 일치**(둘 다 -1). 모집단에 들어올 이유가 없는데 상한을 먹는다.
+    for i in range(3):
+        await _filled_order(
+            db_session,
+            strategy,
+            account,
+            exchange_order_id=f"already-ok-{i}",
+            reduce_only=False,
+            filled_at=base - timedelta(minutes=i),
+            synced_at=base,
+        )
+        await _exit_row(
+            db_session,
+            account,
+            exchange_order_id=f"already-ok-{i}",
+            row_hash=f"h-ok-{i}",
+            closed_pnl=Decimal("-1"),
+        )
+    await db_session.commit()
+
+    rows = await OrderRepository(db_session).list_synced_with_exchange_exit(account.id, limit=3)
+
+    # 수리 전: 일치하는 최신 3건이 limit 을 채워 `stale` 이 밀린다 → red.
+    assert [o.id for o in rows] == [stale.id]
+
+
+async def test_synced_selection_still_ignores_orders_without_a_ledger_row(
+    db_session, strategy, account
+):
+    """★음성 대조 — 술어를 넣어도 **원장 행이 없는 주문**은 여전히 안 잡힌다.
+
+    새 술어는 `realized_pnl IS DISTINCT FROM <원장 합계>` 인데, 원장 행이 없으면 그 합계가
+    `NULL` 이라 `IS DISTINCT FROM` 이 **참**이 된다. EXISTS 조건을 함께 두지 않으면 원장에
+    증거가 없는 주문까지 재검증 대상이 되고, 스윕은 `ledger_pnl is None` 으로 걸러 **매 tick
+    헛돈다**. 이 대조가 없으면 그 회귀가 초록으로 지나간다.
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    now = datetime.now(UTC)
+    await _filled_order(
+        db_session,
+        strategy,
+        account,
+        exchange_order_id="no-ledger-row",
+        reduce_only=False,
+        filled_at=now,
+        synced_at=now,
+    )
+    await db_session.commit()
+
+    rows = await OrderRepository(db_session).list_synced_with_exchange_exit(account.id)
+
+    assert rows == []

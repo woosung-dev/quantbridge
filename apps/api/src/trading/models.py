@@ -4,6 +4,7 @@ Schema: 모두 `trading` 스키마 격리 (Sprint 5 ts schema 패턴).
 DateTime: AwareDateTime + TIMESTAMPTZ 강제 (ADR-005).
 Decimal: 금액/수량은 NUMERIC(18, 8) — Sprint 4 D8 교훈.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -296,9 +297,7 @@ class Order(SQLModel, table=True):
     take_profit: Decimal | None = Field(
         default=None, sa_column=Column(Numeric(18, 8), nullable=True)
     )
-    stop_loss: Decimal | None = Field(
-        default=None, sa_column=Column(Numeric(18, 8), nullable=True)
-    )
+    stop_loss: Decimal | None = Field(default=None, sa_column=Column(Numeric(18, 8), nullable=True))
     # Wave 2 (TP/SL placement) — ADD COLUMN(alembic 20260626_0002). 전부 default None 회귀.
     # trigger_direction: Bybit v5 triggerDirection(1=가격 RISE 시 트리거, 2=FALL 시).
     #   standalone 트리거 주문(SL/Trail) 방향. exit_order_mapping.trigger_direction_for 계산.
@@ -401,9 +400,12 @@ class FundingRate(SQLModel, table=True):
     8시간마다 정산되는 Bybit/OKX USDT Perpetual funding rate를 저장.
     Alembic: 20260421_0001_add_funding_rates_table.py
     """
+
     __tablename__ = "funding_rates"
     __table_args__ = (
-        UniqueConstraint("exchange", "symbol", "funding_timestamp", name="uq_funding_rates_exchange_symbol_ts"),
+        UniqueConstraint(
+            "exchange", "symbol", "funding_timestamp", name="uq_funding_rates_exchange_symbol_ts"
+        ),
         Index("ix_funding_rates_exchange_symbol", "exchange", "symbol"),
         {"schema": "trading"},
     )
@@ -412,9 +414,7 @@ class FundingRate(SQLModel, table=True):
     symbol: str = Field(max_length=32, nullable=False)
     exchange: ExchangeName = Field(nullable=False)
     funding_rate: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
-    funding_timestamp: datetime = Field(
-        sa_column=Column(AwareDateTime(), nullable=False)
-    )
+    funding_timestamp: datetime = Field(sa_column=Column(AwareDateTime(), nullable=False))
     fetched_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),
@@ -775,6 +775,12 @@ class ExchangeExit(SQLModel, table=True):
         Index("uq_exchange_exits_row", "exchange_account_id", "row_hash", unique=True),
         Index("ix_exchange_exits_account_created", "exchange_account_id", "exchange_created_at"),
         Index("ix_exchange_exits_classification", "classification"),
+        # ★[BL-731] — 주문↔원장 상관 조회(`_HAS_EXCHANGE_EXIT_ROW` · `_EXCHANGE_EXIT_PNL_SUM`)의
+        #   축이다. 종전 셋 중 어느 것도 `exchange_order_id` 로 못 좁혀 **후보 주문마다 계정
+        #   원장을 Seq Scan** 했다(2026-08-15 EXPLAIN 실측: `Rows Removed by Filter: 890`,
+        #   `loops=70`). 891행에서는 3.9ms 라 안 보이지만 **원장은 단조 증가**하고 그 조회는
+        #   5분 beat 스윕이 계정마다 돈다. (2026-08-15 codex Standards-1)
+        Index("ix_exchange_exits_account_order", "exchange_account_id", "exchange_order_id"),
         {"schema": "trading"},
     )
 
@@ -811,9 +817,7 @@ class ExchangeExit(SQLModel, table=True):
         sa_column=Column("classification", String(24), nullable=False)
     )
     create_type: str | None = Field(default=None, sa_column=Column(String(32), nullable=True))
-    stop_order_type: str | None = Field(
-        default=None, sa_column=Column(String(32), nullable=True)
-    )
+    stop_order_type: str | None = Field(default=None, sa_column=Column(String(32), nullable=True))
     order_link_id: str | None = Field(default=None, sa_column=Column(String(120), nullable=True))
     matched_order_id: UUID | None = Field(
         default=None,

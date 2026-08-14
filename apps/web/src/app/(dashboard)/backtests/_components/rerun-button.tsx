@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { useCreateBacktest } from "@/features/backtest/hooks";
 import type { BacktestDetail } from "@/features/backtest/schemas";
+import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
 interface RerunButtonProps {
   backtest: BacktestDetail;
@@ -53,8 +54,8 @@ export function RerunButton({ backtest, isEnabled }: RerunButtonProps) {
       period_end: backtest.period_end,
       initial_capital: capital,
       leverage: cfg?.leverage ?? 1,
-      fees_pct: cfg?.fees ?? 0.00055,
-      slippage_pct: cfg?.slippage ?? 0.00014,
+      fees_pct: cfg?.fees ?? DEFAULT_FEES_PCT,
+      slippage_pct: cfg?.slippage ?? DEFAULT_SLIPPAGE_PCT,
       include_funding: cfg?.include_funding ?? true,
       // TV parity — 체결 타이밍 보존 (구 row = bar_close).
       fill_timing:

@@ -12,13 +12,15 @@ import { AlertTriangle } from "lucide-react";
 import { InfoIcon } from "@/components/info-icon";
 import type { BacktestConfig } from "@/features/backtest/schemas";
 import { formatDate, formatDateTime, formatPercent } from "@/features/backtest/utils";
+import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
 // PRD `BacktestConfig` dataclass 기본값의 거울이다. ★BL-603(2026-08-07) — 종전 값은
 // 거래소 공시 표준가에서 온 추정치였고, 라이브 원장 실측(taker 0.055%/leg · 진입가 잔차
 // 중앙 0.014%)으로 교체했다. 백엔드 `engine/types.py` + `backtest/schemas.py` 와 **셋이
 // 같이 움직여야 한다** — 여기만 낡으면 화면이 반증된 가정을 계속 주장한다.
-const DEFAULT_FEES = 0.00055; // 0.055%
-const DEFAULT_SLIPPAGE = 0.00014; // 0.014%
+// ★[BL-730] — 값은 `features/backtest/cost-defaults.ts` 가 갖는다. 여기서 베끼지 않는다.
+const DEFAULT_FEES = DEFAULT_FEES_PCT;
+const DEFAULT_SLIPPAGE = DEFAULT_SLIPPAGE_PCT;
 
 // 엔진은 도메인 상수 — 바 단위 이벤트 루프 (ADR-011, 벡터화 아님). 내부 모듈명(pine_v2)은
 // no-internal-ids 가드에 따라 노출 카피에서 제외하고, backtest-list/코크핏 칩과 같은 문구를 쓴다.

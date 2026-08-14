@@ -12,6 +12,7 @@ import {
   useBacktestProgress,
   useCreateBacktest,
 } from "@/features/backtest/hooks";
+import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
 const INITIAL_CAPITAL = 10_000;
 const LOOKBACK_DAYS = 30;
@@ -73,9 +74,11 @@ export function Step3Backtest({
       period_end: window.period_end,
       initial_capital: INITIAL_CAPITAL,
       // Sprint 31 BL-162a — Bybit Perpetual taker 표준 default (onboarding fixed).
+      // ★[BL-730] — 이 경로는 값을 **명시적으로 실어 보내므로** 낡으면 BE 기본값이 아예
+      //   안 쓰인다. 0.001/0.0005 를 하드코딩해 왕복 0.30% 를 제출하고 있었다.
       leverage: 1,
-      fees_pct: 0.001,
-      slippage_pct: 0.0005,
+      fees_pct: DEFAULT_FEES_PCT,
+      slippage_pct: DEFAULT_SLIPPAGE_PCT,
       include_funding: true,
       fill_timing: "bar_close",
     });

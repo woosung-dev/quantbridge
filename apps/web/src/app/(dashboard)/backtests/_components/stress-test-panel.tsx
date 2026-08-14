@@ -27,6 +27,7 @@ import { MonteCarloSummaryTable } from "@/app/(dashboard)/backtests/_components/
 import { ParamStabilityForm } from "@/app/(dashboard)/backtests/_components/param-stability-form";
 import { ParamStabilityHeatmap } from "@/app/(dashboard)/backtests/_components/charts/param-stability-heatmap";
 import { WalkForwardBarChart } from "@/app/(dashboard)/backtests/_components/charts/walk-forward-bar-chart";
+import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
 interface Props {
   backtestId: string;
@@ -84,16 +85,26 @@ export function StressTestPanel({ backtestId }: Props) {
   };
 
   const handleRunCostAssumption = () => {
-    // Sprint 50 MVP — 9-cell preset (fees [0.05%, 0.10%, 0.20%] x slippage [0.01%, 0.05%, 0.10%]).
-    // customization 은 Sprint 51 BL-220 와 함께 (pine input override 도입 시 form 추가).
+    // Sprint 50 MVP — 9-cell preset. customization 은 Sprint 51 BL-220 와 함께.
+    //
+    // ★★[BL-730] — 격자에 **현재 기본값이 반드시 들어가야 한다.** 종전 격자의 최저점은
+    //   fees 0.0005 / slippage 0.0001 이라 실제 기본값(0.00055 / 0.00014)이 **격자 밖**이었다.
+    //   그러면 「지금 설정으로 돌리면 어떻게 되나」를 이 패널로 재현할 수 없고, 민감도 표의
+    //   어느 칸도 운영 실측과 대응하지 않는다. [BL-698] 이 같은 병의 다른 판이었다
+    //   (`step="0.0001"` 격자가 기본값을 입력 불가로 만들었다).
+    //
+    // ★★기본값을 **넣되 종전 상단을 지운다**는 뜻이 아니다 (2026-08-15 codex Standards-5).
+    //   초판은 배수 1x/2x/4x 로 잡았는데, 그러면 slippage 상단이 0.001 → 0.00056 으로
+    //   **거의 절반**이 된다 — 사용자가 보던 보수적 시나리오와 과거 실행과의 비교 범위가
+    //   함께 사라진다. 기본값 포함과 상단 보존은 **양립 가능**하므로 둘 다 한다:
+    //   최저점 = 현재 기본값, 나머지 둘 = 종전 격자의 중간·상단.
+    const grid = {
+      fees: [String(DEFAULT_FEES_PCT), "0.001", "0.002"],
+      slippage: [String(DEFAULT_SLIPPAGE_PCT), "0.0005", "0.001"],
+    };
     caMutation.mutate({
       backtest_id: backtestId,
-      params: {
-        param_grid: {
-          fees: ["0.0005", "0.001", "0.002"],
-          slippage: ["0.0001", "0.0005", "0.001"],
-        },
-      },
+      params: { param_grid: grid },
     });
   };
 

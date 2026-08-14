@@ -72,9 +72,7 @@ def test_reversal_bucket_comes_from_the_position_left_after_the_fill() -> None:
 
 def test_bigger_overshoot_lands_in_a_bigger_bucket() -> None:
     """32 / 8 = 4 -> `4x`. 버킷 경계가 실제로 비율을 따라간다(상수 고정이 아니다)."""
-    assert (
-        _bucket(position=_position("long", Decimal("8")), filled_quantity=Decimal("32")) == "4x"
-    )
+    assert _bucket(position=_position("long", Decimal("8")), filled_quantity=Decimal("32")) == "4x"
 
 
 def test_flat_entry_is_measured_and_reported_as_not_a_reversal() -> None:
@@ -96,9 +94,7 @@ def test_adding_to_an_existing_same_side_position_is_not_a_reversal() -> None:
 
 def test_short_reversal_uses_the_short_side_as_the_expected_direction() -> None:
     """sell 체결이면 남는 포지션은 short 다 — 방향 매핑이 뒤집히면 전부 `unmeasured` 가 된다."""
-    assert (
-        _bucket(position=_position("short", Decimal("8")), entry_side=OrderSide.sell) == "2x"
-    )
+    assert _bucket(position=_position("short", Decimal("8")), entry_side=OrderSide.sell) == "2x"
 
 
 # ── 증명 못하면 버킷에 넣지 않는다 ──────────────────────────────────────────
@@ -121,8 +117,7 @@ def test_position_on_the_opposite_side_means_we_read_a_pre_fill_snapshot() -> No
 def test_reversal_candidate_without_a_creation_timestamp_is_unmeasured() -> None:
     """생성 시각이 없으면 "우리 체결이 만든 포지션" 임을 증명할 수 없다."""
     assert (
-        _bucket(position=_position("long", Decimal("8"), created_at=None))
-        == "unmeasured_no_anchor"
+        _bucket(position=_position("long", Decimal("8"), created_at=None)) == "unmeasured_no_anchor"
     )
 
 
@@ -208,9 +203,7 @@ def test_enqueue_fires_for_conditional_and_market_converted_entries(
 
     calls = _enqueue(monkeypatch)
     session_id = uuid4()
-    cond = build_conditional_entry_key(
-        session_id, "entry", _BAR_TIME, Decimal("100"), Decimal("1")
-    )
+    cond = build_conditional_entry_key(session_id, "entry", _BAR_TIME, Decimal("100"), Decimal("1"))
     condmkt = build_market_converted_entry_key(
         session_id, "entry", _BAR_TIME, Decimal("100"), Decimal("1")
     )
@@ -229,9 +222,7 @@ def test_enqueue_skips_reduce_only_and_non_conditional_orders(
     from src.tasks import trading as t
 
     calls = _enqueue(monkeypatch)
-    cond = build_conditional_entry_key(
-        uuid4(), "entry", _BAR_TIME, Decimal("100"), Decimal("1")
-    )
+    cond = build_conditional_entry_key(uuid4(), "entry", _BAR_TIME, Decimal("100"), Decimal("1"))
 
     t._enqueue_conditional_reversal_measure(_order(cond, reduce_only=True))
     t._enqueue_conditional_reversal_measure(_order(None))
@@ -285,7 +276,9 @@ async def test_task_body_counts_the_bucket_it_measured(monkeypatch: pytest.Monke
         quantity=Decimal("16"),
     )
     monkeypatch.setattr(
-        t, "OrderRepository", lambda session: SimpleNamespace(get_by_id=AsyncMock(return_value=order))
+        t,
+        "OrderRepository",
+        lambda session: SimpleNamespace(get_by_id=AsyncMock(return_value=order)),
     )
     monkeypatch.setattr(
         t,
@@ -300,6 +293,10 @@ async def test_task_body_counts_the_bucket_it_measured(monkeypatch: pytest.Monke
     )
     provider = AsyncMock()
     provider.fetch_position = AsyncMock(return_value=_position("long", Decimal("8")))
+    # ★[BL-733] 이후 confirmed reversal 은 refresh 를 **예약**한다. stub 하지 않으면 이 단위
+    #   테스트가 **실 Redis broker 에 의존**하게 되고, 브로커가 없으면 무관하게 red 가 난다
+    #   (2026-08-15 codex Standards-4 — 실제로 그렇게 실패했다).
+    monkeypatch.setattr(t.refresh_closed_pnl_task, "apply_async", lambda *a, **kw: None)
 
     result = await t._measure_conditional_reversal_with_session(
         order_id, _sessionmaker(order, account), provider=provider
@@ -323,7 +320,9 @@ async def test_task_body_does_not_count_orders_that_are_not_filled(
     order_id = uuid4()
     order = SimpleNamespace(id=order_id, state=OrderState.cancelled, reduce_only=False)
     monkeypatch.setattr(
-        t, "OrderRepository", lambda session: SimpleNamespace(get_by_id=AsyncMock(return_value=order))
+        t,
+        "OrderRepository",
+        lambda session: SimpleNamespace(get_by_id=AsyncMock(return_value=order)),
     )
 
     result = await t._measure_conditional_reversal_with_session(
@@ -357,7 +356,9 @@ async def test_exchange_failure_is_unmeasured_not_silence(monkeypatch: pytest.Mo
         quantity=Decimal("16"),
     )
     monkeypatch.setattr(
-        t, "OrderRepository", lambda session: SimpleNamespace(get_by_id=AsyncMock(return_value=order))
+        t,
+        "OrderRepository",
+        lambda session: SimpleNamespace(get_by_id=AsyncMock(return_value=order)),
     )
     monkeypatch.setattr(
         t, "EncryptionService", lambda keys: SimpleNamespace(decrypt=lambda blob: "plaintext")
@@ -377,3 +378,157 @@ async def test_exchange_failure_is_unmeasured_not_silence(monkeypatch: pytest.Mo
 
     assert result["bucket"] == "unmeasured_error"
     assert buckets == ["unmeasured_error"]
+
+
+# ---------------------------------------------------------------------------
+# [BL-733] — 반전 leg 의 확정 손익 조회 예약
+#
+# 반전에는 `reduce_only` 를 걸 수 없으므로(ADR-032) 종전 게이트로는 이 경로에 못 들어왔고,
+# 확정 손익이 5분 beat 스윕까지 늦었다. kill-switch 는 그 창 동안 손실을 과소평가한다.
+# ★계약은 **셋 다** 다 — 열리는 것 하나, 안 열리는 것 둘.
+# ---------------------------------------------------------------------------
+
+
+def _reversal_order(order_id):
+    return SimpleNamespace(
+        id=order_id,
+        state=OrderState.filled,
+        reduce_only=False,
+        exchange_account_id=uuid4(),
+        symbol="BTC/USDT",
+        side=OrderSide.buy,
+        filled_at=_FILLED_AT,
+        submitted_at=_SUBMITTED_AT,
+        filled_quantity=Decimal("16"),
+        quantity=Decimal("16"),
+    )
+
+
+def _install_measure_stubs(monkeypatch, order, account):
+    from src.tasks import trading as t
+
+    monkeypatch.setattr(t, "_count_reversal_at_fill", lambda bucket: None)
+    monkeypatch.setattr(
+        t,
+        "OrderRepository",
+        lambda session: SimpleNamespace(get_by_id=AsyncMock(return_value=order)),
+    )
+    monkeypatch.setattr(
+        t, "EncryptionService", lambda keys: SimpleNamespace(decrypt=lambda blob: "plaintext")
+    )
+    scheduled: list[dict] = []
+    monkeypatch.setattr(
+        t.refresh_closed_pnl_task,
+        "apply_async",
+        lambda *a, **kw: scheduled.append(kw) or None,
+    )
+    return scheduled
+
+
+@pytest.mark.asyncio
+async def test_confirmed_reversal_schedules_the_closed_pnl_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-1 — 반전이 **증명되면** 확정 손익 조회를 예약한다 (5분 스윕을 기다리지 않는다)."""
+    from src.tasks import trading as t
+
+    order_id = uuid4()
+    order = _reversal_order(order_id)
+    account = SimpleNamespace(
+        api_key_encrypted=b"k", api_secret_encrypted=b"s", passphrase_encrypted=None, mode="demo"
+    )
+    scheduled = _install_measure_stubs(monkeypatch, order, account)
+
+    provider = AsyncMock()
+    # 체결 16 인데 남은 포지션 8 = 반전(2x 오버슛).
+    provider.fetch_position = AsyncMock(return_value=_position("long", Decimal("8")))
+
+    result = await t._measure_conditional_reversal_with_session(
+        order_id, _sessionmaker(order, account), provider=provider
+    )
+
+    assert result["bucket"] == "2x"
+    assert len(scheduled) == 1
+    # ★`reversal=True` 가 실제로 실려야 실행측 게이트가 열린다. 예약 사실만 재면
+    #   플래그를 빼먹는 회귀를 못 잡는다.
+    assert scheduled[0]["kwargs"] == {"reversal": True}
+
+
+@pytest.mark.asyncio
+async def test_plain_entry_does_not_schedule_a_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AC-2 — 순수 entry 는 예약하지 않는다 (거짓 운영자 알림 0).
+
+    ★이것이 「필터만 지우면 더 나빠진다」의 본체다. 정상 선물 entry 는 `closed-pnl` 원장에
+    대응 행이 없어 `transient` 4회 재시도 뒤 `_alert_closed_pnl_unbackfilled` 를 낸다.
+    """
+    from src.tasks import trading as t
+
+    order_id = uuid4()
+    order = _reversal_order(order_id)
+    account = SimpleNamespace(
+        api_key_encrypted=b"k", api_secret_encrypted=b"s", passphrase_encrypted=None, mode="demo"
+    )
+    scheduled = _install_measure_stubs(monkeypatch, order, account)
+
+    provider = AsyncMock()
+    # 체결 16, 포지션 16 = 반전이 아니다(증량이거나 flat 진입).
+    provider.fetch_position = AsyncMock(return_value=_position("long", Decimal("16")))
+
+    result = await t._measure_conditional_reversal_with_session(
+        order_id, _sessionmaker(order, account), provider=provider
+    )
+
+    assert result["bucket"] == "not_reversal"
+    assert scheduled == []
+
+
+@pytest.mark.asyncio
+async def test_unmeasured_does_not_schedule_and_is_left_to_the_sweep(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """AC-3 — 못 잰 leg 는 예약하지 않는다 (fail-safe · 5분 스윕이 받는다).
+
+    ★모름을 예약으로 접으면 그 leg 가 순수 entry 였을 때 거짓 알림이 난다. 늦는 쪽이
+    틀리는 쪽보다 낫다 — 스윕은 원장 기준이라 결국 맞춘다.
+    """
+    from src.tasks import trading as t
+
+    order_id = uuid4()
+    order = _reversal_order(order_id)
+    account = SimpleNamespace(
+        api_key_encrypted=b"k", api_secret_encrypted=b"s", passphrase_encrypted=None, mode="demo"
+    )
+    scheduled = _install_measure_stubs(monkeypatch, order, account)
+
+    provider = AsyncMock()
+    provider.fetch_position = AsyncMock(return_value=None)  # 포지션을 못 읽었다
+
+    result = await t._measure_conditional_reversal_with_session(
+        order_id, _sessionmaker(order, account), provider=provider
+    )
+
+    assert result["bucket"] == "unmeasured_no_position"
+    assert scheduled == []
+
+
+def test_confirmed_reversal_predicate_is_not_a_hardcoded_label_list() -> None:
+    """★술어가 **「알려진 둘이 아닌 것」**으로 판정하는지 본다.
+
+    오버슛 라벨은 `live_signal._reversal_overshoot_bucket` 이 정하고 늘어날 수 있다.
+    라벨 목록을 베껴 두면 새 버킷이 조용히 예약에서 빠진다 — 그 회귀를 이 케이스가 잡는다.
+    """
+    from src.tasks.trading import _is_confirmed_reversal
+
+    assert _is_confirmed_reversal("2x") is True
+    assert _is_confirmed_reversal("8x+") is True
+    assert _is_confirmed_reversal("99x-not-yet-invented") is True  # 미래 라벨도 반전이다
+    assert _is_confirmed_reversal("not_reversal") is False
+    for unmeasured in (
+        "unmeasured_no_fill_qty",
+        "unmeasured_no_position",
+        "unmeasured_pre_fill_read",
+        "unmeasured_no_anchor",
+        "unmeasured_position_predates_order",
+        "unmeasured_error",
+    ):
+        assert _is_confirmed_reversal(unmeasured) is False
