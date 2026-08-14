@@ -1476,8 +1476,19 @@ async def _refresh_closed_pnl_with_session(
     sm: async_sessionmaker[AsyncSession],
     *,
     provider: Any = None,
+    reversal: bool = False,
 ) -> dict[str, Any]:
-    """단일 reduce-only 체결 주문의 Bybit 확정 손익을 조건부로 교체한다."""
+    """단일 청산 체결 주문의 Bybit 확정 손익을 조건부로 교체한다.
+
+    ★[BL-733] — `reversal=True` 는 **반전이 이미 증명된 leg** 라는 뜻이다. 반전에는
+    `reduce_only` 를 걸 수 없으므로(ADR-032) 그 플래그만으로는 이 경로에 못 들어온다.
+    판정은 `_measure_conditional_reversal_with_session` 이 **체결 후 포지션**으로 이미
+    했고(`_is_confirmed_reversal`), 여기서 다시 조회하지 않는다 — 재판정하면 거래소
+    호출이 두 배가 되고 두 시점이 갈린다.
+
+    ★**기본값은 False 다.** 큐에 남아 있는 옛 메시지는 인자가 없으므로 종전 동작
+    (reduce-only 만)을 그대로 탄다.
+    """
     # ★BL-580 (2026-08-03) — 아래 7곳의 계측이 던지면 **정상 종결이 task 실패로 승격**돼
     #   `refresh_closed_pnl_task`(max_retries=4) 가 재시도한다. BL 표의 「already_synced
     #   수렴」 논거는 `backfill_exchange_realized_pnl` 을 호출하는 자리에만 적용되는데,
@@ -1490,7 +1501,10 @@ async def _refresh_closed_pnl_with_session(
             return {"skipped": "order_missing", "order_id": str(order_id)}
         if order.state != OrderState.filled:
             return {"skipped": "not_filled", "order_id": str(order_id)}
-        if not order.reduce_only:
+        if not order.reduce_only and not reversal:
+            # ★필터를 지우지 않고 **한 갈래만 연다**([BL-733]). 순수 선물 entry 는 여전히
+            #   여기서 멈춘다 — 열면 `closed-pnl` 원장에 대응 행이 없어 `transient` 4회
+            #   재시도 뒤 운영자 알림(`_alert_closed_pnl_unbackfilled`)이 난다.
             return {"skipped": "not_reduce_only", "order_id": str(order_id)}
         # 아래 세 갈래는 "정상 no-op"(경합/미지원)이 아니라 데이터 이상이다 — 조용히
         # 반환하면 해당 체결 청산이 추정 손익으로 남는데 운영이 알 방법이 없다.
@@ -1633,6 +1647,26 @@ def _reversal_bucket_at_fill(
     return _reversal_overshoot_bucket(filled_quantity / size)
 
 
+def _is_confirmed_reversal(bucket: str) -> bool:
+    """그 버킷이 **반전을 증명했는가**. [BL-733] 의 예약 술어다.
+
+    `_reversal_bucket_at_fill` 의 반환은 세 부류다 — ⑴ `unmeasured_*`(못 쟀다)
+    ⑵ `not_reversal`(재봤더니 반전이 아니다) ⑶ 오버슛 라벨(`2x`·`8x+` 등 = 반전 확정).
+    셋째만 참이다.
+
+    ★**fail-safe 다** — 모르면(`unmeasured_*`) 예약하지 않고 5분 beat 스윕에 맡긴다.
+    늦을 뿐 틀리지 않는다. 반대로 모름을 예약으로 접으면 **정상 선물 entry** 가
+    `closed-pnl` 원장에 대응 행이 없어 `transient` 4회 재시도 뒤
+    `_alert_closed_pnl_unbackfilled` 운영자 알림을 낸다(`:1783-1791`) — 그것이
+    「필터만 지우면 더 나빠진다」의 내용이다.
+
+    ★라벨 목록을 여기에 베끼지 않는다. 오버슛 버킷은 `live_signal._reversal_overshoot_bucket`
+    이 정하고 늘어날 수 있다 — 「알려진 둘이 아닌 것」으로 판정해야 새 라벨이 조용히
+    빠지지 않는다.
+    """
+    return bucket != "not_reversal" and not bucket.startswith("unmeasured_")
+
+
 async def _measure_conditional_reversal_with_session(
     order_id: UUID,
     sm: async_sessionmaker[AsyncSession],
@@ -1712,6 +1746,14 @@ async def _measure_conditional_reversal_with_session(
         submitted_at=submitted_at,
     )
     _count_reversal_at_fill(bucket)
+    # ★[BL-733] — 반전이 **확정된** leg 만 확정 손익 조회를 예약한다.
+    #   여기가 그 판정이 이미 끝난 유일한 자리다. 새 판정기를 만들지 않는다.
+    if _is_confirmed_reversal(bucket):
+        refresh_closed_pnl_task.apply_async(
+            args=[str(order_id)],
+            kwargs={"reversal": True},
+            countdown=_CLOSED_PNL_ENQUEUE_COUNTDOWN,
+        )
     return {"bucket": bucket, "order_id": str(order_id)}
 
 
@@ -1749,11 +1791,11 @@ def measure_conditional_reversal_task(order_id: str) -> dict[str, Any]:
         return {"bucket": "unmeasured_error", "reason": "task_error", "order_id": order_id}
 
 
-async def _async_refresh_closed_pnl(order_id: UUID) -> dict[str, Any]:
+async def _async_refresh_closed_pnl(order_id: UUID, *, reversal: bool = False) -> dict[str, Any]:
     """작업 호출마다 엔진을 만들고 확정 손익 조회 뒤 반드시 폐기한다."""
     engine, sm = create_worker_engine_and_sm()
     try:
-        return await _refresh_closed_pnl_with_session(order_id, sm)
+        return await _refresh_closed_pnl_with_session(order_id, sm, reversal=reversal)
     finally:
         await engine.dispose()
 
@@ -1761,12 +1803,17 @@ async def _async_refresh_closed_pnl(order_id: UUID) -> dict[str, Any]:
 @shared_task(  # type: ignore[untyped-decorator]
     name="trading.refresh_closed_pnl", bind=True, max_retries=_CLOSED_PNL_MAX_RETRIES
 )
-def refresh_closed_pnl_task(self: Any, order_id: str) -> dict[str, Any]:
-    """체결 직후 Bybit closedPnl이 정착되면 pine_v2 추정 손익을 교체한다."""
+def refresh_closed_pnl_task(self: Any, order_id: str, reversal: bool = False) -> dict[str, Any]:
+    """체결 직후 Bybit closedPnl이 정착되면 pine_v2 추정 손익을 교체한다.
+
+    ★`reversal` 은 [BL-733] 이 더한 갈래다 — 반전이 증명된 leg 만 True 로 예약된다
+    (`_measure_conditional_reversal_with_session`). 위치 인자가 아니라 kwarg 로 보내므로
+    큐에 남은 옛 메시지는 기본값 False 로 종전 동작을 탄다.
+    """
     from src.tasks._worker_loop import run_in_worker_loop
 
     try:
-        result = run_in_worker_loop(_async_refresh_closed_pnl(UUID(order_id)))
+        result = run_in_worker_loop(_async_refresh_closed_pnl(UUID(order_id), reversal=reversal))
     except Exception as exc:
         if self.request.retries >= _CLOSED_PNL_MAX_RETRIES:
             logger.exception("closed_pnl_backfill_provider_giveup", extra={"order_id": order_id})
