@@ -144,6 +144,61 @@ async def _load_session(session: AsyncSession, session_id: UUID) -> LiveSignalSe
     return sess
 
 
+async def find_foreign_resting(session: AsyncSession, symbol: str) -> list[str]:
+    """이 원장이 소유권을 주장하지 못하는 resting 조건부 주문 목록. 빈 목록 = 계정 배타적.
+
+    ★**`_cmd_status` 에서 뽑아낸 판정 본문이다** — 인라인으로 두면 화면 밖에서 재사용할 수
+    없었다. `_cmd_status` 는 이제 이것을 부르고 출력만 한다(출력 문구·순서는 그대로다 —
+    `soak-restart.sh` 가 `FLAT=` 등을 sed 로 긁는다).
+
+    ★★**왜 뽑아냈나 (2026-08-15 soak-survival).** 서버 소크 세션 `de3db35a` 를 죽인 것은
+    코드 결함이 아니라 **같은 Bybit demo 계정에 붙은 외부 주문**이었다. 거래소 원장 실측 —
+    `04:49:56 Buy 0.029 CreateByUser link=(empty) conf=inferred` 가 소크의 숏 0.029 를 닫아
+    `+0.001` 을 남겼고, 그 값이 `04:50:27`·`04:51:27` 의 `exchange_position` 과 정확히
+    일치한다. 생산자는 `tests/real_broker` 하네스의 청산이었다 — `close_position` 은 계정
+    포지션을 **소유권을 보지 않고** 닫는다. [BL-633] 의 재발이며 경로만 다르다.
+    ⇒ 그 하네스가 청산 전에 이 판정을 부른다(`tests/real_broker/_harness.py`).
+
+    ★판별자는 반드시 `order_link_id` **소유권**이다. 「resting 이 있다」만으로 막으면 우리
+    자신의 주문에도 걸려 정상 재기동이 영원히 거부된다.
+
+    ★`reduce_only=None` 이어야 한다 — 기본값 `True` 는 TP/SL 만 준다. 오염을 만드는 것은
+    **조건부 진입**(reduce-only 가 아니다)이다.
+
+    ★호출자의 DB 가 판정 범위를 정한다. 하네스는 **테스트 DB** 를 열고 있으므로 그 원장에는
+    테스트가 만든 주문만 있고, 소크의 조건부 진입은 자동으로 FOREIGN 이 된다.
+
+    Returns:
+        `["<label>:<order_id>:<link>", ...]` — 남의 것으로 판정된 resting 주문.
+    """
+    from sqlalchemy import text
+
+    account_repo = ExchangeAccountRepository(session)
+    svc = ExchangeAccountService(
+        repo=account_repo,
+        crypto=get_encryption_service(),
+        bybit_futures_provider=get_bybit_futures_provider(),
+    )
+    accounts = dedupe_accounts_by_exchange_uid(
+        list(await account_repo.list_by_exchange(ExchangeName.bybit))
+    )
+    ledger_order_ids = {
+        str(row[0]) for row in (await session.execute(text("SELECT id FROM trading.orders"))).all()
+    }
+    foreign: list[str] = []
+    for account in accounts:
+        label = account.label or "(no label)"
+        creds = await svc.get_credentials_for_order(account.id)
+        orders = await get_bybit_futures_provider().fetch_open_conditional_orders(
+            creds, symbol, reduce_only=None
+        )
+        for order in orders:
+            link = order.order_link_id
+            if link is None or link not in ledger_order_ids:
+                foreign.append(f"{label}:{order.order_id}:{link or '(link 없음)'}")
+    return foreign
+
+
 async def _cmd_status(symbol: str) -> None:
     """활성 세션 + **계정별 거래소 포지션**.
 
@@ -197,12 +252,7 @@ async def _cmd_status(symbol: str) -> None:
             accounts = dedupe_accounts_by_exchange_uid(
                 list(await account_repo.list_by_exchange(ExchangeName.bybit))
             )
-            # 이 원장이 아는 주문 id 전량. 배타성 판별의 **소유권** 축이다.
-            # ★내부 id 가 그대로 `orderLinkId` 로 거래소에 나간다는 규약 때문에 이 대조가 결정적이다.
-            ledger_order_ids = {
-                str(row[0])
-                for row in (await session.execute(text("SELECT id FROM trading.orders"))).all()
-            }
+            # ★소유권 축(원장 주문 id 전량)은 `find_foreign_resting` 안으로 옮겼다.
 
             print(f"\n거래소 포지션 ({symbol}):")
             any_open = False
@@ -235,7 +285,10 @@ async def _cmd_status(symbol: str) -> None:
             #   우리 것까지 「남의 것」으로 세면 영원히 거부된다.
             print(f"\n미체결 조건부 주문 ({symbol}):")
             resting_total = 0
-            foreign: list[str] = []
+            # ★소유권 판정 본문은 `find_foreign_resting` 이 갖는다 — 여기서 베끼지 않는다.
+            #   두 벌이 되면 하네스가 부르는 판정과 화면이 보여주는 판정이 갈린다.
+            foreign = await find_foreign_resting(session, symbol)
+            foreign_keys = {item.split(":", 2)[1] for item in foreign}
             for account in accounts:
                 label = account.label or "(no label)"
                 creds = await svc.get_credentials_for_order(account.id)
@@ -245,10 +298,7 @@ async def _cmd_status(symbol: str) -> None:
                 resting_total += len(orders)
                 for order in orders:
                     link = order.order_link_id
-                    owned = link is not None and link in ledger_order_ids
-                    if not owned:
-                        foreign.append(f"{label}:{order.order_id}:{link or '(link 없음)'}")
-                    mark = "ours" if owned else "★FOREIGN"
+                    mark = "★FOREIGN" if order.order_id in foreign_keys else "ours"
                     print(
                         f"  {label}: {order.side} {order.kind} qty={order.qty} "
                         f"trigger={order.trigger_price} link={link or '-'} [{mark}]"
