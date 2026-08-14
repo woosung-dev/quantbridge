@@ -270,6 +270,7 @@ run_gate "문서 감사 하네스" "tools/scripts/docs-audit.sh" bash "$ROOT/too
 #   (BL-631 · LESSON-078). 합쳐 3.2초라 안 걸 이유가 없었다.
 run_gate "소크 감시 하네스" "tools/scripts/soak-watch.sh" bash "$ROOT/tools/scripts/soak-watch-test.sh"
 run_gate "pre-push 가드 하네스" ".husky/pre-push" bash "$ROOT/tools/scripts/pre-push-guard-test.sh"
+run_gate "메인 체크아웃 가드 하네스" "tools/scripts/assert-main-checkout.sh" bash "$ROOT/tools/scripts/assert-main-checkout-test.sh"
 
 # ── 2. 단위 ───────────────────────────────────────────────────────
 # ★env 소싱 의무 + cd 절대경로. `pnpm test --run` 은 Unknown option — `pnpm test` 가 이미 vitest run.
