@@ -362,6 +362,9 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-728** [P3] `classify_exit:64` 가 Bybit `CreateByLiq` 를 못 잡아 강제청산이 `unknown` 으로 샌다. 관측 0건 잠복 (2026-08-14 money-path-attribution)
 - [ ] **BL-729** [P2] 전략 채택 근거 백테스트 4벌이 낡은 비용 가정(0.001/0.0005, 2026-07-26)으로 돌았다 — [BL-603] 이 08-07 에 실측 0.00055/0.00014 로 교체한 값. 왕복 0.30% vs 0.138% = 2.2배 비관. `config_mapper.py:102-104` 가 저장값을 복원해 재실행으로 안 고쳐진다. 처방 = Cost-Assumption 스트레스 테스트 1회 (2026-08-14 money-path-close)
 - [ ] **BL-730** [P2] FE 비용 기본값 drift 2곳 — `features/backtest/schemas.ts:81,87` zod default · `onboarding/step-3-backtest.tsx:77-78` 하드코딩 submit. 신규 사용자의 첫 백테스트가 왕복 0.30% 로 돈다([BL-603] 이 고치려던 증상). 인접 = stress-test 프리셋 격자에 현재 기본값 없음 (2026-08-14 money-path-close)
+- [ ] **BL-731** [P2] `list_synced_with_exchange_exit` 의 LIMIT 500 — BL-438 수리로 재검증 모집단이 73 → 563 이 되어 가장 오래된 63건이 영구 제외. 동기화 축은 단조 증가라 안 풀린다. 처방 = 원장 합계 ≠ 저장값 행으로 모집단을 좁혀라 (2026-08-14 money-path-close)
+- [ ] **BL-732** [P1] ★`gap_resync_position_mismatch` 재발 — BL-622 가 08-07 에 Resolved 로 닫은 사인인데 그 수리가 든 pin 에서 소크가 6h33m 만에 죽었다. `ledger_net=0.06` = 반전 수량. BL-622 재발인지 별건인지 판정 선행 (2026-08-14 money-path-close)
+- [ ] **BL-733** [P2] 체결 직후 refresh 2곳이 아직 reduce_only 게이트 — 반전 주문 백필이 최대 5분 늦다. 필터만 지우면 entry 마다 거짓 운영자 알림. 처방 = `_reversal_bucket_at_fill` 재사용 (2026-08-14 money-path-close)
 
 ### P2 — 머니-패스 정확도 (★실자금 전 필수)
 
