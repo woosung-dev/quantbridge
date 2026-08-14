@@ -98,14 +98,21 @@ class CumulativeLossEvaluator:
         #   `rejected` + `reduce_only=true` + `realized_pnl` 채움 46건 / **+55.32 USDT** 가
         #   있어 「값이 채워졌다(=청산으로 봤다)」와 「rejected(=발주 실패)」가 모순으로
         #   보이지만, 코드 대조하면 모순이 아니다:
-        #     ⑴ `Order.realized_pnl` 은 **생성 시점**에 쓰인다 — `order_service.py` 가
+        #     ⑴ `Order.realized_pnl` 은 **생성 시점**에 쓰인다 — `order_service.py:393,427` 이
         #        `state=OrderState.pending` 인 `Order(...)` 에 `realized_pnl=req.realized_pnl`
-        #        을 싣고, 그 값의 출처는 TradingView alert 필드(`webhook.py::parse_tv_payload`)
-        #        로 **추정치**다.
+        #        을 싣는다. 생산자는 둘이고 **둘 다 추정치**다: 라이브 시그널 경로가
+        #        `live_signal.py:4406`(MP-1) 의 `realized_pnl=event.realized_pnl`
+        #        (= `LiveSignalEvent.realized_pnl` = **pine_v2 시뮬 청산손익**, `models.py:270`),
+        #        웹훅 경로가 `router.py:161` 의 `realized_pnl=signal.realized_pnl`(TV alert 필드).
+        #        ★그 46건은 `idempotency_key` 가 전부 `live:` 접두라 **라이브 경로 = pine_v2
+        #        추정치**다(2026-08-14 서버 DB 실측). 웹훅 축이 아니다.
         #     ⑵ 거래소 확정치를 쓰는 유일한 경로 `backfill_exchange_realized_pnl` 은
         #        `.where(state == filled)` 를 요구하므로 `rejected` 행에는 들어갈 수 없다.
-        #   ⇒ 그 46건은 **체결된 적 없는 주문에 남은 TV 추정치**다. SUM 에서 빼는 게 맞고,
-        #      부호가 + 라 넣으면 게이트가 손실을 과소평가한다.
+        #   ⇒ 그 46건은 **체결된 적 없는 주문에 남은 시뮬 추정치**다. SUM 에서 빼는 게 맞고,
+        #      부호가 + 라 넣으면 게이트가 손실을 과소평가한다. 거래소 응답이 그 사실을
+        #      증언한다 — `error_message` 가 `retCode 110017 "current position is zero"` 30건 ·
+        #      `"reduce-only order has same side"` 15건 · `retCode 10005` 1건이고
+        #      `exchange_order_id` 는 46건 전부 NULL(거래소에 도달조차 못 했다).
         #   ★확정/추정의 정본 축은 `realized_pnl_synced_at IS NOT NULL` 이다(`router.py` 의
         #     `"confirmed" if o.realized_pnl_synced_at is not None else "estimated"`). 그 축을
         #     여기 필터로 **추가하지 않는다** — 아직 백필 안 된 filled 주문의 추정 손익까지

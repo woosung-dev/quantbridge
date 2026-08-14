@@ -355,11 +355,16 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-721** ✅ **2026-08-14 종결** [P2] 마감 게이트 2단 분할 — `--pre-pr`(무거운 9종 유예 ~1분) → PR push → CI 와 나란히 `--deferred-only`. 근거 = BE pytest 379초·e2e ~400초를 CI 가 이미 샤딩해서 돈다. 유예 원장으로 「초록인데 안 봤다」 차단 · 하네스 9종으로 확장
 - [x] **BL-709 ✅ Resolved** [P3] 2026-08-13 step 1~3에서 정렬 화이트리스트와 정규화기를 `features/strategy/sort.ts` 1벌로 공유하고, Next 16 URL `searchParams` 결과를 RSC prefetch·client query/queryKey·select에 일치시켰다. AC의 typecheck/lint/전체 테스트·단일 상수·data-testid·query 정합 검증을 통과했다.
 - [x] **BL-715** [P3] ✅ **2026-08-14 종결** — 브랜치 잔재 62건(원격 23 + 로컬 39). 2026-08-12 branch-debris 가 원격 290→23, 로컬 177→51 로 줄이고 남긴 것. ★**로컬 39건이 더 급하다** — 미머지 339 중 **337 커밋이 이 랩톱에만 있다**(원격 도달 불가 + PR head 아님). 원격 23건은 미머지 152 / 안전망 밖 142. 판정 = 커밋을 개별로 읽어 main 반영 여부 대조. ★diff 로는 판정 불가 — 표본 8건의 1,600여 파일 차이는 고유 작업이 아니라 3개월치 시간 차이였다
-- [ ] **BL-724** [P1] ★수수료가 gross 를 16배로 먹는다 — 고유 청산 592건에서 gross **+74.18** vs 수수료 **−1,200.00** ⇒ 순 **−1,125.81**. 소크 게이트가 PASS 해도 안 바뀌는 사실이라 [BL-003] cutover 판단 **전**에 답이 있어야 한다. 수리가 아니라 판정 항목 (2026-08-14 money-path-attribution)
+- [x] **BL-724** [P1] ★수수료가 gross 를 16배로 먹는다 — 고유 청산 592건에서 gross **+74.18** vs 수수료 **−1,200.00** ⇒ 순 **−1,125.81**. 소크 게이트가 PASS 해도 안 바뀌는 사실이라 [BL-003] cutover 판단 **전**에 답이 있어야 한다. 수리가 아니라 판정 항목 (2026-08-14 money-path-attribution)
 - [ ] **BL-725** [P2] `exchange_exits` 중복 290행 — 같은 uid 에 계정 행이 둘. 원장 882행 = 고유 592 + 중복 290. [BL-605] 수리는 작동 중이고 신규 적재는 2026-08-08 에 멈춘 잔재다 (2026-08-14 money-path-attribution)
-- [ ] **BL-726** [P2] `rejected` + reduce-only 46건에 `realized_pnl` +55.32 가 있는데 evaluator 가 `state==filled` 로 거른다 — 두 사실이 모순이고 판정된 적이 없다 (2026-08-14 money-path-attribution)
-- [ ] **BL-727** [P2] `soak-gate.sh:706` 이 맨 `python3` 를 불러 맥에서 판정 불가(3.9 vs `itertools.pairwise`). 죽고도 빈 `판정:` 을 찍는 fail-open. 같은 파일 `:449` 가 이미 고쳐 둔 함정이다 (2026-08-14 money-path-attribution)
-- [ ] **BL-728** [P3] `classify_exit:64` 가 Bybit `CreateByLiq` 를 못 잡아 강제청산이 `unknown` 으로 샌다. 관측 0건 잠복 (2026-08-14 money-path-attribution)
+- [x] **BL-726** [P2] `rejected` + reduce-only 46건에 `realized_pnl` +55.32 가 있는데 evaluator 가 `state==filled` 로 거른다 — 두 사실이 모순이고 판정된 적이 없다 (2026-08-14 money-path-attribution)
+- [x] **BL-727** [P2] `soak-gate.sh:706` 이 맨 `python3` 를 불러 맥에서 판정 불가(3.9 vs `itertools.pairwise`). 죽고도 빈 `판정:` 을 찍는 fail-open. 같은 파일 `:449` 가 이미 고쳐 둔 함정이다 (2026-08-14 money-path-attribution)
+- [x] **BL-728** [P3] `classify_exit:64` 가 Bybit `CreateByLiq` 를 못 잡아 강제청산이 `unknown` 으로 샌다. 관측 0건 잠복 (2026-08-14 money-path-attribution)
+- [ ] **BL-729** [P2] 전략 채택 근거 백테스트 4벌이 낡은 비용 가정(0.001/0.0005, 2026-07-26)으로 돌았다 — [BL-603] 이 08-07 에 실측 0.00055/0.00014 로 교체한 값. 왕복 0.30% vs 0.138% = 2.2배 비관. `config_mapper.py:102-104` 가 저장값을 복원해 재실행으로 안 고쳐진다. 처방 = Cost-Assumption 스트레스 테스트 1회 (2026-08-14 money-path-close)
+- [ ] **BL-730** [P2] FE 비용 기본값 drift 2곳 — `features/backtest/schemas.ts:81,87` zod default · `onboarding/step-3-backtest.tsx:77-78` 하드코딩 submit. 신규 사용자의 첫 백테스트가 왕복 0.30% 로 돈다([BL-603] 이 고치려던 증상). 인접 = stress-test 프리셋 격자에 현재 기본값 없음 (2026-08-14 money-path-close)
+- [ ] **BL-731** [P2] `list_synced_with_exchange_exit` 의 LIMIT 500 — BL-438 수리로 재검증 모집단이 73 → 563 이 되어 가장 오래된 63건이 영구 제외. 동기화 축은 단조 증가라 안 풀린다. 처방 = 원장 합계 ≠ 저장값 행으로 모집단을 좁혀라 (2026-08-14 money-path-close)
+- [ ] **BL-732** [P1] ★`gap_resync_position_mismatch` 재발 — BL-622 가 08-07 에 Resolved 로 닫은 사인인데 그 수리가 든 pin 에서 소크가 6h33m 만에 죽었다. `ledger_net=0.06` = 반전 수량. BL-622 재발인지 별건인지 판정 선행 (2026-08-14 money-path-close)
+- [ ] **BL-733** [P2] 체결 직후 refresh 2곳이 아직 reduce_only 게이트 — 반전 주문 백필이 최대 5분 늦다. 필터만 지우면 entry 마다 거짓 운영자 알림. 처방 = `_reversal_bucket_at_fill` 재사용 (2026-08-14 money-path-close)
 
 ### P2 — 머니-패스 정확도 (★실자금 전 필수)
 
