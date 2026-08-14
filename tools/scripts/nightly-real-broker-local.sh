@@ -101,6 +101,29 @@ _verdict() {  # _verdict <PASS|SKIP|FAIL|BLOCKED> <한 줄 사유> <exit code>
   exit "$3"
 }
 
+# ★★rc 만 보면 「돌았다」와 「쟀다」를 구분하지 못한다 — pytest 는 스위트를 통째로 skip 해도
+#   **exit 0** 이다. 실측(2026-08-10~08-14 로그 5회 연속): `1 passed, 1 skipped` 인데 판정은
+#   매번 PASS 였고, 그 `1 skipped` 가 **실거래소 leg 그 자체**였다. 즉 이 스크립트는 5일 동안
+#   「실거래소를 1바이트도 재지 않았다」를 「통과」라고 적어 왔다. [BL-024]
+#
+#   ★양성 대조(정본을 겨눈다 — 사본을 만들지 마라):
+#       eval "$(sed -n '/^_pytest_summary_line()/,/^}/p' tools/scripts/nightly-real-broker-local.sh)"
+#       eval "$(sed -n '/^_count_outcome()/,/^}/p'      tools/scripts/nightly-real-broker-local.sh)"
+#       _count_outcome "$(_pytest_summary_line ~/Library/Logs/quantbridge/run-20260814-030005.log)" skipped  # → 1
+#
+#   ★★**요약 줄을 못 읽는 것은 「0 건」이 아니라 「판정 불가」다.** 그래서 수를 세는 함수와
+#     줄을 찾는 함수를 갈라 둔다 — 호출부가 **빈 줄을 BLOCKED 로 처리**할 수 있어야 한다.
+#     합쳐 두면 fail-open 이 된다(요약이 없으면 0 → skip 0 → PASS). 2026-08-14 codex 리뷰 P2.
+_pytest_summary_line() {  # _pytest_summary_line <파일> → 마지막 pytest 요약 줄 (없으면 빈 문자열)
+  grep -E '^=+ .*(passed|failed|error|skipped|xfailed|xpassed|no tests ran).*=+$' "$1" 2>/dev/null | tail -1
+}
+
+_count_outcome() {  # _count_outcome <요약줄> <outcome> → 그 outcome 의 수 (없으면 0)
+  local n
+  n="$(printf '%s\n' "$1" | grep -Eo "[0-9]+ $2" | grep -Eo '^[0-9]+' | head -1)"
+  echo "${n:-0}"
+}
+
 exec > >(tee -a "$LOG") 2>&1
 echo "══ real_broker E2E (로컬) — $(date '+%Y-%m-%d %H:%M:%S %Z') ══"
 echo "  repo: $ROOT"
@@ -138,18 +161,40 @@ echo "  ✓ 전제: 메인 체크아웃 · 자격증명 있음 · DB 응답 · �
 
 # 6) 실행 — ★`2>&1` 은 파이프 **앞**에. `tee` 는 stdout 만 받는다(하네스의 RESIDUAL 은 stderr 다).
 #    ★파이프로 감싸도 exit code 를 잃지 않게 PIPESTATUS 로 받는다.
+#    ★★판정이 읽는 것은 `$LOG` 가 **아니라** `$PYTEST_OUT` 이다. `$LOG` 는 최상단
+#      `exec > >(tee -a "$LOG")` 가 **비동기**로 쓰므로, pytest 가 끝난 직후 판정이 그 파일을
+#      읽으면 마지막 요약 줄이 **아직 도착하지 않았을 수 있다**(2026-08-14 codex 적대 리뷰 P2).
+#      아래 파이프라인의 `tee` 는 셸이 파이프라인 전체를 기다리므로 다음 줄에서 이미 완결이다.
 cd "$ROOT/apps/api"
+PYTEST_OUT="$LOGDIR/pytest-${STAMP}.out"
 uv run pytest tests/real_broker/ \
   --run-real-broker \
   -v --tb=short \
-  --timeout=600 --timeout-method=signal 2>&1
+  --timeout=600 --timeout-method=signal 2>&1 | tee "$PYTEST_OUT"
 RC=${PIPESTATUS[0]}
 echo "  pytest exit=$RC"
 
 # 7) 지리 차단은 「고장」이 아니라 「측정 불가」다 — 갈라서 기록한다
-if [ "$RC" -ne 0 ] && grep -qi "block access from your country\|CloudFront distribution is configured" "$LOG"; then
+if [ "$RC" -ne 0 ] && grep -qi "block access from your country\|CloudFront distribution is configured" "$PYTEST_OUT"; then
   _verdict BLOCKED "Bybit 이 이 위치를 차단했다 (VPN/네트워크 확인) — 고장이 아니라 측정 불가" 2
 fi
 
-[ "$RC" -eq 0 ] && _verdict PASS "real_broker 스위트 통과" 0
+# 8) ★rc 0 을 곧바로 PASS 로 접지 않는다. **fail-closed 다** — 무엇을 쟀는지 읽어내지 못하면
+#    「이상 없음」이 아니라 「측정 불가(BLOCKED)」다. 이 스위트에서 실행되지 않은 테스트는
+#    곧 「실거래소 미접촉」이라 PASS 로 적는 순간 원장이 거짓이 된다.
+if [ "$RC" -eq 0 ]; then
+  SUMMARY="$(_pytest_summary_line "$PYTEST_OUT")"
+  [ -n "$SUMMARY" ] || _verdict BLOCKED \
+    "pytest 가 exit 0 인데 요약 줄을 읽지 못했다 — 무엇을 쟀는지 판정할 수 없다 ($PYTEST_OUT)" 2
+  SKIPPED="$(_count_outcome "$SUMMARY" skipped)"
+  XFAILED="$(_count_outcome "$SUMMARY" xfailed)"
+  ERRORS="$(_count_outcome "$SUMMARY" error)"
+  PASSED="$(_count_outcome "$SUMMARY" passed)"
+  UNRUN=$((SKIPPED + XFAILED + ERRORS))
+  [ "$UNRUN" -gt 0 ] && _verdict SKIP \
+    "pytest 가 ${UNRUN}건을 실행하지 않았다 (skipped=${SKIPPED} xfailed=${XFAILED} error=${ERRORS}) — exit 0 이지만 그만큼은 실거래소를 재지 않았다" 0
+  [ "$PASSED" -eq 0 ] && _verdict BLOCKED \
+    "pytest 가 exit 0 인데 passed 가 0 이다 — 실거래소를 1바이트도 재지 않았다 (수집 0건? --collect-only?)" 2
+  _verdict PASS "real_broker 스위트 통과 (passed ${PASSED} · 미실행 0)" 0
+fi
 _verdict FAIL "real_broker 스위트 실패 — 로그를 봐라: $LOG" 1

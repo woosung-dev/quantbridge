@@ -327,7 +327,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-015** [P1] OKX Private WS — (그룹 2 참조)
 - [x] **BL-022 ✅ Resolved** [P1] (2026-08-07 backtest-fidelity) — `apps/api/scripts/regen_golden.py` 신설(`--confirm` 없으면 exit 1 + 파일 0개 · `--case` · `--check` 는 의미 비교 후 차이 시 exit 1). ★**이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인**이다 — 같은 커밋 `cda575f2` 가 trust-layer baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으로 만들어야 해서 빠졌다
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
-- [ ] **BL-024** [P1] real_broker E2E 본 구현 — nightly cron (Bybit Demo creds)
+- [x] **BL-024** [P1] real_broker E2E 본 구현 — nightly cron (Bybit Demo creds)
 - [x] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
 - [ ] **BL-026** [P1] Mutation fixture 활성화 회귀 — skip #4-7,#9-15
 - [x] **BL-622 ✅ Resolved** [P1] (2026-08-07 gap-resync-autopsy) — `requires_gap_resync` 가 열린 채 시작한 세션이 재동기 전에 사망하던 경로. ★사망 판정은 H3(관측 지연) — 거래소 체결시각 20:17:19 vs 원장 20:31:51 로 **872초** 벌어졌고 판정은 그 3.5초 전에 떨어졌다. ★상수 재사용이 틀렸다는 것도 함께 확정 — janitor 30분은 **다른 양**을 잰다(조건부 resting 이 벽시계 95.1%)

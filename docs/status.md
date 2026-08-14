@@ -280,82 +280,93 @@ tick_stall 실격 1건(13:03Z)은 **down 창 자체**다 — operational 등재,
 ★**`.soak`·`.agents`·`docs/dev-log/INDEX.md` 는 건드리지 않았다** — 각각 살아 있는 소크 창 /
 스킬 심볼릭 링크 28개의 실체 / ADR-026 발견 층이다.
 
-### ★2026-08-13 contract-poc — [BL-717] 종결 (강등: 전문 = [ADR-031])
+### ★2026-08-13 contract-poc — [BL-717] 종결 (강등 — 전문 = [ADR-031])
 
-머지된 #619 위에서 갭 감사가 lint-staged `cd frontend/backend` 잔존 P1 을 먼저 잡아 PR **#622** 로 분리
-수리했고, 이어서 [BL-717] 을 이행했다. 결과 = 결정적 export `contracts/openapi/openapi.json` + **orval
-(client:'zod') 채택**. hey-api 는 자체 TS7 의존 크래시로 실행 불가 탈락. ★**datetime 엄격도 역전**
-(계약 Z-only vs 수기 offset 허용)이라 **BE 실직렬화 실측 전 런타임 투입 금지**. CI drift 배선·전면
-전환은 [ADR-031] §비결정 — ⓪ 표 경유로 별도 회차.
+> 결정적 export `contracts/openapi.json` + **orval(client:'zod') 채택**(hey-api 는 TS7 크래시로 탈락) · 런타임 투입 판정은 [ADR-031] §비결정. tombstone: 본문 7줄 → `git show cca30519:docs/status.md` (283~289행).
 
-### ★2026-08-14 gate-surface-close — [BL-716]·[BL-707]·[BL-714]·[BL-715] 4건 종결 (강등)
+### ★2026-08-14 gate-surface-close — [BL-716]·[BL-707]·[BL-714]·[BL-715] 4건 종결 (강등 — 본문 = git)
 
-> tombstone: 회고 전문(34줄)을 2026-08-14 gate-pointer-axis 회차에서 이 3줄로 압축했다
-> (`docs/status.md` 700줄 상한 — ADR-026 §3). 원문 = 커밋 `4e9968e4` 의 `docs/status.md`.
-> 발견 색인 = `docs/dev-log/INDEX.md` 「2026-08-14 gate-surface-close」 · 반증 = 각 BL 섹션.
+> ★★★한 줄 = **「원장이 적어 둔 처방은 도래 판정과 함께 낡는다」** — 4건 전부 트리거는 옳았고 처방이 틀렸다([BL-715] 는 방향까지 뒤집혀 있었다). ★회차 중 §8.6 을 두 번 밟았고 둘 다 「어느 트리를 재는가」였다. tombstone: 원문 = 커밋 `4e9968e4`, 압축본 = `git show 1c38b40f:docs/status.md`.
 
-★★★**한 줄 = 「원장이 적어 둔 처방은 도래 판정과 함께 낡는다」** — 4건 전부 **트리거는 옳았고
-처방이 틀렸다**. ★[BL-715] 는 수치의 **방향까지** 뒤집혀 있었다(겁낼 집합과 안심할 집합이 정확히
-반대). ★**내가 회차 중 §8.6 을 두 번 밟았고 둘 다 「어느 트리를 재는가」였다** — 워크트리 cwd 로
-`docs-audit` 이 수정 안 된 트리를 재 **초록**을 냈고, 리뷰 수리는 메인에 하고 e2e 는 워크트리에서
-돌렸다. ⇒ **초록도 red 도 「어느 트리에서 났는지」를 먼저 물어라.**
+### ★2026-08-14 gate-pointer-axis — [BL-720]·[BL-722]·[BL-723] 3건 종결 (강등 — 본문 = git)
 
-### ★2026-08-14 gate-pointer-axis — [BL-720]·[BL-722]·[BL-723] 3건 종결
+> **PR #627 머지(`5736ee40`)로 종결** · 하네스 9→10종. ★★★한 줄 = **「스텁 초록 ≠ 정본 초록」** — 하네스 11/11 이던 축이 정본 `lessons.md` 에서 오탐 3건, 적대 프로브에서 구멍 2건([LESSON-108]). tombstone: 원문 = `git show 3e3e0174:docs/status.md` (303~358행).
 
-CONTROL(메인) + `codex exec` 워커 2벌(워크트리 슬롯 2·3). 레인 파일 겹침 0 — `docs/**` 는 CONTROL 독점.
+## ★2026-08-14 — `real-broker-e2e` 회차 ([BL-024] 실주문 leg · 로컬 축)
 
-★★★**이 회차의 한 줄 = 「스텁이 초록인 것과 정본 파일이 초록인 것은 다른 사건이다」.**
-축 ㉯(승격 표 포인터)의 하네스는 **11/11 초록**이었는데, 진짜 `docs/lessons.md` 에 대고 돌리니
-**9건**이 나왔고 링크 수리 뒤에도 **오탐 3건**이 남았다 — `` `tests/<domain>/test_*_commits.py` ``
-(자리표시자+글롭) · `` `asyncio.<Semaphore/Lock/Event/Queue>` ``(코드 표현식) · `` `/deepen-modules` ``
-(슬래시 커맨드). 스텁은 **내가 상상한 입력**이고 정본 파일은 **실제 입력**이다. 케이스 ⑿ 가 그 셋을
-입력으로 그대로 옮겨 심었고, 배제 규칙을 되돌리면 red 다.
+**왜 지금인가 — 창이 열려 있다.** [BL-024] 와 소크는 같은 Bybit demo 계정(uid 558689281)을 놓고
+**상호배타**이고(`tools/scripts/nightly-real-broker-local.sh:133-135` 가 활성 세션 ≠0 이면 SKIP),
+2026-08-14 실측으로 **활성 세션 = 0** 이다. 소크는 C1 = 24h × 3회라 켜는 순간 최소 수일 닫힌다.
+⇒ **시간 단위 작업(BL-024) → 일 단위 무인 작업(소크 재기동)** 순서가 곧 결정이다.
 
-★★**원장 처방 5건 중 3건이 착수 전/중에 반증됐다** — [BL-716]·[BL-707]·[BL-714]·[BL-715] 가 4/4 였던
-직전 회차에 이어 2회 연속이다.
+**착수 preflight 로 원장 처방 3건이 코드에 반증됐다:**
 
-- [BL-720]① `legacy_paths` 확장 = **이행 불가**. 부분문자열 매치인데 살아 있는 문서 **147줄**이
-  `backend/`·`frontend/` 를 인용하고 그중엔 **[ADR-029] 의 이동 매핑 표 자신**이 있다.
-- [BL-722]⑴ `--selftest` = **더 비싸다**. 호출 자리 2곳이 전부 이름 규약 기반이라 특례 배선이 든다.
-- [BL-722]⑵ 「비 git → rc≠0」 = **코드와 반대**. `assert-main-checkout.sh:32-37` 이 판정 불가를
-  의도적으로 통과시킨다. 그대로 썼으면 하네스가 **프로덕션 동작을 「고장」으로 고정**했을 것이다.
+⑴ **「skeleton 을 채운다」는 여전히 유효하다** — `tests/real_broker/test_webhook_to_filled_e2e.py:97` 의
+`pytest.skip("Phase C skeleton…")` 이 **살아 있다**. 로컬 nightly 「1 passed, 1 skipped」의 skipped 가
+정확히 이것이고, passed 는 DB 를 안 쓰는 `test_kill_switch_capital_base.py` 다. 원장이 반증한 것은
+「그것만 하면 nightly 가 통과한다」였지 skeleton 의 존재가 아니었다.
 
-★★**부수로 잡은 것이 더 컸다 — `final-gates-test.sh` ⑥ 이 이 브랜치에서 상시 red 였다.**
-`make gate-harnesses` 첫 실행이 빨강이었는데 새 하네스가 아니라 **어제 심은 [BL-721] 의 ⑥**이었고
-main 에서도 같았다. 「`BE ruff`·`FE build` 가 `--pre-pr` 에서 `plan`」을 요구하는데 그 둘은
-**영역 게이트**라 BE/FE diff 0 인 트리에서는 모드와 무관하게 `skip` 이다 ⇒ **docs·tools 만 고친
-모든 브랜치에서 하네스 전체가 빨강**. ★그리고 **내 첫 수리판은 변이를 통과했다** — `DEFERRABLE` 에
-`BE ruff` 를 넣어도 마크가 안 갈린다(영역 판정이 `run_gate` **앞에서** 빠진다). 즉 그 자리에서는
-어떤 단언도 판별력이 0 이다. 대표를 **항상 계획되는** `BL 감사`·`문서 감사` 로 바꾼 뒤에야
-변이 M2 가 red 를 냈다. **「빨강을 초록으로 바꿨다」는 수리의 증거가 아니다.**
+⑵ ★**skeleton 의 「Bybit Demo Spot BTC/USDT」는 틀렸다.** 청산 하네스는 `fetch_open_positions`
+(`tests/real_broker/_harness.py:376`)로 flat 을 판정하는데 **Spot 에는 포지션 개념이 없다** —
+무엇을 사든 항상 `flat` 을 보고하는 **거짓 안전망**이 된다. ⇒ linear futures `BTC/USDT:USDT` 여야 한다.
 
-★★**[BL-723] 은 사용자가 이 회차의 게이트 실행을 보고 등재시켰다** — 「변경 부분이 있을 때 그
-영향권을 돌리는 게 맞지 다 돌리는 것은 좋지 않다」. 실측이 그것을 뒷받침했다: 앱 코드 diff **0줄**인
-회차에서 `--deferred-only` 가 **11분 10초**(BE pytest 357초 · e2e authed 268초 · design-canon 42초)를
-태웠고, **CI 는 같은 회차에 그 잡들을 전부 `skipping`** 했다. 싼 형제(`BE ruff`·`e2e chromium`)는
-이미 영역 판정에 걸려 있었으니 **비대칭 자체가 결함**이었다.
+⑶ ★**`db_session` 픽스처를 쓰면 하네스가 전건 `undecidable` 이 된다.** `tests/conftest.py:340-363` 은
+connection + outer tx + savepoint 라 `commit()` 이 savepoint 재시작일 뿐 **다른 커넥션에서 안 보인다**.
+그런데 `_harness._open_db()` 는 `create_worker_engine_and_sm()` 으로 **별도 엔진**을 연다 ⇒
+「live session 행이 없다」. 원장에도 skeleton 주석에도 이 경고가 없다.
 
-★종전 코드는 그것을 **의도**라고 적어 뒀다 —「`authed` 는 backend 변경도 문다」. **사유는 옳고
-처방이 과했다.** `has_fe` 하나로 못 재는 것이지 「무조건」이 답이 아니다 — 답은 `has_fe ∥ has_be` 다.
+**사용자 결정 3건 (2026-08-14):** ⓐ 경로 = **service-level**(HTTP webhook 층은 다음 회차 — `app`
+픽스처의 `get_async_session` override 를 커밋 세션으로 갈아야 한다) · ⓑ **로컬 축만**(CI 는 지리 403
+이라 secret 등록 이득이 신호 정직성뿐 — 별건 BL) · ⓒ **이 회차 끝에 소크 재기동**.
 
-★★★**그리고 그 수리가 하네스의 환경 의존 단언을 **3개 더** 드러냈다.** ⑤ 「`BE pytest` 는 pre-pr 에서
-DEFER」 · ⑥ 「`BE ruff` 는 pre-pr 에서 plan」 · ① 「full 계획 ≥20」 — 셋 다 **지금 이 트리에서만 참인
-것**을 계약으로 굳혀 뒀고, 영역 판정을 넓히는 순간 무너졌다(① 은 실측 정확히 20 으로 **한 칸**
-남아 있었다). 게이트 하네스의 단언은 **어느 트리에서 돌려도 참**이어야 한다. 하네스 8→**9 케이스**.
+★**부수 — ADR-029 이전 판 `backend/AGENTS.md` 가 되살아나 있었다**(untracked · `b932439b^` 와 바이트
+일치). codex 는 **가까운 `AGENTS.md` 만** 보므로([ADR-027](decisions/027-nested-agents-md.md)) 잔존물이
+아니라 **오염원**이다 — 삭제했다. tombstone: 원문 = `git show b932439b^:backend/AGENTS.md`.
 
-★★★**적대 리뷰에서 새 축이 2군데 뚫렸다 — 그리고 그것을 낸 것은 codex 가 아니다.**
-`codex exec` 는 2회 다 실패했다(1차 stdin 대기로 25분 정지 · 2차 50분에 findings 0 이고 훑던 파일이
-이 회차 diff 밖). CONTROL 이 직접 프로브 5종을 짰고 **2종이 초록으로 통과**했다 —
-`| **LESSON-101** |`(볼드)와 `### [LESSON-101](#...)`(링크). 정규식이 **마크다운 장식을 못 통과**해
-ID 가 수집에서 빠졌고, 그러면 **이 축이 막으려는 사고를 서식만 바꿔 재현**할 수 있다.
-수리 후 5/5 발화 · 하네스 12→**14 케이스**(뚫린 입력을 그대로 케이스로 심었다).
-★그 과정에서 **내 프로브 자신이 한 번 깨졌다**(이름의 백틱이 셸 치환) — 고쳐 다시 재고서야
-판정했다. **깨진 검사기의 결과는 초록이든 빨강이든 못 믿는다.**
+### 결과 — [BL-024] **Resolved** (로컬 축)
 
-**다음 행동 = 이번 회차(`stage/gate-pointer-axis`)를 커밋·PR 로 닫고, ⓪ 표에서 다음 항목을 사용자와
-고른다.** 인계 = **소크가 7일째 정지**다(아래 환경 표) — `.soak/pin-history.jsonl` 마지막이
-2026-08-07 `down` 이고 [BL-003] 창은 C1 0/3 · C2 0.91h 로 사실상 0 이다. 재기동할지, 아니면
-[BL-003] 자체를 재평가할지가 결정 사항이다.
+**실거래소가 처음으로 검증됐다.** Bybit demo linear perp `BTC/USDT:USDT` 에 실제 시장가 1건 →
+프로덕션 dispatcher 배선(`_CeleryOrderDispatcher.delay` 캡처로 확인) → `_async_execute` 발주 →
+watchdog `_async_fetch_order_status` 로 `filled` 확정 → 2층 하네스 청산 → **거래소 조회 0 포지션**.
+정본 경로도 통과 = `nightly-real-broker-local.sh` → `PASS  real_broker 스위트 통과 (skip 0건)`.
+
+★★★**이 회차의 한 줄 = 「2층 자기정리 하네스는 지어진 뒤 10일 동안 한 번도 작동한 적이 없었다」**
+([LESSON-109](lessons.md) 승격). skeleton 의 `pytest.skip` 때문에 REGISTRY 가 늘 비어 `run_cleanup`
+이 매번 빈 목록을 돌려줬고, 첫 타깃이 들어가자 전건 `undecidable`(「live session 행이 없다」)이 났다.
+원인은 **`_execute_order_now` 만 DSN 을 테스트 DB 로 바꾸고 `_cleanup_async`→`_open_db()` 는 안 바꿔
+청산이 개발 DB 를 열었다**는 것 ⇒ `_test_dsn_in_effect` 로 두 진입점이 공유하게 했다.
+★**판별력의 증인은 pytest rc 가 아니라 거래소였다** — 수리 전 `rc=1`+**long 0.001 잔존**(실측),
+수리 후 `rc=0`+**0건**(실측). 같은 테스트 코드, 하네스만 바뀌었다.
+
+★**차단자가 원장에 없던 것 하나 더 있었다** — 착수 시 거래소에 **7일 묵은 고아 포지션**
+(`short 0.029`)이 살아 있었다(앱 원장의 마지막 세션은 `user_stopped`). **stop 은 아무것도 flat 하지
+않는다** — 하네스가 「3회 덴 함정」이라 적은 그것의 4번째 판이다. 사용자 승인 후 reduce-only 로
+청산하고 시작했다. 없었으면 우리 `buy 0.001` 은 상계돼 새 포지션을 만들지 못하고, flat 단언은
+**남의 포지션 때문에** 실패했을 것이다.
+
+★**부수 수리** — `_verdict` 가 rc 만 보고 PASS 를 찍어 **08-10~08-14 5일 연속** `1 passed, 1 skipped` 를
+「통과」로 적고 있었다(그 skipped 가 실거래소 leg 그 자체다). rc 0 을 판정으로 갈랐다.
+
+★★**codex 적대 리뷰 3건이 전부 참이었다**(phantom 0 · 15분 타임박스 안 · 처분 전문 =
+`.claude/gates/real-broker-e2e/codex.ok`). **셋 다 내 첫 수리판이 `fail-open` 이었다는 같은 병**이다 —
+⑴ 판정이 읽는 `$LOG` 를 최상단 `exec > >(tee -a)` 가 **비동기**로 써서 요약 줄이 아직 없을 수 있다
+(기존 지리차단 판정도 같은 패턴) ⇒ 동기 파이프라인 `| tee "$PYTEST_OUT"`. ⑵ 「요약 줄 없음 =
+0 skipped」라 `--collect-only`·ANSI·`xfailed` 가 PASS 로 샌다 ⇒ 찾기/세기 함수를 **갈라** 빈 줄을
+**BLOCKED** 로. ⑶ 파일명은 `webhook_to_filled` 인데 HTTP·HMAC 을 **한 줄도 안 탄다** ⇒ 함수명 교체 +
+docstring 에 **재지 않는 것** 명시. ★내가 따로 찾은 P3 = 테스트가 DSN 교체를 **손으로 재구현**
+([LESSON-109] 의 씨앗) ⇒ `_test_dsn_in_effect` 사용. 재대조 **12/12** · 정본 재실행 `PASS (passed 2 · 미실행 0)`.
+
+★**그리고 이 회차가 자기 함정을 두 번 밟았다.** ⓐ `deferred.txt` 를 「소멸」로 보고했는데 cwd 가
+`apps/api` 라 상대경로가 빗나갔고 실제로는 남아 있었다(§7⑤ 그대로). ⓑ 리뷰 결과를 status 에 적은 뒤
+`--deferred-only` 만 돌렸는데 **그 모드는 docs-audit 을 안 돈다** — 700줄 상한 초과를 CI 가 잡았다.
+⇒ 「게이트는 마지막 커밋 뒤에」는 **`--pre-pr` 까지** 다시 돌리는 것을 뜻한다.
+
+**다음 행동 = 이 PR 이 머지되면 `tools/scripts/soak-restart.sh --confirm` 으로 소크를 재기동한다**
+(거래소 flat 확인 완료 · 파라미터는 원장 최근 세션에서 자동 추출됨).
+★**소크 재기동은 개발 스택을 갈아끼운다** — 지금 도는 `quantbridge-*` 6종은 프로젝트 `quant-bridge`
+**2층**(`docker-compose.yml`+`isolated.yml`)이고 `soak-stack.sh` 는 **같은 프로젝트명 3층**(`+soak.yml`)
+이라, `down`→`pin`→`up` 이 그 6종을 소크 고정본으로 바꾼다. 그래서 **게이트·PR 을 먼저 닫는다**
+(2026-08-14 사용자 결정). 그 뒤 축 = 소크 실격 원장 desync 4건 · [BL-641].
 
 ### ★환경 상태 (2026-08-08 23:30Z 정리 — 다음 세션이 그대로 이어받는다)
 
@@ -456,7 +467,7 @@ main·소크·워크트리 세 줄이 낡았다).
 | **D** | [BL-591] 라이브 원장 슬라이스 1 계측                                                                                  | P2  | ★★   | 중     | M          | **건드림**                     | 트리거가 「★**이미 발화했다**」로 선언(자동 종료 15회). ★소크 창 중 `apps/api/src` 접촉 — [BL-690] 이 「창을 버린다」를 반증했다(pin 은 C1·C2 를 리셋 안 한다)                                                                                                                                                                                                                                                                                                                                                                     |
 | **E** | ~~[BL-462] 백테스트 목록 Sharpe 정렬이 신·구 컨벤션을 섞어 센다~~ → **2026-08-11 종결**                               | —   | —    | —      | —          | **0줄**                        | ★**정렬은 이미 고쳐져 있었다** — ledger-truth(`1d4d7e0b`)의 등급 정렬이 권장 접근 「분리」의 구현. 앱 경로 실측: 구 컨벤션 행(원값 **1위**)이 4위로 분리. 이 회차는 **거짓이 된 기록 둘**(상태줄·FE 고지 문구)을 정정하고 잔여 주장 2건을 코드로 기각 — recompute(근거 소멸)·`Decimal("0")`→NULL(`metrics.py:111-116` 독스트링 + `grid_search.py:249` dead branch 가 반박). 화면 검증 = playwright authed 1 passed                                                                                                                 |
 | **F** | ~~[BL-307] 한국어 file header 누락~~ → **2026-08-10 종결** · ~~[BL-306] 콜론 종결 lint~~ → **2026-08-10 기각**        | —   | —    | —      | —          | **0줄**(주석만)                | `scripts/header-audit.sh` 1벌(BE·FE 공용) · 위반 **48 → 0** · pre-commit·CI 배선. ★**「70 file」은 48**(BE 13+FE 35)이었고 그중 **27건은 영→한 번역**이었다. ★**「근거였던 전역 §6 소멸」이 반증** — 규칙은 루트 `AGENTS.md` 로 이사했고, 착수 시점에 **508개 중 460개(90.6%)가 이미 준수** 중이었다(코드가 관행의 증인). ★**ruff·Biome 둘 다 구현 불가** — ruff 는 커스텀 룰 API 부재, Biome 은 GritQL 이 **주석을 못 본다**(trivia). 상세 = `dev-log/2026-08-10-bl307-header-lint.md`                                            |
-| **G** | [BL-024] real_broker E2E 본 구현 (nightly cron) — ★**소크와 상호배타**                                                | P1  | ☆    | 상     | L 8h+      | 0줄                            | ~~잔여 차단이 **지리 403**~~ → ★★★**2026-08-11 정정: 진짜 차단자는 「소크와 같은 Bybit demo 계정」이다.** 근거는 우리 코드 — `nightly-real-broker-local.sh:135` 이 「소크가 돌고 있다 … 같은 Bybit 계정이라 포지션을 공유한다」로 SKIP 한다(종료 코드 **0**). 로컬 nightly **8회 중 6회**가 실거래소를 못 쟀고(SKIP 4 · BLOCKED 2), 「PASS 2」도 **둘 다 `1 passed, 1 skipped`** 다. **2026-08-11 사용자 결정 = 2번째 계정 발급 안 함** ⇒ [BL-003] 이 창을 노리는 한 **영구 SKIP**. 지금 착수하면 8~20h 를 태우고 결과는 SKIP 이다 |
+| **G** | ~~[BL-024] real_broker E2E 본 구현 (nightly cron)~~ → **2026-08-14 종결** (로컬 축)                                   | —   | —    | —      | —          | 0줄                            | ~~잔여 차단이 **지리 403**~~ → ★★★**2026-08-11 정정: 진짜 차단자는 「소크와 같은 Bybit demo 계정」이다.** 근거는 우리 코드 — `nightly-real-broker-local.sh:135` 이 「소크가 돌고 있다 … 같은 Bybit 계정이라 포지션을 공유한다」로 SKIP 한다(종료 코드 **0**). 로컬 nightly **8회 중 6회**가 실거래소를 못 쟀고(SKIP 4 · BLOCKED 2), 「PASS 2」도 **둘 다 `1 passed, 1 skipped`** 다. **2026-08-11 사용자 결정 = 2번째 계정 발급 안 함** ⇒ [BL-003] 이 창을 노리는 한 **영구 SKIP**. 지금 착수하면 8~20h 를 태우고 결과는 SKIP 이다 |
 | **I** | ~~[BL-698] `e2e authed` 백테스트 폼 422 케이스 2건이 main 에서 이미 red~~ → **2026-08-10 종결**                       | —   | —    | —      | —          | **0줄**                        | ★**「422 케이스」라는 제목부터 틀렸다** — 422 는 발생조차 안 했다. `noValidate` 없는 폼에서 기본값 `fees 0.00055`/`slippage 0.00014` 가 `step="0.0001"` 격자를 벗어나 브라우저가 **submit 이벤트를 발화조차 안 했다**. 테스트 결함이 아니라 `753f4bf6`([BL-603], 08-07) 이후 **212 커밋 묵은 프로덕션 결함**. 수리 = 프로덕션 **3줄**. ★**`final-gates.sh` 상시 rc=1 해소.** 단위 테스트 17건이 못 잡은 이유 = 전부 `fireEvent.submit` 으로 native 검증 우회. 잠복 동류 → [BL-699]                                                 |
 | **H** | ~~[BL-695] `**트리거 판정:**` 줄에 소유자가 없다~~ → **2026-08-10 종결**                                              | —   | —    | —      | —          | —                              | `docs-audit` 에 `trigger_verdicts` 축 추가 — **정확히 1개**(0=규율 누락 · 2+=중복 상태줄과 같은 사고). 판정은 `bl-audit --list` 를 되읽는다(파서 2벌 금지). 양성 2 + 음성 1 로 판별력 확인                                                                                                                                                                                                                                                                                                                                         |
 | **U** | ~~[BL-707] authed e2e 실패 메시지가 「API 도달 불가」를 「데이터 없음」으로 **오지목**한다~~ → **2026-08-14 종결**    | —   | —    | —      | —          | 0줄                            | ★**2026-08-12 도래 — 조건절이 없다.** 이 회차가 그 오진에 실제로 걸렸다: 12건이 `make seed` 를 지시했는데 `make seed` 는 **전건 「이미 존재」**였고 진짜 원인은 BE 가 `:8100` 에 없었던 것(콘솔 `ERR_CONNECTION_REFUSED` **109건**). 고친 뒤 authed **84/84**. **「데이터가 없다」와 「데이터를 못 가져온다」는 화면에서 똑같이 비어 보인다**                                                                                                                                                                                      |
