@@ -102,17 +102,23 @@ class CumulativeLossEvaluator:
         #        `state=OrderState.pending` 인 `Order(...)` 에 `realized_pnl=req.realized_pnl`
         #        을 싣는다. 생산자는 둘이고 **둘 다 추정치**다: 라이브 시그널 경로가
         #        `live_signal.py:4406`(MP-1) 의 `realized_pnl=event.realized_pnl`
-        #        (= `LiveSignalEvent.realized_pnl` = **pine_v2 시뮬 청산손익**, `models.py:270`),
+        #        (= `LiveSignalEvent.realized_pnl`, `models.py:651` — pine_v2 시뮬 청산손익),
         #        웹훅 경로가 `router.py:161` 의 `realized_pnl=signal.realized_pnl`(TV alert 필드).
-        #        ★그 46건은 `idempotency_key` 가 전부 `live:` 접두라 **라이브 경로 = pine_v2
-        #        추정치**다(2026-08-14 서버 DB 실측). 웹훅 축이 아니다.
-        #     ⑵ 거래소 확정치를 쓰는 유일한 경로 `backfill_exchange_realized_pnl` 은
-        #        `.where(state == filled)` 를 요구하므로 `rejected` 행에는 들어갈 수 없다.
+        #        ★**어느 쪽이든 결론이 같다** — 둘 다 체결 전 추정치다. 46건의 생산자를
+        #        굳이 가르려면 `idempotency_key` 의 `live:` 접두로는 **부족하다**(웹훅도
+        #        호출자가 준 `Idempotency-Key` 를 그대로 저장한다 — `router.py:104,171`).
+        #        정본 판별 축은 `LiveSignalEvent.order_id` 조인이다(`models.py:674`).
+        #     ⑵ 거래소 확정치를 쓰는 경로는 `backfill_exchange_realized_pnl` 과
+        #        `resync_exchange_realized_pnl`(`order_repository.py:828`) **둘**이고,
+        #        **둘 다** `.where(state == filled)` 를 요구하므로 `rejected` 행에는 못 들어간다.
         #   ⇒ 그 46건은 **체결된 적 없는 주문에 남은 시뮬 추정치**다. SUM 에서 빼는 게 맞고,
         #      부호가 + 라 넣으면 게이트가 손실을 과소평가한다. 거래소 응답이 그 사실을
         #      증언한다 — `error_message` 가 `retCode 110017 "current position is zero"` 30건 ·
         #      `"reduce-only order has same side"` 15건 · `retCode 10005` 1건이고
-        #      `exchange_order_id` 는 46건 전부 NULL(거래소에 도달조차 못 했다).
+        #      `exchange_order_id` 는 46건 전부 NULL 이다.
+        #      ★**「거래소에 도달조차 못 했다」는 틀린 표현이다**(2026-08-14 codex 적대 리뷰).
+        #      `110017`·`10005` 는 **거래소가 반환한 retCode** 이므로 요청은 거래소까지 갔고
+        #      거절당했다. 정확히는 **「주문 ID 가 발급되지 않았고 체결되지 않았다」**이다.
         #   ★확정/추정의 정본 축은 `realized_pnl_synced_at IS NOT NULL` 이다(`router.py` 의
         #     `"confirmed" if o.realized_pnl_synced_at is not None else "estimated"`). 그 축을
         #     여기 필터로 **추가하지 않는다** — 아직 백필 안 된 filled 주문의 추정 손익까지
