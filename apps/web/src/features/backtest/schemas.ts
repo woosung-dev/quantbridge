@@ -7,6 +7,7 @@ import { z } from "zod/v4";
 
 import { OptimizationKindSchema } from "@/features/optimizer/schemas";
 import type { ParamSpace } from "@/features/optimizer/schemas";
+import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "./cost-defaults";
 
 // --- Decimal 문자열 → finite number 변환 ----------------------------------
 
@@ -55,7 +56,8 @@ export type TradingSession = z.infer<typeof TradingSessionSchema>;
 //   leverage    : 1 ~ 125 (Bybit 표준)
 //   fees_pct    : 0 ~ 0.01 (1%)
 //   slippage_pct: 0 ~ 0.01 (1%)
-// 기본값 (Bybit Perpetual taker 표준): 1x 현물 / 0.10% 수수료 / 0.05% 슬리피지 /
+// 기본값: 1x / 수수료·슬리피지는 `cost-defaults.ts` 단일 상수 ([BL-730]).
+// ★여기에 숫자를 다시 쓰지 마라 — 이 항목의 원인이 리터럴 5벌이었다.
 // 펀딩 ON. 사용자가 BacktestForm 에서 자기 strategy 에 맞게 변경.
 export const CreateBacktestRequestSchema = z
   .object({
@@ -78,13 +80,13 @@ export const CreateBacktestRequestSchema = z
       .min(0)
       .max(0.01)
       .refine(Number.isFinite, { message: "fees_pct must be finite" })
-      .default(0.001),
+      .default(DEFAULT_FEES_PCT),
     slippage_pct: z
       .number()
       .min(0)
       .max(0.01)
       .refine(Number.isFinite, { message: "slippage_pct must be finite" })
-      .default(0.0005),
+      .default(DEFAULT_SLIPPAGE_PCT),
     include_funding: z.boolean().default(true),
     // TV parity — 시장가 체결 타이밍. bar_close(기본, 신호 bar 종가) | next_bar_open(TV 정합).
     fill_timing: z.enum(["bar_close", "next_bar_open"]).default("bar_close"),

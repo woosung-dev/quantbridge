@@ -16,6 +16,7 @@ import { useStrategy } from "@/features/strategy/hooks";
 
 import { calcDateRange, type DatePreset } from "@/app/(dashboard)/backtests/_components/forms/date-preset-pills";
 import { type SizingSource } from "@/app/(dashboard)/backtests/_components/live-settings-badge";
+import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
 export interface BacktestFormValues {
   strategy_id: string;
@@ -92,8 +93,8 @@ export function useBacktestForm() {
       initial_capital: 10000,
       leverage: 1,
       // ★BL-603 — 백엔드 `backtest/schemas.py` 기본값의 거울(라이브 원장 실측).
-      fees_pct: 0.00055,
-      slippage_pct: 0.00014,
+      fees_pct: DEFAULT_FEES_PCT,
+      slippage_pct: DEFAULT_SLIPPAGE_PCT,
       include_funding: true,
       fill_timing: "bar_close",
       default_qty_type: "strategy.percent_of_equity",
