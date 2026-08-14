@@ -315,15 +315,13 @@ connection + outer tx + savepoint 라 `commit()` 이 savepoint 재시작일 뿐 
 그런데 `_harness._open_db()` 는 `create_worker_engine_and_sm()` 으로 **별도 엔진**을 연다 ⇒
 「live session 행이 없다」. 원장에도 skeleton 주석에도 이 경고가 없다.
 
-**사용자 결정 3건 (2026-08-14):** ⓐ 경로 = **service-level**(HTTP webhook 층은 다음 회차 —
-`app` 픽스처의 `get_async_session` override 가 savepoint `db_session` 이라 커밋 세션으로 갈아야 한다) ·
-ⓑ **로컬 축만**(CI 는 지리 403 으로 Bybit 에 못 닿고 `schedule:` 도 꺼져 있어 secret 등록 이득이
-신호 정직성뿐 — 별건 BL) · ⓒ **이 회차 끝에 소크 재기동**.
+**사용자 결정 3건 (2026-08-14):** ⓐ 경로 = **service-level**(HTTP webhook 층은 다음 회차 — `app`
+픽스처의 `get_async_session` override 를 커밋 세션으로 갈아야 한다) · ⓑ **로컬 축만**(CI 는 지리 403
+이라 secret 등록 이득이 신호 정직성뿐 — 별건 BL) · ⓒ **이 회차 끝에 소크 재기동**.
 
-★**부수 — ADR-029 이전 판 `backend/AGENTS.md` 가 되살아나 있었다**(untracked · `b932439b^` 와 **바이트
-일치** · 차이 16줄이 전부 `backend/`→`apps/api/` 치환분). codex 는 **가까운 `AGENTS.md` 만** 보므로
-([ADR-027](decisions/027-nested-agents-md.md)) 잔존물이 아니라 **오염원**이다 — 삭제했다.
-tombstone: → 현행 정본 `apps/api/AGENTS.md`, 원문 = `git show b932439b^:backend/AGENTS.md`.
+★**부수 — ADR-029 이전 판 `backend/AGENTS.md` 가 되살아나 있었다**(untracked · `b932439b^` 와 바이트
+일치). codex 는 **가까운 `AGENTS.md` 만** 보므로([ADR-027](decisions/027-nested-agents-md.md)) 잔존물이
+아니라 **오염원**이다 — 삭제했다. tombstone: 원문 = `git show b932439b^:backend/AGENTS.md`.
 
 ### 결과 — [BL-024] **Resolved** (로컬 축)
 
