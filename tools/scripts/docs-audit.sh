@@ -160,9 +160,15 @@ promotion_pointer_hits: list[tuple[str, str]] = []
 lessons_md = docs / "lessons.md"
 if lessons_md.exists():
     lessons_text = lessons_md.read_text(encoding="utf-8", errors="replace")
+    # ★마크다운 장식을 통과시킨다 (2026-08-14 적대 프로브 P1·P2 — 둘 다 **뚫렸다**).
+    #   `### [LESSON-101](#lesson-101)` 처럼 **링크로 감싸거나** `| **LESSON-101** |` 처럼
+    #   **볼드로 감싸면** 종전 정규식이 ID 를 못 봤고, 그러면 중복이 그대로 통과한다 —
+    #   이 축이 막으려는 사고(`8abd0d67` 의 중복 101)의 서식만 바꾼 판이다.
+    #   ⇒ ID 앞의 `*`·`[`·공백은 **버린다**. 뒤의 `\b` 는 유지해 `LESSON-1010` 오인을 막는다.
+    _LESSON_DECOR = r"[*\[\s]*"
     heading_ids = [
         int(raw)
-        for raw in re.findall(r"^### LESSON-(\d+)\b", lessons_text, re.MULTILINE)
+        for raw in re.findall(rf"^###\s+{_LESSON_DECOR}LESSON-(\d+)\b", lessons_text, re.MULTILINE)
     ]
 
     # 승격 표만 고른다. 본문 전체의 코드 스팬으로 넓히면 `useEffect`·`H-1` 같은 비경로
@@ -174,7 +180,8 @@ if lessons_md.exists():
         boundary = re.compile(r"^(?:---\s*$|## )", re.MULTILINE).search(lessons_text, promotion.end())
         promotion_text = lessons_text[promotion.end():boundary.start() if boundary else len(lessons_text)]
         for line in promotion_text.splitlines():
-            row = re.match(r"^\|\s*LESSON-(\d+)\s*\|", line)
+            # ★첫 칸에만 앵커한다 — 장식(`**`·`[`)은 통과시키되 두 번째 칸으로 넘어가지 않는다.
+            row = re.match(rf"^\|{_LESSON_DECOR}LESSON-(\d+)\b", line)
             if row:
                 promotion_ids.append(int(row.group(1)))
 
