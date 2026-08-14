@@ -178,10 +178,21 @@ if lessons_md.exists():
             if row:
                 promotion_ids.append(int(row.group(1)))
 
+        # ★후보 규칙을 「`/` 를 포함하거나 `.md` 로 끝난다」로만 두면 **오탐 3건**이 난다
+        #   (2026-08-14 실측 — 이 축의 첫 판이 정확히 그랬다):
+        #     `tests/<domain>/test_*_commits.py`  = 자리표시자 + 글롭  (LESSON-019)
+        #     `asyncio.<Semaphore/Lock/Event/Queue>` = 코드 표현식     (LESSON-020)
+        #     `/deepen-modules`                   = 슬래시 커맨드      (LESSON-063)
+        #   셋 다 **경로가 아니다**. 배제 축은 실패 축과 직교한다 — 죽은 포인터
+        #   (`backend/AGENTS.md` · 오타 난 파일명 · 맨 파일명)는 여전히 전부 걸린다.
         for raw_span in re.findall(r"`([^`]+)`", promotion_text):
             candidate = raw_span.strip()
             if "/" not in candidate and not candidate.endswith(".md"):
                 continue
+            if any(ch in candidate for ch in "<>*?"):
+                continue                      # 자리표시자·글롭은 실재를 물을 수 없다
+            if candidate.startswith("/"):
+                continue                      # 절대경로·슬래시 커맨드는 레포 상대 포인터가 아니다
             if not (root / candidate).exists():
                 promotion_pointer_hits.append((candidate, "레포 루트 기준 파일이 없다"))
 

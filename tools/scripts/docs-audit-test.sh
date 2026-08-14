@@ -108,6 +108,19 @@ mk_lessons() {
         printf '| LESSON-005 | `tools/scripts/docs-audit.sh` | 스크립트 포인터 |\n\n---\n'
       } > "$SB/docs/lessons.md"
       ;;
+    # ★실제 `docs/lessons.md` 가 이 축의 첫 판에 낸 **오탐 3건**을 그대로 옮겼다
+    #   (2026-08-14 실측 — LESSON-019·020·063 의 승격 위치 칸). 셋 다 `/` 를 품거나
+    #   `.md` 로 끝나 보이지만 **경로가 아니다**. 배제 규칙을 되돌리면 여기서 red 가 난다.
+    nonpath_spans)
+      {
+        printf '# stub lessons\n\n## 영구 승격 완료\n\n'
+        printf '| ID | 포인터 | 내용 |\n| --- | --- | --- |\n'
+        printf '| LESSON-004 | `AGENTS.md` | 살아 있는 포인터 (대조군) |\n'
+        printf '| LESSON-019 | `tests/<domain>/test_*_commits.py` | 자리표시자 + 글롭 |\n'
+        printf '| LESSON-020 | `asyncio.<Semaphore/Lock/Event/Queue>` | 코드 표현식 |\n'
+        printf '| LESSON-063 | `/deepen-modules` | 슬래시 커맨드 |\n\n---\n'
+      } > "$SB/docs/lessons.md"
+      ;;
   esac
 }
 
@@ -126,7 +139,7 @@ run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
   fi
 }
 
-echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 + BL-720 지식 정본 축 — 판별력 11케이스"
+echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 + BL-720 지식 정본 축 — 판별력 12케이스"
 
 # ⑴ ★음성 대조가 아니라 **ABORT 대조**다. 양쪽이 비면 초록도 빨강도 내지 않는다.
 mk_status "";       run empty  3 yes "양쪽 공집합 → rc=3 ABORT (빈 입력을 「일치」로 통과시키지 않는다)"
@@ -176,10 +189,16 @@ run ledger 1 yes '승격 표 `backend/AGENTS.md` 가 없음 → 승격 표 포�
 
 mk_status "BL-999"; mk_lessons live_pointers
 run ledger 1 no "음성 대조: AGENTS.md 등 살아 있는 승격 표 포인터만 → 승격 표 포인터 축 침묵"
+
+# ⑿ ★두 번째 음성 대조 — **과다 포획**. 이 축의 첫 판이 실제 `lessons.md` 에서 낸 오탐 3건이
+#   그대로 입력이다. 「`/` 를 포함하거나 `.md` 로 끝난다」만으로 후보를 고르면 자리표시자·
+#   코드 표현식·슬래시 커맨드가 전부 「없는 파일」이 된다. 오탐이 나오는 검사기는 꺼진다.
+mk_status "BL-999"; mk_lessons nonpath_spans
+run ledger 1 no "음성 대조: 자리표시자·코드 표현식·슬래시 커맨드 → 승격 표 포인터 축 침묵"
 AXIS="⓪ 표 정체성"
 
 if [ "$FAIL" != 0 ]; then
   echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 / BL-720 지식 정본 축이 판별력을 잃었다"
   exit 1
 fi
-echo "✓ docs-audit 하네스 11/11 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락 · LESSON ID · 승격 표 포인터"
+echo "✓ docs-audit 하네스 12/12 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락 · LESSON ID · 승격 표 포인터 · 비경로 스팬 과다포획"

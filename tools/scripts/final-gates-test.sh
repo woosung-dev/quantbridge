@@ -101,12 +101,26 @@ run_suite() { # 케이스 8건
   done
   report "⑤" "BE pytest · e2e authed 는 --pre-pr 에서 DEFER" "$why"
 
-  # ⑥ 싼 게이트는 --pre-pr 에서도 돈다 (대표 2종)
+  # ⑥ 싼 게이트는 --pre-pr 에서도 돈다.
+  # ★★대표를 **영역 판정 밖의 게이트**로 바꿨다(2026-08-14). 종전 판본은 `BE ruff`·`FE build` 가
+  #   `--pre-pr` 에서 `plan` 이기를 요구했는데, 그 둘은 **영역 게이트**라 BE/FE diff 가 0 인 트리에서
+  #   모드와 무관하게 `skip` 이다 ⇒ docs·tools 만 고친 브랜치에서 **상시 red**, `make gate-harnesses`
+  #   가 통째로 빨강이었다. 재려던 것(「모드가 싼 게이트를 유예하지 않는다」)과 재고 있던 것
+  #   (「영역이 이 게이트를 골랐다」)이 뭉쳐 있었다 — 검사기 표면 ≠ 실패 표면(§8.6).
+  # ★그리고 그 둘로는 **변이도 안 잡힌다**: `run_gate` 앞에서 영역이 먼저 `skip_gate` 로 빠지므로
+  #   `DEFERRABLE` 에 `BE ruff` 를 넣어도 마크가 안 갈린다(실측 — 첫 수리판이 이 변이를 통과했다).
+  #   그래서 대표는 **항상 계획되는** `BL 감사`·`문서 감사` 다. 여기서는 변이가 실제로 red 를 낸다.
   why=""
-  for m in "BE ruff" "FE build"; do
+  for m in "BL 감사" "문서 감사"; do
     [ "$(mark_of "$m" --pre-pr)" = "plan" ] || why="${why}${why:+ · }'$m' 가 --pre-pr 에서 안 돈다"
   done
-  report "⑥" "BE ruff · FE build 는 --pre-pr 에서도 돈다" "$why"
+  # 영역 게이트는 **모드가 손대지 않는다**만 잰다 — diff 가 있는 트리에서만 `plan` 이 정상이다.
+  for m in "BE ruff" "FE build"; do
+    pre_mark="$(mark_of "$m" --pre-pr)"; full_mark="$(mark_of "$m")"
+    [ "$pre_mark" = "$full_mark" ] ||
+      why="${why}${why:+ · }'$m' 가 full=$full_mark 인데 --pre-pr 에서 $pre_mark 다"
+  done
+  report "⑥" "싼 게이트는 --pre-pr 에서도 돈다 (영역 게이트는 full 과 같은 마크)" "$why"
 
   # ⑦ dry-run 은 아무 게이트도 실행하지 않는다 (더러운 트리에서도 계획을 낸다)
   why=""
