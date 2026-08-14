@@ -255,6 +255,36 @@ def _effective_db_url() -> str:
     return _db_guard.effective_dsn()
 
 
+@contextlib.contextmanager
+def _test_dsn_in_effect() -> Iterator[None]:
+    """`settings.database_url` 을 유효 테스트 DSN 으로 바꿨다가 원복한다.
+
+    ★★**이 하네스에서 `create_worker_engine_and_sm()` 을 타는 경로는 하나가 아니라 둘이다** —
+    `_execute_order_now`(발주)와 `_open_db()`(청산 오케스트레이션). 종전에는 앞의 하나만
+    DSN 을 바꿨고, 그래서 **청산은 `settings.database_url`(= 개발 DB)을 열었다.**
+
+    2026-08-14 [BL-024] 실측 — skeleton 의 `pytest.skip` 을 걷어내고 REGISTRY 에 타깃이
+    처음으로 들어가자 전건이 이렇게 났다:
+
+        undecidable — live session <uuid> 행이 없다 — 청산 주체를 특정할 수 없다
+
+    seed 는 `_test` DB 에 **커밋돼 있었다**. 못 본 것은 청산 쪽이 다른 DB 를 봤기 때문이다.
+    ⇒ **2층 자기정리는 그때까지 한 번도 작동한 적이 없었다** (skeleton 이 skip 되어 REGISTRY 가
+    늘 비어 있었으므로 `run_cleanup` 이 항상 빈 목록을 돌려줬다). 「있다」와 「그 경로가
+    지나는가」는 다른 질문이다 — `apps/api/AGENTS.md` §10.1 이 같은 말을 한다.
+
+    ★중첩 호출은 안전하다. 안쪽이 원복하는 값은 이미 테스트 DSN 이다.
+    """
+    from src.core import config
+
+    previous = config.settings.database_url
+    config.settings.database_url = _effective_db_url()
+    try:
+        yield
+    finally:
+        config.settings.database_url = previous
+
+
 async def _execute_order_now(order_id: UUID) -> None:
     """청산 주문을 **동기적으로** 거래소에 보낸다.
 
@@ -274,15 +304,10 @@ async def _execute_order_now(order_id: UUID) -> None:
     `settings.database_url` 을 읽으므로(`test_prefork_smoke_integration.py:75-80` 선례)
     호출 동안만 유효 테스트 DSN 으로 맞추고 원복한다.
     """
-    from src.core import config
     from src.tasks.trading import _async_execute
 
-    previous = config.settings.database_url
-    config.settings.database_url = _effective_db_url()
-    try:
+    with _test_dsn_in_effect():
         await _async_execute(order_id)
-    finally:
-        config.settings.database_url = previous
 
 
 def _session_repo(db: AsyncSession) -> Any:
@@ -397,24 +422,28 @@ async def flatten_one(db: AsyncSession, target: CleanupTarget) -> CleanupResult:
 
 
 async def _cleanup_async(targets: list[CleanupTarget]) -> list[CleanupResult]:
-    engine, sm = _open_db()
-    results: list[CleanupResult] = []
-    try:
-        async with sm() as db:
-            for target in targets:
-                try:
-                    result = await flatten_one(db, target)
-                except Exception as exc:  # 하네스 자신의 결함도 침묵하지 않는다
-                    result = CleanupResult(
-                        target=target,
-                        status="undecidable",
-                        detail=f"청산 루틴 자체가 던졌다: {type(exc).__name__}: {exc}",
-                    )
-                target.resolved = result.is_clean
-                results.append(result)
-    finally:
-        await engine.dispose()
-    return results
+    # ★`_open_db()` 는 `create_worker_engine_and_sm()` → `settings.database_url` 을 읽는다.
+    #   여기서 DSN 을 세우지 않으면 청산이 **개발 DB** 를 열어 seed 한 세션 행을 못 찾는다
+    #   (`_test_dsn_in_effect` 의 2026-08-14 실측 참조). 발주 경로만 고쳐도 소용없다.
+    with _test_dsn_in_effect():
+        engine, sm = _open_db()
+        results: list[CleanupResult] = []
+        try:
+            async with sm() as db:
+                for target in targets:
+                    try:
+                        result = await flatten_one(db, target)
+                    except Exception as exc:  # 하네스 자신의 결함도 침묵하지 않는다
+                        result = CleanupResult(
+                            target=target,
+                            status="undecidable",
+                            detail=f"청산 루틴 자체가 던졌다: {type(exc).__name__}: {exc}",
+                        )
+                    target.resolved = result.is_clean
+                    results.append(result)
+        finally:
+            await engine.dispose()
+        return results
 
 
 def run_cleanup(targets: list[CleanupTarget] | None = None) -> list[CleanupResult]:
