@@ -14,6 +14,10 @@ from src.trading.providers import ClosedOrderMeta
 _TAKE_PROFIT_CREATE_TYPES = frozenset({"createbytakeprofit", "createbypartialtakeprofit"})
 _STOP_LOSS_CREATE_TYPES = frozenset({"createbystoploss", "createbypartialstoploss"})
 _TRAILING_CREATE_TYPES = frozenset({"createbytrailingstop"})
+# ★[BL-728] — 종전 판정은 `"liquidation" in create_type` 이었는데 **Bybit 실제 enum 은
+#   `CreateByLiq`** 다. casefold 하면 `createbyliq` 라 그 부분문자열이 안 걸려 강제청산이
+#   `unknown` 으로 샜다. 마진율 강제감축(`CreateByMmRateClose`)도 같은 성질이라 함께 넣는다.
+_LIQUIDATION_CREATE_TYPES = frozenset({"createbyliq", "createbymmrateclose"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +65,11 @@ def classify_exit(
         return ExitClassification.bracket_sl
     if create_type in _TRAILING_CREATE_TYPES:
         return ExitClassification.trailing
-    if "liquidation" in create_type or "adl" in create_type:
+    if create_type in _LIQUIDATION_CREATE_TYPES:
+        return ExitClassification.liquidation
+    # ★ADL 만 부분문자열로 남긴다 — 실제 값이 `CreateByAdl_PassThrough` 라 접미사가 붙어
+    #   집합 동등으로는 안 걸린다. 위 3종·강제청산과 달리 여기만 접미사 변종이 실재한다.
+    if "adl" in create_type:
         return ExitClassification.liquidation
 
     # createType 이 비거나 낯설어도 stopOrderType 이 조건부 유래를 밝힌다. close-completeness

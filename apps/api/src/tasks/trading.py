@@ -2115,7 +2115,7 @@ async def _sweep_closed_pnl_with_session(
             async with sm() as session:
                 order_repo = OrderRepository(session)
                 exit_repo = ExchangeExitRepository(session)
-                unsynced_orders = await order_repo.list_unsynced_reduce_only(account.id)
+                unsynced_orders = await order_repo.list_unsynced_with_exchange_exit(account.id)
                 sums = await exit_repo.aggregate_closed_pnl(
                     account.id,
                     [
@@ -2146,7 +2146,7 @@ async def _sweep_closed_pnl_with_session(
                 # 분할 행 중 일부만 보이는 순간에 걸리면 부분합이 synced 로 고정되고
                 # 미동기화 술어를 쓰는 위 경로는 그 주문을 영영 건너뛴다. 원장 합계와
                 # 다르면 정정한다(값이 같으면 rowcount 0 이라 멱등).
-                synced_orders = await order_repo.list_synced_reduce_only(account.id)
+                synced_orders = await order_repo.list_synced_with_exchange_exit(account.id)
                 synced_sums = await exit_repo.aggregate_closed_pnl(
                     account.id,
                     [

@@ -5,6 +5,7 @@ Webhook is PUBLIC (no JWT) -- HMAC token IS the authentication.
 CSO-1: WebhookSecret uses secret_encrypted (bytes, not plaintext).
 CSO-6: MAX_WEBHOOK_BODY = 64KB cap verified.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -60,9 +61,7 @@ class _FakeDispatcher:
 
 
 @pytest.mark.asyncio
-async def test_webhook_valid_hmac_returns_201(
-    client, app, db_session, crypto
-):
+async def test_webhook_valid_hmac_returns_201(client, app, db_session, crypto):
     """Valid HMAC token -> 201 (order created)."""
     # --- Setup: user, strategy, exchange account, webhook secret ---
     from src.auth.models import User
@@ -151,9 +150,7 @@ async def test_webhook_valid_hmac_returns_201(
 
 
 @pytest.mark.asyncio
-async def test_webhook_bad_hmac_returns_401(
-    client, app, db_session, crypto
-):
+async def test_webhook_bad_hmac_returns_401(client, app, db_session, crypto):
     """Invalid HMAC token -> 401."""
     from src.auth.models import User
     from src.strategy.models import ParseStatus, PineVersion, Strategy
@@ -395,14 +392,16 @@ async def test_webhook_order_inherits_strategy_settings_and_routes_linear(
 
 
 @pytest.mark.asyncio
-async def test_webhook_forwards_reduce_only_and_bracket_levels(
-    client, app, db_session, crypto
-):
+async def test_webhook_forwards_reduce_only_and_bracket_levels(client, app, db_session, crypto):
     """프론트가 이미 보내던 3 필드가 주문 행까지 도달한다.
 
-    reduce_only 가 특히 중요하다 — 이게 False 로 저장되면 그 청산은 스윕
-    (`list_unsynced_reduce_only`)에도, 단건 확정(`tasks/trading.py:1342`)에도
-    영원히 안 잡혀 손익이 "추정" 으로 굳는다.
+    reduce_only 가 특히 중요하다 — 이게 False 로 저장되면 그 청산은 단건 즉시 확정
+    (`_refresh_closed_pnl_with_session` 의 `not order.reduce_only` 조기 반환)에 안 잡혀
+    체결 직후 손익이 "추정" 으로 남는다.
+
+    ★[BL-438] 2026-08-14 정정 — 종전 docstring 은 스윕에도 "영원히" 안 잡힌다고 적었다.
+    이제 거짓이다: 스윕은 `list_unsynced_with_exchange_exit` 로 바뀌어 거래소 원장의
+    청산 행을 보므로 `reduce_only=false` 인 반전 청산도 회수한다.
     """
     from src.trading.repositories.order_repository import OrderRepository
 
@@ -432,9 +431,7 @@ async def test_webhook_forwards_reduce_only_and_bracket_levels(
 
 
 @pytest.mark.asyncio
-async def test_webhook_rejects_when_strategy_settings_unset(
-    client, app, db_session, crypto
-):
+async def test_webhook_rejects_when_strategy_settings_unset(client, app, db_session, crypto):
     """settings 미설정 → 422 fail-closed. live_signal / close_service 와 동일 정책.
 
     spot 으로 흘려보내면 그 진입은 **닫을 수단이 없다** — 모든 청산 경로가
@@ -445,9 +442,7 @@ async def test_webhook_rejects_when_strategy_settings_unset(
 
     from src.trading.models import Order
 
-    _, strategy, acct, secret = await _seed_webhook_fixture(
-        db_session, crypto, settings=None
-    )
+    _, strategy, acct, secret = await _seed_webhook_fixture(db_session, crypto, settings=None)
     _install_overrides(app, crypto)
 
     body_bytes = json.dumps(_tv_payload(str(acct.id))).encode()
@@ -466,9 +461,7 @@ async def test_webhook_rejects_when_strategy_settings_unset(
 
 
 @pytest.mark.asyncio
-async def test_webhook_rejects_when_strategy_settings_invalid(
-    client, app, db_session, crypto
-):
+async def test_webhook_rejects_when_strategy_settings_invalid(client, app, db_session, crypto):
     """스키마를 벗어난 settings → 422 settings_invalid (조용한 fallback 금지)."""
     _, strategy, acct, secret = await _seed_webhook_fixture(
         db_session, crypto, settings={"leverage": 999}
@@ -486,15 +479,11 @@ async def test_webhook_rejects_when_strategy_settings_invalid(
 
 
 @pytest.mark.asyncio
-async def test_webhook_settings_resolution_happens_after_hmac(
-    client, app, db_session, crypto
-):
+async def test_webhook_settings_resolution_happens_after_hmac(client, app, db_session, crypto):
     """★순서 고정. settings 해결이 HMAC 앞에 오면 미인증 호출자가 응답 코드
     차이(401 vs 422)만으로 어느 strategy_id 에 settings 가 있는지 캘 수 있다.
     """
-    _, strategy, acct, _secret = await _seed_webhook_fixture(
-        db_session, crypto, settings=None
-    )
+    _, strategy, acct, _secret = await _seed_webhook_fixture(db_session, crypto, settings=None)
     _install_overrides(app, crypto)
 
     body_bytes = json.dumps(_tv_payload(str(acct.id))).encode()

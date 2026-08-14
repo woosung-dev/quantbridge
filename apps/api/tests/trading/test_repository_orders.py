@@ -494,3 +494,212 @@ async def test_realized_pnl_split_partitions_the_scope_by_provenance(db_session,
     assert (split.confirmed_count, split.estimated_count) == (1, 1)
     # 손익이 아직 안 온 체결은 확정도 추정도 아니다 — 개수로만 표면화한다.
     assert split.unrecorded_count == 1
+
+
+# ── [BL-438] 백필 대상 선정 = 원장 조인 (reduce_only 가 아니다) ───────────────
+
+
+async def _filled_order(
+    db_session,
+    strategy,
+    account,
+    *,
+    exchange_order_id: str | None,
+    reduce_only: bool,
+    filled_at: datetime,
+    synced_at: datetime | None = None,
+) -> Order:
+    """`state=filled` 주문 하나. 상태 전이 가드를 우회하려고 직접 만든다."""
+    order = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTC/USDT",
+        side=OrderSide.sell if reduce_only else OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.029"),
+        state=OrderState.filled,
+        reduce_only=reduce_only,
+        exchange_order_id=exchange_order_id,
+        filled_price=Decimal("50000"),
+        filled_at=filled_at,
+        realized_pnl_synced_at=synced_at,
+        realized_pnl=Decimal("-1") if synced_at is not None else None,
+    )
+    db_session.add(order)
+    await db_session.flush()
+    return order
+
+
+async def _exit_row(db_session, account, *, exchange_order_id: str, row_hash: str) -> None:
+    from src.trading.models import ExchangeExit, ExitAttribution, ExitClassification
+
+    db_session.add(
+        ExchangeExit(
+            exchange_account_id=account.id,
+            exchange_order_id=exchange_order_id,
+            row_hash=row_hash,
+            symbol="BTC/USDT",
+            side="Sell",
+            closed_pnl=Decimal("-1.5"),
+            exchange_created_at=datetime.now(UTC),
+            classification=ExitClassification.ours,
+            attribution_confidence=ExitAttribution.exact,
+            raw={"orderId": exchange_order_id},
+        )
+    )
+    await db_session.flush()
+
+
+async def test_unsynced_selection_follows_the_ledger_not_the_reduce_only_flag(
+    db_session, strategy, account
+):
+    """[BL-438] 수리의 핵심 — 반전 청산(`reduce_only=false`)이 백필 후보가 된다.
+
+    소크 전략은 반전 주문(`sell 0.058 = 2×0.029`)으로 청산하는데 반전에는 `reduce_only`
+    를 걸 수 없다. 종전 술어(`reduce_only IS TRUE`)는 이 주문을 후보에서 배제했고
+    실현손익의 93.1%(490건 / −1,023.87 USDT)가 그렇게 새고 있었다.
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    base = datetime.now(UTC)
+    reversal = await _filled_order(
+        db_session,
+        strategy,
+        account,
+        exchange_order_id="reversal-close-1",
+        reduce_only=False,
+        filled_at=base,
+    )
+    await _exit_row(db_session, account, exchange_order_id="reversal-close-1", row_hash="h-rev")
+    await db_session.commit()
+
+    rows = await OrderRepository(db_session).list_unsynced_with_exchange_exit(account.id)
+
+    assert [o.id for o in rows] == [reversal.id]
+
+
+async def test_unsynced_selection_excludes_orders_the_ledger_never_saw(
+    db_session, strategy, account
+):
+    """[BL-438] 진입 주문은 원장에 청산 행이 없으므로 후보가 아니다.
+
+    ★이 케이스가 술어의 **상관 조건**을 재는 자리다. `EXISTS` 안의
+    `exchange_order_id` 동등을 빼면 「계정에 원장 행이 하나라도 있으면 참」이 되어
+    진입 주문까지 후보로 올라오고, 스윕이 남의 `closed_pnl` 을 그 주문에 얹어
+    계정 SUM 이 원장 총계를 넘는다(= 이중계상).
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    base = datetime.now(UTC)
+    await _filled_order(
+        db_session,
+        strategy,
+        account,
+        exchange_order_id="entry-1",
+        reduce_only=False,
+        filled_at=base,
+    )
+    close = await _filled_order(
+        db_session,
+        strategy,
+        account,
+        exchange_order_id="close-1",
+        reduce_only=False,
+        filled_at=base + timedelta(minutes=1),
+    )
+    # 원장은 청산 주문 하나만 증언한다.
+    await _exit_row(db_session, account, exchange_order_id="close-1", row_hash="h-close")
+    await db_session.commit()
+
+    rows = await OrderRepository(db_session).list_unsynced_with_exchange_exit(account.id)
+
+    assert [o.id for o in rows] == [close.id]
+
+
+async def test_unsynced_selection_does_not_duplicate_orders_with_split_ledger_rows(
+    db_session, strategy, account
+):
+    """[BL-438] 분할 행 N개여도 Order 는 1행이다 — JOIN 이 아니라 EXISTS 인 이유.
+
+    JOIN 이면 같은 주문이 N번 나와 `limit` 예산이 잠식되고 스윕의 `applied` 계수가
+    부풀어 관측이 거짓말을 한다.
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    order = await _filled_order(
+        db_session,
+        strategy,
+        account,
+        exchange_order_id="split-close",
+        reduce_only=False,
+        filled_at=datetime.now(UTC),
+    )
+    await _exit_row(db_session, account, exchange_order_id="split-close", row_hash="h-a")
+    await _exit_row(db_session, account, exchange_order_id="split-close", row_hash="h-b")
+    await db_session.commit()
+
+    rows = await OrderRepository(db_session).list_unsynced_with_exchange_exit(account.id)
+
+    assert [o.id for o in rows] == [order.id]
+
+
+async def test_unsynced_selection_is_account_scoped(db_session, strategy, account, user):
+    """[BL-438] 다른 계정의 원장 행으로는 안 걸린다.
+
+    `exchange_order_id` 는 거래소가 발급하므로 계정 간 충돌이 가능하다. 계정 축을 빼면
+    남의 청산을 내 주문의 손익으로 주장하게 된다(`list_by_exchange_order_ids` 와 같은 이유).
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    other = ExchangeAccount(
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=b"k2",
+        api_secret_encrypted=b"s2",
+    )
+    db_session.add(other)
+    await db_session.flush()
+
+    await _filled_order(
+        db_session,
+        strategy,
+        account,
+        exchange_order_id="shared-id",
+        reduce_only=False,
+        filled_at=datetime.now(UTC),
+    )
+    # 원장 행은 **다른 계정** 아래에만 있다.
+    await _exit_row(db_session, other, exchange_order_id="shared-id", row_hash="h-other")
+    await db_session.commit()
+
+    rows = await OrderRepository(db_session).list_unsynced_with_exchange_exit(account.id)
+
+    assert rows == []
+
+
+async def test_synced_selection_follows_the_same_ledger_predicate(db_session, strategy, account):
+    """[BL-438] 정정(resync) 경로도 같은 술어여야 한다.
+
+    미동기화 쪽만 원장 조인으로 넓히면, 새로 백필된 `reduce_only=false` 주문은
+    `synced_at` 은 갖는데 정정 경로에는 영영 안 들어온다 — 부분합 고정을 되돌리는
+    안전망이 정확히 그 490건에만 사라진다.
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    now = datetime.now(UTC)
+    synced = await _filled_order(
+        db_session,
+        strategy,
+        account,
+        exchange_order_id="synced-reversal",
+        reduce_only=False,
+        filled_at=now,
+        synced_at=now,
+    )
+    await _exit_row(db_session, account, exchange_order_id="synced-reversal", row_hash="h-sync")
+    await db_session.commit()
+
+    rows = await OrderRepository(db_session).list_synced_with_exchange_exit(account.id)
+
+    assert [o.id for o in rows] == [synced.id]

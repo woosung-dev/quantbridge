@@ -28,9 +28,7 @@ from src.trading.webhook import parse_tv_payload
 
 def test_type_defaults_to_market_when_omitted():
     """type 누락 시 'market' default — TV alert 의 일반 형태 (대부분 type 미기재)."""
-    parsed = parse_tv_payload(
-        {"symbol": "BTC/USDT", "side": "buy", "quantity": "0.01"}
-    )
+    parsed = parse_tv_payload({"symbol": "BTC/USDT", "side": "buy", "quantity": "0.01"})
     assert parsed.type == OrderType.market
 
 
@@ -81,9 +79,7 @@ def test_price_valid_string_parsed_to_decimal():
 
 def test_side_case_insensitive():
     """side='BUY' / 'Buy' → lower() 적용 → OrderSide.buy."""
-    parsed = parse_tv_payload(
-        {"symbol": "BTC/USDT", "side": "BUY", "quantity": "0.01"}
-    )
+    parsed = parse_tv_payload({"symbol": "BTC/USDT", "side": "BUY", "quantity": "0.01"})
     assert parsed.side == OrderSide.buy
 
 
@@ -235,9 +231,7 @@ def test_parse_rejects_and_counts_a_symbol_it_cannot_normalize():
 
     before = qb_webhook_symbol_rejected_total._value.get()
     with pytest.raises(WebhookUnauthorized):
-        parse_tv_payload(
-            {"symbol": "BTCUSDT.P", "side": "buy", "quantity": "1", "type": "market"}
-        )
+        parse_tv_payload({"symbol": "BTCUSDT.P", "side": "buy", "quantity": "1", "type": "market"})
     assert qb_webhook_symbol_rejected_total._value.get() == before + 1
 
 
@@ -245,10 +239,13 @@ def test_parse_rejects_and_counts_a_symbol_it_cannot_normalize():
 #
 # `test-order-webhook.ts:62-70` 은 reduce_only / take_profit / stop_loss 를 body 에
 # 실어 보내는데 파서가 6개 키만 읽어 전부 바닥에 떨어졌다. reduce_only 유실은 단순
-# 누락이 아니라 청산 확정 경로 전체를 막는다 — `tasks/trading.py:1342` 가
-# `not order.reduce_only` 로 조기 반환하고 스윕 쿼리(`list_unsynced_reduce_only`)
-# 도 `reduce_only IS TRUE` 를 요구하므로, 이 필드가 없으면 그 청산은 영원히
-# `realized_pnl_synced_at` 을 못 받고 손익이 "추정" 으로 굳는다.
+# 누락이 아니라 단건 즉시 확정 경로를 막는다 — `_refresh_closed_pnl_with_session` 이
+# `not order.reduce_only` 로 조기 반환하므로, 이 필드가 없으면 그 청산은 체결 직후에
+# `realized_pnl_synced_at` 을 못 받는다.
+# ★[BL-438] 2026-08-14 정정 — 종전 주석은 스윕 쿼리도 `reduce_only IS TRUE` 를 요구해
+#   손익이 "영원히" 추정으로 굳는다고 적었다. 그 두 번째 절은 이제 거짓이다: 스윕은
+#   `list_unsynced_with_exchange_exit` 로 바뀌어 거래소 원장의 청산 행을 보므로
+#   `reduce_only=false` 인 반전 청산도 뒤늦게 회수한다.
 
 
 def _base_payload(**overrides: object) -> dict[str, object]:
@@ -295,9 +292,7 @@ def test_reduce_only_falsy_forms_are_false(falsy: object):
 
 def test_parse_reads_bracket_levels():
     """다이얼로그의 TP/SL 입력이 실제로 주문에 실린다 (지금까지는 표시만 됐다)."""
-    parsed = parse_tv_payload(
-        _base_payload(take_profit="70000.5", stop_loss="48000")
-    )
+    parsed = parse_tv_payload(_base_payload(take_profit="70000.5", stop_loss="48000"))
     assert parsed.take_profit == Decimal("70000.5")
     assert parsed.stop_loss == Decimal("48000")
 

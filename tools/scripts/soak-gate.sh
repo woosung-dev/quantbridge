@@ -703,8 +703,26 @@ PY
 )"
 rm -f "${SESSIONS_FILE}"
 
-RESULT="$(printf '%s' "${PAYLOAD}" | python3 "${ROOT}/apps/api/scripts/soak_gate_predicate.py")"
+# ★[BL-727] — 맨 `python3` 로 부르면 **맥에서 판정을 못 낸다.** `/usr/bin/python3` 는 3.9.6 이고
+#   `soak_gate_predicate.py` 는 `itertools.pairwise`(3.10+)를 쓴다. 죽어도 이 스크립트는 계속
+#   진행해 아래에서 **빈 `판정:` 줄**을 인쇄했다 — fail-open 이다(실측 2026-08-14 맥 판독 사망).
+#   같은 함정을 `:449` 가 이미 `uv run python` 으로 고치며 「verdicts 가 늘 0 이 된다」고 적어
+#   뒀는데 판정 본체에는 적용되지 않았다.
+# ★나머지 `python3` 호출 10곳(`:220 :391 :471 :546 :567 :572` + 아래 3곳 + `:745`)은 **그대로
+#   둔다** — 전부 stdlib(`json`/`pathlib`/`re`/`collections`)만 쓰고 3.10+ 문법이 없어 3.9 에서도
+#   돈다. 3.10+ 를 요구하는 자리는 이 한 곳뿐이다.
+# ★`cd apps/api` 가 필요하다 — `uv run` 은 프로젝트 루트에서 venv 를 찾는다(`:459`·`:536` 선례).
+#   스크립트 경로는 절대경로라 `cd` 뒤에도 성립한다.
+RESULT="$(printf '%s' "${PAYLOAD}" \
+  | (cd "${ROOT}/apps/api" && uv run python "${ROOT}/apps/api/scripts/soak_gate_predicate.py"))"
 RC=$?
+# ★fail-closed. **rc 로 판정하지 마라** — `main()` 은 PASS=0 · FAIL=1 · 측정불가=2 를 돌려주므로
+#   비-0 은 정상 판정이다. 「판정기가 죽었다」의 유일한 증거는 **출력이 비었다** 는 것이다.
+if [ -z "${RESULT}" ]; then
+  echo "✗ 판정기가 아무것도 내지 않았다 (rc=${RC}) — 빈 '판정:' 을 찍는 대신 여기서 멈춘다" >&2
+  echo "  맥에서 3.9 로 떨어졌는지 확인해라: (cd ${ROOT}/apps/api && uv run python -V)" >&2
+  exit 1
+fi
 
 if [ "${AS_JSON}" = "1" ]; then
   printf '%s\n' "${RESULT}"

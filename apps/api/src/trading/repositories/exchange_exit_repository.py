@@ -43,7 +43,15 @@ class ExchangeExitRepository:
     async def aggregate_closed_pnl(
         self, account_id: UUID, exchange_order_ids: Sequence[str]
     ) -> dict[str, Decimal]:
-        """(계정, 거래소 주문 id) 별 closed_pnl 합계. 창을 나눠 적재해도 원장 전체를 집계하므로 부분합이 남지 않는다."""
+        """(계정, 거래소 주문 id) 별 closed_pnl 합계. 창을 나눠 적재해도 원장 전체를 집계하므로 부분합이 남지 않는다.
+
+        ★[BL-725] 중복 290행에 대한 `DISTINCT ON (row_hash)` 는 **여기서 no-op 이라 넣지 않는다.**
+        그 중복은 같은 Bybit uid 에 앱 계정 행이 둘(`0277c150`·`19a8166a`)이라 **계정 행 사이**로
+        갈라져 있는데, 이 쿼리는 `exchange_account_id == account_id` 로 스코프되고 같은 계정
+        안에서는 `Index("uq_exchange_exits_row", "exchange_account_id", "row_hash", unique=True)`
+        (`models.py`)가 중복을 이미 막는다. 즉 이 SUM 이 한 행을 두 번 세는 경로가 없다.
+        원장을 **계정 스코프 없이** 통계로 읽는 소비자가 생기면 그때는 필요하다.
+        """
         if not exchange_order_ids:
             return {}
         stmt = (

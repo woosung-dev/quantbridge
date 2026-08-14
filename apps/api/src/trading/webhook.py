@@ -73,9 +73,13 @@ class ParsedTradeSignal:
     # 까지 전파되어 Order.realized_pnl 로 저장됨. 없으면 None (legacy backward-compat).
     realized_pnl: Decimal | None = None
     # BL-474 — 프론트(`test-order-webhook.ts:62-70`)가 이미 보내던 3 필드. 파서가
-    # 안 읽어서 조용히 버려지고 있었다. reduce_only 유실은 단순 누락이 아니다:
-    # 청산 확정 경로 전체가 이 플래그를 요구한다(`tasks/trading.py:1342` 조기 반환 +
-    # 스윕의 `list_unsynced_reduce_only`). 없으면 그 청산 손익은 영원히 "추정" 이다.
+    # 안 읽어서 조용히 버려지고 있었다.
+    # ★[BL-438] 2026-08-14 정정 — 종전 주석은 「청산 확정 경로 **전체**가 이 플래그를
+    #   요구한다」고 적었는데 이제 거짓이다. 스윕은 `list_unsynced_with_exchange_exit`
+    #   로 바뀌어 **거래소 원장의 청산 행**을 보므로 `reduce_only=false` 인 반전 청산도
+    #   확정된다. 여전히 이 플래그를 요구하는 것은 단건 즉시 확정
+    #   (`tasks/trading.py` `_refresh_closed_pnl_with_session` 의 `not order.reduce_only`
+    #   조기 반환) 하나뿐이고, 그 경로가 건너뛴 주문은 스윕이 뒤늦게 회수한다.
     reduce_only: bool = False
     take_profit: Decimal | None = None
     stop_loss: Decimal | None = None
