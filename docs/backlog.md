@@ -647,6 +647,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-733](#bl-733) | 체결 직후 refresh **2곳**이 아직 `reduce_only` 게이트 — [BL-438] 은 스윕 축만 고쳤다. 반전 주문 확정 손익이 **최대 5분** 늦고 그 창이 kill-switch 사각이다. ★**필터만 지우면 더 나빠진다** — **정상 선물 entry** 가 `transient` 4회 재시도 뒤 **운영자 알림**을 낸다. 처방 = 기존 `_reversal_bucket_at_fill` 을 게이트로 재사용하고 `unmeasured_*` 는 스윕에 맡겨라                                                                                                                                                                                                                                                                                                                                                                                                                                    | 도래 — 나머지 2곳이 유일 잔여                                                                                   | M (2-3h)     | 2026-08-14 money-path-close                                  |
 | [BL-736](#bl-736) | 로컬 Docker VM **94% / 3.1G** — `MISCONF … No space left on device` 로 Redis AOF 가 죽자 celery 가 `Unrecoverable error` 로 통째 정지했다(2026-08-14T06:04:11Z). 안전한 회수는 `docker image prune -f` **7.4GB 뿐** — 볼륨 19.59GB 에는 남의 프로젝트 DB 가 섞여 있다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 도래 — 06:04Z 실사고 로그                                                                                       | S (1h)       | 2026-08-15 soak-survival                                     |
 | [BL-737](#bl-737) | 서버 `dev.quantbridge.soak-watch.service` 가 **failed** — 표본 타이머는 정상인데 **알림 축만** 죽어 있다. 2026-08-14 사망을 아무도 몰랐던 이유다. ★문서는 watch 가 게이트 타이머를 「대체」한다는데 실태는 반대다 — 정본을 함께 정해라                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 도래 — failed 실측                                                                                              | S (1h)       | 2026-08-15 soak-survival                                     |
+| [BL-738](#bl-738) | [BL-734] 가드의 **한계 3종** — ⑴ 남이 resting 없이 포지션만 가지면 통과한다(「빈 목록 = 배타적」은 거짓) ⑵ probe↔청산 **경쟁**에는 fail-closed 가 아니다 ⑶ `scan_resting_conditionals` 가 Repository 밖에서 DB 를 읽는다(AGENTS.md §3). 근본 해결은 거래소 계정 분리                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 미도래 — 가드가 열린 관측 없음                                                                                  | M (2-3h)     | 2026-08-15 soak-survival                                     |
 | [BL-721](#bl-721) | ✅ **게이트 2단 분할 — Resolved (2026-08-14 gate-2stage)** — 전량 1회 **15~20분**의 대부분을 여섯이 먹고 **CI 가 같은 것을 이미 샤딩해서 돈다**(BE pytest **379초**·e2e ~400초 vs 나머지 20종 합계 1분 안쪽). ⇒ `--pre-pr`(유예) → PR push → **CI 와 나란히** `--deferred-only`. ★유예는 면제가 아니다 — 유예 원장 파일 + 다른 종결 문구, `--deferred-only` 통과만이 원장을 지운다. 하네스 `final-gates-test.sh` 신설(8종→**9종**)                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 회고에서 실측                                                                                            | S            | 2026-08-14 gate-surface-close 회고                           |
 | [BL-723](#bl-723) | ✅ **Resolved (2026-08-14 gate-pointer-axis)** — **비싼 게이트에만 영역 판정이 없었다.** `BE ruff`·`BE mypy`·`FE vitest`·`FE build`·`e2e chromium` 은 `has_be`/`has_fe` 에 걸려 있는데 **가장 비싼 셋**(`BE pytest` **357초** · `e2e authed` **268초** · `e2e design-canon` **42초**)만 무조건 돌았다. 앱 코드 diff 0 인 회차에서 **11분 10초**를 태웠고 같은 회차에 CI 는 `backend`·`e2e` 잡을 전부 skip 했다 — 로컬이 CI 보다 더 돌면서 잴 것은 없었다. 처방 = `BE pytest`→`has_be` · `design-canon`→`has_fe` · `authed`→`has_fe∥has_be`. 하네스 8→**9 케이스**(⑤⑥① 환경 의존 동반 수리)                                                                                                                                                                                                             | 도래 — 실측이 있고 처방이 우리 손 안에 있다                                                                     | XS           | 2026-08-14 gate-pointer-axis                                 |
 | [BL-522](#bl-522) | ★엔진이 체결로 간주한 진입을 라이브가 완결하지 못하면 복구 경로가 없다 (유실 채널 5종)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 실자금 cutover 전 필수                                                                                          | M-L          | 2026-07-28 live-entry-parity                                 |
@@ -8528,3 +8529,39 @@ pytest·`docker build` 가 3.1G 에서 돌아간다.
 
 **상태:** ⬜ Open — 미착수 (2026-08-15 soak-survival)
 **트리거 판정:** 도래 — failed 상태 실측이 근거다 (2026-08-15 soak-survival)
+
+---
+
+### BL-738
+
+**Title:** 계정 배타성 가드의 한계 3종 — resting 없는 남의 포지션 · probe/청산 경쟁 · Repository 밖 DB 접근
+**Category:** Backend / trading (테스트 인프라 · 계정 배타성)
+**Priority:** P2
+**Trigger:** ★[BL-734] 가드가 **실제로 한 번 열린 것이 관측되면** 즉시 / 또는 거래소 계정 분리를 착수할 때
+**Est:** M (2-3h — ⑴⑵ 는 설계 결정이 선행)
+**출처:** 2026-08-15 soak-survival ([BL-734] 수리에 대한 codex 적대 리뷰 P1·P2)
+
+**원인 / 영향:** [BL-734] 가 넣은 가드는 **resting 조건부 주문의 소유권**만 본다. 그것이
+2026-08-14 사고를 막는 것은 맞지만(그때 서버는 조건부를 걸어 둔 채 돌고 있었다), 계약을
+「빈 목록 = 계정 배타적」으로 읽으면 틀린다. codex 가 짚은 세 구멍:
+
+- **⑴ resting 없는 남의 포지션** — 다른 호스트가 **시장가로 진입**했거나 조건부가 **이미
+  체결**됐으면 resting 이 0 이다. 가드는 통과하고 `close_position` 은 여전히 그 포지션을 닫는다.
+  ★현재 코드는 이 한계를 주석으로 고지하고 있다(`_harness.py` 2.5단계) — **숨기지 않았을 뿐
+  해결한 것은 아니다.**
+- **⑵ probe ↔ 청산 경쟁** — 판정과 실제 청산 사이에 교차 호스트 락이 없다. probe 직후 남이
+  진입하면 그대로 닫는다. **예외에는 fail-closed 지만 경쟁에는 아니다.**
+- **⑶ Repository 밖 DB 접근** — `scan_resting_conditionals` 가 `session.execute(text("SELECT id
+FROM trading.orders"))` 로 원장을 직접 읽는다. `apps/api/AGENTS.md` §3 위반이다. 종전
+  `_cmd_status` 인라인에서 옮겨온 **기존 부채**지만, 공유 API 가 되면서 표면이 넓어졌다.
+
+**권장 접근:** ⑴⑵ 를 코드로 막으려면 결국 **거래소 계정을 분리**하는 것이 정답이다(소크 전용
+Bybit demo 서브계정). 그 전까지의 차선은 **진입 전 baseline** — `register()` 시점에 계정이
+`QUIET` 임을 확인해 두고, 청산 시점 포지션이 그 baseline + 우리 체결로 설명되지 않으면 거부.
+★단 그것도 ⑵ 를 완전히는 못 막는다. **막을 수 없는 잔여를 문서에 남기는 편이 거짓 안전망보다 낫다.**
+⑶ 은 `OrderRepository` 에 id 집합 조회를 하나 추가하면 끝난다 — ⑴⑵ 와 독립이라 먼저 해도 된다.
+
+**Risk:** 🟡 (가드가 이미 주 경로를 막는다. 이것은 **가드의 계약을 정확히 하는** 축이다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 한계는 코드 주석과 이 항목에 고지됐다. 가드가 실제로 열린 관측이 나오거나 계정 분리를 착수할 때 연다 (2026-08-15 soak-survival)
+**트리거 판정:** 미도래 — 가드가 열린 관측이 아직 없고, 계정 분리도 착수 전이다 (2026-08-15 soak-survival)

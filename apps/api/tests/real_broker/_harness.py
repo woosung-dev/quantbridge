@@ -383,11 +383,21 @@ async def flatten_one(db: AsyncSession, target: CleanupTarget) -> CleanupResult:
     #   자동으로 FOREIGN 이 된다.
     #
     # ★fail-closed 다. 조회가 실패해도 청산하지 않는다 — 「남이 있는지 모른다」에서 닫는 것이
-    #   바로 위 사고다. 잔여는 RESIDUAL 로 보고돼 사람이 본다.
+    #   바로 위 사고다. 결과 status 는 `undecidable` 이고, 그것이 `flat` 이 아니므로 집계
+    #   보고서에서 RESIDUAL 로 세어져 세션 exit code 를 1 로 만든다(둘은 다른 층위다).
+    # ★`account_id` 를 넘겨 **그 계정의 uid 형제만** 본다. 안 넘기면 무관한 계정의 FOREIGN
+    #   하나가 깨끗한 타깃의 청산까지 영구히 막는다(2026-08-15 codex P2).
+    #
+    # ★★**이 가드가 막지 못하는 것**(2026-08-15 codex P1 · [BL-738] 로 등재):
+    #   ⑴ 남이 **resting 없이** 포지션만 갖고 있으면(시장가 진입 · 이미 체결된 조건부)
+    #      `foreign=[]` 로 통과한다 — 「빈 목록 = 계정 배타적」은 성립하지 않는다.
+    #   ⑵ probe 와 실제 청산 사이에 락이 없어 그 틈에 남이 들어오면 그대로 닫는다.
+    #   근본 해결은 거래소 계정 분리이고, 그 전까지 이 가드는 **2026-08-14 형태의 사고**
+    #   (남이 조건부를 걸어 둔 채 도는 소크)를 막는 데까지다.
     try:
         from scripts.live_session_admin import find_foreign_resting
 
-        foreign = await find_foreign_resting(db, target.symbol)
+        foreign = await find_foreign_resting(db, target.symbol, account_id=target.account_id)
     except Exception as exc:
         return CleanupResult(
             target=target,

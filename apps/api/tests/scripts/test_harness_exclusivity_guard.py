@@ -80,13 +80,41 @@ def _target() -> CleanupTarget:
 
 
 @pytest.mark.asyncio
+async def test_scope_is_narrowed_to_the_target_account(
+    monkeypatch: pytest.MonkeyPatch, stubbed: _Recorder
+) -> None:
+    """★판정 범위가 **타깃 계정**으로 좁혀져 호출된다.
+
+    좁히지 않으면 무관한 계정의 FOREIGN 하나가 깨끗한 타깃의 청산까지 영구히 막는다
+    (2026-08-15 codex P2). 시그니처만 맞고 인자가 안 넘어가면 그 회귀를 못 잡으므로
+    **전달된 값 자체**를 단언한다.
+    """
+    import scripts.live_session_admin as admin
+
+    seen: dict[str, object] = {}
+
+    async def _spy(_db: object, symbol: str, *, account_id: object = None) -> list[str]:
+        seen["symbol"] = symbol
+        seen["account_id"] = account_id
+        return []
+
+    monkeypatch.setattr(admin, "find_foreign_resting", _spy)
+
+    target = _target()
+    await _harness.flatten_one(object(), target)
+
+    assert seen["account_id"] == target.account_id
+    assert seen["symbol"] == target.symbol
+
+
+@pytest.mark.asyncio
 async def test_foreign_resting_blocks_close(
     monkeypatch: pytest.MonkeyPatch, stubbed: _Recorder
 ) -> None:
     """남의 resting 이 보이면 청산하지 않고 undecidable 로 보고한다."""
     import scripts.live_session_admin as admin
 
-    async def _foreign(_db: object, _symbol: str) -> list[str]:
+    async def _foreign(_db: object, _symbol: str, *, account_id: object = None) -> list[str]:
         return ["soak:abc123:(link 없음)"]
 
     monkeypatch.setattr(admin, "find_foreign_resting", _foreign)
@@ -110,7 +138,7 @@ async def test_probe_failure_blocks_close(
     """
     import scripts.live_session_admin as admin
 
-    async def _boom(_db: object, _symbol: str) -> list[str]:
+    async def _boom(_db: object, _symbol: str, *, account_id: object = None) -> list[str]:
         raise RuntimeError("bybit unreachable")
 
     monkeypatch.setattr(admin, "find_foreign_resting", _boom)
@@ -133,7 +161,7 @@ async def test_clean_account_reaches_close_path(
     """
     import scripts.live_session_admin as admin
 
-    async def _clean(_db: object, _symbol: str) -> list[str]:
+    async def _clean(_db: object, _symbol: str, *, account_id: object = None) -> list[str]:
         return []
 
     monkeypatch.setattr(admin, "find_foreign_resting", _clean)
