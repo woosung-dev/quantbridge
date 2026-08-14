@@ -32,8 +32,8 @@ from src.trading.models import (
 _HAS_EXCHANGE_EXIT_ROW = (
     select(ExchangeExit.id)  # type: ignore[call-overload]
     .where(ExchangeExit.exchange_account_id == Order.exchange_account_id)
-    .where(ExchangeExit.exchange_order_id == Order.exchange_order_id)  # type: ignore[arg-type]
-    .correlate(Order)  # type: ignore[arg-type]
+    .where(ExchangeExit.exchange_order_id == Order.exchange_order_id)
+    .correlate(Order)
     .exists()
 )
 
