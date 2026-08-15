@@ -268,6 +268,23 @@ if MODE == "selftest":
         ("판정 줄이 있는 섹션을 읽는다 (BL-547)", bool(hv.get("BL-547"))),
         ("판정 줄이 없는 섹션을 없다고 한다 (BL-022)", not hv.get("BL-022")),
     ]
+    # ★CLI 배선 — 위 케이스는 전부 python 함수를 **직접** 부르므로 `--include-deferred` 파서를
+    #   통째로 지워도 13/13 이 나온다(2026-08-15 codex 적대 리뷰 P3). [LESSON-092] §2 의 판이다:
+    #   순수 함수의 정확성은 배선의 증거가 아니다. 그래서 **이 스크립트를 실제로 두 모드로
+    #   재실행**해 대상 수가 갈리는지 본다 — 파서가 죽으면 두 수가 같아진다.
+    SELF = os.path.join(ROOT, "tools", "scripts", "bl-trigger-sweep.sh")
+
+    def _rows(extra):
+        r = subprocess.run(["bash", SELF, *extra, "--tsv"], capture_output=True, text=True)
+        return len([ln for ln in r.stdout.splitlines() if ln.strip()])
+
+    cli_base, cli_ext = _rows([]), _rows(["--include-deferred"])
+    SET_CASES += [
+        (f"CLI 배선 — 기본 {cli_base}건 · 확장 {cli_ext}건 이 실제로 갈린다", cli_ext > cli_base),
+        (f"CLI 배선 — 기본 실행이 함수 계산({len(default_targets)}건)과 같다",
+         cli_base == len(default_targets)),
+    ]
+
     for label, ok in SET_CASES:
         fails += 0 if ok else 1
         print(f"  {'✓' if ok else '✗'} {label}")
@@ -279,7 +296,7 @@ if MODE == "selftest":
     if fails:
         print(f"✗ 판별력 없음 — {fails}건이 안 갈렸다. **전량 스윕으로 가지 마라.**")
         sys.exit(1)
-    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5 + 사람 판정 2. 전량 스윕 가능.")
+    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5 + 사람 판정 2 + CLI 배선 2. 전량 스윕 가능.")
     sys.exit(0)
 
 # ── 전량 스윕 ──────────────────────────────────────────────────────────

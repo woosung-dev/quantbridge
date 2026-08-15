@@ -20,7 +20,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import re
+import subprocess
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1721,16 +1723,43 @@ def test_eligibility_is_undecidable_without_an_open_interval(gate: Any) -> None:
     assert elig["longest_hours"] == pytest.approx(0.0)
 
 
-def test_the_shell_renders_the_eligibility_block(gate: Any) -> None:
-    """셸이 그 블록을 실제로 찍는가 — 술어에만 있고 화면에 없으면 운영자에게는 없는 것이다.
+def _run_shell_renderer(verdict: Any, tmp_path: Path) -> str:
+    """`soak-gate.sh` 의 렌더 블록을 **그대로 떼어내 실행**하고 출력을 돌려준다.
 
-    [LESSON-092] §2 — 「새 필드」가 아니라 **그것을 쓰는 경로**를 잰다.
+    ★문자열 검사(`"window_eligibility" in text`)로는 부족하다 — `if el:` 을 `if False:` 로
+      바꾸는 변이에서 주석과 대입문이 남아 **초록으로 빠져나간다**(2026-08-15 codex 적대 리뷰 P3).
+      [LESSON-092] §2 그대로다: 순수 함수가 아니라 **그것을 쓰는 경로**를 재야 한다.
     """
     shell = Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh"
-    text = shell.read_text(encoding="utf-8")
+    lines = shell.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith('python3 - "${RESULT_FILE}"'))
+    end = next(i for i in range(start + 1, len(lines)) if lines[i] == "PY")
 
-    assert "window_eligibility" in text, "셸이 자격 블록을 읽지 않는다"
-    assert "새 창을 열어도 되나" in text, "판독 화면에 자격 줄이 없다"
+    script = tmp_path / "render.py"
+    script.write_text("\n".join(lines[start + 1 : end]), encoding="utf-8")
+    payload = tmp_path / "verdict.json"
+    payload.write_text(json.dumps(verdict.to_json(), ensure_ascii=False), encoding="utf-8")
+
+    done = subprocess.run(
+        [sys.executable, str(script), str(payload)], capture_output=True, text=True
+    )
+    assert done.returncode == 0, f"렌더 블록이 죽었다: {done.stderr[-400:]}"
+    return done.stdout
+
+
+def test_the_shell_actually_prints_each_eligibility_verdict(gate: Any, tmp_path: Path) -> None:
+    """네 갈래가 **화면에 실제로 찍히는가** — 술어에만 있고 화면에 없으면 운영자에게는 없는 것이다."""
+    cases = [
+        (_open_window_payload(14.5507), "아직 자격 없음", "9.4493"),
+        (_open_window_payload(24.5), "자격 획득", "24.5000"),
+        (_open_window_payload(14.5507, pin_events=[]), "판정 불가", None),
+    ]
+    for payload, expected, number in cases:
+        out = _run_shell_renderer(gate.evaluate(payload), tmp_path)
+        assert "새 창을 열어도 되나" in out, f"자격 블록이 아예 안 찍혔다 ({expected})"
+        assert expected in out, f"기대 문구 「{expected}」가 없다:\n{out[-500:]}"
+        if number:
+            assert number in out, f"수치 {number} 가 화면에 없다:\n{out[-500:]}"
 
 
 def test_the_shell_and_the_predicate_agree_on_what_darkness_counts(gate: Any) -> None:

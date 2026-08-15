@@ -57,18 +57,23 @@ _TYPE_DRIFT_BASELINE: frozenset[TypeDrift] = frozenset()
 
 def _normalize_postgresql_type(type_: TypeEngine[Any]) -> str:
     """PostgreSQL Inspector/SQLAlchemy metadata 타입을 비교용 표기로 통일한다."""
-    if isinstance(type_, JSON):
-        # 현재 JSON/JSONB 양쪽은 JSON document 컬럼으로 취급한다.
-        return "JSON"
+    # ★JSON 과 JSONB 를 한 낱말로 뭉치지 않는다 (2026-08-15 codex 적대 리뷰 P2). 둘은
+    #   PostgreSQL 의 **서로 다른 물리 타입**이고, 뭉치면 모델은 `JSON` 인데 DB 는 `JSONB` 인
+    #   drift 가 조용히 통과한다. 아래 compile 경로가 이미 그 둘을 다른 문자열로 낸다.
+    #   ★실측(2026-08-15): 이 축을 켜도 현재 스키마의 drift 는 **0건**이라 게이트가 안 깨진다.
     if isinstance(type_, SAEnum) and type_.native_enum:
         # Reflection enum은 schema를, metadata enum은 보통 table schema를 상속한다.
-        # 타입 축에서는 같은 named enum이면 동등하다.
-        # ★이름 없는 native enum(`name=None`)이 여기서 `"ENUM:"` 하나로 뭉치는 것은 **위음성이
-        #   아니다** — PostgreSQL 방언은 그것을 아예 컴파일하지 못하므로(`CompileError:
-        #   PostgreSQL Enum type requires a name`, 2026-08-15 실측) 그런 컬럼은 DB 에도
-        #   metadata-DDL 에도 존재할 수 없다. ★이 분기를 `and type_.name` 으로 좁히면 남은 것이
-        #   아래 compile 경로로 떨어져 **그 CompileError 로 검사기 자신이 죽는다.**
-        return f"ENUM:{(type_.name or '').upper()}"
+        # ★**라벨 집합까지** 본다 (codex 적대 리뷰 P1). 이름만 보면 「같은 `backtest_status` 인데
+        #   모델에만 `ARCHIVED` 가 추가된」 drift 가 통과하고, 그 값은 실행 시 PostgreSQL 이
+        #   거부한다 — migration 누락의 전형이다. 순서는 무시한다(라벨 순서는 DDL 순서일 뿐).
+        #   ★실측(2026-08-15): 이 축을 켜도 라벨 drift 는 **0건**이다.
+        # ★이름 없는 native enum(`name=None`)이 `"ENUM:"` 으로 뭉치는 것은 **위음성이 아니다** —
+        #   PostgreSQL 방언은 그것을 아예 컴파일하지 못하므로(`CompileError: PostgreSQL Enum type
+        #   requires a name`, 2026-08-15 실측) 그런 컬럼은 DB 에도 metadata-DDL 에도 존재할 수 없다.
+        #   ★이 분기를 `and type_.name` 으로 좁히면 남은 것이 아래 compile 경로로 떨어져
+        #   **그 CompileError 로 검사기 자신이 죽는다.**
+        labels = ",".join(sorted(type_.enums or []))
+        return f"ENUM:{(type_.name or '').upper()}({labels})"
 
     compiled = type_.compile(dialect=postgresql.dialect())
     normalized = re.sub(r"\s+", " ", compiled).strip().upper()
@@ -114,7 +119,6 @@ def _assert_no_new_type_drifts(
             postgresql.TIMESTAMP(timezone=True), DateTime(timezone=True), id="timestamptz"
         ),
         pytest.param(postgresql.NUMERIC(20, 8), Numeric(20, 8), id="numeric-precision-scale"),
-        pytest.param(postgresql.JSONB(), JSON(), id="jsonb-json"),
         pytest.param(postgresql.JSONB(), postgresql.JSONB(), id="jsonb-jsonb"),
         pytest.param(
             postgresql.ENUM("PENDING", "FILLED", name="order_status"),
@@ -129,6 +133,35 @@ def test_normalize_postgresql_type_accepts_equivalent_types(
 ) -> None:
     """동등한 PostgreSQL/SQLAlchemy 표현을 type drift로 오인하지 않는다."""
     assert _normalize_postgresql_type(db_type) == _normalize_postgresql_type(metadata_type)
+
+
+def test_jsonb_and_json_are_not_the_same_type() -> None:
+    """★JSON ↔ JSONB 를 한 낱말로 뭉치면 실제 drift 가 통과한다 (codex 적대 리뷰 P2).
+
+    둘은 PostgreSQL 의 서로 다른 물리 타입이다. 실측(2026-08-15)으로 현재 스키마에는
+    이 축의 drift 가 0건이라 켜도 게이트가 안 깨진다.
+    """
+    assert _normalize_postgresql_type(postgresql.JSONB()) != _normalize_postgresql_type(JSON())
+    # ★양성 대조 — 같은 것끼리는 여전히 같다(과다 포획 방어)
+    assert _normalize_postgresql_type(postgresql.JSONB()) == _normalize_postgresql_type(
+        postgresql.JSONB()
+    )
+
+
+def test_same_enum_name_with_a_new_label_is_a_drift() -> None:
+    """★이름이 같아도 **라벨 집합이 다르면 drift** 다 (codex 적대 리뷰 P1).
+
+    모델에만 `ARCHIVED` 를 추가하고 migration 을 빠뜨리면, 이름 축만 보는 검사는 통과하지만
+    그 값을 저장하는 순간 PostgreSQL 이 거부한다 — migration 누락의 전형이다.
+    """
+    db = postgresql.ENUM("QUEUED", "DONE", name="backtest_status")
+    model = SAEnum("QUEUED", "DONE", "ARCHIVED", name="backtest_status")
+
+    assert _normalize_postgresql_type(db) != _normalize_postgresql_type(model)
+    # ★양성 대조 — 라벨 **순서**만 다른 것은 drift 가 아니다(DDL 순서일 뿐)
+    assert _normalize_postgresql_type(
+        postgresql.ENUM("DONE", "QUEUED", name="backtest_status")
+    ) == _normalize_postgresql_type(db)
 
 
 def test_an_unnamed_native_enum_cannot_exist_in_a_postgres_schema() -> None:
