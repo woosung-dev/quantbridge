@@ -26,28 +26,32 @@
 #   (판정어 DEFERRED 의 계약 = `tools/scripts/bl-audit.sh` 헤더 · [ADR-028])
 #
 # 사용법
-#   tools/scripts/bl-trigger-sweep.sh [--soak PASS|FAIL|UNKNOWN] [--selftest] [--tsv]
+#   tools/scripts/bl-trigger-sweep.sh [--soak PASS|FAIL|UNKNOWN] [--include-deferred] [--selftest] [--tsv]
 #
+#   --include-deferred  대상에 DEFERRED 를 더해 ACTIVE ∪ PARTIAL ∪ DEFERRED 를 스윕한다.
 #   --selftest  판별력 검사. **전량 스윕 전에 이걸 먼저 통과시켜라.**
 #   --tsv       id/P/버킷/기계판정/트리거 를 TSV 로. 기본은 요약만.
 #
 # 종료 코드: 0 = 정상(또는 selftest 전건 통과) / 1 = 커버리지 결손 또는 selftest 실패
 set -uo pipefail
 
-SOAK="UNKNOWN"; MODE="summary"
+SOAK="UNKNOWN"; MODE="summary"; INCLUDE_DEFERRED=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --soak) [ $# -ge 2 ] || { echo "--soak 에 값이 필요하다" >&2; exit 1; }; SOAK="$2"; shift 2 ;;
+    --include-deferred) INCLUDE_DEFERRED=1; shift ;;
     --selftest) MODE="selftest"; shift ;;
     --tsv) MODE="tsv"; shift ;;
-    -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
+    # ★범위는 헤더 끝(`# 종료 코드:` 줄)까지다 — 헤더에 줄을 더하면 **여기도 늘려라**.
+    #   2026-08-15 에 `--include-deferred` 설명을 넣고 이 숫자를 안 고쳐 종료 코드 줄이 잘렸다.
+    -h|--help) sed -n '2,35p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
 done
 case "$SOAK" in PASS|FAIL|UNKNOWN) ;; *) echo "--soak 는 PASS|FAIL|UNKNOWN 중 하나" >&2; exit 1 ;; esac
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
-export QB_ROOT="$ROOT" QB_SOAK="$SOAK" QB_MODE="$MODE"
+export QB_ROOT="$ROOT" QB_SOAK="$SOAK" QB_MODE="$MODE" QB_INCLUDE_DEFERRED="$INCLUDE_DEFERRED"
 
 python3 - <<'PY'
 import os, re, subprocess, sys
@@ -56,6 +60,7 @@ from collections import Counter
 ROOT = os.environ["QB_ROOT"]
 SOAK = os.environ["QB_SOAK"]
 MODE = os.environ["QB_MODE"]
+INCLUDE_DEFERRED = os.environ["QB_INCLUDE_DEFERRED"] == "1"
 BACKLOG = os.path.join(ROOT, "docs", "backlog.md")
 
 
@@ -74,8 +79,8 @@ def verdicts():
     return out
 
 
-def triggers():
-    """섹션별 `**Trigger:**` 첫 줄. 펜스/<details> 제외 규칙은 bl-audit 과 같다."""
+def section_field(prefix):
+    """섹션별 `<prefix>` 로 시작하는 **첫 줄**. 펜스/<details> 제외 규칙은 bl-audit 과 같다."""
     cur, fence, details, out = None, False, 0, {}
     for line in open(BACKLOG, encoding="utf-8"):
         line = line.rstrip("\n")
@@ -98,9 +103,25 @@ def triggers():
         if re.match(r"^#{1,2} ", line):
             cur = None
             continue
-        if cur and line.startswith("**Trigger:**") and cur not in out:
-            out[cur] = re.sub(r"\s+", " ", line[len("**Trigger:**"):].strip())
+        if cur and line.startswith(prefix) and cur not in out:
+            out[cur] = re.sub(r"\s+", " ", line[len(prefix):].strip())
     return out
+
+
+def triggers():
+    return section_field("**Trigger:**")
+
+
+def human_verdicts():
+    """섹션별 `**트리거 판정:**` 줄 — **사람이 이미 판정했는가**.
+
+    ★기계의 「판단 필요」와 「아무도 판정하지 않았다」는 **다른 말**이다. 기계 3축은 한국어
+      산문을 못 읽으므로 같은 항목에 매 회차 「판단 필요」를 낸다 — 원장에 근거와 함께 사람
+      판정이 이미 적혀 있어도 그렇다. 그 둘을 안 가르면 회차마다 같은 목록을 다시 판정하려
+      들고(2026-08-15 에 실제로 그러려다 19건 전부 이미 판정돼 있는 것을 발견했다), 진짜
+      미판정 항목은 그 19건 뒤에 묻힌다.
+    """
+    return section_field("**트리거 판정:**")
 
 
 # ── 버킷 문법 ──────────────────────────────────────────────────────────
@@ -171,13 +192,27 @@ def machine(bk, t, vd):
 
 vd = verdicts()
 tg = triggers()
-# ★대상은 ACTIVE **와 PARTIAL** 둘 다다 ([BL-703], 2026-08-11).
+hv = human_verdicts()
+# ★기본 대상은 ACTIVE **와 PARTIAL** 둘 다다 ([BL-703], 2026-08-11).
 #   종전에는 ACTIVE 만이었고, 그래서 PARTIAL 24건이 이 판정기의 **구조적 사각지대**였다 —
 #   그 안에 P0 1건 + P1 4건이 있었는데 판정 대상이 아니라서 아무도 세지 않았다.
-#   RESOLVED/UNKNOWN 은 대상이 아니다(닫혔거나 상태줄 자체가 없다).
-TARGET_VERDICTS = ("ACTIVE", "PARTIAL")
-targets = sorted((b for b, (v, _) in vd.items() if v in TARGET_VERDICTS),
-                 key=lambda x: int(x[3:]))
+#   `--include-deferred` 는 DEFERRED 를 **추가로** 읽는다. RESOLVED/UNKNOWN 은 대상이 아니다
+#   (닫혔거나 상태줄 자체가 없다).
+BASE_TARGET_VERDICTS = ("ACTIVE", "PARTIAL")
+
+
+def target_verdicts(include_deferred: bool):
+    return BASE_TARGET_VERDICTS + (("DEFERRED",) if include_deferred else ())
+
+
+def compute_targets(include_deferred: bool):
+    wanted = target_verdicts(include_deferred)
+    return sorted((b for b, (v, _) in vd.items() if v in wanted),
+                  key=lambda x: int(x[3:]))
+
+
+TARGET_VERDICTS = target_verdicts(INCLUDE_DEFERRED)
+targets = compute_targets(INCLUDE_DEFERRED)
 
 # ── selftest — 판별력. 전량 스윕보다 **먼저** 통과해야 한다 ────────────
 if MODE == "selftest":
@@ -218,24 +253,50 @@ if MODE == "selftest":
     #   이었고, `대상=ACTIVE` 로 PARTIAL 24건이 조용히 빠져 있던 것을 못 잡았다.
     #   판정 로직만 재고 대상 집합을 안 재면, 스윕은 옳은 답을 **틀린 모집단**에 대해 낸다.
     print("  ── 대상 집합 (판정 로직이 아니라 **모집단**을 잰다) ──")
+    default_targets = compute_targets(False)
+    deferred_targets = compute_targets(True)
     SET_CASES = [
-        ("PARTIAL 이 대상에 든다", any(vd.get(b, ("", ""))[0] == "PARTIAL" for b in targets)),
-        ("ACTIVE 가 대상에 남아 있다", any(vd.get(b, ("", ""))[0] == "ACTIVE" for b in targets)),
+        ("기본 모드에 PARTIAL 이 든다", any(vd.get(b, ("", ""))[0] == "PARTIAL" for b in default_targets)),
+        ("기본 모드에 ACTIVE 가 남아 있다", any(vd.get(b, ("", ""))[0] == "ACTIVE" for b in default_targets)),
         # ★음성 대조 — 빈 대상은 「위반 0건」이 아니라 **측정 실패**다 ([LESSON-101]).
-        ("대상이 비어 있지 않다", len(targets) > 0),
+        ("기본 모드 대상이 비어 있지 않다", len(default_targets) > 0),
+        # ★양성/음성 대조 — 이 두 검사가 없으면 include 축을 지워도 selftest 가 녹색이다.
+        ("확장 모드에 DEFERRED 가 든다", any(vd.get(b, ("", ""))[0] == "DEFERRED" for b in deferred_targets)),
+        ("기본 모드에 DEFERRED 가 없다", all(vd.get(b, ("", ""))[0] != "DEFERRED" for b in default_targets)),
+        # ★사람 판정 축 — 양성/음성 한 쌍. 한쪽만 두면 「전부 있다」/「전부 없다」로 답하는
+        #   파서도 통과한다(이 레포가 빈 입력 초록으로 다섯 번 속았다).
+        ("판정 줄이 있는 섹션을 읽는다 (BL-547)", bool(hv.get("BL-547"))),
+        ("판정 줄이 없는 섹션을 없다고 한다 (BL-022)", not hv.get("BL-022")),
     ]
+    # ★CLI 배선 — 위 케이스는 전부 python 함수를 **직접** 부르므로 `--include-deferred` 파서를
+    #   통째로 지워도 13/13 이 나온다(2026-08-15 codex 적대 리뷰 P3). [LESSON-092] §2 의 판이다:
+    #   순수 함수의 정확성은 배선의 증거가 아니다. 그래서 **이 스크립트를 실제로 두 모드로
+    #   재실행**해 대상 수가 갈리는지 본다 — 파서가 죽으면 두 수가 같아진다.
+    SELF = os.path.join(ROOT, "tools", "scripts", "bl-trigger-sweep.sh")
+
+    def _rows(extra):
+        r = subprocess.run(["bash", SELF, *extra, "--tsv"], capture_output=True, text=True)
+        return len([ln for ln in r.stdout.splitlines() if ln.strip()])
+
+    cli_base, cli_ext = _rows([]), _rows(["--include-deferred"])
+    SET_CASES += [
+        (f"CLI 배선 — 기본 {cli_base}건 · 확장 {cli_ext}건 이 실제로 갈린다", cli_ext > cli_base),
+        (f"CLI 배선 — 기본 실행이 함수 계산({len(default_targets)}건)과 같다",
+         cli_base == len(default_targets)),
+    ]
+
     for label, ok in SET_CASES:
         fails += 0 if ok else 1
         print(f"  {'✓' if ok else '✗'} {label}")
-    if not targets:
-        print("      대상이 0건이다 — bl-audit 이 죽었거나 TARGET_VERDICTS 가 잘못됐다")
+    if not default_targets:
+        print("      기본 모드 대상이 0건이다 — bl-audit 이 죽었거나 TARGET_VERDICTS 가 잘못됐다")
 
     total = len(CASES) + len(SET_CASES)
     print()
     if fails:
         print(f"✗ 판별력 없음 — {fails}건이 안 갈렸다. **전량 스윕으로 가지 마라.**")
         sys.exit(1)
-    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 3. 전량 스윕 가능.")
+    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5 + 사람 판정 2 + CLI 배선 2. 전량 스윕 가능.")
     sys.exit(0)
 
 # ── 전량 스윕 ──────────────────────────────────────────────────────────
@@ -262,6 +323,29 @@ else:
     for k, v in Counter(r[3] for r in rows).most_common():
         print(f"  {k:8} {v:4}")
     print(f"\n▶ 커버리지  {len(rows)}/{len(targets)}")
+    # ★「기계가 못 가린 것」과 「아무도 판정하지 않은 것」을 가른다 (2026-08-15 ledger-thaw).
+    #   이 둘을 합쳐 보면 매 회차 같은 목록을 다시 판정하려 들고, 진짜 미판정은 그 뒤에 묻힌다.
+    need = [r for r in rows if r[3] == "판단 필요"]
+    unjudged = [r for r in need if not hv.get(r[0])]
+    print(f"\n▶ 사람 판정 — 「판단 필요」 {len(need)}건 중 "
+          f"판정 줄 있음 {len(need) - len(unjudged)} · **없음 {len(unjudged)}**")
+    for r in unjudged[:20]:
+        print(f"        · {r[0]}  {r[5][:70]}")
+    if not unjudged and need:
+        print("        (전건 판정돼 있다 — 기계의 「판단 필요」는 3축이 못 읽는다는 뜻이지 미판정이 아니다)")
+    # ★확장 모드의 산출물은 「DEFERRED 중 **지금 도래한 것**」이다 — 그것이 다음 회차들의
+    #   후보 풀이다. 전체 분포에 섞어 찍으면 기본 대상 25건과 구분이 안 돼 밖에서 판정어를
+    #   다시 조인해야 한다(2026-08-15 에 실제로 그랬다). **0건이면 0건이 답이다.**
+    if INCLUDE_DEFERRED:
+        dfr = [r for r in rows if vd[r[0]][0] == "DEFERRED"]
+        print(f"\n▶ DEFERRED {len(dfr)}건만 따로 (이번에 새로 열린 축)")
+        for k, v in Counter(r[3] for r in dfr).most_common():
+            print(f"  {k:8} {v:4}")
+        arrived = [r for r in dfr if r[3] == "도래"]
+        print(f"  ▶ 그중 **도래 {len(arrived)}건** — 다음 회차 후보 풀"
+              + ("" if arrived else " (기계 3축으로는 없다 — 나머지는 사람이 본다)"))
+        for r in arrived:
+            print(f"        · {r[0]}  {r[5][:80]}")
 
 if missing:
     print(f"\n✗ `**Trigger:**` 줄이 없는 대상 {len(missing)}건 — "

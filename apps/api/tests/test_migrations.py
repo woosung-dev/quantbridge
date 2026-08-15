@@ -3,15 +3,30 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 
 import pytest
 from alembic.config import Config
 from alembic.script import ScriptDirectory
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Numeric,
+    String,
+    Uuid,
+    create_engine,
+    inspect,
+    text,
+)
+from sqlalchemy import (
+    Enum as SAEnum,
+)
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
+from sqlalchemy.sql.type_api import TypeEngine
 from sqlmodel import SQLModel
 
 from alembic import command
@@ -23,6 +38,7 @@ from src.market_data.models import OHLCV  # noqa: F401
 from src.strategy.models import Strategy  # noqa: F401
 from src.trading.models import (  # noqa: F401
     ExchangeAccount,
+    ExchangeExit,
     FundingRate,
     KillSwitchEvent,
     Order,
@@ -31,6 +47,163 @@ from src.trading.models import (  # noqa: F401
 from tests import _db_guard
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
+
+TypeDrift: TypeAlias = tuple[str, str, str, str, str]
+
+# BL-749: 실제 alembic schema와 metadata가 이미 다른 타입은 여기 동결한다. 항목은
+# (schema, table, column, db_type, metadata_type) 순서이며, 새 drift만 test failure로 만든다.
+_TYPE_DRIFT_BASELINE: frozenset[TypeDrift] = frozenset()
+
+
+def _normalize_postgresql_type(type_: TypeEngine[Any]) -> str:
+    """PostgreSQL Inspector/SQLAlchemy metadata 타입을 비교용 표기로 통일한다."""
+    # ★JSON 과 JSONB 를 한 낱말로 뭉치지 않는다 (2026-08-15 codex 적대 리뷰 P2). 둘은
+    #   PostgreSQL 의 **서로 다른 물리 타입**이고, 뭉치면 모델은 `JSON` 인데 DB 는 `JSONB` 인
+    #   drift 가 조용히 통과한다. 아래 compile 경로가 이미 그 둘을 다른 문자열로 낸다.
+    #   ★실측(2026-08-15): 이 축을 켜도 현재 스키마의 drift 는 **0건**이라 게이트가 안 깨진다.
+    if isinstance(type_, SAEnum) and type_.native_enum:
+        # Reflection enum은 schema를, metadata enum은 보통 table schema를 상속한다.
+        # ★**라벨 집합까지** 본다 (codex 적대 리뷰 P1). 이름만 보면 「같은 `backtest_status` 인데
+        #   모델에만 `ARCHIVED` 가 추가된」 drift 가 통과하고, 그 값은 실행 시 PostgreSQL 이
+        #   거부한다 — migration 누락의 전형이다. 순서는 무시한다(라벨 순서는 DDL 순서일 뿐).
+        #   ★실측(2026-08-15): 이 축을 켜도 라벨 drift 는 **0건**이다.
+        # ★이름 없는 native enum(`name=None`)이 `"ENUM:"` 으로 뭉치는 것은 **위음성이 아니다** —
+        #   PostgreSQL 방언은 그것을 아예 컴파일하지 못하므로(`CompileError: PostgreSQL Enum type
+        #   requires a name`, 2026-08-15 실측) 그런 컬럼은 DB 에도 metadata-DDL 에도 존재할 수 없다.
+        #   ★이 분기를 `and type_.name` 으로 좁히면 남은 것이 아래 compile 경로로 떨어져
+        #   **그 CompileError 로 검사기 자신이 죽는다.**
+        labels = ",".join(sorted(type_.enums or []))
+        return f"ENUM:{(type_.name or '').upper()}({labels})"
+
+    compiled = type_.compile(dialect=postgresql.dialect())
+    normalized = re.sub(r"\s+", " ", compiled).strip().upper()
+    normalized = normalized.replace("CHARACTER VARYING", "VARCHAR")
+    return re.sub(r",\s+", ",", normalized)
+
+
+def _type_drifts_for_table(
+    schema: str,
+    table_name: str,
+    db_columns: dict[str, TypeEngine[Any]],
+    metadata_columns: dict[str, TypeEngine[Any]],
+) -> set[TypeDrift]:
+    """한 테이블의 공통 컬럼에서 type drift 5-튜플을 수집한다."""
+    drifts: set[TypeDrift] = set()
+    for column_name, metadata_type in metadata_columns.items():
+        if column_name not in db_columns:
+            continue
+        db_type = _normalize_postgresql_type(db_columns[column_name])
+        normalized_metadata_type = _normalize_postgresql_type(metadata_type)
+        if db_type != normalized_metadata_type:
+            drifts.add((schema, table_name, column_name, db_type, normalized_metadata_type))
+    return drifts
+
+
+def _assert_no_new_type_drifts(
+    observed_type_drifts: set[TypeDrift], baseline: frozenset[TypeDrift] = _TYPE_DRIFT_BASELINE
+) -> None:
+    """동결 baseline 밖의 type drift는 검사 실패로 만든다."""
+    new_type_drifts = observed_type_drifts - baseline
+    assert not new_type_drifts, (
+        "새 column type drift 발견 (schema, table, column, db_type, metadata_type): "
+        f"{sorted(new_type_drifts)}. 기존 drift만 허용하려면 "
+        "_TYPE_DRIFT_BASELINE에 정확한 5-튜플을 동결하라."
+    )
+
+
+@pytest.mark.parametrize(
+    ("db_type", "metadata_type"),
+    [
+        pytest.param(postgresql.VARCHAR(32), String(32), id="varchar-length"),
+        pytest.param(
+            postgresql.TIMESTAMP(timezone=True), DateTime(timezone=True), id="timestamptz"
+        ),
+        pytest.param(postgresql.NUMERIC(20, 8), Numeric(20, 8), id="numeric-precision-scale"),
+        pytest.param(postgresql.JSONB(), postgresql.JSONB(), id="jsonb-jsonb"),
+        pytest.param(
+            postgresql.ENUM("PENDING", "FILLED", name="order_status"),
+            SAEnum("PENDING", "FILLED", name="order_status"),
+            id="named-enum",
+        ),
+        pytest.param(postgresql.UUID(as_uuid=True), Uuid(as_uuid=True), id="uuid"),
+    ],
+)
+def test_normalize_postgresql_type_accepts_equivalent_types(
+    db_type: TypeEngine[Any], metadata_type: TypeEngine[Any]
+) -> None:
+    """동등한 PostgreSQL/SQLAlchemy 표현을 type drift로 오인하지 않는다."""
+    assert _normalize_postgresql_type(db_type) == _normalize_postgresql_type(metadata_type)
+
+
+def test_jsonb_and_json_are_not_the_same_type() -> None:
+    """★JSON ↔ JSONB 를 한 낱말로 뭉치면 실제 drift 가 통과한다 (codex 적대 리뷰 P2).
+
+    둘은 PostgreSQL 의 서로 다른 물리 타입이다. 실측(2026-08-15)으로 현재 스키마에는
+    이 축의 drift 가 0건이라 켜도 게이트가 안 깨진다.
+    """
+    assert _normalize_postgresql_type(postgresql.JSONB()) != _normalize_postgresql_type(JSON())
+    # ★양성 대조 — 같은 것끼리는 여전히 같다(과다 포획 방어)
+    assert _normalize_postgresql_type(postgresql.JSONB()) == _normalize_postgresql_type(
+        postgresql.JSONB()
+    )
+
+
+def test_same_enum_name_with_a_new_label_is_a_drift() -> None:
+    """★이름이 같아도 **라벨 집합이 다르면 drift** 다 (codex 적대 리뷰 P1).
+
+    모델에만 `ARCHIVED` 를 추가하고 migration 을 빠뜨리면, 이름 축만 보는 검사는 통과하지만
+    그 값을 저장하는 순간 PostgreSQL 이 거부한다 — migration 누락의 전형이다.
+    """
+    db = postgresql.ENUM("QUEUED", "DONE", name="backtest_status")
+    model = SAEnum("QUEUED", "DONE", "ARCHIVED", name="backtest_status")
+
+    assert _normalize_postgresql_type(db) != _normalize_postgresql_type(model)
+    # ★양성 대조 — 라벨 **순서**만 다른 것은 drift 가 아니다(DDL 순서일 뿐)
+    assert _normalize_postgresql_type(
+        postgresql.ENUM("DONE", "QUEUED", name="backtest_status")
+    ) == _normalize_postgresql_type(db)
+
+
+def test_an_unnamed_native_enum_cannot_exist_in_a_postgres_schema() -> None:
+    """이름 없는 native enum 둘이 `"ENUM:"` 으로 뭉치는 것이 **왜 위음성이 아닌지**를 못박는다.
+
+    2026-08-15 agy 교차 검토가 「값 집합이 다른 두 무명 enum 이 같다고 판정된다」를 P2 로 냈다.
+    지적 자체는 정규화 함수만 보면 참이지만, **그런 컬럼은 PostgreSQL 스키마에 존재할 수 없다** —
+    방언이 컴파일을 거부하므로 DDL 이 만들어지지 않는다. ★그래서 그 분기를 `and type_.name` 으로
+    좁히는 「수리」는 오히려 **검사기를 CompileError 로 죽인다**(실제로 그렇게 고쳤다가 되돌렸다).
+    이 테스트가 없으면 다음 사람이 같은 지적을 받고 같은 개악을 한다.
+    """
+    from sqlalchemy.exc import CompileError
+
+    unnamed = SAEnum("PENDING", "FILLED")
+    assert unnamed.name is None
+    with pytest.raises(CompileError, match="requires a name"):
+        unnamed.compile(dialect=postgresql.dialect())
+
+    # 이름이 있으면 정상 — 그리고 이름이 다르면 타입도 다르다(양성/음성 한 쌍)
+    named = SAEnum("PENDING", "FILLED", name="order_status")
+    other = SAEnum("ADMIN", "USER", name="user_role")
+    assert _normalize_postgresql_type(named) != _normalize_postgresql_type(other)
+
+
+def test_empty_type_drift_baseline_rejects_a_string_length_mutation() -> None:
+    """실제 모델의 String(32) → String(64) 변이는 빈 baseline에서 새 drift로 남는다."""
+    symbol_column = ExchangeExit.__table__.c.symbol
+    original_type = symbol_column.type
+    symbol_column.type = String(64)
+    try:
+        observed = _type_drifts_for_table(
+            "trading",
+            "exchange_exits",
+            {"symbol": postgresql.VARCHAR(32)},
+            {"symbol": symbol_column.type},
+        )
+    finally:
+        symbol_column.type = original_type
+
+    assert observed == {("trading", "exchange_exits", "symbol", "VARCHAR(32)", "VARCHAR(64)")}
+    with pytest.raises(AssertionError, match="새 column type drift"):
+        _assert_no_new_type_drifts(observed, frozenset())
 
 
 def _resolved_test_db_url() -> str:
@@ -169,7 +342,7 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     """alembic upgrade 후 실제 schema와 SQLModel.metadata가 일치하는지 검증.
 
     Migration drift 방지 — 모델 변경 시 Alembic migration 작성 누락 검출.
-    핵심 컬럼 누락만 검사 (정확한 type 비교는 PostgreSQL ↔ Python type 차이로 어려움).
+    컬럼 누락 + PostgreSQL/SQLAlchemy 표현차를 정규화한 타입을 검사한다.
     """
     # Alembic upgrade head 선행 실행 — 테스트 단독 실행 시에도 idempotent 보장
     monkeypatch.chdir(_BACKEND_ROOT)
@@ -187,7 +360,8 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             alembic_tables = await conn.run_sync(
                 lambda sync_conn: {
                     (schema, t): {
-                        c["name"] for c in inspect(sync_conn).get_columns(t, schema=schema)
+                        c["name"]: c["type"]
+                        for c in inspect(sync_conn).get_columns(t, schema=schema)
                     }
                     for schema in schemas
                     for t in inspect(sync_conn).get_table_names(schema=schema)
@@ -198,14 +372,16 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
 
     # SQLModel metadata 등록된 모델 테이블 — (schema, name) 키로 매핑
     metadata_tables = {
-        (t.schema or "public", t.name): {c.name for c in t.columns}
+        (t.schema or "public", t.name): {c.name: c.type for c in t.columns}
         for t in SQLModel.metadata.tables.values()
     }
 
     # alembic_version 테이블 제외 (Alembic 전용 메타, public schema)
     alembic_tables.pop(("public", "alembic_version"), None)
 
-    # metadata의 모든 table + column이 DB schema에 존재해야 함
+    # metadata의 모든 table + column이 DB schema에 존재해야 함.
+    # 역방향 DB-only column, nullable/default/제약/인덱스는 BL-749 범위 밖이다.
+    observed_type_drifts: set[TypeDrift] = set()
     for (schema, table_name), metadata_cols in metadata_tables.items():
         full_name = f"{schema}.{table_name}"
         assert (schema, table_name) in alembic_tables, (
@@ -213,10 +389,18 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             f"Migration 작성 누락?"
         )
         alembic_cols = alembic_tables[(schema, table_name)]
-        missing = metadata_cols - alembic_cols
+        # ★두 매핑은 이제 `{컬럼: 타입}` 이다 — 이름 축은 **키 집합**으로 비교한다.
+        #   타입 축을 켜며 값이 set → dict 로 바뀌었는데 이 줄이 집합 차 그대로 남아
+        #   `TypeError: unsupported operand -` 로 죽었다(2026-08-15, [BL-749]).
+        missing = set(metadata_cols) - set(alembic_cols)
         assert not missing, (
             f"Table '{full_name}' missing columns in DB: {missing}. Migration 누락 또는 drift 발생."
         )
+        observed_type_drifts.update(
+            _type_drifts_for_table(schema, table_name, alembic_cols, metadata_cols)
+        )
+
+    _assert_no_new_type_drifts(observed_type_drifts)
 
 
 def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
