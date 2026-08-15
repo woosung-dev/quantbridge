@@ -79,8 +79,8 @@ def verdicts():
     return out
 
 
-def triggers():
-    """섹션별 `**Trigger:**` 첫 줄. 펜스/<details> 제외 규칙은 bl-audit 과 같다."""
+def section_field(prefix):
+    """섹션별 `<prefix>` 로 시작하는 **첫 줄**. 펜스/<details> 제외 규칙은 bl-audit 과 같다."""
     cur, fence, details, out = None, False, 0, {}
     for line in open(BACKLOG, encoding="utf-8"):
         line = line.rstrip("\n")
@@ -103,9 +103,25 @@ def triggers():
         if re.match(r"^#{1,2} ", line):
             cur = None
             continue
-        if cur and line.startswith("**Trigger:**") and cur not in out:
-            out[cur] = re.sub(r"\s+", " ", line[len("**Trigger:**"):].strip())
+        if cur and line.startswith(prefix) and cur not in out:
+            out[cur] = re.sub(r"\s+", " ", line[len(prefix):].strip())
     return out
+
+
+def triggers():
+    return section_field("**Trigger:**")
+
+
+def human_verdicts():
+    """섹션별 `**트리거 판정:**` 줄 — **사람이 이미 판정했는가**.
+
+    ★기계의 「판단 필요」와 「아무도 판정하지 않았다」는 **다른 말**이다. 기계 3축은 한국어
+      산문을 못 읽으므로 같은 항목에 매 회차 「판단 필요」를 낸다 — 원장에 근거와 함께 사람
+      판정이 이미 적혀 있어도 그렇다. 그 둘을 안 가르면 회차마다 같은 목록을 다시 판정하려
+      들고(2026-08-15 에 실제로 그러려다 19건 전부 이미 판정돼 있는 것을 발견했다), 진짜
+      미판정 항목은 그 19건 뒤에 묻힌다.
+    """
+    return section_field("**트리거 판정:**")
 
 
 # ── 버킷 문법 ──────────────────────────────────────────────────────────
@@ -176,6 +192,7 @@ def machine(bk, t, vd):
 
 vd = verdicts()
 tg = triggers()
+hv = human_verdicts()
 # ★기본 대상은 ACTIVE **와 PARTIAL** 둘 다다 ([BL-703], 2026-08-11).
 #   종전에는 ACTIVE 만이었고, 그래서 PARTIAL 24건이 이 판정기의 **구조적 사각지대**였다 —
 #   그 안에 P0 1건 + P1 4건이 있었는데 판정 대상이 아니라서 아무도 세지 않았다.
@@ -246,6 +263,10 @@ if MODE == "selftest":
         # ★양성/음성 대조 — 이 두 검사가 없으면 include 축을 지워도 selftest 가 녹색이다.
         ("확장 모드에 DEFERRED 가 든다", any(vd.get(b, ("", ""))[0] == "DEFERRED" for b in deferred_targets)),
         ("기본 모드에 DEFERRED 가 없다", all(vd.get(b, ("", ""))[0] != "DEFERRED" for b in default_targets)),
+        # ★사람 판정 축 — 양성/음성 한 쌍. 한쪽만 두면 「전부 있다」/「전부 없다」로 답하는
+        #   파서도 통과한다(이 레포가 빈 입력 초록으로 다섯 번 속았다).
+        ("판정 줄이 있는 섹션을 읽는다 (BL-547)", bool(hv.get("BL-547"))),
+        ("판정 줄이 없는 섹션을 없다고 한다 (BL-022)", not hv.get("BL-022")),
     ]
     for label, ok in SET_CASES:
         fails += 0 if ok else 1
@@ -258,7 +279,7 @@ if MODE == "selftest":
     if fails:
         print(f"✗ 판별력 없음 — {fails}건이 안 갈렸다. **전량 스윕으로 가지 마라.**")
         sys.exit(1)
-    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5. 전량 스윕 가능.")
+    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5 + 사람 판정 2. 전량 스윕 가능.")
     sys.exit(0)
 
 # ── 전량 스윕 ──────────────────────────────────────────────────────────
@@ -285,6 +306,16 @@ else:
     for k, v in Counter(r[3] for r in rows).most_common():
         print(f"  {k:8} {v:4}")
     print(f"\n▶ 커버리지  {len(rows)}/{len(targets)}")
+    # ★「기계가 못 가린 것」과 「아무도 판정하지 않은 것」을 가른다 (2026-08-15 ledger-thaw).
+    #   이 둘을 합쳐 보면 매 회차 같은 목록을 다시 판정하려 들고, 진짜 미판정은 그 뒤에 묻힌다.
+    need = [r for r in rows if r[3] == "판단 필요"]
+    unjudged = [r for r in need if not hv.get(r[0])]
+    print(f"\n▶ 사람 판정 — 「판단 필요」 {len(need)}건 중 "
+          f"판정 줄 있음 {len(need) - len(unjudged)} · **없음 {len(unjudged)}**")
+    for r in unjudged[:20]:
+        print(f"        · {r[0]}  {r[5][:70]}")
+    if not unjudged and need:
+        print("        (전건 판정돼 있다 — 기계의 「판단 필요」는 3축이 못 읽는다는 뜻이지 미판정이 아니다)")
     # ★확장 모드의 산출물은 「DEFERRED 중 **지금 도래한 것**」이다 — 그것이 다음 회차들의
     #   후보 풀이다. 전체 분포에 섞어 찍으면 기본 대상 25건과 구분이 안 돼 밖에서 판정어를
     #   다시 조인해야 한다(2026-08-15 에 실제로 그랬다). **0건이면 0건이 답이다.**
