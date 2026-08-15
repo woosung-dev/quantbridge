@@ -21,6 +21,7 @@ from src.trading.exceptions import (
     InvalidStrategySettings,
     LiveSessionQuotaExceeded,
     ProviderError,
+    ReadOnlyAccountNotAllowed,
     SessionAlreadyActive,
     SizingBaselineUnavailable,
     StrategySettingsRequired,
@@ -117,6 +118,8 @@ class LiveSignalSessionService:
                 exchange=account.exchange.value,
                 mode=account.mode.value,
             )
+        if account.read_only is True:
+            raise ReadOnlyAccountNotAllowed()
 
         # 2.5 quota 사전 검사 (락 없음). 아래 잔고 조회는 CCXT 왕복이라 어차피 거부될 요청에
         # 태우면 낭비다. 권위 판정은 여전히 락 안의 재검사(:157) 이므로 레이스 안전성 무변경.

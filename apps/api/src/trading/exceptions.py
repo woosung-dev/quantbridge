@@ -165,6 +165,16 @@ class AccountModeNotAllowed(AppException):
         self.mode = mode
 
 
+class ReadOnlyAccountNotAllowed(AppException):
+    """읽기 전용 API 키는 라이브 세션의 주문 경로를 열 수 없다."""
+
+    status_code = 422
+    code = "read_only_account_not_allowed"
+
+    def __init__(self) -> None:
+        super().__init__("읽기 전용 API 키로는 라이브 세션을 시작할 수 없습니다.")
+
+
 class LiveSessionQuotaExceeded(AppException):
     """Sprint 26 — 사용자별 active Live Session ≤ 5 (codex G.0 P3 #3 + plan §3 A.5)."""
 

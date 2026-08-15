@@ -180,6 +180,7 @@ export function TradingCockpit() {
         exchange: a.exchange,
         mode: a.mode,
         label: a.label,
+        read_only: a.read_only,
       })),
     [accountItems],
   );

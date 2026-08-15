@@ -7,6 +7,7 @@ const useUnrealizedPnlEstimateMock = vi.fn();
 const useStrategiesMock = vi.fn();
 const useExchangeAccountsMock = vi.fn();
 const useKillSwitchEventsMock = vi.fn();
+const liveSessionFormProps = vi.fn();
 
 // BL-664 — 종전 mock 은 렌더마다 **새 객체**를 돌려줘서 무엇으로 무효화했는지 검증할 수 없었다.
 // 모듈 레벨 안정 spy 로 바꾼다.
@@ -40,15 +41,24 @@ vi.mock("@/features/live-sessions", async () => ({
   LiveSessionDetail: () => <div data-testid="mock-detail" />,
   // BL-551 — 선택을 쓰는 지점은 목록 클릭과 **여기** 둘이다. 종전 `() => null` mock 은
   // `onSuccess` 경로를 한 번도 태우지 않아 한쪽만 URL 로 옮겨도 초록이었다.
-  LiveSessionForm: ({ onSuccess }: { onSuccess?: (session: { id: string }) => void }) => (
-    <button
-      type="button"
-      data-testid="mock-live-session-created"
-      onClick={() => onSuccess?.({ id: "created-session" })}
-    >
-      세션 생성됨
-    </button>
-  ),
+  LiveSessionForm: ({
+    onSuccess,
+    ...props
+  }: {
+    onSuccess?: (session: { id: string }) => void;
+    exchangeAccounts: readonly unknown[];
+  }) => {
+    liveSessionFormProps(props);
+    return (
+      <button
+        type="button"
+        data-testid="mock-live-session-created"
+        onClick={() => onSuccess?.({ id: "created-session" })}
+      >
+        세션 생성됨
+      </button>
+    );
+  },
   LiveSessionList: ({
     onSelect,
   }: {
@@ -145,6 +155,35 @@ afterEach(() => {
 });
 
 describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
+  it("계정 응답의 read_only를 라이브 세션 폼 옵션까지 보존한다", () => {
+    useExchangeAccountsMock.mockReturnValue({
+      data: [
+        {
+          id: "account-read-only",
+          exchange: "bybit",
+          mode: "demo",
+          label: "read-only-demo",
+          read_only: true,
+        },
+      ],
+      isError: false,
+      isPending: false,
+    });
+
+    render(<TradingCockpit />);
+
+    expect(liveSessionFormProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        exchangeAccounts: [
+          expect.objectContaining({
+            id: "account-read-only",
+            read_only: true,
+          }),
+        ],
+      }),
+    );
+  });
+
   it("mark 미수신이면 시세 수신 대기를 그린다", () => {
     render(<TradingCockpit />);
 

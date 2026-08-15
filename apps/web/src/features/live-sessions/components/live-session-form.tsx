@@ -50,6 +50,7 @@ type Props = {
     exchange: string;
     mode: string;
     label?: string | null;
+    read_only: boolean | null;
   }>;
   activeSessionsCount: number;
   onSuccess?: (session: LiveSession) => void;
@@ -70,6 +71,7 @@ export function LiveSessionForm({
   const allowedAccounts = exchangeAccounts.filter(
     (a) => a.exchange === "bybit" && a.mode === "demo",
   );
+  const selectableAccounts = allowedAccounts.filter((a) => a.read_only !== true);
 
   const form = useForm<LiveSessionForm>({
     resolver: zodV4Resolver(LiveSessionFormSchema),
@@ -144,7 +146,10 @@ export function LiveSessionForm({
                   <SelectWithDisplayName
                     options={allowedAccounts.map((a) => ({
                       value: a.id,
-                      label: a.label ?? `${a.exchange} ${a.mode}`,
+                      label: `${a.label ?? `${a.exchange} ${a.mode}`}${
+                        a.read_only === true ? " (읽기 전용)" : ""
+                      }`,
+                      disabled: a.read_only === true,
                     }))}
                     value={field.value}
                     onValueChange={field.onChange}
@@ -215,7 +220,7 @@ export function LiveSessionForm({
               disabled={
                 register.isPending ||
                 isQuotaReached ||
-                allowedAccounts.length === 0
+                selectableAccounts.length === 0
               }
               title={
                 isQuotaReached
