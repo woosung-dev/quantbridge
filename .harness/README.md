@@ -30,7 +30,7 @@
 git status --porcelain            # 반드시 빈 출력
 git rev-parse --abbrev-ref HEAD   # 지금 어느 브랜치인지 눈으로 확인
 
-python3 tools/scripts/execute.py <task-name>
+python3 tools/scripts/qb_harness.py <task-name>
 ```
 
 - ★**워크트리에서만 돌려라.** `--dangerously-bypass-approvals-and-sandbox` 는
@@ -131,9 +131,20 @@ B회차 step 1 이 정확히 그렇게 통과했고 그 사이 러너는 **AC �
 2. **AC 를 시점 독립으로 짜라.** 「이 회차가 아직 X 를 안 건드렸다」는 뒤 step 이 X 를 정당하게 고치면
    영원히 red 다 — 사후 재실행이 불가능해진다.
 
-## 6. 우리 수정 5곳 (상류 대비)
+## 6. 소유 방식 — 상류 pristine + 어댑터 (2026-08-15 전환)
 
-`tools/scripts/execute.py` — 나머지는 `da676bc6` 그대로다.
+```
+tools/vendor/harness/execute.py        ← 상류 da676bc6 **바이트 그대로** (수정 0줄)
+tools/vendor/harness/test_execute.py   ← 상류 51건. pristine 소스에 그대로 통과 = 벤더 무결성
+tools/scripts/qb_harness.py            ← ★우리 차이 전량이 여기 산다
+tools/scripts/test_qb_harness.py       ← 어댑터 AC 16건 (우리가 덮은 것만)
+tools/scripts/harness-test.sh          ← 11번째 게이트 하네스 (sha 고정 + pytest 2벌)
+```
+
+★**어댑터가 인라인 포크로는 못 막던 3건을 막는다** — 브랜치 이탈 · `TimeoutExpired` ·
+검증 강제층 부재. 전문 = [ADR-033](../docs/decisions/033-harness-readopt-codex.md) §소유 방식.
+
+### 아래 표는 인라인 판의 기록이다 (지금은 같은 자리가 어댑터 오버라이드다)
 
 | #   | 위치               | 무엇                                                                                                                                                      | 왜 「as-is 라 안 건드린다」가 성립 안 하나                                                                               |
 | --- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -143,11 +154,12 @@ B회차 step 1 이 정확히 그렇게 통과했고 그 사이 러너는 **AC �
 | ②-3 | 모듈 상수          | `ROOT = parent.parent` → `parent.parent.parent`                                                                                                           | ★상류는 `scripts/` 가 루트 직하. 우리는 [ADR-029] 로 `tools/scripts/` 라 한 단 깊다. **안 고치면 가드레일이 조용히 0자** |
 | ②-4 | `_commit_step`     | reset 경로 `phases/…` → `.harness/phases/…`                                                                                                               | ★②-1 의 딸림. 안 고치면 `git reset` 이 조용히 실패해 **2단 커밋 분리가 붕괴**한다                                        |
 
-`tools/scripts/test_execute.py` — 상류 51건 + **우리 AC 4건**:
-`TestRootResolution` 3건(②-3) · `test_reset_paths_match_phases_dir`(②-4) · `TestInvokeClaude` 강화(①).
+테스트는 두 층이다 — 상류 51건(pristine, 벤더 무결성) + 어댑터 16건(우리가 덮은 것만).
+★둘 다 `make gate-harnesses` 가 부른다(11번째). CI `documentation` 잡에 `setup-uv` 가 배선돼 있고,
+uv 가 없으면 **skip 이 아니라 빨강**이다([BL-746] 종결).
 
 ```bash
-uv run --no-project --with pytest pytest tools/scripts/test_execute.py -q     # 55 passed
+bash tools/scripts/harness-test.sh          # sha 고정 + pytest 2벌 (51 + 16)
 ```
 
 ★`--no-project` 를 빼지 마라. 붙이는 이유는 `apps/api/tests/conftest.py` 를 **안 여는 것**이다 —

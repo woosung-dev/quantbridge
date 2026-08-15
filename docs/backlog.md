@@ -650,6 +650,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-736](#bl-736) | 로컬 Docker VM **94% / 3.1G** — `MISCONF … No space left on device` 로 Redis AOF 가 죽자 celery 가 `Unrecoverable error` 로 통째 정지했다(2026-08-14T06:04:11Z). ★**처방 반증(2026-08-15)** — `docker image prune -f` 실측 **0B**다(dangling 이 아니라 태그된 미사용 이미지라 `-a` 가 필요). 그 5.5GB 는 전부 **남의 프로젝트 이미지**이고 볼륨 19.59GB 에도 남의 DB 가 섞여 있다 ⇒ **안전한 자동 회수 경로가 없다**                                                                                                                                                                                                                                                                                                                                                                                   | 도래 — 06:04Z 실사고 로그                                                                                       | S (1h)       | 2026-08-15 soak-survival                                     |
 | [BL-737](#bl-737) | ✅ **soak-watch 부활 + 감시자의 죽음을 알리는 축 — Resolved (2026-08-15 soak-watch-restore)**. ★사인·사망시각이 원장과 달랐다: `rc=127`(유닛 `ExecStart` 가 재배치 전 `scripts/` 경로) · **08-13 13:52Z 부터 41시간** 침묵(08-14 아니다). 뿌리는 [BL-719] 롤아웃 체크리스트가 soak-watch 를 안 적은 것. 정본 = **watch 가 게이트 타이머를 대체한다**(병존 경합을 실측 — 0.7초 간격 중복 표본, 단 JSON 손상 0). 이중화 대신 **`OnFailure` 알람 유닛**(스크립트 비의존 인라인 curl)과 **`--status` 설치본 신선도**를 신설. 하네스 23/23 · 변이 4종                                                                                                                                                                                                                                                       | 도래 — failed 실측                                                                                              | S (1h)       | 2026-08-15 soak-survival                                     |
 | [BL-741](#bl-741) | `conftest` 의 `create_all` 이 만든 스키마 위에서 **새 migration 이 `DuplicateTable` 로 죽는다**. 둘은 서로를 모르고, 종전엔 migration 이 squash base **하나뿐**이라 안 드러났다 — [BL-731] 이 두 번째를 더하며 발화. ★CI(fresh DB)는 안 걸리고 **로컬에서 pytest 를 돌린 개발자만** 걸린다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 도래 — 실제 red                                                                                                 | S (1-2h)     | 2026-08-15 soak-survival                                     |
+| [BL-750](#bl-750) | ★`final-gates-test.sh` 케이스 ⑩ 이 **CI 에서 틀린 이유로 통과**한다 — `documentation` 잡이 `checkout@v4` 기본(depth=1)이라 `origin/main` 이 없어 `merge-base` 실패 → `has_fe=0` → 「필수 아님」. 같은 트리에서 **로컬 9/10 · CI 10/10** 을 실측했고 **로컬 red 가 정답**이다. 케이스가 살아 있는 브랜치 상태에 의존하는 것이 뿌리 — 자기 base 를 mktemp 로 세워야 한다                                                                                                                                                                                                                                                                                                                                                                                                                                 | ★이미 발화 — 로컬↔CI 불일치 실측                                                                                | S (1-2h)     | 2026-08-15 harness-readopt                                   |
 | [BL-746](#bl-746) | harness 러너 **as-is 위험 7종**이 살아 있다 — [ADR-030] 이 걷어낸 러너를 2026-08-15 사용자 판정으로 재도입하며 재개 조건 ⑵⑶ 을 이행하지 않았다. ★위험 7(`TimeoutExpired` 미처리)은 B회차를 이미 죽였고 그때 트리에 남은 것이 **AC 0건 실행 + `completed` 커밋**이다. 막고 있는 것은 코드가 아니라 규약 2개(워크트리 전용 · `--push` 금지). 도래하면 **고치지 말고 뗀다**                                                                                                                                                                                                                                                                                                                                                                                                                               | 미도래 — 재도입 후 관측 0건                                                                                     | S (1h)       | 2026-08-15 harness-readopt                                   |
 | [BL-738](#bl-738) | [BL-734] 가드의 **한계 3종** — ⑴ 남이 resting 없이 포지션만 가지면 통과한다(「빈 목록 = 배타적」은 거짓) ⑵ probe↔청산 **경쟁**에는 fail-closed 가 아니다 ⑶ `scan_resting_conditionals` 가 Repository 밖에서 DB 를 읽는다(AGENTS.md §3). 근본 해결은 거래소 계정 분리                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 미도래 — 가드가 열린 관측 없음                                                                                  | M (2-3h)     | 2026-08-15 soak-survival                                     |
 | [BL-721](#bl-721) | ✅ **게이트 2단 분할 — Resolved (2026-08-14 gate-2stage)** — 전량 1회 **15~20분**의 대부분을 여섯이 먹고 **CI 가 같은 것을 이미 샤딩해서 돈다**(BE pytest **379초**·e2e ~400초 vs 나머지 20종 합계 1분 안쪽). ⇒ `--pre-pr`(유예) → PR push → **CI 와 나란히** `--deferred-only`. ★유예는 면제가 아니다 — 유예 원장 파일 + 다른 종결 문구, `--deferred-only` 통과만이 원장을 지운다. 하네스 `final-gates-test.sh` 신설(8종→**9종**)                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 회고에서 실측                                                                                            | S            | 2026-08-14 gate-surface-close 회고                           |
@@ -9011,24 +9012,62 @@ A/B 파일럿이 원격 유출을 면한 것이 ⑵ 하나 덕이었다.
 반증이므로, 그 시점 선택지는 ⑶ 이행(위험 7·9 수리) 또는 ADR-030 복귀 둘뿐이다 —
 「한 번 더 돌려 보자」는 세 번째 갈래가 아니다.
 
-★**동반 공백 — `test_execute.py` 55건을 부르는 게이트가 0개다** (2026-08-15 실측).
-`final-gates.sh --pre-pr` 에서 `BE pytest` 는 `backend diff 0` 으로 skip 이고, `make gate-harnesses`
-(= CI `documentation` 잡)는 **bash `*-test.sh` 10종만** 순회한다. 그 잡의 스텝은 `checkout` 뿐이라
-**uv·pytest 가 없다.** 즉 지금 이 55건은 **사람이 손으로 부를 때만** 돈다:
+★**동반 공백 종결 (2026-08-15 harness-readopt)** — ~~러너 테스트를 부르는 게이트가 0개다~~ →
+`tools/scripts/harness-test.sh` 를 **11번째 게이트 하네스**로 신설하고 CI `documentation` 잡에
+`setup-uv` 를 배선했다. 그 하네스는 sha256 고정 2건 + 어댑터 참조 + 인라인 잔재 음성 대조 +
+pytest 2벌(상류 51 · 어댑터 16)을 돌리고, ★**uv 가 없으면 skip 이 아니라 빨강**이다(fail-open 금지).
+게이트 자신의 판별력은 변이 V1~V5 로 확인했다(양성 대조 rc=0 · ✗ 0건).
 
-```bash
-uv run --no-project --with pytest pytest tools/scripts/test_execute.py -q     # 55 passed
-```
-
-`execute.py` 는 `completed`/`error`/`blocked` 를 내는 **판정기**이므로
-[§8.7](reference/operations/workflows/generator-evaluator-pipeline.md) 상 하네스 의무 대상이고,
-「하네스는 있는데 게이트가 안 부른다」는 이 레포가 [BL-705]·[BL-706] 에서 반복해 덴 자리다.
-⇒ 닫는 갈래 둘: ⑴ `execute-test.sh` 를 **bash 로** 다시 써서 기존 10종 규약에 맞춘다(CI 수정 0,
-단 55건과 중복) ⑵ CI `documentation` 잡에 `setup-uv` 를 넣고 pytest 를 그대로 부른다(중복 0,
-CI 잡 +약 10초). ★**어느 쪽도 이번 회차 범위가 아니다** — 사용자 선택은 「as-is + 5줄 스왑」이었고
-게이트 표면 확장은 별건 결정이다([ADR-030] 이 (b) 증거 장치를 안 건드린다고 못 박은 그 축).
+★**어댑터 전환으로 위험 3건이 닫혔다** ([ADR-033] §소유 방식) — 브랜치 이탈 · `TimeoutExpired` ·
+검증 강제층 부재. **상류를 한 줄도 안 고치고** 어댑터 오버라이드로만 막았으므로 as-is 계약은 유지된다.
+⇒ 이 BL 에 남은 것은 **위험 1·2·3·4·9·11** 이다.
 
 **Risk:** 🟠 (블라스트 반경은 워크트리 브랜치 1개. 다만 위험 1·2 가 **무관한 dirty 변경까지 커밋**한다)
 
-**상태:** ⏳ **대기 (트리거 미도래)** — 재도입 시점에 등재. 러너를 아직 실전 회차에 안 썼다 (2026-08-15 harness-readopt)
-**트리거 판정:** 미도래 — 재도입 후 `TimeoutExpired` 관측 0건 ([ADR-028](decisions/028-backlog-deferred-verdict.md) DEFERRED)
+**상태:** ⏳ **대기 (트리거 미도래)** — 어댑터 전환으로 **위험 3건(브랜치·타임아웃·검증층) + 게이트 배선 공백이 닫혔고**, 남은 것은 위험 **1·2·3·4·9·11** 이다. 러너를 아직 **실전 회차에 안 썼다** — 스모크 2회(각 1 step)가 전부이고 다중 step·재시도·`error`/`blocked` 전이는 한 번도 안 밟았다 (2026-08-15 harness-readopt)
+**트리거 판정:** 미도래 — 재도입 후 `TimeoutExpired` 관측 0건. ★단 이제는 도래해도 러너가 죽지 않고 `index.json` 을 error 로 내린다 ([ADR-028](decisions/028-backlog-deferred-verdict.md) DEFERRED)
+
+---
+
+### BL-750
+
+**Title:** `final-gates-test.sh` 케이스 ⑩ 이 **CI 에서 틀린 이유로 통과**한다 — 로컬 red 가 정답이다
+**Category:** 게이트 하네스 / CI
+**Priority:** P2
+**Trigger:** ★**이미 발화했다** — 2026-08-15 harness-readopt 회차에서 로컬 `make gate-harnesses` 가 9/10, 같은 트리의 CI 가 10/10 을 냈다
+**Est:** S (1-2h)
+**출처:** 2026-08-15 harness-readopt (11번째 하네스를 얹으며 발견)
+
+**원인 / 영향:** 케이스 ⑩([BL-739] 이 신설)의 **음성 대조**는 「`apps/web` ∪ `apps/api/src` diff 0
+이면 `screen.ok` 가 필수가 아니어야 한다」를 잰다. 그런데 그 전제는 **브랜치가 그 두 경로를 안
+건드렸을 때만** 성립한다 — 즉 케이스가 **살아 있는 브랜치 상태에 의존**한다.
+
+```
+로컬  fe_diff=1 (이 PR 이 apps/web/*.md 2개를 정당하게 바꿨다) → 「필수」 → 케이스 ⑩ red
+CI    10/10 통과
+```
+
+★**CI 가 통과한 기전이 문제다.** `documentation` 잡은 `actions/checkout@v4` **기본(depth=1)** 이라
+`origin/main` ref 가 없다 → `merge-base origin/main HEAD` 실패 → `CHANGED` 가 비어 **`has_fe=0`** →
+「필수 아님」 → 케이스가 **틀린 이유로 초록**이 된다. `final-gates.sh:299` 주석이 **이미 아는
+실패 모드**다(「merge-base 가 실패하면 CHANGED 가 비어 has_fe=0 이 되고…」).
+
+⇒ 두 결론이 따라온다:
+
+- **로컬 red 가 정확한 판정이고 CI 초록은 무증거다.**
+- CI 의 `documentation` 잡은 지금까지 **영역 게이트를 「아무것도 안 바뀐 경로」로만** 검증해 왔다.
+  영역 판정에 걸리는 다른 케이스(⑤·⑥·⑨)도 같은 창에서 돌았을 수 있다.
+
+**권장 접근:** 케이스 ⑩ 이 **자기 기준(base)을 스스로 만들게** 한다 — 임시 레포/브랜치를 mktemp 로
+세우고 거기서 `--dry-run` 을 재는 방식. 살아 있는 브랜치를 모집단으로 쓰면 이 케이스는 앞으로도
+**PR 내용에 따라 색이 바뀐다.** ★대안(`fetch-depth: 0`)은 CI 를 느리게 하고 **로컬 red 를 없애지
+못한다** — 로컬은 원래 origin/main 이 있고 red 가 맞기 때문이다.
+
+★**함께 봐야 할 것** — 「영역 게이트 케이스가 CI 에서 판별력을 갖는가」를 한 번 전수로 재라.
+`has_fe=0` 창에서만 검증된 케이스는 초록이 무증거다.
+
+**Risk:** 🟡 (프로덕션 무관. 다만 **게이트 하네스가 게이트를 지키는 층**이라 여기서의 거짓 초록은
+「검사기의 검사기가 무증거」다 — [BL-705] 와 같은 축)
+
+**상태:** ⬜ Open — 미착수. 2026-08-15 회차는 **고치지 않고 등재만 했다**(남의 하네스이고 [ADR-030] 이 (b) 증거 장치 불가침을 못 박았다) (2026-08-15 harness-readopt)
+**트리거 판정:** 도래 — 로컬↔CI 불일치를 실측했다 (2026-08-15 harness-readopt)
