@@ -1,4 +1,5 @@
 """OrderService — KillSwitch in-tx gate (T15, autoplan E9)."""
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -92,6 +93,10 @@ class _OwnerPort:
     async def get_owner(self, strategy_id: UUID) -> UUID:
         return self._owner
 
+    async def is_owner_active(self, user_id: UUID) -> bool:
+        # 2026-08-15 surface-truth (S3) — 이 페이크는 「살아 있는 사용자」를 모형한다.
+        return True
+
 
 class _AccountLookup:
     """OrderService 가 소유 게이트에서 쓰는 것은 `exchange_service._repo` 뿐이다."""
@@ -126,9 +131,7 @@ async def test_kill_switch_blocks_order_creation(
     with pytest.raises(KillSwitchActive):
         await svc.execute(order_request, idempotency_key=None)
 
-    count = (
-        await db_session.execute(select(func.count()).select_from(Order))
-    ).scalar_one()
+    count = (await db_session.execute(select(func.count()).select_from(Order))).scalar_one()
     assert count == 0, f"Expected 0 orders, got {count}"
     assert _Dispatcher.dispatched == 0, "Dispatch should not fire when gate blocks"
 
@@ -161,9 +164,7 @@ async def test_reduce_only_flatten_bypasses_kill_switch_and_session_gates(
         sessions_port=_ClosedSessions(),
     )
 
-    response, replayed = await service.execute(
-        request, idempotency_key=None, flatten=True
-    )
+    response, replayed = await service.execute(request, idempotency_key=None, flatten=True)
 
     assert response.reduce_only is True
     assert replayed is False

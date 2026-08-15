@@ -273,6 +273,26 @@ class LiveSignalSessionRepository:
         )
         return result.rowcount or 0  # type: ignore[attr-defined]
 
+    async def deactivate_all_by_owner(self, user_id: UUID, *, at: datetime, reason: str) -> int:
+        """소유자의 **활성 세션 전량**을 한 번의 UPDATE 로 내린다 (2026-08-15 surface-truth · S3).
+
+        ★왜 `list_active_by_user` + 루프가 아닌가 — 탈퇴 처리는 「하나도 남으면 안 되는」
+        경계다. 루프는 그 사이에 새로 만들어진 세션을 놓치고, 개별 UPDATE 는 부분 성공을
+        허용한다. 여기서는 **원장에게 술어를 주고** 한 문장으로 닫는다.
+
+        `deactivate()` 와 같은 술어(`is_active = true`)를 쓰므로 이미 죽은 세션은 건드리지
+        않고, 사유·시각도 덮어쓰지 않는다. commit 책임은 호출한 Service 에 있다.
+
+        값 집합의 정본은 `src.trading.models.SessionDeactivationReason` 이다.
+        """
+        result = await self.session.execute(
+            update(LiveSignalSession)
+            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.is_active == True)  # type: ignore[arg-type]  # noqa: E712
+            .values(is_active=False, deactivated_at=at, deactivated_reason=reason)
+        )
+        return result.rowcount or 0  # type: ignore[attr-defined]
+
     async def get_state(self, session_id: UUID) -> LiveSignalState | None:
         result = await self.session.execute(
             select(LiveSignalState).where(LiveSignalState.session_id == session_id)  # type: ignore[arg-type]

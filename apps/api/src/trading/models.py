@@ -141,6 +141,10 @@ class SessionDeactivationReason(StrEnum):
     position_divergence = "position_divergence"
     # 사람이 Stop 을 눌렀다
     user_stopped = "user_stopped"
+    # 계정이 사라졌다 — Clerk `user.deleted` 웹훅이 소유자의 세션을 전량 내린다
+    # (2026-08-15 surface-truth · S3). `user_stopped` 로 접지 않는 이유: 그 사람은
+    # Stop 을 누른 적이 없고, 화면이 「사용자 중단」이라 말하면 그것이 거짓이다.
+    account_deleted = "account_deleted"
 
 
 # BL-571 — 원장 쪽 방어. `deactivated_reason` 에 enum 밖 값이 들어오면 DB 가 거절한다.
@@ -222,6 +226,14 @@ class Order(SQLModel, table=True):
     __table_args__ = (
         Index("ix_orders_strategy", "strategy_id"),
         Index("ix_orders_account_state", "exchange_account_id", "state"),
+        # 2026-08-15 surface-truth (S5) — 주문 목록의 **정렬 축**.
+        # `OrderRepository.list_by_user` 는 계정으로 조인한 뒤 `created_at DESC` 로 정렬하고
+        # 매 요청 같은 조인으로 COUNT(*) 를 한 번 더 돈다. 기존 두 인덱스 중
+        # `(exchange_account_id, state)` 는 두 번째 컬럼이 `state` 라 정렬을 못 민다
+        # (`uq_orders_idempotency_key` 는 partial 이라 후보도 아니다).
+        # ★라이브 자동매매 도메인이라 이 테이블은 **단조 증가**한다 — 지금 안 아픈 것이
+        #   나중에 확실히 아프다. `exchange_exits` 가 정확히 같은 이유로 하루 전에 밟았다([BL-731]).
+        Index("ix_orders_account_created", "exchange_account_id", "created_at"),
         Index(
             "uq_orders_idempotency_key",
             "idempotency_key",

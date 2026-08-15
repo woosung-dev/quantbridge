@@ -23,6 +23,7 @@ from src.trading.exceptions import (
     LeverageCapExceeded,
     MinNotionalNotMet,
     NotionalExceeded,
+    OwnerAccountInactive,
     RiskSizingExceeded,
     TradingSessionClosed,
 )
@@ -179,6 +180,17 @@ class OrderService:
                 raise AccountOwnershipMismatch(
                     f"exchange_account {req.exchange_account_id} 소유자가 strategy "
                     f"{req.strategy_id} 소유자와 일치하지 않음"
+                )
+            # ── 2026-08-15 surface-truth (S3): 탈퇴한 소유자의 주문 차단 ──
+            # 탈퇴는 `UserService` 의 `user.deleted` 분기가 세션 전량 비활성 + 웹훅 시크릿
+            # 전량 revoke 로 **원천**을 닫는다. 여기는 두 번째 문이다 — 시크릿 grace 창,
+            # 이미 큐에 들어간 tick, 수기 주문처럼 원천 차단이 한 박자 늦는 자리에서
+            # **돈이 나가는 마지막 순간**에 다시 묻는다.
+            # ★소유권 대조 **뒤에** 둔다: 소유자를 먼저 확정해야 「누가 비활성인지」가 의미를 갖는다.
+            if not await self._sessions_port.is_owner_active(strategy_owner):
+                _count_safely(qb_order_rejected_total, exchange="unknown", reason="owner_inactive")
+                raise OwnerAccountInactive(
+                    f"strategy {req.strategy_id} 소유자 계정이 비활성 상태 — 주문을 발행하지 않음"
                 )
 
         # Sprint 9 Phase D: service 레이어에서 exchange 직접 조회 회피 (async fetch 불필요).

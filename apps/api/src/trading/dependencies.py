@@ -168,6 +168,17 @@ class _StrategySessionsAdapter:
         strategy = result.scalar_one_or_none()
         return strategy.user_id if strategy is not None else None
 
+    async def is_owner_active(self, user_id: UUID) -> bool:
+        """2026-08-15 surface-truth (S3) — 소유자가 탈퇴했으면 주문을 막는다.
+
+        행이 없으면 False (fail-closed) — 「모르면 보낸다」가 이 도메인에서 가장 비싼 기본값이다.
+        """
+        from src.auth.models import User
+
+        stmt = select(User.is_active).where(User.id == user_id)  # type: ignore[arg-type]
+        result = await self._session.execute(stmt)
+        return bool(result.scalar_one_or_none())
+
 
 # ── OrderService ─────────────────────────────────────────────────────
 async def get_order_service(

@@ -31,7 +31,14 @@ class Settings(BaseSettings):
 
     app_name: str = "QuantBridge"
     app_env: Literal["development", "staging", "production"] = "development"
-    debug: bool = True
+    # ★기본값은 False 다 — 안전한 쪽이 기본이어야 한다(2026-08-15 surface-truth).
+    #   종전 기본값 True 는 `APP_ENV` 를 안 넣은 배포 호스트에서 그대로 살아남았고,
+    #   실측으로 `qb-api.woosung.dev` 가 `{"env":"development"}` + `/docs` 200 을 냈다.
+    #   `_enforce_production_safety` 는 `app_env != production` 이면 조기 반환하므로
+    #   그 호스트를 보호하지 못한다 — 보호를 env 이름이 아니라 **기본값**에 둔다.
+    #   ★이 값은 「신뢰된 로컬 개발」 단일 스위치다: docs 노출·HSTS 미부착·traceback 이
+    #   전부 여기에 묶인다(`main.py:create_app`). 로컬은 `.env.local` 이 DEBUG=true 를 준다.
+    debug: bool = False
     secret_key: SecretStr = SecretStr("change-me")
 
     # BL-561 — root logger 레벨. celery worker / uvicorn 이 **같은** 값을 쓴다.
@@ -61,15 +68,20 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://quantbridge:password@db:5432/quantbridge"
 
     # Redis / Celery
-    redis_url: str = "redis://redis:6379/0"
+    # ★2026-08-15 surface-truth (S4) — `redis_url`(DB 0 「캐시」) 를 **삭제**했다.
+    #   선언·주입은 돼 있었지만 `src/` 전체에서 참조가 **0건**인 죽은 설정이었다. 죽은 설정은
+    #   비용이 0 이 아니다 — compose·CI·`.env.example` 6곳이 그 값을 실어 나르면서
+    #   「캐시 DB 가 따로 있다」는 그림을 유지했고, 그 그림이 아래 격리 오해를 떠받쳤다.
     celery_broker_url: str = "redis://redis:6379/1"
     celery_result_backend: str = "redis://redis:6379/2"
     redis_lock_url: str = Field(
         default="redis://redis:6379/3",
         description=(
-            "분산 락 + slowapi rate-limit storage 전용 Redis URL. "
-            "Celery broker(DB 1) / result(DB 2)와 격리된 DB 3 사용. "
-            "Sprint 10 Phase A1."
+            "분산 락 + slowapi rate-limit storage 전용 Redis URL (DB 3). "
+            "★논리 DB 분리는 **키 이름 충돌만** 막는다 — eviction 격리가 아니다. "
+            "`maxmemory-policy` 는 인스턴스 전역이라 DB 번호는 축출 대상 선정에 관여하지 "
+            "않는다. 락이 축출되지 않는 근거는 DB 번호가 아니라 compose 의 `noeviction` 이다. "
+            "Sprint 10 Phase A1 · 2026-08-15 surface-truth S4."
         ),
     )
 

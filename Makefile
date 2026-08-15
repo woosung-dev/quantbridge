@@ -365,7 +365,6 @@ endif
 be-isolated: metrics-prepare
 	cd apps/api && \
 	  DATABASE_URL=$(ISOLATED_DATABASE_URL) \
-	  REDIS_URL=redis://localhost:6380/0 \
 	  CELERY_BROKER_URL=redis://localhost:6380/1 \
 	  CELERY_RESULT_BACKEND=redis://localhost:6380/2 \
 	  REDIS_LOCK_URL=redis://localhost:6380/3 \
