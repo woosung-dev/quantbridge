@@ -388,9 +388,7 @@ export function BacktestList() {
                           title={
                             b.metrics_summary == null
                               ? UNFINISHED_METRICS_TITLE
-                              : sharpe.isLegacy || sharpe.isUnavailable
-                                ? sharpe.foot
-                                : undefined
+                              : sharpe.foot
                           }
                         >
                           {b.metrics_summary == null ? EMPTY_CELL : sharpe.display}
