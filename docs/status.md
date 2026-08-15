@@ -370,8 +370,10 @@ OCI `quantbridge/` prefix 객체 · **C2 24.0007h 전후 불변**) + 디스크 �
 그 조건 3종(백업·디스크 경보·전환 트리거)도 이 회차에 발효했다. [BL-071] 의 「Cloud Run/
 Railway/Render」 전제는 [ADR-033] 으로 대체됐다 — **현 서버(Oracle A1) 위에서** Clerk production
 
-- gunicorn 보안헤더가 남은 일이다. ★[BL-070] 은 사용자 manual 1-2h + DNS 전파 24h 라
-  **사람이 먼저 움직여야 하는 항목**이다.
+- gunicorn 보안헤더가 남은 일이다. ★★**[BL-070] 을 「도메인을 사야 한다」로 읽지 마라 —
+  이미 살아 있다**(2026-08-16 실측: `qb.woosung.dev` **302** Access OTP ·
+  `qb-api.woosung.dev/health` **200**). 첫 step 은 구매·전파 대기가 아니라 **원장 정의 중
+  무엇이 남았는지 실측으로 가르는 것**이다(`reference/operations/frontend-deploy.md`).
 
 ★**소크는 그와 별개로 계속 돈다.** 창 2가 24h 를 넘으면 같은 절차(보고 → 승인 → `down` →
 `pin` → `up`)로 창 3을 연다. 창 2·3 은 pin 이 같으므로([ADR-024]) 층화가 필요 없지만,
