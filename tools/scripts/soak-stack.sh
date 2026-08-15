@@ -319,7 +319,13 @@ _down() {
 #   비목표 문구도 그 선을 긋는다(`docs/status.md` ⓵): 생성·로컬 적용은 자유, **서버 적용만 승인**.
 # ★기본은 dry-run 이다(`soak-restart.sh` 와 같은 문형). 집행은 `--confirm`.
 _migrate() { # _migrate [--confirm]
-  local confirm="${1:-}" cur head pending rc after
+  local confirm="${1:-}" cur head pending rc after hist_rc dburl pub pub_port
+  # ★여분 인자를 삼키지 마라 (codex P2) — `migrate --confirm --typo` 가 조용히 집행되면
+  #   운영자는 자기가 준 가드가 걸린 줄 안다. 확인 게이트가 있는 명령일수록 엄격해야 한다.
+  case "${confirm}" in
+    "" | --confirm) ;;
+    *) die "알 수 없는 인자: ${confirm}  (migrate [--confirm])" 1 ;;
+  esac
   bash "${ROOT}/tools/scripts/assert-main-checkout.sh" "soak-stack.sh migrate" || exit 2
 
   cur="$(docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge \
@@ -342,10 +348,31 @@ _migrate() { # _migrate [--confirm]
   # ★`alembic history -r A:B` 는 **A 를 포함**한다 — 즉 `A` 로 *끝나는* 전이(= 이미 적용된 것)가
   #   목록에 끼어든다. 2026-08-15 초판이 그래서 「적용 대기 2 항목」을 찍었는데 실제 대기는 1개였다.
   #   출력은 최신순이므로 `<cur> -> …` 줄까지가 정확히 대기분이고 그 아래는 이미 적용된 것이다.
-  pending="$(cd "${ROOT}/apps/api" && uv run alembic history -r "${cur}:${head}" 2>/dev/null \
-    | awk -v c="${cur}" '{print} $1==c && $2=="->" {exit}')"
+  # ★★fail-closed — history 가 실패하면(DB revision 이 이 체크아웃의 이력에 없는 경우 등)
+  #   **0 항목으로 보인다.** 그것은 「적용할 게 없다」가 아니라 **재지 못한 것**이다(codex P2).
+  pending="$(cd "${ROOT}/apps/api" && uv run alembic history -r "${cur}:${head}" 2>&1)"
+  hist_rc=$?
+  if [ "${hist_rc}" -ne 0 ] || [ -z "${pending}" ]; then
+    echo "${pending}" | sed 's/^/    /' >&2
+    die "alembic history 를 못 읽었다 (rc=${hist_rc}) — DB revision '${cur}' 이 이 체크아웃의 이력에 없을 수 있다" 2
+  fi
+  pending="$(printf '%s\n' "${pending}" | awk -v c="${cur}" '{print} $1==c && $2=="->" {exit}')"
   echo "  적용 대기   : $(printf '%s\n' "${pending}" | grep -c '.') 항목"
   printf '%s\n' "${pending}" | sed 's/^/    /'
+
+  # ★**upgrade 대상이 정말 그 DB 인가를 미리 잰다** (codex P1). 사후 재확인만으로는 부족하다 —
+  #   `.env.local` 이 다른 DB 를 가리키고 있으면 그 DB 를 **먼저 바꾼 뒤에야** 사후 검사가
+  #   실패하고, 그 DDL 은 되돌릴 수 없다. 그래서 published endpoint 로 사전 대조한다.
+  dburl="$(sed -n 's/^[[:space:]]*DATABASE_URL=//p' "${ROOT}/apps/api/.env.local" | tail -1)"
+  [ -n "${dburl}" ] || die "apps/api/.env.local 에 DATABASE_URL 이 없다" 2
+  pub="$(docker port "${DB_CONTAINER}" 5432/tcp 2>/dev/null | head -1)"   # 예: 127.0.0.1:5433
+  pub_port="${pub##*:}"
+  [ -n "${pub_port}" ] || die "${DB_CONTAINER} 의 published port 를 못 읽었다" 2
+  case "${dburl}" in
+    *":${pub_port}/"*) ;;
+    *) die "DATABASE_URL 이 ${DB_CONTAINER}(:${pub_port}) 를 가리키지 않는다 — 다른 DB 에 DDL 이 갈 뻔했다" 1 ;;
+  esac
+  echo "  적용 대상   : DATABASE_URL 이 :${pub_port} (= ${DB_CONTAINER}) 를 가리킨다 ✓"
 
   if [ "${confirm}" != "--confirm" ]; then
     echo
@@ -355,14 +382,19 @@ _migrate() { # _migrate [--confirm]
   fi
 
   echo
-  echo "▶ alembic upgrade head …"
+  echo "▶ alembic upgrade head (advisory lock) …"
   # ★`.env.local` 을 **통째** 소싱한다 — DATABASE_URL 단독 주입은 이 레포의 금지 형태다.
-  (cd "${ROOT}/apps/api" && set -a && . ./.env.local && set +a && uv run alembic upgrade head)
+  # ★맨 `alembic upgrade head` 를 부르지 않는다 — 레포에 이미 advisory lock 래퍼가 있고
+  #   `docker-entrypoint.sh:52-55` 가 같은 것을 쓴다. 맨 호출은 alembic 의 session 시작 전
+  #   race window 를 그대로 연다(codex P1). 같은 lock key 를 쓰므로 entrypoint 경로와도 배타적이다.
+  (cd "${ROOT}/apps/api" && set -a && . ./.env.local && set +a \
+    && uv run python -m src.scripts.run_alembic_with_lock \
+      --lock-key "${ALEMBIC_ADVISORY_LOCK_KEY:-1903723824}" --timeout "${ALEMBIC_LOCK_TIMEOUT_S:-30}")
   rc=$?
   [ "${rc}" -eq 0 ] || die "alembic upgrade 실패 (rc=${rc})" 1
 
-  # ★결정적 검증 — **게이트가 보는 그 DB** 를 다시 읽는다. `.env.local` 이 다른 DB 를
-  #   가리키고 있었다면 upgrade 는 성공하고 여기가 실패한다(조용한 오적용을 막는 유일한 축).
+  # ★결정적 검증 — **게이트가 보는 그 DB** 를 다시 읽는다. 사전 대조를 통과했더라도
+  #   여기서 한 번 더 본다(사전=선언, 사후=실측).
   after="$(docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge \
     -Atc "SELECT version_num FROM alembic_version;" 2>/dev/null)"
   if [ "${after}" != "${head}" ]; then
@@ -507,7 +539,7 @@ case "${1:-}" in
   pin)               shift; _pin "${1:-HEAD}" ;;
   up)                _up ;;
   down)              _down ;;
-  migrate)           shift; _migrate "${1:-}" ;;
+  migrate)           shift; [ "$#" -le 1 ] || die "인자가 너무 많다: $* (migrate [--confirm])" 1; _migrate "${1:-}" ;;
   commit)            _commit ;;
   status)            _status ;;
   ps)                _ps ;;

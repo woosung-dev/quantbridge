@@ -171,6 +171,18 @@ EOF
   #   ★이 유닛은 **스크립트 파일에 의존하지 않는다.** 인라인 curl 이라 `tools/scripts/` 가
   #   또 옮겨져도 살아남는다. 의존은 `${ENV_FILE}` 경로 하나뿐이고 `--status` 가 그것을 잰다.
   #   ★토큰은 유닛에 박지 않는다 — `.env.local` 을 그 자리에서 소싱한다.
+  #   ★★**`$$` 로 이스케이프해야 한다** (2026-08-15 codex 적대 리뷰 · 실측 확증).
+  #   systemd 는 `ExecStart` 의 `${VAR}` 를 **자기 환경으로 먼저 확장**하고, 미정의 변수는
+  #   **빈 문자열**로 만든다 — 작은따옴표도 그것을 막지 못한다. 그러면 URL 이
+  #   `…/bot/sendMessage` 가 되어 텔레그램이 **404** 를 준다(실측). systemd 에서 리터럴 `$` 는
+  #   `$$` 다. ★내가 처음에 `systemctl show -p ExecStart` 로 「리터럴이 남아 있다」고 읽고
+  #   codex 를 반증했다고 적었는데, 그 출력은 **확장 전** 문자열이다 — 오독이었다.
+  #   ★`--fail` 이 있어야 한다 — 없으면 텔레그램이 400 을 줘도 curl 은 rc=0 이고 유닛은
+  #   `Finished` 로 남는다. 그러면 「알람이 돌았다」와 「알람이 도착했다」를 구분할 수 없다.
+  #   ★`--show-error` 는 뺀다 — 실패 메시지에 URL(경로에 토큰이 있다)이 실릴 수 있다.
+  case "${ENV_FILE}" in
+    *"'"*) echo "✗ env 파일 경로에 작은따옴표가 있어 유닛을 안전하게 생성할 수 없다: ${ENV_FILE}" >&2; exit 1 ;;
+  esac
   cat > "${unit_dir}/${ALARM_UNIT}.service" << EOF
 [Unit]
 Description=QuantBridge soak watch 실패 알림 (감시자 자신이 죽었을 때)
@@ -178,7 +190,7 @@ Description=QuantBridge soak watch 실패 알림 (감시자 자신이 죽었을 
 [Service]
 Type=oneshot
 Environment=PATH=${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-ExecStart=/bin/bash -c 'set -a; . "${ENV_FILE}"; set +a; exec curl --silent --show-error --output /dev/null --max-time 15 --data-urlencode "chat_id=\${TELEGRAM_CHAT_ID}" --data-urlencode "text=🔴 soak-watch.service 가 실패했다 — 소크 알림이 끊겼다. journalctl --user -u ${UNIT_NAME}.service -n 20" "https://api.telegram.org/bot\${TELEGRAM_BOT_TOKEN}/sendMessage"'
+ExecStart=/bin/bash -c 'set -a; . "${ENV_FILE}"; set +a; exec curl --silent --fail --output /dev/null --max-time 15 --data-urlencode "chat_id=\$\${TELEGRAM_CHAT_ID}" --data-urlencode "text=🔴 soak-watch.service 가 실패했다 — 소크 알림이 끊겼다. journalctl --user -u ${UNIT_NAME}.service -n 20" "https://api.telegram.org/bot\$\${TELEGRAM_BOT_TOKEN}/sendMessage"'
 EOF
 
   # ★주기를 30 분에서 바꾸지 마라 — 표본 간격이 곧 C4 판정 대상이다(기본 한계 60 분).

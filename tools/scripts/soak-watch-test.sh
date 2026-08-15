@@ -409,8 +409,35 @@ else
   grep -q -- "$TMP/fake.env" "$ALARM_SVC" || _why="${_why}★env 파일 경로가 안 박혔다 "
   # 시크릿 하드코딩 금지 회귀 — 토큰 **값**이 유닛에 들어가면 안 된다(변수 참조만 허용).
   grep -q 'TELEGRAM_BOT_TOKEN=x' "$ALARM_SVC" && _why="${_why}★토큰 값이 유닛에 박혔다 "
+  # ★`--fail` 이 없으면 텔레그램 400 에도 curl 이 rc=0 이라 유닛이 `Finished` 로 남는다.
+  #   그러면 「알람이 돌았다」와 「알람이 도착했다」가 구분되지 않는다 — 이 회차의 주제 그 자체다.
+  grep -q -- '--fail' "$ALARM_SVC" || _why="${_why}★curl 에 --fail 이 없다 (HTTP 오류가 성공으로 보인다) "
+  # ★`--show-error` 는 실패 메시지에 URL(경로에 토큰)을 실을 수 있다.
+  grep -q -- '--show-error' "$ALARM_SVC" && _why="${_why}★--show-error 가 있다 (토큰 유출 경로) "
+  # ★★systemd 는 ExecStart 의 `${VAR}` 를 **자기 환경으로 먼저 확장**하고 미정의는 빈 문자열로
+  #   만든다(작은따옴표도 못 막는다). 그러면 URL 이 `…/bot/sendMessage` 가 되어 텔레그램이
+  #   404 를 준다 — 2026-08-15 서버에서 실측했다. 리터럴 `$` 는 `$$` 다.
+  #   ☹ 이 하네스가 재는 것은 **생성된 텍스트**이지 systemd 의 확장 자체가 아니다 —
+  #     그 축은 서버 실증(알람 유닛 강제 발화 → HTTP 200)으로만 닫힌다.
+  grep -qF 'chat_id=$${TELEGRAM_CHAT_ID}' "$ALARM_SVC" \
+    || _why="${_why}★chat_id 가 \$\$ 이스케이프가 아니다 (systemd 가 빈 값으로 확장한다) "
+  grep -qF 'bot$${TELEGRAM_BOT_TOKEN}' "$ALARM_SVC" \
+    || _why="${_why}★봇 토큰이 \$\$ 이스케이프가 아니다 "
+  grep -qE '[^$]\$\{TELEGRAM' "$ALARM_SVC" \
+    && _why="${_why}★단일 \$ 형태의 TELEGRAM 참조가 남아 있다 "
 fi
-report "⑭b 실패 알림 유닛 생성 · 토큰 값 미포함" "$_why"
+report "⑭b 실패 알림 유닛 · 토큰 미포함 · --fail 있음" "$_why"
+
+# ⑭c 작은따옴표가 든 env 경로는 유닛을 깨뜨린다 → install 이 거부해야 한다
+_why=""
+_odd="$TMP/it's.env"
+printf 'TELEGRAM_BOT_TOKEN=x\nTELEGRAM_CHAT_ID=y\n' > "$_odd"
+_out="$(XDG_CONFIG_HOME="$TMP/xdg2" PATH="$TMP/bin:$PATH" QB_SOAK_ENV_FILE="$_odd" \
+  bash "$TMP/tree/tools/scripts/soak-watch.sh" --install 2>&1)"; _rc=$?
+[ "$_rc" -ne 0 ] || _why="작은따옴표 경로인데 rc=$_rc (기대 ≠0) "
+printf '%s' "$_out" | grep -q "작은따옴표" || _why="${_why}진단 문구가 없다 "
+rm -rf "$TMP/xdg2" "$_odd"
+report "⑭c 작은따옴표가 든 env 경로 → install 거부" "$_why"
 
 # ── ⑮ [BL-737] `--status` 가 낡은 설치본을 red 로 판정한다 ──────────────────────
 #    ★음성 대조가 앞에 온다 — 늘 red 인 검사기는 판별력이 0 이다.

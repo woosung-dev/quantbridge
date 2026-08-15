@@ -306,6 +306,25 @@ systemctl --user list-units --all | grep -i quantbridge   # failed 가 없어야
 를 함께 건다. 그 알람 유닛은 **스크립트 파일에 의존하지 않는다**(인라인 curl · `.env.local` 을
 그 자리에서 소싱해 토큰을 유닛에 박지 않는다) — 다음 재배치에 면역이다.
 
+##### ★★systemd 유닛에 셸 변수를 쓸 때의 함정 2종 (2026-08-15 실측)
+
+**⑴ `${VAR}` 는 `$${VAR}` 로 써야 한다.** systemd 는 `ExecStart` 의 `$VAR`/`${VAR}` 를
+**자기 환경으로 먼저 확장**하고, 미정의 변수는 **빈 문자열**로 만든다. `bash -c '…'` 의
+작은따옴표도 그것을 막지 못한다 — 인용은 셸의 규칙이지 systemd 의 규칙이 아니다.
+실측: 이스케이프를 빠뜨리자 URL 이 `https://api.telegram.org/bot/sendMessage` 가 되어
+텔레그램이 **HTTP 404** 를 냈다. systemd 에서 리터럴 `$` 는 `$$` 다.
+
+★**`systemctl show -p ExecStart` 로 반증했다고 믿지 마라** — 그 출력은 systemd 의 **파싱 결과**
+(확장 _전_ 문자열)이고, 확장은 실행 시점에 일어난다. 2026-08-15 에 그 출력에 `${TELEGRAM_*}` 가
+리터럴로 남아 있는 것을 보고 「확장되지 않는다」고 판정했는데 **틀렸다.** 판정은 **실제 발화**로만
+내려라(강제 발화 → HTTP 코드 확인).
+
+**⑵ `curl` 에 `--fail` 이 없으면 유닛 상태가 거짓말을 한다.** `--fail` 없이는 HTTP 404 에도
+curl 이 rc=0 이라 `Type=oneshot` 유닛이 `Finished` 로 남는다. 즉 **「알람이 돌았다」와
+「알람이 도착했다」가 구분되지 않는다.** `--fail` 을 붙이면 4xx/5xx 가 exit 22 가 되어
+유닛이 `failed` 로 남고, **유닛 상태가 도착의 증인**이 된다.
+★단 `--show-error` 는 함께 쓰지 마라 — 실패 메시지에 URL(경로에 토큰이 있다)이 실릴 수 있다.
+
 #### 소크 DB 스키마 — `soak-stack.sh migrate` (2026-08-15 [BL-743] 신설)
 
 **`pin`·`up`·`down` 중 어느 것도 migration 을 적용하지 않는다.** 소크 compose 6서비스에

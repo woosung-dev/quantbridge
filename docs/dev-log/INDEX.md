@@ -18,6 +18,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-15 soak-watch-restore** — [BL-737]·[BL-744]·[BL-743]·[BL-739] 종결 + [BL-745]. ★★★**내 「반증했다」가 오독이었고 codex 가 옳았다** — `systemctl show` 는 확장 **전** 문자열이다. `--fail` 을 붙이자 알람이 exit 22 로 뒤집혔다(HTTP 404 = 빈 토큰, [LESSON-110]). ★감시자는 41시간 rc=127 인데 타이머는 내내 waiting — dev-log
 - **2026-08-14 real-broker-e2e** — [BL-024] 종결(로컬 축) · 실거래소 첫 검증. ★★★**2층 자기정리 하네스는 지어진 뒤 10일 동안 한 번도 작동한 적이 없었다** — skeleton skip 이 REGISTRY 를 늘 비웠고, 첫 타깃에 전건 `undecidable`(청산이 개발 DB 를 열고 있었다, [LESSON-109]). ★증인은 pytest rc 가 아니라 거래소였다. ★`_verdict` 가 5일 연속 skip 을 PASS 로 적고 있었다 — dev-log
 - **2026-08-13 contract-poc** — [BL-717] 종결. 결정적 export `contracts/openapi.json` + **orval(client:'zod') 채택**(hey-api 는 TS7 크래시로 탈락). 전문 = [ADR-031] · 런타임 투입 판정은 §비결정으로 남겼다 — dev-log
 - **2026-08-14 gate-pointer-axis** — [BL-720]·[BL-722] 종결 · 하네스 **9→10종**. ★★★**11/11 초록인 축이 정본 `lessons.md` 에서 오탐 3건** — 스텁은 내 가설의 사본이다([LESSON-108]). ★★원장 처방 3건 반증. ★★부수로 `final-gates-test` ⑥ 이 docs·tools 브랜치에서 상시 red 였고 **내 첫 수리판은 변이를 통과**했다
