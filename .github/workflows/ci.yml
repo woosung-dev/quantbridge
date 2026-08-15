@@ -352,9 +352,13 @@ jobs:
       #   첫 페이지 렌더가 JIT 컴파일이라 그 기동 비용이 그대로 두 배가 된다.
       #   ★벽시계 이득은 크지 않다 — 이 잡(실측 5.4분)은 frontend 잡(6.0분)보다 짧아 **임계경로가
       #   아니다**. 얻는 것은 러너 분과 dev 서버 1회 기동이지 PR 대기시간이 아니다.
-      # ★`package.json` 에 스크립트로 넣지 않고 인라인이다 — 루트 prettier 가
+      # ★`package.json` 에 스크립트로 넣지 않고 인라인이다 — ~~루트 prettier 가
       #   `apps/web/*.json` 을 포맷할 때 `apps/web/.prettierrc` 의 tailwind 플러그인을
-      #   해석하지 못해 pre-commit 이 죽는다([BL-602]). 그 결함이 닫히면 스크립트로 옮겨라.
+      #   해석하지 못해 pre-commit 이 죽는다([BL-602])~~ → **2026-08-15 [BL-602] 종결로 이 전제는
+      #   죽었다.** 실측: `node_modules/.bin/prettier --check apps/web/package.json` **rc=0**
+      #   (플러그인은 2026-08-09 `71f7101e` 로 루트 devDependencies 에 들어와 있다).
+      #   ⇒ **스크립트로 옮기는 것이 이제 막혀 있지 않다.** 다만 위 「2회 호출을 한 번으로 합쳤다」
+      #   근거는 그대로 유효하므로 옮길 때 그 합침을 깨지 마라. 이번 회차 범위 밖이라 안 옮겼다.
       # ★`chromium-live-smoke` 를 **명시적으로** 포함한다 (codex P1). 앵커 수리 전에는
       #   `chromium` 의 느슨한 정규식이 `live-smoke.spec.ts` 를 덤으로 잡아 CI 가 그걸 돌고
       #   있었다 — 즉 **그 중복이 실제로 일하고 있었다.** 앵커만 고치고 두면 live-smoke 가
