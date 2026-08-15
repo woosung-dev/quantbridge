@@ -724,6 +724,35 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
     attributed_hours = sum(iv.seconds for group in per_attribution_all for iv in group) / 3600.0
     unverified_hours = max(0.0, attributed_hours - cumulative_hours)
 
+    # ── 자격 판정 — 「지금 새 창을 열어도 손실이 0인가」 (보고 전용) ──────────
+    #
+    # ★새 판정식을 만들지 않는다 — 위 `qualifying_windows` 와 **같은 부등식**을 지금 열려
+    #   있는 구간 하나에 적용할 뿐이다. 식을 복제하면 화면과 판정이 다른 말을 하게 된다.
+    # ★`soak-stack.sh up` 은 **진행 중인 귀속 구간을 닫는다.** 자격(연속 24h + 실격 0)을
+    #   얻기 **전에** 누르면 그때까지 번 시간은 창 0회로 소멸하고, 얻은 **뒤에** 누르면 그 창은
+    #   1회로 확정돼 남는다(닫힌 구간도 `countable` 에 그대로 남으므로). 이 차이를 매 회차
+    #   사람이 손으로 풀고 있었다 — 27.4h 를 돌리고도 C1 이 0/3 이던 실측이 그 값이다.
+    # ★열린 구간이 `countable` 에 없을 수 있다 — 그 구간 안에서 실격이 나면 `window_start` 가
+    #   당겨져 통째로 빠진다. 그때 자격은 0 이고 잃을 것도 이미 잃은 뒤다.
+    open_index = next((i for i, a in enumerate(countable) if a is open_window), None)
+    open_group = per_attribution_verified[open_index] if open_index is not None else []
+    open_longest = max((iv.seconds for iv in open_group), default=0.0) / 3600.0
+    window_eligibility = {
+        # ★「열린 구간이 없다」는 「눌러도 된다」가 아니라 **판정 불가**다 ([BL-748] 계열).
+        "open": open_window is not None,
+        "longest_hours": round(open_longest, 4),
+        "required_hours": require_continuous,
+        "qualified": (
+            open_window is not None and not violations and open_longest >= require_continuous
+        ),
+        "remaining_hours": round(max(0.0, require_continuous - open_longest), 4),
+        # 지금 실격이 나면 잃는 것 — 이 창의 시간뿐 아니라 **이미 확정된 자격 창 전부**다
+        # (실격은 T0 를 당겨 그 전에 시작한 귀속 구간을 `countable` 에서 통째로 뺀다).
+        "at_risk_hours": round(open_longest, 4),
+        "at_risk_windows": len(qualifying_windows),
+        "disqualified_in_window": bool(violations),
+    }
+
     # ── 귀속 불가 시간 (보고 전용 — 절대 C1 에 더하지 않는다) ───────────────
     unattributed = 0.0
     for _, s_iv in session_intervals(sessions, now):
@@ -801,6 +830,9 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         "windows": clean,
         "unattributed_hours": round(unattributed / 3600.0, 4),
         "unverified_hours": round(unverified_hours, 4),
+        # ★`conditions` 에는 넣지 않는다 — 이 축은 판정을 한 글자도 바꾸지 않는다.
+        #   판정은 「지났는가」를 묻고 이것은 「지금 눌러도 되는가」를 묻는다(다른 질문이다).
+        "window_eligibility": window_eligibility,
         "disqualifications_all_time": [f"{d.at.isoformat()} {d.kind} {d.detail}" for d in disq],
         "divergence_labels": label_buckets,
         "darkness": _darkness_report(darkness),

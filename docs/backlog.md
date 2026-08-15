@@ -9111,5 +9111,47 @@ nullable → 인덱스) 켜면서 그때그때 정리하는 편이 안전하다.
 
 **Risk:** 🟡 (켜는 순간 기존 drift 가 드러난다 — 그것이 목적이지만 회차 예산을 먹는다)
 
-**상태:** ⬜ Open — 미착수. 검사 확장은 이 회차 범위 밖이라 한계를 코드 주석으로 못박고 등재만 했다 (2026-08-15 clock-fill-sweep)
+**Risk 재평가:** 🟢 — 타입 축은 켜 봤더니 **기존 drift 0건**이었다. 남은 축도 같은 방식으로 하나씩 열면 된다.
+
+**상태:** 🔶 Partial — **타입 축 1개만 켰다** (2026-08-15 ledger-thaw). `_normalize_postgresql_type`
+(VARCHAR↔String · TIMESTAMPTZ↔DateTime(tz) · NUMERIC(p,s) · JSON↔JSONB · named enum · UUID)로
+표현차를 흡수하고 `_TYPE_DRIFT_BASELINE` 은 **빈 채로** 착지했다 — 실측 drift 가 0건이라 동결할
+것이 없었다. 실제 경로 변이(`ExchangeExit.symbol` `String(32)→String(64)`)가 red 를 낸다.
+**남은 것: ⑴ nullable·default ⑵ CHECK 제약 ⑶ 인덱스·UNIQUE ⑷ 역방향(DB 에만 있는 컬럼).**
+★한 축씩 열어라 — 이유는 위 「권장 접근」 그대로다.
+
 **트리거 판정:** 도래 — [BL-741] 이 실제로 이 검사에 의존했고 그 보증 범위가 실측으로 좁혀졌다 (2026-08-15 clock-fill-sweep)
+
+---
+
+### BL-751
+
+**Title:** 실격 귀속 원장에 **호스트 축이 없다** — 게이트가 남의 호스트 사건을 「원장이 낡았다」로 오보한다
+**Category:** Ops / soak
+**Priority:** P3
+**Trigger:** 원장 호스트 대조가 필요해질 때 — 소크를 두 호스트에서 동시에 굴리거나, `stale_ledger_rows` 가 2건 이상으로 늘 때
+**Est:** S (스키마에 `host` 1필드 + 소급 기재 + 매칭 조건)
+**출처:** 2026-08-15 ledger-thaw (판독 preflight 에서 발견)
+
+**원인 / 영향:** `soak_gate_predicate.py:attribute_disqualifications` 는 원장 행을 `(at, kind)` 로
+매칭하고 **남은 행을 `stale_ledger_rows`** 로 낸다. 그런데 원장
+(`docs/reference/operations/soak-disqualifications.jsonl`)은 **서버 소크와 로컬 맥 소크의 사건을
+함께** 담고, 판독은 **한 호스트의 DB** 만 본다. ⇒ 다른 호스트 행은 구조적으로 매칭될 수 없고
+매 판독마다 남는다.
+
+★실측 — 2026-08-15 서버 판독이 찍던 1건은 `2026-08-14T12:26:37 auto_death`(세션 `e9c504f1`)이고,
+그 행의 evidence 자신이 「**로컬 맥 소크**(pin 4b11da26, 05:53:52Z 기동 → 6h33m 생존)」라고 적고
+있다. 서버 DB 에 있을 수 없는 세션이다. 원장은 낡지 않았다 — **여기서 볼 수 없을 뿐**이다.
+
+★이 오보는 조용히 해롭다: 매 판독이 「원장이 낡았다」고 말하면 다음 사람이 그 줄을 넘기게 되고,
+**진짜 stale 이 생겼을 때도 넘긴다**(늑대 소년). 2026-08-13 tick_stall 행의 evidence 가 이미 같은
+혼란을 기록해 뒀다 — 「맥 게이트 판독으로는 이 행 반영을 검증할 수 없다」.
+
+**권장 접근:** ⑴ 원장 행에 `host`(`server` | `local-mac`) 필드를 넣는다 — 기존 17행은 evidence
+본문에서 판정 가능하다 ⑵ 게이트는 **자기 호스트 행만** 매칭 대상으로 삼고, 다른 호스트 행은 셈에서
+제외한다 ⑶ `host` 미기재 행은 「알 수 없음」으로 두고 지금 문구(양자택일)를 유지한다.
+
+**Risk:** 🟢 (보고 전용 축 — C1~C5 판정에 참여하지 않는다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 ledger-thaw 에서 **문구만** 정정했다(「원장이 낡았다」 단정 → 「다른 호스트이거나 원장이 낡은 것이다」). 스키마 축은 미착수
+**트리거 판정:** 미도래 — 지금 `stale_ledger_rows` 는 1건이고 그 정체가 문서로 확정돼 있다. 호스트가 늘거나 건수가 늘 때 열어라 (2026-08-15 ledger-thaw)

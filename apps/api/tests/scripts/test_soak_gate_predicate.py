@@ -1529,6 +1529,210 @@ def test_darkness_that_is_not_a_dict_fails_c5_instead_of_passing_it(gate: Any) -
     assert verdict.verdict == "UNKNOWN"
 
 
+# ── [BL-003] 자격 판정 — 「지금 `up` 을 눌러도 되나」 ─────────────────────────
+#
+# 이 블록이 답하는 질문은 하나다: **지금 새 창을 열면 손실이 0인가.**
+#   `up` 은 진행 중인 귀속 구간을 닫는다. 자격(24h 연속 + 실격 0)을 얻기 **전에** 누르면
+#   그때까지 번 시간은 창 0회로 소멸하고, 얻은 **뒤에** 누르면 그 창은 1회로 확정돼 남는다.
+#   종전에는 이 계산이 사람 머릿속에만 있었고, 그래서 27.4h 짜리 창을 돌리고도 C1 이 0/3 인
+#   이유를 매 회차 손으로 다시 풀었다.
+# ★판독 전용이다 — 술어도 셸도 `up` 을 누르지 않는다.
+
+
+def _open_window_payload(hours: float, **overrides: Any) -> dict[str, Any]:
+    """「`up` 이 연 구간에서 세션 하나가 N시간째 무사고로 돌고 있다」 — 실측 창의 재현.
+
+    기준 시각은 2026-08-15 실측값 그대로다(창 시작 08-14T16:29:56Z). 문턱은 실제 게이트와
+    같은 24h 로 두어 「남은 시간」이 운영 화면과 같은 수를 내는지 본다.
+    """
+    start = datetime(2026, 8, 14, 16, 29, 56, 783807, tzinfo=UTC)
+    now = start + timedelta(hours=hours)
+    base: dict[str, Any] = {
+        "now": now.isoformat(),
+        "sessions": [
+            {
+                "id": "115b33ff-0000-4000-8000-000000000001",
+                "created_at": start.isoformat(),
+                "deactivated_at": None,
+                "deactivated_reason": None,
+                "last_evaluated_bar_time": (now - timedelta(minutes=2)).isoformat(),
+                "interval_seconds": 60,
+            }
+        ],
+        "pin_events": [{"event": "up", "sha": PIN_SHA, "at": start.isoformat()}],
+        "samples": [],
+        "phantom_observations": [],
+        "log_coverage": [{"from": start.isoformat(), "to": now.isoformat(), "classifier_ok": True}],
+        "darkness": {"undecidable": 0, "total": 10},
+        "db_ok": True,
+        "stack_pinned": True,
+        "aof_ok": True,
+        "thresholds": {"require_continuous_hours": 24.0, "require_windows": 3},
+    }
+    base.update(overrides)
+    return base
+
+
+def test_a_long_window_with_a_death_inside_earns_nothing(gate: Any) -> None:
+    """★27.4h 를 돌고도 자격이 0인 실측 사례를 못박는다.
+
+    2026-08-13 13:03 `up` → 08-14 16:28 `down` 은 **27.4시간**이었는데 C1 은 0/3 이었다.
+    그 창 안에서 세션이 죽었기 때문이다(08-14 04:51 auto_death position_divergence).
+    ⇒ **병목은 재기동 횟수가 아니라 창 안의 생존이다.** 자격 판정이 이 둘을 갈라야 한다.
+    """
+    start = datetime(2026, 8, 13, 13, 3, 24, tzinfo=UTC)
+    death = start + timedelta(hours=15.8)
+    now = start + timedelta(hours=27.4)
+    payload = _open_window_payload(
+        27.4,
+        now=now.isoformat(),
+        pin_events=[{"event": "up", "sha": PIN_SHA, "at": start.isoformat()}],
+        sessions=[
+            {
+                "id": "de3db35a-0000-4000-8000-000000000001",
+                "created_at": start.isoformat(),
+                "deactivated_at": death.isoformat(),
+                "deactivated_reason": "position_divergence",
+                "last_evaluated_bar_time": (death - timedelta(minutes=1)).isoformat(),
+                "interval_seconds": 60,
+            },
+            {
+                "id": "de3db35a-0000-4000-8000-000000000002",
+                "created_at": (death + timedelta(minutes=6)).isoformat(),
+                "deactivated_at": None,
+                "deactivated_reason": None,
+                "last_evaluated_bar_time": (now - timedelta(minutes=2)).isoformat(),
+                "interval_seconds": 60,
+            },
+        ],
+        log_coverage=[{"from": start.isoformat(), "to": now.isoformat(), "classifier_ok": True}],
+    )
+
+    verdict = gate.evaluate(payload)
+    elig = verdict.detail["window_eligibility"]
+
+    assert verdict.verdict == "FAIL", "열린 구간 안의 자동 사망은 실격이다"
+    assert elig["disqualified_in_window"] is True
+    assert elig["qualified"] is False, "27.4h 를 돌았어도 그 안에서 죽었으면 자격이 없다"
+    assert elig["longest_hours"] == pytest.approx(0.0), (
+        "실격이 T0 를 당기므로 그 전에 시작한 귀속 구간은 한 시간도 세지 않는다"
+    )
+
+
+def test_a_healthy_open_window_reports_what_is_left_and_what_is_at_risk(gate: Any) -> None:
+    """★음성 대조 — 정상적으로 도는 창은 「아직 자격 없음 + 남은 시간」이어야 한다.
+
+    이게 없으면 `qualified = False` 로 고정해도 위 테스트가 통과한다(판별력 0).
+    수치는 2026-08-15 07:02Z 실측 판독(C2 14.5507h)의 재현이다.
+    """
+    verdict = gate.evaluate(_open_window_payload(14.5507))
+    elig = verdict.detail["window_eligibility"]
+
+    assert elig["open"] is True
+    assert elig["disqualified_in_window"] is False
+    assert elig["qualified"] is False
+    assert elig["longest_hours"] == pytest.approx(14.5507, abs=1e-3)
+    assert elig["remaining_hours"] == pytest.approx(9.4493, abs=1e-3), (
+        "운영자가 보는 「남은 시간」이 곧 이 값이다"
+    )
+    # 지금 실격이 나면(또는 지금 `up` 을 누르면) 잃는 것 = 이 창에서 번 시간
+    assert elig["at_risk_hours"] == pytest.approx(14.5507, abs=1e-3)
+
+
+def test_a_window_past_24h_is_safe_to_reopen(gate: Any) -> None:
+    """자격을 얻은 뒤에 누르면 손실이 0이다 — 그 창은 1회로 확정돼 남는다."""
+    verdict = gate.evaluate(_open_window_payload(24.5))
+    elig = verdict.detail["window_eligibility"]
+
+    assert elig["open"] is True
+    assert elig["qualified"] is True
+    assert elig["remaining_hours"] == pytest.approx(0.0), (
+        "24h 연속 + 실격 0 이면 지금 새 창을 열어도 이 창은 자격 1회로 남는다"
+    )
+    assert verdict.conditions["C1_qualifying_windows"] == 1
+
+
+def test_a_past_qualifying_window_does_not_make_the_current_one_safe(gate: Any) -> None:
+    """★자격은 **지금 열린 구간**의 성질이다 — 과거에 채운 창이 대신 답해주지 않는다.
+
+    이 케이스가 없으면 「열린 구간 대신 전체 최장을 본다」는 변이가 초록으로 빠져나간다
+    (2026-08-15 실측 — 변이 대조가 이 구멍을 찾아냈다). 그 오답은 운영 사고로 직결된다:
+    과거에 25h 창을 채웠다는 이유로 「지금 눌러도 손실 0」을 찍으면, 운영자는 2시간짜리
+    창을 닫아버린다.
+    """
+    start = datetime(2026, 8, 14, 16, 29, 56, 783807, tzinfo=UTC)
+    closed_end = start + timedelta(hours=25)
+    reopen = start + timedelta(hours=26)
+    now = start + timedelta(hours=28)
+    verdict = gate.evaluate(
+        _open_window_payload(
+            28.0,
+            pin_events=[
+                {"event": "up", "sha": PIN_SHA, "at": start.isoformat()},
+                {"event": "down", "sha": PIN_SHA, "at": closed_end.isoformat()},
+                {"event": "up", "sha": PIN_SHA, "at": reopen.isoformat()},
+            ],
+            sessions=[
+                {
+                    "id": "115b33ff-0000-4000-8000-000000000001",
+                    "created_at": start.isoformat(),
+                    "deactivated_at": closed_end.isoformat(),
+                    "deactivated_reason": "user_stopped",  # 사람이 멈춘 것은 실격이 아니다
+                    "last_evaluated_bar_time": (closed_end - timedelta(minutes=1)).isoformat(),
+                    "interval_seconds": 60,
+                },
+                {
+                    "id": "115b33ff-0000-4000-8000-000000000002",
+                    "created_at": reopen.isoformat(),
+                    "deactivated_at": None,
+                    "deactivated_reason": None,
+                    "last_evaluated_bar_time": (now - timedelta(minutes=2)).isoformat(),
+                    "interval_seconds": 60,
+                },
+            ],
+            log_coverage=[
+                {"from": start.isoformat(), "to": now.isoformat(), "classifier_ok": True}
+            ],
+        )
+    )
+    elig = verdict.detail["window_eligibility"]
+
+    assert verdict.conditions["C1_qualifying_windows"] == 1, "과거 창은 자격 1회로 남아 있다"
+    assert elig["open"] is True
+    assert elig["longest_hours"] == pytest.approx(2.0, abs=1e-3), (
+        "지금 열린 구간은 2시간이다 — 과거 25h 창을 여기 더하면 안 된다"
+    )
+    assert elig["qualified"] is False, "과거에 채웠다고 지금 눌러도 되는 것이 아니다"
+    assert elig["remaining_hours"] == pytest.approx(22.0, abs=1e-3)
+    assert elig["at_risk_windows"] == 1, "지금 실격이 나면 그 확정된 1회까지 함께 날아간다"
+
+
+def test_eligibility_is_undecidable_without_an_open_interval(gate: Any) -> None:
+    """★열린 귀속 구간이 없으면 「자격 있음」이 아니라 **판정 불가**다 ([BL-748] 재발 방지).
+
+    빈 입력이 초록으로 새는 것이 이 레포가 다섯 번 밟은 함정이다. `up` 이 없으면
+    귀속 구간 자체가 없고, 그때 「손실 0이니 눌러도 된다」로 읽히면 정확히 fail-open 이다.
+    """
+    verdict = gate.evaluate(_open_window_payload(14.5507, pin_events=[]))
+    elig = verdict.detail["window_eligibility"]
+
+    assert elig["open"] is False
+    assert elig["qualified"] is False
+    assert elig["longest_hours"] == pytest.approx(0.0)
+
+
+def test_the_shell_renders_the_eligibility_block(gate: Any) -> None:
+    """셸이 그 블록을 실제로 찍는가 — 술어에만 있고 화면에 없으면 운영자에게는 없는 것이다.
+
+    [LESSON-092] §2 — 「새 필드」가 아니라 **그것을 쓰는 경로**를 잰다.
+    """
+    shell = Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh"
+    text = shell.read_text(encoding="utf-8")
+
+    assert "window_eligibility" in text, "셸이 자격 블록을 읽지 않는다"
+    assert "새 창을 열어도 되나" in text, "판독 화면에 자격 줄이 없다"
+
+
 def test_the_shell_and_the_predicate_agree_on_what_darkness_counts(gate: Any) -> None:
     """어둠 분자 집합이 **두 곳에 복제**돼 있다 — 갈리면 조용히 다른 것을 센다 ([BL-748]).
 

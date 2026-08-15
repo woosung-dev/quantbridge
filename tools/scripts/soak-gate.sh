@@ -816,11 +816,43 @@ if att:
     if att["unregistered"]:
         print("        원장 미등재 %d건 — undecided 로 센다 "
               "(docs/reference/operations/soak-disqualifications.jsonl)" % len(att["unregistered"]))
+    # ★「원장이 낡았다」로 단정하지 마라 ([BL-751], 2026-08-15). 이 판독은 **한 호스트의 DB**
+    #   만 보고, 원장은 서버·로컬 맥 두 소크의 사건을 함께 담는다. 실제로 2026-08-15 판독이
+    #   찍던 1건은 로컬 맥 세션(e9c504f1, 08-14T12:26 사망)이라 서버 DB 에 있을 수 없었다 —
+    #   낡은 것이 아니라 **여기서 볼 수 없는 것**이다. 매 판독마다 거짓을 말하면 다음 사람이
+    #   진짜 stale 을 만났을 때도 그 줄을 넘긴다.
     if att["stale_ledger_rows"]:
-        print("        ⚠ 원장에만 있고 실격 목록에 없는 행 %d건 — 원장이 낡았다: %s"
+        print("        ⚠ 원장에 있으나 이 판독의 실격 목록에 없는 행 %d건 — "
+              "다른 호스트의 소크이거나 원장이 낡은 것이다: %s"
               % (len(att["stale_ledger_rows"]), ", ".join(att["stale_ledger_rows"][:3])))
     if att["invalid_ledger_rows"]:
         print("        ⚠ 판독 불가 원장 행 %d건 — undecided 로 센다" % att["invalid_ledger_rows"])
+
+# ★자격 판정 — 「지금 `up` 을 눌러도 되나」를 사람 머릿속이 아니라 여기서 답한다 ([BL-003]).
+#   `up` 은 진행 중인 귀속 구간을 **닫는다**. 자격을 얻기 전에 누르면 그때까지 번 시간이
+#   창 0회로 소멸한다 — 27.4h 를 돌리고도 C1 이 0/3 이던 2026-08-13 창이 그 값이다.
+#   ★판독 전용이다. 이 스크립트는 `up` 을 누르지 않는다 — 여는 것은 사람의 명시적 행위로 남긴다.
+el = d.get("window_eligibility")
+if el:
+    print()
+    print("  ▶ 새 창을 열어도 되나 (판독 전용 — 누르는 것은 사람이다)")
+    if not el["open"]:
+        print("        ? 판정 불가 — 지금 열려 있는 귀속 구간이 없다.")
+        print("          `soak-stack.sh up` 이 구간을 열기 전에는 시간이 계상되지 않는다.")
+    elif el["disqualified_in_window"]:
+        print("        ✗ 자격 없음 — 이 창 안에서 실격이 났다. 누적은 이미 0 으로 리셋됐다.")
+        print("          지금 `up` 을 누르는 것이 곧 「인지했고 새 창을 연다」는 행위다.")
+    elif el["qualified"]:
+        print("        ✓ 자격 획득 — 연속 %.4fh ≥ %.0fh · 실격 0."
+              % (el["longest_hours"], el["required_hours"]))
+        print("          지금 `up` 을 눌러도 **손실 0** 이다 — 이 창은 자격 %d회로 확정돼 남는다."
+              % el["at_risk_windows"])
+    else:
+        print("        ✗ 아직 자격 없음 — 연속 %.4fh / %.0fh · 남은 %.4fh"
+              % (el["longest_hours"], el["required_hours"], el["remaining_hours"]))
+        print("          지금 `up` 을 누르면 이 %.4fh 는 창 0회로 소멸한다." % el["at_risk_hours"])
+        print("          지금 실격이 나면 잃는 것: 이 창 %.4fh + 확정된 자격 창 %d회"
+              % (el["at_risk_hours"], el["at_risk_windows"]))
 PY
 rm -f "${RESULT_FILE}"
 printf '\n종료 코드 %s  (0=PASS 만 · 1=FAIL · 2=UNKNOWN)\n' "${RC}"
