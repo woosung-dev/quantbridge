@@ -1,4 +1,4 @@
-// SplitScreenShell (C 이식) — 자체 헤더/2분할/푸터 + 좌 BrandPanel + 우 form-col(모드 제목) + Clerk children.
+// SplitScreenShell (C 이식) — 자체 헤더/2분할/푸터 + 좌 BrandPanel + 우 form-col(모드 제목) + 폼 children.
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
@@ -9,18 +9,18 @@ describe("SplitScreenShell", () => {
     cleanup();
   });
 
-  it("자체 헤더 로고 → / + 좌 BrandPanel + 우 form-col + children 이 auth-clerk 안", () => {
+  it("자체 헤더 로고 → / + 좌 BrandPanel + 우 form-col + children 이 auth-form-slot 안", () => {
     const { container } = render(
       <SplitScreenShell mode="sign-in">
-        <div data-testid="form-child">Clerk form</div>
+        <div data-testid="form-child">form</div>
       </SplitScreenShell>,
     );
     expect(container.querySelector(".auth-top .auth-logo")).not.toBeNull();
     // 좌 패널
     expect(container.querySelector(".auth-brand")).not.toBeNull();
-    // children 이 .auth-clerk 카드 안에 렌더
+    // children 이 .auth-form-slot 카드 안에 렌더
     const child = screen.getByTestId("form-child");
-    expect(child.closest(".auth-clerk")).not.toBeNull();
+    expect(child.closest(".auth-form-slot")).not.toBeNull();
   });
 
   it("sign-in 모드 — form-col 제목 로그인", () => {
@@ -45,13 +45,13 @@ describe("SplitScreenShell", () => {
     ).toBeInTheDocument();
   });
 
-  it("자체 푸터 노출 (Clerk 처리 명시)", () => {
+  it("자체 푸터 노출 (계정 관리 주체 명시)", () => {
     const { container } = render(
       <SplitScreenShell mode="sign-in">
         <div>x</div>
       </SplitScreenShell>,
     );
     const foot = container.querySelector("footer.auth-foot");
-    expect(foot?.textContent).toContain("인증은 Clerk 가 처리합니다");
+    expect(foot?.textContent).toContain("계정은 QuantBridge 가 직접 관리합니다");
   });
 });

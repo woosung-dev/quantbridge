@@ -3842,8 +3842,8 @@ table.cmp tbody td.row-label { color: var(--ink-2); white-space: normal; }
 }
 
 /* ==========================================================================
- * screen-15 → (auth)/sign-in · sign-up. Clerk 내부 DOM 밖 좌 브랜드 패널 + 자체 헤더/푸터.
- *   Clerk 위젯 자체는 clerk appearance elements 로 정렬(파일: (auth)/sign-in|up page.tsx).
+ * screen-15 → (auth)/sign-in · sign-up. 좌 브랜드 패널 + 자체 헤더/푸터 + 우 폼 슬롯.
+ *   폼 자체는 자체 컴포넌트다(파일: (auth)/_components/auth-form.tsx).
  *   §3-5 .auth-alert 계열은 .form-alert 계열로 개명.
  * ========================================================================== */
 .auth-shell { min-height: 100vh; display: flex; flex-direction: column; }
@@ -3929,8 +3929,10 @@ table.cmp tbody td.row-label { color: var(--ink-2); white-space: normal; }
 .auth-form-head { margin-bottom: 14px; }
 .auth-card .card-body { padding: 22px; }
 
-/* Clerk 위젯을 감싸는 카드 — 폼 렌더 영역 */
-.auth-clerk { min-height: 220px; }
+/* 인증 폼이 들어가는 슬롯 — 폼 렌더 영역 */
+.auth-form-slot { min-height: 220px; }
+/* 자체 로그인/가입 폼(ADR-034) — 카드는 슬롯이 이미 씌우므로 여기서는 세로 간격만 준다. */
+.auth-form-body { display: flex; flex-direction: column; gap: 16px; }
 
 .auth-foot {
   width: 100%;

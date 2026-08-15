@@ -11,10 +11,10 @@ import { expect, test } from "@playwright/test";
 // 자동화 — frontend hooks diff PR 은 .github/workflows/live-smoke.yml 으로 본 spec 실행.
 //
 // 본 spec 의 핵심 가설:
-//  1. Public pages (Clerk 미의존) 만 검증 — auth 페이지는 storageState 의존
+//  1. Public pages (인증 미의존) 만 검증 — 로그인 뒤 화면은 storageState 의존
 //  2. console.error / pageerror 가 0건이어야 PASS
 //  3. backend 가 없으므로 React Query 의 fetch fail (404/network/Failed to fetch) 은
-//     expected. Clerk dev key 경고도 expected
+//     expected. 개발 모드 경고도 expected
 //  4. 진짜로 잡고 싶은 것: lightweight-charts mount 시 unhandled exception throw
 //     같은 chart/widget 라이브러리 SSR/CSR boundary unhandled error
 //
@@ -23,16 +23,16 @@ import { expect, test } from "@playwright/test";
 
 const PUBLIC_PAGES: ReadonlyArray<{ path: string; label: string }> = [
   { path: "/", label: "landing" },
-  // W3-G — /pricing 은 Clerk 미의존 정적 마케팅 표면이라 public smoke 대상.
+  // W3-G — /pricing 은 인증 미의존 정적 마케팅 표면이라 public smoke 대상.
   { path: "/pricing", label: "pricing" },
   { path: "/disclaimer", label: "disclaimer" },
   { path: "/terms", label: "terms" },
   { path: "/privacy", label: "privacy" },
 ];
 
-// 무시할 expected error 패턴 — backend down / Clerk dev mode / network noise.
+// 무시할 expected error 패턴 — backend down / 개발 모드 / network noise.
 // 1) 'Failed to fetch' / network / 404 / 500 — backend 부재로 인한 React Query 실패
-// 2) Clerk dev key 경고 — 'development keys' / 'Clerk has been loaded with'
+// 2) 개발 모드 경고 — 'development keys' 류
 // 3) HMR / Fast Refresh 부수 메시지
 const EXPECTED_ERROR_PATTERNS: ReadonlyArray<RegExp> = [
   /failed to fetch/i,
@@ -43,7 +43,6 @@ const EXPECTED_ERROR_PATTERNS: ReadonlyArray<RegExp> = [
   /net::err_/i,
   /\b40[0-9]\b/, // 4xx HTTP
   /\b50[0-9]\b/, // 5xx HTTP
-  /clerk has been loaded/i,
   /development keys/i,
   /\[fast refresh\]/i,
 ];
@@ -72,7 +71,7 @@ test("public pages render without unexpected console errors (BL-157)", async ({ 
     // wait load + 1s settle — late-mount chart/widget 라이브러리 잡기 위함
     await page.goto(path, { waitUntil: "load" });
     await page.waitForTimeout(1_000);
-    // 페이지 자체가 navigation 안 한 것 확인 (Clerk redirect 같은 case 검출)
+    // 페이지 자체가 navigation 안 한 것 확인 (인증 redirect 같은 case 검출)
     expect(page.url(), `${label} navigation 확인`).toMatch(
       new RegExp(`${path === "/" ? "/" : path}(\\?|$|/)`),
     );

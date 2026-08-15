@@ -11,13 +11,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { OptimizerRunList } from "@/app/(dashboard)/optimizer/_components/optimizer-run-list";
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({
-    userId: "test-user",
-    getToken: async () => "fake-token",
-  }),
-}));
-
 // React Query hook mock — useOptimizationRuns 가 error / data 시뮬레이션.
 vi.mock("@/features/optimizer/hooks", () => ({
   useOptimizationRuns: vi.fn(),

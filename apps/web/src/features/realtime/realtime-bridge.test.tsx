@@ -9,12 +9,6 @@ import { liveSessionKeys } from "@/features/live-sessions/query-keys";
 import { tradingKeys } from "@/features/trading/query-keys";
 import type { RealtimeClient, RealtimeWsClientOptions } from "@/lib/ws-client";
 
-const getToken = vi.fn().mockResolvedValue("token");
-
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "user-1", isSignedIn: true, getToken }),
-}));
-
 import { RealtimeBridge, realtimeWsUrl } from "./realtime-bridge";
 
 afterEach(() => {

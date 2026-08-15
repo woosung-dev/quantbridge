@@ -9,10 +9,6 @@ vi.mock("../hooks", () => ({
   }),
 }));
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "u1", getToken: async () => "tok" }),
-}));
-
 describe("RegisterExchangeAccountDialog", () => {
   it("renders trigger button", () => {
     render(<RegisterExchangeAccountDialog />);

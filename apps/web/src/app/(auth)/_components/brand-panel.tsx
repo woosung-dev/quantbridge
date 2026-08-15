@@ -81,7 +81,7 @@ export function BrandPanel() {
           <line x1="12" y1="11" x2="12" y2="16.5" />
           <circle cx="12" cy="7.8" r="0.6" fill="currentColor" />
         </svg>
-        실제 계정 인증은 Clerk 가 처리합니다. 이메일과 비밀번호, 또는 소셜
+        계정은 QuantBridge 가 직접 관리합니다. 이메일과 비밀번호, 또는 소셜
         계정으로 워크스페이스에 들어갑니다.
       </p>
     </section>

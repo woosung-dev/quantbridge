@@ -6,10 +6,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveSession, LiveSignalState } from "../../schemas";
 import { LiveSessionList } from "../live-session-list";
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "test-user", getToken: async () => "test-token" }),
-}));
-
 const stateMock = vi.fn();
 const listMock = vi.fn();
 vi.mock("../../api", () => ({

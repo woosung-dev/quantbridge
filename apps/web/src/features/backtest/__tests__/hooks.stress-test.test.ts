@@ -6,6 +6,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { authMockState } from "@/lib/__mocks__/auth-client";
+
+// 이 파일의 단언이 이 uid 로 만든 queryKey 를 본다 — 전역 인증 mock 기본값(`user-1`)과
+// 다르므로 여기서 명시한다(ADR-034).
+authMockState.userId = "user_1";
+
 import type { Query } from "@tanstack/react-query";
 
 import type * as ApiModule from "../api";
@@ -18,10 +25,6 @@ import type {
   StressTestDetail,
   StressTestListResponse,
 } from "../schemas";
-
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "user_1", getToken: async () => "test-token" }),
-}));
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof ApiModule>();

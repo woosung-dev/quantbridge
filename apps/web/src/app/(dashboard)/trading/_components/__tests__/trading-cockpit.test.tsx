@@ -15,9 +15,6 @@ const invalidateQueriesMock = vi.fn();
 vi.mock("@tanstack/react-query", () => ({
   useQueryClient: () => ({ invalidateQueries: invalidateQueriesMock }),
 }));
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "user-1", isSignedIn: true, getToken: async () => "t" }),
-}));
 // BL-551 — 세션 선택이 useState 가 아니라 `?session=<id>` 다. 선례는 같은 레포의
 // `backtest-list.tsx` 의 `pushStatus`/`pushSort`(URLSearchParams 복사 → set → router.replace).
 //

@@ -10,10 +10,8 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 let mockPathname = "/strategies";
 vi.mock("next/navigation", () => ({
   usePathname: () => mockPathname,
-}));
-
-vi.mock("@clerk/nextjs", () => ({
-  UserButton: () => <div data-testid="user-button" />,
+  // AccountButton(구 Clerk UserButton 자리)이 로그아웃 후 이동에 useRouter 를 쓴다 — ADR-034.
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }),
 }));
 
 // tier-c: 셸이 RealtimeBridge 를 mount — 셸 단위 테스트는 브리지를 null 로 치환

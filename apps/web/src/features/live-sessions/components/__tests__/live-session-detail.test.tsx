@@ -91,13 +91,6 @@ class MockResizeObserver {
 
 // --- Clerk + API mocks ---------------------------------------------------
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({
-    userId: "test-user",
-    getToken: async () => "test-token",
-  }),
-}));
-
 // hooks 의 api 호출을 직접 mock — useLiveSessionState / useLiveSessionEvents 가
 // 호출하는 api.ts 모듈 함수들을 가짜 응답으로 교체.
 const stateMock = vi.fn();

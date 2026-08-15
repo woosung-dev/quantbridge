@@ -1,6 +1,6 @@
 // Sprint 25 — storageState 부재 / 만료 감지 helper.
 //
-// global.setup.ts 가 매 e2e:authed 실행 시 storageState 새로 발급 (clerk.signIn()).
+// global.setup.ts 가 매 e2e:authed 실행 시 storageState 새로 발급 (로그인 폼 제출).
 // 만료 자체는 setup 단계에서 protected route 검증으로 catch.
 // 본 helper 는 spec 파일이 직접 storageState 존재만 확인할 때 사용 (선택).
 //
@@ -20,9 +20,8 @@ export function expectStorageStateReady(): void {
       [
         "",
         "[e2e:authed] storageState.json missing.",
-        "  Regenerate: pnpm e2e:authed (global.setup.ts auto-issues via clerk.signIn())",
-        "  Prereq: apps/web/.env.local must contain CLERK_PUBLISHABLE_KEY,",
-        "          CLERK_SECRET_KEY, E2E_CLERK_USER_EMAIL, E2E_CLERK_USER_PASSWORD.",
+        "  Regenerate: pnpm e2e:authed (global.setup.ts 가 /sign-in 폼으로 재발급한다)",
+        "  Prereq: apps/web/.env.local must contain E2E_AUTH_EMAIL, E2E_AUTH_PASSWORD.",
         "",
       ].join("\n"),
     );

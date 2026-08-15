@@ -1,55 +1,67 @@
-// Sprint 25 — Clerk Testing 공식 setup (codex G.0 iter 2 P1 #1+#2+#3 반영).
+// authed e2e 의 로그인 하네스 — 실제 `/sign-in` 폼을 채워 storageState 를 만든다(ADR-034).
 //
-// `clerkSetup()` 단독으로는 인증되지 않음. Testing Token 은 bot detection bypass 만,
-// user login 별도 호출 필요 → `clerk.signIn()` 으로 자동화.
+// ★★2026-08-17 반증 — 종전 이 파일의 `clerkSetup()` 이 **e2e 의 유일한 `.env.local` 로더**였다.
+//   `playwright.config.ts` 에는 dotenv 가 없다(2026-08-14 [BL-707] 이 같은 사실을 다른 증상으로
+//   밟았다). Clerk 를 걷어내면 env 로딩이 **조용히** 사라지므로 여기서 명시적으로 읽는다.
 //
-// Required env (apps/web/.env.local 채워야 함):
-//   CLERK_PUBLISHABLE_KEY    (test runner 용 — NEXT_PUBLIC_ prefix 와 별도)
-//   CLERK_SECRET_KEY         (Testing Token 발급)
-//   E2E_CLERK_USER_EMAIL     (Clerk Dashboard 에서 dev 계정 1개)
-//   E2E_CLERK_USER_PASSWORD
+// Required env (apps/web/.env.local):
+//   E2E_AUTH_EMAIL / E2E_AUTH_PASSWORD  — 로컬 개발 DB 의 e2e 전용 계정
 //
-// 매 e2e:authed 실행 시 storageState 새로 발급 → 만료 자동 처리.
-// Protected route 검증 (pathname + UI text 둘 다) — query param 우회 차단.
+// 매 실행마다 storageState 를 새로 발급 → 세션 만료를 자동 처리한다.
 
-import { clerk, clerkSetup } from "@clerk/testing/playwright";
+import { existsSync } from "node:fs";
+import path from "node:path";
+
 import { expect, test as setup } from "@playwright/test";
 
 import { getBaseURL } from "./_base-url";
 
-const REQUIRED_ENV = [
-  "CLERK_PUBLISHABLE_KEY",
-  "CLERK_SECRET_KEY",
-  "E2E_CLERK_USER_EMAIL",
-  "E2E_CLERK_USER_PASSWORD",
-] as const;
-
+const REQUIRED_ENV = ["E2E_AUTH_EMAIL", "E2E_AUTH_PASSWORD"] as const;
 const STORAGE_PATH = "e2e/.auth/storageState.json";
 
-setup("authenticate", async ({ page }) => {
+/** `.env.local` → `.env` 순으로 읽어 **아직 없는 키만** 채운다(실제 셸 env 가 우선). */
+function loadEnvFiles(): void {
+  for (const name of [".env.local", ".env"]) {
+    const file = path.resolve(process.cwd(), name);
+    if (!existsSync(file)) continue;
+    // Node 20+ 내장 로더. dotenv 의존성을 새로 들이지 않는다.
+    process.loadEnvFile?.(file);
+  }
+}
+
+setup("authenticate", async ({ page, request }) => {
   // Sprint 46 W3: pre-warm 4 paths × Next.js cold JIT compile (5-30s each) →
-  // 합산 1-2 분 소요. default 30s test timeout 으론 부족. 180s 로 확장.
+  // 합산 1-2 분 소요. default 30s test timeout 으론 부족.
   setup.setTimeout(240_000);
 
-  // Sprint 25 codex G.2 P1 #1 fix — clerkSetup() 이 .env.local 을 로드하므로 env 검증을
-  // 그 호출 후 실시. 호출 전 검증 시 dotenv 로딩 전 fail 하여 .env.local 사용자 깨짐.
-  // Clerk Testing Token 발급 (CLERK_PUBLISHABLE_KEY + CLERK_SECRET_KEY 사용)
-  await clerkSetup();
-
-  // Env 검증 — fail loud (사용자가 .env.local 채울 안내)
+  loadEnvFiles();
   for (const key of REQUIRED_ENV) {
     if (!process.env[key]) {
       throw new Error(
-        `[e2e setup] ${key} 미설정. apps/web/.env.local 채울 것 (.env.example Sprint 25 섹션 참조).`,
+        `[e2e setup] ${key} 미설정. apps/web/.env.local 을 채워라 (.env.example 의 e2e 절 참조).`,
       );
     }
   }
-
+  const email = process.env.E2E_AUTH_EMAIL!;
+  const password = process.env.E2E_AUTH_PASSWORD!;
   const baseUrl = getBaseURL();
-  const signInUrl = new URL("/sign-in", baseUrl).toString();
 
-  // 1) sign-in 페이지 방문 → 2) Testing Token 자동 첨부 → 3) clerk.signIn()
-  // Sprint 46 W3: Next.js 16 dev cold compile 으로 첫 sign-in load 가 느릴 수 있어 timeout 120s.
+  // 0) 계정 부트스트랩 — 없으면 만든다. 이미 있으면 서버가 거부하고 그대로 진행한다.
+  //    ★로컬 개발 DB 전용 편의다. 상태를 지우지 않으므로 재실행에 안전하다.
+  const signUp = await request.post(`${baseUrl}/api/auth/sign-up/email`, {
+    data: { name: "E2E", email, password },
+    failOnStatusCode: false,
+  });
+  if (!signUp.ok() && signUp.status() !== 422 && signUp.status() !== 400) {
+    // 409/422 계열(이미 존재)만 정상 통과시킨다. 그 밖의 실패는 조용히 넘기지 않는다.
+    const body = await signUp.text();
+    throw new Error(
+      `[e2e setup] 계정 부트스트랩이 예상 밖 status 로 실패했다: ${signUp.status()} ${body.slice(0, 200)}`,
+    );
+  }
+
+  // 1) sign-in 페이지 방문 — 포트에 다른 앱이 떠 있는 경우를 여기서 잡는다([BL-707]).
+  const signInUrl = new URL("/sign-in", baseUrl).toString();
   const signInResponse = await page.goto(signInUrl, { timeout: 120_000 });
   const signInStatus = signInResponse?.status() ?? "응답 없음";
   if (signInStatus !== 200) {
@@ -65,18 +77,14 @@ setup("authenticate", async ({ page }) => {
     );
   }
 
-  await clerk.signIn({
-    page,
-    signInParams: {
-      strategy: "password",
-      identifier: process.env.E2E_CLERK_USER_EMAIL!,
-      password: process.env.E2E_CLERK_USER_PASSWORD!,
-    },
-  });
+  // 2) 실제 로그인 폼을 채운다 — 프로그래매틱 API 가 아니라 **화면**을 지난다.
+  //    ★이것이 Clerk 시절보다 나아진 점이다: 로그인 화면이 깨지면 이 setup 이 먼저 죽는다.
+  await page.getByLabel("이메일 주소").fill(email);
+  await page.getByLabel("비밀번호").fill(password);
+  await page.getByRole("button", { name: "로그인" }).click();
 
-  // 4) Protected route 검증 — pathname + UI text 둘 다 (codex iter 2 P1 #3)
+  // 3) Protected route 검증 — pathname + UI text 둘 다 (codex iter 2 P1 #3)
   // 단순 waitForURL(/strategies/) 은 query param 에 strategies 포함된 unauth redirect 통과.
-  // Next.js 16 dev server 첫 page render 가 JIT 컴파일로 5-30초 → timeout 60s
   await page.goto(`${baseUrl}/strategies`, { timeout: 60_000 });
   await expect(page).toHaveURL(({ pathname }) => pathname === "/strategies", {
     timeout: 30_000,
@@ -86,9 +94,8 @@ setup("authenticate", async ({ page }) => {
     timeout: 30_000,
   });
 
-  // 5) Pre-warm — chromium-authed 프로젝트의 첫 spec 이 dev server JIT compile 안 만나도록
+  // 4) Pre-warm — chromium-authed 프로젝트의 첫 spec 이 dev server JIT compile 안 만나도록
   // 모든 protected page 미리 방문해서 컴파일 cache 채움. 각 페이지 첫 컴파일 5-30초.
-  // pre-warm 후 후속 spec 의 page.goto 는 cache hit → 즉시 렌더.
   const preWarmPaths = ["/trading", "/backtests/new", "/strategies/new"];
   for (const path of preWarmPaths) {
     await page.goto(`${baseUrl}${path}`, { timeout: 60_000 });
@@ -96,6 +103,6 @@ setup("authenticate", async ({ page }) => {
     await page.waitForLoadState("networkidle", { timeout: 60_000 });
   }
 
-  // 6) storageState 저장 — chromium-authed project 가 dependency 로 활용
+  // 5) storageState 저장 — chromium-authed project 가 dependency 로 활용
   await page.context().storageState({ path: STORAGE_PATH });
 });

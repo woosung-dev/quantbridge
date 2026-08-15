@@ -1,6 +1,6 @@
 // 인증 라우트 그룹 (auth) 셸 — C 디자인 언어. screen-15-login.html 이식.
-// 자체 헤더(.auth-top) + 좌우 2분할(.auth-split: 좌 BrandPanel · 우 Clerk 폼) + 푸터(.auth-foot).
-// Clerk 내부 DOM 은 재구성하지 않고 폼 카드 안에 그대로 렌더한다(appearance elements 로 정렬).
+// 자체 헤더(.auth-top) + 좌우 2분할(.auth-split: 좌 BrandPanel · 우 인증 폼) + 푸터(.auth-foot).
+// 폼은 `auth-form.tsx` 가 그리고 이 셸은 카드만 준다 — 2026-08-17 ADR-034 로 외부 위젯이 사라졌다.
 
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -80,7 +80,7 @@ export function SplitScreenShell({
 
             <div className="card auth-card">
               <div className="card-body">
-                <div className="auth-clerk">{children}</div>
+                <div className="auth-form-slot">{children}</div>
               </div>
             </div>
           </section>
@@ -88,7 +88,7 @@ export function SplitScreenShell({
       </main>
 
       <footer className="foot auth-foot">
-        <span>QuantBridge · {copy.title} · 인증은 Clerk 가 처리합니다.</span>
+        <span>QuantBridge · {copy.title} · 계정은 QuantBridge 가 직접 관리합니다.</span>
         <span>백테스트와 실제 주문이 같은 코드 경로를 씁니다.</span>
       </footer>
     </div>

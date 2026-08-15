@@ -1,6 +1,6 @@
 // 공개 스위트가 `global.setup.ts` 를 타지 않아 정체성 프로브가 없었다.
 // `reuseExistingServer` 와 겹치면 남의 앱을 감사하고 초록이 날 수 있다.
-// 공개 앱의 응답과 title만 확인하며 Clerk와 환경 변수는 건드리지 않는다.
+// 공개 앱의 응답과 title만 확인하며 인증과 환경 변수는 건드리지 않는다.
 
 import { test as setup } from "@playwright/test";
 

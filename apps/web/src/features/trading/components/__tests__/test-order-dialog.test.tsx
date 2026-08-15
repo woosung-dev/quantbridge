@@ -95,9 +95,6 @@ vi.mock("sonner", () => ({
 }));
 
 // ── Clerk mock (불필요하지만 strategy hooks import 시 안전) ──
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "u1", getToken: async () => "test-token" }),
-}));
 
 // ── Select 컴포넌트를 native <select> 로 mock — base-ui 의 비결정적 popup 회피 ──
 vi.mock("@/components/ui/select", () => {

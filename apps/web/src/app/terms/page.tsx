@@ -48,7 +48,7 @@ export default function TermsPage() {
       <section className="space-y-3">
         <h2 className={headingClass}>3. Account Security / 계정 보안</h2>
         <p>
-          사용자는 거래소 API Key, Clerk 계정 비밀번호, MFA 토큰의 기밀성을 유지할 책임이
+          사용자는 거래소 API Key, QuantBridge 계정 비밀번호, MFA 토큰의 기밀성을 유지할 책임이
           있습니다. 서비스는 API Key 를 AES-256 으로 암호화하여 저장하되, 사용자의 부주의로
           인한 유출·도용에 대한 책임을 지지 않습니다.
         </p>

@@ -13,10 +13,6 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "user-1", getToken: async () => "test-token" }),
-}));
-
 const mockUseBacktests = vi.fn();
 const mockUseStrategies = vi.fn();
 vi.mock("@/features/backtest/hooks", () => ({

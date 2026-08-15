@@ -1,6 +1,6 @@
 // Sprint 46 Tier 3 e2e — unload/KS/a11y/mobile/shortcut/pagination/4탭 navigation
 //
-// 7 신규 시나리오 (#10 ~ #16). chromium-authed project — Clerk storageState 필요.
+// 7 신규 시나리오 (#10 ~ #16). chromium-authed project — storageState 필요.
 // baseline 24 + Tier 3 7 = 31 testcases PASS 의무.
 // (원래 #16 Dark mode = LESSON-054 deferred → 4탭 navigation 으로 대체)
 

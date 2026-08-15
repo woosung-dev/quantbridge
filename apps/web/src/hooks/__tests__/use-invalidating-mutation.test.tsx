@@ -3,20 +3,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
 
 import { ANON_USER_ID, useAuthCtx } from "../use-auth-ctx";
 import { useInvalidatingMutation } from "../use-invalidating-mutation";
 
-const authState: { userId: string | null } = { userId: "user_1" };
+// 전역 인증 mock(`src/lib/__mocks__/auth-client.ts`)의 상태를 이 파일이 직접 몬다 —
+// 종전에는 같은 목적의 `vi.mock("@clerk/nextjs")` 이 파일마다 있었다(ADR-034).
+const authState = authMockState;
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({
-    userId: authState.userId,
-    isSignedIn: authState.userId !== null,
-    getToken: async () => "jwt-token",
-  }),
-}));
+afterEach(resetAuthMock);
 
 function makeWrapper(qc: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -109,8 +107,8 @@ describe("useInvalidatingMutation", () => {
     result.current.mutate({ id: "abc" });
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
-    expect(mutationFn).toHaveBeenCalledWith({ id: "abc" }, "jwt-token");
-    expect(onSuccess).toHaveBeenCalledWith({ echoed: "abc", token: "jwt-token" });
+    expect(mutationFn).toHaveBeenCalledWith({ id: "abc" }, "test-token");
+    expect(onSuccess).toHaveBeenCalledWith({ echoed: "abc", token: "test-token" });
     expect(removeSpy).toHaveBeenCalledTimes(1);
     expect(invalidateSpy).toHaveBeenCalledTimes(2);
     // remove 가 invalidate 보다 먼저.

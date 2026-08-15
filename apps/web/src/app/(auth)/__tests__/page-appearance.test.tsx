@@ -1,68 +1,56 @@
-// Clerk SignIn/SignUp 에 전달되는 C 디자인 언어 appearance prop 검증 (공유 clerk-appearance.ts).
+// 로그인/가입 화면이 **우리 DOM** 으로 C 디자인 캐논을 지키는지 검증한다(ADR-034).
+// ★종전 이 파일은 Clerk 위젯에 넘기는 `appearance` prop 을 단언했다 — 즉 **우리가 만든 문자열을
+//   우리가 다시 읽는** 시험이었고, 위젯 내부가 그 클래스를 실제로 쓰는지는 보지 못했다.
+//   폼이 우리 것이 된 지금은 렌더 결과를 직접 볼 수 있으므로 그쪽을 단언한다.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 
-const captured = vi.hoisted(() => ({
-  signInProps: null as Record<string, unknown> | null,
-  signUpProps: null as Record<string, unknown> | null,
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn(), push: vi.fn() }),
 }));
 
-vi.mock("@clerk/nextjs", () => ({
-  SignIn: (props: Record<string, unknown>) => {
-    captured.signInProps = props;
-    return <div data-testid="clerk-sign-in" />;
-  },
-  SignUp: (props: Record<string, unknown>) => {
-    captured.signUpProps = props;
-    return <div data-testid="clerk-sign-up" />;
-  },
+vi.mock("@/lib/auth-client", () => ({
+  signIn: { email: vi.fn() },
+  signUp: { email: vi.fn() },
+  clearAuthTokenCache: vi.fn(),
 }));
 
 import SignInPage from "../sign-in/[[...sign-in]]/page";
 import SignUpPage from "../sign-up/[[...sign-up]]/page";
 
-interface AppearanceShape {
-  elements?: Record<string, string>;
-  variables?: Record<string, string>;
-}
+describe("(auth) 로그인/가입 화면", () => {
+  afterEach(cleanup);
 
-describe("(auth) Clerk appearance prop (C 디자인 언어)", () => {
-  afterEach(() => {
-    cleanup();
-    captured.signInProps = null;
-    captured.signUpProps = null;
+  it("로그인 — 이메일·비밀번호 필드와 제출 버튼이 캐논 클래스로 렌더된다", async () => {
+    render(await SignInPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByLabelText("이메일 주소")).toHaveClass("input");
+    expect(screen.getByLabelText("비밀번호")).toHaveAttribute("type", "password");
+    const submit = screen.getByRole("button", { name: "로그인" });
+    expect(submit).toHaveClass("btn", "btn-primary");
+    // 로그인 화면에는 이름 필드가 없다.
+    expect(screen.queryByLabelText("이름")).toBeNull();
   });
 
-  it("SignIn — formButtonPrimary 코퍼 + var(--r) 반경 + 자체 focus ring 없음", () => {
-    render(<SignInPage />);
-    const appearance = captured.signInProps?.appearance as
-      | AppearanceShape
-      | undefined;
-    expect(appearance?.elements?.formButtonPrimary).toContain("var(--copper)");
-    expect(appearance?.elements?.formButtonPrimary).toContain(
-      "rounded-[var(--r)]",
-    );
-    // 전역 카퍼 :focus-visible 소비 — 자체 ring 금지
-    expect(appearance?.elements?.formFieldInput).not.toContain("focus:ring");
-  });
-
-  it("SignIn — colorPrimary 페이지 재정의 금지(브릿지 SSOT) + Clerk 헤더 숨김", () => {
-    render(<SignInPage />);
-    const appearance = captured.signInProps?.appearance as
-      | AppearanceShape
-      | undefined;
-    expect(appearance?.variables).not.toHaveProperty("colorPrimary");
-    expect(appearance?.elements?.header).toContain("hidden");
-  });
-
-  it("SignUp — formFieldInput 이 C 라인/카드 토큰 + var(--r) 반경", () => {
+  it("가입 — 이름 필드가 추가되고 비밀번호 autoComplete 가 new-password 다", () => {
     render(<SignUpPage />);
-    const appearance = captured.signUpProps?.appearance as
-      | AppearanceShape
-      | undefined;
-    expect(appearance?.elements?.formFieldInput).toContain("var(--line)");
-    expect(appearance?.elements?.formFieldInput).toContain(
-      "rounded-[var(--r)]",
-    );
+
+    expect(screen.getByLabelText("이름")).toBeInTheDocument();
+    expect(screen.getByLabelText("비밀번호")).toHaveAttribute("autocomplete", "new-password");
+    expect(screen.getByRole("button", { name: "계정 만들기" })).toBeInTheDocument();
+  });
+
+  it("로그인 — redirect_url 은 앱 내부 경로만 통과한다(열린 리다이렉트 차단)", async () => {
+    // 외부 절대 URL 과 프로토콜 상대 URL 둘 다 기본값으로 떨어져야 한다.
+    for (const evil of ["https://evil.example/x", "//evil.example/x"]) {
+      const el = await SignInPage({ searchParams: Promise.resolve({ redirect_url: evil }) });
+      const props = (el as unknown as { props: { children: { props: { redirectTo: string } } } })
+        .props.children.props;
+      expect(props.redirectTo).toBe("/strategies");
+    }
+    const ok = await SignInPage({ searchParams: Promise.resolve({ redirect_url: "/trading" }) });
+    const okProps = (ok as unknown as { props: { children: { props: { redirectTo: string } } } })
+      .props.children.props;
+    expect(okProps.redirectTo).toBe("/trading");
   });
 });

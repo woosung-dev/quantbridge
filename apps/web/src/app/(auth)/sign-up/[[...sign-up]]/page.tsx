@@ -1,14 +1,13 @@
-// Clerk 회원가입 페이지 — C 디자인 언어 셸 + 공유 appearance(clerk-appearance.ts).
-// colorPrimary 는 clerk-theme-bridge.tsx 가 테마별 코퍼로 주입 — 여기서 하드코딩 금지.
-import { SignUp } from "@clerk/nextjs";
-
-import { CLERK_C_APPEARANCE } from "../../_components/clerk-appearance";
+// 회원가입 페이지 — C 디자인 언어 셸 + 자체 폼(ADR-034, 구 Clerk `<SignUp/>` 대체).
+// 제한 국가 차단은 이 화면이 아니라 `lib/auth.ts` 의 create 훅(L3)이 한다 — 클라이언트에서
+// 막으면 우회되고, 그 차단은 서버가 헤더를 보는 자리에서만 참이다.
+import { AuthForm } from "../../_components/auth-form";
 import { SplitScreenShell } from "../../_components/split-screen-shell";
 
 export default function SignUpPage() {
   return (
     <SplitScreenShell mode="sign-up">
-      <SignUp appearance={CLERK_C_APPEARANCE} />
+      <AuthForm mode="sign-up" redirectTo="/strategies" />
     </SplitScreenShell>
   );
 }

@@ -13,7 +13,7 @@
 // ★em-dash 래칫은 "회귀 동결" 이지 "100건 전부 슬롭" 이라는 판정이 아니다.
 // 현재 100건 안에는 정당한 것이 섞여 있다 —
 //   - `unsupported-builtin-hints.ts` 29건 = hint 데이터의 절 구분자
-//   - `privacy/page.tsx` 6건 = `<strong>Clerk</strong> — 인증` 정의 목록
+//   - `privacy/page.tsx` 5건 = 제3자 처리자 정의 목록(ADR-034 로 Clerk 행이 빠져 6→5)
 //   - `kill-switch-modal.tsx` 는 S8 에서 삭제됐다 (죽은 파일). allowlist 에서 함께 제거.
 // 이 가드의 역할은 **새 노출 em-dash 를 막는 것** 뿐이다. 어느 것을 실제로 고칠지는
 // S1b 의 사람 판단이며, 그때 아래 allowlist 를 함께 줄인다.
@@ -256,7 +256,7 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   // W3-G: landing-bento.tsx 삭제(프로토타입 미사용) + landing-hero.tsx C 재작성으로 노출
   // em-dash 각 1건 해소 → 두 항목 제거(래칫 하강).
   ["app/disclaimer/page.tsx", 1],
-  ["app/privacy/page.tsx", 6], // 정의 목록 (Clerk — 인증). 정당
+  ["app/privacy/page.tsx", 5], // 정의 목록 (제3자 처리자). 정당 — 2026-08-17 ADR-034 로 「Clerk — 인증」 행이 빠져 6→5
   ["app/share/backtests/[token]/page.tsx", 2],
   ["app/terms/page.tsx", 1],
   ["components/form-error-inline.tsx", 1],

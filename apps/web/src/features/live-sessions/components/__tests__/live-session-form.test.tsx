@@ -27,10 +27,6 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "u1", getToken: async () => "test-token" }),
-}));
-
 // ── useRegisterLiveSession mock ──
 const mutateAsyncMock = vi.fn();
 vi.mock("../../hooks", () => ({

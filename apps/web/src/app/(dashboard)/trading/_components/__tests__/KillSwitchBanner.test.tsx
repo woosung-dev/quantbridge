@@ -8,10 +8,6 @@ import { KillSwitchBanner } from "@/app/(dashboard)/trading/_components/kill-swi
 // - resolved 이벤트만 → 배너 없음
 // - 알 수 없는 trigger_type → fallback 표시
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ getToken: async () => "test-token" }),
-}));
-
 // apiFetch를 최상위 vi.mock으로 제어. 각 테스트에서 mockResolvedValueOnce로 덮어씀.
 vi.mock("@/lib/api-client", () => ({
   apiFetch: vi.fn(),
