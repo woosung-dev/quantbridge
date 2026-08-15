@@ -66,9 +66,18 @@ Timescale 자사 클라우드 하나뿐이다.
    셋이다: ⑴ 스케줄 ⑵ 오프서버 보관 ⑶ **복원 실증**.
    ★**복원을 한 번 실제로 해 보기 전에는 백업이 있다고 말하지 않는다.** 이 레포는 「있다고
    여겨진 가드가 실제로는 그 경로를 안 지나던」 사례를 이미 겪었다([LESSON-087]·[LESSON-109]).
-   ★TimescaleDB 는 `pg_dump`/`pg_restore` 만으로 부족하다 — 복원은 `timescaledb_pre_restore()` /
-   `timescaledb_post_restore()` 로 감싸야 하고(내부 훅을 끄는 `timescaledb.restoring` GUC),
-   **덤프와 복원의 확장 버전이 다르면 catalog version mismatch 로 죽는다**.
+   ★★**TimescaleDB 절차에 대한 착수 전제가 절반 반증됐다.** 공식 문서는 복원을
+   `timescaledb_pre_restore()` / `timescaledb_post_restore()` 로 감싸라고 하고(내부 훅을 끄는
+   `timescaledb.restoring` GUC), 이 회차도 그것을 「절차의 핵심」으로 잡았다. 그런데 **이 스키마에서
+   그 호출의 유무는 관측 가능한 차이를 하나도 만들지 않았다** — 양쪽 다 `pg_restore` rc=0 ·
+   stderr 0줄 · chunk 59 · 21,649행 · 복원본 INSERT 가 새 chunk 로 라우팅 · `drop_chunks()` 정상.
+   호출을 지워도 백업 하네스는 **39/39 초록**이다.
+   [가정] hypertable 이 1개뿐이고 continuous aggregate·압축·정책이 0건이라 훅이 할 일이 없다 —
+   위 근거표의 「고유 기능 사용처 0건」과 일치한다. ⇒ **호출은 유지한다**(문서가 정본이고 비용 0,
+   그리고 전환 트리거 ④가 오면 상황이 달라진다). 단 **「테스트가 이 축을 지킨다」고 적지 마라** —
+   지금 그 축에는 증거가 없다.
+   ★**반면 버전 제약은 진짜다** — 덤프와 복원의 확장 버전이 다르면 catalog version mismatch 로
+   죽는다. 로컬·서버가 같은 `timescale/timescaledb:2.14.2-pg15` 라 지금은 만족한다.
 2. **디스크 80% 경보** ([BL-768]) — 2026-08-14T06:04Z 로컬 Docker VM 94% 에서 Redis AOF 쓰기가
    실패해 celery 가 통째로 정지했다([BL-736]). 그 사고는 로컬에서 났지만 **서버도 구조가 같다** —
    `quantbridge-redis` 는 `appendonly=yes` 이고 소크 스택·백업 덤프·다른 앱 셋이 디스크 한 벌을
