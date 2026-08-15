@@ -42,7 +42,9 @@ while [ $# -gt 0 ]; do
     --include-deferred) INCLUDE_DEFERRED=1; shift ;;
     --selftest) MODE="selftest"; shift ;;
     --tsv) MODE="tsv"; shift ;;
-    -h|--help) sed -n '2,34p' "$0"; exit 0 ;;
+    # ★범위는 헤더 끝(`# 종료 코드:` 줄)까지다 — 헤더에 줄을 더하면 **여기도 늘려라**.
+    #   2026-08-15 에 `--include-deferred` 설명을 넣고 이 숫자를 안 고쳐 종료 코드 줄이 잘렸다.
+    -h|--help) sed -n '2,35p' "$0"; exit 0 ;;
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
 done
@@ -283,6 +285,19 @@ else:
     for k, v in Counter(r[3] for r in rows).most_common():
         print(f"  {k:8} {v:4}")
     print(f"\n▶ 커버리지  {len(rows)}/{len(targets)}")
+    # ★확장 모드의 산출물은 「DEFERRED 중 **지금 도래한 것**」이다 — 그것이 다음 회차들의
+    #   후보 풀이다. 전체 분포에 섞어 찍으면 기본 대상 25건과 구분이 안 돼 밖에서 판정어를
+    #   다시 조인해야 한다(2026-08-15 에 실제로 그랬다). **0건이면 0건이 답이다.**
+    if INCLUDE_DEFERRED:
+        dfr = [r for r in rows if vd[r[0]][0] == "DEFERRED"]
+        print(f"\n▶ DEFERRED {len(dfr)}건만 따로 (이번에 새로 열린 축)")
+        for k, v in Counter(r[3] for r in dfr).most_common():
+            print(f"  {k:8} {v:4}")
+        arrived = [r for r in dfr if r[3] == "도래"]
+        print(f"  ▶ 그중 **도래 {len(arrived)}건** — 다음 회차 후보 풀"
+              + ("" if arrived else " (기계 3축으로는 없다 — 나머지는 사람이 본다)"))
+        for r in arrived:
+            print(f"        · {r[0]}  {r[5][:80]}")
 
 if missing:
     print(f"\n✗ `**Trigger:**` 줄이 없는 대상 {len(missing)}건 — "
