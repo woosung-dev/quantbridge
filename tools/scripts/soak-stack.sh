@@ -7,6 +7,7 @@
 #   tools/scripts/soak-stack.sh pin [<commitish>]   # .soak/src 를 그 커밋에서 다시 뜬다 (기본 HEAD)
 #   tools/scripts/soak-stack.sh up                  # 3층 compose 로 기동
 #   tools/scripts/soak-stack.sh down                # 3층 compose 로 내림
+#   tools/scripts/soak-stack.sh migrate [--confirm] # ★소크 DB 에 alembic head 적용 (기본 dry-run)
 #   tools/scripts/soak-stack.sh commit              # ★소크가 도는 커밋 — 프로세스 기준으로 조회
 #   tools/scripts/soak-stack.sh status              # 고정 여부 · 커밋 · 누락 커밋 · 활성 세션 · main 조상
 #   tools/scripts/soak-stack.sh ps                  # ★DB 를 안 건드리는 생존 확인 — 0 = 하나라도 running / 1 = 완전 down
@@ -92,13 +93,22 @@ _stack_is_pinned() {
 #                         유일한 경로**. 여기가 낡으면 소크가 낡은 엔진을 돈다.
 #   · `apps/api/scripts` — 판정자 `soak_gate_predicate.py` 가 산다. 고정본 `0c9ccc68` 자신이
 #                         이 경로의 커밋이었다(parse_ts python 3.10 수리).
-#   · `scripts`         — 게이트 본체 `soak-gate.sh` 와 이 파일이 산다.
+#   · `tools/scripts`   — 게이트 본체 `soak-gate.sh` 와 이 파일이 산다.
+#   · `apps/api/alembic` — DB 스키마. `pin` 이 **안 뜨는** 경로이므로 더더욱 감시가 필요하다
+#                          (적용 수단은 `soak-stack.sh migrate` — [BL-743]).
 #   `pin` 은 통상 HEAD 를 고정하므로 「고정 sha 뒤로 남은 커밋」은 곧 「이 체크아웃이
 #   origin/main 보다 뒤처졌다」와 같다. 스냅샷(`apps/api/src`)과 판정기(`scripts` 2종)는
 #   **같은 체크아웃**에서 나오므로 둘 다 본다. `docs/`·`apps/web/` 는 뺀다 — 소크의 실행에도
 #   판정에도 들어가지 않는다.
 #   ★커밋 메시지 접두사로 거르지 마라 — 실측에서 `docs(...)` 2건이 `apps/api/src` 를 고쳤다.
-SOAK_WATCHED_PATHS=(apps/api/src apps/api/scripts scripts)
+#
+# ★★2026-08-15 실측 — 이 목록 자체가 **두 곳에서 침묵하고 있었다** ([BL-743] 곁가지):
+#   ⑴ `scripts` 는 [ADR-029] 재배치(2026-08-13)로 **존재하지 않는 경로**가 됐다. 게이트
+#      스크립트 변경을 감시하는 축이 그날부터 조용히 죽어 있었다 — 없는 경로의
+#      `git log -- <path>` 는 오류가 아니라 **빈 출력**이라 「누락 없음」과 구분되지 않는다.
+#   ⑵ `apps/api/alembic` 이 처음부터 없어서, 서버 DB 가 head 보다 뒤처진 채로도
+#      「누락 커밋 0개」가 나왔다.
+SOAK_WATCHED_PATHS=(apps/api/src apps/api/scripts tools/scripts apps/api/alembic)
 # 운영자가 실제로 읽는 분량. 넘치면 개수만 말한다.
 MISSING_LIST_LIMIT=20
 
@@ -294,6 +304,105 @@ _down() {
   echo "✓ 소크 스택 내림"
 }
 
+# ------------------------------------------------------------------ migrate — 스키마 배포
+#
+# ★**소크 스택에는 migration 적용 단계가 아예 없었다** ([BL-743], 2026-08-15).
+#   ⑴ `_pin` 은 `git archive <sha> apps/api/src` 하나만 뜬다(:215) — `alembic/` 은 그 밖이다.
+#   ⑵ 소크 compose 6서비스에 **api 롤이 없다.** `run_alembic_with_lock` 을 부르는 유일한 롤이
+#      그것인데(`apps/api/docker-entrypoint.sh:77`), celery 서비스는 `command:` override 로
+#      롤 분기를 통째로 우회한다(같은 파일 `:117` passthrough).
+#   ⇒ 서버 DB 는 만들어진 시점에 멈춰 있었다. migration 이 squash base 하나뿐이던 동안은
+#      아무도 몰랐고, 두 번째가 들어오자 드러났다(로컬 20260815_0001 vs 서버 20260801_0001).
+#
+# ★왜 `up` 에 붙이지 않았나 — 그러면 **창 중 DDL 이 암묵적으로** 돌고 「무엇이 언제 스키마를
+#   바꿨나」에 답할 수 없게 된다. `pin` 과 같은 등급의 **명시적 배포 행위**로 둔다.
+#   비목표 문구도 그 선을 긋는다(`docs/status.md` ⓵): 생성·로컬 적용은 자유, **서버 적용만 승인**.
+# ★기본은 dry-run 이다(`soak-restart.sh` 와 같은 문형). 집행은 `--confirm`.
+_migrate() { # _migrate [--confirm]
+  local confirm="${1:-}" cur head pending rc after hist_rc dburl pub pub_port
+  # ★여분 인자를 삼키지 마라 (codex P2) — `migrate --confirm --typo` 가 조용히 집행되면
+  #   운영자는 자기가 준 가드가 걸린 줄 안다. 확인 게이트가 있는 명령일수록 엄격해야 한다.
+  case "${confirm}" in
+    "" | --confirm) ;;
+    *) die "알 수 없는 인자: ${confirm}  (migrate [--confirm])" 1 ;;
+  esac
+  bash "${ROOT}/tools/scripts/assert-main-checkout.sh" "soak-stack.sh migrate" || exit 2
+
+  cur="$(docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge \
+    -Atc "SELECT version_num FROM alembic_version;" 2>/dev/null)"
+  [ -n "${cur}" ] || die "DB 의 alembic_version 을 못 읽었다 (${DB_CONTAINER}) — 전제 미충족" 2
+
+  head="$(cd "${ROOT}/apps/api" && uv run alembic heads 2>/dev/null | awk 'NR==1{print $1}')"
+  [ -n "${head}" ] || die "레포의 alembic head 를 못 읽었다 — uv/alembic 을 확인해라" 2
+
+  echo "── 소크 DB 스키마 ──"
+  echo "  대상       : ${DB_CONTAINER} / quantbridge"
+  echo "  현재 revision: ${cur}"
+  echo "  레포 head   : ${head}"
+
+  if [ "${cur}" = "${head}" ]; then
+    echo "✓ 이미 head 다 — 할 일이 없다."
+    return 0
+  fi
+
+  # ★`alembic history -r A:B` 는 **A 를 포함**한다 — 즉 `A` 로 *끝나는* 전이(= 이미 적용된 것)가
+  #   목록에 끼어든다. 2026-08-15 초판이 그래서 「적용 대기 2 항목」을 찍었는데 실제 대기는 1개였다.
+  #   출력은 최신순이므로 `<cur> -> …` 줄까지가 정확히 대기분이고 그 아래는 이미 적용된 것이다.
+  # ★★fail-closed — history 가 실패하면(DB revision 이 이 체크아웃의 이력에 없는 경우 등)
+  #   **0 항목으로 보인다.** 그것은 「적용할 게 없다」가 아니라 **재지 못한 것**이다(codex P2).
+  pending="$(cd "${ROOT}/apps/api" && uv run alembic history -r "${cur}:${head}" 2>&1)"
+  hist_rc=$?
+  if [ "${hist_rc}" -ne 0 ] || [ -z "${pending}" ]; then
+    echo "${pending}" | sed 's/^/    /' >&2
+    die "alembic history 를 못 읽었다 (rc=${hist_rc}) — DB revision '${cur}' 이 이 체크아웃의 이력에 없을 수 있다" 2
+  fi
+  pending="$(printf '%s\n' "${pending}" | awk -v c="${cur}" '{print} $1==c && $2=="->" {exit}')"
+  echo "  적용 대기   : $(printf '%s\n' "${pending}" | grep -c '.') 항목"
+  printf '%s\n' "${pending}" | sed 's/^/    /'
+
+  # ★**upgrade 대상이 정말 그 DB 인가를 미리 잰다** (codex P1). 사후 재확인만으로는 부족하다 —
+  #   `.env.local` 이 다른 DB 를 가리키고 있으면 그 DB 를 **먼저 바꾼 뒤에야** 사후 검사가
+  #   실패하고, 그 DDL 은 되돌릴 수 없다. 그래서 published endpoint 로 사전 대조한다.
+  dburl="$(sed -n 's/^[[:space:]]*DATABASE_URL=//p' "${ROOT}/apps/api/.env.local" | tail -1)"
+  [ -n "${dburl}" ] || die "apps/api/.env.local 에 DATABASE_URL 이 없다" 2
+  pub="$(docker port "${DB_CONTAINER}" 5432/tcp 2>/dev/null | head -1)"   # 예: 127.0.0.1:5433
+  pub_port="${pub##*:}"
+  [ -n "${pub_port}" ] || die "${DB_CONTAINER} 의 published port 를 못 읽었다" 2
+  case "${dburl}" in
+    *":${pub_port}/"*) ;;
+    *) die "DATABASE_URL 이 ${DB_CONTAINER}(:${pub_port}) 를 가리키지 않는다 — 다른 DB 에 DDL 이 갈 뻔했다" 1 ;;
+  esac
+  echo "  적용 대상   : DATABASE_URL 이 :${pub_port} (= ${DB_CONTAINER}) 를 가리킨다 ✓"
+
+  if [ "${confirm}" != "--confirm" ]; then
+    echo
+    echo "★ dry-run 이다 — 아무것도 바꾸지 않았다. 집행하려면 --confirm."
+    echo "  ★이것은 pin 과 같은 등급의 배포 행위다. 서버 적용은 **사용자 승인**이 선행이다."
+    return 0
+  fi
+
+  echo
+  echo "▶ alembic upgrade head (advisory lock) …"
+  # ★`.env.local` 을 **통째** 소싱한다 — DATABASE_URL 단독 주입은 이 레포의 금지 형태다.
+  # ★맨 `alembic upgrade head` 를 부르지 않는다 — 레포에 이미 advisory lock 래퍼가 있고
+  #   `docker-entrypoint.sh:52-55` 가 같은 것을 쓴다. 맨 호출은 alembic 의 session 시작 전
+  #   race window 를 그대로 연다(codex P1). 같은 lock key 를 쓰므로 entrypoint 경로와도 배타적이다.
+  (cd "${ROOT}/apps/api" && set -a && . ./.env.local && set +a \
+    && uv run python -m src.scripts.run_alembic_with_lock \
+      --lock-key "${ALEMBIC_ADVISORY_LOCK_KEY:-1903723824}" --timeout "${ALEMBIC_LOCK_TIMEOUT_S:-30}")
+  rc=$?
+  [ "${rc}" -eq 0 ] || die "alembic upgrade 실패 (rc=${rc})" 1
+
+  # ★결정적 검증 — **게이트가 보는 그 DB** 를 다시 읽는다. 사전 대조를 통과했더라도
+  #   여기서 한 번 더 본다(사전=선언, 사후=실측).
+  after="$(docker exec "${DB_CONTAINER}" psql -U quantbridge -d quantbridge \
+    -Atc "SELECT version_num FROM alembic_version;" 2>/dev/null)"
+  if [ "${after}" != "${head}" ]; then
+    die "적용 후에도 ${DB_CONTAINER} 가 ${after:-없음} 다 (기대 ${head}) — 다른 DB 에 적용됐다" 1
+  fi
+  echo "✓ ${cur} → ${after}  (${DB_CONTAINER} 에서 재확인)"
+}
+
 # ------------------------------------------------------------------ commit — 프로세스의 증거
 
 _commit() {
@@ -430,10 +539,11 @@ case "${1:-}" in
   pin)               shift; _pin "${1:-HEAD}" ;;
   up)                _up ;;
   down)              _down ;;
+  migrate)           shift; [ "$#" -le 1 ] || die "인자가 너무 많다: $* (migrate [--confirm])" 1; _migrate "${1:-}" ;;
   commit)            _commit ;;
   status)            _status ;;
   ps)                _ps ;;
   assert-not-pinned) _assert_not_pinned ;;
   -h|--help)         sed -n '2,26p' "$0" ;;
-  *) echo "알 수 없는 인자: ${1:-(없음)} (pin / up / down / commit / status / ps / assert-not-pinned)" >&2; exit 1 ;;
+  *) echo "알 수 없는 인자: ${1:-(없음)} (pin / up / down / migrate / commit / status / ps / assert-not-pinned)" >&2; exit 1 ;;
 esac

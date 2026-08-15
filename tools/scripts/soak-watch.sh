@@ -11,11 +11,12 @@
 # 사용:
 #   tools/scripts/soak-watch.sh              # 1 회 감시 (타이머가 부르는 형태)
 #   tools/scripts/soak-watch.sh --dry-run    # 게이트는 부르되 알림은 쏘지 않고 판단만 출력
-#   tools/scripts/soak-watch.sh --status     # 마지막 지문 · heartbeat · 타이머 상태
+#   tools/scripts/soak-watch.sh --status     # 지문 · 타이머 + **설치본 신선도** (낡으면 rc=1)
 #   tools/scripts/soak-watch.sh --install    # systemd user timer 30 분 (★게이트 타이머는 끈다)
 #   tools/scripts/soak-watch.sh --uninstall  # watch 타이머 해제 (게이트 타이머를 되살린다)
 #
 # 종료 코드: 0 = 감시 주기 정상 수행 / 1 = **감시자 자신이 실패**(알림 전송 실패 · 게이트 부재)
+#   ★`--status` 도 rc 를 낸다 — 설치된 유닛의 ExecStart 가 이 파일이 아니면 1 이다([BL-737]).
 #   ★게이트 판정은 종료 코드로 새어나오지 않는다. 게이트가 FAIL 이어도 **알림이 나갔으면 0** 이다.
 #     그래야 systemd 의 빨간불이 「알림이 깨졌다」 하나만 뜻한다. 반대로 게이트 유닛은 UNKNOWN=2 를
 #     그대로 내보내 **매 실행이 `Failed`** 로 찍혔다(2026-08-07 실측 8/8) — 그 노이즈를 여기서 끊는다.
@@ -35,6 +36,11 @@
 #     로 죽어 있는 것을 2026-08-07 에 실측했다. 여기서는 `key=value` 를 명시적으로 파싱한다.
 #   · **토큰은 URL 경로에 있다.** URL 을 echo 하지 않고 `set -x` 를 켜지 않는다
 #     (`apps/api/src/common/telegram_alert.py:52-65` 의 `_safe_err` 가 같은 이유로 존재한다).
+#   · ★**감시자는 자기 죽음을 알릴 수 없다** (2026-08-15 [BL-737]). `_install` 이 유닛에 굽는
+#     `ExecStart` 는 **설치 시점의 경로**다. 2026-08-13 [ADR-029] 재배치가 이 파일을
+#     `scripts/` → `tools/scripts/` 로 옮기자 서버 유닛은 41 시간 동안 30 분마다 `rc=127` 로
+#     죽었고 **알림은 0 줄**이었다(그 사이 소크 사망 2건을 아무도 몰랐다). 그래서 둘을 더했다 —
+#     `OnFailure=` 알림 유닛(systemd 가 대신 알린다)과 `--status` 의 설치본 신선도 판정.
 
 set -uo pipefail
 
@@ -57,6 +63,7 @@ GATE_TIMEOUT="${QB_SOAK_GATE_TIMEOUT:-600}"
 
 UNIT_NAME="dev.quantbridge.soak-watch"
 GATE_UNIT="dev.quantbridge.soak-gate"
+ALARM_UNIT="dev.quantbridge.soak-watch-alarm"
 
 MODE="watch"
 while [ $# -gt 0 ]; do
@@ -66,7 +73,7 @@ while [ $# -gt 0 ]; do
     --status) MODE="status" ;;
     --dry-run) MODE="dry-run" ;;
     -h | --help)
-      sed -n '2,48p' "$0"
+      sed -n '2,44p' "$0"
       exit 0
       ;;
     *)
@@ -148,12 +155,42 @@ _install() {
   cat > "${unit_dir}/${UNIT_NAME}.service" << EOF
 [Unit]
 Description=QuantBridge soak watch (게이트 1회 호출 + 지문 변화 시 텔레그램)
+OnFailure=${ALARM_UNIT}.service
 
 [Service]
 Type=oneshot
 WorkingDirectory=${ROOT}
 Environment=PATH=${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 ExecStart=/bin/bash ${SCRIPT_DIR}/soak-watch.sh
+EOF
+
+  # ★감시자 자신의 죽음을 알리는 축 (2026-08-15 [BL-737] 신설).
+  #   2026-08-13 재배치로 위 ExecStart 가 옛 경로를 가리키게 되자 watch 는 **41 시간 동안
+  #   30 분마다 rc=127 로 죽었고 아무도 몰랐다.** 감시자가 죽으면 감시자는 자기 죽음을
+  #   알릴 수 없다 — 그래서 systemd 가 대신 알린다.
+  #   ★이 유닛은 **스크립트 파일에 의존하지 않는다.** 인라인 curl 이라 `tools/scripts/` 가
+  #   또 옮겨져도 살아남는다. 의존은 `${ENV_FILE}` 경로 하나뿐이고 `--status` 가 그것을 잰다.
+  #   ★토큰은 유닛에 박지 않는다 — `.env.local` 을 그 자리에서 소싱한다.
+  #   ★★**`$$` 로 이스케이프해야 한다** (2026-08-15 codex 적대 리뷰 · 실측 확증).
+  #   systemd 는 `ExecStart` 의 `${VAR}` 를 **자기 환경으로 먼저 확장**하고, 미정의 변수는
+  #   **빈 문자열**로 만든다 — 작은따옴표도 그것을 막지 못한다. 그러면 URL 이
+  #   `…/bot/sendMessage` 가 되어 텔레그램이 **404** 를 준다(실측). systemd 에서 리터럴 `$` 는
+  #   `$$` 다. ★내가 처음에 `systemctl show -p ExecStart` 로 「리터럴이 남아 있다」고 읽고
+  #   codex 를 반증했다고 적었는데, 그 출력은 **확장 전** 문자열이다 — 오독이었다.
+  #   ★`--fail` 이 있어야 한다 — 없으면 텔레그램이 400 을 줘도 curl 은 rc=0 이고 유닛은
+  #   `Finished` 로 남는다. 그러면 「알람이 돌았다」와 「알람이 도착했다」를 구분할 수 없다.
+  #   ★`--show-error` 는 뺀다 — 실패 메시지에 URL(경로에 토큰이 있다)이 실릴 수 있다.
+  case "${ENV_FILE}" in
+    *"'"*) echo "✗ env 파일 경로에 작은따옴표가 있어 유닛을 안전하게 생성할 수 없다: ${ENV_FILE}" >&2; exit 1 ;;
+  esac
+  cat > "${unit_dir}/${ALARM_UNIT}.service" << EOF
+[Unit]
+Description=QuantBridge soak watch 실패 알림 (감시자 자신이 죽었을 때)
+
+[Service]
+Type=oneshot
+Environment=PATH=${HOME}/.local/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+ExecStart=/bin/bash -c 'set -a; . "${ENV_FILE}"; set +a; exec curl --silent --fail --output /dev/null --max-time 15 --data-urlencode "chat_id=\$\${TELEGRAM_CHAT_ID}" --data-urlencode "text=🔴 soak-watch.service 가 실패했다 — 소크 알림이 끊겼다. journalctl --user -u ${UNIT_NAME}.service -n 20" "https://api.telegram.org/bot\$\${TELEGRAM_BOT_TOKEN}/sendMessage"'
 EOF
 
   # ★주기를 30 분에서 바꾸지 마라 — 표본 간격이 곧 C4 판정 대상이다(기본 한계 60 분).
@@ -182,6 +219,7 @@ EOF
   systemctl --user enable --now "${UNIT_NAME}.timer" || exit 1
   echo "✓ 설치 완료 — 30분마다 게이트를 부르고 지문 변화만 알린다"
   echo "  ★게이트는 기본(수집) 모드로 불린다 — 표본과 phantom 아카이브는 계속 쌓인다."
+  echo "  ★watch 자신이 실패하면 ${ALARM_UNIT}.service 가 텔레그램을 쏜다."
   echo "  로그: journalctl --user -u ${UNIT_NAME}.service"
   exit 0
 }
@@ -192,6 +230,7 @@ _uninstall() {
     exit 1
   fi
   systemctl --user disable --now "${UNIT_NAME}.timer" > /dev/null 2>&1
+  rm -f "${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user/${ALARM_UNIT}.service"
   # ★게이트 타이머를 되살린다 — 안 그러면 표본 수집이 통째로 멈춘다.
   systemctl --user enable --now "${GATE_UNIT}.timer" > /dev/null 2>&1 \
     && echo "  ✓ ${GATE_UNIT}.timer 를 되살렸다"
@@ -200,23 +239,77 @@ _uninstall() {
   exit 0
 }
 
+# ── 설치본 신선도 ───────────────────────────────────────────────────────────────
+# ★「타이머가 waiting」은 건강 신호가 아니다 (2026-08-15 [BL-737]).
+#   2026-08-13 재배치([ADR-029]) 후 **41 시간 동안** 타이머는 정상 waiting 이었고 서비스만
+#   30 분마다 rc=127 로 죽었다. 종전 `--status` 는 타이머 줄과 지문만 찍어 그것을 못 봤고,
+#   다음 세션 preflight 가 `systemctl status` 를 직접 치기 전까지 아무도 몰랐다.
+#   재는 것은 **설치된 유닛의 ExecStart 가 지금 이 파일을 가리키는가**다.
+_installed_execstart() { # → stdout: 설치된 유닛의 ExecStart 스크립트 경로 (없으면 빈 문자열)
+  local f="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user/${UNIT_NAME}.service"
+  [ -f "${f}" ] || return 0
+  sed -n 's|^ExecStart=/bin/bash \(.*\)$|\1|p' "${f}" | head -1
+}
+
+_check_freshness() { # → 0 = 최신 / 1 = 낡음·부재. 진단은 stdout.
+  local unit_dir="${XDG_CONFIG_HOME:-${HOME}/.config}/systemd/user"
+  local want="${SCRIPT_DIR}/soak-watch.sh"
+  local got af aenv rc=0
+
+  got="$(_installed_execstart)"
+  if [ -z "${got}" ]; then
+    echo "  ✗ 설치된 유닛이 없다 (${unit_dir}/${UNIT_NAME}.service)"
+    return 1
+  fi
+  if [ ! -f "${got}" ]; then
+    echo "  ✗ ExecStart 가 없는 파일을 가리킨다 — 이 유닛은 rc=127 로 죽는다: ${got}"
+    rc=1
+  fi
+  if [ "${got}" != "${want}" ]; then
+    echo "  ✗ ExecStart 가 이 파일이 아니다 — 재설치해라 (--install)"
+    echo "      설치본: ${got}"
+    echo "      현재본: ${want}"
+    rc=1
+  fi
+  [ "${rc}" -eq 0 ] && echo "  ✓ ExecStart = ${got}"
+
+  # 알림 유닛도 같은 축으로 잰다 — 이것이 깨지면 watch 의 죽음이 다시 안 보인다.
+  af="${unit_dir}/${ALARM_UNIT}.service"
+  if [ ! -f "${af}" ]; then
+    echo "  ✗ 실패 알림 유닛이 없다 (${ALARM_UNIT}.service) — watch 가 죽어도 조용하다"
+    return 1
+  fi
+  aenv="$(sed -n 's|^ExecStart=.*set -a; \. "\([^"]*\)".*$|\1|p' "${af}" | head -1)"
+  if [ -z "${aenv}" ] || [ ! -f "${aenv}" ]; then
+    echo "  ✗ 실패 알림 유닛의 env 파일이 없다: ${aenv:-(파싱 실패)}"
+    return 1
+  fi
+  echo "  ✓ 실패 알림 유닛 · env = ${aenv}"
+  return "${rc}"
+}
+
 _status() {
+  local fresh_rc=0
   echo "── watch 타이머 ──"
   if command -v systemctl > /dev/null 2>&1; then
     systemctl --user list-timers --all "${UNIT_NAME}.timer" 2>/dev/null | sed -n '2p' \
       || echo "  (조회 실패)"
-    printf '  게이트 타이머: '
-    systemctl --user is-enabled "${GATE_UNIT}.timer" 2>/dev/null || echo "disabled/없음"
+    # ★`is-enabled` 는 disabled 일 때 **문자열을 찍고 rc=1** 을 낸다. `|| echo` 를 그대로 두면
+    #   `disabled` 와 `disabled/없음` 이 **두 줄로** 나온다(2026-08-15 서버 실측).
+    _g="$(systemctl --user is-enabled "${GATE_UNIT}.timer" 2>/dev/null)"
+    printf '  게이트 타이머: %s\n' "${_g:-없음}"
   else
     echo "  (systemctl 없음)"
   fi
+  echo "── 설치본 신선도 ──"
+  _check_freshness || fresh_rc=1
   echo "── 마지막 지문 ──"
   if [ -f "${STATE_FILE}" ]; then
     sed 's/^/  /' "${STATE_FILE}"
   else
     echo "  (없음 — 아직 한 번도 안 돌았다)"
   fi
-  exit 0
+  exit "${fresh_rc}"
 }
 
 case "${MODE}" in

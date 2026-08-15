@@ -295,27 +295,29 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
-| ID                | 제목                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Trigger                                                                      | Est      | 출처                                       |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ------------------------------------------ |
-| [BL-014](#bl-014) | 🟡 부분 Resolved — Partial fill `cumExecQty` tracking (잔여 = BL-439/440/441)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | 🟡 2026-07-25 `stage/money-path-accuracy`                                    | M (4-5h) | TODO.md L709                               |
-| [BL-724](#bl-724) | ✅ 소크 전략 경제성 판정 — **Resolved (판정)** (2026-08-14 money-path-close). 답 = **실자금 불가 · 데모 유지**. 고유 청산 596건 실측 gross **+82.64** vs 수수료 **−1,204.21** ⇒ 순 **−1,121.57**(gross PF 1.149 → net PF 0.223). 손익분기 요율 단면 **0.00377%** = 현재의 **1/14.6** 이라 어느 VIP tier·maker 로도 구제 안 된다. ★원 표제 「전략은 흑자였다」는 **라이브 한 축에서만** 참 — 같은 정의로 맞춘 백테스트 gross 는 **−34,582** 로 음수이고, 그 전략의 백테스트 4벌이 **전부 PF < 1**(0.57~0.86)이다. 수리 아님 = 코드 변경 0                                                 | —                                                                            | M (2-3h) | 2026-08-14 money-path-attribution          |
-| [BL-732](#bl-732) | ⏳ **대기 — 표본이 반증됐다.** 등재 근거였던 로컬 소크 6h33m 사망은 **맥 sleep** 이 원인이다(`pmset` 로그와 초 단위 일치 · beat 가 168회 중 **15회**만 tick 했고 그 15회가 DarkWake 횟수). `gap_resync_position_mismatch` 는 그 공백의 하류 증상이라 코드 축 판별에 못 쓴다. C1 을 실제로 끊은 사건은 [BL-734] 로 확정·수리됐다                                                                                                                                                                                                                                                          | ~~도래~~ → **미도래** (깨끗한 창에서 재발 시)                                | M (3-4h) | 2026-08-14 money-path-close → 08-15 재기술 |
-| [BL-015](#bl-015) | OKX Private WS                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Bybit Demo 안정화 후                                                         | M (6-8h) | TODO.md L710                               |
-| [BL-022](#bl-022) | ✅ golden expectations 재생성 — **Resolved** (2026-08-07 backtest-fidelity). `apps/api/scripts/regen_golden.py` 신설(`--confirm`/`--case`/`--check`). ★이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인이다                                                                                                                                                                                                                                                                                                                                                                         | pine_v2 `strategy.exit` 도입 후                                              | M (3-4h) | TODO.md L17 (skip #1)                      |
-| [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Trust Layer v2 검토 시                                                       | M (5-6h) | TODO.md L23 (skip #16)                     |
-| [BL-024](#bl-024) | ✅ real_broker E2E 실주문 leg — **Resolved** (2026-08-14 real-broker-e2e, 로컬 축). Bybit demo linear perp 실주문→watchdog filled→2층 하네스 청산까지 거래소로 확인. ★하네스는 그때까지 한 번도 작동한 적이 없었다(청산이 개발 DB 를 열고 있었다). 잔여(별건) = HTTP webhook 층 · CI 축                                                                                                                                                                                                                                                                                                  | Bybit Demo credentials + seed data 준비 시                                   | L (8h+)  | CLAUDE.md Sprint 10 Phase C                |
-| [BL-025](#bl-025) | ✅ autonomous-parallel-sprints 스킬 patch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | on-demand (BUG-1/2/3 재발 시)                                                | S (2h)   | TODO.md L653                               |
-| [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Stage 2c 2차 fixture 활성화 후                                               | S (1-2h) | TODO.md L20-22                             |
-| [BL-619](#bl-619) | 🟡 부분 — ★**라이브 파이프라인이 한 세션에 ~17분 멈췄고 뿌리를 모른다.** 관측 장치는 2026-08-08 에 서버로 올렸다(systemd user unit `soak-logs-follow`, 실측 active·871KB·세션 `a4f1cbfb` 로그 유입). ★그것은 Trigger 를 **충족 가능하게** 만든 것이지 뿌리를 안 것이 아니다 — 닫는 조건은 재관측 부검 그대로다                                                                                                                                                                                                                                                                           | 다음 서버 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검) | M        | 2026-08-08 bl003-unblock                   |
-| [BL-633](#bl-633) | ✅ **이중 호스트 오염 — 근인 확정** — 같은 Bybit demo 계정의 맥 로컬 체결이 서버 세션 `39484a2c` 를 죽였다. G-A4‴ 소유권 7/27(귀속 불가 0)·G-A6′ 정본 항등식 4/4(반사실은 정의 4가지 어디서도 4/4 불가, 최대 1/4)·G-A7 계정 결합 27/27 이 뒷받침한다. ★원안 G-A4′ 6/6·G-A6 3/3 은 회차 도중 반증돼 교체됐다. `phantom` 은 증상이며, 오염 창은 ADR-025 의 반례로 셀 수 없다                                                                                                                                                                                                               | — (부검 완료 · 후속은 BL-634 · BL-641 로 이관)                               | M        | 2026-08-08 bl003-unblock                   |
-| [BL-634](#bl-634) | ✅ **`register()` 전제조건 가드** — 같은 Bybit demo 계정에 두 호스트가 동시에 붙는 계정 배타성 가드 부재 — 두 DB 의 `live_signal_sessions` unique index 는 다른 호스트를 막지 못하며, 이번 `position_divergence` 사망의 직접 원인이다                                                                                                                                                                                                                                                                                                                                                    | 실자금 전환 전 필수 / 두 번째 호스트를 다시 띄우기 전                        | M        | 2026-08-08 bl003-unblock                   |
-| [BL-635](#bl-635) | ✅ **게이트 아카이브 오염이 라이브 기전이다** — 판독 불가 로그를 시간 credit 하지 않고 `UNKNOWN 측정불가`로 내리도록 `32ea2a5d` 에서 수리했다. 서버 systemd 만 대상이며 맥 launchd 타이머는 잔여다                                                                                                                                                                                                                                                                                                                                                                                       | — (해결됨. 맥 launchd 잔여는 별도 후속)                                      | S        | 2026-08-08 bl003-unblock                   |
-| [BL-661](#bl-661) | 🟡 **`flatten` 이 「이미 flat」으로 exit 0 하는데 조건부 주문은 남는다** — 2026-08-10 거짓 성공 제거(보고 + exit 3), 취소는 [BL-669](#bl-669) 로 분리. `close_service.py:100-104` 가 포지션만 보고 미체결 조건부 진입을 안 본다. 운영 CLI(`live_session_admin.py:383-387`)가 그 409 를 **성공으로 출력하고 return** 한다 ⇒ 고아 조건부가 나중에 트리거된다. [BL-003] rollback 이 이걸 **문서로만** 방어한다                                                                                                                                                                              | 실자금 전환 전 필수 / 조건부 진입 세션을 내릴 때                             | S        | 2026-08-09 bl003-mainnet-runbook           |
-| [BL-641](#bl-641) | 🟡 부분 — BL-003 의 실질 선행조건은 문턱이 아니라 **MTBF** 다. 층화 + 95% CI 를 [ADR-024] 에 등재하고 재측정 도구(`mtbf_stratified.py`)를 만들었다. ★★★**점추정을 인용하지 마라 — CI 가 2026-08-12 에도 전 쌍 겹친다**(MTBF 13.39h→24.17h 로 1.8배 올랐는데도 「올랐다」를 못 말한다). 결론이 서는 근거는 셈이다: **24h 도달 1건/40세션 · 최장 65.28h**(2026-08-12 재측정, 노출 +86h 에 자동 사망 0건). ★**「이 표가 `user_stopped` 를 사망과 함께 센다」는 거짓이었다** — `soak_gate_predicate.py:39` 가 정본이고 처음부터 절단이었다                                                   | BL-003 재계획 시 즉시 / 소크 재기동 회차마다 재측정                          | M        | 2026-08-08 bl003-unblock                   |
-| [BL-716](#bl-716) | ✅ **반증 카드 승격 — Resolved (2026-08-14 gate-surface-close)**. ★처방 2건이 착수 전 반증됐다 — 후보 3종이 이미 카드/승격 완료라 「카드 신설」은 `lessons.md:12` 규약 위반이고, 그래서 「자리 확보 선행」도 불필요했다(정본 동작은 오히려 **362→358줄**). 이행 = [LESSON-101] → `generator-evaluator-pipeline.md` **§8.6** 승격(14회 = dev-log 22줄 중 12 + 기존 2) · 「착수 전제 반증」축(12/22)은 이미 §8.1 이라 **기저율만 보강** · 선행 수리 2건(`LESSON-101` ID 충돌 → [LESSON-107] 재번호 · 죽은 경로 10곳). ★후보 ②는 **1/22 로 문턱 미달** — 승격 안 함. 게이트 결손은 [BL-720] | 2026-08-13 docs-diet (codex 적대 리뷰 P1)                                    | M        | 2026-08-13 docs-diet                       |
-| [BL-719](#bl-719) | ✅ **재배치 롤아웃 lockstep — 해결 (2026-08-13)** — PR #619 머지 직후 5단계 완주: ① 서버 uninstall→down→pull→`.metrics` 이행→pin `c3a39d0d`→up→install. 첫 판독 tick_stall 실격 1건 = **down 창 자체**(operational 등재 · 창 리셋 예정대로 · C5 6/6 ✓) ② 맥 LaunchAgent 재설치 ③ 메인 이행(6컨테이너 Healthy · strategies 3행 = 볼륨 무손실 · 잔재 삭제는 중단-후-분류) ④ 워크트리 0벌(재생성은 착수 시 bootstrap) ⑤ canary #620 backend 3레인 발화 + FE 정상 skip. 이행이 낳은 핫픽스 #621(`--strip-components` 2→3)                                                                    | — (이행 완료)                                                                | S        | 2026-08-13 monorepo-realign                |
-| [BL-734](#bl-734) | ✅ **소크 사망의 진짜 뿌리 — Resolved** (2026-08-15 soak-survival). `tests/real_broker` 하네스의 `close_position` 이 계정 포지션을 **소유권을 보지 않고** 닫아 서버 소크를 죽였다(거래소 원장 `04:49:56 Buy 0.029 CreateByUser link=(empty)` → `exchange_position=+0.001` → strike 2연속). [BL-633] 재발이며 경로만 다르다. 수리 = `find_foreign_resting` 추출 후 청산 전 fail-closed 호출                                                                                                                                                                                               | — (부검 완료)                                                                | M        | 2026-08-15 soak-survival                   |
-| [BL-735](#bl-735) | 🟡 **소크를 로컬 맥에서 돌리지 않는다** (운영 규칙). AC 전원에서도 `sleep 1` 이고 Clamshell Sleep 은 못 막는다 ⇒ **로컬에서 24h 연속 창은 구조적으로 불가능**. 규칙은 문서화됐고 기계 강제(`soak-stack.sh up` 의 Darwin 거부)는 미착수                                                                                                                                                                                                                                                                                                                                                   | 도래 — 2026-08-14 실사고                                                     | S        | 2026-08-15 soak-survival                   |
+| ID                | 제목                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Trigger                                                                      | Est      | 출처                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ------------------------------------------ |
+| [BL-014](#bl-014) | 🟡 부분 Resolved — Partial fill `cumExecQty` tracking (잔여 = BL-439/440/441)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 🟡 2026-07-25 `stage/money-path-accuracy`                                    | M (4-5h) | TODO.md L709                               |
+| [BL-724](#bl-724) | ✅ 소크 전략 경제성 판정 — **Resolved (판정)** (2026-08-14 money-path-close). 답 = **실자금 불가 · 데모 유지**. 고유 청산 596건 실측 gross **+82.64** vs 수수료 **−1,204.21** ⇒ 순 **−1,121.57**(gross PF 1.149 → net PF 0.223). 손익분기 요율 단면 **0.00377%** = 현재의 **1/14.6** 이라 어느 VIP tier·maker 로도 구제 안 된다. ★원 표제 「전략은 흑자였다」는 **라이브 한 축에서만** 참 — 같은 정의로 맞춘 백테스트 gross 는 **−34,582** 로 음수이고, 그 전략의 백테스트 4벌이 **전부 PF < 1**(0.57~0.86)이다. 수리 아님 = 코드 변경 0                                                                                                          | —                                                                            | M (2-3h) | 2026-08-14 money-path-attribution          |
+| [BL-732](#bl-732) | ⏳ **대기 — 표본이 반증됐다.** 등재 근거였던 로컬 소크 6h33m 사망은 **맥 sleep** 이 원인이다(`pmset` 로그와 초 단위 일치 · beat 가 168회 중 **15회**만 tick 했고 그 15회가 DarkWake 횟수). `gap_resync_position_mismatch` 는 그 공백의 하류 증상이라 코드 축 판별에 못 쓴다. C1 을 실제로 끊은 사건은 [BL-734] 로 확정·수리됐다                                                                                                                                                                                                                                                                                                                   | ~~도래~~ → **미도래** (깨끗한 창에서 재발 시)                                | M (3-4h) | 2026-08-14 money-path-close → 08-15 재기술 |
+| [BL-015](#bl-015) | OKX Private WS                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Bybit Demo 안정화 후                                                         | M (6-8h) | TODO.md L710                               |
+| [BL-022](#bl-022) | ✅ golden expectations 재생성 — **Resolved** (2026-08-07 backtest-fidelity). `apps/api/scripts/regen_golden.py` 신설(`--confirm`/`--case`/`--check`). ★이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인이다                                                                                                                                                                                                                                                                                                                                                                                                                                  | pine_v2 `strategy.exit` 도입 후                                              | M (3-4h) | TODO.md L17 (skip #1)                      |
+| [BL-023](#bl-023) | KIND-B/C mutation 분류 정밀도 (xfail strict)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Trust Layer v2 검토 시                                                       | M (5-6h) | TODO.md L23 (skip #16)                     |
+| [BL-024](#bl-024) | ✅ real_broker E2E 실주문 leg — **Resolved** (2026-08-14 real-broker-e2e, 로컬 축). Bybit demo linear perp 실주문→watchdog filled→2층 하네스 청산까지 거래소로 확인. ★하네스는 그때까지 한 번도 작동한 적이 없었다(청산이 개발 DB 를 열고 있었다). 잔여(별건) = HTTP webhook 층 · CI 축                                                                                                                                                                                                                                                                                                                                                           | Bybit Demo credentials + seed data 준비 시                                   | L (8h+)  | CLAUDE.md Sprint 10 Phase C                |
+| [BL-025](#bl-025) | ✅ autonomous-parallel-sprints 스킬 patch                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | on-demand (BUG-1/2/3 재발 시)                                                | S (2h)   | TODO.md L653                               |
+| [BL-026](#bl-026) | mutation fixture 활성화 회귀 (skip #4-7, #9-15)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Stage 2c 2차 fixture 활성화 후                                               | S (1-2h) | TODO.md L20-22                             |
+| [BL-619](#bl-619) | 🟡 부분 — ★**라이브 파이프라인이 한 세션에 ~17분 멈췄고 뿌리를 모른다.** 관측 장치는 2026-08-08 에 서버로 올렸다(systemd user unit `soak-logs-follow`, 실측 active·871KB·세션 `a4f1cbfb` 로그 유입). ★그것은 Trigger 를 **충족 가능하게** 만든 것이지 뿌리를 안 것이 아니다 — 닫는 조건은 재관측 부검 그대로다                                                                                                                                                                                                                                                                                                                                    | 다음 서버 소크 창에서 같은 정지가 관측되면 (로그가 남아 있는 동안 즉시 부검) | M        | 2026-08-08 bl003-unblock                   |
+| [BL-633](#bl-633) | ✅ **이중 호스트 오염 — 근인 확정** — 같은 Bybit demo 계정의 맥 로컬 체결이 서버 세션 `39484a2c` 를 죽였다. G-A4‴ 소유권 7/27(귀속 불가 0)·G-A6′ 정본 항등식 4/4(반사실은 정의 4가지 어디서도 4/4 불가, 최대 1/4)·G-A7 계정 결합 27/27 이 뒷받침한다. ★원안 G-A4′ 6/6·G-A6 3/3 은 회차 도중 반증돼 교체됐다. `phantom` 은 증상이며, 오염 창은 ADR-025 의 반례로 셀 수 없다                                                                                                                                                                                                                                                                        | — (부검 완료 · 후속은 BL-634 · BL-641 로 이관)                               | M        | 2026-08-08 bl003-unblock                   |
+| [BL-634](#bl-634) | ✅ **`register()` 전제조건 가드** — 같은 Bybit demo 계정에 두 호스트가 동시에 붙는 계정 배타성 가드 부재 — 두 DB 의 `live_signal_sessions` unique index 는 다른 호스트를 막지 못하며, 이번 `position_divergence` 사망의 직접 원인이다                                                                                                                                                                                                                                                                                                                                                                                                             | 실자금 전환 전 필수 / 두 번째 호스트를 다시 띄우기 전                        | M        | 2026-08-08 bl003-unblock                   |
+| [BL-635](#bl-635) | ✅ **게이트 아카이브 오염이 라이브 기전이다** — 판독 불가 로그를 시간 credit 하지 않고 `UNKNOWN 측정불가`로 내리도록 `32ea2a5d` 에서 수리했다. 서버 systemd 만 대상이며 맥 launchd 타이머는 잔여다                                                                                                                                                                                                                                                                                                                                                                                                                                                | — (해결됨. 맥 launchd 잔여는 별도 후속)                                      | S        | 2026-08-08 bl003-unblock                   |
+| [BL-661](#bl-661) | 🟡 **`flatten` 이 「이미 flat」으로 exit 0 하는데 조건부 주문은 남는다** — 2026-08-10 거짓 성공 제거(보고 + exit 3), 취소는 [BL-669](#bl-669) 로 분리. `close_service.py:100-104` 가 포지션만 보고 미체결 조건부 진입을 안 본다. 운영 CLI(`live_session_admin.py:383-387`)가 그 409 를 **성공으로 출력하고 return** 한다 ⇒ 고아 조건부가 나중에 트리거된다. [BL-003] rollback 이 이걸 **문서로만** 방어한다                                                                                                                                                                                                                                       | 실자금 전환 전 필수 / 조건부 진입 세션을 내릴 때                             | S        | 2026-08-09 bl003-mainnet-runbook           |
+| [BL-641](#bl-641) | 🟡 부분 — BL-003 의 실질 선행조건은 문턱이 아니라 **MTBF** 다. 층화 + 95% CI 를 [ADR-024] 에 등재하고 재측정 도구(`mtbf_stratified.py`)를 만들었다. ★★★**점추정을 인용하지 마라 — CI 가 2026-08-12 에도 전 쌍 겹친다**(MTBF 13.39h→24.17h 로 1.8배 올랐는데도 「올랐다」를 못 말한다). 결론이 서는 근거는 셈이다: **24h 도달 1건/40세션 · 최장 65.28h**(2026-08-12 재측정, 노출 +86h 에 자동 사망 0건). ★**「이 표가 `user_stopped` 를 사망과 함께 센다」는 거짓이었다** — `soak_gate_predicate.py:39` 가 정본이고 처음부터 절단이었다                                                                                                            | BL-003 재계획 시 즉시 / 소크 재기동 회차마다 재측정                          | M        | 2026-08-08 bl003-unblock                   |
+| [BL-716](#bl-716) | ✅ **반증 카드 승격 — Resolved (2026-08-14 gate-surface-close)**. ★처방 2건이 착수 전 반증됐다 — 후보 3종이 이미 카드/승격 완료라 「카드 신설」은 `lessons.md:12` 규약 위반이고, 그래서 「자리 확보 선행」도 불필요했다(정본 동작은 오히려 **362→358줄**). 이행 = [LESSON-101] → `generator-evaluator-pipeline.md` **§8.6** 승격(14회 = dev-log 22줄 중 12 + 기존 2) · 「착수 전제 반증」축(12/22)은 이미 §8.1 이라 **기저율만 보강** · 선행 수리 2건(`LESSON-101` ID 충돌 → [LESSON-107] 재번호 · 죽은 경로 10곳). ★후보 ②는 **1/22 로 문턱 미달** — 승격 안 함. 게이트 결손은 [BL-720]                                                          | 2026-08-13 docs-diet (codex 적대 리뷰 P1)                                    | M        | 2026-08-13 docs-diet                       |
+| [BL-719](#bl-719) | ✅ **재배치 롤아웃 lockstep — 해결 (2026-08-13)** — PR #619 머지 직후 5단계 완주: ① 서버 uninstall→down→pull→`.metrics` 이행→pin `c3a39d0d`→up→install. 첫 판독 tick_stall 실격 1건 = **down 창 자체**(operational 등재 · 창 리셋 예정대로 · C5 6/6 ✓) ② 맥 LaunchAgent 재설치 ③ 메인 이행(6컨테이너 Healthy · strategies 3행 = 볼륨 무손실 · 잔재 삭제는 중단-후-분류) ④ 워크트리 0벌(재생성은 착수 시 bootstrap) ⑤ canary #620 backend 3레인 발화 + FE 정상 skip. 이행이 낳은 핫픽스 #621(`--strip-components` 2→3)                                                                                                                             | — (이행 완료)                                                                | S        | 2026-08-13 monorepo-realign                |
+| [BL-734](#bl-734) | ✅ **소크 사망의 진짜 뿌리 — Resolved** (2026-08-15 soak-survival). `tests/real_broker` 하네스의 `close_position` 이 계정 포지션을 **소유권을 보지 않고** 닫아 서버 소크를 죽였다(거래소 원장 `04:49:56 Buy 0.029 CreateByUser link=(empty)` → `exchange_position=+0.001` → strike 2연속). [BL-633] 재발이며 경로만 다르다. 수리 = `find_foreign_resting` 추출 후 청산 전 fail-closed 호출                                                                                                                                                                                                                                                        | — (부검 완료)                                                                | M        | 2026-08-15 soak-survival                   |
+| [BL-735](#bl-735) | 🟡 **소크를 로컬 맥에서 돌리지 않는다** (운영 규칙). AC 전원에서도 `sleep 1` 이고 Clamshell Sleep 은 못 막는다 ⇒ **로컬에서 24h 연속 창은 구조적으로 불가능**. 규칙은 문서화됐고 기계 강제(`soak-stack.sh up` 의 Darwin 거부)는 미착수                                                                                                                                                                                                                                                                                                                                                                                                            | 도래 — 2026-08-14 실사고                                                     | S        | 2026-08-15 soak-survival                   |
+| [BL-743](#bl-743) | ✅ **서버 DB 에 migration 이 도달하는 경로 — Resolved (2026-08-15 soak-watch-restore)**. ★가설보다 컸다: `pin` 이 `alembic/` 을 안 뜨는 것은 증상이고, 뿌리는 **소크 compose 에 api 롤이 없어** `run_alembic_with_lock` 을 부르는 경로 자체가 없다는 것(celery `command:` override 가 entrypoint 를 passthrough 로 우회). 채택 = **`soak-stack.sh migrate`**(dry-run 기본 + `--confirm`), ⑴ `up` 자동 upgrade 는 **창 중 암묵 DDL** 이라 기각. upgrade 뒤 `docker exec psql` 재확인으로 오적용 차단. 곁가지 = `SOAK_WATCHED_PATHS` 가 **없는 경로 `scripts`** 를 보고 있었고 alembic 은 안 봤다. 서버 적용 완료(승인) — 인덱스 집합 로컬과 diff 0 | 도래 — 버전 불일치 실측                                                      | S (1-2h) | 2026-08-15 soak-survival                   |
+| [BL-744](#bl-744) | ✅ **서버 `quantbridge-api.service` 좀비 — Resolved (2026-08-15 soak-watch-restore)**. [BL-737] 과 같은 뿌리인데 더 위험했다: 08-07 기동 프로세스가 **삭제된 cwd**(`…/backend (deleted)`)를 붙들고 살아 있었고 `ExecStart` 는 사라져 **죽으면 rc=203/EXEC 영구 실패**였다(systemd 자신이 `Current command vanished` 를 남겼다). 이 API 가 **C5⑷ 스크레이프 대상**이고 `PROMETHEUS_MULTIPROC_DIR` 도 게이트가 읽는 곳과 어긋나 파일 폴백까지 반쪽이었다. 유닛 3곳 교정 후 재시작 — `/health` 200 · `/metrics` 무인증 401 유지 · bearer 200                                                                                                         | 도래 — 삭제된 cwd 실측                                                       | S (30분) | 2026-08-15 soak-watch-restore              |
 
 > Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 (`_archived.md`). + BL-622 (2026-08-07 gap-resync-autopsy). + BL-604 (2026-08-06 entry-set-divergence).
 
@@ -646,7 +648,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-731](#bl-731) | ✅ **`list_synced_with_exchange_exit` LIMIT 500 — Resolved** (2026-08-15). `IS DISTINCT FROM` 을 SQL 술어로 끌어올려 모집단이 **0 으로 수렴**한다 — 상한도 정렬도 안 바꿨다. 수리 전 red 선확인                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | ★이미 발화 조건 성립 — 수리가 머지됐다                                                                          | S (1h)       | 2026-08-14 money-path-close                                  |
 | [BL-733](#bl-733) | ✅ **체결 직후 refresh `reduce_only` 게이트 — Resolved** (2026-08-15). `_reversal_bucket_at_fill` 을 재사용해 **반전이 증명된 leg 만** 예약(`unmeasured_*` 는 스윕에 맡긴다). ★실행측 게이트엔 테스트가 **0건**이었다 — 지워도 31 passed 였다. 그 그물도 함께 신설                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 나머지 2곳이 유일 잔여                                                                                   | M (2-3h)     | 2026-08-14 money-path-close                                  |
 | [BL-736](#bl-736) | 로컬 Docker VM **94% / 3.1G** — `MISCONF … No space left on device` 로 Redis AOF 가 죽자 celery 가 `Unrecoverable error` 로 통째 정지했다(2026-08-14T06:04:11Z). ★**처방 반증(2026-08-15)** — `docker image prune -f` 실측 **0B**다(dangling 이 아니라 태그된 미사용 이미지라 `-a` 가 필요). 그 5.5GB 는 전부 **남의 프로젝트 이미지**이고 볼륨 19.59GB 에도 남의 DB 가 섞여 있다 ⇒ **안전한 자동 회수 경로가 없다**                                                                                                                                                                                                                                                                                                                                                                                   | 도래 — 06:04Z 실사고 로그                                                                                       | S (1h)       | 2026-08-15 soak-survival                                     |
-| [BL-737](#bl-737) | 서버 `dev.quantbridge.soak-watch.service` 가 **failed** — 표본 타이머는 정상인데 **알림 축만** 죽어 있다. 2026-08-14 사망을 아무도 몰랐던 이유다. ★문서는 watch 가 게이트 타이머를 「대체」한다는데 실태는 반대다 — 정본을 함께 정해라                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 도래 — failed 실측                                                                                              | S (1h)       | 2026-08-15 soak-survival                                     |
+| [BL-737](#bl-737) | ✅ **soak-watch 부활 + 감시자의 죽음을 알리는 축 — Resolved (2026-08-15 soak-watch-restore)**. ★사인·사망시각이 원장과 달랐다: `rc=127`(유닛 `ExecStart` 가 재배치 전 `scripts/` 경로) · **08-13 13:52Z 부터 41시간** 침묵(08-14 아니다). 뿌리는 [BL-719] 롤아웃 체크리스트가 soak-watch 를 안 적은 것. 정본 = **watch 가 게이트 타이머를 대체한다**(병존 경합을 실측 — 0.7초 간격 중복 표본, 단 JSON 손상 0). 이중화 대신 **`OnFailure` 알람 유닛**(스크립트 비의존 인라인 curl)과 **`--status` 설치본 신선도**를 신설. 하네스 23/23 · 변이 4종                                                                                                                                                                                                                                                       | 도래 — failed 실측                                                                                              | S (1h)       | 2026-08-15 soak-survival                                     |
 | [BL-741](#bl-741) | `conftest` 의 `create_all` 이 만든 스키마 위에서 **새 migration 이 `DuplicateTable` 로 죽는다**. 둘은 서로를 모르고, 종전엔 migration 이 squash base **하나뿐**이라 안 드러났다 — [BL-731] 이 두 번째를 더하며 발화. ★CI(fresh DB)는 안 걸리고 **로컬에서 pytest 를 돌린 개발자만** 걸린다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 도래 — 실제 red                                                                                                 | S (1-2h)     | 2026-08-15 soak-survival                                     |
 | [BL-738](#bl-738) | [BL-734] 가드의 **한계 3종** — ⑴ 남이 resting 없이 포지션만 가지면 통과한다(「빈 목록 = 배타적」은 거짓) ⑵ probe↔청산 **경쟁**에는 fail-closed 가 아니다 ⑶ `scan_resting_conditionals` 가 Repository 밖에서 DB 를 읽는다(AGENTS.md §3). 근본 해결은 거래소 계정 분리                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 미도래 — 가드가 열린 관측 없음                                                                                  | M (2-3h)     | 2026-08-15 soak-survival                                     |
 | [BL-721](#bl-721) | ✅ **게이트 2단 분할 — Resolved (2026-08-14 gate-2stage)** — 전량 1회 **15~20분**의 대부분을 여섯이 먹고 **CI 가 같은 것을 이미 샤딩해서 돈다**(BE pytest **379초**·e2e ~400초 vs 나머지 20종 합계 1분 안쪽). ⇒ `--pre-pr`(유예) → PR push → **CI 와 나란히** `--deferred-only`. ★유예는 면제가 아니다 — 유예 원장 파일 + 다른 종결 문구, `--deferred-only` 통과만이 원장을 지운다. 하네스 `final-gates-test.sh` 신설(8종→**9종**)                                                                                                                                                                                                                                                                                                                                                                     | 도래 — 회고에서 실측                                                                                            | S            | 2026-08-14 gate-surface-close 회고                           |
@@ -723,6 +725,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-708](#bl-708) | ✅ **비결정 원천은 반올림이 아니라 원격 폰트 404 였다** — 지목한 것은 처방이 아니라 **계측**(`NavProbe.subresourceFail`)이다. 계측 전 3회는 19벌 출력이 status/examined/canon 까지 **전건 동일**이라 갈리는 축이 0이었다. 처방 = 「**file:// 대상만 hermetic**」 — 커밋된 정적 산출물일 때만 비-file 요청을 goto 전에 빈 200 으로 봉인하고 봉인량을 `sealed` 로 싣는다(`subresourceFail=0` 을 「네트워크 멀쩡」으로 오독 금지). 판정 계약은 spec 상단 명문화 + `assertCalibrationContract()` 1곳 통합 + **도달 증거**(4폭 status=200 · minExamined>0 · subresourceFail=0 · sealed>0) 동반 단언 — 변이 `widths:[1440,375]` 에서 종전 계약은 **초록**이고 새 단언만 red. 독립 3회 rc=0/0/0 · `22 passed`×3 · 출력 전문 동일 · 최저 대비 4.92/5.41/5.44 고정. ⑵ WARN 강등 **기각**(여유 0.42 < 밴드 ±0.5) | — (해결됨. 봉인은 http 대상의 코드 경로를 안 지난다)                                                            | S            | 2026-08-12 surface-demo-pack                                 |
 | [BL-714](#bl-714) | ✅ **마감 게이트 브랜치 전제 — Resolved (2026-08-14 gate-surface-close)**. ★**원장 처방 2·3 을 착수 전 기각했다** — `--range` 는 압수 A1 의 **유일한 증인**(하네스 케이스 ⑫ · 변이 `M1=⑫` 정확 집합 일치)을 죽이고, `range:` 첫 줄은 squash 머지라 제3자 검증 불가. 채택 = **`final-gates.sh` 입구 거부**(`merge-base == HEAD` → 게이트 체인 진입 전 거부, `--run eod` 와 문형 동일 · `origin/main` 부재 시 비발화). A1 로직 **불변**, `WHY` 에 처방 문장만 추가. 하네스 **26/26** · 변이 **15종**(㉖ 을 지킬 **M12** 신설 — 그 전까지 자기 변이가 없는 케이스였다) · 문서 = `gates-and-traps.md` 「신호 4종」 절 신설                                                                                                                                                                                 | 마감 절차를 다시 쓸 때 / 같은 상태에 또 빠질 때                                                                 | XS-S         | 2026-08-12 surface-demo-pack                                 |
 | [BL-717](#bl-717) | ✅ **API 계약축 PoC — Resolved** (2026-08-13 contract-poc, [ADR-031]). 결정적 export `contracts/openapi/openapi.json`(2회 sha 동일·`--check` 양음성 실증) + 후보 판정 = **orval(client:'zod') 채택**(zod v4 직출력·tsc strict·수기와 공존 vitest 3/3). hey-api 는 자체 TS7 의존 크래시로 실행 불가 탈락. ★구조 diff 핵심 = **datetime 엄격도 역전**(계약 Z-only vs 수기 offset 허용 — BE 실직렬화 실측 전 런타임 투입 금지). 번들 3endpoint 2.9KB gz. CI 배선·전면 전환은 [ADR-031] §비결정                                                                                                                                                                                                                                                                                                            | PR-1(ADR-029 재배치) 머지 후                                                                                    | M            | 2026-08-13 monorepo-realign                                  |
+| [BL-742](#bl-742) | ⏳ 반전·순포지션 가정 **163곳/12파일** 전수 감사([ADR-032] §대가). ★긴급도 하락 — 2026-08-15 A1 이 「반전은 소크 사망 원인이 **아니다**」를 보였다(서버=계정 배타성, 로컬=맥 sleep). **예방 축**이다. ★감사(읽기)와 수리(쓰기)를 나눠라 — 수리는 재-pin 을 부른다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 미도래 — 반전이 다시 지목되거나 헤지 재검토 시                                                                  | M (2-3h)     | 2026-08-15 soak-survival                                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -1453,6 +1456,7 @@ Error: 완료 상태 백테스트를 목록에서 찾지 못했다 (백엔드 80
 
 | ID                | 제목                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Trigger                                                                                                           | Est       | 출처                                                   |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------ |
+| [BL-745](#bl-745) | ⏳ 텔레그램 봇 토큰이 `curl` **argv** 에 실린다 — 같은 UID 의 다른 프로세스가 `ps`/`/proc` 로 읽을 수 있다. ★**이 회차가 만든 결함이 아니다** — 기존 `_notify:128` 이 처음부터 같은 형태이고 새 알람 유닛이 그것을 따랐을 뿐이라 **두 곳을 함께** 고쳐야 한다. 처방 = `curl --config -` 로 URL 을 stdin 에서 받는다                                                                                                                                                                                                                                                                                                                                                                   | 미도래 — 다중 사용자·CI 로 넓힐 때                                                                                | XS (30분) | 2026-08-15 soak-watch-restore                          |
 | [BL-728](#bl-728) | ✅ `classify_exit` 이 Bybit `CreateByLiq` 를 못 잡던 건 — **Resolved** (2026-08-14 `dde53e68`/#631). 부분문자열 판정을 `_LIQUIDATION_CREATE_TYPES` frozenset 으로 교체(같은 파일 `:14-16` 의 기존 3종과 통일). `"adl"` 축은 `_PassThrough` 접미사 때문에 유지. 관측 0건 잠복 해소                                                                                                                                                                                                                                                                                                                                                                                                     | —                                                                                                                 | XS (10분) | 2026-08-14 money-path-attribution                      |
 | [BL-722](#bl-722) | ✅ **Resolved (2026-08-14 gate-pointer-axis)** — `assert-main-checkout-test.sh` 신설(케이스 4 + 변이 M1), 게이트 하네스 **9→10종**. ★**처방 2건이 뒤집혔다**: ⑴ 「`--selftest` 가 가장 싸다」 → 호출 자리 2곳(`Makefile` 루프 · `final-gates.sh run_gate`)이 **전부 이름 규약 기반**이라 별도 하네스가 더 싸다 ⑵ 「비 git → rc≠0」 → **코드가 반대**이고 코드가 맞다(`:32-37` 이 판정 불가를 의도적으로 통과 — 차단하면 CI·컨테이너에서 정상 타깃이 전부 죽는다)                                                                                                                                                                                                                      | 도래 — 대상 확정                                                                                                  | XS        | 2026-08-14 gate-2stage                                 |
 | [BL-377](#bl-377) | pine_v2 non-finite 주문/청산 가격 + 초대형 유한 length OverflowError (BL-376 후속 잔여)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | pine_v2 robustness 후속 또는 실자금 cutover 전                                                                    | S (2-4h)  | 2026-06-30 BL-376 G2 codex challenge + G3 fresh review |
@@ -6008,13 +6012,13 @@ vercel.ok rc=1 stale: vercel.ok @ 93655ee3 [no-branch-commits] — 동일
 
 **아래는 2026-08-12 재측정본**이고 괄호가 2026-08-08 값이다(층 경계는 날짜가 아니라 **수리**라서 불변):
 
-| 창                  | n                                                                                                                                                                                                                                                                       | 노출                                | 자동사망 | MTBF                     | 95% CI          | 그 사망의 정체                           |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | -------- | ------------------------ | --------------- | ---------------------------------------- |
-| 전 이력             | 40 (구 38)                                                                                                                                                                                                                                                              | 193.37h (구 107.12)                 | 8        | 24.17h (구 13.39)        | [12.27, 55.99]  | 혼합                                     |
-| 2026-08-03 이후     | 16 (구 14)                                                                                                                                                                                                                                                              | 147.16h (구 60.91)                  | 7        | 21.02h (구 **8.70**)     | [10.20, 52.29]  | **혼합 — 이 BL 이 인용해 온 값**         |
-| [ADR-025] 수리 이후 | 7 (구 5)                                                                                                                                                                                                                                                                | 124.72h (구 38.47)                  | 2        | 62.36h (구 19.24)        | [17.26, 514.93] | gap-resync 1 — [BL-622] 가 수리 · 오염 1 |
-| [BL-622] 수리 이후  | 4 (구 2)                                                                                                                                                                                                                                                                | 91.84h (구 5.59)                    | 1        | 91.84h (구 —)            | [16.48, 3627.6] | **오염 1건뿐** — [BL-634] 미시행         |
-| [BL-739](#bl-739)   | `final-gates:481` 화면 검증 신호가 **FE diff 0 에도 required=1** — 윗줄 `vercel.ok` 는 `$has_fe` 로 자동 skip 되는데 아랫줄만 하드코딩이다. ★단순히 `$has_fe` 로 바꾸면 **BE 가 화면을 깨는** 경우를 놓친다([BL-707] 계열) — `apps/api/src/` diff 까지 보는 술어가 후보 | 도래 — 이 회차가 그 자리에서 멈췄다 | S (30분) | 2026-08-15 soak-survival |
+| 창                  | n                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 노출                                | 자동사망 | MTBF                     | 95% CI          | 그 사망의 정체                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | -------- | ------------------------ | --------------- | ---------------------------------------- |
+| 전 이력             | 40 (구 38)                                                                                                                                                                                                                                                                                                                                                                                                                                         | 193.37h (구 107.12)                 | 8        | 24.17h (구 13.39)        | [12.27, 55.99]  | 혼합                                     |
+| 2026-08-03 이후     | 16 (구 14)                                                                                                                                                                                                                                                                                                                                                                                                                                         | 147.16h (구 60.91)                  | 7        | 21.02h (구 **8.70**)     | [10.20, 52.29]  | **혼합 — 이 BL 이 인용해 온 값**         |
+| [ADR-025] 수리 이후 | 7 (구 5)                                                                                                                                                                                                                                                                                                                                                                                                                                           | 124.72h (구 38.47)                  | 2        | 62.36h (구 19.24)        | [17.26, 514.93] | gap-resync 1 — [BL-622] 가 수리 · 오염 1 |
+| [BL-622] 수리 이후  | 4 (구 2)                                                                                                                                                                                                                                                                                                                                                                                                                                           | 91.84h (구 5.59)                    | 1        | 91.84h (구 —)            | [16.48, 3627.6] | **오염 1건뿐** — [BL-634] 미시행         |
+| [BL-739](#bl-739)   | ✅ **화면 신호 비대칭 — Resolved (2026-08-15 soak-watch-restore)**. 술어 = **`has_fe` ∪ `has_api_src`**(`^apps/api/src/`, `has_be` 보다 좁다) — 원장 경고대로 단순 `$has_fe` 를 안 썼다. ★**잴 방법이 먼저 없었다**: `signal_gate` 의 dry-run 분기가 required 를 삼켜, 다른 게이트가 표에 보여주는 skip 사유를 신호만 안 보여줬다. 그 노출 회복이 수리의 절반. 케이스 ⑩ + 변이 **M4·M5 신설**(⑩ 이 자기 변이 없이 들어오지 않게 — BL-714 M12 선례) | 도래 — 이 회차가 그 자리에서 멈췄다 | S (30분) | 2026-08-15 soak-survival |
 
 ★**각 수리 이후의 사망은 전부 「그 다음 원인」이었다.** 알려진 원인이 모두 닫힌 뒤의 **미설명 사망은
 0건**이다. ★2026-08-12 정정 — 종전의 「노출이 5.59h 뿐이라 **아래에서 못 잰다**」는 낡았다:
@@ -8573,7 +8577,44 @@ pytest·`docker build` 가 3.1G 에서 돌아간다.
 
 **Risk:** 🟡 (감시 부재는 사고를 만들지 않지만 **사고를 늦게 알게 만든다**)
 
-**상태:** ⬜ Open — 미착수 (2026-08-15 soak-survival)
+**상태:** ✅ **Resolved** (2026-08-15 soak-watch-restore) — ★**사인도 사망 시각도 원장이 적은 것과
+달랐다.** ⑴ 사인 = `rc=127`, 유닛의 `ExecStart` 가 `~/quantbridge/scripts/soak-watch.sh` 라는
+**재배치 전 경로**였다([ADR-029], PR #619). `_install` 이 `${SCRIPT_DIR}` 를 유닛에 **굽기** 때문이다.
+⑵ 사망은 08-14 가 아니라 **2026-08-13 13:52Z 부터** — journal 최초 실패가 그 시각이고 08-07~08-13 은
+전부 `Finished` 였다. 상태 파일의 `HEARTBEAT_DATE=2026-08-13` 이 독립 확증이다. **41시간** 침묵했고
+그 사이 소크 사망 2건(08-14 04:51 · 12:26)을 아무도 몰랐다.
+⑶ 뿌리는 이 BL 이 아니라 **[BL-719] ADR-029 롤아웃 체크리스트의 누락**이다 — 1⑦ 이
+`soak-gate.sh --install` 만 적고 soak-watch 를 안 적었다(같은 누락의 다른 판이 [BL-744]).
+★정본 결정 = **watch 가 게이트 타이머를 대체한다**(문서·코드 쪽이 맞다). 게이트에 flock 이 없어
+병존은 표본 경합이다 — 이 회차에서 **실측했다**: 수동 실행과 타이머가 겹쳐 0.7초 간격으로 표본이
+2건 들어갔다(02:00:08.989 / 02:00:09.676). 단 **JSON 손상은 0 이었다**(457줄 전건 유효) — 세션 1개
+레코드는 짧아 단일 write 로 나간다. 위험은 인터리브가 아니라 **중복 표본**이었다.
+★그래서 이중화 대신 **감시자의 죽음을 알리는 축**을 신설했다 — 감시자는 자기 죽음을 알릴 수 없다.
+⑴ `OnFailure=dev.quantbridge.soak-watch-alarm.service`(인라인 curl · **스크립트 파일 비의존**이라
+다음 재배치에 면역 · 토큰은 `.env.local` 소싱) ⑵ `--status` 의 **설치본 신선도 판정**(설치된
+`ExecStart` 가 지금 이 파일인가 · 낡으면 rc=1). 종전 `--status` 는 「타이머가 waiting」만 찍어
+41시간 내내 초록으로 보였다.
+**검증:** AC-1 = 타이머 발화가 `Finished` + 지문 `|3|→|1|` 상태 변화 알림 실발사(heartbeat 전진이
+증인 — 전송 실패 시 전진 안 한다). AC-2 = drop-in override 로 **이번 사고를 재현**(rc=127) → 알람
+유닛 발화 → 원복. AC-3 = `--status` 가 낡은 ExecStart 를 red 로. 하네스
+`soak-watch-test.sh` **24/24**(신규 ⑬⑭⑭b⑭c⑮⑮b⑮c), 변이 **6종 전건 판별**(도달 확인 포함).
+★변이 M-d 가 종전 하네스의 공백을 실증했다 — 가짜 게이트가 `"$@"` 를 무시해서
+「게이트를 `--no-collect` 로 부르는」 회귀가 전건 초록이었다(C5 fail-open). 케이스 ⑬ 이 그것을 막는다.
+
+★★★**이 회차 최대 반증 — 내 「AC-2 성공」 보고가 거짓이었고, 그것을 잡은 것은 codex 다.**
+codex 가 「systemd 가 `${TELEGRAM_*}` 를 bash 실행 전에 확장해 알람이 무력하다」를 P1 으로 냈다.
+나는 `systemctl show -p ExecStart` 를 찍어 **리터럴이 남아 있으니 phantom** 이라고 판정했다.
+**그 출력은 확장 _전_ 문자열이다** — 오독이었다. 그 뒤 `--fail` 을 붙이자마자 알람 유닛이
+**exit 22** 로 뒤집혔고, 진단 결과는 텔레그램 **HTTP 404**(= 빈 봇 토큰으로 `…/bot/sendMessage`).
+⇒ **codex 의 결론은 옳았고 근거만 달랐다.** systemd 에서 리터럴 `$` 는 `$$` 이므로
+`$${TELEGRAM_CHAT_ID}` 로 고쳤고, 재실증에서 알람 유닛이 `Result=success`(= HTTP 200)를 냈다.
+★두 층의 교훈이 겹쳐 있다 — ⑴ **「유닛이 Finished」는 알림 도착의 증거가 아니다**(`--fail` 이
+없으면 404 도 rc=0 이다. 이 회차 주제인 「돌았다 ≠ 발화했다」가 내 검증 자신에게 재현됐다)
+⑵ **반증했다고 적기 전에 그 관측이 무엇을 재는지부터 확인해라** — `systemctl show` 는 systemd 의
+파싱 결과이지 실행 시점 확장 결과가 아니다. 지금은 `--fail` 덕에 **유닛 상태가 알림 도착의
+증인**이고, 하네스가 `$$` 형태와 `--fail` 존재를 케이스로 고정한다.
+★codex 7건 중 **phantom 0** — 채택 5건, 등급만 조정 1건(토큰이 curl argv 에 실리는 축은
+기존 `_notify:128` 과 **동일 패턴**이라 이 회차가 만든 결함이 아니다 → [BL-745] 로 이월).
 **트리거 판정:** 도래 — failed 상태 실측이 근거다 (2026-08-15 soak-survival)
 
 ---
@@ -8646,7 +8687,20 @@ signal_gate "화면 검증 (playwright 또는 /browse)" "screen.ok" 1 ""
 
 **Risk:** 🟢 (신호의 의미가 흐려지는 축. 지금 무엇을 깨지는 않는다)
 
-**상태:** ⬜ Open — 미착수 (2026-08-15 soak-survival)
+**상태:** ✅ **Resolved** (2026-08-15 soak-watch-restore) — 술어 = **`has_fe` ∪ `has_api_src`**.
+원장이 경고한 대로 단순 `$has_fe` 를 쓰지 않았다 — `apps/api/src/` 가 0줄일 때만 API 응답이
+구조적으로 안 바뀌므로 그때만 「검증 대상 부재」다([BL-707] 계열을 놓치지 않는다).
+`has_api_src` 는 `has_be`(`^apps/api/`)보다 좁게 `^apps/api/src/` 로 센다.
+★**잴 방법이 먼저 없었다** — 하네스의 판정 표면은 `--dry-run` 인데 `signal_gate` 의 dry-run 분기가
+required 를 통째로 삼켜서, 다른 게이트가 이미 표에 보여주는 skip 사유를 신호만 안 보여줬다.
+그 노출을 회복시킨 것이 수리의 절반이다(`check_signal` 호출 횟수는 불변 —
+`signal-check-test.sh` ㉑㉒㉓ 계약 그대로).
+**검증:** `final-gates-test.sh` 케이스 **⑩ 신설**(음성 대조가 앞에 온다 — 지금 트리에서 「필수 아님」,
+`apps/api/src` 에 탐침을 두면 「필수」). 변이 **M4·M5 신설**(⑩ 이 자기 변이 없이 들어오지 않게 —
+[BL-714] 의 M12 선례). M4 = 술어를 리터럴 1 로 되돌림 → ⑩ red, M5 = `apps/api/src` 축 무력화 → ⑩ red.
+전체 **10/10 · 변이 5종 + 음성 대조 1종 전건 판별**.
+★**이 회차는 이 수리로 자기 PR 을 통과시키지 않는다** — `screen.ok` 신호는 그대로 남기고
+「검증 대상 부재」의 근거를 적는다(직전 회차 선례).
 **트리거 판정:** 도래 — 이 회차가 실제로 그 자리에서 멈췄다 (2026-08-15 soak-survival)
 
 ---
@@ -8723,3 +8777,200 @@ signal_gate "화면 검증 (playwright 또는 /browse)" "screen.ok" 1 ""
 
 **상태:** ⬜ Open — 미착수. 2026-08-15 회차는 `drop index` 우회로 넘어갔다 (2026-08-15 soak-survival)
 **트리거 판정:** 도래 — 실제로 red 를 만들었다 (2026-08-15 soak-survival)
+
+---
+
+### BL-742
+
+**Title:** 반전·순포지션 가정 **163곳 / 12파일** 전수 감사 ([ADR-032] §대가)
+**Category:** Backend / trading · strategy (반전 의미론)
+**Priority:** P2
+**Trigger:** 반전이 원인으로 지목되는 사건이 **한 번 더** 나면 즉시 / 또는 헤지 모드를 재검토할 때
+**Est:** M (2-3h — 모집단이 이미 세어져 있다)
+**출처:** 2026-08-15 soak-survival (A3 로 계획됐다가 사용자 결정으로 이월)
+
+**원인 / 영향:** [ADR-032] §대가가 모집단을 이미 실측해 뒀다 — **반전·순포지션 가정이 163곳 /
+12파일**에 박혀 있고 그중 4개가 `strategy/pine_v2/` 다(`event_loop.py` · `strategy_state.py` ·
+`stdlib.py` · `alert_hook.py`). 반전에는 `reduce_only` 를 걸 수 없으므로(one-way 유지 결정)
+그 가정 하나가 틀리면 머니-패스가 조용히 어긋난다.
+
+★**긴급도가 낮아졌다** — 2026-08-15 A1 이 「반전 의미론은 소크 사망의 원인이 **아니다**」를
+보였다. 서버 세션을 죽인 것은 계정 배타성 위반이었고([BL-734]), 로컬은 맥 sleep 이었다
+([BL-735]). 이 감사는 **예방**이지 진행 중인 사고의 수리가 아니다.
+
+**권장 접근:** 「반전 체결이 오면 이 코드가 틀리는가」 **하나의 질문**으로 훑는다.
+
+| 위치      | 무엇을 가정하나               | 반전이 오면        | 판정                         |
+| --------- | ----------------------------- | ------------------ | ---------------------------- |
+| (파일:줄) | (예: 체결 수량 = 포지션 증분) | 틀린다 / 안 틀린다 | 수리 필요 / 무해 / 이미 처리 |
+
+★**「무해」에도 근거를 적어라** — 「반전이 그 경로에 도달하지 않는다」면 **왜** 도달하지 않는지.
+★이미 아는 것부터 표에 넣고 시작해라: 백필 축(#631 종결) · `_net_position_size`(2026-08-15 에
+옳다고 확인) · `_ledger_gap_seed` · `derive_open_position` · 체결 직후 refresh([BL-733] 종결) ·
+seed watermark([BL-547]).
+★pine_v2 4파일은 **Pine 도메인 모델 자체가 순포지션**이라([ADR-032] §대가) 「틀린다」가 아니라
+**「거래소와 의미가 다르다」**쪽일 가능성이 높다 — 그 구분을 표에 명시해라.
+
+★★**소크 창을 고려해라** — 이 감사가 `apps/api/src` 수리로 이어지면 **재-pin 이 필요하고 C2 가
+리셋**된다. 감사(읽기)와 수리(쓰기)를 나눠서, 수리는 C1 창을 채운 뒤나 다음 재-pin 창에 묶어라.
+
+**Risk:** 🟡 (예방 축. 지금 알려진 사고는 다른 원인으로 닫혔다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 모집단은 [ADR-032] 에 있고 착수 준비는 끝났다. 반전이 다시 지목되거나 헤지 재검토 시 연다 (2026-08-15 soak-survival)
+**트리거 판정:** 미도래 — A1 이 반전을 사망 원인에서 배제했고 헤지 재검토 계획도 없다 (2026-08-15 soak-survival)
+
+---
+
+### BL-743
+
+**Title:** 서버 DB 에 alembic migration 을 적용하는 경로가 없다 — 첫 두 번째 migration 에서 드러났다
+**Category:** 운영 / 배포
+**Priority:** P1
+**Trigger:** ★**이미 발화했다** — 2026-08-15 `ix_exchange_exits_account_order` 가 로컬엔 있고 서버엔 없다
+**Est:** S (1-2h — 절차 결정이 선행)
+**출처:** 2026-08-15 soak-survival ([BL-731] 인덱스 추가 후 실측)
+
+**원인 / 영향:** 2026-08-15 실측 —
+
+```
+로컬 개발 DB   alembic_version = 20260815_0001   인덱스 있음
+서버 소크 DB   alembic_version = 20260801_0001   인덱스 **없음**
+```
+
+`.github/workflows/` 에 **배포 워크플로가 없고**(ci · live-smoke · nightly 뿐), 소크 배포는
+`soak-stack.sh down → pin → up` 이다. 그런데 **`pin` 은 `apps/api/src` 스냅샷만 뜬다** —
+`alembic/` 은 그 밖이라 **DB 스키마는 영원히 안 따라온다.**
+
+★종전에 안 드러난 이유: migration 이 squash base **하나뿐**이었고 서버 DB 는 그 시점에 만들어졌다.
+**[BL-731] 이 두 번째를 더하면서 처음으로 격차가 생겼다.**
+
+★**지금 당장 깨지지는 않는다** — 인덱스는 성능 축이라 없어도 동작한다(서버 원장 892행에서
+`Seq Scan`). 위험한 것은 **다음 migration 이 컬럼/제약을 건드릴 때**다. 그때는 pin 한 코드가
+없는 컬럼을 읽고 조용히 죽는다.
+
+★★[BL-741] 과 다른 축이다 — 그쪽은 **테스트 DB** 에서 `create_all` 과 alembic 이 부딪히는 것이고,
+이쪽은 **서버 DB** 에 migration 이 아예 도달하지 않는 것이다.
+
+**권장 접근:** ⑴ `soak-stack.sh up` 이 기동 전에 `alembic upgrade head` 를 돌리게 한다 —
+정합적이지만 **소크 창 중에 DDL 이 도는 것**을 뜻하므로 그 안전성 판단이 선행이다.
+⑵ 별도 `soak-stack.sh migrate` 를 두고 사람이 명시적으로 부른다 — `pin` 과 같은 등급의
+「명시적 배포 행위」로 취급. ★현재 절차서(status.md 재기동 8단계)에 그 자리가 없다.
+
+★★**「alembic 마이그레이션」은 `status.md` ⓵ 의 비목표(사용자 결정 대기)다.** 2026-08-15 회차가
+codex 의 인덱스 지적을 받아 **migration 을 하나 만들었고**(로컬 적용·CI 통과) 그것이 이 항목의
+계기다. 서버 적용은 더 큰 결정이므로 **비목표 문구부터 갱신**하고 시작해라 — 「금지」인지
+「승인 후 허용」인지가 지금 모호하다.
+
+**Risk:** 🔴 (지금은 성능뿐이나, 스키마를 바꾸는 migration 이 오면 **소크가 조용히 죽는다**)
+
+**상태:** ✅ **Resolved** (2026-08-15 soak-watch-restore) — ★**가설보다 컸다.** 「`pin` 이 `alembic/`
+을 안 뜬다」는 참이지만 그건 증상이고, 뿌리는 **소크 스택에 migration 적용 단계가 아예 없다**는
+것이었다: 소크 compose 6서비스에 **api 롤이 없고**(`run_alembic_with_lock` 을 부르는 유일한 롤),
+celery 는 `command:` override 로 entrypoint 의 롤 분기를 통째로 우회한다
+(`apps/api/docker-entrypoint.sh:117` passthrough). 즉 `pin` 경로를 넓혀도 안 고쳐진다.
+채택 = **권장 ⑵ `soak-stack.sh migrate`**(기본 dry-run + `--confirm`, `soak-restart.sh` 문형).
+⑴(`up` 이 자동 upgrade)을 기각한 이유 = 창 중 DDL 이 **암묵적으로** 돌아 「무엇이 언제 스키마를
+바꿨나」에 답할 수 없게 된다. `pin` 과 같은 등급의 명시적 배포 행위로 뒀다.
+★**결정적 검증을 코드에 박았다** — upgrade 뒤 `docker exec ${DB_CONTAINER} psql` 로 **게이트가 보는
+그 DB** 를 다시 읽어 head 와 대조한다. `.env.local` 이 다른 DB 를 가리키고 있었다면 upgrade 는
+성공하고 여기서 실패한다(조용한 오적용을 막는 유일한 축).
+★**곁가지 2건 — `SOAK_WATCHED_PATHS`(`soak-stack.sh:101`)가 두 곳에서 침묵하고 있었다.**
+⑴ `scripts` 는 [ADR-029] 재배치로 **존재하지 않는 경로**가 됐다(2026-08-13부터 게이트 스크립트
+감시 축이 죽어 있었다) — 없는 경로의 `git log -- <path>` 는 오류가 아니라 **빈 출력**이라
+「누락 없음」과 구분되지 않는다. ⑵ `apps/api/alembic` 이 처음부터 없어서 서버 DB 가 뒤처진
+채로도 「누락 커밋 0개」가 나왔다. 둘 다 교정했다.
+★내 dry-run 초판도 반증됐다 — `alembic history -r A:B` 가 **A 를 포함**해서 「적용 대기 2 항목」을
+찍었는데 실제 대기는 1개였다(운영자가 보는 유일한 정보라 그대로면 오독). awk 로 `<cur> ->` 줄까지만 센다.
+**서버 적용 완료** (사용자 승인) — `20260801_0001 → 20260815_0001`. 검증: `trading` 스키마 인덱스
+집합이 로컬과 **완전 일치**(diff 0), 적용 전후 게이트 C3 실격 0 유지 · C5 6/6 · C2 9.22h → 9.50h 계속 증가.
+★**codex 적대 리뷰가 3건을 더 잡았고 전건 채택했다** — ⑴ 사후 재확인만으로는 **오적용을 못 막는다**
+(다른 DB 를 _먼저_ 바꾼 뒤에야 실패하고 그 DDL 은 되돌릴 수 없다) ⇒ upgrade **전에**
+`DATABASE_URL` 이 `docker port ${DB_CONTAINER}` 의 published endpoint 를 가리키는지 대조한다.
+⑵ 맨 `alembic upgrade head` 는 레포에 이미 있는 **advisory lock 래퍼를 우회**한다
+(`docker-entrypoint.sh:52-55` 가 쓰는 그것) ⇒ `run_alembic_with_lock` 을 같은 lock key 로 재사용한다.
+⑶ `alembic history` 실패가 **「0 항목」으로 보였다**(fail-open) ⇒ rc 를 보고 전제 미충족(2)으로 죽는다.
+그리고 `migrate --confirm --typo` 가 조용히 집행되던 것도 막았다.
+**도달 확인 포함 실증** — 로컬 `alembic_version` 만 임시로 되돌려(스키마 불변·dry-run) 새 경로를
+실제로 지나게 했다: 사전 대조 `✓`, 대기 1항목 정확, 이력에 없는 revision 에서 **rc=2**(종전이면
+「0 항목」으로 초록이었을 자리다), 여분 인자 rc=1. 직후 원복 확인.
+**트리거 판정:** 도래 — 로컬/서버 `alembic_version` 불일치가 실측됐다 (2026-08-15 soak-survival)
+
+---
+
+### BL-744
+
+**Title:** 서버 `quantbridge-api.service` 가 **좀비**였다 — 죽으면 영원히 안 돌아온다
+**Category:** 운영 / 서버 systemd
+**Priority:** P1
+**Trigger:** ★**이미 발화했다** — 2026-08-15 `/proc/<pid>/cwd -> …/backend (deleted)` 실측
+**Est:** S (30분)
+**출처:** 2026-08-15 soak-watch-restore ([BL-737] 부검 중 발견 — 프롬프트·원장 어디에도 없었다)
+
+**원인 / 영향:** [BL-737] 과 **같은 뿌리**([ADR-029] 재배치의 서버측 잔존)인데 더 위험했다.
+
+```
+MainPID=3169921   ExecMainStartTimestamp=2026-08-07 12:26:50 UTC   (재시작 이력 0)
+/proc/3169921/cwd -> /home/ubuntu/quantbridge/backend (deleted)
+ExecStart=/home/ubuntu/quantbridge/backend/.venv/bin/uvicorn        ← 파일 없음
+                    /home/ubuntu/quantbridge/apps/api/.venv/bin/…   ← 이쪽에 있다
+```
+
+08-07 에 뜬 프로세스가 **삭제된 inode 를 붙들고** 살아 있었을 뿐이다. `Restart=always` 인데
+`ExecStart` 가 사라졌으므로 **한 번 죽으면 rc=203/EXEC 로 영구 실패 루프**다. systemd 자신이
+그것을 알고 있었다 — 재시작 시 `Current command vanished from the unit file` 을 남겼다.
+
+★**소크에 직결한다** — 이 API 가 C5⑷ prometheus 스크레이프 대상(`:8100/metrics`)이다.
+게다가 `Environment=PROMETHEUS_MULTIPROC_DIR=…/backend/.metrics` 가 게이트의
+`METRICS_DIR=${ROOT}/apps/api/.metrics`(`soak-gate.sh:61`)와 **어긋나** 있어서, HTTP 갈래가
+죽었을 때의 파일 폴백조차 API 롤 카운터를 못 봤다. [BL-719] 롤아웃 1⑤ 가 `.metrics` **파일**은
+옮겼지만 그것을 가리키는 **유닛의 환경변수**는 안 고쳤다.
+
+★**뿌리 = [BL-719] 체크리스트에 「서버 systemd 유저 유닛 점검」항목이 없다.** 1⑦ 은
+`soak-gate.sh --install` 하나만 적었고, ⑤ 는 `.env` 의 구경로만 점검하라고 했다. 그 결과
+같은 재배치가 **세 곳**을 남겼다 — soak-watch 유닛([BL-737]) · 이 API 유닛 · 그리고
+`SOAK_WATCHED_PATHS` 의 `scripts`([BL-743] 곁가지). 다음 재배치 때는 **유닛 파일의 절대경로
+전수**를 점검 항목으로 둬라(`grep -l quantbridge ~/.config/systemd/user/*`).
+
+**Risk:** 🔴 (지금 도는 것은 무사하지만 **재부팅·OOM·크래시 한 번이면 API 가 영구 사망**하고,
+그때 C5⑷ 가 함께 무너진다)
+
+**상태:** ✅ **Resolved** (2026-08-15 soak-watch-restore) — 유닛 3곳 교정
+(`WorkingDirectory` · `PROMETHEUS_MULTIPROC_DIR` · `ExecStart` 를 전부 `apps/api` 로) 후 재시작.
+`APP_ENV` 는 **올리지 않았다** — 유닛 주석이 적은 대로 production 이면 `PROMETHEUS_BEARER_TOKEN`
+이 강제되어 게이트의 스크레이프가 401 이 되고 C5⑷ 가 영구 false 다.
+**검증:** `/health` 200 · `/metrics` 무인증 **401**(fail-closed 유지, [BL-704]) · bearer 200(414줄) ·
+`/proc/<새 pid>/cwd` 가 `apps/api` · 재시작 전후 게이트 C3 실격 0 유지 · C5 6/6.
+★실수 하나를 기록한다 — 재시작 4초 뒤에 친 curl 이 `http=000` 이라 「기동 실패」로 읽을 뻔했다.
+uvicorn 은 **12초** 걸렸다(01:54:37 재시작 → 01:54:49 `Application startup complete`).
+**트리거 판정:** 도래 — 삭제된 cwd 와 부재하는 ExecStart 가 실측됐다 (2026-08-15 soak-watch-restore)
+
+---
+
+### BL-745
+
+**Title:** 텔레그램 봇 토큰이 `curl` 의 **argv** 에 실린다 — 같은 사용자의 다른 프로세스가 읽을 수 있다
+**Category:** 보안 / 소크 감시
+**Priority:** P3
+**Trigger:** 소크 서버에 다른 사용자·서비스가 들어올 때 / 토큰 회전 절차를 세울 때
+**Est:** XS (30분)
+**출처:** 2026-08-15 soak-watch-restore (codex 적대 리뷰 P2 — 등급만 조정해 이월)
+
+**원인 / 영향:** 텔레그램 API 는 토큰을 **URL 경로**에 둔다(`/bot<TOKEN>/sendMessage`). 그래서
+`curl … "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage"` 는 실행되는 동안
+토큰을 argv 에 노출하고, 같은 UID 의 다른 프로세스가 `ps` 나 `/proc/<pid>/cmdline` 으로 읽을 수 있다.
+
+★**이 회차가 만든 결함이 아니다** — `soak-watch.sh:128` 의 기존 `_notify` 가 **처음부터 같은 형태**다.
+2026-08-15 에 추가한 `OnFailure` 알람 유닛이 그 패턴을 따랐을 뿐이라, 알람만 고치면 두 경로가
+서로 다른 모양이 되어 오히려 읽기 어려워진다. **두 곳을 함께** 바꿔야 하는 항목이다.
+
+★현재 위험도가 낮은 이유: 서버는 1인 사용자이고 두 경로 다 `--silent`(+ 알람은 `--show-error`
+제거)라 **로그·stderr 로는 새지 않는다**. 파일 영속도 없다(유닛엔 변수 참조만 들어간다).
+
+**권장 접근:** `curl --config -` 로 URL 을 **stdin** 에서 받는다(argv 미노출). 두 호출부를 같은
+헬퍼로 모으면 형태가 하나로 유지된다. ★단 알람 유닛은 **스크립트 파일에 의존하지 않는다**는
+설계가 [BL-737] 의 핵심이므로, 헬퍼로 모으더라도 알람 쪽은 인라인을 유지해야 한다.
+
+**Risk:** 🟢 (단일 사용자 서버에서는 실현 경로가 사실상 없다. 다중 사용자·CI 로 넓히면 오른다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 위험 실현 조건(다중 사용자)이 아직 없다 (2026-08-15 soak-watch-restore)
+**트리거 판정:** 미도래 — 서버는 1인 사용자이고 로그 유출 경로는 이미 닫혀 있다 (2026-08-15 soak-watch-restore)
