@@ -21,6 +21,16 @@ export const ParseErrorSchema = z.object({
 });
 export type ParseError = z.infer<typeof ParseErrorSchema>;
 
+export const UnsupportedCallSchema = z.object({
+  name: z.string(),
+  // BE가 아직 이 필드를 보내지 않은 구 parse 응답도 목록 전체를 비우지 않아야 한다.
+  line: z.number().int().nullable().default(null),
+  col: z.number().int().nullable().default(null),
+  workaround: z.string().nullable().default(null),
+  category: z.enum(["drawing", "data", "syntax", "math", "other"]).nullable().default(null),
+});
+export type UnsupportedCall = z.infer<typeof UnsupportedCallSchema>;
+
 export const ParsePreviewResponseSchema = z.object({
   status: ParseStatusSchema,
   pine_version: PineVersionSchema,
@@ -32,6 +42,8 @@ export const ParsePreviewResponseSchema = z.object({
   functions_used: z.array(z.string()).default([]),
   // Sprint Y1: pre-flight coverage analyzer — 미지원 built-in 명시 (whack-a-mole 종식)
   unsupported_builtins: z.array(z.string()).default([]),
+  // BE UnsupportedCallResponse의 코드 위치와 우회안. 배열이 없던 구 응답도 허용한다.
+  unsupported_calls: z.array(UnsupportedCallSchema).default([]),
   is_runnable: z.boolean().default(true),
 });
 export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;

@@ -14,6 +14,7 @@ vi.mock("../hooks", () => ({
     mutateAsync: vi.fn(),
     isPending: false,
   }),
+  useLiveSessionState: () => ({ data: undefined, isLoading: false }),
 }));
 
 import { LiveSessionList } from "../components/live-session-list";
@@ -155,5 +156,28 @@ describe("LiveSessionList state view (BL-174 list-only)", () => {
     expect(screen.getByTestId("live-session-empty")).toBeInTheDocument();
     expect(screen.getByTestId("recent-inactive-empty")).toBeInTheDocument();
     expect(screen.getByText("최근 종료된 세션이 없습니다.")).toBeInTheDocument();
+  });
+
+  test("중단 확인은 미체결 조건부 진입 주문이 자동 취소됨을 알린다", () => {
+    mockUseLiveSessions.mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "id-stop",
+            symbol: "BTC/USDT",
+            interval: "1h",
+            is_active: true,
+            created_at: new Date().toISOString(),
+          },
+        ],
+      },
+      isLoading: false,
+      error: null,
+    });
+
+    render(<LiveSessionList />);
+    fireEvent.click(screen.getByTestId("live-session-stop-id-stop"));
+
+    expect(screen.getByText(/미체결 조건부 진입 주문은 자동으로 취소됩니다/)).toBeInTheDocument();
   });
 });

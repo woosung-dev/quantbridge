@@ -28,10 +28,14 @@ export type FormErrorInlineProps = {
   indicatorCode?: string | null;
   /** AI 변환 성공 콜백. indicatorCode 지정 시 필수. */
   onConverted?: (result: ConvertIndicatorResponse) => void;
+  /** degraded Pine 422에서 사용자가 결과 차이를 명시 동의했는지. */
+  degradedConsent?: boolean;
+  /** degraded Pine 422의 동의 상태를 폼에 전달한다. */
+  onDegradedConsentChange?: (accepted: boolean) => void;
 };
 
 type Parsed = {
-  kind: "unsupported" | "general";
+  kind: "unsupported" | "degraded" | "general";
   friendlyMessage: string | null;
   hints: UnsupportedBuiltinHint[];
   fallbackMessage: string;
@@ -74,20 +78,33 @@ function parseError(err: unknown): Parsed | null {
         }
       | undefined;
     const inner = detailBag?.detail;
-    const list = inner?.unsupported_builtins ?? inner?.degraded_calls;
+    const degradedCalls = inner?.degraded_calls;
+    const unsupportedBuiltins = inner?.unsupported_builtins;
     const fm =
       inner && typeof inner.friendly_message === "string" && inner.friendly_message.length > 0
         ? inner.friendly_message
         : null;
     if (
-      Array.isArray(list) &&
-      list.length > 0 &&
-      list.every((x) => typeof x === "string")
+      Array.isArray(degradedCalls) &&
+      degradedCalls.length > 0 &&
+      degradedCalls.every((x) => typeof x === "string")
+    ) {
+      return {
+        kind: "degraded",
+        friendlyMessage: fm,
+        hints: getUnsupportedBuiltinHints(degradedCalls as string[]),
+        fallbackMessage: fallback,
+      };
+    }
+    if (
+      Array.isArray(unsupportedBuiltins) &&
+      unsupportedBuiltins.length > 0 &&
+      unsupportedBuiltins.every((x) => typeof x === "string")
     ) {
       return {
         kind: "unsupported",
         friendlyMessage: fm,
-        hints: getUnsupportedBuiltinHints(list as string[]),
+        hints: getUnsupportedBuiltinHints(unsupportedBuiltins as string[]),
         fallbackMessage: fallback,
       };
     }
@@ -124,6 +141,8 @@ export function FormErrorInline({
   className,
   indicatorCode,
   onConverted,
+  degradedConsent = false,
+  onDegradedConsentChange,
 }: FormErrorInlineProps) {
   const parsed = parseError(error);
   if (!parsed) return null;
@@ -179,6 +198,54 @@ export function FormErrorInline({
             />
           ) : null}
         </div>
+      </div>
+    );
+  }
+
+  if (parsed.kind === "degraded") {
+    return (
+      <div
+        role="alert"
+        data-testid={`${testIdPrefix}-degraded-card`}
+        className={cn(
+          "qb-form-slide-down overflow-hidden rounded-md border border-warning/30 bg-warning-subtle p-3 text-sm",
+          className,
+        )}
+      >
+        <div className="mb-1 flex items-start gap-2">
+          <TriangleAlertIcon
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-warning"
+          />
+          <p className="font-semibold leading-snug text-warning">이 strategy 는 근사 실행됩니다</p>
+        </div>
+        <p className="mb-2 pl-6 text-xs leading-relaxed text-warning">
+          백테스트 결과가 TradingView와 다를 수 있습니다. 실행 전 이 차이를 확인하세요.
+        </p>
+        {parsed.friendlyMessage ? (
+          <p
+            className="mb-2 pl-6 text-xs leading-relaxed text-warning"
+            data-testid={`${testIdPrefix}-friendly-message`}
+          >
+            {parsed.friendlyMessage}
+          </p>
+        ) : null}
+        <ul className="list-inside list-disc space-y-1 pl-6 text-xs leading-relaxed text-warning">
+          {parsed.hints.map((hint) => (
+            <li key={hint.name}>
+              <span className="font-mono">{hint.name}</span> — {hint.hint}
+            </li>
+          ))}
+        </ul>
+        <label className="mt-3 flex items-start gap-2 pl-6 text-xs leading-relaxed text-warning">
+          <input
+            type="checkbox"
+            checked={degradedConsent}
+            onChange={(event) => onDegradedConsentChange?.(event.target.checked)}
+            data-testid={`${testIdPrefix}-degraded-consent`}
+          />
+          TradingView와 결과가 다를 수 있음을 이해했고, 이 전략을 실행합니다.
+        </label>
       </div>
     );
   }

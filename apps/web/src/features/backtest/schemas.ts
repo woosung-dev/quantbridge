@@ -88,6 +88,8 @@ export const CreateBacktestRequestSchema = z
       .refine(Number.isFinite, { message: "slippage_pct must be finite" })
       .default(DEFAULT_SLIPPAGE_PCT),
     include_funding: z.boolean().default(true),
+    // StrategyDegraded 422 뒤에 사용자가 명시 동의할 때만 보낸다. 미지정은 BE 기본 false.
+    allow_degraded_pine: z.boolean().optional(),
     // TV parity — 시장가 체결 타이밍. bar_close(기본, 신호 bar 종가) | next_bar_open(TV 정합).
     fill_timing: z.enum(["bar_close", "next_bar_open"]).default("bar_close"),
     // Sprint 37 BL-188a — 폼 default_qty_type/value (Pine 미명시 시 사용).

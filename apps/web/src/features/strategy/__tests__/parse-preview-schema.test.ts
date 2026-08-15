@@ -32,5 +32,33 @@ describe("ParsePreviewResponseSchema", () => {
     const parsed = ParsePreviewResponseSchema.parse(raw);
     expect(parsed.functions_used).toEqual([]);
     expect(parsed.warnings).toEqual([]);
+    expect(parsed.unsupported_calls).toEqual([]);
+  });
+
+  it("preserves unsupported call line and workaround from the BE response", () => {
+    const parsed = ParsePreviewResponseSchema.parse({
+      status: "unsupported",
+      pine_version: "v5",
+      unsupported_builtins: ["ta.alma"],
+      unsupported_calls: [
+        {
+          name: "ta.alma",
+          line: 12,
+          col: null,
+          workaround: "ta.sma() 또는 ta.ema()로 바꾸세요.",
+          category: "math",
+        },
+      ],
+    });
+
+    expect(parsed.unsupported_calls).toEqual([
+      {
+        name: "ta.alma",
+        line: 12,
+        col: null,
+        workaround: "ta.sma() 또는 ta.ema()로 바꾸세요.",
+        category: "math",
+      },
+    ]);
   });
 });

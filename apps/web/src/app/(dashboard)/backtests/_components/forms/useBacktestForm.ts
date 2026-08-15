@@ -108,6 +108,7 @@ export function useBacktestForm() {
   const { control, setValue, reset, getValues, handleSubmit } = form;
 
   const [submitError, setSubmitError] = useState<unknown>(null);
+  const [allowDegradedPine, setAllowDegradedPine] = useState(false);
   const [convertResult, setConvertResult] =
     useState<ConvertIndicatorResponse | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>("6m");
@@ -170,6 +171,7 @@ export function useBacktestForm() {
             default_qty_type: values.default_qty_type,
             default_qty_value: Number(values.default_qty_value),
           }),
+      ...(allowDegradedPine ? { allow_degraded_pine: true } : {}),
       trading_sessions: values.trading_sessions ?? [],
     });
   };
@@ -234,6 +236,8 @@ export function useBacktestForm() {
     onSubmit,
     submitError,
     setSubmitError,
+    allowDegradedPine,
+    setAllowDegradedPine,
     convertResult,
     setConvertResult,
     datePreset,

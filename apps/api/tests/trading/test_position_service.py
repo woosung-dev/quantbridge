@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from decimal import Decimal
 from types import SimpleNamespace
+from typing import get_args
 from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
@@ -745,6 +746,40 @@ async def test_non_zero_position_idx_alone_is_not_closable(monkeypatch):
     result = await service.get_account_positions(user_id, account_id)
 
     assert result.rows[0].close_blocked_reason == "hedge_unsupported"
+
+
+async def test_unsupported_position_side_is_not_closable(monkeypatch):
+    """거래소가 long/short 밖의 side를 주면 close_service도 409으로 거부한다."""
+    from src.trading.services import position_service
+
+    monkeypatch.setattr(position_service, "_get_position_redis_pool", _FakeRedis)
+    service, user_id, account_id, session_repo, _ = _account_service(
+        account_positions=[("BTC/USDT", _position(side="flat", position_idx=0))],
+    )
+    session_repo.list_by_account = AsyncMock(return_value=[_live_session(account_id)])
+
+    result = await service.get_account_positions(user_id, account_id)
+
+    assert result.rows[0].closable_session_id is None
+    assert result.rows[0].close_blocked_reason == "position_side_unsupported"
+
+
+def test_render_time_close_rejections_are_all_blocked_reasons():
+    """close_service의 렌더 시점 판정 가능 거부가 버튼으로 새지 않는다.
+
+    `no_open_position`과 `resting_conditional_entries`는 조회 뒤 바뀔 수 있는 런타임 상태,
+    404는 버튼을 누른 뒤 세션이 사라진 경합이므로 이 집합에서 의도적으로 제외한다.
+    """
+    from src.trading.services.position_service import _CloseBlockedReason
+
+    close_service_render_time_rejections = {
+        "no_owning_session",
+        "hedge_unsupported",
+        "read_only_key",
+        "position_side_unsupported",
+    }
+
+    assert close_service_render_time_rejections <= set(get_args(_CloseBlockedReason))
 
 
 async def test_account_positions_reject_other_users_account(monkeypatch):
