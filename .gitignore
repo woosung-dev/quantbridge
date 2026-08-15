@@ -110,6 +110,10 @@ docs/reports/*.html
 # 데모 소크 관측 상태 — 세션 앵커 + /metrics 스냅샷 (tools/scripts/soak-observe.sh)
 .soak/
 
+# harness step 산출물 — codex 는 트랜스크립트를 통째로 싣는다 (556KB~1.29MB/step, ADR-030 실측).
+# index.json(상태 원장)과 step{N}.md(입력)는 **추적한다** — 그것이 러너의 유일한 보고 채널이다.
+.harness/phases/**/step*-output.json
+
 # === DB 백업 (BL-451) ===
 # `make db-snapshot` 산출물. 개발 DB 덤프에는 암호화된 거래소 API 키가 들어 있다 —
 # 절대 커밋하지 않는다.

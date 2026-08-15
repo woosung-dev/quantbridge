@@ -100,7 +100,9 @@ export default clerkMiddleware(async (auth, req) => {
 - **대신**: **dependency array 없는 sync `useEffect`** 로 이동 (매 commit 후 실행). 기능상 render 직후 commit phase 라 동일
   ```tsx
   const latest = useRef(value);
-  useEffect(() => { latest.current = value; });  // deps 없음 = 매 commit
+  useEffect(() => {
+    latest.current = value;
+  }); // deps 없음 = 매 commit
   ```
 - **Debouncer 패턴**: `useRef` + sync useEffect + timeout 콜백에서 `ref.current` 읽기 조합이 표준
 
@@ -182,7 +184,6 @@ export type ActionResult<T> =
 
 - React Query `mutation.onError` 가 throw 처리하더라도, API wrapper 레이어는 `ActionResult` 로 typed result 노출. UI 가 `result.success` 분기로 disambiguate.
 
-
 ---
 
 ## 7. Next.js 16 필수 패턴
@@ -258,14 +259,14 @@ const handleSubmit = (data: FormData) => {
 `globals.css:204-211` 의 `@theme` 블록이 재정의한다. 종전의 「Tailwind v4 기본값」 표기는
 틀렸고, `sm:` 은 실사용 **36건**이라 화면에 실제로 영향을 준다.
 
-| 접두사 | **이 레포** | Tailwind v4 기본 | 주요 용도                                     |
-| ------ | ----------- | ---------------- | --------------------------------------------- |
-| (없음) | 0px         | 0px              | 모바일 기본                                   |
-| `sm:`  | **375px**   | ~~640px~~        | 소형 모바일 (사용 36건)                       |
-| `md:`  | 768px       | 768px            | 태블릿 · **앱 셸 사이드바 숨김 경계**         |
-| `lg:`  | 1024px      | 1024px           | 데스크탑 · **앱 셸 아이콘 레일 경계**         |
-| `xl:`  | **1200px**  | ~~1280px~~       | 콘텐츠 그리드 2열화 (사용 1건)                |
-| `2xl:` | **1440px**  | ~~1536px~~       | 와이드 (유틸 사용 0건 · raw `@media` 0건)     |
+| 접두사 | **이 레포** | Tailwind v4 기본 | 주요 용도                                 |
+| ------ | ----------- | ---------------- | ----------------------------------------- |
+| (없음) | 0px         | 0px              | 모바일 기본                               |
+| `sm:`  | **375px**   | ~~640px~~        | 소형 모바일 (사용 36건)                   |
+| `md:`  | 768px       | 768px            | 태블릿 · **앱 셸 사이드바 숨김 경계**     |
+| `lg:`  | 1024px      | 1024px           | 데스크탑 · **앱 셸 아이콘 레일 경계**     |
+| `xl:`  | **1200px**  | ~~1280px~~       | 콘텐츠 그리드 2열화 (사용 1건)            |
+| `2xl:` | **1440px**  | ~~1536px~~       | 와이드 (유틸 사용 0건 · raw `@media` 0건) |
 
 ★유틸 접두사는 **min-width**, CSS 미디어는 **max-width** 다. 같은 숫자를 반대 방향으로 쓰므로
 섞어 읽지 마라. 미등재 경계 `@media (max-width: 900px)` 5곳은 [BL-646].
