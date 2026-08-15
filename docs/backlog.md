@@ -8758,6 +8758,23 @@ A/B 파일럿이 원격 유출을 면한 것이 ⑵ 하나 덕이었다.
 반증이므로, 그 시점 선택지는 ⑶ 이행(위험 7·9 수리) 또는 ADR-030 복귀 둘뿐이다 —
 「한 번 더 돌려 보자」는 세 번째 갈래가 아니다.
 
+★**동반 공백 — `test_execute.py` 55건을 부르는 게이트가 0개다** (2026-08-15 실측).
+`final-gates.sh --pre-pr` 에서 `BE pytest` 는 `backend diff 0` 으로 skip 이고, `make gate-harnesses`
+(= CI `documentation` 잡)는 **bash `*-test.sh` 10종만** 순회한다. 그 잡의 스텝은 `checkout` 뿐이라
+**uv·pytest 가 없다.** 즉 지금 이 55건은 **사람이 손으로 부를 때만** 돈다:
+
+```bash
+uv run --no-project --with pytest pytest tools/scripts/test_execute.py -q     # 55 passed
+```
+
+`execute.py` 는 `completed`/`error`/`blocked` 를 내는 **판정기**이므로
+[§8.7](reference/operations/workflows/generator-evaluator-pipeline.md) 상 하네스 의무 대상이고,
+「하네스는 있는데 게이트가 안 부른다」는 이 레포가 [BL-705]·[BL-706] 에서 반복해 덴 자리다.
+⇒ 닫는 갈래 둘: ⑴ `execute-test.sh` 를 **bash 로** 다시 써서 기존 10종 규약에 맞춘다(CI 수정 0,
+단 55건과 중복) ⑵ CI `documentation` 잡에 `setup-uv` 를 넣고 pytest 를 그대로 부른다(중복 0,
+CI 잡 +약 10초). ★**어느 쪽도 이번 회차 범위가 아니다** — 사용자 선택은 「as-is + 5줄 스왑」이었고
+게이트 표면 확장은 별건 결정이다([ADR-030] 이 (b) 증거 장치를 안 건드린다고 못 박은 그 축).
+
 **Risk:** 🟠 (블라스트 반경은 워크트리 브랜치 1개. 다만 위험 1·2 가 **무관한 dirty 변경까지 커밋**한다)
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 재도입 시점에 등재. 러너를 아직 실전 회차에 안 썼다 (2026-08-15 harness-readopt)
