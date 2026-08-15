@@ -9197,3 +9197,261 @@ codex 재현: `up@T0` 과 같은 시각의 phantom 실격 뒤 `up@24h·48h·72h`
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 ledger-thaw 에서 등재만 했다. 셋 다 재현 조건이 좁고, 고치는 방향(⑴ `>` 로 좁힘)이 **정상 재기동을 배제할 수 있어** 실측 표본 없이 결정하면 안 된다
 **트리거 판정:** 미도래 — 실격 시각과 `up` 시각이 같은 구간은 전 이력 15건에서 관측된 적이 없다(실측 2026-08-15). 관측되거나 C1 이 설명 없이 오르면 그때가 도래다 (2026-08-15 ledger-thaw)
+
+---
+
+### BL-753
+
+**Title:** 배포 호스트에 `APP_ENV` 가 없어 **placeholder 시크릿 fail-fast 가 꺼져 있다** — 코드 수리로 닫히지 않는 마지막 게이트
+**Category:** Security / 배포 설정
+**Priority:** P2
+**Trigger:** ★**사용자 결정 대기** — `PROMETHEUS_BEARER_TOKEN` 을 배포 호스트에 넣을지 정해질 때. 또는 공개 전환([BL-071]) 착수 시 자동 도래
+**Est:** XS (env 2줄 + read-back) — 단 선행 결정이 있다
+**출처:** 2026-08-15 surface-truth S1
+
+**원인 / 영향:** 배포 호스트(`~/quantbridge/apps/api/.env.local`, 서버 실측 2026-08-15)에
+**`APP_ENV` 줄이 없다**. `Settings._enforce_production_safety` 는 `app_env != production` 이면
+**조기 반환**하므로 그 호스트는 production validator 보호를 하나도 받지 않는다.
+
+★**게이트 4개 중 3개는 이 회차에 코드로 닫았다** — `_hide_docs`·HSTS 술어를
+`is_production or not debug` 로 넓혔고(그 호스트는 `DEBUG=false` 다), traceback 축은
+**애초에 발화한 적이 없다**(`DEBUG=false` 실측 — 착수 시 `[확인 필요]`였던 것이 반증됐다).
+**남은 하나가 placeholder 시크릿 fail-fast** 이고 그것만은 `app_env == production` 게이트다.
+
+★**그런데 `APP_ENV=production` 전환은 공짜가 아니다.** 그 validator 는
+`PROMETHEUS_BEARER_TOKEN` 을 **의무**로 만들고(`config.py:409-416`), 서버 `.env.local` 의
+`CLERK_SECRET_KEY`/`WAITLIST_TOKEN_SECRET`/`PROMETHEUS_BEARER_TOKEN` 3종 중 **하나가 비어
+있다**(실측 — 값을 읽지 않고 개수만 셌다). 지금 켜면 API 가 **부팅을 거부**한다.
+2026-08-07 회차가 같은 함정을 밟았다 — 「`APP_ENV=production` 이 게이트를 죽인다」.
+
+**권장 접근:** ⑴ 비어 있는 시크릿을 먼저 채운다 ⑵ `APP_ENV=production` 추가 ⑶ 재기동 후
+`/health` 가 `{"env":"production"}` 을 내는지 **read-back** ⑷ 소크 게이트 판독 1회로 C5⑷ 가
+살아 있는지 확인. ★⑷ 를 빼면 2026-08-07 사고가 그대로 재현된다.
+
+**Risk:** 🔴 (잘못 켜면 배포 API 가 부팅 거부 — 롤백은 env 1줄 삭제 + 재기동)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 코드 축은 2026-08-15 에 닫혔다(게이트 4 중 3). 이 항목은 **환경 축**이고 사용자 승인이 선행이다
+**트리거 판정:** 미도래 — 사용자 결정(시크릿 채우기 + 전환 승인) 대기 (2026-08-15 surface-truth)
+
+---
+
+### BL-754
+
+**Title:** rate limit 이 프록시 뒤에서 **전 사용자 공용 버킷**으로 붕괴한다
+**Category:** Security / rate limit
+**Priority:** P2
+**Trigger:** ★**이미 발화 중이다** — 공개 전환([BL-071]) 전까지는 사용자가 1명이라 증상이 안 보일 뿐이다. 2번째 사용자가 붙는 순간 도래
+**Est:** S (auth dependency 1줄 + `TRUSTED_PROXIES` 설정 + 회귀)
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §C-1
+
+**원인 / 영향:** `rate_limit_key` 는 `request.state.user_id` 를 먼저 보는데 **아무도 그 값을
+세팅하지 않는다** — 함수 docstring 이 스스로 자백한다(「현재 Phase B: request.state.user_id 는
+미세팅 상태 → 항상 IP fallback」). 그리고 `TRUSTED_PROXIES` 기본값이 **빈 문자열**이라
+`_client_ip_or_xff` 는 XFF 를 무시하고 `client.host` 를 쓴다.
+
+⇒ Cloudflare 터널 뒤 배포에서는 **모든 요청의 `client.host` 가 127.0.0.1** 이다. 전 사용자가
+`ip:127.0.0.1` **하나의 버킷**을 공유한다 — 한 사람이 한도를 태우면 나머지가 429 를 받고,
+공격자는 혼자서 전체를 잠글 수 있다.
+
+**권장 접근:** ⑴ `authenticate_clerk_request` 가 `request.state.user_id` 를 세팅한다(그것이
+docstring 이 예고한 배선이다) ⑵ 배포 호스트 `TRUSTED_PROXIES` 에 터널 대역을 넣는다
+⑶ **음성 대조 필수** — 신뢰 대역 밖에서 온 XFF 는 여전히 무시돼야 한다(위조 차단).
+
+**Risk:** 🟡 (⑵ 를 너무 넓게 잡으면 XFF 위조로 한도 우회가 열린다)
+
+**상태:** ⬜ Open — 2026-08-15 감사에서 코드 대조로 확인. 미착수
+**트리거 판정:** 도래 — 기전은 지금 성립한다. 다만 **영향**이 사용자 2명부터라 공개 전환과 동승이 합리적이다 (2026-08-15 surface-truth)
+
+---
+
+### BL-755
+
+**Title:** 잔고 조회가 실패하면 kill-switch 자본 기준이 **10,000 USDT 로 고정 fallback** 된다 — 소액 계정의 차단기가 안 터진다
+**Category:** Trading / kill switch
+**Priority:** P2
+**Trigger:** ★거래소 잔고 조회 실패가 관측될 때(`balance_provider_failed` 로그) · 또는 실계좌 자본이 10,000 USDT 와 크게 다른 상태로 라이브를 돌릴 때
+**Est:** S (fallback 정책 결정 + 가드 + 회귀)
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §C-4
+
+**원인 / 영향:** `CumulativeLossEvaluator` 는 `fetch_balance_usdt` 예외를 **삼키고 로그만 남긴
+뒤**(`kill_switch.py:145-153`) `config` 기본값 `kill_switch_capital_base_usd = 10000` 으로
+계산을 계속한다. 실자본이 200 USDT 인 사람의 **-10% 손실(20 USDT)** 은 10,000 기준으로
+**0.2%** 가 되어 문턱(10%)에 한참 못 미친다 ⇒ **차단기가 안 터진다.**
+
+★fail-open 인데 **로그 말고는 아무 신호가 없다**. 감사 §8 이 「fail-open 위생이 좋다 —
+로그/메트릭 없이 삼키는 것은 2건뿐」이라 셌는데 이것이 그중 하나의 이웃이다.
+
+★부수 축: `kill_switch_capital_base_usd` 에 `gt=0` 제약이 없다. 0 을 넣으면
+`abs(total_pnl) / capital` 이 `DivisionByZero` 로 터진다.
+
+**권장 접근:** ⑴ fallback 을 **정책으로 정한다** — 「모르면 보수적으로 막는다」(gated=True)와
+「마지막으로 성공한 잔고를 쓴다」 중 선택. 지금의 「고정 상수로 계산을 계속한다」는 셋 중 가장
+나쁘다 ⑵ 그 분기에 metric/alert 을 붙인다 — 조용한 fail-open 은 관측 불가다
+⑶ `kill_switch_capital_base_usd` 에 `gt=0`.
+
+**Risk:** 🟡 (⑴ 을 「막는다」로 정하면 잔고 API 흔들림이 정상 거래를 멈춘다 — 표본이 필요하다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 감사에서 코드 대조로 확인(`kill_switch.py:143-157` · `config.py:162-169`). 미착수
+**트리거 판정:** 미도래 — 소크 계정 자본이 문턱 계산에서 유의미하게 어긋난 적이 아직 없다. `balance_provider_failed` 가 관측되면 그때가 도래다 (2026-08-15 surface-truth)
+
+---
+
+### BL-756
+
+**Title:** `ts.ohlcv` PK 에 `exchange` 가 없다 — 2번째 거래소를 붙이면 캔들이 **조용히 폐기**된다
+**Category:** Market data / 스키마
+**Priority:** P2
+**Trigger:** ★2번째 거래소 데이터 적재를 시작할 때 (**그 전에** 해야 한다 — 뒤에 하면 이미 유실된 데이터를 복구할 수 없다)
+**Est:** M (hypertable PK 변경 + 백필 + 조회 필터 전수)
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §A-7
+
+**원인 / 영향:** `market_data/models.py` 의 `ts.ohlcv` PK 에 `exchange` 컬럼이 없고
+`repository.py` 의 조회 필터에도 없다. 지금은 `DEFAULT_EXCHANGE=bybit` 단일이라 증상이 없다.
+2번째 거래소를 붙이면 **같은 (symbol, timeframe, timestamp)** 행이 충돌하고, upsert 경로에서
+나중 것이 앞 것을 덮거나 무시된다 — 어느 쪽이든 **조용하다**.
+
+★백테스트가 그 데이터를 읽으므로, 증상은 「데이터가 없다」가 아니라 **「다른 거래소의 캔들로
+백테스트가 돌았다」**로 나타난다. 이 스프린트가 고치고 있는 병(화면이 사실이 아닌 것을 말한다)과
+같은 계열이고, 여기서는 원장이 그렇게 한다.
+
+**권장 접근:** PK 에 `exchange` 를 넣기 전에 **조회 경로 전수**(`repository.py` · 캐시 키 ·
+`funding_rates` 대칭)를 먼저 훑어라. 한 곳이라도 필터를 빠뜨리면 「행은 나뉘었는데 조회는
+안 나뉜」 더 나쁜 상태가 된다.
+
+**Risk:** 🟡 (hypertable PK 변경은 재적재를 부를 수 있다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 감사에서 코드 대조로 확인. 미착수
+**트리거 판정:** 미도래 — 지금 적재는 `DEFAULT_EXCHANGE=bybit` 단일이다 (2026-08-15 surface-truth)
+
+---
+
+### BL-757
+
+**Title:** 시크릿 스캐너가 **0건**이고 `.gitignore` 가 `.env.prod` 계열을 안 막는데, 추적되는 `.env.prod.example` 이 그 작명을 유도한다
+**Category:** Security / CI
+**Priority:** P2
+**Trigger:** ★**이미 발화 가능하다** — 다음에 누가 `.env.prod` 를 만드는 순간
+**Est:** S (gitleaks CI job 1개 + `.gitignore` 3줄)
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §A-1·A-2
+
+**원인 / 영향:** `git check-ignore` 실측 — `.env.prod` / `.env.production` / `.env.staging`
+셋 다 **무시되지 않는다**. 그런데 `apps/api/.env.prod.example` 이 추적되고 있어 그 이름이
+정확히 사람이 따라 쓸 이름이다. 그리고 gitleaks/trufflehog/detect-secrets/dependabot/CodeQL 이
+`.github/`·`.husky/`·`tools/` 어디에도 **없다**(grep 0건) ⇒ 실수로 커밋된 키를 **아무도 못 잡는다**.
+
+★이 레포는 암호화된 거래소 API 키를 다루고 `TRADING_ENCRYPTION_KEYS` 를 env 로 받는다.
+그 키가 한 번 히스토리에 들어가면 rotate 없이는 회수 불가다.
+
+**권장 접근:** ⑴ `.gitignore` 에 `.env.prod*` / `.env.production*` / `.env.staging*` ⑵ CI 에
+gitleaks job 1개 ⑶ **음성 대조** — `.env.*.example` 은 계속 추적돼야 한다(그것이 문서다).
+
+**Risk:** 🟢
+
+**상태:** ⬜ Open — 2026-08-15 감사에서 `git check-ignore` 실측 + grep 0건으로 확인. 미착수
+**트리거 판정:** 도래 — 막는 비용이 XS 이고 되돌릴 수 없는 사고를 막는다 (2026-08-15 surface-truth)
+
+---
+
+### BL-758
+
+**Title:** `entry(limit=)` 의 **라이브 발주 축** — 지금은 fail-closed 로 막고 있다
+**Category:** Trading / 라이브 발주
+**Priority:** P3
+**Trigger:** ★사용자가 지정가 진입 전략을 **라이브로 돌리려 할 때**. 그 전에는 값이 0이다 — 지금은 막는 것이 옳다
+**Est:** M (`OrderRequest` 에 limit 축 + 거래소 주문 종류 매핑 + reconciler 대칭 + maker 비용 가정)
+**출처:** 2026-08-15 surface-truth U8
+
+**원인 / 영향:** 2026-08-15 에 `strategy.entry(limit=)` 을 백테스트 엔진이 지정가로 체결하도록
+고쳤다. 라이브는 **의도적으로 막았다** — 발주 경로(`OrderRequest`)가 `trigger_price`(stop)
+하나만 표현하므로, 내보내면 지정가 의도가 왜곡돼 거래소에 도달한다.
+사유 라벨 `limit_entry_unsupported_live` 로 관측 가능하고, 리포트 ⑨ 가 그 사실을 선언한다.
+
+**권장 접근:** 열려면 ⑴ `OrderRequest` 에 limit 축(주문 종류 + 가격) ⑵ reconciler 의 desired
+비교가 limit 주문을 인식 ⑶ **비용 가정 재검토** — 지정가는 maker 이고 지금 백테스트 비용
+가정(taker 0.055%/leg)은 taker 기준이다. 그대로 두면 리포트가 **비관 편향**이 된다
+⑷ 미체결 지정가의 sweep 정책([U4] 와 같은 자리).
+
+★같은 뿌리의 잔여: `trail_points` / `trail_offset` / `qty_percent` 는 여전히 미지원이고
+「무시했다」 경고를 낸다. 그 경고는 이제 리포트 ⑨ 에 **보인다**(2026-08-15 배선).
+
+**Risk:** 🟡 (거래소 주문 종류를 늘리는 것은 돈 경로 확대다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 에 백테스트 축만 열고 라이브는 fail-closed 로 못박았다
+**트리거 판정:** 미도래 — 지정가 진입을 라이브로 돌리려는 사용자가 아직 없다 (2026-08-15 surface-truth)
+
+---
+
+### BL-759
+
+**Title:** 2026-08-15 아키텍처 감사 **잔여 발견 원장** — §A 인프라 / §B 계층 / §C 엣지의 미수리분
+**Category:** Meta / 감사 원장
+**Priority:** P3
+**Trigger:** ★해당 영역을 손대는 회차가 올 때 (항목별로 다르다 — 이 원장은 **찾기 위한 색인**이지 단독 착수 대상이 아니다)
+**Est:** 항목별 상이
+**출처:** 2026-08-15 surface-truth 아키텍처 감사
+
+**원인 / 영향:** 그 감사에서 P1 5건(S1~S5)을 수리했고, 그 아래 등급의 발견은 별도 BL 로
+쪼갠 5건([BL-753]~[BL-757])을 빼면 **이 원장에만 남는다**. 목록을 잃으면 다음 사람이 같은
+감사를 다시 돌려야 하므로 여기 적는다. **각 줄은 코드 대조로 확인된 것이고 추측이 아니다.**
+
+**§A 인프라·설정**
+
+- `backtest.run`·stress_test 에 **타임아웃 없음** + `visibility_timeout` 미설정(기본 3600) +
+  `acks_late` ⇒ **도는 중에 재배달**. `optimizer_tasks.py:27-28` 만 예외
+- 그 인프라 부재가 **사용자 대면 제약**이 됐다 — `grid_search.py:52` 의 `_MAX_GRID_CELLS=9`
+  주석이 「soft_time_limit 부재 시 보호」라 적고, 그 9가 리포트 CTA 「그리드 최대 9조합」으로 노출
+- Redis 락 URL 이 로그에 **평문**(`SecretStr` 아님) — 하필 Redis 가 죽었을 때 찍힌다
+- 워커 엔진에 `pool_pre_ping` 없음(API 는 있다) + 일회용 엔진에 `QueuePool`
+- hypertable **compression/retention 정책 0건**(`add_*_policy` 레포 0건)
+- **CI 만 `uv sync --frozen` 누락**(Docker·FE 는 고정) ⇒ 조용히 re-lock
+- `ci.yml` 7개 job 전부 `timeout-minutes` **없음**(다른 워크플로엔 있다)
+- `.env.example` 골든룰 위반 — `HEALTHZ_CELERY_TIMEOUT_S`(os.environ 직독) 외 4
+- `cloudflare/cloudflared:latest` — **유일한 부동 태그**이고 프로덕션 FE 터널
+- `python-jose` **import 0건**인데 `ecdsa`(CVE-2024-23342)를 끌고 온다
+
+**§B 계층·인터페이스**
+
+- **라우터가 Repository 를 직접 생성 11건 + service private `_repo` 를 5건 뚫는다**
+  ⇒ LESSON-019 commit-spy 회귀 테스트가 **그 경로엔 적용 불가**
+- **Repository 밖 `session.execute` 8건**. 그중 2건은 코드가 자백(「OrderRepository 가 이
+  메소드를 직접 제공하지 않으면 raw SQL 로」)
+- ★**에러 응답 봉투가 7모양** — 문서(`system-architecture.md:200-206`)가 정본이라 그린
+  `{code,message,details}` 를 만드는 코드는 **한 줄도 없다**. 2026-08-15 의
+  `RequestValidationError` 핸들러가 그중 하나를 줄였다
+- `raise HTTPException` 38건(문자열 detail 33건) — **그중 13건이 `services/` 안**(계층 위반)
+- **페이지네이션 6모양** — 정본 `Page[T]` 채택률 4/10. `/orders`·`/kill-switch/events` 는
+  **response_model 자체가 없다**(OpenAPI 에 타입 0)
+- status code 계약 위반 2건 — `cancel` 이 `response_model` 과 다른 body 를 202 로, 웹훅이
+  201 선언 후 replay 시 200. ★**FE 가 산문 문자열에 파싱을 못 박았다**
+  (`z.literal("exchange cancel requested")`)
+- `OrderService` 가 `AsyncSession` 보유 — `apps/api/AGENTS.md` §3 이 「절대 금지」라 쓴 것
+- 런타임 import 순환 **5건** · **FSD Lite 역전**(`app/` 23,313줄 : `features/` 12,456줄) +
+  eslint 에 import boundary 규칙 **0개**
+- **codegen 이 존재하는데 앱이 한 줄도 안 쓴다** — `generated/` import 0건, drift `--check` 는
+  만들어졌는데 CI 에 미배선
+- `leverage` 한 개념이 **BE 5타입 / FE 4타입**
+- `tasks/live_signal.py` **4,485줄** — 최대 파일이자 돈 경로인데 도메인 디렉터리 밖이라
+  3-Layer 감시 대상이 아니다
+
+**§C 에러·엣지**
+
+- **웹훅이 rate limit 전면 면제 + 인증 실패 전에 DB 조회 + Fernet 복호** ⇒ 무인증 증폭 표면
+- **명목가/최소주문 가드가 로그도 메트릭도 없이 fail-open** — 거래소 API 가 흔들리면
+  서버 권위 사이징이 조용히 사라진다
+- 웹훅 시크릿 rotate 에 **1시간 grace** — 유출 인지 후 즉시 폐기 경로가 없다(`mark_revoked`
+  호출처 0). FE 주석은 「5분」이라 **12배 어긋남**. ★2026-08-15 에 **탈퇴 경로만** grace 0 이 됐다
+- admin 권한이 **매 요청 JWT claim 으로 덮이는 `users.email`** 에 걸려 있다. `email` 컬럼에 unique 없음
+- `/healthz` 가 **무인증·rate-limit 면제**로 내부 인프라 에러 문자열(`str(exc)`)을 반환
+- `pine_source` 에 **길이 상한 없음** + `/strategies/parse` per-route 한도 없음
+- 포지션 청산에 **멱등키·락 없음**(`idempotency_key=None`) ⇒ 더블클릭에 reduce-only 중복 발주
+- 비ASCII 토큰 → `hmac.compare_digest` **TypeError → 500**(무인증 도달 가능)
+- LLM 변환 라우터가 SDK 예외 원문을 클라이언트에 반사
+- N+1 3건 — `alert_rules.py:70-84`(룰 N개당 집계 + **거래소 API** N회) · janitor · `live_signal.py:1645`
+
+**권장 접근:** 항목별로 별도 BL 을 열 때 **이 줄을 근거로 인용하고 코드 대조를 다시 해라** —
+이 원장의 줄번호에는 유효기한이 있다(이 레포가 반복해서 겪은 사고다).
+
+**Risk:** 🟢 (원장 전용 — 코드 변경 0)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 에 색인으로만 등재. 항목별 착수는 그 영역을 손댈 때
+**트리거 판정:** 미도래 — 단독 착수 대상이 아니다. 해당 영역 회차가 열릴 때 여기서 꺼내 쓴다 (2026-08-15 surface-truth)
