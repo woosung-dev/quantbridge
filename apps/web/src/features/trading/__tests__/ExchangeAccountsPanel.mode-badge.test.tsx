@@ -73,3 +73,19 @@ test("ExchangeAccountsPanel — LIVE 배지 렌더 (success 톤)", async () => {
   expect(liveBadge).toBeInTheDocument();
   expect(liveBadge).toHaveAttribute("data-tone", "success");
 });
+
+test("ExchangeAccountsPanel — 읽기 전용 권한을 배지로 표시", async () => {
+  const { apiFetch } = await import("@/lib/api-client");
+  vi.mocked(apiFetch).mockResolvedValueOnce({
+    items: [{ ...DEMO_ACCOUNT, read_only: true }],
+  });
+
+  render(
+    <QueryClientProvider client={makeQc()}>
+      <ExchangeAccountsPanel />
+    </QueryClientProvider>,
+  );
+
+  const readOnlyBadge = await screen.findByText("읽기 전용");
+  expect(readOnlyBadge).toHaveAttribute("data-tone", "warning");
+});
