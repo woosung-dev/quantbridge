@@ -3,9 +3,11 @@
 Harness Step Executor — phase 내 step을 순차 실행하고 자가 교정한다.
 
 출처: https://github.com/jha0313/harness_framework @ da676bc6 (as-is 채택).
-수정 5곳 — ① 실행기 codex 스왑 · ②-1 phases 경로 · ②-2 docs 경로 · ②-3 ROOT 깊이 ·
-②-4 _commit_step 의 reset 경로(②-1 의 딸림). ②-3/②-4 는 「as-is 라 안 건드린다」가
-성립하지 않는 곳이다 — 안 고치면 각각 가드레일 0자, 2단 커밋 붕괴로 **조용히** 실패한다.
+수정 6곳 — ① 실행기 codex 스왑 · ②-1 phases 경로 · ②-2 docs 경로 · ②-3 ROOT 깊이 ·
+②-4 _commit_step 의 reset 경로 · ②-5 프리앰블이 세션에게 알려 주는 원장 경로.
+★②-3·②-4·②-5 는 「as-is 라 안 건드린다」가 성립하지 않는 곳이다 — 안 고치면 각각
+가드레일 0자 / 2단 커밋 붕괴 / 세션이 없는 경로에 상태를 쓰려 함으로 **조용히** 실패한다.
+★②-5 는 내가 「경로 파생 전수 확인」을 마쳤다고 믿은 뒤 남아 있었고 codex 적대 리뷰가 잡았다.
 정본 = ADR-033.
 
 Usage:
@@ -195,9 +197,11 @@ class StepExecutor:
         claude_md = ROOT / "CLAUDE.md"
         if claude_md.exists():
             sections.append(f"## 프로젝트 규칙 (CLAUDE.md)\n\n{claude_md.read_text()}")
-        # 원본은 ROOT/"docs". 우리 docs/ 최상위는 status·backlog·roadmap·lessons(768,152자)만
-        # 잡히고 정본인 docs/reference·docs/decisions 는 하위라 0건이다 (ADR-030 §발견①).
-        # .harness/docs/ 는 4축 심링크(CONTEXT·AGENTS·api/AGENTS·web/AGENTS = 45,706자) (수정 ②-2).
+        # 원본은 ROOT/"docs". 우리 docs/ 최상위는 README·status·backlog·roadmap·lessons
+        # **5파일 777,895자**만 잡히고 정본인 docs/reference·docs/decisions 는 하위라 0건이다
+        # (ADR-030 §발견①. ★그 ADR 은 4파일 814,211자로 적었는데 `docs/README.md` 를 빠뜨린
+        #  값이다 — codex 적대 리뷰 F4 가 잡았고 나는 그 수치를 검증 없이 물려받았다).
+        # .harness/docs/ 는 4축 심링크(CONTEXT·AGENTS·api/AGENTS·web/AGENTS = 45,820자) (수정 ②-2).
         docs_dir = ROOT / ".harness" / "docs"
         if docs_dir.is_dir():
             for doc in sorted(docs_dir.glob("*.md")):
@@ -235,7 +239,11 @@ class StepExecutor:
             f"2. 이 step에 명시된 작업만 수행하라. 추가 기능이나 파일을 만들지 마라.\n"
             f"3. 기존 테스트를 깨뜨리지 마라.\n"
             f"4. AC(Acceptance Criteria) 검증을 직접 실행하라.\n"
-            f"5. /phases/{self._phase_dir_name}/index.json의 해당 step status를 업데이트하라:\n"
+            # ★수정 ②-5 (codex 적대 리뷰 F1, P1). 원본은 `/phases/…` 를 프리앰블에 박는다 —
+            #   ②-1 로 원장을 옮겼는데 **세션에게 알려 주는 경로만 옛것으로 남아 있었다.**
+            #   선행 슬래시까지 있어 절대 경로로 읽힐 수 있어 더 나쁘다. 스모크가 통과한 것은
+            #   step0.md 가 올바른 경로를 따로 적어 **우연히 가렸기** 때문이다.
+            f"5. .harness/phases/{self._phase_dir_name}/index.json 의 해당 step status를 업데이트하라:\n"
             f"   - AC 통과 → \"completed\" + \"summary\" 필드에 이 step의 산출물을 한 줄로 요약\n"
             f"   - {self.MAX_RETRIES}회 수정 시도 후에도 실패 → \"error\" + \"error_message\" 기록\n"
             f"   - 사용자 개입이 필요한 경우 (API 키, 인증, 수동 설정 등) → \"blocked\" + \"blocked_reason\" 기록 후 즉시 중단\n"

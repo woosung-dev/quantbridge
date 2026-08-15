@@ -4871,9 +4871,11 @@ interval 일반화(5m 에서 지평이 달라진다) · 사망 상관 **음성 �
 **상태:** ✅ **Resolved (2026-08-15 harness-readopt)** — ★**착수 없이 이미 해소돼 있었다.** 2026-08-09 `71f7101e` 가 `prettier-plugin-tailwindcss` 를 **루트 devDependencies 에 추가**하면서 뿌리(「루트 `node_modules` 에 그 플러그인이 없다」)가 사라졌다. 이 BL 은 그 뒤 6일간 「대기」로 남아 있었고 `.prettierignore` 회피 3줄도 그대로였다. 2026-08-15 실측: `prettier --ignore-path /dev/null --check apps/web/{AGENTS,CLAUDE,README}.md` 가 **죽지 않고**(종전 증상은 `Cannot find package` 크래시) 포맷 차이만 보고한다(rc=1, 2파일). ⇒ 회피 3줄 제거 + 두 파일 정규화. ★**부수 발견 1건** — 회피를 걷자 prettier 가 `apps/web/README.md` 의 `NEXT_PUBLIC_*` 를 마크다운 강조로 오인해 `NEXT*PUBLIC*\*` 로 **망가뜨렸다**(포맷이 아니라 내용 손상). 백틱으로 감싸 근본 수리했다 — ignore 로 가려져 있어 6일간 안 보였던 결함이다.
 **트리거 판정:** ~~미도래 — 동승 조건 (2026-08-10 bl-trigger-triage)~~ → **2026-08-15 해소 확인.** 「트리거 미도래」 판정 자체는 옳았다(단독 착수 값 0). 틀린 것은 **뿌리가 6일 전에 이미 없어졌다는 사실을 아무도 재측정하지 않은 것**이다 — DEFERRED 항목의 전제는 시간이 지나면 스스로 무너질 수 있다.
 
-**루트 prettier 가 `apps/web/` 안의 json/md/yml 을 포맷하지 못한다.**
+~~**루트 prettier 가 `apps/web/` 안의 json/md/yml 을 포맷하지 못한다.**~~
+→ **2026-08-15 기준 거짓.** 아래는 2026-08-06 당시의 기록이다 (codex 적대 리뷰 F3 — 상태줄만
+정정하고 본문을 현재형으로 남겨 둬서 같은 파일 안에서 두 문장이 반대를 말하고 있었다).
 
-**실측 재현 (2026-08-06):**
+**실측 재현 (2026-08-06 — 지금은 재현되지 않는다):**
 
 ```
 $ ./node_modules/.bin/prettier --check apps/web/package.json

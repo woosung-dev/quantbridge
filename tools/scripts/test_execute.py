@@ -308,8 +308,16 @@ class TestBuildPreamble:
         assert str(ex.StepExecutor.MAX_RETRIES) in result
 
     def test_includes_index_path(self, executor):
+        """★수정 ②-5 의 AC (codex F1).
+
+        상류 단언은 `"/phases/0-mvp/index.json" in result` 였다. 그건 **부분문자열**이라
+        `.harness/phases/…` 도 통과한다 — 즉 경로 표류에 대해 판별력이 0이었고, ②-1 이
+        원장을 옮긴 뒤에도 프리앰블만 옛 경로로 남은 것을 아무도 못 잡았다.
+        """
         result = executor._build_preamble("", "")
-        assert "/phases/0-mvp/index.json" in result
+        assert ".harness/phases/0-mvp/index.json" in result
+        # ★음성 대조 — 선행 슬래시 형태(절대 경로로 읽힌다)가 남아 있으면 안 된다.
+        assert "/phases/0-mvp/index.json" not in result.replace(".harness/phases/0-mvp/index.json", "")
 
 
 # ---------------------------------------------------------------------------
@@ -445,6 +453,13 @@ class TestCommitStep:
         상류는 "phases/…" 를 하드코딩한다. 수정 ②-1 로 _phases_dir 만 옮기면 이 경로가
         실재하지 않아 `git reset` 이 조용히 실패하고 index/output 이 feat 커밋에 섞인다.
         위 test_two_phase_commit 은 커밋 횟수·메시지만 보므로 그 표류를 못 잡는다.
+
+        ★★이 AC 가 **말하지 않는 것** (codex 적대 리뷰 F7):
+        이것은 mock 된 `_run_git` 의 **인자 문자열**만 본다. 임시 git 레포에서 index.json 이
+        실제로 feat 커밋에서 빠지고 chore 커밋에만 들어가는지는 **검증하지 않는다.**
+        즉 변이 M2 의 red 는 「경로 문자열이 바뀌었다」를 말할 뿐 「2단 분리가 지켜진다」를
+        말하지 않는다. 게다가 실물에서는 프리앰블 규칙 6 이 세션에게 먼저 커밋을 시켜
+        **분리 자체가 발화하지 않는다**(ADR-033 §스모크 발견 B). 실물 검증은 미실시.
         """
         calls = []
         def fake_git(*args):
@@ -500,7 +515,11 @@ class TestInvokeClaude:
         cmd = mock_run.call_args[0][0]
         # 수정 ③ — 실행기 codex 스왑(ADR-033). 양성 대조.
         assert cmd[:3] == ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox"]
-        assert "-C" in cmd
+        # ★codex F2 — `"-C" in cmd` 만 보면 `-C /tmp` 로 바꿔도 통과한다(판별력 0).
+        #   **어느 디렉터리를 겨냥하는지**를 단언한다. `-s workspace-write` 로 되돌릴 때도
+        #   쓰기 루트가 여기서 갈리므로 이 값이 틀리면 0건 변경으로 조용히 끝난다.
+        assert cmd[cmd.index("-C") + 1] == executor._root
+        assert cmd[cmd.index("-C") + 1] != "/tmp"
         assert "PREAMBLE" in cmd[-1]
         assert "UI를 구현하세요" in cmd[-1]
         # ★음성 대조 — 이 세 줄이 없으면 argv 를 원본으로 되돌려도 초록이 난다(판별력 0).

@@ -55,7 +55,9 @@ python3 tools/scripts/execute.py <task-name>
 │   ├── 03-backend.md   -> ../../apps/api/AGENTS.md
 │   └── 04-frontend.md  -> ../../apps/web/AGENTS.md
 └── phases/
-    ├── index.json               # 전체 현황 (task 목록)
+    ├── index.json               # ★선택 사항 — 없어도 된다. `_update_top_index` 가 없으면
+    │                            #   조용히 return 한다(execute.py:178). 여러 task 를 한눈에
+    │                            #   볼 때만 만들어라. 지금 레포에는 **없다**(codex 리뷰 F5)
     └── <task>/
         ├── index.json           # step 목록 + 상태 원장  ← 유일한 보고 채널
         ├── step{N}.md           # 입력 (CONTROL 이 쓴다)
@@ -64,9 +66,13 @@ python3 tools/scripts/execute.py <task-name>
 
 **왜 `docs/` 가 아니라 이 4축인가** — 원본 `_load_guardrails()` 는 `docs/*.md` 를 필터 없이 넣는다.
 그건 게으름이 아니라 계약이다: 원본 `docs/`(PRD·ARCHITECTURE·ADR·UI_GUIDE)에는 **정적 설계 제약만** 있다.
-우리 `docs/` 최상위는 정확히 반대다 — glob 이 잡는 것은 `status`·`backlog`·`roadmap`·`lessons`
-(**2026-08-15 재측정 768,152자**)뿐이고, 정본인 `docs/reference/`·`docs/decisions/` 는 하위라 **0건**이다.
-크기가 아니라 **선택**의 문제다. 4축 = **45,820자 (−94.0%)**. 근거 = ADR-030 §발견①.
+우리 `docs/` 최상위는 정확히 반대다 — glob 이 잡는 것은 `README`·`status`·`backlog`·`roadmap`·`lessons`
+**5파일 777,895자**(2026-08-15 실측)뿐이고, 정본인 `docs/reference/`·`docs/decisions/` 는 하위라 **0건**이다.
+크기가 아니라 **선택**의 문제다. 4축 = **45,820자 (−94.1%)**. 근거 = ADR-030 §발견①.
+
+★**ADR-030 의 「4파일 814,211자」는 `docs/README.md` 를 빠뜨린 값이다** — codex 적대 리뷰 F4 가 잡았고,
+나는 그 수치를 **검증 없이 물려받아** 「768,152자·4파일」로 다시 적었다. `Path.glob("*.md")` 는
+`docs/README.md` 도 잡는다. 설계 결론(4축으로 교체)은 그대로 유효하고 틀린 것은 근거 수치였다.
 
 ## 4. ★as-is 로 안고 가는 위험 11건 — 첫 run 전에 읽어라
 
@@ -144,7 +150,11 @@ B회차 step 1 이 정확히 그렇게 통과했고 그 사이 러너는 **AC �
 uv run --no-project --with pytest pytest tools/scripts/test_execute.py -q     # 55 passed
 ```
 
-★`apps/api` 안에서 돌리지 마라 — 세션 픽스처 `drop_all` 이 **개발 DB 를 겨냥**한다.
+★`--no-project` 를 빼지 마라. 붙이는 이유는 `apps/api/tests/conftest.py` 를 **안 여는 것**이다 —
+그 conftest 는 세션 스코프 엔진에서 `SQLModel.metadata.drop_all` 을 돌고 env 가 어긋나면 그것이
+**개발 DB 를 겨냥**한다(`conftest.py:94`·`:333`). ★정확히 하자면 **이 테스트 파일 자체는 DB 를 안 쓴다**
+(`tmp_path` + mock 뿐). 위험은 「이 파일이 DB 를 연다」가 아니라 **「그 디렉터리에서 pytest 를 띄우면
+남의 conftest 가 함께 로드된다」**다 — codex 리뷰 F8 이 내 종전 설명의 부정확을 잡았다.
 
 ★★**「55 passed」를 러너 검증으로 읽지 마라.** 상류 51건은 **12개 클래스 전부 헬퍼 단위**이고
 `run()`·`_execute_single_step`·`_execute_all_steps`·`_finalize` 가 테스트에 **각 0회** 등장한다.
