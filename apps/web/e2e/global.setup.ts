@@ -83,6 +83,12 @@ setup("authenticate", async ({ page, request }) => {
   await page.getByLabel("비밀번호").fill(password);
   await page.getByRole("button", { name: "로그인" }).click();
 
+  // ★★클릭 뒤 **반드시 기다려야 한다.** 종전 `clerk.signIn()` 은 흐름 전체를 await 했지만
+  //   진짜 폼 제출은 클릭 시점에 fetch 가 in-flight 로 남는다. 곧바로 `page.goto('/strategies')`
+  //   를 하면 쿠키가 아직 없어 proxy 가 `/sign-in` 으로 되돌리고, 증상은 「로그인이 안 된다」로
+  //   보인다(실측 — 이 하네스를 옮기면서 실제로 밟았다). 폼이 성공하면 `/sign-in` 을 떠난다.
+  await page.waitForURL((url) => !url.pathname.startsWith("/sign-in"), { timeout: 60_000 });
+
   // 3) Protected route 검증 — pathname + UI text 둘 다 (codex iter 2 P1 #3)
   // 단순 waitForURL(/strategies/) 은 query param 에 strategies 포함된 unauth redirect 통과.
   await page.goto(`${baseUrl}/strategies`, { timeout: 60_000 });
