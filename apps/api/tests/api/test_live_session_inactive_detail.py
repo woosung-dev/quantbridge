@@ -94,11 +94,11 @@ async def _seed_inactive_session(
 async def test_inactive_session_detail_paths_stay_reachable(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
     suffix: str,
 ) -> None:
     """종료된 세션도 상세 경로 전부 200. `is_active` 필터가 새로 들어오면 여기서 깨진다."""
-    session = await _seed_inactive_session(db_session, mock_clerk_auth)
+    session = await _seed_inactive_session(db_session, mock_authed_user)
 
     response = await client.get(f"/api/v1/live-sessions/{session.id}{suffix}")
 
@@ -109,14 +109,14 @@ async def test_inactive_session_detail_paths_stay_reachable(
 async def test_inactive_session_positions_reports_unsupported_without_touching_exchange(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     """`/positions` 의 200 이 거래소 왕복 없이 나온 것임을 명시한다(위 테스트의 근거 고정).
 
     settings 미설정이므로 `settings_unset` 이어야 하고, 이 값이 바뀌면 위 200 판정이
     실은 provider 를 태우고 있었다는 뜻이라 테스트 전제가 무너진다.
     """
-    session = await _seed_inactive_session(db_session, mock_clerk_auth)
+    session = await _seed_inactive_session(db_session, mock_authed_user)
 
     body = (await client.get(f"/api/v1/live-sessions/{session.id}/positions")).json()
 
@@ -128,10 +128,10 @@ async def test_inactive_session_positions_reports_unsupported_without_touching_e
 async def test_live_session_list_serializes_deactivation_reason(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     """BL-484 — 목록 응답이 사유를 실제로 내보낸다. 화면은 이 필드로만 사유를 안다."""
-    session = await _seed_inactive_session(db_session, mock_clerk_auth)
+    session = await _seed_inactive_session(db_session, mock_authed_user)
 
     body = (await client.get("/api/v1/live-sessions?include_inactive=true")).json()
 
@@ -143,10 +143,10 @@ async def test_live_session_list_serializes_deactivation_reason(
 async def test_live_session_list_keeps_null_reason_for_legacy_rows(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     """마이그레이션 이전에 죽은 행은 `null` 로 나간다 — 빈 문자열로 위장하지 않는다."""
-    session = await _seed_inactive_session(db_session, mock_clerk_auth, reason=None)
+    session = await _seed_inactive_session(db_session, mock_authed_user, reason=None)
 
     body = (await client.get("/api/v1/live-sessions?include_inactive=true")).json()
 

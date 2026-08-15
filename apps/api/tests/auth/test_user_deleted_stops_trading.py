@@ -1,6 +1,6 @@
 """탈퇴가 **돈을 멈춘다** (2026-08-15 surface-truth · S3).
 
-**실사고 모양** — 종전 `user.deleted` 분기는 `set_inactive` + 전략 archive 뿐이었다.
+**실사고 모양** — 종전 탈퇴 처리는 `set_inactive` + 전략 archive 뿐이었다.
 그래서 탈퇴하면 **UI 만 잠겼다**:
 
 - `live_signal_session_repository.list_active_due` 는 `WHERE is_active = true` 만 보고
@@ -11,7 +11,9 @@
 - `order_service.py` 에 `is_active` 는 **한 번도 등장하지 않았다**.
 
 ★**이 파일은 순수 함수가 아니라 배선을 잰다** — 실제 `db_session` 에 두 사용자를 심고
-`UserService.handle_clerk_event` 를 그대로 태운다. 「소유자만」 닫히는지(음성 대조)와
+`UserService.deactivate_account` 를 그대로 태운다 — 2026-08-17 ADR-034 로 입구가 Clerk
+`user.deleted` 웹훅에서 `DELETE /auth/me` 로 바뀌었고, **이 파일이 그 이관의 수용 기준이다**.
+「소유자만」 닫히는지(음성 대조)와
 「`ExchangeAccount` 행은 안 지운다」(확정된 사용자 결정)도 같은 자리에서 고정한다.
 """
 
@@ -48,7 +50,7 @@ _PLAINTEXT_SECRET = "tv-webhook-secret-value"
 async def _seed_tenant(
     db_session: AsyncSession, *, tag: str, crypto: EncryptionService
 ) -> tuple[User, Strategy, LiveSignalSession, WebhookSecret]:
-    user = User(clerk_user_id=f"{tag}-{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@test.local")
+    user = User(auth_subject=f"{tag}-{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@test.local")
     db_session.add(user)
     await db_session.flush()
 
@@ -115,9 +117,7 @@ async def test_user_deleted_stops_sessions_and_revokes_webhook_secrets(
     gone, _gone_strategy, gone_session, gone_secret = await _seed_tenant(
         db_session, tag="gone", crypto=crypto
     )
-    await _service(db_session).handle_clerk_event(
-        {"type": "user.deleted", "data": {"id": gone.clerk_user_id}}
-    )
+    await _service(db_session).deactivate_account(gone.id)
 
     await db_session.refresh(gone_session)
     await db_session.refresh(gone_secret)
@@ -148,9 +148,7 @@ async def test_user_deleted_leaves_other_tenants_alone(
         db_session, tag="stay", crypto=crypto
     )
 
-    await _service(db_session).handle_clerk_event(
-        {"type": "user.deleted", "data": {"id": gone.clerk_user_id}}
-    )
+    await _service(db_session).deactivate_account(gone.id)
 
     await db_session.refresh(stay_session)
     await db_session.refresh(stay_secret)
@@ -181,9 +179,7 @@ async def test_user_deleted_does_not_delete_exchange_account_rows(
     )
     assert before, "픽스처 전제 — 계정 행이 있어야 한다"
 
-    await _service(db_session).handle_clerk_event(
-        {"type": "user.deleted", "data": {"id": gone.clerk_user_id}}
-    )
+    await _service(db_session).deactivate_account(gone.id)
 
     after = (
         (
@@ -225,9 +221,7 @@ async def test_webhook_verify_rejects_after_owner_deleted(
         "픽스처 전제 — 탈퇴 전에는 통과해야 한다(음성 대조)"
     )
 
-    await _service(db_session).handle_clerk_event(
-        {"type": "user.deleted", "data": {"id": gone.clerk_user_id}}
-    )
+    await _service(db_session).deactivate_account(gone.id)
 
     assert await svc.verify(strategy.id, token=token, payload=payload) is False, (
         "탈퇴 후에도 유출 웹훅 시크릿이 체결된다"
@@ -244,7 +238,7 @@ async def test_owner_inactive_gate_blocks_orders(db_session: AsyncSession) -> No
     from src.trading.dependencies import _StrategySessionsAdapter
 
     adapter = _StrategySessionsAdapter(db_session)
-    alive = User(clerk_user_id=f"alive-{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@t.local")
+    alive = User(auth_subject=f"alive-{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@t.local")
     db_session.add(alive)
     await db_session.flush()
 
@@ -277,9 +271,7 @@ async def test_queued_orders_are_blocked_at_dispatch_after_deletion(
         "픽스처 전제 — 탈퇴 전에는 통과해야 한다(음성 대조)"
     )
 
-    await _service(db_session).handle_clerk_event(
-        {"type": "user.deleted", "data": {"id": gone.clerk_user_id}}
-    )
+    await _service(db_session).deactivate_account(gone.id)
 
     assert await repo.strategy_owner_is_active(gone_strategy.id) is False, (
         "탈퇴 후에도 큐에 있던 주문이 거래소로 나간다"

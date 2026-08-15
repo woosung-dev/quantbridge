@@ -1,4 +1,5 @@
 """POST /api/v1/backtests/:id/cancel."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -15,15 +16,21 @@ from src.strategy.models import ParseStatus, PineVersion, Strategy
 
 async def _seed_bt(session: AsyncSession, user_id, status: BacktestStatus) -> Backtest:
     strategy = Strategy(
-        id=uuid4(), user_id=user_id, name="s",
+        id=uuid4(),
+        user_id=user_id,
+        name="s",
         pine_source="//@version=5\nstrategy('s')",
-        pine_version=PineVersion.v5, parse_status=ParseStatus.ok,
+        pine_version=PineVersion.v5,
+        parse_status=ParseStatus.ok,
     )
     session.add(strategy)
     await session.flush()
     bt = Backtest(
-        id=uuid4(), user_id=user_id, strategy_id=strategy.id,
-        symbol="BTCUSDT", timeframe="1h",
+        id=uuid4(),
+        user_id=user_id,
+        strategy_id=strategy.id,
+        symbol="BTCUSDT",
+        timeframe="1h",
         period_start=datetime(2024, 1, 1, tzinfo=UTC),
         period_end=datetime(2024, 1, 2, tzinfo=UTC),
         initial_capital=Decimal("10000"),
@@ -36,10 +43,10 @@ async def _seed_bt(session: AsyncSession, user_id, status: BacktestStatus) -> Ba
 
 @pytest.mark.asyncio
 async def test_cancel_queued_returns_202(
-    client: AsyncClient, db_session: AsyncSession, mock_clerk_auth
+    client: AsyncClient, db_session: AsyncSession, mock_authed_user
 ) -> None:
     """queued → 202 + status=cancelling + message."""
-    user = mock_clerk_auth
+    user = mock_authed_user
     bt = await _seed_bt(db_session, user.id, BacktestStatus.QUEUED)
     await db_session.commit()
 
@@ -53,10 +60,10 @@ async def test_cancel_queued_returns_202(
 
 @pytest.mark.asyncio
 async def test_cancel_running_returns_202(
-    client: AsyncClient, db_session: AsyncSession, mock_clerk_auth
+    client: AsyncClient, db_session: AsyncSession, mock_authed_user
 ) -> None:
     """running → 202 + cancelling."""
-    user = mock_clerk_auth
+    user = mock_authed_user
     bt = await _seed_bt(db_session, user.id, BacktestStatus.RUNNING)
     await db_session.commit()
 
@@ -67,10 +74,10 @@ async def test_cancel_running_returns_202(
 
 @pytest.mark.asyncio
 async def test_cancel_completed_returns_409(
-    client: AsyncClient, db_session: AsyncSession, mock_clerk_auth
+    client: AsyncClient, db_session: AsyncSession, mock_authed_user
 ) -> None:
     """completed → 409 backtest_state_conflict."""
-    user = mock_clerk_auth
+    user = mock_authed_user
     bt = await _seed_bt(db_session, user.id, BacktestStatus.COMPLETED)
     await db_session.commit()
 
@@ -81,7 +88,7 @@ async def test_cancel_completed_returns_409(
 
 @pytest.mark.asyncio
 async def test_cancel_not_found_returns_404(
-    client: AsyncClient, db_session: AsyncSession, mock_clerk_auth
+    client: AsyncClient, db_session: AsyncSession, mock_authed_user
 ) -> None:
     r = await client.post(f"/api/v1/backtests/{uuid4()}/cancel")
     assert r.status_code == 404

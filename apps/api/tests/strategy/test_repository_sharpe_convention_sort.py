@@ -45,7 +45,7 @@ def _metrics(value: str, convention: str | None) -> dict[str, object]:
 async def _seed_rows(session: AsyncSession) -> tuple[UUID, dict[str, Strategy]]:
     user = User(
         id=UUID(int=110),
-        clerk_user_id="strategy-sharpe-owner",
+        auth_subject="strategy-sharpe-owner",
         email="strategy-sharpe@example.com",
     )
     session.add(user)

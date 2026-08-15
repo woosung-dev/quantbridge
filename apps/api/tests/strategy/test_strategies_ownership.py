@@ -1,4 +1,5 @@
 """Strategy 소유권 격리 — 타 사용자 전략에 접근 시 404."""
+
 from __future__ import annotations
 
 import uuid
@@ -14,7 +15,7 @@ from src.strategy.models import ParseStatus, PineVersion, Strategy
 
 async def _create_user(db_session, label: str) -> User:
     user = User(
-        clerk_user_id=f"user_{label}_{uuid.uuid4().hex[:6]}",
+        auth_subject=f"user_{label}_{uuid.uuid4().hex[:6]}",
         email=f"{label}@b.com",
         username=label,
     )

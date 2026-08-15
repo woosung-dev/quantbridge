@@ -10,9 +10,10 @@
 8. rate limit 5/hour → 6 번째 429
 
 구현 메모:
-- app fixture 가 FastAPI app + DB override 제공. mock_clerk_auth 불필요 (public endpoint).
+- app fixture 가 FastAPI app + DB override 제공. mock_authed_user 불필요 (public endpoint).
 - rate-limit 테스트는 별도 fixture 로 memory:// storage + custom limiter 주입.
 """
+
 from __future__ import annotations
 
 import pytest

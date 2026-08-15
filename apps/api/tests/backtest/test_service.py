@@ -1,4 +1,5 @@
 """BacktestService — submit/run/cancel/delete/list/get."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -25,10 +26,11 @@ from src.strategy.repository import StrategyRepository
 # Seed helpers
 # ---------------------------------------------------------------------------
 
+
 async def _seed_user_and_strategy(session: AsyncSession) -> tuple[User, Strategy]:
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     session.add(user)
@@ -82,6 +84,7 @@ def _request(strategy_id: object) -> CreateBacktestRequest:
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 async def service(db_session: AsyncSession, tmp_path: Path) -> BacktestService:
     backtest_repo = BacktestRepository(db_session)
@@ -100,11 +103,10 @@ async def service(db_session: AsyncSession, tmp_path: Path) -> BacktestService:
 # TestSubmit
 # ---------------------------------------------------------------------------
 
+
 class TestSubmit:
     @pytest.mark.asyncio
-    async def test_submit_happy(
-        self, service: BacktestService, db_session: AsyncSession
-    ) -> None:
+    async def test_submit_happy(self, service: BacktestService, db_session: AsyncSession) -> None:
         """submit → 202 QUEUED + dispatcher에 backtest_id 기록."""
         user, strat = await _seed_user_and_strategy(db_session)
         result = await service.submit(_request(strat.id), user_id=user.id)
@@ -127,11 +129,10 @@ class TestSubmit:
 # TestRun
 # ---------------------------------------------------------------------------
 
+
 class TestRun:
     @pytest.mark.asyncio
-    async def test_run_happy_path(
-        self, service: BacktestService, db_session: AsyncSession
-    ) -> None:
+    async def test_run_happy_path(self, service: BacktestService, db_session: AsyncSession) -> None:
         """submit + run → terminal 상태.
 
         현재 50행 EMA(10)/EMA(30) 픽스처에서 엔진은 trade extraction 단계
@@ -197,6 +198,7 @@ class TestRun:
 # TestCancel
 # ---------------------------------------------------------------------------
 
+
 class TestCancel:
     @pytest.mark.asyncio
     async def test_cancel_queued_sets_cancelling(
@@ -225,6 +227,7 @@ class TestCancel:
 # TestDelete
 # ---------------------------------------------------------------------------
 
+
 class TestDelete:
     @pytest.mark.asyncio
     async def test_delete_non_terminal_409(
@@ -242,6 +245,7 @@ class TestDelete:
 # TestExtendedMetricsMapping — Sprint 9-2 D1 회귀 방지
 # ---------------------------------------------------------------------------
 
+
 class TestExtendedMetricsMapping:
     """`_to_detail` 이 BacktestMetricsOut 생성 시 7개 확장 필드 전부 전달하는지.
 
@@ -250,7 +254,8 @@ class TestExtendedMetricsMapping:
     """
 
     def test_to_detail_maps_all_seven_extended_metrics(
-        self, service: BacktestService,
+        self,
+        service: BacktestService,
     ) -> None:
         from src.backtest.models import Backtest
 
@@ -297,7 +302,8 @@ class TestExtendedMetricsMapping:
         assert m.short_count == 8
 
     def test_to_detail_passes_through_buy_and_hold_curve(
-        self, service: BacktestService,
+        self,
+        service: BacktestService,
     ) -> None:
         """Sprint 34 BL-175 (P1-2 R-2): bt.metrics JSONB 의 buy_and_hold_curve 가
         BacktestMetricsOut spread 에 누락되면 silent BUG (FE 응답 0건 → 거짓
@@ -347,6 +353,7 @@ class TestExtendedMetricsMapping:
 # ---------------------------------------------------------------------------
 # TestRunFundingWiring (C6 Slice 4 — perp funding 배선 라우팅)
 # ---------------------------------------------------------------------------
+
 
 def _service_with_funding(
     db_session: AsyncSession, tmp_path: Path, funding_repo: object

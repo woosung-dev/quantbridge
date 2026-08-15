@@ -13,6 +13,7 @@ codex G.0 결과 P1 5건 + P2 5건 모두 반영:
 - dispatch UnsupportedExchangeError → Order.state == rejected (Celery layer)
 - dispatch BybitLiveProvider stub → Order.state == rejected (Bybit live 미지원)
 """
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -308,7 +309,7 @@ async def binance_pending_order(db_session: AsyncSession):
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)
@@ -355,7 +356,7 @@ async def bybit_live_pending_order(db_session: AsyncSession):
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)
@@ -406,9 +407,7 @@ async def test_unsupported_exchange_routes_to_rejected(
     import src.tasks.trading as task_mod
 
     order = binance_pending_order
-    monkeypatch.setattr(
-        task_mod, "create_worker_engine_and_sm", _fake_engine_factory(db_session)
-    )
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_engine_factory(db_session))
 
     result = await task_mod._async_execute(order.id)
 
@@ -432,9 +431,7 @@ async def test_bybit_live_stub_routes_to_rejected(
     import src.tasks.trading as task_mod
 
     order = bybit_live_pending_order
-    monkeypatch.setattr(
-        task_mod, "create_worker_engine_and_sm", _fake_engine_factory(db_session)
-    )
+    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_engine_factory(db_session))
 
     result = await task_mod._async_execute(order.id)
 

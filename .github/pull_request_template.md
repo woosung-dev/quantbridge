@@ -26,7 +26,7 @@
 - [ ] `useEffect` dep 배열에 **object/array prop 없음** (scalar 우선 — `[obj.id]`, `[list.length]`)
 - [ ] `react-hooks/set-state-in-effect` / `exhaustive-deps` ESLint 규칙 disable **하지 않음**
 - [ ] React Query `.data`, Zustand full store, RHF `watch()`, Zod `.parse()` 결과를 useEffect dep **로 쓰지 않음**
-- [ ] unit test 35+개 외에, **Playwright/수동 E2E walkthrough 완료** (Clerk 로그인부터 핵심 흐름까지)
+- [ ] unit test 35+개 외에, **Playwright/수동 E2E walkthrough 완료** (로그인부터 핵심 흐름까지)
 
 ### Backend 변경 시
 

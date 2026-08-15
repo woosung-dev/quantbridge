@@ -83,7 +83,7 @@ class _Seed:
 async def _seed_money_path(db_session: AsyncSession) -> _Seed:
     """세션 3 개 + 주문 11 건. 손익은 2 의 거듭제곱이라 부분합이 유일하다."""
     user = User(
-        clerk_user_id=f"money-path-{uuid4().hex[:8]}",
+        auth_subject=f"money-path-{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     db_session.add(user)
@@ -286,17 +286,21 @@ async def test_site3_now_sees_manual_close_and_webhook_orders(db_session: AsyncS
     repo = OrderRepository(db_session)
 
     # O1(dispatch) + O2(수동 청산, 이벤트 없음). 예전엔 O2 가 통째로 안 보였다.
-    assert (await repo.realized_pnl_split_for_session(
-        SessionScope.from_live_session(seed.session_closed)
-    )).total == Decimal("-3.00000003")
+    assert (
+        await repo.realized_pnl_split_for_session(
+            SessionScope.from_live_session(seed.session_closed)
+        )
+    ).total == Decimal("-3.00000003")
     # O3(늦은 체결) + O4(dispatch) + O5(TV 웹훅, 이벤트 없음).
-    assert (await repo.realized_pnl_split_for_session(
-        SessionScope.from_live_session(seed.session_active)
-    )).total == Decimal("-28.00000028")
+    assert (
+        await repo.realized_pnl_split_for_session(
+            SessionScope.from_live_session(seed.session_active)
+        )
+    ).total == Decimal("-28.00000028")
     # 이벤트가 하나도 없는 세션도 이제 자기 심볼 체결(O6)을 본다.
-    assert (await repo.realized_pnl_split_for_session(
-        SessionScope.from_live_session(seed.session_eth)
-    )).total == Decimal("-32.00000032")
+    assert (
+        await repo.realized_pnl_split_for_session(SessionScope.from_live_session(seed.session_eth))
+    ).total == Decimal("-32.00000032")
 
     # BL-458 — 같은 스코프를 출처별로 쪼갠다. 합계는 위와 **동일**해야 한다.
     # O2 와 O5 만 거래소 확정이므로 세션마다 소계가 유일한 숫자로 갈린다.
@@ -547,7 +551,7 @@ class _R1Seed:
 async def _seed_partial_fill_terminals(db_session: AsyncSession) -> _R1Seed:
     """부분체결분을 보존한 채 취소·거절된 조건부 진입을 실 DB 에 심는다."""
     user = User(
-        clerk_user_id=f"r1-partial-{uuid4().hex[:8]}",
+        auth_subject=f"r1-partial-{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     db_session.add(user)
@@ -660,9 +664,7 @@ async def test_ledger_scan_sees_fills_stranded_in_cancelled_and_rejected_rows(
     seed = await _seed_partial_fill_terminals(db_session)
     repo = OrderRepository(db_session)
 
-    fills = await repo.list_fills_since(
-        SessionScope.from_live_session(seed.session), since=R1_T0
-    )
+    fills = await repo.list_fills_since(SessionScope.from_live_session(seed.session), since=R1_T0)
 
     assert {fill.order_id for fill in fills} == {
         seed.orders["filled"].id,
@@ -686,9 +688,7 @@ async def test_ledger_scan_ignores_cancellations_that_never_filled(
     seed = await _seed_partial_fill_terminals(db_session)
     repo = OrderRepository(db_session)
 
-    fills = await repo.list_fills_since(
-        SessionScope.from_live_session(seed.session), since=R1_T0
-    )
+    fills = await repo.list_fills_since(SessionScope.from_live_session(seed.session), since=R1_T0)
 
     scanned = {fill.order_id for fill in fills}
     assert seed.orders["cancelled_none"].id not in scanned

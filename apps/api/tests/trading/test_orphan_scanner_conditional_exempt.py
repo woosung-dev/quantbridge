@@ -26,7 +26,7 @@ from src.trading.models import (
 async def submitted_order_factory(db_session: AsyncSession):
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@s.local",
     )
     strategy = Strategy(
@@ -93,9 +93,7 @@ async def test_stuck_scanners_exempt_resting_conditional_entries(
     repo = OrderRepository(db_session)
     cutoff = datetime.now(UTC) - timedelta(minutes=30)
     submitted_ids = {order.id for order in await repo.list_stuck_submitted(cutoff)}
-    interrupted_ids = {
-        order.id for order in await repo.list_stuck_submission_interrupted(cutoff)
-    }
+    interrupted_ids = {order.id for order in await repo.list_stuck_submission_interrupted(cutoff)}
 
     assert submitted_conditional.id not in submitted_ids
     assert submitted_market.id in submitted_ids

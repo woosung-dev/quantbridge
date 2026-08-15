@@ -4,6 +4,7 @@ list/resolve 는 호출자 소유(strategy 또는 exchange_account 의 user_id)�
 보거나 변경할 수 있어야 한다. KillSwitchEvent 에는 user_id 컬럼이 없으므로
 strategy_id->Strategy.user_id 또는 exchange_account_id->ExchangeAccount.user_id JOIN 으로 소유 판정.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -36,7 +37,7 @@ async def _account(db_session: AsyncSession, owner: User) -> ExchangeAccount:
 
 
 async def _other_user(db_session: AsyncSession) -> User:
-    u = User(clerk_user_id=f"clerk_{uuid4().hex[:8]}", email="other@example.com")
+    u = User(auth_subject=f"sub_{uuid4().hex[:8]}", email="other@example.com")
     db_session.add(u)
     await db_session.flush()
     return u
@@ -81,9 +82,7 @@ async def test_list_recent_by_user_excludes_other_tenants(
     assert ev_a.id not in b_ids
 
 
-async def test_get_owned_rejects_cross_tenant(
-    db_session: AsyncSession, user: User, strategy
-):
+async def test_get_owned_rejects_cross_tenant(db_session: AsyncSession, user: User, strategy):
     """get_owned(event, 다른 user) → None (resolve 권한 차단)."""
     repo = KillSwitchEventRepository(db_session)
     user_b = await _other_user(db_session)

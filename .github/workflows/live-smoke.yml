@@ -38,10 +38,9 @@ jobs:
       run:
         working-directory: apps/web
     env:
-      # Clerk dev key — public/anon. dev server 가 sign-in 페이지 prerender 안 해도 됨
-      # (public pages 만 smoke). secret 미설정 시 placeholder 동작 확인용.
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      # ADR-034 — 인증이 self-host 로 오면서 외부 키가 필요 없어졌다(공개 라우트 전용 스모크).
+      BETTER_AUTH_SECRET: ci-smoke-only-placeholder-secret-00000
+      BETTER_AUTH_URL: http://localhost:3000
       # Backend 미실행 — React Query fetch fail 은 spec 안 expected pattern 으로 무시
       NEXT_PUBLIC_API_URL: http://localhost:8000
     steps:

@@ -2,6 +2,7 @@
 
 URL: /api/v1/liquidation/preview (router prefix 없음; main.py 가 /api/v1 추가).
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -10,7 +11,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_preview_long_liquidation(client, mock_clerk_auth):
+async def test_preview_long_liquidation(client, mock_authed_user):
     """Long: 50000 × (1 − 0.1 + 0.005) = 45250, distance 9.5%."""
     resp = await client.post(
         "/api/v1/liquidation/preview",
@@ -31,7 +32,7 @@ async def test_preview_long_liquidation(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_preview_short_liquidation(client, mock_clerk_auth):
+async def test_preview_short_liquidation(client, mock_authed_user):
     """Short: 50000 × (1 + 0.1 − 0.005) = 54750."""
     resp = await client.post(
         "/api/v1/liquidation/preview",
@@ -50,7 +51,7 @@ async def test_preview_short_liquidation(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_preview_rejects_zero_leverage(client, mock_clerk_auth):
+async def test_preview_rejects_zero_leverage(client, mock_authed_user):
     resp = await client.post(
         "/api/v1/liquidation/preview",
         json={
@@ -64,7 +65,7 @@ async def test_preview_rejects_zero_leverage(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_preview_rejects_negative_entry(client, mock_clerk_auth):
+async def test_preview_rejects_negative_entry(client, mock_authed_user):
     resp = await client.post(
         "/api/v1/liquidation/preview",
         json={

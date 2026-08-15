@@ -1,8 +1,9 @@
 """KillSwitch REST endpoints E2E (T20).
 
-Uses mock_clerk_auth fixture from conftest.py for auth bypass.
+Uses mock_authed_user fixture from conftest.py for auth bypass.
 URLs: /api/v1/kill-switch/events (router has no prefix; main.py adds /api/v1).
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock
@@ -11,16 +12,14 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_list_kill_switch_events(
-    client, mock_clerk_auth, db_session
-):
+async def test_list_kill_switch_events(client, mock_authed_user, db_session):
     """GET /api/v1/kill-switch/events returns events."""
     from decimal import Decimal
 
     from src.strategy.models import ParseStatus, PineVersion, Strategy
     from src.trading.models import KillSwitchEvent, KillSwitchTriggerType
 
-    user = mock_clerk_auth
+    user = mock_authed_user
 
     strategy = Strategy(
         user_id=user.id,
@@ -48,7 +47,7 @@ async def test_list_kill_switch_events(
 
 @pytest.mark.asyncio
 async def test_resolve_kill_switch(
-    client, mock_clerk_auth, db_session, monkeypatch: pytest.MonkeyPatch
+    client, mock_authed_user, db_session, monkeypatch: pytest.MonkeyPatch
 ):
     """POST /api/v1/kill-switch/events/{event_id}/resolve resolves the event."""
     from decimal import Decimal
@@ -56,7 +55,7 @@ async def test_resolve_kill_switch(
     from src.strategy.models import ParseStatus, PineVersion, Strategy
     from src.trading.models import KillSwitchEvent, KillSwitchTriggerType
 
-    user = mock_clerk_auth
+    user = mock_authed_user
 
     strategy = Strategy(
         user_id=user.id,

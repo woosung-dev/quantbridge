@@ -1,4 +1,4 @@
-# Clerk 인증된 실시간 이벤트 WebSocket 엔드포인트.
+# 인증된 실시간 이벤트 WebSocket 엔드포인트.
 from __future__ import annotations
 
 import asyncio
@@ -11,7 +11,7 @@ from src.auth.dependencies import get_user_service
 from src.auth.exceptions import AuthError
 from src.auth.service import UserService
 from src.core.config import settings
-from src.realtime.auth import authenticate_clerk_token
+from src.realtime.auth import authenticate_token
 from src.realtime.manager import ConnectionManager
 from src.realtime.schemas import (
     WS_CLOSE_AUTH_FAILED,
@@ -47,7 +47,7 @@ async def realtime_websocket(
             timeout=AUTH_TIMEOUT_SECONDS,
         )
         auth = AuthMessage.model_validate(raw_message)
-        user = await authenticate_clerk_token(auth.token, service)
+        user = await authenticate_token(auth.token, service)
     except WebSocketDisconnect:
         return
     except (TimeoutError, ValueError, AuthError):

@@ -1,4 +1,5 @@
 """GET /api/v1/backtests/:id — detail + ownership isolation."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -49,10 +50,10 @@ async def _seed_bt(
 async def test_get_detail_queued(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """queued 상태 → metrics/equity_curve null."""
-    authed_user: User = mock_clerk_auth
+    authed_user: User = mock_authed_user
 
     bt = await _seed_bt(db_session, authed_user.id, status=BacktestStatus.QUEUED)
     await db_session.commit()
@@ -70,10 +71,10 @@ async def test_get_detail_queued(
 async def test_get_detail_completed(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """completed 상태 + metrics/equity_curve 포함."""
-    authed_user: User = mock_clerk_auth
+    authed_user: User = mock_authed_user
 
     bt = await _seed_bt(db_session, authed_user.id, status=BacktestStatus.COMPLETED)
     bt.metrics = {
@@ -99,10 +100,10 @@ async def test_get_detail_completed(
 async def test_get_detail_404_unknown(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """존재하지 않는 backtest_id → 404."""
-    _: User = mock_clerk_auth  # 인증 활성화
+    _: User = mock_authed_user  # 인증 활성화
 
     r = await client.get(f"/api/v1/backtests/{uuid4()}")
     assert r.status_code == 404
@@ -113,14 +114,14 @@ async def test_get_detail_404_unknown(
 async def test_get_detail_404_other_user(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """타 유저의 backtest → 404 (ownership isolation)."""
-    _: User = mock_clerk_auth  # 인증 활성화
+    _: User = mock_authed_user  # 인증 활성화
 
     other_user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     db_session.add(other_user)

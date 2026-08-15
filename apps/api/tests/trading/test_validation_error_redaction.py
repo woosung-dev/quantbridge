@@ -48,7 +48,7 @@ def _assert_no_credentials(raw: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_okx_missing_passphrase_422_hides_request_body(client, mock_clerk_auth):
+async def test_okx_missing_passphrase_422_hides_request_body(client, mock_authed_user):
     """★양성 — `mode="after"` validator 경로. body 전체가 `input` 에 실리던 자리다."""
     res = await client.post(
         "/api/v1/exchange-accounts",
@@ -64,7 +64,7 @@ async def test_okx_missing_passphrase_422_hides_request_body(client, mock_clerk_
 
 
 @pytest.mark.asyncio
-async def test_field_level_422_hides_field_value(client, mock_clerk_auth):
+async def test_field_level_422_hides_field_value(client, mock_authed_user):
     """★양성 — 필드 단위(`max_length`) 실패. 이쪽 `input` 은 그 **필드 값**이다."""
     res = await client.post(
         "/api/v1/exchange-accounts",
@@ -80,7 +80,7 @@ async def test_field_level_422_hides_field_value(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_422_still_reports_which_field_and_why(client, mock_clerk_auth):
+async def test_422_still_reports_which_field_and_why(client, mock_authed_user):
     """★음성 대조 — 진단 정보(`loc`·`msg`·`type`)는 **남아야** 한다.
 
     이게 없으면 「detail 을 통째로 비우기」가 위 두 테스트를 통과한다(판별력 0).
@@ -105,7 +105,7 @@ async def test_422_still_reports_which_field_and_why(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_valid_registration_still_succeeds(client, mock_clerk_auth):
+async def test_valid_registration_still_succeeds(client, mock_authed_user):
     """회귀 — redaction 이 정상 경로를 건드리지 않는다(201 + 암호화 저장 마스킹)."""
     res = await client.post(
         "/api/v1/exchange-accounts",

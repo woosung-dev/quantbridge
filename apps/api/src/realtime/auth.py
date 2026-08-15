@@ -1,62 +1,128 @@
-# HTTP와 WebSocket에서 공유하는 Clerk 인증 검증 함수.
+# HTTP와 WebSocket에서 공유하는 인증 검증 — Better Auth 가 발급한 JWT 를 JWKS 로 검증한다(ADR-034).
+# ★백엔드는 비밀을 하나도 쥐지 않는다. 검증은 공개 키로 하고, 키는 `settings.jwks_url` 에서 받아
+#   `kid` 별로 캐시한다. 모르는 `kid` 가 오면 PyJWKClient 가 알아서 한 번 다시 받아온다.
 from __future__ import annotations
 
-from types import SimpleNamespace
-from typing import cast
+import logging
+from typing import Any, Protocol
 
-from clerk_backend_api import Clerk
-from clerk_backend_api.security.types import AuthenticateRequestOptions, Requestish
+import anyio
+import jwt
+from jwt import PyJWKClient
 
 from src.auth.exceptions import InvalidTokenError, UserInactiveError
 from src.auth.schemas import CurrentUser
 from src.auth.service import UserService
 from src.core.config import settings
 
+logger = logging.getLogger(__name__)
 
-def _clerk_client() -> Clerk:
-    """요청별 Clerk 클라이언트를 생성한다."""
-    return Clerk(bearer_auth=settings.clerk_secret_key.get_secret_value())
+# ★알고리즘을 하나로 고정한다. Better Auth JWT 플러그인의 기본이 EdDSA(Ed25519)이고,
+#   허용 목록을 넓히면 「서명이 없는 것과 같은」 알고리즘 혼동 공격 표면이 열린다.
+#   양쪽을 우리가 소유하므로 넓힐 이유가 없다 — 바꾸려면 FE `lib/auth.ts` 와 **함께** 바꿔라.
+ALGORITHMS = ["EdDSA"]
+
+_jwk_client: PyJWKClient | None = None
+_jwk_client_url: str | None = None
 
 
-async def authenticate_clerk_request(
-    request: Requestish,
-    service: UserService,
-    clerk: Clerk | None = None,
-) -> CurrentUser:
-    """Clerk request를 검증하고 로컬 사용자를 lazy-create 한다."""
-    client = clerk or _clerk_client()
-    req_state = client.authenticate_request(
-        request,
-        AuthenticateRequestOptions(authorized_parties=[settings.frontend_url]),
+class Requestish(Protocol):
+    """헤더만 있으면 되는 오리 타입 — WebSocket 경로가 `SimpleNamespace` 를 넘긴다.
+
+    ★`headers` 는 **읽기 전용**으로 선언한다. 설정 가능한 변수로 두면 Starlette 의
+    `Request.headers`(property)가 프로토콜을 만족하지 못한다.
+    """
+
+    @property
+    def headers(self) -> Any: ...
+
+
+def _client() -> PyJWKClient:
+    """JWKS 클라이언트 싱글톤. URL 이 바뀌면(테스트 monkeypatch) 새로 만든다."""
+    global _jwk_client, _jwk_client_url
+    url = settings.jwks_url
+    if _jwk_client is None or _jwk_client_url != url:
+        # `cache_keys=True` 가 kid → key 매핑을 들고 있고, 모르는 kid 를 만나면 재조회한다.
+        _jwk_client = PyJWKClient(url, cache_keys=True, lifespan=3600)
+        _jwk_client_url = url
+    return _jwk_client
+
+
+def reset_jwks_cache() -> None:
+    """테스트 전용 — 프로세스 간 캐시 누수를 막는다."""
+    global _jwk_client, _jwk_client_url
+    _jwk_client = None
+    _jwk_client_url = None
+
+
+def _decode(token: str) -> dict[str, Any]:
+    """서명·만료·iss·aud 를 한 번에 검증하고 payload 를 돌려준다. 실패는 전부 예외다.
+
+    ★**동기 함수다.** `PyJWKClient` 는 urllib 로 JWKS 를 가져오므로 이벤트 루프에서 직접 부르면
+    첫 요청(과 키 회전 시점)에 루프가 막힌다. 호출부가 스레드로 넘긴다.
+    """
+    signing_key = _client().get_signing_key_from_jwt(token)
+    issuer = settings.better_auth_url.rstrip("/")
+    payload: dict[str, Any] = jwt.decode(
+        token,
+        signing_key.key,
+        algorithms=ALGORITHMS,
+        issuer=issuer,
+        audience=issuer,
+        options={"require": ["exp", "sub", "iss", "aud"]},
     )
-    if not req_state.is_signed_in:
-        reason = getattr(req_state.reason, "name", "unknown")
-        raise InvalidTokenError(reason=reason)
+    return payload
 
-    payload = req_state.payload or {}
-    clerk_user_id = payload.get("sub")
-    if not clerk_user_id:
+
+def _bearer_token(request: Requestish) -> str:
+    """`Authorization: Bearer <token>` 에서 토큰만 뽑는다."""
+    headers = request.headers
+    raw = headers.get("authorization") or headers.get("Authorization")
+    if not raw:
+        raise InvalidTokenError(reason="missing_authorization_header")
+    scheme, _, token = str(raw).partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise InvalidTokenError(reason="malformed_authorization_header")
+    return token.strip()
+
+
+async def authenticate_request(request: Requestish, service: UserService) -> CurrentUser:
+    """요청의 Bearer JWT 를 검증하고 로컬 사용자를 lazy-create 한다."""
+    return await authenticate_token(_bearer_token(request), service)
+
+
+async def authenticate_token(token: str, service: UserService) -> CurrentUser:
+    """토큰 문자열을 검증하고 로컬 사용자를 lazy-create 한다.
+
+    ★인증과 프로비저닝이 한 함수에 있는 것은 Clerk 시절과 같다 — 사용자 행은 첫 인증 요청에서
+    생긴다(웹훅이 없다). 그래서 `auth_subject` 는 JWT `sub` 이고 우리 `users.id` 와 별개다.
+    """
+    try:
+        payload = await anyio.to_thread.run_sync(_decode, token)
+    except jwt.ExpiredSignatureError as exc:
+        raise InvalidTokenError(reason="expired") from exc
+    except jwt.InvalidIssuerError as exc:
+        raise InvalidTokenError(reason="issuer_mismatch") from exc
+    except jwt.InvalidAudienceError as exc:
+        raise InvalidTokenError(reason="audience_mismatch") from exc
+    except jwt.PyJWKClientError as exc:
+        # 알 수 없는 kid · JWKS 취득 실패. ★원문을 응답에 싣지 않는다 — 로그로만 남긴다.
+        logger.warning("jwks_lookup_failed error=%s", exc)
+        raise InvalidTokenError(reason="jwks_unavailable") from exc
+    except jwt.InvalidTokenError as exc:
+        raise InvalidTokenError(reason="invalid_signature") from exc
+
+    subject = payload.get("sub")
+    if not subject:
         raise InvalidTokenError(reason="missing_sub")
 
     user = await service.get_or_create(
-        clerk_user_id=clerk_user_id,
+        auth_subject=str(subject),
         email=payload.get("email"),
         username=payload.get("username"),
+        country_code=payload.get("country"),
     )
     if not user.is_active:
         raise UserInactiveError()
 
     return CurrentUser.model_validate(user)
-
-
-async def authenticate_clerk_token(
-    token: str,
-    service: UserService,
-    clerk: Clerk | None = None,
-) -> CurrentUser:
-    """WebSocket auth 메시지의 Bearer 토큰을 Clerk로 검증한다."""
-    request = cast(
-        Requestish,
-        SimpleNamespace(headers={"Authorization": f"Bearer {token}"}),
-    )
-    return await authenticate_clerk_request(request, service, clerk)

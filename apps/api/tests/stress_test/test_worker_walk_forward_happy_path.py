@@ -37,22 +37,18 @@ def _make_csv_fixture(tmp_path: Path, n: int = 200) -> Path:
     for i in range(n):
         ts_iso = (base + timedelta(hours=i)).strftime("%Y-%m-%dT%H:%M:%SZ")
         close = 100.0 + i * 0.1
-        rows.append(
-            f"{ts_iso},{close - 0.2},{close + 0.3},{close - 0.3},{close},1000"
-        )
+        rows.append(f"{ts_iso},{close - 0.2},{close + 0.3},{close - 0.3},{close},1000")
     csv = root / "BTCUSDT_1h.csv"
     csv.write_text("\n".join(rows))
     return root
 
 
 @pytest.mark.asyncio
-async def test_walk_forward_worker_produces_folds(
-    db_session: AsyncSession, tmp_path: Path
-) -> None:
+async def test_walk_forward_worker_produces_folds(db_session: AsyncSession, tmp_path: Path) -> None:
     # Seed user/strategy directly (need FixtureProvider-backed run).
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     db_session.add(user)

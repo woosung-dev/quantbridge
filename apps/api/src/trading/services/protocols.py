@@ -26,7 +26,7 @@ class StrategySessionsPort(Protocol):
     async def is_owner_active(self, user_id: UUID) -> bool:
         """소유자 계정이 살아 있는가 (2026-08-15 surface-truth · S3).
 
-        탈퇴(Clerk `user.deleted`)는 `users.is_active=false` 로 표시된다. 종전에는 그 값을
+        탈퇴(`DELETE /auth/me`)는 `users.is_active=false` 로 표시된다. 종전에는 그 값을
         **주문 경로에서 아무도 보지 않아** 탈퇴한 사용자의 세션이 계속 실주문을 냈다.
         `get_owner` 와 같은 port 에 두는 이유는 같은 것을 묻기 때문이다 — 「이 전략은
         누구 것이고, 그 사람이 아직 있는가」.

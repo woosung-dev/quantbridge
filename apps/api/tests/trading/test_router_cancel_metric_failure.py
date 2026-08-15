@@ -65,12 +65,12 @@ async def _pending_order(db_session, user) -> Order:
 
 @pytest.mark.asyncio
 async def test_gauge_failure_does_not_report_a_completed_cancel_as_failed(
-    client, mock_clerk_auth, db_session, monkeypatch: pytest.MonkeyPatch
+    client, mock_authed_user, db_session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """H1 회귀 — mmap 할당 실패가 **확정된 취소**를 실패로 보고하면 안 된다."""
     import src.trading.router as router_module
 
-    order = await _pending_order(db_session, mock_clerk_auth)
+    order = await _pending_order(db_session, mock_authed_user)
 
     calls: list[str] = []
 

@@ -98,7 +98,7 @@ class AuthMessage(BaseModel):
 
 
 def user_channel(user_id: str) -> str:
-    """채널 키는 users.id 내부 UUID 문자열이며 clerk_user_id가 아니다."""
+    """채널 키는 users.id 내부 UUID 문자열이며 auth_subject 가 아니다."""
     return f"{USER_CHANNEL_PREFIX}{user_id}"
 
 

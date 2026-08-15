@@ -47,7 +47,7 @@ async def seed_user_strategy_backtest(
     """
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     session.add(user)
@@ -88,9 +88,7 @@ async def seed_user_strategy_backtest(
     return user, strategy, backtest
 
 
-def _make_equity_curve_jsonb(
-    start: datetime, bars: int = 30
-) -> list[list[str]]:
+def _make_equity_curve_jsonb(start: datetime, bars: int = 30) -> list[list[str]]:
     """30 bar 선형 증가 curve (value 10000 → 10029). JSONB 직렬화 형식."""
     import pandas as pd
 

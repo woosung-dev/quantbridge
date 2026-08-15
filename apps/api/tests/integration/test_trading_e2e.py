@@ -8,6 +8,7 @@ Celery dispatch is mocked (NoopDispatcher) -- T16 tests the fill path
 separately via _async_execute. The E2E goal is to verify the HTTP layer
 integration: DI wiring, HMAC verification, order creation, idempotency.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -61,7 +62,7 @@ async def e2e_user(db_session: AsyncSession):
     from src.auth.models import User
 
     user = User(
-        clerk_user_id="user_e2e_t21",
+        auth_subject="user_e2e_t21",
         email="e2e-t21@test.local",
     )
     db_session.add(user)

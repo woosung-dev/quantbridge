@@ -128,10 +128,10 @@ async def test_realized_pnl_sums_are_session_scoped_and_all_ignores_bar_time(
 
 @pytest.mark.asyncio
 async def test_list_events_returns_order_state_with_one_joined_order_query(
-    client, mock_clerk_auth, db_session: AsyncSession
+    client, mock_authed_user, db_session: AsyncSession
 ) -> None:
     """이벤트 상태와 주문 결과를 함께 반환하고 주문별 추가 조회를 만들지 않는다."""
-    user = mock_clerk_auth
+    user = mock_authed_user
     strategy = Strategy(
         user_id=user.id,
         name="event-order-state",
@@ -219,9 +219,7 @@ async def test_list_events_returns_order_state_with_one_joined_order_query(
     order_queries: list[str] = []
     connection = db_session.sync_session.bind
 
-    def capture_order_query(
-        conn, cursor, statement, parameters, context, executemany
-    ) -> None:
+    def capture_order_query(conn, cursor, statement, parameters, context, executemany) -> None:
         if "trading.orders" in statement:
             order_queries.append(statement)
 

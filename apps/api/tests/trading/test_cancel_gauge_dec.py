@@ -5,15 +5,14 @@ Opus 지적: router.cancel_order 가 cancelled 로 전이 시 gauge dec 를 호�
 
 service.execute 에서 +1 (pending 생성) → router.cancel_order 에서 -1 (cancelled 전이 성공).
 """
+
 from __future__ import annotations
 
 import pytest
 
 
 @pytest.mark.asyncio
-async def test_cancel_decrements_active_orders_gauge(
-    client, mock_clerk_auth, db_session
-):
+async def test_cancel_decrements_active_orders_gauge(client, mock_authed_user, db_session):
     """cancel 성공 (rowcount > 0) 시 qb_active_orders.dec() 호출됨을 delta 로 검증."""
     from decimal import Decimal
 
@@ -29,7 +28,7 @@ async def test_cancel_decrements_active_orders_gauge(
         OrderType,
     )
 
-    user = mock_clerk_auth
+    user = mock_authed_user
 
     acc = ExchangeAccount(
         user_id=user.id,
@@ -79,7 +78,7 @@ async def test_cancel_decrements_active_orders_gauge(
 
 @pytest.mark.asyncio
 async def test_cancel_on_non_cancellable_state_does_not_decrement_gauge(
-    client, mock_clerk_auth, db_session
+    client, mock_authed_user, db_session
 ):
     """이미 filled 상태인 주문 cancel 시도 → 409 + gauge 유지 (dec 호출 금지)."""
     from decimal import Decimal
@@ -96,7 +95,7 @@ async def test_cancel_on_non_cancellable_state_does_not_decrement_gauge(
         OrderType,
     )
 
-    user = mock_clerk_auth
+    user = mock_authed_user
 
     acc = ExchangeAccount(
         user_id=user.id,

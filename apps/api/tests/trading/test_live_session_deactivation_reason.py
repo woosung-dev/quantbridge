@@ -38,7 +38,7 @@ from src.trading.repositories.live_signal_session_repository import (
 async def _seed_active_session(db_session: AsyncSession) -> LiveSignalSession:
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@s.local",
     )
     db_session.add(user)

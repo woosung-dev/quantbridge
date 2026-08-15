@@ -16,9 +16,9 @@ class UserRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def find_by_clerk_id(self, clerk_user_id: str) -> User | None:
+    async def find_by_auth_subject(self, auth_subject: str) -> User | None:
         result = await self.session.execute(
-            select(User).where(User.clerk_user_id == clerk_user_id)  # type: ignore[arg-type]
+            select(User).where(User.auth_subject == auth_subject)  # type: ignore[arg-type]
         )
         return result.scalar_one_or_none()
 
@@ -33,63 +33,28 @@ class UserRepository:
 
     async def insert_if_absent(
         self,
-        clerk_user_id: str,
-        email: str | None = None,
-        username: str | None = None,
-    ) -> User:
-        """INSERT ... ON CONFLICT DO NOTHING + SELECT 재조회.
-
-        동일 clerk_user_id로 병렬 요청이 와도 race 없이 1개만 존재하도록 보장.
-        """
-        stmt = (
-            pg_insert(User)
-            .values(
-                clerk_user_id=clerk_user_id,
-                email=email,
-                username=username,
-            )
-            .on_conflict_do_nothing(index_elements=["clerk_user_id"])
-        )
-        await self.session.execute(stmt)
-        # 삽입됐든 아니든 최종 row 반환
-        user = await self.find_by_clerk_id(clerk_user_id)
-        assert user is not None
-        return user
-
-    async def upsert_from_webhook(
-        self,
-        clerk_user_id: str,
+        auth_subject: str,
         email: str | None = None,
         username: str | None = None,
         country_code: str | None = None,
     ) -> User:
-        """Webhook user.created/updated 처리.
+        """INSERT ... ON CONFLICT DO NOTHING + SELECT 재조회.
 
-        INSERT ... ON CONFLICT DO UPDATE — email/username/country_code 를 최신으로 덮어씀.
-        country_code 는 Sprint 11 Phase A 에서 추가. public_metadata.country 기반.
+        동일 auth_subject 로 병렬 요청이 와도 race 없이 1개만 존재하도록 보장.
         """
         stmt = (
             pg_insert(User)
             .values(
-                clerk_user_id=clerk_user_id,
+                auth_subject=auth_subject,
                 email=email,
                 username=username,
                 country_code=country_code,
             )
-            .on_conflict_do_update(
-                index_elements=["clerk_user_id"],
-                set_={
-                    "email": email,
-                    "username": username,
-                    "country_code": country_code,
-                },
-            )
+            .on_conflict_do_nothing(index_elements=["auth_subject"])
         )
         await self.session.execute(stmt)
-        # identity map 갱신: ON CONFLICT DO UPDATE는 ORM을 우회하므로
-        # 세션 캐시에 스테일 객체가 남을 수 있다. expire_all로 강제 재조회.
-        self.session.expire_all()
-        user = await self.find_by_clerk_id(clerk_user_id)
+        # 삽입됐든 아니든 최종 row 반환
+        user = await self.find_by_auth_subject(auth_subject)
         assert user is not None
         return user
 
@@ -98,11 +63,19 @@ class UserRepository:
         user_id: UUID,
         email: str | None,
         username: str | None,
+        country_code: str | None = None,
     ) -> User:
+        """JWT payload 가 실어 온 프로필을 반영한다.
+
+        ★`country_code` 는 **None 이면 덮어쓰지 않는다** — 토큰에 국가가 없는 경로(기존 사용자,
+        헤더 없는 로컬 개발)가 이미 적힌 값을 지우면 안 된다.
+        """
         user = await self.find_by_id(user_id)
         assert user is not None
         user.email = email
         user.username = username
+        if country_code is not None:
+            user.country_code = country_code
         self.session.add(user)
         await self.session.flush()
         return user

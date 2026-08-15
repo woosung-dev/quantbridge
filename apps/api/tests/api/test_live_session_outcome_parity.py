@@ -194,9 +194,9 @@ async def _seed_parity_data(
 async def test_response_has_three_blocks_and_required_fields(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
-    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    session = await _seed_parity_data(db_session, mock_authed_user)
 
     response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
 
@@ -237,10 +237,10 @@ async def test_response_has_three_blocks_and_required_fields(
 async def test_native_bracket_split_exit_is_summed_in_ledger_only_bucket_and_lowers_coverage(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """로컬 reduce-only 주문 없는 거래소 TP 분할 행은 주문 단위로 합산한다."""
-    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    session = await _seed_parity_data(db_session, mock_authed_user)
     exchange_created_at = _BASE + timedelta(minutes=3)
     db_session.add_all(
         [
@@ -289,10 +289,10 @@ async def test_native_bracket_split_exit_is_summed_in_ledger_only_bucket_and_low
 async def test_inferred_attribution_is_exposed_without_entering_ledger_only(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """검정력 없는 귀속은 진단만 하고 전략 손익 버킷에는 넣지 않는다."""
-    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    session = await _seed_parity_data(db_session, mock_authed_user)
     db_session.add(
         ExchangeExit(
             exchange_account_id=session.exchange_account_id,
@@ -324,9 +324,9 @@ async def test_inferred_attribution_is_exposed_without_entering_ledger_only(
 async def test_ledger_only_is_scoped_per_session_and_strategy_union(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
-    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    session = await _seed_parity_data(db_session, mock_authed_user)
     previous_session = (
         await db_session.execute(
             select(LiveSignalSession)
@@ -380,9 +380,9 @@ async def test_ledger_only_is_scoped_per_session_and_strategy_union(
 async def test_waterfall_closes_on_the_decomposable_subset(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
-    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    session = await _seed_parity_data(db_session, mock_authed_user)
 
     response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
 
@@ -398,9 +398,9 @@ async def test_waterfall_closes_on_the_decomposable_subset(
 async def test_actual_net_equals_state_confirmed_realized_pnl(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
-    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    session = await _seed_parity_data(db_session, mock_authed_user)
 
     parity_response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
     state_response = await client.get(f"/api/v1/live-sessions/{session.id}/state")
@@ -417,9 +417,9 @@ async def test_actual_net_equals_state_confirmed_realized_pnl(
 async def test_strategy_scope_contains_the_session_scope(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
-    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    session = await _seed_parity_data(db_session, mock_authed_user)
 
     response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
 
@@ -433,11 +433,11 @@ async def test_strategy_scope_contains_the_session_scope(
 async def test_non_bybit_account_reports_ledger_as_unsupported(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     session = await _create_session(
         db_session,
-        mock_clerk_auth,
+        mock_authed_user,
         exchange=ExchangeName.okx,
     )
     await db_session.commit()
@@ -452,9 +452,9 @@ async def test_non_bybit_account_reports_ledger_as_unsupported(
 async def test_assumption_reports_house_defaults(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
-    session = await _seed_parity_data(db_session, mock_clerk_auth)
+    session = await _seed_parity_data(db_session, mock_authed_user)
 
     response = await client.get(f"/api/v1/live-sessions/{session.id}/outcome-parity")
 
@@ -474,10 +474,10 @@ async def test_assumption_reports_house_defaults(
 async def test_outcome_parity_hides_other_users_session(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     other_user = User(
-        clerk_user_id=f"other-{uuid4().hex}",
+        auth_subject=f"other-{uuid4().hex}",
         email=f"{uuid4().hex}@example.com",
     )
     db_session.add(other_user)
@@ -494,7 +494,7 @@ async def test_outcome_parity_hides_other_users_session(
 @pytest.mark.asyncio
 async def test_outcome_parity_returns_not_found_for_missing_session(
     client: AsyncClient,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     response = await client.get(f"/api/v1/live-sessions/{uuid4()}/outcome-parity")
 

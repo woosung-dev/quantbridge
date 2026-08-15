@@ -1,23 +1,14 @@
 """auth HTTP 라우터."""
+
 from __future__ import annotations
 
-import json
-
-from fastapi import APIRouter, Depends, Request
-from svix.webhooks import Webhook, WebhookVerificationError
+from fastapi import APIRouter, Depends, status
 
 from src.auth.dependencies import get_current_user, get_user_service
-from src.auth.exceptions import WebhookSignatureError
 from src.auth.schemas import CurrentUser, UserResponse
 from src.auth.service import UserService
-from src.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-
-def _svix_webhook() -> Webhook:
-    """모듈 스코프 싱글톤 회피 — 테스트 monkeypatch 용이."""
-    return Webhook(settings.clerk_webhook_secret.get_secret_value())
 
 
 @router.get("/me", response_model=UserResponse)
@@ -30,26 +21,18 @@ async def get_me(
     return UserResponse.model_validate(user)
 
 
-@router.post("/webhook", status_code=200)
-async def clerk_webhook(
-    request: Request,
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    current_user: CurrentUser = Depends(get_current_user),
     service: UserService = Depends(get_user_service),
-) -> dict[str, bool]:
-    """Clerk Svix-signed webhook 수신."""
-    payload = await request.body()  # raw bytes 필수
-    headers = {k.lower(): v for k, v in request.headers.items()}
+) -> None:
+    """탈퇴 — 계정을 잠그고 전략 archive · 라이브 세션 정지 · 웹훅 시크릿 revoke 를 한 번에.
 
-    wh = _svix_webhook()
-    try:
-        event = wh.verify(payload, headers)
-    except (WebhookVerificationError, ValueError) as exc:
-        # WebhookVerificationError: 서명 불일치
-        # ValueError (binascii.Error 포함): 잘못된 base64 포맷
-        raise WebhookSignatureError() from exc
+    ★**이 엔드포인트가 종전 Clerk `user.deleted` 웹훅의 자리다**(ADR-034). 그 웹훅은 「돈을
+    멈추는」 유일한 입구였고(2026-08-15 surface-truth S3), 공급자를 바꾸면서 입구가 사라질
+    뻔했다. 인증이 필요하므로 **본인만** 자기 계정을 닫을 수 있다.
 
-    # verify 반환값이 dict 혹은 bytes일 수 있음. 안전하게 json 로드.
-    if isinstance(event, bytes):
-        event = json.loads(event)
-
-    await service.handle_clerk_event(event)
-    return {"received": True}
+    ★호출 순서 주의 — 클라이언트는 이 API 를 **먼저** 부르고 그다음 Better Auth 사용자 삭제를
+    한다. 뒤집으면 세션이 먼저 사라져 이 API 를 부를 자격이 없어진다.
+    """
+    await service.deactivate_account(current_user.id)

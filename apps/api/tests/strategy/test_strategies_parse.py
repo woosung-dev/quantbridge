@@ -1,11 +1,12 @@
 """POST /api/v1/strategies/parse E2E."""
+
 from __future__ import annotations
 
 import pytest
 
 
 @pytest.mark.asyncio
-async def test_parse_preview_returns_ok_for_valid_source(client, mock_clerk_auth):
+async def test_parse_preview_returns_ok_for_valid_source(client, mock_authed_user):
     source = """//@version=5
 strategy("ema")
 long = ta.crossover(close, ta.sma(close, 5))
@@ -20,7 +21,7 @@ if long
 
 
 @pytest.mark.asyncio
-async def test_parse_preview_returns_error_for_malformed(client, mock_clerk_auth):
+async def test_parse_preview_returns_error_for_malformed(client, mock_authed_user):
     """pine_v2 가 파싱 불가한 소스 → status=error + errors 수집.
 
     구 엔진은 `request.security` 등을 unsupported 로 분류했으나 pine_v2 는
@@ -35,7 +36,7 @@ async def test_parse_preview_returns_error_for_malformed(client, mock_clerk_auth
 
 
 @pytest.mark.asyncio
-async def test_parse_preview_rejects_empty_source(client, mock_clerk_auth):
+async def test_parse_preview_rejects_empty_source(client, mock_authed_user):
     res = await client.post("/api/v1/strategies/parse", json={"pine_source": ""})
     assert res.status_code == 422  # Pydantic min_length
 

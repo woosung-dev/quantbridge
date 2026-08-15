@@ -33,7 +33,7 @@ async def _seed_user_strategy_account(
     db_session: AsyncSession, *, tag: str
 ) -> tuple[User, Strategy, ExchangeAccount]:
     user = User(
-        clerk_user_id=f"{tag}-{uuid4().hex[:8]}",
+        auth_subject=f"{tag}-{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     db_session.add(user)
@@ -111,9 +111,7 @@ async def test_sum_filled_realized_pnl_covers_orders_without_session_events(
 
     dispatched = order(state=OrderState.filled, pnl="-5", filled_at=_START + timedelta(minutes=1))
     # 수동 청산 — 이벤트가 없다. 예전 event-join 은 이 손실을 통째로 놓쳤다.
-    manual_close = order(
-        state=OrderState.filled, pnl="-7", filled_at=_START + timedelta(minutes=2)
-    )
+    manual_close = order(state=OrderState.filled, pnl="-7", filled_at=_START + timedelta(minutes=2))
     before_window = order(state=OrderState.filled, pnl="-3", filled_at=_START - timedelta(hours=1))
     other_symbol = order(
         state=OrderState.filled,
@@ -141,13 +139,15 @@ async def test_sum_filled_realized_pnl_covers_orders_without_session_events(
 
     repo = OrderRepository(db_session)
     # -5(이벤트 있음) + -7(이벤트 없음). 창 밖 -3, 타 심볼 -11, 미체결 -13 은 제외.
-    assert (await repo.realized_pnl_split_for_session(
-        SessionScope.from_live_session(target_session)
-    )).total == Decimal("-12")
+    assert (
+        await repo.realized_pnl_split_for_session(SessionScope.from_live_session(target_session))
+    ).total == Decimal("-12")
     # 심볼이 다른 세션은 자기 심볼 체결만 본다.
-    assert (await repo.realized_pnl_split_for_session(
-        SessionScope.from_live_session(other_symbol_session)
-    )).total == Decimal("-11")
+    assert (
+        await repo.realized_pnl_split_for_session(
+            SessionScope.from_live_session(other_symbol_session)
+        )
+    ).total == Decimal("-11")
 
     # 이벤트 기반 세션 역인덱스는 이번 변경과 무관하게 그대로 동작한다.
     session_repo = LiveSignalSessionRepository(db_session)
@@ -200,6 +200,8 @@ async def test_closed_session_window_is_half_open_on_filled_at(
     )
     await db_session.flush()
 
-    assert (await OrderRepository(db_session).realized_pnl_split_for_session(
-        SessionScope.from_live_session(closed_session)
-    )).total == Decimal("-12")
+    assert (
+        await OrderRepository(db_session).realized_pnl_split_for_session(
+            SessionScope.from_live_session(closed_session)
+        )
+    ).total == Decimal("-12")

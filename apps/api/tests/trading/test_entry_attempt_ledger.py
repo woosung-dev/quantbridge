@@ -65,7 +65,7 @@ class _Seed:
 
 async def _seed(db_session: AsyncSession) -> _Seed:
     user = User(
-        clerk_user_id=f"entry-{uuid4().hex[:8]}",
+        auth_subject=f"entry-{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     db_session.add(user)
@@ -432,9 +432,7 @@ def test_default_scope_predicates_are_unchanged_by_the_new_parameters() -> None:
     default = [str(predicate) for predicate in _session_scope_where(scope)]
     explicit = [
         str(predicate)
-        for predicate in _session_scope_where(
-            scope, states=(OrderState.filled,), window="terminal"
-        )
+        for predicate in _session_scope_where(scope, states=(OrderState.filled,), window="terminal")
     ]
     assert default == explicit
     joined = " ".join(default)

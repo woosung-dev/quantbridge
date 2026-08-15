@@ -53,7 +53,7 @@ async def test_list_by_account_includes_inactive_sessions_and_filters_by_user(
     async def _make_user() -> User:
         user = User(
             id=uuid4(),
-            clerk_user_id=f"u_{uuid4().hex[:8]}",
+            auth_subject=f"u_{uuid4().hex[:8]}",
             email=f"{uuid4().hex[:8]}@s.local",
         )
         db_session.add(user)

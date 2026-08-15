@@ -18,13 +18,13 @@ async def test_monte_carlo_submit_returns_202_with_stress_test_id(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     # bootstrap backtest — authed_user owns it.
     _, _, backtest = await seed_user_strategy_backtest(db_session)
-    # 소유자 일치 필요 — mock_clerk_auth 가 authed_user 이므로 이전 user 재사용 안 됨.
+    # 소유자 일치 필요 — mock_authed_user 가 authed_user 이므로 이전 user 재사용 안 됨.
     # authed_user 와 동일 소유자로 재시드.
-    backtest.user_id = mock_clerk_auth.id
+    backtest.user_id = mock_authed_user.id
     await db_session.flush()
 
     service, dispatcher = make_service(db_session)
@@ -55,14 +55,14 @@ async def test_monte_carlo_submit_fails_if_backtest_not_completed(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     from src.backtest.models import BacktestStatus
 
     _, _, backtest = await seed_user_strategy_backtest(
         db_session, backtest_status=BacktestStatus.QUEUED
     )
-    backtest.user_id = mock_clerk_auth.id
+    backtest.user_id = mock_authed_user.id
     await db_session.flush()
 
     service, dispatcher = make_service(db_session)

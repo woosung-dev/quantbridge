@@ -11,7 +11,7 @@ dogfood Day 2-7 critical path 6 시나리오 자동 회귀:
 mark.integration + `--run-integration` flag (Sprint 19 BL-085 패턴).
 격리 stack (5433/6380) 강제 + DSN guard.
 
-Service direct call 패턴 — Clerk auth 우회. HTTP route + Clerk JWT 는 별도 e2e
+Service direct call 패턴 — 인증 우회. HTTP route + 세션 JWT 는 별도 e2e
 (test_trading_e2e.py) 가 가드.
 """
 
@@ -57,7 +57,7 @@ _crypto = EncryptionService(settings.trading_encryption_keys)
 @pytest.fixture
 async def dogfood_user(db_session: AsyncSession) -> User:
     user = User(
-        clerk_user_id=f"dogfood_{uuid4().hex[:8]}",
+        auth_subject=f"dogfood_{uuid4().hex[:8]}",
         email=f"dogfood-{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)

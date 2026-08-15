@@ -17,6 +17,7 @@ Decision (option A): 사용자 시점 일관성 우선 — service layer 에서 
 Note: storage layer (JSONB metrics) 는 변경 없음. metrics.py 도 변경 없음
 (W2 영역). service layer 만 patch — 최소 변경 원칙 + 향후 재계산 정책 변경 가능성.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -83,7 +84,7 @@ async def _seed_completed_bt_with_trades(
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     session.add(user)
@@ -141,7 +142,9 @@ async def _seed_completed_bt_with_trades(
                 direction=direction,
                 status=status,
                 entry_time=datetime(2024, 1, 1, tzinfo=UTC),
-                exit_time=(datetime(2024, 1, 2, tzinfo=UTC) if status == TradeStatus.CLOSED else None),
+                exit_time=(
+                    datetime(2024, 1, 2, tzinfo=UTC) if status == TradeStatus.CLOSED else None
+                ),
                 entry_price=Decimal("100"),
                 exit_price=(Decimal("110") if status == TradeStatus.CLOSED else None),
                 size=Decimal("1"),
@@ -210,10 +213,7 @@ async def test_direction_counts_long_short_sum_equals_num_trades(
     detail = await service.get(bt.id, user_id=user.id)
 
     assert detail.metrics is not None
-    assert (
-        detail.metrics.long_count + detail.metrics.short_count
-        == detail.metrics.num_trades
-    )
+    assert detail.metrics.long_count + detail.metrics.short_count == detail.metrics.num_trades
 
 
 @pytest.mark.asyncio

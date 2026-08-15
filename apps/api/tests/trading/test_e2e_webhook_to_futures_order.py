@@ -23,6 +23,7 @@ manual service-level 경로를 통과해 leverage/margin_mode 전파 체인을 e
 4. CCXT mock: set_margin_mode(("cross","BTC/USDT:USDT")) → set_leverage((5,"BTC/USDT:USDT"))
    → create_order 순서. defaultType="linear", testnet=False(demo), enable_demo_trading(True). close() await 됨.
 """
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -139,7 +140,7 @@ async def test_e2e_manual_futures_order_propagates_leverage_through_ccxt(
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)
@@ -298,7 +299,7 @@ async def test_e2e_webhook_payload_routes_to_bybit_linear_provider(
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)
@@ -364,9 +365,7 @@ async def test_e2e_webhook_payload_routes_to_bybit_linear_provider(
         "exchange_account_id": str(account.id),
     }
     body_bytes = json.dumps(payload).encode()
-    token = hmac_module.new(
-        plaintext_secret.encode(), body_bytes, hashlib.sha256
-    ).hexdigest()
+    token = hmac_module.new(plaintext_secret.encode(), body_bytes, hashlib.sha256).hexdigest()
 
     res = await client.post(
         f"/api/v1/webhooks/{strategy.id}?token={token}",

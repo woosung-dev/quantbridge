@@ -112,7 +112,7 @@ async def recovery_env(db_session: AsyncSession):
     crypto = EncryptionService(app_settings.trading_encryption_keys)
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@recovery.local",
     )
     strategy = Strategy(

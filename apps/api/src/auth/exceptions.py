@@ -1,4 +1,5 @@
 """auth 도메인 예외."""
+
 from __future__ import annotations
 
 from fastapi import status
@@ -11,7 +12,7 @@ class AuthError(AppException):
 
 
 class InvalidTokenError(AuthError):
-    """유효하지 않거나 만료된 Clerk 토큰."""
+    """유효하지 않거나 만료된 세션 토큰."""
 
     status_code = status.HTTP_401_UNAUTHORIZED
     code = "auth_invalid_token"
@@ -40,7 +41,7 @@ class WebhookSignatureError(AuthError):
 class GeoBlockedCountryError(AuthError):
     """Sprint 11 Phase A — 지원 제외 국가 (US/EU) 가입 차단.
 
-    3 계층 방어의 L3 (Clerk webhook). L1 (Cloudflare WAF) + L2 (Next.js proxy.ts)
+    3 계층 방어의 L3 (가입 훅 + 인증 백스톱). L1 (Cloudflare WAF) + L2 (Next.js proxy.ts)
     통과한 경우에도 본 계층에서 거절. public_metadata.country 가 restricted set 에 포함되면 400.
     """
 
@@ -49,4 +50,6 @@ class GeoBlockedCountryError(AuthError):
     detail = "Country not supported"
 
     def __init__(self, country: str) -> None:
-        super().__init__(detail=f"Country {country} is not supported. QuantBridge is currently available in Asia only.")
+        super().__init__(
+            detail=f"Country {country} is not supported. QuantBridge is currently available in Asia only."
+        )

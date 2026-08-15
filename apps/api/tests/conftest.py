@@ -6,7 +6,7 @@
 - 함수 스코프 db_session: connection + outer tx + savepoint 격리. 테스트 종료 시 전체 rollback.
 - FastAPI app fixture는 get_async_session을 db_session으로 override.
 - authed_user: 테스트용 User 레코드 생성.
-- mock_clerk_auth: get_current_user dependency를 authed_user로 bypass (Task 7+에서 활성화).
+- mock_authed_user: get_current_user dependency를 authed_user로 bypass (Task 7+에서 활성화).
 """
 
 from __future__ import annotations
@@ -446,7 +446,7 @@ async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
 async def authed_user(db_session: AsyncSession) -> User:
     """테스트용 User 생성."""
     user = User(
-        clerk_user_id=f"user_test_{uuid.uuid4().hex[:8]}",
+        auth_subject=f"user_test_{uuid.uuid4().hex[:8]}",
         email=f"test_{uuid.uuid4().hex[:6]}@example.com",
         username="tester",
         is_active=True,
@@ -458,11 +458,11 @@ async def authed_user(db_session: AsyncSession) -> User:
 
 
 @pytest_asyncio.fixture
-async def mock_clerk_auth(app, authed_user):
+async def mock_authed_user(app, authed_user):
     """get_current_user dependency를 authed_user로 bypass.
 
     Task 7~14 E2E 테스트에서 인증 경로를 우회할 때 사용.
-    실제 Clerk SDK 호출 테스트는 별도 (test_clerk_auth.py).
+    실제 JWT/JWKS 검증 테스트는 별도 (test_jwt_auth.py).
     """
     from src.auth.dependencies import get_current_user
     from src.auth.schemas import CurrentUser

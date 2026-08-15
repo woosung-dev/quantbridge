@@ -59,7 +59,7 @@ async def _seed_rows(
     if user_id is None:
         user = User(
             id=uuid4(),
-            clerk_user_id=f"user_{uuid4().hex[:8]}",
+            auth_subject=f"user_{uuid4().hex[:8]}",
             email=f"{uuid4().hex[:8]}@ex.com",
         )
         session.add(user)
@@ -482,14 +482,14 @@ async def test_homogeneous_dataset_matches_legacy_order(
 async def test_payload_sharpe_ratio_is_not_normalized(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """API 양성 대조 — 순서는 바뀌고 값은 그대로다.
 
     `metrics.py:109` 의 "연율화하지 않는다" 는 저장·표시 규약이다. 정렬용 √252·√12 가
     응답 payload 로 새면 여기서 red 가 난다.
     """
-    user: User = mock_clerk_auth
+    user: User = mock_authed_user
     _, created = await _seed_rows(
         db_session,
         [

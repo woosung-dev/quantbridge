@@ -20,7 +20,7 @@ async def test_cannot_access_other_users_stress_test(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     # 다른 user 소유의 backtest + stress_test 생성 (seed_user 가 다른 user 생성).
     other_user, _, backtest = await seed_user_strategy_backtest(db_session)

@@ -7,7 +7,7 @@
 #    `.claude/CLAUDE.md -> ../AGENTS.md` 는 tools/scripts/worktree-bootstrap.sh 가 재생성한다.
 #    스택 규칙은 ADR-027 부터 `apps/api/AGENTS.md`·`apps/web/AGENTS.md` — 체크아웃에 그냥 포함된다.
 #
-# ⚠️ 여기 나열된 파일에는 시크릿(거래소 키·Clerk·암호화 키)이 들어 있다.
+# ⚠️ 여기 나열된 파일에는 시크릿(거래소 키·인증 시크릿·암호화 키)이 들어 있다.
 #    워크트리는 `.claude/worktrees/` 안(= gitignore) 이므로 커밋 경로에 노출되지 않지만,
 #    워크트리 디렉터리를 레포 밖으로 옮기지 마라.
 
@@ -15,7 +15,7 @@
 # TEST_DATABASE_URL 도 여기 있다 (없으면 conftest 가 개발 DB 를 drop_all 한다 — AGENTS.md 경고).
 apps/api/.env.local
 
-# 프론트 — Clerk 키. 없으면 dev 서버가 부팅 단계에서 죽고 e2e:authed 가 전멸한다.
+# 프론트 — Better Auth 시크릿 + DB DSN + e2e 계정. 없으면 로그인이 안 되고 e2e:authed 가 전멸한다.
 apps/web/.env.local
 
 # compose 용 — POSTGRES_* / TRADING_ENCRYPTION_KEYS. `make up-isolated` 가 읽는다.

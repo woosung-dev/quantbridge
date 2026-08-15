@@ -3,6 +3,7 @@
 Sprint 7b (ISSUE-004): UI 파싱 결과 탭에서 '감지된 지표/전략 콜' 섹션
 렌더링을 위해 응답 DTO에 functions_used 노출.
 """
+
 from __future__ import annotations
 
 import pytest
@@ -21,10 +22,8 @@ if exitCond
 
 
 @pytest.mark.asyncio
-async def test_parse_preview_returns_functions_used(client, mock_clerk_auth):
-    res = await client.post(
-        "/api/v1/strategies/parse", json={"pine_source": EMA_CROSS_V5}
-    )
+async def test_parse_preview_returns_functions_used(client, mock_authed_user):
+    res = await client.post("/api/v1/strategies/parse", json={"pine_source": EMA_CROSS_V5})
     assert res.status_code == 200
     body = res.json()
 
@@ -43,12 +42,8 @@ async def test_parse_preview_returns_functions_used(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_parse_preview_functions_used_empty_on_lex_error(
-    client, mock_clerk_auth
-):
-    res = await client.post(
-        "/api/v1/strategies/parse", json={"pine_source": "!!!@#$"}
-    )
+async def test_parse_preview_functions_used_empty_on_lex_error(client, mock_authed_user):
+    res = await client.post("/api/v1/strategies/parse", json={"pine_source": "!!!@#$"})
     assert res.status_code == 200
     body = res.json()
 

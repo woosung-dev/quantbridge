@@ -59,10 +59,31 @@ class Settings(BaseSettings):
             )
         return upper
 
-    # Clerk
-    clerk_secret_key: SecretStr = SecretStr("")
-    clerk_publishable_key: str = ""
-    clerk_webhook_secret: SecretStr = SecretStr("")
+    # Better Auth (ADR-034) — 인증 서버는 FE 앱 안에서 돈다. 백엔드는 그 JWT 를 JWKS 로 검증만 한다.
+    # ★시크릿이 하나도 없다. 검증은 **공개 키**로 하므로 백엔드가 쥘 비밀이 없는 것이 이 구조의
+    #   본질적 이득이다(구 Clerk 은 `CLERK_SECRET_KEY` 를 백엔드·워커 4벌에 뿌려야 했다).
+    better_auth_url: str = Field(
+        default="http://localhost:3000",
+        description=(
+            "Better Auth 서버(= FE 앱)의 공개 origin. JWT 의 iss/aud 검증 기준이며 "
+            "JWKS 는 `<이 값>/api/auth/jwks` 에서 받는다. FE 의 BETTER_AUTH_URL 과 같아야 한다."
+        ),
+    )
+    better_auth_jwks_url: str = Field(
+        default="",
+        description=(
+            "JWKS 취득 URL 을 직접 지정한다(선택). 비우면 better_auth_url 에서 파생. "
+            "★서버 배포에서는 터널을 왕복하지 않도록 컨테이너 내부 주소를 넣는다."
+        ),
+    )
+
+    @property
+    def jwks_url(self) -> str:
+        """JWKS 엔드포인트 — 명시값 우선, 없으면 `better_auth_url` 에서 파생."""
+        explicit = self.better_auth_jwks_url.strip()
+        if explicit:
+            return explicit
+        return f"{self.better_auth_url.rstrip('/')}/api/auth/jwks"
 
     # Database — TimescaleDB extension은 동일 DB의 ts schema에 위치 (M2)
     database_url: str = "postgresql+asyncpg://quantbridge:password@db:5432/quantbridge"
@@ -377,7 +398,10 @@ class Settings(BaseSettings):
 
         - ``app_env=production``: ``debug=False`` 강제.
         - ``secret_key`` 가 placeholder (``change-me`` / 빈 값) 이면 raise (운영 노출 사전 차단).
-        - ``clerk_secret_key`` / ``waitlist_token_secret`` 빈 값 raise.
+        - ``waitlist_token_secret`` 빈 값 raise.
+        - ``frontend_url`` / ``waitlist_invite_base_url`` / ``better_auth_url`` 이 localhost
+          기본값이면 raise — 종전 validator 는 이 셋을 안 봐서 「부팅은 됐는데 CORS 가 조용히
+          실 FE 를 거부」하는 상태가 production 에서 통과했다(2026-08-17 ADR-034 회차 실측).
         - dev/test 환경은 모두 통과 (기존 동작 유지).
 
         본 validator 는 backward-compat 위해 staging 은 강제하지 않음 (warning 만).
@@ -399,14 +423,27 @@ class Settings(BaseSettings):
             "dev-secret-change-in-prod",
         ):
             placeholders.append("SECRET_KEY")
-        if not self.clerk_secret_key.get_secret_value():
-            placeholders.append("CLERK_SECRET_KEY")
         if not self.waitlist_token_secret.get_secret_value():
             placeholders.append("WAITLIST_TOKEN_SECRET")
 
         if placeholders:
             raise ValueError(
                 "production app_env requires non-placeholder secrets: " + ", ".join(placeholders)
+            )
+
+        # 2b. localhost 기본값 잔존 검사 (ADR-034 신설).
+        # ★이 셋은 「비어 있으면」이 아니라 「기본값 그대로면」이 결함이다 — 값이 있어 보여서
+        #   종전 검사가 통과시켰고, 그 결과가 CORS 침묵 거부다.
+        localhost_defaults = {
+            "FRONTEND_URL": self.frontend_url,
+            "WAITLIST_INVITE_BASE_URL": self.waitlist_invite_base_url,
+            "BETTER_AUTH_URL": self.better_auth_url,
+        }
+        stale = [k for k, v in localhost_defaults.items() if "localhost" in v or "127.0.0.1" in v]
+        if stale:
+            raise ValueError(
+                "production app_env requires real URLs (localhost default left in place): "
+                + ", ".join(stale)
             )
 
         # 3. Sprint 60 S5 BL-246 — production env 시 PROMETHEUS_BEARER_TOKEN 의무
