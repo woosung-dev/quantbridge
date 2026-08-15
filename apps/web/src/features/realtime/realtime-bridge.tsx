@@ -1,10 +1,10 @@
 "use client";
 
 // 인증된 대시보드에서 실시간 연결을 시작하고 React Query 무효화만 수행하는 client leaf.
-import { useAuth } from "@clerk/nextjs";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
+import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import {
   createRealtimeWsClient,
   type RealtimeClient,
@@ -30,7 +30,7 @@ export function RealtimeBridge({
 }: {
   clientFactory?: RealtimeClientFactory;
 }) {
-  const { userId, isSignedIn, getToken } = useAuth();
+  const { userId, isSignedIn, getToken } = useAuthCtx();
   const queryClient = useQueryClient();
   const getTokenRef = useRef(getToken);
   const queryClientRef = useRef(queryClient);
