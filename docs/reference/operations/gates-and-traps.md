@@ -573,6 +573,14 @@ tools/scripts/soak-stack.sh migrate --confirm   # 집행 (★사용자 승인이
 
 ### ★★CI 와 로컬은 같은 명령이어도 **같은 env 가 아니다** (2026-08-01, 실측 5건)
 
+- ★**추적되지 않는 파일로 링크를 걸면 로컬 게이트는 판별력이 0이다** (2026-08-15 ledger-thaw).
+  `docs/reports/*.html` 은 `.gitignore:107` 로 **추적 대상이 아니다**(템플릿·`auto-dogfood/` 만 예외).
+  `docs/status.md` 에서 그 파일을 마크다운 링크로 걸었더니 **로컬 `docs-audit` 은 rc=0**(파일이
+  거기 있으니까)이고 **CI 의 같은 명령이 red** 였다. 로컬 초록은 「내 작업 트리에 있다」만 말한다.
+  ⇒ 추적 안 되는 산출물은 **링크가 아니라 경로**(코드 스팬)로 적어라 — `dev-log/*.md` 를 코드
+  스팬으로 적는 관용구와 같은 이유다. **커밋 트리로 재는 방법**: `git archive <브랜치> | tar -x -C <임시>`
+  하고 거기서 게이트를 돌린다(로컬 트리의 미추적 파일이 섞이지 않는다).
+
 - ★**`Settings` 의 인프라 기본값은 docker-compose 서비스명이다**(`redis://redis:6379/*`).
   워크플로가 그 필드를 **명시 주입하지 않으면** 러너에서 해석 불가 호스트로 붙는다.
   실측: `REDIS_URL` 만 주입돼 있고 `CELERY_BROKER_URL`/`CELERY_RESULT_BACKEND`/`REDIS_LOCK_URL`
