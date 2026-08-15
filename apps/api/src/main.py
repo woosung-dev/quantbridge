@@ -13,6 +13,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST
@@ -69,6 +71,52 @@ async def app_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
     else:
         body = {"detail": exc.detail}
     return JSONResponse(status_code=exc.status_code, content=body)
+
+
+def _scrub_validation_input(node: object) -> object:
+    """validation error 트리에서 `input` 키를 **깊이 무관하게** 제거한다.
+
+    pydantic v2 의 error dict 는 union / 중첩 모델에서 `ctx` 안에 또 다른 error list 를
+    담을 수 있으므로 최상위만 지우면 샌다. list/dict 를 재귀로 훑는다.
+    """
+    if isinstance(node, dict):
+        return {k: _scrub_validation_input(v) for k, v in node.items() if k != "input"}
+    if isinstance(node, list):
+        return [_scrub_validation_input(v) for v in node]
+    return node
+
+
+async def validation_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
+    """422 응답에서 **요청 원문(`input`)을 제거**한다 (2026-08-15 surface-truth).
+
+    FastAPI 기본 핸들러는 `exc.errors()` 를 그대로 직렬화하는데, pydantic v2 의 error
+    dict 는 `"input"` 에 **검증에 실패한 값 그 자체**를 담는다. `mode="after"` validator
+    는 body 파싱 **뒤에** 돌기 때문에 `loc == ["body"]` 인 에러의 `input` 은 **요청 body
+    전체**다 — 실측(2026-08-15):
+
+        POST /trading/accounts {"exchange":"okx", ..., "api_secret":"SUPER_SECRET_VALUE"}
+        → 422 {"detail":[{... "input":{"api_key":"AKIA_REAL_KEY",
+                                        "api_secret":"SUPER_SECRET_VALUE"}}]}
+
+    거래소 API secret 평문이 응답 body 로 되돌아오면 브라우저 콘솔·프록시 로그·에러
+    텔레메트리에 남는다. 트리거는 현실적이다 — OKX 등록 시 passphrase 누락 하나면 된다.
+
+    ★**스키마 타입(`SecretStr`) 마스킹에 의존하지 않는다.** 이건 전역 경계 수리라
+    `RegisterAccountRequest` 뿐 아니라 **모든** 라우트의 422 에 동시에 적용된다.
+    `loc`/`msg`/`type` 은 유지한다 — FE 가 어느 필드가 틀렸는지 알아야 하고, 그 셋은
+    값이 아니라 값의 **위치와 규칙**이다.
+
+    응답 봉투는 FastAPI 기본과 **같은 모양**(`{"detail": [...]}`)을 유지한다 — 이 수리는
+    노출을 없애는 것이지 계약을 바꾸는 것이 아니다.
+    """
+    if not isinstance(exc, RequestValidationError):
+        # 정상 흐름에선 발생 안 함 — Starlette 가 RequestValidationError 만 라우팅.
+        return JSONResponse(status_code=422, content={"detail": "Validation error"})
+
+    return JSONResponse(
+        status_code=422,
+        content={"detail": _scrub_validation_input(jsonable_encoder(exc.errors()))},
+    )
 
 
 async def unhandled_exc_handler(_req: Request, exc: Exception) -> JSONResponse:
@@ -247,9 +295,17 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 def create_app() -> FastAPI:
-    # Sprint 61 T-4 (BL-312): production env 시 OpenAPI / Swagger UI / Redoc 익명 노출 차단.
-    # dev / staging 은 노출 유지 (DX), production 만 None 으로 비활성 → /docs /redoc /openapi.json 모두 404.
-    _hide_docs = settings.is_production
+    # Sprint 61 T-4 (BL-312): OpenAPI / Swagger UI / Redoc 익명 노출 차단.
+    # ★2026-08-15 surface-truth — 판정을 `is_production` 에서 `debug` 로 옮겼다.
+    #   `is_production` 은 **배포 호스트가 `APP_ENV` 를 넣었을 때만** 참이라, 넣지 않은
+    #   실배포(`qb-api.woosung.dev`)에서 `/docs`·`/openapi.json` 이 **인터넷에 200** 이었다
+    #   (2026-08-15 실측). 그 호스트는 Cloudflare Access 뒤도 아니다 — `frontend-deploy.md:48`
+    #   이 「`qb-api.woosung.dev` 에는 Access 를 걸지 마라」고 적어 뒀다.
+    #   ⇒ 노출은 **명시적 opt-in**(`DEBUG=true`)일 때만. 새 설정을 만들지 않고 기존
+    #   `debug` 를 「신뢰된 로컬」 단일 스위치로 재사용한다.
+    #   ★`is_production` 항은 남긴다 — 이중 방어다. `app_env` 를 런타임에 바꿔도
+    #   (테스트가 그렇게 한다) production 은 debug 값과 무관하게 무조건 숨긴다.
+    _hide_docs = settings.is_production or not settings.debug
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
@@ -278,15 +334,22 @@ def create_app() -> FastAPI:
 
     # Sprint 61 T-5 (BL-311) — baseline 보안 헤더 + server 헤더 info-leak strip.
     # CORS 직후 등록 → 모든 응답 (preflight 포함) 에 X-Frame / nosniff / Referrer /
-    # Permissions 부착. HSTS 는 production 환경 (HTTPS 가정) 에서만 부착.
+    # Permissions 부착. HSTS 는 **로컬 개발이 아닐 때** 부착한다.
+    # ★2026-08-15 surface-truth — 종전 `is_production` 은 `APP_ENV` 미설정 배포 호스트를
+    #   놓쳤다(`_hide_docs` 와 같은 뿌리). HSTS 헤더는 스펙상 **HTTP 응답에서는 브라우저가
+    #   무시**하므로 평문 로컬에 켜도 해가 없고, HTTPS 배포에서는 켜져야 한다.
     from src.common.security_headers import SecurityHeadersMiddleware
 
     app.add_middleware(
         SecurityHeadersMiddleware,
-        enable_hsts=settings.is_production,
+        enable_hsts=settings.is_production or not settings.debug,
     )
 
     app.add_exception_handler(AppException, app_exc_handler)
+
+    # 2026-08-15 surface-truth — 422 body 에서 요청 원문(`input`) 제거.
+    # FastAPI 기본 핸들러가 거래소 API secret 평문을 응답에 되돌려 주고 있었다(실측).
+    app.add_exception_handler(RequestValidationError, validation_exc_handler)
 
     # Sprint 32 E (BL-163): unhandled Exception 표준 5xx 응답.
     # FastAPI default 500 ("Internal Server Error" plain) 대신 JSON `{detail: ...}`

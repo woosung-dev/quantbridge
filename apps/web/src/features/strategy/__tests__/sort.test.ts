@@ -36,4 +36,11 @@ describe("resolveStrategySort", () => {
       });
     }
   });
+
+  it("uses the matching option direction instead of a shared URL direction", () => {
+    expect(resolveStrategySort("total_return", "asc")).toEqual({
+      order_by: "total_return",
+      order: "desc",
+    });
+  });
 });

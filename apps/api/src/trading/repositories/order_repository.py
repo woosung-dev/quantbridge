@@ -281,6 +281,29 @@ class OrderRepository:
     async def commit(self) -> None:
         await self.session.commit()
 
+    async def strategy_owner_is_active(self, strategy_id: UUID) -> bool:
+        """전략 소유자의 계정이 살아 있는가 (2026-08-15 적대 리뷰 P1).
+
+        ★**발주 직전에 다시 묻는 이유** — `OrderService.execute` 의 게이트는 **주문을 만드는
+        시점**을 잰다. 그런데 주문은 `pending` 으로 원장에 앉았다가 Celery 워커가 나중에
+        집어 거래소로 보낸다. 그 사이에 탈퇴가 일어나면 **이미 큐에 있던 주문은 그대로
+        나간다** — 탈퇴 처리가 세션·시크릿만 닫고 `pending` 주문은 건드리지 않기 때문이다.
+        돈이 실제로 나가는 마지막 자리에서 한 번 더 묻는다.
+
+        행이 없으면 **False**(fail-closed) — 「모르면 보낸다」가 이 도메인에서 가장 비싼 기본값이다.
+        """
+        from src.auth.models import User
+        from src.strategy.models import Strategy
+
+        stmt = (
+            select(User)
+            .join(Strategy, Strategy.user_id == User.id)  # type: ignore[arg-type]
+            .where(Strategy.id == strategy_id)  # type: ignore[arg-type]
+        )
+        result = await self.session.execute(stmt)
+        owner = result.scalars().first()
+        return owner is not None and owner.is_active
+
     async def save(self, order: Order) -> Order:
         self.session.add(order)
         await self.session.flush()

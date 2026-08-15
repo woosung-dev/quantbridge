@@ -34,6 +34,7 @@
 | LESSON-063 | [generator-evaluator-pipeline.md](reference/operations/workflows/generator-evaluator-pipeline.md) §8.5 | 신규 도메인 / 5+ 파일 모듈 신설 직후 = `/deepen-modules` 1 호출 (Iron Law: 1 모듈만) 권장                                                                                                                                                                        |
 | LESSON-066 | `apps/api/AGENTS.md` §7                                                                                | alembic enum = 처음부터 uppercase + downgrade enum swap 의무 (SAEnum/StrEnum 정합, 7차 영구 검증 — dev-log 삭제 전 등재 보충)                                                                                                                                    |
 | LESSON-092 | `apps/api/AGENTS.md` §10                                                                               | 검사기가 보는 표면 < 실패 표면이면 초록은 무의미 — 부작용까지 동결 · 순수 함수는 **배선**을 재는 케이스 필수 · 페이크는 제약 축을 흉내내라. 변이는 **도달 확인 후** 판정 (3/3)                                                                                   |
+| LESSON-087 | `apps/api/AGENTS.md` §10 (판별 절차 3층)                                                               | 변이 판별력 0 이면 **그 코드 경로가 실행되는지**부터 의심해라 — 「도달」은 파일 내용이 아니라 실행 여부다. 분기 조건이 **기본값이 아닌 설정**에 걸려 있으면 그 설정을 켜는 케이스 필수. ★판정 명령에 파이프 금지(`\| tail` 은 tail 의 rc 를 읽는다) (3/3)        |
 | LESSON-101 | [generator-evaluator-pipeline.md](reference/operations/workflows/generator-evaluator-pipeline.md) §8.6 | 대조기·판정기는 **자기 입력이 비었는지 먼저 말해야 한다** — 빈 입력 초록 금지(`ABORT` rc=3) · `diff`/`grep` 실패코드를 「차이 있음」과 같은 분기에 두지 마라 · fan-out 산출 행 수를 입력 수와 대조 · 판별력을 스윕 **앞**에 (14회 — dev-log 22줄 중 12 + 기존 2) |
 
 ---
@@ -118,26 +119,6 @@
 ---
 
 ## Active Candidates (3 회 검증 미달, 또는 sprint-specific)
-
-### LESSON-087 — 변이가 **판별력 0** 으로 나오면 코드가 아니라 **테스트 이름**을 의심해라 (2/3 — LESSON-072 계열)
-
-- **상황:** 같은 회차. `test_one_ledger_row_cannot_attribute_two_disqualifications` 를 세우고
-  대응 변이(`rows.pop` → `rows.get`)를 걸었더니 **전건 통과**했다. 테스트는 같은 시각에
-  **`kind` 가 다른** 실격 둘을 놓았는데, 키가 다르면 `pop` 이든 `get` 이든 결과가 같다 —
-  **이름이 주장하는 것을 한 번도 재지 않았다.** 진짜 `pop` 이 사는 자리는 ⑴ 같은 `(at, kind)` 의
-  실격 둘(같은 순간 **다른 세션**) ⑵ 매칭된 행이 `stale` 로 재보고되지 않는 것이었고, 둘을
-  세우자 변이가 잡혔다.
-- **해결:** ⑴ 변이 판별력 0 을 만나면 **변이를 바꾸기 전에 테스트가 그 코드 경로를 실제로
-  밟는지** 확인해라 ⑵ 이름에 「A 는 B 를 못 한다」가 들어가면 **B 가 가능한 입력**을 실제로
-  구성했는지 봐라 ⑶ 이 레포는 같은 병을 반복한다(「워커의 충돌 테스트가 이름이 주장하는 것보다
-  적게 단언했다」 — 2026-08-02).
-- **부수 — 변이 하네스 자신이 조용히 고장났다.** zsh 배열이 **1-based** 라 `${ARR[0]}` 이 빈
-  문자열이었고, 변이 하나가 **아예 안 돌았는데** 표는 이름과 결과가 한 칸씩 밀린 채 정상처럼
-  보였다(AssertionError 한 줄만 위에 찍혔다). ⇒ **하네스는 「몇 개 돌았나」를 스스로 세게 하거나
-  `while read` 로 짜라.** 최종 결과: 변이 **8/8 적발** · sha256 복원 일치 · 음성 대조 양쪽 통과.
-- **2차 누적** (1차 = LESSON-072 「사전등록 변이가 판별력 0」).
-
----
 
 ### LESSON-088 — 「뿌리 미확정」이 적힌 항목의 **처방 후보를 상속하지 마라**. 뿌리를 모르는 처방은 증상의 모양만 베낀다 (1/3)
 

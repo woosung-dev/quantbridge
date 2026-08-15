@@ -16,6 +16,7 @@ function makeResult(overrides: Partial<ParsePreviewResponse> = {}): ParsePreview
     exit_count: 1,
     functions_used: ["ta.sma", "ta.crossover"],
     unsupported_builtins: [],
+    unsupported_calls: [],
     is_runnable: true,
     ...overrides,
   };
@@ -55,6 +56,30 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     expect(box.className).toContain("state-box failed");
     expect(screen.getByText("request.security")).toBeTruthy();
     expect(screen.getByText(/부분 실행 없이 전체를 지원되지 않음으로 처리/)).toBeTruthy();
+  });
+
+  it("미지원: BE가 보낸 줄번호와 우회안을 렌더한다", () => {
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          status: "unsupported",
+          unsupported_builtins: ["ta.alma"],
+          unsupported_calls: [
+            {
+              name: "ta.alma",
+              line: 12,
+              col: null,
+              workaround: "ta.sma() 또는 ta.ema()로 바꾸세요.",
+              category: "math",
+            },
+          ],
+        })}
+        loading={false}
+      />,
+    );
+
+    expect(screen.getByText(/L12/)).toBeTruthy();
+    expect(screen.getByText(/우회안: ta\.sma\(\) 또는 ta\.ema\(\)로 바꾸세요/)).toBeTruthy();
   });
 
   it("로딩: .sk 스켈레톤", () => {

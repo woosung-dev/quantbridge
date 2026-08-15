@@ -83,6 +83,21 @@ class Backtest(SQLModel, table=True):
     equity_curve: list[Any] | None = Field(default=None, sa_column=Column(JSONB))
     error: str | None = Field(default=None, sa_column=Column(Text))
 
+    # 2026-08-15 surface-truth (U8) — 엔진이 이 실행에 대해 남긴 경고.
+    #
+    # ★**왜 별도 컬럼인가.** `metrics` JSONB 에 얹는 안을 먼저 검토했고 **틀렸다**:
+    #   `metrics` 는 `BacktestMetrics` 를 직렬화한 것이고 `test_metrics_field_parity.py`
+    #   가 그 필드 집합을 **양방향으로** 동결한다. 경고를 거기 넣으면 그 tripwire 가 red 다.
+    #   경고는 지표가 아니라 **실행의 성질**이므로 자리도 따로여야 한다.
+    #
+    # ★nullable 이다 — 이 컬럼 이전에 끝난 실행은 NULL 이고, 그것은 「경고가 없었다」가
+    #   아니라 **「모른다」**다. 화면은 그 둘을 구분해야 한다(빈 배열 = 경고 없음).
+    #
+    # ★엔진은 이 값을 이미 만들고 있었다(`v2_adapter.py:218-221` 이 그 주석에서
+    #   「사용자가 silent success 받지 않도록 노출」이라 적어 뒀다). 없었던 것은 **소비자**다 —
+    #   `BacktestService` 가 `outcome.parse` 를 한 번도 참조하지 않았다(grep 0건).
+    warnings: list[str] | None = Field(default=None, sa_column=Column(JSONB))
+
     # Sprint 31 BL-162a — 사용자 입력 BacktestConfig 5 가정 저장 (TradingView
     # strategy 속성 패턴). nullable — pre-Sprint-31 row 는 NULL → service `_to_detail`
     # 가 engine BacktestConfig default 로 fallback (graceful degrade).
@@ -190,6 +205,4 @@ class BacktestTrade(SQLModel, table=True):
 
     backtest: "Backtest" = Relationship(back_populates="trades")
 
-    __table_args__ = (
-        Index("ix_backtest_trades_backtest_idx", "backtest_id", "trade_index"),
-    )
+    __table_args__ = (Index("ix_backtest_trades_backtest_idx", "backtest_id", "trade_index"),)

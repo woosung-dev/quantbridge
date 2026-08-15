@@ -408,8 +408,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     expect(editLink).toHaveTextContent(/지원 함수 목록 참조/);
   });
 
-  // Sprint 32 E (BL-163) — 422 + degraded_calls (StrategyDegraded) 케이스도 동일 처리.
-  it("422 + degraded_calls (Trust Layer 위반) → unsupported card + friendly_message", async () => {
+  it("422 + degraded_calls → 동의 체크 후 allow_degraded_pine=true로 재제출", async () => {
     mockSearchParams = new URLSearchParams("strategy_id=abc");
     render(<BacktestForm />);
 
@@ -432,6 +431,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     await vi.waitFor(() => {
       expect(mutate).toHaveBeenCalledTimes(1);
     });
+    expect(mutate.mock.calls[0]?.[0]).not.toHaveProperty("allow_degraded_pine");
 
     const err = Object.assign(new Error("Strategy uses degraded functions"), {
       status: 422,
@@ -450,10 +450,68 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       capturedOpts.current.onError?.(err);
     });
 
-    const card = await screen.findByTestId("backtest-form-unsupported-card");
+    const card = await screen.findByTestId("backtest-form-degraded-card");
     expect(card).toHaveTextContent(/heikinashi/);
+    expect(card).toHaveTextContent(/TradingView와 다를 수 있습니다/);
     const fmEl = await screen.findByTestId("backtest-form-friendly-message");
     expect(fmEl).toHaveTextContent("Trust Layer");
+
+    const consent = screen.getByTestId("backtest-form-degraded-consent") as HTMLInputElement;
+    expect(consent.checked).toBe(false);
+    await act(async () => {
+      fireEvent.click(consent);
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+
+    await vi.waitFor(() => {
+      expect(mutate).toHaveBeenCalledTimes(2);
+    });
+    expect(mutate.mock.calls[1]?.[0]).toMatchObject({ allow_degraded_pine: true });
+  });
+
+  // ★동의는 **그 전략에만** 유효하다 (2026-08-15 적대 리뷰 P2). 종전에는 전략과 무관한
+  //   boolean 이라 전략 A 에서 동의한 뒤 B 로 바꿔 제출하면 B 요청에도 `true` 가 실렸다 —
+  //   동의 문구는 「이 전략을 실행합니다」라고 말하는데.
+  it("전략을 바꾸면 degraded 동의가 따라가지 않는다", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), { target: { value: "BTC/USDT" } });
+      fireEvent.change(screen.getByLabelText("시작일"), { target: { value: "2026-01-01" } });
+      fireEvent.change(screen.getByLabelText("종료일"), { target: { value: "2026-01-31" } });
+      fireEvent.change(screen.getByLabelText("초기 자본"), { target: { value: "10000" } });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+    await vi.waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
+
+    const err = Object.assign(new Error("degraded"), {
+      status: 422,
+      detail: {
+        detail: {
+          code: "strategy_degraded",
+          detail: "Strategy uses degraded Pine functions: heikinashi",
+          degraded_calls: ["heikinashi"],
+        },
+      },
+    });
+    act(() => {
+      capturedOpts.current.onError?.(err);
+    });
+
+    const consent = await screen.findByTestId("backtest-form-degraded-consent");
+    await act(async () => {
+      fireEvent.click(consent);
+    });
+
+    // 다른 전략으로 바꾼다 — 동의는 A 에 대한 것이었다.
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("전략"), { target: { value: "xyz" } });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+    await vi.waitFor(() => expect(mutate).toHaveBeenCalledTimes(2));
+
+    expect(mutate.mock.calls[1]?.[0]).not.toHaveProperty("allow_degraded_pine");
   });
 
   it("happy path — onSuccess → router.push(/backtests/{id})", async () => {

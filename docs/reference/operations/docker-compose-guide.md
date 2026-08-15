@@ -64,18 +64,32 @@ $DC exec redis redis-cli
 
 ### Redis 영속화
 
-`compose.yml`에서 `redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru` 설정.
+`compose.yml`에서 `redis-server --appendonly yes --auto-aof-rewrite-min-size 8mb --maxmemory 512mb --maxmemory-policy noeviction` 설정.
 
 - AOF 활성 → 컨테이너 재시작 시 데이터 복구
-- maxmemory 초과 시 LRU eviction (캐시는 손실 가능, Celery 큐는 별도 DB로 분리)
+- maxmemory 초과 시 **쓰기 거부**(`OOM command not allowed`). 축출하지 않는다.
+
+> ★★**2026-08-15 surface-truth (S4) 정정.** 종전 문장 「maxmemory 초과 시 LRU eviction
+> (캐시는 손실 가능, **Celery 큐는 별도 DB로 분리**)」은 거짓이었다. `maxmemory-policy` 는
+> **인스턴스 전역**이라 논리 DB 번호는 축출 대상 선정에 **관여하지 않는다** — `allkeys-lru`
+> 아래에서 broker 메시지와 분산 락은 캐시 키와 **똑같이** 축출 후보였다. `task_acks_late`
+> 로도 복구되지 않는다(브로커에서 사라진 메시지는 재배달할 원본이 없다).
+> ⇒ 정책을 `noeviction` 으로 바꿨다. **쓰기 거부를 복구 경로로 오인하지 마라** — 그건
+> 고장이고, `common/redis_client.py` 의 SET+GET+DEL 헬스체크가 그것을 잡는다.
 
 ### Redis DB 분리
 
-| DB # | 용도               | 환경 변수               |
-| ---- | ------------------ | ----------------------- |
-| 0    | 캐시               | `REDIS_URL`             |
-| 1    | Celery 브로커      | `CELERY_BROKER_URL`     |
-| 2    | Celery 결과 백엔드 | `CELERY_RESULT_BACKEND` |
+★**이 분리가 막는 것은 「키 이름 충돌」뿐이다.** 축출·메모리 상한은 인스턴스 단위다.
+
+| DB # | 용도                 | 환경 변수               |
+| ---- | -------------------- | ----------------------- |
+| 1    | Celery 브로커        | `CELERY_BROKER_URL`     |
+| 2    | Celery 결과 백엔드   | `CELERY_RESULT_BACKEND` |
+| 3    | 분산 락 + rate limit | `REDIS_LOCK_URL`        |
+
+> DB 0(캐시 · 구 `REDIS_URL`)은 2026-08-15 에 **삭제**했다 — 선언·주입은 있었지만
+> `apps/api/src` 전체에서 참조가 **0건**인 죽은 설정이었다. 캐시 소비자가 실제로 생기면
+> **별도 인스턴스**에 LRU 로 두어라. 같은 인스턴스에 섞으면 위 결함이 그대로 돌아온다.
 
 ---
 

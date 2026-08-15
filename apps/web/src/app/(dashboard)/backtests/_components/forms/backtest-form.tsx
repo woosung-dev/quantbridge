@@ -41,6 +41,8 @@ export function BacktestForm() {
     handleSubmit,
     onSubmit,
     submitError,
+    allowDegradedPine,
+    setAllowDegradedPine,
     convertResult,
     setConvertResult,
     datePreset,
@@ -440,6 +442,8 @@ export function BacktestForm() {
               testIdPrefix="backtest-form"
               indicatorCode={strategy?.pine_source ?? null}
               onConverted={setConvertResult}
+              degradedConsent={allowDegradedPine}
+              onDegradedConsentChange={setAllowDegradedPine}
             />
 
             {/* pine-compat-experiment — AI 변환 결과 (검토 후 새 전략으로 저장). */}

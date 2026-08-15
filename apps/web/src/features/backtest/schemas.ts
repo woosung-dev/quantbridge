@@ -88,6 +88,8 @@ export const CreateBacktestRequestSchema = z
       .refine(Number.isFinite, { message: "slippage_pct must be finite" })
       .default(DEFAULT_SLIPPAGE_PCT),
     include_funding: z.boolean().default(true),
+    // StrategyDegraded 422 뒤에 사용자가 명시 동의할 때만 보낸다. 미지정은 BE 기본 false.
+    allow_degraded_pine: z.boolean().optional(),
     // TV parity — 시장가 체결 타이밍. bar_close(기본, 신호 bar 종가) | next_bar_open(TV 정합).
     fill_timing: z.enum(["bar_close", "next_bar_open"]).default("bar_close"),
     // Sprint 37 BL-188a — 폼 default_qty_type/value (Pine 미명시 시 사용).
@@ -342,6 +344,13 @@ export const BacktestDetailSchema = BacktestSummarySchema.extend({
   metrics: BacktestMetricsOutSchema.nullable().optional(),
   equity_curve: z.array(EquityPointSchema).nullable().optional(),
   error: z.string().nullable().optional(),
+  // 2026-08-15 surface-truth (U8) — 엔진이 이 실행에 대해 남긴 경고.
+  // ★`null`(= 이 컬럼 이전 실행, **모른다**)과 `[]`(경고 없이 돌았다)는 다른 값이다.
+  //   화면은 그 둘을 구분해 그린다 — 전자는 아무것도, 후자도 아무것도 안 그리지만,
+  //   「모른다」를 「없다」로 바꿔 말하지 않기 위해 타입에서 구분을 유지한다.
+  // ★`.nullable().optional()` 관용구 — 구 응답/fixture 회귀 방지. 새 필드를 non-nullable
+  //   로 넣었다가 route mock 이 파싱에서 죽어 목록이 통째로 빈 화면이 된 사고가 하루 전에 있었다.
+  warnings: z.array(z.string()).nullable().optional(),
 });
 export type BacktestDetail = z.infer<typeof BacktestDetailSchema>;
 

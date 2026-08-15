@@ -168,6 +168,21 @@ class _StrategySessionsAdapter:
         strategy = result.scalar_one_or_none()
         return strategy.user_id if strategy is not None else None
 
+    async def is_owner_active(self, user_id: UUID) -> bool:
+        """2026-08-15 surface-truth (S3) — 소유자가 탈퇴했으면 주문을 막는다.
+
+        행이 없으면 False (fail-closed) — 「모르면 보낸다」가 이 도메인에서 가장 비싼 기본값이다.
+        """
+        from src.auth.models import User
+
+        # ★단일 컬럼 select 대신 **행 조회**다 — 이 레포의 관용구가 그것이고
+        #   (`get_owner` 바로 위), `select(User.is_active)` 는 SQLModel 타입이 bool 로
+        #   좁혀져 mypy 가 overload 를 못 고른다.
+        stmt = select(User).where(User.id == user_id)  # type: ignore[arg-type]
+        result = await self._session.execute(stmt)
+        user = result.scalar_one_or_none()
+        return user is not None and user.is_active
+
 
 # ── OrderService ─────────────────────────────────────────────────────
 async def get_order_service(

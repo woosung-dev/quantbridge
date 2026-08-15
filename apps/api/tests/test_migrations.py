@@ -461,6 +461,42 @@ def test_trading_orders_idempotency_unique(monkeypatch: pytest.MonkeyPatch) -> N
         engine.dispose()
 
 
+def test_trading_orders_list_sort_index(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`ix_orders_account_created` 존재 + 컬럼 순서 검증 (2026-08-15 surface-truth · S5).
+
+    ★**순서가 계약이다.** `OrderRepository.list_by_user` 는 계정으로 좁힌 뒤
+    `created_at DESC` 로 정렬하므로 선두 컬럼이 `exchange_account_id` 여야 한다.
+    뒤집으면 조인 축을 못 밀어 인덱스가 있으나 마나가 된다.
+
+    ★★**`_upgrade_and_inspect` 만으로는 이 테스트가 무증거다** — 2026-08-15 실측으로
+    확인했다. conftest 부트스트랩이 `create_all` + `alembic_version` **head stamp**([BL-741])
+    를 하므로 `upgrade head` 는 **아무 마이그레이션도 실행하지 않고**, 인덱스는
+    `models.py` metadata 에서 온다. 그 상태에서 **마이그레이션 파일의 컬럼 순서를 뒤집는
+    변이를 심어도 19 passed 로 초록**이었다. 이것이 [BL-749] 가 적은 한계의 실사례다.
+    ⇒ 여기서는 `downgrade base` → `upgrade head` 로 **마이그레이션 경로를 강제로 태운다**
+    (`test_alembic_roundtrip` 이 세운 선례). 그러고 나서야 이 단언이 마이그레이션을 잰다.
+    """
+    monkeypatch.chdir(_BACKEND_ROOT)
+    cfg = _alembic_cfg()
+    command.downgrade(cfg, "base")
+    command.upgrade(cfg, "head")
+
+    engine, inspector = _upgrade_and_inspect(monkeypatch)
+    try:
+        indexes = inspector.get_indexes("orders", schema="trading")
+        found = [i for i in indexes if i["name"] == "ix_orders_account_created"]
+        assert len(found) == 1, (
+            "ix_orders_account_created 가 alembic DB 에 없다 — 마이그레이션 "
+            f"20260815_0002 를 확인해라 (실제 인덱스: {[i['name'] for i in indexes]})"
+        )
+        assert found[0]["column_names"] == ["exchange_account_id", "created_at"], (
+            f"컬럼 순서가 계약과 다르다: {found[0]['column_names']}"
+        )
+        assert found[0]["unique"] is False, "한 계정이 같은 순간에 여러 주문을 가질 수 있다"
+    finally:
+        engine.dispose()
+
+
 def test_deactivation_reason_check_matches_the_enum(monkeypatch: pytest.MonkeyPatch) -> None:
     """alembic 이 만든 CHECK 의 값 집합 = SessionDeactivationReason 전건 (drift sentinel, BL-571).
 

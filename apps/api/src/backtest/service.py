@@ -56,6 +56,7 @@ from src.backtest.schemas import (
 )
 from src.backtest.serializers import (
     _parse_utc_iso,
+    dedupe_engine_warnings,
     equity_curve_to_jsonb,
     metrics_from_jsonb,
     metrics_summary_from_jsonb,
@@ -368,10 +369,15 @@ class BacktestService:
             metrics_jsonb = metrics_to_jsonb(outcome.result.metrics)
             equity_jsonb = equity_curve_to_jsonb(outcome.result.equity_curve)
 
+            # ★2026-08-15 surface-truth (U8) — 엔진이 남긴 경고를 원장에 싣는다.
+            #   `v2_adapter.py:218-221` 이 「사용자가 silent success 받지 않도록 노출」이라
+            #   적어 둔 그 값이고, 지금까지 이 서비스는 `outcome.parse` 를 **한 번도 참조하지
+            #   않았다**(grep 0건). 계산돼 있었는데 소비자가 없었다.
             completed_rows = await self.repo.complete(
                 backtest_id,
                 metrics=metrics_jsonb,
                 equity_curve=equity_jsonb,
+                warnings=dedupe_engine_warnings(outcome.parse.warnings),
             )
             if completed_rows == 0:
                 await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
@@ -821,6 +827,7 @@ class BacktestService:
             metrics=metrics_out,
             equity_curve=equity_out,
             error=bt.error,
+            warnings=bt.warnings,
         )
 
 

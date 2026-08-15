@@ -165,6 +165,16 @@ class AccountModeNotAllowed(AppException):
         self.mode = mode
 
 
+class ReadOnlyAccountNotAllowed(AppException):
+    """읽기 전용 API 키는 라이브 세션의 주문 경로를 열 수 없다."""
+
+    status_code = 422
+    code = "read_only_account_not_allowed"
+
+    def __init__(self) -> None:
+        super().__init__("읽기 전용 API 키로는 라이브 세션을 시작할 수 없습니다.")
+
+
 class LiveSessionQuotaExceeded(AppException):
     """Sprint 26 — 사용자별 active Live Session ≤ 5 (codex G.0 P3 #3 + plan §3 A.5)."""
 
@@ -315,6 +325,22 @@ class AccountOwnershipMismatch(AppException):
 
     status_code = 403
     code = "account_ownership_mismatch"
+
+
+class OwnerAccountInactive(AppException):
+    """전략 소유자의 계정이 비활성(탈퇴) — 2026-08-15 surface-truth (S3) 심층 방어.
+
+    탈퇴 처리(`UserService` 의 `user.deleted` 분기)가 세션 전량 비활성 + 웹훅 시크릿 전량
+    revoke 로 **원천**을 닫는다. 이 게이트는 그 뒤에 서는 두 번째 문이다 — 유출된 시크릿의
+    grace 창, 이미 큐에 들어간 tick, 수기 주문 경로처럼 원천 차단이 한 박자 늦는 자리에서
+    **돈이 나가는 마지막 순간**에 다시 묻는다.
+
+    TRD-4(`AccountOwnershipMismatch`) 와 같은 자리에 두되 사유를 분리한다 — 「남의 계좌」와
+    「없어진 사람의 계좌」는 운영자가 봐야 할 것이 다르다.
+    """
+
+    status_code = 403
+    code = "owner_account_inactive"
 
 
 class MinNotionalNotMet(AppException):

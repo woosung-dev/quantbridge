@@ -287,6 +287,7 @@ export function BacktestReportShell({
           periodStart={bt.period_start}
           periodEnd={bt.period_end}
           ranAt={bt.completed_at}
+          warnings={bt.warnings}
         />
       </Section>
 

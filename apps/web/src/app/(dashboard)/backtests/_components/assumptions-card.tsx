@@ -44,6 +44,17 @@ export interface AssumptionsCardProps {
   readonly periodStart?: string | null;
   readonly periodEnd?: string | null;
   readonly ranAt?: string | null;
+  /**
+   * 엔진이 이 실행에 대해 남긴 경고 (2026-08-15 surface-truth · U8).
+   *
+   * ★서버는 이 값을 **계산하고 있었는데** 아무도 받지 않았다 — 엔진 주석이 스스로
+   * 「사용자가 silent success 받지 않도록 노출」이라 적어 뒀는데 소비자가 0건이었다.
+   * 지정가 진입처럼 **백테스트와 라이브가 다르게 행동하는** 경우가 여기로 나온다.
+   *
+   * ★`null`(이 컬럼 이전 실행 = 모른다)과 `[]`(경고 없이 돌았다)는 다른 값이다.
+   * 둘 다 아무것도 그리지 않지만, 「모른다」를 「없다」로 바꿔 말하지 않기 위해 구분을 유지한다.
+   */
+  readonly warnings?: readonly string[] | null;
 }
 
 function formatUsdt(v: number): string {
@@ -67,6 +78,7 @@ export function AssumptionsCard({
   periodStart,
   periodEnd,
   ranAt,
+  warnings,
 }: AssumptionsCardProps) {
   const fees = config?.fees ?? DEFAULT_FEES;
   const slippage = config?.slippage ?? DEFAULT_SLIPPAGE;
@@ -198,6 +210,28 @@ export function AssumptionsCard({
             편향일 수 있습니다.
           </span>
         </p>
+      ) : null}
+
+      {warnings != null && warnings.length > 0 ? (
+        <div className="disclaimer report-note-warn" data-testid="backtest-engine-warnings">
+          <AlertTriangle aria-hidden="true" />
+          <div>
+            <p>
+              이 실행에서 엔진이 남긴 알림입니다. 숫자를 읽기 전에 먼저 보세요.
+            </p>
+            {/*
+             * ★건수를 세지 않는다 (2026-08-15 적대 리뷰 P3). 서버는 서로 다른 경고가 상한
+             * (50건)을 넘으면 **합성 요약 한 줄**("… N건이 더 있습니다")을 배열 끝에 붙인다.
+             * 그 배열 길이를 「엔진이 남긴 알림 수」로 말하면 **51건**이라 거짓이다(실제 60).
+             * 잘렸다는 사실은 그 마지막 줄이 스스로 말하므로, 화면은 세지 말고 그대로 인쇄한다.
+             */}
+            <ul>
+              {warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
       ) : null}
     </section>
   );

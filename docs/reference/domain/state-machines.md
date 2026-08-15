@@ -155,6 +155,33 @@ stateDiagram-v2
 
 - 상태 = `is_active` (bool). `register()` → active, `deactivate()` → inactive. partial unique index (is_active=true 만 unique → deactivate 후 재INSERT 가능).
 - 가드: Bybit Demo 한정 (`AccountModeNotAllowed`, BL-003 mainnet runbook 완료 전), user 당 active ≤ 5 (`LiveSessionQuotaExceeded`), strategy/account 소유권 검증.
+- ★**읽기 전용 키 거부** (`ReadOnlyAccountNotAllowed`, 422 `read_only_account_not_allowed` —
+  2026-08-15 surface-truth U1). 종전에는 read-only 키로 세션을 **열 수는 있는데 닫을 수 없었다**
+  (청산이 `close_service` 에서 422 `read_only_key`). `read_only is True` 만 막는다 — `None` 은
+  「모른다」(구 계정)이고 잠그면 기존 사용자가 전부 막힌다.
+- ★**계정 배타성** (`account_not_exclusive`, 409) · **중복 세션**(`session_already_active`, 409) ·
+  잔고 기준선 실패 · 데모 안정화 기간(`DemoAccountNotYetStable`) · `provider_error` fail-closed(502).
+
+**종료 사유 — 정본은 `trading/models.py:SessionDeactivationReason` 이고 값 집합은 원장 CHECK
+(`ck_live_signal_sessions_deactivated_reason`)가 못박는다([BL-571]).** 사유를 추가하려면
+**enum + 마이그레이션 + FE 라벨(`features/live-sessions/labels.ts`) 3곳**을 함께 고쳐야 한다.
+
+| 사유                                                                                            | 계기                                                                         |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `coverage_unrunnable` · `degraded_unconsented` · `equity_baseline_missing` · `equity_exhausted` | preflight (평가 진입 전 차단)                                                |
+| `run_live_error` · `runtime_divergence`                                                         | runtime (Pine 재생 중 발산)                                                  |
+| `gap_resync_position_mismatch` · `position_divergence`                                          | 포지션 정합 실패                                                             |
+| `user_stopped`                                                                                  | 사람이 Stop 을 눌렀다                                                        |
+| `account_deleted`                                                                               | ★Clerk `user.deleted` 웹훅이 소유자의 세션을 **전량** 내린다 (2026-08-15 S3) |
+
+★**중단은 미체결 조건부 진입을 자동 취소한다** — `deactivate` + commit 뒤
+`sweep_conditional_entries_task.apply_async` 가 예약되고 실제 취소는 그 task 의
+`provider.cancel_order` 다. **즉시가 아니다**(예약과 실행 사이에 창이 있다). 2026-08-15 전까지
+화면은 정반대(「미체결 주문은 유지됩니다」)를 말하고 있었다.
+
+★**탈퇴는 세션만 내리는 것이 아니다** — 같은 트랜잭션에서 소유자의 웹훅 시크릿을 **grace 0 으로
+전량 revoke** 하고, 주문 경로에는 `is_owner_active` 심층 방어가 선다(2026-08-15 S3).
+`ExchangeAccount` 행은 **지우지 않는다**(2026-08-11 사용자 결정 + FK `ondelete=RESTRICT`).
 
 ### 3.3 LiveSignalEvent — transactional outbox (`trading/models.py:LiveSignalEvent`, `LiveSignalEventStatus`)
 

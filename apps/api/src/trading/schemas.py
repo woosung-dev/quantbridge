@@ -484,7 +484,15 @@ class AccountPositionRow(BaseModel):
     symbol: str
     position: ExchangePositionSchema
     closable_session_id: UUID | None
-    close_blocked_reason: Literal["no_owning_session", "hedge_unsupported", "read_only_key"] | None
+    close_blocked_reason: (
+        Literal[
+            "no_owning_session",
+            "hedge_unsupported",
+            "read_only_key",
+            "position_side_unsupported",
+        ]
+        | None
+    )
 
 
 class AccountPositionsResponse(BaseModel):

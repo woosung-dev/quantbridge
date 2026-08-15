@@ -1105,7 +1105,15 @@ _PLAN_DROP_REASONS: frozenset[str] = frozenset(
     }
 )
 _PENDING_ORDER_SKIP_REASONS: frozenset[str] = frozenset(
-    {"session_disallowed", "invalid_leg", "below_api_precision"}
+    # `limit_entry_unsupported_live` — 2026-08-15 surface-truth (U8). 지정가 진입은 엔진이
+    # 백테스트에서 지정가로 체결하지만 라이브 발주 경로가 표현하지 못해 **의도적으로** 막는다.
+    # 「값이 깨졌다」(`invalid_leg`)와 섞으면 운영자가 고장과 정책을 구분하지 못한다.
+    {
+        "session_disallowed",
+        "invalid_leg",
+        "below_api_precision",
+        "limit_entry_unsupported_live",
+    }
 )
 _CONDITIONAL_DIVERGENCE_REASONS: dict[str, frozenset[str]] = {
     "exchange_divergence": frozenset({"exchange_missing_resting_order"}),

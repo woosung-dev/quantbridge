@@ -146,6 +146,7 @@ function renderForm() {
             exchange: "bybit",
             mode: "demo",
             label: ACCOUNT_LABEL,
+            read_only: null,
           },
         ]}
         activeSessionsCount={0}
@@ -263,6 +264,57 @@ describe("LiveSessionForm — BL-164 emptyMessage", () => {
     // submit 버튼 disabled 검증.
     const submit = screen.getByTestId("live-session-submit");
     expect(submit).toBeDisabled();
+  });
+});
+
+describe("LiveSessionForm — 읽기 전용 계정", () => {
+  it("읽기 전용 계정은 표시되지만 선택할 수 없고 false·null 계정은 선택할 수 있다", () => {
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={qc}>
+        <LiveSessionForm
+          strategies={[{ id: STRATEGY_ID, name: STRATEGY_NAME }]}
+          exchangeAccounts={[
+            {
+              id: "550e8400-e29b-41d4-a716-446655440001",
+              exchange: "bybit",
+              mode: "demo",
+              label: "read-only-demo",
+              read_only: true,
+            },
+            {
+              id: "550e8400-e29b-41d4-a716-446655440002",
+              exchange: "bybit",
+              mode: "demo",
+              label: "writable-demo",
+              read_only: false,
+            },
+            {
+              id: "550e8400-e29b-41d4-a716-446655440003",
+              exchange: "bybit",
+              mode: "demo",
+              label: "legacy-demo",
+              read_only: null,
+            },
+          ]}
+          activeSessionsCount={0}
+        />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("button", { name: "read-only-demo (읽기 전용)" })).toBeDisabled();
+
+    const writable = screen.getByRole("button", { name: "writable-demo" });
+    const legacy = screen.getByRole("button", { name: "legacy-demo" });
+    expect(writable).toBeEnabled();
+    expect(legacy).toBeEnabled();
+
+    fireEvent.click(writable);
+    expect(screen.getByTestId("live-session-account-trigger")).toHaveTextContent("writable-demo");
+    fireEvent.click(legacy);
+    expect(screen.getByTestId("live-session-account-trigger")).toHaveTextContent("legacy-demo");
   });
 });
 

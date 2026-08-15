@@ -47,6 +47,7 @@ function makeResult(overrides: Partial<ParsePreviewResponse> = {}): ParsePreview
     exit_count: 2,
     functions_used: ["ta.sma", "ta.crossover", "strategy.entry"],
     unsupported_builtins: [],
+    unsupported_calls: [],
     is_runnable: true,
     ...overrides,
   };

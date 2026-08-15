@@ -10,7 +10,7 @@ import pytest
 
 from src.common.exceptions import AppException
 from src.strategy.models import ParseStatus, PineVersion, Strategy
-from src.trading.exceptions import ProviderError
+from src.trading.exceptions import ProviderError, ReadOnlyAccountNotAllowed
 from src.trading.models import ExchangeAccount, ExchangeMode, ExchangeName
 from src.trading.schemas import RegisterLiveSessionRequest
 from src.trading.services.live_session_service import LiveSignalSessionService
@@ -30,7 +30,13 @@ _MARKET_ENTRY_SOURCE = (
 ).read_text()
 
 
-def _svc(*, pine_source: str, balance_service: AsyncMock | None = None, active_count: int = 0):
+def _svc(
+    *,
+    pine_source: str,
+    balance_service: AsyncMock | None = None,
+    active_count: int = 0,
+    read_only: bool | None = None,
+):
     user_id = uuid4()
     strategy = Strategy(
         id=uuid4(),
@@ -48,6 +54,7 @@ def _svc(*, pine_source: str, balance_service: AsyncMock | None = None, active_c
         mode=ExchangeMode.demo,
         api_key_encrypted=b"x",
         api_secret_encrypted=b"y",
+        read_only=read_only,
     )
     repo = AsyncMock()
     repo.acquire_quota_lock = AsyncMock(return_value=None)
@@ -102,6 +109,22 @@ async def test_register_allows_market_entry_strategy(monkeypatch: pytest.MonkeyP
     await service.register(user_id, request)
 
     repo.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_register_rejects_read_only_account_before_balance_lookup() -> None:
+    """읽기 전용 키는 세션을 열기 전에 거부해 주문 경로에 들어가지 못하게 한다."""
+    service, repo, balance_service, user_id, request = _svc(
+        pine_source=_MARKET_ENTRY_SOURCE,
+        read_only=True,
+    )
+
+    with pytest.raises(ReadOnlyAccountNotAllowed) as exc_info:
+        await service.register(user_id, request)
+
+    assert exc_info.value.code == "read_only_account_not_allowed"
+    balance_service.get_balance.assert_not_awaited()
+    repo.save.assert_not_called()
 
 
 @pytest.mark.asyncio

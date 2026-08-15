@@ -32,6 +32,15 @@ function ModeBadge({ mode }: { mode: string | null | undefined }) {
   return <span className="chip">{(mode ?? "UNKNOWN").toUpperCase()}</span>;
 }
 
+function ReadOnlyBadge({ readOnly }: { readOnly: boolean | null }) {
+  if (readOnly !== true) return null;
+  return (
+    <span className="chip warn" data-tone="warning">
+      읽기 전용
+    </span>
+  );
+}
+
 export function ExchangeAccountsPanel() {
   const { data, isError, isLoading, refetch } = useExchangeAccounts();
   const deleteAccount = useDeleteExchangeAccount();
@@ -102,7 +111,9 @@ export function ExchangeAccountsPanel() {
                   <td>
                     <ModeBadge mode={a.mode} />
                   </td>
-                  <td>{a.label ?? EMPTY_CELL}</td>
+                  <td>
+                    {a.label ?? EMPTY_CELL} <ReadOnlyBadge readOnly={a.read_only} />
+                  </td>
                   <td className="mono-l dim">{a.api_key_masked}</td>
                   <td>
                     <button

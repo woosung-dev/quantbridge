@@ -30,8 +30,29 @@ services:
     networks:
       - quantbridge
 
-  # Redis — 캐시 + Celery 브로커 + Celery 결과 백엔드
-  # DB 0: 캐시, DB 1: Celery broker, DB 2: Celery result backend
+  # Redis — Celery 브로커 + 결과 백엔드 + 분산 락/rate-limit
+  # DB 1: Celery broker, DB 2: Celery result backend, DB 3: 분산 락 + rate limit
+  #
+  # ★★2026-08-15 surface-truth (S4) — `--maxmemory-policy` 를 `allkeys-lru` 에서
+  #   `noeviction` 으로 바꿨다. 종전 설정은 **큐 메시지와 분산 락을 조용히 지울 수 있었다.**
+  #   `maxmemory-policy` 는 **인스턴스 전역**이라 논리 DB 는 eviction 대상 선정에 **관여하지
+  #   않는다** — 「DB 를 나눴으니 격리된다」는 문장이 세 곳에 있었고 전부 거짓이었다
+  #   (`.env.example` · `docker-compose-guide.md` · 이 주석).
+  #   `task_acks_late=True` 여도 **broker 에서 메시지가 사라지면 복구 경로가 없고**,
+  #   `ws:lease` 가 사라지면 `_ws_lease.py` 가 「correctness fallback 없음」이라 적어 둔
+  #   상태가 된다. ⇒ 지우느니 **쓰기를 거부**하는 쪽이 옳다.
+  #   ★대가: OOM 이면 쓰기가 `OOM command not allowed` 로 실패한다.
+  #   ★★**2026-08-15 적대 리뷰 정정** — 종전 주석은 「그 실패는 조용하지 않다 —
+  #   `common/redis_client.py` 의 healthcheck 가 SET+GET+DEL 왕복이라 잡는다」고 적었고
+  #   **그것은 거짓이었다.** 그 왕복은 **lifespan startup 1회**뿐이고, 그 뒤로 이 compose
+  #   healthcheck 와 `/healthz` 는 **PING 만** 한다. PING 은 OOM 에서도 PONG 이므로 기동 후에
+  #   발생한 OOM 은 「정상」으로 관측되고 `QbRedisLockPoolUnhealthy` 도 발화하지 않았다.
+  #   ⇒ 아래 healthcheck 를 **쓰기 프로브**로 바꿨다(SETEX + DEL). 이제 컨테이너 healthcheck 가
+  #   10초마다 실제 쓰기 가능성을 잰다. `/healthz` 축은 아직 PING 이다 — [BL-760].
+  #   **쓰기 거부를 복구 경로로 오인하지 마라.**
+  #   ★DB 0(캐시)은 **소비자가 0건**이라 이 인스턴스에서 뺐다(2026-08-15 실측:
+  #   `settings.redis_url` 참조 `src/` 전체 0건). 캐시 소비자가 실제로 생기면 그때
+  #   **별도 인스턴스**에 LRU 로 두어라 — 같은 인스턴스에 섞으면 이 결함이 그대로 돌아온다.
   #
   # ★`--auto-aof-rewrite-min-size 8mb` — [BL-594]. redis 기본값은 64mb 이고, rewrite 는
   #   **크기 조건과 증가율 조건을 둘 다** 넘어야 발동한다. base RDB 가 작으면(실측 88바이트)
@@ -47,13 +68,21 @@ services:
     image: redis:7-alpine
     container_name: quantbridge-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --auto-aof-rewrite-min-size 8mb --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --auto-aof-rewrite-min-size 8mb --maxmemory 512mb --maxmemory-policy noeviction
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # ★PING 이 아니라 **쓰기 프로브**다 (2026-08-15 적대 리뷰). `noeviction` 아래에서
+      #   OOM 이 나면 읽기는 되고 쓰기만 거부되는데, PING 은 그때도 PONG 을 낸다.
+      #   `SET ... EX 5` 가 `OOM command not allowed` 로 실패하면 rc≠0 → unhealthy.
+      #   키는 짧은 TTL 로 자멸하고 DEL 로 즉시 회수한다(고아 키 방지).
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli set __qb_hc__ 1 EX 5 >/dev/null && redis-cli del __qb_hc__ >/dev/null",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -74,7 +103,6 @@ services:
       QB_METRICS_ROLE: worker
       LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
-      REDIS_URL: redis://redis:6379/0
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
@@ -114,7 +142,6 @@ services:
       QB_METRICS_ROLE: wsstream
       LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
-      REDIS_URL: redis://redis:6379/0
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
@@ -144,7 +171,6 @@ services:
       QB_METRICS_ROLE: optheavy
       LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
-      REDIS_URL: redis://redis:6379/0
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
@@ -182,7 +208,6 @@ services:
       QB_METRICS_ROLE: beat
       LOG_LEVEL: ${LOG_LEVEL:-INFO} # BL-561 — root logger 레벨 SSOT (command 의 --loglevel 아님)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-quantbridge}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-quantbridge}
-      REDIS_URL: redis://redis:6379/0
       REDIS_LOCK_URL: ${REDIS_LOCK_URL:-redis://redis:6379/3}
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2

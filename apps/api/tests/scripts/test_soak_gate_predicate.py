@@ -104,14 +104,41 @@ def _payload(**overrides: Any) -> dict[str, Any]:
 # ── 정본 대조 ────────────────────────────────────────────────────────────────
 
 
+# 사람·행정 사유 — 자동 사망이 아니다. 새 사유를 여기 넣을 때는 **왜 엔진 실패가 아닌지**를
+# 함께 적어라. 잘못 넣으면 실격이 조용히 사라지고, 잘못 빼면 창이 거짓으로 리셋된다.
+_NOT_AUTOMATIC = {
+    "user_stopped",  # 사람이 Stop 을 눌렀다
+    "account_deleted",  # 탈퇴 웹훅이 소유자의 세션을 전량 내렸다 (2026-08-15 surface-truth S3)
+}
+
+
 def test_automatic_reasons_match_the_enum(gate: Any) -> None:
-    """자동 사망 목록은 `SessionDeactivationReason` 에서 `user_stopped` 를 뺀 것이다.
+    """자동 사망 목록은 `SessionDeactivationReason` 에서 **사람·행정 사유**를 뺀 것이다.
 
     술어 모듈은 앱 코드를 import 하지 않는 **순수 함수**라 값을 복제한다. 복제본이 정본과
     갈리면 「사람이 멈춤」을 자동 사망으로 세거나 그 반대가 된다 — 둘 다 카운터를 망친다.
+
+    ★2026-08-15 — 이 테스트가 `account_deleted` 추가를 **정확히 잡았다**. `models.py` docstring 은
+    새 사유에 「enum + 마이그레이션 + FE 라벨 **3곳**」이라 적고 있었는데 **네 번째 자리**가 있었다.
+    그리고 그 넷째는 단순 미러가 아니다 — 여기 넣으면 탈퇴 한 건이 **소크 창을 리셋**한다.
     """
-    canonical = {r.value for r in SessionDeactivationReason} - {"user_stopped"}
+    canonical = {r.value for r in SessionDeactivationReason} - _NOT_AUTOMATIC
     assert set(gate.AUTOMATIC_DEATH_REASONS) == canonical
+
+
+def test_administrative_reasons_are_not_disqualifications(gate: Any) -> None:
+    """★음성 대조 — 사람·행정 사유는 자동 사망에 **없어야** 한다.
+
+    위 테스트만 있으면 `_NOT_AUTOMATIC` 을 비우고 술어에 전부 넣는 변경이 통과한다
+    (양쪽이 같이 움직이므로). 여기서 방향을 못박는다.
+    """
+    for reason in _NOT_AUTOMATIC:
+        assert reason in {r.value for r in SessionDeactivationReason}, (
+            f"{reason} 가 정본 enum 에서 사라졌다 — 이 제외 목록도 함께 정리해라"
+        )
+        assert reason not in gate.AUTOMATIC_DEATH_REASONS, (
+            f"{reason} 는 엔진 실패가 아니다. 자동 사망으로 세면 소크 창이 거짓 리셋된다."
+        )
 
 
 def test_parse_ts_reads_every_microsecond_width(gate: Any) -> None:

@@ -6,6 +6,7 @@ webhook 경로는 strategy HMAC 으로만 인증되고 exchange_account_id 를 p
 거부 경로는 어떤 DB/세션 side-effect 보다 먼저 일어나야 하므로 순수 단위 테스트로
 검증한다 (db_session 불필요). 정상 경로(positive guard)는 통합 테스트로 CI 에서 검증.
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -38,16 +39,24 @@ class _Dispatcher:
 
 
 class _OwnerPort:
-    """StrategySessionsPort fake — get_owner 로 strategy 소유자 반환."""
+    """StrategySessionsPort fake — get_owner 로 strategy 소유자 반환.
 
-    def __init__(self, owner_id: UUID | None) -> None:
+    ★`owner_active` 는 2026-08-15 surface-truth (S3) 가 추가한 축이다. 기본은 True —
+    기존 케이스는 전부 「살아 있는 사용자」를 모형한다.
+    """
+
+    def __init__(self, owner_id: UUID | None, *, owner_active: bool = True) -> None:
         self._owner = owner_id
+        self._owner_active = owner_active
 
     async def get_sessions(self, strategy_id: UUID) -> list[str]:
         return []
 
     async def get_owner(self, strategy_id: UUID) -> UUID | None:
         return self._owner
+
+    async def is_owner_active(self, user_id: UUID) -> bool:
+        return self._owner_active
 
 
 class _AcctRepo:
