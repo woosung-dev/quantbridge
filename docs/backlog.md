@@ -9431,12 +9431,22 @@ gitleaks job 1개 ⑶ **음성 대조** — `.env.*.example` 은 계속 추적�
 
 **Risk:** 🟢
 
-★★**2026-08-16 착수 — 갭이 원장보다 넓었다.** 본문은 루트 `.gitignore` 만 적었지만
-`git check-ignore --no-index` 실측상 **3개 파일 전부** 뚫려 있었다: 루트(`.env.prod`/`.env.production`/
-`.env.staging`) · `apps/api/`(같음 + `.env.*.local` 조차 없었다) · `apps/web/`(`.env.production` —
-Next.js 표준 이름). 셋 다 `.env.prod*`/`.env.production*`/`.env.staging*` + **`!.env*.example`** 로
-막았고, 그 부정 규칙이 load-bearing 임을 ablation 으로 확인했다(그 줄을 빼면 추적 중인
+★★**2026-08-16 착수 — 노출은 3곳에서 관측됐지만 수리 표면은 루트 1파일이다.**
+`git check-ignore --no-index` 로 9경로(3이름 × 루트·api·web)를 재니 **전부 뚫려 있었다**.
+그래서 처음에 `.gitignore` **3파일 모두**에 같은 줄을 넣었는데, **그것이 과잉이었다** —
+슬래시 없는 gitignore 패턴은 **재귀 적용**이라 루트의 `.env.prod*`/`.env.production*`/
+`.env.staging*` + `!.env*.example` 5줄이 `apps/api/.env.prod` · `apps/web/.env.production` 까지
+전부 덮는다(실측: 하위 2파일을 원복한 상태에서 **9경로 미차단 0건** · `.example` 4건 추적 유지).
+부정 규칙이 load-bearing 임은 ablation 으로 확인했다(그 줄을 빼면 추적 중인
 `apps/api/.env.prod.example` 이 `.env.prod*` 에 잡힌다).
+
+★★**하위 복제를 되돌린 이유는 중복 자체가 아니라 대가다.** `apps/web/**` 에 diff 가 생기면
+`final-gates` 의 `has_fe` 가 1이 되어 FE 게이트 3종과 화면·vercel 신호가 강제되고,
+**`final-gates-test.sh` 케이스 ⑩**(「apps/web·apps/api/src diff 0 인데 신호가 필수인가」)이
+**이 브랜치에서 상시 red** 가 된다(2026-08-16 codex P1 · 실측 rc=1). 시크릿을 한 줄도 더
+막아주지 않으면서 회차 비용만 올린다. ⇒ 루트에만 두고, **복제하지 마라**를 그 자리 주석에 박았다.
+★이 하네스는 `Makefile` 의 `gate-harnesses` 목록에만 있고 `final-gates.sh` 의 `run_gate` 에는
+없어서 **pre-PR 게이트가 그것을 못 봤다** — codex 가 아니었으면 CI 에서야 알았다.
 
 ★**검증기의 무증거를 한 번 밟았다** — `git check-ignore` 는 기본적으로 **추적 파일을 건너뛴다**.
 그래서 `.example` 4종이 「무시 안 됨」으로 나온 것이 규칙 덕인지 추적 중이라서인지 구분되지 않았다.

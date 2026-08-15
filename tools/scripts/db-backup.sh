@@ -176,6 +176,17 @@ _prove_target() {
         *":${pub_port}/"*) ;;
         *) die "DATABASE_URL 이 ${DB_CONTAINER}(:${pub_port}) 를 가리키지 않는다 — 앱이 쓰는 DB 가 아닌 것을 백업할 뻔했다" 1 ;;
       esac
+      # ★★**포트만으로는 부족하다** (2026-08-16 codex P1 · 채택). `DB_NAME` 은 컨테이너의
+      #   `POSTGRES_DB` 에서 오고 `DATABASE_URL` 은 앱이 실제로 접속하는 DB 다 — 한 컨테이너
+      #   안에 DB 가 여럿이면 **포트는 같은데 이름이 다를 수 있다**. 그러면 앱이 쓰는
+      #   `another_db` 대신 `quantbridge` 를 떠 놓고 「백업 성공」이라고 말한다.
+      #   `soak-stack.sh:_migrate` 는 이 대조가 필요 없다 — 거기서는 DSN 을 **직접** 써서
+      #   이름이 자동으로 일치한다. 백업만 이름을 딴 데서 얻으므로 여기서 재야 한다.
+      dbname="${dburl##*/}"     # 마지막 '/' 뒤
+      dbname="${dbname%%\?*}"   # 쿼리스트링 제거
+      if [ -n "${dbname}" ] && [ "${dbname}" != "${DB_NAME}" ]; then
+        die "DATABASE_URL 의 DB 이름이 '${dbname}' 인데 백업 대상은 '${DB_NAME}' 이다 — 앱이 쓰지 않는 DB 를 백업할 뻔했다 (덮어쓰려면 QB_DB_NAME 을 명시해라)" 1
+      fi
     fi
   fi
 

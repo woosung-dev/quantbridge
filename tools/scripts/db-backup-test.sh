@@ -163,6 +163,13 @@ STUB
     > "$TMP/fake.env.local"
   printf 'DATABASE_URL=postgresql+asyncpg://quantbridge:pw@localhost:9999/quantbridge\n' \
     > "$TMP/wrong-port.env.local"
+  # ★포트는 맞고 **DB 이름만** 다르다 — 2026-08-16 codex P1 이 연 구멍이다.
+  #   한 컨테이너에 DB 가 여럿이면 포트 대조만으로는 앱이 안 쓰는 DB 를 백업하고도 초록이 난다.
+  printf 'DATABASE_URL=postgresql+asyncpg://quantbridge:pw@localhost:5433/another_db\n' \
+    > "$TMP/wrong-name.env.local"
+  # 쿼리스트링이 붙어도 이름을 바르게 떼는지 (음성 대조가 문자열 비교로 새지 않게)
+  printf 'DATABASE_URL=postgresql+asyncpg://quantbridge:pw@localhost:5433/quantbridge?sslmode=require\n' \
+    > "$TMP/qs.env.local"
   printf 'TELEGRAM_BOT_TOKEN=x\nTELEGRAM_CHAT_ID=y\n' > "$TMP/fake.telegram.env"
 }
 
@@ -311,6 +318,25 @@ _stub_run run
 _why=""
 [ "$RC" -eq 0 ] || _why="종료코드=$RC(기대 0) "
 report "⑦b 음성 대조 — 포트가 맞으면 통과" "$_why"
+
+# ── ⑦c ★포트는 맞고 DB **이름**만 다르면 거부한다 (2026-08-16 codex P1) ─────────
+#    한 컨테이너에 DB 가 여럿이면 포트 대조만으로는 앱이 안 쓰는 DB 를 떠 놓고 「성공」이라
+#    말한다. 엉뚱한 DB 백업은 **실패로 보이지 않는 실패**라 여기서 잡아야 한다.
+_reset_stub
+QB_ENV_FILE="$TMP/wrong-name.env.local" _stub_run run
+_why=""
+[ "$RC" -eq 1 ] || _why="종료코드=$RC(기대 1) "
+printf '%s' "$OUT" | grep -q "another_db" || _why="${_why}진단에 실제 이름이 없다 "
+[ "$(_dump_count)" = "0" ] || _why="${_why}★거부했는데 덤프가 생겼다 "
+report "⑦c DB 이름 불일치 → rc=1 (포트만 같은 다른 DB 차단)" "$_why"
+
+# ── ⑦d 음성 대조: 쿼리스트링이 붙어도 이름을 바르게 떼어 통과한다 ───────────────
+#    ★이것이 없으면 ⑦c 는 「'/quantbridge' 문자열이 없으면 무조건 red」인 검사기여도 초록이다.
+_reset_stub
+QB_ENV_FILE="$TMP/qs.env.local" _stub_run run
+_why=""
+[ "$RC" -eq 0 ] || _why="종료코드=$RC(기대 0) — 쿼리스트링을 이름의 일부로 읽었다 "
+report "⑦d 음성 대조 — DSN 쿼리스트링이 붙어도 통과" "$_why"
 
 # ── ⑧ 덤프 크기 0 → 파일을 남기지 않고 rc=1 ────────────────────────────────────
 #    ★0바이트 덤프가 쌓이면 「백업이 있다」가 거짓이 된다 (Makefile:312-324 와 같은 규칙).

@@ -7,12 +7,6 @@ coverage
 .env
 .env.local
 .env*.local
-# [BL-757] `.env.production` 은 Next.js 표준 이름이라 여기서 특히 쉽게 생긴다.
-.env.prod*
-.env.production*
-.env.staging*
-# ★부정 패턴은 **뒤에 와야** 이긴다 — 추적 중인 `.env.example` 을 되살린다.
-!.env*.example
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store

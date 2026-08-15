@@ -38,6 +38,15 @@ sprint*-day*-*.jpeg
 !.env.example
 # [BL-757] 배포용 이름 3종 — 종전에는 `git check-ignore` 실측으로 **셋 다 뚫려 있었다**.
 # 하필 추적 중인 `apps/api/.env.prod.example` 이 정확히 그 작명을 유도한다.
+#
+# ★★**이 5줄이 하위 디렉터리까지 전부 덮는다.** 슬래시 없는 패턴은 재귀 적용이므로
+#   `apps/api/.env.prod` · `apps/web/.env.production` 도 여기서 잡힌다(2026-08-16
+#   `git check-ignore --no-index` 로 9경로 실측). ⇒ **`apps/*/.gitignore` 에 같은 줄을
+#   복제하지 마라.** 처음에 복제했다가 되돌렸는데, 이유는 중복 자체가 아니라 대가였다:
+#   `apps/web/**` 에 diff 가 생기면 `final-gates` 의 `has_fe` 가 1이 되어 FE 게이트 3종과
+#   화면·vercel 신호가 강제되고, `final-gates-test.sh` 케이스 ⑩(「FE diff 0인데 신호가
+#   필수인가」)이 **이 브랜치에서 상시 red** 가 된다. 시크릿 한 줄도 안 막아주면서
+#   회차 비용만 올린다.
 .env.prod*
 .env.production*
 .env.staging*
