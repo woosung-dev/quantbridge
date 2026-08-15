@@ -316,6 +316,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 | [BL-719](#bl-719) | ✅ **재배치 롤아웃 lockstep — 해결 (2026-08-13)** — PR #619 머지 직후 5단계 완주: ① 서버 uninstall→down→pull→`.metrics` 이행→pin `c3a39d0d`→up→install. 첫 판독 tick_stall 실격 1건 = **down 창 자체**(operational 등재 · 창 리셋 예정대로 · C5 6/6 ✓) ② 맥 LaunchAgent 재설치 ③ 메인 이행(6컨테이너 Healthy · strategies 3행 = 볼륨 무손실 · 잔재 삭제는 중단-후-분류) ④ 워크트리 0벌(재생성은 착수 시 bootstrap) ⑤ canary #620 backend 3레인 발화 + FE 정상 skip. 이행이 낳은 핫픽스 #621(`--strip-components` 2→3)                                                                    | — (이행 완료)                                                                | S        | 2026-08-13 monorepo-realign                |
 | [BL-734](#bl-734) | ✅ **소크 사망의 진짜 뿌리 — Resolved** (2026-08-15 soak-survival). `tests/real_broker` 하네스의 `close_position` 이 계정 포지션을 **소유권을 보지 않고** 닫아 서버 소크를 죽였다(거래소 원장 `04:49:56 Buy 0.029 CreateByUser link=(empty)` → `exchange_position=+0.001` → strike 2연속). [BL-633] 재발이며 경로만 다르다. 수리 = `find_foreign_resting` 추출 후 청산 전 fail-closed 호출                                                                                                                                                                                               | — (부검 완료)                                                                | M        | 2026-08-15 soak-survival                   |
 | [BL-735](#bl-735) | 🟡 **소크를 로컬 맥에서 돌리지 않는다** (운영 규칙). AC 전원에서도 `sleep 1` 이고 Clamshell Sleep 은 못 막는다 ⇒ **로컬에서 24h 연속 창은 구조적으로 불가능**. 규칙은 문서화됐고 기계 강제(`soak-stack.sh up` 의 Darwin 거부)는 미착수                                                                                                                                                                                                                                                                                                                                                   | 도래 — 2026-08-14 실사고                                                     | S        | 2026-08-15 soak-survival                   |
+| [BL-743](#bl-743) | ★**서버 DB 에 migration 이 도달하지 않는다** — `pin` 은 `apps/api/src` 스냅샷만 뜨고 `alembic/` 은 그 밖이다. 실측: 로컬 `20260815_0001` vs 서버 `20260801_0001`. squash base 하나뿐일 땐 안 드러났다. ★지금은 성능뿐이나 **스키마를 바꾸는 migration 이 오면 소크가 조용히 죽는다**                                                                                                                                                                                                                                                                                                     | 도래 — 버전 불일치 실측                                                      | S (1-2h) | 2026-08-15 soak-survival                   |
 
 > Resolved P1 = BL-001/002/010/011/012/013/016/017~021/080/091~099/101~103/110a 등 18+ 건 (`_archived.md`). + BL-622 (2026-08-07 gap-resync-autopsy). + BL-604 (2026-08-06 entry-set-divergence).
 
@@ -723,6 +724,7 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 | [BL-708](#bl-708) | ✅ **비결정 원천은 반올림이 아니라 원격 폰트 404 였다** — 지목한 것은 처방이 아니라 **계측**(`NavProbe.subresourceFail`)이다. 계측 전 3회는 19벌 출력이 status/examined/canon 까지 **전건 동일**이라 갈리는 축이 0이었다. 처방 = 「**file:// 대상만 hermetic**」 — 커밋된 정적 산출물일 때만 비-file 요청을 goto 전에 빈 200 으로 봉인하고 봉인량을 `sealed` 로 싣는다(`subresourceFail=0` 을 「네트워크 멀쩡」으로 오독 금지). 판정 계약은 spec 상단 명문화 + `assertCalibrationContract()` 1곳 통합 + **도달 증거**(4폭 status=200 · minExamined>0 · subresourceFail=0 · sealed>0) 동반 단언 — 변이 `widths:[1440,375]` 에서 종전 계약은 **초록**이고 새 단언만 red. 독립 3회 rc=0/0/0 · `22 passed`×3 · 출력 전문 동일 · 최저 대비 4.92/5.41/5.44 고정. ⑵ WARN 강등 **기각**(여유 0.42 < 밴드 ±0.5) | — (해결됨. 봉인은 http 대상의 코드 경로를 안 지난다)                                                            | S            | 2026-08-12 surface-demo-pack                                 |
 | [BL-714](#bl-714) | ✅ **마감 게이트 브랜치 전제 — Resolved (2026-08-14 gate-surface-close)**. ★**원장 처방 2·3 을 착수 전 기각했다** — `--range` 는 압수 A1 의 **유일한 증인**(하네스 케이스 ⑫ · 변이 `M1=⑫` 정확 집합 일치)을 죽이고, `range:` 첫 줄은 squash 머지라 제3자 검증 불가. 채택 = **`final-gates.sh` 입구 거부**(`merge-base == HEAD` → 게이트 체인 진입 전 거부, `--run eod` 와 문형 동일 · `origin/main` 부재 시 비발화). A1 로직 **불변**, `WHY` 에 처방 문장만 추가. 하네스 **26/26** · 변이 **15종**(㉖ 을 지킬 **M12** 신설 — 그 전까지 자기 변이가 없는 케이스였다) · 문서 = `gates-and-traps.md` 「신호 4종」 절 신설                                                                                                                                                                                 | 마감 절차를 다시 쓸 때 / 같은 상태에 또 빠질 때                                                                 | XS-S         | 2026-08-12 surface-demo-pack                                 |
 | [BL-717](#bl-717) | ✅ **API 계약축 PoC — Resolved** (2026-08-13 contract-poc, [ADR-031]). 결정적 export `contracts/openapi/openapi.json`(2회 sha 동일·`--check` 양음성 실증) + 후보 판정 = **orval(client:'zod') 채택**(zod v4 직출력·tsc strict·수기와 공존 vitest 3/3). hey-api 는 자체 TS7 의존 크래시로 실행 불가 탈락. ★구조 diff 핵심 = **datetime 엄격도 역전**(계약 Z-only vs 수기 offset 허용 — BE 실직렬화 실측 전 런타임 투입 금지). 번들 3endpoint 2.9KB gz. CI 배선·전면 전환은 [ADR-031] §비결정                                                                                                                                                                                                                                                                                                            | PR-1(ADR-029 재배치) 머지 후                                                                                    | M            | 2026-08-13 monorepo-realign                                  |
+| [BL-742](#bl-742) | ⏳ 반전·순포지션 가정 **163곳/12파일** 전수 감사([ADR-032] §대가). ★긴급도 하락 — 2026-08-15 A1 이 「반전은 소크 사망 원인이 **아니다**」를 보였다(서버=계정 배타성, 로컬=맥 sleep). **예방 축**이다. ★감사(읽기)와 수리(쓰기)를 나눠라 — 수리는 재-pin 을 부른다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | 미도래 — 반전이 다시 지목되거나 헤지 재검토 시                                                                  | M (2-3h)     | 2026-08-15 soak-survival                                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -8723,3 +8725,91 @@ signal_gate "화면 검증 (playwright 또는 /browse)" "screen.ok" 1 ""
 
 **상태:** ⬜ Open — 미착수. 2026-08-15 회차는 `drop index` 우회로 넘어갔다 (2026-08-15 soak-survival)
 **트리거 판정:** 도래 — 실제로 red 를 만들었다 (2026-08-15 soak-survival)
+
+---
+
+### BL-742
+
+**Title:** 반전·순포지션 가정 **163곳 / 12파일** 전수 감사 ([ADR-032] §대가)
+**Category:** Backend / trading · strategy (반전 의미론)
+**Priority:** P2
+**Trigger:** 반전이 원인으로 지목되는 사건이 **한 번 더** 나면 즉시 / 또는 헤지 모드를 재검토할 때
+**Est:** M (2-3h — 모집단이 이미 세어져 있다)
+**출처:** 2026-08-15 soak-survival (A3 로 계획됐다가 사용자 결정으로 이월)
+
+**원인 / 영향:** [ADR-032] §대가가 모집단을 이미 실측해 뒀다 — **반전·순포지션 가정이 163곳 /
+12파일**에 박혀 있고 그중 4개가 `strategy/pine_v2/` 다(`event_loop.py` · `strategy_state.py` ·
+`stdlib.py` · `alert_hook.py`). 반전에는 `reduce_only` 를 걸 수 없으므로(one-way 유지 결정)
+그 가정 하나가 틀리면 머니-패스가 조용히 어긋난다.
+
+★**긴급도가 낮아졌다** — 2026-08-15 A1 이 「반전 의미론은 소크 사망의 원인이 **아니다**」를
+보였다. 서버 세션을 죽인 것은 계정 배타성 위반이었고([BL-734]), 로컬은 맥 sleep 이었다
+([BL-735]). 이 감사는 **예방**이지 진행 중인 사고의 수리가 아니다.
+
+**권장 접근:** 「반전 체결이 오면 이 코드가 틀리는가」 **하나의 질문**으로 훑는다.
+
+| 위치      | 무엇을 가정하나               | 반전이 오면        | 판정                         |
+| --------- | ----------------------------- | ------------------ | ---------------------------- |
+| (파일:줄) | (예: 체결 수량 = 포지션 증분) | 틀린다 / 안 틀린다 | 수리 필요 / 무해 / 이미 처리 |
+
+★**「무해」에도 근거를 적어라** — 「반전이 그 경로에 도달하지 않는다」면 **왜** 도달하지 않는지.
+★이미 아는 것부터 표에 넣고 시작해라: 백필 축(#631 종결) · `_net_position_size`(2026-08-15 에
+옳다고 확인) · `_ledger_gap_seed` · `derive_open_position` · 체결 직후 refresh([BL-733] 종결) ·
+seed watermark([BL-547]).
+★pine_v2 4파일은 **Pine 도메인 모델 자체가 순포지션**이라([ADR-032] §대가) 「틀린다」가 아니라
+**「거래소와 의미가 다르다」**쪽일 가능성이 높다 — 그 구분을 표에 명시해라.
+
+★★**소크 창을 고려해라** — 이 감사가 `apps/api/src` 수리로 이어지면 **재-pin 이 필요하고 C2 가
+리셋**된다. 감사(읽기)와 수리(쓰기)를 나눠서, 수리는 C1 창을 채운 뒤나 다음 재-pin 창에 묶어라.
+
+**Risk:** 🟡 (예방 축. 지금 알려진 사고는 다른 원인으로 닫혔다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 모집단은 [ADR-032] 에 있고 착수 준비는 끝났다. 반전이 다시 지목되거나 헤지 재검토 시 연다 (2026-08-15 soak-survival)
+**트리거 판정:** 미도래 — A1 이 반전을 사망 원인에서 배제했고 헤지 재검토 계획도 없다 (2026-08-15 soak-survival)
+
+---
+
+### BL-743
+
+**Title:** 서버 DB 에 alembic migration 을 적용하는 경로가 없다 — 첫 두 번째 migration 에서 드러났다
+**Category:** 운영 / 배포
+**Priority:** P1
+**Trigger:** ★**이미 발화했다** — 2026-08-15 `ix_exchange_exits_account_order` 가 로컬엔 있고 서버엔 없다
+**Est:** S (1-2h — 절차 결정이 선행)
+**출처:** 2026-08-15 soak-survival ([BL-731] 인덱스 추가 후 실측)
+
+**원인 / 영향:** 2026-08-15 실측 —
+
+```
+로컬 개발 DB   alembic_version = 20260815_0001   인덱스 있음
+서버 소크 DB   alembic_version = 20260801_0001   인덱스 **없음**
+```
+
+`.github/workflows/` 에 **배포 워크플로가 없고**(ci · live-smoke · nightly 뿐), 소크 배포는
+`soak-stack.sh down → pin → up` 이다. 그런데 **`pin` 은 `apps/api/src` 스냅샷만 뜬다** —
+`alembic/` 은 그 밖이라 **DB 스키마는 영원히 안 따라온다.**
+
+★종전에 안 드러난 이유: migration 이 squash base **하나뿐**이었고 서버 DB 는 그 시점에 만들어졌다.
+**[BL-731] 이 두 번째를 더하면서 처음으로 격차가 생겼다.**
+
+★**지금 당장 깨지지는 않는다** — 인덱스는 성능 축이라 없어도 동작한다(서버 원장 892행에서
+`Seq Scan`). 위험한 것은 **다음 migration 이 컬럼/제약을 건드릴 때**다. 그때는 pin 한 코드가
+없는 컬럼을 읽고 조용히 죽는다.
+
+★★[BL-741] 과 다른 축이다 — 그쪽은 **테스트 DB** 에서 `create_all` 과 alembic 이 부딪히는 것이고,
+이쪽은 **서버 DB** 에 migration 이 아예 도달하지 않는 것이다.
+
+**권장 접근:** ⑴ `soak-stack.sh up` 이 기동 전에 `alembic upgrade head` 를 돌리게 한다 —
+정합적이지만 **소크 창 중에 DDL 이 도는 것**을 뜻하므로 그 안전성 판단이 선행이다.
+⑵ 별도 `soak-stack.sh migrate` 를 두고 사람이 명시적으로 부른다 — `pin` 과 같은 등급의
+「명시적 배포 행위」로 취급. ★현재 절차서(status.md 재기동 8단계)에 그 자리가 없다.
+
+★★**「alembic 마이그레이션」은 `status.md` ⓵ 의 비목표(사용자 결정 대기)다.** 2026-08-15 회차가
+codex 의 인덱스 지적을 받아 **migration 을 하나 만들었고**(로컬 적용·CI 통과) 그것이 이 항목의
+계기다. 서버 적용은 더 큰 결정이므로 **비목표 문구부터 갱신**하고 시작해라 — 「금지」인지
+「승인 후 허용」인지가 지금 모호하다.
+
+**Risk:** 🔴 (지금은 성능뿐이나, 스키마를 바꾸는 migration 이 오면 **소크가 조용히 죽는다**)
+
+**상태:** ⬜ Open — 미착수. 격차만 실측됐다 (2026-08-15 soak-survival)
+**트리거 판정:** 도래 — 로컬/서버 `alembic_version` 불일치가 실측됐다 (2026-08-15 soak-survival)
