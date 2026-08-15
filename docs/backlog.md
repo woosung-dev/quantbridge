@@ -9998,3 +9998,160 @@ WARN 이 이어지면 **하루 1회만** 재고지한다. 하네스가 그 음�
 
 **상태:** ✅ **Resolved (2026-08-16 production-readiness)** — lib 추출·`disk-guard.sh`·하네스 19건·게이트 등록·soak-watch 회귀(25/25)·**서버 설치·양성 대조 발화(HTTP 200)·회복 전이·신선도 판정**까지 완료
 **트리거 판정:** 해소 — [ADR-033] 조건 ⑵ 가 서버에서 발효했다 (2026-08-16 production-readiness)
+
+---
+
+### BL-770
+
+**Title:** `alembic check` 가 rc=255 — 스키마 drift 검사가 설정 결함으로 죽어 있다
+**Category:** Backend / migration
+**Priority:** P1
+**Trigger:** ★도래 — `models.py` 를 바꾸는 모든 회차가 이 검사에 의존한다
+**Est:** S (env.py 2줄 + include_schemas 1줄 + 회귀 테스트)
+**출처:** 2026-08-16 외부 레포 비교 분석(finsight) 지적 → 같은 날 코드·실행 대조로 확정
+
+**원인 / 영향:** `alembic upgrade head` 는 성공하지만 `alembic check` 는 **rc=255** 다
+(2026-08-16 로컬 개발 DB 실측). 원인이 실제 drift 가 아니라 **검사기 자신의 설정 결함** 둘이다:
+
+- **⑴ 모델 import 누락 2종** — `alembic/env.py:23-28` 이 6개 도메인(`auth`·`backtest`·`market_data`·
+  `strategy`·`stress_test`·`trading`)만 import 한다. `src/optimizer/models.py`·`src/waitlist/models.py`
+  는 `table=True` 를 갖는데 빠져 있어, `SQLModel.metadata` 에 등록되지 않는다
+  ⇒ 검사기가 `optimization_runs`·`waitlist_applications` 를 **「removed table」** 로 본다
+- **⑵ `include_schemas` 미설정** — `env.py:135-148` 에 `include_schemas` 가 **0건**이다.
+  `trading` 스키마의 테이블(`trading.exchange_exits`·`trading.live_signal_events`·
+  `trading.live_signal_states`·`trading.funding_rates`·`trading.ohlcv` 등)이 DB 쪽에서 안 보여
+  **「added table」** 로 잡힌다
+
+⇒ 지금 `alembic check` 는 **참 drift 와 설정 잡음을 구분할 수 없다.** 검사기가 있으나 판별력이 0 이고,
+그 사실이 [BL-749] — 타입·제약 drift 미검출 — 와 겹쳐 **migration 정합의 방어면이 이름만 남았다.**
+
+★**착수 전 반드시 확인할 것** — 이 둘을 고치면 **진짜 drift 가 드러날 수 있다.** 그때 나오는 diff 를
+「고쳐야 할 red」로 볼지 「검사기가 과하게 잡는 것」으로 볼지 판정 기준을 먼저 정해라. `compare_type=True`
+는 이미 켜져 있다(`env.py:137,148`).
+
+**권장 접근:** ⑴ import 2줄 추가 ⑵ `include_schemas=True` 를 두 `configure()` 에 ⑶ ★**음성 대조** —
+모델에 컬럼 하나를 임시로 더해 `check` 가 **rc!=0 을 내는지** 확인해라. 지금은 늘 red 라 그 확인이
+무의미하고, 고친 뒤에야 판별력을 잴 수 있다 ⑷ 초록이 된 뒤 CI 게이트로 승격을 검토
+
+**Risk:** 🟡 (검사기를 살리면 잠자던 drift 가 CI 를 막을 수 있다 — 그것이 이 항목의 목적이다)
+
+**상태:** ⬜ Open — 2026-08-16 에 rc=255 실측 + 원인 2종 코드 대조로 확정. 수리 미착수
+**트리거 판정:** 도래 — 원인이 특정됐고 단독 착수 가능하며 소크 코드를 건드리지 않는다 (2026-08-16 external-comparison)
+
+---
+
+### BL-772
+
+**Title:** LLM 변환 502 가 내부 예외 타입·메시지를 응답 본문에 반사한다
+**Category:** Backend / 보안 (정보 노출)
+**Priority:** P2
+**Trigger:** ★도래 — 1줄이고 단독 착수 가능
+**Est:** S
+**출처:** 2026-08-16 외부 레포 비교 분석(finsight) 지적 → 같은 날 코드 대조로 확정
+
+**원인 / 영향:** `src/strategy/convert/router.py:32` —
+`detail=f"LLM 변환 중 예외 발생: {type(exc).__name__}: {exc}"`.
+외부 SDK(Anthropic·Gemini)의 예외 문자열이 **그대로 사용자 응답에 실린다.** SDK 예외 메시지는
+엔드포인트 URL·모델명·요청 ID·때로는 요청 본문 일부를 담는다.
+
+★**이것은 2026-08-15 surface-truth 의 「API secret 이 422 body 에 평문 반사」와 같은 계열**이다.
+그 회차가 닫은 것은 422 축이었고, 이 502 축은 남아 있었다.
+
+**권장 접근:** ⑴ 응답에는 고정 문구, 상세는 `logger.exception` 으로만 ⑵ ★상관 ID 를 응답에 넣고
+로그에 같은 ID 를 남겨라 — 사용자가 문의할 때 추적 가능해야 무언가를 지운 대가가 상쇄된다
+⑶ 음성 대조 = 예외를 강제로 일으켜 응답 본문에 예외 클래스명이 **없는지** 확인
+
+**Risk:** 🟢
+
+**상태:** ⬜ Open — 2026-08-16 에 코드 대조로 확정(`router.py:32`). 미착수
+**트리거 판정:** 도래 — 1줄 수리이고 다른 회차에 동승시키기도 쉽다 (2026-08-16 external-comparison)
+
+---
+
+### BL-773
+
+**Title:** 백테스트·옵티마이저가 실행 시점의 **mutable** Pine 을 다시 읽는다 — 결과가 무엇을 검증했는지 알 수 없다
+**Category:** Backend / 재현성 (strategy · backtest · optimizer)
+**Priority:** P1
+**Trigger:** ★백테스트 결과를 승격 근거로 쓰기 전 · 또는 다중 사용자/공유 링크가 신뢰 대상이 될 때
+**Est:** L (불변 버전 테이블 + migration + 3경로 배선 + 기존 행 백필)
+**출처:** 2026-08-16 외부 레포 비교 분석(finsight) 지적 → 같은 날 코드 대조로 3경로 전부 확정
+
+**원인 / 영향:** `Backtest` 행은 **무엇을 실행했는지 기록하지 않는다.** `backtest/models.py:41-144`
+가 저장하는 것은 `strategy_id`·symbol·timeframe·기간·capital·config 뿐이고, 실행 당시의
+**pine_source · source hash · parser/engine version · 데이터 snapshot** 은 **한 건도 없다**
+(`grep -rn "strategy_version\|source_hash\|dataset_snapshot" apps/api/src` = **0건**, 2026-08-16 실측).
+
+**세 경로가 전부 실행 시점에 현재 Strategy 를 다시 읽는다:**
+
+| 경로        | 위치                                | 무엇을 읽나                                                  |
+| ----------- | ----------------------------------- | ------------------------------------------------------------ |
+| 제출 검증   | `backtest/service.py:168`           | `analyze_coverage(strategy.pine_source)` — 제출 시점         |
+| worker 실행 | `backtest/service.py:284` → `:348`  | `find_by_id_and_owner(...)` 재조회 후 `strategy.pine_source` |
+| optimizer   | `optimizer/service.py:236` → `:249` | 부모 백테스트가 아니라 **현재** Strategy 의 Pine             |
+
+그리고 `strategy/service.py:371` — `strategy.pine_source = data.pine_source` 는 **기존 백테스트
+존재 여부와 무관하게** 덮어쓴다.
+
+⇒ 실현 가능한 시나리오 둘:
+⑴ Pine A 로 제출 → 큐 대기 중 Pine B 로 수정 → worker 가 **B 를 실행**하고 결과를 **A 를 검증하고
+제출한 백테스트 행**에 저장한다 ⑵ Pine A 백테스트 완료 → Strategy 를 B 로 수정 → 그 백테스트에서
+Optimizer 실행 → **B 를 최적화**한다.
+
+★**긴급도에 대한 정직한 판정** — 실자금 Live 는 [ADR-032] 로 2026-08-14 에 **이미 기각**됐고 현재
+경계는 Bybit demo 다. 따라서 이 결함이 지금 **돈을 잃히지는 않는다.** 그러나 ⑴ 공유 링크
+([BL-397]/[BL-551] 로 이미 존재)가 남에게 보이는 숫자이고 ⑵ Trust Layer 가 보장하는 것은
+「인터프리터가 TradingView 와 같은가」이지 **「이 결과가 어느 소스에서 나왔는가」가 아니다.**
+재현성은 Trust Layer 의 사각지대다.
+
+**권장 접근:** ⑴ 불변 `StrategyVersion`(pine_source · source_hash · parser_version · created_at) 신설,
+`Strategy` 는 최신 버전을 가리킨다 ⑵ `Backtest` 에 `strategy_version_id` + `engine_version` 추가,
+worker 는 **버전을 읽고 Strategy 를 읽지 않는다** ⑶ optimizer 는 부모 백테스트의 버전을 상속
+⑷ ★**데이터 snapshot 은 2단계로 미뤄라** — OHLCV 해시는 TimescaleDB 재적재 정책과 얽혀 있어
+이 항목의 L 을 XL 로 만든다. 소스 재현성부터 닫는다 ⑸ ★**음성 대조** — 「제출 후 Pine 을 바꾸고
+실행」 테스트를 먼저 red 로 세워라. 지금 그 테스트는 **없다**
+
+★**migration 이 필요하다** — 2026-08-15 사용자 결정에 따라 파일 생성·로컬/CI 적용은 허용이고
+**서버 소크 DB 적용만 명시 승인**이다. 소크 창을 보고 착수 시점을 정해라.
+
+**Risk:** 🟠 (백테스트 실행 경로의 핵심을 바꾼다 — 소크가 도는 동안은 착수 시점을 골라야 한다)
+
+**상태:** ⬜ Open — 2026-08-16 에 3경로 + 덮어쓰기 지점을 코드 대조로 확정. 미착수
+**트리거 판정:** 도래 — 대상이 특정됐고 단독 착수 가능하다. 다만 L 이고 migration 이 붙으므로 소크 창과 조율한다 (2026-08-16 external-comparison)
+
+---
+
+### BL-774
+
+**Title:** TradingView webhook 이 **body 기반 HMAC** 을 요구한다 — 동적 alert 본문에서 성립하는지 미확인
+**Category:** Backend / Trading ingress
+**Priority:** P2
+**Trigger:** ★사용자가 실제 TradingView alert 로 webhook 을 연결하는 시점 · 또는 그 경로를 문서에 정본으로 올릴 때
+**Est:** M (실측 선행 · 결과에 따라 ingress 설계 분기)
+**출처:** 2026-08-16 외부 레포 비교 분석(finsight) 지적 → 코드 축만 확정, **TradingView 쪽은 [확인 필요]**
+
+**원인 / 영향:** `trading/webhook.py:116` 은 `hmac.new(secret, payload, sha256)` 으로 **요청 body
+전체**에 대한 HMAC 을 계산해 query `token` 과 비교한다. FE 도 그대로 안내한다 —
+`tab-webhook.tsx` 의 URL 템플릿이 `.../webhooks/{strategyId}?token={HMAC}` 이고 힌트 문구가
+「`{HMAC}` 자리에는 secret 과 body 로 만든 HMAC-SHA256 토큰을 채웁니다」다.
+
+**[확인 필요] — 아직 실측하지 않은 것:** TradingView alert 는 URL 과 message 를 **정적으로** 지정한다.
+⑴ body 가 완전히 고정이면 HMAC 도 고정이므로 이 방식은 **동작한다**(외부 분석의 「불가능」은 과장이다)
+⑵ 그러나 body 에 `{{close}}`·`{{time}}`·`{{strategy.order.action}}` 같은 placeholder 를 넣는 순간
+본문이 매 alert 마다 달라지고 **고정 token 은 전부 401 이 된다.** 실제로 어느 쪽인지는
+**사용자의 alert 본문 설계에 달려 있고 아직 실측이 없다.**
+
+**함께 볼 것 — idempotency:** `trading/router.py` 의 idempotency key 는 **optional query
+parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부되고, 생략하면 TradingView 의
+재전송이 **중복 주문**이 된다. 즉 HMAC 축과 idempotency 축이 **같은 결정에 묶여 있다.**
+
+**권장 접근:** ⑴ ★**먼저 실측해라** — 실제 TradingView alert 하나를 정적 body 로 걸어 200 이 나는지
+확인한다. 코드를 고치기 전에 이 한 건이 설계를 가른다 ⑵ 동적 body 가 필요하다고 판정되면 세 갈래 중
+선택: (a) 고정 endpoint token + body fingerprint (b) 서명 relay (c) 서버가
+`strategy_version + symbol + side + bar_timestamp` 로 idempotency key 를 **자동 생성**
+⑶ (c) 는 [BL-773] 의 `strategy_version` 에 의존한다 — 순서를 보라
+
+**Risk:** 🟡 (ingress 계약 변경은 기존 연결을 끊을 수 있다. 지금 실사용 연결이 있는지부터 확인)
+
+**상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
+**트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
