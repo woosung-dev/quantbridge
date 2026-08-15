@@ -241,6 +241,9 @@ _pin() {
 # ------------------------------------------------------------------ up / down
 
 _up() {
+  if [ "$(uname)" = "Darwin" ] && [ "${QB_SOAK_ALLOW_DARWIN:-0}" != "1" ]; then
+    die "macOS는 잠들어 celery beat가 진행되지 않는다 — 소크 정본은 서버다. 서버에서 실행하거나 QB_SOAK_ALLOW_DARWIN=1로 명시적으로 우회해라" 2
+  fi
   bash "${ROOT}/tools/scripts/assert-main-checkout.sh" "soak-stack.sh up" || exit 2
   [ -f "${STAMP_FILE}" ] || die "고정본이 없다 — 먼저 'soak-stack.sh pin' 을 해라" 2
   mkdir -p "${ROOT}/apps/api/.metrics" && chmod 0777 "${ROOT}/apps/api/.metrics"
