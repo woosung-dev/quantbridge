@@ -9485,6 +9485,11 @@ gitleaks job 1개 ⑶ **음성 대조** — `.env.*.example` 은 계속 추적�
   201 선언 후 replay 시 200. ★**FE 가 산문 문자열에 파싱을 못 박았다**
   (`z.literal("exchange cancel requested")`)
 - `OrderService` 가 `AsyncSession` 보유 — `apps/api/AGENTS.md` §3 이 「절대 금지」라 쓴 것
+- ★**순환 import 1건 추가 확인 (2026-08-16)** — `orders-blotter.tsx:52` → `order-detail-drawer.tsx`
+  → `orders-blotter.tsx:41`. 드로어가 가져가는 것은 **순수 도메인 술어 2개**
+  (`displayRealizedPnl`·`realizedPnlSource`)뿐이라, 그 둘을 `features/trading/` 로 내리면
+  고리가 끊긴다(3파일 기계적 이동). ★`app/` 에 비즈니스 로직을 두지 말라는 FSD Lite 규칙
+  (`apps/web/AGENTS.md` §4)의 실례이기도 하다. 현재 빌드·e2e 는 통과하므로 급하지 않다
 - 런타임 import 순환 **5건** · **FSD Lite 역전**(`app/` 23,313줄 : `features/` 12,456줄) +
   eslint 에 import boundary 규칙 **0개**
 - **codegen 이 존재하는데 앱이 한 줄도 안 쓴다** — `generated/` import 0건, drift `--check` 는

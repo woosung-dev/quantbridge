@@ -103,8 +103,8 @@ describe("OrderDetailDrawer — 실현 손익 출처", () => {
         onOpenChange={() => {}}
       />,
     );
-    const text = sourceCellText();
-    expect(text).toContain(EMPTY_CELL);
-    expect(text).not.toContain(ORDER_REALIZED_PNL_SOURCE_LABEL.estimated);
+    // ★`toContain(EMPTY_CELL)` + `not.toContain("추정")` 로는 부족하다 (codex P3, 2026-08-16) —
+    //   값이 `— 거래소 확정` 인 구현이 **둘 다 통과**한다. 정확히 EMPTY_CELL 이어야 한다.
+    expect(sourceCellText()?.trim()).toBe(EMPTY_CELL);
   });
 });
