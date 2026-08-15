@@ -2683,6 +2683,17 @@ Bybit `closed-pnl`(주문 단위 · 실측 한 주문당 정확히 1행, 592/592
 **상태:** 🟡 **부분 Resolved (2026-07-26, `stage/money-path-finish`) — 사람이 읽는 2표면까지.** 사용자 결정 = "라벨 + 소계 · Site 3·4". **Site 3**(loss-limit 알림) = `sum_filled_realized_pnl_for_session` → `realized_pnl_split_for_session -> SessionRealizedPnl`(PG `FILTER` 한 문장 5 스칼라)로 개명·retype 해 "출처를 안 보고 합산" 을 표현 불가로 만들고, 본문에 `거래소 확정 X · 추정 Y` + 손익 미도착 체결 건수를 싣는다. **Site 4**(세션 커브·대시보드 §01 KPI) = 커브 포인트에 `source` + 평면 소계 4필드, FE 는 기존 SSOT(`ORDER_REALIZED_PNL_SOURCE_LABEL`)를 재사용해 새 어휘 0. **Site 1·2 게이트 수식과 Site 5 는 무변경** — 확정값만으로 좁히면 체결~스윕 도착 구간 손실이 사라지는 fail-open 이다. 대조군 seed 에 `synced_at` 을 심어 **가드레일이 그 fail-open 좁힘을 잡아내게** 강화했다.
 **트리거 판정:** 미도래 — 외생 조건(실자금 전환). [BL-003] 이 막고 있다 (2026-08-11 bl-703-partial-verdicts)
 
+**★2026-08-16 deploy-activation — Site 6(주문 상세 드로어) 라벨 추가.**
+`#641` 이 연 `order-detail-drawer.tsx` 는 손익 **값**은 목록과 같은 SSOT(`displayRealizedPnl`)를
+쓰면서 **출처는 말하지 않았다** — 「손익 확정 시각」이 비어 있다는 것으로 사용자가 추정/확정을
+**추론**해야 했다. 목록(`orders-blotter.tsx:163,652`)은 같은 판정을
+`ORDER_REALIZED_PNL_SOURCE_LABEL` 로 적고 있었으므로, `realizedPnlSource` 주석이 경고한
+「화면끼리 각자 계산해 한쪽만 고쳐진다」의 **세 번째 판**이었다.
+수리 = 그 함수를 `export` 하고 드로어가 **같은 것을 호출**하게 했다(새 어휘 0 · 원장 처방의 「라벨」축).
+★**손익을 안 보여주는 주문에는 출처도 안 적는다** — 목록과 같은 규칙이다. 안 그러면 손익이 빈
+rejected 주문에 「추정」이 붙어 **없는 숫자에 등급을 매긴다**. 그 음성 대조가 새 테스트 3건 중 1건이고,
+변이 2종(널 가드 제거 · 확정/추정 뒤집기)이 각각 **1건·2건 red** 로 판별력이 확인됐다.
+
 **잔여** — ① Site 1·2 게이트는 여전히 추정·확정 혼재(의도) ② Site 5 일일 리포트 미표면화 ③ **포트폴리오 병합 커브는 포인트별 출처 표현 불가** — `mergeCumulativeCurves` 가 각 세션의 마지막 누적값을 carry-forward 해 더하므로 한 지점의 값은 대부분 과거 거래에서 실려온 값의 합이다. 집계 수준 라벨로 강등했고 구간별 표시는 세션 상세에서만 한다 ④ Site 4 는 `unrecorded_count` 를 세지 않는다(추가 왕복 0 을 택함 — 폴백은 `docs/archive/sprints/money-path-finish/operating-contract.md` §4).
 
 ---

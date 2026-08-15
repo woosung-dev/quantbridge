@@ -115,7 +115,11 @@ function isPartialFill(o: Order): boolean {
   return o.filled_quantity != null && Number(o.filled_quantity) < Number(o.quantity);
 }
 
-function realizedPnlSource(o: Order): "confirmed" | "estimated" {
+// ★export 인 이유 — 드로어도 같은 판정을 써야 한다 ([BL-458], 2026-08-16). 종전 드로어는
+// 「손익 확정 시각」의 **빈칸 여부로 사용자가 추론**하게 두었다. 목록은 「거래소 확정 / 추정」을
+// 말로 적는데 같은 주문의 상세는 안 적는 것이라, 위 주석이 경고한 「화면과 CSV 가 각자 계산」의
+// 세 번째 판이었다.
+export function realizedPnlSource(o: Order): "confirmed" | "estimated" {
   return o.realized_pnl_synced_at != null ? "confirmed" : "estimated";
 }
 
