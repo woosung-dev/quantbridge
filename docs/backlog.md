@@ -9303,8 +9303,16 @@ API 를 재기동하자 **`/docs`·`/openapi.json`·`/redoc` 이 전부 404** �
 이 항목이 DEFERRED → ACTIVE 로 조용히 뒤집혔다). 레포의 `~~옛 문장~~ → 새 사실` 관용구는
 **상태줄·트리거줄에서만 예외**다 — 정정은 본문에 적고 그 두 줄은 새 문장으로 갈아끼워라.
 
-**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 코드 축 3개가 배포로 실제 발효했다(`/docs` 404 실측). 남은 것은 placeholder fail-fast 하나이고 **보안 목적으로는 불필요**하다. 선행 = `WAITLIST_TOKEN_SECRET` 부재 해소. 2026-08-16 사용자 결정 = **보류**
-**트리거 판정:** 미도래 — 2026-08-16 에 사용자가 「이번 창에서 보류」로 결정했다. 다음 도래 = 공개 전환([BL-071]) 착수 시 (2026-08-16 deploy-activation)
+★★**2026-08-17 [ADR-034] 로 이 항목의 셈이 바뀌었다.** ⑴ `CLERK_SECRET_KEY` 축은 **사라졌다**
+(백엔드에 인증 시크릿이 0개다). ⑵ 대신 validator 에 **URL 3종 localhost 잔존 검사**가 붙어서
+`APP_ENV=production` 이 새로 사는 값이 생겼다 — 종전에는 「placeholder fail-fast 하나뿐」이라
+켤 이유가 약했는데, 이제 `FRONTEND_URL`/`WAITLIST_INVITE_BASE_URL`/`BETTER_AUTH_URL` 이
+기본값으로 남은 채 뜨는 것을 막는다. ⑶ 그리고 **`WAITLIST_TOKEN_SECRET` 부재는 [BL-072] 를
+여는 순간 보안 결함이 된다** — 비면 `waitlist/dependencies.py:29` 가 레포에 공개된 상수를
+HMAC 키로 주입해 초대 토큰이 위조 가능해진다. 즉 「보류」는 Beta 공개 전까지만 유효하다.
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 코드 축 3개가 배포로 발효했다(`/docs` 404 실측). 2026-08-17 에 validator 가 URL 3종 검사를 얻어 전환의 값이 커졌다. 선행 = `WAITLIST_TOKEN_SECRET` 생성·주입. 2026-08-16 사용자 결정 = **보류** (Beta 공개 시 자동 해제)
+**트리거 판정:** 미도래 — 사용자가 「이번 창에서 보류」로 결정했다. 다음 도래 = 공개 전환([BL-071]) 착수 시 (2026-08-17 auth-selfhost 재확인)
 
 ---
 
@@ -10035,8 +10043,21 @@ WARN 이 이어지면 **하루 1회만** 재고지한다. 하네스가 그 음�
 
 **Risk:** 🟡 (검사기를 살리면 잠자던 drift 가 CI 를 막을 수 있다 — 그것이 이 항목의 목적이다)
 
-**상태:** ⬜ Open — 2026-08-16 에 rc=255 실측 + 원인 2종 코드 대조로 확정. 수리 미착수
-**트리거 판정:** 도래 — 원인이 특정됐고 단독 착수 가능하며 소크 코드를 건드리지 않는다 (2026-08-16 external-comparison)
+★**2026-08-17 auth-selfhost 에서 수리했다** — [ADR-034] 가 `auth_*` 5테이블을 metadata 에
+선언하면서 이 검사기를 살려야만 했다(동승). 고친 것은 원장이 적은 그대로 둘이다:
+`env.py` 에 `optimizer`·`waitlist` 모델 import 2줄 + 두 `configure()` 에 `include_schemas=True`.
+
+★★**그리고 원장이 경고한 「잠자던 진짜 drift」가 실제로 하나 드러났다** — `ohlcv_time_idx`.
+판정: **우리 것이 아니다.** `create_hypertable()` 이 자동 생성하는 시간 인덱스라 모델에 선언하면
+`create_all` 경로(테스트 DB)에서 중복 생성이 되고, 지우면 hypertable 성능 근간이 사라진다.
+⇒ `include_object` 필터로 제외했다(`_TIMESCALE_OWNED_INDEXES`). 그 밖의 drift 는 **0건**이었다.
+
+★**음성 대조** — 고치기 전에는 `alembic check` 가 늘 red 라 판별력이 0 이었다. 수리 뒤
+`upgrade head` → `check` **rc=0** 을 받았고, 같은 회차의 migration 을 쓰기 전에는 rc=255
+(우리가 의도한 변경만 열거)를 받았다. 즉 이 검사기는 이제 **차이가 있을 때만** 운다.
+
+**상태:** ✅ **Resolved (2026-08-17 auth-selfhost)** — `alembic check` rc=0. 원인 2종 수리 + 드러난 실 drift 1건 판정 완료
+**트리거 판정:** 해소 — 검사기가 참 drift 와 설정 잡음을 구분한다 (2026-08-17 auth-selfhost)
 
 ---
 

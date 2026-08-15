@@ -2,15 +2,15 @@
 
 > **Created:** 2026-04-25 (H2 Sprint 11 Phase A)
 > **Owner:** 본인
-> **Depends on:** Cloudflare (WAF Free plan) · Clerk · Vercel (or Cloudflare Pages)
+> **Depends on:** Cloudflare (WAF Free plan) · Better Auth 가입 훅 ([ADR-034](../../../decisions/034-auth-self-host-better-auth.md))
 
 QuantBridge Beta 는 아시아 태평양 지역에서만 제공. US/EU 차단을 **3 계층 방어**로 구현한다.
 
-| 계층   | 위치                                 | 메커니즘                                                  | 우회 가능성                 | 관리                   |
-| ------ | ------------------------------------ | --------------------------------------------------------- | --------------------------- | ---------------------- |
-| **L1** | Cloudflare WAF (Edge)                | IP geolocation 기반 block                                 | 낮음 (VPN 가능)             | 수동 설정 (본 runbook) |
-| **L2** | Next.js `proxy.ts`                   | CF-IPCountry / X-Vercel-IP-Country header redirect        | 중간 (header 스푸핑)        | 코드 자동              |
-| **L3** | Clerk webhook (`POST /auth/webhook`) | `public_metadata.country` 검증 + `GeoBlockedCountryError` | 낮음 (서명검증된 서버-서버) | 코드 자동              |
+| 계층   | 위치                             | 메커니즘                                                              | 우회 가능성          | 관리                   |
+| ------ | -------------------------------- | --------------------------------------------------------------------- | -------------------- | ---------------------- |
+| **L1** | Cloudflare WAF (Edge)            | IP geolocation 기반 block                                             | 낮음 (VPN 가능)      | 수동 설정 (본 runbook) |
+| **L2** | Next.js `proxy.ts`               | CF-IPCountry / X-Vercel-IP-Country header redirect                    | 중간 (header 스푸핑) | 코드 자동              |
+| **L3** | Better Auth 가입 훅 + API 백스톱 | `CF-IPCountry` → 가입 거부 · JWT `country` → `GeoBlockedCountryError` | 낮음 (서버-서버)     | 코드 자동              |
 
 ---
 
@@ -70,33 +70,31 @@ curl -I -H "CF-IPCountry: US" http://localhost:3000/strategies
 
 ---
 
-## L3: Clerk webhook — `country_code` 저장 + 차단
+## L3: 가입 훅 — `country_code` 저장 + 차단 (★2026-08-17 [ADR-034] 로 실재하게 됐다)
 
-`apps/api/src/auth/service.py::handle_clerk_event` 가 `user.created` 이벤트 수신 시:
+★★**2026-08-17 실측 — 이 계층은 그때까지 한 번도 발화한 적이 없다.**
+종전 L3 는 Clerk webhook 의 `public_metadata.country` 를 읽었는데, 그 값을 **넣는 코드가
+`apps/web` 어디에도 없었다**(grep 0건). 아래 「추천 구현」 코드 블록이 문서에만 있고 코드에
+없었던 것이다. 백엔드 테스트는 페이로드를 자기가 만들어 초록이었다 —
+`apps/api/AGENTS.md` §10「가드는 **그 경로가 지나는가**로 재라」의 교과서적 사례다.
 
-1. `public_metadata.country` 추출 → 2 자리 ISO 3166-1 alpha-2 정규화.
-2. `RESTRICTED_COUNTRIES` (US + EU 27 + GB) 에 포함 시 `GeoBlockedCountryError(country)` raise → 400 `geo_blocked_country`.
-3. 아니면 `users.country_code` 컬럼 저장.
+지금은 인증 서버가 우리 Next 앱 안에 있어서 **가입 요청의 헤더를 직접 본다.**
 
-### Clerk Dashboard 연동
+### 정문 — Better Auth 가입 훅 (`apps/web/src/lib/auth.ts`)
 
-Clerk 은 기본적으로 `public_metadata.country` 를 설정하지 않는다. FE signup 플로우에서 명시적으로 주입해야 함.
+`databaseHooks.user.create.before` 가 `CF-IPCountry`(없으면 `X-Vercel-IP-Country`)를 읽어
+`isRestrictedCountry()` 면 **`false` 를 돌려 계정 생성 자체를 막는다.** 통과하면 그 값을
+`auth_user.country` 에 적고, JWT `definePayload` 가 `country` 클레임으로 싣는다.
 
-**추천 구현 (Next.js signup 페이지):**
+### 백스톱 — FastAPI 첫 프로비저닝 (`apps/api/src/auth/service.py::get_or_create`)
 
-```typescript
-// 가입 완료 전, Clerk SignUp 의 publicMetadata 설정
-const country = /* Cloudflare CF-IPCountry 또는 브라우저 geolocation */;
-await signUp.update({ publicMetadata: { country } });
-```
+JWT payload 의 `country` 를 2자리로 정규화해 `RESTRICTED_COUNTRIES`(US + EU 27 + GB) 면
+`GeoBlockedCountryError` → 400 `geo_blocked_country`. 통과하면 `users.country_code` 에 저장.
 
-또는 Clerk webhook 의 secondary enforcement 로 활용 (IP 경로 우회 방지).
-
-### Clerk Sign-up restriction (ideal, 별도 설정)
-
-Clerk Dashboard → **Sign-up & sign-in** → **Restrictions** → country-based allowlist. 아시아 태평양만 허용 (KR, JP, SG, TW, HK, TH, VN, PH, MY, ID, AU, NZ, IN 등).
-
-> **주의:** Clerk 의 country restriction 은 billing tier 에 따라 제공 여부 상이. Free tier 에서는 manual 적용 필요.
+★**차단은 최초 프로비저닝 시점뿐이다.** 이미 있는 사용자는 국가로 쫓아내지 않는다(정책 유지).
+★**국가를 모르는 토큰은 차단하지 않는다.** 헤더 없는 로컬 개발과 기존 사용자를 막으면 이 계층이
+「전건 차단」이 되어 판별력이 0 이 된다 — 회귀 테스트가 그 음성 대조를 들고 있다
+(`tests/auth/test_country_code_validation.py`).
 
 ---
 
@@ -123,9 +121,11 @@ Custom rule 을 **Disable** 토글. DNS / 트래픽 영향 없음.
 
 `apps/web/src/proxy.ts` 에서 geo check 블록 제거 + redeploy. 또는 `isRestrictedCountry` 상시 `false` 반환하도록 hotfix.
 
-### L3 (Clerk webhook)
+### L3 (가입 훅 + API 백스톱)
 
-`apps/api/src/auth/service.py` 에서 `GeoBlockedCountryError` raise 조건을 주석 처리. 다음 배포에서 반영.
+`apps/web/src/lib/auth.ts` 의 `databaseHooks.user.create.before` 에서 차단 분기를 제거(정문)하고,
+`apps/api/src/auth/service.py::get_or_create` 의 `GeoBlockedCountryError` raise 조건을 함께 푼다(백스톱).
+★두 곳 다 풀어야 한다 — 한쪽만 풀면 가입은 되는데 첫 API 호출에서 400 이 난다.
 
 모든 계층 동시 롤백은 정책 변경 (Beta scope 확장) 시에만.
 

@@ -10,7 +10,7 @@ QuantBridge = TradingView Pine Script 전략을 백테스트→스트레스테�
 ## 1단계 · QuantBridge 가입 (1분)
 
 1. https://qb.local — 또는 데모 진행자가 보낸 링크 — 접속.
-2. "Sign up" → 이메일 또는 Google 로그인 (Clerk 인증).
+2. "Sign up" → 이메일 + 비밀번호로 계정 생성 (자체 인증 — ADR-034).
 3. 로그인 후 자동으로 `/strategies` 페이지 이동.
 
 ---

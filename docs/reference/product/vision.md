@@ -69,7 +69,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 ## MVP 범위 (Phase 1: Week 1-4)
 
 - 프로젝트 스캐폴딩 (Next.js 16 + FastAPI + Docker)
-- Clerk 인증
+- 자체 인증 (Better Auth, ADR-034 — 최초 스캐폴딩은 Clerk 였다)
 - Pine Script 파서 (Regex 기반 MVP)
 - 기본 백테스트 엔진 (vectorbt, 단일 심볼)
 - 전략 CRUD + 편집기 UI
@@ -80,14 +80,14 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 > 상세 진행 상황은 [`status.md`](../../status.md). 본 섹션은 Phase 단위 **기술** 로드맵 한눈에 보기.
 > **제품 로드맵(Horizon × Pillars, 비즈니스·수익화·Launch 포함)**은 [`roadmap.md`](../../roadmap.md) 참조.
 
-| Phase     | 기간 (계획) | 핵심 산출물                                             | 진행 상태                                              | Horizon 매핑 |
-| --------- | ----------- | ------------------------------------------------------- | ------------------------------------------------------ | ------------ |
-| Phase 0   | 1주         | 스캐폴딩 (Next.js 16 + FastAPI + Docker + Clerk)        | ✅ 2026-04-15 완료                                     | (pre-H1)     |
-| Phase 1   | 4주         | Pine 파서 + 백테스트 + 전략 CRUD + 백테스트 리포트 BE   | ✅ Sprint 1~4 완료 (2026-04-16)                        | (pre-H1)     |
-| Phase 1.5 | 2주         | Infra Hardening + market_data (TimescaleDB hypertable)  | ✅ Sprint 5 완료 (2026-04-16)                          | (pre-H1)     |
-| Phase 2   | 4주         | 스트레스 테스트 + 파라미터 최적화                       | ⏳ Sprint 9~10                                         | **H2**       |
-| Phase 3   | 4주         | 데모 트레이딩 (Bybit/Binance), 리스크 관리, Kill Switch | ✅ Sprint 6 완료 + Sprint 7a Futures 완료 (2026-04-17) | (pre-H1)     |
-| Phase 4   | 4주         | 라이브 트레이딩, 멀티 거래소, 알림                      | 🔄 Sprint 7b/7c/8a/8b                                  | **H1**       |
+| Phase     | 기간 (계획) | 핵심 산출물                                             | 진행 상태                                                   | Horizon 매핑 |
+| --------- | ----------- | ------------------------------------------------------- | ----------------------------------------------------------- | ------------ |
+| Phase 0   | 1주         | 스캐폴딩 (Next.js 16 + FastAPI + Docker + Clerk※)       | ✅ 2026-04-15 완료 (※인증은 2026-08-17 Better Auth 로 교체) | (pre-H1)     |
+| Phase 1   | 4주         | Pine 파서 + 백테스트 + 전략 CRUD + 백테스트 리포트 BE   | ✅ Sprint 1~4 완료 (2026-04-16)                             | (pre-H1)     |
+| Phase 1.5 | 2주         | Infra Hardening + market_data (TimescaleDB hypertable)  | ✅ Sprint 5 완료 (2026-04-16)                               | (pre-H1)     |
+| Phase 2   | 4주         | 스트레스 테스트 + 파라미터 최적화                       | ⏳ Sprint 9~10                                              | **H2**       |
+| Phase 3   | 4주         | 데모 트레이딩 (Bybit/Binance), 리스크 관리, Kill Switch | ✅ Sprint 6 완료 + Sprint 7a Futures 완료 (2026-04-17)      | (pre-H1)     |
+| Phase 4   | 4주         | 라이브 트레이딩, 멀티 거래소, 알림                      | 🔄 Sprint 7b/7c/8a/8b                                       | **H1**       |
 
 > 본 Phase 표는 **기술 관점**의 로드맵이다. "언제 외부 공개할지 / 어떻게 수익화할지 / 어떤 규제 프레이밍을 쓸지" 같은 **제품 관점 결정**은 [`roadmap.md`](../../roadmap.md) 참조.
 

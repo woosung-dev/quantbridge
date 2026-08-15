@@ -4,19 +4,19 @@
 
 ## 1. Tech Stack
 
-| 항목            | 기술                                                   |
-| --------------- | ------------------------------------------------------ |
-| Framework       | FastAPI (100% Async)                                   |
-| ORM             | SQLModel + SQLAlchemy 2.0 (`asyncpg`)                  |
-| Validation      | Pydantic V2 + `pydantic-settings`                      |
-| Package Manager | `uv`                                                   |
-| Database        | PostgreSQL + **TimescaleDB hypertable** (OHLCV 시계열) |
-| Cache / Broker  | Redis (Celery broker + 락 / 캐시)                      |
-| Async Worker    | Celery (prefork pool, `_WORKER_LOOP` 통일 — §8)        |
-| Auth            | Clerk JWT 검증 (`clerk_backend_api`)                   |
-| Exchange SDK    | CCXT (Bybit / OKX / Binance 등 데모·라이브)            |
-| 시크릿 암호화   | API 키는 AES-256 (Fernet) 암호화 저장                  |
-| 배포            | Docker compose (개발) / TBD (프로덕션 H2+)             |
+| 항목            | 기술                                                       |
+| --------------- | ---------------------------------------------------------- |
+| Framework       | FastAPI (100% Async)                                       |
+| ORM             | SQLModel + SQLAlchemy 2.0 (`asyncpg`)                      |
+| Validation      | Pydantic V2 + `pydantic-settings`                          |
+| Package Manager | `uv`                                                       |
+| Database        | PostgreSQL + **TimescaleDB hypertable** (OHLCV 시계열)     |
+| Cache / Broker  | Redis (Celery broker + 락 / 캐시)                          |
+| Async Worker    | Celery (prefork pool, `_WORKER_LOOP` 통일 — §8)            |
+| Auth            | Better Auth JWT 를 JWKS 로 검증 (`pyjwt[crypto]`, ADR-034) |
+| Exchange SDK    | CCXT (Bybit / OKX / Binance 등 데모·라이브)                |
+| 시크릿 암호화   | API 키는 AES-256 (Fernet) 암호화 저장                      |
+| 배포            | Docker compose (개발) / TBD (프로덕션 H2+)                 |
 
 > **참고**: 본 프로젝트는 백엔드에서 LLM SDK / Object Storage / Vector DB 를 사용하지 않는다. Pine Script 변환 등 AI 보조는 frontend → backend HTTP API 만 거쳐 진행한다.
 
@@ -38,7 +38,7 @@
 
 ### SecretStr
 
-- API 키, DB 패스워드, Clerk secret 등 → `SecretStr` 타입
+- API 키, DB 패스워드 등 → `SecretStr` 타입 (★인증 시크릿은 이제 백엔드에 없다 — ADR-034)
 - 사용 시 `.get_secret_value()`
 
 ### Decimal-first 금융 숫자
@@ -46,18 +46,23 @@
 - 가격 / 수량 / 수익률 / 레버리지 등은 `Decimal` 사용 (float 금지).
 - 합산 시 `Decimal(str(a)) + Decimal(str(b))` — float 공간 합산 후 변환 금지 (Sprint 4 D8 교훈).
 
-### Clerk JWT 검증
+### JWT 검증 — JWKS 공개 키 ([ADR-034](../../docs/decisions/034-auth-self-host-better-auth.md))
+
+★**백엔드는 인증 시크릿을 쥐지 않는다.** 검증기는 `src/realtime/auth.py` **한 곳**이고
+HTTP·WebSocket 이 그것을 공유한다. 새 검증 경로를 만들지 마라.
 
 ```python
-# auth/dependencies.py
-from clerk_backend_api import Clerk
-from fastapi import Depends, HTTPException, Header
-
-async def get_current_user(authorization: str = Header(...)) -> dict:
-    token = authorization.replace("Bearer ", "")
-    # Clerk SDK로 토큰 검증
-    ...
+# realtime/auth.py — 요지
+signing_key = PyJWKClient(settings.jwks_url, cache_keys=True).get_signing_key_from_jwt(token)
+payload = jwt.decode(token, signing_key.key, algorithms=["EdDSA"],
+                     issuer=issuer, audience=issuer,
+                     options={"require": ["exp", "sub", "iss", "aud"]})
 ```
+
+- 알고리즘은 **EdDSA 하나로 고정**한다 — 목록을 넓히면 알고리즘 혼동 표면이 열린다.
+- `iss`/`aud` 는 `settings.better_auth_url` 이다. FE 의 `BETTER_AUTH_URL` 과 어긋나면 **전건 401**.
+- 사용자 행은 첫 인증 요청에서 생긴다(JIT). 웹훅이 없다 — `users.auth_subject` = JWT `sub`.
+- `python-jose` 는 **EdDSA 미지원**이라 쓸 수 없다(실측). `pyjwt[crypto]` 를 쓴다.
 
 ---
 
@@ -289,7 +294,7 @@ apps/api/src/
 ├── strategy/
 │   └── pine_v2/    # Pine Script v2 인터프리터 (SSOT — interpreter / stdlib / coverage)
 ├── tasks/          # Celery task entrypoints (prefork-safe pattern — §9)
-├── auth/           # Clerk JWT 검증
+├── auth/           # 사용자 원장 + 탈퇴. JWT 검증기는 realtime/auth.py
 ├── common/
 │   ├── database.py
 │   ├── exceptions.py

@@ -13,7 +13,7 @@
 | Server State    | React Query (`@tanstack/react-query`) |
 | Client State    | Zustand                               |
 | Form            | `react-hook-form` + `zod v4`          |
-| Auth            | Clerk (`@clerk/nextjs`)               |
+| Auth            | Better Auth (`better-auth`, 자체 호스팅 — ADR-034)   |
 | 배포            | Vercel                                |
 
 ---
@@ -22,24 +22,26 @@
 
 > Next.js 16, Zod v4, shadcn/ui v4, 반응형·TS 컨벤션은 본 문서 **§7~§11**(구 `nextjs-shared.md`, ADR-027 병합) 참조.
 
-### Clerk (Next.js 16)
+### 인증 — Better Auth (Next.js 16 · [ADR-034](../../docs/decisions/034-auth-self-host-better-auth.md))
 
-- 인증 보호: **`proxy.ts`** 에서 `clerkMiddleware()` 처리
-- 서버 컴포넌트: `auth()` 또는 `currentUser()`
-- 클라이언트 컴포넌트: `useAuth()`, `useUser()`
-- 직접 JWT 파싱 금지
+★**이 앱이 인증 서버 본체다.** `/api/auth/[...all]` 이 로그인·세션·JWKS 를 낸다.
+
+- 인증 보호: **`proxy.ts`** — 공개 라우트가 아니면 `auth.api.getSession()` 으로 **완전 검증**
+- 클라이언트: **`useAuthCtx()` 하나만 쓴다**(`hooks/use-auth-ctx.ts`).
+  `useSession()`·`getAuthToken()` 을 컴포넌트에서 직접 부르지 마라 — 공급자 교체가 그 seam 하나로
+  끝난 이유가 그것이다
+- 서버 컴포넌트: `getServerAuth()`(`lib/auth-server.ts`) → `{ userId, token }`
+- 직접 JWT 파싱 금지 (예외: `auth-client.ts` 가 **캐시 수명 계산에만** `exp` 를 읽는다)
+
+★**`getSessionCookie()` 를 인증 게이트로 쓰지 마라** — 쿠키의 존재만 본다(공식 문서가
+"THIS IS NOT SECURE!" 라고 적는다). `proxy.ts` 에서 `/` → `/strategies` **UX 리다이렉트**에만 쓴다.
 
 ```typescript
-// proxy.ts
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-
-const isPublicRoute = createRouteMatcher(["/", "/sign-in(.*)", "/sign-up(.*)"]);
-
-export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
-    await auth.protect();
-  }
-});
+// proxy.ts — 요지
+if (!isPublicRoute(pathname)) {
+  const session = await auth.api.getSession({ headers: req.headers });
+  if (!session) return NextResponse.redirect(signInUrl);
+}
 ```
 
 ---
@@ -81,7 +83,7 @@ export default clerkMiddleware(async (auth, req) => {
 - **Lint 규약**: `react-hooks/set-state-in-effect` 경고는 **override 절대 금지**. 해당 lint 는 바로 이 패턴을 차단하기 위해 존재
 - **PR 규약**: hooks diff 가 있는 PR 은 **dev server live smoke 5분 이상** 필수. unit test 만으로 green 인정 안 됨
 
-#### H-2. React Query `queryKey` 에 Clerk JWT accessor (`getToken`) 직접 포함 금지
+#### H-2. React Query `queryKey` 에 JWT accessor (`getToken`) 직접 포함 금지
 
 - **금지**: `queryKey: [..., await getToken()]` 또는 `getToken` 함수 참조 자체를 queryKey 에 포함
 - **이유**:
@@ -142,7 +144,7 @@ src/
 
 ### Server Component vs Client Component 경계
 
-- 기본값 = Server Component. `"use client"` 는 진짜 필요할 때만 (이벤트 핸들러, `useState/useEffect`, Clerk client hook 등).
+- 기본값 = Server Component. `"use client"` 는 진짜 필요할 때만 (이벤트 핸들러, `useState/useEffect`, `useAuthCtx` 등).
 - `"use client"` 는 **말단(leaf) 컴포넌트** 에만. layout/page 파일에 금지.
 - Server Component 는 Client Component import 가능, **반대는 금지**.
 - Server Component 에서 자체 API Route `fetch()` 호출 금지 — FastAPI BE 직접 호출 (`features/[domain]/api.ts`).

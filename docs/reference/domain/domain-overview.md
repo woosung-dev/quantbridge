@@ -6,7 +6,7 @@
 
 | 도메인        | 책임                                                 | 주요 영속 모델                            |
 | ------------- | ---------------------------------------------------- | ----------------------------------------- |
-| `auth`        | Clerk 검증과 사용자 동기화                           | User                                      |
+| `auth`        | JWT 검증(JWKS)과 사용자 원장·탈퇴                    | User                                      |
 | `strategy`    | Pine 등록·파싱·지원 범위·`pine_v2` 실행 준비         | Strategy                                  |
 | `backtest`    | 비동기 실행과 결과·거래 보관                         | Backtest, BacktestTrade                   |
 | `market_data` | OHLCV·Funding 수집과 TimescaleDB 보관                | OHLCV, FundingRate                        |

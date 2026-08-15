@@ -10,7 +10,9 @@
 
 **맞다** — 브라우저에서 소크가 도는 실계정 화면을 본다. 앞단은 **Cloudflare Access(이메일 OTP)**다.
 
-**아니다** — 공개 서비스가 아니다. `APP_ENV` 는 여전히 `development` 이고 Clerk 는 dev 인스턴스다.
+**아니다** — 공개 서비스가 아니다. `APP_ENV` 는 여전히 `development` 다.
+★2026-08-17 [ADR-034] — 인증은 self-host Better Auth 로 바뀌었고 **이 FE 컨테이너가 인증 서버**다.
+배포 절차에 alembic 적용 + 전용 DB 롤이 붙는다: [`better-auth-setup.md`](./better-auth-setup.md).
 공개 전환은 [BL-071] 이 소유한다.
 
 **소크에 아무것도 더하지 않는다** — 이 스택은 소크 compose 3층과 서비스도 네트워크도 공유하지
@@ -22,7 +24,7 @@
 
 ```
 브라우저 ─(Access OTP)─→ qb.woosung.dev  ─┐
-브라우저 ─(Clerk JWT)──→ qb-api.woosung.dev ─┤
+브라우저 ─(세션 JWT)──→ qb-api.woosung.dev ─┤
                                             ├→ quantbridge-cloudflared (network_mode: host)
                                             │     ├→ 127.0.0.1:3200 → quantbridge-frontend
                                             │     └→ 127.0.0.1:8100 → 호스트 uvicorn
@@ -46,7 +48,7 @@ FE 컨테이너 ─(SSR 헤어핀)─→ qb-api.woosung.dev ┘
 **WebSocket 을 안 넘긴다** — 이 앱은 `/realtime/ws` 를 쓴다.
 
 ★**`qb-api.woosung.dev` 에는 Access 를 걸지 마라.** Access 는 브라우저 리다이렉트로 인증하는데
-XHR 도 FE 컨테이너의 SSR 헤어핀도 그 리다이렉트를 못 따라간다. API 의 문은 Clerk JWT 다.
+XHR 도 FE 컨테이너의 SSR 헤어핀도 그 리다이렉트를 못 따라간다. API 의 문은 Bearer JWT 다.
 
 ---
 
@@ -145,14 +147,14 @@ fail-closed 전환 이후 토큰이 **없어도** 401 이다(있으면 베어러
 먼저 확인**해라.
 
 ★★**서버 `apps/api/.env.local` 에 플레이스홀더 시크릿이 있어도 아무것도 안 잡는다.** 실측:
-`CLERK_SECRET_KEY=sk_test_...`(문자 그대로)인 채로 API 가 정상 기동하고 `/health` 는 200 을
+종전 `CLERK_SECRET_KEY=sk_test_...`(문자 그대로)인 채로 API 가 정상 기동하고 `/health` 는 200 을
 낸다 — 인증 경로를 밟는 요청이 처음 들어올 때 **전건 401** 로 드러난다. 진짜 키는 루트 `.env`
 에만 있었다. `APP_ENV=production` 이면 validator 가 기동 시점에 잡지만 development 는 통과시킨다.
 ⇒ **배포 검증은 반드시 로그인 후 데이터 화면까지** 가야 한다. `/health` 200 은 아무 증거가 아니다.
 
 ★★**`.env` 값에 인라인 주석이 붙는다** — 이 레포 관례가 `KEY=value    # [필수 …]` 다.
 `cut -d= -f2` 로 값을 옮기면 주석의 **한글이 값에 섞여 들어간다.** 그러면 401 이 아니라 **500** 이
-난다(`clerk_backend_api` 가 헤더를 ascii 로 인코딩 → `UnicodeEncodeError`). 값 추출은 항상
+난다(구 clerk SDK 가 헤더를 ascii 로 인코딩 → `UnicodeEncodeError`). 값 추출은 항상
 `split("#")[0].strip()` 하고 `isascii()` 로 단언해라.
 
 ★**API 기동은 8초 걸린다.** `systemctl --user restart` 직후 6초에 curl 하면 `000` 이 나온다.
@@ -167,5 +169,5 @@ fail-closed 전환 이후 토큰이 **없어도** 401 이다(있으면 베어러
 ## 6. 관련 문서
 
 - 소크 게이트 판정: [`gates-and-traps.md`](./gates-and-traps.md) · [ADR-024](../../decisions/024-soak-stability-gate.md)
-- 환경 변수 정본: [`env-vars.md`](./env-vars.md) · Clerk: [`clerk-setup.md`](./clerk-setup.md)
+- 환경 변수 정본: [`env-vars.md`](./env-vars.md) · 인증: [`better-auth-setup.md`](./better-auth-setup.md)
 - 공개 전환(= `APP_ENV=production`): [BL-071] · 그때 되살릴 운영 절차: [BL-617]

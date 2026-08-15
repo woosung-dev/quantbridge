@@ -250,19 +250,13 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 
 > ★★★두 줄 = **「원장이 적어 둔 처방은 도래 판정과 함께 낡는다」**(4건 전부 트리거는 옳고 처방이 틀렸다 — [BL-715] 는 방향까지 뒤집혀 있었다) + **「스텁 초록 ≠ 정본 초록」**(하네스 11/11 이던 축이 정본 `lessons.md` 에서 오탐 3건 · 적대 프로브에서 구멍 2건 — [LESSON-108]). PR #627 머지(`5736ee40`) · 하네스 9→10종. tombstone: `git show 1c38b40f:docs/status.md` · `git show 3e3e0174:docs/status.md` (303~358행).
 
-## ★2026-08-14 real-broker-e2e — [BL-024] 실주문 leg 종결 (강등 — 본문 = git)
-
-> **PR #628 머지(`4b11da26`)** · Bybit demo 실주문 1건이 프로덕션 dispatcher 를 타고 `filled` 까지 갔다. 한 줄 = **「2층 자기정리 하네스는 지어진 뒤 10일간 한 번도 작동한 적이 없었다」**([LESSON-109]) — 증인은 pytest rc 가 아니라 **거래소**였다.
-> tombstone: 원문 = `git show 3e159691:docs/status.md` (295~370행).
-
-## ★2026-08-14 money-path-attribution / money-path-close — [BL-438] 종결 + [BL-724] 경제성 판정 (강등 — 본문 = git)
-
-> **PR #630·#632·#633 머지(`4d0b1a3d`·`bbeda92f`·`fb7bb772`)** · 한 줄 = **「미귀속 71.5% 는 결함이 아니라 잘못된 DB 를 봤다는 뜻이었다」** + **「소크가 돌리던 전략은 백테스트에서도 지고 있었다」**(라이브 PF 0.223 / 백테스트 PF 0.607 — 손익분기 요율이 실효율의 **1/14.6** 이라 비용 축으로 구제되지 않는다. **레버는 요율이 아니라 빈도**). **판정 = 실자금 불가 · 데모 유지**(사용자 결정) · 헤지 모드 기각([ADR-032]). 파생 = [BL-729]~[BL-733].
-> tombstone: 원문 = `git show 4d0b1a3d:docs/status.md` (307~347행) · `git show fb7bb772:docs/status.md` (311~360행).
-
-## ★2026-08-15 soak-survival — 소크 뿌리 확정 + 이월 4항목 종결 (강등 — 본문 = git)
-
-> **PR #634·#635 머지(`375a405b`·`d9fb9f58`)** · 한 줄 = **「소크를 죽인 것은 `live_signal.py` 가 아니라 우리 자신의 테스트 하네스였다」** — `close_position` 이 계정 포지션을 **소유권을 보지 않고** 닫았다([BL-734] · [BL-633] 재발). 착수 전제 4건 반증(로컬 6h33m 사망 = **맥 sleep**) · 내 추론도 2번 자기반증 · codex 2라운드가 모두 **내 검증 공백**을 잡았다. tombstone: 원문 = `git show d9fb9f58:docs/status.md` (331~405행).
+> **강등 tombstone (2026-08-17 auth-selfhost · 700줄 상한).** 08-14 real-broker-e2e ·
+> 08-14 money-path · 08-15 soak-survival 3블록(13줄)을 이 4줄로 압축했다. 원문 =
+> `git show 9920bf9a:docs/status.md` (253~265행). 발견 색인 = `dev-log/INDEX.md`. 살아남을 셋:
+> ⑴ **「2층 자기정리 하네스는 지어진 뒤 10일간 한 번도 작동한 적이 없었다」**([LESSON-109], PR #628).
+> ⑵ **「소크가 돌리던 전략은 백테스트에서도 지고 있었다」** — 라이브 PF 0.223 / 백테스트 0.607.
+> **판정 = 실자금 불가 · 데모 유지**(사용자 결정) · 헤지 모드 기각([ADR-032]). PR #630·#632·#633.
+> ⑶ **「소크를 죽인 것은 우리 자신의 테스트 하네스였다」** — `close_position` 이 소유권을 안 봤다([BL-734]). PR #634·#635.
 
 ## ★소크 창 — 항목 선택을 지배하는 제약 (2026-08-16 갱신)
 
@@ -302,62 +296,21 @@ C1 은 pin 으로 안 죽고 C2 도 `max` 라 **벌어 둔 최장 창은 살아�
 >   `bar_close` 라 어떤 테스트도 그 분기를 안 지났다) ⇒ **[LESSON-087] 3/3** → `apps/api/AGENTS.md` §10.
 >   ⑷ ★**`| tail` 이 pytest 대신 tail 의 rc 를 읽어** 「전부 초록」이라는 거짓 전건을 냈다(`6 failed` 가 찍힌 채 rc=0).
 
-## ★2026-08-16 deploy-activation — 고쳐 둔 보안이 재시작 누락으로 발효하지 않고 있었다 (강등 — 본문 = git)
-
-> **PR #642 머지(`b5e24fbf`)** · 한 줄 = **「배포 API 는 소크 스택이 아니라 호스트 systemd 유닛이고
-> `down→pull→migrate→pin→up` 은 그 프로세스를 한 번도 건드리지 않는다」** —
-> `systemctl --user restart quantbridge-api.service` 가 절차에서 통째로 빠져 있었다.
-> 착수 전제 **4건 중 4건 반증**. tombstone: 원문 = `git show b5e24fbf:docs/status.md` (293~386행).
-> **살아남을 다섯 줄:**
-> ⑴ ★★**보안 노출은 닫혔다** — `/docs`·`/openapi.json`·`/redoc` 전부 **404**(2026-08-16 인터넷
-> 실측, production-readiness 가 재확인). 배포 절차 = `git pull` → `migrate`(dry-run) →
-> `migrate --confirm` → **API 유닛 재시작** → read-back 5종.
-> ⑵ ★**`APP_ENV=production` 은 보안 수리에 불필요했다** — 술어가 `is_production or not debug` 이고
-> 서버는 이미 `DEBUG=false` 다. [BL-753] 은 **2026-08-16 「보류」로 사용자 결정**.
-> ⑶ ★★**`git pull` 은 소크 창을 끊지 않는다**(실증) — 워커 4벌이 `./.soak/src`(= `git archive`
-> 스냅샷)를 mount 하므로 작업 트리 갱신이 워커에 닿지 않는다. **창을 끊는 것은 `down`/`up`/`pin`
-> 과 DB 실격뿐**이다. `migrate --confirm` 은 창을 안 끊지만 소크 DB DDL 이라 **매번 명시 승인**이다.
+> **강등 tombstone (2026-08-17 auth-selfhost · 700줄 상한).** 08-16 deploy-activation(20줄) +
+> 08-17 production-readiness(35줄)를 이 8줄로 압축했다. 원문 = `git show 9920bf9a:docs/status.md`
+> (305~358행). 발견 색인 = `dev-log/INDEX.md`. 살아남을 다섯:
+> ⑴ ★★**보안 노출은 닫혔다** — `/docs`·`/openapi.json`·`/redoc` 전부 **404**(인터넷 실측).
+> 배포 절차 = `git pull` → `migrate`(dry-run) → `migrate --confirm` → **API 유닛 재시작** → read-back.
+> 그 재시작 한 단계가 절차에서 통째로 빠져 있어 고쳐 둔 보안이 발효하지 않고 있었다(PR #642).
+> ⑵ ★★**`git pull` 은 소크 창을 끊지 않는다**(실증 — 워커가 `./.soak/src` 스냅샷을 mount 한다).
+> **창을 끊는 것은 `down`/`up`/`pin` 과 DB 실격뿐**이다. `migrate --confirm` 은 안 끊지만 매번 승인이다.
+> ⑶ ★★**[ADR-033] self-host TimescaleDB CE 확정** — 관리형이 막힌 것은 업체 사정이 아니라 **TSL
+> 라이선스**다. DB 24MB · hypertable 고유 기능 사용처 **0건** ⇒ 되돌리기가 덤프 한 번. 조건 3종
+> (백업 [BL-767] · 디스크 경보 [BL-768] · 전환 트리거 4종)이 2026-08-16 에 **서버에서 발효**했다.
 > ⑷ ★★**`bl-audit.sh:174` 함정** — `**상태:**` 줄에 `~~취소선~~` 을 쓰면 그 줄이 통째로 무시되고
-> 섹션이 `:107` 에서 ACTIVE 로 떨어진다. 레포 관용구 `~~옛 문장~~ → 새 사실` 은
-> **상태줄·트리거줄에서만 예외**다.
-> ⑸ 계층 감사 등재 [BL-762]~[BL-765] · e2e 로케이터 감사 [BL-766] — `tr` 계열 9건 중 헤더를 잡을
-> 수 있는 것 5건 · 안전 패턴 `getByRole('row')` **0건**.
+> 섹션이 ACTIVE 로 떨어진다. 레포 관용구 `~~옛 문장~~ → 새 사실` 은 **상태줄·트리거줄에서만 예외**다.
+> ⑸ ★**[BL-736] 의 디스크 94% 사고는 서버가 아니라 로컬 맥 Docker VM 에서 났다** — 서버는 40%.
 
-## ★2026-08-17 production-readiness — 40세션을 막고 있던 결정이 풀렸고, self-host 의 대가를 지불했다
-
-★★★**[ADR-033] — G1 DB 호스팅 확정: ① self-host TimescaleDB CE 유지.**
-[BL-070]/[BL-071]/[BL-072] 의 선행이 이로써 **해제됐다**. 관리형이 막힌 것은 업체 사정이 아니라
-TimescaleDB 의 **TSL 라이선스**다(RDS·Supabase PG17·Fly MPG 전부 같은 이유) — 「관리형 +
-hypertable」 조합은 사실상 Timescale 자사 클라우드 하나뿐이다. 실측이 결정을 가볍게 만들었다:
-DB **24MB** · `ts.ohlcv` **12,937행** · hypertable 고유 기능(`time_bucket`·cagg·compression)
-**사용처 0건** ⇒ 되돌리기가 덤프 한 번이다. ★self-host 의 대가는 **백업·가용성이 전적으로 우리
-책임**이라는 것 하나이고, 이 회차가 그 대가를 지불한다(조건 3종 = [BL-767]·[BL-768]·전환 트리거 4종).
-
-★★**착수 전제 반증 4건 — 그것이 이 회차의 첫 산출이다.**
-⑴ **[BL-736] 의 디스크 94% 사고는 서버가 아니라 로컬 맥 Docker VM 에서 났다.** 프롬프트가 레인
-근거로 든 「실제 사고 전력」이 서버 사고가 아니었다 — **서버는 40%(59G 여유)** 다. 경보의 근거를
-다시 세웠다: ⑴ 이 회차가 백업 파일로 디스크를 **쓰기 시작한다** ⑵ 서버 `quantbridge-redis` 도
-`appendonly=yes` 라 「디스크 풀 → AOF 쓰기 실패 → celery 정지」 인과가 **구조적으로 동일**하다.
-⑵ **[BL-617] 은 착수 대상이 아니었다** — 상태줄이 `⏳ 대기(트리거 미도래)` 이고 본문이 「★지금
-되살리지 않는 것이 맞다」로 못박았다. 회수 대신 **원장 정정**만 했다(4종 → **3종**: mainnet 축은
-`bybit-mainnet-runbook.md` 26KB 가 이미 대체 · 삭제 SHA 는 `0f0f0b06` 이 아니라 **`94da86b1`** ·
-근거로 삼은 tombstone 색인은 **워킹트리에서 이미 소실**됐다).
-⑶ **[BL-754] 의 원장 Est 「auth dependency 1줄 = S」가 틀렸다** — `SlowAPIMiddleware` 는 ASGI
-미들웨어라 `Depends` **보다 먼저** 돈다. `default_limits=100/minute` 경로는 `request.state.user_id`
-를 **영원히 못 본다** ⇒ 데코레이터 12곳만 고쳐지고 나머지는 그대로 `ip:127.0.0.1` 공용 버킷이다.
-진짜 수리는 인증 전용 미들웨어 = **M**. 덤으로 `test_per_user_isolation` 은 인라인 lambda
-`key_func` 을 써서 **프로덕션 `rate_limit_key` 를 테스트하지 않고**, `:148` 은 현재 버그를 단언으로
-고정한다 — 「초록」이 증거가 아니다.
-⑷ **오프서버 보관 자산이 「레포에 0, 호스트에 있다」** — 레포 grep 은 rclone/restic/boto3 전부
-0건이고 `boto3` 는 2026-08-06 에 의도적으로 제거됐다. 그런데 서버에는 **OCI CLI + Instance
-Principal + 버킷이 이미 작동 중**이다(같은 호스트의 다른 앱이 6시간마다 쓴다). ⇒ 0에서 짓지
-않았고, **셸 OCI CLI 경로**라 boto3 제거 결정과도 충돌하지 않는다.
-
-★**서버 시계는 로컬보다 뒤에 있지 않다** — 둘 다 `2026-08-15T15:02:52Z` 로 **정확히 일치**한다
-(2026-08-16 실측). 이 파일이 여러 곳에서 **KST 날짜에 `Z` 를 붙여** 적어 온 것이 오해의 원인이다
-(예: 「2026-08-16T13:50Z」의 실제 UTC 는 08-15T13:50Z). 게이트 출력의 시각을 그대로 인용해라.
-
-~~**다음 행동 = C2 가 24h 를 넘으면 `✓ 자격 획득` 을 보고하고 승인을 받아 2번째 창을 연다**~~
 → ★★**2026-08-15 완료. C1 = 1/3회.** 창 2가 `b5e24fbf` pin 위에서 16:35:32Z 부터 돈다(위 §소크 창).
 
 ~~**다음 행동 = [BL-767]·[BL-768] 의 서버 잔여를 닫는다**~~ → ★★**2026-08-16 완료.**
@@ -365,15 +318,54 @@ PR #643 머지 → 서버 pull → `--install` ×2 → `run` 1회. **검증 3종
 OCI `quantbridge/` prefix 객체 · **C2 24.0007h 전후 불변**) + 디스크 경보 양성/회복 발화(HTTP 200).
 두 BL 모두 ✅ 로 갔다. 서버 타이머 3종 = 백업 `03,09,15,21:00` · 디스크 `*:15` · 소크 `*:00/30`.
 
-**다음 행동 = Beta 진입 3종을 연다 — [BL-070] 도메인·DNS·Cloudflare → [BL-071] 백엔드
-프로덕션 배포 → [BL-072] 이메일·Waitlist.** [ADR-033] 이 G1 을 확정해 **선행이 풀렸고**
-그 조건 3종(백업·디스크 경보·전환 트리거)도 이 회차에 발효했다. [BL-071] 의 「Cloud Run/
-Railway/Render」 전제는 [ADR-033] 으로 대체됐다 — **현 서버(Oracle A1) 위에서** Clerk production
+~~**다음 행동 = Beta 진입 3종을 연다 — [BL-070] → [BL-071] → [BL-072]**~~
+→ ★★**2026-08-17 — 그 진입점이 「인증을 누구에게 맡기는가」로 먼저 갈렸다.** 착수 실측에서
+[BL-071] 의 실질이 **「Clerk 을 production 인스턴스로 승격」**임이 드러났고, 사용자 결정은
+승격이 아니라 **self-host 전환**이었다([ADR-034]). 그래서 이 회차의 몸통은 인증 교체다.
+★남아 있는 사실 둘은 그대로다: **[BL-070] 은 「도메인을 사야 한다」가 아니다**(`qb.woosung.dev`
+302 · `qb-api.woosung.dev/health` 200 — 2026-08-16 실측) · **「gunicorn 보안헤더」는 대상이 없다**
+(gunicorn 은 레포에 0건이고 `--server_header False` 라는 플래그 자체가 없다 → uvicorn
+`--no-server-header` 하나, [BL-347]).
 
-- gunicorn 보안헤더가 남은 일이다. ★★**[BL-070] 을 「도메인을 사야 한다」로 읽지 마라 —
-  이미 살아 있다**(2026-08-16 실측: `qb.woosung.dev` **302** Access OTP ·
-  `qb-api.woosung.dev/health` **200**). 첫 step 은 구매·전파 대기가 아니라 **원장 정의 중
-  무엇이 남았는지 실측으로 가르는 것**이다(`reference/operations/frontend-deploy.md`).
+## ★2026-08-17 auth-selfhost — Clerk 을 걷어내고 Better Auth(self-host)로 옮겼다
+
+★★★**[ADR-034]** — 인증 서버는 이제 우리 Next 앱 안에서 돈다(`/api/auth/*`, better-auth 1.6.29).
+브라우저↔Next 는 세션 쿠키, Next↔FastAPI 는 **Bearer JWT** 이고 **백엔드는 시크릿을 하나도 쥐지
+않는다**(JWKS 공개 키 검증). 의존성은 **순감**이다 — 제거 10(`clerk-backend-api`·`svix`·
+`python-jose`+전이 7) vs 추가 1(`pyjwt[crypto]`). CI 가 쓰던 인증 secret 2종도 **0개**가 됐다.
+
+**이 회차가 반증한 것 — 전부 「있다고 여겨진 것이 그 경로를 안 지났다」 계열이다.**
+⑴ ★★**geo-block L3 은 한 번도 발화한 적이 없다.** `_extract_country` 가 읽는
+`public_metadata.country` 를 **넣는 코드가 `apps/web` 어디에도 없었다**(grep 0건). 테스트는
+페이로드를 자기가 만들어 초록이었고, 문서(`geo-block-setup.md`)에는 그 주입 코드가 예시로만
+있었다. 이제 가입 훅이 `CF-IPCountry` 를 직접 본다 — **L3 이 처음으로 실재한다.**
+⑵ ★★**구 `test_clerk_auth.py` 는 SDK 를 `MagicMock` 으로 바꿔 `is_signed_in=False` 를 돌려줬다** —
+서명·만료·`iss`·`aud` 중 무엇도 검증된 적이 없다. 새 `test_jwt_auth.py` 는 **진짜 Ed25519** 로
+서명해 양성 1 + **음성 대조 6**(위조·만료·iss·aud·미상 kid·`sub` 누락)을 잰다.
+⑶ ★**production validator 가 URL 3종을 안 봤다.** `FRONTEND_URL`/`WAITLIST_INVITE_BASE_URL`/
+`BETTER_AUTH_URL` 은 비어 있지 않아서 「채워졌다」로 통과했고, 그 상태의 API 는 CORS 에서 실 FE
+origin 을 **조용히 거부**한다. 이제 fail-fast 다.
+⑷ ★**`PROMETHEUS_BEARER_TOKEN` 축을 겨누는 테스트가 0건이었다** — 다른 테스트들이 그 값을
+**세팅해서 에러를 피할 뿐**이었다([BL-246] 가드의 무증거 구간). 테스트를 세웠다.
+⑸ ★**`clerkSetup()` 이 e2e 의 유일한 `.env.local` 로더였다**(`playwright.config.ts` 에 dotenv 가
+없다). 걷어낼 때 **조용히 사라질 뻔했다** — `global.setup.ts` 가 직접 읽게 했다.
+⑹ ★**`python-jose` 는 EdDSA 를 지원하지 않는다**(실측). 그리고 `src` 에서 **사용처가 0건**이었다.
+
+★**동승 종결 [BL-770]** — `alembic check` 가 rc=255 로 죽어 있던 원인 2종을 고쳤다. 그러자
+원장이 경고한 「잠자던 진짜 drift」가 실제로 **1건** 드러났고(`ohlcv_time_idx`), 판정은
+**우리 것이 아니다**(`create_hypertable()` 소유)였다. **`alembic check` rc=0 은 이번이 처음이다.**
+
+★**최대 위험은 탈퇴였다.** Clerk `user.deleted` 웹훅은 「돈을 멈추는」 **유일한 입구**였다
+(surface-truth S3 P1). `DELETE /api/v1/auth/me` 로 입구만 옮기고 **안에서 하는 일은 한 줄도
+바꾸지 않았다** — `test_user_deleted_stops_trading.py` 재조준이 그 수용 기준이다.
+
+**다음 행동 = 이 브랜치를 배포하고 실사용자 1명을 새 계정에 잇는다.** 순서는
+⑴ 맥 빌드 → `docker save | ssh docker load` ⑵ 서버 `git pull` (2커밋 뒤처짐) ⑶ **전용 DB 롤
+`qb_auth` 생성**(DDL — 승인) ⑷ **alembic 적용**(`soak-stack.sh migrate` dry-run → 승인 →
+`--confirm`) ⑸ FE 스택 재기동 + API 유닛 재시작 ⑹ 가입 → **`link_auth_subject.py --confirm`**
+으로 `auth_subject` 1행 UPDATE(**승인** — 남의 데이터 수정) ⑺ read-back(로그인 → `/strategies`
+렌더 → `/trading` WS `authed`). 절차 전문 = [`better-auth-setup.md`](reference/operations/better-auth-setup.md).
+그다음이 Beta 3종([BL-070]/[071]/[072])이고, [BL-753]·[BL-754]·[BL-347] 이 그 회차에 동승한다.
 
 ★**소크는 그와 별개로 계속 돈다.** 창 2가 24h 를 넘으면 같은 절차(보고 → 승인 → `down` →
 `pin` → `up`)로 창 3을 연다. 창 2·3 은 pin 이 같으므로([ADR-024]) 층화가 필요 없지만,
@@ -462,7 +454,7 @@ Railway/Render」 전제는 [ADR-033] 으로 대체됐다 — **현 서버(Oracl
 | **AJ** | [BL-766] e2e row 로케이터가 **헤더 행을 잡을 수 있다** — 표가 비어도 단언이 초록                                                                                                                                                                                                                                               | P2  | ★★   | 낮     | S             | 0줄            | ★2026-08-16 전수 감사로 대상 특정 — `tr` 계열 **9건** 중 헤더를 잡을 수 있는 것 **5건**, 안전 패턴 `getByRole('row')` **0건**. ★수리보다 **음성 대조가 본체다**(빈 표에서 red 인지부터 재라). e2e 를 손대는 회차 동승이 싸다                                                                                                                                             |
 | **AK** | ~~[BL-767] DB 백업 — 서버 설치 + 업로드 실증이 남았다~~ → **✅ 2026-08-16 종결**                                                                                                                                                                                                                                               | P1  | ★★★  | 낮     | XS            | 0줄            | 검증 3종 통과 — 덤프 2,315,852B(+메타) · OCI `quantbridge/` prefix 객체 존재 · ★**C2 24.0007h 전후 불변**(백업이 창을 안 끊는다는 실측 증거). 전용 버킷은 **생성 권한이 없어**(409/404 대조) 공유 버킷 + prefix                                                                                                                                                          |
 | **AL** | ~~[BL-768] 디스크 80% 경보 — 서버 설치 + 발화 실증이 남았다~~ → **✅ 2026-08-16 종결**                                                                                                                                                                                                                                         | P2  | ★★   | 낮     | XS            | 0줄            | 양성 = `QB_DISK_WARN_PCT=1` 강제 발화 **rc=0(HTTP 200)** · 회복 = 임계 원복 시 OK 전이 발화 ⇒ 「발화 조건은 상태값이 아니라 **전이**」 실증. `--status` 신선도 ✓                                                                                                                                                                                                         |
-| **AM** | [BL-770] `alembic check` 가 **rc=255** — 스키마 drift 검사가 **설정 결함**으로 죽어 있다                                                                                                                                                                                                                                       | P1  | ★★★  | 낮     | S             | 0줄            | ★2026-08-16 실측 rc=255. 원인이 drift 가 아니라 검사기 자신 — `env.py` 가 `optimizer`·`waitlist` 모델을 import 안 해 **removed table** 로 보고, `include_schemas` 0건이라 `trading.*` 를 **added table** 로 본다. [BL-749] 와 겹쳐 **migration 방어면이 이름만 남았다**. ★고치면 잠자던 진짜 drift 가 드러난다 — 판정 기준을 먼저 정해라                                 |
+| **AM** | ~~[BL-770] `alembic check` 가 **rc=255** — 스키마 drift 검사가 **설정 결함**으로 죽어 있다                                                                                                                                                                                                                                     | P1  | ★★★  | 낮     | S             | 0줄            | ★2026-08-16 실측 rc=255. 원인이 drift 가 아니라 검사기 자신 — `env.py` 가 `optimizer`·`waitlist` 모델을 import 안 해 **removed table** 로 보고, `include_schemas` 0건이라 `trading.*` 를 **added table** 로 본다. [BL-749] 와 겹쳐 **migration 방어면이 이름만 남았다**. ★고치면 잠자던 진짜 drift 가 드러난다 — 판정 기준을 먼저 정해라                                 |
 | **AN** | [BL-772] LLM 변환 **502 가 내부 예외 타입·메시지를 응답 본문에 반사**한다                                                                                                                                                                                                                                                      | P2  | ★★   | 낮     | XS            | 0줄            | ★`convert/router.py:32` 1줄. 2026-08-15 surface-truth 가 닫은 「secret 이 422 body 에 평문 반사」와 **같은 계열이고 502 축은 남아 있었다**. SDK 예외 문자열에 endpoint·모델명·요청 ID 가 실린다                                                                                                                                                                          |
 | **AO** | [BL-773] 백테스트·옵티마이저가 실행 시점의 **mutable Pine** 을 다시 읽는다 — 결과가 무엇을 검증했는지 알 수 없다                                                                                                                                                                                                               | P1  | ★★   | 중     | L             | **건드림**     | ★2026-08-16 코드 대조로 3경로 확정(`backtest/service.py:284→348` · `optimizer/service.py:236→249` · `strategy/service.py:371` 무조건 덮어쓰기). `strategy_version`·`source_hash` **0건**. 실자금은 [ADR-032] 로 이미 기각이라 **지금 돈을 잃히진 않는다** — 트리거는 공유 링크와 다중 사용자다. migration 이 붙으므로 소크 창과 조율                                     |
 | **AP** | [BL-774] TradingView webhook 이 **body 기반 HMAC** 을 요구한다 — 동적 alert 본문에서 성립하는지 **미확인**                                                                                                                                                                                                                     | P2  | ★★   | 중     | M             | 0줄            | ★첫 step 은 코드 수리가 아니라 **실측 1건**이다 — 정적 body 면 동작하고 `{{close}}` 류 placeholder 면 매번 401 이다. idempotency key 가 optional query 라 **같은 결정에 묶여 있다**(고정=충돌 / 생략=중복 주문). 자동 생성안은 [BL-773] 에 의존                                                                                                                          |

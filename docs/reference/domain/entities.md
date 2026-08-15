@@ -11,16 +11,16 @@
 - **도메인:** auth
 - **코드:** `apps/api/src/auth/models.py` (`class User`)
 - **테이블:** `users`
-- **책임:** Clerk 동기화된 사용자 계정. 모든 도메인의 권한 단위.
-- **PK:** `id: UUID` (`uuid4`). Clerk user_id 는 별도 `clerk_user_id` (UK, VARCHAR max 64) — 내부 PK ↔ 외부 ID 분리.
+- **책임:** 인증 subject 에 대응하는 사용자 계정. 모든 도메인의 권한 단위.
+- **PK:** `id: UUID` (`uuid4`). 인증 공급자의 subject 는 별도 `auth_subject` (UK, VARCHAR max 64) — 내부 PK ↔ 외부 ID 분리. ★이 분리 덕에 2026-08-17 Clerk → Better Auth 전환이 **이 컬럼 하나**로 끝났다(ADR-034).
 - **주요 필드:**
-  - `id: UUID` (PK), `clerk_user_id: str` (UK)
-  - `email: str | None` (nullable, max 320 — Clerk 동기화 누락 가능)
+  - `id: UUID` (PK), `auth_subject: str` (UK)
+  - `email: str | None` (nullable, max 320 — JWT payload 에 없을 수 있다)
   - `username: str | None` (nullable, max 64)
-  - `is_active: bool` (Clerk webhook `user.deleted` → soft delete). (`is_premium` 삭제됨)
+  - `is_active: bool` (`DELETE /auth/me` → soft delete). (`is_premium` 삭제됨)
   - `created_at`, `updated_at`
-- **불변량:** id 변경 불가. Clerk Webhook으로 lifecycle 동기화.
-- **API:** `GET /auth/me`, Webhook `POST /webhooks/clerk`
+- **불변량:** id 변경 불가. 행은 첫 인증 요청에서 생긴다(JIT — 웹훅 없음, ADR-034).
+- **API:** `GET /auth/me` · `DELETE /auth/me`(탈퇴 — 돈을 멈춘다)
 
 ---
 
@@ -174,7 +174,7 @@
 
 ### ID 정책
 
-- 사용자(`User.id`)는 UUID PK (`uuid4`); Clerk user_id 는 별도 `clerk_user_id` 컬럼(UK, VARCHAR max 64). 내부 PK ↔ 외부 ID 분리 (erd.md §변경사항, Sprint 4).
+- 사용자(`User.id`)는 UUID PK (`uuid4`); 인증 subject 는 별도 `auth_subject` 컬럼(UK, VARCHAR max 64). 내부 PK ↔ 외부 ID 분리 (erd.md §변경사항, Sprint 4 · 이름은 ADR-034 에서 공급자 중립으로).
 - 그 외 모든 엔티티도 UUID (`uuid4`). auto-increment 금지.
 
 ### Timestamp 정책
