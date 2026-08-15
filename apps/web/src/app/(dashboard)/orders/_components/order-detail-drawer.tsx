@@ -36,6 +36,8 @@ import type { Order } from "@/features/trading/schemas";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { EMPTY_CELL } from "@/lib/labels";
 
+import { displayRealizedPnl } from "./orders-blotter";
+
 type OrderDetailDrawerProps = {
   order: Order | null;
   open: boolean;
@@ -129,15 +131,31 @@ function OrderDetailBody({ order, onClose, variant }: OrderDetailBodyProps) {
         <DetailList
           items={[
             { label: "주문 ID", value: <CopyableId label="주문 ID" value={order.id} /> },
-            { label: "전략 ID", value: <CopyableId label="전략 ID" value={order.strategy_id} /> },
+            {
+              label: "전략 ID",
+              value:
+                order.strategy_id == null ? (
+                  EMPTY_CELL
+                ) : (
+                  <CopyableId label="전략 ID" value={order.strategy_id} />
+                ),
+            },
             {
               label: "거래소 계정 ID",
-              value: <CopyableId label="거래소 계정 ID" value={order.exchange_account_id} />,
+              value:
+                order.exchange_account_id == null ? (
+                  EMPTY_CELL
+                ) : (
+                  <CopyableId label="거래소 계정 ID" value={order.exchange_account_id} />
+                ),
             },
             { label: "거래소 주문번호", value: order.exchange_order_id ?? EMPTY_CELL },
             { label: "멱등성 키", value: order.idempotency_key ?? EMPTY_CELL },
             { label: "상태", value: orderState },
-            { label: "주문 유형", value: ORDER_TYPE_LABEL[order.type] },
+            {
+              label: "주문 유형",
+              value: order.type == null ? EMPTY_CELL : ORDER_TYPE_LABEL[order.type],
+            },
             { label: "주문 방향", value: ORDER_SIDE_LABEL[order.side] },
             { label: "수량", value: order.quantity },
             { label: "주문가", value: order.price ?? EMPTY_CELL },
@@ -153,10 +171,19 @@ function OrderDetailBody({ order, onClose, variant }: OrderDetailBodyProps) {
           items={[
             { label: "생성 시각", value: formatOrderDateTime(order.created_at) },
             { label: "제출 시각", value: formatOrderDateTime(order.submitted_at) },
-            { label: "체결 시각", value: formatOrderDateTime(order.filled_at) },
+            // ★거부 주문도 `filled_at` 이 채워진다 — BE `mark_rejected` 가 그 자리에 **실패 시각**을
+            //   쓴다(`order_repository.py:941-945`). 그대로 「체결 시각」이라 적으면 체결되지 않은
+            //   주문이 체결된 것처럼 보인다(2026-08-15 codex P1).
+            {
+              label: order.state === "rejected" ? "실패 시각" : "체결 시각",
+              value: formatOrderDateTime(order.filled_at),
+            },
             { label: "체결가", value: order.filled_price ?? EMPTY_CELL },
             { label: "체결 수량", value: order.filled_quantity ?? EMPTY_CELL },
-            { label: "실현 손익", value: order.realized_pnl ?? EMPTY_CELL },
+            // ★손익 노출 판정은 **목록과 같은 SSOT** 를 쓴다. 직접 `order.realized_pnl` 을 읽으면
+            //   rejected/cancelled 에 남은 pine_v2 **추정치**가 확정 손실처럼 보인다 — 목록이
+            //   이미 그 이유로 `displayRealizedPnl` 을 통과시키고 있었는데 드로어만 우회했다.
+            { label: "실현 손익", value: displayRealizedPnl(order) ?? EMPTY_CELL },
             {
               label: "손익 확정 시각",
               value: formatOrderDateTime(order.realized_pnl_synced_at),

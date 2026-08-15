@@ -2113,7 +2113,7 @@ Error: 완료 상태 백테스트를 목록에서 찾지 못했다 (백엔드 80
 **Priority:** P3
 **Trigger:** 주문 상세 화면/드로어가 디자인 캐논(프로토타입)에 추가될 때
 **Est:** S (2-4h)
-**상태:** ⏳ 대기 (트리거 미도래) — FE 에 getOrder 배선도 상세 드로어도 없고 프로토타입 screen-11 에도 상세 affordance 가 없어 Trigger 자체가 미도래. (2026-08-09 status-triage-mass 확인)
+**상태:** ✅ **Resolved (2026-08-15 clock-fill-sweep)** — 주문 상세 드로어를 넣었다. ★**단건 API 배선을 만들지 않았다** — `trading/router.py:296-313` 목록이 단건(`:316`)과 **동일한 `OrderResponse`** 를 내므로 행 객체를 그대로 넘긴다(`getOrder`/`useOrder`/`tradingKeys.detail` 신설 0건). `sheet.tsx` + `delete-dialog.tsx:28` 의 `useMediaQuery` 분기(≤768px Sheet / 그 위 Dialog)를 복제했고 `orders/error.tsx`(AGENTS.md §6 의무, 없었다)를 함께 넣었다. ★**적대 리뷰가 금융 오표시 2건을 잡았다**: 거부 주문도 `filled_at` 이 채워지므로(BE `mark_rejected`) 라벨을 상태별로 갈랐고, 손익은 목록과 같은 SSOT(`displayRealizedPnl`)를 쓴다 — 직접 읽으면 rejected 에 남은 pine_v2 **추정치**가 확정 손실처럼 보인다. ★선택 상태는 **객체가 아니라 id** 로 든다(5초 polling 이 갱신한 값이 드로어에 반영된다). 실브라우저 e2e 로 드로어 개폐 + 취소 버튼 전파 차단 확인. (종전 서술: FE 에 getOrder 배선도 상세 드로어도 없고 프로토타입 screen-11 에도 상세 affordance 가 없어 Trigger 자체가 미도래. (2026-08-09 status-triage-mass 확인)
 **트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 **출처:** 2026-07-23 functional-parity 스프린트 defer 판정
 
@@ -2772,7 +2772,7 @@ Bybit `closed-pnl`(주문 단위 · 실측 한 주문당 정확히 1행, 592/592
 **Priority:** P3
 **Trigger:** BL-461(sub-daily fallback) 처리 시 함께
 **Est:** S
-**상태:** ⏳ 대기 (트리거 미도래) — 목록 title 이 여전히 legacy/unavailable 일 때만 붙고, monthly/daily 는 undefined 라 각주가 없다. (2026-08-09 status-triage-mass 확인) ★2026-08-10 fe-shareable-urls 가 **착수하지 않고 전제만 대조했다** — 아래 세 줄이 그 결과다.
+**상태:** ✅ **Resolved (2026-08-15 clock-fill-sweep)** — `backtest-list.tsx:391-393` 의 `: undefined` 를 지워 **4 컨벤션 전부** `sharpe.foot` 을 준다. 문구 신규 작성 **0줄** — `sharpe-convention.ts:53,62` 가 이미 monthly/daily 문구를 반환하고 있었다. red 선확인(`Unable to find an element with the title: 무위험 2%/년 · 월간 수익률 기준`) 후 수리. (종전 서술: 목록 title 이 legacy/unavailable 일 때만 붙고, monthly/daily 는 undefined 라 각주가 없다 — 2026-08-09 status-triage-mass) ★2026-08-10 fe-shareable-urls 가 **착수하지 않고 전제만 대조했다** — 아래 세 줄이 그 결과다.
 **트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
 ★★**2026-08-10 실측 — 본문 한 문장이 틀렸고, 도메인 값 하나가 빠져 있고, 처방이 하나 더 필요하다.**
@@ -9078,3 +9078,38 @@ codex 가 초판의 구멍을 잡았다: 「`OnCalendar` 가 있나」만 보면
 
 **상태:** ✅ **Resolved (2026-08-15 clock-fill-sweep)** — 등재와 수리를 같은 회차에 했다.
 **트리거 판정:** 도래 — 실측 출력이 근거다 (2026-08-15 clock-fill-sweep)
+
+---
+
+### BL-749
+
+**Title:** 스키마 동등성 검사가 **컬럼 이름만 · 한 방향만** 본다 — 타입·제약·인덱스 drift 를 못 잡는다
+**Category:** Backend / test infra
+**Priority:** P2
+**Trigger:** ★이미 발화했다 — [BL-741] 이 `create_all` DB 를 alembic head 로 stamp 하면서 이 검사에 의존했는데, 실제 보증 범위가 그보다 좁다는 것이 적대 리뷰로 드러났다
+**Est:** M (검사 확장 + 기존 drift 정리)
+**출처:** 2026-08-15 clock-fill-sweep (codex 적대 리뷰 P1)
+
+**원인 / 영향:** `apps/api/tests/test_migrations.py:167` `test_alembic_schema_matches_sqlmodel_metadata`
+가 비교하는 것은 `{c["name"] for c in inspect(...).get_columns(...)}` — **컬럼 이름 집합**뿐이고,
+단언도 `metadata_cols - alembic_cols` **한 방향**이다(모델에 있는데 DB에 없는 것만). 그 함수의
+docstring 자신이 「핵심 컬럼 누락만 검사 (정확한 type 비교는 PostgreSQL ↔ Python type 차이로
+어려움)」이라고 적어 두었다.
+
+⇒ 못 잡는 것: ⑴ **타입 불일치**(native enum ↔ VARCHAR, `Numeric(18,8)` ↔ `Numeric` 등)
+⑵ **nullable·default·CHECK 제약** ⑶ **인덱스·UNIQUE 축** ⑷ **DB 에만 있고 모델에 없는 컬럼**(역방향).
+
+★**[BL-741] 이 이 검사에 기댔다.** 「`create_all` 스키마가 곧 모델-head 이므로 head stamp 는 사실
+진술」이라는 근거가 **이름 층에서만 참**이다. 그 한계는 `tests/conftest.py` 의 stamp 블록 주석에
+적어 두었다. ★단 그 위험은 [BL-741] 이 **새로 만든 것이 아니다** — conftest 는 원래부터
+`create_all` 로 스키마를 만들었고 테스트는 늘 그 물리 스키마 위에서 돌았다.
+
+**권장 접근:** `Inspector` 의 `get_columns`(type · nullable · default) · `get_indexes` ·
+`get_unique_constraints` · `get_check_constraints` 를 양방향으로 비교한다. ★**전량을 한 번에 켜지
+마라** — 기존 drift 가 쏟아지면 게이트가 상시 red 가 되고 그러면 꺼진다. 축을 하나씩(타입 →
+nullable → 인덱스) 켜면서 그때그때 정리하는 편이 안전하다.
+
+**Risk:** 🟡 (켜는 순간 기존 drift 가 드러난다 — 그것이 목적이지만 회차 예산을 먹는다)
+
+**상태:** ⬜ Open — 미착수. 검사 확장은 이 회차 범위 밖이라 한계를 코드 주석으로 못박고 등재만 했다 (2026-08-15 clock-fill-sweep)
+**트리거 판정:** 도래 — [BL-741] 이 실제로 이 검사에 의존했고 그 보증 범위가 실측으로 좁혀졌다 (2026-08-15 clock-fill-sweep)

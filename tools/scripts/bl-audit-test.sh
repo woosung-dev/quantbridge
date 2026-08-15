@@ -291,6 +291,24 @@ printf '%s' "$OUT" | grep -qE '^  ACTIVE +1$' || _why="${_why}'ACTIVE 1' 이 아
 printf '%s' "$OUT" | grep -qE '^  DEFERRED +1$' || _why="${_why}'DEFERRED 1' 이 아니다 "
 report "⑩ 음성 대조 — 정합·취소선을 삼키지 않는다" "$_why"
 
+# ── ⑪ 중복 트리거 판정 줄 = 이 축의 우회 경로 (2026-08-15 codex P1) ────────────────
+#   판정은 **첫 줄**로 하므로, 뒤에 `미도래` 를 한 줄 더 적으면 ⑨ 가 통째로 무력해진다.
+#   상태줄(③)과 같은 계약으로 SSOT 를 하나로 강제한다.
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⬜ Open — 미착수.
+**트리거 판정:** 도래 — 지금 착수 가능
+**트리거 판정:** 미도래 — 동승 조건
+
+---
+EOF
+_why=""
+[ "$RC" -eq 1 ] || _why="${_why}종료코드=$RC(기대 1) — 둘째 줄이 조용히 무시됐다 "
+printf '%s' "$OUT" | grep -q '▶ 중복 트리거 판정 줄' || _why="${_why}★중복 트리거줄 축이 발화하지 않았다 "
+report "⑪ 중복 트리거 판정 줄 → exit 1" "$_why"
+
 echo
 printf '══ 통과 %d / 실패 %d ══\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ] || exit 1

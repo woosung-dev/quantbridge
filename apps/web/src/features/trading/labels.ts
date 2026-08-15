@@ -6,7 +6,7 @@ import type { Order } from "./schemas";
 
 export type OrderState = Order["state"];
 export type OrderSide = Order["side"];
-export type OrderType = Order["type"];
+export type OrderType = NonNullable<Order["type"]>;
 export type OrderMarginMode = NonNullable<Order["margin_mode"]>;
 
 /** 주문 상태 5종. screen-11-orders.html:1290/1304/1346/1360/1374 */

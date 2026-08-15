@@ -156,6 +156,41 @@ test.describe("functional-parity 회귀 가드", () => {
     await expect.poll(() => cancelPosted).toBe(true);
   });
 
+  // [BL-413] 실브라우저 화면 검증 — jsdom 단위 테스트는 Sheet/Dialog 의 실제 마운트를 재지 못한다.
+  // ★취소 버튼 전파 차단을 여기서 함께 잰다: 행 클릭이 상세를 열면서 취소를 삼키면 안 되고,
+  //   반대로 취소 클릭이 상세를 열어서도 안 된다(둘 다 회귀 이력이 있는 조합이다).
+  test("A2 — 주문 행 클릭 → 상세 드로어, 취소 버튼 클릭은 드로어를 열지 않는다", async ({
+    page,
+  }) => {
+    await mockShellRoutes(page);
+    await page.context().route("**/api/v1/orders/*/cancel", async (route) => {
+      await fulfillJson({ ...ORDER_PENDING, state: "cancelled" })(route);
+    });
+
+    await page.goto("/orders");
+
+    // ★`tr` 만으로 잡으면 **헤더 행**이 걸린다 — 헤더에 「체결가」·「체결수량」 열이 있어서
+    //   `hasText: "체결"` 에 매치되고, 헤더에는 클릭 핸들러가 없어 드로어가 열리지 않는다.
+    //   (실측 2026-08-15: 이 테스트 초판이 정확히 그렇게 실패했다.) `tbody` 로 좁힌다.
+    const filledRow = page.locator("tbody tr").filter({ hasText: "체결" }).first();
+    await filledRow.click();
+
+    const drawer = page.getByRole("dialog", { name: /주문 상세/ });
+    await expect(drawer).toBeVisible();
+    // 목록이 이미 가진 값만 쓴다 — 단건 조회를 붙이지 않았다는 사실이 화면에서 확인된다.
+    await expect(drawer.getByText("주문 ID")).toBeVisible();
+    await expect(drawer.getByText("제출·체결")).toBeVisible();
+    await page.screenshot({ path: "test-results/bl413-order-detail-drawer.png" });
+
+    await drawer.getByRole("button", { name: "닫기" }).click();
+    await expect(drawer).toHaveCount(0);
+
+    // 취소 버튼은 행 클릭 핸들러를 타지 않아야 한다.
+    const pendingRow = page.locator("tbody tr").filter({ hasText: "대기" }).first();
+    await pendingRow.getByRole("button", { name: "주문 취소" }).click();
+    await expect(page.getByRole("dialog", { name: /주문 상세/ })).toHaveCount(0);
+  });
+
   test("A2 — submitted 취소 202 → '요청됨' 안내 toast, '취소됨' 완료 표기 금지", async ({
     page,
   }) => {

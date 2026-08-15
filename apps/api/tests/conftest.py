@@ -362,8 +362,15 @@ async def bootstrap_test_schema(conn) -> None:
     #   CI 는 fresh DB 라 이 상태에 도달하지 않아 영원히 초록이다.
     # ★지우기만 하면 안 된다 — 버전이 없으면 `upgrade head` 가 base 부터 돌아 **여전히 죽는다.**
     #   방금 metadata 로 head 스키마를 만들었으므로 head 로 stamp 하는 것이 **사실 진술**이고,
-    #   그 사실성은 `test_alembic_schema_matches_sqlmodel_metadata` 가 지킨다
-    #   (migration 스키마와 모델 metadata 가 갈라지면 그 테스트가 먼저 red 다).
+    # ★★**이 stamp 의 사실성은 부분적으로만 보증된다 — 그 한계를 여기 적어 둔다**(2026-08-15 codex P1).
+    #   `test_alembic_schema_matches_sqlmodel_metadata` 는 **컬럼 이름 집합만**, 그것도
+    #   `metadata_cols - alembic_cols` **한 방향**으로만 본다(그 함수 docstring 이 스스로
+    #   「정확한 type 비교는 어렵다」고 적었다). ⇒ **타입·제약·인덱스가 갈린 경우는 못 잡는다.**
+    #   즉 「create_all 스키마 ≡ migration 스키마」는 이름 층에서만 참이고, 그 아래층에서
+    #   갈리면 이 stamp 는 조용히 거짓이 된다. 그 검사 확장은 [BL-749].
+    #   ★단 그 위험은 이 변경이 **새로 만든 것이 아니다** — conftest 는 원래부터 `create_all` 로
+    #     스키마를 만들었고 테스트는 늘 그 물리 스키마 위에서 돌았다. 이 stamp 가 바꾼 것은
+    #     「alembic 이 그 DB 를 head 로 인식한다」 하나뿐이다.
     await conn.execute(
         text(
             "CREATE TABLE IF NOT EXISTS alembic_version "

@@ -257,39 +257,12 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 **② `AGENTS.md` 의 「게이트는 마지막 커밋 뒤에」에 범위(회차 단위)가 없어 무인 세션이 66분을 태웠다**는
 **잔여 부채로 미착수**다. ⑵ 재개 조건(실행기 claude 복귀로 축 분리 + 비결정적 AC 혼입)은 ADR-030 §Consequences 에 있다.
 
-~~**다음 행동 = 이번 docs-diet 회차(2026-08-13)를 커밋·PR 로 닫고, ⓪ 표에서 다음 항목을 고른다.**~~
-→ **2026-08-13 PR #618 로 종결.** 같은 날 **monorepo-realign 회차가 열렸다** — 사용자 결정(대상 = 이
-레포 단독 · 전면 물리 재배치 + 표준 풀 정렬 · 계약축 PoC 는 [BL-717] · 제2앱 없음)에 따라
-`backend/→apps/api` · `frontend/→apps/web` · `scripts/→tools/scripts` · compose 4벌→`infra/compose/` ·
-`docker/db→infra/db` 재배치를 [ADR-029] 로 확정하고 브랜치 `refactor/monorepo-realign` 에 3커밋
-(M1 순수 mv 1,492 rename / M2 기계 표면 146파일 / M3 문서)으로 실었다. 검증 = 전량 pytest
-4604 passed·vitest 1351·게이트 하네스 9종·compose config AC(프로젝트명 3층 불변).
-
-~~**다음 행동 = `refactor/monorepo-realign` PR-1 을 push → CI 에서 `changes` outputs 2종 true + 전 잡
-non-skipped 를 확인 → 사용자 승인으로 머지 → 즉시 [BL-719] 롤아웃 lockstep(소크 서버 유닛 pull-전
-uninstall 순서 엄수)을 실행한다.**~~
-→ **2026-08-13 완주** — PR **#619** 머지(12:38Z) · canary **#620**(backend 3레인 발화 + FE 정상 skip
-= 판별력 양방향) · 핫픽스 **#621**(`--strip-components` 2→3, 서버 pin 실측 발화) · 서버 lockstep +
-맥 롤아웃 완료 ⇒ **[BL-719] ✅**(이행 기록 = 원장 `#bl-719` · 반증 카드 = [ADR-029]). ★첫 판독의
-tick_stall 실격 1건(13:03Z)은 **down 창 자체**다 — operational 등재, 창 리셋 예정대로.
-
-~~**다음 행동 = 이번 회차(BL-719 종결 + harness-teardown 재적용)를 커밋·PR 로 닫고 ⓪ 표에서 고른다.**~~
-→ **2026-08-13 완주** (PR **#623** · 인계 P1 [BL-716] 은 **2026-08-14 gate-surface-close 가 종결**).
-이 회차의 게이트 배선 수리 = `final-gates.sh` 「함대 분배 하네스」 run_gate 제거(27→26) · `Makefile`
-`gate-harnesses` 루프 9종→**8종**(재실측 **13초** rc=0) · BE 수집 무결(4,636 collected).
-★**살아 있는 스크립트만 부르는지 대조했다** — `final-gates.sh` 가 부르는 13개 전건 실재 + 그 검사가
-심은 결손을 실제로 잡는지 **음성 대조**까지 확인(빈 입력 초록 = LESSON-101). 잔존 참조 스윕은 양성
-대조 선행 후 0건(tombstone 서술 제외) — `gates-and-traps.md` 「9종·17.3초」 2곳은 wip 스윕이 놓친 낡음이라 함께 정정.
-이 회차가 한 것 = 워크트리 **16G→2.0G**(clean 10벌 제거, 브랜치 ref 16개 전건 보존 — `du -sh
-.claude/worktrees/` · `git for-each-ref refs/heads/` 로 제거 전후 2회 측정. ★**버전 관리 밖이라
-사후 재현은 후행값만 된다**) · `backlog.md` RESOLVED **78건 접기**(본문 −146,412자 제거. ★최종
-파일 크기는 여기 박지 않는다 — 이 문단 자신이 바꾼다, `wc -m` 으로 재라) · `dev-log/` 본문
-**25건(224,137자) git 강등** + 그것을 가리키던 참조 **37곳** 정리(링크 35 + 평문 2) ·
-**폴더 축 2차 정리**(`.claude` **2.0G → 40K** — 워크트리 11벌 전량 · fleet · plans · 지난 회차 신호
-47벌 · `.backups` 덤프 · `tmp_code` · 캐시 3종 · 빈 디렉터리 7. 전부 gitignored 라 커밋 밖이다) ·
-`phases/bl709/step{2,3,4}-output.json` **2,476,261 bytes** 제거(러너가 쓰기만 하고 안 읽는다).
-★**`.soak`·`.agents`·`docs/dev-log/INDEX.md` 는 건드리지 않았다** — 각각 살아 있는 소크 창 /
-스킬 심볼릭 링크 28개의 실체 / ADR-026 발견 층이다.
+~~**다음 행동 = docs-diet 회차(2026-08-13) · monorepo-realign · BL-719 종결 + harness-teardown**~~
+→ **2026-08-13 전건 완주 (강등 — 본문 = git).** PR **#618**(docs-diet) · **#619**+핫픽스 **#621**
+([ADR-029] 전면 재배치 `backend/→apps/api` · `frontend/→apps/web` · `scripts/→tools/scripts`) ·
+**#623**([BL-719] ✅ + 조종 장치 230.7KB 철거 [ADR-030]). 한 줄 = **「영역 판정이 pipefail+`grep -q`
+SIGPIPE 로 대형 diff 에서 비결정」**(FE 3레인 침묵 skip 실사고)과 **치환 사각 4종**. 발견 색인 =
+`dev-log/INDEX.md`. tombstone: 원문 = `git show e11b09f5:docs/status.md` (260~292행).
 
 ### ★2026-08-13 contract-poc — [BL-717] 종결 (강등 — 전문 = [ADR-031])
 
@@ -371,7 +344,21 @@ tick_stall 실격 1건(13:03Z)은 **down 창 자체**다 — operational 등재,
 ⓪ 표에서 고르되 **`--list ACTIVE` 가 이제 2건뿐**이다([BL-547] M · [BL-591] L+사용자 설계 선행) —
 둘 다 소크 코드를 건드리므로, 창이 도는 동안은 **PARTIAL ∧ 도래** 쪽에서 골라라.
 
-**이 회차가 닫은 것 (ACTIVE 6 → 2)**
+**이 회차가 닫은 것 (ACTIVE 6 → 3 · 신규 등재 [BL-749] 포함)**
+
+★★**적대 리뷰(codex)가 6건을 냈고 phantom 0 이었다 — 그중 셋이 이 회차 자신의 수리에 있었다.**
+⑴ **[BL-413] 이 금융 값을 오표시**했다 — 거부 주문도 `filled_at` 이 채워지는데(BE `mark_rejected`)
+그것을 「체결 시각」으로 적었고, 손익은 목록이 이미 쓰던 SSOT(`displayRealizedPnl`)를 **우회**해
+rejected 에 남은 pine_v2 추정치를 확정 손실처럼 보였다. ⑵ **내가 만든 트리거 정합 축에 우회로**가
+있었다 — 트리거 줄을 첫 줄만 읽어서 `도래` 뒤에 `미도래` 를 한 줄 더 적으면 통과했다(중복을
+실패로 올려 막았다). ⑶ **[BL-741] 의 근거 문장이 거짓**이었다(아래).
+그 밖에 `QB_SOAK_ALLOW_DARWIN` 이 `.env.example` 에 없어 **Golden Rule 위반**이었고, 드로어가
+5초 polling 과 desync 였다(객체 대신 **id** 를 들도록 고쳤다).
+
+★**e2e 가 잡고 vitest 는 못 잡은 회귀가 하나 있었다** — 상세 필드 9개를 non-nullable 로 넣자
+그 필드를 안 보내던 route mock 4곳에서 파싱이 죽어 **주문 목록 전체가 빈 화면**이 됐다
+(authed 4건 red). 레포 관용구(Wave 1~3 의 `.default(null)` + 「구 응답/fixture 회귀 방지」 주석)가
+이미 답을 갖고 있었는데 새 필드만 그 계약을 안 따랐다. 수리 후 authed **86 passed**.
 
 1. **[BL-741] ✅** — `create_all` 직후 `alembic_version` **head stamp**. ★착수 전제가 반증됐다:
    인덱스 생존 경로는 **없고** 남는 것은 `alembic_version` 하나였다(지우기만 하면 base 부터 돌아 여전히 죽는다).
@@ -383,6 +370,12 @@ tick_stall 실격 1건(13:03Z)은 **down 창 자체**다 — operational 등재,
 5. **[BL-748] ✅ (신규)** — **게이트 자신이 fail-open 이었다.** C4 는 볼 창이 없으면 통과한다.
 6. **[BL-736] 🟡** — 우리 소유 볼륨 11개 = **70MB**(회수 가능분의 **0.4%**). **94% 는 그대로다.**
    나머지는 남의 프로젝트 것이고 **우리가 더 할 것이 없다.**
+7. **[BL-413]·[BL-472] ✅** — 주문 상세 드로어(★**단건 API 배선 0건** — 목록이 같은 `OrderResponse`
+   를 낸다) + `orders/error.tsx` + sharpe 각주 1줄. 실브라우저 e2e 로 개폐·전파차단 확인.
+8. **[BL-749] ⬜ 신규** — **[BL-741] 의 근거가 거짓이었다.** 「stamp 의 사실성은 기존 테스트가
+   지킨다」고 적었는데, `test_alembic_schema_matches_sqlmodel_metadata` 는 **컬럼 이름만 · 한
+   방향만** 본다(그 docstring 이 스스로 「정확한 type 비교는 어렵다」고 적었다). 타입·제약·인덱스
+   drift 는 못 잡는다. 한계를 `conftest` stamp 블록 주석에 못박고 검사 확장은 등재했다.
 
 ★**P0 [BL-003] 은 코드로 할 게 없다** — runbook·smoke 는 2026-08-09 에 작성 완료고 남은 것은
 Trigger(소크 1주 안정) 충족뿐이다. **소크를 지키는 것이 P0 에 기여하는 유일한 경로다.**
@@ -458,6 +451,7 @@ Trigger(소크 1주 안정) 충족뿐이다. **소크를 지키는 것이 P0 에
 | **X**  | ~~[BL-732] ★`gap_resync_position_mismatch` **재발** — 이미 Resolved 인 사인이 그 수리가 든 pin 에서 다시 났다~~ → **2026-08-15 표본 반증 · DEFERRED** — 로컬 6h33m 사망은 **맥 sleep** 이 원인이었다(beat 가 168회 중 15회만 tick). C1 을 끊은 사건은 [BL-734] 로 확정·수리                                                    | P1  | —    | —      | M (3-4h)   | 0줄            | 트리거를 「깨끗한 창에서의 재발」로 옮겼다                                                                                                                                                                                                                                                                                                                     |
 | **AA** | ~~[BL-735] ★**소크를 로컬 맥에서 돌리지 않는다** — AC 전원에서도 `sleep 1` 이고 Clamshell Sleep 은 못 막는다 ⇒ 로컬에서 24h 연속 창은 **구조적으로 불가능**~~ → **✅ 2026-08-15 종결 — `_up()` Darwin 거부**                                                                                                                   | P1  | ★★★  | 낮     | S          | 소량           | 규칙은 문서화됐다. 잔여 = `soak-stack.sh up` 의 Darwin 거부                                                                                                                                                                                                                                                                                                    |
 | **AB** | [BL-736] 로컬 Docker VM **94% / 3.1G** — Redis AOF 쓰기 실패가 celery 를 통째로 죽였다(06:04:11Z 실사고)                                                                                                                                                                                                                       | P2  | ★★   | 낮     | S (1h)     | 0줄            | ★처방 반증 — `prune -f` 실측 **0B**. 회수 가능분 5.5GB 는 전부 남의 프로젝트 이미지이고 볼륨엔 남의 DB 가 있다                                                                                                                                                                                                                                                 |
+| **AG** | [BL-749] 스키마 동등성 검사가 **컬럼 이름만 · 한 방향만** 본다 — 타입·제약·인덱스 drift 를 못 잡는다                                                                                                                                                                                                                           | P2  | ★★   | 중     | M          | 0줄            | ★이미 발화했다 — [BL-741] 이 「`create_all` 스키마 ≡ 모델-head」를 근거로 head stamp 를 했는데, 그 보증이 **이름 층에서만** 참인 것이 적대 리뷰로 드러났다. 한계는 `conftest` stamp 블록 주석에 못박아 뒀다. ★전량을 한 번에 켜면 기존 drift 가 쏟아져 게이트가 상시 red 가 된다 — 축을 하나씩 켜라                                                            |
 | **AC** | ~~[BL-737] 서버 `soak-watch.service` **failed** — 표본 타이머는 정상인데 **알림 축만** 죽어 있다~~ → **2026-08-15 종결** — 사인 `rc=127`(유닛이 재배치 전 `scripts/` 경로) · 사망은 08-14 가 아니라 **08-13 13:52Z 부터 41시간**. 정본 = watch 가 게이트 타이머를 **대체**하고, 감시자의 죽음은 `OnFailure` 알람 유닛이 알린다 | P2  | ★★   | 낮     | S (1h)     | 소량           | 2026-08-14 사망을 아무도 몰랐던 이유. 문서와 실태가 갈렸다                                                                                                                                                                                                                                                                                                     |
 | **AE** | ~~[BL-741] `conftest` 의 `create_all` 스키마 위에서 **새 migration 이 `DuplicateTable` 로 죽는다**~~ → **✅ 2026-08-15 종결 — alembic_version head stamp**                                                                                                                                                                     | P2  | ★★   | 낮     | S (1-2h)   | 소량           | ★CI(fresh DB)는 안 걸리고 **로컬에서 pytest 를 돌린 개발자만** 걸린다 — 증상이 「내 migration 이 깨졌다」로 보인다                                                                                                                                                                                                                                             |
 | **AF** | ~~[BL-743] ★**서버 DB 에 migration 이 도달하지 않는다** — `pin` 은 `apps/api/src` 만 뜨고 `alembic/` 은 그 밖이다~~ → **2026-08-15 종결** — 뿌리는 `pin` 이 아니라 **소크 compose 에 api 롤이 없다**는 것(migration 적용 단계 자체가 부재). `soak-stack.sh migrate` 신설 + 서버 적용(승인) — 인덱스 diff 0                     | P1  | ★★★  | 중     | S (1-2h)   | 소량           | 실측 로컬 `20260815_0001` vs 서버 `20260801_0001`                                                                                                                                                                                                                                                                                                              |
