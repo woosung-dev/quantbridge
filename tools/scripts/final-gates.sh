@@ -275,6 +275,12 @@ run_gate "문서 감사 하네스" "tools/scripts/docs-audit.sh" bash "$ROOT/too
 run_gate "소크 감시 하네스" "tools/scripts/soak-watch.sh" bash "$ROOT/tools/scripts/soak-watch-test.sh"
 run_gate "pre-push 가드 하네스" ".husky/pre-push" bash "$ROOT/tools/scripts/pre-push-guard-test.sh"
 run_gate "메인 체크아웃 가드 하네스" "tools/scripts/assert-main-checkout.sh" bash "$ROOT/tools/scripts/assert-main-checkout-test.sh"
+# ★2026-08-16 [ADR-033] 조건 3종의 하네스. **지은 자리에서 바로 등록한다** — 위 주석의 「고아 하네스」가
+#   생기는 경로가 정확히 「등록을 다음 회차로 미루는 것」이다.
+#   ★`db-backup-test` 는 로컬 `quantbridge-db` 가 있으면 실 DB 갈래(㉕~㉘)까지 돈다. 없으면 그 넷만
+#   skip 하고 스텁 갈래 35건은 항상 돈다(실행 0건이면 스스로 rc≠0 — 「전부 skip 인데 초록」 방지).
+run_gate "DB 백업 하네스" "tools/scripts/db-backup.sh" bash "$ROOT/tools/scripts/db-backup-test.sh"
+run_gate "디스크 경보 하네스" "tools/scripts/disk-guard.sh" bash "$ROOT/tools/scripts/disk-guard-test.sh"
 
 # ── 2. 단위 ───────────────────────────────────────────────────────
 # ★env 소싱 의무 + cd 절대경로. `pnpm test --run` 은 Unknown option — `pnpm test` 가 이미 vitest run.

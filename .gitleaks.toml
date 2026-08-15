@@ -1,0 +1,39 @@
+# gitleaks 설정 — [BL-757] 시크릿 스캐너
+#
+# 이 레포는 거래소 API 키를 Fernet 으로 암호화해 저장하고 `TRADING_ENCRYPTION_KEYS` 를
+# env 로 받는다. 그 키가 한 번 git 히스토리에 들어가면 rotate 없이는 회수 불가라,
+# **커밋되기 전에 막는 것**이 유일한 방어다. 실행 지점 = `.github/workflows/ci.yml` 의
+# `secret_scan` 잡 (`gitleaks dir`).
+
+[extend]
+# 기본 룰셋(160+ 프로바이더)을 그대로 쓴다. 룰을 직접 정의하지 않는다 —
+# 우리가 쓴 룰만 남기면 「우리가 상상한 시크릿」만 잡힌다.
+useDefault = true
+
+# ─────────────────────────────────────────────────────────────────────────────
+# allowlist — ★**값(secret) 단위로만** 뚫는다. 경로/파일 단위로 뚫지 않는다.
+#
+# 경로 allowlist(예: `apps/api/tests/**`)는 편하지만 그 디렉터리 전체에서 스캐너를
+# 무력화한다 — 누가 진짜 키를 테스트 픽스처에 붙여넣어도 통과한다. 아래는 정확히
+# **4개 리터럴**만 면제하고, 같은 파일의 다른 값은 전부 그대로 검사한다.
+#
+# 2026-08-16 기준 이 4개가 추적 트리 전체의 검출 14건 전부다(`gitleaks dir` 실측).
+# 항목을 늘릴 때는 「왜 이 값이 안전한가」를 반드시 한 줄 남겨라.
+# ─────────────────────────────────────────────────────────────────────────────
+[[allowlists]]
+description = "레포에 이미 공개된 더미 값 4종 — 값 단위 면제 (경로 면제 아님)"
+# `secret` = 룰이 뽑아낸 시크릿 값 그 자체. `line`/`match` 로 넓히지 마라.
+regexTarget = "secret"
+regexes = [
+  # ⑴ CI 테스트 전용 Fernet 키. `.github/workflows/` 3개 파일에서 ephemeral 테스트 DB 를
+  #    상대로만 쓰인다(암호화 왕복 테스트용). 실계정 데이터를 복호화하지 않으며 값 자체가
+  #    이미 공개 레포에 있다 — 새 시크릿이 아니다. 운영 키는 배포 호스트 env 에만 있다.
+  '''^MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc=$''',
+  # ⑵ `apps/api/tests/trading/test_providers_fixture.py` — AKIA 접두사를 흉내낸 명백한 더미.
+  '''^AKIA1234567890SECRET$''',
+  # ⑶ `apps/api/tests/trading/` 4개 파일의 거래소 API 키 픽스처. 16자 더미 문자열.
+  '''^ABCD1234EFGH5678$''',
+  # ⑷ `apps/web/src/features/trading/__tests__/order-schema.test.ts` 의 멱등키 픽스처.
+  #    멱등키는 애초에 시크릿이 아니다(재시도 중복 방지용 식별자) — generic-api-key 오탐.
+  '''^idempotency-1$''',
+]
