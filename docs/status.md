@@ -338,7 +338,9 @@ C1 은 pin 으로 안 죽고 C2 도 `max` 라 **벌어 둔 최장 창은 살아�
 ★대기 중 개발 후보는 ⓪ 표에서 고르되 **ACTIVE 는 2건뿐**([BL-547] 외생 관측 대기 · [BL-591])이고
 DEFERRED 도래분도 0건이다 — 다음 회차의 후보 풀은 **PARTIAL 22건의 잔여 축**과 **G1 DB 결정 후속**이다.
 ★**사용자 결정 대기 1건** — G1 DB 호스팅 3안 비교 + 추천(self-host TimescaleDB CE) =
-[`docs/reports/2026-08-15-g1-db-hosting.html`](reports/2026-08-15-g1-db-hosting.html). 확정되면
+`docs/reports/2026-08-15-g1-db-hosting.html` (★**링크가 아니라 경로다** — `docs/reports/*.html` 은
+`.gitignore:107` 로 **추적되지 않는다.** 링크로 걸면 로컬에는 파일이 있어 초록이고 **CI 에서만 red** 다).
+확정되면
 [BL-070]/[BL-071]/[BL-072] 선행이 풀린다.
 
 ~~2026-08-15 05:00Z 기준 C2 **12.3643h** · 실격 0 · C5 6/6 이고 **지금 세션은 100% 귀속**된다~~
