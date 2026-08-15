@@ -1,16 +1,5 @@
 {
   "project": "QuantBridge",
   "phase": "smoke",
-  "steps": [
-    {
-      "step": 0,
-      "name": "guardrail-proof",
-      "status": "completed",
-      "started_at": "2026-08-15T11:05:16+0900",
-      "summary": "PROOF.md 작성 — 주입 4축에서 5문항 응답",
-      "completed_at": "2026-08-15T11:05:58+0900"
-    }
-  ],
-  "created_at": "2026-08-15T11:05:16+0900",
-  "completed_at": "2026-08-15T11:06:00+0900"
+  "steps": [{ "step": 0, "name": "guardrail-proof", "status": "pending" }]
 }
