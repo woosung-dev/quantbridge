@@ -36,10 +36,17 @@ from typing import Any
 # `.` 뒤 숫자열 = 마이크로초. 날짜는 `-`, 시각은 `:` 로 갈리므로 첫 매치가 유일하다.
 _FRAC_RE = re.compile(r"\.(\d+)")
 
-# `SessionDeactivationReason` 에서 `user_stopped` 를 뺀 것 = **자동 사망**.
-# 정본은 `apps/api/src/trading/models.py:107-142`. 여기에 하드코딩하는 이유는 이 모듈이
-# 앱 코드를 import 하지 않는 순수 함수이기 때문이다 — 어긋나면
+# `SessionDeactivationReason` 에서 **사람·행정 사유**를 뺀 것 = **자동 사망**.
+# 정본은 `apps/api/src/trading/models.py` 의 `SessionDeactivationReason`. 여기에 하드코딩하는
+# 이유는 이 모듈이 앱 코드를 import 하지 않는 순수 함수이기 때문이다 — 어긋나면
 # `tests/scripts/test_soak_gate_predicate.py` 가 정본과 대조해 실패시킨다.
+#
+# ★제외 목록은 **둘**이다 (2026-08-15 surface-truth):
+#   `user_stopped`     — 사람이 Stop 을 눌렀다
+#   `account_deleted`  — 탈퇴 웹훅이 소유자의 세션을 전량 내렸다
+# 자동 사망은 「엔진·거래소 축이 스스로 무너졌다」를 세는 축이고 그것이 C3 실격의 정의다.
+# 행정 이벤트를 여기 넣으면 **소크 창이 거짓으로 리셋**된다 — 탈퇴 한 건이 벌어 둔 시간을
+# 통째로 지우고, 그 리셋은 원장에 「엔진이 죽었다」로 남는다.
 AUTOMATIC_DEATH_REASONS: frozenset[str] = frozenset(
     {
         "coverage_unrunnable",

@@ -121,11 +121,22 @@ class SessionDeactivationReason(StrEnum):
     (`.value`/`.name` 금지 — BL-453 과 동일 계약).
 
     ★BL-571 — 값 집합은 `ck_live_signal_sessions_deactivated_reason` CHECK 제약이
-    원장에서 못박는다(아래 `_DEACTIVATION_REASON_CHECK`). **그래서 사유를 추가하려면
-    이 enum + 마이그레이션 + FE 라벨 3곳을 함께 고쳐야 한다** — 컬럼 타입을 String 으로
-    고른 시점의 "사유 추가에 DDL 불필요" 성질은 의도적으로 포기했다. 이유는
-    `_DEACTIVATION_REASON_CHECK` 주석 참조. 빠뜨리면
-    `tests/test_migrations.py::test_deactivation_reason_check_matches_the_enum` 이 잡는다.
+    원장에서 못박는다(아래 `_DEACTIVATION_REASON_CHECK`). 컬럼 타입을 String 으로 고른
+    시점의 "사유 추가에 DDL 불필요" 성질은 의도적으로 포기했다 — 이유는
+    `_DEACTIVATION_REASON_CHECK` 주석 참조.
+
+    ★★**새 사유는 네 곳을 함께 고쳐야 한다** (2026-08-15 정정 — 종전 문장은 「3곳」이라
+    적고 있었고 틀렸다. `account_deleted` 를 넣자 넷째가 red 로 드러났다):
+
+    1. 이 enum
+    2. alembic 마이그레이션 (CHECK 재작성) —
+       `tests/test_migrations.py::test_deactivation_reason_check_matches_the_enum` 이 잡는다
+    3. FE 라벨 `apps/web/src/features/live-sessions/labels.ts` —
+       라벨 패리티 vitest 가 잡는다. 미등재면 화면에 **원문 코드가 그대로** 나온다
+    4. ★소크 게이트 술어 `apps/api/scripts/soak_gate_predicate.py:AUTOMATIC_DEATH_REASONS` —
+       `tests/scripts/test_soak_gate_predicate.py` 가 잡는다. **이것은 단순 미러가 아니다**:
+       새 사유가 「엔진이 스스로 무너졌다」인지 「사람·행정 이벤트」인지 판단해야 한다.
+       후자를 자동 사망에 넣으면 **소크 창이 거짓으로 리셋**된다(C3 실격 정의).
     """
 
     # preflight (evaluate 진입 전 차단) — `live_signal.py` 의 `preflight_cat` 집합.
