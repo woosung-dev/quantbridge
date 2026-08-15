@@ -1,4 +1,5 @@
 """BacktestRepository — CRUD + 조건부 UPDATE."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -94,8 +95,16 @@ class TestBacktestRepository:
             bt.id,
             metrics={"total_return": "0.18"},
             equity_curve=[["2024-01-01T00:00:00Z", "10000"]],
+            # 2026-08-15 surface-truth (U8) — `warnings` 는 기본값 없는 필수 키워드다.
+            # 기본값을 주면 새 완료 경로가 경고를 빼먹어도 조용히 통과한다.
+            warnings=["strategy.entry('X'): ignored unsupported kwargs: ['trail_points']"],
         )
         assert rows == 1
+
+        await db_session.refresh(bt)
+        assert bt.warnings == [
+            "strategy.entry('X'): ignored unsupported kwargs: ['trail_points']"
+        ], "완료 UPDATE 가 경고를 원장에 안 실었다"
 
     @pytest.mark.asyncio
     async def test_request_cancel_then_finalize(self, db_session: AsyncSession) -> None:
@@ -151,6 +160,7 @@ class TestBacktestRepository:
     @pytest.mark.asyncio
     async def test_reclaim_stale(self, db_session: AsyncSession) -> None:
         from datetime import timedelta
+
         bt = await _seed_bt(db_session, status=BacktestStatus.RUNNING)
         bt.started_at = _utcnow() - timedelta(hours=2)  # 2h ago
         db_session.add(bt)
@@ -174,6 +184,7 @@ class TestBacktestRepository:
         이 없으면 worker가 pickup 못 한 queued-cancel이 영영 stuck.
         """
         from datetime import timedelta
+
         bt = await _seed_bt(db_session, status=BacktestStatus.QUEUED)
         # created_at을 2h 전으로 조정, started_at NULL 유지
         bt.created_at = _utcnow() - timedelta(hours=2)

@@ -1513,18 +1513,34 @@ class Interpreter:
             else:
                 qty = self.strategy.compute_qty(fill_price=current_close)
             comment = str(kwargs.get("comment", ""))
-            # stop= 는 지원 (Week 3 Day 1부터). limit/trail은 여전히 미지원.
+            # stop= 는 지원 (Week 3 Day 1부터).
+            # ★limit= 도 지원 (2026-08-15 surface-truth · U8). 종전에는 `unsupported` 목록에
+            #   들어가 **조용히 시장가로 치환**됐고, 화면은 그 전략을 「지원됨」 초록 칩으로
+            #   표시했다(Coverage 는 함수 이름만 보므로 kwarg 를 못 본다). 백테스트는 시장가
+            #   결과를 냈고 경고는 네 지점에서 폐기됐다. trail_*/qty_percent 는 여전히 미지원.
             stop_raw = kwargs.get("stop")
             stop: float | None = None
             if stop_raw is not None and not _is_na(stop_raw):
                 stop = float(stop_raw)
+            limit_raw = kwargs.get("limit")
+            limit: float | None = None
+            if limit_raw is not None and not _is_na(limit_raw):
+                limit = float(limit_raw)
             unsupported = [
-                k for k in kwargs if k in ("limit", "trail_points", "trail_offset", "qty_percent")
+                k for k in kwargs if k in ("trail_points", "trail_offset", "qty_percent")
             ]
-            # TV parity — fill_timing=next_bar_open: 시장가(stop 없음) entry 는 인텐트
+            # TV parity — fill_timing=next_bar_open: 시장가(stop·limit 없음) entry 는 인텐트
             # 큐 등록 → 다음 bar 시가 체결. qty 미지정 시 체결 시가 기준 sizing 위해
-            # None 전달 (compute_qty deferred). stop= 은 기존 pending 경로 유지.
-            if self.strategy.fill_timing == "next_bar_open" and stop is None:
+            # None 전달 (compute_qty deferred). stop=/limit= 은 pending 경로 유지.
+            # ★★`and limit is None` 이 빠지면 지정가 진입이 **여기서 계속 시장가로 샌다** —
+            #   `unsupported` 목록에서 "limit" 을 빼는 것만으로는 아무것도 고쳐지지 않는다.
+            #   ★엔진 기본값은 `bar_close`(`strategy_state.py:399`)라 이 분기는 사용자가
+            #   TV parity 를 켰을 때(`fill_timing="next_bar_open"`)만 지난다. 그래서 이 가드는
+            #   **기본 경로 테스트로는 잡히지 않는다** — 2026-08-15 에 이 가드를 지우는 변이가
+            #   전건 초록으로 빠져나갔고, 전용 회귀
+            #   (`test_limit_entry_order.py::test_limit_entry_is_not_converted_to_market_under_next_bar_open`)
+            #   를 세우고서야 red 가 됐다.
+            if self.strategy.fill_timing == "next_bar_open" and stop is None and limit is None:
                 from src.strategy.pine_v2.strategy_state import MarketIntent
 
                 explicit_qty: float | None
@@ -1557,6 +1573,7 @@ class Interpreter:
                 fill_price=current_close,
                 comment=comment,
                 stop=stop,
+                limit=limit,
                 unsupported_kwargs=unsupported,
             )
             return None

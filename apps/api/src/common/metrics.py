@@ -592,7 +592,10 @@ qb_live_conditional_divergence_total = Counter(
 qb_live_pending_order_skip_evaluations_total = Counter(
     "qb_live_pending_order_skip_evaluations_total",
     "엔진이 pending 진입 leg 를 건너뛴 **평가 발화 횟수** (중복 포함, 유실 건수 아님)",
-    # reason ∈ session_disallowed | invalid_leg | below_api_precision | other = 4 series.
+    # reason ∈ session_disallowed | invalid_leg | below_api_precision |
+    #          limit_entry_unsupported_live | other = 5 series.
+    # ★`limit_entry_unsupported_live` 는 **고장이 아니라 정책**이다 (2026-08-15 U8) —
+    #   지정가 진입은 라이브 발주 경로가 표현하지 못해 의도적으로 막는다. 경보를 걸 대상이 아니다.
     labelnames=("reason",),
 )
 qb_trailing_placement_total = Counter(

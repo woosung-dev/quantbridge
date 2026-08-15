@@ -256,9 +256,17 @@ class BacktestRepository:
         *,
         metrics: dict[str, Any],
         equity_curve: list[Any],
+        warnings: list[str],
         where_status: BacktestStatus = BacktestStatus.RUNNING,
     ) -> int:
-        """Running → completed. 조건부. Returns affected rows."""
+        """Running → completed. 조건부. Returns affected rows.
+
+        ★`warnings` 는 **기본값 없는 필수 키워드**다 (2026-08-15 surface-truth · U8).
+        기본값을 주면 새 완료 경로가 경고를 빼먹어도 조용히 통과해, 「경고 없이 돌았다」는
+        거짓이 원장에 남는다 — 이 회차가 고치는 병이 정확히 그 침묵이다.
+        빈 리스트가 「경고 없음」이고, NULL 은 이 컬럼 이전 행의 「모른다」다.
+        `deactivate(reason=...)` 가 [BL-484] 에서 같은 이유로 같은 선택을 했다.
+        """
         result = await self.session.execute(
             update(Backtest)
             .where(Backtest.id == backtest_id)  # type: ignore[arg-type]
@@ -267,6 +275,7 @@ class BacktestRepository:
                 status=BacktestStatus.COMPLETED,
                 metrics=metrics,
                 equity_curve=equity_curve,
+                warnings=warnings,
                 completed_at=datetime.now(UTC),
             )
         )

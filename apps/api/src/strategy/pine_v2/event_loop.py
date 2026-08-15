@@ -639,6 +639,22 @@ def run_live(
         )
     else:
         for trade_id, order in sorted(strategy_state.pending_orders.items()):
+            # ★2026-08-15 surface-truth (U8) — **지정가 진입은 거래소로 내보내지 않는다.**
+            #   엔진은 limit pending 을 백테스트에서 지정가로 체결하지만, 라이브 발주 경로는
+            #   `OrderRequest.trigger_price`(= stop) 하나만 표현한다. 그 상태로 내보내면
+            #   지정가 의도가 **시장가/트리거로 왜곡**돼 나간다 — 엔진이 올바로 표현하지
+            #   못하는 진입을 거래소로 보내느니 **fail-closed** 가 낫다는 판단이다.
+            #   ⇒ 사유를 `invalid_leg` 로 뭉뚱그리지 않고 전용 라벨로 남긴다. 「값이 깨졌다」와
+            #   「이 주문 종류는 라이브 미지원이다」는 운영자가 봐야 할 것이 다르다.
+            if order.stop_price is None and order.limit_price is not None:
+                pending_order_skips.append(
+                    {
+                        "trade_id": trade_id,
+                        "reason": "limit_entry_unsupported_live",
+                        "invalid_fields": [],
+                    }
+                )
+                continue
             entry_qty = _to_decimal(order.qty)
             stop_price = _to_decimal(order.stop_price)
             if entry_qty is None or stop_price is None:

@@ -14,6 +14,7 @@ from __future__ import annotations
 import dataclasses
 import types as _types
 import typing
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -349,3 +350,35 @@ def equity_curve_to_jsonb(series: pd.Series) -> list[list[str]]:
 def equity_curve_from_jsonb(data: list[list[str]]) -> list[tuple[datetime, Decimal]]:
     """JSONB list → [(datetime, Decimal), ...]."""
     return [(_parse_utc_iso(ts), Decimal(v)) for ts, v in data]
+
+
+# --- warnings ---
+
+# 원장에 실을 경고의 상한. 초과분은 한 줄로 접는다.
+# ★엔진 경고는 **bar 마다** append 된다(`strategy_state.entry` 계열이 그렇다). 매 bar 진입을
+#   내는 전략이면 같은 문장이 수천 줄 쌓이고, 그것이 그대로 JSONB 로 들어가면 원장·응답·화면이
+#   함께 부푼다. 종전에는 이 값이 **어디에도 저장되지 않아서** 문제가 드러나지 않았을 뿐이다.
+_WARNINGS_LIMIT = 50
+
+
+def dedupe_engine_warnings(warnings: Sequence[str]) -> list[str]:
+    """엔진 경고를 **첫 등장 순서를 지키며** 중복 제거하고 상한을 씌운다.
+
+    ★정렬하지 않는다 — 경고의 순서는 「전략이 무엇을 먼저 했는가」이고 그 자체가 정보다.
+    ★잘린 사실을 **말한다**. 조용히 자르면 화면이 「이게 전부」라고 거짓말한다 — 이 회차가
+      고치는 병이 정확히 그 침묵이다.
+    """
+    seen: set[str] = set()
+    unique: list[str] = []
+    for warning in warnings:
+        if warning in seen:
+            continue
+        seen.add(warning)
+        unique.append(warning)
+    if len(unique) <= _WARNINGS_LIMIT:
+        return unique
+    hidden = len(unique) - _WARNINGS_LIMIT
+    return [
+        *unique[:_WARNINGS_LIMIT],
+        f"… 서로 다른 경고 {hidden}건이 더 있습니다 (표시 상한 {_WARNINGS_LIMIT}건)",
+    ]

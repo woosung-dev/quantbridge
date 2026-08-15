@@ -472,6 +472,10 @@ class BacktestDetail(BacktestSummary):
     metrics: BacktestMetricsOut | None = None
     equity_curve: list[EquityPoint] | None = None
     error: str | None = None
+    # 2026-08-15 surface-truth (U8) — 엔진이 이 실행에 대해 남긴 경고.
+    # ★`None` 과 `[]` 는 다르다: `None` = 이 컬럼 이전에 끝난 실행(**모른다**),
+    #   `[]` = 경고 없이 돌았다. 화면은 그 둘을 구분해 그린다.
+    warnings: list[str] | None = None
 
     @field_serializer("initial_capital")
     def _decimal_to_str(self, v: Decimal) -> str:

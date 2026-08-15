@@ -53,37 +53,68 @@ class MarketIntent:
 
 @dataclass
 class PendingOrder:
-    """Stop/Limit 지연 체결 주문.
+    """Stop/Limit 지연 체결 **진입** 주문.
 
-    - direction='long', stop=price: BUY STOP (high >= price에서 fill, 돌파 매수)
-    - direction='short', stop=price: SELL STOP (low <= price에서 fill, 돌파 매도)
-    - limit 주문(가격 도달 시 지정가 체결)은 H1 MVP scope 외 — 추후 확장
+    - direction='long',  stop=price:  BUY STOP  (high >= price 에서 fill, 돌파 매수)
+    - direction='short', stop=price:  SELL STOP (low  <= price 에서 fill, 돌파 매도)
+    - direction='long',  limit=price: BUY LIMIT (low  <= price 에서 fill, 되돌림 매수)
+    - direction='short', limit=price: SELL LIMIT(high >= price 에서 fill, 되돌림 매도)
+
+    ★**limit 은 stop 과 부등호가 정반대다.** stop 은 「그 가격을 뚫으면」이고 limit 은
+    「그 가격까지 되돌아오면」이다. 그래서 갭 처리도 반대다 — stop 은 불리한 쪽(더 나쁜
+    가격)으로, limit 은 유리한 쪽(더 좋은 가격)으로 체결된다. 두 부등식은
+    `ExitOrder.try_fill_exit` 의 STOP_LOSS/TAKE_PROFIT 쌍을 **부호만 뒤집은 것**이고,
+    새 유틸을 만들지 않고 그 관용구를 그대로 따랐다.
+
+    ★**둘을 동시에 주면 stop 이 이긴다** — Pine 의 `stop=`+`limit=` 조합은 stop-limit
+    주문이고 이 엔진은 그것을 표현하지 못한다. 조용히 한쪽을 고르지 않고
+    `StrategyState.entry` 가 경고를 남긴다.
+
+    ★**`stop_price` 는 이제 nullable 이다.** 그것이 라이브의 fail-closed 축이다 —
+    `event_loop._pending_order_snapshots` 는 `stop_price` 가 없으면 `PendingOrderSnapshot`
+    을 만들지 않고 skip 원장에 남긴다. 즉 **limit 진입은 거래소로 나가지 않는다**
+    (2026-08-15 결정 — 엔진이 올바로 표현하지 못하는 진입을 내보내느니 막는다).
     """
 
     id: str
     direction: Direction
     qty: float
-    stop_price: float
     placed_bar: int
+    stop_price: float | None = None
+    limit_price: float | None = None
     comment: str = ""
 
     def try_fill(self, bar: int, high: float, low: float, open_: float) -> float | None:
         """이 bar의 OHLC로 체결 가능한지 판단. 체결 시 fill price 반환, 아니면 None.
 
-        Pine 표준: stop price가 bar open과 high/low 사이면 stop price에 체결,
-        bar open이 이미 stop을 넘어섰으면 open에 체결 (갭).
+        Pine 표준: 지정 가격이 bar open 과 high/low 사이면 그 가격에 체결,
+        bar open 이 이미 그 가격을 넘어섰으면 open 에 체결 (갭).
         """
         if self.placed_bar >= bar:
             # 같은 bar에서 즉시 체결 방지 (Pine 표준: 다음 bar부터 체결 가능)
             return None
-        if self.direction == "long":
-            # BUY STOP: high가 stop_price에 도달해야 fill
-            if high >= self.stop_price:
-                return max(open_, self.stop_price)
-        else:  # short
-            # SELL STOP: low가 stop_price에 도달해야 fill
-            if low <= self.stop_price:
-                return min(open_, self.stop_price)
+        if self.stop_price is not None:
+            if self.direction == "long":
+                # BUY STOP: high가 stop_price에 도달해야 fill
+                if high >= self.stop_price:
+                    return max(open_, self.stop_price)
+            else:  # short
+                # SELL STOP: low가 stop_price에 도달해야 fill
+                if low <= self.stop_price:
+                    return min(open_, self.stop_price)
+            return None
+        if self.limit_price is not None:
+            if self.direction == "long":
+                # BUY LIMIT: low 가 limit_price 까지 **내려와야** fill.
+                # 갭 다운이면 open 이 더 유리하므로 open 에 체결한다.
+                if low <= self.limit_price:
+                    return min(open_, self.limit_price)
+            else:  # short
+                # SELL LIMIT: high 가 limit_price 까지 **올라와야** fill.
+                if high >= self.limit_price:
+                    return max(open_, self.limit_price)
+            return None
+        # 가격이 하나도 없는 pending 은 존재할 수 없다(`entry` 가 막는다). 방어적 None.
         return None
 
 
@@ -802,14 +833,20 @@ class StrategyState:
         fill_price: float,
         comment: str = "",
         stop: float | None = None,
+        limit: float | None = None,
         unsupported_kwargs: list[str] | None = None,
     ) -> Trade | None:
-        """시장가 또는 stop 주문 진입.
+        """시장가 · stop · limit 주문 진입.
 
-        - stop=None → 시장가 즉시 체결
-        - stop=price → pending BUY/SELL STOP 주문 생성 (다음 bar에서 high/low 도달 시 fill)
+        - stop=None, limit=None → 시장가 즉시 체결
+        - stop=price → pending BUY/SELL STOP 주문 (다음 bar 에서 돌파 시 fill)
+        - limit=price → pending BUY/SELL LIMIT 주문 (다음 bar 에서 되돌림 시 fill)
         - 같은 id가 pending이면 덮어씀 (Pine은 re-issue 시 가격만 갱신)
         - opposite direction entry → 기존 same-side open 모두 자동 close (Pine pyramiding)
+
+        ★stop 과 limit 을 **동시에** 주면 stop 을 쓰고 limit 은 경고와 함께 버린다 —
+        Pine 의 그 조합은 stop-limit 주문이고 이 엔진은 그것을 표현하지 못한다.
+        조용히 한쪽을 고르면 사용자는 자기 주문이 무엇이 됐는지 알 수 없다.
         """
         if unsupported_kwargs:
             self.warnings.append(
@@ -826,15 +863,36 @@ class StrategyState:
             self._record_entry_skip(bar=bar, reason="non_finite_qty", trade_id=trade_id)
             return None
 
-        if stop is not None:
-            # Pending stop 주문 — 기존 동일 id pending 있으면 갱신 (Pine re-issue 의미론).
+        if stop is not None and limit is not None:
+            # stop-limit 은 이 엔진의 표현 밖이다. **stop 을 쓰고 limit 을 버린다**는 사실을
+            # 사용자에게 말한다 — 조용히 고르면 자기 주문이 무엇이 됐는지 알 수 없다.
+            self.warnings.append(
+                f"strategy.entry({trade_id!r}): stop= 과 limit= 을 함께 주면 stop-limit "
+                f"주문이지만 이 엔진은 그것을 표현하지 못한다 → stop={stop} 만 쓰고 "
+                f"limit={limit} 은 무시한다"
+            )
+            limit = None
+
+        if limit is not None:
+            # ★백테스트와 라이브가 **다르게** 행동한다는 사실을 사용자에게 말한다
+            #   (2026-08-15 surface-truth · U8). 이 경고는 리포트 ⑨ 로 나간다.
+            #   말하지 않으면 사용자는 백테스트 곡선을 라이브의 예고로 읽는다.
+            self.warnings.append(
+                f"strategy.entry({trade_id!r}): 지정가 진입은 **백테스트에서만** 지정가로 "
+                f"체결됩니다. 라이브 실행에서는 안전상 해당 진입을 차단합니다 "
+                f"(엔진이 지정가 의도를 거래소 주문으로 표현하지 못합니다)."
+            )
+
+        if stop is not None or limit is not None:
+            # Pending stop/limit 주문 — 기존 동일 id pending 있으면 갱신 (Pine re-issue 의미론).
             # flip 은 체결 시점(check_pending_fills)에서 처리 — pending 상태에서는 반대 포지션 유지.
             self.pending_orders[trade_id] = PendingOrder(
                 id=trade_id,
                 direction=direction,
                 qty=qty,
-                stop_price=stop,
                 placed_bar=bar,
+                stop_price=stop,
+                limit_price=limit,
                 comment=comment,
             )
             return None

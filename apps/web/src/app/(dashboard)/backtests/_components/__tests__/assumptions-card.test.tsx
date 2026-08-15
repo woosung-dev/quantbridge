@@ -172,3 +172,52 @@ describe("AssumptionsCard — C6 정직성 (펀딩 비용 미반영 구간 고�
     expect(screen.queryByTestId("backtest-funding-incomplete-note")).toBeNull();
   });
 });
+
+describe("AssumptionsCard — 엔진 경고 (2026-08-15 surface-truth · U8)", () => {
+  // 서버는 이 값을 **계산하고 있었는데** 아무도 받지 않았다. 엔진 주석이 스스로
+  // 「사용자가 silent success 받지 않도록 노출」이라 적어 뒀는데 소비자가 0건이었다.
+  const LIMIT_WARNING =
+    "strategy.entry('L'): 지정가 진입은 **백테스트에서만** 지정가로 체결됩니다. " +
+    "라이브 실행에서는 안전상 해당 진입을 차단합니다 " +
+    "(엔진이 지정가 의도를 거래소 주문으로 표현하지 못합니다).";
+
+  it("경고가 있으면 리포트 ⑨ 에 그대로 인쇄한다", () => {
+    render(<AssumptionsCard initialCapital={10000} warnings={[LIMIT_WARNING]} />);
+
+    const box = screen.getByTestId("backtest-engine-warnings");
+    expect(box).toHaveTextContent("라이브 실행에서는 안전상 해당 진입을 차단합니다");
+    // 몇 건인지 먼저 말한다 — 사용자가 「숫자를 읽기 전에」 판단할 수 있어야 한다.
+    expect(box).toHaveTextContent("1건");
+  });
+
+  it("경고 여러 건을 모두 인쇄한다 — 첫 건만 보여주고 나머지를 숨기지 않는다", () => {
+    render(
+      <AssumptionsCard
+        initialCapital={10000}
+        warnings={["첫 번째 경고", "두 번째 경고", "세 번째 경고"]}
+      />,
+    );
+
+    const box = screen.getByTestId("backtest-engine-warnings");
+    expect(box).toHaveTextContent("첫 번째 경고");
+    expect(box).toHaveTextContent("두 번째 경고");
+    expect(box).toHaveTextContent("세 번째 경고");
+    expect(box).toHaveTextContent("3건");
+  });
+
+  // ★음성 대조 3종 — 이게 없으면 「항상 경고 상자 그리기」로도 위 둘이 통과한다(판별력 0).
+  it("경고가 빈 배열이면 상자를 그리지 않는다", () => {
+    render(<AssumptionsCard initialCapital={10000} warnings={[]} />);
+    expect(screen.queryByTestId("backtest-engine-warnings")).toBeNull();
+  });
+
+  it("경고가 null(= 이 컬럼 이전 실행, 모른다)이면 상자를 그리지 않는다", () => {
+    render(<AssumptionsCard initialCapital={10000} warnings={null} />);
+    expect(screen.queryByTestId("backtest-engine-warnings")).toBeNull();
+  });
+
+  it("prop 자체가 없으면(구 호출부) 상자를 그리지 않는다", () => {
+    render(<AssumptionsCard initialCapital={10000} />);
+    expect(screen.queryByTestId("backtest-engine-warnings")).toBeNull();
+  });
+});

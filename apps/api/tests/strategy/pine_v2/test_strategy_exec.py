@@ -6,6 +6,7 @@
 - strategy.position_size / position_avg_price — 현재 상태
 - 미지원 kwarg(stop, limit, trail_points 등)는 warning에 기록
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -19,13 +20,15 @@ from src.strategy.pine_v2.strategy_state import StrategyState, Trade
 
 def _ohlcv(closes: list[float]) -> pd.DataFrame:
     opens = [closes[0], *closes[:-1]]
-    return pd.DataFrame({
-        "open": opens,
-        "high": [c * 1.01 for c in closes],
-        "low": [c * 0.99 for c in closes],
-        "close": closes,
-        "volume": [100.0] * len(closes),
-    })
+    return pd.DataFrame(
+        {
+            "open": opens,
+            "high": [c * 1.01 for c in closes],
+            "low": [c * 0.99 for c in closes],
+            "close": closes,
+            "volume": [100.0] * len(closes),
+        }
+    )
 
 
 # -------- 단위: StrategyState 직접 ------------------------------------
@@ -79,7 +82,11 @@ def test_strategy_state_duplicate_id_overrides() -> None:
 def test_strategy_entry_unsupported_kwargs_warning() -> None:
     s = StrategyState()
     s.entry(
-        "X", "long", qty=1.0, bar=0, fill_price=100.0,
+        "X",
+        "long",
+        qty=1.0,
+        bar=0,
+        fill_price=100.0,
         unsupported_kwargs=["stop", "trail_points"],
     )
     assert len(s.warnings) == 1
@@ -250,14 +257,17 @@ current = strategy.position_size
     assert history[2] == 3.0  # bar 2 open 유지
 
 
-def test_strategy_entry_ignores_limit_kwarg_with_warning() -> None:
-    """H1 MVP scope 밖인 limit=/trail_points= 인자는 경고 기록 후 무시.
+def test_strategy_entry_ignores_trail_kwarg_with_warning() -> None:
+    """scope 밖인 trail_points= 인자는 경고 기록 후 무시.
 
-    Note: Week 3 Day 1부터 stop=는 지원됨. limit/trail은 여전히 미지원.
+    ★2026-08-15 surface-truth (U8) — 이 자물쇠는 **뒤집혔다.** 종전 판본은
+    `any("limit" in w for w in warnings)` 를 단언해 「limit 은 무시된다」를 못박고 있었다.
+    그 사이 `limit=` 은 지원 대상이 됐다(pending BUY/SELL LIMIT). trail_points 축만 남긴다.
+    ★`limit=` 이 경고에 **다시 나타나면** 아래 음성 대조가 red 다.
     """
     source = """//@version=5
 strategy("t")
-strategy.entry("X", strategy.long, qty=1.0, limit=99.0, trail_points=5.0)
+strategy.entry("X", strategy.long, qty=1.0, trail_points=5.0)
 """
     ohlcv = _ohlcv([10.0, 20.0])
     bar = BarContext(ohlcv)
@@ -274,14 +284,47 @@ strategy.entry("X", strategy.long, qty=1.0, limit=99.0, trail_points=5.0)
 
     warnings = interp.strategy.warnings
     assert len(warnings) >= 1
-    assert any("limit" in w for w in warnings)
     assert any("trail_points" in w for w in warnings)
+
+
+def test_strategy_entry_limit_is_no_longer_reported_as_unsupported() -> None:
+    """★음성 대조 — `limit=` 만 준 진입은 「무시했다」 경고를 **내지 않는다**.
+
+    이 단언이 없으면 「경고를 통째로 끄기」로도 위 테스트가 통과한다. 그리고 이 회차가
+    고치는 병이 정확히 그것이었다 — 화면이 「지원됨」이라 말하는데 엔진은 조용히 버렸다.
+    """
+    source = """//@version=5
+strategy("t")
+strategy.entry("X", strategy.long, qty=1.0, limit=99.0)
+"""
+    ohlcv = _ohlcv([10.0, 20.0])
+    bar = BarContext(ohlcv)
+    store = PersistentStore()
+    interp = Interpreter(bar, store)
+    tree = parse_to_ast(source)
+    while bar.advance():
+        store.begin_bar()
+        interp.reset_transient()
+        interp.begin_bar_snapshot()
+        interp.execute(tree)
+        store.commit_bar()
+        interp.append_var_series()
+
+    ignored = [w for w in interp.strategy.warnings if "ignored unsupported kwargs" in w]
+    assert not ignored, f"limit= 이 아직 미지원 취급된다: {ignored}"
 
 
 def test_trade_dataclass_roundtrip() -> None:
     t = Trade(
-        id="x", direction="long", qty=1.0, entry_bar=0, entry_price=100.0,
-        exit_bar=5, exit_price=120.0, pnl=20.0, comment="test",
+        id="x",
+        direction="long",
+        qty=1.0,
+        entry_bar=0,
+        entry_price=100.0,
+        exit_bar=5,
+        exit_price=120.0,
+        pnl=20.0,
+        comment="test",
     )
     d = t.to_dict()
     assert d["pnl"] == 20.0
