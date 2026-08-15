@@ -16,6 +16,8 @@
 #
 # ★모드가 갈리는 지점은 `mode_runs()` 하나다. 변이 M1~M3 이 그 함수와 `DEFERRABLE` 목록을
 #   각각 무력화해 **케이스가 실제로 그것을 보고 있는지** 증명한다.
+# ★M4·M5 는 모드 축이 아니라 **신호의 required 술어**를 지킨다([BL-739], 2026-08-15) — 케이스 ⑩
+#   이 자기 변이 없이 들어오지 않게 함께 신설했다.
 
 set -uo pipefail
 
@@ -28,7 +30,9 @@ TMP="$(mktemp -d)"
 #   그러면 변이가 무엇이든 케이스가 전부 같은 이유로 red 가 되고 — 초판이 정확히 그랬다 —
 #   「변이 3종 전건 판별」이라는 **거짓 보고**가 나온다. 그것을 잡은 것은 음성 대조 N1 이다.
 MUTDIR="$ROOT/tools/scripts"
-trap 'rm -rf "$TMP"; rm -f "$MUTDIR"/.fg-mutant-*.sh' EXIT
+# ★케이스 ⑩ 이 `apps/api/src` 에 탐침 파일을 잠깐 만든다 — 죽어도 남지 않게 여기서 지운다.
+PROBE_SRC="$ROOT/apps/api/src/__fg_harness_probe__.py"
+trap 'rm -rf "$TMP"; rm -f "$MUTDIR"/.fg-mutant-*.sh "$PROBE_SRC"' EXIT
 
 FAIL=0
 RED_IDS=""
@@ -55,6 +59,15 @@ mark_of() { # mark_of <gate-label> <mode-args...>
     awk -v l="$label" 'index($0, l) {print $1; exit}'
 }
 
+# 계획 표에서 그 게이트의 **사유 문자열**을 꺼낸다 (마크 열은 버린다).
+# ★신호 게이트의 required 는 dry-run 사유에만 드러난다 — 그 노출이 [BL-739] 수리의 일부다.
+signal_note() { # signal_note <label 조각> <mode-args...>
+  local label="$1"; shift
+  bash "$TARGET" --run harness-probe --dry-run "$@" 2>&1 |
+    grep -E "^  (plan|DEFER|skip|PASS|FAIL) " |
+    awk -v l="$label" 'index($0, l) { sub(/^ +[A-Za-z]+ +/, ""); print; exit }'
+}
+
 report() { # report <번호> <라벨> <why(빈 문자열이면 통과)>
   if [ -n "$3" ]; then
     FAIL=$((FAIL + 1)); RED_IDS="${RED_IDS}$1"
@@ -64,7 +77,7 @@ report() { # report <번호> <라벨> <why(빈 문자열이면 통과)>
   fi
 }
 
-run_suite() { # 케이스 9건
+run_suite() { # 케이스 10건
   local why full_plan pre_plan pre_defer def_plan def_skip m
 
   # ① full 모드는 아무것도 유예하지 않는다
@@ -174,16 +187,39 @@ run_suite() { # 케이스 9건
       why="${why}${why:+ · }FE·BE 둘 다 diff 0 인데 'e2e authed' 가 $e2e_auth 다"
   fi
   report "⑨" "비싼 게이트도 영역 판정에 걸린다 (pytest~ruff · canon~chromium · authed=fe|be)" "$why"
+
+  # ⑩ [BL-739] `screen.ok` 의 required 술어 = `apps/web/` ∪ `apps/api/src/`
+  #    ★음성 대조가 **먼저**다 — 둘 다 0줄인 지금 「필수 아님」이 나와야 한다. 늘 「필수」인
+  #      검사기는 판별력이 0 이고, 종전 리터럴 `1` 이 정확히 그 상태였다.
+  #    ★그리고 `$has_fe` 단독이 아님을 함께 잰다 — `apps/api/src` 만 바뀌어도 필수여야 한다
+  #      (BE 가 화면을 깨는 축, [BL-707]: CORS·포트가 어긋나면 화면은 「데이터 없음」이다).
+  local s_clean s_dirty
+  why=""
+  s_clean="$(signal_note '화면 검증' --allow-dirty)"
+  case "$s_clean" in
+    *"필수 아님"*) ;;
+    "") why="사유를 못 읽었다 (계획 표에 '화면 검증' 행이 없다)" ;;
+    *) why="apps/web·apps/api/src diff 0 인데 필수다 [$s_clean]" ;;
+  esac
+  : > "$PROBE_SRC"
+  s_dirty="$(signal_note '화면 검증' --allow-dirty)"
+  rm -f "$PROBE_SRC"
+  case "$s_dirty" in
+    *"필수 아님"*) why="${why}${why:+ · }apps/api/src 가 바뀌었는데 필수가 아니다 [$s_dirty]" ;;
+    *"· 필수"*) ;;
+    *) why="${why}${why:+ · }사유를 못 읽었다 [$s_dirty]" ;;
+  esac
+  report "⑩" "screen.ok required = apps/web ∪ apps/api/src ([BL-739])" "$why"
 }
 
 run_suite
 echo
-echo "  케이스: $((9 - FAIL))/9 통과, ${FAIL} 실패"
+echo "  케이스: $((10 - FAIL))/10 통과, ${FAIL} 실패"
 
 # ── 변이 — 케이스가 실제로 모드 디스패치를 보고 있는지 증명한다 ────────────────
 if [ "${1:-}" = "--mutants" ]; then
   echo
-  echo "── 변이 M1~M3 (사본 주입 · 케이스 9건 전량 재실행) ──"
+  echo "── 변이 M1~M5 (사본 주입 · 케이스 10건 전량 재실행) ──"
   BASE_RED="$RED_IDS"
   MUT_FAIL=0
 
@@ -227,6 +263,13 @@ PY
   #   (영역이 먼저 skip 한다). 그 앵커로는 변이가 보이지 않는다.
   mutate M3 '|CI fresh DB alembic|' '|__none__|' "⑤"
 
+  # ★M4·M5 — ⑩ 을 지키는 영구 변이 ([BL-739]). 이것이 없으면 ⑩ 은 **자기 변이가 없는 케이스**다
+  #   (BL-714 회차가 ㉖ 에 M12 를 신설한 것과 같은 이유).
+  #   M4 = 술어를 리터럴 1 로 되돌린다(= 수리 전 상태). ⑩ 의 **음성 대조 절**이 잡아야 한다.
+  mutate M4 '} && screen_req=1' '} ; screen_req=1' "⑩"
+  #   M5 = `apps/api/src` 축을 죽인다(= `$has_fe` 단독으로 바꾼 것과 같다). ⑩ 의 **둘째 절**이 잡는다.
+  mutate M5 '[ "${src_n:-0}" -gt 0 ] && has_api_src=1' '[ "${src_n:-0}" -gt 99999 ] && has_api_src=1' "⑩"
+
   # ★음성 대조 — 주석만 바꾼 사본은 red 0건이어야 한다 (변이 엔진 자체가 red 를 만들지 않는다)
   echo
   mutate_neutral() {
@@ -246,7 +289,7 @@ PY
   if [ "$MUT_FAIL" -gt 0 ]; then
     echo "✗ 변이 ${MUT_FAIL}건 미판별 — 케이스가 모드 디스패치를 못 보고 있다"; exit 1
   fi
-  echo "✓ 변이 3종 + 음성 대조 1종 전건 판별"
+  echo "✓ 변이 5종 + 음성 대조 1종 전건 판별"
   FAIL=0; RED_IDS="$BASE_RED"
   [ -n "$BASE_RED" ] && FAIL=1
 fi
