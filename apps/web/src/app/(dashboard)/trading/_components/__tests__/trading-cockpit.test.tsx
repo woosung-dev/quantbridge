@@ -114,6 +114,7 @@ function setDefaults() {
       ],
     },
     isError: false,
+    isFetching: false,
     isPending: false,
   });
   useStrategiesMock.mockReturnValue({ data: { items: [] } });
@@ -263,12 +264,33 @@ describe("TradingCockpit — 미실현 손익 추정 KPI", () => {
 
   it("목록에 없는 id 로 진입하면 중단 안내가 뜬다", () => {
     // ★음성 대조. 딥링크가 "무슨 id 든 상세를 연다" 로 번지지 않는지 본다.
+    useLiveSessionsMock.mockReturnValue({
+      data: { items: [{ id: "session-1", is_active: true }] },
+      isError: false,
+      isFetching: false,
+      isPending: false,
+    });
     queryString = "session=gone-forever";
 
     render(<TradingCockpit />);
 
     expect(screen.getByTestId("live-session-stopped-notice")).toBeInTheDocument();
     expect(screen.queryByTestId("mock-detail")).not.toBeInTheDocument();
+  });
+
+  it("캐시가 있는 refetch 중에는 목록 밖 선택을 불러오는 중으로 보인다", () => {
+    useLiveSessionsMock.mockReturnValue({
+      data: { items: [{ id: "session-1", is_active: true }] },
+      isError: false,
+      isFetching: true,
+      isPending: false,
+    });
+    queryString = "session=created-session";
+
+    render(<TradingCockpit />);
+
+    expect(screen.queryByTestId("live-session-stopped-notice")).not.toBeInTheDocument();
+    expect(screen.getByText("세션 목록을 불러오는 중입니다.")).toBeInTheDocument();
   });
 
   it("목록을 불러오는 중에는 중단 안내를 띄우지 않는다", () => {

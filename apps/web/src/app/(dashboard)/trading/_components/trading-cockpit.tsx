@@ -436,7 +436,7 @@ export function TradingCockpit() {
               <div className="card card-pad">
                 <LiveSessionDetail session={selected} />
               </div>
-            ) : selectedId && sessionsQ.isPending ? (
+            ) : selectedId && (sessionsQ.isPending || sessionsQ.isFetching) ? (
               <div className="card card-pad">
                 <StateBox
                   title="세션 목록을 불러오는 중입니다."

@@ -17,10 +17,10 @@ export const STRATEGY_SORT_OPTIONS = [
 
 export function resolveStrategySort(
   orderByParam: string | null | undefined,
-  orderParam: string | null | undefined,
+  _orderParam: string | null | undefined,
 ): { order_by: StrategyOrderBy; order: StrategyOrder } {
-  const orderBy = STRATEGY_SORT_OPTIONS.find(({ id }) => id === orderByParam)?.id ?? "updated_at";
-  const order: StrategyOrder = orderParam === "asc" ? "asc" : "desc";
+  const { id: orderBy, order } =
+    STRATEGY_SORT_OPTIONS.find(({ id }) => id === orderByParam) ?? STRATEGY_SORT_OPTIONS[0];
 
   return { order_by: orderBy, order };
 }
