@@ -71,7 +71,6 @@ from src.trading.schemas import (
     PaginatedExchangeAccounts,
     RegisterAccountRequest,
     RegisterLiveSessionRequest,
-    mask_api_key,
 )
 from src.trading.services.account_service import ExchangeAccountService
 from src.trading.services.alert_rule_service import AlertRuleService
@@ -198,15 +197,15 @@ async def register_exchange_account(
     svc: ExchangeAccountService = Depends(get_exchange_account_service),
 ) -> ExchangeAccountResponse:
     account = await svc.register(user_id=current_user.id, req=body)
-    await svc._repo.commit()
-    # Decrypt api_key for masking (plain text never stored, only encrypted)
-    plaintext_key = svc._crypto.decrypt(account.api_key_encrypted)
+    # ★[BL-762] 종전 여기에 `await svc._repo.commit()` 이 있었다 — `register()` 가
+    #   `account_service.py:47` 에서 이미 커밋하므로 **중복 커밋**이었고, 그 한 줄 때문에
+    #   「커밋 책임이 서비스에 있다」는 명제가 이 경로에서만 거짓이었다.
     return ExchangeAccountResponse(
         id=account.id,
         exchange=account.exchange,
         mode=account.mode,
         label=account.label,
-        api_key_masked=mask_api_key(plaintext_key),
+        api_key_masked=svc.masked_api_key(account),
         exchange_uid=account.exchange_uid,
         read_only=account.read_only,
         created_at=account.created_at,
@@ -221,17 +220,16 @@ async def list_exchange_accounts(
     current_user: CurrentUser = Depends(get_current_user),
     svc: ExchangeAccountService = Depends(get_exchange_account_service),
 ) -> PaginatedExchangeAccounts:
-    accounts = await svc._repo.list_by_user(current_user.id)
+    accounts = await svc.list_for_user(current_user.id)
     items: list[ExchangeAccountResponse] = []
     for acct in accounts:
-        plaintext_key = svc._crypto.decrypt(acct.api_key_encrypted)
         items.append(
             ExchangeAccountResponse(
                 id=acct.id,
                 exchange=acct.exchange,
                 mode=acct.mode,
                 label=acct.label,
-                api_key_masked=mask_api_key(plaintext_key),
+                api_key_masked=svc.masked_api_key(acct),
                 exchange_uid=acct.exchange_uid,
                 read_only=acct.read_only,
                 created_at=acct.created_at,
@@ -280,14 +278,8 @@ async def delete_exchange_account(
     current_user: CurrentUser = Depends(get_current_user),
     svc: ExchangeAccountService = Depends(get_exchange_account_service),
 ) -> None:
-    # Ownership check: only delete if the account belongs to the current user
-    account = await svc._repo.get_by_id(account_id)
-    if account is None or account.user_id != current_user.id:
-        from src.trading.exceptions import AccountNotFound
-
-        raise AccountNotFound(account_id)
-    await svc._repo.delete(account_id)
-    await svc._repo.commit()
+    # 소유권 검사·삭제·커밋은 서비스가 한 경계 안에서 소유한다 ([BL-762]).
+    await svc.delete_for_user(account_id, current_user.id)
 
 
 # ── Orders REST ──────────────────────────────────────────────────────
@@ -406,9 +398,7 @@ async def list_kill_switch_events(
 ) -> dict[str, object]:
     """CF1: 호출자 소유(strategy/account) kill-switch 이벤트만 반환 (cross-tenant IDOR 차단)."""
     repo = KillSwitchEventRepository(session)
-    events = await repo.list_recent_by_user(
-        user_id=current_user.id, limit=limit, offset=offset
-    )
+    events = await repo.list_recent_by_user(user_id=current_user.id, limit=limit, offset=offset)
     return {
         "items": [
             KillSwitchEventResponse.model_validate(e).model_dump(mode="json") for e in events
@@ -570,12 +560,8 @@ async def get_live_session_state(
     )
     # 소계도 Decimal-first. `total` 은 기존 계산을 그대로 두므로 항등식
     # `confirmed + estimated == total` 이 대입이 아니라 **산술로** 성립한다.
-    confirmed_pnl = sum(
-        (pnl for _, pnl, source in rows if source == "confirmed"), Decimal("0")
-    )
-    estimated_pnl = sum(
-        (pnl for _, pnl, source in rows if source == "estimated"), Decimal("0")
-    )
+    confirmed_pnl = sum((pnl for _, pnl, source in rows if source == "confirmed"), Decimal("0"))
+    estimated_pnl = sum((pnl for _, pnl, source in rows if source == "estimated"), Decimal("0"))
 
     return LiveSignalStateResponse(
         session_id=state.session_id,

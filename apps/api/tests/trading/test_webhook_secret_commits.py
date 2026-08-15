@@ -257,3 +257,67 @@ async def test_register_calls_repo_commit():
 
     repo.save.assert_awaited_once()
     repo.commit.assert_awaited_once()  # ← Sprint 15-A broken bug 핵심
+
+
+# ── [BL-762] delete 경로 — 2026-08-16 까지 이 spy 를 **붙일 수 없었다** ────────────
+#
+# 종전 `trading/router.py` 가 `svc._repo.get_by_id` → `svc._repo.delete` →
+# `svc._repo.commit()` 를 직접 쳤다. 커밋을 치는 것이 서비스가 아니라 라우터라
+# LESSON-019 spy 가 볼 대상이 없었다 — 「모든 mutation 에 commit-spy 의무」(`AGENTS.md` §3)
+# 가 이 경로에서만 **구조적으로 집행 불가**였다. 경계를 서비스로 되돌려 그것을 성립시킨다.
+
+
+def _account_service_with_mock_repo():
+    from src.trading.services.account_service import ExchangeAccountService
+
+    repo = AsyncMock()
+    return repo, ExchangeAccountService(repo=repo, crypto=MagicMock())
+
+
+@pytest.mark.asyncio
+async def test_delete_for_user_calls_repo_commit():
+    """LESSON-019 spy: delete_for_user() 가 repo.commit() 호출 강제."""
+    from src.trading.models import ExchangeAccount
+
+    repo, svc = _account_service_with_mock_repo()
+    owner_id, account_id = uuid4(), uuid4()
+    repo.get_by_id.return_value = MagicMock(spec=ExchangeAccount, user_id=owner_id)
+
+    await svc.delete_for_user(account_id, owner_id)
+
+    repo.delete.assert_awaited_once_with(account_id)
+    repo.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_delete_for_user_rejects_other_users_account():
+    """★소유권 — 남의 계정이면 삭제도 커밋도 **일어나지 않는다** (fail-closed)."""
+    from src.trading.exceptions import AccountNotFound
+    from src.trading.models import ExchangeAccount
+
+    repo, svc = _account_service_with_mock_repo()
+    account_id = uuid4()
+    repo.get_by_id.return_value = MagicMock(spec=ExchangeAccount, user_id=uuid4())
+
+    with pytest.raises(AccountNotFound):
+        await svc.delete_for_user(account_id, uuid4())
+
+    # ★반환값이 아니라 **부작용**을 얼린다 (`AGENTS.md` §10-1) — 예외만 검사하면
+    #   「raise 하기 전에 이미 지웠다」는 변이가 초록으로 빠져나간다.
+    repo.delete.assert_not_awaited()
+    repo.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_for_user_rejects_missing_account():
+    """없는 계정도 같은 404 — 존재 여부를 알리지 않는다."""
+    from src.trading.exceptions import AccountNotFound
+
+    repo, svc = _account_service_with_mock_repo()
+    repo.get_by_id.return_value = None
+
+    with pytest.raises(AccountNotFound):
+        await svc.delete_for_user(uuid4(), uuid4())
+
+    repo.delete.assert_not_awaited()
+    repo.commit.assert_not_awaited()
