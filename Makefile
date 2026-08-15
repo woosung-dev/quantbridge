@@ -424,12 +424,12 @@ docs-audit:
 #   docker 를 언급하지만 **진짜 docker 를 부르지 않는다**(로그+exit 1 스텁을 PATH 앞단에 깔고
 #   돌려 17/17 통과 · 스텁 호출 0회로 확인, 2026-08-11).
 gate-harnesses:
-	@rc=0; for h in bl-audit header-audit soak-restart soak-watch docs-audit pre-push-guard assert-main-checkout skip-ratchet signal-check final-gates harness; do \
+	@rc=0; for h in bl-audit header-audit soak-restart soak-watch soak-stack docs-audit pre-push-guard assert-main-checkout skip-ratchet signal-check final-gates harness; do \
 	  printf '\n▶ %s-test\n' "$$h"; \
 	  bash tools/scripts/$$h-test.sh || rc=$$?; \
 	done; \
 	if [ "$$rc" != 0 ]; then echo; echo "✗ 하네스 실패 — 게이트가 판별력을 잃었다"; exit 1; fi; \
-	echo; echo "✓ 게이트 하네스 11종 전건 통과"
+	echo; echo "✓ 게이트 하네스 12종 전건 통과"
 
 header-audit:
 	tools/scripts/header-audit.sh

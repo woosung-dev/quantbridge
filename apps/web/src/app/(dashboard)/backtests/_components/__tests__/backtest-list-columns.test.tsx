@@ -84,6 +84,9 @@ describe("BacktestList 성과 열", () => {
     expect(within(row).getByText("12.34%")).toBeInTheDocument();
     expect(within(row).getByText("-4.00%")).toBeInTheDocument();
     expect(within(row).getByText("1.50")).toBeInTheDocument();
+    expect(
+      within(row).getByTitle("무위험 2%/년 · 월간 수익률 기준"),
+    ).toHaveTextContent("1.50");
     expect(within(row).getByText("1,234")).toBeInTheDocument();
     expect(within(row).getByText("미청산 포함")).toBeInTheDocument();
   });

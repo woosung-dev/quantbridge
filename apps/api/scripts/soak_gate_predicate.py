@@ -749,7 +749,10 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         "db_ok": bool(payload.get("db_ok", False)),
         "stack_pinned": bool(payload.get("stack_pinned", False)),
         "phantom_archive": bool(log_coverage),
-        "darkness_computed": darkness is not None,
+        # ★`is not None` 이 아니라 `isinstance(dict)` 다 ([BL-748], 2026-08-15). 종전에는 dict 가
+        #   아닌 값(문자열 등)이 오면 C5 는 ✓ 인데 `_darkness_report` 는 None 을 내서 셸이
+        #   「어둠 비율: ✗ 계산 실패 (C5 위반)」을 찍었다 — **판정과 표시가 서로 다른 말을 한다.**
+        "darkness_computed": isinstance(darkness, dict),
         # ★두 라벨 목록만 본다 — `any(values())` 로 쓰면 `sources` 같은 보고용 항이 늘 때
         #   판정이 조용히 따라 움직인다.
         "divergence_labels_readable": not (
@@ -782,7 +785,13 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
         "C3_violations": [f"{d.at.isoformat()} {d.kind} {d.detail}" for d in violations],
         "C3_ok": not violations,
         "C4_sample_gaps": gaps,
-        "C4_ok": not gaps,
+        # ★`clean` 이 비면 위 루프가 0회고 `gaps == []` 라 **「볼 창이 없다」가 「이상 없다」로**
+        #   보고됐다([BL-748], 2026-08-15). 이 fail-open 은 조용하다 — 2026-08-15 판독이
+        #   「C4 표본 공백 0건 ✓」와 「최대 간격 326.4분」을 같은 출력에 찍고 있었고, 실제로
+        #   상위 공백 5개(최대 1524.5분)가 전부 귀속 구간 **바깥**이라 한 건도 세지지 않았다.
+        #   귀속 창이 없으면 tick 연속성은 「정상」이 아니라 **판정 불가**다(아래 분기가 UNKNOWN 으로 보낸다).
+        "C4_no_window": not clean,
+        "C4_ok": bool(clean) and not gaps,
         "C5": integrity,
         "C5_ok": all(integrity.values()),
     }
@@ -866,14 +875,17 @@ def evaluate(payload: dict[str, Any]) -> Verdict:
             detail,
         )
 
-    if gaps:
-        return Verdict(
-            "UNKNOWN",
-            "측정불가",
-            f"표본 공백 {len(gaps)}건 (한계 {max_gap / 60:.0f}분) — 그 구간은 tick 연속성을 판정할 수 없다. 최초: {gaps[0]}",
-            conditions,
-            detail,
-        )
+    if not conditions["C4_ok"]:
+        if gaps:
+            why = f"표본 공백 {len(gaps)}건 (한계 {max_gap / 60:.0f}분) — 그 구간은 tick 연속성을 판정할 수 없다. 최초: {gaps[0]}"
+        else:
+            # ★공백 0건이 아니라 **볼 창이 0개**다 ([BL-748]). 이 둘을 같은 문장으로 찍으면
+            #   운영자가 「이상 없다」로 읽는다 — 그것이 이 결함이 오래 산 이유다.
+            why = (
+                "귀속 창이 0개다 — 표본 공백을 잴 자리가 없어 tick 연속성을 판정할 수 없다. "
+                "세션이 살아 있어도 `soak-stack.sh up` 이 연 귀속 구간 밖이면 시간이 계상되지 않는다."
+            )
+        return Verdict("UNKNOWN", "측정불가", why, conditions, detail)
 
     # ★문구에 **문턱을 하나만** 쓴다 ([BL-701]). 종전에는 새 문턱이 결정되고도 출력이
     #   `누적 … / 168h` 를 찍어 **같은 게이트가 두 문턱을 말했다** — 다음 회차는 그 출력을
