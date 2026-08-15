@@ -7,7 +7,8 @@
       "name": "guardrail-proof",
       "status": "completed",
       "summary": "PROOF.md 작성 — 주입 4축에서 5문항 응답",
-      "started_at": "2026-08-15T15:52:31+0900"
+      "started_at": "2026-08-15T15:52:31+0900",
+      "completed_at": "2026-08-15T15:53:40+0900"
     }
   ],
   "created_at": "2026-08-15T15:52:31+0900"
