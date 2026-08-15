@@ -109,7 +109,25 @@ findings 는 **전건 재현 판정** 의무다. 액면 수용 0건, 기각도 �
 - 회차별 **적용 결과 표**(ID · 조건 · 실측 · 결과)는 `dev-log/` 에 남긴다. 회고는 덮어쓰지 않는다.
 - ★**살아 있는 파일은 줄번호로 인용하지 마라 — 파일명 + 문자열로 가리켜라.** `prereg-audit.md` §A-2 의 증거 표에 걸린 `status.md:52`·`:472`·`:425` 와 `backlog.md:4364` 는 `b8d53141`·`f3a3c93c` 이후 **전부 죽은 앵커**다(그 표를 쓴 지 하루 만에). 줄번호가 필요하면 **커밋 해시를 붙여 고정**해라(`f631f1c7:docs/status.md:53`).
 
-### G2 — 구현 (생성자 codex)
+### G2 — 구현 (생성자 codex) — **판이 둘이다**
+
+|      | **G2-a 단일 호출** (기본)          | **G2-b 하네스 순차** (2026-08-15 신설)                                            |
+| ---- | ---------------------------------- | --------------------------------------------------------------------------------- |
+| 언제 | step 1~2개 · 사람이 붙어 있는 회차 | step **3개 이상** · 순서 의존 있음 · 사람이 못 붙음                               |
+| 저작 | task-spec 1벌                      | step 파일 N벌 (**3~6분/회차** 실측)                                               |
+| 진입 | 아래 `codex exec`                  | **`/harness`** → `python3 tools/scripts/qb_harness.py <task>`                     |
+| 정본 | 이 절                              | [ADR-033](../../../decisions/033-harness-readopt-codex.md) · `.harness/README.md` |
+
+★**G2-b 의 step 파일 `## Acceptance Criteria` 가 곧 G1 산출물이다.** 그래서 G2-b 를 쓰면 G1 과
+G2 가 한 저작 행위로 묶인다 — 대신 **AC 를 착수 전에 red/green 실측**하는 의무가 그만큼 무거워진다.
+
+★**G2-b 는 판정을 가져오지 않는다.** 러너의 `completed` 는 세션 자기신고이고, 어댑터의 고정 검사
+(FE typecheck · BE ruff)가 그것을 뒤집을 수 있을 뿐이다. **G3 부터는 그대로 평가자 몫이다.**
+
+★**영구 비적용** — 게이트 판정 · `docs/**` · celery 경유 · 거래소 쓰기. 역할 카드 §3 의 생성자
+금지 목록 그대로이고, step 템플릿의 「금지사항」 4줄이 그것을 집행한다.
+
+#### G2-a — 단일 호출
 
 ```bash
 codex exec -s workspace-write -C "$QB" "$(cat task-spec.md)" < /dev/null
@@ -179,6 +197,10 @@ git diff --name-only $(git merge-base origin/main HEAD)..HEAD   # path-filter �
 - dev-log 신규 + INDEX + status + roadmap + backlog 를 **같은 커밋에서** 갱신한다.
 - ★**요약 레이어는 본문보다 늦는다.** 2026-07-27 종결 시 `dev-log/INDEX.md` 가 **폐기된 설계를 출시된 것처럼** 적고 있었고 `roadmap.md` 도 같은 상태였다. 종결 체크리스트에 **"요약(INDEX·roadmap·status)을 본문과 대조"** 를 고정 항목으로 넣는다.
 - 작업 문서(`docs/<theme>/`)는 **흡수 대조 후 삭제**한다. 대조 없이 지우지 마라 — 2세션 연속으로 미흡수 2건이 나왔다. `docs/` 최상위 10 유지.
+- ★**G2-b 를 썼다면 `.harness/phases/<task>/` 도 종결 대상이다** — 승격(예시로 남긴다)·강등
+  (`dev-log` 로)·삭제 중 하나([ADR-026] §3). 방치하면 다음 회차가 남의 `index.json` 을 보고
+  「이게 지금 도는 건가」를 판단해야 한다. ★`step*-output.json` 은 gitignore 라 저절로 안 남지만
+  **최대 1.29 MB/step** 이므로 로컬 정리도 함께 하라.
 - PR 생성까지. **squash 는 사용자.**
 - ★**게이트는 2단이다** (2026-08-14). PR 전에는 `final-gates.sh --run <슬러그> --pre-pr`(~1분)까지만
   돌린다. 무거운 9종(BE pytest **379초** · e2e 3레인 · CI 재현 · 신호 4종)은 **유예**되고, PR 을

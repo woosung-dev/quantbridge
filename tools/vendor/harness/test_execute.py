@@ -19,60 +19,20 @@ import execute as ex
 
 
 # ---------------------------------------------------------------------------
-# ROOT — 수정 ②-3 의 AC (구현보다 먼저 red 를 봤다)
-# ---------------------------------------------------------------------------
-
-class TestRootResolution:
-    """★ROOT 가 레포 루트를 가리키는가. 이것 하나가 틀리면 전부 조용히 실패한다.
-
-    상류는 `scripts/execute.py`(루트 직하)라 parent.parent 가 루트다. 우리는 [ADR-029]
-    재배치로 `tools/scripts/` 라 한 단 깊어 parent.parent 는 `tools/` 다.
-    2026-08-15 실측: 그 상태에서 _load_guardrails() 가 예외 없이 **0자**를 냈고
-    나머지 51건은 전부 초록이었다 — 이 클래스가 없으면 아무도 못 잡는다.
-    """
-
-    def test_root_is_repo_root_not_tools(self):
-        assert ex.ROOT.name != "tools"
-        assert (ex.ROOT / "AGENTS.md").is_file()
-        assert (ex.ROOT / "CONTEXT.md").is_file()
-        assert (ex.ROOT / "apps").is_dir()
-
-    def test_guardrail_axes_resolve_under_root(self):
-        docs = ex.ROOT / ".harness" / "docs"
-        assert docs.is_dir()
-        names = sorted(p.name for p in docs.glob("*.md"))
-        assert names == ["01-domain.md", "02-structure.md", "03-backend.md", "04-frontend.md"]
-        for p in docs.glob("*.md"):
-            assert p.is_symlink(), f"{p.name} 이 심링크가 아니다 — 사본은 SSOT 를 깬다"
-            assert p.resolve().is_file(), f"{p.name} 심링크가 끊겼다"
-
-    def test_guardrails_are_not_empty(self):
-        """★빈 입력 방지 (§8.6 / LESSON-101). 음성 대조만으로는 0자가 초록으로 읽힌다."""
-        inst = ex.StepExecutor.__new__(ex.StepExecutor)
-        g = inst._load_guardrails()
-        assert len(g) > 40_000, f"가드레일이 {len(g)}자 — 4축(약 45.7k)이 안 실렸다"
-        # 양성 대조 — 4축 각각의 고유 문자열
-        for axis in ("핵심 도메인 6종", "Golden Rules (Immutable)", "FastAPI 3-Layer", "React Hooks"):
-            assert axis in g, f"4축 중 하나가 빠졌다: {axis}"
-        # 음성 대조 — 원본 glob 이 잡던 4파일은 하나도 안 들어와야 한다
-        assert len(g) < 100_000, f"가드레일이 {len(g)}자 — docs/ 최상위(768k)가 새 들어왔다"
-
-
-# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 @pytest.fixture
 def tmp_project(tmp_path):
-    """.harness/phases/, CLAUDE.md, .harness/docs/ 를 갖춘 임시 프로젝트 구조."""
-    phases_dir = tmp_path / ".harness" / "phases"
-    phases_dir.mkdir(parents=True)
+    """phases/, CLAUDE.md, docs/ 를 갖춘 임시 프로젝트 구조."""
+    phases_dir = tmp_path / "phases"
+    phases_dir.mkdir()
 
     claude_md = tmp_path / "CLAUDE.md"
     claude_md.write_text("# Rules\n- rule one\n- rule two")
 
-    docs_dir = tmp_path / ".harness" / "docs"
-    docs_dir.mkdir(parents=True)
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
     (docs_dir / "arch.md").write_text("# Architecture\nSome content")
     (docs_dir / "guide.md").write_text("# Guide\nAnother doc")
 
@@ -82,7 +42,7 @@ def tmp_project(tmp_path):
 @pytest.fixture
 def phase_dir(tmp_project):
     """step 3개를 가진 phase 디렉토리."""
-    d = tmp_project / ".harness" / "phases" / "0-mvp"
+    d = tmp_project / "phases" / "0-mvp"
     d.mkdir()
 
     index = {
@@ -109,7 +69,7 @@ def top_index(tmp_project):
             {"dir": "1-polish", "status": "pending"},
         ]
     }
-    p = tmp_project / ".harness" / "phases" / "index.json"
+    p = tmp_project / "phases" / "index.json"
     p.write_text(json.dumps(top, indent=2))
     return p
 
@@ -121,11 +81,11 @@ def executor(tmp_project, phase_dir):
         inst = ex.StepExecutor("0-mvp")
     # 내부 경로를 tmp_project 기준으로 재설정
     inst._root = str(tmp_project)
-    inst._phases_dir = tmp_project / ".harness" / "phases"
+    inst._phases_dir = tmp_project / "phases"
     inst._phase_dir = phase_dir
     inst._phase_dir_name = "0-mvp"
     inst._index_file = phase_dir / "index.json"
-    inst._top_index_file = tmp_project / ".harness" / "phases" / "index.json"
+    inst._top_index_file = tmp_project / "phases" / "index.json"
     return inst
 
 
@@ -215,7 +175,7 @@ class TestLoadGuardrails:
 
     def test_no_docs_dir(self, executor, tmp_project):
         import shutil
-        shutil.rmtree(tmp_project / ".harness" / "docs")
+        shutil.rmtree(tmp_project / "docs")
         with patch.object(ex, "ROOT", tmp_project):
             result = executor._load_guardrails()
         assert "Rules" in result
@@ -224,7 +184,7 @@ class TestLoadGuardrails:
     def test_empty_project(self, tmp_path):
         with patch.object(ex, "ROOT", tmp_path):
             # executor가 필요 없는 static-like 동작이므로 임시 인스턴스
-            phases_dir = tmp_path / ".harness" / "phases" / "dummy"
+            phases_dir = tmp_path / "phases" / "dummy"
             phases_dir.mkdir(parents=True)
             idx = {"project": "T", "phase": "t", "steps": []}
             (phases_dir / "index.json").write_text(json.dumps(idx))
@@ -308,16 +268,8 @@ class TestBuildPreamble:
         assert str(ex.StepExecutor.MAX_RETRIES) in result
 
     def test_includes_index_path(self, executor):
-        """★수정 ②-5 의 AC (codex F1).
-
-        상류 단언은 `"/phases/0-mvp/index.json" in result` 였다. 그건 **부분문자열**이라
-        `.harness/phases/…` 도 통과한다 — 즉 경로 표류에 대해 판별력이 0이었고, ②-1 이
-        원장을 옮긴 뒤에도 프리앰블만 옛 경로로 남은 것을 아무도 못 잡았다.
-        """
         result = executor._build_preamble("", "")
-        assert ".harness/phases/0-mvp/index.json" in result
-        # ★음성 대조 — 선행 슬래시 형태(절대 경로로 읽힌다)가 남아 있으면 안 된다.
-        assert "/phases/0-mvp/index.json" not in result.replace(".harness/phases/0-mvp/index.json", "")
+        assert "/phases/0-mvp/index.json" in result
 
 
 # ---------------------------------------------------------------------------
@@ -447,38 +399,6 @@ class TestCommitStep:
         assert "feat(mvp):" in commit_calls[0][2]
         assert "chore(mvp):" in commit_calls[1][2]
 
-    def test_reset_paths_match_phases_dir(self, executor):
-        """★2단 커밋 분리의 유일한 근거 = reset 경로가 실재하는가.
-
-        상류는 "phases/…" 를 하드코딩한다. 수정 ②-1 로 _phases_dir 만 옮기면 이 경로가
-        실재하지 않아 `git reset` 이 조용히 실패하고 index/output 이 feat 커밋에 섞인다.
-        위 test_two_phase_commit 은 커밋 횟수·메시지만 보므로 그 표류를 못 잡는다.
-
-        ★★이 AC 가 **말하지 않는 것** (codex 적대 리뷰 F7):
-        이것은 mock 된 `_run_git` 의 **인자 문자열**만 본다. 임시 git 레포에서 index.json 이
-        실제로 feat 커밋에서 빠지고 chore 커밋에만 들어가는지는 **검증하지 않는다.**
-        즉 변이 M2 의 red 는 「경로 문자열이 바뀌었다」를 말할 뿐 「2단 분리가 지켜진다」를
-        말하지 않는다. 게다가 실물에서는 프리앰블 규칙 6 이 세션에게 먼저 커밋을 시켜
-        **분리 자체가 발화하지 않는다**(ADR-033 §스모크 발견 B). 실물 검증은 미실시.
-        """
-        calls = []
-        def fake_git(*args):
-            calls.append(args)
-            if args[:2] == ("diff", "--cached"):
-                return MagicMock(returncode=1)
-            return MagicMock(returncode=0, stdout="", stderr="")
-        executor._run_git = fake_git
-
-        executor._commit_step(2, "ui")
-
-        reset_paths = [c[3] for c in calls if c[0] == "reset"]
-        assert reset_paths == [
-            ".harness/phases/0-mvp/step2-output.json",
-            ".harness/phases/0-mvp/index.json",
-        ]
-        # 음성 대조 — 상류의 옛 경로가 남아 있으면 안 된다.
-        assert not any(p.startswith("phases/") for p in reset_paths)
-
     def test_no_code_changes_skips_feat_commit(self, executor):
         call_count = {"diff": 0}
         calls = []
@@ -513,22 +433,12 @@ class TestInvokeClaude:
             output = executor._invoke_claude(step, preamble)
 
         cmd = mock_run.call_args[0][0]
-        # 수정 ③ — 실행기 codex 스왑(ADR-033). 양성 대조.
-        assert cmd[:3] == ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox"]
-        # ★codex F2 — `"-C" in cmd` 만 보면 `-C /tmp` 로 바꿔도 통과한다(판별력 0).
-        #   **어느 디렉터리를 겨냥하는지**를 단언한다. `-s workspace-write` 로 되돌릴 때도
-        #   쓰기 루트가 여기서 갈리므로 이 값이 틀리면 0건 변경으로 조용히 끝난다.
-        assert cmd[cmd.index("-C") + 1] == executor._root
-        assert cmd[cmd.index("-C") + 1] != "/tmp"
+        assert cmd[0] == "claude"
+        assert "-p" in cmd
+        assert "--dangerously-skip-permissions" in cmd
+        assert "--output-format" in cmd
         assert "PREAMBLE" in cmd[-1]
         assert "UI를 구현하세요" in cmd[-1]
-        # ★음성 대조 — 이 세 줄이 없으면 argv 를 원본으로 되돌려도 초록이 난다(판별력 0).
-        #   `-p` 는 codex 에서 --profile 이라 실려 있으면 프로파일 오탑재가 된다.
-        assert "claude" not in cmd
-        assert "-p" not in cmd
-        assert "--output-format" not in cmd
-        # ★stdin 미지정이면 codex 가 무한 대기한다 — 이것이 안 실리면 회차가 걸린다.
-        assert mock_run.call_args.kwargs["stdin"] is subprocess.DEVNULL
 
     def test_saves_output_json(self, executor):
         mock_result = MagicMock(returncode=0, stdout='{"ok": true}', stderr="")
@@ -597,7 +507,7 @@ class TestMainCli:
                 assert exc_info.value.code == 1
 
     def test_missing_index_exits(self, tmp_project):
-        (tmp_project / ".harness" / "phases" / "empty").mkdir()
+        (tmp_project / "phases" / "empty").mkdir()
         with patch("sys.argv", ["execute.py", "empty"]):
             with patch.object(ex, "ROOT", tmp_project):
                 with pytest.raises(SystemExit) as exc_info:
@@ -611,7 +521,7 @@ class TestMainCli:
 
 class TestCheckBlockers:
     def _make_executor_with_steps(self, tmp_project, steps):
-        d = tmp_project / ".harness" / "phases" / "test-phase"
+        d = tmp_project / "phases" / "test-phase"
         d.mkdir(exist_ok=True)
         index = {"project": "T", "phase": "test", "steps": steps}
         (d / "index.json").write_text(json.dumps(index))
@@ -619,11 +529,11 @@ class TestCheckBlockers:
         with patch.object(ex, "ROOT", tmp_project):
             inst = ex.StepExecutor.__new__(ex.StepExecutor)
         inst._root = str(tmp_project)
-        inst._phases_dir = tmp_project / ".harness" / "phases"
+        inst._phases_dir = tmp_project / "phases"
         inst._phase_dir = d
         inst._phase_dir_name = "test-phase"
         inst._index_file = d / "index.json"
-        inst._top_index_file = tmp_project / ".harness" / "phases" / "index.json"
+        inst._top_index_file = tmp_project / "phases" / "index.json"
         inst._phase_name = "test"
         inst._total = len(steps)
         return inst

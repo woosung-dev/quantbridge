@@ -15,6 +15,9 @@ sprint*-day*-*.jpeg
 # 프로젝트 고유 스킬을 만들면 그때 `!.claude/skills/` 를 추가한다 (개인용은 local-* 접두사).
 .claude/*
 !.claude/settings.json
+# harness 저작 규약 — 상류(jha0313/harness_framework)의 ②층에 해당한다. 팀이 공유해야
+# 돌아가는 것이라 뚫는다. 상류는 이것을 슬래시 커맨드로 뒀고 우리도 그렇게 쓴다 ([ADR-033]).
+!.claude/commands/
 # 아래 셋은 위 .claude/* 로 이미 무시되지만, 작업 찌꺼기임을 명시해 둔다.
 # (worktrees 무시는 조사한 90개 중 20개가 쓰는 최다 패턴)
 .claude/plans/

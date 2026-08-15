@@ -2,17 +2,8 @@
 """
 Harness Step Executor — phase 내 step을 순차 실행하고 자가 교정한다.
 
-출처: https://github.com/jha0313/harness_framework @ da676bc6 (as-is 채택).
-수정 6곳 — ① 실행기 codex 스왑 · ②-1 phases 경로 · ②-2 docs 경로 · ②-3 ROOT 깊이 ·
-②-4 _commit_step 의 reset 경로 · ②-5 프리앰블이 세션에게 알려 주는 원장 경로.
-★②-3·②-4·②-5 는 「as-is 라 안 건드린다」가 성립하지 않는 곳이다 — 안 고치면 각각
-가드레일 0자 / 2단 커밋 붕괴 / 세션이 없는 경로에 상태를 쓰려 함으로 **조용히** 실패한다.
-★②-5 는 내가 「경로 파생 전수 확인」을 마쳤다고 믿은 뒤 남아 있었고 codex 적대 리뷰가 잡았다.
-정본 = ADR-033.
-
 Usage:
-    python3 tools/scripts/execute.py <phase-dir>          # phases 는 .harness/phases/ 아래
-    ★--push 는 쓰지 마라 — Golden Rule(사용자 승인 없는 push 금지). 플래그는 원본 그대로 남겨 뒀다.
+    python3 scripts/execute.py <phase-dir> [--push]
 """
 
 import argparse
@@ -28,11 +19,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
-# ★수정 ②-3. 상류는 `scripts/execute.py` 가 루트 직하라 parent.parent 로 루트가 나온다.
-# 우리는 [ADR-029] 재배치로 `tools/scripts/` 라 한 단 더 깊다 — parent.parent 는 `tools/` 다.
-# 실측(2026-08-15): 이 한 단이 없으면 _load_guardrails() 가 조용히 **0자**를 낸다
-# (`tools/CLAUDE.md`·`tools/.harness/docs` 가 없으므로). 음성 대조만 뒀으면 초록으로 읽혔다.
-ROOT = Path(__file__).resolve().parent.parent.parent
+ROOT = Path(__file__).resolve().parent.parent
 
 
 @contextlib.contextmanager
@@ -73,8 +60,7 @@ class StepExecutor:
 
     def __init__(self, phase_dir_name: str, *, auto_push: bool = False):
         self._root = str(ROOT)
-        # 원본은 ROOT/"phases". 루트 오염을 피해 .harness/ 아래로 (수정 ②-1).
-        self._phases_dir = ROOT / ".harness" / "phases"
+        self._phases_dir = ROOT / "phases"
         self._phase_dir = self._phases_dir / phase_dir_name
         self._phase_dir_name = phase_dir_name
         self._top_index_file = self._phases_dir / "index.json"
@@ -148,12 +134,8 @@ class StepExecutor:
         print(f"  Branch: {branch}")
 
     def _commit_step(self, step_num: int, step_name: str):
-        # ★수정 ②-1 이 놓치면 안 되는 두 줄이다. 원본은 "phases/…" 를 하드코딩하는데,
-        #   _phases_dir 만 바꾸면 이 경로가 실재하지 않아 `git reset` 이 조용히 실패하고
-        #   index.json·step-output.json 이 feat 커밋에 딸려 들어간다(2단 분리가 깨진다).
-        #   상류 테스트는 커밋 횟수·메시지만 보므로 이 표류를 못 잡는다 — 아래 AC 테스트를 함께 뒀다.
-        output_rel = f".harness/phases/{self._phase_dir_name}/step{step_num}-output.json"
-        index_rel = f".harness/phases/{self._phase_dir_name}/index.json"
+        output_rel = f"phases/{self._phase_dir_name}/step{step_num}-output.json"
+        index_rel = f"phases/{self._phase_dir_name}/index.json"
 
         self._run_git("add", "-A")
         self._run_git("reset", "HEAD", "--", output_rel)
@@ -197,12 +179,7 @@ class StepExecutor:
         claude_md = ROOT / "CLAUDE.md"
         if claude_md.exists():
             sections.append(f"## 프로젝트 규칙 (CLAUDE.md)\n\n{claude_md.read_text()}")
-        # 원본은 ROOT/"docs". 우리 docs/ 최상위는 README·status·backlog·roadmap·lessons
-        # **5파일 777,895자**만 잡히고 정본인 docs/reference·docs/decisions 는 하위라 0건이다
-        # (ADR-030 §발견①. ★그 ADR 은 4파일 814,211자로 적었는데 `docs/README.md` 를 빠뜨린
-        #  값이다 — codex 적대 리뷰 F4 가 잡았고 나는 그 수치를 검증 없이 물려받았다).
-        # .harness/docs/ 는 4축 심링크(CONTEXT·AGENTS·api/AGENTS·web/AGENTS = 45,820자) (수정 ②-2).
-        docs_dir = ROOT / ".harness" / "docs"
+        docs_dir = ROOT / "docs"
         if docs_dir.is_dir():
             for doc in sorted(docs_dir.glob("*.md")):
                 sections.append(f"## {doc.stem}\n\n{doc.read_text()}")
@@ -239,11 +216,7 @@ class StepExecutor:
             f"2. 이 step에 명시된 작업만 수행하라. 추가 기능이나 파일을 만들지 마라.\n"
             f"3. 기존 테스트를 깨뜨리지 마라.\n"
             f"4. AC(Acceptance Criteria) 검증을 직접 실행하라.\n"
-            # ★수정 ②-5 (codex 적대 리뷰 F1, P1). 원본은 `/phases/…` 를 프리앰블에 박는다 —
-            #   ②-1 로 원장을 옮겼는데 **세션에게 알려 주는 경로만 옛것으로 남아 있었다.**
-            #   선행 슬래시까지 있어 절대 경로로 읽힐 수 있어 더 나쁘다. 스모크가 통과한 것은
-            #   step0.md 가 올바른 경로를 따로 적어 **우연히 가렸기** 때문이다.
-            f"5. .harness/phases/{self._phase_dir_name}/index.json 의 해당 step status를 업데이트하라:\n"
+            f"5. /phases/{self._phase_dir_name}/index.json의 해당 step status를 업데이트하라:\n"
             f"   - AC 통과 → \"completed\" + \"summary\" 필드에 이 step의 산출물을 한 줄로 요약\n"
             f"   - {self.MAX_RETRIES}회 수정 시도 후에도 실패 → \"error\" + \"error_message\" 기록\n"
             f"   - 사용자 개입이 필요한 경우 (API 키, 인증, 수동 설정 등) → \"blocked\" + \"blocked_reason\" 기록 후 즉시 중단\n"
@@ -262,16 +235,9 @@ class StepExecutor:
             sys.exit(1)
 
         prompt = preamble + step_file.read_text()
-        # 수정 ① — 실행기를 codex 로 스왑 (2026-08-15 사용자 판정, ADR-033).
-        #   `-p` 는 옮기지 않는다: codex 에서 `-p` 는 --profile 이다 (claude 의 --print 가 아니다).
-        #   `--output-format json` 도 옮기지 않는다: 이 러너는 stdout 을 파싱하지 않는다
-        #   (상태 채널은 index.json 뿐). codex 의 --json 은 JSONL 이라 산출물만 키운다.
-        #   ★stdin=DEVNULL 은 필수다 — stdin 이 열려 있으면 codex 가 무한 대기한다
-        #   (generator-evaluator-pipeline.md §7.1 의 `< /dev/null` 과 같은 것. 워커 2기 52분·38분 소실).
         result = subprocess.run(
-            ["codex", "exec", "--dangerously-bypass-approvals-and-sandbox", "-C", self._root, prompt],
+            ["claude", "-p", "--dangerously-skip-permissions", "--output-format", "json", prompt],
             cwd=self._root, capture_output=True, text=True, timeout=1800,
-            stdin=subprocess.DEVNULL,
         )
 
         if result.returncode != 0:

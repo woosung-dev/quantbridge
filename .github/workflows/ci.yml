@@ -69,6 +69,10 @@ jobs:
       #   합계 13초(8종 · 2026-08-13 [ADR-030] `fleet-dispatch-test` 를 함대와 함께 제거 후 재실측 —
       #   맥 로컬 기준, 리눅스 러너 실측은 ~4초) · docker·네트워크 의존 0
       #   (mktemp 트리 + PATH 앞단 가짜).
+      # ★2026-08-15 — `harness-test.sh`(11번째)가 pytest 2벌을 부르므로 uv 가 필요하다.
+      #   그 하네스는 uv 가 없으면 **skip 이 아니라 빨강**이다 — 「검사기를 부르는 경로가
+      #   죽으면 검사기는 0을 잰다」(LESSON-101). 여기가 그 경로다([BL-746]).
+      - uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
       - name: Check gate harnesses have discriminating power
         run: make gate-harnesses
 
