@@ -106,15 +106,19 @@ if [ "$ALLOW_DIRTY" -eq 1 ] && [ -n "$DIRTY_PATHS" ]; then
 $DIRTY_PATHS"
 fi
 
-has_fe=0; has_be=0
+has_fe=0; has_be=0; has_api_src=0
 # ★grep -q 금지 (2026-08-13 실측) — pipefail 아래서 -q 는 첫 매치에 조기 종료하고, 목록이 파이프
 #   버퍼(64KB)를 넘으면 printf 가 SIGPIPE(141)로 죽어 **매치 성공이 파이프라인 실패**가 된다.
 #   이 재배치 PR(1,549 경로·83KB)에서 has_fe/has_be 가 실행마다 뒤집히는 비결정을 실증했다.
 #   grep -c 는 입력을 끝까지 읽어 SIGPIPE 가 없다.
 fe_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/web/')"
 be_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/api/')"
+# ★`has_be` 보다 좁다 — **API 응답이 바뀔 수 있는가**를 재는 축이다([BL-739]).
+#   `apps/api/tests/`·`apps/api/scripts/` 만 바뀐 회차는 화면이 구조적으로 안 바뀐다.
+src_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/api/src/')"
 [ "${fe_n:-0}" -gt 0 ] && has_fe=1
 [ "${be_n:-0}" -gt 0 ] && has_be=1
+[ "${src_n:-0}" -gt 0 ] && has_api_src=1
 
 NAMES=(); CODES=(); NOTES=(); SECS=()
 record() { NAMES+=("$1"); CODES+=("$2"); NOTES+=("${3:-}"); SECS+=("${4:-}"); }
@@ -452,7 +456,14 @@ signal_gate() {  # signal_gate <label> <file> <required 0|1> <why>
     else record "$1" "-" "--deferred-only — 이 모드 대상이 아니다"; fi
     return
   fi
-  if [ "$DRY" -eq 1 ]; then record "$1" "?" "신호 $2 (계획)"; return; fi
+  # ★required 를 사유에 노출한다([BL-739]). 다른 게이트는 dry-run 계획 표에 이미 skip 사유를
+  #   보여주는데 신호만 그것을 삼켜서, 「이 회차에 이 신호가 필수인가」를 **잴 방법이 없었다.**
+  #   `check_signal` 호출 횟수는 안 바뀐다 — `signal-check-test.sh` ㉑㉒㉓ 의 계약은 그대로다.
+  if [ "$DRY" -eq 1 ]; then
+    if [ "$3" -eq 0 ]; then record "$1" "?" "신호 $2 (계획 · 필수 아님: $4)"
+    else record "$1" "?" "신호 $2 (계획 · 필수)"; fi
+    return
+  fi
   check_signal "$@"
 }
 
@@ -478,7 +489,14 @@ check_signal() {  # check_signal <label> <file> <required 0|1> <why>
   fi
 }
 signal_gate "/vercel-react-best-practices" "vercel.ok" "$has_fe" "frontend diff 0"
-signal_gate "화면 검증 (playwright 또는 /browse)" "screen.ok" 1 ""
+# ★[BL-739] — 종전엔 리터럴 `1` 이라, 바로 윗줄이 `frontend diff 0` 으로 skip 되는 그 회차에서
+#   아랫줄만 FAIL 이 났다(같은 FE 축인데 한쪽만 조건부 = 비대칭).
+#   ★단 `$has_fe` 로 바꾸면 **BE 가 화면을 깨는 경우**를 놓친다([BL-707]: CORS·포트가 어긋나면
+#   화면은 「데이터 없음」으로 보인다). 그래서 술어는 `apps/api/src` 까지 포함한다 —
+#   `src/` 가 0줄이면 API 응답이 바뀔 수 없고, 그때만 검증 대상이 구조적으로 부재하다.
+screen_req=0
+{ [ "$has_fe" -eq 1 ] || [ "$has_api_src" -eq 1 ]; } && screen_req=1
+signal_gate "화면 검증 (playwright 또는 /browse)" "screen.ok" "$screen_req" "apps/web/ · apps/api/src/ diff 0"
 signal_gate "/codex 적대 리뷰" "codex.ok" 1 ""
 signal_gate "★G9 계획 vs 실제 구현" "g9.ok" 1 ""
 

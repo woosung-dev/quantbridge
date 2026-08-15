@@ -280,6 +280,53 @@ exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 �
 ★**`--install` 은 서버 전역 변경이다**(서버는 1대). 워크트리 격리 밖이므로 사용자 승인을 받아라.
 서버 실증은 **스크립트만 scp** 한다 — `git pull` 은 체크아웃을 갱신해 게이트 스크립트까지 바꾼다([BL-623]).
 
+#### ★★유닛에 구워진 절대경로 — 재배치가 감시를 죽인다 (2026-08-15 [BL-737]·[BL-744])
+
+**레포에는 systemd 유닛의 원본이 없다.** 유닛은 `--install` 이 그 시점의 `${SCRIPT_DIR}` 를 박아
+생성하는 heredoc 이 전부다. 그래서 [ADR-029] 재배치(`scripts/` → `tools/scripts/`)가 파일을 옮기자
+서버 유닛은 **없는 경로를 문 채로 남았고**, `soak-watch.service` 는 **41시간 동안 30분마다
+`rc=127`** 로 죽으면서 알림을 한 줄도 내지 않았다. 같은 재배치가 **세 곳**을 남겼다:
+
+| 유닛/설정                            | 무엇이 낡았나                                                           | 증상                                                                              |
+| ------------------------------------ | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `dev.quantbridge.soak-watch.service` | `ExecStart` = `~/quantbridge/scripts/soak-watch.sh`                     | `rc=127` · 알림 0줄 (41h)                                                         |
+| `quantbridge-api.service`            | `WorkingDirectory`·`ExecStart`·`PROMETHEUS_MULTIPROC_DIR` 이 `backend/` | 08-07 프로세스가 **삭제된 cwd** 로 연명 · 죽으면 `rc=203/EXEC` 영구 실패          |
+| `soak-stack.sh:SOAK_WATCHED_PATHS`   | 목록에 없는 경로 `scripts`                                              | 감시 축 침묵 (없는 경로의 `git log` 는 **빈 출력**이라 「누락 없음」과 구분 불가) |
+
+**재배치·경로 이동 뒤 필수 점검 3줄** — [BL-719] 류 롤아웃 체크리스트에 반드시 넣어라:
+
+```bash
+tools/scripts/soak-watch.sh --status          # rc=1 이면 설치본이 낡았다 (ExecStart 실재+일치 판정)
+grep -l quantbridge ~/.config/systemd/user/*  # 유닛 전수 — 각 파일의 절대경로를 눈으로 확인
+systemctl --user list-units --all | grep -i quantbridge   # failed 가 없어야 한다
+```
+
+★**「타이머가 waiting」은 건강 신호가 아니다.** 41시간 내내 타이머는 정상 waiting 이었다.
+★**감시자는 자기 죽음을 알릴 수 없다** — 그래서 `--install` 이 `OnFailure=dev.quantbridge.soak-watch-alarm.service`
+를 함께 건다. 그 알람 유닛은 **스크립트 파일에 의존하지 않는다**(인라인 curl · `.env.local` 을
+그 자리에서 소싱해 토큰을 유닛에 박지 않는다) — 다음 재배치에 면역이다.
+
+#### 소크 DB 스키마 — `soak-stack.sh migrate` (2026-08-15 [BL-743] 신설)
+
+**`pin`·`up`·`down` 중 어느 것도 migration 을 적용하지 않는다.** 소크 compose 6서비스에
+**api 롤이 없어서**(`run_alembic_with_lock` 을 부르는 유일한 롤) celery 는 `command:` override 로
+entrypoint 의 롤 분기를 통째로 우회한다(`apps/api/docker-entrypoint.sh:117` passthrough).
+그래서 서버 DB 는 만들어진 시점에 멈춰 있었고, migration 이 squash base 하나뿐이던 동안은
+아무도 몰랐다.
+
+```bash
+tools/scripts/soak-stack.sh migrate             # dry-run — 대상 DB · 현재 revision · 적용 대기 목록
+tools/scripts/soak-stack.sh migrate --confirm   # 집행 (★사용자 승인이 선행 — status.md ⓵ 비목표)
+```
+
+- **`pin` 과 같은 등급의 명시적 배포 행위**다. `up` 에 붙이지 않은 이유 = 창 중 DDL 이
+  **암묵적으로** 돌면 「무엇이 언제 스키마를 바꿨나」에 답할 수 없다.
+- 집행 뒤 **`docker exec ${DB_CONTAINER} psql` 로 게이트가 보는 그 DB 를 다시 읽어** head 와
+  대조한다. `.env.local` 이 다른 DB 를 가리키고 있었다면 upgrade 는 성공하고 여기서 실패한다 —
+  조용한 오적용을 막는 유일한 축이다.
+- ★`alembic history -r A:B` 는 **A 를 포함**한다(이미 적용된 전이가 목록에 낀다). 초판이 그래서
+  「적용 대기 2 항목」을 찍었는데 실제 대기는 1개였다.
+
 ## 2. 통과 가능한 게이트가 **아닌** 것
 
 - **`ruff format`** — 이 레포는 포매터를 게이트로 쓰지 않는다.

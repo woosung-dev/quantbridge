@@ -148,6 +148,10 @@ EOF
 _set_gate() { # stdin = 게이트가 낼 stdout,  $1 = 게이트 종료 코드
   {
     echo '#!/usr/bin/env bash'
+    # ★게이트가 받은 인자 개수를 남긴다. 종전 가짜 게이트는 "$@" 를 통째로 무시해서
+    #   「게이트를 `--no-collect` 로 부르는」 회귀가 전건 초록으로 통과했다(2026-08-15 실측).
+    #   `--no-collect` 는 phantom 아카이브를 안 남겨 C5 가 fail-open 이 된다.
+    echo 'printf "%s\n" "$#" > "${QB_GATE_ARGC:-/dev/null}"'
     echo "cat <<'GATEEOF'"
     cat
     echo 'GATEEOF'
@@ -155,6 +159,45 @@ _set_gate() { # stdin = 게이트가 낼 stdout,  $1 = 게이트 종료 코드
   } > "$TMP/tree/tools/scripts/soak-gate.sh"
   chmod +x "$TMP/tree/tools/scripts/soak-gate.sh"
 }
+
+# ── systemd 갈래 배선 (설치본 신선도 축, [BL-737]) ──────────────────────────────
+#    ★맥에는 systemctl 이 없다. 가짜 systemctl 을 PATH 앞에 세우고 유닛 디렉터리를
+#      XDG_CONFIG_HOME 으로 격리하면, **유닛 파일 산출물 자체**를 실측할 수 있다.
+_build_systemd_seam() {
+  rm -rf "$TMP/xdg" "$TMP/bin"
+  mkdir -p "$TMP/bin"
+  cat > "$TMP/bin/systemctl" << 'EOF'
+#!/usr/bin/env bash
+# 하네스용 no-op. is-enabled 만 1(비활성)을 내 게이트 타이머 disable 분기를 건너뛴다.
+case "$*" in
+  *is-enabled*) exit 1 ;;
+esac
+exit 0
+EOF
+  chmod +x "$TMP/bin/systemctl"
+  printf 'TELEGRAM_BOT_TOKEN=x\nTELEGRAM_CHAT_ID=y\n' > "$TMP/fake.env"
+}
+
+_sd_env() { # 공통 환경 — 유닛 디렉터리·systemctl·env 파일을 전부 임시 트리로 가둔다
+  XDG_CONFIG_HOME="$TMP/xdg" PATH="$TMP/bin:$PATH" \
+    QB_SOAK_ENV_FILE="$TMP/fake.env" QB_SOAK_WATCH_STATE="$TMP/state" "$@"
+}
+
+_run_install() {
+  OUT="$(_sd_env bash "$TMP/tree/tools/scripts/soak-watch.sh" --install 2>&1)"
+  RC=$?
+  SENT=""
+}
+
+_run_status() {
+  OUT="$(_sd_env bash "$TMP/tree/tools/scripts/soak-watch.sh" --status 2>&1)"
+  RC=$?
+  SENT=""
+}
+
+UNIT_SVC="$TMP/xdg/systemd/user/dev.quantbridge.soak-watch.service"
+ALARM_SVC="$TMP/xdg/systemd/user/dev.quantbridge.soak-watch-alarm.service"
+TREE_REAL=""  # _build_tree 뒤에 채운다 (트리가 있어야 pwd -P 가 의미를 갖는다)
 
 _run() { # _run [sender]  → $OUT / $RC / $SENT
   : > "$TMP/sent"
@@ -205,6 +248,11 @@ echo "  대상: $WATCH"
 echo
 
 _build_tree
+_build_systemd_seam
+export QB_GATE_ARGC="$TMP/gate-argc"
+# ★스크립트는 `pwd -P` 로 심볼릭을 해소한다 — 맥의 `/var` 는 `/private/var` 다.
+#   기대값도 같은 방식으로 해소하지 않으면 ⑭ 가 **경로 표기만으로** red 를 낸다.
+TREE_REAL="$(cd "$TMP/tree" && pwd -P)"
 
 # ── ① 첫 실행은 알린다. 그 다음 **같은 상태면 침묵**한다 ─────────────────────────
 #    이게 음성 대조의 본체다 — 「늘 쏘는 알림」은 여기서만 죽는다.
@@ -324,6 +372,71 @@ _reset_state
 _fixture_c1_in_error | _set_gate 2
 _run
 assert_sent "⑫ 조건 줄 없이 오류 본문에만 C1 → 크래시로 읽는다" 0 "크래시" "-"
+
+# ── ⑬ 게이트를 **인자 없이** 부른다 (수집 모드 보존) ────────────────────────────
+#    ★`--no-collect` 를 더하면 phantom 아카이브가 안 남아 C5 가 fail-open 이 된다.
+#      종전 하네스는 가짜 게이트가 "$@" 를 무시해 이 회귀를 전건 초록으로 통과시켰다.
+_reset_state
+rm -f "$QB_GATE_ARGC"
+_fixture_normal | _set_gate 2
+_run
+_why=""
+[ -f "$QB_GATE_ARGC" ] || _why="게이트가 안 불렸다 "
+[ "$(cat "$QB_GATE_ARGC" 2>/dev/null)" = "0" ] \
+  || _why="${_why}★게이트가 인자 $(cat "$QB_GATE_ARGC" 2>/dev/null)개로 불렸다(기대 0) "
+report "⑬ 게이트를 인자 0개로 부른다 (수집 모드)" "$_why"
+
+# ── ⑭ [BL-737] `--install` 이 굽는 유닛이 **지금 이 파일**을 가리킨다 ───────────
+#    ★2026-08-13 재배치가 스크립트를 옮기자 서버 유닛은 옛 경로를 가리킨 채 41시간 동안
+#      rc=127 로 죽었다. 재는 것은 「유닛이 있나」가 아니라 「무엇을 가리키나」다.
+_run_install
+_why=""
+[ "$RC" -eq 0 ] || _why="종료코드=$RC(기대 0) "
+if [ ! -f "$UNIT_SVC" ]; then
+  _why="${_why}★watch 유닛이 안 만들어졌다 "
+else
+  grep -qxF "ExecStart=/bin/bash $TREE_REAL/tools/scripts/soak-watch.sh" "$UNIT_SVC" \
+    || _why="${_why}★ExecStart 가 이 파일이 아니다: $(sed -n 's/^ExecStart=//p' "$UNIT_SVC" | head -1) "
+  grep -qxF "OnFailure=dev.quantbridge.soak-watch-alarm.service" "$UNIT_SVC" \
+    || _why="${_why}★OnFailure 가 없다 — watch 가 죽어도 조용하다 "
+fi
+report "⑭ --install 의 ExecStart = 현재 스크립트 + OnFailure" "$_why"
+
+_why=""
+if [ ! -f "$ALARM_SVC" ]; then
+  _why="★실패 알림 유닛이 안 만들어졌다 "
+else
+  grep -q -- "$TMP/fake.env" "$ALARM_SVC" || _why="${_why}★env 파일 경로가 안 박혔다 "
+  # 시크릿 하드코딩 금지 회귀 — 토큰 **값**이 유닛에 들어가면 안 된다(변수 참조만 허용).
+  grep -q 'TELEGRAM_BOT_TOKEN=x' "$ALARM_SVC" && _why="${_why}★토큰 값이 유닛에 박혔다 "
+fi
+report "⑭b 실패 알림 유닛 생성 · 토큰 값 미포함" "$_why"
+
+# ── ⑮ [BL-737] `--status` 가 낡은 설치본을 red 로 판정한다 ──────────────────────
+#    ★음성 대조가 앞에 온다 — 늘 red 인 검사기는 판별력이 0 이다.
+_run_status
+_why=""
+[ "$RC" -eq 0 ] || _why="★정상 설치본인데 rc=$RC (기대 0 — 판별력 없는 검사기) "
+printf '%s' "$OUT" | grep -q "설치본 신선도" || _why="${_why}신선도 절이 출력에 없다 "
+report "⑮ --status 음성 대조: 갓 설치한 것은 green" "$_why"
+
+# 이번 사고를 그대로 재현한다 — ExecStart 만 옛 경로로 되돌린다.
+sed -i.bak "s|^ExecStart=/bin/bash .*|ExecStart=/bin/bash $TMP/tree/scripts/soak-watch.sh|" "$UNIT_SVC"
+_run_status
+_why=""
+[ "$RC" -eq 1 ] || _why="★낡은 ExecStart 인데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q "rc=127" || _why="${_why}rc=127 진단이 없다 "
+report "⑮b 옛 경로 ExecStart → red (2026-08-13 사고 재현)" "$_why"
+mv "$UNIT_SVC.bak" "$UNIT_SVC"
+
+# 알림 유닛이 사라지면 watch 의 죽음이 다시 안 보인다 — 그것도 red 다.
+mv "$ALARM_SVC" "$ALARM_SVC.hidden"
+_run_status
+_why=""
+[ "$RC" -eq 1 ] || _why="★알림 유닛이 없는데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q "실패 알림 유닛이 없다" || _why="${_why}진단 문구가 없다 "
+report "⑮c 실패 알림 유닛 부재 → red" "$_why"
+mv "$ALARM_SVC.hidden" "$ALARM_SVC"
 
 echo
 echo "══════════════════════════════════════════"
