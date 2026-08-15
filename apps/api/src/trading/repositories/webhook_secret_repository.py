@@ -84,10 +84,14 @@ class WebhookSecretRepository:
 
         commit 책임은 호출한 Service 에 있다.
         """
-        owned = select(Strategy.id).where(Strategy.user_id == user_id)  # type: ignore[arg-type]
+        # ★서브쿼리로 **한 문장**에 닫는다 — 전략 목록을 먼저 읽고 루프를 돌면 그 사이에
+        #   추가된 전략을 놓친다. 탈퇴는 「하나도 남으면 안 되는」 경계다.
+        #   `type: ignore` 두 개는 SQLModel 이 컬럼 속성을 파이썬 타입(UUID)으로 노출해
+        #   mypy 가 `select` overload 와 `.in_` 를 못 보는 것이라, 런타임 의미와 무관하다.
+        owned = select(Strategy.id).where(Strategy.user_id == user_id)  # type: ignore[call-overload]
         result = await self.session.execute(
             update(WebhookSecret)
-            .where(WebhookSecret.strategy_id.in_(owned))  # type: ignore[union-attr]
+            .where(WebhookSecret.strategy_id.in_(owned))  # type: ignore[attr-defined]
             .where(WebhookSecret.revoked_at.is_(None))  # type: ignore[union-attr]
             .values(revoked_at=at)
         )
