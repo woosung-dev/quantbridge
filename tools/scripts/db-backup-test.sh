@@ -151,9 +151,11 @@ exit 0
 STUB
   chmod +x "$BIN/systemctl"
 
-  # 가짜 oci — QB_FAKE_OCI_RC 로 성공/실패를 고른다
+  # 가짜 oci — QB_FAKE_OCI_RC 로 성공/실패를 고르고, QB_FAKE_OCI_LOG 가 있으면 argv 를 남긴다.
+  # ★argv 기록이 없으면 「업로드했다」만 알 뿐 **무슨 이름으로** 올렸는지 못 잰다(prefix 축).
   cat > "$BIN/oci-stub" << 'STUB'
 #!/usr/bin/env bash
+[ -n "${QB_FAKE_OCI_LOG:-}" ] && printf '%s\n' "$*" >> "$QB_FAKE_OCI_LOG"
 exit "${QB_FAKE_OCI_RC:-0}"
 STUB
   chmod +x "$BIN/oci-stub"
@@ -390,6 +392,32 @@ _why=""
 [ "$RC" -eq 0 ] || _why="종료코드=$RC(기대 0) "
 printf '%s' "$OUT" | grep -q "업로드 완료" || _why="${_why}완료 로그가 없다 "
 report "⑪c 음성 대조 — 업로드 성공은 rc=0" "$_why"
+
+# ── ⑪d ★prefix 가 객체 이름에 붙는다 (남의 버킷을 공유할 때의 경계) ────────────
+#    2026-08-16 실측: 이 VM 의 Instance Principal 은 버킷 **생성** 권한이 없어
+#    (`bucket create` 409 / `bucket get` **404**) 다른 앱 버킷을 빌려 쓴다. 그때 경계가
+#    파일명 규칙에만 의존하면 저쪽이 규칙을 바꾸는 순간 섞인다.
+_reset_stub
+: > "$TMP/oci-argv"
+QB_SKIP_UPLOAD="0" QB_OCI_BIN="$BIN/oci-stub" QB_FAKE_OCI_RC="0" \
+  QB_FAKE_OCI_LOG="$TMP/oci-argv" QB_BACKUP_PREFIX="quantbridge" _stub_run run
+_why=""
+[ "$RC" -eq 0 ] || _why="종료코드=$RC(기대 0) "
+grep -q -- '--name quantbridge/quantbridge-' "$TMP/oci-argv" 2> /dev/null \
+  || _why="${_why}★객체 이름에 prefix 가 없다: $(sed -n 's/.*--name \([^ ]*\).*/\1/p' "$TMP/oci-argv" | tr '\n' ' ') "
+report "⑪d prefix → 객체 이름이 <prefix>/<파일명>" "$_why"
+
+# ── ⑪e 음성 대조: prefix 가 비면 붙이지 않는다 (늘 붙이는 구현이 아님) ─────────
+_reset_stub
+: > "$TMP/oci-argv"
+QB_SKIP_UPLOAD="0" QB_OCI_BIN="$BIN/oci-stub" QB_FAKE_OCI_RC="0" \
+  QB_FAKE_OCI_LOG="$TMP/oci-argv" _stub_run run
+_why=""
+grep -q -- '--name quantbridge-' "$TMP/oci-argv" 2> /dev/null \
+  || _why="이름을 못 읽었다 "
+grep -q -- '--name .*/' "$TMP/oci-argv" 2> /dev/null \
+  && _why="${_why}★prefix 가 비었는데 슬래시가 들어갔다 "
+report "⑪e 음성 대조 — prefix 가 비면 버킷 루트" "$_why"
 
 # ── ⑫ 보관 정리 — 경과분은 지우고 신규분은 남긴다 (양성 + 음성 한 쌍) ──────────
 _reset_stub

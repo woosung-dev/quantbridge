@@ -25,6 +25,12 @@
 #
 # 환경 변수 (전부 선택):
 #   QB_BACKUP_DIR=/opt/backups   QB_BACKUP_RETAIN_DAYS=14   QB_BACKUP_BUCKET=quantbridge-backups
+#   QB_BACKUP_PREFIX=            객체 이름 앞에 붙는 경계. **남의 버킷을 빌려 쓸 때 쓴다.**
+#                                2026-08-16 실측 — 이 VM 의 Instance Principal 은 `manage objects`
+#                                는 있는데 **버킷 생성 권한이 없다**(`bucket create` 409 인데
+#                                `bucket get` 은 404 = 존재하지도 않는데 못 만든다). 그래서
+#                                `QB_BACKUP_BUCKET=truewords-backups QB_BACKUP_PREFIX=quantbridge`
+#                                로 다른 앱 버킷을 공유한다. 전용 버킷이 생기면 prefix 를 비워라.
 #   QB_DB_CONTAINER=quantbridge-db   QB_DB_USER=  QB_DB_NAME=  (미지정 시 컨테이너에서 읽는다)
 #   QB_SKIP_UPLOAD=1             원격 업로드를 **명시적으로** 건너뛴다 (rc 에 영향 없음)
 #   QB_OCI_BIN=/usr/local/bin/oci
@@ -66,6 +72,8 @@ DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 BACKUP_DIR="${QB_BACKUP_DIR:-/opt/backups}"
 RETAIN_DAYS="${QB_BACKUP_RETAIN_DAYS:-14}"
 BUCKET="${QB_BACKUP_BUCKET:-quantbridge-backups}"
+# 남의 버킷을 공유할 때의 경계. 비면 버킷 루트에 올린다 (`_upload` 주석 참조).
+BACKUP_PREFIX="${QB_BACKUP_PREFIX:-}"
 OCI_BIN="${QB_OCI_BIN:-/usr/local/bin/oci}"
 ENV_FILE="${QB_ENV_FILE:-${ROOT}/apps/api/.env.local}"
 
@@ -308,8 +316,18 @@ EOF
 }
 
 _upload() { # _upload <파일>
+  # ★`QB_BACKUP_PREFIX` 는 **남의 버킷을 빌려 쓸 때** 경계를 만든다 (2026-08-16 실측).
+  #   이 VM 의 Instance Principal 은 `manage objects` 는 있는데 **버킷 생성 권한이 없다** —
+  #   `bucket create` 가 409 `BucketAlreadyExists` 를 주는데 `bucket get` 은 **404** 다(즉
+  #   존재하지 않는데 못 만든다). 그래서 다른 앱의 `truewords-backups` 를 공유하고 있고,
+  #   그때 우리 것의 경계가 **파일명 규칙에만** 의존하면 저쪽이 규칙을 바꾸는 순간 섞인다.
+  #   prefix 는 그 결합을 끊고, 나중에 전용 버킷이 생기면 `QB_BACKUP_PREFIX=` 만 비우면 된다.
+  #   ★슬래시는 여기서 붙인다 — 호출자가 넣고 안 넣고에 따라 경로가 갈리면 안 된다.
+  local name
+  name="$(basename "$1")"
+  [ -n "${BACKUP_PREFIX}" ] && name="${BACKUP_PREFIX%/}/${name}"
   "${OCI_BIN}" os object put --auth instance_principal \
-    --bucket-name "${BUCKET}" --file "$1" --name "$(basename "$1")" --force > /dev/null 2>&1
+    --bucket-name "${BUCKET}" --file "$1" --name "${name}" --force > /dev/null 2>&1
 }
 
 _retain() {
@@ -462,6 +480,7 @@ Environment=PATH=/usr/local/bin:${HOME}/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 Environment=QB_BACKUP_DIR=${BACKUP_DIR}
 Environment=QB_BACKUP_RETAIN_DAYS=${RETAIN_DAYS}
 Environment=QB_BACKUP_BUCKET=${BUCKET}
+Environment=QB_BACKUP_PREFIX=${BACKUP_PREFIX}
 Environment=QB_DB_CONTAINER=${DB_CONTAINER}
 ExecStart=/bin/bash ${SCRIPT_DIR}/db-backup.sh run
 EOF

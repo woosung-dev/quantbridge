@@ -9913,6 +9913,17 @@ systemd 는 3 도 실패로 세므로 `OnFailure` 알람은 그대로 발화한�
 서버 `ubuntu` 는 이미 docker 그룹이고, sudo 가 필요한 곳은 `/opt/backups`(root:root) 파일 쪽이라
 거기서 한 번만 판정한다. 박으면 sudo 가 PATH 를 재설정해 하네스 스텁이 안 걸린다.
 
+★★**2026-08-16 실측 — 전용 버킷을 만들 수 없다.** 이 VM 의 Instance Principal 정책은
+`manage objects` 는 주는데 **버킷 생성 권한이 없다**: `oci os bucket create quantbridge-backups`
+가 **409 `BucketAlreadyExists`** 를 주는데 `oci os bucket get` 은 **404** 다 — 즉 **존재하지도
+않는데 만들 수도 없다**(409 메시지가 「이미 있거나 권한이 없다」로 두 경우를 뭉갠다. `get` 으로
+갈라야 한다). ⇒ 다른 앱의 `truewords-backups` 를 공유한다(put → list → delete probe 로 쓰기
+가능 확인). 그때 우리 것의 경계가 **파일명 규칙에만** 의존하면 저쪽이 규칙을 바꾸는 순간 섞이므로
+`QB_BACKUP_PREFIX` 를 신설했다(하네스 ⑪d 양성 · ⑪e 음성 · 변이 대조 red 확인 · 41 → **43건**).
+운영 설정 = `QB_BACKUP_BUCKET=truewords-backups QB_BACKUP_PREFIX=quantbridge`.
+★그 버킷의 **90일 lifecycle** 이 우리 객체에도 적용된다(로컬 보관 14일보다 길어 문제없다).
+★전용 버킷이 생기면 `QB_BACKUP_PREFIX=` 를 비우면 된다 — 코드 변경 없이 갈린다.
+
 **Risk:** 🟢 (읽기 + 파일 생성만. 컨테이너 무조작이 하네스로 강제된다)
 
 **상태:** 🟡 **부분 Resolved (2026-08-16 production-readiness)** — 스크립트·하네스·게이트 등록·**복원 실증** 완료(로컬 `quantbridge-db` 로 실 덤프 2.4MB → throwaway DB 복원 → 19테이블/21,649행/59chunk 대조 → 정리까지, 잘라낸 덤프는 rc≠0). **잔여 = 서버 설치(`--install`) + OCI 버킷 생성 + 오프서버 업로드 실증 1회** — 셋 다 사용자 승인 사안이라 이 회차에서 분리했다
