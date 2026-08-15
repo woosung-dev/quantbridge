@@ -5,14 +5,23 @@ import { z } from "zod";
 
 export const OrderSchema = z.object({
   id: z.uuid(),
+  strategy_id: z.uuid(),
+  exchange_account_id: z.uuid(),
   symbol: z.string(),
   side: z.enum(["buy", "sell"]),
+  type: z.enum(["market", "limit"]),
+  price: z.string().nullable(),
   state: z.enum(["pending", "submitted", "filled", "rejected", "cancelled"]),
   quantity: z.string(),
+  idempotency_key: z.string().nullable(),
   filled_price: z.string().nullable(),
   exchange_order_id: z.string().nullable(),
   error_message: z.string().nullable(),
+  submitted_at: z.string().nullable(),
+  filled_at: z.string().nullable(),
   created_at: z.string(),
+  leverage: z.number().int().nullable(),
+  margin_mode: z.enum(["cross", "isolated"]).nullable(),
   // Wave 1 (TP/SL order primitives) — BE OrderResponse 와 1:1. Decimal→string 직렬화.
   // `.default()` = 구(舊) 응답/fixture 회귀 방지 (BE 는 항상 전송, default False/None).
   reduce_only: z.boolean().default(false),

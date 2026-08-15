@@ -6,15 +6,41 @@ import { OrderSchema } from "../schemas";
 
 const BASE = {
   id: "a0000000-0000-4000-a000-000000000001",
+  strategy_id: "a0000000-0000-4000-a000-000000000002",
+  exchange_account_id: "a0000000-0000-4000-a000-000000000003",
   symbol: "BTCUSDT",
   side: "buy" as const,
+  type: "limit" as const,
+  price: "50000",
   state: "filled" as const,
   quantity: "0.01",
+  idempotency_key: "idempotency-1",
   filled_price: "50000",
   exchange_order_id: "broker-1",
   error_message: null,
+  submitted_at: "2026-06-26T10:00:01Z",
+  filled_at: "2026-06-26T10:00:02Z",
   created_at: "2026-06-26T10:00:00Z",
+  leverage: 5,
+  margin_mode: "isolated" as const,
 };
+
+describe("OrderSchema detail fields", () => {
+  it("목록 응답에 이미 포함된 상세 필드를 빠짐없이 parse 한다", () => {
+    const parsed = OrderSchema.parse(BASE);
+    expect(parsed).toMatchObject({
+      strategy_id: BASE.strategy_id,
+      exchange_account_id: BASE.exchange_account_id,
+      type: "limit",
+      price: "50000",
+      idempotency_key: "idempotency-1",
+      submitted_at: "2026-06-26T10:00:01Z",
+      filled_at: "2026-06-26T10:00:02Z",
+      leverage: 5,
+      margin_mode: "isolated",
+    });
+  });
+});
 
 describe("OrderSchema Wave1 fields", () => {
   it("Wave1 필드 포함 응답을 parse 한다 (Decimal→string)", () => {

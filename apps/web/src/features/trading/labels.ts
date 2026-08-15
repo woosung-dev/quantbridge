@@ -6,6 +6,8 @@ import type { Order } from "./schemas";
 
 export type OrderState = Order["state"];
 export type OrderSide = Order["side"];
+export type OrderType = Order["type"];
+export type OrderMarginMode = NonNullable<Order["margin_mode"]>;
 
 /** 주문 상태 5종. screen-11-orders.html:1290/1304/1346/1360/1374 */
 export const ORDER_STATE_LABEL: Record<OrderState, StatusLabelWithIcon> = {
@@ -23,6 +25,31 @@ export const ORDER_STATE_LABEL: Record<OrderState, StatusLabelWithIcon> = {
 export const ORDER_SIDE_LABEL: Record<OrderSide, string> = {
   buy: "매수",
   sell: "매도",
+};
+
+/** 주문 유형. 시장가·지정가 모두 OrderResponse 의 `type` 에서 온다. */
+export const ORDER_TYPE_LABEL: Record<OrderType, string> = {
+  market: "시장가",
+  limit: "지정가",
+};
+
+/** 선물 증거금 모드. Spot 주문은 null 이다. */
+export const ORDER_MARGIN_MODE_LABEL: Record<OrderMarginMode, string> = {
+  cross: "교차",
+  isolated: "격리",
+};
+
+/** Bybit 조건부 주문의 트리거 기준가. 알 수 없는 거래소 값은 원문 대신 중립 라벨로 표시한다. */
+export const ORDER_TRIGGER_BY_LABEL: Record<string, string> = {
+  LastPrice: "최종가",
+  IndexPrice: "지수가",
+  MarkPrice: "표시가",
+};
+
+/** 조건부 주문 방향. 거래소의 정수값을 화면에 그대로 노출하지 않는다. */
+export const ORDER_TRIGGER_DIRECTION_LABEL: Partial<Record<number, string>> = {
+  1: "가격 상승 시",
+  2: "가격 하락 시",
 };
 
 /** 포지션 방향. screen-01-trading-cockpit.html:1238 · screen-04-trade-detail.html:1265 */
