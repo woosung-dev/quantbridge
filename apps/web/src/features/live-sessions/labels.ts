@@ -74,4 +74,7 @@ export const LIVE_SESSION_DEACTIVATION_REASON_LABEL: Record<string, string> = {
   position_divergence: "엔진↔거래소 포지션 방향 불일치",
   // 사람이 Stop 을 눌렀다.
   user_stopped: "사용자 중단",
+  // 계정이 사라졌다 — 탈퇴 웹훅이 소유자의 세션을 전량 내렸다 (2026-08-15 surface-truth · S3).
+  // ★`user_stopped` 로 접지 않는다 — 그 사람은 Stop 을 누른 적이 없다.
+  account_deleted: "계정 삭제",
 };
