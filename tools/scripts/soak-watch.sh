@@ -194,13 +194,25 @@ ExecStart=/bin/bash -c 'set -a; . "${ENV_FILE}"; set +a; exec curl --silent --fa
 EOF
 
   # ★주기를 30 분에서 바꾸지 마라 — 표본 간격이 곧 C4 판정 대상이다(기본 한계 60 분).
+  #
+  # ★★**`OnUnitActiveSec` 이 아니라 `OnCalendar` 다** (2026-08-15 실측으로 교체).
+  #   `OnUnitActiveSec=30min` 은 **마지막 활성화 기준**이라, 사람이 유닛을 한 번 손으로
+  #   돌리면(강제 발화 실증·장애 재현) 그 시각부터 30 분이 다시 세어져 **위상이 밀린다.**
+  #   셈: 강제 발화가 마지막 표본 뒤 d 분 시점이면 다음 표본까지 **d+30 분**이고,
+  #   d 는 최대 29 이므로 **최악 59 분** — C4 한계 60 분에 **1 분** 남는다. 그리고 systemd 의
+  #   기본 `AccuracySec` 이 **1 분**이라 그 여유는 사실상 0 이다.
+  #   실측(2026-08-15 [BL-737] 회차): AC-2 강제 발화 뒤 표본 간격이 **53 분**까지 벌어졌다.
+  #   ⇒ **벽시계에 못박는다.** `OnCalendar=*:00/30` 은 매시 00·30 분에 발화하므로 사람이
+  #   중간에 몇 번을 돌리든 위상이 안 밀린다. `AccuracySec=30s` 로 지터도 좁힌다.
+  #   ★`Persistent=true` 는 유지한다 — 재부팅·정지 구간에서 놓친 발화를 따라잡는다.
   cat > "${unit_dir}/${UNIT_NAME}.timer" << 'EOF'
 [Unit]
-Description=QuantBridge soak watch — 30분마다
+Description=QuantBridge soak watch — 매시 00·30분 (벽시계 고정)
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=30min
+OnCalendar=*:00/30
+AccuracySec=30s
 Persistent=true
 
 [Install]
