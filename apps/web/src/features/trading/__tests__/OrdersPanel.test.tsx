@@ -27,13 +27,22 @@ function _mountOrders(items: Array<Record<string, unknown>>) {
 
 const _baseOrder = {
   id: "a0000000-0000-4000-a000-000000000001",
+  strategy_id: "a0000000-0000-4000-a000-000000000002",
+  exchange_account_id: "a0000000-0000-4000-a000-000000000003",
   symbol: "BTC/USDT",
   side: "buy",
+  type: "market",
+  price: null,
   state: "filled",
   quantity: "0.01",
+  idempotency_key: null,
   filled_price: "50000",
   error_message: null,
+  submitted_at: "2026-04-16T10:00:01Z",
+  filled_at: "2026-04-16T10:00:02Z",
   created_at: "2026-04-16T10:00:00Z",
+  leverage: null,
+  margin_mode: null,
 };
 
 afterEach(() => {
@@ -63,9 +72,7 @@ test("OrdersPanel: exchange_order_id null 일 때 BrokerBadge 가 dash 만 표�
 });
 
 test("OrdersPanel: fixture- prefix 시 mock 배지 + 마지막 8자 + (모의) 라벨", async () => {
-  _mountOrders([
-    { ..._baseOrder, exchange_order_id: "fixture-abcdefghijklmnop" },
-  ]);
+  _mountOrders([{ ..._baseOrder, exchange_order_id: "fixture-abcdefghijklmnop" }]);
   await screen.findByText("BTC/USDT");
   const badge = await screen.findByTestId("broker-badge-mock");
   expect(badge).toBeInTheDocument();

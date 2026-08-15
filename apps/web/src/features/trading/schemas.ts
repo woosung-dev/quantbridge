@@ -13,6 +13,23 @@ export const OrderSchema = z.object({
   exchange_order_id: z.string().nullable(),
   error_message: z.string().nullable(),
   created_at: z.string(),
+  // [BL-413] 주문 상세 드로어가 쓰는 표시 전용 필드. BE `OrderResponse` 와 1:1 이고
+  // `strategy_id`·`exchange_account_id`·`type` 은 BE 에서 **non-null 이다**
+  // (`apps/api/src/trading/schemas.py:92-99`).
+  // ★그런데도 `.nullable().default(null)` 인 이유는 Wave 1~3 필드와 **같은 계약**이다 —
+  //   표시 전용 필드 하나가 빠졌다고 파싱이 죽으면 **주문 목록 전체가 빈 화면이 된다.**
+  //   실측(2026-08-15): 이 셋을 non-nullable 로 두자 `e2e/trading-ui.spec.ts:171` 등
+  //   route mock 4곳이 그 필드를 안 보내 authed e2e **4건**이 「행이 아예 없다」로 죽었다.
+  //   BE 응답과의 정합은 스키마가 아니라 **드로어의 EMPTY_CELL fallback** 으로 감당한다.
+  strategy_id: z.uuid().nullable().default(null),
+  exchange_account_id: z.uuid().nullable().default(null),
+  type: z.enum(["market", "limit"]).nullable().default(null),
+  price: z.string().nullable().default(null),
+  idempotency_key: z.string().nullable().default(null),
+  submitted_at: z.string().nullable().default(null),
+  filled_at: z.string().nullable().default(null),
+  leverage: z.number().int().nullable().default(null),
+  margin_mode: z.enum(["cross", "isolated"]).nullable().default(null),
   // Wave 1 (TP/SL order primitives) — BE OrderResponse 와 1:1. Decimal→string 직렬화.
   // `.default()` = 구(舊) 응답/fixture 회귀 방지 (BE 는 항상 전송, default False/None).
   reduce_only: z.boolean().default(false),

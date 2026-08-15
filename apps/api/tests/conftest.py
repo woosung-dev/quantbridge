@@ -316,22 +316,80 @@ def _to_psycopg2_url(asyncpg_url: str) -> str:
     return sync_url.render_as_string(hide_password=False)
 
 
+def alembic_head_revision() -> str:
+    """`alembic/versions/` 의 head 리비전. ★하드코딩 금지 — 다음 migration 이 들어오는 순간
+    조용히 거짓이 된다. `alembic.ini` 의 `script_location` 이 상대경로(`alembic`)라 cwd 에
+    의존하므로 여기서 절대경로로 덮어쓴다(conftest 는 chdir 할 수 없다)."""
+    from pathlib import Path
+
+    from alembic.config import Config
+    from alembic.script import ScriptDirectory
+
+    root = Path(__file__).resolve().parents[1]
+    cfg = Config(str(root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(root / "alembic"))
+    head = ScriptDirectory.from_config(cfg).get_current_head()
+    if head is None:
+        raise RuntimeError("alembic head 리비전을 못 읽었다 — 테스트 DB 를 stamp 할 수 없다")
+    return head
+
+
+async def bootstrap_test_schema(conn) -> None:
+    """테스트 DB 스키마를 `metadata` 로 재생성한다 — `_test_engine` 의 본문.
+
+    ★함수로 뽑아 둔 이유는 재사용이 아니라 **검증 가능성**이다([BL-741]).
+    이 경로가 남기는 `alembic_version` 상태는 세션 픽스처 안에서만 만들어지므로,
+    테스트가 같은 경로를 다시 태울 수 없으면 회귀를 **픽스처 실행 순서에 맡기게** 된다
+    (그러면 CI 에서는 영원히 초록이다 — 그게 [BL-741] 이 숨어 있던 방식이다).
+    """
+    # ts schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시.
+    # timescaledb extension은 advisory_lock에는 불필요하지만 hypertable
+    # 회귀 테스트(test_migrations.py)와 동일 환경 보장 위해 함께 보장.
+    await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
+    await conn.execute(text("CREATE SCHEMA IF NOT EXISTS ts;"))
+    # trading schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시적으로 bootstrap.
+    # 이 라인은 영구적 — conftest 엔진은 Alembic이 아니라 metadata.create_all로 테이블을
+    # 만들기 때문에, T2 migration(faa9ad7b4585)이 머지된 뒤에도 필요하다.
+    # (Alembic 경로는 마이그레이션이 자체적으로 CREATE SCHEMA 한다.)
+    await conn.execute(text("CREATE SCHEMA IF NOT EXISTS trading;"))
+    await conn.run_sync(SQLModel.metadata.drop_all)
+    await conn.run_sync(SQLModel.metadata.create_all)
+
+    # ★`alembic_version` 은 `SQLModel.metadata` 밖이라 `drop_all` 이 안 지운다([BL-741]).
+    #   그대로 두면 스키마는 방금 만든 **모델-head** 인데 버전만 낡은 리비전으로 남고,
+    #   그 DB 에 `alembic upgrade head` 를 돌린 개발자가 이미 있는 객체를 또 만들어 죽는다
+    #   (실측: `DuplicateTable: relation "ix_exchange_exits_account_order" already exists`).
+    #   CI 는 fresh DB 라 이 상태에 도달하지 않아 영원히 초록이다.
+    # ★지우기만 하면 안 된다 — 버전이 없으면 `upgrade head` 가 base 부터 돌아 **여전히 죽는다.**
+    #   방금 metadata 로 head 스키마를 만들었으므로 head 로 stamp 하는 것이 **사실 진술**이고,
+    # ★★**이 stamp 의 사실성은 부분적으로만 보증된다 — 그 한계를 여기 적어 둔다**(2026-08-15 codex P1).
+    #   `test_alembic_schema_matches_sqlmodel_metadata` 는 **컬럼 이름 집합만**, 그것도
+    #   `metadata_cols - alembic_cols` **한 방향**으로만 본다(그 함수 docstring 이 스스로
+    #   「정확한 type 비교는 어렵다」고 적었다). ⇒ **타입·제약·인덱스가 갈린 경우는 못 잡는다.**
+    #   즉 「create_all 스키마 ≡ migration 스키마」는 이름 층에서만 참이고, 그 아래층에서
+    #   갈리면 이 stamp 는 조용히 거짓이 된다. 그 검사 확장은 [BL-749].
+    #   ★단 그 위험은 이 변경이 **새로 만든 것이 아니다** — conftest 는 원래부터 `create_all` 로
+    #     스키마를 만들었고 테스트는 늘 그 물리 스키마 위에서 돌았다. 이 stamp 가 바꾼 것은
+    #     「alembic 이 그 DB 를 head 로 인식한다」 하나뿐이다.
+    await conn.execute(
+        text(
+            "CREATE TABLE IF NOT EXISTS alembic_version "
+            "(version_num VARCHAR(32) NOT NULL, "
+            "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+        )
+    )
+    await conn.execute(text("DELETE FROM alembic_version"))
+    await conn.execute(
+        text("INSERT INTO alembic_version (version_num) VALUES (:v)"),
+        {"v": alembic_head_revision()},
+    )
+
+
 @pytest_asyncio.fixture(scope="session")
 async def _test_engine():
     engine = create_async_engine(DB_URL, poolclass=NullPool, echo=False)
     async with engine.begin() as conn:
-        # ts schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시.
-        # timescaledb extension은 advisory_lock에는 불필요하지만 hypertable
-        # 회귀 테스트(test_migrations.py)와 동일 환경 보장 위해 함께 보장.
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb;"))
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS ts;"))
-        # trading schema는 SQLModel.metadata.create_all이 자동 생성하지 않으므로 명시적으로 bootstrap.
-        # 이 라인은 영구적 — conftest 엔진은 Alembic이 아니라 metadata.create_all로 테이블을
-        # 만들기 때문에, T2 migration(faa9ad7b4585)이 머지된 뒤에도 필요하다.
-        # (Alembic 경로는 마이그레이션이 자체적으로 CREATE SCHEMA 한다.)
-        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS trading;"))
-        await conn.run_sync(SQLModel.metadata.drop_all)
-        await conn.run_sync(SQLModel.metadata.create_all)
+        await bootstrap_test_schema(conn)
     yield engine
     await engine.dispose()
 

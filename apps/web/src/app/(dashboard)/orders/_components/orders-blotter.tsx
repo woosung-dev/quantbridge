@@ -49,6 +49,8 @@ import {
 import type { Order } from "@/features/trading/schemas";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
+import { OrderDetailDrawer } from "./order-detail-drawer";
+
 const FETCH_LIMIT = 200;
 const PAGE_SIZE = 10;
 // 원장 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
@@ -103,7 +105,7 @@ const FILLED_ORDER_STATE: Order["state"] = "filled";
 // 부분체결 후 cancelled 로 끝나는 청산은 현재 도달 불가 경로다. 청산이 전부 시장가라
 // Bybit PartiallyFilledCanceled → ccxt closed → 우리 filled 로 매핑된다. 그 경로가
 // 생기면 이 조건을 함께 넓혀야 한다.
-function displayRealizedPnl(o: Order): string | null {
+export function displayRealizedPnl(o: Order): string | null {
   return o.state === FILLED_ORDER_STATE && o.realized_pnl != null ? o.realized_pnl : null;
 }
 
@@ -189,6 +191,10 @@ export function OrdersBlotter() {
   const cancelOrder = useCancelOrder();
   const [filter, setFilter] = useState<OrderStateFilter>("all");
   const [page, setPage] = useState(0);
+  // ★객체가 아니라 **id 를 든다.** 목록은 5초마다 polling 되는데(`hooks.ts` `refetchInterval`),
+  //   선택 시점의 객체를 얼려 두면 열어 둔 드로어가 pending 상태·빈 체결가를 계속 보여준다 —
+  //   그 사이 주문이 체결돼 표 행은 filled 로 갱신되는데 드로어만 낡는다(2026-08-15 codex P2).
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   const { data, isLoading, isError, error, refetch } = ordersQ;
 
@@ -232,6 +238,16 @@ export function OrdersBlotter() {
   const handleExport = () => {
     const ts = new Date().toISOString().replace(/[^\d]/g, "").slice(0, 14);
     downloadCsv(`orders-${ts}.csv`, ordersToCsv(filtered));
+  };
+
+  // ★목록에서 **매 렌더 다시 찾는다** — polling 이 갱신한 최신 행이 드로어에 그대로 반영된다.
+  //   목록에서 사라진 주문(필터 변경·페이지 밖·서버에서 제거)은 `undefined` 라 드로어가 닫힌다.
+  const selectedOrder = selectedOrderId == null
+    ? null
+    : (allOrders.find((o) => o.id === selectedOrderId) ?? null);
+
+  const handleDetailOpenChange = (open: boolean) => {
+    if (!open) setSelectedOrderId(null);
   };
 
   const fillRatio = allOrders.length > 0 ? (counts.filled / allOrders.length) * 100 : 0;
@@ -474,6 +490,7 @@ export function OrdersBlotter() {
                       <OrderRow
                         key={o.id}
                         order={o}
+                        onSelect={setSelectedOrderId}
                         onCancel={cancelOrder.mutate}
                         cancellingOrderId={
                           cancelOrder.isPending ? cancelOrder.variables : undefined
@@ -534,6 +551,12 @@ export function OrdersBlotter() {
           )}
         </div>
       </section>
+
+      <OrderDetailDrawer
+        order={selectedOrder}
+        open={selectedOrder != null}
+        onOpenChange={handleDetailOpenChange}
+      />
     </main>
   );
 }
@@ -541,10 +564,12 @@ export function OrdersBlotter() {
 // 원장 한 행 — 12개 backed 열. 라벨·톤·무데이터 title 은 전부 용어 SSOT 에서 온다.
 function OrderRow({
   order: o,
+  onSelect,
   onCancel,
   cancellingOrderId,
 }: {
   order: Order;
+  onSelect: (orderId: string) => void;
   onCancel: (orderId: string) => void;
   cancellingOrderId: string | undefined;
 }) {
@@ -563,7 +588,24 @@ function OrderRow({
       : "";
   const pnlSource = realizedPnlSource(o);
   return (
-    <tr data-state={o.state} data-testid={`order-row-${o.id}`}>
+    <tr
+      className="cursor-pointer"
+      data-state={o.state}
+      data-testid={`order-row-${o.id}`}
+      // ★행이 상세를 여는 **제어**라는 사실을 보조기술에 알린다. tabIndex 만 주면 스크린리더는
+      //   포커스 가능한 일반 행으로만 안내해서, 숨은 Enter/Space 를 발견할 수 없다.
+      role="button"
+      aria-label={`${o.symbol} 주문 상세 열기`}
+      tabIndex={0}
+      onClick={() => onSelect(o.id)}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(o.id);
+        }
+      }}
+    >
       <td className="mono-l">
         {time}
         {date ? <span className="cell-sub">{date}</span> : null}
@@ -650,7 +692,10 @@ function OrderRow({
             type="button"
             title={ORDER_CANCEL_ACTION.title[o.state]}
             disabled={cancellingOrderId === o.id}
-            onClick={() => onCancel(o.id)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onCancel(o.id);
+            }}
           >
             {ORDER_CANCEL_ACTION.label}
           </button>

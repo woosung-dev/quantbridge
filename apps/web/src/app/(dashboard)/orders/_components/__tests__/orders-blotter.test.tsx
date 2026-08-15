@@ -36,14 +36,23 @@ vi.mock("@/features/backtest/utils", async (importOriginal) => {
 function makeOrder(overrides: Partial<Order> = {}): Order {
   return {
     id: "00000000-0000-4000-8000-000000000001",
+    strategy_id: "00000000-0000-4000-8000-000000000111",
+    exchange_account_id: "00000000-0000-4000-8000-000000000222",
     symbol: "BTC/USDT",
     side: "buy",
+    type: "market",
+    price: null,
     state: "filled",
     quantity: "0.021",
+    idempotency_key: "order-0001",
     filled_price: "62880.00",
     exchange_order_id: "78409188",
     error_message: null,
+    submitted_at: "2026-04-14T20:00:01Z",
+    filled_at: "2026-04-14T20:00:04Z",
     created_at: "2026-04-14T20:00:04Z",
+    leverage: 5,
+    margin_mode: "isolated",
     reduce_only: false,
     trigger_price: null,
     trigger_by: null,
@@ -431,6 +440,66 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     ).toHaveClass("dim");
   });
 
+  it("행 클릭과 Enter·Space 키로 상세를 열고 닫는다", () => {
+    withOrders([makeOrder()]);
+    render(<OrdersBlotter />);
+
+    const row = screen.getByTestId("order-row-00000000-0000-4000-8000-000000000001");
+    fireEvent.click(row);
+    expect(screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    fireEvent.keyDown(row, { key: "Enter" });
+    expect(screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+
+    fireEvent.keyDown(row, { key: " " });
+    expect(screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
+  });
+
+  // ★2026-08-15 codex 적대 리뷰 P1 — 드로어가 금융 값을 오표시했다.
+  it("거부 주문의 상세는 실패 시각을 체결로 적지 않고, 추정 손익을 확정처럼 보이지 않는다", () => {
+    withOrders([
+      makeOrder({
+        state: "rejected",
+        // BE `mark_rejected` 는 `filled_at` 자리에 **실패 시각**을 쓴다
+        // (`apps/api/src/trading/repositories/order_repository.py:941-945`).
+        filled_at: "2026-06-26T10:00:05Z",
+        // rejected 에 남은 값은 close 주문 생성 시점의 pine_v2 **추정치**다.
+        realized_pnl: "-111.70",
+        error_message: "insufficient margin",
+      }),
+    ]);
+    render(<OrdersBlotter />);
+
+    fireEvent.click(screen.getByTestId("order-row-00000000-0000-4000-8000-000000000001"));
+    const dialog = screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" });
+
+    expect(within(dialog).getByText("실패 시각")).toBeInTheDocument();
+    expect(within(dialog).queryByText("체결 시각")).toBeNull();
+    expect(within(dialog).queryByText("-111.70")).toBeNull();
+  });
+
+  it("★음성 대조 — 체결 주문은 여전히 체결 시각과 확정 손익을 보여준다", () => {
+    withOrders([
+      makeOrder({
+        state: "filled",
+        filled_at: "2026-06-26T10:00:05Z",
+        realized_pnl: "12.34",
+        realized_pnl_synced_at: "2026-06-26T10:00:06Z",
+      }),
+    ]);
+    render(<OrdersBlotter />);
+
+    fireEvent.click(screen.getByTestId("order-row-00000000-0000-4000-8000-000000000001"));
+    const dialog = screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" });
+
+    expect(within(dialog).getByText("체결 시각")).toBeInTheDocument();
+    expect(within(dialog).queryByText("실패 시각")).toBeNull();
+    expect(within(dialog).getByText("12.34")).toBeInTheDocument();
+  });
+
   it("취소 버튼 클릭은 주문 ID로 mutation을 호출한다", () => {
     withOrders([
       makeOrder({ id: "p", state: "pending", filled_price: null, exchange_order_id: null }),
@@ -438,6 +507,7 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     render(<OrdersBlotter />);
     fireEvent.click(screen.getByRole("button", { name: "주문 취소" }));
     expect(mockCancelOrder).toHaveBeenCalledWith("p");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("진행 중인 취소는 해당 주문 행만 비활성화한다", () => {

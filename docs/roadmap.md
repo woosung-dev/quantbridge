@@ -250,7 +250,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 ## 1) 프로토타입 이식 잔여 (스키마/API 확장 선행)
 
-- [ ] **BL-413** [P3] 주문 상세 조회 배선 — `GET /orders/{id}` 존재, 프로토타입에 행 확장/드로어 부재 · 선행: 상세 UI 캐논 추가
+- [x] **BL-413** [P3] 주문 상세 드로어 — 2026-08-15 종결. ★단건 API 배선 **없이** 끝났다(목록이 같은 `OrderResponse` 를 낸다)
 - [ ] **BL-414** [P3] 스트레스 테스트 이력 리스트 UI — `GET /stress-tests` 존재, 이력 화면 부재(최신 1건만) · 선행: 이력 화면 캐논 + 페이지 응답 캐시
 - [ ] **BL-427** [P3] 전략 목록 파라미터 열 / 수명주기 칩 — `StrategyListItem` 스키마에 필드 부재 · 선행: BE 파라미터 요약·lifecycle 파생
 - [ ] **BL-428** [P3] 트레이드 구간 미니차트 share 페이지 미지원 — `/trades/{i}/ohlcv` owner-authed 401 · 선행: token 공개 OHLCV 경로
@@ -278,7 +278,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-469** [P3] `market_data.backfill_ohlcv` celery 미등록 + docstring 실행법 부존재(dead) — 2026-08-09 **등록 않고 제거**(`TimescaleProvider.get_ohlcv` 가 cache-miss 시 스스로 fetch 하므로 별도 백필 경로가 불필요)
 - [x] **BL-470** [P2] 캐논 감사 9건이 빈 DB 에서 조용히 통과(데이터 전제 부재) — 2026-08-10 **4라우트 전부 `minExamined>0` + 데이터 전제 단정**, `/trades` 의 `test.skip` 을 `expect` 로 뒤집었다. ★종전 진단이 과소였다: skip 은 1건뿐이고 나머지 셋은 **초록**이었다. 고칠 도구(`minExamined`)는 감사 코어에 이미 있었고 spec 이 import 만 안 했다
 - [ ] **BL-471** [P3] `exchange_exits` row_hash 멱등 → 분류 로직 변경 시 기존 행 재분류 경로 부재
-- [ ] **BL-472** [P3] 백테스트 목록이 monthly/daily 컨벤션 각주 미표기
+- [x] **BL-472** [P3] 백테스트 목록 monthly/daily 각주 — 2026-08-15 종결 (`: undefined` 제거 · 문구 신규 0줄)
 - [x] **BL-473** [P1] Bybit private WS 인증 `expires` 창 +1s 가 왕복 지연에 먹혀 **라이브 체결 스트리밍이 죽어 있었다** — ✅ **dogfood-restore 완료**. 통제 실험(+1s 실패 / +10s·+60s 성공)으로 격리, 10s 로 확대
 - [x] **BL-474** [P2] 테스트 주문 다이얼로그가 **spot** 으로 나가는데 라이브 신호는 **linear perp** — ✅ **PR #484**. ★원인은 다이얼로그가 아니라 **webhook ingress 한 자리에서 3건 드롭**(leverage/margin_mode 미해결 + 프론트가 보내던 `reduce_only`·TP/SL 미독). `WebhookService.resolve_trading_params()` 신설 + settings 미설정 **422 fail-closed**. 실주문 dogfood 로 확인(주문 ID 숫자형→UUID). **출처 라벨·SessionScope 화면 검증도 여기서 완료** — 각자 JSONB 에 저장, 3 도메인 동시 마킹은 스코프 폭발로 이연
 
@@ -329,7 +329,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
 - [x] **BL-024** [P1] real_broker E2E 본 구현 — nightly cron (Bybit Demo creds)
 - [x] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
-- [ ] **BL-026** [P1] Mutation fixture 활성화 회귀 — skip #4-7,#9-15
+- [x] **BL-026** [P1] Mutation Oracle 실행 확인 — 2026-08-15 종결 (코드 0줄 · `--run-mutations` 8건 실행)
 - [x] **BL-622 ✅ Resolved** [P1] (2026-08-07 gap-resync-autopsy) — `requires_gap_resync` 가 열린 채 시작한 세션이 재동기 전에 사망하던 경로. ★사망 판정은 H3(관측 지연) — 거래소 체결시각 20:17:19 vs 원장 20:31:51 로 **872초** 벌어졌고 판정은 그 3.5초 전에 떨어졌다. ★상수 재사용이 틀렸다는 것도 함께 확정 — janitor 30분은 **다른 양**을 잰다(조건부 resting 이 벽시계 95.1%)
 - [x] **BL-633 ✅ Resolved** [P1] (2026-08-08 bl003-unblock) — ★★판정 = **[ADR-025] 반례가 아니라 이중 호스트 오염**이다. 오라클 서버와 맥 로컬이 같은 Bybit demo 계정 `19a8166a…` 에 같은 전략·심볼·주기로 동시에 붙어 있었다. 근거 — 서버 `exchange_exits` 고유 `order_link_id` 27 중 **7건이 로컬 원장에만** 있고 귀속 불가 0 · 정본 항등식 `exchange = P0 + Σ(양쪽 호스트 체결)` **4/4**(반사실은 정의 4가지 어디서도 4/4 불가 · 최대 1/4) · 두 원장의 고유 `exchange_order_id` **27/27** 일치. ★계정은 세션 시작(09:39:38) **전부터** 오염돼 있었다(로컬 체결 07:42~09:03 5건) ⇒ 배타성 검사는 재기동이 아니라 **세션 시작** 시점에 건다 — [BL-634]
 - [x] **BL-634 ✅ Resolved** [P1] (2026-08-09 excl) 계정 배타성 가드 부재 — 두 호스트면 **데이터베이스도 둘**이라 `live_signal_sessions` 의 `is_active` unique index 가 원리상 못 막는다. 각 DB 안에서는 제약이 정상 성립했고 둘을 합친 상태를 아는 주체가 없었다. ⇒ 가드는 **거래소 쪽 상태**를 봐야 한다 — `order_link_id` 소유권으로 「원장에 없는 미체결 조건부」를 세고 ≥1 이면 세션 시작을 거부. ★대상은 **미체결(resting)** 이어야 한다(체결 이력으로 걸면 미조인 exit 이 상시라 영구 거부)
@@ -455,7 +455,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ### P3 — 진단/네비 (프로토타입 잔여와 중첩)
 
 - [x] **BL-423 ✅ Resolved** [P3] 비활성(과거) 세션 진단 UI 부재 — ✅ **2026-07-30 conditional-entry-alignment · PR #506**. ★전제 반증 — `include_inactive` 는 PR #496 이 이미 착지시켰고 잔여는 코크핏 쿼리 이중화·문구·회귀테스트뿐이었다
-- [ ] (그룹 1 의 BL-413/414/427/428/429/430 참조)
+- [ ] (그룹 1 의 BL-414/427/428/429/430 참조 — BL-413 은 2026-08-15 종결)
 
 ### P3 — trading / live / money-path 하드닝
 

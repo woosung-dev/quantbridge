@@ -8,7 +8,8 @@ from typing import Any
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect
+from alembic.script import ScriptDirectory
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
@@ -69,6 +70,52 @@ def test_alembic_roundtrip(tmp_path, monkeypatch):
     command.upgrade(cfg, "head")
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
+
+
+async def test_upgrade_head_survives_the_create_all_bootstrap(monkeypatch, _test_engine):
+    """`create_all` 로 만든 DB 에 `alembic upgrade head` 를 돌리면 통과해야 한다 ([BL-741]).
+
+    ★이 단언은 2026-08-15 까지 레포에 **0건**이었다. 그래서 스키마는 모델-head 인데
+    `alembic_version` 만 낡은 리비전으로 남는 상태가 아무에게도 안 걸렸고, 그 DB 에
+    `upgrade head` 를 돌린 개발자만 `DuplicateTable`/`DuplicateObject` 로 죽었다.
+    CI 는 fresh DB 라 영원히 초록이다.
+
+    ★**낡은 리비전을 일부러 심는다.** 그러지 않으면 red 가 `test_alembic_roundtrip` 의
+    실행 순서에 좌우된다 — 그 테스트가 먼저 돌면 `alembic_version` 이 이미 head 라
+    수리 없이도 우연히 통과한다. 여기서는 head 바로 앞 리비전을 심어 **사고 상황을
+    결정적으로 재현**하고, 그 위에서 conftest 의 부트스트랩 경로를 다시 태운다.
+    """
+    from tests.conftest import bootstrap_test_schema
+
+    monkeypatch.chdir(_BACKEND_ROOT)
+    cfg = _alembic_cfg()
+    script = ScriptDirectory.from_config(cfg)
+    head = script.get_current_head()
+    assert head is not None, "alembic head 를 못 읽었다 — 이 테스트는 무의미하다"
+    stale = script.get_revision(head).down_revision
+    assert isinstance(stale, str) and stale, f"head({head}) 앞 리비전이 없다 — fixture 를 못 만든다"
+
+    async with _test_engine.begin() as conn:
+        await conn.execute(
+            text(
+                "CREATE TABLE IF NOT EXISTS alembic_version "
+                "(version_num VARCHAR(32) NOT NULL, "
+                "CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))"
+            )
+        )
+        await conn.execute(text("DELETE FROM alembic_version"))
+        await conn.execute(
+            text("INSERT INTO alembic_version (version_num) VALUES (:v)"), {"v": stale}
+        )
+        # conftest 가 매 세션 하는 그 일 — 여기서 같은 경로를 그대로 태운다.
+        await bootstrap_test_schema(conn)
+
+    # 수리 전에는 여기서 `DuplicateObject`(이미 있는 인덱스를 또 만든다)로 죽는다.
+    command.upgrade(cfg, "head")
+
+    async with _test_engine.begin() as conn:
+        result = await conn.execute(text("SELECT version_num FROM alembic_version"))
+        assert result.scalar_one() == head
 
 
 def test_stress_test_enum_labels_match_member_names(monkeypatch):
