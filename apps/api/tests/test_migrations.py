@@ -329,7 +329,10 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             f"Migration 작성 누락?"
         )
         alembic_cols = alembic_tables[(schema, table_name)]
-        missing = metadata_cols - alembic_cols
+        # ★두 매핑은 이제 `{컬럼: 타입}` 이다 — 이름 축은 **키 집합**으로 비교한다.
+        #   타입 축을 켜며 값이 set → dict 로 바뀌었는데 이 줄이 집합 차 그대로 남아
+        #   `TypeError: unsupported operand -` 로 죽었다(2026-08-15, [BL-749]).
+        missing = set(metadata_cols) - set(alembic_cols)
         assert not missing, (
             f"Table '{full_name}' missing columns in DB: {missing}. Migration 누락 또는 drift 발생."
         )
