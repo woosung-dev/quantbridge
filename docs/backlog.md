@@ -2683,6 +2683,17 @@ Bybit `closed-pnl`(주문 단위 · 실측 한 주문당 정확히 1행, 592/592
 **상태:** 🟡 **부분 Resolved (2026-07-26, `stage/money-path-finish`) — 사람이 읽는 2표면까지.** 사용자 결정 = "라벨 + 소계 · Site 3·4". **Site 3**(loss-limit 알림) = `sum_filled_realized_pnl_for_session` → `realized_pnl_split_for_session -> SessionRealizedPnl`(PG `FILTER` 한 문장 5 스칼라)로 개명·retype 해 "출처를 안 보고 합산" 을 표현 불가로 만들고, 본문에 `거래소 확정 X · 추정 Y` + 손익 미도착 체결 건수를 싣는다. **Site 4**(세션 커브·대시보드 §01 KPI) = 커브 포인트에 `source` + 평면 소계 4필드, FE 는 기존 SSOT(`ORDER_REALIZED_PNL_SOURCE_LABEL`)를 재사용해 새 어휘 0. **Site 1·2 게이트 수식과 Site 5 는 무변경** — 확정값만으로 좁히면 체결~스윕 도착 구간 손실이 사라지는 fail-open 이다. 대조군 seed 에 `synced_at` 을 심어 **가드레일이 그 fail-open 좁힘을 잡아내게** 강화했다.
 **트리거 판정:** 미도래 — 외생 조건(실자금 전환). [BL-003] 이 막고 있다 (2026-08-11 bl-703-partial-verdicts)
 
+**★2026-08-16 deploy-activation — Site 6(주문 상세 드로어) 라벨 추가.**
+`#641` 이 연 `order-detail-drawer.tsx` 는 손익 **값**은 목록과 같은 SSOT(`displayRealizedPnl`)를
+쓰면서 **출처는 말하지 않았다** — 「손익 확정 시각」이 비어 있다는 것으로 사용자가 추정/확정을
+**추론**해야 했다. 목록(`orders-blotter.tsx:163,652`)은 같은 판정을
+`ORDER_REALIZED_PNL_SOURCE_LABEL` 로 적고 있었으므로, `realizedPnlSource` 주석이 경고한
+「화면끼리 각자 계산해 한쪽만 고쳐진다」의 **세 번째 판**이었다.
+수리 = 그 함수를 `export` 하고 드로어가 **같은 것을 호출**하게 했다(새 어휘 0 · 원장 처방의 「라벨」축).
+★**손익을 안 보여주는 주문에는 출처도 안 적는다** — 목록과 같은 규칙이다. 안 그러면 손익이 빈
+rejected 주문에 「추정」이 붙어 **없는 숫자에 등급을 매긴다**. 그 음성 대조가 새 테스트 3건 중 1건이고,
+변이 2종(널 가드 제거 · 확정/추정 뒤집기)이 각각 **1건·2건 red** 로 판별력이 확인됐다.
+
 **잔여** — ① Site 1·2 게이트는 여전히 추정·확정 혼재(의도) ② Site 5 일일 리포트 미표면화 ③ **포트폴리오 병합 커브는 포인트별 출처 표현 불가** — `mergeCumulativeCurves` 가 각 세션의 마지막 누적값을 carry-forward 해 더하므로 한 지점의 값은 대부분 과거 거래에서 실려온 값의 합이다. 집계 수준 라벨로 강등했고 구간별 표시는 세션 상세에서만 한다 ④ Site 4 는 `unrecorded_count` 를 세지 않는다(추가 왕복 0 을 택함 — 폴백은 `docs/archive/sprints/money-path-finish/operating-contract.md` §4).
 
 ---
@@ -9219,19 +9230,57 @@ codex 재현: `up@T0` 과 같은 시각의 phantom 실격 뒤 `up@24h·48h·72h`
 **남은 하나가 placeholder 시크릿 fail-fast** 이고 그것만은 `app_env == production` 게이트다.
 
 ★**그런데 `APP_ENV=production` 전환은 공짜가 아니다.** 그 validator 는
-`PROMETHEUS_BEARER_TOKEN` 을 **의무**로 만들고(`config.py:409-416`), 서버 `.env.local` 의
+`PROMETHEUS_BEARER_TOKEN` 을 **의무**로 만들고(`config.py:409-416`), ~~서버 `.env.local` 의
 `CLERK_SECRET_KEY`/`WAITLIST_TOKEN_SECRET`/`PROMETHEUS_BEARER_TOKEN` 3종 중 **하나가 비어
-있다**(실측 — 값을 읽지 않고 개수만 셌다). 지금 켜면 API 가 **부팅을 거부**한다.
+있다**(실측 — 값을 읽지 않고 개수만 셌다)~~. 지금 켜면 API 가 **부팅을 거부**한다.
 2026-08-07 회차가 같은 함정을 밟았다 — 「`APP_ENV=production` 이 게이트를 죽인다」.
 
-**권장 접근:** ⑴ 비어 있는 시크릿을 먼저 채운다 ⑵ `APP_ENV=production` 추가 ⑶ 재기동 후
-`/health` 가 `{"env":"production"}` 을 내는지 **read-back** ⑷ 소크 게이트 판독 1회로 C5⑷ 가
-살아 있는지 확인. ★⑷ 를 빼면 2026-08-07 사고가 그대로 재현된다.
+★★**2026-08-16 실측 정정 — 위 「하나가 비어 있다」는 종류부터 틀렸다.**
+서버 `.env.local` 에 **빈 값은 0건**이다. 실제 상태는 이렇다:
+
+| 변수                        | 서버 실측                                                         |
+| --------------------------- | ----------------------------------------------------------------- |
+| `SECRET_KEY`                | len=36 ✓                                                          |
+| `CLERK_SECRET_KEY`          | len=50 ✓                                                          |
+| `PROMETHEUS_BEARER_TOKEN`   | len=64 ✓ (이미 있다 — 「넣을지 정해질 때」라는 Trigger 도 낡았다) |
+| **`WAITLIST_TOKEN_SECRET`** | ★**줄 자체가 없다 (ABSENT)**                                      |
+
+기본값이 `SecretStr("")`(`core/config.py:324`)라 `config.py:405` 가 raise 한다 ⇒
+**부팅 거부라는 결론은 옳고, 원인은 「빈 값」이 아니라 「부재」다.** 채워야 할 것은
+`WAITLIST_TOKEN_SECRET` 하나로 특정됐다.
+
+★★★**그리고 이 항목은 보안 목적으로는 더 이상 필요하지 않다 (2026-08-16).**
+`main.py:308` `_hide_docs = settings.is_production or not settings.debug` · `:345`
+`enable_hsts = 같은 술어` 이고 서버는 `DEBUG=false` 다. 2026-08-16 에 #641 을 배포하고
+API 를 재기동하자 **`/docs`·`/openapi.json`·`/redoc` 이 전부 404** 가 됐다 —
+`APP_ENV` 는 여전히 없는 채로다. `#641` 이후 `is_production` 이 추가로 사는 곳은
+`main.py:249` 의 **deprecation 경고 로그 1줄**과 `/health` 의 `env` 라벨뿐이다.
+⇒ 남는 값은 「placeholder 시크릿 fail-fast」와 **「선언된 환경이 실제와 일치한다」** 뿐이고,
+그 대가가 부팅 거부 리스크다. **2026-08-16 사용자 결정 = 보류.**
+
+★**유닛 파일에 구워진 반대 근거는 낡았다.** 배포 호스트
+`~/.config/systemd/user/quantbridge-api.service` 주석이 「production 으로 올리면
+게이트의 무인증 스크레이프가 401 이 되어 C5⑷ 가 영구 false」라 적었는데,
+[BL-620] 이후 게이트의 **기본 취득 경로는 HTTP 가 아니라 `apps/api/.metrics` 디렉터리
+직독**이고(`soak-gate.sh:49,61`) 서버에 `QB_METRICS_URL` 은 **미설정**이다 ⇒
+그 경로는 인증을 타지 않는다. 2026-08-07 의 교훈은 **여전히 참이되 그 메커니즘은 아니다.**
+
+**권장 접근:** ⑴ `WAITLIST_TOKEN_SECRET` 을 생성해 넣는다(`openssl rand -hex 32`)
+⑵ `APP_ENV=production` 추가 ⑶ 재기동 후 `/health` 가 `{"env":"production"}` 을 내는지
+**read-back** ⑷ 소크 게이트 판독 1회로 C5⑷ 가 살아 있는지 확인.
+★⑷ 를 빼면 2026-08-07 사고가 그대로 재현된다.
 
 **Risk:** 🔴 (잘못 켜면 배포 API 가 부팅 거부 — 롤백은 env 1줄 삭제 + 재기동)
 
-**상태:** ⏳ **대기 (트리거 미도래)** — 코드 축은 2026-08-15 에 닫혔다(게이트 4 중 3). 이 항목은 **환경 축**이고 사용자 승인이 선행이다
-**트리거 판정:** 미도래 — 사용자 결정(시크릿 채우기 + 전환 승인) 대기 (2026-08-15 surface-truth)
+★**갱신 이력** — 종전 상태줄은 「코드 축은 2026-08-15 에 닫혔다(게이트 4 중 3)」였고,
+종전 트리거 판정은 「사용자 결정(시크릿 채우기 + 전환 승인) 대기」였다. 둘 다 아래로 대체됐다.
+★★**그 두 줄에 `~~취소선~~` 을 쓰지 마라** — `bl-audit.sh:174` 가 `~~` 를 담은 `**상태:**` 줄을
+**통째로 건너뛰고**, 근거가 사라진 섹션은 `:107` 에서 **ACTIVE 로 떨어진다**(2026-08-16 실측:
+이 항목이 DEFERRED → ACTIVE 로 조용히 뒤집혔다). 레포의 `~~옛 문장~~ → 새 사실` 관용구는
+**상태줄·트리거줄에서만 예외**다 — 정정은 본문에 적고 그 두 줄은 새 문장으로 갈아끼워라.
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 코드 축 3개가 배포로 실제 발효했다(`/docs` 404 실측). 남은 것은 placeholder fail-fast 하나이고 **보안 목적으로는 불필요**하다. 선행 = `WAITLIST_TOKEN_SECRET` 부재 해소. 2026-08-16 사용자 결정 = **보류**
+**트리거 판정:** 미도래 — 2026-08-16 에 사용자가 「이번 창에서 보류」로 결정했다. 다음 도래 = 공개 전환([BL-071]) 착수 시 (2026-08-16 deploy-activation)
 
 ---
 
@@ -9405,7 +9454,13 @@ gitleaks job 1개 ⑶ **음성 대조** — `.env.*.example` 은 계속 추적�
 - hypertable **compression/retention 정책 0건**(`add_*_policy` 레포 0건)
 - **CI 만 `uv sync --frozen` 누락**(Docker·FE 는 고정) ⇒ 조용히 re-lock
 - `ci.yml` 7개 job 전부 `timeout-minutes` **없음**(다른 워크플로엔 있다)
-- `.env.example` 골든룰 위반 — `HEALTHZ_CELERY_TIMEOUT_S`(os.environ 직독) 외 4
+- ~~`.env.example` 골든룰 위반 — `HEALTHZ_CELERY_TIMEOUT_S`(os.environ 직독) 외 4~~
+  → ★**2026-08-16 실측 정정 — 「외 4」가 과대였다. 실질 1건이다.** `src/` 의 `os.environ`·
+  `os.getenv` 직독 중 `.env.example` 에 없는 것은 **4종**이지만, 그중 3종은 **인프라 주입**
+  이라 위반이 아니다 — `HOSTNAME`(`apps/web/Dockerfile:23`) ·
+  `PROMETHEUS_MULTIPROC_DIR`·`QB_METRICS_ROLE`(`infra/compose/docker-compose.yml:102,103`,
+  그리고 배포 호스트의 `quantbridge-api.service` 유닛). 어디에도 선언이 없는 것은
+  **`HEALTHZ_CELERY_TIMEOUT_S` 하나뿐**이다
 - `cloudflare/cloudflared:latest` — **유일한 부동 태그**이고 프로덕션 FE 터널
 - `python-jose` **import 0건**인데 `ecdsa`(CVE-2024-23342)를 끌고 온다
 
@@ -9413,25 +9468,36 @@ gitleaks job 1개 ⑶ **음성 대조** — `.env.*.example` 은 계속 추적�
 
 - **라우터가 Repository 를 직접 생성 11건 + service private `_repo` 를 5건 뚫는다**
   ⇒ LESSON-019 commit-spy 회귀 테스트가 **그 경로엔 적용 불가**
-- **Repository 밖 `session.execute` 8건**. 그중 2건은 코드가 자백(「OrderRepository 가 이
-  메소드를 직접 제공하지 않으면 raw SQL 로」)
+  → ★**[BL-762] 로 분리 (2026-08-16).** `_repo` 5건 + `_crypto` 2건은 그 회차에 수리됐고
+  commit-spy 가 처음으로 성립했다. `Repository()` 직접 생성 11건은 미착수
+- ~~**Repository 밖 `session.execute` 8건**~~ → ★**9건이다 (2026-08-16 재실측)**.
+  그중 2건은 코드가 자백(「OrderRepository 가 이 메소드를 직접 제공하지 않으면 raw SQL 로」)
+  → **[BL-763] 로 분리**
 - ★**에러 응답 봉투가 7모양** — 문서(`system-architecture.md:200-206`)가 정본이라 그린
   `{code,message,details}` 를 만드는 코드는 **한 줄도 없다**. 2026-08-15 의
   `RequestValidationError` 핸들러가 그중 하나를 줄였다
 - `raise HTTPException` 38건(문자열 detail 33건) — **그중 13건이 `services/` 안**(계층 위반)
 - **페이지네이션 6모양** — 정본 `Page[T]` 채택률 4/10. `/orders`·`/kill-switch/events` 는
   **response_model 자체가 없다**(OpenAPI 에 타입 0)
+  → ★위 **에러 봉투 · `raise HTTPException` · 페이지네이션 3축은 [BL-764] 로 분리**
+  (2026-08-16). 셋 다 「화면이 무엇을 받을지 모른다」로 수렴하므로 한 항목에 묶었다
 - status code 계약 위반 2건 — `cancel` 이 `response_model` 과 다른 body 를 202 로, 웹훅이
   201 선언 후 replay 시 200. ★**FE 가 산문 문자열에 파싱을 못 박았다**
   (`z.literal("exchange cancel requested")`)
 - `OrderService` 가 `AsyncSession` 보유 — `apps/api/AGENTS.md` §3 이 「절대 금지」라 쓴 것
+- ★**순환 import 1건 추가 확인 (2026-08-16)** — `orders-blotter.tsx:52` → `order-detail-drawer.tsx`
+  → `orders-blotter.tsx:41`. 드로어가 가져가는 것은 **순수 도메인 술어 2개**
+  (`displayRealizedPnl`·`realizedPnlSource`)뿐이라, 그 둘을 `features/trading/` 로 내리면
+  고리가 끊긴다(3파일 기계적 이동). ★`app/` 에 비즈니스 로직을 두지 말라는 FSD Lite 규칙
+  (`apps/web/AGENTS.md` §4)의 실례이기도 하다. 현재 빌드·e2e 는 통과하므로 급하지 않다
 - 런타임 import 순환 **5건** · **FSD Lite 역전**(`app/` 23,313줄 : `features/` 12,456줄) +
   eslint 에 import boundary 규칙 **0개**
 - **codegen 이 존재하는데 앱이 한 줄도 안 쓴다** — `generated/` import 0건, drift `--check` 는
   만들어졌는데 CI 에 미배선
 - `leverage` 한 개념이 **BE 5타입 / FE 4타입**
-- `tasks/live_signal.py` **4,485줄** — 최대 파일이자 돈 경로인데 도메인 디렉터리 밖이라
-  3-Layer 감시 대상이 아니다
+- ~~`tasks/live_signal.py` **4,485줄**~~ → **4,493줄 (2026-08-16 재실측 — #641 이 8줄 늘렸다)**
+  — 최대 파일이자 돈 경로인데 도메인 디렉터리 밖이라 3-Layer 감시 대상이 아니다
+  → **[BL-765] 로 분리**
 
 **§C 에러·엣지**
 
@@ -9525,3 +9591,176 @@ taker 요율 + 진입가 잔차). 리포트는 실제보다 나쁜 곡선을 보
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 에 지정가 진입 기능만 열었다. 비용 축은 미착수
 **트리거 판정:** 미도래 — 지정가 전략의 백테스트를 의사결정에 쓴 적이 아직 없다 (2026-08-15 surface-truth)
+
+---
+
+### BL-762
+
+**Title:** 라우터가 계층을 관통한다 — `trading/router.py` 가 Repository 를 직접 만들고 서비스의 private 을 뚫는다
+**Category:** Backend / 계층 (trading)
+**Priority:** P2
+**Trigger:** ★`trading/router.py` 의 해당 endpoint 군을 손대는 회차 (전량 수리는 단독 착수 대상이 아니다)
+**Est:** M (축별 상이 — 아래 잔여 참조)
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §B ([BL-759] 에서 분리) · 2026-08-16 deploy-activation 실측
+
+**원인 / 영향:** `AGENTS.md` §3 은 「Router = HTTP 수신·스키마 검증·service 호출만. DB 접근
+금지」이고 「AsyncSession 은 Repository 만 보유한다」이다. `trading/router.py` 는 셋 다 어긴다.
+
+**2026-08-16 실측** (`apps/api` 기준):
+
+- **`Repository()` 직접 생성 11건** — 전부 `trading/router.py`. `session: AsyncSession =
+Depends(get_async_session)` 을 라우터가 받아 `OrderRepository(session)` 등을 손으로 조립한다
+  (`:304, :322-323, :344-345, :408, :432, :530, :549, :637, :641`).
+  `dependencies.py` 가 「Depends() 조립의 유일한 위치」라는 규칙의 정면 위반이다.
+- ~~service private `_repo` 5건 + `_crypto` 2건~~ → **2026-08-16 수리됨** (아래 이행 참조)
+
+**★왜 이것이 테스트 문제인가** — 커밋을 치는 것이 서비스가 아니라 라우터면
+**LESSON-019 commit-spy 를 붙일 대상이 없다.** `AGENTS.md` §3 의 「모든 service mutation 에
+commit-spy 의무」가 그 경로에서만 **구조적으로 집행 불가**가 된다. 이것이 이 항목이
+「스타일 문제」가 아닌 이유다.
+
+**★2026-08-16 이행 (deploy-activation — 얕은 절반)**
+`ExchangeAccount` CRUD 3 endpoint 의 private 관통 **7건 전부** 제거:
+
+- `ExchangeAccountService` 에 공개 표면 3종 추가 — `list_for_user()` · `delete_for_user()`
+  (소유권 검사 + 삭제 + 커밋을 한 경계 안에) · `masked_api_key()`
+- `router.py:201` 의 `await svc._repo.commit()` 은 **중복 커밋**이었다 — `register()` 가
+  `account_service.py:47` 에서 이미 커밋한다. 그 한 줄 때문에 「커밋 책임은 서비스에 있다」가
+  이 경로에서만 거짓이었다
+- 그 결과 **LESSON-019 spy 를 처음으로 붙일 수 있게 됐다** —
+  `tests/trading/test_webhook_secret_commits.py` 에 3건 추가(커밋 강제 · 남의 계정 fail-closed ·
+  없는 계정). 변이 2종(커밋 제거 · 소유권 우회) **둘 다 red 확인**
+
+**잔여** — ⑴ `Repository()` 직접 생성 **11건**(미착수 · 이 항목의 주축) ⑵ 라우터 레벨
+**교차 사용자 삭제 테스트가 없다** — `test_router_exchange_accounts.py` 는 본인·없는 계정만
+덮는다. 서비스 단위 테스트가 그 축을 덮지만 배선은 미검증이다(두 번째 authed 사용자 fixture 필요)
+
+**Risk:** 🟡 (동작은 정상이다 — 무너지는 것은 회귀 테스트를 붙일 수 있는 능력이다)
+
+**상태:** 🟡 **부분 해결 (2026-08-16 deploy-activation)** — private 관통 7건 제거 + commit-spy 성립. `Repository()` 직접 생성 11건은 미착수
+**트리거 판정:** 미도래 — 잔여 축은 해당 endpoint 군을 손대는 회차에 동승한다 (2026-08-16 deploy-activation)
+
+---
+
+### BL-763
+
+**Title:** Repository 밖에서 `session.execute` 를 치는 곳이 9건 — AsyncSession 단독 보유 규칙 위반
+**Category:** Backend / 계층 (trading · tasks)
+**Priority:** P2
+**Trigger:** ★해당 파일을 손대는 회차 (전량 수리는 단독 착수 대상이 아니다)
+**Est:** M
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §B ([BL-759] 에서 분리) · 2026-08-16 실측 재확인
+
+**원인 / 영향:** `AGENTS.md` §3 = 「Repository — AsyncSession 유일 보유. DB 접근만」.
+`session.execute` / `db.execute` 가 repository 밖에서 돌면 그 쿼리는 **repository 테스트가
+보는 표면 밖**이고, 스키마가 바뀔 때 같이 안 움직인다.
+
+**2026-08-16 실측 — 9건 / 6파일** (원장의 종전 「8건」을 정정한다):
+
+| 파일                                      | 건수 |
+| ----------------------------------------- | ---- |
+| `src/trading/dependencies.py`             | 3    |
+| `src/trading/kill_switch.py`              | 2    |
+| `src/tasks/websocket_task.py`             | 1    |
+| `src/trading/funding.py`                  | 1    |
+| `src/trading/websocket/reconciliation.py` | 1    |
+| `src/trading/websocket/state_handler.py`  | 1    |
+
+★그중 2건은 **코드가 자백한다** — 「OrderRepository 가 이 메소드를 직접 제공하지 않으면
+raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족해서 우회한 흔적**이다.
+⇒ 수리 방향은 「옮긴다」가 아니라 **repository 에 그 메소드를 만든다**.
+
+**Risk:** 🟢 (동작 정상 — 회귀 방어면이 좁을 뿐)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 코드 대조로 9건 확정. 미착수
+**트리거 판정:** 미도래 — 해당 6파일을 손대는 회차에 동승한다 (2026-08-16 deploy-activation)
+
+---
+
+### BL-764
+
+**Title:** 응답 계약이 세 축에서 갈라져 있다 — 에러 봉투 7모양 · 서비스가 HTTP 예외를 던진다 · 페이지네이션 미통일
+**Category:** Backend / API 계약
+**Priority:** P2
+**Trigger:** ★해당 endpoint 를 손대는 회차 · 또는 FE 가 에러 표면을 통일하려 할 때
+**Est:** L (세 축이 각각 M — 쪼개서 착수한다)
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §B ([BL-759] 에서 분리) · 2026-08-16 실측 재확인
+
+**원인 / 영향:** 세 축 다 「화면이 무엇을 받을지 모른다」로 수렴한다.
+
+- **⑴ 에러 봉투 7모양** — `system-architecture.md:200-206` 이 정본이라 그린
+  `{code, message, details}` 를 만드는 코드가 **한 줄도 없다**. 2026-08-15 의
+  `RequestValidationError` 핸들러가 그중 하나를 줄였다
+- **⑵ `raise HTTPException` 13건이 `src/trading/services/` 안** (2026-08-16 실측 · 전체 38건 중).
+  서비스가 HTTP 를 아는 순간 그 서비스는 Celery·다른 서비스에서 재사용 불가다 —
+  도메인 예외(`src/trading/exceptions.py`)로 던지고 라우터/핸들러가 번역해야 한다
+- **⑶ 페이지네이션 미통일** — 정본 `Page[T]`(`src/common/pagination.py:10`)를
+  `response_model` 로 쓰는 endpoint 는 **4곳**(backtest 2 · optimizer 1 · stress_test 1 계열)
+  이고, `PaginatedExchangeAccounts`(`trading/schemas.py:202`)는 **별개 모양 1곳**,
+  `/orders`·`/kill-switch/events` 는 **`response_model` 자체가 없다**(OpenAPI 에 타입 0)
+
+★**⑶ 을 먼저 건드리지 마라** — 2026-08-15 에 9필드를 non-nullable 로 바꾼 변경이 route mock
+4곳의 파싱을 죽여 **목록을 통째로 빈 화면**으로 만들었다. **vitest 는 못 잡고 e2e 만 잡았다.**
+응답 스키마를 조일 때는 `.default(null)` + 「구 fixture 회귀 방지」 관용구를 먼저 세워라.
+
+**Risk:** 🟡 (⑶ 은 FE 파싱을 깨뜨릴 수 있다 — 위 전례 참조)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 세 축을 코드 대조로 확정. 미착수
+**트리거 판정:** 미도래 — 축별로 해당 표면을 손대는 회차에 동승한다 (2026-08-16 deploy-activation)
+
+---
+
+### BL-765
+
+**Title:** `src/tasks/live_signal.py` 가 4,493줄 — 레포 최대 단일 파일
+**Category:** Backend / 구조 (tasks)
+**Priority:** P3
+**Trigger:** ★그 파일을 실질적으로 손대는 회차 (분할 자체를 목적으로 착수하지 마라)
+**Est:** L
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §B ([BL-759] 에서 분리) · 2026-08-16 실측 재확인
+
+**원인 / 영향:** 2026-08-16 실측 **4,493줄**. 같은 도메인의 repository 2종은 338·220줄이다.
+이 파일은 소크의 심장이고([BL-003] 판정이 여기서 나온다) 회차마다 손이 간다 — 한 파일이
+크다는 것 자체보다 **변경 충돌면이 넓다**는 것이 비용이다.
+
+★**분할을 단독 목적으로 착수하지 마라.** 이 파일은 라이브 신호 tick 경로라 리팩터가
+곧 소크 리스크다. 실측 회귀 방어면(`test_live_signal_tick_oracle.py` 의 부작용 원장)이
+이미 있으므로, **그것이 덮는 범위 안에서** 손대는 회차에 조금씩 떼는 것이 옳다.
+
+**Risk:** 🟠 (이 파일의 리팩터는 소크 창을 끊을 수 있다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 줄 수만 확정. 미착수
+**트리거 판정:** 미도래 — 그 파일을 손대는 회차에 동승한다 (2026-08-16 deploy-activation)
+
+---
+
+### BL-766
+
+**Title:** e2e row 로케이터가 헤더 행을 잡을 수 있다 — 단언이 무증거로 통과한다
+**Category:** Test / FE e2e
+**Priority:** P2
+**Trigger:** ★`apps/web/e2e/` 의 표 기반 spec 을 손대는 회차 · 또는 e2e 초록을 근거로 종결 판정을 낼 때
+**Est:** S (로케이터 치환 + 음성 대조)
+**출처:** 2026-08-15 surface-truth 회차가 실물 1건을 잡음 → 2026-08-16 deploy-activation 전수 감사
+
+**원인 / 영향:** `page.locator("tr", { hasText: "…" })` 는 `<thead>` 의 헤더 행도 후보로 잡는다.
+헤더에 그 문자열이 있으면 `.first()` 가 **헤더 행을 집고**, 그 뒤의 단언은 데이터가 하나도
+없어도 통과한다 — **초록이 「그 화면이 동작한다」를 말하지 않는다.**
+
+**2026-08-16 실측** (`apps/web/e2e/` · spec 26개):
+
+- `tr` 계열 로케이터 **9건**
+- 그중 **헤더 행을 잡을 수 있는 것 5건** — 예:
+  `authed-functional-parity.spec.ts:144` (`hasText: "대기"`) · `:150` (`"체결"`) · `:211` (`"전송"`)
+- 안전 패턴 `getByRole('row')` 사용 **0건**
+
+**권장 접근:** ⑴ `page.getByRole('row', { name: … })` 또는 `tbody tr` 로 범위를 좁힌다
+⑵ ★**음성 대조가 이 항목의 핵심이다** — 표를 비운 상태에서 그 단언이 **red 인지** 확인해라.
+지금 형태는 빈 표에서도 초록일 수 있고, 그것이 이 항목이 존재하는 이유다
+⑶ 5건을 한 번에 고치지 말고 **음성 대조가 red 를 내는 것부터** 고친다 (판별력 없는 것을
+먼저 고치면 무엇이 좋아졌는지 못 잰다)
+
+**Risk:** 🟡 (수리 자체는 안전하나, 고친 뒤 **원래 잡아야 했던 결함이 드러날 수 있다**)
+
+**상태:** ⬜ Open — 2026-08-16 에 전수 감사로 9건/5건/0건 확정. 수리 미착수
+**트리거 판정:** 도래 — 감사가 끝났고 대상이 특정됐다. 다만 단독 착수보다 e2e 를 손대는 회차 동승이 싸다 (2026-08-16 deploy-activation)

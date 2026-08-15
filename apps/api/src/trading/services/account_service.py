@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from decimal import Decimal
 from uuid import UUID
 
@@ -11,7 +12,7 @@ from src.trading.exceptions import AccountNotFound, ProviderError
 from src.trading.models import ExchangeAccount, ExchangeName
 from src.trading.providers import BybitFuturesProvider, Credentials
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
-from src.trading.schemas import RegisterAccountRequest
+from src.trading.schemas import RegisterAccountRequest, mask_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,33 @@ class ExchangeAccountService:
         # request 종료 시 ROLLBACK. 회귀 테스트 test_register_calls_repo_commit.
         await self._repo.commit()
         return saved
+
+    # ── 라우터가 `_repo`·`_crypto` 를 뚫지 않게 하는 공개 표면 ([BL-762], 2026-08-16) ──
+    #
+    # ★종전 `trading/router.py` 는 이 세 endpoint 에서 `svc._repo` 를 5곳, `svc._crypto` 를
+    #   2곳 직접 만졌다. 그 경로에는 **LESSON-019 commit-spy 를 붙일 수 없다** — 커밋을 치는
+    #   것이 서비스가 아니라 라우터라 spy 가 볼 대상이 없다. 트랜잭션 경계와 소유권 검사를
+    #   서비스로 되돌려 그 회귀 테스트가 성립하게 만든다(`AGENTS.md` §3).
+
+    async def list_for_user(self, user_id: UUID) -> Sequence[ExchangeAccount]:
+        return await self._repo.list_by_user(user_id)
+
+    async def delete_for_user(self, account_id: UUID, user_id: UUID) -> None:
+        """소유권 검사 + 삭제 + 커밋을 한 경계 안에 둔다.
+
+        ★소유권 검사를 여기서 하는 이유 — 라우터에 두면 `delete_for_user` 를 다른 호출자가
+        재사용할 때 검사가 조용히 빠진다. 남의 계정은 존재를 알리지 않기 위해
+        `AccountNotFound`(404) 로 답한다 — 종전 라우터 동작과 같다.
+        """
+        account = await self._repo.get_by_id(account_id)
+        if account is None or account.user_id != user_id:
+            raise AccountNotFound(account_id)
+        await self._repo.delete(account_id)
+        await self._repo.commit()
+
+    def masked_api_key(self, account: ExchangeAccount) -> str:
+        """평문 키는 저장하지 않으므로 마스킹에 복호화가 선행한다 — 그 복호화는 서비스가 소유한다."""
+        return mask_api_key(self._crypto.decrypt(account.api_key_encrypted))
 
     async def backfill_exchange_identities(self) -> dict[str, int]:
         """UID가 아직 없는 계정만 식별해 채운다. 실패는 다음 beat에 재시도한다."""
@@ -108,9 +136,7 @@ class ExchangeAccountService:
         )
         return self._credentials_for(account)
 
-    async def fetch_mark_price(
-        self, account_id: UUID, symbol: str
-    ) -> Decimal | None:
+    async def fetch_mark_price(self, account_id: UUID, symbol: str) -> Decimal | None:
         """P1-13 (S5-B): market order notional 근사 가드용 mark price 조회.
 
         반환 None 조건 (fail-soft, caller fallback 결정):

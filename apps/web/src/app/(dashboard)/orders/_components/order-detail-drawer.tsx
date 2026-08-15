@@ -24,8 +24,10 @@ import {
 } from "@/components/ui/sheet";
 import { formatDate, formatTimeSeconds } from "@/features/backtest/utils";
 import {
+  ORDER_CSV_EXTRA_HEADER,
   ORDER_FLAG_LABEL,
   ORDER_MARGIN_MODE_LABEL,
+  ORDER_REALIZED_PNL_SOURCE_LABEL,
   ORDER_SIDE_LABEL,
   ORDER_STATE_LABEL,
   ORDER_TRIGGER_BY_LABEL,
@@ -36,7 +38,7 @@ import type { Order } from "@/features/trading/schemas";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { EMPTY_CELL } from "@/lib/labels";
 
-import { displayRealizedPnl } from "./orders-blotter";
+import { displayRealizedPnl, realizedPnlSource } from "./orders-blotter";
 
 type OrderDetailDrawerProps = {
   order: Order | null;
@@ -184,6 +186,18 @@ function OrderDetailBody({ order, onClose, variant }: OrderDetailBodyProps) {
             //   rejected/cancelled 에 남은 pine_v2 **추정치**가 확정 손실처럼 보인다 — 목록이
             //   이미 그 이유로 `displayRealizedPnl` 을 통과시키고 있었는데 드로어만 우회했다.
             { label: "실현 손익", value: displayRealizedPnl(order) ?? EMPTY_CELL },
+            // ★출처는 **말로 적는다** ([BL-458], 2026-08-16). 종전에는 아래 「손익 확정 시각」이
+            //   비어 있다는 것으로 사용자가 「추정값이구나」를 추론해야 했다 — 목록은 같은 판정을
+            //   `ORDER_REALIZED_PNL_SOURCE_LABEL` 로 적고 있었으므로 상세만 말을 안 한 셈이다.
+            //   ★손익을 안 보여줄 때는 출처도 적지 않는다 — 목록의 규칙과 같다. 안 그러면
+            //   손익이 빈 rejected 주문에 「추정」이 붙어 없는 숫자에 등급을 매긴다.
+            {
+              label: ORDER_CSV_EXTRA_HEADER.realizedPnlSource,
+              value:
+                displayRealizedPnl(order) != null
+                  ? ORDER_REALIZED_PNL_SOURCE_LABEL[realizedPnlSource(order)]
+                  : EMPTY_CELL,
+            },
             {
               label: "손익 확정 시각",
               value: formatOrderDateTime(order.realized_pnl_synced_at),
