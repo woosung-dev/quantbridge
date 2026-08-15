@@ -67,6 +67,9 @@ def _order() -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
         exchange_account_id=uuid4(),
+        # 2026-08-15 적대 리뷰 P1 — 워커가 소유자 활성을 묻기 위해 읽는다.
+        # 프로덕션 `Order.strategy_id` 는 FK `ondelete=RESTRICT` 로 NOT NULL 이다.
+        strategy_id=uuid4(),
         state=OrderState.pending,
         symbol="BTC/USDT:USDT",
         side=OrderSide.buy,
@@ -120,6 +123,9 @@ def _patch_execution(
     )
     repo = SimpleNamespace(
         get_by_id=AsyncMock(return_value=order),
+        # 2026-08-15 적대 리뷰 P1 — 워커가 발주 직전에 소유자 활성을 다시 묻는다.
+        # 이 페이크는 「살아 있는 소유자」를 모형한다(프로덕션에서는 FK 가 행의 존재를 보장한다).
+        strategy_owner_is_active=AsyncMock(return_value=True),
         transition_to_submitted=AsyncMock(return_value=1),
         transition_to_filled=AsyncMock(return_value=1),
         transition_to_rejected=AsyncMock(return_value=1),
@@ -159,11 +165,16 @@ async def _execute(
 
 
 def test_110093_maps_to_trigger_breached_reason() -> None:
-    assert _normalize_exchange_order_response_reason(_TRIGGER_BREACHED_RESPONSE) == "trigger_breached"
+    assert (
+        _normalize_exchange_order_response_reason(_TRIGGER_BREACHED_RESPONSE) == "trigger_breached"
+    )
 
 
 def test_110092_maps_to_trigger_breached_reason() -> None:
-    assert _normalize_exchange_order_response_reason(_LONG_TRIGGER_BREACHED_RESPONSE) == "trigger_breached"
+    assert (
+        _normalize_exchange_order_response_reason(_LONG_TRIGGER_BREACHED_RESPONSE)
+        == "trigger_breached"
+    )
 
 
 def test_110017_position_zero_maps_to_dedicated_reason() -> None:
@@ -186,7 +197,10 @@ def test_same_ccxt_class_splits_by_retcode() -> None:
 
 
 def test_10005_maps_to_permission_denied() -> None:
-    assert _normalize_exchange_order_response_reason(_PERMISSION_DENIED_RESPONSE) == "permission_denied"
+    assert (
+        _normalize_exchange_order_response_reason(_PERMISSION_DENIED_RESPONSE)
+        == "permission_denied"
+    )
 
 
 def test_auth_error_codes_split_from_permission() -> None:

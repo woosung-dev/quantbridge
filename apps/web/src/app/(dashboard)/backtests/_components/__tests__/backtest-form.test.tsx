@@ -469,6 +469,51 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     expect(mutate.mock.calls[1]?.[0]).toMatchObject({ allow_degraded_pine: true });
   });
 
+  // ★동의는 **그 전략에만** 유효하다 (2026-08-15 적대 리뷰 P2). 종전에는 전략과 무관한
+  //   boolean 이라 전략 A 에서 동의한 뒤 B 로 바꿔 제출하면 B 요청에도 `true` 가 실렸다 —
+  //   동의 문구는 「이 전략을 실행합니다」라고 말하는데.
+  it("전략을 바꾸면 degraded 동의가 따라가지 않는다", async () => {
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("심볼"), { target: { value: "BTC/USDT" } });
+      fireEvent.change(screen.getByLabelText("시작일"), { target: { value: "2026-01-01" } });
+      fireEvent.change(screen.getByLabelText("종료일"), { target: { value: "2026-01-31" } });
+      fireEvent.change(screen.getByLabelText("초기 자본"), { target: { value: "10000" } });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+    await vi.waitFor(() => expect(mutate).toHaveBeenCalledTimes(1));
+
+    const err = Object.assign(new Error("degraded"), {
+      status: 422,
+      detail: {
+        detail: {
+          code: "strategy_degraded",
+          detail: "Strategy uses degraded Pine functions: heikinashi",
+          degraded_calls: ["heikinashi"],
+        },
+      },
+    });
+    act(() => {
+      capturedOpts.current.onError?.(err);
+    });
+
+    const consent = await screen.findByTestId("backtest-form-degraded-consent");
+    await act(async () => {
+      fireEvent.click(consent);
+    });
+
+    // 다른 전략으로 바꾼다 — 동의는 A 에 대한 것이었다.
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("전략"), { target: { value: "xyz" } });
+      fireEvent.submit(screen.getByLabelText("backtest-form"));
+    });
+    await vi.waitFor(() => expect(mutate).toHaveBeenCalledTimes(2));
+
+    expect(mutate.mock.calls[1]?.[0]).not.toHaveProperty("allow_degraded_pine");
+  });
+
   it("happy path — onSuccess → router.push(/backtests/{id})", async () => {
     mockSearchParams = new URLSearchParams("strategy_id=abc");
     render(<BacktestForm />);

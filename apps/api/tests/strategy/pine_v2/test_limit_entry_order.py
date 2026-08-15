@@ -261,3 +261,85 @@ if bar_index == 0
     trade = result.strategy_state.open_trades["L"]
     assert trade.entry_bar == 1, "다음 bar 로 미뤄져야 한다"
     assert trade.entry_price == 100.0, "다음 bar **시가**에 체결돼야 한다"
+
+
+# ---------------------------------------------------------------------------
+# ★위치 인자 축 — 2026-08-15 적대 리뷰 P1.
+#
+# Pine v5 시그니처는 `strategy.entry(id, direction, qty, limit, stop, oca_name, ...)` 다.
+# 위 케이스들은 전부 **named** (`limit=95`)를 쓰므로 `kwargs` 만 읽는 구현으로도 통과한다.
+# 실측: `strategy.entry("L", strategy.long, 8, 10)` 이 `run_live` 에서 **시장가 signal**
+# `entry/L/long/8` 을 냈고 pending·skip 은 둘 다 비어 있었다 — 이 회차가 닫으려던 구멍이
+# 위치 인자 축에 그대로 남아 있었다.
+# ---------------------------------------------------------------------------
+
+
+def test_positional_limit_is_read_as_the_fourth_argument() -> None:
+    """★`strategy.entry(id, dir, qty, limit)` — 네 번째 위치 인자가 limit 이다."""
+    source = """//@version=5
+strategy("t")
+if bar_index == 0
+    strategy.entry("L", strategy.long, 1.0, 95.0)
+"""
+    ohlcv = _ohlcv(
+        highs=[101.0, 101.0, 110.0],
+        lows=[99.0, 94.0, 100.0],
+        closes=[100.0, 100.0, 105.0],
+        opens=[100.0, 100.0, 100.0],
+    )
+    interp = _run(source, ohlcv)
+
+    trade = interp.strategy.open_trades["L"]
+    assert trade.entry_bar == 1
+    assert trade.entry_price == 95.0, "위치 인자 limit 이 버려지고 시장가로 샜다"
+
+
+def test_positional_stop_is_read_as_the_fifth_argument() -> None:
+    """★`stop` 은 **5번째** 위치 인자다. 이 누락은 이 회차 이전부터 있었다."""
+    source = """//@version=5
+strategy("t")
+if bar_index == 0
+    strategy.entry("L", strategy.long, 1.0, na, 105.0)
+"""
+    ohlcv = _ohlcv(
+        highs=[101.0, 110.0, 120.0],
+        lows=[99.0, 100.0, 115.0],
+        closes=[100.0, 110.0, 120.0],
+        opens=[100.0, 100.0, 110.0],
+    )
+    interp = _run(source, ohlcv)
+
+    trade = interp.strategy.open_trades["L"]
+    assert trade.entry_bar == 1
+    assert trade.entry_price == 105.0, "위치 인자 stop 이 버려지고 시장가로 샜다"
+    assert interp.strategy.pending_orders == {}
+
+
+def test_positional_limit_is_fail_closed_in_live() -> None:
+    """★배선 — 위치 인자 경로도 라이브에서 **막힌다**.
+
+    순수 엔진 테스트만으로는 부족하다. 실제 결함이 관측된 자리가 `run_live` 였다.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    from src.strategy.pine_v2.event_loop import run_live
+
+    start = datetime(2026, 5, 1, tzinfo=UTC)
+    live_ohlcv = _ohlcv(
+        highs=[110.0, 110.0],
+        lows=[90.0, 90.0],
+        closes=[100.0, 100.0],
+        opens=[100.0, 100.0],
+    )
+    live_ohlcv.insert(0, "timestamp", [start + timedelta(hours=i) for i in range(2)])
+    source = """//@version=5
+strategy("t")
+if bar_index == 1
+    strategy.entry("L", strategy.long, 8, 10)
+"""
+    result = run_live(source, live_ohlcv)
+
+    assert result.signals == [], f"위치 인자 지정가가 시장가 signal 로 샜다: {result.signals}"
+    assert result.pending_orders == []
+    skips = result.strategy_state_report["pending_order_skips"]
+    assert [s["reason"] for s in skips] == ["limit_entry_unsupported_live"], skips

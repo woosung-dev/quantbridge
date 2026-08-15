@@ -581,6 +581,18 @@ def run_live(
     # 그 경로는 엔진이 먼저 결정하고 거래소가 뒤따르므로 close 시점에 거래소는 아직
     # 반대편을 들고 있다 — 두 장(close seq 0 + entry seq 1)이 나가는 게 정상이다.
     signals: list[LiveSignal] = []
+    # ★★2026-08-15 적대 리뷰 P1 — **지정가 진입을 쓴 전략은 이 창에서 아무 signal 도 안 낸다.**
+    #
+    #   pending leg 를 발주 대상에서 빼는 것만으로는 부족했다. 그 leg 가 **시뮬에서 체결되면**
+    #   더 이상 pending 이 아니고, 뒤따르는 `strategy.close()` 가 정상 close signal 이 되어
+    #   거래소에 **열린 적 없는 포지션**을 닫으라는 reduce-only 주문으로 도달한다
+    #   (실측: `limit=95 → low=94 → strategy.close("L")` 이 `close/L/1.0` signal 을 냈다).
+    #   원장 조회가 실패해 OHLC 시뮬 체결로 폴백하는 경로에서 특히 그렇다.
+    #   ⇒ fail-closed 를 **전략 단위**로 올린다. 지정가가 한 번이라도 발행됐으면 그 창의
+    #   시뮬 상태 자체가 거래소와 갈라져 있으므로, 그 위에서 나온 어떤 지시도 신뢰할 수 없다.
+    #   ★백테스트(`run_historical`)는 영향받지 않는다 — 이 분기는 `run_live` 전용이다.
+    if strategy_state.used_limit_entry:
+        emitted_events = []
     for e in emitted_events:
         if e.action not in ("entry", "close") or e.broker_filled:
             continue
@@ -629,10 +641,18 @@ def run_live(
     # 비정상 레그 입력에서 깨진다. 드롭 사유는 live 전용 키로만 표면화한다.
     pending_orders: list[PendingOrderSnapshot] = []
     pending_order_skips: list[dict[str, Any]] = []
+    if strategy_state.used_limit_entry:
+        # ★위 signal 억제와 **같은 사실**을 원장에도 남긴다. 억제만 하고 말하지 않으면
+        #   운영자에게는 「이 창은 조용했다」로 보인다 — 이 회차가 고치는 병과 같은 모양이다.
+        #   ★차단이 **전략 단위**이므로 행도 하나다(`trade_id=""`). leg 마다 한 줄씩 더 내면
+        #   같은 사실이 두 번 세어져 계측이 「몇 번 막혔나」를 못 말한다.
+        pending_order_skips.append(
+            {"trade_id": "", "reason": "limit_entry_unsupported_live", "invalid_fields": []}
+        )
     # 금지 세션 동안 엔진은 pending 체결을 아예 건너뛰고 주문을 carry-over 한다
     # (`strategy_state.py:748-752`). 그때 거래소에 주문을 남겨두면 엔진은 절대 체결하지
     # 않는데 거래소는 체결한다 -> 조용한 발산. desired 를 비워 reconciler 가 걷어내게 한다.
-    if _pending_fills_blocked_by_session(strategy_state, last_bar_time):
+    elif _pending_fills_blocked_by_session(strategy_state, last_bar_time):
         pending_order_skips.extend(
             {"trade_id": trade_id, "reason": "session_disallowed", "invalid_fields": []}
             for trade_id in sorted(strategy_state.pending_orders)

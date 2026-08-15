@@ -108,7 +108,12 @@ export function useBacktestForm() {
   const { control, setValue, reset, getValues, handleSubmit } = form;
 
   const [submitError, setSubmitError] = useState<unknown>(null);
-  const [allowDegradedPine, setAllowDegradedPine] = useState(false);
+  // ★동의는 **전략에 묶인다** (2026-08-15 적대 리뷰 P2). 종전에는 전략과 무관한 boolean 이라
+  //   전략 A 의 degraded 경고에 동의한 뒤 전략 B 로 바꿔 제출하면 **B 요청에도**
+  //   `allow_degraded_pine: true` 가 실렸다 — 동의 문구는 「이 전략을 실행합니다」라고 말하는데.
+  //   ★effect 로 되돌리지 않고 **render-time 파생**으로 푼다(LESSON-004 H-1: dep 에 불안정
+  //   참조를 넣지 말고 비교로 처리해라). 전략이 바뀌면 동의는 자동으로 무효가 된다.
+  const [degradedConsentFor, setDegradedConsentFor] = useState<string | null>(null);
   const [convertResult, setConvertResult] =
     useState<ConvertIndicatorResponse | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>("6m");
@@ -178,6 +183,11 @@ export function useBacktestForm() {
 
   // Sprint 38 BL-188 v3 — strategy detail fetch (settings + trading_sessions prefill).
   const selectedStrategy = useWatch({ control, name: "strategy_id" });
+  const allowDegradedPine =
+    degradedConsentFor !== null && degradedConsentFor === selectedStrategy;
+  const setAllowDegradedPine = (accepted: boolean) => {
+    setDegradedConsentFor(accepted ? selectedStrategy : null);
+  };
   const { data: strategy } = useStrategy(selectedStrategy || undefined);
 
   const pineDeclared = Boolean(strategy?.pine_declared_qty?.type);

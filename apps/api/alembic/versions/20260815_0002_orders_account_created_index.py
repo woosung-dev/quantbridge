@@ -33,14 +33,21 @@ _INDEX = "ix_orders_account_created"
 
 
 def upgrade() -> None:
-    op.create_index(
-        _INDEX,
-        "orders",
-        ["exchange_account_id", "created_at"],
-        unique=False,
-        schema="trading",
-    )
+    # ★★`CONCURRENTLY` 다 (2026-08-15 적대 리뷰 P2). `trading.orders` 는 **라이브 주문이
+    #   실시간으로 들어오는 테이블**이고, 평범한 `CREATE INDEX` 는 그 동안 INSERT/UPDATE/DELETE 를
+    #   **잠근다**. 즉 마이그레이션이 도는 시간만큼 라이브 발주가 대기한다.
+    #   `CONCURRENTLY` 는 트랜잭션 안에서 돌 수 없으므로 `autocommit_block` 이 필요하다
+    #   (`20260419_1200` 이 `ALTER TYPE ... ADD VALUE` 로 같은 패턴을 이미 쓴다).
+    #   ★대가: 실패 시 **INVALID 인덱스**가 남는다. `IF NOT EXISTS` 로 재실행은 안전하게 하되,
+    #   실패했다면 `DROP INDEX` 후 다시 돌려야 한다(INVALID 인덱스는 조회에 안 쓰이고 쓰기 비용만 낸다).
+    with op.get_context().autocommit_block():
+        op.execute(
+            f"CREATE INDEX CONCURRENTLY IF NOT EXISTS {_INDEX} "
+            "ON trading.orders (exchange_account_id, created_at)"
+        )
 
 
 def downgrade() -> None:
-    op.drop_index(_INDEX, table_name="orders", schema="trading")
+    # 내리는 쪽도 같은 이유로 CONCURRENTLY 다 — `DROP INDEX` 는 테이블 ACCESS EXCLUSIVE 를 잡는다.
+    with op.get_context().autocommit_block():
+        op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS trading.{_INDEX}")

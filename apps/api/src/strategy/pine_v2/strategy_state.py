@@ -397,6 +397,16 @@ class StrategyState:
     # "next_bar_open"(다음 bar 시가 — TV process_orders_on_close=false 기본).
     # run_historical/run_virtual_strategy 가 주입. 기본값 = 기존 동작 byte-identical.
     fill_timing: str = "bar_close"
+    # ★2026-08-15 적대 리뷰 P1 — 이 창에서 **지정가 진입이 한 번이라도 발행됐는가.**
+    #
+    # `run_live` 는 pending 지정가 leg 를 발주 대상에서 빼지만(`limit_entry_unsupported_live`),
+    # **그 leg 가 시뮬에서 체결되면 더 이상 pending 이 아니다.** 그 뒤의 `strategy.close()` 는
+    # 정상 close signal 이 되어 라이브로 나가고, 거래소에는 **열린 적 없는 포지션**을 닫으라는
+    # reduce-only 주문이 도달한다(실측: `limit=95 → low=94 → close` 가 `close/L/1.0` signal 을 냈다).
+    # ⇒ fail-closed 는 **leg 단위가 아니라 전략 단위**여야 한다. 지정가를 쓴 전략은 그 창의
+    #   시뮬 상태 자체가 거래소와 갈라지므로 **어떤 signal 도 내보내지 않는다.**
+    # ★백테스트에는 영향이 없다 — 이 플래그를 읽는 것은 `run_live` 뿐이다.
+    used_limit_entry: bool = False
     # next_bar_open 모드의 시장가 인텐트 큐 — process_market_intents 가 소비.
     pending_market_intents: list[MarketIntent] = field(default_factory=list)
     # ADR-025 — 원장 권한이 켜진 재생에서 「시뮬이 하려던 것 vs 원장이 증언한 것」 census.
@@ -874,6 +884,8 @@ class StrategyState:
             limit = None
 
         if limit is not None:
+            # ★이 창은 라이브로 내보낼 수 없다 (2026-08-15 적대 리뷰 P1). `run_live` 가 읽는다.
+            self.used_limit_entry = True
             # ★백테스트와 라이브가 **다르게** 행동한다는 사실을 사용자에게 말한다
             #   (2026-08-15 surface-truth · U8). 이 경고는 리포트 ⑨ 로 나간다.
             #   말하지 않으면 사용자는 백테스트 곡선을 라이브의 예고로 읽는다.

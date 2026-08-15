@@ -253,3 +253,37 @@ async def test_owner_inactive_gate_blocks_orders(db_session: AsyncSession) -> No
     await db_session.flush()
     assert await adapter.is_owner_active(alive.id) is False
     assert await adapter.is_owner_active(UUID(int=0)) is False, "모르는 소유자는 fail-closed"
+
+
+@pytest.mark.asyncio
+async def test_queued_orders_are_blocked_at_dispatch_after_deletion(
+    db_session: AsyncSession, crypto: EncryptionService
+) -> None:
+    """★2026-08-15 적대 리뷰 P1 — **이미 큐에 있던 주문**은 발주 직전에 막힌다.
+
+    `OrderService.execute` 의 게이트는 **주문을 만드는 시점**을 잰다. 그런데 주문은
+    `pending` 으로 원장에 앉았다가 Celery 워커가 나중에 집어 거래소로 보낸다. 탈퇴 처리는
+    세션과 웹훅 시크릿만 닫고 `pending` 주문은 건드리지 않으므로, 그 사이에 탈퇴가
+    일어나면 **그 주문은 그대로 거래소로 나갔다**.
+
+    ⇒ `OrderRepository.strategy_owner_is_active` 가 워커의 마지막 문이다.
+    """
+    from src.trading.repositories.order_repository import OrderRepository
+
+    gone, gone_strategy, _sess, _sec = await _seed_tenant(db_session, tag="gone", crypto=crypto)
+    repo = OrderRepository(db_session)
+
+    assert await repo.strategy_owner_is_active(gone_strategy.id) is True, (
+        "픽스처 전제 — 탈퇴 전에는 통과해야 한다(음성 대조)"
+    )
+
+    await _service(db_session).handle_clerk_event(
+        {"type": "user.deleted", "data": {"id": gone.clerk_user_id}}
+    )
+
+    assert await repo.strategy_owner_is_active(gone_strategy.id) is False, (
+        "탈퇴 후에도 큐에 있던 주문이 거래소로 나간다"
+    )
+    assert await repo.strategy_owner_is_active(UUID(int=0)) is False, (
+        "모르는 전략은 fail-closed — 프로덕션에서는 FK 가 행의 존재를 보장한다"
+    )

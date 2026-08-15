@@ -9455,3 +9455,73 @@ gitleaks job 1개 ⑶ **음성 대조** — `.env.*.example` 은 계속 추적�
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 에 색인으로만 등재. 항목별 착수는 그 영역을 손댈 때
 **트리거 판정:** 미도래 — 단독 착수 대상이 아니다. 해당 영역 회차가 열릴 때 여기서 꺼내 쓴다 (2026-08-15 surface-truth)
+
+---
+
+### BL-760
+
+**Title:** `/healthz` 와 주기 관측이 Redis **쓰기 가능성을 안 잰다** — `noeviction` OOM 이 「정상」으로 보인다
+**Category:** Ops / 관측
+**Priority:** P2
+**Trigger:** ★Redis used-memory 가 `maxmemory` 의 70% 를 넘는 것이 관측될 때 · 또는 `noeviction` 쓰기 거부가 실제로 한 번 발생했을 때
+**Est:** S (`/healthz` 에 쓰기 프로브 + 게이지 주기 갱신)
+**출처:** 2026-08-15 surface-truth 적대 리뷰 (codex P2)
+
+**원인 / 영향:** 2026-08-15 에 Redis 정책을 `allkeys-lru` → `noeviction` 으로 바꿨다([S4]).
+그 대가는 **OOM 에서 쓰기가 거부되는 것**이고, 그 상태는 반드시 관측돼야 한다.
+
+★**그런데 관측 축이 셋 다 PING 이었다:**
+
+- `common/redis_client.py:healthcheck_redis_lock` 의 SET+GET+DEL 왕복은 **lifespan startup 1회**뿐이다
+- compose healthcheck 는 `redis-cli ping` 이었다 → **2026-08-15 에 쓰기 프로브로 교체**
+- `health/router.py` 의 `/healthz` 는 여전히 `pool.ping()` 이다 ← **잔여**
+
+PING 은 OOM 에서도 PONG 을 낸다. ⇒ 기동 후 OOM 은 `/healthz` 초록 + `qb_redis_lock_pool_healthy=1`
+(기동 시 1로 세팅된 뒤 갱신되지 않는다)로 보이고 `QbRedisLockPoolUnhealthy` 도 발화하지 않는다.
+
+★**이 항목은 이 회차 자신의 커밋 주석이 거짓이었다는 기록이기도 하다** — compose 주석에
+「healthcheck 가 SET+GET+DEL 왕복이라 그 상태를 잡는다」고 적었고 적대 리뷰가 반증했다.
+주석은 정정했고 compose 는 고쳤다.
+
+**권장 접근:** ⑴ `/healthz` 의 redis 축을 쓰기 프로브로 올린다 — **다만 호출 빈도를 먼저 재라**
+(`/healthz` 는 자주 불린다. 짧은 TTL 키 + 샘플링이 필요할 수 있다) ⑵ `qb_redis_lock_pool_healthy`
+게이지를 주기적으로 갱신한다(지금은 startup 에서만 쓴다) ⑶ used-memory 를 함께 노출해
+**거부되기 전에** 보이게 한다.
+
+**Risk:** 🟡 (⑴ 을 무겁게 만들면 healthz 자신이 부하가 된다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — compose 축은 2026-08-15 에 닫았다. `/healthz`·게이지 축은 미착수
+**트리거 판정:** 미도래 — 현 Redis 사용량은 `maxmemory 512mb` 대비 낮고 쓰기 거부가 관측된 적이 없다 (2026-08-15 surface-truth)
+
+---
+
+### BL-761
+
+**Title:** 지정가 진입의 백테스트 비용이 **taker 로 과대 계산**된다 — 리포트가 비관 편향이 된다
+**Category:** Backtest / 비용 모델
+**Priority:** P2
+**Trigger:** ★`entry(limit=)` 전략의 백테스트 결과를 **의사결정에 쓰려 할 때** (지금은 그 기능이 막 열렸다) · 또는 [BL-758] 라이브 축을 열 때 동승
+**Est:** M (entry 비용 분기 + 골든 재계산 + 리포트 문구)
+**출처:** 2026-08-15 surface-truth 적대 리뷰 (codex P2)
+
+**원인 / 영향:** `v2_adapter.py` 의 entry 비용은 `fill_type="taker"` **고정**이다. 그런데
+2026-08-15 에 연 `entry(limit=)` 은 **다음 bar 까지 대기하는 resting limit** 이라 실제로는
+maker 다. 같은 레포의 exit 축은 이미 그 계약을 갖고 있다 — `exit_orders.py` 가
+「TP = resting limit → maker」라고 적는다.
+
+⇒ 지정가 진입 전략의 백테스트는 **수수료와 슬리피지를 둘 다 과대 계상**한다(진입 leg 에
+taker 요율 + 진입가 잔차). 리포트는 실제보다 나쁜 곡선을 보여주고, 이 스프린트가 고치려는
+「화면이 사실이 아닌 것을 말한다」의 **반대 방향 판**이다.
+
+★**부호가 안전한 쪽이라 급하지 않다** — 과대 계상은 사용자를 낙관시키지 않는다.
+그래서 P1 이 아니다. 다만 **의사결정 입력으로 쓰이기 전에** 고쳐야 한다([BL-729] 가
+「낡은 비용 가정으로 전략을 골랐다」로 같은 병을 이미 한 번 겪었다).
+
+**권장 접근:** ⑴ 진입 leg 의 `fill_type` 을 **주문 종류에서 파생**시킨다(resting limit → maker,
+시장가·stop 돌파 → taker) ⑵ 골든 12종은 `entry(limit=)` 을 안 쓰므로 **불변이어야 한다** —
+그것이 음성 대조다 ⑶ 리포트 ⑨ 가 「이 실행의 진입은 maker 로 계산됐다」를 말하게 한다.
+
+**Risk:** 🟡 (비용 모델 변경은 과거 백테스트와 비교 불가를 만든다 — 문구로 선언해야 한다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-15 에 지정가 진입 기능만 열었다. 비용 축은 미착수
+**트리거 판정:** 미도래 — 지정가 전략의 백테스트를 의사결정에 쓴 적이 아직 없다 (2026-08-15 surface-truth)

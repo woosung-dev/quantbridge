@@ -100,3 +100,25 @@ def test_lock_url_description_does_not_promise_eviction_isolation() -> None:
         "`redis_lock_url` description 이 다시 「격리」를 약속한다 — 논리 DB 는 축출을 격리하지 "
         "않는다. 격리의 근거는 compose 의 `noeviction` 이다."
     )
+
+
+def test_compose_healthcheck_actually_probes_writes() -> None:
+    """★`noeviction` 의 대가를 **관측 가능**하게 유지한다 (2026-08-15 적대 리뷰).
+
+    OOM 아래에서 읽기는 되고 쓰기만 거부되는데 `redis-cli ping` 은 그때도 PONG 을 낸다.
+    쓰기 프로브가 없으면 기동 후 OOM 이 **「정상」으로 관측**되고
+    `QbRedisLockPoolUnhealthy` 도 발화하지 않는다 — `common/redis_client.py` 의
+    SET+GET+DEL 왕복은 **lifespan startup 1회**뿐이다.
+
+    ★이 테스트가 없으면 healthcheck 를 `ping` 으로 되돌리는 변경이 조용히 통과한다.
+      실제로 이 회차의 커밋 주석이 「healthcheck 가 그 상태를 잡는다」고 **거짓 주장**했고,
+      적대 리뷰가 그것을 잡았다.
+    """
+    text = _COMPOSE.read_text()
+    block_start = text.index("  redis:\n")
+    block = text[block_start : text.index("\n  backend-worker:", block_start)]
+    healthcheck = block[block.index("healthcheck:") :]
+    assert "redis-cli set" in healthcheck, (
+        "redis healthcheck 가 쓰기를 재지 않는다 — PING 은 OOM 에서도 PONG 이다. "
+        f"현재: {healthcheck[:200]}"
+    )

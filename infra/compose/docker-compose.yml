@@ -41,10 +41,15 @@ services:
   #   `task_acks_late=True` 여도 **broker 에서 메시지가 사라지면 복구 경로가 없고**,
   #   `ws:lease` 가 사라지면 `_ws_lease.py` 가 「correctness fallback 없음」이라 적어 둔
   #   상태가 된다. ⇒ 지우느니 **쓰기를 거부**하는 쪽이 옳다.
-  #   ★대가: OOM 이면 쓰기가 `OOM command not allowed` 로 실패한다. 그 실패는 조용하지 않다 —
-  #   `common/redis_client.py` 의 healthcheck 가 PING 이 아니라 **SET+GET+DEL** 왕복이라
-  #   정확히 그 상태를 잡고(`:65` 주석이 이유를 적어 뒀다), `prometheus/alerts.yml:59` 도
-  #   noeviction 을 대응 항목으로 이미 적고 있다. **쓰기 거부를 복구 경로로 오인하지 마라.**
+  #   ★대가: OOM 이면 쓰기가 `OOM command not allowed` 로 실패한다.
+  #   ★★**2026-08-15 적대 리뷰 정정** — 종전 주석은 「그 실패는 조용하지 않다 —
+  #   `common/redis_client.py` 의 healthcheck 가 SET+GET+DEL 왕복이라 잡는다」고 적었고
+  #   **그것은 거짓이었다.** 그 왕복은 **lifespan startup 1회**뿐이고, 그 뒤로 이 compose
+  #   healthcheck 와 `/healthz` 는 **PING 만** 한다. PING 은 OOM 에서도 PONG 이므로 기동 후에
+  #   발생한 OOM 은 「정상」으로 관측되고 `QbRedisLockPoolUnhealthy` 도 발화하지 않았다.
+  #   ⇒ 아래 healthcheck 를 **쓰기 프로브**로 바꿨다(SETEX + DEL). 이제 컨테이너 healthcheck 가
+  #   10초마다 실제 쓰기 가능성을 잰다. `/healthz` 축은 아직 PING 이다 — [BL-760].
+  #   **쓰기 거부를 복구 경로로 오인하지 마라.**
   #   ★DB 0(캐시)은 **소비자가 0건**이라 이 인스턴스에서 뺐다(2026-08-15 실측:
   #   `settings.redis_url` 참조 `src/` 전체 0건). 캐시 소비자가 실제로 생기면 그때
   #   **별도 인스턴스**에 LRU 로 두어라 — 같은 인스턴스에 섞으면 이 결함이 그대로 돌아온다.
@@ -69,7 +74,15 @@ services:
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # ★PING 이 아니라 **쓰기 프로브**다 (2026-08-15 적대 리뷰). `noeviction` 아래에서
+      #   OOM 이 나면 읽기는 되고 쓰기만 거부되는데, PING 은 그때도 PONG 을 낸다.
+      #   `SET ... EX 5` 가 `OOM command not allowed` 로 실패하면 rc≠0 → unhealthy.
+      #   키는 짧은 TTL 로 자멸하고 DEL 로 즉시 회수한다(고아 키 방지).
+      test:
+        [
+          "CMD-SHELL",
+          "redis-cli set __qb_hc__ 1 EX 5 >/dev/null && redis-cli del __qb_hc__ >/dev/null",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5

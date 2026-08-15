@@ -326,6 +326,31 @@ async def _execute_with_session(
             )
             return {"order_id": str(order_id), "state": order.state, "skipped": True}
 
+        # ★2026-08-15 적대 리뷰 P1 — **탈퇴한 소유자의 큐 주문을 여기서 막는다.**
+        #   `OrderService.execute` 의 `is_owner_active` 게이트는 **주문을 만드는 시점**을 잰다.
+        #   주문은 `pending` 으로 원장에 앉았다가 워커가 나중에 집으므로, 그 사이에 탈퇴가
+        #   일어나면 **이미 큐에 있던 주문은 그대로 거래소로 나갔다** — 탈퇴 처리는 세션과
+        #   웹훅 시크릿만 닫고 `pending` 주문은 건드리지 않는다.
+        #   ⇒ 돈이 실제로 나가는 마지막 자리에서 한 번 더 묻는다. `submitted` 로 올리기
+        #     **전**이라 거래소에는 아무것도 안 나간 상태에서 `rejected` 로 종결한다.
+        if not await repo.strategy_owner_is_active(order.strategy_id):
+            error_msg = "owner_account_inactive"
+            logger.warning(
+                "order_owner_inactive",
+                extra={"order_id": str(order_id), "strategy_id": str(order.strategy_id)},
+            )
+            rows = await repo.transition_to_rejected(
+                order_id, error_message=error_msg, failed_at=datetime.now(UTC)
+            )
+            await session.commit()
+            if rows == 1:
+                record_metric_safely(qb_active_orders.dec)
+            return {
+                "order_id": str(order_id),
+                "state": "rejected",
+                "error_message": error_msg,
+            }
+
         # 2. Transition: pending → submitted
         now = datetime.now(UTC)
         rows = await repo.transition_to_submitted(order_id, submitted_at=now)

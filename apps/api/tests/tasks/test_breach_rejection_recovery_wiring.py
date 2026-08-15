@@ -90,6 +90,9 @@ def _order(idempotency_key: str | None) -> SimpleNamespace:
     return SimpleNamespace(
         id=uuid4(),
         exchange_account_id=uuid4(),
+        # 2026-08-15 적대 리뷰 P1 — 워커가 소유자 활성을 묻기 위해 읽는다.
+        # 프로덕션 `Order.strategy_id` 는 FK `ondelete=RESTRICT` 로 NOT NULL 이다.
+        strategy_id=uuid4(),
         state=OrderState.pending,
         symbol="BTC/USDT",
         side=OrderSide.sell,
@@ -140,6 +143,9 @@ async def _reject(
     session = SimpleNamespace(commit=AsyncMock(), get=AsyncMock(return_value=account))
     repo = SimpleNamespace(
         get_by_id=AsyncMock(return_value=order),
+        # 2026-08-15 적대 리뷰 P1 — 워커가 발주 직전에 소유자 활성을 다시 묻는다.
+        # 이 페이크는 「살아 있는 소유자」를 모형한다(프로덕션에서는 FK 가 행의 존재를 보장한다).
+        strategy_owner_is_active=AsyncMock(return_value=True),
         transition_to_submitted=AsyncMock(return_value=1),
         transition_to_rejected=AsyncMock(return_value=rejected_rows),
         attach_exchange_order_id=AsyncMock(),

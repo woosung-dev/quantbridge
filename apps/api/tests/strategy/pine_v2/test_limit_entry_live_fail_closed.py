@@ -85,8 +85,9 @@ def test_limit_entry_is_recorded_as_a_policy_skip_not_a_broken_leg() -> None:
     result = run_live(_LIMIT_ENTRY, _ohlcv([100.0, 100.0]))
 
     skips = result.strategy_state_report["pending_order_skips"]
-    assert len(skips) == 1, f"막은 사실이 원장에 남아야 한다: {skips}"
-    assert skips[0]["trade_id"] == "LimitLong"
+    # ★차단은 **전략 단위**라 행이 하나다 (2026-08-15 적대 리뷰 P1 이후).
+    #   leg 마다 한 줄씩 더 내면 같은 사실이 두 번 세어져 계측이 「몇 번 막혔나」를 못 말한다.
+    assert len(skips) == 1, f"막은 사실이 원장에 한 줄로 남아야 한다: {skips}"
     assert skips[0]["reason"] == "limit_entry_unsupported_live", (
         f"사유가 정책 라벨이어야 한다 (실제 {skips[0]['reason']!r})"
     )
@@ -112,3 +113,73 @@ def test_limit_entry_skip_reason_is_registered_for_metrics() -> None:
     from src.tasks.live_signal import _PENDING_ORDER_SKIP_REASONS
 
     assert "limit_entry_unsupported_live" in _PENDING_ORDER_SKIP_REASONS
+
+
+# ---------------------------------------------------------------------------
+# ★fail-closed 는 **leg 단위가 아니라 전략 단위**다 — 2026-08-15 적대 리뷰 P1.
+#
+# pending leg 를 발주 대상에서 빼는 것만으로는 부족했다. 그 leg 가 **시뮬에서 체결되면**
+# 더 이상 pending 이 아니고, 뒤따르는 `strategy.close()` 가 정상 close signal 이 되어
+# 거래소에 **열린 적 없는 포지션**을 닫으라는 reduce-only 주문으로 도달한다.
+# 실측(수리 전): `limit=95 → low=94 → strategy.close("L")` 이 `close/L/1.0` signal 을 냈다.
+# ---------------------------------------------------------------------------
+
+_LIMIT_FILLED_THEN_CLOSED = """//@version=5
+strategy("limit filled then closed")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=1.0, limit=95.0)
+if bar_index == 2
+    strategy.close("L")
+"""
+
+
+def _pullback_ohlcv() -> pd.DataFrame:
+    """bar 1 에서 low=94 로 지정가 95 를 **체결시키는** 창."""
+    start = datetime(2026, 5, 1, tzinfo=UTC)
+    return pd.DataFrame(
+        {
+            "timestamp": [start + timedelta(hours=i) for i in range(3)],
+            "open": [100.0, 100.0, 100.0],
+            "high": [101.0, 101.0, 110.0],
+            "low": [99.0, 94.0, 100.0],
+            "close": [100.0, 100.0, 105.0],
+            "volume": [100.0] * 3,
+        }
+    )
+
+
+def test_a_filled_limit_entry_never_produces_a_live_close_signal() -> None:
+    """★양성 — 체결된 지정가의 close 는 **라이브로 나가지 않는다**."""
+    result = run_live(_LIMIT_FILLED_THEN_CLOSED, _pullback_ohlcv())
+
+    assert result.signals == [], (
+        "거래소에 열린 적 없는 포지션을 닫으라는 주문이 나갔다 "
+        f"(reduce-only 110017 또는 무관한 포지션 청산): {result.signals}"
+    )
+
+
+def test_the_strategy_level_block_is_recorded_not_silent() -> None:
+    """★억제했으면 **말해야** 한다 — 조용하면 운영자에게는 「이 창은 잠잠했다」로 보인다."""
+    result = run_live(_LIMIT_FILLED_THEN_CLOSED, _pullback_ohlcv())
+
+    skips = result.strategy_state_report["pending_order_skips"]
+    assert [s["reason"] for s in skips] == ["limit_entry_unsupported_live"], skips
+
+
+def test_a_strategy_without_limit_entries_still_emits_signals() -> None:
+    """★음성 대조 — 이게 없으면 「run_live 가 늘 빈 signal 을 낸다」로도 위 둘이 통과한다."""
+    market_then_close = """//@version=5
+strategy("market then close")
+if bar_index == 0
+    strategy.entry("L", strategy.long, qty=1.0)
+if bar_index == 2
+    strategy.close("L")
+"""
+    result = run_live(market_then_close, _pullback_ohlcv())
+
+    # ★`run_live` 는 **마지막 bar** 의 이벤트만 signal 로 낸다(창 재생 전량이 아니다).
+    #   그래서 기대값은 bar 2 의 `close` 하나다 — bar 0 의 entry 는 이미 지난 창이다.
+    assert [s.action for s in result.signals] == ["close"], (
+        f"지정가를 안 쓴 전략까지 막혔다: {result.signals}"
+    )
+    assert result.strategy_state_report["pending_order_skips"] == []

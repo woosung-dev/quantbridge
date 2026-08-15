@@ -1513,19 +1513,31 @@ class Interpreter:
             else:
                 qty = self.strategy.compute_qty(fill_price=current_close)
             comment = str(kwargs.get("comment", ""))
+
             # stop= 는 지원 (Week 3 Day 1부터).
             # ★limit= 도 지원 (2026-08-15 surface-truth · U8). 종전에는 `unsupported` 목록에
             #   들어가 **조용히 시장가로 치환**됐고, 화면은 그 전략을 「지원됨」 초록 칩으로
             #   표시했다(Coverage 는 함수 이름만 보므로 kwarg 를 못 본다). 백테스트는 시장가
             #   결과를 냈고 경고는 네 지점에서 폐기됐다. trail_*/qty_percent 는 여전히 미지원.
-            stop_raw = kwargs.get("stop")
-            stop: float | None = None
-            if stop_raw is not None and not _is_na(stop_raw):
-                stop = float(stop_raw)
-            limit_raw = kwargs.get("limit")
-            limit: float | None = None
-            if limit_raw is not None and not _is_na(limit_raw):
-                limit = float(limit_raw)
+            #
+            # ★★**위치 인자도 읽는다** (2026-08-15 적대 리뷰 P1). Pine v5 시그니처는
+            #   `strategy.entry(id, direction, qty, limit, stop, oca_name, ...)` 이라
+            #   `limit` 은 **4번째**, `stop` 은 **5번째** 위치 인자다. `kwargs` 만 보면
+            #   `strategy.entry("L", strategy.long, 8, 10)` 의 `limit=10` 이 **통째로
+            #   사라지고 시장가 진입으로 샌다** — 실측으로 `run_live` 가 `entry/L/long/8`
+            #   signal 을 냈다(pending·skip 둘 다 빈 채로). 이 회차가 닫으려던 바로 그 구멍이
+            #   위치 인자 축에 그대로 남아 있었고, 회귀 테스트는 named 형태만 쓰고 있었다.
+            #   ★`stop` 의 위치 인자 누락은 **이 회차 이전부터** 있던 것이다.
+            def _price_arg(name: str, index: int) -> float | None:
+                raw = kwargs.get(name)
+                if raw is None and len(positional) > index:
+                    raw = positional[index]
+                if raw is None or _is_na(raw):
+                    return None
+                return float(raw)
+
+            stop: float | None = _price_arg("stop", 4)
+            limit: float | None = _price_arg("limit", 3)
             unsupported = [
                 k for k in kwargs if k in ("trail_points", "trail_offset", "qty_percent")
             ]

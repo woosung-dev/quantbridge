@@ -186,8 +186,6 @@ describe("AssumptionsCard — 엔진 경고 (2026-08-15 surface-truth · U8)", (
 
     const box = screen.getByTestId("backtest-engine-warnings");
     expect(box).toHaveTextContent("라이브 실행에서는 안전상 해당 진입을 차단합니다");
-    // 몇 건인지 먼저 말한다 — 사용자가 「숫자를 읽기 전에」 판단할 수 있어야 한다.
-    expect(box).toHaveTextContent("1건");
   });
 
   it("경고 여러 건을 모두 인쇄한다 — 첫 건만 보여주고 나머지를 숨기지 않는다", () => {
@@ -202,7 +200,21 @@ describe("AssumptionsCard — 엔진 경고 (2026-08-15 surface-truth · U8)", (
     expect(box).toHaveTextContent("첫 번째 경고");
     expect(box).toHaveTextContent("두 번째 경고");
     expect(box).toHaveTextContent("세 번째 경고");
-    expect(box).toHaveTextContent("3건");
+  });
+
+  // ★건수를 세지 않는다 (2026-08-15 적대 리뷰 P3) — 서버가 상한 초과 시 **합성 요약 한 줄**을
+  //   배열 끝에 붙이므로, 배열 길이는 「엔진이 남긴 알림 수」가 아니다(60건 → 길이 51).
+  it("잘림 요약 줄이 섞여도 거짓 건수를 주장하지 않는다", () => {
+    const truncated = [
+      ...Array.from({ length: 50 }, (_, i) => `경고 ${i}`),
+      "… 서로 다른 경고 10건이 더 있습니다 (표시 상한 50건)",
+    ];
+    render(<AssumptionsCard initialCapital={10000} warnings={truncated} />);
+
+    const box = screen.getByTestId("backtest-engine-warnings");
+    expect(box).not.toHaveTextContent("51건입니다");
+    // 잘렸다는 사실은 서버가 붙인 마지막 줄이 스스로 말한다.
+    expect(box).toHaveTextContent("10건이 더 있습니다");
   });
 
   // ★음성 대조 3종 — 이게 없으면 「항상 경고 상자 그리기」로도 위 둘이 통과한다(판별력 0).
