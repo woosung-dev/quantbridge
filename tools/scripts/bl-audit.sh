@@ -111,12 +111,14 @@ function finalize(   t, v) {
   #   뒤 섹션이 앞 섹션의 줄번호를 덮어써 "어느 섹션이 문제인가" 가 뒤바뀐다.
   #   여기서 `sec_line[cur]` 는 아직 **이 섹션**의 줄이다(다음 reset 전에 finalize 가 돈다).
   if (st_dup > 0) { dupn[n] = st_dup; dupid[n] = cur; dupsec[n] = sec_line[cur] }
+  if (tg_txt ~ /미도래/) { trig_def[cur] = 1; trig_line[cur] = tg_line }
   cur = ""
 }
 function reset(id, ln) {
   cur = id; sec_line[id] = ln
   order[++n] = id
   st_txt = ""; st_line = 0; st_dup = 0
+  tg_txt = ""; tg_line = 0
   mk_txt = ""; mk_line = 0
   hd_check = 0; has_check = 0; has_res = 0
 }
@@ -170,6 +172,11 @@ NR == FNR {
     if (match($0, /P[0-9]/)) prio[cur] = substr($0, RSTART, RLENGTH)
   } else if ($0 ~ /^\*\*(Status|상태)[ ]*[:：]/ && index($0, "~~") == 0) {
     if (st_txt == "") { st_txt = $0; st_line = FNR } else st_dup++
+  } else if ($0 ~ /^\*\*(트리거 판정|Trigger verdict)[ ]*[:：]/ && index($0, "~~") == 0) {
+    # ★취소선 제외는 상태줄과 **같은 계약**이다 — 이 레포에서 `~~` 는 철회 표기이므로
+    #   `**트리거 판정:** ~~미도래 …~~` 는 「미도래를 철회했다」는 뜻이다 (BL-547 이 그 판).
+    #   그걸 미도래로 읽으면 도래한 항목을 DEFERRED 로 몰아 원장이 조용히 얼어붙는다.
+    if (tg_txt == "") { tg_txt = $0; tg_line = FNR }
   } else if (mk_txt == "" && is_marker($0)) {
     mk_txt = $0; mk_line = FNR
   }
@@ -280,6 +287,24 @@ END {
   }
   bad += q
 
+  # ★트리거 정합 (BL-725, 2026-08-15) — `**트리거 판정:** … 미도래` ↔ 상태줄 판정.
+  #   [ADR-028] 은 「트리거 미도래 = DEFERRED」이고 상태줄 리드인이 `⏳ **대기 (트리거 미도래)**`
+  #   여야 한다고 정한다. 그런데 감사기는 **상태줄만** SSOT 로 읽었으므로, 본문에 「트리거도
+  #   미도래」를 적어 놓고 리드인만 `⬜ Open` 인 섹션이 조용히 **ACTIVE 로 세졌다** — ⓪ 표가
+  #   그 항목을 다음 회차 후보로 올리고, 열어 보면 할 일이 없다. BL-725 가 정확히 그 판이었다.
+  #   ★ACTIVE 만 잡는다. PARTIAL/RESOLVED 는 판정어가 다르므로 불일치가 아니다
+  #     (부분 해결은 트리거와 무관하게 이미 착수된 것이고, 해결은 트리거를 넘어선 것이다).
+  t = 0
+  if (CROSSCHECK == 1) {
+    for (i = 1; i <= n; i++) {
+      id = order[i]
+      if (!(id in trig_def) || verdict[id] != "ACTIVE") continue
+      if (t++ == 0) printf "\n▶ 트리거 정합 — `**트리거 판정:** 미도래` ↔ 상태줄 판정 ([ADR-028])\n"
+      printf "  %-8s 트리거는 미도래인데 상태줄이 ACTIVE 다 — 리드인을 `⏳ **대기 (트리거 미도래)**` 로   트리거:%d 섹션:%d\n", id, trig_line[id], sec_line[id]
+    }
+  }
+  bad += t
+
   # ★중복 상태줄 = 실패 (BL-564). SSOT 는 하나여야 한다 — 둘이면 어느 쪽이 이기는지가
   #   서식 순서에 달리고, 폐기된 판정이 첫 줄이면 조용히 그게 이긴다.
   #   폐기 보존이 목적이면 `<details>` 로 접어라 (파서가 건너뛴다).
@@ -300,10 +325,10 @@ END {
   bad += o
 
   printf "\n════════════════════════════════════════\n"
-  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 우선순위 배치 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, q, d, h, o; exit 1 }
+  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 우선순위 배치 %d 건 + 트리거 정합 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, q, t, d, h, o; exit 1 }
   # ★성공 줄에서 리터럴 `3면` 을 빼지 마라 — `tools/scripts/bl-audit-test.sh` ② 가 "정상 원장 → exit 0"
   #   의 증거로 그 문자열을 grep 한다. 축이 늘어도 "3면 + <새 축>" 꼴로 적어 하네스를 살려둔다.
-  printf "✓ 4면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치. active=%d / deferred=%d / 전체=%d\n", cnt["ACTIVE"] + 0, cnt["DEFERRED"] + 0, n
+  printf "✓ 5면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치 + 트리거 정합. active=%d / deferred=%d / 전체=%d\n", cnt["ACTIVE"] + 0, cnt["DEFERRED"] + 0, n
   exit 0
 }
 ' "$BACKLOG" "$ROADMAP"

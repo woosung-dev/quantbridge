@@ -329,7 +329,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
 - [x] **BL-024** [P1] real_broker E2E 본 구현 — nightly cron (Bybit Demo creds)
 - [x] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
-- [ ] **BL-026** [P1] Mutation fixture 활성화 회귀 — skip #4-7,#9-15
+- [x] **BL-026** [P1] Mutation Oracle 실행 확인 — 2026-08-15 종결 (코드 0줄 · `--run-mutations` 8건 실행)
 - [x] **BL-622 ✅ Resolved** [P1] (2026-08-07 gap-resync-autopsy) — `requires_gap_resync` 가 열린 채 시작한 세션이 재동기 전에 사망하던 경로. ★사망 판정은 H3(관측 지연) — 거래소 체결시각 20:17:19 vs 원장 20:31:51 로 **872초** 벌어졌고 판정은 그 3.5초 전에 떨어졌다. ★상수 재사용이 틀렸다는 것도 함께 확정 — janitor 30분은 **다른 양**을 잰다(조건부 resting 이 벽시계 95.1%)
 - [x] **BL-633 ✅ Resolved** [P1] (2026-08-08 bl003-unblock) — ★★판정 = **[ADR-025] 반례가 아니라 이중 호스트 오염**이다. 오라클 서버와 맥 로컬이 같은 Bybit demo 계정 `19a8166a…` 에 같은 전략·심볼·주기로 동시에 붙어 있었다. 근거 — 서버 `exchange_exits` 고유 `order_link_id` 27 중 **7건이 로컬 원장에만** 있고 귀속 불가 0 · 정본 항등식 `exchange = P0 + Σ(양쪽 호스트 체결)` **4/4**(반사실은 정의 4가지 어디서도 4/4 불가 · 최대 1/4) · 두 원장의 고유 `exchange_order_id` **27/27** 일치. ★계정은 세션 시작(09:39:38) **전부터** 오염돼 있었다(로컬 체결 07:42~09:03 5건) ⇒ 배타성 검사는 재기동이 아니라 **세션 시작** 시점에 건다 — [BL-634]
 - [x] **BL-634 ✅ Resolved** [P1] (2026-08-09 excl) 계정 배타성 가드 부재 — 두 호스트면 **데이터베이스도 둘**이라 `live_signal_sessions` 의 `is_active` unique index 가 원리상 못 막는다. 각 DB 안에서는 제약이 정상 성립했고 둘을 합친 상태를 아는 주체가 없었다. ⇒ 가드는 **거래소 쪽 상태**를 봐야 한다 — `order_link_id` 소유권으로 「원장에 없는 미체결 조건부」를 세고 ≥1 이면 세션 시작을 거부. ★대상은 **미체결(resting)** 이어야 한다(체결 이력으로 걸면 미조인 exit 이 상시라 영구 거부)

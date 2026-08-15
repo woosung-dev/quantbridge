@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -1369,7 +1370,9 @@ def test_the_shell_reads_only_keys_the_predicate_emits(gate: Any) -> None:
     """
     import re
 
-    shell = (Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh").read_text(encoding="utf-8")
+    shell = (Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh").read_text(
+        encoding="utf-8"
+    )
     referenced = set(re.findall(r'c\["([A-Za-z0-9_]+)"\]', shell))
     assert referenced, "셸에서 conditions 참조를 하나도 못 찾았다 — 정규식이 낡았다"
 
@@ -1394,7 +1397,9 @@ def test_the_shell_passes_as_many_argv_as_the_payload_builder_reads(gate: Any) -
     """
     import re
 
-    shell = (Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh").read_text(encoding="utf-8")
+    shell = (Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh").read_text(
+        encoding="utf-8"
+    )
     head = shell.index('PAYLOAD="$(python3 - \\')
     fence = shell.index("<<'PY'", head)
     passed = len(re.findall(r'"\$\{[A-Z_]+\}"', shell[head:fence]))
@@ -1470,3 +1475,78 @@ def test_coverage_gaps_do_not_forge_three_runs_out_of_one(gate: Any) -> None:
     )
     assert verdict.conditions["C1_ok"] is False
     assert verdict.verdict == "UNKNOWN"
+
+
+# ── [BL-748] C4 의 공허 통과 ─────────────────────────────────────────────────
+
+
+def test_c4_does_not_pass_when_there_is_no_window_to_look_at(gate: Any) -> None:
+    """귀속 창이 0개면 C4 는 「이상 없다」가 아니라 **판정 불가**다.
+
+    종전 `C4_ok = not gaps` 는 볼 창이 없을 때 루프가 0회라 빈 리스트를 얻고 **통과**했다.
+    2026-08-15 실측이 그 증상을 그대로 보여줬다 — 같은 출력에 「C4 표본 공백 0건 ✓」와
+    「표본 간격 최대 326.4분」이 함께 찍혔고, 상위 공백 5개(최대 1524.5분)가 전부 귀속 구간
+    **바깥**이라 한 건도 세지지 않았다. 「볼 게 없다」가 「정상」으로 보고되는 fail-open 이다.
+    """
+    payload = _payload(pin_events=[])  # `up` 이 없으면 귀속 구간이 안 열린다
+
+    verdict = gate.evaluate(payload)
+
+    assert verdict.conditions["C4_no_window"] is True
+    assert verdict.conditions["C4_ok"] is False, "볼 창이 없는데 C4 가 통과했다 (fail-open)"
+    assert verdict.conditions["C4_sample_gaps"] == [], (
+        "공백이 있는 것이 아니라 잴 자리가 없는 것이다"
+    )
+    assert verdict.verdict == "UNKNOWN"
+    assert "귀속 창이 0개" in verdict.summary, (
+        "「공백 0건」과 「볼 창 0개」가 같은 문장으로 찍히면 운영자가 정상으로 읽는다"
+    )
+
+
+def test_c4_still_passes_on_a_normal_reading(gate: Any) -> None:
+    """★음성 대조 — [BL-748] 수리가 정상 판독까지 죽이면 안 된다.
+
+    이게 없으면 `C4_ok = False` 로 고정해도 위 테스트가 통과한다(판별력 0).
+    """
+    verdict = gate.evaluate(_payload())
+
+    assert verdict.conditions["C4_no_window"] is False
+    assert verdict.conditions["C4_ok"] is True
+    assert verdict.conditions["C4_sample_gaps"] == []
+    assert verdict.verdict == "PASS", f"정상 판독이 {verdict.verdict} 로 뒤집혔다"
+
+
+def test_darkness_that_is_not_a_dict_fails_c5_instead_of_passing_it(gate: Any) -> None:
+    """`darkness_computed` 는 **dict 인가**를 묻는다 — `is not None` 이 아니다 ([BL-748]).
+
+    종전에는 dict 가 아닌 값이 오면 C5 는 ✓ 인데 `_darkness_report` 는 None 을 내서
+    셸이 「어둠 비율: ✗ 계산 실패 (C5 위반)」을 찍었다. **판정과 표시가 서로 다른 말을 한다.**
+    """
+    verdict = gate.evaluate(_payload(darkness="계산 실패"))
+
+    assert verdict.conditions["C5"]["darkness_computed"] is False
+    assert verdict.conditions["C5_ok"] is False
+    assert verdict.verdict == "UNKNOWN"
+
+
+def test_the_shell_and_the_predicate_agree_on_what_darkness_counts(gate: Any) -> None:
+    """어둠 분자 집합이 **두 곳에 복제**돼 있다 — 갈리면 조용히 다른 것을 센다 ([BL-748]).
+
+    `soak-gate.sh` 는 `python3 -c` 인라인으로 계산하므로 술어 모듈을 import 하지 않는다
+    (그 인라인은 시스템 python 이고 술어는 `uv run python` 이다). 코드를 합칠 수 없으니
+    **동등성을 여기서 못박는다.** 종전에는 술어 쪽 상수가 아무도 참조하지 않는 죽은 값이라
+    셸만 고쳐도 아무 신호가 없었다.
+    """
+    shell = Path(__file__).parents[4] / "tools" / "scripts" / "soak-gate.sh"
+    assert shell.is_file(), f"셸 게이트를 못 찾았다: {shell}"
+
+    match = re.search(r"^\s*und = \{(.+?)\}\s*$", shell.read_text(encoding="utf-8"), re.MULTILINE)
+    assert match is not None, (
+        "`und = {...}` 리터럴을 못 찾았다 — 셸이 바뀌었으면 이 테스트를 고쳐라"
+    )
+    shell_set = frozenset(re.findall(r'"([^"]+)"', match.group(1)))
+
+    assert shell_set, "셸 리터럴을 빈 집합으로 읽었다 — 이 단언은 판별력이 없다"
+    assert shell_set == gate.UNDECIDABLE_DERIVE_OUTCOMES, (
+        f"셸({sorted(shell_set)})과 술어({sorted(gate.UNDECIDABLE_DERIVE_OUTCOMES)})가 갈렸다"
+    )

@@ -18,6 +18,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-15 clock-fill-sweep** — [BL-741]·[BL-026]·[BL-735]·[BL-748] 종결 + [BL-725] 재분류 (ACTIVE **6→2**). ★★★**처방이 지목한 대상이 코드에 없던 항목이 셋**([LESSON-111]) — 어둠은 C1/C2 를 **한 시간도 안 깎고**(판정식에 부등식 자체가 없다), 남는 것은 인덱스가 아니라 `alembic_version` 이었다. ★게이트 C4 가 **볼 창이 없으면 통과**하는 fail-open
 - **2026-08-15 soak-watch-restore** — [BL-737]·[BL-744]·[BL-743]·[BL-739] 종결 + [BL-745]. ★★★**내 「반증했다」가 오독이었고 codex 가 옳았다** — `systemctl show` 는 확장 **전** 문자열이다. `--fail` 을 붙이자 알람이 exit 22 로 뒤집혔다(HTTP 404 = 빈 토큰, [LESSON-110]). ★감시자는 41시간 rc=127 인데 타이머는 내내 waiting — dev-log
 - **2026-08-14 real-broker-e2e** — [BL-024] 종결(로컬 축) · 실거래소 첫 검증. ★★★**2층 자기정리 하네스는 지어진 뒤 10일 동안 한 번도 작동한 적이 없었다** — skeleton skip 이 REGISTRY 를 늘 비웠고, 첫 타깃에 전건 `undecidable`(청산이 개발 DB 를 열고 있었다, [LESSON-109]). ★증인은 pytest rc 가 아니라 거래소였다. ★`_verdict` 가 5일 연속 skip 을 PASS 로 적고 있었다 — dev-log
 - **2026-08-13 contract-poc** — [BL-717] 종결. 결정적 export `contracts/openapi.json` + **orval(client:'zod') 채택**(hey-api 는 TS7 크래시로 탈락). 전문 = [ADR-031] · 런타임 투입 판정은 §비결정으로 남겼다 — dev-log
