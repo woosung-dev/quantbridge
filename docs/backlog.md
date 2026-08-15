@@ -5308,19 +5308,27 @@ FE 회귀 방어와 `pre-commit` 의 lint-staged 가 전부 무력이었고, 그
 **카테고리:** Docs / 운영 절차 회수 (ADR-026 후속)
 **Trigger:** [BL-071](#deferred--trigger-미도래--의도적-부활-가능-구-_deferredmd-승격-2026-08-06) 발동 시 (프로덕션 배포) · Bybit mainnet 전환 시
 **Est:** S
-**상태:** ⏳ **대기 (트리거 미도래)**
-**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 production-readiness 가 대상 목록을 정정(4종 → **3종**)하고 삭제 SHA·실측 크기를 확정했다. 회수는 여전히 안 한다
+**트리거 판정:** 미도래 — [BL-071] 이 **아직 착수되지 않았다**. ★2026-08-16 [ADR-033] 이 G1 DB 호스팅을 확정해 [BL-071] 의 **선행은 풀렸다** — 종전 판정문 「외생 조건(실자금 cutover). 우리 의지로 만들 수 없다」는 이제 정확하지 않다. 트리거는 외생이 아니라 **우리가 [BL-071] 을 착수하는 시점**이다 (2026-08-16 production-readiness)
 
-**「과거 기록」이 아닌 운영 절차 4종이 문서 대개편에서 working tree 밖으로 나갔다.**
+**「과거 기록」이 아닌 운영 절차가 문서 대개편에서 working tree 밖으로 나갔다.**
 ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 **위치**(폴더 이름)였지
-**미래 유용성**이 아니었다. 그 결과 아직 **실행하지 않은 절차**가 「과거 원문」으로 함께 나갔다:
+**미래 유용성**이 아니었다. 그 결과 아직 **실행하지 않은 절차**가 「과거 원문」으로 함께 나갔다.
 
-| 문서 (`git show 0f0f0b06:<경로>`)                                       | 크기 | 언제 필요한가          |
-| ----------------------------------------------------------------------- | ---- | ---------------------- |
-| `docs/archive/operations/deployment/2026-05-05-cloud-run-runbook.md`    | 39KB | [BL-071] 프로덕션 배포 |
-| `docs/archive/operations/observability/grafana-cloud-setup.md`          | —    | 운영 관측성 켤 때      |
-| `docs/archive/operations/trading/2026-04-21-bybit-mainnet-checklist.md` | 11KB | demo → mainnet 전환    |
-| `docs/archive/operations/legal/2026-04-25-legal-temporary-runbook.md`   | —    | 외부 사용자 받기 전    |
+★★**2026-08-16 정정 — 4종이 아니라 3종이다.** mainnet 축은 이미 대체됐다:
+`docs/reference/operations/bybit-mainnet-runbook.md`(26,325 B)가 **워킹트리에 존재**한다. 그것은
+회수본이 아니라 [BL-003] 으로 **새로 쓴 문서**(`3915bd7b`, 2026-08-09 — 삭제 커밋 3일 후)다.
+⇒ 남은 회수 대상은 Cloud Run · Grafana · 법무 **3종**.
+
+★**삭제 커밋은 `0f0f0b06` 이 아니라 `94da86b1`** 이다(2026-08-06, 512 files / 123,707 deletions).
+`0f0f0b06` 은 그 **직전 상태 참조용**이라 `git show 0f0f0b06:<경로>` 로 꺼내는 것은 맞다.
+
+| 문서 (`git show 0f0f0b06:<경로>`)                                           | 크기 (실측)  | 언제 필요한가           |
+| --------------------------------------------------------------------------- | ------------ | ----------------------- |
+| `docs/archive/operations/deployment/2026-05-05-cloud-run-runbook.md`        | 39,493 B     | [BL-071] 프로덕션 배포  |
+| `docs/archive/operations/observability/grafana-cloud-setup.md`              | 11,294 B     | 운영 관측성 켤 때       |
+| `docs/archive/operations/legal/2026-04-25-legal-temporary-runbook.md`       | 5,087 B      | 외부 사용자 받기 전     |
+| ~~`docs/archive/operations/trading/2026-04-21-bybit-mainnet-checklist.md`~~ | ~~11,425 B~~ | **해소** — 위 정정 참조 |
 
 **측정 (2026-08-07)** — 머지 후 `docs/` 전체에서 **Cloud Run · Grafana · Prometheus · mainnet ·
 법무 언급이 0건**이 된다. 그런데 `apps/api/prometheus/alerts.yml` · `apps/api/Dockerfile` ·
@@ -5335,6 +5343,12 @@ ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 
 
 **Risk:** 🟢 지금은 영향 없다. 단 트리거가 왔을 때 **이 항목이 없으면 그 문서들의 존재 자체를
 아무도 모른다** — `docs/archive/` 375파일에는 파일 목록 색인이 남아 있지 않기 때문이다.
+
+★★**2026-08-16 — 그 위험이 이미 현실이 됐다.** 이 항목이 근거로 든 tombstone 색인이
+**워킹트리에 없다**: `git ls-files docs/archive` 결과가 `docs/archive/lessons-archive-2026H1.md`
+**단 1개**이고, 삭제 커밋이 남겼다던 `docs/archive/dev-log/index-full-2026-08-02.md` 도 없다.
+⇒ 지금 이 3종의 존재를 아는 유일한 기록은 **이 BL 본문 그 자체**다. 이 항목을 지우면
+그 문서들은 사실상 사라진다.
 
 ---
 
@@ -9290,8 +9304,8 @@ API 를 재기동하자 **`/docs`·`/openapi.json`·`/redoc` 이 전부 404** �
 **Category:** Security / rate limit
 **Priority:** P2
 **Trigger:** ★**이미 발화 중이다** — 공개 전환([BL-071]) 전까지는 사용자가 1명이라 증상이 안 보일 뿐이다. 2번째 사용자가 붙는 순간 도래
-**Est:** S (auth dependency 1줄 + `TRUSTED_PROXIES` 설정 + 회귀)
-**출처:** 2026-08-15 surface-truth 아키텍처 감사 §C-1
+**Est:** ~~S (auth dependency 1줄 + `TRUSTED_PROXIES` 설정 + 회귀)~~ → **2026-08-16 정정: M** (아래 ★반증)
+**출처:** 2026-08-15 surface-truth 아키텍처 감사 §C-1 · 2026-08-16 production-readiness 코드 대조로 Est 정정
 
 **원인 / 영향:** `rate_limit_key` 는 `request.state.user_id` 를 먼저 보는데 **아무도 그 값을
 세팅하지 않는다** — 함수 docstring 이 스스로 자백한다(「현재 Phase B: request.state.user_id 는
@@ -9302,14 +9316,35 @@ API 를 재기동하자 **`/docs`·`/openapi.json`·`/redoc` 이 전부 404** �
 `ip:127.0.0.1` **하나의 버킷**을 공유한다 — 한 사람이 한도를 태우면 나머지가 429 를 받고,
 공격자는 혼자서 전체를 잠글 수 있다.
 
-**권장 접근:** ⑴ `authenticate_clerk_request` 가 `request.state.user_id` 를 세팅한다(그것이
-docstring 이 예고한 배선이다) ⑵ 배포 호스트 `TRUSTED_PROXIES` 에 터널 대역을 넣는다
-⑶ **음성 대조 필수** — 신뢰 대역 밖에서 온 XFF 는 여전히 무시돼야 한다(위조 차단).
+★★**2026-08-16 반증 — 종전 「권장 접근 ⑴ = auth dependency 1줄」은 성립하지 않는다.**
+`install_rate_limit` 이 `SlowAPIMiddleware` 를 **ASGI 미들웨어**로 붙이는데(`rate_limit.py:176-198`,
+설치 지점 `main.py:323-325`), ASGI 미들웨어는 **라우팅·의존성 해석보다 먼저** 돈다. 반면
+`get_current_user`(`auth/dependencies.py:50-55`)는 `Depends` 라 라우트 핸들러 직전에 돈다.
+⇒ 인증 의존성이 `request.state.user_id` 를 세팅해도 **미들웨어의 `default_limits=["100/minute"]`
+판정에는 반영되지 않는다** — 그 시점에 키가 이미 확정됐다. 고쳐지는 것은
+`@limiter.limit(...)` **데코레이터 12곳**(waitlist·optimizer·stress_test·backtest·strategy·convert)
+뿐이고 **나머지 전 엔드포인트는 그대로 `ip:127.0.0.1` 공용 버킷**이다.
+★부수 — `authenticate_clerk_request`(`realtime/auth.py:21-48`)는 파라미터가 `Requestish` 라
+WebSocket 경로에서 `.state` 가 없는 `SimpleNamespace` mock 도 받는다. 「1줄 세팅」이 간단하지
+않은 두 번째 이유다.
+
+★★**기존 테스트 2건이 이 항목을 무증거로 만든다** (`apps/api/tests/common/test_rate_limit.py`):
+⑴ `test_per_user_isolation`(`:86`)이 프로덕션 `rate_limit_key` 대신 **인라인 lambda `key_func`**
+(`:96-99`)을 쓴다 ⇒ 「user 격리 초록」이 프로덕션 코드에 대한 증거가 **아니다**.
+`rate_limit_key` 를 직접 호출하는 테스트는 **0건**.
+⑵ `:121-149` 는 **현재 버그를 정상 동작으로 고정**한다(`assert r3.status_code == 429  # 같은
+client.host 로 묶임`, `:148`) — 수리하면 이 단언이 반드시 깨진다.
+
+**권장 접근 (2026-08-16 재기술):** ⑴ **인증 전용 ASGI 미들웨어**를 세워 `SlowAPIMiddleware`
+**이전에** `request.state.user_id` 를 채우거나, `SlowAPIMiddleware` 를 걷어내고 전 엔드포인트를
+데코레이터로 옮긴다 ⑵ 배포 호스트 `TRUSTED_PROXIES` 에 터널 대역을 넣는다
+⑶ **음성 대조 필수** — 신뢰 대역 밖에서 온 XFF 는 여전히 무시돼야 한다(위조 차단)
+⑷ **먼저 `rate_limit_key` 자체를 겨누는 테스트를 세워라** — 지금 초록은 판별력이 없다.
 
 **Risk:** 🟡 (⑵ 를 너무 넓게 잡으면 XFF 위조로 한도 우회가 열린다)
 
-**상태:** ⬜ Open — 2026-08-15 감사에서 코드 대조로 확인. 미착수
-**트리거 판정:** 도래 — 기전은 지금 성립한다. 다만 **영향**이 사용자 2명부터라 공개 전환과 동승이 합리적이다 (2026-08-15 surface-truth)
+**상태:** ⬜ Open — 2026-08-15 감사에서 코드 대조로 확인. 2026-08-16 production-readiness 가 Est 와 권장 접근을 정정(미들웨어 실행 순서 반증 · 테스트 2건 무증거). 수리 미착수
+**트리거 판정:** 도래 — 기전은 지금 성립한다. 다만 **영향**이 사용자 2명부터이고 실제 수리가 M(미들웨어 구조 변경)이라 공개 전환([BL-071])과 동승이 합리적이다 (2026-08-16 production-readiness)
 
 ---
 
@@ -9396,8 +9431,46 @@ gitleaks job 1개 ⑶ **음성 대조** — `.env.*.example` 은 계속 추적�
 
 **Risk:** 🟢
 
-**상태:** ⬜ Open — 2026-08-15 감사에서 `git check-ignore` 실측 + grep 0건으로 확인. 미착수
-**트리거 판정:** 도래 — 막는 비용이 XS 이고 되돌릴 수 없는 사고를 막는다 (2026-08-15 surface-truth)
+★★**2026-08-16 착수 — 갭이 원장보다 넓었다.** 본문은 루트 `.gitignore` 만 적었지만
+`git check-ignore --no-index` 실측상 **3개 파일 전부** 뚫려 있었다: 루트(`.env.prod`/`.env.production`/
+`.env.staging`) · `apps/api/`(같음 + `.env.*.local` 조차 없었다) · `apps/web/`(`.env.production` —
+Next.js 표준 이름). 셋 다 `.env.prod*`/`.env.production*`/`.env.staging*` + **`!.env*.example`** 로
+막았고, 그 부정 규칙이 load-bearing 임을 ablation 으로 확인했다(그 줄을 빼면 추적 중인
+`apps/api/.env.prod.example` 이 `.env.prod*` 에 잡힌다).
+
+★**검증기의 무증거를 한 번 밟았다** — `git check-ignore` 는 기본적으로 **추적 파일을 건너뛴다**.
+그래서 `.example` 4종이 「무시 안 됨」으로 나온 것이 규칙 덕인지 추적 중이라서인지 구분되지 않았다.
+`--no-index` 로 재측정해야 규칙 출처까지 확정된다.
+
+★★★**히스토리 전량 스캔에서 실제 시크릿 2건이 나왔다 — 「0건」이 아니었다.**
+`gitleaks git . --log-opts=--all` 로 **1,056 커밋**을 훑어 `fb47978c`(2026-04-25, PR #71) 의
+`docs/superpowers/plans/2026-04-24-h2-sprint10-phase-a2.md:224,286` 에서
+`TRADING_ENCRYPTION_KEYS` 44자 Fernet 리터럴 2건을 찾았다.
+**판정 = rotate 불요.** sha256 대조로 확인했다(값 미출력): 히스토리 키 `9b2d3222…` 는 로컬
+`.env`(`841af2dc…`)·`apps/api/.env.local`(`60c1787c…`)·**서버**(`a371e6bb…`) 어느 것과도
+**불일치**한다 — 그 회차 워크트리 스모크용 일회성 키다. 그 파일은 이미 삭제돼 현재 트리에 없다
+(그래서 워킹트리 스캔은 0건이다). ★**히스토리에서는 지워지지 않는다** — 재감사 명령을 `ci.yml`
+주석에 실측 그대로 남겼다.
+
+★**CI 잡 안에 자기검사(positive control) 스텝을 본 스캔 앞에 뒀다.** 바이너리 다운로드가 깨지거나
+allowlist 가 넓어지면 본 스캔은 **영구 0건 = 영구 초록**이 된다 — 이 레포가 반복해 밟은 형태다.
+매 실행마다 `$RUNNER_TEMP` 에 가짜 키를 심어 그것을 반증한다.
+★스캔 방식은 `gitleaks dir`(워킹트리)다. 커밋 범위 스캔은 `fetch-depth: 0`(히스토리 213MB)이
+필요하고 **base/head 가 어긋나면 0 커밋 스캔 후 초록** 이라는 fail-open 이 있다. `dir` 는 상태가
+없어 그 구멍이 없고, `pull_request` 가 머지 프리뷰를 checkout 하므로 「머지되면 main 에 남는 파일
+전체」라는 정확한 질문에 답한다. 실측 18.3MB / 0.5초.
+
+★★**함정 — 같은 명령을 로컬 개발 트리에서 돌리면 6,795건이 나온다.** `gitleaks dir` 은
+`.gitignore` 를 존중하지 않아 `node_modules/`(6,779건)와 **gitignore 된 `.env`·
+`apps/api/.env.local` 실파일**(16건)까지 읽는다. CI 는 `actions/checkout` 트리라 그것들이 애초에
+없어 0건이다 — 조건이 다른 것이지 설정이 틀린 것이 아니다. 로컬에서 CI 와 같은 답을 보려면
+`git ls-files -co --exclude-standard` 목록만 임시 트리에 복사해 스캔해라(2026-08-16 실측:
+**1,663 파일 · `no leaks found` · rc=0**, 같은 트리에 가짜 키 1개를 심으면 **rc=1 · 1건**).
+★이 소음을 줄이겠다고 경로 allowlist 를 넣으면 CI 에서 그 디렉터리가 통째로 무방비가 된다.
+이 함정을 `ci.yml` 의 본 스캔 스텝 주석에 실측째로 박았다 — 다음 사람이 같은 자리에서 놀란다.
+
+**상태:** ✅ **Resolved (2026-08-16 production-readiness)** — `.gitignore` 3파일 + `.gitleaks.toml`(값 단위 allowlist 4개, 경로 면제 0) + `ci.yml` `secret_scan` 잡(`ci` 집계 잡의 `needs`·`check` 양쪽 배선). 판별력 증명 4종 실행: 양성(가짜 키 2건 검출 rc=1) · 음성(제거 후 0건 rc=0) · `--no-index` 9경로 전건 무시 + `.example` 4건 추적 유지 · 히스토리 1,056커밋(위 2건 발견·rotate 불요)
+**트리거 판정:** 해소 — 2026-08-16 에 수리 완료 (2026-08-16 production-readiness)
 
 ---
 
@@ -9764,3 +9837,111 @@ raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족�
 
 **상태:** ⬜ Open — 2026-08-16 에 전수 감사로 9건/5건/0건 확정. 수리 미착수
 **트리거 판정:** 도래 — 감사가 끝났고 대상이 특정됐다. 다만 단독 착수보다 e2e 를 손대는 회차 동승이 싸다 (2026-08-16 deploy-activation)
+
+---
+
+### BL-767
+
+**Title:** DB 백업이 **스케줄·오프서버 보관·복원 실증 셋 다 0건**이다 — self-host 를 고르면 그것이 유일한 안전망이다
+**Category:** Ops / 백업 · 재해복구
+**Priority:** P1
+**Trigger:** ★**도래했다** — [ADR-033] 이 self-host TimescaleDB CE 를 확정한 순간 백업이 우리 책임이 됐다
+**Est:** M
+**출처:** 2026-08-15 G1 리포트 §6 · 2026-08-16 production-readiness 착수
+
+**원인 / 영향:** 도구(`make db-snapshot`/`db-restore`, `Makefile:294-333`)는 **이미 있었다**. 없던 것은
+셋이다 — ⑴ 스케줄 ⑵ 오프서버 보관 ⑶ **복원 실증**. 서버 DB 는 24MB 이고 덤프는 2.4MB 라 비용이
+문제가 아니라 **아무도 안 걸어 뒀다**는 것이 문제다. 인스턴스·디스크 유실이 나면 소크 이력·전략·
+백테스트가 통째로 사라진다.
+
+★**복원을 한 번 실제로 해 보기 전에는 백업이 있다고 말하지 않는다.** 이 레포는 「있다고 여겨진
+가드가 실제로는 그 경로를 안 지나던」 사례를 이미 겪었다([LESSON-087]·[LESSON-109]).
+
+**넣은 것 (2026-08-16):** `tools/scripts/db-backup.sh`(`run` / `verify-restore` / `--install` /
+`--uninstall` / `--status`) + 짝 하네스 `db-backup-test.sh` **39건**(skip 0). 게이트 등록까지 같은
+회차에 했다 — `Makefile` 하네스 목록 11→**13종**(디스크 경보와 함께) · `final-gates.sh` `run_gate`.
+★**지은 자리에서 바로 등록한다** — 「존재하고 초록인데 호출자가 0」인 고아 하네스가 생기는 경로가
+정확히 「등록을 다음 회차로 미루는 것」이다([BL-601]·[BL-631]).
+
+★**같은 호스트에서 검증된 절차를 이식했다** — 다른 앱(truewords)이 6시간마다 `pg_dump -Fc` →
+`pg_restore --list` 무결성 → **OCI Object Storage(Instance Principal — 개인키 없음)** → 보관기간
+정리를 돌리고 있었다(마지막 실행 11MB · 보관 60개 / 639M). 레포 grep 은 rclone/restic/boto3 전부
+0건이라 「오프서버 자산 없음」으로 보였지만 **호스트에는 있었다**. 셸 OCI CLI 경로라 2026-08-06 의
+`boto3` 제거 결정과도 충돌하지 않는다.
+
+★★**핵심 안전 계약 — `run` 은 컨테이너를 기동/정지/재시작하지 않는다.** `docker exec` + `docker cp`
+만 쓴다. `up`/`down`/`pin` 은 24시간 소크 창을 끊기 때문이다. 하네스가 docker 스텁으로 argv 를
+전수 기록해 금지어를 검출하고, **그 검출기 자신의 양성·음성 대조**까지 둔다(로그가 비어서 통과하는
+것을 막는다). 뮤테이션 **9/10 적발**.
+
+★★**반증 — `timescaledb_pre_restore()` 가 이 스키마에서는 무효과다.** 착수 AC 가 「이것이 절차의
+핵심」이라 못박았는데 실측은 유무가 **관측 가능한 차이를 하나도 만들지 않았다**: 양쪽 다
+`pg_restore` rc=0 · stderr 0줄 · chunk 59 · 21,649행 · 복원본 INSERT 가 새 chunk 로 라우팅 ·
+`drop_chunks()` 정상. 호출을 **지워도 하네스 39/39 초록**이다. [가정] hypertable 1개뿐이고
+continuous aggregate·압축·정책이 0건이라 훅이 할 일이 없다 — [ADR-033] 실측표의 「고유 기능 사용처
+0건」과 일치한다. ⇒ **호출은 유지한다**(공식 문서가 정본이고 비용 0). 단 두 파일 모두에
+**「이 축은 무증거 — 테스트가 지킨다고 적지 마라」**를 명시했다.
+★**버전은 여전히 진짜 제약이다** — 덤프와 복원의 확장 버전이 다르면 catalog version mismatch 로
+죽는다. 로컬·서버가 같은 `timescale/timescaledb:2.14.2-pg15` 라 지금은 만족한다.
+
+**설계 판단 3건:** ⑴ 사이드카 `<dump>.meta` — 「기대값과 불일치면 rc≠0」의 기대값 출처가 없었다.
+살아 있는 DB 와 비교하면 drift 로 위양성이 나므로 덤프 **앞뒤로 두 번** 재서 `[min,max]` 구간으로
+기록한다. 메타가 없으면 fail-open 하지 않고 **rc=2**. ⑵ **rc=3 = 로컬 정상 + 원격 업로드만 실패** —
+「업로드 실패로 백업을 실패시키지 마라」와 「조용히 묻히면 안 된다」를 동시에 만족시키는 형태.
+systemd 는 3 도 실패로 세므로 `OnFailure` 알람은 그대로 발화한다. `oci` 부재도 rc=3 이다(truewords
+판은 조용히 넘어가는데, 그러면 「원격 사본 0」이 무기한 안 보인다). ⑶ `sudo docker` 를 박지 않는다 —
+서버 `ubuntu` 는 이미 docker 그룹이고, sudo 가 필요한 곳은 `/opt/backups`(root:root) 파일 쪽이라
+거기서 한 번만 판정한다. 박으면 sudo 가 PATH 를 재설정해 하네스 스텁이 안 걸린다.
+
+**Risk:** 🟢 (읽기 + 파일 생성만. 컨테이너 무조작이 하네스로 강제된다)
+
+**상태:** 🟡 **부분 Resolved (2026-08-16 production-readiness)** — 스크립트·하네스·게이트 등록·**복원 실증** 완료(로컬 `quantbridge-db` 로 실 덤프 2.4MB → throwaway DB 복원 → 19테이블/21,649행/59chunk 대조 → 정리까지, 잘라낸 덤프는 rc≠0). **잔여 = 서버 설치(`--install`) + OCI 버킷 생성 + 오프서버 업로드 실증 1회** — 셋 다 사용자 승인 사안이라 이 회차에서 분리했다
+**트리거 판정:** 도래 — [ADR-033] 이 트리거를 발화시켰고 잔여 3건은 승인만 남았다 (2026-08-16 production-readiness)
+
+---
+
+### BL-768
+
+**Title:** 디스크 사용률을 **아무도 안 본다** — 디스크 풀이 Redis AOF 를 죽이고 celery 를 통째로 멈춘 전례가 있다
+**Category:** Ops / 관측성
+**Priority:** P2
+**Trigger:** ★**도래했다** — [ADR-033] 조건 ⑵ · 그리고 [BL-767] 이 백업 파일로 디스크를 **쓰기 시작한다**
+**Est:** S
+**출처:** 2026-08-15 G1 리포트 §6 · 2026-08-16 production-readiness 착수
+
+**원인 / 영향:** `df`·`shutil.disk_usage` 를 부르는 감시 코드가 레포 전체에 **0줄**이었다(2026-08-16
+grep — 히트 4건은 전부 주석 문구). 2026-08-14T06:04:11Z 로컬 Docker VM 이 94% 에서 Redis AOF 쓰기에
+실패했고 celery 가 `Unrecoverable error` 로 통째 정지했다([BL-736]).
+
+★**그 사고는 로컬에서 났지만 서버도 구조가 같다** — 서버 `quantbridge-redis` 도 `appendonly=yes`
+이고(2026-08-16 실측 `aof_enabled:1`) 소크 스택·백업 덤프·다른 앱 셋이 **디스크 한 벌**
+(`/dev/sda1` 97G)을 공유한다. 서버에서 나면 24시간 창이 통째로 날아간다.
+★**착수 전제 정정** — 프롬프트는 이 레인의 근거로 「94% 실사고」를 들었지만 그것은 **로컬 맥**이고
+**서버는 40%(59G 여유)** 다. 근거는 「이미 위험하다」가 아니라 「쓰기 시작하는데 보는 눈이 없다」다.
+
+**넣은 것 (2026-08-16):** `tools/scripts/lib/notify-telegram.sh`(`soak-watch.sh:105-142` `_notify()`
+추출 — 선례 `lib/pre-push-ref-guard.sh`) + `tools/scripts/disk-guard.sh` + 하네스 `disk-guard-test.sh`
+**19건**. `soak-watch.sh` 는 얇은 래퍼로 lib 에 위임하되 **`QB_SOAK_*` env 이름과 반환값을 그대로
+유지**해 서버 유닛·기존 하네스가 무수정으로 돈다(회귀 확인: `soak-watch-test.sh` **25/25**, lib 를
+숨기면 rc=1 — 음성 대조).
+
+★**소크 감시와 분리했다** — soak-watch 에 얹으면 소크가 내려간 순간 디스크 감시도 사라진다.
+타이머는 매시 **15분**(soak-watch 가 00·30분을 쓴다). `OnCalendar` 벽시계 고정 —
+`OnUnitActiveSec` 은 마지막 활성화 기준이라 사람이 손으로 한 번 돌리면 위상이 밀린다([BL-737] 실측 53분).
+
+★**알림을 먼저 쏘고 상태를 나중에 저장한다.** 디스크가 꽉 차면 상태 파일 쓰기부터 실패한다 —
+저장이 앞서면 정작 알려야 할 그 순간에 알림 없이 죽는다. 하네스 ⑨ 가 그 순서를 잰다(전송 실패 시
+`NOTIFIED_DATE` 미전진).
+
+★**「늘 쏘는 경보」도 결함이다** — 사람이 무시하게 되어 결국 안 쏘는 것과 같아진다. OK 는 조용하고,
+WARN 이 이어지면 **하루 1회만** 재고지한다. 하네스가 그 음성 대조 4건(①④⑦⑪)을 갖는다.
+★`df` 판독 실패는 rc=1 이다 — fail-open 이면 「디스크는 괜찮다」로 읽힌다(하네스 ⑧).
+
+★**하네스 자신이 위양성을 한 번 냈다** — `$$` 이스케이프 검사가 `$$TELEGRAM_BOT_TOKEN` 을 찾는데
+실제 유닛은 `$${TELEGRAM_BOT_TOKEN}`(중괄호)이다. 정본 `soak-watch-test.sh:450` 은
+`grep -qF 'bot$${TELEGRAM_BOT_TOKEN}'` 로 **고정 문자열 + 중괄호까지** 본다. 검사기를 정본에 맞췄다.
+
+**Risk:** 🟢 (읽기 전용 판독 + 알림 1건)
+
+**상태:** 🟡 **부분 Resolved (2026-08-16 production-readiness)** — lib 추출·`disk-guard.sh`·하네스 19건·게이트 등록·soak-watch 회귀(25/25) 완료. **잔여 = 서버 설치(`--install`) + 양성 대조 발화 실증(임계를 낮춰 텔레그램 **도착** 확인)** — 서버 조작이라 승인 후
+**트리거 판정:** 도래 — [ADR-033] 조건 ⑵ 이고 [BL-767] 이 디스크를 쓰기 시작한다. 잔여는 서버 설치 승인만 (2026-08-16 production-readiness)

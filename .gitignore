@@ -36,6 +36,15 @@ sprint*-day*-*.jpeg
 .env.*.local
 .env.demo
 !.env.example
+# [BL-757] 배포용 이름 3종 — 종전에는 `git check-ignore` 실측으로 **셋 다 뚫려 있었다**.
+# 하필 추적 중인 `apps/api/.env.prod.example` 이 정확히 그 작명을 유도한다.
+.env.prod*
+.env.production*
+.env.staging*
+# ★부정 패턴은 **뒤에 와야** 이긴다(나중 규칙 우선). 위 `.env.prod*` 가 추적 중인
+#   `apps/api/.env.prod.example` 까지 잡으므로, 이 줄이 없으면 그 템플릿이 사라진다 —
+#   `.env*.example` 4종은 계속 추적돼야 한다. 그것이 문서다.
+!.env*.example
 
 # === Node / Frontend ===
 node_modules/

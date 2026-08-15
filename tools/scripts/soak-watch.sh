@@ -100,45 +100,26 @@ _state_put() { # _state_put <fingerprint> <disq> <heartbeat_date>
 }
 
 # ── 알림 ────────────────────────────────────────────────────────────────────────
+# ★전송 자체는 `lib/notify-telegram.sh` 한 벌이 한다 (2026-08-16 [BL-768] 에서 추출).
+#   디스크 경보(`disk-guard.sh`)가 같은 배선을 쓰게 되면서 복제 대신 lib 로 뺐다 — 토큰 취급
+#   규칙이 두 벌이 되면 한쪽만 고쳐지는 순간 조용히 새는 쪽이 생긴다.
+#   ★**이 래퍼의 인터페이스는 바뀌지 않았다** — `QB_SOAK_*` env 이름과 반환값이 그대로다.
+#   그래야 `soak-watch-test.sh` 의 주입 seam 과 서버 유닛이 손대지 않은 채 계속 돈다.
+NOTIFY_LIB="${QB_NOTIFY_LIB:-${SCRIPT_DIR}/lib/notify-telegram.sh}"
+if [ ! -f "${NOTIFY_LIB}" ]; then
+  echo "✗ 알림 라이브러리가 없다: ${NOTIFY_LIB}" >&2
+  exit 1
+fi
+# shellcheck source=tools/scripts/lib/notify-telegram.sh
+. "${NOTIFY_LIB}"
+
 # 주입 seam: QB_SOAK_NOTIFY_CMD 가 설정되면 curl 대신 그 명령에 본문을 stdin 으로 넘긴다.
 # 하네스가 실제 텔레그램을 쏘지 않게 하는 유일한 경로다(`QB_PRE_PUSH_BYPASS` 선례).
 _notify() { # _notify <본문>  → 0 = 보냄 / 1 = 실패
-  if [ -n "${QB_SOAK_NOTIFY_CMD:-}" ]; then
-    printf '%s\n' "$1" | ${QB_SOAK_NOTIFY_CMD}
-    return $?
-  fi
-
-  # 크레덴셜 — ★절대경로로 소싱한다. `cd apps/api && . ./.env.local` 은 이미 backend 에 있으면
-  #   `cd` 가 실패해 `set -a` 만 건너뛰고 나머지가 이어져 env 가 export 되지 않는다(금지된 형태).
-  if [ ! -f "${ENV_FILE}" ]; then
-    echo "✗ env 파일이 없다: ${ENV_FILE}" >&2
-    return 1
-  fi
-  # shellcheck disable=SC1090
-  (
-    set -a
-    . "${ENV_FILE}"
-    set +a
-
-    if [ -z "${TELEGRAM_BOT_TOKEN:-}" ] || [ -z "${TELEGRAM_CHAT_ID:-}" ]; then
-      echo "✗ TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID 가 비어 있다" >&2
-      exit 1
-    fi
-
-    # ★URL 을 출력하지 않는다 — 경로에 토큰이 들어 있다. 실패해도 curl 이 URL 을 못 뱉게
-    #   --output /dev/null 로 막고 상태 코드만 받는다.
-    code="$(timeout "${TELEGRAM_TIMEOUT}" curl \
-      --silent --show-error --output /dev/null --write-out '%{http_code}' \
-      --max-time "${TELEGRAM_TIMEOUT}" \
-      --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-      --data-urlencode "text=$1" \
-      "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" 2>/dev/null)"
-    if [ "${code}" = "200" ]; then
-      exit 0
-    fi
-    echo "✗ 텔레그램 전송 실패 (HTTP ${code:-없음})" >&2
-    exit 1
-  )
+  QB_NOTIFY_CMD="${QB_SOAK_NOTIFY_CMD:-}" \
+    QB_NOTIFY_ENV_FILE="${ENV_FILE}" \
+    QB_NOTIFY_TIMEOUT="${TELEGRAM_TIMEOUT}" \
+    qb_notify_telegram "$1"
 }
 
 # ── systemd 설치 ────────────────────────────────────────────────────────────────

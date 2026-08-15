@@ -28,6 +28,11 @@ WATCH="$ROOT/tools/scripts/soak-watch.sh"
   echo "✗ 감시 스크립트가 없다: $WATCH" >&2
   exit 1
 }
+NOTIFY_LIB="$ROOT/tools/scripts/lib/notify-telegram.sh"
+[ -f "$NOTIFY_LIB" ] || {
+  echo "✗ 알림 라이브러리가 없다: $NOTIFY_LIB" >&2
+  exit 1
+}
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -130,8 +135,11 @@ EOF
 # ── 하네스 배선 ─────────────────────────────────────────────────────────────────
 _build_tree() { # _build_tree — 사본 + 가짜 게이트 + 가짜 sender
   rm -rf "$TMP/tree"
-  mkdir -p "$TMP/tree/tools/scripts"
+  mkdir -p "$TMP/tree/tools/scripts/lib"
   cp "$WATCH" "$TMP/tree/tools/scripts/soak-watch.sh"
+  # ★lib 도 함께 옮긴다 — watch 는 `dirname $0` 옆의 `lib/notify-telegram.sh` 를 소싱하므로
+  #   사본만 두면 임시 트리에서 `알림 라이브러리가 없다` 로 죽는다(2026-08-16 lib 추출 후속).
+  cp "$NOTIFY_LIB" "$TMP/tree/tools/scripts/lib/notify-telegram.sh"
 
   cat > "$TMP/fake-sender.sh" << 'EOF'
 #!/usr/bin/env bash

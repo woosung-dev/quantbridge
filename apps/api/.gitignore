@@ -5,6 +5,15 @@ __pycache__/
 .metrics/
 .env
 .env.local
+# [BL-757] 하위 .gitignore 는 루트보다 **우선**한다 — 루트에만 넣으면 이 디렉터리에서
+# 규칙이 뒤집힐 수 있어 여기도 같이 둔다. `.env.*.local` 은 종전에 여기 없었다.
+.env.*.local
+.env.prod*
+.env.production*
+.env.staging*
+# ★부정 패턴은 **뒤에 와야** 이긴다. 위 `.env.prod*` 가 추적 중인 `.env.prod.example` 을
+#   잡으므로 이 줄이 필수다 — 루트의 같은 예외는 **더 깊은 이 파일에 지므로** 소용없다.
+!.env*.example
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

@@ -244,7 +244,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 8. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
 9. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
 10. **tasks 도메인 deepen** (상시 가능 · 내부 부채) — money-path Celery 감사(`/deepen-modules`, codex 빌드 아님).
-11. **Beta 배포** (사용자 결정 · 다음 단계) — G1 DB 호스팅 + BL-070~075.
+11. **Beta 배포** — ★**G1 은 2026-08-16 에 확정됐다**([ADR-033] self-host CE). 남은 것은 BL-070~075.
 
 ---
 
@@ -494,10 +494,10 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 ### 그룹 4 — Beta 본격 진입 (사용자 manual · deploy-time)
 
-- [ ] **G1 DB 호스팅 재결정 (USER-DECIDE · ★최대 blocker)** — TimescaleDB Cloud SQL 미지원 → self-host CE / TimescaleDB Cloud / Fly Postgres 택1
-- [ ] **BL-070** 도메인 + DNS + (옵션) Cloudflare — 1-2h + 전파 24h
-- [ ] **BL-071** Backend 프로덕션 배포 — Cloud Run/Railway/Render + Postgres/Redis prod + Clerk production + gunicorn 보안헤더
-- [ ] **BL-072** Resend 이메일 + Waitlist 활성화 — 1-2h + verify 24h
+- [x] **G1 DB 호스팅 재결정** — ✅ **2026-08-16 확정: ① self-host TimescaleDB CE 유지** ([ADR-033](decisions/033-db-hosting-self-host-timescaledb.md)). 관리형이 막힌 것은 업체 사정이 아니라 TimescaleDB 의 **TSL 라이선스**(RDS·Supabase PG17·Fly MPG 전부 같은 이유). DB 24MB · hypertable 고유 기능 사용처 0건이라 되돌리기가 덤프 한 번이다. 조건 3종 동시 확정 — 백업 자동화([BL-767]) · 디스크 80% 경보([BL-768]) · 전환 트리거 4종. ⇒ **아래 셋의 선행이 풀렸다**
+- [ ] **BL-070** 도메인 + DNS + (옵션) Cloudflare — 1-2h + 전파 24h ★선행 해제(G1)
+- [ ] **BL-071** Backend 프로덕션 배포 — ★배포 대상 확정(self-host CE). 「Cloud Run/Railway/Render + Postgres prod」 전제는 [ADR-033] 으로 대체됐다 — 현 서버(Oracle A1) 위에서 Clerk production + gunicorn 보안헤더가 남은 일이다
+- [ ] **BL-072** Resend 이메일 + Waitlist 활성화 — 1-2h + verify 24h ★선행 해제(G1)
 - [ ] **BL-073** Twitter/X #buildinpublic 캠페인 — (BL-070~072 후 trigger)
 - [ ] **BL-074** Beta 인터뷰 3명 × 3회 — (BL-073 후 + onboarding 후)
 - [ ] **BL-075** H2 진입 게이트 설계 — (BL-005 self-assess ≥7 직후)

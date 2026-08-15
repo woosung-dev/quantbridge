@@ -41,7 +41,7 @@ cd $QB/apps/web && pnpm e2e:authed
 ```bash
 cd $QB && bash tools/scripts/skip-ratchet.sh    # 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)
 cd $QB && make docs-audit                 # ⓪ 표 정체성 축 포함 (아래)
-cd $QB && make gate-harnesses             # ★게이트 하네스 10종 전량 (합계 15초 · 2026-08-14 재실측)
+cd $QB && make gate-harnesses             # ★게이트 하네스 13종 전량 (2026-08-16 · db-backup·disk-guard 추가)
 ```
 
 - **`skip-ratchet`** — `@pytest.mark.skip` 데코레이터 **와** 모듈 레벨 `pytestmark = pytest.mark.skip(...)`
@@ -68,9 +68,10 @@ cd $QB && make gate-harnesses             # ★게이트 하네스 10종 전량 
   `**트리거 판정:**` 줄이 **0건**이다~~ → **2026-08-11 [BL-703] 이 채웠다.** PARTIAL 전건이
   판정줄을 갖고 `docs-audit` 이 그 의무를 강제하므로, 이 축은 이제 **두 항을 다 쓴다**
   (착수 근거였던 「P0 1 + P1 4 가 올라온다」는 실측으로 반증됐다 — 올라온 것은 다른 5건이다).
-- **`make gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **10종**(2026-08-13
+- **`make gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **13종**(2026-08-13
   [ADR-030] 이 `fleet-dispatch-test` 를 함대 축과 함께 회수해 9→8, 2026-08-14 `final-gates-test`
-  ([BL-721])와 `assert-main-checkout-test`([BL-722])가 8→10).
+  ([BL-721])와 `assert-main-checkout-test`([BL-722])가 8→10, 2026-08-15 `soak-stack-test`
+  ([BL-735])가 10→11, 2026-08-16 [ADR-033] 의 `db-backup-test`·`disk-guard-test` 가 11→13).
   ★★**2026-08-11 실측 — CI 는 종전에 하네스를 하나도 돌지 않았다**(7종 전부 CI 호출 0).
   게이트 본체만 돌면 레포가 이미 깨끗하기 때문에 **판정 로직을 통째로 지워도 초록**이다
   (BL-569 가 `bl-audit` 에서, BL-601 이 구 `fleet-dispatch` 에서 겪은 그 모양). 종전에 그 회귀를
