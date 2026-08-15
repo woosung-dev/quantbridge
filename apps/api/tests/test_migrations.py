@@ -63,6 +63,11 @@ def _normalize_postgresql_type(type_: TypeEngine[Any]) -> str:
     if isinstance(type_, SAEnum) and type_.native_enum:
         # Reflection enum은 schema를, metadata enum은 보통 table schema를 상속한다.
         # 타입 축에서는 같은 named enum이면 동등하다.
+        # ★이름 없는 native enum(`name=None`)이 여기서 `"ENUM:"` 하나로 뭉치는 것은 **위음성이
+        #   아니다** — PostgreSQL 방언은 그것을 아예 컴파일하지 못하므로(`CompileError:
+        #   PostgreSQL Enum type requires a name`, 2026-08-15 실측) 그런 컬럼은 DB 에도
+        #   metadata-DDL 에도 존재할 수 없다. ★이 분기를 `and type_.name` 으로 좁히면 남은 것이
+        #   아래 compile 경로로 떨어져 **그 CompileError 로 검사기 자신이 죽는다.**
         return f"ENUM:{(type_.name or '').upper()}"
 
     compiled = type_.compile(dialect=postgresql.dialect())
@@ -124,6 +129,28 @@ def test_normalize_postgresql_type_accepts_equivalent_types(
 ) -> None:
     """동등한 PostgreSQL/SQLAlchemy 표현을 type drift로 오인하지 않는다."""
     assert _normalize_postgresql_type(db_type) == _normalize_postgresql_type(metadata_type)
+
+
+def test_an_unnamed_native_enum_cannot_exist_in_a_postgres_schema() -> None:
+    """이름 없는 native enum 둘이 `"ENUM:"` 으로 뭉치는 것이 **왜 위음성이 아닌지**를 못박는다.
+
+    2026-08-15 agy 교차 검토가 「값 집합이 다른 두 무명 enum 이 같다고 판정된다」를 P2 로 냈다.
+    지적 자체는 정규화 함수만 보면 참이지만, **그런 컬럼은 PostgreSQL 스키마에 존재할 수 없다** —
+    방언이 컴파일을 거부하므로 DDL 이 만들어지지 않는다. ★그래서 그 분기를 `and type_.name` 으로
+    좁히는 「수리」는 오히려 **검사기를 CompileError 로 죽인다**(실제로 그렇게 고쳤다가 되돌렸다).
+    이 테스트가 없으면 다음 사람이 같은 지적을 받고 같은 개악을 한다.
+    """
+    from sqlalchemy.exc import CompileError
+
+    unnamed = SAEnum("PENDING", "FILLED")
+    assert unnamed.name is None
+    with pytest.raises(CompileError, match="requires a name"):
+        unnamed.compile(dialect=postgresql.dialect())
+
+    # 이름이 있으면 정상 — 그리고 이름이 다르면 타입도 다르다(양성/음성 한 쌍)
+    named = SAEnum("PENDING", "FILLED", name="order_status")
+    other = SAEnum("ADMIN", "USER", name="user_role")
+    assert _normalize_postgresql_type(named) != _normalize_postgresql_type(other)
 
 
 def test_empty_type_drift_baseline_rejects_a_string_length_mutation() -> None:

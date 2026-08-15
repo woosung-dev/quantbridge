@@ -845,7 +845,9 @@ if el:
     elif el["qualified"]:
         print("        ✓ 자격 획득 — 연속 %.4fh ≥ %.0fh · 실격 0."
               % (el["longest_hours"], el["required_hours"]))
-        print("          지금 `up` 을 눌러도 **손실 0** 이다 — 이 창은 자격 %d회로 확정돼 남는다."
+        # ★「이 창이 N회」가 아니다 — `at_risk_windows` 는 **누적** 자격 창 수이고 이 창은
+        #   그중 1회다. 한 창이 여러 회를 갖는 것처럼 읽히면 남은 횟수를 잘못 센다.
+        print("          지금 `up` 을 눌러도 **손실 0** 이다 — 이 창이 1회로 확정되고 누적 %d회가 된다."
               % el["at_risk_windows"])
     else:
         print("        ✗ 아직 자격 없음 — 연속 %.4fh / %.0fh · 남은 %.4fh"
