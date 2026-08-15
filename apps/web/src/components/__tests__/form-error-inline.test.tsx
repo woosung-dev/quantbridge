@@ -1,7 +1,7 @@
 // FormErrorInline — null / 422+unsupported / 422 fallback / 5xx 분기 테스트.
 
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { FormErrorInline } from "@/components/form-error-inline";
 import { ApiError } from "@/lib/api-client";
@@ -62,6 +62,40 @@ describe("FormErrorInline", () => {
 
     expect(screen.queryByTestId("backtest-form-unsupported-card")).toBeNull();
     expect(screen.getByTestId("backtest-form-server-error")).toBeInTheDocument();
+  });
+
+  it("422 + degraded_calls → TradingView 차이를 고지한 동의 체크박스", () => {
+    const onDegradedConsentChange = vi.fn();
+    const apiErr = new ApiError(422, "strategy_degraded", "API 422 /api/v1/backtests", {
+      detail: {
+        code: "strategy_degraded",
+        detail: "Strategy uses degraded Pine functions: heikinashi",
+        degraded_calls: ["heikinashi"],
+        friendly_message: "일부 함수가 근사 처리됩니다.",
+      },
+    });
+    render(
+      <FormErrorInline
+        error={apiErr}
+        testIdPrefix="backtest-form"
+        onDegradedConsentChange={onDegradedConsentChange}
+      />,
+    );
+
+    const card = screen.getByTestId("backtest-form-degraded-card");
+    expect(card).toHaveTextContent("TradingView와 다를 수 있습니다");
+    const checkbox = screen.getByTestId("backtest-form-degraded-consent");
+    fireEvent.click(checkbox);
+    expect(onDegradedConsentChange).toHaveBeenCalledWith(true);
+  });
+
+  it("degraded_calls 없는 422는 동의 체크박스를 렌더하지 않는다", () => {
+    const apiErr = new ApiError(422, "validation_error", "입력값 오류", {
+      detail: { code: "validation_error", detail: "fields" },
+    });
+    render(<FormErrorInline error={apiErr} testIdPrefix="backtest-form" />);
+
+    expect(screen.queryByTestId("backtest-form-degraded-consent")).toBeNull();
   });
 
   // BL-485 — `friendly_message` 는 BE 화이트리스트 2종(`StrategyNotRunnable` /

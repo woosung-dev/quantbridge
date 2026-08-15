@@ -172,8 +172,8 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
           <DialogHeader>
             <DialogTitle>라이브 세션 중단</DialogTitle>
             <DialogDescription>
-              이 session 의 자동 trading 이 중단됩니다. 미체결 주문은
-              유지됩니다 (수동으로 cancel 또는 close 해주세요).
+              이 session 의 자동 trading 이 중단됩니다. 미체결 조건부 진입 주문은 자동으로
+              취소됩니다.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

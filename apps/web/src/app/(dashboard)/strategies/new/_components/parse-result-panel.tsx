@@ -215,11 +215,19 @@ function UnsupportedBody({ result }: { result: ParsePreviewResponse }) {
     >
       {hasUnsupported ? (
         <ul className="unsupported">
-          {result.unsupported_builtins.map((fn) => (
-            <li key={fn}>
-              <span className="mono">{fn}</span>
-            </li>
-          ))}
+          {result.unsupported_calls.length > 0
+            ? result.unsupported_calls.map((call) => (
+                <li key={`${call.name}-${call.line ?? "unknown"}`}>
+                  <span className="mono">{call.name}</span>
+                  {call.line !== null ? <span className="mono"> · L{call.line}</span> : null}
+                  {call.workaround ? <p>우회안: {call.workaround}</p> : null}
+                </li>
+              ))
+            : result.unsupported_builtins.map((fn) => (
+                <li key={fn}>
+                  <span className="mono">{fn}</span>
+                </li>
+              ))}
         </ul>
       ) : null}
       {result.errors.length > 0 ? (

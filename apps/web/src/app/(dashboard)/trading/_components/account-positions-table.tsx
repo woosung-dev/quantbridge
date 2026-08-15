@@ -43,6 +43,7 @@ const CLOSE_BLOCKED_BODY: Record<string, string> = {
   // 감소전용 시장가 청산은 one-way 단일 leg 만 지원한다(양방향은 어느 leg 인지 추론 불가).
   hedge_unsupported: "양방향 포지션은 화면에서 청산할 수 없습니다. 거래소에서 정리해주세요.",
   read_only_key: "이 API 키는 읽기 전용이라 화면에서 청산할 수 없습니다.",
+  position_side_unsupported: "거래소 포지션 방향을 해석할 수 없어 화면에서 청산할 수 없습니다.",
 };
 
 export type AccountTarget = {
