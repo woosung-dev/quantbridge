@@ -8598,7 +8598,7 @@ pytest·`docker build` 가 3.1G 에서 돌아간다.
 **검증:** AC-1 = 타이머 발화가 `Finished` + 지문 `|3|→|1|` 상태 변화 알림 실발사(heartbeat 전진이
 증인 — 전송 실패 시 전진 안 한다). AC-2 = drop-in override 로 **이번 사고를 재현**(rc=127) → 알람
 유닛 발화 → 원복. AC-3 = `--status` 가 낡은 ExecStart 를 red 로. 하네스
-`soak-watch-test.sh` **24/24**(신규 ⑬⑭⑭b⑭c⑮⑮b⑮c), 변이 **6종 전건 판별**(도달 확인 포함).
+`soak-watch-test.sh` **24/24**(신규 ⑬⑭⑭b⑭c⑮⑮b⑮c). 변이는 **6종 전건 판별**(도달 확인 포함)이나 ★**일회 셸 변이**다 — `soak-watch-test.sh` 에는 `final-gates-test.sh` 같은 **영구 변이 엔진이 없다**. 심고·도달 확인하고·돌리고·원복하는 절차를 손으로 밟았으므로 **지금 재현되지 않는다**(codex P2 지적).
 ★변이 M-d 가 종전 하네스의 공백을 실증했다 — 가짜 게이트가 `"$@"` 를 무시해서
 「게이트를 `--no-collect` 로 부르는」 회귀가 전건 초록이었다(C5 fail-open). 케이스 ⑬ 이 그것을 막는다.
 
@@ -9012,6 +9012,6 @@ uvicorn 은 **12초** 걸렸다(01:54:37 재시작 → 01:54:49 `Application sta
 `AccuracySec=30s` 로 **벽시계에 못박았다**. 사람이 중간에 몇 번을 돌리든 위상이 안 밀린다.
 `Persistent=true` 는 유지(재부팅·정지 구간에서 놓친 발화를 따라잡는다).
 **검증:** 서버 실증 — 강제 발화 **전후 모두 `NEXT=03:30:00`** 으로 불변(종전 설정이면 03:32 로
-밀렸을 자리다) · 그 강제 발화 자체는 `Result=success`. 하네스 케이스 **⑭d** 신설
-(`OnCalendar` 존재 · `OnUnitActiveSec` 부재 · `Persistent` 존재), 변이 **M-g**(되돌리면 ⑭d 만 red).
+밀렸을 자리다) · 그 강제 발화 자체는 `Result=success`. 하네스 케이스 **⑭d** 신설 — ★**존재 확인이 아니라 `[Timer]` 키 집합 동등**으로 잰다.
+codex 가 초판의 구멍을 잡았다: 「`OnCalendar` 가 있나」만 보면 `AccuracySec` 이 지워져도, 두 번째 `OnCalendar=*:15/30` 이 **추가**돼도(= 15분마다 발화) 통과한다. 집합 동등으로 바꾼 뒤 일회 셸 변이 **4종**이 전부 red 를 냈다 — M-g(위상 되돌리기)·**M-h(`AccuracySec` 삭제)**·**M-i(둘째 `OnCalendar` 추가)**·M-j(`Persistent` 삭제). **가운데 둘은 초판이 못 잡던 것**이다.
 **트리거 판정:** 도래 — 53분 간격이 실측됐다 (2026-08-15 soak-watch-restore)

@@ -406,16 +406,19 @@ report "⑭ --install 의 ExecStart = 현재 스크립트 + OnFailure" "$_why"
 #    ★`OnUnitActiveSec` 은 마지막 활성화 기준이라, 사람이 한 번 손으로 돌리면 위상이 밀린다.
 #      최악 59분(= 29 + 30)이고 C4 한계가 60분이라 여유가 1분뿐인데 systemd 기본
 #      `AccuracySec` 이 1분이다 — 2026-08-15 에 실제로 53분까지 벌어졌다.
+#    ★**존재 확인이 아니라 집합 동등**으로 잰다 (codex P2). 「`OnCalendar` 가 있나」만 보면
+#      `AccuracySec` 이 지워져도, 두 번째 `OnCalendar=*:15/30` 이 **추가**돼도(= 15분마다 발화)
+#      통과한다. 발화 스케줄을 정하는 것은 한 줄이 아니라 `[Timer]` 섹션 **전체**다.
 _why=""
 _tmr="$TMP/xdg/systemd/user/dev.quantbridge.soak-watch.timer"
 if [ ! -f "$_tmr" ]; then
   _why="★타이머 유닛이 안 만들어졌다 "
 else
-  grep -qxF 'OnCalendar=*:00/30' "$_tmr" || _why="${_why}★OnCalendar=*:00/30 이 없다 "
-  grep -q '^OnUnitActiveSec=' "$_tmr" && _why="${_why}★OnUnitActiveSec 이 남아 있다 (위상이 밀린다) "
-  grep -qxF 'Persistent=true' "$_tmr" || _why="${_why}★Persistent=true 가 없다 (놓친 발화를 못 따라잡는다) "
+  _got="$(sed -n '/^\[Timer\]/,/^\[Install\]/p' "$_tmr" | grep -E '^[A-Za-z]+=' | sort | tr '\n' ' ')"
+  _want="AccuracySec=30s OnBootSec=2min OnCalendar=*:00/30 Persistent=true "
+  [ "$_got" = "$_want" ] || _why="★[Timer] 키 집합이 다르다: [$_got] (기대 [$_want]) "
 fi
-report "⑭d 타이머 위상이 벽시계 고정 (OnCalendar)" "$_why"
+report "⑭d 타이머 [Timer] 집합 동등 — 벽시계 고정" "$_why"
 
 _why=""
 if [ ! -f "$ALARM_SVC" ]; then
