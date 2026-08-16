@@ -59,9 +59,7 @@ def _make_sine_csv_fixture(tmp_path: Path, n: int = 300) -> Path:
 async def test_wfo_worker_stores_reoptimized_result(
     db_session: AsyncSession, tmp_path: Path
 ) -> None:
-    user = User(
-        id=uuid4(), clerk_user_id=f"u_{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@ex.com"
-    )
+    user = User(id=uuid4(), auth_subject=f"u_{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@ex.com")
     db_session.add(user)
     strategy = Strategy(
         id=uuid4(),
@@ -115,9 +113,7 @@ async def test_wfo_worker_stores_reoptimized_result(
                 "objective_metric": "total_return",
                 "direction": "maximize",
                 "max_evaluations": 9,
-                "parameters": {
-                    "emaPeriod": {"kind": "integer", "min": 5, "max": 10, "step": 5}
-                },
+                "parameters": {"emaPeriod": {"kind": "integer", "min": 5, "max": 10, "step": 5}},
             },
             "optimizer_kind": "grid_search",
         },

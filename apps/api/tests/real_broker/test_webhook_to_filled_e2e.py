@@ -86,7 +86,7 @@ async def test_order_service_to_bybit_demo_filled(
 
     async with session_factory() as session:
         user = User(
-            clerk_user_id=f"real_broker_{uuid4().hex}",
+            auth_subject=f"real_broker_{uuid4().hex}",
             email=f"{uuid4().hex}@test.local",
         )
         strategy = Strategy(

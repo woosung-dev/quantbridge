@@ -36,7 +36,7 @@ async def _seed_backtest(
 ) -> tuple[User, Backtest, BacktestTrade]:
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     strategy = Strategy(

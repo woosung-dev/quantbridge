@@ -1,4 +1,5 @@
 """GET /api/v1/backtests/:id/progress — stale flag + 404."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -15,18 +16,25 @@ from src.strategy.models import ParseStatus, PineVersion, Strategy
 
 async def _seed_bt(session, user_id, status, started_at=None):
     strategy = Strategy(
-        id=uuid4(), user_id=user_id, name="s",
+        id=uuid4(),
+        user_id=user_id,
+        name="s",
         pine_source="//@version=5\nstrategy('s')",
-        pine_version=PineVersion.v5, parse_status=ParseStatus.ok,
+        pine_version=PineVersion.v5,
+        parse_status=ParseStatus.ok,
     )
     session.add(strategy)
     await session.flush()
     bt = Backtest(
-        id=uuid4(), user_id=user_id, strategy_id=strategy.id,
-        symbol="BTCUSDT", timeframe="1h",
+        id=uuid4(),
+        user_id=user_id,
+        strategy_id=strategy.id,
+        symbol="BTCUSDT",
+        timeframe="1h",
         period_start=datetime(2024, 1, 1, tzinfo=UTC),
         period_end=datetime(2024, 1, 2, tzinfo=UTC),
-        initial_capital=Decimal("10000"), status=status,
+        initial_capital=Decimal("10000"),
+        status=status,
         started_at=started_at,
     )
     session.add(bt)
@@ -35,10 +43,10 @@ async def _seed_bt(session, user_id, status, started_at=None):
 
 @pytest.mark.asyncio
 async def test_progress_queued_not_stale(
-    client: AsyncClient, db_session: AsyncSession, mock_clerk_auth
+    client: AsyncClient, db_session: AsyncSession, mock_authed_user
 ) -> None:
     """queued → started_at None → stale false."""
-    user = mock_clerk_auth
+    user = mock_authed_user
     bt = await _seed_bt(db_session, user.id, BacktestStatus.QUEUED)
     await db_session.commit()
 
@@ -52,12 +60,14 @@ async def test_progress_queued_not_stale(
 
 @pytest.mark.asyncio
 async def test_progress_stale_running(
-    client: AsyncClient, db_session: AsyncSession, mock_clerk_auth
+    client: AsyncClient, db_session: AsyncSession, mock_authed_user
 ) -> None:
     """running + started_at 2h ago > 30min threshold → stale true."""
-    user = mock_clerk_auth
+    user = mock_authed_user
     bt = await _seed_bt(
-        db_session, user.id, BacktestStatus.RUNNING,
+        db_session,
+        user.id,
+        BacktestStatus.RUNNING,
         started_at=datetime.now(UTC) - timedelta(hours=2),
     )
     await db_session.commit()
@@ -70,7 +80,7 @@ async def test_progress_stale_running(
 
 @pytest.mark.asyncio
 async def test_progress_unknown_backtest_404(
-    client: AsyncClient, db_session: AsyncSession, mock_clerk_auth
+    client: AsyncClient, db_session: AsyncSession, mock_authed_user
 ) -> None:
     r = await client.get(f"/api/v1/backtests/{uuid4()}/progress")
     assert r.status_code == 404

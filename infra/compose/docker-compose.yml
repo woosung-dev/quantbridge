@@ -112,8 +112,6 @@ services:
       BACKTEST_STALE_THRESHOLD_SECONDS: ${BACKTEST_STALE_THRESHOLD_SECONDS:-1800}
       PINE_ALERT_HEURISTIC_MODE: ${PINE_ALERT_HEURISTIC_MODE:-strict}
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
-      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
     volumes:
       - ./apps/api/.metrics:/metrics
     restart: unless-stopped
@@ -146,8 +144,6 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/1
       CELERY_RESULT_BACKEND: redis://redis:6379/2
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
-      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     volumes:
       - ./apps/api/.metrics:/metrics
@@ -183,8 +179,6 @@ services:
       OHLCV_FIXTURE_ROOT: /app/data/fixtures/ohlcv
       DEFAULT_EXCHANGE: ${DEFAULT_EXCHANGE:-bybit}
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
-      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     volumes:
       - ./apps/api/.metrics:/metrics
@@ -217,8 +211,6 @@ services:
       BACKTEST_STALE_THRESHOLD_SECONDS: ${BACKTEST_STALE_THRESHOLD_SECONDS:-1800}
       PINE_ALERT_HEURISTIC_MODE: ${PINE_ALERT_HEURISTIC_MODE:-strict}
       TRADING_ENCRYPTION_KEYS: ${TRADING_ENCRYPTION_KEYS:?required — generate via Fernet.generate_key()}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:-sk_test_placeholder}
-      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET:-whsec_placeholder}
       SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
     volumes:
       - ./apps/api/.metrics:/metrics

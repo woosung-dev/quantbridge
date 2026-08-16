@@ -52,7 +52,7 @@ async def _seed(
     deactivated_at: datetime | None = None,
 ) -> _Seed:
     user = User(
-        clerk_user_id=f"parity-{uuid4().hex[:8]}",
+        auth_subject=f"parity-{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     strategy = Strategy(
@@ -751,9 +751,9 @@ async def test_ledger_only_respects_the_scope_window(
     session_diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
         [seed.scope]
     )
-    strategy_diagnostics = await ParityRepository(
-        db_session
-    ).load_scoped_ledger_only_diagnostics([seed.scope, second_scope])
+    strategy_diagnostics = await ParityRepository(db_session).load_scoped_ledger_only_diagnostics(
+        [seed.scope, second_scope]
+    )
 
     assert session_diagnostics.ledger_only_count == 1
     assert session_diagnostics.ledger_only_net == Decimal("-2")

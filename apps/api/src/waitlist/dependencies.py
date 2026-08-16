@@ -1,4 +1,5 @@
 """waitlist Depends() 조립."""
+
 from __future__ import annotations
 
 from fastapi import Depends
@@ -54,7 +55,7 @@ async def require_admin(
 ) -> CurrentUser:
     """Admin 권한 검증 — settings.waitlist_admin_emails 화이트리스트.
 
-    Beta 초기 수동 운영용. H3 이후 Clerk publicMetadata.role=admin 으로 이전 예정.
+    Beta 초기 수동 운영용. H3 이후 사용자 role 필드로 이전 예정.
     """
     allowed = settings.waitlist_admin_emails
     user_email = (current_user.email or "").strip().lower()

@@ -79,13 +79,13 @@ def realtime_app(monkeypatch: pytest.MonkeyPatch) -> tuple[FastAPI, FakeRedis]:
         user_id = SECOND_REALTIME_USER_ID if token == "second-user" else REALTIME_USER_ID
         return CurrentUser(
             id=user_id,
-            clerk_user_id=f"user_{user_id}",
+            auth_subject=f"user_{user_id}",
             email="realtime@example.com",
         )
 
     monkeypatch.setattr(manager_module, "get_redis_lock_pool", lambda: fake_redis)
     monkeypatch.setattr("src.common.redis_client.healthcheck_redis_lock", fake_healthcheck)
-    monkeypatch.setattr(router_module, "authenticate_clerk_token", fake_authenticate)
+    monkeypatch.setattr(router_module, "authenticate_token", fake_authenticate)
     return create_app(), fake_redis
 
 
@@ -99,29 +99,52 @@ def _connect(client: TestClient):
 
 
 @pytest.mark.asyncio
-async def test_clerk_token_adapter_uses_authorization_header() -> None:
-    """WS 토큰 helper는 Clerk Requestish에 Bearer Authorization을 전달해야 한다."""
-    from src.realtime.auth import authenticate_clerk_token
+async def test_ws_token_maps_jwt_subject_to_local_user(monkeypatch: pytest.MonkeyPatch) -> None:
+    """WS 토큰 helper 는 JWT payload 의 sub/email/country 를 그대로 프로비저닝에 넘긴다."""
+    from src.realtime import auth as auth_module
 
     user = SimpleNamespace(
         id=uuid4(),
-        clerk_user_id="user_realtime",
+        auth_subject="better-auth-user",
         email="realtime@example.com",
         username=None,
         is_active=True,
     )
     service = SimpleNamespace(get_or_create=AsyncMock(return_value=user))
-    clerk = MagicMock()
-    clerk.authenticate_request.return_value = SimpleNamespace(
-        is_signed_in=True,
-        payload={"sub": "user_realtime", "email": "realtime@example.com"},
+    monkeypatch.setattr(
+        auth_module,
+        "_decode",
+        lambda token: {
+            "sub": "better-auth-user",
+            "email": "realtime@example.com",
+            "username": None,
+            "country": "KR",
+            "_token": token,
+        },
     )
 
-    current_user = await authenticate_clerk_token("jwt-token", service, clerk=clerk)
+    current_user = await auth_module.authenticate_token("jwt-token", service)
 
-    request = clerk.authenticate_request.call_args.args[0]
-    assert request.headers == {"Authorization": "Bearer jwt-token"}
-    assert current_user.clerk_user_id == "user_realtime"
+    assert current_user.auth_subject == "better-auth-user"
+    service.get_or_create.assert_awaited_once_with(
+        auth_subject="better-auth-user",
+        email="realtime@example.com",
+        username=None,
+        country_code="KR",
+    )
+
+
+@pytest.mark.asyncio
+async def test_ws_rejects_missing_and_malformed_authorization() -> None:
+    """음성 대조 — 헤더가 없거나 Bearer 가 아니면 검증 이전에 거부한다."""
+    from src.auth.exceptions import InvalidTokenError
+    from src.realtime.auth import authenticate_request
+
+    service = SimpleNamespace(get_or_create=AsyncMock())
+    for headers in ({}, {"authorization": "Basic abc"}, {"authorization": "Bearer   "}):
+        with pytest.raises(InvalidTokenError):
+            await authenticate_request(SimpleNamespace(headers=headers), service)
+    service.get_or_create.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -135,7 +158,7 @@ async def test_http_auth_dependency_preserves_original_request(
     service = MagicMock()
     expected = CurrentUser(
         id=uuid4(),
-        clerk_user_id="user_http",
+        auth_subject="user_http",
         email="http@example.com",
     )
     captured: dict[str, object] = {}
@@ -143,13 +166,12 @@ async def test_http_auth_dependency_preserves_original_request(
     async def fake_authenticate(
         request_arg: Request,
         service_arg: object,
-        clerk: object,
     ) -> CurrentUser:
-        captured.update(request=request_arg, service=service_arg, clerk=clerk)
+        captured.update(request=request_arg, service=service_arg)
         return expected
 
     monkeypatch.setattr(
-        "src.auth.dependencies.authenticate_clerk_request",
+        "src.auth.dependencies.authenticate_request",
         fake_authenticate,
     )
 
@@ -203,7 +225,7 @@ def test_invalid_token_closes_with_4401(
     async def reject_token(_token: str, _service: Any) -> CurrentUser:
         raise InvalidTokenError(reason="token_invalid")
 
-    monkeypatch.setattr("src.realtime.router.authenticate_clerk_token", reject_token)
+    monkeypatch.setattr("src.realtime.router.authenticate_token", reject_token)
     with TestClient(app) as client, _connect(client) as websocket:
         websocket.send_json({"type": "auth", "token": "invalid"})
         with pytest.raises(WebSocketDisconnect) as exc_info:
@@ -252,9 +274,7 @@ def test_invalid_origin_is_handshake_denial(realtime_app: tuple[FastAPI, FakeRed
     assert WS_CLOSE_ORIGIN_DENIED == 4403
 
 
-def test_connection_limit_closes_oldest_connection(
-    realtime_app: tuple[FastAPI, FakeRedis]
-) -> None:
+def test_connection_limit_closes_oldest_connection(realtime_app: tuple[FastAPI, FakeRedis]) -> None:
     """네 번째 동일 사용자 연결은 가장 오래된 연결을 4408로 정리해야 한다."""
     app, _ = realtime_app
     with TestClient(app) as client, ExitStack() as stack:
@@ -268,7 +288,7 @@ def test_connection_limit_closes_oldest_connection(
 
 
 def test_pubsub_message_fans_in_to_only_its_user_socket(
-    realtime_app: tuple[FastAPI, FakeRedis]
+    realtime_app: tuple[FastAPI, FakeRedis],
 ) -> None:
     """사용자 채널의 유효 envelope는 같은 사용자 소켓에 그대로 전달되어야 한다."""
     app, fake_redis = realtime_app
@@ -322,7 +342,7 @@ def test_position_update_pubsub_fans_in_to_its_user_socket(
 
 
 def test_ticker_pubsub_fans_out_to_all_authenticated_sockets(
-    realtime_app: tuple[FastAPI, FakeRedis]
+    realtime_app: tuple[FastAPI, FakeRedis],
 ) -> None:
     """ticker 채널의 유효 envelope는 서로 다른 인증 사용자 모두에게 전달되어야 한다."""
     app, fake_redis = realtime_app
@@ -423,7 +443,7 @@ async def test_send_to_all_removes_failed_socket_and_keeps_other_sockets() -> No
 
 
 def test_listener_subscribes_to_user_and_ticker_patterns(
-    realtime_app: tuple[FastAPI, FakeRedis]
+    realtime_app: tuple[FastAPI, FakeRedis],
 ) -> None:
     """listener는 사용자별 채널과 ticker 채널 패턴을 함께 구독해야 한다."""
     app, fake_redis = realtime_app

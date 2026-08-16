@@ -40,8 +40,8 @@ erDiagram
     %% ohlcv (ts schema) · funding_rates (trading schema) = 독립 시계열, FK 없음
 
     users {
-        uuid id PK "uuid4 (Clerk user 매핑 = clerk_user_id)"
-        varchar clerk_user_id UK "Clerk user_id (max 64), indexed"
+        uuid id PK "uuid4 (인증 subject 매핑 = auth_subject)"
+        varchar auth_subject UK "인증 공급자 subject (max 64), indexed"
         varchar email "nullable (max 320)"
         varchar username "nullable (max 64)"
         varchar country_code "nullable (max 2), Sprint 25"
@@ -337,7 +337,7 @@ erDiagram
 | 테이블                               | 인덱스            | 컬럼                                                                            |
 | ------------------------------------ | ----------------- | ------------------------------------------------------------------------------- |
 | `users`                              | PK                | `id`                                                                            |
-| `users`                              | UNIQUE            | `clerk_user_id`                                                                 |
+| `users`                              | UNIQUE            | `auth_subject`                                                                  |
 | `users`                              | index             | `is_active`                                                                     |
 | `strategies`                         | PK                | `id`                                                                            |
 | `strategies`                         | index             | `user_id`                                                                       |
@@ -407,24 +407,24 @@ erDiagram
 
 ## PRD 대비 실제 변경사항
 
-| 항목                               | PRD/Phase 0 ERD                     | 실제 구현 (Sprint 4)                          | 이유                                          |
-| ---------------------------------- | ----------------------------------- | --------------------------------------------- | --------------------------------------------- |
-| `users.id`                         | `VARCHAR(255)` Clerk user_id를 PK로 | `UUID` PK + `clerk_user_id` 별도 컬럼         | 내부 PK와 외부 ID 분리 (더 나은 설계)         |
-| `users.hashed_password`            | 존재                                | **삭제**                                      | Clerk가 인증 담당                             |
-| `users.is_premium`                 | 존재                                | **삭제**                                      | Sprint 3 미구현, 추후 추가 가능               |
-| `users.email/username`             | UNIQUE                              | nullable, UNIQUE 미설정                       | Clerk 동기화 시 없을 수 있음                  |
-| 모든 엔티티 ID                     | `VARCHAR` (cuid2)                   | **`UUID`** (uuid4)                            | 구현 시 UUID로 통일                           |
-| `strategies.pine_script`           | 존재                                | `pine_source`                                 | 컬럼명 변경                                   |
-| `strategies.parsed_result` (JSONB) | 존재                                | **삭제** (parse_errors + parse_status로 대체) | 파서 결과 구조 변경                           |
-| `strategies.version` (int)         | 존재                                | **삭제**                                      | 불필요 판단                                   |
-| `strategies.status`                | `varchar`                           | `parse_status` enum (ok/unsupported/error)    | 명확한 enum + 이름 변경                       |
-| `backtests.config` (JSONB)         | 단일 JSONB                          | 개별 컬럼 5개로 정규화                        | 타입 안전성 + 쿼리 가능                       |
-| `backtests.results` (JSONB)        | 단일 JSONB                          | `metrics` + `equity_curve` 2개 JSONB로 분리   | 용도 분리                                     |
-| `backtests.progress`               | float                               | **삭제**                                      | 불필요 판단 (status로 충분)                   |
-| `backtests.updated_at`             | 존재                                | **삭제**                                      | created_at + started_at + completed_at로 충분 |
-| `backtest_trades`                  | **없음**                            | Sprint 4에서 추가 (12 컬럼)                   | 개별 거래 기록 필요                           |
-| 금융 수치                          | `FLOAT` 혼용                        | `DECIMAL(20, 8)` 통일                         | 정밀도 보장 (float 금지)                      |
-| 수익률/비율                        | 미정                                | `DECIMAL(12, 6)`                              | 10,000% 여유                                  |
+| 항목                               | PRD/Phase 0 ERD                    | 실제 구현 (Sprint 4)                          | 이유                                                       |
+| ---------------------------------- | ---------------------------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| `users.id`                         | `VARCHAR(255)` 외부 user_id를 PK로 | `UUID` PK + `auth_subject` 별도 컬럼          | 내부 PK와 외부 ID 분리 (더 나은 설계)                      |
+| `users.hashed_password`            | 존재                               | **삭제**                                      | 인증 공급자가 담당(현 Better Auth `auth_account.password`) |
+| `users.is_premium`                 | 존재                               | **삭제**                                      | Sprint 3 미구현, 추후 추가 가능                            |
+| `users.email/username`             | UNIQUE                             | nullable, UNIQUE 미설정                       | JWT payload 에 없을 수 있음                                |
+| 모든 엔티티 ID                     | `VARCHAR` (cuid2)                  | **`UUID`** (uuid4)                            | 구현 시 UUID로 통일                                        |
+| `strategies.pine_script`           | 존재                               | `pine_source`                                 | 컬럼명 변경                                                |
+| `strategies.parsed_result` (JSONB) | 존재                               | **삭제** (parse_errors + parse_status로 대체) | 파서 결과 구조 변경                                        |
+| `strategies.version` (int)         | 존재                               | **삭제**                                      | 불필요 판단                                                |
+| `strategies.status`                | `varchar`                          | `parse_status` enum (ok/unsupported/error)    | 명확한 enum + 이름 변경                                    |
+| `backtests.config` (JSONB)         | 단일 JSONB                         | 개별 컬럼 5개로 정규화                        | 타입 안전성 + 쿼리 가능                                    |
+| `backtests.results` (JSONB)        | 단일 JSONB                         | `metrics` + `equity_curve` 2개 JSONB로 분리   | 용도 분리                                                  |
+| `backtests.progress`               | float                              | **삭제**                                      | 불필요 판단 (status로 충분)                                |
+| `backtests.updated_at`             | 존재                               | **삭제**                                      | created_at + started_at + completed_at로 충분              |
+| `backtest_trades`                  | **없음**                           | Sprint 4에서 추가 (12 컬럼)                   | 개별 거래 기록 필요                                        |
+| 금융 수치                          | `FLOAT` 혼용                       | `DECIMAL(20, 8)` 통일                         | 정밀도 보장 (float 금지)                                   |
+| 수익률/비율                        | 미정                               | `DECIMAL(12, 6)`                              | 10,000% 여유                                               |
 
 ---
 
@@ -501,7 +501,7 @@ CREATE INDEX ix_funding_rates_exchange_symbol ON trading.funding_rates (exchange
 - **2026-04-13** — Phase 0 초안 (PRD 기반)
 - **2026-04-16** — Sprint 4 완료 기준 전면 갱신 (Sprint 5 Stage A)
   - ID 체계 cuid2 → UUID 반영
-  - users.id 구조 변경 (UUID PK + clerk_user_id 분리) 반영
+  - users.id 구조 변경 (UUID PK + 외부 subject 분리) 반영
   - strategies 컬럼 대폭 변경 반영
   - backtests config/results 정규화 반영
   - backtest_trades 테이블 추가

@@ -152,7 +152,7 @@ class SessionDeactivationReason(StrEnum):
     position_divergence = "position_divergence"
     # 사람이 Stop 을 눌렀다
     user_stopped = "user_stopped"
-    # 계정이 사라졌다 — Clerk `user.deleted` 웹훅이 소유자의 세션을 전량 내린다
+    # 계정이 사라졌다 — 탈퇴(`DELETE /auth/me`)가 소유자의 세션을 전량 내린다
     # (2026-08-15 surface-truth · S3). `user_stopped` 로 접지 않는 이유: 그 사람은
     # Stop 을 누른 적이 없고, 화면이 「사용자 중단」이라 말하면 그것이 거짓이다.
     account_deleted = "account_deleted"

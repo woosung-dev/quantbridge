@@ -3,6 +3,7 @@
 DB-only 취소는 거래소에 resting 중인 주문을 orphan 으로 남긴다 (DB=cancelled, 거래소=live).
 submitted 주문은 provider.cancel_order 성공 시에만 DB cancelled 로 전이한다.
 """
+
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -33,26 +34,37 @@ from src.trading.models import (
 @pytest.fixture
 async def submitted_order(db_session: AsyncSession):
     crypto = EncryptionService(settings.trading_encryption_keys)
-    user = User(id=uuid4(), clerk_user_id=f"u_{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@t.local")
+    user = User(id=uuid4(), auth_subject=f"u_{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@t.local")
     db_session.add(user)
     await db_session.flush()
     strategy = Strategy(
-        user_id=user.id, name="cf4", pine_source="//@version=5\nstrategy('c')",
-        pine_version=PineVersion.v5, parse_status=ParseStatus.ok,
+        user_id=user.id,
+        name="cf4",
+        pine_source="//@version=5\nstrategy('c')",
+        pine_version=PineVersion.v5,
+        parse_status=ParseStatus.ok,
     )
     db_session.add(strategy)
     await db_session.flush()
     account = ExchangeAccount(
-        user_id=user.id, exchange=ExchangeName.bybit, mode=ExchangeMode.demo,
-        api_key_encrypted=crypto.encrypt("test-k"), api_secret_encrypted=crypto.encrypt("test-s"),
+        user_id=user.id,
+        exchange=ExchangeName.bybit,
+        mode=ExchangeMode.demo,
+        api_key_encrypted=crypto.encrypt("test-k"),
+        api_secret_encrypted=crypto.encrypt("test-s"),
         label="cf4 acc",
     )
     db_session.add(account)
     await db_session.flush()
     order = Order(
-        strategy_id=strategy.id, exchange_account_id=account.id, symbol="BTCUSDT",
-        side=OrderSide.buy, type=OrderType.market, quantity=Decimal("0.001"),
-        state=OrderState.submitted, submitted_at=datetime.now(UTC),
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTCUSDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("0.001"),
+        state=OrderState.submitted,
+        submitted_at=datetime.now(UTC),
         exchange_order_id="bybit-cf4-1",
     )
     db_session.add(order)

@@ -54,10 +54,10 @@ async def _seed_backtest(
 async def test_list_empty(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """백테스트 없음 → 빈 목록 + 기본 페이지네이션 값."""
-    _: User = mock_clerk_auth
+    _: User = mock_authed_user
 
     r = await client.get("/api/v1/backtests")
     assert r.status_code == 200
@@ -72,10 +72,10 @@ async def test_list_empty(
 async def test_list_pagination(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """3건 시드, limit=2 → items=2 반환, total=3."""
-    authed_user: User = mock_clerk_auth
+    authed_user: User = mock_authed_user
 
     for _ in range(3):
         await _seed_backtest(db_session, authed_user.id)
@@ -94,14 +94,14 @@ async def test_list_pagination(
 async def test_list_ownership_isolation(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """타 유저 backtest는 목록에 노출되지 않음."""
-    authed_user: User = mock_clerk_auth
+    authed_user: User = mock_authed_user
 
     other_user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     db_session.add(other_user)
@@ -119,9 +119,9 @@ async def test_list_ownership_isolation(
 async def test_list_projects_metrics_summary_and_sorts_metrics(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
-    user: User = mock_clerk_auth
+    user: User = mock_authed_user
     completed = await _seed_backtest(
         db_session,
         user.id,
@@ -178,7 +178,7 @@ async def test_list_projects_metrics_summary_and_sorts_metrics(
 @pytest.mark.asyncio
 async def test_list_rejects_unknown_sort_axis(
     client: AsyncClient,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     response = await client.get("/api/v1/backtests?order_by=bad")
 

@@ -5,6 +5,7 @@
 2. has-backtest — 선조회에서 409 응답
 3. TOCTOU race — exists_for_strategy mock false 후 DB FK RESTRICT → 동일 409
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -40,9 +41,7 @@ async def _seed_strategy(session: AsyncSession, user_id) -> Strategy:
     return strat
 
 
-async def _seed_backtest(
-    session: AsyncSession, user_id, strategy_id
-) -> Backtest:
+async def _seed_backtest(session: AsyncSession, user_id, strategy_id) -> Backtest:
     bt = Backtest(
         id=uuid4(),
         user_id=user_id,
@@ -64,10 +63,10 @@ async def _seed_backtest(
 async def test_delete_strategy_without_backtest_still_works(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """회귀 없음 — 백테스트 없는 전략 삭제는 204 정상 응답."""
-    authed_user = mock_clerk_auth
+    authed_user = mock_authed_user
     strategy = await _seed_strategy(db_session, authed_user.id)
     await db_session.commit()
 
@@ -79,10 +78,10 @@ async def test_delete_strategy_without_backtest_still_works(
 async def test_delete_strategy_with_backtest_returns_409(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
 ) -> None:
     """백테스트가 있는 전략 삭제 시 409 반환."""
-    authed_user = mock_clerk_auth
+    authed_user = mock_authed_user
     strategy = await _seed_strategy(db_session, authed_user.id)
     await _seed_backtest(db_session, authed_user.id, strategy.id)
     await db_session.commit()
@@ -97,11 +96,11 @@ async def test_delete_strategy_with_backtest_returns_409(
 async def test_delete_strategy_integrity_error_toctou(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
     monkeypatch,
 ) -> None:
     """TOCTOU: exists_for_strategy False 후에도 DB-level FK RESTRICT가 catch → 409 반환."""
-    authed_user = mock_clerk_auth
+    authed_user = mock_authed_user
     strategy = await _seed_strategy(db_session, authed_user.id)
     await _seed_backtest(db_session, authed_user.id, strategy.id)
     await db_session.commit()

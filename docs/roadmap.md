@@ -406,7 +406,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ### P2 — 게이트·배포·오라클 신뢰
 
 - [ ] **BL-624** [P2] soak-gate 의 HTTP 갈래가 `PROMETHEUS_BEARER_TOKEN` 과 양립 불가 — `curl -sf` 가 인증 헤더를 안 보내 401 → `DARKNESS=null` → C5⑷ 영구 ✗. `APP_ENV=production` 과 무관하다(토큰이 있으면 development 에서도 강제). ★판별자는 API 로그의 `GET /metrics` 유무다 — 게이트 출력의 `darkness_computed=✓` 는 어느 경로로 성공했는지 말해주지 않는다. 지금은 기본이 `.metrics` 직독이라 미발동 · (`QB_METRICS_URL` 원격 운영안을 실제로 쓸 때)
-- [ ] **BL-625** [P2] 플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다 — 서버 `apps/api/.env.local` 의 `CLERK_SECRET_KEY` 가 문자 그대로 `sk_test_...` 인데 API 는 기동하고 `/health` 200 을 냈다(인증 경로를 한 번도 안 밟아서). `_enforce_production_safety` 는 이 계열을 알지만 `app_env == production` 일 때만 검사한다 · (새 호스트에 API 를 세울 때 · BL-071 발동 시)
+- [ ] **BL-625** [P2] 플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다 — 당시 서버 `apps/api/.env.local` 의 `CLERK_SECRET_KEY` 가 문자 그대로 `sk_test_...` 인데 API 는 기동하고 `/health` 200 을 냈다(인증 경로를 한 번도 안 밟아서). ★2026-08-17 [ADR-034] 로 그 키는 사라졌지만 **기전은 남는다** — validator 는 여전히 `app_env == production` 일 때만 돈다 · (새 호스트에 API 를 세울 때 · BL-071 발동 시)
 - [x] **BL-631 ✅ Resolved** [P2] `runtime-check.mjs` 가 어느 게이트에도 안 붙어 있어 죽은 채로 방치됐다 — `docs/` 재편 이후 playwright import 상대깊이가 안 따라와 `ERR_MODULE_NOT_FOUND` 로 즉사했고, 그래서 핸드오프의 「다크 17벌 17/17 PASS」는 그 커밋 이후 재현된 적 없는 숫자였다. 뿌리는 경로가 아니라 **소유자 부재** — `pnpm test`·CI·`docs-audit` 어디도 안 부른다 · (`docs/` 재편·프로토타입 수정 전) — ★2026-08-08 bl003-unblock 이 수리 방향 ⑵ 로 닫았다: `docs-audit.sh` 가 `runtime-check.mjs` 와 `regen_golden.py --check` 둘 다의 존재+기동을 확인한다. 회차 말 실측 17/17 exit 0
 - [ ] **BL-632** [P2] 골든을 오라클로 승격했지만 그 기대값은 **엔진 자신의 출력**이다 — 회귀 감지기이지 정확성 오라클이 아니다. 반순환 근거인 손계산 오라클 `test_golden_oracle_ema_sltp.py` 는 4봉·고정 stop/limit 이라 `ta.atr` 를 한 번도 안 탄다 ⇒ BL-621 의 낡음을 만든 그 축이 구조적으로 오라클 밖이다 · (골든 값이 또 어긋났을 때 · 백테스트 정확성을 대외 주장해야 할 때)
 
@@ -496,7 +496,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 - [x] **G1 DB 호스팅 재결정** — ✅ **2026-08-16 확정: ① self-host TimescaleDB CE 유지** ([ADR-033](decisions/033-db-hosting-self-host-timescaledb.md)). 관리형이 막힌 것은 업체 사정이 아니라 TimescaleDB 의 **TSL 라이선스**(RDS·Supabase PG17·Fly MPG 전부 같은 이유). DB 24MB · hypertable 고유 기능 사용처 0건이라 되돌리기가 덤프 한 번이다. 조건 3종 동시 확정 — 백업 자동화([BL-767]) · 디스크 80% 경보([BL-768]) · 전환 트리거 4종. ⇒ **아래 셋의 선행이 풀렸다**
 - [ ] **BL-070** 도메인 + DNS + (옵션) Cloudflare — 1-2h + 전파 24h ★선행 해제(G1)
-- [ ] **BL-071** Backend 프로덕션 배포 — ★배포 대상 확정(self-host CE). 「Cloud Run/Railway/Render + Postgres prod」 전제는 [ADR-033] 으로 대체됐다 — 현 서버(Oracle A1) 위에서 Clerk production + gunicorn 보안헤더가 남은 일이다
+- [ ] **BL-071** Backend 프로덕션 배포 — ★배포 대상 확정(self-host CE, [ADR-033]). ★★**2026-08-17 [ADR-034] 로 「Clerk production 승격」 축이 사라졌다** — 인증이 self-host 로 왔다. 남은 일 = `APP_ENV=production` 전환([BL-753]) + uvicorn `--no-server-header`([BL-347]) + rate limit([BL-754]) + 전용 DB 롤 생성
 - [ ] **BL-072** Resend 이메일 + Waitlist 활성화 — 1-2h + verify 24h ★선행 해제(G1)
 - [ ] **BL-073** Twitter/X #buildinpublic 캠페인 — (BL-070~072 후 trigger)
 - [ ] **BL-074** Beta 인터뷰 3명 × 3회 — (BL-073 후 + onboarding 후)

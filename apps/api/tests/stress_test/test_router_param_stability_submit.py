@@ -26,11 +26,11 @@ async def test_param_stability_submit_returns_202_with_stress_test_id(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     """LESSON-066 풀 chain — router → service → repo INSERT → DB round-trip."""
     _, _, backtest = await seed_user_strategy_backtest(db_session)
-    backtest.user_id = mock_clerk_auth.id
+    backtest.user_id = mock_authed_user.id
     await db_session.flush()
 
     service, dispatcher = make_service(db_session)
@@ -66,7 +66,7 @@ async def test_param_stability_submit_fails_if_backtest_not_completed(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     """backtest 미완료 → 409 reject (CurrentUser auth + ensure_completed gate 정합)."""
     from src.backtest.models import BacktestStatus
@@ -74,7 +74,7 @@ async def test_param_stability_submit_fails_if_backtest_not_completed(
     _, _, backtest = await seed_user_strategy_backtest(
         db_session, backtest_status=BacktestStatus.QUEUED
     )
-    backtest.user_id = mock_clerk_auth.id
+    backtest.user_id = mock_authed_user.id
     await db_session.flush()
 
     service, dispatcher = make_service(db_session)
@@ -107,11 +107,11 @@ async def test_param_stability_submit_rejects_grid_exceeding_9_cells(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     """10+ cell grid → 422 reject (Sprint 50 codex P1#5 동일 강제)."""
     _, _, backtest = await seed_user_strategy_backtest(db_session)
-    backtest.user_id = mock_clerk_auth.id
+    backtest.user_id = mock_authed_user.id
     await db_session.flush()
 
     service, dispatcher = make_service(db_session)

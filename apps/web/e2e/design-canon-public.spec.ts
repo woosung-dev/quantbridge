@@ -29,7 +29,6 @@ const EXPECTED_CONSOLE = [
   /net::err_/i,
   /\b40[0-9]\b/,
   /\b50[0-9]\b/,
-  /clerk has been loaded/i,
   /development keys/i,
   /\[fast refresh\]/i,
   /access to fetch/i,
@@ -46,12 +45,11 @@ const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
  *   - `/qb-canon-404-probe` 0 — W3-H 404 프로브. 존재하지 않는 공개 경로라 root not-found 를
  *     렌더한다. proxy.ts 가 이 경로를 공개로 열어 auth.protect 우회 → 인증 없이 감사 가능.
  *   - `/pricing` 0 — W3-G 요금제 실페이지(C 이식). 더 이상 `/` 로 리다이렉트하지 않는다.
- *     정적 마케팅 표면이라 Clerk 미의존 → 인증 없이 감사 가능.
- *
- * ★`/sign-in` 은 이 감사에 넣지 않는다 — Clerk 위젯이 publishable key + 외부 clerk.js 로드에
- *   의존해, key 없는 CI 감사 컨텍스트에서 ClerkProvider 가 throw 하거나 위젯이 미마운트되어
- *   콘솔·contrast 감사와 충돌한다(live-smoke 도 auth 페이지를 Clerk 의존으로 제외한다). C 셸
- *   (split-screen-shell·brand-panel·appearance)의 시맨틱은 컴포넌트 테스트로 갈음한다.
+ *     정적 마케팅 표면이라 외부 인증 위젯 미의존 → 인증 없이 감사 가능.
+ *   - `/sign-in` 0 — ★★**2026-08-17 ADR-034 로 이 감사에 처음 들어왔다.** 종전에는 「Clerk 위젯이
+ *     publishable key + 외부 clerk.js 로드에 의존해 key 없는 CI 컨텍스트에서 ClerkProvider 가
+ *     throw 한다」는 이유로 **제외돼 있었다** — 즉 인증 화면만 캐논 감사의 사각이었다. 폼이 우리
+ *     DOM 이 되면서 그 이유가 사라졌다.
  *
  * ★app/error.tsx(500)는 라우트 방문으로 감사할 수 없다 — Next.js 루트 에러 바운더리는
  *   실제 런타임 throw 로만 트리거되고 도달 가능한 URL 이 없다. 시맨틱 구조·상태·복구 동작은
@@ -63,6 +61,7 @@ const HARDFAIL_ALLOWLIST: Readonly<Record<string, number>> = {
   "/pricing": 0,
   "/maintenance": 0,
   "/qb-canon-404-probe": 0,
+  "/sign-in": 0,
 };
 
 test.describe("공개 라우트 디자인 캐논 baseline (이식 seam #1, CI)", () => {

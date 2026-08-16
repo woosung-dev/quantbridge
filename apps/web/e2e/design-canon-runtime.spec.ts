@@ -4,7 +4,7 @@
 // vitest 는 jsdom 이고 jsdom 은 getComputedStyle 로 커스텀 프로퍼티를 해석하지 못하므로,
 // "정말 해석되는가" 는 실제 브라우저에서만 확인할 수 있다. 그 절반이 이 파일이다.
 //
-// 공개 라우트(`/`)만 쓴다 — Clerk 인증이 필요 없어야 CI 에서 돌릴 수 있다.
+// 공개 라우트(`/`)만 쓴다 — 인증이 필요 없어야 CI 에서 돌릴 수 있다.
 // P1 4라우트(전부 authed)의 캐논 검사는 로컬 `pnpm e2e:authed` 몫이다.
 
 import { expect, test } from "@playwright/test";

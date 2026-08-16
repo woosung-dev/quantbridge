@@ -1,4 +1,5 @@
 """conftest fixtures가 동작하는지 확인하는 smoke 테스트."""
+
 import pytest
 
 
@@ -23,7 +24,5 @@ async def test_authed_user_persisted(db_session, authed_user):
 
     from src.auth.models import User
 
-    result = await db_session.execute(
-        select(User).where(User.id == authed_user.id)
-    )
-    assert result.scalar_one().clerk_user_id == authed_user.clerk_user_id
+    result = await db_session.execute(select(User).where(User.id == authed_user.id))
+    assert result.scalar_one().auth_subject == authed_user.auth_subject

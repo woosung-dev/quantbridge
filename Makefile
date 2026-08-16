@@ -125,8 +125,8 @@ help:
 	@echo ""
 	@echo "  품질"
 	@echo "    make test           # backend pytest + frontend vitest"
-	@echo "    make fe-e2e         # frontend Playwright (smoke only, no Clerk)"
-	@echo "    make fe-e2e-authed  # frontend Playwright (Clerk authed, requires .env.local)"
+	@echo "    make fe-e2e         # frontend Playwright (smoke only, 인증 불요)"
+	@echo "    make fe-e2e-authed  # frontend Playwright (로그인 필요, requires .env.local)"
 	@echo "    make lint           # ruff + eslint"
 	@echo "    make typecheck      # mypy + tsc"
 	@echo "    make docs-audit     # 활성 문서 링크 + 폐기 경로 검사"
@@ -334,7 +334,9 @@ db-restore: _guard-main-only
 
 # dogfood 복원 시더 — 빈 DB 를 전 화면 사용 가능 상태로.
 # 전략·백테스트를 실 서비스 계층 + 실 Celery 로 만든다(HTTP/auth 만 우회 —
-# clerk SDK 가 azp 클레임을 필수로 요구해 헤드리스 HTTP 시딩이 구조적으로 불가).
+# 구 clerk SDK 가 azp 클레임을 필수로 요구해 헤드리스 HTTP 시딩이 구조적으로 불가했다.
+# ★2026-08-17 ADR-034 로 그 제약이 사라졌다 — Better Auth JWT 에는 azp 요구가 없다.
+#   이 우회를 걷어내는 것은 별건이다(이 회차 범위 밖)).
 # OHLCV 는 따로 안 심는다 — TimescaleProvider 가 cache-miss 시 Bybit 에서 받아
 # ts.ohlcv 에 직접 쓰므로 첫 백테스트가 곧 시딩이다. 멱등.
 #   make seed            전체
@@ -392,8 +394,8 @@ fe-test:
 	cd apps/web && pnpm test
 
 # Sprint 25 — Playwright E2E 분기:
-#   fe-e2e          smoke.spec.ts 만 (chromium project, public routes, Clerk 불요)
-#   fe-e2e-authed   chromium-authed (trading-ui + dogfood-flow). Clerk dev keys + storageState 필수.
+#   fe-e2e          smoke.spec.ts 만 (chromium project, public routes, 인증 불요)
+#   fe-e2e-authed   chromium-authed (trading-ui + dogfood-flow). E2E_AUTH_* + storageState 필수.
 #                    NODE_ENV=production 차단. global.setup.ts 가 매 실행 시 storageState 갱신.
 fe-e2e:
 	cd apps/web && pnpm e2e

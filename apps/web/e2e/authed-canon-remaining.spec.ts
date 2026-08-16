@@ -8,7 +8,7 @@
 // 완료 대상이 없으면 test.skip 이 아니라 expect 로 FAIL 시킨다 (조용한 통과 방지 — coverage 단조성).
 // 리포트 셸 핵심 요소(backtest-report-shell)가 렌더된 뒤에 4폭 감사를 돌린다.
 //
-// ★왜 `authed-canon-*` 이름인가. 대상이 전부 Clerk authed 라 CI(무인증)에서 못 돈다.
+// ★왜 `authed-canon-*` 이름인가. 대상이 전부 로그인 뒤 화면이라 CI(무인증)에서 못 돈다.
 // 파일명을 `design-canon-*` 로 하면 `chromium-design-canon`(CI) 이 매치해 sign-in 리다이렉트로
 // 실패한다. 그래서 `authed-canon-remaining` 으로 두고 `chromium-authed`(storageState + setup
 // 의존, 로컬 `pnpm e2e:authed` 전용)에 배선한다. config testMatch 열거에도 추가해야 발견된다.
@@ -35,7 +35,6 @@ const EXPECTED_CONSOLE = [
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
   /failed to load resource.*429/i,
   /\b50[0-9]\b/,
-  /clerk has been loaded/i,
   /development keys/i,
   /\[fast refresh\]/i,
   /access to fetch/i,

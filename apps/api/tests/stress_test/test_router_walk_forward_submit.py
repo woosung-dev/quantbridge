@@ -18,10 +18,10 @@ async def test_walk_forward_submit_returns_202(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     _, _, backtest = await seed_user_strategy_backtest(db_session)
-    backtest.user_id = mock_clerk_auth.id
+    backtest.user_id = mock_authed_user.id
     await db_session.flush()
 
     service, dispatcher = make_service(db_session)

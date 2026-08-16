@@ -25,13 +25,6 @@ const hoisted = vi.hoisted(() => {
   };
 });
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({
-    userId: "test-user",
-    getToken: async () => "test-token",
-  }),
-}));
-
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: vi.fn(),

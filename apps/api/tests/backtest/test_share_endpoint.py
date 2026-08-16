@@ -7,6 +7,7 @@
 - view_share: 200 (active) / 410 (revoked) / 404 (not found)
 - create_share after revoke: 새 토큰 발급 (기존 토큰은 영구 dead)
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -32,7 +33,7 @@ async def _seed(session: AsyncSession) -> tuple[User, Backtest]:
     """User + Strategy + completed Backtest 레코드 생성."""
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     session.add(user)

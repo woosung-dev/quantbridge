@@ -8,13 +8,6 @@ import { liveSessionKeys } from "../query-keys";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({
-    userId: "user-1",
-    getToken: async () => "jwt-token",
-  }),
-}));
-
 vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
 
 import { closePositionMutationKey, useClosePosition } from "../hooks";
@@ -46,7 +39,7 @@ describe("useClosePosition", () => {
 
     expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/live-sessions/session-1/positions/close", {
       method: "POST",
-      token: "jwt-token",
+      token: "test-token",
     });
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith({

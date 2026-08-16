@@ -90,7 +90,7 @@ def _ccxt_bars(close: float, *, count: int = _BARS) -> list[list[float]]:
 async def _seed_user_and_strategy(session: AsyncSession) -> tuple[User, Strategy]:
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     strategy = Strategy(
@@ -131,15 +131,11 @@ async def _seed_backtest(
     return user, backtest
 
 
-def _timescale_service(
-    session: AsyncSession, ccxt: AsyncMock
-) -> BacktestService:
+def _timescale_service(session: AsyncSession, ccxt: AsyncMock) -> BacktestService:
     return BacktestService(
         repo=BacktestRepository(session),
         strategy_repo=StrategyRepository(session),
-        ohlcv_provider=TimescaleProvider(
-            OHLCVRepository(session), ccxt, exchange_name="bybit"
-        ),
+        ohlcv_provider=TimescaleProvider(OHLCVRepository(session), ccxt, exchange_name="bybit"),
         ohlcv_repo=OHLCVRepository(session),
         dispatcher=FakeTaskDispatcher(),
     )
@@ -176,9 +172,7 @@ class TestBacktestFetchesPerpBars:
         assert "OHLCV fetch failed" not in (after.error or "")
 
     @pytest.mark.asyncio
-    async def test_already_perpetual_symbol_is_idempotent(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_already_perpetual_symbol_is_idempotent(self, db_session: AsyncSession) -> None:
         """이미 perp 표기로 저장된 백테스트에 `:USDT` 를 두 번 붙이지 않는다."""
         _, backtest = await _seed_backtest(db_session, symbol=INSTRUMENT)
         ccxt = AsyncMock(spec=CCXTProvider)
@@ -240,9 +234,7 @@ class TestLegacySpotRowsAreUntouched:
         assert {row.close for row in spot_rows} == {_SPOT_CLOSE}
 
     @pytest.mark.asyncio
-    async def test_a_spot_only_cache_is_not_a_cache_hit(
-        self, db_session: AsyncSession
-    ) -> None:
+    async def test_a_spot_only_cache_is_not_a_cache_hit(self, db_session: AsyncSession) -> None:
         """★스팟 행이 있다고 perp 를 안 받아오면 계기 정렬이 조용히 무산된다."""
         repo = OHLCVRepository(db_session)
         await repo.insert_bulk(_db_rows(CANONICAL, _SPOT_CLOSE))
@@ -301,9 +293,7 @@ class TestTradeChartFollowsTheEngineInstrument:
         스팟 봉 위에 perp 체결 마커를 얹으면 스톱이 그려진 봉의 고저 밖에 놓여
         화면이 발산을 은폐한다.
         """
-        user, backtest = await _seed_backtest(
-            db_session, status=BacktestStatus.COMPLETED
-        )
+        user, backtest = await _seed_backtest(db_session, status=BacktestStatus.COMPLETED)
         await _seed_closed_trade(db_session, backtest)
         repo = OHLCVRepository(db_session)
         await repo.insert_bulk(_db_rows(CANONICAL, _SPOT_CLOSE))
@@ -324,9 +314,7 @@ class TestTradeChartFollowsTheEngineInstrument:
         self, db_session: AsyncSession, tmp_path: Path
     ) -> None:
         """★계기 정렬 이전 백테스트의 차트가 통째로 비면 회귀다."""
-        user, backtest = await _seed_backtest(
-            db_session, status=BacktestStatus.COMPLETED
-        )
+        user, backtest = await _seed_backtest(db_session, status=BacktestStatus.COMPLETED)
         await _seed_closed_trade(db_session, backtest)
         await OHLCVRepository(db_session).insert_bulk(_db_rows(CANONICAL, _SPOT_CLOSE))
         await db_session.flush()

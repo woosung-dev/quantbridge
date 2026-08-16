@@ -4,8 +4,9 @@
 결과라 실제 거래소 체결과 무관했다. 엔드포인트가 실제 filled 주문 기준으로
 재계산해 반환하는지 검증.
 
-Uses mock_clerk_auth fixture from conftest.py for auth bypass.
+Uses mock_authed_user fixture from conftest.py for auth bypass.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -79,9 +80,9 @@ async def _seed_session(db_session, user, *, with_state: bool = True):
 
 
 @pytest.mark.asyncio
-async def test_state_uses_real_filled_pnl_not_simulation(client, mock_clerk_auth, db_session):
+async def test_state_uses_real_filled_pnl_not_simulation(client, mock_authed_user, db_session):
     """rejected 주문의 시뮬레이션 pnl은 무시하고, filled 주문의 실현손익만 반영."""
-    user = mock_clerk_auth
+    user = mock_authed_user
     strategy, account, session = await _seed_session(db_session, user)
 
     db_session.add(
@@ -128,9 +129,9 @@ async def test_state_uses_real_filled_pnl_not_simulation(client, mock_clerk_auth
 
 
 @pytest.mark.asyncio
-async def test_state_returns_zero_when_no_filled_orders_yet(client, mock_clerk_auth, db_session):
+async def test_state_returns_zero_when_no_filled_orders_yet(client, mock_authed_user, db_session):
     """체결된 실주문이 아직 없으면(예: 첫 신호가 리젝트) 0으로 보여야 한다."""
-    user = mock_clerk_auth
+    user = mock_authed_user
     strategy, account, session = await _seed_session(db_session, user)
 
     db_session.add(
@@ -158,9 +159,11 @@ async def test_state_returns_zero_when_no_filled_orders_yet(client, mock_clerk_a
 
 
 @pytest.mark.asyncio
-async def test_state_pending_returns_unevaluated_zero_response(client, mock_clerk_auth, db_session):
+async def test_state_pending_returns_unevaluated_zero_response(
+    client, mock_authed_user, db_session
+):
     """세션은 있으나 첫 평가 전이면 404 대신 pending 응답을 반환한다."""
-    _, _, session = await _seed_session(db_session, mock_clerk_auth, with_state=False)
+    _, _, session = await _seed_session(db_session, mock_authed_user, with_state=False)
 
     resp = await client.get(f"/api/v1/live-sessions/{session.id}/state")
 
@@ -184,13 +187,13 @@ async def test_state_pending_returns_unevaluated_zero_response(client, mock_cler
 
 
 @pytest.mark.asyncio
-async def test_state_missing_or_not_owned_remains_not_found(client, mock_clerk_auth, db_session):
+async def test_state_missing_or_not_owned_remains_not_found(client, mock_authed_user, db_session):
     """없는 세션과 타인 세션은 pending으로 숨기지 않고 404를 유지한다."""
     missing = await client.get(f"/api/v1/live-sessions/{uuid4()}/state")
     assert missing.status_code == 404
 
     other_user = User(
-        clerk_user_id=f"other_{uuid4().hex[:8]}",
+        auth_subject=f"other_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     db_session.add(other_user)
@@ -203,7 +206,7 @@ async def test_state_missing_or_not_owned_remains_not_found(client, mock_clerk_a
 
 @pytest.mark.asyncio
 async def test_two_sessions_on_the_same_tuple_get_separate_curves(
-    client, mock_clerk_auth, db_session
+    client, mock_authed_user, db_session
 ):
     """BL-445 종단 — 같은 (strategy, account) 위 인접 세션 둘이 서로 다른 커브를 낸다.
 
@@ -211,7 +214,7 @@ async def test_two_sessions_on_the_same_tuple_get_separate_curves(
     **같은 값**(-30)을 돌려줬다. 리포지터리만 고치고 라우터가 스코프를 안 넘기는
     실수는 이 종단 테스트로만 잡힌다.
     """
-    user = mock_clerk_auth
+    user = mock_authed_user
     strategy, account, first = await _seed_session(db_session, user)
     boundary = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
 
@@ -262,7 +265,7 @@ async def test_two_sessions_on_the_same_tuple_get_separate_curves(
 
 @pytest.mark.asyncio
 async def test_state_labels_each_curve_point_with_its_provenance(
-    client, mock_clerk_auth, db_session
+    client, mock_authed_user, db_session
 ):
     """BL-458 — 커브 포인트마다 그 시점 델타의 출처가 실려야 한다.
 
@@ -272,7 +275,7 @@ async def test_state_labels_each_curve_point_with_its_provenance(
 
     금액을 서로 다르게 심어 어느 쪽이 뒤집혔는지 숫자가 지목하게 한다.
     """
-    _, account, session = await _seed_session(db_session, mock_clerk_auth)
+    _, account, session = await _seed_session(db_session, mock_authed_user)
     strategy_id = session.strategy_id
 
     def _order(*, pnl: str, minute: int, synced: bool):
@@ -285,9 +288,7 @@ async def test_state_labels_each_curve_point_with_its_provenance(
             quantity=Decimal("1"),
             state=OrderState.filled,
             realized_pnl=Decimal(pnl),
-            realized_pnl_synced_at=(
-                datetime(2026, 7, 1, 9, 0, tzinfo=UTC) if synced else None
-            ),
+            realized_pnl_synced_at=(datetime(2026, 7, 1, 9, 0, tzinfo=UTC) if synced else None),
             filled_at=datetime(2026, 7, 1, 8, 0, tzinfo=UTC) + timedelta(minutes=minute),
         )
 

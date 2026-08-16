@@ -37,7 +37,7 @@ async def submitted_order(db_session: AsyncSession):
     crypto = EncryptionService(settings.trading_encryption_keys)
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@t.local",
     )
     db_session.add(user)
@@ -133,17 +133,23 @@ async def test_fetch_order_status_filled_transitions_and_decs_gauge(
     from src.trading.providers import FixtureExchangeProvider
 
     order, account = submitted_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
-        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="filled"),
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(
+            fetch_status_override="filled"
+        ),
     )
 
     # qb_active_orders 호출 spy
     dec_calls = {"n": 0}
     monkeypatch.setattr(
-        task_mod.qb_active_orders, "dec", lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1)
+        task_mod.qb_active_orders,
+        "dec",
+        lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1),
     )
     publisher = AsyncMock()
     monkeypatch.setattr(task_mod, "publish_realtime", publisher)
@@ -218,15 +224,21 @@ async def test_fetch_order_status_cancelled_transitions(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
-        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="cancelled"),
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(
+            fetch_status_override="cancelled"
+        ),
     )
     dec_calls = {"n": 0}
     monkeypatch.setattr(
-        task_mod.qb_active_orders, "dec", lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1)
+        task_mod.qb_active_orders,
+        "dec",
+        lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1),
     )
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
@@ -247,15 +259,21 @@ async def test_fetch_order_status_rejected_transitions(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
-        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="rejected"),
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(
+            fetch_status_override="rejected"
+        ),
     )
     dec_calls = {"n": 0}
     monkeypatch.setattr(
-        task_mod.qb_active_orders, "dec", lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1)
+        task_mod.qb_active_orders,
+        "dec",
+        lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1),
     )
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
@@ -282,11 +300,15 @@ async def test_fetch_order_status_still_submitted_returns_retry_signal(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
-        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="submitted"),
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(
+            fetch_status_override="submitted"
+        ),
     )
     monkeypatch.setattr(task_mod, "_get_redis_lock_pool_for_alert", lambda: _MockRedisPool())
 
@@ -315,11 +337,15 @@ async def test_fetch_order_status_max_attempts_alerts_and_giveup(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
-        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="submitted"),
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(
+            fetch_status_override="submitted"
+        ),
     )
 
     pool = _MockRedisPool()
@@ -345,7 +371,10 @@ async def test_fetch_order_status_max_attempts_alerts_and_giveup(
     assert result["watchdog_giveup"] is True
     assert len(alert_calls) == 1
     assert rule_fanout_calls == ["still_submitted_after_max_attempts"]
-    assert "stuck" in alert_calls[0]["message"].lower() or "submit" in alert_calls[0]["message"].lower()
+    assert (
+        "stuck" in alert_calls[0]["message"].lower()
+        or "submit" in alert_calls[0]["message"].lower()
+    )
 
 
 @pytest.mark.asyncio
@@ -359,11 +388,15 @@ async def test_fetch_order_status_alert_throttled_on_second_giveup(
     from src.trading.providers import FixtureExchangeProvider
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
-        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="submitted"),
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(
+            fetch_status_override="submitted"
+        ),
     )
 
     pool = _MockRedisPool()
@@ -494,11 +527,15 @@ async def test_fetch_order_status_already_terminal_skip(
     # 이미 filled 로 직접 transition (race winner 시나리오)
     order.state = OrderState.filled
     await db_session.commit()
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
 
     dec_calls = {"n": 0}
     monkeypatch.setattr(
-        task_mod.qb_active_orders, "dec", lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1)
+        task_mod.qb_active_orders,
+        "dec",
+        lambda *a, **kw: dec_calls.__setitem__("n", dec_calls["n"] + 1),
     )
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
@@ -518,7 +555,9 @@ async def test_fetch_provider_error_returns_retry_signal_when_under_max(
     from src.trading.exceptions import ProviderError
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
 
     class _FailingProvider:
         async def create_order(self, creds, o):  # type: ignore[no-untyped-def]
@@ -530,7 +569,11 @@ async def test_fetch_provider_error_returns_retry_signal_when_under_max(
         async def fetch_order(self, creds, eid, sym):  # type: ignore[no-untyped-def]
             raise ProviderError("rate limit exceeded")
 
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _FailingProvider())
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: _FailingProvider(),
+    )
     monkeypatch.setattr(task_mod, "_get_redis_lock_pool_for_alert", lambda: _MockRedisPool())
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
@@ -551,7 +594,9 @@ async def test_fetch_provider_error_alerts_at_max_attempts(
     from src.trading.exceptions import ProviderError
 
     order, _acc = submitted_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
 
     class _FailingProvider:
         async def create_order(self, creds, o):  # type: ignore[no-untyped-def]
@@ -563,7 +608,11 @@ async def test_fetch_provider_error_alerts_at_max_attempts(
         async def fetch_order(self, creds, eid, sym):  # type: ignore[no-untyped-def]
             raise ProviderError("auth failed")
 
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _FailingProvider())
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: _FailingProvider(),
+    )
     monkeypatch.setattr(task_mod, "_get_redis_lock_pool_for_alert", lambda: _MockRedisPool())
 
     alert_calls: list[dict] = []
@@ -578,7 +627,10 @@ async def test_fetch_provider_error_alerts_at_max_attempts(
 
     assert result.get("watchdog_giveup") is True
     assert len(alert_calls) == 1
-    assert "ProviderError" in alert_calls[0]["message"] or "provider_error" in alert_calls[0]["message"]
+    assert (
+        "ProviderError" in alert_calls[0]["message"]
+        or "provider_error" in alert_calls[0]["message"]
+    )
 
 
 def test_build_watchdog_retry_kwargs_explicit_args_kwargs() -> None:
@@ -625,7 +677,9 @@ async def test_fetch_order_status_null_exchange_order_id_skipped(
     order, _acc = submitted_order
     order.exchange_order_id = None
     await db_session.commit()
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
 
     result = await task_mod._async_fetch_order_status(order.id, attempt=1)
 
@@ -674,7 +728,7 @@ async def test_async_execute_submitted_enqueues_fetch_order_status_task(
     )
 
     crypto = _Enc(settings.trading_encryption_keys)
-    u = _U(id=uuid4(), clerk_user_id=f"u_{uuid4().hex[:6]}", email=f"{uuid4().hex[:6]}@t.l")
+    u = _U(id=uuid4(), auth_subject=f"u_{uuid4().hex[:6]}", email=f"{uuid4().hex[:6]}@t.l")
     db_session.add(u)
     await db_session.flush()
     s = _S(
@@ -709,11 +763,14 @@ async def test_async_execute_submitted_enqueues_fetch_order_status_task(
     await db_session.commit()
     order_id = o.id
 
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
 
     class _Submitted:
         async def create_order(self, creds, order):  # type: ignore[no-untyped-def]
             from src.trading.providers import OrderReceipt
+
             return OrderReceipt(
                 exchange_order_id="bybit-enq-1",
                 filled_price=None,
@@ -724,16 +781,18 @@ async def test_async_execute_submitted_enqueues_fetch_order_status_task(
         async def cancel_order(self, creds, eid):  # type: ignore[no-untyped-def]
             return None
 
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _Submitted())
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: _Submitted(),
+    )
 
     enqueued: list[tuple] = []
 
     def _fake_apply_async(*, args=None, kwargs=None, countdown=None, **kw):  # type: ignore[no-untyped-def]
         enqueued.append((args, kwargs, countdown))
 
-    monkeypatch.setattr(
-        task_mod.fetch_order_status_task, "apply_async", _fake_apply_async
-    )
+    monkeypatch.setattr(task_mod.fetch_order_status_task, "apply_async", _fake_apply_async)
 
     result = await task_mod._async_execute(order_id)
 
@@ -767,11 +826,15 @@ async def test_watchdog_reduce_only_fill_clears_account_position_cache(
     sibling_id = uuid4()
 
     redis = SimpleNamespace(delete=AsyncMock())
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
-        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="filled"),
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(
+            fetch_status_override="filled"
+        ),
     )
     monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
     monkeypatch.setattr(
@@ -804,11 +867,15 @@ async def test_watchdog_entry_fill_does_not_clear_account_position_cache(
     assert order.reduce_only is False
 
     redis = SimpleNamespace(delete=AsyncMock())
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
-        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fetch_status_override="filled"),
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(
+            fetch_status_override="filled"
+        ),
     )
     monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
     monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())

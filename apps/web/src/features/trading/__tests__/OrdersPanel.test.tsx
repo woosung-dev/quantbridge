@@ -4,9 +4,6 @@ import { afterEach, vi } from "vitest";
 import { OrdersPanel } from "../components/orders-panel";
 
 // Clerk useAuth mock — hooks.ts 에서 getToken 호출.
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ getToken: async () => "test-token" }),
-}));
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
 

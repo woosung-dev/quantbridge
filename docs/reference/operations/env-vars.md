@@ -35,16 +35,21 @@
 
 ---
 
-## 3. Clerk 인증 (Sprint 3+)
+## 3. 인증 — Better Auth (자체 호스팅, [ADR-034](../../decisions/034-auth-self-host-better-auth.md))
 
-| 변수                                | 마킹               | 설명 / 획득법                                                                                  |
-| ----------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------- |
-| `CLERK_SECRET_KEY`                  | [필수 Sprint 3]    | Clerk Dashboard → API Keys → Secret keys (`sk_test_...`)                                       |
-| `CLERK_PUBLISHABLE_KEY`             | [필수 Sprint 5 FE] | Clerk Dashboard → API Keys → Publishable keys (`pk_test_...`). 백엔드는 미사용                 |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | [필수 Sprint 5 FE] | 위와 동일 값. Next.js 노출 prefix `NEXT_PUBLIC_*` 필수                                         |
-| `CLERK_WEBHOOK_SECRET`              | [필수 Sprint 7]    | Webhook 엔드포인트 등록 후 발급되는 `whsec_...`. 로컬/CI는 placeholder OK (테스트는 mock 서명) |
+★**백엔드에는 인증 시크릿이 없다.** 검증이 공개 키(JWKS)라 API·워커가 쥘 비밀이 0개다.
+종전 `CLERK_*` 4종은 2026-08-17 에 전부 제거됐다.
 
-상세 셋업: [`clerk-setup.md`](./clerk-setup.md).
+| 변수                       | 어디에           | 마킹        | 설명 / 획득법                                                                |
+| -------------------------- | ---------------- | ----------- | ---------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`       | `apps/web`       | [필수 prod] | 세션 암호화·해싱 키. 32자 이상 — `openssl rand -base64 32`                   |
+| `BETTER_AUTH_URL`          | `apps/web` + api | [필수 prod] | 공개 origin. JWT `iss`/`aud` 기준. ★**양쪽이 같아야 한다** — 다르면 전건 401 |
+| `BETTER_AUTH_DATABASE_URL` | `apps/web`       | [필수]      | `auth_*` 5테이블 **전용 PG 롤** DSN. 앱 DB 롤을 주지 마라                    |
+| `BETTER_AUTH_JWKS_URL`     | `apps/api`       | [권장 prod] | 비우면 `BETTER_AUTH_URL` + `/api/auth/jwks`. 서버에서는 컨테이너 내부 주소   |
+| `E2E_AUTH_EMAIL`           | `apps/web` local | [e2e]       | `pnpm e2e:authed` 전용 계정. `.env.local` 에만                               |
+| `E2E_AUTH_PASSWORD`        | `apps/web` local | [e2e]       | 위와 짝                                                                      |
+
+상세 셋업: [`better-auth-setup.md`](./better-auth-setup.md).
 
 ---
 

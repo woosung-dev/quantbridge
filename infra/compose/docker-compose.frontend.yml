@@ -1,7 +1,10 @@
 # QuantBridge Frontend — 오라클 A1 배포 스택 (2026-08-07 fe-oracle-deploy)
 #
-# ★독립 스택이다 — `docker-compose.yml` 계열(base/isolated/soak) 과 겹치는 서비스도
-# 네트워크도 없다. 그래서 이 파일을 올리고 내려도 [BL-003] 소크 창은 끊기지 않는다.
+# ★★2026-08-17 ADR-034 — **네트워크 하나를 공유하게 됐다.** FE 가 인증 서버가 되면서
+# Postgres 에 붙어야 하는데, 서버 DB 는 `127.0.0.1:5433` **루프백** publish 라 브리지에서 못 닿는다.
+# 그래서 base compose 의 네트워크(`quantbridge_quantbridge`)에 **external 로 attach** 한다.
+# 소크 창은 여전히 안 끊긴다 — external network 는 `-p quantbridge-fe down` 으로 제거되지 않고,
+# 서비스도 볼륨도 여전히 겹치지 않는다. 끊는 것은 `soak-stack.sh pin`/`down` 뿐이다.
 #
 # 사용법 (서버에서만):
 #   docker compose -f docker-compose.frontend.yml -p quantbridge-fe up -d
@@ -10,7 +13,8 @@
 # 선행 조건:
 #   ⑴ `quantbridge-frontend:${QB_FRONTEND_TAG}` 이미지가 서버에 load 돼 있다
 #      (맥에서 `docker save | ssh … docker load` — 빌드는 서버에서 하지 않는다. 2 OCPU 공유)
-#   ⑵ 루트 `.env` 에 `QB_TUNNEL_TOKEN` · `QB_FRONTEND_TAG` · `CLERK_SECRET_KEY` 가 있다
+#   ⑵ 루트 `.env` 에 `QB_TUNNEL_TOKEN` · `QB_FRONTEND_TAG` ·
+#      `BETTER_AUTH_SECRET` · `BETTER_AUTH_URL` · `BETTER_AUTH_DATABASE_URL` 이 있다
 #
 # 공개 경로:
 #   브라우저 → Cloudflare(Access OTP) → cloudflared(host net) → 127.0.0.1:3200 → 이 FE
@@ -26,13 +30,20 @@ services:
     ports:
       - "127.0.0.1:3200:3000"
     environment:
-      # ★런타임 필수 — `apps/web/src/proxy.ts` 의 clerkMiddleware 가 서버에서 검증한다.
+      # ★런타임 필수 — 이 컨테이너가 **인증 서버 본체**다(ADR-034). `proxy.ts` 가 세션을
+      # DB 까지 검증하고 `/api/auth/*` 가 로그인·JWKS 를 낸다.
       # NEXT_PUBLIC_* 은 여기 없다: 빌드 타임에 번들로 인라인된다(`api-base.ts`).
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY:?required — Clerk Dashboard → API Keys}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?required — openssl rand -base64 32}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?required — 공개 origin. JWT iss/aud 기준}
+      # ★`auth_*` 5테이블에만 권한이 있는 전용 롤을 써라. 앱 DB 롤을 주지 마라 —
+      #   이 컨테이너는 인터넷 표면이고, 우리 도메인 테이블에 접근할 이유가 없다.
+      BETTER_AUTH_DATABASE_URL: ${BETTER_AUTH_DATABASE_URL:?required — auth 전용 PG 롤 DSN}
     # ★mem_limit 은 소크 스택과 같은 이유다(`docker-compose.soak.yml` 머리말) — 전역 OOM
     # killer 의 표적을 우리로 고정한다. 이 호스트는 2 OCPU/12GB 를 다른 프로젝트와 공유한다.
     mem_limit: 768m
     restart: unless-stopped
+    networks:
+      - quantbridge
 
   # ★quantbridge 전용 터널. 기존 truewords 터널을 재사용하지 않는다 —
   # 그쪽은 `truewords_truewords_net` 브리지 안에 있고 호스트 iptables 가 브리지→호스트를
@@ -47,3 +58,10 @@ services:
     restart: unless-stopped
     depends_on:
       - frontend
+
+# base compose 가 만든 네트워크를 그대로 쓴다(생성하지 않는다). 이름은 compose 프로젝트명 파생이라
+# 서버에서 `docker network ls | grep quantbridge` 로 확인한 값이다(2026-08-17 실측).
+networks:
+  quantbridge:
+    external: true
+    name: quantbridge_quantbridge

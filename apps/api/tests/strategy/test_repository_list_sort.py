@@ -26,7 +26,7 @@ _IDS = {
 async def _seed_strategies(session: AsyncSession) -> tuple[UUID, dict[str, Strategy]]:
     user = User(
         id=UUID(int=10),
-        clerk_user_id="strategy-sort-owner",
+        auth_subject="strategy-sort-owner",
         email="strategy-sort@example.com",
     )
     session.add(user)

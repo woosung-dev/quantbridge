@@ -1,4 +1,5 @@
 """StrategyRepository 통합 테스트."""
+
 from __future__ import annotations
 
 import uuid
@@ -13,7 +14,7 @@ from src.strategy.repository import StrategyRepository
 
 async def _make_user(db_session, name: str = "owner") -> User:
     user = User(
-        clerk_user_id=f"user_{uuid.uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid.uuid4().hex[:8]}",
         email=f"{name}@b.com",
         username=name,
     )

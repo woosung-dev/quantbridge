@@ -41,7 +41,7 @@ async def pending_futures_order(db_session: AsyncSession):
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)
@@ -153,7 +153,11 @@ async def test_async_execute_uses_bybit_futures_provider_with_leverage(
     )
 
     fake_provider = _CapturingFuturesProvider()
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: fake_provider)
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: fake_provider,
+    )
 
     result = await task_mod._async_execute(order.id)
 

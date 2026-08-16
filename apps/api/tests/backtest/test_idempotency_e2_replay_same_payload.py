@@ -27,13 +27,11 @@ from src.strategy.models import ParseStatus, PineVersion, Strategy
 from src.strategy.repository import StrategyRepository
 
 
-async def _seed_strategy(
-    session: AsyncSession, *, user: User | None = None
-) -> Strategy:
+async def _seed_strategy(session: AsyncSession, *, user: User | None = None) -> Strategy:
     if user is None:
         user = User(
             id=uuid4(),
-            clerk_user_id=f"u_{uuid4().hex[:8]}",
+            auth_subject=f"u_{uuid4().hex[:8]}",
             email=f"{uuid4().hex[:8]}@ex.com",
         )
         session.add(user)
@@ -96,7 +94,7 @@ async def test_replay_returns_same_backtest_with_replayed_flag(
 ) -> None:
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     db_session.add(user)
@@ -118,10 +116,10 @@ async def test_replay_http_sets_idempotency_replayed_header(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
     tmp_path: Path,
 ) -> None:
-    strat = await _seed_strategy(db_session, user=mock_clerk_auth)
+    strat = await _seed_strategy(db_session, user=mock_authed_user)
     service = _make_service(db_session, _mini_fixture_root(tmp_path))
     app.dependency_overrides[get_backtest_service] = lambda: service
 

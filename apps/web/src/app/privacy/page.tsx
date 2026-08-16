@@ -33,7 +33,7 @@ export default function PrivacyPage() {
         <h2 className={headingClass}>1. Data We Collect / 수집 정보</h2>
         <ul className={bodyListClass}>
           <li>
-            <strong>계정 정보:</strong> Clerk 을 통한 이메일, 사용자명, 가입 시점, 국가 코드
+            <strong>계정 정보:</strong> 이메일, 이름, 가입 시점, 국가 코드
             (ISO 3166-1 alpha-2)
           </li>
           <li>
@@ -65,9 +65,6 @@ export default function PrivacyPage() {
       <section className="space-y-3">
         <h2 className={headingClass}>3. Third-Party Processors / 제3자 처리</h2>
         <ul className={bodyListClass}>
-          <li>
-            <strong>Clerk</strong> — 인증 (이메일, 사용자명, MFA)
-          </li>
           <li>
             <strong>Bybit / OKX</strong> — 주문 실행, OHLCV 수집 (사용자가 연동한 계정 한정)
           </li>

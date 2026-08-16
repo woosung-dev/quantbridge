@@ -1,17 +1,16 @@
 """Orders REST endpoints E2E (T20).
 
-Uses mock_clerk_auth fixture from conftest.py for auth bypass.
+Uses mock_authed_user fixture from conftest.py for auth bypass.
 URLs: /api/v1/orders (router has no prefix; main.py adds /api/v1).
 """
+
 from __future__ import annotations
 
 import pytest
 
 
 @pytest.mark.asyncio
-async def test_list_orders_returns_user_only(
-    client, mock_clerk_auth, db_session
-):
+async def test_list_orders_returns_user_only(client, mock_authed_user, db_session):
     """GET /api/v1/orders returns only orders belonging to the authed user."""
     from datetime import UTC, datetime
     from decimal import Decimal
@@ -27,7 +26,7 @@ async def test_list_orders_returns_user_only(
         OrderType,
     )
 
-    user = mock_clerk_auth
+    user = mock_authed_user
 
     acc = ExchangeAccount(
         user_id=user.id,
@@ -103,7 +102,7 @@ async def test_list_orders_returns_user_only(
 
 
 @pytest.mark.asyncio
-async def test_get_order_by_id_404_if_not_owner(client, mock_clerk_auth):
+async def test_get_order_by_id_404_if_not_owner(client, mock_authed_user):
     """GET /api/v1/orders/{order_id} returns 404 for non-existent order."""
     from uuid import uuid4
 

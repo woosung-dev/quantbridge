@@ -12,7 +12,7 @@ from src.auth.repository import UserRepository
 @pytest.mark.asyncio
 async def test_get_created_at_returns_user_created_at(db_session) -> None:
     repo = UserRepository(db_session)
-    user = User(clerk_user_id=f"clerk_{uuid4().hex}")
+    user = User(auth_subject=f"sub_{uuid4().hex}")
     db_session.add(user)
     await db_session.flush()
 

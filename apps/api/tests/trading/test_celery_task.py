@@ -46,7 +46,7 @@ async def pending_order(db_session: AsyncSession):
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)
@@ -135,9 +135,15 @@ async def test_execute_order_task_transitions_pending_to_filled(
     order, account = pending_order
 
     # Session monkeypatch — Sprint 4 pattern
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
     # Provider monkeypatch — FixtureExchangeProvider 강제 (EXCHANGE_PROVIDER 환경변수 독립)
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: FixtureExchangeProvider())
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
+    )
     publisher = AsyncMock()
     monkeypatch.setattr(task_mod, "publish_realtime", publisher)
 
@@ -193,13 +199,17 @@ async def test_reduce_only_filled_order_deletes_active_position_snapshot_caches(
         return active_sessions
 
     redis = SimpleNamespace(delete=AsyncMock())
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
         lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
     )
-    monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
+    monkeypatch.setattr(
+        task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account
+    )
     monkeypatch.setattr(
         task_mod.ExchangeAccountRepository,
         "list_by_exchange_uid",
@@ -243,13 +253,17 @@ async def test_reduce_only_fill_clears_account_cache_even_without_active_session
         return []
 
     redis = SimpleNamespace(delete=AsyncMock())
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
         lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
     )
-    monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
+    monkeypatch.setattr(
+        task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account
+    )
     monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
     monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
 
@@ -272,14 +286,20 @@ async def test_entry_filled_order_does_not_delete_position_snapshot_caches(
 
     order, _ = pending_order
     list_active_by_account = AsyncMock()
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
         lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
     )
-    monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
-    monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: SimpleNamespace(delete=AsyncMock()))
+    monkeypatch.setattr(
+        task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account
+    )
+    monkeypatch.setattr(
+        task_mod, "get_redis_lock_pool", lambda: SimpleNamespace(delete=AsyncMock())
+    )
     monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
 
     result = await task_mod._async_execute(order.id)
@@ -305,13 +325,17 @@ async def test_reduce_only_cache_delete_failure_does_not_change_filled_result(
         return [SimpleNamespace(id=uuid4())]
 
     redis = SimpleNamespace(delete=AsyncMock(side_effect=RuntimeError("redis unavailable")))
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
     monkeypatch.setattr(
         task_mod,
         "_provider_for_account_and_leverage",
         lambda exchange, mode, has_leverage: FixtureExchangeProvider(),
     )
-    monkeypatch.setattr(task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account)
+    monkeypatch.setattr(
+        task_mod.LiveSignalSessionRepository, "list_active_by_account", list_active_by_account
+    )
     monkeypatch.setattr(task_mod, "get_redis_lock_pool", lambda: redis)
     monkeypatch.setattr(task_mod, "publish_realtime", AsyncMock())
 
@@ -334,10 +358,16 @@ async def test_execute_order_task_transitions_to_rejected_on_provider_error(
     order, _acc = pending_order
 
     # Session monkeypatch — Sprint 4 pattern
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
 
     # Inject failing provider — bypass lazy singleton
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: FixtureExchangeProvider(fail_next_n=1))
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: FixtureExchangeProvider(fail_next_n=1),
+    )
 
     result = await task_mod._async_execute(order.id)
 
@@ -467,8 +497,14 @@ async def test_execute_order_task_keeps_submitted_when_receipt_status_submitted(
     import src.tasks.trading as task_mod
 
     order, _acc = pending_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _SubmittedReceiptProvider())
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: _SubmittedReceiptProvider(),
+    )
     # Sprint 16 CI fix: Sprint 15 watchdog 가 _async_execute 의 submitted 분기에 추가한
     # fetch_order_status_task.apply_async 가 CI Celery result backend (Redis) 연결 retry
     # limit 초과 → RuntimeError. test 단위에서는 watchdog enqueue 를 no-op 으로 mock.
@@ -503,8 +539,14 @@ async def test_execute_order_task_transitions_to_rejected_when_receipt_status_re
     import src.tasks.trading as task_mod
 
     order, _acc = pending_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _RejectedReceiptProvider())
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: _RejectedReceiptProvider(),
+    )
 
     result = await task_mod._async_execute(order.id)
 
@@ -534,8 +576,14 @@ async def test_execute_order_task_calls_session_commit_on_submitted_path(
     import src.tasks.trading as task_mod
 
     order, _acc = pending_order
-    monkeypatch.setattr(task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session))
-    monkeypatch.setattr(task_mod, "_provider_for_account_and_leverage", lambda exchange, mode, has_leverage: _SubmittedReceiptProvider())
+    monkeypatch.setattr(
+        task_mod, "create_worker_engine_and_sm", _make_fake_create_worker_engine_and_sm(db_session)
+    )
+    monkeypatch.setattr(
+        task_mod,
+        "_provider_for_account_and_leverage",
+        lambda exchange, mode, has_leverage: _SubmittedReceiptProvider(),
+    )
     # Sprint 16 CI fix — submitted 분기의 fetch_order_status_task.apply_async 우회 (Redis result backend retry limit).
     monkeypatch.setattr(
         task_mod.fetch_order_status_task,

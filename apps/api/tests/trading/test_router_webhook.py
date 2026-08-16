@@ -69,7 +69,7 @@ async def test_webhook_valid_hmac_returns_201(client, app, db_session, crypto):
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)
@@ -157,7 +157,7 @@ async def test_webhook_bad_hmac_returns_401(client, app, db_session, crypto):
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)
@@ -305,7 +305,7 @@ async def _seed_webhook_fixture(db_session, crypto, *, settings: object):
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"user_{uuid4().hex[:8]}",
+        auth_subject=f"user_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@test.local",
     )
     db_session.add(user)

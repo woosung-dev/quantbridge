@@ -374,7 +374,7 @@ def create_app() -> FastAPI:
     async def metrics_endpoint() -> Response:
         """Prometheus text exposition format (Sprint 9 Phase D).
 
-        Clerk 인증 제외, bearer token (settings.prometheus_bearer_token) 으로 보호.
+        세션 인증 제외, bearer token (settings.prometheus_bearer_token) 으로 보호.
         토큰이 None/empty 면 **모든 요청이 401** 이다 (2026-08-11 fail-closed 전환).
         """
         return Response(content=render_metrics(), media_type=CONTENT_TYPE_LATEST)

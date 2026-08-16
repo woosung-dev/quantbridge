@@ -1,13 +1,13 @@
-// 전략 목록 페이지 (/strategies, Server Component) — Clerk 토큰으로 React Query 를
+// 전략 목록 페이지 (/strategies, Server Component) — 세션 JWT 로 React Query 를
 // 서버에서 prefetch(archived 제외, PAGE_SIZE=20) 후 HydrationBoundary 로 StrategyList 에 hydrate.
 import type { Metadata } from "next";
-import { auth } from "@clerk/nextjs/server";
 import {
   HydrationBoundary,
   QueryClient,
   dehydrate,
 } from "@tanstack/react-query";
 
+import { getServerAuth } from "@/lib/auth-server";
 import { listStrategies } from "@/features/strategy/api";
 import { strategyKeys } from "@/features/strategy/query-keys";
 import type { StrategyListQuery } from "@/features/strategy/schemas";
@@ -54,8 +54,7 @@ export default async function StrategiesPage({
 
   // proxy.ts가 이 라우트를 보호하므로 익명 접근은 여기까지 오지 않음.
   // queryKey factory가 userId를 요구 — client hook과 동일한 uid 사용.
-  const { userId, getToken } = await auth();
-  const token = await getToken();
+  const { userId, token } = await getServerAuth();
   const uid = userId ?? "anon";
 
   if (token) {

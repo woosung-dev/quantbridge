@@ -123,7 +123,7 @@ def test_submit_genetic_has_response_parameter_for_slowapi_headers() -> None:
 async def test_forced_service_exception_returns_json_not_text_traceback(
     app: FastAPI,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     """P1-4 채택 — service 가 RuntimeError 발생시켜도 응답이 JSON + no traceback.
 
@@ -224,7 +224,7 @@ async def test_submit_endpoints_return_202_json_not_500_stack_trace(
     app: FastAPI,
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
     """BL-244 happy path — POST 3 endpoint 가 202 + valid JSON 반환 (no 500).
 
@@ -243,7 +243,7 @@ async def test_submit_endpoints_return_202_json_not_500_stack_trace(
             now = datetime.now(UTC)
             return OptimizationRunResponse(
                 id=uuid4(),
-                user_id=mock_clerk_auth.id,
+                user_id=mock_authed_user.id,
                 backtest_id=uuid4(),
                 kind=kind,
                 status=OptimizationStatus.QUEUED,

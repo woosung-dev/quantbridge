@@ -8,7 +8,6 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
 import { toast } from "sonner";
 import { FileCode2Icon, FolderOpenIcon, InfoIcon, SaveIcon, SearchIcon } from "lucide-react";
 
@@ -22,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { PineEditor } from "@/components/monaco/pine-editor";
 import { StateBox } from "@/components/state-box";
+import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { formatDateTime } from "@/features/backtest/utils";
 import { useCreateStrategy, useParseStrategy, usePreviewParse } from "@/features/strategy/hooks";
 import { handleMutationError } from "@/features/strategy/error-handler";
@@ -48,7 +48,7 @@ const EXAMPLE_PINE_URL = "/samples/ema-crossover.pine";
 
 export function NewStrategyWizard() {
   const router = useRouter();
-  const { userId } = useAuth();
+  const { userId } = useAuthCtx();
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState<string>(SYMBOL_OPTIONS[0]);

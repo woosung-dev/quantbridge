@@ -84,7 +84,7 @@ async def conditional_entry_factory(db_session: AsyncSession):
     crypto = EncryptionService(settings.trading_encryption_keys)
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@s.local",
     )
     strategy = Strategy(

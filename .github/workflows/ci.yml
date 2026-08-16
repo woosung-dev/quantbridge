@@ -208,12 +208,14 @@ jobs:
       - run: pnpm lint
       - run: pnpm tsc --noEmit
       - run: pnpm test -- --run
-      # Sprint FE-02 복원: Clerk test key secret 주입 후 build 활성화.
-      # /strategies/new 등 Clerk 의존 페이지 prerender 는 실제 publishable key 필요.
+      # ★2026-08-17 ADR-034 — 여기 있던 Clerk secret 2종이 사라졌다. 인증이 self-host 로 오면서
+      # 빌드에 필요한 외부 키가 **0개**가 됐다(`NEXT_PUBLIC_CLERK_*` 는 빌드타임 인라인이었다).
       - run: pnpm build
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-          CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+          # Better Auth 는 부팅 시점에만 필요하고 빌드에는 관여하지 않는다.
+          # 값이 없으면 개발 기본값으로 뜬다(production 에서만 throw).
+          BETTER_AUTH_SECRET: ci-build-only-placeholder-secret-000000
+          BETTER_AUTH_URL: http://localhost:3000
 
   # 정적 검사 — DB/redis 서비스가 필요 없으므로 컨테이너 초기화(실측 28s) 없이 병렬로 돈다.
   backend_static:
@@ -414,7 +416,10 @@ jobs:
 
   # Sprint FE-01 LESSON-004 Playwright E2E — vitest jsdom 이 못 잡는 Fast Refresh /
   # StrictMode / React Query refetch 케이스를 실제 브라우저로 재현.
-  # Clerk test publishable/secret key 는 repo secret 으로 주입.
+  # ★공개 라우트만 돈다(`chromium` / `live-smoke` / `design-canon`). 로그인 뒤 화면은
+  # storageState 가 필요해 로컬 `pnpm e2e:authed` 몫이고 CI 에는 없다 — 그래서 이 잡은
+  # DB 도 인증 시크릿도 필요 없다(ADR-034 로 그 전제를 `proxy.ts` 가 지키게 만들었다:
+  # 공개 라우트는 세션 조회를 하지 않는다).
   e2e:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
@@ -423,8 +428,8 @@ jobs:
       run:
         working-directory: apps/web
     env:
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
-      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      BETTER_AUTH_SECRET: ci-e2e-only-placeholder-secret-0000000
+      BETTER_AUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4

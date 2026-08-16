@@ -2,10 +2,6 @@ import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OrdersPanel } from "../components/orders-panel";
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ getToken: async () => "test-token" }),
-}));
-
 vi.mock("@/lib/api-client", () => ({
   apiFetch: vi.fn().mockResolvedValue({ items: [], total: 0 }),
   ApiError: class ApiError extends Error {},

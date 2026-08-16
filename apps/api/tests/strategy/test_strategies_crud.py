@@ -1,4 +1,5 @@
 """Strategy CRUD E2E — POST/GET/PUT/DELETE."""
+
 from __future__ import annotations
 
 import pytest
@@ -14,10 +15,16 @@ _BAD = "@@@ this is not pine script $$$"
 
 
 @pytest.mark.asyncio
-async def test_create_strategy_ok_returns_201_with_parse_status(client, mock_clerk_auth):
+async def test_create_strategy_ok_returns_201_with_parse_status(client, mock_authed_user):
     res = await client.post(
         "/api/v1/strategies",
-        json={"name": "my ema", "pine_source": _OK, "timeframe": "1h", "symbol": "BTCUSDT", "tags": ["ema"]},
+        json={
+            "name": "my ema",
+            "pine_source": _OK,
+            "timeframe": "1h",
+            "symbol": "BTCUSDT",
+            "tags": ["ema"],
+        },
     )
     assert res.status_code == 201, res.text
     body = res.json()
@@ -28,7 +35,7 @@ async def test_create_strategy_ok_returns_201_with_parse_status(client, mock_cle
 
 
 @pytest.mark.asyncio
-async def test_create_strategy_stores_unsupported(client, mock_clerk_auth):
+async def test_create_strategy_stores_unsupported(client, mock_authed_user):
     res = await client.post(
         "/api/v1/strategies",
         json={"name": "bad", "pine_source": _BAD},
@@ -40,7 +47,7 @@ async def test_create_strategy_stores_unsupported(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_list_strategies_paginates(client, mock_clerk_auth):
+async def test_list_strategies_paginates(client, mock_authed_user):
     # 3건 생성
     for i in range(3):
         await client.post(
@@ -57,7 +64,7 @@ async def test_list_strategies_paginates(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_list_filter_parse_status(client, mock_clerk_auth):
+async def test_list_filter_parse_status(client, mock_authed_user):
     await client.post("/api/v1/strategies", json={"name": "ok", "pine_source": _OK})
     await client.post("/api/v1/strategies", json={"name": "bad", "pine_source": _BAD})
 
@@ -69,7 +76,7 @@ async def test_list_filter_parse_status(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_list_pine_source_not_in_items(client, mock_clerk_auth):
+async def test_list_pine_source_not_in_items(client, mock_authed_user):
     await client.post("/api/v1/strategies", json={"name": "x", "pine_source": _OK})
     res = await client.get("/api/v1/strategies")
     assert res.status_code == 200
@@ -79,7 +86,7 @@ async def test_list_pine_source_not_in_items(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_get_strategy_returns_full_dto(client, mock_clerk_auth):
+async def test_get_strategy_returns_full_dto(client, mock_authed_user):
     res = await client.post("/api/v1/strategies", json={"name": "x", "pine_source": _OK})
     sid = res.json()["id"]
     detail = await client.get(f"/api/v1/strategies/{sid}")
@@ -90,8 +97,9 @@ async def test_get_strategy_returns_full_dto(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_get_strategy_not_found(client, mock_clerk_auth):
+async def test_get_strategy_not_found(client, mock_authed_user):
     import uuid
+
     bogus = str(uuid.uuid4())
     res = await client.get(f"/api/v1/strategies/{bogus}")
     assert res.status_code == 404
@@ -99,7 +107,7 @@ async def test_get_strategy_not_found(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_update_pine_source_reparses(client, mock_clerk_auth):
+async def test_update_pine_source_reparses(client, mock_authed_user):
     res = await client.post("/api/v1/strategies", json={"name": "x", "pine_source": _OK})
     sid = res.json()["id"]
     updated = await client.put(
@@ -111,7 +119,7 @@ async def test_update_pine_source_reparses(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_update_archive_toggle(client, mock_clerk_auth):
+async def test_update_archive_toggle(client, mock_authed_user):
     res = await client.post("/api/v1/strategies", json={"name": "x", "pine_source": _OK})
     sid = res.json()["id"]
     await client.put(f"/api/v1/strategies/{sid}", json={"is_archived": True})
@@ -124,7 +132,7 @@ async def test_update_archive_toggle(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_delete_strategy(client, mock_clerk_auth):
+async def test_delete_strategy(client, mock_authed_user):
     res = await client.post("/api/v1/strategies", json={"name": "x", "pine_source": _OK})
     sid = res.json()["id"]
     deleted = await client.delete(f"/api/v1/strategies/{sid}")

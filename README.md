@@ -7,14 +7,14 @@
 
 ## Tech Stack
 
-| 레이어        | 기술                                                                                                                                          |
-| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| Frontend      | Next.js 16 App Router · TypeScript Strict · Tailwind CSS v4 · shadcn/ui v4 (Base UI) · Monaco Editor · React Query · Zustand · Zod v4 · Clerk |
-| Backend       | FastAPI · SQLModel 2.0 · Celery + Redis · PostgreSQL + TimescaleDB · Alembic · Pydantic v2 · CCXT (async)                                     |
-| Parser        | 커스텀 Pine v4/v5 토크나이저·인터프리터 (`exec`/`eval` 금지 — ADR 003)                                                                        |
-| Backtest      | `pine_v2` 자체 AST 인터프리터 (bar-by-bar SSOT, ADR-011). 지표도 `pine_v2/stdlib.py` 가 pandas/numpy 로 직접 계산                             |
-| 패키지 매니저 | `uv` (backend) · `pnpm` (frontend)                                                                                                            |
-| 인증          | Clerk (Frontend + Backend JWT 검증)                                                                                                           |
+| 레이어        | 기술                                                                                                                                                |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Frontend      | Next.js 16 App Router · TypeScript Strict · Tailwind CSS v4 · shadcn/ui v4 (Base UI) · Monaco Editor · React Query · Zustand · Zod v4 · Better Auth |
+| Backend       | FastAPI · SQLModel 2.0 · Celery + Redis · PostgreSQL + TimescaleDB · Alembic · Pydantic v2 · CCXT (async)                                           |
+| Parser        | 커스텀 Pine v4/v5 토크나이저·인터프리터 (`exec`/`eval` 금지 — ADR 003)                                                                              |
+| Backtest      | `pine_v2` 자체 AST 인터프리터 (bar-by-bar SSOT, ADR-011). 지표도 `pine_v2/stdlib.py` 가 pandas/numpy 로 직접 계산                                   |
+| 패키지 매니저 | `uv` (backend) · `pnpm` (frontend)                                                                                                                  |
+| 인증          | Better Auth 자체 호스팅 (Next 앱이 인증 서버 · FastAPI 는 JWKS 검증) — [ADR-034](docs/decisions/034-auth-self-host-better-auth.md)                  |
 
 ---
 
@@ -49,8 +49,8 @@ cp apps/web/.env.example apps/web/.env.local
 
 필수 실값 교체 (각 파일 `[필수 …]` 마킹된 키):
 
-- `apps/api/.env.local` + `.env`: `CLERK_SECRET_KEY` (Clerk Dashboard → API Keys → Secret keys), `TRADING_ENCRYPTION_KEYS` ([생성 방법](#3-trading_encryption_keys-생성-sprint-6))
-- `apps/web/.env.local`: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` (Clerk Dashboard → Publishable keys)
+- `apps/api/.env.local` + `.env`: `TRADING_ENCRYPTION_KEYS` ([생성 방법](#3-trading_encryption_keys-생성-sprint-6)) · `BETTER_AUTH_URL`
+- `apps/web/.env.local`: `BETTER_AUTH_SECRET` (`openssl rand -base64 32`) · `BETTER_AUTH_URL` · `BETTER_AUTH_DATABASE_URL`
 
 > **왜 3파일?** docker compose는 `./env`만 자동 로드, backend pydantic-settings는 `apps/api/.env.local` → `apps/api/.env` 순서로 로드, Next.js는 `apps/web/.env.local` 로드. 파일 하나에 몰면 "이 변수가 어디서 쓰이나?" 추론 필요 + loader 간 약속이 drift됨. 서비스별 분리가 turborepo/cal.com/Vercel 공식 예제 표준.
 
@@ -92,7 +92,7 @@ pnpm dev                             # http://localhost:3000
 ```bash
 curl http://localhost:8000/health                   # 200 {"status":"ok"}
 open http://localhost:8000/docs                     # Swagger UI
-open http://localhost:3000                          # FE 홈 → Clerk 로그인
+open http://localhost:3000                          # FE 홈 → 로그인
 cd apps/api && uv run pytest -q                      # ~1831 tests pass (2026-05 기준)
 ```
 

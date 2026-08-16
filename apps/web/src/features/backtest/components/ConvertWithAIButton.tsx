@@ -3,9 +3,9 @@
 // 미지원 builtin 에러 발생 시 FormErrorInline 카드 하단에 노출.
 
 import { useState } from "react";
-import { useAuth } from "@clerk/nextjs";
 import { toast } from "sonner";
 
+import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { convertIndicator } from "../api";
 import type { ConvertIndicatorResponse } from "../schemas";
 
@@ -20,7 +20,7 @@ export function ConvertWithAIButton({
   indicatorCode,
   onConverted,
 }: ConvertWithAIButtonProps) {
-  const { getToken } = useAuth();
+  const { getToken } = useAuthCtx();
   const [isConverting, setIsConverting] = useState(false);
 
   const handleConvert = async () => {

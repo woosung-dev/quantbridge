@@ -1,13 +1,13 @@
-// 인증된 앱 페이지 상단바 — 모바일 햄버거 + breadcrumb(현재 페이지) + 테마 토글 + 모바일 UserButton.
+// 인증된 앱 페이지 상단바 — 모바일 햄버거 + breadcrumb(현재 페이지) + 테마 토글 + 모바일 계정 버튼.
 // C 이식 S3: 프로토타입(screen-02) .topbar 구조로 재작성. position:sticky + margin-left var(--sidebar-w).
 //   죽은 prop(sidebarOpen/onToggleSidebar) 삭제 — 데스크톱 sidebar 접힘은 순수 CSS 레일이 담당.
 //   햄버거는 .hamburger 시맨틱 클래스(≤768px 에서만 CSS 로 노출)로 모바일 drawer 를 연다.
 //   검색창은 백엔드 검색 기능이 없어 이식하지 않는다(가짜 UI 방지).
 
-import { UserButton } from "@clerk/nextjs";
 import { Menu as MenuIcon } from "lucide-react";
 
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { AccountButton } from "./account-button";
 import { useUiStore } from "@/store/ui-store";
 
 type DashboardHeaderProps = {
@@ -42,18 +42,10 @@ export function DashboardHeader({ pageTitle }: DashboardHeaderProps) {
 
       <ThemeToggle />
 
-      {/* 데스크톱은 사이드바 footer 의 UserButton 을 쓴다. 모바일은 사이드바가 숨으므로 상단바에 노출.
-          Clerk 내부 root collapse 방지 위해 elements size 강제 (BL-305/339). */}
+      {/* 데스크톱은 사이드바 footer 의 계정 버튼을 쓴다. 모바일은 사이드바가 숨으므로 상단바에 노출.
+          터치 타깃 ≥44pt 는 AccountButton 이 size="lg" 로 보장한다 (BL-305/339 후속). */}
       <div className="inline-flex min-h-11 min-w-11 items-center justify-center md:hidden">
-        <UserButton
-          appearance={{
-            elements: {
-              rootBox: "shrink-0 size-11 min-w-11",
-              userButtonTrigger: "size-11 min-w-11",
-              avatarBox: "size-9",
-            },
-          }}
-        />
+        <AccountButton size="lg" />
       </div>
     </header>
   );

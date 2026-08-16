@@ -1,4 +1,5 @@
 """POST /api/v1/backtests — HTTP integration."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,8 +26,7 @@ def _fixture_root(tmp_path: Path) -> Path:
     root.mkdir()
     csv = root / "BTCUSDT_1h.csv"
     csv.write_text(
-        "timestamp,open,high,low,close,volume\n"
-        "2024-01-01T00:00:00Z,100,101,99,100.5,10\n"
+        "timestamp,open,high,low,close,volume\n2024-01-01T00:00:00Z,100,101,99,100.5,10\n"
     )
     return root
 
@@ -64,11 +64,11 @@ def _body(strategy_id) -> dict:
 async def test_submit_202_with_backtest_id(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
     override_service: FakeTaskDispatcher,
 ) -> None:
     """Happy path — 202 + backtest_id + queued status."""
-    authed_user: User = mock_clerk_auth
+    authed_user: User = mock_authed_user
 
     strategy = Strategy(
         id=uuid4(),
@@ -95,11 +95,11 @@ async def test_submit_202_with_backtest_id(
 async def test_submit_422_invalid_period(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
     override_service: FakeTaskDispatcher,
 ) -> None:
     """period_end <= period_start → 422."""
-    authed_user: User = mock_clerk_auth
+    authed_user: User = mock_authed_user
 
     strategy = Strategy(
         id=uuid4(),
@@ -122,11 +122,11 @@ async def test_submit_422_invalid_period(
 async def test_submit_404_strategy_not_found(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
     override_service: FakeTaskDispatcher,
 ) -> None:
     """존재하지 않는 strategy → 404."""
-    _: User = mock_clerk_auth  # 인증 활성화
+    _: User = mock_authed_user  # 인증 활성화
 
     r = await client.post("/api/v1/backtests", json=_body(uuid4()))
     assert r.status_code == 404
@@ -138,15 +138,15 @@ async def test_submit_404_strategy_not_found(
 async def test_submit_404_other_user_strategy(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth,
+    mock_authed_user,
     override_service: FakeTaskDispatcher,
 ) -> None:
     """타 유저의 strategy → 404 (ownership isolation)."""
-    _: User = mock_clerk_auth  # 인증 활성화
+    _: User = mock_authed_user  # 인증 활성화
 
     other_user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     db_session.add(other_user)

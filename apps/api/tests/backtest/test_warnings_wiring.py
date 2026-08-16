@@ -76,7 +76,7 @@ def _fixture_root(tmp_path: Path) -> Path:
 
 
 async def _seed(session: AsyncSession, source: str) -> tuple[User, Strategy]:
-    user = User(id=uuid4(), clerk_user_id=f"u_{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@ex.com")
+    user = User(id=uuid4(), auth_subject=f"u_{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@ex.com")
     session.add(user)
     strategy = Strategy(
         id=uuid4(),

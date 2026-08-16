@@ -1,4 +1,5 @@
-"""auth 도메인 SQLModel 테이블. Sprint 3에서 User 추가."""
+"""auth 도메인 SQLModel 테이블. Sprint 3에서 User 추가, ADR-034 에서 Better Auth 5테이블 선언 추가."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -14,7 +15,9 @@ class User(SQLModel, table=True):
     __tablename__ = "users"
 
     id: UUID = Field(default_factory=uuid4, primary_key=True)
-    clerk_user_id: str = Field(
+    # 외부 인증 공급자의 subject(JWT `sub`). ★내부 PK 와 분리돼 있어서 공급자를 갈아끼워도
+    # FK 7곳이 그대로다 — 2026-08-17 Clerk → Better Auth 전환이 이 컬럼 하나로 끝난 이유다.
+    auth_subject: str = Field(
         index=True,
         unique=True,
         max_length=64,

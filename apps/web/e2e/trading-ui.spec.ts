@@ -11,7 +11,7 @@ import {
 // H2 Sprint 1 Phase C — Trading UI E2E 시나리오 (Sprint 25 활성화).
 //
 // Sprint 25 변경사항 (codex G.0 iter 1+2 반영):
-// 1) test.skip 5건 제거 → chromium-authed project 의 storageState 가 Clerk 인증 처리
+// 1) test.skip 5건 제거 → chromium-authed project 의 storageState 가 인증 처리
 // 2) Mock route prefix 정정 — `/api/v1/trading/...` → `/api/v1/...` (실제 frontend api.ts 사용 path)
 //    검증 출처: src/features/trading/api.ts L17-19 (ORDERS_PATH / KILL_SWITCH_PATH / EXCHANGE_ACCOUNTS_PATH)
 // 3) MOCK 변수 + API_ROUTES 를 fixtures/api-mock.ts 에서 import (DRY)
@@ -163,7 +163,7 @@ test("trading kill switch resolved — 배너 소멸", async ({ page }) => {
 });
 
 // STEP B — 트레일링 의도(Order.trailing_stop) 가 tpsl-cell 에 표출되는지 실 브라우저 검증
-// (실 Clerk storageState 인증 + 실 FE 렌더). 체결 후 place_trailing_stop 가 거래소에 부착하는
+// (실 storageState 인증 + 실 FE 렌더). 체결 후 place_trailing_stop 가 거래소에 부착하는
 // 그 의도를 사용자가 주문 테이블에서 볼 수 있어야 한다(Surface Trust §7.3 — UI 표출 mechanism).
 test("trading orders — trailing_stop tpsl-cell 에 trail 거리 렌더", async ({
   page,

@@ -19,13 +19,19 @@ from alembic import context
 
 # 도메인 models 를 import 하여 SQLModel.metadata 에 테이블이 등록되도록 함.
 # 새 도메인 models 추가 시 여기에 import 라인을 추가한다.
+from src.auth import better_auth_tables as _better_auth_tables  # noqa: F401
 from src.auth import models as _auth_models  # noqa: F401
 from src.backtest import models as _backtest_models  # noqa: F401
 from src.core.config import settings
 from src.market_data import models as _market_data_models  # noqa: F401
+
+# ★2026-08-17 [BL-770] — optimizer·waitlist 가 빠져 있었다. `table=True` 모델이 metadata 에
+#   등록되지 않으니 `alembic check` 가 그 두 테이블을 **removed table** 로 보고 rc=255 로 죽었다.
+from src.optimizer import models as _optimizer_models  # noqa: F401
 from src.strategy import models as _strategy_models  # noqa: F401
 from src.stress_test import models as _stress_test_models  # noqa: F401
 from src.trading import models as _trading_models  # noqa: F401
+from src.waitlist import models as _waitlist_models  # noqa: F401
 
 config = context.config
 
@@ -128,6 +134,40 @@ def _is_async_url() -> bool:
     return "+asyncpg" in url
 
 
+# ★`include_schemas=True` 를 켜면 우리 소관이 아닌 스키마까지 보인다. TimescaleDB 가 만드는
+#   내부 스키마(`_timescaledb_*`)와 확장 소유 테이블은 자동생성·검사 대상이 아니다.
+# TimescaleDB `create_hypertable()` 이 소유하는 인덱스 — 우리 metadata 밖이다.
+_TIMESCALE_OWNED_INDEXES = frozenset({"ohlcv_time_idx", "funding_rates_time_idx"})
+
+_IGNORED_SCHEMAS = (
+    "_timescaledb_internal",
+    "_timescaledb_catalog",
+    "_timescaledb_config",
+    "_timescaledb_cache",
+    "timescaledb_information",
+    "timescaledb_experimental",
+    "information_schema",
+)
+
+
+def _include_object(obj, name, type_, reflected, compare_to):  # type: ignore[no-untyped-def]
+    """autogenerate·check 대상 필터.
+
+    ★`auth_*` 5테이블은 **제외하지 않는다** — 이 레포가 DDL 정본이기 때문이다(ADR-034 §D2).
+    Better Auth 는 그 테이블을 쓰기만 하고 만들지는 않는다.
+    """
+    schema = getattr(obj, "schema", None)
+    if schema in _IGNORED_SCHEMAS:
+        return False
+    if type_ == "table" and name.startswith("_hyper_"):
+        # TimescaleDB chunk 테이블 — hypertable 이 만든 것이라 우리 metadata 에 없다.
+        return False
+    # ★[BL-770] 을 고치자 드러난 **진짜 drift 1건**이 여기다. 판정: 우리 것이 아니다 —
+    #   `create_hypertable()` 이 자동으로 만드는 시간 인덱스라 모델에 선언하면 오히려
+    #   `create_all` 경로(테스트 DB)에서 중복 생성이 된다. 삭제도 하지 않는다(성능 근간).
+    return not (type_ == "index" and name in _TIMESCALE_OWNED_INDEXES)
+
+
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -135,6 +175,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         compare_type=True,
+        # ★[BL-770] — 이게 없으면 `trading.*` 이 DB 쪽에서 안 보여 전부 **added table** 로 잡힌다.
+        include_schemas=True,
+        include_object=_include_object,
         dialect_opts={"paramstyle": "named"},
     )
     with context.begin_transaction():
@@ -146,6 +189,8 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
+        include_schemas=True,
+        include_object=_include_object,
     )
     with context.begin_transaction():
         context.run_migrations()

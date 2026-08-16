@@ -186,7 +186,7 @@ chmod 600 ~/quantbridge/.env.production
 ```
 
 > ★★★**위 두 값은 플레이스홀더다.** 문자 그대로 실행하지 마라 — 이 레포는 사용자가
-> 플레이스홀더를 그대로 붙여넣은 전례가 있다(2026-08-07 FE 배포, `CLERK_SECRET_KEY`).
+> 플레이스홀더를 그대로 붙여넣은 전례가 있다(2026-08-07 FE 배포, 당시 `CLERK_SECRET_KEY`).
 > `tools/scripts/bybit-smoke.sh` 가 잡는다 — 패턴(`PASTE`/`YOUR_`/`REPLACE`/`여기에` …)뿐 아니라
 > **영숫자 16자 이상**이라는 구조적 술어까지 건다. ★단 **패턴 목록은 완전할 수 없다**
 > (`REPLACE_ME` 가 초판을 그대로 통과했다) — 셸을 최후 방어선으로 믿지 마라.
@@ -214,7 +214,8 @@ SDK 가 헤더를 ascii 인코딩하며 `UnicodeEncodeError`). 증상이 달라 
 ### `app_env=production` 을 켤 때
 
 `config.py:358-407` 의 `_enforce_production_safety` 가 부팅 시점에 검사한다 —
-`SECRET_KEY` / `CLERK_SECRET_KEY` / `WAITLIST_TOKEN_SECRET` placeholder + `PROMETHEUS_BEARER_TOKEN`
+`SECRET_KEY` / `WAITLIST_TOKEN_SECRET` placeholder + `PROMETHEUS_BEARER_TOKEN`
+(★2026-08-17 [ADR-034] 로 `CLERK_SECRET_KEY` 축은 사라졌다. 대신 URL 3종의 localhost 잔존을 본다)
 필수. ★**`app_env == production` 일 때만이다**([BL-625]) — development 로 두면 플레이스홀더가
 어느 게이트에도 안 걸리고 `/health` 는 200 을 낸다. 목록 전문 = `apps/api/.env.prod.example`.
 

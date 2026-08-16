@@ -29,7 +29,7 @@ _BASE = datetime(2026, 7, 20, tzinfo=UTC)
 
 async def _make_account(session: AsyncSession) -> ExchangeAccount:
     user = User(
-        clerk_user_id=f"exit-ledger-{uuid4().hex[:8]}",
+        auth_subject=f"exit-ledger-{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     session.add(user)
@@ -59,7 +59,14 @@ def _row(
         exchange_order_id=order_id,
         row_hash=row_hash
         or ExchangeExit.compute_row_hash(
-            order_id, str(int(created_at.timestamp() * 1000)), None, None, closed_pnl, None, None, None
+            order_id,
+            str(int(created_at.timestamp() * 1000)),
+            None,
+            None,
+            closed_pnl,
+            None,
+            None,
+            None,
         ),
         symbol="BTCUSDT",
         side="Sell",
@@ -82,7 +89,12 @@ async def test_upsert_rows_is_idempotent_across_repeated_windows(db_session: Asy
     repo = ExchangeExitRepository(db_session)
     rows = [
         _row(account.id, order_id="o-1", closed_pnl="-0.18106922", created_at=_BASE),
-        _row(account.id, order_id="o-2", closed_pnl="-0.12145747", created_at=_BASE + timedelta(minutes=15)),
+        _row(
+            account.id,
+            order_id="o-2",
+            closed_pnl="-0.12145747",
+            created_at=_BASE + timedelta(minutes=15),
+        ),
     ]
 
     first = await repo.upsert_rows(rows)
@@ -132,9 +144,9 @@ async def test_aggregate_closed_pnl_sums_split_rows_as_decimal(db_session: Async
     assert sums["split"] == Decimal("-3.75000000")
     assert isinstance(sums["split"], Decimal)
     # 다른 계정의 같은 orderId 가 섞이면 남의 손실이 우리 리스크 게이트로 들어온다.
-    assert await repo.aggregate_closed_pnl(account.id, ["split"]) != await repo.aggregate_closed_pnl(
-        other.id, ["split"]
-    )
+    assert await repo.aggregate_closed_pnl(
+        account.id, ["split"]
+    ) != await repo.aggregate_closed_pnl(other.id, ["split"])
 
 
 @pytest.mark.asyncio

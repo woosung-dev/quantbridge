@@ -5,10 +5,6 @@ import { describe, expect, test, vi } from "vitest";
 
 import { KillSwitchPanel } from "../components/kill-switch-panel";
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ getToken: async () => "test-token" }),
-}));
-
 vi.mock("@/lib/api-client", () => ({
   apiFetch: vi.fn().mockResolvedValue({ items: [] }),
   ApiError: class ApiError extends Error {},

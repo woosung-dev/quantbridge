@@ -1,4 +1,5 @@
 """BacktestService — Idempotency-Key 중복 제출 방어 (Sprint 9-6)."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -24,10 +25,11 @@ from src.strategy.repository import StrategyRepository
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 async def _seed(session: AsyncSession) -> tuple[User, Strategy]:
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     session.add(user)
@@ -87,6 +89,7 @@ def _make_service(session: AsyncSession, fixture_root: Path) -> BacktestService:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.asyncio
 async def test_first_submit_with_idempotency_key_succeeds(
@@ -151,19 +154,13 @@ async def test_different_idempotency_keys_create_separate_backtests(
     user, strat = await _seed(db_session)
     service = _make_service(db_session, _mini_fixture_root(tmp_path))
 
-    r1 = await service.submit(
-        _make_request(strat.id), user_id=user.id, idempotency_key="key-1"
-    )
-    r2 = await service.submit(
-        _make_request(strat.id), user_id=user.id, idempotency_key="key-2"
-    )
+    r1 = await service.submit(_make_request(strat.id), user_id=user.id, idempotency_key="key-1")
+    r2 = await service.submit(_make_request(strat.id), user_id=user.id, idempotency_key="key-2")
     assert r1.backtest_id != r2.backtest_id
 
 
 @pytest.mark.asyncio
-async def test_idempotency_key_stored_on_backtest(
-    db_session: AsyncSession, tmp_path: Path
-) -> None:
+async def test_idempotency_key_stored_on_backtest(db_session: AsyncSession, tmp_path: Path) -> None:
     user, strat = await _seed(db_session)
     service = _make_service(db_session, _mini_fixture_root(tmp_path))
 

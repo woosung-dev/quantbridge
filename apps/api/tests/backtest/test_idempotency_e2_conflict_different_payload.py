@@ -24,7 +24,7 @@ from src.strategy.repository import StrategyRepository
 async def _seed(session: AsyncSession) -> tuple[User, Strategy]:
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     session.add(user)
@@ -82,16 +82,12 @@ def _service(session: AsyncSession, root: Path) -> BacktestService:
 
 
 @pytest.mark.asyncio
-async def test_different_capital_raises_409(
-    db_session: AsyncSession, tmp_path: Path
-) -> None:
+async def test_different_capital_raises_409(db_session: AsyncSession, tmp_path: Path) -> None:
     user, strat = await _seed(db_session)
     service = _service(db_session, _fixture_root(tmp_path))
 
     key = f"idem-{uuid4().hex}"
-    first = await service.submit(
-        _req(strat.id, "10000"), user_id=user.id, idempotency_key=key
-    )
+    first = await service.submit(_req(strat.id, "10000"), user_id=user.id, idempotency_key=key)
 
     with pytest.raises(BacktestDuplicateIdempotencyKey) as exc_info:
         await service.submit(
@@ -116,12 +112,8 @@ async def test_different_user_raises_409_cross_user_reuse(
     service = _service(db_session, _fixture_root(tmp_path))
 
     key = f"idem-{uuid4().hex}"
-    first = await service.submit(
-        _req(strat_a.id), user_id=user_a.id, idempotency_key=key
-    )
+    first = await service.submit(_req(strat_a.id), user_id=user_a.id, idempotency_key=key)
 
     with pytest.raises(BacktestDuplicateIdempotencyKey):
-        await service.submit(
-            _req(strat_b.id), user_id=user_b.id, idempotency_key=key
-        )
+        await service.submit(_req(strat_b.id), user_id=user_b.id, idempotency_key=key)
     assert first.replayed is False

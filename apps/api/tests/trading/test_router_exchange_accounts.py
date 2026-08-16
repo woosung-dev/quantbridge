@@ -1,6 +1,6 @@
 """ExchangeAccount REST endpoints E2E (T18).
 
-Uses mock_clerk_auth fixture from conftest.py for auth bypass.
+Uses mock_authed_user fixture from conftest.py for auth bypass.
 URLs: /api/v1/exchange-accounts (router has no prefix; main.py adds /api/v1).
 """
 
@@ -22,7 +22,7 @@ def mock_exchange_identity(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_register_exchange_account_returns_201(client, mock_clerk_auth):
+async def test_register_exchange_account_returns_201(client, mock_authed_user):
     res = await client.post(
         "/api/v1/exchange-accounts",
         json={
@@ -48,7 +48,7 @@ async def test_register_exchange_account_returns_201(client, mock_clerk_auth):
 
 @pytest.mark.asyncio
 async def test_list_exchange_accounts_returns_registered(
-    client, mock_clerk_auth, mock_exchange_identity
+    client, mock_authed_user, mock_exchange_identity
 ):
     # Register an account first
     await client.post(
@@ -76,7 +76,7 @@ async def test_list_exchange_accounts_returns_registered(
 
 
 @pytest.mark.asyncio
-async def test_delete_exchange_account_returns_204(client, mock_clerk_auth):
+async def test_delete_exchange_account_returns_204(client, mock_authed_user):
     # Register
     create_res = await client.post(
         "/api/v1/exchange-accounts",
@@ -99,7 +99,7 @@ async def test_delete_exchange_account_returns_204(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_delete_nonexistent_account_returns_404(client, mock_clerk_auth):
+async def test_delete_nonexistent_account_returns_404(client, mock_authed_user):
     import uuid
 
     fake_id = uuid.uuid4()
@@ -108,7 +108,7 @@ async def test_delete_nonexistent_account_returns_404(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_mask_api_key_short_key(client, mock_clerk_auth):
+async def test_mask_api_key_short_key(client, mock_authed_user):
     """Keys shorter than 8 chars should be fully masked."""
     res = await client.post(
         "/api/v1/exchange-accounts",
@@ -146,7 +146,7 @@ def spy_account_service(app):
 
 @pytest.mark.asyncio
 async def test_delete_route_calls_public_service_method(
-    client, mock_clerk_auth, spy_account_service
+    client, mock_authed_user, spy_account_service
 ):
     """DELETE 는 `delete_for_user(account_id, user_id)` 를 부른다 — repo 를 직접 만지지 않는다."""
     import uuid
@@ -155,7 +155,7 @@ async def test_delete_route_calls_public_service_method(
     res = await client.delete(f"/api/v1/exchange-accounts/{account_id}")
 
     assert res.status_code == 204
-    spy_account_service.delete_for_user.assert_awaited_once_with(account_id, mock_clerk_auth.id)
+    spy_account_service.delete_for_user.assert_awaited_once_with(account_id, mock_authed_user.id)
     # ★라우터가 트랜잭션·조회를 직접 몰아서는 안 된다. 이 셋이 이 회차가 지운 것이다.
     spy_account_service._repo.commit.assert_not_awaited()
     spy_account_service._repo.delete.assert_not_awaited()
@@ -163,19 +163,21 @@ async def test_delete_route_calls_public_service_method(
 
 
 @pytest.mark.asyncio
-async def test_list_route_calls_public_service_method(client, mock_clerk_auth, spy_account_service):
+async def test_list_route_calls_public_service_method(
+    client, mock_authed_user, spy_account_service
+):
     """GET 목록은 `list_for_user(user_id)` 를 부른다."""
     spy_account_service.list_for_user.return_value = []
 
     res = await client.get("/api/v1/exchange-accounts")
 
     assert res.status_code == 200
-    spy_account_service.list_for_user.assert_awaited_once_with(mock_clerk_auth.id)
+    spy_account_service.list_for_user.assert_awaited_once_with(mock_authed_user.id)
     spy_account_service._repo.list_by_user.assert_not_awaited()
 
 
 @pytest.mark.asyncio
-async def test_register_route_does_not_commit_twice(client, mock_clerk_auth, spy_account_service):
+async def test_register_route_does_not_commit_twice(client, mock_authed_user, spy_account_service):
     """POST 는 `register()` 만 부른다 — 커밋은 서비스 안에서 한 번이다.
 
     종전 라우터는 `register()` 뒤에 `svc._repo.commit()` 을 한 번 더 쳤다(중복 커밋).

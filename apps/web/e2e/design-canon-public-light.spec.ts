@@ -44,7 +44,6 @@ const EXPECTED_CONSOLE = [
   /net::err_/i,
   /\b40[0-9]\b/,
   /\b50[0-9]\b/,
-  /clerk has been loaded/i,
   /development keys/i,
   /\[fast refresh\]/i,
   /access to fetch/i,

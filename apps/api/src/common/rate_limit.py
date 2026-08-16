@@ -2,7 +2,7 @@
 
 - Storage: Phase A1 의 redis_lock_url (DB 3 격리) 재사용.
   실제 Redis 연결은 slowapi 첫 request hit 시 lazy 하게 생성 (import 시점 연결 없음).
-- Key: Clerk JWT user_id (request.state.user_id 세팅 시 우선), 없으면 신뢰된 XFF leftmost / fallback request.client.host.
+- Key: 세션 JWT user_id (request.state.user_id 세팅 시 우선), 없으면 신뢰된 XFF leftmost / fallback request.client.host.
   현재 Phase B 는 IP-based 만 구현. request.state.user_id 는 향후 auth dependency 에서
   세팅 후 활성화 예정 (follow-up: Phase C/D).
 - Fail-open: Redis 장애 시 swallow_errors=True 로 limiter 통과 + WARN 로그.
@@ -70,7 +70,7 @@ def _client_ip_or_xff(request: Request) -> str:
 
 
 def rate_limit_key(request: Request) -> str:
-    """Clerk JWT user_id 우선, 없으면 신뢰된 XFF / client.host.
+    """세션 JWT user_id 우선, 없으면 신뢰된 XFF / client.host.
 
     현재 Phase B: request.state.user_id 는 미세팅 상태 → 항상 IP fallback.
     향후 auth dependency 에서 request.state.user_id = user.id 세팅 시 user 기반 격리 활성화.

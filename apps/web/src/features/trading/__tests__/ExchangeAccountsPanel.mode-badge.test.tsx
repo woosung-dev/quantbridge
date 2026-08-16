@@ -4,10 +4,6 @@ import { ExchangeAccountsPanel } from "../components/exchange-accounts-panel";
 
 // C-2: ModeBadge 렌더 단위 테스트
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ getToken: async () => "test-token" }),
-}));
-
 vi.mock("@/lib/api-client", () => ({
   apiFetch: vi.fn(),
   ApiError: class ApiError extends Error {},

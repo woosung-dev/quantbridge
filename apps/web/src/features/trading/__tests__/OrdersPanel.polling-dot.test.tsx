@@ -6,10 +6,6 @@ import { afterEach, vi } from "vitest";
 
 import { OrdersPanel } from "../components/orders-panel";
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ getToken: async () => "test-token" }),
-}));
-
 const apiFetchMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api-client", () => ({

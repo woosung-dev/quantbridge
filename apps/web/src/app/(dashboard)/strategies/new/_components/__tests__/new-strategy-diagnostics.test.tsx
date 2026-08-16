@@ -13,10 +13,6 @@ const hoisted = vi.hoisted(() => ({
   saveWizardDraft: vi.fn(),
 }));
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "test-user", getToken: async () => "t" }),
-}));
-
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));

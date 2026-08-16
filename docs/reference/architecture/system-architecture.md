@@ -12,13 +12,13 @@
 flowchart LR
     User[👤 트레이더]
     QB[QuantBridge\nWeb Application]
-    Clerk[Clerk\nAuth Provider]
+    Auth[Better Auth\n(Next 앱 내부)]
     TV[TradingView\nPine Script source]
     CCXT_EX[CCXT 거래소\nBybit / Binance / OKX]
 
-    User -->|로그인| Clerk
+    User -->|로그인| Auth
     User -->|전략·백테스트| QB
-    QB -->|JWT 검증| Clerk
+    QB -->|JWKS 공개키 검증| Auth
     User -.->|Pine 코드 복사| TV
     QB -->|OHLCV 수집·주문 실행| CCXT_EX
 ```
@@ -27,7 +27,7 @@ flowchart LR
 
 | 시스템                          | 역할                                     | 의존 도메인           |
 | ------------------------------- | ---------------------------------------- | --------------------- |
-| Clerk                           | 사용자 인증 (세션, JWT, Webhook)         | auth                  |
+| Better Auth (자체 호스팅)       | 사용자 인증 (세션 쿠키 · JWT · JWKS)     | auth                  |
 | TradingView                     | Pine Script 코드 원본 (사용자 수동 복사) | strategy (input only) |
 | CCXT 거래소 (Binance/Bybit/OKX) | OHLCV 수집, 주문 실행                    | market_data, trading  |
 
@@ -53,14 +53,14 @@ flowchart TB
     end
 
     subgraph External["External"]
-        Clerk[Clerk]
+        Auth[Better Auth\n/api/auth/*]
         Exch[CCXT 거래소]
     end
 
     FE -- HTTPS REST --> API
     FE -. WebSocket .-> API
-    FE -- JWT --> Clerk
-    Clerk -- Webhook --> API
+    FE -- 세션 쿠키 --> Auth
+    Auth -- JWKS --> API
 
     API -- AsyncSession --> DB
     API -- enqueue task --> Redis
@@ -77,7 +77,7 @@ flowchart TB
 
 | 컨테이너 | 책임                                                                                                                      | 이미지/런타임                       | 포트 |
 | -------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ---- |
-| Frontend | Next.js 16 SSR/CSR, Clerk SDK, React Query, Zustand                                                                       | `node:22`                           | 3000 |
+| Frontend | Next.js 16 SSR/CSR, Better Auth 서버, React Query, Zustand                                                                | `node:22`                           | 3000 |
 | API      | FastAPI async, JWT 검증, Webhook 수신, 백테스트 dispatch                                                                  | `python:3.11-slim` + `uv`           | 8000 |
 | Worker   | Celery prefork, pine_v2 AST 인터프리터 백테스트 실행, OHLCV 수집 (지표도 pine_v2 직접 계산 — vectorbt 는 2026-08-06 제거) | API와 동일 이미지                   | —    |
 | Beat     | Celery beat scheduler (stale reclaim, market_data sync)                                                                   | API와 동일 이미지                   | —    |
@@ -93,23 +93,23 @@ flowchart TB
 ```mermaid
 sequenceDiagram
     actor User
-    participant FE as Next.js (Clerk SDK)
-    participant Clerk
+    participant FE as Next.js (Better Auth)
+    participant Auth as Better Auth (/api/auth)
     participant API as FastAPI
     participant DB
 
     User->>FE: 로그인
-    FE->>Clerk: 인증
-    Clerk-->>FE: 세션 쿠키 + JWT
+    FE->>Auth: 인증
+    Auth-->>FE: 세션 쿠키 (+ /api/auth/token 으로 JWT)
     FE->>API: GET /strategies\nAuthorization: Bearer <JWT>
-    API->>Clerk: JWKS 검증 (캐시)
-    Clerk-->>API: 검증 OK
+    API->>Auth: JWKS 조회 (kid 캐시)
+    Auth-->>API: 공개 키 → 서명·exp·iss·aud 검증
     API->>DB: SELECT * FROM strategies WHERE user_id=...
     DB-->>API: rows
     API-->>FE: 200 + payload
 
-    Note over Clerk,API: Webhook (별도)
-    Clerk->>API: POST /webhooks/clerk\nuser.created (Svix 서명)
+    Note over Auth,API: 웹훅 없음 — 사용자 행은 첫 인증 요청에서 생긴다(JIT)
+    API->>API: users upsert (auth_subject = JWT sub)
     API->>API: Svix 서명 검증
     API->>DB: INSERT INTO users
 ```
@@ -286,13 +286,13 @@ graph TB
 
 ## 7. 캐싱 전략 (현재/계획)
 
-| 대상          | 위치                                            | TTL                       | 상태                               |
-| ------------- | ----------------------------------------------- | ------------------------- | ---------------------------------- |
-| Clerk JWKS    | API 메모리                                      | Clerk SDK 기본            | ✅                                 |
-| OHLCV bars    | TimescaleDB `ts.ohlcv` hypertable (DB-as-cache) | TTL 없음 (immutable past) | ✅ Sprint 5 M3 (TimescaleProvider) |
-| 백테스트 결과 | DB only (캐시 없음)                             | —                         | ✅                                 |
-| 전략 list     | DB only                                         | —                         | ✅                                 |
-| 실시간 가격   | Zustand (FE)                                    | 세션                      | ⏳ Sprint 7+ WebSocket             |
+| 대상             | 위치                                            | TTL                       | 상태                               |
+| ---------------- | ----------------------------------------------- | ------------------------- | ---------------------------------- |
+| Better Auth JWKS | API 메모리 (PyJWKClient, kid 별)                | lifespan 3600s            | ✅                                 |
+| OHLCV bars       | TimescaleDB `ts.ohlcv` hypertable (DB-as-cache) | TTL 없음 (immutable past) | ✅ Sprint 5 M3 (TimescaleProvider) |
+| 백테스트 결과    | DB only (캐시 없음)                             | —                         | ✅                                 |
+| 전략 list        | DB only                                         | —                         | ✅                                 |
+| 실시간 가격      | Zustand (FE)                                    | 세션                      | ⏳ Sprint 7+ WebSocket             |
 
 ---
 

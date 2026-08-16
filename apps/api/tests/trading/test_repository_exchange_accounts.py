@@ -1,4 +1,5 @@
 """ExchangeAccountRepository — save / get_by_id / list_by_user / delete."""
+
 from __future__ import annotations
 
 from uuid import uuid4
@@ -43,7 +44,7 @@ async def test_list_by_user_returns_only_owned(db_session: AsyncSession, user: U
     )
     await repo.save(mine)
 
-    other_user = User(id=uuid4(), clerk_user_id="other", email="other@test.local")
+    other_user = User(id=uuid4(), auth_subject="other", email="other@test.local")
     db_session.add(other_user)
     await db_session.flush()
     theirs = ExchangeAccount(

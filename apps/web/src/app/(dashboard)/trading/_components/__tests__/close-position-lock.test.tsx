@@ -10,13 +10,6 @@ const apiFetchMock = vi.hoisted(() => vi.fn());
 const mockUseAccountPositions = vi.hoisted(() => vi.fn());
 const mockUseLiveSessionsPositions = vi.hoisted(() => vi.fn());
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({
-    userId: "user-1",
-    getToken: async () => "jwt-token",
-  }),
-}));
-
 vi.mock("@/lib/api-client", async (importOriginal) => {
   const actual = await importOriginal<typeof ApiClient>();
   return { ...actual, apiFetch: apiFetchMock };

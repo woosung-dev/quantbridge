@@ -70,18 +70,18 @@ def _session(
 async def test_list_live_sessions_defaults_to_active_only_and_never_leaks_other_users(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
-    strategy, account = await _seed_session_dependencies(db_session, mock_clerk_auth)
+    strategy, account = await _seed_session_dependencies(db_session, mock_authed_user)
     active = _session(
-        user_id=mock_clerk_auth.id,
+        user_id=mock_authed_user.id,
         strategy_id=strategy.id,
         account_id=account.id,
         is_active=True,
         created_at=_BASE,
     )
     inactive = _session(
-        user_id=mock_clerk_auth.id,
+        user_id=mock_authed_user.id,
         strategy_id=strategy.id,
         account_id=account.id,
         is_active=False,
@@ -90,7 +90,7 @@ async def test_list_live_sessions_defaults_to_active_only_and_never_leaks_other_
     )
     other_user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     foreign_inactive = _session(
@@ -118,27 +118,25 @@ async def test_list_live_sessions_defaults_to_active_only_and_never_leaks_other_
         str(active.id),
         str(inactive.id),
     ]
-    assert str(foreign_inactive.id) not in {
-        item["id"] for item in inclusive_body["items"]
-    }
+    assert str(foreign_inactive.id) not in {item["id"] for item in inclusive_body["items"]}
 
 
 @pytest.mark.asyncio
 async def test_list_live_sessions_includes_recent_inactive_after_active_in_deactivation_order(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
-    strategy, account = await _seed_session_dependencies(db_session, mock_clerk_auth)
+    strategy, account = await _seed_session_dependencies(db_session, mock_authed_user)
     active = _session(
-        user_id=mock_clerk_auth.id,
+        user_id=mock_authed_user.id,
         strategy_id=strategy.id,
         account_id=account.id,
         is_active=True,
         created_at=_BASE,
     )
     newest_inactive = _session(
-        user_id=mock_clerk_auth.id,
+        user_id=mock_authed_user.id,
         strategy_id=strategy.id,
         account_id=account.id,
         is_active=False,
@@ -146,7 +144,7 @@ async def test_list_live_sessions_includes_recent_inactive_after_active_in_deact
         deactivated_at=_BASE - timedelta(hours=1),
     )
     older_inactive = _session(
-        user_id=mock_clerk_auth.id,
+        user_id=mock_authed_user.id,
         strategy_id=strategy.id,
         account_id=account.id,
         is_active=False,
@@ -154,7 +152,7 @@ async def test_list_live_sessions_includes_recent_inactive_after_active_in_deact
         deactivated_at=_BASE - timedelta(hours=2),
     )
     inactive_without_end_time = _session(
-        user_id=mock_clerk_auth.id,
+        user_id=mock_authed_user.id,
         strategy_id=strategy.id,
         account_id=account.id,
         is_active=False,
@@ -179,12 +177,12 @@ async def test_list_live_sessions_includes_recent_inactive_after_active_in_deact
 async def test_list_live_sessions_limits_recent_inactive_to_twenty(
     client: AsyncClient,
     db_session: AsyncSession,
-    mock_clerk_auth: User,
+    mock_authed_user: User,
 ) -> None:
-    strategy, account = await _seed_session_dependencies(db_session, mock_clerk_auth)
+    strategy, account = await _seed_session_dependencies(db_session, mock_authed_user)
     inactive_sessions = [
         _session(
-            user_id=mock_clerk_auth.id,
+            user_id=mock_authed_user.id,
             strategy_id=strategy.id,
             account_id=account.id,
             is_active=False,

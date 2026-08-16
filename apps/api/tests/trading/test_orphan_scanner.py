@@ -37,7 +37,7 @@ async def stuck_orders_factory(db_session: AsyncSession):
     crypto = EncryptionService(settings.trading_encryption_keys)
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@s.local",
     )
     db_session.add(user)
@@ -290,9 +290,7 @@ async def test_scan_stuck_orders_enqueues_submitted_via_fetch_order_status_task(
     def _fake_apply_async(*, args=None, **kw):  # type: ignore[no-untyped-def]
         enqueued.append((args, kw))
 
-    monkeypatch.setattr(
-        trading_mod.fetch_order_status_task, "apply_async", _fake_apply_async
-    )
+    monkeypatch.setattr(trading_mod.fetch_order_status_task, "apply_async", _fake_apply_async)
     monkeypatch.setattr(scanner_mod, "_get_redis_lock_pool_for_alert", lambda: _MockRedisPool())
 
     async def _noop_alert(*a, **kw):  # type: ignore[no-untyped-def]
@@ -319,9 +317,7 @@ async def test_scan_stuck_orders_alerts_throttled_per_order(
     import src.tasks.trading as trading_mod
 
     now = datetime.now(UTC)
-    await stuck_orders_factory(
-        state=OrderState.pending, created_at=now - timedelta(hours=1)
-    )
+    await stuck_orders_factory(state=OrderState.pending, created_at=now - timedelta(hours=1))
     await db_session.commit()
 
     monkeypatch.setattr(

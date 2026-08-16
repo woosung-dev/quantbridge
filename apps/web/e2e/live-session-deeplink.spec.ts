@@ -8,7 +8,7 @@
 //   목록은 활성 전체 + 최근 종료 20건뿐이다. 그래서 그 경우는 이미 있는
 //   `live-session-stopped-notice` 로 떨어지는 것이 정답이고, 그것이 이 파일의 음성 대조다.
 //
-// chromium-authed project — Clerk storageState 필요. API 는 전부 mock 이라 DB 무관.
+// chromium-authed project — storageState 필요. API 는 전부 mock 이라 DB 무관.
 
 import { expect, test } from "@playwright/test";
 

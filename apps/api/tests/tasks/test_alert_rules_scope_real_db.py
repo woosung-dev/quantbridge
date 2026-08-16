@@ -63,7 +63,7 @@ async def test_loss_rule_counts_manual_close_without_event(
     import src.tasks.alert_rules as task
 
     user = User(
-        clerk_user_id=f"alert-e2e-{uuid4().hex[:8]}",
+        auth_subject=f"alert-e2e-{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@example.com",
     )
     db_session.add(user)

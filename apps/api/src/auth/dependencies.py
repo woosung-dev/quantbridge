@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from clerk_backend_api import Clerk
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,13 +9,7 @@ from src.auth.repository import UserRepository
 from src.auth.schemas import CurrentUser
 from src.auth.service import UserService
 from src.common.database import get_async_session
-from src.core.config import settings
-from src.realtime.auth import authenticate_clerk_request
-
-
-def _clerk_client() -> Clerk:
-    """모듈 스코프 싱글톤 회피 — 테스트 monkeypatch 용이."""
-    return Clerk(bearer_auth=settings.clerk_secret_key.get_secret_value())
+from src.realtime.auth import authenticate_request
 
 
 async def get_user_repository(
@@ -51,5 +44,5 @@ async def get_current_user(
     request: Request,
     service: UserService = Depends(get_user_service),
 ) -> CurrentUser:
-    """Bearer JWT 검증 + lazy-create."""
-    return await authenticate_clerk_request(request, service, clerk=_clerk_client())
+    """Bearer JWT 검증 + lazy-create — 검증기는 `realtime/auth.py` 하나뿐이다(ADR-034)."""
+    return await authenticate_request(request, service)

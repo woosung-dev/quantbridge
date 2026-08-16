@@ -253,7 +253,7 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 ## 8. 권한 / 보안
 
 - `permissions: contents: read, pull-requests: read` — 최소 권한
-- Secret은 GitHub Secrets에 저장 (`CLERK_SECRET_KEY` 등 — Sprint 7+ 배포 시점)
+- Secret은 GitHub Secrets에 저장 (★2026-08-17 [ADR-034] 로 인증 secret 2종은 **불필요**해졌다 — 빌드·e2e 가 외부 인증 키를 안 쓴다)
 - `.env.local`은 절대 커밋 금지
 
 ---

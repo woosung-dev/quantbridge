@@ -8,7 +8,7 @@
 //   "섹션이 뷰포트에 들어왔는가" 도 "제목이 상단바에 가렸는가" 도 잴 수 없다.
 //   그래서 두 축을 서로 다른 어서션으로 나눠 둔다 (변이 M3 이 그 분리를 실증한다).
 //
-// chromium-authed project — Clerk storageState 필요. API 는 전부 mock 이라 DB 무관.
+// chromium-authed project — storageState 필요. API 는 전부 mock 이라 DB 무관.
 
 import { expect, test } from "@playwright/test";
 

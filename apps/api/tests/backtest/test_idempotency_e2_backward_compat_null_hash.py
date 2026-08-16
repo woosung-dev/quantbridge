@@ -31,7 +31,7 @@ from src.strategy.repository import StrategyRepository
 async def _seed_user_strat(session: AsyncSession) -> tuple[User, Strategy]:
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     session.add(user)

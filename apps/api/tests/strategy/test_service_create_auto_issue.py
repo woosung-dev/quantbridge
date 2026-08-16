@@ -8,6 +8,7 @@ Phase A.1.1: issue/rotate commit 추가 + commit=False 옵션 (atomic create 용
 Phase A.1.2: StrategyService.create() 가 secret_svc.issue(commit=False) 호출 후 단일 commit
 Phase A.1.4: StrategyCreateResponse 가 webhook_secret plaintext 1회 포함
 """
+
 from __future__ import annotations
 
 from uuid import UUID
@@ -37,7 +38,7 @@ def crypto() -> EncryptionService:
 
 
 @pytest.mark.asyncio
-async def test_create_response_includes_plaintext_secret(client, mock_clerk_auth):
+async def test_create_response_includes_plaintext_secret(client, mock_authed_user):
     """A.1.4: POST /strategies response 에 webhook_secret plaintext 1회 포함."""
     res = await client.post(
         "/api/v1/strategies",
@@ -52,7 +53,7 @@ async def test_create_response_includes_plaintext_secret(client, mock_clerk_auth
 
 
 @pytest.mark.asyncio
-async def test_get_strategy_does_not_expose_secret(client, mock_clerk_auth):
+async def test_get_strategy_does_not_expose_secret(client, mock_authed_user):
     """GET /strategies/{id} 응답은 StrategyResponse — webhook_secret 노출 X."""
     res = await client.post(
         "/api/v1/strategies",
@@ -66,9 +67,7 @@ async def test_get_strategy_does_not_expose_secret(client, mock_clerk_auth):
 
 
 @pytest.mark.asyncio
-async def test_create_persists_webhook_secret_to_db(
-    client, mock_clerk_auth, db_session
-):
+async def test_create_persists_webhook_secret_to_db(client, mock_authed_user, db_session):
     """A.1.2 atomic: DB 에 webhook_secret 1건 영구 저장 (Sprint 6 broken bug 해소)."""
     res = await client.post(
         "/api/v1/strategies",

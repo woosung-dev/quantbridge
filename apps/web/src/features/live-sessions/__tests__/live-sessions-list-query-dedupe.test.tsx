@@ -15,11 +15,14 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const listLiveSessionsMock = vi.fn();
+import { authMockState } from "@/lib/__mocks__/auth-client";
 
-vi.mock("@clerk/nextjs", () => ({
-  useAuth: () => ({ userId: "test-user", getToken: async () => "test-token" }),
-}));
+// 이 파일의 단언이 이 uid 로 만든 queryKey 를 본다 — 전역 인증 mock 기본값(`user-1`)과
+// 다르므로 여기서 명시한다(ADR-034).
+authMockState.userId = "test-user";
+
+
+const listLiveSessionsMock = vi.fn();
 
 vi.mock("../api", () => ({
   listLiveSessions: (...args: unknown[]) => listLiveSessionsMock(...args),

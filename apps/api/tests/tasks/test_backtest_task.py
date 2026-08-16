@@ -1,4 +1,5 @@
 """tasks/backtest.py — reclaim_stale_running + _execute skeleton."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -26,7 +27,7 @@ async def test_reclaim_stale_running_marks_failed(
 
     user = User(
         id=uuid4(),
-        clerk_user_id=f"u_{uuid4().hex[:8]}",
+        auth_subject=f"u_{uuid4().hex[:8]}",
         email=f"{uuid4().hex[:8]}@ex.com",
     )
     db_session.add(user)

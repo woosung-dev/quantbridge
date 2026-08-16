@@ -5,7 +5,7 @@
 // 아니라 앱의 현재 상태다.
 //
 // ★왜 `chromium-authed` 인가 (그리고 왜 이름이 design-canon-* 이 아닌가).
-// P1 4라우트는 전부 Clerk authed 라 CI 에서 못 돈다. 파일명을 `design-canon-*` 로 하면
+// P1 4라우트는 전부 로그인 뒤 화면이라 CI 에서 못 돈다. 파일명을 `design-canon-*` 로 하면
 // `chromium-design-canon`(CI·무인증) 프로젝트가 매치해 sign-in 리다이렉트로 실패한다.
 // 그래서 `authed-canon-p1` 로 두고 `chromium-authed`(storageState + setup 의존, 로컬
 // `pnpm e2e:authed` 전용)에 배선한다.
@@ -51,7 +51,6 @@ const EXPECTED_CONSOLE = [
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
   /failed to load resource.*429/i,
   /\b50[0-9]\b/,
-  /clerk has been loaded/i,
   /development keys/i,
   /\[fast refresh\]/i,
   /access to fetch/i, // CORS 차단 (백엔드 origin 미일치 시)
