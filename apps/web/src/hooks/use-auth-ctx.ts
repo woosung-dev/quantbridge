@@ -7,6 +7,8 @@
 // ★2026-08-17 ADR-034 — 공급자가 Clerk 에서 Better Auth 로 바뀌었지만 **이 파일의 계약은
 //   그대로다**. 앱 전체가 이 4필드만 소비하도록 모아 둔 덕에 교체가 이 한 파일에서 끝났다.
 
+import { useMemo } from "react";
+
 import { getAuthToken, useSession } from "@/lib/auth-client";
 
 /** 로그아웃/미인증 상태의 queryKey sentinel — 5개 feature hooks 에 중복 정의돼 있던 값. */
@@ -26,11 +28,17 @@ export interface AuthCtx {
 export function useAuthCtx(): AuthCtx {
   const { data, isPending } = useSession();
   const userId = data?.user?.id ?? null;
-  return {
-    uid: userId ?? ANON_USER_ID,
-    userId,
-    isSignedIn: isPending ? undefined : Boolean(data?.session),
-    // 모듈 스코프 함수라 참조가 안정적이다 — H-1 ref 패턴이 매 렌더 갱신을 강요하지 않는다.
-    getToken: getAuthToken,
-  };
+  const signedIn = Boolean(data?.session);
+  // ★참조를 고정한다 — 이 훅은 화면 곳곳에서 불리고, 매 렌더 새 객체를 내면 그것을 dependency
+  //   로 쓰는 소비자가 생겼을 때 조용히 루프가 된다(`rerender-dependencies`). 원시값 두 개만
+  //   dep 로 둔다. `getToken` 은 모듈 스코프 함수라 이미 안정적이다.
+  return useMemo(
+    () => ({
+      uid: userId ?? ANON_USER_ID,
+      userId,
+      isSignedIn: isPending ? undefined : signedIn,
+      getToken: getAuthToken,
+    }),
+    [userId, isPending, signedIn],
+  );
 }
