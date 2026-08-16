@@ -19,6 +19,7 @@
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
 - **2026-08-16 layout-alignment** — 레이아웃 3축 대조([ADR-035]). ★★[ADR-034] 가 정본 12파일을 안 쓸어 `local-setup.md` 가 **없는 `CLERK_SECRET_KEY`** 를 지시 중이었다. ★★[ADR-031] 이 미룬 openapi drift 게이트를 배선하자 **첫 실행이 실제 drift 를 잡았다**. ★FE `_components` 234→features/ — 위험은 파일이 아니라 **검사기 스코프**였다. [BL-777~780]
+- **2026-08-17 sprint-parallel-lanes** — 3레인 병렬(herdr) [BL-779/780/781/773], PR #652·#651·#650. ★★★**AC 문턱 둘이 실측 없이 적혀 있었다**(40%는 도달 불가 — 실제 21.2% · 「메서드마다」는 대상 0개, [LESSON-115]). ★★★**표적 초록+변이 5/5 red 를 통과한 구현에 전량 회귀 5건**(낡은 mock, [LESSON-116]). ★★CONTEXT.md 는 이미 Stress Test 를 소비자로 명시 → [BL-783]
 - **2026-08-17 auth-selfhost** — [ADR-034] Clerk → **self-host Better Auth**. 백엔드 시크릿 **0개**(JWKS 검증) · 의존성 순감(제거 10 vs 추가 1). ★★**geo-block L3 은 한 번도 발화한 적이 없었다** — 값을 넣는 코드가 0건이고 문서의 「추천 구현」이 구현으로 오해됐다([LESSON-114]). ★★구 인증 테스트는 SDK 를 mock 해 **서명·만료를 검증한 적이 없다**. ★[BL-770] 동승 종결.
 - **2026-08-17 production-readiness** — [ADR-033] G1 확정(**self-host TimescaleDB CE**) → [BL-070~072] 해제 + 조건 3종([BL-767]·[BL-768]·전환 트리거) + [BL-757] 종결. ★★★**AC 가 「핵심」이라 못박은 `timescaledb_pre_restore()` 가 무효과**(지워도 39/39 초록). ★★히스토리 1,056커밋에 **실제 키 2건**(rotate 불요). ★내 대조기가 **빈 sha256** 통과 — dev-log
 - **2026-08-15 surface-truth** — 보안 P1 5건(S1~S5) + 여정 8건 + BL-753~759. ★★★**`/openapi.json`·`/docs` 가 인터넷에 200** — 배포 호스트가 `APP_ENV` 를 안 넣어 게이트 4개가 꺼져 있었다. ★API secret 이 **422 body 에 반사** · 탈퇴가 **돈을 안 멈춤** · Redis LRU 가 큐·락 축출. ★★[LESSON-087] 3/3
