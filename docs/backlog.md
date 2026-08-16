@@ -9311,7 +9311,7 @@ API 를 재기동하자 **`/docs`·`/openapi.json`·`/redoc` 이 전부 404** �
 여는 순간 보안 결함이 된다** — 비면 `waitlist/dependencies.py:29` 가 레포에 공개된 상수를
 HMAC 키로 주입해 초대 토큰이 위조 가능해진다. 즉 「보류」는 Beta 공개 전까지만 유효하다.
 
-**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 코드 축 3개가 배포로 발효했다(`/docs` 404 실측). 2026-08-17 에 validator 가 URL 3종 검사를 얻어 전환의 값이 커졌다. 선행 = `WAITLIST_TOKEN_SECRET` 생성·주입. 2026-08-16 사용자 결정 = **보류** (Beta 공개 시 자동 해제)
+**상태:** ⏳ **대기 (트리거 미도래 → 2026-08-16 도래)** — 2026-08-16 에 코드 축 3개가 배포로 발효했다(`/docs` 404 실측). 2026-08-17 에 validator 가 URL 3종 검사를 얻었다. ★**2026-08-16 beta-cutover 에서 [BL-072] 가 열렸다** — 초대 페이지가 실재하므로 「보류」의 유효기간이 끝났다(비면 `waitlist/dependencies.py:29` 가 레포에 공개된 상수로 초대 토큰을 서명한다). 서버 주입은 사용자 승인으로 진행 중
 **트리거 판정:** 미도래 — 사용자가 「이번 창에서 보류」로 결정했다. 다음 도래 = 공개 전환([BL-071]) 착수 시 (2026-08-17 auth-selfhost 재확인)
 
 ---
@@ -9361,7 +9361,7 @@ client.host 로 묶임`, `:148`) — 수리하면 이 단언이 반드시 깨진
 
 **Risk:** 🟡 (⑵ 를 너무 넓게 잡으면 XFF 위조로 한도 우회가 열린다)
 
-**상태:** ⬜ Open — 2026-08-15 감사에서 코드 대조로 확인. 2026-08-16 production-readiness 가 Est 와 권장 접근을 정정(미들웨어 실행 순서 반증 · 테스트 2건 무증거). 수리 미착수
+**상태:** ✅ **Resolved (2026-08-16 beta-cutover)** — `_RateLimitIdentityMiddleware` 를 `SlowAPIMiddleware` **바깥**에 세워 `request.state.user_id` 를 채우고(검증기는 `realtime/auth._decode` 재사용 · DB 미접촉 · 거부하지 않음), `CF-Connecting-IP` 를 XFF leftmost 보다 우선한다(CF 는 XFF 를 덮어쓰지 않고 **붙이므로** leftmost 는 클라이언트가 심을 수 있다). `TRUSTED_PROXIES` 는 이 배포에서 **`127.0.0.1/32`** 다 — cloudflared 가 `network_mode: host` 라 uvicorn 이 보는 peer 가 루프백이고, `.env.example` 2종의 「Cloudflare 대역」 안내가 틀렸다. ★★**첫 테스트가 판별력 0 이었다** — `@limiter.limit` 데코레이터 엔드포인트는 키를 **핸들러 래퍼 안**에서 계산해 미들웨어 순서 변이가 초록으로 통과했다. 순서가 갈리는 곳은 `default_limits`(= 데코레이터 없는 엔드포인트) 하나뿐이라 fixture 를 바꿨고, 그 뒤 변이 **4/4 red**. ★원장의 「기존 테스트 2건이 무증거·버그고정」은 **절반만 참** — `test_per_user_isolation` 은 인라인 lambda key_func 라 무증거가 맞지만, `test_unauthenticated_uses_client_host_when_no_xff` 는 「신뢰 안 된 XFF 는 무시한다」는 **옳은 fail-safe 계약**이라 유지했다
 **트리거 판정:** 도래 — 기전은 지금 성립한다. 다만 **영향**이 사용자 2명부터이고 실제 수리가 M(미들웨어 구조 변경)이라 공개 전환([BL-071])과 동승이 합리적이다 (2026-08-16 production-readiness)
 
 ---
@@ -9863,7 +9863,7 @@ raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족�
 
 **Risk:** 🟡 (수리 자체는 안전하나, 고친 뒤 **원래 잡아야 했던 결함이 드러날 수 있다**)
 
-**상태:** ⬜ Open — 2026-08-16 에 전수 감사로 9건/5건/0건 확정. 수리 미착수
+**상태:** ✅ **Resolved (2026-08-16 beta-cutover)** — `authed-functional-parity.spec.ts` 3곳(`:144`/`:150`/`:211`)을 `tbody tr` 로 옮기고 `authed-row-locator-guard.spec.ts` 신설. ★**원장의 「9건 중 5건 위험」은 지금 트리에서 3건**이고, 데이터를 채워 실측하니 **실제로 무증거였던 것은 1건**이다 — 헤더가 「체결가」·「체결 수량」을 갖고 있어 `hasText:"체결"` 만 충돌했다(`trCount=2`, first 가 헤더). 「대기」·「전송」은 `trCount=1` 로 잠재 위험이었다. ★★**원장이 처방한 음성 대조 「빈 표에서 red 인지 보라」가 틀렸다** — 주문 0건이면 이 화면은 표 대신 빈 상태 UI 를 그려 **헤더째 사라지고**, 위험한 패턴도 안전한 패턴도 똑같이 0 이라 두 단언이 판별력 없이 통과한다. 그 사실은 가드 초판이 앞에 둔 「표가 렌더됐는가」 전제 확인 한 줄이 잡았다. 대조는 **데이터가 있는 상태**에서 세운다
 **트리거 판정:** 도래 — 감사가 끝났고 대상이 특정됐다. 다만 단독 착수보다 e2e 를 손대는 회차 동승이 싸다 (2026-08-16 deploy-activation)
 
 ---
@@ -10084,8 +10084,8 @@ WARN 이 이어지면 **하루 1회만** 재고지한다. 하네스가 그 음�
 
 **Risk:** 🟢
 
-**상태:** ⬜ Open — 2026-08-16 에 코드 대조로 확정(`router.py:32`). 미착수
-**트리거 판정:** 도래 — 1줄 수리이고 다른 회차에 동승시키기도 쉽다 (2026-08-16 external-comparison)
+**상태:** ✅ **Resolved (2026-08-16 beta-cutover)** — ★**누출 표면이 원장의 1곳이 아니라 3곳이었다**: ⑴ `router.py` 502 detail(원장이 지목) ⑵ `router.py` 503 detail — `service.py` 3곳이 SDK 예외의 타입·본문을 **자기 RuntimeError 메시지에 f-string 으로 심고** 있었고 라우터가 `str(exc)` 를 그대로 실었다 ⑶ ★`service.py` 의 `fallback_warnings` — Anthropic→Gemini fallback 시 SDK 문자열이 `warnings[]` 로 **200 응답 본문**에 실렸다(실패 경로가 아니라 **성공 경로**라 훨씬 자주 노출). 셋 다 고정 문구 + 요청별 `error_id`(로그와 잇는 상관 ID)로 바꾸고 상세는 `logger.exception` 으로만. 변이 **3/3 red**(각기 다른 테스트가 잡았다)
+**트리거 판정:** 해소 — 2026-08-16 beta-cutover 에서 종결
 
 ---
 

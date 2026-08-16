@@ -64,8 +64,12 @@ cd apps/api && set -a; . ./.env.local; set +a && uv run alembic upgrade head
 
 FE 컨테이너는 인터넷 표면이다. **앱 DB 롤을 주지 마라.**
 
+★★**순서 주의 — 이 절은 §4 의 alembic 적용 *뒤에* 실행한다.** 아래 `GRANT … ON auth_user, …`
+의 대상 테이블 5개를 만드는 것이 그 migration 이다. 문서 순서대로 하면
+`relation "auth_user" does not exist` 로 죽는다(2026-08-16 배포에서 실측).
+
 ```sql
--- 서버 DB 에서 1회. ★DDL 이므로 사용자 승인 뒤에 실행한다.
+-- 서버 DB 에서 1회. ★DDL 이므로 사용자 승인 뒤에 실행한다. ★§4 migration 이 **선행**이다.
 CREATE ROLE qb_auth LOGIN PASSWORD '<openssl rand -hex 24>';
 GRANT CONNECT ON DATABASE quantbridge TO qb_auth;
 GRANT USAGE ON SCHEMA public TO qb_auth;
@@ -87,11 +91,20 @@ PGPASSWORD=... psql -h 127.0.0.1 -p 5433 -U qb_auth -d quantbridge \
 
 ```
 BETTER_AUTH_URL=https://qb.woosung.dev
-BETTER_AUTH_JWKS_URL=http://quantbridge-frontend:3000/api/auth/jwks
+BETTER_AUTH_JWKS_URL=http://127.0.0.1:3200/api/auth/jwks
 ```
 
-★JWKS 를 **터널로 왕복시키지 마라.** 컨테이너 내부 주소를 쓰면 Cloudflare 왕복이 사라지고
-FE 가 재기동 중일 때의 실패 표면도 좁아진다. FE 스택은 base compose 네트워크에 attach 돼 있다.
+★JWKS 를 **터널로 왕복시키지 마라.** Cloudflare 왕복이 사라지고 FE 가 재기동 중일 때의 실패
+표면도 좁아진다.
+
+★★**주소는 배포 형태에 달렸다.** 이 서버의 API 는 **호스트 uvicorn**(systemd `--user`)이라
+docker 네트워크 밖이고 컨테이너 DNS 를 **못 푼다** — 실측(2026-08-16): 컨테이너명으로 부르면
+`000`, 루프백 publish(`127.0.0.1:3200`)로 부르면 `200`. 종전 문서의
+`http://quantbridge-frontend:3000/...` 은 API 가 **컨테이너일 때만** 맞다.
+
+★**서버 `.env` 의 `BETTER_AUTH_DATABASE_URL` 은 반대다** — FE 는 컨테이너라
+`quantbridge_quantbridge` 네트워크 안이고 DB 는 `127.0.0.1:5433` **루프백** publish 이므로
+루프백으로 못 닿는다. 호스트는 compose 서비스명 **`db:5432`** 다.
 
 ---
 

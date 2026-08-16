@@ -92,7 +92,10 @@ TAG=$(git rev-parse --short HEAD)
 docker build --platform linux/arm64 -t quantbridge-frontend:$TAG .
 docker save quantbridge-frontend:$TAG | gzip -1 | ssh <서버> 'gunzip | docker load'
 ssh <서버> "sed -i 's/^QB_FRONTEND_TAG=.*/QB_FRONTEND_TAG=$TAG/' ~/quantbridge/.env"
-ssh <서버> 'cd ~/quantbridge && docker compose -f infra/compose/docker-compose.frontend.yml -p quantbridge-fe up -d'
+# ★`--project-directory` 필수 — 없으면 compose 가 `.env` 를 **첫 -f 의 디렉터리**(infra/compose/)에서
+#   찾아 `BETTER_AUTH_SECRET is missing` 으로 죽는다. [ADR-029] 재배치 이후 이 명령은 깨져 있었고
+#   2026-08-16 배포에서 처음 밟았다(그전 배포는 재배치 이전이라 통과했다).
+ssh <서버> 'cd ~/quantbridge && docker compose --project-directory /home/ubuntu/quantbridge -f infra/compose/docker-compose.frontend.yml -p quantbridge-fe up -d'
 ```
 
 실측: standalone 50MB · 이미지 211MB · 빌드 약 1분.
