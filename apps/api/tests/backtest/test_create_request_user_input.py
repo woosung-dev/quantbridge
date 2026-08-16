@@ -22,7 +22,7 @@ from src.backtest.engine.types import BacktestConfig as EngineBacktestConfig
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.schemas import BacktestConfigOut, CreateBacktestRequest
 from src.backtest.service import BacktestService
-from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.models import ParseStatus, PineVersion, Strategy, StrategyVersion
 
 
 def _make_request(**overrides: object) -> CreateBacktestRequest:
@@ -122,8 +122,16 @@ async def test_submit_persists_user_config_to_backtest_row() -> None:
     repo.create = _capture_create
 
     strategy = _make_strategy()
+    strategy_version = StrategyVersion(
+        id=uuid4(),
+        strategy_id=strategy.id,
+        pine_source=strategy.pine_source,
+        source_hash="a" * 64,
+    )
+    strategy.strategy_version_id = strategy_version.id
     strategy_repo = AsyncMock()
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
+    strategy_repo.get_version_by_id = AsyncMock(return_value=strategy_version)
 
     dispatcher = MagicMock()
     dispatcher.dispatch_backtest = MagicMock(return_value="task-id-xyz")
