@@ -13,8 +13,15 @@
 #   **"뜨면 안 되는 마커"** 도 단언한다. 한쪽 검사가 다른 쪽을 대신 잡아주는 것처럼 보이면 red 다.
 #
 # ★fixture 는 임시 트리에 만든다 — 실제 `docs/` 를 절대 건드리지 않는다.
-#   `bl-audit.sh` 는 `dirname $0/..` 를 ROOT 로 잡고 `docs/{backlog,roadmap}.md` 를 읽으므로,
-#   스크립트 사본을 `$TMP/tree/tools/scripts/` 에 두면 그 옆의 fixture 원장을 읽는다.
+#   `bl-audit.sh` 는 `dirname $0/..` 를 ROOT 로 잡고 `docs/{backlog,backlog-resolved,roadmap}.md`
+#   를 읽으므로, 스크립트 사본을 `$TMP/tree/tools/scripts/` 에 두면 그 옆의 fixture 원장을 읽는다.
+#
+# ★★다중 파일 축 (⑫~⑯, [BL-779] 2026-08-16). 원장이 `backlog.md` + `backlog-resolved.md` 둘로
+#   갈렸다. **한쪽만 읽는 파서는 조용히 초록이다** — 없는 섹션은 불일치를 못 내기 때문이다.
+#   그래서 여기서는 "두 번째 원장이 실제로 파싱되는가" 를 네 각도로 잰다:
+#     ⑫ 세어지는가 · ⑬ 상태줄이 **판정에 쓰이는가** · ⑭ 3면 대조가 파일을 가로지르는가 ·
+#     ⑮ 같은 id 를 양쪽에 두면(=복사) red 인가 · ⑯ 한쪽이 비면 초록이 아니라 ABORT(3) 인가.
+#   ⑫ 만 두면 "세기만 하고 안 읽는" 파서가 통과한다 — 그래서 ⑬⑭ 가 따로 있다.
 #
 # ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (`| tail` 이 $? 를 가린다 — 실측 사고 이력).
 #
@@ -34,11 +41,22 @@ FAIL=0
 OUT=""
 RC=0
 
-run_fixture() { # stdin = backlog 본문  → $OUT / $RC
+# 두 번째 원장의 기본 내용. **비어 있으면 ABORT** 이므로 기본 fixture 는 항상 한 건을 둔다.
+# ★id 를 9001 로 잡아 케이스별 fixture 의 BL-00x 와 충돌하지 않게 한다.
+DEFAULT_RESOLVED='### BL-9001
+
+**우선순위:** P3
+**상태:** ✅ **Resolved** (두 번째 원장 기본 fixture)
+'
+
+run_fixture() { # stdin = docs/backlog.md 본문 · $1 = (선택) docs/backlog-resolved.md 본문 → $OUT / $RC
   rm -rf "$TMP/tree"
   mkdir -p "$TMP/tree/tools/scripts" "$TMP/tree/docs"
   cp "$AUDIT" "$TMP/tree/tools/scripts/bl-audit.sh"
   cat >"$TMP/tree/docs/backlog.md"
+  # ★`${1-…}` 는 **미지정**일 때만 기본값이다 — 빈 문자열을 넘기면 빈 파일이 만들어져
+  #   ⑯ ABORT 케이스가 성립한다. `${1:-…}` 로 쓰면 그 케이스가 조용히 사라진다.
+  printf '%s' "${1-$DEFAULT_RESOLVED}" >"$TMP/tree/docs/backlog-resolved.md"
   : >"$TMP/tree/docs/roadmap.md" # 체크박스 없음 = 로드맵 축 중립
   # ★파이프 없음. 명령 치환의 종료 코드가 곧 스크립트의 종료 코드다.
   OUT="$(bash "$TMP/tree/tools/scripts/bl-audit.sh" 2>&1)"
@@ -308,6 +326,142 @@ _why=""
 [ "$RC" -eq 1 ] || _why="${_why}종료코드=$RC(기대 1) — 둘째 줄이 조용히 무시됐다 "
 printf '%s' "$OUT" | grep -q '▶ 중복 트리거 판정 줄' || _why="${_why}★중복 트리거줄 축이 발화하지 않았다 "
 report "⑪ 중복 트리거 판정 줄 → exit 1" "$_why"
+
+# ── ⑫ 두 번째 원장의 섹션이 **세어진다** ([BL-779] 다중 파일 축) ────────────────────
+#   ★한쪽 파일을 안 읽는 파서는 여기서만 red 다. 나머지 축은 전부 「없는 섹션은 불일치를
+#     못 낸다」로 조용히 초록이다 — 그게 이 축을 신설한 이유다.
+#   ★머리줄의 **파일별 수**까지 잰다. 합계만 재면 "이번 회차에 섹션이 준 것" 과 구분이 안 된다.
+R2='### BL-002
+
+**우선순위:** P3
+**상태:** ✅ **Resolved** (두 번째 원장에만 있는 섹션)
+'
+run_fixture "$R2" <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⬜ Open — 첫 번째 원장.
+
+---
+EOF
+_why=""
+[ "$RC" -eq 0 ] || _why="${_why}종료코드=$RC(기대 0) "
+printf '%s' "$OUT" | grep -qE '^  전체 +2$' || _why="${_why}★'전체 2' 가 아니다(두 번째 원장을 안 읽는다) "
+printf '%s' "$OUT" | grep -qE '^  RESOLVED +1$' || _why="${_why}★'RESOLVED 1' 이 아니다 "
+printf '%s' "$OUT" | grep -q 'backlog-resolved.md(1)' || _why="${_why}★머리줄에 파일별 섹션 수가 없다 "
+report "⑫ 두 번째 원장의 섹션이 합계에 든다" "$_why"
+
+# ── ⑬ 두 번째 원장의 **상태줄이 판정에 쓰인다** ────────────────────────────────────
+#   ⑫ 만 있으면 "헤더만 세고 본문은 안 읽는" 파서가 통과한다. 상태줄을 지운 섹션이
+#   UNKNOWN 으로 떠야 그 파일을 **판정 근거로** 읽고 있다는 증거다.
+#   ★✅ 를 **줄 머리에서 12바이트 밖**에 둔다. 앞쪽에 두면 `is_marker()` 가 볼드 리드인으로
+#     읽어 RESOLVED 판정이 나고, 그러면 이 케이스가 재려던 UNKNOWN 갈래에 도달하지 못한다.
+R2_NOSTATUS='### BL-002
+
+**우선순위:** P3
+
+본문 어딘가에 cross-ref 로 BL-999 ✅ Resolved 가 있을 뿐 상태줄이 없다 — 판정 근거가 아니다.
+'
+run_fixture "$R2_NOSTATUS" <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⬜ Open — 첫 번째 원장.
+
+---
+EOF
+_why=""
+[ "$RC" -eq 1 ] || _why="${_why}종료코드=$RC(기대 1) "
+printf '%s' "$OUT" | grep -q 'BL-002' || _why="${_why}★UNKNOWN 목록에 BL-002 가 없다(두 번째 원장의 본문을 안 읽는다) "
+printf '%s' "$OUT" | grep -qE '^  UNKNOWN +1$' || _why="${_why}★'UNKNOWN 1' 이 아니다 "
+report "⑬ 두 번째 원장의 상태줄이 판정 근거다" "$_why"
+
+# ── ⑭ 3면 대조가 **파일을 가로지른다** — 표 행은 backlog.md · 섹션은 backlog-resolved.md ──
+#   [BL-779] ⑵ 의 계약이 정확히 이 모양이다("원본에는 한 줄 색인만 남긴다").
+#   ★행의 링크에 파일 접두사가 붙는다 — 파서가 `(#bl-…)` 만 받으면 그 행이 **사라지고**
+#     아래 음성 대조가 조용히 통과한다.
+R2_P2='### BL-001
+
+**우선순위:** P2
+**상태:** ✅ **Resolved** (fixture)
+'
+#   ★`### BL-002` 는 채움용이다 — 원장 파일에 섹션이 0개면 ABORT(3) 라 표만 두면 이 축에
+#     도달하지 못한다(설계 시 실제로 밟았다).
+run_fixture "$R2_P2" <<'EOF'
+## P2
+
+| ID                                   | 제목       |
+| ------------------------------------ | ---------- |
+| [BL-001](backlog-resolved.md#bl-001) | ✅ fixture |
+
+### BL-002
+
+**우선순위:** P2
+**상태:** ⬜ Open — 첫 번째 원장에 남아 있는 열린 항목.
+EOF
+_why=""
+[ "$RC" -eq 0 ] || _why="${_why}종료코드=$RC(기대 0) "
+printf '%s' "$OUT" | grep -q '표 행에 ✅ 없음' && _why="${_why}★파일 간 대조가 성립하지 않았다 "
+report "⑭ 표 행(backlog.md) ↔ 섹션(backlog-resolved.md) 정합 → exit 0" "$_why"
+
+# ── ⑭b 음성 대조 — 같은 배치에서 ✅ 만 빼면 red 여야 한다 (⑭ 가 항진명제가 아님을 고정) ──
+run_fixture "$R2_P2" <<'EOF'
+## P2
+
+| ID                                   | 제목    |
+| ------------------------------------ | ------- |
+| [BL-001](backlog-resolved.md#bl-001) | fixture |
+
+### BL-002
+
+**우선순위:** P2
+**상태:** ⬜ Open — 첫 번째 원장에 남아 있는 열린 항목.
+EOF
+_why=""
+[ "$RC" -eq 1 ] || _why="${_why}종료코드=$RC(기대 1) "
+printf '%s' "$OUT" | grep -q '섹션은 RESOLVED 인데 표 행에 ✅ 없음' || _why="${_why}★파일 접두사 행이 파서에서 사라졌다(대조가 꺼졌다) "
+report "⑭b 음성 대조 — 파일 접두사 행도 3면 대조 대상이다" "$_why"
+
+# ── ⑮ 같은 id 를 양쪽 원장에 두면 red — **이동이지 복사가 아니다** ────────────────────
+#   분할 스크립트가 잘라내기에 실패해 양쪽에 남는 것이 이 회차가 새로 만든 사고 모양이다.
+#   뒤 섹션이 앞 섹션 판정을 덮어쓰므로 숫자만 보면 정상으로 읽힌다(BL-569 와 같은 계약).
+R2_DUP='### BL-001
+
+**우선순위:** P3
+**상태:** ✅ **Resolved** (옮긴 벌)
+'
+run_fixture "$R2_DUP" <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⬜ Open — 지우는 것을 잊은 원본 벌.
+
+---
+EOF
+assert_case "⑮ 같은 id 가 양쪽 원장에 → 중복 섹션 헤더 exit 1" 1 "▶ 중복 섹션 헤더" "▶ 중복 상태 줄"
+
+# ── ⑯ 한쪽 원장이 비면 **초록도 빨강도 아니라 ABORT(3)** ─────────────────────────────
+#   ★빈 입력이 「위반 0건」으로 새는 것이 이 레포의 상습 사고다 ([LESSON-101]).
+#     두 방향을 다 잰다 — 한 방향만 두면 반대쪽 가드를 지워도 초록이다.
+run_fixture "" <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⬜ Open — 첫 번째 원장은 멀쩡하다.
+
+---
+EOF
+_why=""
+[ "$RC" -eq 3 ] || _why="${_why}종료코드=$RC(기대 3 ABORT) "
+printf '%s' "$OUT" | grep -q 'backlog-resolved.md' || _why="${_why}★어느 파일이 비었는지 안 알려준다 "
+report "⑯ 두 번째 원장이 빈 파일 → rc=3 ABORT" "$_why"
+
+run_fixture < /dev/null
+_why=""
+[ "$RC" -eq 3 ] || _why="${_why}종료코드=$RC(기대 3 ABORT) "
+printf '%s' "$OUT" | grep -q 'docs/backlog.md' || _why="${_why}★어느 파일이 비었는지 안 알려준다 "
+report "⑯b 첫 번째 원장이 빈 파일 → rc=3 ABORT" "$_why"
+
 
 echo
 printf '══ 통과 %d / 실패 %d ══\n' "$PASS" "$FAIL"

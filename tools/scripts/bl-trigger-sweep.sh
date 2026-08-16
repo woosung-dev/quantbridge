@@ -61,7 +61,15 @@ ROOT = os.environ["QB_ROOT"]
 SOAK = os.environ["QB_SOAK"]
 MODE = os.environ["QB_MODE"]
 INCLUDE_DEFERRED = os.environ["QB_INCLUDE_DEFERRED"] == "1"
-BACKLOG = os.path.join(ROOT, "docs", "backlog.md")
+# ★원장은 **파일 하나가 아니다** ([BL-779], 2026-08-16). `backlog.md` 만 읽으면
+#   `backlog-resolved.md` 로 내려간 섹션의 `**Trigger:**`·`**트리거 판정:**` 이 통째로
+#   「없음」이 되고, 그러면 selftest 의 양성 픽스처(BL-438)는 red 로 죽고 음성 픽스처
+#   (BL-022 — 판정줄이 없는 섹션)는 **항진명제로 초록**이 된다. 같은 사고를 #618 docs-diet
+#   에서 이미 한 번 밟았다(BL-451 픽스처가 본문 접힘으로 죽었다 — CASES 주석 참조).
+BACKLOGS = [
+    os.path.join(ROOT, "docs", "backlog.md"),
+    os.path.join(ROOT, "docs", "backlog-resolved.md"),
+]
 
 
 def verdicts():
@@ -81,30 +89,32 @@ def verdicts():
 
 def section_field(prefix):
     """섹션별 `<prefix>` 로 시작하는 **첫 줄**. 펜스/<details> 제외 규칙은 bl-audit 과 같다."""
-    cur, fence, details, out = None, False, 0, {}
-    for line in open(BACKLOG, encoding="utf-8"):
-        line = line.rstrip("\n")
-        if re.match(r"^[ \t>]*```", line):
-            fence = not fence
-            continue
-        if fence:
-            continue
-        if re.match(r"^[ \t>]*<details", line):
-            details += 1
-        if re.match(r"^[ \t>]*</details>", line):
-            details = max(0, details - 1)
-            continue
-        if details:
-            continue
-        m = re.match(r"^### (BL-\d+)", line)
-        if m:
-            cur = m.group(1)
-            continue
-        if re.match(r"^#{1,2} ", line):
-            cur = None
-            continue
-        if cur and line.startswith(prefix) and cur not in out:
-            out[cur] = re.sub(r"\s+", " ", line[len(prefix):].strip())
+    out = {}
+    for backlog in BACKLOGS:
+        cur, fence, details = None, False, 0
+        for line in open(backlog, encoding="utf-8"):
+            line = line.rstrip("\n")
+            if re.match(r"^[ \t>]*```", line):
+                fence = not fence
+                continue
+            if fence:
+                continue
+            if re.match(r"^[ \t>]*<details", line):
+                details += 1
+            if re.match(r"^[ \t>]*</details>", line):
+                details = max(0, details - 1)
+                continue
+            if details:
+                continue
+            m = re.match(r"^### (BL-\d+)", line)
+            if m:
+                cur = m.group(1)
+                continue
+            if re.match(r"^#{1,2} ", line):
+                cur = None
+                continue
+            if cur and line.startswith(prefix) and cur not in out:
+                out[cur] = re.sub(r"\s+", " ", line[len(prefix):].strip())
     return out
 
 

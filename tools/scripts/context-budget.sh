@@ -71,6 +71,7 @@ TOK_SOURCE = "실측 (2026-08-02, 트랜스크립트 역산 md 표본 16건 110,
 LINE_CAPS = {
     "docs/dev-log/INDEX.md": 300,
     "docs/backlog.md": 1000,
+    "docs/backlog-resolved.md": 1000,
     "docs/roadmap.md": 1000,
 }
 
@@ -146,6 +147,8 @@ VARIABLE = [
     "docs/status.md",
     "docs/roadmap.md",
     "docs/backlog.md",
+    # ★[BL-779] 분할 — 원장 반쪽을 목록에서 빼면 「줄었다」가 이동이 아니라 **은폐**가 된다.
+    "docs/backlog-resolved.md",
     "docs/dev-log/INDEX.md",
     "docs/reference/operations/gates-and-traps.md",
     "docs/reference/operations/workflows/generator-evaluator-pipeline.md",
