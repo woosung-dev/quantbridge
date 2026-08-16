@@ -83,8 +83,12 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
           setDeleteError(null);
           setConfirmOpen(true);
         }}
-        aria-label="계정 삭제"
-        title="계정 삭제"
+        // ★★라벨에 「계정 삭제」라는 **부분 문자열이 들어가면 안 된다.** 거래소 계정 행의
+        //   삭제 버튼이 `aria-label="계정 삭제"` 이고 Playwright 의 `getByRole(name)` 은
+        //   **부분 문자열 매칭**이라, 「내 계정 삭제」처럼 상위 문자열로 바꿔도 여전히 둘 다
+        //   잡혀 기존 e2e(#7)가 strict-mode 로 죽는다. 2026-08-17 에 두 번 밟고 확정했다.
+        aria-label="내 계정 지우기"
+        title="내 계정 지우기"
       >
         <Trash2 aria-hidden="true" className="size-4" />
       </button>
@@ -128,7 +132,7 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
               disabled={deleting}
               aria-busy={deleting}
             >
-              {deleting ? "삭제 중…" : "계정 삭제"}
+              {deleting ? "지우는 중…" : "영구 삭제"}
             </button>
           </DialogFooter>
         </DialogContent>

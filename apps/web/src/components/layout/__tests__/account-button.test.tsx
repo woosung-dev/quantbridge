@@ -41,10 +41,25 @@ describe("AccountButton", () => {
     expect(replace).toHaveBeenCalledWith("/sign-in");
   });
 
+  it("트리거 라벨이 거래소 계정 삭제와 겹치지 않는다 (e2e strict-mode 충돌 방지)", () => {
+    // ★`exchange-accounts-panel` 의 행 삭제 버튼이 `aria-label="계정 삭제"` 다.
+    //   같은 이름을 쓰면 `getByRole` 이 둘을 잡아 기존 e2e(#7)가 죽는다 — 실제로 밟았다.
+    render(<AccountButton />);
+    // ★Playwright 의 `getByRole(name)` 은 **부분 문자열** 매칭이라 「내 계정 삭제」로 바꿔도
+    //   여전히 겹친다. 부분 문자열 자체가 없어야 한다.
+    expect(screen.getByRole("button", { name: "내 계정 지우기" })).toBeInTheDocument();
+    expect(screen.queryAllByRole("button").map((b) => b.getAttribute("aria-label"))).not.toContain(
+      "계정 삭제",
+    );
+    for (const b of screen.queryAllByRole("button")) {
+      expect(b.getAttribute("aria-label") ?? "").not.toContain("계정 삭제");
+    }
+  });
+
   it("계정 삭제 — 확인 없이는 아무것도 부르지 않는다 (음성 대조)", async () => {
     render(<AccountButton />);
 
-    fireEvent.click(screen.getByRole("button", { name: "계정 삭제" }));
+    fireEvent.click(screen.getByRole("button", { name: "내 계정 지우기" }));
 
     // 다이얼로그만 열린다. 되돌릴 수 없는 동작이므로 이 단계에서 호출이 나가면 안 된다.
     expect(await screen.findByText("계정을 삭제할까요?")).toBeInTheDocument();
@@ -54,11 +69,10 @@ describe("AccountButton", () => {
   it("계정 삭제 — 확인하면 deleteAccount 를 부르고 sign-in 으로 보낸다", async () => {
     render(<AccountButton />);
 
-    fireEvent.click(screen.getByRole("button", { name: "계정 삭제" }));
+    fireEvent.click(screen.getByRole("button", { name: "내 계정 지우기" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "계정 삭제" }).find((b) => dialog.contains(b))!,
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "영구 삭제" }));
+    void dialog;
 
     await waitFor(() => expect(deleteAccount).toHaveBeenCalledTimes(1));
     expect(replace).toHaveBeenCalledWith("/sign-in");
@@ -70,11 +84,10 @@ describe("AccountButton", () => {
     deleteAccount.mockResolvedValueOnce({ error: { message: "계정 정리에 실패했습니다 (status 500)." } });
     render(<AccountButton />);
 
-    fireEvent.click(screen.getByRole("button", { name: "계정 삭제" }));
+    fireEvent.click(screen.getByRole("button", { name: "내 계정 지우기" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "계정 삭제" }).find((b) => dialog.contains(b))!,
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "영구 삭제" }));
+    void dialog;
 
     expect(await screen.findByRole("alert")).toHaveTextContent("계정 정리에 실패했습니다");
     expect(replace).not.toHaveBeenCalled();
