@@ -125,8 +125,18 @@ import 하는 것**을 error 로 막는다. 이동 시점 위반 0건이고 양�
 - e2e `chromium-design-canon` **44/44** ✅ (`/`·`/pricing`·`/sign-in`·`/maintenance`·`/waitlist` 실제 렌더)
 - e2e `chromium` smoke **4/4** ✅
 - 파일 수 불변 — 소스 557=557, 테스트 219=219, 라우트 `page.tsx` 목록 diff 0
-- ⚠ **`e2e:authed`(86건)는 이 회차에서 못 돌렸다** — 워크트리 env 가 격리 스택(5433/6380)을
-  가리키는데 그 스택 기동은 메인 체크아웃 몫이다(ADR-029 워크트리 규약). 머지 전에 메인에서 돌려라.
+- e2e `chromium-authed` **89 passed / 1 failed** ✅ — 유일한 실패는 [BL-775] — 이 브랜치 이전 등재,
+  해당 경로 `shortcut-help-dialog.tsx`·`ui/dialog.tsx`·`(dashboard)/layout.tsx` 전부 **diff 0** 이다.
+  이 회차가 그 **원인을 확정**했다 — 머신 경합이 아니라 **하이드레이션 경쟁**이다(대기 0초 → 다이얼로그
+  없음 / 3초 → 정상, 같은 mock·같은 경로 대조). ⇒ 이동이 닿은 대시보드·트레이딩·리포트·옵티마이저·
+  라이브세션 라우트는 **89건 전부 통과**했다.
+- BE pytest ✅ — CI 3샤드 + 로컬 361초 양쪽
+
+> ★**부수 발견 [BL-781]** — 격리 슬롯에서 authed 는 **지금까지 구조적으로 불가능했다.**
+> `Makefile` 에 `BETTER_AUTH` 참조가 0건이라 앱은 `:3100` 인데 `BETTER_AUTH_URL` 은 `:3000` 이고,
+> Better Auth 가 브라우저 로그인을 전건 `403 INVALID_ORIGIN` 으로 거부한다(trace 확인).
+> curl 은 Origin 헤더가 없어 200 이라 가려졌고, CI 는 authed project 를 안 돌려 못 잡는다.
+> [ADR-034] 가 이 레인을 깨뜨렸는데 재검증한 회차가 없었다. 이번 실행은 값을 주입해 우회했다.
 
 ### ★★ 게이트를 붙이는 회차가 게이트를 세 번 잘못 붙였다 (2026-08-16 적대 리뷰 2라운드)
 
