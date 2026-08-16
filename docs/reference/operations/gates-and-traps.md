@@ -843,6 +843,54 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
   `pnpm e2e:authed` 가 `--workers=1` 을 준다(이중 보장). 공유 storageState flake 방지 목적이라면
   **이미 달성돼 있다.** 2026-08-10 실측 — 신규 spec 5건 중 3건이 음성 대조라 serial 을 뺐다.
 
+### e2e 가 게이트에서만 red 일 때 — 증거를 남기고 조건을 재현하는 법 ([BL-784], 2026-08-17)
+
+- ★★★**playwright 는 매 실행의 setup 에서 `outputDir` 을 통째로 지운다.** 근거는 관용구가 아니라
+  코드다 — `runner/tasks.js` 의 `createRemoveOutputDirsTask` 가 `--project` 필터에 걸린 project 들의
+  `outputDir` 을 `removeFolders` 한다. 이 레포의 project 7종은 **전부 기본 `test-results/` 하나를
+  공유**하므로 어떤 `--project` 로 돌리든 **직전 회차의 trace·video·screenshot 이 사라진다.**
+  ⇒ **「게이트에서 실패했으니 단독으로도 실패하나 확인해 보자」가 그 실패의 증거를 파괴한다.**
+  [BL-784] 가 「실패 시점 network trace 가 없다」였던 이유가 이것이고, 설정(`retain-on-failure`)은
+  처음부터 정상이었다. 2026-08-17 실측 — 일부러 실패시킨 spec 의 `trace.zip`·`video.webm`·
+  `test-failed-1.png` 이 남은 것을 확인한 뒤 `pnpm e2e`(**다른 project**)를 한 번 돌리자
+  `test-results/` 에 `.last-run.json` 만 남았다.
+- **관측 모드 — `PW_ARTIFACT_RUN=<이름>`** (`apps/web/playwright.config.ts`). 켜면 셋이 바뀐다:
+  `outputDir` = `test-results/<이름>/<--project 값>` · `trace: "on"`(실패하지 않아도 남는다) ·
+  `test-results/<이름>/<project>/results.json`(테스트별 통과/실패 목록).
+  ★**`<--project 값>` 겹이 필수다** — 게이트는 한 번 실행에서 e2e 를 세 번 부르므로 그 겹이 없으면
+  마지막 레그가 앞의 둘을 지운다(고치려던 병이 그대로 재현된다).
+  ★비용: `trace: "on"` 은 authed 90 테스트 기준 **회차당 약 250MB** 다. 상시로 켜지 마라.
+- ★★**「게이트 실행」은 한 모양이 아니다 — 영역 판정이 브랜치마다 다른 집합을 켠다.**
+  `e2e authed` 의 술어만 `has_fe ∪ has_be` 이고(`final-gates.sh:378`) `FE vitest`·`FE build`·
+  `e2e chromium`·`e2e design-canon` 은 `has_fe` 뿐이다. 그래서 **BE 만 건드린 브랜치에서는
+  `e2e authed` 앞에 도는 것이 `BE pytest` 하나뿐**이고, FE 를 건드린 브랜치에서는 `pnpm build` +
+  e2e 두 레그가 앞선다. 재현하려면 **어느 모양이었는지부터 확정해라** — [BL-784] 가 관측된
+  회차([BL-773])는 `apps/web` diff 가 0 이라 **be-branch 모양**이었다.
+- **재현 하네스 = `tools/scripts/e2e-authed-repro.sh <라벨> [반복횟수]`.**
+  `QB_REPRO_SHAPE=be-branch`(기본, `BE pytest → e2e:authed`) / `fe-branch`(`build → chromium →
+design-canon → authed`). 회차마다 `PW_ARTIFACT_RUN` 을 달리 주므로 **앞 회차 증거가 살아남는다.**
+- ★**서버는 짝으로 띄워라** — `mise run be-isolated` **와** `mise run fe-isolated`. FE 만 띄우면
+  playwright 가 자기 `webServer` 를 올리는데 그 프로세스는 `BETTER_AUTH_URL` 을 못 받아 로그인이
+  403 `INVALID_ORIGIN` 으로 죽는다. 2026-08-17 회차가 이것으로 한 번 오진했다.
+  `curl` 은 생존 확인 전용이다 — Origin 헤더가 없어 그 검사를 안 거친다.
+- ★★★**그래서 무엇이었나 — `authed` 레그는 BE 의 전역 레이트리밋에 걸린다.**
+  `apps/api/src/common/rate_limit.py:122` 가 `default_limits=["100/minute"]` 을 **신원 단위**로 건다.
+  authed e2e 는 **한 사용자로 90 테스트**를 연달아 돌고 페이지마다 BE 요청을 4~8건(목록 + 내비
+  배지 3종 + strategies) 내므로 60초 창을 넘긴다. 2026-08-17 실측 — 한 밤의 BE 로그에 **429 가
+  616건**이었다. 대부분은 테스트가 단언하지 않는 배지 프로브라 조용히 지나가고, **하필 단언
+  대상 목록 요청이 걸린 회차만 red** 다. 그래서 「실패 테스트가 실행마다 갈린다」가 나온다.
+  ⇒ **원인은 지연이 아니라 거부다.** trace 타임라인에서 그 목록 요청은 **31ms · 5ms 만에 429** 로
+  돌아왔고 화면에는 `API 429 /api/v1/backtests` 가 그대로 떠 있었다. 「부하로 렌더가 늦다」는
+  가설을 이 증거가 반증한다 — 늦은 것이 아니라 서버가 즉시 거절했다.
+  ★★**「단독 실행은 항상 green」도 거짓이다.** 단독도 같은 90 테스트를 같은 신원으로 돌리므로
+  429 는 똑같이 난다. 같은 날 **단독 3회 중 1회가 red** 였고(`authed-canon-remaining.spec.ts:108`)
+  그 실패 응답도 `x-ratelimit-limit: 100 · remaining: 0` 이었다. 즉 **「게이트에서만」이라는 축이
+  틀렸다** — 게이트는 원인이 아니라 그 레그를 돌린 유일한 것이었다. 재현 15회 중 4회 red
+  (부하 없음 1/9 · 합성 부하 3/6)이고, 부하는 원인이 아니라 **확률을 올리는 요인**이다.
+  ★★★**실패 문구를 믿지 마라.** `:108` 은 429 를 「목록에서 실존 전략 편집 링크를 찾지
+  못했습니다 (**데이터 시딩 필요**)」라고 보고한다. [BL-784] 가 세웠다가 반증한 가설
+  「BE pytest 가 e2e 시드 데이터를 지운다」의 출처가 바로 이 문구다 — 데이터는 멀쩡했다.
+
 ### 신규 BE 필드는 FE `.strict()` 스키마와 **항상** 대조해라 (2026-07-30, codex 적대 리뷰 MAJOR)
 
 > ★★★**읽기 경로가 정상인 것은 쓰기 경로가 정상이라는 증거가 아니다.**
