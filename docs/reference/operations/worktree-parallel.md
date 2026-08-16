@@ -310,12 +310,13 @@ glob 패턴은 다루지 않고 시끄럽게 건너뛴다.
 # BE 테스트 — env 소싱 필수 (AGENTS.md §BE pytest)
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest
 
-# 서버 — 포트는 .worktree-slot 이 결정한다
+# 서버 — 포트는 .worktree-slot 이 결정한다. ★둘을 짝으로 띄워라 (BETTER_AUTH_URL, §6)
 mise run be-isolated                     # 8100 + N (마이그레이션 선행은 슬롯≠0 이면 자동으로 빠진다)
 mise run fe-isolated                     # 3100 + N
 
-# E2E — 이 변수 없으면 3000 의 남의 앱을 검사한다 (실제 거짓 그린 사고 이력)
-PLAYWRIGHT_BASE_URL=http://localhost:310N pnpm e2e
+# E2E — base URL 은 e2e/_base-url.ts 가 .worktree-slot 을 읽어 3100+N 으로 스스로 정한다
+cd apps/web && pnpm e2e                  # authed 는 pnpm e2e:authed
+PLAYWRIGHT_BASE_URL=http://localhost:310N pnpm e2e   # 슬롯 파일 밖의 대상을 겨눌 때만
 ```
 
 > **`QB_MIGRATE_DONE=1` 은 이제 필요 없다** (2026-07-29). 예전엔 워크트리에서 매번 붙여야 했고
@@ -348,6 +349,17 @@ docker exec quantbridge-db psql -U quantbridge -d postgres -c 'DROP DATABASE qua
 | `.env`                        | `mise run up-isolated` 가 POSTGRES\_\* 를 못 읽는다                                                   |
 | `.claude/settings.local.json` | 워크트리 세션에서 권한 프롬프트가 폭증한다                                                            |
 | `/pnpm-lock.yaml`             | 루트 `pnpm install` 이 lockfile 없이 돌아, **pre-commit 훅이 `lint-staged` 를 못 찾고 조용히 죽는다** |
+
+★**파일이 따라와도 그것만으로는 부족하다 — `apps/web/.env.local` 의 `BETTER_AUTH_URL` 은
+슬롯 포트와 짝이어야 한다**([BL-781], 2026-08-16). 그 파일의 값은 `:3000` 이고 격리 슬롯의 앱은
+`3100+N` 에서 서빙된다. 어긋난 채로 두면 Better Auth 가 로그인을 전건
+`403 {"code":"INVALID_ORIGIN"}` 으로 거부하고 `e2e/global.setup.ts` 가 죽어 **authed 스위트가
+아예 실행되지 않는다.** 그래서 `mise.toml` 의 `be-isolated`·`fe-isolated` 가 **둘 다 같은
+표현식**(`http://localhost:${QB_FE_PORT}`)으로 이 값을 덮는다 — 한쪽만 맞추면 이번엔 JWT 의
+`iss`/`aud` 가 갈려 전건 401 이다. **두 task 를 짝으로 띄워라.**
+
+★그리고 **판정 증인은 브라우저다.** `curl` 은 `Origin` 헤더를 안 보내 이 검사를 아예 안 거치고
+200 을 낸다 — 2026-08-16 회차가 `curl` 을 먼저 쳐 「인증은 된다」고 오판했다.
 
 **심볼릭 링크는 `.worktreeinclude` 로 복사되지 않는다** (Claude Code 가 건너뛴다).
 `.claude/CLAUDE.md -> ../AGENTS.md` 는 부트스트랩이 재생성한다. 스택 규칙은 ADR-027 부터 `apps/api/AGENTS.md`·`apps/web/AGENTS.md`(+ 같은 자리 `CLAUDE.md`)라 체크아웃에 그냥 포함된다.

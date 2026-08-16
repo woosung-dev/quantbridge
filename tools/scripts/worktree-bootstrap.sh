@@ -368,8 +368,11 @@ cat <<EOF
   BE 서버     mise run be-isolated      → http://localhost:$BE_PORT
               (슬롯 ≠ 0 이면 migrate-isolated 선행이 자동으로 빠진다 — QB_MIGRATE_DONE 불필요)
   FE 서버     mise run fe-isolated      → http://localhost:$FE_PORT
-  E2E         PLAYWRIGHT_BASE_URL=http://localhost:$FE_PORT pnpm e2e
-              (이 변수 없으면 3000 의 남의 앱을 검사한다 — 실제 사고 이력 있음)
+              (★BE 와 짝으로 띄워라 — authed e2e 는 두 task 가 BETTER_AUTH_URL 을 같은 값으로
+               덮어야 돈다. 어긋나면 403 INVALID_ORIGIN 또는 전건 401 이다, [BL-781])
+  E2E         cd apps/web && pnpm e2e            # authed 는 pnpm e2e:authed
+              (base URL 은 e2e/_base-url.ts 가 .worktree-slot 을 읽어 $FE_PORT 로 스스로 정한다.
+               PLAYWRIGHT_BASE_URL 은 슬롯 파일 밖의 대상을 겨눌 때만 준다)
 
 이 워크트리에서 막혀 있는 것 (assert-main-checkout.sh 가드가 거부한다 — 종료 코드 1):
   ✗ mise run up / down / up-isolated / down-isolated  → container_name 고정. 스택은 메인에서만.
