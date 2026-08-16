@@ -36,13 +36,23 @@ PoC 로 미뤘고, PR #619 머지로 트리거가 도래했다.
 | **`orval@7.21` client:'zod'** | ✅ 203줄                                                                                                                                | ✅         | ✅ **v4 API 직접 출력**(`zod.uuid()`·`zod.iso.datetime()`) | **채택**                                                         |
 | `@hey-api/openapi-ts`         | ❌ 0.99.0·0.98.0 모두 자체 TypeScript 7 의존과 비호환 크래시(`ts.SyntaxKind` undefined — pnpm dlx·npx 재현, 외부 피어 고정으로 못 막음) | —          | —                                                          | 탈락 (도구 성숙도 리스크 실측)                                   |
 
+> **묘비 (2026-08-16)** — 탈락한 hey-api 의 설정 파일 `apps/web/openapi-ts.config.ts` 를 삭제했다.
+> 그 `output` 이 가리키던 `src/lib/api-contract-poc/generated/hey-api` 는 크래시로 **한 번도 생긴 적이
+> 없고**, 부르는 npm script 도 CI 스텝도 없었다. 원문 = `git show 7eda1dea:apps/web/openapi-ts.config.ts`.
+
 **zod v4 공존 실증** (`src/lib/api-contract-poc/__tests__/zod-v4-coexist.test.ts`, 3/3):
 수기(`import { z } from "zod/v4"`)와 생성(`import * as zod from "zod"`)이 같은 zod@4.3.6
 런타임에서 같은 표본을 통과시키고, 깨진 uuid 를 양쪽 모두 거부한다(생성물이 실제로
 검증함의 판별). `apps/web/AGENTS.md` §8 의 `zod/v4` 규칙과 충돌 없음 — zod@4 패키지에서
 두 import 경로는 같은 v4 구현이다.
 
-### 3. drift 게이트 = `export_openapi.py --check` (CI 배선은 다음 회차)
+### 3. drift 게이트 = `export_openapi.py --check` (~~CI 배선은 다음 회차~~ → **2026-08-16 배선됨**)
+
+> **2026-08-16 후속.** 아래 스케치를 실제로 붙였다 — `ci.yml` `backend_static` 잡의 스텝 ·
+> `make openapi-check` · `final-gates.sh` 의 `BE openapi drift`(BE 영역 판정 안).
+> **배선 첫 실행이 실제 drift 1건을 잡았다** — 2026-08-17 ADR-034 회차에서 `DELETE /auth/me` 의
+> 독스트링이 바뀌었는데 계약을 재생성하지 않아, 그 사이 계약이 코드보다 낡아 있었다.
+> 즉 「다음 회차」로 미룬 3일 동안 게이트 없는 계약이 실제로 새고 있었다.
 
 CI 스케치 — backend 계열 잡에 1스텝:
 
@@ -54,8 +64,9 @@ CI 스케치 — backend 계열 잡에 1스텝:
 
 주의 2건: ① Settings 의 `trading_encryption_keys` 가 필수라 backend 잡의 기존 env 주입을
 그대로 전제한다 ② `.github/workflows/**` 가 backend paths-filter 에 이미 포함돼 있어
-게이트 자신을 고치는 PR 도 발화한다(ADR-029 canary 와 같은 축). **이번 회차는 ci.yml 을
-건드리지 않는다** — 게이트 배선·수기 스키마 대체 범위는 도입 회차의 결정이다.
+게이트 자신을 고치는 PR 도 발화한다(ADR-029 canary 와 같은 축). ~~**이번 회차는 ci.yml 을
+건드리지 않는다**~~ → **2026-08-16 에 배선했다**(위 후속 블록). 남은 비결정은 **수기 스키마
+대체 범위**뿐이다 — 생성물은 아직 `api-contract-poc/` 안에만 있고 프로덕션 경로는 수기 Zod 다.
 
 ## 구조 diff — 수기 vs 생성 (AC ⑶ 핵심 발견)
 

@@ -136,7 +136,7 @@ codex exec resume --last "<후속 지시>" < /dev/null    # 이어가기
 ### G4 — 화면 검증 (MCP playwright, 평가자)
 
 - ★**정체성 프로브 먼저.** `http://localhost:3100` 이 `<title>QuantBridge</title>` 인지 확인한다. 3000 은 남의 앱(Nexus)이고, 과거 캐논 27건이 그 앱을 감사하며 전부 거짓 그린이었다.
-- Clerk `storageState` 쿠키 주입으로 authed 화면에 진입한다.
+- `e2e/global.setup.ts` 가 실제 `/sign-in` 폼을 채워 만든 `storageState` 쿠키 주입으로 authed 화면에 진입한다(ADR-034).
 - 확인 항목 — 실제 클릭 → 네트워크 요청 → **원장·거래소 변화**, 콘솔 error 0, 375px 반응형.
 - ★**"화면에서 확인" 은 렌더된 페이지에서 한다.** API 응답이나 DB 행으로 대체하면 그것은 화면 검증이 아니다(그 혼동으로 회고를 정정한 이력이 있다).
 - 화면이 이상하면 **3층 대조** — 소스 / 프로덕션 빌드 / dev 서버가 실제로 서빙하는 원문. ③만 다르면 Turbopack 캐시이고 **복구는 재기동뿐**이다. 실행 중인 서버 밑에서 `.next` 를 지우면 `routes-manifest.json` ENOENT 로 그 서버가 500 을 낸다.
@@ -270,11 +270,15 @@ assert sha256(path.read_bytes()).hexdigest()[:12] == base   # 복원 검증
 
 ### 7.3 라이브 soak 세션 시작
 
-`e2e/.auth/storageState.json` 의 `__session` 은 **만료돼 있다**(`TOKEN_EXPIRED`). 브라우저에서 신선한 토큰을 발급받아야 한다.
+`e2e/.auth/storageState.json` 의 세션 쿠키는 **만료돼 있을 수 있다**. 브라우저에서 신선한 토큰을 발급받아야 한다.
+★**두 구간의 자격증명이 다르다**(ADR-034) — 브라우저↔Next 는 세션 쿠키, Next↔FastAPI 는 Bearer JWT 다.
+FastAPI 를 직접 치려면 세션 쿠키가 아니라 `/api/auth/token` 이 주는 JWT 를 써라(`src/lib/auth-client.ts:42`).
 
 ```js
 // playwright MCP — http://localhost:3100 접속 후 (정체성 프로브 먼저)
-const t = await window.Clerk.session.getToken();
+const t = (
+  await (await fetch("/api/auth/token", { credentials: "include" })).json()
+).token;
 await fetch("http://localhost:8100/api/v1/live-sessions", {
   method: "POST",
   headers: { "Content-Type": "application/json", Authorization: "Bearer " + t },

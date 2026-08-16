@@ -10249,3 +10249,89 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
+
+### BL-777
+
+**Title:** BE·소크 스택의 **배포/롤백 런북이 없다** — FE 만 문서화돼 있고 BE 절차는 사람 머릿속에 있다
+**Category:** Ops / 문서
+**Priority:** P2
+**Trigger:** 도래 — 배포가 이미 돌고 있다. 다음 BE 배포 또는 장애 대응이 이 공백을 밟는다
+**Est:** M (실제 절차를 밟으며 받아 적는다. 새 코드 0)
+**출처:** 2026-08-16 표준 레이아웃 정렬 — 권장 구조(`docs/operations/{deployment,rollback}`) 대비 실측
+
+**원인 / 영향:** `frontend-deploy.md` 는 FE 배포를 §3 까지 런북화했지만 **BE 는 대응 문서가 없다.**
+실제 경로는 `tools/scripts/soak-stack.sh`(SSH) + `db-backup.sh` + systemd 인데, 어느 문서도
+「무엇을 어떤 순서로」를 적지 않는다. `ci-cd.md` §7 은 2026-08-16 정정 전까지 **「현재 미설정」**
+이라고 적혀 있었다 — 배포가 이미 돌고 있는데 문서는 없다고 말하고 있었다.
+
+**롤백 축이 특히 비어 있다.** 롤백 서술은 FE(`frontend-deploy.md` §3.4)와 거래
+(`bybit-mainnet-runbook.md` §7) 둘뿐이고, **BE 컨테이너 롤백도 DB 롤백도 없다.**
+`alembic downgrade` 는 `env.py` 가 막고 있어 정당한 롤백조차 `-x allow_destructive=1` 이
+필요한데 그 사실이 런북이 아니라 `gates-and-traps.md` 함정 목록에만 있다.
+
+**권장 접근:** ⑴ `docs/reference/operations/backend-deploy.md` 신설 — `frontend-deploy.md` 와
+같은 골격(구조도 → 최초 1회 → 매 배포 → 롤백 → 함정) ⑵ ★**적으면서 실제로 한 번 밟아라.**
+안 밟고 적으면 `--project-directory` 누락 같은 것이 그대로 남는다(FE 쪽에서 실제로 밟았다)
+⑶ DB 롤백은 **백업 복원**과 `alembic downgrade` 두 갈래를 나눠 적고, 후자는 소크 창 중 DDL 금지
+규칙(`status.md` 비목표)과의 관계를 명시한다
+
+**Risk:** 🟡 (문서만. 다만 없는 상태로 장애를 맞으면 그때 비용을 낸다)
+
+**상태:** ⬜ Open — 2026-08-16 에 공백을 확정. `ci-cd.md` §7 의 거짓 서술만 같은 회차에 정정했다. 런북 본체 미착수
+**트리거 판정:** 도래 — 배포가 이미 프로덕션에서 돌고 있고 절차 문서만 없다 (2026-08-16 layout-alignment)
+
+### BL-778
+
+**Title:** API **버저닝 정책 문서가 없다** — `/api/v1` 이 `main.py` 에 문자열로 9회 반복될 뿐이다
+**Category:** Backend / 계약
+**Priority:** P3
+**Trigger:** ★**미도래** — 첫 breaking change 를 내거나, 우리가 통제하지 않는 외부 소비자가 생길 때
+**Est:** S (정책 문서 1벌 + 상수화)
+**출처:** 2026-08-16 표준 레이아웃 정렬 — 권장 구조(`docs/api/versioning.md`) 대비 실측
+
+**원인 / 영향:** `apps/api/src/main.py` 의 `include_router` 9곳이 `prefix="/api/v1"` 를 각각
+문자열로 적는다. 상수도 변수도 없다. 그리고 **v2 를 언제 왜 내는지, v1 을 언제까지 유지하는지**
+를 정한 문서가 없다 — `interfaces/endpoints.md` 의 「공통 계약」은 4줄이고 버저닝을 다루지 않는다.
+
+★**지금은 실해가 없다.** 소비자가 `apps/web` 하나뿐이고 같은 레포에서 같은 커밋으로 배포된다.
+계약 drift 는 2026-08-16 에 배선한 `make openapi-check` 가 막는다. 버저닝이 필요해지는 것은
+**우리가 배포 시점을 통제하지 못하는 소비자**(모바일 앱·외부 파트너)가 생기는 순간이다.
+
+**권장 접근:** ⑴ 트리거가 오면 `docs/reference/interfaces/versioning.md` 신설 — 무엇이 breaking
+인가(필드 제거·타입 변경·enum 값 제거) / 병행 유지 기간 / deprecation 헤더
+⑵ `/api/v1` 을 상수로 뽑는다 — 지금 뽑아도 값은 없다(9곳이 전부 같고 바뀔 이유가 없다)
+⑶ ★**빈 문서를 미리 만들지 마라** — 권장 구조에 칸이 있다는 것이 트리거가 아니다
+
+**Risk:** 🟢 (소비자 1벌인 동안은 영향 0)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 코드 대조로 확정(`main.py` 9회 반복 · 정책 문서 0건). 소비자가 `apps/web` 하나인 동안은 발현하지 않는다
+**트리거 판정:** 미도래 — 도래 = 첫 breaking change 발행 또는 배포 시점을 통제하지 못하는 소비자 등장 (2026-08-16 layout-alignment)
+
+### BL-779
+
+**Title:** `docs/backlog.md` 단일 파일이 **512k 토큰** — `docs/` 텍스트의 24%이고 열면 컨텍스트가 끝난다
+**Category:** 문서 / 컨텍스트 예산
+**Priority:** P2
+**Trigger:** 도래 — 이미 grep 없이는 열 수 없는 크기다
+**Est:** M (분할 설계가 본체. 기계적 이동은 그다음)
+**출처:** 2026-08-16 표준 레이아웃 정렬 — `tools/scripts/context-budget.sh` 실측
+
+**원인 / 영향:** 실측 1,019,776자 / 10,252줄 / **511,772 tok**(`context-budget.sh`, 0.736 tok/자).
+`docs/` 전체에서 단일 최대이고 `decisions/` 34파일 합계의 2.9배다. RESOLVED 117건 본문이
+Open 항목과 **같은 파일에** 있다.
+
+★**줄 길이 상한(1,000자)은 이미 지키고 있다** — 문제는 줄이 아니라 **파일 수명이 섞여 있는 것**이다.
+`docs/README.md` 의 수명 분류 원칙(reference / decisions / dev-log / archive)이 backlog 안에서는
+적용된 적이 없다.
+
+**권장 접근:** ⑴ ★**먼저 재라** — RESOLVED 117건이 차지하는 바이트를 세라. 그것이 분할의 상한이다
+⑵ `docs/backlog-resolved.md` 로 RESOLVED 를 내리고 원본에는 한 줄 색인만 남긴다
+⑶ ★**`bl-audit.sh`·`docs-audit.sh` 가 `BACKLOG` 경로를 상수로 갖는다**(`docs-audit.sh:21`).
+분할하면 3면 정합(섹션·인덱스 표·로드맵)이 **두 파일에 걸친다** — 스크립트를 먼저 고치고 옮겨라
+⑷ ★**음성 대조 필수** — 이동 후 `bl-audit.sh` 전체 수(현재 323)가 같은지 확인한다. 줄어들면
+검사기가 한쪽 파일을 못 보는 것이고, 그때 게이트는 **초록으로 통과한다**
+
+**Risk:** 🟠 (원장은 이 레포의 기억이다. 검사기를 먼저 고치지 않고 옮기면 3면 정합이 조용히 죽는다)
+
+**상태:** ⬜ Open — 2026-08-16 에 `context-budget.sh` 로 실측(511,772 tok). 분할 설계 미착수
+**트리거 판정:** 도래 — 이미 세션마다 grep 으로만 접근 가능한 크기이고 계속 자란다 (2026-08-16 layout-alignment)

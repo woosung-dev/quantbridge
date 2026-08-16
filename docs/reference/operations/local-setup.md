@@ -56,14 +56,28 @@ cp apps/web/.env.example apps/web/.env.local          # Next.js
 
 ### 2.1 필수로 채워야 할 키
 
-**Sprint 3+ (Clerk 인증):**
+**인증 (Better Auth 자체 호스팅 — [ADR-034](../../decisions/034-auth-self-host-better-auth.md)):**
+
+★**브라우저로 나가는 값이 하나도 없다.** 구 Clerk 의 publishable key 처럼 `NEXT_PUBLIC_` 으로
+번들에 인라인되는 인증 키는 이제 없다. 아래는 전부 **서버 전용**이다.
+
+`apps/web/.env.local` (이 앱이 인증 서버 본체다):
 
 ```env
-CLERK_SECRET_KEY=sk_test_...                  # Clerk Dashboard → API Keys → Secret keys
-CLERK_PUBLISHABLE_KEY=pk_test_...             # Clerk Dashboard → API Keys → Publishable keys
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_... # 동일 값 (Next.js 노출용)
-# CLERK_WEBHOOK_SECRET은 Sprint 7 배포까지 placeholder OK
+BETTER_AUTH_SECRET=          # 32자 이상. 생성: openssl rand -base64 32
+BETTER_AUTH_URL=http://localhost:3000
+BETTER_AUTH_DATABASE_URL=postgresql://quantbridge:password@localhost:5432/quantbridge
 ```
+
+`apps/api/.env.local` (FastAPI 는 JWKS 로 검증만 한다):
+
+```env
+BETTER_AUTH_URL=http://localhost:3000   # ★FE 와 **같은 값**. 어긋나면 전건 401 이다
+BETTER_AUTH_JWKS_URL=                   # 비우면 위 URL 에서 파생
+```
+
+`pnpm e2e:authed` 를 돌릴 거라면 `apps/web/.env.local` 에 `E2E_AUTH_EMAIL`·`E2E_AUTH_PASSWORD` 도
+넣는다 — `e2e/global.setup.ts` 가 그 계정으로 **실제 `/sign-in` 폼**을 채운다.
 
 **Sprint 6+ (거래소 API Key AES-256 암호화, 필수):**
 
@@ -74,7 +88,7 @@ cd apps/api
 KEY=$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
 # 3곳 모두에 추가 (docker compose: root / uvicorn: apps/api / 기타 검증 스크립트)
 echo "TRADING_ENCRYPTION_KEYS=$KEY" >> .env.local
-echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../../.env.local
+echo "TRADING_ENCRYPTION_KEYS=$KEY" >> ../../.env      # ★루트는 `.env` 다 — compose 가 `.env.local` 은 자동 로드하지 않는다
 cd ../..
 ```
 
@@ -155,7 +169,7 @@ pnpm dev      # http://localhost:3000
 ### 5.1 Frontend 검증
 
 - 브라우저: http://localhost:3000 → 홈 200
-- Clerk 로그인 동작 (Clerk 키 정상 등록 시)
+- `/sign-in` 로그인 동작 (`BETTER_AUTH_*` 3종 정상 등록 시)
 
 ---
 
@@ -201,7 +215,7 @@ pnpm tsc --noEmit
 | Redis healthy        | `docker compose ps`                                                         | `quantbridge-redis Up (healthy)`          |
 | API health           | `curl localhost:8000/health`                                                | 200                                       |
 | API docs             | 브라우저 `localhost:8000/docs`                                              | Swagger UI                                |
-| FE 홈                | 브라우저 `localhost:3000`                                                   | 200 (Clerk 키 누락 시 401 페이지 가능)    |
+| FE 홈                | 브라우저 `localhost:3000`                                                   | 200 (`BETTER_AUTH_*` 누락 시 부팅 실패)   |
 | pytest               | `cd apps/api && uv run pytest -q`                                           | 모두 pass (Sprint 7a 기준 524)            |
 | Migration round-trip | `cd apps/api && uv run alembic downgrade -1 && uv run alembic upgrade head` | 에러 없음                                 |
 | FE tsc/lint          | `cd apps/web && pnpm tsc --noEmit && pnpm lint`                             | EXIT 0 (Sprint 7c 기준)                   |
@@ -249,10 +263,12 @@ pnpm tsc --noEmit
 
 ### 8.8 Frontend `.env.local` 미생성 시 로그인 페이지 에러
 
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` 누락 시 Clerk가 "Missing publishable key" 에러
-- `apps/web/.env.local`에 최소 3줄:
+- `BETTER_AUTH_DATABASE_URL` 누락 시 Better Auth 가 인증 테이블에 붙지 못한다
+- `apps/web/.env.local`에 최소 5줄:
   ```env
-  NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+  BETTER_AUTH_SECRET=<openssl rand -base64 32>
+  BETTER_AUTH_URL=http://localhost:3000
+  BETTER_AUTH_DATABASE_URL=postgresql://quantbridge:password@localhost:5432/quantbridge
   NEXT_PUBLIC_API_URL=http://localhost:8000
   NEXT_PUBLIC_WS_URL=ws://localhost:8000
   ```
@@ -268,7 +284,7 @@ pnpm tsc --noEmit
 ## 9. 다음 단계
 
 - 환경 변수 의미: [`env-vars.md`](./env-vars.md)
-- Clerk 셋업 상세: [`clerk-setup.md`](./better-auth-setup.md)
+- 인증 셋업 상세: [`better-auth-setup.md`](./better-auth-setup.md)
 - Compose 운영: [`docker-compose-guide.md`](./docker-compose-guide.md)
 - CI/CD: [`ci-cd.md`](./ci-cd.md)
 - 개발 방법론: [`development-methodology.md`](./workflows/development-methodology.md)

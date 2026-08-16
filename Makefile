@@ -414,6 +414,13 @@ typecheck:
 docs-audit:
 	tools/scripts/docs-audit.sh
 
+# OpenAPI 계약 drift — 커밋된 `contracts/openapi/openapi.json` 이 현재 코드의 산출물과 같은가.
+# ★[ADR-031] 이 「CI 배선은 다음 회차」로 남긴 것을 2026-08-16 에 배선했다. 그전까지 484KB 계약이
+#   레포에 있었지만 **아무도 검사하지 않았다.**
+# ★env 통째 소싱이 전제다 — Settings 의 `trading_encryption_keys` 가 기본값 없는 필수 필드다.
+openapi-check:
+	cd apps/api && set -a; . ./.env.local; set +a; uv run python scripts/export_openapi.py --check
+
 # 게이트 하네스 전량 — **게이트가 무엇을 재는지 재는** 검사기들. **8종 13초**(2026-08-13 재실측 ·
 # `fleet-dispatch-test` 제거 후 — [ADR-030]). ★종전 「9종 17.3초」와 **증감을 비교하지 마라** —
 # 이번 측정은 `date +%s` 초 단위 해상도이고 make 기동을 포함한다. 같은 자로 안 쟀다.

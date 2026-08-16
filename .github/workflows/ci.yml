@@ -244,6 +244,20 @@ jobs:
             mypy-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}-
             mypy-${{ runner.os }}-
       - run: uv run mypy src/
+      # ★OpenAPI 계약 drift — [ADR-031] 이 「CI 배선은 다음 회차」로 남긴 것을 2026-08-16 에 배선했다.
+      #   그전까지 `contracts/openapi/openapi.json`(484KB)이 레포에 있었지만 **부르는 곳이 하나도
+      #   없어** 코드가 앞서가도 아무도 몰랐다.
+      # ★env 2종은 아래 `backend` 잡의 alembic 스텝과 **같은 값**이다. `Settings` 의
+      #   `trading_encryption_keys` 만 기본값 없는 필수 필드이고, `DATABASE_URL` 은 compose
+      #   서비스명 기본값이 러너에서 해석되지 않으므로 함께 준다(연결은 하지 않는다 —
+      #   `create_app().openapi()` 는 lifespan 을 돌리지 않는다).
+      # ★이 스텝은 `uv run pytest` 가 아니므로 `test_ci_workflow_env_parity` 의 감사 대상이
+      #   아니다. 여기 env 를 늘리면 그 테스트가 아니라 이 주석이 유일한 기록이다.
+      - name: OpenAPI drift check
+        run: uv run python scripts/export_openapi.py --check
+        env:
+          DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+          TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
 
   # ★pytest 를 3 샤드로 쪼갠다 (2026-08-06). 왜, 그리고 왜 이 경계인지는
   #   `apps/api/tests/shard_paths.py` 독스트링에 실측과 함께 있다. 요약:

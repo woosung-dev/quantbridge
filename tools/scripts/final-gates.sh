@@ -200,8 +200,15 @@ fi
 if [ "$has_be" -eq 1 ] || [ -z "$BASE" ]; then
   run_gate "BE ruff"    "apps/api/**"  bash -c 'cd "$0/apps/api" && uv run ruff check .' "$ROOT"
   run_gate "BE mypy"    "apps/api/**"  bash -c 'cd "$0/apps/api" && uv run mypy src/'   "$ROOT"
+  # ★OpenAPI 계약 drift — 커밋된 `contracts/openapi/openapi.json` 이 코드 산출물과 같은가.
+  #   [ADR-031] 이 남긴 배선을 2026-08-16 에 붙였다. 배선 첫 실행이 **실제 drift 1건**을 잡았다
+  #   (ADR-034 회차에서 `DELETE /auth/me` 독스트링이 바뀌었는데 계약을 재생성하지 않았다).
+  #   ★env 통째 소싱이 전제다 — `trading_encryption_keys` 가 기본값 없는 필수 필드다.
+  run_gate "BE openapi drift" "apps/api/**" \
+    bash -c 'cd "$0/apps/api" && set -a && . ./.env.local && set +a && uv run python scripts/export_openapi.py --check' "$ROOT"
 else
   skip_gate "BE ruff" "backend diff 0"; skip_gate "BE mypy" "backend diff 0"
+  skip_gate "BE openapi drift" "backend diff 0"
 fi
 if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
   run_gate "FE typecheck" "apps/web/**" bash -c 'cd "$0/apps/web" && pnpm typecheck' "$ROOT"

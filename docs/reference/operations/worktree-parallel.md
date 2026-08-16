@@ -335,7 +335,7 @@ docker exec quantbridge-db psql -U quantbridge -d postgres -c 'DROP DATABASE qua
 | 파일                          | 없으면                                                                                                |
 | ----------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `apps/api/.env.local`         | uvicorn·pytest 가 5432 로 붙어 격리 스택을 못 찾는다                                                  |
-| `apps/web/.env.local`         | Clerk 키 부재로 dev 서버가 부팅 중 죽고 `e2e:authed` 전멸                                             |
+| `apps/web/.env.local`         | `BETTER_AUTH_*` 부재로 dev 서버가 부팅 중 죽고, `E2E_AUTH_*` 부재로 `e2e:authed` 전멸 (ADR-034)       |
 | `.env`                        | `make up-isolated` 가 POSTGRES\_\* 를 못 읽는다                                                       |
 | `.claude/settings.local.json` | 워크트리 세션에서 권한 프롬프트가 폭증한다                                                            |
 | `/pnpm-lock.yaml`             | 루트 `pnpm install` 이 lockfile 없이 돌아, **pre-commit 훅이 `lint-staged` 를 못 찾고 조용히 죽는다** |
