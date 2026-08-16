@@ -207,8 +207,8 @@ const RADIUS_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   // ── share 2건 = 프로토타입 없는 화면(이식 범위 밖). rounded-3xl 은 24×24 일러스트 배지
   //    반경이고, share 스크린 자체가 C 이식 대상이 아니라 그 화면을 재스킨하는 시점에
   //    var(--r) 로 흡수된다. 지금 감축하려면 화면 이식이 선행돼야 하므로 범위 밖 — 유지.
-  ["app/share/backtests/[token]/_components/share-not-found-state.tsx", 1], // rounded-3xl 일러스트 배지
-  ["app/share/backtests/[token]/_components/share-revoked-state.tsx", 1], // rounded-3xl 일러스트 배지
+  ["features/backtest/components/share/share-not-found-state.tsx", 1], // rounded-3xl 일러스트 배지
+  ["features/backtest/components/share/share-revoked-state.tsx", 1], // rounded-3xl 일러스트 배지
   // ── skeleton/pnl-tape/tape-progress 3건 = 불가침 프리미티브(operating-contract §7 "tick-ruler·
   //    pnl-tape 불가침"). rounded-[1px] 은 테이프/스켈레톤 세그먼트의 1px 헤어라인으로,
   //    rounded-2xl/3xl 슬롭이 아니라 테이프 미학의 의도된 계측 디테일이다. var(--r)(6px)로
@@ -237,18 +237,18 @@ const EM_DASH_ALLOWLIST: ReadonlyArray<readonly [string, number]> = [
   // 마침표 산문으로 교정해 0 이 됐다 → allowlist 에서 제거(래칫 하강).
   // assumptions-card.tsx (구 2건)는 W2 리포트 상세 이식에서 trust-grid 재스킨과 함께 산문
   // em-dash 를 마침표로 교정해 0 이 됐다 → 항목 제거(래칫 하강).
-  ["app/(dashboard)/backtests/_components/charts/cost-assumption-heatmap.tsx", 1],
-  ["app/(dashboard)/backtests/_components/charts/drawdown-pane.tsx", 1],
-  ["app/(dashboard)/backtests/_components/charts/equity-pane.tsx", 1],
-  ["app/(dashboard)/backtests/_components/charts/param-stability-heatmap.tsx", 1],
+  ["features/backtest/components/charts/cost-assumption-heatmap.tsx", 1],
+  ["features/backtest/components/charts/drawdown-pane.tsx", 1],
+  ["features/backtest/components/charts/equity-pane.tsx", 1],
+  ["features/backtest/components/charts/param-stability-heatmap.tsx", 1],
   // W3-A: backtest-form(구 3) · BacktestSizingFieldSet(구 2) · live-settings-badge(구 1)은
   // screen-05 C 이식에서 산문 em-dash 를 마침표·가운뎃점으로 교정해 0 이 됐다 → 항목 제거(래칫 하강).
-  ["app/(dashboard)/backtests/_components/monte-carlo-summary-table.tsx", 3],
-  ["app/(dashboard)/backtests/_components/report/benchmark-floating-bars.tsx", 1],
+  ["features/backtest/components/monte-carlo-summary-table.tsx", 3],
+  ["features/backtest/components/report/benchmark-floating-bars.tsx", 1],
   // detailed-results-section.tsx (구 1건)은 W2 에서 심화 분석 시각 카드로 재편하며 벤치마킹
   // 캡션의 em-dash 를 제거해 0 이 됐다 → 항목 제거(래칫 하강).
-  ["app/(dashboard)/backtests/_components/report/runup-drawdown-section.tsx", 2],
-  ["app/(dashboard)/backtests/_components/report/trade-pnl-pane.tsx", 1],
+  ["features/backtest/components/report/runup-drawdown-section.tsx", 2],
+  ["features/backtest/components/report/trade-pnl-pane.tsx", 1],
   // W3-B: strategies em-dash 5건 해소. parse-panel/tab-parse/parse-preview-panel 삭제 +
   // tab-metadata/parse-result-panel C 재작성으로 노출 em-dash 0건 → allowlist 에서 제거.
   // W3-C: optimizer 5파일(bayesian/genetic chart · grid heatmap · pair-selector · oos)도 C 이식에서

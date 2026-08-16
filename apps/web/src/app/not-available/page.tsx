@@ -1,6 +1,6 @@
 // geo-block 에 의해 redirect 되는 안내 페이지. Sprint 43 W14: legal-page-shell centered + email contact.
 
-import { LegalPageShell } from "../_components/legal-page-shell";
+import { LegalPageShell } from "@/components/legal/legal-page-shell";
 
 const linkClass =
   "underline decoration-[color:var(--border-dark)] underline-offset-4 transition-colors duration-200 ease-out hover:text-[color:var(--text-primary)] hover:decoration-[color:var(--text-primary)]";

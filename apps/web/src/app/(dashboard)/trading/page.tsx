@@ -4,7 +4,7 @@
 
 import type { Metadata } from "next";
 
-import { TradingCockpit } from "./_components/trading-cockpit";
+import { TradingCockpit } from "@/features/trading/components/trading-cockpit";
 
 export const metadata: Metadata = {
   title: "트레이딩",

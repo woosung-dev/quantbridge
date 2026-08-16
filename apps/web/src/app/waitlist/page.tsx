@@ -6,11 +6,11 @@ import Link from "next/link";
 import { ExchangeSupportTable } from "@/components/exchange-support-table";
 import { ROADMAP_DISCLAIMER } from "@/lib/marketing-canon";
 
-import { WaitlistFaq } from "./_components/waitlist-faq";
-import { WaitlistFormCard } from "./_components/waitlist-form-card";
-import { WaitlistHeader } from "./_components/waitlist-header";
-import { WaitlistHero } from "./_components/waitlist-hero";
-import { WaitlistProduct } from "./_components/waitlist-product";
+import { WaitlistFaq } from "@/features/waitlist/components/waitlist-faq";
+import { WaitlistFormCard } from "@/features/waitlist/components/waitlist-form-card";
+import { WaitlistHeader } from "@/features/waitlist/components/waitlist-header";
+import { WaitlistHero } from "@/features/waitlist/components/waitlist-hero";
+import { WaitlistProduct } from "@/features/waitlist/components/waitlist-product";
 
 export const metadata: Metadata = {
   title: "웨이트리스트",

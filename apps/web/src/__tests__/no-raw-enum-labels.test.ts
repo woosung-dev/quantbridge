@@ -193,29 +193,34 @@ function walk(dir: string, results: string[] = []): string[] {
 }
 
 // 가드 스코프 = P1 라우트가 렌더하는 컴포넌트 트리.
-//   S4: /backtests · /orders (_components)
-//   S9: /dashboard · /trading (_components) + 두 라우트가 그리는 features 컴포넌트 트리
-//   W1: optimizer/strategy 라우트 _components + 두 도메인 features 컴포넌트 트리
-const NEW_SCOPE_MARKERS: readonly string[] = [
-  join("app", "(dashboard)", "optimizer", "_components"),
-  join("app", "(dashboard)", "strategies", "_components"),
-  join("app", "(dashboard)", "strategies", "new", "_components"),
-  join("app", "(dashboard)", "strategies", "[id]", "edit", "_components"),
-  join("features", "optimizer", "components"),
-  join("features", "strategy", "components"),
+//   S4: /backtests · /orders   S9: /dashboard · /trading   W1: optimizer · strategy
+//
+// ★★2026-08-16 ADR-035 — 이 목록은 종전에 `app/**/_components/` 를 가리키고 있었다.
+//   그 디렉터리들이 `features/*/components/` 로 옮겨졌고, `walk()` 는 `existsSync` 가 false 면
+//   **조용히 건너뛴다**(:176). 즉 목록을 안 고쳤으면 스코프가 통째로 비고 **테스트는 초록**이었다.
+//   ★그래서 이 파일을 고칠 때는 `apps/web/scripts/canon-scope-census.mjs` 로 스캔 파일 수를
+//     이동 전후 비교해라. 줄어들면 배선이 죽은 것이다 (2026-08-16 실측: 112 → 246).
+// ★아래 목록에 없는 디렉터리는 감사받지 않는다. feature 를 새로 만들면 여기에 줄을 추가해라.
+const SCOPE_MARKERS: readonly string[] = [
+  join("features", "backtest", "components"), // 구 app/(dashboard)/backtests/_components
+  join("features", "trading", "components"), // 구 .../trading/_components + orders/_components
+  join("features", "dashboard", "components"), // 구 .../dashboard/_components
+  join("features", "optimizer", "components"), // 구 .../optimizer/_components
+  join("features", "strategy", "components"), // 구 .../strategies{,/new,/[id]/edit}/_components
+  join("features", "live-sessions", "components"),
 ];
 
 function getScopedFiles(): string[] {
   const root = resolve(__dirname, "..");
-  const dirs = [
-    join(root, "app", "(dashboard)", "backtests", "_components"),
-    join(root, "app", "(dashboard)", "orders", "_components"),
-    join(root, "app", "(dashboard)", "dashboard", "_components"),
-    join(root, "app", "(dashboard)", "trading", "_components"),
-    join(root, "features", "trading", "components"),
-    join(root, "features", "live-sessions", "components"),
-    ...NEW_SCOPE_MARKERS.map((m) => join(root, m)),
-  ];
+  const dirs = SCOPE_MARKERS.map((m) => join(root, m));
+  // ★목록의 디렉터리가 실제로 있어야 한다 — `walk()` 의 침묵 건너뛰기가 스코프를 비우는 것을 막는다.
+  const gone = dirs.filter((d) => !existsSync(d));
+  if (gone.length > 0) {
+    throw new Error(
+      `가드 스코프 디렉터리가 사라졌다: ${gone.join(", ")}\n` +
+        "옮겼다면 SCOPE_MARKERS 를 함께 고쳐라. 안 고치면 이 테스트는 빈 입력으로 초록이 된다.",
+    );
+  }
   const results: string[] = [];
   for (const d of dirs) walk(d, results);
   return results;
@@ -246,9 +251,9 @@ describe("S4/S9/W1 — no raw enum rendered in P1 route UI", () => {
     expect(files.some((f) => f.endsWith("live-session-detail.tsx"))).toBe(true);
   });
 
-  // W1 위생 — 신규 6 디렉터리가 실제로 파일을 스캔했는지(0파일 침묵 통과 금지).
-  it("W1 확장 스코프 6 디렉터리가 각각 최소 1개 파일을 스캔한다", () => {
-    for (const marker of NEW_SCOPE_MARKERS) {
+  // 위생 — 스코프 6 디렉터리가 실제로 파일을 스캔했는지(0파일 침묵 통과 금지).
+  it("스코프 6 디렉터리가 각각 최소 1개 파일을 스캔한다", () => {
+    for (const marker of SCOPE_MARKERS) {
       expect(
         files.some((f) => f.includes(marker)),
         `스코프가 비었다 (0파일): ${marker}`,

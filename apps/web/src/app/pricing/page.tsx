@@ -7,7 +7,7 @@ import Link from "next/link";
 
 import { EMPTY_CELL } from "@/lib/marketing-canon";
 
-import { PricingWaitlistForm } from "./_components/pricing-waitlist-form";
+import { PricingWaitlistForm } from "@/features/marketing/components/pricing-waitlist-form";
 
 export const metadata: Metadata = {
   title: "요금제",

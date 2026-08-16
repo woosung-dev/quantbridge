@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { STATUS_VARIANT } from "@/app/(dashboard)/backtests/_components/status-badge";
+import { STATUS_VARIANT } from "@/features/backtest/components/status-badge";
 import { BACKTEST_STATUS_LABEL } from "../labels";
 import { BacktestStatusSchema } from "../schemas";
 

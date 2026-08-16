@@ -9,9 +9,9 @@ import {
 } from "@/features/backtest/schemas";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
 
-import { ShareNotFoundState } from "./_components/share-not-found-state";
-import { SharePublicBanner } from "./_components/share-public-banner";
-import { ShareRevokedState } from "./_components/share-revoked-state";
+import { ShareNotFoundState } from "@/features/backtest/components/share/share-not-found-state";
+import { SharePublicBanner } from "@/features/backtest/components/share/share-public-banner";
+import { ShareRevokedState } from "@/features/backtest/components/share/share-revoked-state";
 
 export const dynamic = "force-dynamic"; // 토큰 lookup → revoke 즉시 반영
 

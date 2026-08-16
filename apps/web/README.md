@@ -52,11 +52,13 @@ src/
 ├── components/
 │   ├── ui/                 # shadcn/ui v4 (수정 금지, 래핑으로 확장)
 │   ├── layout/             # DashboardShell 등
+│   ├── legal/              # 3개 라우트가 공유하는 법무 셸
 │   ├── charts/ monaco/ tape/
 │   └── providers/          # AppProviders + QueryProvider
-├── features/               # 도메인 단위 모듈 (9종)
-│                           # alert-rules · backtest · live-sessions · onboarding
-│                           # optimizer · realtime · strategy · trading · waitlist
+├── features/               # 도메인 단위 모듈 (12종) — ★화면 컴포넌트의 기본 자리 (ADR-035)
+│                           # alert-rules · auth · backtest · dashboard · live-sessions
+│                           # marketing · onboarding · optimizer · realtime · strategy
+│                           # trading · waitlist
 ├── hooks/                  # 도메인 무관 공통 훅
 ├── lib/                    # api-client · auth · geo · 디자인 토큰 · ws-client
 ├── store/                  # 전역 Zustand (ui-store)

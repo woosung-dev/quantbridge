@@ -67,6 +67,32 @@ const config = [
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },
   },
+  {
+    // ★★FSD Lite 레이어 경계 ([ADR-035], 2026-08-16). `app/` 은 **최상위 조립층**이다 —
+    //   아래 층(features · components · lib · hooks · store)이 그것을 거슬러 참조하면
+    //   라우트 구조가 도메인 코드의 의존성이 되어 라우트를 못 옮긴다.
+    //
+    // ★왜 규칙으로 박는가: 2026-08-16 에 `app/**/_components/` 234파일을
+    //   `features/*/components/` 로 옮겼는데, 그 배치를 **강제하는 장치가 하나도 없었다.**
+    //   규칙이 없으면 다음 회차가 같은 자리로 되돌린다. 이동 시점 위반 = 0건이다.
+    //
+    // ★`app/` 자신은 제외다 — 라우트끼리의 참조는 이 규칙의 대상이 아니다.
+    files: ["src/features/**", "src/components/**", "src/lib/**", "src/hooks/**", "src/store/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app/*", "@/app/**"],
+              message:
+                "하위 층은 app/ 을 import 하지 않는다 (ADR-035). 공유가 필요하면 그 컴포넌트를 features/<domain>/components/ 또는 components/ 로 올려라.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
 
 export default config;

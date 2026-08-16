@@ -114,13 +114,17 @@ if (!isPublicRoute(pathname)) {
 
 ```
 src/
-├── app/                    # View Layer: 라우트, 레이아웃, 페이지 (비즈니스 로직 작성 금지)
+├── app/                    # 조립층: 라우트·레이아웃·loading·error·metadata + feature 조립
+│                           #   ★비즈니스 로직 금지. 화면을 그리는 컴포넌트도 여기 소유가 아니다
 ├── components/             # Shared UI: 도메인을 모르는 공통 UI
 │   ├── ui/                 # shadcn/ui 컴포넌트 (수정 금지, 래핑으로 확장)
-│   └── layout/             # Header, Sidebar 등 공통 레이아웃
+│   ├── layout/             # Header, Sidebar 등 공통 레이아웃
+│   └── legal/              # 여러 라우트가 공유하는 법무 셸
 ├── features/               # ★ Business Layer: 도메인 기능 단위 모듈 (응집도 최상)
-│   └── [domain]/           # ex) users, orders, payments
-│       ├── components/     # 도메인 종속 UI (UserCard, OrderForm 등)
+│   └── [domain]/           # 현재 12종: alert-rules · auth · backtest · dashboard ·
+│       │                   #   live-sessions · marketing · onboarding · optimizer ·
+│       │                   #   realtime · strategy · trading · waitlist
+│       ├── components/     # 도메인 종속 UI — ★화면 컴포넌트의 기본 자리다
 │       ├── api.ts          # API 호출 함수 + Query Key Factory
 │       ├── hooks.ts        # React Query 래핑 훅 + 비즈니스 로직
 │       ├── schemas.ts      # Zod 스키마 + z.infer 타입 추출
@@ -129,6 +133,33 @@ src/
 ├── hooks/                  # 도메인 무관 공통 훅 (useDebounce 등)
 ├── lib/                    # Utility: API 클라이언트, 유틸리티, 상수
 └── store/                  # Global State: 앱 전역 Zustand (Theme 등)
+```
+
+### ★ `app/**/_components/` 는 언제 쓰나 ([ADR-035](../../docs/decisions/035-fe-component-ownership.md))
+
+2026-08-16 에 `_components/` **234파일을 `features/` 로 옮겼다.** 금지는 아니지만 기본이 아니다.
+
+| 상황                                    | 자리                                                          |
+| --------------------------------------- | ------------------------------------------------------------- |
+| 두 개 이상 라우트가 쓴다                | `features/<domain>/components/` 또는 `components/`(도메인 무지) |
+| 한 라우트 전용 + 도메인 로직 있음       | `features/<domain>/components/`                               |
+| 한 라우트 전용 + 순수 표현 + 5파일 미만 | `app/<route>/_components/` 허용                               |
+
+★**의심스러우면 feature 로 보내라.**
+
+### ★ 레이어 경계는 eslint 가 집행한다
+
+`features/`·`components/`·`lib/`·`hooks/`·`store/` 에서 **`@/app/*` 를 import 하면 error** 다
+(`eslint.config.mjs` `no-restricted-imports`). `app/` 은 최상위 조립층이라 아래 층이 그것을
+거슬러 참조하면 라우트를 못 옮긴다.
+
+### ★ 컴포넌트를 옮기기 전에 — 검사기 스코프를 먼저 재라
+
+`src/__tests__/no-raw-enum-labels.test.ts` 는 스캔 대상을 **디렉터리 목록**으로 정의하고
+없는 디렉터리를 조용히 건너뛴다. 목록을 안 고치고 옮기면 **스코프가 비고 테스트는 초록**이다.
+
+```bash
+cd apps/web && node scripts/canon-scope-census.mjs   # 이동 전후로 돌려 수치를 대조한다
 ```
 
 ## 5. 반응형 — 본문은 §10
