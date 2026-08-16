@@ -3,7 +3,7 @@
 
 import { notFound } from "next/navigation";
 
-import { EditorView } from "./_components/editor-view";
+import { EditorView } from "@/features/strategy/components/edit/editor-view";
 
 export default async function StrategyEditPage({
   params,

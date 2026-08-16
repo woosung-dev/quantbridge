@@ -12,7 +12,7 @@ import { listStrategies } from "@/features/strategy/api";
 import { strategyKeys } from "@/features/strategy/query-keys";
 import type { StrategyListQuery } from "@/features/strategy/schemas";
 import { resolveStrategySort } from "@/features/strategy/sort";
-import { StrategyList } from "./_components/strategy-list";
+import { StrategyList } from "@/features/strategy/components/strategy-list";
 
 export const metadata: Metadata = {
   title: "전략",

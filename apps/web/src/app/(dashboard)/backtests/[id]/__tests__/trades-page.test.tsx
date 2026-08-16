@@ -11,7 +11,7 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-vi.mock("../../_components/trades/trade-detail-shell", () => ({
+vi.mock("@/features/backtest/components/trades/trade-detail-shell", () => ({
   TradeDetailShell: ({ id }: { id: string }) => `MockedTradeDetailShell:${id}`,
   TradeDetailSkeleton: () => "MockedTradeDetailSkeleton",
 }));

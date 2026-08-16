@@ -178,39 +178,44 @@ sequenceDiagram
 
 ---
 
-## 5. Clerk Auth + Webhook (Sprint 3)
+## 5. Auth — self-host Better Auth ([ADR-034](../../decisions/034-auth-self-host-better-auth.md))
+
+★**Next 앱이 인증 서버 본체다.** 외부 인증 벤더도, lifecycle webhook 도 없다.
+★**두 구간의 자격증명이 다르다** — 브라우저↔Next 는 **세션 쿠키**, Next↔FastAPI 는 **Bearer JWT**.
+★**백엔드는 비밀을 하나도 쥐지 않는다** — 검증은 JWKS 공개키로만 한다(`realtime/auth.py:1-2`).
 
 ```mermaid
 sequenceDiagram
     actor User
-    participant FE
-    participant Clerk
+    participant FE as Next (Better Auth 서버)
     participant API as FastAPI
 
-    User->>FE: 로그인 폼
-    FE->>Clerk: 인증
-    Clerk-->>FE: 세션 + JWT
+    User->>FE: POST /api/auth/sign-in/email
+    FE->>FE: auth_user / auth_session 조회·발급
+    FE-->>User: 세션 쿠키
 
-    FE->>API: GET /auth/me\nAuthorization: Bearer <JWT>
-    API->>Clerk: JWKS 가져오기 (캐시)
-    Clerk-->>API: 공개키
-    API->>API: JWT 검증 (signature, exp, iss)
-    API->>API: user_id 추출
-    API-->>FE: 200 + user payload
+    User->>FE: GET /api/auth/token (쿠키 동반)
+    FE-->>User: EdDSA 서명 JWT (iss = aud = BETTER_AUTH_URL)
 
-    Note over Clerk,API: lifecycle 동기화 (Webhook)
-    User->>Clerk: 회원가입 / 정보 변경 / 탈퇴
-    Clerk->>API: POST /webhooks/clerk\n(Svix 서명 + timestamp)
-    API->>API: Svix 서명 검증 (replay 방지)
-    alt event = user.created
-        API->>API: User INSERT
-    else event = user.updated
-        API->>API: User UPDATE
-    else event = user.deleted
-        API->>API: User DELETE (CASCADE → strategies/backtests/...)
-    end
-    API-->>Clerk: 200 OK
+    User->>API: GET /api/v1/auth/me\nAuthorization: Bearer <JWT>
+    API->>FE: GET /api/auth/jwks (kid 별 캐시, lifespan 3600s)
+    FE-->>API: 공개키
+    API->>API: JWT 검증 (signature · exp · iss · aud)
+    API->>API: sub 추출 → get_or_create (JIT 프로비저닝)
+    API-->>User: 200 + user payload
 ```
+
+**lifecycle 동기화 — webhook 이 아니라 세 경로다.**
+
+| 사건      | 경로                                                                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 가입      | FastAPI 가 첫 인증 요청에서 `sub` 로 **JIT 생성**한다 (`auth/service.py` `get_or_create`, 호출은 `realtime/auth.py`)                                   |
+| 정보 변경 | ★**같은 `get_or_create` 가 매 요청에서 동기화한다** — JWT 의 `email`·`username`·`country` 를 DB 행과 비교해 **다를 때만** `update_profile()` 을 부른다 |
+| 탈퇴      | `DELETE /api/v1/auth/me` → `auth/service.py:131` `deactivate_account`. 이후 그 `sub` 의 JWT 는 `UserInactiveError` 로 막힌다 (`realtime/auth.py:186`)  |
+
+★**JWKS 호출은 rate limit 안쪽에 둔다.** `PyJWKClient` 는 **미상 `kid` 에 음성 캐시가 없어**
+같은 가짜 kid 를 10번 보내면 JWKS 를 **11번** 가져온다 — `Authorization: Bearer <아무거나>` 만으로
+1:1 증폭이다(`realtime/auth.py:113-117`).
 
 ---
 

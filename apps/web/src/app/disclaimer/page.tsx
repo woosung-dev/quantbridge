@@ -2,8 +2,8 @@
 
 import type { Metadata } from "next";
 
-import { LegalCallout } from "../_components/legal-callout";
-import { LegalPageShell } from "../_components/legal-page-shell";
+import { LegalCallout } from "@/components/legal/legal-callout";
+import { LegalPageShell } from "@/components/legal/legal-page-shell";
 
 export const metadata: Metadata = {
   title: "Disclaimer",

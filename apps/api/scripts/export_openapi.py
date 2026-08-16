@@ -26,6 +26,12 @@ if str(BACKEND_ROOT) not in sys.path:
 # 계약 기준 환경 고정 — 호스트의 APP_ENV 가 무엇이든 export 는 development 의미론으로 뜬다.
 # (ADR-029 교훈: 환경 파생값이 산출물에 섞이면 drift 판정이 비결정이 된다.)
 os.environ["APP_ENV"] = "development"
+# ★`APP_NAME` 도 고정한다 — `main.py` 의 `title=settings.app_name` 이 산출물의 `info.title`
+#   로 그대로 나간다. 지금은 `.env.example` 과 `.env.local` 이 우연히 같은 값이라 안 터졌을
+#   뿐이고, 다른 값을 가진 머신·CI 에서는 drift 판정이 뒤집힌다(2026-08-16 적대 리뷰).
+#   ★환경에서 산출물로 새는 값은 이 둘이 전부다 — 나머지 `if settings.…` 분기는 lifespan
+#     안이고 `app.openapi()` 는 lifespan 을 돌리지 않는다.
+os.environ["APP_NAME"] = "QuantBridge"
 
 REPO_ROOT = BACKEND_ROOT.parents[1]
 OUTPUT = REPO_ROOT / "contracts" / "openapi" / "openapi.json"

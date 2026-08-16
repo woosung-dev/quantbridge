@@ -11,7 +11,7 @@ import { HomeIcon, PowerIcon } from "lucide-react";
 import { StateBox } from "@/components/state-box";
 import { InfoIcon } from "@/components/info-icon";
 import { EMPTY_CELL } from "@/lib/labels";
-import { MaintenanceRetryButton } from "./_components/maintenance-retry-button";
+import { MaintenanceRetryButton } from "@/components/maintenance-retry-button";
 
 export default function MaintenancePage() {
   return (

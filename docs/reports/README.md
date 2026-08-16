@@ -3,20 +3,20 @@
 > **용도:** 시각화 우선 리포트 (HTML / 자동 dogfood 결과 / sprint pipeline 디자인) 보관소
 > **상위 docs 표준 분류표:** [`../README.md`](../README.md)
 
-## 생성 대상
+## ★ 레포에 실제로 있는 것은 2개뿐이다
 
-| 파일 / 디렉토리                                                                        | 일자         | 주제                                                  | 형식    |
-| -------------------------------------------------------------------------------------- | ------------ | ----------------------------------------------------- | ------- |
-| [`_template-h1-dogfood-retrospective.html`](./_template-h1-dogfood-retrospective.html) | template     | H1 dogfood 회고 dashboard 템플릿 (재사용)             | HTML    |
-| `2026-04-19-sprint-bcd-autonomous-retrospective.html`                                  | 2026-04-19   | Sprint B/C/D 자율 병렬 retro (PR #29/#30/#31)         | HTML    |
-| `2026-04-19-sprint-pipeline-skills-design.html`                                        | 2026-04-19   | Sprint pipeline skill 설계 dashboard                  | HTML    |
-| `2026-04-20-autonomous-depth-chain-design.html`                                        | 2026-04-20   | autonomous depth chain 디자인 (FE Polish Bundle 패턴) | HTML    |
-| `2026-04-20-autonomous-depth-sprint-design.html`                                       | 2026-04-20   | autonomous depth sprint 디자인                        | HTML    |
-| `2026-04-21-h1-closing-status-dashboard.html`                                          | 2026-04-21   | H1 클로징 상태 dashboard                              | HTML    |
-| `2026-04-22-dogfood-start-dashboard.html`                                              | 2026-04-22   | testnet dogfood 시작 dashboard                        | HTML    |
-| `session-2026-04-18-sprint-8a-tier0.html`                                              | 2026-04-18   | Sprint 8a Tier-0 session (pine_v2 foundation)         | HTML    |
-| `2026-08-12-surface-demo-pack.html`                                                    | 2026-08-12   | surface-demo-pack 종단 데모 리허설 + 반증 6건 회고    | HTML    |
-| [`auto-dogfood/`](./auto-dogfood/)                                                     | 2026-05-03 ~ | 자동 dogfood 일별 리포트 (HTML + JSON)                | sub-dir |
+`.gitignore:125-127` 이 `docs/reports/*.html` 을 제외하고 템플릿과 `auto-dogfood/` 만 되살린다.
+**그래서 여기 나열됐던 단발성 dashboard 8건은 레포에 없다** — 생성물이라 커밋되지 않았다.
+필요하면 만든 회차의 커밋에서 찾아라.
+
+| 파일 / 디렉토리                                                                        | 일자         | 주제                                      | 추적    |
+| -------------------------------------------------------------------------------------- | ------------ | ----------------------------------------- | ------- |
+| [`_template-h1-dogfood-retrospective.html`](./_template-h1-dogfood-retrospective.html) | template     | H1 dogfood 회고 dashboard 템플릿 (재사용) | ✅ 예외 |
+| [`auto-dogfood/`](./auto-dogfood/)                                                     | 2026-05-03 ~ | 자동 dogfood 일별 리포트 (HTML + JSON)    | ✅ 예외 |
+
+★★**새 HTML 리포트를 손으로 만들지 마라**(2026-08-15 사용자 지시). gitignore 되어 아무도 읽지 않는다.
+회차의 결론은 `docs/status.md`·`docs/lessons.md`·`docs/dev-log/INDEX.md` 로 남긴다.
+아래 「향후 추가 패턴」은 **자동 생성 도구**(auto-dogfood)에만 적용된다.
 
 ### `auto-dogfood/` 자동 일별 리포트
 
@@ -56,7 +56,7 @@ reports/auto-dogfood/YYYY-MM-DD.json # 동일, JSON 원본
 
 ## 활용 정책
 
-- **HTML 리포트** — 자동 생성 권고 (gstack `/health`, `/retro`, `/qa-only` 등 skill 산출물). 수작업 변경 시 재생성 origin 명시.
+- **HTML 리포트** — **자동 생성만**. 손으로 쓰지 않는다(위 ★★).
 - **JSON 원본** — `*.json` 은 reproducibility 용. 자동 도구가 갱신.
-- **삭제 금지** — 시간순 trend 추적 (예: dogfood orders rejected 추세, sprint health score 변화)
+- **삭제 금지** — 추적되는 2건(템플릿 · `auto-dogfood/`)에만 해당. 나머지 `*.html` 은 애초에 gitignore 라 「삭제」할 것이 없다
 - **template 파일 (`_template-*.html`)** — 신규 retro 작성 시 base. 직접 갱신 시 prefix 유지

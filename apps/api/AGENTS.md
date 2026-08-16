@@ -88,6 +88,23 @@ payload = jwt.decode(token, signing_key.key, algorithms=["EdDSA"],
 - **Repository** — AsyncSession 유일 보유. DB 접근만. commit()은 service 요청으로만.
 - **Dependencies** — Depends() 조립의 유일한 위치. service.py/repository.py에 Depends import 금지.
 
+### ★ 이 표준을 따르지 않는 디렉터리 (예외 — 위반이 아니다)
+
+`src/` 하위 전부가 도메인 모듈은 아니다. 아래는 **의도된 예외**이고, 여기에 없는 디렉터리를
+7파일 표준에서 벗어나게 만들려면 먼저 이 표에 줄을 추가해라.
+
+| 디렉터리            | 무엇인가                                                  | 왜 3-Layer 가 아닌가                                                                                                                                                                                        |
+| ------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `market_data/`      | OHLCV provider(CCXT·Timescale·fixture) 공급               | **공개 REST 가 없는 내부 전용 subdomain**(`CONTEXT.md` Data Context). `main.py` 에 마운트되지 않고 `backtest`·`optimizer`·`stress_test`·`tasks`·`trading` 이 라이브러리로 쓴다. router/service/schemas 없음 |
+| `realtime/`         | WS 라우터 + **JWT/JWKS 검증기**(`auth.py`) + 연결 manager | 검증기는 도메인이 아니라 횡단 관심사다. 원장은 `auth/` 가 갖는다                                                                                                                                            |
+| `health/`           | `/healthz`·`/livez`                                       | 상태 프로브. 소유 엔티티가 없다                                                                                                                                                                             |
+| `tasks/`            | Celery task entrypoint                                    | HTTP 표면이 아니다. prefork-safe 규칙은 §9                                                                                                                                                                  |
+| `scripts/`          | 운영 entrypoint helper (`run_alembic_with_lock`)          | `python -m src.scripts.*` 로 실행. 테스트·dogfood 스크립트는 여기가 아니라 `apps/api/scripts/`(앱 루트)                                                                                                     |
+| `common/` · `core/` | 기술 기반 · 설정                                          | 도메인이 아니다                                                                                                                                                                                             |
+
+`trading/` 은 예외가 아니라 **확장**이다 — `service.py`/`repository.py` 가 파일이 아니라
+`services/`·`repositories/` 디렉터리로 분해돼 있고, 그 밖에 `websocket/` 서브패키지를 갖는다.
+
 ### 필수 코드 패턴
 
 ```python
@@ -289,21 +306,35 @@ alembic downgrade -1
 
 ```
 apps/api/src/
-├── [domain]/       # 도메인별 모듈 (router/service/repository/schemas/models)
-│   # e.g. backtest, stress_test, optimizer, strategy, trading, market_data (exchange 는 trading 으로 통합 — ADR-018)
+├── main.py         # create_app() — 라우터 조립 · 미들웨어 · 예외 핸들러 · lifespan
+│                   #   ★조립 전용 디렉터리(api/)는 없다. /api/v1 프리픽스는 여기서 붙인다
+├── [domain]/       # 3-Layer 도메인 (router/service/repository/schemas/models/dependencies/exceptions)
+│   #   backtest · stress_test · optimizer · strategy · trading · waitlist · auth
+│   #   (exchange 는 trading 으로 통합 — ADR-018)
+├── auth/           # 사용자 원장 + 탈퇴. ★JWT 검증기는 realtime/auth.py
 ├── strategy/
+│   ├── convert/    # 지표 변환 서브도메인 (자체 router — prefix 는 /strategies 공유)
 │   └── pine_v2/    # Pine Script v2 인터프리터 (SSOT — interpreter / stdlib / coverage)
+├── trading/
+│   ├── services/   # ★단일 파일이 아니라 디렉터리로 분해됨
+│   ├── repositories/
+│   └── websocket/  # Bybit private/public 스트림 + 재조정
+├── market_data/    # 내부 전용 subdomain — 공개 REST 없음 (§3 예외 표)
+├── realtime/       # WS 라우터 + JWT/JWKS 검증기 + 연결 manager
+├── health/         # /healthz · /livez
 ├── tasks/          # Celery task entrypoints (prefork-safe pattern — §9)
-├── auth/           # 사용자 원장 + 탈퇴. JWT 검증기는 realtime/auth.py
-├── common/
-│   ├── database.py
-│   ├── exceptions.py
-│   ├── redis_client.py
-│   ├── alert.py    # Slack send + track_pending_alert
-│   └── pagination.py
+├── scripts/        # 운영 entrypoint helper (python -m src.scripts.*)
+├── common/         # 기술 기반 — database · exceptions · redis_client · redlock
+│                   #   metrics · rate_limit · logging_config · alert(Slack) · telegram_alert
 └── core/
-    └── config.py
+    └── config.py   # 전 도메인 Settings (pydantic-settings)
 ```
+
+> `src` 는 **설치되는 패키지가 아니다** — `pyproject.toml` 에 `[build-system]` 이 없고
+> `[tool.uv] package = false` 다. import 가능성은 CWD 가 `apps/api`(컨테이너 `/app`)라는 사실에
+> 의존하고, 그 사실은 `pyproject.toml` `pythonpath=["."]` · `alembic.ini` `prepend_sys_path=.` ·
+> `Dockerfile` `WORKDIR` 셋이 함께 세운다. **디렉터리 이름 `src` 를 바꾸면 이 셋과
+> `docker-entrypoint.sh`·compose 의 `uvicorn src.main:app`·`celery -A src.tasks` 가 함께 깨진다.**
 
 ---
 

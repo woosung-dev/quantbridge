@@ -166,13 +166,13 @@ stateDiagram-v2
 (`ck_live_signal_sessions_deactivated_reason`)가 못박는다([BL-571]).** 사유를 추가하려면
 **enum + 마이그레이션 + FE 라벨(`features/live-sessions/labels.ts`) 3곳**을 함께 고쳐야 한다.
 
-| 사유                                                                                            | 계기                                                                         |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `coverage_unrunnable` · `degraded_unconsented` · `equity_baseline_missing` · `equity_exhausted` | preflight (평가 진입 전 차단)                                                |
-| `run_live_error` · `runtime_divergence`                                                         | runtime (Pine 재생 중 발산)                                                  |
-| `gap_resync_position_mismatch` · `position_divergence`                                          | 포지션 정합 실패                                                             |
-| `user_stopped`                                                                                  | 사람이 Stop 을 눌렀다                                                        |
-| `account_deleted`                                                                               | ★Clerk `user.deleted` 웹훅이 소유자의 세션을 **전량** 내린다 (2026-08-15 S3) |
+| 사유                                                                                            | 계기                                                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `coverage_unrunnable` · `degraded_unconsented` · `equity_baseline_missing` · `equity_exhausted` | preflight (평가 진입 전 차단)                                                                                                                                                                          |
+| `run_live_error` · `runtime_divergence`                                                         | runtime (Pine 재생 중 발산)                                                                                                                                                                            |
+| `gap_resync_position_mismatch` · `position_divergence`                                          | 포지션 정합 실패                                                                                                                                                                                       |
+| `user_stopped`                                                                                  | 사람이 Stop 을 눌렀다                                                                                                                                                                                  |
+| `account_deleted`                                                                               | ★탈퇴(`DELETE /api/v1/auth/me` → `auth/service.py` `deactivate_account`)가 소유자의 세션을 **전량** 내린다. 2026-08-15 S3 가 만든 경로이고, ADR-034 로 입구만 구 Clerk 웹훅에서 이 엔드포인트로 옮겼다 |
 
 ★**중단은 미체결 조건부 진입을 자동 취소한다** — `deactivate` + commit 뒤
 `sweep_conditional_entries_task.apply_async` 가 예약되고 실제 취소는 그 task 의

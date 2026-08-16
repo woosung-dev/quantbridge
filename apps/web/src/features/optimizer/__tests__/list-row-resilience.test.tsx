@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-import { OptimizerRunList } from "@/app/(dashboard)/optimizer/_components/optimizer-run-list";
+import { OptimizerRunList } from "@/features/optimizer/components/optimizer-run-list";
 
 // React Query hook mock — useOptimizationRuns 가 error / data 시뮬레이션.
 vi.mock("@/features/optimizer/hooks", () => ({

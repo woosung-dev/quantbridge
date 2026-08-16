@@ -2,7 +2,7 @@
 
 import type { Metadata } from "next";
 
-import { NewStrategyWizard } from "./_components/new-strategy-wizard";
+import { NewStrategyWizard } from "@/features/strategy/components/new/new-strategy-wizard";
 
 export const metadata: Metadata = {
   title: "새 전략",

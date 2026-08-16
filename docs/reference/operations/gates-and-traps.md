@@ -19,16 +19,19 @@ cd $QB/apps/api && uv run ruff check .
 cd $QB/apps/api && uv run mypy src/
 cd $QB/apps/api && set -a; source .env.local; set +a; uv run pytest -q
 
+# OpenAPI 계약 drift (2026-08-16 배선 — ADR-031)
+cd $QB && make openapi-check          # 커밋된 contracts/openapi/openapi.json 이 코드와 같은가
+
 # FE — typecheck / vitest / eslint
 cd $QB/apps/web && pnpm typecheck
 cd $QB/apps/web && pnpm test
 cd $QB/apps/web && pnpm lint
-cd $QB/apps/web && pnpm build          # Clerk 키 필요
+cd $QB/apps/web && pnpm build          # apps/web/.env.local 의 BETTER_AUTH_* 필요 (ADR-034)
 
 # 디자인 캐논 런타임 (dev 서버 자동 기동, 인증 불요)
 cd $QB/apps/web && pnpm e2e:design-canon
 
-# e2e authed (apps/web/.env.local 에 Clerk 4종 필요, 로컬 전용 — CI 에 없다)
+# e2e authed (apps/web/.env.local 에 E2E_AUTH_EMAIL·E2E_AUTH_PASSWORD 필요, 로컬 전용 — CI 에 없다)
 cd $QB/apps/web && pnpm e2e:authed
 ```
 
@@ -969,7 +972,7 @@ null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는
 
   - ★**복구 = 재기동뿐.** dev 서버를 죽이고 다시 띄운 뒤 같은 명령을 돌리니 코드 변경 0으로 **64/1 → 65-0** 이 됐다. `.next` 캐시를 **실행 중인 서버 밑에서 지우면** `routes-manifest.json` ENOENT 로 그 서버가 500 을 내니, 지우지 말고 **재기동**해라.
 
-- ★**프로덕션 빌드로 e2e:authed 를 대신 돌리면 다른 것이 깨진다.** 그 suite 는 로컬 dev 전용이다(빌드 타임 env·Clerk storageState 전제). 프로덕션 실행은 **"코드가 맞다" 의 증명**으로만 쓰고, 게이트 숫자는 dev 서버를 재기동한 뒤 다시 재라.
+- ★**프로덕션 빌드로 e2e:authed 를 대신 돌리면 다른 것이 깨진다.** 그 suite 는 로컬 dev 전용이다(빌드 타임 env·`e2e/global.setup.ts` 가 발급하는 storageState 전제). 프로덕션 실행은 **"코드가 맞다" 의 증명**으로만 쓰고, 게이트 숫자는 dev 서버를 재기동한 뒤 다시 재라.
 
 ### 캐시·주기 (2026-07-27 live-conditional-hardening)
 

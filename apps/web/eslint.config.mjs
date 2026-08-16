@@ -67,6 +67,60 @@ const config = [
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },
   },
+  {
+    // ★★FSD Lite 레이어 경계 ([ADR-035], 2026-08-16). `app/` 은 **최상위 조립층**이다 —
+    //   아래 층(features · components · lib · hooks · store)이 그것을 거슬러 참조하면
+    //   라우트 구조가 도메인 코드의 의존성이 되어 라우트를 못 옮긴다.
+    //
+    // ★왜 규칙으로 박는가: 2026-08-16 에 `app/**/_components/` 234파일을
+    //   `features/*/components/` 로 옮겼는데, 그 배치를 **강제하는 장치가 하나도 없었다.**
+    //   규칙이 없으면 다음 회차가 같은 자리로 되돌린다. 이동 시점 위반 = 0건이다.
+    //
+    // ★`app/` 자신은 제외다 — 라우트끼리의 참조는 이 규칙의 대상이 아니다.
+    files: ["src/features/**", "src/components/**", "src/lib/**", "src/hooks/**", "src/store/**"],
+    rules: {
+      // ★★2026-08-16 codex P2 — 초판은 `@/app/*` 만 막아 **두 갈래로 뚫렸다**:
+      //   ⑴ 상대경로 `../app/page` ⑵ 동적 `import("@/app/page")`.
+      //   둘 다 탐침으로 실측해 통과를 확인한 뒤 아래로 닫았다.
+      //   ★오탐 위험은 0으로 쟀다 — 하위 층에서 `app/` 을 포함하는 합법 import 가 0건이다.
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              // 별칭 + **상대경로만** 문다. `**/app/**` 로 넓히면 `@sentry/nextjs/app/router`
+              // 같은 **벤더 패키지 하위경로**까지 걸려 ADR-035 와 무관한 error 가 난다
+              // (2026-08-16 적대 리뷰가 탐침으로 실측). 지금 그런 import 는 0건이지만
+              // 패턴의 성질은 트리 상태와 무관하다 — 상대경로 화살표에 앵커를 박는다.
+              group: ["@/app/*", "@/app/**", "./app/*", "./app/**", "../**/app/*", "../**/app/**"],
+              message:
+                "하위 층은 app/ 을 import 하지 않는다 (ADR-035). 공유가 필요하면 그 컴포넌트를 features/<domain>/components/ 또는 components/ 로 올려라.",
+            },
+          ],
+        },
+      ],
+      // ★`no-restricted-imports` 는 **동적 import 를 보지 않는다**(정적 선언 전용).
+      //   그래서 `import()` 표현식은 AST 선택자로 따로 막는다.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportExpression > Literal[value=/(^@\\u002Fapp\\u002F)|(^\\.{1,2}\\u002F.*\\bapp\\u002F)/]",
+          message:
+            "하위 층은 app/ 을 동적 import 하지도 않는다 (ADR-035). 정적 import 와 같은 경계다.",
+        },
+        {
+          // ★템플릿 리터럴 우회 — `import(\`@/app/${name}\`)`. `Literal` 선택자만으로는 안 걸린다
+          //   (2026-08-16 적대 리뷰가 탐침으로 실측). 라우트명을 변수로 받는 lazy import 가
+          //   이 위반의 가장 현실적인 모양이라 따로 막는다.
+          selector:
+            "ImportExpression > TemplateLiteral > TemplateElement:first-child[value.raw=/(^@\\u002Fapp\\u002F)|(^\\.{1,2}\\u002F.*\\bapp\\u002F)/]",
+          message:
+            "하위 층은 app/ 을 템플릿 리터럴로도 동적 import 하지 않는다 (ADR-035).",
+        },
+      ],
+    },
+  },
 ];
 
 export default config;

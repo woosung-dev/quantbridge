@@ -9,7 +9,7 @@ those licenses.
 pynescript  (https://github.com/elbakramer/pynescript)
 ---------------------------------------------------------------------------
 License:  GNU Lesser General Public License v3.0 (LGPL-3.0)
-Pinned:   0.3.0  (see backend/pyproject.toml)
+Pinned:   0.3.0  (see apps/api/pyproject.toml)
 Usage:    External Python package dependency installed via uv/pip.
           QuantBridge invokes pynescript through its public API only. No
           pynescript source code is copied, modified, or redistributed as
@@ -19,7 +19,7 @@ Full license text: https://www.gnu.org/licenses/lgpl-3.0.txt
 
 Future vendoring/forking policy: if pynescript sources are ever brought
 into this repository (e.g. to patch the grammar), they will live under
-`backend/src/strategy/pine_v2/third_party/pynescript/`, retain their
+`apps/api/src/strategy/pine_v2/third_party/pynescript/`, retain their
 original LGPL-3.0 file headers, and this NOTICE will be updated with the
 in-tree path.
 

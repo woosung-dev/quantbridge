@@ -1,8 +1,8 @@
 // 로그인 페이지 — C 디자인 언어 셸 + 자체 폼(ADR-034, 구 Clerk `<SignIn/>` 대체).
 // catch-all 세그먼트(`[[...sign-in]]`)는 Clerk 라우팅 요구였지만 그대로 둔다 —
 // 링크·리다이렉트·e2e 가 `/sign-in` 을 가리키고, 세그먼트를 지우면 그 경로들이 함께 흔들린다.
-import { AuthForm } from "../../_components/auth-form";
-import { SplitScreenShell } from "../../_components/split-screen-shell";
+import { AuthForm } from "@/features/auth/components/auth-form";
+import { SplitScreenShell } from "@/features/auth/components/split-screen-shell";
 
 export default async function SignInPage({
   searchParams,

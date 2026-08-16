@@ -103,7 +103,8 @@ codex 는 **가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구�
 ## 경로 → 용도 (Quick Reference)
 
 - `apps/api/src/<도메인>/` — router/service/repository/schemas/models · `apps/api/src/strategy/pine_v2/` — 인터프리터 SSOT
-- `apps/web/src/` — Next.js 16 FSD Lite (`app`/`components`/`features`/`hooks`/`lib`/`store`)
+- `apps/web/src/` — Next.js 16 FSD Lite (`app`/`components`/`features`/`hooks`/`lib`/`store`).
+  ★화면 컴포넌트의 기본 자리는 `features/<domain>/components/` 다 — `app/**/_components/` 가 아니다([ADR-035](docs/decisions/035-fe-component-ownership.md))
 - `tools/scripts/` — 게이트·감사 셸 (`final-gates` · `bl-audit` · `docs-audit` · `context-budget` · `soak-gate` · `db-backup` · `disk-guard`) + 그 하네스 `*-test.sh` 13종
 - `docs/` — 상태 3종 + `reference/` + `decisions/` + `lessons.md` (지도: `docs/README.md`)
 - `apps/api/AGENTS.md` · `apps/web/AGENTS.md` — 스택 규칙 (같은 자리 `CLAUDE.md` = `@AGENTS.md` 한 줄)

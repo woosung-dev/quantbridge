@@ -2,7 +2,7 @@
 
 import type { Metadata } from "next";
 
-import { BacktestForm } from "@/app/(dashboard)/backtests/_components/forms/backtest-form";
+import { BacktestForm } from "@/features/backtest/components/forms/backtest-form";
 
 export const metadata: Metadata = {
   title: "새 백테스트",

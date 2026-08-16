@@ -9,7 +9,7 @@ import { Suspense } from "react";
 import {
   TradeDetailShell,
   TradeDetailSkeleton,
-} from "@/app/(dashboard)/backtests/_components/trades/trade-detail-shell";
+} from "@/features/backtest/components/trades/trade-detail-shell";
 
 export const metadata: Metadata = {
   title: "거래 내역",

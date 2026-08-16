@@ -238,13 +238,22 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 
 ## 7. CD (배포)
 
-> 현재 미설정. Sprint 7+ 배포 결정 후 별도 workflow 추가.
+> ~~현재 미설정. Sprint 7+ 배포 결정 후 별도 workflow 추가.~~
+> → **2026-08-16 정정: 배포는 이미 돌고 있고, GitHub Actions 밖에 있다.**
+> `.github/workflows/` 에 `deploy-*.yml` 은 없다 — **의도된 상태**다.
 
-계획:
+| 대상           | 절차                                                                                                                    | 정본                                                               |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| FE (오라클 A1) | 맥에서 빌드 → 서버는 실행만. `docker-compose.frontend.yml`                                                              | [`frontend-deploy.md`](./frontend-deploy.md)                       |
+| BE·소크 스택   | `tools/scripts/soak-stack.sh` (SSH) — `up`/`down`/`migrate`                                                             | **런북 없음** ([BL-777])                                           |
+| DB 백업        | `tools/scripts/db-backup.sh` + systemd timer                                                                            | [ADR-033](../../decisions/033-db-hosting-self-host-timescaledb.md) |
+| migration      | Docker entrypoint 가 `alembic upgrade head`. 서버 소크 DB 는 `soak-stack.sh migrate`(기본 dry-run, `--confirm` 이 집행) | `status.md` 비목표 항목                                            |
 
-- staging deploy on push to `main` (선택)
-- production deploy on tag `v*.*.*`
-- 자동 alembic migration (Docker entrypoint)
+★**`--project-directory` 를 빼먹지 마라** — compose 가 `.env` 를 `infra/compose/` 에서 찾아
+`BETTER_AUTH_SECRET is missing` 으로 죽는다(ADR-029 재배치 이후 2026-08-16 배포에서 처음 밟았다).
+
+향후 workflow 화가 필요해지면 그때의 후보: staging deploy on push to `main` ·
+production deploy on tag `v*.*.*`.
 
 프로덕션 배포의 선택과 시작 조건은 [`roadmap.md`](../../roadmap.md)의 Beta·Deferred 게이트가 정본이다.
 

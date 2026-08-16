@@ -37,10 +37,14 @@ uv run alembic upgrade head
 
 ## 디렉토리
 
-- `src/core/` — config (pydantic-settings)
-- `src/common/` — database, exceptions, pagination
-- `src/auth/` — Clerk JWT 검증
-- `src/{strategy,backtest,stress_test,optimizer,trading,exchange,market_data}/` — 도메인별 3-Layer
+- `src/core/` — `config.py` 하나. 전 도메인의 `Settings`(pydantic-settings)
+- `src/common/` — 도메인을 모르는 기술 기반. DB 세션·예외 베이스·Redis·redlock·metrics·rate limit·로깅·알림 발송(Slack/Telegram)
+- `src/{strategy,backtest,stress_test,optimizer,trading,waitlist}/` — 도메인별 3-Layer (router/service/repository/schemas/models)
+- `src/market_data/` — 공개 REST 없는 **내부 전용 subdomain**. OHLCV provider(CCXT·Timescale·fixture)를 위 도메인들에 공급한다
+- `src/auth/` — 사용자 원장 + 탈퇴. **JWT 검증기는 `src/realtime/auth.py`** 다 (Better Auth JWKS — [ADR-034](../../docs/decisions/034-auth-self-host-better-auth.md))
+- `src/realtime/` · `src/health/` · `src/tasks/`(Celery entrypoint) · `src/scripts/`(운영 helper) — 3-Layer 비적용. 예외 근거는 `AGENTS.md` §3
+
+> `exchange/` 는 없다 — [ADR-018](../../docs/decisions/018-sprint12-ws-supervisor-and-exchange-stub-removal.md) 로 `trading/` 에 통합됐다.
 
 ## 규칙
 

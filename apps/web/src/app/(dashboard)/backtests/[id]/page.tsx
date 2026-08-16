@@ -2,7 +2,7 @@
 // BacktestDetailView 에 전달만 하는 얇은 라우트 엔트리 (레이아웃은 하위 컴포넌트가 소유).
 import type { Metadata } from "next";
 
-import { BacktestDetailView } from "@/app/(dashboard)/backtests/_components/backtest-detail-view";
+import { BacktestDetailView } from "@/features/backtest/components/backtest-detail-view";
 
 export const metadata: Metadata = {
   title: "백테스트 상세",

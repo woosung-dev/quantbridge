@@ -4,15 +4,15 @@ import { redirect } from "next/navigation";
 import { getServerAuth } from "@/lib/auth-server";
 import { GeoBlockBanner } from "@/components/geo-block-banner";
 
-import { LandingCta } from "./_components/landing-cta";
-import { LandingFaq } from "./_components/landing-faq";
-import { LandingFeatures } from "./_components/landing-features";
-import { LandingFooter } from "./_components/landing-footer";
-import { LandingHero } from "./_components/landing-hero";
-import { LandingHowItWorks } from "./_components/landing-how-it-works";
-import { LandingNav } from "./_components/landing-nav";
-import { LandingPerformance } from "./_components/landing-performance";
-import { LandingSupport } from "./_components/landing-support";
+import { LandingCta } from "@/features/marketing/components/landing-cta";
+import { LandingFaq } from "@/features/marketing/components/landing-faq";
+import { LandingFeatures } from "@/features/marketing/components/landing-features";
+import { LandingFooter } from "@/features/marketing/components/landing-footer";
+import { LandingHero } from "@/features/marketing/components/landing-hero";
+import { LandingHowItWorks } from "@/features/marketing/components/landing-how-it-works";
+import { LandingNav } from "@/features/marketing/components/landing-nav";
+import { LandingPerformance } from "@/features/marketing/components/landing-performance";
+import { LandingSupport } from "@/features/marketing/components/landing-support";
 
 export default async function LandingPage() {
   const { userId } = await getServerAuth();

@@ -8,7 +8,7 @@
 
 ## 0. 방향 v3 — "Precision Instrument" (2026-07-06, 본 섹션이 v2 "Terminal Tape"를 supersede)
 
-> 전면 리디자인. 작업 SSOT: `docs/archive/sprints/redesign-precision-instrument/` (checklist·context-notes) + `~/.claude/plans/golden-enchanting-teacup.md`. 채택 근거: v2의 웜크림+코퍼 조합이 AI 생성 디자인 기본값 클러스터(웜크림+테라코타)와 인접 → 뉴트럴 전면 교체로 브랜드 확보.
+> 전면 리디자인. 작업 SSOT 였던 `docs/archive/sprints/redesign-precision-instrument/` 는 2026-08-06 문서 대개편에서 삭제됐다 — 원문은 `git show 0f0f0b06:docs/archive/sprints/redesign-precision-instrument/<파일>` 로 연다(태그 `docs-pre-overhaul` — `checklist.md`·`context-notes.md`·`testid-baseline.txt` 3파일). 그 외 `~/.claude/plans/golden-enchanting-teacup.md`. 채택 근거: v2의 웜크림+코퍼 조합이 AI 생성 디자인 기본값 클러스터(웜크림+테라코타)와 인접 → 뉴트럴 전면 교체로 브랜드 확보.
 
 - **컨셉:** QuantBridge = **전략을 정직하게 계측하는 정밀 계측기.** 제품의 영혼(TV-parity·oracle 검증·honesty gate)과 일치하는 시각 언어 — 측정, 교정(calibration), 검증.
 - **테마:** **다크 디폴트** (카본/스틸 — 트레이딩 표준, 차트 몰입). 라이트(쿨 페이퍼) 완전 지원, `next-themes` 토글 유지. `enableSystem` 유지 — 기존 사용자 localStorage 선택 우선.
@@ -735,7 +735,7 @@ transition: all 200ms ease;
 | 페이지              | 테마                       | 비고                      |
 | ------------------- | -------------------------- | ------------------------- |
 | 랜딩 페이지         | Light + 다크 대시보드 섹션 | 프로토타입 완성           |
-| 로그인/회원가입     | Light                      | Clerk UI 커스터마이징     |
+| 로그인/회원가입     | Light                      | 자체 폼 (ADR-034)         |
 | 대시보드 (트레이딩) | **Dark**                   | `--dash-*` 토큰 전체 적용 |
 | 전략 편집           | Light (에디터는 Dark)      | 코드 에디터 영역만 다크   |
 | 백테스트 결과       | Light + 차트 영역 Dark     | 차트 카드만 다크 배경     |

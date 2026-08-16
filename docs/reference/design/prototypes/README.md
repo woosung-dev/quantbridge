@@ -5,6 +5,11 @@
 > **규약 본문 = [`shotgun-2026-07/_KIT.md`](./shotgun-2026-07/_KIT.md)** — 새 화면을 만들거나 기존
 > 화면을 고치기 전에 그 파일을 연다. 용어 SSOT 는 `shotgun-2026-07/terminology-ssot.md`,
 > 회차 기록은 `shotgun-2026-07/checklist.md` 다.
+>
+> ★**이 하위 트리는 2026-07 캡처 시점의 원문이다.** 구 `frontend/`·`backend/` 경로 표기(→
+> [ADR-029](../../../decisions/029-monorepo-standard-layout.md) 로 `apps/web/`·`apps/api/`)와 Clerk 표기(→
+> [ADR-034](../../../decisions/034-auth-self-host-better-auth.md) 로 Better Auth)는 **일부러 고치지 않았다**.
+> 현재 경로·인증을 알고 싶으면 그 두 ADR 을 봐라.
 
 ## 보고 검사하는 법
 

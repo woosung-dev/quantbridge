@@ -61,6 +61,19 @@ def _env_keys_after(text: str, marker: int) -> set[str]:
     return keys
 
 
+def _strip_comment_lines(text: str) -> str:
+    """YAML 주석 줄을 **같은 길이의 공백**으로 바꾼다.
+
+    ★길이를 보존하는 이유: 이 모듈의 다른 함수들이 `text.find` 로 얻은 오프셋을 그대로
+    `_env_keys_after` 에 넘긴다. 줄을 지워 버리면 오프셋이 밀려 엉뚱한 블록을 읽는다.
+    ★줄 **전체**가 주석인 경우만 지운다 — 값 안의 `#`(예: 색상 코드)까지 건드리면 안 된다.
+    """
+    out: list[str] = []
+    for line in text.split("\n"):
+        out.append(" " * len(line) if line.lstrip().startswith("#") else line)
+    return "\n".join(out)
+
+
 def _backend_pytest_env_blocks(workflow: pathlib.Path | None = None) -> list[set[str]]:
     """워크플로 안 **모든** pytest 실행 스텝의 `env:` 블록 키 집합.
 
@@ -71,8 +84,16 @@ def _backend_pytest_env_blocks(workflow: pathlib.Path | None = None) -> list[set
     backend 잡을 샤드 matrix 로 쪼개면서 pytest 스텝이 늘어날 수 있게 됐고, 그러면 두 번째
     이후 스텝의 env 누락이 **감사되지 않은 채 통과**한다. 이 레포는 열거식·첫매치식 배선이
     조용히 새는 것을 반복해서 밟았다(playwright `testMatch` 고아 spec). 그래서 전수로 바꾼다.
+
+    ★★**2026-08-16 수리 — 주석을 코드로 셌다.** 마커를 원문 전체에서 찾으니 `# … uv run pytest
+    … ` 라고 **설명하는 주석**까지 실행 스텝으로 등록됐고, 그 뒤의 남의 `env:` 블록을 pytest
+    스텝의 것으로 읽어 두 단언이 함께 red 가 됐다. 실제로 ADR-035 회차가 `backend_static` 에
+    OpenAPI drift 스텝을 넣으며 「이 스텝은 pytest 가 아니다」라고 적은 그 문장이 원인이었다 —
+    **면제를 주장하는 산문이 면제를 깨뜨렸다.** 감사가 텍스트 기반인 이상 재발하므로,
+    스캔 전에 주석 줄을 지운다(길이를 보존해 뒤따르는 `env:` 탐색 위치가 어긋나지 않게 한다).
     """
     text = (workflow or _WORKFLOW).read_text()
+    text = _strip_comment_lines(text)
     blocks: list[set[str]] = []
     pos = 0
     while (marker := text.find("uv run pytest", pos)) != -1:
@@ -155,3 +176,56 @@ def test_audit_detects_compose_hosts_at_all() -> None:
     fields = _settings_infra_fields()
     assert "celery_result_backend" in fields
     assert fields["celery_result_backend"] == "CELERY_RESULT_BACKEND"
+
+
+def test_comment_lines_are_not_counted_as_pytest_steps(tmp_path: pathlib.Path) -> None:
+    """★회귀 고정 (2026-08-16) — **주석이 실행 스텝으로 세어지면 안 된다.**
+
+    ADR-035 회차가 `backend_static` 에 OpenAPI drift 스텝을 넣으며 「이 스텝은 `uv run
+    pytest` 가 아니다」라고 주석에 적었고, 그 문자열이 이 감사의 `text.find` 에 걸려
+    **유령 pytest 스텝**이 생겼다. 뒤따르는 env 블록(그 스텝의 것)에는 compose 기본값
+    3종도 `TEST_DATABASE_URL` 도 없으므로 위 두 단언이 함께 red 가 됐다.
+
+    ★아래 픽스처는 그 모양 그대로다 — 주석 1개 + 진짜 pytest 스텝 1개.
+    수리 전이라면 blocks 가 2개(첫째가 엉뚱한 env)이고, 수리 후에는 1개여야 한다.
+    """
+    fixture = tmp_path / "ci.yml"
+    fixture.write_text(
+        "jobs:\n"
+        "  backend_static:\n"
+        "    steps:\n"
+        "      # 이 스텝은 uv run pytest 가 아니므로 감사 대상이 아니다\n"
+        "      - name: OpenAPI drift check\n"
+        "        run: uv run python scripts/export_openapi.py --check\n"
+        "        env:\n"
+        "          DATABASE_URL: postgresql://x\n"
+        "  backend:\n"
+        "    steps:\n"
+        "      - name: pytest\n"
+        "        run: uv run pytest -q\n"
+        "        env:\n"
+        "          TEST_DATABASE_URL: postgresql://y\n"
+        "          CELERY_BROKER_URL: redis://z\n"
+    )
+
+    blocks = _backend_pytest_env_blocks(fixture)
+
+    assert len(blocks) == 1, (
+        f"주석이 pytest 스텝으로 세어졌다 (blocks={blocks}). "
+        "감사가 텍스트 기반이므로 스캔 전에 주석 줄을 지워야 한다."
+    )
+    assert "TEST_DATABASE_URL" in blocks[0]
+
+
+def test_strip_comment_lines_preserves_offsets() -> None:
+    """★위 수리가 오프셋을 밀지 않는지 고정한다.
+
+    주석 줄을 **삭제**하면 뒤따르는 `env:` 의 위치가 앞으로 당겨져 다른 블록을 읽는다.
+    그래서 같은 길이의 공백으로 치환한다 — 이 단언이 그 계약이다.
+    """
+    src = "a: 1\n  # comment here\nb: 2\n"
+    out = _strip_comment_lines(src)
+    assert len(out) == len(src)
+    assert "comment" not in out
+    assert out.startswith("a: 1\n")
+    assert out.endswith("b: 2\n")
