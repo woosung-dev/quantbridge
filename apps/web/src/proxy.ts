@@ -23,6 +23,13 @@ const isPublicRoute = createRouteMatcher([
   "/privacy",
   // Sprint 11 Phase C — Waitlist signup 은 로그인 이전 단계
   "/waitlist",
+  // [BL-072] 초대 링크도 로그인 **이전** 단계다 — 공개가 아니면 초대받은 사람이
+  // 로그인 화면으로 튕겨 나가 초대가 성립하지 않는다.
+  // ★geo 면제 목록에는 **일부러 넣지 않았다**: 이 링크의 목적지는 가입이고 제한 국가의
+  //   가입은 L3(`lib/auth.ts` 의 create 훅)이 어차피 거부한다. 폼을 채우게 한 뒤 막는 것보다
+  //   /not-available 을 먼저 보여주는 쪽이 정직하다(`/waitlist` 와 갈리는 지점이다 —
+  //   그쪽은 신청 자체가 목적이라 열람을 허용한다).
+  "/invite/(.*)",
   // Sprint 41 Worker H — public read-only backtest share link
   "/share/backtests/(.*)",
   // Sprint 60 S3 BL-269 — /pricing 은 landing #pricing redirect (인증 불필요)
