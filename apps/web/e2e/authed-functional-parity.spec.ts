@@ -141,13 +141,17 @@ test.describe("functional-parity 회귀 가드", () => {
 
     await page.goto("/orders");
 
-    const pendingRow = page.locator("tr", { hasText: "대기" }).first();
+    // ★[BL-766] `tr` 은 **헤더 행**도 잡는다 — 헤더에 「체결가」·「체결수량」 열이 있어
+    //   `hasText` 가 매치되고, 데이터가 하나도 없어도 단언이 통과한다.
+    //   같은 파일 A1 이 이미 `tbody tr` 로 좁혀 뒀다(2026-08-15 실측). 나머지 3곳을 맞춘다.
+    //   음성 대조 = `e2e/authed-row-locator-guard.spec.ts`.
+    const pendingRow = page.locator("tbody tr").filter({ hasText: "대기" }).first();
     await expect(
       pendingRow.getByRole("button", { name: "주문 취소" }),
     ).toBeVisible();
 
     // filled 행은 취소 버튼 없이 dim "—" 셀.
-    const filledRow = page.locator("tr", { hasText: "체결" }).first();
+    const filledRow = page.locator("tbody tr").filter({ hasText: "체결" }).first();
     await expect(
       filledRow.getByRole("button", { name: "주문 취소" }),
     ).toHaveCount(0);
@@ -208,7 +212,8 @@ test.describe("functional-parity 회귀 가드", () => {
 
     await page.goto("/orders");
 
-    const submittedRow = page.locator("tr", { hasText: "전송" }).first();
+    // ★[BL-766] 헤더 행 오염 회피 — 위 A2 주석 참조.
+    const submittedRow = page.locator("tbody tr").filter({ hasText: "전송" }).first();
     await submittedRow.getByRole("button", { name: "주문 취소" }).click();
 
     // 202 = 비동기 취소 접수 — "요청" 안내만, 완료("취소됨") 표기는 금지.

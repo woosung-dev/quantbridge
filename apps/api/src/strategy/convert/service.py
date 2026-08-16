@@ -97,10 +97,10 @@ class ConvertService:
             try:
                 fallback_warnings = list(warnings)
                 if anthropic_error is not None:
-                    fallback_warnings.append(
-                        f"Anthropic 실패 → Gemini fallback ({type(anthropic_error).__name__}: "
-                        f"{anthropic_error})"
-                    )
+                    # ★[BL-772] SDK 예외 문자열을 응답에 싣지 않는다. 이 warning 은 **200 응답**
+                    #   본문으로 나가므로 실패 경로보다 더 자주 노출된다 — provider 이름까지만.
+                    #   상세는 위 except 블록의 logger.exception 이 이미 갖고 있다.
+                    fallback_warnings.append("Anthropic 실패 → Gemini fallback")
                 return self._convert_with_gemini(
                     code_to_send,
                     gemini_key.get_secret_value(),
@@ -110,22 +110,15 @@ class ConvertService:
                     token_reduction_pct,
                 )
             except Exception as exc:
+                # ★[BL-772] 이 RuntimeError 의 문자열은 router 가 503 body 로 그대로 내보낸다.
+                #   SDK 예외 문자열(엔드포인트 URL·모델명·요청 ID)을 심지 마라 — provider 이름까지다.
                 logger.exception("Gemini fallback 도 실패")
                 if anthropic_error is not None:
-                    raise RuntimeError(
-                        f"양쪽 provider 모두 실패. "
-                        f"Anthropic: {type(anthropic_error).__name__}: {anthropic_error}. "
-                        f"Gemini: {type(exc).__name__}: {exc}"
-                    ) from exc
-                raise RuntimeError(
-                    f"Gemini 변환 실패: {type(exc).__name__}: {exc}"
-                ) from exc
+                    raise RuntimeError("양쪽 provider 모두 실패") from exc
+                raise RuntimeError("Gemini 변환 실패") from exc
 
         assert anthropic_error is not None
-        raise RuntimeError(
-            f"Anthropic 변환 실패 (Gemini fallback 미설정): "
-            f"{type(anthropic_error).__name__}: {anthropic_error}"
-        ) from anthropic_error
+        raise RuntimeError("Anthropic 변환 실패 (Gemini fallback 미설정)") from anthropic_error
 
     @retry(
         retry=retry_if_exception_type(_ANTHROPIC_TRANSIENT),
@@ -227,7 +220,15 @@ class ConvertService:
             msgs.append("⚠️ 변환 결과가 비어있습니다. provider 응답 형식 확인 필요.")
             return msgs
 
-        leftover_patterns = ("array.", "plotshape", "plot(", "alertcondition", "label.", "box.", "line.")
+        leftover_patterns = (
+            "array.",
+            "plotshape",
+            "plot(",
+            "alertcondition",
+            "label.",
+            "box.",
+            "line.",
+        )
         leftover_found = [p for p in leftover_patterns if p in converted]
         if leftover_found:
             msgs.append(
