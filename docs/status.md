@@ -338,11 +338,20 @@ OCI `quantbridge/` prefix 객체 · **C2 24.0007h 전후 불변**) + 디스크 �
 
 ## ★2026-08-16 beta-cutover — 배포가 끝났고 Beta 는 사용자 축 하나만 남았다
 
-**다음 행동 = [BL-070] 하나다 — Cloudflare Access 제거 + L1 WAF geo 규칙(둘 다 대시보드 수동).**
-그 둘이 끝나면 Beta 진입 3종이 닫힌다. 절차·클릭 경로 =
-[`security/geo-block-setup.md`](reference/operations/security/geo-block-setup.md) §L1 ·
-`qb.woosung.dev` 앱을 **삭제**한다(정책만 지우면 앱이 남아 계속 막는다).
-★`qb-api.woosung.dev` 에는 **걸지 마라** — XHR 도 FE 의 SSR 헤어핀도 Access 리다이렉트를 못 따라간다.
+★★**2026-08-16 사용자 결정 — Cloudflare Access 를 유지한다.** 「왜 제거하나」라는 반문에서
+재측정한 결과가 판정을 뒤집었다: **가입에 초대 토큰이 필요 없다**([BL-776] 신설) —
+`/sign-up(.*)` 은 공개 라우트이고 Better Auth 가입 훅이 보는 것은 **국가 하나뿐**이다.
+게다가 서버의 `WAITLIST_ADMIN_EMAILS`·`RESEND_API_KEY` 가 **둘 다 미설정**이라 승인도 발송도
+안 된다. ⇒ **Access 를 걷으면 오늘 얻는 것은 0 이고 개방 가입만 열린다.**
+Beta 사용자는 당분간 **Access 정책에 이메일을 추가**해 받는다(문이 둘로 유지돼 더 안전하다).
+[BL-070] 의 Access 축은 [BL-776] 뒤로 간다. WAF geo 규칙(L1)은 그와 **무관하게** 언제든 배치 가능
+(규제 축이고 L2·L3 는 이미 돈다) — 클릭 경로 =
+[`security/geo-block-setup.md`](reference/operations/security/geo-block-setup.md).
+
+**다음 행동 = ⓪ 표에서 고른다. 가장 강한 후보는 [BL-773] — P1 · mutable Pine 이다** —
+이 회차가 「프로덕션 cutover 와 겹치면 무엇이 깨졌는지 못 가른다」는 이유로 미뤄 둔 항목이고,
+그 이유가 이제 사라졌다(배포가 끝났다). migration 이 붙으므로 **소크 창을 보고 착수 시점을
+정해라** — 창 3이 24h 를 넘긴 뒤가 싸다. ★고르는 것은 사용자다.
 
 **이 회차에 끝난 것** — 배포 전량([ADR-034] 발효) · `APP_ENV=production` 전환 · 실사용자 연결 ·
 [BL-754]·[BL-347]·[BL-772]·[BL-766]·[BL-072] 종결 · [BL-753] 서버 주입.
