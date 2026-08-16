@@ -10142,6 +10142,41 @@ worker 는 **버전을 읽고 Strategy 를 읽지 않는다** ⑶ optimizer 는 
 
 ---
 
+### BL-775
+
+**Title:** `sprint46-tier3-nth #14`(단축키 도움말)가 **전체 authed 실행에서만** 비결정적으로 red
+**Category:** Test / e2e 안정성
+**Priority:** P3
+**Trigger:** ★이미 발화 중이다 — `final-gates --deferred-only` 의 `e2e authed` 레그가 이것 하나로 red 가 된다
+**Est:** S (원인 계측 → 예산 조정 또는 대기 조건 교체)
+**출처:** 2026-08-17 auth-selfhost 마감 게이트
+
+**원인 / 영향:** 전체 authed 실행 **5회 중 3회**에서 `#14 단축키 help dialog` 가
+`getByRole('heading', { name: '키보드 단축키' })` 5초 예산을 넘겨 실패했다. 나머지 2회는 통과했고
+(그중 1회는 `--deferred-only` 의 **86/86 PASS**), **단독 실행 1.2초 · 파일 전체 실행 14/14** 다.
+
+★**auth-selfhost 회차의 변경 탓이 아니다** — `AccountButton` 에 Dialog 를 넣기 **전** 실행에서도
+같은 케이스가 실패했고, Dialog 를 넣은 뒤 실행에서 통과한 적도 있다. 즉 상관이 없다.
+
+★**같은 회차에 다른 spec 3개도 각 1회씩 red 였고 전부 타임아웃**이었다(`#1 Backtest form`
+`waitForRequest` 15초 · `/backtests` 캐논 `waitForSelector` 25초 · `/strategies/:id/edit` 캐논).
+공통점은 「값이 틀렸다」가 아니라 **「제 시간에 안 왔다」**이고, 실행 시간이 3.5~4분이며 그 맥의
+load average 가 5.88(사용자 데스크톱 앱과 경합)이었다.
+
+**권장 접근:** ⑴ ★**먼저 재라** — 조용한 머신에서 3회 연속 돌려 red 가 재현되는지 확인한다.
+재현 안 되면 원인은 경합이고 이 항목은 「환경 조건 문서화」로 닫힌다 ⑵ 재현되면 `#14` 의 5초
+예산이 이 스위트에서 **가장 짧다**는 점부터 본다 — 도움말 다이얼로그는 `?` dispatch → React
+상태 → Base UI mount 3단이라 dev 서버가 바쁠 때 5초가 빠듯하다 ⑶ ★**예산만 늘리지 마라** —
+그러면 진짜 회귀도 함께 못 잡는다. `expect.poll` 이나 명시적 mount 신호로 **대기 조건 자체**를
+바꾸는 쪽이 낫다 ⑷ 부수로, 이 스위트는 `--workers=1` 인데 3.5분이 걸린다 — 병렬화 가능 여부도 같이 본다
+
+**Risk:** 🟢 (테스트 안정성. 프로덕션 동작과 무관)
+
+**상태:** ⬜ Open — 2026-08-17 에 5회 실행으로 관측(3 red / 2 green). 원인 미확정
+**트리거 판정:** 도래 — 마감 게이트의 authed 레그가 이것 때문에 red 다. 다만 프로덕션 영향이 0이라 P3 (2026-08-17 auth-selfhost)
+
+---
+
 ### BL-774
 
 **Title:** TradingView webhook 이 **body 기반 HMAC** 을 요구한다 — 동적 alert 본문에서 성립하는지 미확인

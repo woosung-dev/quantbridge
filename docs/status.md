@@ -242,21 +242,15 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 > ★**잔여 부채 1건(미착수)** — `AGENTS.md` 의 「게이트는 마지막 커밋 뒤에」에 **범위(회차 단위)가
 > 없어** 무인 세션이 66분을 태웠다. 재개 조건 = ADR-030 §Consequences.
 
-### ★2026-08-13 contract-poc — [BL-717] 종결 (강등 — 전문 = [ADR-031])
-
-> 결정적 export `contracts/openapi.json` + **orval(client:'zod') 채택**(hey-api 는 TS7 크래시로 탈락) · 런타임 투입 판정은 [ADR-031] §비결정. tombstone: 본문 7줄 → `git show cca30519:docs/status.md` (283~289행).
-
-### ★2026-08-14 gate-surface-close / gate-pointer-axis — [BL-716]·[BL-707]·[BL-714]·[BL-715]·[BL-720]·[BL-722]·[BL-723] 7건 종결 (강등 — 본문 = git)
-
-> ★★★두 줄 = **「원장이 적어 둔 처방은 도래 판정과 함께 낡는다」**(4건 전부 트리거는 옳고 처방이 틀렸다 — [BL-715] 는 방향까지 뒤집혀 있었다) + **「스텁 초록 ≠ 정본 초록」**(하네스 11/11 이던 축이 정본 `lessons.md` 에서 오탐 3건 · 적대 프로브에서 구멍 2건 — [LESSON-108]). PR #627 머지(`5736ee40`) · 하네스 9→10종. tombstone: `git show 1c38b40f:docs/status.md` · `git show 3e3e0174:docs/status.md` (303~358행).
-
-> **강등 tombstone (2026-08-17 auth-selfhost · 700줄 상한).** 08-14 real-broker-e2e ·
-> 08-14 money-path · 08-15 soak-survival 3블록(13줄)을 이 4줄로 압축했다. 원문 =
-> `git show 9920bf9a:docs/status.md` (253~265행). 발견 색인 = `dev-log/INDEX.md`. 살아남을 셋:
-> ⑴ **「2층 자기정리 하네스는 지어진 뒤 10일간 한 번도 작동한 적이 없었다」**([LESSON-109], PR #628).
-> ⑵ **「소크가 돌리던 전략은 백테스트에서도 지고 있었다」** — 라이브 PF 0.223 / 백테스트 0.607.
-> **판정 = 실자금 불가 · 데모 유지**(사용자 결정) · 헤지 모드 기각([ADR-032]). PR #630·#632·#633.
-> ⑶ **「소크를 죽인 것은 우리 자신의 테스트 하네스였다」** — `close_position` 이 소유권을 안 봤다([BL-734]). PR #634·#635.
+> **강등 tombstone (2026-08-17 auth-selfhost · 700줄 상한).** 08-13 contract-poc · 08-14
+> gate-surface-close · 08-14 real-broker-e2e · 08-14 money-path · 08-15 soak-survival —
+> 5블록(21줄)을 이 8줄로 압축했다. 원문 = `git show 9920bf9a:docs/status.md` (245~265행).
+> 발견 색인 = `dev-log/INDEX.md`. 살아남을 다섯:
+> ⑴ **[BL-717]** 결정적 export `contracts/openapi.json` + **orval(client:'zod') 채택**(hey-api 는 TS7 크래시로 탈락, [ADR-031]).
+> ⑵ **「원장이 적어 둔 처방은 도래 판정과 함께 낡는다」** + **「스텁 초록 ≠ 정본 초록」**([LESSON-108], PR #627 · 7건 종결).
+> ⑶ **「2층 자기정리 하네스는 지어진 뒤 10일간 한 번도 작동한 적이 없었다」**([LESSON-109], PR #628).
+> ⑷ **「소크가 돌리던 전략은 백테스트에서도 지고 있었다」** — 라이브 PF 0.223 / 백테스트 0.607. **판정 = 실자금 불가 · 데모 유지**(사용자 결정) · 헤지 모드 기각([ADR-032]). PR #630·#632·#633.
+> ⑸ **「소크를 죽인 것은 우리 자신의 테스트 하네스였다」** — `close_position` 이 소유권을 안 봤다([BL-734]). PR #634·#635.
 
 ## ★소크 창 — 항목 선택을 지배하는 제약 (2026-08-16 갱신)
 
@@ -359,6 +353,18 @@ origin 을 **조용히 거부**한다. 이제 fail-fast 다.
 (surface-truth S3 P1). `DELETE /api/v1/auth/me` 로 입구만 옮기고 **안에서 하는 일은 한 줄도
 바꾸지 않았다** — `test_user_deleted_stops_trading.py` 재조준이 그 수용 기준이다.
 
+★**마감 실측 3건을 남긴다.** ⑴ **codex 적대 리뷰가 P1 을 잡았다** — `DELETE /auth/me` 는
+엔드포인트와 회귀 테스트가 있는데 **부르는 쪽이 0건**이었다. 이 회차가 같은 회차에 쓴
+[LESSON-114] 를 자기 코드에서 위반한 것이다. ⇒ `deleteUser.beforeDelete` 서버 훅 + fail-closed.
+⑵ **geo-block L3 이 처음으로 실제 차단했다** — `CF-IPCountry: US` → **403 `GEO_BLOCKED_COUNTRY`**
+(행 생성 안 됨) · `KR` → 200 + `country='KR'` · 헤더 없음 → 통과. ⑶ **내가 만든 회귀 1건** —
+새 삭제 버튼의 `aria-label` 이 거래소 계정 행의 것과 같아 e2e 를 깼고, **첫 수리도 실패했다**
+(Playwright `getByRole` 은 **부분 문자열** 매칭이라 상위 문자열도 겹친다).
+
+★**authed e2e 는 [BL-775] 로 등재했다** — 전체 실행 5회 중 3회가 `#14` 하나로 red 이고 전부
+타임아웃이다. 단독 1.2초 · 파일 전체 14/14 · `--deferred-only` 1회차는 **86/86 PASS**.
+이 회차 변경과 상관이 없다(Dialog 투입 전 실행에서도 red). **조용한 머신 재실행이 첫 step.**
+
 **다음 행동 = 이 브랜치를 배포하고 실사용자 1명을 새 계정에 잇는다.** 순서는
 ⑴ 맥 빌드 → `docker save | ssh docker load` ⑵ 서버 `git pull` (2커밋 뒤처짐) ⑶ **전용 DB 롤
 `qb_auth` 생성**(DDL — 승인) ⑷ **alembic 적용**(`soak-stack.sh migrate` dry-run → 승인 →
@@ -458,6 +464,7 @@ origin 을 **조용히 거부**한다. 이제 fail-fast 다.
 | **AN** | [BL-772] LLM 변환 **502 가 내부 예외 타입·메시지를 응답 본문에 반사**한다                                                                                                                                                                                                                                                      | P2  | ★★   | 낮     | XS            | 0줄            | ★`convert/router.py:32` 1줄. 2026-08-15 surface-truth 가 닫은 「secret 이 422 body 에 평문 반사」와 **같은 계열이고 502 축은 남아 있었다**. SDK 예외 문자열에 endpoint·모델명·요청 ID 가 실린다                                                                                                                                                                          |
 | **AO** | [BL-773] 백테스트·옵티마이저가 실행 시점의 **mutable Pine** 을 다시 읽는다 — 결과가 무엇을 검증했는지 알 수 없다                                                                                                                                                                                                               | P1  | ★★   | 중     | L             | **건드림**     | ★2026-08-16 코드 대조로 3경로 확정(`backtest/service.py:284→348` · `optimizer/service.py:236→249` · `strategy/service.py:371` 무조건 덮어쓰기). `strategy_version`·`source_hash` **0건**. 실자금은 [ADR-032] 로 이미 기각이라 **지금 돈을 잃히진 않는다** — 트리거는 공유 링크와 다중 사용자다. migration 이 붙으므로 소크 창과 조율                                     |
 | **AP** | [BL-774] TradingView webhook 이 **body 기반 HMAC** 을 요구한다 — 동적 alert 본문에서 성립하는지 **미확인**                                                                                                                                                                                                                     | P2  | ★★   | 중     | M             | 0줄            | ★첫 step 은 코드 수리가 아니라 **실측 1건**이다 — 정적 body 면 동작하고 `{{close}}` 류 placeholder 면 매번 401 이다. idempotency key 가 optional query 라 **같은 결정에 묶여 있다**(고정=충돌 / 생략=중복 주문). 자동 생성안은 [BL-773] 에 의존                                                                                                                          |
+| **AQ** | [BL-775] `sprint46-tier3-nth #14`(단축키 도움말)가 **전체 authed 실행에서만** 비결정적으로 red                                                                                                                                                                                                                                 | P3  | ★    | 낮     | S             | 0줄            | ★마감 게이트의 `e2e authed` 레그가 이것 하나로 red 다. 5회 중 3회 · 전부 **타임아웃** · 단독 1.2초 · 파일 전체 14/14 · `--deferred-only` 1회차는 86/86 PASS. ★**첫 step 은 수리가 아니라 조용한 머신 3회 재실행**이다 — 경합이면 「환경 조건 문서화」로 닫힌다. ★예산만 늘리면 진짜 회귀도 못 잡는다                                                                     |
 
 > ★**강등 (2026-08-16 external-comparison)** — 종결·기각으로 죽은 5행([BL-026]·[BL-726]·[BL-729]·[BL-730]·[BL-731])을 지워 700줄 상한 안에서 신규 4행 자리를 만들었다. 원문 = `git show b5e24fbf:docs/status.md` (450·451·453·454·463행).
 > ★난이도·소요는 `[가정]`이고 preflight 에서 재측정한다.
