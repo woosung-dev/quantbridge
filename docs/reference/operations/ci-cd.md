@@ -163,7 +163,9 @@ top-10 에 **아예 안 보였다.**
 > `Settings` 에서 compose 호스트 기본값을 갖는 필드를 뽑아 **모든** pytest 스텝 env 와 대조한다.
 > 로컬에서는 `.env.local` 이 전부 localhost 로 채워서 이 드리프트가 **구조적으로 안 보인다.**
 
-> CI Python 버전은 3.12, 로컬 권장은 3.11+. CLAUDE.md/regex `python>=3.11`에 부합.
+> ~~CI Python 버전은 3.12, 로컬 권장은 3.11+.~~ → **2026-08-16** ([ADR-036](../../decisions/036-tool-version-ssot-mise.md)):
+> CI·로컬이 모두 `mise.toml` 의 `python = "3.12"` 를 따른다. 「로컬 3.11+」는 이제 거짓이다 —
+> `pyproject.toml` 의 `requires-python` 이 `>=3.12,<3.13` 으로 **상한까지** 묶는다.
 
 ---
 

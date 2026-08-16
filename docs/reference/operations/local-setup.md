@@ -40,8 +40,7 @@ docker compose version
 > **시스템 python 불필요.** 위 4종은 mise 가 격리 설치하고, Python 의존성은 `uv` 가 관리한다.
 > ★`mise` 없이 `uv` 만 도는 환경도 `pyproject.toml` 의 `requires-python` **상한**이 3.12 로 묶는다 —
 > 상한이 없으면 uv 는 조건을 만족하는 **가장 높은** 것을 고른다(실측 2026-08-16: 3.13.12).
-
-> **시스템 python 불필요.** `uv`가 프로젝트별 Python + 의존성 격리 관리. 아래 모든 Python 명령은 `uv run` prefix로 실행.
+> 아래 모든 Python 명령은 `uv run` prefix 로 실행한다.
 
 ---
 
