@@ -265,6 +265,11 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
+      # ★2단 계약도 본다 — orval 이 읽는 것은 전량 파일이 아니라 이 부분집합이다.
+      #   1단만 막고 2단을 열어 두면 「보호된다」는 문서가 거짓이 된다(2026-08-16 적대 리뷰).
+      - name: OpenAPI PoC subset drift check
+        working-directory: .
+        run: python3 tools/scripts/openapi-poc-filter.py --check
 
   # ★pytest 를 3 샤드로 쪼갠다 (2026-08-06). 왜, 그리고 왜 이 경계인지는
   #   `apps/api/tests/shard_paths.py` 독스트링에 실측과 함께 있다. 요약:

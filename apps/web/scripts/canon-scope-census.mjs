@@ -105,11 +105,51 @@ for (const sub of ["app", "components", "features"]) walkUserFacing(join(SRC, su
 // design-canon-source.test.ts — src 전체를 걷고, 예외 화이트리스트가 **경로 키**다.
 const allSrc = walkProduction(SRC);
 
+// ★★**이 스크립트는 실패할 수 있어야 한다.** 초판은 숫자만 찍고 `process.exit` 가 한 번도 없었다
+//   — 즉 「줄었는지 봐라」라고 인쇄만 하고 아무것도 막지 않는 제안이었다(2026-08-16 적대 리뷰).
+//   계측기 자신이 통과/실패를 못 내면, 그것을 게이트에 넣을 수도 없고 사람이 눈으로 봐야 한다.
+// ★기준선은 `origin/main`(ADR-035 이동 직전)에서 각 테스트의 **실제 목록**으로 잰 값이다.
+//   줄면 실패, 늘면 통과 — 늘리는 것은 언제나 안전하다.
+const BASELINE = {
+  "no-raw-enum-labels": 111,
+  "no-internal-ids": 203,
+  "design-canon-source": 336,
+};
+const ACTUAL = {
+  "no-raw-enum-labels": enumFiles.size,
+  "no-internal-ids": userFacing.length,
+  "design-canon-source": allSrc.length,
+};
+const LABEL = {
+  "no-raw-enum-labels": "스캔 .tsx    ",
+  "no-internal-ids": "스캔 .tsx    ",
+  "design-canon-source": "스캔 .ts/.tsx",
+};
+
 console.log("══ 캐논 가드 스코프 인구조사 ══");
-console.log(
-  `  no-raw-enum-labels  스캔 .tsx     : ${enumFiles.size}   (없는 디렉터리 ${missing}개)  [기준선 111]`,
-);
-console.log(`  no-internal-ids     스캔 .tsx     : ${userFacing.length}   [기준선 203]`);
-console.log(`  design-canon-source 스캔 .ts/.tsx : ${allSrc.length}   [기준선 336]`);
+const shrunk = [];
+for (const [name, base] of Object.entries(BASELINE)) {
+  const now = ACTUAL[name];
+  const mark = now < base ? "✗ 줄었다" : "✓";
+  const extra = name === "no-raw-enum-labels" ? `  (없는 디렉터리 ${missing}개)` : "";
+  console.log(
+    `  ${name.padEnd(19)} ${LABEL[name]} : ${String(now).padStart(4)}  [기준선 ${base}]  ${mark}${extra}`,
+  );
+  if (now < base) shrunk.push(`${name}: ${base} → ${now}`);
+}
 console.log();
-console.log("★이동 후 위 세 수가 **줄면** 검사기가 대상을 잃은 것이다 — 초록을 통과로 읽지 마라.");
+
+if (missing > 0) {
+  console.error(`✗ 목록에 있는 디렉터리 ${missing}개가 실재하지 않는다 — 스코프가 조용히 비었다.`);
+}
+if (shrunk.length > 0) {
+  console.error(`✗ 스코프가 줄었다:\n  ${shrunk.join("\n  ")}`);
+}
+if (missing > 0 || shrunk.length > 0) {
+  console.error(
+    "\n검사기가 대상을 잃었다. 파일을 옮겼다면 각 테스트의 스코프 목록을 함께 고치고,\n" +
+      "의도적으로 줄인 것이라면 이 스크립트의 BASELINE 을 같은 커밋에서 내려라.",
+  );
+  process.exit(1);
+}
+console.log("✓ 세 검사기 모두 기준선 이상 — 스코프가 줄지 않았다.");

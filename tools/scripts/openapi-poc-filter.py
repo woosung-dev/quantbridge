@@ -103,11 +103,28 @@ def main() -> int:
         },
     }
 
+    rendered = json.dumps(poc, sort_keys=True, indent=2, ensure_ascii=False) + "\n"
+
+    # ★`--check` — 커밋된 부분집합이 현재 전량 export 에서 다시 뽑은 것과 같은가.
+    #   2026-08-16 적대 리뷰가 이 2단이 **무게이트**임을 잡았다: `export_openapi.py --check`
+    #   는 1단(전량 파일)만 보고, orval 이 실제로 읽는 것은 이 2단 산출물인데 아무도 안 봤다.
+    #   그래서 실제로 drift 해 있었다(`warnings` 필드 누락).
+    if "--check" in sys.argv[1:]:
+        if not OUTPUT.exists():
+            print(f"drift: {OUTPUT} 가 없다. 먼저 인자 없이 실행해라.", file=sys.stderr)
+            return 1
+        if OUTPUT.read_text(encoding="utf-8") == rendered:
+            print(f"drift 없음: {OUTPUT} — 경로 {len(paths)}개 · 스키마 {len(needed)}개")
+            return 0
+        print(
+            f"drift: 커밋된 {OUTPUT.name} 이 현재 전량 export 에서 뽑은 것과 다르다.\n"
+            "  재생성: python3 tools/scripts/openapi-poc-filter.py",
+            file=sys.stderr,
+        )
+        return 1
+
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    OUTPUT.write_text(
-        json.dumps(poc, sort_keys=True, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
+    OUTPUT.write_text(rendered, encoding="utf-8")
     print(f"작성: {OUTPUT} — 경로 {len(paths)}개 · 스키마 {len(needed)}개")
     return 0
 

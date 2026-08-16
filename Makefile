@@ -420,6 +420,9 @@ docs-audit:
 # ★env 통째 소싱이 전제다 — Settings 의 `trading_encryption_keys` 가 기본값 없는 필수 필드다.
 openapi-check:
 	cd apps/api && set -a; . ./.env.local; set +a; uv run python scripts/export_openapi.py --check
+	@# ★2단도 함께 본다 — orval 이 실제로 읽는 것은 전량 파일이 아니라 이 부분집합이다.
+	@#   2026-08-16 적대 리뷰가 「1단만 게이트하고 2단은 무방비」를 잡았고 실제로 drift 해 있었다.
+	python3 tools/scripts/openapi-poc-filter.py --check
 
 # 게이트 하네스 전량 — **게이트가 무엇을 재는지 재는** 검사기들. **8종 13초**(2026-08-13 재실측 ·
 # `fleet-dispatch-test` 제거 후 — [ADR-030]). ★종전 「9종 17.3초」와 **증감을 비교하지 마라** —

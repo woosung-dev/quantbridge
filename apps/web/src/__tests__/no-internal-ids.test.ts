@@ -112,7 +112,9 @@ describe("BL-265/280/303 — no internal dev artifact IDs in user-facing UI (★
 
   it("route inventory returns reasonable file count (P1-5 sanity)", () => {
     expect(files.length).toBeGreaterThan(14);
-    expect(files.length).toBeLessThan(300); // features/ + _components 합 ~155
+    // ★2026-08-16 ADR-035 — 실측 203. 종전 주석의 `_components` 는 이제 레포에 0개다.
+    //   상한은 「스캔 대상이 폭발하면 알아채자」는 뜻이지 정확한 수가 아니다(여유 ~1.5배).
+    expect(files.length).toBeLessThan(320);
   });
 
   // codex G.2 P2-3 채택 — critical route 명시 포함 의무

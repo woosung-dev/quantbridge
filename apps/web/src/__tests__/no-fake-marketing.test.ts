@@ -69,15 +69,26 @@ const FAKE_MARKETING_STRINGS = [
 ];
 
 // 스캔 대상 = user-facing page + landing components (test/storybook 제외)
+// ★★2026-08-16 ADR-035 — 종전에는 `if (existsSync(dir))` 로 **없는 루트를 조용히 건너뛰었다.**
+//   바닥이 `> 20` 하나뿐이라 세 루트 중 둘이 사라져도(스코프 87% 소실) 초록으로 통과했다.
+//   이 회차가 옮긴 것이 정확히 이 가드가 감시하는 랜딩 문구다(`app/_components/landing-*` →
+//   `features/marketing/components`). 스코프는 508 로 불변이었지만, 침묵할 수 있는 가드는
+//   다음 재배치에서 침묵한다 — `no-raw-enum-labels.test.ts` 와 같은 처방으로 봉인한다.
+const SCAN_ROOTS = ["app", "components", "features"] as const;
+
 function getUserFacingFiles(): string[] {
   const root = resolve(__dirname, "..");
   const exts = [".tsx", ".ts"];
   const results: string[] = [];
-  for (const subdir of ["app", "components", "features"]) {
-    const dir = join(root, subdir);
-    if (existsSync(dir)) {
-      walkSync(dir, exts, results);
-    }
+  const gone = SCAN_ROOTS.filter((s) => !existsSync(join(root, s)));
+  if (gone.length > 0) {
+    throw new Error(
+      `스캔 루트가 사라졌다: ${gone.join(", ")}\n` +
+        "옮겼다면 SCAN_ROOTS 를 함께 고쳐라. 안 고치면 이 가드는 빈 입력으로 초록이 된다.",
+    );
+  }
+  for (const subdir of SCAN_ROOTS) {
+    walkSync(join(root, subdir), exts, results);
   }
   return results;
 }

@@ -116,9 +116,16 @@ be_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/api/')"
 # ★`has_be` 보다 좁다 — **API 응답이 바뀔 수 있는가**를 재는 축이다([BL-739]).
 #   `apps/api/tests/`·`apps/api/scripts/` 만 바뀐 회차는 화면이 구조적으로 안 바뀐다.
 src_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/api/src/')"
+# ★★계약 파일은 `apps/api/` **밖**에 산다 — `contracts/openapi/openapi.json` 만 고친 회차는
+#   `be_n=0` 이라 「BE openapi drift」가 `건너뜀` 으로 찍히고 전체가 초록으로 읽힌다.
+#   ★2026-08-16 에 `ci.yml` 의 같은 구멍을 막으면서 **이 파일에는 그대로 뒀다**(적대 리뷰가 잡았다).
+#   게이트를 붙일 때 「무엇이 그것을 발화시키나」를 한 곳에서만 보면 형제 배선이 남는다.
+contracts_n="$(printf '%s\n' "$CHANGED" | grep -c '^contracts/')"
 [ "${fe_n:-0}" -gt 0 ] && has_fe=1
 [ "${be_n:-0}" -gt 0 ] && has_be=1
 [ "${src_n:-0}" -gt 0 ] && has_api_src=1
+has_contracts=0
+[ "${contracts_n:-0}" -gt 0 ] && has_contracts=1
 
 NAMES=(); CODES=(); NOTES=(); SECS=()
 record() { NAMES+=("$1"); CODES+=("$2"); NOTES+=("${3:-}"); SECS+=("${4:-}"); }
@@ -200,21 +207,33 @@ fi
 if [ "$has_be" -eq 1 ] || [ -z "$BASE" ]; then
   run_gate "BE ruff"    "apps/api/**"  bash -c 'cd "$0/apps/api" && uv run ruff check .' "$ROOT"
   run_gate "BE mypy"    "apps/api/**"  bash -c 'cd "$0/apps/api" && uv run mypy src/'   "$ROOT"
-  # ★OpenAPI 계약 drift — 커밋된 `contracts/openapi/openapi.json` 이 코드 산출물과 같은가.
-  #   [ADR-031] 이 남긴 배선을 2026-08-16 에 붙였다. 배선 첫 실행이 **실제 drift 1건**을 잡았다
-  #   (ADR-034 회차에서 `DELETE /auth/me` 독스트링이 바뀌었는데 계약을 재생성하지 않았다).
-  #   ★env 통째 소싱이 전제다 — `trading_encryption_keys` 가 기본값 없는 필수 필드다.
-  run_gate "BE openapi drift" "apps/api/**" \
-    bash -c 'cd "$0/apps/api" && set -a && . ./.env.local && set +a && uv run python scripts/export_openapi.py --check' "$ROOT"
 else
   skip_gate "BE ruff" "backend diff 0"; skip_gate "BE mypy" "backend diff 0"
-  skip_gate "BE openapi drift" "backend diff 0"
+fi
+# ★OpenAPI 계약 drift — 커밋된 `contracts/openapi/openapi.json` 이 코드 산출물과 같은가.
+#   [ADR-031] 이 남긴 배선을 2026-08-16 에 붙였다. 배선 첫 실행이 **실제 drift 1건**을 잡았다
+#   (ADR-034 회차에서 `DELETE /auth/me` 독스트링이 바뀌었는데 계약을 재생성하지 않았다).
+#   ★★영역 판정이 `has_be` **단독이면 안 된다** — 계약 파일은 `apps/api/` 밖에 있어서
+#     `contracts/` 만 고친 회차가 이 게이트를 건너뛴다. `ci.yml` 과 같은 축으로 맞춘다.
+#   ★env 통째 소싱이 전제다 — `trading_encryption_keys` 가 기본값 없는 필수 필드다.
+#     `.env.local` 이 없으면 `&&` 체인이 끊겨 rc≠0 으로 **소리 내며** 실패한다(실측 확인).
+if [ "$has_be" -eq 1 ] || [ "$has_contracts" -eq 1 ] || [ -z "$BASE" ]; then
+  run_gate "BE openapi drift" "apps/api/**|contracts/**" \
+    bash -c 'cd "$0/apps/api" && set -a && . ./.env.local && set +a && uv run python scripts/export_openapi.py --check' "$ROOT"
+else
+  skip_gate "BE openapi drift" "backend·contracts diff 0"
 fi
 if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
   run_gate "FE typecheck" "apps/web/**" bash -c 'cd "$0/apps/web" && pnpm typecheck' "$ROOT"
   run_gate "FE lint"      "apps/web/**" bash -c 'cd "$0/apps/web" && pnpm lint'      "$ROOT"
+  # ★캐논 가드 3종이 **몇 파일을 실제로 읽는가**를 기준선과 대조한다([ADR-035]).
+  #   그 가드들은 스캔 대상을 경로로 정의해서, 파일을 옮기고 목록을 안 고치면 **빈 스코프로
+  #   초록**이 난다. 계측기가 인쇄만 하면 아무도 안 보므로 여기서 rc 로 받는다.
+  run_gate "FE 캐논 스코프 인구조사" "apps/web/**" \
+    bash -c 'cd "$0/apps/web" && node scripts/canon-scope-census.mjs' "$ROOT"
 else
   skip_gate "FE typecheck" "frontend diff 0"; skip_gate "FE lint" "frontend diff 0"
+  skip_gate "FE 캐논 스코프 인구조사" "frontend diff 0"
 fi
 
 # ★BL 감사 — docs/ 만 읽으므로 영역 판정·cd 와 무관하게 항상 돈다 (BL-564).

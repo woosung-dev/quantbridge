@@ -88,8 +88,11 @@ const config = [
         {
           patterns: [
             {
-              // 별칭 + 상대경로 양쪽. `**/app/**` 는 `../app/x` · `../../app/x` 를 함께 문다.
-              group: ["@/app/*", "@/app/**", "**/app/*", "**/app/**"],
+              // 별칭 + **상대경로만** 문다. `**/app/**` 로 넓히면 `@sentry/nextjs/app/router`
+              // 같은 **벤더 패키지 하위경로**까지 걸려 ADR-035 와 무관한 error 가 난다
+              // (2026-08-16 적대 리뷰가 탐침으로 실측). 지금 그런 import 는 0건이지만
+              // 패턴의 성질은 트리 상태와 무관하다 — 상대경로 화살표에 앵커를 박는다.
+              group: ["@/app/*", "@/app/**", "./app/*", "./app/**", "../**/app/*", "../**/app/**"],
               message:
                 "하위 층은 app/ 을 import 하지 않는다 (ADR-035). 공유가 필요하면 그 컴포넌트를 features/<domain>/components/ 또는 components/ 로 올려라.",
             },
@@ -105,6 +108,15 @@ const config = [
             "ImportExpression > Literal[value=/(^@\\u002Fapp\\u002F)|(^\\.{1,2}\\u002F.*\\bapp\\u002F)/]",
           message:
             "하위 층은 app/ 을 동적 import 하지도 않는다 (ADR-035). 정적 import 와 같은 경계다.",
+        },
+        {
+          // ★템플릿 리터럴 우회 — `import(\`@/app/${name}\`)`. `Literal` 선택자만으로는 안 걸린다
+          //   (2026-08-16 적대 리뷰가 탐침으로 실측). 라우트명을 변수로 받는 lazy import 가
+          //   이 위반의 가장 현실적인 모양이라 따로 막는다.
+          selector:
+            "ImportExpression > TemplateLiteral > TemplateElement:first-child[value.raw=/(^@\\u002Fapp\\u002F)|(^\\.{1,2}\\u002F.*\\bapp\\u002F)/]",
+          message:
+            "하위 층은 app/ 을 템플릿 리터럴로도 동적 import 하지 않는다 (ADR-035).",
         },
       ],
     },

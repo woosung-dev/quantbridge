@@ -128,6 +128,43 @@ import 하는 것**을 error 로 막는다. 이동 시점 위반 0건이고 양�
 - ⚠ **`e2e:authed`(86건)는 이 회차에서 못 돌렸다** — 워크트리 env 가 격리 스택(5433/6380)을
   가리키는데 그 스택 기동은 메인 체크아웃 몫이다(ADR-029 워크트리 규약). 머지 전에 메인에서 돌려라.
 
+### ★★ 게이트를 붙이는 회차가 게이트를 세 번 잘못 붙였다 (2026-08-16 적대 리뷰 2라운드)
+
+**⑴ 면제를 주장한 산문이 면제를 깨뜨렸다.** `ci.yml` 의 OpenAPI 스텝에
+「이 스텝은 `uv run pytest` 가 아니므로 감사 대상이 아니다」라고 **주석으로 적었더니**,
+`test_ci_workflow_env_parity.py` 의 `text.find("uv run pytest")` 가 그 주석을 실행 스텝으로
+세어 유령 블록을 만들었다 — CI `backend (c)` 가 red 였다. 감사가 텍스트 기반인 이상 재발하므로
+**주석을 우회하는 대신 감사기가 주석 줄을 지우게** 고치고 회귀 테스트 2개를 붙였다
+(변이 대조: 수리를 되돌리면 3건 red).
+
+**⑵ 같은 구멍을 형제 배선에 남겼다.** `contracts/**` 를 `ci.yml` 필터에 넣으면서
+`final-gates.sh` 의 `has_be` 판정은 그대로 뒀다 — 계약만 고친 회차가 로컬에서 `건너뜀` 으로
+초록이 났다. **게이트의 발화 조건을 한 곳에서만 보면 짝이 남는다.**
+
+**⑶ 1단만 막고 2단은 열어 뒀다.** `export_openapi.py --check` 는 전량 파일만 본다. orval 이
+실제로 읽는 것은 `openapi.poc.json` 이고 **그것은 실제로 drift 해 있었다**(`warnings` 필드).
+`interfaces/endpoints.md` 에 「보호된다」고 쓴 문장이 그 시점에 거짓이었다. 필터에 `--check` 를
+만들고 같은 게이트 3곳에 배선했다.
+
+부수로: eslint `**/app/**` 가 `@sentry/nextjs/app/router` 같은 **벤더 하위경로**까지 물었고
+(오탐, 탐침으로 실측), 템플릿 리터럴 `import(\`@/app/${n}\`)`은 **뚫렸다**. 앵커를 상대경로로
+좁히고`TemplateLiteral`선택자를 추가해 4갈래 전부 error·벤더 0건을 재확인했다.`export_openapi.py`는`APP_NAME`도 고정한다 —`info.title` 이 그 값이라 머신마다 판정이 갈렸다.
+
+### ★ 남은 긴장 — `features/dashboard` 는 이 ADR 자신의 표를 아슬하게 어긴다
+
+적대 리뷰(2026-08-16)의 지적이고, **반박하지 않는다.**
+`features/dashboard/` 는 파일 3개뿐이고 `api.ts`·`hooks.ts`·`schemas.ts` 가 없으며 소비 라우트가
+**하나**다. §2 표를 그대로 읽으면 「한 라우트 전용 + 5파일 미만」이라 `_components/` 허용 칸에 든다.
+게다가 `dashboard-cockpit.tsx` 가 하는 일은 feature 5종을 합성하는 것이고, §1 은 그것을 **app 의
+일**이라고 적었다.
+
+그럼에도 features 에 둔 이유는 하나다 — **소유권이 화면이 아니라 합성 그 자체**이고, 그 합성 로직이
+자라면 갈 곳이 필요하다. 즉 지금은 규칙 위반이 아니라 **베팅**이다.
+
+**되돌리는 트리거:** `/dashboard` 가 6개월 안에 형제 라우트를 얻지 못하고 파일 수도 안 늘면,
+3파일을 `app/(dashboard)/dashboard/_components/` 로 돌려보내라 — 그때는 표가 옳다.
+(`auth` 는 `/sign-in`+`/sign-up` 2라우트, `marketing` 은 `/`+`/pricing` 2라우트라 승격 기준을 넘는다.)
+
 ### 비목표
 
 - `(auth)/layout.tsx` 신설로 `split-screen-shell` 흡수 — **렌더 구조 변경**이라 234파일 이동에
