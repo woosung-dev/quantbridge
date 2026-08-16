@@ -39,7 +39,8 @@
 
 ## 문서 — 어느 질문은 어디가 답하나 (SSOT 7축, ADR-026)
 
-- **지금 상태** — `docs/status.md`(활성 sprint) · `docs/roadmap.md`(다음 후보) · `docs/backlog.md`(BL 원장)
+- **지금 상태** — `docs/status.md`(활성 sprint) · `docs/roadmap.md`(다음 후보) · `docs/backlog.md`(열린 BL) +
+  `docs/backlog-resolved.md`(**RESOLVED 본문** — 원장은 파일 둘이고 감사기는 둘을 한 벌로 읽는다, [BL-779])
 - **정본** — `docs/reference/`. 코드와 어긋나면 **코드가 맞다** — 단 「지금 무엇을 하는가」에 한해서다.
   「왜 그렇게 했나」(`docs/decisions/`)와 「무엇이 반증됐나」(`docs/lessons.md`)에 대해 **코드는 증인이 아니다**
 - **결정 근거** — `docs/decisions/`. 규칙 변경 전 필독. 폐기는 삭제가 아니라 `Superseded` 표기
@@ -52,7 +53,7 @@
 미도래)**`) / `PARTIAL` / `RESOLVED` / `UNKNOWN`. DEFERRED 는 active 로 안 세고 3면에서는 ACTIVE 와 같은
   「미완」 쪽이다([ADR-028](docs/decisions/028-backlog-deferred-verdict.md)). 도래 판정 = `tools/scripts/bl-trigger-sweep.sh`
   (**`--selftest` 를 전량 스윕보다 먼저**). ⓪ 표는 `--list ACTIVE` 에서 파생 — 손으로 후보를 얹지 마라
-- ALWAYS — 요약 줄 길이 상한 준수: `dev-log/INDEX.md` **300자** · `backlog.md`·`roadmap.md` **1,000자**
+- ALWAYS — 요약 줄 길이 상한 준수: `dev-log/INDEX.md` **300자** · `backlog.md`·`backlog-resolved.md`·`roadmap.md` **1,000자**
   (`tools/scripts/docs-audit.sh` 강제). 읽는 비용은 `tools/scripts/context-budget.sh` 로 잰다 (바이트 아닌 **문자**)
 - ALWAYS — 스프린트 종료 시 작업 문서는 승격(`reference/`)·강등·삭제 중 하나로 종결. 회고는 **반증 카드
   1~2천자 → `docs/lessons.md` 승격 → INDEX 한 줄** (ADR-026 §3)

@@ -5,13 +5,14 @@
 
 ## 지금 필요한 문서
 
-| 질문                         | 정본                                                                                   | 역할                                       |
-| ---------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------ |
-| 지금 무엇을 하는가           | [`status.md`](./status.md)                                                             | 활성 또는 다음 스프린트의 실행 계약        |
-| 다음에는 무엇을 하는가       | [`roadmap.md`](./roadmap.md)                                                           | 다음 1~2개 스프린트 후보와 먼 제품 방향    |
-| 아직 풀지 못한 일은 무엇인가 | [`backlog.md`](./backlog.md)                                                           | 열린 `BL-`의 상태·영향·재개 조건·검증 링크 |
-| 무엇을 실행해 검증하는가     | [`reference/operations/gates-and-traps.md`](./reference/operations/gates-and-traps.md) | 게이트 명령과 조용히 통과하는 함정         |
-| FE 를 어떻게 배포하는가      | [`reference/operations/frontend-deploy.md`](./reference/operations/frontend-deploy.md) | 오라클 A1 배포 절차·구조 근거·실측 함정    |
+| 질문                          | 정본                                                                                   | 역할                                                                                          |
+| ----------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 지금 무엇을 하는가            | [`status.md`](./status.md)                                                             | 활성 또는 다음 스프린트의 실행 계약                                                           |
+| 다음에는 무엇을 하는가        | [`roadmap.md`](./roadmap.md)                                                           | 다음 1~2개 스프린트 후보와 먼 제품 방향                                                       |
+| 아직 풀지 못한 일은 무엇인가  | [`backlog.md`](./backlog.md)                                                           | 열린 `BL-`의 상태·영향·재개 조건·검증 링크                                                    |
+| 닫힌 `BL-`의 본문은 어디 있나 | [`backlog-resolved.md`](./backlog-resolved.md)                                         | RESOLVED 본문. 인덱스 표 행은 `backlog.md` 에 남아 있고 `bl-audit` 이 둘을 **한 벌로** 읽는다 |
+| 무엇을 실행해 검증하는가      | [`reference/operations/gates-and-traps.md`](./reference/operations/gates-and-traps.md) | 게이트 명령과 조용히 통과하는 함정                                                            |
+| FE 를 어떻게 배포하는가       | [`reference/operations/frontend-deploy.md`](./reference/operations/frontend-deploy.md) | 오라클 A1 배포 절차·구조 근거·실측 함정                                                       |
 
 ## 문서의 수명과 위치
 

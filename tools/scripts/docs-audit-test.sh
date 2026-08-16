@@ -47,6 +47,18 @@ case "${CASE:-empty}" in
   partial_noverdict)
     [ "${2:-}" = "ACTIVE" ]  && printf 'BL-999\tP1\t:1\n'
     [ "${2:-}" = "PARTIAL" ] && printf 'BL-555\tP3\t:30\n' ;;
+  # ── [BL-779] 다중 파일 축 ──────────────────────────────────────────
+  # ★두 케이스 모두 **섹션이 `docs/backlog-resolved.md` 에만 있다.** 판정줄을 거기서
+  #   못 읽으면 `resolved_verdict` 가 「0개」로 발화하고(위양성), 그러면 원장을 가른 것만으로
+  #   게이트가 상시 red 가 된다. 반대로 `resolved_noverdict` 가 침묵하면 진짜 누락을 놓친다.
+  resolved_verdict)
+    [ "${2:-}" = "ACTIVE" ]   && printf 'BL-999\tP1\t:1\n'
+    [ "${2:-}" = "DEFERRED" ] && printf 'BL-444\tP2\t:1\tbacklog-resolved.md\n' ;;
+  resolved_noverdict)
+    [ "${2:-}" = "ACTIVE" ]   && printf 'BL-999\tP1\t:1\n'
+    [ "${2:-}" = "DEFERRED" ] && printf 'BL-445\tP2\t:8\tbacklog-resolved.md\n' ;;
+  # ★정본이 죽은 상태. stdout 은 비고 rc 만 3 이다 — 종전 파서는 이것을 **공집합**으로 읽었다.
+  audit_dead) echo '✗ ABORT — 원장이 비어 있다: docs/backlog-resolved.md' >&2; exit 3 ;;
 esac
 exit 0
 STUB
@@ -59,6 +71,21 @@ chmod +x "$SB/tools/scripts/bl-audit.sh"
   # ★BL-555 는 판정줄이 **없다**. 이것이 [BL-703] 변경의 판별자다.
   printf '### BL-555\n\n**상태:** 부분\n'
 } > "$SB/docs/backlog.md"
+
+# 두 번째 원장 ([BL-779]). ★`""` 를 주면 **빈 파일**이 되어 ABORT 축을 잰다.
+mk_resolved() {
+  if [ "${1:-full}" = "empty" ]; then
+    : > "$SB/docs/backlog-resolved.md"
+    return
+  fi
+  {
+    printf '# stub resolved\n\n'
+    printf '### BL-444\n\n**상태:** ⏳ 대기\n**트리거 판정:** 미도래 — 두 번째 원장에만 있는 판정줄\n\n'
+    # ★BL-445 는 판정줄이 **없다** — 두 번째 원장에서도 누락이 잡히는지의 판별자다.
+    printf '### BL-445\n\n**상태:** ⏳ 대기\n'
+  } > "$SB/docs/backlog-resolved.md"
+}
+mk_resolved full
 
 # ⓪ 표 = 취소선 3행(계약 ≥3 을 채운다) + 선택적 살아 있는 1행.
 mk_status() {
@@ -159,7 +186,7 @@ run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
   fi
 }
 
-echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 + BL-720 지식 정본 축 — 판별력 14케이스"
+echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 + BL-720 지식 정본 + BL-779 다중 파일 원장 축 — 판별력 19케이스"
 
 # ⑴ ★음성 대조가 아니라 **ABORT 대조**다. 양쪽이 비면 초록도 빨강도 내지 않는다.
 mk_status "";       run empty  3 yes "양쪽 공집합 → rc=3 ABORT (빈 입력을 「일치」로 통과시키지 않는다)"
@@ -227,8 +254,41 @@ mk_status "BL-999"; mk_lessons decorated_dup_heading
 run ledger 1 yes "적대 P2: 헤딩 링크 ### [LESSON-101](...) + 표 같은 번호 → 발화"
 AXIS="⓪ 표 정체성"
 
+# ── [BL-779] 다중 파일 원장 축 ────────────────────────────────────────
+# ★원장이 `backlog.md` + `backlog-resolved.md` 둘로 갈렸다. 두 번째 파일을 안 읽는 파서는
+#   **양방향으로 틀린다**: 있는 판정줄을 「0개」로 세어 위양성을 내고(⒂), 없는 것은 그대로
+#   놓친다(⒃). 그래서 양성·음성을 한 쌍으로 둔다 — 한쪽만 두면 판별력이 아니라 편향이다.
+rm -f "$SB/docs/lessons.md"   # 앞 케이스의 lessons fixture 가 이 축의 rc 를 흐리지 않게 한다
+AXIS="트리거 판정 줄"
+
+# ⒂ 음성 대조 — 판정줄이 **두 번째 원장에** 있다. 그 파일을 읽으면 침묵해야 한다.
+mk_status "BL-999"; mk_resolved full
+run resolved_verdict 1 no "음성 대조: DEFERRED BL-444 의 판정줄이 backlog-resolved.md 에 있다 → 침묵"
+
+# ⒃ 양성 — 두 번째 원장의 섹션에 판정줄이 **없다**. 읽고 있다면 발화해야 한다.
+mk_status "BL-999"; mk_resolved full
+run resolved_noverdict 1 yes "DEFERRED BL-445 가 backlog-resolved.md 에서 판정줄 0개 → 발화"
+
+# ⒄ 두 번째 원장이 **빈 파일** → 초록도 빨강도 아니라 rc=3 ABORT.
+AXIS="판정 포기"
+mk_status "BL-999"; mk_resolved empty
+run ledger 3 yes "원장 반쪽이 빈 파일 → rc=3 ABORT (「위반 0건」으로 통과시키지 않는다)"
+
+# ⒅ 정본(`bl-audit`)이 rc≠0 으로 죽었다 → 빈 stdout 을 공집합으로 읽지 않고 ABORT.
+mk_status "BL-999"; mk_resolved full
+run audit_dead 3 yes "bl-audit 이 rc=3 으로 죽음 → 빈 stdout 을 공집합으로 읽지 않는다"
+
+# ⒆ 정본 **스크립트 자체가 없다** → 이것도 ABORT. 파일 부재와 rc≠0 은 같은 사건이다.
+#   ★2026-08-16 적대 리뷰 P1: 종전 `if bl_audit.exists():` 는 부재 시 두 축을 통째로 건너뛰고
+#     「✓ … are clean」을 찍었다 — 검사기가 사라진 것을 「위반 없음」으로 보고한 셈이다.
+mk_status "BL-999"; mk_resolved full
+mv "$SB/tools/scripts/bl-audit.sh" "$SB/bl-audit.sh.bak"
+run ledger 3 yes "정본 스크립트 부재 → rc=3 ABORT (부재를 「위반 0건」으로 읽지 않는다)"
+mv "$SB/bl-audit.sh.bak" "$SB/tools/scripts/bl-audit.sh"
+AXIS="⓪ 표 정체성"
+
 if [ "$FAIL" != 0 ]; then
-  echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 / BL-720 지식 정본 축이 판별력을 잃었다"
+  echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 / BL-720 지식 정본 / 다중 파일 원장 축이 판별력을 잃었다"
   exit 1
 fi
-echo "✓ docs-audit 하네스 14/14 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락 · LESSON ID · 승격 표 포인터 · 비경로 스팬 과다포획 · 장식 우회 2종"
+echo "✓ docs-audit 하네스 19/19 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락 · LESSON ID · 승격 표 포인터 · 비경로 스팬 과다포획 · 장식 우회 2종 · 다중 파일 원장 5종"

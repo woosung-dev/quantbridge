@@ -113,6 +113,8 @@ for start in (docs, root / "apps" / "api", root / "apps" / "web", root / "tools"
 line_caps = {
     "docs/dev-log/INDEX.md": 300,
     "docs/backlog.md": 1000,
+    # ★[BL-779] 분할로 생긴 원장 반쪽. 상한을 안 걸면 「원장을 갈랐다」가 곧 「한쪽은 무법지대」다.
+    "docs/backlog-resolved.md": 1000,
     "docs/roadmap.md": 1000,
 }
 cap_hits: list[tuple[str, int, int, int]] = []
@@ -417,34 +419,62 @@ else:
 # ★판정은 `bl-audit.sh --list` 가 정본이다 — 상태줄 파서를 여기서 다시 쓰지 마라. 두 벌이 되면
 #   갈라지고, 갈라지는 순간 어느 쪽이 맞는지 아무도 모른다.
 # ★**정확히 1개**를 잰다. 0개(규율 누락)와 2개 이상(중복 상태줄과 같은 사고)이 둘 다 실패다.
+#
+# ★★원장은 **파일 하나가 아니다** ([BL-779], 2026-08-16) — `docs/backlog.md`(열린 것) +
+#   `docs/backlog-resolved.md`(RESOLVED 본문). 한쪽만 읽으면 그 파일에 사는 섹션의 판정줄이
+#   **0개로 세어져** 없는 위반을 만들거나(반대로) 있는 위반을 놓친다. 두 파일을 합쳐 센다.
+# ★**bl-audit 의 rc 를 읽는다.** 종전에는 stdout 만 봤으므로 정본이 죽어도(빈 stdout)
+#   「공집합 = 일치」로 조용히 계속 갔다. 정본이 ABORT(3) 면 여기도 ABORT 다 — 이 레포가
+#   빈 입력을 「원하는 답」으로 통과시킨 사고를 다섯 번 이상 밟았다 ([LESSON-101]).
 verdict_line_hits: list[str] = []
 bl_audit = root / "tools" / "scripts" / "bl-audit.sh"
-backlog_md = docs / "backlog.md"
+backlog_files = [docs / "backlog.md", docs / "backlog-resolved.md"]
 by_verdict: dict[str, set[str]] = {}
 verdict_text: dict[str, str] = {}
-if bl_audit.exists() and backlog_md.exists():
-    need: set[str] = set()
-    for verdict in ("ACTIVE", "DEFERRED", "PARTIAL"):
-        proc = subprocess.run(
-            ["bash", str(bl_audit), "--list", verdict],
-            capture_output=True, text=True,
-        )
-        got: set[str] = set()
-        for row in proc.stdout.splitlines():
-            head = row.split("\t", 1)[0].strip()
-            if head.startswith("BL-"):
-                got.add(head)
-        by_verdict[verdict] = got
-        # ★2026-08-11 [BL-703] — PARTIAL 도 의무 대상이다. 종전에는 여기에
-        #   `if verdict != "PARTIAL"` 가 있었고, 그래서 PARTIAL 24건이 판정줄 없이 통과했다.
-        #   그 면제가 아래 zero_table_identity 의 `PARTIAL ∧ 도래` 를 **구조적 공집합**으로
-        #   만들었다 — 술어는 완성돼 있는데 한쪽 입력에 데이터가 생길 수 없었다.
-        need |= got
 
-    counts: dict[str, int] = {}
+# ★**정본 스크립트가 없으면 그것도 ABORT 다** (2026-08-16 적대 리뷰 P1). 종전에는
+#   `if bl_audit.exists()` 가 거짓이면 아래 두 축(트리거 판정 줄 · ⓪ 표 정체성)이 통째로
+#   건너뛰어졌고, 그 상태로 「✓ … are clean」이 찍혔다 — 검사기가 사라진 것과 위반이 없는 것을
+#   같은 초록으로 보고한 셈이다. 파일 부재와 rc≠0 은 같은 사건이다.
+if not bl_audit.exists():
+    print("▶ 원장 판정 — **판정 포기 (ABORT)**")
+    print(f"  {bl_audit.relative_to(root)} 가 없다 — 판정 정본이 사라지면 위반은 「0건」이 된다")
+    raise SystemExit(3)
+dead = [p for p in backlog_files if not p.exists() or p.stat().st_size == 0]
+if dead:
+    print("▶ 원장 파일 — **판정 포기 (ABORT)**")
+    for path in dead:
+        print(f"  {path.relative_to(root)} 가 없거나 비었다 — 원장 반쪽이 사라지면 위반은 「0건」이 된다")
+    raise SystemExit(3)
+need: set[str] = set()
+for verdict in ("ACTIVE", "DEFERRED", "PARTIAL"):
+    proc = subprocess.run(
+        ["bash", str(bl_audit), "--list", verdict],
+        capture_output=True, text=True,
+    )
+    if proc.returncode != 0:
+        print("▶ 원장 판정 — **판정 포기 (ABORT)**")
+        print(f"  bl-audit.sh --list {verdict} 가 rc={proc.returncode} 로 죽었다 — 빈 stdout 을 공집합으로 읽지 않는다")
+        for row in (proc.stderr or proc.stdout).strip().splitlines()[:5]:
+            print(f"    | {row}")
+        raise SystemExit(3)
+    got: set[str] = set()
+    for row in proc.stdout.splitlines():
+        head = row.split("\t", 1)[0].strip()
+        if head.startswith("BL-"):
+            got.add(head)
+    by_verdict[verdict] = got
+    # ★2026-08-11 [BL-703] — PARTIAL 도 의무 대상이다. 종전에는 여기에
+    #   `if verdict != "PARTIAL"` 가 있었고, 그래서 PARTIAL 24건이 판정줄 없이 통과했다.
+    #   그 면제가 아래 zero_table_identity 의 `PARTIAL ∧ 도래` 를 **구조적 공집합**으로
+    #   만들었다 — 술어는 완성돼 있는데 한쪽 입력에 데이터가 생길 수 없었다.
+    need |= got
+
+counts: dict[str, int] = {}
+for ledger in backlog_files:
     section: str | None = None
     in_fence = False
-    for line in backlog_md.read_text(encoding="utf-8", errors="replace").split("\n"):
+    for line in ledger.read_text(encoding="utf-8", errors="replace").split("\n"):
         if re.match(r"^[ \t>]*```", line):
             in_fence = not in_fence
             continue
@@ -461,13 +491,13 @@ if bl_audit.exists() and backlog_md.exists():
             counts[section] = counts.get(section, 0) + 1
             verdict_text.setdefault(section, line)
 
-    for bl in sorted(need, key=lambda x: int(x[3:])):
-        n = counts.get(bl, 0)
-        if n != 1:
-            verdict_line_hits.append(
-                f"  {bl}: `**트리거 판정:**` 줄이 {n}개다 (계약 1개) — "
-                f"{'무엇이 막는지 적어라' if n == 0 else 'SSOT 는 하나여야 한다'}"
-            )
+for bl in sorted(need, key=lambda x: int(x[3:])):
+    n = counts.get(bl, 0)
+    if n != 1:
+        verdict_line_hits.append(
+            f"  {bl}: `**트리거 판정:**` 줄이 {n}개다 (계약 1개) — "
+            f"{'무엇이 막는지 적어라' if n == 0 else 'SSOT 는 하나여야 한다'}"
+        )
 
 # ── ⓪ 표 정체성 계약 — 살아 있는 행 == ACTIVE ∪ (PARTIAL ∧ 도래) ([BL-695] 와 같은 처방) ──
 # 왜 있나: ⓪ 표 **자신이** 「이 계약에는 아직 소유자가 없다 — 다음 회차가 BL 로 등록해

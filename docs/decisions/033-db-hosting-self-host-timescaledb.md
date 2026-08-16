@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-08-16)
 - **회차:** production-readiness
-- **관련:** [BL-070](../backlog.md#deferred--trigger-미도래--의도적-부활-가능-구-_deferredmd-승격-2026-08-06) · [BL-071] · [BL-072] · [BL-767](../backlog.md#bl-767) · [BL-768](../backlog.md#bl-768) · [BL-736](../backlog.md#bl-736) · [ADR-026](026-documentation-ssot.md)
+- **관련:** [BL-070](../backlog.md#deferred--trigger-미도래--의도적-부활-가능-구-_deferredmd-승격-2026-08-06) · [BL-071] · [BL-072] · [BL-767](../backlog-resolved.md#bl-767) · [BL-768](../backlog-resolved.md#bl-768) · [BL-736](../backlog.md#bl-736) · [ADR-026](026-documentation-ssot.md)
 
 ## Context
 

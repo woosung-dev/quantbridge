@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BL 상태 감사 — `docs/backlog.md` 각 섹션의 **상태:** / **Status:** 줄을 SSOT 로 읽고,
+# BL 상태 감사 — 원장 각 섹션의 **상태:** / **Status:** 줄을 SSOT 로 읽고,
 # 인덱스 표의 ✅ 마커 · `docs/roadmap.md` 체크박스와 대조한다.
 # 여기에 **우선순위 배치**를 더해 4면을 본다 (BL-637) — 인덱스 행이 실린 `## Pn` 표와
 # 그 BL 섹션의 `**Priority:**` 가 갈리면 실패다.
@@ -39,11 +39,25 @@
 #   `<details>` 를 문장 중간에 언급하므로, 아무 데서나 잡으면 그 뒤 섹션이 통째로 사라진다.
 #   구간이 안 닫히면 조용히 삼키는 대신 **실패**로 보고한다.
 #
+# 원장은 **파일 하나가 아니다** ([BL-779], 2026-08-16)
+#   `docs/backlog.md`(열린 것) + `docs/backlog-resolved.md`(RESOLVED 본문). 수명이 다른 것이
+#   한 파일에 섞여 있어 분리했고, 그래서 **3면 정합이 두 파일에 걸친다** — 인덱스 표 행은
+#   `backlog.md` 에 남고 그 행이 가리키는 섹션은 `backlog-resolved.md` 에 있다.
+#   ★두 파일을 **하나의 원장으로** 읽는다: 섹션 id 는 파일을 가로질러 유일해야 하고
+#     (한쪽에 남긴 채 복사하면 중복 섹션 헤더로 red), 카운트는 합계다.
+#   ★★한쪽 파일을 못 읽으면 그 섹션들이 통째로 사라지는데 **판정은 조용히 초록**이 된다
+#     (없는 것은 불일치를 못 낸다). 그래서 원장 파일이 비었거나 섹션이 0개면 rc=1 이 아니라
+#     **rc=3 ABORT** 다 — 빈 입력을 「위반 0건」으로 통과시키지 않는다 ([LESSON-101]).
+#     보고 머리줄이 **파일별 섹션 수**를 찍는 것도 같은 이유다(합계만 보면 이동이 누락을 가린다).
+#
 # 사용법
 #   tools/scripts/bl-audit.sh [--list ACTIVE|DEFERRED|PARTIAL|RESOLVED|UNKNOWN] [--no-crosscheck]
 #
 # 종료 코드: 0 = 불일치 0 & UNKNOWN 0 & 우선순위 오배치 0 & 중복 상태줄 0 & 중복 섹션 헤더 0 / 1 = 하나 이상 (게이트에 물릴 수 있게)
+#   3 = ABORT (원장 파일이 없거나 비었거나 섹션 0개 — 측정불가는 통과가 아니다)
 #   ★`--list` 는 목록 출력 전용이라 **항상 0** 이다 — 게이트에는 인자 없는 형태를 쓴다.
+#     ★단 ABORT(3)는 `--list` 에서도 난다. 소비자(`docs-audit`·`bl-trigger-sweep`)가 빈 stdout 을
+#       「공집합」으로 읽고 계속 가는 것을 막는다.
 set -uo pipefail
 
 LIST=""; CROSSCHECK=1
@@ -51,7 +65,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --list) [ $# -ge 2 ] || { echo "--list 에 값이 필요하다" >&2; exit 1; }; LIST="$2"; shift 2 ;;
     --no-crosscheck) CROSSCHECK=0; shift ;;
-    -h|--help) sed -n '2,43p' "$0"; exit 0 ;;   # ★헤더 주석에 줄을 더하면 이 범위를 함께 옮겨라
+    -h|--help) sed -n '2,60p' "$0"; exit 0 ;;   # ★헤더 주석에 줄을 더하면 이 범위를 함께 옮겨라
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
 done
@@ -61,13 +75,25 @@ case "$LIST" in
 esac
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
-BACKLOG="$ROOT/docs/backlog.md"
+# ★원장 = 이 목록 전체다. 파일을 더할 때는 여기 한 줄만 더한다 — 파서는 파일 수를 모른다.
+LEDGERS=("$ROOT/docs/backlog.md" "$ROOT/docs/backlog-resolved.md")
 ROADMAP="$ROOT/docs/roadmap.md"
-for f in "$BACKLOG" "$ROADMAP"; do
-  [ -r "$f" ] || { echo "✗ 읽을 수 없다: $f" >&2; exit 1; }
-done
 
-# ★awk 는 두 파일을 이 순서로 읽는다 — backlog 먼저(NR==FNR), roadmap 나중.
+# ★★ABORT 축 — 측정불가는 통과가 아니다. 원장 한쪽이 비면 그 섹션들이 통째로 사라지는데
+#   판정은 「불일치 0건」으로 초록이 된다(없는 것은 불일치를 못 낸다). 이 레포는 빈 입력이
+#   「원하는 답」으로 새는 사고를 다섯 번 이상 밟았다 ([LESSON-101]).
+for f in "${LEDGERS[@]}"; do
+  [ -r "$f" ]                    || { echo "✗ ABORT — 원장을 읽을 수 없다: ${f#"$ROOT/"}" >&2; exit 3; }
+  [ -s "$f" ]                    || { echo "✗ ABORT — 원장이 비어 있다: ${f#"$ROOT/"} — 빈 입력을 「위반 0건」으로 통과시키지 않는다" >&2; exit 3; }
+  grep -qE '^### BL-[0-9]+' "$f" || { echo "✗ ABORT — 원장에 '### BL-<n>' 섹션이 0개다: ${f#"$ROOT/"}" >&2; exit 3; }
+done
+[ -r "$ROADMAP" ] || { echo "✗ ABORT — 읽을 수 없다: ${ROADMAP#"$ROOT/"}" >&2; exit 3; }
+
+# ★awk 는 원장 전량을 먼저 읽고 roadmap 을 마지막에 읽는다. 구분은 **파일 순서가 아니라**
+#   인자 사이에 낀 `ROADMAP=1` 대입이다 — `NR==FNR` 은 「첫 파일이냐」만 가르므로 입력이
+#   **셋**(원장 2 + roadmap)이 된 순간 원장 둘째를 roadmap 쪽으로 흘려보낸다.
+#   ★2026-08-16 정정: 종전 주석은 「빈 roadmap 때문에 `NR==FNR` 을 못 쓴다」고 적었는데 **거짓**이다
+#     (빈 파일이 **마지막**이면 `NR==FNR` 은 안 깨진다). 교체 사유는 입력이 셋이 된 것 하나다.
 awk -v LIST="$LIST" -v CROSSCHECK="$CROSSCHECK" '
 # ── 상태 어휘 ────────────────────────────────────────────────────
 # lead = 상태 선언의 **첫 문장**. 상태 줄은 대개 한 문단이라 통째로 훑으면
@@ -116,7 +142,7 @@ function finalize(   t, v) {
   cur = ""
 }
 function reset(id, ln) {
-  cur = id; sec_line[id] = ln
+  cur = id; sec_line[id] = ln; sec_src[id] = fn
   order[++n] = id
   st_txt = ""; st_line = 0; st_dup = 0
   tg_txt = ""; tg_line = 0; tg_dup = 0
@@ -124,8 +150,20 @@ function reset(id, ln) {
   hd_check = 0; has_check = 0; has_res = 0
 }
 
-# ── 1) docs/backlog.md ───────────────────────────────────────────
-NR == FNR {
+# ── 1) 원장 파일들 (docs/backlog.md · docs/backlog-resolved.md) ──
+ROADMAP != 1 {
+  # ★파일별 섹션 수를 따로 센다 — 합계만 보면 「한쪽 파일을 못 읽는다」가 이동 누락과
+  #   구분되지 않는다. 머리줄이 이 수를 찍는 것이 AC 의 음성 대조 표면이다.
+  # ★★`fence`/`details` 를 **파일마다 초기화**한다 (2026-08-16 적대 리뷰 P1). 안 하면 첫 파일에서
+  #   연 펜스를 둘째 파일이 닫을 수 있고, 그러면 그 사이 섹션이 통째로 사라지는데 **최종 상태는
+  #   균형**이라 아래 「서식 오류」가 안 뜬다 — 조용히 초록이다. 앞 파일이 열어 둔 채 끝났으면
+  #   그 파일 이름으로 기록해 둔다(파일 이름 없이 뭉치면 어디를 고쳐야 하는지 알 수 없다).
+  if (FNR == 1) {
+    if (nf > 0 && fence)       unclosed_fence[forder[nf]] = 1
+    if (nf > 0 && details > 0) unclosed_details[forder[nf]] = details
+    fence = 0; details = 0
+    fn = FILENAME; sub(/^.*\//, "", fn); forder[++nf] = fn
+  }
   # ★코드펜스 / <details> 구간은 상태 근거에서 제외한다 (BL-564).
   #   인용부호(`> `) 안의 펜스도 같다. 태그는 **줄 머리**에서만 인정한다(산문 언급 오탐 차단).
   if ($0 ~ /^[ \t>]*```/)          { fence = !fence; next }
@@ -145,7 +183,12 @@ NR == FNR {
   }
 
   # 인덱스 표 행:  | [BL-543](#bl-543) | 제목 … |
-  if ($0 ~ /^\|[ ]*\[BL-[0-9]+\]\(#bl-[0-9]+\)/) {
+  # ★접두사는 **`backlog-resolved.md` 하나만** 허용한다 — 섹션이 그 파일로 내려간 뒤에도 행을
+  #   **원본에** 남기는 것이 [BL-779] ⑵ 의 계약이다. 접두사를 아예 안 받으면 그 행이 파서에서
+  #   사라져 「표 행에 ✅ 인데 섹션은 …」 대조가 **조용히 꺼지고**(없는 행은 불일치를 못 낸다),
+  #   반대로 `[A-Za-z0-9._-]*` 처럼 열어 두면 `typo.md#bl-1` 같은 **오타 링크도 정식 행으로**
+  #   받는다 (2026-08-16 적대 리뷰 P2). 계약 대상만 적는다.
+  if ($0 ~ /^\|[ ]*\[BL-[0-9]+\]\((backlog-resolved\.md)?#bl-[0-9]+\)/) {
     match($0, /BL-[0-9]+/); rid = substr($0, RSTART, RLENGTH)
     rowline[rid] = FNR
     rowsec[rid] = cursec
@@ -159,6 +202,7 @@ NR == FNR {
     #   두 번째 벌이 첫 벌을 조용히 덮어쓴다 — 첫 벌은 판정에서 사라지지만 `order[]` 에는
     #   남아 카운트에는 잡혀서, 숫자만 보면 정상으로 읽힌다. 중복 상태줄과 같은 계약이다.
     if (id in secfirst) secdup[id] = secdup[id] " :" FNR; else secfirst[id] = FNR
+    filecnt[fn]++
     reset(id, FNR)
     if (index($0, "✅") > 0) hd_check = 1
     next
@@ -191,7 +235,7 @@ NR == FNR {
 }
 
 # ── 2) docs/roadmap.md — 체크박스 ────────────────────────────────
-{
+ROADMAP == 1 {
   if ($0 !~ /^[ \t]*- \[[ x]\]/) next
   match($0, /^[ \t]*- \[[ x]\]/)
   mark = substr($0, RSTART + RLENGTH - 2, 1)
@@ -216,11 +260,17 @@ NR == FNR {
 END {
   finalize()
   if (LIST != "") {
-    for (i = 1; i <= n; i++) { id = order[i]; if (verdict[id] == LIST) printf "%s\t%s\t:%d\n", id, prio[id], sec_line[id] }
+    # ★4번째 칸(원장 파일)은 [BL-779] 분할에서 붙였다. 소비자는 앞 두 칸만 읽으므로 안전하고,
+    #   사람은 이 칸으로 「이 섹션이 어느 파일에 있나」를 grep 없이 안다.
+    for (i = 1; i <= n; i++) { id = order[i]; if (verdict[id] == LIST) printf "%s\t%s\t:%d\t%s\n", id, prio[id], sec_line[id], sec_src[id] }
     exit 0
   }
 
-  printf "══ bl-audit  backlog=docs/backlog.md  roadmap=docs/roadmap.md  섹션=%d ══\n", n
+  # ★파일별 섹션 수를 **합계와 함께** 찍는다. 한쪽 파일이 파서에서 빠지면 합계만 보고는
+  #   「그 회차에 섹션이 준 것」과 구분되지 않는다 — 그 상태의 게이트는 초록이다 ([BL-779]).
+  per = ""
+  for (i = 1; i <= nf; i++) per = per (i > 1 ? " + " : "") sprintf("%s(%d)", forder[i], filecnt[forder[i]] + 0)
+  printf "══ bl-audit  원장=%s  roadmap=docs/roadmap.md  섹션=%d ══\n", per, n
 
   printf "\n▶ 판정 (섹션 상태 줄이 SSOT · PARTIAL/DEFERRED 는 active 로 세지 않는다)\n"
   for (i = 1; i <= n; i++) { id = order[i]; cnt[verdict[id]]++; pc[prio[id] "/" verdict[id]]++; pset[prio[id]] = 1 }
@@ -330,9 +380,13 @@ END {
   bad += h
 
   # ★구간이 안 닫히면 그 뒤가 통째로 안 읽힌다 — 조용히 삼키지 말고 실패로 올린다.
+  #   ★**파일별로** 보고한다. 합쳐 보면 첫 파일이 연 것을 둘째 파일이 닫아 최종 균형이 되는
+  #     경우를 못 잡는다(2026-08-16 적대 리뷰 P1 — 그 사이 섹션이 조용히 사라진다).
+  if (fence)       unclosed_fence[forder[nf]] = 1
+  if (details > 0) unclosed_details[forder[nf]] = details
   o = 0
-  if (fence)      { o++; printf "\n▶ 서식 오류 — ``` 코드펜스가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n" }
-  if (details > 0) { o++; printf "\n▶ 서식 오류 — <details> %d 개가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n", details }
+  for (k in unclosed_fence)   { o++; printf "\n▶ 서식 오류 — %s 의 ``` 코드펜스가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n", k }
+  for (k in unclosed_details) { o++; printf "\n▶ 서식 오류 — %s 의 <details> %d 개가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n", k, unclosed_details[k] }
   bad += o
 
   printf "\n════════════════════════════════════════\n"
@@ -342,4 +396,4 @@ END {
   printf "✓ 5면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치 + 트리거 정합. active=%d / deferred=%d / 전체=%d\n", cnt["ACTIVE"] + 0, cnt["DEFERRED"] + 0, n
   exit 0
 }
-' "$BACKLOG" "$ROADMAP"
+' "${LEDGERS[@]}" ROADMAP=1 "$ROADMAP"

@@ -399,7 +399,7 @@ sequenceDiagram
 - `qb_ws_orphan_event_total{exchange, reason}` Counter — 도착 축
 - `qb_ws_orphan_discarded_total{account_id, reason}` Counter — 폐기 축. `reason` 은
   `terminal_event_lost`(머니-패스 손실 — reconciler 가 회수 대상) / `non_terminal_ignored`(무해).
-  ★종전 `qb_ws_orphan_buffer_size` Gauge 는 [BL-448](../../backlog.md#bl-448) 에서 **삭제**했다 —
+  ★종전 `qb_ws_orphan_buffer_size` Gauge 는 [BL-448](../../backlog-resolved.md#bl-448) 에서 **삭제**했다 —
   5초 재생 버퍼를 읽는 프로덕션 경로가 없어(`replay_orphan` 호출자 0) 버퍼째 걷어냈다.
 - `qb_ws_reconcile_unknown_total{exchange}` Counter
 - `qb_ws_reconcile_skipped_total{exchange, reason}` Counter

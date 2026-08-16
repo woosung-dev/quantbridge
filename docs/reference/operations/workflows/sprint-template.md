@@ -55,7 +55,7 @@
 
 - 본 sprint 의 plan: `docs/archive/superpowers/specs/...` 또는 `~/.claude/plans/...`
 - 관련 ADR: `docs/dev-log/...`
-- 관련 BL: `docs/backlog.md` Resolved/신규 등록
+- 관련 BL: `docs/backlog.md` 신규 등록 · **RESOLVED 본문은 `docs/backlog-resolved.md`** ([BL-779] — 표 행은 원본에 남는다)
 
 ### §4 — BL 신규 등록
 
