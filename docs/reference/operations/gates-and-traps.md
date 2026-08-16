@@ -413,6 +413,18 @@ tools/scripts/soak-stack.sh migrate --confirm   # 집행 (★사용자 승인이
 
 ### 환경
 
+- ★★**`pnpm install` 이 `ERR_PNPM_LOCKFILE_BREAKING_CHANGE` 로 죽으면 코드가 아니라 셸이 문제다**
+  (2026-08-16 [ADR-036]). 도구 버전 SSOT 가 루트 `mise.toml` 로 옮기면서 `apps/web/package.json` 의
+  `packageManager` 를 지웠다 — 그래서 **mise 가 안 걸린 셸**은 corepack 기본값 pnpm **8.15.9** 로
+  떨어지고, 그것이 `apps/web/pnpm-lock.yaml`(lockfileVersion **9.0**)을 못 읽는다.
+  실측: mise 없이 `pnpm -v` = 8.15.9 → `--frozen-lockfile` **rc=1** / mise shim PATH 에서 9.12.0 → **rc=0**.
+  ⇒ 고치는 법은 `brew install mise && mise install` 그리고 `eval "$(mise activate zsh)"` 다.
+  ★**`--force` 로 락파일을 다시 쓰지 마라** — CI 의 `frozen-lockfile` 게이트와 정면 충돌한다.
+  락파일은 멀쩡하고 틀린 것은 그것을 읽는 pnpm 버전이다.
+  ★**`make` 타깃과 git 훅은 안전하다** — 셋 다 shim 을 PATH 앞에 스스로 세운다(`Makefile:15`,
+  `.husky/pre-commit`, `.husky/pre-push`). 노출되는 것은 **터미널에서 맨손으로 `pnpm`·`uv` 를 칠 때**뿐이다.
+  ★**워크스페이스가 아니다** — 루트 `package.json` 은 husky 전용이고 `pnpm-workspace.yaml` 이 없다.
+  FE 설치는 반드시 `cd apps/web` 에서 한다.
 - ★★**BE pytest 는 격리 포트(5433/6380)를 쓴다 — `make up` 으로 올린 기본 스택(5432/6379)에서는 안 돈다.**
   `apps/api/.env.local` 의 `DATABASE_URL`·`TEST_DATABASE_URL`·`REDIS_URL` 이 전부 격리 포트를 가리킨다.
   기본 스택에서 돌리면 **`6 failed / 604 errors`** 가 나는데 실패의 정체는 `asyncio/base_events.py` 의
