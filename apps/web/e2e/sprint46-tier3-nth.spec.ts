@@ -303,17 +303,27 @@ test("#14 단축키 help dialog — ? 키로 열고 ESC 로 닫힘", async ({ pa
   await expect(page.getByRole("heading", { name: "트레이딩 코크핏" })).toBeVisible({
     timeout: 30_000,
   });
-  await page.evaluate(() => {
-    const el = document.activeElement;
-    if (el instanceof HTMLElement) el.blur();
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "?", bubbles: true }),
-    );
-  });
 
-  await expect(
-    page.getByRole("heading", { name: "키보드 단축키" }),
-  ).toBeVisible({ timeout: 5_000 });
+  // ★★[BL-775] 2026-08-16 — 이 테스트가 「5회 중 3회 red」였던 원인은 **하이드레이션 경쟁**이다
+  //   (종전 원장은 「머신 경합」으로 적고 있었다 — 증상은 맞고 원인이 아니었다).
+  //   `ShortcutHelpDialog` 는 페이지가 아니라 **`(dashboard)/layout.tsx` 서브트리**에 있고,
+  //   그 `useEffect` 가 document 리스너를 붙이는 시점은 **페이지 제목 가시 시점과 다르다.**
+  //   실측(같은 mock·같은 경로): 대기 0초 → 다이얼로그 없음 / 3초 → 정상.
+  //   ★**예산(5초)을 늘리는 것은 답이 아니다** — 진짜 회귀까지 함께 삼킨다. 리스너가 붙을 때까지
+  //     dispatch 를 **재시도**해서 「단축키가 동작하는가」만 재도록 좁힌다.
+  //   ★`toPass` 는 성공하면 즉시 끝난다 — 리스너가 이미 붙어 있으면 1회로 통과한다.
+  await expect(async () => {
+    await page.evaluate(() => {
+      const el = document.activeElement;
+      if (el instanceof HTMLElement) el.blur();
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "?", bubbles: true }),
+      );
+    });
+    await expect(
+      page.getByRole("heading", { name: "키보드 단축키" }),
+    ).toBeVisible({ timeout: 1_000 });
+  }).toPass({ timeout: 15_000 });
   await expect(page.getByTestId("shortcut-list")).toBeVisible();
 
   // ESC 닫힘 (Base UI Dialog 내장)
