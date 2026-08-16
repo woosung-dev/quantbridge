@@ -162,6 +162,9 @@ def test_verified_subject_extracts_sub_from_verified_payload(
     """
     from src.realtime import auth as ra
 
+    # ★kid 게이트를 통과시킨다 — 이 테스트가 재는 것은 `sub` 추출이지 kid 캐시가 아니다.
+    monkeypatch.setattr(ra, "_unverified_kid", lambda _t: "kid-test")
+    monkeypatch.setattr(ra, "_KNOWN_KIDS", {"kid-test"})
     monkeypatch.setattr(ra, "_decode", lambda _t: {"sub": "sub-real", "exp": 1})
     req = _MockRequest("1.2.3.4", {"authorization": "Bearer whatever"})
     assert ra.verified_subject_or_none(req) == "sub-real"  # type: ignore[arg-type]
@@ -220,3 +223,70 @@ def test_cf_connecting_ip_wins_over_spoofable_xff(monkeypatch: pytest.MonkeyPatc
     # ★음성 대조 — 신뢰 대역 밖에서 온 요청은 CF 헤더도 믿지 않는다.
     untrusted = _MockRequest("203.0.113.99", {"cf-connecting-ip": "1.1.1.1"})
     assert rl._client_ip_or_xff(untrusted) == "203.0.113.99"  # type: ignore[arg-type]
+
+
+# ─────────────────────────────────────────────────────
+# ④ ★rate limit **앞**에서 도는 코드가 네트워크를 타면 안 된다 (codex P1, 2026-08-16)
+# ─────────────────────────────────────────────────────
+
+
+def test_identity_extraction_never_fetches_jwks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """★모르는 `kid` 는 **JWKS 를 가져오지 않는다.**
+
+    이 함수는 `SlowAPIMiddleware` 보다 **바깥**에서 돈다 — 즉 여기서 하는 일은
+    **한도의 보호를 받지 않는다.** 수리 전 실측: `PyJWKClient` 는 미상 kid 에 음성 캐시가
+    없어 같은 가짜 kid 를 10번 보내면 JWKS 를 **11번** 가져왔다. `Authorization: Bearer
+    <아무거나>` 만으로 우리 FE 컨테이너에 1:1 증폭이 걸린다는 뜻이다.
+    """
+    import base64
+    import json
+
+    from src.realtime import auth as ra
+
+    fetched: list[str] = []
+
+    class _Boom:
+        def get_signing_key_from_jwt(self, _token: str) -> object:
+            # ★raise 로 잡으면 안 된다 — `verified_subject_or_none` 의 `except Exception` 이
+            #   `AssertionError` 까지 삼켜서 **양성 대조가 조용히 죽는다**(초판이 그랬다).
+            #   호출 사실만 기록하고 정상 실패로 흘린다.
+            fetched.append("fetch")
+            raise ValueError("no key")
+
+    monkeypatch.setattr(ra, "_client", lambda: _Boom())
+    ra.reset_jwks_cache()
+
+    def _tok(kid: str) -> str:
+        enc = lambda o: base64.urlsafe_b64encode(json.dumps(o).encode()).rstrip(b"=").decode()  # noqa: E731
+        return f"{enc({'alg': 'EdDSA', 'kid': kid})}.{enc({'sub': 'x'})}.AAAA"
+
+    req = _MockRequest("1.2.3.4", {"authorization": f"Bearer {_tok('UNKNOWN')}"})
+    for _ in range(10):
+        assert ra.verified_subject_or_none(req) is None  # type: ignore[arg-type]
+    assert fetched == [], f"미상 kid 가 JWKS 를 {len(fetched)}회 가져왔다"
+
+    # ★양성 대조 — kid 가 알려지면 실제로 검증기를 탄다. 이 단언이 없으면 위 0회는
+    #   「그냥 아무것도 안 한다」와 구분되지 않는다.
+    ra._KNOWN_KIDS.add("UNKNOWN")
+    assert ra.verified_subject_or_none(req) is None  # type: ignore[arg-type]
+    assert fetched == ["fetch"], "kid 가 알려졌는데도 검증기를 안 탔다 — 위 0회가 무증거다"
+
+
+def test_successful_decode_registers_its_kid(monkeypatch: pytest.MonkeyPatch) -> None:
+    """검증에 성공하면 그 kid 가 등록돼 **다음 요청부터** per-user 로 간다."""
+    from src.realtime import auth as ra
+
+    ra.reset_jwks_cache()
+    monkeypatch.setattr(ra, "_unverified_kid", lambda _t: "kid-A")
+    monkeypatch.setattr(
+        ra,
+        "_client",
+        lambda: type(
+            "C", (), {"get_signing_key_from_jwt": lambda _s, _t: type("K", (), {"key": "k"})()}
+        )(),
+    )
+    monkeypatch.setattr(ra.jwt, "decode", lambda *a, **k: {"sub": "s"})
+
+    assert "kid-A" not in ra._KNOWN_KIDS
+    ra._decode("tok")
+    assert "kid-A" in ra._KNOWN_KIDS, "성공한 kid 가 등록되지 않으면 per-user 격리가 영영 안 켜진다"

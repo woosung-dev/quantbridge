@@ -5,44 +5,20 @@
 //   `.env.prod.example` 이 `https://<실 FE 도메인>/invite`, `Makefile` 이 슬롯 포트판.
 //   즉 **지금 초대 메일을 보내면 링크가 404 로 떨어졌다.**
 //
-// 구조는 `/share/backtests/[token]` 선례를 따른다 — SSR fetch + 판별 유니온 + force-dynamic.
-// 갈래 판정은 `features/waitlist/invite-view.ts` 의 순수 함수다(그 파일 머리말에 이유가 있다).
+// 구조는 `/share/backtests/[token]` 선례를 따르되 **fetch 는 페이지에 두지 않는다** —
+// 호출은 `features/waitlist/api.ts`, 갈래 판정은 `features/waitlist/invite-view.ts` 의 순수 함수다
+// (`apps/web/AGENTS.md` §3 · 2026-08-16 codex 적대 리뷰 P3). 페이지는 렌더만 한다.
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import {
-  resolveInviteView,
-  type InviteFetchResult,
-} from "@/features/waitlist/invite-view";
-import { InviteTokenVerifyResponseSchema } from "@/features/waitlist/schemas";
-import { getApiBase } from "@/lib/api-base";
+import { verifyInviteToken } from "@/features/waitlist/api";
+import { resolveInviteView } from "@/features/waitlist/invite-view";
 
 // 토큰 상태(승인·만료)가 즉시 반영돼야 한다 — 캐시하면 만료된 초대가 계속 유효해 보인다.
 export const dynamic = "force-dynamic";
 
 interface PageProps {
   params: Promise<{ token: string }>;
-}
-
-async function verifyInvite(token: string): Promise<InviteFetchResult> {
-  try {
-    const res = await fetch(
-      `${getApiBase()}/api/v1/waitlist/invite/${encodeURIComponent(token)}`,
-      { cache: "no-store" },
-    );
-    // BE 는 서명 불일치와 만료를 둘 다 400 으로 낸다
-    // (`waitlist/exceptions.py` — InviteTokenInvalidError / InviteTokenExpiredError).
-    if (res.status === 400) return { kind: "invalid" };
-    if (res.status === 404) return { kind: "not-found" };
-    if (!res.ok) return { kind: "error", message: `HTTP ${res.status}` };
-    const parsed = InviteTokenVerifyResponseSchema.parse(await res.json());
-    return { kind: "ok", email: parsed.email, status: parsed.status };
-  } catch (err) {
-    return {
-      kind: "error",
-      message: err instanceof Error ? err.message : String(err),
-    };
-  }
 }
 
 export const metadata: Metadata = {
@@ -72,7 +48,7 @@ function Shell({
 
 export default async function InvitePage({ params }: PageProps) {
   const { token } = await params;
-  const view = resolveInviteView(await verifyInvite(token));
+  const view = resolveInviteView(await verifyInviteToken(token));
 
   if (view.view === "unusable") {
     return (

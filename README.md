@@ -78,7 +78,7 @@ docker compose up -d db redis
 cd apps/api
 uv sync                              # 의존성 설치
 uv run alembic upgrade head          # DB 스키마
-uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port 8000
 uv run celery -A src.tasks worker --loglevel=info --concurrency=4 --pool=prefork
 
 # Frontend (별도 터미널)
