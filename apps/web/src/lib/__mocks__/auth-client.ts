@@ -31,6 +31,8 @@ export function resetAuthMock(): void {
   getAuthToken.mockClear();
   clearAuthTokenCache.mockClear();
   signOut.mockClear();
+  deleteUser.mockClear();
+  deleteAccount.mockClear();
   signIn.email.mockClear();
   signUp.email.mockClear();
 }
@@ -38,6 +40,10 @@ export function resetAuthMock(): void {
 export const getAuthToken = vi.fn(async (): Promise<string | null> => authMockState.token);
 export const clearAuthTokenCache = vi.fn();
 export const signOut = vi.fn(async () => ({ data: null, error: null }));
+export const deleteUser = vi.fn(async () => ({ data: null, error: null }));
+export const deleteAccount = vi.fn(
+  async (): Promise<{ error: { message?: string } | null }> => ({ error: null }),
+);
 export const signIn = { email: vi.fn(async () => ({ data: null, error: null })) };
 export const signUp = { email: vi.fn(async () => ({ data: null, error: null })) };
 
@@ -61,4 +67,4 @@ export function useSession() {
   };
 }
 
-export const authClient = { useSession, signIn, signUp, signOut };
+export const authClient = { useSession, signIn, signUp, signOut, deleteUser };

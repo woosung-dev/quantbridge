@@ -163,6 +163,10 @@ FastAPI 가 같은 값으로 검증한다. 증상은 「로그인은 되는데 �
 `playwright.config.ts` 에는 dotenv 가 없다. 종전에는 `clerkSetup()` 이 우연히 그 일을 하고
 있었고, 그것을 걷어낼 때 **조용히 사라질 뻔했다**.
 
+★**탈퇴는 fail-closed 다.** `deleteUser.beforeDelete` 가 `DELETE /api/v1/auth/me` 를 부르고
+**204 가 아니면 인증 사용자를 지우지 않는다**. 즉 「돈이 안 멈춘 채로 계정만 사라지는」 상태가
+구조적으로 없다. 사용자에게는 실패 사유가 그대로 보인다(조용히 닫지 않는다).
+
 ★**새 로그인은 빈 계정을 만든다.** 기존 사용자의 데이터를 보려면 `auth_subject` 를 이어야 한다 —
 `apps/api/scripts/link_auth_subject.py --list` 로 보고, `--confirm` 으로 잇는다(승인 필요).
 

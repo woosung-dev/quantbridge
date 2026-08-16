@@ -9,7 +9,7 @@ export const authClient = createAuthClient({
   // 브라우저↔Next 는 동일 오리진이므로 baseURL 을 지정하지 않는다(상대 경로 `/api/auth`).
 });
 
-export const { useSession, signIn, signUp, signOut } = authClient;
+export const { useSession, signIn, signUp, signOut, deleteUser } = authClient;
 
 interface CachedToken {
   token: string;
@@ -70,4 +70,17 @@ export async function getAuthToken(): Promise<string | null> {
 export function clearAuthTokenCache(): void {
   cached = null;
   inFlight = null;
+}
+
+/**
+ * 계정 삭제 — 인증 사용자를 지우고, 그 **전에** 서버가 라이브 세션·웹훅 시크릿을 닫는다.
+ *
+ * ★순서를 여기서 지키지 않는다. `lib/auth.ts` 의 `deleteUser.beforeDelete` 가
+ * `DELETE /api/v1/auth/me` 를 부르고 **실패하면 삭제를 중단**한다(fail-closed).
+ * 클라이언트가 순서를 지키는지에 「돈이 멈추는가」를 걸지 않기 위해서다.
+ */
+export async function deleteAccount(): Promise<{ error: { message?: string } | null }> {
+  clearAuthTokenCache();
+  const result = await deleteUser({});
+  return { error: result.error ?? null };
 }

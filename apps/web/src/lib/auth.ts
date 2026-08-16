@@ -8,6 +8,11 @@ import { Pool } from "pg";
 
 import { isRestrictedCountry } from "@/lib/geo";
 
+/** FastAPI 의 오리진. `NEXT_PUBLIC_API_URL` 은 빌드타임 인라인이라 서버에서도 읽힌다. */
+function apiBase(): string {
+  return (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000").replace(/\/+$/, "");
+}
+
 // ★테이블은 `public` 스키마에 `auth_` 접두로 둔다(ADR-034 §D3). 스키마 한정 이름(`auth.user`)은
 //   Better Auth 문서에 없어 검증할 수 없고, 접두 방식은 alembic 이 DDL 정본을 유지하는 것과 맞는다.
 const MODEL = {
@@ -65,6 +70,35 @@ export const auth = betterAuth({
     additionalFields: {
       // 서버 소유 필드 — 클라이언트가 보내도 무시된다(`input: false`).
       country: { type: "string", required: false, input: false },
+    },
+    deleteUser: {
+      enabled: true,
+      /**
+       * ★★**탈퇴가 「돈을 멈추는」 경로다.** 우리 API 가 계정 잠금 · 전략 archive ·
+       * 라이브 세션 전량 비활성 · 웹훅 시크릿 revoke 를 한 트랜잭션으로 처리한다
+       * (2026-08-15 surface-truth S3 P1).
+       *
+       * ★**여기서 부르는 이유** — 클라이언트에게 「우리 API 를 먼저, 그다음 deleteUser」
+       * 순서를 맡기면 그 순서가 지켜지는지 아무도 보증하지 않는다. `beforeDelete` 는
+       * **throw 하면 삭제가 중단**되므로 fail-closed 다: 우리 API 가 실패하면 인증
+       * 사용자도 남고, 성공해야만 사라진다. 2026-08-17 codex 적대 리뷰가 이 배선의
+       * 부재를 P1 으로 잡았다 — 엔드포인트는 있었고 **부르는 쪽이 없었다.**
+       */
+      beforeDelete: async (_user, request) => {
+        if (!request) throw new Error("계정 삭제 요청 컨텍스트를 읽지 못했습니다.");
+        const issued = await auth.api.getToken({ headers: request.headers });
+        const token = issued?.token;
+        if (!token) throw new Error("계정 삭제에 필요한 토큰을 발급하지 못했습니다.");
+        const res = await fetch(`${apiBase()}/api/v1/auth/me`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        // 204 만 통과. 그 외에는 **삭제를 진행하지 않는다** — 돈이 안 멈춘 채로
+        // 인증 사용자가 사라지는 것이 최악이다.
+        if (res.status !== 204) {
+          throw new Error(`계정 정리에 실패했습니다 (status ${res.status}). 잠시 후 다시 시도해 주세요.`);
+        }
+      },
     },
   },
   session: { modelName: MODEL.session },

@@ -32,7 +32,10 @@ async def delete_me(
     멈추는」 유일한 입구였고(2026-08-15 surface-truth S3), 공급자를 바꾸면서 입구가 사라질
     뻔했다. 인증이 필요하므로 **본인만** 자기 계정을 닫을 수 있다.
 
-    ★호출 순서 주의 — 클라이언트는 이 API 를 **먼저** 부르고 그다음 Better Auth 사용자 삭제를
-    한다. 뒤집으면 세션이 먼저 사라져 이 API 를 부를 자격이 없어진다.
+    ★**부르는 쪽은 클라이언트가 아니다.** Better Auth 의 `deleteUser.beforeDelete`
+    (`apps/web/src/lib/auth.ts`)가 서버에서 이 엔드포인트를 부르고, **204 가 아니면 throw 해서
+    인증 사용자 삭제를 중단**한다(fail-closed). 클라이언트에게 호출 순서를 맡기지 않는 이유는
+    그 순서가 지켜지는지 아무도 보증하지 않기 때문이다 — 2026-08-17 codex 적대 리뷰가
+    「엔드포인트는 있는데 부르는 쪽이 0건」을 P1 으로 잡은 뒤 이 배선으로 닫았다.
     """
     await service.deactivate_account(current_user.id)
