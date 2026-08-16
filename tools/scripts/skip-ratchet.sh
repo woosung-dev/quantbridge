@@ -38,7 +38,7 @@
 #   막고 정규식까지 무력화해도 rc=0). 신설 시 「하네스를 따로 두면 또 하나의 고아 스크립트가
 #   된다」는 이유로 별도 `-test.sh` 를 뺐는데, **스캔층은 파일 트리 fixture 없이는 검사할 수
 #   없다** — 그 판단이 [BL-705] 로 반증됐다. 정본 = `tools/scripts/skip-ratchet-test.sh`(11케이스,
-#   `final-gates.sh`·`make gate-harnesses`·CI `documentation` 잡에 배선).
+#   `final-gates.sh`·`mise run gate-harnesses`·CI `documentation` 잡에 배선).
 #   ★★위 ③의 자기검사는 **정상 상태에서는 절대 발화하지 않으므로 그것을 통째로 지워도
 #     게이트가 초록**이다(2026-08-11 실측 — 자기검사 2종을 무력화해도 rc=0). 그 사각은
 #     하네스 케이스 ⑩⑪ 이 닫는다: 래칫 **사본**에 변이를 심고 「자기검사가 실제로 우는가」를

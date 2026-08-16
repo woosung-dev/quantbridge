@@ -18,7 +18,7 @@ apps/api/.env.local
 # 프론트 — Better Auth 시크릿 + DB DSN + e2e 계정. 없으면 로그인이 안 되고 e2e:authed 가 전멸한다.
 apps/web/.env.local
 
-# compose 용 — POSTGRES_* / TRADING_ENCRYPTION_KEYS. `make up-isolated` 가 읽는다.
+# compose 용 — POSTGRES_* / TRADING_ENCRYPTION_KEYS. `mise run up-isolated` 가 읽는다.
 .env
 
 # 워크트리 세션의 권한 allow 목록. 없으면 매 명령마다 권한 프롬프트가 뜬다.

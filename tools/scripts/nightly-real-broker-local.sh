@@ -144,7 +144,7 @@ fi
 
 # 4) 테스트 DB 가 살아 있나 (conftest 의 `_test` DSN 하드가드가 그 뒤를 본다)
 docker exec quantbridge-db pg_isready -U quantbridge >/dev/null 2>&1 \
-  || _verdict BLOCKED "quantbridge-db 컨테이너가 응답하지 않는다 (make up-isolated 필요)" 2
+  || _verdict BLOCKED "quantbridge-db 컨테이너가 응답하지 않는다 (mise run up-isolated 필요)" 2
 
 # 5) ★소크 충돌 가드 — 같은 Bybit 계정(uid 558689281)을 쓴다.
 #    소크가 포지션을 들고 있으면 이 스위트의 「진입 전 flat」 단언이 **소크 때문에** 깨진다.

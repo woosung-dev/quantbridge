@@ -91,11 +91,11 @@ const auditOptions = {
 const DATA_PRECONDITION: Readonly<Record<string, { selector: string; why: string }>> = {
   "/backtests": {
     selector: 'a[href^="/backtests/"]',
-    why: "백테스트 목록이 비었다. 캐논 감사가 볼 표가 없다 (`make seed` 로 시딩하라)",
+    why: "백테스트 목록이 비었다. 캐논 감사가 볼 표가 없다 (`mise run seed` 로 시딩하라)",
   },
   "/trading": {
     selector: 'table[aria-label^="거래소 계정"] tbody tr',
-    why: "등록된 거래소 계정이 없다. /trading 이 빈 상태만 그린다 (`make seed`)",
+    why: "등록된 거래소 계정이 없다. /trading 이 빈 상태만 그린다 (`mise run seed`)",
   },
 };
 
@@ -169,7 +169,7 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
     //   캐논 커버리지는 0 인데 스위트는 실패를 보고하지 않았다.
     expect(
       href,
-      "완료된 백테스트 상세 링크를 찾지 못했다 — 캐논 감사가 볼 원장이 없다 (`make seed`)",
+      "완료된 백테스트 상세 링크를 찾지 못했다 — 캐논 감사가 볼 원장이 없다 (`mise run seed`)",
     ).toBeTruthy();
 
     // 상세가 있어도 체결이 0행이면 원장 표가 그려지지 않는다. 링크 존재만으로는 부족하다.

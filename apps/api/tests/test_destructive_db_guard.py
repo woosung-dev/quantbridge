@@ -218,7 +218,7 @@ def test_alembic_upgrade_against_the_same_dsn_is_not_refused() -> None:
     """⑷ 의 **판별력 검사** — 이 파일에서 가장 중요한 케이스다.
 
     같은 DSN, 같은 명령어 계열인데 방향만 다르다. 가드가 여기서도 발동하면 그것은
-    「파괴를 막는 가드」가 아니라 「alembic 을 막는 가드」다 — `make migrate` ·
+    「파괴를 막는 가드」가 아니라 「alembic 을 막는 가드」다 — `mise run migrate` ·
     docker entrypoint · `scripts/final-gates.sh` · `worktree-bootstrap.sh` 가 전부 죽는다.
 
     red 면 고장난 것: 가드가 방향을 안 보고 발동한다.
@@ -226,7 +226,7 @@ def test_alembic_upgrade_against_the_same_dsn_is_not_refused() -> None:
     result = _alembic("upgrade", "head", env=_env(DATABASE_URL=_DEV_DSN))
 
     assert _ALEMBIC_GUARD_MARKER not in result.stdout + result.stderr, (
-        "upgrade 가 파괴 가드에 막혔다 — make migrate · entrypoint · CI 가 함께 죽는다.\n"
+        "upgrade 가 파괴 가드에 막혔다 — mise run migrate · entrypoint · CI 가 함께 죽는다.\n"
         f"--- stderr ---\n{result.stderr[-2000:]}"
     )
 

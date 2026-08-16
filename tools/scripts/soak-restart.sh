@@ -366,7 +366,7 @@ if [ "${EXCLUSIVE}" != "YES" ]; then
   echo "⑴-b EXCLUSIVE=${EXCLUSIVE} — **여기서 멈춘다.** 다른 호스트가 같은 계정에 붙어 있다."
   printf '%s\n' "${STATUS_OUT}" | sed -n 's/^  FOREIGN /   남의 resting: /p'
   echo "   → 그 호스트를 먼저 세워라. 로컬 맥이면:"
-  echo "     ★make down 만으로는 부족하다 — is_active 로 남은 세션이 다음 make up 에 되살아난다."
+  echo "     ★mise run down 만으로는 부족하다 — is_active 로 남은 세션이 다음 mise run up 에 되살아난다."
   echo "     UPDATE trading.live_signal_sessions SET is_active=false, deactivated_at=now(),"
   echo "            deactivated_reason='user_stopped' WHERE is_active OR deactivated_at IS NULL;"
   echo "   → 그 뒤 남의 resting 조건부 주문을 거래소에서 취소하고 다시 돌려라."

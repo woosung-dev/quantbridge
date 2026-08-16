@@ -9,7 +9,7 @@
 #   ★**복원을 한 번 실제로 해 보기 전에는 백업이 있다고 말하지 않는다.**
 #
 # 왜 Makefile 의 db-snapshot 과 따로 있나
-#   `make db-snapshot`(Makefile:312) 은 **로컬 수동용**이고 그대로 둔다. 그것은
+#   `mise run db-snapshot`(Makefile:312) 은 **로컬 수동용**이고 그대로 둔다. 그것은
 #   `_guard-main-only` + `assert-main-checkout.sh` 를 타고 `docker compose` 로 붙으므로
 #   ⑴ 레포 체크아웃이 main 이어야 하고 ⑵ compose 파일 조합에 의존하며 ⑶ 원격 사본·보관
 #   정리·타이머가 없다. 서버에서 6시간마다 무인으로 도는 백업은 셋 다 반대를 요구한다 —

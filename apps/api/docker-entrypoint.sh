@@ -2,7 +2,7 @@
 # QuantBridge Backend — docker entrypoint (Sprint 30 ε B6).
 #
 # **Scope: prod / container 전용** (Cloud Run, docker-compose 안 backend service).
-# host 개발 (`make be` / `make be-isolated`) 은 본 entrypoint 를 거치지 않음 —
+# host 개발 (`mise run be` / `mise run be-isolated`) 은 본 entrypoint 를 거치지 않음 —
 # uvicorn 직접 실행. 따라서 host 개발 환경의 alembic 자동 적용은
 # 루트 `Makefile` 의 `migrate` / `migrate-isolated` 타깃이 책임 (Sprint 32 BL-168).
 #
@@ -24,9 +24,9 @@
 #   docker run --rm quantbridge-backend migrate    # alembic upgrade head 만 (지원 X — api 와 동일 lock 충돌 회피)
 #
 # host 개발 시:
-#   make migrate-isolated     # 격리 DB (5433) alembic upgrade head
-#   make migrate              # 기본 DB (5432) alembic upgrade head
-#   make dev-isolated         # up + migrate + be + fe (자동 통합)
+#   mise run migrate-isolated     # 격리 DB (5433) alembic upgrade head
+#   mise run migrate              # 기본 DB (5432) alembic upgrade head
+#   mise run dev-isolated         # up + migrate + be + fe (자동 통합)
 
 set -e
 

@@ -1,12 +1,12 @@
 # 워크트리 병렬 작업 — 무엇이 되고 무엇이 안 되는가
 
 > 정본. 2026-07-29 실측 기준. 코드와 어긋나면 코드가 맞다.
-> 도구: `.worktreeinclude` · `tools/scripts/worktree-bootstrap.sh` · `Makefile` 의 `QB_SLOT` / `qb-guard`.
+> 도구: `.worktreeinclude` · `tools/scripts/worktree-bootstrap.sh` · `mise.toml` 의 슬롯 파생 · `tools/scripts/assert-main-checkout.sh`.
 >
 > ★**tombstone (2026-08-13, [ADR-030](../../decisions/030-harness-pilot-verdict.md)).** herdr 함대 축
 > (`tools/scripts/herdr-fleet.sh` · `tools/scripts/fleet-dispatch.sh` · `workflows/fleet-orchestration.md`)을
 > 제거했다 — 조종 장치 회수. 원문 = `git show c3a39d0d:<경로>`. **워크트리·슬롯 축은 그대로다** —
-> 부트스트랩과 `QB_SLOT` 은 `make up-isolated` 계열이 의존하므로 이 문서의 나머지는 전부 유효하다.
+> 부트스트랩과 `QB_SLOT` 은 `mise run up-isolated` 계열이 의존하므로 이 문서의 나머지는 전부 유효하다.
 
 ---
 
@@ -21,7 +21,7 @@
 | 앱 구동 (`be-isolated` / `fe-isolated`) · 브라우저 확인   | 12                      | 포트 (슬롯이 자동)                                 |
 | Playwright E2E                                            | 12                      | 포트 + `PLAYWRIGHT_BASE_URL` **명시 필수**         |
 | **celery 경유 검증** (백테스트 · 라이브신호 · 옵티마이저) | **1 (메인 체크아웃만)** | 해결 불가 — §3                                     |
-| `make up` / `seed` / `migrate` 계열                       | **1 (메인 체크아웃만)** | Makefile 가드가 거부 — §2.1                        |
+| `mise run up` / `seed` / `migrate` 계열                   | **1 (메인 체크아웃만)** | 가드가 거부 — §2.1                                 |
 
 핵심: **격리가 필요한 건 검증 단계뿐이다.** 코드를 쓰고 정적 검사를 돌리는 데까지는 워크트리만 있으면 된다.
 
@@ -33,7 +33,7 @@ CONTROL 칸이 없어져** celery 검증·게이트·머지를 할 자리가 화
 
 ## 2. 스택은 1벌을 공유한다
 
-컨테이너는 **메인 체크아웃에서만** 띄운다. 워크트리에서 `make up-isolated` 를 하면 안 된다.
+컨테이너는 **메인 체크아웃에서만** 띄운다. 워크트리에서 `mise run up-isolated` 를 하면 안 된다.
 
 이유는 `docker-compose.yml` 이 `container_name: quantbridge-db` 처럼 이름을 **고정**하기 때문이다.
 `COMPOSE_PROJECT_NAME` 을 바꿔도 `container_name` 은 전역 고정값이라 두 번째 스택은 이름 충돌로 뜨지 않는다.
@@ -49,51 +49,60 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 ```
 
 앱 DB 를 공유하는 이유는 마이그레이션·시드·OHLCV 재수집 비용이 크기 때문이다.
-따라서 워크트리에서 **`alembic upgrade` 와 `make seed` 를 돌리면 안 된다.**
+따라서 워크트리에서 **`alembic upgrade` 와 `mise run seed` 를 돌리면 안 된다.**
 
 ### 2.1 그건 이제 부탁이 아니라 가드다
 
 위 문장들은 2026-07-28 시점엔 **문서에만** 있었다. 사람은 읽지만 에이전트는 읽지 않고 실행한다.
-그래서 `Makefile` 의 `_guard-main-only` 가 **워크트리에서** 아래 타깃을 거부한다.
-**종료 코드는 2 다** — 가드 셸 조각은 `exit 1` 이지만 `make` 가 레시피 실패를 2 로 감싼다.
-수용 기준에 "exit 1" 이라고 쓰면 실측과 어긋난다(실제로 한 번 어긋났다).
+그래서 `tools/scripts/assert-main-checkout.sh` 가 **워크트리에서** 아래 task 를 거부한다.
 
-### 가드가 지금의 모양이 된 이유 — make 안의 가드는 make 가 끈다
+★**2026-08-16 [ADR-036] 로 러너가 make → mise 로 바뀌면서 종료 코드가 달라졌다.**
+종전에는 **2** 였다(가드는 `exit 1` 인데 `make` 가 레시피 실패를 2 로 감쌌다). mise 는 감싸지
+않으므로 이제 **1** 이다. 수용 기준에 숫자를 적을 때 이걸 보고 적어라 — 종전에 이 숫자로 한 번
+어긋난 적이 있다.
+
+### 가드가 지금의 모양이 된 이유 — 러너 안의 가드는 러너가 끈다
 
 세 번 뚫렸고, 세 번째에 설계를 바꿨다. 뚫린 기록을 남기는 이유는 **되돌리지 말라**는 뜻이다.
+아래는 make 시절의 기록이다. 러너는 2026-08-16 에 mise 로 바뀌었지만 **교훈은 그대로 유효하다** —
+바뀐 것은 구멍의 이름뿐이고, 처방(판정을 러너 밖으로 + 페이로드와 같은 셸에 묶기)은 동일하다.
 
-| 뚫은 방법                       | 왜 통했나                                                                              |
+| 뚫은 방법 (make 시절)           | 왜 통했나                                                                              |
 | ------------------------------- | -------------------------------------------------------------------------------------- |
 | `make QB_SLOT=0 seed`           | 판정을 슬롯 변수로 했다. make 는 명령행 변수를 `-include` 파일보다 **우선**한다        |
 | `make -o _guard-main-only seed` | 가드가 **선행 타깃**뿐이었다. `-o` 는 선행을 "이미 최신" 으로 만든다                   |
 | `make -i seed` · `MAKEFLAGS=-i` | 가드와 페이로드가 **다른 레시피 줄**이었다. `-i` 는 실패를 무시하고 **다음 줄**로 간다 |
 | `make 'qb-guard=@:' seed`       | 가드가 `$(qb-guard)` **make 변수 참조**였다. 빈 명령으로 덮인다                        |
 
+**mise 로 옮긴 뒤의 구멍은 이렇게 측정됐다 (2026-08-16):**
+
+| 벡터                          | 실측                                                                           |
+| ----------------------------- | ------------------------------------------------------------------------------ |
+| `mise run --skip-deps <task>` | ★**`depends` 가드를 건너뛴다.** 그래서 이 레포는 가드를 depends 에 두지 않는다 |
+| `MISE_TASK_SKIP_DEPENDS=1`    | 위와 같은 스위치가 **환경변수로도** 있다 — make 의 `-o` 보다 넓다              |
+| `depends` 실행 순서           | ★**병렬이다.** 0.3초 걸리는 dep 보다 빠른 dep 이 먼저 끝난다                   |
+| `run` 블록 중간의 `exit 1`    | ✓ **뒤가 안 돈다** — 블록 전체가 한 셸 스크립트다(`make -i` 구멍 없음)         |
+| `QB_SLOT=0 mise run seed`     | ✓ 막힌다 — 판정은 슬롯이 아니라 **git** 이 한다                                |
+
 그래서 지금은 이렇다:
 
-1. **판정을 make 밖으로** — [`tools/scripts/assert-main-checkout.sh`](../../../tools/scripts/assert-main-checkout.sh).
-   덮어쓸 make 변수가 없다. 판정 근거는 git 이다(워크트리에서만 `--absolute-git-dir` 과
+1. **판정을 러너 밖으로** — [`tools/scripts/assert-main-checkout.sh`](../../../tools/scripts/assert-main-checkout.sh).
+   덮어쓸 러너 변수가 없다. 판정 근거는 git 이다(워크트리에서만 `--absolute-git-dir` 과
    `--git-common-dir` 이 갈린다). 슬롯 번호로 판정하지 않는다.
-2. **호출을 페이로드와 같은 셸 명령에 묶는다** — `@tools/scripts/assert-main-checkout.sh <타깃> || exit 1; \`
-   뒤에 페이로드가 이어진다. `-i` 가 make 의 종료 코드를 무시해도 **셸은 이미 죽었다.**
-3. 레시피 텍스트에 `$(...)` 를 쓰지 않는다 — 변수 참조가 없으면 덮어쓸 것도 없다.
-4. `_guard-main-only` 선행은 **남겨둔다.** 보증이 아니라 조기 실패용이다(선행 `metrics-wipe` 의
-   부작용보다 먼저 죽는다). 진짜 보증은 2번이다. `metrics-wipe` 자체도 같은 assert 를 부른다 —
-   `make -j` 는 선행을 병렬로 시작하므로 순서에 기댈 수 없다.
+2. **호출을 페이로드와 같은 셸에 묶는다** — 각 task 의 `run` **첫 줄**이
+   `tools/scripts/assert-main-checkout.sh <task> || exit 1` 이고 페이로드가 그 아래 이어진다.
+   mise 의 `run` 블록은 한 셸 스크립트라 여기서 죽으면 아래는 실행되지 않는다(실측).
+3. ★**`depends` 에 가드를 걸지 않는다.** make 시절엔 선행 타깃을 "조기 실패용" 으로 남겼는데,
+   mise 에서는 그 자리가 **오히려 위험**하다 — depends 는 병렬이라 순서를 보장하지 않고
+   `--skip-deps`/`MISE_TASK_SKIP_DEPENDS` 로 통째로 꺼진다. 대신 **인라인 순차 호출**로
+   순서를 코드에 못 박았다(`migrate-isolated` 는 가드 → `wait-db-isolated` → alembic 순).
+4. `metrics-wipe` 는 자기 스크립트 안에서도 같은 가드를 부른다 — 단독 호출이 가능하기 때문이다.
 
-실측 — 우회 시도 **16가지 전부 차단**: `-i` · `MAKEFLAGS=-i` · `--ignore-errors` · `-k -i` ·
-`'qb-guard=@:'` · `QB_SLOT=0`(명령행/`-e`/환경) · `-o _guard-main-only` · `-B` · `--always-make` ·
-`-j4` · 그리고 이들의 조합. 슬롯 0(메인)에서는 `make -n` 출력이 머지된 Makefile 과 **차이 0**.
-
-> 이 표가 말하는 것은 "이제 안전하다" 가 아니라 **"make 기능으로 가드를 표현하지 마라"** 다.
-> 새 타깃을 추가할 때도 `@tools/scripts/assert-main-checkout.sh <타깃> || exit 1; \` 로 시작해라.
-
-**선행 타깃이 필요한 이유** — 레시피에만 두면 선행이 이미 돌아간 뒤에 발동한다. 실측에서
-`up-isolated` 의 선행 `metrics-wipe` 가 **가드보다 먼저** 돌았고, 그게 워크트리에서
-`docker compose ps` 로 writer 를 세는데 **디렉터리 이름에서 유도된 다른 compose 프로젝트**를 보는
-바람에 0개로 세어(실측: 워크트리 0 / 메인 4 / 실제 구동 4) fail-closed 분기를 건너뛰고 삭제 분기로 갔다.
-`migrate-isolated` 은 선행 `wait-db-isolated` 가 DB 를 30초 폴링한 뒤에야 가드가 떠서, 스택이 내려가
-있으면 "DB 가 죽었다" 로 오진하게 만들었다.
+**왜 순서가 중요한가** — 실측에서 `up-isolated` 의 선행 `metrics-wipe` 가 **가드보다 먼저** 돌았고,
+그게 워크트리에서 `docker compose ps` 로 writer 를 세는데 **디렉터리 이름에서 유도된 다른 compose
+프로젝트**를 보는 바람에 0개로 세어(실측: 워크트리 0 / 메인 4 / 실제 구동 4) fail-closed 분기를
+건너뛰고 삭제 분기로 갔다. `migrate-isolated` 은 선행 `wait-db-isolated` 가 DB 를 30초 폴링한
+뒤에야 가드가 떠서, 스택이 내려가 있으면 "DB 가 죽었다" 로 오진하게 만들었다.
 
 | 거부되는 타깃                                                                               | 안 막으면                                                                 |
 | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -119,7 +128,7 @@ celery    broker/result 0,1,2     Redis lock DB  3 + N
 그 분기가 거짓이 되어 **`TEST_REDIS_LOCK_URL` 은 무시된다.** 그래서 부트스트랩은 `.env.local` 의
 **두 키를 모두** `6380/{3+N}` 으로 쓴다.
 
-앱 서버 쪽은 `make be-isolated` 가 `REDIS_LOCK_URL=redis://localhost:6380/3` 을 inline 으로 덮으므로
+앱 서버 쪽은 `mise run be-isolated` 가 `REDIS_LOCK_URL=redis://localhost:6380/3` 을 inline 으로 덮으므로
 **런타임 락은 슬롯과 무관하게 공유**된다. 앱 DB 를 공유하는 이상 런타임 락도 공유하는 것이 맞다.
 갈라지는 건 pytest 안의 락뿐이다.
 
@@ -273,7 +282,7 @@ cd .claude/worktrees/<이름>
 ```
 
 **재실행은 안전하다.** 이미 슬롯이 있으면 그 번호를 유지한다 — 재실행이 슬롯을 바꾸면
-이미 떠 있는 서버는 옛 포트에 남고 env·테스트 DB·Makefile 만 새 번호로 갈아타서,
+이미 떠 있는 서버는 옛 포트에 남고 env·테스트 DB·`.worktree-slot` 만 새 번호로 갈아타서,
 이후 테스트와 E2E 가 서로 다른 인스턴스를 보게 된다.
 
 `--slot N` 으로 **다른 워크트리가 쥔 번호를 지정하면 거부한다.** 그쪽이 서버를 안 띄워
@@ -302,8 +311,8 @@ glob 패턴은 다루지 않고 시끄럽게 건너뛴다.
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest
 
 # 서버 — 포트는 .worktree-slot 이 결정한다
-make be-isolated                     # 8100 + N (마이그레이션 선행은 슬롯≠0 이면 자동으로 빠진다)
-make fe-isolated                     # 3100 + N
+mise run be-isolated                     # 8100 + N (마이그레이션 선행은 슬롯≠0 이면 자동으로 빠진다)
+mise run fe-isolated                     # 3100 + N
 
 # E2E — 이 변수 없으면 3000 의 남의 앱을 검사한다 (실제 거짓 그린 사고 이력)
 PLAYWRIGHT_BASE_URL=http://localhost:310N pnpm e2e
@@ -336,7 +345,7 @@ docker exec quantbridge-db psql -U quantbridge -d postgres -c 'DROP DATABASE qua
 | ----------------------------- | ----------------------------------------------------------------------------------------------------- |
 | `apps/api/.env.local`         | uvicorn·pytest 가 5432 로 붙어 격리 스택을 못 찾는다                                                  |
 | `apps/web/.env.local`         | `BETTER_AUTH_*` 부재로 dev 서버가 부팅 중 죽고, `E2E_AUTH_*` 부재로 `e2e:authed` 전멸 (ADR-034)       |
-| `.env`                        | `make up-isolated` 가 POSTGRES\_\* 를 못 읽는다                                                       |
+| `.env`                        | `mise run up-isolated` 가 POSTGRES\_\* 를 못 읽는다                                                   |
 | `.claude/settings.local.json` | 워크트리 세션에서 권한 프롬프트가 폭증한다                                                            |
 | `/pnpm-lock.yaml`             | 루트 `pnpm install` 이 lockfile 없이 돌아, **pre-commit 훅이 `lint-staged` 를 못 찾고 조용히 죽는다** |
 

@@ -296,7 +296,7 @@ ok "TEST_DATABASE_URL → $TEST_DB"
 #    `if not os.environ.get("REDIS_LOCK_URL")` 일 때만 TEST_ 값을 본다. `.env.local` 에는
 #    `REDIS_LOCK_URL` 이 이미 있으므로, 의무인 `set -a; . ./.env.local` 소싱을 거치면
 #    그 분기가 거짓이 되어 모든 워크트리가 lock DB 3 을 계속 공유한다.
-#    그래서 둘 다 쓴다. 앱 서버 쪽은 `make be-isolated` 가 inline 으로 3 을 덮으므로
+#    그래서 둘 다 쓴다. 앱 서버 쪽은 `mise run be-isolated` 가 inline 으로 3 을 덮으므로
 #    런타임 락은 공유 그대로다 — 앱 DB 를 공유하니 런타임 락도 공유하는 것이 맞다.
 set_env_var TEST_REDIS_LOCK_URL "$TEST_LOCK_URL" apps/api/.env.local
 set_env_var REDIS_LOCK_URL "$TEST_LOCK_URL" apps/api/.env.local
@@ -322,7 +322,7 @@ elif ! docker exec quantbridge-db pg_isready -U quantbridge -d quantbridge >/dev
   # 여기서 경고만 하고 성공 종료하면 안 된다. 슬롯 테스트 DB 없이 "준비 완료" 를 찍으면
   # 호출자(사람이든 자동화든)는 부트스트랩이 끝난 줄 알지만 pytest 는 즉시 실패한다.
   die "quantbridge-db 컨테이너가 안 떠 있어 슬롯 테스트 DB 를 만들 수 없다.
-    메인 체크아웃에서 'make up-isolated' 를 먼저 실행하고 이 스크립트를 다시 돌려라.
+    메인 체크아웃에서 'mise run up-isolated' 를 먼저 실행하고 이 스크립트를 다시 돌려라.
     (DB 가 필요 없는 문서·계획 전용 워크트리라면 --skip-db)"
 else
   EXISTS="$(docker exec quantbridge-db psql -U quantbridge -d postgres -tAc \
@@ -367,15 +367,15 @@ cat <<EOF
 
   BE 테스트   cd apps/api && set -a; . ./.env.local; set +a; uv run pytest
               (env 소싱 필수 — AGENTS.md §BE pytest. 안 하면 5432 로 붙는다)
-  BE 서버     make be-isolated      → http://localhost:$BE_PORT
+  BE 서버     mise run be-isolated      → http://localhost:$BE_PORT
               (슬롯 ≠ 0 이면 migrate-isolated 선행이 자동으로 빠진다 — QB_MIGRATE_DONE 불필요)
-  FE 서버     make fe-isolated      → http://localhost:$FE_PORT
+  FE 서버     mise run fe-isolated      → http://localhost:$FE_PORT
   E2E         PLAYWRIGHT_BASE_URL=http://localhost:$FE_PORT pnpm e2e
               (이 변수 없으면 3000 의 남의 앱을 검사한다 — 실제 사고 이력 있음)
 
 이 워크트리에서 막혀 있는 것 (Makefile 가드가 거부한다 — make 종료 코드 2):
-  ✗ make up / down / up-isolated / down-isolated  → container_name 고정. 스택은 메인에서만.
-  ✗ make migrate / migrate-isolated / seed        → 앱 DB 는 공유다. 다른 워크트리가 깨진다.
+  ✗ mise run up / down / up-isolated / down-isolated  → container_name 고정. 스택은 메인에서만.
+  ✗ mise run migrate / migrate-isolated / seed        → 앱 DB 는 공유다. 다른 워크트리가 깨진다.
 
 막을 수 없는 것 — 스스로 지켜야 한다:
   ✗ celery 경유 검증(백테스트·라이브신호·옵티마이저)

@@ -7,7 +7,12 @@ from pathlib import Path
 import yaml
 
 _ROOT = Path(__file__).parents[4]
-_MAKEFILE = _ROOT / "Makefile"
+# ★2026-08-16 [ADR-036] — 종전 `Makefile` 자리다. 기동 명령은 `mise.toml` task 로,
+#   metrics wipe 의 fail-closed 판정은 `tools/scripts/metrics-wipe.sh` 로 옮겼다.
+#   불변식(전체 스택 기동만 wipe · 부분 watch 재기동은 wipe 금지 · ps 오류는 안전측 skip)은
+#   그대로다 — 아래 두 테스트는 **대상만** 바꿔 같은 것을 잰다.
+_MISE_TOML = _ROOT / "mise.toml"
+_WIPE_SH = _ROOT / "tools" / "scripts" / "metrics-wipe.sh"
 _SERVICES = (
     "backend-worker",
     "backend-ws-stream",
@@ -58,36 +63,49 @@ def test_worker_roles_and_metrics_directory_are_wired() -> None:
     assert len(roles) == len(set(roles))
 
 
-def test_makefile_wipes_metrics_only_for_full_stack_starts() -> None:
-    """U8: 부분 watch 재기동은 살아 있는 mmap writer 파일을 지우지 않는다."""
-    rules = {
-        line.partition(":")[0]: line.partition(":")[2].split()
-        for line in _MAKEFILE.read_text().splitlines()
-        if line.startswith(("up:", "up-isolated:", "up-isolated-build:", "up-isolated-watch:"))
-        and ":=" not in line
-    }
+def _task_body(name: str) -> str:
+    """`mise.toml` 의 `[tasks.<name>]` 블록 본문을 돌려준다.
 
-    assert all(
-        "metrics-wipe" in rules[target] for target in ("up", "up-isolated", "up-isolated-build")
-    )
-    assert "metrics-wipe" not in rules["up-isolated-watch"]
-    assert "metrics-prepare" in rules["up-isolated-watch"]
+    ★섹션 헤더로 자르는 이유 — task 는 순서가 보장되지 않으므로 "다음 `[` 까지" 로만 자른다.
+    블록을 못 찾으면 **빈 문자열이 아니라 예외**다. 빈 문자열을 돌려주면 아래 `not in` 단언이
+    전부 참이 되어 검사기가 무증거가 된다(이 레포가 반복해서 밟은 모양이다).
+    """
+    text = _MISE_TOML.read_text()
+    header = f"[tasks.{name}]"
+    start = text.index(header) + len(header)
+    nxt = text.find("\n[", start)
+    return text[start:] if nxt == -1 else text[start:nxt]
+
+
+def test_metrics_wipe_only_on_full_stack_starts() -> None:
+    """U8: 부분 watch 재기동은 살아 있는 mmap writer 파일을 지우지 않는다.
+
+    ★[ADR-036] 이후 대상이 Makefile 선행 타깃 → mise task 본문으로 바뀌었다. 재는 것은 같다.
+    """
+    for task in ("up", "up-isolated", "up-isolated-build"):
+        assert "metrics-wipe.sh" in _task_body(task), f"{task} 가 metrics wipe 를 안 부른다"
+
+    watch = _task_body("up-isolated-watch")
+    assert "metrics-wipe.sh" not in watch, "부분 재기동이 wipe 를 부르면 지표가 무음 손실된다"
+    assert "metrics-prepare" in watch
 
 
 def test_metrics_wipe_fails_closed_and_checks_only_metric_writers() -> None:
     """V5: ps 오류는 안전측 skip, writer 네 서비스만 wipe gate로 사용한다."""
-    makefile = _MAKEFILE.read_text()
-    recipe = makefile[makefile.index("metrics-wipe:") : makefile.index("# === 기본 모드")]
+    wipe = _WIPE_SH.read_text()
     services = next(
-        line.partition(":=")[2].split()
-        for line in makefile.splitlines()
-        if line.startswith("METRICS_WRITER_SERVICES :=")
+        line.partition("=")[2].strip().strip('"').split()
+        for line in wipe.splitlines()
+        if line.startswith("WRITERS=")
     )
 
     assert services == list(_SERVICES)
-    assert "ps -q $(METRICS_WRITER_SERVICES)" in recipe
-    assert "status=$$?" in recipe
-    assert "[ $$status -ne 0 ]" in recipe
-    assert "compose ps failed" in recipe
-    assert "metric writers running" in recipe
-    assert "no metric writers running" in recipe
+    assert "ps -q $WRITERS" in wipe
+    assert "status=$?" in wipe
+    assert '[ "$status" -ne 0 ]' in wipe
+    assert "compose ps failed" in wipe
+    assert "metric writers running" in wipe
+    assert "no metric writers running" in wipe
+    # ★가드가 wipe **안에도** 있어야 한다 — 이 스크립트는 단독 호출이 가능하고,
+    #   워크트리에서 `docker compose ps` 는 다른 프로젝트를 봐서 writer 를 0개로 센다.
+    assert "assert-main-checkout.sh" in wipe

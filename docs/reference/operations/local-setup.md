@@ -7,27 +7,40 @@
 
 ## 1. Prerequisites
 
-| 도구           | 버전  | 설치                                                     |
-| -------------- | ----- | -------------------------------------------------------- |
-| Python         | 3.12+ | `brew install python@3.12` 또는 `uv python install 3.12` |
-| uv             | 최신  | `curl -LsSf https://astral.sh/uv/install.sh \| sh`       |
-| Node           | 22+   | `brew install node` 또는 nvm                             |
-| pnpm           | 최신  | `npm install -g pnpm` 또는 `corepack enable`             |
-| Docker Desktop | 최신  | https://www.docker.com/products/docker-desktop           |
-| Git            | 최신  | `brew install git`                                       |
+★**버전의 SSOT 는 레포 루트 [`mise.toml`](../../../mise.toml) 하나다** ([ADR-036](../../decisions/036-tool-version-ssot-mise.md)).
+아래 표에 숫자를 다시 적지 않는 이유가 그것이다 — 값을 알고 싶으면 그 파일을 열거나 `mise ls` 를 쳐라.
+
+| 도구           | 버전          | 설치                                           |
+| -------------- | ------------- | ---------------------------------------------- |
+| mise           | 최신          | `brew install mise`                            |
+| Node           | ← `mise.toml` | `mise install`                                 |
+| Python         | ← `mise.toml` | `mise install`                                 |
+| pnpm           | ← `mise.toml` | `mise install`                                 |
+| uv             | ← `mise.toml` | `mise install`                                 |
+| Docker Desktop | 최신          | https://www.docker.com/products/docker-desktop |
+| Git            | 최신          | `brew install git`                             |
+
+셸에 붙이기 (한 번만):
+
+```bash
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc && exec zsh
+```
 
 확인:
 
 ```bash
-uv --version                              # uv가 python 3.12+ 자동 관리
-uv run --project backend python --version # 3.12+
-node --version                            # 22+
+mise ls                 # 도구 · 실제 버전 · 출처 config 를 한 표로 — 이것이 정본 확인법
+node --version
 pnpm --version
-docker --version
+uv --version
+uv run python --version
 docker compose version
 ```
 
-> **시스템 python 불필요.** `uv`가 프로젝트별 Python + 의존성 격리 관리. 아래 모든 Python 명령은 `uv run` prefix로 실행.
+> **시스템 python 불필요.** 위 4종은 mise 가 격리 설치하고, Python 의존성은 `uv` 가 관리한다.
+> ★`mise` 없이 `uv` 만 도는 환경도 `pyproject.toml` 의 `requires-python` **상한**이 3.12 로 묶는다 —
+> 상한이 없으면 uv 는 조건을 만족하는 **가장 높은** 것을 고른다(실측 2026-08-16: 3.13.12).
+> 아래 모든 Python 명령은 `uv run` prefix 로 실행한다.
 
 ---
 
@@ -101,7 +114,7 @@ cd ../..
 ## 3. 인프라 기동 (DB + Redis)
 
 ```bash
-make up   # = docker compose --project-directory . -f infra/compose/docker-compose.yml up -d
+mise run up   # = docker compose --project-directory . -f infra/compose/docker-compose.yml up -d
 
 # healthy 확인 (compose 를 직접 부를 땐 반드시 위 플래그 2종을 함께 — 프로젝트명·볼륨이 루트 파생이다, ADR-029)
 docker compose --project-directory . -f infra/compose/docker-compose.yml ps
@@ -123,18 +136,18 @@ cd apps/api
 uv sync
 
 # DB 마이그레이션 적용
-uv run alembic upgrade head        # 기본 모드 (5432) — 또는 root 에서 `make migrate`
+uv run alembic upgrade head        # 기본 모드 (5432) — 또는 root 에서 `mise run migrate`
 
 # API 서버 (개발)
 uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port 8000
 ```
 
-> **Sprint 32 BL-168 — `make dev-isolated` 자동 통합.** 격리 모드 사용 시
-> `make dev-isolated` 가 `up-isolated` → `migrate-isolated` → `be-isolated` (8100) +
-> `fe-isolated` (3100) 를 순서대로 실행한다. fresh `make down-isolated` 후에도
+> **Sprint 32 BL-168 — `mise run dev-isolated` 자동 통합.** 격리 모드 사용 시
+> `mise run dev-isolated` 가 `up-isolated` → `migrate-isolated` → `be-isolated` (8100) +
+> `fe-isolated` (3100) 를 순서대로 실행한다. fresh `mise run down-isolated` 후에도
 > alembic schema drift 없이 첫 부팅에 신규 컬럼이 반영됨 (예: `backtests.config`).
-> host uvicorn 은 `apps/api/docker-entrypoint.sh` 를 거치지 않으므로 root Makefile
-> 이 alembic 적용을 책임. `docker-entrypoint.sh` 의 advisory lock 은 prod / container
+> host uvicorn 은 `apps/api/docker-entrypoint.sh` 를 거치지 않으므로 루트 `mise.toml` 의
+> task 가 alembic 적용을 책임진다. `docker-entrypoint.sh` 의 advisory lock 은 prod / container
 > 전용 (Cloud Run multi-instance race 방어).
 
 별도 터미널에서 Celery worker:

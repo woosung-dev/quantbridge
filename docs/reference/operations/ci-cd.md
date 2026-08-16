@@ -11,7 +11,7 @@
 flowchart TB
     Trigger[PR → main / stage/**]
     Changes[changes\ndorny/paths-filter]
-    Doc[documentation\nmake docs-audit]
+    Doc[documentation\nmise run docs-audit]
     FE[frontend\nlint + tsc + test + build]
     BES[backend_static\nruff + mypy • DB 불요]
     BE[backend ×3 샤드\nalembic + pytest --cov]
@@ -54,15 +54,19 @@ flowchart TB
 
 ## 2. Frontend Job
 
-| 단계    | 명령                             | 목적              |
-| ------- | -------------------------------- | ----------------- |
-| Setup   | pnpm v9 + Node 20 + cache        | 의존성 캐시       |
-| Install | `pnpm install --frozen-lockfile` | 재현성 확보       |
-| Lint    | `pnpm lint`                      | ESLint + Prettier |
-| Type    | `pnpm tsc --noEmit`              | TypeScript Strict |
-| Test    | `pnpm test -- --run`             | vitest            |
+| 단계    | 명령                                | 목적               |
+| ------- | ----------------------------------- | ------------------ |
+| Setup   | `jdx/mise-action` + pnpm store 캐시 | 버전은 `mise.toml` |
+| Install | `pnpm install --frozen-lockfile`    | 재현성 확보        |
+| Lint    | `pnpm lint`                         | ESLint + Prettier  |
+| Type    | `pnpm tsc --noEmit`                 | TypeScript Strict  |
+| Test    | `pnpm test -- --run`                | vitest             |
 
-> CI Node 버전은 20, 로컬 권장은 22+. 향후 일치시킬지 검토 (Sprint 5+).
+> ~~CI Node 버전은 20, 로컬 권장은 22+. 향후 일치시킬지 검토 (Sprint 5+).~~
+> → **2026-08-16 일치시켰다** ([ADR-036](../../decisions/036-tool-version-ssot-mise.md)). CI·로컬·프로덕션
+> 이미지가 모두 루트 [`mise.toml`](../../../mise.toml) 의 `node = "22"` 를 따른다. 그전까지 3면 중
+> **CI 만 20** 이었고, node 20 은 2026-04-30 EOL 이었다. 워크플로에서 버전 숫자는 전부 사라졌다 —
+> 확인 = `grep -rE 'node-version:|python-version:' .github/workflows/` 가 0건.
 >
 > ★**로컬에서는 `pnpm test` 를 쓴다.** 위 `pnpm test -- --run` 은 `--` 구분자가 있어 CI 에서만 정상 동작한다. 로컬에서 `pnpm test --run` 으로 잘못 쓰면 인자 중복으로 죽으면서 **exit 0** 을 낸다. 게이트 전종과 함정은 [`gates-and-traps.md`](./gates-and-traps.md) 참조.
 
@@ -74,13 +78,13 @@ flowchart TB
 
 `backend_static` (DB 불요)
 
-| 단계    | 명령                                          | 목적                          |
-| ------- | --------------------------------------------- | ----------------------------- |
-| Setup   | `astral-sh/setup-uv@v3` (cache) + Python 3.12 | uv lock 캐시                  |
-| Install | `uv sync --all-extras --dev`                  | 의존성                        |
-| Lint    | `uv run ruff check .`                         | 린트                          |
-| Cache   | `actions/cache` → `apps/api/.mypy_cache`      | mypy cold 실측 32s → 캐시 hit |
-| Type    | `uv run mypy src/`                            | 타입                          |
+| 단계    | 명령                                     | 목적                          |
+| ------- | ---------------------------------------- | ----------------------------- |
+| Setup   | `jdx/mise-action` + `~/.cache/uv` 캐시   | 버전은 `mise.toml`            |
+| Install | `uv sync --all-extras --dev`             | 의존성                        |
+| Lint    | `uv run ruff check .`                    | 린트                          |
+| Cache   | `actions/cache` → `apps/api/.mypy_cache` | mypy cold 실측 32s → 캐시 hit |
+| Type    | `uv run mypy src/`                       | 타입                          |
 
 `backend` (matrix `shard: [a, b, c]` — 각 샤드가 자기 DB/Redis 서비스를 갖는다)
 
@@ -159,7 +163,9 @@ top-10 에 **아예 안 보였다.**
 > `Settings` 에서 compose 호스트 기본값을 갖는 필드를 뽑아 **모든** pytest 스텝 env 와 대조한다.
 > 로컬에서는 `.env.local` 이 전부 localhost 로 채워서 이 드리프트가 **구조적으로 안 보인다.**
 
-> CI Python 버전은 3.12, 로컬 권장은 3.11+. CLAUDE.md/regex `python>=3.11`에 부합.
+> ~~CI Python 버전은 3.12, 로컬 권장은 3.11+.~~ → **2026-08-16** ([ADR-036](../../decisions/036-tool-version-ssot-mise.md)):
+> CI·로컬이 모두 `mise.toml` 의 `python = "3.12"` 를 따른다. 「로컬 3.11+」는 이제 거짓이다 —
+> `pyproject.toml` 의 `requires-python` 이 `>=3.12,<3.13` 으로 **상한까지** 묶는다.
 
 ---
 
@@ -174,7 +180,7 @@ top-10 에 **아예 안 보였다.**
 
 ★**2026-08-06 에 구멍 3개를 막았다.**
 
-1. `documentation` 이 `needs` 에 **없었다** — `make docs-audit` 이 빨개도 `ci` 는 초록이었다.
+1. `documentation` 이 `needs` 에 **없었다** — `mise run docs-audit` 이 빨개도 `ci` 는 초록이었다.
 2. 판정이 `== "failure"` 였다 — `cancelled` 가 **통과로 읽혔다**. 이제 모르는 상태는 fail-closed.
 3. `changes` 가 `needs` 에 **없었다**(이 구멍은 2026-08-06 이전부터 있었다) — 경로 감지 잡이
    실패하면 그 의존 잡이 전부 `skipped` 가 되고, 위 2번 규칙이 skipped 를 통과로 인정하므로

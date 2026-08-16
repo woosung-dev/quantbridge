@@ -6,6 +6,12 @@
 # stash 없이 현재 staged/working tree 상태 그대로 검증
 set -e
 
+# ★도구 버전 SSOT = 루트 `mise.toml`. 아래 FE/BE 검사가 부르는 `pnpm`·`uv` 가 그 핀을 따르게
+#   shim 을 PATH 앞에 세운다 — 훅은 사용자 셸 PATH 를 상속하므로 mise 활성화 여부에 기대면
+#   push 게이트가 CI 와 다른 도구로 돈다. mise 미설치 시 없는 디렉터리는 무시되므로 무해하다.
+PATH="$HOME/.local/share/mise/shims:$PATH"
+export PATH
+
 # Sprint 33 (codex P1-1): main worktree push 차단 (자율 병렬 worker isolation 영구)
 # main worktree = git_dir == git_common_dir. worker worktree = 별 .git dir (linked).
 #

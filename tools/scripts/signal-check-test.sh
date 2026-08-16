@@ -389,7 +389,7 @@ run_suite() {
   #   생성자가 그 훼손 앵커에 맞춘 미끼 주석으로 이 케이스를 통과시킨 사고가 실제로 있었다 —
   #   2026-08-11 최소 재현 실측) ⑵ heredoc 본문의 따옴표·백틱에 $() 파서가 걸려 EOF 로 죽는다.
   #   평범한 명령 + 파일 리다이렉트는 make_mutant 가 증명하듯 둘 다 안전하다.
-  python3 - "$CHECK" "$GATES" "$ROOT/Makefile" >"$TMP/anchors.out" 2>&1 <<'PY'
+  python3 - "$CHECK" "$GATES" "$ROOT/mise.toml" >"$TMP/anchors.out" 2>&1 <<'PY'
 import re
 import sys
 

@@ -1,13 +1,13 @@
 # ADR-019 — BL-181 Docker worker auto-rebuild on src 변경 (Sprint 38)
 
-| 항목      | 값                                                            |
-| --------- | ------------------------------------------------------------- |
-| 일자      | 2026-05-06                                                    |
-| 스프린트  | 38                                                            |
-| 워커      | C (cmux 자율 병렬)                                            |
-| 결정자    | woo sung                                                      |
-| 상태      | Superseded — 현재 구현은 4 worker 서비스로 확대              |
-| 관련      | Sprint 35 BL-178, Sprint 37 BL-188a, Sprint 38 plan v3 §C     |
+| 항목     | 값                                                        |
+| -------- | --------------------------------------------------------- |
+| 일자     | 2026-05-06                                                |
+| 스프린트 | 38                                                        |
+| 워커     | C (cmux 자율 병렬)                                        |
+| 결정자   | woo sung                                                  |
+| 상태     | Superseded — 현재 구현은 4 worker 서비스로 확대           |
+| 관련     | Sprint 35 BL-178, Sprint 37 BL-188a, Sprint 38 plan v3 §C |
 
 > **현재 계약:** `backend-optimizer-heavy`까지 포함한 4 worker의 실제 구성은
 > [`worktree-parallel.md`](../reference/operations/worktree-parallel.md)와
@@ -17,7 +17,7 @@
 
 Sprint 35 BL-178 / Sprint 37 BL-188a 에서 Docker worker stale 재발 패턴 발견. PR merge → host 의 backend src 는 최신이지만, `quantbridge-worker` 컨테이너는 image build 시점 코드 그대로 → "왜 fix 가 적용 안 됐지" 사용자 hotfix 분량 +30 분/회.
 
-dogfood Day 1~7 에 worker 관련 부하가 늘면서 빈도 증가. 매 PR 마다 `make up-isolated-build` 을 강제하기엔 cycle time 영향 크다.
+dogfood Day 1~7 에 worker 관련 부하가 늘면서 빈도 증가. 매 PR 마다 `mise run up-isolated-build` 을 강제하기엔 cycle time 영향 크다.
 
 ## 결정
 
@@ -42,15 +42,15 @@ Sprint 24 BL-012 에서 `--pool=solo` 의 한계 (worker_process_shutdown signal
 
 ## container_name 충돌 — base + isolated 동시 운영 금지
 
-base mode (`make up`) + isolated mode (`make up-isolated`) 동시 운영 시 `quantbridge-worker` / `quantbridge-ws-stream` / `quantbridge-beat` / `quantbridge-db` / `quantbridge-redis` container_name 충돌 (base / isolated 가 동일 이름 고정).
+base mode (`mise run up`) + isolated mode (`mise run up-isolated`) 동시 운영 시 `quantbridge-worker` / `quantbridge-ws-stream` / `quantbridge-beat` / `quantbridge-db` / `quantbridge-redis` container_name 충돌 (base / isolated 가 동일 이름 고정).
 
-본 sprint scope = **isolated mode only auto-rebuild**. base mode 는 production 정합 (no bind-mount, image rebuild 의무) 그대로 유지. `make up` 과 `make up-isolated*` 은 mutually exclusive.
+본 sprint scope = **isolated mode only auto-rebuild**. base mode 는 production 정합 (no bind-mount, image rebuild 의무) 그대로 유지. `mise run up` 과 `mise run up-isolated*` 은 mutually exclusive.
 
-`docker ps` 로 base 컨테이너 잔존 확인 후 `make down` 으로 정리한 다음 `make up-isolated-watch` 진입할 것.
+`docker ps` 로 base 컨테이너 잔존 확인 후 `mise run down` 으로 정리한 다음 `mise run up-isolated-watch` 진입할 것.
 
 ## isolated.yml 자체가 watch 모드 — 의도된 디자인
 
-`docker-compose.isolated.yml` 안에 watchfiles override 와 bind-mount 를 직접 넣었으므로 `make up-isolated` / `make dev-isolated` 도 watchfiles 동작. 이는 의도. 본 sprint 의 디자인 결정은 "**isolated mode 전체가 auto-rebuild 한다**" — base mode 는 production 정합 그대로. `make up-isolated-watch` 는 단지 3 서비스만 build/up 하는 alias (DB/Redis 변경 X 시 빠른 부팅).
+`docker-compose.isolated.yml` 안에 watchfiles override 와 bind-mount 를 직접 넣었으므로 `mise run up-isolated` / `mise run dev-isolated` 도 watchfiles 동작. 이는 의도. 본 sprint 의 디자인 결정은 "**isolated mode 전체가 auto-rebuild 한다**" — base mode 는 production 정합 그대로. `mise run up-isolated-watch` 는 단지 3 서비스만 build/up 하는 alias (DB/Redis 변경 X 시 빠른 부팅).
 
 만약 향후 "watch opt-in" 을 위해 모드 분리가 필요하면 별도 override file (`docker-compose.watch.yml`) 로 빼고 `up-isolated-watch` 만 그것을 merge 하도록 변경 가능 (별도 ADR).
 
@@ -64,7 +64,7 @@ base mode (`make up`) + isolated mode (`make up-isolated`) 동시 운영 시 `qu
 ## 검증
 
 - `docker compose -f docker-compose.yml -f docker-compose.isolated.yml config` parse OK.
-- `make up-isolated-watch` 부팅 5 분 내 success (3 서비스 healthy / running).
+- `mise run up-isolated-watch` 부팅 5 분 내 success (3 서비스 healthy / running).
 - `bash scripts/sentinel_bl181_worker_reload.sh` exit 0 (marker 변경 → reload 감지).
 
 ## 한계

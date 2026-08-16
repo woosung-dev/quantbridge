@@ -15,7 +15,7 @@
 | `backend-worker` | `quant-bridge-backend-worker` (build `./apps/api`) | `quantbridge-worker` | —    | —                | —            |
 | `backend-beat`   | `quant-bridge-backend-beat` (build `./apps/api`)   | `quantbridge-beat`   | —    | —                | `beat-data`  |
 
-> Backend API (uvicorn)와 Frontend (Next.js dev)는 호스트에서 직접 실행 권장 — HMR/디버깅 편의. Worker/Beat는 Sprint 5 M4 T31에서 compose에 통합 완료 (단일 `make up`).
+> Backend API (uvicorn)와 Frontend (Next.js dev)는 호스트에서 직접 실행 권장 — HMR/디버깅 편의. Worker/Beat는 Sprint 5 M4 T31에서 compose에 통합 완료 (단일 `mise run up`).
 
 ---
 
@@ -23,7 +23,7 @@
 
 ```bash
 # ★레포 루트에서. compose 직접 호출은 플래그 2종이 필수다 — 프로젝트명·볼륨·컨텍스트가
-#   체크아웃 루트에서 파생돼야 기존 볼륨이 고아가 되지 않는다 (ADR-029). 정문은 make up/down/logs.
+#   체크아웃 루트에서 파생돼야 기존 볼륨이 고아가 되지 않는다 (ADR-029). 정문은 mise run up/down/logs.
 DC="docker compose --project-directory . -f infra/compose/docker-compose.yml"
 
 # 시작 (background)

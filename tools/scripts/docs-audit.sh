@@ -45,7 +45,7 @@ def text_files(start: Path):
             continue
         for filename in filenames:
             path = base / filename
-            if path.suffix in text_suffixes or path.name in {"Makefile", "Dockerfile"}:
+            if path.suffix in text_suffixes or path.name in {"mise.toml", "Dockerfile"}:
                 yield path
 
 
@@ -87,7 +87,7 @@ legacy_paths = {
 }
 legacy_hits: list[tuple[Path, str, str]] = []
 audit_script = root / "tools" / "scripts" / "docs-audit.sh"
-for start in (docs, root / "apps" / "api", root / "apps" / "web", root / "tools" / "scripts", root / "Makefile", root / "infra" / "compose" / "docker-compose.isolated.yml"):
+for start in (docs, root / "apps" / "api", root / "apps" / "web", root / "tools" / "scripts", root / "mise.toml", root / "infra" / "compose" / "docker-compose.isolated.yml"):
     if not start.exists():
         continue
     for path in text_files(start):

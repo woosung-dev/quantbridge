@@ -403,7 +403,7 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
 
 **증명하는 방법은 셋이고, 어느 것이든 된다:**
 
-1. 별도 하네스 `*-test.sh` (`make gate-harnesses` 가 부른다 · CI `documentation` 잡)
+1. 별도 하네스 `*-test.sh` (`mise run gate-harnesses` 가 부른다 · CI `documentation` 잡)
 2. **내장 self-check** — `bl-trigger-sweep.sh --selftest` 가 그 판본이다
 3. **판정 로직이 다른 층에 살면 그 층의 테스트** — `soak-gate.sh` 의 판정은
    `apps/api/scripts/soak_gate_predicate.py` 에 있고 **pytest 61건**이 덮는다

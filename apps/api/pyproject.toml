@@ -3,7 +3,11 @@ name = "quantbridge-backend"
 version = "0.0.1"
 description = "QuantBridge — Pine Script 전략 백테스트/자동매매 플랫폼 (Backend)"
 readme = "README.md"
-requires-python = ">=3.12"
+# ★상한은 장식이 아니다 — 버전 SSOT 는 루트 `mise.toml` 이고 종전의 `.python-version` 은
+# 그리로 옮기며 삭제했다. mise 없이 uv 만 도는 환경에서 상한이 없으면 uv 는 `>=3.12` 를
+# 만족하는 **가장 높은** 것을 고른다(실측 2026-08-16: 3.13.12). 그러면 venv·CI·Dockerfile
+# 셋이 3.12 인데 로컬만 조용히 3.13 으로 갈린다.
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.32.0",

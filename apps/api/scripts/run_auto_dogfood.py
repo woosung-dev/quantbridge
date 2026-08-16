@@ -18,7 +18,7 @@ Sprint 25 변경:
 사용법:
 ```bash
 # 격리 stack 가동 후
-make up-isolated
+mise run up-isolated
 
 # Auto dogfood 실행 (env 명시)
 TEST_DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5433/quantbridge \\
@@ -55,7 +55,11 @@ _TEST_PATH = "tests/integration/test_auto_dogfood.py"
 _SCENARIOS: list[dict[str, Any]] = [
     {"id": 1, "name": "strategy_with_webhook_secret_atomic", "covers": "Sprint 13 broken bug 회귀"},
     {"id": 2, "name": "backtest_engine_smoke", "covers": "v2_adapter 실 호출 (Sprint 25 BL-112)"},
-    {"id": 3, "name": "order_dispatch_snapshot", "covers": "OrderService.execute (Sprint 25 BL-113)"},
+    {
+        "id": 3,
+        "name": "order_dispatch_snapshot",
+        "covers": "OrderService.execute (Sprint 25 BL-113)",
+    },
     {"id": 4, "name": "snapshot_drift_rejected", "covers": "Sprint 23 G.2 P1 #1 split-brain"},
     {"id": 5, "name": "multi_account_dispatch", "covers": "Sprint 24a BL-011/012 multi-account"},
     {"id": 6, "name": "summary_parse_smoke", "covers": "본 스크립트 자체 검증"},

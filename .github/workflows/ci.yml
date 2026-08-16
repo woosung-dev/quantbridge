@@ -60,15 +60,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # ★이 잡은 종전에 setup 이 **없었다**(`make` 만 쓰면 됐다). 명령이 mise task 로 옮겼으니
+      #   여기도 mise 가 필요하다. task 는 `{{ }}` 템플릿을 안 쓰므로 `mise trust` 는 불필요하다
+      #   (템플릿이 하나라도 있으면 파일 전체가 신뢰 대상이 된다 — 2026-08-16 실측).
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
       - name: Check active documentation links and retired paths
-        run: make docs-audit
+        run: mise run docs-audit
       # ★[BL-307] 이 잡에 둔다 — `changes` 필터가 없어 **항상** 돈다.
       #   apps/web/backend 잡은 경로 게이팅이라, 신규 파일이 그 필터를 비껴가면 검사를 통째로
       #   건너뛴다. 「신규 파일 차단」이 목적인 게이트를 조건부 잡에 두면 목적이 사라진다.
       #   감사기는 로케일 판별력 자기검사에 실패하면 rc=3 으로 죽는다 — 러너 로케일이 어긋나도
       #   거짓 초록이 나오지 않는다.
       - name: Check Korean source file headers (BL-307)
-        run: make header-audit
+        run: mise run header-audit
       # ★게이트 하네스 전량 (2026-08-11). 이 잡에 두는 이유는 위 header-audit 과 같다 —
       #   `changes` 필터가 없어 **항상** 돈다. 종전에 CI 는 하네스를 **하나도** 돌지 않았고
       #   (7종 전부 CI=0), 게이트 본체만 돌면 레포가 깨끗해서 **판정 로직을 지워도 초록**이다.
@@ -77,7 +81,7 @@ jobs:
       #   맥 로컬 기준, 리눅스 러너 실측은 ~4초) · docker·네트워크 의존 0
       #   (mktemp 트리 + PATH 앞단 가짜).
       - name: Check gate harnesses have discriminating power
-        run: make gate-harnesses
+        run: mise run gate-harnesses
 
   # 시크릿 스캔 ([BL-757]). 이 레포는 거래소 API 키를 Fernet 으로 암호화해 저장하고
   # `TRADING_ENCRYPTION_KEYS` 를 env 로 받는다 — 한 번 히스토리에 들어간 키는 rotate 없이
@@ -192,14 +196,19 @@ jobs:
         working-directory: apps/web
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      # ★도구 버전은 루트 `mise.toml` 하나가 정한다 — 종전의 `node-version: 20` 과
+      #   `version: 9` 를 여기서 지웠다. CI 에 숫자를 남기면 로컬·프로덕션 이미지와 갈린다
+      #   (2026-08-16 실측: 로컬 22 · `apps/web/Dockerfile:15` 22 · **CI 만 20**, 그리고
+      #   node 20 은 2026-04-30 EOL 이었다).
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      # setup-node 의 `cache: pnpm` 이 사라졌으므로 pnpm store 를 직접 캐시한다.
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
         with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
       # LESSON-004 보조 방어선: `rules-of-hooks` override 만 차단.
       # set-state-in-effect 는 Next.js router (useSearchParams) / DOM subscription
@@ -234,12 +243,15 @@ jobs:
         working-directory: apps/api
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
+      # ★python·uv 버전은 루트 `mise.toml` 하나가 정한다 — 종전의 `python-version: "3.12"` 와
+      #   latest 를 깔던 `setup-uv` 를 여기서 지웠다(uv 는 레포 전체에 핀이 0건이었다).
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      # setup-uv 의 `enable-cache` 가 사라졌으므로 uv 패키지 캐시를 직접 잡는다.
+      - uses: actions/cache@v4
         with:
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
       - run: uv sync --all-extras --dev
       - run: uv run ruff check .
       # mypy 는 cold 캐시에서 실측 32s 였다. 캐시 키에 `uv.lock` 을 넣어 의존성이 바뀌면 무효화한다.
@@ -319,12 +331,13 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
+      # ★python·uv 버전은 루트 `mise.toml` 하나가 정한다 (위 backend_static job 주석 참조).
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      - uses: actions/cache@v4
         with:
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
       - run: uv sync --all-extras --dev
       # 마이그레이션 왕복 게이트. pytest 의 전제가 아니다 — `tests/conftest.py` 가
       # `SQLModel.metadata.drop_all` + `create_all` 로 스키마를 다시 세운다.
@@ -395,12 +408,13 @@ jobs:
         working-directory: apps/api
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@8d55fbecc275b1c35dbe060458839f8d30439ccf # v3
+      # ★python·uv 버전은 루트 `mise.toml` 하나가 정한다 (위 backend_static job 주석 참조).
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      - uses: actions/cache@v4
         with:
-          enable-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
+          restore-keys: uv-${{ runner.os }}-
       - run: uv sync --all-extras --dev
       - uses: actions/download-artifact@v4
         with:
@@ -458,14 +472,15 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+      # ★도구 버전은 루트 `mise.toml` 하나가 정한다 (위 frontend job 주석 참조).
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      - id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
         with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
+          restore-keys: pnpm-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
       # 브라우저 바이너리 캐시 — cold install 실측 25s. 키에 pnpm-lock 을 넣어 playwright
       # 버전이 바뀌면 무효화한다.
@@ -508,7 +523,7 @@ jobs:
 
   # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
   # ★2026-08-06 구멍 2개를 막았다.
-  #   ⑴ `documentation` 이 needs 에 **없었다** — `make docs-audit` 이 빨개도 `ci` 는 초록이었다.
+  #   ⑴ `documentation` 이 needs 에 **없었다** — `mise run docs-audit` 이 빨개도 `ci` 는 초록이었다.
   #      새로 쪼갠 `backend_static` / `backend_coverage` 도 마찬가지로 넣는다.
   #   ⑵ 판정이 `== "failure"` 였다 — `cancelled` 는 **통과로 읽혔다**. `success`/`skipped` 만
   #      통과로 인정하도록 뒤집는다(모르는 상태가 생겨도 fail-closed).

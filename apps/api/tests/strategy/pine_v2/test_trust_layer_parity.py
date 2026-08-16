@@ -515,8 +515,12 @@ def test_envelope_python_minor_matches_runtime() -> None:
 
     ★[BL-587] 이 이 채널의 부재로 생겼다 — `requires-python = ">=3.12"` 만 있고 핀이 없어
     워크트리 bootstrap 의 `uv sync` 가 3.13 을 집었고, CI(3.12)가 재현 못 하는 baseline 이
-    만들어졌다. 원인 차단은 `apps/api/.python-version`, 이 assert 는 **그 핀이 풀렸을 때의
-    탐지기**다. 둘 다 필요하다.
+    만들어졌다. 원인 차단은 **핀**, 이 assert 는 **그 핀이 풀렸을 때의 탐지기**다. 둘 다 필요하다.
+
+    ★2026-08-16 — 핀이 `apps/api/.python-version` 에서 루트 `mise.toml` 의 `[tools] python`
+    으로 옮겼다. mise 는 idiomatic 버전 파일을 기본으로 안 읽어(`idiomatic_version_file_enable_tools
+    = []`) 둘을 함께 두면 값이 갈렸을 때 mise 와 uv 가 서로 다른 python 을 조용히 고른다.
+    mise 없이 uv 만 도는 경로는 `pyproject.toml` 의 `requires-python` **상한**이 막는다.
     """
     import sys as _sys
 
@@ -524,7 +528,8 @@ def test_envelope_python_minor_matches_runtime() -> None:
     declared = json.loads(_BASELINE_METRICS.read_text()).get("tool_versions", {}).get("python")
     assert declared == runtime, (
         f"정답지는 python {declared} 에서, 지금 스위트는 python {runtime} 에서 돈다.\n"
-        f"  ★핀은 `apps/api/.python-version` 이다 — 풀렸는지 먼저 봐라.{_ENVELOPE_RED_MEANS}"
+        f"  ★핀은 루트 `mise.toml` 의 `[tools] python` 이다 — 풀렸는지 먼저 봐라.\n"
+        f"    (`mise ls` 로 지금 도는 값과 그 출처 config 를 함께 볼 수 있다.){_ENVELOPE_RED_MEANS}"
     )
 
 

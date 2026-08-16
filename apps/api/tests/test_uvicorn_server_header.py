@@ -36,7 +36,10 @@ _REPO = Path(__file__).resolve().parents[3]
 #   그쪽은 `better-auth-setup.md` 의 배포 절차가 책임진다.
 _LAUNCH_SITES = [
     _REPO / "apps/api/docker-entrypoint.sh",
-    _REPO / "Makefile",
+    # ★2026-08-16 [ADR-036] — 종전 `Makefile` 자리다. 개발 서버 기동은 `mise.toml` 의
+    #   `be` / `be-isolated` task 로 옮겼고, 두 곳 다 `--no-server-header` 를 유지한다.
+    #   기동 자리 수(파일 ≥5 · 호출 ≥6)는 이 교체로 변하지 않는다.
+    _REPO / "mise.toml",
     _REPO / "README.md",
     _REPO / "apps/api/README.md",
     _REPO / "docs/reference/operations/local-setup.md",
