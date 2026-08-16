@@ -283,7 +283,7 @@ run_gate "무조건 skip 래칫" "tools/scripts/skip-ratchet.sh" bash "$ROOT/too
 run_gate "무조건 skip 하네스" "tools/scripts/skip-ratchet.sh" bash "$ROOT/tools/scripts/skip-ratchet-test.sh"
 
 # ★문서 감사 — 죽은 링크 · retired path · **요약 줄 길이 상한**.
-#   CI 의 documentation 잡(`make docs-audit`)이 같은 것을 돌지만 그건 **PR 을 연 뒤**다.
+#   CI 의 documentation 잡(`mise run docs-audit`)이 같은 것을 돌지만 그건 **PR 을 연 뒤**다.
 #   줄 길이 회귀는 문서를 만지는 그 회차가 만들고 그 회차가 못 보므로, PR 전에 물게 한다
 #   (2026-08-02 context-budget-repair: INDEX.md 한 줄이 4,607자였고 아무 게이트도 안 물었다).
 run_gate "문서 감사" "docs/**" bash "$ROOT/tools/scripts/docs-audit.sh"

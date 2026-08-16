@@ -129,7 +129,7 @@ docs/reports/*.html
 .soak/
 
 # === DB 백업 (BL-451) ===
-# `make db-snapshot` 산출물. 개발 DB 덤프에는 암호화된 거래소 API 키가 들어 있다 —
+# `mise run db-snapshot` 산출물. 개발 DB 덤프에는 암호화된 거래소 API 키가 들어 있다 —
 # 절대 커밋하지 않는다.
 .backups/
 

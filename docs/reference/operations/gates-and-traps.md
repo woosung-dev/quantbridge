@@ -12,7 +12,7 @@
 QB=/Users/woosung/project/agy-project/quant-bridge
 
 # 인프라 (격리 포트)
-cd $QB && make up-isolated && make migrate-isolated
+cd $QB && mise run up-isolated && mise run migrate-isolated
 
 # BE — ruff / mypy / pytest
 cd $QB/apps/api && uv run ruff check .
@@ -20,7 +20,7 @@ cd $QB/apps/api && uv run mypy src/
 cd $QB/apps/api && set -a; source .env.local; set +a; uv run pytest -q
 
 # OpenAPI 계약 drift (2026-08-16 배선 — ADR-031)
-cd $QB && make openapi-check          # 커밋된 contracts/openapi/openapi.json 이 코드와 같은가
+cd $QB && mise run openapi-check          # 커밋된 contracts/openapi/openapi.json 이 코드와 같은가
 
 # FE — typecheck / vitest / eslint
 cd $QB/apps/web && pnpm typecheck
@@ -35,16 +35,16 @@ cd $QB/apps/web && pnpm e2e:design-canon
 cd $QB/apps/web && pnpm e2e:authed
 ```
 
-`make lint` / `make typecheck` / `make test` 는 위를 FE+BE 로 묶은 것이다. 단 **env 를 source 하지 않으므로** BE pytest 는 셸에 3-env 가 이미 있어야 한다.
+`mise run lint` / `mise run typecheck` / `mise run test` 는 위를 FE+BE 로 묶은 것이다. 단 **env 를 source 하지 않으므로** BE pytest 는 셸에 3-env 가 이미 있어야 한다.
 
-문서 구조·활성 Markdown 링크·폐기 경로는 루트에서 `make docs-audit`으로 검사한다.
+문서 구조·활성 Markdown 링크·폐기 경로는 루트에서 `mise run docs-audit`으로 검사한다.
 
 ### 게이트 3종 신규 (2026-08-11 ledger-truth)
 
 ```bash
 cd $QB && bash tools/scripts/skip-ratchet.sh    # 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)
-cd $QB && make docs-audit                 # ⓪ 표 정체성 축 포함 (아래)
-cd $QB && make gate-harnesses             # ★게이트 하네스 13종 전량 (2026-08-16 · db-backup·disk-guard 추가)
+cd $QB && mise run docs-audit                 # ⓪ 표 정체성 축 포함 (아래)
+cd $QB && mise run gate-harnesses             # ★게이트 하네스 13종 전량 (2026-08-16 · db-backup·disk-guard 추가)
 ```
 
 - **`skip-ratchet`** — `@pytest.mark.skip` 데코레이터 **와** 모듈 레벨 `pytestmark = pytest.mark.skip(...)`
@@ -71,7 +71,7 @@ cd $QB && make gate-harnesses             # ★게이트 하네스 13종 전량 
   `**트리거 판정:**` 줄이 **0건**이다~~ → **2026-08-11 [BL-703] 이 채웠다.** PARTIAL 전건이
   판정줄을 갖고 `docs-audit` 이 그 의무를 강제하므로, 이 축은 이제 **두 항을 다 쓴다**
   (착수 근거였던 「P0 1 + P1 4 가 올라온다」는 실측으로 반증됐다 — 올라온 것은 다른 5건이다).
-- **`make gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **13종**(2026-08-13
+- **`mise run gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **13종**(2026-08-13
   [ADR-030] 이 `fleet-dispatch-test` 를 함대 축과 함께 회수해 9→8, 2026-08-14 `final-gates-test`
   ([BL-721])와 `assert-main-checkout-test`([BL-722])가 8→10, 2026-08-15 `soak-stack-test`
   ([BL-735])가 10→11, 2026-08-16 [ADR-033] 의 `db-backup-test`·`disk-guard-test` 가 11→13).
@@ -80,8 +80,8 @@ cd $QB && make gate-harnesses             # ★게이트 하네스 13종 전량 
   (BL-569 가 `bl-audit` 에서, BL-601 이 구 `fleet-dispatch` 에서 겪은 그 모양). 종전에 그 회귀를
   잡는 유일한 자리가 **회차 끝 로컬 `final-gates.sh` 1회**였다 = 회귀를 **다음 회차 끝까지 못 본다.**
   ⇒ CI `documentation` 잡(경로 필터가 없어 **항상** 돈다)에 배선했다.
-  **판별력 실증** — ⓪ 축의 불일치 수집을 죽이면 `make docs-audit` 은 **rc=0**(회귀 불가시)인데
-  `make gate-harnesses` 는 **rc≠0** 으로 잡는다.
+  **판별력 실증** — ⓪ 축의 불일치 수집을 죽이면 `mise run docs-audit` 은 **rc=0**(회귀 불가시)인데
+  `mise run gate-harnesses` 는 **rc≠0** 으로 잡는다.
   ★**고아 하네스 2종을 같이 붙였다** — `soak-watch-test` · `pre-push-guard-test` 는 레포에
   **존재하고 초록인데 호출자가 0** 이었다. docker·네트워크 의존은 0 이다(`soak-restart-test` 는
   docker 를 언급하지만 로그+`exit 1` 스텁을 PATH 앞단에 깔고 돌려 **17/17 통과 · 스텁 호출 0회**로
@@ -249,7 +249,7 @@ MTBF 층화는 `apps/api/scripts/mtbf_stratified.py` 가 그 원장을 읽어 �
 여기서 볼 수 없는 것**이므로 그 줄을 「원장이 낡았다」로 읽지 마라. 호스트 축을 원장 스키마에
 넣는 것이 근본 수리다.
 
-★**고정본 스택이 떠 있으면 `make up-isolated` 계열이 거부된다** — 같은 `container_name` 을
+★**고정본 스택이 떠 있으면 `mise run up-isolated` 계열이 거부된다** — 같은 `container_name` 을
 덮어써 소크를 끊기 때문이다. 정말 덮어쓰려면 `QB_SOAK_OVERRIDE=1`.
 
 ### 소크 무인 감시 + 원터치 재기동
@@ -425,7 +425,7 @@ tools/scripts/soak-stack.sh migrate --confirm   # 집행 (★사용자 승인이
   `.husky/pre-commit`, `.husky/pre-push`). 노출되는 것은 **터미널에서 맨손으로 `pnpm`·`uv` 를 칠 때**뿐이다.
   ★**워크스페이스가 아니다** — 루트 `package.json` 은 husky 전용이고 `pnpm-workspace.yaml` 이 없다.
   FE 설치는 반드시 `cd apps/web` 에서 한다.
-- ★★**BE pytest 는 격리 포트(5433/6380)를 쓴다 — `make up` 으로 올린 기본 스택(5432/6379)에서는 안 돈다.**
+- ★★**BE pytest 는 격리 포트(5433/6380)를 쓴다 — `mise run up` 으로 올린 기본 스택(5432/6379)에서는 안 돈다.**
   `apps/api/.env.local` 의 `DATABASE_URL`·`TEST_DATABASE_URL`·`REDIS_URL` 이 전부 격리 포트를 가리킨다.
   기본 스택에서 돌리면 **`6 failed / 604 errors`** 가 나는데 실패의 정체는 `asyncio/base_events.py` 의
   `OSError`(연결 실패)이고, `test_migrations.py` 가 `sqlalchemy.exc.OperationalError` 로 먼저 눈에 띄어
@@ -442,9 +442,9 @@ tools/scripts/soak-stack.sh migrate --confirm   # 집행 (★사용자 승인이
   개별 export 금지. `DATABASE_URL` 만 있으면 `tests/test_migrations.py` 의 `downgrade(base)` 가 **개발 DB 를 향했다** — 실제로 주문 17행과 암호화된 API 키가 전소한 적이 있다.
   ★**2026-08-10 [BL-451] 이후 그 폴백은 사라졌다.** 판정 SSOT 는 `apps/api/tests/_db_guard.py` 이고 루트 `tests/conftest.py::pytest_configure` 가 **세션 최상단**에서 판정한다. `TEST_DATABASE_URL` 없이 `DATABASE_URL` 만 있으면 폴백이 아니라 **rc=3 으로 세션이 끝난다**. 그래도 3-env 를 함께 넣어라 — 가드는 「막는다」이지 「돌게 한다」가 아니다.
   ★**종전 문장 「`_assert_disposable_database` 가 막는다」는 절반만 참이었다.** 그 가드는 `tests/test_migrations.py` 파일 안에만 있었고, 같은 판정의 사본이 `tests/real_broker/conftest.py` 에 있었지만 그 파일은 **그 디렉터리를 수집할 때만** 로드됐다. 실측 — `DATABASE_URL`(개발 DB) 하나만 있는 셸에서 `pytest tests/trading/` 이 **rc=0 으로 1088건을 수집**했고, 그 경로의 세션 픽스처는 `SQLModel.metadata.drop_all` 을 돈다.
-- **수동 `alembic downgrade` 는 개발 DB 를 향했다.** ★2026-08-10 이후 `apps/api/alembic/env.py` 가 **downgrade 만** 골라 막는다(`upgrade` 는 통과 — 안 그러면 `make migrate`·entrypoint·CI 가 함께 죽는다). 정당한 롤백은 `alembic -x allow_destructive=1 downgrade <rev>`.
+- **수동 `alembic downgrade` 는 개발 DB 를 향했다.** ★2026-08-10 이후 `apps/api/alembic/env.py` 가 **downgrade 만** 골라 막는다(`upgrade` 는 통과 — 안 그러면 `mise run migrate`·entrypoint·CI 가 함께 죽는다). 정당한 롤백은 `alembic -x allow_destructive=1 downgrade <rev>`.
   ★**이 가드가 못 보는 표면이 하나 있다** — `command.downgrade(cfg, ...)` 처럼 파이썬에서 직접 부르면 `config.cmd_opts` 가 `None` 이라 방향을 알 수 없다. 그 표면은 pytest 쪽 가드가 덮는다.
-- ★**파괴적 작업 전에 찍어라 — `make db-snapshot`.** `.backups/<db>-<ts>.dump` 로 나온다(gitignore). 복원은 `make db-restore FILE=… TO=<대상 DB>` 이고 **`TO` 에 기본값이 없다** — 기본값을 개발 DB 로 두는 편의가 곧 이 항목이 막으려는 사고다. 2026-08-10 실측: 덤프 2.15MB → 임시 DB 복원에서 orders 823 · 암호화 API 키 2/2 가 왕복했다.
+- ★**파괴적 작업 전에 찍어라 — `mise run db-snapshot`.** `.backups/<db>-<ts>.dump` 로 나온다(gitignore). 복원은 `mise run db-restore FILE=… TO=<대상 DB>` 이고 **`TO` 에 기본값이 없다** — 기본값을 개발 DB 로 두는 편의가 곧 이 항목이 막으려는 사고다. 2026-08-10 실측: 덤프 2.15MB → 임시 DB 복원에서 orders 823 · 암호화 API 키 2/2 가 왕복했다.
 - **`test_migrations.py` 가 `DuplicateColumn` 으로 실패하면 대개 코드 결함이 아니다.** conftest 의 `SQLModel.metadata.create_all` 이 신규 컬럼을 이미 만들어둔 상태에서 `alembic_version` 만 stale 인 경우다. `downgrade base → upgrade head` 로 재구축하면 풀린다.
 - compose 는 항상 두 파일을 겹쳐 쓴다. worker 만 재시작할 때는 **`--no-deps`** 를 붙여라.
   ```bash
@@ -455,7 +455,7 @@ tools/scripts/soak-stack.sh migrate --confirm   # 집행 (★사용자 승인이
   ★★**변이 스크립트만의 문제가 아니다. 평범한 여러-단계 편집도 같은 함정이다.** 호출부를 먼저 넣고 헬퍼를 나중에 정의하는 순간, 그 **사이**에 watchfiles 가 중간 상태를 물어 `NameError` 로 평가가 죽고 세션이 fail-closed 비활성화된다. 2026-07-27 실측 — 활성 라이브 세션이 `live_signal_run_live_crash / NameError: name '_pending_fills_blocked_by_session' is not defined` 로 종료됐다(포지션·미체결은 0이라 피해는 없었다). **라이브 경로 모듈(`event_loop.py` / `strategy_state.py` / `tasks/live_signal.py`)을 편집할 때는 활성 세션이 없는지 먼저 확인하거나 beat 를 멈춰라.** 편집이 원자적일 거라고 가정하지 마라.
 - ★**`codex exec -s workspace-write` 의 쓰기 루트 = 호출 시점 cwd.** 다른 디렉터리에서 부르면 대상 밖 파일 패치가 권한 거부되고 **0건 변경**으로 조용히 끝난다. 호출 전에 `pwd` 로 리포 루트를 확인해라. 그리고 `codex exec` 는 10분을 넘길 수 있어 Bash 상한(600000ms)에 걸리는데, **그때도 파일은 이미 쓰여 있을 수 있다** — 죽었다고 재실행하기 전에 `git status` 부터 봐라.
 - ★**codex 샌드박스는 격리 Postgres(5433)에 못 붙는다.** 실DB 테스트가 `PermissionError` 로 `errors` 에 잡힌다. **메인 세션이 다시 돌려야 진짜 결과가 나온다**(실측: codex "7 errors" → 메인에서 282 passed). 그리고 **codex 자기보고를 재검증해라** — "gates-and-traps 에 승격했다" 고 보고했지만 파일이 미변경인 사례가 있었다.
-- ★★★**`make up` / `make up-isolated` 는 세션을 만들지 않지만 `is_active` 로 남아 있던 세션을 되살린다.** 그리고 그 부활한 세션은 소크와 **같은 Bybit demo 계정**에 붙는다. 2026-08-07 실측 — 로컬 세션 `fcf1dcbe`(08:52 생성)가 13:52 의 `make up` 으로 부활해 16:44 까지 발주했고, 서버 소크 세션 `39484a2c` 를 `position_divergence` 로 죽였다. ★★**그런데 `is_active` 를 끄는 것만으로는 부족하다** — 이미 **체결된 포지션**은 그대로 남는다. 2026-08-08 재부검 실측: 로컬은 `make up` **전인** 07:42·07:50·08:10·08:51·09:03 에 이미 체결했고, 로컬 워커가 멈춰 있던 09:23~13:53 구간에도 서버가 09:35·09:36·09:37 에 `category=exchange_only engine_position=0.0 exchange_position=0.029` 를 관측했다 — 그 0.029 는 로컬 `541c6ee1`(09:03:53 buy 0.029)의 포지션이다. **호스트를 세워도 포지션은 계정에 남아 계속 발산을 만든다.** ⇒ **로컬 스택을 켜야 하면 ⑴ 켜기 전에 `live_signal_sessions` 의 `is_active` 를 끄고 ⑵ 거래소가 실제로 flat 인지(`FLAT=YES` **AND** resting 조건부 0) 확인해라.** 판정 도구 = `apps/api/scripts/live_session_admin.py status` 의 `FLAT=` · `RESTING_CONDITIONAL=` · `EXCLUSIVE=` 세 줄. ⇒ 원장만 읽으면 되는 경우엔 스택 전체 대신 `docker compose up -d db` 로 **db 서비스 하나만** 올려라 — 워커가 없으므로 세션 부활도 발주도 구조적으로 불가능하다.
+- ★★★**`mise run up` / `mise run up-isolated` 는 세션을 만들지 않지만 `is_active` 로 남아 있던 세션을 되살린다.** 그리고 그 부활한 세션은 소크와 **같은 Bybit demo 계정**에 붙는다. 2026-08-07 실측 — 로컬 세션 `fcf1dcbe`(08:52 생성)가 13:52 의 `mise run up` 으로 부활해 16:44 까지 발주했고, 서버 소크 세션 `39484a2c` 를 `position_divergence` 로 죽였다. ★★**그런데 `is_active` 를 끄는 것만으로는 부족하다** — 이미 **체결된 포지션**은 그대로 남는다. 2026-08-08 재부검 실측: 로컬은 `mise run up` **전인** 07:42·07:50·08:10·08:51·09:03 에 이미 체결했고, 로컬 워커가 멈춰 있던 09:23~13:53 구간에도 서버가 09:35·09:36·09:37 에 `category=exchange_only engine_position=0.0 exchange_position=0.029` 를 관측했다 — 그 0.029 는 로컬 `541c6ee1`(09:03:53 buy 0.029)의 포지션이다. **호스트를 세워도 포지션은 계정에 남아 계속 발산을 만든다.** ⇒ **로컬 스택을 켜야 하면 ⑴ 켜기 전에 `live_signal_sessions` 의 `is_active` 를 끄고 ⑵ 거래소가 실제로 flat 인지(`FLAT=YES` **AND** resting 조건부 0) 확인해라.** 판정 도구 = `apps/api/scripts/live_session_admin.py status` 의 `FLAT=` · `RESTING_CONDITIONAL=` · `EXCLUSIVE=` 세 줄. ⇒ 원장만 읽으면 되는 경우엔 스택 전체 대신 `docker compose up -d db` 로 **db 서비스 하나만** 올려라 — 워커가 없으므로 세션 부활도 발주도 구조적으로 불가능하다.
 - ★**워커 로그 follow 는 `tools/scripts/soak-logs-follow.sh` 가 정본이다** — `--install` 은 systemd user unit(+`loginctl enable-linger`) / macOS launchd 로 승격하고, `--status` 가 유닛 생존과 로그 나이를 답한다. ★**`nohup` 판(`.soak/logs/follow.sh`)은 ssh 세션·재부팅을 못 넘는다** — 같은 `LOG_FILE` 에 둘이 붙으면 줄이 섞이므로 `--install` 전에 `pgrep -f 'soak/logs/follow.sh'` 로 옛 프로세스를 먼저 죽여라.
 - ★**서버 게이트는 언제나 `ssh <서버> 'bash -lc "…"'` 로 불러라.** 비로그인 셸엔 PATH 에 `uv` 가 없어 phantom 분류기가 실패하고 그 구간이 커버리지에서 잘려나간다(2026-08-07 실측 8분 손실).
 - ★**서버 `psql` 은 SQL 을 파일로 넣어라** — `scp` → `docker cp` → `psql -f`. 따옴표가 ssh · `bash -lc` · `docker exec` 로 3중 중첩되면 ssh 를 넘어가면서 깨진다(2026-08-08 재현).
@@ -1034,12 +1034,12 @@ null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는
 
 ## 5. 격리 스택
 
-| 항목     | 기본 | 격리 (`make up-isolated`) |
-| -------- | ---- | ------------------------- |
-| FE       | 3000 | **3100**                  |
-| BE       | 8000 | **8100**                  |
-| Postgres | 5432 | **5433**                  |
-| Redis    | 6379 | **6380**                  |
+| 항목     | 기본 | 격리 (`mise run up-isolated`) |
+| -------- | ---- | ----------------------------- |
+| FE       | 3000 | **3100**                      |
+| BE       | 8000 | **8100**                      |
+| Postgres | 5432 | **5433**                      |
+| Redis    | 6379 | **6380**                      |
 
 다른 웹앱과 병렬로 돌릴 때 격리가 디폴트다. 옛 스프린트 문서의 `5436` 표기는 stale — 2026-07-25 포트 정렬 이후 **5433** 이 정답이다.
 

@@ -11,7 +11,7 @@
 flowchart TB
     Trigger[PR → main / stage/**]
     Changes[changes\ndorny/paths-filter]
-    Doc[documentation\nmake docs-audit]
+    Doc[documentation\nmise run docs-audit]
     FE[frontend\nlint + tsc + test + build]
     BES[backend_static\nruff + mypy • DB 불요]
     BE[backend ×3 샤드\nalembic + pytest --cov]
@@ -180,7 +180,7 @@ top-10 에 **아예 안 보였다.**
 
 ★**2026-08-06 에 구멍 3개를 막았다.**
 
-1. `documentation` 이 `needs` 에 **없었다** — `make docs-audit` 이 빨개도 `ci` 는 초록이었다.
+1. `documentation` 이 `needs` 에 **없었다** — `mise run docs-audit` 이 빨개도 `ci` 는 초록이었다.
 2. 판정이 `== "failure"` 였다 — `cancelled` 가 **통과로 읽혔다**. 이제 모르는 상태는 fail-closed.
 3. `changes` 가 `needs` 에 **없었다**(이 구멍은 2026-08-06 이전부터 있었다) — 경로 감지 잡이
    실패하면 그 의존 잡이 전부 `skipped` 가 되고, 위 2번 규칙이 skipped 를 통과로 인정하므로

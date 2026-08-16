@@ -32,9 +32,9 @@
 
 **머니-패스 정확도 팩은 사실상 닫혔다** — 잔여는 BL-446 1건뿐이고 실측 여유가 임계 10% 대비 54,117배다. 남은 건 (a) 저우선 프로토타입/기능 잔여(대부분 P3·스키마 확장 선행), (b) 거래소 확장(OKX WS·풀 레버리지), (c) 사용자 결정 대기(Beta 배포)이다.
 
-### ~~★새로 드러난 갭 — 로컬 앱이 "실사용 불가"~~ ✅ **해소됨 (2026-07-26 dogfood-restore, `make seed` 신설)**
+### ~~★새로 드러난 갭 — 로컬 앱이 "실사용 불가"~~ ✅ **해소됨 (2026-07-26 dogfood-restore, `mise run seed` 신설)**
 
-당시 실측은 `ts.ohlcv` **0행** 이라 백테스트를 아예 못 돌리는 상태였고 원커맨드 복원 경로도 없었다. `make seed` 로 닫혔고, 이후 스프린트는 **전부 실주행 dogfood 를 포함**한다(#486 실체결 3중 대조 · #497 soak 56분 · #501 soak **2h40m**).
+당시 실측은 `ts.ohlcv` **0행** 이라 백테스트를 아예 못 돌리는 상태였고 원커맨드 복원 경로도 없었다. `mise run seed` 로 닫혔고, 이후 스프린트는 **전부 실주행 dogfood 를 포함**한다(#486 실체결 3중 대조 · #497 soak 56분 · #501 soak **2h40m**).
 
 ~~★**그 자리를 대신하는 현재 최대 리스크는 [BL-543] 이다**~~ → **2026-07-30 PR #503 으로 착지**(position epoch). 재생 아티팩트·계측기 오염은 실주행으로 해소 확인.
 
@@ -222,7 +222,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 1. ✅ **backtest-trust** (완료 · PR #480 머지) — 매일 보는 백테스트 숫자 신뢰(Sharpe·레버리지 청산).
 2. ✅ **머니-패스 정확도 마감 팩** (#481 완료 — BL-457/454 Resolved · BL-458 부분 · 신규 BL-464 Resolved). **잔여 = BL-446 1건**(cumulative_loss 시간축/분모 오염 — 구조 결함이지만 실측 여유 54,117배).
-3. ✅ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (dogfood-restore 완료 — `make seed` 신설 · BL-465/467 Resolved · 신규 BL-466/468~472). **★dogfood 가 또 P1 을 잡았다** — 파산한 계좌(총수익률 -2179.68%)에 **양수 샤프 +0.029** 가 붙고 있었고 **Trust Layer baseline 이 그걸 담고 있었다**. **실주문 부분 완주** — 데모 실체결 + 심볼 정규화 실경로 확인. ★키 만료 진단은 **오진**이었고 진짜 원인은 WS `expires` 창(BL-473). **잔여였던 출처 라벨·SessionScope 화면 검증은 PR #484 에서 완료** — 추정값 주입으로 혼재 상태 포착 + 독립 raw-HMAC 오라클 3중 일치.
+3. ✅ **dogfood 복원 + 누적 신뢰 작업 실화면 검증** (dogfood-restore 완료 — `mise run seed` 신설 · BL-465/467 Resolved · 신규 BL-466/468~472). **★dogfood 가 또 P1 을 잡았다** — 파산한 계좌(총수익률 -2179.68%)에 **양수 샤프 +0.029** 가 붙고 있었고 **Trust Layer baseline 이 그걸 담고 있었다**. **실주문 부분 완주** — 데모 실체결 + 심볼 정규화 실경로 확인. ★키 만료 진단은 **오진**이었고 진짜 원인은 WS `expires` 창(BL-473). **잔여였던 출처 라벨·SessionScope 화면 검증은 PR #484 에서 완료** — 추정값 주입으로 혼재 상태 포착 + 독립 raw-HMAC 오라클 3중 일치.
 4. ✅ **live-entry-wiring** (완료 · **PR #486 머지** — **BL-478 (c)** 세션 시작 차단 + evaluate 자동 종료, **BL-479** 자본 기준선 스냅샷 + 사이징 배선). 사용자 결정 = **(c)**. 실주문 3중 대조로 종단 확인(손계산 = DB = 거래소 `0.029 Filled`, 실집행 $1,870 vs 미배선 $64,484). 신규 BL-481~485. **잔여였던 BL-478 (a) 는 #489 에서 Resolved.**
    4b. ✅ **live-engine-parity** (완료 · **PR #487 머지 @840b1259**) — `run_live` 인자 4종 패리티(BL-481/482/483/486/487). ★"화면 총계" 검증은 실제로 **DB 상태 행**이었다(최종 리뷰가 반박). 신규 BL-488~491.
    4c. ✅ **live-conditional-entry** (완료 · **PR #489 머지 @30031efe**) — **BL-478 (a) Resolved** 선언적 reconcile 로 조건부 진입 등재. 데모 실체결 5건 3중 대조. 최종 codex 리뷰가 4세션 연속 P1 적발(계정 공유 시 남의 포지션까지 반전). 신규 BL-492~500.
@@ -346,7 +346,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-718** [P3] ⏳ 대기 (트리거 미도래 — PR-1 머지 후) — CODEOWNERS 도입(`/apps/`·`/infra/`·`/tools/`·`/docs/decisions/` 구획). 브랜치 보호 없음 실측 = 강제력 0 명시
 - [x] **BL-642 ✅ Resolved** [P2] `soak-observe.sh` 가 게이트와 같은 취득 경로를 쓴다 — 기본 `.metrics` 직독 · `QB_METRICS_URL` 명시 시 HTTP. 5경로 격리 검증 5/5(직독 244 series · 200+빈 본문은 실패로 유지), 음성 대조 rc=7
 - [x] **BL-643 ✅ Resolved** [P2] `docs/status.md` 진입점의 최신성을 `docs-audit.sh` 가 집행한다 — 술어 2개(⓪ 표 행수 ≥3 · 살아 있는 `다음 행동 =` ≤1). 낱말이 아니라 **구문**을 재서 오탐 0, **파일 전체**로 세서 「블록당 1개」가 놓치던 실제 사고를 문다. 변이 6/6 · 음성 대조 `ce583eef^` 2건 검출. 산문 처방 3회 실패 뒤 첫 집행처
-- [x] **BL-707** ✅ **2026-08-14 종결** [P2] authed e2e 실패 메시지가 「API 도달 불가」를 「데이터 없음」으로 오지목한다 — 12건이 `make seed` 를 지시했지만 `make seed` 는 전건 「이미 존재」였고 진짜 원인은 BE 가 `:8100` 에 없었던 것(콘솔 `ERR_CONNECTION_REFUSED` 109건). 처방 = 단정 앞에 **API 도달성 프로브**
+- [x] **BL-707** ✅ **2026-08-14 종결** [P2] authed e2e 실패 메시지가 「API 도달 불가」를 「데이터 없음」으로 오지목한다 — 12건이 `mise run seed` 를 지시했지만 `mise run seed` 는 전건 「이미 존재」였고 진짜 원인은 BE 가 `:8100` 에 없었던 것(콘솔 `ERR_CONNECTION_REFUSED` 109건). 처방 = 단정 앞에 **API 도달성 프로브**
 - [x] **BL-708 ✅ Resolved** [P2] `design-canon-calibration` 대비 측정이 회차마다 다른 파일에서 실패한다 — ★2026-08-12 harness A회차가 닫았다. **원인은 반올림이 아니라 원격 폰트 404**였고 그것을 지목한 것은 처방이 아니라 계측(`NavProbe.subresourceFail`)이다 — 계측 전 3회는 19벌 출력이 전건 동일해 갈리는 축이 0이었다. 처방 ⑴ = 「file:// 대상만 hermetic」 봉인 + `sealed` 리포트(`subresourceFail=0` 오독 차단), 판정 계약 명문화 + 도달 증거 4종 동반 단언(변이에서 종전 계약은 초록·새 단언만 red). ⑵ WARN 강등은 기각(여유 0.42 < 밴드 ±0.5). 독립 3회 rc=0/0/0 · 출력 전문 동일
 - [x] **BL-714** ✅ **2026-08-14 종결** [P2] 마감 게이트가 전제하는 브랜치 상태가 문서에 없다 — `signal-check.sh` 앵커 A1(`merge-base == HEAD` → `no-branch-commits`)이 A2 보다 앞이라 증분 머지 후 main 에서는 신호 4종이 **구조적으로 초록이 될 수 없다**. A1 은 옳다(없으면 main 에서 아무 신호나 통과) — 갭은 문서다. 처방 = ~~`--range` 탈출구 / 신호에 범위 기재~~ → **둘 다 2026-08-14 기각**(`--range` 는 A1 의 유일한 증인인 하네스 케이스 ⑫·변이 M1 을 죽이고, `range:` 는 squash 머지라 제3자 검증 불가). **채택 = `final-gates.sh` 입구 거부**(`merge-base == HEAD` → 게이트 체인 진입 전 거부) + `gates-and-traps.md` 신호 4종 절 신설 + `status.md` ⓸④ 브랜치 전제 명시. A1 로직 불변.
 - [x] **BL-720** [P2] `docs-audit` 지식 정본 축 결손 — **2026-08-14 gate-pointer-axis 종결.** 축 2종 신설(LESSON ID 유일성·오름차순 = 헤딩 ∪ 승격 표 · 승격 표 백틱 포인터 실재) + 하네스 7→12 케이스. 처방 ①(`legacy_paths` 확장)은 살아 있는 문서 147줄이 정당한 과거 인용이라 **폐기**하고 포인터 축으로 흡수했다
@@ -373,7 +373,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [~] **BL-458** [P2] 머니-패스 5곳 realized_pnl_synced_at 미구분 — 🟡 **money-path-finish 부분 완료**. Site 3(알림)·Site 4(커브·KPI) 라벨+소계. **Site 1·2 게이트와 Site 5 는 의도적 혼재 유지**(확정만 좁히면 fail-open) · 병합 커브는 포인트별 출처 표현 불가 → 집계 라벨
 - [x] **BL-454** [P2] 세션 등록·TV 웹훅 심볼 미정규화 — ✅ **money-path-finish 완료**. `NormalizedSymbol` 공용 프리미티브 + 두 ingress + 거부 관측. ★의도된 동작 변경 = 활성 세션 유니크 충돌(KPI 이중 계상 차단)
 - [x] **BL-464** [P2] `attribute_exit` 이 거래소 원문↔canonical 심볼 비교로 `inferred` 귀속 구조적 사망 — ✅ **money-path-finish 완료**(신규 발견). ★픽스처 기본값이 한 스프린트 동안 가렸다
-- [x] **BL-451** [P2] 파괴적 마이그레이션 테스트 env 폴백 dev DB drop 위험 — ✅ 2026-08-10 `stage/migration-guard`. 판정 SSOT `tests/_db_guard.py` + 루트 conftest 승격(폴백 금지) · `make db-snapshot`/`db-restore` · `alembic/env.py` downgrade 가드(+`-x` 탈출구). 배선 9건 · 변이 5/5
+- [x] **BL-451** [P2] 파괴적 마이그레이션 테스트 env 폴백 dev DB drop 위험 — ✅ 2026-08-10 `stage/migration-guard`. 판정 SSOT `tests/_db_guard.py` + 루트 conftest 승격(폴백 금지) · `mise run db-snapshot`/`db-restore` · `alembic/env.py` downgrade 가드(+`-x` 탈출구). 배선 9건 · 변이 5/5
 
 ### P2 — 트레이딩/엔진 부채
 

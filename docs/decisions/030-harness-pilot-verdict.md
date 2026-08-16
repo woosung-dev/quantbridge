@@ -90,7 +90,7 @@ step 세션이 써넣은 `"completed"` 를 그대로 믿는다. 즉 **코드를 
 | `.husky/pre-commit`·`pre-push` + `lib/pre-push-ref-guard.sh`                                                                                                       | 18.9 KB  |
 
 소크 게이트 전량(`soak-gate.sh` 외)도 유지 — 위 표에는 안 넣었다(운영 축이고 이번 판정 대상이 아니다).
-`tools/scripts/worktree-bootstrap.sh` 도 남긴다 — 함대와 독립이고 `make up-isolated` 슬롯이 의존한다.
+`tools/scripts/worktree-bootstrap.sh` 도 남긴다 — 함대와 독립이고 `mise run up-isolated` 슬롯이 의존한다.
 
 ---
 

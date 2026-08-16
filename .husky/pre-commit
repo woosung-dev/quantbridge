@@ -24,7 +24,7 @@ if git diff --cached --name-only -z | tr '\0' '\n' | grep -qE '^(apps/api/src/.*
   if [ "$_hdr_rc" -ne 0 ]; then
     echo ""
     echo "[BL-307] 첫 3줄에 한국어 헤더 주석이 없는 소스가 **스테이징**돼 있다 (rc=$_hdr_rc)."
-    echo "         위 목록을 고쳐 stage 한 뒤 다시 커밋해라 — 확인 = make header-audit"
+    echo "         위 목록을 고쳐 stage 한 뒤 다시 커밋해라 — 확인 = mise run header-audit"
     echo "         규칙 근거 = AGENTS.md:23 · 면제 목록 = tools/scripts/header-audit.sh is_exempt()"
     exit 1
   fi

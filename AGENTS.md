@@ -68,13 +68,14 @@ Trading(CCXT 주문 — 계정 모드는 **Bybit demo 만**) / Market Data(Times
 
 - ★**도구 버전(node·python·pnpm·uv)의 SSOT 는 루트 `mise.toml` 하나다**([ADR-036](docs/decisions/036-tool-version-ssot-mise.md)).
   숫자를 다른 곳에 적지 마라 — 남은 예외는 Dockerfile 2곳뿐이다. 확인 = `mise ls`(값 + 출처 config).
-  `make` 타깃과 git 훅은 shim 을 PATH 앞에 스스로 세운다. 터미널에서 직접 칠 때만 `mise activate` 가 필요하다
-- 기본: `make up` / `make be` / `make fe` → 3000/8000/5432/6379 · 격리: `make up-isolated` 계열 →
-  3100/8100/5433/6380. 자세한 타깃은 `make help`
+  ★**개발 명령도 같은 파일에 있다** — `mise run <task>` (`mise tasks` 로 목록). Makefile 은 2026-08-16 에 없앴다.
+  git 훅은 shim 을 PATH 앞에 스스로 세운다. 터미널에서 직접 `pnpm`·`uv` 를 칠 때만 `mise activate` 가 필요하다
+- 기본: `mise run up` / `mise run be` / `mise run fe` → 3000/8000/5432/6379 · 격리: `mise run up-isolated` 계열 →
+  3100/8100/5433/6380. 자세한 타깃은 `mise run help`
 - 워크트리 병렬 = **슬롯**(FE `3100+N` / BE `8100+N` / pytest DB `quantbridge_w{N}_test`).
   `./tools/scripts/worktree-bootstrap.sh --adopt-env` 가 슬롯·테스트DB·env 를 붙인다.
   ★herdr 함대 래퍼(`herdr-fleet.sh`·`fleet-dispatch.sh`)는 **2026-08-13 제거**([ADR-030](docs/decisions/030-harness-pilot-verdict.md))
-- NEVER — 워크트리에서 `make up`/`down`/`migrate`/`seed` — 컨테이너·앱 DB 는 1벌 공유라 함께 깨진다
+- NEVER — 워크트리에서 `mise run up`/`down`/`migrate`/`seed` — 컨테이너·앱 DB 는 1벌 공유라 함께 깨진다
 - NEVER — 워크트리에서 celery 경유 검증(백테스트·라이브신호·옵티마이저) — worker 는 메인의 `src` 를
   mount 하므로 **내 코드가 아니라 메인 코드가 돈다**(침묵 실패).
   정본: [`docs/reference/operations/worktree-parallel.md`](docs/reference/operations/worktree-parallel.md)

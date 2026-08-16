@@ -114,7 +114,7 @@ cd ../..
 ## 3. 인프라 기동 (DB + Redis)
 
 ```bash
-make up   # = docker compose --project-directory . -f infra/compose/docker-compose.yml up -d
+mise run up   # = docker compose --project-directory . -f infra/compose/docker-compose.yml up -d
 
 # healthy 확인 (compose 를 직접 부를 땐 반드시 위 플래그 2종을 함께 — 프로젝트명·볼륨이 루트 파생이다, ADR-029)
 docker compose --project-directory . -f infra/compose/docker-compose.yml ps
@@ -136,18 +136,18 @@ cd apps/api
 uv sync
 
 # DB 마이그레이션 적용
-uv run alembic upgrade head        # 기본 모드 (5432) — 또는 root 에서 `make migrate`
+uv run alembic upgrade head        # 기본 모드 (5432) — 또는 root 에서 `mise run migrate`
 
 # API 서버 (개발)
 uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port 8000
 ```
 
-> **Sprint 32 BL-168 — `make dev-isolated` 자동 통합.** 격리 모드 사용 시
-> `make dev-isolated` 가 `up-isolated` → `migrate-isolated` → `be-isolated` (8100) +
-> `fe-isolated` (3100) 를 순서대로 실행한다. fresh `make down-isolated` 후에도
+> **Sprint 32 BL-168 — `mise run dev-isolated` 자동 통합.** 격리 모드 사용 시
+> `mise run dev-isolated` 가 `up-isolated` → `migrate-isolated` → `be-isolated` (8100) +
+> `fe-isolated` (3100) 를 순서대로 실행한다. fresh `mise run down-isolated` 후에도
 > alembic schema drift 없이 첫 부팅에 신규 컬럼이 반영됨 (예: `backtests.config`).
-> host uvicorn 은 `apps/api/docker-entrypoint.sh` 를 거치지 않으므로 root Makefile
-> 이 alembic 적용을 책임. `docker-entrypoint.sh` 의 advisory lock 은 prod / container
+> host uvicorn 은 `apps/api/docker-entrypoint.sh` 를 거치지 않으므로 루트 `mise.toml` 의
+> task 가 alembic 적용을 책임진다. `docker-entrypoint.sh` 의 advisory lock 은 prod / container
 > 전용 (Cloud Run multi-instance race 방어).
 
 별도 터미널에서 Celery worker:

@@ -54,7 +54,7 @@ target_metadata = SQLModel.metadata
 #
 # 왜 여기인가: 위 40행이 `settings.database_url`(= 개발 DB)을 주입한다. `pytest` 경로는
 # `tests/_db_guard.py` 가 막지만 **수동 CLI 는 이 파일 말고 지날 곳이 없다**. 전수 확인 결과
-# entrypoint · `make migrate` · `make migrate-isolated` · `scripts/final-gates.sh` ·
+# entrypoint · `mise run migrate` · `mise run migrate-isolated` · `scripts/final-gates.sh` ·
 # `scripts/worktree-bootstrap.sh` 가 전부 이 파일을 지나며, 그 다섯은 모두 `upgrade` 다.
 #
 # ★**`upgrade` 는 의도적으로 통과시킨다.** 방향을 안 보고 막으면 파괴를 막는 가드가 아니라
@@ -120,7 +120,7 @@ def _guard_destructive_migrations() -> None:
         f"database='{database}' 를 향한다. 버려도 되는 DB(_test 접미사)가 아니다.\n"
         "  downgrade 는 테이블을 드롭한다. 2026-07-25 에 이 경로로 로컬 개발 DB 가 "
         "전소했다(주문 17행 · 암호화된 API 키 · 전략 6종, API 키는 복구 불가).\n"
-        "  먼저 백업해라: `make db-snapshot`\n"
+        "  먼저 백업해라: `mise run db-snapshot`\n"
         "  그래도 진행하려면: `alembic -x allow_destructive=1 downgrade <rev>`"
     )
 

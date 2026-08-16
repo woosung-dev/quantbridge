@@ -49,7 +49,7 @@ PoC 로 미뤘고, PR #619 머지로 트리거가 도래했다.
 ### 3. drift 게이트 = `export_openapi.py --check` (~~CI 배선은 다음 회차~~ → **2026-08-16 배선됨**)
 
 > **2026-08-16 후속.** 아래 스케치를 실제로 붙였다 — `ci.yml` `backend_static` 잡의 스텝 ·
-> `make openapi-check` · `final-gates.sh` 의 `BE openapi drift`(BE 영역 판정 안).
+> `mise run openapi-check` · `final-gates.sh` 의 `BE openapi drift`(BE 영역 판정 안).
 > **배선 첫 실행이 실제 drift 1건을 잡았다** — 2026-08-17 ADR-034 회차에서 `DELETE /auth/me` 의
 > 독스트링이 바뀌었는데 계약을 재생성하지 않아, 그 사이 계약이 코드보다 낡아 있었다.
 > 즉 「다음 회차」로 미룬 3일 동안 게이트 없는 계약이 실제로 새고 있었다.
