@@ -689,7 +689,9 @@ payments have failed`). backend 가 `skipped` 면 **게이트는 아무것도 �
   **중복 섹션 헤더**(`### BL-<n>` 두 벌, BL-569 — 파서가 id 로 키를 잡아 뒤 섹션이 앞 섹션 판정을 덮어썼다).
   즉 **BL 을 추가·해결하고 `**상태:**` 줄을 안 달면 게이트가 빨개진다.** 폐기된 옛 판정을 남기고 싶으면
   지우지 말고 `<details>` 로 접어라 — 파서가 ` ``` ` 펜스와 `<details>` 구간을 건너뛴다.
-  ★`--list` 는 **항상 exit 0** 이다. 게이트에는 인자 없는 형태만 쓴다.
+  ★`--list` 는 **판정 불일치로는 exit 0** 이다(목록 출력 전용). 게이트에는 인자 없는 형태만 쓴다.
+  ★단 **ABORT(3) 는 `--list` 에서도 난다**([BL-779], 2026-08-16) — 원장 파일이 없거나 비었거나 섹션 0개면
+  목록을 낼 근거 자체가 없다. 소비자(`docs-audit`·`bl-trigger-sweep`)는 이 rc 를 읽어 함께 죽는다.
 - ★★**원장은 2026-08-16 부터 파일 둘이다** — `docs/backlog.md`(열린 것) + `docs/backlog-resolved.md`
   (RESOLVED 본문, [BL-779]). `bl-audit.sh`·`docs-audit.sh`·`bl-trigger-sweep.sh`·`context-budget.sh`
   넷이 **둘을 한 벌로** 읽는다. 판정 수는 **합계**이고 `bl-audit` 머리줄이 파일별 섹션 수를 함께 찍는다.

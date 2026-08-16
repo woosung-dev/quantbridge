@@ -60,7 +60,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 > ```bash
 > tools/scripts/bl-audit.sh                   # 판정 + P별 내역 + 3면 불일치 + UNKNOWN 목록
 > #                                       UNKNOWN · 3면 불일치 · 중복 상태줄 · 중복 섹션 헤더 · 미닫힌 펜스/<details> → exit 1
-> tools/scripts/bl-audit.sh --list ACTIVE     # 트리거가 **도래한** 것 전량 (★목록 전용 — 항상 exit 0, 게이트에 쓰지 마라)
+> tools/scripts/bl-audit.sh --list ACTIVE     # 트리거가 **도래한** 것 전량 (★목록 전용 — 판정 불일치로는 exit 0, 게이트에 쓰지 마라)
 > tools/scripts/bl-audit.sh --list DEFERRED   # 트리거 **미도래**로 대기 중인 것
 > tools/scripts/bl-trigger-sweep.sh --selftest  # ★도래 판정기의 판별력. 전량 스윕보다 **먼저** 돌려라
 > ```
