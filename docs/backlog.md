@@ -7577,16 +7577,16 @@ Open 항목과 **같은 파일에** 있다.
 
 **Risk:** 🟢 (하네스만. 게이트 본체 동작에는 영향 없다)
 
-**상태:** ⬜ Open — 2026-08-16 layout-alignment 회차에서 실측(9/10 통과, ⑩ 만 red). 게이트 본체는 정상 동작 확인
+**상태:** ✅ **Resolved (2026-08-17, PR #651 머지 `d28bf28f`).** 케이스 ⑩ 의 음성 대조를 합성으로 세웠다. `final-gates.sh` 에 **`--dry-run` 한정** 영역 주입 훅 `QB_FG_FAKE_CHANGED` 를 두고(실행 모드에서 주면 **rc=1 로 거부** — 조용히 먹으면 그 순간 게이트 우회로가 된다), ⑩ 을 3절로 재작성했다: ⑴ 합성 음성 → 「필수 아님」 ⑵ 합성 양성 BE 축 → 「필수」 ⑶ 실물 양성(종전 `PROBE_SRC` 탐침) → 「필수」. ⑶ 을 남긴 이유는 훅만 보는 항진명제가 되지 않게 하기 위해서다. ★★**CONTROL 통제 대조로 판별력을 확정했다** — `apps/web` 을 건드리는 임시 커밋을 얹은 **같은 트리**에서 **구판 하네스 9/10 rc=1(실패 ⑩ 하나) · 수정판 10/10 rc=0** 이고, 임시 커밋을 걷어낸 뒤 HEAD sha 복원까지 확인했다. 우회 가능성도 실측으로 닫았다 — 실행 모드에서 `QB_FG_FAKE_CHANGED` 는 **값이 있든 비어 있든** rc=1 이다(`${VAR+x}` 판정). ★**변이 M6 신설** — 훅 대입문을 죽이면 절 ⑴·⑵ 가 서로 반대의 답을 요구하므로 **어느 트리에서든** 한쪽이 깨진다(환경 독립 변이)
 **트리거 판정:** 도래 — FE 를 건드리는 회차마다 로컬 하네스가 red 로 읽힌다 (2026-08-16 layout-alignment)
 
 ### BL-781
 
-**Title:** 격리 슬롯에서 **authed e2e 가 구조적으로 불가능**하다 — `Makefile` 이 `BETTER_AUTH_URL` 을 슬롯 포트로 안 맞춘다
+**Title:** 격리 슬롯에서 **authed e2e 가 구조적으로 불가능**하다 — **격리 task** 가 `BETTER_AUTH_URL` 을 슬롯 포트로 안 맞춘다
 **Category:** Ops / 워크트리 · 인증
 **Priority:** P2
 **Trigger:** 도래 — 워크트리에서 FE 를 건드리는 모든 회차가 마감 게이트의 authed 레그를 못 돈다
-**Est:** S (Makefile 2줄 + env 문서 1줄)
+**Est:** S (`mise.toml` 2줄 + env 문서 1줄 — 종전 「Makefile 2줄」은 [ADR-036] 으로 낡았다)
 **출처:** 2026-08-16 layout-alignment — 실제로 밟고 trace 로 원인 확정
 
 **원인 / 영향:** `grep BETTER_AUTH Makefile` = **0건**. `fe-isolated` 는 `NEXT_PUBLIC_API_URL`·
@@ -7613,5 +7613,73 @@ Open 항목과 **같은 파일에** 있다.
 
 **Risk:** 🟡 (검증 레인만. 프로덕션 인증에는 영향 없다 — 거기서는 URL 이 맞다)
 
-**상태:** ⬜ Open — 2026-08-16 에 trace 로 원인 확정(403 INVALID_ORIGIN). 우회로 authed 89/90 을 돌렸고 Makefile 수리는 미착수
+**상태:** ✅ **Resolved (2026-08-17, PR #651 머지 `d28bf28f` — 슬롯 2 실측).** 격리 슬롯에서 `pnpm e2e:authed` 가 **90 passed / rc=0** 으로 돌았다. 수리 자체는 [ADR-036] 회차가 러너를 옮기며 이미 들어가 있었고(`mise.toml:312` be-isolated · `:330` fe-isolated 가 **같은 표현식** `BETTER_AUTH_URL="http://localhost:${QB_FE_PORT}"`), 이 회차가 한 것은 **증명**이다. ★**변이 2종이 서로 다른 사인을 냈다** — ⑴ `fe-isolated` 에서 그 줄을 빼면 `global.setup.ts` 가 `page.waitForURL` 60s timeout 으로 죽어 **authed 스위트가 아예 실행되지 않는다**(`POST /api/auth/sign-in/email` 이 `Origin: http://localhost:3102` 에 **403 `INVALID_ORIGIN`**) ⑵ FE·BE 를 서로 다르게 두면 setup 은 **통과**하고 BE authed API 가 전건 401 이 되어 **12 failed / 78 passed** 다. ★★**`curl` 은 이 검사를 안 거친다** — 같은 엔드포인트가 `Origin` 헤더 없이는 자격증명 검사까지 도달해 401 을 낸다. 2026-08-16 회차가 `curl` 을 먼저 쳐 「인증은 된다」고 오판한 경로가 이것이다. **판정 증인은 브라우저다.** 짝 규칙과 이 함정은 `docs/reference/operations/worktree-parallel.md` §6 에 있다
 **트리거 판정:** 도래 — 워크트리 FE 회차마다 발현한다 (2026-08-16 layout-alignment)
+
+### BL-782
+
+**Title:** `alembic check` 의 rc=0 은 **그 DB 에 대해서만** 참이었다 — migration 으로만 만든 DB 에서는 `trading.funding_rates.exchange` 타입 drift 로 실패한다
+**Category:** DB / migration 무결성
+**Priority:** P2
+**Trigger:** 도래 — [BL-770] 이 「rc=0 을 처음 달성」이라 적은 그 보증이 지금 성립하지 않는 DB 가 실재한다
+**Est:** M (판정 기준 확정이 본체. 타입 변환 자체는 살아 있는 컬럼이라 데이터 위험이 따로 있다)
+**출처:** 2026-08-17 sprint-parallel-lanes — [BL-773] 레인이 AC-5 를 돌리다 밟았고 CONTROL 이 `origin/main` 대조로 선재 확정
+
+**원인 / 영향:** `apps/api/src/trading/models.py:438` 이 `exchange: ExchangeName`(enum)로 선언하는데
+`apps/api/alembic/versions/20260421_0001_add_funding_rates_table.py:29` 는 `sa.Column("exchange", sa.String(length=32))`
+로 만든다. **그 타입을 바꾼 migration 은 레포에 존재하지 않는다**(전수 grep 0건). 따라서
+`alembic upgrade head` 로만 만든 DB 에 `alembic check` 를 돌리면 `modify_type` 이 잡혀 rc=1 이다 —
+이 회차 실측이고 `origin/main` 에서도 같다.
+
+★**이것이 원장을 반증한다.** [BL-770] 은 「`alembic check` rc=0 이 처음」이라고 닫혔는데, 그 측정은
+**다른 방식으로 만들어진 DB**(개발 DB / `create_all` 스키마)에 대한 것이었다. [BL-749] 가 적은
+「스키마 동등성 검사가 컬럼 **이름만·한 방향만** 본다」와 같은 자리에서 만난다 — 이름 층에서는
+같고 타입 층에서 갈린다. ⇒ **migration 방어면은 아직 이름만 남아 있다.**
+
+**권장 접근:** ⑴ ★**먼저 판정 기준을 정해라** — `alembic check` 를 어느 DB 에 대고 재는 것이
+정본인가(migration-only DB 가 맞다). 지금은 그 정의가 없어 같은 명령이 환경마다 다른 답을 낸다
+⑵ 그 다음 drift 를 닫는다. 선택지는 **모델을 `str`(VARCHAR 32)로 낮추기** 와
+**migration 에 `ALTER TYPE ... USING` 추가**다. 후자는 살아 있는 컬럼이라 값 검증이 선행이다
+⑶ ★**전량을 한 번에 켜지 마라** — [BL-749] 가 적은 대로 다른 drift 가 같이 쏟아지면 게이트가
+상시 red 가 된다. 축을 하나씩 켜라
+
+**Risk:** 🟠 (살아 있는 컬럼의 타입 변환. 되돌리기가 비싸다)
+
+**상태:** ⬜ Open — 2026-08-17 에 `origin/main` 대조로 선재 확정. 판정 기준 미정
+**트리거 판정:** 도래 — 검사 대상 DB 를 바꾸는 순간 재현되고, [BL-773] 회차가 실제로 밟았다
+
+### BL-783
+
+**Title:** **Stress Test 도 실행 시점의 mutable Pine 을 다시 읽는다** — [BL-773] 이 닫은 것과 같은 결함이 네 번째 소비자에 남았다
+**Category:** 도메인 / 재현성
+**Priority:** P1
+**Trigger:** 도래 — [BL-773] 이 머지되는 순간 「재현성을 닫았다」가 이 경로에 대해 거짓이 된다
+**Est:** M ([BL-773] 의 optimizer 처방을 그대로 옮긴다 — 호출 3곳 + 테스트)
+**출처:** 2026-08-17 sprint-parallel-lanes — [BL-773] 에 대한 적대 리뷰(P2-1). CONTROL 이 코드 대조로 확인
+
+**원인 / 영향:** `apps/api/src/stress_test/service.py:326`(`_load_run_context`)이
+`find_by_id_and_owner(bt.strategy_id, bt.user_id)` 로 **현재 Strategy** 를 읽고, `:360`(walk-forward) ·
+`:380` · `:427` 세 곳이 `ctx.strategy.pine_source` 를 엔진에 넘긴다.
+`grep -c 'strategy_version' apps/api/src/stress_test/service.py` = **0건**.
+
+`StressTest.backtest_id`(`stress_test/models.py`)가 **부모 Backtest 를 참조**하므로 구조가
+optimizer 와 정확히 같다 — optimizer 는 [BL-773] 에서 `bt.strategy_version_id` 로 부모 스냅샷을
+쓰게 바뀌었는데 stress_test 만 남았다.
+
+**재현:** Pine A 로 백테스트 제출 → 완료 → 전략을 Pine B 로 수정 → 그 백테스트에
+walk-forward / cost-assumption / param-stability 실행 ⇒ **B 가 실행되고 결과는 A 의 백테스트에 매달려 표시된다.**
+
+★★**원장 자신이 이 소비자를 빠뜨렸다.** [BL-773] 본문은 「**3경로** 확정」이라 적었는데
+`CONTEXT.md` 는 이미 「Optimizer·**Stress Test** 는 backtest 의 `run_backtest` 엔진을 재실행한다 …
+v2_adapter 변경은 이 **3 소비자**에 동시 영향」이라고 적고 있었다. **처방이 헌법보다 좁았고,
+헌법을 읽었으면 그 자리에서 보였다.**
+
+**권장 접근:** ⑴ `_load_run_context` 가 `bt.strategy_version_id` 로 스냅샷을 읽게 한다
+([BL-773] 의 `optimizer/service.py` 처방과 동형) ⑵ `test_strategy_version_pinning.py` 의 optimizer
+케이스를 stress_test 로 복제해 **구현 전 red** 를 먼저 확인해라 ⑶ Monte Carlo 는 완료 Backtest 의
+trades 재표집이라 엔진을 재실행하지 않는다 — 대상에서 빼라(`CONTEXT.md` Relationships)
+
+**Risk:** 🟡 (경로가 이미 검증된 처방이고 소비자가 격리돼 있다)
+
+**상태:** ⬜ Open — 2026-08-17 등재. 착수 미정
+**트리거 판정:** 도래 — [BL-773] 머지와 동시에 발화한다
