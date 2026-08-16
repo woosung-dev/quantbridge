@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import os
 import re
+from hashlib import sha256
 from pathlib import Path
 from typing import Any, TypeAlias
+from uuid import uuid4
 
 import pytest
 from alembic.config import Config
@@ -243,6 +245,87 @@ def test_alembic_roundtrip(tmp_path, monkeypatch):
     command.upgrade(cfg, "head")
     command.downgrade(cfg, "base")
     command.upgrade(cfg, "head")
+
+
+def test_strategy_version_migration_backfills_existing_backtests(monkeypatch) -> None:
+    """BL-773: 기존 Backtest도 StrategyVersion 하나에 반드시 고정한다."""
+    monkeypatch.chdir(_BACKEND_ROOT)
+    cfg = _alembic_cfg()
+    user_id = uuid4()
+    strategy_id = uuid4()
+    backtest_id = uuid4()
+    pine_source = "//@version=5\nstrategy('migration A')\n"
+
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "base")
+    command.upgrade(cfg, "20260817_0001")
+
+    engine = create_engine(cfg.get_main_option("sqlalchemy.url"), poolclass=NullPool)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO users (id, auth_subject, is_active) "
+                    "VALUES (:id, :auth_subject, true)"
+                ),
+                {"id": user_id, "auth_subject": "bl-773-migration"},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO strategies "
+                    "(id, user_id, name, pine_source, pine_version, parse_status, is_archived, "
+                    "created_at, updated_at) "
+                    "VALUES (:id, :user_id, 'migration', :pine_source, 'v5', 'ok', false, "
+                    "NOW(), NOW())"
+                ),
+                {"id": strategy_id, "user_id": user_id, "pine_source": pine_source},
+            )
+            conn.execute(
+                text(
+                    "INSERT INTO backtests "
+                    "(id, user_id, strategy_id, symbol, timeframe, period_start, period_end, "
+                    "initial_capital, status, created_at) "
+                    "VALUES (:id, :user_id, :strategy_id, 'BTC/USDT', '1h', NOW(), NOW(), "
+                    "10000, 'COMPLETED', NOW())"
+                ),
+                {"id": backtest_id, "user_id": user_id, "strategy_id": strategy_id},
+            )
+    finally:
+        engine.dispose()
+
+    try:
+        command.upgrade(cfg, "head")
+        engine = create_engine(cfg.get_main_option("sqlalchemy.url"), poolclass=NullPool)
+        try:
+            with engine.connect() as conn:
+                version = (
+                    conn.execute(
+                        text(
+                            "SELECT id, pine_source, source_hash, parser_version "
+                            "FROM strategy_versions WHERE strategy_id = :strategy_id"
+                        ),
+                        {"strategy_id": strategy_id},
+                    )
+                    .mappings()
+                    .one()
+                )
+                pinned_version_id = conn.execute(
+                    text("SELECT strategy_version_id FROM backtests WHERE id = :id"),
+                    {"id": backtest_id},
+                ).scalar_one()
+                missing = conn.execute(
+                    text("SELECT count(*) FROM backtests WHERE strategy_version_id IS NULL")
+                ).scalar_one()
+        finally:
+            engine.dispose()
+
+        assert pinned_version_id == version["id"]
+        assert version["pine_source"] == pine_source
+        assert version["source_hash"] == sha256(pine_source.encode()).hexdigest()
+        assert version["parser_version"] == "pine_v2"
+        assert missing == 0
+    finally:
+        command.upgrade(cfg, "head")
 
 
 async def test_upgrade_head_survives_the_create_all_bootstrap(monkeypatch, _test_engine):

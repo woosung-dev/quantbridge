@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
 from uuid import UUID
 
@@ -10,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import sharpe_sort_criteria
-from src.strategy.models import ParseStatus, Strategy
+from src.strategy.models import PINE_V2_PARSER_VERSION, ParseStatus, Strategy, StrategyVersion
 
 
 class StrategyRepository:
@@ -117,6 +118,41 @@ class StrategyRepository:
         await self.session.flush()
         await self.session.refresh(strategy)
         return strategy
+
+    async def create_version(self, *, strategy_id: UUID, pine_source: str) -> StrategyVersion:
+        """Pine source의 불변 실행 snapshot을 만든다. 갱신 경로는 의도적으로 없다."""
+        version = StrategyVersion(
+            strategy_id=strategy_id,
+            pine_source=pine_source,
+            source_hash=hashlib.sha256(pine_source.encode()).hexdigest(),
+            parser_version=PINE_V2_PARSER_VERSION,
+        )
+        self.session.add(version)
+        await self.session.flush()
+        return version
+
+    async def get_version_by_id(
+        self, version_id: UUID | None, *, strategy_id: UUID
+    ) -> StrategyVersion | None:
+        if version_id is None:
+            return None
+        result = await self.session.execute(
+            select(StrategyVersion).where(
+                and_(
+                    StrategyVersion.id == version_id,  # type: ignore[arg-type]
+                    StrategyVersion.strategy_id == strategy_id,  # type: ignore[arg-type]
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def set_current_version(self, strategy_id: UUID, version_id: UUID) -> None:
+        await self.session.execute(
+            update(Strategy)
+            .where(Strategy.id == strategy_id)  # type: ignore[arg-type]
+            .values(strategy_version_id=version_id)
+        )
+        await self.session.flush()
 
     async def delete(self, strategy_id: UUID) -> None:
         await self.session.execute(

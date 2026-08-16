@@ -56,6 +56,21 @@ class Backtest(SQLModel, table=True):
             index=True,
         )
     )
+    # 실행 source snapshot. migration은 기존 행도 전부 채우며, nullable 모델 선언은
+    # metadata 기반 legacy test fixture와 구 데이터 read 경로의 호환을 위한 것이다.
+    strategy_version_id: UUID | None = Field(
+        default=None,
+        sa_column=Column(
+            ForeignKey(
+                "strategy_versions.id",
+                name="fk_backtests_strategy_version_id_strategy_versions",
+                ondelete="RESTRICT",
+            ),
+            nullable=True,
+            index=True,
+        ),
+    )
+    engine_version: str | None = Field(default=None, max_length=32, nullable=True)
 
     # 입력 파라미터 (불변)
     symbol: str = Field(max_length=32, nullable=False)

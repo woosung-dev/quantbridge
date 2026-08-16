@@ -15,7 +15,7 @@ import pytest
 
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.schemas import CreateBacktestRequest
-from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.models import ParseStatus, PineVersion, Strategy, StrategyVersion
 
 
 def _make_strategy() -> Strategy:
@@ -49,8 +49,16 @@ async def test_submit_calls_repo_commit() -> None:
     repo.create = AsyncMock(return_value=None)
 
     strategy = _make_strategy()
+    strategy_version = StrategyVersion(
+        id=uuid4(),
+        strategy_id=strategy.id,
+        pine_source=strategy.pine_source,
+        source_hash="a" * 64,
+    )
+    strategy.strategy_version_id = strategy_version.id
     strategy_repo = AsyncMock()
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
+    strategy_repo.get_version_by_id = AsyncMock(return_value=strategy_version)
 
     ohlcv_provider = AsyncMock()
 
