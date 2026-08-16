@@ -99,6 +99,14 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
               거래소 계정 정보는 남지만 더 이상 접근할 수 없습니다.
             </DialogDescription>
           </DialogHeader>
+          {/* ★Better Auth 는 민감 동작에 **최근 세션**을 요구한다(`session.freshAge` 기본 1일).
+              오래된 세션이면 `beforeDelete` 가 돌기도 전에 거부되고, 화면에는 이유 없는 실패로
+              보인다. 문서가 지시하는 처방이 「다시 로그인하도록 안내」라 여기에 상시로 둔다
+              (2026-08-17 codex 적대 리뷰 P2). */}
+          <p className="field-hint">
+            마지막 로그인이 하루를 넘겼다면 보안상 삭제가 거부됩니다. 그때는 로그아웃 후 다시
+            로그인한 뒤 시도해 주세요.
+          </p>
           {deleteError ? (
             <p className="field-error" role="alert">
               <span>{deleteError}</span>

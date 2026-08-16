@@ -2,6 +2,7 @@
 // FastAPI 는 여기서 발급한 JWT 를 `/api/auth/jwks` 로 검증한다. 세션 쿠키는 브라우저↔Next 구간
 // 전용이고, Next↔FastAPI 구간은 Bearer JWT 다 — 두 구간의 자격증명이 다르다는 점을 헷갈리지 마라.
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { jwt } from "better-auth/plugins/jwt";
 import { Pool } from "pg";
@@ -93,11 +94,22 @@ export const auth = betterAuth({
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
         });
-        // 204 만 통과. 그 외에는 **삭제를 진행하지 않는다** — 돈이 안 멈춘 채로
-        // 인증 사용자가 사라지는 것이 최악이다.
-        if (res.status !== 204) {
-          throw new Error(`계정 정리에 실패했습니다 (status ${res.status}). 잠시 후 다시 시도해 주세요.`);
+        if (res.status === 204) return;
+
+        // ★**재시도 가능해야 한다.** 우리 정리는 커밋됐는데 Better Auth 가 자기 행을 지우다
+        //   실패하면, 다음 시도에서 그 사용자는 이미 `is_active=false` 라 이 API 가 403
+        //   `auth_user_inactive` 를 낸다. 그것을 실패로 읽으면 **DB 를 손으로 고치기 전에는
+        //   영영 지울 수 없는** 상태가 된다. 403+그 코드는 「우리 쪽 정리는 이미 끝났다」는
+        //   뜻이므로 통과시킨다 — 멱등이다(2026-08-17 codex 적대 리뷰 P2).
+        if (res.status === 403) {
+          const body = (await res.json().catch(() => null)) as
+            | { detail?: { code?: string } }
+            | null;
+          if (body?.detail?.code === "auth_user_inactive") return;
         }
+
+        // 그 밖에는 **삭제를 진행하지 않는다** — 돈이 안 멈춘 채로 인증 사용자가 사라지는 것이 최악이다.
+        throw new Error(`계정 정리에 실패했습니다 (status ${res.status}). 잠시 후 다시 시도해 주세요.`);
       },
     },
   },
@@ -110,7 +122,15 @@ export const auth = betterAuth({
         before: async (user, context) => {
           const country = countryFromContext(context);
           // geo-block L3 — 제한 국가는 가입 자체를 거부한다(L1 = Cloudflare WAF, L2 = proxy.ts).
-          if (isRestrictedCountry(country)) return false;
+          // ★`return false` 로 막으면 Better Auth 가 **400 FAILED_TO_CREATE_USER** 를 내서
+          //   화면이 「가입에 실패했습니다」라는 엉뚱한 문장을 보여준다. 차단인지 장애인지
+          //   사용자가 구분할 수 없다 — 그래서 상태를 명시해 던진다(2026-08-17 codex P2).
+          if (isRestrictedCountry(country)) {
+            throw new APIError("FORBIDDEN", {
+              code: "GEO_BLOCKED_COUNTRY",
+              message: "현재 이 지역에서는 가입할 수 없습니다.",
+            });
+          }
           return { data: { ...user, country } };
         },
       },
