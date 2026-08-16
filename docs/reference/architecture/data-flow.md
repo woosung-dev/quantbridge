@@ -205,12 +205,13 @@ sequenceDiagram
     API-->>User: 200 + user payload
 ```
 
-**lifecycle 동기화 — webhook 이 아니라 두 경로다.**
+**lifecycle 동기화 — webhook 이 아니라 세 경로다.**
 
-| 사건           | 경로                                                                                                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 가입·정보 변경 | 없음. FastAPI 는 첫 인증 요청에서 `sub` 로 **JIT 생성**한다 (`auth/service.py:89` `get_or_create`, 호출은 `realtime/auth.py:180`)                     |
-| 탈퇴           | `DELETE /api/v1/auth/me` → `auth/service.py:131` `deactivate_account`. 이후 그 `sub` 의 JWT 는 `UserInactiveError` 로 막힌다 (`realtime/auth.py:186`) |
+| 사건      | 경로                                                                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 가입      | FastAPI 가 첫 인증 요청에서 `sub` 로 **JIT 생성**한다 (`auth/service.py` `get_or_create`, 호출은 `realtime/auth.py`)                                   |
+| 정보 변경 | ★**같은 `get_or_create` 가 매 요청에서 동기화한다** — JWT 의 `email`·`username`·`country` 를 DB 행과 비교해 **다를 때만** `update_profile()` 을 부른다 |
+| 탈퇴      | `DELETE /api/v1/auth/me` → `auth/service.py:131` `deactivate_account`. 이후 그 `sub` 의 JWT 는 `UserInactiveError` 로 막힌다 (`realtime/auth.py:186`)  |
 
 ★**JWKS 호출은 rate limit 안쪽에 둔다.** `PyJWKClient` 는 **미상 `kid` 에 음성 캐시가 없어**
 같은 가짜 kid 를 10번 보내면 JWKS 를 **11번** 가져온다 — `Authorization: Bearer <아무거나>` 만으로

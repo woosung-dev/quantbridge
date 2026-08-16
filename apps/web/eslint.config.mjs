@@ -79,16 +79,32 @@ const config = [
     // ★`app/` 자신은 제외다 — 라우트끼리의 참조는 이 규칙의 대상이 아니다.
     files: ["src/features/**", "src/components/**", "src/lib/**", "src/hooks/**", "src/store/**"],
     rules: {
+      // ★★2026-08-16 codex P2 — 초판은 `@/app/*` 만 막아 **두 갈래로 뚫렸다**:
+      //   ⑴ 상대경로 `../app/page` ⑵ 동적 `import("@/app/page")`.
+      //   둘 다 탐침으로 실측해 통과를 확인한 뒤 아래로 닫았다.
+      //   ★오탐 위험은 0으로 쟀다 — 하위 층에서 `app/` 을 포함하는 합법 import 가 0건이다.
       "no-restricted-imports": [
         "error",
         {
           patterns: [
             {
-              group: ["@/app/*", "@/app/**"],
+              // 별칭 + 상대경로 양쪽. `**/app/**` 는 `../app/x` · `../../app/x` 를 함께 문다.
+              group: ["@/app/*", "@/app/**", "**/app/*", "**/app/**"],
               message:
                 "하위 층은 app/ 을 import 하지 않는다 (ADR-035). 공유가 필요하면 그 컴포넌트를 features/<domain>/components/ 또는 components/ 로 올려라.",
             },
           ],
+        },
+      ],
+      // ★`no-restricted-imports` 는 **동적 import 를 보지 않는다**(정적 선언 전용).
+      //   그래서 `import()` 표현식은 AST 선택자로 따로 막는다.
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "ImportExpression > Literal[value=/(^@\\u002Fapp\\u002F)|(^\\.{1,2}\\u002F.*\\bapp\\u002F)/]",
+          message:
+            "하위 층은 app/ 을 동적 import 하지도 않는다 (ADR-035). 정적 import 와 같은 경계다.",
         },
       ],
     },

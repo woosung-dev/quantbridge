@@ -48,6 +48,13 @@ jobs:
               #   ci.yml 을 검증하는 감사 테스트(`test_pytest_shard_partition` ·
               #   `test_ci_workflow_env_parity`)가 backend 스위트 안에 있으므로 이 연결이 맞다.
               - '.github/workflows/**'
+              # ★★계약 파일 자신도 backend 트리거다 (2026-08-16 codex P1).
+              #   `backend_static` 의 OpenAPI drift 스텝이 지키는 대상이 바로 이 파일인데,
+              #   여기 없으면 **`contracts/openapi/openapi.json` 만 고친 PR 에서 그 잡이 통째로
+              #   skip 되고** `ci` 요약은 skip 을 통과로 세므로, 손으로 고친 계약이 초록으로 머지된다.
+              #   ★게이트를 붙일 때는 「무엇이 그것을 발화시키나」를 함께 봐야 한다 —
+              #   이 PR 이 게이트만 붙이고 트리거를 안 넓혀 정확히 그 구멍을 만들었다.
+              - 'contracts/**'
 
   documentation:
     runs-on: ubuntu-latest

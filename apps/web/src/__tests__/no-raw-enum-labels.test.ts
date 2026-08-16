@@ -199,7 +199,7 @@ function walk(dir: string, results: string[] = []): string[] {
 //   그 디렉터리들이 `features/*/components/` 로 옮겨졌고, `walk()` 는 `existsSync` 가 false 면
 //   **조용히 건너뛴다**(:176). 즉 목록을 안 고쳤으면 스코프가 통째로 비고 **테스트는 초록**이었다.
 //   ★그래서 이 파일을 고칠 때는 `apps/web/scripts/canon-scope-census.mjs` 로 스캔 파일 수를
-//     이동 전후 비교해라. 줄어들면 배선이 죽은 것이다 (2026-08-16 실측: 112 → 246).
+//     이동 전후 비교해라. 줄어들면 배선이 죽은 것이다 (2026-08-16 실측: **111 → 116**).
 // ★아래 목록에 없는 디렉터리는 감사받지 않는다. feature 를 새로 만들면 여기에 줄을 추가해라.
 const SCOPE_MARKERS: readonly string[] = [
   join("features", "backtest", "components"), // 구 app/(dashboard)/backtests/_components

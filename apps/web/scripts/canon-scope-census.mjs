@@ -6,6 +6,11 @@
 //   **테스트는 초록으로 통과한다** — 이 레포가 반복해 덴 「빈 입력이 원하는 답」이다.
 //   이동 전후로 이 수치를 비교해서, 줄어들면 배선이 죽은 것으로 판정한다.
 //
+// ★★**이 파일의 걷기 규칙은 각 테스트의 규칙과 정확히 같아야 한다.** 초판은 세 검사기 모두에
+//   `.tsx` 전용 walk 를 썼는데 `design-canon-source.test.ts` 의 `productionFiles()` 는
+//   **`.ts` 도 세고 `generated/` 를 제외**한다 — 그래서 336 을 236 으로 보고했다(2026-08-16
+//   codex P2). 계측기가 대상과 다른 것을 세면 「줄었는가」 판정 자체가 무의미하다.
+//
 // 사용: cd apps/web && node scripts/canon-scope-census.mjs
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -32,8 +37,26 @@ function walkTsx(dir, out = []) {
   return out;
 }
 
+/** `design-canon-source.test.ts` 의 `productionFiles()` 와 같은 규칙 — `.ts`+`.tsx`, `generated/` 제외. */
+function walkProduction(dir, out = []) {
+  if (!existsSync(dir)) return out;
+  for (const entry of readdirSync(dir)) {
+    if (entry === "__tests__" || entry === "generated" || entry === "node_modules") continue;
+    if (entry.startsWith(".")) continue;
+    const full = join(dir, entry);
+    const stat = statSync(full);
+    if (stat.isDirectory()) walkProduction(full, out);
+    else if (stat.isFile() && /\.(ts|tsx)$/.test(full) && !/\.(test|spec)\.(ts|tsx)$/.test(full))
+      out.push(full);
+  }
+  return out;
+}
+
 // no-raw-enum-labels.test.ts `SCOPE_MARKERS` 와 **같은 목록**을 유지해야 한다.
-// ★2026-08-16 ADR-035 이동 기준선: 구 목록(app/**/_components 8종 포함) 112 → 신 목록 116.
+// ★2026-08-16 ADR-035 이동 기준선(`origin/main` 의 테스트 목록으로 재측정):
+//   no-raw-enum-labels 111 → 116 · design-canon-source 336 → 336.
+//   ★종전에 적혀 있던 「112」는 이 계측기 초판이 목록에 `features/backtest·dashboard` 를
+//     미리 넣어 과다 계상한 값이다. 기준선은 **테스트가 그때 실제로 쓰던 목록**으로 잰다.
 const ENUM_LABEL_DIRS = [
   join("features", "backtest", "components"),
   join("features", "trading", "components"),
@@ -80,11 +103,13 @@ const userFacing = [];
 for (const sub of ["app", "components", "features"]) walkUserFacing(join(SRC, sub), userFacing);
 
 // design-canon-source.test.ts — src 전체를 걷고, 예외 화이트리스트가 **경로 키**다.
-const allSrc = walkTsx(SRC);
+const allSrc = walkProduction(SRC);
 
 console.log("══ 캐논 가드 스코프 인구조사 ══");
-console.log(`  no-raw-enum-labels  스캔 .tsx : ${enumFiles.size}   (없는 디렉터리 ${missing}개)`);
-console.log(`  no-internal-ids     스캔 .tsx : ${userFacing.length}`);
-console.log(`  design-canon-source 스캔 .tsx : ${allSrc.length}`);
+console.log(
+  `  no-raw-enum-labels  스캔 .tsx     : ${enumFiles.size}   (없는 디렉터리 ${missing}개)  [기준선 111]`,
+);
+console.log(`  no-internal-ids     스캔 .tsx     : ${userFacing.length}   [기준선 203]`);
+console.log(`  design-canon-source 스캔 .ts/.tsx : ${allSrc.length}   [기준선 336]`);
 console.log();
 console.log("★이동 후 위 세 수가 **줄면** 검사기가 대상을 잃은 것이다 — 초록을 통과로 읽지 마라.");

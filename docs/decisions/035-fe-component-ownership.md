@@ -74,9 +74,14 @@
 
 ### 4. 경계는 eslint 가 집행한다
 
-`apps/web/eslint.config.mjs` 에 `no-restricted-imports` 를 넣어
-**`features/`·`components/`·`lib/`·`hooks/`·`store/` 가 `@/app/*` 를 import 하는 것**을 error 로 막는다.
-이동 시점 위반 0건이고, 양성 대조(위반 파일을 심어 error 확인)로 판별력을 확인했다.
+`apps/web/eslint.config.mjs` 가 **`features/`·`components/`·`lib/`·`hooks/`·`store/` 에서 `app/` 을
+import 하는 것**을 error 로 막는다. 이동 시점 위반 0건이고 양성 대조로 판별력을 확인했다.
+
+> ★**초판은 두 갈래로 뚫려 있었고 codex 적대 리뷰가 잡았다**(2026-08-16). `@/app/*` 만 막아서
+> ⑴ 상대경로 `../app/page` ⑵ 동적 `import("@/app/page")` 가 통과했다 — 탐침으로 **실측 확인**했다.
+> 지금은 `no-restricted-imports` 패턴을 `**/app/**` 까지 넓히고, `no-restricted-imports` 가
+> **동적 import 를 보지 않으므로** `no-restricted-syntax` 의 `ImportExpression` 선택자를 함께 둔다.
+> 두 갈래 모두 양성 대조로 error 를 확인했고, 하위 층의 합법 `app/` import 는 0건이라 오탐도 0이다.
 
 ## Consequences
 
@@ -90,9 +95,15 @@
 
 | 검사기                | 이동 전 | 이동 후 | 판정                                                 |
 | --------------------- | ------- | ------- | ---------------------------------------------------- |
-| `no-raw-enum-labels`  | 112     | **116** | ✅ (share/ 4파일 신규 편입)                          |
+| `no-raw-enum-labels`  | 111     | **116** | ✅ (share/ 4파일 신규 편입)                          |
 | `no-internal-ids`     | 203     | 203     | ✅ (술어가 `/features/`·`/components/` 를 이미 포함) |
-| `design-canon-source` | 236     | 236     | ✅ (`src` 전체를 걷는다)                             |
+| `design-canon-source` | 336     | 336     | ✅ (`src` 전체 `.ts`+`.tsx`, `generated/` 제외)      |
+
+> ★**이 표의 첫 판은 틀렸다** — 「112 / 236」으로 적었고 codex 적대 리뷰가 잡았다(2026-08-16).
+> 계측기 초판이 ⑴ enum 목록에 `features/backtest·dashboard` 를 **미리 넣어** 과다 계상하고
+> ⑵ design-canon 을 `.tsx` 전용으로 걸어 `.ts` 와 `generated/` 규칙을 놓쳤다.
+> **계측기가 대상과 다른 것을 세면 「줄었는가」 판정 자체가 무의미하다.** 위 수치는
+> `origin/main` 의 테스트 목록으로 다시 잰 값이다. 결론(스코프가 안 줄었다)은 그대로다.
 
 계측기는 `apps/web/scripts/canon-scope-census.mjs` 로 남겼다 — **다음 재배치도 이걸 먼저 돌려라.**
 그리고 `no-raw-enum-labels` 의 `getScopedFiles()` 에 **디렉터리 부재 시 throw** 를 넣어
