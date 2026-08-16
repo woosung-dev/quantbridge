@@ -44,7 +44,14 @@ def test_security_headers_attached_on_health_response(
 
 
 def test_server_header_stripped(monkeypatch: pytest.MonkeyPatch) -> None:
-    """uvicorn server 헤더 strip (OWASP A05 info leak)."""
+    """앱이 스스로 `server` 헤더를 넣지 않는다.
+
+    ★★**이 테스트는 uvicorn 의 `Server: uvicorn` 을 재지 못한다**([BL-347], 2026-08-16).
+    `TestClient` 는 uvicorn 프로토콜 계층을 안 태우므로 그 헤더가 **애초에 없고**, 그래서
+    이 단언은 미들웨어가 무엇을 하든 통과한다 — 종전에는 이것이 「strip 이 동작한다」의
+    증거로 읽혔지만 실제 배포에서는 8/8 경로가 헤더를 내고 있었다.
+    실효 검사는 `tests/test_uvicorn_server_header.py`(기동 플래그)가 한다.
+    """
     app = _build_app_with_env(monkeypatch, "development")
     client = TestClient(app)
     response = client.get("/health")

@@ -16,7 +16,7 @@ cp .env.example .env.local      # backend 전용 env (pydantic-settings 자동 �
 ## 실행
 
 ```bash
-uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port 8000
 ```
 
 ## 개발 도구

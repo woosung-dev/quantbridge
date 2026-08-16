@@ -496,8 +496,8 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 - [x] **G1 DB 호스팅 재결정** — ✅ **2026-08-16 확정: ① self-host TimescaleDB CE 유지** ([ADR-033](decisions/033-db-hosting-self-host-timescaledb.md)). 관리형이 막힌 것은 업체 사정이 아니라 TimescaleDB 의 **TSL 라이선스**(RDS·Supabase PG17·Fly MPG 전부 같은 이유). DB 24MB · hypertable 고유 기능 사용처 0건이라 되돌리기가 덤프 한 번이다. 조건 3종 동시 확정 — 백업 자동화([BL-767]) · 디스크 80% 경보([BL-768]) · 전환 트리거 4종. ⇒ **아래 셋의 선행이 풀렸다**
 - [ ] **BL-070** 도메인 + DNS + (옵션) Cloudflare — 1-2h + 전파 24h ★선행 해제(G1)
-- [ ] **BL-071** Backend 프로덕션 배포 — ★배포 대상 확정(self-host CE, [ADR-033]). ★★**2026-08-17 [ADR-034] 로 「Clerk production 승격」 축이 사라졌다** — 인증이 self-host 로 왔다. 남은 일 = `APP_ENV=production` 전환([BL-753]) + uvicorn `--no-server-header`([BL-347]) + rate limit([BL-754]) + 전용 DB 롤 생성
-- [ ] **BL-072** Resend 이메일 + Waitlist 활성화 — 1-2h + verify 24h ★선행 해제(G1)
+- [ ] **BL-071** Backend 프로덕션 배포 — ★배포 대상 확정(self-host CE, [ADR-033]). ★★**2026-08-17 [ADR-034] 로 「Clerk production 승격」 축이 사라졌다** — 인증이 self-host 로 왔다. ★**2026-08-16 beta-cutover 에서 코드 축이 전부 닫혔다**: 전용 DB 롤 `qb_auth` 생성 완료 · rate limit([BL-754]) 종결 · uvicorn `--no-server-header`([BL-347]) 종결. 남은 것은 **서버 env 주입 + `APP_ENV=production` 플립** 하나이고, validator 5종(SECRET_KEY 비-placeholder · WAITLIST_TOKEN_SECRET · FRONTEND_URL/WAITLIST_INVITE_BASE_URL/BETTER_AUTH_URL 비-localhost · PROMETHEUS_BEARER_TOKEN)을 채우지 못하면 **부팅이 거부된다**
+- [ ] **BL-072** Resend 이메일 + Waitlist 활성화 — 1-2h + verify 24h ★선행 해제(G1). ★**2026-08-16 beta-cutover 에서 실코드 결손을 닫았다** — `/invite/[token]` 페이지 신설(BE·config·Makefile·env 넷이 이미 `/invite` 를 가리키는데 라우트만 없어 **초대 메일 링크가 404** 였다) + `RESEND_FROM_ADDRESS` 설정화(기본값 `…@quantbridge.app` 은 실도메인이 아니라 Resend 가 403 을 낸다). 남은 것은 **Resend 도메인 검증(사용자 수동)** + 키 주입
 - [ ] **BL-073** Twitter/X #buildinpublic 캠페인 — (BL-070~072 후 trigger)
 - [ ] **BL-074** Beta 인터뷰 3명 × 3회 — (BL-073 후 + onboarding 후)
 - [ ] **BL-075** H2 진입 게이트 설계 — (BL-005 self-assess ≥7 직후)

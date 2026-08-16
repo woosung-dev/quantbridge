@@ -181,7 +181,7 @@ be: metrics-prepare
 	cd apps/api && \
 	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/apps/api/.metrics \
 	  QB_METRICS_ROLE=api \
-	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+	  uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port 8000
 
 # ★[BL-650] — Turbopack 영속 캐시가 자라면 `next dev` 가 **요청 0건에서** CPU 를 태우고
 #   낡은 CSS 를 재기동 너머로 계속 준다(음성 대조를 거짓 통과시킨다). 처방은 `rm -rf .next` 뿐이다.
@@ -374,7 +374,7 @@ be-isolated: metrics-prepare
 	  WAITLIST_INVITE_BASE_URL=http://localhost:$(QB_FE_PORT)/invite \
 	  PROMETHEUS_MULTIPROC_DIR=$(CURDIR)/apps/api/.metrics \
 	  QB_METRICS_ROLE=api \
-	  uv run uvicorn src.main:app --reload --host 0.0.0.0 --port $(QB_BE_PORT)
+	  uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port $(QB_BE_PORT)
 
 fe-isolated:
 	cd apps/web && \

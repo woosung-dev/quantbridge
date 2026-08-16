@@ -341,6 +341,14 @@ class Settings(BaseSettings):
             "발급: https://resend.com/ → API Keys. Free tier 100/일."
         ),
     )
+    resend_from_address: str = Field(
+        default="QuantBridge Waitlist <waitlist@quantbridge.app>",
+        description=(
+            "초대 메일 발신 주소. ★[BL-072] — Resend 는 **인증된 도메인**에서만 발송을 허용한다. "
+            "기본값의 `quantbridge.app` 은 이 배포의 도메인이 아니므로(`qb.woosung.dev`) "
+            "그대로 두면 발송이 403 으로 실패한다. 배포 시 실도메인으로 바꿔라."
+        ),
+    )
     waitlist_token_secret: SecretStr = Field(
         default=SecretStr(""),
         description=(

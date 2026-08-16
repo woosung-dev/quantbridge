@@ -23,7 +23,8 @@ QuantBridge Beta 는 아시아 태평양 지역에서만 제공. US/EU 차단을
 
 ### 설정 절차
 
-1. Cloudflare Dashboard → 대상 도메인 → **Security** → **WAF** → **Custom rules** → **Create rule**.
+1. Cloudflare Dashboard(https://dash.cloudflare.com/) → `woosung.dev` → **Security** → **WAF**
+   → **Custom rules** → **Create rule**. Expression 은 **Edit expression** 으로 텍스트 모드에서 붙여넣는다.
 2. Rule name: `QuantBridge — US/EU geo block`
 3. Expression (Edit in Expression Editor):
    ```
@@ -36,16 +37,29 @@ QuantBridge Beta 는 아시아 태평양 지역에서만 제공. US/EU 차단을
 
 ```bash
 # 정상 KR (예상 200)
-curl -I -H "CF-IPCountry: KR" https://quantbridge.ai/
+curl -I -H "CF-IPCountry: KR" https://qb.woosung.dev/
 
 # 차단 US (예상 403 from Cloudflare)
-curl -I -H "CF-IPCountry: US" https://quantbridge.ai/
+curl -I -H "CF-IPCountry: US" https://qb.woosung.dev/
 
 # /not-available 은 통과
-curl -I -H "CF-IPCountry: US" https://quantbridge.ai/not-available
+curl -I -H "CF-IPCountry: US" https://qb.woosung.dev/not-available
 ```
 
 > **참고:** Cloudflare 는 클라이언트 TCP 연결의 실 IP 로 geolocation 을 판단. `CF-IPCountry` 헤더는 edge 에서 덧붙는 결과물이라 curl 로는 완전한 재현 어려움. 실제 우회 테스트는 VPN 사용.
+
+---
+
+## L0(선행): Cloudflare Access 제거 — 공개 전환
+
+★**Access 가 걸려 있는 동안은 L1 을 시험할 수 없다** — 모든 요청이 OTP 화면에서 멈춘다.
+Zero Trust(https://one.dash.cloudflare.com/) → **Access** → **Applications** → `qb.woosung.dev`
+→ **Delete**. ★**정책만 지우지 마라** — 앱이 남아 있으면 계속 막는다.
+★**`qb-api.woosung.dev` 에는 걸지 마라**(걸려 있으면 함께 제거) — Access 는 브라우저
+리다이렉트로 인증하는데 XHR 도 FE 컨테이너의 SSR 헤어핀도 그것을 못 따라간다. API 의 문은
+Bearer JWT 다(`frontend-deploy.md` §2).
+
+확인: 시크릿 창에서 `https://qb.woosung.dev` → OTP 없이 로그인 페이지가 떠야 한다.
 
 ---
 

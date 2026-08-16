@@ -86,26 +86,32 @@ def test_rate_limit_exceeded_returns_429(limited_app: FastAPI) -> None:
 def test_per_user_isolation(limited_app: FastAPI) -> None:
     """user A 가 limit 도달해도 user B 는 정상 처리.
 
-    slowapi key_func 의 파라미터명은 'request' 여야 inspect.signature 로 인식.
+    ★**2026-08-16 [BL-754] 재조준.** 종전 판은 인라인 lambda `key_func` 를 써서
+    **프로덕션 `rate_limit_key` 를 한 번도 부르지 않았다** — 「slowapi 가 서로 다른 키를
+    격리한다」는 라이브러리 성질만 재는 무증거 테스트였다. 이제 기본 `key_func`
+    (= `rate_limit_key`)를 그대로 쓰고, 신원은 아래 `_RateLimitIdentityMiddleware` 가
+    세우는 것과 같은 자리(`request.state.user_id`)에 심는다.
     """
     limiter = limited_app.state.limiter
 
+    # 이 엔드포인트는 key_func 를 **넘기지 않는다** — 그래야 rate_limit_key 가 실제로 돈다.
     @limited_app.get("/private-limited")
-    @limiter.limit(
-        "1/minute",
-        # 주의: slowapi 가 inspect.signature 로 'request' 파라미터 존재 여부 확인.
-        # 파라미터명이 다르면 no-arg 방식으로 호출 → TypeError → swallow_errors 로 흡수.
-        key_func=lambda request: f"user:{request.headers.get('x-test-user', 'anon')}",
-    )
+    @limiter.limit("1/minute")
     async def private_limited(request: Request, response: Response) -> dict[str, str]:
         return {"ok": "true"}
 
+    # 미들웨어가 JWT 로 세우는 값을 헤더로 대신 심는 얇은 shim.
+    # (JWT 검증 자체는 test_rate_limit_identity.py 가 잰다.)
+    @limited_app.middleware("http")
+    async def _seed_identity(request: Request, call_next):  # type: ignore[no-untyped-def]
+        user = request.headers.get("x-test-user")
+        if user:
+            request.state.user_id = user
+        return await call_next(request)
+
     with TestClient(limited_app) as client:
-        # user A 1번째 → OK
         r1 = client.get("/private-limited", headers={"x-test-user": "userA"})
-        # user A 2번째 → 429
         r2 = client.get("/private-limited", headers={"x-test-user": "userA"})
-        # user B 1번째 → OK (독립 키)
         r3 = client.get("/private-limited", headers={"x-test-user": "userB"})
 
     assert r1.status_code == 200
@@ -125,6 +131,13 @@ def test_unauthenticated_uses_client_host_when_no_xff(
     """TRUSTED_PROXIES 비어 있으면 X-Forwarded-For 무시 + client.host 만 사용.
 
     TestClient 의 client.host = 'testclient' (비IP) 이므로 모든 요청이 동일 키 → 2/min 한도.
+
+    ★**2026-08-16 [BL-754] 판정 정정.** 원장은 이 테스트를 「버그를 계약으로 굳혔다」고
+    적었는데 **절반만 맞다.** 신뢰 근거 없이 XFF 를 믿으면 클라이언트가 키를 골라 한도를
+    무력화하므로, 「신뢰 안 된 XFF 는 무시한다」는 **옳은 fail-safe 계약**이고 그대로 둔다.
+    실제 결함은 둘이었고 여기가 아니다 — ⑴ 프로덕션 `TRUSTED_PROXIES` 가 비어 있었고
+    ⑵ 인증 경로(`state.user_id`)를 **세우는 코드가 0건**이라 아무도 그 갈래를 안 쟀다.
+    그 둘은 `test_rate_limit_identity.py` 가 잰다.
     """
     monkeypatch.setattr("src.core.config.settings.trusted_proxies_raw", "")
     # rate_limit module 의 _TRUSTED_NETS 도 갱신 (module-level 캐시)

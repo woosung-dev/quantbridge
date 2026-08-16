@@ -61,6 +61,16 @@ export type WaitlistApplicationAcceptedResponse = z.infer<
   typeof WaitlistApplicationAcceptedResponseSchema
 >;
 
+// [BL-072] GET /api/v1/waitlist/invite/{token} — BE `InviteTokenVerifyResponse` 대응.
+// 필드 2개뿐이다. 초대 링크는 로그인 이전 단계라 신청서 전문을 내려주지 않는다.
+export const InviteTokenVerifyResponseSchema = z.object({
+  email: z.string(),
+  status: WaitlistStatusSchema,
+});
+export type InviteTokenVerifyResponse = z.infer<
+  typeof InviteTokenVerifyResponseSchema
+>;
+
 export const WaitlistApplicationResponseSchema = z.object({
   id: z.uuid(),
   email: z.string(),

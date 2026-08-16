@@ -112,7 +112,7 @@ uv sync
 uv run alembic upgrade head        # 기본 모드 (5432) — 또는 root 에서 `make migrate`
 
 # API 서버 (개발)
-uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 8000
+uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port 8000
 ```
 
 > **Sprint 32 BL-168 — `make dev-isolated` 자동 통합.** 격리 모드 사용 시

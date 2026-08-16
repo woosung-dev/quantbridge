@@ -34,7 +34,12 @@ def get_email_service() -> EmailService:
     api_key = settings.resend_api_key.get_secret_value()
     # dev 환경 기본값 — send_invite_email 호출 시점에 오류 아닌 placeholder.
     # 테스트는 이 factory 를 override.
-    return EmailService(api_key=api_key or "dev-empty-key")
+    # ★[BL-072] 발신 주소를 설정에서 읽는다 — 종전에는 `EmailService` 기본 인자
+    #   (`…@quantbridge.app`)가 유일한 값이라 실도메인으로 바꿀 경로가 아예 없었다.
+    return EmailService(
+        api_key=api_key or "dev-empty-key",
+        from_address=settings.resend_from_address,
+    )
 
 
 async def get_waitlist_service(
