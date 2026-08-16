@@ -360,18 +360,10 @@ Beta 사용자는 당분간 **Access 정책에 이메일을 추가**해 받는�
 > smoke 4/4 도 통과. ★그 과정에서 [BL-781] 을 발견했다 — **격리 슬롯에서 authed 가 지금까지
 > 구조적으로 불가능**했다(`BETTER_AUTH_URL` 미배선 → 403 INVALID_ORIGIN). 이번엔 우회로 돌렸다.
 
-> ★**2026-08-16 tool-version-ssot — 도구 버전을 `mise.toml` 하나로 모았다**([ADR-036]). 태스크
-> 러너는 **안 바꿨다**(Make 유지 — `ifndef`/`ifeq` 로 붙였다 뗐다 하는 `be-isolated` 의 조건부
-> 선행조건을 Just·mise·go-task 중 표현하는 것이 없다). 실측 드리프트 3건: **node 는 3면 중 CI 만
-> 20**(로컬 22 · `apps/web/Dockerfile` 22, 그리고 20 은 2026-04-30 EOL) · **pnpm 이 한 레포에 메이저
-> 2개**(루트 8.15.9 / `apps/web` 9.12.0) · **uv 는 핀이 0건**이라 nightly 실주문 스모크가 밤마다 다른
-> uv 로 돌았다. ⇒ `.python-version`·`packageManager` 삭제, 워크플로 4개(8 job)를 `jdx/mise-action`
-> 으로 교체해 **버전 숫자 0건**. 배선은 shim PATH **한 줄**(Makefile·훅 2개). 남는 예외는
-> **Dockerfile 2곳뿐**(`FROM` 은 `mise.toml` 을 못 읽는다) — 6곳 → 3곳이 도달 가능한 최소다.
-> ★함정 2건을 실측으로 확정했다: mise 는 `.python-version`·`packageManager` 를 **기본으로 안 읽고**
-> (`idiomatic_version_file_enable_tools = []`) `mise.toml` 과 공존하면 `mise.toml` 이 이긴다 —
-> 그래서 남겨 두면 mise 와 uv 가 **다른 python 을 조용히** 고른다. 그리고 `.python-version` 만
-> 지우면 uv 가 **3.13.12** 를 집는다 → `requires-python` 에 상한(`<3.13`)을 세웠다.
+> ★**2026-08-16 tool-version-ssot — 도구 버전을 `mise.toml` 하나로 모았다**([ADR-036] 전문. 러너는
+> Make 유지). 드리프트 3건 실측 — **node 는 3면 중 CI 만 20**(EOL) · **pnpm 이 한 레포에 메이저 2개** ·
+> **uv 핀 0건**(nightly 실주문 스모크가 밤마다 다른 uv 로 돌았다). 워크플로 4개에서 버전 숫자 **0건**,
+> 남는 예외는 Dockerfile 2곳뿐. ★`.python-version` 을 남기면 mise 와 uv 가 **다른 python** 을 고른다.
 
 **이 회차에 끝난 것** — 배포 전량([ADR-034] 발효) · `APP_ENV=production` 전환 · 실사용자 연결 ·
 [BL-754]·[BL-347]·[BL-772]·[BL-766]·[BL-072] 종결 · [BL-753] 서버 주입.
