@@ -53,7 +53,7 @@
 미도래)**`) / `PARTIAL` / `RESOLVED` / `UNKNOWN`. DEFERRED 는 active 로 안 세고 3면에서는 ACTIVE 와 같은
   「미완」 쪽이다([ADR-028](docs/decisions/028-backlog-deferred-verdict.md)). 도래 판정 = `tools/scripts/bl-trigger-sweep.sh`
   (**`--selftest` 를 전량 스윕보다 먼저**). ⓪ 표는 `--list ACTIVE` 에서 파생 — 손으로 후보를 얹지 마라
-- ALWAYS — 요약 줄 길이 상한 준수: `dev-log/INDEX.md` **300자** · `backlog.md`·`roadmap.md` **1,000자**
+- ALWAYS — 요약 줄 길이 상한 준수: `dev-log/INDEX.md` **300자** · `backlog.md`·`backlog-resolved.md`·`roadmap.md` **1,000자**
   (`tools/scripts/docs-audit.sh` 강제). 읽는 비용은 `tools/scripts/context-budget.sh` 로 잰다 (바이트 아닌 **문자**)
 - ALWAYS — 스프린트 종료 시 작업 문서는 승격(`reference/`)·강등·삭제 중 하나로 종결. 회고는 **반증 카드
   1~2천자 → `docs/lessons.md` 승격 → INDEX 한 줄** (ADR-026 §3)

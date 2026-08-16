@@ -238,7 +238,7 @@ fi
 
 # ★BL 감사 — docs/ 만 읽으므로 영역 판정·cd 와 무관하게 항상 돈다 (BL-564).
 #   ★파이프를 붙이지 마라. run_gate 가 rc 를 직접 읽는다.
-run_gate "BL 감사" "docs/backlog.md" bash "$ROOT/tools/scripts/bl-audit.sh"
+run_gate "BL 감사" "backlog.md + backlog-resolved.md" bash "$ROOT/tools/scripts/bl-audit.sh"
 
 # ★위 게이트의 **중복 검사 자체**를 재는 하네스 (BL-569). 원장이 깨끗하면 중복 탐지 로직을
 #   통째로 지워도 "BL 감사" 는 초록이다 — 실제 사고를 막는 코드인데 되돌려도 아무도 못 잡는다.

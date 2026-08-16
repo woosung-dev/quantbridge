@@ -186,7 +186,7 @@ run() {  # $1=CASE  $2=기대 rc  $3=축이 말해야 하나(yes/no)  $4=설명
   fi
 }
 
-echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 + BL-720 지식 정본 + BL-779 다중 파일 원장 축 — 판별력 18케이스"
+echo "▶ docs-audit ⓪ 표 정체성 + 트리거 판정 줄 + BL-720 지식 정본 + BL-779 다중 파일 원장 축 — 판별력 19케이스"
 
 # ⑴ ★음성 대조가 아니라 **ABORT 대조**다. 양쪽이 비면 초록도 빨강도 내지 않는다.
 mk_status "";       run empty  3 yes "양쪽 공집합 → rc=3 ABORT (빈 입력을 「일치」로 통과시키지 않는다)"
@@ -277,10 +277,18 @@ run ledger 3 yes "원장 반쪽이 빈 파일 → rc=3 ABORT (「위반 0건」�
 # ⒅ 정본(`bl-audit`)이 rc≠0 으로 죽었다 → 빈 stdout 을 공집합으로 읽지 않고 ABORT.
 mk_status "BL-999"; mk_resolved full
 run audit_dead 3 yes "bl-audit 이 rc=3 으로 죽음 → 빈 stdout 을 공집합으로 읽지 않는다"
+
+# ⒆ 정본 **스크립트 자체가 없다** → 이것도 ABORT. 파일 부재와 rc≠0 은 같은 사건이다.
+#   ★2026-08-16 적대 리뷰 P1: 종전 `if bl_audit.exists():` 는 부재 시 두 축을 통째로 건너뛰고
+#     「✓ … are clean」을 찍었다 — 검사기가 사라진 것을 「위반 없음」으로 보고한 셈이다.
+mk_status "BL-999"; mk_resolved full
+mv "$SB/tools/scripts/bl-audit.sh" "$SB/bl-audit.sh.bak"
+run ledger 3 yes "정본 스크립트 부재 → rc=3 ABORT (부재를 「위반 0건」으로 읽지 않는다)"
+mv "$SB/bl-audit.sh.bak" "$SB/tools/scripts/bl-audit.sh"
 AXIS="⓪ 표 정체성"
 
 if [ "$FAIL" != 0 ]; then
   echo "✗ docs-audit 하네스 실패 — ⓪ 표 정체성 / 트리거 판정 줄 / BL-720 지식 정본 / 다중 파일 원장 축이 판별력을 잃었다"
   exit 1
 fi
-echo "✓ docs-audit 하네스 18/18 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락 · LESSON ID · 승격 표 포인터 · 비경로 스팬 과다포획 · 장식 우회 2종 · 다중 파일 원장 4종"
+echo "✓ docs-audit 하네스 19/19 — ABORT · missing · extra · 양성 대조 · PARTIAL 도래/미도래 · PARTIAL 판정줄 누락 · LESSON ID · 승격 표 포인터 · 비경로 스팬 과다포획 · 장식 우회 2종 · 다중 파일 원장 5종"

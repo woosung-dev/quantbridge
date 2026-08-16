@@ -65,7 +65,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --list) [ $# -ge 2 ] || { echo "--list 에 값이 필요하다" >&2; exit 1; }; LIST="$2"; shift 2 ;;
     --no-crosscheck) CROSSCHECK=0; shift ;;
-    -h|--help) sed -n '2,59p' "$0"; exit 0 ;;   # ★헤더 주석에 줄을 더하면 이 범위를 함께 옮겨라
+    -h|--help) sed -n '2,60p' "$0"; exit 0 ;;   # ★헤더 주석에 줄을 더하면 이 범위를 함께 옮겨라
     *) echo "알 수 없는 인자: $1" >&2; exit 1 ;;
   esac
 done
@@ -90,8 +90,10 @@ done
 [ -r "$ROADMAP" ] || { echo "✗ ABORT — 읽을 수 없다: ${ROADMAP#"$ROOT/"}" >&2; exit 3; }
 
 # ★awk 는 원장 전량을 먼저 읽고 roadmap 을 마지막에 읽는다. 구분은 **파일 순서가 아니라**
-#   인자 사이에 낀 `ROADMAP=1` 대입이다 — `NR==FNR` 은 첫 파일이 0줄이면 다음 파일로 새고
-#   (하네스는 실제로 빈 roadmap 을 쓴다), 파일이 셋 이상이면 애초에 성립하지 않는다.
+#   인자 사이에 낀 `ROADMAP=1` 대입이다 — `NR==FNR` 은 「첫 파일이냐」만 가르므로 입력이
+#   **셋**(원장 2 + roadmap)이 된 순간 원장 둘째를 roadmap 쪽으로 흘려보낸다.
+#   ★2026-08-16 정정: 종전 주석은 「빈 roadmap 때문에 `NR==FNR` 을 못 쓴다」고 적었는데 **거짓**이다
+#     (빈 파일이 **마지막**이면 `NR==FNR` 은 안 깨진다). 교체 사유는 입력이 셋이 된 것 하나다.
 awk -v LIST="$LIST" -v CROSSCHECK="$CROSSCHECK" '
 # ── 상태 어휘 ────────────────────────────────────────────────────
 # lead = 상태 선언의 **첫 문장**. 상태 줄은 대개 한 문단이라 통째로 훑으면
@@ -152,7 +154,16 @@ function reset(id, ln) {
 ROADMAP != 1 {
   # ★파일별 섹션 수를 따로 센다 — 합계만 보면 「한쪽 파일을 못 읽는다」가 이동 누락과
   #   구분되지 않는다. 머리줄이 이 수를 찍는 것이 AC 의 음성 대조 표면이다.
-  if (FNR == 1) { fn = FILENAME; sub(/^.*\//, "", fn); forder[++nf] = fn }
+  # ★★`fence`/`details` 를 **파일마다 초기화**한다 (2026-08-16 적대 리뷰 P1). 안 하면 첫 파일에서
+  #   연 펜스를 둘째 파일이 닫을 수 있고, 그러면 그 사이 섹션이 통째로 사라지는데 **최종 상태는
+  #   균형**이라 아래 「서식 오류」가 안 뜬다 — 조용히 초록이다. 앞 파일이 열어 둔 채 끝났으면
+  #   그 파일 이름으로 기록해 둔다(파일 이름 없이 뭉치면 어디를 고쳐야 하는지 알 수 없다).
+  if (FNR == 1) {
+    if (nf > 0 && fence)       unclosed_fence[forder[nf]] = 1
+    if (nf > 0 && details > 0) unclosed_details[forder[nf]] = details
+    fence = 0; details = 0
+    fn = FILENAME; sub(/^.*\//, "", fn); forder[++nf] = fn
+  }
   # ★코드펜스 / <details> 구간은 상태 근거에서 제외한다 (BL-564).
   #   인용부호(`> `) 안의 펜스도 같다. 태그는 **줄 머리**에서만 인정한다(산문 언급 오탐 차단).
   if ($0 ~ /^[ \t>]*```/)          { fence = !fence; next }
@@ -172,10 +183,12 @@ ROADMAP != 1 {
   }
 
   # 인덱스 표 행:  | [BL-543](#bl-543) | 제목 … |
-  # ★파일 접두사를 허용한다 — 섹션이 `backlog-resolved.md` 로 내려간 뒤에도 행을 **원본에**
-  #   남기는 것이 [BL-779] ⑵ 의 계약이다. 접두사를 안 받으면 그 행이 파서에서 사라지고,
-  #   그러면 「표 행에 ✅ 인데 섹션은 …」 대조가 **조용히 꺼진다**(없는 행은 불일치를 못 낸다).
-  if ($0 ~ /^\|[ ]*\[BL-[0-9]+\]\([A-Za-z0-9._-]*#bl-[0-9]+\)/) {
+  # ★접두사는 **`backlog-resolved.md` 하나만** 허용한다 — 섹션이 그 파일로 내려간 뒤에도 행을
+  #   **원본에** 남기는 것이 [BL-779] ⑵ 의 계약이다. 접두사를 아예 안 받으면 그 행이 파서에서
+  #   사라져 「표 행에 ✅ 인데 섹션은 …」 대조가 **조용히 꺼지고**(없는 행은 불일치를 못 낸다),
+  #   반대로 `[A-Za-z0-9._-]*` 처럼 열어 두면 `typo.md#bl-1` 같은 **오타 링크도 정식 행으로**
+  #   받는다 (2026-08-16 적대 리뷰 P2). 계약 대상만 적는다.
+  if ($0 ~ /^\|[ ]*\[BL-[0-9]+\]\((backlog-resolved\.md)?#bl-[0-9]+\)/) {
     match($0, /BL-[0-9]+/); rid = substr($0, RSTART, RLENGTH)
     rowline[rid] = FNR
     rowsec[rid] = cursec
@@ -367,9 +380,13 @@ END {
   bad += h
 
   # ★구간이 안 닫히면 그 뒤가 통째로 안 읽힌다 — 조용히 삼키지 말고 실패로 올린다.
+  #   ★**파일별로** 보고한다. 합쳐 보면 첫 파일이 연 것을 둘째 파일이 닫아 최종 균형이 되는
+  #     경우를 못 잡는다(2026-08-16 적대 리뷰 P1 — 그 사이 섹션이 조용히 사라진다).
+  if (fence)       unclosed_fence[forder[nf]] = 1
+  if (details > 0) unclosed_details[forder[nf]] = details
   o = 0
-  if (fence)      { o++; printf "\n▶ 서식 오류 — ``` 코드펜스가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n" }
-  if (details > 0) { o++; printf "\n▶ 서식 오류 — <details> %d 개가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n", details }
+  for (k in unclosed_fence)   { o++; printf "\n▶ 서식 오류 — %s 의 ``` 코드펜스가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n", k }
+  for (k in unclosed_details) { o++; printf "\n▶ 서식 오류 — %s 의 <details> %d 개가 닫히지 않았다 (그 뒤 본문이 통째로 무시됐다)\n", k, unclosed_details[k] }
   bad += o
 
   printf "\n════════════════════════════════════════\n"

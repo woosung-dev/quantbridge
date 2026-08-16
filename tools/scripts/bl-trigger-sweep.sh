@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BL 트리거 도래 판정기 — `docs/backlog.md` 각 섹션의 `**Trigger:**` 줄을 읽어
+# BL 트리거 도래 판정기 — 원장 2종(`docs/backlog.md` + `docs/backlog-resolved.md`) 각 섹션의 `**Trigger:**` 줄을 읽어
 # 「그 조건이 지금 왔는가」를 버킷으로 가르고, **기계로 판정 가능한 세 축**은 직접 판정한다.
 #
 # 왜 이 스크립트가 있나 (2026-08-10 bl-trigger-triage)
@@ -73,13 +73,26 @@ BACKLOGS = [
 
 
 def verdicts():
-    """bl-audit 이 정본이다 — 판정을 여기서 다시 계산하지 않는다."""
+    """bl-audit 이 정본이다 — 판정을 여기서 다시 계산하지 않는다.
+
+    ★**rc 를 읽는다** (2026-08-16 적대 리뷰). 종전에는 stdout 만 봤으므로 정본이 ABORT(3) 로
+      죽어도 빈 dict 를 들고 계속 갔고, 전량 스윕이 「대상 0건」을 **정상 출력처럼** 냈다.
+      정본이 죽었으면 여기도 죽는다 — 측정불가는 「위반 0건」이 아니다 ([LESSON-101]).
+    """
     out = {}
     for v in ("ACTIVE", "DEFERRED", "PARTIAL", "RESOLVED", "UNKNOWN"):
         r = subprocess.run(
             ["bash", os.path.join(ROOT, "tools", "scripts", "bl-audit.sh"), "--list", v],
             capture_output=True, text=True,
         )
+        if r.returncode != 0:
+            sys.stderr.write(
+                f"✗ ABORT — bl-audit.sh --list {v} 가 rc={r.returncode} 로 죽었다. "
+                "빈 stdout 을 공집합으로 읽지 않는다.\n"
+            )
+            for row in (r.stderr or r.stdout).strip().splitlines()[:5]:
+                sys.stderr.write(f"    | {row}\n")
+            sys.exit(3)
         for line in r.stdout.splitlines():
             parts = line.split("\t")
             if len(parts) >= 2:
@@ -295,6 +308,38 @@ if MODE == "selftest":
          cli_base == len(default_targets)),
     ]
 
+    # ★★정본 ABORT 전파 (2026-08-16 적대 리뷰 P1). 원장 반쪽이 비면 `bl-audit` 은 rc=3 인데,
+    #   종전 `verdicts()` 는 stdout 만 봐서 빈 dict 를 들고 계속 갔고 전량 스윕이 **rc=0 으로
+    #   「대상 0건」**을 정상 출력처럼 냈다. 위 SET_CASES 는 전부 **이 트리**를 재므로 그 사고를
+    #   못 잡는다 — 그래서 임시 트리를 세워 **실제로 죽는지**를 본다.
+    #   ★양성만 두면 「항상 3을 낸다」도 통과한다 ⇒ 멀쩡한 트리가 rc=0 인 것도 함께 잰다.
+    import shutil, tempfile
+
+    def _abort_rc(break_second_ledger):
+        tmp = tempfile.mkdtemp()
+        try:
+            os.makedirs(os.path.join(tmp, "tools", "scripts"))
+            os.makedirs(os.path.join(tmp, "docs"))
+            for s in ("bl-audit.sh", "bl-trigger-sweep.sh"):
+                shutil.copy(os.path.join(ROOT, "tools", "scripts", s),
+                            os.path.join(tmp, "tools", "scripts", s))
+            for d in ("backlog.md", "backlog-resolved.md", "roadmap.md"):
+                shutil.copy(os.path.join(ROOT, "docs", d), os.path.join(tmp, "docs", d))
+            if break_second_ledger:
+                open(os.path.join(tmp, "docs", "backlog-resolved.md"), "w").close()
+            return subprocess.run(
+                ["bash", os.path.join(tmp, "tools", "scripts", "bl-trigger-sweep.sh"), "--tsv"],
+                capture_output=True, text=True,
+            ).returncode
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    rc_broken, rc_ok = _abort_rc(True), _abort_rc(False)
+    SET_CASES += [
+        (f"정본 ABORT 전파 — 원장 반쪽이 비면 스윕도 rc=3 (실제 {rc_broken})", rc_broken == 3),
+        (f"음성 대조 — 멀쩡한 원장에서는 rc=0 (실제 {rc_ok})", rc_ok == 0),
+    ]
+
     for label, ok in SET_CASES:
         fails += 0 if ok else 1
         print(f"  {'✓' if ok else '✗'} {label}")
@@ -306,7 +351,7 @@ if MODE == "selftest":
     if fails:
         print(f"✗ 판별력 없음 — {fails}건이 안 갈렸다. **전량 스윕으로 가지 마라.**")
         sys.exit(1)
-    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5 + 사람 판정 2 + CLI 배선 2. 전량 스윕 가능.")
+    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5 + 사람 판정 2 + CLI 배선 2 + 정본 ABORT 전파 2. 전량 스윕 가능.")
     sys.exit(0)
 
 # ── 전량 스윕 ──────────────────────────────────────────────────────────
