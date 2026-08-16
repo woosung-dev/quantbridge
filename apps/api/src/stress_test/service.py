@@ -72,7 +72,6 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from src.backtest.engine.types import BacktestConfig
-    from src.strategy.models import Strategy
     from src.stress_test.engine import GridSweepMetricsResult
 
 logger = logging.getLogger(__name__)
@@ -80,15 +79,20 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class _RunContext:
-    """WF/CA/PS 공통 실행 컨텍스트 — strategy + ohlcv + parent backtest_config.
+    """WF/CA/PS 공통 실행 컨텍스트 — pine source + ohlcv + parent backtest_config.
 
     BL-363 — 이전엔 3 execute 메서드가 strategy 로드 / ohlcv fetch /
     `build_engine_config_from_db(bt)` prefix 를 복붙했고, BL-222 가 CA/PS 에만
     config 를 추가하고 WF 를 누락 → silent money-path corruption. 단일 helper 로
     config 전달을 single-site 화해 drift class 를 구조적으로 제거한다.
+
+    BL-783 — `strategy: Strategy` 를 `pine_source: str` 로 좁혔다. 엔진에 넘기는 것은
+    부모 Backtest 에 핀된 **불변 스냅샷**이지 실행 시점의 mutable `Strategy` 가 아니다.
+    Strategy 객체를 들고 다니면 호출부에서 `ctx.strategy.pine_source` 로 다시 현재
+    소스를 읽을 수 있으므로, 그 문을 타입으로 닫는다.
     """
 
-    strategy: Strategy
+    pine_source: str
     ohlcv: pd.DataFrame
     backtest_config: BacktestConfig
 
@@ -323,17 +327,43 @@ class StressTestService:
         silent money-path corruption 전적). MC 는 equity_curve 기반이라 비대상.
         `kind_label` 은 strategy-missing 에러 메시지의 kind-specific 표면 보존용.
         """
-        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-        if strategy is None:
-            raise ValueError(f"Strategy no longer available for {kind_label}")
+        pine_source = await self._resolve_pinned_pine_source(bt, kind_label=kind_label)
         ohlcv = await self.provider.get_ohlcv(
             bt.symbol, bt.timeframe, bt.period_start, bt.period_end
         )
         return _RunContext(
-            strategy=strategy,
+            pine_source=pine_source,
             ohlcv=ohlcv,
             backtest_config=build_engine_config_from_db(bt),
         )
+
+    async def _resolve_pinned_pine_source(self, bt: Backtest, *, kind_label: str) -> str:
+        """BL-783 — 엔진에 넘길 source 는 부모 Backtest 에 핀된 스냅샷이다.
+
+        [BL-773](PR #650)이 backtest·optimizer 에 대해 닫은 결함과 동형이다. 실행 시점의
+        mutable `Strategy.pine_source` 를 읽으면, 제출 후 전략을 수정한 사용자가 그 백테스트에
+        stress test 를 돌릴 때 **수정본이 실행되고 결과는 옛 백테스트에 매달려 표시된다.**
+
+        `strategy_version_id` 가 NULL 인 legacy 행(PR #650 백필 이전 생성)만 현재 Strategy 로
+        떨어지고, 그 경로는 경고를 남긴다 — 흔적이 없으면 발생해도 검출 가능성이 0이다.
+        """
+        strategy_version = await self.strategy_repo.get_version_by_id(
+            bt.strategy_version_id,
+            strategy_id=bt.strategy_id,
+        )
+        if bt.strategy_version_id is not None and strategy_version is None:
+            raise ValueError(f"Strategy version no longer available for {kind_label}")
+        if strategy_version is not None:
+            return strategy_version.pine_source
+
+        logger.warning(
+            "stress_test_run_without_pinned_strategy_version",
+            extra={"backtest_id": str(bt.id), "strategy_id": str(bt.strategy_id)},
+        )
+        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
+        if strategy is None:
+            raise ValueError(f"Strategy no longer available for {kind_label}")
+        return strategy.pine_source
 
     async def _execute_walk_forward(self, st: StressTest, bt: Backtest) -> dict[str, object]:
         """Sprint 49 — Walk-Forward worker entry.
@@ -357,7 +387,7 @@ class StressTestService:
         opt_kind_raw = st.params.get("optimizer_kind")
         if opt_param_space_raw and opt_kind_raw:
             wf = run_walk_forward_optimization(
-                ctx.strategy.pine_source,
+                ctx.pine_source,
                 ctx.ohlcv,
                 train_bars=train_bars,
                 test_bars=test_bars,
@@ -377,7 +407,7 @@ class StressTestService:
             overrides = {k: Decimal(str(v)) for k, v in best_params_raw.items()}
             backtest_config = replace(backtest_config, input_overrides=overrides)
         wf = run_walk_forward(
-            ctx.strategy.pine_source,
+            ctx.pine_source,
             ctx.ohlcv,
             train_bars=train_bars,
             test_bars=test_bars,
@@ -424,7 +454,7 @@ class StressTestService:
             k: [Decimal(v) for v in vs] for k, vs in raw_grid.items()
         }
         result = engine_fn(
-            ctx.strategy.pine_source,
+            ctx.pine_source,
             ctx.ohlcv,
             param_grid=param_grid,
             backtest_config=ctx.backtest_config,

@@ -54,6 +54,12 @@ def _wf_result() -> WalkForwardResult:
 
 def _service() -> StressTestService:
     strategy_repo = AsyncMock()
+    # BL-783 — 엔진에 넘어가는 source 는 부모 Backtest 에 핀된 스냅샷이다.
+    # 이 double 은 라우팅만 재므로 두 경로가 같은 source 를 주지만, 실제로 읽히는 것은
+    # `get_version_by_id` 쪽이다 (`find_by_id_and_owner` 는 legacy 폴백 전용).
+    strategy_repo.get_version_by_id = AsyncMock(
+        return_value=SimpleNamespace(pine_source=SIMPLE_PINE)
+    )
     strategy_repo.find_by_id_and_owner = AsyncMock(
         return_value=SimpleNamespace(pine_source=SIMPLE_PINE)
     )
@@ -75,7 +81,9 @@ def _service() -> StressTestService:
 
 def _bt() -> SimpleNamespace:
     return SimpleNamespace(
+        id=uuid4(),
         strategy_id=uuid4(),
+        strategy_version_id=uuid4(),  # BL-783 — 제출 시점 스냅샷 핀
         user_id=uuid4(),
         symbol="BTCUSDT",
         timeframe="1h",
@@ -87,9 +95,7 @@ def _bt() -> SimpleNamespace:
 def _patch_config(monkeypatch: pytest.MonkeyPatch) -> None:
     from src.backtest.engine.types import BacktestConfig
 
-    monkeypatch.setattr(
-        service_mod, "build_engine_config_from_db", lambda bt: BacktestConfig()
-    )
+    monkeypatch.setattr(service_mod, "build_engine_config_from_db", lambda bt: BacktestConfig())
 
 
 @pytest.mark.asyncio
