@@ -83,11 +83,9 @@ port_busy() {
 
 write_slot_file() {
   cat > "$WT_ROOT/.worktree-slot" <<EOF
-# tools/scripts/worktree-bootstrap.sh 생성 — Makefile 이 -include 로 읽는다. 커밋 대상 아님.
+# tools/scripts/worktree-bootstrap.sh 생성 — mise.toml 의 task 가 sed 로 읽는다. 커밋 대상 아님.
+# ★형식(QB_SLOT = N)은 Makefile 시절 그대로다 — 파싱하는 쪽만 바뀌었다([ADR-036]).
 QB_SLOT = $1
-# Makefile 의 guard-main-only 가 "메인은 여기다" 를 출력할 때 쓴다.
-# 여기 박아두는 이유 — 없으면 make 가 타깃마다 git 을 한 번씩 더 불러야 한다.
-QB_MAIN_ROOT = $MAIN_ROOT
 EOF
 }
 
@@ -130,7 +128,7 @@ _WT_PATHS="$(printf '%s\n' "$_WT_LIST" | sed -n 's/^worktree //p')"
 USED=""
 while IFS= read -r _wt; do
   [ -n "$_wt" ] || continue
-  [ "$_wt" = "$MAIN_ROOT" ] && continue   # 메인은 슬롯 0 고정 (Makefile 의 QB_SLOT ?= 0)
+  [ "$_wt" = "$MAIN_ROOT" ] && continue   # 메인은 슬롯 0 고정 (.worktree-slot 이 없으면 mise task 가 0 을 쓴다)
   [ "$_wt" = "$WT_ROOT" ] && continue     # 자기 슬롯은 아래에서 재사용 여부를 따로 판단한다
   [ -f "$_wt/.worktree-slot" ] || continue
   USED="$USED $(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$_wt/.worktree-slot")"
@@ -139,7 +137,7 @@ $_WT_PATHS
 EOF
 
 # 재실행이 슬롯을 바꾸면 안 된다. 이미 떠 있는 서버는 옛 포트에 남아 있는데
-# env·테스트 DB·Makefile 만 새 번호로 갈아타면, 이후 테스트와 E2E 가 서로 다른
+# env·테스트 DB·슬롯 파일만 새 번호로 갈아타면, 이후 테스트와 E2E 가 서로 다른
 # 인스턴스를 보게 된다. 그래서 자기 `.worktree-slot` 이 있으면 그게 기본값이다.
 if [ -z "$SLOT" ] && [ -f "$WT_ROOT/.worktree-slot" ]; then
   SLOT="$(sed -n 's/^QB_SLOT[[:space:]]*=[[:space:]]*//p' "$WT_ROOT/.worktree-slot")"
@@ -302,7 +300,7 @@ set_env_var TEST_REDIS_LOCK_URL "$TEST_LOCK_URL" apps/api/.env.local
 set_env_var REDIS_LOCK_URL "$TEST_LOCK_URL" apps/api/.env.local
 ok "REDIS_LOCK_URL + TEST_REDIS_LOCK_URL → db $LOCK_DB"
 
-# ── 6. Makefile 이 읽을 슬롯 파일 ───────────────────────────────────────────
+# ── 6. mise task 가 읽을 슬롯 파일 ──────────────────────────────────────────
 # 실제 기록은 §2 의 락 안에서 이미 끝났다(예약이 곧 기록이다). 여기서는 확인만 한다.
 [ -f .worktree-slot ] || die ".worktree-slot 이 없다 — 슬롯 예약이 실패했다."
 ok ".worktree-slot (QB_SLOT=$SLOT)"
@@ -370,10 +368,13 @@ cat <<EOF
   BE 서버     mise run be-isolated      → http://localhost:$BE_PORT
               (슬롯 ≠ 0 이면 migrate-isolated 선행이 자동으로 빠진다 — QB_MIGRATE_DONE 불필요)
   FE 서버     mise run fe-isolated      → http://localhost:$FE_PORT
-  E2E         PLAYWRIGHT_BASE_URL=http://localhost:$FE_PORT pnpm e2e
-              (이 변수 없으면 3000 의 남의 앱을 검사한다 — 실제 사고 이력 있음)
+              (★BE 와 짝으로 띄워라 — authed e2e 는 두 task 가 BETTER_AUTH_URL 을 같은 값으로
+               덮어야 돈다. 어긋나면 403 INVALID_ORIGIN 또는 전건 401 이다, [BL-781])
+  E2E         cd apps/web && pnpm e2e            # authed 는 pnpm e2e:authed
+              (base URL 은 e2e/_base-url.ts 가 .worktree-slot 을 읽어 $FE_PORT 로 스스로 정한다.
+               PLAYWRIGHT_BASE_URL 은 슬롯 파일 밖의 대상을 겨눌 때만 준다)
 
-이 워크트리에서 막혀 있는 것 (Makefile 가드가 거부한다 — make 종료 코드 2):
+이 워크트리에서 막혀 있는 것 (assert-main-checkout.sh 가드가 거부한다 — 종료 코드 1):
   ✗ mise run up / down / up-isolated / down-isolated  → container_name 고정. 스택은 메인에서만.
   ✗ mise run migrate / migrate-isolated / seed        → 앱 DB 는 공유다. 다른 워크트리가 깨진다.
 

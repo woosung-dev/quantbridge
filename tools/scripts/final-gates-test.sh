@@ -18,6 +18,7 @@
 #   각각 무력화해 **케이스가 실제로 그것을 보고 있는지** 증명한다.
 # ★M4·M5 는 모드 축이 아니라 **신호의 required 술어**를 지킨다([BL-739], 2026-08-15) — 케이스 ⑩
 #   이 자기 변이 없이 들어오지 않게 함께 신설했다.
+# ★M6 은 하네스 전용 영역 주입 훅을 지켜 ⑩의 합성 음성·양성 대조를 환경 독립으로 만든다([BL-780]).
 
 set -uo pipefail
 
@@ -67,6 +68,9 @@ signal_note() { # signal_note <label 조각> <mode-args...>
     grep -E "^  (plan|DEFER|skip|PASS|FAIL) " |
     awk -v l="$label" 'index($0, l) { sub(/^ +[A-Za-z]+ +/, ""); print; exit }'
 }
+
+# 영역을 합성으로 주입해 '화면 검증' 행의 사유를 읽는다 ([BL-780]).
+screen_note_fake() { QB_FG_FAKE_CHANGED="$1" signal_note '화면 검증'; }
 
 report() { # report <번호> <라벨> <why(빈 문자열이면 통과)>
   if [ -n "$3" ]; then
@@ -189,27 +193,32 @@ run_suite() { # 케이스 10건
   report "⑨" "비싼 게이트도 영역 판정에 걸린다 (pytest~ruff · canon~chromium · authed=fe|be)" "$why"
 
   # ⑩ [BL-739] `screen.ok` 의 required 술어 = `apps/web/` ∪ `apps/api/src/`
-  #    ★음성 대조가 **먼저**다 — 둘 다 0줄인 지금 「필수 아님」이 나와야 한다. 늘 「필수」인
-  #      검사기는 판별력이 0 이고, 종전 리터럴 `1` 이 정확히 그 상태였다.
-  #    ★그리고 `$has_fe` 단독이 아님을 함께 잰다 — `apps/api/src` 만 바뀌어도 필수여야 한다
-  #      (BE 가 화면을 깨는 축, [BL-707]: CORS·포트가 어긋나면 화면은 「데이터 없음」이다).
-  local s_clean s_dirty
+  #    합성 음성·BE 축 양성·실물 양성을 함께 대조한다([BL-780]).
+  local s_fake_clean s_fake_api_src s_dirty
   why=""
-  s_clean="$(signal_note '화면 검증' --allow-dirty)"
-  case "$s_clean" in
+  s_fake_clean="$(screen_note_fake 'docs/status.md')"
+  case "$s_fake_clean" in
     *"필수 아님"*) ;;
-    "") why="사유를 못 읽었다 (계획 표에 '화면 검증' 행이 없다)" ;;
-    *) why="apps/web·apps/api/src diff 0 인데 필수다 [$s_clean]" ;;
+    "") why="합성 음성 대조 사유를 못 읽었다 [$s_fake_clean]" ;;
+    *) why="합성 음성 대조: apps/web·apps/api/src diff 0 인데 필수다 [$s_fake_clean]" ;;
+  esac
+  s_fake_api_src="$(screen_note_fake 'apps/api/src/probe.py')"
+  case "$s_fake_api_src" in
+    *"필수 아님"*) why="${why}${why:+ · }합성 양성 대조(BE 축): apps/api/src 가 바뀌었는데 필수가 아니다 [$s_fake_api_src]" ;;
+    *"· 필수"*) ;;
+    "") why="${why}${why:+ · }합성 양성 대조(BE 축) 사유를 못 읽었다 [$s_fake_api_src]" ;;
+    *) why="${why}${why:+ · }합성 양성 대조(BE 축)의 필수 사유를 못 읽었다 [$s_fake_api_src]" ;;
   esac
   : > "$PROBE_SRC"
   s_dirty="$(signal_note '화면 검증' --allow-dirty)"
   rm -f "$PROBE_SRC"
   case "$s_dirty" in
-    *"필수 아님"*) why="${why}${why:+ · }apps/api/src 가 바뀌었는데 필수가 아니다 [$s_dirty]" ;;
+    *"필수 아님"*) why="${why}${why:+ · }실물 양성 대조: apps/api/src 가 바뀌었는데 필수가 아니다 [$s_dirty]" ;;
     *"· 필수"*) ;;
-    *) why="${why}${why:+ · }사유를 못 읽었다 [$s_dirty]" ;;
+    "") why="${why}${why:+ · }실물 양성 대조 사유를 못 읽었다 [$s_dirty]" ;;
+    *) why="${why}${why:+ · }실물 양성 대조의 필수 사유를 못 읽었다 [$s_dirty]" ;;
   esac
-  report "⑩" "screen.ok required = apps/web ∪ apps/api/src ([BL-739])" "$why"
+  report "⑩" "screen.ok required = apps/web ∪ apps/api/src ([BL-739]) · 합성 음성+양성 ([BL-780])" "$why"
 }
 
 run_suite
@@ -219,7 +228,7 @@ echo "  케이스: $((10 - FAIL))/10 통과, ${FAIL} 실패"
 # ── 변이 — 케이스가 실제로 모드 디스패치를 보고 있는지 증명한다 ────────────────
 if [ "${1:-}" = "--mutants" ]; then
   echo
-  echo "── 변이 M1~M5 (사본 주입 · 케이스 10건 전량 재실행) ──"
+  echo "── 변이 M1~M6 (사본 주입 · 케이스 10건 전량 재실행) ──"
   BASE_RED="$RED_IDS"
   MUT_FAIL=0
 
@@ -269,6 +278,10 @@ PY
   mutate M4 '} && screen_req=1' '} ; screen_req=1' "⑩"
   #   M5 = `apps/api/src` 축을 죽인다(= `$has_fe` 단독으로 바꾼 것과 같다). ⑩ 의 **둘째 절**이 잡는다.
   mutate M5 '[ "${src_n:-0}" -gt 0 ] && has_api_src=1' '[ "${src_n:-0}" -gt 99999 ] && has_api_src=1' "⑩"
+  #   M6 = 하네스 전용 주입 훅을 죽인다 ([BL-780]). ⑩ 의 절 1(합성 음성)과 절 2(합성 양성)는
+  #        **서로 반대의 답**을 요구하므로, 훅이 죽어 둘이 같은 실제 diff 를 보면 어느 트리에서든
+  #        반드시 한쪽이 red 다 — 이 변이는 환경 독립이다.
+  mutate M6 'CHANGED="$QB_FG_FAKE_CHANGED"' ': # 훅 무력화' "⑩"
 
   # ★음성 대조 — 주석만 바꾼 사본은 red 0건이어야 한다 (변이 엔진 자체가 red 를 만들지 않는다)
   echo
@@ -289,7 +302,7 @@ PY
   if [ "$MUT_FAIL" -gt 0 ]; then
     echo "✗ 변이 ${MUT_FAIL}건 미판별 — 케이스가 모드 디스패치를 못 보고 있다"; exit 1
   fi
-  echo "✓ 변이 5종 + 음성 대조 1종 전건 판별"
+  echo "✓ 변이 6종 + 음성 대조 1종 전건 판별"
   FAIL=0; RED_IDS="$BASE_RED"
   [ -n "$BASE_RED" ] && FAIL=1
 fi
