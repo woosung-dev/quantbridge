@@ -74,6 +74,29 @@ def _decode(token: str) -> dict[str, Any]:
     return payload
 
 
+def verified_subject_or_none(request: Requestish) -> str | None:
+    """검증된 JWT `sub` 만 돌려준다. **DB 를 안 친다.** ([BL-754])
+
+    ★rate limit 이 「누구인가」를 알아야 하는데, `authenticate_token` 은 사용자 행을
+    **프로비저닝까지** 한다. 그것을 미들웨어에서 부르면 인증 dependency 보다 먼저
+    DB 에 행을 만들고 매 요청에 왕복이 붙는다. 여기서는 `_decode` 만 재사용한다 —
+    **검증기는 여전히 이 파일 하나다**(`apps/api/AGENTS.md` §2).
+
+    ★실패는 전부 `None` 이다. 이 함수는 **문을 지키지 않는다** — 문은 인증 dependency 다.
+    토큰이 없거나 깨졌으면 rate limit 이 IP 로 떨어질 뿐이고, 요청 자체는 dependency 가 막는다.
+    """
+    try:
+        token = _bearer_token(request)
+    except InvalidTokenError:
+        return None
+    try:
+        payload = _decode(token)
+    except Exception:
+        return None
+    subject = payload.get("sub")
+    return str(subject) if subject else None
+
+
 def _bearer_token(request: Requestish) -> str:
     """`Authorization: Bearer <token>` 에서 토큰만 뽑는다."""
     headers = request.headers

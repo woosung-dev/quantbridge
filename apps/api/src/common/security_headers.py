@@ -50,7 +50,15 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
                 "Strict-Transport-Security",
                 "max-age=31536000; includeSubDomains",
             )
-        # uvicorn version disclosure (OWASP A05) strip.
+        # ★★[BL-347] **이 줄은 uvicorn 의 `Server` 헤더를 지우지 못한다.**
+        #   uvicorn 은 그 헤더를 ASGI 바깥 **프로토콜 계층**에서 붙이므로 미들웨어가
+        #   보는 `response.headers` 에는 애초에 없다. 실측(2026-08-16, 로컬 8경로):
+        #   플래그 없이 띄우면 `/health`~`/nonexistent` **전부** `server: uvicorn` 을 냈고,
+        #   `--no-server-header` 를 붙이자 8/8 이 사라졌다.
+        #   ⇒ **실효 수단은 기동 플래그 하나**이고(`docker-entrypoint.sh` · `Makefile` ·
+        #   서버 systemd 유닛), 이 줄은 앱이 스스로 `server` 를 넣는 경우만 덮는다.
+        #   ★종전 회귀 테스트는 `TestClient` 라 그 헤더가 원래 없어 **항진명제**였다 —
+        #   지금은 `tests/test_uvicorn_server_header.py` 가 기동 명령을 직접 잰다.
         if "server" in response.headers:
             del response.headers["server"]
         return response

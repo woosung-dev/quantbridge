@@ -2,9 +2,10 @@
 
 - Storage: Phase A1 의 redis_lock_url (DB 3 격리) 재사용.
   실제 Redis 연결은 slowapi 첫 request hit 시 lazy 하게 생성 (import 시점 연결 없음).
-- Key: 세션 JWT user_id (request.state.user_id 세팅 시 우선), 없으면 신뢰된 XFF leftmost / fallback request.client.host.
-  현재 Phase B 는 IP-based 만 구현. request.state.user_id 는 향후 auth dependency 에서
-  세팅 후 활성화 예정 (follow-up: Phase C/D).
+- Key: 검증된 JWT `sub` 우선(`_RateLimitIdentityMiddleware` 가 세운다), 없으면 신뢰된
+  `CF-Connecting-IP` / XFF leftmost / fallback `request.client.host`.
+  ★2026-08-16 [BL-754] 이전에는 `state.user_id` 를 **세우는 코드가 0건**이라 항상 IP 갈래였고,
+  Cloudflare 뒤에서 `client.host` 가 전부 같아 **전 사용자가 한 버킷**이었다.
 - Fail-open: Redis 장애 시 swallow_errors=True 로 limiter 통과 + WARN 로그.
 - 429 응답: X-RateLimit-* 헤더 (slowapi headers_enabled) + Retry-After 보강.
 - qb_rate_limit_throttled_total Counter inc.
@@ -16,6 +17,7 @@ import ipaddress
 import logging
 from collections.abc import Awaitable, Callable
 
+import anyio.to_thread
 from fastapi import FastAPI, Request
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
@@ -50,18 +52,31 @@ _TRUSTED_NETS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = _parse_trus
 
 
 def _client_ip_or_xff(request: Request) -> str:
-    """신뢰된 proxy 뒤에서만 X-Forwarded-For 의 leftmost IP 사용. 그 외는 client.host."""
+    """신뢰된 proxy 뒤에서만 전달 헤더를 믿는다. 그 외는 client.host.
+
+    ★**[BL-754] `CF-Connecting-IP` 를 `X-Forwarded-For` 보다 먼저 본다.**
+    Cloudflare 는 기존 `X-Forwarded-For` 를 **덮어쓰지 않고 뒤에 붙인다** — 그래서 클라이언트가
+    직접 `X-Forwarded-For: 1.2.3.4` 를 심으면 **leftmost 가 그 값이 된다.** 신뢰된 proxy
+    뒤에서 leftmost 를 쓰는 것은 사실상 「키를 클라이언트가 고르게 하는 것」이고, 그러면
+    한도가 무의미해진다. `CF-Connecting-IP` 는 Cloudflare 가 **덮어써서** 넣는 단일 값이다.
+    XFF 갈래는 Cloudflare 가 아닌 proxy 를 위해 남긴다.
+    """
     client_host = get_remote_address(request)
     if not _TRUSTED_NETS:
-        # 화이트리스트 비어 있으면 XFF 무시 + client.host 직접 사용
+        # 화이트리스트 비어 있으면 전달 헤더 전부 무시 + client.host 직접 사용.
+        # ★이것은 결함이 아니라 fail-safe 다 — 신뢰 근거 없이 헤더를 믿으면 위조로 한도를 벗어난다.
+        #   프로덕션에서 이 갈래로 떨어지면 **모두가 한 버킷**이 되므로 `TRUSTED_PROXIES` 를 채워라.
         return client_host
     try:
         client_ip = ipaddress.ip_address(client_host)
     except ValueError:
         return client_host
     if not any(client_ip in net for net in _TRUSTED_NETS):
-        # 요청 IP 가 신뢰된 proxy 대역이 아님 → XFF 신뢰 불가
+        # 요청 IP 가 신뢰된 proxy 대역이 아님 → 전달 헤더 신뢰 불가
         return client_host
+    cf_ip = request.headers.get("cf-connecting-ip", "").strip()
+    if cf_ip:
+        return cf_ip
     xff = request.headers.get("x-forwarded-for", "")
     if not xff:
         return client_host
@@ -70,10 +85,12 @@ def _client_ip_or_xff(request: Request) -> str:
 
 
 def rate_limit_key(request: Request) -> str:
-    """세션 JWT user_id 우선, 없으면 신뢰된 XFF / client.host.
+    """검증된 JWT `sub` 우선, 없으면 신뢰된 전달 헤더 / client.host.
 
-    현재 Phase B: request.state.user_id 는 미세팅 상태 → 항상 IP fallback.
-    향후 auth dependency 에서 request.state.user_id = user.id 세팅 시 user 기반 격리 활성화.
+    ★[BL-754] `request.state.user_id` 는 **`_RateLimitIdentityMiddleware` 가** 세운다.
+    인증 `Depends` 로는 못 세운다 — `SlowAPIMiddleware` 는 ASGI 라 라우트 dependency 보다
+    **먼저** 돌고, 그때는 `state.user_id` 가 아직 없다. 그래서 「auth dependency 한 줄」이라는
+    처방은 성립하지 않는다(2026-08-16 실행 순서 실측).
     """
     user_id = getattr(request.state, "user_id", None)
     if user_id:
@@ -173,6 +190,37 @@ class _RateLimitStateInitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+class _RateLimitIdentityMiddleware(BaseHTTPMiddleware):
+    """[BL-754] `SlowAPIMiddleware` 보다 **먼저** 돌아 `request.state.user_id` 를 세운다.
+
+    ★**이 미들웨어가 이 항목의 전부다.** 종전 `rate_limit_key` 는 `state.user_id` 를 읽는데
+    그것을 세우는 코드가 레포에 **0건**이었다(주석이 「향후 auth dependency 에서」라고 적어 둔
+    채로 남아 있었다). 그래서 실제로는 **항상 IP 갈래**였고, Cloudflare 뒤에서는 모든 사용자의
+    `client.host` 가 같아 **전 사용자가 한 버킷**으로 붕괴했다.
+
+    ★인증 `Depends` 로는 못 고친다 — `SlowAPIMiddleware` 는 ASGI 미들웨어라 라우트가 열리기
+    **전에** 키를 계산한다. 그래서 등록을 `SlowAPIMiddleware` **뒤에** 해서(= 더 바깥에서
+    먼저 돌게) 순서를 만든다. Starlette 는 나중에 add 한 것이 outermost 다.
+
+    ★**문을 지키지 않는다.** 토큰이 없거나 깨졌으면 조용히 IP 로 떨어진다 — 거부는 인증
+    dependency 의 일이고, 여기서 401 을 내면 공개 엔드포인트(`/waitlist` 등)가 죽는다.
+    """
+
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: Callable[[Request], Awaitable[Response]],
+    ) -> Response:
+        if request.headers.get("authorization"):
+            from src.realtime.auth import verified_subject_or_none
+
+            # ★스레드로 넘긴다 — `_decode` 는 동기 crypto 이고 첫 요청엔 JWKS 를 가져온다.
+            subject = await anyio.to_thread.run_sync(verified_subject_or_none, request)
+            if subject:
+                request.state.user_id = subject
+        return await call_next(request)
+
+
 def install_rate_limit(app: FastAPI) -> Limiter:
     """FastAPI 앱에 **module-level** limiter 바인딩 + slowapi middleware 등록.
 
@@ -194,6 +242,9 @@ def install_rate_limit(app: FastAPI) -> Limiter:
     app.state.limiter = limiter  # module singleton 재사용
     app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
+    # ★[BL-754] 순서가 계약이다 — Identity 는 SlowAPI 보다 **바깥**이어야 키 계산 전에 돈다.
+    #   이 줄을 SlowAPIMiddleware 위로 옮기면 per-user 격리가 조용히 사라진다.
+    app.add_middleware(_RateLimitIdentityMiddleware)
     app.add_middleware(_RateLimitStateInitMiddleware)
     return limiter
 

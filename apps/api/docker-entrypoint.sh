@@ -76,7 +76,12 @@ case "$ROLE" in
         # 컨테이너 API는 worker와 같은 metrics volume을 mount하고 두 multiprocess env를 주입해야 worker 지표를 수집한다.
         run_alembic_with_lock
         echo "[entrypoint] starting uvicorn on port=${PORT:-8080}"
-        exec uv run uvicorn src.main:app --host 0.0.0.0 --port "${PORT:-8080}"
+        # ★[BL-347] `--no-server-header` 는 **이중화**다 — `SecurityHeadersMiddleware` 가
+        #   이미 `server` 헤더를 지운다(`common/security_headers.py`). 미들웨어를 못 타는
+        #   응답 경로(핸드셰이크 거부·프로토콜 오류 등)까지 덮으려고 서버 쪽에서도 끈다.
+        #   ★gunicorn 이 아니다 — 이 레포에 gunicorn 은 0건이고 `--server_header False`
+        #   라는 플래그는 존재하지 않는다(2026-08-16 실측, 원장 BL-347 본문 정정).
+        exec uv run uvicorn src.main:app --no-server-header --host 0.0.0.0 --port "${PORT:-8080}"
         ;;
     worker)
         # Celery worker — migration 미수행 (api 인스턴스가 책임).
