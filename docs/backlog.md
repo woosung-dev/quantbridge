@@ -7344,7 +7344,7 @@ worker 는 **버전을 읽고 Strategy 를 읽지 않는다** ⑶ optimizer 는 
 
 **Risk:** 🟠 (백테스트 실행 경로의 핵심을 바꾼다 — 소크가 도는 동안은 착수 시점을 골라야 한다)
 
-**상태:** ⬜ Open — 2026-08-16 에 3경로 + 덮어쓰기 지점을 코드 대조로 확정. 미착수
+**상태:** ✅ **Resolved (2026-08-17, PR #650 머지 `eeff8898`).** 불변 `StrategyVersion` 스냅샷 + 최신 버전 포인터 + `Backtest.strategy_version_id`·`engine_version` + 백필 migration. Backtest worker·coverage 와 Optimizer 가 **부모 Backtest 의 스냅샷** 을 쓴다. 게이트 2단 rc=0(BE **4753** · e2e authed 90 · fresh DB alembic) · 유예 원장 소멸. ★★**CONTROL 표적 변이 5/5 red.** ★그중 **M5(`set_current_version` no-op)는 원장 처방에 없던 변이**인데 최초에 **1154 passed 로 초록 누출**이었다 — 「Strategy 는 최신 버전을 가리킨다」에 커버리지 0 이고 포인터가 죽으면 제출마다 버전 행이 폭증한다. 테스트 신설 후 재삽입해 red 확인. ★실데이터 대조 — 백테스트 7행 전부 pin(NULL 0) · 브라우저 생성 시 `strategy_versions` 3→4 + `source_hash` 재계산 일치. ★★**표적 초록 + 변이 5/5 를 통과한 구현에 전량 회귀 5건**(낡은 mock) — 2단 게이트가 잡았다([LESSON-116]). **잔여 분리** — [BL-782] alembic drift · **[BL-783] P1** Stress Test · [BL-784] e2e 비결정
 **트리거 판정:** 도래 — 대상이 특정됐고 단독 착수 가능하다. 다만 L 이고 migration 이 붙으므로 소크 창과 조율한다 (2026-08-16 external-comparison)
 
 ---
