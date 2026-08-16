@@ -106,6 +106,23 @@ if [ "$ALLOW_DIRTY" -eq 1 ] && [ -n "$DIRTY_PATHS" ]; then
 $DIRTY_PATHS"
 fi
 
+# ★하네스 전용 영역 주입 ([BL-780]) — `--dry-run` 에서만 산다.
+#   왜 있나: `final-gates-test.sh` 케이스 ⑩ 의 **음성 대조**(「apps/web·apps/api/src diff 0 이면
+#   화면 검증은 필수 아님」)가 종전에는 실행 시점 브랜치의 diff 에 의존했다. 그래서 `apps/web/` 을
+#   건드린 브랜치에서는 게이트가 옳게 「필수」라 답하는데 하네스가 그것을 실패로 읽었다.
+#   양성 대조는 이미 합성(탐침 파일)이었으므로 **비대칭이 결함**이었다.
+# ★`--dry-run` 밖에서는 **거부**한다(무시가 아니다). dry-run 은 아무 게이트도 실행하지 않으므로
+#   여기서 영역을 조작해도 거짓 그린이 성립하지 않는다. 실행 모드에서 이 변수를 조용히 먹으면
+#   그 순간 이 훅이 게이트 우회로가 된다.
+if [ -n "${QB_FG_FAKE_CHANGED+x}" ]; then
+  if [ "$DRY" -ne 1 ]; then
+    echo "✗ QB_FG_FAKE_CHANGED 는 --dry-run 에서만 쓸 수 있다 (하네스 전용 · [BL-780])." >&2
+    exit 1
+  fi
+  CHANGED="$QB_FG_FAKE_CHANGED"
+  echo "  ⚠ 영역 판정을 QB_FG_FAKE_CHANGED 로 대체했다 (하네스 전용 · dry-run 한정)"
+fi
+
 has_fe=0; has_be=0; has_api_src=0
 # ★grep -q 금지 (2026-08-13 실측) — pipefail 아래서 -q 는 첫 매치에 조기 종료하고, 목록이 파이프
 #   버퍼(64KB)를 넘으면 printf 가 SIGPIPE(141)로 죽어 **매치 성공이 파이프라인 실패**가 된다.
