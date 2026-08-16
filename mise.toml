@@ -1,0 +1,24 @@
+# QuantBridge 개발 도구 버전의 SSOT — 버전 숫자를 적는 곳은 이 파일 하나다.
+# `mise install` 한 줄이 node/python/pnpm/uv 를 아래 값에 맞춘다. 온보딩 진입점이기도 하다.
+# ★여기 말고 다른 곳에 버전을 적지 마라. 남은 예외는 Dockerfile 2곳뿐이며 이유는 각 항목 주석에 있다.
+
+[tools]
+# 로컬 실측 v22.23.1 · `apps/web/Dockerfile:15` 의 `node:22-alpine` 과 같은 해상도(메이저 고정).
+# ★CI 는 2026-08-16 까지 20 이었다 — 3면(로컬·프로덕션 이미지·CI) 중 CI 만 홀로 20 이었고
+#   node 20 은 2026-04-30 EOL 이라 낮은 쪽이 아니라 높은 쪽으로 맞췄다.
+node = "22"
+
+# `apps/api/Dockerfile:13,38` 의 `python:3.12-slim` 과 일치.
+# ★종전 `apps/api/.python-version` 을 삭제하고 이리로 옮겼다. mise 는 idiomatic 버전 파일을
+#   기본으로 읽지 않으므로(실측: `idiomatic_version_file_enable_tools = []`) 두 파일을 함께 두면
+#   값이 갈렸을 때 mise 와 uv 가 서로 다른 python 을 조용히 고른다.
+#   uv 단독 폴백은 `requires-python` 상한이 막는다 (상한이 없으면 실측상 3.13 을 고른다).
+python = "3.12"
+
+# 종전 `apps/web/package.json` 의 `packageManager` 필드가 갖던 값. corepack 대신 mise 가 공급한다.
+# ★루트에는 그 필드가 없어 루트 pnpm 이 8.15.9 로 떨어져 있었다(`pnpm-lock.yaml` lockfileVersion 6.0).
+#   한 레포에 pnpm 메이저가 둘 돌던 상태를 이 핀이 없앤다.
+pnpm = "9.12.0"
+
+# ★종전 핀이 레포 전체에 0건이었다 — CI 의 `setup-uv` 는 latest 를 깔고 로컬은 수동 설치였다.
+uv = "0.10.4"

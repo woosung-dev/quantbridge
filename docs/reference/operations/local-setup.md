@@ -7,25 +7,39 @@
 
 ## 1. Prerequisites
 
-| 도구           | 버전  | 설치                                                     |
-| -------------- | ----- | -------------------------------------------------------- |
-| Python         | 3.12+ | `brew install python@3.12` 또는 `uv python install 3.12` |
-| uv             | 최신  | `curl -LsSf https://astral.sh/uv/install.sh \| sh`       |
-| Node           | 22+   | `brew install node` 또는 nvm                             |
-| pnpm           | 최신  | `npm install -g pnpm` 또는 `corepack enable`             |
-| Docker Desktop | 최신  | https://www.docker.com/products/docker-desktop           |
-| Git            | 최신  | `brew install git`                                       |
+★**버전의 SSOT 는 레포 루트 [`mise.toml`](../../../mise.toml) 하나다** ([ADR-036](../../decisions/036-tool-version-ssot-mise.md)).
+아래 표에 숫자를 다시 적지 않는 이유가 그것이다 — 값을 알고 싶으면 그 파일을 열거나 `mise ls` 를 쳐라.
+
+| 도구           | 버전          | 설치                                           |
+| -------------- | ------------- | ---------------------------------------------- |
+| mise           | 최신          | `brew install mise`                            |
+| Node           | ← `mise.toml` | `mise install`                                 |
+| Python         | ← `mise.toml` | `mise install`                                 |
+| pnpm           | ← `mise.toml` | `mise install`                                 |
+| uv             | ← `mise.toml` | `mise install`                                 |
+| Docker Desktop | 최신          | https://www.docker.com/products/docker-desktop |
+| Git            | 최신          | `brew install git`                             |
+
+셸에 붙이기 (한 번만):
+
+```bash
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc && exec zsh
+```
 
 확인:
 
 ```bash
-uv --version                              # uv가 python 3.12+ 자동 관리
-uv run --project backend python --version # 3.12+
-node --version                            # 22+
+mise ls                 # 도구 · 실제 버전 · 출처 config 를 한 표로 — 이것이 정본 확인법
+node --version
 pnpm --version
-docker --version
+uv --version
+uv run python --version
 docker compose version
 ```
+
+> **시스템 python 불필요.** 위 4종은 mise 가 격리 설치하고, Python 의존성은 `uv` 가 관리한다.
+> ★`mise` 없이 `uv` 만 도는 환경도 `pyproject.toml` 의 `requires-python` **상한**이 3.12 로 묶는다 —
+> 상한이 없으면 uv 는 조건을 만족하는 **가장 높은** 것을 고른다(실측 2026-08-16: 3.13.12).
 
 > **시스템 python 불필요.** `uv`가 프로젝트별 Python + 의존성 격리 관리. 아래 모든 Python 명령은 `uv run` prefix로 실행.
 

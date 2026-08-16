@@ -135,3 +135,10 @@ docs/reports/*.html
 
 # 데모 리허설 스크린샷 (G4 산출물 — 재생성 가능, 바이너리)
 apps/web/e2e/.demo-shots/
+
+# === mise 로컬 오버라이드 ===
+# 버전 SSOT 는 커밋되는 `mise.toml` 하나다. `*.local.toml` 은 개인 머신 전용 덮어쓰기라
+# 커밋하면 SSOT 가 둘이 된다 — 그것이 이 도입이 없애려던 상태다.
+mise.local.toml
+.mise.local.toml
+mise.*.local.toml

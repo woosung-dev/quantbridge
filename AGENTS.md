@@ -66,6 +66,9 @@ Trading(CCXT 주문 — 계정 모드는 **Bybit demo 만**) / Market Data(Times
 
 ## Operational Commands
 
+- ★**도구 버전(node·python·pnpm·uv)의 SSOT 는 루트 `mise.toml` 하나다**([ADR-036](docs/decisions/036-tool-version-ssot-mise.md)).
+  숫자를 다른 곳에 적지 마라 — 남은 예외는 Dockerfile 2곳뿐이다. 확인 = `mise ls`(값 + 출처 config).
+  `make` 타깃과 git 훅은 shim 을 PATH 앞에 스스로 세운다. 터미널에서 직접 칠 때만 `mise activate` 가 필요하다
 - 기본: `make up` / `make be` / `make fe` → 3000/8000/5432/6379 · 격리: `make up-isolated` 계열 →
   3100/8100/5433/6380. 자세한 타깃은 `make help`
 - 워크트리 병렬 = **슬롯**(FE `3100+N` / BE `8100+N` / pytest DB `quantbridge_w{N}_test`).

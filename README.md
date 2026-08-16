@@ -22,12 +22,24 @@
 
 ### 1. Prerequisites
 
+★**node / python / pnpm / uv 를 손으로 깔지 마라.** 네 버전의 SSOT 는 레포 루트
+[`mise.toml`](mise.toml) 하나이고, `mise install` 이 그 값대로 깐다 ([ADR-036](docs/decisions/036-tool-version-ssot-mise.md)).
+
 ```bash
 # macOS 기준
-brew install node python@3.12 docker git
-npm install -g pnpm
-curl -LsSf https://astral.sh/uv/install.sh | sh
+brew install mise docker git
+mise install          # mise.toml 의 node / python / pnpm / uv 를 설치
+mise ls               # 지금 도는 값과 그 출처 config 를 함께 출력 — 확인은 이걸로
 ```
+
+셸에 붙이기 (한 번만 — 훅·Makefile 밖에서도 핀이 걸리게 한다):
+
+```bash
+echo 'eval "$(mise activate zsh)"' >> ~/.zshrc && exec zsh
+```
+
+> `make` 타깃과 git 훅은 `mise` shim 을 PATH 앞에 스스로 세우므로 위 활성화 없이도 핀을 따른다.
+> 활성화는 **터미널에서 직접** `pnpm`·`uv` 를 칠 때를 위한 것이다.
 
 ### 2. Clone + 환경 변수
 

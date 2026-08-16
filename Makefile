@@ -12,6 +12,13 @@
 #   make up && make be          # 한 터미널에서 인프라 + 백엔드
 #   make fe                     # 다른 터미널에서 프론트
 
+# ★도구 버전의 SSOT 는 루트 `mise.toml` 이다. shim 을 PATH 앞에 세워 모든 타깃이
+# node/python/pnpm/uv 를 그 파일에 적힌 버전으로 실행하게 만든다. shim 은 **cwd 기준**으로
+# 해석하므로 `cd apps/api && uv run ...` 같은 레시피도 레포 루트의 mise.toml 을 찾는다.
+# mise 미설치 시 이 디렉터리는 없고 PATH 의 없는 항목은 무시되므로 무해하다 — 대신 버전이
+# 안 정해진 상태로 되돌아간다. 설치 안내는 README 「도구 버전」 절.
+export PATH := $(HOME)/.local/share/mise/shims:$(PATH)
+
 .DEFAULT_GOAL := help
 .PHONY: help dev up down logs be fe gate-harnesses \
         dev-isolated up-isolated up-isolated-build up-isolated-watch down-isolated logs-isolated be-isolated fe-isolated \
