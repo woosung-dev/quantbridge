@@ -20,6 +20,7 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from src.backtest.config_mapper import build_engine_config_from_db
+from src.backtest.engine import PINE_V2_ENGINE_VERSION
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
 from src.common.pagination import Page
@@ -233,12 +234,38 @@ class OptimizerService:
         흡수. 테스트 monkeypatch seam 은 runner 3이름 → 본 모듈의
         ``run_optimizer_by_kind`` 1이름으로 축소 (test_service_commits.py).
         """
-        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-        if strategy is None:
+        if bt.engine_version not in (None, PINE_V2_ENGINE_VERSION):
             raise OptimizationExecutionError(
-                message_public="Strategy no longer available for optimization.",
-                message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
+                message_public="Backtest engine version is not supported for optimization.",
+                message_internal=f"backtest_id={bt.id} engine_version={bt.engine_version}",
             )
+
+        strategy_version = await self.strategy_repo.get_version_by_id(
+            bt.strategy_version_id,
+            strategy_id=bt.strategy_id,
+        )
+        if bt.strategy_version_id is not None and strategy_version is None:
+            raise OptimizationExecutionError(
+                message_public="Strategy version is no longer available for optimization.",
+                message_internal=(
+                    f"strategy_version_id={bt.strategy_version_id} strategy_id={bt.strategy_id} "
+                    "not found"
+                ),
+            )
+        if strategy_version is None:
+            logger.warning(
+                "optimizer_run_without_pinned_strategy_version",
+                extra={"backtest_id": str(bt.id), "strategy_id": str(bt.strategy_id)},
+            )
+            strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
+            if strategy is None:
+                raise OptimizationExecutionError(
+                    message_public="Strategy no longer available for optimization.",
+                    message_internal=(f"strategy_id={bt.strategy_id} owner={bt.user_id} not found"),
+                )
+            pine = strategy.pine_source
+        else:
+            pine = strategy_version.pine_source
 
         ohlcv = await self.provider.get_ohlcv(
             bt.symbol, bt.timeframe, bt.period_start, bt.period_end
@@ -246,8 +273,6 @@ class OptimizerService:
         # JSONB → ParamSpace pydantic (schema_version lock 안전성 보장).
         param_space = ParamSpace.model_validate(run.param_space)
         backtest_config = build_engine_config_from_db(bt)
-        pine = strategy.pine_source
-
         result = run_optimizer_by_kind(
             run.kind, pine, ohlcv, param_space=param_space, backtest_config=backtest_config
         )

@@ -15,10 +15,13 @@ from src.backtest.engine.types import (
 )
 from src.backtest.engine.v2_adapter import run_backtest_v2
 
+PINE_V2_ENGINE_VERSION = "pine_v2"
+
 run_backtest = run_backtest_v2
 
 
 __all__ = [
+    "PINE_V2_ENGINE_VERSION",
     "BacktestConfig",
     "BacktestMetrics",
     "BacktestOutcome",

@@ -244,6 +244,11 @@ class StrategyService:
             trading_sessions=list(data.trading_sessions),
         )
         saved = await self.repo.create(strategy)
+        version_snapshot = await self.repo.create_version(
+            strategy_id=saved.id,
+            pine_source=saved.pine_source,
+        )
+        await self.repo.set_current_version(saved.id, version_snapshot.id)
 
         webhook_secret_plaintext: str | None = None
         if self._secret_svc is not None:
@@ -372,6 +377,11 @@ class StrategyService:
             strategy.pine_version = version
             strategy.parse_status = status
             strategy.parse_errors = [e.model_dump() for e in errors] if errors else None
+            version_snapshot = await self.repo.create_version(
+                strategy_id=strategy.id,
+                pine_source=data.pine_source,
+            )
+            await self.repo.set_current_version(strategy.id, version_snapshot.id)
 
         updated = await self.repo.update(strategy)
         await self.repo.commit()

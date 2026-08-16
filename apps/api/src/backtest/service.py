@@ -17,7 +17,7 @@ import pandas as pd
 
 from src.backtest.config_mapper import build_engine_config_from_db
 from src.backtest.dispatcher import TaskDispatcher
-from src.backtest.engine import run_backtest
+from src.backtest.engine import PINE_V2_ENGINE_VERSION, run_backtest
 from src.backtest.engine.types import BacktestConfig, RawTrade
 from src.backtest.exceptions import (
     BacktestDuplicateIdempotencyKey,
@@ -69,7 +69,7 @@ from src.market_data.models import OHLCV
 from src.market_data.providers import OHLCVProvider
 from src.market_data.repository import OHLCVRepository
 from src.strategy.exceptions import StrategyNotFoundError
-from src.strategy.models import Strategy
+from src.strategy.models import Strategy, StrategyVersion
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.sizing import extract_pine_default_qty
 from src.strategy.repository import StrategyRepository
@@ -162,10 +162,11 @@ class BacktestService:
         strategy = await self.strategy_repo.find_by_id_and_owner(data.strategy_id, user_id)
         if strategy is None:
             raise StrategyNotFoundError()
+        strategy_version = await self._ensure_current_strategy_version(strategy)
 
         # Sprint Y1: pre-flight coverage check — 미지원 built-in 발견 시 즉시 reject
         # (whack-a-mole 패턴 종식 — backtest 실행 전에 명확히 안내)
-        coverage = analyze_coverage(strategy.pine_source)
+        coverage = analyze_coverage(strategy_version.pine_source)
         if not coverage.is_runnable:
             unsupported_list = list(coverage.all_unsupported)
             unsupported_str = ", ".join(unsupported_list)
@@ -203,7 +204,11 @@ class BacktestService:
         # codex G.0 iter 1+2 must-fix 1 (sizing source 단일화) + must-fix 3 (leverage Nx
         # reject) + D2 (manual override) 반영. helper 가 Pine partial / Live Nx / double
         # sizing 모두 422 reject 책임.
-        sizing_canonical = _resolve_sizing_canonical(data, strategy)
+        sizing_canonical = _resolve_sizing_canonical(
+            data,
+            strategy,
+            pine_source=strategy_version.pine_source,
+        )
 
         config_payload: dict[str, Any] = {
             "leverage": float(data.leverage),
@@ -232,6 +237,8 @@ class BacktestService:
         bt = Backtest(
             user_id=user_id,
             strategy_id=data.strategy_id,
+            strategy_version_id=strategy_version.id,
+            engine_version=PINE_V2_ENGINE_VERSION,
             symbol=data.symbol,
             timeframe=data.timeframe,
             period_start=data.period_start,
@@ -281,16 +288,36 @@ class BacktestService:
             )
             return
 
-        # Strategy + OHLCV
-        strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
-        if strategy is None:
+        # StrategyVersion + OHLCV. strategy_version_id NULL은 migration 전 fixture 호환 경로다.
+        strategy_version = await self.strategy_repo.get_version_by_id(
+            bt.strategy_version_id,
+            strategy_id=bt.strategy_id,
+        )
+        if bt.strategy_version_id is not None and strategy_version is None:
             await self.repo.fail(
                 backtest_id,
-                error="Strategy not found at execute time",
+                error="Strategy version not found at execute time",
                 where_status=BacktestStatus.QUEUED,
             )
             await self.repo.commit()
             return
+        if strategy_version is None:
+            logger.warning(
+                "backtest_run_without_pinned_strategy_version",
+                extra={"backtest_id": str(backtest_id), "strategy_id": str(bt.strategy_id)},
+            )
+            strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
+            if strategy is None:
+                await self.repo.fail(
+                    backtest_id,
+                    error="Strategy not found at execute time",
+                    where_status=BacktestStatus.QUEUED,
+                )
+                await self.repo.commit()
+                return
+            pine_source = strategy.pine_source
+        else:
+            pine_source = strategy_version.pine_source
 
         try:
             ohlcv = await self.provider.get_ohlcv(
@@ -344,9 +371,7 @@ class BacktestService:
                 start=bt.period_start,
                 end=bt.period_end,
             )
-        outcome = run_backtest(
-            strategy.pine_source, ohlcv, config=config, funding_rates=funding_rates
-        )
+        outcome = run_backtest(pine_source, ohlcv, config=config, funding_rates=funding_rates)
 
         # Guard #3: post-engine
         bt3 = await self.repo.get_by_id(backtest_id)
@@ -400,6 +425,23 @@ class BacktestService:
                 await self.repo.finalize_cancelled(backtest_id, completed_at=datetime.now(UTC))
 
         await self.repo.commit()
+
+    async def _ensure_current_strategy_version(self, strategy: Strategy) -> StrategyVersion:
+        """정상 생성/수정 경로의 latest snapshot을 쓰고, legacy fixture만 보완한다."""
+        version = await self.strategy_repo.get_version_by_id(
+            strategy.strategy_version_id,
+            strategy_id=strategy.id,
+        )
+        if version is not None:
+            return version
+
+        version = await self.strategy_repo.create_version(
+            strategy_id=strategy.id,
+            pine_source=strategy.pine_source,
+        )
+        await self.strategy_repo.set_current_version(strategy.id, version.id)
+        strategy.strategy_version_id = version.id
+        return version
 
     def _build_engine_config(self, bt: Backtest) -> BacktestConfig:
         """Sprint 31 BL-162a — Backtest row 의 사용자 입력 config + initial_capital + timeframe →
@@ -848,6 +890,8 @@ class BacktestService:
 def _resolve_sizing_canonical(
     request: CreateBacktestRequest,
     strategy: Strategy,
+    *,
+    pine_source: str,
 ) -> dict[str, Any]:
     """submit 시점 sizing canonical 결정 (Pine > 폼 manual > Live > fallback).
 
@@ -868,7 +912,7 @@ def _resolve_sizing_canonical(
       - Live mirror 의도 + leverage != 1 → MirrorNotAllowed (BL-186 후 unlock)
     """
     # 1. Pine declaration 추출 + partial reject (codex iter 1 [P1] #5)
-    pine_qty_type, pine_qty_value = extract_pine_default_qty(strategy.pine_source)
+    pine_qty_type, pine_qty_value = extract_pine_default_qty(pine_source)
     if (pine_qty_type is None) != (pine_qty_value is None):
         raise PinePartialDeclaration(
             detail=(

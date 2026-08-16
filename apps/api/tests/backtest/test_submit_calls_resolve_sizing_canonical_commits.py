@@ -1,7 +1,8 @@
 """Sprint 38 BL-188 v3 — submit() 안 sizing canonical helper 호출 + commit spy 회귀.
 
 codex G.0 iter 2 [P1] #3 mapping fix 통합 검증. submit() 가:
-  1. `_resolve_sizing_canonical(data, strategy)` 호출 결과를 `bt.config` JSONB 에 저장
+  1. `_resolve_sizing_canonical(data, strategy, pine_source=version.pine_source)` 호출 결과를
+     `bt.config` JSONB 에 저장
   2. `repo.commit()` 호출 (LESSON-019 broken bug 재발 방어)
 """
 
@@ -16,7 +17,7 @@ import pytest
 
 from src.backtest.schemas import CreateBacktestRequest
 from src.backtest.service import BacktestService
-from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.models import ParseStatus, PineVersion, Strategy, StrategyVersion
 
 _PINE_BARE = """//@version=5
 strategy("Bare", overlay=true)
@@ -71,6 +72,14 @@ def _make_service(strategy: Strategy) -> tuple[BacktestService, AsyncMock]:
 
     strategy_repo = AsyncMock()
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
+    strategy_version = StrategyVersion(
+        id=uuid4(),
+        strategy_id=strategy.id,
+        pine_source=strategy.pine_source,
+        source_hash="a" * 64,
+    )
+    strategy.strategy_version_id = strategy_version.id
+    strategy_repo.get_version_by_id = AsyncMock(return_value=strategy_version)
 
     ohlcv_provider = AsyncMock()
     dispatcher = AsyncMock()

@@ -70,6 +70,8 @@ def _make_backtest_row(
     bt.user_id = user_id
     bt.status = status
     bt.strategy_id = uuid4()
+    bt.strategy_version_id = None
+    bt.engine_version = None
     bt.symbol = "BTCUSDT"
     bt.timeframe = "1h"
     bt.period_start = datetime(2024, 1, 1, tzinfo=UTC)
