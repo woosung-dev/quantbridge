@@ -7344,7 +7344,7 @@ worker 는 **버전을 읽고 Strategy 를 읽지 않는다** ⑶ optimizer 는 
 
 **Risk:** 🟠 (백테스트 실행 경로의 핵심을 바꾼다 — 소크가 도는 동안은 착수 시점을 골라야 한다)
 
-**상태:** ⬜ Open — 2026-08-16 에 3경로 + 덮어쓰기 지점을 코드 대조로 확정. 미착수
+**상태:** ✅ **Resolved (2026-08-17, PR #650 머지 `eeff8898`).** 불변 `StrategyVersion` 스냅샷 + 최신 버전 포인터 + `Backtest.strategy_version_id`·`engine_version` + 백필 migration. Backtest worker·coverage 와 Optimizer 가 **부모 Backtest 의 스냅샷** 을 쓴다. 게이트 2단 rc=0(BE **4753** · e2e authed 90 · fresh DB alembic) · 유예 원장 소멸. ★★**CONTROL 표적 변이 5/5 red.** ★그중 **M5(`set_current_version` no-op)는 원장 처방에 없던 변이**인데 최초에 **1154 passed 로 초록 누출**이었다 — 「Strategy 는 최신 버전을 가리킨다」에 커버리지 0 이고 포인터가 죽으면 제출마다 버전 행이 폭증한다. 테스트 신설 후 재삽입해 red 확인. ★실데이터 대조 — 백테스트 7행 전부 pin(NULL 0) · 브라우저 생성 시 `strategy_versions` 3→4 + `source_hash` 재계산 일치. ★★**표적 초록 + 변이 5/5 를 통과한 구현에 전량 회귀 5건**(낡은 mock) — 2단 게이트가 잡았다([LESSON-116]). **잔여 분리** — [BL-782] alembic drift · **[BL-783] P1** Stress Test · [BL-784] e2e 비결정
 **트리거 판정:** 도래 — 대상이 특정됐고 단독 착수 가능하다. 다만 L 이고 migration 이 붙으므로 소크 창과 조율한다 (2026-08-16 external-comparison)
 
 ---
@@ -7577,16 +7577,16 @@ Open 항목과 **같은 파일에** 있다.
 
 **Risk:** 🟢 (하네스만. 게이트 본체 동작에는 영향 없다)
 
-**상태:** ⬜ Open — 2026-08-16 layout-alignment 회차에서 실측(9/10 통과, ⑩ 만 red). 게이트 본체는 정상 동작 확인
+**상태:** ✅ **Resolved (2026-08-17, PR #651 머지 `d28bf28f`).** 케이스 ⑩ 의 음성 대조를 합성으로 세웠다. `final-gates.sh` 에 **`--dry-run` 한정** 영역 주입 훅 `QB_FG_FAKE_CHANGED` 를 두고(실행 모드에서 주면 **rc=1 로 거부** — 조용히 먹으면 그 순간 게이트 우회로가 된다), ⑩ 을 3절로 재작성했다: ⑴ 합성 음성 → 「필수 아님」 ⑵ 합성 양성 BE 축 → 「필수」 ⑶ 실물 양성(종전 `PROBE_SRC` 탐침) → 「필수」. ⑶ 을 남긴 이유는 훅만 보는 항진명제가 되지 않게 하기 위해서다. ★★**CONTROL 통제 대조로 판별력을 확정했다** — `apps/web` 을 건드리는 임시 커밋을 얹은 **같은 트리**에서 **구판 하네스 9/10 rc=1(실패 ⑩ 하나) · 수정판 10/10 rc=0** 이고, 임시 커밋을 걷어낸 뒤 HEAD sha 복원까지 확인했다. 우회 가능성도 실측으로 닫았다 — 실행 모드에서 `QB_FG_FAKE_CHANGED` 는 **값이 있든 비어 있든** rc=1 이다(`${VAR+x}` 판정). ★**변이 M6 신설** — 훅 대입문을 죽이면 절 ⑴·⑵ 가 서로 반대의 답을 요구하므로 **어느 트리에서든** 한쪽이 깨진다(환경 독립 변이)
 **트리거 판정:** 도래 — FE 를 건드리는 회차마다 로컬 하네스가 red 로 읽힌다 (2026-08-16 layout-alignment)
 
 ### BL-781
 
-**Title:** 격리 슬롯에서 **authed e2e 가 구조적으로 불가능**하다 — `Makefile` 이 `BETTER_AUTH_URL` 을 슬롯 포트로 안 맞춘다
+**Title:** 격리 슬롯에서 **authed e2e 가 구조적으로 불가능**하다 — **격리 task** 가 `BETTER_AUTH_URL` 을 슬롯 포트로 안 맞춘다
 **Category:** Ops / 워크트리 · 인증
 **Priority:** P2
 **Trigger:** 도래 — 워크트리에서 FE 를 건드리는 모든 회차가 마감 게이트의 authed 레그를 못 돈다
-**Est:** S (Makefile 2줄 + env 문서 1줄)
+**Est:** S (`mise.toml` 2줄 + env 문서 1줄 — 종전 「Makefile 2줄」은 [ADR-036] 으로 낡았다)
 **출처:** 2026-08-16 layout-alignment — 실제로 밟고 trace 로 원인 확정
 
 **원인 / 영향:** `grep BETTER_AUTH Makefile` = **0건**. `fe-isolated` 는 `NEXT_PUBLIC_API_URL`·
@@ -7613,5 +7613,161 @@ Open 항목과 **같은 파일에** 있다.
 
 **Risk:** 🟡 (검증 레인만. 프로덕션 인증에는 영향 없다 — 거기서는 URL 이 맞다)
 
-**상태:** ⬜ Open — 2026-08-16 에 trace 로 원인 확정(403 INVALID_ORIGIN). 우회로 authed 89/90 을 돌렸고 Makefile 수리는 미착수
+**상태:** ✅ **Resolved (2026-08-17, PR #651 머지 `d28bf28f` — 슬롯 2 실측).** 격리 슬롯에서 `pnpm e2e:authed` 가 **90 passed / rc=0** 으로 돌았다. 수리 자체는 [ADR-036] 회차가 러너를 옮기며 이미 들어가 있었고(`mise.toml:312` be-isolated · `:330` fe-isolated 가 **같은 표현식** `BETTER_AUTH_URL="http://localhost:${QB_FE_PORT}"`), 이 회차가 한 것은 **증명**이다. ★**변이 2종이 서로 다른 사인을 냈다** — ⑴ `fe-isolated` 에서 그 줄을 빼면 `global.setup.ts` 가 `page.waitForURL` 60s timeout 으로 죽어 **authed 스위트가 아예 실행되지 않는다**(`POST /api/auth/sign-in/email` 이 `Origin: http://localhost:3102` 에 **403 `INVALID_ORIGIN`**) ⑵ FE·BE 를 서로 다르게 두면 setup 은 **통과**하고 BE authed API 가 전건 401 이 되어 **12 failed / 78 passed** 다. ★★**`curl` 은 이 검사를 안 거친다** — 같은 엔드포인트가 `Origin` 헤더 없이는 자격증명 검사까지 도달해 401 을 낸다. 2026-08-16 회차가 `curl` 을 먼저 쳐 「인증은 된다」고 오판한 경로가 이것이다. **판정 증인은 브라우저다.** 짝 규칙과 이 함정은 `docs/reference/operations/worktree-parallel.md` §6 에 있다
 **트리거 판정:** 도래 — 워크트리 FE 회차마다 발현한다 (2026-08-16 layout-alignment)
+
+### BL-782
+
+**Title:** `alembic check` 의 rc=0 은 **그 DB 에 대해서만** 참이었다 — migration 으로만 만든 DB 에서는 `trading.funding_rates.exchange` 타입 drift 로 실패한다
+**Category:** DB / migration 무결성
+**Priority:** P2
+**Trigger:** 도래 — [BL-770] 이 「rc=0 을 처음 달성」이라 적은 그 보증이 지금 성립하지 않는 DB 가 실재한다
+**Est:** M (판정 기준 확정이 본체. 타입 변환 자체는 살아 있는 컬럼이라 데이터 위험이 따로 있다)
+**출처:** 2026-08-17 sprint-parallel-lanes — [BL-773] 레인이 AC-5 를 돌리다 밟았고 CONTROL 이 `origin/main` 대조로 선재 확정
+
+**원인 / 영향:** `apps/api/src/trading/models.py:438` 이 `exchange: ExchangeName`(enum)로 선언하는데
+`apps/api/alembic/versions/20260421_0001_add_funding_rates_table.py:29` 는 `sa.Column("exchange", sa.String(length=32))`
+로 만든다. **그 타입을 바꾼 migration 은 레포에 존재하지 않는다**(전수 grep 0건). 따라서
+`alembic upgrade head` 로만 만든 DB 에 `alembic check` 를 돌리면 `modify_type` 이 잡혀 rc=1 이다 —
+이 회차 실측이고 `origin/main` 에서도 같다.
+
+★**이것이 원장을 반증한다.** [BL-770] 은 「`alembic check` rc=0 이 처음」이라고 닫혔는데, 그 측정은
+**다른 방식으로 만들어진 DB**(개발 DB / `create_all` 스키마)에 대한 것이었다. [BL-749] 가 적은
+「스키마 동등성 검사가 컬럼 **이름만·한 방향만** 본다」와 같은 자리에서 만난다 — 이름 층에서는
+같고 타입 층에서 갈린다. ⇒ **migration 방어면은 아직 이름만 남아 있다.**
+
+**권장 접근:** ⑴ ★**먼저 판정 기준을 정해라** — `alembic check` 를 어느 DB 에 대고 재는 것이
+정본인가(migration-only DB 가 맞다). 지금은 그 정의가 없어 같은 명령이 환경마다 다른 답을 낸다
+⑵ 그 다음 drift 를 닫는다. 선택지는 **모델을 `str`(VARCHAR 32)로 낮추기** 와
+**migration 에 `ALTER TYPE ... USING` 추가**다. 후자는 살아 있는 컬럼이라 값 검증이 선행이다
+⑶ ★**전량을 한 번에 켜지 마라** — [BL-749] 가 적은 대로 다른 drift 가 같이 쏟아지면 게이트가
+상시 red 가 된다. 축을 하나씩 켜라
+
+**Risk:** 🟠 (살아 있는 컬럼의 타입 변환. 되돌리기가 비싸다)
+
+**상태:** ⬜ Open — 2026-08-17 에 `origin/main` 대조로 선재 확정. 판정 기준 미정
+**트리거 판정:** 도래 — 검사 대상 DB 를 바꾸는 순간 재현되고, [BL-773] 회차가 실제로 밟았다
+
+### BL-783
+
+**Title:** **Stress Test 도 실행 시점의 mutable Pine 을 다시 읽는다** — [BL-773] 이 닫은 것과 같은 결함이 네 번째 소비자에 남았다
+**Category:** 도메인 / 재현성
+**Priority:** P1
+**Trigger:** 도래 — [BL-773] 이 머지되는 순간 「재현성을 닫았다」가 이 경로에 대해 거짓이 된다
+**Est:** M ([BL-773] 의 optimizer 처방을 그대로 옮긴다 — 호출 3곳 + 테스트)
+**출처:** 2026-08-17 sprint-parallel-lanes — [BL-773] 에 대한 적대 리뷰(P2-1). CONTROL 이 코드 대조로 확인
+
+**원인 / 영향:** `apps/api/src/stress_test/service.py:326`(`_load_run_context`)이
+`find_by_id_and_owner(bt.strategy_id, bt.user_id)` 로 **현재 Strategy** 를 읽고, `:360`(walk-forward) ·
+`:380` · `:427` 세 곳이 `ctx.strategy.pine_source` 를 엔진에 넘긴다.
+`grep -c 'strategy_version' apps/api/src/stress_test/service.py` = **0건**.
+
+`StressTest.backtest_id`(`stress_test/models.py`)가 **부모 Backtest 를 참조**하므로 구조가
+optimizer 와 정확히 같다 — optimizer 는 [BL-773] 에서 `bt.strategy_version_id` 로 부모 스냅샷을
+쓰게 바뀌었는데 stress_test 만 남았다.
+
+**재현:** Pine A 로 백테스트 제출 → 완료 → 전략을 Pine B 로 수정 → 그 백테스트에
+walk-forward / cost-assumption / param-stability 실행 ⇒ **B 가 실행되고 결과는 A 의 백테스트에 매달려 표시된다.**
+
+★★**원장 자신이 이 소비자를 빠뜨렸다.** [BL-773] 본문은 「**3경로** 확정」이라 적었는데
+`CONTEXT.md` 는 이미 「Optimizer·**Stress Test** 는 backtest 의 `run_backtest` 엔진을 재실행한다 …
+v2_adapter 변경은 이 **3 소비자**에 동시 영향」이라고 적고 있었다. **처방이 헌법보다 좁았고,
+헌법을 읽었으면 그 자리에서 보였다.**
+
+**권장 접근:** ⑴ `_load_run_context` 가 `bt.strategy_version_id` 로 스냅샷을 읽게 한다
+([BL-773] 의 `optimizer/service.py` 처방과 동형) ⑵ `test_strategy_version_pinning.py` 의 optimizer
+케이스를 stress_test 로 복제해 **구현 전 red** 를 먼저 확인해라 ⑶ Monte Carlo 는 완료 Backtest 의
+trades 재표집이라 엔진을 재실행하지 않는다 — 대상에서 빼라(`CONTEXT.md` Relationships)
+
+**Risk:** 🟡 (경로가 이미 검증된 처방이고 소비자가 격리돼 있다)
+
+**상태:** ⬜ Open — 2026-08-17 등재. 착수 미정
+**트리거 판정:** 도래 — [BL-773] 머지와 동시에 발화한다
+
+### BL-784
+
+**Title:** `e2e authed` 레그가 **게이트 실행에서만 비결정적으로 red** 다 — 기전 미확정, 가설 2개가 실측으로 반증됐다
+**Category:** 테스트 / e2e 안정성
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-17 에 게이트 안에서 **2회 연속** 재현됐다
+**Est:** S (수리는 각 지점 2~3줄. 본체는 변이로 판별력을 증명하는 것)
+**출처:** 2026-08-17 sprint-parallel-lanes — [BL-773] 이 e2e authed 레그를 발화시키면서 처음 드러났다
+
+**원인 / 영향:** ★★**기전이 확정되지 않았다.** 2026-08-17 에 게이트 실행에서 e2e authed 가 여러 차례
+red 였는데 실패 테스트가 실행마다 갈렸고, 단독 실행은 항상 green 이었다. 세운 가설 **둘 다 실측으로 반증**됐다.
+
+| 가설                                                                          | 근거                                                                                                                                     | 판정     |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `click({force:true})` 가 actionability 를 건너뛰어 하이드레이션 전에 발화한다 | `force` 를 그대로 둔 경로에서 같은 테스트가 **통과**                                                                                     | **반증** |
+| BE pytest 가 e2e 시드 데이터를 지운다                                         | 같은 게이트 실행에서 데이터 의존 4지점(`/backtests` · `/backtests/:id/trades` · `/strategies/:id/edit` · `/backtests/:id`) **전부 통과** | **반증** |
+
+남은 후보는 **개발 서버 부하 상황의 렌더·응답·DOM 발견 지연**이지만, **실패 시점의 network trace 가 없어
+더 좁힐 근거가 없다.** 실패한 테스트들은 라이브 목록에서 ID 를 발견하고 둘은 1.5초 고정 대기 후 DOM 을 읽는다.
+
+★**증상 오인 주의** — 「제출 버튼을 눌렀는데 POST 가 없다」는 2026-08-10 프로덕션 사고(브라우저가 submit 을
+발화조차 안 했다)와 **같은 모양**이라 원인을 코드 쪽으로 오해하기 쉽다. 이 회차가 실제로 그렇게 오판했다.
+
+★**이번 회차 코드와는 인과가 없다** — [BL-773] 브랜치의 `apps/web` diff 는 0 이었고, 처음 실패한
+`sprint46-tier1-critical.spec.ts:69` 는 `page.route()` 로 strategies·backtests API 를 **전수 stub** 한다.
+
+★★**왜 지금까지 안 보였나 — 그 레그가 안 돌았다.** `final-gates.sh:378` 의 `e2e authed` 술어는
+`has_fe ∪ has_be` 다. 2026-08-17 회차의 세 브랜치 중 그 영역을 건드린 것은 [BL-773] 하나뿐이라
+**#651·#652 는 이 레그가 skip 된 채 유예 원장이 지워졌다.** 영역 판정으로는 옳은 skip 이지만
+「원장이 지워졌다 = 종결」이 담는 증거량은 **브랜치마다 다르다.**
+
+**이 회차가 한 것:** `sprint46-tier1-critical.spec.ts` 의 제출 동기화를 보강했다(그 자체로 나쁘지 않다).
+★**그 변경이 원인을 고쳤다고 주장하지 않는다** — 변이가 red 를 내지 못했다.
+
+**권장 접근:** ⑴ ★**먼저 증거를 만들어라 — 지금 없는 것은 처방이 아니라 관측이다.** 게이트 실행에
+`trace: 'on'` 을 걸어 실패 시점 network·DOM 을 남겨라. 그것 없이는 네 번째 가설도 같은 운명이다
+⑵ 실패 테스트들의 공통점(라이브 목록에서 ID 발견 · 1.5초 고정 대기)을 축으로 삼아 **고정 대기를 조건 대기로** 바꿔라
+⑶ ★**어떤 수리든 변이로 판별력을 증명해라.** 이 회차는 수리 후 변이가 red 를 안 내서 「고쳤다」고 말할 수 없었다
+⑷ ★**timeout 예산을 늘리지 마라** — 진짜 회귀도 못 잡게 된다([BL-775] 회차 교훈)
+⑸ 잔존 `force: true` 2곳(`sprint46-tier3-nth.spec.ts:559` · `dogfood-flow.spec.ts:152`)은 **인과 미확정**이다.
+기전이 확정되기 전에 손대지 마라
+
+**Risk:** 🟡 (테스트 전용. 다만 잘못 고치면 판별력이 사라져 진짜 회귀를 놓친다)
+
+**상태:** 🟡 부분 해결 — 2026-08-17 에 제출 동기화 1곳 보강. **기전 미확정**(가설 2건 반증) · 관측 증거(trace) 부재
+**트리거 판정:** 도래 — `apps/web` 또는 `apps/api/src` 를 건드리는 회차마다 게이트에서 재현된다
+
+### BL-785
+
+**Title:** 게이트가 [ADR-036] 의 버전 SSOT 를 **우회**한다 — `final-gates.sh` 가 PATH 의 `pnpm`·`uv` 를 부른다
+**Category:** Infra / 게이트
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-17 에 `CI frozen-lockfile` 게이트가 이 이유로 red 였다
+**Est:** S (호출 3~4곳을 `mise exec --` 경유로. 본체는 **어느 도구가 대상인지 전수**하는 것)
+**출처:** 2026-08-17 sprint-parallel-lanes — 통합 브랜치 마감 게이트에서 밟았다
+
+**원인 / 영향:** `tools/scripts/final-gates.sh:489` 가
+`bash -c 'cd "$0/apps/web" && pnpm install --frozen-lockfile'` 로 **PATH 의 `pnpm`** 을 부른다.
+[ADR-036] 은 도구 버전의 SSOT 를 `mise.toml` 하나로 못박았지만 **게이트는 그 핀을 안 쓴다.**
+
+실측(같은 워크트리 · 같은 명령 · diff 0):
+
+| 무엇                                 | 버전       | rc                                          |
+| ------------------------------------ | ---------- | ------------------------------------------- |
+| PATH `pnpm` (게이트가 쓰는 것 — nvm) | **8.15.9** | **1** (`ERR_PNPM_LOCKFILE_BREAKING_CHANGE`) |
+| `mise exec -- pnpm` ([ADR-036] 핀)   | **9.12.0** | **0**                                       |
+
+`apps/web/pnpm-lock.yaml` 은 `lockfileVersion: "9.0"` 이라 pnpm 8 로는 읽을 수 없다.
+★**증상이 「내 PR 이 lockfile 을 깼다」로 보인다** — 실제로는 lockfile·`package.json` diff 가 **0** 인
+브랜치에서도 red 다. 이 회차가 실제로 그 오인 경로를 밟았다.
+
+★**이것은 [ADR-036] 이 예고한 드리프트의 잔여다.** 그 회차가 「pnpm 이 한 레포에 메이저 2개」를 실측하고
+`mise.toml` 로 모았는데, **소비자 중 게이트가 안 따라왔다.** AGENTS.md 는 「터미널에서 직접 칠 때만
+`mise activate` 가 필요하다」고 적지만 게이트는 스크립트라 그 예외에 안 들어간다.
+
+**권장 접근:** ⑴ ★**먼저 전수해라** — `final-gates.sh` 와 `tools/scripts/*` 에서 `pnpm`·`uv`·`node` 를
+직접 부르는 자리를 전부 찾아라. pnpm 1곳만 고치면 같은 병이 `uv` 축에 남는다
+⑵ `mise exec --` 경유로 바꾸거나, 스크립트 진입부에서 shim 을 PATH 앞에 세운다(git 훅이 이미 그렇게 한다)
+⑶ ★**음성 대조** — PATH 에 낡은 도구를 일부러 둔 상태에서 게이트가 **여전히 초록**인지 확인해라.
+그래야 「핀을 쓴다」가 증명된다
+⑷ CI 는 이 병이 없다(워크플로가 버전을 명시) — **로컬에서만 red** 라 로컬 게이트 신뢰만 깎는다.
+[BL-780] 이 닫은 것과 같은 계열의 비대칭이다
+
+**Risk:** 🟡 (게이트 전용. 다만 고치기 전까지 로컬 마감이 이 한 건으로 막힌다)
+
+**상태:** ⬜ Open — 2026-08-17 실측으로 확정(PATH 8.15.9 rc=1 vs mise 9.12.0 rc=0). 미착수
+**트리거 판정:** 도래 — `apps/web` 이 없는 브랜치에서도 이 게이트는 돌고, 그때마다 red 다
