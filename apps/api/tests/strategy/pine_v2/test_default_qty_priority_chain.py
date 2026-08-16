@@ -11,6 +11,7 @@ Pine partial (type-only / value-only) 은 service helper `_resolve_sizing_canoni
 이 1차 422 reject. compat 은 service 보장 후만 호출되지만, 본 테스트는 chain
 silent downgrade 회귀 방어 차원에서 service helper 의 reject 도 회귀 보장.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -167,4 +168,4 @@ def test_pine_partial_rejects_at_service_helper() -> None:
     )
     strategy = _make_strategy(pine_source=_PINE_PARTIAL_TYPE_ONLY)
     with pytest.raises(PinePartialDeclaration):
-        _resolve_sizing_canonical(request, strategy)
+        _resolve_sizing_canonical(request, strategy, pine_source=strategy.pine_source)

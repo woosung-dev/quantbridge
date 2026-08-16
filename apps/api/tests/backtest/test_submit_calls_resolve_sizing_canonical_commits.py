@@ -1,7 +1,8 @@
 """Sprint 38 BL-188 v3 — submit() 안 sizing canonical helper 호출 + commit spy 회귀.
 
 codex G.0 iter 2 [P1] #3 mapping fix 통합 검증. submit() 가:
-  1. `_resolve_sizing_canonical(data, strategy)` 호출 결과를 `bt.config` JSONB 에 저장
+  1. `_resolve_sizing_canonical(data, strategy, pine_source=version.pine_source)` 호출 결과를
+     `bt.config` JSONB 에 저장
   2. `repo.commit()` 호출 (LESSON-019 broken bug 재발 방어)
 """
 

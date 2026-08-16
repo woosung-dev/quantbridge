@@ -253,6 +253,10 @@ class OptimizerService:
                 ),
             )
         if strategy_version is None:
+            logger.warning(
+                "optimizer_run_without_pinned_strategy_version",
+                extra={"backtest_id": str(bt.id), "strategy_id": str(bt.strategy_id)},
+            )
             strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
             if strategy is None:
                 raise OptimizationExecutionError(

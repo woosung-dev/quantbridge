@@ -89,7 +89,7 @@ def _make_request(
 def test_pine_full_declaration_returns_pine_tier() -> None:
     strategy = _make_strategy(pine_source=_PINE_DEFAULT_QTY_FULL)
     req = _make_request(strategy_id=strategy.id)
-    result = _resolve_sizing_canonical(req, strategy)
+    result = _resolve_sizing_canonical(req, strategy, pine_source=strategy.pine_source)
     assert result["sizing_source"] == "pine"
     assert result["sizing_basis"] == "pine_native"
     assert result["default_qty_type"] == "strategy.cash"
@@ -103,7 +103,7 @@ def test_pine_partial_declaration_raises_422() -> None:
     strategy = _make_strategy(pine_source=_PINE_DEFAULT_QTY_PARTIAL)
     req = _make_request(strategy_id=strategy.id)
     with pytest.raises(PinePartialDeclaration) as excinfo:
-        _resolve_sizing_canonical(req, strategy)
+        _resolve_sizing_canonical(req, strategy, pine_source=strategy.pine_source)
     assert excinfo.value.declared_type == "strategy.cash"
     assert excinfo.value.declared_value is None
 
@@ -122,7 +122,7 @@ def test_manual_form_override_returns_form_tier() -> None:
         default_qty_type="strategy.percent_of_equity",
         default_qty_value=Decimal("15"),
     )
-    result = _resolve_sizing_canonical(req, strategy)
+    result = _resolve_sizing_canonical(req, strategy, pine_source=strategy.pine_source)
     assert result["sizing_source"] == "form"
     assert result["sizing_basis"] == "form_equity"
     assert result["default_qty_type"] == "strategy.percent_of_equity"
@@ -143,7 +143,7 @@ def test_live_mirror_request_explicit_returns_live_tier() -> None:
         strategy_id=strategy.id,
         position_size_pct=Decimal("25"),
     )
-    result = _resolve_sizing_canonical(req, strategy)
+    result = _resolve_sizing_canonical(req, strategy, pine_source=strategy.pine_source)
     assert result["sizing_source"] == "live"
     assert result["sizing_basis"] == "live_available_balance_approx_equity"
     assert result["default_qty_type"] is None
@@ -161,7 +161,7 @@ def test_live_mirror_settings_only_returns_live_tier() -> None:
         }
     )
     req = _make_request(strategy_id=strategy.id)
-    result = _resolve_sizing_canonical(req, strategy)
+    result = _resolve_sizing_canonical(req, strategy, pine_source=strategy.pine_source)
     assert result["sizing_source"] == "live"
     assert result["sizing_basis"] == "live_available_balance_approx_equity"
     assert result["live_position_size_pct"] == 50.0  # settings 값
@@ -178,7 +178,7 @@ def test_live_leverage_nx_raises_mirror_not_allowed() -> None:
     )
     req = _make_request(strategy_id=strategy.id)
     with pytest.raises(MirrorNotAllowed) as excinfo:
-        _resolve_sizing_canonical(req, strategy)
+        _resolve_sizing_canonical(req, strategy, pine_source=strategy.pine_source)
     assert excinfo.value.live_leverage == 3
     assert excinfo.value.live_margin_mode == "isolated"
 
@@ -207,14 +207,14 @@ def test_double_sizing_raises_conflict_at_service_level() -> None:
         trading_sessions=[],
     )
     with pytest.raises(SizingSourceConflict):
-        _resolve_sizing_canonical(req, strategy)
+        _resolve_sizing_canonical(req, strategy, pine_source=strategy.pine_source)
 
 
 # 8. 모두 None — fallback (qty=1.0 호환).
 def test_no_sizing_input_returns_fallback() -> None:
     strategy = _make_strategy()  # settings=None
     req = _make_request(strategy_id=strategy.id)
-    result = _resolve_sizing_canonical(req, strategy)
+    result = _resolve_sizing_canonical(req, strategy, pine_source=strategy.pine_source)
     assert result["sizing_source"] == "fallback"
     assert result["sizing_basis"] == "fallback_qty1"
     assert result["default_qty_type"] is None

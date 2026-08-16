@@ -204,7 +204,11 @@ class BacktestService:
         # codex G.0 iter 1+2 must-fix 1 (sizing source 단일화) + must-fix 3 (leverage Nx
         # reject) + D2 (manual override) 반영. helper 가 Pine partial / Live Nx / double
         # sizing 모두 422 reject 책임.
-        sizing_canonical = _resolve_sizing_canonical(data, strategy)
+        sizing_canonical = _resolve_sizing_canonical(
+            data,
+            strategy,
+            pine_source=strategy_version.pine_source,
+        )
 
         config_payload: dict[str, Any] = {
             "leverage": float(data.leverage),
@@ -298,6 +302,10 @@ class BacktestService:
             await self.repo.commit()
             return
         if strategy_version is None:
+            logger.warning(
+                "backtest_run_without_pinned_strategy_version",
+                extra={"backtest_id": str(backtest_id), "strategy_id": str(bt.strategy_id)},
+            )
             strategy = await self.strategy_repo.find_by_id_and_owner(bt.strategy_id, bt.user_id)
             if strategy is None:
                 await self.repo.fail(
@@ -882,6 +890,8 @@ class BacktestService:
 def _resolve_sizing_canonical(
     request: CreateBacktestRequest,
     strategy: Strategy,
+    *,
+    pine_source: str,
 ) -> dict[str, Any]:
     """submit 시점 sizing canonical 결정 (Pine > 폼 manual > Live > fallback).
 
@@ -902,7 +912,7 @@ def _resolve_sizing_canonical(
       - Live mirror 의도 + leverage != 1 → MirrorNotAllowed (BL-186 후 unlock)
     """
     # 1. Pine declaration 추출 + partial reject (codex iter 1 [P1] #5)
-    pine_qty_type, pine_qty_value = extract_pine_default_qty(strategy.pine_source)
+    pine_qty_type, pine_qty_value = extract_pine_default_qty(pine_source)
     if (pine_qty_type is None) != (pine_qty_value is None):
         raise PinePartialDeclaration(
             detail=(
