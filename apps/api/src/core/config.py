@@ -123,6 +123,19 @@ class Settings(BaseSettings):
         """콤마 구분 문자열 → list[str]. 빈 값 → []."""
         return [s.strip() for s in self.trusted_proxies_raw.split(",") if s.strip()]
 
+    # --- [BL-784] e2e authed 스위트 전용 rate limit 면제 신원 ---
+    # 스위트는 **한 신원으로 90 테스트**를 돌고 페이지마다 BE 요청 4~8건을 내므로 60초 창의
+    # 100건을 상시 소진한다. 걸린 요청이 단언 대상이면 red 라서 실패 지점이 실행마다 갈렸다.
+    # ★기본값은 빈 문자열이고, 값이 있어도 production 에서는 `_enforce_production_safety` 가
+    #   **부팅을 막는다**. 완화 판정 본문은 `src/common/rate_limit.py`.
+    e2e_rate_limit_exempt_email: str = Field(
+        default="",
+        description=(
+            "rate limit 을 면제할 e2e 전용 계정 이메일 (로컬/CI 전용). "
+            "비어 있으면 아무도 면제되지 않는다. production 에서 값이 있으면 부팅 실패. BL-784."
+        ),
+    )
+
     # Backtest (Sprint 4)
     backtest_stale_threshold_seconds: int = Field(
         default=1800,
@@ -452,6 +465,17 @@ class Settings(BaseSettings):
             raise ValueError(
                 "production app_env requires real URLs (localhost default left in place): "
                 + ", ".join(stale)
+            )
+
+        # 2c. [BL-784] e2e rate limit 면제는 production 에 존재해서는 안 된다.
+        # ★런타임 판정(`is_rate_limit_exempt_identity`)이 이미 production 을 막지만, 그 판정은
+        #   `APP_ENV` 가 **붙어 있을 때만** 작동한다 — 2026-08-15 에 배포 호스트가 `APP_ENV` 를
+        #   안 넣어 `{"env":"development"}` 로 돌던 실사고가 있다. 그래서 라벨이 production 인
+        #   구성에서는 **값의 존재 자체**를 부팅 실패로 만든다(런타임 판정과 별개의 층이다).
+        if self.e2e_rate_limit_exempt_email.strip():
+            raise ValueError(
+                "production app_env must not set E2E_RATE_LIMIT_EXEMPT_EMAIL "
+                "(BL-784 — e2e rate limit 면제는 로컬/CI 전용이다)"
             )
 
         # 3. Sprint 60 S5 BL-246 — production env 시 PROMETHEUS_BEARER_TOKEN 의무

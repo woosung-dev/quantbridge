@@ -37,6 +37,9 @@ def _baseline_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FRONTEND_URL", "https://qb.example.dev")
     monkeypatch.setenv("BETTER_AUTH_URL", "https://qb.example.dev")
     monkeypatch.setenv("WAITLIST_INVITE_BASE_URL", "https://qb.example.dev/invite")
+    # [BL-784] 로컬 `.env.local` 이 e2e 면제 이메일을 채워 두면 production 축 테스트가 전부
+    # **그 에러**로 raise 해서 원래 재려던 축이 사라진다. 여기서 "미설정" 을 강제한다.
+    monkeypatch.setenv("E2E_RATE_LIMIT_EXEMPT_EMAIL", "")
 
 
 def test_dev_env_allows_debug_true(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -200,3 +203,31 @@ def test_environment_enum_values_match_literal(monkeypatch: pytest.MonkeyPatch) 
     assert Environment.DEVELOPMENT.value == "development"
     assert Environment.STAGING.value == "staging"
     assert Environment.PRODUCTION.value == "production"
+
+
+def test_production_rejects_e2e_rate_limit_exemption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[BL-784] production + E2E_RATE_LIMIT_EXEMPT_EMAIL 값 존재 → ValueError.
+
+    ★런타임 판정(`is_rate_limit_exempt_identity`)이 이미 production 을 막는데 왜 또 막나 —
+    그 판정은 `APP_ENV` 가 **실제로 붙어 있을 때만** 작동하기 때문이다. 2026-08-15 에 배포
+    호스트가 `APP_ENV` 를 안 넣어 `{"env":"development"}` 로 돌던 실사고가 있었다. 라벨이
+    production 인 구성에서는 **값의 존재 자체**를 부팅 실패로 만들어 층을 하나 더 둔다.
+    """
+    _baseline_env(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "real-prod-secret-32bytes-min-xx")
+    monkeypatch.setenv("WAITLIST_TOKEN_SECRET", "x" * 32)
+    monkeypatch.setenv("PROMETHEUS_BEARER_TOKEN", "test-prod-bearer-token")
+    monkeypatch.setenv("E2E_RATE_LIMIT_EXEMPT_EMAIL", "e2e@dogfood.local")
+
+    from src.core.config import Settings
+
+    with pytest.raises(ValueError, match="E2E_RATE_LIMIT_EXEMPT_EMAIL"):
+        Settings()
+
+    # ★양성 대조 — 값이 없으면 같은 구성이 정상 부팅한다. 이 줄이 없으면 위 raise 가
+    #   「이 구성은 어차피 못 뜬다」와 구분되지 않는다.
+    monkeypatch.setenv("E2E_RATE_LIMIT_EXEMPT_EMAIL", "")
+    assert Settings().is_production is True

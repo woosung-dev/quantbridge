@@ -98,6 +98,27 @@ def rate_limit_key(request: Request) -> str:
     return f"ip:{_client_ip_or_xff(request)}"
 
 
+def is_rate_limit_exempt_identity(email: str | None) -> bool:
+    """[BL-784] 이 신원이 rate limit 면제 대상인가 — **두 조건이 모두** 참일 때만 참이다.
+
+    ⑴ **production 이 아니다.** ⑵ 검증된 JWT 의 `email` 이 설정값과 정확히 같다.
+
+    ★설정을 **먼저** 본다. 빈 값이 「전부 면제」로 뒤집히는 것이 이 판정의 유일한 파국이라
+    비교보다 앞에 둔다 — 빈 설정에는 어떤 이메일도 걸리지 않는다.
+    ★비교는 양쪽 다 `strip().lower()` 다. 이메일 로컬파트는 원칙적으로 대소문자를 구분하지만
+    실제 제공자는 구분하지 않고, 여기서 구분하면 「설정했는데 안 걸린다」가 조용히 생긴다.
+    면제 대상은 우리가 만든 계정 하나뿐이라 넓혀서 잃을 것이 없다.
+    """
+    if settings.is_production:
+        return False
+    configured = settings.e2e_rate_limit_exempt_email.strip().lower()
+    if not configured:
+        return False
+    if not email:
+        return False
+    return email.strip().lower() == configured
+
+
 def create_limiter() -> Limiter:
     """slowapi Limiter — Redis storage (Phase A1 pool URL 재사용) + fail-open + 100/min default.
 
@@ -204,6 +225,10 @@ class _RateLimitIdentityMiddleware(BaseHTTPMiddleware):
 
     ★**문을 지키지 않는다.** 토큰이 없거나 깨졌으면 조용히 IP 로 떨어진다 — 거부는 인증
     dependency 의 일이고, 여기서 401 을 내면 공개 엔드포인트(`/waitlist` 등)가 죽는다.
+
+    ★[BL-784] **면제 판정도 여기서 한다.** 판정에 필요한 `email` 은 이미 검증한 payload 안에
+    있고, 이 미들웨어는 SlowAPI 보다 바깥이라 한도가 걸리기 **전**이다. 다른 곳에서 하려면
+    토큰을 한 번 더 검증해야 한다.
     """
 
     async def dispatch(
@@ -212,12 +237,22 @@ class _RateLimitIdentityMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         if request.headers.get("authorization"):
-            from src.realtime.auth import verified_subject_or_none
+            from src.realtime.auth import verified_claims_or_none
 
             # ★스레드로 넘긴다 — `_decode` 는 동기 crypto 이고 첫 요청엔 JWKS 를 가져온다.
-            subject = await anyio.to_thread.run_sync(verified_subject_or_none, request)
-            if subject:
-                request.state.user_id = subject
+            claims = await anyio.to_thread.run_sync(verified_claims_or_none, request)
+            if claims:
+                subject = claims.get("sub")
+                if subject:
+                    request.state.user_id = str(subject)
+                if is_rate_limit_exempt_identity(claims.get("email")):
+                    # ★`_rate_limiting_complete` 는 **slowapi 소유의 skip 플래그**다. slowapi 가
+                    #   미들웨어 갈래(`middleware.py`)와 데코레이터 갈래(`extension.py`) **양쪽**
+                    #   에서 이 이름을 보므로, 여기 한 줄이 `default_limits` 와 `@limiter.limit`
+                    #   둘 다를 면제한다. 이름이 slowapi 것이라 업그레이드에 깨질 수 있지만,
+                    #   깨지는 방향이 **한도가 다시 걸리는 쪽**이라 프로덕션 위험은 없다 —
+                    #   깨지면 e2e 가 다시 흔들리고 판별력 테스트가 red 로 알려 준다.
+                    request.state._rate_limiting_complete = True
         return await call_next(request)
 
 
