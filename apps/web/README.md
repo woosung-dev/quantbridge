@@ -16,13 +16,13 @@ pnpm dev                         # http://localhost:3000
 
 ★**이 앱이 인증 서버 본체다**([ADR-034](../../docs/decisions/034-auth-self-host-better-auth.md)) — 그래서 `BETTER_AUTH_*` 는 전부 **서버 전용**이고 브라우저 번들로 나가지 않는다.
 
-| 변수 | 용도 |
-|------|------|
-| `BETTER_AUTH_SECRET` | 세션 암호화·해싱 키. 32자 이상 (`openssl rand -base64 32`) |
-| `BETTER_AUTH_URL` | 이 앱의 공개 origin. JWT 의 `iss`/`aud` 기준. **FastAPI 의 같은 이름 값과 일치해야 한다** |
-| `BETTER_AUTH_DATABASE_URL` | `auth_*` 5테이블 전용 Postgres DSN |
-| `NEXT_PUBLIC_API_URL` | FastAPI 백엔드 URL (기본 `http://localhost:8000`) |
-| `NEXT_PUBLIC_WS_URL` | WebSocket URL (실시간) |
+| 변수                       | 용도                                                                                      |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`       | 세션 암호화·해싱 키. 32자 이상 (`openssl rand -base64 32`)                                |
+| `BETTER_AUTH_URL`          | 이 앱의 공개 origin. JWT 의 `iss`/`aud` 기준. **FastAPI 의 같은 이름 값과 일치해야 한다** |
+| `BETTER_AUTH_DATABASE_URL` | `auth_*` 5테이블 전용 Postgres DSN                                                        |
+| `NEXT_PUBLIC_API_URL`      | FastAPI 백엔드 URL (기본 `http://localhost:8000`)                                         |
+| `NEXT_PUBLIC_WS_URL`       | WebSocket URL (실시간)                                                                    |
 
 > `pnpm e2e:authed` 는 `E2E_AUTH_EMAIL`·`E2E_AUTH_PASSWORD` 도 요구한다 — `e2e/global.setup.ts` 가 그 계정으로 실제 `/sign-in` 폼을 채운다.
 

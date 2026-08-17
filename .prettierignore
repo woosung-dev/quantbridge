@@ -10,12 +10,7 @@ apps/api/tests/fixtures/bl595/
 # 게이트가 영구 빨강이 된다 — 1차 커밋에서 실측(797줄 diff). bl595 픽스처와 같은 축.
 contracts/openapi/
 
-# [BL-602] 루트 prettier 가 `apps/web/.prettierrc` 의 `prettier-plugin-tailwindcss` 를 해석하지
-# 못해 죽는다(루트 node_modules 에 그 플러그인이 없다). [ADR-027] 이 스택 규칙을 그 디렉터리로
-# 옮기면서 이 함정의 표면이 넓어졌다 — 두 파일을 ignore 로 **회피**한다(근본 수리 아님).
-# ★BL-602 가 닫히면 아래 세 줄을 지워라.
-apps/web/AGENTS.md
-apps/web/CLAUDE.md
-# 2026-08-07 prototype-canon-v2 회차 추가 — 1세대 프로토타입 삭제로 :70 의 `00-landing.html`
-# 참조가 dangling 이 되는데, 이 파일을 스테이징하면 같은 트랩에 걸려 커밋이 죽는다.
-apps/web/README.md
+# ★[BL-602] 회피 3줄은 2026-08-17 에 지웠다 — 근본 원인이 이미 사라졌다.
+#   루트 `package.json` 이 `prettier-plugin-tailwindcss` 를 devDependencies 로 갖게 된 것이
+#   `71f7101e`(2026-08-09) 다. **이 BL 과 무관한 목적의 커밋**이 처방을 얹었고, 그래서
+#   아무도 이 회피가 불필요해진 것을 몰랐다. 되살릴 일이 생기면 원문 = `git show 0875789c:.prettierignore`.
