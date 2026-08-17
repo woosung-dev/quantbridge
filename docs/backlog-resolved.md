@@ -3510,3 +3510,102 @@ Open 항목과 **같은 파일에** 있다.
 같을 것」(ACTIVE 8 / PARTIAL 24 / RESOLVED 118 / DEFERRED 178)이라, 자기 판정을 바꾸면 그 음성 대조가
 자기 자신 때문에 깨진다. 남은 축 ⑸ 를 닫을 때 함께 올려라 — 그때 P2 인덱스 표 행에 🟡 도 같이 붙인다.
 **트리거 판정:** 도래 — 이미 세션마다 grep 으로만 접근 가능한 크기이고 계속 자란다 (2026-08-16 layout-alignment)
+
+### BL-718
+
+**Title:** CODEOWNERS 도입 (강제력 0 임을 명시한 문서화 축)
+**Category:** Docs / 컨벤션
+**Priority:** P3
+**Trigger:** PR-1 머지 후
+**Est:** XS
+**상태:** ✅ **Resolved (2026-08-18 night4-ci-truth)** — `.github/CODEOWNERS` 신설. `* @woosung-dev` + `/apps/`·`/infra/`·`/tools/`·`/docs/decisions/`·`/.github/` 구획(경로 전부 실재 확인). AC 충족: `gh api repos/woosung-dev/quantbridge/codeowners/errors` **0건**. ★★**「0건」을 양성 대조로 갈랐다** — 일부러 망가뜨린 판(존재하지 않는 소유자 + `[[[bad` 패턴)을 임시 ref 에 올리자 검사기가 `Unknown owner`·`Invalid pattern` 을 정확히 짚었다. 빈 입력이 초록으로 통과한 것이 아니다. ★**강제력 0 을 파일 머리에 못박았다** — 브랜치 보호·ruleset 둘 다 부재(404 · `[]`, 2026-08-18 재확인)라 GitHub 은 이 파일로 아무것도 막지 않는다. 얻는 것은 리뷰 자동 배정과 구획 문서화뿐이고, 강제가 필요하면 ruleset 도입이 **별도 결정**이다.
+**트리거 판정:** 도래 → **소진** — PR-1([ADR-029] `1cd5345a`) 머지 뒤 실제로 착수해 닫았다 (2026-08-18)
+**출처:** 2026-08-13 monorepo-realign
+
+**주의:** 브랜치 보호 없음 실측(`gh api …/branches/main/protection` → 404 · rulesets `[]`) = CODEOWNERS 의
+**강제력은 0** 이다. 리뷰 라우팅·구조 문서화 효과만 있음을 PR 본문에 명시하고, 강제가 필요해지면
+ruleset(required review) 도입을 별도 결정으로 올린다. AC: `gh api repos/<owner>/<repo>/codeowners/errors` 0건.
+
+## ★2026-08-15 실측 — 「해석적 재계산」을 측정으로 바꿨다
+
+`a22faccb`(BTC/USDT 1h · 2025-07-01~2026-07-25 · 9337 bars)를 `run_cost_assumption_sensitivity`
+로 9-cell 돌렸다. **격자 최저점을 실측값에 맞췄다** — 종전 FE 프리셋에는 그 점이 없었다([BL-730]).
+
+```
+      fees   slippage   total_return       max_dd   trades
+   0.00055    0.00014        −7.737%       −4.530%    1029   ← 실측 (BL-603)
+   0.00055    0.00028       −10.304%       −6.083%    1029
+   0.00055     0.0005       −14.337%       −8.910%    1029
+    0.0011    0.00014       −17.820%      −11.812%    1029
+     0.001     0.0005       −22.587%      −16.688%    1029   ← 저장된 낡은 값
+```
+
+**판정 = [BL-724] 유지.** 비용을 실측으로 낮춰도 **부호가 안 바뀐다**(−22.59% → −7.74%).
+전략 채택 근거가 낡은 가정이었던 것은 맞지만, 고쳐도 결론은 그대로다.
+
+★★**부수 발견 — 비용과 손실은 선형이 아니다.** 왕복 비용은 `0.0015/0.00069` = **2.17배**인데
+손실은 `22.59/7.74` = **2.92배**다. 비용이 체결·청산 경로 자체를 바꾸기 때문이고, 그래서
+「왕복 0.30% → 0.138% 니까 손실도 절반쯤」이라는 **선형 외삽은 틀린다**. [BL-724] 의
+해석적 재계산(`[가정]` net ≈ −69,538)도 같은 이유로 점추정으로만 써야 한다.
+
+★**미해결 관측 하나** — 9 cell 전부 `sharpe=0` 인데 `is_degenerate=False` 다(trades 1029).
+degenerate 판정이 `num_trades=0 또는 NaN sharpe` 인데 둘 다 아닌 채로 0 이 나왔다.
+비용 민감도 결론에는 영향이 없어(총수익·MDD 로 판정) 이번 회차에서 파지 않았지만,
+Sharpe 를 판단에 쓰려면 먼저 확인해야 한다 → [BL-740].
+
+---
+
+### BL-787
+
+**Title:** optimizer 에는 있는 `engine_version` 가드가 **stress_test 에는 없다** — [BL-783] 이 남긴 비대칭
+**Category:** 도메인 / 재현성
+**Priority:** P2
+**Trigger:** 도래 — [BL-783] 머지로 두 경로가 나란히 놓였고 한쪽만 가드가 있다
+**Est:** S (가드 1개 + 그것을 재는 테스트)
+**출처:** 2026-08-17 야간 레인 β — [BL-783] 구현 중 레인이 **의도적으로 범위 밖에 뒀고** CONTROL 이 등재
+
+**원인 / 영향:** [BL-773](#bl-773)(PR #650)의 optimizer 처방에는 `bt.engine_version not in (None, PINE_V2_ENGINE_VERSION)`
+이면 거부하는 가드가 있다. [BL-783] 이 stress_test 에 옮긴 것은 **스냅샷 조회 + 폴백 경고까지**이고
+이 가드는 안 옮겼다 — 레인 파일이 복제 대상으로 열거하지 않았고, 옮기면 **동작이 바뀌는데**
+(비-pine_v2 부모에 대해 stress test 가 실패한다) 그것을 재는 AC 가 없었기 때문이다.
+
+★**「같은 부류로 보인다」까지가 확인된 전부다.** Stress Test 도 같은 엔진을 재실행하므로 구조는 같지만,
+비-pine_v2 부모 Backtest 가 실제로 몇 건이고 그중 stress test 대상이 있는지는 **아무도 세지 않았다.**
+
+**권장 접근:** ⑴ ★**먼저 세라** — `SELECT engine_version, count(*) FROM backtests GROUP BY 1` 과
+그중 `stress_tests` 가 매달린 것. 0 이면 이 항목은 예방이고, 0 이 아니면 지금 잘못 돌고 있는 것이다
+⑵ 세고 나서 가드를 옮기고, **거부가 발생하는 케이스를 재는 테스트**를 같이 둬라
+⑶ 거부는 사용자에게 보이는 동작 변경이다 — 메시지를 optimizer 쪽과 같은 문구로 맞춰라
+
+**Risk:** 🟡 (동작 변경. 세어 보기 전에는 영향 범위를 모른다)
+
+**상태:** ✅ **Resolved (2026-08-18 night4-ci-truth · PR #672)** — optimizer(`optimizer/service.py:237`)와 **같은 문구**의 가드를 stress_test 에 옮겼다. kind 분기를 `_execute` seam 으로 묶어 optimizer 의 모양과 맞췄다. ★★**원장이 「먼저 세라」고 한 것을 셌고, 답은 「예방」이었다** — `backtests` **7행 전부 `engine_version` NULL** · `stress_tests ⋈ backtests` **0행**. 즉 원장이 열어 둔 「0 이 아니면 지금 잘못 돌고 있는 것」은 **해당 없음**이고, 지금 깨지는 사용자 경로는 없다. 그 실측을 코드 주석에 남겼다. 변이: 조건 반전 → **3 failed**(거부 케이스가 `DID NOT RAISE` + **양성 대조 2건**(`None`·pine_v2)이 거꾸로 거부당해 죽는다 — 양방향으로 실린 가드다).
+**트리거 판정:** 도래 → **소진** — [BL-783] 이 만든 비대칭을 닫았다 (2026-08-18)
+
+---
+
+---
+
+### BL-790
+
+**Title:** funding rate 인제스션이 `exchange_name: str` 을 받는다 — CCXT 속성명 검사만 하고 raw SQL 로 넣는다
+**Category:** 도메인 / 타입 안전
+**Priority:** P3
+**Trigger:** 도래 — [BL-782] 가 컬럼을 native enum 으로 올려 실패 지점이 INSERT 로 앞당겨졌다
+**Est:** S (타입 1개 + 그것을 재는 테스트)
+**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 β)
+
+**원인 / 영향:** `fetch_and_store_funding_rates(*, exchange_name: str, …)` 는 `getattr(ccxt_async, exchange_name, None)` 이 None 만 아니면 통과시키고 그 문자열을 raw SQL 로 넣는다(`src/trading/funding.py:42·54·70`). CCXT 는 100개 넘는 거래소를 갖고 있으므로 `kraken`·`bitmex` 등이 전부 그 검사를 지난다. **[BL-782] 이전에는 컬럼이 VARCHAR(32) 라 조용히 들어갔고, 이후에는 INSERT 가 죽는다.**
+
+★**지금 실害는 0 이다** — 생산자를 전수했다. 자동 경로는 celery beat 스케줄 **3건뿐**이고 `celery_app.py:139·145·151` 의 `args` 가 **전부 `"bybit"` 하드코딩**이다. API 라우터에서 이 task 를 enqueue 하는 코드는 **0건**이고 `backfill_funding_rates_task` 는 정의만 있고 호출부가 없다. 개발 DB 실측도 `bybit` 162행뿐이다.
+
+**처방:** 시그니처를 `ExchangeName` 으로 좁힌다. ★**서버 소크 DB 에 `20260817_0002` 를 적용하기 전에는 반드시 `SELECT DISTINCT exchange FROM trading.funding_rates` 로 값을 먼저 세라** — 라벨(`bybit`·`binance`·`okx`) 밖 값이 있으면 `USING` 캐스트가 트랜잭션째 롤백한다. 소리 내며 실패하므로 조용한 손상은 아니지만 창 안에서 migration 이 멈춘다.
+
+**Risk:** 🟢 (타입 좁히기. 현 생산자는 전부 리터럴)
+
+**상태:** ✅ **Resolved (2026-08-18 night4-ci-truth · PR #672)** — 두 함수의 `exchange_name: str` 을 `ExchangeName` 으로 좁히고 `# type: ignore[arg-type]` 2곳을 없앴다. ★★**애너테이션만으로는 못 막는다** — celery beat 의 `args` 는 untyped 라 mypy 가 안 본다. 그래서 진입부에서 값을 `ExchangeName(...)` 로 통과시키되 **결과를 다시 대입한다**: 값을 버리는 식 한 줄은 「안 쓰는 줄」로 보여 정리 한 번에 조용히 사라질 수 있고 그 순간 가드는 없어지는데 타입 검사는 그대로 초록이다. `getattr(ccxt_async, …)` 검사는 남겼다(`ExchangeName ⊆ ccxt` 보장 없음). 실측 `SELECT DISTINCT exchange` = **`bybit` 뿐** ⇒ 실害 0. 변이 2축: 대입 삭제 → `DID NOT RAISE ValueError` 2건 · 애너테이션만 되돌림 → `mypy` rc=1(`funding.py:96·154`).
+**트리거 판정:** 도래 → **소진** — [BL-782] 의 enum 전환이 앞당긴 실패 지점을 INSERT 이전으로 되돌렸다 (2026-08-18)
+
+---
+
+---

@@ -5,6 +5,7 @@ Beat schedule: celery_app.py에 등록 (매 1시간).
 Order/Position 의 leverage IS NOT NULL — Sprint 22 BL-091 dispatch 기준).
 Sprint 22 이전: settings.exchange_provider == "bybit_*" 기반 (deprecated).
 """
+
 from __future__ import annotations
 
 import logging
@@ -14,6 +15,7 @@ from typing import Any
 from celery import shared_task
 
 from src.tasks._worker_engine import create_worker_engine_and_sm
+from src.trading.models import ExchangeName
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +61,7 @@ async def _async_fetch(exchange_name: str, symbol: str, lookback_hours: int) -> 
     try:
         async with sm() as session:
             inserted = await fetch_and_store_funding_rates(
-                exchange_name=exchange_name,
+                exchange_name=ExchangeName(exchange_name),
                 symbol=symbol,
                 since=since,
                 session=session,
@@ -80,7 +82,7 @@ async def _async_backfill(
     try:
         async with sm() as session:
             inserted = await backfill_funding_rate_history(
-                exchange_name=exchange_name,
+                exchange_name=ExchangeName(exchange_name),
                 symbol=symbol,
                 start=start,
                 end=end,

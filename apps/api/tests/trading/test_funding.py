@@ -1,4 +1,5 @@
 """Funding rate fetch 테스트 — CCXT monkeypatch."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
@@ -6,9 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.trading.models import ExchangeName
+
 # ---------------------------------------------------------------------------
 # fetch_and_store_funding_rates — CCXT monkeypatch
 # ---------------------------------------------------------------------------
+
 
 async def test_fetch_and_store_inserts_new_records():
     """CCXT mock → 2개 레코드 → INSERT 2개."""
@@ -35,7 +39,7 @@ async def test_fetch_and_store_inserts_new_records():
 
     with patch("ccxt.async_support.bybit", mock_cls):
         inserted = await fetch_and_store_funding_rates(
-            exchange_name="bybit",
+            exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             since=now - timedelta(hours=10),
             session=mock_session,
@@ -59,7 +63,7 @@ async def test_fetch_and_store_empty_response():
 
     with patch("ccxt.async_support.bybit", mock_cls):
         result = await fetch_and_store_funding_rates(
-            exchange_name="bybit",
+            exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             since=datetime.now(UTC) - timedelta(hours=2),
             session=mock_session,
@@ -69,17 +73,49 @@ async def test_fetch_and_store_empty_response():
     mock_session.execute.assert_not_called()
 
 
-async def test_fetch_and_store_unknown_exchange_raises():
-    """미지원 거래소 → ValueError."""
+async def test_fetch_and_store_rejects_ccxt_supported_exchange_outside_exchange_name():
+    """kraken은 CCXT 거래소지만 ExchangeName 밖이므로 CCXT 호출 전에 거부한다."""
     from src.trading.funding import fetch_and_store_funding_rates
 
-    with pytest.raises(ValueError, match="Unknown CCXT exchange"):
+    mock_exchange = MagicMock()
+    mock_exchange.fetch_funding_rate_history = AsyncMock(return_value=[])
+    mock_exchange.close = AsyncMock()
+    mock_cls = MagicMock(return_value=mock_exchange)
+    with (
+        patch("ccxt.async_support.kraken", mock_cls),
+        pytest.raises(ValueError, match="'kraken' is not a valid ExchangeName"),
+    ):
         await fetch_and_store_funding_rates(
-            exchange_name="nonexistent_exchange",
+            exchange_name="kraken",
             symbol="BTC/USDT:USDT",
             since=datetime.now(UTC),
             session=MagicMock(),
         )
+
+    mock_cls.assert_not_called()
+
+
+async def test_backfill_rejects_ccxt_supported_exchange_outside_exchange_name():
+    """backfill도 같은 런타임 ExchangeName 경계를 적용한다."""
+    from src.trading.funding import backfill_funding_rate_history
+
+    mock_exchange = MagicMock()
+    mock_exchange.fetch_funding_rate_history = AsyncMock(return_value=[])
+    mock_exchange.close = AsyncMock()
+    mock_cls = MagicMock(return_value=mock_exchange)
+    with (
+        patch("ccxt.async_support.kraken", mock_cls),
+        pytest.raises(ValueError, match="'kraken' is not a valid ExchangeName"),
+    ):
+        await backfill_funding_rate_history(
+            exchange_name="kraken",
+            symbol="BTC/USDT:USDT",
+            start=datetime.now(UTC),
+            end=datetime.now(UTC),
+            session=MagicMock(),
+        )
+
+    mock_cls.assert_not_called()
 
 
 async def test_backfill_paginates_with_next_timestamp_cursor():
@@ -105,7 +141,7 @@ async def test_backfill_paginates_with_next_timestamp_cursor():
         patch("src.trading.funding.asyncio.sleep", new=AsyncMock()),
     ):
         inserted = await backfill_funding_rate_history(
-            exchange_name="bybit",
+            exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             start=start,
             end=datetime(2024, 1, 1, 8, tzinfo=UTC),
@@ -114,7 +150,9 @@ async def test_backfill_paginates_with_next_timestamp_cursor():
 
     assert inserted == 2
     assert mock_exchange.fetch_funding_rate_history.call_args_list[0].kwargs["since"] == first_ts
-    assert mock_exchange.fetch_funding_rate_history.call_args_list[1].kwargs["since"] == first_ts + 1
+    assert (
+        mock_exchange.fetch_funding_rate_history.call_args_list[1].kwargs["since"] == first_ts + 1
+    )
 
 
 async def test_backfill_does_not_store_records_after_end():
@@ -127,15 +165,20 @@ async def test_backfill_does_not_store_records_after_end():
     mock_exchange.fetch_funding_rate_history = AsyncMock(
         return_value=[
             {"timestamp": int(start.timestamp() * 1000), "fundingRate": "0.0001"},
-            {"timestamp": int((end + timedelta(hours=8)).timestamp() * 1000), "fundingRate": "0.0002"},
+            {
+                "timestamp": int((end + timedelta(hours=8)).timestamp() * 1000),
+                "fundingRate": "0.0002",
+            },
         ]
     )
     mock_exchange.close = AsyncMock()
-    mock_session = MagicMock(execute=AsyncMock(return_value=MagicMock(rowcount=1)), commit=AsyncMock())
+    mock_session = MagicMock(
+        execute=AsyncMock(return_value=MagicMock(rowcount=1)), commit=AsyncMock()
+    )
 
     with patch("ccxt.async_support.bybit", MagicMock(return_value=mock_exchange)):
         inserted = await backfill_funding_rate_history(
-            exchange_name="bybit",
+            exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             start=start,
             end=end,
@@ -156,11 +199,13 @@ async def test_backfill_is_idempotent_when_all_rows_conflict():
         return_value=[{"timestamp": int(start.timestamp() * 1000), "fundingRate": "0.0001"}]
     )
     mock_exchange.close = AsyncMock()
-    mock_session = MagicMock(execute=AsyncMock(return_value=MagicMock(rowcount=0)), commit=AsyncMock())
+    mock_session = MagicMock(
+        execute=AsyncMock(return_value=MagicMock(rowcount=0)), commit=AsyncMock()
+    )
 
     with patch("ccxt.async_support.bybit", MagicMock(return_value=mock_exchange)):
         inserted = await backfill_funding_rate_history(
-            exchange_name="bybit",
+            exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             start=start,
             end=start,
@@ -183,7 +228,7 @@ async def test_backfill_empty_first_page_skips_database():
 
     with patch("ccxt.async_support.bybit", MagicMock(return_value=mock_exchange)):
         inserted = await backfill_funding_rate_history(
-            exchange_name="bybit",
+            exchange_name=ExchangeName.bybit,
             symbol="BTC/USDT:USDT",
             start=start,
             end=start,

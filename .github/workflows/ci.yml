@@ -540,6 +540,127 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 7
 
+  # [BL-789] — 인증된 화면도 PR CI에서 실제로 실행한다. 첫 라운드는 매니페스트의 한 spec만
+  # 대상으로 삼고, 나머지 authed spec의 미실행 사유도 같은 파일에 남긴다.
+  e2e_authed:
+    needs: changes
+    # ★★**backend 변경에도 발화한다** (2026-08-18 적대 리뷰 P1). 형제 `e2e` 잡은 공개 라우트만
+    #   재니까 `frontend` 만으로 충분하지만, **이 잡은 FastAPI 의 인증·CORS·JWKS 경로를 실제로
+    #   지난다** — 실제로 첫 두 라운드를 죽인 것이 그 둘이었다(`Invalid origin` · CORS `ERR_FAILED`).
+    #   `frontend` 만 보면 `apps/api/**` 만 고쳐 그 경로를 깨뜨린 PR 에서 이 잡이 **skip** 되고,
+    #   `ci` 요약은 skipped 를 통과로 세므로 초록으로 머지된다.
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: timescale/timescaledb:2.14.2-pg15
+        env:
+          POSTGRES_USER: quantbridge
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: quantbridge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quantbridge"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      REDIS_LOCK_URL: redis://localhost:6379/3
+      TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
+      BETTER_AUTH_SECRET: ci-e2e-only-placeholder-secret-0000000
+      BETTER_AUTH_DATABASE_URL: postgresql://quantbridge:password@localhost:5432/quantbridge_test
+      E2E_AUTH_EMAIL: ci-e2e-authed@example.test
+      E2E_AUTH_PASSWORD: ci-e2e-authed-password-0000000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      # ★★`BETTER_AUTH_URL` 을 **여기서 파생시킨다 — 상수를 두 번 적지 않는다.**
+      #   Better Auth 는 요청 Origin 이 `BETTER_AUTH_URL` 과 다르면 **403 `Invalid origin`** 으로
+      #   로그인을 거부한다. 증상은 「`waitForURL` 60s 타임아웃」이라 원인이 안 보인다 —
+      #   2026-08-18 첫 CI 라운드에서 실제로 밟았고([BL-781] 이 같은 기전을 격리 슬롯에서 이미 적발했다),
+      #   로그에 `Invalid origin: http://localhost:3100` 이 찍혀서야 갈렸다.
+      #   포트의 정본은 `e2e/_base-url.ts` 의 `DEFAULT_FE_PORT`(+슬롯) 하나뿐이고 CI 는 슬롯이 없어 그 값 그대로다.
+      #   ★값을 YAML 에 박으면 그 상수가 바뀌는 날 **조용히 403** 으로 돌아온다. 그래서 파일에서 읽는다 —
+      #   못 읽으면 `match` 가 null 이라 **여기서 죽는다**(fail-closed). 조용히 기본값으로 떨어지지 않는다.
+      #   ★★**포트를 보는 곳이 둘이다.** `BETTER_AUTH_URL`(로그인 Origin 검증)과
+      #   `FRONTEND_URL`(FastAPI 의 CORS `allow_origins`, `main.py:329`). 첫 수리에서 앞의 것만 고쳤더니
+      #   로그인은 지났는데 **authed 도달성 프로브가 죽었다** — 브라우저가 `:8000` 을 직접 부르는데
+      #   BE 가 `Origin: http://localhost:3100` 을 CORS 로 거부해 `net::ERR_FAILED` 8건이었다.
+      #   증상이 「백엔드 도달 불가」라 서버가 안 뜬 것처럼 보이지만 서버는 멀쩡했다.
+      - name: Resolve frontend port from e2e/_base-url.ts (SSOT)
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          port="$(node -p "require('fs').readFileSync('e2e/_base-url.ts','utf8').match(/DEFAULT_FE_PORT = (\d+)/)[1]")"
+          echo "resolved frontend port: $port"
+          echo "BETTER_AUTH_URL=http://localhost:$port" >> "$GITHUB_ENV"
+          echo "FRONTEND_URL=http://localhost:$port" >> "$GITHUB_ENV"
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: uv sync --all-extras --dev
+        working-directory: apps/api
+      - run: uv run alembic upgrade head
+        working-directory: apps/api
+      - name: Start API and wait for /health
+        working-directory: apps/api
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run uvicorn src.main:app --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/uvicorn.log" 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/uvicorn.log"
+          exit 1
+      - name: Run selected authed specs
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          specs="$(node -p "require('./e2e/ci-authed-manifest.json').ci.map((file) => 'e2e/' + file).join(' ')")"
+          if [ -z "$specs" ]; then
+            echo "::error::ci-authed-manifest.json의 ci가 비어 있다"
+            exit 1
+          fi
+          echo "authed CI specs: $specs"
+          pnpm exec playwright test --project=chromium-authed $specs
+      - name: Upload authed Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-authed-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+      - name: Upload API log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-authed-api-log
+          path: ${{ runner.temp }}/uvicorn.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
   # ★2026-08-06 구멍 2개를 막았다.
   #   ⑴ `documentation` 이 needs 에 **없었다** — `mise run docs-audit` 이 빨개도 `ci` 는 초록이었다.
@@ -562,6 +683,7 @@ jobs:
         backend_static,
         backend_coverage,
         e2e,
+        e2e_authed,
         documentation,
         secret_scan,
       ]
@@ -585,6 +707,7 @@ jobs:
           check backend_static   "${{ needs.backend_static.result }}"
           check backend_coverage "${{ needs.backend_coverage.result }}"
           check e2e              "${{ needs.e2e.result }}"
+          check e2e_authed       "${{ needs.e2e_authed.result }}"
           check documentation    "${{ needs.documentation.result }}"
           check secret_scan      "${{ needs.secret_scan.result }}"
           exit $fail
