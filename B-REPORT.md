@@ -15,15 +15,15 @@
 
 ## AC 별 판정
 
-| AC | 판정 | 근거 |
-| --- | --- | --- |
-| AC-1 대상 실재 확인 | ✅ | 아래 §「대상은 실재했다」 |
-| AC-2 갈래 ⒜/⒝ 결정 | ✅ ⒜ 채택 | 아래 §「왜 ⒜ 인가」 |
-| AC-3 목록 응답에 탑재 · N+1 없음 | ✅ | 쿼리 수 1행 2회 = 4행 2회 (테스트가 잰다) |
-| AC-4 FE 렌더 · `EMPTY_CELL` 고정 제거 | ✅ | `dashboard-cockpit.tsx:510-511` 이 `MetricValue` 2개로 교체 |
-| AC-5 「없음 ≠ 0」을 재는 테스트 | ✅ | FE 3건 + BE 2건 (아래 표) |
-| AC-6 BE·FE·canon 전량 초록 | ✅ | 아래 §게이트 |
-| AC-7 레인 α 증거 게이트 사용 | ⚠️ **못 했다** | α 가 미완이다 — 아래 §「AC-7」 |
+| AC                                    | 판정           | 근거                                                        |
+| ------------------------------------- | -------------- | ----------------------------------------------------------- |
+| AC-1 대상 실재 확인                   | ✅             | 아래 §「대상은 실재했다」                                   |
+| AC-2 갈래 ⒜/⒝ 결정                    | ✅ ⒜ 채택      | 아래 §「왜 ⒜ 인가」                                         |
+| AC-3 목록 응답에 탑재 · N+1 없음      | ✅             | 쿼리 수 1행 2회 = 4행 2회 (테스트가 잰다)                   |
+| AC-4 FE 렌더 · `EMPTY_CELL` 고정 제거 | ✅             | `dashboard-cockpit.tsx:510-511` 이 `MetricValue` 2개로 교체 |
+| AC-5 「없음 ≠ 0」을 재는 테스트       | ✅             | FE 3건 + BE 2건 (아래 표)                                   |
+| AC-6 BE·FE·canon 전량 초록            | ✅             | 아래 §게이트                                                |
+| AC-7 레인 α 증거 게이트 사용          | ⚠️ **못 했다** | α 가 미완이다 — 아래 §「AC-7」                              |
 
 ---
 
@@ -65,7 +65,13 @@ param_space/result(iterations) 만 보유, best 조합의 백테스트 metric �
 (`backtest/serializers.py:135`). 둘 다 ratio 이고 FE `formatPercent` 가 ×100 한다.
 **같은 열에 넣어도 되는 이유가 「비슷해 보여서」가 아니라 같은 출처이기 때문이다.**
 
-**⑶ 대가가 작았다.** grid 는 저장된 JSONB 에 이미 값이 있어 **엔진 변경 0**. bayesian·genetic 은
+**⑶ 갈래 ⒝ 는 다른 화면이 이미 하고 있다.** `apps/web/src/features/optimizer/components/optimizer-run-list.tsx`
+(`/optimizer` 목록)는 **objective 열**(`OBJECTIVE_METRIC_LABEL[objective_metric]` + 방향)과
+**best 열**(raw objective value, `:222-231`)을 따로 두고 있다 — 즉 ⒝ 를 열 제목까지 바꿔서
+제대로 구현한 화면이 이미 있다. 대시보드에서 ⒝ 를 또 하면 **같은 정보를 라벨 없이 반복**하는
+것이고, 어느 화면도 안 보여주던 것은 「그래서 그 조합이 실제로 얼마를 벌었나」였다.
+
+**⑷ 대가가 작았다.** grid 는 저장된 JSONB 에 이미 값이 있어 **엔진 변경 0**. bayesian·genetic 은
 metric 을 이미 계산하고 버리던 것을 best 하나만 붙잡게 했다. `models.py` 변경이 없으므로
 **alembic migration 도 없다.**
 
@@ -84,22 +90,22 @@ best 의 metric 을 추가했다 — 그 둘은 애초에 값이 없어서 파�
 
 **BE (`apps/api/src/optimizer/`)**
 
-| 파일 | 변경 |
-| --- | --- |
+| 파일                                     | 변경                                                                                                                                                                                          |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `engine/bayesian.py`·`engine/genetic.py` | `BayesianSearchResult`·`GeneticSearchResult` 에 `best_total_return`·`best_max_drawdown` 신설. 루프가 iteration 위치별 `BacktestMetrics` 를 모아 두고 best 확정 후 **그 하나만** 결과에 싣는다 |
-| `serializers.py` | 요약 블록 직렬화/역직렬화에 두 키 추가(구 row 는 `.get()` → `None`) + **`best_metrics_from_jsonb`** 신설 — 저장 JSONB → `(total_return, max_drawdown)` 추출 SSOT (kind 분기) |
-| `schemas.py` | `OptimizationRunResponse.best_total_return`·`best_max_drawdown` (`Decimal \| None`) + `field_serializer` → str. `BacktestMetricsSummary` 와 같은 표기 |
-| `service.py` | `_to_response` 가 이미 로드된 `run.result` 에서 파생. **추가 쿼리 0** |
+| `serializers.py`                         | 요약 블록 직렬화/역직렬화에 두 키 추가(구 row 는 `.get()` → `None`) + **`best_metrics_from_jsonb`** 신설 — 저장 JSONB → `(total_return, max_drawdown)` 추출 SSOT (kind 분기)                  |
+| `schemas.py`                             | `OptimizationRunResponse.best_total_return`·`best_max_drawdown` (`Decimal \| None`) + `field_serializer` → str. `BacktestMetricsSummary` 와 같은 표기                                         |
+| `service.py`                             | `_to_response` 가 이미 로드된 `run.result` 에서 파생. **추가 쿼리 0**                                                                                                                         |
 
 ★**iteration 별로 싣지 않았다.** 그러면 목록 응답이 `iterations` 를 통째로 실으므로
 `max_evaluations` 에 비례해 payload 가 커진다(AC-3 의 「악화시키지 않는지」).
 
 **FE (`apps/web/src/features/`)**
 
-| 파일 | 변경 |
-| --- | --- |
+| 파일                                         | 변경                                                                                                                                                                            |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dashboard/components/dashboard-cockpit.tsx` | `EMPTY_CELL` 고정 2줄 → 백테스트 행이 쓰던 `MetricValue` 2개. **새 컴포넌트를 만들지 않았다** — `value == null ? EMPTY_CELL : format(value)` 가 이미 「없음 ≠ 0」을 하고 있었다 |
-| `optimizer/schemas.ts` | `OptimizationRunResponseSchema` 에 두 필드(`nullable().optional()`). Bayesian·Genetic result schema 에도 두 필드(`nullable().default(null)` — 구 row 에는 키가 없다) |
+| `optimizer/schemas.ts`                       | `OptimizationRunResponseSchema` 에 두 필드(`nullable().optional()`). Bayesian·Genetic result schema 에도 두 필드(`nullable().default(null)` — 구 row 에는 키가 없다)            |
 
 **schema_version 은 올리지 않았다.** 순수 추가 필드이고, 구 row 는 키 부재 → `None` 으로 읽힌다.
 
@@ -107,11 +113,11 @@ best 의 metric 을 추가했다 — 그 둘은 애초에 값이 없어서 파�
 
 ## 변이 결과표
 
-| # | 변이 | 심은 곳 | 결과 | red 낸 테스트 |
-| --- | --- | --- | --- | --- |
-| M1 | BE 새 필드를 `None` 고정으로 되돌린다 | `service.py` `_to_response` | ✅ **red** | `test_list_carries_best_metrics_and_distinguishes_absent_from_zero` · `test_list_best_metrics_serialize_as_decimal_strings` (2 failed / 200 passed) |
-| M2 | FE 「없음」 분기를 `0` 으로 바꾼다 | `dashboard-cockpit.tsx` `MetricValue` | ✅ **red** | `best 가 없는 실행 — 빈칸이고 0 이 아니다` · `RUNNING 실행 — best 필드 자체가 없어도 빈칸이다` (2 failed / 17 passed) |
-| M3 | 엔진의 best metric capture 를 `None` 으로 되돌린다 | `engine/bayesian.py` + `engine/genetic.py` 동시 | ✅ **red** | `test_best_backtest_metrics_come_from_the_best_iteration` · `..._best_individual` (2 failed / 200 passed) |
+| #   | 변이                                               | 심은 곳                                         | 결과       | red 낸 테스트                                                                                                                                       |
+| --- | -------------------------------------------------- | ----------------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M1  | BE 새 필드를 `None` 고정으로 되돌린다              | `service.py` `_to_response`                     | ✅ **red** | `test_list_carries_best_metrics_and_distinguishes_absent_from_zero` · `test_list_best_metrics_serialize_as_decimal_strings` (2 failed / 200 passed) |
+| M2  | FE 「없음」 분기를 `0` 으로 바꾼다                 | `dashboard-cockpit.tsx` `MetricValue`           | ✅ **red** | `best 가 없는 실행 — 빈칸이고 0 이 아니다` · `RUNNING 실행 — best 필드 자체가 없어도 빈칸이다` (2 failed / 17 passed)                               |
+| M3  | 엔진의 best metric capture 를 `None` 으로 되돌린다 | `engine/bayesian.py` + `engine/genetic.py` 동시 | ✅ **red** | `test_best_backtest_metrics_come_from_the_best_iteration` · `..._best_individual` (2 failed / 200 passed)                                           |
 
 M1·M3 은 문자열 치환으로 심고 **되돌린 뒤 sha256 이 원본과 일치**함을 확인했다
 (`git checkout` 미사용). M2 도 동일.
@@ -127,12 +133,12 @@ best 를 **첫도 마지막도 아닌 중간 iteration**에 두어 「어느 ite
 
 ## 새로 추가한 테스트
 
-| 층 | 파일 | 건수 | 무엇을 재나 |
-| --- | --- | --- | --- |
-| FE 컴포넌트 | `dashboard/components/__tests__/dashboard-cockpit.test.tsx` | 3 | ⑴ best 있는 완료 실행 → `18.42%`/`-7.31%` ⑵ best 없음 → `—` 이고 `0.00%` **아님** ⑶ RUNNING(필드 부재) → `—` |
-| BE 배선 | `tests/optimizer/test_runs_list_denormalized.py` | 3 | 목록 응답이 **best cell(index=1)** 값을 싣는다(cell 0 은 미끼) · 직렬화가 decimal 문자열 · **쿼리 수가 행 수에 안 비례한다** |
-| BE 순수 함수 | `tests/optimizer/test_serializers.py` | 4(+9 파라미터) | kind 3종 추출 · 값 없음 9가지가 전부 `(None, None)`(구 row·손상 row 포함) · 구 row round-trip |
-| BE 엔진 | `test_bayesian_engine.py` · `test_genetic_engine.py` | 4 | best 의 metric 을 싣는다(중간 iteration) · 전건 degenerate → `None` |
+| 층           | 파일                                                        | 건수           | 무엇을 재나                                                                                                                  |
+| ------------ | ----------------------------------------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| FE 컴포넌트  | `dashboard/components/__tests__/dashboard-cockpit.test.tsx` | 3              | ⑴ best 있는 완료 실행 → `18.42%`/`-7.31%` ⑵ best 없음 → `—` 이고 `0.00%` **아님** ⑶ RUNNING(필드 부재) → `—`                 |
+| BE 배선      | `tests/optimizer/test_runs_list_denormalized.py`            | 3              | 목록 응답이 **best cell(index=1)** 값을 싣는다(cell 0 은 미끼) · 직렬화가 decimal 문자열 · **쿼리 수가 행 수에 안 비례한다** |
+| BE 순수 함수 | `tests/optimizer/test_serializers.py`                       | 4(+9 파라미터) | kind 3종 추출 · 값 없음 9가지가 전부 `(None, None)`(구 row·손상 row 포함) · 구 row round-trip                                |
+| BE 엔진      | `test_bayesian_engine.py` · `test_genetic_engine.py`        | 4              | best 의 metric 을 싣는다(중간 iteration) · 전건 degenerate → `None`                                                          |
 
 기존 테스트 중 하나를 **지웠다**: `getAllByTitle("결과는 최적화 상세에서 확인")` 단언
 (`dashboard-cockpit.test.tsx`). 그 title 이 사라지는 것이 AC-4 자체다.
@@ -141,13 +147,16 @@ best 를 **첫도 마지막도 아닌 중간 iteration**에 두어 「어느 ite
 
 ## 게이트 (AC-6)
 
-| 게이트 | rc | 결과 |
-| --- | --- | --- |
-| BE pytest 전량 | (아래 §게이트 실측) | |
-| FE vitest 전량 | 0 | 220 files / **1433 passed** |
-| FE `tsc --noEmit` | 0 | |
-| `pnpm e2e:design-canon` | 0 | **44 passed** (48.7s) |
-| `final-gates.sh --run bl429 --pre-pr` | (아래) | |
+| 게이트                                | rc    | 결과                                   |
+| ------------------------------------- | ----- | -------------------------------------- |
+| BE pytest 전량                        | **0** | **4801 passed, 32 skipped** (429초)    |
+| BE `ruff check src tests`             | 0     | All checks passed                      |
+| BE `mypy src`                         | 0     | 218 files, no issues                   |
+| FE vitest 전량                        | 0     | 220 files / **1433 passed**            |
+| FE `tsc --noEmit`                     | 0     |                                        |
+| FE `eslint`                           | 0     | 0 errors / 7 warnings (전부 기존 파일) |
+| `pnpm e2e:design-canon`               | 0     | **44 passed** (48.7s)                  |
+| `final-gates.sh --run bl429 --pre-pr` | **0** | 아래 §final-gates                      |
 
 모든 판정은 **파이프 없이** `rc=$?` 로 잡았다(계약 §함정).
 
