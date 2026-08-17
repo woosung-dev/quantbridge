@@ -39,3 +39,22 @@ shim 을 PATH 앞에 세우고, `tools/scripts/tool-pin-audit.sh` 가 재유입�
 - 후속 후보(이번에 안 건드림): `funding_rate_repository.py` 의 `cast(exchange, String)` 은 이제
   구조적으로 불필요하지만, migration 이 아직 안 닿은 DB 를 위해 남겼다. 전 배포처가 head 에
   도달한 뒤 걷어내면 `ix_funding_rates_exchange_symbol` 를 다시 쓸 수 있다.
+
+---
+
+### 신규 BL 후보 — 테스트 부트스트랩이 `auth_*` 5테이블을 안 만든다 (두 BL 어느 쪽도 아님)
+
+**상태:** 🔧 **이번 회차에 수리해 두었다 (2026-08-17 gate-pins)** — 다만 **[BL-785]·[BL-782] 범위 밖**이라
+번호를 새로 받아야 한다. 아침에 별건으로 판단해라.
+
+- 결함: `src/auth/better_auth_tables.py` 를 import 하는 곳이 `alembic/env.py` **하나뿐**이라
+  `tests/conftest.py::bootstrap_test_schema` 의 `create_all` 이 `auth_*` 5테이블을 안 만든다.
+  그런데 같은 함수가 `alembic_version` 을 **head 로 stamp** 하므로, fresh DB 에서
+  `test_migrations.py` 의 `downgrade base` 가 `DROP TABLE auth_jwks` 에서 죽는다.
+- ★**원장의 「BE 4759 passed」는 낡은 DB 에서 잰 값이었다.** fresh DB 대조군(내 변경 제외)에서
+  **같은 2건이 같은 이유로 실패**했다 — 즉 이 결함은 이 회차가 만든 것이 아니고, 발견은
+  「테스트 DB 를 재생성했다」는 것 하나에 달려 있었다.
+- 이것은 [BL-782] 와 **같은 병의 다른 층**이다 — `create_all` 경로와 migration 경로가 갈린다.
+  저기는 컬럼 타입, 여기는 **테이블 존재**. `conftest.py:365` 주석이 이미 그 위험을 적어 두고
+  「이름 층에서만 참」이라 했는데, **이름 층에서도 참이 아니었다.**
+- 수리 = import 한 줄 + 근거 주석. 되돌리면 fresh DB 전량 pytest 가 다시 2건 red 다.

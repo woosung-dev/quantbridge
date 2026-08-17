@@ -63,6 +63,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 
+from src.auth import better_auth_tables  # noqa: F401 — metadata 등록 (auth_* 5테이블)
 from src.auth.models import User
 from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 — metadata 등록
 from src.common.database import get_async_session
@@ -352,6 +353,12 @@ async def bootstrap_test_schema(conn) -> None:
     # 만들기 때문에, T2 migration(faa9ad7b4585)이 머지된 뒤에도 필요하다.
     # (Alembic 경로는 마이그레이션이 자체적으로 CREATE SCHEMA 한다.)
     await conn.execute(text("CREATE SCHEMA IF NOT EXISTS trading;"))
+    # ★`create_all` 이 만드는 것은 **이 순간 metadata 에 등록된** 테이블뿐이다. 그래서 이 파일
+    #   머리의 모델 import 목록이 곧 스키마 범위다 — 하나라도 빠지면 그 테이블은 안 만들어진다.
+    #   2026-08-17 실측: `src/auth/better_auth_tables.py` 를 **`alembic/env.py` 만** import 하고
+    #   있어서 `auth_*` 5테이블이 여기서 안 만들어졌다. 그런데 아래 stamp 는 head 를 적으므로
+    #   `test_migrations.py` 의 `downgrade base` 가 `DROP TABLE auth_jwks` 에서 죽는다
+    #   (**fresh DB 에서만** — 이전에 migration 이 돈 DB 에는 그 테이블이 남아 있어 통과한다).
     await conn.run_sync(SQLModel.metadata.drop_all)
     await conn.run_sync(SQLModel.metadata.create_all)
 

@@ -34,15 +34,35 @@ PATH 앞에 세운 셸에서 **수리 전에는 `CI frozen-lockfile` 이 red, �
 `tool-pin-audit` 표적 테스트 13건은 전부 초록이었고, 잡은 것은 **게이트 전량 실행**이다.
 (선례가 이미 있었다 — `soak-watch-test.sh:142` 가 2026-08-16 에 같은 자리를 같은 방법으로 고쳤다.)
 
-**⑷ 전량 pytest 의 대량 `E` 가 내 변경이 아니라 낡은 테스트 DB 였다.** 1회차 실행이 1%부터
+**⑷ 전량 pytest 의 대량 `E` 도 내 변경이 아니라 낡은 테스트 DB 였다.** 1회차 실행이 1%부터
 `E` 를 쏟아내 [BL-782] 회귀처럼 보였다. 실제 원인은 `quantbridge_w4_test` 에 남아 있던 이전
 스키마 상태이고, 증상은 teardown 의
 `ALTER TABLE strategies DROP CONSTRAINT fk_strategies_strategy_version_id_strategy_versions` 실패다
 (`create_all` 이 아는 metadata 로는 그 잔존 FK 를 못 지운다). DB 를 재생성하니 사라졌다 —
 `tests/trading` **1116 passed rc=0**. ★게이트가 red 면 코드를 의심하기 전에 환경을 먼저 물어라는
-`gates-and-traps.md` §환경의 항목이 그대로 재현됐다.
+`gates-and-traps.md` §환경의 항목이 그대로 재현됐다. ★그리고 그 재생성이 **다음 항목을 드러냈다** —
+낡은 DB 가 가리고 있던 것이 있었다.
 
-**⑸ 감사기 초판이 두 형태를 통째로 놓쳤다.** `timeout 120 uv run python`(레포에 3곳)과
+**⑸ 전량 pytest 의 2건 실패는 내 것이 아니었고, 「기준선 4759 green」은 낡은 DB 에서만 참이었다.**
+`tests/test_migrations.py` 의 `test_alembic_roundtrip`·`test_strategy_version_migration_backfills_
+existing_backtests` 가 `downgrade base` 의 `DROP TABLE auth_jwks` 에서 죽었다. **대조군으로 확정** —
+내 migration 파일을 빼고 fresh DB 에서 전량을 다시 돌렸더니 **같은 2건이 같은 이유로 실패**했다
+(`4757 passed` 로 숫자까지 같다).
+
+기전: `src/auth/better_auth_tables.py` 가 `auth_*` 5테이블을 `SQLModel.metadata` 에 등록하는데
+**그 파일을 import 하는 곳이 `alembic/env.py` 하나뿐**이었다(전수 grep). `tests/conftest.py::
+bootstrap_test_schema` 는 `create_all` 로 스키마를 만든 뒤 `alembic_version` 을 **생 SQL 로** head
+stamp 하므로 env.py 가 안 실린다 ⇒ fresh DB 에서는 그 5테이블이 **안 만들어진 채 head 로 기록된다.**
+그 뒤 `test_migrations.py` 의 첫 `command.upgrade()` 가 env.py 를 실어 테이블을 metadata 에
+등록하고, 이어지는 `downgrade base` 가 없는 테이블을 지우려다 죽는다.
+★**이전에 migration 이 돈 DB 에는 그 테이블이 남아 있어 통과한다** — 그래서 원장의 「BE 4759 passed」는
+거짓이 아니라 **더러운 DB 에서 잰 값**이다. 이 자리의 병이 [BL-782] 와 같은 병(`create_all` 경로 ≠
+migration 경로)이고 층만 다르다 — 저기는 컬럼 타입, 여기는 테이블 존재.
+
+수리 = `tests/conftest.py` 에 import 한 줄 + 그 자리의 근거 주석. **두 BL 어느 쪽도 아니므로 아침에
+별건으로 판단해라**(새 BL 후보). 고치지 않으면 fresh DB 에서 AC-8 이 구조적으로 불가능하다.
+
+**⑹ 감사기 초판이 두 형태를 통째로 놓쳤다.** `timeout 120 uv run python`(레포에 3곳)과
 히어독 안 `shutil.which("node")`(1곳). 둘 다 하네스 케이스로 고정했다(②③). 또 초판의 핀 판정이
 「파일에 그 문자열이 있으면 핀」이라, **자기 자신의 「고치는 법」 안내문이 자기를 핀으로 만들었다** —
 명령 위치 판정으로 바꾸고 하네스 케이스 ④ 로 고정했다.
@@ -191,7 +211,22 @@ FAILED: New upgrade operations detected:
 
 사유가 정확히 `trading.funding_rates.exchange` 의 `modify_type` 이고, **그것 하나뿐**이다.
 
-### AC-8 — 전량 BE pytest ⏳ (본문 하단 §AC-8 결과 참조)
+### AC-8 — 전량 BE pytest ✅
+
+**`4759 passed, 32 skipped` · rc=0 · 421.50s** (fresh `quantbridge_w4_test`, `.env.local` 통째 소싱,
+파이프 없이 `rc=$?`). 문턱 ≥4759 를 정확히 만족한다.
+
+★**여기까지 세 번 돌렸고, 앞의 두 번은 red 였다.** 그 두 번이 이 회차에서 가장 값나간 부분이라 남긴다.
+
+| 회차   | 조건                             | 결과                           | 정체                                |
+| ------ | -------------------------------- | ------------------------------ | ----------------------------------- |
+| ①      | 낡은 `quantbridge_w4_test`       | 대량 `E`                       | DB 잔존 상태(위 §반증 ⑷)            |
+| ②      | fresh DB · 수리 전 conftest      | `2 failed, 4757 passed`        | `auth_*` 5테이블 미생성(위 §반증 ⑸) |
+| ②-대조 | fresh DB · **내 migration 제외** | `2 failed, 4757 passed` (동일) | 내 것이 아님을 확정                 |
+| ③      | fresh DB · conftest 수리         | **`4759 passed` rc=0**         | —                                   |
+
+`ExchangeName` 을 쓰는 경로는 표적 테스트로 끝내지 않고 전량으로 봤다 — 그리고 실제로
+표적 테스트가 못 본 것(②)이 전량에서 나왔다.
 
 ### AC-9 — 다른 drift 를 켜지 않았다 ✅
 
