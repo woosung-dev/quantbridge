@@ -52,6 +52,10 @@ def best_metrics_from_jsonb(
     손상 row 방어: Sprint 50-52 retro-incorrect row 가 실재하므로 모양이 어긋나면
     예외 대신 (None, None) 을 낸다. `Decimal` 의 `InvalidOperation` 은 `ValueError` 가
     아니라 `ArithmeticError` 라 service 의 `_to_response_or_none` 이 못 잡는다.
+
+    ★**반환은 원자적이다** — 한쪽만 파싱되면 둘 다 None 이다. 수익률만 있고 MDD 가 빈
+    행은 「위험을 못 재는 성과」라 화면에서 위험 과소평가를 만든다. 반쪽을 보여주느니
+    「없음」이 정직하다.
     """
     if not isinstance(result, dict):
         return None, None
@@ -59,29 +63,50 @@ def best_metrics_from_jsonb(
     if kind == "grid_search":
         cells = result.get("cells")
         idx = result.get("best_cell_index")
-        if not isinstance(cells, list) or not isinstance(idx, int) or not 0 <= idx < len(cells):
+        # ★`bool` 은 `int` 의 하위형이다 — `isinstance(True, int)` 가 True 라
+        #   `cells[True]` 는 `cells[1]` 로 조용히 **다른 cell** 을 best 라 부른다.
+        #   손상 row 에서 실제로 재현됐다(codex 적대 리뷰, 2026-08-17).
+        if (
+            not isinstance(cells, list)
+            or isinstance(idx, bool)
+            or not isinstance(idx, int)
+            or not 0 <= idx < len(cells)
+        ):
             return None, None
         best = cells[idx]
         if not isinstance(best, dict):
             return None, None
-        return _to_decimal_or_none(best.get("total_return")), _to_decimal_or_none(
-            best.get("max_drawdown")
-        )
+        return _finite_pair_or_none(best.get("total_return"), best.get("max_drawdown"))
     if kind in ("bayesian", "genetic"):
-        return _to_decimal_or_none(result.get("best_total_return")), _to_decimal_or_none(
-            result.get("best_max_drawdown")
+        return _finite_pair_or_none(
+            result.get("best_total_return"), result.get("best_max_drawdown")
         )
     return None, None
 
 
+def _finite_pair_or_none(raw_total: Any, raw_mdd: Any) -> tuple[Decimal | None, Decimal | None]:
+    """두 값이 **모두** 유한 Decimal 일 때만 그 쌍을, 아니면 (None, None)."""
+    total = _to_decimal_or_none(raw_total)
+    mdd = _to_decimal_or_none(raw_mdd)
+    if total is None or mdd is None:
+        return None, None
+    return total, mdd
+
+
 def _to_decimal_or_none(raw: Any) -> Decimal | None:
-    """직렬화된 decimal 문자열 → Decimal. 모양이 어긋나면 None (손상 row 방어)."""
+    """직렬화된 decimal 문자열 → **유한** Decimal. 모양이 어긋나면 None (손상 row 방어).
+
+    ★`Decimal("NaN")`·`Decimal("Infinity")` 는 `InvalidOperation` 을 안 낸다. 그대로 통과시키면
+    응답 스키마의 유한성 검증에서 `ValidationError` 가 나고 service 가 그 행을 통째로 None 으로
+    바꾼다 — 손상 셀 하나가 **목록에서 행을 지우고 상세를 404 로** 만든다.
+    """
     if not isinstance(raw, str):
         return None
     try:
-        return Decimal(raw)
+        value = Decimal(raw)
     except InvalidOperation:
         return None
+    return value if value.is_finite() else None
 
 
 def _iteration_common_to_jsonb(it: BayesianIteration | GeneticIndividual) -> dict[str, Any]:

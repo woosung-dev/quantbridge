@@ -206,7 +206,11 @@ async def test_list_best_metrics_add_no_per_row_query(db_session: AsyncSession) 
         statements: list[str] = []
 
         def capture(conn, cursor, statement, parameters, context, executemany) -> None:
-            if "optimization_runs" in statement:
+            # ★`optimization_runs` 만 세면 **다른 테이블의 per-row 쿼리를 통째로 놓친다** —
+            #   행마다 `backtests`/`strategies` 를 치는 회귀가 생겨도 이 수는 2 로 남는다
+            #   (codex 적대 리뷰 P2, 2026-08-17). 재려는 것은 「행 수에 비례한 왕복이 없다」이므로
+            #   SELECT 전량을 센다.
+            if statement.lstrip().upper().startswith("SELECT"):
                 statements.append(statement)
 
         connection = db_session.sync_session.bind

@@ -277,9 +277,7 @@ def test_bayesian_round_trip() -> None:
 
 
 def test_genetic_round_trip() -> None:
-    restored = genetic_search_result_from_jsonb(
-        genetic_search_result_to_jsonb(_genetic_result())
-    )
+    restored = genetic_search_result_from_jsonb(genetic_search_result_to_jsonb(_genetic_result()))
     assert restored == _genetic_result()
 
 
@@ -325,7 +323,9 @@ def test_best_metrics_bayesian_and_genetic_read_summary_block() -> None:
     "jsonb",
     [
         pytest.param(None, id="result_none_running_or_failed"),
-        pytest.param({"kind": "grid_search", "cells": [], "best_cell_index": None}, id="grid_no_best"),
+        pytest.param(
+            {"kind": "grid_search", "cells": [], "best_cell_index": None}, id="grid_no_best"
+        ),
         pytest.param(
             {"kind": "bayesian", "best_total_return": None, "best_max_drawdown": None},
             id="bayesian_all_degenerate",
@@ -335,12 +335,16 @@ def test_best_metrics_bayesian_and_genetic_read_summary_block() -> None:
         pytest.param({"kind": "genetic", "best_objective_value": "0.9"}, id="legacy_genetic_row"),
         # 손상 row 방어 — Decimal 의 InvalidOperation 은 ValueError 가 아니라
         # ArithmeticError 라 service 의 _to_response_or_none 이 못 잡는다.
-        pytest.param({"kind": "grid_search", "cells": [{}], "best_cell_index": 0}, id="cell_missing_keys"),
+        pytest.param(
+            {"kind": "grid_search", "cells": [{}], "best_cell_index": 0}, id="cell_missing_keys"
+        ),
         pytest.param(
             {"kind": "grid_search", "cells": [{"total_return": "n/a"}], "best_cell_index": 0},
             id="cell_non_decimal_string",
         ),
-        pytest.param({"kind": "grid_search", "cells": [], "best_cell_index": 3}, id="index_out_of_range"),
+        pytest.param(
+            {"kind": "grid_search", "cells": [], "best_cell_index": 3}, id="index_out_of_range"
+        ),
         pytest.param({"kind": "unknown_future_kind"}, id="unknown_kind"),
     ],
 )
@@ -357,3 +361,68 @@ def test_legacy_row_round_trip_keeps_none() -> None:
     restored = bayesian_search_result_from_jsonb(legacy)
     assert restored.best_total_return is None
     assert restored.best_max_drawdown is None
+
+
+# ── [BL-429] codex 적대 리뷰 P1 회귀 (2026-08-17) ──────────────────────────────
+# 세 축 전부 **실제로 재현된 뒤** 수리됐다. 재현 없이 붙인 방어가 아니다.
+
+
+def test_best_metrics_reject_bool_cell_index() -> None:
+    """★`bool` 은 `int` 의 하위형이라 `cells[True]` 가 `cells[1]` 로 조용히 통과했다.
+
+    수리 전 실측: `(Decimal("0.99"), Decimal("-0.01"))` — 두 번째 cell 을 best 라 불렀다.
+    """
+    corrupt = {
+        "kind": "grid_search",
+        "best_cell_index": True,
+        "cells": [
+            {"total_return": "0.10", "max_drawdown": "-0.50"},
+            {"total_return": "0.99", "max_drawdown": "-0.01"},
+        ],
+    }
+    assert best_metrics_from_jsonb(corrupt) == (None, None)
+
+    # ★음성 대조 — `0` 을 `False` 로 오판해서 정상 row 를 죽이면 안 된다.
+    healthy = {
+        "kind": "grid_search",
+        "best_cell_index": 0,
+        "cells": [{"total_return": "0.10", "max_drawdown": "-0.50"}],
+    }
+    assert best_metrics_from_jsonb(healthy) == (Decimal("0.10"), Decimal("-0.50"))
+
+
+@pytest.mark.parametrize(
+    ("raw_total", "raw_mdd"),
+    [
+        pytest.param("0.20", "n/a", id="mdd_corrupt"),
+        pytest.param("n/a", "-0.05", id="total_corrupt"),
+        pytest.param("0.20", None, id="mdd_missing"),
+    ],
+)
+def test_best_metrics_are_atomic(raw_total: object, raw_mdd: object) -> None:
+    """한쪽만 파싱되면 둘 다 None 이다.
+
+    수익률만 있고 MDD 가 빈 행은 「위험을 못 재는 성과」다 — 화면에서 위험 과소평가를 만든다.
+    수리 전 실측: `("0.20", "n/a")` → `(Decimal("0.20"), None)`.
+    """
+    jsonb = {
+        "kind": "grid_search",
+        "best_cell_index": 0,
+        "cells": [{"total_return": raw_total, "max_drawdown": raw_mdd}],
+    }
+    assert best_metrics_from_jsonb(jsonb) == (None, None)
+
+
+@pytest.mark.parametrize("raw", ["NaN", "Infinity", "-Infinity"])
+def test_best_metrics_reject_non_finite(raw: str) -> None:
+    """`Decimal("NaN")`·`Decimal("Infinity")` 는 `InvalidOperation` 을 안 낸다.
+
+    통과시키면 응답 스키마의 유한성 검증에서 `ValidationError` 가 나고 service 가 그 행을
+    통째로 None 으로 바꾼다 — 손상 셀 하나가 **목록에서 행을 지우고 상세를 404 로** 만든다.
+    """
+    assert best_metrics_from_jsonb(
+        {"kind": "bayesian", "best_total_return": raw, "best_max_drawdown": "-0.1"}
+    ) == (None, None)
+    assert best_metrics_from_jsonb(
+        {"kind": "genetic", "best_total_return": "0.1", "best_max_drawdown": raw}
+    ) == (None, None)
