@@ -53,6 +53,7 @@ for (const route of ROUTES) {
     test.setTimeout(120_000);
 
     const counts = new Map<string, number>();
+    const failedResponses: string[] = [];
     let capturing = true;
     page.on("request", (req) => {
       if (!capturing) return;
@@ -60,6 +61,16 @@ for (const route of ROUTES) {
       if (!url.includes(API_MARKER)) return;
       const key = `${req.method()} ${url}`;
       counts.set(key, (counts.get(key) ?? 0) + 1);
+    });
+    // ★실패 응답을 따로 모은다 — 재시도를 중복으로 오판하지 않기 위해서다.
+    //   `QueryProvider` 의 기본값은 `retry: 1` 이고 TanStack 의 기본 첫 재시도 지연은 1초라
+    //   (`networkidle` + SETTLE_MS 창 안이다) 429·5xx 한 건이 같은 URL 을 2회로 만든다.
+    //   그것을 「중복」이라고 말하면 이 게이트가 **가짜 red** 를 내는 장치가 된다.
+    page.on("response", (res) => {
+      if (!capturing) return;
+      const url = res.url();
+      if (!url.includes(API_MARKER)) return;
+      if (res.status() >= 400) failedResponses.push(`${res.status()} ${res.request().method()} ${url}`);
     });
 
     await page.goto(route.path, { timeout: 60_000 });
@@ -69,6 +80,15 @@ for (const route of ROUTES) {
 
     const observed = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
     const inventory = observed.map(([key, n]) => `${n}x ${key}`).join("\n");
+
+    // ⑴′ 측정 창에 실패 응답이 없었다.
+    // ★이것은 중복 판정보다 **먼저** 온다. 실패가 있으면 재시도가 섞여 아래 카운트가
+    //   의미를 잃으므로, 「중복이 있다」가 아니라 「측정이 오염됐다」로 red 를 내야 한다.
+    //   red 인 것은 같지만 **사유가 다르고**, 사람이 다음에 할 일이 다르다.
+    expect(
+      failedResponses,
+      `${route.path}: 측정 창 안에서 API 가 실패 응답을 냈다 — React Query 재시도가 섞여 중복 카운트를 신뢰할 수 없다. 이것은 [BL-786] 중복이 아니라 **측정 오염**이다.\n실패 응답:\n${failedResponses.join("\n")}\n관측 전체:\n${inventory}`,
+    ).toEqual([]);
 
     // ⑴ 측정이 실제로 일어났다 — 앵커 요청이 정확히 1회씩.
     for (const needle of route.required) {
