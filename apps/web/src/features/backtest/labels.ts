@@ -2,7 +2,14 @@
 // 프로토타입 원장은 screen-03-backtests-list.html(실행 원장) 과 screen-04-trade-detail.html(거래) 이다.
 
 import type { StatusLabelWithIcon } from "@/lib/labels";
-import type { BacktestStatus, TradeDirection, TradeStatus } from "./schemas";
+import type {
+  BacktestStatus,
+  StressTestHeadlineMetricKey,
+  StressTestKind,
+  StressTestStatus,
+  TradeDirection,
+  TradeStatus,
+} from "./schemas";
 
 /**
  * 실행 상태. queued/running/completed/failed 4종은 프로토타입 실측값이고
@@ -150,3 +157,70 @@ export const NEW_BACKTEST_LABEL = {
   entry: "새 백테스트",
   heading: "새 백테스트 실행",
 } as const;
+
+/**
+ * [BL-414] 스트레스 테스트 종류 4종. 실행 버튼 라벨은 영문 고유명(Monte Carlo 등)을
+ * 쓰지만 이력 표는 한국어 열이라 여기서 한 번 한국어로 고정한다.
+ */
+export const STRESS_TEST_KIND_LABEL: Record<StressTestKind, string> = {
+  monte_carlo: "몬테카를로",
+  walk_forward: "워크포워드",
+  cost_assumption_sensitivity: "비용 가정 민감도",
+  param_stability: "파라미터 안정성",
+};
+
+/** 스트레스 테스트 실행 상태. 백테스트와 달리 취소가 없어 4종뿐이다. */
+export const STRESS_TEST_STATUS_LABEL: Record<
+  StressTestStatus,
+  StatusLabelWithIcon
+> = {
+  queued: { label: "대기", tone: "neutral" },
+  running: { label: "실행 중", tone: "accent" },
+  completed: { label: "완료", tone: "done", showCheckIcon: true },
+  failed: { label: "실패", tone: "warn" },
+};
+
+/** 이력 표의 대표 지표 이름. BE 가 보내는 키를 화면 표기로 옮긴다. */
+export const STRESS_TEST_HEADLINE_METRIC_LABEL: Record<
+  StressTestHeadlineMetricKey,
+  string
+> = {
+  max_drawdown_p95: METRIC_ABBR.maxDrawdown + " p95",
+  degradation_ratio: "열화 비율",
+  worst_cell_sharpe: "최저 " + METRIC_ABBR.sharpeRatio,
+};
+
+/**
+ * 이력 표 헤더.
+ * ★키에 `Column` 접미사를 붙인 이유 — `no-raw-enum-labels` 가드는 JSX 자식 위치의
+ * 멤버체인 **마지막 세그먼트**로 판정한다. 키가 `kind`/`status` 면 헤더 문자열을
+ * 그리는 `{HEADER.kind}` 가 원시 enum 렌더로 잡힌다(실측). 가드를 넓히는 대신 이름을 비켰다.
+ */
+export const STRESS_TEST_HISTORY_HEADER = {
+  kindColumn: "종류",
+  statusColumn: "상태",
+  metricColumn: "대표 지표",
+  createdAtColumn: "실행 시각",
+  actionColumn: "액션",
+} as const;
+
+/** 이력 표의 무데이터·안내 문구. */
+export const STRESS_TEST_HISTORY_LABEL = {
+  caption: "스트레스 테스트 이력",
+  empty: "이 백테스트에는 아직 실행한 스트레스 테스트가 없습니다.",
+  loading: "이력을 불러오는 중…",
+  loadFailed: "이력을 불러오지 못했습니다.",
+  select: "이 실행 결과 보기",
+  selected: "지금 보고 있는 실행",
+  /** `degradation_ratio` 가 `"Infinity"` 인 경우. 무데이터(—)와 구분해야 한다. */
+  infinity: "∞",
+} as const;
+
+/**
+ * [BL-414] 표가 1페이지 상한에서 잘렸을 때의 고지. ★조용히 자르지 않는다 —
+ * 「이력 전체」라 적어 놓고 21번째 실행이 화면에서 사라지면 그것이 거짓말이다
+ * (codex 적대 리뷰 P1, 2026-08-17).
+ */
+export function stressTestHistoryTruncatedLabel(shown: number, total: number): string {
+  return `최근 ${shown}건만 표시합니다 (전체 ${total}건).`;
+}

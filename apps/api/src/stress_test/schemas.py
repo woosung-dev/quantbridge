@@ -99,9 +99,7 @@ class WalkForwardParams(BaseModel):
         has_space = self.optimizer_param_space is not None
         has_kind = self.optimizer_kind is not None
         if has_space != has_kind:
-            raise ValueError(
-                "optimizer_param_space and optimizer_kind must be provided together"
-            )
+            raise ValueError("optimizer_param_space and optimizer_kind must be provided together")
         if has_space and self.best_params is not None:
             raise ValueError(
                 "best_params (fixed) and optimizer_param_space (re-optimization) "
@@ -312,8 +310,25 @@ class StressTestCreatedResponse(BaseModel):
     created_at: AwareDatetime
 
 
+class StressTestHeadlineMetric(BaseModel):
+    """목록 행의 대표 지표 1개 — kind 별로 서로 다른 result 에서 뽑은 단일 값.
+
+    ★**라벨이 아니라 키를 보낸다.** 한국어 표기의 SSOT 는 FE 라벨 모듈이고
+    (`features/backtest/labels.ts`), 백엔드가 화면 문자열을 쥐면 그 SSOT 가 둘이 된다.
+
+    ★**값이 없으면 이 객체 자체가 없다** (`headline_metric=None`). 미완료·실패·전 cell
+    degenerate 가 그 경우이고, 화면은 그것을 **0 이 아니라 빈칸**으로 렌더해야 한다 —
+    [BL-465] 에서 파산한 계좌가 양수 샤프를 보여준 것이 「없음」과 「0」을 같게 렌더한 결과였다.
+    """
+
+    key: Literal["max_drawdown_p95", "degradation_ratio", "worst_cell_sharpe"]
+    # 저장된 문자열을 그대로 넘긴다 — 여기서 재포맷하면 Decimal 원문과 화면이 갈린다.
+    # `degradation_ratio` 는 `"Infinity"` 일 수 있다 (WalkForwardResultOut docstring).
+    value: str
+
+
 class StressTestSummary(BaseModel):
-    """목록 항목 — result 미포함."""
+    """목록 항목 — result 본문 미포함, 대표 지표 1개만 동봉."""
 
     id: UUID
     backtest_id: UUID
@@ -321,6 +336,7 @@ class StressTestSummary(BaseModel):
     status: StressTestStatus
     created_at: AwareDatetime
     completed_at: AwareDatetime | None
+    headline_metric: StressTestHeadlineMetric | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

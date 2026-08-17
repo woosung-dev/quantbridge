@@ -21,7 +21,11 @@ import {
   useInvalidatingMutation,
   type MutationCallbacks,
 } from "@/hooks/use-invalidating-mutation";
-import { makeStatusPoll, type RefetchIntervalFn } from "@/lib/query-poll";
+import {
+  makeRefetchInterval,
+  makeStatusPoll,
+  type RefetchIntervalFn,
+} from "@/lib/query-poll";
 
 import {
   cancelBacktest,
@@ -61,7 +65,7 @@ import type {
   ShareTokenResponse,
   StressTestCreatedResponse,
   StressTestDetail,
-  StressTestSummary,
+  StressTestListResponse,
   TradeItem,
   TradeListResponse,
   TradeOhlcvResponse,
@@ -333,6 +337,11 @@ export function useRevokeBacktestShare(
 // --- Stress Test (Phase C) -----------------------------------------------
 
 const STRESS_TEST_POLL_MS = 2_000;
+// 이력 표 1페이지. 페이지네이션 UI 는 없다 — 한 백테스트의 스트레스 실행이
+// 20건을 넘는 사례가 아직 없어서, 넘기 전에는 열을 늘리는 것이 값을 낸다.
+// ★넘으면 조용히 자르지 않고 표 아래에 「최근 20건만 표시(전체 N건)」을 고지한다.
+// BE 상한은 `le=100` 이라 이 값을 올릴 여지는 남아 있다(`stress_test/router.py:106`).
+const STRESS_TEST_HISTORY_LIMIT = 20;
 
 // queryFn factory — 모듈 레벨 CallExpression 으로 @tanstack/query/exhaustive-deps 우회.
 function makeStressTestFetcher(id: string, getToken: TokenGetter) {
@@ -342,14 +351,18 @@ function makeStressTestFetcher(id: string, getToken: TokenGetter) {
   };
 }
 
-function makeLatestStressTestFetcher(
+// [BL-414] 한 백테스트의 스트레스 테스트 이력 **1페이지**(최신 20건). 종전 fetcher 는
+// limit=1 로 최신 1건만 가져왔고, 화면이 최신 1건만 보여준 뿌리가 그것이었다.
+// ★「전체」가 아니다 — `offset` 은 0 고정이고 다음 페이지를 요청할 경로가 없다.
+// 응답의 `total` 이 `items.length` 보다 크면 표가 그 사실을 화면에 고지한다
+// (codex 적대 리뷰 P1, 2026-08-17 — 종전 주석이 「이력 전체」라 적어 코드보다 앞서 나갔다).
+function makeStressTestHistoryFetcher(
   backtestId: string,
   getToken: TokenGetter,
 ) {
   return async () => {
     const token = await getToken();
-    const page = await listStressTests(backtestId, 1, token);
-    return page.items[0] ?? null;
+    return listStressTests(backtestId, STRESS_TEST_HISTORY_LIMIT, token);
   };
 }
 
@@ -357,6 +370,17 @@ function makeLatestStressTestFetcher(
 // React Query data 객체를 useEffect dep 로 쓰지 않아 CPU 100% 루프를 원천 차단.
 export const stressTestRefetchInterval: RefetchIntervalFn<StressTestDetail> =
   makeStatusPoll((d) => d.status, new Set(["completed", "failed"]), STRESS_TEST_POLL_MS);
+
+// [BL-414] 이력 표 폴링 — 진행 중인 행이 하나라도 있을 때만. 도착 전(data 미도착)에는
+// 지켜볼 행 자체가 없으므로 false 다 (상세 폴링과 여기가 다른 점).
+export const stressTestHistoryRefetchInterval: RefetchIntervalFn<StressTestListResponse> =
+  makeRefetchInterval((page) => {
+    if (page == null) return false;
+    const isPending = page.items.some(
+      (item) => item.status === "queued" || item.status === "running",
+    );
+    return isPending ? STRESS_TEST_POLL_MS : false;
+  });
 
 export function useCreateMonteCarlo(
   opts: MutationCallbacks<StressTestCreatedResponse> = {},
@@ -431,15 +455,27 @@ export function useStressTest(
   });
 }
 
-export function useLatestStressTest(
+/**
+ * [BL-414] 한 백테스트의 스트레스 테스트 이력 **첫 페이지**. 최신순(BE `created_at desc`)이라
+ * `items[0]` 이 곧 최신 실행이다 — 별도의 "최신 1건" 질의를 두지 않는다.
+ *
+ * ★폴링 판정도 이 페이지 안의 행만 본다. 21번째 이후에 진행 중 행이 남아 있어도
+ * 폴링은 안 돈다 — 그 창은 표의 잘림 고지로 사용자에게 드러난다.
+ *
+ * 진행 중인 행이 하나라도 있으면 폴링한다. 안 그러면 상세 패널은 "완료"를 그리는데
+ * 같은 화면의 이력 행은 "대기"로 남아 한 화면이 두 가지를 말한다.
+ */
+export function useStressTestHistory(
   backtestId: string | undefined,
-): UseQueryResult<StressTestSummary | null, Error> {
+): UseQueryResult<StressTestListResponse, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: backtestId
       ? stressTestKeys.byBacktest(uid, backtestId)
       : stressTestKeys.all(uid),
-    queryFn: makeLatestStressTestFetcher(backtestId ?? "", getToken),
+    queryFn: makeStressTestHistoryFetcher(backtestId ?? "", getToken),
     enabled: Boolean(backtestId),
+    refetchInterval: stressTestHistoryRefetchInterval,
+    refetchIntervalInBackground: false,
   });
 }

@@ -62,6 +62,7 @@ from src.stress_test.serializers import (
     equity_curve_values,
     grid_metrics_result_from_jsonb,
     grid_metrics_result_to_jsonb,
+    headline_metric_from,
     mc_result_from_jsonb,
     mc_result_to_jsonb,
     wf_result_from_jsonb,
@@ -479,13 +480,27 @@ class StressTestService:
             user_id, limit=limit, offset=offset, backtest_id=backtest_id
         )
         return Page[StressTestSummary](
-            items=[StressTestSummary.model_validate(s) for s in items],
+            items=[self._to_summary(s) for s in items],
             total=total,
             limit=limit,
             offset=offset,
         )
 
     # ---------- helpers ----------
+
+    @staticmethod
+    def _to_summary(st: StressTest) -> StressTestSummary:
+        """목록 행 1개. `model_validate(from_attributes)` 대신 명시 조립인 이유는
+        `headline_metric` 이 ORM 속성이 아니라 result JSONB 에서 파생되기 때문이다."""
+        return StressTestSummary(
+            id=st.id,
+            backtest_id=st.backtest_id,
+            kind=st.kind,
+            status=st.status,
+            created_at=st.created_at,
+            completed_at=st.completed_at,
+            headline_metric=headline_metric_from(st.kind, st.status, st.result),
+        )
 
     async def _load_owned(self, stress_test_id: UUID, user_id: UUID) -> StressTest:
         st = await self.repo.get_by_id(stress_test_id, user_id=user_id)

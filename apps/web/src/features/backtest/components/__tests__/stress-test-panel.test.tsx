@@ -1,6 +1,6 @@
 // Phase C: StressTestPanel — 버튼 클릭 → mutation 호출 + activeStressTestId 설정 → detail 표시.
 
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -25,8 +25,25 @@ let _lastWfOpts: Opts;
 let _lastCaOpts: Opts;
 let lastPsOpts: Opts;
 let stressData: StressTestDetail | undefined;
-let latestStressTest: StressTestSummary | null | undefined;
+let historyItems: StressTestSummary[] | undefined;
+// [BL-414] 서버가 보고하는 전체 건수. 표의 잘림 고지를 재려면 items.length 와 갈라야 한다.
+let historyTotal: number | undefined;
 let requestedStressTestId: string | null | undefined;
+
+// [BL-414] 이력 목록 헬퍼 — BE 는 created_at 내림차순으로 준다.
+function makeSummary(
+  over: Partial<StressTestSummary> & Pick<StressTestSummary, "id">,
+): StressTestSummary {
+  return {
+    backtest_id: "abc12345-1111-4111-8111-111111111111",
+    kind: "monte_carlo",
+    status: "completed",
+    created_at: "2026-04-24T00:00:00+00:00",
+    completed_at: "2026-04-24T00:01:00+00:00",
+    headline_metric: { key: "max_drawdown_p95", value: "-0.12" },
+    ...over,
+  };
+}
 
 vi.mock("@/features/backtest/hooks", () => ({
   useCreateMonteCarlo: (opts: Opts) => {
@@ -45,7 +62,19 @@ vi.mock("@/features/backtest/hooks", () => ({
     lastPsOpts = opts;
     return psMutation;
   },
-  useLatestStressTest: () => ({ data: latestStressTest }),
+  useStressTestHistory: () => ({
+    data:
+      historyItems === undefined
+        ? undefined
+        : {
+            items: historyItems,
+            total: historyTotal ?? historyItems.length,
+            limit: 20,
+            offset: 0,
+          },
+    isLoading: false,
+    isError: false,
+  }),
   useStressTest: (id: string | null) => {
     requestedStressTestId = id;
     return {
@@ -75,7 +104,8 @@ beforeEach(() => {
   _lastCaOpts = null;
   lastPsOpts = null;
   stressData = undefined;
-  latestStressTest = undefined;
+  historyItems = undefined;
+  historyTotal = undefined;
   requestedStressTestId = undefined;
 });
 
@@ -94,7 +124,7 @@ describe("StressTestPanel", () => {
   });
 
   it("스트레스 테스트가 없으면 빈 패널을 렌더한다", () => {
-    latestStressTest = null;
+    historyItems = [];
 
     render(<StressTestPanel backtestId="abc" />);
 
@@ -224,14 +254,10 @@ describe("StressTestPanel", () => {
   });
 
   it("리로드 시 최신 스트레스 테스트 결과를 렌더한다", () => {
-    latestStressTest = {
+    const latestStressTest = makeSummary({
       id: "11111111-1111-4111-8111-111111111111",
-      backtest_id: "abc12345-1111-4111-8111-111111111111",
-      kind: "monte_carlo",
-      status: "completed",
-      created_at: "2026-04-24T00:00:00+00:00",
-      completed_at: "2026-04-24T00:01:00+00:00",
-    };
+    });
+    historyItems = [latestStressTest];
     stressData = {
       id: latestStressTest.id,
       backtest_id: latestStressTest.backtest_id,
@@ -389,5 +415,140 @@ describe("StressTestPanel", () => {
     // heatmap 의 axis 변수명 노출 검증
     expect(screen.getAllByText(/emaPeriod/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/stopLossPct/).length).toBeGreaterThan(0);
+  });
+});
+
+// [BL-414] 이력 표. ★패널을 통해 렌더한다 — 표 컴포넌트에 props 를 직접 넣어 재면
+// "패널이 이력 훅 대신 최신 1건 훅을 쓴다" 는 변이가 red 를 못 낸다 (AGENTS.md §10 의무 2).
+describe("StressTestPanel — 스트레스 테스트 이력 ([BL-414])", () => {
+  const BACKTEST_ID = "abc12345-1111-4111-8111-111111111111";
+
+  it("이력이 2건이면 2행이 보인다", () => {
+    historyItems = [
+      makeSummary({
+        id: "11111111-1111-4111-8111-111111111111",
+        kind: "walk_forward",
+        headline_metric: { key: "degradation_ratio", value: "0.42" },
+      }),
+      makeSummary({ id: "11111111-1111-4111-8111-111111111112" }),
+    ];
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    expect(screen.getAllByTestId("stress-test-history-row")).toHaveLength(2);
+    // 종류가 행마다 구분돼 보인다 — 안 그러면 이력 목록이 무의미하다.
+    expect(screen.getByText("워크포워드")).toBeInTheDocument();
+    expect(screen.getByText("몬테카를로")).toBeInTheDocument();
+  });
+
+  it("이력이 0건이면 그렇게 말한다", () => {
+    historyItems = [];
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    expect(screen.queryAllByTestId("stress-test-history-row")).toHaveLength(0);
+    expect(
+      screen.getByText(/아직 실행한 스트레스 테스트가 없습니다/),
+    ).toBeInTheDocument();
+  });
+
+  // ★[BL-465] — "없음" 과 "0" 을 같게 렌더하면 화면이 거짓말을 한다. 실패한 실행의
+  //   지표 칸은 0 이 아니라 빈칸이어야 하고, 상태는 "실패" 로 보여야 한다.
+  it("FAILED 행은 상태가 보이고 지표 칸이 0 이 아니라 빈칸이다", () => {
+    historyItems = [
+      makeSummary({
+        id: "11111111-1111-4111-8111-111111111113",
+        status: "failed",
+        headline_metric: null,
+      }),
+    ];
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    expect(screen.getByText("실패")).toBeInTheDocument();
+    const metricCell = screen.getByTestId("stress-test-history-metric");
+    expect(metricCell).toHaveTextContent("—");
+    expect(metricCell.textContent).not.toMatch(/0/);
+  });
+
+  it("행을 고르면 그 실행의 상세를 요청한다", () => {
+    const older = "11111111-1111-4111-8111-111111111114";
+    historyItems = [
+      makeSummary({ id: "11111111-1111-4111-8111-111111111115" }),
+      makeSummary({ id: older }),
+    ];
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    // 기본값은 최신(items[0]) 이다.
+    expect(requestedStressTestId).toBe("11111111-1111-4111-8111-111111111115");
+
+    const rows = screen.getAllByTestId("stress-test-history-row");
+    const olderRow = rows[1];
+    expect(olderRow).toBeDefined();
+    fireEvent.click(
+      within(olderRow as HTMLElement).getByRole("button", {
+        name: "이 실행 결과 보기",
+      }),
+    );
+
+    expect(requestedStressTestId).toBe(older);
+  });
+});
+
+// ── [BL-414] codex 적대 리뷰 처분 (2026-08-17) ────────────────────────────────
+describe("StressTestPanel — 이력 1페이지 상한과 지표 표기 ([BL-414] codex P1·P2)", () => {
+  const BACKTEST_ID = "abc12345-1111-4111-8111-111111111111";
+
+  it("P1: 전체가 1페이지보다 많으면 잘렸다고 고지한다", () => {
+    historyItems = [
+      makeSummary({ id: "11111111-1111-4111-8111-111111111201" }),
+      makeSummary({ id: "11111111-1111-4111-8111-111111111202" }),
+    ];
+    historyTotal = 21; // 서버에는 21건, 화면에는 2건
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    const notice = screen.getByTestId("stress-test-history-truncated");
+    expect(notice).toHaveTextContent("최근 2건만 표시합니다 (전체 21건).");
+  });
+
+  it("P1 음성 대조: 전체가 화면과 같으면 고지가 없다", () => {
+    historyItems = [
+      makeSummary({ id: "11111111-1111-4111-8111-111111111203" }),
+      makeSummary({ id: "11111111-1111-4111-8111-111111111204" }),
+    ];
+    historyTotal = 2;
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    expect(
+      screen.queryByTestId("stress-test-history-truncated"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("P2: 열화 비율이 Infinity 면 ∞ 로 그리고 무데이터(—)와 구분한다", () => {
+    historyItems = [
+      makeSummary({
+        id: "11111111-1111-4111-8111-111111111205",
+        kind: "walk_forward",
+        headline_metric: { key: "degradation_ratio", value: "Infinity" },
+      }),
+      makeSummary({
+        id: "11111111-1111-4111-8111-111111111206",
+        kind: "walk_forward",
+        status: "failed",
+        headline_metric: null,
+      }),
+    ];
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    const cells = screen.getAllByTestId("stress-test-history-metric");
+    expect(cells[0]).toHaveTextContent("∞");
+    // ★같은 열의 무데이터 행과 같게 그리면 안 된다.
+    expect(cells[0]).not.toHaveTextContent("—");
+    expect(cells[1]).toHaveTextContent("—");
+    expect(cells[1]).not.toHaveTextContent("∞");
   });
 });
