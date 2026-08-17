@@ -19,6 +19,7 @@ import {
   STRESS_TEST_HISTORY_LABEL,
   STRESS_TEST_KIND_LABEL,
   STRESS_TEST_STATUS_LABEL,
+  stressTestHistoryTruncatedLabel,
 } from "@/features/backtest/labels";
 import type {
   StressTestHeadlineMetric,
@@ -29,6 +30,11 @@ import { CHIP_TONE_CLASS, EMPTY_CELL, labelOf, statusLabelOf } from "@/lib/label
 
 export interface StressTestHistoryTableProps {
   readonly items: readonly StressTestSummary[];
+  /**
+   * 서버가 보고한 **전체** 건수. `items.length` 보다 크면 1페이지 상한에서 잘린 것이고
+   * 그 사실을 표 아래에 고지한다 — 조용히 자르면 화면이 「이력 전체」라 거짓말한다.
+   */
+  readonly total: number;
   /** 지금 상세 패널이 그리고 있는 실행. 없으면 null. */
   readonly selectedId: string | null;
   readonly onSelect: (stressTestId: string) => void;
@@ -66,6 +72,7 @@ export function formatHeadlineMetric(
 
 export function StressTestHistoryTable({
   items,
+  total,
   selectedId,
   onSelect,
   isLoading,
@@ -171,6 +178,14 @@ export function StressTestHistoryTable({
           })}
         </tbody>
       </table>
+      {total > items.length ? (
+        <p
+          className="mt-2 text-xs text-muted-foreground"
+          data-testid="stress-test-history-truncated"
+        >
+          {stressTestHistoryTruncatedLabel(items.length, total)}
+        </p>
+      ) : null}
     </div>
   );
 }

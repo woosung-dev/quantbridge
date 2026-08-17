@@ -215,3 +215,12 @@ export const STRESS_TEST_HISTORY_LABEL = {
   /** `degradation_ratio` 가 `"Infinity"` 인 경우. 무데이터(—)와 구분해야 한다. */
   infinity: "∞",
 } as const;
+
+/**
+ * [BL-414] 표가 1페이지 상한에서 잘렸을 때의 고지. ★조용히 자르지 않는다 —
+ * 「이력 전체」라 적어 놓고 21번째 실행이 화면에서 사라지면 그것이 거짓말이다
+ * (codex 적대 리뷰 P1, 2026-08-17).
+ */
+export function stressTestHistoryTruncatedLabel(shown: number, total: number): string {
+  return `최근 ${shown}건만 표시합니다 (전체 ${total}건).`;
+}

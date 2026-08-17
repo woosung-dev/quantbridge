@@ -170,6 +170,7 @@ export function StressTestPanel({ backtestId }: Props) {
 
       <StressTestHistoryTable
         items={historyItems}
+        total={history.data?.total ?? historyItems.length}
         selectedId={displayedStressTestId}
         onSelect={setActiveStressTestId}
         isLoading={history.isLoading}

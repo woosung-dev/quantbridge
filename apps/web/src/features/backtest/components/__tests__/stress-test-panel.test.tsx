@@ -26,6 +26,8 @@ let _lastCaOpts: Opts;
 let lastPsOpts: Opts;
 let stressData: StressTestDetail | undefined;
 let historyItems: StressTestSummary[] | undefined;
+// [BL-414] 서버가 보고하는 전체 건수. 표의 잘림 고지를 재려면 items.length 와 갈라야 한다.
+let historyTotal: number | undefined;
 let requestedStressTestId: string | null | undefined;
 
 // [BL-414] 이력 목록 헬퍼 — BE 는 created_at 내림차순으로 준다.
@@ -64,7 +66,12 @@ vi.mock("@/features/backtest/hooks", () => ({
     data:
       historyItems === undefined
         ? undefined
-        : { items: historyItems, total: historyItems.length, limit: 20, offset: 0 },
+        : {
+            items: historyItems,
+            total: historyTotal ?? historyItems.length,
+            limit: 20,
+            offset: 0,
+          },
     isLoading: false,
     isError: false,
   }),
@@ -98,6 +105,7 @@ beforeEach(() => {
   lastPsOpts = null;
   stressData = undefined;
   historyItems = undefined;
+  historyTotal = undefined;
   requestedStressTestId = undefined;
 });
 
@@ -485,5 +493,62 @@ describe("StressTestPanel — 스트레스 테스트 이력 ([BL-414])", () => {
     );
 
     expect(requestedStressTestId).toBe(older);
+  });
+});
+
+// ── [BL-414] codex 적대 리뷰 처분 (2026-08-17) ────────────────────────────────
+describe("StressTestPanel — 이력 1페이지 상한과 지표 표기 ([BL-414] codex P1·P2)", () => {
+  const BACKTEST_ID = "abc12345-1111-4111-8111-111111111111";
+
+  it("P1: 전체가 1페이지보다 많으면 잘렸다고 고지한다", () => {
+    historyItems = [
+      makeSummary({ id: "11111111-1111-4111-8111-111111111201" }),
+      makeSummary({ id: "11111111-1111-4111-8111-111111111202" }),
+    ];
+    historyTotal = 21; // 서버에는 21건, 화면에는 2건
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    const notice = screen.getByTestId("stress-test-history-truncated");
+    expect(notice).toHaveTextContent("최근 2건만 표시합니다 (전체 21건).");
+  });
+
+  it("P1 음성 대조: 전체가 화면과 같으면 고지가 없다", () => {
+    historyItems = [
+      makeSummary({ id: "11111111-1111-4111-8111-111111111203" }),
+      makeSummary({ id: "11111111-1111-4111-8111-111111111204" }),
+    ];
+    historyTotal = 2;
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    expect(
+      screen.queryByTestId("stress-test-history-truncated"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("P2: 열화 비율이 Infinity 면 ∞ 로 그리고 무데이터(—)와 구분한다", () => {
+    historyItems = [
+      makeSummary({
+        id: "11111111-1111-4111-8111-111111111205",
+        kind: "walk_forward",
+        headline_metric: { key: "degradation_ratio", value: "Infinity" },
+      }),
+      makeSummary({
+        id: "11111111-1111-4111-8111-111111111206",
+        kind: "walk_forward",
+        status: "failed",
+        headline_metric: null,
+      }),
+    ];
+
+    render(<StressTestPanel backtestId={BACKTEST_ID} />);
+
+    const cells = screen.getAllByTestId("stress-test-history-metric");
+    expect(cells[0]).toHaveTextContent("∞");
+    // ★같은 열의 무데이터 행과 같게 그리면 안 된다.
+    expect(cells[0]).not.toHaveTextContent("—");
+    expect(cells[1]).toHaveTextContent("—");
+    expect(cells[1]).not.toHaveTextContent("∞");
   });
 });
