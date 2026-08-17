@@ -25,42 +25,43 @@
 // `LOCAL_ONLY` 에 **사유와 함께** 등재돼야 하고, 새 project 를 만들고 워크플로에 안
 // 배선하면 빨개진다.
 //
-// ★★★**이 감사는 「무엇이 그것을 발화시키나」를 세 번 틀렸다** (2026-08-17 적대 리뷰 실측).
-// 셋 다 fail-**open** 이었고, 셋 다 이 파일이 막으려던 바로 그 병(「산문을 배선으로 읽는다」·
-// 「돌았다고 적혀 있는데 실제로는 0건」)의 다른 문법이었다:
-//   ⑴ `--project=` 를 YAML **본문 전체**에서 찾아 `- name: TODO --project=X 되살리기` 같은
-//      **스텝 제목**을 실행으로 셌다 → 이제 `run:` 스텝의 셸 본문만 본다(`runScripts`).
-//   ⑵ `.github/workflows/*.yml` 을 **전량 동등하게** 읽어 schedule/dispatch 전용 워크플로에
-//      배선해도 「CI 에서 돈다」였다 → 이제 `on:` 에 `pull_request` 계열이 있는 것만 센다.
-//   ⑶ `--project` 없는 맨 `playwright test`(= 전 project 실행, `pnpm e2e:all` 이 그 형태)를
-//      「fail-closed 라 괜찮다」고 적어 뒀는데, 기존 `--project=` 호출과 **공존**하는 순간
-//      fail-open 이었다 → 이제 전 project 실행으로 모델링한다.
-// ★★★**그리고 두 번 더 틀렸다** (2026-08-17 2차 적대 리뷰 실측). 둘 다 같은 계열이다 —
-// 「그렇게 적혀 있다」를 「그것이 돈다」로 읽었다:
-//   ⑷ `--project=` 를 **명령 종류도 도달성도 안 보고** 셌다. `run: echo --project=chromium-authed`
-//      **한 줄**이면 감사는 「CI 에서 authed 가 돈다」로 판정하는데 playwright 는 0회 돈다.
-//      `false && … || true` 와 `if: false` 인 job/step 도 같은 계열이었다 — 실측으로
-//      **`LOCAL_ONLY` 를 통째로 비운 채 `false && … || true` 한 줄만으로 10/10 초록**이었다.
-//      → 이제 ⓐ `if: false` 인 job/step 을 지우고 ⓑ 리터럴로 도달 불가한 셸 분기를 버린 뒤
-//      ⓒ **playwright 를 실제로 부르는 명령 안에서만** `--project=` 를 센다.
-//   ⑸ `LOCAL_ONLY` 의 「사유」를 `?.trim()` 으로만 재서 `"."` 한 글자면 어떤 project 든 면제됐다
-//      → 이제 사유는 `[BL-NNN]`/`[ADR-NNN]` 원장 식별자를 최소 1개 품어야 한다.
+// ★★★**이 감사는 「무엇이 그것을 발화시키나」를 일곱 번 틀렸다** (2026-08-17 적대 리뷰 3회 실측).
+// 일곱 다 fail-**open** 이었고 일곱 다 같은 병이다 — 「그렇게 적혀 있다」를 「그것이 돈다」로 읽었다:
+//   ⑴ `- name: TODO --project=X 되살리기` 같은 **스텝 제목** → 이제 `run:` 본문만 본다(`runScripts`).
+//   ⑵ schedule/dispatch 전용 워크플로의 배선 → 이제 `on:` 에 `pull_request` 계열이 있는 것만 센다.
+//   ⑶ `--project` 없는 맨 `playwright test`(`pnpm e2e:all` 이 그 형태)를 「fail-closed 라 괜찮다」고
+//      적었는데 다른 `--project=` 호출과 **공존**하면 fail-open → 이제 전 project 실행으로 센다.
+//   ⑷ `run: echo --project=chromium-authed` 한 줄 → 이제 ⓐ `if: false` 인 job/step 을 지우고
+//      ⓑ **playwright 를 실제로 부르는 명령 안에서만** `--project=` 를 센다.
+//   ⑸ `LOCAL_ONLY` 사유를 `?.trim()` 으로만 재서 `"."` 한 글자면 면제됐다 → 이제 `[BL-NNN]`/
+//      `[ADR-NNN]` 원장 식별자를 최소 1개 요구한다.
+//   ⑹ **가장 심각** — `--project=${{ matrix.project }}` 가 이름 정규식(`[A-Za-z0-9_.:-]`)에 안 걸려
+//      `named=[]` 가 되고 「맨 호출」 분기로 떨어져 **전 project 를 CI 실행으로 등록**했다. matrix 는
+//      적대 문법이 아니라 정상 패턴이다 → 이제 `${{ … }}` 는 **모른다**로 두고 안 센다(fail-closed).
+//   ⑺ 줄 끝 주석을 안 지워 ⓐ 살아 있는 호출의 `… # TODO --project=chromium-authed` 가 배선으로
+//      읽혔고 ⓑ `if: false # 잠시 꺼둔다` 가 `DEAD_IF` 의 `\s*$` 에 안 걸려 죽은 스텝이 살아 있는
+//      것으로 세졌다 → `stripYamlComments` 가 **공백 뒤의 `#`** 부터 자른다.
 //
 // ★★**이 감사가 재지 못하는 것** (거짓 안심을 만들지 않기 위해 명시한다 — 이 레포의 상습 사고다):
-//   • **`paths:` 필터를 해석하지 않는다.** 워크플로가 PR 트리거를 갖고 playwright 를 부르면
-//     「PR CI 에서 돈다」로 센다. 그런데 `live-smoke.yml` 의 `paths:`(`:17`)는 `apps/web/src/**`
-//     계열과 `apps/web/package.json`·`pnpm-lock.yaml` 뿐이라 **`apps/web/e2e/**` 만 고친 PR
-//     에서는 0회 실행**이다. 즉 거기에 authed 를 배선하고 면제를 지우면 이 감사는 초록인데
-//     authed spec 만 고친 PR 은 authed 를 안 돈다.
-//   • **job/step 의 `if:` 조건식을 평가하지 않는다.** 리터럴 `false` 만 죽은 것으로 본다.
-//     `if: needs.changes.outputs.frontend == 'true'` 처럼 입력에 따라 skip 되는 잡은 「돈다」로 센다
-//     (`ci.yml` 의 e2e 잡이 정확히 그 형태다 — 그래서 이것을 죽었다고 세면 안 된다).
-//   • **셸 조건도 리터럴만 본다.** `false`/`true`/`:` 의 단락 평가는 따라가지만
-//     `[ -n "$NOPE" ] && playwright test --project=X` 는 「돈다」로 센다. 조건으로 위장한
-//     죽은 분기는 정당한 가드(`pnpm install && playwright test …`)와 정적으로 구분되지 않는다.
-//   • **`uses:` 액션·재사용 워크플로·matrix 를 따라가지 않는다.** 그 형태로 playwright 를 부르면
-//     「아무 데서도 안 돈다」로 읽혀 빨개진다 = fail-closed.
-//   ⇒ 이 넷은 정적 YAML 파싱의 **원리적 한계**다. 완전 해결은 [BL-789] 2단계(실제 CI 배선 +
+//   • **셸 제어흐름을 해석하지 않는다.** `false && playwright test --project=X` 처럼 **의도적으로
+//     죽인** 호출도 배선으로 센다. 명령 분해는 **줄 단위**라 한 줄을 `&&`·`;`·`|` 로 이어 쓴 것은
+//     하나의 명령이고, 그 줄이 playwright 를 부르면 같은 줄의 `--project=` 는 전부 배선이다.
+//     ★**이 감사가 막는 것은 「사고」다** — 배선을 지움 · project 이름 오타 · 새 project 를 만들고
+//     워크플로에 안 붙임. **적대적 저자가 아니다.** 단락 평가를 흉내 내던 판이 있었는데 그 모델링
+//     자신이 새 fail-open 3건의 출처여서 걷어냈다(2026-08-17 CONTROL 판정).
+//   • **`paths:` 필터를 해석하지 않는다.** `live-smoke.yml` 의 `paths:`(`:17`)는 `apps/web/src/**`
+//     계열과 `apps/web/package.json`·`pnpm-lock.yaml` 뿐이라 **`apps/web/e2e/**` 만 고친 PR 에서는
+//     0회 실행**인데, 이 감사는 「PR 트리거 + playwright 호출」만 보고 「돈다」로 센다.
+//   • **job/step 의 `if:` 조건식을 평가하지 않는다.** 리터럴 `false` 만 죽은 것으로 본다(주석은
+//     먼저 지우므로 `if: false # …` 도 잡는다). `if: needs.changes.outputs.frontend == 'true'` 처럼
+//     입력에 따라 skip 되는 잡은 「돈다」로 센다 (`ci.yml` 의 e2e 잡이 정확히 그 형태다).
+//   • **`uses:` 액션·재사용 워크플로를 따라가지 않고 `--project=${{ … }}` 값도 풀지 않는다.**
+//     둘 다 「모른다」로 두므로 그 형태로**만** 배선하면 「아무 데서도 안 돈다」로 읽혀 빨개진다
+//     = fail-closed. ★이 자리의 종전 주석이 「matrix 는 fail-closed」라 적었는데 ⑹ 대로
+//     **정반대(fail-open)** 였다 — 주석이 코드보다 앞서 나간 실사고다.
+//   • **주석 제거는 「공백 + `#`」만 본다.** 따옴표 안의 `#` 도 자르고(과다 절단 = fail-closed 방향)
+//     공백 없는 `foo#bar` 는 못 자른다. 완전한 YAML 파싱은 하지 않는다 — 그 파서가 새 결함의 출처다.
+//   ⇒ 이것들은 정적 YAML 파싱의 **원리적 한계**다. 완전 해결은 [BL-789] 2단계(실제 CI 배선 +
 //     PR 체크에서의 실행 증거)에 속하고, 이 파일이 할 수 있는 것은 **한계를 적어 두는 것**뿐이다.
 // ★그리고 이 파일 자신이 **CI 에서 안 돌 수 있었다** — `ci.yml` 의 `frontend` 필터가
 // `apps/web/**` 뿐이라 **워크플로만 고친 PR** 에서는 이 감사가 통째로 skip 됐다(= 감사의
@@ -112,11 +113,17 @@ const PR_TRIGGERS = ["pull_request", "pull_request_target", "merge_group"];
  */
 const LEDGER_REF = /\[(?:BL|ADR)-\d{1,4}\]/;
 
-/** YAML 통줄 주석 제거. */
+/**
+ * YAML 주석 제거 — 통줄 주석은 줄째, **줄 끝 주석은 공백 뒤의 `#` 부터** 자른다.
+ *
+ * ★★줄 끝 주석은 적대 문법이 아니라 정상 문법이다. 안 지우면 둘이 샜다(파일 머리 ⑺).
+ * ★한계: 따옴표 안의 `#` 도 자르고(과다 절단 = fail-closed 방향) 공백 없는 `foo#bar` 는 못 자른다.
+ */
 function stripYamlComments(text: string): string {
   return text
     .split("\n")
     .filter((line) => !/^\s*#/.test(line))
+    .map((line) => line.replace(/\s+#.*$/, ""))
     .join("\n");
 }
 
@@ -124,7 +131,10 @@ function matchAll(text: string, re: RegExp): string[] {
   return [...text.matchAll(re)].map((m) => m[1] ?? "");
 }
 
-/** 리터럴로 죽은 조건만 센다 — `if: false` · `if: ${{ false }}` · 따옴표 형태. */
+/**
+ * 리터럴로 죽은 조건만 센다 — `if: false` · `if: ${{ false }}` · 따옴표 형태.
+ * ★줄 끝 주석은 `stripYamlComments` 가 **먼저** 지우므로 `if: false # 잠시 꺼둔다` 도 여기 걸린다.
+ */
 const DEAD_IF = /^(\s*)(-\s+)?if:\s*['"]?(?:\$\{\{\s*)?false(?:\s*\}\})?['"]?\s*$/;
 
 /**
@@ -258,74 +268,24 @@ function runScripts(text: string): string[] {
   return out;
 }
 
-/** 셸 명령 하나의 **리터럴** 종료 상태. 정적으로 못 정하면 `"U"`(unknown). */
-type ExitStatus = "T" | "F" | "U";
-
-function literalStatus(cmd: string): ExitStatus {
-  const t = cmd.trim();
-  if (t === "false") return "F";
-  if (t === "true" || t === ":") return "T";
-  return "U";
-}
-
 /**
- * 앞 명령의 종료 상태 `prev` 아래에서 `op` 우변이 도는가.
- * ★모르면(`"U"`) **돈다**로 센다 — 판정 불가를 죽음으로 읽으면 정당한 가드가 거짓 red 다.
- */
-function runsAfter(op: "&&" | "||" | null, prev: ExitStatus): boolean {
-  if (op === "&&") return prev !== "F";
-  if (op === "||") return prev !== "T";
-  return true; // 문장 첫 명령
-}
-
-/** 그 명령이 돈 뒤의 종료 상태. 앞이 불확실하면 실행 여부가 불확실하니 결과도 불확실하다. */
-function statusAfter(op: "&&" | "||" | null, prev: ExitStatus, cmd: string): ExitStatus {
-  if (op !== null && prev === "U") return "U";
-  return literalStatus(cmd);
-}
-
-/**
- * 셸 본문을 「명령」 단위로 쪼개되 **실행될 수 있는 것만** 남긴다.
+ * 셸 본문을 **줄 단위** 명령으로 쪼갠다. 도달 가능성은 따지지 않는다 — 그냥 다 본다.
  *
  * ★역슬래시 줄바꿈은 먼저 잇는다. 안 그러면 `playwright test \` + `--project=X` 가 두 명령이
- * 되고, 앞 조각이 「맨 호출」로 읽혀 전 project 실행으로 오판된다(fail-open).
+ * 되고, 앞 조각이 「`--project` 없는 맨 호출」로 읽혀 전 project 실행으로 오판된다(fail-open).
  *
- * ★★**`&&`/`||` 단락 평가를 리터럴 범위에서 흉내 낸다** (2026-08-17 2차 적대 리뷰 P1).
- * `run: false && pnpm exec playwright test --project=chromium-authed || true` 한 줄이면
- * 종전 감사는 「CI 에서 authed 가 돈다」로 셌다 — 실측으로 `LOCAL_ONLY` 를 통째로 비운 채
- * **10/10 초록**이었고 playwright 는 0회 돌았다. `if: false` 와 같은 계열의 두 번째 문법이다.
- *
- * ★모델은 3값이다. `false`/`true`/`:` 만 종료 상태를 알고 나머지는 **모른다(`U`)**.
- * 모르는 것은 **돈다고 센다** — `pnpm install && pnpm exec playwright test --project=X` 는
- * 정당한 배선이고, 이것을 죽었다고 세면 실 배선이 거짓 red 가 된다. 즉 이 절이 닫는 것은
- * 「리터럴로 죽은 분기」뿐이고, 조건으로 위장한 분기는 못 닫는다(파일 머리 「재지 못하는 것」).
+ * ★★**셸 제어흐름은 해석하지 않는다** (2026-08-17 CONTROL 판정). 한때 `&&`/`||` 단락 평가와
+ * `;`·파이프 토큰을 흉내 내는 판이 있었지만, 그것이 막으려던 `false && playwright test` 는
+ * **적대적 저자만** 쓰는 형태인 반면 그 모델링 자신이 새 fail-open 3건을 낳아 걷어냈다.
+ * 그래서 한 줄 안의 `&&`·`;`·`|` 는 경계가 아니고, 그 줄이 playwright 를 부르면 같은 줄의
+ * `--project=` 는 전부 배선으로 센다(`echo --project=X && playwright test` 는 과다 계수).
  */
-function reachableCommands(script: string): string[] {
-  const tokens = script.replace(/\\\n/g, " ").split(/(\n|&&|\|\||[;|])/);
-  const out: string[] = [];
-  let status: ExitStatus = "T"; // 문장 첫 명령은 앞의 성패에 안 걸린다
-  let op: "&&" | "||" | null = null;
-
-  for (const token of tokens) {
-    if (token === "\n" || token === ";" || token === "|") {
-      // 새 문장(파이프 우변 포함) — 앞 명령의 성패와 무관하게 돈다.
-      status = "T";
-      op = null;
-      continue;
-    }
-    if (token === "&&" || token === "||") {
-      op = token;
-      continue;
-    }
-    if (token.trim() === "") continue;
-
-    if (runsAfter(op, status)) {
-      out.push(token);
-      status = statusAfter(op, status, token);
-    }
-    op = null;
-  }
-  return out;
+function commands(script: string): string[] {
+  return script
+    .replace(/\\\n/g, " ")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -334,7 +294,7 @@ function reachableCommands(script: string): string[] {
  * ★주석을 먼저 지운다. `ci.yml` 은 「P1 4라우트는 전부 authed 라 로컬 `pnpm e2e:authed` 몫이고
  * CI 에는 없다」 같은 산문을 갖고 있다 — 산문을 배선으로 읽으면 이 감사는 정확히 반대 답을 낸다.
  * 이 레포는 **주석 문자열이 감사기를 통과시킨 사고**를 이미 겪었다(2026-08-16 layout-alignment).
- * ★한계: 줄 끝 인라인 `#` 주석은 안 지운다(YAML 문자열 안의 `#` 과 구분 불가).
+ * ★줄 끝 주석도 지운다 — 한계는 `stripYamlComments` 참조.
  *
  * ★`pnpm <script>` 도 푼다 — `package.json` 스크립트가 `--project=` 를 품고 있으면 그것도 실행이다.
  * ★★`--project` **없는** `playwright test` 는 **전 project 실행**으로 센다. `package.json` 의
@@ -342,16 +302,17 @@ function reachableCommands(script: string): string[] {
  * 반대였다 — 다른 `--project=` 호출과 공존하면 `direct` 가 비지 않아 ABORT 도 안 걸리고,
  * authed 가 CI 에서 실제로 도는데도 `LOCAL_ONLY` 의 「CI 에서 안 돈다」가 거짓인 채 초록이 된다.
  *
- * ★★★**`--project=` 는 playwright 를 실제로 부르는 「살아 있는」 명령 안에서만 센다**
- * (2026-08-17 2차 적대 리뷰). 종전에는 명령 종류도 도달성도 안 보고 `--project=` 를 전부 실행으로
- * 등록해서 `run: echo --project=chromium-authed` **한 줄**이면 감사가 「CI 에서 authed 가 돈다」로
- * 판정했다 — playwright 는 0회 돈다. 이제 세 겹으로 거른다:
- *   ⑴ `if: false` 인 job/step 은 통째로 지운다(`stripDeadBranches`).
- *   ⑵ `false && … || true` 처럼 **리터럴로 도달 불가**한 명령은 버린다(`reachableCommands`).
- *   ⑶ 남은 명령 중 **playwright 를 실제로 부르는 것**의 `--project=` 만 센다.
- * ★「호출이다」의 판정은 ⓐ 명령 자체가 `playwright test` 이거나 ⓑ 그 명령이 부른 `pnpm` 스크립트가
- * (전이적으로) playwright 를 부르는 경우다. 판정 못 하는 형태는 **안 센다**(fail-closed) — 실행을
- * 놓치면 그 project 는 「아무 데서도 안 돈다」로 읽혀 본체 단언 ⑷ 가 빨개진다.
+ * ★★★**`--project=` 는 playwright 를 실제로 부르는 명령 안에서만 센다** (2026-08-17 2차 적대
+ * 리뷰). 종전에는 명령 종류를 안 보고 전부 실행으로 등록해서 `run: echo --project=chromium-authed`
+ * **한 줄**이면 「CI 에서 authed 가 돈다」로 판정했다 — playwright 는 0회 돈다. 이제 ⑴ `if: false`
+ * 인 job/step 을 통째로 지우고(`stripDeadBranches`) ⑵ 남은 명령 중 playwright 를 부르는 것만 본다.
+ * ★「호출이다」의 판정은 ⓐ 명령**줄** 어딘가에 `playwright test` 가 있거나(부분 매치 —
+ * `pnpm exec …`·`npx …` 를 다 받으려는 것이고, 대가로 같은 줄에 섞인 산문의 `--project=` 도
+ * 세진다) ⓑ 그 명령이 부른 `pnpm` 스크립트가 (전이적으로) playwright 를 부르는 경우다.
+ * ★★`--project` 값이 `${{ … }}` 표현식이면 **모른다**로 두고 그 호출에서 아무것도 안 센다.
+ * 판정 못 하는 형태를 안 세는 것이 fail-closed 다 — 실행을 놓치면 그 project 는 「아무 데서도
+ * 안 돈다」로 읽혀 본체 단언 ⑷ 가 빨개진다. 반대로 「모르니 맨 호출 = 전 project」로 떨어지면
+ * matrix 배선 한 줄이 전 project 를 CI 실행으로 등록한다(파일 머리 ⑹).
  */
 function executedProjects(
   workflowText: string,
@@ -365,7 +326,7 @@ function executedProjects(
   /** @returns 이 셸 본문이 playwright 를 한 번이라도 부르는가. */
   const walk = (script: string): boolean => {
     let invokesPlaywright = false;
-    for (const cmd of reachableCommands(script)) {
+    for (const cmd of commands(script)) {
       // pnpm 스크립트를 먼저 푼다 — 그 본문이 playwright 를 부르면 이 명령도 playwright 호출이다.
       let viaScript = false;
       for (const name of matchAll(cmd, /\bpnpm(?:\s+run)?\s+([A-Za-z0-9:_-]+)/g)) {
@@ -382,8 +343,11 @@ function executedProjects(
       invokesPlaywright = true;
 
       const named = matchAll(cmd, /--project(?:=|\s+)([A-Za-z0-9_.:-]+)/g).filter(Boolean);
+      // ★`--project=${{ matrix.project }}` — 값을 모른다. 「맨 호출 = 전 project」로 떨어지면
+      //   matrix 배선 한 줄이 전 project 를 CI 실행으로 등록한다(fail-open). 모르면 안 센다.
+      const templated = /--project(?:=|\s+)["']?\$\{\{/.test(cmd);
       if (named.length > 0) for (const n of named) out.add(n);
-      else if (direct) for (const n of allProjects) out.add(n); // 맨 호출 = 전 project
+      else if (direct && !templated) for (const n of allProjects) out.add(n); // 맨 호출 = 전 project
     }
     return invokesPlaywright;
   };
@@ -584,46 +548,22 @@ describe("CI 실행 표면 ([BL-789])", () => {
     ).toEqual(new Set(["chromium"]));
   });
 
-  it("리터럴로 도달 불가한 셸 분기의 playwright 호출은 실행이 아니다", () => {
-    // ★★착취 재현: 이 한 줄이면 종전 감사는 「CI 에서 authed 가 돈다」로 셌다.
-    //   실측 — `LOCAL_ONLY` 를 통째로 비우고 이 줄만 `ci.yml` 에 넣었더니 **10/10 초록**이었다.
+  it("셸 제어흐름은 해석하지 않는다 — `false &&` 로 죽인 호출도 배선으로 센다", () => {
+    // ★★**이것은 통과가 목표인 시험이 아니라 「우리가 안 재는 것」의 명세다.**
+    //   `false && …` 는 적대적 저자만 쓰는 형태고, 그것을 잡으려던 단락 평가 모델링 자신이
+    //   새 fail-open 3건의 출처였다(2026-08-17 CONTROL 판정). 그래서 걷어냈고, 대가로
+    //   **의도적으로 죽인 호출이 배선으로 세진다.** 이 단언이 그 대가를 코드에 고정한다 —
+    //   나중에 누가 단락 평가를 되살리면 여기가 빨개지고 이 주석을 읽게 된다.
     expect(
       executedProjects(
         "      - run: false && pnpm exec playwright test --project=chromium-authed || true",
         {},
         ALL_PROJECTS,
       ),
-    ).toEqual(new Set());
-
-    // 음성 대조 ① — `false &&` 만 떼면 **같은 줄**이 잡힌다(못 찾은 게 아님을 증명).
-    expect(
-      executedProjects(
-        "      - run: pnpm exec playwright test --project=chromium-authed || true",
-        {},
-        ALL_PROJECTS,
-      ),
     ).toEqual(new Set(["chromium-authed"]));
 
-    // 음성 대조 ② — `false ||` 는 **우변을 실행한다**. 단락 평가를 방향까지 지킨다.
-    expect(
-      executedProjects(
-        "      - run: false || pnpm exec playwright test --project=chromium",
-        {},
-        ALL_PROJECTS,
-      ),
-    ).toEqual(new Set(["chromium"]));
-
-    // 음성 대조 ③ — `true &&` 우변은 돈다.
-    expect(
-      executedProjects(
-        "      - run: true && pnpm exec playwright test --project=chromium",
-        {},
-        ALL_PROJECTS,
-      ),
-    ).toEqual(new Set(["chromium"]));
-
-    // ★불확실한 가드는 **돈다고 센다**. `pnpm install && playwright test` 가 정당한 배선이라
-    //   여기를 죽었다고 세면 실 배선이 거짓 red 다(파일 머리 「재지 못하는 것」에 명시).
+    // ★정당한 가드도 같은 규칙으로 **돈다**고 센다. `pnpm install && playwright test` 를
+    //   죽었다고 세면 실 배선이 거짓 red 였다 — 모델링을 걷어내며 그 위험도 같이 사라졌다.
     expect(
       executedProjects(
         "      - run: pnpm install --frozen-lockfile && pnpm exec playwright test --project=chromium",
@@ -633,7 +573,7 @@ describe("CI 실행 표면 ([BL-789])", () => {
     ).toEqual(new Set(["chromium"]));
 
     // ★실 배선 대조 — `e2e:authed` 스크립트가 `node -e "…" && playwright test` 형태다.
-    //   단락 모델이 이것을 죽었다고 세면 「authed 는 로컬에서도 안 돈다」는 거짓이 된다.
+    //   픽스처만 재면 실제 문법에 대해 아무 말도 못 한다.
     const realAuthed = (
       JSON.parse(readFileSync(WEB_PACKAGE_JSON, "utf8")) as { scripts?: Record<string, string> }
     ).scripts?.["e2e:authed"];
@@ -708,6 +648,13 @@ describe("CI 실행 표면 ([BL-789])", () => {
     ].join("\n");
     expect(executedProjects(job, {}, ALL_PROJECTS)).toEqual(new Set(["chromium"]));
 
+    // ★★착취 재현 — `if: false # 잠시 꺼둔다`. `DEAD_IF` 는 `\s*$` 로 끝나서 줄 끝 주석이
+    //   붙는 순간 안 걸렸고, **죽은 스텝이 살아 있는 것**으로 세졌다(fail-open, 적대 리뷰 실측).
+    //   줄 끝 주석은 적대적 문법이 아니라 사람이 실제로 쓰는 형태다.
+    const commented = step.replace("      - if: false", "      - if: false # 잠시 꺼둔다");
+    expect(commented).toContain("# 잠시 꺼둔다"); // 치환이 샜으면 항진명제가 된다
+    expect(executedProjects(commented, {}, ALL_PROJECTS)).toEqual(new Set(["chromium"]));
+
     // ★음성 대조 — `if:` 가 **조건식**이면 죽은 것이 아니다. 실 워크플로가 전부 이 형태라
     //   여기를 죽었다고 세면 `ci.yml` 의 e2e 잡이 통째로 사라져 감사가 상시 red 다.
     expect(
@@ -717,6 +664,52 @@ describe("CI 실행 표면 ([BL-789])", () => {
         ALL_PROJECTS,
       ),
     ).toEqual(new Set(["chromium", "chromium-authed"]));
+  });
+
+  it("살아 있는 호출의 **줄 끝 주석**은 배선이 아니다", () => {
+    // ★★착취 재현: 통줄 주석만 지우던 때는 이 TODO 가 배선으로 읽혀 「CI 에서 authed 가 돈다」였다.
+    const live =
+      "      - run: pnpm exec playwright test --project=chromium # TODO --project=chromium-authed 되살리기";
+    expect(executedProjects(live, {}, ALL_PROJECTS)).toEqual(new Set(["chromium"]));
+
+    // 음성 대조 — `#` 만 떼면 **같은 문자열**이 잡힌다(못 찾은 게 아니라 주석이라서임을 증명).
+    expect(executedProjects(live.replace(" # TODO", " TODO"), {}, ALL_PROJECTS)).toEqual(
+      new Set(["chromium", "chromium-authed"]),
+    );
+  });
+
+  it("`--project=${{ … }}` 표현식은 「모른다」로 두고 전 project 실행으로 세지 않는다", () => {
+    // ★★★가장 심각했던 fail-open 의 착취 재현 — 값이 이름 정규식에 안 걸려 `named=[]` 가 되고
+    //   「맨 호출」 분기로 떨어져 **전 project 가 CI 실행으로** 등록됐다(LOCAL_ONLY 를 비워도 초록).
+    const matrix = "      - run: pnpm exec playwright test --project=${{ matrix.project }}";
+    expect(executedProjects(matrix, {}, ALL_PROJECTS)).toEqual(new Set());
+
+    // 따옴표로 감싼 형태도 같다.
+    expect(
+      executedProjects(
+        '      - run: pnpm exec playwright test --project="${{ matrix.project }}"',
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set());
+
+    // 음성 대조 ① — 같은 자리에 리터럴 이름이면 잡힌다(파서가 죽어서 빈 게 아님을 증명).
+    expect(
+      executedProjects(
+        matrix.replace("${{ matrix.project }}", "chromium-authed"),
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium-authed"]));
+
+    // 음성 대조 ② — 표현식과 리터럴이 공존하면 **읽은 것만** 센다(모르는 쪽은 안 센다).
+    expect(
+      executedProjects(
+        "      - run: pnpm exec playwright test --project=chromium --project=${{ matrix.extra }}",
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium"]));
   });
 
   it("LOCAL_ONLY 사유는 원장 식별자를 품어야 한다", () => {
