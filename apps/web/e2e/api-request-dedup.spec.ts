@@ -22,6 +22,12 @@ interface RouteCase {
   path: string;
   /** 이 실행이 실제로 화면을 그렸다는 증거. 하나라도 없으면 측정 실패로 red. */
   required: readonly string[];
+  /**
+   * SSR 이 prefetch 해 hydrate 로 넘긴 요청 — 브라우저에서는 **0회**여야 한다.
+   * 페이지의 prefetch queryKey 와 컴포넌트의 queryKey 가 어긋나면 여기가 1회가 되고,
+   * 그러면 같은 목록을 SSR 에서 한 번 · 브라우저에서 한 번, 한 화면 로드에 두 번 치는 것이다.
+   */
+  hydrated?: readonly string[];
 }
 
 const ROUTES: readonly RouteCase[] = [
@@ -34,6 +40,7 @@ const ROUTES: readonly RouteCase[] = [
       // 목록 화면이 전략 이름 맵을 채우는 요청.
       "/api/v1/strategies?limit=100&offset=0",
     ],
+    hydrated: ["/api/v1/backtests?limit=20&offset=0&order_by=created_at&order=desc"],
   },
   {
     path: "/dashboard",
@@ -76,7 +83,16 @@ for (const route of ROUTES) {
       ).toBe(1);
     }
 
-    // ⑵ 어떤 요청도 두 번 나가지 않았다.
+    // ⑵ SSR 이 이미 준 것은 브라우저가 다시 가져가지 않았다.
+    for (const needle of route.hydrated ?? []) {
+      const hits = observed.filter(([key]) => key.includes(needle));
+      expect(
+        hits.map(([key, n]) => `${n}x ${key}`),
+        `${route.path}: \`${needle}\` 은 SSR prefetch 가 hydrate 로 넘긴 요청이라 브라우저에서 0회여야 한다. 나갔다면 페이지의 prefetch queryKey 와 컴포넌트의 queryKey 가 어긋난 것이다 ([BL-786]).\n관측 전체:\n${inventory}`,
+      ).toEqual([]);
+    }
+
+    // ⑶ 어떤 요청도 두 번 나가지 않았다.
     const duplicated = observed.filter(([, n]) => n > 1).map(([key, n]) => `${n}x ${key}`);
     expect(
       duplicated,
