@@ -37,6 +37,9 @@ def _baseline_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("FRONTEND_URL", "https://qb.example.dev")
     monkeypatch.setenv("BETTER_AUTH_URL", "https://qb.example.dev")
     monkeypatch.setenv("WAITLIST_INVITE_BASE_URL", "https://qb.example.dev/invite")
+    # [BL-784] 로컬 `.env.local` 이 e2e 면제 이메일을 채워 두면 production 축 테스트가 전부
+    # **그 에러**로 raise 해서 원래 재려던 축이 사라진다. 여기서 "미설정" 을 강제한다.
+    monkeypatch.setenv("E2E_RATE_LIMIT_EXEMPT_EMAIL", "")
 
 
 def test_dev_env_allows_debug_true(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -200,3 +203,82 @@ def test_environment_enum_values_match_literal(monkeypatch: pytest.MonkeyPatch) 
     assert Environment.DEVELOPMENT.value == "development"
     assert Environment.STAGING.value == "staging"
     assert Environment.PRODUCTION.value == "production"
+
+
+def test_production_rejects_e2e_rate_limit_exemption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[BL-784] production + E2E_RATE_LIMIT_EXEMPT_EMAIL 값 존재 → ValueError.
+
+    ★런타임 판정(`is_rate_limit_exempt_identity`)이 이미 production 을 막는데 왜 또 막나 —
+    그 판정은 `APP_ENV` 가 **실제로 붙어 있을 때만** 작동하기 때문이다. 2026-08-15 에 배포
+    호스트가 `APP_ENV` 를 안 넣어 `{"env":"development"}` 로 돌던 실사고가 있었다. 라벨이
+    production 인 구성에서는 **값의 존재 자체**를 부팅 실패로 만들어 층을 하나 더 둔다.
+    """
+    _baseline_env(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("SECRET_KEY", "real-prod-secret-32bytes-min-xx")
+    monkeypatch.setenv("WAITLIST_TOKEN_SECRET", "x" * 32)
+    monkeypatch.setenv("PROMETHEUS_BEARER_TOKEN", "test-prod-bearer-token")
+    monkeypatch.setenv("E2E_RATE_LIMIT_EXEMPT_EMAIL", "e2e@dogfood.local")
+
+    from src.core.config import Settings
+
+    with pytest.raises(ValueError, match="E2E_RATE_LIMIT_EXEMPT_EMAIL"):
+        Settings()
+
+    # ★양성 대조 — 값이 없으면 같은 구성이 정상 부팅한다. 이 줄이 없으면 위 raise 가
+    #   「이 구성은 어차피 못 뜬다」와 구분되지 않는다.
+    monkeypatch.setenv("E2E_RATE_LIMIT_EXEMPT_EMAIL", "")
+    assert Settings().is_production is True
+
+
+def test_staging_rejects_e2e_rate_limit_exemption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """[BL-784] staging + E2E_RATE_LIMIT_EXEMPT_EMAIL 값 존재 → ValueError.
+
+    ★staging 은 이 파일의 다른 검사들이 「backward-compat 위해 강제하지 않는」 환경이다.
+    이 값만 예외로 두는 이유: 종전 런타임 판정이 `is_production`(블랙리스트)이었고
+    `is_production` 은 **staging 을 거짓으로 본다**. 즉 staging 에는 런타임 판정도 부팅
+    검사도 없어서 면제가 조용히 켜졌다(2026-08-17 적대 리뷰 P1). 런타임은 화이트리스트로
+    좁혔고, 여기서는 **값의 존재 자체**를 거부해 층을 둘로 만든다.
+    """
+    _baseline_env(monkeypatch)
+    monkeypatch.setenv("APP_ENV", "staging")
+    monkeypatch.setenv("E2E_RATE_LIMIT_EXEMPT_EMAIL", "e2e@dogfood.local")
+
+    from src.core.config import Settings
+
+    with pytest.raises(ValueError, match="E2E_RATE_LIMIT_EXEMPT_EMAIL"):
+        Settings()
+
+    # ★양성 대조 — 값이 없으면 같은 staging 구성이 정상 부팅한다(다른 검사는 staging 을
+    #   강제하지 않으므로 여기서 뜨는 것이 정상이고, 그래서 위 raise 의 원인이 이 값 하나임이
+    #   확정된다).
+    monkeypatch.setenv("E2E_RATE_LIMIT_EXEMPT_EMAIL", "")
+    assert Settings().is_staging is True
+
+
+def test_staging_never_relaxes_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
+    """[BL-784] 런타임 판정이 화이트리스트인지 — staging 에서는 어떤 이메일도 면제되지 않는다.
+
+    위 부팅 검사와 **다른 층**이다. 부팅 검사는 라벨이 staging 일 때 값을 거부하지만,
+    이 테스트는 값이 어떻게든 들어와 있는 프로세스에서 판정 자체가 거부하는지를 잰다.
+    """
+    import src.common.rate_limit as rl
+
+    class _Stub:
+        app_env = "staging"
+        e2e_rate_limit_exempt_email = "e2e@dogfood.local"
+        is_production = False  # ★블랙리스트였다면 여기서 통과했다 — 그것이 이 회귀의 자리다
+
+    monkeypatch.setattr(rl, "settings", _Stub())
+    assert rl.is_rate_limit_exempt_identity("e2e@dogfood.local") is False
+
+    # 양성 대조 — 같은 stub 을 development 로 바꾸면 참이 된다(판정기가 죽어서 False 인 것이 아니다).
+    class _Dev(_Stub):
+        app_env = "development"
+
+    monkeypatch.setattr(rl, "settings", _Dev())
+    assert rl.is_rate_limit_exempt_identity("e2e@dogfood.local") is True

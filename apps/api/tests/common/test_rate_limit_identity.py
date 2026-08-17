@@ -71,15 +71,30 @@ def app_with_identity(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
     return app
 
 
-def _stub_subject(monkeypatch: pytest.MonkeyPatch, mapping: dict[str, str]) -> None:
-    """Bearer 토큰 → subject 사상을 심는다. JWT 검증 자체는 realtime/auth 테스트가 잰다."""
+def _stub_subject(
+    monkeypatch: pytest.MonkeyPatch,
+    mapping: dict[str, str],
+    emails: dict[str, str] | None = None,
+) -> None:
+    """Bearer 토큰 → 검증된 claims 사상을 심는다. JWT 검증 자체는 realtime/auth 테스트가 잰다.
 
-    def _fake(request: object) -> str | None:
+    ★미들웨어가 부르는 것은 `verified_claims_or_none` 이다([BL-784] — 면제 판정에 `email`
+    claim 이 필요해서 payload 를 통째로 받는다). `verified_subject_or_none` 을 stub 하면
+    미들웨어를 **하나도 안 지난다.**
+    """
+
+    def _fake(request: object) -> dict[str, object] | None:
         raw = request.headers.get("authorization", "")  # type: ignore[attr-defined]
         token = raw.partition(" ")[2].strip()
-        return mapping.get(token)
+        subject = mapping.get(token)
+        if subject is None:
+            return None
+        claims: dict[str, object] = {"sub": subject}
+        if emails is not None and token in emails:
+            claims["email"] = emails[token]
+        return claims
 
-    monkeypatch.setattr("src.realtime.auth.verified_subject_or_none", _fake)
+    monkeypatch.setattr("src.realtime.auth.verified_claims_or_none", _fake)
 
 
 # ─────────────────────────────────────────────────────
@@ -290,3 +305,168 @@ def test_successful_decode_registers_its_kid(monkeypatch: pytest.MonkeyPatch) ->
     assert "kid-A" not in ra._KNOWN_KIDS
     ra._decode("tok")
     assert "kid-A" in ra._KNOWN_KIDS, "성공한 kid 가 등록되지 않으면 per-user 격리가 영영 안 켜진다"
+
+
+# ─────────────────────────────────────────────────────
+# ⑤ [BL-784] e2e 신원만 한도를 면제받는다
+# ─────────────────────────────────────────────────────
+
+E2E_EMAIL = "e2e@dogfood.local"
+
+
+def _configure_exemption(
+    monkeypatch: pytest.MonkeyPatch, *, email: str, app_env: str = "development"
+) -> None:
+    """면제 설정을 `settings` 인스턴스에 직접 심는다(Settings 재생성 비용 회피)."""
+    from src.common import rate_limit as rl
+
+    monkeypatch.setattr(rl.settings, "e2e_rate_limit_exempt_email", email)
+    monkeypatch.setattr(rl.settings, "app_env", app_env)
+
+
+@pytest.fixture
+def app_with_exemption(monkeypatch: pytest.MonkeyPatch) -> FastAPI:
+    """`default_limits=1/minute` + **데코레이터 라우트**를 함께 둔 앱.
+
+    ★한도를 1 로 낮춘 것이 이 절의 판별력이다 — 면제 안 된 신원의 두 번째 요청이 429 가
+    아니면 이 절은 한도를 재고 있지 않다(수용 기준 AC-3 의 pytest 축).
+    ★데코레이터 라우트를 같이 두는 이유는 「면제 플래그를 slowapi 가 미들웨어 갈래와
+    데코레이터 갈래 양쪽에서 본다」는 주장이 `rate_limit.py` 주석에 있기 때문이다.
+    주석의 인과는 실측 대상이다(`apps/api/AGENTS.md` §10).
+    """
+    mem = _install_limiter(monkeypatch, ["1/minute"])
+
+    app = FastAPI()
+    app.state.redis_lock_healthy = True
+    install_rate_limit(app)
+
+    @app.get("/guarded")
+    async def guarded(request: Request, response: Response) -> dict[str, str]:
+        return {"key_scope": "user" if getattr(request.state, "user_id", None) else "ip"}
+
+    @app.get("/decorated")
+    @mem.limit("1/minute")
+    async def decorated(request: Request, response: Response) -> dict[str, str]:
+        return {"ok": "1"}
+
+    return app
+
+
+def _codes(client: TestClient, path: str, token: str, times: int) -> list[int]:
+    return [
+        client.get(path, headers={"authorization": f"Bearer {token}"}).status_code
+        for _ in range(times)
+    ]
+
+
+def test_only_the_e2e_identity_is_relaxed(
+    app_with_exemption: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """★AC-1 — **같은 요청**을 두 신원으로 냈을 때 한쪽만 완화된다.
+
+    완화가 신원을 안 보면 일반 신원도 200 만 나오고, 완화가 아예 안 걸리면 e2e 신원이 429 다.
+    두 단언이 한 쌍이라 어느 쪽으로 망가져도 red 다.
+    """
+    _configure_exemption(monkeypatch, email=E2E_EMAIL)
+    _stub_subject(
+        monkeypatch,
+        {"tok-e2e": "sub-e2e", "tok-user": "sub-user"},
+        {"tok-e2e": E2E_EMAIL, "tok-user": "someone@example.com"},
+    )
+
+    with TestClient(app_with_exemption) as client:
+        e2e = _codes(client, "/guarded", "tok-e2e", 5)
+        normal = _codes(client, "/guarded", "tok-user", 2)
+
+    assert e2e == [200] * 5, f"e2e 신원이 한도에 걸렸다 — 완화가 발화하지 않는다: {e2e}"
+    assert normal == [200, 429], f"일반 신원까지 완화됐다면 한도가 사라진 것이다: {normal}"
+
+
+def test_relaxation_also_covers_decorated_routes(
+    app_with_exemption: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`@limiter.limit(...)` 이 붙은 라우트도 같은 플래그로 면제된다.
+
+    ★authed 스위트가 실제로 치는 경로에 `/api/v1/backtests`(`10/minute` 데코레이터)가 있다.
+    미들웨어 갈래만 면제하면 그 축이 남는다.
+    """
+    _configure_exemption(monkeypatch, email=E2E_EMAIL)
+    _stub_subject(
+        monkeypatch,
+        {"tok-e2e": "sub-e2e", "tok-user": "sub-user"},
+        {"tok-e2e": E2E_EMAIL, "tok-user": "someone@example.com"},
+    )
+
+    with TestClient(app_with_exemption) as client:
+        e2e = _codes(client, "/decorated", "tok-e2e", 3)
+        normal = _codes(client, "/decorated", "tok-user", 2)
+
+    assert e2e == [200] * 3, f"데코레이터 갈래가 면제되지 않았다: {e2e}"
+    assert normal == [200, 429], f"데코레이터 한도 자체가 안 걸린다 — 위 초록이 무증거다: {normal}"
+
+
+def test_production_config_never_relaxes(
+    app_with_exemption: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """★★AC-2 — production 구성에서는 **같은 신원·같은 설정**이어도 완화가 발화하지 않는다.
+
+    이 레인의 핵심 위험이 「프로덕션 경로로 새는 것」이다. 설정과 신원을 완화 성립 조건 그대로
+    두고 `app_env` 하나만 production 으로 돌린다 — 그러면 429 가 돌아와야 한다.
+    """
+    _configure_exemption(monkeypatch, email=E2E_EMAIL, app_env="production")
+    _stub_subject(monkeypatch, {"tok-e2e": "sub-e2e"}, {"tok-e2e": E2E_EMAIL})
+
+    with TestClient(app_with_exemption) as client:
+        codes = _codes(client, "/guarded", "tok-e2e", 2)
+
+    assert codes == [200, 429], f"production 에서 완화가 발화했다: {codes}"
+
+
+def test_unset_exemption_relaxes_nobody(
+    app_with_exemption: FastAPI, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """★AC-2 — 설정이 **빈 값**이면 어떤 신원도 면제되지 않는다(기본 배포 상태).
+
+    빈 설정이 「전부 면제」로 뒤집히는 것이 이 판정의 유일한 파국이라 별도로 잰다.
+    """
+    _configure_exemption(monkeypatch, email="")
+    _stub_subject(monkeypatch, {"tok-e2e": "sub-e2e"}, {"tok-e2e": E2E_EMAIL})
+
+    with TestClient(app_with_exemption) as client:
+        codes = _codes(client, "/guarded", "tok-e2e", 2)
+
+    assert codes == [200, 429], f"설정이 비었는데 완화가 발화했다: {codes}"
+
+
+@pytest.mark.parametrize(
+    ("configured", "claimed", "expected"),
+    [
+        # ── 면제로 오인될 수 있는 값들 ──────────────────────────────
+        ("", E2E_EMAIL, False),  # 미설정
+        ("   ", E2E_EMAIL, False),  # 공백뿐 — strip 후 빈 값
+        ("", "", False),  # 양쪽 다 빔 — "" == "" 로 통과하면 전원 면제다
+        ("", None, False),  # claim 자체가 없음
+        (E2E_EMAIL, None, False),  # 설정만 있고 신원에 email claim 이 없다
+        (E2E_EMAIL, "", False),  # email claim 이 빈 문자열
+        (E2E_EMAIL, "e2e@dogfood.local.attacker.test", False),  # 접두 일치
+        (E2E_EMAIL, "attacker+e2e@dogfood.local", False),  # 부분 문자열 포함
+        (E2E_EMAIL, "someone@example.com", False),  # 다른 계정
+        # ── 걸려야 하는 값들(양성 대조) ────────────────────────────
+        (E2E_EMAIL, E2E_EMAIL, True),
+        ("E2E@Dogfood.Local", E2E_EMAIL, True),  # 설정 쪽 대소문자 변형
+        (E2E_EMAIL, "  E2E@DOGFOOD.LOCAL  ", True),  # claim 쪽 공백 + 대문자
+    ],
+)
+def test_exempt_predicate_value_table(
+    monkeypatch: pytest.MonkeyPatch, configured: str, claimed: str | None, expected: bool
+) -> None:
+    """판정식 자체의 값 표. 배선은 위 4개 테스트가 잰다(순수 함수 정확성 ≠ 배선)."""
+    from src.common import rate_limit as rl
+
+    monkeypatch.setattr(rl.settings, "e2e_rate_limit_exempt_email", configured)
+    monkeypatch.setattr(rl.settings, "app_env", "development")
+    assert rl.is_rate_limit_exempt_identity(claimed) is expected
+
+    # ★production 에서는 위 표의 **참 케이스까지 전부** 거짓이다 — 한 줄로 같이 잰다.
+    monkeypatch.setattr(rl.settings, "app_env", "production")
+    assert rl.is_rate_limit_exempt_identity(claimed) is False

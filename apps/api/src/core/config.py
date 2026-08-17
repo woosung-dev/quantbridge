@@ -123,6 +123,21 @@ class Settings(BaseSettings):
         """콤마 구분 문자열 → list[str]. 빈 값 → []."""
         return [s.strip() for s in self.trusted_proxies_raw.split(",") if s.strip()]
 
+    # --- [BL-784] e2e authed 스위트 전용 rate limit 면제 신원 ---
+    # 스위트는 **한 신원으로 90 테스트**를 돌고 페이지마다 BE 요청 4~8건을 내므로 60초 창의
+    # 100건을 상시 소진한다. 걸린 요청이 단언 대상이면 red 라서 실패 지점이 실행마다 갈렸다.
+    # ★기본값은 빈 문자열이고, 값이 있으면 **development 가 아닌 모든 환경에서**
+    #   `_enforce_production_safety` 가 **부팅을 막는다**(staging 포함 — 2026-08-17 적대 리뷰 P1).
+    #   완화 판정 본문은 `src/common/rate_limit.py`.
+    e2e_rate_limit_exempt_email: str = Field(
+        default="",
+        description=(
+            "rate limit 을 면제할 e2e 전용 계정 이메일 (로컬/CI 전용). "
+            "비어 있으면 아무도 면제되지 않는다. "
+            "app_env 가 development 가 아닌데 값이 있으면 부팅 실패(staging 포함). BL-784."
+        ),
+    )
+
     # Backtest (Sprint 4)
     backtest_stale_threshold_seconds: int = Field(
         default=1800,
@@ -414,6 +429,21 @@ class Settings(BaseSettings):
 
         본 validator 는 backward-compat 위해 staging 은 강제하지 않음 (warning 만).
         """
+        # 0. [BL-784] e2e rate limit 면제는 **development 밖 어디에도** 있어서는 안 된다.
+        # ★이 검사만 조기 반환 **앞**에 둔다. 아래 검사들은 「backward-compat 위해 staging 은
+        #   강제하지 않음」이 방침이지만, 이 값은 다르다 — 런타임 판정
+        #   (`is_rate_limit_exempt_identity`)이 화이트리스트(`app_env == development`)라
+        #   staging 에서는 판정이 막지만, **값이 거기 있다는 것 자체가 배포 실수의 신호**다.
+        #   그리고 블랙리스트 시절에는 staging 에 두 층이 모두 없었다(2026-08-17 적대 리뷰 P1).
+        if (
+            self.app_env != Environment.DEVELOPMENT.value
+            and self.e2e_rate_limit_exempt_email.strip()
+        ):
+            raise ValueError(
+                f"{self.app_env} app_env must not set E2E_RATE_LIMIT_EXEMPT_EMAIL "
+                "(BL-784 — e2e rate limit 면제는 로컬/CI 전용이다)"
+            )
+
         if self.app_env != Environment.PRODUCTION.value:
             return self
 
