@@ -66,9 +66,12 @@ INCLUDE_DEFERRED = os.environ["QB_INCLUDE_DEFERRED"] == "1"
 #   「없음」이 되고, 그러면 selftest 의 양성 픽스처(BL-438)는 red 로 죽고 음성 픽스처
 #   (BL-022 — 판정줄이 없는 섹션)는 **항진명제로 초록**이 된다. 같은 사고를 #618 docs-diet
 #   에서 이미 한 번 밟았다(BL-451 픽스처가 본문 접힘으로 죽었다 — CASES 주석 참조).
+#   ★2026-08-18 3분할 — 조각이 셋이 됐다. **`backlog-deferred.md` 를 빼면 이 스크립트가 통째로
+#     무의미해진다**: 스윕의 본체가 DEFERRED 의 트리거 도래 판정인데 그 본문이 전부 그 파일에 있다.
 BACKLOGS = [
     os.path.join(ROOT, "docs", "backlog.md"),
     os.path.join(ROOT, "docs", "backlog-resolved.md"),
+    os.path.join(ROOT, "docs", "backlog-deferred.md"),
 ]
 
 
@@ -290,6 +293,11 @@ if MODE == "selftest":
         #   파서도 통과한다(이 레포가 빈 입력 초록으로 다섯 번 속았다).
         ("판정 줄이 있는 섹션을 읽는다 (BL-547)", bool(hv.get("BL-547"))),
         ("판정 줄이 없는 섹션을 없다고 한다 (BL-022)", not hv.get("BL-022")),
+        # ★원장 조각 배선 (2026-08-18 3분할) — BL-190 의 본문은 **`backlog-deferred.md` 에만** 있다.
+        #   `BACKLOGS` 에서 그 파일을 빼면 이 한 줄이 red 가 된다. 위 BL-547(=`backlog.md`)·
+        #   BL-022(=`backlog-resolved.md`) 와 합쳐 **세 조각을 각각 한 건씩** 덮는다 —
+        #   조각이 늘 때마다 여기 한 줄을 더해라. 안 그러면 조각 하나가 빠져도 selftest 가 녹색이다.
+        ("DEFERRED 조각을 읽는다 (BL-190 — backlog-deferred.md 전용)", bool(hv.get("BL-190"))),
     ]
     # ★CLI 배선 — 위 케이스는 전부 python 함수를 **직접** 부르므로 `--include-deferred` 파서를
     #   통째로 지워도 13/13 이 나온다(2026-08-15 codex 적대 리뷰 P3). [LESSON-092] §2 의 판이다:
@@ -323,7 +331,7 @@ if MODE == "selftest":
             for s in ("bl-audit.sh", "bl-trigger-sweep.sh"):
                 shutil.copy(os.path.join(ROOT, "tools", "scripts", s),
                             os.path.join(tmp, "tools", "scripts", s))
-            for d in ("backlog.md", "backlog-resolved.md", "roadmap.md"):
+            for d in ("backlog.md", "backlog-resolved.md", "backlog-deferred.md", "roadmap.md"):
                 shutil.copy(os.path.join(ROOT, "docs", d), os.path.join(tmp, "docs", d))
             if break_second_ledger:
                 open(os.path.join(tmp, "docs", "backlog-resolved.md"), "w").close()
@@ -351,7 +359,7 @@ if MODE == "selftest":
     if fails:
         print(f"✗ 판별력 없음 — {fails}건이 안 갈렸다. **전량 스윕으로 가지 마라.**")
         sys.exit(1)
-    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5 + 사람 판정 2 + CLI 배선 2 + 정본 ABORT 전파 2. 전량 스윕 가능.")
+    print(f"✓ {total}/{total} — 판정 6(양성 2 · 음성 4) + 대상 집합 5 + 사람 판정 3(원장 조각 3개를 각각 1건씩) + CLI 배선 2 + 정본 ABORT 전파 2. 전량 스윕 가능.")
     sys.exit(0)
 
 # ── 전량 스윕 ──────────────────────────────────────────────────────────

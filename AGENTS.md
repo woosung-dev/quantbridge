@@ -39,8 +39,10 @@
 
 ## 문서 — 어느 질문은 어디가 답하나 (SSOT 7축, ADR-026)
 
-- **지금 상태** — `docs/status.md`(활성 sprint) · `docs/roadmap.md`(다음 후보) · `docs/backlog.md`(열린 BL) +
-  `docs/backlog-resolved.md`(**RESOLVED 본문** — 원장은 파일 둘이고 감사기는 둘을 한 벌로 읽는다, [BL-779])
+- **지금 상태** — `docs/status.md`(활성 sprint) · `docs/roadmap.md`(다음 후보) · **원장 3분할**([BL-779], 2026-08-18):
+  `docs/backlog.md`(**ACTIVE ∪ PARTIAL** + 인덱스 표 전량) · `docs/backlog-deferred.md`(**DEFERRED**) ·
+  `docs/backlog-resolved.md`(**RESOLVED**). ★**축은 판정어이고 `bl-audit.sh` 의 「파일 배치」 축이 집행한다** —
+  감사기 4종은 셋을 **한 벌로** 읽고 섹션 수·판정 수는 **합계**다. 어느 파일에 있는지는 `bl-audit.sh --list <판정어>` **4번째 칸**
 - **정본** — `docs/reference/`. 코드와 어긋나면 **코드가 맞다** — 단 「지금 무엇을 하는가」에 한해서다.
   「왜 그렇게 했나」(`docs/decisions/`)와 「무엇이 반증됐나」(`docs/lessons.md`)에 대해 **코드는 증인이 아니다**
 - **결정 근거** — `docs/decisions/`. 규칙 변경 전 필독. 폐기는 삭제가 아니라 `Superseded` 표기

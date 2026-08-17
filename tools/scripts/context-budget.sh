@@ -72,6 +72,7 @@ LINE_CAPS = {
     "docs/dev-log/INDEX.md": 300,
     "docs/backlog.md": 1000,
     "docs/backlog-resolved.md": 1000,
+    "docs/backlog-deferred.md": 1000,
     "docs/roadmap.md": 1000,
 }
 
@@ -147,8 +148,10 @@ VARIABLE = [
     "docs/status.md",
     "docs/roadmap.md",
     "docs/backlog.md",
-    # ★[BL-779] 분할 — 원장 반쪽을 목록에서 빼면 「줄었다」가 이동이 아니라 **은폐**가 된다.
+    # ★[BL-779] 분할 — 원장 조각을 목록에서 빼면 「줄었다」가 이동이 아니라 **은폐**가 된다.
+    #   2026-08-18 3분할로 조각이 셋이 됐다. 셋 다 여기 있어야 합계가 이동을 상쇄한다.
     "docs/backlog-resolved.md",
+    "docs/backlog-deferred.md",
     "docs/dev-log/INDEX.md",
     "docs/reference/operations/gates-and-traps.md",
     "docs/reference/operations/workflows/generator-evaluator-pipeline.md",

@@ -240,7 +240,10 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 6. ✅ **live-entry-completeness + DX 정리** (완료 · **PR #509 머지 @f8706618** · 마이그레이션 0) — **BL-536 재측정 완료, 판정 「축소」** + **BL-549·552·554·555 Resolved**. ★★★**유실은 줄어든 게 아니라 원장 밖 한 채널로 수렴했다** — 원장 층위 유실 **0**(에피소드 7/7 `won`)인데 **원장에 발자국을 남기지 않는 채널이 4.8/시간**이고 그중 **75%가 `deferred_market_inflight`**. ★★**계측기가 직전 헤드라인을 재현하며 그 라벨을 반증** — 직전 창에 소급 적용하니 **16.67%**(=직전 16.7%)가 나왔고, 그것이 **에피소드 유실률이 아니라 시도 거절률**임이 드러났다(같은 데이터에 답이 셋). ★**검증 계층이 각각 다른 것을 잡았다** — G1 codex 가 에피소드 키 무효(→ 유실률 0% 오판)와 `feat/foo:main` main 우회로를 **코드 쓰기 전에**, 적대 3렌즈가 `open` 흡수·basis 우회·import 폭발반경을, G6 가 **R2 수리가 만든 새 표면**의 P1 3건을. ★재지시 **3라운드**가 필요했고 각 라운드는 앞 라운드가 만든 표면에서 결함을 찾았다. ★**BL-553 유지** — `applied` 는 누적 62분57초 공백에서 0회, 단 트리거가 **실제로 일어났으나 공백 밖**이었음이 실측됐다. 신규 **BL-556~559**, **BL-542 거짓 양성 확정**.
    6b. **entry-defer-convergence** (후보 · ★**이 줄은 착수를 지시하지 않는다** — 진입점은 status.md 의 「다음 스프린트」 블록이다) — BL-536 이 좁혀 준 **단일 채널** `deferred_market_inflight` 를 겨냥한다. ★먼저 물을 것: 밀린 진입이 다음 tick 에 복구되면 **유실이 아니다** — 기전부터 확정해라. 계측기는 이미 있다(다시 만들지 마라). ★근거였던 BL-536 은 이 문서가 이미 Resolved 로 적고 있다 — 착수 전에 재판정이 선행이다.
-7. **거래소/엔진 확장** (택1) — BL-186b(cross+tiered+멀티거래소 풀 레버리지) 또는 BL-015(OKX Private WS).
+7. ⏸ **멀티 거래소 확장 — 묶음으로 보류 (2026-08-18 backlog-triage)**. 구성원 4건 = **[BL-015]**(OKX Private WS) · **BL-186b**(cross+tiered+멀티거래소 풀 레버리지) · **[BL-756]**(`ts.ohlcv` PK 에 `exchange` 부재) · **[BL-426]**(ws_stream 멀티계정 starvation).
+   ★**왜 묶는가** — 넷 다 「2번째 거래소를 붙인다」는 **하나의 결정**에 걸려 있는데 개별 BL 로 흩어져 있어 회차마다 각자 후보 심사를 받았다. 제품 범위는 지금 **Bybit demo 단일**이다(`CONTEXT.md:64`).
+   ★**재개 조건** — 「2번째 거래소를 붙인다」는 **사용자 결정**. 그 결정 전에는 넷 중 어느 하나를 단독으로 열어도 값이 0이다.
+   ★**단 [BL-756] 은 순서 제약이 있다** — 「그 전에 해야 한다」(뒤에 하면 유실된 캔들을 복구할 수 없다). 재개 시 **[BL-756] 이 첫 항목**이다.
 8. **분석 표면 완결 팩** — BL-423(비활성 세션 진단) + BL-414(스트레스 이력) + BL-413(주문 상세) + BL-427/430(전략 목록 파라미터·정렬). 데일리드라이버 편의(스키마 확장 + P3).
 9. **옵티마이저 파워업** — BL-236(objective 3→24) + BL-235(N-dim viz) + BL-364(categorical).
 10. **tasks 도메인 deepen** (상시 가능 · 내부 부채) — money-path Celery 감사(`/deepen-modules`, codex 빌드 아님).
@@ -260,7 +263,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 ## 2) 기능 갭 (진짜 미구현)
 
 - [ ] **BL-014** [P1] Partial fill 추적 — **부분 완료(#475: closedPnl overwrite + filled_quantity 4경로)** · 잔여 = per-execution ledger(BL-440)·cancelled 부분체결(BL-439)·entry warmup-replay(BL-441)
-- [ ] **BL-015** [P1] OKX Private WS — OKX 어댑터 REST 만, WS 부재로 fetch_order polling 부담 · 선행: OKX WS signing(Bybit Demo 안정화 후)
+- [ ] **BL-015** [P3] OKX Private WS — OKX 어댑터 REST 만, WS 부재로 fetch_order polling 부담 · 선행: OKX WS signing(Bybit Demo 안정화 후). ★**2026-08-18 P1→P3 강등** + **「멀티 거래소 확장」 묶음**(아래 §멀티 거래소 확장)
 - [x] **BL-186a** [P2] 레버리지 충실도 — ✅ **backtest-trust 완료**. ★TV/MT5 컨벤션(레버리지는 **수량을 바꾸지 않고** 필요증거금·청산가만 정함) → `compute_qty` 무변경 → 레버리지>1 에서도 TV parity 유지. 격리 청산 + 마진 게이트(단일 chokepoint) + FE 입력 재도입. L=1 byte-identical
 - [ ] **BL-186b** [P2] cross/tiered MM + 파산수수료 + 멀티거래소 + 펀딩-청산 상호작용 — 186a 이후 이연
 - [x] **BL-460** [P2] 마진 게이트가 **gross 자본**으로 판정 — `running_equity` 가 수수료·슬리피지 차감 전이라(`close()` "fees=0 Sprint 37 가정") 실측 gross +38,679 vs net −53,670. 고치면 `compute_qty`·Pine `strategy.equity` 가 바뀌어 L=1 byte-identity 파괴 → 별도 설계 필요 · (실자금 레버리지 사용 전)
@@ -324,9 +327,9 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-535 ✅ Resolved** [P1] (2026-08-06 backtest-reality-gap) — 적재 경로는 PR #503 이 이미 착지(백테스트도 perp 봉을 읽는다), 잔여였던 **스팟/perp 결과 차 대조를 실측 완료**: 봉-매칭 진입쌍 **144쌍 전건 스팟이 위, 중앙값 +29.95 USDT**(사전등록 [25,42]·부호 적중 — 1h 실측 25~42 가 1m 에서 재현). ★후속 축은 BL-604(진입 집합 불일치)·BL-603(비용 가정 2.7배)로 분리 등재
 - [ ] **BL-541** [P2] 세션 행이 **아예 없는** 포지션(웹훅 경로·거래소 수동)은 여전히 못 닫는다 — ★**아직 실측된 적 없어 의도적으로 안 지었다.** 관측되면 착수(`Order.strategy_id` nullable 화는 금지 — kill-switch 가 전략별 합산이라 NULL 은 영구 불가시)
 - [x] **BL-542 ✅ Resolved** [P3] 계정 포지션 표의 "잘렸다" 경고가 포지션 1건에도 켜진다 — 거짓 양성 **확정** · **n=2**(계정 2/2) · **기전 확정**(2026-08-01: `providers.py:1201-1206` 주석이 "ccxt 는 커서를 첫 항목에 도장만 찍는다" 고 적어 놓고 `:1207` 이 그 커서를 "다음 페이지 있음" 으로 읽는다). 남은 것은 판정식 교체 + 회귀 가드 2케이스
-- [ ] **BL-015** [P1] OKX Private WS — (그룹 2 참조)
+- [ ] **BL-015** [P3] OKX Private WS — (그룹 2 참조 · 2026-08-18 P1→P3 강등)
 - [x] **BL-022 ✅ Resolved** [P1] (2026-08-07 backtest-fidelity) — `apps/api/scripts/regen_golden.py` 신설(`--confirm` 없으면 exit 1 + 파일 0개 · `--case` · `--check` 는 의미 비교 후 차이 시 exit 1). ★**이 스크립트가 없었던 것이 [BL-621] stale 의 직접 원인**이다 — 같은 커밋 `cda575f2` 가 trust-layer baseline 은 regen 스크립트가 있어 갱신했는데 이 골든은 손으로 만들어야 해서 빠졌다
-- [ ] **BL-023** [P1] KIND-B/C mutation 분류 정밀도 — xfail strict 해소
+- [ ] **BL-023** [P3] KIND-B/C mutation 분류 정밀도 — xfail strict 해소 (★2026-08-18 P1→P3 강등 — 머니-패스·실자금 경로 밖)
 - [x] **BL-024** [P1] real_broker E2E 본 구현 — nightly cron (Bybit Demo creds)
 - [x] **BL-025** [P1] autonomous-parallel-sprints 스킬 patch — BUG-1/2/3
 - [x] **BL-026** [P1] Mutation Oracle 실행 확인 — 2026-08-15 종결 (코드 0줄 · `--run-mutations` 8건 실행)
@@ -363,7 +366,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-729** [P2] 전략 채택 근거 백테스트 4벌이 낡은 비용 가정(0.001/0.0005, 2026-07-26)으로 돌았다 — [BL-603] 이 08-07 에 실측 0.00055/0.00014 로 교체한 값. 왕복 0.30% vs 0.138% = 2.2배 비관. `config_mapper.py:102-104` 가 저장값을 복원해 재실행으로 안 고쳐진다. 처방 = Cost-Assumption 스트레스 테스트 1회 (2026-08-14 money-path-close)
 - [x] **BL-730** [P2] FE 비용 기본값 drift 2곳 — `features/backtest/schemas.ts:81,87` zod default · `onboarding/step-3-backtest.tsx:77-78` 하드코딩 submit. 신규 사용자의 첫 백테스트가 왕복 0.30% 로 돈다([BL-603] 이 고치려던 증상). 인접 = stress-test 프리셋 격자에 현재 기본값 없음 (2026-08-14 money-path-close)
 - [x] **BL-731** [P2] `list_synced_with_exchange_exit` 의 LIMIT 500 — BL-438 수리로 재검증 모집단이 73 → 563 이 되어 가장 오래된 63건이 영구 제외. 동기화 축은 단조 증가라 안 풀린다. 처방 = 원장 합계 ≠ 저장값 행으로 모집단을 좁혀라 (2026-08-14 money-path-close)
-- [ ] **BL-732** [P1] ★`gap_resync_position_mismatch` 재발 — BL-622 가 08-07 에 Resolved 로 닫은 사인인데 그 수리가 든 pin 에서 소크가 6h33m 만에 죽었다. `ledger_net=0.06` = 반전 수량. BL-622 재발인지 별건인지 판정 선행 (2026-08-14 money-path-close)
+- [ ] **BL-732** [P2] ★`gap_resync_position_mismatch` 재발 — ★**2026-08-18 P1→P2 강등**(등재 표본이 맥 sleep 으로 반증됐다) — BL-622 가 08-07 에 Resolved 로 닫은 사인인데 그 수리가 든 pin 에서 소크가 6h33m 만에 죽었다. `ledger_net=0.06` = 반전 수량. BL-622 재발인지 별건인지 판정 선행 (2026-08-14 money-path-close)
 - [x] **BL-733** [P2] 체결 직후 refresh 2곳이 아직 reduce_only 게이트 — 반전 주문 백필이 최대 5분 늦다. 필터만 지우면 정상 선물 entry 가 거짓 운영자 알림. 처방 = `_reversal_bucket_at_fill` 재사용 (2026-08-14 money-path-close)
 
 ### P2 — 머니-패스 정확도 (★실자금 전 필수)
