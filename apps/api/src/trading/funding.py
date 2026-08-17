@@ -17,7 +17,7 @@ from sqlalchemy import text
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.trading.models import FundingRate
+from src.trading.models import ExchangeName, FundingRate
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ async def _store_rows(session: AsyncSession, rows: list[FundingRate]) -> int:
 
 async def fetch_and_store_funding_rates(
     *,
-    exchange_name: str,
+    exchange_name: ExchangeName,
     symbol: str,
     since: datetime,
     limit: int = 100,
@@ -65,6 +65,12 @@ async def fetch_and_store_funding_rates(
     Returns:
         저장된 신규 레코드 수.
     """
+    # Celery beat args는 untyped이므로 애너테이션만으로는 런타임의 미지원 거래소를 막지 못한다.
+    # ★**결과를 다시 대입한다.** 종전에는 `ExchangeName(exchange_name)` 한 줄이 값을 버리는
+    #   식(expression statement)이라, 「쓰이지 않는 줄」로 보여 정리 한 번에 조용히 사라질 수
+    #   있었다 — 그 순간 이 가드는 없어지는데 타입 검사는 그대로 초록이다(celery args 가 untyped라).
+    #   대입으로 두면 지울 수 없고, 덤으로 값이 실제 enum 으로 정규화된다.
+    exchange_name = ExchangeName(exchange_name)
     import ccxt.async_support as ccxt_async
 
     exchange_cls = getattr(ccxt_async, exchange_name, None)
@@ -91,7 +97,7 @@ async def fetch_and_store_funding_rates(
         rows.append(
             FundingRate(
                 symbol=symbol,
-                exchange=exchange_name,  # type: ignore[arg-type]
+                exchange=exchange_name,
                 funding_rate=Decimal(str(rate)),
                 funding_timestamp=funding_ts,
             )
@@ -107,7 +113,7 @@ async def fetch_and_store_funding_rates(
 
 async def backfill_funding_rate_history(
     *,
-    exchange_name: str,
+    exchange_name: ExchangeName,
     symbol: str,
     start: datetime,
     end: datetime,
@@ -116,6 +122,12 @@ async def backfill_funding_rate_history(
     max_pages: int = 200,
 ) -> int:
     """지정 기간의 funding 이력을 페이지 단위로 멱등 backfill 한다."""
+    # Celery beat args는 untyped이므로 애너테이션만으로는 런타임의 미지원 거래소를 막지 못한다.
+    # ★**결과를 다시 대입한다.** 종전에는 `ExchangeName(exchange_name)` 한 줄이 값을 버리는
+    #   식(expression statement)이라, 「쓰이지 않는 줄」로 보여 정리 한 번에 조용히 사라질 수
+    #   있었다 — 그 순간 이 가드는 없어지는데 타입 검사는 그대로 초록이다(celery args 가 untyped라).
+    #   대입으로 두면 지울 수 없고, 덤으로 값이 실제 enum 으로 정규화된다.
+    exchange_name = ExchangeName(exchange_name)
     import ccxt.async_support as ccxt_async
 
     exchange_cls = getattr(ccxt_async, exchange_name, None)
@@ -147,7 +159,7 @@ async def backfill_funding_rate_history(
             rows = [
                 FundingRate(
                     symbol=symbol,
-                    exchange=exchange_name,  # type: ignore[arg-type]
+                    exchange=exchange_name,
                     funding_rate=Decimal(str(item["fundingRate"])),
                     funding_timestamp=datetime.fromtimestamp(
                         timestamp / 1000, tz=start.tzinfo or None
