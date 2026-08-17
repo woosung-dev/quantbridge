@@ -27,7 +27,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse, Response
 
 from src.common.metrics import qb_rate_limit_throttled_total
-from src.core.config import settings
+from src.core.config import Environment, settings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +101,13 @@ def rate_limit_key(request: Request) -> str:
 def is_rate_limit_exempt_identity(email: str | None) -> bool:
     """[BL-784] 이 신원이 rate limit 면제 대상인가 — **두 조건이 모두** 참일 때만 참이다.
 
-    ⑴ **production 이 아니다.** ⑵ 검증된 JWT 의 `email` 이 설정값과 정확히 같다.
+    ⑴ **`app_env` 가 정확히 `development` 다.** ⑵ 검증된 JWT 의 `email` 이 설정값과 정확히 같다.
+
+    ★⑴ 은 화이트리스트다 — 「production 이 아니면」이 아니다. `is_production` 은 **staging 을
+    거짓으로 본다**(`config.py:407`)므로 그 조건을 쓰면 staging 인스턴스에서 면제가 켜진다.
+    같은 파일의 production validator 도 「backward-compat 위해 staging 은 강제하지 않음」이라
+    적고 있어, 블랙리스트로 두면 staging 에는 **두 층 다 없는** 상태가 된다
+    (2026-08-17 적대 리뷰 P1). 면제가 필요한 곳은 개발자 로컬과 CI 뿐이라 좁혀서 잃을 것이 없다.
 
     ★설정을 **먼저** 본다. 빈 값이 「전부 면제」로 뒤집히는 것이 이 판정의 유일한 파국이라
     비교보다 앞에 둔다 — 빈 설정에는 어떤 이메일도 걸리지 않는다.
@@ -109,7 +115,7 @@ def is_rate_limit_exempt_identity(email: str | None) -> bool:
     실제 제공자는 구분하지 않고, 여기서 구분하면 「설정했는데 안 걸린다」가 조용히 생긴다.
     면제 대상은 우리가 만든 계정 하나뿐이라 넓혀서 잃을 것이 없다.
     """
-    if settings.is_production:
+    if settings.app_env != Environment.DEVELOPMENT.value:
         return False
     configured = settings.e2e_rate_limit_exempt_email.strip().lower()
     if not configured:
