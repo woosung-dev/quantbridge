@@ -17,7 +17,9 @@
     "e2e:authed": "node -e \"if(process.env.NODE_ENV==='production'){console.error('e2e:authed blocked in production'); process.exit(1)}\" && playwright test --project=chromium-authed --workers=1",
     "e2e:all": "playwright test",
     "e2e:design-canon": "playwright test --project=chromium-design-canon",
-    "e2e:install": "playwright install --with-deps chromium"
+    "e2e:install": "playwright install --with-deps chromium",
+    "screen-evidence": "node scripts/screen-evidence.mjs",
+    "screen-evidence:update": "node scripts/screen-evidence.mjs --update"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.0",
