@@ -1813,13 +1813,15 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 스트레스 이력 화면이 디자인 캐논에 추가될 때
 **Est:** S-M (3-5h)
-**상태:** ⏳ 대기 (트리거 미도래) — byBacktest 캐시는 여전히 useLatestStressTest 의 단일 Summary 이고 이력 리스트 화면·페이지 응답 재정의 모두 없다. (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
+**상태:** ✅ **Resolved (2026-08-17 night3 레인 γ)** — `stressTestKeys.byBacktest` 캐시가 `StressTestListResponse` 를 담고(`useStressTestHistory`), `stress-test-history-table.tsx` 가 종류·상태·대표 지표·실행 시각을 표로 그리며 행 선택이 상세를 갈아끼운다. BE 는 `StressTestSummary.headline_metric` 한 필드만 늘었다(MC `max_drawdown_p95` · WFA `degradation_ratio` · CA/PS 최저 sharpe — 저장된 result 에서 읽고 새로 계산하지 않는다). 진행 중 행이 있을 때만 2초 폴링. 변이 3/3 red + CONTROL 변이 1건(기본 선택=최신) red.
+**트리거 판정:** — (Resolved)
 **출처:** 2026-07-23 functional-parity 스프린트 defer 판정
 
-**원인 / 영향:** 리로드 소실(기능 격차의 본질)은 A7-lite 가 해소. 과거 실행 브라우징만 미지원.
+**원인 / 영향:** 리로드 소실(기능 격차의 본질)은 A7-lite 가 해소. 과거 실행 브라우징만 미지원이었다.
 
-**권장 접근:** 이력 리스트 도입 시 `stressTestKeys.byBacktest` 캐시를 단일 Summary 에서 페이지 응답으로 재정의해야 함 (A7-lite 구현 노트).
+**권장 접근(이행됨):** 이력 리스트 도입 시 `stressTestKeys.byBacktest` 캐시를 단일 Summary 에서 페이지 응답으로 재정의해야 함 (A7-lite 구현 노트). ★**원장의 「페이지 응답」은 BE 엔드포인트가 아니라 FE React Query 캐시를 가리켰다** — 레인 파일이 그것을 BE 축으로 오독했고 코드 대조가 바로잡았다. 처방 자체는 옳았다.
+
+**남은 것:** 1페이지 상한 20건은 유지하되 넘으면 화면이 고지한다([BL-798] 이 전송 비용 축을 잇는다). authed 캐논(`/backtests/[id]`)은 슬롯 배선이 [BL-780]/[BL-781] 소유라 이 회차에서 못 돌렸다.
 
 ---
 
@@ -1881,8 +1883,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 전략 파라미터/수명주기 UI 요구 시
 **Est:** M (4-8h, BE 스키마 + FE)
-**상태:** ⏳ 대기 (트리거 미도래) — StrategyListItem 에 파라미터 요약·lifecycle 필드가 여전히 없고 FE 주석도 미렌더 사유를 그대로 유지 중이다. (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
+**상태:** ✅ **Resolved — 원장이 낡았고, 「낡았다」고 알려준 문서도 한 칸 낡았다 (2026-08-17 night3 CONTROL 코드 대조)** — BE `strategy/schemas.py:193-194` 에 `param_count`·`lifecycle` 이 있고 **FE 도 이미 렌더한다**: `strategy-list.tsx:449` 가 파라미터 열(`<td className="num">{s.param_count ?? EMPTY_CELL}</td>`), `:417`·`:423` 이 수명주기 칩(`STRATEGY_LIFECYCLE_LABEL` + `data-lifecycle`), `:554` 가 카드 뷰 라벨이다. 파일 헤더 주석(`:4`)이 「서버가 내려주는 파라미터 수·수명주기 칩을 함께 표시한다」라 적고 있고, 상태줄이 주장한 **「FE 미렌더 사유 주석」은 strategy 도메인에 0건**이다. `strategy-list.test.tsx:119`·`:331-333` 이 lifecycle 칩 3종을 단언한다. ★이 회차의 야간 오케스트레이터 문서는 이 항목을 「BE 필드 존재, **FE 렌더만 남았다**」로 적었는데 그것도 사실과 달랐다 — 원장 정정 문서가 같은 방향으로 한 번 더 낡아 있었다.
+**트리거 판정:** — (Resolved)
 **출처:** 2026-07-24 perf-surface (캐논 프로토타입엔 존재하나 StrategyListItem 스키마에 파라미터·lifecycle 필드 없음 → §4.9 미렌더 유지)
 
 **원인 / 영향:** 캐논 screen 은 전략별 파라미터 요약 + 수명주기 칩을 그리나, `StrategyListItem` 에 해당 필드가 없어 perf-surface 는 성과 3칸만 노출하고 파라미터/칩은 의도적으로 미렌더. 데이터 모델 확장 전까지 표면 불가.
@@ -1915,13 +1917,15 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 대시보드에서 최적화 best 성과를 목록 단계에서 보고 싶을 때
 **Est:** S-M (best_params 대응 backtest metric 역산 또는 denormalize)
-**상태:** ⏳ 대기 (트리거 미도래) — §03 최적화 행의 수익률/MDD 칸이 여전히 EMPTY_CELL + "결과는 최적화 상세에서 확인" 고정이라 역산·objective 표기 미구현. (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
+**상태:** ✅ **Resolved (2026-08-17 night3 레인 β)** — §03 최적화 행이 백테스트 행과 **같은 열·같은 의미**의 숫자(수익률·MDD)를 그린다. 값 없는 실행은 여전히 빈칸이고 **0 이 아니다**. 갈래 ⒜(best 백테스트 metric denormalize) 채택 — ⒝(objective_value)는 run 마다 단위가 갈려 한 열에 두 컨벤션이 섞이고, `/optimizer` 목록이 이미 ⒝ 를 열 제목까지 갖춰 구현하고 있다. `models.py` 무변경이라 **alembic migration 없다**. 변이 3/3 red + CONTROL 변이 1건(열 구분) red.
+**트리거 판정:** — (Resolved)
 **출처:** 2026-07-24 perf-surface A3 (§03 병합에서 최적화 행은 수익률/MDD 를 `—`+"결과는 최적화 상세에서 확인" 으로 고정. best 지표 역산은 후속)
 
-**원인 / 영향:** OptimizationRun 은 param_space/result(iterations) 만 보유, best 조합의 백테스트 metric 은 목록에 없어 §03 최적화 행 성과 칸이 빈칸. 정직하나 정보 밀도 낮음.
+**원인 / 영향:** ~~OptimizationRun 은 param_space/result(iterations) 만 보유, best 조합의 백테스트 metric 은 목록에 없어~~ → **2026-08-17 반증**: grid_search 는 `result` JSONB 의 `cells[]` 가 cell 마다 `total_return`·`max_drawdown` 을 갖고 `best_cell_index` 도 있으며 목록 응답이 `result` 를 **통째로** 싣는다. 즉 그 숫자는 **이미 클라이언트에 도착해 있었고** 없던 것은 꺼내는 이름이었다. 진짜로 metric 이 없던 것은 bayesian·genetic 둘이다(`objective_value` 만 보관하고 `outcome.result.metrics` 를 계산 후 버렸다). 이 차이가 설계의 절반을 정했다 — grid 는 엔진 변경 0, 나머지 둘만 best 하나를 붙잡게 했다.
 
-**권장 접근:** result 의 best_params → 대응 backtest metric 매핑을 denormalize 하거나 best objective_value 만이라도 표기.
+**권장 접근(이행됨):** result 의 best_params → 대응 backtest metric 매핑을 denormalize. 「재계산 시점 문제」는 **DB 컬럼이 아니라 응답 파생**으로 두어 없앴다(쓰기 경로가 안 늘고 원본과 어긋날 수 없다).
+
+**후속:** 목록 응답이 `result` 를 통째로 싣는 전송 비용은 [BL-799] 로 분리했다.
 
 ---
 
@@ -1932,8 +1936,8 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 **Priority:** P3
 **Trigger:** 전략을 최근 성과 순으로 정렬하고 싶을 때
 **Est:** S (2-3h; BE latest_backtest 정렬 축 + FE SORT_OPTIONS 확장)
-**상태:** ⏳ 대기 (트리거 미도래) — SORT_OPTIONS 는 여전히 recent/name 둘뿐이고 정렬은 클라 로컬, BE strategy 목록에 성과 정렬 축(sort 파라미터) 자체가 없다. (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
+**상태:** ✅ **Resolved — 원장이 낡았다 (2026-08-17 night3 CONTROL 코드 대조)** — 상태줄이 적은 세 가지가 **전부 거짓**이었다: ⑴ `features/strategy/sort.ts:7` `STRATEGY_SORT_OPTIONS` 는 4옵션이고 `total_return`(「수익률 높은 순」)·`sharpe_ratio`(「샤프 높은 순」)를 포함한다 ⑵ 정렬은 클라 로컬이 아니라 URL 파라미터를 통한 **서버 정렬**이다(`router.replace` 로 `order_by`/`order` 세팅) ⑶ BE `strategy/router.py:76` 에 `order_by: Literal["updated_at","name","total_return","sharpe_ratio"]` 가 있다. `sort.test.ts` 도 존재한다. **구현 시점은 [BL-710] 이 2026-08-12 에 「셋 다 BL-430/BL-427 구현이 만든 것」이라 적은 것에서 역산된다** — 즉 08-09 판정 이후 08-12 이전이고, 그 3일치 역행을 아무도 안 봤다.
+**트리거 판정:** — (Resolved)
 **출처:** 2026-07-24 perf-surface A2 stretch 미실행 (SORT_OPTIONS 는 recent/name 만; 성과 3칸은 표기만, 정렬 축 부재)
 
 **원인 / 영향:** 성과 열은 노출됐으나 전략 목록은 마지막수정/이름 정렬만 지원. latest_backtest 성과 기준 정렬 부재로 우열 비교가 목록 단계에서 제한적.
@@ -5130,6 +5134,8 @@ ADR-024 리셋 표에 의해 실격은 C1 을 0 으로 되돌린다. 그러므�
 
 **원인 / 영향:** 셋 다 [BL-430]/[BL-427] 구현이 만든 것이고 **현 규모에서는 측정 가능한 피해가 없다.**
 
+★**2026-08-17 — 이 문장이 원장의 다른 두 줄을 반증했다.** 본 항목(2026-08-12)은 두 BL 이 **구현됐음을 전제**로 그 성능 비용을 적는데, 같은 원장의 [BL-430]·[BL-427] 상태줄은 2026-08-09 판정 그대로 「미구현」이라 적고 있었다. 시간순으로 더 최신인 이쪽이 옳았고 두 상태줄을 Resolved 로 정정했다. **원장 안의 자기모순이 3일치 역행으로 남아 있었고 문서끼리 대조해선 아무도 안 봤다 — 코드가 잡았다.**
+
 ⑴ `apps/api/src/strategy/repository.py` 의 `latest_completed` 서브쿼리는 `status == COMPLETED` 만
 걸고 **owner 나 현재 페이지의 `strategy_id` 로 좁히지 않는다.** `DISTINCT ON` 이 1:1 을 보장하므로
 `total` 은 틀어지지 않지만, 비용이 **페이지 크기와 무관하게 전역 백테스트 수**에 비례한다.
@@ -8047,3 +8053,81 @@ authed e2e 는 한 신원으로 90 테스트를 도는데, 요청이 두 배면 
 **트리거 판정:** 미도래 — `src/**` 에 ⓐⓑⓒ 어느 형태도 없다(전수 grep 실측)
 
 ---
+
+---
+
+### BL-797
+
+**Title:** 화면 증거 게이트가 **공개 라우트 3종만** 잰다 — authed 화면을 바꾼 PR 은 여전히 증거가 없다
+**Category:** 테스트 / 인프라 / DX
+**Priority:** P2
+**Trigger:** ⏳ **대기** — authed e2e 슬롯 배선([BL-780]/[BL-781])이 서면 도래. 그 배선 없이는 로그인한 화면을 결정적으로 캡처할 수 없다
+**Est:** M (수치 축만이면 S — 스크린샷 없이 번들·요청 수만 재면 실데이터 픽셀 흔들림을 피한다)
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-17 night3 에 게이트 본체는 착지했다(`screen-evidence.spec.ts`·`scripts/screen-evidence.mjs`·`final-gates.sh` §4b·하네스 ⑪). 측정 대상은 `/` · `/sign-in` · `/waitlist` 뿐이다.
+**트리거 판정:** 미도래 — **선행 조건**이다. authed 캡처 배선이 [BL-780]/[BL-781] 소유이고 그 항목은 별도 세션이 들고 있다 (2026-08-17 night3 CONTROL)
+**출처:** 2026-08-17 night3 — 레인 α 가 게이트를 만들고, CONTROL 이 그 게이트를 레인 β·γ 브랜치에 **실제로 합쳐 돌려** 이 공백을 실측했다
+
+**원인 / 영향:** ★**이 회차가 스스로 그 공백을 증명했다.** 주제는 「화면을 바꾼 PR 이 그 변화를 스스로 증명하게 만든다」였고 같은 밤 레인 둘이 화면을 바꿨다 — β 는 `/dashboard`, γ 는 `/backtests/[id]`. **둘 다 authed 라 게이트의 ROUTES 밖이다.** CONTROL 이 α+β 와 α+β+γ 통합 브랜치에서 게이트를 돌린 결과 **공개 3라우트 전부 Δ=0 「변경 없음」**이었다.
+
+★**그것이 고장이 아님은 양성 대조가 증명한다** — 같은 통합 트리에서 `/sign-in` 문구 1자를 바꾸자 **2 픽셀 차이로 rc=1** 이 났다. 즉 게이트는 살아 있고, 잴 대상이 겹치지 않았을 뿐이다. 「변경 없음」과 「측정 실패」는 다르며 이 경우는 전자다.
+
+**Risk:** 🟡 정확성 문제는 없다. 다만 [LESSON-078] — 「문서만 쓰고 아무도 안 돌리면 죽은 기준이 된다」 — 의 재현 위험이 여기 있다 — 소비자가 공개 라우트를 바꾸는 PR 뿐이면 이 게이트는 대부분의 회차에서 「변경 없음」만 인쇄한다.
+
+**권장 접근:** 스크린샷을 빼고 **수치 축만 먼저** authed 로 넓힌다(번들 바이트 + 요청 수). 실데이터가 픽셀을 흔드는 문제를 피하면서 [BL-662~665]·[BL-786] 이 실제로 다룬 라우트(`/dashboard`·`/backtests`)를 덮는다. CI 게시 경로는 리눅스 baseline 이 필요하므로 별도다(아래 [BL-800]).
+
+---
+
+### BL-798
+
+**Title:** 스트레스 테스트 목록 질의가 `result` JSONB 를 통째로 읽는다
+**Category:** Backend / 성능
+**Priority:** P3
+**Trigger:** ⏳ **대기** — 한 백테스트의 스트레스 실행이 늘거나 목록 응답 지연이 관측될 때
+**Est:** S-M
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-17 [BL-414] 회차에 확인. `list_by_user` 가 `select(StressTest)` 로 전 컬럼을 읽고 `Page[StressTestSummary]` 는 `result` 본문을 안 내보낸다. MC 의 `result.equity_percentiles` 는 5계열 시계열이라 `limit=20` 이면 전송량이 응답 크기와 무관하게 커진다.
+**트리거 판정:** 미도래 — **규모 조건**이다. 현 실측(개발 DB `stress_tests` 0건)에서는 발화하지 않는다 (2026-08-17 night3 레인 γ)
+**출처:** 2026-08-17 night3 레인 γ ([BL-414] 이력 화면)
+
+**원인 / 영향:** [BL-414] 가 추가한 `headline_metric` 은 **이미 읽고 있던** 컬럼에서 파생하므로 비용을 늘리지 않는다. 다만 그 파생 때문에 「목록이 `result` 를 읽는다」가 이제 **의도적 의존**이 됐다 — 최적화 시 그 의존을 함께 처리해야 한다.
+
+**권장 접근:** `load_only` 로 목록 질의 컬럼을 좁히되 `result` 는 남기거나(파생에 필요), 대표 지표를 실행 완료 시점에 별도 컬럼으로 비정규화한다. 후자는 [BL-429] 가 optimizer 에서 쓴 패턴과 같다.
+
+**Risk:** 🟢 정확성 문제 없음.
+
+---
+
+### BL-799
+
+**Title:** 최적화 목록 응답이 `result` 를 통째로 싣는다 — iteration 전량이 행마다 따라온다
+**Category:** Backend / 성능
+**Priority:** P3
+**Trigger:** ⏳ **대기** — `max_evaluations` 가 큰 run 이 쌓이거나 대시보드 §03 지연이 관측될 때
+**Est:** S
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-17 [BL-429] 회차에 관측. `GET /api/v1/optimizer/runs` 의 `OptimizationRunResponse.result` 는 `dict[str, Any]` 전량이다.
+**트리거 판정:** 미도래 — **규모 조건**이다. [BL-710] 과 같은 성격이되 대상이 다르다(그쪽은 `/strategies`) (2026-08-17 night3 레인 β)
+**출처:** 2026-08-17 night3 레인 β ([BL-429] 작업 중 관측)
+
+**원인 / 영향:** grid 는 cell 전부, bayesian·genetic 은 iteration 전부가 행마다 실린다. 대시보드 §03 은 그중 best 두 값만 쓰는데 `max_evaluations=100` 짜리 run 8건이면 목록 한 번에 iteration 800개가 따라온다.
+
+**권장 접근:** ★**[BL-429] 가 그 두 값을 별도 필드로 뽑았으므로 이제 목록에서 `result` 를 뺄 수 있다** — 다만 `/optimizer` 목록 화면이 `result` 를 쓰는지 먼저 확인해야 한다(objective 열·best 열이 raw value 를 그린다).
+
+**Risk:** 🟡 FE 소비자 확인이 선행이다. 안 보고 빼면 `/optimizer` 목록이 빈다.
+
+---
+
+### BL-800
+
+**Title:** 화면 증거 게이트의 CI 게시 경로 — 리눅스 baseline 과 PR 코멘트 자동화
+**Category:** 테스트 / 인프라 / CI
+**Priority:** P3
+**Trigger:** ⏳ **대기** — [BL-797] 의 측정 축이 서고 나서. 라우트 집합이 확정돼야 baseline 을 굽는 값이 있다
+**Est:** M
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-17 night3 에 로컬 경로까지만 착지했다. baseline 스냅샷이 `-darwin` 접미뿐이고 리눅스 판이 없어 `e2e-project-wiring.test.ts` 의 `LOCAL_ONLY["chromium-screen-evidence"]` 로 CI 에서 제외돼 있다. 표는 사람이 `gh pr comment --body-file` 로 올린다.
+**트리거 판정:** 미도래 — **선행 조건**([BL-797]). 라우트 집합이 바뀌면 구운 baseline 을 다시 구워야 한다 (2026-08-17 night3 CONTROL)
+**출처:** 2026-08-17 night3 레인 α (레인 파일 갈래 ⑵ 미착수)
+
+**원인 / 영향:** 지금은 게이트가 로컬에서만 돌고 리포트도 사람이 붙인다. CI 가 돌리면 「화면을 바꾼 PR 이 증거 없이 지나갈 수」 없게 되지만, 그러려면 리눅스에서 픽셀이 결정적이어야 한다.
+
+**권장 접근:** 리눅스 baseline 을 굽고 워크플로에 프로덕션 서버 스텝을 넣은 뒤 `actions/github-script` 로 코멘트 게시. 선례 `nightly-real-broker.yml:207`. 그때 `LOCAL_ONLY` 항목을 걷는다.
+
+**Risk:** 🟡 빌드가 `next/font/google` 로 네트워크에 매달려 있다 — 레인 α 실측에서 13회 중 1회가 폰트 CSS 를 못 받아 죽었다. **오프라인이면 이 게이트는 못 돈다.**
