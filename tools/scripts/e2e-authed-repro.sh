@@ -37,6 +37,12 @@
 # ★서버는 짝으로 미리 띄워라 — `mise run be-isolated` + `mise run fe-isolated`.
 #   FE 만 띄우면 playwright 가 자기 webServer 를 올리는데 그 프로세스는 `BETTER_AUTH_URL` 을
 #   못 받아 로그인이 403 `INVALID_ORIGIN` 으로 죽는다.
+#
+# ★★종료 코드의 뜻 (codex 적대 리뷰 P2, 2026-08-17). **이 스크립트를 게이트로 쓰지 마라.**
+#   rc=0 = 「요청한 회차를 전부 돌렸다」이지 「전부 통과했다」가 아니다. 이건 관측기이고
+#   red 는 **찾으려던 것**이라 실패에 rc=1 을 주면 성공한 재현이 실패로 보고된다.
+#   회차별 판정은 요약의 `authed 레그 실패 <n> / <N> 회차` 줄과 `results.json` 이 갖는다.
+#   rc≠0 은 **돌리지 못한 경우**뿐이다 — 인자 오류·서버 부재.
 set -uo pipefail
 
 LABEL="${1:-}"
@@ -45,6 +51,9 @@ SHAPE="${QB_REPRO_SHAPE:-be-branch}"
 [ -n "$LABEL" ] || { echo "사용법: $0 <라벨> [반복횟수]" >&2; exit 1; }
 case "$LABEL" in *[!A-Za-z0-9._-]*) echo "라벨은 영숫자·점·밑줄·하이픈만" >&2; exit 1 ;; esac
 case "$ITERATIONS" in ''|*[!0-9]*) echo "반복횟수는 정수여야 한다" >&2; exit 1 ;; esac
+# ★0 을 막는다 (codex 적대 리뷰 P2). 정수 검사만으로는 `0` 이 통과하고, 그러면 루프가 한 번도
+#   돌지 않은 채 「실패 0 / 0 회차」 + rc=0 이 나온다 — 이 레포가 반복해 밟은 「빈 입력이 초록」이다.
+[ "$ITERATIONS" -ge 1 ] || { echo "반복횟수는 1 이상이어야 한다 (0 은 아무것도 안 돌리고 초록을 낸다)" >&2; exit 1; }
 case "$SHAPE" in be-branch|fe-branch|standalone) : ;; *) echo "QB_REPRO_SHAPE 는 be-branch · fe-branch · standalone 중 하나" >&2; exit 1 ;; esac
 LOAD="${QB_REPRO_LOAD:-0}"
 case "$LOAD" in ''|*[!0-9]*) echo "QB_REPRO_LOAD 는 정수여야 한다" >&2; exit 1 ;; esac

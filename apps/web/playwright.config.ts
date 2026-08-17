@@ -38,7 +38,15 @@ const fePort = getFrontendPort();
 //   config 는 워커 프로세스에서도 평가되는데 워커의 argv 에는 그 플래그가 없어서, 지움 계산
 //   (메인)과 아티팩트 기록(워커)이 **서로 다른 디렉터리**를 가리킨다. 2026-08-17 에 실제로
 //   `<회차>/chromium-authed/results.json` 과 `<회차>/all/<테스트>/trace.zip` 으로 갈렸다.
-const sanitizeArtifactSegment = (value: string) => value.replace(/[^A-Za-z0-9._-]/g, "-");
+// ★★점만으로 이뤄진 세그먼트는 따로 막는다 (codex 적대 리뷰 P2, 2026-08-17 실측).
+//   `.` 과 `-` 는 허용 문자라 `..` 는 위 치환을 **그대로 통과한다**. 그러면 `outputDir` 이
+//   `test-results/../<project>` = `apps/web/<project>` 가 되고, playwright 는 setup 에서
+//   그 디렉터리를 **통째로 지운다** — 이 회차가 발견한 바로 그 기전이 소스 트리를 겨눈다.
+//   `/` 는 이미 `-` 로 바뀌므로 위험한 값은 세그먼트 전체가 점인 경우뿐이다.
+const sanitizeArtifactSegment = (value: string) => {
+  const cleaned = value.replace(/[^A-Za-z0-9._-]/g, "-");
+  return /^\.+$/.test(cleaned) ? "-".repeat(cleaned.length) : cleaned;
+};
 
 const rawArtifactRun = process.env.PW_ARTIFACT_RUN?.trim();
 const artifactRun = rawArtifactRun ? sanitizeArtifactSegment(rawArtifactRun) : undefined;
