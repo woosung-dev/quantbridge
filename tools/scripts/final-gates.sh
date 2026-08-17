@@ -278,7 +278,7 @@ run_gate "신호 신선도 하네스" "tools/scripts/signal-check.sh" bash "$ROO
 #   새 스크립트나 되돌린 스크립트가 핀 밖에서 `pnpm`·`uv`·`node` 를 부르면 그 순간부터
 #   같은 커밋이 셸에 따라 다른 판정을 낸다. 그게 다시 들어오는 것을 여기서 막는다.
 #   ★docs/ 도 apps/ 도 안 읽으므로 영역 판정과 무관하게 항상 돈다.
-run_gate "도구 핀 감사" "tools/scripts/**/*.sh + .husky/*" bash "$ROOT/tools/scripts/tool-pin-audit.sh"
+run_gate "도구 핀 감사" "tools/scripts/**/*.sh + .husky/*" bash "$ROOT/tools/scripts/tool-pin-audit.sh" --root "$ROOT"
 run_gate "도구 핀 감사 하네스" "tools/scripts/tool-pin-audit.sh" bash "$ROOT/tools/scripts/tool-pin-audit-test.sh"
 
 # ★소크 재기동 갈래 하네스 ([BL-656]). 이 게이트가 붙은 이유가 그 BL 의 교훈이다 —

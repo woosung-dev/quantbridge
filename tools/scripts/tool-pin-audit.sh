@@ -32,16 +32,36 @@
 # 사용법: tools/scripts/tool-pin-audit.sh [--list]
 set -uo pipefail
 
-ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
-# ★검사 대상 트리 교체 seam — 하네스가 fixture 트리를 넘긴다(`header-audit.sh` 선례).
-[ -n "${QB_TOOL_PIN_ROOT:-}" ] && ROOT="$QB_TOOL_PIN_ROOT"
+ROOT_DERIVED="$(cd "$(dirname "$0")/../.." && pwd -P)"
 
 LIST=0
-case "${1:-}" in
-  "") ;;
-  --list) LIST=1 ;;
-  *) echo "알 수 없는 인자: $1 (지원: --list)" >&2; exit 1 ;;
-esac
+ROOT_ARG=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --list) LIST=1; shift ;;
+    --root)
+      [ "$#" -ge 2 ] || { echo "--root 에 경로가 없다" >&2; exit 1; }
+      ROOT_ARG="$2"; shift 2 ;;
+    *) echo "알 수 없는 인자: $1 (지원: --list · --root <경로>)" >&2; exit 1 ;;
+  esac
+done
+
+# ★검사 대상 트리 교체 seam — 하네스가 fixture 트리를 넘긴다(`header-audit.sh` 선례).
+#   ★우선순위: --root 명시 인자 > env > 파생. `signal-check.sh:34` 와 **같은 관용구**다.
+#   env 만 열어 두면 셸에 남은 export 하나로 빈 트리를 겨눠 「위반 0건 ✓」 초록을 만들 수 있다
+#   (2026-08-17 CONTROL 실증: 위반을 심은 트리에서 `QB_TOOL_PIN_ROOT=<빈 트리>` 로 rc=1 → rc=0).
+#   `signal-check` 가 콜드 리뷰 P2-1 로 겪은 바로 그 결함이라, 그 답을 그대로 쓴다 —
+#   호출부(`final-gates.sh`)가 `--root` 를 명시해 env 백도어를 닫는다.
+if [ -n "$ROOT_ARG" ]; then
+  if [ -n "${QB_TOOL_PIN_ROOT:-}" ] && [ "$QB_TOOL_PIN_ROOT" != "$ROOT_ARG" ]; then
+    echo "★QB_TOOL_PIN_ROOT 는 무시된다 — --root 명시 인자가 이긴다: $ROOT_ARG" >&2
+  fi
+  ROOT="$ROOT_ARG"
+elif [ -n "${QB_TOOL_PIN_ROOT:-}" ]; then
+  ROOT="$QB_TOOL_PIN_ROOT"
+else
+  ROOT="$ROOT_DERIVED"
+fi
 
 command -v python3 >/dev/null 2>&1 || {
   echo "✗ python3 를 찾을 수 없다 — 이 감사기의 판정은 python3 가 한다." >&2
@@ -211,6 +231,14 @@ for hook in ("pre-commit", "pre-push"):
     p = ROOT / ".husky" / hook
     if p.is_file():
         targets.append(p)
+
+# ★볼 것이 없으면 통과시키지 않는다. 대상 0개는 「위반 0건」이 아니라 **잘못된 트리를 겨눴다**는
+#   뜻이다 — 잘못된 ROOT, 옮겨진 디렉터리, 빈 fixture. 이 레포는 「볼 창이 없으면 통과」를
+#   소크 게이트 C4 에서 한 번 겪었다(2026-08-15). 판정 불가는 rc=3 이지 rc=0 이 아니다.
+if not targets:
+    sys.stderr.write(f"✗ 감사 대상이 0개다 — ROOT 가 틀렸다: {ROOT}\n")
+    sys.stderr.write("  판정을 포기한다 — 「위반 0건」으로 번역하면 게이트가 통째로 사라진다.\n")
+    sys.exit(3)
 
 violations = []
 exempt_seen = []
