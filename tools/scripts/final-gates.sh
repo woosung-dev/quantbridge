@@ -59,6 +59,15 @@ case "$RUN" in *..*|*[!A-Za-z0-9._-]*) echo "--run 은 영숫자·점·밑줄·�
 case "$RUN" in eod) echo "✗ --run eod 는 금지다 — 앞 회차 신호를 물려받는다 ([BL-706]). 회차 슬러그를 써라: --run <회차이름>" >&2; exit 1 ;; esac
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
+
+# ★도구 버전 핀 — 아래 게이트가 부르는 `pnpm`·`uv`·`node` 는 **PATH 가 아니라 `mise.toml`** 이
+#   정한다([BL-785] · [ADR-036]). 이 줄이 없으면 같은 커밋이 셸에 따라 다른 판정을 내고,
+#   pnpm 8 셸에서는 lockfile diff 가 0 인 브랜치도 `CI frozen-lockfile` 이 red 다.
+#   ★가장 먼저 건다 — 아래는 전부 이 PATH 를 물려받는 자식 프로세스다.
+# shellcheck source=tools/scripts/lib/mise-shim-path.sh
+. "$ROOT/tools/scripts/lib/mise-shim-path.sh"
+qb_pin_tool_path || true
+
 if git -C "$ROOT" rev-parse --verify --quiet refs/remotes/origin/main >/dev/null 2>&1; then
   MERGE_BASE="$(git -C "$ROOT" merge-base refs/remotes/origin/main HEAD 2>/dev/null || true)"
   HEAD_SHA="$(git -C "$ROOT" rev-parse --verify --quiet "HEAD^{commit}" 2>/dev/null || true)"
@@ -264,6 +273,13 @@ run_gate "BL 감사 하네스" "tools/scripts/bl-audit.sh" bash "$ROOT/tools/scr
 
 # [BL-706] 신호 신선도 판별력을 회차 종료 게이트에 연결한다.
 run_gate "신호 신선도 하네스" "tools/scripts/signal-check.sh" bash "$ROOT/tools/scripts/signal-check-test.sh"
+
+# ★도구 버전 핀 잔존 감시 ([BL-785]). 위 `qb_pin_tool_path` 는 **이 스크립트에만** 걸린다 —
+#   새 스크립트나 되돌린 스크립트가 핀 밖에서 `pnpm`·`uv`·`node` 를 부르면 그 순간부터
+#   같은 커밋이 셸에 따라 다른 판정을 낸다. 그게 다시 들어오는 것을 여기서 막는다.
+#   ★docs/ 도 apps/ 도 안 읽으므로 영역 판정과 무관하게 항상 돈다.
+run_gate "도구 핀 감사" "tools/scripts/**/*.sh + .husky/*" bash "$ROOT/tools/scripts/tool-pin-audit.sh" --root "$ROOT"
+run_gate "도구 핀 감사 하네스" "tools/scripts/tool-pin-audit.sh" bash "$ROOT/tools/scripts/tool-pin-audit-test.sh"
 
 # ★소크 재기동 갈래 하네스 ([BL-656]). 이 게이트가 붙은 이유가 그 BL 의 교훈이다 —
 #   2026-08-08 에 「unquoted heredoc 안 백틱 정적 카운트 0건으로 동결」이라 **기록만 하고**
@@ -479,12 +495,20 @@ else
   fi
 
   # fresh throwaway DB — 개발 DB 를 향하지 않게 이름을 고정하고, 반드시 _test 로 끝낸다.
-  run_gate "CI fresh DB alembic" "throwaway" bash -c '
+  # ★[BL-782] `alembic check` 를 여기에 붙였다. 「어느 DB 에 대고 재는가」의 정본이 바로 이
+  #   migration-only DB 이기 때문이다 — 개발 DB 는 `create_all` 이력이 섞여 있어 같은 명령이
+  #   rc=0 을 내고(2026-08-17 실측), 그 rc=0 이 [BL-770] 을 닫았다. 프로덕션 스키마를 만드는
+  #   유일한 경로가 migration 이므로 여기서 나는 drift 만이 배포에서 실제로 터진다.
+  #   ★`TIMESCALE_URL` 도 같이 덮는다 — `.env.local` 에서 이미 개발 DB 로 전개된 값이 남는다.
+  run_gate "CI fresh DB alembic" "throwaway + drift check" bash -c '
     db="quantbridge_ci_repro_test"
     docker exec quantbridge-db psql -U quantbridge -d postgres -q -c "DROP DATABASE IF EXISTS $db;" >/dev/null || exit 1
     docker exec quantbridge-db psql -U quantbridge -d postgres -q -c "CREATE DATABASE $db;" >/dev/null || exit 1
     cd "$0/apps/api"; set -a; . ./.env.local; set +a
-    DATABASE_URL="postgresql+asyncpg://quantbridge:password@localhost:5433/$db" uv run alembic upgrade head' "$ROOT"
+    export DATABASE_URL="postgresql+asyncpg://quantbridge:password@localhost:5433/$db"
+    export TIMESCALE_URL="$DATABASE_URL"
+    uv run alembic upgrade head || exit 1
+    uv run alembic check' "$ROOT"
 
   run_gate "CI frozen-lockfile" "pnpm" bash -c 'cd "$0/apps/web" && pnpm install --frozen-lockfile' "$ROOT"
 

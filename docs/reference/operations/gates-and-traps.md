@@ -44,7 +44,7 @@ cd $QB/apps/web && pnpm e2e:authed
 ```bash
 cd $QB && bash tools/scripts/skip-ratchet.sh    # 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)
 cd $QB && mise run docs-audit                 # ⓪ 표 정체성 축 포함 (아래)
-cd $QB && mise run gate-harnesses             # ★게이트 하네스 13종 전량 (2026-08-16 · db-backup·disk-guard 추가)
+cd $QB && mise run gate-harnesses             # ★게이트 하네스 14종 전량 (2026-08-17 · tool-pin-audit 추가)
 ```
 
 - **`skip-ratchet`** — `@pytest.mark.skip` 데코레이터 **와** 모듈 레벨 `pytestmark = pytest.mark.skip(...)`
@@ -71,10 +71,11 @@ cd $QB && mise run gate-harnesses             # ★게이트 하네스 13종 전
   `**트리거 판정:**` 줄이 **0건**이다~~ → **2026-08-11 [BL-703] 이 채웠다.** PARTIAL 전건이
   판정줄을 갖고 `docs-audit` 이 그 의무를 강제하므로, 이 축은 이제 **두 항을 다 쓴다**
   (착수 근거였던 「P0 1 + P1 4 가 올라온다」는 실측으로 반증됐다 — 올라온 것은 다른 5건이다).
-- **`mise run gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **13종**(2026-08-13
+- **`mise run gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **14종**(2026-08-13
   [ADR-030] 이 `fleet-dispatch-test` 를 함대 축과 함께 회수해 9→8, 2026-08-14 `final-gates-test`
   ([BL-721])와 `assert-main-checkout-test`([BL-722])가 8→10, 2026-08-15 `soak-stack-test`
-  ([BL-735])가 10→11, 2026-08-16 [ADR-033] 의 `db-backup-test`·`disk-guard-test` 가 11→13).
+  ([BL-735])가 10→11, 2026-08-16 [ADR-033] 의 `db-backup-test`·`disk-guard-test` 가 11→13,
+  2026-08-17 [BL-785] 의 `tool-pin-audit-test` 가 13→14).
   ★★**2026-08-11 실측 — CI 는 종전에 하네스를 하나도 돌지 않았다**(7종 전부 CI 호출 0).
   게이트 본체만 돌면 레포가 이미 깨끗하기 때문에 **판정 로직을 통째로 지워도 초록**이다
   (BL-569 가 `bl-audit` 에서, BL-601 이 구 `fleet-dispatch` 에서 겪은 그 모양). 종전에 그 회귀를
@@ -421,8 +422,15 @@ tools/scripts/soak-stack.sh migrate --confirm   # 집행 (★사용자 승인이
   ⇒ 고치는 법은 `brew install mise && mise install` 그리고 `eval "$(mise activate zsh)"` 다.
   ★**`--force` 로 락파일을 다시 쓰지 마라** — CI 의 `frozen-lockfile` 게이트와 정면 충돌한다.
   락파일은 멀쩡하고 틀린 것은 그것을 읽는 pnpm 버전이다.
-  ★**`make` 타깃과 git 훅은 안전하다** — 셋 다 shim 을 PATH 앞에 스스로 세운다(`Makefile:15`,
-  `.husky/pre-commit`, `.husky/pre-push`). 노출되는 것은 **터미널에서 맨손으로 `pnpm`·`uv` 를 칠 때**뿐이다.
+  ★~~`make` 타깃과 git 훅은 안전하다(`Makefile:15`, `.husky/pre-commit`, `.husky/pre-push`).
+  노출되는 것은 **터미널에서 맨손으로 `pnpm`·`uv` 를 칠 때**뿐이다.~~ → **2026-08-17 [BL-785] 이
+  절반을 반증했다.** 훅 2종은 그대로 안전하고 `Makefile` 은 [ADR-036] 이 없앴지만, **게이트
+  스크립트가 노출돼 있었다** — `final-gates.sh` 가 `uv`·`pnpm`·`node` 를 PATH 로 부르고 있었고,
+  그래서 pnpm 8 셸에서는 **lockfile diff 가 0 인 브랜치도 `CI frozen-lockfile` 이 red** 였다.
+  증상이 「내 PR 이 lockfile 을 깼다」로 오인된다. ⇒ 로컬 스크립트 5종이 이제
+  `tools/scripts/lib/mise-shim-path.sh` 를 소싱해 shim 을 PATH 앞에 세우고,
+  `tools/scripts/tool-pin-audit.sh` 가 재유입을 막는다(`final-gates` 의 「도구 핀 감사」).
+  ★**서버에서 도는 `soak-*.sh` 6종은 면제다** — 그 환경에 mise 가 있는지 확인된 바 없다.
   ★**워크스페이스가 아니다** — 루트 `package.json` 은 husky 전용이고 `pnpm-workspace.yaml` 이 없다.
   FE 설치는 반드시 `cd apps/web` 에서 한다.
 - ★★**BE pytest 는 격리 포트(5433/6380)를 쓴다 — `mise run up` 으로 올린 기본 스택(5432/6379)에서는 안 돈다.**
@@ -445,6 +453,28 @@ tools/scripts/soak-stack.sh migrate --confirm   # 집행 (★사용자 승인이
 - **수동 `alembic downgrade` 는 개발 DB 를 향했다.** ★2026-08-10 이후 `apps/api/alembic/env.py` 가 **downgrade 만** 골라 막는다(`upgrade` 는 통과 — 안 그러면 `mise run migrate`·entrypoint·CI 가 함께 죽는다). 정당한 롤백은 `alembic -x allow_destructive=1 downgrade <rev>`.
   ★**이 가드가 못 보는 표면이 하나 있다** — `command.downgrade(cfg, ...)` 처럼 파이썬에서 직접 부르면 `config.cmd_opts` 가 `None` 이라 방향을 알 수 없다. 그 표면은 pytest 쪽 가드가 덮는다.
 - ★**파괴적 작업 전에 찍어라 — `mise run db-snapshot`.** `.backups/<db>-<ts>.dump` 로 나온다(gitignore). 복원은 `mise run db-restore FILE=… TO=<대상 DB>` 이고 **`TO` 에 기본값이 없다** — 기본값을 개발 DB 로 두는 편의가 곧 이 항목이 막으려는 사고다. 2026-08-10 실측: 덤프 2.15MB → 임시 DB 복원에서 orders 823 · 암호화 API 키 2/2 가 왕복했다.
+- ★★**`alembic check` 는 「migration 으로만 만든 DB」에 대고 재는 것이 정본이다** (2026-08-17 [BL-782]).
+  이 레포에는 스키마를 만드는 경로가 둘이다 — `alembic upgrade head` 와 `SQLModel.metadata.create_all`
+  (pytest 픽스처). **둘의 결과가 갈릴 수 있고 실제로 갈렸다.** 그래서 「어느 DB 에 대고 재는가」를
+  정하지 않으면 같은 명령이 환경마다 다른 답을 낸다 — [BL-770] 이 「`alembic check` rc=0 이 처음」
+  이라 닫은 측정이 그 예다. 그것은 **개발 DB** 에 대한 것이었고, 개발 DB 는 `create_all` 이력이
+  섞여 있어 `trading.funding_rates.exchange` 가 이미 enum 이었다(2026-08-17 실측: 개발 DB 는
+  head `20260816_0001` 인데 그 컬럼이 `exchangename`, migration 계보로만 만들면 `varchar(32)`).
+  **판정 기준을 migration-only 로 두는 이유는 하나다 — migration 이 프로덕션 스키마를 만드는
+  유일한 경로**이므로, 그 DB 에서의 drift 만이 배포에서 실제로 터진다.
+  ⇒ 정본 판정은 게이트의 **`CI fresh DB alembic`** 축이다(throwaway `quantbridge_ci_repro_test` 에
+  `alembic upgrade head` → `alembic check`). 손으로 재려면 같은 절차를 밟아라 —
+  **개발 DB 나 pytest DB 에 대고 잰 rc 는 이 질문의 답이 아니다.**
+  ★파이프를 붙이지 마라. `alembic check` 는 실패 시 **rc=255** 다(1 이 아니다).
+  ```bash
+  DB=quantbridge_alembic_check_test
+  docker exec quantbridge-db psql -U quantbridge -d postgres -qc "DROP DATABASE IF EXISTS $DB;"
+  docker exec quantbridge-db psql -U quantbridge -d postgres -qc "CREATE DATABASE $DB;"
+  cd apps/api; set -a; . ./.env.local; set +a
+  export DATABASE_URL="postgresql+asyncpg://quantbridge:password@localhost:5433/$DB" TIMESCALE_URL="$DATABASE_URL"
+  uv run alembic upgrade head > /tmp/up.log 2>&1; echo "upgrade rc=$?"
+  uv run alembic check   > /tmp/ck.log 2>&1; echo "check   rc=$?"
+  ```
 - **`test_migrations.py` 가 `DuplicateColumn` 으로 실패하면 대개 코드 결함이 아니다.** conftest 의 `SQLModel.metadata.create_all` 이 신규 컬럼을 이미 만들어둔 상태에서 `alembic_version` 만 stale 인 경우다. `downgrade base → upgrade head` 로 재구축하면 풀린다.
 - compose 는 항상 두 파일을 겹쳐 쓴다. worker 만 재시작할 때는 **`--no-deps`** 를 붙여라.
   ```bash

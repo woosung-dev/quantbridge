@@ -65,6 +65,13 @@ GIT_COMMON="$(cd "$(git rev-parse --git-common-dir)" && pwd)"
 WT_ROOT="$(git rev-parse --show-toplevel)"
 MAIN_ROOT="$(dirname "$GIT_COMMON")"
 cd "$WT_ROOT"
+
+# ★도구 버전 핀 — §8 의 `pnpm install --frozen-lockfile` 과 `uv sync` 가 **PATH 가 아니라**
+#   `mise.toml` 핀으로 돌아야 한다([BL-785]). pnpm 8 셸에서 부트스트랩하면 lockfileVersion 9.0
+#   을 못 읽어 워크트리가 node_modules 없이 만들어지고, 그 원인이 슬롯 문제로 오인된다.
+# shellcheck source=tools/scripts/lib/mise-shim-path.sh
+. "$WT_ROOT/tools/scripts/lib/mise-shim-path.sh"
+qb_pin_tool_path || true
 echo "▶ 워크트리 부트스트랩"
 echo "  worktree : $WT_ROOT"
 echo "  main     : $MAIN_ROOT"

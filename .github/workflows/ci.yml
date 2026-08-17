@@ -345,6 +345,14 @@ jobs:
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
+      # ★[BL-782] 스키마 drift 판정. **이 DB 가 정본이다** — migration 으로만 만들어졌기
+      # 때문이다(위 스텝이 유일한 생성 경로다). 개발 DB 나 pytest DB 는 `create_all` 이력이
+      # 섞여 있어 같은 명령이 다른 답을 냈고, 그것이 [BL-770] 을 rc=0 으로 닫히게 했다.
+      # 실패 시 rc 는 1 이 아니라 255 다. 판정 기준 전문 = gates-and-traps.md §환경.
+      - run: uv run alembic check
+        env:
+          DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+          TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
       # Trust Layer Parity (Path β, ADR-013) 는 pine_v2 하위 테스트로 자동 포함됨:
       # - test_pynescript_baseline_parity.py (P-1 AST Shape + edge_digest)
       # - test_trust_layer_parity.py (P-2 Coverage SSOT Sync + P-3/Mutation stub)

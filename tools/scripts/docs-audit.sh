@@ -6,6 +6,14 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 
+# ★도구 버전 핀 — 아래 「소유자 없는 검사기」 축이 `shutil.which("node")` 로 node 를 찾고
+#   `node --check` 로 문법을 잰다([BL-785]). 어느 node 냐에 따라 파싱 결과가 갈릴 수 있고,
+#   PATH 에 node 가 아예 없으면 이 축은 **실패로 올라간다**(:231 주석이 그렇게 정했다).
+#   mise 가 없는 셸(CI `documentation` job 포함)에서는 경고만 내고 종전대로 PATH 를 쓴다.
+# shellcheck source=tools/scripts/lib/mise-shim-path.sh
+. "$ROOT/tools/scripts/lib/mise-shim-path.sh"
+qb_pin_tool_path || true
+
 python3 - "$ROOT" <<'PY'
 from __future__ import annotations
 
