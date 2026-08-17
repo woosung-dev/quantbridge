@@ -9,6 +9,7 @@
 
 import { useMemo } from "react";
 
+import { useServerIdentity } from "@/components/providers/server-identity-provider";
 import { getAuthToken, useSession } from "@/lib/auth-client";
 
 /** 로그아웃/미인증 상태의 queryKey sentinel — 5개 feature hooks 에 중복 정의돼 있던 값. */
@@ -27,7 +28,12 @@ export interface AuthCtx {
 
 export function useAuthCtx(): AuthCtx {
   const { data, isPending } = useSession();
-  const userId = data?.user?.id ?? null;
+  const serverUserId = useServerIdentity();
+  // ★세션 조회가 끝나기 **전에는** SSR 이 준 id 를 쓴다([BL-786]).
+  //   이 한 줄이 없으면 `uid` 가 `anon` → 진짜 id 로 한 번 바뀌고, queryKey 가 `uid` 로 시작하는
+  //   모든 쿼리가 같은 URL 을 두 번 친다. 세션이 도착한 뒤에는 세션이 정본이다 — 로그아웃 직후
+  //   낡은 SSR 값이 살아남으면 안 된다.
+  const userId = isPending ? serverUserId : (data?.user?.id ?? null);
   const signedIn = Boolean(data?.session);
   // ★참조를 고정한다 — 이 훅은 화면 곳곳에서 불리고, 매 렌더 새 객체를 내면 그것을 dependency
   //   로 쓰는 소비자가 생겼을 때 조용히 루프가 된다(`rerender-dependencies`). 원시값 두 개만

@@ -25,6 +25,12 @@ import {
   NEW_BACKTEST_LABEL,
 } from "@/features/backtest/labels";
 import { useBacktests } from "@/features/backtest/hooks";
+import {
+  buildBacktestListQuery,
+  resolveBacktestSort,
+  type BacktestOrder,
+  type BacktestOrderBy,
+} from "@/features/backtest/list-query";
 import type { BacktestStatus, BacktestSummary } from "@/features/backtest/schemas";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import { formatDateTime, formatPercent } from "@/features/backtest/utils";
@@ -32,23 +38,11 @@ import { useStrategies } from "@/features/strategy/hooks";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
-const PAGE_SIZE = 20;
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/backtests";
 const STRATEGY_FETCH_LIMIT = 100;
 const RETURN_METRIC = "total_return";
 const UNFINISHED_METRICS_TITLE = "아직 끝나지 않은 실행은 수익률을 채우지 않습니다.";
-
-type BacktestOrderBy = "created_at" | "total_return" | "max_drawdown" | "sharpe_ratio" | "num_trades";
-type BacktestOrder = "asc" | "desc";
-
-const BACKTEST_ORDER_BY: readonly BacktestOrderBy[] = [
-  "created_at",
-  "total_return",
-  "max_drawdown",
-  "sharpe_ratio",
-  "num_trades",
-];
 
 // 라벨은 용어 SSOT(BACKTEST_STATUS_FILTER_LABEL)에서 파생 — 배지 표기와 불일치 방지.
 const STATUS_FILTERS: ReadonlyArray<{ id: "all" | BacktestStatus }> = [
@@ -71,16 +65,15 @@ export function BacktestList() {
   const activeStatus: "all" | BacktestStatus = STATUS_FILTERS.some((f) => f.id === statusParam)
     ? (statusParam as "all" | BacktestStatus)
     : "all";
-  const orderBy: BacktestOrderBy = BACKTEST_ORDER_BY.some((column) => column === orderByParam)
-    ? (orderByParam as BacktestOrderBy)
-    : "created_at";
-  const order: BacktestOrder = orderParam === "asc" ? "asc" : "desc";
+  const { order_by: orderBy, order } = resolveBacktestSort(orderByParam, orderParam);
 
   // BE 가 status 필터를 list endpoint 에서 지원하지 않으므로 client-side filter (현재 페이지 한정).
   // sort 축·방향은 URL 스칼라에만 의존해 queryKey 와 서버 정렬을 동기화한다(H-1/H-2 정합).
+  // ★queryKey 는 페이지(Server Component)의 prefetch 키와 **같은 생성자**로 만든다 — 두 곳에서
+  //   각자 조립하던 것이 [BL-786] 의 중복 요청 절반이었다.
   const query = useMemo(
-    () => ({ limit: PAGE_SIZE, offset: 0, order_by: orderBy, order }),
-    [orderBy, order],
+    () => buildBacktestListQuery(orderByParam, orderParam),
+    [orderByParam, orderParam],
   );
   const { data, isLoading, isError, error, refetch } = useBacktests(query);
   const strategiesQ = useStrategies({
