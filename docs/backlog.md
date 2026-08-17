@@ -7645,7 +7645,15 @@ Open 항목과 **같은 파일에** 있다.
 
 **Risk:** 🟠 (살아 있는 컬럼의 타입 변환. 되돌리기가 비싸다)
 
-**상태:** ⬜ Open — 2026-08-17 에 `origin/main` 대조로 선재 확정. 판정 기준 미정
+**상태:** ✅ **Resolved (2026-08-17 야간 gate-pins, PR #658).** 판정 기준을 **migration-only DB** 로 확정해 `gates-and-traps.md` §환경에 적었다 — migration 이 프로덕션 스키마를 만드는 유일한 경로이기 때문이다. 그 기준으로 남아 있던 **유일한 drift**(`trading.funding_rates.exchange` VARCHAR(32) → `exchangename`)를 migration `20260817_0002` 로 닫았고(DDL 문 1개), 게이트 `CI fresh DB alembic` 과 **CI `backend` 잡** 둘 다 `upgrade head` 뒤에 `alembic check` 까지 돈다. ★**[BL-770] 의 「rc=0 이 처음」은 개발 DB 에 대한 참이었다** — 그 DB 는 `create_all` 이력이 섞여 컬럼이 이미 enum 인데 migration 계보로만 만들면 `varchar(32)` 다. 같은 명령이 DB 마다 다른 답을 냈고 그 사실이 어디에도 안 적혀 있었다. ★모델을 낮추지 않고 migration 을 올린 근거: 같은 enum 을 쓰는 `exchange_accounts.exchange` 는 `20260416_2206` 에서 이미 native enum 이라, 모델을 `str` 로 낮추면 같은 개념의 두 컬럼이 서로 다른 타입이 된다.
+
+CONTROL 이 AC-6/AC-7 을 독립 재현했다(throwaway DB `alembic check` rc=0 / migration 을 뺀 fresh DB rc=255,
+사유는 그 컬럼의 `modify_type` 하나뿐). `funding_rates` 는 hypertable 이 아니다(hypertable 은 `ts.ohlcv` 뿐).
+★**서버 소크 DB 에는 적용하지 않았다** — 적용 전 `SELECT DISTINCT exchange FROM trading.funding_rates` 로
+값을 먼저 세라. 라벨 밖 값이 있으면 `USING` 캐스트가 트랜잭션째 롤백한다(소리 내며 실패하며 조용한 손상은
+아니다) → [BL-790]. 후속 후보: `funding_rate_repository.py` 의 `cast(exchange, String)` 은 이제 구조적으로
+불필요하나 migration 이 안 닿은 DB 를 위해 남겼다 — 전 배포처가 head 에 도달하면 걷어내고
+`ix_funding_rates_exchange_symbol` 를 되찾을 수 있다.
 **트리거 판정:** 도래 — 검사 대상 DB 를 바꾸는 순간 재현되고, [BL-773] 회차가 실제로 밟았다
 
 ### BL-783
@@ -7730,7 +7738,17 @@ red 였는데 실패 테스트가 실행마다 갈렸고, 단독 실행은 항�
 
 **Risk:** 🟡 (테스트 전용. 다만 잘못 고치면 판별력이 사라져 진짜 회귀를 놓친다)
 
-**상태:** 🟡 부분 해결 — ★**기전 확정 (2026-08-17 야간 레인 α, PR #655 `0875789c`). 수리는 미착수.** 지연이 아니라 **거부**다: BE 전역 레이트리밋 `default_limits=["100/minute"]`(`apps/api/src/common/rate_limit.py:122`, 신원 단위)이 authed 스위트를 429 로 끊는다. 실패 시점 trace 4회 전부 대상 목록 요청이 **5~31ms 만에 429**(`x-ratelimit-limit: 100` · `remaining: 0` · `retry-after: 1~7`)였고 화면에는 `API 429 /api/v1/backtests` 가 떠 있었다 — UI 는 옳게 동작했고 테스트가 기다린 행이 없었을 뿐이다. 한 신원으로 90 테스트 × 요청 4~8건이라 60초 창을 상시 소진하고(한 밤 BE 로그 429 **616건**), 대부분은 단언 없는 배지 프로브라 **하필 단언 대상이 걸린 회차만 red** 다.
+**상태:** ✅ **Resolved (2026-08-17 야간 bl784-fix, PR #659).** 기전은 직전 회차가 확정했고(지연이 아니라 **거부** — BE 전역 `default_limits=["100/minute"]` 이 신원 단위로 authed 스위트를 429 로 끊는다. 한 신원 × 90 테스트 × 요청 4~8건이라 60초 창을 상시 소진하고, 대부분이 단언 없는 배지 프로브라 **하필 단언 대상이 걸린 회차만 red** 였다), 이 회차가 수리했다. **한도 자체는 [BL-754] 가 세운 프로덕션 방어물이라 안 건드렸다**(`default_limits` diff 0줄) — e2e 신원 **하나만** 면제한다.
+
+발화 조건은 둘이고 둘 다 필요하다: ⑴ `app_env` 가 **정확히 `development`** ⑵ 검증된 JWT 의 `email` 이 `E2E_RATE_LIMIT_EXEMPT_EMAIL` 과 일치(양쪽 `strip().lower()`). 설정이 비면 아무도 면제되지 않는다 — **비교보다 설정 검사를 먼저** 둔 이유다. 판정: authed 연속 3회 rc=0(90 passed) · BE 429 **0건**. 판별력은 한도를 `5/minute` 로 낮춰 증명했다 — 완화 no-op 이면 **429 913건에 8 failed**, 켜면 **0건에 90 passed**.
+
+★**⑴ 이 화이트리스트인 것이 적대 리뷰의 산물이다.** 초판은 `settings.is_production`(블랙리스트)이었는데 `is_production` 은 **staging 을 거짓으로 본다**. 부팅 검사도 `_enforce_production_safety` 의 조기 반환 **뒤**에 있어 staging 에서는 실행조차 안 됐다 — 즉 **staging 인스턴스에는 두 층이 모두 없었다**. CONTROL 이 두 층을 다 화이트리스트로 바꾸고 부팅 검사를 validator 맨 앞으로 옮겼다(변이: 각각 되돌리면 새 staging 테스트 2건만 red, 35 passed).
+
+★**[BL-773] 의 `sprint46-tier1-critical.spec.ts:69` 가 이번에 재현됐다.** 직전 회차는 재현하지 못했고 「그 spec 은 `page.route()` 로 전수 stub 이라 BE 429 를 안 탄다」고 적혀 있었는데 **거짓이다** — `page.route` 를 19곳 쓰지만 전수가 아니다. 한도를 낮춰 429 를 강제하면 그 테스트가 실패 8건에 들어가고 완화를 켜면 통과한다. 즉 [BL-773] 의 최초 실패와 이 수리가 같은 축이고, 이 축은 더 이상 차단자가 아니다.
+
+★★**코드만 머지하면 안 고쳐진다** — `E2E_RATE_LIMIT_EXEMPT_EMAIL` 은 `.env.local` 값이고 그 파일은 커밋 대상이 아니다. 메인 체크아웃 `apps/api/.env.local` 에 `E2E_RATE_LIMIT_EXEMPT_EMAIL=e2e@dogfood.local` 이 있어야 발화한다(값은 `apps/web/.env.local` 의 `E2E_AUTH_EMAIL` 과 같아야 한다). 2026-08-17 통합 시 넣었다. **이 변수를 어떤 배포 환경의 env 에도 넣지 마라** — `APP_ENV` 가 누락되면 두 층 다 development 로 읽는다(2026-08-15 에 실제로 그 상태로 돈 호스트가 있었다). 변수가 없으면 `APP_ENV` 가 어떻든 아무도 면제되지 않는다.
+
+남은 한계 = [BL-794] (면제가 신원 소유를 증명하지 않는다) · 같은 증상의 두 번째 원인 = [BL-795] (Turbopack 캐시 물림)
 ★★**전제 2건 반증** — ⑴ 「단독 실행은 항상 green」이 **거짓**(단독 3회 중 1회 red). 「게이트에서만」이라는 축 자체가 틀렸고 게이트는 그 레그를 **돌린 유일한 것**이었다 ⑵ 반증됐던 「pytest 가 시드를 지운다」 가설의 출처가 **테스트의 오도 문구**였다(`:108` 이 429 를 「데이터 시딩 필요」라고 보고한다). ★재현 **15회 중 4회 red**(부하 없음 1/9 · 합성 부하 2 조건 3/6) — 부하는 원인이 아니라 확률 요인이다.
 ★계측 도입 — `PW_ARTIFACT_RUN` 관측 모드(`playwright.config.ts`) + 재현 하네스(`tools/scripts/e2e-authed-repro.sh`, shape 3종).
 ★★**증거가 없던 이유가 확인 행위였다** — playwright 는 매 실행 setup 에 `outputDir` 을 통째로 지우고 project 7종이 `test-results/` 하나를 공유해서, 게이트 red 뒤 「단독으로도 실패하나」를 돌리는 순간 그 trace 가 파괴된다([LESSON-117]). ★**적대 리뷰가 그 계측기에서 P2 3건**을 찾아 같은 PR 에서 닫았다 — 그중 `PW_ARTIFACT_RUN=..` 가 `outputDir` 을 `apps/web/<project>` 로 만들어 **소스 디렉터리를 지우는** 건이 있었다(수리 + 테스트 6건 + 변이 판별력 증명).
@@ -7776,7 +7794,17 @@ red 였는데 실패 테스트가 실행마다 갈렸고, 단독 실행은 항�
 
 **Risk:** 🟡 (게이트 전용. 다만 고치기 전까지 로컬 마감이 이 한 건으로 막힌다)
 
-**상태:** ⬜ Open — 2026-08-17 실측으로 확정(PATH 8.15.9 rc=1 vs mise 9.12.0 rc=0). 미착수
+**상태:** ✅ **Resolved (2026-08-17 야간 gate-pins, PR #658).** 로컬 스크립트 5종이 `tools/scripts/lib/mise-shim-path.sh` 로 shim 을 PATH 앞에 세운다. `mise exec --` 대신 이쪽을 고른 근거는 셋이다 — ⑴ `mise exec --` 는 `mise` 바이너리가 PATH 에 있어야 하는데 이 병의 전형적 셸은 「shim 은 있는데 mise 는 활성화 안 된」 셸이다(shim 은 자기완결 바이너리라 `PATH=shims:/usr/bin:/bin` 에서도 9.12.0 을 낸다) ⑵ `final-gates.sh` 의 호출 지점이 17곳이고 대부분 `bash -c '…'` 문자열 안이라 17곳을 고치면 17곳이 다시 새는 표면이 된다 ⑶ `.husky/pre-commit`·`pre-push` 가 **이미 그 관용구**다. 재유입은 새 게이트 `tool-pin-audit.sh` + 하네스 13케이스가 막는다(`mise run gate-harnesses` 13→14종). **음성 대조로 종결했다** — 가짜 `pnpm`/`uv`/`node`(`exit 1`)를 PATH 앞에 세운 채 수리 전 코드는 `CI frozen-lockfile` rc=1, 수리 후는 rc=0(`pnpm` 축과 `uv` 축 각각). ★**서버(`truewords-oracle`)에서 도는 `soak-*.sh` 6종은 안 고쳤다** — 그 환경의 mise 존재를 확인할 수 없고 접속이 금지다. 근거는 「없을 수도 있으니」가 아니라 **「모르니」**다.
+
+★**이 회차가 만든 회귀 1건을 이 회차가 잡았다** — `docs-audit.sh` 에 핀을 넣자 `docs-audit-test.sh` 가
+fixture 트리에 `lib/` 를 안 옮겨 19케이스가 전부 rc=1 이 됐고, 표적 테스트 13건은 전부 초록이었다.
+잡은 것은 **게이트 전량 실행**이다.
+
+★**적대 리뷰가 잡은 P2 를 CONTROL 이 같은 PR 에서 수리했다** — 감사기가 스캔 루트를 `QB_TOOL_PIN_ROOT`
+env 만 보고 정했고 `final-gates` 가 루트를 명시하지 않아, 위반을 심은 트리에서
+`QB_TOOL_PIN_ROOT=<빈 트리>` 하나로 rc=1 → **rc=0 + 「✓ 위반 0건」 초록**이 났다. `signal-check.sh` 가
+콜드 리뷰 P2-1 에서 겪고 `--root` 로 닫은 바로 그 결함이라 그 관용구를 재사용했고, 대상 0개면 rc=3
+abort 도 넣었다(「볼 것이 없으면 통과」 — 소크 C4 와 같은 병). 남은 사각은 [BL-791]·[BL-792].
 **트리거 판정:** 도래 — `apps/web` 이 없는 브랜치에서도 이 게이트는 돌고, 그때마다 red 다
 
 ### BL-786
@@ -7804,7 +7832,14 @@ authed e2e 는 한 신원으로 90 테스트를 도는데, 요청이 두 배면 
 
 **Risk:** 🟢 (읽기 요청 중복 제거. 다만 원인이 StrictMode 면 「고칠 것이 없다」로 끝날 수 있다)
 
-**상태:** ⬜ Open — 2026-08-17 trace 실측으로 확정. 미착수
+**상태:** ✅ **Resolved (2026-08-17 야간 bl786-dup, PR #660).** 원인은 StrictMode 가 **아니다** — React Query 키의 첫 인자 `uid` 가 한 화면 로드 안에서 `"anon"` → 진짜 id 로 바뀌어(세션 왕복 전까지 `useAuthCtx` 가 `anon` 을 낸다) 모든 목록·배지 쿼리가 **두 키로 각각 한 번씩** 나갔다. ★**「동시에 두 번」이 「한 번 마운트되고 두 번 요청」이 아니었다** — 두 요청이 같은 ms 에 나간 것은 둘 다 `getAuthToken()` 해소를 기다렸다가 함께 풀렸기 때문이다. 가설을 가른 방법 셋: ⒜ 프로덕션 standalone 빌드에서 **동일 재현**(StrictMode 배제) ⒝ DOM 셸 개수 1벌(이중 마운트 배제) ⒞ uid 전이를 타임라인으로 계측(확정). 수리는 ⑴ SSR 이 아는 `userId` 를 첫 렌더에 넘겨(`ServerIdentityProvider` + `useAuthCtx`, 세션 도착 후에는 세션이 정본) 키 churn 을 없애고 ⑵ `/backtests` 의 SSR prefetch 키를 클라이언트와 **같은 생성자**(`features/backtest/list-query.ts`)에서 만든 것이다 — 후자는 계획에 없던 두 번째 결함으로, prefetch 키가 `{limit, offset}` 이고 클라이언트는 `order_by`·`order` 까지 넣어 **SSR 이 가져온 목록이 넉 달간 통째로 버려지고 있었다**. 검사면 신설 = `e2e/api-request-dedup.spec.ts`(앵커 미관측 시 「측정 실패」로 red — 빈 입력이 초록으로 새는 길을 막았다).
+
+브라우저 요청 `/backtests` 10→4 · `/dashboard` 15→8 · `/strategies` 6~7→3 이고 **dev 와 prod 가 같다**.
+★**대가를 측정했다** — layout 이 쿠키를 읽으면서 dashboard **static 라우트가 16→8** 로 준다
+(대조 빌드 2회, layout 만 교체). 유지 판단의 근거와 대안은 [BL-793].
+★적대 리뷰 P2 를 CONTROL 이 수리했다 — `retry: 1` + 1초 백오프가 측정 창 안이라 429 한 건이 「중복」으로
+읽혔다(이 게이트가 **가짜 red 를 내는 장치**였다). 실패 응답을 따로 모아 중복 판정보다 **먼저**
+「측정 오염」으로 red 를 낸다.
 **트리거 판정:** 도래 — 관측 증거가 이미 있다
 
 ### BL-787
@@ -7833,3 +7868,179 @@ authed e2e 는 한 신원으로 90 테스트를 도는데, 요청이 두 배면 
 
 **상태:** ⬜ Open — 2026-08-17 등재. 미착수
 **트리거 판정:** 도래 — [BL-783] 머지로 비대칭이 확정됐다
+
+---
+
+### BL-788
+
+**Title:** `tests/conftest.py` 의 `create_all` 스키마 범위가 **import 목록으로만** 정의된다 — 빠진 모델은 조용히 안 만들어지고 head 로 stamp 된다
+**Category:** 테스트 / 인프라
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-17 에 `auth_*` 5테이블이 실제로 빠져 있었다
+**Est:** S (등록 테이블 수를 재는 검사면 1개)
+**출처:** 2026-08-17 야간 레인 β — 두 BL 어느 쪽도 아니라 레인이 별건으로 넘겼고 CONTROL 이 등재
+
+**원인 / 영향:** `bootstrap_test_schema` 는 `SQLModel.metadata.create_all` 로 스키마를 만든 뒤 `alembic_version` 을 **생 SQL 로** head stamp 한다. `create_all` 이 만드는 것은 **그 순간 metadata 에 등록된** 테이블뿐이므로, 파일 머리의 모델 import 목록이 곧 스키마 범위다. `src/auth/better_auth_tables.py` 를 import 하는 곳이 `alembic/env.py` **하나뿐**이라 fresh DB 에는 `auth_*` 5테이블이 **없는 채로 head 가 적혔고**, `test_migrations.py` 의 `downgrade base` 가 `DROP TABLE auth_jwks` 에서 죽었다. 이전에 migration 이 돈 DB 에는 그 테이블이 남아 있어 통과한다.
+
+★**이것이 원장의 기준선을 오염시켰다** — 「BE 4759 passed」는 거짓이 아니라 **더러운 DB 에서 잰 값**이었다. fresh DB 에서는 `2 failed, 4757 passed` 이고, 이 회차의 migration 을 뺀 대조군에서도 같은 2건이 같은 이유로 실패했다.
+
+★★**표적 실행으로는 구조적으로 안 보인다.** CONTROL 이 그 import 를 지우고 fresh DB 에서 `test_migrations.py` **단독**을 돌렸더니 **20 passed rc=0** 이었다. 전량 실행에서만 red 가 된다(수집 단계에서 다른 모듈이 `auth` 쪽을 import 하는지로 갈린다). 즉 이 결함군은 **전량 pytest 만이 증인**이다.
+
+**처방:** import 한 줄은 [BL-785] 회차가 이미 넣었다(수리 완료). 남은 것은 **재발 방지**다 — 「`SQLModel.metadata` 에 등록된 테이블 수 == 기대치」를 재는 검사면이 없어서, 다음에 모델 파일이 추가되고 conftest import 가 빠지면 같은 일이 반복된다. [BL-782] 와 같은 병의 다른 층이라는 것도 함께 적어라(`create_all` 경로 ≠ migration 경로 — 저기는 컬럼 타입, 여기는 테이블 존재).
+
+**Risk:** 🟢 (검사면 추가. 프로덕션 코드 무변경)
+
+**상태:** ⬜ Open — 2026-08-17 등재. 수리는 됐고 **검사면이 없다**
+**트리거 판정:** 도래 — 결함이 실재했고 기준선을 오염시킨 것이 실측됐다
+
+---
+
+### BL-789
+
+**Title:** authed e2e 가 **GitHub CI 에서 안 돈다** — authed 계열 spec 전부가 로컬 전용 게이트다
+**Category:** CI / 테스트
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-17 에 신설한 회귀 게이트가 CI 에서 안 돈다는 것이 실측됐다
+**Est:** M ([BL-781] 과 한 뿌리 — CI 인증 배선)
+**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 γ)
+
+**원인 / 영향:** `.github/workflows/ci.yml:515` 는 `--project=chromium --project=chromium-live-smoke --project=chromium-design-canon` 만 부른다. `playwright.config.ts` 의 `chromium-authed` 는 「잔여 전체」를 가져가므로 **새 authed spec 은 파일을 만들기만 하면 로컬에서는 돌지만 CI 에서는 한 번도 안 돈다.** 음성 대조로 확인했다 — `playwright test --list --project=chromium` 에 [BL-786] 의 새 spec 이 **0건**으로 안 잡힌다.
+
+⇒ **PR 이 CI 전건 초록이면서 그 게이트들이 red 인 상태로 머지될 수 있다.** 실제로 이 회차의 γ PR 은 CI 가 가장 먼저 초록이었고, 그 초록은 새 dedup 게이트를 통과했다는 뜻이 **아니었다**(로컬 `--deferred-only` 가 따로 판정했다).
+
+**처방:** [BL-781] — 격리 슬롯의 authed 는 ADR-034 이후 `BETTER_AUTH_URL` 을 못 받아 403 `INVALID_ORIGIN` 이다과 한 뿌리다. 한 파일을 다른 project 로 옮기는 것으로는 안 풀린다 — authed spec 은 로그인이 필요하므로 비-authed project 로 갈 수 없다. **CI 에서 Better Auth 를 세우는 배선**이 본체이고, 그 전까지는 「CI 초록 = authed 게이트 통과」로 읽지 마라.
+
+**Risk:** 🟡 (CI 인증 배선. 시크릿 관리 표면이 생긴다)
+
+**상태:** ⬜ Open — 2026-08-17 등재. 미착수
+**트리거 판정:** 도래 — 신설 게이트가 CI 밖이라는 것이 실측됐다
+
+---
+
+### BL-790
+
+**Title:** funding rate 인제스션이 `exchange_name: str` 을 받는다 — CCXT 속성명 검사만 하고 raw SQL 로 넣는다
+**Category:** 도메인 / 타입 안전
+**Priority:** P3
+**Trigger:** 도래 — [BL-782] 가 컬럼을 native enum 으로 올려 실패 지점이 INSERT 로 앞당겨졌다
+**Est:** S (타입 1개 + 그것을 재는 테스트)
+**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 β)
+
+**원인 / 영향:** `fetch_and_store_funding_rates(*, exchange_name: str, …)` 는 `getattr(ccxt_async, exchange_name, None)` 이 None 만 아니면 통과시키고 그 문자열을 raw SQL 로 넣는다(`src/trading/funding.py:42·54·70`). CCXT 는 100개 넘는 거래소를 갖고 있으므로 `kraken`·`bitmex` 등이 전부 그 검사를 지난다. **[BL-782] 이전에는 컬럼이 VARCHAR(32) 라 조용히 들어갔고, 이후에는 INSERT 가 죽는다.**
+
+★**지금 실害는 0 이다** — 생산자를 전수했다. 자동 경로는 celery beat 스케줄 **3건뿐**이고 `celery_app.py:139·145·151` 의 `args` 가 **전부 `"bybit"` 하드코딩**이다. API 라우터에서 이 task 를 enqueue 하는 코드는 **0건**이고 `backfill_funding_rates_task` 는 정의만 있고 호출부가 없다. 개발 DB 실측도 `bybit` 162행뿐이다.
+
+**처방:** 시그니처를 `ExchangeName` 으로 좁힌다. ★**서버 소크 DB 에 `20260817_0002` 를 적용하기 전에는 반드시 `SELECT DISTINCT exchange FROM trading.funding_rates` 로 값을 먼저 세라** — 라벨(`bybit`·`binance`·`okx`) 밖 값이 있으면 `USING` 캐스트가 트랜잭션째 롤백한다. 소리 내며 실패하므로 조용한 손상은 아니지만 창 안에서 migration 이 멈춘다.
+
+**Risk:** 🟢 (타입 좁히기. 현 생산자는 전부 리터럴)
+
+**상태:** ⬜ Open — 2026-08-17 등재. 미착수
+**트리거 판정:** 도래 — enum 전환으로 실패 지점이 바뀌었다
+
+---
+
+### BL-791
+
+**Title:** `mise-shim-path.sh` 가 shim **디렉터리 존재만** 본다 — 빈/부분 설치면 조용히 구버전으로 폴백한다
+**Category:** Infra / 게이트
+**Priority:** P3
+**Trigger:** ⏳ **대기** — CI 로그의 `⚠ mise shim 디렉터리가 없다` 유무가 판단 근거다
+**Est:** S (내용물 검증 + fail 정책 결정)
+**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 β)
+
+**원인 / 영향:** 함수는 디렉터리가 없으면 실패를 반환하지만 **모든 호출부가 `|| true` 로 무시**한다. 더 좁게는, 디렉터리 **존재만** 확인하므로 빈/부분 설치된 `shims/` 는 성공으로 처리되고 그 안에 `pnpm` shim 이 없으면 셸이 다음 PATH 항목의 구버전으로 조용히 폴백한다. 버전이 호환되면 게이트는 초록을 낸다 — **[BL-785] 가 닫으려던 바로 그 모양이 좁은 경우로 남아 있다.**
+
+**처방:** fail-closed 로 바꾸면 mise 없는 러너에서 게이트가 **전부** 죽으므로 그것이 옳은지는 CI 실행 결과가 정한다. **PR #658 의 CI 로그에 그 경고가 있었는지 먼저 확인하고**, 있으면 「CI 에는 mise 가 없다」가 확정되므로 fail-open 을 유지하되 경고를 게이트 요약에 올린다. 없으면 내용물 검증(`command -v pnpm` 이 shim 경로를 가리키는지)을 추가할 수 있다.
+
+**Risk:** 🟡 (fail 정책 변경. 잘못 조이면 CI 가 통째로 red)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — CI 로그 확인이 선행이다
+**트리거 판정:** 미도래 — 판단 근거(CI 로그)를 아직 안 읽었다
+
+---
+
+### BL-792
+
+**Title:** `tool-pin-audit.sh` 의 알려진 사각 둘 — **핀 위치를 안 보고**, 간접 실행을 못 본다
+**Category:** Infra / 게이트
+**Priority:** P3
+**Trigger:** ⏳ **대기** — 레포에 그 두 형태가 현재 0건이다
+**Est:** M (셸 파서 수준의 판정이 필요하다)
+**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 β)
+
+**원인 / 영향:** ⑴ 호출은 **명령 위치**로 판정하지만 핀은 「파일 어딘가에 source + `qb_pin_tool_path` 문자열이 있으면 참」이다 — 도달 불가한 `if false; then … fi` 안에 넣어도 통과한다. ⑵ `tool=pnpm; "$tool" install` 이나 `eval 'uv run pytest'` 는 호출 정규식에 안 걸려 위반 0건이 된다.
+
+⇒ **「감사기가 초록이다」는 「위반이 없다」가 아니라 「내가 아는 형태의 위반이 없다」가 참인 문장이다.** 이 감사기는 실수 재유입을 막는 장치이지 적대적 우회를 막는 장치가 아니다.
+
+**처방:** 임의의 간접 실행을 정적으로 잡으려면 셸 파서가 필요하다 — 결함 크기에 비해 큰 장치다. 실용적 대안은 핀 **위치**만 보는 것(핀 소싱이 첫 도구 호출보다 앞 줄에 있는가). 레포에 그 두 형태가 실제로 나타나면 그때 착수해라.
+
+**Risk:** 🟢
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 그 두 형태가 레포에 0건이다
+**트리거 판정:** 미도래 — 전수 grep 0건
+
+---
+
+### BL-793
+
+**Title:** dashboard static 라우트 8개가 dynamic 이 됐다 — [BL-786] 수리의 측정된 대가
+**Category:** 프런트 / 성능
+**Priority:** P3
+**Trigger:** ⏳ **대기** — TTFB/TTI 측정이 선행이다
+**Est:** M (대안 구현 + 양쪽 측정)
+**출처:** 2026-08-17 야간 CONTROL `/vercel-react-best-practices` 검토 (레인 γ)
+
+**원인 / 영향:** [BL-786] 이 `(dashboard)/layout.tsx` 에서 `getServerAuth()` 를 부르면서 그 세그먼트 아래가 dynamic rendering 으로 내려갔다. 이 레포에는 미들웨어가 없고 dashboard 페이지 14개 중 **12개는 서버에서 인증을 건드리지 않았으므로** `React.cache` 가 합쳐 줄 상대가 없다 — 순수 추가다.
+
+**대조 빌드 2회(같은 트리, layout 만 교체)로 확정: static 라우트 16 → 8.** 뒤집힌 8개 = `/admin/waitlist` · `/backtests/new` · `/dashboard` · `/onboarding` · `/optimizer` · `/orders` · `/strategies/new` · `/trading`.
+
+★**그럼에도 유지가 옳다고 판단했다** — 이 8개는 로그인해야 보이는 화면이고 static 이라는 것은 「빈 껍데기를 주고 데이터는 전부 브라우저가 가져온다」는 뜻이었다(정확히 [BL-786] 이 고친 구조). 교환비도 유리하다: 서버 왕복 1회 추가 vs 브라우저 요청 `/dashboard` 15→8.
+
+**처방:** 대안이 있다 — 쿼리를 `enabled: !isPending` 으로 막으면 anon 키 요청이 아예 안 나가므로 중복도 없고 static 도 유지된다. 대가는 첫 데이터가 세션 왕복 뒤에 시작된다는 것(TTI 지연). **어느 쪽이 나은지는 TTFB/TTI 를 재기 전에는 정할 수 없다** — 이 회차는 그것을 재지 않았다.
+
+**Risk:** 🟡 (렌더링 모드 변경. 잘못 고르면 체감이 나빠진다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 측정 없이 판단하지 마라
+**트리거 판정:** 미도래 — TTFB/TTI 실측이 선행 조건이다
+
+---
+
+### BL-794
+
+**Title:** e2e rate limit 면제가 **신원 소유를 증명하지 않는다** — JWT `email` 문자열 일치일 뿐이다
+**Category:** 보안 / 테스트
+**Priority:** P3
+**Trigger:** ⏳ **대기** — 표면이 `app_env == development` 로 좁혀져 있다
+**Est:** M (신원 증명 방식 재설계)
+**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 α)
+
+**원인 / 영향:** 면제 판정은 JWT 의 `email` 만 비교하고 그 이메일이 우리가 만든 계정의 것인지, 검증됐는지는 안 본다. 한편 가입은 공개이고 `apps/web/src/lib/auth.ts:66` 이 `requireEmailVerification: false` 다. e2e setup 자신도 `/api/auth/sign-up/email` 공개 엔드포인트로 계정을 만든다(`global.setup.ts:49`). ⇒ 그 변수가 설정된 인스턴스에서 **해당 계정이 아직 없으면** 아무나 그 이메일로 가입해 면제를 얻는다.
+
+★**동작 유지 근거 셋** — ⑴ 표면이 `development` 로 좁혀졌다(staging·production 은 런타임 판정과 부팅 검사 두 층이 막는다). 거기 접근할 수 있는 공격자는 이미 더 큰 것을 갖는다 ⑵ 대안이 더 나쁘다: `sub` 는 DB 를 다시 만들 때마다 바뀌어 설정에 못 적고, 이메일 검증을 요구하면 e2e 부트스트랩이 메일함을 필요로 한다 ⑶ 선점은 탐지된다 — 우리 계정이 있으면 가입이 거부되고, 선점이 성공했다는 것은 우리 계정이 없었다는 뜻이라 스위트가 로그인에 실패한다.
+
+**Risk:** 🟢 (development 한정)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 표면이 좁고 대안이 더 비싸다
+**트리거 판정:** 미도래 — development 밖으로 나가는 계기가 없다
+
+---
+
+### BL-795
+
+**Title:** 「authed 스위트 red」의 **두 번째 원인** — Turbopack 영속 캐시 물림. [BL-784] 와 증상이 같다
+**Category:** 테스트 / 개발 환경
+**Priority:** P3
+**Trigger:** 도래 — 2026-08-17 회차에서 실제로 3/3 red 를 냈다
+**Est:** S (판정식을 문서에 한 줄)
+**출처:** 2026-08-17 야간 레인 α — 회차 중 밟은 환경 함정
+
+**원인 / 영향:** authed 가 3/3 red 로 나온 구간이 있었고 원인은 rate limit 이 아니라 Turbopack 영속 캐시였다. 증상은 `○ Compiling /sign-in/[[...sign-in]] ...` 에서 next-server 가 **CPU 0.0%** 로 멈추고 `global.setup.ts:65` 의 `page.goto('/sign-in')` 이 120초 timeout 으로 죽는 것이다(그 뒤 89건 `did not run`). `curl /sign-in` 은 240초를 넘겨도 응답이 없었다. `apps/web/.next` 를 치우고 재기동하면 `/sign-in` 이 **0.79초**에 컴파일된다.
+
+★**같은 증상에 원인이 둘이라는 것이 [BL-784] 가 넉 달을 끈 이유와 같은 모양이다.** 구분하는 판정식: **실패가 `setup` 단계에서 나고 BE 429 가 0건**이면 캐시 쪽이다(429 가 있으면 [BL-784] 축).
+
+**처방:** 그 판정식을 `gates-and-traps.md` §환경 또는 `docs/lessons.md` 에 한 줄. [BL-650] 이 이미 같은 캐시가 낡은 CSS 로 음성 대조를 거짓 통과시킨 전례를 갖고 있다 — 그 항목과 나란히 두면 「Turbopack 캐시는 서버 재기동을 넘어 산다」가 한자리에 모인다.
+
+**Risk:** 🟢 (문서)
+
+**상태:** ⬜ Open — 2026-08-17 등재. 미착수
+**트리거 판정:** 도래 — 이 회차가 실제로 밟았고 원인을 특정했다
