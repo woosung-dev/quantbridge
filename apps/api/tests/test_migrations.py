@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+from collections import Counter
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, TypeAlias
@@ -17,6 +18,8 @@ from sqlalchemy import (
     DateTime,
     Numeric,
     String,
+    Table,
+    UniqueConstraint,
     Uuid,
     create_engine,
     inspect,
@@ -47,10 +50,29 @@ from tests import _db_guard
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 TypeDrift: TypeAlias = tuple[str, str, str, str, str]
+NullableDrift: TypeAlias = tuple[str, str, str, bool, bool]
+IndexSignature: TypeAlias = tuple[tuple[str, ...], bool]
+IndexDrift: TypeAlias = tuple[str, str, str, tuple[str, ...], bool, int]
 
 # BL-749: 실제 alembic schema와 metadata가 이미 다른 타입은 여기 동결한다. 항목은
 # (schema, table, column, db_type, metadata_type) 순서이며, 새 drift만 test failure로 만든다.
 _TYPE_DRIFT_BASELINE: frozenset[TypeDrift] = frozenset()
+
+# BL-749: server default 는 PostgreSQL reflection 표현차가 커서 이번 축에서는 비교하지
+# 않는다. 예: `nextval(...)`·`now()`·`'{}'::jsonb` 는 metadata 의 SQL 식과 문자열 형태가
+# 달라, 정규화 근거 없이 켜면 상시 red 게이트가 된다. nullable 만 먼저 동결한다.
+# 항목은 (schema, table, column, db_nullable, metadata_nullable) 순서다.
+_NULLABLE_DRIFT_BASELINE: frozenset[NullableDrift] = frozenset()
+
+# BL-749: 인덱스는 이름 대신 (컬럼 순서, unique 여부)와 방향·개수만 비교한다. 이름은
+# Alembic/SQLAlchemy 명명 규칙 차이로 안정적인 동등성 기준이 아니다.
+_INDEX_DRIFT_BASELINE: frozenset[IndexDrift] = frozenset()
+
+# TimescaleDB 가 hypertable 생성 때 소유하는 시간 인덱스다. metadata 에 선언하지 않아야
+# `create_all` 경로에서 중복 생성되지 않으므로, 모델 동등성 검사에서도 DB-only 로 보지 않는다.
+_TIMESCALE_OWNED_INDEXES: frozenset[tuple[str, str, str]] = frozenset(
+    {("ts", "ohlcv", "ohlcv_time_idx")}
+)
 
 
 def _normalize_postgresql_type(type_: TypeEngine[Any]) -> str:
@@ -106,6 +128,126 @@ def _assert_no_new_type_drifts(
         "새 column type drift 발견 (schema, table, column, db_type, metadata_type): "
         f"{sorted(new_type_drifts)}. 기존 drift만 허용하려면 "
         "_TYPE_DRIFT_BASELINE에 정확한 5-튜플을 동결하라."
+    )
+
+
+def _nullable_drifts_for_table(
+    schema: str,
+    table_name: str,
+    db_columns: dict[str, bool],
+    metadata_columns: dict[str, bool],
+) -> set[NullableDrift]:
+    """한 테이블의 공통 컬럼에서 nullable drift 5-튜플을 수집한다."""
+    drifts: set[NullableDrift] = set()
+    for column_name, metadata_nullable in metadata_columns.items():
+        if column_name not in db_columns:
+            continue
+        db_nullable = db_columns[column_name]
+        if db_nullable != metadata_nullable:
+            drifts.add((schema, table_name, column_name, db_nullable, metadata_nullable))
+    return drifts
+
+
+def _assert_no_new_nullable_drifts(
+    observed_nullable_drifts: set[NullableDrift],
+    baseline: frozenset[NullableDrift] = _NULLABLE_DRIFT_BASELINE,
+) -> None:
+    """동결 baseline 밖의 nullable drift는 검사 실패로 만든다."""
+    new_nullable_drifts = observed_nullable_drifts - baseline
+    assert not new_nullable_drifts, (
+        "새 column nullable drift 발견 (schema, table, column, db_nullable, "
+        f"metadata_nullable): {sorted(new_nullable_drifts)}. 기존 drift만 허용하려면 "
+        "_NULLABLE_DRIFT_BASELINE에 정확한 5-튜플을 동결하라."
+    )
+
+
+def _index_signature(column_names: tuple[str, ...], unique: bool) -> IndexSignature:
+    """이름과 무관한 인덱스/UNIQUE 비교 단위를 만든다."""
+    assert column_names, "인덱스/UNIQUE 컬럼 목록이 비었다 — 비교를 계속하면 무의미하다"
+    return (column_names, unique)
+
+
+def _metadata_index_signatures(table: Table) -> Counter[IndexSignature]:
+    """SQLModel table 의 Index + UniqueConstraint 를 구조 서명으로 모은다."""
+    signatures: Counter[IndexSignature] = Counter()
+    for index in table.indexes:
+        signatures[
+            _index_signature(tuple(column.name for column in index.columns), bool(index.unique))
+        ] += 1
+    for constraint in table.constraints:
+        if isinstance(constraint, UniqueConstraint):
+            signatures[
+                _index_signature(tuple(column.name for column in constraint.columns), unique=True)
+            ] += 1
+    return signatures
+
+
+def _db_index_signatures(
+    schema: str,
+    table_name: str,
+    indexes: list[dict[str, Any]],
+    unique_constraints: list[dict[str, Any]],
+    primary_key: dict[str, Any],
+) -> Counter[IndexSignature]:
+    """Inspector 의 Index + UNIQUE 를 모델과 같은 구조 서명으로 모은다."""
+    signatures: Counter[IndexSignature] = Counter()
+    primary_key_name = primary_key.get("name")
+    primary_key_columns = tuple(primary_key.get("constrained_columns") or ())
+
+    for index in indexes:
+        column_names = tuple(index.get("column_names") or ())
+        index_name = index.get("name")
+        if index_name == primary_key_name and column_names == primary_key_columns:
+            # PK 를 지탱하는 암묵 인덱스는 SQLModel `table.indexes` 소유가 아니다.
+            continue
+        if (schema, table_name, index_name) in _TIMESCALE_OWNED_INDEXES:
+            # hypertable 이 만드는 시간 인덱스는 TimescaleDB 소유다.
+            continue
+        if index.get("duplicates_constraint"):
+            # PostgreSQL reflection 은 UNIQUE constraint 의 보조 인덱스를 함께 낼 수 있다.
+            # 아래 get_unique_constraints() 경로에서 한 번만 센다.
+            continue
+        signatures[_index_signature(column_names, bool(index.get("unique")))] += 1
+
+    for constraint in unique_constraints:
+        signatures[_index_signature(tuple(constraint.get("column_names") or ()), unique=True)] += 1
+    return signatures
+
+
+def _index_drifts_for_table(
+    schema: str,
+    table_name: str,
+    db_indexes: Counter[IndexSignature],
+    metadata_indexes: Counter[IndexSignature],
+) -> set[IndexDrift]:
+    """한 테이블의 모델→DB와 DB→모델 인덱스/UNIQUE drift를 모두 수집한다."""
+    drifts: set[IndexDrift] = set()
+    for (column_names, unique), count in (metadata_indexes - db_indexes).items():
+        drifts.add((schema, table_name, "model_only", column_names, unique, count))
+    for (column_names, unique), count in (db_indexes - metadata_indexes).items():
+        drifts.add((schema, table_name, "db_only", column_names, unique, count))
+    return drifts
+
+
+def _assert_no_new_index_drifts(
+    observed_index_drifts: set[IndexDrift],
+    baseline: frozenset[IndexDrift] = _INDEX_DRIFT_BASELINE,
+) -> None:
+    """동결 baseline 밖의 인덱스/UNIQUE drift는 검사 실패로 만든다."""
+    new_index_drifts = observed_index_drifts - baseline
+    assert not new_index_drifts, (
+        "새 index/UNIQUE drift 발견 (schema, table, direction, columns, unique, count): "
+        f"{sorted(new_index_drifts)}. 기존 drift만 허용하려면 "
+        "_INDEX_DRIFT_BASELINE에 정확한 6-튜플을 동결하라."
+    )
+
+
+def _is_externally_owned_db_only_table(schema: str, table_name: str) -> bool:
+    """DB→모델 비교에서 우리 SQLModel 엔티티 소유가 아닌 표만 제외한다."""
+    # alembic_version 은 Alembic 상태 메타이고, auth_* 는 metadata 에 선언되더라도 ORM
+    # 엔티티가 아니라 Better Auth 가 읽고 쓰는 외부 소유 표다. 둘 다 DB-only 여도 drift가 아니다.
+    return schema == "public" and (
+        table_name == "alembic_version" or table_name.startswith("auth_")
     )
 
 
@@ -418,14 +560,17 @@ def test_stress_test_enum_labels_match_member_names(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
-    """alembic upgrade 후 실제 schema와 SQLModel.metadata가 일치하는지 검증.
+    """migration-only schema와 SQLModel.metadata가 양방향으로 일치하는지 검증.
 
-    Migration drift 방지 — 모델 변경 시 Alembic migration 작성 누락 검출.
-    컬럼 누락 + PostgreSQL/SQLAlchemy 표현차를 정규화한 타입을 검사한다.
+    Migration drift 방지 — 모델 변경 시 Alembic migration 작성 누락과 DB-only 표를 검출한다.
+    컬럼 이름·type·nullable 및 Index/UNIQUE를 비교한다. default 는 이 회차에서 제외한다.
     """
-    # Alembic upgrade head 선행 실행 — 테스트 단독 실행 시에도 idempotent 보장
+    # create_all fixture가 만든 현재 metadata가 아니라 migration DDL만 검사해야 모델 변이가
+    # 실제 Alembic 경로에서 red가 된다. `downgrade base` → `upgrade head`로 강제한다.
     monkeypatch.chdir(_BACKEND_ROOT)
-    command.upgrade(_alembic_cfg(), "head")
+    cfg = _alembic_cfg()
+    command.downgrade(cfg, "base")
+    command.upgrade(cfg, "head")
 
     # Sprint 19 BL-083: 격리 stack 호환 위해 conftest 우선순위 함수 사용.
     db_url = _resolved_test_db_url()
@@ -433,53 +578,124 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
 
     # metadata가 사용하는 schema 목록 (None은 default = public)
     schemas = {t.schema or "public" for t in SQLModel.metadata.tables.values()}
+    assert schemas, "SQLModel metadata schema 목록이 비었다 — 동등성 검사를 계속하면 무의미하다"
 
     try:
         async with engine.connect() as conn:
-            alembic_tables = await conn.run_sync(
-                lambda sync_conn: {
-                    (schema, t): {
-                        c["name"]: c["type"]
-                        for c in inspect(sync_conn).get_columns(t, schema=schema)
-                    }
-                    for schema in schemas
-                    for t in inspect(sync_conn).get_table_names(schema=schema)
-                }
-            )
+
+            def inspect_alembic_schema(sync_conn: Any) -> dict[tuple[str, str], dict[str, Any]]:
+                inspector = inspect(sync_conn)
+                tables: dict[tuple[str, str], dict[str, Any]] = {}
+                for schema in schemas:
+                    for table_name in inspector.get_table_names(schema=schema):
+                        columns = inspector.get_columns(table_name, schema=schema)
+                        assert columns, (
+                            f"Table '{schema}.{table_name}'의 Inspector column 목록이 비었다 — "
+                            "동등성 검사를 계속하면 무의미하다"
+                        )
+                        tables[(schema, table_name)] = {
+                            "columns": columns,
+                            "indexes": inspector.get_indexes(table_name, schema=schema),
+                            "unique_constraints": inspector.get_unique_constraints(
+                                table_name, schema=schema
+                            ),
+                            "primary_key": inspector.get_pk_constraint(table_name, schema=schema),
+                        }
+                return tables
+
+            alembic_tables = await conn.run_sync(inspect_alembic_schema)
     finally:
         await engine.dispose()
 
     # SQLModel metadata 등록된 모델 테이블 — (schema, name) 키로 매핑
-    metadata_tables = {
-        (t.schema or "public", t.name): {c.name: c.type for c in t.columns}
-        for t in SQLModel.metadata.tables.values()
+    metadata_tables = {(t.schema or "public", t.name): t for t in SQLModel.metadata.tables.values()}
+    assert metadata_tables, (
+        "SQLModel metadata table 목록이 비었다 — 동등성 검사를 계속하면 무의미하다"
+    )
+    assert alembic_tables, (
+        "Alembic Inspector table 목록이 비었다 — 동등성 검사를 계속하면 무의미하다"
+    )
+
+    missing_tables = set(metadata_tables) - set(alembic_tables)
+    assert not missing_tables, (
+        "SQLModel metadata에만 있는 table: "
+        f"{sorted(missing_tables)}. Migration 작성 누락 또는 drift 발생."
+    )
+    db_only_tables = {
+        table_key
+        for table_key in set(alembic_tables) - set(metadata_tables)
+        if not _is_externally_owned_db_only_table(*table_key)
     }
+    assert not db_only_tables, (
+        "Alembic DB에만 있는 table: "
+        f"{sorted(db_only_tables)}. 모델/metadata 등록 누락 또는 drift 발생."
+    )
 
-    # alembic_version 테이블 제외 (Alembic 전용 메타, public schema)
-    alembic_tables.pop(("public", "alembic_version"), None)
-
-    # metadata의 모든 table + column이 DB schema에 존재해야 함.
-    # 역방향 DB-only column, nullable/default/제약/인덱스는 BL-749 범위 밖이다.
     observed_type_drifts: set[TypeDrift] = set()
-    for (schema, table_name), metadata_cols in metadata_tables.items():
+    observed_nullable_drifts: set[NullableDrift] = set()
+    for (schema, table_name), metadata_table in metadata_tables.items():
         full_name = f"{schema}.{table_name}"
-        assert (schema, table_name) in alembic_tables, (
-            f"Table '{full_name}' defined in SQLModel metadata but missing from alembic schema. "
-            f"Migration 작성 누락?"
+        metadata_columns = {column.name: column for column in metadata_table.columns}
+        assert metadata_columns, (
+            f"Table '{full_name}'의 metadata column 목록이 비었다 — 동등성 검사를 계속하면 무의미하다"
         )
-        alembic_cols = alembic_tables[(schema, table_name)]
-        # ★두 매핑은 이제 `{컬럼: 타입}` 이다 — 이름 축은 **키 집합**으로 비교한다.
-        #   타입 축을 켜며 값이 set → dict 로 바뀌었는데 이 줄이 집합 차 그대로 남아
-        #   `TypeError: unsupported operand -` 로 죽었다(2026-08-15, [BL-749]).
-        missing = set(metadata_cols) - set(alembic_cols)
-        assert not missing, (
-            f"Table '{full_name}' missing columns in DB: {missing}. Migration 누락 또는 drift 발생."
+        db_table = alembic_tables[(schema, table_name)]
+        db_columns = {column["name"]: column for column in db_table["columns"]}
+        missing_columns = set(metadata_columns) - set(db_columns)
+        assert not missing_columns, (
+            f"Table '{full_name}'의 metadata column이 DB에 없다: {sorted(missing_columns)}. "
+            "Migration 누락 또는 drift 발생."
         )
+        db_only_columns = set(db_columns) - set(metadata_columns)
+        assert not db_only_columns, (
+            f"Table '{full_name}'의 DB-only column: {sorted(db_only_columns)}. "
+            "모델/metadata 등록 누락 또는 drift 발생."
+        )
+
         observed_type_drifts.update(
-            _type_drifts_for_table(schema, table_name, alembic_cols, metadata_cols)
+            _type_drifts_for_table(
+                schema,
+                table_name,
+                {name: column["type"] for name, column in db_columns.items()},
+                {name: column.type for name, column in metadata_columns.items()},
+            )
+        )
+        observed_nullable_drifts.update(
+            _nullable_drifts_for_table(
+                schema,
+                table_name,
+                {name: bool(column["nullable"]) for name, column in db_columns.items()},
+                {name: bool(column.nullable) for name, column in metadata_columns.items()},
+            )
         )
 
     _assert_no_new_type_drifts(observed_type_drifts)
+    _assert_no_new_nullable_drifts(observed_nullable_drifts)
+
+    # nullable 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
+    # 새 nullable drift는 위 단언에서 먼저 red가 나므로 baseline 밖 항목을 가리지 않는다.
+    if len(_NULLABLE_DRIFT_BASELINE) > 5:
+        return
+
+    observed_index_drifts: set[IndexDrift] = set()
+    for (schema, table_name), metadata_table in metadata_tables.items():
+        db_table = alembic_tables[(schema, table_name)]
+        observed_index_drifts.update(
+            _index_drifts_for_table(
+                schema,
+                table_name,
+                _db_index_signatures(
+                    schema,
+                    table_name,
+                    db_table["indexes"],
+                    db_table["unique_constraints"],
+                    db_table["primary_key"],
+                ),
+                _metadata_index_signatures(metadata_table),
+            )
+        )
+
+    _assert_no_new_index_drifts(observed_index_drifts)
 
 
 def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
