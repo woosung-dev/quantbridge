@@ -19,16 +19,75 @@ const isCI = !!process.env.CI;
 const baseURL = getBaseURL();
 const fePort = getFrontendPort();
 
+// [BL-784] 관측 모드 — `PW_ARTIFACT_RUN=<이름>` 을 주면 그 회차의 아티팩트를 격리 보관한다.
+//
+// ★왜 필요한가 (2026-08-17 실측). playwright 는 매 실행의 setup 단계에서 **`outputDir` 을 통째로
+//   지운다**(`runner/tasks.js` `createRemoveOutputDirsTask`). 이 레포의 project 7종은 전부 기본
+//   `test-results/` 를 공유하므로 **어떤 `--project` 로 돌리든 직전 회차 증거가 사라진다.**
+//   게이트는 `e2e chromium` → `e2e design-canon` → `e2e authed` 를 이 순서로 부르고, 그 뒤에
+//   사람이 「단독으로도 실패하나」를 확인하려고 한 번 더 돌리는 순간 **게이트 실패의 trace 가
+//   그 확인 행위 자체에 의해 파괴된다.** [BL-784] 가 「실패 시점 trace 가 없다」였던 이유가 이것이다.
+//
+// 켜면 셋이 바뀐다: 회차 전용 `outputDir` · `trace: "on"`(실패 안 해도 남는다) ·
+// 회차별 `results.json`(테스트별 통과/실패 목록).
+//
+// ★한 회차 안에서 레그가 서로를 지우지 않게 **project 별로 한 겹 더 나눈다.** 게이트는 한 번
+//   실행에서 e2e 를 세 번 부르므로, 이 겹이 없으면 `PW_ARTIFACT_RUN` 을 하나 걸어도 마지막
+//   레그가 앞의 둘을 지운다 — 고치려던 병이 그대로 재현된다.
+// ★★겹은 **project 설정**으로 준다. `process.argv` 에서 `--project` 를 읽는 방식은 틀렸다 —
+//   config 는 워커 프로세스에서도 평가되는데 워커의 argv 에는 그 플래그가 없어서, 지움 계산
+//   (메인)과 아티팩트 기록(워커)이 **서로 다른 디렉터리**를 가리킨다. 2026-08-17 에 실제로
+//   `<회차>/chromium-authed/results.json` 과 `<회차>/all/<테스트>/trace.zip` 으로 갈렸다.
+// ★★점만으로 이뤄진 세그먼트는 따로 막는다 (codex 적대 리뷰 P2, 2026-08-17 실측).
+//   `.` 과 `-` 는 허용 문자라 `..` 는 위 치환을 **그대로 통과한다**. 그러면 `outputDir` 이
+//   `test-results/../<project>` = `apps/web/<project>` 가 되고, playwright 는 setup 에서
+//   그 디렉터리를 **통째로 지운다** — 이 회차가 발견한 바로 그 기전이 소스 트리를 겨눈다.
+//   `/` 는 이미 `-` 로 바뀌므로 위험한 값은 세그먼트 전체가 점인 경우뿐이다.
+const sanitizeArtifactSegment = (value: string) => {
+  const cleaned = value.replace(/[^A-Za-z0-9._-]/g, "-");
+  return /^\.+$/.test(cleaned) ? "-".repeat(cleaned.length) : cleaned;
+};
+
+const rawArtifactRun = process.env.PW_ARTIFACT_RUN?.trim();
+const artifactRun = rawArtifactRun ? sanitizeArtifactSegment(rawArtifactRun) : undefined;
+const artifactDirFor = (projectName: string) =>
+  artifactRun ? `test-results/${artifactRun}/${projectName}` : undefined;
+
+// reporter 는 메인 프로세스에서 한 번만 평가되므로 여기서는 argv 를 봐도 안전하다. 이름을
+// project 겹과 맞춰 두면 `results.json` 이 그 project 의 아티팩트와 같은 폴더에 떨어진다.
+function getProjectFilterSegment(): string {
+  const argv = process.argv;
+  const names: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i] ?? "";
+    const next = argv[i + 1];
+    if (arg.startsWith("--project=")) {
+      names.push(arg.slice("--project=".length));
+    } else if (arg === "--project" && next !== undefined) {
+      names.push(next);
+    }
+  }
+  return names.length > 0 ? sanitizeArtifactSegment(names.join("+")) : "all";
+}
+
+const reporterDir = artifactRun
+  ? `test-results/${artifactRun}/${getProjectFilterSegment()}`
+  : undefined;
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 2 : 0,
   workers: isCI ? 1 : undefined,
-  reporter: isCI ? [["github"], ["list"]] : "list",
+  reporter: reporterDir
+    ? [["list"], ["json", { outputFile: `${reporterDir}/results.json` }]]
+    : isCI
+      ? [["github"], ["list"]]
+      : "list",
   use: {
     baseURL,
-    trace: "retain-on-failure",
+    trace: artifactRun ? "on" : "retain-on-failure",
     video: "retain-on-failure",
     screenshot: "only-on-failure",
     // Sprint 25 — Next.js 16 dev server 첫 page render JIT 컴파일 5-30초.
@@ -39,15 +98,18 @@ export default defineConfig({
   projects: [
     {
       name: "setup",
+      outputDir: artifactDirFor("setup"),
       testMatch: /global\.setup\.ts$/,
     },
     {
       name: "setup-identity",
+      outputDir: artifactDirFor("setup-identity"),
       testMatch: /identity\.setup\.ts$/,
     },
     {
       // authed API 요청을 실제 브라우저에서 한 번 관측한다. 공개 project 는 물지 않는다.
       name: "setup-authed-reachability",
+      outputDir: artifactDirFor("setup-authed-reachability"),
       testMatch: /authed-reachability\.setup\.ts$/,
       dependencies: ["setup", "setup-identity"],
     },
@@ -56,6 +118,7 @@ export default defineConfig({
       //   잡았고, 전용 project(`chromium-live-smoke`)와 겹쳐 `pnpm e2e` 가 live-smoke 를
       //   매번 덤으로 돌리고 있었다(2026-08-06 `e2e-project-wiring.test.ts` 가 실측으로 적발).
       name: "chromium",
+      outputDir: artifactDirFor("chromium"),
       testMatch: /(^|\/)smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
       dependencies: ["setup-identity"],
@@ -67,6 +130,7 @@ export default defineConfig({
     // live-smoke 는 명시적 --project 호출 (e2e 워크플로우 영향 없음).
     {
       name: "chromium-live-smoke",
+      outputDir: artifactDirFor("chromium-live-smoke"),
       testMatch: /live-smoke\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
       dependencies: ["setup-identity"],
@@ -76,12 +140,14 @@ export default defineConfig({
     // P1 4라우트는 전부 authed 라 `chromium-authed` 몫이고 로컬 전용이다.
     {
       name: "chromium-design-canon",
+      outputDir: artifactDirFor("chromium-design-canon"),
       testMatch: /design-canon-.*\.spec\.ts$/,
       use: { ...devices["Desktop Chrome"] },
       dependencies: ["setup-identity"],
     },
     {
       name: "chromium-authed",
+      outputDir: artifactDirFor("chromium-authed"),
       // Sprint 38 BL-188 v3 D — `backtest-live-mirror` 추가 (5 case Live mirror E2E).
       // Sprint 46 W2 — `sprint46-tier1-critical` 추가 (5 case Tier 1 critical user journey).
       // Sprint 46 W3 — `sprint46-tier2-high` 추가 (4 case Tier 2 dogfood polish).
