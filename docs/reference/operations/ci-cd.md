@@ -16,7 +16,7 @@ flowchart TB
     BES[backend_static\nruff + mypy • DB 불요]
     BE[backend ×3 샤드\nalembic + pytest --cov]
     BEC[backend_coverage\ncoverage combine + fail-under=90]
-    E2E[e2e\nplaywright]
+    E2E[e2e\nplaywright 공개 3 project\nauthed 는 없다 — BL-789]
     CI[ci summary\nsuccess/skipped 아니면 실패]
 
     Trigger --> Changes
@@ -206,6 +206,17 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
   **쓸 수 없다**(private free — API 403 실측)」라고 적었는데, 같은 날 **저장소를 public 으로
   전환**해서 branch protection 이 **다시 가능하다.** 아직 켜지 않았으므로 위 서술(자동 검증
   없음)은 여전히 유효하지만, **이유가 「불가능」에서 「미설정」으로 바뀌었다.**
+- ★★★**`e2e` 잡은 authed 스위트를 안 돈다 — CI 초록은 authed 통과의 증거가 아니다**
+  ([BL-789], 2026-08-17). `ci.yml` 의 e2e 스텝은 `chromium` · `chromium-live-smoke` ·
+  `chromium-design-canon` 셋만 `--project=` 로 부르고, `chromium-authed` 를 부르는 줄은
+  워크플로 전체에 **없다**. `apps/web/e2e/*.spec.ts` 29개 중 **20개**(로그인이 필요한 전부)가
+  그래서 CI 실행 0회이고,
+  유일한 실행처는 로컬 `tools/scripts/final-gates.sh` 의 `e2e authed` 레그다.
+  ⇒ ⑴ **PR 이 CI 전건 초록이어도 authed 게이트는 red 일 수 있다.** ⑵ 「CI 가 초록이었다」를
+  로컬 authed 실패의 **음성 대조 근거로 쓰지 마라** — 그 잡은 authed 를 애초에 안 돌렸다.
+  회귀 방지 = `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사
+  (`LOCAL_ONLY` 상수에 사유와 함께 등재된 것만 면제). 배선 자체(CI 전용 시더 + 로그인)는
+  [ADR-034] 가 CI 인증 secret 을 0개로 만든 결정의 반전이라 **사용자 결정 대기**다.
 - **merge queue 를 켜면 CI 가 아예 보고되지 않는다** — 트리거에 `merge_group` 이 없어서 큐의
   합성 커밋에 `ci` 체크가 생기지 않는다. 큐를 도입하는 날 트리거를 같이 추가해라.
 - **env 감사는 키 존재만 본다** — 값이 `redis://redis:6379`(compose 호스트)나 빈 문자열로
