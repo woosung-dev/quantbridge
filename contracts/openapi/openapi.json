@@ -3590,6 +3590,28 @@
             ],
             "title": "Backtest Timeframe"
           },
+          "best_max_drawdown": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Max Drawdown"
+          },
+          "best_total_return": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Total Return"
+          },
           "completed_at": {
             "anyOf": [
               {
