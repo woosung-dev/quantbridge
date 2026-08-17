@@ -116,11 +116,18 @@ tools/scripts/tool-pin-audit.sh --list    # 위반 경로만. 출력 0줄 + rc=0
 대조군은 `git show origin/main:tools/scripts/final-gates.sh` 를 `tools/scripts/` 안에 임시로 두고
 돌렸다 — `ROOT` 가 `dirname $0/../..` 라 같은 트리를 봐야 조건이 같다. 판정 후 삭제했다.
 
-★**이 대조가 재는 축은 `pnpm` 하나다.** 이 브랜치의 diff 가 `apps/api` 를 건드리기 전이라
-영역 판정이 `fe_diff=0 be_diff=0` 이었고, 그래서 `uv`·`node` 를 쓰는 게이트(BE ruff·mypy·
-FE typecheck 등)는 두 실행 모두 `skip` 이었다. **`uv`·`node` 축은 이 대조로 증명되지 않았다** —
-증명된 것은 [BL-785] 가 실제로 보고한 증상 그 자체(`CI frozen-lockfile`)다.
-`uv` 축은 마감 게이트에서 별도로 확인했다(아래 §마감).
+★위 두 실행 시점에는 브랜치 diff 가 아직 `apps/api` 를 안 건드려서 영역 판정이
+`fe_diff=0 be_diff=0` 이었고, `uv` 를 쓰는 게이트가 전부 `skip` 이었다. 그래서 [BL-782] 수리로
+`be_diff=1` 이 된 뒤 **같은 조작을 한 번 더** 돌려 `uv` 축을 따로 닫았다.
+
+|            | 코드                   | 명령                                    | BE ruff · mypy · openapi drift | 전체 rc |
+| ---------- | ---------------------- | --------------------------------------- | ------------------------------ | ------- |
+| **대조군** | `origin/main`(핀 없음) | `--run ac2uvctl --pre-pr --allow-dirty` | **FAIL · FAIL · FAIL**         | **1**   |
+| **처리군** | 이 브랜치(핀 있음)     | `--run ac2uvaxis --pre-pr`              | **PASS · PASS · PASS**         | **0**   |
+
+⇒ `pnpm` 축과 `uv` 축 둘 다 양쪽(수리 전 red / 수리 후 green)을 보였다.
+★`node` 축은 여전히 미증명이다 — 그것을 쓰는 게이트(`FE 캐논 스코프 인구조사`)가 `apps/web/**`
+영역이라 이 브랜치에서는 어느 실행에서도 안 돌았다.
 
 ★전제 확인 — 내 셸의 PATH `pnpm` 은 원래 **9.12.0**(프로필이 shim 을 앞에 세운다)이다.
 즉 「지금 내 셸에서는 괜찮다」가 성립하는 셸이었고, 그래서 가짜 도구를 **일부러 앞에 세우는**
@@ -294,7 +301,8 @@ diff 의 `+` 줄에 등장하는 컬럼은 `funding_rates.exchange`(2회, 본문
 2. **서버 소크 DB 의 `funding_rates.exchange` 값 집합.** 확인 불가. 라벨 밖 값이 있으면
    migration 의 `USING` 캐스트가 `invalid input value for enum exchangename` 으로 **소리 내며**
    실패한다(조용히 틀린 결과를 내지는 않는다). 서버 적용 전에 값을 먼저 세라.
-3. **`uv`·`node` 축의 AC-2 음성 대조**(§AC-2 의 ★ 참조). 증명된 것은 `pnpm` 축이다.
+3. **`node` 축의 AC-2 음성 대조.** 그 축의 유일한 게이트(`FE 캐논 스코프 인구조사`)가
+   `apps/web/**` 영역이라 이 브랜치에서는 안 돈다. `pnpm`·`uv` 축은 양쪽 다 보였다.
 4. **CI 러너에서의 핀 동작.** CI 에는 mise 가 없을 수 있고, 그때 `qb_pin_tool_path` 는 경고 한 줄을
    stderr 로 내고 종전대로 PATH 를 쓴다(fail-open). 이것이 옳은 선택인지는 CI 에서 실행해 봐야 안다 —
    push 후 CI 로그의 `⚠ mise shim 디렉터리가 없다` 유무로 확인해라.
@@ -304,4 +312,21 @@ diff 의 `+` 줄에 등장하는 컬럼은 `funding_rates.exchange`(2회, 본문
 
 ## 마감
 
-`.claude/gates/gate-pins/` — 결과는 아래 §마감 결과.
+`mise exec -- tools/scripts/final-gates.sh --run gate-pins --pre-pr` → **rc=0 · 58s**.
+돌아간 게이트 **20종 전건 PASS**(BE ruff·mypy·openapi drift 포함 — 이 회차가 `apps/api` 를
+건드렸으므로 영역 판정이 켰다). FE 6종은 `frontend diff 0` 으로 skip.
+
+유예 7종(`.claude/gates/gate-pins/deferred.txt`, sha `d525001d`) — 계약대로 밤에는 안 돌렸다:
+
+| 유예                | 밤에 확인한 것                                        |
+| ------------------- | ----------------------------------------------------- |
+| BE pytest           | **AC-8 로 별도 실행했다 — `4759 passed` rc=0**        |
+| CI fresh DB alembic | **AC-6 으로 게이트 본문을 그대로 떼어 돌렸다 — rc=0** |
+| e2e authed          | 안 돌렸다 (FE diff 0 이라 영역 밖이기도 하다)         |
+| 신호 4종            | 계약대로 만들지 않았다 — 아침 오케스트레이터 몫       |
+
+★**원장이 남아 있으므로 이것은 종결 판정이 아니다.** push 뒤 `--deferred-only` 가 지운다.
+
+★정리하지 못한 것 — `.claude/gates/` 아래 이 회차의 실험 디렉터리 4개(`ac2-control`·
+`ac2-fake-tools`·`ac2uvaxis`·`ac2uvctl`). 삭제 명령이 거부됐다. `.gitignore:16` 이 `.claude/*` 를
+덮으므로 커밋에는 안 들어간다.
