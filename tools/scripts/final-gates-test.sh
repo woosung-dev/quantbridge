@@ -219,6 +219,23 @@ run_suite() { # 케이스 10건
     *) why="${why}${why:+ · }실물 양성 대조의 필수 사유를 못 읽었다 [$s_dirty]" ;;
   esac
   report "⑩" "screen.ok required = apps/web ∪ apps/api/src ([BL-739]) · 합성 음성+양성 ([BL-780])" "$why"
+
+  # ⑪ [BL-797] 「화면 증거 팩」 배선이 실재하고 FE 영역 판정에 걸린다.
+  #    ★이 검사가 없으면 그 블록을 통째로 지워도 ①의 「행 ≥20」이 통과한다 —
+  #    codex 적대 리뷰가 그것을 지적했고 실제로 하네스에 라벨이 0회 등장했다(2026-08-17).
+  local ev_fe ev_nofe ev_full
+  why=""
+  ev_full="$(mark_of '화면 증거 팩')"
+  [ -n "$ev_full" ] || why="full 계획에 「화면 증거 팩」 행이 없다 — 배선이 사라졌다"
+  ev_fe="$(QB_FG_FAKE_CHANGED='apps/web/src/app/page.tsx' mark_of '화면 증거 팩')"
+  [ "$ev_fe" = "plan" ] || why="${why}${why:+ · }FE diff 가 있는데 계획되지 않았다 [$ev_fe]"
+  ev_nofe="$(QB_FG_FAKE_CHANGED='docs/status.md' mark_of '화면 증거 팩')"
+  [ "$ev_nofe" = "skip" ] || why="${why}${why:+ · }FE diff 0 인데 건너뛰지 않았다 [$ev_nofe]"
+  # ★유예 집합에 들어가면 안 된다 — 유예되면 화면을 바꾼 PR 이 증거 없이 지나간다.
+  local ev_pre
+  ev_pre="$(QB_FG_FAKE_CHANGED='apps/web/src/app/page.tsx' mark_of '화면 증거 팩' --pre-pr)"
+  [ "$ev_pre" = "plan" ] || why="${why}${why:+ · }--pre-pr 이 화면 증거 팩을 유예했다 [$ev_pre]"
+  report "⑪" "화면 증거 팩 — 배선 실재 · has_fe 양성/음성 · --pre-pr 유예 금지 ([BL-797])" "$why"
 }
 
 run_suite

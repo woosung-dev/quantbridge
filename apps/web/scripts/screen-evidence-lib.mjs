@@ -48,9 +48,13 @@ export function formatCountDelta(before, after) {
  *   before 는 `main`, after 는 이 브랜치다 — 둘 다 **커밋된 것**이라 링크가 썩지 않는다.
  */
 export function blobUrl(repoSlug, ref, filePath) {
-  // ★ref 를 `encodeURIComponent` 로 감싸면 안 된다 — `stage/night3-…` 같은 브랜치명의 `/` 가
-  //   `%2F` 로 바뀌어 GitHub 이 404 를 낸다. 참조 이름은 이미 URL 안전 문자만 쓴다.
-  return `https://github.com/${repoSlug}/blob/${ref}/${filePath}?raw=1`;
+  // ★ref 를 통째로 `encodeURIComponent` 하면 안 된다 — `stage/night3-…` 의 `/` 가 `%2F` 로
+  //   바뀌어 GitHub 이 404 를 낸다. 그렇다고 무인코딩도 안 된다: `fix/#797` 은 `git
+  //   check-ref-format` 이 통과시키는 **유효한 브랜치명**인데 `#` 가 URL fragment 가 되어
+  //   파일 경로가 서버에 도달하지 않는다(codex 적대 리뷰 P3, 2026-08-17).
+  //   ⇒ 경로 구분자 `/` 는 보존하고 **세그먼트마다** 인코딩한다.
+  const safeRef = String(ref).split("/").map(encodeURIComponent).join("/");
+  return `https://github.com/${repoSlug}/blob/${safeRef}/${filePath}?raw=1`;
 }
 
 /**

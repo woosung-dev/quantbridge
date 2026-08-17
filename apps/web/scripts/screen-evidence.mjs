@@ -104,9 +104,32 @@ async function waitForServer(url, timeoutMs) {
 }
 
 function readBaselineFrom(ref) {
-  const blob = git(["show", `${ref}:${REPO_REL(CONFIG.baseline)}`], { allowFail: true });
-  if (!blob) return null;
-  return JSON.parse(blob.toString("utf8")).routes ?? {};
+  const rel = REPO_REL(CONFIG.baseline);
+
+  // ★ref 를 아예 해석 못 하면 그것은 「baseline 이 아직 없다」가 아니라 **설정 오류**다.
+  //   이 줄이 없으면 오타 하나가 before 를 통째로 지우고 「전부 신규」로 초록이 난다 —
+  //   CONTROL 이 실측으로 확인했다(2026-08-17: `refs/heads/does-not-exist-xyz` 가 rc=0 이었다).
+  if (!git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { allowFail: true })) {
+    die(
+      `base ref 를 해석할 수 없다: ${ref}\n` +
+        "  ★이것을 「baseline 없음」으로 낮추면 모든 델타가 사라진 채 초록이 난다.",
+    );
+  }
+
+  const blob = git(["show", `${ref}:${rel}`], { allowFail: true });
+  if (blob) return JSON.parse(blob.toString("utf8")).routes ?? {};
+
+  // ★「그 ref 에 baseline 이 아직 없다」와 「있는데 못 읽었다」는 다르다.
+  //   둘을 같게 null 로 낮추면 ref 오타·손상 blob 이 전부 「신규」로 보고되고 rc=0 이 난다
+  //   (codex 적대 리뷰 P2, 2026-08-17). 실재하는데 못 읽으면 죽는다.
+  const listed = git(["ls-tree", "--name-only", ref, rel], { allowFail: true });
+  if (listed && listed.toString("utf8").trim() !== "") {
+    die(
+      `${ref}:${rel} 이 실재하는데 읽지 못했다.\n` +
+        "  ★이것을 「baseline 없음」으로 낮추면 모든 델타가 사라진 채 초록이 난다.",
+    );
+  }
+  return null;
 }
 
 function readBaselineHere() {
@@ -236,6 +259,25 @@ async function main() {
   //    검증했다(spec ⑸). before 는 같은 파일의 `origin/main` 판이다.
   const after = readBaselineHere();
   if (!after) die(`baseline 이 없다 — ${path.relative(REPO_ROOT, BASELINE_ABS)}. \`:update\` 를 먼저 돌려라.`);
+
+  // ★`measured` 는 「이번에 실제로 잰 것」이고 `after` 는 「커밋된 baseline 전체」다.
+  //   둘이 어긋나면 재지 않은 라우트의 낡은 수치가 리포트에 정상 측정처럼 실린다 —
+  //   ROUTES 에서 한 건이 빠져도 나머지가 통과하면 게이트가 초록이었다
+  //   (codex 적대 리뷰 P2, 2026-08-17). 「일부만 봤다」를 「전부 봤다」로 인쇄하지 않는다.
+  const measuredKeys = Object.keys(measured).sort();
+  const afterKeys = Object.keys(after).sort();
+  if (measuredKeys.join("\u0000") !== afterKeys.join("\u0000")) {
+    const missing = afterKeys.filter((k) => !measuredKeys.includes(k));
+    const extra = measuredKeys.filter((k) => !afterKeys.includes(k));
+    die(
+      "이번 실행이 잰 라우트 집합이 baseline 과 다르다 — 부분 측정을 전량으로 보고하지 않는다.\n" +
+        `  baseline: ${afterKeys.join(", ") || "(없음)"}\n` +
+        `  측정됨  : ${measuredKeys.join(", ") || "(없음)"}\n` +
+        (missing.length ? `  ★안 잰 것: ${missing.join(", ")}\n` : "") +
+        (extra.length ? `  ★baseline 에 없는 것: ${extra.join(", ")} — \`:update\` 를 돌려라\n` : ""),
+    );
+  }
+
   const before = readBaselineFrom(BASE_REF);
 
   const screenshots = {};

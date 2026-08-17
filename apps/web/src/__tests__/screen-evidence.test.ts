@@ -141,6 +141,19 @@ describe("화면 증거 팩 — 표", () => {
     expect(url).not.toContain("%2F");
   });
 
+  it("스크린샷 링크는 `#` 가 든 유효 브랜치명을 인코딩한다", () => {
+    // ★`git check-ref-format --branch 'fix/#797'` 은 통과한다 — 유효한 브랜치명이다.
+    //   무인코딩이면 `#797` 이 URL fragment 가 되어 뒤의 파일 경로가 서버에 도달하지 않는다
+    //   (codex 적대 리뷰 P3, 2026-08-17). `/` 는 보존하고 세그먼트마다 인코딩한다.
+    const url = blobUrl("woosung-dev/quantbridge", "fix/#797", "apps/web/x.png");
+    expect(url).toBe(
+      "https://github.com/woosung-dev/quantbridge/blob/fix/%23797/apps/web/x.png?raw=1",
+    );
+    expect(url).not.toContain("/#");
+    // ★음성 대조 — 경로 구분자는 여전히 살아 있어야 한다.
+    expect(url).toContain("/blob/fix/");
+  });
+
   it("표가 마크다운 그대로 PR 코멘트에 들어간다", () => {
     const { markdown } = report();
     expect(markdown).toContain("| 라우트 | 화면 | first-load JS | API 요청 | 전체 요청 |");

@@ -507,8 +507,13 @@ fi
 #   ★★빌드를 §3 것과 공유하지 않는 이유: 공유하면 「§3 이 실패했거나 그 사이 트리가 바뀐」 창이
 #   열리고, 그 창이 곧 [BL-706] 이 닫은 게이트 신선도 구멍이다. 30초로 그 구멍을 안 판다.
 if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
+  # ★`SCREEN_EVIDENCE_BASE_REF` 를 **지우고** 부른다. 셸에 남은 export 하나로 before 기준이
+  #   바뀌면 이 줄의 "before=origin/main" 이 거짓이 되고 모든 델타를 0 으로 만들 수 있다
+  #   (codex 적대 리뷰 P2, 2026-08-17). `signal-check.sh` 가 `QB_SIGNAL_ROOT` 백도어를
+  #   `--root` 명시 인자로 닫은 것과 같은 처방이다 — 게이트는 env 를 신뢰하지 않는다.
   run_gate "화면 증거 팩" "before=origin/main · 공개 라우트" \
-    env PW_ARTIFACT_RUN="$RUN" bash -c 'cd "$0/apps/web" && pnpm screen-evidence' "$ROOT"
+    env -u SCREEN_EVIDENCE_BASE_REF PW_ARTIFACT_RUN="$RUN" \
+    bash -c 'cd "$0/apps/web" && pnpm screen-evidence' "$ROOT"
 else
   skip_gate "화면 증거 팩" "frontend diff 0"
 fi
