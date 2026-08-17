@@ -44,7 +44,7 @@ from skopt.space import (  # type: ignore[import-untyped]
 )
 
 from src.backtest.engine import run_backtest
-from src.backtest.engine.types import BacktestConfig
+from src.backtest.engine.types import BacktestConfig, BacktestMetrics
 from src.optimizer.engine._common import (
     _objective_from_metrics,
     _pick_best_iteration_idx,
@@ -144,6 +144,11 @@ class BayesianSearchResult:
     best_params: dict[str, Decimal] | None
     best_objective_value: Decimal | None
     best_iteration_idx: int | None  # FE highlight (Sprint 50/51/52 retro-incorrect 차단)
+    # BL-429 — best iteration 의 백테스트 metric. objective_metric 이 무엇이든 목록 화면이
+    # 백테스트 행과 같은 의미의 숫자(수익률·MDD)를 그릴 수 있게 best 만 denormalize 한다.
+    # iteration 별로 싣지 않는 이유: 목록 응답이 iterations 를 통째로 실어 규모 비용이 커진다.
+    best_total_return: Decimal | None
+    best_max_drawdown: Decimal | None
     objective_metric: str
     direction: str  # Literal[maximize, minimize]
     bayesian_acquisition: str  # Literal[EI, UCB, PI]
@@ -371,6 +376,8 @@ def run_bayesian_search(
     )
 
     iterations: list[BayesianIteration] = []
+    # BL-429 — iteration 위치별 백테스트 metric. best 확정 후 그 하나만 결과에 싣는다.
+    metrics_by_position: list[BacktestMetrics] = []
     best_so_far: Decimal | None = None
 
     for i in range(param_space.max_evaluations):
@@ -391,6 +398,7 @@ def run_bayesian_search(
                 ),
             )
 
+        metrics_by_position.append(outcome.result.metrics)
         objective_value = _objective_from_metrics(
             outcome.result.metrics, objective_metric=param_space.objective_metric
         )
@@ -427,10 +435,15 @@ def run_bayesian_search(
     best_idx = _pick_best_iteration_idx(iterations_t, direction=param_space.direction)
     best_params: dict[str, Decimal] | None = None
     best_objective_value: Decimal | None = None
+    best_total_return: Decimal | None = None
+    best_max_drawdown: Decimal | None = None
     if best_idx is not None:
         best_iter = iterations_t[best_idx]
         best_params = dict(best_iter.params)
         best_objective_value = best_iter.objective_value
+        best_metrics = metrics_by_position[best_idx]
+        best_total_return = best_metrics.total_return
+        best_max_drawdown = best_metrics.max_drawdown
 
     degenerate_count = sum(1 for it in iterations_t if it.is_degenerate)
 
@@ -440,6 +453,8 @@ def run_bayesian_search(
         best_params=best_params,
         best_objective_value=best_objective_value,
         best_iteration_idx=best_idx,
+        best_total_return=best_total_return,
+        best_max_drawdown=best_max_drawdown,
         objective_metric=param_space.objective_metric,
         direction=param_space.direction,
         bayesian_acquisition=param_space.bayesian_acquisition,

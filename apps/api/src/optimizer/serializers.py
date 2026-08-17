@@ -9,7 +9,7 @@ retro-incorrect 패턴 차단).
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from src.optimizer.engine import (
@@ -36,6 +36,77 @@ def optimizer_result_to_jsonb(result: OptimizerResult) -> dict[str, Any]:
     if isinstance(result, GeneticSearchResult):
         return genetic_search_result_to_jsonb(result)
     raise TypeError(f"Unsupported optimizer result type: {type(result)!r}")
+
+
+def best_metrics_from_jsonb(
+    result: dict[str, Any] | None,
+) -> tuple[Decimal | None, Decimal | None]:
+    """저장된 result JSONB → best 조합의 (total_return, max_drawdown). [BL-429]
+
+    목록 응답이 최적화 행에도 백테스트 행과 **같은 의미의 숫자**를 실을 수 있게 하는 SSOT.
+    kind 별로 값이 있는 자리가 다르다 — grid 는 best cell 안, bayesian/genetic 은 요약 블록.
+
+    ★값이 없으면 (None, None) 이다. 「없음」과 「0」은 다르고, 화면이 그 둘을 구분해야 한다:
+    RUNNING·FAILED(result 없음) · 전건 degenerate(best 미확정) · BL-429 이전 저장 row.
+
+    손상 row 방어: Sprint 50-52 retro-incorrect row 가 실재하므로 모양이 어긋나면
+    예외 대신 (None, None) 을 낸다. `Decimal` 의 `InvalidOperation` 은 `ValueError` 가
+    아니라 `ArithmeticError` 라 service 의 `_to_response_or_none` 이 못 잡는다.
+
+    ★**반환은 원자적이다** — 한쪽만 파싱되면 둘 다 None 이다. 수익률만 있고 MDD 가 빈
+    행은 「위험을 못 재는 성과」라 화면에서 위험 과소평가를 만든다. 반쪽을 보여주느니
+    「없음」이 정직하다.
+    """
+    if not isinstance(result, dict):
+        return None, None
+    kind = result.get("kind")
+    if kind == "grid_search":
+        cells = result.get("cells")
+        idx = result.get("best_cell_index")
+        # ★`bool` 은 `int` 의 하위형이다 — `isinstance(True, int)` 가 True 라
+        #   `cells[True]` 는 `cells[1]` 로 조용히 **다른 cell** 을 best 라 부른다.
+        #   손상 row 에서 실제로 재현됐다(codex 적대 리뷰, 2026-08-17).
+        if (
+            not isinstance(cells, list)
+            or isinstance(idx, bool)
+            or not isinstance(idx, int)
+            or not 0 <= idx < len(cells)
+        ):
+            return None, None
+        best = cells[idx]
+        if not isinstance(best, dict):
+            return None, None
+        return _finite_pair_or_none(best.get("total_return"), best.get("max_drawdown"))
+    if kind in ("bayesian", "genetic"):
+        return _finite_pair_or_none(
+            result.get("best_total_return"), result.get("best_max_drawdown")
+        )
+    return None, None
+
+
+def _finite_pair_or_none(raw_total: Any, raw_mdd: Any) -> tuple[Decimal | None, Decimal | None]:
+    """두 값이 **모두** 유한 Decimal 일 때만 그 쌍을, 아니면 (None, None)."""
+    total = _to_decimal_or_none(raw_total)
+    mdd = _to_decimal_or_none(raw_mdd)
+    if total is None or mdd is None:
+        return None, None
+    return total, mdd
+
+
+def _to_decimal_or_none(raw: Any) -> Decimal | None:
+    """직렬화된 decimal 문자열 → **유한** Decimal. 모양이 어긋나면 None (손상 row 방어).
+
+    ★`Decimal("NaN")`·`Decimal("Infinity")` 는 `InvalidOperation` 을 안 낸다. 그대로 통과시키면
+    응답 스키마의 유한성 검증에서 `ValidationError` 가 나고 service 가 그 행을 통째로 None 으로
+    바꾼다 — 손상 셀 하나가 **목록에서 행을 지우고 상세를 404 로** 만든다.
+    """
+    if not isinstance(raw, str):
+        return None
+    try:
+        value = Decimal(raw)
+    except InvalidOperation:
+        return None
+    return value if value.is_finite() else None
 
 
 def _iteration_common_to_jsonb(it: BayesianIteration | GeneticIndividual) -> dict[str, Any]:
@@ -77,6 +148,9 @@ def _search_summary_to_jsonb(
             None if r.best_objective_value is None else str(r.best_objective_value)
         ),
         "best_iteration_idx": r.best_iteration_idx,
+        # BL-429 — best 의 백테스트 metric. schema_version 은 올리지 않는다(순수 추가 필드).
+        "best_total_return": (None if r.best_total_return is None else str(r.best_total_return)),
+        "best_max_drawdown": (None if r.best_max_drawdown is None else str(r.best_max_drawdown)),
         "objective_metric": r.objective_metric,
         "direction": r.direction,
     }
@@ -96,6 +170,13 @@ def _search_summary_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
             else Decimal(data["best_objective_value"])
         ),
         "best_iteration_idx": data.get("best_iteration_idx"),
+        # BL-429 이전에 저장된 row 는 두 키가 없다 — 그때는 None 이 정답이다(0 이 아니다).
+        "best_total_return": (
+            None if data.get("best_total_return") is None else Decimal(data["best_total_return"])
+        ),
+        "best_max_drawdown": (
+            None if data.get("best_max_drawdown") is None else Decimal(data["best_max_drawdown"])
+        ),
         "objective_metric": data["objective_metric"],
         "direction": data["direction"],
     }

@@ -8,7 +8,14 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
 from src.common.strict_decimal_input import StrictDecimalInput
 
@@ -246,7 +253,17 @@ class OptimizationRunResponse(BaseModel):
     status: OptimizationStatusOut
     param_space: ParamSpace
     result: dict[str, Any] | None = None
+    # BL-429 — best 조합의 백테스트 metric denormalize. 목록 화면(대시보드 §03)이 상세 API 를
+    # 왕복하지 않고, 백테스트 행과 같은 열에 **같은 의미의 숫자**를 그리게 한다.
+    # None = 아직 없음(RUNNING·FAILED·best 미확정·구 row). 0 과 구분해야 한다.
+    best_total_return: Decimal | None = None
+    best_max_drawdown: Decimal | None = None
     error_message: str | None = None
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None
+
+    @field_serializer("best_total_return", "best_max_drawdown", when_used="json")
+    def _decimal_to_str(self, v: Decimal | None) -> str | None:
+        """backtest.schemas.BacktestMetricsSummary 와 같은 표기 (FE decimalString 파서 공유)."""
+        return None if v is None else str(v)

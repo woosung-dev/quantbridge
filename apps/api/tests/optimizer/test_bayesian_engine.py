@@ -299,6 +299,80 @@ class TestRunBayesianSearchEndToEnd:
             "acquisition", "acquisition", "acquisition",
         ]
 
+    def test_best_backtest_metrics_come_from_the_best_iteration(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[BL-429] best iteration 의 total_return/max_drawdown 을 결과에 싣는다.
+
+        iteration 마다 metric 을 다르게 줘서 **어느 iteration 의 값인지** 가린다 —
+        첫 iteration·마지막 iteration 을 집는 배선이면 값이 어긋난다.
+        """
+        call_count = {"n": 0}
+
+        def fake_run_backtest(pine: str, ohlcv: pd.DataFrame, cfg: Any) -> SimpleNamespace:
+            call_count["n"] += 1
+            n = call_count["n"]  # 1..5
+            # sharpe 는 3번째가 최대 → best idx 2. metric 은 iteration 마다 고유하다.
+            sharpe = Decimal({1: "1", 2: "2", 3: "9", 4: "3", 5: "4"}[n])
+            return _fake_outcome(
+                sharpe=sharpe,
+                total_return=Decimal(f"0.{n}"),
+                max_drawdown=Decimal(f"-0.0{n}"),
+            )
+
+        monkeypatch.setattr("src.optimizer.engine.bayesian.run_backtest", fake_run_backtest)
+        space = _build_param_space(
+            {
+                "emaPeriod": {
+                    "kind": "bayesian",
+                    "min": "5",
+                    "max": "30",
+                    "prior": "uniform",
+                    "log_scale": False,
+                }
+            },
+            max_evaluations=5,
+            bayesian_n_initial_random=2,
+            bayesian_acquisition="EI",
+        )
+        result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
+
+        assert result.best_iteration_idx == 2
+        assert result.best_total_return == Decimal("0.3")
+        assert result.best_max_drawdown == Decimal("-0.03")
+
+    def test_all_degenerate_leaves_best_metrics_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[BL-429] best 가 없으면 metric 도 없다 — 0 으로 채우지 않는다."""
+
+        def fake_run_backtest(pine: str, ohlcv: pd.DataFrame, cfg: Any) -> SimpleNamespace:
+            # num_trades=0 → objective None → 전건 degenerate. metric 자체는 값이 있다.
+            return _fake_outcome(
+                num_trades=0, total_return=Decimal("0.44"), max_drawdown=Decimal("-0.44")
+            )
+
+        monkeypatch.setattr("src.optimizer.engine.bayesian.run_backtest", fake_run_backtest)
+        space = _build_param_space(
+            {
+                "emaPeriod": {
+                    "kind": "bayesian",
+                    "min": "5",
+                    "max": "30",
+                    "prior": "uniform",
+                    "log_scale": False,
+                }
+            },
+            max_evaluations=3,
+            bayesian_n_initial_random=2,
+            bayesian_acquisition="EI",
+        )
+        result = run_bayesian_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
+
+        assert result.best_iteration_idx is None
+        assert result.best_total_return is None
+        assert result.best_max_drawdown is None
+
     def test_degenerate_iteration_objective_none_best_preserved(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

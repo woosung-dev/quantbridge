@@ -49,7 +49,7 @@ from typing import Any, Final, Literal, cast
 import pandas as pd
 
 from src.backtest.engine import run_backtest
-from src.backtest.engine.types import BacktestConfig
+from src.backtest.engine.types import BacktestConfig, BacktestMetrics
 from src.optimizer.engine._common import (
     _objective_from_metrics,
     _pick_best_iteration_idx,
@@ -114,6 +114,10 @@ class GeneticSearchResult:
     best_params: dict[str, Decimal] | None
     best_objective_value: Decimal | None
     best_iteration_idx: int | None
+    # BL-429 — best individual 의 백테스트 metric (bayesian 1:1 mirror). 목록 화면이
+    # objective 가 아니라 백테스트 행과 같은 의미의 숫자를 그리게 한다.
+    best_total_return: Decimal | None
+    best_max_drawdown: Decimal | None
     objective_metric: str
     direction: str  # Literal[maximize, minimize]
     population_size: int
@@ -478,6 +482,8 @@ def run_genetic_search(
     )
 
     iterations: list[GeneticIndividual] = []
+    # BL-429 — iteration 위치별 백테스트 metric. best 확정 후 그 하나만 결과에 싣는다.
+    metrics_by_position: list[BacktestMetrics] = []
     best_so_far: Decimal | None = None
     global_idx = 0
     prev_evaluated: list[GeneticIndividual] = []
@@ -509,6 +515,7 @@ def run_genetic_search(
                         f"(gen={gen}, params={params}): status={outcome.status}"
                     ),
                 )
+            metrics_by_position.append(outcome.result.metrics)
             objective_value = _objective_from_metrics(
                 outcome.result.metrics, objective_metric=param_space.objective_metric
             )
@@ -534,10 +541,15 @@ def run_genetic_search(
     best_idx = _pick_best_iteration_idx(iterations_t, direction=param_space.direction)
     best_params: dict[str, Decimal] | None = None
     best_objective_value: Decimal | None = None
+    best_total_return: Decimal | None = None
+    best_max_drawdown: Decimal | None = None
     if best_idx is not None:
         best_iter = iterations_t[best_idx]
         best_params = dict(best_iter.params)
         best_objective_value = best_iter.objective_value
+        best_metrics = metrics_by_position[best_idx]
+        best_total_return = best_metrics.total_return
+        best_max_drawdown = best_metrics.max_drawdown
 
     degenerate_count = sum(1 for it in iterations_t if it.is_degenerate)
 
@@ -547,6 +559,8 @@ def run_genetic_search(
         best_params=best_params,
         best_objective_value=best_objective_value,
         best_iteration_idx=best_idx,
+        best_total_return=best_total_return,
+        best_max_drawdown=best_max_drawdown,
         objective_metric=param_space.objective_metric,
         direction=param_space.direction,
         population_size=population_size,

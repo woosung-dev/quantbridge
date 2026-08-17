@@ -278,6 +278,10 @@ export const BayesianSearchResultSchema = z.object({
   best_params: z.record(z.string(), decimalString).nullable(),
   best_objective_value: decimalString.nullable(),
   best_iteration_idx: z.number().int().nullable(),
+  // BL-429 — best iteration 의 백테스트 metric. BL-429 이전 저장 row 에는 키가 없으므로
+  // `.default(null)` 이다. 없음(null)과 0 을 구분해서 그려야 한다.
+  best_total_return: decimalString.nullable().default(null),
+  best_max_drawdown: decimalString.nullable().default(null),
   objective_metric: OptimizationObjectiveMetricSchema,
   direction: OptimizationDirectionSchema,
   bayesian_acquisition: BayesianAcquisitionSchema,
@@ -308,6 +312,9 @@ export const GeneticSearchResultSchema = z.object({
   best_params: z.record(z.string(), decimalString).nullable(),
   best_objective_value: decimalString.nullable(),
   best_iteration_idx: z.number().int().nullable(),
+  // BL-429 — bayesian 1:1 mirror.
+  best_total_return: decimalString.nullable().default(null),
+  best_max_drawdown: decimalString.nullable().default(null),
   objective_metric: OptimizationObjectiveMetricSchema,
   direction: OptimizationDirectionSchema,
   population_size: z.number().int(),
@@ -344,6 +351,10 @@ export const OptimizationRunResponseSchema = z.object({
   param_space: ParamSpaceSchema,
   // result 는 BE 가 dict | None. COMPLETED 시 GridSearch | Bayesian shape (kind discriminator).
   result: OptimizationResultSchema.nullable().optional(),
+  // BL-429 — BE 가 best 조합의 백테스트 metric 을 목록 응답에 직접 싣는다(상세 왕복 금지).
+  // null = 아직 없음(RUNNING·FAILED·best 미확정·구 row). 0 과 같게 그리면 화면이 거짓말을 한다.
+  best_total_return: decimalString.nullable().optional(),
+  best_max_drawdown: decimalString.nullable().optional(),
   error_message: z.string().nullable().optional(),
   created_at: z.iso.datetime({ offset: true }),
   started_at: z.iso.datetime({ offset: true }).nullable().optional(),

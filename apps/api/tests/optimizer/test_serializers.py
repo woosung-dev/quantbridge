@@ -26,6 +26,7 @@ from src.optimizer.engine import (
 from src.optimizer.serializers import (
     bayesian_search_result_from_jsonb,
     bayesian_search_result_to_jsonb,
+    best_metrics_from_jsonb,
     genetic_search_result_from_jsonb,
     genetic_search_result_to_jsonb,
     grid_search_result_from_jsonb,
@@ -90,6 +91,8 @@ def _bayesian_result() -> BayesianSearchResult:
         best_params={"ema": Decimal("14")},
         best_objective_value=Decimal("1.5"),
         best_iteration_idx=0,
+        best_total_return=Decimal("0.31"),
+        best_max_drawdown=Decimal("-0.08"),
         objective_metric="sharpe_ratio",
         direction="maximize",
         bayesian_acquisition="EI",
@@ -124,6 +127,8 @@ def _genetic_result() -> GeneticSearchResult:
         best_params={"ema": Decimal("12")},
         best_objective_value=Decimal("0.9"),
         best_iteration_idx=0,
+        best_total_return=Decimal("0.24"),
+        best_max_drawdown=Decimal("-0.11"),
         objective_metric="sharpe_ratio",
         direction="maximize",
         population_size=4,
@@ -191,6 +196,8 @@ BAYESIAN_GOLDEN = {
     "best_params": {"ema": "14"},
     "best_objective_value": "1.5",
     "best_iteration_idx": 0,
+    "best_total_return": "0.31",
+    "best_max_drawdown": "-0.08",
     "objective_metric": "sharpe_ratio",
     "direction": "maximize",
     "bayesian_acquisition": "EI",
@@ -225,6 +232,8 @@ GENETIC_GOLDEN = {
     "best_params": {"ema": "12"},
     "best_objective_value": "0.9",
     "best_iteration_idx": 0,
+    "best_total_return": "0.24",
+    "best_max_drawdown": "-0.11",
     "objective_metric": "sharpe_ratio",
     "direction": "maximize",
     "population_size": 4,
@@ -268,9 +277,7 @@ def test_bayesian_round_trip() -> None:
 
 
 def test_genetic_round_trip() -> None:
-    restored = genetic_search_result_from_jsonb(
-        genetic_search_result_to_jsonb(_genetic_result())
-    )
+    restored = genetic_search_result_from_jsonb(genetic_search_result_to_jsonb(_genetic_result()))
     assert restored == _genetic_result()
 
 
@@ -290,3 +297,132 @@ def test_optimizer_result_to_jsonb_rejects_unknown_type() -> None:
 
     with pytest.raises(TypeError):
         optimizer_result_to_jsonb(object())  # type: ignore[arg-type]
+
+
+# --- [BL-429] best 조합의 백테스트 metric 추출 ---
+
+
+def test_best_metrics_grid_reads_best_cell() -> None:
+    """grid 는 best cell 안에 값이 있다 — 다른 cell 의 값을 집으면 안 된다."""
+    jsonb = grid_search_result_to_jsonb(_grid_result())
+    assert best_metrics_from_jsonb(jsonb) == (Decimal("0.12"), Decimal("-0.05"))
+
+
+def test_best_metrics_bayesian_and_genetic_read_summary_block() -> None:
+    assert best_metrics_from_jsonb(bayesian_search_result_to_jsonb(_bayesian_result())) == (
+        Decimal("0.31"),
+        Decimal("-0.08"),
+    )
+    assert best_metrics_from_jsonb(genetic_search_result_to_jsonb(_genetic_result())) == (
+        Decimal("0.24"),
+        Decimal("-0.11"),
+    )
+
+
+@pytest.mark.parametrize(
+    "jsonb",
+    [
+        pytest.param(None, id="result_none_running_or_failed"),
+        pytest.param(
+            {"kind": "grid_search", "cells": [], "best_cell_index": None}, id="grid_no_best"
+        ),
+        pytest.param(
+            {"kind": "bayesian", "best_total_return": None, "best_max_drawdown": None},
+            id="bayesian_all_degenerate",
+        ),
+        # BL-429 이전에 저장된 row — 두 키 자체가 없다. 0 이 아니라 None 이어야 한다.
+        pytest.param({"kind": "bayesian", "best_objective_value": "1.5"}, id="legacy_row_no_keys"),
+        pytest.param({"kind": "genetic", "best_objective_value": "0.9"}, id="legacy_genetic_row"),
+        # 손상 row 방어 — Decimal 의 InvalidOperation 은 ValueError 가 아니라
+        # ArithmeticError 라 service 의 _to_response_or_none 이 못 잡는다.
+        pytest.param(
+            {"kind": "grid_search", "cells": [{}], "best_cell_index": 0}, id="cell_missing_keys"
+        ),
+        pytest.param(
+            {"kind": "grid_search", "cells": [{"total_return": "n/a"}], "best_cell_index": 0},
+            id="cell_non_decimal_string",
+        ),
+        pytest.param(
+            {"kind": "grid_search", "cells": [], "best_cell_index": 3}, id="index_out_of_range"
+        ),
+        pytest.param({"kind": "unknown_future_kind"}, id="unknown_kind"),
+    ],
+)
+def test_best_metrics_absent_is_none_not_zero(jsonb: dict[str, object] | None) -> None:
+    """★「없음」과 「0」은 다르다 — 0 을 내면 화면이 파산한 실행을 「손익 0」으로 그린다."""
+    assert best_metrics_from_jsonb(jsonb) == (None, None)
+
+
+def test_legacy_row_round_trip_keeps_none() -> None:
+    """구 row 를 dataclass 로 되살려도 두 필드는 None 이다 (0 으로 채우지 않는다)."""
+    legacy = bayesian_search_result_to_jsonb(_bayesian_result())
+    del legacy["best_total_return"]
+    del legacy["best_max_drawdown"]
+    restored = bayesian_search_result_from_jsonb(legacy)
+    assert restored.best_total_return is None
+    assert restored.best_max_drawdown is None
+
+
+# ── [BL-429] codex 적대 리뷰 P1 회귀 (2026-08-17) ──────────────────────────────
+# 세 축 전부 **실제로 재현된 뒤** 수리됐다. 재현 없이 붙인 방어가 아니다.
+
+
+def test_best_metrics_reject_bool_cell_index() -> None:
+    """★`bool` 은 `int` 의 하위형이라 `cells[True]` 가 `cells[1]` 로 조용히 통과했다.
+
+    수리 전 실측: `(Decimal("0.99"), Decimal("-0.01"))` — 두 번째 cell 을 best 라 불렀다.
+    """
+    corrupt = {
+        "kind": "grid_search",
+        "best_cell_index": True,
+        "cells": [
+            {"total_return": "0.10", "max_drawdown": "-0.50"},
+            {"total_return": "0.99", "max_drawdown": "-0.01"},
+        ],
+    }
+    assert best_metrics_from_jsonb(corrupt) == (None, None)
+
+    # ★음성 대조 — `0` 을 `False` 로 오판해서 정상 row 를 죽이면 안 된다.
+    healthy = {
+        "kind": "grid_search",
+        "best_cell_index": 0,
+        "cells": [{"total_return": "0.10", "max_drawdown": "-0.50"}],
+    }
+    assert best_metrics_from_jsonb(healthy) == (Decimal("0.10"), Decimal("-0.50"))
+
+
+@pytest.mark.parametrize(
+    ("raw_total", "raw_mdd"),
+    [
+        pytest.param("0.20", "n/a", id="mdd_corrupt"),
+        pytest.param("n/a", "-0.05", id="total_corrupt"),
+        pytest.param("0.20", None, id="mdd_missing"),
+    ],
+)
+def test_best_metrics_are_atomic(raw_total: object, raw_mdd: object) -> None:
+    """한쪽만 파싱되면 둘 다 None 이다.
+
+    수익률만 있고 MDD 가 빈 행은 「위험을 못 재는 성과」다 — 화면에서 위험 과소평가를 만든다.
+    수리 전 실측: `("0.20", "n/a")` → `(Decimal("0.20"), None)`.
+    """
+    jsonb = {
+        "kind": "grid_search",
+        "best_cell_index": 0,
+        "cells": [{"total_return": raw_total, "max_drawdown": raw_mdd}],
+    }
+    assert best_metrics_from_jsonb(jsonb) == (None, None)
+
+
+@pytest.mark.parametrize("raw", ["NaN", "Infinity", "-Infinity"])
+def test_best_metrics_reject_non_finite(raw: str) -> None:
+    """`Decimal("NaN")`·`Decimal("Infinity")` 는 `InvalidOperation` 을 안 낸다.
+
+    통과시키면 응답 스키마의 유한성 검증에서 `ValidationError` 가 나고 service 가 그 행을
+    통째로 None 으로 바꾼다 — 손상 셀 하나가 **목록에서 행을 지우고 상세를 404 로** 만든다.
+    """
+    assert best_metrics_from_jsonb(
+        {"kind": "bayesian", "best_total_return": raw, "best_max_drawdown": "-0.1"}
+    ) == (None, None)
+    assert best_metrics_from_jsonb(
+        {"kind": "genetic", "best_total_return": "0.1", "best_max_drawdown": raw}
+    ) == (None, None)
