@@ -2888,3 +2888,55 @@ document 리스너를 붙이는 시점은 **페이지 제목 가시 시점과 �
 **트리거 판정:** 도래 — 마감 게이트의 authed 레그가 이것 때문에 red 다. 다만 프로덕션 영향이 0이라 P3 (2026-08-17 auth-selfhost · 2026-08-16 원인 확정)
 
 ---
+
+### BL-788
+
+**Title:** `tests/conftest.py` 의 `create_all` 스키마 범위가 **import 목록으로만** 정의된다 — 빠진 모델은 조용히 안 만들어지고 head 로 stamp 된다
+**Category:** 테스트 / 인프라
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-17 에 `auth_*` 5테이블이 실제로 빠져 있었다
+**Est:** S (등록 테이블 수를 재는 검사면 1개)
+**출처:** 2026-08-17 야간 레인 β — 두 BL 어느 쪽도 아니라 레인이 별건으로 넘겼고 CONTROL 이 등재
+
+**원인 / 영향:** `bootstrap_test_schema` 는 `SQLModel.metadata.create_all` 로 스키마를 만든 뒤 `alembic_version` 을 **생 SQL 로** head stamp 한다. `create_all` 이 만드는 것은 **그 순간 metadata 에 등록된** 테이블뿐이므로, 파일 머리의 모델 import 목록이 곧 스키마 범위다. `src/auth/better_auth_tables.py` 를 import 하는 곳이 `alembic/env.py` **하나뿐**이라 fresh DB 에는 `auth_*` 5테이블이 **없는 채로 head 가 적혔고**, `test_migrations.py` 의 `downgrade base` 가 `DROP TABLE auth_jwks` 에서 죽었다. 이전에 migration 이 돈 DB 에는 그 테이블이 남아 있어 통과한다.
+
+★**이것이 원장의 기준선을 오염시켰다** — 「BE 4759 passed」는 거짓이 아니라 **더러운 DB 에서 잰 값**이었다. fresh DB 에서는 `2 failed, 4757 passed` 이고, 이 회차의 migration 을 뺀 대조군에서도 같은 2건이 같은 이유로 실패했다.
+
+★★**표적 실행으로는 구조적으로 안 보인다.** CONTROL 이 그 import 를 지우고 fresh DB 에서 `test_migrations.py` **단독**을 돌렸더니 **20 passed rc=0** 이었다. 전량 실행에서만 red 가 된다(수집 단계에서 다른 모듈이 `auth` 쪽을 import 하는지로 갈린다). 즉 이 결함군은 **전량 pytest 만이 증인**이다.
+
+**처방:** import 한 줄은 [BL-785] 회차가 이미 넣었다(수리 완료). 남은 것은 **재발 방지**다 — 「`SQLModel.metadata` 에 등록된 테이블 수 == 기대치」를 재는 검사면이 없어서, 다음에 모델 파일이 추가되고 conftest import 가 빠지면 같은 일이 반복된다. [BL-782] 와 같은 병의 다른 층이라는 것도 함께 적어라(`create_all` 경로 ≠ migration 경로 — 저기는 컬럼 타입, 여기는 테이블 존재).
+
+**Risk:** 🟢 (검사면 추가. 프로덕션 코드 무변경)
+
+**상태:** ✅ **Resolved** — 2026-08-17 metadata-scope (PR #662). 신규 `apps/api/tests/test_metadata_table_coverage.py` **4다리** — 선언 축 2(`tests/conftest.py`·`alembic/env.py` 가 census 의 표 선언 모듈을 **모듈 최상위에서** import 하는가) + 실행 축 2(자식에서 `tests.conftest` 만 import 했을 때 등록 표 == census / `alembic/env.py` 를 오프라인으로 태워 `configure()` 가 받은 `target_metadata` 를 대조). 기대치는 `src/**` AST census 에서 도출하므로 **하드코딩이 없다**. 착수 시 red(`{'src.optimizer.models': ['optimization_runs']}`) → 수리 후 green 실측. 변이 12종+ · 전량 BE pytest **4782 passed, 0 failed**(기존 슬롯 DB · fresh DB 각 1회).
+★**본문이 적은 인과가 거짓이었다.** 「`tests/optimizer/` 9파일이 **수집 단계에서 우연히 import** 하므로 수집 순서 의존」이 아니라 `tests/conftest.py:70` → `src/main.py:447 create_app()` → stress_test router → dependencies → service → `src.optimizer.models` 의 **5홉 전이 import** 이고 수집과 무관하다. 결함은 「깨져 있었다」가 아니라 **「무관한 배선에 기대고 있었다」**였다 → [LESSON-120].
+★**기준선도 정정한다.** 위 「fresh DB 에서 `2 failed, 4757 passed`」는 슬롯 3 에서 재현되지 않는다 — 그 2건의 원인이던 `better_auth_tables` 누락을 [BL-785] 회차가 이미 넣었기 때문이다. 실측 2회 모두 0 failed.
+★**동승 정리 — 범위 목록이 3벌 → 2벌.** `tests/test_migrations.py:36-49` 의 「누락 방지용 explicit import」를 삭제했다(2026-04-16 도입, stress_test·waitlist·optimizer·better_auth_tables **4개 누락 상태로 넉 달 생존**. 부모 conftest 가 전부 등록하므로 기여 0 이었고, 이름이 주장하는 성질을 스스로 못 지켜 오히려 누락을 가렸다).
+★★**이 회차가 자신에 대해 반증한 것 2건 — 둘 다 「주석이 코드보다 앞서 나갔다」다.** ⑴ 「파서가 못 보는 선언 형태는 실행 축이 정체불명으로 잡는다」 → 실행 축은 **import 된 모듈만** 본다. ⑵ 「`alembic check` 가 보는 것과 같은 객체다」 → 오프라인/온라인은 **다른 `configure()` 호출**이다(codex 수리 뒤 독립 검증자가 온라인 쪽만 비워 4/4 초록을 냈다). 최종판은 주장을 **「`configure()` 들이 같은 모듈 전역 이름을 넘기는 것을 AST 로 정적 확인했고, 그 이름이 가리키는 값을 오프라인 실행으로 실측했다」**로 낮췄다. 알면서 남긴 census 사각 3종 = [BL-796].
+**트리거 판정:** 도래 — 결함이 실재했고 기준선을 오염시킨 것이 실측됐다
+
+---
+
+### BL-795
+
+**Title:** 「authed 스위트 red」의 **두 번째 원인** — Turbopack 영속 캐시 물림. [BL-784] 와 증상이 같다
+**Category:** 테스트 / 개발 환경
+**Priority:** P3
+**Trigger:** 도래 — 2026-08-17 회차에서 실제로 3/3 red 를 냈다
+**Est:** S (판정식을 문서에 한 줄)
+**출처:** 2026-08-17 야간 레인 α — 회차 중 밟은 환경 함정
+
+**원인 / 영향:** authed 가 3/3 red 로 나온 구간이 있었고 원인은 rate limit 이 아니라 Turbopack 영속 캐시였다. 증상은 `○ Compiling /sign-in/[[...sign-in]] ...` 에서 next-server 가 **CPU 0.0%** 로 멈추고 `global.setup.ts:65` 의 `page.goto('/sign-in')` 이 120초 timeout 으로 죽는 것이다(그 뒤 89건 `did not run`). `curl /sign-in` 은 240초를 넘겨도 응답이 없었다. `apps/web/.next` 를 치우고 재기동하면 `/sign-in` 이 **0.79초**에 컴파일된다.
+
+★**같은 증상에 원인이 둘이라는 것이 [BL-784] 가 넉 달을 끈 이유와 같은 모양이다.** 구분하는 판정식: **실패가 `setup` 단계에서 나고 BE 429 가 0건**이면 캐시 쪽이다(429 가 있으면 [BL-784] 축).
+
+**처방:** 그 판정식을 `gates-and-traps.md` §환경 또는 `docs/lessons.md` 에 한 줄. [BL-650] 이 이미 같은 캐시가 낡은 CSS 로 음성 대조를 거짓 통과시킨 전례를 갖고 있다 — 그 항목과 나란히 두면 「Turbopack 캐시는 서버 재기동을 넘어 산다」가 한자리에 모인다.
+
+**Risk:** 🟢 (문서)
+
+**상태:** ✅ **Resolved** — 2026-08-17 e2e-truth (PR #663). `gates-and-traps.md` 의 429 축([BL-784]) 바로 다음에 **2원인 대조표**를 넣었다 — 실패가 `setup` 단계에서 나고 429 가 **0건**이면 캐시 쪽, 처방은 `rm -rf apps/web/.next`. 종전 「★복구 = 재기동뿐 … 지우지 말고 재기동해라」를 폐기하고 「재기동 먼저, 남으면 서버를 죽인 뒤 캐시 제거」로 통합했다.
+★★**「모순 문장이 남아 있지 않다」는 수용 기준을 이 회차가 두 번 틀렸다.** 잔존 확인을 `gates-and-traps.md` **한 파일**에서만 돌린 것이 원인이다. ⑴ 3렌즈 적대 리뷰가 `docs/reference/operations/workflows/generator-evaluator-pipeline.md:142`(하필 `AGENTS.md` 가 메타-방법론 정본으로 지목한 파일의 §G4) 에서 같은 처방이 살아 있는 것을 찾았다. ⑵ `/codex` 가 [BL-650] 본문의 「dev 가 이상하면 `rm -rf .next` 부터가 유일한 처방」을 찾았다(이 원장 PR 이 정정). ⇒ **잔존 확인은 처음부터 `git grep -- docs/` 전체여야 했다.** 지금은 `git grep "재기동뿐" -- docs/` 의 히트가 **전부 폐기 선언 안의 인용**이다.
+★**정직한 한계** — 이 항목의 산출물은 전부 산문이라 판정식의 참·거짓을 잴 검사면이 **구조적으로 없다**. 수용 기준을 「판정식이 맞다」가 아니라 「두 원인이 한자리에서 대조되고 모순되는 종전 문장이 남아 있지 않다」로 두고 닫았다. 판정식 자체의 실증은 **다음 authed red 회차**에 달려 있다.
+**트리거 판정:** 도래 — 이 회차가 실제로 밟았고 원인을 특정했다
+
+---
