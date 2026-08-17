@@ -72,11 +72,14 @@ SERVER_SCRIPTS = {
     "tools/scripts/soak-logs-follow.sh": "서버 systemd user unit (gates-and-traps.md:459)",
 }
 
-# ── 도구를 부르지 않고 **이름만 데이터로** 갖는 파일. 이 감사기와 그 하네스가 전부다.
-#   (자기 판정 목록 `TOOLS` 와 fixture 문자열이 인터프리터 히어독 축에 잡힌다.)
+# ── 도구 이름을 **데이터로** 갖는 파일 — 이 감사기와 그 하네스뿐이다. 값은 끄는 축이다.
+#   "interp" = 인터프리터 히어독 축만 끈다. 셸 명령 위치 축은 살아 있어서, 이 감사기 안에
+#             진짜 `pnpm` 호출을 넣으면 **자기가 자기를 잡는다**(표적 변이 ③).
+#   "all"    = 파일 전체. 하네스의 fixture 본문은 셸 스니펫 그 자체라 명령 위치 축으로
+#             가릴 방법이 없다. 대신 이 파일은 도구를 부를 일이 구조적으로 없다.
 DATA_ONLY = {
-    "tools/scripts/tool-pin-audit.sh",
-    "tools/scripts/tool-pin-audit-test.sh",
+    "tools/scripts/tool-pin-audit.sh": "interp",
+    "tools/scripts/tool-pin-audit-test.sh": "all",
 }
 
 # 명령 위치 = 줄머리 또는 구분자 뒤. 그 앞에 `VAR=값` 접두와 **명령 래퍼**가 몇 개 붙어도
@@ -128,8 +131,12 @@ def strip_comment(line: str) -> str:
     return "".join(out)
 
 
-def calls_in(text: str):
-    """(줄번호, 도구, 원본줄) 목록. 히어독 본문·안내문(echo/printf)은 세지 않는다."""
+def calls_in(text: str, skip_interp: bool = False):
+    """(줄번호, 도구, 원본줄) 목록. 히어독 본문·안내문(echo/printf)은 세지 않는다.
+
+    skip_interp=True 면 인터프리터 히어독 본문의 문자열 리터럴 축을 끈다(DATA_ONLY 전용).
+    셸 명령 위치 축은 **그대로 산다** — 그래야 면제 파일이 진짜 호출을 숨기지 못한다.
+    """
     hits = []
     pending = None  # 히어독 종료 구분자
     interp = False  # 그 히어독이 인터프리터에 들어가는가
@@ -138,7 +145,7 @@ def calls_in(text: str):
             if raw.strip() == pending:
                 pending = None
                 interp = False
-            elif interp:
+            elif interp and not skip_interp:
                 for hit in INTERP_CALL_RE.finditer(strip_comment(raw)):
                     hits.append((no, hit.group(1), raw.strip()))
             continue
@@ -210,10 +217,11 @@ exempt_seen = []
 pinned_seen = []
 for path in targets:
     rel = str(path.relative_to(ROOT))
-    if rel in DATA_ONLY:
+    axis_off = DATA_ONLY.get(rel)
+    if axis_off == "all":
         continue
     text = path.read_text(encoding="utf-8", errors="replace")
-    hits = calls_in(text)
+    hits = calls_in(text, skip_interp=axis_off == "interp")
     if not hits:
         continue
     if rel in SERVER_SCRIPTS:
