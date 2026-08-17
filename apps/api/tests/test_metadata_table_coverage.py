@@ -169,6 +169,10 @@ def _local_aliases(tree: ast.Module, symbol: str) -> frozenset[str]:
     ★`ast.walk` 로 훑는다. 함수 본문에 숨긴 import 도 그 함수가 돌면 표를 등록하므로,
       「최상위만」이라는 좁힘은 여기서는 사각을 만든다(⑴⑵의 `tree.body` 직계 규칙과 반대인
       이유 = 저쪽은 「실행이 보장되는가」를 묻고 이쪽은 「이 이름이 그것인가」를 묻는다).
+    ★**아직 못 보는 것 하나** — import 가 아니라 **대입**으로 만든 별칭(`T = Table` 뒤의
+      `T(...)`)은 여기 안 잡힌다. 알면서 남긴다: 실사용례가 없고, 대입 추적은 순서 의존이라
+      값보다 새 결함의 위험이 크다. ★그래도 「초록 = 그런 표가 없다」로 읽지 마라 —
+      초록은 「내가 본 형태 중에는 없었다」만 말한다(`apps/api/AGENTS.md` §10).
     """
     names = {symbol}
     for node in ast.walk(tree):
