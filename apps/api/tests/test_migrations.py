@@ -33,19 +33,15 @@ from sqlmodel import SQLModel
 
 from alembic import command
 
-# 모델 import (metadata 등록) — 누락 방지용 explicit import
-from src.auth.models import User  # noqa: F401
-from src.backtest.models import Backtest, BacktestTrade  # noqa: F401
-from src.market_data.models import OHLCV  # noqa: F401
-from src.strategy.models import Strategy  # noqa: F401
-from src.trading.models import (  # noqa: F401
-    ExchangeAccount,
-    ExchangeExit,
-    FundingRate,
-    KillSwitchEvent,
-    Order,
-    WebhookSecret,
-)
+# ★[BL-788] 여기 있던 「누락 방지용 explicit import」 목록(2026-04-16~)은 지웠다.
+#   그 목록은 **범위를 정하는 세 번째 손 목록**이었는데 stress_test·waitlist·optimizer·
+#   better_auth_tables 4개가 빠진 채 넉 달을 살았다 — 즉 「누락 방지」라는 이름과 반대로
+#   누락을 가리는 쪽이었다. metadata 등록의 실제 범위는 `tests/conftest.py` 머리의 목록
+#   하나이고(이 파일은 그 conftest 의 자식이라 늘 그 목록을 물려받는다), 그 목록이
+#   빠짐없는지는 `tests/test_metadata_table_coverage.py` 가 지킨다.
+#   ★아래 `ExchangeExit` 는 F401 이 아니라 **본문에서 쓰는 것**이다
+#   (`test_empty_type_drift_baseline_rejects_a_string_length_mutation`).
+from src.trading.models import ExchangeExit
 from tests import _db_guard
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
