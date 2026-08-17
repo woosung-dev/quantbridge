@@ -4,17 +4,17 @@
 
 ## 1. Tech Stack
 
-| 항목            | 기술                                  |
-| --------------- | ------------------------------------- |
-| Framework       | Next.js 16 (App Router)               |
-| Language        | TypeScript Strict                     |
-| Styling         | Tailwind CSS v4 + shadcn/ui v4        |
-| Package Manager | `pnpm`                                |
-| Server State    | React Query (`@tanstack/react-query`) |
-| Client State    | Zustand                               |
-| Form            | `react-hook-form` + `zod v4`          |
-| Auth            | Better Auth (`better-auth`, 자체 호스팅 — ADR-034)   |
-| 배포            | Vercel                                |
+| 항목            | 기술                                               |
+| --------------- | -------------------------------------------------- |
+| Framework       | Next.js 16 (App Router)                            |
+| Language        | TypeScript Strict                                  |
+| Styling         | Tailwind CSS v4 + shadcn/ui v4                     |
+| Package Manager | `pnpm`                                             |
+| Server State    | React Query (`@tanstack/react-query`)              |
+| Client State    | Zustand                                            |
+| Form            | `react-hook-form` + `zod v4`                       |
+| Auth            | Better Auth (`better-auth`, 자체 호스팅 — ADR-034) |
+| 배포            | Vercel                                             |
 
 ---
 
@@ -102,7 +102,9 @@ if (!isPublicRoute(pathname)) {
 - **대신**: **dependency array 없는 sync `useEffect`** 로 이동 (매 commit 후 실행). 기능상 render 직후 commit phase 라 동일
   ```tsx
   const latest = useRef(value);
-  useEffect(() => { latest.current = value; });  // deps 없음 = 매 commit
+  useEffect(() => {
+    latest.current = value;
+  }); // deps 없음 = 매 commit
   ```
 - **Debouncer 패턴**: `useRef` + sync useEffect + timeout 콜백에서 `ref.current` 읽기 조합이 표준
 
@@ -139,11 +141,11 @@ src/
 
 2026-08-16 에 `_components/` **234파일을 `features/` 로 옮겼다.** 금지는 아니지만 기본이 아니다.
 
-| 상황                                    | 자리                                                          |
-| --------------------------------------- | ------------------------------------------------------------- |
+| 상황                                    | 자리                                                            |
+| --------------------------------------- | --------------------------------------------------------------- |
 | 두 개 이상 라우트가 쓴다                | `features/<domain>/components/` 또는 `components/`(도메인 무지) |
-| 한 라우트 전용 + 도메인 로직 있음       | `features/<domain>/components/`                               |
-| 한 라우트 전용 + 순수 표현 + 5파일 미만 | `app/<route>/_components/` 허용                               |
+| 한 라우트 전용 + 도메인 로직 있음       | `features/<domain>/components/`                                 |
+| 한 라우트 전용 + 순수 표현 + 5파일 미만 | `app/<route>/_components/` 허용                                 |
 
 ★**의심스러우면 feature 로 보내라.**
 
@@ -214,7 +216,6 @@ export type ActionResult<T> =
 ```
 
 - React Query `mutation.onError` 가 throw 처리하더라도, API wrapper 레이어는 `ActionResult` 로 typed result 노출. UI 가 `result.success` 분기로 disambiguate.
-
 
 ---
 
@@ -291,17 +292,23 @@ const handleSubmit = (data: FormData) => {
 `globals.css:204-211` 의 `@theme` 블록이 재정의한다. 종전의 「Tailwind v4 기본값」 표기는
 틀렸고, `sm:` 은 실사용 **36건**이라 화면에 실제로 영향을 준다.
 
-| 접두사 | **이 레포** | Tailwind v4 기본 | 주요 용도                                     |
-| ------ | ----------- | ---------------- | --------------------------------------------- |
-| (없음) | 0px         | 0px              | 모바일 기본                                   |
-| `sm:`  | **375px**   | ~~640px~~        | 소형 모바일 (사용 36건)                       |
-| `md:`  | 768px       | 768px            | 태블릿 · **앱 셸 사이드바 숨김 경계**         |
-| `lg:`  | 1024px      | 1024px           | 데스크탑 · **앱 셸 아이콘 레일 경계**         |
-| `xl:`  | **1200px**  | ~~1280px~~       | 콘텐츠 그리드 2열화 (사용 1건)                |
-| `2xl:` | **1440px**  | ~~1536px~~       | 와이드 (유틸 사용 0건 · raw `@media` 0건)     |
+| 접두사 | **이 레포** | Tailwind v4 기본 | 주요 용도                                 |
+| ------ | ----------- | ---------------- | ----------------------------------------- |
+| (없음) | 0px         | 0px              | 모바일 기본                               |
+| `sm:`  | **375px**   | ~~640px~~        | 소형 모바일 (사용 36건)                   |
+| `md:`  | 768px       | 768px            | 태블릿 · **앱 셸 사이드바 숨김 경계**     |
+| `lg:`  | 1024px      | 1024px           | 데스크탑 · **앱 셸 아이콘 레일 경계**     |
+| `xl:`  | **1200px**  | ~~1280px~~       | 콘텐츠 그리드 2열화 (사용 1건)            |
+| `2xl:` | **1440px**  | ~~1536px~~       | 와이드 (유틸 사용 0건 · raw `@media` 0건) |
 
 ★유틸 접두사는 **min-width**, CSS 미디어는 **max-width** 다. 같은 숫자를 반대 방향으로 쓰므로
-섞어 읽지 마라. 미등재 경계 `@media (max-width: 900px)` 5곳은 [BL-646].
+섞어 읽지 마라.
+
+★**`900px` 는 더 이상 미등재가 아니다** (2026-08-17 정정, [BL-602] 종결 시 동승).
+종전 문장은 「미등재 경계 `@media (max-width: 900px)` 5곳은 [BL-646]」이었는데 [BL-646] 은
+**Resolved** 이고 `DESIGN.md §4.3.1` 이 900 을 **콘텐츠 그리드 전용 6번째 경계로 등재**했다.
+실사용은 여전히 `globals.css` 의 raw `@media` **5곳**(`:1972`·`:2042`·`:2175`·`:2271`·`:3300`)이고
+Tailwind 접두사는 없다 — 위 사다리 표에 행이 없는 이유가 그것이다.
 
 ### 앱 셸 고유 값 (정본 `globals.css` · 사본 `DESIGN.md` §10.2/§10.6)
 
