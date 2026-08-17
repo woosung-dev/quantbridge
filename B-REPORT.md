@@ -316,7 +316,8 @@ diff 의 `+` 줄에 등장하는 컬럼은 `funding_rates.exchange`(2회, 본문
 돌아간 게이트 **20종 전건 PASS**(BE ruff·mypy·openapi drift 포함 — 이 회차가 `apps/api` 를
 건드렸으므로 영역 판정이 켰다). FE 6종은 `frontend diff 0` 으로 skip.
 
-유예 7종(`.claude/gates/gate-pins/deferred.txt`, sha `d525001d`) — 계약대로 밤에는 안 돌렸다:
+유예 7종(`.claude/gates/gate-pins/deferred.txt` — 그 파일이 sha 를 적고 있다) — 계약대로
+밤에는 안 돌렸다:
 
 | 유예                | 밤에 확인한 것                                        |
 | ------------------- | ----------------------------------------------------- |
