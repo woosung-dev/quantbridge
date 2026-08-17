@@ -485,6 +485,44 @@ describe("e2e project 배선", () => {
 });
 
 describe("chromium-authed spec 실행 표면 ([BL-789])", () => {
+  // ★★**매니페스트가 SSOT 라는 것 자체를 재는 시험** (2026-08-18 적대 리뷰 P2).
+  //   위 시험은 매니페스트 ↔ playwright config 만 대조한다. 그것만으로는
+  //   **CI 가 그 매니페스트를 실제로 소비하는지**를 아무도 안 본다 — 워크플로를 spec 하드코딩으로
+  //   되돌려도 project 축 감사는 `chromium-authed` 가 돈다는 것만 보고 통과한다.
+  //   그러면 매니페스트는 「적어 두기만 하고 아무도 안 읽는 목록」이 되고, 이 회차가 없앤 바로
+  //   그 병(적혀 있는 것 ≠ 도는 것)이 한 겹 위에서 재발한다.
+  it("authed 를 부르는 CI 명령은 매니페스트에서 spec 을 뽑는다 — 파일명을 워크플로에 박지 않는다", () => {
+    const bodies: string[] = [];
+    for (const file of readdirSync(WORKFLOW_DIR).filter((f) => /\.ya?ml$/.test(f))) {
+      const text = readFileSync(path.join(WORKFLOW_DIR, file), "utf8");
+      if (!PR_TRIGGERS.some((t) => new RegExp(`^\\s*${t}:`, "m").test(text))) continue;
+      for (const body of runScripts(stripDeadBranches(stripYamlComments(text)))) {
+        if (/\bplaywright\s+test\b/.test(body) && /--project(?:=|\s+)chromium-authed\b/.test(body)) {
+          bodies.push(body);
+        }
+      }
+    }
+
+    // ★양쪽이 비면 ABORT. 「부르는 곳이 없다」를 「계약을 지켰다」로 읽지 않는다.
+    if (bodies.length === 0) {
+      throw new Error(
+        "ABORT — PR 에서 발화하는 워크플로 중 `--project=chromium-authed` 를 부르는 명령이 0개다. " +
+          "잡이 지워졌거나 이 파서가 못 읽고 있다. 둘 다 초록이어선 안 된다.",
+      );
+    }
+
+    for (const body of bodies) {
+      expect(
+        body.includes("ci-authed-manifest.json"),
+        `authed 를 부르는 CI 명령이 매니페스트를 안 읽는다:\n${body}`,
+      ).toBe(true);
+      expect(
+        /\be2e\/[A-Za-z0-9._-]+\.spec\.ts\b/.test(body),
+        `authed CI 명령에 spec 파일명이 직접 박혀 있다 — SSOT 는 ci-authed-manifest.json 하나다:\n${body}`,
+      ).toBe(false);
+    }
+  });
+
   it("config 가 고른 authed spec 은 CI 또는 사유 있는 localOnly 에 정확히 한 번씩 등재된다", () => {
     const { ci, localOnly } = CI_AUTHED_MANIFEST;
     const localOnlyNames = Object.keys(localOnly);

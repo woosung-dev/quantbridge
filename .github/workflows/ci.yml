@@ -544,7 +544,12 @@ jobs:
   # 대상으로 삼고, 나머지 authed spec의 미실행 사유도 같은 파일에 남긴다.
   e2e_authed:
     needs: changes
-    if: needs.changes.outputs.frontend == 'true'
+    # ★★**backend 변경에도 발화한다** (2026-08-18 적대 리뷰 P1). 형제 `e2e` 잡은 공개 라우트만
+    #   재니까 `frontend` 만으로 충분하지만, **이 잡은 FastAPI 의 인증·CORS·JWKS 경로를 실제로
+    #   지난다** — 실제로 첫 두 라운드를 죽인 것이 그 둘이었다(`Invalid origin` · CORS `ERR_FAILED`).
+    #   `frontend` 만 보면 `apps/api/**` 만 고쳐 그 경로를 깨뜨린 PR 에서 이 잡이 **skip** 되고,
+    #   `ci` 요약은 skipped 를 통과로 세므로 초록으로 머지된다.
+    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     services:
       db:
