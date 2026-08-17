@@ -38,6 +38,7 @@ def _make_backtest_with_bl188_v3_config() -> Backtest:
         id=uuid4(),
         user_id=uuid4(),
         strategy_id=uuid4(),
+        strategy_version_id=uuid4(),  # BL-783 — 제출 시점 스냅샷 핀
         symbol="BTCUSDT",
         timeframe="4h",
         period_start=datetime(2024, 1, 1, tzinfo=UTC),
@@ -94,6 +95,10 @@ def _make_service_with_mocks(
     repo = AsyncMock()
     backtest_repo = AsyncMock()
     strategy_repo = AsyncMock()
+    # BL-783 — 엔진 source 는 부모 Backtest 에 핀된 스냅샷에서 온다.
+    # bare AsyncMock 을 그대로 두면 `get_version_by_id` 가 MagicMock 을 돌려주고
+    # `.pine_source` 도 MagicMock 이라, 이 double 이 무엇을 실행하는지 말할 수 없게 된다.
+    strategy_repo.get_version_by_id = AsyncMock(return_value=strategy)
     strategy_repo.find_by_id_and_owner = AsyncMock(return_value=strategy)
     provider = MagicMock()
     provider.get_ohlcv = AsyncMock(return_value=ohlcv)
@@ -131,12 +136,8 @@ async def test_execute_cost_assumption_propagates_backtest_config(
         received_kwargs.update(kwargs)
         return MagicMock(param1_name="fees", param2_name="slippage", cells=[])
 
-    monkeypatch.setattr(
-        "src.stress_test.service.run_cost_assumption_sensitivity", spy_run
-    )
-    monkeypatch.setattr(
-        "src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {}
-    )
+    monkeypatch.setattr("src.stress_test.service.run_cost_assumption_sensitivity", spy_run)
+    monkeypatch.setattr("src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {})
 
     await service._execute_cost_assumption_sensitivity(st, bt)
 
@@ -178,16 +179,10 @@ async def test_execute_param_stability_propagates_backtest_config(
 
     def spy_run(*_args: Any, **kwargs: Any) -> Any:
         received_kwargs.update(kwargs)
-        return MagicMock(
-            param1_name="emaPeriod", param2_name="stopLossPct", cells=[]
-        )
+        return MagicMock(param1_name="emaPeriod", param2_name="stopLossPct", cells=[])
 
-    monkeypatch.setattr(
-        "src.stress_test.service.run_param_stability", spy_run
-    )
-    monkeypatch.setattr(
-        "src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {}
-    )
+    monkeypatch.setattr("src.stress_test.service.run_param_stability", spy_run)
+    monkeypatch.setattr("src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {})
 
     await service._execute_param_stability(st, bt)
 
@@ -235,12 +230,8 @@ async def test_execute_cost_assumption_propagates_default_when_bt_config_null(
         received_kwargs.update(kwargs)
         return MagicMock(param1_name="fees", param2_name="slippage", cells=[])
 
-    monkeypatch.setattr(
-        "src.stress_test.service.run_cost_assumption_sensitivity", spy_run
-    )
-    monkeypatch.setattr(
-        "src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {}
-    )
+    monkeypatch.setattr("src.stress_test.service.run_cost_assumption_sensitivity", spy_run)
+    monkeypatch.setattr("src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {})
 
     await service._execute_cost_assumption_sensitivity(st, bt)
 
@@ -279,16 +270,10 @@ async def test_execute_param_stability_propagates_default_when_bt_config_null(
 
     def spy_run(*_args: Any, **kwargs: Any) -> Any:
         received_kwargs.update(kwargs)
-        return MagicMock(
-            param1_name="emaPeriod", param2_name="stopLossPct", cells=[]
-        )
+        return MagicMock(param1_name="emaPeriod", param2_name="stopLossPct", cells=[])
 
-    monkeypatch.setattr(
-        "src.stress_test.service.run_param_stability", spy_run
-    )
-    monkeypatch.setattr(
-        "src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {}
-    )
+    monkeypatch.setattr("src.stress_test.service.run_param_stability", spy_run)
+    monkeypatch.setattr("src.stress_test.service.grid_metrics_result_to_jsonb", lambda _r: {})
 
     await service._execute_param_stability(st, bt)
 
