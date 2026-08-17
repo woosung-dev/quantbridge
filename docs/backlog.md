@@ -634,7 +634,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 | [BL-712](#bl-712) | 전략 목록 **표시 정합 2건** — ⑴ `lifecycle` 이 `is_archived` 를 안 봐서 아카이브된 전략도 `validated`/`deployed` 로 응답한다(칩 4번째 값이 없다 = 사용자 결정) ⑵ 정렬 select 라벨이 **방향을 말하지 않는다** — `?order_by=total_return&order=asc` 로 진입하면 오름차순인데 라벨은 「수익률 높은 순」이다(UI 는 그 URL 을 만들지 않지만 공유·수동 편집으로 도달한다)                                                                                                                                                                                                                                                                                                                            | 전략 목록 표시를 다시 손댈 때 / 아카이브 화면을 낼 때                                                             | S         | 2026-08-12 surface-demo-pack (codex G6 #4·#12)         |
 | [BL-713](#bl-713) | e2e 정체성 프로브가 `<title>` **부분일치**라 고유 식별자가 아니다 — 다른 앱의 title 이 `QuantBridge` 를 포함하기만 하면 통과한다. 지금은 판별에 성공하지만(`"Nexus Admin"` 실측 red) 우연에 의존한다. 처방 = 고유 마커(예: `<meta name="qb-app" content="quantbridge">`)를 심고 프로브가 **그것**을 본다                                                                                                                                                                                                                                                                                                                                                                                       | 정체성 프로브가 거짓 통과하는 것이 관측될 때 / 같은 호스트에 앱이 늘 때                                           | XS        | 2026-08-12 surface-demo-pack (codex G6 #10)            |
 | [BL-715](#bl-715) | ✅ **브랜치 잔재 판정 — Resolved (2026-08-14 gate-surface-close, 삭제 집행은 사용자 결정)**. ★**양 축 모두 반증** — 로컬 39건은 **이미 소멸**(`refs/heads/` = `main` 1개)이고, 원격 분류는 **방향이 뒤집혀 있었다**: 원장 「C(PR 이력 없음) 14」 → 실측 **E 9 + C 5 + D 9**. `gh pr list --head` 가 **이름으로만** 매칭한 산물이고, 팁 sha 로 치면 9건이 머지된 PR #74·#75 head 의 조상 = **23건 중 안전망을 가진 유일한 집합**이었다. 미머지 **152** 만 맞았다. 내용 가치 **0건**(전건 blob 반영 확인) · 유일한 미반영 `TEST_REDIS_LOCK_URL` 1줄은 이 회차가 `.env.example` 에 반영(Golden Rule 위반 실재)                                                                                    | 커밋 491개를 개별 대조할 시간이 확보될 때                                                                         | S-M       | 2026-08-12 branch-debris                               |
-| [BL-718](#bl-718) | ⏳ **`.github/CODEOWNERS` 부재** — `* @<gh-user>`(`gh api user` 로 확인) + `/apps/`·`/infra/`·`/tools/`·`/docs/decisions/` 구획. ★브랜치 보호 없음 실측(`…/branches/main/protection` 404 · rulesets `[]`) = **강제력 0**, 리뷰 라우팅·구조 문서화 효과만 — PR 본문에 명시하고, 강제가 필요하면 ruleset(required review) 도입을 별도 결정으로 올린다                                                                                                                                                                                                                                                                                                                                            | PR-1 머지 후                                                                                                      | XS        | 2026-08-13 monorepo-realign                            |
+| [BL-718](#bl-718) | ✅ **`.github/CODEOWNERS` 부재** — `* @<gh-user>`(`gh api user` 로 확인) + `/apps/`·`/infra/`·`/tools/`·`/docs/decisions/` 구획. ★브랜치 보호 없음 실측(`…/branches/main/protection` 404 · rulesets `[]`) = **강제력 0**, 리뷰 라우팅·구조 문서화 효과만 — PR 본문에 명시하고, 강제가 필요하면 ruleset(required review) 도입을 별도 결정으로 올린다                                                                                                                                                                                                                                                                                                                                            | PR-1 머지 후                                                                                                      | XS        | 2026-08-13 monorepo-realign                            |
 
 ### BL-371
 
@@ -1927,49 +1927,6 @@ codegen 스크립트 0). 화면은 수기 Zod 로만 계약을 아니까 선언�
 
 ---
 
-### BL-718
-
-**Title:** CODEOWNERS 도입 (강제력 0 임을 명시한 문서화 축)
-**Category:** Docs / 컨벤션
-**Priority:** P3
-**Trigger:** PR-1 머지 후
-**Est:** XS
-**상태:** ⬜ **Open — 트리거 도래로 승격** (2026-08-17 레인 γ 재판정). `.github/CODEOWNERS` 부재는 그대로(실측 2026-08-13·재확인 2026-08-17). 표준 구조의 리뷰
-라우팅 축. `* @<gh-user>`(`gh api user` 로 확인) + `/apps/`·`/infra/`·`/tools/`·`/docs/decisions/` 구획.
-**트리거 판정:** ★**도래** — 트리거 「PR-1 머지 후」의 PR-1 = [ADR-029] 표준 레이아웃(`1cd5345a`, PR #619). `git merge-base --is-ancestor` 로 `origin/main` 의 조상임을 확인했고 구획 경로 4종이 전부 실재한다. (2026-08-17 deferred-resweep)
-**출처:** 2026-08-13 monorepo-realign
-
-**주의:** 브랜치 보호 없음 실측(`gh api …/branches/main/protection` → 404 · rulesets `[]`) = CODEOWNERS 의
-**강제력은 0** 이다. 리뷰 라우팅·구조 문서화 효과만 있음을 PR 본문에 명시하고, 강제가 필요해지면
-ruleset(required review) 도입을 별도 결정으로 올린다. AC: `gh api repos/<owner>/<repo>/codeowners/errors` 0건.
-
-## ★2026-08-15 실측 — 「해석적 재계산」을 측정으로 바꿨다
-
-`a22faccb`(BTC/USDT 1h · 2025-07-01~2026-07-25 · 9337 bars)를 `run_cost_assumption_sensitivity`
-로 9-cell 돌렸다. **격자 최저점을 실측값에 맞췄다** — 종전 FE 프리셋에는 그 점이 없었다([BL-730]).
-
-```
-      fees   slippage   total_return       max_dd   trades
-   0.00055    0.00014        −7.737%       −4.530%    1029   ← 실측 (BL-603)
-   0.00055    0.00028       −10.304%       −6.083%    1029
-   0.00055     0.0005       −14.337%       −8.910%    1029
-    0.0011    0.00014       −17.820%      −11.812%    1029
-     0.001     0.0005       −22.587%      −16.688%    1029   ← 저장된 낡은 값
-```
-
-**판정 = [BL-724] 유지.** 비용을 실측으로 낮춰도 **부호가 안 바뀐다**(−22.59% → −7.74%).
-전략 채택 근거가 낡은 가정이었던 것은 맞지만, 고쳐도 결론은 그대로다.
-
-★★**부수 발견 — 비용과 손실은 선형이 아니다.** 왕복 비용은 `0.0015/0.00069` = **2.17배**인데
-손실은 `22.59/7.74` = **2.92배**다. 비용이 체결·청산 경로 자체를 바꾸기 때문이고, 그래서
-「왕복 0.30% → 0.138% 니까 손실도 절반쯤」이라는 **선형 외삽은 틀린다**. [BL-724] 의
-해석적 재계산(`[가정]` net ≈ −69,538)도 같은 이유로 점추정으로만 써야 한다.
-
-★**미해결 관측 하나** — 9 cell 전부 `sharpe=0` 인데 `is_degenerate=False` 다(trades 1029).
-degenerate 판정이 `num_trades=0 또는 NaN sharpe` 인데 둘 다 아닌 채로 0 이 나왔다.
-비용 민감도 결론에는 영향이 없어(총수익·MDD 로 판정) 이번 회차에서 파지 않았지만,
-Sharpe 를 판단에 쓰려면 먼저 확인해야 한다 → [BL-740].
-
 ### BL-736
 
 **Title:** 로컬 Docker VM 디스크 94% — Redis AOF 쓰기 실패가 celery 를 통째로 죽였다
@@ -2049,14 +2006,8 @@ nullable → 인덱스) 켜면서 그때그때 정리하는 편이 안전하다.
 
 **Risk 재평가:** 🟢 — 타입 축은 켜 봤더니 **기존 drift 0건**이었다. 남은 축도 같은 방식으로 하나씩 열면 된다.
 
-**상태:** 🔶 Partial — **타입 축 1개만 켰다** (2026-08-15 ledger-thaw). `_normalize_postgresql_type`
-(VARCHAR↔String · TIMESTAMPTZ↔DateTime(tz) · NUMERIC(p,s) · JSON↔JSONB · named enum · UUID)로
-표현차를 흡수하고 `_TYPE_DRIFT_BASELINE` 은 **빈 채로** 착지했다 — 실측 drift 가 0건이라 동결할
-것이 없었다. 실제 경로 변이(`ExchangeExit.symbol` `String(32)→String(64)`)가 red 를 낸다.
-**남은 것: ⑴ nullable·default ⑵ CHECK 제약 ⑶ 인덱스·UNIQUE ⑷ 역방향(DB 에만 있는 컬럼).**
-★한 축씩 열어라 — 이유는 위 「권장 접근」 그대로다.
-
-**트리거 판정:** 도래 — [BL-741] 이 실제로 이 검사에 의존했고 그 보증 범위가 실측으로 좁혀졌다 (2026-08-15 clock-fill-sweep)
+**상태:** 🔶 Partial — **축 3/5** (타입 2026-08-15 · **nullable·인덱스/UNIQUE 2026-08-18 night4-ci-truth · PR #673**). 두 새 축은 `_normalize_postgresql_type` 을 **재사용**하고 타입 축과 같은 모양(`_..._drifts_for_table` + `_..._DRIFT_BASELINE` + `_assert_no_new_...`)이다. ★**양방향이고 방향을 라벨로 남긴다** — `model_only` 와 `db_only` 는 다른 발견이고, 후자가 이 항목의 미해결 ⑷(「DB 에만 있는 컬럼」)였다. 외부 소유는 이름으로 제외하고 이유를 적었다(`alembic_version` · `auth_*`([ADR-034]) · `ohlcv_time_idx`(TimescaleDB)). **실측 drift 0건 / 0건** ⇒ 두 baseline 다 빈 채로 착지. ★★「0건」은 축이 안 돌아도 나오는 답이라 **변이 3종으로 갈랐다**: nullable 뒤집기 → `('trading','exchange_accounts','api_key_encrypted',False,True)` · 인덱스 삭제 → `db_only` · 인덱스 추가 → `model_only`. **남은 것 = `default` 축 · CHECK 제약 축 → [BL-803].**
+**트리거 판정:** 도래 — [BL-741] 이 이 검사에 의존했고 보증 범위가 실측으로 좁혀졌다. 3/5 축이 켜졌고 나머지는 [BL-803] 이 이어받는다 (2026-08-18)
 
 ---
 
@@ -2173,35 +2124,6 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 공백을 확정. `ci-cd.md` §7 의 거짓 서술만 같은 회차에 정정했다. 런북 본체 미착수
 **트리거 판정:** 도래 — 배포가 이미 프로덕션에서 돌고 있고 절차 문서만 없다 (2026-08-16 layout-alignment)
 
-### BL-787
-
-**Title:** optimizer 에는 있는 `engine_version` 가드가 **stress_test 에는 없다** — [BL-783] 이 남긴 비대칭
-**Category:** 도메인 / 재현성
-**Priority:** P2
-**Trigger:** 도래 — [BL-783] 머지로 두 경로가 나란히 놓였고 한쪽만 가드가 있다
-**Est:** S (가드 1개 + 그것을 재는 테스트)
-**출처:** 2026-08-17 야간 레인 β — [BL-783] 구현 중 레인이 **의도적으로 범위 밖에 뒀고** CONTROL 이 등재
-
-**원인 / 영향:** [BL-773](#bl-773)(PR #650)의 optimizer 처방에는 `bt.engine_version not in (None, PINE_V2_ENGINE_VERSION)`
-이면 거부하는 가드가 있다. [BL-783] 이 stress_test 에 옮긴 것은 **스냅샷 조회 + 폴백 경고까지**이고
-이 가드는 안 옮겼다 — 레인 파일이 복제 대상으로 열거하지 않았고, 옮기면 **동작이 바뀌는데**
-(비-pine_v2 부모에 대해 stress test 가 실패한다) 그것을 재는 AC 가 없었기 때문이다.
-
-★**「같은 부류로 보인다」까지가 확인된 전부다.** Stress Test 도 같은 엔진을 재실행하므로 구조는 같지만,
-비-pine_v2 부모 Backtest 가 실제로 몇 건이고 그중 stress test 대상이 있는지는 **아무도 세지 않았다.**
-
-**권장 접근:** ⑴ ★**먼저 세라** — `SELECT engine_version, count(*) FROM backtests GROUP BY 1` 과
-그중 `stress_tests` 가 매달린 것. 0 이면 이 항목은 예방이고, 0 이 아니면 지금 잘못 돌고 있는 것이다
-⑵ 세고 나서 가드를 옮기고, **거부가 발생하는 케이스를 재는 테스트**를 같이 둬라
-⑶ 거부는 사용자에게 보이는 동작 변경이다 — 메시지를 optimizer 쪽과 같은 문구로 맞춰라
-
-**Risk:** 🟡 (동작 변경. 세어 보기 전에는 영향 범위를 모른다)
-
-**상태:** ⬜ Open — 2026-08-17 등재. 미착수
-**트리거 판정:** 도래 — [BL-783] 머지로 비대칭이 확정됐다
-
----
-
 ### BL-789
 
 **Title:** authed e2e 가 **GitHub CI 에서 안 돈다** — authed 계열 spec 전부가 로컬 전용 게이트다
@@ -2219,35 +2141,65 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **Risk:** 🟡 (CI 인증 배선. 시크릿 관리 표면이 생긴다)
 
-**상태:** 🟡 **부분 해결(PARTIAL)** — 2026-08-17 e2e-truth (PR #663). **1단계만 닫혔다.**
-⑴ **닫힌 것 = 거짓 초록의 재유입 차단.** `apps/web/src/__tests__/e2e-project-wiring.test.ts` 에 「CI 실행 표면」 감사를 넣었다 — `playwright.config.ts` 의 모든 project 는 **PR 에서 발화하는** 워크플로가 실제로 실행하거나, `[BL-NNN]`/`[ADR-NNN]` 식별자를 단 `LOCAL_ONLY` 에 등재돼야 한다(`LEDGER_REF`). 양쪽 목록 모두 실파일 파싱이고 어느 한쪽이 비면 ABORT. 문서 정정 = `gates-and-traps.md`·`ci-cd.md`.
-★★**이 감사가 자기를 지켜야 할 PR 에서 skip 됐다**(3렌즈 적대 리뷰 P1) — 입력이 `.github/workflows/*.yml` 인데 그것을 돌리는 유일한 CI 스텝(`frontend` 잡)이 `apps/web/**` diff 에만 발화했다. ⇒ `ci.yml` 의 `frontend:` paths 필터와 `final-gates.sh` 의 FE vitest 조건에 `.github/workflows/**` 를 넣었다(`has_workflows`. `has_fe` 자체는 안 넓혔다 — FE build·e2e 3레그까지 끌면 워크플로 한 줄에 수 분이 탄다). 실증 = PR #663 에서 `frontend` 잡이 **2m46s 실제 실행**.
-★**범위를 정직하게 좁혔다.** `/codex` P1 + 독립 검증자가 우회로를 1차 4건 → 2차 **6건** 실측했고, 그중 3건은 **셸 제어흐름 모델링 자신이 만든 결함**이었다. ⇒ 위협모델을 **「사고」(배선 삭제·오타·새 project 를 만들고 잊음)**로 좁히고, 적대 전용 형태(`false && … | playwright test`)를 겨눈 단락평가·파이프 모델링을 **걷어냈다**(≈69줄 → 7줄, 순 −7줄). 고친 것은 사고로 실제 일어나는 2종 — `--project=${{ matrix.* }}`(**fail-open** 이었다: 전 project 를 CI 실행으로 등록) · 줄 끝 인라인 `#` 주석(`# TODO --project=X` 가 배선으로 읽히고 `if: false # …` 가 죽은 것으로 안 세졌다). ★버린 판별력을 `it("셸 제어흐름은 해석하지 않는다")` 단언으로 **코드에 고정**해, 누가 되살리면 그 시험이 빨개지고 이유를 읽게 했다.
-★**주석이 코드보다 앞서 나간 곳 4건**을 독립 검증자가 잡아 전부 코드에 맞췄다(특히 「matrix 는 fail-closed」 → **정반대**였다).
-⑵ **남은 것 = 2단계(본체).** ci.yml 에 authed 잡 신설 · **CI 전용 결정론 시더**(기존 `seed_dogfood.py` 는 `CeleryTaskDispatcher`·CCXT 라이브 fill 경유라 재사용 불가) · authed spec 의 하드코딩 UUID 결선 · 건수 하한 단언. ★**CI 인증 secret 투입은 [ADR-034] 「CI 인증 secret 0개」의 반전이라 사용자 결정이다.**
-★**동승 정정** — [BL-668] 이 코드 축 배제 근거로 적은 「CI 는 초록이다 — PR #574 에서 `e2e` SUCCESS」는 **무효**다. 그 잡은 authed project 를 한 번도 안 돌렸다.
-**트리거 판정:** 도래 — 신설 게이트가 CI 밖이라는 것이 실측됐다
+**상태:** 🟡 **부분 해결(PARTIAL) — 2단계 착지** (2026-08-18 night4-ci-truth · PR #671). ★★★**authed e2e 가 GitHub CI 에서 처음으로 실제로 돌았다** — run `32051650551`, `e2e_authed` 잡 **7 passed (54.3s)**: `setup-identity` · `authenticate`(22.0s) · `authed 백엔드 도달성` + `chromium-authed` **4건**. ⑴ **잡 신설** — timescaledb+redis 서비스 · `alembic upgrade head`(`auth_*` 생성) · uvicorn `/health` 폴링 · playwright. **`ci:` 요약 잡의 `needs`·`check` 에 넣었다**(안 넣으면 이 잡이 빨개도 `ci` 는 초록이다 — 1라운드에서 `ci=failure` 로 실증됐다). ⑵ **감사가 project 축 → spec 축으로 내려왔다.** `--project=chromium-authed` 만 배선하면 종전 감사는 초록인데 실제로는 일부 spec 만 돈다 — 이제 config 가 고른 authed spec **20건 전량**이 `ci ∪ localOnly` 에 정확히 한 번 있어야 한다. SSOT 는 `e2e/ci-authed-manifest.json` 하나이고 **CI 명령이 그 파일에서 인자를 뽑는다**(YAML 에 spec 이름을 두 번 적지 않는다). ⑶ **인증 secret 0개** — 전부 CI 리터럴 + 일회용 DB + setup 의 sign-up 부트스트랩. **남은 것 = `ci` 가 아직 1/20 건 → 결정론 시더가 [BL-802].**
+**트리거 판정:** 도래 → **부분 소진** — 1단계(기록)·2단계(실행 배선)가 닫혔고, 전량 확대는 [BL-802] 가 이어받는다 (2026-08-18)
 
 ---
 
-### BL-790
+### BL-802
 
-**Title:** funding rate 인제스션이 `exchange_name: str` 을 받는다 — CCXT 속성명 검사만 하고 raw SQL 로 넣는다
-**Category:** 도메인 / 타입 안전
+**Title:** CI 결정론 시더가 없어 authed spec **19/20 이 아직 CI 에서 안 돈다** — 하드코딩 UUID 40종이 뿌리
+**Category:** CI / 테스트
+**Priority:** P2
+**Trigger:** 도래 — [BL-789] 2단계가 배선을 세웠고, 남은 차단자가 **데이터 전제 하나**로 좁혀졌다
+**Est:** M (시더 설계가 본체. 배선은 이미 있다)
+**출처:** 2026-08-18 night4-ci-truth 레인 α — CI 실측으로 분리됨
+
+**원인 / 영향:** [BL-789] 2단계로 `e2e_authed` 잡이 서고 로그인·백엔드 도달성까지 CI 에서 통과한다.
+그런데 `ci-authed-manifest.json` 의 `ci` 는 **1건**이고 나머지 19건은 `localOnly` 다. 이유는 인프라가
+아니라 **데이터**다 — 12파일이 **하드코딩 UUID 40종**을 쓰고, 그 엔티티가 빈 CI DB 에 없다.
+
+★**이것은 추측이 아니라 실측이다.** `authed-canon-p1.spec.ts` 를 CI 에서 실제로 돌렸다
+(run `32051177105`): `/dashboard`·`/backtests` 는 **통과**했고 `/trading` 은 「등록된 거래소 계정이
+없다」, `/backtests/:id/trades` 는 「완료된 백테스트 상세 링크를 찾지 못했다」로 떨어졌다.
+즉 **막는 것은 시드 데이터 하나뿐이고 파이프라인은 이미 산다.**
+
+**권장 접근:** ⑴ `seed_dogfood.py` 는 **재사용 불가**다 — `CeleryTaskDispatcher` 와 CCXT 라이브 fill 을
+경유한다. CI 는 네트워크도 워커도 없다 ⑵ 필요한 최소 집합부터 세라: 거래소 계정 1건 · 완료된 백테스트
+1건(+trades) · 전략 1건 ⑶ **UUID 를 시더와 spec 이 공유하는 상수로 올려라** — spec 에 흩어진 40종을
+그대로 두면 시더가 그것을 따라다녀야 한다 ⑷ 한 spec 씩 `localOnly` → `ci` 로 옮기고 **CI 로 증명**해라.
+매니페스트가 그 이동을 강제한다(어느 쪽에도 없으면 감사가 red).
+
+**Risk:** 🟢 (테스트 인프라 전용. 프로덕션 경로 무접촉)
+
+**상태:** ⬜ Open — 2026-08-18 등재. 미착수
+**트리거 판정:** 도래 — 배선이 끝나 차단자가 시더 하나로 확정됐다 (2026-08-18 night4-ci-truth)
+
+---
+
+### BL-803
+
+**Title:** 스키마 동등성의 **`default` 축과 CHECK 제약 축**이 아직 안 켜졌다 — [BL-749] 의 잔여 2/5
+**Category:** Backend / test infra
 **Priority:** P3
-**Trigger:** 도래 — [BL-782] 가 컬럼을 native enum 으로 올려 실패 지점이 INSERT 로 앞당겨졌다
-**Est:** S (타입 1개 + 그것을 재는 테스트)
-**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 β)
+**Trigger:** 도래 — [BL-749] 가 3/5 축을 켜고 나머지를 명시적으로 남겼다
+**Est:** S (축 하나씩. 앞 3축이 모양을 이미 정해 뒀다)
+**출처:** 2026-08-18 night4-ci-truth 레인 γ — 의도적으로 범위 밖에 둔 것
 
-**원인 / 영향:** `fetch_and_store_funding_rates(*, exchange_name: str, …)` 는 `getattr(ccxt_async, exchange_name, None)` 이 None 만 아니면 통과시키고 그 문자열을 raw SQL 로 넣는다(`src/trading/funding.py:42·54·70`). CCXT 는 100개 넘는 거래소를 갖고 있으므로 `kraken`·`bitmex` 등이 전부 그 검사를 지난다. **[BL-782] 이전에는 컬럼이 VARCHAR(32) 라 조용히 들어갔고, 이후에는 INSERT 가 죽는다.**
+**원인 / 영향:** [BL-749] 가 타입·nullable·인덱스/UNIQUE 를 켰고 셋 다 실측 drift 0건이었다.
+남은 둘은 성격이 다르다 — **`default` 는 표현이 갈린다**(`nextval(...)` · `now()` · `'{}'::jsonb`).
+정규화가 깨끗하지 않은 채 켜면 baseline 이 시끄러워지고, **시끄러운 축은 누군가 꺼 버리는 축이다**
+([BL-749] 「권장 접근」이 경고한 그대로다). CHECK 제약은 `get_check_constraints` 로 접근하지만
+표현식 문자열 비교라 같은 문제를 안는다.
 
-★**지금 실害는 0 이다** — 생산자를 전수했다. 자동 경로는 celery beat 스케줄 **3건뿐**이고 `celery_app.py:139·145·151` 의 `args` 가 **전부 `"bybit"` 하드코딩**이다. API 라우터에서 이 task 를 enqueue 하는 코드는 **0건**이고 `backfill_funding_rates_task` 는 정의만 있고 호출부가 없다. 개발 DB 실측도 `bybit` 162행뿐이다.
+**권장 접근:** ⑴ 앞 3축과 **같은 모양**을 지켜라(`_..._drifts_for_table` + `_..._DRIFT_BASELINE` +
+`_assert_no_new_...`) ⑵ **한 축씩** 켜라 ⑶ drift 5건 초과면 그 축을 명시 동결하고 멈춰라 —
+[BL-749] 가 그 정지 규칙으로 3축을 안전하게 착지시켰다 ⑷ 변이로 **도달**을 확인해라. 「0건」은
+축이 안 돌아도 나오는 답이다.
 
-**처방:** 시그니처를 `ExchangeName` 으로 좁힌다. ★**서버 소크 DB 에 `20260817_0002` 를 적용하기 전에는 반드시 `SELECT DISTINCT exchange FROM trading.funding_rates` 로 값을 먼저 세라** — 라벨(`bybit`·`binance`·`okx`) 밖 값이 있으면 `USING` 캐스트가 트랜잭션째 롤백한다. 소리 내며 실패하므로 조용한 손상은 아니지만 창 안에서 migration 이 멈춘다.
+**Risk:** 🟢 (테스트 전용. `apps/api/src` 무접촉이 원칙)
 
-**Risk:** 🟢 (타입 좁히기. 현 생산자는 전부 리터럴)
-
-**상태:** ⬜ Open — 2026-08-17 등재. 미착수
-**트리거 판정:** 도래 — enum 전환으로 실패 지점이 바뀌었다
+**상태:** ⬜ Open — 2026-08-18 등재. 미착수
+**트리거 판정:** 도래 — 앞 3축이 켜졌고 남은 축의 모양이 정해졌다 (2026-08-18 night4-ci-truth)
 
 ---
