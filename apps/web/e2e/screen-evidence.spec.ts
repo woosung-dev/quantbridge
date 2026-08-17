@@ -174,7 +174,11 @@ test.describe("화면 증거 팩", () => {
       ).toBeGreaterThan(0);
 
       // ⑶ 화면 — 커밋된 baseline PNG 와 대조. `--update-snapshots` 가 갱신한다.
-      await expect(page).toHaveScreenshot(`${route.slug}.png`, SCREENSHOT_OPTIONS);
+      // ★★`expect.soft` 다. 세 축(화면·번들·요청)은 **서로 독립된 증거**인데 hard 로 두면
+      //   화면이 걸리는 순간 뒤의 수치 대조가 실행조차 안 돼서, 사람은 red 를 한 번 받고
+      //   고친 뒤 다음 축의 red 를 또 받는다. 어차피 rc 는 같으므로 한 번에 다 보여준다.
+      //   ★위 ⑴⑵ 는 hard 로 둔다 — 그것들은 「측정이 실패했다」라서 이어서 재 봐야 쓰레기다.
+      await expect.soft(page).toHaveScreenshot(`${route.slug}.png`, SCREENSHOT_OPTIONS);
 
       // ⑷ 측정값을 파일로 남긴다. 오케스트레이터가 이것으로 baseline JSON 을 만든다.
       const measuredDir = path.join(evidenceRunDir(), MEASURED_DIR_NAME);
@@ -198,7 +202,7 @@ test.describe("화면 증거 팩", () => {
         baseline,
         `${route.path}: baseline 에 이 라우트가 없다. \`pnpm screen-evidence:update\` 로 만들어라.`,
       ).toBeTruthy();
-      expect(
+      expect.soft(
         { firstLoadBytes, apiRequests, totalRequests },
         `${route.path}: 측정값이 커밋된 baseline 과 다르다.\n` +
           `  first-load  ${baseline?.firstLoadBytes} → ${firstLoadBytes} 바이트\n` +

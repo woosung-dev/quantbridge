@@ -80,6 +80,15 @@ function run(command, args, { env = {}, cwd = WEB_ROOT } = {}) {
   return spawnSync(command, args, { stdio: "inherit", env: { ...process.env, ...env }, cwd });
 }
 
+async function isListening(url) {
+  try {
+    await fetch(url, { redirect: "manual", signal: AbortSignal.timeout(2_000) });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function waitForServer(url, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
@@ -117,6 +126,17 @@ async function main() {
   const baseURL = `http://localhost:${port}`;
 
   console.log(`▶ 화면 증거 팩 — run=${RUN} slot=${slot} port=${port} mode=${UPDATE ? "update" : "check"}`);
+
+  // ★★포트가 이미 물려 있으면 **거기서 멈춘다.** `next start` 는 EADDRINUSE 로 죽는데 아래
+  //   `waitForServer` 는 「누군가 응답한다」만 보므로 그대로 통과하고, 그러면 이 게이트는
+  //   방금 만든 빌드가 아니라 **남아 있던 서버**를 잰다. 이 레포는 같은 병을
+  //   `final-gates.sh` 의 정체성 프로브로 한 번 고쳤다(:3000 의 남의 앱을 검사한 사고).
+  if (await isListening(`http://localhost:${port}/`))
+    die(
+      `:${port} 가 이미 응답한다. 앞선 회차가 남긴 \`next start\` 일 가능성이 크다.\n` +
+        `  그대로 두면 **방금 만든 빌드가 아니라 그 서버**를 재고 초록이 난다.\n` +
+        `  정리: lsof -ti :${port} | xargs kill`,
+    );
 
   // ⑴ 빌드. **캐시된 `.next` 를 재사용하지 않는다** — 낡은 산출물로 잰 숫자는 이 게이트가
   //    막으려는 「측정 없이 판단」 그 자체다.
