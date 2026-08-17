@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID
 
 from src.backtest.config_mapper import build_engine_config_from_db
+from src.backtest.engine import PINE_V2_ENGINE_VERSION
 from src.backtest.models import Backtest, BacktestStatus
 from src.backtest.repository import BacktestRepository
 from src.common.pagination import Page
@@ -37,6 +38,7 @@ from src.stress_test.engine import (
 )
 from src.stress_test.exceptions import (
     BacktestNotCompletedForStressTest,
+    StressTestError,
     StressTestNotFound,
     StressTestTaskDispatchError,
 )
@@ -280,16 +282,16 @@ class StressTestService:
 
         # Kind 별 분기
         try:
-            if st.kind == StressTestKind.MONTE_CARLO:
-                result_jsonb = await self._execute_monte_carlo(st, bt)
-            elif st.kind == StressTestKind.WALK_FORWARD:
-                result_jsonb = await self._execute_walk_forward(st, bt)
-            elif st.kind == StressTestKind.COST_ASSUMPTION_SENSITIVITY:
-                result_jsonb = await self._execute_cost_assumption_sensitivity(st, bt)
-            elif st.kind == StressTestKind.PARAM_STABILITY:
-                result_jsonb = await self._execute_param_stability(st, bt)
-            else:  # pragma: no cover — exhaustiveness guard
-                raise ValueError(f"unknown stress_test kind: {st.kind}")
+            result_jsonb = await self._execute(st, bt)
+        except StressTestError as exc:
+            logger.exception("stress_test_execution_failed")
+            await self.repo.fail(
+                stress_test_id,
+                error=exc.message_internal,
+                where_status=StressTestStatus.RUNNING,
+            )
+            await self.repo.commit()
+            return
         except Exception as exc:
             logger.exception("stress_test_execution_failed")
             await self.repo.fail(
@@ -307,6 +309,28 @@ class StressTestService:
                 extra={"stress_test_id": str(stress_test_id)},
             )
         await self.repo.commit()
+
+    async def _execute(self, st: StressTest, bt: Backtest) -> dict[str, object]:
+        """부모 Backtest 검증 후 kind별 stress-test executor를 호출한다."""
+        # BL-787 예방 가드: 2026-08-18 실측상 7개 Backtest의 engine_version은 모두 NULL이고
+        # stress_tests ⋈ backtests는 0행이었다. 기존 행 교정이 아닌 이후 비-pine_v2 입력 차단이다.
+        if bt.engine_version not in (None, PINE_V2_ENGINE_VERSION):
+            raise StressTestError(
+                message_public="Backtest engine version is not supported for stress testing.",
+                message_internal=f"backtest_id={bt.id} engine_version={bt.engine_version}",
+            )
+
+        if st.kind == StressTestKind.MONTE_CARLO:
+            return await self._execute_monte_carlo(st, bt)
+        if st.kind == StressTestKind.WALK_FORWARD:
+            return await self._execute_walk_forward(st, bt)
+        if st.kind == StressTestKind.COST_ASSUMPTION_SENSITIVITY:
+            return await self._execute_cost_assumption_sensitivity(st, bt)
+        if st.kind == StressTestKind.PARAM_STABILITY:
+            return await self._execute_param_stability(st, bt)
+        raise ValueError(
+            f"unknown stress_test kind: {st.kind}"
+        )  # pragma: no cover — exhaustiveness guard
 
     async def _execute_monte_carlo(self, st: StressTest, bt: Backtest) -> dict[str, object]:
         curve = equity_curve_values(bt.equity_curve)

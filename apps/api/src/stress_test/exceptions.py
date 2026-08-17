@@ -10,6 +10,18 @@ from src.common.exceptions import AppException
 class StressTestError(AppException):
     """stress_test 도메인 베이스."""
 
+    def __init__(
+        self,
+        detail: str | None = None,
+        *,
+        message_public: str | None = None,
+        message_internal: str | None = None,
+    ) -> None:
+        """실행 경로의 public/internal 메시지를 함께 보존한다."""
+        super().__init__(message_public or detail)
+        self.message_public = self.detail
+        self.message_internal = message_internal or self.message_public
+
 
 class StressTestNotFound(StressTestError):
     """소유자 격리 고려 — 존재하지 않거나 타 사용자 소유 모두 404."""
