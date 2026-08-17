@@ -51,8 +51,8 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 TypeDrift: TypeAlias = tuple[str, str, str, str, str]
 NullableDrift: TypeAlias = tuple[str, str, str, bool, bool]
-IndexSignature: TypeAlias = tuple[tuple[str, ...], bool]
-IndexDrift: TypeAlias = tuple[str, str, str, tuple[str, ...], bool, int]
+IndexSignature: TypeAlias = tuple[tuple[str, ...], bool, str]
+IndexDrift: TypeAlias = tuple[str, str, str, tuple[str, ...], bool, str, int]
 
 # BL-749: 실제 alembic schema와 metadata가 이미 다른 타입은 여기 동결한다. 항목은
 # (schema, table, column, db_type, metadata_type) 순서이며, 새 drift만 test failure로 만든다.
@@ -64,8 +64,10 @@ _TYPE_DRIFT_BASELINE: frozenset[TypeDrift] = frozenset()
 # 항목은 (schema, table, column, db_nullable, metadata_nullable) 순서다.
 _NULLABLE_DRIFT_BASELINE: frozenset[NullableDrift] = frozenset()
 
-# BL-749: 인덱스는 이름 대신 (컬럼 순서, unique 여부)와 방향·개수만 비교한다. 이름은
-# Alembic/SQLAlchemy 명명 규칙 차이로 안정적인 동등성 기준이 아니다.
+# BL-749: 인덱스는 이름 대신 (컬럼 순서, unique 여부, partial predicate)와 방향·개수를 비교한다.
+# 이름은 Alembic/SQLAlchemy 명명 규칙 차이로 안정적인 동등성 기준이 아니다.
+# ★predicate 를 넣은 것은 2026-08-18 적대 리뷰 P1 때문이다 — 빼면 `WHERE ... IS NOT NULL` 을
+#   지워도 초록이고, 그 인덱스 중 하나가 주문 멱등성 계약 자체다.
 _INDEX_DRIFT_BASELINE: frozenset[IndexDrift] = frozenset()
 
 # TimescaleDB 가 hypertable 생성 때 소유하는 시간 인덱스다. metadata 에 선언하지 않아야
@@ -161,21 +163,89 @@ def _assert_no_new_nullable_drifts(
     )
 
 
-def _index_signature(column_names: tuple[str, ...], unique: bool) -> IndexSignature:
+def _normalize_index_predicate(where: Any) -> str:
+    """partial index 의 `WHERE` 를 모델↔DB 가 비교 가능한 문자열로 낮춘다.
+
+    ★**서명에서 predicate 를 빼면 partial index 가 통째로 안 보인다** (2026-08-18 적대 리뷰 P1).
+    `uq_orders_idempotency_key` 의 `WHERE idempotency_key IS NOT NULL` 을 migration 에서 지워도
+    (컬럼, unique) 가 같아 초록이었다 — 그 인덱스는 **멱등성 계약 자체**라 조용히 넓어지면
+    중복 주문이 통과한다. 레포에 `postgresql_where` 인덱스가 5개 있다.
+
+    표현이 갈리는 것을 흡수한다 — PostgreSQL 은 reflection 에서 괄호를 씌우고(`(a IS NOT NULL)`)
+    대소문자·공백도 원문과 다를 수 있다. 그래서 겉껍질 괄호·연속 공백·대소문자를 지운다.
+
+    ★**렌더링 인공물 2종만 더 지운다** — 켜자마자 실측으로 나온 것이 정확히 이 한 쌍이다:
+    모델 `status = 'pending'` ↔ DB `(status)::text = 'pending'::text`. varchar/enum 컬럼을
+    리터럴과 비교하면 PostgreSQL 이 **양쪽에 `::text` 를 붙이고 식별자를 괄호로 감싼다.**
+    ⑴ `::text`·`::character varying` 캐스트 접미 ⑵ 홑 식별자를 감싼 괄호 — 둘 다 의미가 없다.
+    ★**그 이상은 하지 않는다.** 표현식을 파싱하기 시작하면 그 파서가 다음 결함의 출처가 된다.
+    판별력이 남아 있다는 것은 `test_index_predicate_normalization_*` 둘이 고정한다 —
+    같은 술어는 같게, **다른 술어는 다르게** 낮춘다.
+    """
+    if where is None:
+        return ""
+    text_form = str(where).strip()
+    while text_form.startswith("(") and text_form.endswith(")"):
+        text_form = text_form[1:-1].strip()
+    text_form = text_form.lower()
+    text_form = re.sub(r"::\s*(text|character varying|varchar)\b", "", text_form)
+    text_form = re.sub(r"\(\s*([a-z_][a-z0-9_]*)\s*\)", r"\1", text_form)
+    return " ".join(text_form.split())
+
+
+def test_index_predicate_normalization_absorbs_postgres_render_artifacts() -> None:
+    """모델 원문과 PostgreSQL reflection 원문이 **같은 술어면 같게** 낮아진다.
+
+    이 한 쌍은 지어낸 것이 아니라 2026-08-18 에 축을 켜자마자 나온 **실측**이다
+    (`trading.live_signal_events` 의 `ix_live_signal_events_pending`).
+    """
+    assert _normalize_index_predicate("status = 'pending'") == _normalize_index_predicate(
+        "(status)::text = 'pending'::text"
+    )
+    assert _normalize_index_predicate("idempotency_key IS NOT NULL") == _normalize_index_predicate(
+        "(idempotency_key IS NOT NULL)"
+    )
+
+
+def test_index_predicate_normalization_still_separates_different_predicates() -> None:
+    """정규화가 **판별력을 버리지 않았다**는 것을 고정한다.
+
+    ★캐스트를 지우는 규칙은 지나치면 서로 다른 술어를 한 낱말로 뭉갠다. 그러면 partial index
+    를 넣은 이유(=그 조건)가 조용히 사라진다 — 이 축을 켠 목적 자체가 무효가 된다.
+    """
+    assert _normalize_index_predicate("status = 'pending'") != _normalize_index_predicate(
+        "status = 'done'"
+    )
+    assert _normalize_index_predicate("resolved_at IS NULL") != _normalize_index_predicate(
+        "resolved_at IS NOT NULL"
+    )
+    # predicate 가 아예 없는 인덱스와 있는 인덱스는 절대 같아선 안 된다.
+    assert _normalize_index_predicate(None) != _normalize_index_predicate("is_active = true")
+
+
+def _index_signature(
+    column_names: tuple[str, ...], unique: bool, where: str = ""
+) -> IndexSignature:
     """이름과 무관한 인덱스/UNIQUE 비교 단위를 만든다."""
     assert column_names, "인덱스/UNIQUE 컬럼 목록이 비었다 — 비교를 계속하면 무의미하다"
-    return (column_names, unique)
+    return (column_names, unique, where)
 
 
 def _metadata_index_signatures(table: Table) -> Counter[IndexSignature]:
     """SQLModel table 의 Index + UniqueConstraint 를 구조 서명으로 모은다."""
     signatures: Counter[IndexSignature] = Counter()
     for index in table.indexes:
+        where = index.dialect_options.get("postgresql", {}).get("where")
         signatures[
-            _index_signature(tuple(column.name for column in index.columns), bool(index.unique))
+            _index_signature(
+                tuple(column.name for column in index.columns),
+                bool(index.unique),
+                _normalize_index_predicate(where),
+            )
         ] += 1
     for constraint in table.constraints:
         if isinstance(constraint, UniqueConstraint):
+            # UNIQUE 제약에는 partial predicate 가 없다 (그건 partial unique **인덱스** 쪽이다).
             signatures[
                 _index_signature(tuple(column.name for column in constraint.columns), unique=True)
             ] += 1
@@ -207,7 +277,12 @@ def _db_index_signatures(
             # PostgreSQL reflection 은 UNIQUE constraint 의 보조 인덱스를 함께 낼 수 있다.
             # 아래 get_unique_constraints() 경로에서 한 번만 센다.
             continue
-        signatures[_index_signature(column_names, bool(index.get("unique")))] += 1
+        where = (index.get("dialect_options") or {}).get("postgresql_where")
+        signatures[
+            _index_signature(
+                column_names, bool(index.get("unique")), _normalize_index_predicate(where)
+            )
+        ] += 1
 
     for constraint in unique_constraints:
         signatures[_index_signature(tuple(constraint.get("column_names") or ()), unique=True)] += 1
@@ -222,10 +297,10 @@ def _index_drifts_for_table(
 ) -> set[IndexDrift]:
     """한 테이블의 모델→DB와 DB→모델 인덱스/UNIQUE drift를 모두 수집한다."""
     drifts: set[IndexDrift] = set()
-    for (column_names, unique), count in (metadata_indexes - db_indexes).items():
-        drifts.add((schema, table_name, "model_only", column_names, unique, count))
-    for (column_names, unique), count in (db_indexes - metadata_indexes).items():
-        drifts.add((schema, table_name, "db_only", column_names, unique, count))
+    for (column_names, unique, where), count in (metadata_indexes - db_indexes).items():
+        drifts.add((schema, table_name, "model_only", column_names, unique, where, count))
+    for (column_names, unique, where), count in (db_indexes - metadata_indexes).items():
+        drifts.add((schema, table_name, "db_only", column_names, unique, where, count))
     return drifts
 
 
@@ -236,19 +311,24 @@ def _assert_no_new_index_drifts(
     """동결 baseline 밖의 인덱스/UNIQUE drift는 검사 실패로 만든다."""
     new_index_drifts = observed_index_drifts - baseline
     assert not new_index_drifts, (
-        "새 index/UNIQUE drift 발견 (schema, table, direction, columns, unique, count): "
+        "새 index/UNIQUE drift 발견 (schema, table, direction, columns, unique, where, count): "
         f"{sorted(new_index_drifts)}. 기존 drift만 허용하려면 "
-        "_INDEX_DRIFT_BASELINE에 정확한 6-튜플을 동결하라."
+        "_INDEX_DRIFT_BASELINE에 정확한 7-튜플을 동결하라."
     )
 
 
 def _is_externally_owned_db_only_table(schema: str, table_name: str) -> bool:
     """DB→모델 비교에서 우리 SQLModel 엔티티 소유가 아닌 표만 제외한다."""
-    # alembic_version 은 Alembic 상태 메타이고, auth_* 는 metadata 에 선언되더라도 ORM
-    # 엔티티가 아니라 Better Auth 가 읽고 쓰는 외부 소유 표다. 둘 다 DB-only 여도 drift가 아니다.
-    return schema == "public" and (
-        table_name == "alembic_version" or table_name.startswith("auth_")
-    )
+    # `alembic_version` 은 Alembic 이 스스로 만들고 관리하는 상태 메타라 우리 모델에 없다.
+    #
+    # ★★**`auth_*` 를 여기서 뺐다** (2026-08-18 적대 리뷰 P2). 종전 주석은 그것을 「Better Auth 가
+    #   읽고 쓰는 외부 소유 표」라 적었는데 **코드 대조로 거짓이었다** — `src/auth/better_auth_tables.py`
+    #   가 다섯 표를 **`SQLModel.metadata` 에 직접 선언**하고(`sa.Table(..., SQLModel.metadata, ...)`)
+    #   DDL 도 이 저장소의 alembic revision 이 소유한다. 그 파일의 머리 주석이 스스로 말한다 —
+    #   그렇게 선언한 이유가 **`alembic check` 가 이 5개를 보게 하려는 것**이었다.
+    #   접두 wildcard 로 빼면 선언을 하나 빠뜨리거나 migration 이 여분 `auth_*` 를 만들어도
+    #   DB-only 비교가 조용히 통과한다 — 즉 지키려던 바로 그 대상을 가린다.
+    return schema == "public" and table_name == "alembic_version"
 
 
 @pytest.mark.parametrize(
