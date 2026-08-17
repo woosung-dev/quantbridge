@@ -224,8 +224,10 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
   ⇒ ⑴ **PR 이 CI 전건 초록이어도 authed 게이트는 red 일 수 있다.** ⑵ 「CI 가 초록이었다」를
   로컬 authed 실패의 **음성 대조 근거로 쓰지 마라** — 그 잡은 authed 를 애초에 안 돌렸다.
   회귀 방지 = `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사
-  (`LOCAL_ONLY` 상수에 사유와 함께 등재된 것만 면제 · PR 트리거가 있는 워크플로만 「CI 실행」으로
-  센다). 배선 자체(CI 전용 시더 + 로그인)는 [ADR-034] 가 CI 인증 secret 을 0개로 만든 결정의
+  (`LOCAL_ONLY` 상수에 **`[BL-NNN]`/`[ADR-NNN]` 원장 식별자를 품은 사유**와 함께 등재된 것만
+  면제 · PR 트리거가 있는 워크플로만 「CI 실행」으로 센다 · ★그 안에서도 **playwright 를 실제로
+  부르는 살아 있는 명령**만 센다 — `echo --project=X` · `if: false` 스텝 · `false && … || true`
+  는 실행이 아니다). 배선 자체(CI 전용 시더 + 로그인)는 [ADR-034] 가 CI 인증 secret 을 0개로 만든 결정의
   반전이라 **사용자 결정 대기**다. ★단 **20개 전부가 그 결정에 묶이지는 않는다** —
   `invite-token-page.spec.ts` 는 빈 `storageState` 로 도는 공개 라우트 계약 시험이라 인증
   secret 없이 오늘 공개 project 로 옮길 수 있다(2026-08-17 적대 리뷰 정정).

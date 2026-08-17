@@ -35,6 +35,33 @@
 //   ⑶ `--project` 없는 맨 `playwright test`(= 전 project 실행, `pnpm e2e:all` 이 그 형태)를
 //      「fail-closed 라 괜찮다」고 적어 뒀는데, 기존 `--project=` 호출과 **공존**하는 순간
 //      fail-open 이었다 → 이제 전 project 실행으로 모델링한다.
+// ★★★**그리고 두 번 더 틀렸다** (2026-08-17 2차 적대 리뷰 실측). 둘 다 같은 계열이다 —
+// 「그렇게 적혀 있다」를 「그것이 돈다」로 읽었다:
+//   ⑷ `--project=` 를 **명령 종류도 도달성도 안 보고** 셌다. `run: echo --project=chromium-authed`
+//      **한 줄**이면 감사는 「CI 에서 authed 가 돈다」로 판정하는데 playwright 는 0회 돈다.
+//      `false && … || true` 와 `if: false` 인 job/step 도 같은 계열이었다 — 실측으로
+//      **`LOCAL_ONLY` 를 통째로 비운 채 `false && … || true` 한 줄만으로 10/10 초록**이었다.
+//      → 이제 ⓐ `if: false` 인 job/step 을 지우고 ⓑ 리터럴로 도달 불가한 셸 분기를 버린 뒤
+//      ⓒ **playwright 를 실제로 부르는 명령 안에서만** `--project=` 를 센다.
+//   ⑸ `LOCAL_ONLY` 의 「사유」를 `?.trim()` 으로만 재서 `"."` 한 글자면 어떤 project 든 면제됐다
+//      → 이제 사유는 `[BL-NNN]`/`[ADR-NNN]` 원장 식별자를 최소 1개 품어야 한다.
+//
+// ★★**이 감사가 재지 못하는 것** (거짓 안심을 만들지 않기 위해 명시한다 — 이 레포의 상습 사고다):
+//   • **`paths:` 필터를 해석하지 않는다.** 워크플로가 PR 트리거를 갖고 playwright 를 부르면
+//     「PR CI 에서 돈다」로 센다. 그런데 `live-smoke.yml` 의 `paths:`(`:17`)는 `apps/web/src/**`
+//     계열과 `apps/web/package.json`·`pnpm-lock.yaml` 뿐이라 **`apps/web/e2e/**` 만 고친 PR
+//     에서는 0회 실행**이다. 즉 거기에 authed 를 배선하고 면제를 지우면 이 감사는 초록인데
+//     authed spec 만 고친 PR 은 authed 를 안 돈다.
+//   • **job/step 의 `if:` 조건식을 평가하지 않는다.** 리터럴 `false` 만 죽은 것으로 본다.
+//     `if: needs.changes.outputs.frontend == 'true'` 처럼 입력에 따라 skip 되는 잡은 「돈다」로 센다
+//     (`ci.yml` 의 e2e 잡이 정확히 그 형태다 — 그래서 이것을 죽었다고 세면 안 된다).
+//   • **셸 조건도 리터럴만 본다.** `false`/`true`/`:` 의 단락 평가는 따라가지만
+//     `[ -n "$NOPE" ] && playwright test --project=X` 는 「돈다」로 센다. 조건으로 위장한
+//     죽은 분기는 정당한 가드(`pnpm install && playwright test …`)와 정적으로 구분되지 않는다.
+//   • **`uses:` 액션·재사용 워크플로·matrix 를 따라가지 않는다.** 그 형태로 playwright 를 부르면
+//     「아무 데서도 안 돈다」로 읽혀 빨개진다 = fail-closed.
+//   ⇒ 이 넷은 정적 YAML 파싱의 **원리적 한계**다. 완전 해결은 [BL-789] 2단계(실제 CI 배선 +
+//     PR 체크에서의 실행 증거)에 속하고, 이 파일이 할 수 있는 것은 **한계를 적어 두는 것**뿐이다.
 // ★그리고 이 파일 자신이 **CI 에서 안 돌 수 있었다** — `ci.yml` 의 `frontend` 필터가
 // `apps/web/**` 뿐이라 **워크플로만 고친 PR** 에서는 이 감사가 통째로 skip 됐다(= 감사의
 // 입력을 고치는 회차에 감사가 안 돈다). `ci.yml` 의 `frontend:` 필터와 `final-gates.sh` 의
@@ -57,6 +84,8 @@ const WEB_PACKAGE_JSON = path.resolve(__dirname, "../../package.json");
  *
  * ★사유 없이 넣지 마라. 이 상수는 「빠뜨린 것」과 「일부러 뺀 것」을 가르는 유일한 장치이고,
  * 사유가 없으면 다음 사람은 둘을 구분할 수 없다.
+ * ★★사유에는 **`[BL-NNN]` 또는 `[ADR-NNN]` 원장 식별자가 최소 1개** 있어야 한다(`LEDGER_REF`).
+ * 종전 계약은 「공백 아닌 문자열」뿐이라 `"."` 한 글자로도 전건 초록이었다(2026-08-17 적대 리뷰 실측).
  */
 const LOCAL_ONLY: Record<string, string> = {
   "chromium-authed":
@@ -75,6 +104,14 @@ const LOCAL_ONLY: Record<string, string> = {
 /** PR 체크로 발화하는 트리거 — 이것이 없으면 「PR 이 초록이다」와 무관한 워크플로다. */
 const PR_TRIGGERS = ["pull_request", "pull_request_target", "merge_group"];
 
+/**
+ * `LOCAL_ONLY` 사유가 만족해야 하는 계약 — 원장 식별자 1개 이상.
+ *
+ * ★이 레포에서 「왜 CI 에 안 올렸나」는 **원장이** 답한다. 번호를 요구하면 사유가
+ * 되짚을 수 있는 것이 되고, 그 BL 이 닫힐 때 면제도 같이 걷힌다. 산문만으로는 그게 안 된다.
+ */
+const LEDGER_REF = /\[(?:BL|ADR)-\d{1,4}\]/;
+
 /** YAML 통줄 주석 제거. */
 function stripYamlComments(text: string): string {
   return text
@@ -85,6 +122,70 @@ function stripYamlComments(text: string): string {
 
 function matchAll(text: string, re: RegExp): string[] {
   return [...text.matchAll(re)].map((m) => m[1] ?? "");
+}
+
+/** 리터럴로 죽은 조건만 센다 — `if: false` · `if: ${{ false }}` · 따옴표 형태. */
+const DEAD_IF = /^(\s*)(-\s+)?if:\s*['"]?(?:\$\{\{\s*)?false(?:\s*\}\})?['"]?\s*$/;
+
+/**
+ * `if: false` 로 **명백히 죽은** job/step 을 통째로 지운다.
+ *
+ * ★★죽은 스텝에 `--project=` 를 적어 두면 종전 감사는 「CI 에서 돈다」로 셌다. 그건
+ * 「돌았다고 적혀 있는데 실제로는 0건」 — 이 파일이 세 번 고쳐 온 병 그 자체다.
+ * ★블록 범위는 `if:` 의 **키 컬럼**(대시를 포함해 센다) 이상 들여쓰기가 이어지는 구간이고,
+ * `if:` 는 `run:` 앞에 올 수도 뒤에 올 수도 있으므로 **앞쪽으로도** 넓혀야 한다.
+ * ★★앞쪽 경계는 **들여쓰기만으로 정하면 안 된다**. `- if: false` 처럼 `if:` 가 대시 위에
+ * 있으면 그 줄이 곧 항목의 시작이라 볼 것이 없는데, 들여쓰기만 보면 **앞 스텝의 `run:` 이
+ * 같은 컬럼**이라 살아 있는 이웃을 지운다. 반대로 `- run: … / if: false` 처럼 대시 줄에
+ * `run:` 이 붙어 있으면 그 머리줄을 안 지워 **죽은 호출이 살아남는다**(fail-open). 그래서
+ * ⑴ 대시 위의 `if:` 는 앞쪽을 안 보고 ⑵ 아니면 같은 항목의 **머리줄까지** 지운다.
+ * ★한계: 리터럴 `false` 만 죽은 것으로 본다. 조건식(`needs.*`·`github.*`)은 평가하지 않고
+ * 「돈다」로 센다 — `ci.yml` 의 e2e 잡이 그 형태라 반대로 하면 실 배선이 상시 red 다(파일 머리 참조).
+ */
+function stripDeadBranches(text: string): string {
+  const lines = text.split("\n");
+  const indentOf = (line: string): number => line.length - line.trimStart().length;
+  const dead = new Set<number>();
+
+  for (let i = 0; i < lines.length; i++) {
+    const head = DEAD_IF.exec(lines[i] ?? "");
+    if (!head) continue;
+    const dashLen = (head[2] ?? "").length;
+    const keyCol = (head[1] ?? "").length + dashLen;
+    dead.add(i);
+
+    // 앞쪽 — `- if: false` 는 그 줄이 항목의 시작이라 앞을 안 본다.
+    if (dashLen === 0) {
+      for (let j = i - 1; j >= 0; j--) {
+        const line = lines[j] ?? "";
+        if (line.trim() === "") {
+          dead.add(j);
+          continue;
+        }
+        const item = /^(\s*)(-\s+)/.exec(line);
+        if (item && (item[1] ?? "").length + (item[2] ?? "").length === keyCol) {
+          dead.add(j); // 같은 항목의 머리줄(`- run: …`) — 여기까지가 이 스텝이다
+          break;
+        }
+        if (indentOf(line) >= keyCol) {
+          dead.add(j);
+          continue;
+        }
+        break; // 상위 블록 — 남의 것이다
+      }
+    }
+
+    // 뒤쪽 — 같은 블록이 이어지는 동안.
+    for (let j = i + 1; j < lines.length; j++) {
+      const line = lines[j] ?? "";
+      if (line.trim() === "" || indentOf(line) >= keyCol) {
+        dead.add(j);
+        continue;
+      }
+      break;
+    }
+  }
+  return lines.filter((_, i) => !dead.has(i)).join("\n");
 }
 
 /**
@@ -125,7 +226,7 @@ function isPullRequestGated(workflowText: string): boolean {
  * 서술형 스텝명을 쓰므로 가상의 위험이 아니다.
  *
  * ★한계: `uses:` 액션의 `with:` 인자로 playwright 를 부르는 형태는 모델링하지 않는다. 그 경우
- * 「아무 데서도 안 돈다」로 읽혀 아래 ⑶ 이 빨개진다 = fail-closed.
+ * 「아무 데서도 안 돈다」로 읽혀 아래 본체 단언 ⑷ 가 빨개진다 = fail-closed.
  *
  * ★★**접기(`>`)와 그대로(`|`)를 구분해야 한다.** `ci.yml` 의 e2e 스텝이 `run: >` 로 한 명령을
  * 두 줄에 쓴다 — 이것을 줄바꿈으로 이어 붙이면 `pnpm exec playwright test` 와
@@ -157,13 +258,74 @@ function runScripts(text: string): string[] {
   return out;
 }
 
+/** 셸 명령 하나의 **리터럴** 종료 상태. 정적으로 못 정하면 `"U"`(unknown). */
+type ExitStatus = "T" | "F" | "U";
+
+function literalStatus(cmd: string): ExitStatus {
+  const t = cmd.trim();
+  if (t === "false") return "F";
+  if (t === "true" || t === ":") return "T";
+  return "U";
+}
+
 /**
- * 셸 본문을 「명령」 단위로 쪼갠다 — `--project` 유무를 명령마다 따로 봐야 한다.
+ * 앞 명령의 종료 상태 `prev` 아래에서 `op` 우변이 도는가.
+ * ★모르면(`"U"`) **돈다**로 센다 — 판정 불가를 죽음으로 읽으면 정당한 가드가 거짓 red 다.
+ */
+function runsAfter(op: "&&" | "||" | null, prev: ExitStatus): boolean {
+  if (op === "&&") return prev !== "F";
+  if (op === "||") return prev !== "T";
+  return true; // 문장 첫 명령
+}
+
+/** 그 명령이 돈 뒤의 종료 상태. 앞이 불확실하면 실행 여부가 불확실하니 결과도 불확실하다. */
+function statusAfter(op: "&&" | "||" | null, prev: ExitStatus, cmd: string): ExitStatus {
+  if (op !== null && prev === "U") return "U";
+  return literalStatus(cmd);
+}
+
+/**
+ * 셸 본문을 「명령」 단위로 쪼개되 **실행될 수 있는 것만** 남긴다.
+ *
  * ★역슬래시 줄바꿈은 먼저 잇는다. 안 그러면 `playwright test \` + `--project=X` 가 두 명령이
  * 되고, 앞 조각이 「맨 호출」로 읽혀 전 project 실행으로 오판된다(fail-open).
+ *
+ * ★★**`&&`/`||` 단락 평가를 리터럴 범위에서 흉내 낸다** (2026-08-17 2차 적대 리뷰 P1).
+ * `run: false && pnpm exec playwright test --project=chromium-authed || true` 한 줄이면
+ * 종전 감사는 「CI 에서 authed 가 돈다」로 셌다 — 실측으로 `LOCAL_ONLY` 를 통째로 비운 채
+ * **10/10 초록**이었고 playwright 는 0회 돌았다. `if: false` 와 같은 계열의 두 번째 문법이다.
+ *
+ * ★모델은 3값이다. `false`/`true`/`:` 만 종료 상태를 알고 나머지는 **모른다(`U`)**.
+ * 모르는 것은 **돈다고 센다** — `pnpm install && pnpm exec playwright test --project=X` 는
+ * 정당한 배선이고, 이것을 죽었다고 세면 실 배선이 거짓 red 가 된다. 즉 이 절이 닫는 것은
+ * 「리터럴로 죽은 분기」뿐이고, 조건으로 위장한 분기는 못 닫는다(파일 머리 「재지 못하는 것」).
  */
-function splitCommands(script: string): string[] {
-  return script.replace(/\\\n/g, " ").split(/\n|&&|\|\||[;|]/);
+function reachableCommands(script: string): string[] {
+  const tokens = script.replace(/\\\n/g, " ").split(/(\n|&&|\|\||[;|])/);
+  const out: string[] = [];
+  let status: ExitStatus = "T"; // 문장 첫 명령은 앞의 성패에 안 걸린다
+  let op: "&&" | "||" | null = null;
+
+  for (const token of tokens) {
+    if (token === "\n" || token === ";" || token === "|") {
+      // 새 문장(파이프 우변 포함) — 앞 명령의 성패와 무관하게 돈다.
+      status = "T";
+      op = null;
+      continue;
+    }
+    if (token === "&&" || token === "||") {
+      op = token;
+      continue;
+    }
+    if (token.trim() === "") continue;
+
+    if (runsAfter(op, status)) {
+      out.push(token);
+      status = statusAfter(op, status, token);
+    }
+    op = null;
+  }
+  return out;
 }
 
 /**
@@ -179,6 +341,17 @@ function splitCommands(script: string): string[] {
  * `e2e:all` 이 정확히 그 형태다. 종전 주석은 이것을 「모델링 안 함 = fail-closed」라고 적었는데
  * 반대였다 — 다른 `--project=` 호출과 공존하면 `direct` 가 비지 않아 ABORT 도 안 걸리고,
  * authed 가 CI 에서 실제로 도는데도 `LOCAL_ONLY` 의 「CI 에서 안 돈다」가 거짓인 채 초록이 된다.
+ *
+ * ★★★**`--project=` 는 playwright 를 실제로 부르는 「살아 있는」 명령 안에서만 센다**
+ * (2026-08-17 2차 적대 리뷰). 종전에는 명령 종류도 도달성도 안 보고 `--project=` 를 전부 실행으로
+ * 등록해서 `run: echo --project=chromium-authed` **한 줄**이면 감사가 「CI 에서 authed 가 돈다」로
+ * 판정했다 — playwright 는 0회 돈다. 이제 세 겹으로 거른다:
+ *   ⑴ `if: false` 인 job/step 은 통째로 지운다(`stripDeadBranches`).
+ *   ⑵ `false && … || true` 처럼 **리터럴로 도달 불가**한 명령은 버린다(`reachableCommands`).
+ *   ⑶ 남은 명령 중 **playwright 를 실제로 부르는 것**의 `--project=` 만 센다.
+ * ★「호출이다」의 판정은 ⓐ 명령 자체가 `playwright test` 이거나 ⓑ 그 명령이 부른 `pnpm` 스크립트가
+ * (전이적으로) playwright 를 부르는 경우다. 판정 못 하는 형태는 **안 센다**(fail-closed) — 실행을
+ * 놓치면 그 project 는 「아무 데서도 안 돈다」로 읽혀 본체 단언 ⑷ 가 빨개진다.
  */
 function executedProjects(
   workflowText: string,
@@ -186,24 +359,37 @@ function executedProjects(
   allProjects: string[],
 ): Set<string> {
   const out = new Set<string>();
-  const resolved = new Set<string>(); // pnpm 스크립트 순환 방지
+  /** pnpm 스크립트 이름 → 그 본문이 playwright 를 부르는가 (순환 방지 겸 메모). */
+  const scriptInvokes = new Map<string, boolean>();
 
-  const walk = (script: string): void => {
-    for (const cmd of splitCommands(script)) {
-      const named = matchAll(cmd, /--project(?:=|\s+)([A-Za-z0-9_.:-]+)/g).filter(Boolean);
-      for (const n of named) out.add(n);
-      if (named.length === 0 && /\bplaywright\s+test\b/.test(cmd))
-        for (const n of allProjects) out.add(n);
-      for (const invoked of matchAll(cmd, /\bpnpm(?:\s+run)?\s+([A-Za-z0-9:_-]+)/g)) {
-        if (resolved.has(invoked)) continue;
-        resolved.add(invoked);
-        const next = scripts[invoked];
-        if (next) walk(next);
+  /** @returns 이 셸 본문이 playwright 를 한 번이라도 부르는가. */
+  const walk = (script: string): boolean => {
+    let invokesPlaywright = false;
+    for (const cmd of reachableCommands(script)) {
+      // pnpm 스크립트를 먼저 푼다 — 그 본문이 playwright 를 부르면 이 명령도 playwright 호출이다.
+      let viaScript = false;
+      for (const name of matchAll(cmd, /\bpnpm(?:\s+run)?\s+([A-Za-z0-9:_-]+)/g)) {
+        if (!scriptInvokes.has(name)) {
+          scriptInvokes.set(name, false); // 순환 방지 — 재귀 중에는 「아직 모름」
+          const body = scripts[name];
+          scriptInvokes.set(name, body ? walk(body) : false);
+        }
+        if (scriptInvokes.get(name)) viaScript = true;
       }
+
+      const direct = /\bplaywright\s+test\b/.test(cmd);
+      if (!direct && !viaScript) continue; // ★playwright 를 안 부르는 명령의 `--project=` 는 실행이 아니다
+      invokesPlaywright = true;
+
+      const named = matchAll(cmd, /--project(?:=|\s+)([A-Za-z0-9_.:-]+)/g).filter(Boolean);
+      if (named.length > 0) for (const n of named) out.add(n);
+      else if (direct) for (const n of allProjects) out.add(n); // 맨 호출 = 전 project
     }
+    return invokesPlaywright;
   };
 
-  for (const runBody of runScripts(stripYamlComments(workflowText))) walk(runBody);
+  for (const runBody of runScripts(stripDeadBranches(stripYamlComments(workflowText))))
+    walk(runBody);
   return out;
 }
 
@@ -363,6 +549,191 @@ describe("CI 실행 표면 ([BL-789])", () => {
     );
   });
 
+  it("playwright 를 부르지 않는 명령의 `--project=` 는 실행이 아니다", () => {
+    // ★★착취 재현: `run:` 안이라도 `echo` 한 줄이면 종전 감사는 「CI 에서 돈다」로 셌다.
+    //   playwright 는 0회 돈다 — 「그렇게 적혀 있다」를 「그것이 돈다」로 읽은 네 번째 문법.
+    expect(
+      executedProjects("      - run: echo --project=chromium-authed", {}, ALL_PROJECTS),
+    ).toEqual(new Set());
+
+    // 음성 대조 ① — **같은 인자**를 진짜 호출에 붙이면 잡힌다(못 찾은 게 아님을 증명).
+    expect(
+      executedProjects(
+        "      - run: pnpm exec playwright test --project=chromium-authed",
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium-authed"]));
+
+    // 음성 대조 ② — `pnpm` 스크립트 경유는 여전히 센다. 새 규칙이 판별력을 죽이지 않았다.
+    expect(
+      executedProjects(
+        "      - run: pnpm e2e:authed",
+        { "e2e:authed": "playwright test --project=chromium-authed" },
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium-authed"]));
+
+    // 음성 대조 ③ — 같은 명령줄에 진짜 호출과 산문이 **공존**하면 진짜 호출만 남는다.
+    expect(
+      executedProjects(
+        "      - run: |\n          echo --project=chromium-authed\n          pnpm exec playwright test --project=chromium",
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium"]));
+  });
+
+  it("리터럴로 도달 불가한 셸 분기의 playwright 호출은 실행이 아니다", () => {
+    // ★★착취 재현: 이 한 줄이면 종전 감사는 「CI 에서 authed 가 돈다」로 셌다.
+    //   실측 — `LOCAL_ONLY` 를 통째로 비우고 이 줄만 `ci.yml` 에 넣었더니 **10/10 초록**이었다.
+    expect(
+      executedProjects(
+        "      - run: false && pnpm exec playwright test --project=chromium-authed || true",
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set());
+
+    // 음성 대조 ① — `false &&` 만 떼면 **같은 줄**이 잡힌다(못 찾은 게 아님을 증명).
+    expect(
+      executedProjects(
+        "      - run: pnpm exec playwright test --project=chromium-authed || true",
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium-authed"]));
+
+    // 음성 대조 ② — `false ||` 는 **우변을 실행한다**. 단락 평가를 방향까지 지킨다.
+    expect(
+      executedProjects(
+        "      - run: false || pnpm exec playwright test --project=chromium",
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium"]));
+
+    // 음성 대조 ③ — `true &&` 우변은 돈다.
+    expect(
+      executedProjects(
+        "      - run: true && pnpm exec playwright test --project=chromium",
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium"]));
+
+    // ★불확실한 가드는 **돈다고 센다**. `pnpm install && playwright test` 가 정당한 배선이라
+    //   여기를 죽었다고 세면 실 배선이 거짓 red 다(파일 머리 「재지 못하는 것」에 명시).
+    expect(
+      executedProjects(
+        "      - run: pnpm install --frozen-lockfile && pnpm exec playwright test --project=chromium",
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium"]));
+
+    // ★실 배선 대조 — `e2e:authed` 스크립트가 `node -e "…" && playwright test` 형태다.
+    //   단락 모델이 이것을 죽었다고 세면 「authed 는 로컬에서도 안 돈다」는 거짓이 된다.
+    const realAuthed = (
+      JSON.parse(readFileSync(WEB_PACKAGE_JSON, "utf8")) as { scripts?: Record<string, string> }
+    ).scripts?.["e2e:authed"];
+    expect(realAuthed, "package.json 에 e2e:authed 가 없다 — 대조가 항진명제가 된다").toBeTruthy();
+    expect(
+      executedProjects(
+        "      - run: pnpm e2e:authed",
+        { "e2e:authed": realAuthed ?? "" },
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium-authed"]));
+  });
+
+  it("`if: false` 인 job/step 은 실행으로 세지 않는다", () => {
+    const step = [
+      "jobs:",
+      "  e2e:",
+      "    steps:",
+      "      - if: false",
+      "        run: pnpm exec playwright test --project=chromium-authed",
+      "      - run: pnpm exec playwright test --project=chromium",
+    ].join("\n");
+    expect(executedProjects(step, {}, ALL_PROJECTS)).toEqual(new Set(["chromium"]));
+
+    // `if:` 가 `run:` **뒤에** 와도 같은 스텝이다(YAML 은 키 순서를 안 가린다).
+    const trailing = [
+      "jobs:",
+      "  e2e:",
+      "    steps:",
+      "      - name: dead",
+      "        run: pnpm exec playwright test --project=chromium-authed",
+      "        if: false",
+      "      - run: pnpm exec playwright test --project=chromium",
+    ].join("\n");
+    expect(executedProjects(trailing, {}, ALL_PROJECTS)).toEqual(new Set(["chromium"]));
+
+    // ★대시 줄에 `run:` 이 붙고 `if: false` 가 뒤따르는 형태 — 머리줄까지 지워야 한다.
+    //   들여쓰기만 보면 `- run:` 이 키 컬럼보다 얕아 **죽은 호출이 살아남았다**(fail-open).
+    const headRun = [
+      "jobs:",
+      "  e2e:",
+      "    steps:",
+      "      - run: pnpm exec playwright test --project=chromium-authed",
+      "        if: false",
+      "      - run: pnpm exec playwright test --project=chromium",
+    ].join("\n");
+    expect(executedProjects(headRun, {}, ALL_PROJECTS)).toEqual(new Set(["chromium"]));
+
+    // ★반대 방향 — `- if: false` 는 그 줄이 항목의 시작이라 **앞 스텝을 건드리면 안 된다**.
+    //   들여쓰기만으로 앞으로 넓히면 앞 스텝의 `run:` 이 같은 컬럼이라 같이 죽었다(거짓 red).
+    const prevAlive = [
+      "jobs:",
+      "  e2e:",
+      "    steps:",
+      "      - name: live",
+      "        run: pnpm exec playwright test --project=chromium",
+      "      - if: false",
+      "        run: pnpm exec playwright test --project=chromium-authed",
+    ].join("\n");
+    expect(executedProjects(prevAlive, {}, ALL_PROJECTS)).toEqual(new Set(["chromium"]));
+
+    // job 통째로 죽은 경우 — 뒤따르는 살아 있는 job 은 안 건드린다.
+    const job = [
+      "jobs:",
+      "  dead:",
+      "    if: false",
+      "    steps:",
+      "      - run: pnpm exec playwright test --project=chromium-authed",
+      "  live:",
+      "    steps:",
+      "      - run: pnpm exec playwright test --project=chromium",
+    ].join("\n");
+    expect(executedProjects(job, {}, ALL_PROJECTS)).toEqual(new Set(["chromium"]));
+
+    // ★음성 대조 — `if:` 가 **조건식**이면 죽은 것이 아니다. 실 워크플로가 전부 이 형태라
+    //   여기를 죽었다고 세면 `ci.yml` 의 e2e 잡이 통째로 사라져 감사가 상시 red 다.
+    expect(
+      executedProjects(
+        job.replace("    if: false", "    if: needs.changes.outputs.frontend == 'true'"),
+        {},
+        ALL_PROJECTS,
+      ),
+    ).toEqual(new Set(["chromium", "chromium-authed"]));
+  });
+
+  it("LOCAL_ONLY 사유는 원장 식별자를 품어야 한다", () => {
+    // ★★착취 재현: 종전 계약은 `?.trim()` 뿐이라 `"."` 한 글자로 어떤 project 든 면제됐다.
+    expect(LEDGER_REF.test(".")).toBe(false);
+    expect(LEDGER_REF.test("CI 에 올리기 어려워서 뺐다")).toBe(false); // 산문만으론 부족
+    expect(LEDGER_REF.test("[BL-789] 1단계만 착수")).toBe(true);
+    expect(LEDGER_REF.test("[ADR-034] 가 CI 인증 secret 을 0개로 만들었다")).toBe(true);
+
+    // 실 등재분이 계약을 만족하는가 — 안 그러면 아래 본체 감사의 ⑶ 이 상시 red 다.
+    expect(
+      Object.entries(LOCAL_ONLY)
+        .filter(([, reason]) => !LEDGER_REF.test(reason))
+        .map(([name]) => name),
+    ).toEqual([]);
+  });
+
   it("`--project` 없는 `playwright test` 는 전 project 실행으로 센다", () => {
     // ★`package.json` 의 `e2e:all` 이 이 형태다. 모델링하지 않으면 authed 가 CI 에서
     //   실제로 도는데도 감사가 못 본다(fail-open).
@@ -450,18 +821,28 @@ describe("CI 실행 표면 ([BL-789])", () => {
       "LOCAL_ONLY 에 config 에 없는 project 가 남아 있다. 지워라.",
     ).toEqual([]);
 
-    // ⑶ 본체 — PR CI 에서 실행되지도, 면제되지도 않은 project 는 아무 데서도 안 도는 것이다.
+    // ⑶ 면제 사유가 계약을 만족하는가 — 원장 식별자 없는 사유는 면제가 아니다.
+    //   ★종전 검사는 `?.trim()` 뿐이라 `"."` 한 글자로 전건 초록이었다(2026-08-17 적대 리뷰).
     expect(
-      projectNames.filter((n) => !inCI.has(n) && !LOCAL_ONLY[n]?.trim()),
+      Object.entries(LOCAL_ONLY)
+        .filter(([, reason]) => !LEDGER_REF.test(reason ?? ""))
+        .map(([name]) => name),
+      "LOCAL_ONLY 사유에 [BL-NNN]/[ADR-NNN] 원장 식별자가 없다.\n" +
+        "「왜 CI 에 안 올렸나」는 원장이 답한다 — 번호를 적어야 그 BL 이 닫힐 때 면제도 같이 걷힌다.",
+    ).toEqual([]);
+
+    // ⑷ 본체 — PR CI 에서 실행되지도, 면제되지도 않은 project 는 아무 데서도 안 도는 것이다.
+    expect(
+      projectNames.filter((n) => !inCI.has(n) && !LEDGER_REF.test(LOCAL_ONLY[n] ?? "")),
       "이 project 는 PR 에서 발화하는 워크플로 어디에서도 실행되지 않는다.\n" +
         "워크플로에 --project= 로 배선하거나, LOCAL_ONLY 에 **사유와 함께** 등재해라.\n" +
         `PR 게이트 워크플로: ${JSON.stringify(prGated.sort())}\n` +
         `그것들이 실제로 부르는 것: ${JSON.stringify([...direct].sort())}`,
     ).toEqual([]);
 
-    // ⑷ 면제와 실행이 겹치면 LOCAL_ONLY 사유가 거짓이다.
+    // ⑸ 면제와 실행이 겹치면 LOCAL_ONLY 사유가 거짓이다.
     //   ★`direct` 가 아니라 `inCI` 로 잰다 — 전이 dependency 로만 CI 에 편입된 project 는
-    //     ⑶ 이 `inCI` 로 통과시키므로, ⑷ 이 `direct` 만 보면 「로컬 전용」이라는 **거짓 사유**가
+    //     ⑷ 가 `inCI` 로 통과시키므로, 이 단언이 `direct` 만 보면 「로컬 전용」이라는 **거짓 사유**가
     //     그대로 늙는다(2026-08-17 적대 리뷰). 두 단언의 기준을 같은 집합으로 맞춘다.
     expect(
       Object.keys(LOCAL_ONLY).filter((n) => inCI.has(n)),

@@ -967,8 +967,9 @@ design-canon → authed`). 회차마다 `PW_ARTIFACT_RUN` 을 달리 주므로 *
   authed 를 애초에 돌리지 않았다. 원장에 그렇게 적힌 항목이 실재한다([BL-668] 의 음성 대조 ②).
 - **회귀 방지** — `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사가
   `playwright.config.ts` 의 project 이름과 `.github/workflows/*.yml` 을 **양쪽 실파일에서 파싱해**
-  대조한다. CI 에서 안 도는 project 는 `LOCAL_ONLY` 상수에 **사유와 함께** 등재해야 하고,
-  새 project 를 만들고 워크플로에 안 배선하면 빨개진다.
+  대조한다. CI 에서 안 도는 project 는 `LOCAL_ONLY` 상수에 **사유와 함께** 등재해야 하고
+  (★사유는 `[BL-NNN]`/`[ADR-NNN]` **원장 식별자를 최소 1개** 품어야 한다), 새 project 를
+  만들고 워크플로에 안 배선하면 빨개진다.
   ★★**그 감사의 초판이 fail-open 이 네 갈래였다** (2026-08-17 적대 리뷰 — 전부 「무엇이 그것을
   발화시키나」를 안 본 것이다). ⑴ `--project=` 를 YAML **본문 전체**에서 찾아 `- name:` 스텝
   **제목**을 배선으로 셌다 → `run:` 셸 본문만 본다. ⑵ 워크플로를 트리거 무관하게 동등히 읽어
@@ -978,6 +979,19 @@ design-canon → authed`). 회차마다 `PW_ARTIFACT_RUN` 을 달리 주므로 *
   실행으로 모델링한다. ⑷ ★그 감사 **자신이 CI 에서 안 돌 수 있었다** — `ci.yml` 의 `frontend`
   필터가 `apps/web/**` 뿐이라 **워크플로만 고친 PR** 에서 통째로 skip 됐다(로컬 `final-gates.sh`
   의 `has_fe` 도 같았다). 둘 다 `.github/workflows/**` 를 물게 고쳤다.
+  ★★★**2차 적대 리뷰가 두 갈래를 더 찾았다** (같은 날). ⑸ **`--project=` 를 명령 종류도 도달성도
+  안 보고 셌다** — `run: echo --project=chromium-authed` 한 줄이나 `if: false` 스텝, 그리고
+  `false && … || true` 로 **리터럴로 죽은 셸 분기**가 전부 「CI 에서 돈다」로 읽혔다. 실측 —
+  `LOCAL_ONLY` 를 통째로 비운 채 `false && … || true` **한 줄**만 넣었더니 **10/10 초록**이었고
+  playwright 는 0회 돌았다. → 이제 `if: false` job/step 을 지우고, 리터럴 단락 평가로 도달
+  불가한 명령을 버린 뒤, **playwright 를 실제로 부르는 명령 안에서만** `--project=` 를 센다.
+  ⑹ **면제 사유를 「공백 아닌 문자열」로만 재서** `{"new-project": "."}` 로 전건 초록이었다 →
+  원장 식별자를 강제한다(위 괄호).
+  ★**그 감사가 재지 못하는 것을 파일 머리 주석에 명시했다** — `paths:` 필터 · 입력 의존 `if:`
+  조건식 · 리터럴이 아닌 셸 조건 · `uses:` 액션/재사용 워크플로. 정적 YAML 파싱의 원리적
+  한계라 완전 해결은 아래 2단계 몫이다. 특히 **`live-smoke.yml` 에 authed 를 배선하고 면제를
+  지우면 감사는 초록인데** 그 워크플로의 `paths:` 가 `apps/web/e2e/**` 를 안 물어 **authed spec
+  만 고친 PR 에서는 0회**다 — 「감사가 초록이다」를 「PR 에서 돈다」로 읽지 마라.
 - ★**아직 안 닫혔다 — 1단계만 했다.** CI 에 authed 잡을 세우려면 CI 전용 시더 + 로그인 배선이
   필요하고, [ADR-034] 가 CI 인증 secret 을 0개로 만든 결정이라 그 반전은 **사용자 결정**이다.
   그때까지 authed 게이트의 증인은 로컬 `final-gates.sh` 레그 하나뿐이다.
