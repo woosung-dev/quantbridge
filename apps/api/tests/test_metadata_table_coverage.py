@@ -36,6 +36,8 @@ head 라고 적힌 DB** 가 된다. 2026-08-17 에 `auth_*` 5테이블이 정확
 - ⑵ `alembic/env.py` 가 같은 것을 하는가 (SSOT 를 자칭하는 쪽도 검사한다)
 - ⑶ `tests.conftest` **만** import 한 자식에서 실제 등록 테이블 = census 인가 (실행 축)
 - ⑷ `alembic/env.py` 를 **실제로 태운** 자식에서 `target_metadata` = census 인가 (실행 축)
+  + 그 앞에 **정적 절반** 하나 — env.py 의 모든 `context.configure(...)` 가 `target_metadata=` 로
+  **같은 모듈 전역 이름**을 넘기는가 (⑷가 오프라인 분기 하나만 태우기 때문이다, 아래 참조)
 
 ★⑴이 ⑶과 별개로 필요하다. 2026-08-17 실측 — conftest 의 `from src.main import create_app`
 는 `src/main.py:447` 의 `app = create_app()` 을 태우고, 그것이 stress_test router →
@@ -59,6 +61,22 @@ import 하지 않는 모듈이 파서에게도 안 보이면 — 선언 축은 �
 ⇒ census 는 이 검사면의 **유일한** 기대치 원천이고, 그래서 파서는 「못 보면 조용히 넘어간다」가
 아니라 **「결정할 수 없으면 멈춘다」**여야 한다. import 별칭은 해석하고(`_local_aliases`),
 그래도 결정 못 하는 것은 AssertionError 로 사람에게 넘긴다.
+
+## ★★초록이 말하지 않는 것 — 알면서 남긴 사각 3종 (2026-08-17 적대 리뷰)
+
+★**이 파일의 초록은 「그런 표가 없다」가 아니라 「내가 본 형태 중에는 없었다」만 말한다**
+(`apps/api/AGENTS.md` §10). census 파서가 못 보는 선언 형태가 아직 셋 있고, 셋 다 **고치지 않기로
+했다**. 이유는 같다 — `src/**` 실사용례 **0건**이고, 쫓으려면 파서가 대입/상속/동적 속성을
+추적해야 하는데 그 추적 자체가 순서 의존이라 **막는 결함보다 새로 만드는 결함이 크다**.
+검사면이 잡아야 하는 것은 「사고」이지 「적대적 저자」가 아니다.
+
+- ⓐ **대입 별칭** — `T = Table` 뒤의 `T("x", SQLModel.metadata, ...)`. `_local_aliases` 는
+  import 문만 본다.
+- ⓑ **서브클래스** — `class MyTable(Table): ...` 뒤의 `MyTable("x", SQLModel.metadata, ...)`.
+- ⓒ **동적 속성** — `getattr(sa, "Table")("x", SQLModel.metadata, ...)`.
+
+셋 중 하나라도 실제로 쓰이기 시작하면 그 표는 census 에서 통째로 사라지고, 그 모듈을 아무도
+import 하지 않으면 **네 다리가 전부 초록**이 된다(위 절과 같은 구조). 그때는 파서를 넓혀라.
 """
 
 from __future__ import annotations
@@ -100,9 +118,24 @@ _CONFTEST_DUMP_SCRIPT = (
 #   그래서 **alembic 이 실제로 읽는 자리**에서 캡처한다 — `EnvironmentContext.configure()` 가
 #   `opts['target_metadata'] = target_metadata` 로 심고(alembic 1.18.4
 #   `runtime/environment.py:912`), autogenerate 가 `migration_context.opts.get('target_metadata')`
-#   로 꺼내 쓴다(`autogenerate/api.py:371`). `alembic check` 가 보는 것과 **같은 객체**다.
+#   로 꺼내 쓴다(`autogenerate/api.py:371`).
 #   ★한 번도 configure 되지 않았으면 `get_context()` 가 던진다 → 자식 rc≠0 → red.
 #   빈 입력을 「일치」로 읽는 길을 남기지 않는다.
+#
+# ★★**그런데 이 캡처가 지나는 `configure()` 는 둘 중 하나뿐이다.** `as_sql=True` 라 env.py 의
+#   `if context.is_offline_mode():` 쪽, 즉 `run_migrations_offline()` 의 `configure()` 만 탄다.
+#   실제 `alembic check` 는 `as_sql=False` 라 **`do_run_migrations()` 의 별개 `configure()`** 를
+#   탄다. 2026-08-17 적대 리뷰가 온라인 쪽 `target_metadata=` 만 빈 `MetaData()` 로 바꿔 실증했다 —
+#   **네 다리 전부 초록**이었다. 종전 주석의 「`alembic check` 가 보는 것과 **같은 객체**다」는
+#   그래서 **거짓**이었다. 「우연히 같은 객체라 통과했다」를 고쳤다고 선언한 주석이 같은 병을
+#   한 겹 아래에서 앓고 있었다.
+#
+# ★온라인 분기를 실제로 태우려면 DB 연결이 필요하고, 그 비용은 이 검사면의 값에 비해 크다.
+#   대신 **정적 단언**으로 잇는다(`_assert_every_configure_takes_the_same_metadata_name`).
+#   ⇒ 이 다리가 세우는 주장은 「같은 객체다」가 **아니다**. 정확히 이것이다:
+#     **「env.py 의 `configure()` 호출들이 `target_metadata=` 로 *같은 모듈 전역 이름*을 함께
+#     넘기는 것을 AST 로 정적 확인했고, *그 이름이 가리키는 값*을 오프라인 실행으로 실측했다.」**
+#     둘이 함께 초록일 때만 「오프라인에서 잰 그것이 온라인에도 같이 간다」가 성립한다.
 _ALEMBIC_DUMP_SCRIPT = (
     "import json, sys\n"
     "from sqlalchemy import MetaData\n"
@@ -169,10 +202,10 @@ def _local_aliases(tree: ast.Module, symbol: str) -> frozenset[str]:
     ★`ast.walk` 로 훑는다. 함수 본문에 숨긴 import 도 그 함수가 돌면 표를 등록하므로,
       「최상위만」이라는 좁힘은 여기서는 사각을 만든다(⑴⑵의 `tree.body` 직계 규칙과 반대인
       이유 = 저쪽은 「실행이 보장되는가」를 묻고 이쪽은 「이 이름이 그것인가」를 묻는다).
-    ★**아직 못 보는 것 하나** — import 가 아니라 **대입**으로 만든 별칭(`T = Table` 뒤의
-      `T(...)`)은 여기 안 잡힌다. 알면서 남긴다: 실사용례가 없고, 대입 추적은 순서 의존이라
-      값보다 새 결함의 위험이 크다. ★그래도 「초록 = 그런 표가 없다」로 읽지 마라 —
-      초록은 「내가 본 형태 중에는 없었다」만 말한다(`apps/api/AGENTS.md` §10).
+    ★**여기가 보는 것은 import 문뿐이다.** 대입 별칭(`T = Table`)·서브클래스·`getattr` 은 안
+      잡힌다 — 알면서 남긴 사각 ⓐⓑⓒ 로 이 파일 머리 주석에 근거와 함께 적어 뒀다.
+      ★그래서 「초록 = 그런 표가 없다」로 읽지 마라 — 초록은 「내가 본 형태 중에는 없었다」만
+      말한다(`apps/api/AGENTS.md` §10).
     """
     names = {symbol}
     for node in ast.walk(tree):
@@ -434,6 +467,99 @@ def test_alembic_env_imports_every_table_declaring_module() -> None:
 
 
 # ---------------------------------------------------------------------------
+# ⑷의 정적 절반 — env.py 의 `configure()` 들이 같은 이름을 넘기는가
+# ---------------------------------------------------------------------------
+
+# 오프라인 1 + 온라인 1. 이보다 적으면 배선이 바뀐 것이고, 그때 조용히 통과시키면
+# 「호출을 하나도 못 찾아서 이견이 없었다」가 초록이 된다.
+_MIN_CONFIGURE_CALLS = 2
+
+
+def _configure_calls(tree: ast.Module) -> list[ast.Call]:
+    """`context.configure(...)` / `configure(...)` 호출 전부 (함수 본문 포함이라 `ast.walk`)."""
+    calls: list[ast.Call] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if (isinstance(func, ast.Attribute) and func.attr == "configure") or (
+            isinstance(func, ast.Name) and func.id == "configure"
+        ):
+            calls.append(node)
+    return calls
+
+
+def _assert_every_configure_takes_the_same_metadata_name() -> str:
+    """env.py 의 모든 `configure()` 가 `target_metadata=` 로 **같은 모듈 전역 이름**을 넘기는가.
+
+    ⑷(오프라인 실행 캡처)가 값을 재는 자리는 `run_migrations_offline()` 하나뿐이다. 이 단언이
+    그 값이 **다른 `configure()` 에도 같이 간다**는 절반을 정적으로 맡는다 — 근거 전문은
+    `_ALEMBIC_DUMP_SCRIPT` 머리 주석.
+
+    ★**한계를 정직하게**: 이것은 「같은 객체임의 구조적 보장」이 아니다. 함수 안에서 같은
+      이름으로 **지역 대입**을 하면(`target_metadata = MetaData()` 뒤의 `configure(...)`)
+      이 단언은 통과한다 — 지역/전역 스코프 해석까지는 하지 않기 때문이다. 실사용례 0건이고,
+      그것은 사고가 아니라 적대적 저자다. 이 파일 머리 「초록이 말하지 않는 것」과 같은 결이다.
+    """
+    tree = ast.parse(_ALEMBIC_ENV.read_text(encoding="utf-8"), filename=str(_ALEMBIC_ENV))
+
+    calls = _configure_calls(tree)
+    assert len(calls) >= _MIN_CONFIGURE_CALLS, (
+        f"`{_ALEMBIC_ENV}` 에서 `configure(...)` 호출을 {len(calls)}개만 찾았다 "
+        f"(최소 {_MIN_CONFIGURE_CALLS}개 = 오프라인·온라인 각 1 을 전제한다). 배선이 바뀌었거나 "
+        "이 검사기가 호출을 못 알아본 것이다 — 어느 쪽이든 아래 「이름이 같다」 비교가 "
+        "항진명제가 되므로 여기서 멈춘다."
+    )
+
+    lines_by_name: dict[str, list[int]] = {}
+    for call in calls:
+        kwarg = next((kw for kw in call.keywords if kw.arg == "target_metadata"), None)
+        assert kwarg is not None, (
+            f"{_ALEMBIC_ENV}:{call.lineno} `configure(...)` 가 `target_metadata=` 를 안 넘긴다 — "
+            "이 호출이 타는 경로에서는 autogenerate 가 빈 metadata 를 본다(모든 표가 "
+            "removed table)."
+        )
+        assert isinstance(kwarg.value, ast.Name), (
+            f"{_ALEMBIC_ENV}:{call.lineno} `target_metadata=` 가 단순 이름이 아니다 "
+            f"({type(kwarg.value).__name__}) — 오프라인에서 실측한 값이 이 호출에도 가는지 "
+            "정적으로 결정할 수 없다. 모듈 전역 하나를 넘기게 되돌리거나 이 검사기를 넓혀라."
+        )
+        lines_by_name.setdefault(kwarg.value.id, []).append(call.lineno)
+
+    detail = " / ".join(
+        f"{name}: line {sorted(lines)}" for name, lines in sorted(lines_by_name.items())
+    )
+    assert len(lines_by_name) == 1, (
+        f"`{_ALEMBIC_ENV}` 의 `configure(...)` 들이 서로 다른 이름을 `target_metadata=` 로 "
+        f"넘긴다 — {detail}. 오프라인 분기에서 실측한 metadata 가 온라인 분기(= 실제 "
+        "`alembic check`)에도 간다는 근거가 사라진다. 2026-08-17 에 온라인 쪽만 빈 `MetaData()` "
+        "로 바꿔 네 다리를 전부 초록으로 통과한 착취가 정확히 이 모양이었다."
+    )
+    (name,) = lines_by_name
+
+    bound_at = [
+        stmt.lineno
+        for stmt in tree.body  # ★모듈 최상위 직계만 — 조건부/함수 안 대입은 전역이 아니다
+        if (
+            isinstance(stmt, ast.Assign)
+            and any(isinstance(t, ast.Name) and t.id == name for t in stmt.targets)
+        )
+        or (
+            isinstance(stmt, ast.AnnAssign)
+            and isinstance(stmt.target, ast.Name)
+            and stmt.target.id == name
+        )
+    ]
+    assert len(bound_at) == 1, (
+        f"`{_ALEMBIC_ENV}` 의 `{name}` 이 모듈 최상위에서 정확히 한 번 대입되지 않는다 "
+        f"(발견 {len(bound_at)}건: line {bound_at}). 이 다리는 「그 이름이 가리키는 값 하나를 "
+        "오프라인에서 실측했다」에 기대므로, 이름이 여러 번 묶이면 실측한 값과 온라인이 읽는 "
+        "값이 갈릴 수 있다."
+    )
+    return name
+
+
+# ---------------------------------------------------------------------------
 # ⑶⑷ 실행 축 — 자식 프로세스에서 실제로 등록된 결과를 잰다
 # ---------------------------------------------------------------------------
 
@@ -506,15 +632,29 @@ def test_alembic_env_run_registers_every_declared_table() -> None:
 
     ★⑵(선언 축)만으로는 부족하다. 선언 축은 **소스에 import 구문이 있는가**를 보고, 이 다리는
       **env.py 가 `context.configure()` 에 실제로 넘긴 `target_metadata`** 를 본다.
-      `alembic check` 는 DB 를 요구하지만 이 다리는 오프라인이라 DB 없이 같은 축을 잰다
-      ([BL-770] 재발 방지).
+      `alembic check` 는 DB 를 요구하지만 이 다리는 오프라인이라 DB 없이 잰다([BL-770] 재발 방지).
 
-    ★2026-08-17 실측 — `env.py` 의 `target_metadata = SQLModel.metadata` 는 그대로 두고
-      `run_migrations_offline()` 의 `target_metadata=` 인자만 빈 `MetaData()` 로 바꾸면,
-      종전 판(= `SQLModel.metadata` 를 덤프)은 **4개 전부 초록**이었다. 지금은 이 다리가 red 다.
-      캡처 지점의 근거는 `_ALEMBIC_DUMP_SCRIPT` 머리 주석 참조.
+    ★**이 다리는 절반이 정적이다.** 오프라인 실행이 지나는 `configure()` 는 env.py 의 둘 중
+      하나(`run_migrations_offline`)뿐이고, 실제 `alembic check` 는 다른 하나
+      (`do_run_migrations`)를 탄다. 그래서 먼저
+      `_assert_every_configure_takes_the_same_metadata_name()` 으로 「두 호출이 같은 모듈 전역
+      이름을 함께 넘긴다」를 AST 로 확인하고, 그 다음 「그 이름이 가리키는 값」을 오프라인
+      실행으로 실측한다. **둘이 함께 초록일 때만** 「오프라인에서 잰 그것이 온라인에도 같이
+      간다」가 성립한다 — 근거·한계 전문은 `_ALEMBIC_DUMP_SCRIPT` 머리 주석.
+
+    ★2026-08-17 실측 — 이 다리를 red 로 만드는 변이 4종, **전부 돌려서 확인**했다:
+      ⓐ 전역 `target_metadata` 를 빈 `MetaData()` 로 재대입 → 정적 절반은 통과하고 **실행
+        절반**이 red(「자식이 빈 metadata 를 냈다」).
+      ⓑ `do_run_migrations()` 의 인자만 다른 이름(`_other = MetaData()`)으로 → **정적 절반**
+        red. ★정적 절반이 없던 판은 이 변이에 **4개 전부 초록**이었다 — 이 라운드가 고친 것이
+        정확히 이것이다.
+      ⓒ `target_metadata=` 가 단순 이름이 아니게 되면(`target_metadata.__class__()`) 정적 절반 red.
+      ⓓ `configure(...)` 호출을 하나 지우면 정적 절반 red(호출 2개 미만 = ABORT).
     """
     census = _table_declaring_modules()
     _assert_census_is_not_empty(census)
+    metadata_name = _assert_every_configure_takes_the_same_metadata_name()
     registered = _dump_tables_in_child(_ALEMBIC_DUMP_SCRIPT, "`alembic/env.py` 오프라인 실행")
-    _assert_registered_matches_census(registered, census, "alembic/env.py 실행")
+    _assert_registered_matches_census(
+        registered, census, f"alembic/env.py 오프라인 configure(target_metadata={metadata_name})"
+    )
