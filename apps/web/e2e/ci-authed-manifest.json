@@ -1,0 +1,24 @@
+{
+  "ci": ["authed-canon-p1.spec.ts"],
+  "localOnly": {
+    "api-request-dedup.spec.ts": "[BL-789] 첫 CI 검증 라운드의 대상이 아니다. 이 spec 은 아직 CI 실행 증거가 없어 다음 후보 확장 전까지 명시적으로 보류한다.",
+    "authed-canon-remaining.spec.ts": "[BL-789] 첫 CI 검증 라운드의 대상이 아니다. 이 spec 은 아직 CI 실행 증거가 없어 다음 후보 확장 전까지 명시적으로 보류한다.",
+    "authed-functional-parity.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "authed-row-locator-guard.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "authed-settings-save.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "authed-tier-c-cockpit.spec.ts": "[BL-789] 첫 CI 검증 라운드의 대상이 아니다. 이 spec 은 아직 CI 실행 증거가 없어 다음 후보 확장 전까지 명시적으로 보류한다.",
+    "backtest-live-mirror.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "close-resting-entries.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "dogfood-flow.spec.ts": "[BL-789] 첫 CI 검증 라운드의 대상이 아니다. 이 spec 은 아직 CI 실행 증거가 없어 다음 후보 확장 전까지 명시적으로 보류한다.",
+    "invite-token-page.spec.ts": "[BL-789] 첫 CI 검증 라운드의 대상이 아니다. 이 spec 은 아직 CI 실행 증거가 없어 다음 후보 확장 전까지 명시적으로 보류한다.",
+    "live-session-deeplink.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "live-session-flow.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "outcome-parity-panel.spec.ts": "[BL-789] 첫 CI 검증 라운드의 대상이 아니다. 이 spec 은 아직 CI 실행 증거가 없어 다음 후보 확장 전까지 명시적으로 보류한다.",
+    "report-section-anchors.spec.ts": "[BL-789] 첫 CI 검증 라운드의 대상이 아니다. 이 spec 은 아직 CI 실행 증거가 없어 다음 후보 확장 전까지 명시적으로 보류한다.",
+    "sprint46-tier1-critical.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "sprint46-tier2-high.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "sprint46-tier3-nth.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "sprint55-optimizer-bayesian.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다.",
+    "trading-ui.spec.ts": "[BL-802] 하드코딩 UUID를 사용한다. CI 결정론 시더가 없어 현재 auth DB에서 대상 엔티티를 보장할 수 없다."
+  }
+}

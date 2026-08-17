@@ -540,6 +540,101 @@ jobs:
           path: apps/web/playwright-report/
           retention-days: 7
 
+  # [BL-789] — 인증된 화면도 PR CI에서 실제로 실행한다. 첫 라운드는 매니페스트의 한 spec만
+  # 대상으로 삼고, 나머지 authed spec의 미실행 사유도 같은 파일에 남긴다.
+  e2e_authed:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: timescale/timescaledb:2.14.2-pg15
+        env:
+          POSTGRES_USER: quantbridge
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: quantbridge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quantbridge"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
+      REDIS_URL: redis://localhost:6379/0
+      CELERY_BROKER_URL: redis://localhost:6379/1
+      CELERY_RESULT_BACKEND: redis://localhost:6379/2
+      REDIS_LOCK_URL: redis://localhost:6379/3
+      TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
+      BETTER_AUTH_SECRET: ci-e2e-only-placeholder-secret-0000000
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_DATABASE_URL: postgresql://quantbridge:password@localhost:5432/quantbridge_test
+      E2E_AUTH_EMAIL: ci-e2e-authed@example.test
+      E2E_AUTH_PASSWORD: ci-e2e-authed-password-0000000
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
+      - run: pnpm install --frozen-lockfile
+        working-directory: apps/web
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: apps/web
+      - run: uv sync --all-extras --dev
+        working-directory: apps/api
+      - run: uv run alembic upgrade head
+        working-directory: apps/api
+      - name: Start API and wait for /health
+        working-directory: apps/api
+        shell: bash
+        run: |
+          set -euo pipefail
+          uv run uvicorn src.main:app --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/uvicorn.log" 2>&1 &
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/uvicorn.log"
+          exit 1
+      - name: Run selected authed specs
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          specs="$(node -p "require('./e2e/ci-authed-manifest.json').ci.map((file) => 'e2e/' + file).join(' ')")"
+          if [ -z "$specs" ]; then
+            echo "::error::ci-authed-manifest.json의 ci가 비어 있다"
+            exit 1
+          fi
+          echo "authed CI specs: $specs"
+          pnpm exec playwright test --project=chromium-authed $specs
+      - name: Upload authed Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-authed-report
+          path: apps/web/playwright-report/
+          retention-days: 7
+      - name: Upload API log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-authed-api-log
+          path: ${{ runner.temp }}/uvicorn.log
+          if-no-files-found: ignore
+          retention-days: 7
+
   # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
   # ★2026-08-06 구멍 2개를 막았다.
   #   ⑴ `documentation` 이 needs 에 **없었다** — `mise run docs-audit` 이 빨개도 `ci` 는 초록이었다.
@@ -562,6 +657,7 @@ jobs:
         backend_static,
         backend_coverage,
         e2e,
+        e2e_authed,
         documentation,
         secret_scan,
       ]
@@ -585,6 +681,7 @@ jobs:
           check backend_static   "${{ needs.backend_static.result }}"
           check backend_coverage "${{ needs.backend_coverage.result }}"
           check e2e              "${{ needs.e2e.result }}"
+          check e2e_authed       "${{ needs.e2e_authed.result }}"
           check documentation    "${{ needs.documentation.result }}"
           check secret_scan      "${{ needs.secret_scan.result }}"
           exit $fail

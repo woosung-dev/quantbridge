@@ -74,11 +74,16 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import config from "../../playwright.config";
+import ciAuthedManifest from "../../e2e/ci-authed-manifest.json";
 
 const E2E_DIR = path.resolve(__dirname, "../../e2e");
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
 const WORKFLOW_DIR = path.join(REPO_ROOT, ".github/workflows");
 const WEB_PACKAGE_JSON = path.resolve(__dirname, "../../package.json");
+const CI_AUTHED_MANIFEST = ciAuthedManifest as {
+  ci: string[];
+  localOnly: Record<string, string>;
+};
 
 /**
  * CI 에서 **의도적으로** 안 도는 project — 이름 → 사유.
@@ -89,17 +94,6 @@ const WEB_PACKAGE_JSON = path.resolve(__dirname, "../../package.json");
  * 종전 계약은 「공백 아닌 문자열」뿐이라 `"."` 한 글자로도 전건 초록이었다(2026-08-17 적대 리뷰 실측).
  */
 const LOCAL_ONLY: Record<string, string> = {
-  "chromium-authed":
-    "[BL-789] 1단계만 착수 — CI 에 authed 잡을 신설하려면 CI 전용 시더 + 로그인 배선이 필요하고, " +
-    "[ADR-034] 가 CI 인증 secret 을 0개로 만든 결정이라 그 반전은 사용자 결정 사항이다. " +
-    "★그래서 **CI 초록은 authed 통과의 증거가 아니다** — 증인은 로컬 실행뿐이다" +
-    "(`final-gates.sh` 의 `e2e authed` 레그 · `mise run fe-e2e-authed` · `pnpm e2e:authed` · " +
-    "`tools/scripts/e2e-authed-repro.sh`).",
-  setup:
-    "`global.setup.ts` — E2E_AUTH_* 계정으로 로그인해 storageState 를 발급한다. `chromium-authed` 전용 dependency 라 " +
-    "그것이 CI 로 올라가기 전까지 같이 로컬 전용이다([BL-789]).",
-  "setup-authed-reachability":
-    "authed API 도달성 프로브. `chromium-authed` 전용 dependency 라 같이 로컬 전용이다([BL-789]).",
   "chromium-screen-evidence":
     "[BL-797] 1단계(로컬 산출)만 착수. CI 로 올리려면 둘이 더 필요하다 — ⑴ 스크린샷 baseline 이 " +
     "**플랫폼 의존**이라(`{platform}` 접미 · 맥에서 구운 `-darwin` 판을 리눅스 러너가 쓸 수 없다) " +
@@ -434,6 +428,13 @@ function owningProjects(relPath: string): string[] {
     .map((p) => p.name ?? "(unnamed)");
 }
 
+function projectSpecFileNames(projectName: string): string[] {
+  return specFiles()
+    .filter((relPath) => owningProjects(relPath).includes(projectName))
+    .map((relPath) => path.basename(relPath))
+    .sort();
+}
+
 describe("e2e project 배선", () => {
   it("모든 spec 이 정확히 한 project 에 속한다", () => {
     const files = specFiles();
@@ -480,6 +481,49 @@ describe("e2e project 배선", () => {
     expect(reachability?.dependencies).toEqual(["setup", "setup-identity"]);
     expect(authed?.dependencies).toEqual(["setup-authed-reachability"]);
     expect(publicChromium?.dependencies).toEqual(["setup-identity"]);
+  });
+});
+
+describe("chromium-authed spec 실행 표면 ([BL-789])", () => {
+  it("config 가 고른 authed spec 은 CI 또는 사유 있는 localOnly 에 정확히 한 번씩 등재된다", () => {
+    const { ci, localOnly } = CI_AUTHED_MANIFEST;
+    const localOnlyNames = Object.keys(localOnly);
+
+    if (ci.length === 0 && localOnlyNames.length === 0) {
+      throw new Error("ABORT — ci와 localOnly가 모두 비어 authed spec 감사 입력이 없다.");
+    }
+
+    const overlap = ci.filter((name) => Object.hasOwn(localOnly, name));
+    expect(
+      overlap,
+      `ci와 localOnly에 동시에 등재된 authed spec: ${JSON.stringify(overlap)}`,
+    ).toEqual([]);
+
+    expect(
+      Object.entries(localOnly)
+        .filter(([, reason]) => !LEDGER_REF.test(reason))
+        .map(([name]) => name),
+      "localOnly 사유에는 [BL-NNN]/[ADR-NNN] 원장 식별자가 필요하다.",
+    ).toEqual([]);
+
+    const manifestNames = [...ci, ...localOnlyNames].sort();
+    const authedNames = projectSpecFileNames("chromium-authed");
+    const duplicateFileNames = authedNames.filter(
+      (name, index) => authedNames.indexOf(name) !== index,
+    );
+    expect(
+      duplicateFileNames,
+      "매니페스트는 파일명만 쓰므로 chromium-authed 아래 동명 spec은 허용하지 않는다.",
+    ).toEqual([]);
+
+    expect(
+      manifestNames.filter((name) => !authedNames.includes(name)),
+      "매니페스트에 실제 chromium-authed spec 파일이 아닌 이름이 있다.",
+    ).toEqual([]);
+    expect(
+      authedNames.filter((name) => !manifestNames.includes(name)),
+      "chromium-authed 대상 spec이 ci/localOnly 어느 쪽에도 등재되지 않았다.",
+    ).toEqual([]);
   });
 });
 
