@@ -485,6 +485,70 @@ class TestRunGeneticSearchEndToEnd:
         assert result.best_objective_value == Decimal("12")
         assert result.degenerate_count == 0
 
+    def test_best_backtest_metrics_come_from_the_best_individual(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[BL-429] best individual 의 total_return/max_drawdown 을 결과에 싣는다.
+
+        best 를 마지막이 아니라 **중간**(idx=5)에 두어, 첫/마지막을 집는 배선을 가른다.
+        """
+        call_count = {"n": 0}
+
+        def fake_run_backtest(pine: str, ohlcv: pd.DataFrame, cfg: Any) -> SimpleNamespace:
+            call_count["n"] += 1
+            n = call_count["n"]  # 1..12
+            # 6번째 호출(idx=5)만 압도적 sharpe. metric 은 호출마다 고유하다.
+            sharpe = Decimal("99") if n == 6 else Decimal(n)
+            return _fake_outcome(
+                sharpe=sharpe,
+                total_return=Decimal(f"0.{n:02d}"),
+                max_drawdown=Decimal(f"-0.{n:02d}"),
+            )
+
+        monkeypatch.setattr("src.optimizer.engine.genetic.run_backtest", fake_run_backtest)
+
+        space = _build_param_space(
+            {
+                "emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1},
+                "stopLossPct": {"kind": "decimal", "min": "0.5", "max": "2.0", "step": "0.1"},
+            },
+            population_size=4,
+            n_generations=2,
+            max_evaluations=50,
+        )
+        result = run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
+
+        assert result.best_iteration_idx == 5
+        assert result.best_total_return == Decimal("0.06")
+        assert result.best_max_drawdown == Decimal("-0.06")
+
+    def test_all_degenerate_leaves_best_metrics_none(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """[BL-429] best 가 없으면 metric 도 없다 — 0 으로 채우지 않는다."""
+
+        def fake_run_backtest(pine: str, ohlcv: pd.DataFrame, cfg: Any) -> SimpleNamespace:
+            return _fake_outcome(
+                sharpe=None,
+                num_trades=0,
+                total_return=Decimal("0.44"),
+                max_drawdown=Decimal("-0.44"),
+            )
+
+        monkeypatch.setattr("src.optimizer.engine.genetic.run_backtest", fake_run_backtest)
+
+        space = _build_param_space(
+            {"emaPeriod": {"kind": "integer", "min": 5, "max": 30, "step": 1}},
+            population_size=2,
+            n_generations=1,
+            max_evaluations=50,
+        )
+        result = run_genetic_search(PINE_WITH_INPUTS, _make_ohlcv(), param_space=space)
+
+        assert result.best_iteration_idx is None
+        assert result.best_total_return is None
+        assert result.best_max_drawdown is None
+
     def test_end_to_end_minimize_with_degenerate_iterations(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -1,60 +1,72 @@
-# 레인 β 원장 초안 — [BL-785] · [BL-782]
+# 레인 β 원장 초안 — [BL-429]
 
-수치의 정본은 `B-REPORT.md` 다. 여기서는 상태줄과 그 근거 한 줄만 낸다.
-
----
-
-### BL-785 — 게이트가 버전 SSOT 를 우회한다
-
-**상태:** ✅ **Resolved (2026-08-17 gate-pins)** — 로컬 스크립트 5종이 `lib/mise-shim-path.sh` 로
-shim 을 PATH 앞에 세우고, `tools/scripts/tool-pin-audit.sh` 가 재유입을 막는다(`final-gates` 의
-「도구 핀 감사」 + 「도구 핀 감사 하네스」, `mise run gate-harnesses` 13→14종).
-
-- 음성 대조로 종결했다 — 낡은 `pnpm`/`uv`/`node`(`exit 1`)를 PATH 앞에 세운 채
-  **수리 전 코드는 `CI frozen-lockfile` FAIL(rc=1)**, **수리 후 코드는 같은 조작에서 PASS(rc=0)**.
-  판정 근거는 `B-REPORT.md` §AC-2.
-- **서버(`truewords-oracle`)에서 도는 `soak-*.sh` 6종은 안 고쳤다** — 그 환경의 mise 존재를
-  확인할 수 없고 서버 접속이 금지다. 감사기가 이유와 함께 면제로 인쇄한다(목록 = REPORT §AC-4).
-- 이 회차가 만든 **회귀 1건을 이 회차가 잡았다** — `docs-audit-test.sh` 가 fixture 트리에 lib 를
-  안 옮겨 19케이스가 전부 rc=1 이 됐다. 표적 테스트는 초록이었고 게이트 전량이 잡았다.
+> 수치의 정본은 `B-REPORT.md` 다. 이 문서는 원장(`docs/backlog.md`)에 그대로 옮길 문장만 담는다.
+> 브랜치 `stage/night3-bl429-optimizer-row` · 슬롯 4.
 
 ---
 
-### BL-782 — `alembic check` 가 재는 DB 가 정의돼 있지 않다
+## 1. [BL-429] 상태줄 교체
 
-**상태:** ✅ **Resolved (2026-08-17 gate-pins)** — 판정 기준을 **migration-only DB** 로 확정해
-`gates-and-traps.md` §환경에 적었고, 그 기준으로 남아 있던 유일한 drift
-(`trading.funding_rates.exchange` VARCHAR(32) → `exchangename`)를 migration `20260817_0002` 로 닫았다.
-게이트 `CI fresh DB alembic` 과 **CI `backend` 잡** 둘 다 `upgrade head` 뒤에 `alembic check` 까지 돈다
-(CI 스텝은 CI 가 돌기 전까지 미검증 — 근거는 REPORT §AC-5).
+**지금 원장(`docs/backlog.md:1918-1919`)에 있는 두 줄:**
 
-- **[BL-770] 의 「rc=0 이 처음」은 개발 DB 에 대한 것이었다.** 2026-08-17 실측 — 개발 DB 는 head
-  `20260816_0001` 인데 그 컬럼이 이미 `exchangename` 이다(`create_all` 이력이 섞여 있다).
-  migration 계보로만 만들면 `varchar(32)` 다. **같은 명령이 DB 마다 다른 답을 냈다.**
-- 다른 drift 는 **없었다** — migration-only DB 의 `alembic check` 가 낸 항목은 이 한 컬럼뿐이다.
-  따라서 「축을 하나씩」이 저절로 지켜졌고 다음 회차로 넘길 drift 후보도 없다.
-- ★**서버 소크 DB 에는 적용하지 않았다.** 그 DB 의 `funding_rates.exchange` 값 집합은 확인하지
-  못했다(서버 접속 금지). 라벨 밖 값이 있으면 `USING` 캐스트가 소리 내며 실패한다 — 조용히
-  틀린 결과를 내지는 않는다.
-- 후속 후보(이번에 안 건드림): `funding_rate_repository.py` 의 `cast(exchange, String)` 은 이제
-  구조적으로 불필요하지만, migration 이 아직 안 닿은 DB 를 위해 남겼다. 전 배포처가 head 에
-  도달한 뒤 걷어내면 `ix_funding_rates_exchange_symbol` 를 다시 쓸 수 있다.
+```
+**상태:** ⏳ 대기 (트리거 미도래) — §03 최적화 행의 수익률/MDD 칸이 여전히 EMPTY_CELL + "결과는 최적화 상세에서 확인" 고정이라 역산·objective 표기 미구현. (2026-08-09 status-triage-mass 확인)
+**트리거 판정:** 미도래 — 외생 조건(사용자 결정·요청). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
+```
+
+**바꿀 두 줄:**
+
+```
+**상태:** ✅ **RESOLVED** — 갈래 ⒜(best 조합의 backtest metric denormalize) 채택. BE `OptimizationRunResponse` 에 `best_total_return`·`best_max_drawdown` 신설(목록 응답에 직접 탑재, 상세 왕복 0·추가 쿼리 0), FE `dashboard-cockpit.tsx` 가 백테스트 행과 같은 `MetricValue` 로 렌더. 값이 없는 실행(RUNNING·FAILED·best 미확정·구 row)은 여전히 빈칸이고 **0 이 아니다** — 그 구분을 재는 테스트 5건 + 변이 3/3 red. (2026-08-17 night3 레인 β)
+**트리거 판정:** ✅ **도래** — 2026-08-17 사용자가 요청했다. 종전 판정(「외생 조건이라 우리 의지로 만들 수 없다」)은 트리거가 실제로 온 지금 더 이상 유효하지 않다 (2026-08-17 night3 레인 β)
+```
+
+★**원장 본문의 인과 한 문장도 틀렸다.** 지금 「**원인 / 영향**」이 이렇게 적혀 있다:
+
+> OptimizationRun 은 param_space/result(iterations) 만 보유, best 조합의 백테스트 metric 은 목록에 없어 §03 최적화 행 성과 칸이 빈칸.
+
+**grid_search 에 한해 거짓이다.** `result` JSONB 의 `cells[]` 는 처음부터 cell 마다
+`total_return`·`max_drawdown` 을 갖고 있었고 `best_cell_index` 도 있었다. 목록 응답은
+`result` 를 **통째로** 실으므로 그 숫자는 이미 클라이언트에 도착해 있었다 — 없던 것은
+데이터가 아니라 **그것을 꺼내는 이름**이다. 진짜로 metric 이 없던 것은 bayesian·genetic
+둘이고(iteration 은 `objective_value` 만 보관), 그 둘만 엔진 수정이 필요했다.
+⇒ 본문에 다음을 덧붙인다:
+
+```
+**2026-08-17 정정:** 「metric 이 목록에 없다」는 grid_search 에는 거짓이었다 — `result.cells[best_cell_index]` 에 처음부터 있었고 목록 응답이 `result` 를 통째로 싣는다. 없던 것은 값이 아니라 **꺼내는 이름**이다. 실제로 값이 없던 것은 bayesian·genetic(iteration 이 `objective_value` 만 보관)이고, 그 둘만 엔진이 best 의 metric 을 결과에 싣도록 고쳤다.
+```
 
 ---
 
-### 신규 BL 후보 — 테스트 부트스트랩이 `auth_*` 5테이블을 안 만든다 (두 BL 어느 쪽도 아님)
+## 2. 새 BL 초안 — 최적화 목록 응답이 `result` 를 통째로 싣는다
 
-**상태:** 🔧 **이번 회차에 수리해 두었다 (2026-08-17 gate-pins)** — 다만 **[BL-785]·[BL-782] 범위 밖**이라
-번호를 새로 받아야 한다. 아침에 별건으로 판단해라.
+★**번호 미확정.** 이 회차의 다음 번호는 797 이었으나 **레인 α 가 이미 797 을 썼다**
+(2026-08-17 `quant-bridge-wt3/apps/web/e2e/screen-evidence.config.json` 실측). 레인 γ 도 도는
+중이라 798 도 안전하지 않다. **아침에 오케스트레이터가 부여해라.**
 
-- 결함: `src/auth/better_auth_tables.py` 를 import 하는 곳이 `alembic/env.py` **하나뿐**이라
-  `tests/conftest.py::bootstrap_test_schema` 의 `create_all` 이 `auth_*` 5테이블을 안 만든다.
-  그런데 같은 함수가 `alembic_version` 을 **head 로 stamp** 하므로, fresh DB 에서
-  `test_migrations.py` 의 `downgrade base` 가 `DROP TABLE auth_jwks` 에서 죽는다.
-- ★**원장의 「BE 4759 passed」는 낡은 DB 에서 잰 값이었다.** fresh DB 대조군(내 변경 제외)에서
-  **같은 2건이 같은 이유로 실패**했다 — 즉 이 결함은 이 회차가 만든 것이 아니고, 발견은
-  「테스트 DB 를 재생성했다」는 것 하나에 달려 있었다.
-- 이것은 [BL-782] 와 **같은 병의 다른 층**이다 — `create_all` 경로와 migration 경로가 갈린다.
-  저기는 컬럼 타입, 여기는 **테이블 존재**. `conftest.py:365` 주석이 이미 그 위험을 적어 두고
-  「이름 층에서만 참」이라 했는데, **이름 층에서도 참이 아니었다.**
-- 수리 = import 한 줄 + 근거 주석. 되돌리면 fresh DB 전량 pytest 가 다시 2건 red 다.
+```
+### BL-XXX
+
+**Title:** 최적화 목록 응답이 `result` JSONB 를 행마다 통째로 싣는다
+**Category:** Backend / 성능
+**Priority:** P3
+**Trigger:** 최적화 실행이 쌓이거나 `max_evaluations` 가 큰 run 이 목록에 섞일 때
+**Est:** S
+**상태:** ⏳ **대기 (트리거 미도래)** — 현 규모(대시보드가 8행만 당긴다)에서는 측정 가능한 피해가 없다.
+**트리거 판정:** 미도래 — **규모 조건**이다. [BL-710] 과 같은 성격이되 대상이 다르다(그쪽은 `/strategies`).
+**출처:** 2026-08-17 night3 레인 β ([BL-429] 작업 중 관측)
+
+**원인 / 영향:** `GET /api/v1/optimizer/runs` 의 `OptimizationRunResponse.result` 는 `dict[str, Any]` 전량이다. grid 는 cell 전부, bayesian·genetic 은 iteration 전부가 행마다 실린다. 대시보드 §03 은 그중 best 두 값만 쓰는데, `max_evaluations=100` 짜리 run 8건이면 목록 한 번에 iteration 800개가 따라온다. **[BL-429] 가 그 두 값을 별도 필드로 뽑았으므로 이제 목록에서 `result` 를 뺄 수 있다** — 다만 `/optimizer` 목록 화면이 `result` 를 쓰는지 먼저 확인해야 한다.
+
+**권장 접근:** 목록 전용 응답에서 `result` 를 제외(또는 `best_*` 요약만 남김). 상세(`GET /runs/{id}`)는 그대로 둔다.
+```
+
+---
+
+## 3. 원장에 적을 반증 (`docs/lessons.md` 후보 — 승격 여부는 오케스트레이터 판단)
+
+**「목록에 없다」가 「응답에 없다」를 뜻하지 않았다.** [BL-429] 의 착수 근거는 「best 조합의
+백테스트 metric 이 목록에 없다」였는데, grid_search 에서는 값이 **이미 응답에 실려** 있었다.
+빠져 있던 것은 그 값을 가리키는 **이름**이고, 화면은 이름이 없어서 빈칸을 그리고 있었다.
+⇒ 「데이터가 없다」는 진단을 받으면 **응답 바이트를 먼저 봐라** — 스키마 필드 목록만 보면
+JSONB 안에 든 것을 못 본다.
