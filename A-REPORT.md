@@ -1,132 +1,194 @@
-# 레인 α 보고 — [BL-784] e2e 신원이 자기 한도에 목이 졸린다
+# 레인 α — 화면 증거 게이트 (BL-797)
 
-브랜치 `stage/bl784-ratelimit` (워크트리 wt3 · 슬롯 3) · 2026-08-17
+**결과: 수용 기준 7종 전부 충족.** `apps/web/` 을 바꾼 회차가 이제 **before/after 화면 + 라우트별
+번들 델타 + 화면당 요청 수 델타**를 마크다운 표 하나로 산출하고, 그 표는 그대로 PR 코멘트가 된다.
+`final-gates.sh` 에 배선했고 `apps/web/` diff 가 0 이면 skip 한다. 게이트 레그 실측 **25초**.
 
-## 한 줄
+브랜치 `stage/night3-evidence-gate` · 커밋 2건(`8bfed817` 초안 · `a4306829` 배선) · 슬롯 3.
 
-`e2e@dogfood.local` 신원에만 rate limit 을 면제하는 완화를 넣었고, **authed 스위트가 연속 3회
-rc=0(90 passed) · BE 429 발생 0건**이다. 완화가 실제로 한도를 푸는지는 한도를 `5/minute` 로
-낮춘 대조 2회로 증명했다 — 완화를 no-op 으로 만들면 같은 조건에서 **429 가 913건 나고 8건이
-실패**하고, 완화를 켜면 **0건 · 90 passed** 다.
+---
 
-## 무엇을 바꿨나
+## 1. 무엇이 생겼나
 
-| 파일                                                | 내용                                                                                                    |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `apps/api/src/core/config.py`                       | `e2e_rate_limit_exempt_email` 설정 신설(기본 빈 값) + production 에서 값이 있으면 **부팅 실패**         |
-| `apps/api/src/common/rate_limit.py`                 | 판정식 `is_rate_limit_exempt_identity()` + `_RateLimitIdentityMiddleware` 에서 slowapi skip 플래그 세팅 |
-| `apps/api/src/realtime/auth.py`                     | `verified_claims_or_none()` 신설 · `verified_subject_or_none()` 은 그 얇은 래퍼로                       |
-| `.env.example`                                      | `E2E_RATE_LIMIT_EXEMPT_EMAIL` 추가                                                                      |
-| `apps/api/tests/common/test_rate_limit_identity.py` | ⑤절 신설 — 배선 4건 + 값 표 12건                                                                        |
-| `apps/api/tests/test_config_production_guard.py`    | production 부팅 거부 1건 + baseline 에 "미설정" 강제                                                    |
-
-**완화가 성립하는 조건은 둘이고 둘 다 필요하다.** ⑴ `settings.is_production` 이 거짓 ⑵ 검증된
-JWT 의 `email` claim 이 `E2E_RATE_LIMIT_EXEMPT_EMAIL` 과 같다(양쪽 `strip().lower()`).
-설정이 비었거나 공백뿐이면 어떤 신원도 통과하지 못한다 — 비교보다 **설정 검사를 먼저** 둔 이유다.
-
-### 설계 판단 세 가지
-
-**⑴ 이메일을 키로 썼다.** `rate_limit_key` 가 쓰는 `sub` 는 Better Auth 가 가입 시 만드는
-UUID 라 설정 파일에 적을 수 없다(DB 를 다시 만들면 값이 바뀐다). `email` 은 서명된 payload 안에
-있고 `authenticate_token` 이 이미 읽던 claim 이다.
-
-**⑵ 검증을 두 번 하지 않는다.** 면제 판정에 payload 가 필요해서 `verified_claims_or_none` 을
-만들고 기존 `verified_subject_or_none` 을 그 래퍼로 바꿨다. 토큰 하나에 crypto 를 두 번 돌리는
-것을 피하고, 검증기는 여전히 `realtime/auth.py` 한 곳이다(`apps/api/AGENTS.md` §2).
-
-**⑶ 면제 신호는 `request.state._rate_limiting_complete` 다.** slowapi 소유의 플래그이고,
-slowapi 가 **미들웨어 갈래(`middleware.py:44`)와 데코레이터 갈래(`extension.py:730·762`)
-양쪽에서** 이 이름을 본다 — 그래서 한 줄이 `default_limits` 와 `@limiter.limit` 을 함께 면제한다.
-authed 스위트가 실제로 치는 `/api/v1/backtests` 에 `10/minute` 데코레이터가 붙어 있어 이 점이
-필요했다. 이름이 slowapi 것이라 업그레이드에 깨질 수 있지만 **깨지는 방향이 「한도가 다시
-걸리는」 쪽**이라 프로덕션 위험은 없고, 깨지면 AC-3 축 테스트가 red 로 알려 준다.
-
-## 수용 기준별 판정
-
-| AC                            | 판정 | 근거                                                                                                                                                                                                                     |
-| ----------------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| AC-1 완화가 e2e 신원에만      | ✅   | `test_only_the_e2e_identity_is_relaxed` — 같은 요청을 두 신원으로. e2e = `[200]×5`, 일반 = `[200, 429]`                                                                                                                  |
-| AC-2 프로덕션 구성에서 미발화 | ✅   | `test_production_config_never_relaxes`(같은 설정·같은 신원, `app_env` 만 production → `[200, 429]`) + `test_unset_exemption_relaxes_nobody` + 값 표 12건 + `test_production_rejects_e2e_rate_limit_exemption`(부팅 거부) |
-| AC-3 판별력(낮춘 한도)        | ✅   | 아래 「AC-3 상세」                                                                                                                                                                                                       |
-| AC-4 authed 연속 3회 rc=0     | ✅   | 3/3 rc=0 · 90 passed · 224s / 215s / 211s                                                                                                                                                                                |
-| AC-5 전량 BE pytest ≥4759     | ✅   | rc=0 · **4776 passed**, 32 skipped, 400.60s                                                                                                                                                                              |
-| AC-6 429 발생 0건             | ✅   | AC-4 3회 전 구간 BE 접근로그 429 **0건** · slowapi `exceeded at endpoint` **0건**                                                                                                                                        |
-
-기록 위치: AC-4 = `apps/web/test-results/ac4-relaxed-summary.txt` + 회차별
-`ac4-relaxed-{1,2,3}-authed.log` + `test-results/ac4-relaxed-{1,2,3}/chromium-authed/results.json`.
-
-### AC-3 상세 — 같은 한도, 완화만 뒤집었다
-
-`default_limits` 를 `100/minute` → `5/minute` 로 낮춘 상태에서 완화 여부만 바꿔 authed 를 각 1회.
-
-| 조건                      | rc  | 결과                                 | BE 429  |
-| ------------------------- | --- | ------------------------------------ | ------- |
-| 5/minute · 완화 **no-op** | 1   | 8 failed · 4 did not run · 78 passed | **913** |
-| 5/minute · 완화 **활성**  | 0   | **90 passed**                        | **0**   |
-
-429 가 난 엔드포인트 상위: `/api/v1/strategies` 322 · `/api/v1/backtests` 254 ·
-`/api/v1/orders` 237 · `/api/v1/live-sessions` 45.
-
-★no-op 회차에서 실패한 8건에 **`sprint46-tier1-critical.spec.ts:69`** 이 들어 있다 —
-[BL-773] 회차에서 최초로 실패한 그 테스트다. 즉 한도를 낮춰 429 를 강제하면 그 테스트가
-다시 실패하고, 완화를 켜면 통과한다.
-
-## 표적 변이표
-
-`apps/api/src/common/rate_limit.py` 에 문자열 치환으로 심고 문자열 치환으로 되돌린 뒤
-sha256 으로 복원을 확인했다(`git checkout` 미사용). 앵커는 매번 1건임을 확인했다.
-
-| 변이                                        | 기대     | 실측   | red 가 난 테스트                                                                         |
-| ------------------------------------------- | -------- | ------ | ---------------------------------------------------------------------------------------- |
-| M1 「프로덕션이 아니다」 판정 제거          | AC-2 red | ✅ red | `test_production_config_never_relaxes` + 값 표 양성 3건                                  |
-| M2 「이 신원이다」 판정 제거(`return True`) | AC-1 red | ✅ red | `test_only_the_e2e_identity_is_relaxed` · `..._covers_decorated_routes` + 값 표 음성 3건 |
-| M3 완화를 no-op                             | AC-3 red | ✅ red | pytest 2건 + **e2e 축 8 failed / 913×429**(위 표)                                        |
-
-M1 은 `test_production_config_never_relaxes` 만이 아니라 값 표의 **양성 케이스**를 함께 죽인다 —
-production 에서는 표의 참 케이스까지 전부 거짓이어야 한다는 단언이 같은 테스트 안에 있다.
-
-## 확인하지 못한 것 · 남은 것
-
-**⑴ 메인 체크아웃의 `.env.local` 은 내가 안 건드렸다.** 완화는 `E2E_RATE_LIMIT_EXEMPT_EMAIL`
-이 채워져야 발화하는데, 내가 채운 것은 **워크트리 wt3 의 `apps/api/.env.local` 하나**다.
-`.env.local` 은 커밋 대상이 아니므로, 메인에서 게이트를 도는 사람이 그 줄을 안 넣으면
-**코드는 머지됐는데 authed 는 그대로 흔들린다.** 아침에 넣을 한 줄:
-
-```
-E2E_RATE_LIMIT_EXEMPT_EMAIL=e2e@dogfood.local     # apps/api/.env.local (메인 체크아웃)
+```bash
+pnpm screen-evidence          # 대조 + 리포트 산출 (게이트가 부르는 모드)
+pnpm screen-evidence:update   # baseline(스크린샷 + 수치) 갱신
 ```
 
-값은 `apps/web/.env.local` 의 `E2E_AUTH_EMAIL` 과 같아야 한다. CI 는 `e2e:authed` 를 돌리지
-않으므로(`ci.yml` 에 그 잡이 없다) CI secret 은 필요 없다.
+| 파일                                                      | 역할                                                                                   |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `apps/web/e2e/screen-evidence.spec.ts`                    | 공개 라우트 3종을 재고 커밋된 baseline 과 대조                                         |
+| `apps/web/e2e/screen-evidence-shared.ts` · `.config.json` | 경로 SSOT (spec 은 TS, 오케스트레이터는 .mjs — `allowJs:false` 라 같은 모듈을 못 쓴다) |
+| `apps/web/e2e/screen-evidence.baseline.json`              | **커밋된 수치 baseline.** 이 파일의 `origin/main` 판이 before, 브랜치 판이 after       |
+| `apps/web/e2e/screen-evidence.snapshots/*.png`            | **커밋된 화면 baseline** 3장. PR 코멘트의 blob URL 이 이것을 가리킨다                  |
+| `apps/web/scripts/screen-evidence.mjs`                    | 빌드 → 프로덕션 서버 → 캡처 → 서버 종료 → 표 산출                                      |
+| `apps/web/scripts/screen-evidence-lib.mjs` (+ `.d.mts`)   | 순수 계산 계층. 빈 표·0 값을 **던진다**                                                |
+| `apps/web/src/__tests__/screen-evidence.test.ts`          | 그 계층의 판별력 시험 12건                                                             |
+| `tools/scripts/final-gates.sh` §4b                        | 게이트 배선 (`has_fe`)                                                                 |
 
-**⑵ 다른 레인과 Redis 버킷을 공유한다.** `be-isolated` 는 모든 슬롯이 `redis://localhost:6380/3`
-을 쓴다. 이번 측정 중 형제 레인이 authed 를 돌리지 않아 오염은 없었지만(429 0건이 그 증거다),
-두 레인이 같은 신원으로 동시에 돌면 버킷이 겹친다. 이번 회차에서 검증하지 않았다.
+### 산출물 (실측 baseline)
 
-**⑶ 429 계수는 BE 접근 로그 기준이다.** `qb_rate_limit_throttled_total` 메트릭으로 교차
-확인하지 않았다 — `/metrics` 가 이 워크트리에서 `PROMETHEUS_BEARER_TOKEN` 미설정이라 401 이다.
-접근 로그와 slowapi WARN 두 축이 모두 0 이라 그대로 뒀다.
+| 라우트      | first-load JS·CSS    | API 요청 | 전체 요청 |
+| ----------- | -------------------- | -------- | --------- |
+| `/`         | 220,416 B (220.4 kB) | 0        | 52        |
+| `/sign-in`  | 307,710 B (307.7 kB) | 0        | 49        |
+| `/waitlist` | 322,174 B (322.2 kB) | 0        | 52        |
 
-**⑷ celery 를 타는 경로는 검증 대상이 아니었다.** 워크트리에서 금지이고, `/healthz` 는
-`celery_workers: 0` 으로 503 이다(그 밖의 축은 `db: ok · redis: ok`). authed 스위트 90건은
-이 상태에서 전건 통과한다.
+---
 
-## 회차 중 밟은 환경 함정 — 원인이 아니었지만 증상이 같았다
+## 2. 설계 판단 — 왜 이 모양인가
 
-authed 가 **3/3 red** 로 나온 구간이 있었고 원인은 rate limit 이 아니라 **Turbopack 영속
-캐시가 물린 것**이었다. 증상은 `○ Compiling /sign-in/[[...sign-in]] ...` 에서 멈춘 채
-next-server 가 **CPU 0.0%** 로 대기하고, `global.setup.ts:65` 의 `page.goto('/sign-in')` 이
-120초 timeout 으로 죽는 것이다(그 뒤 89건은 `did not run`). `curl /sign-in` 은 240초를 넘겨도
-응답이 없었고, 메모리는 55% 여유 · 디스크는 99% 사용(14GiB 여유)이었다.
+**before 는 추론이 아니라 git blob 이다.** 레인 파일의 갈래 ⑴ 은 「머지 기준에서 한 번 더
+빌드·캡처」였는데, 그러려면 `origin/main` 워크트리 + node_modules + 두 번째 빌드가 필요하고
+그 전체가 재현 가능한지를 다시 증명해야 한다. 대신 **baseline 을 커밋**하고 before 를
+`git show origin/main:<파일>` 로 읽는다 — 정확히 머지 기준이고 비용이 0 이다.
+대가는 하나: 화면을 바꾼 회차는 `:update` 를 한 번 돌려야 한다. **그 갱신분이 곧 after 다.**
 
-`apps/web/.next` 를 치우고 dev 서버를 다시 띄우자 `/sign-in` 이 **0.79초**에 컴파일됐고 그
-뒤 3회가 전부 green 이다. **「authed 스위트 red」에는 [BL-784] 말고 이 원인도 있다** —
-구분점은 실패가 `setup` 단계에서 나고 429 가 0건이라는 것이다.
+**측정은 프로덕션 서버(`next build` + `next start`)에서 한다.** dev 서버는 Turbopack 이 모듈
+단위로 쪼개 서빙해서 바이트가 캐시 상태에 따라 흔들리고, dev 표시기가 화면에 얹힌다.
 
-(부수 사실: 처음 띄운 dev 서버는 세션 도구의 백그라운드 수명에 묶여 9분 만에 죽었다.
-`nohup … & disown` 으로 다시 띄운 뒤로는 안 죽었다. 레포와 무관한 실행 환경 사정이다.)
+**게이트가 자기 빌드를 따로 돈다.** `final-gates.sh` §3 의 `FE build` 산출물을 재사용하면
+「§3 이 실패했거나 그 사이 트리가 바뀐」 창이 열린다 — [BL-706] 이 닫은 게이트 신선도 구멍이
+그것이다. 30초로 그 구멍을 안 판다. 그래서 레그 25초 중 대부분이 빌드다.
 
-## 게이트
+**단언은 soft 다.** 세 축은 서로 독립된 증거인데 hard 로 두면 화면이 걸리는 순간 수치 대조가
+실행조차 안 돼서, 사람이 red 를 두 번 받는다. 단 **측정 오염·계측 실패 단언은 hard** 다 —
+그 뒤를 이어 재 봐야 쓰레기이기 때문이다.
 
-`mise exec -- tools/scripts/final-gates.sh --run bl784-fix --pre-pr` — 결과는 커밋 로그와
-`.claude/gates/bl784-fix/` 참조. 신호 게이트 4종은 유예되며 아침 몫이다.
+### 스크린샷 손잡이 값의 근거 (AC-2 요구)
+
+| 손잡이               | 값                  | 왜                                                                                                                                                                     |
+| -------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `threshold`          | playwright 기본 0.2 | 픽셀 하나의 YIQ 색차 허용치. 안티앨리어싱을 1차로 흡수하고 여기서 걸러진 픽셀은 아래 개수에 안 센다                                                                    |
+| `maxDiffPixels`      | **0**               | 같은 코드로 돌린 **6회 빌드 전부에서 차이 0 픽셀**. 0 보다 크게 잡을 근거가 실측에 없었다                                                                              |
+| `maxDiffPixelRatio`  | **안 쓴다**         | ★fullPage 는 약 256만 픽셀인데 글자 한 자 변경은 **31 픽셀**(실측)이라 비율로는 1.2e-5 다. 흔히 쓰는 `0.001` 은 2,560 픽셀을 허용하므로 **글자 한 자를 통째로 삼킨다** |
+| `animations`         | `"disabled"`        | CSS 애니메이션·전이를 종료 상태로 고정                                                                                                                                 |
+| `fullPage` / `caret` | `true` / `"hide"`   | 화면 전체가 증거여야 하고, 커서 깜빡임은 매 실행 다른 픽셀이다                                                                                                         |
+
+★**흔들리기 시작하면 값을 올리기 전에 무엇이 흔들리는지 먼저 찾아라.** 임계값을 올리는 것은
+판별력을 파는 것이고, 이 게이트는 그것 하나로 존재 이유가 사라진다(변이① 이 그것을 실증한다).
+
+---
+
+## 3. 수용 기준별 판정
+
+| AC                                                                                  | 판정        | 근거                                                                                                                                                                                      |
+| ----------------------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **AC-1** before/after 쌍 · before=`origin/main` · 결정적 경로                       | ✅          | before 는 `git show origin/main:<baseline>`. 산출은 `PW_ARTIFACT_RUN` 회차 폴더(`apps/web/.screen-evidence/<회차>/`)로 격리                                                               |
+| **AC-2** 판별력 (양성 + 음성 2종)                                                   | ✅          | 아래 §4                                                                                                                                                                                   |
+| **AC-3** 라우트별 번들 델타 `before → after (Δ)` kB                                 | ✅          | 무거운 import 하나로 `/` 220.4 → **270.8 kB (+50.4)**, 나머지 두 라우트는 **정확히 0**                                                                                                    |
+| **AC-4** 화면당 API 요청 수 델타 · dedup 계수 방식 재사용                           | ✅          | `page.on("request")` 계수 + [BL-786] 의 「실패 응답 = 측정 오염」 성질 그대로. ★단 §5-③ 참조                                                                                              |
+| **AC-5** 사람이 읽는 표 하나 · 스크린샷 클릭 한 번                                  | ✅          | 마크다운 표 1개 → `gh pr comment --body-file` 로 그대로. 스크린샷은 **커밋된 파일**이라 GitHub blob URL 이 실재한다(before=`main`, after=브랜치)                                          |
+| **AC-6** `final-gates.sh` 배선 · `apps/web` diff 0 이면 skip · 기존 `has_fe` 재사용 | ✅          | 음성 `QB_FG_FAKE_CHANGED=docs/status.md` → `건너뜀 (frontend diff 0)` / 양성 `apps/web/src/app/page.tsx` → `계획만`. `final-gates-test.sh` 10/10 통과                                     |
+| **AC-7** FE vitest · e2e chromium · design-canon                                    | ⚠️ **부분** | FE vitest **PASS 23s**. e2e 두 레그는 `--pre-pr` 이 유예하는 집합이라 이 회차에서 **안 돌았다** — 계약 §마감이 `--pre-pr` 까지가 내 몫이라고 못박았고 `--deferred-only` 는 push 뒤 모드다 |
+
+★**AC-7 의 e2e 두 레그는 「통과」가 아니라 「안 돌렸다」**다. 유예 원장이
+`.claude/gates/evidence/deferred.txt` 에 남아 있다.
+
+---
+
+## 4. 변이 결과표
+
+전부 실제로 심고 돌린 실측이다. 되돌림은 문자열 치환 쌍으로 했고 **심을 때 쓰지 않은 방법
+(sha256 대조)** 으로 확인했다.
+
+| #   | 변이                                                            | 기대                            | 실측                                                                                                                   | 되돌림 확인      |
+| --- | --------------------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ---------------- |
+| ①   | `maxDiffPixels: 0` → `Number.MAX_SAFE_INTEGER` (화면 변경 유지) | AC-2 양성이 red 를 잃는다       | **rc=1 → rc=0, 4 passed.** 같은 화면 변경이 통째로 통과했다                                                            | 소스 sha256 복원 |
+| ②   | 자산 패턴 `/_next/static/` → `/_next/statik/`                   | AC-3 red (0 kB 로 새면 안 된다) | **3/3 red** — 「first-load 자산 바이트가 0 이다」. 오케스트레이터도 「라우트를 한 건도 측정하지 못했다」로 fail-closed | 복원             |
+| ③   | `page.on("request", …)` 등록 제거                               | AC-4 red                        | **3/3 red** — 「요청을 한 건도 못 셌다」                                                                               | 복원             |
+
+### 양성/음성 대조 (AC-2)
+
+| 대조                               | 방법                                                            | 실측                                                                                                                                                                          |
+| ---------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **양성**                           | 랜딩 CTA 라벨 한 글자(`시작하기`→`시작한기`, UTF-8 바이트 중립) | **31 픽셀 차이로 red.** ★같은 변경이 `firstLoadBytes` 는 **안 바꿨다** — 즉 이 회차에서 스크린샷 축이 **유일한 검출기**였고, 변이① 이 그것을 끄자 게이트가 통째로 눈이 멀었다 |
+| **음성 ①** 주석만 바꾼 트리        | JSX 주석 1줄 추가                                               | **3/3 「변경 없음」 · 전 지표 Δ=0 · rc=0**                                                                                                                                    |
+| **음성 ②** `apps/web/` 미변경 회차 | `QB_FG_FAKE_CHANGED=docs/status.md`                             | 게이트 `건너뜀 (frontend diff 0)`                                                                                                                                             |
+| **음성 ③** 결정성                  | 무거운 import 를 넣었다 뺀 뒤 baseline 재생성                   | **baseline JSON 과 PNG 3장이 커밋본과 바이트 동일** (`git status` 무변화). 40분·빌드 6회를 사이에 두고도 같았다                                                               |
+
+계산 계층은 vitest **12건**이 따로 잡는다 — 행 0개 / `firstLoadBytes` 0 / `totalRequests` 0 /
+숫자 아닌 값 / 스크린샷 경로 누락에 **전부 throw**, 그리고 각 항목마다 「막는 게 아니라 비어서
+막는 것」임을 보이는 음성 대조를 같이 뒀다.
+
+---
+
+## 5. 레인 파일·설계 전제 중 **코드로 반증된 것**
+
+### ① 「전 레포에 `toHaveScreenshot` 이 1건뿐이다(실측)」 → **테스트에는 0건**
+
+그 1건은 `docs/reference/design/prototypes/shotgun-2026-07/HANDOFF-react-port.md:64` 의 **산문**이고,
+그 문장 자체가 「`toHaveScreenshot` / `toMatchSnapshot` / `*-snapshots/` 전부 0건」이라 적고 있다.
+즉 grep 이 「없다고 적은 문서」를 「있다」로 센 것이다. 결론은 유리한 쪽으로 바뀐다 —
+**시각 baseline 이 하나도 없었으므로 기존 배선과 충돌할 것이 없었다.**
+
+### ② 「`next build` 출력 파싱」 → **Next 16 Turbopack 출력에 크기 컬럼이 없다**
+
+빌드 로그의 `Route (app)` 표는 라우트 이름과 ○/ƒ 표시뿐이고 `Size`·`First Load JS` 컬럼이
+**아예 없다**. `grep -niE "first load|size|kB"` 가 **0건**이다.
+
+### ③ 매니페스트 경로도 죽었다
+
+`.next/app-build-manifest.json` 이 **없고**(Turbopack), 대신 있는 라우트별
+`.next/server/app/<라우트>/page/build-manifest.json` 은 **모든 라우트에서 내용이 동일**하다
+(`pages: {}` · `rootMainFiles` 는 공유 셸 5개뿐). 라우트별 chunk 귀속 정보가 그 파일에 없다.
+
+⇒ **그래서 브라우저 실측으로 갔다.** 이것이 오히려 더 정직한 축이다 — 「사용자가 실제로 받는
+바이트」이고, AC-3 대조가 라우트 귀속이 실동작함을 보였다(`/` 만 +50.4 kB, 나머지 정확히 0).
+
+### ④ `content-length` 로는 못 잰다
+
+Next 는 `compress: true` 라 정적 자산을 **gzip 청크**로 보내고 그때 `content-length` 가 아예 안
+붙는다 — 첫 구현이 자산 **13/13 전부**에서 그 헤더를 못 찾아 red 를 냈다.
+playwright 의 `request().sizes().responseBodySize`(회선을 지난 바이트)로 바꿨다.
+
+### ⑤ 공개 라우트의 API 요청은 실측 **0/0/0** — AC-4 축만으로는 판별력이 0 이었다
+
+`api-request-dedup.spec.ts` 가 재는 라우트(`/backtests`·`/dashboard`)는 authed 라 API 요청이
+있지만, **공개 라우트는 셋 다 0건**이다. 그래서 계수기를 통째로 떼어내도 `0 → 0 (0)` 으로
+**초록**이 난다 — 이 레포가 소크 게이트 C4 와 `tool-pin-audit` 에서 두 번 밟은 「볼 것이 없으면
+통과」의 재현이다. **전체 요청 수**를 생존 앵커 겸 지표로 추가해서 닫았고, 변이③ 이 3/3 red 를
+낸 것은 그 축 덕분이다(API 축만 있었으면 초록이었다).
+
+### ⑥ `next start` 는 경고를 찍지만 정상 서빙한다
+
+`output: "standalone"` 때문에 `⚠ "next start" does not work with "output: standalone"` 이 뜨지만
+실측은 `/` 200 · `/_next/static/chunks/*.js` 200 **28,559 B** 였다. 반대로 standalone 산출물
+(`.next/standalone/server.js`)은 `.next/static` 을 스스로 안 품어서 그쪽으로 띄우면 자산이 404 가
+되고 **번들 바이트가 0** 이 된다.
+
+### ⑦ 빌드가 네트워크에 매달려 있다
+
+13회 실행 중 **1회**가 `next/font/google` 의 폰트 CSS 를 못 받아 `Turbopack build failed with 9
+errors` 로 죽었다(내 변이와 무관). 재시도로 복구됐지만, **오프라인이면 이 게이트는 못 돈다.**
+
+---
+
+## 6. 확인하지 못한 것
+
+- ★**레인 β·γ 의 PR 에서 이 게이트가 실제로 무엇을 인쇄하는지 모른다.** 그들의 브랜치는 내 것이
+  아니다. 내가 보인 것은 **내 브랜치에서 그것이 동작한다**는 것까지다. 아침에 CONTROL 이 합쳐서 확인한다.
+- ★**`origin/main` 착륙 후의 기본 동작.** 지금 `origin/main` 에는 baseline 파일 자체가 없어서
+  기본 참조로 돌리면 라우트 3건이 전부 **「신규」**로만 나온다. 델타 증명은
+  `SCREEN_EVIDENCE_BASE_REF=8bfed817`(이 브랜치의 첫 커밋)로 했다. 머지 후 한 회차가 지나면
+  기본 경로가 자연히 정상 델타를 낸다.
+- **다른 머신·다른 OS 에서의 스크린샷 결정성.** 맥(darwin)에서만 쟀다. baseline 은 `-darwin`
+  접미가 붙어 있고 리눅스 판은 없다 — CI 를 못 도는 이유가 그것이다.
+- **`@next/bundle-analyzer` 경로를 시도하지 않았다.** ②③ 으로 매니페스트 축이 죽은 뒤 브라우저
+  실측이 더 정직하다고 판단해 그쪽으로 갔다. 그 devDep 이 Turbopack 빌드에서 어떻게 동작하는지는
+  안 봤다.
+- **authed 화면.** 범위 밖([BL-789]). 번들 축도 authed 라우트는 안 재고 있다 — 지금 표에 있는
+  것은 공개 3종뿐이다.
+- **`e2e chromium` · `e2e design-canon`.** `--pre-pr` 유예 집합이라 이 회차에서 안 돌았다.
+- **CI 게시 경로(레인 파일의 갈래 ⑵).** 착수하지 않았다.
+
+---
+
+## 7. 다음 회차 후보
+
+1. **CI 배선(갈래 ⑵)** — 리눅스 baseline 을 굽고 워크플로에 프로덕션 서버 스텝을 넣은 뒤
+   `actions/github-script` 로 코멘트 게시. 선례 `nightly-real-broker.yml:207`.
+   그때 `e2e-project-wiring.test.ts` 의 `LOCAL_ONLY["chromium-screen-evidence"]` 를 걷는다.
+2. **authed 라우트의 번들·요청 축** — 스크린샷 없이 수치만이면 실데이터 흔들림을 피할 수 있다.
+   `/dashboard`·`/backtests` 가 [BL-662~665]·[BL-786] 이 실제로 다룬 라우트다.
+3. **LCP/TTI** — 레인 파일이 범위 밖으로 둔 축. 로컬 노이즈 문제를 풀어야 한다.
