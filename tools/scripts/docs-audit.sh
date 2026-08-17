@@ -121,8 +121,9 @@ for start in (docs, root / "apps" / "api", root / "apps" / "web", root / "tools"
 line_caps = {
     "docs/dev-log/INDEX.md": 300,
     "docs/backlog.md": 1000,
-    # ★[BL-779] 분할로 생긴 원장 반쪽. 상한을 안 걸면 「원장을 갈랐다」가 곧 「한쪽은 무법지대」다.
+    # ★[BL-779] 분할로 생긴 원장 조각들. 상한을 안 걸면 「원장을 갈랐다」가 곧 「한쪽은 무법지대」다.
     "docs/backlog-resolved.md": 1000,
+    "docs/backlog-deferred.md": 1000,
     "docs/roadmap.md": 1000,
 }
 cap_hits: list[tuple[str, int, int, int]] = []
@@ -428,15 +429,17 @@ else:
 #   갈라지고, 갈라지는 순간 어느 쪽이 맞는지 아무도 모른다.
 # ★**정확히 1개**를 잰다. 0개(규율 누락)와 2개 이상(중복 상태줄과 같은 사고)이 둘 다 실패다.
 #
-# ★★원장은 **파일 하나가 아니다** ([BL-779], 2026-08-16) — `docs/backlog.md`(열린 것) +
-#   `docs/backlog-resolved.md`(RESOLVED 본문). 한쪽만 읽으면 그 파일에 사는 섹션의 판정줄이
+# ★★원장은 **파일 하나가 아니다** ([BL-779], 2026-08-16 → 2026-08-18 3분할) — `docs/backlog.md`
+#   (ACTIVE ∪ PARTIAL) + `docs/backlog-deferred.md`(DEFERRED) + `docs/backlog-resolved.md`(RESOLVED).
+#   ★배치 자체는 `bl-audit.sh` 의 「파일 배치」 축이 집행한다 — 여기서 다시 판정하지 마라.
+#   한쪽만 읽으면 그 파일에 사는 섹션의 판정줄이
 #   **0개로 세어져** 없는 위반을 만들거나(반대로) 있는 위반을 놓친다. 두 파일을 합쳐 센다.
 # ★**bl-audit 의 rc 를 읽는다.** 종전에는 stdout 만 봤으므로 정본이 죽어도(빈 stdout)
 #   「공집합 = 일치」로 조용히 계속 갔다. 정본이 ABORT(3) 면 여기도 ABORT 다 — 이 레포가
 #   빈 입력을 「원하는 답」으로 통과시킨 사고를 다섯 번 이상 밟았다 ([LESSON-101]).
 verdict_line_hits: list[str] = []
 bl_audit = root / "tools" / "scripts" / "bl-audit.sh"
-backlog_files = [docs / "backlog.md", docs / "backlog-resolved.md"]
+backlog_files = [docs / "backlog.md", docs / "backlog-resolved.md", docs / "backlog-deferred.md"]
 by_verdict: dict[str, set[str]] = {}
 verdict_text: dict[str, str] = {}
 

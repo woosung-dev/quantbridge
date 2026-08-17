@@ -16,11 +16,15 @@
 #   `bl-audit.sh` 는 `dirname $0/..` 를 ROOT 로 잡고 `docs/{backlog,backlog-resolved,roadmap}.md`
 #   를 읽으므로, 스크립트 사본을 `$TMP/tree/tools/scripts/` 에 두면 그 옆의 fixture 원장을 읽는다.
 #
-# ★★다중 파일 축 (⑫~⑯, [BL-779] 2026-08-16). 원장이 `backlog.md` + `backlog-resolved.md` 둘로
+# ★★다중 파일 축 (⑫~⑯ · ㉑~㉒, [BL-779] 2026-08-16 → 2026-08-18 **3분할**). 원장이
+#   `backlog.md`(ACTIVE ∪ PARTIAL) + `backlog-deferred.md`(DEFERRED) + `backlog-resolved.md`(RESOLVED) 로
 #   갈렸다. **한쪽만 읽는 파서는 조용히 초록이다** — 없는 섹션은 불일치를 못 내기 때문이다.
 #   그래서 여기서는 "두 번째 원장이 실제로 파싱되는가" 를 네 각도로 잰다:
 #     ⑫ 세어지는가 · ⑬ 상태줄이 **판정에 쓰이는가** · ⑭ 3면 대조가 파일을 가로지르는가 ·
-#     ⑮ 같은 id 를 양쪽에 두면(=복사) red 인가 · ⑯ 한쪽이 비면 초록이 아니라 ABORT(3) 인가.
+#     ⑮ 같은 id 를 양쪽에 두면(=복사) red 인가 · ⑯ 한쪽이 비면 초록이 아니라 ABORT(3) 인가 ·
+#     ㉑㉑b㉑c **판정어 ↔ 사는 파일**이 어긋나면 red 인가(양방향 + 음성) · ㉒ 셋째 원장 ABORT.
+#   ★㉑ 계열이 없으면 분할은 **한 번 하고 도로 풀린다** — 실측: 2026-08-16 1차 분할 뒤 닫힌
+#     RESOLVED 13건이 전부 `backlog.md` 에 다시 쌓였고 아무 게이트도 안 잡았다.
 #   ⑫ 만 두면 "세기만 하고 안 읽는" 파서가 통과한다 — 그래서 ⑬⑭ 가 따로 있다.
 #
 # ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (`| tail` 이 $? 를 가린다 — 실측 사고 이력).
@@ -49,7 +53,15 @@ DEFAULT_RESOLVED='### BL-9001
 **상태:** ✅ **Resolved** (두 번째 원장 기본 fixture)
 '
 
-run_fixture() { # stdin = docs/backlog.md 본문 · $1 = (선택) docs/backlog-resolved.md 본문 → $OUT / $RC
+# 세 번째 원장(`backlog-deferred.md`)의 기본 내용 (2026-08-18 3분할). 같은 이유로 **비면 ABORT** 다.
+# ★id 9002 — 위 9001 및 케이스별 BL-00x 와 충돌하지 않게 잡는다.
+DEFAULT_DEFERRED='### BL-9002
+
+**우선순위:** P3
+**상태:** ⏳ **대기 (트리거 미도래)** (세 번째 원장 기본 fixture)
+'
+
+run_fixture() { # stdin = docs/backlog.md · $1 = (선택) backlog-resolved.md · $2 = (선택) backlog-deferred.md
   rm -rf "$TMP/tree"
   mkdir -p "$TMP/tree/tools/scripts" "$TMP/tree/docs"
   cp "$AUDIT" "$TMP/tree/tools/scripts/bl-audit.sh"
@@ -57,6 +69,7 @@ run_fixture() { # stdin = docs/backlog.md 본문 · $1 = (선택) docs/backlog-r
   # ★`${1-…}` 는 **미지정**일 때만 기본값이다 — 빈 문자열을 넘기면 빈 파일이 만들어져
   #   ⑯ ABORT 케이스가 성립한다. `${1:-…}` 로 쓰면 그 케이스가 조용히 사라진다.
   printf '%s' "${1-$DEFAULT_RESOLVED}" >"$TMP/tree/docs/backlog-resolved.md"
+  printf '%s' "${2-$DEFAULT_DEFERRED}" >"$TMP/tree/docs/backlog-deferred.md"
   : >"$TMP/tree/docs/roadmap.md" # 체크박스 없음 = 로드맵 축 중립
   # ★파이프 없음. 명령 치환의 종료 코드가 곧 스크립트의 종료 코드다.
   OUT="$(bash "$TMP/tree/tools/scripts/bl-audit.sh" 2>&1)"
@@ -112,18 +125,17 @@ EOF
 assert_case "① 중복 섹션 헤더 → exit 1" 1 "▶ 중복 섹션 헤더" "▶ 중복 상태 줄"
 
 # ── ② 중복 없음 → 통과. 가드가 상시 red 면 판별력이 0 이다 ─────────────────────────
-run_fixture <<'EOF'
+#   ★2026-08-18 — RESOLVED 섹션을 **둘째 원장으로 옮겼다.** 「파일 배치」 축이 생겨
+#     `backlog.md` 에 RESOLVED 를 두면 red 다. fixture 가 현실의 배치를 따라야 한다.
+run_fixture '### BL-002
+
+**우선순위:** P3
+**상태:** ✅ **Resolved** (fixture · 둘째 원장)
+' <<'EOF'
 ### BL-001
 
 **우선순위:** P3
 **상태:** 🔴 **열려 있다** — fixture.
-
----
-
-### BL-002
-
-**우선순위:** P3
-**상태:** ✅ **Resolved** (fixture)
 
 ---
 EOF
@@ -190,14 +202,13 @@ report "⑤ 중복 상태줄이 그 섹션 줄번호를 가리킨다" "$_why"
 # ── ⑥ 새 어휘 DEFERRED 가 ACTIVE 와 **따로** 세어진다 (BL-694 계열, 2026-08-10) ──────────
 #   ★이 하네스의 존재 이유와 같은 계약이다 — "수동으로 한 번 돌려 봤다" 는 회귀를 못 막는다.
 #   ★카운트 줄을 재므로 `assert_case`(마커 1+1) 대신 커스텀 `_why` 를 쓴다.
-run_fixture <<'EOF'
-### BL-001
+#   ★2026-08-18 — DEFERRED 섹션은 **셋째 원장**에 둔다(「파일 배치」 축). 기본 DEFERRED
+#     fixture 를 이것으로 **교체**하므로 DEFERRED 는 여전히 1 이다.
+run_fixture "$DEFAULT_RESOLVED" '### BL-001
 
 **우선순위:** P3
 **상태:** ⏳ **대기 (트리거 미도래)** — 실자금 cutover 전.
-
----
-
+' <<'EOF'
 ### BL-002
 
 **우선순위:** P3
@@ -214,24 +225,26 @@ report "⑥ DEFERRED 가 ACTIVE 와 따로 세어진다" "$_why"
 # ── ⑦ 음성 대조 — 새 어휘가 **모든 것을 삼키지 않는다** ────────────────────────────
 #   ⑥ 만 있으면 `verdict_of` 가 무조건 DEFERRED 를 반환해도 통과한다. 판별력이 0인 가드는
 #   가드가 아니다 — ② 가 중복 검사에 대해 하는 일을 여기서 어휘에 대해 한다.
-run_fixture <<'EOF'
+#   ★2026-08-18 — 「파일 배치」 축 때문에 **셋째 원장은 비울 수 없고**(빈 파일 = ABORT) 그 내용은
+#     정의상 DEFERRED 다 ⇒ 이 케이스의 기대값은 `DEFERRED 0` 이 아니라 **`DEFERRED 1`(기본 fixture
+#     하나)** 이다. 판별력은 그대로다 — `verdict_of` 가 전부 DEFERRED 를 뱉으면 **3** 이 나온다.
+#     그래서 RESOLVED/ACTIVE 도 함께 재서 「1 이면 통과」가 우연이 되지 않게 한다.
+run_fixture '### BL-002
+
+**우선순위:** P3
+**상태:** ✅ **Resolved** (fixture · 둘째 원장)
+' <<'EOF'
 ### BL-001
 
 **우선순위:** P3
 **상태:** ⬜ Open — 지금 착수 가능.
 
 ---
-
-### BL-002
-
-**우선순위:** P3
-**상태:** ✅ **Resolved** (fixture)
-
----
 EOF
 _why=""
 [ "$RC" -eq 0 ] || _why="${_why}종료코드=$RC(기대 0) "
-printf '%s' "$OUT" | grep -qE '^  DEFERRED +0$' || _why="${_why}★'DEFERRED 0' 이 아니다(어휘가 무관한 항목을 삼킨다) "
+printf '%s' "$OUT" | grep -qE '^  DEFERRED +1$' || _why="${_why}★'DEFERRED 1'(기본 fixture 하나) 이 아니다 — 어휘가 무관한 항목을 삼킨다 "
+printf '%s' "$OUT" | grep -qE '^  RESOLVED +1$' || _why="${_why}★'RESOLVED 1' 이 아니다(RESOLVED 가 DEFERRED 로 샜다) "
 printf '%s' "$OUT" | grep -qE '^  ACTIVE +1$' || _why="${_why}'ACTIVE 1' 이 아니다 "
 report "⑦ 음성 대조 — DEFERRED 가 남을 삼키지 않는다" "$_why"
 
@@ -285,15 +298,14 @@ report "⑨ 트리거 미도래 + 상태줄 Open → exit 1" "$_why"
 #   ⒝ ★**취소선 친 미도래는 미도래가 아니다** — 이 레포에서 `~~` 는 철회 표기다([BL-547] 이 그 판:
 #      `**트리거 판정:** ~~미도래 …~~` + `⬜ Open` 이 정합이다). 이걸 삼키면 **도래한 항목이
 #      DEFERRED 로 몰려 원장이 조용히 얼어붙는다.**
-run_fixture <<'EOF'
-### BL-001
+#   ★2026-08-18 — ⒜ 의 DEFERRED 섹션은 **셋째 원장**으로 옮겼다(「파일 배치」 축). 기본 fixture 를
+#     교체하므로 DEFERRED 는 여전히 1 이고, 트리거 축은 파일과 무관하게 돌아야 한다.
+run_fixture "$DEFAULT_RESOLVED" '### BL-001
 
 **우선순위:** P3
 **상태:** ⏳ **대기 (트리거 미도래)** — 동승 조건.
 **트리거 판정:** 미도래 — 동승 조건
-
----
-
+' <<'EOF'
 ### BL-002
 
 **우선순위:** P3
@@ -346,9 +358,10 @@ run_fixture "$R2" <<'EOF'
 EOF
 _why=""
 [ "$RC" -eq 0 ] || _why="${_why}종료코드=$RC(기대 0) "
-printf '%s' "$OUT" | grep -qE '^  전체 +2$' || _why="${_why}★'전체 2' 가 아니다(두 번째 원장을 안 읽는다) "
+printf '%s' "$OUT" | grep -qE '^  전체 +3$' || _why="${_why}★'전체 3'(원장 3조각 각 1건) 이 아니다 — 어느 원장을 안 읽는다 "
 printf '%s' "$OUT" | grep -qE '^  RESOLVED +1$' || _why="${_why}★'RESOLVED 1' 이 아니다 "
 printf '%s' "$OUT" | grep -q 'backlog-resolved.md(1)' || _why="${_why}★머리줄에 파일별 섹션 수가 없다 "
+printf '%s' "$OUT" | grep -q 'backlog-deferred.md(1)' || _why="${_why}★머리줄에 셋째 원장의 섹션 수가 없다 "
 report "⑫ 두 번째 원장의 섹션이 합계에 든다" "$_why"
 
 # ── ⑬ 두 번째 원장의 **상태줄이 판정에 쓰인다** ────────────────────────────────────
@@ -522,7 +535,7 @@ EOF
 _why=""
 [ "$RC" -eq 0 ] || _why="${_why}종료코드=$RC(기대 0) "
 printf '%s' "$OUT" | grep -q '서식 오류' && _why="${_why}★닫힌 펜스를 오류로 잡았다(상시 red) "
-printf '%s' "$OUT" | grep -qE '^  전체 +2$' || _why="${_why}★'전체 2' 가 아니다(펜스 안의 ### 를 섹션으로 셌다) "
+printf '%s' "$OUT" | grep -qE '^  전체 +3$' || _why="${_why}★'전체 3'(원장 3조각 각 1건) 이 아니다 — 펜스 안의 ### 를 섹션으로 셌다 "
 report "⑱ 음성 대조 — 파일 안에서 닫힌 펜스는 침묵" "$_why"
 
 # ── ⑲ 둘째 원장의 **첫 줄이 펜스** (2026-08-16 적대 리뷰 2R P1) ─────────────────────
@@ -585,6 +598,79 @@ printf '%s' "$OUT" | grep -q 'backlog.md 의 <details>' || _why="${_why}★첫 �
 printf '%s' "$OUT" | grep -q 'backlog-resolved.md 의 <details>' && _why="${_why}★제대로 닫은 둘째 원장을 잘못 잡았다(상시 red) "
 report "⑳ <details> 가 파일 경계를 넘으면 red · 닫힌 쪽은 침묵" "$_why"
 
+# ── ㉑ 파일 배치 — 판정어 ↔ 섹션이 사는 파일 (2026-08-18 3분할) ─────────────────────
+#   왜 있나: 2026-08-16 의 1차 분할([BL-779])은 **산문 규칙**이었고, 그 뒤 회차들이 닫은
+#   RESOLVED **13건이 전부 `backlog.md` 에 다시 쌓였다.** 아무 게이트도 안 잡았다.
+#   ★양성 2종을 **양방향**으로 잡는다 — 「제자리 아닌 것」이 한 방향만 걸리면, 반대 방향
+#     오배치(예: RESOLVED 를 deferred 파일에)가 조용히 통과한다.
+run_fixture <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⏳ **대기 (트리거 미도래)** — DEFERRED 인데 backlog.md 에 있다.
+
+---
+EOF
+_why=""
+[ "$RC" -eq 1 ] || _why="${_why}종료코드=$RC(기대 1) — DEFERRED 가 backlog.md 에 있는데 통과했다 "
+printf '%s' "$OUT" | grep -q '▶ 파일 배치' || _why="${_why}★'▶ 파일 배치' 마커 없음 "
+printf '%s' "$OUT" | grep -q 'BL-001.*DEFERRED.*backlog.md' || _why="${_why}★어느 항목이 어디 있는지 안 알려준다 "
+report "㉑ 파일 배치 — DEFERRED 가 backlog.md 에 → exit 1" "$_why"
+
+# ── ㉑b 반대 방향 — RESOLVED 를 deferred 원장에 두면 red ────────────────────────────
+run_fixture "$DEFAULT_RESOLVED" '### BL-001
+
+**우선순위:** P3
+**상태:** ✅ **Resolved** — RESOLVED 인데 deferred 원장에 있다.
+' <<'EOF'
+### BL-002
+
+**우선순위:** P3
+**상태:** ⬜ Open — 제자리.
+
+---
+EOF
+_why=""
+[ "$RC" -eq 1 ] || _why="${_why}종료코드=$RC(기대 1) — 반대 방향 오배치가 통과했다 "
+printf '%s' "$OUT" | grep -q 'backlog-resolved.md 로 옮겨라' || _why="${_why}★옮길 곳을 안 알려준다 "
+report "㉑b 파일 배치 — RESOLVED 가 deferred 원장에 → exit 1" "$_why"
+
+# ── ㉑c 음성 대조 — 세 판정어가 **각자 제자리**면 침묵해야 한다 ────────────────────
+#   ★이게 없으면 「항상 파일 배치 red」인 축도 ㉑/㉑b 를 통과한다.
+run_fixture "$DEFAULT_RESOLVED" "$DEFAULT_DEFERRED" <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⬜ Open — 제자리.
+
+---
+
+### BL-002
+
+**우선순위:** P3
+**상태:** 🟡 **부분 Resolved** — PARTIAL 도 backlog.md 가 제자리다.
+
+---
+EOF
+_why=""
+[ "$RC" -eq 0 ] || _why="${_why}종료코드=$RC(기대 0) "
+printf '%s' "$OUT" | grep -q '▶ 파일 배치' && _why="${_why}★제자리인데 파일 배치가 발화했다(상시 red) "
+printf '%s' "$OUT" | grep -qE '^  PARTIAL +1$' || _why="${_why}★'PARTIAL 1' 이 아니다 "
+report "㉑c 음성 대조 — 제자리면 파일 배치는 침묵" "$_why"
+
+# ── ㉒ 세 번째 원장이 빈 파일 → rc=3 ABORT (⑯ 와 같은 계약) ────────────────────────
+run_fixture "$DEFAULT_RESOLVED" "" <<'EOF'
+### BL-001
+
+**우선순위:** P3
+**상태:** ⬜ Open — 첫 번째 원장.
+
+---
+EOF
+_why=""
+[ "$RC" -eq 3 ] || _why="${_why}종료코드=$RC(기대 3) — 셋째 원장이 비었는데 ABORT 가 아니다 "
+printf '%s' "$OUT" | grep -q 'backlog-deferred.md' || _why="${_why}★어느 파일이 비었는지 안 알려준다 "
+report "㉒ 세 번째 원장이 빈 파일 → rc=3 ABORT" "$_why"
 
 echo
 printf '══ 통과 %d / 실패 %d ══\n' "$PASS" "$FAIL"

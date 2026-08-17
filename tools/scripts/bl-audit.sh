@@ -39,10 +39,16 @@
 #   `<details>` 를 문장 중간에 언급하므로, 아무 데서나 잡으면 그 뒤 섹션이 통째로 사라진다.
 #   구간이 안 닫히면 조용히 삼키는 대신 **실패**로 보고한다.
 #
-# 원장은 **파일 하나가 아니다** ([BL-779], 2026-08-16)
-#   `docs/backlog.md`(열린 것) + `docs/backlog-resolved.md`(RESOLVED 본문). 수명이 다른 것이
-#   한 파일에 섞여 있어 분리했고, 그래서 **3면 정합이 두 파일에 걸친다** — 인덱스 표 행은
-#   `backlog.md` 에 남고 그 행이 가리키는 섹션은 `backlog-resolved.md` 에 있다.
+# 원장은 **파일 하나가 아니다** ([BL-779], 2026-08-16 → 2026-08-18 3분할)
+#   축은 **판정어**다 — 셋이 전부이고 겹치지 않는다:
+#     `docs/backlog.md`           = ACTIVE ∪ PARTIAL  + **인덱스 표 전량**  (매 세션 읽는 것)
+#     `docs/backlog-deferred.md`  = DEFERRED                                 (트리거 전엔 안 읽는다)
+#     `docs/backlog-resolved.md`  = RESOLVED                                 (끝난 것)
+#   수명이 다른 것이 한 파일에 섞여 있어 분리했고, 그래서 **3면 정합이 세 파일에 걸친다** —
+#   인덱스 표 행은 `backlog.md` 에 남고 그 행이 가리키는 섹션은 다른 파일에 있다
+#   (앵커 접두사가 그 파일을 적는다: `[BL-nnn](backlog-deferred.md#bl-nnn)`).
+#   ★**이 배치를 아래 「파일 배치」 축이 집행한다** — 규칙을 산문으로 두면 안 지켜진다는 것이
+#     2026-08-18 에 실측됐다(2026-08-16 분할 뒤 닫힌 13건이 전부 `backlog.md` 에 쌓여 있었다).
 #   ★두 파일을 **하나의 원장으로** 읽는다: 섹션 id 는 파일을 가로질러 유일해야 하고
 #     (한쪽에 남긴 채 복사하면 중복 섹션 헤더로 red), 카운트는 합계다.
 #   ★★한쪽 파일을 못 읽으면 그 섹션들이 통째로 사라지는데 **판정은 조용히 초록**이 된다
@@ -76,7 +82,7 @@ esac
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 # ★원장 = 이 목록 전체다. 파일을 더할 때는 여기 한 줄만 더한다 — 파서는 파일 수를 모른다.
-LEDGERS=("$ROOT/docs/backlog.md" "$ROOT/docs/backlog-resolved.md")
+LEDGERS=("$ROOT/docs/backlog.md" "$ROOT/docs/backlog-resolved.md" "$ROOT/docs/backlog-deferred.md")
 ROADMAP="$ROOT/docs/roadmap.md"
 
 # ★★ABORT 축 — 측정불가는 통과가 아니다. 원장 한쪽이 비면 그 섹션들이 통째로 사라지는데
@@ -188,7 +194,7 @@ ROADMAP != 1 {
   #   사라져 「표 행에 ✅ 인데 섹션은 …」 대조가 **조용히 꺼지고**(없는 행은 불일치를 못 낸다),
   #   반대로 `[A-Za-z0-9._-]*` 처럼 열어 두면 `typo.md#bl-1` 같은 **오타 링크도 정식 행으로**
   #   받는다 (2026-08-16 적대 리뷰 P2). 계약 대상만 적는다.
-  if ($0 ~ /^\|[ ]*\[BL-[0-9]+\]\((backlog-resolved\.md)?#bl-[0-9]+\)/) {
+  if ($0 ~ /^\|[ ]*\[BL-[0-9]+\]\((backlog-(resolved|deferred)\.md)?#bl-[0-9]+\)/) {
     match($0, /BL-[0-9]+/); rid = substr($0, RSTART, RLENGTH)
     rowline[rid] = FNR
     rowsec[rid] = cursec
@@ -366,6 +372,27 @@ END {
   bad += tg
   bad += t
 
+  # ★파일 배치 (2026-08-18 backlog-triage) — **판정어 ↔ 섹션이 사는 파일**.
+  #   원장이 셋으로 갈렸고 그 축은 판정어다: ACTIVE/PARTIAL = `backlog.md`(매 세션 읽는 것) ·
+  #   DEFERRED = `backlog-deferred.md` · RESOLVED = `backlog-resolved.md`.
+  #   ★왜 집행하나 — [BL-779] 가 2026-08-16 에 RESOLVED 를 내렸는데 그 뒤 회차들이 닫은 13건이
+  #     `backlog.md` 에 그대로 쌓였다. **규칙이 산문이라 아무도 지키지 않았다**(이 레포가
+  #     [BL-643] 에서 「산문 처방 3회 실패 뒤 집행처」를 이미 배운 그 자리다). 분할은 한 번 하는
+  #     일이 아니라 **매 회차 유지되어야 하는 불변식**이고, 유지되지 않으면 다음 분할이 또 필요해진다.
+  #   ★UNKNOWN 은 제외한다 — 판정이 없으면 기대 위치도 없다(이미 위에서 실패로 센다).
+  f = 0
+  for (i = 1; i <= n; i++) {
+    id = order[i]; v = verdict[id]
+    want = ""
+    if (v == "ACTIVE" || v == "PARTIAL") want = "backlog.md"
+    else if (v == "DEFERRED")            want = "backlog-deferred.md"
+    else if (v == "RESOLVED")            want = "backlog-resolved.md"
+    if (want == "" || sec_src[id] == want) continue
+    if (f++ == 0) printf "\n▶ 파일 배치 — 판정어 ↔ 섹션이 사는 파일 (원장 3분할, 2026-08-18)\n"
+    printf "  %-8s %-8s 인데 %s 에 있다 — %s 로 옮겨라   섹션:%d\n", id, v, sec_src[id], want, sec_line[id]
+  }
+  bad += f
+
   # ★중복 상태줄 = 실패 (BL-564). SSOT 는 하나여야 한다 — 둘이면 어느 쪽이 이기는지가
   #   서식 순서에 달리고, 폐기된 판정이 첫 줄이면 조용히 그게 이긴다.
   #   폐기 보존이 목적이면 `<details>` 로 접어라 (파서가 건너뛴다).
@@ -390,10 +417,10 @@ END {
   bad += o
 
   printf "\n════════════════════════════════════════\n"
-  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 우선순위 배치 %d 건 + 트리거 정합 %d 건 + 중복 트리거줄 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, q, t, tg, d, h, o; exit 1 }
+  if (bad > 0) { printf "✗ UNKNOWN %d 건 + 불일치 %d 건 + 우선순위 배치 %d 건 + 파일 배치 %d 건 + 트리거 정합 %d 건 + 중복 트리거줄 %d 건 + 중복 상태줄 %d 건 + 중복 섹션 헤더 %d 건 + 서식 오류 %d 건 — 표기 수치를 갱신하기 전에 이것부터 정리해라.\n", u, m, q, f, t, tg, d, h, o; exit 1 }
   # ★성공 줄에서 리터럴 `3면` 을 빼지 마라 — `tools/scripts/bl-audit-test.sh` ② 가 "정상 원장 → exit 0"
   #   의 증거로 그 문자열을 grep 한다. 축이 늘어도 "3면 + <새 축>" 꼴로 적어 하네스를 살려둔다.
-  printf "✓ 5면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치 + 트리거 정합. active=%d / deferred=%d / 전체=%d\n", cnt["ACTIVE"] + 0, cnt["DEFERRED"] + 0, n
+  printf "✓ 6면 정합 — 3면(섹션 · 인덱스 표 · 로드맵) + 우선순위 배치 + 파일 배치 + 트리거 정합. active=%d / deferred=%d / 전체=%d\n", cnt["ACTIVE"] + 0, cnt["DEFERRED"] + 0, n
   exit 0
 }
 ' "${LEDGERS[@]}" ROADMAP=1 "$ROADMAP"
