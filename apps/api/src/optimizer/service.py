@@ -47,7 +47,7 @@ from src.optimizer.schemas import (
     OptimizationRunResponse,
     ParamSpace,
 )
-from src.optimizer.serializers import optimizer_result_to_jsonb
+from src.optimizer.serializers import best_metrics_from_jsonb, optimizer_result_to_jsonb
 from src.strategy.repository import StrategyRepository
 
 logger = logging.getLogger(__name__)
@@ -366,6 +366,9 @@ class OptimizerService:
     def _to_response(
         run: OptimizationRun, backtest: Backtest | None = None
     ) -> OptimizationRunResponse:
+        # BL-429 — 이미 로드된 run.result 에서 파생한다. 목록 한 줄마다 상세 왕복이 생기면
+        # [BL-710] 이 경고한 규모 비용을 이 화면이 그대로 받는다.
+        best_total_return, best_max_drawdown = best_metrics_from_jsonb(run.result)
         return OptimizationRunResponse(
             id=run.id,
             user_id=run.user_id,
@@ -379,6 +382,8 @@ class OptimizerService:
             status=run.status.value,  # type: ignore[arg-type]  # StrEnum → Literal mirror
             param_space=ParamSpace.model_validate(run.param_space),
             result=run.result,
+            best_total_return=best_total_return,
+            best_max_drawdown=best_max_drawdown,
             error_message=run.error_message,
             created_at=run.created_at,
             started_at=run.started_at,

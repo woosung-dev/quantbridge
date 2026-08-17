@@ -110,21 +110,39 @@ const STRATEGIES = {
   refetch: vi.fn(),
 };
 
+// BL-429 — best 조합의 성과가 붙은 완료 실행. 값은 backtest 행과 같은 ratio 단위다.
+const OPTIMIZATION_WITH_BEST = {
+  id: "opt-c268af00",
+  backtest_id: "run-2f9c41aa",
+  strategy_id: "strat-1",
+  backtest_symbol: "BTC/USDT",
+  backtest_timeframe: "1h",
+  kind: "grid_search",
+  status: "completed",
+  param_space: {},
+  created_at: "2026-04-14T21:06:00Z",
+  best_total_return: 0.1842,
+  best_max_drawdown: -0.0731,
+};
+
+// BL-429 — best 미확정(전건 degenerate) 실행. 두 칸은 빈칸이어야 하고 0 이면 안 된다.
+const OPTIMIZATION_WITHOUT_BEST = {
+  id: "opt-9de40011",
+  backtest_id: "run-2f9c41aa",
+  strategy_id: "strat-1",
+  backtest_symbol: "ETH/USDT",
+  backtest_timeframe: "4h",
+  kind: "bayesian",
+  status: "completed",
+  param_space: {},
+  created_at: "2026-04-14T21:05:30Z",
+  best_total_return: null,
+  best_max_drawdown: null,
+};
+
 const OPTIMIZATIONS = {
   data: {
-    items: [
-      {
-        id: "opt-c268af00",
-        backtest_id: "run-2f9c41aa",
-        strategy_id: "strat-1",
-        backtest_symbol: "BTC/USDT",
-        backtest_timeframe: "1h",
-        kind: "grid_search",
-        status: "completed",
-        param_space: {},
-        created_at: "2026-04-14T21:06:00Z",
-      },
-    ],
+    items: [OPTIMIZATION_WITH_BEST],
   },
   isLoading: false,
   isError: false,
@@ -284,8 +302,6 @@ describe("DashboardCockpit — 최근 실행 원장", () => {
     expect(screen.queryByText("running")).not.toBeInTheDocument();
     // 전략명은 id → name 매핑으로 나온다.
     expect(screen.getAllByText("MA Crossover Strategy").length).toBeGreaterThan(0);
-    const optimizerRow = screen.getByTestId("run-row-opt-c268af00");
-    expect(within(optimizerRow).getAllByTitle("결과는 최적화 상세에서 확인")).toHaveLength(2);
   });
 
   it("loading — 스켈레톤을 그린다", () => {
@@ -339,6 +355,51 @@ describe("DashboardCockpit — 최근 실행 원장", () => {
     render(<DashboardCockpit />);
     expect(screen.getByTestId("runs-empty")).toBeInTheDocument();
     expect(screen.getByText("아직 실행한 작업이 없습니다.")).toBeInTheDocument();
+  });
+});
+
+describe("DashboardCockpit — [BL-429] 최적화 행 성과: 없음과 0 을 구분한다", () => {
+  /** 실행 행의 수익률·MDD 칸. 한 행에 `td.num` 은 이 둘뿐이다. */
+  function metricCells(runId: string): string[] {
+    const row = screen.getByTestId(`run-row-${runId}`);
+    return Array.from(row.querySelectorAll("td.num")).map((td) => td.textContent ?? "");
+  }
+
+  it("best 가 있는 완료 실행 — 숫자가 보인다 (백테스트 행과 같은 열·같은 단위)", () => {
+    render(<DashboardCockpit />);
+    // ratio → formatPercent. 종전에는 이 자리가 EMPTY_CELL 고정이었다.
+    expect(metricCells("opt-c268af00")).toEqual(["18.42%", "-7.31%"]);
+  });
+
+  it("best 가 없는 실행 — 빈칸이고 0 이 아니다", () => {
+    useOptimizationRunsMock.mockReturnValue({
+      ...OPTIMIZATIONS,
+      data: { items: [OPTIMIZATION_WITHOUT_BEST] },
+    });
+    render(<DashboardCockpit />);
+    const cells = metricCells("opt-9de40011");
+    expect(cells).toEqual(["—", "—"]);
+    // ★0 으로 렌더하면 파산한 실행이 「손익 없음」으로 보인다([BL-465] 재발).
+    expect(cells).not.toContain("0.00%");
+  });
+
+  it("RUNNING 실행 — best 필드 자체가 없어도 빈칸이다", () => {
+    useOptimizationRunsMock.mockReturnValue({
+      ...OPTIMIZATIONS,
+      data: {
+        items: [
+          {
+            ...OPTIMIZATION_WITH_BEST,
+            id: "opt-run0001",
+            status: "running",
+            best_total_return: undefined,
+            best_max_drawdown: undefined,
+          },
+        ],
+      },
+    });
+    render(<DashboardCockpit />);
+    expect(metricCells("opt-run0001")).toEqual(["—", "—"]);
   });
 });
 

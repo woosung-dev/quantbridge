@@ -507,8 +507,10 @@ function RecentRunRow({
         <td>{RECENT_RUN_TYPE_LABEL.optimization}</td>
         <td>{strategyName}</td>
         <td className="mono-l">{symbolTimeframe}</td>
-        <td className="num" title="결과는 최적화 상세에서 확인">{EMPTY_CELL}</td>
-        <td className="num" title="결과는 최적화 상세에서 확인">{EMPTY_CELL}</td>
+        {/* BL-429 — best 조합의 백테스트 metric. 백테스트 행과 같은 열·같은 의미의 숫자다.
+            값이 없는 실행(RUNNING·FAILED·best 미확정)은 MetricValue 가 빈칸으로 그린다. */}
+        <MetricValue value={recent.run.best_total_return} format={formatPercent} />
+        <MetricValue value={recent.run.best_max_drawdown} format={formatPercent} />
         <td className="col-status">
           <span className={CHIP_TONE_CLASS[tone]}>
             {showCheckIcon ? <CheckIcon /> : null}
