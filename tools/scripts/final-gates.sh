@@ -495,12 +495,20 @@ else
   fi
 
   # fresh throwaway DB — 개발 DB 를 향하지 않게 이름을 고정하고, 반드시 _test 로 끝낸다.
-  run_gate "CI fresh DB alembic" "throwaway" bash -c '
+  # ★[BL-782] `alembic check` 를 여기에 붙였다. 「어느 DB 에 대고 재는가」의 정본이 바로 이
+  #   migration-only DB 이기 때문이다 — 개발 DB 는 `create_all` 이력이 섞여 있어 같은 명령이
+  #   rc=0 을 내고(2026-08-17 실측), 그 rc=0 이 [BL-770] 을 닫았다. 프로덕션 스키마를 만드는
+  #   유일한 경로가 migration 이므로 여기서 나는 drift 만이 배포에서 실제로 터진다.
+  #   ★`TIMESCALE_URL` 도 같이 덮는다 — `.env.local` 에서 이미 개발 DB 로 전개된 값이 남는다.
+  run_gate "CI fresh DB alembic" "throwaway + drift check" bash -c '
     db="quantbridge_ci_repro_test"
     docker exec quantbridge-db psql -U quantbridge -d postgres -q -c "DROP DATABASE IF EXISTS $db;" >/dev/null || exit 1
     docker exec quantbridge-db psql -U quantbridge -d postgres -q -c "CREATE DATABASE $db;" >/dev/null || exit 1
     cd "$0/apps/api"; set -a; . ./.env.local; set +a
-    DATABASE_URL="postgresql+asyncpg://quantbridge:password@localhost:5433/$db" uv run alembic upgrade head' "$ROOT"
+    export DATABASE_URL="postgresql+asyncpg://quantbridge:password@localhost:5433/$db"
+    export TIMESCALE_URL="$DATABASE_URL"
+    uv run alembic upgrade head || exit 1
+    uv run alembic check' "$ROOT"
 
   run_gate "CI frozen-lockfile" "pnpm" bash -c 'cd "$0/apps/web" && pnpm install --frozen-lockfile' "$ROOT"
 

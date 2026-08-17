@@ -31,10 +31,13 @@ class FundingRateRepository:
         """
         result = await self.session.execute(
             select(FundingRate)
-            # exchange 컬럼은 마이그레이션 상 VARCHAR(32) 이지만 모델은 ExchangeName
-            # enum 으로 매핑돼 ORM 비교가 param 을 `::exchangename` 으로 캐스팅한다.
-            # alembic(VARCHAR) vs create_all(native enum) 스키마 분기에서 VARCHAR 컬럼이면
-            # `varchar = exchangename` 연산자 부재 에러 → 컬럼을 text 로 캐스팅해 양쪽 호환.
+            # ★이 캐스트는 alembic(VARCHAR 32) vs create_all(native enum) 스키마 분기 때문에
+            # 있었다. [BL-782] 가 그 분기를 닫았으므로(20260817_0002 가 컬럼을 exchangename
+            # 으로 올린다) 새로 만든 DB 에서는 더 이상 필요 없다. 그래도 남기는 이유는
+            # **아직 그 migration 이 안 닿은 DB**(서버 소크 등)가 존재할 수 있어서다 —
+            # 거기서는 컬럼이 VARCHAR 라 `varchar = exchangename` 연산자 부재로 죽는다.
+            # 전 배포처가 head 에 도달한 뒤 걷어내라(인덱스 ix_funding_rates_exchange_symbol
+            # 을 못 쓰게 만드는 비용이 있다).
             .where(cast(FundingRate.exchange, String) == exchange)
             .where(FundingRate.symbol == symbol)  # type: ignore[arg-type]
             .where(FundingRate.funding_timestamp >= start)  # type: ignore[arg-type]
