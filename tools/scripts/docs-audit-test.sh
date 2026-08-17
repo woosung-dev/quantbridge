@@ -93,6 +93,17 @@ mk_resolved() {
 }
 mk_resolved full
 
+# 세 번째 원장 ([BL-779] 3분할, 2026-08-18). ★`docs-audit` 이 세 파일을 **한 벌로** 읽으므로
+#   여기 없으면 그 파일에 사는 섹션의 판정줄이 0개로 세어지고, 실제 bl-audit 을 부르는 케이스는
+#   ABORT(3) 로 죽는다. 스텁이 현실의 조각 수를 따라야 한다.
+mk_deferred() {
+  {
+    printf '# stub deferred\n\n'
+    printf '### BL-333\n\n**상태:** ⏳ 대기\n**트리거 판정:** 미도래 — 세 번째 원장에만 있는 판정줄\n\n'
+  } > "$SB/docs/backlog-deferred.md"
+}
+mk_deferred
+
 # ⓪ 표 = 취소선 3행(계약 ≥3 을 채운다) + 선택적 살아 있는 1행.
 mk_status() {
   {
