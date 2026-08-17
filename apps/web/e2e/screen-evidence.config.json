@@ -1,0 +1,9 @@
+{
+  "_comment": "[BL-797] 화면 증거 팩의 경로 SSOT. spec(TypeScript)과 오케스트레이터(.mjs)가 둘 다 읽는다 — tsconfig 의 allowJs 가 false 라 둘이 같은 모듈을 못 쓰고, 경로를 양쪽에 적으면 조용히 어긋난다. 모든 경로는 apps/web 기준 상대경로다.",
+  "baseline": "e2e/screen-evidence.baseline.json",
+  "snapshotDir": "e2e/screen-evidence.snapshots",
+  "outputRoot": ".screen-evidence",
+  "measuredDir": "measured",
+  "repoSlug": "woosung-dev/quantbridge",
+  "serverPortBase": 3110
+}

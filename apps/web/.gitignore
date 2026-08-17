@@ -21,3 +21,7 @@ e2e/.auth/
 test-results/
 playwright-report/
 playwright/.cache/
+
+# [BL-797] 화면 증거 팩의 회차 산출 (리포트·측정 JSON). baseline 과 스냅샷은 커밋 대상이라
+# 여기 걸리지 않는다 — 그 둘이 PR 의 before/after 이므로 레포에 있어야 링크가 성립한다.
+.screen-evidence/

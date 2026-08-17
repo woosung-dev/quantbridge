@@ -145,6 +145,25 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
       dependencies: ["setup-identity"],
     },
+    // [BL-797] 화면 증거 팩 — 공개 라우트의 before/after 증거(화면·번들·요청 수).
+    //
+    // ★**공개 라우트만**이다. authed 는 [BL-789] 대로 CI 에서 구조적으로 못 돌고, 로컬에서도
+    //   화면에 실데이터가 실려 매 실행 다른 픽셀이 나온다 — 스크린샷 축과 상극이다.
+    // ★`snapshotPathTemplate` 을 명시한다. 기본 템플릿은 `{testFileName}-snapshots/` 아래
+    //   `{-projectName}` 접미까지 붙여서 `landing-chromium-screen-evidence-darwin.png` 가 된다.
+    //   이 이름은 **리포트가 PR 코멘트에 blob URL 로 싣는 문자열**이라 사람이 읽을 수 있어야 하고,
+    //   project 이름을 바꾸면 baseline 이 통째로 고아가 되는 결합도 끊어 둔다.
+    // ★★이 project 는 `next start` 프로덕션 서버를 상대로 돈다. dev 서버로 돌리면 번들
+    //   바이트가 Turbopack 캐시 상태에 따라 흔들리고 dev 표시기가 화면에 얹힌다 —
+    //   `scripts/screen-evidence.mjs` 가 서버를 띄우고 `PLAYWRIGHT_BASE_URL` 로 물린다.
+    {
+      name: "chromium-screen-evidence",
+      outputDir: artifactDirFor("chromium-screen-evidence"),
+      testMatch: /(^|\/)screen-evidence\.spec\.ts$/,
+      snapshotPathTemplate: "e2e/screen-evidence.snapshots/{arg}-{platform}{ext}",
+      use: { ...devices["Desktop Chrome"] },
+      dependencies: ["setup-identity"],
+    },
     {
       name: "chromium-authed",
       outputDir: artifactDirFor("chromium-authed"),
@@ -172,6 +191,7 @@ export default defineConfig({
         /(^|\/)smoke\.spec\.ts$/, // chromium
         /live-smoke\.spec\.ts$/, // chromium-live-smoke
         /design-canon-.*\.spec\.ts$/, // chromium-design-canon
+        /(^|\/)screen-evidence\.spec\.ts$/, // chromium-screen-evidence ([BL-797])
       ],
       fullyParallel: false,
       use: {

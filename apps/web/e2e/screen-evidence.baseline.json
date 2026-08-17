@@ -1,0 +1,24 @@
+{
+  "_comment": "[BL-797] 화면 증거 팩 baseline. `pnpm screen-evidence:update` 가 쓴다 — 손으로 고치지 마라. 이 파일의 origin/main 판이 PR 리포트의 **before** 이고, 이 브랜치 판이 **after** 다.",
+  "platform": "darwin",
+  "routes": {
+    "/": {
+      "firstLoadBytes": 220416,
+      "apiRequests": 0,
+      "totalRequests": 52,
+      "screenshot": "landing.png"
+    },
+    "/sign-in": {
+      "firstLoadBytes": 307710,
+      "apiRequests": 0,
+      "totalRequests": 49,
+      "screenshot": "sign-in.png"
+    },
+    "/waitlist": {
+      "firstLoadBytes": 322174,
+      "apiRequests": 0,
+      "totalRequests": 52,
+      "screenshot": "waitlist.png"
+    }
+  }
+}

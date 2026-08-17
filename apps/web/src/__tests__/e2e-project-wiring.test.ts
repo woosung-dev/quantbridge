@@ -100,6 +100,13 @@ const LOCAL_ONLY: Record<string, string> = {
     "그것이 CI 로 올라가기 전까지 같이 로컬 전용이다([BL-789]).",
   "setup-authed-reachability":
     "authed API 도달성 프로브. `chromium-authed` 전용 dependency 라 같이 로컬 전용이다([BL-789]).",
+  "chromium-screen-evidence":
+    "[BL-797] 1단계(로컬 산출)만 착수. CI 로 올리려면 둘이 더 필요하다 — ⑴ 스크린샷 baseline 이 " +
+    "**플랫폼 의존**이라(`{platform}` 접미 · 맥에서 구운 `-darwin` 판을 리눅스 러너가 쓸 수 없다) " +
+    "CI 용 `-linux` baseline 을 별도로 굽고 관리해야 하고 ⑵ 이 project 는 `next build` + " +
+    "`next start` 프로덕션 서버를 상대로 도는데 현재 CI e2e 잡은 dev 서버만 띄운다. " +
+    "★그래서 **CI 초록은 화면 증거 팩이 돌았다는 증거가 아니다** — 증인은 " +
+    "`final-gates.sh` 의 `화면 증거 팩` 레그와 `pnpm screen-evidence` 뿐이다.",
 };
 
 /** PR 체크로 발화하는 트리거 — 이것이 없으면 「PR 이 초록이다」와 무관한 워크플로다. */
