@@ -69,6 +69,13 @@ from src.backtest.models import Backtest, BacktestTrade  # noqa: F401 — metada
 from src.common.database import get_async_session
 from src.main import create_app
 from src.market_data.models import OHLCV  # noqa: F401 — metadata 등록 (ts.ohlcv)
+
+# ★[BL-788] 이 줄은 「없어도 초록이던」 것을 명시로 되돌린 것이다. 2026-08-17 실측 —
+#   `optimization_runs` 는 위 `from src.main import create_app` 이 `src/main.py:447` 의
+#   `app = create_app()` 을 태우고, 그것이 stress_test router → dependencies → service 를
+#   지나며 **우연히** 등록해 주고 있었다. 그 배선 중 한 칸이 지연 import 로 바뀌면 조용히
+#   사라진다. 범위는 우연이 아니라 이 목록이어야 한다(`test_metadata_table_coverage.py` ⑴).
+from src.optimizer.models import OptimizationRun  # noqa: F401 — metadata 등록
 from src.strategy.models import Strategy  # noqa: F401 — metadata 등록
 from src.stress_test.models import StressTest  # noqa: F401 — metadata 등록
 from src.trading.models import (  # noqa: F401 — metadata 등록 (trading.*)
