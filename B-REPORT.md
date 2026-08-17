@@ -160,6 +160,17 @@ best 를 **첫도 마지막도 아닌 중간 iteration**에 두어 「어느 ite
 
 모든 판정은 **파이프 없이** `rc=$?` 로 잡았다(계약 §함정).
 
+### final-gates
+
+첫 실행이 **`BE openapi drift` 하나로 rc=1** 이었다. 새 응답 필드 2개가
+`contracts/openapi/openapi.json` 스냅샷과 어긋난 것이고, 재생성
+(`uv run python scripts/export_openapi.py`)해서 커밋했다. 생성된 diff 는 **+22줄, 두 필드뿐**
+이고 타입이 `string | null` 로 나와 `BacktestMetricsSummary` 와 같은 표기임이 계약 층에서도
+확인됐다. 재실행 결과 **rc=0** (117초).
+
+유예 9종은 계약대로 손대지 않았다 — 원장은 `.claude/gates/bl429/deferred.txt` 에 남아 있고
+`--deferred-only` 는 push 뒤 아침에 돈다.
+
 ★**BE 문턱을 직접 재려 한 첫 시도는 오염됐다 — 내 잘못이다.** 착수 직후 백그라운드로
 전량 pytest 를 걸어 두고 **그 실행 중에 소스를 고쳤다.** 결과는 `23 failed, 4759 passed`
 였고 실패 23건이 **전부 `tests/optimizer/` 안**이었다 — 즉 그것은 기준선이 아니라 내
