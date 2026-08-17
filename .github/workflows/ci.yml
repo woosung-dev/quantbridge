@@ -592,6 +592,11 @@ jobs:
       #   포트의 정본은 `e2e/_base-url.ts` 의 `DEFAULT_FE_PORT`(+슬롯) 하나뿐이고 CI 는 슬롯이 없어 그 값 그대로다.
       #   ★값을 YAML 에 박으면 그 상수가 바뀌는 날 **조용히 403** 으로 돌아온다. 그래서 파일에서 읽는다 —
       #   못 읽으면 `match` 가 null 이라 **여기서 죽는다**(fail-closed). 조용히 기본값으로 떨어지지 않는다.
+      #   ★★**포트를 보는 곳이 둘이다.** `BETTER_AUTH_URL`(로그인 Origin 검증)과
+      #   `FRONTEND_URL`(FastAPI 의 CORS `allow_origins`, `main.py:329`). 첫 수리에서 앞의 것만 고쳤더니
+      #   로그인은 지났는데 **authed 도달성 프로브가 죽었다** — 브라우저가 `:8000` 을 직접 부르는데
+      #   BE 가 `Origin: http://localhost:3100` 을 CORS 로 거부해 `net::ERR_FAILED` 8건이었다.
+      #   증상이 「백엔드 도달 불가」라 서버가 안 뜬 것처럼 보이지만 서버는 멀쩡했다.
       - name: Resolve frontend port from e2e/_base-url.ts (SSOT)
         working-directory: apps/web
         shell: bash
@@ -600,6 +605,7 @@ jobs:
           port="$(node -p "require('fs').readFileSync('e2e/_base-url.ts','utf8').match(/DEFAULT_FE_PORT = (\d+)/)[1]")"
           echo "resolved frontend port: $port"
           echo "BETTER_AUTH_URL=http://localhost:$port" >> "$GITHUB_ENV"
+          echo "FRONTEND_URL=http://localhost:$port" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
         working-directory: apps/web
       - run: pnpm exec playwright install --with-deps chromium
