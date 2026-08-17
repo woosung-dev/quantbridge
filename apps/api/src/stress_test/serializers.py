@@ -4,6 +4,7 @@ MonteCarloResult / WalkForwardResult ↔ JSONB dict.
 Decimal → str (JSON safe). datetime → ISO 8601 Z.
 `degradation_ratio=Decimal("Infinity")` 는 문자열 `"Infinity"` 로 저장.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -16,6 +17,8 @@ from src.stress_test.engine import (
     WalkForwardFold,
     WalkForwardResult,
 )
+from src.stress_test.models import StressTestKind, StressTestStatus
+from src.stress_test.schemas import StressTestHeadlineMetric
 
 # ---------------------------------------------------------------------------
 # datetime helpers (backtest.serializers 와 동일 포맷)
@@ -66,8 +69,7 @@ def mc_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
         "max_drawdown_mean": Decimal(data["max_drawdown_mean"]),
         "max_drawdown_p95": Decimal(data["max_drawdown_p95"]),
         "equity_percentiles": {
-            k: [Decimal(x) for x in series]
-            for k, series in data["equity_percentiles"].items()
+            k: [Decimal(x) for x in series] for k, series in data["equity_percentiles"].items()
         },
     }
 
@@ -127,9 +129,7 @@ def wf_result_from_jsonb(data: dict[str, Any]) -> dict[str, Any]:
             "test_end": _parse_utc_iso(f["test_end"]),
             "in_sample_return": Decimal(f["in_sample_return"]),
             "out_of_sample_return": Decimal(f["out_of_sample_return"]),
-            "oos_sharpe": (
-                None if f.get("oos_sharpe") is None else Decimal(f["oos_sharpe"])
-            ),
+            "oos_sharpe": (None if f.get("oos_sharpe") is None else Decimal(f["oos_sharpe"])),
             "num_trades_oos": int(f["num_trades_oos"]),
             # 구버전 row 하위호환 — selected_params 키 없으면 None.
             "selected_params": f.get("selected_params"),
@@ -218,3 +218,57 @@ def equity_curve_values(
     if not equity_curve:
         return []
     return [Decimal(str(v)) for _ts, v in equity_curve]
+
+
+# ---------------------------------------------------------------------------
+# 목록 행의 대표 지표 (BL-414)
+# ---------------------------------------------------------------------------
+
+
+def _worst_cell_sharpe(result: dict[str, Any]) -> str | None:
+    """2D grid sweep 의 non-degenerate cell 중 최저 sharpe **원문 문자열**.
+
+    heatmap 이 이미 sharpe 를 주 지표로 칠하고 degenerate/None cell 을 "—" 로 비운다
+    (`param-stability-heatmap.tsx`). 그 관례를 그대로 따르므로 새 지표를 만드는 것이 아니다.
+    비교는 Decimal 로 하고 반환은 저장된 문자열 그대로다 — 재포맷하면 화면과 원문이 갈린다.
+    """
+    best: tuple[Decimal, str] | None = None
+    for cell in result.get("cells") or []:
+        raw = cell.get("sharpe")
+        if cell.get("is_degenerate") or raw is None:
+            continue
+        parsed = Decimal(str(raw))
+        if best is None or parsed < best[0]:
+            best = (parsed, str(raw))
+    return None if best is None else best[1]
+
+
+def headline_metric_from(
+    kind: StressTestKind,
+    status: StressTestStatus,
+    result: dict[str, Any] | None,
+) -> StressTestHeadlineMetric | None:
+    """목록 행 1개의 대표 지표 — 저장된 result JSONB 에서 읽는다.
+
+    COMPLETED 가 아니거나 result 가 없으면 None 이다. FAILED 실행이 지표 칸에
+    숫자를 갖지 않는 것이 이 함수의 계약이고, 화면은 그것을 빈칸으로 렌더한다.
+    """
+    if status is not StressTestStatus.COMPLETED or not result:
+        return None
+    if kind is StressTestKind.MONTE_CARLO:
+        raw = result.get("max_drawdown_p95")
+        return (
+            None
+            if raw is None
+            else StressTestHeadlineMetric(key="max_drawdown_p95", value=str(raw))
+        )
+    if kind is StressTestKind.WALK_FORWARD:
+        raw = result.get("degradation_ratio")
+        return (
+            None
+            if raw is None
+            else StressTestHeadlineMetric(key="degradation_ratio", value=str(raw))
+        )
+    # CA/PS 는 result shape 이 같다 (BL-392 통합).
+    worst = _worst_cell_sharpe(result)
+    return None if worst is None else StressTestHeadlineMetric(key="worst_cell_sharpe", value=worst)

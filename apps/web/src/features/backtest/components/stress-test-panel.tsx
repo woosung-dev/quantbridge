@@ -2,6 +2,7 @@
 
 // Phase C: Stress Test 탭 컨테이너.
 // - 실행 버튼 4개 (Monte Carlo / Walk-Forward / Cost Assumption / Param Stability) 로 mutation → activeStressTestId.
+// - [BL-414] 이력 표(StressTestHistoryTable) → 행 선택으로 상세를 갈아끼운다. 종전엔 최신 1건만 보였다.
 // - useStressTest 가 refetchInterval 함수 기반 polling (terminal status 에서 자동 stop — LESSON-004).
 // - BE 응답은 kind 별 필드 (monte_carlo_result / walk_forward_result / cost_assumption_result / param_stability_result) 이므로 discriminator 로 분기.
 // - Sprint 50: Cost Assumption Sensitivity = fees x slippage 9-cell preset 즉시 submit (MVP).
@@ -17,8 +18,8 @@ import {
   useCreateMonteCarlo,
   useCreateParamStability,
   useCreateWalkForward,
-  useLatestStressTest,
   useStressTest,
+  useStressTestHistory,
 } from "@/features/backtest/hooks";
 
 import { CostAssumptionHeatmap } from "@/features/backtest/components/charts/cost-assumption-heatmap";
@@ -26,6 +27,7 @@ import { MonteCarloFanChart } from "@/features/backtest/components/charts/monte-
 import { MonteCarloSummaryTable } from "@/features/backtest/components/monte-carlo-summary-table";
 import { ParamStabilityForm } from "@/features/backtest/components/param-stability-form";
 import { ParamStabilityHeatmap } from "@/features/backtest/components/charts/param-stability-heatmap";
+import { StressTestHistoryTable } from "@/features/backtest/components/stress-test-history-table";
 import { WalkForwardBarChart } from "@/features/backtest/components/charts/walk-forward-bar-chart";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
@@ -60,9 +62,12 @@ export function StressTestPanel({ backtestId }: Props) {
     onError: (err) =>
       toast.error(`Param Stability 실행 실패: ${err.message}`),
   });
-  const latestStressTest = useLatestStressTest(backtestId);
+  // [BL-414] 이력 전체를 가져온다. BE 가 created_at 내림차순으로 주므로 items[0] 이 최신이고,
+  // 사용자가 행을 고르지 않았을 때 그것이 상세 패널의 기본값이다 (종전 동작 유지).
+  const history = useStressTestHistory(backtestId);
+  const historyItems = history.data?.items ?? [];
   const displayedStressTestId =
-    activeStressTestId ?? latestStressTest.data?.id ?? null;
+    activeStressTestId ?? historyItems[0]?.id ?? null;
   const stress = useStressTest(displayedStressTestId);
 
   const handleRunMonteCarlo = () => {
@@ -162,6 +167,14 @@ export function StressTestPanel({ backtestId }: Props) {
           onCancel={() => setShowParamStabilityForm(false)}
         />
       ) : null}
+
+      <StressTestHistoryTable
+        items={historyItems}
+        selectedId={displayedStressTestId}
+        onSelect={setActiveStressTestId}
+        isLoading={history.isLoading}
+        isError={history.isError}
+      />
 
       {displayedStressTestId === null ? (
         <p className="text-sm text-muted-foreground">

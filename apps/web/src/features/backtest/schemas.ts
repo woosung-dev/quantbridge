@@ -453,7 +453,26 @@ export const StressTestStatusSchema = z.enum([
 ]);
 export type StressTestStatus = z.infer<typeof StressTestStatusSchema>;
 
-// 목록 항목은 결과 payload 없이 실행 메타데이터만 반환한다.
+// [BL-414] 목록 행의 대표 지표 — kind 마다 다른 result 에서 뽑은 값 1개.
+// BE 는 라벨이 아니라 **키**를 보낸다 (한국어 표기 SSOT = features/backtest/labels.ts).
+export const StressTestHeadlineMetricKeySchema = z.enum([
+  "max_drawdown_p95", // Monte Carlo
+  "degradation_ratio", // Walk-Forward ("Infinity" 리터럴 가능)
+  "worst_cell_sharpe", // Cost Assumption / Param Stability (2D grid)
+]);
+export type StressTestHeadlineMetricKey = z.infer<
+  typeof StressTestHeadlineMetricKeySchema
+>;
+
+export const StressTestHeadlineMetricSchema = z.object({
+  key: StressTestHeadlineMetricKeySchema,
+  value: z.string(),
+});
+export type StressTestHeadlineMetric = z.infer<
+  typeof StressTestHeadlineMetricSchema
+>;
+
+// 목록 항목은 결과 payload 없이 실행 메타데이터 + 대표 지표만 반환한다.
 export const StressTestSummarySchema = z.object({
   id: z.uuid(),
   backtest_id: z.uuid(),
@@ -461,6 +480,9 @@ export const StressTestSummarySchema = z.object({
   status: StressTestStatusSchema,
   created_at: z.iso.datetime({ offset: true }),
   completed_at: z.iso.datetime({ offset: true }).nullable(),
+  // `.default(null)` — 이 필드를 모르는 구 fixture/route mock 이 파싱에서 죽지 않게 한다.
+  // 2026-08-15 에 non-nullable 신규 필드가 mock 4곳의 파싱을 깨 목록이 통째로 비었다.
+  headline_metric: StressTestHeadlineMetricSchema.nullable().default(null),
 });
 export type StressTestSummary = z.infer<typeof StressTestSummarySchema>;
 
