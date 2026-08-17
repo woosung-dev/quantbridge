@@ -25,6 +25,13 @@ PLIST="$HOME/Library/LaunchAgents/${LABEL}.plist"
 LOGDIR="$HOME/Library/Logs/quantbridge"
 ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 
+# ★도구 버전 핀 — launchd 가 부르는 셸에는 프로필 초기화가 없어 `uv` 가 아예 없거나 다른
+#   버전이다([BL-785]). :34 주석이 적은 「uv / docker / git 을 못 찾아 조용히 실패한다」의 절반이
+#   이 자리에서 닫힌다(나머지 절반 = _install() 이 굽는 PATH).
+# shellcheck source=tools/scripts/lib/mise-shim-path.sh
+. "$ROOT/tools/scripts/lib/mise-shim-path.sh"
+qb_pin_tool_path || true
+
 mkdir -p "$LOGDIR"
 
 # ---------------------------------------------------------------- 설치/해제/상태

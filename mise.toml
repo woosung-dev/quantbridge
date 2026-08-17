@@ -473,14 +473,14 @@ python3 tools/scripts/openapi-poc-filter.py --check
 #   BL-601 이 구 `fleet-dispatch` 에서 겪은 그 모양이다.
 # ★docker·네트워크·거래소 의존 0 — 전부 mktemp 트리 + PATH 앞단 가짜다.
 [tasks.gate-harnesses]
-description = "게이트 하네스 13종 — 게이트가 판별력을 갖는지 잰다"
+description = "게이트 하네스 14종 — 게이트가 판별력을 갖는지 잰다"
 run = """
 set -u
 rc=0
-for h in bl-audit header-audit soak-restart soak-watch soak-stack docs-audit pre-push-guard assert-main-checkout skip-ratchet signal-check final-gates db-backup disk-guard; do
+for h in bl-audit header-audit soak-restart soak-watch soak-stack docs-audit pre-push-guard assert-main-checkout skip-ratchet signal-check final-gates db-backup disk-guard tool-pin-audit; do
   printf '\\n▶ %s-test\\n' "$h"
   bash "tools/scripts/${h}-test.sh" || rc=$?
 done
 if [ "$rc" != 0 ]; then echo; echo "✗ 하네스 실패 — 게이트가 판별력을 잃었다"; exit 1; fi
-echo; echo "✓ 게이트 하네스 13종 전건 통과"
+echo; echo "✓ 게이트 하네스 14종 전건 통과"
 """

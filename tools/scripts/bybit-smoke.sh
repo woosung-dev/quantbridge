@@ -33,6 +33,12 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
+# ★도구 버전 핀 — `_execute()` 의 `uv run python scripts/bybit_smoke.py` 는 **실주문 경로**다.
+#   어느 uv/venv 로 돌았는지 모르는 채 거래소에 주문을 내지 않는다([BL-785]).
+# shellcheck source=tools/scripts/lib/mise-shim-path.sh
+. "${SCRIPT_DIR}/lib/mise-shim-path.sh"
+qb_pin_tool_path || true
+
 MODE="demo"
 MARKET="linear"
 SYMBOL=""
