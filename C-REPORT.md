@@ -195,6 +195,14 @@ optimizer 쪽과 겹치는 줄이 없다.
 `--pre-pr` 은 마지막 커밋 뒤에 돌린다. 게이트 원장(`.claude/gates/bl414/deferred.txt`)의 sha 가
 레인 HEAD 와 같아야 CONTROL 이 통과로 세므로, 이 절을 채운 커밋 **뒤에** 한 번 더 돌린다.
 
-| 항목                                         | 결과        |
-| -------------------------------------------- | ----------- |
-| `final-gates.sh --run bl414 --pre-pr` (최종) | (아래 채움) |
+| 항목                                                    | 결과                                     |
+| ------------------------------------------------------- | ---------------------------------------- |
+| `final-gates.sh --run bl414 --pre-pr` (2차, `f91d0966`) | **rc=0** — 실행 25종 전부 PASS, 유예 8종 |
+
+1차에서 유일하게 걸린 `BE openapi drift` 는 계약 재생성으로 닫혔고 2차에서 PASS 다.
+유예된 것 중 **BE pytest · e2e chromium · e2e design-canon 셋은 내가 따로 돌려 rc=0 을 확인했다**
+(위 수치 표). 나머지 유예분(e2e authed · CI fresh DB alembic · 신호 4종)은 계약상 아침
+오케스트레이터 몫이거나 이 워크트리에서 못 도는 것들이다.
+
+이 절을 쓴 커밋 뒤에 `--pre-pr` 을 한 번 더 돌려 유예 원장(`.claude/gates/bl414/deferred.txt`)의
+sha 를 레인 HEAD 에 맞춘다 — CONTROL 의 통과 판정식이 그 sha 를 본다.
