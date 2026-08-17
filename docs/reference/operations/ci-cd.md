@@ -43,9 +43,16 @@ flowchart TB
 ### Changes-aware 분기
 
 - `dorny/paths-filter@v3`로 PR diff에서 변경된 경로 감지
-- `apps/web/**` 변경 시만 frontend / e2e job 실행
-- `apps/api/**` 변경 시만 backend_static / backend / backend_coverage job 실행
+- `apps/web/**` 또는 `.github/workflows/**` 변경 시 frontend / e2e job 실행
+- `apps/api/**` · `.github/workflows/**` · `contracts/**` 변경 시 backend_static / backend / backend_coverage job 실행
 - 둘 다 변경 시 병렬 실행
+
+> ★★**워크플로 경로가 두 필터에 다 들어 있는 이유** — 그 파일들을 **입력으로 읽는 감사 테스트**가
+> 양쪽 스위트에 있다(BE `test_pytest_shard_partition`·`test_ci_workflow_env_parity`, FE
+> `e2e-project-wiring.test.ts` 의 「CI 실행 표면」). 필터가 좁으면 **워크플로만 고친 PR 에서 그
+> 감사들이 skip** 되고 `ci` 요약이 skipped 를 통과로 세므로, 감사 대상을 망가뜨려도 초록이다.
+> FE 축은 2026-08-17 [BL-789] 적대 리뷰가 실측으로 잡아 뒤늦게 넣었다 — **게이트를 붙일 때는
+> 「무엇이 그것을 발화시키나」를 같이 봐라.**
 
 > PR이 docs only 변경이면 code job 이 전부 skip — `ci` summary가 통과 처리.
 > 단 `documentation` 잡은 **항상** 돌고 `ci` 가 그 결과를 본다(아래 §4).
@@ -209,14 +216,19 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 - ★★★**`e2e` 잡은 authed 스위트를 안 돈다 — CI 초록은 authed 통과의 증거가 아니다**
   ([BL-789], 2026-08-17). `ci.yml` 의 e2e 스텝은 `chromium` · `chromium-live-smoke` ·
   `chromium-design-canon` 셋만 `--project=` 로 부르고, `chromium-authed` 를 부르는 줄은
-  워크플로 전체에 **없다**. `apps/web/e2e/*.spec.ts` 29개 중 **20개**(로그인이 필요한 전부)가
-  그래서 CI 실행 0회이고,
-  유일한 실행처는 로컬 `tools/scripts/final-gates.sh` 의 `e2e authed` 레그다.
+  워크플로 전체에 **없다**. `apps/web/e2e/*.spec.ts` 29개 중 **20개**(`chromium-authed` 의
+  `testMatch` 가 잔여 전체를 가져간 몫)가 그래서 CI 실행 0회다.
+  게이트 판정의 증인은 로컬 `tools/scripts/final-gates.sh` 의 `e2e authed` 레그지만,
+  **실행처가 그 하나뿐이라는 뜻은 아니다** — `mise run fe-e2e-authed` · `pnpm e2e:authed` ·
+  `tools/scripts/e2e-authed-repro.sh` 도 같은 스위트를 돌린다.
   ⇒ ⑴ **PR 이 CI 전건 초록이어도 authed 게이트는 red 일 수 있다.** ⑵ 「CI 가 초록이었다」를
   로컬 authed 실패의 **음성 대조 근거로 쓰지 마라** — 그 잡은 authed 를 애초에 안 돌렸다.
   회귀 방지 = `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사
-  (`LOCAL_ONLY` 상수에 사유와 함께 등재된 것만 면제). 배선 자체(CI 전용 시더 + 로그인)는
-  [ADR-034] 가 CI 인증 secret 을 0개로 만든 결정의 반전이라 **사용자 결정 대기**다.
+  (`LOCAL_ONLY` 상수에 사유와 함께 등재된 것만 면제 · PR 트리거가 있는 워크플로만 「CI 실행」으로
+  센다). 배선 자체(CI 전용 시더 + 로그인)는 [ADR-034] 가 CI 인증 secret 을 0개로 만든 결정의
+  반전이라 **사용자 결정 대기**다. ★단 **20개 전부가 그 결정에 묶이지는 않는다** —
+  `invite-token-page.spec.ts` 는 빈 `storageState` 로 도는 공개 라우트 계약 시험이라 인증
+  secret 없이 오늘 공개 project 로 옮길 수 있다(2026-08-17 적대 리뷰 정정).
 - **merge queue 를 켜면 CI 가 아예 보고되지 않는다** — 트리거에 `merge_group` 이 없어서 큐의
   합성 커밋에 `ci` 체크가 생기지 않는다. 큐를 도입하는 날 트리거를 같이 추가해라.
 - **env 감사는 키 존재만 본다** — 값이 `redis://redis:6379`(compose 호스트)나 빈 문자열로

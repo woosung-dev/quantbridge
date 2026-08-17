@@ -944,25 +944,43 @@ design-canon → authed`). 회차마다 `PW_ARTIFACT_RUN` 을 달리 주므로 *
 ### CI 초록은 **authed 통과의 증거가 아니다** ([BL-789], 2026-08-17)
 
 - ★★★**authed 계열 e2e 는 GitHub CI 에서 한 번도 돈 적이 없다.** 워크플로가 부르는 playwright
-  project 는 `ci.yml:521-523` 의 `chromium` · `chromium-live-smoke` · `chromium-design-canon` 과
+  project 는 `ci.yml` e2e 스텝의 `chromium` · `chromium-live-smoke` · `chromium-design-canon` 과
   `live-smoke.yml:62` 의 `chromium-live-smoke` 뿐이다. `chromium-authed` 를 부르는 줄은
-  `.github/workflows/` 전체에 **없다**(그 이름이 걸리는 두 줄 `ci.yml:468`·`:505` 는 「CI 에는
-  없다」고 적은 **주석**이다 — 산문을 배선으로 읽지 마라).
+  `.github/workflows/` 전체에 **없다** — 그 **이름** 자체는 워크플로에 0회 등장하고
+  (`grep -c chromium-authed .github/workflows/*.yml` 전건 0), 「authed 는 CI 에 없다」고 적은
+  산문 주석 두 줄(`ci.yml` e2e 잡 머리말·design-canon 주석)이 스크립트 이름 `pnpm e2e:authed`
+  를 품고 있을 뿐이다. ★그래서 **감사기가 `pnpm <script>` 를 푸는 순간** 그 주석이 배선으로
+  읽힌다 — 산문을 배선으로 읽지 마라(주석 제거가 그 감사의 하중 지점이다).
 - **규모** — `apps/web/e2e/*.spec.ts` **29개** 중 공개 project 몫이 9개(`smoke` 1 · `live-smoke` 1 ·
   `design-canon-*` 7)이고, `chromium-authed` 의 `testMatch: /\.spec\.ts$/` 가 가져가는 **나머지
-  20개가 CI 실행 0회**다. 유일한 실행처는 로컬 `tools/scripts/final-gates.sh` 의 `e2e authed`
-  레그(= `pnpm e2e:authed`) 하나뿐이다.
+  20개가 CI 실행 0회**다. ★그 20개가 **전부 로그인을 요구하는 것은 아니다** —
+  `invite-token-page.spec.ts` 는 `test.use({ storageState: { cookies: [], origins: [] } })` 로
+  **세션 없이** 도는 공개 라우트 계약 시험이고, `testMatch` 가 잔여를 전부 가져가서 authed 몫이
+  됐을 뿐이다. ⇒ 그 파일은 **인증 secret 없이도 오늘 공개 project 로 옮길 수 있다**(아래 2단계
+  「사용자 결정」에 묶이지 않는다).
+- **실행처** — CI 가 안 돈다는 것이 「실행처가 하나」라는 뜻은 아니다. 로컬에 최소 넷이다:
+  `tools/scripts/final-gates.sh` 의 `e2e authed` 레그 · `mise run fe-e2e-authed` ·
+  `pnpm e2e:authed` 직접 호출 · `tools/scripts/e2e-authed-repro.sh`(위 [BL-784] 축 재현 처방).
+  **게이트 판정의 증인은 `final-gates.sh` 레그 하나**지만, 재현 경로를 그 하나로 좁히지 마라.
 - ⇒ **PR 이 CI 전건 초록이면서 authed 게이트가 red 인 채로 머지될 수 있다.** 반대로 「CI 가
   초록이었다」를 **로컬 authed red 의 음성 대조 근거로 쓰면 그 근거는 무효다** — 그 잡은
   authed 를 애초에 돌리지 않았다. 원장에 그렇게 적힌 항목이 실재한다([BL-668] 의 음성 대조 ②).
 - **회귀 방지** — `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사가
   `playwright.config.ts` 의 project 이름과 `.github/workflows/*.yml` 을 **양쪽 실파일에서 파싱해**
   대조한다. CI 에서 안 도는 project 는 `LOCAL_ONLY` 상수에 **사유와 함께** 등재해야 하고,
-  새 project 를 만들고 워크플로에 안 배선하면 빨개진다. 변이 3/3 red 확인(design-canon 배선
-  제거 · `LOCAL_ONLY` 비우기 · project 이름 오타).
+  새 project 를 만들고 워크플로에 안 배선하면 빨개진다.
+  ★★**그 감사의 초판이 fail-open 이 네 갈래였다** (2026-08-17 적대 리뷰 — 전부 「무엇이 그것을
+  발화시키나」를 안 본 것이다). ⑴ `--project=` 를 YAML **본문 전체**에서 찾아 `- name:` 스텝
+  **제목**을 배선으로 셌다 → `run:` 셸 본문만 본다. ⑵ 워크플로를 트리거 무관하게 동등히 읽어
+  **schedule/dispatch 전용** 파일에 배선해도 통과였다 → `on:` 에 `pull_request` 계열이 있는
+  것만 센다. ⑶ `--project` 없는 맨 `playwright test`(= 전 project 실행, `pnpm e2e:all` 이 그
+  형태)를 「fail-closed」라 적어 뒀는데 다른 호출과 **공존하면 fail-open** 이었다 → 전 project
+  실행으로 모델링한다. ⑷ ★그 감사 **자신이 CI 에서 안 돌 수 있었다** — `ci.yml` 의 `frontend`
+  필터가 `apps/web/**` 뿐이라 **워크플로만 고친 PR** 에서 통째로 skip 됐다(로컬 `final-gates.sh`
+  의 `has_fe` 도 같았다). 둘 다 `.github/workflows/**` 를 물게 고쳤다.
 - ★**아직 안 닫혔다 — 1단계만 했다.** CI 에 authed 잡을 세우려면 CI 전용 시더 + 로그인 배선이
   필요하고, [ADR-034] 가 CI 인증 secret 을 0개로 만든 결정이라 그 반전은 **사용자 결정**이다.
-  그때까지 authed 의 증인은 로컬 게이트 하나뿐이다.
+  그때까지 authed 게이트의 증인은 로컬 `final-gates.sh` 레그 하나뿐이다.
 
 ### 신규 BE 필드는 FE `.strict()` 스키마와 **항상** 대조해라 (2026-07-30, codex 적대 리뷰 MAJOR)
 
