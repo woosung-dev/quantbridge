@@ -43,9 +43,22 @@ dependencies → service 를 지나 `src.optimizer.models` 를 **우연히** 끌
 `optimization_runs` 는 conftest 목록에 없는데도 등록돼 있었다. 그 배선 중 한 칸이라도
 지연 import 로 바뀌면 조용히 사라진다 — ⑴은 그 우연에 기대지 않겠다는 단언이다.
 
-★반대로 ⑶⑷가 ⑴⑵와 별개로 필요하다. 선언 축은 **소스 텍스트**만 보므로 파서가 못 보는
-선언 형태(예: `Table` 을 다른 이름으로 alias)를 놓칠 수 있다. 그때 실행 축이 「정체불명」
-으로 잡는다. 두 축은 서로의 사각을 덮는 쌍이지 중복이 아니다.
+★반대로 ⑶⑷가 ⑴⑵와 별개로 필요하다. 선언 축은 **소스 텍스트**만 보므로, 소스에 import 구문이
+있는 것과 그 배선이 실제로 metadata 를 넓히는 것은 다르다. ⑶⑷가 그 차이를 잰다.
+
+## ★★실행 축은 census 의 사각을 덮지 못한다 (2026-08-17 적대 리뷰가 반증)
+
+초판 주석은 「파서가 못 보는 선언 형태는 실행 축이 『정체불명』으로 잡는다」고 적었다. **거짓이다.**
+실행 축이 보는 것은 conftest·env.py 가 **import 한** 모듈이 등록한 표뿐이다. 그러므로 아무도
+import 하지 않는 모듈이 파서에게도 안 보이면 — 선언 축은 「import 할 것이 없다」고 통과하고
+실행 축은 「등록된 것이 census 와 같다」고 통과한다. **네 다리가 전부 초록**이다. 실증된 두 형태:
+
+- `from sqlalchemy import Table as SATable` → `SATable("escaped_table", SQLModel.metadata, ...)`
+- `class EscapedModel(SQLModel, table=TABLE_FLAG)` — `table=` 이 변수
+
+⇒ census 는 이 검사면의 **유일한** 기대치 원천이고, 그래서 파서는 「못 보면 조용히 넘어간다」가
+아니라 **「결정할 수 없으면 멈춘다」**여야 한다. import 별칭은 해석하고(`_local_aliases`),
+그래도 결정 못 하는 것은 AssertionError 로 사람에게 넘긴다.
 """
 
 from __future__ import annotations
@@ -77,8 +90,22 @@ _CONFTEST_DUMP_SCRIPT = (
 #   `fn` 이 빈 목록을 내므로 migration 도 하나도 안 돈다 — 생성된 SQL 은 stdout 으로 버려진다.
 #   그런데도 env.py 의 모듈 최상위(= 모델 import 블록)와 `target_metadata` 배선은 다 지난다.
 #   ★`_guard_destructive_migrations()` 는 `config.cmd_opts` 가 없으면 통과한다(파이썬 직접 호출).
+#
+# ★★**`SQLModel.metadata` 를 덤프하면 안 된다.** 초판이 그랬고, 그래서 이 다리는 「env.py 를
+#   태운 뒤 프로세스 어딘가에 뭐가 등록됐나」만 봤다 — env.py 가 그것을 alembic 에 **넘겼는지**는
+#   보지 않았다. 지금은 `target_metadata = SQLModel.metadata` 라 **우연히** 같은 객체라서 통과했을
+#   뿐이다. 2026-08-17 적대 리뷰가 `env.py` 의 그 줄을 `MetaData()`(빈 것)로 바꿔 실증했다:
+#   실제 `alembic check` 는 rc≠0 로 죽는데(DB 테이블 전부가 removed table) 네 다리는 전부 초록이었다.
+#
+#   그래서 **alembic 이 실제로 읽는 자리**에서 캡처한다 — `EnvironmentContext.configure()` 가
+#   `opts['target_metadata'] = target_metadata` 로 심고(alembic 1.18.4
+#   `runtime/environment.py:912`), autogenerate 가 `migration_context.opts.get('target_metadata')`
+#   로 꺼내 쓴다(`autogenerate/api.py:371`). `alembic check` 가 보는 것과 **같은 객체**다.
+#   ★한 번도 configure 되지 않았으면 `get_context()` 가 던진다 → 자식 rc≠0 → red.
+#   빈 입력을 「일치」로 읽는 길을 남기지 않는다.
 _ALEMBIC_DUMP_SCRIPT = (
     "import json, sys\n"
+    "from sqlalchemy import MetaData\n"
     "from alembic.config import Config\n"
     "from alembic.script import ScriptDirectory\n"
     "from alembic.runtime.environment import EnvironmentContext\n"
@@ -87,10 +114,23 @@ _ALEMBIC_DUMP_SCRIPT = (
     "with EnvironmentContext(\n"
     "    cfg, script, fn=lambda rev, ctx: [], as_sql=True,\n"
     "    starting_rev='base', destination_rev='base',\n"
-    "):\n"
+    ") as env_ctx:\n"
     "    script.run_env()\n"
-    "from sqlmodel import SQLModel\n"
-    f"sys.stdout.write({_DUMP_MARKER!r} + json.dumps(sorted(SQLModel.metadata.tables)) + chr(10))\n"
+    "    try:\n"
+    "        migration_context = env_ctx.get_context()\n"
+    "    except Exception as exc:\n"
+    "        raise SystemExit(\n"
+    "            'QB-ABORT: env.py 가 context.configure() 를 한 번도 부르지 않았다 — '\n"
+    "            'target_metadata 를 캡처할 자리가 없다: %r' % (exc,)\n"
+    "        )\n"
+    "    captured = migration_context.opts.get('target_metadata')\n"
+    "if not isinstance(captured, MetaData):\n"
+    "    raise SystemExit(\n"
+    "        'QB-ABORT: env.py 가 넘긴 target_metadata 가 MetaData 가 아니다: %r. '\n"
+    "        'alembic 은 시퀀스도 받지만 이 레포는 단일 MetaData 를 전제한다 — '\n"
+    "        '바꿨다면 이 검사기를 같이 넓혀라.' % (type(captured),)\n"
+    "    )\n"
+    f"sys.stdout.write({_DUMP_MARKER!r} + json.dumps(sorted(captured.tables)) + chr(10))\n"
 )
 
 # ★`_SRC_ROOT.rglob` 는 **작업 트리**를 읽는다 — git 추적 여부를 안 본다. 병렬 워크트리·
@@ -117,12 +157,52 @@ def _module_name(path: Path) -> str:
     return ".".join(parts)
 
 
-def _is_table_class(node: ast.ClassDef) -> bool:
-    """`class X(SQLModel, table=True)` 인가."""
-    return any(
-        kw.arg == "table" and isinstance(kw.value, ast.Constant) and kw.value.value is True
-        for kw in node.keywords
-    )
+def _local_aliases(tree: ast.Module, symbol: str) -> frozenset[str]:
+    """이 모듈에서 `symbol` 이 묶인 **지역 이름** 전부.
+
+    `from sqlalchemy import Table as SATable` → `{"Table", "SATable"}`.
+
+    ★왜 필요한가: 2026-08-17 적대 리뷰가 `SATable("escaped_table", SQLModel.metadata, ...)` 로
+      census 를 통째로 우회했다. 파서가 그 모듈을 못 보면 선언 축 ⑴⑵는 「import 할 것이 없다」고
+      통과하고, 아무도 그 모듈을 import 하지 않으니 실행 축 ⑶⑷도 통과한다 — **네 다리 전부
+      초록**. census 는 이 검사면의 유일한 기대치 원천이라 여기가 새면 나머지가 다 샌다.
+    ★`ast.walk` 로 훑는다. 함수 본문에 숨긴 import 도 그 함수가 돌면 표를 등록하므로,
+      「최상위만」이라는 좁힘은 여기서는 사각을 만든다(⑴⑵의 `tree.body` 직계 규칙과 반대인
+      이유 = 저쪽은 「실행이 보장되는가」를 묻고 이쪽은 「이 이름이 그것인가」를 묻는다).
+    """
+    names = {symbol}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name == symbol:
+                    names.add(alias.asname or alias.name)
+    return frozenset(names)
+
+
+def _is_table_class(node: ast.ClassDef, path: Path) -> bool:
+    """`class X(SQLModel, table=True)` 인가.
+
+    ★**리터럴 bool 이 아니면 추측하지 않고 red.** `class X(SQLModel, table=FLAG)` 는 파서가
+      `False` 로 읽었지만 런타임에는 진짜 표로 등록됐다(2026-08-17 적대 리뷰 실증 —
+      그 모듈을 아무도 import 하지 않으면 네 다리가 전부 초록이었다). `__tablename__` 비리터럴에
+      이미 쓰고 있는 fail-closed 규약과 같은 결이다.
+    """
+    for kw in node.keywords:
+        if kw.arg is None:
+            # `class X(SQLModel, **opts)` — `table` 이 그 안에 있는지 소스로 알 수 없다.
+            raise AssertionError(
+                f"{path}:{node.lineno} `{node.name}` 이 클래스 인자를 `**` 로 편다 — "
+                "`table=` 여부를 소스에서 결정할 수 없다. 명시 kwarg 로 바꿔라."
+            )
+        if kw.arg != "table":
+            continue
+        if isinstance(kw.value, ast.Constant) and isinstance(kw.value.value, bool):
+            return kw.value.value
+        raise AssertionError(
+            f"{path}:{node.lineno} `{node.name}` 의 `table=` 이 리터럴 bool 이 아니다 — "
+            "census 파서가 이것이 표인지 결정할 수 없다. 리터럴로 바꾸거나 파서를 넓혀라."
+        )
+    return False
 
 
 def _explicit_tablename(node: ast.ClassDef, path: Path) -> str | None:
@@ -155,31 +235,60 @@ def _explicit_tablename(node: ast.ClassDef, path: Path) -> str | None:
     return None
 
 
-def _metadata_table_call_name(node: ast.Call) -> str | None:
-    """`Table("name", SQLModel.metadata, ...)` 이면 그 이름, 아니면 None.
+def _metadata_table_call_name(
+    node: ast.Call, table_names: frozenset[str], sqlmodel_names: frozenset[str], path: Path
+) -> str | None:
+    """`Table("name", SQLModel.metadata, ...)` 이면 그 이름, Table 호출이 아니면 None.
 
     ★**두 번째 인자까지 본다.** 이름만 보면 `Table("x", other_metadata, ...)` 처럼
       `SQLModel.metadata` 에 안 묶이는 표까지 census 에 들어가고, 그러면 ⑶⑷가
       「등록 누락」이라며 **원리적으로 충족 불가능한 red** 를 영구히 낸다.
-      다른 이름으로 alias 한 metadata 는 여기서 못 보지만, 그건 실행 축이
-      「정체불명」으로 잡는다 — 못 보는 쪽이 fail-closed 다.
+
+    ★생성자 이름도 metadata 이름도 **모듈의 import 별칭으로 해석**한다(`_local_aliases`).
+      종전 판정은 이름이 글자 그대로 `Table`/`SQLModel` 인 것만 봤다.
+
+    ★**Table 호출인데 census 이름을 결정하지 못하면 None 이 아니라 red 다.** 종전 주석은
+      「못 보는 쪽이 fail-closed — 실행 축이 「정체불명」으로 잡는다」고 적었는데 그게 거짓이었다:
+      실행 축이 보는 것은 conftest·env.py 가 **import 한** 모듈뿐이라, 아무도 import 하지 않는
+      모듈의 표는 어느 다리에도 안 걸린다. census 가 못 보면 그 모듈은 통째로 투명해진다.
+      ⇒ 조용히 넘기지 말고 멈춰서 사람에게 묻는다.
     """
     func = node.func
-    is_table_ctor = (isinstance(func, ast.Attribute) and func.attr == "Table") or (
-        isinstance(func, ast.Name) and func.id == "Table"
-    )
-    if not is_table_ctor or len(node.args) < 2:
+    if isinstance(func, ast.Attribute):
+        is_table_ctor = func.attr in table_names
+    elif isinstance(func, ast.Name):
+        is_table_ctor = func.id in table_names
+    else:
+        is_table_ctor = False
+    if not is_table_ctor:
         return None
+
+    where = f"{path}:{node.lineno}"
+    if len(node.args) < 2:
+        raise AssertionError(
+            f"{where} `Table(...)` 호출의 위치 인자가 2개 미만이다 — census 파서가 "
+            "테이블 이름과 metadata 귀속을 결정할 수 없다. 파서를 넓히거나 호출을 풀어 써라."
+        )
     name_arg, metadata_arg = node.args[0], node.args[1]
     if not (isinstance(name_arg, ast.Constant) and isinstance(name_arg.value, str)):
-        return None
+        raise AssertionError(
+            f"{where} `Table(...)` 의 첫 인자가 리터럴 문자열이 아니다 — census 파서가 "
+            "테이블 이름을 결정할 수 없다. 리터럴로 바꾸거나 파서를 넓혀라."
+        )
     bound_to_sqlmodel = (
         isinstance(metadata_arg, ast.Attribute)
         and metadata_arg.attr == "metadata"
         and isinstance(metadata_arg.value, ast.Name)
-        and metadata_arg.value.id == "SQLModel"
+        and metadata_arg.value.id in sqlmodel_names
     )
-    return name_arg.value if bound_to_sqlmodel else None
+    if not bound_to_sqlmodel:
+        raise AssertionError(
+            f"{where} `Table({name_arg.value!r}, ...)` 의 두 번째 인자가 "
+            "`SQLModel.metadata`(또는 그 import 별칭)로 보이지 않는다 — census 파서가 이 표가 "
+            "`create_all`/autogenerate 범위에 드는지 결정할 수 없다. 정말 별개의 MetaData 라면 "
+            "이 파서에 그 예외를 **명시**해라. 조용히 빠지면 네 다리가 전부 이 표를 못 본다."
+        )
+    return name_arg.value
 
 
 def _tables_declared_in(path: Path) -> frozenset[str]:
@@ -191,15 +300,17 @@ def _tables_declared_in(path: Path) -> frozenset[str]:
     - `Table("name", SQLModel.metadata, ...)` — Better Auth 처럼 모델 클래스가 없는 표.
     """
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    table_names = _local_aliases(tree, "Table")
+    sqlmodel_names = _local_aliases(tree, "SQLModel")
     found: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef):
-            if not _is_table_class(node):
+            if not _is_table_class(node, path):
                 continue
             explicit = _explicit_tablename(node, path)
             found.add(explicit if explicit is not None else node.name.lower())
         elif isinstance(node, ast.Call):
-            name = _metadata_table_call_name(node)
+            name = _metadata_table_call_name(node, table_names, sqlmodel_names, path)
             if name is not None:
                 found.add(name)
     return frozenset(found)
@@ -390,8 +501,14 @@ def test_alembic_env_run_registers_every_declared_table() -> None:
     """red 면 고장난 것: `alembic check`·autogenerate 의 `target_metadata` 가 실제로 모자란다.
 
     ★⑵(선언 축)만으로는 부족하다. 선언 축은 **소스에 import 구문이 있는가**를 보고, 이 다리는
-      **env.py 를 태운 뒤 metadata 에 실제로 뭐가 들어왔는가**를 본다. `alembic check` 는
-      DB 를 요구하지만 이 다리는 오프라인이라 DB 없이 같은 축을 잰다([BL-770] 재발 방지).
+      **env.py 가 `context.configure()` 에 실제로 넘긴 `target_metadata`** 를 본다.
+      `alembic check` 는 DB 를 요구하지만 이 다리는 오프라인이라 DB 없이 같은 축을 잰다
+      ([BL-770] 재발 방지).
+
+    ★2026-08-17 실측 — `env.py` 의 `target_metadata = SQLModel.metadata` 는 그대로 두고
+      `run_migrations_offline()` 의 `target_metadata=` 인자만 빈 `MetaData()` 로 바꾸면,
+      종전 판(= `SQLModel.metadata` 를 덤프)은 **4개 전부 초록**이었다. 지금은 이 다리가 red 다.
+      캡처 지점의 근거는 `_ALEMBIC_DUMP_SCRIPT` 머리 주석 참조.
     """
     census = _table_declaring_modules()
     _assert_census_is_not_empty(census)
