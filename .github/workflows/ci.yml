@@ -40,6 +40,17 @@ jobs:
           filters: |
             frontend:
               - 'apps/web/**'
+              # ★★워크플로 자체를 frontend 트리거에도 넣는다 (2026-08-17 적대 리뷰 P1, [BL-789]).
+              #   `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사는
+              #   **입력이 `.github/workflows/*.yml`** 인데, 그것을 돌리는 유일한 CI 스텝
+              #   (`frontend` 잡의 `pnpm test -- --run`)이 `apps/web/**` diff 에만 발화했다.
+              #   ⇒ **워크플로만 고친 PR 에서 그 감사가 통째로 skip** 되고 `ci` 요약은 skipped 를
+              #   통과로 세므로, `--project=` 배선을 지워도 초록으로 머지된다. 즉 그 가드가
+              #   자기 위협모델에 대해 fail-open 이었다.
+              #   ★아래 backend 가 **같은 이유로 이미** `.github/workflows/**` 를 물고 있다.
+              #   FE 쪽에 워크플로 감사가 처음 생겼는데 형제 배선이 안 따라온 것이 이 결함이다
+              #   (「게이트를 붙일 때 무엇이 그것을 발화시키나를 함께 봐라」의 재발).
+              - '.github/workflows/**'
             backend:
               - 'apps/api/**'
               # ★워크플로 자체를 backend 트리거에 넣는다 (codex P1). 안 그러면

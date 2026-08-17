@@ -147,11 +147,15 @@ src_n="$(printf '%s\n' "$CHANGED" | grep -c '^apps/api/src/')"
 #   ★2026-08-16 에 `ci.yml` 의 같은 구멍을 막으면서 **이 파일에는 그대로 뒀다**(적대 리뷰가 잡았다).
 #   게이트를 붙일 때 「무엇이 그것을 발화시키나」를 한 곳에서만 보면 형제 배선이 남는다.
 contracts_n="$(printf '%s\n' "$CHANGED" | grep -c '^contracts/')"
+# ★워크플로 축 — FE vitest 의 「CI 실행 표면」 감사가 이 파일들을 **입력으로** 읽는다([BL-789]).
+workflows_n="$(printf '%s\n' "$CHANGED" | grep -c '^\.github/workflows/')"
 [ "${fe_n:-0}" -gt 0 ] && has_fe=1
 [ "${be_n:-0}" -gt 0 ] && has_be=1
 [ "${src_n:-0}" -gt 0 ] && has_api_src=1
 has_contracts=0
 [ "${contracts_n:-0}" -gt 0 ] && has_contracts=1
+has_workflows=0
+[ "${workflows_n:-0}" -gt 0 ] && has_workflows=1
 
 NAMES=(); CODES=(); NOTES=(); SECS=()
 record() { NAMES+=("$1"); CODES+=("$2"); NOTES+=("${3:-}"); SECS+=("${4:-}"); }
@@ -353,10 +357,19 @@ if [ "$has_be" -eq 1 ] || [ -z "$BASE" ]; then
 else
   skip_gate "BE pytest" "backend diff 0"
 fi
-if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
+# ★★워크플로 diff 도 FE vitest 를 발화시킨다 (2026-08-17 적대 리뷰 P1, [BL-789]).
+#   `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사는 **입력이
+#   `.github/workflows/*.yml`** 이다. `has_fe` 만 보면 **워크플로만 고친 회차에서 그 감사가
+#   skip** 되고, `--project=` 배선을 지우거나 오타를 내도 로컬 게이트가 초록이다 —
+#   가드가 자기 위협모델에 대해 fail-open 이 된다. `ci.yml` 의 `frontend:` 필터에도 같은
+#   경로를 넣었다(두 곳이 따로 노는 것을 막는다).
+#   ★`has_fe` 자체를 안 넓힌 이유: FE build 와 e2e 3레그까지 같이 발화하면 워크플로 한 줄
+#   고칠 때마다 수 분이 탄다. 발화 이유가 다른 게이트는 조건도 다르게 둔다(`has_api_src` ·
+#   `has_contracts` 와 같은 결).
+if [ "$has_fe" -eq 1 ] || [ "$has_workflows" -eq 1 ] || [ -z "$BASE" ]; then
   run_gate "FE vitest" "pnpm test" bash -c 'cd "$0/apps/web" && pnpm test' "$ROOT"
 else
-  skip_gate "FE vitest" "frontend diff 0"
+  skip_gate "FE vitest" "frontend diff 0 · 워크플로 diff 0"
 fi
 
 # ── 3. build ──────────────────────────────────────────────────────
