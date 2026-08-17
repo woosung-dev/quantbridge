@@ -25,7 +25,8 @@ shim 을 PATH 앞에 세우고, `tools/scripts/tool-pin-audit.sh` 가 재유입�
 **상태:** ✅ **Resolved (2026-08-17 gate-pins)** — 판정 기준을 **migration-only DB** 로 확정해
 `gates-and-traps.md` §환경에 적었고, 그 기준으로 남아 있던 유일한 drift
 (`trading.funding_rates.exchange` VARCHAR(32) → `exchangename`)를 migration `20260817_0002` 로 닫았다.
-게이트 `CI fresh DB alembic` 이 이제 `upgrade head` 뒤에 `alembic check` 까지 돈다.
+게이트 `CI fresh DB alembic` 과 **CI `backend` 잡** 둘 다 `upgrade head` 뒤에 `alembic check` 까지 돈다
+(CI 스텝은 CI 가 돌기 전까지 미검증 — 근거는 REPORT §AC-5).
 
 - **[BL-770] 의 「rc=0 이 처음」은 개발 DB 에 대한 것이었다.** 2026-08-17 실측 — 개발 DB 는 head
   `20260816_0001` 인데 그 컬럼이 이미 `exchangename` 이다(`create_all` 이력이 섞여 있다).

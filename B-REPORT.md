@@ -109,9 +109,8 @@ FE typecheck 등)는 두 실행 모두 `skip` 이었다. **`uv`·`node` 축은 �
 ### AC-3 — 잔존 감시 ✅
 
 `tools/scripts/tool-pin-audit.sh`(감사기) + `tools/scripts/tool-pin-audit-test.sh`(하네스 13케이스).
-배선 3곳: `final-gates.sh` 의 「도구 핀 감사」·「도구 핀 감사 하네스」(영역 판정과 무관하게 항상 돈다)
-
-- `mise run gate-harnesses`(13종 → **14종**).
+배선 3곳 — `final-gates.sh` 의 「도구 핀 감사」와 「도구 핀 감사 하네스」(영역 판정과 무관하게
+항상 돈다), 그리고 `mise run gate-harnesses`(13종 → **14종**).
 
 감사기가 가르는 축 — 「부르는가」와 「이름이 있는가」는 다르다:
 
@@ -153,6 +152,15 @@ FE typecheck 등)는 두 실행 모두 `skip` 이었다. **`uv`·`node` 축은 �
 
 게이트와의 관계도 확정했다 — **정본 판정은 `CI fresh DB alembic` 축이다.** 그래서 그 게이트에
 `alembic check` 를 붙였다. 문서만 쓰고 아무도 안 돌리면 죽은 기준이 된다(LESSON-078).
+
+**CI 에도 붙였다** — `.github/workflows/ci.yml` `backend` 잡의 `alembic upgrade head` 바로 뒤.
+그 잡의 `quantbridge_test` 는 서비스 컨테이너가 만들고 migration 이 유일한 스키마 생성 경로라
+정의상 정본 DB 다. 로컬에만 붙이면 게이트 이름(「CI 전용 스텝 재현」)이 거짓이 되고, PR 이 실제로
+막히는 자리에서는 이 판정이 안 돈다.
+★**이 한 스텝은 CI 가 돌기 전까지 미검증이다.** 초록을 기대하는 근거는 셋이다 — CI 서비스
+이미지가 로컬과 **같은** `timescale/timescaledb:2.14.2-pg15` 이고, migration 계보가 같으며,
+같은 이미지의 migration-only DB 에서 내가 rc=0 을 실측했다. `ci.yml` 은 파싱 검증만 했다
+(`yaml.safe_load` → `backend` 잡에 두 스텝이 순서대로 들어감).
 
 ### AC-6 — migration-only DB 에서 `alembic check` rc=0 ✅
 
