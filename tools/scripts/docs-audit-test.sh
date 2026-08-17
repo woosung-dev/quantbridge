@@ -22,8 +22,14 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 SB="$(mktemp -d "${TMPDIR:-/tmp}/docs-audit-test.XXXXXX")"
 trap 'rm -rf "$SB"' EXIT
 
-mkdir -p "$SB/tools/scripts" "$SB/docs"
+mkdir -p "$SB/tools/scripts/lib" "$SB/docs"
 cp "$ROOT/tools/scripts/docs-audit.sh" "$SB/tools/scripts/" || { echo "✗ docs-audit.sh 를 못 읽었다"; exit 2; }
+# ★lib 도 함께 옮긴다 — docs-audit 은 `dirname $0` 옆의 `lib/mise-shim-path.sh` 를 소싱하므로
+#   ([BL-785]) 사본만 두면 임시 트리에서 `No such file or directory` 로 죽고, `set -e` 아래라
+#   **19케이스가 전부 rc=1 로 뭉개진다**(2026-08-17 실측 — 표적 테스트로는 안 보였다).
+#   선례 = soak-watch-test.sh:142 (2026-08-16 notify-telegram lib 추출 후속).
+cp "$ROOT/tools/scripts/lib/mise-shim-path.sh" "$SB/tools/scripts/lib/" \
+  || { echo "✗ lib/mise-shim-path.sh 를 못 읽었다"; exit 2; }
 printf '# stub AGENTS\n' > "$SB/AGENTS.md"
 
 # 스텁 원장 — `CASE` 로 ACTIVE/PARTIAL 집합을 바꾼다. 진짜 bl-audit 은 부르지 않는다
