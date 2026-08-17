@@ -100,8 +100,8 @@ def _unverified_kid(token: str) -> str | None:
         return None
 
 
-def verified_subject_or_none(request: Requestish) -> str | None:
-    """검증된 JWT `sub` 만 돌려준다. **DB 를 안 친다.** ([BL-754])
+def verified_claims_or_none(request: Requestish) -> dict[str, Any] | None:
+    """검증된 JWT payload 를 통째로 돌려준다. **DB 를 안 친다.** ([BL-754] · [BL-784])
 
     ★rate limit 이 「누구인가」를 알아야 하는데, `authenticate_token` 은 사용자 행을
     **프로비저닝까지** 한다. 그것을 미들웨어에서 부르면 인증 dependency 보다 먼저
@@ -128,8 +128,20 @@ def verified_subject_or_none(request: Requestish) -> str | None:
     if kid is None or kid not in _KNOWN_KIDS:
         return None
     try:
-        payload = _decode(token)
+        return _decode(token)
     except Exception:
+        return None
+
+
+def verified_subject_or_none(request: Requestish) -> str | None:
+    """검증된 JWT `sub` 만 돌려준다. `verified_claims_or_none` 의 얇은 래퍼다.
+
+    ★검증 경로를 새로 만들지 않는다 — payload 가 필요한 호출부(rate limit 완화 판정)와
+    `sub` 만 필요한 호출부가 **같은 한 번의 검증**을 나눠 쓴다. 토큰 하나에 crypto 를
+    두 번 돌리지 않기 위해서다.
+    """
+    payload = verified_claims_or_none(request)
+    if payload is None:
         return None
     subject = payload.get("sub")
     return str(subject) if subject else None
