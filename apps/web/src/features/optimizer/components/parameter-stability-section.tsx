@@ -5,6 +5,7 @@
 // 한 값만 솟아 있으면 그 결과가 우연일 확률이 크다는 걸 시각화하는 것이 목적이다.
 
 import { deriveParamStability } from "@/features/optimizer/param-stability";
+import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { GridSearchResult } from "@/features/optimizer/schemas";
 import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
 import { EMPTY_CELL } from "@/lib/labels";
@@ -12,6 +13,8 @@ import { EMPTY_CELL } from "@/lib/labels";
 export function ParameterStabilitySection({ result }: { result: GridSearchResult }) {
   const stability = deriveParamStability(result.cells, result.param_names, result.direction);
   const metricLabel = OBJECTIVE_METRIC_LABEL[result.objective_metric];
+  // 목표값 단위 SSOT — 평균·스케일·요약 줄 전부 같은 분기(ratio 지표 %, sharpe 소수)를 쓴다.
+  const fmt = (v: number) => formatObjectiveValue(result.objective_metric, v);
 
   return (
     <section className="section" aria-label="파라미터 안정성">
@@ -31,7 +34,7 @@ export function ParameterStabilitySection({ result }: { result: GridSearchResult
           <div>
             <h3 className="card-title">값별 평균 {metricLabel}</h3>
             <p className="card-sub">
-              각 막대는 해당 값을 가진 셀의 산술평균 · 거래 0건 셀은 평균에서 제외 · 축은 0.00 에서
+              각 막대는 해당 값을 가진 셀의 산술평균 · 거래 0건 셀은 평균에서 제외 · 축은 0 에서
               시작
             </p>
           </div>
@@ -62,7 +65,7 @@ export function ParameterStabilitySection({ result }: { result: GridSearchResult
                       <span aria-hidden="true" />
                     )}
                     <span className="pval">
-                      {v.average === null ? EMPTY_CELL : v.average.toFixed(2)}
+                      {v.average === null ? EMPTY_CELL : fmt(v.average)}
                     </span>
                   </div>
                 ))}
@@ -71,8 +74,8 @@ export function ParameterStabilitySection({ result }: { result: GridSearchResult
                   <div className="pscale" aria-hidden="true">
                     <span />
                     <span className="pscale-in">
-                      <span>0.00</span>
-                      <span>{stability.globalMaxAverage.toFixed(2)}</span>
+                      <span>{fmt(0)}</span>
+                      <span>{fmt(stability.globalMaxAverage)}</span>
                     </span>
                     <span />
                   </div>
@@ -81,9 +84,9 @@ export function ParameterStabilitySection({ result }: { result: GridSearchResult
                 <p className="pfoot">
                   {param.highest && param.lowest ? (
                     <>
-                      최고 {param.highest.average.toFixed(2)} ({param.paramName}{" "}
-                      {param.highest.value}) · 최저 {param.lowest.average.toFixed(2)} (
-                      {param.paramName} {param.lowest.value}) · 폭 {param.spread.toFixed(2)}.
+                      최고 {fmt(param.highest.average)} ({param.paramName}{" "}
+                      {param.highest.value}) · 최저 {fmt(param.lowest.average)} (
+                      {param.paramName} {param.lowest.value}) · 폭 {fmt(param.spread)}.
                     </>
                   ) : null}
                   {!stability.canRenderBars

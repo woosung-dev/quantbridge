@@ -38,17 +38,19 @@ export function MobileNav({ pathname }: MobileNavProps) {
   return (
     <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
       {/* SheetContent 기본 = bottom slide. left-side drawer 로 override.
-          showHandle=false (handle 은 bottom-sheet 시각 단서, left drawer 에는 불필요). */}
+          showHandle=false (handle 은 bottom-sheet 시각 단서, left drawer 에는 불필요).
+          ★min-[769px]:hidden — 햄버거를 켜는 KITPORT 미디어(max-width:768)는 경계 포함이라,
+          md:(min-width:768)를 쓰면 정확히 768px 에서 햄버거는 보이는데 drawer 만 숨는다(데드심). */}
       <SheetContent
         showHandle={false}
-        className="qb-mobile-nav inset-y-0 left-0 right-auto bottom-auto h-dvh w-[280px] max-w-[85vw] rounded-none border-r border-t-0 p-0 pb-0 data-open:slide-in-from-left data-closed:slide-out-to-left md:hidden"
+        className="qb-mobile-nav data-open:slide-in-from-left data-closed:slide-out-to-left inset-y-0 right-auto bottom-auto left-0 h-dvh w-[280px] max-w-[85vw] rounded-none border-t-0 border-r p-0 pb-0 min-[769px]:hidden"
       >
         <SheetHeader className="flex flex-row items-center justify-between border-b border-[color:var(--border)] px-4 py-3">
           <SheetTitle className="font-display text-base">QuantBridge</SheetTitle>
           {/* G.3-1 (P1, a11y) — touch screen reader 사용자 escape 의무. 44×44 visible close button */}
           <SheetClose
             aria-label="메뉴 닫기"
-            className="grid size-11 place-items-center rounded-md text-[color:var(--muted-foreground)] hover:bg-[color:var(--sidebar-accent)] hover:text-[color:var(--foreground)] transition-colors"
+            className="grid size-11 place-items-center rounded-md text-[color:var(--muted-foreground)] transition-colors hover:bg-[color:var(--sidebar-accent)] hover:text-[color:var(--foreground)]"
           >
             <CloseIcon className="size-5" aria-hidden="true" />
           </SheetClose>

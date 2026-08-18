@@ -81,6 +81,19 @@ describe("ParameterStabilitySection — screen-10 03 구조", () => {
     expect(scale.textContent).toBe("0.001.66");
   });
 
+  it("metric=total_return 이면 평균·축 스케일을 % 로 인쇄한다 (formatObjectiveValue 분기)", () => {
+    render(
+      <ParameterStabilitySection result={{ ...RESULT, objective_metric: "total_return" }} />,
+    );
+    const grid = screen.getByTestId("param-stability-grid");
+    const fastCol = grid.querySelectorAll(".pcol")[0]!;
+    const pvals = Array.from(fastCol.querySelectorAll(".pval")).map((e) => e.textContent);
+    expect(pvals).toEqual(["92.33%", "166.00%", "125.00%"]);
+    // 축 스케일도 같은 단위 — 0.00% ~ 166.00%
+    const scale = fastCol.querySelector(".pscale-in")!;
+    expect(scale.textContent).toBe("0.00%166.00%");
+  });
+
   it("전 셀 축퇴면 무데이터 문구를 그린다", () => {
     const allDegenerate: GridSearchResult = {
       ...RESULT,

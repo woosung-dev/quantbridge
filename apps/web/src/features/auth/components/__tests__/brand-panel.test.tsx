@@ -30,6 +30,13 @@ describe("BrandPanel", () => {
     expect(screen.getByText(/자체 인터프리터입니다/)).toBeInTheDocument();
   });
 
+  it("거짓 카피 없음 — 소셜 로그인은 배선이 없으므로 언급하지 않는다", () => {
+    const { container } = render(<BrandPanel />);
+    expect(container.textContent).not.toContain("소셜");
+    expect(container.textContent).not.toContain("Google");
+    expect(container.textContent).not.toContain("GitHub");
+  });
+
   it("AI-slop 제거 — 아바타 군집·후기·가짜 라이브 점 없음", () => {
     const { container } = render(<BrandPanel />);
     expect(screen.queryByTestId("brand-avatars")).not.toBeInTheDocument();

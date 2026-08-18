@@ -4,24 +4,18 @@
 import { useEffect, useRef, useState } from "react";
 import { SearchIcon } from "lucide-react";
 
+import { WAITLIST_STATUS_LABEL } from "@/features/waitlist/labels";
 import type { WaitlistStatus } from "@/features/waitlist/schemas";
 
 export type WaitlistFilter = WaitlistStatus | "all";
 
-const CHIP_TONE: Record<WaitlistFilter, string> = {
-  all: "var(--text-muted)",
-  pending: "var(--warning)",
-  invited: "var(--primary)",
-  joined: "var(--success)",
-  rejected: "var(--text-muted)",
-};
-
+// 상태 라벨은 용어 SSOT(labels.ts)에서 파생 — 표 배지와 같은 문자열.
 const CHIPS: ReadonlyArray<{ id: WaitlistFilter; label: string }> = [
   { id: "all", label: "전체" },
-  { id: "pending", label: "대기중" },
-  { id: "invited", label: "초대됨" },
-  { id: "joined", label: "가입완료" },
-  { id: "rejected", label: "거절" },
+  { id: "pending", label: WAITLIST_STATUS_LABEL.pending.label },
+  { id: "invited", label: WAITLIST_STATUS_LABEL.invited.label },
+  { id: "joined", label: WAITLIST_STATUS_LABEL.joined.label },
+  { id: "rejected", label: WAITLIST_STATUS_LABEL.rejected.label },
 ];
 
 export interface WaitlistFilterBarProps {
@@ -63,13 +57,10 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
       className="mb-4 flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center"
     >
       <label
-        className="flex h-10 w-full items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--border)] bg-card px-3 transition focus-within:border-[color:var(--primary)] md:w-[280px]"
+        className="bg-card flex h-10 w-full items-center gap-2 rounded-[var(--radius-md)] border border-[color:var(--border)] px-3 transition focus-within:border-[color:var(--primary)] md:w-[280px]"
         aria-label="이메일 검색"
       >
-        <SearchIcon
-          className="size-4 text-[color:var(--text-muted)]"
-          aria-hidden="true"
-        />
+        <SearchIcon className="size-4 text-[color:var(--text-muted)]" aria-hidden="true" />
         <input
           type="text"
           value={draft}
@@ -97,22 +88,16 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
               data-active={active || undefined}
               className={
                 // Precision Instrument: 플랫 + 1px 보더 — chipPop/hover lift/shadow 폐기, 색 변화만.
-                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-200 ease-out " +
+                // v3 캐논 — pill 반경 폐기, 태그 반경(radius-sm 4px)으로 타이트닝 (DESIGN.md §5/§7.4).
+                "inline-flex flex-shrink-0 items-center gap-1.5 rounded-[var(--radius-sm)] border px-3 py-1.5 text-xs font-medium transition-colors duration-200 ease-out " +
                 (active
                   ? "border-[color:var(--primary)] bg-[color:var(--primary-light)] text-[color:var(--primary)]"
-                  : "border-[color:var(--border)] bg-card text-[color:var(--text-secondary)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]")
+                  : "bg-card border-[color:var(--border)] text-[color:var(--text-secondary)] hover:border-[color:var(--border-dark)] hover:bg-[color:var(--bg-alt)]")
               }
             >
-              {chip.id !== "all" && (
-                <span
-                  aria-hidden="true"
-                  className="size-1.5 rounded-full"
-                  style={{ backgroundColor: CHIP_TONE[chip.id] }}
-                />
-              )}
               <span>{chip.label}</span>
               {typeof count === "number" && (
-                <span className="font-mono text-[10px] tabular-nums text-[color:var(--text-muted)]">
+                <span className="font-mono text-[10px] text-[color:var(--text-muted)] tabular-nums">
                   ({count})
                 </span>
               )}

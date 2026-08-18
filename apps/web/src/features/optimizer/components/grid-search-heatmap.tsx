@@ -4,40 +4,45 @@
 "use client";
 
 import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
+import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { GridSearchResult } from "@/features/optimizer/schemas";
 import { OPTIMIZER_EMPTY_REASON } from "@/features/optimizer/labels";
+import { InfoIcon } from "@/components/info-icon";
 import { EMPTY_CELL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 interface Props {
   result: GridSearchResult;
-  /** 2D heatmap 으로 그릴 변수쌍 (param_names.length === 2 일 때 자동, N>2 일 때는 pair-selector 선택) */
+  /**
+   * 2D heatmap 으로 그릴 변수쌍 (param_names.length === 2 일 때 자동, N>2 일 때는 pair-selector 선택).
+   * pair[0]=행(세로축), pair[1]=열(가로축).
+   */
   pair: readonly [string, string];
 }
 
 export function GridSearchHeatmap({ result, pair }: Props) {
-  const [xName, yName] = pair;
-  const xValues = result.param_values[xName] ?? [];
-  const yValues = result.param_values[yName] ?? [];
+  const [rowName, colName] = pair;
+  const rowValues = result.param_values[rowName] ?? [];
+  const colValues = result.param_values[colName] ?? [];
 
   // pair 가 전체 param_names 와 일치하는 경우 (2D) → 모든 cell row-major 매핑.
-  // N>2 인 경우 → best cell 의 나머지 변수 값으로 fix, 해당 (x, y) 평면 slice.
+  // N>2 인 경우 → best cell 의 나머지 변수 값으로 fix, 해당 (행, 열) 평면 slice.
   const fixOthers: Record<string, number> = {};
   if (result.param_names.length > 2 && result.best_cell_index !== null) {
     const bestCell = result.cells[result.best_cell_index];
     if (bestCell) {
       for (const k of result.param_names) {
-        if (k !== xName && k !== yName) {
+        if (k !== rowName && k !== colName) {
           fixOthers[k] = bestCell.param_values[k] ?? 0;
         }
       }
     }
   }
 
-  // cell lookup: (x, y) → cell (fix other vars equal).
-  function findCell(x: number, y: number): GridSearchResult["cells"][number] | null {
+  // cell lookup: (행, 열) → cell (fix other vars equal).
+  function findCell(rowV: number, colV: number): GridSearchResult["cells"][number] | null {
     for (const c of result.cells) {
-      if (c.param_values[xName] !== x || c.param_values[yName] !== y) continue;
+      if (c.param_values[rowName] !== rowV || c.param_values[colName] !== colV) continue;
       let match = true;
       for (const k in fixOthers) {
         if (c.param_values[k] !== fixOthers[k]) {
@@ -75,17 +80,17 @@ export function GridSearchHeatmap({ result, pair }: Props) {
 
   return (
     <div className="table-wrap">
-      <table className="hm" aria-label={`그리드 히트맵 (${xName} × ${yName})`}>
+      <table className="hm" aria-label={`그리드 히트맵 (${rowName} × ${colName})`}>
         <caption className="card-sub" style={{ textAlign: "left", padding: "4px 0 8px" }}>
-          가로축 {yName}, 세로축 {xName}. 칸 안 숫자는{" "}
+          가로축 {colName}, 세로축 {rowName}. 칸 안 숫자는{" "}
           {OBJECTIVE_METRIC_LABEL[result.objective_metric]}입니다.
         </caption>
         <thead>
           <tr>
             <th scope="col">
-              <span className="dim">{`${xName} \\ ${yName}`}</span>
+              <span className="dim">{`${rowName} \\ ${colName}`}</span>
             </th>
-            {yValues.map((v) => (
+            {colValues.map((v) => (
               <th key={v} scope="col">
                 {v}
               </th>
@@ -93,14 +98,14 @@ export function GridSearchHeatmap({ result, pair }: Props) {
           </tr>
         </thead>
         <tbody>
-          {xValues.map((x) => (
-            <tr key={x}>
-              <th scope="row">{x}</th>
-              {yValues.map((y) => {
-                const cell = findCell(x, y);
+          {rowValues.map((rowV) => (
+            <tr key={rowV}>
+              <th scope="row">{rowV}</th>
+              {colValues.map((colV) => {
+                const cell = findCell(rowV, colV);
                 if (cell == null) {
                   return (
-                    <td key={`${x}-${y}`}>
+                    <td key={`${rowV}-${colV}`}>
                       <span className="hm-cell degenerate">{EMPTY_CELL}</span>
                     </td>
                   );
@@ -109,13 +114,13 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                 const isDegenerate = cell.is_degenerate || cell.num_trades === 0;
                 const isBest =
                   bestParamValues != null &&
-                  bestParamValues[xName] === x &&
-                  bestParamValues[yName] === y &&
+                  bestParamValues[rowName] === rowV &&
+                  bestParamValues[colName] === colV &&
                   (Object.keys(fixOthers).length === 0 ||
                     Object.entries(fixOthers).every(([k, v]) => bestParamValues[k] === v));
                 if (isDegenerate || objVal === null) {
                   return (
-                    <td key={`${x}-${y}`}>
+                    <td key={`${rowV}-${colV}`}>
                       <span
                         className="hm-cell degenerate"
                         title={OPTIMIZER_EMPTY_REASON.degenerateNoSharpe}
@@ -125,14 +130,20 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                     </td>
                   );
                 }
+                // 목표값 단위 SSOT(formatObjectiveValue) — ratio 지표는 %, sharpe 는 소수.
+                // 히트맵 셀은 밀도가 높아 ratio 지표를 소수 1자리 %(예: 87.4%)로 줄인다
+                // (2자리는 셀 폭을 밀어 표를 깨뜨린다 — 정밀값은 리더보드가 이미 인쇄한다).
+                const cellText = formatObjectiveValue(result.objective_metric, objVal, {
+                  percentDigits: 1,
+                });
                 return (
-                  <td key={`${x}-${y}`}>
+                  <td key={`${rowV}-${colV}`}>
                     <span
                       className={cn("hm-cell", isBest && "best")}
                       style={{ background: bgFor(objVal) }}
-                      title={`${xName}=${x}, ${yName}=${y}, ${OBJECTIVE_METRIC_LABEL[result.objective_metric]}=${objVal.toFixed(2)}${isBest ? " (최적)" : ""}`}
+                      title={`${rowName}=${rowV}, ${colName}=${colV}, ${OBJECTIVE_METRIC_LABEL[result.objective_metric]}=${cellText}${isBest ? " (최적)" : ""}`}
                     >
-                      {objVal.toFixed(2)}
+                      {cellText}
                     </span>
                   </td>
                 );
@@ -142,22 +153,14 @@ export function GridSearchHeatmap({ result, pair }: Props) {
         </tbody>
       </table>
       <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
-        <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <line x1="12" y1="11" x2="12" y2="16" />
-          <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
-        </svg>
+        <InfoIcon />
         칸 농도는 목표값을 선형으로 이었습니다. 색만으로 읽지 않도록 숫자를 함께 인쇄합니다. 최적
         칸은 색이 아니라 코퍼 테두리로, 거래 0건 축퇴 칸은 색을 넣지 않고 점선 테두리로 스케일에서
         빼냅니다.
       </p>
       {result.param_names.length > 2 && Object.keys(fixOthers).length > 0 ? (
         <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
-          <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <line x1="12" y1="11" x2="12" y2="16" />
-            <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
-          </svg>
+          <InfoIcon />
           기타 변수는 최적 셀 값으로 고정한 단면입니다.{" "}
           {Object.entries(fixOthers)
             .map(([k, v]) => `${k}=${v}`)

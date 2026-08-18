@@ -45,6 +45,41 @@ describe("SplitScreenShell", () => {
     ).toBeInTheDocument();
   });
 
+  it("거짓 카피 없음 — 소셜(Google·GitHub) 로그인은 배선이 없으므로 언급하지 않는다", () => {
+    const { container } = render(
+      <SplitScreenShell mode="sign-in">
+        <div>x</div>
+      </SplitScreenShell>,
+    );
+    expect(container.textContent).not.toContain("소셜");
+    expect(container.textContent).not.toContain("Google");
+    expect(container.textContent).not.toContain("GitHub");
+  });
+
+  it("sign-in 모드 — 우상단에 회원가입 상호 링크 → /sign-up", () => {
+    render(
+      <SplitScreenShell mode="sign-in">
+        <div>x</div>
+      </SplitScreenShell>,
+    );
+    expect(screen.getByRole("link", { name: "회원가입" })).toHaveAttribute(
+      "href",
+      "/sign-up",
+    );
+  });
+
+  it("sign-up 모드 — 우상단에 로그인 상호 링크 → /sign-in", () => {
+    render(
+      <SplitScreenShell mode="sign-up">
+        <div>x</div>
+      </SplitScreenShell>,
+    );
+    expect(screen.getByRole("link", { name: "로그인" })).toHaveAttribute(
+      "href",
+      "/sign-in",
+    );
+  });
+
   it("자체 푸터 노출 (계정 관리 주체 명시)", () => {
     const { container } = render(
       <SplitScreenShell mode="sign-in">

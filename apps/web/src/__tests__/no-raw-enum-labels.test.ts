@@ -208,6 +208,8 @@ const SCOPE_MARKERS: readonly string[] = [
   join("features", "optimizer", "components"), // 구 .../optimizer/_components
   join("features", "strategy", "components"), // 구 .../strategies{,/new,/[id]/edit}/_components
   join("features", "live-sessions", "components"),
+  // waitlist admin 표면이 labels SSOT 로 이관되면서 스코프 편입 (T2 S4 검증 P3).
+  join("features", "waitlist", "components"),
 ];
 
 function getScopedFiles(): string[] {

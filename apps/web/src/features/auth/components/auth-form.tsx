@@ -4,8 +4,10 @@
 // 마크업 어휘(.field/.input/.field-error/.btn)는 `waitlist-form-card.tsx` 와 같은 C 디자인
 // 캐논을 따른다 — 새 클래스를 만들지 않는 것이 이 파일의 제약이다.
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
 
@@ -29,7 +31,7 @@ type SignInValues = z.infer<typeof SignInSchema>;
 type SignUpValues = z.infer<typeof SignUpSchema>;
 type Values = SignInValues & Partial<Pick<SignUpValues, "name">>;
 
-function FieldError({ id, message }: { id: string; message: string }) {
+function FieldError({ id, message }: { id: string; message: ReactNode }) {
   return (
     <p className="field-error" id={id} role="alert">
       <svg
@@ -54,10 +56,19 @@ function FieldError({ id, message }: { id: string; message: string }) {
  * ★원문을 그대로 노출하지 않는다 — 2026-08-15 surface-truth 가 「내부 예외 문자열이 응답
  * 본문에 반사된다」를 두 축에서 닫았고, 인증 화면은 그 표면이 가장 넓은 자리다.
  */
-function describe(code: string | undefined, status: number | undefined, mode: Mode): string {
+function describe(code: string | undefined, status: number | undefined, mode: Mode): ReactNode {
   if (status === 429) return "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.";
   if (mode === "sign-up" && code === "USER_ALREADY_EXISTS") {
-    return "이미 가입된 이메일입니다. 로그인해 주세요.";
+    // 「로그인해 주세요」라고 지시만 하고 길을 안 주면 사용자가 주소를 손으로 쳐야 한다 — 인라인 링크를 준다.
+    return (
+      <>
+        이미 가입된 이메일입니다.{" "}
+        <Link className="underline" href="/sign-in">
+          로그인
+        </Link>
+        해 주세요.
+      </>
+    );
   }
   if (mode === "sign-up" && status === 403) {
     return "현재 이 지역에서는 가입할 수 없습니다.";
@@ -71,7 +82,9 @@ export type Mode = "sign-in" | "sign-up";
 export function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string }) {
   const router = useRouter();
   const isSignUp = mode === "sign-up";
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<ReactNode | null>(null);
+  // 비밀번호 표시 토글(screen-15 .auth-eye 이식) — 순수 클라이언트 상태라 여기서 끝난다.
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<Values>({
     resolver: zodV4Resolver(isSignUp ? SignUpSchema : SignInSchema),
@@ -152,17 +165,34 @@ export function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string 
           <label className="field-label" htmlFor="auth-password">
             비밀번호
           </label>
-          <input
-            className={errors.password ? "input invalid" : "input"}
-            id="auth-password"
-            type="password"
-            autoComplete={isSignUp ? "new-password" : "current-password"}
-            aria-invalid={errors.password ? "true" : "false"}
-            aria-describedby={
-              errors.password ? "auth-password-error" : isSignUp ? "auth-password-hint" : undefined
-            }
-            {...form.register("password")}
-          />
+          {/* 표시 토글 — screen-15 .auth-input-wrap/.auth-eye 이식. 값은 그대로 두고 type 만 바꾼다. */}
+          <span className="auth-input-wrap">
+            <input
+              className={errors.password ? "input invalid" : "input"}
+              id="auth-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete={isSignUp ? "new-password" : "current-password"}
+              aria-invalid={errors.password ? "true" : "false"}
+              aria-describedby={
+                errors.password
+                  ? "auth-password-error"
+                  : isSignUp
+                    ? "auth-password-hint"
+                    : undefined
+              }
+              {...form.register("password")}
+            />
+            <button
+              className="auth-eye"
+              type="button"
+              onClick={() => setShowPassword((prev) => !prev)}
+              aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 표시"}
+              aria-pressed={showPassword}
+              aria-controls="auth-password"
+            >
+              {showPassword ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}
+            </button>
+          </span>
           {errors.password?.message ? (
             <FieldError id="auth-password-error" message={errors.password.message} />
           ) : isSignUp ? (
@@ -172,7 +202,24 @@ export function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string 
           ) : null}
         </div>
 
-        {formError ? <FieldError id="auth-form-error" message={formError} /> : null}
+        {/* 폼 레벨 에러 — 필드 프리미티브(.field-error)가 아니라 screen-15 의 블록 알럿(.form-alert)으로
+            승격한다. formError 는 ReactNode 라 USER_ALREADY_EXISTS 의 인라인 링크가 그대로 살아 있다. */}
+        {formError ? (
+          <div className="form-alert" id="auth-form-error" role="alert">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M10.3 3.9 1.9 18a2 2 0 0 0 1.7 3h16.8a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+              <line x1="12" y1="9" x2="12" y2="13.5" />
+              <line x1="12" y1="17" x2="12" y2="17" />
+            </svg>
+            <span className="form-alert-title">{formError}</span>
+          </div>
+        ) : null}
 
         <button
           className="btn btn-primary btn-block form-submit"

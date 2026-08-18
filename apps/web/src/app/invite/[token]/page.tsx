@@ -37,8 +37,30 @@ function Shell({
 }) {
   return (
     <main className="mx-auto flex w-full max-w-[560px] flex-col gap-6 px-4 py-16">
-      <header className="flex flex-col gap-2">
-        <p className="text-sm text-muted-foreground">QuantBridge Beta</p>
+      <header className="flex flex-col gap-4">
+        {/* 브랜드 헤더 — waitlist/auth 셸과 같은 brand-mark + 워드마크 (풀 네비는 싣지 않는다).
+            초대 메일에서 처음 도착하는 표면이라 마케팅 군과 같은 브랜드 언어를 쓴다. */}
+        <div className="flex items-center gap-3">
+          <Link className="mkt-brand" href="/" aria-label="QuantBridge 홈으로">
+            <span className="brand-mark" aria-hidden="true">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="3 17 9 11 13 15 21 7" />
+                <polyline points="15 7 21 7 21 13" />
+              </svg>
+            </span>
+            <span className="brand-name">QuantBridge</span>
+          </Link>
+          <span className="chip">Beta</span>
+        </div>
         <h1 className="text-2xl font-bold md:text-3xl">{heading}</h1>
       </header>
       {children}
@@ -57,8 +79,9 @@ export default async function InvitePage({ params }: PageProps) {
           링크가 만료됐거나 이미 사용됐을 수 있습니다. 초대 메일의 링크를 다시
           확인해 주세요.
         </p>
-        <Link href="/waitlist" className="underline">
-          대기자 명단 다시 신청하기
+        {/* 용어 통일 — 다른 표면 전부가 「웨이트리스트」다 (waitlist-form-card.tsx:138). */}
+        <Link href="/waitlist" className="btn btn-ghost w-fit">
+          웨이트리스트 다시 신청하기
         </Link>
       </Shell>
     );
@@ -82,7 +105,7 @@ export default async function InvitePage({ params }: PageProps) {
         <p className="text-muted-foreground">
           {view.email} 계정으로 바로 로그인하세요.
         </p>
-        <Link href="/sign-in" className="underline">
+        <Link href="/sign-in" className="btn btn-ghost w-fit">
           로그인
         </Link>
       </Shell>
@@ -106,19 +129,21 @@ export default async function InvitePage({ params }: PageProps) {
         <span className="font-medium text-foreground">{view.email}</span> 로
         초대가 확정됐습니다. 같은 이메일로 계정을 만들어 주세요.
       </p>
+      {/* 주 CTA = .btn-primary, 보조 = .btn-ghost — 위계는 유지하되 .btn 체계로 통일한다. */}
       <Link
         href={`/sign-up?email=${encodeURIComponent(view.email)}`}
-        className="w-fit rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
+        className="btn btn-primary w-fit"
       >
         계정 만들기
       </Link>
-      <p className="text-sm text-muted-foreground">
-        이미 계정이 있다면{" "}
-        <Link href="/sign-in" className="underline">
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-muted-foreground">
+          이미 계정이 있다면
+        </span>
+        <Link href="/sign-in" className="btn btn-ghost">
           로그인
         </Link>
-        하세요.
-      </p>
+      </div>
     </Shell>
   );
 }

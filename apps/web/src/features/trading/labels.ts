@@ -265,6 +265,16 @@ export const ORDER_LEDGER_COPY = {
 export const ORDER_LIQUIDATION_DELEGATION_NOTE =
   "청산가는 이 표에 표시하지 않습니다. 체결된 주문이 곧 열린 포지션을 뜻하지 않고(이미 청산됐을 수 있습니다), 지금 포지션을 돌려주는 API 도 아직 없기 때문입니다. 확인할 수 없는 값을 라이브 위험처럼 보이게 하지 않으려고 칸 자체를 두지 않았습니다. 포지션은 트레이딩 코크핏에서 확인하세요.";
 
+/**
+ * 킬 스위치 trigger_type → 한국어 라벨. 배너 파일 소유였다가 §04 패널도 같은 값을 인쇄하게
+ * 되면서 용어 SSOT 로 승격했다(원시 enum 렌더 금지). 알 수 없는 값은 소비자가 원문 fallback.
+ */
+export const KS_TRIGGER_LABELS: Record<string, string> = {
+  daily_loss: "일일 손실 한도 초과",
+  cumulative_loss: "누적 손실 한도 초과",
+  api_error: "거래소 API 오류",
+};
+
 /** 킬 스위치. 기능명과 버튼 라벨(동사형)을 분리한다. screen-01-trading-cockpit.html:1336 · :1154 · :1157 */
 export const KILL_SWITCH_LABEL = {
   feature: "킬 스위치",

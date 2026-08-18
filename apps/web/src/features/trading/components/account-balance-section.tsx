@@ -1,7 +1,12 @@
 // 활성 라이브 세션이 참조하는 거래소 계정 잔고 카드를 렌더한다.
+// 프로토타입 screen-01:1171-1197 의 1카드-1지표 관례 — 계정 잔고와 사용 가능을 각각의
+// .card.kpi 로 나누고, 로딩·에러는 §01 형제 KPI 들과 같은 StatValue 규율로 표기한다.
 "use client";
 
+import { Fragment } from "react";
+
 import { StateBox } from "@/components/state-box";
+import { StatValue } from "@/components/stat-value";
 import { useAccountBalances } from "@/features/trading/hooks";
 import type { ExchangeAccount } from "@/features/trading/schemas";
 
@@ -40,42 +45,57 @@ export function AccountBalanceSection({ accounts }: { accounts: readonly Account
         const balance = query?.data;
         const percent = usagePercent(balance?.total ?? null, balance?.free ?? null);
         const asset = balance?.asset ?? "USDT";
+        const isPending = query?.isLoading === true;
+        const isError = query?.isError === true;
+        // 무데이터 사유는 계정 잔고 카드 한 곳에만 적는다(같은 조회의 사유를 두 번 반복하지 않는다).
+        const reasonFoot = isError
+          ? "잔고를 불러오지 못했습니다."
+          : !isPending && balance != null && !balance.supported
+            ? (balance.reason ?? "잔고 조회를 지원하지 않습니다.")
+            : null;
 
         return (
-          <article className="card kpi" key={account.id}>
-            <p className="kpi-label">계정 잔고</p>
-            <p className="kpi-value mono" data-testid={`balance-total-${account.id}`}>
-              {query?.isLoading ? "불러오는 중" : balance?.total ?? "확인 불가"}
-              {balance?.total !== null && balance?.total !== undefined ? ` ${asset}` : null}
-            </p>
-            <p className="kpi-label">사용 가능</p>
-            <p className="kpi-value mono" data-testid={`balance-free-${account.id}`}>
-              {query?.isLoading ? "불러오는 중" : balance?.free ?? "확인 불가"}
-              {balance?.free !== null && balance?.free !== undefined ? ` ${asset}` : null}
-            </p>
-            {query?.isLoading ? null : query?.isError ? (
-              <p className="kpi-foot">잔고를 불러오지 못했습니다.</p>
-            ) : !balance?.supported ? (
-              <p className="kpi-foot">{balance?.reason ?? "잔고 조회를 지원하지 않습니다."}</p>
-            ) : percent === null ? (
-              <p className="kpi-foot">확인 불가</p>
-            ) : (
-              <>
-                <div
-                  className="meter"
-                  aria-label={`사용 가능 잔고 ${percent.toFixed(0)}%`}
-                  data-testid={`balance-meter-${account.id}`}
-                >
-                  <span style={{ width: `${percent}%` }} />
-                </div>
-                <p className="kpi-foot">사용 가능 {percent.toFixed(0)}%</p>
-              </>
-            )}
-            <p className="card-sub">
-              <span className="chip">{account.label}</span>
-              {balance?.fetched_at ? ` · ${balance.fetched_at}` : null}
-            </p>
-          </article>
+          <Fragment key={account.id}>
+            <article className="card kpi">
+              <p className="kpi-label">계정 잔고</p>
+              <p className="kpi-value mono" data-testid={`balance-total-${account.id}`}>
+                <StatValue isError={isError} isPending={isPending}>
+                  {balance?.total != null ? `${balance.total} ${asset}` : "확인 불가"}
+                </StatValue>
+              </p>
+              {reasonFoot != null ? <p className="kpi-foot">{reasonFoot}</p> : null}
+              <p className="card-sub">
+                <span className="chip">{account.label}</span>
+                {balance?.fetched_at ? ` · ${balance.fetched_at}` : null}
+              </p>
+            </article>
+
+            <article className="card kpi">
+              <p className="kpi-label">사용 가능</p>
+              <p className="kpi-value mono" data-testid={`balance-free-${account.id}`}>
+                <StatValue isError={isError} isPending={isPending}>
+                  {balance?.free != null ? `${balance.free} ${asset}` : "확인 불가"}
+                </StatValue>
+              </p>
+              {isPending || isError ? null : percent === null ? (
+                <p className="kpi-foot">확인 불가</p>
+              ) : (
+                <>
+                  <div
+                    className="meter"
+                    aria-label={`사용 가능 잔고 ${percent.toFixed(0)}%`}
+                    data-testid={`balance-meter-${account.id}`}
+                  >
+                    <span style={{ width: `${percent}%` }} />
+                  </div>
+                  <p className="kpi-foot">사용 가능 {percent.toFixed(0)}%</p>
+                </>
+              )}
+              <p className="card-sub">
+                <span className="chip">{account.label}</span>
+              </p>
+            </article>
+          </Fragment>
         );
       })}
     </div>

@@ -36,6 +36,14 @@ function useNowTick(intervalMs: number): number {
   return now;
 }
 
+// 손익 톤 — 옵티마이저 pnlTone 과 같은 0-중립 규약(양수 pos / 음수 neg / 0 중립).
+// 프로토타입 screen-01:1188 은 kpi-value mono pos 로 물들인다.
+function pnlTone(v: number): string {
+  if (v > 0) return " pos";
+  if (v < 0) return " neg";
+  return "";
+}
+
 function formatEstimatedPnl(value: number): string {
   const sign = value > 0 ? "+" : value < 0 ? "-" : "";
   return `${sign}${Math.abs(value).toLocaleString("en-US", {
@@ -57,7 +65,10 @@ export function UnrealizedPnlKpi({ sessions }: UnrealizedPnlKpiProps) {
   return (
     <article className="card kpi">
       <p className="kpi-label">미실현 손익 · 추정</p>
-      <p className="kpi-value mono" data-testid="kpi-unrealized-pnl">
+      <p
+        className={`kpi-value mono${unrealized.total === null ? "" : pnlTone(unrealized.total)}`}
+        data-testid="kpi-unrealized-pnl"
+      >
         {unrealized.total === null ? (
           <span className="kpi-na">시세 수신 대기</span>
         ) : (

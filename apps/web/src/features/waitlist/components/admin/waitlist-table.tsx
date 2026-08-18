@@ -2,32 +2,17 @@
 // W6 strategy-table 패턴 차용. 정렬 키 = email/created/status, aria-sort 적용.
 "use client";
 
-import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronsUpDown, ChevronUp, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/features/backtest/utils";
-import type {
-  WaitlistApplicationResponse,
-  WaitlistStatus,
-} from "@/features/waitlist/schemas";
+import { WAITLIST_ACTION_EMPTY_REASON, WAITLIST_STATUS_LABEL } from "@/features/waitlist/labels";
+import type { WaitlistApplicationResponse, WaitlistStatus } from "@/features/waitlist/schemas";
+import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 
 type SortKey = "email" | "created" | "status";
 type SortDir = "asc" | "desc";
-
-const STATUS_BADGE: Record<WaitlistStatus, string> = {
-  pending: "bg-[color:var(--warning-subtle)] text-[color:var(--warning)]",
-  invited: "bg-[color:var(--primary-light)] text-[color:var(--primary)]",
-  joined: "bg-[color:var(--success-subtle)] text-[color:var(--success)]",
-  rejected: "bg-[color:var(--muted)] text-[color:var(--text-secondary)]",
-};
-
-const STATUS_LABEL: Record<WaitlistStatus, string> = {
-  pending: "대기중",
-  invited: "초대됨",
-  joined: "가입완료",
-  rejected: "거절",
-};
 
 const STATUS_ORDER: Record<WaitlistStatus, number> = {
   pending: 0,
@@ -42,11 +27,7 @@ interface WaitlistTableProps {
   isApproving: boolean;
 }
 
-export function WaitlistTable({
-  items,
-  onApprove,
-  isApproving,
-}: WaitlistTableProps) {
+export function WaitlistTable({ items, onApprove, isApproving }: WaitlistTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>("created");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
@@ -55,13 +36,9 @@ export function WaitlistTable({
     copy.sort((a, b) => {
       const dir = sortDir === "asc" ? 1 : -1;
       if (sortKey === "email") return a.email.localeCompare(b.email) * dir;
-      if (sortKey === "status")
-        return (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]) * dir;
+      if (sortKey === "status") return (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]) * dir;
       // created
-      return (
-        (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) *
-        dir
-      );
+      return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * dir;
     });
     return copy;
   }, [items, sortKey, sortDir]);
@@ -81,9 +58,9 @@ export function WaitlistTable({
   };
 
   return (
-    <div className="overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-card">
+    <div className="bg-card overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)]">
       <table className="w-full text-left text-sm" role="table">
-        <thead className="bg-[color:var(--bg-alt)] text-xs uppercase tracking-wide text-[color:var(--text-secondary)]">
+        <thead className="bg-[color:var(--bg-alt)] text-xs tracking-wide text-[color:var(--text-secondary)] uppercase">
           <tr>
             <SortHeader
               label="이메일"
@@ -93,16 +70,16 @@ export function WaitlistTable({
               onClick={() => handleSort("email")}
             />
             <th scope="col" className="px-4 py-3">
-              TV
+              TV 구독
             </th>
             <th scope="col" className="px-4 py-3">
               자본
             </th>
             <th scope="col" className="px-4 py-3">
-              Pine
+              Pine 경험
             </th>
             <th scope="col" className="px-4 py-3">
-              Pain Point
+              풀고 싶은 문제
             </th>
             <SortHeader
               label="상태"
@@ -124,72 +101,66 @@ export function WaitlistTable({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((item) => (
-            <tr
-              key={item.id}
-              className="border-t border-[color:var(--border)] align-top transition-colors duration-200 ease-out hover:bg-muted/50"
-            >
-              <td className="px-4 py-3 font-medium">{item.email}</td>
-              <td className="px-4 py-3 text-xs text-[color:var(--text-secondary)]">
-                {item.tv_subscription}
-              </td>
-              <td className="px-4 py-3 text-xs text-[color:var(--text-secondary)]">
-                {item.exchange_capital}
-              </td>
-              <td className="px-4 py-3 text-xs text-[color:var(--text-secondary)]">
-                {item.pine_experience}
-              </td>
-              <td className="px-4 py-3">
-                <span className="line-clamp-3 block max-w-[280px] text-xs text-[color:var(--text-secondary)]">
-                  {item.pain_point}
-                </span>
-              </td>
-              <td className="px-4 py-3">
-                <span
-                  className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGE[item.status]}`}
-                >
-                  {STATUS_LABEL[item.status]}
-                </span>
-              </td>
-              <td className="px-4 py-3 text-xs text-[color:var(--text-muted)]">
-                {formatDate(item.created_at)}
-              </td>
-              <td className="px-4 py-3 text-right">
-                {item.status === "pending" ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={isApproving}
-                    onClick={() => onApprove(item.id)}
-                  >
-                    {isApproving ? (
-                      <span className="inline-flex items-center gap-1.5">
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.5"
-                          aria-hidden="true"
-                          className="motion-safe:animate-spin"
-                        >
-                          <path d="M21 12a9 9 0 1 1-6.22-8.55" />
-                        </svg>
-                        전송 중…
-                      </span>
-                    ) : (
-                      "승인 + 초대"
-                    )}
-                  </Button>
-                ) : (
-                  <span className="text-xs text-[color:var(--text-muted)]">
-                    —
+          {sorted.map((item) => {
+            // 라벨·톤은 용어 SSOT(labels.ts)에서만 온다 — 필터 칩과 같은 문자열.
+            const status = statusLabelOf(WAITLIST_STATUS_LABEL, item.status, "waitlist.status");
+            return (
+              <tr
+                key={item.id}
+                className="hover:bg-muted/50 border-t border-[color:var(--border)] align-top transition-colors duration-200 ease-out"
+              >
+                <td className="px-4 py-3 font-medium">{item.email}</td>
+                <td className="px-4 py-3 text-xs text-[color:var(--text-secondary)]">
+                  {item.tv_subscription}
+                </td>
+                <td className="px-4 py-3 text-xs text-[color:var(--text-secondary)]">
+                  {item.exchange_capital}
+                </td>
+                <td className="px-4 py-3 text-xs text-[color:var(--text-secondary)]">
+                  {item.pine_experience}
+                </td>
+                <td className="px-4 py-3">
+                  <span className="line-clamp-3 block max-w-[280px] text-xs text-[color:var(--text-secondary)]">
+                    {item.pain_point}
                   </span>
-                )}
-              </td>
-            </tr>
-          ))}
+                </td>
+                <td className="px-4 py-3">
+                  {/* v3 캐논 — pill 반경 폐기. 트레이딩 쪽과 같은 .chip 어휘로 그린다. */}
+                  <span className={CHIP_TONE_CLASS[status.tone]}>{status.label}</span>
+                </td>
+                <td className="px-4 py-3 text-xs text-[color:var(--text-muted)]">
+                  {formatDate(item.created_at)}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  {item.status === "pending" ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isApproving}
+                      onClick={() => onApprove(item.id)}
+                    >
+                      {isApproving ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          {/* 수제 SVG 대신 lucide 스피너 — 형제 컴포넌트 관례. */}
+                          <Loader2 className="size-3 motion-safe:animate-spin" aria-hidden="true" />
+                          전송 중…
+                        </span>
+                      ) : (
+                        "승인 + 초대"
+                      )}
+                    </Button>
+                  ) : (
+                    <span
+                      className="text-xs text-[color:var(--text-muted)]"
+                      title={WAITLIST_ACTION_EMPTY_REASON[item.status]}
+                    >
+                      {EMPTY_CELL}
+                    </span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -223,10 +194,7 @@ function SortHeader({ label, active, dir, ariaSort, onClick }: SortHeaderProps) 
             <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
           )
         ) : (
-          <ChevronsUpDown
-            className="h-3.5 w-3.5 text-muted-foreground"
-            aria-hidden="true"
-          />
+          <ChevronsUpDown className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
         )}
       </button>
     </th>

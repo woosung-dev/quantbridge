@@ -58,6 +58,22 @@ const LIST_ENDPOINT = "GET /api/v1/orders";
 
 const STATE_FILTERS: readonly OrderStateFilter[] = ["all", "filled", "open", "closed"];
 
+// 마지막 갱신 chip — 폴링 화면의 신선도 단서(프로토타입 screen-11:1184).
+// ★자체 useOrders 구독으로 격리한 이유: dataUpdatedAt 은 내용이 같아도 매 성공 fetch 마다
+//   바뀐다. 부모(블로터 전체)가 이를 구조분해하면 5초 폴링마다 표 전체가 리렌더된다 —
+//   같은 쿼리 키라 추가 fetch 는 없고 이 chip 만 리렌더된다 (/vercel-react-best-practices).
+// dataUpdatedAt 0(미수신)이면 그리지 않는다. UTC 고정(formatTimeSeconds SSOT).
+function OrdersLastUpdatedChip() {
+  const { dataUpdatedAt } = useOrders(FETCH_LIMIT);
+  if (!dataUpdatedAt) return null;
+  return (
+    <span className="chip" data-testid="orders-last-updated">
+      마지막 갱신{" "}
+      <span className="mono">{formatTimeSeconds(new Date(dataUpdatedAt).toISOString())}</span>
+    </span>
+  );
+}
+
 function matchesFilter(state: Order["state"], f: OrderStateFilter): boolean {
   if (f === "all") return true;
   if (f === "filled") return state === "filled";
@@ -282,8 +298,11 @@ export function OrdersBlotter() {
             <h1 className="report-title">주문</h1>
             <div className="report-meta">
               <span className="chip">주문 {total}건</span>
-              <span className="chip">Bybit</span>
+              {/* 계정 모드는 Bybit demo 뿐(CONTEXT.md)이라 페이지 수준 사실 — 프로토타입
+                  screen-11:1182 의 「Bybit 데모」를 그대로 복원한다. */}
+              <span className="chip">Bybit 데모</span>
               <span className="chip accent">미체결 {openCount}건</span>
+              <OrdersLastUpdatedChip />
             </div>
             <p className="poll-line">
               <ClockIcon aria-hidden="true" />
@@ -304,10 +323,8 @@ export function OrdersBlotter() {
               <DownloadIcon aria-hidden="true" />
               CSV 내보내기
             </button>
-            <button className="btn" type="button" onClick={() => refetch()}>
-              <RefreshCwIcon aria-hidden="true" />
-              새로고침
-            </button>
+            {/* 새로고침 CTA 는 폴링 문맥의 poll-line 「지금 새로고침」 하나만 남긴다 —
+                report-actions 의 「새로고침」은 같은 refetch 를 두 번 노출하던 중복 CTA 였다. */}
           </div>
         </div>
       </section>

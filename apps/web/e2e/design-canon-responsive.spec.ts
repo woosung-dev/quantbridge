@@ -38,15 +38,11 @@ const SIDEBAR_LADDER: ReadonlyArray<readonly [number, string, string]> = [
  */
 async function setCssWidth(page: Page, target: number): Promise<void> {
   await page.setViewportSize({ width: target, height: 1000 });
-  const gap = await page.evaluate(
-    () => window.innerWidth - document.documentElement.clientWidth,
-  );
+  const gap = await page.evaluate(() => window.innerWidth - document.documentElement.clientWidth);
   if (gap > 0) {
     await page.setViewportSize({ width: target + gap, height: 1000 });
   }
-  const effective = await page.evaluate(
-    () => document.documentElement.clientWidth,
-  );
+  const effective = await page.evaluate(() => document.documentElement.clientWidth);
   expect(
     effective,
     `CSS 유효 폭 보정 실패 (요청 ${target} / 실측 ${effective} / 스크롤바 ${gap}px). ` +
@@ -64,9 +60,7 @@ interface SidebarProbe {
 /** `:root` 토큰과, 주입한 `.sidebar` 의 실제 박스를 한 번에 읽는다. */
 async function probeSidebar(page: Page): Promise<SidebarProbe> {
   return page.evaluate(() => {
-    const token = getComputedStyle(document.documentElement)
-      .getPropertyValue("--sidebar-w")
-      .trim();
+    const token = getComputedStyle(document.documentElement).getPropertyValue("--sidebar-w").trim();
     const el = document.createElement("aside");
     el.className = "sidebar";
     document.body.appendChild(el);
@@ -117,6 +111,72 @@ test.describe("앱 셸 반응형 경계 실측 (BL-618, CI)", () => {
     }
   });
 
+  test("768px 데드심 — KITPORT(≤768)와 Tailwind 셸 변형이 같은 쪽에 선다", async ({ page }) => {
+    // KITPORT `max-width:768` 은 경계 **포함**(햄버거 노출·사이드바 숨김)인데, 종전 셸은
+    // Tailwind `md:`(min-width:768)를 써서 **정확히 768px** 에서 햄버거는 보이는데 drawer 와
+    // 상단바 계정 버튼이 함께 숨었다(데드심). 수리 후 셸의 삼분할:
+    //   drawer 콘텐츠 = `min-[769px]:hidden`(모바일 전용) ·
+    //   상단바 계정 = `min-[1025px]:hidden`(모바일 + 아이콘 레일 — 레일에서 사이드바 액션이
+    //     숨는 동안 로그아웃/삭제 경로를 상단바가 잇는다, codex P2 2026-08-18) ·
+    //   사이드바 계정 액션 = globals 의 `.sidebar .qb-acct-action` 스코프 규칙(769~1024 양끝
+    //     포함 raw 미디어 — 스택 max-[1024px]: 은 `width < 1024` 라 경계 1024px 를 놓친다).
+    // 각 유틸이 KITPORT 미디어와 같은 경계에 서는지 주입으로 실측한다(①②와 같은 이유로 공개 라우트 + 주입).
+    await page.goto("/maintenance");
+    await expect(page.locator("main.page")).toBeVisible();
+
+    const probe = () =>
+      page.evaluate(() => {
+        const displayOf = (cls: string, parentCls?: string) => {
+          const host = document.createElement("div");
+          if (parentCls) host.className = parentCls;
+          const el = document.createElement("div");
+          el.className = cls;
+          host.appendChild(el);
+          document.body.appendChild(host);
+          const d = getComputedStyle(el).display;
+          host.remove();
+          return d;
+        };
+        return {
+          hamburger: displayOf("hamburger"),
+          mobileOnly: displayOf("min-[769px]:hidden"),
+          headerAccount: displayOf("min-[1025px]:hidden"),
+          railHidden: displayOf("qb-acct-action", "sidebar"),
+        };
+      });
+
+    // [CSS 유효 폭, 햄버거 display, 모바일 전용 보임?, 상단바 계정 보임?, 사이드바 액션 숨김?]
+    const LADDER: ReadonlyArray<readonly [number, string, boolean, boolean, boolean]> = [
+      [768, "grid", true, true, false], // 경계 자체 — 햄버거·drawer·상단바 계정이 **함께** 살아야 한다
+      [769, "none", false, true, true], // 레일 시작 — 사이드바 액션 숨김, 상단바 계정이 경로 담당
+      [1024, "none", false, true, true], // 레일 끝(경계 포함)
+      [1025, "none", false, false, false], // 풀 사이드바 — 사이드바 액션 복귀, 상단바 계정 숨김
+    ];
+    for (const [cssWidth, wantHamburger, wantMobileVisible, wantHeaderAccount, wantRailHidden] of LADDER) {
+      await setCssWidth(page, cssWidth);
+      const got = await probe();
+      expect(
+        got.hamburger,
+        `${cssWidth}px: .hamburger display 가 ${wantHamburger} 여야 한다 (got ${got.hamburger})`,
+      ).toBe(wantHamburger);
+      expect(
+        got.mobileOnly !== "none",
+        `${cssWidth}px: min-[769px]:hidden 요소 보임 여부가 KITPORT 햄버거와 어긋난다 ` +
+          `(display=${got.mobileOnly}) — 768px 데드심 회귀`,
+      ).toBe(wantMobileVisible);
+      expect(
+        got.headerAccount !== "none",
+        `${cssWidth}px: 상단바 계정(min-[1025px]:hidden) 보임 여부가 어긋난다 ` +
+          `(display=${got.headerAccount}) — 레일 구간 로그아웃 경로 소실 회귀 (codex P2)`,
+      ).toBe(wantHeaderAccount);
+      expect(
+        got.railHidden === "none",
+        `${cssWidth}px: 사이드바 계정 액션(.sidebar .qb-acct-action) 숨김 발화가 레일 구간` +
+          `(769~1024 양끝 포함)과 어긋난다 (display=${got.railHidden})`,
+      ).toBe(wantRailHidden);
+    }
+  });
+
   test(".page max-width — 앱 셸 공용 1240 / 랜딩 1120", async ({ page }) => {
     // 어느 미디어도 발화하지 않는 폭. `.page` 의 max-width 는 폭에 따라 바뀌지 않는다
     // (≤768 에서 바뀌는 것은 padding 뿐 — globals.css:1863).
@@ -124,9 +184,7 @@ test.describe("앱 셸 반응형 경계 실측 (BL-618, CI)", () => {
     await setCssWidth(page, 1440);
     await expect(page.locator("main.page")).toBeVisible();
     expect(
-      await page
-        .locator("main.page")
-        .evaluate((el) => getComputedStyle(el).maxWidth),
+      await page.locator("main.page").evaluate((el) => getComputedStyle(el).maxWidth),
       "공용 .page 는 1240px 이어야 한다 (globals.css:1210). " +
         "/maintenance 는 화면 스코프 래퍼가 없어 base 규칙이 그대로 걸린다",
     ).toBe("1240px");

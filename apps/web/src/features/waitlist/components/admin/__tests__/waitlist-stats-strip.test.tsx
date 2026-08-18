@@ -31,9 +31,7 @@ describe("WaitlistStatsStrip", () => {
     render(<WaitlistStatsStrip items={[]} />);
     expect(screen.getByLabelText("Waitlist 요약 통계")).toBeInTheDocument();
     expect(screen.getByTestId("waitlist-stat-총 신청")).toHaveTextContent("0");
-    expect(screen.getByTestId("waitlist-stat-미승인 (대기중)")).toHaveTextContent(
-      "0",
-    );
+    expect(screen.getByTestId("waitlist-stat-미승인 (대기중)")).toHaveTextContent("0");
     expect(screen.getByTestId("waitlist-stat-승인됨")).toHaveTextContent("0");
   });
 
@@ -48,9 +46,10 @@ describe("WaitlistStatsStrip", () => {
     render(<WaitlistStatsStrip items={items} total={42} />);
     // total prop 우선 — BE total
     expect(screen.getByTestId("waitlist-stat-총 신청")).toHaveTextContent("42");
-    expect(screen.getByTestId("waitlist-stat-미승인 (대기중)")).toHaveTextContent(
-      "2",
-    );
+    // ④ 승인됨 sub — 원시 enum 카피(invited + joined) 대신 한국어 라벨
+    expect(screen.getByText("초대됨 + 가입완료")).toBeInTheDocument();
+    expect(screen.queryByText("invited + joined")).not.toBeInTheDocument();
+    expect(screen.getByTestId("waitlist-stat-미승인 (대기중)")).toHaveTextContent("2");
     // 승인됨 = invited(1) + joined(1)
     expect(screen.getByTestId("waitlist-stat-승인됨")).toHaveTextContent("2");
   });
