@@ -21,6 +21,7 @@ import {
   OPTIMIZER_LIST_HEADER,
 } from "@/features/optimizer/labels";
 import { formatDateTime } from "@/features/backtest/utils";
+import { formatObjectiveValue } from "@/features/optimizer/format";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
 import type {
@@ -222,12 +223,13 @@ export function OptimizerRunList({
                       </span>
                     </td>
                     <td className="num">
+                      {/* 목표값 단위 SSOT — ratio 지표(총 수익률·최대 낙폭)는 %, sharpe 는 소수. */}
                       {best === null ? (
                         <span className="dim" title={bestEmptyTitle(r.status)}>
                           {EMPTY_CELL}
                         </span>
                       ) : (
-                        best.toFixed(2)
+                        formatObjectiveValue(r.param_space.objective_metric, best)
                       )}
                     </td>
                     <td className="col-status">

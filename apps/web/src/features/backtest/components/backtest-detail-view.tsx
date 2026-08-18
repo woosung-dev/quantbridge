@@ -91,12 +91,11 @@ export function BacktestDetailView({ id }: { id: string }) {
               {bt.symbol} · {bt.timeframe}
             </h1>
             <div className="report-meta">
+              {/* symbol·timeframe 은 바로 위 h1 이 이미 말한다 — 같은 헤더 안 중복 칩 금지. */}
               <span className={CHIP_TONE_CLASS[statusTone]}>
                 {showCheckIcon ? <CheckIcon aria-hidden="true" /> : null}
                 {statusLabel}
               </span>
-              <span className="chip">{bt.symbol}</span>
-              <span className="chip">{bt.timeframe}</span>
               <span className="chip">Bybit</span>
               <span className="chip">
                 {formatDate(bt.period_start)} ~ {formatDate(bt.period_end)}
@@ -203,8 +202,9 @@ function InProgressCard({ status }: { status: "queued" | "running" | "cancelling
   );
 }
 
-// 상세 로딩 스켈레톤 — 헤더 카드 + 요약 자리.
-function DetailSkeleton() {
+// 상세 로딩 스켈레톤 — 헤더 카드 + 요약 자리. 라우트 loading.tsx 도 이것을 재사용한다
+// (클라 컴포넌트를 서버 loading 에서 import 하는 것은 App Router 에서 합법).
+export function DetailSkeleton() {
   return (
     <main className="page" aria-busy="true" data-testid="backtest-detail-skeleton">
       <section className="card" aria-hidden="true">
@@ -212,7 +212,8 @@ function DetailSkeleton() {
           <div>
             <span className="sk" style={{ display: "block", width: 220, height: 32 }} />
             <div className="report-meta">
-              {Array.from({ length: 6 }).map((_, i) => (
+              {/* 실헤더 칩 5개(상태·Bybit·기간·엔진·ID)와 개수를 맞춘다. */}
+              {Array.from({ length: 5 }).map((_, i) => (
                 <span key={i} className="sk" style={{ display: "block", width: 74, height: 26 }} />
               ))}
             </div>

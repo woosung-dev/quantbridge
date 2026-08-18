@@ -1,5 +1,6 @@
 // TradeAnalyticsSection — KPI 4 + 거래 분포 donut 카운트 + 빈 상태 검증
-import { render, screen } from "@testing-library/react";
+// + 방향별 성과 표 (구 trades/trade-analysis.tsx 흡수분 — 정보 보존 검증, 2026-08-18 이관)
+import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import type {
@@ -26,10 +27,14 @@ const METRICS = {
   avg_loss: -0.015,
 } as unknown as BacktestMetricsOut;
 
-function trade(idx: number, pnl: number): TradeItem {
+function trade(
+  idx: number,
+  pnl: number,
+  direction: "long" | "short" = "long",
+): TradeItem {
   return {
     trade_index: idx,
-    direction: "long",
+    direction,
     status: "closed",
     entry_time: "2026-01-01T00:00:00Z",
     exit_time: "2026-01-02T00:00:00Z",
@@ -50,7 +55,8 @@ describe("TradeAnalyticsSection", () => {
         trades={[trade(0, 10), trade(1, -5), trade(2, 0), trade(3, 8)]}
       />,
     );
-    expect(screen.getByText("평균 PnL")).toBeInTheDocument();
+    // "평균 PnL" 은 KPI 라벨 + 방향별 성과 표 헤더 두 곳 (병합 후 구조)
+    expect(screen.getAllByText("평균 PnL")).toHaveLength(2);
     expect(screen.getByText("+12.50 USDT")).toBeInTheDocument();
     expect(screen.getByText("평균 거래 바수")).toBeInTheDocument();
     expect(screen.getByText("1.5")).toBeInTheDocument();
@@ -68,5 +74,80 @@ describe("TradeAnalyticsSection", () => {
     render(<TradeAnalyticsSection metrics={{ ...METRICS, num_trades: 0 }} trades={[]} />);
     expect(screen.getByTestId("pnl-distribution-empty")).toBeInTheDocument();
     expect(screen.getByTestId("trade-outcome-donut-empty")).toBeInTheDocument();
+  });
+
+  // ── 방향별 성과 (구 TradeAnalysis 이관 단언 — 롱/숏 고유 정보 보존 검증) ──
+
+  it("trades 제공 시 방향별 성과 표에 거래 수/승률/평균 PnL 렌더", () => {
+    render(
+      <TradeAnalyticsSection
+        metrics={METRICS}
+        trades={[
+          trade(0, 10, "long"),
+          trade(1, -5, "long"),
+          trade(2, 0, "long"),
+          trade(3, 20, "short"),
+        ]}
+      />,
+    );
+    expect(screen.getByText("방향별 성과")).toBeInTheDocument();
+    const table = within(screen.getByTestId("direction-breakdown-table"));
+    expect(table.getByText("롱")).toBeInTheDocument();
+    expect(table.getByText("숏")).toBeInTheDocument();
+    // 롱: 3건, 승 1/3 = 33.3%, 평균 PnL (10-5+0)/3 = +1.67
+    expect(table.getByText("3")).toBeInTheDocument();
+    expect(table.getByText("33.3%")).toBeInTheDocument();
+    expect(table.getByText("+1.67")).toBeInTheDocument();
+    // 숏: 1건, 승률 100.0%, 평균 PnL +20.00
+    expect(table.getByText("1")).toBeInTheDocument();
+    expect(table.getByText("100.0%")).toBeInTheDocument();
+    expect(table.getByText("+20.00")).toBeInTheDocument();
+  });
+
+  it("단일 방향이면 반대편 행은 0건 + 대시 렌더", () => {
+    render(<TradeAnalyticsSection metrics={METRICS} trades={[trade(0, 50, "long")]} />);
+    const table = within(screen.getByTestId("direction-breakdown-table"));
+    expect(table.getByText("1")).toBeInTheDocument(); // 롱 1건
+    expect(table.getByText("100.0%")).toBeInTheDocument();
+    expect(table.getByText("+50.00")).toBeInTheDocument();
+    expect(table.getByText("0")).toBeInTheDocument(); // 숏 0건 (breakdown 폴백)
+    expect(table.getAllByText("—")).toHaveLength(2); // 숏 승률/평균 PnL
+  });
+
+  it("trades 가 비어도 metrics 방향 카운트(long_count/short_count)를 보존한다", () => {
+    // 구 TradeAnalysis 「방향 분포」 배지의 정보 보존 축 — 거래 목록이 없어도 모집단 카운트 유지.
+    render(
+      <TradeAnalyticsSection
+        metrics={{ ...METRICS, long_count: 5, short_count: 2 } as BacktestMetricsOut}
+        trades={[]}
+      />,
+    );
+    const table = within(screen.getByTestId("direction-breakdown-table"));
+    expect(table.getByText("5")).toBeInTheDocument();
+    expect(table.getByText("2")).toBeInTheDocument();
+    expect(table.getAllByText("—")).toHaveLength(4); // 롱/숏 각 승률·평균 PnL 은 trades 없이는 미산출
+  });
+
+  // 구 trade-analysis.test.tsx 의 disclosure 경계 회귀 단언 이관
+  // (W4 codex+Sonnet evaluator finding — `<` 가 실수로 `<=` 로 바뀌는 회귀 방지)
+  it("trades.length === num_trades 이면 부분집합 안내를 표시하지 않는다", () => {
+    render(
+      <TradeAnalyticsSection
+        metrics={METRICS}
+        trades={[trade(0, 10), trade(1, -5), trade(2, 0), trade(3, 8)]}
+      />,
+    ); // 4 === METRICS.num_trades(4)
+    expect(screen.queryByText(/표시된 거래/)).not.toBeInTheDocument();
+  });
+
+  it("trades.length < num_trades 이면 부분집합 안내를 표시한다", () => {
+    render(
+      <TradeAnalyticsSection
+        metrics={{ ...METRICS, num_trades: 10 } as BacktestMetricsOut}
+        trades={[trade(0, 10)]}
+      />,
+    );
+    expect(screen.getByText(/표시된 거래 1건 기준/)).toBeInTheDocument();
+    expect(screen.getByText(/전체 10건 중/)).toBeInTheDocument();
   });
 });

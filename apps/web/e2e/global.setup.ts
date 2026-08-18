@@ -80,7 +80,8 @@ setup("authenticate", async ({ page, request }) => {
   // 2) 실제 로그인 폼을 채운다 — 프로그래매틱 API 가 아니라 **화면**을 지난다.
   //    ★이것이 Clerk 시절보다 나아진 점이다: 로그인 화면이 깨지면 이 setup 이 먼저 죽는다.
   await page.getByLabel("이메일 주소").fill(email);
-  await page.getByLabel("비밀번호").fill(password);
+  // ★exact — 표시 토글 버튼(aria-label="비밀번호 표시")이 부분일치로 같이 잡히면 strict 위반.
+  await page.getByLabel("비밀번호", { exact: true }).fill(password);
   await page.getByRole("button", { name: "로그인" }).click();
 
   // ★★클릭 뒤 **반드시 기다려야 한다.** 종전 `clerk.signIn()` 은 흐름 전체를 await 했지만

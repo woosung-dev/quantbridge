@@ -4,6 +4,7 @@
 import { AlertTriangleIcon, StarIcon } from "lucide-react";
 
 import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
+import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { BayesianSearchResult } from "@/features/optimizer/schemas";
 import { EMPTY_CELL } from "@/lib/labels";
 
@@ -46,10 +47,13 @@ export function BayesianBestParamsTable({ result }: Props) {
             <span>
               최적 반복 #<span className="mono">{result.best_iteration_idx}</span> ·{" "}
               {OBJECTIVE_METRIC_LABEL[result.objective_metric]}{" "}
+              {/* 목표값 단위 SSOT — ratio 지표는 %, sharpe 는 소수 4자리 유지. */}
               <span className="mono">
                 {result.best_objective_value === null
                   ? EMPTY_CELL
-                  : result.best_objective_value.toFixed(4)}
+                  : formatObjectiveValue(result.objective_metric, result.best_objective_value, {
+                      plainDigits: 4,
+                    })}
               </span>
             </span>
           </p>

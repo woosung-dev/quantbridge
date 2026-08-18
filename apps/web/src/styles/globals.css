@@ -3934,6 +3934,44 @@ table.cmp tbody td.row-label { color: var(--ink-2); white-space: normal; }
 /* 자체 로그인/가입 폼(ADR-034) — 카드는 슬롯이 이미 씌우므로 여기서는 세로 간격만 준다. */
 .auth-form-body { display: flex; flex-direction: column; gap: 16px; }
 
+/* 폼 레벨 에러 블록 — screen-15 .auth-alert 이식 (terminology-ssot §3-5 에 따라 .form-alert 로
+   개명). 필드 프리미티브(.field-error)와 달리 제목 블록 알럿이다. 프로토타입의 margin-bottom 은
+   뺀다 — .auth-form-body 의 gap 이 간격을 준다. 보더는 프로토타입의 다크 hex rgba 대신
+   color-mix(--warn) — 라이트(--warn #824e05)에서도 테마를 따라간다. */
+.form-alert {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--warn-soft);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: var(--r);
+}
+.form-alert svg { width: 16px; height: 16px; stroke: var(--warn); stroke-width: 1.8; flex-shrink: 0; margin-top: 2px; }
+.form-alert-title { display: block; font-size: 0.84rem; font-weight: 600; color: var(--ink); }
+
+/* 비밀번호 표시 토글 — screen-15 .auth-input-wrap/.auth-eye 이식. 프로토타입의 전역
+   button 리셋(border/background/cursor)이 앱에는 없어 .auth-eye 에 직접 준다. */
+.auth-input-wrap { position: relative; display: block; }
+.auth-input-wrap .input { padding-right: 46px; }
+.auth-eye {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  cursor: pointer;
+  border-radius: var(--r);
+  color: var(--ink-3);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.auth-eye:hover { background: var(--card-3); color: var(--ink); }
+.auth-eye svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+
 .auth-foot {
   width: 100%;
   max-width: 1240px;
@@ -3949,7 +3987,8 @@ table.cmp tbody td.row-label { color: var(--ink-2); white-space: normal; }
   .auth-h1 { font-size: 1.62rem; }
   .auth-facts-head { margin-top: 26px; }
   .auth-note { display: none; }
-  .auth-form-col { max-width: 460px; }
+  /* 1열에서는 폼이 먼저다 — DOM 은 브랜드 패널 선행(데스크탑 좌우 유지)이라 order 로만 뒤집는다. */
+  .auth-form-col { order: -1; max-width: 460px; }
 }
 @media (max-width: 768px) {
   .auth-top { padding: 0 14px; }
@@ -3959,4 +3998,17 @@ table.cmp tbody td.row-label { color: var(--ink-2); white-space: normal; }
   .fact { padding: 14px 16px; }
   .auth-card .card-body { padding: 18px; }
   .auth-foot { padding-left: 14px; padding-right: 14px; }
+}
+
+/* ───────────────────────────────────────────────
+ * 링크 칩 발견성 — .chip 은 KITPORT 정적 칩이라 hover 어포던스가 없다.
+ * 앵커로 렌더되는 칩(옵티마이저 상세의 백테스트 칩 등)만 클릭 가능함을 드러낸다.
+ * 언레이어드라 @layer components 의 .chip 을 이긴다.
+ * ─────────────────────────────────────────────── */
+a.chip:hover,
+a.chip:focus-visible {
+  border-color: var(--line-2);
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

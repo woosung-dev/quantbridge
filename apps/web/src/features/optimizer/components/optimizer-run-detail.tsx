@@ -4,9 +4,17 @@
 // 라벨은 전부 W1 용어 SSOT 경유(원시 enum 렌더 금지). 스키마가 받치지 않는 값은 그리지 않는다(§4.9).
 "use client";
 
-import { CheckIcon, AlertTriangleIcon, RefreshCwIcon, StarIcon } from "lucide-react";
+import Link from "next/link";
+import {
+  CheckIcon,
+  AlertTriangleIcon,
+  ChevronRightIcon,
+  RefreshCwIcon,
+  StarIcon,
+} from "lucide-react";
 
 import { extractBestParams } from "@/features/optimizer/best-params";
+import { formatObjectiveValue } from "@/features/optimizer/format";
 import { formatPercent } from "@/features/backtest/utils";
 import { useOptimizationRun } from "@/features/optimizer/hooks";
 import {
@@ -111,14 +119,24 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                 {showCheckIcon ? <CheckIcon aria-hidden="true" /> : null}
                 {statusLabel}
               </span>
-              <span className="chip">{OPTIMIZATION_KIND_LABEL[data.kind]}</span>
               <span className="chip">
                 {OBJECTIVE_METRIC_LABEL[data.param_space.objective_metric]} ·{" "}
                 {OBJECTIVE_DIRECTION_LABEL[data.param_space.direction]}
               </span>
               <span className="chip accent">바 단위 이벤트 루프</span>
-              <span className="chip">{data.id.slice(0, 8)}</span>
-              <span className="chip">{data.backtest_id.slice(0, 8)}</span>
+              {/* 해시 칩 2개 — 라벨 없는 8자 해시가 나란히 있으면 구분 불가라 mono 소문자 라벨을
+                  접두한다. 백테스트 칩은 원본 백테스트 상세로 가는 링크다(kind 칩은 h1 과
+                  중복이라 제거). */}
+              <span className="chip mono" title={`실행 ID ${data.id}`}>
+                실행 {data.id.slice(0, 8)}
+              </span>
+              <Link
+                className="chip mono"
+                href={`/backtests/${data.backtest_id}`}
+                title={`백테스트 ID ${data.backtest_id}`}
+              >
+                백테스트 {data.backtest_id.slice(0, 8)}
+              </Link>
             </div>
           </div>
         </div>
@@ -287,10 +305,11 @@ function GridResult({ result }: { result: GridSearchResult }) {
         <div className="kpi-row">
           <article className="card kpi">
             <p className="kpi-label">최적 목표값</p>
+            {/* 단위는 objective_metric 이 정한다 — ratio 지표는 %, sharpe 는 소수 (formatObjectiveValue SSOT). */}
             <p className="kpi-value mono">
               {bestCell.objective_value === null
                 ? EMPTY_CELL
-                : bestCell.objective_value.toFixed(2)}
+                : formatObjectiveValue(result.objective_metric, bestCell.objective_value)}
             </p>
             <p className="kpi-foot">
               {OBJECTIVE_METRIC_LABEL[result.objective_metric]} ·{" "}
@@ -420,15 +439,10 @@ function GridResult({ result }: { result: GridSearchResult }) {
       <div className="card" style={{ marginTop: 16 }}>
         <details>
           <summary className="hm-sum">
-            <svg
-              className="hm-chev"
-              viewBox="0 0 24 24"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="9 6 15 12 9 18" />
-            </svg>
+            {/* 펼침 chevron — 수제 polyline 대신 lucide. 닫힘=오른쪽, 열림은 CSS 가
+                details[open] .hm-chev 를 90° 회전시켜 아래를 향한다(ChevronDown/Up 을 쓰면
+                이 회전 규약과 어긋난다). 크기·stroke 는 .hm-chev CSS 가 기존과 동일하게 잡는다. */}
+            <ChevronRightIcon className="hm-chev" aria-hidden="true" />
             히트맵 펼치기
             <span className="hm-tail">
               값 = {OBJECTIVE_METRIC_LABEL[result.objective_metric]}
@@ -498,11 +512,20 @@ function BayesianResult({ result }: { result: BayesianSearchResult }) {
                       .map(([k, v]) => `${k}=${Number(v).toFixed(4)}`)
                       .join(", ")}
                   </td>
+                  {/* 목표값 단위는 objective_metric 이 정한다 — ratio 지표는 %, sharpe 는 소수 4자리 유지. */}
                   <td className="num">
-                    {it.objective_value === null ? EMPTY_CELL : it.objective_value.toFixed(4)}
+                    {it.objective_value === null
+                      ? EMPTY_CELL
+                      : formatObjectiveValue(result.objective_metric, it.objective_value, {
+                          plainDigits: 4,
+                        })}
                   </td>
                   <td className="num">
-                    {it.best_so_far === null ? EMPTY_CELL : it.best_so_far.toFixed(4)}
+                    {it.best_so_far === null
+                      ? EMPTY_CELL
+                      : formatObjectiveValue(result.objective_metric, it.best_so_far, {
+                          plainDigits: 4,
+                        })}
                   </td>
                 </tr>
               ))}
@@ -566,11 +589,20 @@ function GeneticResult({ result }: { result: GeneticSearchResult }) {
                       .map(([k, v]) => `${k}=${Number(v).toFixed(4)}`)
                       .join(", ")}
                   </td>
+                  {/* 목표값 단위는 objective_metric 이 정한다 — ratio 지표는 %, sharpe 는 소수 4자리 유지. */}
                   <td className="num">
-                    {it.objective_value === null ? EMPTY_CELL : it.objective_value.toFixed(4)}
+                    {it.objective_value === null
+                      ? EMPTY_CELL
+                      : formatObjectiveValue(result.objective_metric, it.objective_value, {
+                          plainDigits: 4,
+                        })}
                   </td>
                   <td className="num">
-                    {it.best_so_far === null ? EMPTY_CELL : it.best_so_far.toFixed(4)}
+                    {it.best_so_far === null
+                      ? EMPTY_CELL
+                      : formatObjectiveValue(result.objective_metric, it.best_so_far, {
+                          plainDigits: 4,
+                        })}
                   </td>
                 </tr>
               ))}

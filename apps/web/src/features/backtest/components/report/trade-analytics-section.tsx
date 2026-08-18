@@ -1,8 +1,11 @@
 "use client";
 
 // TV "거래 분석" 섹션 — KPI(평균 PnL/평균 거래 바수/최대 수익/최대 손실) +
-// 수익 분포 histogram + 거래 분포 donut. 방향별 성과는 기존 TradeAnalysis 유지
+// 수익 분포 histogram + 거래 분포 donut + 방향별 성과 표
 // (heatmap 은 상세 결과 > 수익률 서브탭으로 이동).
+// 방향별 성과는 구 TradeAnalysis(trades/trade-analysis.tsx, 2026-08-18 삭제)에서 흡수했다 —
+// 방향 분포 카운트(metrics.long_count/short_count)와 방향별 승률·평균 PnL(trades 파생)을
+// 한 표로 합쳤다. 승/패 비율·평균 수익 vs 손실 바는 donut·histogram 마커와 중복이라 승계하지 않는다.
 
 import { useMemo } from "react";
 
@@ -11,7 +14,13 @@ import type {
   BacktestMetricsOut,
   TradeItem,
 } from "@/features/backtest/schemas";
-import { formatCurrency, formatPercent } from "@/features/backtest/utils";
+import {
+  computeDirectionBreakdown,
+  formatCurrency,
+  formatPercent,
+  type DirectionBreakdown,
+  type DirectionStats,
+} from "@/features/backtest/utils";
 
 import { PnlDistributionHistogram } from "@/features/backtest/components/report/pnl-distribution-histogram";
 import { TradeOutcomeDonut } from "@/features/backtest/components/report/trade-outcome-donut";
@@ -56,6 +65,43 @@ function Kpi({
   );
 }
 
+// 방향별 성과 표 한 행 — 거래 수는 metrics 카운트(전체 모집단) 우선, 없으면 trades 파생으로 폴백.
+// 승률·평균 PnL 은 trades 파생(stats)이 있고 해당 방향 거래가 있을 때만 수치 표시.
+function DirectionRow({
+  label,
+  tone,
+  count,
+  stats,
+}: {
+  label: string;
+  tone: "pos" | "neg";
+  count: number | null;
+  stats: DirectionStats | null;
+}) {
+  const hasStats = stats !== null && stats.count > 0;
+  const pnlSign = hasStats && stats.avgPnl >= 0 ? "+" : "";
+  return (
+    <tr>
+      <td className="py-1.5">
+        <span className={`text-xs font-semibold uppercase ${tone}`}>{label}</span>
+      </td>
+      <td className="py-1.5 text-right font-mono tabular-nums">
+        {count != null ? count : "—"}
+      </td>
+      <td className="py-1.5 text-right font-mono tabular-nums">
+        {hasStats ? formatPercent(stats.winRate, 1) : "—"}
+      </td>
+      <td
+        className={`py-1.5 text-right font-mono tabular-nums ${
+          hasStats ? (stats.avgPnl >= 0 ? "pos" : "neg") : ""
+        }`}
+      >
+        {hasStats ? `${pnlSign}${formatCurrency(stats.avgPnl)}` : "—"}
+      </td>
+    </tr>
+  );
+}
+
 export function TradeAnalyticsSection({
   metrics: m,
   trades,
@@ -69,6 +115,12 @@ export function TradeAnalyticsSection({
     () => computeOutcomeCounts(closed.map((t) => t.pnl)),
     [closed],
   );
+
+  // LESSON-004: dep 는 부모가 내려준 stable trades reference 만 사용 (구 TradeAnalysis 관례 승계).
+  const breakdown = useMemo<DirectionBreakdown | null>(() => {
+    if (trades.length === 0) return null;
+    return computeDirectionBreakdown(trades);
+  }, [trades]);
 
   const avgPnlAbs = m.avg_trade_abs ?? null;
 
@@ -137,6 +189,48 @@ export function TradeAnalyticsSection({
           </h3>
           <TradeOutcomeDonut counts={counts} />
         </div>
+      </div>
+
+      {/* 방향별 성과 — 구 TradeAnalysis 흡수분. 캐논상 채움 트랙 바 대신 mono 수치 표. */}
+      <div>
+        <h3 className="mb-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+          방향별 성과
+        </h3>
+        <table
+          className="w-full max-w-md text-sm"
+          aria-label="방향별 성과"
+          data-testid="direction-breakdown-table"
+        >
+          <thead>
+            <tr className="text-xs text-muted-foreground">
+              <th className="py-1.5 text-left font-medium">방향</th>
+              <th className="py-1.5 text-right font-medium">거래 수</th>
+              <th className="py-1.5 text-right font-medium">승률</th>
+              <th className="py-1.5 text-right font-medium">평균 PnL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <DirectionRow
+              label="롱"
+              tone="pos"
+              count={m.long_count ?? breakdown?.long.count ?? null}
+              stats={breakdown?.long ?? null}
+            />
+            <DirectionRow
+              label="숏"
+              tone="neg"
+              count={m.short_count ?? breakdown?.short.count ?? null}
+              stats={breakdown?.short ?? null}
+            />
+          </tbody>
+        </table>
+        {/* 부분집합 안내 — 구 TradeAnalysis 의 disclosure 승계. 거래 목록 탭도 같은 cap 을
+            가지므로 거기로 안내하지 않고 사실만 표기. */}
+        {trades.length > 0 && m.num_trades > 0 && trades.length < m.num_trades ? (
+          <p className="mt-2 text-xs text-muted-foreground">
+            * 표시된 거래 {trades.length}건 기준 (전체 {m.num_trades}건 중).
+          </p>
+        ) : null}
       </div>
     </section>
   );

@@ -17,7 +17,6 @@ import type { BacktestDetail } from "@/features/backtest/schemas";
 
 import { AssumptionsCard } from "@/features/backtest/components/assumptions-card";
 import { StressTestPanel } from "@/features/backtest/components/stress-test-panel";
-import { TradeAnalysis } from "@/features/backtest/components/trades/trade-analysis";
 import { DetailedResultsSection } from "@/features/backtest/components/report/detailed-results-section";
 import { KeyStatsStrip } from "@/features/backtest/components/report/key-stats-strip";
 import { MetricGroupsSection } from "@/features/backtest/components/report/metric-groups-section";
@@ -212,7 +211,6 @@ export function BacktestReportShell({
               trades={tradeItems ?? []}
               truncated={truncated}
             />
-            <TradeAnalysis metrics={metrics} trades={tradeItems} />
           </div>
         </div>
       </Section>

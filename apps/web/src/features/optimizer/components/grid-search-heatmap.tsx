@@ -4,8 +4,10 @@
 "use client";
 
 import { OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
+import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { GridSearchResult } from "@/features/optimizer/schemas";
 import { OPTIMIZER_EMPTY_REASON } from "@/features/optimizer/labels";
+import { InfoIcon } from "@/components/info-icon";
 import { EMPTY_CELL } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
@@ -128,14 +130,20 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                     </td>
                   );
                 }
+                // 목표값 단위 SSOT(formatObjectiveValue) — ratio 지표는 %, sharpe 는 소수.
+                // 히트맵 셀은 밀도가 높아 ratio 지표를 소수 1자리 %(예: 87.4%)로 줄인다
+                // (2자리는 셀 폭을 밀어 표를 깨뜨린다 — 정밀값은 리더보드가 이미 인쇄한다).
+                const cellText = formatObjectiveValue(result.objective_metric, objVal, {
+                  percentDigits: 1,
+                });
                 return (
                   <td key={`${rowV}-${colV}`}>
                     <span
                       className={cn("hm-cell", isBest && "best")}
                       style={{ background: bgFor(objVal) }}
-                      title={`${rowName}=${rowV}, ${colName}=${colV}, ${OBJECTIVE_METRIC_LABEL[result.objective_metric]}=${objVal.toFixed(2)}${isBest ? " (최적)" : ""}`}
+                      title={`${rowName}=${rowV}, ${colName}=${colV}, ${OBJECTIVE_METRIC_LABEL[result.objective_metric]}=${cellText}${isBest ? " (최적)" : ""}`}
                     >
-                      {objVal.toFixed(2)}
+                      {cellText}
                     </span>
                   </td>
                 );
@@ -145,22 +153,14 @@ export function GridSearchHeatmap({ result, pair }: Props) {
         </tbody>
       </table>
       <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
-        <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" />
-          <line x1="12" y1="11" x2="12" y2="16" />
-          <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
-        </svg>
+        <InfoIcon />
         칸 농도는 목표값을 선형으로 이었습니다. 색만으로 읽지 않도록 숫자를 함께 인쇄합니다. 최적
         칸은 색이 아니라 코퍼 테두리로, 거래 0건 축퇴 칸은 색을 넣지 않고 점선 테두리로 스케일에서
         빼냅니다.
       </p>
       {result.param_names.length > 2 && Object.keys(fixOthers).length > 0 ? (
         <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
-          <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <line x1="12" y1="11" x2="12" y2="16" />
-            <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
-          </svg>
+          <InfoIcon />
           기타 변수는 최적 셀 값으로 고정한 단면입니다.{" "}
           {Object.entries(fixOthers)
             .map(([k, v]) => `${k}=${v}`)
