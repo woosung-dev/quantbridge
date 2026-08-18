@@ -84,8 +84,11 @@ pin → up`을 둔다.
 **⑶ API는 소크 compose 밖이다.** 소크 compose에는 API 역할이 없고 Celery의 `command:` override가
 entrypoint의 migration 경로를 우회한다(`tools/scripts/soak-stack.sh:310-318`). 그래서 API 유닛
 재시작이 별도 단계다(`docs/reference/operations/better-auth-setup.md:113-121`).
-`quantbridge-api.service`의 설치 파일·생성 스크립트는 레포에 없다. 이 문서는 restart 명령만
-인용하며, 유닛의 `ExecStart`와 작업 디렉터리는 CONTROL의 서버 read-back 대상이다.
+~~`quantbridge-api.service`의 설치 파일·생성 스크립트는 레포에 없다.~~ → **2026-08-18 [BL-805]
+해소**: `tools/scripts/api-service.sh --install`이 이 유닛을 만든다(형제 5종과 같은 heredoc 방식).
+`--status`는 `ExecStart`의 uvicorn 절대경로를 현재 트리와 대조해 재배치를 잡는다. 다만 **서버에
+실제로 설치된 유닛이 그 산출물과 같은지**는 여전히 CONTROL의 서버 read-back 대상이다 — 레포에
+원본이 생긴 것과 서버가 그것으로 다시 구워진 것은 다른 사건이다.
 
 **⑷ compose 프로젝트명은 경로에 묶인다.** 소크의 compose 인자에는 `-p`가 없고
 `--project-directory "$ROOT"`만 있다(`tools/scripts/soak-stack.sh:30-41`). 따라서 Docker Compose의
@@ -107,7 +110,8 @@ entrypoint의 migration 경로를 우회한다(`tools/scripts/soak-stack.sh:310-
 2. `quantbridge-api.service`의 유닛 파일, `WorkingDirectory`, `ExecStart`,
    `PROMETHEUS_MULTIPROC_DIR`를 확인한다. 유닛이 재배치 전 절대경로를 물면 죽은 경로로 남는다.
    이 위험과 점검 대상은 `docs/reference/operations/gates-and-traps.md:312-331`에 기록돼 있다.
-   **레포는 이 API 유닛을 만들지 않는다.** ★**2026-08-18 서버 실측 — 유닛은 실재하고 running 이다:**
+   ~~**레포는 이 API 유닛을 만들지 않는다.**~~ → **2026-08-18 [BL-805]**: 이제 만든다
+   (`tools/scripts/api-service.sh`). 아래 실측값이 그 인스톨러의 기준선이다. ★**2026-08-18 서버 실측 — 유닛은 실재하고 running 이다:**
 
    ```
    FragmentPath      = /home/ubuntu/.config/systemd/user/quantbridge-api.service
@@ -224,8 +228,9 @@ tools/scripts/soak-gate.sh
 `.soak/pin-history.jsonl`에 남는다(`:32-35`, `:230-231`).
 
 이 절은 **네 소크 워커의 `apps/api/src`만** 되돌린다. 호스트
-`quantbridge-api.service`가 어느 checkout·venv를 실행하는지는 레포가 설치·소유하지 않으므로,
-API까지 같은 SHA로 되돌리는 절차는 [확인 필요]다. 확인 없이 API 유닛을 restart하면 현재 checkout의
+`quantbridge-api.service`가 어느 checkout·venv를 실행하는지는 `api-service.sh --status`로 **읽을 수
+있게 됐지만**([BL-805], 2026-08-18), API까지 같은 SHA로 되돌리는 절차는 여전히 [확인 필요]다 —
+유닛은 checkout을 가리킬 뿐이고 그 checkout을 옛 SHA로 옮기는 것은 이 문서의 범위 밖이다. 확인 없이 API 유닛을 restart하면 현재 checkout의
 코드를 다시 읽을 수 있다.
 
 #### ⑵ 의존성이 바뀐 커밋의 한계
@@ -377,9 +382,12 @@ systemd는 이를 실패로 보고 Telegram `OnFailure`를 발화한다(`tools/s
 `~/.config/systemd/user/`에 쓰고 절대 `ExecStart`를 굽는다(`tools/scripts/db-backup.sh:461-533`).
 그래서 재배치 뒤 “timer waiting”은 통과처럼 보이지만 실제는 rc=127일 수 있다. **진짜 판별자**는
 `db-backup.sh --status`의 `ExecStart` 신선도다(`:545-581`).
-`quantbridge-api.service`는 이 스크립트가 만들지 않으며 레포에 설치 경로도 없다. restart 지시만
-`better-auth-setup.md`에 있다(`docs/reference/operations/better-auth-setup.md:117-120`); 실제 유닛은
-§4에서 읽어야 한다.
+`quantbridge-api.service`는 이 스크립트(`db-backup.sh`)가 만들지 않는다. ~~레포에 설치 경로도
+없다~~ → **2026-08-18 [BL-805]**: 전용 인스톨러 `tools/scripts/api-service.sh`가 생겼다. 신선도
+**진짜 판별자**는 `api-service.sh --status`의 `ExecStart` uvicorn 경로 대조다(형제들은
+`ExecStart=/bin/bash <스크립트>`를 파싱하지만 이쪽은 `.venv/bin/uvicorn`이라 파서가 다르다).
+restart 지시는 `better-auth-setup.md`에 있고(`docs/reference/operations/better-auth-setup.md:117-120`);
+서버에 실제로 도는 유닛은 §4에서 읽어야 한다.
 
 ★**`.env` 값 추출과 실행 중 자격증명을 혼동하지 마라.** 인라인 주석을 값에 섞으면 401이 아니라
 500이 될 수 있다(`docs/reference/operations/frontend-deploy.md:158-161`). 또 `.env`는 편집 뒤에도
