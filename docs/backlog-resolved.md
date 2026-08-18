@@ -21,6 +21,124 @@
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
+### BL-807
+
+**Title:** authed 캐논 3케이스가 **행은 DB 에 있는데 화면이 비어** 떨어진다 — [BL-802] 의 잔여 2/20
+**Category:** Frontend / 테스트
+**Priority:** P2
+**Trigger:** 도래 — [BL-802] 가 18/20 을 CI 로 올리고 나머지를 실측으로 좁혔다
+**Est:** M (셋이 서로 다른 데이터 경로다. 하나씩)
+**출처:** 2026-08-18 n5-ci-truth-close 레인 α — CI 실측(run `32121054465` 계열)으로 분리
+
+**원인 / 영향:** 결정론 시더가 행을 실제로 심는데(로컬 DB 대조 확인) 화면이 그리지 않는다.
+셋 다 같은 모양이고 원인은 각각 다르다:
+
+⑴ `authed-canon-p1.spec.ts:153` — `/backtests/:id/trades` 의
+`[data-testid="trade-detail-table"] tbody tr` 이 **0**. `backtest_trades` 3행이 DB 에 있고
+`TradeItemSchema` 는 전 필드가 nullable/optional 이며 `DEFAULT_FILTERS` 도 전부 허용이다.
+⑵ `authed-canon-remaining.spec.ts:141` — `/optimizer` 목록에 `a[href^="/optimizer/"]` 가 안 뜬다.
+완료 `OptimizationRun` 을 `ParamSpace` 정본 형상으로 심었는데도 그렇다.
+⑶ `authed-canon-remaining.spec.ts:173` — `[data-testid="backtest-report-shell"]` 이 20초 안에 안 보인다.
+
+**권장 접근:** ⑴ **브라우저에서 실제 응답을 봐라** — 코드 대조로는 안 잡힌다. 이 회차에 메트릭 키
+3개·`equity_curve` 키 2개·`param_space` 구조가 전부 틀렸던 것도 **응답을 안 보고 스키마만 읽어서**
+늦게 잡혔다 ⑵ 한 케이스씩 `ci` 로 올려 CI 로 증명해라 — 매니페스트가 그 이동을 강제한다
+⑶ 시더가 더 필요하면 `seed_ci_e2e.py` 의 `--selftest` 에 **그 계약 검증을 같이 추가**해라.
+지금 그것이 `BacktestMetricsOut`·`ParamSpace` 를 실제로 먹이고 있다.
+
+**Risk:** 🟢 (테스트 인프라 전용. 다만 셋 다 「조용히 빈 화면」이라 실사용자도 같은 것을 볼 수 있다 — 그쪽이 진짜 위험이다)
+
+**상태:** ✅ **Resolved (2026-08-19 n6-authed-evidence · PR #684)** — ★**세 케이스 중 둘(⑴·⑶)이 같은 하나의 결함**이었다. 시더가 `equity_curve` 를 **저장 형상이 아니라 응답 형상**(`{timestamp,value}` dict)으로 심어 `service.py:855` 의 `for ts, v in …` 이 **키를 언패킹**했고, `_parse_utc_iso("timestamp")` ValueError → `GET /backtests/{id}` **500** → 리포트 셸과 체결 표가 **함께** 비었다. 두 축이 독립적으로 틀렸다(모양 + 포맷 — `isoformat()` 은 마이크로초·`+00:00` 를 달고 `_parse_utc_iso` 는 `Z` 고정이라 모양만 고쳐도 터진다). ⑵ `/optimizer` 는 **이미 고쳐져 있었고 재측정이 없었을 뿐**이다(매니페스트 사유 `f70aa318` < 수정 `08db0578`, `--is-ancestor` 로 확인). CI 실측 **88 passed / 1 failed** → 그 1건 수리 후 authed spec **20파일 전건**이 CI 대상이 됐다.
+**트리거 판정:** 도래 → **소진** — `localOnly` 가 비었다 (2026-08-19 n6-authed-evidence)
+
+---
+
+### BL-797
+
+**Title:** 화면 증거 게이트가 **공개 라우트 3종만** 잰다 — authed 화면을 바꾼 PR 은 여전히 증거가 없다
+**Category:** 테스트 / 인프라 / DX
+**Priority:** P2
+**Trigger:** ⏳ **대기** — authed e2e 슬롯 배선([BL-780]/[BL-781])이 서면 도래. 그 배선 없이는 로그인한 화면을 결정적으로 캡처할 수 없다
+**Est:** M (수치 축만이면 S — 스크린샷 없이 번들·요청 수만 재면 실데이터 픽셀 흔들림을 피한다)
+**상태:** ✅ **Resolved (2026-08-19 n6-authed-evidence · PR #685)** — authed 목록 4종(`/dashboard`·`/strategies`·`/backtests`·`/optimizer`)이 게이트에 들어왔다. ★**차단자가 이 항목이 적은 것과 달랐다** — 「실데이터가 픽셀을 흔든다」는 셋 중 하나였고, 실제로 막던 것은 ⑴ `RouteMetrics.screenshot` 이 **필수 필드**라 수치 전용 라우트를 표현할 자리가 없었던 것 ⑵ 러너가 FE 만 띄우고 **BE 를 안 띄운다**는 것 ⑶ ★★★**baseline 이 gitignore 된 개인 파일에 의존**하던 것이다 — `next start` 는 production 모드라 `.env.production.local`(실제 배포 값)이 `.env.local` 을 이기고 `NEXT_PUBLIC_*` 는 빌드 타임 인라인이라, 그 파일이 없는 사람은 **같은 커밋에서 다른 바이트**를 얻었다. ★양성 대조 = `/dashboard` 클라이언트 경계에 20KB 주입 → rc=1, 그 라우트만 red.
+**트리거 판정:** 도래 → **소진** — 게이트가 authed 를 잰다. 요청 수 축의 비결정은 [BL-809] 로 남겼다 (2026-08-19 n6-authed-evidence)
+**출처:** 2026-08-17 night3 — 레인 α 가 게이트를 만들고, CONTROL 이 그 게이트를 레인 β·γ 브랜치에 **실제로 합쳐 돌려** 이 공백을 실측했다
+
+**원인 / 영향:** ★**이 회차가 스스로 그 공백을 증명했다.** 주제는 「화면을 바꾼 PR 이 그 변화를 스스로 증명하게 만든다」였고 같은 밤 레인 둘이 화면을 바꿨다 — β 는 `/dashboard`, γ 는 `/backtests/[id]`. **둘 다 authed 라 게이트의 ROUTES 밖이다.** CONTROL 이 α+β 와 α+β+γ 통합 브랜치에서 게이트를 돌린 결과 **공개 3라우트 전부 Δ=0 「변경 없음」**이었다.
+
+★**그것이 고장이 아님은 양성 대조가 증명한다** — 같은 통합 트리에서 `/sign-in` 문구 1자를 바꾸자 **2 픽셀 차이로 rc=1** 이 났다. 즉 게이트는 살아 있고, 잴 대상이 겹치지 않았을 뿐이다. 「변경 없음」과 「측정 실패」는 다르며 이 경우는 전자다.
+
+**Risk:** 🟡 정확성 문제는 없다. 다만 [LESSON-078] — 「문서만 쓰고 아무도 안 돌리면 죽은 기준이 된다」 — 의 재현 위험이 여기 있다 — 소비자가 공개 라우트를 바꾸는 PR 뿐이면 이 게이트는 대부분의 회차에서 「변경 없음」만 인쇄한다.
+
+**권장 접근:** 스크린샷을 빼고 **수치 축만 먼저** authed 로 넓힌다(번들 바이트 + 요청 수). 실데이터가 픽셀을 흔드는 문제를 피하면서 [BL-662~665]·[BL-786] 이 실제로 다룬 라우트(`/dashboard`·`/backtests`)를 덮는다. CI 게시 경로는 리눅스 baseline 이 필요하므로 별도다(아래 [BL-800]).
+
+---
+
+### BL-806
+
+**Title:** 모델은 python `default=` 인데 마이그레이션이 `server_default` 를 넣은 컬럼 **6개** — 테스트 DB 와 프로덕션 스키마가 갈린다
+**Category:** Backend / 스키마
+**Priority:** P3
+**Trigger:** 도래 — [BL-803] 의 `default` 축이 실측으로 6건을 확정했다
+**Est:** S (모델 6줄 + 그 변경이 `alembic check` 를 흔드는지 확인)
+**출처:** 2026-08-18 n5-ci-truth-close 레인 γ — 축을 켜자마자 나온 실측
+
+**원인 / 영향:** `quantbridge_w5_test` 실측 6건 —
+`public.waitlist_applications.status`(`'pending'`) · `trading.live_signal_events.comment`(`''`) ·
+`trading.live_signal_events.retry_count`(`'0'`) · `trading.live_signal_sessions.is_active`(`'true'`) ·
+`trading.live_signal_states.schema_version`(`'1'`) · `trading.live_signal_states.total_closed_trades`(`'0'`).
+전부 DB 에만 `server_default` 가 있고 모델은 `Field(default=…)` 만 선언한다.
+
+★**무해하지 않다** — `tests/conftest.py` 의 `create_all` 은 **모델**에서 스키마를 만들므로 그 경로의
+테스트 DB 에는 이 DEFAULT 들이 **없다**. 즉 테스트가 보는 스키마와 프로덕션이 이 6컬럼에서 갈린다.
+[BL-788] 과 같은 가족의 결함이다.
+
+**권장 접근:** ⑴ 모델에 `sa_column_kwargs={"server_default": …}` 를 얹어 DB 와 맞춘다
+⑵ ★**한 번에 하지 마라** — 모델 변경이 `alembic check` 를 흔드는지 컬럼 하나씩 확인해라
+⑶ 맞춘 컬럼은 `_DEFAULT_DRIFT_BASELINE`(`tests/test_migrations.py`)에서 **빼라**. baseline 이
+비어 가는 것이 진척의 척도다 ⑷ 반대 방향(`model_only`)이 생기면 그건 훨씬 위험하다 — 마이그레이션이
+모델을 안 따라온 것이다.
+
+**Risk:** 🟢 (기존 행에는 영향 없다. DEFAULT 는 INSERT 시점에만 쓰인다)
+
+**상태:** ✅ **Resolved (2026-08-19 n6-authed-evidence · PR #686)** — 6컬럼에 `server_default` 를 얹어 `_DEFAULT_DRIFT_BASELINE` 을 **6 → 0**(`frozenset()`)으로 비웠다. ★**표기 판정은 diff 크기가 아니라 구조적 불가가 갈랐다** — `sa_column` 과 `sa_column_kwargs` 동시 지정을 SQLModel 이 거부하는데(`RuntimeError`) `waitlist.status` 는 **이미** `sa_column=Column(SAEnum(...))` 이라 kwargs 를 못 쓴다. kwargs 를 고르면 6형제에 두 관용구가 섞이는 것이 확정이었다(레포 선례도 `sa_column` **165건** vs kwargs **0건**). ★**`alembic check` 는 예측대로 안 흔들렸고, 더 강한 증거가 나왔다** — **변경 전**에도 rc=0 이었다. 모델↔DB 비대칭 6건이 실재하는 상태에서 초록이었다는 것이 이 축이 애초에 안 보인다는 직접 증거다(`compare_server_default` 는 레포 전체 0건).
+**트리거 판정:** 도래 → **소진** — baseline 이 비었다 (2026-08-19 n6-authed-evidence)
+
+---
+
+### BL-805
+
+**Title:** `quantbridge-api.service` 가 **레포에 없다** — 레포가 만들지 않는 유일한 systemd 유닛
+**Category:** Ops / 배포
+**Priority:** P2
+**Trigger:** 도래 — 서버를 다시 세우거나 유닛이 깨지면 그 자리에서 밟는다. 복원할 원본이 없다
+**Est:** S (유닛 1개 + `--install` 경로. 실측값은 이미 확보돼 있다)
+**출처:** 2026-08-18 n5-ci-truth-close 레인 β — 런북을 쓰며 서버 실측으로 확인
+
+**원인 / 영향:** 나머지 유닛 5종은 스크립트의 `--install` 이 heredoc 으로 만든다
+(`db-backup.sh:461-533` · `disk-guard.sh:152-196` · `soak-watch.sh:138-196` ·
+`soak-gate.sh:80-104` · `soak-logs-follow.sh:214-236`). **`quantbridge-api.service` 만 예외**다.
+`better-auth-setup.md:119` 는 배포 절차에서 `systemctl --user restart quantbridge-api.service`
+를 지시하는데, 그 유닛을 만드는 코드가 레포에 **0건**이다.
+
+★2026-08-18 서버 실측 — 유닛은 실재하고 running 이다:
+`FragmentPath=/home/ubuntu/.config/systemd/user/quantbridge-api.service` ·
+`ExecStart=/home/ubuntu/quantbridge/apps/api/.venv/bin/uvicorn src.main:app --no-server-header --host 127.0.0.1 --port 8100` ·
+`WorkingDirectory=/home/ubuntu/quantbridge/apps/api` ·
+`Environment=PROMETHEUS_MULTIPROC_DIR=/home/ubuntu/quantbridge/apps/api/.metrics QB_METRICS_ROLE=api`.
+
+**권장 접근:** ⑴ 형제 스크립트와 **같은 모양**으로 `--install` 을 세운다 — 신선도 검사
+(`db-backup.sh:545-575` 의 `ExecStart` 경로 대조)까지 같이. ⑵ `ExecStart` 가 `.venv` 절대경로라
+[ADR-029] 류 재배치에 취약하다는 사실을 유닛 주석에 남겨라 ⑶ 서버에서 **한 번 재설치해 보고**
+`/health` 가 8초 안에 뜨는지 확인한다.
+
+**Risk:** 🟡 (유닛을 잘못 쓰면 API 가 안 뜬다. 재설치 전에 현행 값을 받아 적어라)
+
+**상태:** ✅ **Resolved (2026-08-19 n6-authed-evidence · PR #686)** — `tools/scripts/api-service.sh` + 짝 하네스 `api-service-test.sh`(**17/17**) 신설. 형제 5종과 달리 **장기 실행 유닛**이라 골격을 `soak-logs-follow.sh`(`Type=simple`·`Restart=always`·lingering)에서 베꼈고, `oneshot`+timer 를 안 베꼈는지 **음성으로도** 잰다. ★**신선도 파서를 형제에서 그대로 못 썼다** — 그쪽은 `ExecStart=/bin/bash <스크립트>` 를 읽는데 이쪽은 `.venv/bin/uvicorn` 이다. `.venv` 경로 대조로 바꿨다: 이 항목이 「`.venv` 절대경로라 재배치에 취약」이라 적은 것의 답은 취약함 제거가 아니라 **재배치를 판정 가능하게** 만든 것이다. 유닛 이름이 `dev.quantbridge.*` 규칙 밖인 예외 사유도 상수 주석에 남겼다. 등록 2곳(mise 14→15 · `final-gates.sh`). ★**서버 미접촉** — 산출은 「복원 원본이 레포에 있다」까지다.
+**트리거 판정:** 도래 → **소진** — 복원 원본이 생겼다. 서버 유닛과의 바이트 대조는 남는다(`Environment=` 를 한 줄에서 두 줄로 나눴다 — systemd 의미는 같다) (2026-08-19 n6-authed-evidence)
+
+---
+
 ### BL-022
 
 **Title:** Golden expectations 재생성 (skip #1 해소)
