@@ -52,12 +52,14 @@ from uuid import UUID
 # 스크립트 직접 실행 지원 — `apps/api` 를 import 루트에 얹는다(레포 관례).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import pandas as pd
 from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.auth.models import User
 from src.backtest.models import Backtest, BacktestStatus, BacktestTrade, TradeDirection, TradeStatus
+from src.backtest.serializers import equity_curve_to_jsonb
 from src.core.config import settings
 from src.optimizer.models import OptimizationKind, OptimizationRun, OptimizationStatus
 from src.strategy.models import ParseStatus, PineVersion, Strategy
@@ -212,14 +214,17 @@ def _build_backtest_and_trades(owner_id: UUID) -> tuple[Backtest, list[BacktestT
             "num_trades": 3,
             "profit_factor": "2.1",
         },
-        # ★`{timestamp, value}` 다 — `EquityPointSchema`(`apps/web/.../schemas.ts:322`).
-        equity_curve=[
-            {
-                "timestamp": (period_start + timedelta(days=d)).isoformat(),
-                "value": str(10000 + d * 40),
-            }
-            for d in range(0, 31, 5)
-        ],
+        # ★★**정본을 재사용한다 — 손으로 만들지 않는다.** 저장 형상은 `[[isoZ, "값"], …]` 이고
+        #   그것을 정하는 것은 `serializers.equity_curve_to_jsonb` 하나다. 종전 판은 이 자리에
+        #   `{timestamp, value}` dict 를 적었는데, 그것은 `_to_detail` 이 **변환한 응답**의
+        #   모양이지 저장의 모양이 아니었다 — `for ts, v in <dict>` 가 키를 언패킹해
+        #   `GET /backtests/{id}` 가 500 이 됐다([BL-807]). 형상을 두 곳에 적는 한 또 갈린다.
+        equity_curve=equity_curve_to_jsonb(
+            pd.Series(
+                [Decimal(10000 + d * 40) for d in range(0, 31, 5)],
+                index=pd.DatetimeIndex([period_start + timedelta(days=d) for d in range(0, 31, 5)]),
+            )
+        ),
         warnings=[],
         created_at=now - timedelta(hours=2),
         started_at=now - timedelta(hours=2),
@@ -421,6 +426,7 @@ def _selftest() -> int:
     #   조용히 비었고 CI 한 판을 태우고서야 드러났다(2026-08-18).
     #   ⇒ **구성 가능성이 아니라 계약 통과를 재라.** 이 두 줄이 그 세 결함을 전부 잡는다.
     from src.backtest.schemas import BacktestMetricsOut
+    from src.backtest.serializers import equity_curve_from_jsonb
     from src.optimizer.schemas import ParamSpace
 
     BacktestMetricsOut.model_validate(backtest.metrics)
@@ -443,10 +449,17 @@ def _selftest() -> int:
             "objective_value",
         }, cell
     assert isinstance(result.get("best_cell_index"), int), result.get("best_cell_index")
-    # equity_curve 는 `EquityPointSchema`(FE) 가 정본이라 BE 모델이 없다 — 키만 못박는다.
+    # ★★★**equity_curve 의 정본은 「저장 형상」이다** — `serializers.equity_curve_to_jsonb` 가
+    #   `[[isoZ, "값"], …]` 로 쓰고 `_to_detail`(`service.py:849-855`)이 `for ts, v in …` 으로
+    #   되읽는다. ~~「`EquityPointSchema`(FE) 가 정본이라 BE 모델이 없다」~~ 는 **거짓이었다** —
+    #   그 스키마는 `_to_detail` 이 **변환한 응답**의 모양이지 저장의 모양이 아니다.
+    #   ★그리고 키만 재던 종전 검사가 그 오해를 **계약으로 승격**했다: dict 를 심은 시더가
+    #   초록으로 통과했고, 실제로는 `for ts, v in <dict 리스트>` 가 **키를 언패킹**해
+    #   `_parse_utc_iso("timestamp")` ValueError → `GET /backtests/{id}` **500** → 리포트 셸과
+    #   체결 표가 **함께** 사라졌다([BL-807] ⑴·⑶ 은 같은 하나의 결함이었다).
+    #   ⇒ 키를 세지 말고 **되읽기를 실제로 시켜라.** 이 한 줄이 두 축(모양·포맷)을 다 잡는다.
     assert backtest.equity_curve, "equity_curve 가 비었다"
-    for point in backtest.equity_curve:
-        assert set(point) == {"timestamp", "value"}, point
+    equity_curve_from_jsonb(backtest.equity_curve)
 
     # ★UUID variant nibble — Zod `z.uuid()` 가 거부하면 화면이 조용히 미렌더된다.
     for fixed in (BL570_STRATEGY_ID, SEED_BACKTEST_ID, SEED_ACCOUNT_ID, SEED_OPTIMIZER_ID):

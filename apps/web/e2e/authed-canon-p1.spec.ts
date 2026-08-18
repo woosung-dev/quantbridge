@@ -50,12 +50,35 @@ const EXPECTED_CONSOLE = [
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
   /failed to load resource.*429/i,
-  /\b50[0-9]\b/,
+  // ★★**그 밖의 5xx 는 더 이상 무시하지 않는다** ([BL-807], 2026-08-18). 종전의 맨 `/\b50[0-9]\b/` 는
+  //   ⑴ 앵커가 없어 **본문의 아무 세 자리 50x 숫자**까지 삼켰고 ⑵ 바로 위 4xx 필터가
+  //   `failed to load resource.*` 로 좁혀져 있는 것과 **비대칭**이었으며 ⑶ 무엇보다 BE 500 은
+  //   「백엔드 부재 소음」이 아니라 **앱 결함**이다. 부재는 위의 `failed to fetch`·`networkerror`
+  //   가 이미 덮는다. 이 필터 때문에 「행은 DB 에 있는데 화면이 빈다」가 세 케이스에서
+  //   **원인이 안 보인 채** 반복됐다 — 실제 원인은 상세 API 의 500 이었다.
   /development keys/i,
   /\[fast refresh\]/i,
   /access to fetch/i, // CORS 차단 (백엔드 origin 미일치 시)
 ];
-const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
+/**
+ * 거래소 **포지션 조회의 503 만** 좁게 면제한다 (2026-08-19 CI 실측, [BL-807]).
+ *
+ * CI 러너에는 실제 거래소 연결이 없어 `GET /api/v1/exchange-accounts/{id}/positions` 가 CCXT
+ * 실패로 503 을 낸다 — BE 의 **정직한 동작**이고 앱 결함이 아니다. 하드 실패로 세면 `/trading`
+ * 캐논은 거래소 없이 영영 CI 에서 못 돈다.
+ *
+ * ★★**첫 판은 발화조차 못 했다.** 콘솔 원문 하나만 보는 정규식에 URL 조각을 적어 넣었는데,
+ *   `ignoreConsole` 이 받는 것은 **브라우저 원문**이고 리포트의 `<- <url>` 은 그 뒤에 붙는다.
+ *   내 국소 검사는 리포트 문자열을 먹여 true 였다 — **실제 경로가 지나지 않는 검사**였다.
+ *   ⇒ 출처 URL 을 **둘째 인자로** 받아 판정한다. 텍스트의 503 과 URL 의 엔드포인트가
+ *   **둘 다** 맞을 때만 면제되므로 사거리가 원문 밖으로 새지 않는다.
+ */
+const EXCHANGE_POSITIONS_PATH = /\/exchange-accounts\/[^/]+\/positions(?:\?|$)/;
+const isExchangePositions503 = (text: string, originUrl?: string) =>
+  /\b503\b/.test(text) && originUrl !== undefined && EXCHANGE_POSITIONS_PATH.test(originUrl);
+
+const ignoreConsole = (t: string, originUrl?: string) =>
+  EXPECTED_CONSOLE.some((re) => re.test(t)) || isExchangePositions503(t, originUrl);
 
 /**
  * P1 4라우트 하드 실패 allowlist (2026-07-20 실측 baseline). S5~S8 이 줄인다.
@@ -105,7 +128,12 @@ async function countOn(browser: Browser, url: string, selector: string): Promise
   try {
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "load" });
-    await page.waitForTimeout(1500);
+    // ★★고정 1.5초였다 ([BL-807], 2026-08-18). dev 콜드 컴파일 + 세션 왕복 + API 왕복이 그
+    //   안에 안 끝나면 「데이터가 없다」와 「아직 안 왔다」가 **같은 0** 으로 보인다. 이 파일의
+    //   발견 단계와 형제 spec 은 이미 25초 `waitForSelector` 를 쓰는데 여기만 안 썼다.
+    //   ★타임아웃을 삼키는 것은 의도다 — 「몇 행인가」의 판정은 **호출부의 단언**이 진다.
+    //     여기서 던지면 0 행과 미도달이 다시 한 덩어리가 된다.
+    await page.waitForSelector(selector, { timeout: 20_000 }).catch(() => {});
     return await page.locator(selector).count();
   } finally {
     await context.close();
@@ -157,7 +185,8 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
     const discovery = await browser.newContext({ storageState: STORAGE_STATE });
     const dpage = await discovery.newPage();
     await dpage.goto(`${BASE_URL}/backtests`, { waitUntil: "load" });
-    await dpage.waitForTimeout(1500);
+    // ★고정 대기 → 셀렉터 대기 ([BL-807]). 부재 판정은 아래 `expect(href).toBeTruthy()` 가 진다.
+    await dpage.waitForSelector('a[href^="/backtests/"]', { timeout: 25_000 }).catch(() => {});
     const href = await dpage.locator('a[href^="/backtests/"]').evaluateAll((els) => {
       const re = /^\/backtests\/[0-9a-f-]{36}$/;
       const found = (els as HTMLAnchorElement[]).find((a) => re.test(new URL(a.href).pathname));

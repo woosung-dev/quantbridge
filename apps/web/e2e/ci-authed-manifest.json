@@ -1,6 +1,8 @@
 {
   "ci": [
     "api-request-dedup.spec.ts",
+    "authed-canon-p1.spec.ts",
+    "authed-canon-remaining.spec.ts",
     "authed-functional-parity.spec.ts",
     "authed-row-locator-guard.spec.ts",
     "authed-settings-save.spec.ts",
@@ -19,8 +21,5 @@
     "sprint55-optimizer-bayesian.spec.ts",
     "trading-ui.spec.ts"
   ],
-  "localOnly": {
-    "authed-canon-p1.spec.ts": "[BL-807] CI 실측(run `32089...`, 86 passed / 3 failed): 4케이스 중 `/backtests/:id/trades` **1건만** 남았다. 시더가 `backtest_trades` 3행을 실제로 넣었는데(로컬 DB 대조 확인) 화면의 `[data-testid=\"trade-detail-table\"] tbody tr` 이 0이다 — DB 행과 렌더 사이 어딘가에서 끊긴다. `/dashboard`·`/backtests`·`/trading` 3케이스는 이 회차에 초록이 됐다.",
-    "authed-canon-remaining.spec.ts": "[BL-807] CI 실측(run `32089...`): 13케이스 중 **2건** 남았다. ⑴ `/optimizer/:id` — 완료 run 을 심었는데 `/optimizer` 목록에 `a[href^=\"/optimizer/\"]` 가 안 뜬다. ⑵ `/backtests/:id` — `[data-testid=\"backtest-report-shell\"]` 이 20초 안에 안 보인다. ★셋 다 「행은 DB 에 있는데 화면이 비었다」 계열이고 각각 다른 FE 데이터 형상 조사가 필요하다. 정적 9라우트와 `/strategies/:id/edit` 는 이 회차에 초록이 됐다."
-  }
+  "localOnly": {}
 }
