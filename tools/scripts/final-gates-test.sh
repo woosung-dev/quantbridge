@@ -37,6 +37,10 @@ trap 'rm -rf "$TMP"; rm -f "$MUTDIR"/.fg-mutant-*.sh "$PROBE_SRC"' EXIT
 
 FAIL=0
 RED_IDS=""
+# ★케이스 수는 **센다**. 종전에는 종결 줄이 `10/10` 을 하드코딩했는데 `report` 호출은 이미
+#   11건이라 인쇄가 낡아 있었다(2026-08-18 발견). rc 는 `FAIL`/`RED_IDS` 가 정하므로 판정은
+#   틀리지 않았지만, 사람이 읽는 수가 거짓이면 케이스가 하나 사라져도 눈치채지 못한다.
+CASES=0
 TARGET="$GATES"   # 변이 실행 시 사본으로 바뀐다
 
 echo "══ final-gates 모드 하네스 ══"
@@ -73,6 +77,7 @@ signal_note() { # signal_note <label 조각> <mode-args...>
 screen_note_fake() { QB_FG_FAKE_CHANGED="$1" signal_note '화면 검증'; }
 
 report() { # report <번호> <라벨> <why(빈 문자열이면 통과)>
+  CASES=$((CASES + 1))
   if [ -n "$3" ]; then
     FAIL=$((FAIL + 1)); RED_IDS="${RED_IDS}$1"
     printf "  ✗ %s %s\n        | %s\n" "$1" "$2" "$3"
@@ -243,20 +248,48 @@ run_suite() { # 케이스 10건
   ev_pre="$(QB_FG_FAKE_CHANGED='apps/web/src/app/page.tsx' mark_of '화면 증거 팩' --pre-pr)"
   [ "$ev_pre" != "DEFER" ] || why="${why}${why:+ · }--pre-pr 이 화면 증거 팩을 유예했다 [$ev_pre]"
   report "⑪" "화면 증거 팩 — 배선 실재 · has_fe 양성/음성 · --pre-pr 유예 금지 ([BL-797])" "$why"
+
+  # ⑫ [BL-797] authed 화면 증거 레그 — 형제 ⑪ 과 **정반대의 성질 둘**을 고정한다.
+  #    ⓐ 영역 술어가 `has_fe` 가 아니라 `has_fe ∪ has_be` 다 (authed 화면은 BE 응답에도 흔들린다)
+  #    ⓑ **유예 대상이다** — ⑪ 은 「유예되면 안 된다」이고 여기는 「유예돼야 한다」. 두 케이스가
+  #       서로의 반증이라, 한쪽 성질을 다른 쪽에 복사하는 실수가 반드시 red 를 낸다.
+  #    ★단언은 ⑪ 과 같은 이유로 **형제 대조**다 — `-z "$BASE"` 인 shallow clone 에서도 참이어야 한다.
+  local av_full av_be av_nofe sib_be sib_nofe_a av_pre
+  why=""
+  av_full="$(mark_of '화면 증거 팩 (authed)')"
+  [ -n "$av_full" ] || why="full 계획에 「화면 증거 팩 (authed)」 행이 없다 — 배선이 사라졌다"
+  # ⓐ-1 BE 만 고친 diff — 형제 `e2e authed` 와 같아야 한다(둘 다 has_be 를 본다).
+  av_be="$(QB_FG_FAKE_CHANGED='apps/api/src/main.py' mark_of '화면 증거 팩 (authed)')"
+  sib_be="$(QB_FG_FAKE_CHANGED='apps/api/src/main.py' mark_of 'e2e authed')"
+  [ "$av_be" = "$sib_be" ] ||
+    why="${why}${why:+ · }BE diff 에서 authed 화면 증거($av_be) 가 형제 'e2e authed'($sib_be) 와 다르다 — 같은 영역 술어여야 한다"
+  # ⓐ-2 어느 영역도 아닌 diff — 역시 형제와 같아야 한다.
+  av_nofe="$(QB_FG_FAKE_CHANGED='docs/status.md' mark_of '화면 증거 팩 (authed)')"
+  sib_nofe_a="$(QB_FG_FAKE_CHANGED='docs/status.md' mark_of 'e2e authed')"
+  [ "$av_nofe" = "$sib_nofe_a" ] ||
+    why="${why}${why:+ · }diff 0 에서 authed 화면 증거($av_nofe) 가 형제 'e2e authed'($sib_nofe_a) 와 다르다"
+  # ⓑ `--pre-pr` 은 **유예해야** 한다. BE 와 로그인 세션을 요구하므로 중간 검사에서 돌 수 없다.
+  av_pre="$(QB_FG_FAKE_CHANGED='apps/web/src/app/page.tsx' mark_of '화면 증거 팩 (authed)' --pre-pr)"
+  [ "$av_pre" = "DEFER" ] ||
+    why="${why}${why:+ · }--pre-pr 이 authed 화면 증거를 유예하지 않았다 [$av_pre] — 서버 없는 중간 검사에서 죽는다"
+  report "⑫" "화면 증거 팩 (authed) — 배선 실재 · has_fe∪has_be 형제 대조 · --pre-pr 유예 필수 ([BL-797])" "$why"
 }
 
 run_suite
 echo
-echo "  케이스: $((10 - FAIL))/10 통과, ${FAIL} 실패"
+echo "  케이스: $((CASES - FAIL))/${CASES} 통과, ${FAIL} 실패"
 
 # ── 변이 — 케이스가 실제로 모드 디스패치를 보고 있는지 증명한다 ────────────────
 if [ "${1:-}" = "--mutants" ]; then
   echo
-  echo "── 변이 M1~M6 (사본 주입 · 케이스 10건 전량 재실행) ──"
+  echo "── 변이 (사본 주입 · 케이스 전량 재실행) ──"
   BASE_RED="$RED_IDS"
   MUT_FAIL=0
 
+  # ★변이 종수도 **센다** — 위 케이스 계수와 같은 이유다(하드코딩 「6종」이 M7 추가로 낡았다).
+  MUTANTS=0
   mutate() { # mutate <id> <old> <new> <기대 red 부분집합>
+    MUTANTS=$((MUTANTS + 1))
     local id="$1" old="$2" new="$3" expect="$4"
     python3 - "$GATES" "$MUTDIR/.fg-mutant-$id.sh" "$old" "$new" <<'PY'
 import sys
@@ -307,6 +340,10 @@ PY
   #        반드시 한쪽이 red 다 — 이 변이는 환경 독립이다.
   mutate M6 'CHANGED="$QB_FG_FAKE_CHANGED"' ': # 훅 무력화' "⑩"
 
+  # ★M7 — ⑫ 를 지키는 영구 변이 ([BL-797]). authed 레그를 유예 집합에서 빼면 `--pre-pr` 이
+  #   그것을 **실행하려 들고**, 서버가 없는 중간 검사에서 죽는다. ⑫ 의 절 ⓑ 가 잡아야 한다.
+  mutate M7 '|화면 증거 팩 (authed)"' '|__none__"' "⑫"
+
   # ★음성 대조 — 주석만 바꾼 사본은 red 0건이어야 한다 (변이 엔진 자체가 red 를 만들지 않는다)
   echo
   mutate_neutral() {
@@ -326,7 +363,7 @@ PY
   if [ "$MUT_FAIL" -gt 0 ]; then
     echo "✗ 변이 ${MUT_FAIL}건 미판별 — 케이스가 모드 디스패치를 못 보고 있다"; exit 1
   fi
-  echo "✓ 변이 6종 + 음성 대조 1종 전건 판별"
+  echo "✓ 변이 ${MUTANTS}종 + 음성 대조 1종 전건 판별"
   FAIL=0; RED_IDS="$BASE_RED"
   [ -n "$BASE_RED" ] && FAIL=1
 fi

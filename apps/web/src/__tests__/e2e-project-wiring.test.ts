@@ -101,6 +101,13 @@ const LOCAL_ONLY: Record<string, string> = {
     "`next start` 프로덕션 서버를 상대로 도는데 현재 CI e2e 잡은 dev 서버만 띄운다. " +
     "★그래서 **CI 초록은 화면 증거 팩이 돌았다는 증거가 아니다** — 증인은 " +
     "`final-gates.sh` 의 `화면 증거 팩` 레그와 `pnpm screen-evidence` 뿐이다.",
+  "chromium-screen-evidence-authed":
+    "[BL-797] authed 수치 증거(2026-08-18 신설). 형제 `chromium-screen-evidence` 의 CI 차단자 둘 중 " +
+    "⑵(프로덕션 서버 vs CI 의 dev 서버)를 그대로 물려받고, 여기에 셋째가 더 붙는다 — 이 project 는 " +
+    "`next start` 가 띄운 origin 을 **BE 도 알아야** 돈다(`FRONTEND_URL` = CORS · " +
+    "`BETTER_AUTH_URL` = JWKS·issuer, 둘 다 그 포트여야 한다). CI 의 `e2e_authed` 잡은 BE 를 " +
+    "`_base-url.ts` 파생 포트로 띄우므로 그 origin 이 다르다. ⑴(플랫폼별 스냅샷)은 **해당 없다** — " +
+    "이 project 는 스크린샷을 안 찍는다. CI 게시 경로는 [BL-800] 이다.",
 };
 
 /** PR 체크로 발화하는 트리거 — 이것이 없으면 「PR 이 초록이다」와 무관한 워크플로다. */

@@ -6,9 +6,14 @@
 //   `foo.mjs` 를 볼 때 `foo.d.mts` 를 먼저 찾으므로 이 파일이 그 틈을 메운다.
 export interface RouteMetrics {
   firstLoadBytes: number;
-  apiRequests: number;
-  totalRequests: number;
-  screenshot: string;
+  /** `null` = 대조 제외(authed — 실측상 비결정. 자세한 근거는 `screen-evidence-shared.ts`). */
+  apiRequests: number | null;
+  /** `null` = 대조 제외. 계수기 생존 검사는 spec 의 `> 0` 앵커가 진다. */
+  totalRequests: number | null;
+  /** 스냅샷 파일 이름. `null` = **수치 전용 라우트**(화면 축을 재지 않는다 — [BL-797] authed). */
+  screenshot: string | null;
+  /** 로그인 상태로 잰 라우트인가. 러너가 leg 범위를 가르는 데 쓴다([BL-797]). */
+  authed?: boolean;
 }
 
 export interface ScreenshotRef {
@@ -34,7 +39,8 @@ export function blobUrl(repoSlug: string, ref: string, filePath: string): string
 export function buildReport(input: {
   before: Record<string, RouteMetrics>;
   after: Record<string, RouteMetrics>;
-  screenshots: Record<string, ScreenshotRef>;
+  /** `null` 값 = 수치 전용 라우트. **키 자체의 부재는 에러**다(측정 실패와 구분한다). */
+  screenshots: Record<string, ScreenshotRef | null>;
   repoSlug: string;
   baseRef: string;
   headRef: string;
