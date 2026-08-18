@@ -13,12 +13,15 @@ on:
   pull_request:
     # stage/** — 대형 작업의 웨이브 PR(base=stage/<theme>)에도 CI 발화
     branches: [main, "stage/**"]
+  # merge queue 를 켜는 날을 위한 선배선 — 이 트리거가 없으면 큐의 합성 커밋에 check 가
+  # 아예 생성되지 않아 required check 가 영구 대기한다(ci-cd.md 에 기록된 함정).
+  merge_group:
   # main 을 손으로 확인해야 할 때의 안전판. 상시 트리거는 아니다.
   workflow_dispatch:
 
+# 두 잡 다 코드 읽기만 한다 — PR API 를 쓰는 스텝이 없으므로 contents 하나로 족하다.
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,6 +30,8 @@ concurrency:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    # 실측 12m20s (PR #687 첫 완주) — 행이 걸려도 기본 360분을 태우지 않게 상한을 건다.
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: apps/api
@@ -62,7 +67,9 @@ jobs:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
           restore-keys: uv-${{ runner.os }}-
-      - run: uv sync --all-extras --dev
+      # --frozen: uv.lock 과 pyproject 가 어긋나면 재해석하지 않고 죽는다 — FE 의
+      # --frozen-lockfile 과 같은 재현성 단언(비대칭 해소).
+      - run: uv sync --all-extras --dev --frozen
       - run: uv run ruff check .
       # pytest 전량 — 샤딩·coverage 계측 없이 한 번에 돈다. 스키마는 tests/conftest.py 가
       # drop_all + create_all 로 세우므로 alembic 스텝은 전제가 아니다.
@@ -82,6 +89,8 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    # 실측 3m42s (PR #687 첫 완주).
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: apps/web
