@@ -5,15 +5,15 @@
 
 ## 지금 필요한 문서
 
-| 질문                          | 정본                                                                                   | 역할                                                                                          |
-| ----------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| 지금 무엇을 하는가            | [`status.md`](./status.md)                                                             | 활성 또는 다음 스프린트의 실행 계약                                                           |
-| 다음에는 무엇을 하는가        | [`roadmap.md`](./roadmap.md)                                                           | 다음 1~2개 스프린트 후보와 먼 제품 방향                                                       |
-| 아직 풀지 못한 일은 무엇인가  | [`backlog.md`](./backlog.md)                                                           | 열린 `BL-`의 상태·영향·재개 조건·검증 링크                                                    |
-| 트리거 대기 `BL-`의 본문은    | [`backlog-deferred.md`](./backlog-deferred.md)                                         | DEFERRED 본문 (2026-08-18 3분할 — 인덱스 표 행은 `backlog.md` 에 남는다)                      |
-| 닫힌 `BL-`의 본문은 어디 있나 | [`backlog-resolved.md`](./backlog-resolved.md)                                         | RESOLVED 본문. 인덱스 표 행은 `backlog.md` 에 남아 있고 `bl-audit` 이 둘을 **한 벌로** 읽는다 |
-| 무엇을 실행해 검증하는가      | [`reference/operations/gates-and-traps.md`](./reference/operations/gates-and-traps.md) | 게이트 명령과 조용히 통과하는 함정                                                            |
-| FE 를 어떻게 배포하는가       | [`reference/operations/frontend-deploy.md`](./reference/operations/frontend-deploy.md) | 오라클 A1 배포 절차·구조 근거·실측 함정                                                       |
+| 질문                          | 정본                                                                                   | 역할                                                                                                     |
+| ----------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| 지금 무엇을 하는가            | [`status.md`](./status.md)                                                             | 활성 또는 다음 스프린트의 실행 계약                                                                      |
+| 다음에는 무엇을 하는가        | [`roadmap.md`](./roadmap.md)                                                           | 다음 1~2개 스프린트 후보와 먼 제품 방향                                                                  |
+| 아직 풀지 못한 일은 무엇인가  | [`backlog.md`](./backlog.md)                                                           | 열린 `BL-`의 상태·영향·재개 조건·검증 링크                                                               |
+| 트리거 대기 `BL-`의 본문은    | [`backlog-deferred.md`](./backlog-deferred.md)                                         | DEFERRED 본문 (2026-08-18 3분할 — 인덱스 표 행은 `backlog.md` 에 남는다)                                 |
+| 닫힌 `BL-`의 본문은 어디 있나 | [`backlog-resolved.md`](./backlog-resolved.md)                                         | RESOLVED 본문. 인덱스 표 행은 `backlog.md` 에 남는다 — 원장 사활 검사 = `tools/scripts/ledger-vitals.sh` |
+| 무엇을 실행해 검증하는가      | [`reference/operations/gates-and-traps.md`](./reference/operations/gates-and-traps.md) | 게이트 명령과 조용히 통과하는 함정                                                                       |
+| FE 를 어떻게 배포하는가       | [`reference/operations/frontend-deploy.md`](./reference/operations/frontend-deploy.md) | 오라클 A1 배포 절차·구조 근거·실측 함정                                                                  |
 
 ## 문서의 수명과 위치
 
@@ -21,7 +21,7 @@
 | ---------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | [`reference/`](./reference/README.md)    | 지금도 참인 도메인·아키텍처·운영·제품·API·설계 계약은 무엇인가 | 코드와 어긋나면 코드에 맞춰 고친다                                                |
 | [`decisions/`](./decisions/)             | 왜 이 선택을 했는가                                            | 폐기해도 삭제하지 않고 `Superseded`로 남긴다                                      |
-| [`lessons.md`](./lessons.md)             | 무엇이 반증됐는가 (LESSON 카드)                                | `docs-audit`이 **400줄** 상한을 건다. 넘으면 `archive/`로 내린다                  |
+| [`lessons.md`](./lessons.md)             | 무엇이 반증됐는가 (LESSON 카드)                                | **400줄** 상한(관례 — 자동 집행은 ADR-037 로 철거). 넘으면 `archive/`로 내린다    |
 | [`archive/`](./archive/)                 | `lessons.md`에서 내려온 stale LESSON 본문                      | 지금은 이 용도**만** 남았다. 구 375파일은 삭제됐고 아래 git history 항목이 답한다 |
 | [`dev-log/INDEX.md`](./dev-log/INDEX.md) | 완료된 스프린트에서 무엇을 측정·결정했는가                     | 요약 색인만 유지. 회고는 `lessons.md` 카드 + 한 줄로 끝낸다 (원문 파일 없음)      |
 | git history                              | 삭제된 과거 원문(구 `archive/`·`dev-log/*.md`)은 어디 있는가   | **2026-08-06 이전 원문만** 여기 있다 — `git show 0f0f0b06:docs/archive/<경로>`    |

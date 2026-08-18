@@ -2,7 +2,7 @@
 #
 # 왜 있나
 #   [ADR-036] 이 도구 버전의 SSOT 를 루트 `mise.toml` 하나로 모았지만 **게이트가 안 따라왔다.**
-#   `final-gates.sh` 같은 스크립트는 사용자 셸에서 상속한 PATH 로 돌고, 거기에 mise 가 걸려
+#   tools/scripts/ 의 스크립트는 사용자 셸에서 상속한 PATH 로 돌고, 거기에 mise 가 걸려
 #   있는지는 셸 초기화에 달려 있어 **실제로 갈린다**(2026-08-16 실측: 레포 루트에서 corepack
 #   폴백 `pnpm 8.15.9`). `apps/web/pnpm-lock.yaml` 은 `lockfileVersion: "9.0"` 이라 pnpm 8 로는
 #   읽히지 않으므로 그 셸에서는 `CI frozen-lockfile` 이 red 가 된다 — 그리고 그 증상은

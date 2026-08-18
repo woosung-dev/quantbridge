@@ -7,27 +7,17 @@ export PATH
 
 pnpm exec lint-staged
 
-# [BL-307] 소스 첫 3줄 한국어 헤더 주석 — **차단**. 신규 파일이 규칙 밖으로 새는 것을 막는 지점이다.
-# ★스테이징에 대상 소스가 있을 때만 돈다(전량 스캔 1.6초지만, 문서/설정만 고치는 커밋까지 물릴 이유는 없다).
-# ★`-z` 필수 — git 은 `core.quotePath` 기본값으로 비ASCII 경로를 `"apps/api/src/\355..."` 로
-#   따옴표 인용해 내보내므로, 한글 파일명 신규 소스가 정규식을 그냥 빠져나간다.
-# ★★검사 대상은 **작업 트리가 아니라 index** 다. `git checkout-index` 로 스테이징된 내용만
-#   실체화해서 그 트리를 잰다 — 안 그러면 「위반을 stage 하고 수정은 unstaged 로 두기」가
-#   조용히 통과한다(`apps/api/AGENTS.md` §10.1).
-# ★감사기는 판별력 자기검사에 실패하면 rc=3 으로 죽는다 — 그때도 커밋은 막힌다(조용한 통과 금지).
-if git diff --cached --name-only -z | tr '\0' '\n' | grep -qE '^(apps/api/src/.*\.py|apps/web/src/.*\.(ts|tsx))$'; then
-  _hdr_tmp="$(mktemp -d)"
-  git checkout-index --prefix="$_hdr_tmp/" -a
-  QB_HEADER_AUDIT_ROOT="$_hdr_tmp" tools/scripts/header-audit.sh
-  _hdr_rc=$?
-  rm -rf "$_hdr_tmp"
-  if [ "$_hdr_rc" -ne 0 ]; then
+# ADR-037 제로베이스: header-audit 차단 훅 철거 — 헤더 규칙은 /review-code conventions 차원이 흡수.
+# 원문 = git show harness-v1:.husky/pre-commit
+
+# ADR-037 재입힘 규칙 첫 적용례 — 원장 사활 3축(사고 실증 2건 근거로 슬림 복귀).
+# 원장/상태 문서가 스테이징됐을 때만 돈다. rc=3(판정 포기)도 차단이다(조용한 통과 금지).
+if git diff --cached --name-only | grep -qE '^docs/(status\.md|backlog.*\.md)$'; then
+  tools/scripts/ledger-vitals.sh || {
     echo ""
-    echo "[BL-307] 첫 3줄에 한국어 헤더 주석이 없는 소스가 **스테이징**돼 있다 (rc=$_hdr_rc)."
-    echo "         위 목록을 고쳐 stage 한 뒤 다시 커밋해라 — 확인 = mise run header-audit"
-    echo "         규칙 근거 = AGENTS.md:23 · 면제 목록 = tools/scripts/header-audit.sh is_exempt()"
+    echo "[ADR-037] 원장 사활 검사 실패 — 위 축을 고쳐 다시 커밋해라 (확인 = mise run ledger-vitals)"
     exit 1
-  fi
+  }
 fi
 
 # Sprint 28+ — dev-log 신규 추가 시 INDEX.md 갱신 reminder (reminder only, 차단 X)

@@ -444,13 +444,11 @@ cd apps/api && uv run mypy src/
 cd ../web && pnpm tsc --noEmit
 """
 
-[tasks.docs-audit]
-description = "활성 문서 링크 + 폐기 경로 검사"
-run = "tools/scripts/docs-audit.sh"
-
-[tasks.header-audit]
-description = "소스 첫 3줄 한국어 헤더 주석 검사 (BL-307)"
-run = "tools/scripts/header-audit.sh"
+# ADR-037 제로베이스: docs-audit·header-audit task 철거 — 원문 = git show harness-v1:mise.toml
+# 원장 사활 최소 검사만 슬림 복귀(사고 실증 2건 근거): ledger-vitals
+[tasks.ledger-vitals]
+description = "원장 사활 3축 — 다음 행동 ≤1 · ⓪ 표 ≥3행 · RESOLVED 역류 0 (ADR-037)"
+run = "tools/scripts/ledger-vitals.sh"
 
 # OpenAPI 계약 drift — 커밋된 `contracts/openapi/openapi.json` 이 현재 코드의 산출물과 같은가.
 # ★env 통째 소싱이 전제다 — Settings 의 `trading_encryption_keys` 가 기본값 없는 필수 필드다.
@@ -467,20 +465,5 @@ cd ..
 python3 tools/scripts/openapi-poc-filter.py --check
 """
 
-# 게이트 하네스 전량 — **게이트가 무엇을 재는지 재는** 검사기들.
-# ★왜 별 task 인가: CI 는 종전에 **하네스를 하나도 돌지 않았다**. 게이트 본체만 돌면, 레포가
-#   이미 깨끗하기 때문에 **판정 로직을 통째로 지워도 초록**이다 — BL-569 가 `bl-audit` 에서,
-#   BL-601 이 구 `fleet-dispatch` 에서 겪은 그 모양이다.
-# ★docker·네트워크·거래소 의존 0 — 전부 mktemp 트리 + PATH 앞단 가짜다.
-[tasks.gate-harnesses]
-description = "게이트 하네스 14종 — 게이트가 판별력을 갖는지 잰다"
-run = """
-set -u
-rc=0
-for h in bl-audit header-audit soak-restart soak-watch soak-stack docs-audit pre-push-guard assert-main-checkout skip-ratchet signal-check final-gates db-backup disk-guard tool-pin-audit; do
-  printf '\\n▶ %s-test\\n' "$h"
-  bash "tools/scripts/${h}-test.sh" || rc=$?
-done
-if [ "$rc" != 0 ]; then echo; echo "✗ 하네스 실패 — 게이트가 판별력을 잃었다"; exit 1; fi
-echo; echo "✓ 게이트 하네스 14종 전건 통과"
-"""
+# ADR-037 제로베이스: gate-harnesses task(자기시험 14종 러너) 철거 — 검사기 층 자체가 철거됐다.
+# 원문 = git show harness-v1:mise.toml · 검사기 복귀 시 그 자기시험도 함께 슬림 복귀한다.

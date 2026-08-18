@@ -24,39 +24,41 @@
 - ALWAYS — 코드 작성 전 「어떤 설계 문서 + 어떤 방향」 짧게 브리핑, 코드 수정 시 관련 문서 **동일 세션** 갱신
 - ALWAYS — 확인된 사실 / 추론(`[가정]`) / 확인 필요(`[확인 필요]`) 구분 표기
 - ALWAYS — 커밋/푸쉬/배포는 단계별 사용자 승인 (묶음 요청만 한 번에)
-- ALWAYS — 게이트는 **2단**이다(2026-08-14). 중간·PR 직전 = `final-gates.sh --run <슬러그> --pre-pr`
-  (무거운 9종 유예, ~1분) → PR push → **CI 와 나란히** `--deferred-only`(BE pytest 379초 + e2e).
-  유예분은 `.claude/gates/<슬러그>/deferred.txt` 에 남고 `--deferred-only` 통과가 그것을 지운다 —
-  **원장이 남아 있으면 종결이 아니다.** 전량 1회로 가려면 플래그 없이 돌려라
-- ALWAYS — 게이트는 **마지막 커밋 뒤에** 돌리고 그 뒤로 문서를 더 쓰지 마라 —
-  pre-commit 의 `prettier --write`·`ruff format` 이 **커밋 시점에** 트리를 바꾸므로 커밋 전 결과는 낡는다
+- ALWAYS — **green = 표준 러너 + CI 단일 게이트**([ADR-037](docs/decisions/037-harness-zero-base.md),
+  2026-08-19 제로베이스). 로컬 pre-flight 의식 없음 — PR 을 올리면 CI(be: ruff+pytest / fe:
+  eslint+tsc+vitest+build)가 판정한다. 로컬에서 미리 보려면 그 러너를 직접 돌려라
+  (BE pytest 는 `.env.local` 통째 소싱 의무 — 아래 Operational Commands)
+- ALWAYS — 리뷰 = `/review-code`(3차원 병렬 + finding 당 skeptic 3명 2/3 다수결). 소스 첫 3줄
+  한국어 헤더·컨벤션 검사는 이 리뷰의 conventions 차원이 흡수했다(구 header-audit)
 - ALWAYS — `gh pr create` 전, `docs/status.md` 에 **살아 있는 「다음 행동 = …」이 둘 이상이면 안 된다**.
   끝난 것은 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다 — 다음 세션은 남아 있는 것을 그대로 따른다.
-  ★**2026-08-08 부터 `docs-audit.sh` 가 잡는다**([BL-643] — 종전의 「어느 게이트도 안 잡는다」는
-  이제 거짓이다). 재는 것은 **구문** `다음 행동 =` 이고 **파일 전체**로 센다(사고 2건이 서로 다른
-  섹션에 하나씩 있었다). ⓪ 표 행 **≥3** 도 같이 본다. 종결 절차 전문 = §G8
+  기계 집행 = pre-commit 의 `tools/scripts/ledger-vitals.sh` 3축(다음 행동 ≤1 · ⓪ 표 ≥3행 ·
+  RESOLVED 역류 0). 종결 절차 전문 = §G8
+- ★**ADR-037 재입힘 규칙** — 하네스는 추측으로 자라지 못한다. **문서화된 사고 1건 = 슬림 복귀 1건**만
+  허용하고, 복귀는 원판이 아니라 최소판으로 한다. 철거 전 전체 원문 = git 태그 `harness-v1`
 - 역할 = **Senior Tech Lead + System Architect**. 완전한 코드(`...` 생략 금지), 복잡한 설계는 Mermaid.js
 
 ## 문서 — 어느 질문은 어디가 답하나 (SSOT 7축, ADR-026)
 
 - **지금 상태** — `docs/status.md`(활성 sprint) · `docs/roadmap.md`(다음 후보) · **원장 3분할**([BL-779], 2026-08-18):
   `docs/backlog.md`(**ACTIVE ∪ PARTIAL** + 인덱스 표 전량) · `docs/backlog-deferred.md`(**DEFERRED**) ·
-  `docs/backlog-resolved.md`(**RESOLVED**). ★**축은 판정어이고 `bl-audit.sh` 의 「파일 배치」 축이 집행한다** —
-  감사기 4종은 셋을 **한 벌로** 읽고 섹션 수·판정 수는 **합계**다. 어느 파일에 있는지는 `bl-audit.sh --list <판정어>` **4번째 칸**
+  `docs/backlog-resolved.md`(**RESOLVED**). ★**축은 판정어**이고 셋은 **한 벌로** 읽는다 — 섹션 수·판정
+  수는 합계다. 파일 배치 위반 중 RESOLVED 역류만 `ledger-vitals.sh` 가 집행한다([ADR-037] — 구 감사기는 철거)
 - **정본** — `docs/reference/`. 코드와 어긋나면 **코드가 맞다** — 단 「지금 무엇을 하는가」에 한해서다.
   「왜 그렇게 했나」(`docs/decisions/`)와 「무엇이 반증됐나」(`docs/lessons.md`)에 대해 **코드는 증인이 아니다**
 - **결정 근거** — `docs/decisions/`. 규칙 변경 전 필독. 폐기는 삭제가 아니라 `Superseded` 표기
 - **과거 원문** — git history. 삭제 시 tombstone(무엇을+어디로+SHA) 1줄 의무. 발견 색인 = `docs/dev-log/INDEX.md`
 - **뭘 돌려야 통과인가** — `docs/reference/operations/gates-and-traps.md` · 전체 목차 = `docs/README.md`
 
-- NEVER — BL 상태를 손으로 세지 마라. `tools/scripts/bl-audit.sh` 가 정본이며 3면(섹션 `**상태:**` 줄 · 인덱스 표 ·
-  roadmap 체크박스)을 대조한다. BL 추가/해결 시 `**상태:**` 줄 의무 (없으면 `UNKNOWN`)
+- 원장 3분할 · BL `**상태:**` 줄 의무 · 3면(섹션 상태줄·인덱스 표·roadmap 체크박스) 일치는 **규칙으로
+  유지**된다 — 기계 집행은 [ADR-037] 로 `ledger-vitals.sh` 3축만 남았다(구 감사기 원문 =
+  `git show harness-v1:tools/scripts/`, 복귀는 재입힘 규칙 경유)
 - ★**판정어 5종** — `ACTIVE`(지금 단독 착수 가능) / `DEFERRED`(**트리거 미도래** — 상태줄 `⏳ **대기 (트리거
 미도래)**`) / `PARTIAL` / `RESOLVED` / `UNKNOWN`. DEFERRED 는 active 로 안 세고 3면에서는 ACTIVE 와 같은
-  「미완」 쪽이다([ADR-028](docs/decisions/028-backlog-deferred-verdict.md)). 도래 판정 = `tools/scripts/bl-trigger-sweep.sh`
-  (**`--selftest` 를 전량 스윕보다 먼저**). ⓪ 표는 `--list ACTIVE` 에서 파생 — 손으로 후보를 얹지 마라
+  「미완」 쪽이다([ADR-028](docs/decisions/028-backlog-deferred-verdict.md)). 도래 판정·⓪ 표 갱신은
+  세션이 `**Trigger:**` 줄을 직접 읽어 한다(구 `bl-trigger-sweep` 은 ADR-037 로 철거)
 - ALWAYS — 요약 줄 길이 상한 준수: `dev-log/INDEX.md` **300자** · `backlog.md`·`backlog-resolved.md`·`roadmap.md` **1,000자**
-  (`tools/scripts/docs-audit.sh` 강제). 읽는 비용은 `tools/scripts/context-budget.sh` 로 잰다 (바이트 아닌 **문자**)
+  (ADR-037 이후 기계 강제 없음 — 스스로 지켜라)
 - ALWAYS — 스프린트 종료 시 작업 문서는 승격(`reference/`)·강등·삭제 중 하나로 종결. 회고는 **반증 카드
   1~2천자 → `docs/lessons.md` 승격 → INDEX 한 줄** (ADR-026 §3)
 - ID 체계: `SCR-` 화면 / `API-` API / `ENT-` 엔티티 / `REQ-` 기능 / `BL-` 백로그. ID 재사용 금지
@@ -112,6 +114,9 @@ codex 는 **가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구�
 - `apps/api/src/<도메인>/` — router/service/repository/schemas/models · `apps/api/src/strategy/pine_v2/` — 인터프리터 SSOT
 - `apps/web/src/` — Next.js 16 FSD Lite (`app`/`components`/`features`/`hooks`/`lib`/`store`).
   ★화면 컴포넌트의 기본 자리는 `features/<domain>/components/` 다 — `app/**/_components/` 가 아니다([ADR-035](docs/decisions/035-fe-component-ownership.md))
-- `tools/scripts/` — 게이트·감사 셸 (`final-gates` · `bl-audit` · `docs-audit` · `context-budget` · `soak-gate` · `db-backup` · `disk-guard` · `tool-pin-audit`) + 그 하네스 `*-test.sh` 14종
+- `tools/scripts/` — 운영 런타임(`soak-*` · `db-backup` · `disk-guard`) + 가드(`assert-main-checkout` ·
+  `lib/`) + `ledger-vitals` + `hooks/`(codex 훅) + 스모크·재현·유틸(`bybit-smoke` · `e2e-authed-repro` ·
+  `nightly-real-broker-local` · `metrics-wipe` · `worktree-bootstrap` · `openapi-poc-filter`).
+  리뷰 = `.claude/workflows/review-code.js` · 하네스 Eval = `evals/harness/`
 - `docs/` — 상태 3종 + `reference/` + `decisions/` + `lessons.md` (지도: `docs/README.md`)
 - `apps/api/AGENTS.md` · `apps/web/AGENTS.md` — 스택 규칙 (같은 자리 `CLAUDE.md` = `@AGENTS.md` 한 줄)

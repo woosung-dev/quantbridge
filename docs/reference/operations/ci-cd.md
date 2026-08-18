@@ -9,65 +9,65 @@
 
 ```mermaid
 flowchart TB
-    Trigger[PR → main / stage/**]
-    Changes[changes\ndorny/paths-filter]
-    Doc[documentation\nmise run docs-audit]
-    FE[frontend\nlint + tsc + test + build]
-    BES[backend_static\nruff + mypy • DB 불요]
-    BE[backend ×3 샤드\nalembic + pytest --cov]
-    BEC[backend_coverage\ncoverage combine + fail-under=90]
-    E2E[e2e\nplaywright 공개 3 project\nauthed 는 없다 — BL-789]
-    CI[ci summary\nsuccess/skipped 아니면 실패]
+    Trigger[PR → main / stage/**\n+ workflow_dispatch]
+    BE[backend\nruff + pytest 전량]
+    FE[frontend\neslint + tsc + vitest + build]
 
-    Trigger --> Changes
-    Changes -->|frontend| FE
-    Changes -->|frontend| E2E
-    Changes -->|backend| BES
-    Changes -->|backend| BE
-    BE --> BEC
-    FE --> CI
-    BES --> CI
-    BEC --> CI
-    E2E --> CI
-    Doc --> CI
+    Trigger --> BE
+    Trigger --> FE
 ```
+
+★**2026-08-19 [ADR-037] 제로베이스 — 잡은 이 2개가 전부다.** 구 구조(changes paths-filter ·
+documentation · backend_static · backend ×3샤드 · backend_coverage · e2e · ci summary) 원문 =
+`git show harness-v1:.github/workflows/ci.yml`.
+
+- **무조건 실행** — paths 필터가 없다. docs only PR 에서도 두 잡이 다 돈다.
+- **병렬 2잡** — 서로 `needs` 없음. 집계(summary) 잡도 없다.
+- **branch protection required check 이름 = `backend` · `frontend`** — 구 `ci` 집계 check 는
+  더 이상 생성되지 않으므로, required check 에 그 이름을 남겨두면 영구 pending 이다(ADR-037).
+- `tools/scripts/ledger-vitals.sh`(원장 기계 집행 3축)는 **CI 잡이 아니라 pre-commit 훅**이다 —
+  CI 에 이 노드를 그리지 마라.
 
 ### 트리거 — PR 만 (2026-08-06)
 
 `push: [main]` 을 뺐다. 같은 내용이 PR 과 머지 직후 **두 번** 돌고 있었고(backend 23분 × 2),
 `pull_request` 이벤트는 PR head 가 아니라 **머지 프리뷰**(`refs/pull/N/merge`)를 체크아웃하므로
 머지 결과는 이미 PR 에서 검사된다. 남는 위험은 마지막 PR run 이후 **base 가 움직인 경우**뿐이고,
-순차 머지 + 로컬 `tools/scripts/final-gates.sh` 가 그 구간을 덮는다. main 을 손으로 확인해야 하면
+순차 머지 + 머지 직전 `gh pr checks` 재확인이 그 구간을 덮는다(로컬 게이트 러너는 ADR-037 제로베이스로 철거). main 을 손으로 확인해야 하면
 `workflow_dispatch` 로 돌린다.
 
-### Changes-aware 분기
+### Changes-aware 분기 (구 구조 기록)
+
+> **2026-08-19 [ADR-037] tombstone** — paths-filter 는 철거됐고 두 잡은 무조건 돈다.
+> 원문 = `git show harness-v1:.github/workflows/ci.yml`. 아래는 구 구조 기록이다.
 
 - `dorny/paths-filter@v3`로 PR diff에서 변경된 경로 감지
 - `apps/web/**` 또는 `.github/workflows/**` 변경 시 frontend / e2e job 실행
 - `apps/api/**` · `.github/workflows/**` · `contracts/**` 변경 시 backend_static / backend / backend_coverage job 실행
 - 둘 다 변경 시 병렬 실행
 
-> ★★**워크플로 경로가 두 필터에 다 들어 있는 이유** — 그 파일들을 **입력으로 읽는 감사 테스트**가
-> 양쪽 스위트에 있다(BE `test_pytest_shard_partition`·`test_ci_workflow_env_parity`, FE
+> ★★**워크플로 경로가 두 필터에 다 들어 있던 이유** — 그 파일들을 **입력으로 읽는 감사 테스트**가
+> 양쪽 스위트에 있었다(BE `test_pytest_shard_partition`·`test_ci_workflow_env_parity`, FE
 > `e2e-project-wiring.test.ts` 의 「CI 실행 표면」). 필터가 좁으면 **워크플로만 고친 PR 에서 그
-> 감사들이 skip** 되고 `ci` 요약이 skipped 를 통과로 세므로, 감사 대상을 망가뜨려도 초록이다.
+> 감사들이 skip** 되고 `ci` 요약이 skipped 를 통과로 셌으므로, 감사 대상을 망가뜨려도 초록이었다.
 > FE 축은 2026-08-17 [BL-789] 적대 리뷰가 실측으로 잡아 뒤늦게 넣었다 — **게이트를 붙일 때는
-> 「무엇이 그것을 발화시키나」를 같이 봐라.**
+> 「무엇이 그것을 발화시키나」를 같이 봐라**(무조건 실행 2잡에서는 이 함정 자체가 사라졌다).
 
-> PR이 docs only 변경이면 code job 이 전부 skip — `ci` summary가 통과 처리.
-> 단 `documentation` 잡은 **항상** 돌고 `ci` 가 그 결과를 본다(아래 §4).
+> PR이 docs only 변경이면 code job 이 전부 skip — `ci` summary가 통과 처리했다.
+> 단 `documentation` 잡은 **항상** 돌았고 `ci` 가 그 결과를 봤다(아래 §4 — 잡 자체가 철거됨).
 
 ---
 
 ## 2. Frontend Job
 
-| 단계    | 명령                                | 목적               |
-| ------- | ----------------------------------- | ------------------ |
-| Setup   | `jdx/mise-action` + pnpm store 캐시 | 버전은 `mise.toml` |
-| Install | `pnpm install --frozen-lockfile`    | 재현성 확보        |
-| Lint    | `pnpm lint`                         | ESLint + Prettier  |
-| Type    | `pnpm tsc --noEmit`                 | TypeScript Strict  |
-| Test    | `pnpm test -- --run`                | vitest             |
+| 단계    | 명령                                | 목적                                                                                          |
+| ------- | ----------------------------------- | --------------------------------------------------------------------------------------------- |
+| Setup   | `jdx/mise-action` + pnpm store 캐시 | 버전은 `mise.toml`                                                                            |
+| Install | `pnpm install --frozen-lockfile`    | 재현성 확보                                                                                   |
+| Lint    | `pnpm lint`                         | ESLint + Prettier                                                                             |
+| Type    | `pnpm tsc --noEmit`                 | TypeScript Strict                                                                             |
+| Test    | `pnpm test -- --run`                | vitest                                                                                        |
+| Build   | `pnpm build`                        | next build — Better Auth env 는 빌드 전용 placeholder (구 잡에도 있었으나 이 표가 누락했었다) |
 
 > ~~CI Node 버전은 20, 로컬 권장은 22+. 향후 일치시킬지 검토 (Sprint 5+).~~
 > → **2026-08-16 일치시켰다** ([ADR-036](../../decisions/036-tool-version-ssot-mise.md)). CI·로컬·프로덕션
@@ -81,6 +81,13 @@ flowchart TB
 
 ## 3. Backend Job
 
+> ★**2026-08-19 [ADR-037] tombstone — 아래 3벌 구조(backend_static · backend ×3샤드 ·
+> backend_coverage)는 구 구조 기록이다.** 지금은 `backend` 1잡 = `uv run ruff check .` +
+> `uv run pytest` 전량(샤딩·mypy·coverage·alembic 스텝 없음 — 스키마는 `tests/conftest.py` 의
+> drop_all+create_all). 원문 = `git show harness-v1:.github/workflows/ci.yml`.
+> 샤드 정의(`tests/shards.json`)는 로컬 분할 실행용으로 남았고 `test_pytest_shard_partition.py` 가
+> 무결성을 계속 감사한다(CI matrix 대조 축만 철거).
+
 **2026-08-06 — 잡 3벌로 쪼갰다.** pytest 한 스텝이 backend 잡 23분의 **94%(1313s)** 였다.
 
 `backend_static` (DB 불요)
@@ -93,7 +100,7 @@ flowchart TB
 | Cache   | `actions/cache` → `apps/api/.mypy_cache` | mypy cold 실측 32s → 캐시 hit |
 | Type    | `uv run mypy src/`                       | 타입                          |
 
-`backend` (matrix `shard: [a, b, c]` — 각 샤드가 자기 DB/Redis 서비스를 갖는다)
+`backend` (matrix `shard: [a, b, c]` — 각 샤드가 자기 DB/Redis 서비스를 가졌다)
 
 | 단계      | 명령                                                          | 목적                                        |
 | --------- | ------------------------------------------------------------- | ------------------------------------------- |
@@ -147,17 +154,21 @@ top-10 에 **아예 안 보였다.**
 **등가성은 증명됐다.** 전체 1벌 실행과 샤드 3벌 합본의 `coverage report` 가 **파일별로 완전히
 동일**(TOTAL `730 38 192 23 93%`)했고, 샤드 수집 합계 = 전체 수집(1039 + 78 + 3133 = **4250**)이다.
 
-★**조각 「이름」 검사가 유일한 누락 탐지기다.** 샤드 a·b 의 데이터 파일은 내용이 동일해서
+★**조각 「이름」 검사가 유일한 누락 탐지기였다.** 샤드 a·b 의 데이터 파일은 내용이 동일해서
 (둘 다 trading 모듈을 import 로만 스친다) `coverage combine` 이 `Skipping duplicate data` 를 찍는다.
 즉 **a 나 b 의 아티팩트가 통째로 사라져도 최종 커버리지 수치는 안 움직인다** — 커버리지로는
 누락을 볼 수 없다. `upload-artifact` 의 `include-hidden-files: true` 가 빠지면 dot 파일이
-기본 제외되어 정확히 그 상황이 된다.
+기본 제외되어 정확히 그 상황이 됐다.
 
 ★**분할이 새면 `apps/api/tests/test_pytest_shard_partition.py` 가 막는다** — 모든 `test_*.py` 가
-정확히 한 샤드에 속하는지, `ci.yml` matrix id 가 `shards.json` 키와 같은지, 빈 샤드가 없는지,
+정확히 한 샤드에 속하는지, ~~`ci.yml` matrix id 가 `shards.json` 키와 같은지~~(matrix 대조 축은
+[ADR-037] 로 감사 대상과 함께 철거), 빈 샤드가 없는지,
 `pytest_args()` 가 선언된 `--ignore` 를 실제로 내는지. **변이 6종 전건 red 확인.**
 
 ### 환경 변수 (CI 전용)
+
+> **이 절은 §3 tombstone 의 예외 — 2026-08-19 현재도 유효하다.** 새 `backend` 단일 잡의
+> pytest 스텝이 harness-v1 pytest 스텝의 env 를 그대로 이어받았다(`TEST_DATABASE_URL` 포함).
 
 - `DATABASE_URL=postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test`
 - `REDIS_URL=redis://localhost:6379/0`
@@ -176,27 +187,32 @@ top-10 에 **아예 안 보였다.**
 
 ---
 
-## 4. CI Summary
+## 4. CI Summary (구 구조 기록)
+
+> ★**2026-08-19 [ADR-037] tombstone — `ci` 집계 잡 자체가 철거됐다.** 집계 잡은 없고 branch
+> protection required check 가 `backend`·`frontend` 2잡을 직접 본다(§1). skip 판정·needs 목록
+> 문제는 무조건 실행 2잡에서는 성립 자체가 안 된다. 원문 = `git show harness-v1:.github/workflows/ci.yml`.
+> 아래는 구 구조 기록이다.
 
 `ci` job:
 
-- `if: always()` — 다른 job 결과와 무관하게 실행
+- `if: always()` — 다른 job 결과와 무관하게 실행했다
 - `needs` = `changes` · `frontend` · `backend` · `backend_static` · `backend_coverage` · `e2e` · `documentation`
-- 판정은 **`success` 또는 `skipped` 가 아니면 실패**
-- skip은 통과로 간주 → docs only PR 머지 가능
+- 판정은 **`success` 또는 `skipped` 가 아니면 실패**였다
+- skip은 통과로 간주했다 → docs only PR 머지 가능
 
 ★**2026-08-06 에 구멍 3개를 막았다.**
 
-1. `documentation` 이 `needs` 에 **없었다** — `mise run docs-audit` 이 빨개도 `ci` 는 초록이었다.
-2. 판정이 `== "failure"` 였다 — `cancelled` 가 **통과로 읽혔다**. 이제 모르는 상태는 fail-closed.
+1. `documentation` 이 `needs` 에 **없었다** — 당시 잡이 돌리던 `mise run docs-audit`(ADR-037 로 철거) 이 빨개도 `ci` 는 초록이었다.
+2. 판정이 `== "failure"` 였다 — `cancelled` 가 **통과로 읽혔다**. 그 뒤로는 모르는 상태를 fail-closed 로 뒀다.
 3. `changes` 가 `needs` 에 **없었다**(이 구멍은 2026-08-06 이전부터 있었다) — 경로 감지 잡이
    실패하면 그 의존 잡이 전부 `skipped` 가 되고, 위 2번 규칙이 skipped 를 통과로 인정하므로
    `documentation` 하나만 성공해도 `ci` 가 초록이었다. **경로 감지가 죽으면 게이트 전체가 조용히
    사라지는** 경로다. codex 적대 리뷰가 잡았다.
 
-★**경로 필터에 `.github/workflows/**`가 들어간 이유**(codex P1) — 안 그러면 워크플로만 고치는
+★**경로 필터에 `.github/workflows/**`가 들어갔던 이유**(codex P1) — 안 그러면 워크플로만 고치는
 PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·coverage 명령을 망가뜨려도`ci` 가
-초록\*\*이다. ci.yml 을 검증하는 감사 테스트가 backend 스위트 안에 있으므로 이 연결이 맞다.
+초록\*\*이었다. ci.yml 을 검증하는 감사 테스트가 backend 스위트 안에 있으므로 이 연결이 맞았다.
 
 > 잡 id 에 하이픈 대신 밑줄(`backend_static`)을 쓴 이유: `needs.backend-static.result` 는 표현식에서
 > 뺄셈으로 파싱될 여지가 있어 대괄호 표기가 필요한데, 로컬에서 시험할 수 없는 문법이라 모호함이
@@ -213,6 +229,8 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
   **쓸 수 없다**(private free — API 403 실측)」라고 적었는데, 같은 날 **저장소를 public 으로
   전환**해서 branch protection 이 **다시 가능하다.** 아직 켜지 않았으므로 위 서술(자동 검증
   없음)은 여전히 유효하지만, **이유가 「불가능」에서 「미설정」으로 바뀌었다.**
+  ★**2026-08-19 [ADR-037]** — required check 이름은 `backend`·`frontend` 다(§1). 직접 push 와
+  ⑵(base 이동 후 머지) 구간에 대한 위 경고 자체는 그대로다.
 - ★★**2026-08-18 정정 — 이 항목은 더 이상 참이 아니다** ([BL-802] · n5-ci-truth-close).
   전용 잡 **`e2e_authed`** 가 `--project=chromium-authed --no-deps` 로 매니페스트의 **18 spec** 을
   실제로 돌리고, `ci` 요약 잡의 `needs`·`check` 에 들어 있다. 실행 증인 = run `32121054465`
@@ -224,12 +242,16 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
   `chromium-design-canon` 셋만 `--project=` 로 부르고, `chromium-authed` 를 부르는 줄은
   워크플로 전체에 **없다**. `apps/web/e2e/*.spec.ts` 29개 중 **20개**(`chromium-authed` 의
   `testMatch` 가 잔여 전체를 가져간 몫)가 그래서 CI 실행 0회다.~~
-  게이트 판정의 증인은 로컬 `tools/scripts/final-gates.sh` 의 `e2e authed` 레그지만,
-  **실행처가 그 하나뿐이라는 뜻은 아니다** — `mise run fe-e2e-authed` · `pnpm e2e:authed` ·
-  `tools/scripts/e2e-authed-repro.sh` 도 같은 스위트를 돌린다.
+  ★**2026-08-19 재정정 ([ADR-037] 제로베이스)** — CI 재작성으로 `e2e`·`e2e_authed` 잡 자체가
+  **CI 에서 빠졌다**(위 08-18 정정의 「CI 가 돈다」는 그 시점의 사실 기록으로만 남는다). 지금
+  authed 의 증인은 **로컬 실행뿐**이다: `pnpm e2e:authed` · `tools/scripts/e2e-authed-repro.sh`.
+  e2e 의 CI 복귀는 재입힘 규칙(사고 1건 = 슬림 복귀 1건) 경유. 구 로컬 게이트 `final-gates.sh`
+  원문 = `git show harness-v1:tools/scripts/final-gates.sh`.
   ⇒ ⑴ **PR 이 CI 전건 초록이어도 authed 게이트는 red 일 수 있다.** ⑵ 「CI 가 초록이었다」를
   로컬 authed 실패의 **음성 대조 근거로 쓰지 마라** — 그 잡은 authed 를 애초에 안 돌렸다.
-  회귀 방지 = `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사
+  회귀 방지였던 것 = `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사 —
+  ★**이 감사도 2026-08-19 [ADR-037] 로 삭제됐다**(e2e 가 CI 표면에서 빠져 감사 대상이 사라짐 ·
+  원문 = `git show harness-v1:apps/web/src/__tests__/e2e-project-wiring.test.ts`). 아래 규약은 기록:
   (`LOCAL_ONLY` 상수에 **`[BL-NNN]`/`[ADR-NNN]` 원장 식별자를 품은 사유**와 함께 등재된 것만
   면제 · PR 트리거가 있는 워크플로만 「CI 실행」으로 센다 · ★그 안에서도 **playwright 를 실제로
   부르는 살아 있는 명령**만 센다 — `echo --project=X` · `if: false` 스텝 · `false && … || true`
@@ -238,12 +260,13 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
   `invite-token-page.spec.ts` 는 빈 `storageState` 로 도는 공개 라우트 계약 시험이라 인증
   secret 없이 오늘 공개 project 로 옮길 수 있다(2026-08-17 적대 리뷰 정정).
 - **merge queue 를 켜면 CI 가 아예 보고되지 않는다** — 트리거에 `merge_group` 이 없어서 큐의
-  합성 커밋에 `ci` 체크가 생기지 않는다. 큐를 도입하는 날 트리거를 같이 추가해라.
+  합성 커밋에 체크가 생기지 않는다(2026-08-19 현재의 `backend`·`frontend` 도 동일 — 새 ci.yml 에도
+  `merge_group` 은 없다). 큐를 도입하는 날 트리거를 같이 추가해라.
 - **env 감사는 키 존재만 본다** — 값이 `redis://redis:6379`(compose 호스트)나 빈 문자열로
   바뀌어도 통과한다. 그 고장은 CI 에서 연결 실패로 시끄럽게 죽으므로 감사의 표적이 아니다.
-- **로컬 커버리지 방어선이 하나 줄었다** — `final-gates.sh` 의 커버리지 재현이 기본 skip 이므로
-  래칫은 이제 **PR CI 한 곳에서만** 판정된다. 그 잡 자체가 고장 나는 경로는 샤드 조각 이름 검사와
-  감사 테스트 2종이 막는다.
+- ~~**커버리지 래칫은 PR CI 한 곳에서만 판정된다**~~ → **2026-08-19 [ADR-037]: 커버리지 래칫
+  잡(`backend_coverage`)과 로컬 재현 러너(`final-gates.sh`) 둘 다 철거됐다** — 지금 커버리지는
+  어느 게이트도 재지 않는다(로컬 `uv run pytest --cov` 는 가능). 복귀는 재입힘 규칙 경유.
 
 ---
 

@@ -7,8 +7,8 @@
 //
 // ★codex 적대 리뷰(2026-08-17)가 실제로 잡은 자리다. `sanitizeArtifactSegment` 는
 //   `[^A-Za-z0-9._-]` 를 치환하는데 `.` 이 허용 문자라 `..` 가 **그대로 통과**했고,
-//   `test-results/../chromium` = `apps/web/chromium` 이 됐다. 기존 배선 테스트
-//   (`e2e-project-wiring.test.ts`)는 환경 변수 없이 config 를 import 하므로 이 경로를 안 지난다 —
+//   `test-results/../chromium` = `apps/web/chromium` 이 됐다. 당시의 배선 테스트
+//   (`e2e-project-wiring.test.ts`, ADR-037 철거)는 환경 변수 없이 config 를 import 해 이 경로를 안 지났다 —
 //   「가드가 있다」가 아니라 「그 경로가 지나는가」로 재라는 규칙(apps/api/AGENTS.md §10.1)의 사례다.
 //
 // ★config 를 **파싱하지 않고 import** 한다. 정규식을 여기에 다시 쓰면 실제 배선이 아니라

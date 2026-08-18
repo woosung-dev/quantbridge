@@ -11,20 +11,18 @@
 ★**그래서 판정은 「개수」가 아니라 「무엇이」다.** 파일 하나하나에 대해 소유 샤드 집합을
 구해 **정확히 1** 인지 본다. 0 이면 미실행, 2 이상이면 중복 실행(커버리지는 맞지만 시간 낭비).
 
-관련: `tests/shard_paths.py`(샤드 정의의 유일한 소비자) · `.github/workflows/ci.yml`(matrix).
+관련: `tests/shard_paths.py`(샤드 정의의 유일한 소비자). CI matrix 축은 ADR-037 로 철거 —
+샤드는 이제 로컬 분할 실행 전용이다.
 """
+
 from __future__ import annotations
 
 import pathlib
-import re
-
-import pytest
 
 from tests.shard_paths import SHARDS_JSON, load_shards, pytest_args
 
 _TESTS_DIR = pathlib.Path(__file__).resolve().parent
 _BACKEND = _TESTS_DIR.parent
-_WORKFLOW = _BACKEND.parent.parent / ".github" / "workflows" / "ci.yml"
 
 
 def _all_test_files() -> set[str]:
@@ -59,18 +57,15 @@ def test_every_test_file_belongs_to_exactly_one_shard() -> None:
     files = _all_test_files()
 
     orphans = sorted(f for f in files if len(_owners(f, shards)) == 0)
-    duplicates = sorted(
-        (f, _owners(f, shards)) for f in files if len(_owners(f, shards)) > 1
-    )
+    duplicates = sorted((f, _owners(f, shards)) for f in files if len(_owners(f, shards)) > 1)
 
     assert not orphans, (
         f"어느 샤드에서도 안 도는 테스트 파일 {len(orphans)}개 — CI 는 초록인데 실행이 안 된다:\n"
         + "\n".join(f"  {f}" for f in orphans)
         + f"\n\n{SHARDS_JSON} 의 paths 에 추가해라."
     )
-    assert not duplicates, (
-        "두 샤드 이상에서 중복 실행되는 파일:\n"
-        + "\n".join(f"  {f} → {owners}" for f, owners in duplicates)
+    assert not duplicates, "두 샤드 이상에서 중복 실행되는 파일:\n" + "\n".join(
+        f"  {f} → {owners}" for f, owners in duplicates
     )
 
 
@@ -122,19 +117,10 @@ def test_shard_entries_all_exist_on_disk() -> None:
     assert not missing, "shards.json 이 없는 경로를 가리킨다:\n" + "\n".join(missing)
 
 
-def test_ci_matrix_shard_ids_match_shards_json() -> None:
-    """★`ci.yml` matrix 와 `shards.json` 이 갈라지면 샤드 하나가 통째로 안 돈다."""
-    if not _WORKFLOW.exists():  # 워크플로 없는 체크아웃
-        pytest.skip("워크플로 파일이 없는 체크아웃")
-
-    text = _WORKFLOW.read_text()
-    m = re.search(r"^\s*shard:\s*\[([^\]]*)\]", text, re.M)
-    assert m, "ci.yml 에서 `shard: [...]` matrix 를 못 찾았다 — 배선이 바뀌었는지 확인해라"
-    matrix_ids = {tok.strip().strip("\"'") for tok in m.group(1).split(",") if tok.strip()}
-
-    assert matrix_ids == set(load_shards()), (
-        f"ci.yml matrix={sorted(matrix_ids)} 와 shards.json={sorted(load_shards())} 가 다르다"
-    )
+# ADR-037 제로베이스(2026-08-19): `test_ci_matrix_shard_ids_match_shards_json` 철거 —
+# CI 가 샤드 matrix 없이 pytest 전량 단일 스텝이 되면서 감사 대상이 사라졌다.
+# 원문 = git show harness-v1:apps/api/tests/test_pytest_shard_partition.py
+# (shards.json 자체의 무결성 검사는 아래에 남긴다 — 로컬 분할 실행이 여전히 쓸 수 있다.)
 
 
 def test_partition_audit_detects_anything_at_all() -> None:
