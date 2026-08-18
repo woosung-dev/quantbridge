@@ -2057,128 +2057,6 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
 
-### BL-797
-
-**Title:** 화면 증거 게이트가 **공개 라우트 3종만** 잰다 — authed 화면을 바꾼 PR 은 여전히 증거가 없다
-**Category:** 테스트 / 인프라 / DX
-**Priority:** P2
-**Trigger:** ⏳ **대기** — authed e2e 슬롯 배선([BL-780]/[BL-781])이 서면 도래. 그 배선 없이는 로그인한 화면을 결정적으로 캡처할 수 없다
-**Est:** M (수치 축만이면 S — 스크린샷 없이 번들·요청 수만 재면 실데이터 픽셀 흔들림을 피한다)
-**상태:** ⬜ **Open — 트리거 도래로 승격 (2026-08-18 night4 사후 스윕)**. 게이트 본체는 2026-08-17 night3 에 착지했고 (`screen-evidence.spec.ts`·`scripts/screen-evidence.mjs`·`final-gates.sh` §4b·하네스 ⑪), 측정 대상이 `/` · `/sign-in` · `/waitlist` 셋뿐이라 **authed 화면을 바꾼 PR 은 여전히 무증거**다. ★[BL-802] 의 CI 결정론 시더와 **같은 차단자를 공유한다** — authed 화면은 실데이터가 픽셀을 흔들어서, 결정적 시드가 있어야 스크린샷 축이 성립한다. 그래서 **[BL-802] 뒤에 붙여라**.
-**트리거 판정:** ★**도래** — 트리거의 선행 [BL-780]·[BL-781] 이 **둘 다 Resolved** 다(2026-08-17 PR #651 `d28bf28f`). [BL-781] 은 격리 슬롯에서 `pnpm e2e:authed` **90 passed / rc=0** 으로 실증됐다. ~~미도래 — 그 항목은 별도 세션이 들고 있다~~ 는 **낡은 문장이었다**(2026-08-18 전량 스윕이 기계 판정으로 먼저 잡았고 코드·원장 대조로 확정).
-**출처:** 2026-08-17 night3 — 레인 α 가 게이트를 만들고, CONTROL 이 그 게이트를 레인 β·γ 브랜치에 **실제로 합쳐 돌려** 이 공백을 실측했다
-
-**원인 / 영향:** ★**이 회차가 스스로 그 공백을 증명했다.** 주제는 「화면을 바꾼 PR 이 그 변화를 스스로 증명하게 만든다」였고 같은 밤 레인 둘이 화면을 바꿨다 — β 는 `/dashboard`, γ 는 `/backtests/[id]`. **둘 다 authed 라 게이트의 ROUTES 밖이다.** CONTROL 이 α+β 와 α+β+γ 통합 브랜치에서 게이트를 돌린 결과 **공개 3라우트 전부 Δ=0 「변경 없음」**이었다.
-
-★**그것이 고장이 아님은 양성 대조가 증명한다** — 같은 통합 트리에서 `/sign-in` 문구 1자를 바꾸자 **2 픽셀 차이로 rc=1** 이 났다. 즉 게이트는 살아 있고, 잴 대상이 겹치지 않았을 뿐이다. 「변경 없음」과 「측정 실패」는 다르며 이 경우는 전자다.
-
-**Risk:** 🟡 정확성 문제는 없다. 다만 [LESSON-078] — 「문서만 쓰고 아무도 안 돌리면 죽은 기준이 된다」 — 의 재현 위험이 여기 있다 — 소비자가 공개 라우트를 바꾸는 PR 뿐이면 이 게이트는 대부분의 회차에서 「변경 없음」만 인쇄한다.
-
-**권장 접근:** 스크린샷을 빼고 **수치 축만 먼저** authed 로 넓힌다(번들 바이트 + 요청 수). 실데이터가 픽셀을 흔드는 문제를 피하면서 [BL-662~665]·[BL-786] 이 실제로 다룬 라우트(`/dashboard`·`/backtests`)를 덮는다. CI 게시 경로는 리눅스 baseline 이 필요하므로 별도다(아래 [BL-800]).
-
----
-
----
-
----
-
-### BL-805
-
-**Title:** `quantbridge-api.service` 가 **레포에 없다** — 레포가 만들지 않는 유일한 systemd 유닛
-**Category:** Ops / 배포
-**Priority:** P2
-**Trigger:** 도래 — 서버를 다시 세우거나 유닛이 깨지면 그 자리에서 밟는다. 복원할 원본이 없다
-**Est:** S (유닛 1개 + `--install` 경로. 실측값은 이미 확보돼 있다)
-**출처:** 2026-08-18 n5-ci-truth-close 레인 β — 런북을 쓰며 서버 실측으로 확인
-
-**원인 / 영향:** 나머지 유닛 5종은 스크립트의 `--install` 이 heredoc 으로 만든다
-(`db-backup.sh:461-533` · `disk-guard.sh:152-196` · `soak-watch.sh:138-196` ·
-`soak-gate.sh:80-104` · `soak-logs-follow.sh:214-236`). **`quantbridge-api.service` 만 예외**다.
-`better-auth-setup.md:119` 는 배포 절차에서 `systemctl --user restart quantbridge-api.service`
-를 지시하는데, 그 유닛을 만드는 코드가 레포에 **0건**이다.
-
-★2026-08-18 서버 실측 — 유닛은 실재하고 running 이다:
-`FragmentPath=/home/ubuntu/.config/systemd/user/quantbridge-api.service` ·
-`ExecStart=/home/ubuntu/quantbridge/apps/api/.venv/bin/uvicorn src.main:app --no-server-header --host 127.0.0.1 --port 8100` ·
-`WorkingDirectory=/home/ubuntu/quantbridge/apps/api` ·
-`Environment=PROMETHEUS_MULTIPROC_DIR=/home/ubuntu/quantbridge/apps/api/.metrics QB_METRICS_ROLE=api`.
-
-**권장 접근:** ⑴ 형제 스크립트와 **같은 모양**으로 `--install` 을 세운다 — 신선도 검사
-(`db-backup.sh:545-575` 의 `ExecStart` 경로 대조)까지 같이. ⑵ `ExecStart` 가 `.venv` 절대경로라
-[ADR-029] 류 재배치에 취약하다는 사실을 유닛 주석에 남겨라 ⑶ 서버에서 **한 번 재설치해 보고**
-`/health` 가 8초 안에 뜨는지 확인한다.
-
-**Risk:** 🟡 (유닛을 잘못 쓰면 API 가 안 뜬다. 재설치 전에 현행 값을 받아 적어라)
-
-**상태:** ⬜ Open — 2026-08-18 등재. 미착수
-**트리거 판정:** 도래 — 실측으로 공백이 확정됐고 복원할 원본이 없다 (2026-08-18 n5-ci-truth-close)
-
----
-
-### BL-806
-
-**Title:** 모델은 python `default=` 인데 마이그레이션이 `server_default` 를 넣은 컬럼 **6개** — 테스트 DB 와 프로덕션 스키마가 갈린다
-**Category:** Backend / 스키마
-**Priority:** P3
-**Trigger:** 도래 — [BL-803] 의 `default` 축이 실측으로 6건을 확정했다
-**Est:** S (모델 6줄 + 그 변경이 `alembic check` 를 흔드는지 확인)
-**출처:** 2026-08-18 n5-ci-truth-close 레인 γ — 축을 켜자마자 나온 실측
-
-**원인 / 영향:** `quantbridge_w5_test` 실측 6건 —
-`public.waitlist_applications.status`(`'pending'`) · `trading.live_signal_events.comment`(`''`) ·
-`trading.live_signal_events.retry_count`(`'0'`) · `trading.live_signal_sessions.is_active`(`'true'`) ·
-`trading.live_signal_states.schema_version`(`'1'`) · `trading.live_signal_states.total_closed_trades`(`'0'`).
-전부 DB 에만 `server_default` 가 있고 모델은 `Field(default=…)` 만 선언한다.
-
-★**무해하지 않다** — `tests/conftest.py` 의 `create_all` 은 **모델**에서 스키마를 만들므로 그 경로의
-테스트 DB 에는 이 DEFAULT 들이 **없다**. 즉 테스트가 보는 스키마와 프로덕션이 이 6컬럼에서 갈린다.
-[BL-788] 과 같은 가족의 결함이다.
-
-**권장 접근:** ⑴ 모델에 `sa_column_kwargs={"server_default": …}` 를 얹어 DB 와 맞춘다
-⑵ ★**한 번에 하지 마라** — 모델 변경이 `alembic check` 를 흔드는지 컬럼 하나씩 확인해라
-⑶ 맞춘 컬럼은 `_DEFAULT_DRIFT_BASELINE`(`tests/test_migrations.py`)에서 **빼라**. baseline 이
-비어 가는 것이 진척의 척도다 ⑷ 반대 방향(`model_only`)이 생기면 그건 훨씬 위험하다 — 마이그레이션이
-모델을 안 따라온 것이다.
-
-**Risk:** 🟢 (기존 행에는 영향 없다. DEFAULT 는 INSERT 시점에만 쓰인다)
-
-**상태:** ⬜ Open — 2026-08-18 등재. 미착수
-**트리거 판정:** 도래 — [BL-803] 이 6건을 실측으로 확정하고 baseline 에 동결했다 (2026-08-18 n5-ci-truth-close)
-
----
-
-### BL-807
-
-**Title:** authed 캐논 3케이스가 **행은 DB 에 있는데 화면이 비어** 떨어진다 — [BL-802] 의 잔여 2/20
-**Category:** Frontend / 테스트
-**Priority:** P2
-**Trigger:** 도래 — [BL-802] 가 18/20 을 CI 로 올리고 나머지를 실측으로 좁혔다
-**Est:** M (셋이 서로 다른 데이터 경로다. 하나씩)
-**출처:** 2026-08-18 n5-ci-truth-close 레인 α — CI 실측(run `32121054465` 계열)으로 분리
-
-**원인 / 영향:** 결정론 시더가 행을 실제로 심는데(로컬 DB 대조 확인) 화면이 그리지 않는다.
-셋 다 같은 모양이고 원인은 각각 다르다:
-
-⑴ `authed-canon-p1.spec.ts:153` — `/backtests/:id/trades` 의
-`[data-testid="trade-detail-table"] tbody tr` 이 **0**. `backtest_trades` 3행이 DB 에 있고
-`TradeItemSchema` 는 전 필드가 nullable/optional 이며 `DEFAULT_FILTERS` 도 전부 허용이다.
-⑵ `authed-canon-remaining.spec.ts:141` — `/optimizer` 목록에 `a[href^="/optimizer/"]` 가 안 뜬다.
-완료 `OptimizationRun` 을 `ParamSpace` 정본 형상으로 심었는데도 그렇다.
-⑶ `authed-canon-remaining.spec.ts:173` — `[data-testid="backtest-report-shell"]` 이 20초 안에 안 보인다.
-
-**권장 접근:** ⑴ **브라우저에서 실제 응답을 봐라** — 코드 대조로는 안 잡힌다. 이 회차에 메트릭 키
-3개·`equity_curve` 키 2개·`param_space` 구조가 전부 틀렸던 것도 **응답을 안 보고 스키마만 읽어서**
-늦게 잡혔다 ⑵ 한 케이스씩 `ci` 로 올려 CI 로 증명해라 — 매니페스트가 그 이동을 강제한다
-⑶ 시더가 더 필요하면 `seed_ci_e2e.py` 의 `--selftest` 에 **그 계약 검증을 같이 추가**해라.
-지금 그것이 `BacktestMetricsOut`·`ParamSpace` 를 실제로 먹이고 있다.
-
-**Risk:** 🟢 (테스트 인프라 전용. 다만 셋 다 「조용히 빈 화면」이라 실사용자도 같은 것을 볼 수 있다 — 그쪽이 진짜 위험이다)
-
-**상태:** ⬜ Open — 2026-08-18 등재. 미착수
-**트리거 판정:** 도래 — [BL-802] 가 배선과 시더를 세우고 차단자를 이 셋으로 좁혔다 (2026-08-18 n5-ci-truth-close)
-
----
-
 ### BL-808
 
 **Title:** 스키마 동등성 축의 잔여 3구멍 — 정규화 과잉 · cascading 정지 규칙 · CHECK 표현식 미검
@@ -2219,3 +2097,34 @@ skip 을 **출력에 찍어라**(조용한 skip 이 이 결함의 본체다). �
 
 **상태:** ⬜ Open — 2026-08-18 등재. 미착수
 **트리거 판정:** 도래 — 적대 리뷰가 셋을 재현 시나리오와 함께 확정했다 (2026-08-18 n5-ci-truth-close)
+
+---
+
+### BL-810
+
+**Title:** 마케팅 3종의 장식 요소(번호 아이브로우 · STEP 라벨 · filled meter)를 **마케팅 면 한정으로 제거**한다 — 사용자 결정
+**Category:** Frontend / 디자인
+**Priority:** P3
+**Trigger:** 도래 — 2026-08-19 사용자 결정으로 방향이 확정됐다. 집행만 남았다
+**Est:** S (제거 3종 · 대상 좌표 확정됨)
+**출처:** 2026-08-19 n6-authed-evidence — 08-18 design-t1t2 가 남긴 규범 충돌의 사용자 결정 접수
+
+**원인 / 영향:** 프로토타입 캐논은 이 셋을 쓰라 하고 `design-taste-frontend` §9.F 는 쓰지 말라
+한다. 두 규범이 겹치는 면은 **마케팅 3종뿐**이므로, 충돌 구간을 그쪽으로 좁혀 해소한다.
+**사용자 결정 = 「마케팅 면 한정 제거」** — 앱 내부(대시보드 등)의 캐논은 건드리지 않는다.
+
+**대상 좌표 (실측):**
+⑴ **번호 아이브로우** `<span class="num">01</span>` ~ `06` — `features/marketing/components/` 의
+`landing-features`·`landing-how-it-works`·`landing-support`·`landing-performance`·`landing-faq`·`landing-cta` **6컴포넌트**
+⑵ **STEP 라벨** `landing-how-it-works.tsx:12,17,22,27` (`STEP 1`~`STEP 4`)
+⑶ **filled meter** `app/pricing/page.tsx:267,325,384` — 「가격 미정」인데 85.7% / 0% / 0% 진행 막대가 붙어 신뢰 축에서 오해를 부른다
+
+**권장 접근:** ⑴ 셋을 한 커밋에 묶지 마라 — `/` 와 `/pricing` 은 다른 화면이고 증거도 따로 남는다
+⑵ ★**`/` 와 `/waitlist` 는 화면 증거 팩의 ROUTES 에 있다** — baseline 갱신이 곧 PR 의 after 다.
+**`/pricing` 은 지금 ROUTES 밖이라 그 변경은 무증거로 지나간다** — 같이 넣을지 먼저 정해라
+⑶ `landing-how-it-works.test.tsx` 등 기존 단위가 그 문자열을 단언하는지 확인해라
+
+**Risk:** 🟢 (표현 층 한정. 기능 무변경)
+
+**상태:** ⬜ Open — 2026-08-19 등재. 사용자 결정 접수 완료, 집행 미착수
+**트리거 판정:** 도래 — 결정이 섰고 대상 좌표가 실측으로 확정됐다 (2026-08-19 n6-authed-evidence)
