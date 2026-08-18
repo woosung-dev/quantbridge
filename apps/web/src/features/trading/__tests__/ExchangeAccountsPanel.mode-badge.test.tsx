@@ -38,7 +38,9 @@ beforeEach(async () => {
   vi.mocked(apiFetch).mockReset();
 });
 
-test("ExchangeAccountsPanel — DEMO 배지 렌더 (warning 톤)", async () => {
+// 2026-08-18 톤 역전 — 리스크 서사(데모=안전 기본, 라이브=실자금 주의)에 맞춰
+// demo 는 중립 상시 배지, live 는 warn 계열이다. 종전(demo=warn/live=done)은 반대였다.
+test("ExchangeAccountsPanel — DEMO 배지는 중립 chip (경고 톤 아님)", async () => {
   const { apiFetch } = await import("@/lib/api-client");
   vi.mocked(apiFetch).mockResolvedValueOnce({ items: [DEMO_ACCOUNT] });
 
@@ -48,14 +50,13 @@ test("ExchangeAccountsPanel — DEMO 배지 렌더 (warning 톤)", async () => {
     </QueryClientProvider>,
   );
 
-  // DEMO 배지 노출 — Precision Instrument: 리터럴 팔레트 클래스 대신
-  // 시맨틱 data-tone 어서션 (globals.css [data-tone] 규칙이 색 결정).
   const demoBadge = await screen.findByText("DEMO");
   expect(demoBadge).toBeInTheDocument();
-  expect(demoBadge).toHaveAttribute("data-tone", "warning");
+  expect(demoBadge).not.toHaveAttribute("data-tone");
+  expect(demoBadge.className).toBe("chip");
 });
 
-test("ExchangeAccountsPanel — LIVE 배지 렌더 (success 톤)", async () => {
+test("ExchangeAccountsPanel — LIVE 배지 렌더 (warning 톤)", async () => {
   const { apiFetch } = await import("@/lib/api-client");
   vi.mocked(apiFetch).mockResolvedValueOnce({ items: [LIVE_ACCOUNT] });
 
@@ -65,9 +66,12 @@ test("ExchangeAccountsPanel — LIVE 배지 렌더 (success 톤)", async () => {
     </QueryClientProvider>,
   );
 
+  // Precision Instrument: 리터럴 팔레트 클래스 대신 시맨틱 data-tone 어서션
+  // (globals.css [data-tone] 규칙이 색 결정).
   const liveBadge = await screen.findByText("LIVE");
   expect(liveBadge).toBeInTheDocument();
-  expect(liveBadge).toHaveAttribute("data-tone", "success");
+  expect(liveBadge).toHaveAttribute("data-tone", "warning");
+  expect(liveBadge).not.toHaveAttribute("data-tone", "success");
 });
 
 test("ExchangeAccountsPanel — 읽기 전용 권한을 배지로 표시", async () => {

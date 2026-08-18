@@ -121,3 +121,19 @@ describe("BacktestDetailView — RerunButton 연결", () => {
     expect(btn).not.toBeDisabled();
   });
 });
+
+describe("BacktestDetailView — 리포트 헤더 중복 칩 제거", () => {
+  // h1 「{symbol} · {timeframe}」이 이미 말한 정보를 report-meta 칩으로 반복하지 않는다.
+  it("symbol·timeframe 칩은 없고, 제목에 없는 Bybit 칩은 유지된다", () => {
+    detailData = { ...BASE_DETAIL, status: "completed" };
+    const { container } = render(<BacktestDetailView id="abc" />);
+    const h1 = container.querySelector("h1.report-title");
+    expect(h1?.textContent).toContain("BTC/USDT · 1h");
+    const chipTexts = Array.from(container.querySelectorAll(".report-meta .chip")).map(
+      (el) => el.textContent?.trim(),
+    );
+    expect(chipTexts).not.toContain("BTC/USDT");
+    expect(chipTexts).not.toContain("1h");
+    expect(chipTexts).toContain("Bybit");
+  });
+});

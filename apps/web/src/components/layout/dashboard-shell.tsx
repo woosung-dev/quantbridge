@@ -15,7 +15,7 @@ import { DashboardHeader } from "./dashboard-header";
 import { DashboardSidebar } from "./dashboard-sidebar";
 import { MobileNav } from "./mobile-nav";
 
-// 페이지 타이틀 매핑 (상단바 breadcrumb). 미매핑 경로는 빈 슬롯.
+// 페이지 타이틀 매핑 (상단바 breadcrumb). 미매핑 경로는 마지막 세그먼트로 폴백.
 const PAGE_TITLE_MAP: Record<string, string> = {
   "/dashboard": "대시보드",
   "/strategies": "전략",
@@ -26,6 +26,8 @@ const PAGE_TITLE_MAP: Record<string, string> = {
   "/trading": "트레이딩",
   "/orders": "주문",
   "/onboarding": "온보딩",
+  // 페이지 h1(waitlist-admin-view.tsx)과 같은 표기.
+  "/admin/waitlist": "Waitlist 관리",
 };
 
 function derivePageTitle(pathname: string | null): string {
@@ -35,7 +37,9 @@ function derivePageTitle(pathname: string | null): string {
   if (pathname.startsWith("/strategies/")) return "전략";
   if (pathname.startsWith("/optimizer/")) return "옵티마이저";
   if (pathname.startsWith("/trading")) return "트레이딩";
-  return "";
+  // 미매핑 라우트 폴백 — 빈 문자열이면 상단바 좌측 breadcrumb 이 통째로 빈다.
+  // 라우트 마지막 세그먼트를 그대로 노출한다(시스템 슬러그 원문 — 가짜 번역보다 정직하다).
+  return pathname.split("/").filter(Boolean).at(-1) ?? "";
 }
 
 export function DashboardShell({ children }: { children: ReactNode }) {
@@ -47,7 +51,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <RealtimeBridge />
       {/* position:fixed — 문서 흐름 밖. .topbar/.main 이 margin-left 로 자리를 비운다. */}
       <DashboardSidebar pathname={pathname} />
-      {/* 모바일 drawer — Sheet 기반 left-side, ≤768px 햄버거로 연다 (md:hidden). */}
+      {/* 모바일 drawer — Sheet 기반 left-side, ≤768px 햄버거로 연다 (min-[769px]:hidden — KITPORT 경계 포함 정합). */}
       <MobileNav pathname={pathname} />
       <DashboardHeader pageTitle={pageTitle} />
       {/* #main-content = 스킵 링크 대상(app/layout.tsx). .main = margin-left 오프셋. */}

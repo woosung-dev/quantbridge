@@ -6,7 +6,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Trash2 } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 import {
   Dialog,
@@ -67,18 +67,28 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
       >
         {initialOf(user?.name, user?.email)}
       </span>
+      {/* ★레일 구간(769~1024px, --sidebar-w 64px) 숨김 — **사이드바 인스턴스에만** 적용한다.
+          이 컴포넌트는 상단바에도 렌더되므로 버튼 자체에 미디어 숨김을 걸면 레일 구간에서
+          로그아웃/삭제 경로가 화면 전체에서 사라진다(codex P2, 2026-08-18). 스코프는 globals 의
+          `.sidebar .qb-acct-action` 언레이어드 규칙(min-width:769 and max-width:1024, 양끝 포함 —
+          Tailwind max-[N]: 은 경계 미포함이라 raw 미디어가 정본)이 담당하고, 그 구간의 계정
+          경로는 상단바 인스턴스(dashboard-header, min-[1025px]:hidden)가 잇는다.
+          hover 배경은 같은 셸의 .nav-item/.hamburger 관용구(var(--card-2)). */}
       <button
         type="button"
-        className={`inline-flex items-center justify-center rounded-[var(--r)] ${box}`}
+        className={`qb-acct-action inline-flex items-center justify-center rounded-[var(--r)] text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--card-2)] hover:text-[color:var(--ink)] ${box}`}
         onClick={handleSignOut}
         aria-label={user?.email ? `${user.email} 로그아웃` : "로그아웃"}
         title="로그아웃"
       >
         <LogOut aria-hidden="true" className="size-4" />
       </button>
+      {/* ★위계 강등 — 「내 계정 지우기」는 로그아웃과 동급 아이콘 버튼이 아니라 작은 muted 텍스트
+          버튼으로 둔다. 기본은 ink-3 무채색, hover 에서만 destructive 톤. 확인 다이얼로그 플로우는 유지.
+          터치 타깃 높이는 size 프롭이 계속 보장한다(≥44pt @ lg). */}
       <button
         type="button"
-        className={`inline-flex items-center justify-center rounded-[var(--r)] ${box}`}
+        className={`qb-acct-action inline-flex items-center justify-center rounded-[var(--r)] px-1.5 text-[0.72rem] whitespace-nowrap text-[color:var(--ink-3)] transition-colors hover:bg-[color:var(--destructive-subtle)] hover:text-[color:var(--destructive)] ${size === "lg" ? "min-h-11" : "min-h-9"}`}
         onClick={() => {
           setDeleteError(null);
           setConfirmOpen(true);
@@ -90,7 +100,7 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
         aria-label="내 계정 지우기"
         title="내 계정 지우기"
       >
-        <Trash2 aria-hidden="true" className="size-4" />
+        계정 지우기
       </button>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>

@@ -2,14 +2,14 @@
 
 // 킬 스위치 상태 패널 — C 디자인 언어 이식 (S8). 프로토타입 screen-01 §04 리스크 가드의
 // 공용 .card/.state-box 시맨틱 CSS 를 소비한다. active(resolved_at IS NULL) 이벤트가 있으면
-// destructive state-box + 해결 버튼, 없으면 평온한 "이상 없음". 상태 enum 은 라벨 SSOT 를
-// 거칠 필요가 없다(트리거 라벨은 배너가 담당하고 여기선 값·임계만 인쇄).
+// destructive state-box + 해결 버튼, 없으면 평온한 "이상 없음". 트리거 라벨은 배너와 같은
+// KS_TRIGGER_LABELS(labels.ts 용어 SSOT)를 거친다 — 원시 trigger_type 렌더 금지.
 
 import { AlertTriangleIcon, ShieldCheckIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
 
-import { KILL_SWITCH_LABEL } from "../labels";
+import { KILL_SWITCH_LABEL, KS_TRIGGER_LABELS } from "../labels";
 import { useKillSwitchEvents, useResolveKillSwitchEvent } from "../hooks";
 
 export function KillSwitchPanel() {
@@ -68,7 +68,8 @@ export function KillSwitchPanel() {
               {active.map((e) => (
                 <li key={e.id} className="ks-row">
                   <span className="mono">
-                    {e.trigger_type}: {e.trigger_value} / {e.threshold}
+                    {KS_TRIGGER_LABELS[e.trigger_type] ?? e.trigger_type}: {e.trigger_value} /{" "}
+                    {e.threshold}
                   </span>
                   {/* 모바일 터치타겟 — 파괴적 액션이라 btn-xs(30px) 대신 공용 .btn(38px)로 확보. */}
                   <button

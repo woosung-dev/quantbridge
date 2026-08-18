@@ -302,7 +302,12 @@ const handleSubmit = (data: FormData) => {
 | `2xl:` | **1440px**  | ~~1536px~~       | 와이드 (유틸 사용 0건 · raw `@media` 0건) |
 
 ★유틸 접두사는 **min-width**, CSS 미디어는 **max-width** 다. 같은 숫자를 반대 방향으로 쓰므로
-섞어 읽지 마라.
+섞어 읽지 마라. **정확히 그 숫자(768px 등)에서는 둘 다 참**이라 같은 요소를 양쪽에서 숨기면
+데드심이 난다 — 2026-08-18 실발화(햄버거는 보이는데 드로어가 `md:hidden`). 셸 쪽 정합은
+`min-[769px]:` 로 잡는다. ★**Tailwind v4 의 `max-[1024px]:` 는 `width < 1024`(경계 미포함)로
+컴파일**되어 KITPORT `max-width:1024`(포함)와 스택 변형으로 정렬하면 정확히 1024px 에서
+off-by-one 이 난다(2026-08-18 postcss 실측) — 경계 포함이 필요하면 raw 미디어 변형
+`[@media(min-width:769px)_and_(max-width:1024px)]:` 을 써라(`account-button.tsx` 선례).
 
 ★**`900px` 는 더 이상 미등재가 아니다** (2026-08-17 정정, [BL-602] 종결 시 동승).
 종전 문장은 「미등재 경계 `@media (max-width: 900px)` 5곳은 [BL-646]」이었는데 [BL-646] 은

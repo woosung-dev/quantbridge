@@ -42,9 +42,13 @@ export function DashboardHeader({ pageTitle }: DashboardHeaderProps) {
 
       <ThemeToggle />
 
-      {/* 데스크톱은 사이드바 footer 의 계정 버튼을 쓴다. 모바일은 사이드바가 숨으므로 상단바에 노출.
-          터치 타깃 ≥44pt 는 AccountButton 이 size="lg" 로 보장한다 (BL-305/339 후속). */}
-      <div className="inline-flex min-h-11 min-w-11 items-center justify-center md:hidden">
+      {/* 풀 사이드바(≥1025px)는 footer 의 계정 버튼을 쓴다. 그 아래(모바일 + 아이콘 레일
+          769~1024px)는 사이드바 계정이 숨거나 아바타만 남으므로 상단바가 로그아웃/삭제 경로를 맡는다.
+          터치 타깃 ≥44pt 는 AccountButton 이 size="lg" 로 보장한다 (BL-305/339 후속).
+          ★min-[1025px]:hidden — KITPORT 의 max-width:768/1024 는 경계 **포함**이라 md:/lg: 를
+          쓰면 정확히 그 폭에서 양쪽이 동시에 숨는 데드심이 난다(2026-08-18 실발화). 레일 구간의
+          사이드바 액션 숨김은 globals 의 `.sidebar .qb-acct-action` 스코프 규칙이 담당한다. */}
+      <div className="inline-flex min-h-11 min-w-11 items-center justify-center min-[1025px]:hidden">
         <AccountButton size="lg" />
       </div>
     </header>

@@ -12,6 +12,7 @@ interface Props {
 
 export function GridSearchPairSelector({ result }: Props) {
   const names = result.param_names;
+  // pair 의미는 히트맵 렌더와 동일 — pair[0]=행(세로축), pair[1]=열(가로축).
   const initial: [string, string] = names.length >= 2 ? [names[0]!, names[1]!] : ["", ""];
   const [pair, setPair] = useState<[string, string]>(initial);
 
@@ -44,10 +45,11 @@ export function GridSearchPairSelector({ result }: Props) {
           <select
             className="select"
             aria-label="히트맵 가로축 변수"
-            value={pair[0]}
+            value={pair[1]}
             onChange={(e) => {
               const v = e.target.value;
-              setPair(([, y]) => (y === v ? [v, names.find((n) => n !== v) ?? y] : [v, y]));
+              // 가로축 = 열 변수(pair[1]). 세로축과 겹치면 세로축을 다른 변수로 스왑.
+              setPair(([row]) => (row === v ? [names.find((n) => n !== v) ?? row, v] : [row, v]));
             }}
           >
             {names.map((n) => (
@@ -62,10 +64,11 @@ export function GridSearchPairSelector({ result }: Props) {
           <select
             className="select"
             aria-label="히트맵 세로축 변수"
-            value={pair[1]}
+            value={pair[0]}
             onChange={(e) => {
               const v = e.target.value;
-              setPair(([x]) => (x === v ? [names.find((n) => n !== v) ?? x, v] : [x, v]));
+              // 세로축 = 행 변수(pair[0]). 가로축과 겹치면 가로축을 다른 변수로 스왑.
+              setPair(([, col]) => (col === v ? [v, names.find((n) => n !== v) ?? col] : [v, col]));
             }}
           >
             {names.map((n) => (

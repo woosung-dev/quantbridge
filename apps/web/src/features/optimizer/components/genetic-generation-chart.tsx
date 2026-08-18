@@ -1,4 +1,7 @@
 // Sprint 56 BL-233 — 유전 알고리즘 세대 차트 (best_so_far 라인 + 세대 경계 가이드).
+// W3-C 재스킨: shadcn 어휘(text-muted-foreground·border-border·--primary)를 형제가 쓰는 C 어휘
+// (.card-sub/.mono/--copper/--ink·--line 계열 토큰)로 교체 (베이지안 반복 차트 1:1 미러).
+// 레이아웃·데이터 로직 무변경. 최적 반복 점은 색+반지름 확대(r=4)로 이중 표시(§9).
 "use client";
 
 import { useMemo } from "react";
@@ -7,6 +10,7 @@ import {
   OBJECTIVE_DIRECTION_LABEL,
   OBJECTIVE_METRIC_LABEL,
 } from "@/features/optimizer/labels";
+import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { GeneticSearchResult } from "@/features/optimizer/schemas";
 
 interface Props {
@@ -79,21 +83,28 @@ export function GeneticGenerationChart({ result }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 text-xs text-muted-foreground">
+      <div className="card-sub flex flex-wrap items-baseline justify-between gap-2">
         <span>
           반복별 누적 최고값 ({OBJECTIVE_METRIC_LABEL[result.objective_metric]},{" "}
           {OBJECTIVE_DIRECTION_LABEL[result.direction]})
         </span>
         <span>
-          개체군 <strong className="font-mono tabular-nums text-foreground">{result.population_size}</strong>
+          개체군{" "}
+          <strong className="mono" style={{ color: "var(--ink)" }}>
+            {result.population_size}
+          </strong>
           {" · "}세대{" "}
-          <strong className="font-mono tabular-nums text-foreground">{result.n_generations}</strong>
+          <strong className="mono" style={{ color: "var(--ink)" }}>
+            {result.n_generations}
+          </strong>
           {" · "}전체{" "}
-          <strong className="font-mono tabular-nums text-foreground">{result.total_iterations}</strong>
+          <strong className="mono" style={{ color: "var(--ink)" }}>
+            {result.total_iterations}
+          </strong>
           {result.degenerate_count > 0 && (
             <>
               {" · "}축퇴{" "}
-              <span className="font-mono tabular-nums text-warning">
+              <span className="mono" style={{ color: "var(--warn)" }}>
                 {result.degenerate_count} / {result.total_iterations}
               </span>
             </>
@@ -105,27 +116,17 @@ export function GeneticGenerationChart({ result }: Props) {
           width={W}
           height={H}
           viewBox={`0 0 ${W} ${H}`}
-          className="rounded border border-border bg-background"
+          style={{
+            border: "1px solid var(--line)",
+            borderRadius: "var(--r)",
+            background: "var(--bg)",
+          }}
           role="img"
           aria-label={`유전 알고리즘 세대 곡선. 반복 ${result.total_iterations}회, 세대 ${result.n_generations + 1}개.`}
         >
           {/* axes */}
-          <line
-            x1={PAD}
-            y1={H - PAD}
-            x2={W - PAD}
-            y2={H - PAD}
-            stroke="currentColor"
-            strokeOpacity={0.2}
-          />
-          <line
-            x1={PAD}
-            y1={PAD}
-            x2={PAD}
-            y2={H - PAD}
-            stroke="currentColor"
-            strokeOpacity={0.2}
-          />
+          <line x1={PAD} y1={H - PAD} x2={W - PAD} y2={H - PAD} stroke="var(--line)" />
+          <line x1={PAD} y1={PAD} x2={PAD} y2={H - PAD} stroke="var(--line)" />
           {/* generation boundary guides (skip gen=0 since it's the start). */}
           {generationBoundaries
             .filter((b) => b.gen > 0)
@@ -136,17 +137,15 @@ export function GeneticGenerationChart({ result }: Props) {
                   y1={PAD}
                   x2={xScale(b.idx - 0.5)}
                   y2={H - PAD}
-                  stroke="currentColor"
-                  strokeOpacity={0.25}
+                  stroke="var(--line-2)"
                   strokeDasharray="3 3"
                 />
                 <text
                   x={xScale(b.idx - 0.5) + 3}
                   y={PAD + 10}
                   fontSize={9}
-                  fill="currentColor"
-                  opacity={0.55}
-                  className="font-mono"
+                  fill="var(--ink-3)"
+                  className="mono"
                 >
                   G{b.gen}
                 </text>
@@ -156,50 +155,41 @@ export function GeneticGenerationChart({ result }: Props) {
           <path
             d={linePath}
             fill="none"
-            stroke="var(--primary)"
+            stroke="var(--copper)"
             strokeWidth={2}
           />
-          {/* points */}
-          {data.map((d) => (
-            <circle
-              key={d.idx}
-              cx={xScale(d.idx)}
-              cy={yScale(d.bestSoFar)}
-              r={3}
-              fill={
-                result.best_iteration_idx === d.idx
-                  ? "var(--primary)"
-                  : "currentColor"
-              }
-              opacity={result.best_iteration_idx === d.idx ? 1 : 0.6}
-            />
-          ))}
-          {/* y axis labels */}
-          <text x={4} y={PAD + 4} fontSize={10} fill="currentColor" opacity={0.6} className="font-mono">
-            {yMax.toFixed(3)}
+          {/* points — 최적 반복은 코퍼 채움 + 반지름 확대(r=4), 나머지는 무채색 점 (§9). */}
+          {data.map((d) => {
+            const isBest = result.best_iteration_idx === d.idx;
+            return (
+              <circle
+                key={d.idx}
+                cx={xScale(d.idx)}
+                cy={yScale(d.bestSoFar)}
+                r={isBest ? 4 : 3}
+                fill={isBest ? "var(--copper)" : "var(--ink-3)"}
+                opacity={isBest ? 1 : 0.6}
+              />
+            );
+          })}
+          {/* y axis labels — 목표값 단위 SSOT (ratio 지표는 %, sharpe 는 소수 3자리 유지). */}
+          <text x={4} y={PAD + 4} fontSize={10} fill="var(--ink-3)" className="mono">
+            {formatObjectiveValue(result.objective_metric, yMax, { percentDigits: 1, plainDigits: 3 })}
           </text>
-          <text
-            x={4}
-            y={H - PAD + 4}
-            fontSize={10}
-            fill="currentColor"
-            opacity={0.6}
-            className="font-mono"
-          >
-            {yMin.toFixed(3)}
+          <text x={4} y={H - PAD + 4} fontSize={10} fill="var(--ink-3)" className="mono">
+            {formatObjectiveValue(result.objective_metric, yMin, { percentDigits: 1, plainDigits: 3 })}
           </text>
           {/* x axis labels */}
-          <text x={PAD} y={H - 8} fontSize={10} fill="currentColor" opacity={0.6} className="font-mono">
+          <text x={PAD} y={H - 8} fontSize={10} fill="var(--ink-3)" className="mono">
             0
           </text>
           <text
             x={W - PAD}
             y={H - 8}
             fontSize={10}
-            fill="currentColor"
-            opacity={0.6}
+            fill="var(--ink-3)"
             textAnchor="end"
-            className="font-mono"
+            className="mono"
           >
             {xMax}
           </text>

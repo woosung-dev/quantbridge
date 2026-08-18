@@ -10,6 +10,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { WalkForwardBarChart } from "@/features/backtest/components/charts/walk-forward-bar-chart";
+import { InfoIcon } from "@/components/info-icon";
 import { TapeProgress } from "@/components/tape/tape-progress";
 import { useCreateWalkForward, useStressTest } from "@/features/backtest/hooks";
 import type { OptimizationKind, ParamSpace } from "@/features/optimizer/schemas";
@@ -170,11 +171,7 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind, sectionNu
         </div>
 
         <p className="disclaimer">
-          <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="9" />
-            <line x1="12" y1="11" x2="12" y2="16" />
-            <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
-          </svg>
+          <InfoIcon />
           <span>
             이 검증에도 한계가 있습니다. 탐색 공간과 목적 함수는 사람이 고정하고, fold 수가 적으면
             표본이 작으며, 거래 비용과 슬리피지는 백테스트 가정값입니다.

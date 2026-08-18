@@ -120,22 +120,7 @@ export function EditorView({ id }: { id: string }) {
   };
 
   if (isLoading) {
-    return (
-      <main className="page" aria-busy="true">
-        <section className="card">
-          <div className="card-body">
-            <span className="sk sk-line" style={{ width: "220px" }} aria-hidden="true" />
-          </div>
-        </section>
-        <section className="section">
-          <div className="card">
-            <div className="card-body">
-              <span className="sk" style={{ display: "block", height: "360px" }} aria-hidden="true" />
-            </div>
-          </div>
-        </section>
-      </main>
-    );
+    return <EditorSkeleton />;
   }
 
   if (isError || !strategy) {
@@ -408,6 +393,60 @@ export function EditorView({ id }: { id: string }) {
           router.refresh();
         }}
       />
+    </main>
+  );
+}
+
+// 로딩 스켈레톤 — 로드 완료 레이아웃의 주요 블록(헤더 제목+칩 행 · 소스 에디터 프레임 ·
+// 진단 스트립 · 실행 설정 그리드)의 자리를 예약해 레이아웃 점프를 줄인다
+// (backtest-detail-view 의 DetailSkeleton 선례).
+function EditorSkeleton() {
+  return (
+    <main className="page" aria-busy="true" data-testid="strategy-editor-skeleton">
+      {/* 헤더 — 제목 줄 + 칩 행 */}
+      <section className="card" aria-hidden="true">
+        <div className="report">
+          <div>
+            <span className="sk" style={{ display: "block", width: 220, height: 32 }} />
+            <div className="report-meta">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <span key={i} className="sk" style={{ display: "block", width: 74, height: 26 }} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+      {/* 01 소스 — Monaco 프레임 자리. 에디터 본체 480 + 파일탭 toolbar 36 + 보더 2 ≈ 518
+          (EditorMonacoWrapper 가 toolbar 를 얹으므로 480 만 예약하면 ~37px 점프가 남는다) */}
+      <section className="section" aria-hidden="true">
+        <div className="card">
+          <div className="card-body">
+            <span className="sk" style={{ display: "block", height: 518 }} />
+          </div>
+        </div>
+      </section>
+      {/* 02 진단 — 스트립 자리 */}
+      <section className="section" aria-hidden="true">
+        <div className="card">
+          <div className="card-body">
+            <span className="sk sk-line" style={{ width: "60%" }} />
+          </div>
+        </div>
+      </section>
+      {/* 03 실행 설정 — 그리드 카드 자리 */}
+      <section className="section" aria-hidden="true">
+        <div className="card">
+          <div className="card-body">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <span
+                key={i}
+                className="sk sk-line"
+                style={{ width: `${72 - i * 8}%`, marginTop: i === 0 ? 0 : 10 }}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
     </main>
   );
 }

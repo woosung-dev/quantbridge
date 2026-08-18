@@ -1,9 +1,9 @@
 // Monaco Pine 에디터를 파일 탭 toolbar 로 감싸는 wrapper — C 디자인 언어 이식 (screen-08 소스).
-// C 토큰(--line/--card/--card-2/--copper/--ink)만 쓰고 단일 반경(var(--r))을 지킨다. 자체
-// 포커스 링(focus-visible:ring)은 제거해 전역 :focus-visible 카퍼 링만 걸리게 한다.
+// C 토큰(--line/--card/--card-2/--copper/--ink)만 쓰고 단일 반경(var(--r))을 지킨다.
+// toolbar 우측 아이콘 버튼(찾기/전체화면)은 screen-08 에 없는 발명 UI 라 두지 않는다 (가짜 UI 방지).
 "use client";
 
-import { FileIcon, MaximizeIcon, SearchIcon } from "lucide-react";
+import { FileIcon } from "lucide-react";
 
 import { PineEditor, type PineEditorProps } from "@/components/monaco/pine-editor";
 
@@ -34,15 +34,6 @@ export function EditorMonacoWrapper({
           <span>{fileName}</span>
           <span className="font-mono text-[0.7rem] text-[color:var(--ink-3)]">{versionLabel}</span>
         </div>
-
-        <div className="ml-auto flex items-center gap-1">
-          <ToolbarIconButton ariaLabel="찾기 (Cmd+F)">
-            <SearchIcon className="size-3.5" aria-hidden strokeWidth={2} />
-          </ToolbarIconButton>
-          <ToolbarIconButton ariaLabel="전체화면">
-            <MaximizeIcon className="size-3.5" aria-hidden strokeWidth={2} />
-          </ToolbarIconButton>
-        </div>
       </div>
 
       {/* Monaco editor 본체 */}
@@ -50,23 +41,5 @@ export function EditorMonacoWrapper({
         <PineEditor {...editorProps} />
       </div>
     </div>
-  );
-}
-
-interface ToolbarIconButtonProps {
-  ariaLabel: string;
-  children: React.ReactNode;
-}
-
-// 자체 포커스 링 없음 — 전역 언레이어드 :focus-visible 카퍼 링이 대신 걸린다.
-function ToolbarIconButton({ ariaLabel, children }: ToolbarIconButtonProps) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      className="grid size-7 place-items-center rounded-[var(--r)] text-[color:var(--ink-3)] transition-colors hover:bg-[color:var(--card-3)] hover:text-[color:var(--ink)]"
-    >
-      {children}
-    </button>
   );
 }
