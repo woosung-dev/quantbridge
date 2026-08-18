@@ -199,16 +199,25 @@ def _build_backtest_and_trades(owner_id: UUID) -> tuple[Backtest, list[BacktestT
         period_end=period_end,
         initial_capital=Decimal("10000.00000000"),
         status=BacktestStatus.COMPLETED,
+        # ★키 이름을 지어내지 마라 — 정본은 `src/backtest/schemas.py:293 BacktestMetricsOut` 이고
+        #   `total_return`·`sharpe_ratio`·`max_drawdown`·`win_rate`·`num_trades` 5개가 **필수**다.
+        #   초판이 `total_return_pct`·`win_rate_pct`·`total_trades` 로 써서 상세 응답 파싱이
+        #   죽었고, 그 결과 `/backtests/:id` 리포트 셸과 `/backtests/:id/trades` 표가
+        #   **둘 다 조용히 비었다**(2026-08-18 CI run `32088...`). 「행은 있는데 화면이 빈다」의 전형이다.
         metrics={
-            "total_return_pct": 12.5,
-            "max_drawdown_pct": -4.25,
-            "win_rate_pct": 66.67,
-            "total_trades": 3,
-            "profit_factor": 2.1,
-            "sharpe_ratio": 1.35,
+            "total_return": "12.5",
+            "sharpe_ratio": "1.35",
+            "max_drawdown": "-4.25",
+            "win_rate": "66.67",
+            "num_trades": 3,
+            "profit_factor": "2.1",
         },
+        # ★`{timestamp, value}` 다 — `EquityPointSchema`(`apps/web/.../schemas.ts:322`).
         equity_curve=[
-            {"t": (period_start + timedelta(days=d)).isoformat(), "v": 10000 + d * 40}
+            {
+                "timestamp": (period_start + timedelta(days=d)).isoformat(),
+                "value": str(10000 + d * 40),
+            }
             for d in range(0, 31, 5)
         ],
         warnings=[],
@@ -251,14 +260,27 @@ def _build_optimization_run(owner_id: UUID) -> OptimizationRun:
         backtest_id=SEED_BACKTEST_ID,
         kind=OptimizationKind.GRID_SEARCH,
         status=OptimizationStatus.COMPLETED,
-        param_space={"fast": [5, 10, 15], "slow": [20, 30, 40]},
+        # ★`ParamSpace` 는 평평한 dict 가 아니다 — `src/optimizer/schemas.py:142` 가
+        #   `objective_metric`·`direction`·`max_evaluations`·`parameters` 를 요구하고
+        #   `extra="forbid"` 다. 초판의 `{"fast": [...]}` 는 응답 검증을 못 지나
+        #   `/optimizer` 목록에 행이 안 떴다.
+        param_space={
+            "schema_version": 1,
+            "objective_metric": "sharpe_ratio",
+            "direction": "maximize",
+            "max_evaluations": 9,
+            "parameters": {
+                "fast": {"kind": "integer", "min": 5, "max": 15, "step": 5},
+                "slow": {"kind": "integer", "min": 20, "max": 40, "step": 10},
+            },
+        },
         result={
             "best_params": {"fast": 10, "slow": 30},
-            "best_metrics": {"total_return_pct": 12.5, "max_drawdown_pct": -4.25},
+            "best_metrics": {"total_return": "12.5", "max_drawdown": "-4.25"},
             "combinations": [
-                {"params": {"fast": 5, "slow": 20}, "metrics": {"total_return_pct": 4.1}},
-                {"params": {"fast": 10, "slow": 30}, "metrics": {"total_return_pct": 12.5}},
-                {"params": {"fast": 15, "slow": 40}, "metrics": {"total_return_pct": 7.9}},
+                {"params": {"fast": 5, "slow": 20}, "metrics": {"total_return": "4.1"}},
+                {"params": {"fast": 10, "slow": 30}, "metrics": {"total_return": "12.5"}},
+                {"params": {"fast": 15, "slow": 40}, "metrics": {"total_return": "7.9"}},
             ],
         },
         created_at=now - timedelta(minutes=50),
@@ -371,6 +393,21 @@ def _selftest() -> int:
     optimization = _build_optimization_run(owner)
     assert optimization.status is OptimizationStatus.COMPLETED
     assert optimization.backtest_id == backtest.id
+
+    # ★★**JSONB 페이로드를 정본 스키마에 실제로 먹인다.**
+    #   초판 selftest 는 「행이 만들어지는가」만 봤고, 그래서 `metrics` 키 이름 3개와
+    #   `param_space` 구조와 `equity_curve` 키 2개가 전부 틀린 채 초록이었다. 화면은
+    #   조용히 비었고 CI 한 판을 태우고서야 드러났다(2026-08-18).
+    #   ⇒ **구성 가능성이 아니라 계약 통과를 재라.** 이 두 줄이 그 세 결함을 전부 잡는다.
+    from src.backtest.schemas import BacktestMetricsOut
+    from src.optimizer.schemas import ParamSpace
+
+    BacktestMetricsOut.model_validate(backtest.metrics)
+    ParamSpace.model_validate(optimization.param_space)
+    # equity_curve 는 `EquityPointSchema`(FE) 가 정본이라 BE 모델이 없다 — 키만 못박는다.
+    assert backtest.equity_curve, "equity_curve 가 비었다"
+    for point in backtest.equity_curve:
+        assert set(point) == {"timestamp", "value"}, point
 
     # ★UUID variant nibble — Zod `z.uuid()` 가 거부하면 화면이 조용히 미렌더된다.
     for fixed in (BL570_STRATEGY_ID, SEED_BACKTEST_ID, SEED_ACCOUNT_ID, SEED_OPTIMIZER_ID):
