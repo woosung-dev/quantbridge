@@ -3,21 +3,21 @@
   "platform": "darwin",
   "routes": {
     "/": {
-      "firstLoadBytes": 220416,
+      "firstLoadBytes": 220381,
       "apiRequests": 0,
-      "totalRequests": 52,
+      "totalRequests": 51,
       "screenshot": "landing.png"
     },
     "/sign-in": {
-      "firstLoadBytes": 307710,
+      "firstLoadBytes": 308228,
       "apiRequests": 0,
-      "totalRequests": 49,
+      "totalRequests": 50,
       "screenshot": "sign-in.png"
     },
     "/waitlist": {
-      "firstLoadBytes": 322179,
+      "firstLoadBytes": 322144,
       "apiRequests": 0,
-      "totalRequests": 52,
+      "totalRequests": 51,
       "screenshot": "waitlist.png"
     }
   }
