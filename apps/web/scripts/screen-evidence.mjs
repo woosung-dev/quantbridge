@@ -90,6 +90,15 @@ function git(args, { allowFail = false } = {}) {
  *   같은 커밋에서 재면 다른 바이트가 나오고, 게이트는 그것을 「화면이 달라졌다」로 인쇄한다.
  *   authed 확장이 그것을 드러냈다 — 로그인이 **프로덕션 auth DB** 를 치려다 500 이 났다.
  * ★환경변수는 `.env*` 파일 전부를 이기므로, 여기서 넘기면 결정성이 회복된다.
+ *
+ * ★★★**전환이 만든 델타의 원인 — 내 첫 설명은 틀렸다** (적대 리뷰가 반증, 실측으로 확정).
+ *   공개 3라우트가 각 +0.2 kB(gzip 후) 움직였는데, 나는 그것을 「`NEXT_PUBLIC_*` 문자열이
+ *   인라인되니까」로 적었다. **부호가 반대다** — 새 값이 더 **짧다**(`https://qb-api.woosung.dev`
+ *   → `http://localhost:8000`). 그리고 문자열 치환은 `totalRequests` +1 을 만들 수 없다.
+ *   실측(같은 커밋에서 그 변수 하나만 바꿔 두 번 빌드): `NEXT_PUBLIC_ENABLE_TEST_ORDER`
+ *   `false` → `.next/static` js/css **3,286,670 B** · `true` → **3,299,506 B**.
+ *   ⇒ 진짜 원인은 **기능 플래그가 켜지며 dead code elimination 이 풀린 것**이다(+12,836 B 비압축).
+ *   ★이것이 이 게이트가 존재하는 이유를 스스로 보여 준다 — **「설명됐다」와 「설명이 있다」는 다르다.**
  */
 function localEnvOverrides() {
   const file = path.join(WEB_ROOT, ".env.local");
@@ -458,7 +467,7 @@ async function main() {
 
   const notes = [
     `측정: 프로덕션 빌드(\`next build\` + \`next start\`) · 뷰포트 1280×720 · fullPage · ${process.platform}`,
-    "first-load JS = 그 화면이 받은 `/_next/static/**.{js,css}` 의 **전송 바이트**(gzip 후) 합 — 폰트 제외",
+    "first-load JS = 그 화면이 받은 `/_next/static/**.{js,css}` 의 **전송 바이트**(gzip 후) 합 — 폰트 제외. ★`next build` 가 인쇄하는 동명 지표(초기 HTML 이 참조하는 청크)와 **다른 양**이다 — 이쪽은 idle 창 안에 도착한 전부라 그 **초집합**이고, 그래서 `next/dynamic` 으로 옮긴 청크도 마운트 시 도착하면 그대로 계수된다(지연 로딩 개선을 이 축으로는 못 잰다 — [BL-809])",
     "요청 수 = `networkidle` + 1초 창 안의 건수. API 는 `/api/v1/` 부분집합이고, 공개 라우트는 실측 0이라 전체 요청 수가 계수기의 생존 앵커다",
     "실패 응답이 하나라도 있으면 「변화」가 아니라 **측정 오염**으로 red 를 낸다([BL-786] 의 성질을 재사용)",
     AUTHED
