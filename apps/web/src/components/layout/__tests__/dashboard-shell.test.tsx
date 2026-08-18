@@ -131,16 +131,18 @@ describe("DashboardShell — C 이식 S3 프로토타입 셸", () => {
     expect(container.querySelector(".crumbs .here")?.textContent).toBe("Waitlist 관리");
   });
 
-  it("768px 데드심 방지 — 상단바 계정 래퍼가 md:hidden 이 아니라 min-[769px]:hidden 을 쓴다", () => {
+  it("768px 데드심 방지 — 상단바 계정 래퍼가 md:hidden 이 아니라 min-[1025px]:hidden 을 쓴다", () => {
     // KITPORT 의 max-width:768 은 경계 **포함**(사이드바 숨김 + 햄버거 노출). Tailwind md: 는
     // min-width:768 이라 같은 768px 에서 함께 참 — 계정 버튼과 drawer 가 동시에 숨는 데드심.
+    // ★상단바 계정은 레일 구간(769~1024)에서 사이드바 액션이 숨는 동안 로그아웃/삭제 경로를
+    //   잇기 위해 ≤1024 전 구간 노출이다(codex P2) — 그래서 경계는 1025 다.
     const { container } = render(
       <DashboardShell>
         <p>content</p>
       </DashboardShell>,
     );
     const topbar = container.querySelector("header.topbar");
-    expect(topbar?.innerHTML).toContain("min-[769px]:hidden");
+    expect(topbar?.innerHTML).toContain("min-[1025px]:hidden");
     expect(topbar?.innerHTML).not.toContain("md:hidden");
   });
 

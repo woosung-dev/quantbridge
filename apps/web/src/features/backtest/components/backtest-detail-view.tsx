@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useEffect } from "react";
 
 import { BACKTEST_STATUS_LABEL } from "@/features/backtest/labels";
+import { DetailSkeleton } from "@/features/backtest/components/detail-skeleton";
 import { useBacktest, useBacktestProgress } from "@/features/backtest/hooks";
 import type { BacktestStatus } from "@/features/backtest/schemas";
 import { formatDate } from "@/features/backtest/utils";
@@ -204,32 +205,3 @@ function InProgressCard({ status }: { status: "queued" | "running" | "cancelling
 
 // 상세 로딩 스켈레톤 — 헤더 카드 + 요약 자리. 라우트 loading.tsx 도 이것을 재사용한다
 // (클라 컴포넌트를 서버 loading 에서 import 하는 것은 App Router 에서 합법).
-export function DetailSkeleton() {
-  return (
-    <main className="page" aria-busy="true" data-testid="backtest-detail-skeleton">
-      <section className="card" aria-hidden="true">
-        <div className="report">
-          <div>
-            <span className="sk" style={{ display: "block", width: 220, height: 32 }} />
-            <div className="report-meta">
-              {/* 실헤더 칩 5개(상태·Bybit·기간·엔진·ID)와 개수를 맞춘다. */}
-              {Array.from({ length: 5 }).map((_, i) => (
-                <span key={i} className="sk" style={{ display: "block", width: 74, height: 26 }} />
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-      <section className="section" aria-hidden="true">
-        <div className="kpi-row">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <article key={i} className="card kpi">
-              <span className="sk" style={{ display: "block", width: 88, height: 12 }} />
-              <span className="sk" style={{ display: "block", width: 120, height: 30, marginTop: 12 }} />
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
-  );
-}

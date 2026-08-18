@@ -3973,6 +3973,9 @@ table.cmp tbody td.row-label { color: var(--ink-2); white-space: normal; }
   transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
 .auth-eye:hover { background: var(--card-3); color: var(--ink); }
+/* 터치 타겟 확장 — 시각은 32px 유지, 히트 영역만 ::after 로 44px(DESIGN.md §9)로 넓힌다
+   (codex P3). input 우측 5px 여백 안에서 시각 32px 를 키우면 텍스트 영역을 침범한다. */
+.auth-eye::after { content: ""; position: absolute; inset: -6px; }
 .auth-eye svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; }
 
 .auth-foot {
@@ -4014,4 +4017,15 @@ a.chip:focus-visible {
   color: var(--ink);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* ───────────────────────────────────────────────
+ * 아이콘 레일(769~1024px) 계정 액션 숨김 — **사이드바 인스턴스만**.
+ * AccountButton 은 상단바에도 렌더되므로 버튼 자체 미디어 숨김은 레일 구간에서
+ * 로그아웃/삭제 경로를 전멸시킨다(codex P2, 2026-08-18). 그 구간의 계정 경로는
+ * 상단바(dashboard-header, min-[1025px]:hidden)가 담당한다.
+ * 양끝 포함 raw 미디어 — Tailwind max-[N]: 은 width<N 이라 KITPORT(포함)와 어긋난다.
+ * ─────────────────────────────────────────────── */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .sidebar .qb-acct-action { display: none; }
 }

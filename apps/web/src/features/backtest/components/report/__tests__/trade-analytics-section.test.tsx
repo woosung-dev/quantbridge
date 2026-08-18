@@ -150,4 +150,29 @@ describe("TradeAnalyticsSection", () => {
     expect(screen.getByText(/표시된 거래 1건 기준/)).toBeInTheDocument();
     expect(screen.getByText(/전체 10건 중/)).toBeInTheDocument();
   });
+
+  it("표본이 부분집합이면 승률·평균 PnL 헤더에 * 가 붙어 분모 분리를 고지한다 (codex P2)", () => {
+    // 거래 수 열은 metrics 모집단, 승률·평균 PnL 은 로드된 표본 파생 — truncated 시 한 행에
+    // 두 분모가 공존하므로 통계 열만 * 로 각주와 결속한다.
+    render(
+      <TradeAnalyticsSection
+        metrics={{ ...METRICS, num_trades: 6 } as BacktestMetricsOut}
+        trades={[trade(0, 10), trade(1, -5, "short")]}
+      />,
+    );
+    expect(screen.getByText("승률*")).toBeInTheDocument();
+    expect(screen.getByText("평균 PnL*")).toBeInTheDocument();
+    expect(screen.getByText(/거래 수 열은 전체 기준/)).toBeInTheDocument();
+  });
+
+  it("표본 = 전체면 * 마커가 붙지 않는다", () => {
+    render(
+      <TradeAnalyticsSection
+        metrics={METRICS}
+        trades={[trade(0, 10), trade(1, -5), trade(2, 0), trade(3, 8)]}
+      />,
+    );
+    expect(screen.queryByText("승률*")).toBeNull();
+    expect(screen.queryByText("평균 PnL*")).toBeNull();
+  });
 });

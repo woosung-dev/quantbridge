@@ -122,6 +122,11 @@ export function TradeAnalyticsSection({
     return computeDirectionBreakdown(trades);
   }, [trades]);
 
+  // 승률·평균 PnL 은 로드된 trades 표본 파생, 거래 수는 metrics 모집단 — 표본이 전체의
+  // 부분집합이면(캡 초과 truncated) 헤더 * + 각주로 두 분모를 갈라 고지한다 (codex P2).
+  const statsFromSubset =
+    trades.length > 0 && m.num_trades > 0 && trades.length < m.num_trades;
+
   const avgPnlAbs = m.avg_trade_abs ?? null;
 
   return (
@@ -205,8 +210,13 @@ export function TradeAnalyticsSection({
             <tr className="text-xs text-muted-foreground">
               <th className="py-1.5 text-left font-medium">방향</th>
               <th className="py-1.5 text-right font-medium">거래 수</th>
-              <th className="py-1.5 text-right font-medium">승률</th>
-              <th className="py-1.5 text-right font-medium">평균 PnL</th>
+              {/* ★분모 분리 고지 — 거래 수는 metrics 모집단, 승률·평균 PnL 은 로드된 표본
+                  (MAX_ANALYTICS_TRADES cap) 파생이라 truncated 시 한 행에 두 분모가 공존한다
+                  (codex P2). 표본이 부분집합일 때만 * 를 붙여 아래 각주와 결속한다. */}
+              <th className="py-1.5 text-right font-medium">승률{statsFromSubset ? "*" : ""}</th>
+              <th className="py-1.5 text-right font-medium">
+                평균 PnL{statsFromSubset ? "*" : ""}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -226,9 +236,10 @@ export function TradeAnalyticsSection({
         </table>
         {/* 부분집합 안내 — 구 TradeAnalysis 의 disclosure 승계. 거래 목록 탭도 같은 cap 을
             가지므로 거기로 안내하지 않고 사실만 표기. */}
-        {trades.length > 0 && m.num_trades > 0 && trades.length < m.num_trades ? (
+        {statsFromSubset ? (
           <p className="mt-2 text-xs text-muted-foreground">
-            * 표시된 거래 {trades.length}건 기준 (전체 {m.num_trades}건 중).
+            * 표시된 거래 {trades.length}건 기준 (전체 {m.num_trades}건 중). 거래 수 열은 전체
+            기준입니다.
           </p>
         ) : null}
       </div>

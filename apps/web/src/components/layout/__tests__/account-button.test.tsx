@@ -56,18 +56,20 @@ describe("AccountButton", () => {
     }
   });
 
-  it("아이콘 레일(769~1024px) — 액션 버튼 2개는 숨김 변형을 갖고 아바타만 남는다", () => {
+  it("아이콘 레일(769~1024px) — 액션 버튼 2개는 사이드바 스코프 클래스를 갖고 아바타만 남는다", () => {
     // KITPORT 레일 CSS 는 .account-name 등 텍스트만 숨긴다 — 액션 버튼까지 두면
     // 콘텐츠 폭 ~124px 가 64px 레일을 넘친다. 「레일에서는 아바타만 남는다」(사이드바 주석) 이행.
+    // ★버튼 자체 미디어 숨김은 상단바 인스턴스까지 숨겨 레일 구간의 로그아웃 경로를 전멸시킨다
+    //   (codex P2) — 스코프는 globals 의 `.sidebar .qb-acct-action`(양끝 포함 raw 미디어)이
+    //   담당하고, 여기서는 그 훅 클래스의 존재만 고정한다. 경계 실측 = e2e 데드심 사다리.
     render(<AccountButton />);
     const logout = screen.getByRole("button", { name: /로그아웃/ });
     const del = screen.getByRole("button", { name: "내 계정 지우기" });
-    // ★스택 변형 max-[1024px]: 은 `width < 1024` 라 KITPORT(max-width:1024, 경계 포함)와
-    //   정확히 1024px 에서 어긋난다 — raw 미디어 변형이어야 한다(실측 근거는 컴포넌트 주석).
     for (const b of [logout, del]) {
-      expect(b.className).toContain("[@media(min-width:769px)_and_(max-width:1024px)]:hidden");
+      expect(b.className).toContain("qb-acct-action");
+      expect(b.className).not.toContain("max-width:1024px)]:hidden");
     }
-    expect(screen.getByTestId("account-avatar").className).not.toContain("hidden");
+    expect(screen.getByTestId("account-avatar").className).not.toContain("qb-acct-action");
   });
 
   it("위계 — 삭제 트리거는 muted 텍스트 버튼이고 hover 에서만 destructive 톤이다", () => {

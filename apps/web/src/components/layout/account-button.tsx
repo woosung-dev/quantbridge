@@ -67,15 +67,16 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
       >
         {initialOf(user?.name, user?.email)}
       </span>
-      {/* ★레일 구간(769~1024px, --sidebar-w 64px) 숨김 — 액션 버튼 2개를 숨겨 「레일에서는
-          아바타만 남는다」(dashboard-sidebar 주석)를 이행한다. 콘텐츠 폭 ~124px 가 64px 레일을
-          넘치는 오버플로 방지. ≤768(상단바)·>1024(풀 사이드바) 현행 유지.
-          ★스택 변형 max-[1024px]: 은 `width < 1024`(경계 **미포함**)로 생성돼 KITPORT
-          `max-width:1024`(경계 포함)와 정확히 1024px 에서 어긋난다(실측) — raw 미디어 변형으로
-          양끝 포함을 맞춘다. hover 배경은 같은 셸의 .nav-item/.hamburger 관용구(var(--card-2)). */}
+      {/* ★레일 구간(769~1024px, --sidebar-w 64px) 숨김 — **사이드바 인스턴스에만** 적용한다.
+          이 컴포넌트는 상단바에도 렌더되므로 버튼 자체에 미디어 숨김을 걸면 레일 구간에서
+          로그아웃/삭제 경로가 화면 전체에서 사라진다(codex P2, 2026-08-18). 스코프는 globals 의
+          `.sidebar .qb-acct-action` 언레이어드 규칙(min-width:769 and max-width:1024, 양끝 포함 —
+          Tailwind max-[N]: 은 경계 미포함이라 raw 미디어가 정본)이 담당하고, 그 구간의 계정
+          경로는 상단바 인스턴스(dashboard-header, min-[1025px]:hidden)가 잇는다.
+          hover 배경은 같은 셸의 .nav-item/.hamburger 관용구(var(--card-2)). */}
       <button
         type="button"
-        className={`inline-flex items-center justify-center rounded-[var(--r)] text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--card-2)] hover:text-[color:var(--ink)] [@media(min-width:769px)_and_(max-width:1024px)]:hidden ${box}`}
+        className={`qb-acct-action inline-flex items-center justify-center rounded-[var(--r)] text-[color:var(--ink-2)] transition-colors hover:bg-[color:var(--card-2)] hover:text-[color:var(--ink)] ${box}`}
         onClick={handleSignOut}
         aria-label={user?.email ? `${user.email} 로그아웃` : "로그아웃"}
         title="로그아웃"
@@ -87,7 +88,7 @@ export function AccountButton({ size = "sm" }: { size?: "sm" | "lg" }) {
           터치 타깃 높이는 size 프롭이 계속 보장한다(≥44pt @ lg). */}
       <button
         type="button"
-        className={`inline-flex items-center justify-center rounded-[var(--r)] px-1.5 text-[0.72rem] whitespace-nowrap text-[color:var(--ink-3)] transition-colors hover:bg-[color:var(--destructive-subtle)] hover:text-[color:var(--destructive)] [@media(min-width:769px)_and_(max-width:1024px)]:hidden ${size === "lg" ? "min-h-11" : "min-h-9"}`}
+        className={`qb-acct-action inline-flex items-center justify-center rounded-[var(--r)] px-1.5 text-[0.72rem] whitespace-nowrap text-[color:var(--ink-3)] transition-colors hover:bg-[color:var(--destructive-subtle)] hover:text-[color:var(--destructive)] ${size === "lg" ? "min-h-11" : "min-h-9"}`}
         onClick={() => {
           setDeleteError(null);
           setConfirmOpen(true);
