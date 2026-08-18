@@ -137,7 +137,11 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
     await dpage.goto(`${BASE_URL}/strategies`, { waitUntil: "load" });
     // ★고정 1.5초였다 ([BL-807]). 이 파일이 CI 로 올라가면 그 대기는 러너 속도에 걸린다 —
     //   부재 판정은 아래 `expect(editHref).toBeTruthy()` 가 진다.
-    await dpage.waitForSelector('a[href*="/strategies/"]', { timeout: 25_000 }).catch(() => {});
+    // ★★기다릴 것은 **편집 링크**다 (codex 적대 리뷰 P2, 2026-08-19). 초판은 `a[href*="/strategies/"]`
+    //   를 기다렸는데 그것은 목록에 **항상 있는** `/strategies/new` 에 즉시 매치한다 — 목록 API 가
+    //   아직 로딩 중이어도 대기가 그 자리에서 끝나고, 아래 UUID `/edit` 탐색은 빈손으로 돌아온다.
+    //   고정 대기를 걷어낸 그 회차가 **같은 결함을 다른 모양으로** 다시 만든 셈이었다.
+    await dpage.waitForSelector('a[href$="/edit"]', { timeout: 25_000 }).catch(() => {});
     const editHref = await dpage.locator('a[href*="/strategies/"]').evaluateAll((els) => {
       const re = /^\/strategies\/[0-9a-f-]{36}\/edit$/;
       const found = (els as HTMLAnchorElement[]).find((a) => re.test(new URL(a.href).pathname));
