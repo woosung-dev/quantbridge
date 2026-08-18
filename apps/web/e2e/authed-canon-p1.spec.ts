@@ -50,13 +50,6 @@ const EXPECTED_CONSOLE = [
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
   /failed to load resource.*429/i,
-  // ★거래소 **포지션 조회의 503 만** 좁게 무시한다 (2026-08-18 CI 실측). CI 러너에는 실제
-  //   거래소 연결이 없어 `GET /api/v1/exchange-accounts/{id}/positions` 가 CCXT 실패로 503 을
-  //   낸다 — 그것이 BE 의 **정직한 동작**이고 앱 결함이 아니다. 이것을 하드 실패로 세면
-  //   `/trading` 캐논은 거래소 없이는 영영 CI 에서 못 돈다.
-  //   ★★범위를 **엔드포인트로 못박는다** — 아래에서 걷어낸 5xx 전체 무시를 되살리는 것이 아니다.
-  //   다른 5xx 은 여전히 잡힌다.
-  /failed to load resource.*\b503\b.*\/exchange-accounts\/[^/]+\/positions/i,
   // ★★**그 밖의 5xx 는 더 이상 무시하지 않는다** ([BL-807], 2026-08-18). 종전의 맨 `/\b50[0-9]\b/` 는
   //   ⑴ 앵커가 없어 **본문의 아무 세 자리 50x 숫자**까지 삼켰고 ⑵ 바로 위 4xx 필터가
   //   `failed to load resource.*` 로 좁혀져 있는 것과 **비대칭**이었으며 ⑶ 무엇보다 BE 500 은
@@ -67,7 +60,25 @@ const EXPECTED_CONSOLE = [
   /\[fast refresh\]/i,
   /access to fetch/i, // CORS 차단 (백엔드 origin 미일치 시)
 ];
-const ignoreConsole = (t: string) => EXPECTED_CONSOLE.some((re) => re.test(t));
+/**
+ * 거래소 **포지션 조회의 503 만** 좁게 면제한다 (2026-08-19 CI 실측, [BL-807]).
+ *
+ * CI 러너에는 실제 거래소 연결이 없어 `GET /api/v1/exchange-accounts/{id}/positions` 가 CCXT
+ * 실패로 503 을 낸다 — BE 의 **정직한 동작**이고 앱 결함이 아니다. 하드 실패로 세면 `/trading`
+ * 캐논은 거래소 없이 영영 CI 에서 못 돈다.
+ *
+ * ★★**첫 판은 발화조차 못 했다.** 콘솔 원문 하나만 보는 정규식에 URL 조각을 적어 넣었는데,
+ *   `ignoreConsole` 이 받는 것은 **브라우저 원문**이고 리포트의 `<- <url>` 은 그 뒤에 붙는다.
+ *   내 국소 검사는 리포트 문자열을 먹여 true 였다 — **실제 경로가 지나지 않는 검사**였다.
+ *   ⇒ 출처 URL 을 **둘째 인자로** 받아 판정한다. 텍스트의 503 과 URL 의 엔드포인트가
+ *   **둘 다** 맞을 때만 면제되므로 사거리가 원문 밖으로 새지 않는다.
+ */
+const EXCHANGE_POSITIONS_PATH = /\/exchange-accounts\/[^/]+\/positions(?:\?|$)/;
+const isExchangePositions503 = (text: string, originUrl?: string) =>
+  /\b503\b/.test(text) && originUrl !== undefined && EXCHANGE_POSITIONS_PATH.test(originUrl);
+
+const ignoreConsole = (t: string, originUrl?: string) =>
+  EXPECTED_CONSOLE.some((re) => re.test(t)) || isExchangePositions503(t, originUrl);
 
 /**
  * P1 4라우트 하드 실패 allowlist (2026-07-20 실측 baseline). S5~S8 이 줄인다.
