@@ -318,7 +318,21 @@ async def _run(email: str, confirm: bool) -> int:
                 print("\n══ dry-run 종료 — 아무것도 쓰지 않았다. 집행하려면 --confirm ══")
                 return 0
 
-            session.add_all([*strategies, account, backtest, *trades, optimization])
+            # ★★**단계별 flush 가 필요하다** (2026-08-18 CI 실측, run `32088709...`).
+            #   한 번에 `add_all` 하면 `backtests_strategy_id_fkey` 로 죽는다 —
+            #   `Strategy` 와 `Backtest` 사이에 `relationship()` 이 **없어서**(FK 컬럼만 있다)
+            #   SQLAlchemy 의 unit-of-work 가 두 표의 의존 순서를 알 수 없고, backtests 를
+            #   strategies 보다 먼저 INSERT 한다. `Backtest ↔ BacktestTrade` 는 relationship 이
+            #   있어 그 쌍만은 알아서 정렬된다.
+            #   ★이 결함은 `--selftest` 가 못 잡는다 — 행을 짓는 것과 넣는 것은 다른 문제다.
+            session.add_all(strategies)
+            session.add(account)
+            await session.flush()
+            session.add(backtest)
+            await session.flush()
+            session.add_all(trades)
+            session.add(optimization)
+            await session.flush()
             await session.commit()
             print("\n✓ 시드 완료")
             return 0
