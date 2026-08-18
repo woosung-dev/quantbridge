@@ -17,6 +17,18 @@
 # ★종료 코드가 판정이므로 **파이프 없이** 읽는다 (`| tail` 이 $? 를 가린다 — 실측 사고 이력).
 #
 # 사용법: tools/scripts/api-service-test.sh
+#
+# ★★**이 하네스는 OS 무관해야 한다 — 2026-08-19 에 ubuntu 에서만 red 였다.**
+#   macOS 로컬은 전건 초록인데 CI(`ubuntu-latest`)의 `gate-harnesses` 만 실패했다. 범인은
+#   환경(systemd 유무·PATH·mktemp)이 아니라 **grep 방언**이었다 — 케이스 ⑲ 가 리터럴 백틱을
+#   `grep -q 'env\` 를 경유'` 로 찾았는데, **GNU grep 은 BRE 의 `\`` 를 「버퍼 시작」 앵커**
+#   (GNU 확장)로 읽어 패턴 중간에서는 **절대 안 맞고**, BSD grep(macOS)은 리터럴 백틱으로 읽는다.
+#   같은 패턴·같은 입력에 rc 가 GNU=1 / BSD=0 으로 갈렸다(실측).
+#   ⇒ ⑴ **리터럴을 찾을 때는 `grep -F`.** 패턴에 백슬래시를 넣지 마라.
+#      ⑵ **두 시나리오를 한 케이스에 묶지 마라** — `OUT` 이 덮여 실패 사유와 덤프된 증거가
+#         어긋난다(그 실측에서 실제로 그랬다: env 갈래가 깨졌는데 덤프는 부재 갈래였다).
+#      ⑶ 새 케이스를 넣으면 **리눅스에서도 재라** (일회성 컨테이너, 레포 스택과 무관):
+#         docker run --rm -v "$PWD":/w -w /w ubuntu:24.04 bash tools/scripts/api-service-test.sh
 
 set -uo pipefail
 
@@ -362,19 +374,29 @@ printf '%s' "$OUT" | grep -qF "✓ ExecStart = $TMP/uvicorn-shebang-dead" \
 report "⑱ 양성 대조: 죽은 shebang → rc=1 + 203/EXEC (경로 축은 초록)" "$_why"
 mv "$UNIT.bak" "$UNIT"
 
-# ── ⑲ shebang 판정 불가 2갈래를 **인쇄**한다 (조용히 통과 금지) ────────────────
+# ── ⑲ shebang 판정 불가 ⑴ `env` 경유를 **인쇄**한다 (조용히 통과 금지) ─────────
+# ★★**패턴에 백슬래시를 넣지 마라 — 이 케이스가 리눅스 CI 에서만 red 였다.**
+#   GNU grep 은 BRE 의 `\`` 를 **버퍼 시작 앵커**(GNU 확장)로 읽어 패턴 중간에서는 절대
+#   안 맞고, BSD grep(macOS)은 **리터럴 백틱**으로 읽는다. 같은 패턴·같은 입력에
+#   rc 가 1 과 0 으로 갈린다(2026-08-19 실측). 리터럴을 찾을 때는 **`-F` 를 써라.**
+# ★두 갈래를 한 케이스에 묶지 않는다 — `OUT` 이 덮여 **실패 사유와 덤프된 증거가 어긋난다**
+#   (같은 실측에서 실제로 그랬다: env 갈래가 깨졌는데 덤프는 부재 갈래 출력이었다).
 rm -rf "$XDG"
 _run_as "$TMP/fake-uvicorn" --install
 _run_as "$TMP/fake-uvicorn" --status
 _why=""
 [ "$RC" -eq 0 ] || _why="rc=$RC (기대 0) "
-printf '%s' "$OUT" | grep -q 'env\` 를 경유' || _why="${_why}env 경유 판정 불가를 안 알린다 "
+printf '%s' "$OUT" | grep -qF '`env` 를 경유' || _why="${_why}env 경유 판정 불가를 안 알린다 "
+report "⑲ shebang 판정 불가 ⑴ env 경유 → 인쇄 · rc=0" "$_why"
+
+# ── ⑲b shebang 판정 불가 ⑵ shebang 부재 ───────────────────────────────────────
 rm -rf "$XDG"
 _run_as "$TMP/uvicorn-no-shebang" --install
 _run_as "$TMP/uvicorn-no-shebang" --status
-[ "$RC" -eq 0 ] || _why="${_why}shebang 없는 파일인데 rc=$RC (기대 0) "
-printf '%s' "$OUT" | grep -q 'shebang 이 없다' || _why="${_why}shebang 부재 판정 불가를 안 알린다 "
-report "⑲ shebang 판정 불가(env · 부재)는 인쇄한다 — 조용히 통과 아님" "$_why"
+_why=""
+[ "$RC" -eq 0 ] || _why="shebang 없는 파일인데 rc=$RC (기대 0) "
+printf '%s' "$OUT" | grep -qF 'shebang 이 없다' || _why="${_why}shebang 부재 판정 불가를 안 알린다 "
+report "⑲b shebang 판정 불가 ⑵ shebang 부재 → 인쇄 · rc=0" "$_why"
 
 # ── ⑳ 활성 음성 대조: active 면 green ──────────────────────────────────────────
 rm -rf "$XDG"
