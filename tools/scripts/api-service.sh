@@ -50,6 +50,19 @@
 #   · **실패 알림 유닛(`OnFailure=`)은 두지 않았다.** 형제 감시자 2종과 달리 이쪽은
 #     `Restart=always` 가 죽음을 스스로 되살리고, API 가 안 뜨는 사실은 `/health` 를 보는 쪽이
 #     이미 잡는다. 알림 유닛을 얹으면 재시작마다 발화해 사람이 무시하게 된다.
+#   · ★**`--status` 는 축이 넷이다** (2026-08-19 적대 리뷰 4건 수용, [BL-805]).
+#     ⑴ **경로** — 설치본 `ExecStart` 의 첫 토큰 = 이 트리의 uvicorn 인가.
+#     ⑵ **shebang** — 그 wrapper 첫 줄이 가리키는 **인터프리터가 실재**하는가. venv 는 재배치
+#        불가라 체크아웃을 통째로 복사하면 wrapper 는 따라오지만 첫 줄은 **삭제된 옛 venv 의
+#        python** 을 가리킨다. `[ -x wrapper ]` 는 그대로 참이고 systemd 는 `203/EXEC` 로 죽는다 —
+#        즉 ⑴ 만으로는 [BL-744] 좀비의 한 갈래를 못 잡는다.
+#     ⑶ **drop-in 합성** — `<unit>.d/*.conf` 가 `ExecStart` 를 재지정하면 원본 파일은 최신인데
+#        실제로 도는 것은 옛 체크아웃이다. 그래서 **파일 축과 `systemctl show` 축을 둘 다** 본다.
+#        ★`show -p ExecStart` 값은 **확장 _전_ 문자열**이라 `${VAR}`·`%i` 는 못 편다
+#        (`docs/lessons.md` 2026-08-15 반증) — 그런 값이 오면 **판정 불가로 인쇄**하고 넘긴다.
+#     ⑷ **활성 상태** — `is-failed`/`is-active`. ⑴~⑶ 이 전부 초록이어도 uvicorn 이 기동 직후
+#        죽으면 유닛은 `failed` 다. 「아직 안 떴다(inactive)」와 「failed」는 **다른 상태**라
+#        문구를 나눠 인쇄한다.
 
 set -uo pipefail
 
@@ -76,7 +89,7 @@ while [ $# -gt 0 ]; do
     --uninstall) MODE="uninstall" ;;
     --status) MODE="status" ;;
     -h | --help)
-      sed -n '2,52p' "$0"
+      sed -n '2,65p' "$0"
       exit 0
       ;;
     *)
@@ -102,9 +115,25 @@ _install() {
   _require_systemctl
 
   # ★없는 파일을 가리키는 유닛을 세우지 않는다 — 그것이 [BL-744] 의 좀비다.
-  [ -x "${UVICORN}" ] \
-    || die "uvicorn 이 없거나 실행 권한이 없다: ${UVICORN}
-  (venv 를 먼저 만들어라: cd ${API_DIR} && uv sync)"
+  # ★안내문(`uv sync`)을 `die` 의 **여러 줄 문자열** 안에 두면 안 된다 —
+  #   `tool-pin-audit.sh` 는 줄 단위라 여러 줄 문자열의 둘째 줄을 못 알아보고 거기의
+  #   `&& uv sync` 를 **명령 위치의 진짜 호출**로 읽는다(2026-08-19 실측: rc=1).
+  #   그 감사기가 안내문을 가르는 축은 「그 줄의 첫 명령이 `echo`/`printf`」이므로
+  #   **안내문은 `echo` 줄로 낸다.** 정규식을 피하려고 문구를 비트는 것이 아니라
+  #   감사기가 안내문이라고 정의한 형태로 쓰는 것이다 — 이 파일에 진짜 호출을 넣으면
+  #   여전히 잡힌다(표적 변이로 실증).
+  if [ ! -x "${UVICORN}" ]; then
+    echo "✗ uvicorn 이 없거나 실행 권한이 없다: ${UVICORN}" >&2
+    echo "  (venv 를 먼저 만들어라: cd ${API_DIR} && uv sync)" >&2
+    exit 1
+  fi
+
+  # ★**shebang 이 죽은 wrapper 도 「없는 파일을 가리키는 유닛」이다** — 파일은 실재하는데
+  #   exec 가 `203/EXEC` 로 죽으니 위 `-x` 검사만으로는 같은 좀비를 그대로 굽는다.
+  local sb=""
+  sb="$(_check_shebang "${UVICORN}")" \
+    || die "uvicorn wrapper 의 shebang 이 죽었다 — 이대로 구우면 203/EXEC 좀비가 된다.
+${sb}"
 
   mkdir -p "${UNIT_DIR}" || die "유닛 디렉터리를 만들 수 없다: ${UNIT_DIR}"
   # PROMETHEUS_MULTIPROC_DIR 는 **존재해야** prometheus multiprocess 모드가 뜬다.
@@ -151,12 +180,41 @@ EOF
   echo "  로그: journalctl --user -u ${UNIT_NAME}.service"
 }
 
+# ★실패를 삼키지 않는다 (2026-08-19 적대 리뷰). `Restart=always` 라 `disable --now` 가 실패하면
+#   **API 는 계속 도는데** 유닛 파일만 사라진다 — 그 뒤에는 `systemctl` 로 멈출 수단도 없다.
+#   그 상태를 「✓ 해제 완료」로 인쇄하는 것이 가장 나쁜 조합이라 실패를 모아 rc 에 싣는다.
 _uninstall() {
   _require_systemctl
-  systemctl --user disable --now "${UNIT_NAME}.service" > /dev/null 2>&1 || true
-  rm -f "${UNIT_DIR}/${UNIT_NAME}.service"
-  systemctl --user daemon-reload > /dev/null 2>&1 || true
-  echo "✓ 해제 완료 (메트릭 디렉터리는 남긴다: ${METRICS_DIR})"
+  local rc=0 f="${UNIT_DIR}/${UNIT_NAME}.service"
+
+  if ! systemctl --user disable --now "${UNIT_NAME}.service" > /dev/null 2>&1; then
+    if [ -f "${f}" ]; then
+      echo "✗ systemctl --user disable --now 실패 — Restart=always 라 API 가 계속 돌 수 있다." >&2
+      echo "  확인: systemctl --user status ${UNIT_NAME}.service" >&2
+      rc=1
+    else
+      # 유닛 파일이 애초에 없으면 systemd 는 「Unit file does not exist」로 실패한다.
+      # 지울 것이 없는 상태를 실패로 셀 이유는 없다.
+      echo "⚠ disable --now 가 실패했지만 유닛 파일이 없다 — 이미 해제된 것으로 본다." >&2
+    fi
+  fi
+
+  if ! rm -f "${f}" || [ -e "${f}" ]; then
+    echo "✗ 유닛 파일을 지우지 못했다: ${f}" >&2
+    rc=1
+  fi
+
+  if ! systemctl --user daemon-reload > /dev/null 2>&1; then
+    echo "✗ systemctl --user daemon-reload 실패 — systemd 가 아직 옛 유닛을 들고 있다." >&2
+    rc=1
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    echo "✓ 해제 완료 (메트릭 디렉터리는 남긴다: ${METRICS_DIR})"
+  else
+    echo "✗ 해제가 불완전하다 — 위 실패를 손으로 처리해라 (메트릭: ${METRICS_DIR})" >&2
+  fi
+  exit "${rc}"
 }
 
 # ── 설치본 신선도 ───────────────────────────────────────────────────────────────
@@ -167,6 +225,80 @@ _installed_execstart() {
   local f="${UNIT_DIR}/${UNIT_NAME}.service"
   [ -f "${f}" ] || return 0
   sed -n 's|^ExecStart=||p' "${f}" | head -1 | awk '{print $1}'
+}
+
+# ★wrapper 의 첫 줄이 가리키는 인터프리터가 실재하는가 — `[ -x wrapper ]` 가 못 보는 축.
+#   `.venv/bin/uvicorn` 은 `#!<venv>/bin/python` 로 시작하는 **텍스트 스크립트**이고 venv 는
+#   재배치 불가다. 체크아웃을 복사해 옮기면 wrapper 는 새 경로에 실재·실행 가능한데 첫 줄은
+#   **삭제된 옛 venv** 를 가리켜 systemd 가 `203/EXEC` 로 죽는다.
+#   ★판정 불가(바이너리 · `env` 경유)는 **조용히 통과시키지 않고 그 사실을 인쇄**한다.
+#   반환: 0 = 정상 또는 판정 불가 / 1 = 인터프리터 부재
+_check_shebang() {
+  local f="$1" first interp
+  first="$(head -1 "${f}" 2> /dev/null)" || first=""
+
+  case "${first}" in
+    '#!'*) ;;
+    *)
+      echo "  · shebang 이 없다 — 네이티브 실행 파일로 본다 (인터프리터 판정 불가)"
+      return 0
+      ;;
+  esac
+
+  # `#!` 뒤 첫 토큰. `#!/usr/bin/env -S python` 처럼 인자가 붙어도 첫 토큰만 본다.
+  interp="$(printf '%s\n' "${first#\#!}" | awk '{print $1}')"
+
+  case "${interp}" in
+    "")
+      echo "  · shebang 이 비었다 (판정 불가): ${first}"
+      return 0
+      ;;
+    env | */env)
+      echo "  · shebang 이 \`env\` 를 경유한다 — 실제 인터프리터는 PATH 에 달렸다 (판정 불가)"
+      echo "      ${first}"
+      return 0
+      ;;
+  esac
+
+  if [ ! -x "${interp}" ]; then
+    echo "  ✗ shebang 이 가리키는 인터프리터가 없다 — 이 유닛은 203/EXEC 로 죽는다"
+    echo "      wrapper : ${f}"
+    echo "      shebang : ${interp}"
+    echo "    → venv 는 재배치 불가다. cd ${API_DIR} && uv sync 로 다시 만든 뒤 --install."
+    return 1
+  fi
+
+  echo "  ✓ shebang 인터프리터 = ${interp}"
+  return 0
+}
+
+# ★drop-in 을 **합성한 뒤**의 ExecStart. 파일 축(`_installed_execstart`)이 못 보는 것을 본다.
+#   ★단 이 값은 systemd 의 **파싱 결과 = 확장 _전_ 문자열**이다 (`docs/lessons.md`, 2026-08-15
+#     `OnFailure=` 알람 반증). 그래서 파일 축을 대체하지 않고 **더한다**.
+_composed_execstart() {
+  local raw path
+  # 파이프를 쓰지 않는다 — pipefail + SIGPIPE 는 이 레포가 이미 밟은 함정이다.
+  raw="$(systemctl --user show -p ExecStart --value "${UNIT_NAME}.service" 2> /dev/null)" || raw=""
+  raw="${raw%%$'\n'*}"
+  [ -n "${raw}" ] || return 0
+
+  # systemd 실물 형식: `{ path=/x/uvicorn ; argv[]=/x/uvicorn src.main:app ; ignore_errors=no … }`
+  case "${raw}" in
+    *path=*)
+      path="${raw#*path=}"
+      path="${path%%;*}"
+      ;;
+    *) path="${raw}" ;;
+  esac
+  printf '%s\n' "${path}" | awk '{print $1}'
+}
+
+# `${VAR}` · `%i` 같은 미확장 지정자가 남아 있나 — 있으면 문자열 대조가 무의미하다.
+_has_specifier() {
+  case "$1" in
+    *'$'* | *'%'*) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 _status() {
@@ -192,12 +324,70 @@ _status() {
     echo "  ✓ ExecStart = ${got}"
   fi
 
-  echo "── 유닛 상태 ──"
-  if command -v systemctl > /dev/null 2>&1; then
-    systemctl --user status --no-pager "${UNIT_NAME}.service" 2> /dev/null | sed -n '1,5p' \
-      || echo "  (조회 실패)"
+  # ★경로가 맞아도 wrapper 의 shebang 은 따로 봐야 한다 — 위 「설계 근거」 ⑵.
+  if [ -n "${got}" ] && [ -x "${got}" ]; then
+    _check_shebang "${got}" || rc=1
+  fi
+
+  echo "── drop-in 합성 ──"
+  local dropin_dir="${UNIT_DIR}/${UNIT_NAME}.service.d" dropins="" p comp
+  if [ -d "${dropin_dir}" ]; then
+    for p in "${dropin_dir}"/*.conf; do
+      [ -e "${p}" ] || continue
+      dropins="${dropins} $(basename "${p}")"
+    done
+    if [ -n "${dropins}" ]; then
+      echo "  · drop-in:${dropins}   (${dropin_dir})"
+    else
+      echo "  · drop-in 디렉터리는 있지만 .conf 가 없다: ${dropin_dir}"
+    fi
   else
+    echo "  · drop-in 없음"
+  fi
+
+  if ! command -v systemctl > /dev/null 2>&1; then
+    echo "  · systemctl 이 없어 합성값을 못 읽는다 (판정 불가 — 파일 축만 유효)"
+  else
+    comp="$(_composed_execstart)"
+    if [ -z "${comp}" ]; then
+      echo "  · systemd 가 이 유닛을 안 읽고 있다 — 합성 ExecStart 가 비었다 (판정 불가)"
+    elif _has_specifier "${comp}"; then
+      echo "  · 합성값에 미확장 지정자가 남아 있다 — 문자열 대조 판정 불가: ${comp}"
+    elif [ "${comp}" != "${want}" ]; then
+      echo "  ✗ 합성 후 ExecStart 가 이 트리의 venv 가 아니다 — drop-in 이 재지정했을 수 있다"
+      echo "      합성본: ${comp}"
+      echo "      현재본: ${want}"
+      echo "    → systemctl --user cat ${UNIT_NAME}.service 로 무엇이 덮는지 봐라."
+      rc=1
+    else
+      echo "  ✓ 합성 후 ExecStart = ${comp}"
+    fi
+  fi
+
+  echo "── 유닛 상태 ──"
+  if ! command -v systemctl > /dev/null 2>&1; then
     echo "  systemctl 이 없다 (리눅스 전용)"
+  else
+    # ★「경로가 맞다」는 「돌고 있다」가 아니다. uvicorn 이 기동 직후 죽으면 앞 축은 전부
+    #   초록인 채 유닛만 failed 다 — 그 상태가 rc=0 이면 이 스크립트는 거짓말을 한다.
+    local state=""
+    state="$(systemctl --user is-active "${UNIT_NAME}.service" 2> /dev/null)" || true
+    [ -n "${state}" ] || state="unknown"
+
+    if systemctl --user is-failed "${UNIT_NAME}.service" > /dev/null 2>&1; then
+      echo "  ✗ 유닛이 failed 다 — 기동은 했는데 죽었다 (ExecStart 가 맞아도 이렇게 된다)"
+      echo "    → journalctl --user -u ${UNIT_NAME}.service -n 50 --no-pager"
+      rc=1
+    elif [ "${state}" = "active" ]; then
+      echo "  ✓ active"
+    else
+      echo "  ✗ 설치는 됐는데 활성이 아니다 (${state}) — failed 와는 다른 상태다"
+      echo "    → systemctl --user start ${UNIT_NAME}.service"
+      rc=1
+    fi
+
+    systemctl --user status --no-pager "${UNIT_NAME}.service" 2> /dev/null | sed -n '1,5p' \
+      || echo "  (상세 조회 실패)"
   fi
 
   exit "${rc}"

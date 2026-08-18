@@ -51,10 +51,68 @@ report() { # report <이름> <실패사유(빈 문자열이면 통과)>
 mkdir -p "$TMP/bin" "$TMP/xdg"
 
 # 가짜 systemctl — 설치 경로가 리눅스 전용 분기를 타게 한다.
-# QB_FAKE_SYSTEMCTL_FAIL=1 이면 enable 실패를 흉내낸다.
+# ★2026-08-19: `--status` 에 **활성 상태 축**(is-active/is-failed)과 **drop-in 합성 축**
+#   (show -p ExecStart)이 생겨 「전부 exit 0」 스텁으로는 그 둘을 겨눌 수 없다. 하위 명령별로
+#   상태를 흉내 낸다.
+#   QB_FAKE_SYSTEMCTL_FAIL=1 : 모든 하위 명령 실패 (enable 실패 재현)
+#   QB_FAKE_FAIL_SUB=<하위>  : **그 하위 명령만** 실패. ★표적 변이가 찾아낸 구멍 때문에 생겼다 —
+#                              「전부 실패」로는 `_uninstall` 의 rc 축 둘(disable · daemon-reload)이
+#                              서로를 가려 한쪽을 지워도 케이스가 초록이었다(2026-08-19 M4 실측).
+#   QB_FAKE_UNIT_STATE       : active(기본) | failed | inactive
+#   QB_FAKE_EXECSTART        : `show -p ExecStart --value` 가 낼 값. 비어 있으면 **유닛 파일에서
+#                              읽는다** — drop-in 이 없는 실제 systemd 와 같은 답이 된다.
+#   QB_FAKE_SHOW_EMPTY=1     : show 가 아무것도 안 찍는다 (systemd 가 유닛을 안 읽은 상태)
 cat > "$TMP/bin/systemctl" << 'EOF'
 #!/usr/bin/env bash
 if [ "${QB_FAKE_SYSTEMCTL_FAIL:-0}" = "1" ]; then exit 1; fi
+
+sub=""
+for a in "$@"; do
+  case "$a" in
+    --*) continue ;;
+    *)
+      sub="$a"
+      break
+      ;;
+  esac
+done
+
+if [ -n "${QB_FAKE_FAIL_SUB:-}" ] && [ "$sub" = "$QB_FAKE_FAIL_SUB" ]; then exit 1; fi
+
+state="${QB_FAKE_UNIT_STATE:-active}"
+unit_file="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/quantbridge-api.service"
+
+case "$sub" in
+  is-active)
+    printf '%s\n' "$state"
+    [ "$state" = "active" ] && exit 0
+    exit 3
+    ;;
+  is-failed)
+    printf '%s\n' "$state"
+    [ "$state" = "failed" ] && exit 0
+    exit 1
+    ;;
+  show)
+    [ "${QB_FAKE_SHOW_EMPTY:-0}" = "1" ] && exit 0
+    if [ -n "${QB_FAKE_EXECSTART:-}" ]; then
+      printf '%s\n' "$QB_FAKE_EXECSTART"
+      exit 0
+    fi
+    if [ -f "$unit_file" ]; then
+      line="$(sed -n 's|^ExecStart=||p' "$unit_file" | head -1)"
+      # systemd 실물 형식을 흉내낸다: `{ path=… ; argv[]=… ; ignore_errors=no }`
+      [ -n "$line" ] \
+        && printf '{ path=%s ; argv[]=%s ; ignore_errors=no }\n' "${line%% *}" "$line"
+    fi
+    exit 0
+    ;;
+  status)
+    printf 'quantbridge-api.service - QuantBridge API\n   Active: %s\n' "$state"
+    [ "$state" = "active" ] && exit 0
+    exit 3
+    ;;
+esac
 exit 0
 EOF
 
@@ -78,16 +136,30 @@ cat > "$TMP/other-uvicorn" << 'EOF'
 #!/usr/bin/env bash
 exit 0
 EOF
-chmod +x "$TMP/bin/systemctl" "$TMP/bin/loginctl" "$TMP/fake-uvicorn" "$TMP/other-uvicorn"
+
+# ★shebang 축(2026-08-19)용 wrapper 3종 — **파일은 셋 다 실재·실행 가능**하고 첫 줄만 다르다.
+#   이것이 `[ -x ]` 로는 셋을 구분할 수 없다는 사실 자체다.
+printf '#!/bin/sh\nexit 0\n' > "$TMP/uvicorn-shebang-ok"
+printf '#!%s/gone/bin/python3\nexit 0\n' "$TMP" > "$TMP/uvicorn-shebang-dead"
+printf 'not-a-script\n' > "$TMP/uvicorn-no-shebang"
+
+chmod +x "$TMP/bin/systemctl" "$TMP/bin/loginctl" "$TMP/fake-uvicorn" "$TMP/other-uvicorn" \
+  "$TMP/uvicorn-shebang-ok" "$TMP/uvicorn-shebang-dead" "$TMP/uvicorn-no-shebang"
 
 UVI="$TMP/fake-uvicorn"
 XDG="$TMP/xdg"
 UNIT="$XDG/systemd/user/quantbridge-api.service"
 
-_run() { # _run <인자...>  — 스텁이 걸린 PATH 로 대상 스크립트를 돈다
-  OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+_run_as() { # _run_as <uvicorn 경로> <인자...>  — 주입 seam 을 갈아끼우고 돈다
+  local u="$1"
+  shift
+  OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$u" \
     bash "$TARGET" "$@" 2>&1)"
   RC=$?
+}
+
+_run() { # _run <인자...>  — 스텁이 걸린 PATH 로 대상 스크립트를 돈다
+  _run_as "$UVI" "$@"
 }
 
 echo "══ api-service 하네스 ══"
@@ -252,14 +324,180 @@ _why=""
 [ "$RC" -eq 1 ] || _why="★enable 이 실패했는데 rc=$RC (기대 1) "
 report "⑮ systemctl 실패 → 설치 실패 (fail-closed)" "$_why"
 
-# ── ⑯ --uninstall 이 유닛을 지운다 ─────────────────────────────────────────────
+# ── ⑯ --uninstall 이 유닛을 지운다 (⑯ = ㉗ 의 음성 대조) ───────────────────────
 rm -rf "$XDG"
 _run --install
 _run --uninstall
 _why=""
 [ "$RC" -eq 0 ] || _why="rc=$RC (기대 0) "
 [ -f "$UNIT" ] && _why="${_why}★유닛이 남아 있다 "
-report "⑯ --uninstall → 유닛 삭제" "$_why"
+printf '%s' "$OUT" | grep -q '✓ 해제 완료' || _why="${_why}완료 문구가 없다 "
+report "⑯ 음성 대조: 정상 --uninstall → 유닛 삭제 · rc=0" "$_why"
+
+# ═══ 2026-08-19 적대 리뷰 4건 수용분 (⑰~㉘) ═══════════════════════════════════
+# ★네 축 전부 **음성 대조(정상 → green)와 양성 대조(변조 → red)를 짝으로** 둔다.
+#   한쪽만 있으면 판별력이 0 이라는 것이 이 하네스 머리말의 전제다.
+
+# ── ⑰ shebang 음성 대조: 인터프리터가 실재하면 green ───────────────────────────
+rm -rf "$XDG"
+_run_as "$TMP/uvicorn-shebang-ok" --install
+_run_as "$TMP/uvicorn-shebang-ok" --status
+_why=""
+[ "$RC" -eq 0 ] || _why="★shebang 이 멀쩡한데 rc=$RC (기대 0) "
+printf '%s' "$OUT" | grep -q '✓ shebang 인터프리터 = /bin/sh' || _why="${_why}green 진단이 없다 "
+report "⑰ 음성 대조: shebang 인터프리터 실재 → --status rc=0" "$_why"
+
+# ── ⑱ shebang 양성 대조: 죽은 인터프리터 → red ─────────────────────────────────
+# ★재배치된 venv 재현 — wrapper 파일은 **실재·실행 가능**하고 경로 축도 초록이다.
+#   그래서 이 red 를 만들 수 있는 것은 shebang 축 하나뿐이다.
+sed -i.bak "s|^ExecStart=.*|ExecStart=$TMP/uvicorn-shebang-dead src.main:app|" "$UNIT"
+_run_as "$TMP/uvicorn-shebang-dead" --status
+_why=""
+[ "$RC" -eq 1 ] || _why="★shebang 이 죽었는데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q '203/EXEC' || _why="${_why}203/EXEC 진단이 없다 "
+printf '%s' "$OUT" | grep -qF "shebang : $TMP/gone/bin/python3" || _why="${_why}shebang 경로 병기가 없다 "
+# ★경로 축은 초록이어야 한다 — 아니면 이 케이스는 shebang 축을 안 겨눈 것이다.
+printf '%s' "$OUT" | grep -qF "✓ ExecStart = $TMP/uvicorn-shebang-dead" \
+  || _why="${_why}★경로 축이 초록이 아니다 — 이 red 는 shebang 축의 것이 아니다 "
+report "⑱ 양성 대조: 죽은 shebang → rc=1 + 203/EXEC (경로 축은 초록)" "$_why"
+mv "$UNIT.bak" "$UNIT"
+
+# ── ⑲ shebang 판정 불가 2갈래를 **인쇄**한다 (조용히 통과 금지) ────────────────
+rm -rf "$XDG"
+_run_as "$TMP/fake-uvicorn" --install
+_run_as "$TMP/fake-uvicorn" --status
+_why=""
+[ "$RC" -eq 0 ] || _why="rc=$RC (기대 0) "
+printf '%s' "$OUT" | grep -q 'env\` 를 경유' || _why="${_why}env 경유 판정 불가를 안 알린다 "
+rm -rf "$XDG"
+_run_as "$TMP/uvicorn-no-shebang" --install
+_run_as "$TMP/uvicorn-no-shebang" --status
+[ "$RC" -eq 0 ] || _why="${_why}shebang 없는 파일인데 rc=$RC (기대 0) "
+printf '%s' "$OUT" | grep -q 'shebang 이 없다' || _why="${_why}shebang 부재 판정 불가를 안 알린다 "
+report "⑲ shebang 판정 불가(env · 부재)는 인쇄한다 — 조용히 통과 아님" "$_why"
+
+# ── ⑳ 활성 음성 대조: active 면 green ──────────────────────────────────────────
+rm -rf "$XDG"
+_run --install
+OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+  QB_FAKE_UNIT_STATE=active bash "$TARGET" --status 2>&1)"
+RC=$?
+_why=""
+[ "$RC" -eq 0 ] || _why="★active 인데 rc=$RC (기대 0) "
+printf '%s' "$OUT" | grep -q '✓ active' || _why="${_why}green 진단이 없다 "
+report "⑳ 음성 대조: 유닛 active → --status rc=0" "$_why"
+
+# ── ㉑ 활성 양성 대조: failed 면 red (경로 축이 전부 초록이어도) ────────────────
+OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+  QB_FAKE_UNIT_STATE=failed bash "$TARGET" --status 2>&1)"
+RC=$?
+_why=""
+[ "$RC" -eq 1 ] || _why="★유닛이 failed 인데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q '유닛이 failed 다' || _why="${_why}failed 진단이 없다 "
+printf '%s' "$OUT" | grep -q 'journalctl' || _why="${_why}다음 행동 지시가 없다 "
+printf '%s' "$OUT" | grep -qF "✓ ExecStart = $UVI" \
+  || _why="${_why}★경로 축이 초록이 아니다 — 이 red 는 활성 축의 것이 아니다 "
+report "㉑ 양성 대조: 유닛 failed → rc=1 (경로 축은 초록)" "$_why"
+
+# ── ㉒ inactive 는 failed 와 **다른 상태**로 인쇄한다 ───────────────────────────
+OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+  QB_FAKE_UNIT_STATE=inactive bash "$TARGET" --status 2>&1)"
+RC=$?
+_why=""
+[ "$RC" -eq 1 ] || _why="★활성이 아닌데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q '활성이 아니다 (inactive)' || _why="${_why}inactive 문구가 없다 "
+printf '%s' "$OUT" | grep -q '유닛이 failed 다' && _why="${_why}★inactive 를 failed 로 인쇄했다 "
+report "㉒ inactive ≠ failed — 문구를 구분해 인쇄" "$_why"
+
+# ── ㉓ drop-in 음성 대조: 합성값 = 파일값이면 green ─────────────────────────────
+_run --status
+_why=""
+[ "$RC" -eq 0 ] || _why="★drop-in 이 없는데 rc=$RC (기대 0) "
+printf '%s' "$OUT" | grep -q 'drop-in 없음' || _why="${_why}drop-in 부재를 안 알린다 "
+printf '%s' "$OUT" | grep -qF "✓ 합성 후 ExecStart = $UVI" || _why="${_why}합성 green 진단이 없다 "
+report "㉓ 음성 대조: drop-in 없음 · 합성값 일치 → rc=0" "$_why"
+
+# ── ㉔ drop-in 양성 대조: 합성값만 옛 체크아웃 → red ────────────────────────────
+# ★**원본 유닛 파일은 손대지 않는다.** 파일 축은 초록인 채 합성 축만 red 여야 한다 —
+#   그것이 이 finding(원본만 읽으면 drop-in 재지정을 못 본다)의 본체다.
+OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+  QB_FAKE_EXECSTART="{ path=$TMP/OLD-CHECKOUT/uvicorn ; argv[]=$TMP/OLD-CHECKOUT/uvicorn src.main:app ; ignore_errors=no }" \
+  bash "$TARGET" --status 2>&1)"
+RC=$?
+_why=""
+[ "$RC" -eq 1 ] || _why="★drop-in 이 ExecStart 를 재지정했는데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q '합성 후 ExecStart 가 이 트리의 venv 가 아니다' \
+  || _why="${_why}합성 불일치 진단이 없다 "
+printf '%s' "$OUT" | grep -qF "합성본: $TMP/OLD-CHECKOUT/uvicorn" || _why="${_why}합성본 병기가 없다 "
+printf '%s' "$OUT" | grep -qF "✓ ExecStart = $UVI" \
+  || _why="${_why}★파일 축이 초록이 아니다 — 이 red 는 합성 축의 것이 아니다 "
+report "㉔ 양성 대조: drop-in 이 ExecStart 재지정 → rc=1 (파일 축은 초록)" "$_why"
+
+# ── ㉕ drop-in 파일의 **존재 자체**를 인쇄한다 ──────────────────────────────────
+mkdir -p "$XDG/systemd/user/quantbridge-api.service.d"
+printf '[Service]\nExecStart=\nExecStart=%s/OLD/uvicorn src.main:app\n' "$TMP" \
+  > "$XDG/systemd/user/quantbridge-api.service.d/override.conf"
+_run --status
+_why=""
+printf '%s' "$OUT" | grep -q 'drop-in: override.conf' || _why="★drop-in 파일명을 안 알린다 "
+report "㉕ drop-in .conf 존재를 인쇄한다" "$_why"
+rm -rf "$XDG/systemd/user/quantbridge-api.service.d"
+
+# ── ㉖ 합성 판정 불가 2갈래를 인쇄한다 (미확장 지정자 · 빈 합성값) ──────────────
+# ★`show -p ExecStart` 는 **확장 _전_** 문자열이다 (`docs/lessons.md` 2026-08-15 반증).
+#   `${VAR}` 가 남아 있으면 문자열 대조는 무의미하므로 red 가 아니라 **판정 불가**여야 한다.
+OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+  QB_FAKE_EXECSTART='{ path=${QB_VENV}/bin/uvicorn ; ignore_errors=no }' \
+  bash "$TARGET" --status 2>&1)"
+RC=$?
+_why=""
+[ "$RC" -eq 0 ] || _why="미확장 지정자는 판정 불가여야 하는데 rc=$RC (기대 0) "
+printf '%s' "$OUT" | grep -q '미확장 지정자' || _why="${_why}판정 불가 사유를 안 알린다 "
+OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+  QB_FAKE_SHOW_EMPTY=1 bash "$TARGET" --status 2>&1)"
+RC=$?
+[ "$RC" -eq 0 ] || _why="${_why}빈 합성값은 판정 불가여야 하는데 rc=$RC (기대 0) "
+printf '%s' "$OUT" | grep -q '합성 ExecStart 가 비었다' || _why="${_why}빈 합성값을 안 알린다 "
+report "㉖ 합성 판정 불가(미확장 지정자 · 빈 값)는 인쇄한다 — 조용한 red 아님" "$_why"
+
+# ── ㉗ uninstall 양성 대조: disable 실패를 삼키지 않는다 ────────────────────────
+# ★Restart=always 라 stop 이 실패하면 API 는 계속 도는데 유닛 파일만 사라진다.
+#   그것을 「✓ 해제 완료 · rc=0」으로 인쇄하는 것이 이 finding 의 본체다.
+# ★**하위 명령 하나씩만** 실패시킨다. 「전부 실패」로 재면 두 rc 축이 서로를 가려
+#   한쪽을 지워도 케이스가 초록이다 — 2026-08-19 표적 변이 M4 가 그 구멍을 실제로 찾아냈다.
+rm -rf "$XDG"
+_run --install
+OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+  QB_FAKE_FAIL_SUB=disable bash "$TARGET" --uninstall 2>&1)"
+RC=$?
+_why=""
+[ "$RC" -eq 1 ] || _why="★disable 이 실패했는데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q 'disable --now 실패' || _why="${_why}무엇이 실패했는지 안 알린다 "
+printf '%s' "$OUT" | grep -q 'Restart=always' || _why="${_why}계속 돌 수 있다는 경고가 없다 "
+printf '%s' "$OUT" | grep -q '✓ 해제 완료' && _why="${_why}★실패해 놓고 완료라고 인쇄했다 "
+report "㉗ 양성 대조: disable --now 만 실패 → rc=1 · 완료 문구 없음" "$_why"
+
+# ── ㉘ uninstall 양성 대조 B: daemon-reload 실패도 삼키지 않는다 ────────────────
+rm -rf "$XDG"
+_run --install
+OUT="$(PATH="$TMP/bin:$PATH" XDG_CONFIG_HOME="$XDG" QB_API_UVICORN="$UVI" \
+  QB_FAKE_FAIL_SUB=daemon-reload bash "$TARGET" --uninstall 2>&1)"
+RC=$?
+_why=""
+[ "$RC" -eq 1 ] || _why="★daemon-reload 가 실패했는데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q 'daemon-reload 실패' || _why="${_why}무엇이 실패했는지 안 알린다 "
+printf '%s' "$OUT" | grep -q 'disable --now 실패' && _why="${_why}★disable 은 성공했는데 실패라 인쇄했다 "
+printf '%s' "$OUT" | grep -q '✓ 해제 완료' && _why="${_why}★실패해 놓고 완료라고 인쇄했다 "
+report "㉘ 양성 대조: daemon-reload 만 실패 → rc=1 · 완료 문구 없음" "$_why"
+
+# ── ㉙ 죽은 shebang wrapper 로는 설치를 거부한다 (좀비 유닛 방지) ───────────────
+rm -rf "$XDG"
+_run_as "$TMP/uvicorn-shebang-dead" --install
+_why=""
+[ "$RC" -eq 1 ] || _why="★shebang 이 죽었는데 rc=$RC (기대 1) "
+printf '%s' "$OUT" | grep -q '203/EXEC' || _why="${_why}203/EXEC 진단이 없다 "
+[ -f "$UNIT" ] && _why="${_why}★거부했다면서 유닛을 만들었다 "
+report "㉙ 죽은 shebang → --install 거부 · 유닛 미생성" "$_why"
 
 echo
 echo "══════════════════════════════════════════"

@@ -386,6 +386,12 @@ systemd는 이를 실패로 보고 Telegram `OnFailure`를 발화한다(`tools/s
 없다~~ → **2026-08-18 [BL-805]**: 전용 인스톨러 `tools/scripts/api-service.sh`가 생겼다. 신선도
 **진짜 판별자**는 `api-service.sh --status`의 `ExecStart` uvicorn 경로 대조다(형제들은
 `ExecStart=/bin/bash <스크립트>`를 파싱하지만 이쪽은 `.venv/bin/uvicorn`이라 파서가 다르다).
+★**2026-08-19 적대 리뷰로 축이 넷이 됐다** — ⑴ 경로 ⑵ **wrapper의 shebang이 가리키는 인터프리터
+실재**(venv는 재배치 불가라 checkout을 복사하면 파일은 따라오는데 첫 줄은 삭제된 옛 venv를 가리켜
+`203/EXEC`로 죽는다 — `[ -x ]`로는 못 본다) ⑶ **drop-in 합성**(`<unit>.d/*.conf`가 `ExecStart`를
+재지정하면 원본 파일은 최신인데 도는 것은 옛 checkout이라, 파일 축과 `systemctl show` 축을 둘 다
+본다) ⑷ **활성 상태**(`is-failed`/`is-active` — 앞 셋이 전부 초록이어도 기동 직후 죽으면 `failed`다).
+판정 불가(바이너리·`env` 경유 shebang·미확장 `${VAR}`)는 조용히 통과시키지 않고 그 사실을 인쇄한다.
 restart 지시는 `better-auth-setup.md`에 있고(`docs/reference/operations/better-auth-setup.md:117-120`);
 서버에 실제로 도는 유닛은 §4에서 읽어야 한다.
 
