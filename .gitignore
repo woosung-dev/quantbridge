@@ -2,6 +2,10 @@
 # dogfood / smoke 스크린샷 — repo root 무시
 # (codex G.2 P1 #2: docs/dev-log/screenshots/ 은 예외 — 리뷰어 재현 가능)
 sprint*-day*-*.png
+# ★레포 **루트**에 떨어지는 스크린샷 — playwright-mcp 의 `browser_take_screenshot` 은
+#   상대 파일명을 주면 cwd 에 쓴다. 2026-08-18 에 `n5-strategies.png` 116KB 가 `git add -A` 에
+#   쓸려 main 까지 갔다. 앱 자산은 `apps/**` 아래라 이 패턴에 안 걸린다.
+/*.png
 sprint*-day*-*.jpeg
 !docs/dev-log/screenshots/**
 
