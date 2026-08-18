@@ -7,6 +7,7 @@
 import { CheckIcon, AlertTriangleIcon, RefreshCwIcon, StarIcon } from "lucide-react";
 
 import { extractBestParams } from "@/features/optimizer/best-params";
+import { formatPercent } from "@/features/backtest/utils";
 import { useOptimizationRun } from "@/features/optimizer/hooks";
 import {
   BAYESIAN_PHASE_LABEL,
@@ -38,11 +39,16 @@ import { ParameterStabilitySection } from "./parameter-stability-section";
 
 const DETAIL_ENDPOINT = "GET /api/v1/optimizer/runs";
 
-// 손익 셀 색 — 손익 데이터 전용 규율(양수 bull / 음수 bear). 0 은 중립.
+// 손익 톤 — 손익 데이터 전용 규율(양수 pos / 음수 neg / 0 중립). KPI 와 표 셀이 공유한다.
+function pnlTone(v: number): string {
+  if (v > 0) return " pos";
+  if (v < 0) return " neg";
+  return "";
+}
+
+// 손익 셀 색 — 표 셀(.num) 전용. 톤 규약은 pnlTone 하나로 통일.
 function pnlClass(v: number): string {
-  if (v > 0) return "num pos";
-  if (v < 0) return "num neg";
-  return "num";
+  return `num${pnlTone(v)}`;
 }
 
 export function OptimizerRunDetail({ runId }: { runId: string }) {
@@ -300,15 +306,17 @@ function GridResult({ result }: { result: GridSearchResult }) {
           </article>
           <article className="card kpi">
             <p className="kpi-label">최적 셀 총 수익률</p>
-            <p className={`kpi-value mono ${bestCell.total_return >= 0 ? "pos" : "neg"}`}>
-              {bestCell.total_return.toFixed(2)}
+            {/* 엔진 ratio 컨벤션(-0.25 = -25%) — raw ratio 인쇄 금지, % 변환은 formatPercent SSOT. */}
+            <p className={`kpi-value mono${pnlTone(bestCell.total_return)}`}>
+              {formatPercent(bestCell.total_return)}
             </p>
             <p className="kpi-foot">초기 자본 대비</p>
           </article>
           <article className="card kpi">
             <p className="kpi-label">최적 셀 최대 낙폭</p>
-            <p className={`kpi-value mono ${bestCell.max_drawdown > 0 ? "pos" : "neg"}`}>
-              {bestCell.max_drawdown.toFixed(2)}
+            {/* 낙폭은 음수 또는 0 — pnlTone 규약(0 중립)으로 무낙폭이 neg 로 칠해지지 않는다. */}
+            <p className={`kpi-value mono${pnlTone(bestCell.max_drawdown)}`}>
+              {formatPercent(bestCell.max_drawdown)}
             </p>
             <p className="kpi-foot">최대 자본 하락폭</p>
           </article>
@@ -396,8 +404,9 @@ function GridResult({ result }: { result: GridSearchResult }) {
                         cell.sharpe.toFixed(2)
                       )}
                     </td>
-                    <td className={pnlClass(cell.total_return)}>{cell.total_return.toFixed(2)}</td>
-                    <td className={pnlClass(cell.max_drawdown)}>{cell.max_drawdown.toFixed(2)}</td>
+                    {/* 수익률·낙폭은 raw ratio — formatPercent 로 % 인쇄 (KPI 와 동일 표기). */}
+                    <td className={pnlClass(cell.total_return)}>{formatPercent(cell.total_return)}</td>
+                    <td className={pnlClass(cell.max_drawdown)}>{formatPercent(cell.max_drawdown)}</td>
                     <td className="num">{cell.num_trades}</td>
                   </tr>
                 );

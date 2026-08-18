@@ -11,33 +11,36 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   result: GridSearchResult;
-  /** 2D heatmap 으로 그릴 변수쌍 (param_names.length === 2 일 때 자동, N>2 일 때는 pair-selector 선택) */
+  /**
+   * 2D heatmap 으로 그릴 변수쌍 (param_names.length === 2 일 때 자동, N>2 일 때는 pair-selector 선택).
+   * pair[0]=행(세로축), pair[1]=열(가로축).
+   */
   pair: readonly [string, string];
 }
 
 export function GridSearchHeatmap({ result, pair }: Props) {
-  const [xName, yName] = pair;
-  const xValues = result.param_values[xName] ?? [];
-  const yValues = result.param_values[yName] ?? [];
+  const [rowName, colName] = pair;
+  const rowValues = result.param_values[rowName] ?? [];
+  const colValues = result.param_values[colName] ?? [];
 
   // pair 가 전체 param_names 와 일치하는 경우 (2D) → 모든 cell row-major 매핑.
-  // N>2 인 경우 → best cell 의 나머지 변수 값으로 fix, 해당 (x, y) 평면 slice.
+  // N>2 인 경우 → best cell 의 나머지 변수 값으로 fix, 해당 (행, 열) 평면 slice.
   const fixOthers: Record<string, number> = {};
   if (result.param_names.length > 2 && result.best_cell_index !== null) {
     const bestCell = result.cells[result.best_cell_index];
     if (bestCell) {
       for (const k of result.param_names) {
-        if (k !== xName && k !== yName) {
+        if (k !== rowName && k !== colName) {
           fixOthers[k] = bestCell.param_values[k] ?? 0;
         }
       }
     }
   }
 
-  // cell lookup: (x, y) → cell (fix other vars equal).
-  function findCell(x: number, y: number): GridSearchResult["cells"][number] | null {
+  // cell lookup: (행, 열) → cell (fix other vars equal).
+  function findCell(rowV: number, colV: number): GridSearchResult["cells"][number] | null {
     for (const c of result.cells) {
-      if (c.param_values[xName] !== x || c.param_values[yName] !== y) continue;
+      if (c.param_values[rowName] !== rowV || c.param_values[colName] !== colV) continue;
       let match = true;
       for (const k in fixOthers) {
         if (c.param_values[k] !== fixOthers[k]) {
@@ -75,17 +78,17 @@ export function GridSearchHeatmap({ result, pair }: Props) {
 
   return (
     <div className="table-wrap">
-      <table className="hm" aria-label={`그리드 히트맵 (${xName} × ${yName})`}>
+      <table className="hm" aria-label={`그리드 히트맵 (${rowName} × ${colName})`}>
         <caption className="card-sub" style={{ textAlign: "left", padding: "4px 0 8px" }}>
-          가로축 {yName}, 세로축 {xName}. 칸 안 숫자는{" "}
+          가로축 {colName}, 세로축 {rowName}. 칸 안 숫자는{" "}
           {OBJECTIVE_METRIC_LABEL[result.objective_metric]}입니다.
         </caption>
         <thead>
           <tr>
             <th scope="col">
-              <span className="dim">{`${xName} \\ ${yName}`}</span>
+              <span className="dim">{`${rowName} \\ ${colName}`}</span>
             </th>
-            {yValues.map((v) => (
+            {colValues.map((v) => (
               <th key={v} scope="col">
                 {v}
               </th>
@@ -93,14 +96,14 @@ export function GridSearchHeatmap({ result, pair }: Props) {
           </tr>
         </thead>
         <tbody>
-          {xValues.map((x) => (
-            <tr key={x}>
-              <th scope="row">{x}</th>
-              {yValues.map((y) => {
-                const cell = findCell(x, y);
+          {rowValues.map((rowV) => (
+            <tr key={rowV}>
+              <th scope="row">{rowV}</th>
+              {colValues.map((colV) => {
+                const cell = findCell(rowV, colV);
                 if (cell == null) {
                   return (
-                    <td key={`${x}-${y}`}>
+                    <td key={`${rowV}-${colV}`}>
                       <span className="hm-cell degenerate">{EMPTY_CELL}</span>
                     </td>
                   );
@@ -109,13 +112,13 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                 const isDegenerate = cell.is_degenerate || cell.num_trades === 0;
                 const isBest =
                   bestParamValues != null &&
-                  bestParamValues[xName] === x &&
-                  bestParamValues[yName] === y &&
+                  bestParamValues[rowName] === rowV &&
+                  bestParamValues[colName] === colV &&
                   (Object.keys(fixOthers).length === 0 ||
                     Object.entries(fixOthers).every(([k, v]) => bestParamValues[k] === v));
                 if (isDegenerate || objVal === null) {
                   return (
-                    <td key={`${x}-${y}`}>
+                    <td key={`${rowV}-${colV}`}>
                       <span
                         className="hm-cell degenerate"
                         title={OPTIMIZER_EMPTY_REASON.degenerateNoSharpe}
@@ -126,11 +129,11 @@ export function GridSearchHeatmap({ result, pair }: Props) {
                   );
                 }
                 return (
-                  <td key={`${x}-${y}`}>
+                  <td key={`${rowV}-${colV}`}>
                     <span
                       className={cn("hm-cell", isBest && "best")}
                       style={{ background: bgFor(objVal) }}
-                      title={`${xName}=${x}, ${yName}=${y}, ${OBJECTIVE_METRIC_LABEL[result.objective_metric]}=${objVal.toFixed(2)}${isBest ? " (최적)" : ""}`}
+                      title={`${rowName}=${rowV}, ${colName}=${colV}, ${OBJECTIVE_METRIC_LABEL[result.objective_metric]}=${objVal.toFixed(2)}${isBest ? " (최적)" : ""}`}
                     >
                       {objVal.toFixed(2)}
                     </span>

@@ -12,16 +12,23 @@ type SplitMode = "sign-in" | "sign-up";
 interface ModeCopy {
   title: string;
   desc: string;
+  /** 우상단 상호 링크 — sign-in ↔ sign-up 을 오간다. */
+  crossHref: string;
+  crossLabel: string;
 }
 
 const MODE_COPY: Record<SplitMode, ModeCopy> = {
   "sign-in": {
     title: "로그인",
-    desc: "이메일과 비밀번호, 또는 Google · GitHub 계정으로 워크스페이스에 들어갑니다.",
+    desc: "이메일과 비밀번호로 워크스페이스에 들어갑니다.",
+    crossHref: "/sign-up",
+    crossLabel: "회원가입",
   },
   "sign-up": {
     title: "회원가입",
     desc: "이메일로 워크스페이스 계정을 만듭니다. 거래소 연결은 가입 뒤에 따로 진행합니다.",
+    crossHref: "/sign-in",
+    crossLabel: "로그인",
   },
 };
 
@@ -57,6 +64,9 @@ export function SplitScreenShell({
         </Link>
 
         <span className="auth-top-right">
+          <Link className="btn btn-ghost" href={copy.crossHref}>
+            {copy.crossLabel}
+          </Link>
           <Link className="btn btn-ghost" href="/">
             홈으로
           </Link>

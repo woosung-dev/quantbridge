@@ -4,7 +4,8 @@
 // 마크업 어휘(.field/.input/.field-error/.btn)는 `waitlist-form-card.tsx` 와 같은 C 디자인
 // 캐논을 따른다 — 새 클래스를 만들지 않는 것이 이 파일의 제약이다.
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod/v4";
@@ -29,7 +30,7 @@ type SignInValues = z.infer<typeof SignInSchema>;
 type SignUpValues = z.infer<typeof SignUpSchema>;
 type Values = SignInValues & Partial<Pick<SignUpValues, "name">>;
 
-function FieldError({ id, message }: { id: string; message: string }) {
+function FieldError({ id, message }: { id: string; message: ReactNode }) {
   return (
     <p className="field-error" id={id} role="alert">
       <svg
@@ -54,10 +55,19 @@ function FieldError({ id, message }: { id: string; message: string }) {
  * ★원문을 그대로 노출하지 않는다 — 2026-08-15 surface-truth 가 「내부 예외 문자열이 응답
  * 본문에 반사된다」를 두 축에서 닫았고, 인증 화면은 그 표면이 가장 넓은 자리다.
  */
-function describe(code: string | undefined, status: number | undefined, mode: Mode): string {
+function describe(code: string | undefined, status: number | undefined, mode: Mode): ReactNode {
   if (status === 429) return "요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.";
   if (mode === "sign-up" && code === "USER_ALREADY_EXISTS") {
-    return "이미 가입된 이메일입니다. 로그인해 주세요.";
+    // 「로그인해 주세요」라고 지시만 하고 길을 안 주면 사용자가 주소를 손으로 쳐야 한다 — 인라인 링크를 준다.
+    return (
+      <>
+        이미 가입된 이메일입니다.{" "}
+        <Link className="underline" href="/sign-in">
+          로그인
+        </Link>
+        해 주세요.
+      </>
+    );
   }
   if (mode === "sign-up" && status === 403) {
     return "현재 이 지역에서는 가입할 수 없습니다.";
@@ -71,7 +81,7 @@ export type Mode = "sign-in" | "sign-up";
 export function AuthForm({ mode, redirectTo }: { mode: Mode; redirectTo: string }) {
   const router = useRouter();
   const isSignUp = mode === "sign-up";
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<ReactNode | null>(null);
 
   const form = useForm<Values>({
     resolver: zodV4Resolver(isSignUp ? SignUpSchema : SignInSchema),

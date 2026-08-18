@@ -248,6 +248,62 @@ describe("OptimizerRunDetail — C 시맨틱 구조 (screen-10)", () => {
     );
   });
 
+  // ── 수익률·낙폭 단위/색 — 엔진 ratio 컨벤션 (engine/types.py: -0.25 = -25%) ──
+  // BE 는 total_return·max_drawdown 을 raw ratio 로 준다. 화면은 ×100 + % 로 인쇄해야 한다.
+  function ratioGridRun(
+    override: Partial<GridSearchResult["cells"][number]> = {},
+  ): OptimizationRunResponse {
+    const base = completedGridRun();
+    const cells: GridSearchResult["cells"] = [
+      {
+        param_values: { fastLength: 20, slowLength: 50 },
+        sharpe: 1.84,
+        total_return: 0.874,
+        max_drawdown: -0.25,
+        num_trades: 186,
+        is_degenerate: false,
+        objective_value: 1.84,
+        ...override,
+      },
+    ];
+    return { ...base, result: { ...GRID_RESULT, cells, best_cell_index: 0 } };
+  }
+
+  function kpiValueOf(container: HTMLElement, label: string): HTMLElement | null {
+    for (const kpi of container.querySelectorAll<HTMLElement>(".kpi")) {
+      if (kpi.querySelector(".kpi-label")?.textContent === label) {
+        return kpi.querySelector<HTMLElement>(".kpi-value");
+      }
+    }
+    return null;
+  }
+
+  it("완료 grid — ratio -0.25 는 KPI·리더보드에서 -25.00% 로 렌더 (raw ratio 인쇄 금지)", () => {
+    runResult = { data: ratioGridRun(), isLoading: false, error: null, refetch: vi.fn() };
+    const { container } = render(<OptimizerRunDetail runId={UUID} />);
+    // KPI — 최적 셀 총 수익률 / 최대 낙폭
+    expect(kpiValueOf(container, "최적 셀 총 수익률")?.textContent).toBe("87.40%");
+    expect(kpiValueOf(container, "최적 셀 최대 낙폭")?.textContent).toBe("-25.00%");
+    // 리더보드 셀도 동일 표기 (raw "-0.25" 가 화면 어디에도 없다)
+    const row = screen.getByTestId("leaderboard-row-0");
+    expect(row.textContent).toContain("-25.00%");
+    expect(container.textContent).not.toContain("-0.25");
+  });
+
+  it("완료 grid — 낙폭 0(무낙폭·최선)은 neg 로 칠하지 않는다 (pnlClass 규약: 0 중립)", () => {
+    runResult = {
+      data: ratioGridRun({ max_drawdown: 0 }),
+      isLoading: false,
+      error: null,
+      refetch: vi.fn(),
+    };
+    const { container } = render(<OptimizerRunDetail runId={UUID} />);
+    const mddKpi = kpiValueOf(container, "최적 셀 최대 낙폭");
+    expect(mddKpi).not.toBeNull();
+    expect(mddKpi?.classList.contains("neg")).toBe(false);
+    expect(mddKpi?.classList.contains("pos")).toBe(false);
+  });
+
   it("완료 grid — 섹션 번호 순차·유일 (03 파라미터 안정성 + 04 OOS, 중복 03 회귀 방지)", () => {
     runResult = { data: completedGridRun(), isLoading: false, error: null, refetch: vi.fn() };
     const { container } = render(<OptimizerRunDetail runId={UUID} />);
