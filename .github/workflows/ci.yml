@@ -551,6 +551,9 @@ jobs:
     #   `ci` 요약은 skipped 를 통과로 세므로 초록으로 머지된다.
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    # ★잡 상한 — `workers: 1` · `fullyParallel: false` · `retries: 2` 라 깨진 spec 하나가
+    #   3배로 든다. 상한이 없으면 GitHub 기본 360분까지 러너를 붙잡는다([BL-802]).
+    timeout-minutes: 30
     services:
       db:
         image: timescale/timescaledb:2.14.2-pg15
