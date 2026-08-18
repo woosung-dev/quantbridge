@@ -551,6 +551,9 @@ jobs:
     #   `ci` 요약은 skipped 를 통과로 세므로 초록으로 머지된다.
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    # ★잡 상한 — `workers: 1` · `fullyParallel: false` · `retries: 2` 라 깨진 spec 하나가
+    #   3배로 든다. 상한이 없으면 GitHub 기본 360분까지 러너를 붙잡는다([BL-802]).
+    timeout-minutes: 30
     services:
       db:
         image: timescale/timescaledb:2.14.2-pg15
@@ -611,6 +614,14 @@ jobs:
           echo "resolved frontend port: $port"
           echo "BETTER_AUTH_URL=http://localhost:$port" >> "$GITHUB_ENV"
           echo "FRONTEND_URL=http://localhost:$port" >> "$GITHUB_ENV"
+          # ★★**FE 서버를 이 잡이 직접 띄운다** ([BL-802], 2026-08-18). playwright 를 **두 번**
+          #   부르기 때문이다 — ⑴ 로그인/storageState → ⑵ 결정론 시더 → ⑶ authed spec.
+          #   `PLAYWRIGHT_BASE_URL` 이 있으면 `e2e/_base-url.ts` 의 `hasConfiguredBaseURL()` 이
+          #   true 라 playwright 가 자기 `webServer` 를 **안 띄운다**(`playwright.config.ts:204`).
+          #   그렇게 안 하면 두 번째 호출이 같은 포트에 dev 서버를 하나 더 띄워 충돌한다
+          #   (CI 는 `reuseExistingServer: !isCI` = false 다).
+          echo "QB_FE_PORT=$port" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_BASE_URL=http://localhost:$port" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
         working-directory: apps/web
       - run: pnpm exec playwright install --with-deps chromium
@@ -633,6 +644,33 @@ jobs:
           done
           cat "$RUNNER_TEMP/uvicorn.log"
           exit 1
+      - name: Start frontend and wait for it
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm dev --port "$QB_FE_PORT" > "$RUNNER_TEMP/next.log" 2>&1 &
+          for attempt in {1..120}; do
+            if curl --fail --silent --output /dev/null "http://localhost:$QB_FE_PORT/"; then
+              echo "frontend up after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/next.log"
+          exit 1
+      # ⑴ 로그인해서 storageState 를 만든다. `setup-authed-reachability` 가
+      #    `setup`·`setup-identity` 를 의존으로 끌어온다(`playwright.config.ts:111-115`).
+      - name: Bootstrap identity and storageState
+        working-directory: apps/web
+        run: pnpm exec playwright test --project=setup-authed-reachability
+      # ⑵ ★**시더는 반드시 ⑴ 뒤다.** 앱 `users` 행은 sign-up 만으로 안 생기고, 인증된 요청이
+      #    한 번 지나야 JIT 프로비저닝된다(`src/auth/service.py:89-129`). ⑴ 의 `/strategies`
+      #    방문이 그 요청이다. 시더는 `users` 0행이면 fail-closed 로 죽는다.
+      - name: Seed deterministic authed data
+        working-directory: apps/api
+        run: uv run python scripts/seed_ci_e2e.py --confirm
+      # ⑶ `--no-deps` — ⑴ 에서 이미 돌린 setup project 를 다시 돌리지 않는다.
       - name: Run selected authed specs
         working-directory: apps/web
         shell: bash
@@ -644,7 +682,15 @@ jobs:
             exit 1
           fi
           echo "authed CI specs: $specs"
-          pnpm exec playwright test --project=chromium-authed $specs
+          pnpm exec playwright test --project=chromium-authed --no-deps $specs
+      - name: Upload frontend log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-authed-next-log
+          path: ${{ runner.temp }}/next.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload authed Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
