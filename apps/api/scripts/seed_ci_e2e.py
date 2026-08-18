@@ -249,7 +249,7 @@ def _build_optimization_run(owner_id: UUID) -> OptimizationRun:
         id=SEED_OPTIMIZER_ID,
         user_id=owner_id,
         backtest_id=SEED_BACKTEST_ID,
-        kind=OptimizationKind.GRID,
+        kind=OptimizationKind.GRID_SEARCH,
         status=OptimizationStatus.COMPLETED,
         param_space={"fast": [5, 10, 15], "slow": [20, 30, 40]},
         result={
@@ -326,6 +326,50 @@ async def _run(email: str, confirm: bool) -> int:
         await engine.dispose()
 
 
+def _selftest() -> int:
+    """DB 없이 **모든 행을 실제로 구성**한다.
+
+    ★이것이 있는 이유 — 초판은 `OptimizationKind.GRID`(실재하지 않는 멤버)를 썼는데
+      **로컬 검증이 그 줄에 도달한 적이 없었다.** 로컬은 `auth_user` 가 비어 `_resolve_owner`
+      에서 먼저 죽었고, 그 뒤 코드는 CI 에서 처음 실행됐다(run `32087714072`).
+      즉 「로컬에서 확인했다」가 **닿지 않은 경로에 대해서는 아무것도 뜻하지 않았다.**
+      이 selftest 는 DB·네트워크 없이 그 경로 전부를 지난다.
+    """
+    owner = UUID("00000000-0000-4000-8000-00000000dead")
+    crypto = EncryptionService(settings.trading_encryption_keys)
+
+    strategies = _build_strategies(owner)
+    # ★`== STRATEGY_COUNT` 로 쓰지 마라 — `_build_strategies` 가 그 상수만큼 만드니 **항진명제**다.
+    #   재는 것은 spec 의 실제 요구다: `sprint46-tier3-nth` #15 가 목록 **11건 이상**을 요구한다.
+    assert len(strategies) >= 11, len(strategies)
+    assert strategies[0].id == BL570_STRATEGY_ID
+    # 필터 spec 이 의미를 가지려면 이름이 서로 달라야 한다(같은 이름이면 필터가 아무것도 못 가른다).
+    assert len({s.name for s in strategies}) == len(strategies)
+
+    account = _build_exchange_account(owner, crypto)
+    assert crypto.decrypt(account.api_key_encrypted) == "ci-e2e-seed-api-key"
+
+    backtest, trades = _build_backtest_and_trades(owner)
+    assert backtest.status is BacktestStatus.COMPLETED
+    assert backtest.strategy_id == BL570_STRATEGY_ID
+    assert len(trades) >= 1
+
+    optimization = _build_optimization_run(owner)
+    assert optimization.status is OptimizationStatus.COMPLETED
+    assert optimization.backtest_id == backtest.id
+
+    # ★UUID variant nibble — Zod `z.uuid()` 가 거부하면 화면이 조용히 미렌더된다.
+    for fixed in (BL570_STRATEGY_ID, SEED_BACKTEST_ID, SEED_ACCOUNT_ID, SEED_OPTIMIZER_ID):
+        assert fixed.version == 4, (fixed, fixed.version)
+        assert str(fixed)[19] in "89ab", fixed
+
+    print(
+        f"✓ selftest — 전략 {len(strategies)} · 계정 1 · 백테스트 1(+trades {len(trades)}) · 옵티마이저 1"
+        " 을 DB 없이 전부 구성했다."
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="CI authed e2e 결정론 시더 (BL-802)")
     parser.add_argument(
@@ -334,7 +378,14 @@ def main() -> int:
         help="시드를 붙일 Better Auth 사용자 (기본: $E2E_AUTH_EMAIL)",
     )
     parser.add_argument("--confirm", action="store_true", help="실제로 쓴다 (없으면 dry-run)")
+    parser.add_argument(
+        "--selftest",
+        action="store_true",
+        help="DB 없이 모든 행을 구성해 본다 (배선 확인 전용)",
+    )
     args = parser.parse_args()
+    if args.selftest:
+        return _selftest()
     if not args.email:
         raise SystemExit("--email 또는 E2E_AUTH_EMAIL 이 필요하다.")
     return asyncio.run(_run(args.email, args.confirm))

@@ -674,7 +674,14 @@ jobs:
       #    방문이 그 요청이다. 시더는 `users` 0행이면 fail-closed 로 죽는다.
       - name: Seed deterministic authed data
         working-directory: apps/api
-        run: uv run python scripts/seed_ci_e2e.py --confirm
+        shell: bash
+        run: |
+          set -euo pipefail
+          # ★`--selftest` 를 먼저 — DB 없이 모든 행을 구성해 본다. 초판이 실재하지 않는 enum 멤버
+          #   (`OptimizationKind.GRID`)를 썼는데 로컬 검증이 그 줄에 **도달한 적이 없어**
+          #   CI 에서 처음 터졌다(run `32087714072`). 1초짜리 배선 확인이 그 왕복을 없앤다.
+          uv run python scripts/seed_ci_e2e.py --selftest
+          uv run python scripts/seed_ci_e2e.py --confirm
       # ⑶ `--no-deps` — ⑴ 에서 이미 돌린 setup project 를 다시 돌리지 않는다.
       - name: Run selected authed specs
         working-directory: apps/web
