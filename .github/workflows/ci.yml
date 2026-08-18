@@ -553,7 +553,12 @@ jobs:
     runs-on: ubuntu-latest
     # ★잡 상한 — `workers: 1` · `fullyParallel: false` · `retries: 2` 라 깨진 spec 하나가
     #   3배로 든다. 상한이 없으면 GitHub 기본 360분까지 러너를 붙잡는다([BL-802]).
-    timeout-minutes: 30
+    #   ★★**30분은 빠듯해서 45분으로 올렸다** (2026-08-18 실측). spec 20건의 실행 단계만
+    #   **19.9분**이고(run `32082953745`), 여기에 setup·install·시더가 얹힌다. 그리고 30분판은
+    #   `playwright install --with-deps` 가 러너에서 25분 넘게 멎어 **그 단계에서** 잘렸다
+    #   (run `32084967676` — 내 스텝은 시작도 못 했다). 상한은 폭주 방지용이지 정상 실행을
+    #   자르는 값이 아니다.
+    timeout-minutes: 45
     services:
       db:
         image: timescale/timescaledb:2.14.2-pg15
