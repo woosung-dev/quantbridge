@@ -5398,3 +5398,35 @@ raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족�
 줄 길이 축을 **표시 폭**으로도 재는 것을 검토한다(지금은 prettier 와 눈금이 다르다).
 ★**그 전까지 위치를 묻는 정본은 앵커가 아니다** — `bash tools/scripts/bl-audit.sh --list <판정어>` 의 4번째 칸이고,
 「파일 배치」 축이 그 대응을 rc=1 로 집행한다.
+
+---
+
+### BL-804
+
+**Title:** BE 이미지에 **태그도 레지스트리도 없다** — 의존성이 바뀐 커밋으로는 롤백할 수 없다
+**Category:** Ops / 배포
+**Priority:** P3
+**Trigger:** ⏳ **대기 (트리거 미도래)** — `pyproject.toml`/`uv.lock` 경계를 넘는 롤백이 실제로 필요해지거나, BE 를 다중 호스트로 늘릴 때 도래한다
+**Est:** M (빌드·태그·전송 경로 신설. FE 쪽 `QB_FRONTEND_TAG` 가 선례다)
+**출처:** 2026-08-18 n5-ci-truth-close 레인 β — 롤백 절차를 적다 한계로 확정
+
+**원인 / 영향:** BE 4서비스(`docker-compose.yml:93`·`:127`·`:157`·`:192`)는 `build:` 만 있고
+`image:` 키가 **없다.** 이미지 이름이 compose 파생 `<프로젝트명>-<서비스>:latest` 뿐이라
+git sha 태그도, 되돌아갈 이전 이미지도, 레지스트리도 없다.
+`soak-stack.sh` 에 `docker pull/push/save/load` **0건**.
+
+★**코드 롤백은 된다** — 소크 층이 `./.soak/src:/app/src:ro` 를 bind mount 하므로
+(`docker-compose.soak.yml:35`) `down → pin <옛 sha> → up` 으로 앱 코드는 되돌아간다.
+막히는 것은 **의존성**이다. 이미지에는 uv 의존성이 구워져 있고 그것을 되돌릴 경로가 없다.
+
+⇒ 대비: FE 는 `image: quantbridge-frontend:${QB_FRONTEND_TAG}`(`docker-compose.frontend.yml:26`) +
+`TAG=$(git rev-parse --short HEAD)`(`frontend-deploy.md:91`) 로 태그 전략이 **이미 있다.** BE 만 없다.
+
+**권장 접근:** ⑴ FE 선례를 그대로 따라라 — `image:` + `QB_BACKEND_TAG` ⑵ 오라클 A1 은 aarch64 라
+맥에서 빌드해 전송하는 FE 경로(`frontend-deploy.md:84-101`)가 그대로 쓰인다 ⑶ ★**하기 전에 세라** —
+의존성이 바뀐 커밋으로 롤백해야 했던 적이 실제로 몇 번인가. 0 이면 이 항목은 계속 대기여도 된다.
+
+**Risk:** 🟢 (지금 깨진 것은 없다. 필요해지는 순간 비용을 낸다)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-18 등재. 의존성 롤백이 실제로 필요해진 적이 아직 없다
+**트리거 판정:** 미도래 — 외생 조건(의존성 경계를 넘는 롤백 요구)이 아직 발생하지 않았다 ([ADR-028], 2026-08-18 n5-ci-truth-close)

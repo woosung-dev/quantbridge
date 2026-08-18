@@ -40,7 +40,7 @@ DB_CONTAINER="${QB_DB_CONTAINER:-quantbridge-db}"
 WORKER_CONTAINER="${QB_WORKER_CONTAINER:-quantbridge-worker}"
 REDIS_CONTAINER="${QB_REDIS_CONTAINER:-quantbridge-redis}"
 # ★[BL-620] — 기본 취득 경로는 **HTTP 가 아니라 멀티프로세스 디렉터리 직독**이다.
-#   소크 스택(`soak-stack.sh up`)은 worker·beat·ws-stream·db·redis 5종만 띄우고 **API
+#   소크 스택(`soak-stack.sh up`)은 worker·beat·ws-stream·optimizer-heavy·db·redis 6종만 띄우고 **API
 #   컨테이너가 없다**. `/metrics` 를 내주던 것은 호스트 uvicorn 이었고, 그게 안 떠 있으면
 #   C5⑷ 가 영구 ✗ 라 **C1/C2 를 다 채워도 PASS 가 구조적으로 불가능**했다(2026-08-07 실측:
 #   `:8100` 리스너 0개). 워커는 같은 counter 를 `apps/api/.metrics` 에 계속 쓰고 있으므로

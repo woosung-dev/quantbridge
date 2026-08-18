@@ -288,9 +288,14 @@ alembic revision --autogenerate -m "add backtest_kind column"
 # 마이그레이션 적용
 alembic upgrade head
 
-# 롤백
-alembic downgrade -1
+# 롤백 — ★`-x allow_destructive=1` 이 **필수**다. 그냥 치면 SystemExit 로 죽는다.
+#   `alembic/env.py:106-125` 가 downgrade 만 골라 막는다(`_test` 접미 DB 만 자동 통과).
+#   2026-07-25 에 이 경로로 로컬 개발 DB 가 전소한 뒤 세운 가드다. 먼저 `mise run db-snapshot`.
+alembic -x allow_destructive=1 downgrade -1
 ```
+
+> ★**서버 소크 DB 는 별개다** — DDL 은 매번 명시 승인이고 집행 도구는 `soak-stack.sh migrate` 다.
+> 절차 정본 = [`backend-deploy.md`](../../docs/reference/operations/backend-deploy.md).
 
 ### 규칙
 

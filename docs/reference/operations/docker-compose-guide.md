@@ -164,10 +164,10 @@ $DC exec redis redis-cli FLUSHALL       # 전체
 - `backend-worker` — Celery prefork `--concurrency=2`, `tasks.celery_app` worker 실행
 - `backend-beat` — `tasks.celery_app` beat scheduler, `backtest.reclaim_stale` 5분 주기
 
-| 항목        | 향후 추가     | 비고                                                     |
-| ----------- | ------------- | -------------------------------------------------------- |
-| Backend API | `backend-api` | 현재는 호스트 uvicorn. 프로덕션 배포 시 추가 (Sprint 7+) |
-| (선택) FE   | `frontend`    | dev는 호스트에서 실행 권장 (HMR 속도)                    |
+| 항목        | 향후 추가     | 비고                                                                                          |
+| ----------- | ------------- | --------------------------------------------------------------------------------------------- |
+| Backend API | `backend-api` | **프로덕션도 호스트 uvicorn systemd user unit 이다** — 컨테이너화 계획 없음 (2026-08-18 실측) |
+| (선택) FE   | `frontend`    | dev는 호스트에서 실행 권장 (HMR 속도)                                                         |
 
 ---
 

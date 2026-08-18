@@ -122,11 +122,11 @@ Redis maxmemory 정책은 compose 파일 (`--maxmemory 512mb --maxmemory-policy 
 
 ## 10. 환경별 차이 (현재/계획)
 
-| 환경       | 상태       | 비고                                |
-| ---------- | ---------- | ----------------------------------- |
-| local      | ✅ 운영 중 | docker-compose + uvicorn + pnpm dev |
-| staging    | ⏳ 미정    | 배포 전략 결정 후 (`roadmap.md`)    |
-| production | ⏳ 미정    | 동일                                |
+| 환경       | 상태       | 비고                                                          |
+| ---------- | ---------- | ------------------------------------------------------------- |
+| local      | ✅ 운영 중 | docker-compose + uvicorn + pnpm dev                           |
+| staging    | ⏳ 미정    | 배포 전략 결정 후 (`roadmap.md`)                              |
+| production | ✅ 운영 중 | 오라클 A1 — 소크 스택 + FE + 호스트 uvicorn (2026-08-18 정정) |
 
 > staging/prod는 `[확인 필요]` — 결정 시 본 문서에 환경별 컬럼 추가.
 

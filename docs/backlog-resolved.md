@@ -3609,3 +3609,160 @@ Sharpe 를 판단에 쓰려면 먼저 확인해야 한다 → [BL-740].
 ---
 
 ---
+
+---
+
+### BL-777
+
+**Title:** BE·소크 스택의 **배포/롤백 런북이 없다** — FE 만 문서화돼 있고 BE 절차는 사람 머릿속에 있다
+**Category:** Ops / 문서
+**Priority:** P2
+**Trigger:** 도래 — 배포가 이미 돌고 있다. 다음 BE 배포 또는 장애 대응이 이 공백을 밟는다
+**Est:** M (실제 절차를 밟으며 받아 적는다. 새 코드 0)
+**출처:** 2026-08-16 표준 레이아웃 정렬 — 권장 구조(`docs/operations/{deployment,rollback}`) 대비 실측
+
+**원인 / 영향:** `frontend-deploy.md` 는 FE 배포를 §3 까지 런북화했지만 **BE 는 대응 문서가 없다.**
+실제 경로는 `tools/scripts/soak-stack.sh`(SSH) + `db-backup.sh` + systemd 인데, 어느 문서도
+「무엇을 어떤 순서로」를 적지 않는다. `ci-cd.md` §7 은 2026-08-16 정정 전까지 **「현재 미설정」**
+이라고 적혀 있었다 — 배포가 이미 돌고 있는데 문서는 없다고 말하고 있었다.
+
+**롤백 축이 특히 비어 있다.** 롤백 서술은 FE(`frontend-deploy.md` §3.4)와 거래
+(`bybit-mainnet-runbook.md` §7) 둘뿐이고, **BE 컨테이너 롤백도 DB 롤백도 없다.**
+`alembic downgrade` 는 `env.py` 가 막고 있어 정당한 롤백조차 `-x allow_destructive=1` 이
+필요한데 그 사실이 런북이 아니라 `gates-and-traps.md` 함정 목록에만 있다.
+
+**권장 접근:** ⑴ `docs/reference/operations/backend-deploy.md` 신설 — `frontend-deploy.md` 와
+같은 골격(구조도 → 최초 1회 → 매 배포 → 롤백 → 함정) ⑵ ★**적으면서 실제로 한 번 밟아라.**
+안 밟고 적으면 `--project-directory` 누락 같은 것이 그대로 남는다(FE 쪽에서 실제로 밟았다)
+⑶ DB 롤백은 **백업 복원**과 `alembic downgrade` 두 갈래를 나눠 적고, 후자는 소크 창 중 DDL 금지
+규칙(`status.md` 비목표)과의 관계를 명시한다
+
+**Risk:** 🟡 (문서만. 다만 없는 상태로 장애를 맞으면 그때 비용을 낸다)
+
+**상태:** ✅ **Resolved (2026-08-18 n5-ci-truth-close · PR #678)** — `docs/reference/operations/backend-deploy.md` 신설(376줄). 골격은 `frontend-deploy.md` 를 따르고 맨 앞에 **「어느 명령이 소크 창을 끊는가」 표**를 뒀다(5개 파일에 흩어져 있던 지식). ★**`pin` 이 실질 배포 단계**임을 못박았다 — `ci-cd.md` 는 서브커맨드를 3개로 적었는데 실제는 8개이고 `up` 만으로는 새 코드가 안 뜬다. ★**롤백 = `down → pin <옛 sha> → up`** (`.soak/src` bind mount 라 코드가 이미지에 안 구워져 있다). 대가는 연속 창 단절이고, `_assert_no_missing_commits` 가 옛 sha 를 거부하므로 `QB_SOAK_OVERRIDE=1` 이 필요하다는 **연결이 처음 적혔다**. ★**의존성 롤백은 불가능**(BE 4서비스가 `build:` 만 있고 `image:` 없음) — 덮지 않고 한계로 적었다 → [BL-804]. DB 롤백 2갈래(백업 복원 · `-x allow_destructive=1` downgrade)도 승인 경계와 함께. ★★**서버 실측으로 확인**: `quantbridge-api.service` 실재·running(`FragmentPath`·`ExecStart`·`WorkingDirectory`·`Environment` 기록 → 레포가 안 만드는 유일한 유닛 [BL-805]) · `Linger=yes` · `/opt/backups` 덤프 11개 664M. 동승으로 **문서 오류 9건 정정**(`ci-cd.md` §7 · `apps/api/AGENTS.md` §7 롤백 명령 · `soak-gate.sh` 5종→6종 · `docker-compose-guide.md` · `env-vars.md` · `db-backup.sh` 2곳).
+**트리거 판정:** 도래 → **소진** — 런북이 서고 서버 실측으로 검증됐다 (2026-08-18 n5-ci-truth-close)
+
+---
+
+### BL-802
+
+**Title:** CI 결정론 시더가 없어 authed spec **19/20 이 아직 CI 에서 안 돈다** — 하드코딩 UUID 40종이 뿌리
+**Category:** CI / 테스트
+**Priority:** P2
+**Trigger:** 도래 — [BL-789] 2단계가 배선을 세웠고, 남은 차단자가 **데이터 전제 하나**로 좁혀졌다
+**Est:** M (시더 설계가 본체. 배선은 이미 있다)
+**출처:** 2026-08-18 night4-ci-truth 레인 α — CI 실측으로 분리됨
+
+**원인 / 영향:** [BL-789] 2단계로 `e2e_authed` 잡이 서고 로그인·백엔드 도달성까지 CI 에서 통과한다.
+그런데 `ci-authed-manifest.json` 의 `ci` 는 **1건**이고 나머지 19건은 `localOnly` 다. 이유는 인프라가
+아니라 **데이터**다 — 12파일이 **하드코딩 UUID 40종**을 쓰고, 그 엔티티가 빈 CI DB 에 없다.
+
+★**이것은 추측이 아니라 실측이다.** `authed-canon-p1.spec.ts` 를 CI 에서 실제로 돌렸다
+(run `32051177105`): `/dashboard`·`/backtests` 는 **통과**했고 `/trading` 은 「등록된 거래소 계정이
+없다」, `/backtests/:id/trades` 는 「완료된 백테스트 상세 링크를 찾지 못했다」로 떨어졌다.
+즉 **막는 것은 시드 데이터 하나뿐이고 파이프라인은 이미 산다.**
+
+**권장 접근:** ⑴ `seed_dogfood.py` 는 **재사용 불가**다 — `CeleryTaskDispatcher` 와 CCXT 라이브 fill 을
+경유한다. CI 는 네트워크도 워커도 없다 ⑵ 필요한 최소 집합부터 세라: 거래소 계정 1건 · 완료된 백테스트
+1건(+trades) · 전략 1건 ⑶ **UUID 를 시더와 spec 이 공유하는 상수로 올려라** — spec 에 흩어진 40종을
+그대로 두면 시더가 그것을 따라다녀야 한다 ⑷ 한 spec 씩 `localOnly` → `ci` 로 옮기고 **CI 로 증명**해라.
+매니페스트가 그 이동을 강제한다(어느 쪽에도 없으면 감사가 red).
+
+**Risk:** 🟢 (테스트 인프라 전용. 프로덕션 경로 무접촉)
+
+**상태:** ✅ **Resolved (2026-08-18 n5-ci-truth-close · PR #677)** — **CI 의 authed spec 이 1건 → 18건**이 됐다(최종 run `32121054465`: setup 3 passed + `chromium-authed` **72 passed 4.0분**, 착수 시점은 7 passed/1 spec). ★★★**이 항목의 진단이 통째로 반증됐다** — 「12파일이 하드코딩 UUID 40종 때문에 막혔다」고 적었는데 그 중 **11건이 무수정 통과**한다. 그 UUID 는 DB 행이 아니라 `page.route()` mock 응답의 id 이고, **이미 CI 에서 통과 중이던 `outcome-parity-panel` 도 똑같이 전량 mock** 이었다(mock 여부는 판별자가 아니다). 매니페스트 사유 12건이 동일 보일러플레이트였던 것이 그 증거다 — **측정이 아니라 grep 으로 붙은 분류**였다. ★실측 궤적: 시더 없음 **79/13** → 시더 착지 **84/5** → 플래그+페이로드 **86/3**. 최초 13건 실패의 실제 원인은 **기능 플래그 1 · 페이로드 형상 3 · 진짜 없는 행** 이었다. ⑴ `scripts/seed_ci_e2e.py` 신설 — Repository 계층만 쓰고 **엔진을 한 번도 안 부른다**(`ohlcv_provider` 기본값이 이미 `fixture` 라 네트워크 0). `_test` 아닌 DB 는 **탈출구 없이 거부**한다. ⑵ CI 3단 배선(FE 서버 직접 기동 + `PLAYWRIGHT_BASE_URL` → setup → 시더 → `--no-deps` spec) — 앱 `users` 행이 sign-up 만으로 안 생기고 JIT 프로비저닝을 기다려야 해서다. ⑶ `e2e_authed` 45분 상한 + 브라우저 캐시, `e2e` 20분 상한(**상한이 없어 6시간을 태운 실사고**). 잔여 3건 = [BL-807].
+**트리거 판정:** 도래 → **소진** — 시더가 서고 CI 가 18/20 을 실제로 돌린다. 잔여는 [BL-807] (2026-08-18 n5-ci-truth-close)
+
+---
+
+---
+
+### BL-803
+
+**Title:** 스키마 동등성의 **`default` 축과 CHECK 제약 축**이 아직 안 켜졌다 — [BL-749] 의 잔여 2/5
+**Category:** Backend / test infra
+**Priority:** P3
+**Trigger:** 도래 — [BL-749] 가 3/5 축을 켜고 나머지를 명시적으로 남겼다
+**Est:** S (축 하나씩. 앞 3축이 모양을 이미 정해 뒀다)
+**출처:** 2026-08-18 night4-ci-truth 레인 γ — 의도적으로 범위 밖에 둔 것
+
+**원인 / 영향:** [BL-749] 가 타입·nullable·인덱스/UNIQUE 를 켰고 셋 다 실측 drift 0건이었다.
+남은 둘은 성격이 다르다 — **`default` 는 표현이 갈린다**(`nextval(...)` · `now()` · `'{}'::jsonb`).
+정규화가 깨끗하지 않은 채 켜면 baseline 이 시끄러워지고, **시끄러운 축은 누군가 꺼 버리는 축이다**
+([BL-749] 「권장 접근」이 경고한 그대로다). CHECK 제약은 `get_check_constraints` 로 접근하지만
+표현식 문자열 비교라 같은 문제를 안는다.
+
+**권장 접근:** ⑴ 앞 3축과 **같은 모양**을 지켜라(`_..._drifts_for_table` + `_..._DRIFT_BASELINE` +
+`_assert_no_new_...`) ⑵ **한 축씩** 켜라 ⑶ drift 5건 초과면 그 축을 명시 동결하고 멈춰라 —
+[BL-749] 가 그 정지 규칙으로 3축을 안전하게 착지시켰다 ⑷ 변이로 **도달**을 확인해라. 「0건」은
+축이 안 돌아도 나오는 답이다.
+
+**Risk:** 🟢 (테스트 전용. `apps/api/src` 무접촉이 원칙)
+
+**상태:** ✅ **Resolved (2026-08-18 n5-ci-truth-close · PR #679)** — `default` 축과 CHECK 축을 켜 **5/5** 가 됐다(`quantbridge_w5_test` 실측 **27 passed**). ★`default` 축 첫 실행이 **진짜 drift 6건**을 냈다 — 전부 「마이그레이션이 `server_default` 를 넣었는데 모델은 python-side `default=` 만 선언」이다. `conftest` 의 `create_all` 이 모델에서 스키마를 만들므로 **테스트 DB 와 프로덕션이 그 6컬럼에서 갈린다**([BL-788] 과 같은 가족) → 근거와 함께 baseline 동결, 수리는 [BL-806]. ★**`nextval(...)` 은 0건**이라 이 항목이 경고한 3대 표현차 중 둘만 실재했다. ★CHECK 축은 **표현식이 아니라 이름 집합**을 양방향 대조한다 — PG 가 `IN (...)` 을 `= ANY((ARRAY[...]::character varying[])::text[])` 로 재작성해 흡수 불가이고, 이 항목 자신이 「시끄러운 축은 누군가 꺼 버리는 축」이라 경고했다. ★★**초판이 [BL-749] 의 index 축을 조용히 끄고 있었다** — 정지 규칙이 cascading `return` 인데 새 축을 앞에 둬서 baseline 6건(>5)이 뒤 축을 통째로 건너뛰었고, `ck_alert_rules_type_threshold` 이름 변이가 **27 passed 로 통과**해 CHECK 축이 죽어 있음이 드러났다. ⇒ **오래된 축부터** 돌도록 재배치. ★한 차이가 2행으로 나와 **정지 규칙의 실효 문턱이 절반**이던 것도 1행 `mismatch` 로 고쳤다.
+**트리거 판정:** 도래 → **소진** — 5축 전부 켜졌다 (2026-08-18 n5-ci-truth-close)
+
+---
+
+---
+
+### BL-749
+
+**Title:** 스키마 동등성 검사가 **컬럼 이름만 · 한 방향만** 본다 — 타입·제약·인덱스 drift 를 못 잡는다
+**Category:** Backend / test infra
+**Priority:** P2
+**Trigger:** ★이미 발화했다 — [BL-741] 이 `create_all` DB 를 alembic head 로 stamp 하면서 이 검사에 의존했는데, 실제 보증 범위가 그보다 좁다는 것이 적대 리뷰로 드러났다
+**Est:** M (검사 확장 + 기존 drift 정리)
+**출처:** 2026-08-15 clock-fill-sweep (codex 적대 리뷰 P1)
+
+**원인 / 영향:** `apps/api/tests/test_migrations.py:167` `test_alembic_schema_matches_sqlmodel_metadata`
+가 비교하는 것은 `{c["name"] for c in inspect(...).get_columns(...)}` — **컬럼 이름 집합**뿐이고,
+단언도 `metadata_cols - alembic_cols` **한 방향**이다(모델에 있는데 DB에 없는 것만). 그 함수의
+docstring 자신이 「핵심 컬럼 누락만 검사 (정확한 type 비교는 PostgreSQL ↔ Python type 차이로
+어려움)」이라고 적어 두었다.
+
+⇒ 못 잡는 것: ⑴ **타입 불일치**(native enum ↔ VARCHAR, `Numeric(18,8)` ↔ `Numeric` 등)
+⑵ **nullable·default·CHECK 제약** ⑶ **인덱스·UNIQUE 축** ⑷ **DB 에만 있고 모델에 없는 컬럼**(역방향).
+
+★**[BL-741] 이 이 검사에 기댔다.** 「`create_all` 스키마가 곧 모델-head 이므로 head stamp 는 사실
+진술」이라는 근거가 **이름 층에서만 참**이다. 그 한계는 `tests/conftest.py` 의 stamp 블록 주석에
+적어 두었다. ★단 그 위험은 [BL-741] 이 **새로 만든 것이 아니다** — conftest 는 원래부터
+`create_all` 로 스키마를 만들었고 테스트는 늘 그 물리 스키마 위에서 돌았다.
+
+**권장 접근:** `Inspector` 의 `get_columns`(type · nullable · default) · `get_indexes` ·
+`get_unique_constraints` · `get_check_constraints` 를 양방향으로 비교한다. ★**전량을 한 번에 켜지
+마라** — 기존 drift 가 쏟아지면 게이트가 상시 red 가 되고 그러면 꺼진다. 축을 하나씩(타입 →
+nullable → 인덱스) 켜면서 그때그때 정리하는 편이 안전하다.
+
+**Risk:** 🟡 (켜는 순간 기존 drift 가 드러난다 — 그것이 목적이지만 회차 예산을 먹는다)
+
+**Risk 재평가:** 🟢 — 타입 축은 켜 봤더니 **기존 drift 0건**이었다. 남은 축도 같은 방식으로 하나씩 열면 된다.
+
+**상태:** ✅ **Resolved (2026-08-18 n5-ci-truth-close · PR #679)** — **축 5/5**. 타입(2026-08-15) · nullable·인덱스/UNIQUE(2026-08-18 PR #673) · `default`·CHECK(2026-08-18 PR #679, [BL-803]). 앞 3축은 실측 drift 0 이었고 `default` 축이 처음으로 **진짜 drift 6건**을 냈다(모델은 python `default=`, 마이그레이션은 `server_default` — 수리는 [BL-806]). CHECK 축은 표현식이 아니라 **이름 집합** 양방향 대조다. ★잔여 2축을 켜는 과정에서 **이 축(인덱스)이 조용히 꺼져 있던 구간**이 드러났다 — 정지 규칙이 cascading `return` 이라 새 축을 앞에 두면 뒤 축이 안 돈다. 축을 오래된 것부터 배치하도록 고쳤다.
+**트리거 판정:** 도래 → **소진** — 5축 전부 켜졌다 (2026-08-18 n5-ci-truth-close)
+
+---
+
+---
+
+### BL-789
+
+**Title:** authed e2e 가 **GitHub CI 에서 안 돈다** — authed 계열 spec 전부가 로컬 전용 게이트다
+**Category:** CI / 테스트
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-17 에 신설한 회귀 게이트가 CI 에서 안 돈다는 것이 실측됐다
+**Est:** M ([BL-781] 과 한 뿌리 — CI 인증 배선)
+**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 γ)
+
+**원인 / 영향:** `.github/workflows/ci.yml:515` 는 `--project=chromium --project=chromium-live-smoke --project=chromium-design-canon` 만 부른다. `playwright.config.ts` 의 `chromium-authed` 는 「잔여 전체」를 가져가므로 **새 authed spec 은 파일을 만들기만 하면 로컬에서는 돌지만 CI 에서는 한 번도 안 돈다.** 음성 대조로 확인했다 — `playwright test --list --project=chromium` 에 [BL-786] 의 새 spec 이 **0건**으로 안 잡힌다.
+
+⇒ **PR 이 CI 전건 초록이면서 그 게이트들이 red 인 상태로 머지될 수 있다.** 실제로 이 회차의 γ PR 은 CI 가 가장 먼저 초록이었고, 그 초록은 새 dedup 게이트를 통과했다는 뜻이 **아니었다**(로컬 `--deferred-only` 가 따로 판정했다).
+
+**처방:** [BL-781] — 격리 슬롯의 authed 는 ADR-034 이후 `BETTER_AUTH_URL` 을 못 받아 403 `INVALID_ORIGIN` 이다과 한 뿌리다. 한 파일을 다른 project 로 옮기는 것으로는 안 풀린다 — authed spec 은 로그인이 필요하므로 비-authed project 로 갈 수 없다. **CI 에서 Better Auth 를 세우는 배선**이 본체이고, 그 전까지는 「CI 초록 = authed 게이트 통과」로 읽지 마라.
+
+**Risk:** 🟡 (CI 인증 배선. 시크릿 관리 표면이 생긴다)
+
+**상태:** ✅ **Resolved (2026-08-18 n5-ci-truth-close · PR #677)** — 1단계(기록)·2단계(실행 배선, PR #671)에 이어 **전량 확대가 착지했다**. authed spec 이 CI 에서 **1건 → 18건** 돈다(run `32121054465`: setup 3 passed + `chromium-authed` **72 passed 4.0분**). 매니페스트가 그 이동을 계속 강제하고, 남은 2 spec 은 사유를 **측정값으로** 적어 `localOnly` 에 둔다([BL-807]). ★이 항목이 남긴 「결정론 시더가 차단자」라는 진단은 [BL-802] 에서 **대부분 반증**됐다 — 실제 13건 실패의 원인은 기능 플래그 1 · 페이로드 형상 3 · 진짜 없는 행 순이었다.
+**트리거 판정:** 도래 → **소진** — authed 가 CI 에서 18/20 을 실제로 돈다 (2026-08-18 n5-ci-truth-close)
+
+---
