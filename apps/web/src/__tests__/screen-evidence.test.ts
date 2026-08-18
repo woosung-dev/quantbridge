@@ -92,6 +92,43 @@ describe("화면 증거 팩 — 빈 결과는 통과가 아니다", () => {
   it("스크린샷 경로가 빠지면 던진다 — 화면 축이 조용히 사라지지 않는다", () => {
     expect(() => report({ screenshots: {} })).toThrow(/스크린샷 경로가 없다/);
   });
+
+  // ★★[BL-797] authed 확장(2026-08-18)이 이 계약을 **둘로 갈랐다.** authed 라우트는 실데이터가
+  //   픽셀을 흔들어 화면 축을 안 재고 `screenshot: null` 로 그것을 **선언**한다. 그러나
+  //   「선언된 null」과 「키의 부재」를 같게 낮추면 스냅샷이 통째로 빠진 회차가 「수치 전용」으로
+  //   위장해 초록이 된다 — 위 시험이 막던 바로 그 상태다. 그래서 `Object.hasOwn` 으로 가른다.
+  it("수치 전용 라우트(null)는 통과하지만, 키의 부재는 여전히 던진다", () => {
+    const numeric = metrics({ screenshot: null, authed: true });
+
+    // ⑴ 선언된 null — 통과하고 화면 열이 「수치 전용」으로 인쇄된다.
+    const ok = report({
+      before: { "/dashboard": numeric },
+      after: { "/dashboard": numeric },
+      screenshots: { "/dashboard": null },
+    });
+    expect(ok.rows).toHaveLength(1);
+    expect(ok.rows[0]?.screen).toContain("수치 전용");
+    // 수치가 같으므로 「변경됨」이 아니다 — null 이 changed 를 truthy 로 만들지 않는지 본다.
+    expect(ok.changedCount).toBe(0);
+
+    // ⑵ 같은 라우트인데 screenshots 에 **키가 없다** — 측정 실패다. 여전히 던진다.
+    expect(() =>
+      report({
+        before: { "/dashboard": numeric },
+        after: { "/dashboard": numeric },
+        screenshots: {},
+      }),
+    ).toThrow(/스크린샷 경로가 없다/);
+
+    // ⑶ 수치 축의 판별력은 그대로다 — 수치 전용이어도 0 바이트는 던진다.
+    expect(() =>
+      report({
+        before: { "/dashboard": numeric },
+        after: { "/dashboard": metrics({ screenshot: null, firstLoadBytes: 0 }) },
+        screenshots: { "/dashboard": null },
+      }),
+    ).toThrow(/first-load JS/);
+  });
 });
 
 describe("화면 증거 팩 — 델타 서식", () => {

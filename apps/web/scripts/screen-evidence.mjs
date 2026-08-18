@@ -34,6 +34,18 @@ const REPO_REL = (p) => path.relative(REPO_ROOT, path.resolve(WEB_ROOT, p));
 
 const UPDATE = process.argv.includes("--update");
 /**
+ * authed leg 를 함께 돌린다 ([BL-797], 2026-08-18).
+ *
+ * ★**옵트인인 것은 의도다.** 공개 leg 는 자체 `next build` 만으로 돌아 `--pre-pr` 에서 유예 없이
+ *   도는데, authed 는 BE 와 로그인 세션을 요구한다. 항상 켜면 그 전제가 없는 중간 검사에서
+ *   공개 측정까지 함께 죽는다. `final-gates.sh` 는 이 플래그를 **유예 집합의 authed 레그**에서만 준다.
+ */
+const AUTHED = process.argv.includes("--authed");
+/** 이번 실행이 그 라우트를 재는가. authed 행은 `--authed` 일 때만 범위에 든다. */
+const inScope = (metrics) => (AUTHED ? true : metrics?.authed !== true);
+const scopeOf = (routes) =>
+  Object.fromEntries(Object.entries(routes ?? {}).filter(([, m]) => inScope(m)));
+/**
  * before 를 읽어 올 참조. 기본은 머지 기준이다.
  *
  * ★바꿀 수 있게 둔 이유는 하나뿐이다 — **이 게이트가 main 에 착륙하기 전에는 `origin/main` 에
@@ -64,6 +76,34 @@ function git(args, { allowFail = false } = {}) {
     if (allowFail) return null;
     throw error;
   }
+}
+
+/**
+ * `.env.local` 을 읽어 **명시적 override** 로 넘긴다.
+ *
+ * ★★★**왜 필요한가 (2026-08-18 실측).** `next start` 는 production 모드라 Next 가
+ *   `.env.production.local` 을 `.env.local` **보다 우선**해서 읽는다. 이 레포의 그 파일은
+ *   실제 배포 값이다 — `NEXT_PUBLIC_API_URL=https://qb-api.woosung.dev` ·
+ *   `NEXT_PUBLIC_ENABLE_TEST_ORDER=false` · `BETTER_AUTH_URL=https://qb.woosung.dev`.
+ *   그리고 `NEXT_PUBLIC_*` 는 **빌드 타임에 번들로 인라인**된다.
+ *   ⇒ 종전 baseline 은 **gitignore 된 개인 파일에 의존해** 구워졌다. 그 파일이 없는 사람이
+ *   같은 커밋에서 재면 다른 바이트가 나오고, 게이트는 그것을 「화면이 달라졌다」로 인쇄한다.
+ *   authed 확장이 그것을 드러냈다 — 로그인이 **프로덕션 auth DB** 를 치려다 500 이 났다.
+ * ★환경변수는 `.env*` 파일 전부를 이기므로, 여기서 넘기면 결정성이 회복된다.
+ */
+function localEnvOverrides() {
+  const file = path.join(WEB_ROOT, ".env.local");
+  if (!existsSync(file)) return {};
+  const out = {};
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!m) continue;
+    let value = m[2].trim();
+    const quoted = /^([\x27"])(.*)\1$/.exec(value);
+    if (quoted) value = quoted[2];
+    out[m[1]] = value;
+  }
+  return out;
 }
 
 /** 워크트리 슬롯 — 병렬 레인이 같은 포트를 잡지 않게 한다. */
@@ -143,6 +183,77 @@ const snapshotFile = (name) => {
   return `${CONFIG.snapshotDir}/${name.slice(0, -ext.length)}-${process.platform}${ext}`;
 };
 
+/**
+ * authed 측정의 전제 셋을 **측정 전에** 잰다. 하나라도 없으면 죽는다.
+ *
+ * ★★조용한 skip 을 두지 않는 이유 — 이 게이트에서 「안 쟀다」와 「변경 없음」은 **같은 Δ=0** 으로
+ *   보인다. 이 레포는 그 병을 소크 게이트 C4(볼 창이 없으면 통과)와 `tool-pin-audit`(핀 0건이면
+ *   통과)에서 두 번 밟았다. 전제가 없으면 초록을 내지 않는다.
+ * ★★★**포트를 보는 곳이 둘이다** — BE 의 `FRONTEND_URL`(CORS allow_origins) 과
+ *   `BETTER_AUTH_URL`(JWKS 취득 + JWT issuer). 러너는 `next start` 를 `serverPortBase + slot`
+ *   에 띄우므로 개발용 `:3000` 을 아는 BE 로는 **CORS 가 조용히 거부**한다. 2026-08-18 night4 가
+ *   같은 비대칭으로 두 번 오진했다("서버가 안 떴다" → 실제로는 포트 불일치).
+ */
+async function assertAuthedPrereqs(baseURL) {
+  const storage = path.join(WEB_ROOT, "e2e/.auth/storageState.json");
+  if (!existsSync(storage))
+    die(
+      `authed 측정 전제 — storageState 가 없다: ${path.relative(REPO_ROOT, storage)}\n` +
+        "  setup project 가 아직 안 돌았다. playwright 의 `dependencies` 가 그것을 물지만,\n" +
+        "  그 setup 자체가 BE 를 요구하므로 아래 BE 조건을 먼저 맞춰라.",
+    );
+
+  // `.env.local` 은 next 가 읽지 이 스크립트는 아니다 — 같은 파일을 직접 읽는다(global.setup.ts 선례).
+  for (const f of ["apps/web/.env.local", "apps/web/.env"]) {
+    const abs = path.join(REPO_ROOT, f);
+    if (existsSync(abs)) {
+      try {
+        process.loadEnvFile(abs);
+      } catch {
+        // 형식 오류는 여기서 죽일 일이 아니다 — 아래 프로브가 실패로 말한다.
+      }
+      break;
+    }
+  }
+  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+
+  let health;
+  try {
+    health = await fetch(`${apiUrl}/health`, { signal: AbortSignal.timeout(5_000) });
+  } catch (error) {
+    die(
+      `authed 측정 전제 — BE 에 닿지 않는다 (${apiUrl}/health): ${error.message}\n` +
+        `  띄워라: cd apps/api && set -a; . ./.env.local; set +a; \\\n` +
+        `    FRONTEND_URL=${baseURL} BETTER_AUTH_URL=${baseURL} uv run uvicorn src.main:app --port ${new URL(apiUrl).port}`,
+    );
+  }
+  if (!health.ok) die(`authed 측정 전제 — BE \`/health\` 가 ${health.status} 다 (${apiUrl}).`);
+
+  // ★CORS 프로브. 인증 없이 401 이 나도 **CORS 헤더는 붙으므로** 토큰 없이 잴 수 있다(실측 확인).
+  //   양성/음성 대조: origin 이 맞으면 `access-control-allow-origin` 이 오고, 다르면 안 온다.
+  let allowed = null;
+  try {
+    const res = await fetch(`${apiUrl}/api/v1/strategies`, {
+      headers: { Origin: baseURL },
+      signal: AbortSignal.timeout(5_000),
+    });
+    allowed = res.headers.get("access-control-allow-origin");
+  } catch (error) {
+    die(`authed 측정 전제 — CORS 프로브가 실패했다: ${error.message}`);
+  }
+  if (allowed !== baseURL)
+    die(
+      `authed 측정 전제 — BE 의 CORS origin 이 이 서버와 다르다.\n` +
+        `  측정 서버: ${baseURL}\n` +
+        `  BE 가 허용: ${allowed ?? "(헤더 없음 — 거부)"}\n` +
+        `  ★BE 는 origin 을 **두 곳**에서 본다. 둘 다 맞춰라:\n` +
+        `    FRONTEND_URL=${baseURL}    (CORS allow_origins — 단일 값이다)\n` +
+        `    BETTER_AUTH_URL=${baseURL} (JWKS 취득 URL + JWT issuer)\n` +
+        `  이대로 재면 화면이 데이터를 못 받고, 그 결과는 red 가 아니라 **더 가벼운 번들**로 보인다.`,
+    );
+  console.log(`  authed 전제 OK — BE ${apiUrl} · CORS origin ${allowed} · storageState 있음`);
+}
+
 async function main() {
   const slot = worktreeSlot();
   const port = CONFIG.serverPortBase + slot;
@@ -163,7 +274,14 @@ async function main() {
 
   // ⑴ 빌드. **캐시된 `.next` 를 재사용하지 않는다** — 낡은 산출물로 잰 숫자는 이 게이트가
   //    막으려는 「측정 없이 판단」 그 자체다.
-  const build = run("pnpm", ["exec", "next", "build"]);
+  const localEnv = localEnvOverrides();
+  const localEnvCount = Object.keys(localEnv).length;
+  if (localEnvCount > 0)
+    console.log(`  .env.local override ${localEnvCount}건 주입 — .env.production.local 을 덮는다`);
+
+  const build = run("pnpm", ["exec", "next", "build"], {
+    env: { ...localEnv, BETTER_AUTH_URL: baseURL },
+  });
   if (build.status !== 0) die(`\`next build\` 가 rc=${build.status} 로 실패했다. 번들을 잴 수 없다.`);
 
   // ⑵ 프로덕션 서버.
@@ -172,7 +290,7 @@ async function main() {
   //   `.next/static` 을 스스로 안 품어서 그쪽으로 띄우면 자산이 404 가 되고 번들 바이트가 0 이 된다.
   const server = spawn("pnpm", ["exec", "next", "start", "-p", String(port)], {
     cwd: WEB_ROOT,
-    env: { ...process.env, BETTER_AUTH_URL: baseURL },
+    env: { ...process.env, ...localEnv, BETTER_AUTH_URL: baseURL },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let serverLog = "";
@@ -199,6 +317,24 @@ async function main() {
       },
     });
     playwrightStatus = pw.status;
+
+    // ★authed leg 는 **공개 leg 가 성립한 뒤에** 돈다. 앞이 깨졌으면 전제 프로브에 시간을
+    //   쓰지 않는다. 측정 JSON 은 같은 폴더에 쌓이고 아래에서 한꺼번에 읽는다.
+    if (AUTHED && playwrightStatus === 0) {
+      await assertAuthedPrereqs(baseURL);
+      const pwAuthed = run(
+        "pnpm",
+        ["exec", "playwright", "test", "--project=chromium-screen-evidence-authed"],
+        {
+          env: {
+            PLAYWRIGHT_BASE_URL: baseURL,
+            PW_ARTIFACT_RUN: RUN,
+            ...(UPDATE ? { SCREEN_EVIDENCE_UPDATE: "1" } : {}),
+          },
+        },
+      );
+      playwrightStatus = pwAuthed.status;
+    }
   } finally {
     server.kill("SIGTERM");
   }
@@ -222,12 +358,20 @@ async function main() {
       apiRequests: m.apiRequests,
       totalRequests: m.totalRequests,
       screenshot: m.screenshot,
+      ...(m.authed ? { authed: true } : {}),
     };
   }
 
   if (UPDATE) {
     if (playwrightStatus !== 0)
       die(`갱신 모드인데 playwright 가 rc=${playwrightStatus} 로 실패했다 — baseline 을 쓰지 않는다.`);
+    // ★★**범위 밖 행을 보존한다.** `--authed` 없이 `:update` 를 돌리면 이번 실행은 공개
+    //   라우트만 쟀는데, 그 결과로 baseline 을 덮어쓰면 authed 행이 **통째로 사라진다** —
+    //   그리고 그 삭제는 다음 실행에서 「신규 라우트」로 보여 아무도 눈치채지 못한다.
+    const preserved = Object.fromEntries(
+      Object.entries(readBaselineHere() ?? {}).filter(([, m]) => !inScope(m)),
+    );
+    const nextRoutes = { ...preserved, ...measured };
     writeFileSync(
       BASELINE_ABS,
       `${JSON.stringify(
@@ -236,14 +380,17 @@ async function main() {
             "[BL-797] 화면 증거 팩 baseline. `pnpm screen-evidence:update` 가 쓴다 — 손으로 고치지 마라. " +
             "이 파일의 origin/main 판이 PR 리포트의 **before** 이고, 이 브랜치 판이 **after** 다.",
           platform: process.platform,
-          routes: Object.fromEntries(Object.entries(measured).sort(([a], [b]) => a.localeCompare(b))),
+          routes: Object.fromEntries(Object.entries(nextRoutes).sort(([a], [b]) => a.localeCompare(b))),
         },
         null,
         2,
       )}\n`,
       "utf8",
     );
-    console.log(`\n✓ baseline 갱신 — ${path.relative(REPO_ROOT, BASELINE_ABS)} (라우트 ${Object.keys(measured).length}건)`);
+    console.log(
+      `\n✓ baseline 갱신 — ${path.relative(REPO_ROOT, BASELINE_ABS)} ` +
+        `(이번에 잰 라우트 ${Object.keys(measured).length}건 · 범위 밖 보존 ${Object.keys(preserved).length}건)`,
+    );
     console.log("  스크린샷도 함께 갱신됐다. 둘 다 커밋해야 PR 이 after 를 인쇄한다.");
     return;
   }
@@ -257,8 +404,8 @@ async function main() {
 
   // ⑸ before ↔ after. after 는 워킹트리의 커밋된 baseline 이고, 방금 라이브 측정이 그것을
   //    검증했다(spec ⑸). before 는 같은 파일의 `origin/main` 판이다.
-  const after = readBaselineHere();
-  if (!after) die(`baseline 이 없다 — ${path.relative(REPO_ROOT, BASELINE_ABS)}. \`:update\` 를 먼저 돌려라.`);
+  const after = scopeOf(readBaselineHere());
+  if (!after || Object.keys(after).length === 0) die(`baseline 이 없다 — ${path.relative(REPO_ROOT, BASELINE_ABS)}. \`:update\` 를 먼저 돌려라.`);
 
   // ★`measured` 는 「이번에 실제로 잰 것」이고 `after` 는 「커밋된 baseline 전체」다.
   //   둘이 어긋나면 재지 않은 라우트의 낡은 수치가 리포트에 정상 측정처럼 실린다 —
@@ -278,10 +425,18 @@ async function main() {
     );
   }
 
-  const before = readBaselineFrom(BASE_REF);
+  const before = scopeOf(readBaselineFrom(BASE_REF));
 
   const screenshots = {};
   for (const route of new Set([...Object.keys(before ?? {}), ...Object.keys(after)])) {
+    const entry = after[route] ?? before?.[route];
+    // ★수치 전용 라우트(`screenshot: null`)는 **명시적 null** 로 넘긴다 — `buildReport` 가
+    //   `Object.hasOwn` 으로 「선언된 null」과 「키의 부재」를 가르므로, 여기서 continue 해
+    //   키를 안 만들면 그쪽이 측정 실패로 판정해 던진다. 둘은 다른 상태다.
+    if (entry && entry.screenshot === null) {
+      screenshots[route] = null;
+      continue;
+    }
     const name = after[route]?.screenshot ?? before?.[route]?.screenshot;
     if (!name) die(`${route}: baseline 에 스냅샷 이름이 없다.`);
     const rel = snapshotFile(name);
@@ -301,7 +456,9 @@ async function main() {
     "first-load JS = 그 화면이 받은 `/_next/static/**.{js,css}` 의 **전송 바이트**(gzip 후) 합 — 폰트 제외",
     "요청 수 = `networkidle` + 1초 창 안의 건수. API 는 `/api/v1/` 부분집합이고, 공개 라우트는 실측 0이라 전체 요청 수가 계수기의 생존 앵커다",
     "실패 응답이 하나라도 있으면 「변화」가 아니라 **측정 오염**으로 red 를 낸다([BL-786] 의 성질을 재사용)",
-    "★공개 라우트만이다. authed 화면은 [BL-789] 로 CI 불가이고 로컬에서도 실데이터가 픽셀을 흔든다 — 이 표에 없다.",
+    AUTHED
+      ? "authed 라우트는 **수치 전용**이다(화면 열이 `—`). 실데이터가 매 실행 픽셀을 흔들어 `maxDiffPixels: 0` 을 유지할 수 없고, 임계를 올리면 그 축은 글자 한 자 변경을 삼켜 존재 이유를 잃는다([BL-797])"
+      : "★이번 실행은 **공개 라우트만** 쟀다. authed 행은 표에서 제외됐다 — 재려면 `--authed` 로 돌리고 BE 를 같은 origin 으로 띄워라",
   ];
 
   let report;

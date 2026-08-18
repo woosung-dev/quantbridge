@@ -67,7 +67,14 @@ function buildRow({ route, before, after, screenshot, repoSlug, baseRef, headRef
   const isGone = after === undefined;
 
   let screen;
-  if (isNew) {
+  // ★★**수치 전용 라우트** ([BL-797] authed 확장, 2026-08-18). authed 화면은 실데이터가
+  //   픽셀을 흔들어 스크린샷 축과 상극이라 번들·요청 수만 잰다. `null` 은 **「이 라우트는
+  //   화면 축을 안 잰다」는 선언**이고, 키 자체의 부재(`undefined`)와 다르다 — 후자는 여전히
+  //   측정 실패이며 `buildReport` 가 던진다. 둘을 같게 낮추면 스냅샷이 통째로 빠진 회차가
+  //   조용히 초록이 된다.
+  if (screenshot === null) {
+    screen = "—(수치 전용)";
+  } else if (isNew) {
     screen = `신규 — [after](${blobUrl(repoSlug, headRef, screenshot.headPath)})`;
   } else if (isGone) {
     screen = `삭제됨 — [before](${blobUrl(repoSlug, baseRef, screenshot.basePath)})`;
@@ -95,7 +102,7 @@ function buildRow({ route, before, after, screenshot, repoSlug, baseRef, headRef
     changed:
       isNew ||
       isGone ||
-      screenshot.changed ||
+      screenshot?.changed === true ||
       before?.firstLoadBytes !== after?.firstLoadBytes ||
       before?.apiRequests !== after?.apiRequests ||
       before?.totalRequests !== after?.totalRequests,
@@ -120,10 +127,14 @@ function assertMeasurable(label, metrics) {
         "Next 앱의 라우트가 JS 0 바이트일 수 없다 — 계측기가 응답을 못 봤거나 라우트 키가 어긋났다. " +
         "**0 을 「가벼워졌다」로 인쇄하지 않는다.**",
     );
-  if (typeof metrics.apiRequests !== "number" || !Number.isFinite(metrics.apiRequests))
+  // ★`null` 은 **「대조 제외」의 선언**이지 결측이 아니다(authed — 실측상 요청 수가 ±1 로
+  //   흔들린다). `undefined` 는 여전히 결측이라 던진다 — 둘을 같게 낮추면 계수기가 통째로
+  //   빠진 회차가 「비결정 축」으로 위장한다.
+  if (metrics.apiRequests !== null && (typeof metrics.apiRequests !== "number" || !Number.isFinite(metrics.apiRequests)))
     throw new Error(`${label}: apiRequests 가 숫자가 아니다 (${metrics.apiRequests}).`);
   // ★공개 라우트의 `apiRequests` 는 실측 0 이다 — 그래서 **그 축만으로는 계수기가 죽어도
   //   0 == 0 으로 초록이다.** 전체 요청 수는 0 일 수 없으므로 여기가 계수기의 생존 앵커다.
+  if (metrics.totalRequests === null) return; // 대조 제외 — 생존 검사는 spec 의 `> 0` 앵커가 진다.
   if (typeof metrics.totalRequests !== "number" || !Number.isFinite(metrics.totalRequests))
     throw new Error(`${label}: totalRequests 가 숫자가 아니다 (${metrics.totalRequests}).`);
   if (metrics.totalRequests <= 0)
@@ -154,8 +165,12 @@ export function buildReport({ before, after, screenshots, repoSlug, baseRef, hea
     // 양쪽에 다 있는 라우트만 「측정됐다」를 요구한다 — 신규/삭제는 한쪽이 없는 것이 정상이다.
     if (after?.[route]) assertMeasurable(`${route} (after)`, after[route]);
     if (before?.[route]) assertMeasurable(`${route} (before)`, before[route]);
-    const shot = screenshots?.[route];
-    if (!shot) throw new Error(`${route}: 스크린샷 경로가 없다 — 화면 축이 통째로 빠진다.`);
+    // ★`Object.hasOwn` 으로 가른다 — `null`(수치 전용 선언)은 통과시키고, **키의 부재**는
+    //   여전히 던진다. `!shot` 하나로 두 경우를 묶으면 스냅샷이 통째로 빠진 회차가 「수치
+    //   전용」으로 위장해 초록이 된다.
+    if (!Object.hasOwn(screenshots ?? {}, route))
+      throw new Error(`${route}: 스크린샷 경로가 없다 — 화면 축이 통째로 빠진다.`);
+    const shot = screenshots[route];
     return buildRow({
       route,
       before: before?.[route],

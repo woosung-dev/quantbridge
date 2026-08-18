@@ -3,21 +3,49 @@
   "platform": "darwin",
   "routes": {
     "/": {
-      "firstLoadBytes": 220381,
+      "firstLoadBytes": 220593,
       "apiRequests": 0,
-      "totalRequests": 51,
+      "totalRequests": 52,
       "screenshot": "landing.png"
     },
-    "/sign-in": {
-      "firstLoadBytes": 308228,
-      "apiRequests": 0,
-      "totalRequests": 50,
-      "screenshot": "sign-in.png"
+    "/backtests": {
+      "firstLoadBytes": 371891,
+      "apiRequests": null,
+      "totalRequests": null,
+      "screenshot": null,
+      "authed": true
     },
-    "/waitlist": {
-      "firstLoadBytes": 322144,
+    "/dashboard": {
+      "firstLoadBytes": 383449,
+      "apiRequests": null,
+      "totalRequests": null,
+      "screenshot": null,
+      "authed": true
+    },
+    "/optimizer": {
+      "firstLoadBytes": 414513,
+      "apiRequests": null,
+      "totalRequests": null,
+      "screenshot": null,
+      "authed": true
+    },
+    "/sign-in": {
+      "firstLoadBytes": 308440,
       "apiRequests": 0,
       "totalRequests": 51,
+      "screenshot": "sign-in.png"
+    },
+    "/strategies": {
+      "firstLoadBytes": 371191,
+      "apiRequests": null,
+      "totalRequests": null,
+      "screenshot": null,
+      "authed": true
+    },
+    "/waitlist": {
+      "firstLoadBytes": 322351,
+      "apiRequests": 0,
+      "totalRequests": 52,
       "screenshot": "waitlist.png"
     }
   }

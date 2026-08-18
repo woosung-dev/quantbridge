@@ -169,6 +169,12 @@ record() { NAMES+=("$1"); CODES+=("$2"); NOTES+=("${3:-}"); SECS+=("${4:-}"); }
 # ★★그러나 **유예는 면제가 아니다.** 미룬 것을 원장에 적고 종결 문구를 다르게 낸다 —
 #   같은 「✓ 전건 통과」를 내면 「초록인데 안 봤다」가 되고, 그게 이 레포가 반복해 덴 병이다.
 DEFERRABLE="BE pytest|e2e chromium|e2e design-canon|e2e authed|CI fresh DB alembic|CI 커버리지 잡"
+# ★authed 화면 증거는 **유예 집합이다** — 형제 「화면 증거 팩」(공개)과 갈리는 지점이 여기다.
+#   공개 레그는 자체 `next build` 만으로 돌아 중간 검사에서도 싸지만, authed 는 로그인 세션과
+#   **그 origin 을 아는 BE** 를 요구한다(FRONTEND_URL = CORS · BETTER_AUTH_URL = JWKS·issuer).
+#   `--pre-pr` 에서 그것을 요구하면 「코드가 성립하나」를 묻는 중간 검사가 서버 부재로 죽는다.
+#   ⇒ `e2e authed` 와 **같은 집합·같은 영역 술어**에 둔다 (2026-08-18, [BL-797]).
+DEFERRABLE="$DEFERRABLE|화면 증거 팩 (authed)"
 # ★신호 4종도 유예 대상이다. `--pre-pr` 은 「코드가 성립하나」를 묻는 중간 검사라 아직 스킬을
 #   안 돌렸을 수 있다. 종결 판정(=신호가 이 회차 것인가)은 `--deferred-only` 가 진다.
 DEFERRABLE="$DEFERRABLE|/vercel-react-best-practices|화면 검증 (playwright 또는 /browse)|/codex 적대 리뷰|★G9 계획 vs 실제 구현"
@@ -516,6 +522,28 @@ if [ "$has_fe" -eq 1 ] || [ -z "$BASE" ]; then
     bash -c 'cd "$0/apps/web" && pnpm screen-evidence' "$ROOT"
 else
   skip_gate "화면 증거 팩" "frontend diff 0"
+fi
+
+# ── 4c. 화면 증거 팩 (authed) ([BL-797] 2026-08-18) ─────────────────
+#
+# ★결함: 위 §4b 는 공개 3라우트만 잰다. 그런데 이 앱에서 화면을 바꾸는 회차는 대부분 authed 를
+#   건드린다 — 2026-08-17 night3 는 그 게이트를 만든 밤에 화면을 바꾼 PR 둘을 냈는데 **둘 다
+#   authed** 라 표에서 Δ=0 이었고, 2026-08-18 design-t1t2 는 25라우트를 감사해 5커밋을 넣고도
+#   증거 팩 밖에서 무증거라 검증을 손 playwright 로 때웠다.
+#
+# ★영역 술어는 **`e2e authed` 와 같은 것**을 쓴다(`has_fe` ∪ `has_be`). authed 화면의 번들은
+#   FE 가 정하지만 그 화면이 그려지려면 BE 응답이 성립해야 하므로, `has_fe` 만 보면 BE 만 고친
+#   회차에서 「측정 오염」을 못 잡는다. 형제 신호 게이트 `screen.ok` 도 이미 그 술어다([BL-739]).
+#
+# ★★**공개 3라우트를 한 번 더 잰다** — 러너는 baseline 키 집합 전량을 대조하므로 authed 만
+#   따로 잴 수 없다(부분 측정을 전량으로 보고하지 않는 그 성질을 깨지 않는다). 그 중복은
+#   유예 집합에서만 발생하고, 그때는 이미 무거운 검사 시간대다.
+if e2e_area "e2e authed"; then
+  run_gate "화면 증거 팩 (authed)" "before=origin/main · authed 4라우트 · 수치 전용" \
+    env -u SCREEN_EVIDENCE_BASE_REF PW_ARTIFACT_RUN="$RUN" \
+    bash -c 'cd "$0/apps/web" && pnpm screen-evidence --authed' "$ROOT"
+else
+  skip_gate "화면 증거 팩 (authed)" "$(e2e_area_note "e2e authed")"
 fi
 
 # ── 5. CI 전용 스텝 재현 ────────────────────────────────────────────
