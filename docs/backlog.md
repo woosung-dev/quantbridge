@@ -1974,43 +1974,6 @@ pytest·`docker build` 가 3.1G 에서 돌아간다.
 
 ---
 
-### BL-749
-
-**Title:** 스키마 동등성 검사가 **컬럼 이름만 · 한 방향만** 본다 — 타입·제약·인덱스 drift 를 못 잡는다
-**Category:** Backend / test infra
-**Priority:** P2
-**Trigger:** ★이미 발화했다 — [BL-741] 이 `create_all` DB 를 alembic head 로 stamp 하면서 이 검사에 의존했는데, 실제 보증 범위가 그보다 좁다는 것이 적대 리뷰로 드러났다
-**Est:** M (검사 확장 + 기존 drift 정리)
-**출처:** 2026-08-15 clock-fill-sweep (codex 적대 리뷰 P1)
-
-**원인 / 영향:** `apps/api/tests/test_migrations.py:167` `test_alembic_schema_matches_sqlmodel_metadata`
-가 비교하는 것은 `{c["name"] for c in inspect(...).get_columns(...)}` — **컬럼 이름 집합**뿐이고,
-단언도 `metadata_cols - alembic_cols` **한 방향**이다(모델에 있는데 DB에 없는 것만). 그 함수의
-docstring 자신이 「핵심 컬럼 누락만 검사 (정확한 type 비교는 PostgreSQL ↔ Python type 차이로
-어려움)」이라고 적어 두었다.
-
-⇒ 못 잡는 것: ⑴ **타입 불일치**(native enum ↔ VARCHAR, `Numeric(18,8)` ↔ `Numeric` 등)
-⑵ **nullable·default·CHECK 제약** ⑶ **인덱스·UNIQUE 축** ⑷ **DB 에만 있고 모델에 없는 컬럼**(역방향).
-
-★**[BL-741] 이 이 검사에 기댔다.** 「`create_all` 스키마가 곧 모델-head 이므로 head stamp 는 사실
-진술」이라는 근거가 **이름 층에서만 참**이다. 그 한계는 `tests/conftest.py` 의 stamp 블록 주석에
-적어 두었다. ★단 그 위험은 [BL-741] 이 **새로 만든 것이 아니다** — conftest 는 원래부터
-`create_all` 로 스키마를 만들었고 테스트는 늘 그 물리 스키마 위에서 돌았다.
-
-**권장 접근:** `Inspector` 의 `get_columns`(type · nullable · default) · `get_indexes` ·
-`get_unique_constraints` · `get_check_constraints` 를 양방향으로 비교한다. ★**전량을 한 번에 켜지
-마라** — 기존 drift 가 쏟아지면 게이트가 상시 red 가 되고 그러면 꺼진다. 축을 하나씩(타입 →
-nullable → 인덱스) 켜면서 그때그때 정리하는 편이 안전하다.
-
-**Risk:** 🟡 (켜는 순간 기존 drift 가 드러난다 — 그것이 목적이지만 회차 예산을 먹는다)
-
-**Risk 재평가:** 🟢 — 타입 축은 켜 봤더니 **기존 drift 0건**이었다. 남은 축도 같은 방식으로 하나씩 열면 된다.
-
-**상태:** 🔶 Partial — **축 3/5** (타입 2026-08-15 · **nullable·인덱스/UNIQUE 2026-08-18 night4-ci-truth · PR #673**). 두 새 축은 `_normalize_postgresql_type` 을 **재사용**하고 타입 축과 같은 모양(`_..._drifts_for_table` + `_..._DRIFT_BASELINE` + `_assert_no_new_...`)이다. ★**양방향이고 방향을 라벨로 남긴다** — `model_only` 와 `db_only` 는 다른 발견이고, 후자가 이 항목의 미해결 ⑷(「DB 에만 있는 컬럼」)였다. 외부 소유는 이름으로 제외하고 이유를 적었다(`alembic_version` · `auth_*`([ADR-034]) · `ohlcv_time_idx`(TimescaleDB)). **실측 drift 0건 / 0건** ⇒ 두 baseline 다 빈 채로 착지. ★★「0건」은 축이 안 돌아도 나오는 답이라 **변이 3종으로 갈랐다**: nullable 뒤집기 → `('trading','exchange_accounts','api_key_encrypted',False,True)` · 인덱스 삭제 → `db_only` · 인덱스 추가 → `model_only`. **남은 것 = `default` 축 · CHECK 제약 축 → [BL-803].**
-**트리거 판정:** 도래 — [BL-741] 이 이 검사에 의존했고 보증 범위가 실측으로 좁혀졌다. 3/5 축이 켜졌고 나머지는 [BL-803] 이 이어받는다 (2026-08-18)
-
----
-
 ### BL-762
 
 **Title:** 라우터가 계층을 관통한다 — `trading/router.py` 가 Repository 를 직접 만들고 서비스의 private 을 뚫는다
@@ -2094,116 +2057,6 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
 
-### BL-777
-
-**Title:** BE·소크 스택의 **배포/롤백 런북이 없다** — FE 만 문서화돼 있고 BE 절차는 사람 머릿속에 있다
-**Category:** Ops / 문서
-**Priority:** P2
-**Trigger:** 도래 — 배포가 이미 돌고 있다. 다음 BE 배포 또는 장애 대응이 이 공백을 밟는다
-**Est:** M (실제 절차를 밟으며 받아 적는다. 새 코드 0)
-**출처:** 2026-08-16 표준 레이아웃 정렬 — 권장 구조(`docs/operations/{deployment,rollback}`) 대비 실측
-
-**원인 / 영향:** `frontend-deploy.md` 는 FE 배포를 §3 까지 런북화했지만 **BE 는 대응 문서가 없다.**
-실제 경로는 `tools/scripts/soak-stack.sh`(SSH) + `db-backup.sh` + systemd 인데, 어느 문서도
-「무엇을 어떤 순서로」를 적지 않는다. `ci-cd.md` §7 은 2026-08-16 정정 전까지 **「현재 미설정」**
-이라고 적혀 있었다 — 배포가 이미 돌고 있는데 문서는 없다고 말하고 있었다.
-
-**롤백 축이 특히 비어 있다.** 롤백 서술은 FE(`frontend-deploy.md` §3.4)와 거래
-(`bybit-mainnet-runbook.md` §7) 둘뿐이고, **BE 컨테이너 롤백도 DB 롤백도 없다.**
-`alembic downgrade` 는 `env.py` 가 막고 있어 정당한 롤백조차 `-x allow_destructive=1` 이
-필요한데 그 사실이 런북이 아니라 `gates-and-traps.md` 함정 목록에만 있다.
-
-**권장 접근:** ⑴ `docs/reference/operations/backend-deploy.md` 신설 — `frontend-deploy.md` 와
-같은 골격(구조도 → 최초 1회 → 매 배포 → 롤백 → 함정) ⑵ ★**적으면서 실제로 한 번 밟아라.**
-안 밟고 적으면 `--project-directory` 누락 같은 것이 그대로 남는다(FE 쪽에서 실제로 밟았다)
-⑶ DB 롤백은 **백업 복원**과 `alembic downgrade` 두 갈래를 나눠 적고, 후자는 소크 창 중 DDL 금지
-규칙(`status.md` 비목표)과의 관계를 명시한다
-
-**Risk:** 🟡 (문서만. 다만 없는 상태로 장애를 맞으면 그때 비용을 낸다)
-
-**상태:** ⬜ Open — 2026-08-16 에 공백을 확정. `ci-cd.md` §7 의 거짓 서술만 같은 회차에 정정했다. 런북 본체 미착수
-**트리거 판정:** 도래 — 배포가 이미 프로덕션에서 돌고 있고 절차 문서만 없다 (2026-08-16 layout-alignment)
-
-### BL-789
-
-**Title:** authed e2e 가 **GitHub CI 에서 안 돈다** — authed 계열 spec 전부가 로컬 전용 게이트다
-**Category:** CI / 테스트
-**Priority:** P2
-**Trigger:** 도래 — 2026-08-17 에 신설한 회귀 게이트가 CI 에서 안 돈다는 것이 실측됐다
-**Est:** M ([BL-781] 과 한 뿌리 — CI 인증 배선)
-**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 γ)
-
-**원인 / 영향:** `.github/workflows/ci.yml:515` 는 `--project=chromium --project=chromium-live-smoke --project=chromium-design-canon` 만 부른다. `playwright.config.ts` 의 `chromium-authed` 는 「잔여 전체」를 가져가므로 **새 authed spec 은 파일을 만들기만 하면 로컬에서는 돌지만 CI 에서는 한 번도 안 돈다.** 음성 대조로 확인했다 — `playwright test --list --project=chromium` 에 [BL-786] 의 새 spec 이 **0건**으로 안 잡힌다.
-
-⇒ **PR 이 CI 전건 초록이면서 그 게이트들이 red 인 상태로 머지될 수 있다.** 실제로 이 회차의 γ PR 은 CI 가 가장 먼저 초록이었고, 그 초록은 새 dedup 게이트를 통과했다는 뜻이 **아니었다**(로컬 `--deferred-only` 가 따로 판정했다).
-
-**처방:** [BL-781] — 격리 슬롯의 authed 는 ADR-034 이후 `BETTER_AUTH_URL` 을 못 받아 403 `INVALID_ORIGIN` 이다과 한 뿌리다. 한 파일을 다른 project 로 옮기는 것으로는 안 풀린다 — authed spec 은 로그인이 필요하므로 비-authed project 로 갈 수 없다. **CI 에서 Better Auth 를 세우는 배선**이 본체이고, 그 전까지는 「CI 초록 = authed 게이트 통과」로 읽지 마라.
-
-**Risk:** 🟡 (CI 인증 배선. 시크릿 관리 표면이 생긴다)
-
-**상태:** 🟡 **부분 해결(PARTIAL) — 2단계 착지** (2026-08-18 night4-ci-truth · PR #671). ★★★**authed e2e 가 GitHub CI 에서 처음으로 실제로 돌았다** — run `32051650551`, `e2e_authed` 잡 **7 passed (54.3s)**: `setup-identity` · `authenticate`(22.0s) · `authed 백엔드 도달성` + `chromium-authed` **4건**. ⑴ **잡 신설** — timescaledb+redis 서비스 · `alembic upgrade head`(`auth_*` 생성) · uvicorn `/health` 폴링 · playwright. **`ci:` 요약 잡의 `needs`·`check` 에 넣었다**(안 넣으면 이 잡이 빨개도 `ci` 는 초록이다 — 1라운드에서 `ci=failure` 로 실증됐다). ⑵ **감사가 project 축 → spec 축으로 내려왔다.** `--project=chromium-authed` 만 배선하면 종전 감사는 초록인데 실제로는 일부 spec 만 돈다 — 이제 config 가 고른 authed spec **20건 전량**이 `ci ∪ localOnly` 에 정확히 한 번 있어야 한다. SSOT 는 `e2e/ci-authed-manifest.json` 하나이고 **CI 명령이 그 파일에서 인자를 뽑는다**(YAML 에 spec 이름을 두 번 적지 않는다). ⑶ **인증 secret 0개** — 전부 CI 리터럴 + 일회용 DB + setup 의 sign-up 부트스트랩. **남은 것 = `ci` 가 아직 1/20 건 → 결정론 시더가 [BL-802].**
-**트리거 판정:** 도래 → **부분 소진** — 1단계(기록)·2단계(실행 배선)가 닫혔고, 전량 확대는 [BL-802] 가 이어받는다 (2026-08-18)
-
----
-
-### BL-802
-
-**Title:** CI 결정론 시더가 없어 authed spec **19/20 이 아직 CI 에서 안 돈다** — 하드코딩 UUID 40종이 뿌리
-**Category:** CI / 테스트
-**Priority:** P2
-**Trigger:** 도래 — [BL-789] 2단계가 배선을 세웠고, 남은 차단자가 **데이터 전제 하나**로 좁혀졌다
-**Est:** M (시더 설계가 본체. 배선은 이미 있다)
-**출처:** 2026-08-18 night4-ci-truth 레인 α — CI 실측으로 분리됨
-
-**원인 / 영향:** [BL-789] 2단계로 `e2e_authed` 잡이 서고 로그인·백엔드 도달성까지 CI 에서 통과한다.
-그런데 `ci-authed-manifest.json` 의 `ci` 는 **1건**이고 나머지 19건은 `localOnly` 다. 이유는 인프라가
-아니라 **데이터**다 — 12파일이 **하드코딩 UUID 40종**을 쓰고, 그 엔티티가 빈 CI DB 에 없다.
-
-★**이것은 추측이 아니라 실측이다.** `authed-canon-p1.spec.ts` 를 CI 에서 실제로 돌렸다
-(run `32051177105`): `/dashboard`·`/backtests` 는 **통과**했고 `/trading` 은 「등록된 거래소 계정이
-없다」, `/backtests/:id/trades` 는 「완료된 백테스트 상세 링크를 찾지 못했다」로 떨어졌다.
-즉 **막는 것은 시드 데이터 하나뿐이고 파이프라인은 이미 산다.**
-
-**권장 접근:** ⑴ `seed_dogfood.py` 는 **재사용 불가**다 — `CeleryTaskDispatcher` 와 CCXT 라이브 fill 을
-경유한다. CI 는 네트워크도 워커도 없다 ⑵ 필요한 최소 집합부터 세라: 거래소 계정 1건 · 완료된 백테스트
-1건(+trades) · 전략 1건 ⑶ **UUID 를 시더와 spec 이 공유하는 상수로 올려라** — spec 에 흩어진 40종을
-그대로 두면 시더가 그것을 따라다녀야 한다 ⑷ 한 spec 씩 `localOnly` → `ci` 로 옮기고 **CI 로 증명**해라.
-매니페스트가 그 이동을 강제한다(어느 쪽에도 없으면 감사가 red).
-
-**Risk:** 🟢 (테스트 인프라 전용. 프로덕션 경로 무접촉)
-
-**상태:** ⬜ Open — 2026-08-18 등재. 미착수
-**트리거 판정:** 도래 — 배선이 끝나 차단자가 시더 하나로 확정됐다 (2026-08-18 night4-ci-truth)
-
----
-
-### BL-803
-
-**Title:** 스키마 동등성의 **`default` 축과 CHECK 제약 축**이 아직 안 켜졌다 — [BL-749] 의 잔여 2/5
-**Category:** Backend / test infra
-**Priority:** P3
-**Trigger:** 도래 — [BL-749] 가 3/5 축을 켜고 나머지를 명시적으로 남겼다
-**Est:** S (축 하나씩. 앞 3축이 모양을 이미 정해 뒀다)
-**출처:** 2026-08-18 night4-ci-truth 레인 γ — 의도적으로 범위 밖에 둔 것
-
-**원인 / 영향:** [BL-749] 가 타입·nullable·인덱스/UNIQUE 를 켰고 셋 다 실측 drift 0건이었다.
-남은 둘은 성격이 다르다 — **`default` 는 표현이 갈린다**(`nextval(...)` · `now()` · `'{}'::jsonb`).
-정규화가 깨끗하지 않은 채 켜면 baseline 이 시끄러워지고, **시끄러운 축은 누군가 꺼 버리는 축이다**
-([BL-749] 「권장 접근」이 경고한 그대로다). CHECK 제약은 `get_check_constraints` 로 접근하지만
-표현식 문자열 비교라 같은 문제를 안는다.
-
-**권장 접근:** ⑴ 앞 3축과 **같은 모양**을 지켜라(`_..._drifts_for_table` + `_..._DRIFT_BASELINE` +
-`_assert_no_new_...`) ⑵ **한 축씩** 켜라 ⑶ drift 5건 초과면 그 축을 명시 동결하고 멈춰라 —
-[BL-749] 가 그 정지 규칙으로 3축을 안전하게 착지시켰다 ⑷ 변이로 **도달**을 확인해라. 「0건」은
-축이 안 돌아도 나오는 답이다.
-
-**Risk:** 🟢 (테스트 전용. `apps/api/src` 무접촉이 원칙)
-
-**상태:** ⬜ Open — 2026-08-18 등재. 미착수
-**트리거 판정:** 도래 — 앞 3축이 켜졌고 남은 축의 모양이 정해졌다 (2026-08-18 night4-ci-truth)
-
----
-
 ### BL-797
 
 **Title:** 화면 증거 게이트가 **공개 라우트 3종만** 잰다 — authed 화면을 바꾼 PR 은 여전히 증거가 없다
@@ -2226,3 +2079,143 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 ---
 
 ---
+
+---
+
+### BL-805
+
+**Title:** `quantbridge-api.service` 가 **레포에 없다** — 레포가 만들지 않는 유일한 systemd 유닛
+**Category:** Ops / 배포
+**Priority:** P2
+**Trigger:** 도래 — 서버를 다시 세우거나 유닛이 깨지면 그 자리에서 밟는다. 복원할 원본이 없다
+**Est:** S (유닛 1개 + `--install` 경로. 실측값은 이미 확보돼 있다)
+**출처:** 2026-08-18 n5-ci-truth-close 레인 β — 런북을 쓰며 서버 실측으로 확인
+
+**원인 / 영향:** 나머지 유닛 5종은 스크립트의 `--install` 이 heredoc 으로 만든다
+(`db-backup.sh:461-533` · `disk-guard.sh:152-196` · `soak-watch.sh:138-196` ·
+`soak-gate.sh:80-104` · `soak-logs-follow.sh:214-236`). **`quantbridge-api.service` 만 예외**다.
+`better-auth-setup.md:119` 는 배포 절차에서 `systemctl --user restart quantbridge-api.service`
+를 지시하는데, 그 유닛을 만드는 코드가 레포에 **0건**이다.
+
+★2026-08-18 서버 실측 — 유닛은 실재하고 running 이다:
+`FragmentPath=/home/ubuntu/.config/systemd/user/quantbridge-api.service` ·
+`ExecStart=/home/ubuntu/quantbridge/apps/api/.venv/bin/uvicorn src.main:app --no-server-header --host 127.0.0.1 --port 8100` ·
+`WorkingDirectory=/home/ubuntu/quantbridge/apps/api` ·
+`Environment=PROMETHEUS_MULTIPROC_DIR=/home/ubuntu/quantbridge/apps/api/.metrics QB_METRICS_ROLE=api`.
+
+**권장 접근:** ⑴ 형제 스크립트와 **같은 모양**으로 `--install` 을 세운다 — 신선도 검사
+(`db-backup.sh:545-575` 의 `ExecStart` 경로 대조)까지 같이. ⑵ `ExecStart` 가 `.venv` 절대경로라
+[ADR-029] 류 재배치에 취약하다는 사실을 유닛 주석에 남겨라 ⑶ 서버에서 **한 번 재설치해 보고**
+`/health` 가 8초 안에 뜨는지 확인한다.
+
+**Risk:** 🟡 (유닛을 잘못 쓰면 API 가 안 뜬다. 재설치 전에 현행 값을 받아 적어라)
+
+**상태:** ⬜ Open — 2026-08-18 등재. 미착수
+**트리거 판정:** 도래 — 실측으로 공백이 확정됐고 복원할 원본이 없다 (2026-08-18 n5-ci-truth-close)
+
+---
+
+### BL-806
+
+**Title:** 모델은 python `default=` 인데 마이그레이션이 `server_default` 를 넣은 컬럼 **6개** — 테스트 DB 와 프로덕션 스키마가 갈린다
+**Category:** Backend / 스키마
+**Priority:** P3
+**Trigger:** 도래 — [BL-803] 의 `default` 축이 실측으로 6건을 확정했다
+**Est:** S (모델 6줄 + 그 변경이 `alembic check` 를 흔드는지 확인)
+**출처:** 2026-08-18 n5-ci-truth-close 레인 γ — 축을 켜자마자 나온 실측
+
+**원인 / 영향:** `quantbridge_w5_test` 실측 6건 —
+`public.waitlist_applications.status`(`'pending'`) · `trading.live_signal_events.comment`(`''`) ·
+`trading.live_signal_events.retry_count`(`'0'`) · `trading.live_signal_sessions.is_active`(`'true'`) ·
+`trading.live_signal_states.schema_version`(`'1'`) · `trading.live_signal_states.total_closed_trades`(`'0'`).
+전부 DB 에만 `server_default` 가 있고 모델은 `Field(default=…)` 만 선언한다.
+
+★**무해하지 않다** — `tests/conftest.py` 의 `create_all` 은 **모델**에서 스키마를 만들므로 그 경로의
+테스트 DB 에는 이 DEFAULT 들이 **없다**. 즉 테스트가 보는 스키마와 프로덕션이 이 6컬럼에서 갈린다.
+[BL-788] 과 같은 가족의 결함이다.
+
+**권장 접근:** ⑴ 모델에 `sa_column_kwargs={"server_default": …}` 를 얹어 DB 와 맞춘다
+⑵ ★**한 번에 하지 마라** — 모델 변경이 `alembic check` 를 흔드는지 컬럼 하나씩 확인해라
+⑶ 맞춘 컬럼은 `_DEFAULT_DRIFT_BASELINE`(`tests/test_migrations.py`)에서 **빼라**. baseline 이
+비어 가는 것이 진척의 척도다 ⑷ 반대 방향(`model_only`)이 생기면 그건 훨씬 위험하다 — 마이그레이션이
+모델을 안 따라온 것이다.
+
+**Risk:** 🟢 (기존 행에는 영향 없다. DEFAULT 는 INSERT 시점에만 쓰인다)
+
+**상태:** ⬜ Open — 2026-08-18 등재. 미착수
+**트리거 판정:** 도래 — [BL-803] 이 6건을 실측으로 확정하고 baseline 에 동결했다 (2026-08-18 n5-ci-truth-close)
+
+---
+
+### BL-807
+
+**Title:** authed 캐논 3케이스가 **행은 DB 에 있는데 화면이 비어** 떨어진다 — [BL-802] 의 잔여 2/20
+**Category:** Frontend / 테스트
+**Priority:** P2
+**Trigger:** 도래 — [BL-802] 가 18/20 을 CI 로 올리고 나머지를 실측으로 좁혔다
+**Est:** M (셋이 서로 다른 데이터 경로다. 하나씩)
+**출처:** 2026-08-18 n5-ci-truth-close 레인 α — CI 실측(run `32121054465` 계열)으로 분리
+
+**원인 / 영향:** 결정론 시더가 행을 실제로 심는데(로컬 DB 대조 확인) 화면이 그리지 않는다.
+셋 다 같은 모양이고 원인은 각각 다르다:
+
+⑴ `authed-canon-p1.spec.ts:153` — `/backtests/:id/trades` 의
+`[data-testid="trade-detail-table"] tbody tr` 이 **0**. `backtest_trades` 3행이 DB 에 있고
+`TradeItemSchema` 는 전 필드가 nullable/optional 이며 `DEFAULT_FILTERS` 도 전부 허용이다.
+⑵ `authed-canon-remaining.spec.ts:141` — `/optimizer` 목록에 `a[href^="/optimizer/"]` 가 안 뜬다.
+완료 `OptimizationRun` 을 `ParamSpace` 정본 형상으로 심었는데도 그렇다.
+⑶ `authed-canon-remaining.spec.ts:173` — `[data-testid="backtest-report-shell"]` 이 20초 안에 안 보인다.
+
+**권장 접근:** ⑴ **브라우저에서 실제 응답을 봐라** — 코드 대조로는 안 잡힌다. 이 회차에 메트릭 키
+3개·`equity_curve` 키 2개·`param_space` 구조가 전부 틀렸던 것도 **응답을 안 보고 스키마만 읽어서**
+늦게 잡혔다 ⑵ 한 케이스씩 `ci` 로 올려 CI 로 증명해라 — 매니페스트가 그 이동을 강제한다
+⑶ 시더가 더 필요하면 `seed_ci_e2e.py` 의 `--selftest` 에 **그 계약 검증을 같이 추가**해라.
+지금 그것이 `BacktestMetricsOut`·`ParamSpace` 를 실제로 먹이고 있다.
+
+**Risk:** 🟢 (테스트 인프라 전용. 다만 셋 다 「조용히 빈 화면」이라 실사용자도 같은 것을 볼 수 있다 — 그쪽이 진짜 위험이다)
+
+**상태:** ⬜ Open — 2026-08-18 등재. 미착수
+**트리거 판정:** 도래 — [BL-802] 가 배선과 시더를 세우고 차단자를 이 셋으로 좁혔다 (2026-08-18 n5-ci-truth-close)
+
+---
+
+### BL-808
+
+**Title:** 스키마 동등성 축의 잔여 3구멍 — 정규화 과잉 · cascading 정지 규칙 · CHECK 표현식 미검
+**Category:** Backend / test infra
+**Priority:** P3
+**Trigger:** 도래 — [BL-803] 이 5축을 켠 직후 적대 리뷰가 셋을 실측 시나리오와 함께 짚었다
+**Est:** S (셋 다 국소적. 다만 ⑵ 는 축 전체의 의미론 결정이다)
+**출처:** 2026-08-18 n5-ci-truth-close — codex 적대 리뷰 (P2 3건, 코드 대조로 채택)
+
+**원인 / 영향:**
+
+⑴ **`_normalize_server_default` 가 과하게 지운다** (`tests/test_migrations.py:204-231`).
+`::<식별자>` 를 위치와 무관하게 지우고 casefold 하므로 **따옴표 리터럴 안**까지 건드린다.
+⇒ 모델 `'literal::jsonb'` 과 DB `'literal'` 이 둘 다 `literal` 로, `'CaseSensitive'` 와
+`'casesensitive'` 가 둘 다 `casesensitive` 로 낮아진다. **서로 다른 DEFAULT 가 같다고 판정**된다.
+★현재 실측 35컬럼에 그런 값은 없다 — 잠재 결함이다.
+
+⑵ **정지 규칙이 cascading `return` 이라 앞 축의 baseline 이 뒤 축을 끈다**(`:1016-1083`).
+이 회차가 「축을 오래된 것부터 배치」로 한 번 고쳤지만 **구조는 그대로다.**
+⇒ CHECK baseline 이 6건이 되면, 이미 수집해 둔 `observed_default_drifts` 가 단언 없이 버려진다.
+nullable·index baseline 이 6건이 되면 그 뒤 축들이 함께 꺼진다.
+★지금은 `default`(유일한 비어 있지 않은 baseline, 6건)가 **맨 뒤**라 발화하지 않는다.
+
+⑶ **CHECK 를 이름 집합만 보므로 표현식 약화를 못 잡는다**(`:513-531`). 이것은 [BL-803] 의
+**의도된 설계**이고 근거도 코드 주석에 있다(PG 재작성 흡수 불가 · 시끄러운 축은 꺼진다).
+다만 적대 리뷰가 **구체적 위험 예시**를 줬다 — `ck_kill_switch_events_trigger_scope` 의 이름을
+유지한 채 `exchange_account_id IS NULL` 절만 지우면 축은 초록이고 DB 는 **strategy 와 exchange
+account 가 동시에 지정된 잘못된 kill-switch scope** 를 허용한다.
+
+**권장 접근:** ⑴ 따옴표 리터럴을 **먼저 분리**하고 그 바깥에서만 캐스트 제거·casefold 해라.
+⑵ ★**의미론을 먼저 정해라** — 「앞 축이 아프면 뒤 축을 얹지 마라」가 원래 의도인데, 그것이
+**이미 수집한 증거를 버리는 것**까지 뜻해야 하나? 아니라면 축별 지역 skip 으로 바꾸고
+skip 을 **출력에 찍어라**(조용한 skip 이 이 결함의 본체다). ⑶ 축을 넓히지 말고, 위험한 CHECK
+**3개에 한해** 표현식 스냅샷 테스트를 따로 둬라 —
+`test_deactivation_reason_check_matches_the_enum` 이 이미 그 모양이다.
+
+**Risk:** 🟢 (셋 다 테스트 전용. 다만 ⑵·⑶ 은 **가드가 조용히 약해지는** 종류라 늦게 드러난다)
+
+**상태:** ⬜ Open — 2026-08-18 등재. 미착수
+**트리거 판정:** 도래 — 적대 리뷰가 셋을 재현 시나리오와 함께 확정했다 (2026-08-18 n5-ci-truth-close)

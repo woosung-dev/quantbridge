@@ -288,15 +288,25 @@ alembic revision --autogenerate -m "add backtest_kind column"
 # 마이그레이션 적용
 alembic upgrade head
 
-# 롤백
-alembic downgrade -1
+# 롤백 — ★`-x allow_destructive=1` 이 **필수**다. 그냥 치면 SystemExit 로 죽는다.
+#   `alembic/env.py:106-125` 가 downgrade 만 골라 막는다(`_test` 접미 DB 만 자동 통과).
+#   2026-07-25 에 이 경로로 로컬 개발 DB 가 전소한 뒤 세운 가드다. 먼저 `mise run db-snapshot`.
+alembic -x allow_destructive=1 downgrade -1
 ```
+
+> ★**서버 소크 DB 는 별개다** — DDL 은 매번 명시 승인이고 집행 도구는 `soak-stack.sh migrate` 다.
+> 절차 정본 = [`backend-deploy.md`](../../docs/reference/operations/backend-deploy.md).
 
 ### 규칙
 
 - `models.py` 변경 시 **반드시** Alembic 마이그레이션 생성
 - 마이그레이션 파일은 커밋에 포함 (자동 생성 후 검토)
-- 프로덕션 배포 전 `alembic upgrade head` 자동 실행 (Docker entrypoint)
+- 로컬·CI 는 Docker entrypoint 의 `api` 롤이 `alembic upgrade head` 를 자동 실행한다.
+  ★**프로덕션(서버 소크 스택)은 아니다** — compose 6서비스에 **api 롤이 없고**
+  (celery 계열은 `command:` override 로 롤 분기를 우회한다) 실제 API 는 호스트 uvicorn
+  systemd 유닛이라 entrypoint 를 지나지 않는다. **DDL 은 `soak-stack.sh migrate --confirm`
+  으로 사람이 승인해 적용한다** — 이것을 빼먹으면 새 코드가 옛 스키마 위에서 돈다
+  ([BL-743] · 2026-08-18 codex 적대 리뷰가 이 줄의 거짓을 잡았다).
 - 데이터 삭제/컬럼 삭제는 **2단계 배포**: (1) 코드에서 사용 중단 → (2) 다음 배포에서 삭제
 - **enum value 추가/제거**: downgrade 안 enum swap 패턴 의무 (LESSON-066) — 처음부터 uppercase 채택, 이후 enum value 추가 시 alembic 안 양방향 안전 검증
 

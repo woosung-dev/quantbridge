@@ -213,11 +213,17 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
   **쓸 수 없다**(private free — API 403 실측)」라고 적었는데, 같은 날 **저장소를 public 으로
   전환**해서 branch protection 이 **다시 가능하다.** 아직 켜지 않았으므로 위 서술(자동 검증
   없음)은 여전히 유효하지만, **이유가 「불가능」에서 「미설정」으로 바뀌었다.**
-- ★★★**`e2e` 잡은 authed 스위트를 안 돈다 — CI 초록은 authed 통과의 증거가 아니다**
+- ★★**2026-08-18 정정 — 이 항목은 더 이상 참이 아니다** ([BL-802] · n5-ci-truth-close).
+  전용 잡 **`e2e_authed`** 가 `--project=chromium-authed --no-deps` 로 매니페스트의 **18 spec** 을
+  실제로 돌리고, `ci` 요약 잡의 `needs`·`check` 에 들어 있다. 실행 증인 = run `32121054465`
+  (setup 3 passed + `chromium-authed` **72 passed 4.0분**). 남은 2 spec 만 사유와 함께
+  `localOnly` 다([BL-807]). ⇒ **「CI 초록은 authed 무증거」를 지금 인용하지 마라.**
+  아래는 그 이전(2026-08-17) 서술이며 왜 이 경고가 생겼는지의 기록으로 남긴다:
+- ~~★★★**`e2e` 잡은 authed 스위트를 안 돈다 — CI 초록은 authed 통과의 증거가 아니다**
   ([BL-789], 2026-08-17). `ci.yml` 의 e2e 스텝은 `chromium` · `chromium-live-smoke` ·
   `chromium-design-canon` 셋만 `--project=` 로 부르고, `chromium-authed` 를 부르는 줄은
   워크플로 전체에 **없다**. `apps/web/e2e/*.spec.ts` 29개 중 **20개**(`chromium-authed` 의
-  `testMatch` 가 잔여 전체를 가져간 몫)가 그래서 CI 실행 0회다.
+  `testMatch` 가 잔여 전체를 가져간 몫)가 그래서 CI 실행 0회다.~~
   게이트 판정의 증인은 로컬 `tools/scripts/final-gates.sh` 의 `e2e authed` 레그지만,
   **실행처가 그 하나뿐이라는 뜻은 아니다** — `mise run fe-e2e-authed` · `pnpm e2e:authed` ·
   `tools/scripts/e2e-authed-repro.sh` 도 같은 스위트를 돌린다.
@@ -273,18 +279,22 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 > → **2026-08-16 정정: 배포는 이미 돌고 있고, GitHub Actions 밖에 있다.**
 > `.github/workflows/` 에 `deploy-*.yml` 은 없다 — **의도된 상태**다.
 
-| 대상           | 절차                                                                                                                    | 정본                                                               |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| FE (오라클 A1) | 맥에서 빌드 → 서버는 실행만. `docker-compose.frontend.yml`                                                              | [`frontend-deploy.md`](./frontend-deploy.md)                       |
-| BE·소크 스택   | `tools/scripts/soak-stack.sh` (SSH) — `up`/`down`/`migrate`                                                             | **런북 없음** ([BL-777])                                           |
-| DB 백업        | `tools/scripts/db-backup.sh` + systemd timer                                                                            | [ADR-033](../../decisions/033-db-hosting-self-host-timescaledb.md) |
-| migration      | Docker entrypoint 가 `alembic upgrade head`. 서버 소크 DB 는 `soak-stack.sh migrate`(기본 dry-run, `--confirm` 이 집행) | `status.md` 비목표 항목                                            |
+| 대상           | 절차                                                                                                                                   | 정본                                                               |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| FE (오라클 A1) | 맥에서 빌드 → 서버는 실행만. `docker-compose.frontend.yml`                                                                             | [`frontend-deploy.md`](./frontend-deploy.md)                       |
+| BE·소크 스택   | `soak-stack.sh` **서브커맨드 8개** — 새 코드를 올리는 것은 `pin` 이다(`up` 만으로는 안 뜬다). ssh 는 스크립트가 아니라 운영자가 감싼다 | [backend-deploy.md](backend-deploy.md)                             |
+| DB 백업        | `tools/scripts/db-backup.sh` + systemd timer                                                                                           | [ADR-033](../../decisions/033-db-hosting-self-host-timescaledb.md) |
+| migration      | Docker entrypoint 가 `alembic upgrade head`. 서버 소크 DB 는 `soak-stack.sh migrate`(기본 dry-run, `--confirm` 이 집행)                | `status.md` 비목표 항목                                            |
 
 ★**`--project-directory` 를 빼먹지 마라** — compose 가 `.env` 를 `infra/compose/` 에서 찾아
 `BETTER_AUTH_SECRET is missing` 으로 죽는다(ADR-029 재배치 이후 2026-08-16 배포에서 처음 밟았다).
+★**단 이 경고는 compose 를 손으로 칠 때만이다** — `soak-stack.sh:38` 은 이미 넣고 있다.
+BE 문서에 그대로 옮기면 거짓 경고가 된다(2026-08-18).
 
 향후 workflow 화가 필요해지면 그때의 후보: staging deploy on push to `main` ·
 production deploy on tag `v*.*.*`.
+★**staging 은 없고 production 은 이미 돈다** — 오라클 A1 한 대에 소크 스택·FE·호스트 uvicorn 이
+함께 올라가 있다. 「미정」이라 적힌 표를 실태로 읽지 마라(2026-08-18).
 
 프로덕션 배포의 선택과 시작 조건은 [`roadmap.md`](../../roadmap.md)의 Beta·Deferred 게이트가 정본이다.
 

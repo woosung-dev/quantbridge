@@ -15,7 +15,7 @@
       "screenshot": "sign-in.png"
     },
     "/waitlist": {
-      "firstLoadBytes": 322174,
+      "firstLoadBytes": 322179,
       "apiRequests": 0,
       "totalRequests": 52,
       "screenshot": "waitlist.png"

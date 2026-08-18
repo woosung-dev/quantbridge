@@ -18,7 +18,7 @@
 #
 # 사용:
 #   tools/scripts/db-backup.sh run                    # 1회 백업 (타이머가 부르는 형태)
-#   tools/scripts/db-backup.sh verify-restore <덤프>  # ★throwaway DB 로 복원 실증
+#   tools/scripts/db-backup.sh verify-restore <덤프>  # ★throwaway DB 왕복만. **앱 DB 복구 절차가 아니다**
 #   tools/scripts/db-backup.sh --status               # 타이머 · 최근 백업 · 설치본 신선도
 #   tools/scripts/db-backup.sh --install              # systemd user timer (03·09·15·21시)
 #   tools/scripts/db-backup.sh --uninstall
@@ -431,7 +431,7 @@ _verify_restore() { # _verify_restore <덤프 파일>
   _psql "${_VERIFY_DB}" "CREATE EXTENSION IF NOT EXISTS timescaledb;" > /dev/null 2>&1 \
     || die "throwaway DB 에 timescaledb 확장을 못 만들었다" 1
   _psql "${_VERIFY_DB}" "SELECT timescaledb_pre_restore();" > /dev/null \
-    || die "timescaledb_pre_restore() 실패 — 이것 없이는 복원이 깨진다" 1
+    || die "timescaledb_pre_restore() 실패 — 문서가 요구하는 단계다(효과는 :348-358 [확인 필요])" 1
 
   "${DOCKER[@]}" exec "${DB_CONTAINER}" \
     pg_restore --no-owner --no-acl -U "${DB_USER}" -d "${_VERIFY_DB}" "${_CONTAINER_TMP}" \

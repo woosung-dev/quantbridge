@@ -15,6 +15,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 from sqlalchemy import (
     JSON,
+    CheckConstraint,
     DateTime,
     Numeric,
     String,
@@ -31,6 +32,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
+from sqlalchemy.schema import DefaultClause
 from sqlalchemy.sql.type_api import TypeEngine
 from sqlmodel import SQLModel
 
@@ -42,27 +44,53 @@ from alembic import command
 #   누락을 가리는 쪽이었다. metadata 등록의 실제 범위는 `tests/conftest.py` 머리의 목록
 #   하나이고(이 파일은 그 conftest 의 자식이라 늘 그 목록을 물려받는다), 그 목록이
 #   빠짐없는지는 `tests/test_metadata_table_coverage.py` 가 지킨다.
-#   ★아래 `ExchangeExit` 는 F401 이 아니라 **본문에서 쓰는 것**이다
-#   (`test_empty_type_drift_baseline_rejects_a_string_length_mutation`).
-from src.trading.models import ExchangeExit
+#   ★아래 `ExchangeExit`·`LiveSignalEvent` 는 F401 이 아니라 **본문에서 쓰는 것**이다
+#   (각각 type/default baseline 변이 테스트).
+from src.trading.models import ExchangeExit, LiveSignalEvent
 from tests import _db_guard
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
 TypeDrift: TypeAlias = tuple[str, str, str, str, str]
 NullableDrift: TypeAlias = tuple[str, str, str, bool, bool]
+DefaultValue: TypeAlias = str | None
+DefaultDrift: TypeAlias = tuple[str, str, str, str, DefaultValue, DefaultValue]
 IndexSignature: TypeAlias = tuple[tuple[str, ...], bool, str]
 IndexDrift: TypeAlias = tuple[str, str, str, tuple[str, ...], bool, str, int]
+CheckConstraintDrift: TypeAlias = tuple[str, str, str, str]
 
 # BL-749: 실제 alembic schema와 metadata가 이미 다른 타입은 여기 동결한다. 항목은
 # (schema, table, column, db_type, metadata_type) 순서이며, 새 drift만 test failure로 만든다.
 _TYPE_DRIFT_BASELINE: frozenset[TypeDrift] = frozenset()
 
-# BL-749: server default 는 PostgreSQL reflection 표현차가 커서 이번 축에서는 비교하지
-# 않는다. 예: `nextval(...)`·`now()`·`'{}'::jsonb` 는 metadata 의 SQL 식과 문자열 형태가
-# 달라, 정규화 근거 없이 켜면 상시 red 게이트가 된다. nullable 만 먼저 동결한다.
-# 항목은 (schema, table, column, db_nullable, metadata_nullable) 순서다.
+# BL-749: nullable 는 (schema, table, column, db_nullable, metadata_nullable) 순서다.
 _NULLABLE_DRIFT_BASELINE: frozenset[NullableDrift] = frozenset()
+
+# BL-803: server default 는 (schema, table, column, direction, model_default, db_default) 순서다.
+#
+# ★**아래 6건은 정규화 실패가 아니라 실재하는 비대칭이다** (2026-08-18 실측, quantbridge_w5_test).
+#   표현차(case·`::캐스트`·따옴표)는 `_normalize_server_default` 가 전부 흡수했고, 남은 것은
+#   **마이그레이션이 `server_default` 를 넣었는데 모델은 python-side `default=` 만 선언한** 컬럼들이다.
+#   예: `LiveSignalState.schema_version: int = Field(default=1)` ↔ DB `DEFAULT 1`.
+#
+#   ⇒ 이것이 무해하지 않은 이유: `tests/conftest.py` 의 `create_all` 은 **모델**에서 스키마를 만들므로
+#   그 경로의 테스트 DB 에는 이 DEFAULT 들이 **없다.** 즉 테스트가 보는 스키마와 프로덕션 스키마가
+#   이 6컬럼에서 갈린다([BL-788] 과 같은 가족의 결함이다). 수리는 `apps/api/src` 를 건드려야 하고
+#   모델에 `server_default` 를 얹으면 `alembic check` 축과 상호작용하므로 이 회차 범위 밖이다 → [BL-806].
+#
+#   ★동결은 「괜찮다」가 아니라 「지금 알고 있고 새것만 잡는다」는 뜻이다. 7번째가 생기면 red 다.
+#   ★★`direction` 이 전건 `db_only` 인 것에 주의해라 — 반대 방향(`model_only`, 모델에만 server_default)
+#     은 실측 0건이고, 그 방향이 생기면 마이그레이션이 모델을 안 따라온 것이라 훨씬 위험하다.
+_DEFAULT_DRIFT_BASELINE: frozenset[DefaultDrift] = frozenset(
+    {
+        ("public", "waitlist_applications", "status", "db_only", None, "pending"),
+        ("trading", "live_signal_events", "comment", "db_only", None, ""),
+        ("trading", "live_signal_events", "retry_count", "db_only", None, "0"),
+        ("trading", "live_signal_sessions", "is_active", "db_only", None, "true"),
+        ("trading", "live_signal_states", "schema_version", "db_only", None, "1"),
+        ("trading", "live_signal_states", "total_closed_trades", "db_only", None, "0"),
+    }
+)
 
 # BL-749: 인덱스는 이름 대신 (컬럼 순서, unique 여부, partial predicate)와 방향·개수를 비교한다.
 # 이름은 Alembic/SQLAlchemy 명명 규칙 차이로 안정적인 동등성 기준이 아니다.
@@ -70,11 +98,21 @@ _NULLABLE_DRIFT_BASELINE: frozenset[NullableDrift] = frozenset()
 #   지워도 초록이고, 그 인덱스 중 하나가 주문 멱등성 계약 자체다.
 _INDEX_DRIFT_BASELINE: frozenset[IndexDrift] = frozenset()
 
+# BL-803: CHECK는 (schema, table, direction, constraint_name) 순서다. 현존 모델 CHECK 3개는
+# 전부 명명돼 있다. 이름 없는 CheckConstraint가 생기면 PG 자동 이름과의 비교가 불안정하므로,
+# 그때만 정확한 양방향 drift를 이 baseline에 동결하고 이유를 이 자리 주석으로 남긴다.
+_CHECK_CONSTRAINT_DRIFT_BASELINE: frozenset[CheckConstraintDrift] = frozenset()
+
 # TimescaleDB 가 hypertable 생성 때 소유하는 시간 인덱스다. metadata 에 선언하지 않아야
 # `create_all` 경로에서 중복 생성되지 않으므로, 모델 동등성 검사에서도 DB-only 로 보지 않는다.
 _TIMESCALE_OWNED_INDEXES: frozenset[tuple[str, str, str]] = frozenset(
     {("ts", "ohlcv", "ohlcv_time_idx")}
 )
+
+# TimescaleDB CHECK 15개는 `_timescaledb_catalog` 소속이라 metadata schema 순회 범위 밖이다.
+# 현재 metadata schema 안에 TimescaleDB 소유 CHECK는 없어서 비었다. 훗날 범위 안에서 만나면
+# schema/table/name을 여기에 명시해 제외한다 — 접두사나 schema 와일드카드로 조용히 가리지 않는다.
+_TIMESCALE_OWNED_CHECK_CONSTRAINTS: frozenset[tuple[str, str, str]] = frozenset()
 
 
 def _normalize_postgresql_type(type_: TypeEngine[Any]) -> str:
@@ -163,6 +201,124 @@ def _assert_no_new_nullable_drifts(
     )
 
 
+def _strip_postgresql_type_casts(value: str) -> str:
+    """PostgreSQL reflection이 덧붙인 `::type` 렌더링 인공물을 지운다.
+
+    타입명을 열거하지 않는다. `jsonb`와 사용자 enum처럼 새 타입이 계속 늘어나므로
+    `::<식별자>` 일반형을 지운다. `character varying`은 PostgreSQL의 두 낱말 타입 표기라
+    `varying`만 같은 cast의 일부로 함께 허용한다.
+    """
+    return re.sub(
+        r"::\s*[a-z_][a-z0-9_]*(?:\s+varying)?(?:\s*\[\])?",
+        "",
+        value,
+        flags=re.IGNORECASE,
+    )
+
+
+def _normalize_server_default(default: Any) -> DefaultValue:
+    """`Column.server_default`와 Inspector default를 비교 가능한 표기로 낮춘다.
+
+    이 축은 **`Column.server_default` ↔ Inspector `get_columns()[i]["default"]`** 만 본다.
+    SQLModel의 python-side `default` / `default_factory`(예: `default_factory=uuid4`)는 DB에
+    나타나지 않으므로 축 밖이다. 그것까지 drift로 세면 baseline 전체가 시끄러워진다.
+    """
+    if default is None:
+        return None
+    default_arg = getattr(default, "arg", default)
+    normalized = _strip_postgresql_type_casts(str(default_arg).strip().casefold()).strip()
+    if len(normalized) >= 2 and normalized.startswith("'") and normalized.endswith("'"):
+        return normalized[1:-1]
+    return normalized
+
+
+def _default_drifts_for_table(
+    schema: str,
+    table_name: str,
+    db_defaults: dict[str, Any],
+    metadata_server_defaults: dict[str, Any],
+) -> set[DefaultDrift]:
+    """한 테이블의 공통 컬럼에서 server default 양방향 drift를 수집한다."""
+    drifts: set[DefaultDrift] = set()
+    for column_name, metadata_default in metadata_server_defaults.items():
+        if column_name not in db_defaults:
+            continue
+        normalized_metadata_default = _normalize_server_default(metadata_default)
+        db_default = _normalize_server_default(db_defaults[column_name])
+        if normalized_metadata_default == db_default:
+            continue
+        # ★**한 차이는 한 행이다.** 초판은 양쪽이 다 non-None 이면 `model_only` + `db_only`
+        #   **두 행**을 냈는데, 그러면 ⑴ 라벨이 거짓말을 하고(`db_only` 인데 모델 값이 찍힌다)
+        #   ⑵ **정지 규칙(`> 5`)이 행 수를 세므로 실효 문턱이 절반**이 된다 —
+        #   진짜 mismatch 3건이면 6행이 되어 축이 스스로 동결된다 (2026-08-18 CONTROL).
+        #   방향 라벨은 「어느 쪽에만 default 가 있나」를 뜻하고, 둘 다 있으면 `mismatch` 다.
+        if normalized_metadata_default is None:
+            direction = "db_only"
+        elif db_default is None:
+            direction = "model_only"
+        else:
+            direction = "mismatch"
+        drifts.add(
+            (
+                schema,
+                table_name,
+                column_name,
+                direction,
+                normalized_metadata_default,
+                db_default,
+            )
+        )
+    return drifts
+
+
+def _assert_no_new_default_drifts(
+    observed_default_drifts: set[DefaultDrift],
+    baseline: frozenset[DefaultDrift] = _DEFAULT_DRIFT_BASELINE,
+) -> None:
+    """동결 baseline 밖의 server default drift는 검사 실패로 만든다."""
+    new_default_drifts = observed_default_drifts - baseline
+    assert not new_default_drifts, (
+        "새 server default drift 발견 (schema, table, column, direction, model_default, "
+        f"db_default): {sorted(new_default_drifts)}. 기존 drift만 허용하려면 "
+        "_DEFAULT_DRIFT_BASELINE에 정확한 6-튜플을 동결하라."
+    )
+
+
+def test_server_default_normalization_absorbs_postgres_render_artifacts() -> None:
+    """같은 DB default의 모델/Inspector 표현은 한 표기로 낮아진다."""
+    assert _normalize_server_default(text("NOW()")) == _normalize_server_default("now()")
+    assert _normalize_server_default("[]") == _normalize_server_default("'[]'::jsonb")
+
+
+def test_server_default_normalization_still_separates_different_values() -> None:
+    """jsonb cast를 지워도 배열과 객체 default는 서로 달라야 한다."""
+    assert _normalize_server_default("'[]'::jsonb") != _normalize_server_default("'{}'::jsonb")
+
+
+def test_empty_default_drift_baseline_rejects_a_server_default_mutation() -> None:
+    """실제 status default를 바꾸면 빈 baseline에서 양방향 default drift로 남는다."""
+    status_column = LiveSignalEvent.__table__.c.status
+    original_server_default = status_column.server_default
+    status_column.server_default = DefaultClause(text("'dispatched'"))
+    try:
+        observed = _default_drifts_for_table(
+            "trading",
+            "live_signal_events",
+            {"status": "'pending'::character varying"},
+            {"status": status_column.server_default},
+        )
+    finally:
+        status_column.server_default = original_server_default
+
+    # ★양쪽 다 default 가 있으므로 방향은 `mismatch` 이고 **행은 하나**다.
+    #   두 행을 내면 정지 규칙(`> 5`)의 실효 문턱이 절반이 된다.
+    assert observed == {
+        ("trading", "live_signal_events", "status", "mismatch", "dispatched", "pending"),
+    }
+    with pytest.raises(AssertionError, match="새 server default drift"):
+        _assert_no_new_default_drifts(observed, frozenset())
+
+
 def _normalize_index_predicate(where: Any) -> str:
     """partial index 의 `WHERE` 를 모델↔DB 가 비교 가능한 문자열로 낮춘다.
 
@@ -178,6 +334,10 @@ def _normalize_index_predicate(where: Any) -> str:
     모델 `status = 'pending'` ↔ DB `(status)::text = 'pending'::text`. varchar/enum 컬럼을
     리터럴과 비교하면 PostgreSQL 이 **양쪽에 `::text` 를 붙이고 식별자를 괄호로 감싼다.**
     ⑴ `::text`·`::character varying` 캐스트 접미 ⑵ 홑 식별자를 감싼 괄호 — 둘 다 의미가 없다.
+    ★★**이 축은 `_strip_postgresql_type_casts`(default 축용 일반형)를 쓰지 않는다** (2026-08-18 CONTROL).
+      일반형은 `::<식별자>` 를 전부 지우므로 `a::int = b` 와 `a::text = b` 가 같아진다 —
+      이 축이 방금 적대 리뷰로 얻은 판별력을 새 축의 부수효과로 넓히지 않는다.
+      default 축이 `::jsonb`·enum 캐스트를 필요로 하는 것은 그 축의 사정이고, 여기 옮겨 붙이지 마라.
     ★**그 이상은 하지 않는다.** 표현식을 파싱하기 시작하면 그 파서가 다음 결함의 출처가 된다.
     판별력이 남아 있다는 것은 `test_index_predicate_normalization_*` 둘이 고정한다 —
     같은 술어는 같게, **다른 술어는 다르게** 낮춘다.
@@ -315,6 +475,93 @@ def _assert_no_new_index_drifts(
         f"{sorted(new_index_drifts)}. 기존 drift만 허용하려면 "
         "_INDEX_DRIFT_BASELINE에 정확한 7-튜플을 동결하라."
     )
+
+
+def _metadata_check_constraint_names(table: Table) -> set[str]:
+    """SQLModel metadata에 선언된 명명 CHECK 제약 이름을 모은다."""
+    names: set[str] = set()
+    for constraint in table.constraints:
+        if not isinstance(constraint, CheckConstraint):
+            continue
+        assert isinstance(constraint.name, str) and constraint.name, (
+            f"Table '{table.fullname}'의 CheckConstraint에 이름이 없다. PostgreSQL 자동 이름은 "
+            "metadata 이름 집합과 안정적으로 비교할 수 없으므로, 현존 제약이면 정확한 양방향 "
+            "drift를 _CHECK_CONSTRAINT_DRIFT_BASELINE에 동결하고 이유를 남겨라."
+        )
+        names.add(constraint.name)
+    return names
+
+
+def _db_check_constraint_names(
+    schema: str, table_name: str, check_constraints: list[dict[str, Any]]
+) -> set[str]:
+    """Inspector CHECK 목록에서 명시적으로 허용된 TimescaleDB 소유분을 제외한다."""
+    names: set[str] = set()
+    for constraint in check_constraints:
+        constraint_name = constraint.get("name")
+        assert isinstance(constraint_name, str) and constraint_name, (
+            f"Table '{schema}.{table_name}'의 Inspector CHECK에 이름이 없다 — 이름 집합 비교를 "
+            "계속하면 무의미하다"
+        )
+        if (schema, table_name, constraint_name) in _TIMESCALE_OWNED_CHECK_CONSTRAINTS:
+            # TimescaleDB가 소유한 제약은 metadata에 선언하면 create_all 경로가 중복 생성할 수 있다.
+            continue
+        names.add(constraint_name)
+    return names
+
+
+def _check_constraint_drifts_for_table(
+    schema: str,
+    table_name: str,
+    db_constraint_names: set[str],
+    metadata_constraint_names: set[str],
+) -> set[CheckConstraintDrift]:
+    """한 테이블의 CHECK 이름 집합을 모델→DB와 DB→모델 양방향으로 비교한다.
+
+    CHECK 식은 비교하지 않는다. PostgreSQL은 enum cast를 붙이고 `IN (...)`을 `= ANY(ARRAY...)`로
+    재작성해 같은 제약도 구조가 달라지므로, 식 비교는 상시 잡음을 만들어 이 축을 꺼지게 한다.
+    이름 집합은 제약의 조용한 소실과 migration-only 제약을 정확히 잡는다. 리터럴 집합 정확성은
+    `test_deactivation_reason_check_matches_the_enum`가 `pg_get_constraintdef()`로 별도 검증한다.
+    """
+    drifts: set[CheckConstraintDrift] = set()
+    for constraint_name in metadata_constraint_names - db_constraint_names:
+        drifts.add((schema, table_name, "model_only", constraint_name))
+    for constraint_name in db_constraint_names - metadata_constraint_names:
+        drifts.add((schema, table_name, "db_only", constraint_name))
+    return drifts
+
+
+def _assert_no_new_check_constraint_drifts(
+    observed_check_constraint_drifts: set[CheckConstraintDrift],
+    baseline: frozenset[CheckConstraintDrift] = _CHECK_CONSTRAINT_DRIFT_BASELINE,
+) -> None:
+    """동결 baseline 밖의 CHECK 이름 drift는 검사 실패로 만든다."""
+    new_check_constraint_drifts = observed_check_constraint_drifts - baseline
+    assert not new_check_constraint_drifts, (
+        "새 CHECK constraint drift 발견 (schema, table, direction, constraint_name): "
+        f"{sorted(new_check_constraint_drifts)}. 기존 drift만 허용하려면 "
+        "_CHECK_CONSTRAINT_DRIFT_BASELINE에 정확한 4-튜플을 동결하라."
+    )
+
+
+def test_check_constraint_name_drifts_detects_a_model_only_name() -> None:
+    """모델에만 남은 CHECK 이름은 migration 누락으로 잡힌다."""
+    assert _check_constraint_drifts_for_table(
+        "trading",
+        "alert_rules",
+        set(),
+        {"ck_alert_rules_type_threshold"},
+    ) == {("trading", "alert_rules", "model_only", "ck_alert_rules_type_threshold")}
+
+
+def test_check_constraint_name_drifts_detects_a_db_only_name() -> None:
+    """migration에만 남은 CHECK 이름은 metadata 누락으로 잡힌다."""
+    assert _check_constraint_drifts_for_table(
+        "trading",
+        "alert_rules",
+        {"ck_alert_rules_type_threshold"},
+        set(),
+    ) == {("trading", "alert_rules", "db_only", "ck_alert_rules_type_threshold")}
 
 
 def _is_externally_owned_db_only_table(schema: str, table_name: str) -> bool:
@@ -643,7 +890,7 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     """migration-only schema와 SQLModel.metadata가 양방향으로 일치하는지 검증.
 
     Migration drift 방지 — 모델 변경 시 Alembic migration 작성 누락과 DB-only 표를 검출한다.
-    컬럼 이름·type·nullable 및 Index/UNIQUE를 비교한다. default 는 이 회차에서 제외한다.
+    컬럼 이름·type·nullable·server default 및 Index/UNIQUE·CHECK 이름을 비교한다.
     """
     # create_all fixture가 만든 현재 metadata가 아니라 migration DDL만 검사해야 모델 변이가
     # 실제 Alembic 경로에서 red가 된다. `downgrade base` → `upgrade head`로 강제한다.
@@ -677,6 +924,9 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
                             "columns": columns,
                             "indexes": inspector.get_indexes(table_name, schema=schema),
                             "unique_constraints": inspector.get_unique_constraints(
+                                table_name, schema=schema
+                            ),
+                            "check_constraints": inspector.get_check_constraints(
                                 table_name, schema=schema
                             ),
                             "primary_key": inspector.get_pk_constraint(table_name, schema=schema),
@@ -713,6 +963,7 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
 
     observed_type_drifts: set[TypeDrift] = set()
     observed_nullable_drifts: set[NullableDrift] = set()
+    observed_default_drifts: set[DefaultDrift] = set()
     for (schema, table_name), metadata_table in metadata_tables.items():
         full_name = f"{schema}.{table_name}"
         metadata_columns = {column.name: column for column in metadata_table.columns}
@@ -748,6 +999,16 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
                 {name: bool(column.nullable) for name, column in metadata_columns.items()},
             )
         )
+        # 이 축은 DB에 DDL로 존재하는 server_default만 대조한다. SQLModel의 python-side
+        # default/default_factory는 Inspector에 나타나지 않으므로 여기에 넣지 않는다.
+        observed_default_drifts.update(
+            _default_drifts_for_table(
+                schema,
+                table_name,
+                {name: column["default"] for name, column in db_columns.items()},
+                {name: column.server_default for name, column in metadata_columns.items()},
+            )
+        )
 
     _assert_no_new_type_drifts(observed_type_drifts)
     _assert_no_new_nullable_drifts(observed_nullable_drifts)
@@ -757,6 +1018,12 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     if len(_NULLABLE_DRIFT_BASELINE) > 5:
         return
 
+    # ★★**축은 켜진 순서대로 놓는다 — 정지 규칙이 cascading `return` 이기 때문이다** ([BL-803], 2026-08-18).
+    #   정지 규칙은 「이 축이 시끄러우면 그 **뒤** 축은 이 회차에 얹지 마라」는 뜻이고, 그래서
+    #   **뒤에 오는 축일수록 나중에 켜진 축**이어야 한다. 이 회차의 초판은 새 `default` 축을
+    #   index 축 **앞**에 뒀는데, `default` baseline 이 6건(>5)이라 그 `return` 이
+    #   [BL-749] 가 방금 착지시킨 **index 축을 통째로 끄고 있었다** — 새 축이 낡은 축을
+    #   조용히 죽이는 fail-open 이다. 그래서 순서를 type → nullable → index → default → CHECK 로 둔다.
     observed_index_drifts: set[IndexDrift] = set()
     for (schema, table_name), metadata_table in metadata_tables.items():
         db_table = alembic_tables[(schema, table_name)]
@@ -776,6 +1043,44 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
         )
 
     _assert_no_new_index_drifts(observed_index_drifts)
+
+    # index 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
+    if len(_INDEX_DRIFT_BASELINE) > 5:
+        return
+
+    observed_check_constraint_drifts: set[CheckConstraintDrift] = set()
+    for (schema, table_name), metadata_table in metadata_tables.items():
+        db_table = alembic_tables[(schema, table_name)]
+        observed_check_constraint_drifts.update(
+            _check_constraint_drifts_for_table(
+                schema,
+                table_name,
+                _db_check_constraint_names(
+                    schema,
+                    table_name,
+                    db_table["check_constraints"],
+                ),
+                _metadata_check_constraint_names(metadata_table),
+            )
+        )
+
+    _assert_no_new_check_constraint_drifts(observed_check_constraint_drifts)
+
+    # CHECK 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
+    if len(_CHECK_CONSTRAINT_DRIFT_BASELINE) > 5:
+        return
+
+    # ★★**`default` 축이 마지막인 것은 의도다** — 이 회차 실측에서 baseline 이 **6건(>5)** 이라
+    #   바로 아래 정지 규칙이 **반드시 발화한다.** 앞에 두면 그 `return` 이 뒤 축을 통째로 끈다.
+    #   실제로 초판이 그랬고, `ck_alert_rules_type_threshold` 이름을 바꾸는 변이가
+    #   **27 passed 로 통과**해서 CHECK 축이 죽어 있음이 드러났다(2026-08-18 음성 대조).
+    #   ⇒ **새 축은 항상 맨 뒤에, baseline 이 큰 축일수록 더 뒤에 둔다.**
+    _assert_no_new_default_drifts(observed_default_drifts)
+
+    # default 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
+    # 새 default drift는 위 단언에서 먼저 red가 나므로 baseline 밖 항목을 가리지 않는다.
+    if len(_DEFAULT_DRIFT_BASELINE) > 5:
+        return
 
 
 def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
