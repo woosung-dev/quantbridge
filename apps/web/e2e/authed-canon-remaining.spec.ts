@@ -34,7 +34,14 @@ const EXPECTED_CONSOLE = [
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
   /failed to load resource.*429/i,
-  // ★★**5xx 는 더 이상 무시하지 않는다** ([BL-807], 2026-08-18). 종전의 맨 `/\b50[0-9]\b/` 는
+  // ★거래소 **포지션 조회의 503 만** 좁게 무시한다 (2026-08-18 CI 실측). CI 러너에는 실제
+  //   거래소 연결이 없어 `GET /api/v1/exchange-accounts/{id}/positions` 가 CCXT 실패로 503 을
+  //   낸다 — 그것이 BE 의 **정직한 동작**이고 앱 결함이 아니다. 이것을 하드 실패로 세면
+  //   `/trading` 캐논은 거래소 없이는 영영 CI 에서 못 돈다.
+  //   ★★범위를 **엔드포인트로 못박는다** — 아래에서 걷어낸 5xx 전체 무시를 되살리는 것이 아니다.
+  //   다른 5xx 은 여전히 잡힌다.
+  /failed to load resource.*\b503\b.*\/exchange-accounts\/[^/]+\/positions/i,
+  // ★★**그 밖의 5xx 는 더 이상 무시하지 않는다** ([BL-807], 2026-08-18). 종전의 맨 `/\b50[0-9]\b/` 는
   //   ⑴ 앵커가 없어 **본문의 아무 세 자리 50x 숫자**까지 삼켰고 ⑵ 바로 위 4xx 필터가
   //   `failed to load resource.*` 로 좁혀져 있는 것과 **비대칭**이었으며 ⑶ 무엇보다 BE 500 은
   //   「백엔드 부재 소음」이 아니라 **앱 결함**이다. 부재는 위의 `failed to fetch`·`networkerror`
