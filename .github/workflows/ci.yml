@@ -483,6 +483,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
+    # ★상한이 **없었다.** 2026-08-18 에 `playwright install --with-deps` 가 멎자 이 잡이
+    #   **6시간**(01:26→07:26)을 태우고 나서야 취소됐다(run `32088162593`). 형제 `e2e_authed`
+    #   는 상한이 있어 45분에 끊겼다 — 그 대비가 이 결함을 드러냈다. 실측 5.4분짜리 잡이다.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/web
@@ -629,6 +633,12 @@ jobs:
           echo "PLAYWRIGHT_BASE_URL=http://localhost:$port" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
         working-directory: apps/web
+      # ★형제 `e2e` 잡에는 있는데 여기엔 **없던** 브라우저 캐시다(`:506-510`).
+      #   `--with-deps` 의 apt 단계는 캐시로 못 건너뛰지만, 바이너리 다운로드는 건너뛴다.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: apps/web
       - run: uv sync --all-extras --dev
