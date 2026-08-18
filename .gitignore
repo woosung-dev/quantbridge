@@ -146,3 +146,4 @@ apps/web/e2e/.demo-shots/
 mise.local.toml
 .mise.local.toml
 mise.*.local.toml
+phases/*/runs/
