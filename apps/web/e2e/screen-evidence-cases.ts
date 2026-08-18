@@ -74,6 +74,16 @@ export function registerScreenEvidenceTests(title: string, routes: readonly Rout
       }) => {
         test.setTimeout(120_000);
 
+        // ★**수치 전용은 authed 에만 허용한다** (codex 적대 리뷰 P2, 2026-08-19). 둘이 안 묶여
+        //   있으면 공개 라우트의 `slug` 가 실수로 `null` 이 된 채 `:update` 를 돌렸을 때
+        //   스냅샷 baseline 이 `null` 로 바뀌고, 그 뒤 그 화면의 **픽셀 회귀가 통째로
+        //   「—(수치 전용)」으로 처리**된다. 화면 축이 조용히 사라지는 그 경로를 여기서 막는다.
+        expect(
+          route.authed === true || route.slug !== null,
+          `${route.path}: 공개 라우트인데 \`slug: null\`(수치 전용)이다. 화면 축이 통째로 빠진다 — ` +
+            "실데이터가 픽셀을 흔드는 authed 라우트에만 허용된다.",
+        ).toBe(true);
+
         let capturing = true;
         let apiRequests = 0;
         let totalRequests = 0;

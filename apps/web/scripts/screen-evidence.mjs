@@ -194,28 +194,21 @@ const snapshotFile = (name) => {
  *   에 띄우므로 개발용 `:3000` 을 아는 BE 로는 **CORS 가 조용히 거부**한다. 2026-08-18 night4 가
  *   같은 비대칭으로 두 번 오진했다("서버가 안 떴다" → 실제로는 포트 불일치).
  */
-async function assertAuthedPrereqs(baseURL) {
+async function assertAuthedPrereqs(baseURL, localEnv) {
+  // ★storageState 부재는 **죽일 일이 아니다** (codex 적대 리뷰 P2, 2026-08-19). 그 파일을 만드는
+  //   것은 authed project 의 `setup` dependency 이고, 그것은 **이 프로브 뒤에** 돈다. 여기서
+  //   죽이면 fresh 워크스페이스는 setup 이 파일을 만들 기회를 영영 못 얻는다.
+  //   ⇒ 안내만 남긴다. 실제로 못 만들면 그때 playwright 가 red 를 낸다(그쪽이 정확한 증인이다).
   const storage = path.join(WEB_ROOT, "e2e/.auth/storageState.json");
-  if (!existsSync(storage))
-    die(
-      `authed 측정 전제 — storageState 가 없다: ${path.relative(REPO_ROOT, storage)}\n` +
-        "  setup project 가 아직 안 돌았다. playwright 의 `dependencies` 가 그것을 물지만,\n" +
-        "  그 setup 자체가 BE 를 요구하므로 아래 BE 조건을 먼저 맞춰라.",
-    );
+  const storageNote = existsSync(storage) ? "storageState 있음" : "storageState 없음 — setup 이 만든다";
 
-  // `.env.local` 은 next 가 읽지 이 스크립트는 아니다 — 같은 파일을 직접 읽는다(global.setup.ts 선례).
-  for (const f of ["apps/web/.env.local", "apps/web/.env"]) {
-    const abs = path.join(REPO_ROOT, f);
-    if (existsSync(abs)) {
-      try {
-        process.loadEnvFile(abs);
-      } catch {
-        // 형식 오류는 여기서 죽일 일이 아니다 — 아래 프로브가 실패로 말한다.
-      }
-      break;
-    }
-  }
-  const apiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+  // ★★**빌드·서버에 준 것과 같은 값으로 잰다** (codex 적대 리뷰 P1, 2026-08-19).
+  //   초판은 `process.loadEnvFile` 로 `.env.local` 을 읽고 `process.env` 에서 꺼냈는데,
+  //   **`loadEnvFile` 은 이미 있는 키를 덮지 않는다**(실측 확인). 셸에 옛 `NEXT_PUBLIC_API_URL`
+  //   이 남아 있으면 프로브는 **다른 API** 의 health·CORS 를 통과시키고, 브라우저는 실제 API 에
+  //   CORS 로 막힌다. 그 실패는 `requestfailed` 라 spec 의 응답 수집에 안 잡히고, 번들 값이
+  //   같으면 **초록**이 난다 — 이 게이트가 막으려는 바로 그 모양이다.
+  const apiUrl = (localEnv.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
 
   let health;
   try {
@@ -251,7 +244,7 @@ async function assertAuthedPrereqs(baseURL) {
         `    BETTER_AUTH_URL=${baseURL} (JWKS 취득 URL + JWT issuer)\n` +
         `  이대로 재면 화면이 데이터를 못 받고, 그 결과는 red 가 아니라 **더 가벼운 번들**로 보인다.`,
     );
-  console.log(`  authed 전제 OK — BE ${apiUrl} · CORS origin ${allowed} · storageState 있음`);
+  console.log(`  authed 전제 OK — BE ${apiUrl} · CORS origin ${allowed} · ${storageNote}`);
 }
 
 async function main() {
@@ -321,7 +314,7 @@ async function main() {
     // ★authed leg 는 **공개 leg 가 성립한 뒤에** 돈다. 앞이 깨졌으면 전제 프로브에 시간을
     //   쓰지 않는다. 측정 JSON 은 같은 폴더에 쌓이고 아래에서 한꺼번에 읽는다.
     if (AUTHED && playwrightStatus === 0) {
-      await assertAuthedPrereqs(baseURL);
+      await assertAuthedPrereqs(baseURL, localEnv);
       const pwAuthed = run(
         "pnpm",
         ["exec", "playwright", "test", "--project=chromium-screen-evidence-authed"],
@@ -368,9 +361,21 @@ async function main() {
     // ★★**범위 밖 행을 보존한다.** `--authed` 없이 `:update` 를 돌리면 이번 실행은 공개
     //   라우트만 쟀는데, 그 결과로 baseline 을 덮어쓰면 authed 행이 **통째로 사라진다** —
     //   그리고 그 삭제는 다음 실행에서 「신규 라우트」로 보여 아무도 눈치채지 못한다.
-    const preserved = Object.fromEntries(
-      Object.entries(readBaselineHere() ?? {}).filter(([, m]) => !inScope(m)),
-    );
+    const existing = readBaselineHere() ?? {};
+    const preserved = Object.fromEntries(Object.entries(existing).filter(([, m]) => !inScope(m)));
+    // ★★**범위 안인데 이번에 안 잰 라우트는 「삭제」다 — 조용히 하지 않는다** (codex 적대 리뷰 P1,
+    //   2026-08-19). `--authed` 로 돌리면 모든 행이 범위 안이라 위 `preserved` 가 비고, 그러면
+    //   ROUTES 에서 한 건이 실수로 빠진 채 `:update` 를 돌린 회차가 **그 라우트를 baseline 에서
+    //   지우고** 이후 검사는 그것을 요구하지 않는다 — 커버리지가 사라진 채 초록이 된다.
+    //   check 모드의 키 집합 대조(`mjs` 아래)가 막는 것과 같은 사고를 update 모드가 열어 두면 안 된다.
+    const dropped = Object.keys(existing).filter((k) => inScope(existing[k]) && !(k in measured));
+    if (dropped.length > 0)
+      die(
+        `baseline 에 있던 라우트를 이번 실행이 재지 않았다: ${dropped.join(", ")}\n` +
+          "  이대로 갱신하면 그 행이 **삭제**되고, 이후 게이트는 그 라우트를 요구하지 않는다.\n" +
+          "  ★의도한 삭제라면 baseline 에서 그 키를 먼저 손으로 지우고 다시 돌려라 — 삭제는 명시적이어야 한다.\n" +
+          "  ★의도하지 않았다면 spec 의 ROUTES 에서 그 라우트가 빠졌는지 확인해라.",
+      );
     const nextRoutes = { ...preserved, ...measured };
     writeFileSync(
       BASELINE_ABS,
