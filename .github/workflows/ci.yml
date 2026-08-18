@@ -483,6 +483,10 @@ jobs:
     needs: changes
     if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
+    # ★상한이 **없었다.** 2026-08-18 에 `playwright install --with-deps` 가 멎자 이 잡이
+    #   **6시간**(01:26→07:26)을 태우고 나서야 취소됐다(run `32088162593`). 형제 `e2e_authed`
+    #   는 상한이 있어 45분에 끊겼다 — 그 대비가 이 결함을 드러냈다. 실측 5.4분짜리 잡이다.
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/web
@@ -551,6 +555,14 @@ jobs:
     #   `ci` 요약은 skipped 를 통과로 세므로 초록으로 머지된다.
     if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
+    # ★잡 상한 — `workers: 1` · `fullyParallel: false` · `retries: 2` 라 깨진 spec 하나가
+    #   3배로 든다. 상한이 없으면 GitHub 기본 360분까지 러너를 붙잡는다([BL-802]).
+    #   ★★**30분은 빠듯해서 45분으로 올렸다** (2026-08-18 실측). spec 20건의 실행 단계만
+    #   **19.9분**이고(run `32082953745`), 여기에 setup·install·시더가 얹힌다. 그리고 30분판은
+    #   `playwright install --with-deps` 가 러너에서 25분 넘게 멎어 **그 단계에서** 잘렸다
+    #   (run `32084967676` — 내 스텝은 시작도 못 했다). 상한은 폭주 방지용이지 정상 실행을
+    #   자르는 값이 아니다.
+    timeout-minutes: 45
     services:
       db:
         image: timescale/timescaledb:2.14.2-pg15
@@ -586,6 +598,12 @@ jobs:
       E2E_AUTH_EMAIL: ci-e2e-authed@example.test
       E2E_AUTH_PASSWORD: ci-e2e-authed-password-0000000
       NEXT_PUBLIC_API_URL: http://localhost:8000
+      # ★`테스트 주문` 버튼은 **데이터가 아니라 플래그**로 가려져 있다
+      #   (`features/trading/components/orders-panel.tsx:60`). 이게 없으면
+      #   `dogfood-flow` 와 `sprint46-tier1-critical #5` 가 「버튼을 못 찾는다」로 죽는데,
+      #   증상이 「거래소 계정이 없다」와 똑같이 보인다 — 2026-08-18 에 그렇게 오진했다.
+      #   `apps/web/.env.example:47` 이 이 값을 dogfood 전용으로 선언한다.
+      NEXT_PUBLIC_ENABLE_TEST_ORDER: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
@@ -611,8 +629,22 @@ jobs:
           echo "resolved frontend port: $port"
           echo "BETTER_AUTH_URL=http://localhost:$port" >> "$GITHUB_ENV"
           echo "FRONTEND_URL=http://localhost:$port" >> "$GITHUB_ENV"
+          # ★★**FE 서버를 이 잡이 직접 띄운다** ([BL-802], 2026-08-18). playwright 를 **두 번**
+          #   부르기 때문이다 — ⑴ 로그인/storageState → ⑵ 결정론 시더 → ⑶ authed spec.
+          #   `PLAYWRIGHT_BASE_URL` 이 있으면 `e2e/_base-url.ts` 의 `hasConfiguredBaseURL()` 이
+          #   true 라 playwright 가 자기 `webServer` 를 **안 띄운다**(`playwright.config.ts:204`).
+          #   그렇게 안 하면 두 번째 호출이 같은 포트에 dev 서버를 하나 더 띄워 충돌한다
+          #   (CI 는 `reuseExistingServer: !isCI` = false 다).
+          echo "QB_FE_PORT=$port" >> "$GITHUB_ENV"
+          echo "PLAYWRIGHT_BASE_URL=http://localhost:$port" >> "$GITHUB_ENV"
       - run: pnpm install --frozen-lockfile
         working-directory: apps/web
+      # ★형제 `e2e` 잡에는 있는데 여기엔 **없던** 브라우저 캐시다(`:506-510`).
+      #   `--with-deps` 의 apt 단계는 캐시로 못 건너뛰지만, 바이너리 다운로드는 건너뛴다.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps chromium
         working-directory: apps/web
       - run: uv sync --all-extras --dev
@@ -633,6 +665,40 @@ jobs:
           done
           cat "$RUNNER_TEMP/uvicorn.log"
           exit 1
+      - name: Start frontend and wait for it
+        working-directory: apps/web
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm dev --port "$QB_FE_PORT" > "$RUNNER_TEMP/next.log" 2>&1 &
+          for attempt in {1..120}; do
+            if curl --fail --silent --output /dev/null "http://localhost:$QB_FE_PORT/"; then
+              echo "frontend up after ${attempt}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/next.log"
+          exit 1
+      # ⑴ 로그인해서 storageState 를 만든다. `setup-authed-reachability` 가
+      #    `setup`·`setup-identity` 를 의존으로 끌어온다(`playwright.config.ts:111-115`).
+      - name: Bootstrap identity and storageState
+        working-directory: apps/web
+        run: pnpm exec playwright test --project=setup-authed-reachability
+      # ⑵ ★**시더는 반드시 ⑴ 뒤다.** 앱 `users` 행은 sign-up 만으로 안 생기고, 인증된 요청이
+      #    한 번 지나야 JIT 프로비저닝된다(`src/auth/service.py:89-129`). ⑴ 의 `/strategies`
+      #    방문이 그 요청이다. 시더는 `users` 0행이면 fail-closed 로 죽는다.
+      - name: Seed deterministic authed data
+        working-directory: apps/api
+        shell: bash
+        run: |
+          set -euo pipefail
+          # ★`--selftest` 를 먼저 — DB 없이 모든 행을 구성해 본다. 초판이 실재하지 않는 enum 멤버
+          #   (`OptimizationKind.GRID`)를 썼는데 로컬 검증이 그 줄에 **도달한 적이 없어**
+          #   CI 에서 처음 터졌다(run `32087714072`). 1초짜리 배선 확인이 그 왕복을 없앤다.
+          uv run python scripts/seed_ci_e2e.py --selftest
+          uv run python scripts/seed_ci_e2e.py --confirm
+      # ⑶ `--no-deps` — ⑴ 에서 이미 돌린 setup project 를 다시 돌리지 않는다.
       - name: Run selected authed specs
         working-directory: apps/web
         shell: bash
@@ -644,7 +710,15 @@ jobs:
             exit 1
           fi
           echo "authed CI specs: $specs"
-          pnpm exec playwright test --project=chromium-authed $specs
+          pnpm exec playwright test --project=chromium-authed --no-deps $specs
+      - name: Upload frontend log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-authed-next-log
+          path: ${{ runner.temp }}/next.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload authed Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
