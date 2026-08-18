@@ -350,6 +350,10 @@ run_gate "메인 체크아웃 가드 하네스" "tools/scripts/assert-main-check
 #   skip 하고 스텁 갈래 35건은 항상 돈다(실행 0건이면 스스로 rc≠0 — 「전부 skip 인데 초록」 방지).
 run_gate "DB 백업 하네스" "tools/scripts/db-backup.sh" bash "$ROOT/tools/scripts/db-backup-test.sh"
 run_gate "디스크 경보 하네스" "tools/scripts/disk-guard.sh" bash "$ROOT/tools/scripts/disk-guard-test.sh"
+# ★[BL-805] API 유닛 인스톨러. **지은 자리에서 바로 등록한다** — 위 「고아 하네스」 주석이 말하는
+#   경로가 정확히 「등록을 다음 회차로 미루는 것」이다. systemd 를 실제로 건드리지 않는다
+#   (systemctl/loginctl 스텁 + XDG_CONFIG_HOME 격리)라 macOS·CI 어디서나 돈다.
+run_gate "API 유닛 하네스" "tools/scripts/api-service.sh" bash "$ROOT/tools/scripts/api-service-test.sh"
 
 # ── 2. 단위 ───────────────────────────────────────────────────────
 # ★env 소싱 의무 + cd 절대경로. `pnpm test --run` 은 Unknown option — `pnpm test` 가 이미 vitest run.

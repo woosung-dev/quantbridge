@@ -3,6 +3,7 @@
 Beta 가입 대기자 신청서 — TV 구독 / 자본금 / Pine 경험 / 기존 도구 / pain_point
 + admin approve 시 HMAC invite token 발급 + Resend 로 email 발송.
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -54,6 +55,9 @@ class WaitlistApplication(SQLModel, table=True):
             # 기본(name 미지정) 은 lowercase class name → 'waitliststatus' 와 mismatch.
             SAEnum(WaitlistStatus, name="waitlist_status"),
             nullable=False,
+            # [BL-806] 마이그레이션(20260425_0002:63)의 표기를 그대로 베낀다 — 표현이
+            # 갈리면 훗날 `compare_server_default` 를 켤 때 위양성이 난다.
+            server_default="pending",
         ),
     )
     invite_token: str | None = Field(default=None, max_length=512, nullable=True)

@@ -68,29 +68,22 @@ _NULLABLE_DRIFT_BASELINE: frozenset[NullableDrift] = frozenset()
 
 # BL-803: server default 는 (schema, table, column, direction, model_default, db_default) 순서다.
 #
-# ★**아래 6건은 정규화 실패가 아니라 실재하는 비대칭이다** (2026-08-18 실측, quantbridge_w5_test).
-#   표현차(case·`::캐스트`·따옴표)는 `_normalize_server_default` 가 전부 흡수했고, 남은 것은
-#   **마이그레이션이 `server_default` 를 넣었는데 모델은 python-side `default=` 만 선언한** 컬럼들이다.
-#   예: `LiveSignalState.schema_version: int = Field(default=1)` ↔ DB `DEFAULT 1`.
+# ★**[BL-806] 으로 6 → 0 이 됐다** (2026-08-18, quantbridge_w2_test 실측).
+#   동결돼 있던 6건은 정규화 실패가 아니라 **마이그레이션이 `server_default` 를 넣었는데 모델은
+#   python-side `default=` 만 선언한** 실재하는 비대칭이었다. `tests/conftest.py` 의 `create_all` 은
+#   **모델**에서 스키마를 만들므로 그 6컬럼에서 **테스트 DB 와 프로덕션 스키마가 갈려 있었다**
+#   ([BL-788] 과 같은 가족의 결함). 이제 여섯 모델 모두 `sa_column=Column(..., server_default=...)`
+#   으로 마이그레이션 표기를 그대로 들고 있어 두 스키마가 이 축에서 같다.
 #
-#   ⇒ 이것이 무해하지 않은 이유: `tests/conftest.py` 의 `create_all` 은 **모델**에서 스키마를 만들므로
-#   그 경로의 테스트 DB 에는 이 DEFAULT 들이 **없다.** 즉 테스트가 보는 스키마와 프로덕션 스키마가
-#   이 6컬럼에서 갈린다([BL-788] 과 같은 가족의 결함이다). 수리는 `apps/api/src` 를 건드려야 하고
-#   모델에 `server_default` 를 얹으면 `alembic check` 축과 상호작용하므로 이 회차 범위 밖이다 → [BL-806].
-#
-#   ★동결은 「괜찮다」가 아니라 「지금 알고 있고 새것만 잡는다」는 뜻이다. 7번째가 생기면 red 다.
-#   ★★`direction` 이 전건 `db_only` 인 것에 주의해라 — 반대 방향(`model_only`, 모델에만 server_default)
-#     은 실측 0건이고, 그 방향이 생기면 마이그레이션이 모델을 안 따라온 것이라 훨씬 위험하다.
-_DEFAULT_DRIFT_BASELINE: frozenset[DefaultDrift] = frozenset(
-    {
-        ("public", "waitlist_applications", "status", "db_only", None, "pending"),
-        ("trading", "live_signal_events", "comment", "db_only", None, ""),
-        ("trading", "live_signal_events", "retry_count", "db_only", None, "0"),
-        ("trading", "live_signal_sessions", "is_active", "db_only", None, "true"),
-        ("trading", "live_signal_states", "schema_version", "db_only", None, "1"),
-        ("trading", "live_signal_states", "total_closed_trades", "db_only", None, "0"),
-    }
-)
+#   ★값 표기는 **마이그레이션 원본을 그대로 베낀다**(`text("''")` · `text("0")` · `text("true")` ·
+#     `text("1")` · `"pending"`). 표현이 갈리면 훗날 `alembic/env.py` 에 `compare_server_default`
+#     를 켤 때 위양성이 난다 — 지금은 두 `context.configure()` 어디에도 없어 `alembic check` 가
+#     이 축을 **안 본다**(2026-08-18 실측: 6컬럼을 다 바꿔도 `alembic check` rc=0 그대로).
+#   ★**빈 baseline 은 「이 축에 drift 가 하나도 없다」는 뜻이다.** 하나라도 생기면 즉시 red 다 —
+#     동결하려면 그 자리에 6-튜플과 **왜 못 고치는지**를 함께 남겨라.
+#   ★★방향 라벨 주의: `model_only`(모델에만 server_default)가 생기면 마이그레이션이 모델을
+#     안 따라온 것이라 `db_only` 보다 훨씬 위험하다.
+_DEFAULT_DRIFT_BASELINE: frozenset[DefaultDrift] = frozenset()
 
 # BL-749: 인덱스는 이름 대신 (컬럼 순서, unique 여부, partial predicate)와 방향·개수를 비교한다.
 # 이름은 Alembic/SQLAlchemy 명명 규칙 차이로 안정적인 동등성 기준이 아니다.
@@ -1023,7 +1016,8 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     #   **뒤에 오는 축일수록 나중에 켜진 축**이어야 한다. 이 회차의 초판은 새 `default` 축을
     #   index 축 **앞**에 뒀는데, `default` baseline 이 6건(>5)이라 그 `return` 이
     #   [BL-749] 가 방금 착지시킨 **index 축을 통째로 끄고 있었다** — 새 축이 낡은 축을
-    #   조용히 죽이는 fail-open 이다. 그래서 순서를 type → nullable → index → default → CHECK 로 둔다.
+    #   조용히 죽이는 fail-open 이다. 그래서 순서를 type → nullable → index → CHECK → default 로 둔다
+    #   (이 목록은 2026-08-18 [BL-806] 까지 뒤 둘이 뒤바뀐 채였다 — 실제 코드가 늘 이 순서였다).
     observed_index_drifts: set[IndexDrift] = set()
     for (schema, table_name), metadata_table in metadata_tables.items():
         db_table = alembic_tables[(schema, table_name)]
@@ -1070,10 +1064,13 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     if len(_CHECK_CONSTRAINT_DRIFT_BASELINE) > 5:
         return
 
-    # ★★**`default` 축이 마지막인 것은 의도다** — 이 회차 실측에서 baseline 이 **6건(>5)** 이라
-    #   바로 아래 정지 규칙이 **반드시 발화한다.** 앞에 두면 그 `return` 이 뒤 축을 통째로 끈다.
+    # ★★**`default` 축이 마지막인 것은 의도다.** [BL-803] 당시에는 이 축의 baseline 이 **6건(>5)**
+    #   이라 바로 아래 정지 규칙이 **반드시 발화했고**, 앞에 두면 그 `return` 이 뒤 축을 통째로 껐다.
     #   실제로 초판이 그랬고, `ck_alert_rules_type_threshold` 이름을 바꾸는 변이가
     #   **27 passed 로 통과**해서 CHECK 축이 죽어 있음이 드러났다(2026-08-18 음성 대조).
+    #   ★**[BL-806] 이 baseline 을 6 → 0 으로 비워 그 `return` 은 이제 발화하지 않는다**
+    #     (2026-08-18). 이 축이 마지막이라 지금은 무해하지만 — 뒤에 축을 더 얹을 거라면
+    #     그때 이 자리가 다시 fail-open 지점이 된다는 뜻이다.
     #   ⇒ **새 축은 항상 맨 뒤에, baseline 이 큰 축일수록 더 뒤에 둔다.**
     _assert_no_new_default_drifts(observed_default_drifts)
 
