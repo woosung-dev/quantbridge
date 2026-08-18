@@ -79,3 +79,46 @@ describe("[BL-072] 초대 페이지 렌더", () => {
     expect(err).not.toContain(CTA);
   });
 });
+
+// [S3] 브랜드 정합 — 초대 메일에서 처음 도착하는 표면이 마케팅 군과 같은 브랜드
+// 언어(brand-mark + 워드마크)를 쓰는지, 액션이 .btn 체계인지, 용어가 통일됐는지를 잰다.
+describe("[S3] 초대 페이지 브랜드 정합", () => {
+  it("모든 갈래의 Shell 이 brand-mark + 워드마크 홈 링크를 그린다", async () => {
+    const branches: unknown[] = [
+      { kind: "ok", email: "a@b.co", status: "invited" },
+      { kind: "ok", email: "a@b.co", status: "pending" },
+      { kind: "ok", email: "a@b.co", status: "joined" },
+      { kind: "invalid" },
+      { kind: "error", message: "HTTP 502" },
+    ];
+    for (const branch of branches) {
+      const html = await render(branch);
+      expect(html).toContain("brand-mark");
+      expect(html).toContain("brand-name");
+      expect(html).toContain("QuantBridge 홈으로");
+    }
+  });
+
+  it("invited — 주 CTA 는 btn-primary, 보조 로그인은 btn-ghost (위계 유지)", async () => {
+    const html = await render({ kind: "ok", email: "a@b.co", status: "invited" });
+    expect(html).toContain("btn btn-primary");
+    expect(html).toContain("btn btn-ghost");
+    // underline 맨 텍스트 링크는 남기지 않는다.
+    expect(html).not.toContain('class="underline"');
+  });
+
+  it("unusable — 「웨이트리스트」 용어로 .btn-ghost 재신청 링크를 그린다", async () => {
+    const html = await render({ kind: "invalid" });
+    expect(html).toContain("웨이트리스트 다시 신청하기");
+    // 이 페이지만 「대기자 명단」이던 용어 분열을 막는다 (다른 표면은 전부 「웨이트리스트」).
+    expect(html).not.toContain("대기자 명단");
+    expect(html).toContain("btn btn-ghost");
+    expect(html).not.toContain('class="underline"');
+  });
+
+  it("joined — 로그인 링크가 .btn-ghost 다", async () => {
+    const html = await render({ kind: "ok", email: "a@b.co", status: "joined" });
+    expect(html).toContain("btn btn-ghost");
+    expect(html).not.toContain('class="underline"');
+  });
+});

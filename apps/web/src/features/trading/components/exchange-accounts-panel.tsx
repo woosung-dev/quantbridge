@@ -14,17 +14,15 @@ import { useDeleteExchangeAccount, useExchangeAccounts } from "../hooks";
 import { RegisterExchangeAccountDialog } from "./register-exchange-account-dialog";
 
 // Demo/Live 배지 — data-tone 은 globals.css [data-tone] 규칙이 색을 결정(리터럴 팔레트 금지).
+// 톤은 리스크 서사를 따른다(2026-08-18 감사): 데모 = 안전 기본이라 중립 상시 배지,
+// 라이브 = 실자금 주의라 warn. 종전의 demo=warn/live=done 은 이 서사와 정반대였다.
 function ModeBadge({ mode }: { mode: string | null | undefined }) {
   if (mode === "demo") {
-    return (
-      <span className="chip warn" data-tone="warning">
-        DEMO
-      </span>
-    );
+    return <span className="chip">DEMO</span>;
   }
   if (mode === "live") {
     return (
-      <span className="chip done" data-tone="success">
+      <span className="chip warn" data-tone="warning">
         LIVE
       </span>
     );

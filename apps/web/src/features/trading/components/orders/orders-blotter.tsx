@@ -200,7 +200,7 @@ export function OrdersBlotter() {
   //   그 사이 주문이 체결돼 표 행은 filled 로 갱신되는데 드로어만 낡는다(2026-08-15 codex P2).
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
-  const { data, isLoading, isError, error, refetch } = ordersQ;
+  const { data, isLoading, isError, error, refetch, dataUpdatedAt } = ordersQ;
 
   const orderItems = data?.items;
   // H-1 정합 — React Query data.items 참조 자체를 memoize 해 아래 파생 useMemo 의 dep 를 안정화한다.
@@ -282,8 +282,21 @@ export function OrdersBlotter() {
             <h1 className="report-title">주문</h1>
             <div className="report-meta">
               <span className="chip">주문 {total}건</span>
-              <span className="chip">Bybit</span>
+              {/* 계정 모드는 Bybit demo 뿐(CONTEXT.md)이라 페이지 수준 사실 — 프로토타입
+                  screen-11:1182 의 「Bybit 데모」를 그대로 복원한다. */}
+              <span className="chip">Bybit 데모</span>
               <span className="chip accent">미체결 {openCount}건</span>
+              {/* 마지막 갱신 — 폴링 화면의 신선도 단서(프로토타입 screen-11:1184).
+                  dataUpdatedAt 은 React Query 가 기록한 마지막 성공 수신 시각(epoch ms)이라
+                  0(미수신)이면 그리지 않는다. */}
+              {dataUpdatedAt ? (
+                <span className="chip" data-testid="orders-last-updated">
+                  마지막 갱신{" "}
+                  <span className="mono">
+                    {formatTimeSeconds(new Date(dataUpdatedAt).toISOString())}
+                  </span>
+                </span>
+              ) : null}
             </div>
             <p className="poll-line">
               <ClockIcon aria-hidden="true" />
@@ -304,10 +317,8 @@ export function OrdersBlotter() {
               <DownloadIcon aria-hidden="true" />
               CSV 내보내기
             </button>
-            <button className="btn" type="button" onClick={() => refetch()}>
-              <RefreshCwIcon aria-hidden="true" />
-              새로고침
-            </button>
+            {/* 새로고침 CTA 는 폴링 문맥의 poll-line 「지금 새로고침」 하나만 남긴다 —
+                report-actions 의 「새로고침」은 같은 refetch 를 두 번 노출하던 중복 CTA 였다. */}
           </div>
         </div>
       </section>

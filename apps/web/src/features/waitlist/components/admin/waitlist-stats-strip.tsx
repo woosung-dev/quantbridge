@@ -4,10 +4,8 @@
 
 import { useMemo } from "react";
 
-import type {
-  WaitlistApplicationResponse,
-  WaitlistStatus,
-} from "@/features/waitlist/schemas";
+import { WAITLIST_STATUS_LABEL } from "@/features/waitlist/labels";
+import type { WaitlistApplicationResponse, WaitlistStatus } from "@/features/waitlist/schemas";
 
 import { MetricTile } from "@/components/metric-tile";
 
@@ -23,9 +21,7 @@ interface AggregatedStats {
   approvedCount: number;
 }
 
-function aggregate(
-  items: readonly WaitlistApplicationResponse[],
-): AggregatedStats {
+function aggregate(items: readonly WaitlistApplicationResponse[]): AggregatedStats {
   const counts: Record<WaitlistStatus, number> = {
     pending: 0,
     invited: 0,
@@ -66,7 +62,8 @@ export function WaitlistStatsStrip({ items, total }: WaitlistStatsStripProps) {
       <StatCard
         label="승인됨"
         value={stats.approvedCount.toString()}
-        sub="invited + joined"
+        // 원시 enum 대신 용어 SSOT 의 한국어 라벨로 구성한다.
+        sub={`${WAITLIST_STATUS_LABEL.invited.label} + ${WAITLIST_STATUS_LABEL.joined.label}`}
         tone="pos"
       />
     </section>

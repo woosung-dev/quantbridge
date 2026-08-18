@@ -115,6 +115,40 @@ describe("AccountBalanceSection", () => {
     expect(screen.queryByText("잔고 조회를 지원하지 않습니다.")).not.toBeInTheDocument();
   });
 
+  // 2026-08-18 — 프로토타입 screen-01:1171-1197 의 1카드-1지표 관례.
+  it("계정 잔고와 사용 가능은 각각의 .card.kpi 로 분리해 그린다", () => {
+    mockBalances.mockReturnValue([
+      query({
+        account_id: account.id,
+        asset: "USDT",
+        supported: true,
+        reason: null,
+        total: "100",
+        free: "80",
+        fetched_at: null,
+      }),
+    ]);
+    const { container } = render(<AccountBalanceSection accounts={[account]} />);
+
+    const cards = container.querySelectorAll(".card.kpi");
+    expect(cards).toHaveLength(2);
+    // 한 카드에 label→value 쌍이 하나씩만 있다.
+    expect(cards[0]!.querySelectorAll(".kpi-label")).toHaveLength(1);
+    expect(cards[1]!.querySelectorAll(".kpi-label")).toHaveLength(1);
+    expect(cards[0]!.querySelector(".kpi-label")?.textContent).toBe("계정 잔고");
+    expect(cards[1]!.querySelector(".kpi-label")?.textContent).toBe("사용 가능");
+  });
+
+  // 로딩은 본문 텍스트가 아니라 §01 형제 KPI 들과 같은 StatValue(.kpi-na) 규율이다.
+  it("로딩 표기는 StatValue 관례(.kpi-na)를 쓴다", () => {
+    mockBalances.mockReturnValue([query(undefined, { isLoading: true })]);
+    render(<AccountBalanceSection accounts={[account]} />);
+
+    for (const el of screen.getAllByText("불러오는 중")) {
+      expect(el).toHaveClass("kpi-na");
+    }
+  });
+
   it("조회 실패는 미지원이 아니라 실패 문구로 표시한다", () => {
     mockBalances.mockReturnValue([query(undefined, { isError: true })]);
     render(<AccountBalanceSection accounts={[account]} />);

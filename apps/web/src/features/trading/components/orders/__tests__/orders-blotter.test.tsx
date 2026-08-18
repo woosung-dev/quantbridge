@@ -541,6 +541,41 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     ).toMatchObject({ state: "submitted", detail: "exchange cancel requested" });
   });
 
+  // 2026-08-18 — 헤더 신뢰 장치 3종 (⑤ Bybit 데모 chip · ⑥ 단일 새로고침 CTA · ⑦ 마지막 갱신).
+  it("헤더 chip 은 「Bybit 데모」다 — 계정 모드가 Bybit demo 뿐이라는 페이지 수준 사실", () => {
+    withOrders([makeOrder()]);
+    render(<OrdersBlotter />);
+    expect(screen.getByText("Bybit 데모")).toBeInTheDocument();
+    // 모드 없는 종전 하드코딩 "Bybit" 단독 chip 은 남지 않는다.
+    expect(screen.queryByText(/^Bybit$/)).toBeNull();
+  });
+
+  it("새로고침 CTA 는 폴링 문맥의 「지금 새로고침」 하나뿐이다", () => {
+    withOrders([makeOrder()]);
+    render(<OrdersBlotter />);
+    expect(screen.getByRole("button", { name: "지금 새로고침" })).toBeInTheDocument();
+    // report-actions 의 중복 「새로고침」 버튼은 제거됐다.
+    expect(screen.queryByRole("button", { name: "새로고침" })).toBeNull();
+  });
+
+  it("마지막 갱신 chip — dataUpdatedAt 을 mono 시각(UTC HH:MM:SS)으로 인쇄한다", () => {
+    mockReturn({
+      data: { items: [makeOrder()], total: 1 },
+      dataUpdatedAt: Date.UTC(2026, 3, 14, 21, 7, 3),
+    });
+    render(<OrdersBlotter />);
+    const chip = screen.getByTestId("orders-last-updated");
+    expect(chip).toHaveTextContent("마지막 갱신 21:07:03");
+    const time = within(chip).getByText("21:07:03");
+    expect(time).toHaveClass("mono");
+  });
+
+  it("아직 한 번도 수신하지 못했으면(dataUpdatedAt=0) 마지막 갱신 chip 을 그리지 않는다", () => {
+    mockReturn({ data: { items: [], total: 0 }, dataUpdatedAt: 0 });
+    render(<OrdersBlotter />);
+    expect(screen.queryByTestId("orders-last-updated")).toBeNull();
+  });
+
   it("필터 토글 — 체결만 선택하면 거부 행이 사라진다", () => {
     withOrders([
       makeOrder({ id: "f", state: "filled" }),

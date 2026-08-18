@@ -6,9 +6,11 @@
 // Sprint 11 Phase C 의 단일 page 를 _components/ 3 모듈로 분리. App Shell 은 (dashboard)/layout.tsx 에서 wrap.
 // Clerk JWT + BE WAITLIST_ADMIN_EMAILS 화이트리스트 유지. 403 안내 보존.
 
+import { SearchIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { Skeleton, TableSkeleton } from "@/components/skeleton";
 import { useAdminWaitlistList, useApproveWaitlist } from "@/features/waitlist/hooks";
 import type { WaitlistStatus } from "@/features/waitlist/schemas";
 import { ApiError } from "@/lib/api-client";
@@ -52,9 +54,7 @@ export function WaitlistAdminView() {
         </p>
       </header>
 
-      {data ? (
-        <WaitlistStatsStrip items={data.items} total={data.total} />
-      ) : null}
+      {data ? <WaitlistStatsStrip items={data.items} total={data.total} /> : null}
 
       <WaitlistFilterBar
         status={filter}
@@ -65,13 +65,21 @@ export function WaitlistAdminView() {
 
       {errStatus === 403 ? (
         <div className="rounded-[var(--radius-md)] border-l-4 border-[color:var(--destructive)] bg-[color:var(--destructive-subtle)] p-4 text-sm text-[color:var(--destructive)]">
-          <strong>관리자 권한이 필요합니다.</strong> 이메일이 admin allowlist 에
-          없습니다. QuantBridge 운영자에게 문의하세요.
+          <strong>관리자 권한이 필요합니다.</strong> 이메일이 admin allowlist 에 없습니다.
+          QuantBridge 운영자에게 문의하세요.
         </div>
       ) : null}
 
       {isPending && !error ? (
-        <p className="text-sm text-[color:var(--text-muted)]">불러오는 중…</p>
+        // 텍스트 로딩 대신 KPI strip + 표 자리 스켈레톤 — trading 쪽 관례.
+        <div className="space-y-6" data-testid="waitlist-admin-loading">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Skeleton variant="card" className="h-28" />
+            <Skeleton variant="card" className="h-28" />
+            <Skeleton variant="card" className="h-28" />
+          </div>
+          <TableSkeleton rows={6} columns={8} />
+        </div>
       ) : null}
 
       {error && errStatus !== 403 ? (
@@ -89,17 +97,8 @@ export function WaitlistAdminView() {
             aria-hidden="true"
             className="grid h-12 w-12 place-items-center rounded-full bg-[color:var(--primary-light)] text-[color:var(--primary)]"
           >
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
+            {/* 수제 SVG 대신 lucide — 형제 filter-bar 와 같은 아이콘. */}
+            <SearchIcon className="size-[22px]" aria-hidden="true" />
           </span>
           <p className="text-sm font-medium text-[color:var(--text-primary)]">
             {search

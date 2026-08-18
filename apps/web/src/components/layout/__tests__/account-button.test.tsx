@@ -56,6 +56,36 @@ describe("AccountButton", () => {
     }
   });
 
+  it("아이콘 레일(769~1024px) — 액션 버튼 2개는 숨김 변형을 갖고 아바타만 남는다", () => {
+    // KITPORT 레일 CSS 는 .account-name 등 텍스트만 숨긴다 — 액션 버튼까지 두면
+    // 콘텐츠 폭 ~124px 가 64px 레일을 넘친다. 「레일에서는 아바타만 남는다」(사이드바 주석) 이행.
+    render(<AccountButton />);
+    const logout = screen.getByRole("button", { name: /로그아웃/ });
+    const del = screen.getByRole("button", { name: "내 계정 지우기" });
+    // ★스택 변형 max-[1024px]: 은 `width < 1024` 라 KITPORT(max-width:1024, 경계 포함)와
+    //   정확히 1024px 에서 어긋난다 — raw 미디어 변형이어야 한다(실측 근거는 컴포넌트 주석).
+    for (const b of [logout, del]) {
+      expect(b.className).toContain("[@media(min-width:769px)_and_(max-width:1024px)]:hidden");
+    }
+    expect(screen.getByTestId("account-avatar").className).not.toContain("hidden");
+  });
+
+  it("위계 — 삭제 트리거는 muted 텍스트 버튼이고 hover 에서만 destructive 톤이다", () => {
+    render(<AccountButton />);
+    const del = screen.getByRole("button", { name: "내 계정 지우기" });
+    // 아이콘 동급 버튼 강등 — 기본 ink-3 무채색, hover 에서만 destructive.
+    expect(del).toHaveTextContent("계정 지우기");
+    expect(del.className).toContain("text-[color:var(--ink-3)]");
+    expect(del.className).toContain("hover:text-[color:var(--destructive)]");
+  });
+
+  it("hover 피드백 — 로그아웃 버튼이 셸 관용구(hover 배경 var(--card-2))를 갖는다", () => {
+    // 같은 셸의 .nav-item/.hamburger 는 hover 배경이 있는데 계정 액션만 무반응이었다.
+    render(<AccountButton />);
+    const logout = screen.getByRole("button", { name: /로그아웃/ });
+    expect(logout.className).toContain("hover:bg-[color:var(--card-2)]");
+  });
+
   it("계정 삭제 — 확인 없이는 아무것도 부르지 않는다 (음성 대조)", async () => {
     render(<AccountButton />);
 
@@ -81,7 +111,9 @@ describe("AccountButton", () => {
   it("계정 삭제 실패 — 사용자에게 말하고 **이동하지 않는다**", async () => {
     // 서버가 「돈을 멈추지 못했다」고 답하면 계정은 그대로 남는다(fail-closed).
     // 조용히 닫으면 사용자는 지워진 줄 안다 — 그 침묵을 이 단언이 막는다.
-    deleteAccount.mockResolvedValueOnce({ error: { message: "계정 정리에 실패했습니다 (status 500)." } });
+    deleteAccount.mockResolvedValueOnce({
+      error: { message: "계정 정리에 실패했습니다 (status 500)." },
+    });
     render(<AccountButton />);
 
     fireEvent.click(screen.getByRole("button", { name: "내 계정 지우기" }));

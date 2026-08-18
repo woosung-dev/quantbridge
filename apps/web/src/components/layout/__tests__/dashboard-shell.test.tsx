@@ -21,7 +21,7 @@ vi.mock("@/features/realtime/realtime-bridge", () => ({
 }));
 
 // C 이식 S3: 스토어에서 sidebarOpen/toggleSidebar/setSidebarOpen 삭제 — mobileNav 만 남는다.
-const mockUiState = {
+const mockUiState: { mobileNavOpen: boolean; setMobileNavOpen: () => void } = {
   mobileNavOpen: false,
   setMobileNavOpen: () => {},
 };
@@ -44,6 +44,7 @@ vi.mock("@/features/trading/hooks", () => ({
 afterEach(() => {
   cleanup();
   mockPathname = "/strategies";
+  mockUiState.mobileNavOpen = false;
 });
 
 describe("DashboardShell — C 이식 S3 프로토타입 셸", () => {
@@ -68,14 +69,14 @@ describe("DashboardShell — C 이식 S3 프로토타입 셸", () => {
     expect(screen.getAllByText("백테스트").length).toBeGreaterThan(0);
   });
 
-  it("data-theme=\"dash\" 스코프가 새지 않는다 (라이트/다크 앱 전역 토글)", () => {
+  it('data-theme="dash" 스코프가 새지 않는다 (라이트/다크 앱 전역 토글)', () => {
     mockPathname = "/trading";
     const { container } = render(
       <DashboardShell>
         <p>content</p>
       </DashboardShell>,
     );
-    expect(container.querySelector("[data-theme=\"dash\"]")).toBeNull();
+    expect(container.querySelector('[data-theme="dash"]')).toBeNull();
   });
 
   it("nav 6개가 모두 링크로 렌더되고 disabled(곧 출시) 항목이 없다", () => {
@@ -106,5 +107,54 @@ describe("DashboardShell — C 이식 S3 프로토타입 셸", () => {
     const ordersBadge = Array.from(badges).find((b) => b.textContent === "7");
     expect(ordersBadge?.getAttribute("title")).toMatch(/미체결/);
     expect(ordersBadge?.getAttribute("title")).toMatch(/대기\+전송/);
+  });
+
+  it("미매핑 라우트에서 breadcrumb 이 비지 않고 마지막 세그먼트로 폴백한다", () => {
+    // 종전 폴백은 "" — /admin/* 등 미매핑 라우트에서 상단바 좌측이 통째로 비었다.
+    mockPathname = "/admin/audit-log";
+    const { container } = render(
+      <DashboardShell>
+        <p>content</p>
+      </DashboardShell>,
+    );
+    const here = container.querySelector(".crumbs .here");
+    expect(here?.textContent).toBe("audit-log");
+  });
+
+  it("/admin/waitlist 가 PAGE_TITLE_MAP 에 등재돼 페이지 h1 과 같은 표기를 쓴다", () => {
+    mockPathname = "/admin/waitlist";
+    const { container } = render(
+      <DashboardShell>
+        <p>content</p>
+      </DashboardShell>,
+    );
+    expect(container.querySelector(".crumbs .here")?.textContent).toBe("Waitlist 관리");
+  });
+
+  it("768px 데드심 방지 — 상단바 계정 래퍼가 md:hidden 이 아니라 min-[769px]:hidden 을 쓴다", () => {
+    // KITPORT 의 max-width:768 은 경계 **포함**(사이드바 숨김 + 햄버거 노출). Tailwind md: 는
+    // min-width:768 이라 같은 768px 에서 함께 참 — 계정 버튼과 drawer 가 동시에 숨는 데드심.
+    const { container } = render(
+      <DashboardShell>
+        <p>content</p>
+      </DashboardShell>,
+    );
+    const topbar = container.querySelector("header.topbar");
+    expect(topbar?.innerHTML).toContain("min-[769px]:hidden");
+    expect(topbar?.innerHTML).not.toContain("md:hidden");
+  });
+
+  it("768px 데드심 방지 — 모바일 drawer 콘텐츠도 min-[769px]:hidden 을 쓴다", () => {
+    mockUiState.mobileNavOpen = true;
+    render(
+      <DashboardShell>
+        <p>content</p>
+      </DashboardShell>,
+    );
+    // Sheet 는 Portal 렌더 — container 가 아니라 document 에서 찾는다.
+    const drawer = document.querySelector(".qb-mobile-nav");
+    expect(drawer).not.toBeNull();
+    expect(drawer?.className).toContain("min-[769px]:hidden");
+    expect(drawer?.className).not.toContain("md:hidden");
   });
 });

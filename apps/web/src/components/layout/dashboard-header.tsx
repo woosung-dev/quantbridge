@@ -43,8 +43,10 @@ export function DashboardHeader({ pageTitle }: DashboardHeaderProps) {
       <ThemeToggle />
 
       {/* 데스크톱은 사이드바 footer 의 계정 버튼을 쓴다. 모바일은 사이드바가 숨으므로 상단바에 노출.
-          터치 타깃 ≥44pt 는 AccountButton 이 size="lg" 로 보장한다 (BL-305/339 후속). */}
-      <div className="inline-flex min-h-11 min-w-11 items-center justify-center md:hidden">
+          터치 타깃 ≥44pt 는 AccountButton 이 size="lg" 로 보장한다 (BL-305/339 후속).
+          ★min-[769px]:hidden — KITPORT 의 max-width:768 은 경계 **포함**이라, md:(min-width:768)를
+          쓰면 정확히 768px 에서 사이드바와 이 버튼이 동시에 숨어 계정 접근 경로가 사라진다(데드심). */}
+      <div className="inline-flex min-h-11 min-w-11 items-center justify-center min-[769px]:hidden">
         <AccountButton size="lg" />
       </div>
     </header>

@@ -3719,6 +3719,9 @@ table.cmp tbody td.row-label { color: var(--ink-2); white-space: normal; }
   flex-wrap: wrap;
 }
 .mkt-brand { display: flex; align-items: center; gap: 10px; }
+/* KITPORT 사이드바 접힘 규칙(.brand-name display:none, ≤1024px)이 bare 셀렉터라 마케팅/초대
+   헤더의 워드마크까지 숨긴다 — .lp-brand/.site-brand 와 같은 함정용 override (S3 검증 P2). */
+.mkt-brand .brand-name { display: block; }
 .mkt-spacer { flex: 1 1 auto; }
 .mkt-nav { display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
 .mkt-link {

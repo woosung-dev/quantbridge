@@ -8,16 +8,10 @@
 
 import { AlertTriangleIcon, ShieldAlertIcon } from "lucide-react";
 
-import { KILL_SWITCH_LABEL } from "@/features/trading/labels";
+// KS_TRIGGER_LABELS — §04 패널도 같은 라벨을 쓰게 되면서 labels.ts(용어 SSOT)로 올렸다.
+import { KILL_SWITCH_LABEL, KS_TRIGGER_LABELS } from "@/features/trading/labels";
 // BL-662 — 배럴이 아니라 직접 경로. 이 배너는 훅 하나만 쓴다.
 import { useKillSwitchEvents } from "@/features/trading/hooks";
-
-// trigger_type → 한국어 레이블. 알 수 없는 값이면 원문 그대로 (fallback).
-const KS_TRIGGER_LABELS: Record<string, string> = {
-  daily_loss: "일일 손실 한도 초과",
-  cumulative_loss: "누적 손실 한도 초과",
-  api_error: "거래소 API 오류",
-};
 
 export function KillSwitchBanner() {
   const { data, isError } = useKillSwitchEvents();
