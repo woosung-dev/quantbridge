@@ -2176,3 +2176,46 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **상태:** ⬜ Open — 2026-08-18 등재. 미착수
 **트리거 판정:** 도래 — [BL-802] 가 배선과 시더를 세우고 차단자를 이 셋으로 좁혔다 (2026-08-18 n5-ci-truth-close)
+
+---
+
+### BL-808
+
+**Title:** 스키마 동등성 축의 잔여 3구멍 — 정규화 과잉 · cascading 정지 규칙 · CHECK 표현식 미검
+**Category:** Backend / test infra
+**Priority:** P3
+**Trigger:** 도래 — [BL-803] 이 5축을 켠 직후 적대 리뷰가 셋을 실측 시나리오와 함께 짚었다
+**Est:** S (셋 다 국소적. 다만 ⑵ 는 축 전체의 의미론 결정이다)
+**출처:** 2026-08-18 n5-ci-truth-close — codex 적대 리뷰 (P2 3건, 코드 대조로 채택)
+
+**원인 / 영향:**
+
+⑴ **`_normalize_server_default` 가 과하게 지운다** (`tests/test_migrations.py:204-231`).
+`::<식별자>` 를 위치와 무관하게 지우고 casefold 하므로 **따옴표 리터럴 안**까지 건드린다.
+⇒ 모델 `'literal::jsonb'` 과 DB `'literal'` 이 둘 다 `literal` 로, `'CaseSensitive'` 와
+`'casesensitive'` 가 둘 다 `casesensitive` 로 낮아진다. **서로 다른 DEFAULT 가 같다고 판정**된다.
+★현재 실측 35컬럼에 그런 값은 없다 — 잠재 결함이다.
+
+⑵ **정지 규칙이 cascading `return` 이라 앞 축의 baseline 이 뒤 축을 끈다**(`:1016-1083`).
+이 회차가 「축을 오래된 것부터 배치」로 한 번 고쳤지만 **구조는 그대로다.**
+⇒ CHECK baseline 이 6건이 되면, 이미 수집해 둔 `observed_default_drifts` 가 단언 없이 버려진다.
+nullable·index baseline 이 6건이 되면 그 뒤 축들이 함께 꺼진다.
+★지금은 `default`(유일한 비어 있지 않은 baseline, 6건)가 **맨 뒤**라 발화하지 않는다.
+
+⑶ **CHECK 를 이름 집합만 보므로 표현식 약화를 못 잡는다**(`:513-531`). 이것은 [BL-803] 의
+**의도된 설계**이고 근거도 코드 주석에 있다(PG 재작성 흡수 불가 · 시끄러운 축은 꺼진다).
+다만 적대 리뷰가 **구체적 위험 예시**를 줬다 — `ck_kill_switch_events_trigger_scope` 의 이름을
+유지한 채 `exchange_account_id IS NULL` 절만 지우면 축은 초록이고 DB 는 **strategy 와 exchange
+account 가 동시에 지정된 잘못된 kill-switch scope** 를 허용한다.
+
+**권장 접근:** ⑴ 따옴표 리터럴을 **먼저 분리**하고 그 바깥에서만 캐스트 제거·casefold 해라.
+⑵ ★**의미론을 먼저 정해라** — 「앞 축이 아프면 뒤 축을 얹지 마라」가 원래 의도인데, 그것이
+**이미 수집한 증거를 버리는 것**까지 뜻해야 하나? 아니라면 축별 지역 skip 으로 바꾸고
+skip 을 **출력에 찍어라**(조용한 skip 이 이 결함의 본체다). ⑶ 축을 넓히지 말고, 위험한 CHECK
+**3개에 한해** 표현식 스냅샷 테스트를 따로 둬라 —
+`test_deactivation_reason_check_matches_the_enum` 이 이미 그 모양이다.
+
+**Risk:** 🟢 (셋 다 테스트 전용. 다만 ⑵·⑶ 은 **가드가 조용히 약해지는** 종류라 늦게 드러난다)
+
+**상태:** ⬜ Open — 2026-08-18 등재. 미착수
+**트리거 판정:** 도래 — 적대 리뷰가 셋을 재현 시나리오와 함께 확정했다 (2026-08-18 n5-ci-truth-close)

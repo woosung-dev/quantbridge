@@ -301,7 +301,12 @@ alembic -x allow_destructive=1 downgrade -1
 
 - `models.py` 변경 시 **반드시** Alembic 마이그레이션 생성
 - 마이그레이션 파일은 커밋에 포함 (자동 생성 후 검토)
-- 프로덕션 배포 전 `alembic upgrade head` 자동 실행 (Docker entrypoint)
+- 로컬·CI 는 Docker entrypoint 의 `api` 롤이 `alembic upgrade head` 를 자동 실행한다.
+  ★**프로덕션(서버 소크 스택)은 아니다** — compose 6서비스에 **api 롤이 없고**
+  (celery 계열은 `command:` override 로 롤 분기를 우회한다) 실제 API 는 호스트 uvicorn
+  systemd 유닛이라 entrypoint 를 지나지 않는다. **DDL 은 `soak-stack.sh migrate --confirm`
+  으로 사람이 승인해 적용한다** — 이것을 빼먹으면 새 코드가 옛 스키마 위에서 돈다
+  ([BL-743] · 2026-08-18 codex 적대 리뷰가 이 줄의 거짓을 잡았다).
 - 데이터 삭제/컬럼 삭제는 **2단계 배포**: (1) 코드에서 사용 중단 → (2) 다음 배포에서 삭제
 - **enum value 추가/제거**: downgrade 안 enum swap 패턴 의무 (LESSON-066) — 처음부터 uppercase 채택, 이후 enum value 추가 시 alembic 안 양방향 안전 검증
 

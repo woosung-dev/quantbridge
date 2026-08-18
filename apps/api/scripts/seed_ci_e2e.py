@@ -274,14 +274,35 @@ def _build_optimization_run(owner_id: UUID) -> OptimizationRun:
                 "slow": {"kind": "integer", "min": 20, "max": 40, "step": 10},
             },
         },
+        # ★★`result` 는 **`kind` 로 갈리는 discriminated union** 이다
+        #   (`apps/web/src/features/optimizer/schemas.ts:332`). 초판은 `{best_params, combinations}`
+        #   라는 지어낸 모양이었고, `kind` 가 없으면 FE 의 row-level `safeParse` 가 그 행을
+        #   **조용히 건너뛴다**(:366-369 가 그렇게 설계돼 있다) — 목록에 링크가 안 뜨고
+        #   `/optimizer/:id` 캐논이 「완료 run 시딩 필요」로 죽는다. 2026-08-18 codex 적대 리뷰가 잡았다.
         result={
-            "best_params": {"fast": 10, "slow": 30},
-            "best_metrics": {"total_return": "12.5", "max_drawdown": "-4.25"},
-            "combinations": [
-                {"params": {"fast": 5, "slow": 20}, "metrics": {"total_return": "4.1"}},
-                {"params": {"fast": 10, "slow": 30}, "metrics": {"total_return": "12.5"}},
-                {"params": {"fast": 15, "slow": 40}, "metrics": {"total_return": "7.9"}},
+            "schema_version": 1,
+            "kind": "grid_search",
+            "param_names": ["fast", "slow"],
+            "param_values": {"fast": ["5", "10", "15"], "slow": ["20", "30", "40"]},
+            "cells": [
+                {
+                    "param_values": {"fast": f, "slow": sl},
+                    "sharpe": sharpe,
+                    "total_return": tr,
+                    "max_drawdown": "-4.25",
+                    "num_trades": 3,
+                    "is_degenerate": False,
+                    "objective_value": sharpe,
+                }
+                for f, sl, tr, sharpe in (
+                    ("5", "20", "4.1", "0.62"),
+                    ("10", "30", "12.5", "1.35"),
+                    ("15", "40", "7.9", "0.91"),
+                )
             ],
+            "objective_metric": "sharpe_ratio",
+            "direction": "maximize",
+            "best_cell_index": 1,
         },
         created_at=now - timedelta(minutes=50),
         started_at=now - timedelta(minutes=50),
@@ -404,6 +425,24 @@ def _selftest() -> int:
 
     BacktestMetricsOut.model_validate(backtest.metrics)
     ParamSpace.model_validate(optimization.param_space)
+    # ★`result` 의 계약은 **FE 에만** 있다 — BE 는 `result: dict[str, Any]` 라 pydantic 이 안 잡는다.
+    #   `OptimizationResultSchema` 는 `kind` 로 갈리는 discriminated union 이고, `kind` 가 없으면
+    #   FE 가 그 행을 **조용히 건너뛴다**. 그래서 그 키들을 여기서 직접 못박는다.
+    result = optimization.result or {}
+    assert result.get("kind") == "grid_search", result.get("kind")
+    assert result.get("schema_version") == 1, result.get("schema_version")
+    assert result.get("cells"), "cells 가 비었다 — 목록이 그릴 것이 없다"
+    for cell in result["cells"]:
+        assert set(cell) == {
+            "param_values",
+            "sharpe",
+            "total_return",
+            "max_drawdown",
+            "num_trades",
+            "is_degenerate",
+            "objective_value",
+        }, cell
+    assert isinstance(result.get("best_cell_index"), int), result.get("best_cell_index")
     # equity_curve 는 `EquityPointSchema`(FE) 가 정본이라 BE 모델이 없다 — 키만 못박는다.
     assert backtest.equity_curve, "equity_curve 가 비었다"
     for point in backtest.equity_curve:

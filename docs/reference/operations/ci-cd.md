@@ -213,11 +213,17 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
   **쓸 수 없다**(private free — API 403 실측)」라고 적었는데, 같은 날 **저장소를 public 으로
   전환**해서 branch protection 이 **다시 가능하다.** 아직 켜지 않았으므로 위 서술(자동 검증
   없음)은 여전히 유효하지만, **이유가 「불가능」에서 「미설정」으로 바뀌었다.**
-- ★★★**`e2e` 잡은 authed 스위트를 안 돈다 — CI 초록은 authed 통과의 증거가 아니다**
+- ★★**2026-08-18 정정 — 이 항목은 더 이상 참이 아니다** ([BL-802] · n5-ci-truth-close).
+  전용 잡 **`e2e_authed`** 가 `--project=chromium-authed --no-deps` 로 매니페스트의 **18 spec** 을
+  실제로 돌리고, `ci` 요약 잡의 `needs`·`check` 에 들어 있다. 실행 증인 = run `32121054465`
+  (setup 3 passed + `chromium-authed` **72 passed 4.0분**). 남은 2 spec 만 사유와 함께
+  `localOnly` 다([BL-807]). ⇒ **「CI 초록은 authed 무증거」를 지금 인용하지 마라.**
+  아래는 그 이전(2026-08-17) 서술이며 왜 이 경고가 생겼는지의 기록으로 남긴다:
+- ~~★★★**`e2e` 잡은 authed 스위트를 안 돈다 — CI 초록은 authed 통과의 증거가 아니다**
   ([BL-789], 2026-08-17). `ci.yml` 의 e2e 스텝은 `chromium` · `chromium-live-smoke` ·
   `chromium-design-canon` 셋만 `--project=` 로 부르고, `chromium-authed` 를 부르는 줄은
   워크플로 전체에 **없다**. `apps/web/e2e/*.spec.ts` 29개 중 **20개**(`chromium-authed` 의
-  `testMatch` 가 잔여 전체를 가져간 몫)가 그래서 CI 실행 0회다.
+  `testMatch` 가 잔여 전체를 가져간 몫)가 그래서 CI 실행 0회다.~~
   게이트 판정의 증인은 로컬 `tools/scripts/final-gates.sh` 의 `e2e authed` 레그지만,
   **실행처가 그 하나뿐이라는 뜻은 아니다** — `mise run fe-e2e-authed` · `pnpm e2e:authed` ·
   `tools/scripts/e2e-authed-repro.sh` 도 같은 스위트를 돌린다.
