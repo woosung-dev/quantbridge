@@ -282,11 +282,14 @@ echo "  케이스: $((CASES - FAIL))/${CASES} 통과, ${FAIL} 실패"
 # ── 변이 — 케이스가 실제로 모드 디스패치를 보고 있는지 증명한다 ────────────────
 if [ "${1:-}" = "--mutants" ]; then
   echo
-  echo "── 변이 M1~M6 (사본 주입 · 케이스 10건 전량 재실행) ──"
+  echo "── 변이 (사본 주입 · 케이스 전량 재실행) ──"
   BASE_RED="$RED_IDS"
   MUT_FAIL=0
 
+  # ★변이 종수도 **센다** — 위 케이스 계수와 같은 이유다(하드코딩 「6종」이 M7 추가로 낡았다).
+  MUTANTS=0
   mutate() { # mutate <id> <old> <new> <기대 red 부분집합>
+    MUTANTS=$((MUTANTS + 1))
     local id="$1" old="$2" new="$3" expect="$4"
     python3 - "$GATES" "$MUTDIR/.fg-mutant-$id.sh" "$old" "$new" <<'PY'
 import sys
@@ -360,7 +363,7 @@ PY
   if [ "$MUT_FAIL" -gt 0 ]; then
     echo "✗ 변이 ${MUT_FAIL}건 미판별 — 케이스가 모드 디스패치를 못 보고 있다"; exit 1
   fi
-  echo "✓ 변이 6종 + 음성 대조 1종 전건 판별"
+  echo "✓ 변이 ${MUTANTS}종 + 음성 대조 1종 전건 판별"
   FAIL=0; RED_IDS="$BASE_RED"
   [ -n "$BASE_RED" ] && FAIL=1
 fi
