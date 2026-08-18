@@ -50,7 +50,12 @@ const EXPECTED_CONSOLE = [
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
   /failed to load resource.*429/i,
-  /\b50[0-9]\b/,
+  // ★★**5xx 는 더 이상 무시하지 않는다** ([BL-807], 2026-08-18). 종전의 맨 `/\b50[0-9]\b/` 는
+  //   ⑴ 앵커가 없어 **본문의 아무 세 자리 50x 숫자**까지 삼켰고 ⑵ 바로 위 4xx 필터가
+  //   `failed to load resource.*` 로 좁혀져 있는 것과 **비대칭**이었으며 ⑶ 무엇보다 BE 500 은
+  //   「백엔드 부재 소음」이 아니라 **앱 결함**이다. 부재는 위의 `failed to fetch`·`networkerror`
+  //   가 이미 덮는다. 이 필터 때문에 「행은 DB 에 있는데 화면이 빈다」가 세 케이스에서
+  //   **원인이 안 보인 채** 반복됐다 — 실제 원인은 상세 API 의 500 이었다.
   /development keys/i,
   /\[fast refresh\]/i,
   /access to fetch/i, // CORS 차단 (백엔드 origin 미일치 시)
@@ -105,7 +110,12 @@ async function countOn(browser: Browser, url: string, selector: string): Promise
   try {
     const page = await context.newPage();
     await page.goto(url, { waitUntil: "load" });
-    await page.waitForTimeout(1500);
+    // ★★고정 1.5초였다 ([BL-807], 2026-08-18). dev 콜드 컴파일 + 세션 왕복 + API 왕복이 그
+    //   안에 안 끝나면 「데이터가 없다」와 「아직 안 왔다」가 **같은 0** 으로 보인다. 이 파일의
+    //   발견 단계와 형제 spec 은 이미 25초 `waitForSelector` 를 쓰는데 여기만 안 썼다.
+    //   ★타임아웃을 삼키는 것은 의도다 — 「몇 행인가」의 판정은 **호출부의 단언**이 진다.
+    //     여기서 던지면 0 행과 미도달이 다시 한 덩어리가 된다.
+    await page.waitForSelector(selector, { timeout: 20_000 }).catch(() => {});
     return await page.locator(selector).count();
   } finally {
     await context.close();
@@ -157,7 +167,8 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
     const discovery = await browser.newContext({ storageState: STORAGE_STATE });
     const dpage = await discovery.newPage();
     await dpage.goto(`${BASE_URL}/backtests`, { waitUntil: "load" });
-    await dpage.waitForTimeout(1500);
+    // ★고정 대기 → 셀렉터 대기 ([BL-807]). 부재 판정은 아래 `expect(href).toBeTruthy()` 가 진다.
+    await dpage.waitForSelector('a[href^="/backtests/"]', { timeout: 25_000 }).catch(() => {});
     const href = await dpage.locator('a[href^="/backtests/"]').evaluateAll((els) => {
       const re = /^\/backtests\/[0-9a-f-]{36}$/;
       const found = (els as HTMLAnchorElement[]).find((a) => re.test(new URL(a.href).pathname));

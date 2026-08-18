@@ -34,7 +34,12 @@ const EXPECTED_CONSOLE = [
   // 아티팩트다. 이 필터는 pageerror 에도 적용되므로(design-canon-audit.ts), 렌더 예외 속 429 를
   // 삼키지 않도록 "Failed to load resource … 429" 콘솔 메시지에만 좁힌다.
   /failed to load resource.*429/i,
-  /\b50[0-9]\b/,
+  // ★★**5xx 는 더 이상 무시하지 않는다** ([BL-807], 2026-08-18). 종전의 맨 `/\b50[0-9]\b/` 는
+  //   ⑴ 앵커가 없어 **본문의 아무 세 자리 50x 숫자**까지 삼켰고 ⑵ 바로 위 4xx 필터가
+  //   `failed to load resource.*` 로 좁혀져 있는 것과 **비대칭**이었으며 ⑶ 무엇보다 BE 500 은
+  //   「백엔드 부재 소음」이 아니라 **앱 결함**이다. 부재는 위의 `failed to fetch`·`networkerror`
+  //   가 이미 덮는다. 이 필터 때문에 「행은 DB 에 있는데 화면이 빈다」가 세 케이스에서
+  //   **원인이 안 보인 채** 반복됐다 — 실제 원인은 상세 API 의 500 이었다.
   /development keys/i,
   /\[fast refresh\]/i,
   /access to fetch/i,
@@ -112,7 +117,9 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
     const discovery = await browser.newContext({ storageState: STORAGE_STATE });
     const dpage = await discovery.newPage();
     await dpage.goto(`${BASE_URL}/strategies`, { waitUntil: "load" });
-    await dpage.waitForTimeout(1500);
+    // ★고정 1.5초였다 ([BL-807]). 이 파일이 CI 로 올라가면 그 대기는 러너 속도에 걸린다 —
+    //   부재 판정은 아래 `expect(editHref).toBeTruthy()` 가 진다.
+    await dpage.waitForSelector('a[href*="/strategies/"]', { timeout: 25_000 }).catch(() => {});
     const editHref = await dpage.locator('a[href*="/strategies/"]').evaluateAll((els) => {
       const re = /^\/strategies\/[0-9a-f-]{36}\/edit$/;
       const found = (els as HTMLAnchorElement[]).find((a) => re.test(new URL(a.href).pathname));
@@ -145,7 +152,9 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
     const discovery = await browser.newContext({ storageState: STORAGE_STATE });
     const dpage = await discovery.newPage();
     await dpage.goto(`${BASE_URL}/optimizer`, { waitUntil: "load" });
-    await dpage.waitForTimeout(1500);
+    // ★고정 1.5초였다 ([BL-807]). 같은 파일의 `/backtests` 발견은 이미 25초 `waitForSelector` 를
+    //   쓰는데 여기만 안 썼다 — 부재 판정은 아래 `expect(optHref).toBeTruthy()` 가 진다.
+    await dpage.waitForSelector('a[href^="/optimizer/"]', { timeout: 25_000 }).catch(() => {});
     const optHref = await dpage
       .locator('tr[data-status="completed"] a[href^="/optimizer/"], a[href^="/optimizer/"]')
       .evaluateAll((els) => {
