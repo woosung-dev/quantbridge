@@ -62,13 +62,16 @@
     {
       "step": 4,
       "name": "live-session-read-axis",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "n=$(grep -c 'Repository(' apps/api/src/trading/router.py); echo \"remaining=$n\"; test \"$n\" = \"0\"",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_router_live_session_state_real_pnl.py -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "cd apps/api && uv run ruff check ."
-      ]
+      ],
+      "summary": "LiveSessionQueryService로 상태·이벤트 읽기를 소유권 범위로 이관하고 라우터의 Repository 직접 조립 4곳을 0으로 만들었다.",
+      "started_at": "2026-08-19T18:33:10+0900",
+      "completed_at": "2026-08-19T18:38:18+0900"
     },
     {
       "step": 5,

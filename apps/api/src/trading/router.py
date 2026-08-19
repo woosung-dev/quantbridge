@@ -8,16 +8,13 @@ T20: Orders (list/get/cancel) + KillSwitch (events/resolve) REST endpoints.
 from __future__ import annotations
 
 import hashlib
-from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
-from src.common.database import get_async_session
 from src.common.metrics import qb_active_orders
 from src.common.metrics_multiproc import record_metric_safely
 from src.trading.dependencies import (
@@ -27,16 +24,12 @@ from src.trading.dependencies import (
     get_exchange_account_service,
     get_kill_switch_service,
     get_liquidation_service,
+    get_live_session_query_service,
     get_live_signal_session_service,
     get_order_service,
     get_outcome_parity_service,
     get_position_service,
     get_webhook_service,
-)
-from src.trading.equity_calculator import (
-    RealizedPnlSource,
-    label_curve_provenance,
-    recompute_equity_curve,
 )
 from src.trading.exceptions import ProviderError
 from src.trading.kill_switch import KillSwitchService
@@ -47,9 +40,6 @@ from src.trading.liquidation_schemas import (
 from src.trading.models import OrderState
 from src.trading.outcome_parity_service import OutcomeParityService
 from src.trading.realtime_publisher import publish_realtime
-from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
-from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
-from src.trading.repositories.order_repository import OrderRepository, SessionScope
 from src.trading.schemas import (
     AccountBalanceResponse,
     AccountPositionsResponse,
@@ -63,7 +53,6 @@ from src.trading.schemas import (
     LiveSessionPositionsResponse,
     LiveSessionResponse,
     LiveSignalEventListResponse,
-    LiveSignalEventResponse,
     LiveSignalStateResponse,
     OrderRequest,
     OrderResponse,
@@ -77,6 +66,7 @@ from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.balance_service import AccountBalanceService
 from src.trading.services.close_service import ClosePositionService
 from src.trading.services.liquidation_service import LiquidationService
+from src.trading.services.live_session_query_service import LiveSessionQueryService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
 from src.trading.services.position_service import PositionService
@@ -472,7 +462,7 @@ async def get_live_session_outcome_parity(
 async def get_live_session_state(
     session_id: UUID = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: LiveSessionQueryService = Depends(get_live_session_query_service),
 ) -> LiveSignalStateResponse:
     """Sprint 26 — Live Session 의 last strategy_state_report + 누적 PnL.
 
@@ -485,65 +475,10 @@ async def get_live_session_state(
     체결(state=filled) 주문만으로 재계산해 노출한다. `last_strategy_state_report` 는
     엔진이 파악하는 전략 내부 상태 표시 목적으로 그대로 유지한다.
     """
-    repo = LiveSignalSessionRepository(session)
-    sess = await repo.get_by_id(session_id)
-    if sess is None or sess.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="live session not found")
-    state = await repo.get_state(session_id)
+    state = await service.get_state_for_user(session_id, current_user.id)
     if state is None:
-        return LiveSignalStateResponse(
-            session_id=session_id,
-            evaluated=False,
-            schema_version=0,
-            last_strategy_state_report={},
-            total_closed_trades=0,
-            total_realized_pnl=Decimal("0"),
-            equity_curve=[],
-            updated_at=None,
-        )
-
-    # BL-445 — 예전에는 `(strategy, account)` 튜플만 넘겨서 같은 튜플 위의 비활성
-    # 세션들이 하나의 커브를 공유했다. 세션 창·심볼까지 담은 스코프를 넘긴다.
-    order_repo = OrderRepository(session)
-    filled_orders = await order_repo.list_filled_realized_for_session(
-        SessionScope.from_live_session(sess)
-    )
-    # BL-458 — 출처를 커브·소계와 **한 리스트에서** 파생한다. 두 번째 comprehension 에
-    # 같은 2절 필터를 복제하면 누가 한쪽만 고치는 날 라벨이 조용히 어긋난다.
-    rows: list[tuple[int, Decimal, RealizedPnlSource]] = [
-        (
-            int(o.filled_at.timestamp() * 1000),
-            Decimal(str(o.realized_pnl)),
-            "confirmed" if o.realized_pnl_synced_at is not None else "estimated",
-        )
-        for o in filled_orders
-        if o.filled_at is not None and o.realized_pnl is not None
-    ]
-    closed_pnls = [(timestamp_ms, pnl) for timestamp_ms, pnl, _ in rows]
-    real_total_realized_pnl = sum(
-        (pnl for _, pnl in closed_pnls), Decimal("0")
-    )  # Decimal-first 합산 (Sprint 4 D8)
-    real_equity_curve = label_curve_provenance(
-        recompute_equity_curve(closed_pnls), [source for _, _, source in rows]
-    )
-    # 소계도 Decimal-first. `total` 은 기존 계산을 그대로 두므로 항등식
-    # `confirmed + estimated == total` 이 대입이 아니라 **산술로** 성립한다.
-    confirmed_pnl = sum((pnl for _, pnl, source in rows if source == "confirmed"), Decimal("0"))
-    estimated_pnl = sum((pnl for _, pnl, source in rows if source == "estimated"), Decimal("0"))
-
-    return LiveSignalStateResponse(
-        session_id=state.session_id,
-        schema_version=state.schema_version,
-        last_strategy_state_report=state.last_strategy_state_report,
-        total_closed_trades=len(closed_pnls),
-        total_realized_pnl=real_total_realized_pnl,
-        confirmed_realized_pnl=confirmed_pnl,
-        estimated_realized_pnl=estimated_pnl,
-        confirmed_closed_trades=sum(1 for _, _, s in rows if s == "confirmed"),
-        estimated_closed_trades=sum(1 for _, _, s in rows if s == "estimated"),
-        equity_curve=[dict(p) for p in real_equity_curve],  # TypedDict → dict 호환 cast
-        updated_at=state.updated_at,
-    )
+        raise HTTPException(status_code=404, detail="live session not found")
+    return state
 
 
 @router.get(
@@ -585,23 +520,13 @@ async def list_live_session_events(
     session_id: UUID = Path(...),
     limit: int = Query(100, ge=1, le=500),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: LiveSessionQueryService = Depends(get_live_session_query_service),
 ) -> LiveSignalEventListResponse:
     """Sprint 26 — Live Session 의 outbox event log (debug + Detail UI 용)."""
-    sess_repo = LiveSignalSessionRepository(session)
-    sess = await sess_repo.get_by_id(session_id)
-    if sess is None or sess.user_id != current_user.id:
+    events = await service.list_events_for_user(session_id, current_user.id, limit=limit)
+    if events is None:
         raise HTTPException(status_code=404, detail="live session not found")
-    event_repo = LiveSignalEventRepository(session)
-    event_rows = await event_repo.list_by_session_with_order_state(session_id, limit=limit)
-    return LiveSignalEventListResponse(
-        items=[
-            LiveSignalEventResponse.model_validate(event).model_copy(
-                update={"order_state": order_state}
-            )
-            for event, order_state in event_rows
-        ]
-    )
+    return events
 
 
 @router.get(

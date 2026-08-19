@@ -30,6 +30,7 @@ from src.trading.providers import BybitFuturesProvider
 from src.trading.repositories.alert_rule_repository import AlertRuleRepository
 from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
+from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository
 from src.trading.repositories.parity_repository import ParityRepository
@@ -40,6 +41,7 @@ from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.balance_service import AccountBalanceService
 from src.trading.services.close_service import ClosePositionService
 from src.trading.services.liquidation_service import LiquidationService
+from src.trading.services.live_session_query_service import LiveSessionQueryService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
 from src.trading.services.position_service import PositionService
@@ -241,6 +243,16 @@ async def get_live_signal_session_service(
             bybit_futures_provider=bybit_futures_provider,
         ),
         user_repo=UserRepository(session),
+    )
+
+
+async def get_live_session_query_service(
+    session: AsyncSession = Depends(get_async_session),
+) -> LiveSessionQueryService:
+    return LiveSessionQueryService(
+        session_repo=LiveSignalSessionRepository(session),
+        order_repo=OrderRepository(session),
+        event_repo=LiveSignalEventRepository(session),
     )
 
 
