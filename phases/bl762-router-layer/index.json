@@ -48,13 +48,16 @@
     {
       "step": 3,
       "name": "kill-switch-axis",
-      "status": "pending",
+      "status": "completed",
+      "summary": "KillSwitchService에 사용자 범위 이벤트 조회·해제 결과를 추가하고 kill-switch 2 endpoint의 Repository 직접 조립을 service Depends로 교체했다.",
       "ac": [
         "n=$(grep -c 'Repository(' apps/api/src/trading/router.py); echo \"remaining=$n\"; test \"$n\" = \"4\"",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && uv run ruff check ."
-      ]
+      ],
+      "started_at": "2026-08-19T18:28:09+0900",
+      "completed_at": "2026-08-19T18:33:09+0900"
     },
     {
       "step": 4,

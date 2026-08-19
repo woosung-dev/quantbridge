@@ -54,6 +54,12 @@ class EvaluationResult:
     threshold: Decimal | None = None
 
 
+@dataclass(frozen=True)
+class ResolveOutcome:
+    kind: Literal["not_owned", "already_resolved", "resolved"]
+    event: KillSwitchEvent | None = None
+
+
 class KillSwitchEvaluator(Protocol):
     async def evaluate(self, ctx: EvaluationContext) -> EvaluationResult: ...
 
@@ -221,6 +227,27 @@ class KillSwitchService:
         # None → alert 발송 시점에 lru_cache get_settings() 로 lazy resolve.
         # 명시 주입은 test 또는 lifespan-owned singleton (Sprint 13+).
         self._settings = settings
+
+    async def list_events_for_user(
+        self, user_id: UUID, *, limit: int, offset: int
+    ) -> Sequence[KillSwitchEvent]:
+        return await self._events_repo.list_recent_by_user(
+            user_id=user_id, limit=limit, offset=offset
+        )
+
+    async def resolve_for_user(
+        self, event_id: UUID, *, user_id: UUID, note: str | None
+    ) -> ResolveOutcome:
+        owned = await self._events_repo.get_owned(event_id, user_id=user_id)
+        if owned is None:
+            return ResolveOutcome("not_owned")
+
+        rowcount = await self._events_repo.resolve(event_id, note=note)
+        await self._events_repo.commit()
+        if rowcount == 0:
+            return ResolveOutcome("already_resolved")
+
+        return ResolveOutcome("resolved", event=await self._events_repo.get_by_id(event_id))
 
     async def ensure_not_gated(self, strategy_id: UUID, account_id: UUID) -> None:
         # 1. 기존 unresolved 이벤트 있으면 즉시 raise (재평가 스킵)

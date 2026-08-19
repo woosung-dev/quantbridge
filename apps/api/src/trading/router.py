@@ -25,6 +25,7 @@ from src.trading.dependencies import (
     get_balance_service,
     get_close_service,
     get_exchange_account_service,
+    get_kill_switch_service,
     get_liquidation_service,
     get_live_signal_session_service,
     get_order_service,
@@ -38,6 +39,7 @@ from src.trading.equity_calculator import (
     recompute_equity_curve,
 )
 from src.trading.exceptions import ProviderError
+from src.trading.kill_switch import KillSwitchService
 from src.trading.liquidation_schemas import (
     LiquidationInfoResponse,
     LiquidationPreviewRequest,
@@ -45,7 +47,6 @@ from src.trading.liquidation_schemas import (
 from src.trading.models import OrderState
 from src.trading.outcome_parity_service import OutcomeParityService
 from src.trading.realtime_publisher import publish_realtime
-from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
 from src.trading.repositories.order_repository import OrderRepository, SessionScope
@@ -366,11 +367,10 @@ async def list_kill_switch_events(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: KillSwitchService = Depends(get_kill_switch_service),
 ) -> dict[str, object]:
     """CF1: 호출자 소유(strategy/account) kill-switch 이벤트만 반환 (cross-tenant IDOR 차단)."""
-    repo = KillSwitchEventRepository(session)
-    events = await repo.list_recent_by_user(user_id=current_user.id, limit=limit, offset=offset)
+    events = await service.list_events_for_user(current_user.id, limit=limit, offset=offset)
     return {
         "items": [
             KillSwitchEventResponse.model_validate(e).model_dump(mode="json") for e in events
@@ -389,29 +389,25 @@ async def resolve_kill_switch(
     event_id: UUID = Path(...),
     body: dict[str, object] = Body(default={}),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: KillSwitchService = Depends(get_kill_switch_service),
 ) -> KillSwitchEventResponse:
-    repo = KillSwitchEventRepository(session)
-    # CF1: ownership gate — 호출자 소유 이벤트가 아니면 404 (타 tenant safety gate 해제 차단).
-    owned = await repo.get_owned(event_id, user_id=current_user.id)
-    if owned is None:
-        raise HTTPException(status_code=404, detail="event not found")
     raw_note = body.get("note")
     note = str(raw_note) if raw_note is not None else None
-    rowcount = await repo.resolve(event_id, note=note)
-    await repo.commit()
-    if rowcount == 1:
-        await publish_realtime(
-            str(current_user.id),
-            "kill_switch_resolved",
-            {"event_id": str(event_id), "trigger_type": owned.trigger_type.value},
-        )
-    if rowcount == 0:
+    outcome = await service.resolve_for_user(event_id, user_id=current_user.id, note=note)
+    if outcome.kind == "not_owned":
+        raise HTTPException(status_code=404, detail="event not found")
+    if outcome.kind == "already_resolved":
         raise HTTPException(status_code=404, detail="event not found or already resolved")
-    fetched = await repo.get_by_id(event_id)
-    if not fetched:
+
+    event = outcome.event
+    if event is None:
         raise HTTPException(status_code=500, detail="event fetch failed after resolve")
-    return KillSwitchEventResponse.model_validate(fetched)
+    await publish_realtime(
+        str(current_user.id),
+        "kill_switch_resolved",
+        {"event_id": str(event_id), "trigger_type": event.trigger_type.value},
+    )
+    return KillSwitchEventResponse.model_validate(event)
 
 
 # ── Sprint 26: Live Signal Auto-Trading ────────────────────────────────────
