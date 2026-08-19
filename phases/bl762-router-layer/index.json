@@ -76,14 +76,16 @@
     {
       "step": 5,
       "name": "boundary-lock-ast",
-      "status": "pending",
+      "status": "completed",
+      "summary": "전체 도메인 router.py의 Repository 직접 조립과 AsyncSession 직접 수용을 AST로 차단하고, 9파일·62라우트·trading 23라우트 양성 대조를 고정했다.",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_router_layer_boundary.py -q",
         "cd apps/api && n=$(uv run --env-file .env.local pytest tests/trading/test_router_layer_boundary.py --collect-only -q 2>/dev/null | grep -c '::test_'); echo \"collected=$n\"; test \"$n\" -ge 3",
         "n=$(grep -c 'Repository(' apps/api/src/trading/router.py); echo \"remaining=$n\"; test \"$n\" = \"0\"",
         "cd apps/api && uv run --env-file .env.local pytest -q",
         "cd apps/api && uv run ruff check ."
-      ]
+      ],
+      "completed_at": "2026-08-19T19:16:59+0900"
     }
   ],
   "created_at": "2026-08-19T18:09:40+0900"
