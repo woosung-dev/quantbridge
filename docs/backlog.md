@@ -1979,7 +1979,7 @@ pytest·`docker build` 가 3.1G 에서 돌아간다.
 **Title:** 라우터가 계층을 관통한다 — `trading/router.py` 가 Repository 를 직접 만들고 서비스의 private 을 뚫는다
 **Category:** Backend / 계층 (trading)
 **Priority:** P2
-**Trigger:** ★`trading/router.py` 의 해당 endpoint 군을 손대는 회차 (전량 수리는 단독 착수 대상이 아니다)
+**Trigger:** ~~해당 endpoint 군을 손대는 회차 (전량 수리는 단독 착수 대상이 아니다)~~ → **2026-08-19 사용자 결정으로 단독 착수** — 하네스 러너 2회차의 대상으로 지목됐다
 **Est:** M (축별 상이 — 아래 잔여 참조)
 **출처:** 2026-08-15 surface-truth 아키텍처 감사 §B ([BL-759] 에서 분리) · 2026-08-16 deploy-activation 실측
 
@@ -2017,6 +2017,43 @@ commit-spy 의무」가 그 경로에서만 **구조적으로 집행 불가**가
 
 **Risk:** 🟡 (동작은 정상이다 — 무너지는 것은 회귀 테스트를 붙일 수 있는 능력이다)
 
+**★2026-08-19 착수 전 실사 (하네스 2회차 대상 선정) — 좌표·함정·step 골격을 코드로 확정했다.**
+
+⓪ **11건은 실재한다** — `grep -c 'Repository(' apps/api/src/trading/router.py` = **11**(2026-08-19 실측).
+`src/*/router.py` 중 `get_async_session` 을 import 하는 파일도 **이 하나뿐**이다. ⇒ 11 → 0 이 이 항목의 판별식이고,
+지금 red 이므로 **항진명제가 아니다**([LESSON-111] 해당 없음 — 원장이 지목한 대상이 실재한다).
+
+① **설계는 「repository 에 소유권 getter 추가」로 푼다 — 생성자 변경 0건.** 다른 경로는 blast radius 가 터진다:
+`OrderService` 에 `ExchangeAccountRepository` 를 주입하면 **조립 지점 60곳**, `LiveSignalSessionService` 에
+`order_repo` 를 더하면 **17곳**(테스트 16 포함)이 깨진다. 이 결정을 세션 재량에 남기지 마라.
+
+② **함정 4종 (전부 실측):**
+⑴ `tests/common/test_metric_guard_census.py:559-563` 이 `("apps/api/src/trading/router.py", "cancel_order",
+`"qb_active_orders")`를`\_PROTECTED_SITES`로 **동결**했고`test_protected_site_list_is_not_vacuous`가 함수
+이동을 red 로 잡는다 ⇒`record_metric_safely(qb_active_orders.dec)`는 **router 에 남겨라**.
+⑵`tests/trading/test_router_kill_switch.py:79`가 문자열 경로`"src.trading.router.publish_realtime"`를
+monkeypatch 한다 ⇒`publish_realtime`호출을 서비스로 옮기면`AttributeError`로 죽는다.
+⑶`tests/trading/test_router_cancel_metric_failure.py:71`이`router_module.qb_active_orders`를 잡는다(같은 계열).
+⑷ ★**FE 계약 문자열이 BE 테스트에 없다** —`apps/web/src/features/trading/schemas.ts:62`가`z.literal("exchange cancel requested")`로 못박았는데`test_router_cancel_cf4.py` 는 202 status 만 본다.
+리팩터로 그 문자열이 바뀌면 **BE 전량 초록인 채 FE 만 깨진다.** 착수 첫 step 에 단언을 먼저 추가해라.
+
+③ **step 골격 5단** (한 step = 한 레이어):
+`step0` repository 소유권 getter 2종(`OrderRepository.get_by_id_for_user` — `list_by_user`(:529) 의 join 패턴 미러 ·
+`LiveSignalSessionRepository.get_by_id_for_user`). ★`KillSwitchEventRepository.get_owned`(:111) 는 **이미 있다**.
+`step1` orders 축(endpoint 3 · Repository 5건 :296/:314/:315/:336/:337) — 신규 `services/order_query_service.py`.
+`step2` kill-switch 축(endpoint 2 · 2건 :400/:422) — `KillSwitchService`(kill_switch.py:204)에 **메소드만** 추가.
+`step3` live-session read 축(endpoint 2 · 4건 :520/:539/:623/:627) — 신규 `services/live_session_query_service.py`.
+★router.py:520~577 의 equity-curve 재계산 블록(BL-445/BL-458 주석 포함)은 **한 글자도 바꾸지 말고 통째로** 옮겨라
+(`confirmed + estimated == total` 항등식이 산술로 성립해야 한다).
+`step4` 경계 못박기 — 신규 `tests/trading/test_router_layer_boundary.py` 를 **AST 로**(grep 아님) 세우고
+**양성 대조**(라우트 함수 ≥20개 · 파싱 성공)를 함께 단언한다. ⇒ `grep -c 'Repository('` 는 `import X as _Y` 로
+게임 가능하므로 **AST 테스트가 정본, grep 은 보조**다(harness.md §C-5b).
+
+④ **AC 실측** — `tests/trading` **1117 passed / 26.8s** · 6파일 표적 **17 passed / 2.5s** ·
+BE 전량 **4830 passed·32 skipped / 384s**(러너 `AC_TIMEOUT` 900s 대비 여유 2.3배 — 부하 시
+`QB_HARNESS_AC_TIMEOUT` 을 올려라) · `ruff check .` All checks passed.
+★celery 는 AC 에서 **실행되지 않는다** — `cancel_order` 의 `cancel_order_task.delay` 를
+`test_router_cancel_cf4.py:70` 이 monkeypatch 로 잡으므로 워크트리 침묵 실패 경로에 안 닿는다.
 **상태:** 🟡 **부분 해결 (2026-08-16 deploy-activation)** — private 관통 7건 제거 + commit-spy 성립. `Repository()` 직접 생성 11건은 미착수
 **트리거 판정:** 미도래 — 잔여 축은 해당 endpoint 군을 손대는 회차에 동승한다 (2026-08-16 deploy-activation)
 
