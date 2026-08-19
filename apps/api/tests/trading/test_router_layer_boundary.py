@@ -34,6 +34,21 @@ def _is_get_async_session_import(node: ast.Import | ast.ImportFrom) -> bool:
     )
 
 
+def _repository_import_violation(node: ast.Import | ast.ImportFrom) -> str | None:
+    """Repository 심볼·모듈을 라우터가 import 하는 자리를 잡는다.
+
+    ★호출 이름만 보면 `import OrderRepository as _OR` + `_OR(session)` 로 우회된다
+    (2026-08-19 변이 실측: 호출 검사만으로는 초록이었다). import 표면을 함께 재야 막힌다.
+    """
+    module = getattr(node, "module", None) or ""
+    if "repositor" in module:
+        return f"{module} import"
+    for alias in node.names:
+        if alias.name.endswith("Repository") or "repositor" in alias.name:
+            return f"{alias.name} import"
+    return None
+
+
 def _is_router_decorator(decorator: ast.expr) -> bool:
     return (
         isinstance(decorator, ast.Call)
@@ -57,6 +72,10 @@ def test_routers_do_not_instantiate_repositories() -> None:
         for node in ast.walk(tree):
             if isinstance(node, ast.Call) and (_call_name(node) or "").endswith("Repository"):
                 violations.append(f"{_display_path(path)}:{node.lineno}:{_call_name(node)}")
+            elif isinstance(node, (ast.Import, ast.ImportFrom)):
+                imported = _repository_import_violation(node)
+                if imported is not None:
+                    violations.append(f"{_display_path(path)}:{node.lineno}:{imported}")
 
     assert not violations, (
         "라우터에서 Repository를 직접 조립했습니다:\n"
