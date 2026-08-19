@@ -1,3 +1,9 @@
 {
-  "phases": [{ "dir": "n7-bl810-bl808", "status": "pending" }]
+  "phases": [
+    {
+      "dir": "n7-bl810-bl808",
+      "status": "completed",
+      "completed_at": "2026-08-19T09:58:22+0900"
+    }
+  ]
 }
