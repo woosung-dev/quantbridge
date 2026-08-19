@@ -2059,35 +2059,39 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 ### BL-811
 
-**Title:** `--deferred-only` 의 두 레그가 **같은 BE 를 서로 다른 origin 으로** 요구한다 — 한 번에 다 통과시킬 수 없다
+**Title:** 로컬 검증 두 레그가 **같은 BE 를 서로 다른 origin 으로** 요구한다 — 한 번에 다 통과시킬 수 없다
 **Category:** 테스트 / 인프라 / DX
 **Priority:** P3
-**Trigger:** 도래 — [BL-797] 이 authed 화면 증거 레그를 유예 집합에 넣으면서 그 자리에서 드러났다
+**Trigger:** 도래 — 2026-08-19 실측으로 확인됐다 (구 종결 게이트 실행 중)
 **Est:** S~M (갈래 선택이 먼저다. 코드는 그다음)
 **출처:** 2026-08-19 n6-authed-evidence — 종결 게이트를 돌리려다 실측
 
-**원인 / 영향:** `final-gates.sh` 의 유예 집합에는 이제 origin 요구가 **다른** 두 소비자가 있다.
+★**2026-08-19 재기술 ([ADR-037]).** 이 항목의 초판은 `final-gates.sh --deferred-only` 의 **유예 집합**을
+프레임으로 썼는데, 그 스크립트는 같은 날 제로베이스로 **철거됐다**(원문 = `git show harness-v1:tools/scripts/final-gates.sh`).
+유예 원장·종결 절차라는 껍데기는 사라졌지만 **밑에 있던 제약은 그대로 참이다** — 아래로 좁혀 다시 적는다.
 
-- `e2e chromium` · `e2e design-canon` · `e2e authed` — **FE dev 서버** `:3100`(`_base-url.ts` 파생)
-- `화면 증거 팩 (authed)` — 러너가 띄우는 **프로덕션 서버** `:3110`(`screen-evidence.config.json`
-  의 `serverPortBase` + 슬롯). dev 서버를 쓰면 Turbopack 캐시 상태에 따라 번들 바이트가 흔들려
-  이 게이트의 존재 이유가 사라지므로 **그 분리는 의도된 것**이다.
+**원인 / 영향:** 로컬에서 돌리는 두 검증이 서로 다른 origin 을 요구한다.
 
-그런데 BE 의 CORS 는 **단일 값**이다 — `main.py:329` `allow_origins=[settings.frontend_url]`.
-`BETTER_AUTH_URL`(JWKS 취득 + JWT issuer)도 하나다. ⇒ 한 BE 인스턴스가 두 origin 을 동시에
-받을 수 없고, **`--deferred-only` 를 한 번 돌려 두 레그를 다 통과시킬 방법이 지금 없다.**
+- `e2e chromium` · `e2e design-canon` · `e2e authed` — **FE dev 서버** `:3100` (`apps/web/e2e/_base-url.ts` 파생)
+- **화면 증거 팩 (authed)** — 러너가 띄우는 **프로덕션 서버** `:3110` (`screen-evidence.config.json` 의
+  `serverPortBase` + 슬롯). dev 서버를 쓰면 Turbopack 캐시 상태에 따라 번들 바이트가 흔들려 이 측정의
+  존재 이유가 사라지므로 **그 분리는 의도된 것**이다.
 
-★**게이트가 거짓 초록을 내지는 않는다** — origin 이 안 맞으면 화면 증거 레그의 전제 프로브가
-그 자리에서 죽는다(진단 문구가 두 변수를 다 짚는다). 잃는 것은 **한 번에 끝나는 종결**이다.
+그런데 BE 의 CORS 는 **단일 값**이다 — `apps/api/src/main.py` `allow_origins=[settings.frontend_url]`.
+`BETTER_AUTH_URL`(JWKS 취득 + JWT issuer)도 하나다. ⇒ 한 BE 인스턴스가 두 origin 을 동시에 받을 수 없고,
+**BE 를 한 번 띄운 채로 두 레그를 다 통과시킬 방법이 지금 없다.**
 
-**권장 접근:** ⑴ 갈래를 먼저 정해라 — ⓐ BE 를 **두 벌** 띄운다(포트가 다르면 `NEXT_PUBLIC_API_URL`
-도 갈라야 해서 빌드가 둘이 된다) ⓑ `allow_origins` 를 목록으로 넓힌다(**개발 전용 경로에 한정** —
-프로덕션에서 넓히면 [BL-754] 계열 결함이 된다) ⓒ 두 레그를 **다른 실행으로 나눈다**(가장 싸고
-지금 실질적으로 하는 것 — 다만 「유예 원장이 비어야 종결」 규약과 어긋나므로 원장에 그 예외를
-적어야 한다) ⑵ ★**ⓑ 를 고른다면 `frontend_url` 을 읽는 곳 전부**(`config.py` validator ·
+★**거짓 초록은 안 난다** — origin 이 안 맞으면 화면 증거 레그의 전제 프로브가 그 자리에서 죽는다
+(진단 문구가 두 변수를 다 짚는다). 잃는 것은 **BE 재기동 없이 한 번에 끝내는 것** 하나다.
+
+**권장 접근:** ⑴ 갈래를 먼저 정해라 — ⓐ BE 를 **두 벌** 띄운다(포트가 다르면 `NEXT_PUBLIC_API_URL` 도
+갈라야 해서 빌드가 둘이 된다) ⓑ `allow_origins` 를 목록으로 넓힌다(**개발 전용 경로에 한정** — 프로덕션에서
+넓히면 [BL-754] 계열 결함이 된다) ⓒ 두 레그를 **다른 실행으로 나눈다**(가장 싸고 지금 실질적으로 하는 것.
+★[ADR-037] 이후에는 「유예 원장이 비어야 종결」 규약 자체가 없으므로 **ⓒ 의 유일했던 단점이 사라졌다**
+— 현재 기본 권장은 ⓒ 다) ⑵ ★**ⓑ 를 고른다면 `frontend_url` 을 읽는 곳 전부**(`config.py` validator ·
 `waitlist_invite_base_url` · 초대 메일 링크)를 함께 봐라 — 이 값은 CORS 전용이 아니다.
 
-**Risk:** 🟢 (거짓 초록은 안 난다. 종결 절차가 두 번으로 나뉠 뿐)
+**Risk:** 🟢 (거짓 초록은 안 난다. 로컬 검증이 두 번으로 나뉠 뿐)
 
-**상태:** ⬜ Open — 2026-08-19 등재. 미착수. ★**같은 회차의 종결 게이트가 이것을 실증했다** — BE 를 `e2e` 짝(`FRONTEND_URL=:3100`)으로 맞춰 `--deferred-only` 를 돌리니 `e2e chromium`·`e2e design-canon`·`e2e authed`·`BE pytest`(401초)·`CI fresh DB alembic`·신호 4종은 통과하고 **`화면 증거 팩 (authed)` 만 전제 프로브에서 죽었다**: 「측정 서버: `http://localhost:3110` / BE 가 허용: (헤더 없음 — 거부)」. ⇒ **거짓 초록이 아니라 정확한 진단**이고, 잃은 것은 「한 번에 끝나는 종결」 하나다(그 레그 자체는 같은 회차에 **별도 실행으로 rc=0 을 여러 번** 확인했다)
+**상태:** ⬜ Open — 2026-08-19 등재 · 같은 날 **재기술**(구 `final-gates.sh` 프레임 제거). 미착수. ★실측: BE 를 `e2e` 짝(`FRONTEND_URL=:3100`)으로 맞추니 `e2e chromium`·`e2e design-canon`·`e2e authed`·`BE pytest`·`CI fresh DB alembic` 은 통과하고 **화면 증거 팩(authed)만 전제 프로브에서 죽었다** — 「측정 서버: `http://localhost:3110` / BE 가 허용: (헤더 없음 — 거부)」. 그 레그 자체는 별도 실행으로 rc=0 을 여러 번 확인했다
 **트리거 판정:** 도래 — 레그가 실재하고 충돌이 **종결 게이트 실행으로** 확인됐다 (2026-08-19 n6-authed-evidence)

@@ -134,12 +134,10 @@ tools/scripts/bybit-smoke.sh --env-file <시크릿파일> --mode demo
 gh pr checks --watch                                       # 2잡 다 초록이어야 종결
 ```
 
-★★**「마지막 커밋 뒤」는 「이 회차의 PR 브랜치에서, 머지 전에」를 함께 뜻한다** ([BL-714], 2026-08-14).
-`signal-check.sh` 의 앵커 **A1** 이 A2 **앞**에 있어, 전건 머지돼 `merge-base(origin/main,HEAD) == HEAD`
-가 된 main 에서는 신호 sha 가 HEAD 와 **정확히 같아도** `stale[no-branch-commits]` rc=1 이다.
-종전에는 이 지시를 **문자 그대로 따르면 반드시 red** 였다 — 2026-08-12 회차가 그렇게 막혔다.
-지금은 `final-gates.sh` 가 인자 파싱 직후 그 상태를 **게이트 진입 전에 거부**한다(하네스 케이스 ㉖ ·
-영구 변이 **M12**). 판정식·앵커 A1~A5·rc 규약 전문 = `gates-and-traps.md` 「신호 4종」 절.
+~~★★**「마지막 커밋 뒤」는 「이 회차의 PR 브랜치에서, 머지 전에」를 함께 뜻한다** ([BL-714]) — `signal-check.sh` 앵커 A1/A2 · `final-gates.sh` 의 입구 거부 · 「신호 4종」 절~~
+→ **2026-08-19 [ADR-037] 철거.** 그 문단이 기술하던 것(`signal-check.sh` · 앵커 A1~A5 · 신호 `.ok` 파일 ·
+`final-gates.sh` 입구 거부)이 전부 사라졌고, 가리키던 `gates-and-traps.md` 「신호 4종」 절도 같은 날 걷어냈다.
+**지금 종결 판정은 `gh pr checks --watch` 하나다.** 원문 = `git show harness-v1:tools/scripts/signal-check.sh`.
 
 **변이와 기대 결과** — 「끝났다」는 양성 + 음성 + 변이 셋을 다 통과해야 한다.
 ★2026-08-11 회차의 변이 표(4행)는 그 회차와 함께 끝났다 → `git show 79cea10d:docs/status.md`.
@@ -571,7 +569,41 @@ CI 축소로 coverage 래칫·alembic check·e2e·openapi drift 가 CI 에서 �
 
 ★**preflight 가 킥오프 전제 1건을 정정했다** — codex 0.147.0 은 `--dangerously-bypass-hook-trust` 를 **안다**(플래그 제거 불요). 그리고 `feat/harness-run` 과 `feat/harness-zero-base` 는 **같은 SHA** (669633e5)라 PR base 를 zero-base 로 잡으면 신규 커밋만 담긴다.
 
-**다음 행동 = 하네스 v2 도입 여부를 사용자가 판정한다** (위 표 + 게임 1건). 머지 순서는 사용자 결정대로 **zero-base(PR #687) → 기능(PR #691)**. 「도입」이면 다음 회차는 [BL-776] 카피 수정을 같은 러너로 돌리고, AC 저작 규약(`.claude/commands/harness.md` §C-5)에 **「부재 grep 은 소스와 테스트를 갈라라」** 를 더한다.
+~~**다음 행동 = 하네스 v2 도입 여부를 사용자가 판정한다** (위 표 + 게임 1건). 머지 순서는 사용자 결정대로 **zero-base(PR #687) → 기능(PR #691)**. 「도입」이면 다음 회차는 [BL-776] 카피 수정을 같은 러너로 돌리고, AC 저작 규약(`.claude/commands/harness.md` §C-5)에 **「부재 grep 은 소스와 테스트를 갈라라」** 를 더한다.~~
+→ **2026-08-19 사용자 결정 = 도입.** 「기존 하네스/워크플로우는 싹 초기화하고 강의(finsight) 하네스를 입힌다」.
+
+### 하네스 도입 후속 청소 (2026-08-19, 같은 회차)
+
+도입 결정에 따라 **finsight 유래가 아닌 하네스/워크플로우 잔재를 전량 제거**했다. finsight 원본
+(`github.com/jha0313/finsight`)을 GitHub API 로 열어 KEEP 집합을 먼저 확정한 뒤 지웠다 —
+`.claude/commands/{harness,review,review-code}.md` · `.claude/workflows/review-code.js` ·
+`.codex/hooks.json` · `scripts/execute.py` · `evals/harness/` 가 원본에 실재한다.
+
+| 제거/변경                                     | 규모        | 근거                                                             |
+| --------------------------------------------- | ----------- | ---------------------------------------------------------------- |
+| `.claude/gates/**`                            | **96 파일** | 소비자 `final-gates.sh` 가 ADR-037 로 철거됨 (untracked)         |
+| `.claude/night/**`                            | **15 파일** | herdr 함대 킥오프 — 함대는 [ADR-030] 으로 제거됨 (untracked)     |
+| `docs/.../development-methodology.md`         | 137줄       | 사용자 판정 「죽은 파일」 + 처방 도구 3종이 발화 불가            |
+| `gates-and-traps.md` §1 죽은 3절              | **−139줄**  | 게이트 3종·2단(`--pre-pr`)·신호 4종 = 전부 철거된 기계           |
+| `gates-and-traps.md` §4                       | 정정        | pre-push 가 아직 `pnpm test`·`mypy` 를 돈다고 적혀 있었다 (거짓) |
+| `.claude/commands/review.md` → `qb-review.md` | 개명        | **gstack 전역 `/review` 스킬과 이름 충돌**                       |
+| [BL-811]                                      | 재기술      | 본문 전체가 철거된 `final-gates.sh` 를 프레임으로 썼다           |
+
+★★★**`/review` 충돌은 실증됐다** — 사용자가 `/review` 를 쳤을 때 **gstack 스킬이 이겼고** 레포판
+(AGENTS.md·CONTEXT.md 를 읽으라는 그것)은 한 번도 안 불렸다. 개명 후 스킬 목록에 `qb-review` 와
+gstack `review` 가 **별개로** 잡히는 것을 확인했다.
+
+★★**[BL-811] 은 「원장이 적은 처방의 대상이 실재하지 않는다」의 재발이었다**([LESSON-111]) — 같은 날
+제로베이스가 `final-gates.sh` 를 지우는 동안 n6 회차가 **그 파일을 전제로** BL 을 등재했다. 두 작업이
+서로를 몰랐다. 제약 자체(BE CORS 단일값 ↔ 두 origin)는 참이라 **기각이 아니라 재기술**로 살렸다.
+
+★**미이식으로 남은 finsight 조각 3종** — `scripts/test_execute.py`(러너 자신의 테스트, 우리 쪽 0건) ·
+`evals/harness/*.test.ts` **5종** · `evals/harness/triager.ts`. 우리 `execute.py` 는 파일럿 결함 4종을
+고친 개조판이라 **원본 테스트를 그대로 얹을 수 없다** — 이식할지/새로 쓸지가 다음 판단이다.
+
+**다음 행동 = PR #691 을 zero-base(#687) → 기능 순으로 머지하고, 미이식 finsight 조각 3종
+(`test_execute.py` · `evals/harness/*.test.ts` 5종 · `triager.ts`)을 이식할지 정한다.**
+★러너에 테스트가 0건인 것이 지금 하네스의 가장 큰 빈칸이다 — [ADR-030] 파일럿 B 를 죽인 것도 러너 결함이었다.
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
