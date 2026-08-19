@@ -73,12 +73,15 @@
     {
       "step": 5,
       "name": "bl808-check-expression-snapshot",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q -k check_constraint_expression",
         "cd apps/api && uv run ruff check ."
-      ]
+      ],
+      "started_at": "2026-08-19T09:54:55+0900",
+      "summary": "Alembic으로 생성한 위험 CHECK 3개의 PostgreSQL 표현식을 공백 정규화 스냅샷으로 동결했다.",
+      "completed_at": "2026-08-19T09:58:22+0900"
     }
   ],
   "created_at": "2026-08-19T09:42:14+0900"

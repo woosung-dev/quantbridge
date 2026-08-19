@@ -98,6 +98,25 @@ _INDEX_DRIFT_BASELINE: frozenset[IndexDrift] = frozenset()
 # 그때만 정확한 양방향 drift를 이 baseline에 동결하고 이유를 이 자리 주석으로 남긴다.
 _CHECK_CONSTRAINT_DRIFT_BASELINE: frozenset[CheckConstraintDrift] = frozenset()
 
+# ★[BL-808] ⑶ — CHECK 이름 집합 축(`_check_constraint_drifts_for_table`)은 표현식을 보지 않는다.
+#   그 설계는 유지하되(PG 재작성 흡수 불가), **배타 조건을 담은 위험 CHECK 3개에 한해**
+#   표현식을 동결한다. 이름을 유지한 채 `exchange_account_id IS NULL` 절만 지우는 변경이
+#   이름 축에서는 초록이고 DB 는 잘못된 scope 를 허용하게 되는 것이 이 테스트의 존재 이유다.
+_RISKY_CHECK_CONSTRAINT_SNAPSHOTS: dict[tuple[str, str], str] = {
+    (
+        "kill_switch_events",
+        "ck_kill_switch_events_trigger_scope",
+    ): "CHECK ((((trigger_type = 'cumulative_loss'::killswitchtriggertype) AND (strategy_id IS NOT NULL) AND (exchange_account_id IS NULL)) OR ((trigger_type = ANY (ARRAY['daily_loss'::killswitchtriggertype, 'api_error'::killswitchtriggertype])) AND (exchange_account_id IS NOT NULL) AND (strategy_id IS NULL))))",
+    (
+        "live_signal_sessions",
+        "ck_live_signal_sessions_deactivated_reason",
+    ): "CHECK (((deactivated_reason IS NULL) OR ((deactivated_reason)::text = ANY ((ARRAY['coverage_unrunnable'::character varying, 'degraded_unconsented'::character varying, 'equity_baseline_missing'::character varying, 'equity_exhausted'::character varying, 'run_live_error'::character varying, 'runtime_divergence'::character varying, 'gap_resync_position_mismatch'::character varying, 'position_divergence'::character varying, 'user_stopped'::character varying, 'account_deleted'::character varying])::text[]))))",
+    (
+        "alert_rules",
+        "ck_alert_rules_type_threshold",
+    ): "CHECK (((((rule_type)::text = 'loss_limit'::text) AND (threshold_percent IS NOT NULL)) OR (((rule_type)::text = 'watchdog'::text) AND (threshold_percent IS NULL))))",
+}
+
 _AXIS_BASELINE_LIMIT = 5
 
 
@@ -1270,6 +1289,44 @@ def test_deactivation_reason_check_matches_the_enum(monkeypatch: pytest.MonkeyPa
         f"enum 에만 있음: {sorted(enum_values - ddl_values)}. "
         "새 사유는 enum + 마이그레이션 + FE 라벨 3곳을 함께 고쳐야 한다."
     )
+
+
+def test_risky_check_constraint_expressions_match_the_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """배타 조건을 담은 CHECK 3개의 표현식이 동결값과 같은지 검증한다 (BL-808 ⑶)."""
+    engine, _ = _upgrade_and_inspect(monkeypatch)
+    try:
+        with engine.connect() as conn:
+            for (
+                table_name,
+                constraint_name,
+            ), expected_definition in _RISKY_CHECK_CONSTRAINT_SNAPSHOTS.items():
+                actual_definition = conn.execute(
+                    text(
+                        "SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c "
+                        "JOIN pg_class t ON t.oid = c.conrelid "
+                        "JOIN pg_namespace n ON n.oid = t.relnamespace "
+                        "WHERE n.nspname = 'trading' AND t.relname = :table_name "
+                        "AND c.conname = :constraint_name"
+                    ),
+                    {"table_name": table_name, "constraint_name": constraint_name},
+                ).scalar_one_or_none()
+
+                assert actual_definition is not None, (
+                    f"{constraint_name} 가 alembic DB 에 없다 — 마이그레이션이 빠졌거나 "
+                    "이름이 바뀌었다."
+                )
+                assert " ".join(actual_definition.split()) == " ".join(
+                    expected_definition.split()
+                ), (
+                    f"{constraint_name} 표현식이 동결값과 다르다.\n"
+                    f"기대값: {expected_definition}\n"
+                    f"실측값: {actual_definition}\n"
+                    "의도한 변경이면 PostgreSQL 실측값으로 스냅샷을 갱신해라."
+                )
+    finally:
+        engine.dispose()
 
 
 def test_destructive_migration_tests_refuse_a_non_disposable_database() -> None:
