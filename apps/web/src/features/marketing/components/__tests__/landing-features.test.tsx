@@ -9,10 +9,11 @@ describe("LandingFeatures", () => {
     cleanup();
   });
 
-  it("section id=features + eyebrow 01", () => {
+  it("section id=features + 번호 아이브로우 없음 (BL-810)", () => {
     const { container } = render(<LandingFeatures />);
     expect(container.querySelector("#features")).not.toBeNull();
-    expect(container.querySelector(".eyebrow .num")?.textContent).toBe("01");
+    expect(container.querySelector(".eyebrow .num")).toBeNull();
+    expect(container.querySelector(".eyebrow")?.textContent).toBe("기능");
   });
 
   it("6개 기능 카드(.lp-feat) + 대표 타이틀 노출", () => {

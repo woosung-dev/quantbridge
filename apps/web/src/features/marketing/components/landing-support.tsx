@@ -7,9 +7,7 @@ export function LandingSupport() {
   return (
     <section className="section rise d4" id="support" aria-label="지원 현황">
       <header className="section-head">
-        <p className="eyebrow">
-          <span className="num">03</span> 지원 현황
-        </p>
+        <p className="eyebrow">지원 현황</p>
         <h2 className="section-title">지금 연결되는 거래소</h2>
         <p className="section-desc">
           지원한다고 적은 것은 실제로 주문이 오간 것만입니다. 계획 단계는 계획이라고 적습니다.

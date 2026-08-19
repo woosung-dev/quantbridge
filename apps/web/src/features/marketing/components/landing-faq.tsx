@@ -50,9 +50,7 @@ export function LandingFaq() {
   return (
     <section className="section rise d6" id="faq" aria-label="자주 묻는 질문">
       <header className="section-head">
-        <p className="eyebrow">
-          <span className="num">05</span> FAQ
-        </p>
+        <p className="eyebrow">FAQ</p>
         <h2 className="section-title">먼저 물어볼 만한 것들</h2>
         <p className="section-desc">답을 모르는 항목은 모른다고 적었습니다.</p>
       </header>

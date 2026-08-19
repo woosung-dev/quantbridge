@@ -24,9 +24,7 @@ export function LandingCta() {
   return (
     <section className="section rise d7" id="cta" aria-label="시작하기">
       <header className="section-head">
-        <p className="eyebrow">
-          <span className="num">06</span> 시작
-        </p>
+        <p className="eyebrow">시작</p>
         <h2 className="section-title">지금은 가입을 받지 않습니다</h2>
         <p className="section-desc">공개하게 되면 한 번만 알리도록 이메일을 남겨 둘 수 있습니다.</p>
       </header>

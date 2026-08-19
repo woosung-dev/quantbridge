@@ -34,9 +34,7 @@ export function LandingHowItWorks() {
   return (
     <section className="section rise d3" id="how" aria-label="작동 방식">
       <header className="section-head">
-        <p className="eyebrow">
-          <span className="num">02</span> 작동 방식
-        </p>
+        <p className="eyebrow">작동 방식</p>
         <h2 className="section-title">네 단계로 진행합니다</h2>
         <p className="section-desc">
           각 단계는 앞 단계의 결과를 그대로 받습니다. 중간을 건너뛰면 다음 화면에서 무엇이 빠졌는지

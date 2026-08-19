@@ -1,0 +1,73 @@
+{
+  "project": "QuantBridge",
+  "phase": "n7-bl810-bl808",
+  "steps": [
+    {
+      "step": 0,
+      "name": "bl810-landing-eyebrow",
+      "status": "completed",
+      "ac": [
+        "cd apps/web && ! grep -rq 'className=\"num\"' src/features/marketing/",
+        "cd apps/web && pnpm vitest run src/features/marketing/components/__tests__",
+        "cd apps/web && pnpm tsc --noEmit"
+      ],
+      "summary": "랜딩 6개 섹션의 번호 아이브로우를 제거하고 라벨 유지 테스트를 갱신했다.",
+      "started_at": "2026-08-19T09:42:14+0900",
+      "completed_at": "2026-08-19T09:44:24+0900"
+    },
+    {
+      "step": 1,
+      "name": "bl810-landing-step-label",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && ! grep -rq 'lp-step-num' src/",
+        "cd apps/web && ! grep -rq 'STEP 1' src/features/marketing/",
+        "cd apps/web && pnpm vitest run src/features/marketing/components/__tests__ src/__tests__",
+        "cd apps/web && pnpm tsc --noEmit"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "bl810-pricing-meter",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && ! grep -q 'className=\"meter\"' src/app/pricing/page.tsx",
+        "cd apps/web && grep -q 'className=\"meter\"' src/features/strategy/components/new/parse-result-panel.tsx",
+        "cd apps/web && pnpm vitest run src/app/pricing/__tests__ src/__tests__",
+        "cd apps/web && pnpm tsc --noEmit",
+        "cd apps/web && pnpm build"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "bl808-normalize-quoted-literal",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q -k preserves_quoted_literals",
+        "cd apps/api && uv run ruff check ."
+      ]
+    },
+    {
+      "step": 4,
+      "name": "bl808-per-axis-skip",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q -k axis_skip",
+        "cd apps/api && uv run ruff check ."
+      ]
+    },
+    {
+      "step": 5,
+      "name": "bl808-check-expression-snapshot",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q -k check_constraint_expression",
+        "cd apps/api && uv run ruff check ."
+      ]
+    }
+  ],
+  "created_at": "2026-08-19T09:42:14+0900"
+}

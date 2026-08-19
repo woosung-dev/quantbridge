@@ -9,10 +9,11 @@ describe("LandingHowItWorks", () => {
     cleanup();
   });
 
-  it("section id=how + eyebrow 02", () => {
+  it("section id=how + 번호 아이브로우 없음 (BL-810)", () => {
     const { container } = render(<LandingHowItWorks />);
     expect(container.querySelector("#how")).not.toBeNull();
-    expect(container.querySelector(".eyebrow .num")?.textContent).toBe("02");
+    expect(container.querySelector(".eyebrow .num")).toBeNull();
+    expect(container.querySelector(".eyebrow")?.textContent).toBe("작동 방식");
   });
 
   it("4 단계 카드(.lp-step) + STEP 라벨", () => {
