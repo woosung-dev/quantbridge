@@ -1,0 +1,78 @@
+{
+  "project": "QuantBridge",
+  "phase": "bl762-router-layer",
+  "steps": [
+    {
+      "step": 0,
+      "name": "contract-lock",
+      "status": "completed",
+      "summary": "라우터 리팩터 전 취소 acknowledgement와 교차 사용자 404 계약 5종을 test_router_layer_contract.py로 고정했다.",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_router_layer_contract.py -q",
+        "cd apps/api && n=$(uv run --env-file .env.local pytest tests/trading/test_router_layer_contract.py --collect-only -q 2>/dev/null | grep -c '::test_'); echo \"collected=$n\"; test \"$n\" -ge 5",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q -k 'ack_detail_is_frozen or other_users'",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "cd apps/api && uv run ruff check ."
+      ],
+      "started_at": "2026-08-19T18:09:40+0900",
+      "completed_at": "2026-08-19T18:16:32+0900"
+    },
+    {
+      "step": 1,
+      "name": "repo-ownership-getters",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_repository_ownership_getters.py -q",
+        "cd apps/api && n=$(uv run --env-file .env.local pytest tests/trading/test_repository_ownership_getters.py --collect-only -q 2>/dev/null | grep -c '::test_'); echo \"collected=$n\"; test \"$n\" -ge 6",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "cd apps/api && uv run ruff check ."
+      ]
+    },
+    {
+      "step": 2,
+      "name": "orders-axis",
+      "status": "pending",
+      "ac": [
+        "n=$(grep -c 'Repository(' apps/api/src/trading/router.py); echo \"remaining=$n\"; test \"$n\" = \"6\"",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
+        "cd apps/api && uv run ruff check ."
+      ]
+    },
+    {
+      "step": 3,
+      "name": "kill-switch-axis",
+      "status": "pending",
+      "ac": [
+        "n=$(grep -c 'Repository(' apps/api/src/trading/router.py); echo \"remaining=$n\"; test \"$n\" = \"4\"",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
+        "cd apps/api && uv run ruff check ."
+      ]
+    },
+    {
+      "step": 4,
+      "name": "live-session-read-axis",
+      "status": "pending",
+      "ac": [
+        "n=$(grep -c 'Repository(' apps/api/src/trading/router.py); echo \"remaining=$n\"; test \"$n\" = \"0\"",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_router_live_session_state_real_pnl.py -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "cd apps/api && uv run ruff check ."
+      ]
+    },
+    {
+      "step": 5,
+      "name": "boundary-lock-ast",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_router_layer_boundary.py -q",
+        "cd apps/api && n=$(uv run --env-file .env.local pytest tests/trading/test_router_layer_boundary.py --collect-only -q 2>/dev/null | grep -c '::test_'); echo \"collected=$n\"; test \"$n\" -ge 3",
+        "n=$(grep -c 'Repository(' apps/api/src/trading/router.py); echo \"remaining=$n\"; test \"$n\" = \"0\"",
+        "cd apps/api && uv run --env-file .env.local pytest -q",
+        "cd apps/api && uv run ruff check ."
+      ]
+    }
+  ],
+  "created_at": "2026-08-19T18:09:40+0900"
+}
