@@ -18,13 +18,16 @@
     {
       "step": 1,
       "name": "bl810-landing-step-label",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && ! grep -rq 'lp-step-num' src/",
         "cd apps/web && ! grep -rq 'STEP 1' src/features/marketing/",
         "cd apps/web && pnpm vitest run src/features/marketing/components/__tests__ src/__tests__",
         "cd apps/web && pnpm tsc --noEmit"
-      ]
+      ],
+      "summary": "랜딩 작동 방식 4단계 카드에서 STEP 라벨 데이터·마크업·스타일을 제거하고 부재 회귀 테스트를 추가했다.",
+      "started_at": "2026-08-19T09:44:40+0900",
+      "completed_at": "2026-08-19T09:46:48+0900"
     },
     {
       "step": 2,

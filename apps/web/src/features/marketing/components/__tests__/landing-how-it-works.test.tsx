@@ -16,11 +16,11 @@ describe("LandingHowItWorks", () => {
     expect(container.querySelector(".eyebrow")?.textContent).toBe("작동 방식");
   });
 
-  it("4 단계 카드(.lp-step) + STEP 라벨", () => {
+  it("4 단계 카드(.lp-step) — STEP 라벨 없음 (BL-810)", () => {
     const { container } = render(<LandingHowItWorks />);
     expect(container.querySelectorAll(".lp-step").length).toBe(4);
-    expect(screen.getByText("STEP 1")).toBeInTheDocument();
-    expect(screen.getByText("STEP 4")).toBeInTheDocument();
+    expect(container.querySelector(".lp-step" + "-num")).toBeNull();
+    expect(screen.queryByText(/^STEP /)).toBeNull();
     expect(screen.getByText("전략 등록")).toBeInTheDocument();
     expect(screen.getByText("데모 실행")).toBeInTheDocument();
   });
