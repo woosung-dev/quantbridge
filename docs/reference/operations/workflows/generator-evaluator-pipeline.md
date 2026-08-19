@@ -153,26 +153,37 @@ codex exec review < /dev/null        # 또는 누적 diff 를 붙여 challenge �
 
 **생략 금지.** 5세션 연속 P1 을 적발했다. findings 는 **수정 / 기각(사유 기록) / BL 등재** 로 전건 처분한다. ★codex 의 지적도 코드로 재현 판정한다 — 결론은 맞고 근거가 틀린 사례가 반복해서 나왔다. ★평가자가 직접 손댄 줄(문서·1~3줄 수선)을 리뷰 범위에 반드시 포함시킨다.
 
-### G7 — 로컬 CI 3잡 동일 재현
+### G7 — green 확인 (CI 2잡 + 필요 시 로컬 표준 러너)
 
-이 레포는 GitHub Actions 크레딧 초과로 게이트 잡이 **2초 만에 죽는다**(러너 미할당이지 코드 실패가 아니다). 판단 근거는 로컬뿐이다.
+**green 확인 = `gh pr checks` 의 `backend`·`frontend` 2잡** ([ADR-037] 제로베이스, 2026-08-19 —
+정본 = `.github/workflows/ci.yml`). 두 잡은 paths 필터 없이 무조건 돌고 집계 잡은 없다.
+CI 를 기다리기 어렵거나 red 원인을 좁힐 때만 **로컬 표준 러너**로 같은 표면을 재현한다 —
+BE `uv run ruff check .` + `uv run pytest`(`.env.local` 통째 소싱) ·
+FE `pnpm lint` + `pnpm tsc --noEmit` + `pnpm test` + `pnpm build`.
+**「로컬 게이트에 없는 CI 전용 스텝」은 이제 없다** — e2e·coverage 래칫·alembic·mypy·OpenAPI
+drift 는 CI 에서 빠졌고, 복귀는 재입힘 규칙(문서화된 사고 1건 = 슬림 복귀 1건) 경유다.
 
-```bash
-git diff --name-only $(git merge-base origin/main HEAD)..HEAD   # path-filter 판정
-```
-
-| 잡       | 로컬 상시 게이트에 없는 CI 전용 스텝                                                                                                    |
-| -------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| backend  | `pytest --cov=src.trading.registry --cov=src.trading.webhook --cov=src.trading.websocket --cov-report=term-missing --cov-fail-under=90` |
-| backend  | fresh throwaway DB 에 `alembic upgrade head` (개발 DB 를 향하지 않게)                                                                   |
-| frontend | `pnpm build` · `pnpm install --frozen-lockfile` · rules-of-hooks eslint-disable 차단 grep                                               |
+> **구 서술 tombstone (2026-08-19 [ADR-037])** — 아래 셋은 구 구조 기록이다. 원문 =
+> `git show harness-v1:docs/reference/operations/workflows/generator-evaluator-pipeline.md` §G7 ·
+> 구 CI = `git show harness-v1:.github/workflows/ci.yml`.
+>
+> - ~~이 레포는 GitHub Actions 크레딧 초과로 게이트 잡이 2초 만에 죽는다 — 판단 근거는 로컬뿐이다~~
+>   → 지금 CI 는 돌고, 그것이 단일 게이트다.
+> - ~~path-filter 판정(`git diff --name-only $(git merge-base origin/main HEAD)..HEAD`)~~
+>   → 필터 자체가 철거돼 판정할 것이 없다.
+> - ~~「로컬 상시 게이트에 없는 CI 전용 스텝」 표 — backend `--cov-fail-under=90` ·
+>   fresh throwaway DB `alembic upgrade head` · frontend build/frozen-lockfile/rules-of-hooks grep~~
+>   → 그 스텝들은 지금 CI 에 없다(frozen-lockfile install 과 build 는 `frontend` 잡에 잔존).
 
 ~~`| e2e | pnpm e2e(project=chromium, 4건) — e2e:design-canon·e2e:authed 와 별개 |`~~
-★**2026-08-08 [BL-556] — 더 이상 CI 전용이 아니다.** `final-gates.sh` §4 가 라벨
-**`e2e chromium`** 으로 집행한다(영역 판정 `has_fe` 에 걸리는 유일한 e2e 게이트).
+★~~2026-08-08 [BL-556] — `final-gates.sh` §4 가 로컬 집행~~ → **2026-08-19 ADR-037 제로베이스로
+로컬 집행자를 철거해 이제 어느 게이트도 e2e 를 안 돈다**(로컬 수동 실행만 남음) —
+원문 = `git show harness-v1:tools/scripts/final-gates.sh`.
 **그리고 4건이 아니라 3건이다**(`--list` 실측 `Total: 3 tests in 1 file`).
 
-실측 소요 — BE pytest 4분 + 커버리지 7.6분 + FE vitest 20초 + e2e authed 3.6분 + canon·build 각 1분 ≈ **20분**. 그래서 **풀 게이트는 G7 에서 1회만** 돌리고 G3 중간에는 표적 서브셋만 돌린다.
+실측 소요 — ~~구 풀 게이트 ≈ 20분(BE pytest 4분 + 커버리지 7.6분 + FE vitest 20초 + e2e authed
+3.6분 + canon·build 각 1분)~~ → 지금 로컬 표준 러너 전량은 BE pytest ≈ 6.3분(379s 실측) +
+FE vitest·build 수 분이다. **풀 실행은 G7 에서 1회만, G3 중간에는 표적 서브셋만** — 이 원칙은 유지.
 
 ### G8 — 문서 원자 갱신 + PR
 
@@ -180,12 +191,10 @@ git diff --name-only $(git merge-base origin/main HEAD)..HEAD   # path-filter �
 - ★**요약 레이어는 본문보다 늦는다.** 2026-07-27 종결 시 `dev-log/INDEX.md` 가 **폐기된 설계를 출시된 것처럼** 적고 있었고 `roadmap.md` 도 같은 상태였다. 종결 체크리스트에 **"요약(INDEX·roadmap·status)을 본문과 대조"** 를 고정 항목으로 넣는다.
 - 작업 문서(`docs/<theme>/`)는 **흡수 대조 후 삭제**한다. 대조 없이 지우지 마라 — 2세션 연속으로 미흡수 2건이 나왔다. `docs/` 최상위 10 유지.
 - PR 생성까지. **squash 는 사용자.**
-- ★**게이트는 2단이다** (2026-08-14). PR 전에는 `final-gates.sh --run <슬러그> --pre-pr`(~1분)까지만
-  돌린다. 무거운 9종(BE pytest **379초** · e2e 3레인 · CI 재현 · 신호 4종)은 **유예**되고, PR 을
-  올린 뒤 **CI 와 나란히** `--deferred-only` 로 돈다. 근거 = CI 의 `backend`·`e2e` 잡이 같은 것을
-  이미 샤딩해서 돈다 — 로컬 전량 실행은 그것을 직렬로 한 번 더 하는 것이었다(전량 15~20분).
-  ★★**유예 원장(`.claude/gates/<슬러그>/deferred.txt`)이 남아 있으면 종결이 아니다.**
-  `--deferred-only` 통과만이 그것을 지운다. G8 의 「PR 생성」은 이제 **종결이 아니라 2단의 경계**다.
+- ★~~게이트는 2단이다 (2026-08-14, `final-gates.sh --pre-pr` → `--deferred-only`)~~ →
+  **2026-08-19 ADR-037 제로베이스로 철거 — 원문 = `git show harness-v1:tools/scripts/final-gates.sh`.**
+  green = 표준 러너(ruff/pytest/eslint/tsc/vitest) + **CI 단일 게이트**(`gh pr checks`) + 경량 훅.
+  리뷰 = `/review-code`.
 - ★**다음 스프린트 핸드오프는 `docs/status.md` 의 「다음 스프린트」 블록 하나로 한다. 별도 킥오프 파일을 만들지 마라.**
   `AGENTS.md` 가 이미 새 세션 첫 step 을 `CONTEXT.md` + `AGENTS.md` + `docs/status.md` 3종으로 정해뒀다. 레포 밖(`~/.claude/plans/`)에 킥오프를 두면 **진입점이 둘이 되고 그 파일은 아무도 검증하지 않는다** — 2026-07-28 실측: 킥오프가 `gates-and-traps.md` §3.5 를 "있다" 고 적었으나 **그 섹션이 없었고**, 자기 사용법("전체를 붙여넣는다")도 틀렸다(사용자는 경로만 줬고 그게 더 잘 동작했다).
   블록은 아래 **7필드 실행 계약**만 유지한다. **⓪ 는 사용자가 고르는 자리**이고 1~6 은 고른 뒤 채운다.
@@ -199,7 +208,7 @@ git diff --name-only $(git merge-base origin/main HEAD)..HEAD   # path-filter �
      완료된 서사·측정 표는 `dev-log/` 또는 `archive/`로 보내고, 다음 handoff에는 한 줄 결과와 증거 링크만 남긴다.
      나머지는 전부 레포 안 제자리를 가리킨다(절차는 §4·§7, 함정은 `gates-and-traps.md`, 상세 8필드는 `backlog.md`).
      명시 위임이 있을 때만 머지한다.
-- ★**살아 있는 「다음 행동」은 블록당 최대 1개.** 끝난 것은 지우지 말고 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다 — 다음 세션은 남아 있는 것을 그대로 따르고, 지우면 왜 바뀌었는지가 사라진다. ★**0개도 정상이다** — ⓪ 에서 아직 안 골랐다는 뜻이다. 「정확히 1」이 아니라 **≤1** 인 이유가 이것이다. ★★**2026-08-08 부터 `docs-audit.sh` 가 이 항을 잡는다**([BL-643] Resolved — 위 「어느 게이트도 안 잡는다」는 이제 거짓이라 지웠다). 술어 둘: 「⓪ 표의 행 수 **≥3**」과 「살아 있는 **`다음 행동 =`** ≤1」. ★★재는 것은 **구문**이지 낱말이 아니다 — 낱말로 세면 규칙을 _설명하는_ 문장까지 물어 오탐하는데, 실행 지시는 언제나 `다음 행동 = …` 형태라 `=` 를 요구하면 설명 문장이 자동으로 빠진다(음성 대조: `ce583eef^` 2건 검출 / 현행 0건 · 변이 6/6). ★★★**게이트는 「블록당」이 아니라 파일 전체로 센다** — 실제 사고의 2건은 서로 **다른 섹션**에 하나씩 있었고, 블록별로 세면 각 1건이라 그대로 통과했다. 위 「블록당 최대 1개」는 사람이 읽는 규범이고, 집행은 파일 전체다. ★한계는 그대로다 — 이것은 **모순 탐지기이지 낡음 탐지기가 아니다**(단독으로 낡은 1건 · 어구 변형은 사거리 밖).
+- ★**살아 있는 「다음 행동」은 블록당 최대 1개.** 끝난 것은 지우지 말고 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다 — 다음 세션은 남아 있는 것을 그대로 따르고, 지우면 왜 바뀌었는지가 사라진다. ★**0개도 정상이다** — ⓪ 에서 아직 안 골랐다는 뜻이다. 「정확히 1」이 아니라 **≤1** 인 이유가 이것이다. ★자동 집행자(`docs-audit.sh`, [BL-643])는 2026-08-19 ADR-037 제로베이스로 철거 — 원문 = `git show harness-v1:tools/scripts/docs-audit.sh`. 지금은 사람이 읽는 규범이며, 세는 단위는 블록이 아니라 **파일 전체**다(실제 사고 2건이 서로 다른 섹션에 하나씩 있었다).
 
 ## 5. 실패 모드
 
@@ -377,7 +386,7 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
   (`[ "$(wc -l < out)" -eq "$N" ]`). 2026-08-12 에 두 번의 0행이 「276건 전건 조회」·「121건 전건 조회」로
   보고될 뻔했고, 조용하게 만든 것은 **내가 붙인 `2>/dev/null`** 이었다.
 - **의무 ⑷ — 판별력을 스윕 **앞**에 세워라.** 검사기 자신이 양성·음성 쌍으로 자기검사하고, 실패하면
-  초록 대신 **rc=3 으로 판정을 포기**해라 (`header-audit.sh` 가 이 형태의 정본이다).
+  초록 대신 **rc=3 으로 판정을 포기**해라 (정본이던 `header-audit.sh` 는 ADR-037 로 철거 — 원문 = `git show harness-v1:tools/scripts/header-audit.sh`).
 - **★역방향도 같다** — 남의 도구가 빈 입력에 **그럴듯한 원인을 붙여 red** 를 내기도 한다([LESSON-102]).
   **초록도 red 도 「무엇을 봤는지」를 물어라.**
 
@@ -400,11 +409,14 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
 `final-gates`·`soak-watch`·`soak-restart`·`pre-push-guard`). 규칙은 이미 그렇게 굴러가고 있었고
 이 절은 그것을 적어 둘 뿐이다. ★**같은 날 스윕이 등재한 사각 [BL-722] 를 그 다음 회차가 닫아
 `assert-main-checkout` 이 10번째가 됐다** — 이 절은 규칙을 적었고, 그 규칙이 곧바로 한 건을 잡았다.
+★**2026-08-18 — 위 감사기 하네스 층은 ADR-037 제로베이스로 철거됐다**(원문 = `git show
+harness-v1:tools/scripts/<파일>`). 재추가는 「문서화된 사고 1건 = 슬림 복귀 1건」 규칙만 허용하며,
+이 절의 「판정기에만 붙인다」 기준은 그 복귀 판단에도 그대로 적용된다.
 
 **증명하는 방법은 셋이고, 어느 것이든 된다:**
 
-1. 별도 하네스 `*-test.sh` (`mise run gate-harnesses` 가 부른다 · CI `documentation` 잡)
-2. **내장 self-check** — `bl-trigger-sweep.sh --selftest` 가 그 판본이다
+1. 별도 하네스 `*-test.sh` (~~`mise run gate-harnesses` 가 부른다~~ — ADR-037 로 철거, 원문 = `git show harness-v1:tools/scripts/`)
+2. **내장 self-check** (~~`bl-trigger-sweep.sh --selftest`~~ 가 그 판본이었다 — 같은 철거, 원문 = `git show harness-v1:tools/scripts/bl-trigger-sweep.sh`)
 3. **판정 로직이 다른 층에 살면 그 층의 테스트** — `soak-gate.sh` 의 판정은
    `apps/api/scripts/soak_gate_predicate.py` 에 있고 **pytest 61건**이 덮는다
 
@@ -415,7 +427,7 @@ docker exec -w /app -e PYTHONPATH=/app quantbridge-worker python /tmp/oracle.py
 
 **AC 는 구현보다 먼저 동결한다 — 파일까지 먼저 쓸 필요는 없다.** `skip-ratchet-test.sh` 는 수리보다
 먼저 쓰여 「현재 코드에 대고 돌리면 ④⑤⑥⑨ 가 red 여야 한다」를 헤더에 박았다. 그것이 이 관행의
-정본이다. ★2026-08-14 `final-gates-test.sh` 는 **구현 뒤에** 썼고, 그래서 「수리 전 red」를 못 보이고
+정본이었다(파일은 ADR-037 로 철거 — 원문 = `git show harness-v1:tools/scripts/skip-ratchet-test.sh`). ★2026-08-14 `final-gates-test.sh` 는 **구현 뒤에** 썼고, 그래서 「수리 전 red」를 못 보이고
 사후 변이로 대신해야 했다 — 먼저 썼으면 CI 가 잡은 결함을 로컬에서 잡았다.
 
 **변이(=판별력 시험)는 판정기에 한해 의무다.** 그것이 없으면 테스트와 장식을 구분할 수 없다.

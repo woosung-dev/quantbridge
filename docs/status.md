@@ -18,7 +18,8 @@
 ## 다음 스프린트 — **⓪ 표에서 고른다** (아래 ⓻ 의 `다음 행동 =` 이 유일한 진입점)
 
 > ★**이것이 다음 세션의 유일한 진입점이다.** 별도 킥오프 파일을 만들지 않는다([ADR-026] · §G8).
-> ★★`docs-audit.sh` 가 이 블록을 검사한다([BL-643]) — ⓪ 표 행 **≥3** ·
+> ★★~~`docs-audit.sh` 가 이 블록을 검사한다([BL-643])~~ → **2026-08-19 [ADR-037]**
+> `tools/scripts/ledger-vitals.sh`(pre-commit 배선)가 검사한다 — ⓪ 표 행 **≥3** ·
 > 살아 있는 **`다음 행동 =`** ≤1(파일 전체). 낡은 지시는 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꿔라.
 >
 > ★★★**착수 전 첫 명령 둘** — ⑴ `tools/scripts/soak-gate.sh`(서버, `bash -lc` 필수)
@@ -35,8 +36,10 @@
 (`dev-log/INDEX.md` 가 발견 색인). ★08-10~08-12 의 반증 4건은 **[LESSON-101]→§8.6 승격**과
 **[LESSON-105]·[LESSON-106]** 으로 정본 층에 올라갔다 — 이 자리는 더 이상 그 서사를 지고 있지 않다.
 
-**다음 회차의 목표는 ⓪ 에서 고른다** — 손으로 후보를 얹지 마라(`docs-audit` 의 ⓪ 표 정체성 축이
-집행한다). 살아 있는 행은 `bash tools/scripts/bl-audit.sh --list ACTIVE` ∪ (`PARTIAL` ∧ 도래)다.
+**다음 회차의 목표는 ⓪ 에서 고른다** — ~~손으로 후보를 얹지 마라(`docs-audit` 의 ⓪ 표 정체성 축이 집행한다). 살아 있는 행은 `bash tools/scripts/bl-audit.sh --list ACTIVE` ∪ (`PARTIAL` ∧ 도래)다.~~
+→ **2026-08-19 [ADR-037]** 두 검사기는 철거됐다(원문 = `git show harness-v1:<경로>`) — ⓪ 표는
+세션이 `docs/backlog.md` 의 상태줄(`**상태:**`)을 직접 읽어 갱신한다(행 수 ≥3 은
+`tools/scripts/ledger-vitals.sh` ② 축이 지킨다).
 
 **비목표(불변)** — 거래소 쓰기([BL-669]) · `exchange_accounts` 행 삭제([BL-477]·[BL-529]·[BL-592]) ·
 **서버 소크 DB 에 alembic 적용**. 셋 다 사용자 결정 대기다.
@@ -62,14 +65,17 @@
   (`list_by_owner` = `DISTINCT ON` LEFT JOIN 후 정렬 → 페이지네이션)
 - **E2E base URL 은 1벌이다** — `apps/web/e2e/_base-url.ts`. `?? "http://localhost:3000"` 을
   **다시 만들지 마라**(사본 5벌이 CI 를 190ms 만에 죽였다)
-- **판정 스크립트 2벌** — `tools/scripts/bl-audit.sh --list <판정어>` 가 정본이고
-  `tools/scripts/bl-trigger-sweep.sh` 가 `ACTIVE ∪ PARTIAL` 을 훑는다. **파서를 3벌로 만들지 마라**
+- ~~**판정 스크립트 2벌** — `tools/scripts/bl-audit.sh --list <판정어>` 가 정본이고 `tools/scripts/bl-trigger-sweep.sh` 가 `ACTIVE ∪ PARTIAL` 을 훑는다. **파서를 3벌로 만들지 마라**~~
+  → **2026-08-19 [ADR-037]** 두 스크립트는 철거됐다(원문 = `git show harness-v1:tools/scripts/`).
+  판정어 5종 규칙은 산문으로 유지한다 — 판정은 섹션의 상태줄 `**상태:**` 를 직접 읽는다.
 - ★**[BL-003] 을 이어받는다면 첫 파일은 하나다** —
   [`bybit-mainnet-runbook.md`](reference/operations/bybit-mainnet-runbook.md).
   **§0(착수 전 재측정)을 먼저 돌려라** — 이 문서의 실측에는 유효기한이 있다.
 - ★**원장은 파일 셋이고 축은 판정어다**(2026-08-18 3분할 · [BL-779]): `backlog.md`(ACTIVE ∪ PARTIAL
   - 인덱스 표 전량, **2,3천 줄**) · `backlog-deferred.md`(DEFERRED) · `backlog-resolved.md`(RESOLVED).
-    ★**어느 파일에 있는지는 앵커가 아니라 `bash tools/scripts/bl-audit.sh --list <판정어>` 의 4번째 칸이 답한다**
+    ~~★**어느 파일에 있는지는 앵커가 아니라 `bash tools/scripts/bl-audit.sh --list <판정어>` 의 4번째 칸이 답한다**~~
+    → **2026-08-19 [ADR-037]** bl-audit 철거 — 어느 파일인지는 판정어가 정한다(위 3분할 규칙 ·
+    확인은 `grep -l '^### BL-NNN' docs/backlog*.md`)
     — 표 행의 `#bl-NNN` 은 접두사가 없어 다른 파일을 못 가리킨다([BL-801]). 통째로 읽지 마라.
 - [`gates-and-traps.md`](reference/operations/gates-and-traps.md) — 게이트 전문
 - [`generator-evaluator-pipeline.md`](reference/operations/workflows/generator-evaluator-pipeline.md)
@@ -115,19 +121,17 @@ ssh truewords-oracle 'bash -lc "cd ~/quantbridge && tools/scripts/soak-gate.sh"'
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest -q       # ★.env.local **통째** 소싱
 cd apps/api && … uv run pytest --run-mutations tests/strategy/pine_v2/test_trust_layer_parity.py
 cd apps/web && pnpm vitest run --coverage                            # 단위 3 — ★문턱 금지
-bash tools/scripts/bl-audit.sh; bash tools/scripts/docs-audit.sh                 # 둘 다 종료 코드 0
+# ~~bash tools/scripts/bl-audit.sh; bash tools/scripts/docs-audit.sh — 둘 다 rc 0~~ → 2026-08-19 [ADR-037] 철거
+mise run ledger-vitals                                               # 원장 사활 3축 · rc=0 (pre-commit 배선)
 
 # ③ smoke 도구 — dry-run 은 네트워크 호출 0건이다. 마음 놓고 돌려라
 tools/scripts/bybit-smoke.sh --env-file <시크릿파일> --mode demo
 #   ★--confirm 은 거래소에 실제로 나간다. **사용자 승인 뒤에만.**
 
 # ④ 하루 끝 — 마지막 커밋 뒤, 클린 트리. 그 뒤로 문서를 더 쓰지 마라
-tools/scripts/final-gates.sh --run <회차슬러그> --pre-pr   # 무거운 9종 유예 (~1분) — 여기까지가 PR 전
-#   → PR push → CI 와 **나란히** 로컬에서:
-tools/scripts/final-gates.sh --run <회차슬러그> --deferred-only   # BE pytest 379초 + e2e + 신호 4종
-#   ★--run eod 금지 — 스크립트가 거부한다([BL-706]). 전량 1회로 가려면 플래그 없이 돌려라
-#   ★유예 원장 `.claude/gates/<슬러그>/deferred.txt` 가 남아 있으면 **종결이 아니다**
-#   신호 4종(.ok)은 이 회차 것으로 새로 취득 — 각 파일 첫 줄 = `commit: $(git rev-parse HEAD)`
+# ~~final-gates.sh --pre-pr → PR push → --deferred-only … deferred.txt 유예 원장 · 신호 4종(.ok)~~
+#   → 2026-08-19 [ADR-037] 철거. green = CI 단일 게이트(backend + frontend 2잡)다. PR push 후:
+gh pr checks --watch                                       # 2잡 다 초록이어야 종결
 ```
 
 ★★**「마지막 커밋 뒤」는 「이 회차의 PR 브랜치에서, 머지 전에」를 함께 뜻한다** ([BL-714], 2026-08-14).
@@ -506,6 +510,44 @@ attribution 을 sha 로 쪼갤 뿐이다. 실측 확증 = 귀속 창 3개에 고
 새 스텁 장치)은 **전부 실측으로 기각**됐다 — ubuntu 컨테이너에서 직접 재니 red 는 **정확히 케이스 1건**.
 **좁히기는 맞았고 원인 가설은 다 틀렸다.**
 ★★★**⑺ 그 델타의 원인으로 내가 적은 설명이 틀렸다** — 공개 3라우트 +0.2 kB 를 「`NEXT_PUBLIC_*` 문자열 인라인」으로 적었는데 **부호가 반대**다(새 값이 더 짧다). 적대 리뷰가 짚었고 실측이 확정했다 — `NEXT_PUBLIC_ENABLE_TEST_ORDER` `false`→`true` 가 **dead code elimination 을 풀어** `.next/static` js/css 를 **3,286,670 → 3,299,506 B** 로 키운다. **「설명됐다」와 「설명이 있다」는 다르다** — 이 회차가 만든 게이트가 요구하는 그 구분을 내 서술이 먼저 어겼다.
+
+## ★2026-08-19 harness-zero-base — 검사기 층 전량 철거 + finsight 이식 4종 ([ADR-037](decisions/037-harness-zero-base.md))
+
+**무엇을 했나** — 사용자 판정 「가능한 다 걷어내고, 필요하면 증거로만 다시 입힌다」. 철거 직전 = git 태그 **`harness-v1`**.
+
+⑴ **걷어냄 25파일 ~444KB** — final-gates(2단 게이트·유예 원장·스킬 신호·화면 증거) · bl-audit ·
+docs-audit · bl-trigger-sweep · header-audit · skip-ratchet · signal-check · context-budget ·
+tool-pin-audit · 자기시험 `*-test.sh` **14종 전량** · 사문 1(sentinel_bl181) + 배선(mise task 3 ·
+pre-commit header-audit · pre-push FE/BE 검사부 · CI documentation 잡 · bl-audit-checklist.md).
+⑵ **green 재정의** — 표준 러너 + **CI 단일 게이트**(ci.yml 787→106줄: be=ruff+pytest 전량 /
+fe=eslint+tsc+vitest+build). 로컬 pre-flight 의식 폐지. ★적대 검증이 잡은 동반 철거 2건 —
+CI 표면을 감사하던 테스트가 pytest/vitest **안에** 살아 새 CI 를 red 로 만들고 있었다
+(`test_ci_matrix_shard_ids_match_shards_json` · `e2e-project-wiring.test.ts` — 같이 걷어냄).
+⑶ **입힘(강사 finsight 이식)** — `/review-code` 3차원 다수결 리뷰(구 header-audit 을 conventions
+차원이 흡수) · `.codex/hooks.json`+`tools/scripts/hooks/`(codex 레인 최초 가드, Stop=영역별
+ruff/eslint 경량) · `evals/harness/` 하네스 Eval(review 5 + qa 전제반박 2, 로컬 전용) ·
+`tools/scripts/ledger-vitals.sh`(재입힘 첫 적용례 — 사고 실증 2건 근거 3축: 다음 행동 ≤1 ·
+⓪ 표 ≥3행 · RESOLVED 역류 0, pre-commit 배선).
+⑷ **남김(하네스 아님)** — 운영 런타임(soak-\*·db-backup·disk-guard, 서버 systemd 가 호출 중) ·
+CI 테스트 인프라 · 권한 소품(pre-push ref 가드 = main push 영구 금지 · assert-main-checkout · deny).
+⑸ ★**재입힘 규칙** — 문서화된 사고 1건 = 슬림 복귀 1건, 복귀는 최소판으로 (ADR-037 §④).
+⑹ 알고 감수하는 리스크 — 스킬 신호·skip 래칫·도구 핀·화면 증거 사고 계열이 무방비로 열림.
+CI 축소로 coverage 래칫·alembic check·e2e·openapi drift 가 CI 에서 빠짐(로컬 실행은 가능).
+★main 브랜치 보호 required check 가 구 잡 이름을 가리키면 **사용자가 GitHub 설정을 갱신해야 한다.**
+
+### 반증 카드 — 이 회차에 틀린 것으로 드러난 전제
+
+★★★**⑴ [BL-802] 의 차단자 진단이 거짓이었다** — 위 ⑵. **셈이 아니라 측정이 그것을 갈랐다.**
+★★**⑵ 내 예측도 절반만 맞았다.** 시더 필요 spec 을 3건으로 봤는데 실측 7건이었고, 그 7건의 원인도
+셋으로 갈렸다(플래그·페이로드·행). **원장을 반증한 그 방법으로 내 추정도 반증됐다.**
+★★**⑶ 「로컬에서 확인했다」가 닿지 않은 경로에 대해선 아무 뜻도 없었다.** 시더의 `OptimizationKind.GRID`(실재하지 않는 멤버)는 로컬이 `_resolve_owner` 에서 먼저 죽어 **CI 에서 처음 실행**됐다. ⇒ `--selftest` 신설. **그런데 그 selftest 도 페이로드 형상 3건을 통과시켰다** — 「행이 만들어지는가」만 봤기 때문이다. 계약(`BacktestMetricsOut`·`ParamSpace`)을 **실제로 먹이도록** 고쳤다.
+★**⑷ 그 selftest 의 첫 단언이 항진명제였다** — `len(strategies) == STRATEGY_COUNT` 는 그 함수가
+그 상수만큼 만드니 절대 안 깨진다. spec 의 실제 요구인 `>= 11` 로 바꿨다.
+★★**⑸ γ 초판이 [BL-749] 의 index 축을 조용히 끄고 있었다.** 정지 규칙이 cascading `return` 인데
+새 축을 앞에 둬서 baseline 6건(>5)이 뒤 축을 건너뛰었다. **변이가 27 passed 로 통과**해 드러났다.
+★**⑹ 형제 `e2e` 잡에 상한이 없어 6시간을 태웠다**(01:26→07:26 · 실측 5.4분짜리 잡). 내가 `e2e_authed` 에 45분 상한을 건 **대비가 그것을 드러냈다** — 둘 다 없었으면 「느린 실행」으로 보였다. ★**⑺ 「테스트 주문 버튼이 안 뜬다」를 데이터 부족으로 오진했다** — 원인은 `NEXT_PUBLIC_ENABLE_TEST_ORDER` **기능 플래그**였고, 증상이 「거래소 계정 없음」과 구분되지 않는다.
+
+~~**다음 행동 = 새 얇은 하네스로 [BL-807]+[BL-797] 회차 실주행**~~ → **2026-08-19 무효** — 그 문장은 이 브랜치가 #683 시점에서 갈라져 나온 뒤에 쓰였고, 같은 날 n6-authed-evidence 회차(PR #684·#685)가 [BL-807]·[BL-797] 을 **이미 종결**했다. 하네스 v2 의 첫 실주행 대상은 아래 살아 있는 「다음 행동」([BL-810]+[BL-808])이 받는다.
 
 **다음 행동 = ⓪ 표에서 고른다. 가장 강한 조합은 [BL-810] — 사용자 결정 집행(S) — 과 [BL-808] — 스키마 축 잔여 3구멍(S) — 이다.**
 ★[BL-810] 을 할 때 **`/pricing` 이 화면 증거 ROUTES 밖**이라는 사실을 먼저 정해라 — 랜딩 변경은 게이트가 잡지만 그쪽은 무증거로 지나간다. 그 뒤가 예고된 **전략 에디터 split view** 이고, 이제 그것이 **authed 증거 게이트 위에서** 돈다(이 회차가 그 전제를 세웠다). ★[BL-776] 카피 수정은 [BL-810] 과 같은 면이라 함께 처리하면 증거가 한 벌이다.

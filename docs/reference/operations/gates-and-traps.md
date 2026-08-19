@@ -4,6 +4,16 @@
 > 2026-07-26 신설. 이 내용은 그전까지 스프린트 문서 7개에 복붙되고 있었고,
 > `reference/` 에 있던 유일한 진술은 **틀려 있었다** (아래 `pnpm test` 항목).
 
+> ★**[ADR-037](../../decisions/037-harness-zero-base.md) 제로베이스 (2026-08-19).** 이 문서에서
+> `final-gates`·`bl-audit`·`docs-audit`·`bl-trigger-sweep`·`header-audit`·`skip-ratchet`·
+> `signal-check`·`context-budget`·`tool-pin-audit`·`gate-harnesses`·`*-test.sh` 를 언급하는 절차는
+> **전부 역사 기록이다** — 그 검사기들은 철거됐다(원문 = `git show harness-v1:<경로>`).
+> 지금 유효한 것: §1 의 표준 러너(ruff/mypy/pytest/tsc/vitest/lint/build)와 CI 단일 게이트,
+> §3 의 **환경 함정**(`.env.local` 소싱·DATABASE_URL 단독 주입 금지 등 — 여전히 전부 참),
+> §4 pre-push 는 ref 가드만 남음, 원장 사활 = `tools/scripts/ledger-vitals.sh` 3축.
+> 리뷰 = `/review-code` · codex 훅 = `.codex/hooks.json` · 하네스 Eval = `evals/harness/`.
+> 재입힘 규칙: 문서화된 사고 1건 = 슬림 복귀 1건 (ADR-037 §④).
+
 ---
 
 ## 1. 통과 가능한 게이트
@@ -37,15 +47,19 @@ cd $QB/apps/web && pnpm e2e:authed
 
 `mise run lint` / `mise run typecheck` / `mise run test` 는 위를 FE+BE 로 묶은 것이다. 단 **env 를 source 하지 않으므로** BE pytest 는 셸에 3-env 가 이미 있어야 한다.
 
-문서 구조·활성 Markdown 링크·폐기 경로는 루트에서 `mise run docs-audit`으로 검사한다.
+~~문서 구조·활성 Markdown 링크·폐기 경로는 루트에서 `mise run docs-audit`으로 검사한다.~~
+→ **2026-08-19 [ADR-037] 철거** — `docs-audit` 은 없다(원문 = `git show harness-v1:tools/scripts/docs-audit.sh`).
 
 ### 게이트 3종 신규 (2026-08-11 ledger-truth)
 
-```bash
-cd $QB && bash tools/scripts/skip-ratchet.sh    # 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)
-cd $QB && mise run docs-audit                 # ⓪ 표 정체성 축 포함 (아래)
-cd $QB && mise run gate-harnesses             # ★게이트 하네스 15종 전량 (2026-08-18 · api-service 추가)
-```
+~~`cd $QB && bash tools/scripts/skip-ratchet.sh` — 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)~~
+~~`cd $QB && mise run docs-audit` — ⓪ 표 정체성 축 포함 (아래)~~
+~~`cd $QB && mise run gate-harnesses` — ★게이트 하네스 14종 전량 (2026-08-17 · tool-pin-audit 추가)~~
+
+→ **2026-08-19 [ADR-037] 철거** — 셋 다 없다(원문 = `git show harness-v1:<경로>`). green = CI 단일 게이트.
+
+> 아래 이어지는 `skip-ratchet`·`docs-audit ⓪ 축`·`gate-harnesses` 서술 블록은 **그 철거된 게이트들의
+> 존재 근거·판별력 이력 기록**이다 — 재입힘(사고 1건 = 슬림 복귀 1건) 판단 시 참고용으로만 읽어라.
 
 - **`skip-ratchet`** — `@pytest.mark.skip` 데코레이터 **와** 모듈 레벨 `pytestmark = pytest.mark.skip(...)`
   을 센다. `skipif` 와 `conftest` 의 프로그램적 마커는 **세지 않는다**. baseline 초과 → rc=1,

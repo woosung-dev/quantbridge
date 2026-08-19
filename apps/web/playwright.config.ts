@@ -202,7 +202,8 @@ export default defineConfig({
       //   경고하던 "coverage 함정"이고 `sprint55-optimizer-bayesian` 이 실제로 고아였던 전력).
       //   이제 **잔여 전체**를 가져가고 다른 project 몫만 `testIgnore` 로 뺀다 — 신규 authed
       //   spec 은 파일을 만들기만 하면 자동으로 돈다.
-      //   ★열거식으로 되돌아가거나 배선이 겹치면 `src/__tests__/e2e-project-wiring.test.ts` 가 막는다.
+      //   ★구 수호자 `e2e-project-wiring.test.ts` 는 ADR-037 로 철거됐다(감사 대상인 CI e2e
+      //     잡이 사라짐). 열거식 회귀·배선 겹침은 지금 아무 테스트도 막지 않는다 — 재입힘 규칙 대상.
       testMatch: /\.spec\.ts$/,
       testIgnore: [
         /(^|\/)smoke\.spec\.ts$/, // chromium

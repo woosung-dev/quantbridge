@@ -301,7 +301,9 @@ alembic -x allow_destructive=1 downgrade -1
 
 - `models.py` 변경 시 **반드시** Alembic 마이그레이션 생성
 - 마이그레이션 파일은 커밋에 포함 (자동 생성 후 검토)
-- 로컬·CI 는 Docker entrypoint 의 `api` 롤이 `alembic upgrade head` 를 자동 실행한다.
+- 로컬은 Docker entrypoint 의 `api` 롤이 `alembic upgrade head` 를 자동 실행한다.
+  ★CI 는 [ADR-037] 이후 alembic 을 어디서도 돌지 않는다(pytest 스키마 = 세션 픽스처의
+  drop_all+create_all). `alembic check` 게이트 복귀는 재입힘 규칙 경유.
   ★**프로덕션(서버 소크 스택)은 아니다** — compose 6서비스에 **api 롤이 없고**
   (celery 계열은 `command:` override 로 롤 분기를 우회한다) 실제 API 는 호스트 uvicorn
   systemd 유닛이라 entrypoint 를 지나지 않는다. **DDL 은 `soak-stack.sh migrate --confirm`

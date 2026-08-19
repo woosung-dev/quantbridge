@@ -1,319 +1,37 @@
+# ADR-037 제로베이스: CI = 표준 러너 단일 게이트, 이전 판 = git show harness-v1:.github/workflows/ci.yml
+#
+# 남긴 것: backend(ruff + pytest 전량) · frontend(eslint + tsc + vitest + next build).
+# 지운 것: paths-filter/changes · documentation · secret_scan · e2e/e2e_authed ·
+#   pytest 샤딩 · coverage 래칫 · alembic 스텝 · OpenAPI drift · mypy · 집계(summary) 잡 ·
+#   rules-of-hooks eslint-disable 차단 grep(LESSON-004 보조 방어선 — eslint error 레벨 규칙과
+#   /review-code conventions 차원이 잔여 방어선이다).
+# 하네스 재추가는 「문서화된 사고 1건 = 슬림 복귀 1건」 규칙만 허용한다.
+
 name: CI
 
 on:
   pull_request:
-    # stage/** — 리디자인 등 대형 작업의 웨이브 PR(base=stage/<theme>)에도 CI 발화
+    # stage/** — 대형 작업의 웨이브 PR(base=stage/<theme>)에도 CI 발화
     branches: [main, "stage/**"]
-  # ★main 을 손으로 확인해야 할 때의 안전판. 상시 트리거는 아니다.
+  # merge queue 를 켜는 날을 위한 선배선 — 이 트리거가 없으면 큐의 합성 커밋에 check 가
+  # 아예 생성되지 않아 required check 가 영구 대기한다(ci-cd.md 에 기록된 함정).
+  merge_group:
+  # main 을 손으로 확인해야 할 때의 안전판. 상시 트리거는 아니다.
   workflow_dispatch:
 
-# ★2026-08-06 — `push: [main]` 을 뺐다. 같은 내용이 PR 과 머지 직후 **두 번** 돌고 있었고
-#   (backend 잡 23분 × 2), `pull_request` 는 PR head 가 아니라 **머지 프리뷰**를 검사한다.
-#   실측 근거(run 31062441328 backend 잡 로그):
-#     git checkout --progress --force refs/remotes/pull/545/merge
-#     HEAD is now at 8fcee82 Merge c2702c15… into c620149…
-#   ⇒ 머지 결과는 이미 PR 에서 검사된다. 남는 위험은 **마지막 PR run 이후 base 가 움직인 경우**
-#   뿐이고, 이 레포는 순차 머지 + 로컬 `tools/scripts/final-gates.sh` 로 그 구간을 덮는다.
-#   되살려야 하면 위 `workflow_dispatch` 로 손으로 돌리거나 이 블록을 되돌려라.
-
-# dorny/paths-filter가 PR 변경 파일 목록을 조회할 수 있도록 최소 권한 부여
+# 두 잡 다 코드 읽기만 한다 — PR API 를 쓰는 스텝이 없으므로 contents 하나로 족하다.
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # 변경된 경로 감지 — apps/web/backend 스캐폴딩 전에는 빈 결과로 스킵
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      frontend: ${{ steps.filter.outputs.frontend }}
-      backend: ${{ steps.filter.outputs.backend }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050 # v3
-        id: filter
-        with:
-          filters: |
-            frontend:
-              - 'apps/web/**'
-              # ★★워크플로 자체를 frontend 트리거에도 넣는다 (2026-08-17 적대 리뷰 P1, [BL-789]).
-              #   `apps/web/src/__tests__/e2e-project-wiring.test.ts` 의 「CI 실행 표면」 감사는
-              #   **입력이 `.github/workflows/*.yml`** 인데, 그것을 돌리는 유일한 CI 스텝
-              #   (`frontend` 잡의 `pnpm test -- --run`)이 `apps/web/**` diff 에만 발화했다.
-              #   ⇒ **워크플로만 고친 PR 에서 그 감사가 통째로 skip** 되고 `ci` 요약은 skipped 를
-              #   통과로 세므로, `--project=` 배선을 지워도 초록으로 머지된다. 즉 그 가드가
-              #   자기 위협모델에 대해 fail-open 이었다.
-              #   ★아래 backend 가 **같은 이유로 이미** `.github/workflows/**` 를 물고 있다.
-              #   FE 쪽에 워크플로 감사가 처음 생겼는데 형제 배선이 안 따라온 것이 이 결함이다
-              #   (「게이트를 붙일 때 무엇이 그것을 발화시키나를 함께 봐라」의 재발).
-              - '.github/workflows/**'
-            backend:
-              - 'apps/api/**'
-              # ★워크플로 자체를 backend 트리거에 넣는다 (codex P1). 안 그러면
-              #   `.github/workflows/ci.yml` 만 고치는 PR 에서 backend 계열이 전부 skip 되고,
-              #   **샤드 배선·artifact·coverage 명령을 망가뜨려도 `ci` 가 초록**이다.
-              #   ci.yml 을 검증하는 감사 테스트(`test_pytest_shard_partition` ·
-              #   `test_ci_workflow_env_parity`)가 backend 스위트 안에 있으므로 이 연결이 맞다.
-              - '.github/workflows/**'
-              # ★★계약 파일 자신도 backend 트리거다 (2026-08-16 codex P1).
-              #   `backend_static` 의 OpenAPI drift 스텝이 지키는 대상이 바로 이 파일인데,
-              #   여기 없으면 **`contracts/openapi/openapi.json` 만 고친 PR 에서 그 잡이 통째로
-              #   skip 되고** `ci` 요약은 skip 을 통과로 세므로, 손으로 고친 계약이 초록으로 머지된다.
-              #   ★게이트를 붙일 때는 「무엇이 그것을 발화시키나」를 함께 봐야 한다 —
-              #   이 PR 이 게이트만 붙이고 트리거를 안 넓혀 정확히 그 구멍을 만들었다.
-              - 'contracts/**'
-
-  documentation:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # ★이 잡은 종전에 setup 이 **없었다**(`make` 만 쓰면 됐다). 명령이 mise task 로 옮겼으니
-      #   여기도 mise 가 필요하다. task 는 `{{ }}` 템플릿을 안 쓰므로 `mise trust` 는 불필요하다
-      #   (템플릿이 하나라도 있으면 파일 전체가 신뢰 대상이 된다 — 2026-08-16 실측).
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-      - name: Check active documentation links and retired paths
-        run: mise run docs-audit
-      # ★[BL-307] 이 잡에 둔다 — `changes` 필터가 없어 **항상** 돈다.
-      #   apps/web/backend 잡은 경로 게이팅이라, 신규 파일이 그 필터를 비껴가면 검사를 통째로
-      #   건너뛴다. 「신규 파일 차단」이 목적인 게이트를 조건부 잡에 두면 목적이 사라진다.
-      #   감사기는 로케일 판별력 자기검사에 실패하면 rc=3 으로 죽는다 — 러너 로케일이 어긋나도
-      #   거짓 초록이 나오지 않는다.
-      - name: Check Korean source file headers (BL-307)
-        run: mise run header-audit
-      # ★게이트 하네스 전량 (2026-08-11). 이 잡에 두는 이유는 위 header-audit 과 같다 —
-      #   `changes` 필터가 없어 **항상** 돈다. 종전에 CI 는 하네스를 **하나도** 돌지 않았고
-      #   (7종 전부 CI=0), 게이트 본체만 돌면 레포가 깨끗해서 **판정 로직을 지워도 초록**이다.
-      #   그 회귀를 잡는 유일한 자리가 회차 끝 로컬 `final-gates.sh` 1회였다 = 다음 회차 끝까지 못 본다.
-      #   합계 13초(8종 · 2026-08-13 [ADR-030] `fleet-dispatch-test` 를 함대와 함께 제거 후 재실측 —
-      #   맥 로컬 기준, 리눅스 러너 실측은 ~4초) · docker·네트워크 의존 0
-      #   (mktemp 트리 + PATH 앞단 가짜).
-      - name: Check gate harnesses have discriminating power
-        run: mise run gate-harnesses
-
-  # 시크릿 스캔 ([BL-757]). 이 레포는 거래소 API 키를 Fernet 으로 암호화해 저장하고
-  # `TRADING_ENCRYPTION_KEYS` 를 env 로 받는다 — 한 번 히스토리에 들어간 키는 rotate 없이
-  # 회수할 수 없으므로, **머지 전에 막는 것이 유일한 방어**다.
-  # ★`changes` 필터를 달지 않는다 (`documentation` 잡과 같은 이유). 시크릿은 경로를 가리지
-  #   않고 들어오고(스크립트·문서·워크플로·픽스처), 경로 게이팅을 걸면 그 필터 밖에서 온
-  #   키를 통째로 놓친다. 「신규 파일 차단」이 목적인 게이트를 조건부 잡에 두면 목적이 사라진다.
-  #   실측 0.5초짜리 잡이라 항상 돌려도 임계경로가 아니다.
-  secret_scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # ★`gitleaks/gitleaks-action` 은 쓰지 않는다 — 조직 소유 레포에서 `GITLEAKS_LICENSE`
-      #   를 요구한다. 버전을 고정한 릴리스 바이너리를 직접 받는다.
-      # ★버전과 sha256 을 **둘 다** 박는다. gitleaks 는 릴리스마다 기본 룰셋을 바꾸므로
-      #   떠 있는 버전을 쓰면 코드가 그대로인데 판정이 흔들린다 — 나쁜 쪽은 **잡히던 것이
-      #   조용히 안 잡히는** 방향이다. sha256 은 릴리스 자산이 바꿔치기되는 경로를 막는다.
-      #   올릴 때는 두 상수를 같이 바꾸고, 아래 자기검사 통과로 확인해라.
-      - name: Install gitleaks (pinned)
-        shell: bash
-        env:
-          GITLEAKS_VERSION: 8.30.1
-          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/bin"
-          curl -sSfL --retry 3 -o "$RUNNER_TEMP/gitleaks.tar.gz" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/gitleaks.tar.gz" | sha256sum -c -
-          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/bin" gitleaks
-          chmod +x "$RUNNER_TEMP/bin/gitleaks"
-          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/bin/gitleaks" version
-      # ★★판별력 자기검사(positive control) — 본 스캔보다 **먼저** 돈다.
-      #   이 레포는 「검사기 자신이 무증거였다」를 반복해서 밟았다([BL-705]·[BL-706]).
-      #   스캐너를 붙였다는 사실은 그것이 **잡는다**는 증거가 아니다. 바이너리가 조용히
-      #   깨지거나, 플래그 이름이 바뀌거나, `.gitleaks.toml` allowlist 가 넓어지면 본 스캔은
-      #   **영구 0건 = 영구 초록**이 된다. 그 상태를 매 실행마다 반증한다.
-      #   ★본 스캔과 **같은 설정 파일**을 넘긴다 — allowlist 회귀도 여기서 죽는다.
-      #   ★레포 **밖**($RUNNER_TEMP)에 심는다. 워킹트리에 심으면 본 스캔이 오염된다.
-      #   ★심는 키를 이 파일에 적으면 본 스캔이 ci.yml 자신을 검출한다. 그래서 그 한 줄에만
-      #     `gitleaks:allow` 를 단다 — **줄 단위**라 파일의 나머지는 그대로 검사된다.
-      #     생성되는 파일에는 그 주석이 없으므로 자기검사의 판별력은 유지된다.
-      #   ★판정은 rc 가 아니라 **리포트의 건수**로 한다. rc 는 설정 파싱 실패 등 다른 이유로도
-      #     1 이 될 수 있어 「잡았다」의 증거가 못 된다.
-      - name: Self-test — scanner must catch a planted secret
-        shell: bash
-        run: |
-          set -euo pipefail
-          probe="$RUNNER_TEMP/gitleaks-selftest"
-          rm -rf "$probe" && mkdir -p "$probe"
-          printf 'aws_access_key_id = "%s"\n' 'AKIA3XQ7ZLMNBVCXZQWE' > "$probe/planted.txt" # gitleaks:allow
-          gitleaks dir "$probe" \
-            --config "$GITHUB_WORKSPACE/.gitleaks.toml" \
-            --redact --no-banner --exit-code 0 \
-            --report-format json --report-path "$RUNNER_TEMP/selftest.json"
-          found=$(python3 -c 'import json,sys; print(len(json.load(open(sys.argv[1]))))' "$RUNNER_TEMP/selftest.json")
-          echo "self-test findings = ${found} (기대: 1 이상)"
-          rm -rf "$probe"
-          if [ "${found}" -lt 1 ]; then
-            echo "::error::gitleaks 자기검사 실패 — 심어 둔 가짜 키를 못 잡았다. 아래 본 스캔의 「0건」은 무증거다."
-            exit 1
-          fi
-      # ★스캔 대상은 **워킹트리 전체**(`gitleaks dir` = 구 `detect --no-git`)다. 커밋 범위가 아니다.
-      #   ⑴ `pull_request` 는 PR head 가 아니라 **머지 프리뷰**를 checkout 한다(이 파일 상단
-      #      주석의 실측 근거 참고). 그 트리를 그대로 스캔하는 것은 「머지되면 main 에 남는
-      #      파일 전체」라는 **정확한 질문**에 답한다.
-      #   ⑵ 커밋 범위 스캔(`gitleaks git --log-opts=<base>..<head>`)은 `fetch-depth: 0`
-      #      (이 레포 히스토리 213MB)이 필요하고, base/head 참조가 어긋나면 **0 커밋을 스캔하고
-      #      초록**이 된다. 이 레포가 반복해서 밟은 fail-open 모양이라 피한다 — `dir` 는 상태가
-      #      없어서 그 구멍이 아예 없다.
-      #   ⑶ 비용: 얕은 체크아웃(fetch-depth 기본 1) 트리 **18.3MB / 0.5초** 실측(2026-08-16).
-      #      `.git` 은 gitleaks 가 건너뛰고, 이 잡은 의존성을 설치하지 않아 node_modules/.venv
-      #      가 없다 ⇒ 트리 = 추적 파일과 사실상 동일하다.
-      #   ★히스토리에 **이미** 들어간 키는 이 스캔이 못 본다 — 그건 1회성 감사의 몫이다.
-      #     2026-08-16 에 `gitleaks git . --config .gitleaks.toml --log-opts=--all --redact`
-      #     로 전량 1회(1,056 커밋) 돌려 **2건**을 찾았다. 둘 다 같은 커밋 `fb47978`
-      #     (2026-04-24, PR #71)의 **이미 삭제된** 계획 문서
-      #     `docs/superpowers/plans/2026-04-24-h2-sprint10-phase-a2.md` 안에 박힌
-      #     `TRADING_ENCRYPTION_KEYS` 리터럴이고, sha256 대조 결과 현재 개발 키·CI 테스트
-      #     키 **어느 것과도 다르다**(그 회차용 일회성 키). 살아 있는 키는 아니지만 히스토리
-      #     에서는 사라지지 않는다. 재감사는 위 명령 그대로 돌리면 된다.
-      # ★`--redact` 필수 — 검출값을 로그에 되뿌리면 공개 CI 로그가 두 번째 유출 경로가 된다.
-      # ★★**이 명령을 로컬 개발 트리에서 그대로 돌리면 수천 건이 나온다 — 회귀가 아니다.**
-      #   `gitleaks dir` 은 `.gitignore` 를 존중하지 않아 `node_modules/`·`.venv/`·**gitignore 된
-      #   `.env`·`apps/api/.env.local` 실파일**까지 읽는다(2026-08-16 로컬 실측 6,795건 =
-      #   `apps/web` 하위 6,779 + 실 env 파일 16). CI 는 `actions/checkout` 트리라 그것들이
-      #   **애초에 없으므로** 0 건이다. 로컬에서 CI 와 같은 답을 보려면 checkout 트리를 재현해라:
-      #     git ls-files -co --exclude-standard  로 나온 파일만 임시 디렉터리에 복사해 스캔
-      #     (2026-08-16 실측: 1,663 파일 · `no leaks found` · rc=0)
-      #   ★로컬 소음을 줄이겠다고 `.gitleaks.toml` 에 경로 allowlist 를 넣지 마라 — CI 에서
-      #     그 디렉터리가 통째로 무방비가 된다. 조건이 다른 것이지 설정이 틀린 것이 아니다.
-      - name: Scan working tree for secrets
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! gitleaks dir . \
-            --config .gitleaks.toml \
-            --redact --no-banner --exit-code 1 --verbose; then
-            echo "::error::시크릿이 검출됐다. 값은 가려져 있다 — 파일/줄만 보고 판단해라."
-            echo "         진짜 키면 ⑴ 즉시 rotate ⑵ 커밋에서 제거(히스토리에 들어갔으면 rotate 가 유일한 해법)."
-            echo "         오탐이면 .gitleaks.toml 에 **값 단위**로 추가해라 — 경로 단위 금지(그 디렉터리 전체가 무방비가 된다)."
-            exit 1
-          fi
-
-  frontend:
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
-    steps:
-      - uses: actions/checkout@v4
-      # ★도구 버전은 루트 `mise.toml` 하나가 정한다 — 종전의 `node-version: 20` 과
-      #   `version: 9` 를 여기서 지웠다. CI 에 숫자를 남기면 로컬·프로덕션 이미지와 갈린다
-      #   (2026-08-16 실측: 로컬 22 · `apps/web/Dockerfile:15` 22 · **CI 만 20**, 그리고
-      #   node 20 은 2026-04-30 EOL 이었다).
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-      # setup-node 의 `cache: pnpm` 이 사라졌으므로 pnpm store 를 직접 캐시한다.
-      - id: pnpm-store
-        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        with:
-          path: ${{ steps.pnpm-store.outputs.path }}
-          key: pnpm-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
-          restore-keys: pnpm-${{ runner.os }}-
-      - run: pnpm install --frozen-lockfile
-      # LESSON-004 보조 방어선: `rules-of-hooks` override 만 차단.
-      # set-state-in-effect 는 Next.js router (useSearchParams) / DOM subscription
-      # 등 정당한 외부 동기화 케이스가 있어 grep 대신 ESLint error-level 에서 처리
-      # (override 시 disable 주석이 파일에 남음 → PR 리뷰에서 정당성 판단).
-      - name: Block react-hooks/rules-of-hooks ESLint disable
-        run: |
-          if grep -rn --include='*.ts' --include='*.tsx' \
-             'eslint-disable.*react-hooks/rules-of-hooks' src/; then
-            echo "::error::react-hooks/rules-of-hooks disable 금지 (LESSON-004)"
-            exit 1
-          fi
-      - run: pnpm lint
-      - run: pnpm tsc --noEmit
-      - run: pnpm test -- --run
-      # ★2026-08-17 ADR-034 — 여기 있던 Clerk secret 2종이 사라졌다. 인증이 self-host 로 오면서
-      # 빌드에 필요한 외부 키가 **0개**가 됐다(`NEXT_PUBLIC_CLERK_*` 는 빌드타임 인라인이었다).
-      - run: pnpm build
-        env:
-          # Better Auth 는 부팅 시점에만 필요하고 빌드에는 관여하지 않는다.
-          # 값이 없으면 개발 기본값으로 뜬다(production 에서만 throw).
-          BETTER_AUTH_SECRET: ci-build-only-placeholder-secret-000000
-          BETTER_AUTH_URL: http://localhost:3000
-
-  # 정적 검사 — DB/redis 서비스가 필요 없으므로 컨테이너 초기화(실측 28s) 없이 병렬로 돈다.
-  backend_static:
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
-    steps:
-      - uses: actions/checkout@v4
-      # ★python·uv 버전은 루트 `mise.toml` 하나가 정한다 — 종전의 `python-version: "3.12"` 와
-      #   latest 를 깔던 `setup-uv` 를 여기서 지웠다(uv 는 레포 전체에 핀이 0건이었다).
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-      # setup-uv 의 `enable-cache` 가 사라졌으므로 uv 패키지 캐시를 직접 잡는다.
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
-          restore-keys: uv-${{ runner.os }}-
-      - run: uv sync --all-extras --dev
-      - run: uv run ruff check .
-      # mypy 는 cold 캐시에서 실측 32s 였다. 캐시 키에 `uv.lock` 을 넣어 의존성이 바뀌면 무효화한다.
-      - uses: actions/cache@v4
-        with:
-          path: apps/api/.mypy_cache
-          key: mypy-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}-${{ github.sha }}
-          restore-keys: |
-            mypy-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}-
-            mypy-${{ runner.os }}-
-      - run: uv run mypy src/
-      # ★OpenAPI 계약 drift — [ADR-031] 이 「CI 배선은 다음 회차」로 남긴 것을 2026-08-16 에 배선했다.
-      #   그전까지 `contracts/openapi/openapi.json`(484KB)이 레포에 있었지만 **부르는 곳이 하나도
-      #   없어** 코드가 앞서가도 아무도 몰랐다.
-      # ★env 2종은 아래 `backend` 잡의 alembic 스텝과 **같은 값**이다. `Settings` 의
-      #   `trading_encryption_keys` 만 기본값 없는 필수 필드이고, `DATABASE_URL` 은 compose
-      #   서비스명 기본값이 러너에서 해석되지 않으므로 함께 준다(연결은 하지 않는다 —
-      #   `create_app().openapi()` 는 lifespan 을 돌리지 않는다).
-      # ★이 스텝은 `uv run pytest` 가 아니므로 `test_ci_workflow_env_parity` 의 감사 대상이
-      #   아니다. 여기 env 를 늘리면 그 테스트가 아니라 이 주석이 유일한 기록이다.
-      - name: OpenAPI drift check
-        run: uv run python scripts/export_openapi.py --check
-        env:
-          DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
-          TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
-      # ★2단 계약도 본다 — orval 이 읽는 것은 전량 파일이 아니라 이 부분집합이다.
-      #   1단만 막고 2단을 열어 두면 「보호된다」는 문서가 거짓이 된다(2026-08-16 적대 리뷰).
-      - name: OpenAPI PoC subset drift check
-        working-directory: .
-        run: python3 tools/scripts/openapi-poc-filter.py --check
-
-  # ★pytest 를 3 샤드로 쪼갠다 (2026-08-06). 왜, 그리고 왜 이 경계인지는
-  #   `apps/api/tests/shard_paths.py` 독스트링에 실측과 함께 있다. 요약:
-  #     - 이 스텝 하나가 backend 잡 23분의 **94%(1313s)** 였다.
-  #     - 커버리지 계측 배율 **1.770배**(로컬 무계측 298.97s vs 계측 529.16s)지만
-  #       BL-308/309 래칫이 **full suite transitive 커버**를 요구하므로 끌 수 없다.
-  #     - 그래서 계측을 켠 채로 쪼개고 `backend_coverage` 잡이 `coverage combine` 한다.
-  #       합집합이라 래칫이 재는 값은 **정확히 같다** — 로컬에서 전체 실행과 샤드 3벌 합본의
-  #       `coverage report` 가 **파일별로 byte-identical**(TOTAL 730/38/192/23/93%) 임을 확인했다.
-  #     - 실행 검증: 샤드 3벌 합계 **4199 passed / 45 skipped** = 전체 1벌과 동일(누락 0).
-  #     - 수집 검증(현행 정의): 1039 + 78 + 3133 = **4250** = 전체 수집 4250.
-  #       ★두 수가 다른 이유는 후자가 이 감사 파일 자신(4 테스트)을 포함하기 때문이다.
-  #   ★샤드 경계를 손대면 `tests/test_pytest_shard_partition.py` 가 막는다.
   backend:
-    needs: changes
-    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [a, b, c]
+    # 실측 12m20s (PR #687 첫 완주) — 행이 걸려도 기본 360분을 태우지 않게 상한을 건다.
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: apps/api
@@ -342,160 +60,43 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      # ★python·uv 버전은 루트 `mise.toml` 하나가 정한다 (위 backend_static job 주석 참조).
+      # 도구 버전(python·uv)은 루트 mise.toml 하나가 정한다 (ADR-036) — CI 에 숫자를 적지 않는다.
       - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
       - uses: actions/cache@v4
         with:
           path: ~/.cache/uv
           key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
           restore-keys: uv-${{ runner.os }}-
-      - run: uv sync --all-extras --dev
-      # 마이그레이션 왕복 게이트. pytest 의 전제가 아니다 — `tests/conftest.py` 가
-      # `SQLModel.metadata.drop_all` + `create_all` 로 스키마를 다시 세운다.
-      - run: uv run alembic upgrade head
+      # --frozen: uv.lock 과 pyproject 가 어긋나면 재해석하지 않고 죽는다 — FE 의
+      # --frozen-lockfile 과 같은 재현성 단언(비대칭 해소).
+      - run: uv sync --all-extras --dev --frozen
+      - run: uv run ruff check .
+      # pytest 전량 — 샤딩·coverage 계측 없이 한 번에 돈다. 스키마는 tests/conftest.py 가
+      # drop_all + create_all 로 세우므로 alembic 스텝은 전제가 아니다.
+      # env 는 harness-v1 pytest 스텝을 그대로 이어받았다:
+      #   - TEST_DATABASE_URL 은 의무다 — tests/_db_guard.py 가 DATABASE_URL 폴백을 거부한다(rc=3).
+      #   - celery 3종은 Settings 기본값이 compose 서비스명이라 러너에서 해석되지 않는다 —
+      #     REDIS_URL 만으로는 부족하다(broker/result/lock 은 별도 설정, core/config.py).
+      - run: uv run pytest
         env:
           DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
-          TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
-      # ★[BL-782] 스키마 drift 판정. **이 DB 가 정본이다** — migration 으로만 만들어졌기
-      # 때문이다(위 스텝이 유일한 생성 경로다). 개발 DB 나 pytest DB 는 `create_all` 이력이
-      # 섞여 있어 같은 명령이 다른 답을 냈고, 그것이 [BL-770] 을 rc=0 으로 닫히게 했다.
-      # 실패 시 rc 는 1 이 아니라 255 다. 판정 기준 전문 = gates-and-traps.md §환경.
-      - run: uv run alembic check
-        env:
-          DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
-          TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
-      # Trust Layer Parity (Path β, ADR-013) 는 pine_v2 하위 테스트로 자동 포함됨:
-      # - test_pynescript_baseline_parity.py (P-1 AST Shape + edge_digest)
-      # - test_trust_layer_parity.py (P-2 Coverage SSOT Sync + P-3/Mutation stub)
-      # `--durations=10` 은 SLO TL-E-4 (Trust Layer step ≤3분) 모니터링 용도.
-      # BL-308/309 (W3) — trading money-path coverage ratchet. full suite 로 측정해
-      # transitive 커버(registry 는 tasks 경유)까지 포착. floor=90 은 실측 96% 아래
-      # 안전 ratchet (타이트 tripwire flake 방지). 신규 미커버 분기 추가 시 CI 가 차단.
-      # NOTE: 3 모듈 *합산* package gate (per-module 아님). 현재 모듈별 ≥94%라 masking
-      # 위험 낮음 — 개별 모듈 strict ratchet 필요 시 별도 run/coverage config 로 분리.
-      # ★샤드는 판정하지 않는다 — `--cov-fail-under` 는 합본 뒤 `backend_coverage` 몫이다.
-      #   부분 데이터로 문턱을 재면 통과도 실패도 의미가 없다.
-      # ★`${SHARD_ARGS}` 는 **일부러 따옴표 없이** 펼친다(bash word-splitting). 경로에 공백이
-      #   있으면 조용히 쪼개지므로 `shard_paths.py` 가 공백 경로를 거부한다.
-      #   (zsh 는 기본적으로 split 하지 않는다 — 로컬 검증은 반드시 `bash -c` 로.)
-      - name: pytest (shard ${{ matrix.shard }})
-        shell: bash
-        run: |
-          set -euo pipefail
-          SHARD_ARGS="$(uv run python -m tests.shard_paths '${{ matrix.shard }}')"
-          echo "shard ${{ matrix.shard }} → ${SHARD_ARGS}"
-          COVERAGE_FILE=".coverage.${{ matrix.shard }}" uv run pytest ${SHARD_ARGS} \
-            --durations=10 \
-            --cov=src.trading.registry --cov=src.trading.webhook --cov=src.trading.websocket \
-            --cov-report=
-        env:
-          DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
-          # ★[BL-451] pytest 스텝에는 `TEST_DATABASE_URL` 이 **의무**다. `tests/_db_guard.py`
-          #   가 `DATABASE_URL` 폴백을 거부한다 — 그 폴백이 2026-07-25 에 로컬 개발 DB 를
-          #   전소시킨 경로다. 빠지면 세션이 rc=3 으로 즉시 끝난다(조용한 실패가 아니다).
-          #   `tests/test_ci_workflow_env_parity.py` 가 이 줄의 존재를 잰다.
           TEST_DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
           REDIS_URL: redis://localhost:6379/0
-          # ★2026-08-01 — 이 셋이 없어서 5건이 실패하고 있었다. `Settings` 의 기본값은
-          #   docker-compose 서비스명(`redis://redis:6379/*`)이라 러너에서 해석되지 않고
-          #   "Retry limit exceeded while trying to reconnect to the Celery result store"
-          #   로 죽는다. `REDIS_URL` 만 주입하면 celery 는 여전히 기본값을 쓴다 —
-          #   broker/result/lock 은 **별도 설정**이다(`core/config.py:64-67`).
-          #   ★로컬에서 안 보였던 이유: `.env.local` 이 셋을 모두 localhost 로 채운다.
           CELERY_BROKER_URL: redis://localhost:6379/1
           CELERY_RESULT_BACKEND: redis://localhost:6379/2
           REDIS_LOCK_URL: redis://localhost:6379/3
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
-      # ★`include-hidden-files: true` 가 **없으면 안 올라간다** — v4 는 dot 파일을 기본 제외한다.
-      #   그러면 아래 combine 이 조각 없이 돌고, 조용히 통과할 수 있다. `if-no-files-found: error`
-      #   와 combine 잡의 개수 검사가 그 경로를 이중으로 막는다.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-${{ matrix.shard }}
-          path: apps/api/.coverage.${{ matrix.shard }}
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 1
 
-  # 샤드 부분 커버리지를 합쳐 BL-308/309 래칫을 **한 번** 판정한다. DB/redis 불요.
-  backend_coverage:
-    needs: [changes, backend]
-    if: needs.changes.outputs.backend == 'true'
+  frontend:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
-    steps:
-      - uses: actions/checkout@v4
-      # ★python·uv 버전은 루트 `mise.toml` 하나가 정한다 (위 backend_static job 주석 참조).
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/uv
-          key: uv-${{ runner.os }}-${{ hashFiles('apps/api/uv.lock') }}
-          restore-keys: uv-${{ runner.os }}-
-      - run: uv sync --all-extras --dev
-      - uses: actions/download-artifact@v4
-        with:
-          path: apps/api
-          pattern: coverage-*
-          merge-multiple: true
-      # ★조각 개수를 세는 것이 **유일한** 누락 탐지기다. 실측으로 확인한 사실:
-      #   샤드 a·b 의 데이터 파일은 내용이 동일해서(둘 다 trading 모듈을 import 로만 스친다)
-      #   `coverage combine` 이 "Skipping duplicate data" 를 찍는다. 즉 **a 나 b 의 아티팩트가
-      #   통째로 사라져도 최종 커버리지 수치는 1% 도 안 움직인다** — 커버리지로는 누락을 못 본다.
-      #   기대 개수는 `shards.json` 에서 읽는다(하드코딩하면 샤드를 늘릴 때 조용히 어긋난다).
-      # ★개수가 아니라 **이름**으로 본다 (codex P2). `wc -l` 로 세면 엉뚱한 `.coverage.*`
-      #   (예: 실수로 커밋된 파일)이 빠진 샤드의 자리를 메워 통과할 수 있다.
-      #   기대 이름은 `shards.json` 키에서 만든다 — 하드코딩하면 샤드를 늘릴 때 어긋난다.
-      - name: Verify every shard reported coverage
-        shell: bash
-        run: |
-          set -euo pipefail
-          ls -la .coverage.* 2>/dev/null || true
-          missing=""
-          for s in $(uv run python -c "import json,pathlib;print(' '.join(sorted(json.loads(pathlib.Path('tests/shards.json').read_text()))))"); do
-            if [ -s ".coverage.$s" ]; then
-              echo "  ✓ .coverage.$s"
-            else
-              echo "  ✗ .coverage.$s 없음/빈 파일"
-              missing="$missing $s"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "::error::샤드 커버리지 조각 누락:$missing — 그 샤드는 결과를 못 올렸다"
-            exit 1
-          fi
-      - name: Combine and enforce ratchet
-        shell: bash
-        run: |
-          set -euo pipefail
-          uv run coverage combine
-          uv run coverage report --show-missing --fail-under=90
-
-  # Sprint FE-01 LESSON-004 Playwright E2E — vitest jsdom 이 못 잡는 Fast Refresh /
-  # StrictMode / React Query refetch 케이스를 실제 브라우저로 재현.
-  # ★공개 라우트만 돈다(`chromium` / `live-smoke` / `design-canon`). 로그인 뒤 화면은
-  # storageState 가 필요해 로컬 `pnpm e2e:authed` 몫이고 CI 에는 없다 — 그래서 이 잡은
-  # DB 도 인증 시크릿도 필요 없다(ADR-034 로 그 전제를 `proxy.ts` 가 지키게 만들었다:
-  # 공개 라우트는 세션 조회를 하지 않는다).
-  e2e:
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    # ★상한이 **없었다.** 2026-08-18 에 `playwright install --with-deps` 가 멎자 이 잡이
-    #   **6시간**(01:26→07:26)을 태우고 나서야 취소됐다(run `32088162593`). 형제 `e2e_authed`
-    #   는 상한이 있어 45분에 끊겼다 — 그 대비가 이 결함을 드러냈다. 실측 5.4분짜리 잡이다.
-    timeout-minutes: 20
+    # 실측 3m42s (PR #687 첫 완주).
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: apps/web
-    env:
-      BETTER_AUTH_SECRET: ci-e2e-only-placeholder-secret-0000000
-      BETTER_AUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
-      # ★도구 버전은 루트 `mise.toml` 하나가 정한다 (위 frontend job 주석 참조).
+      # 도구 버전(node·pnpm)은 루트 mise.toml 하나가 정한다 (ADR-036).
       - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
       - id: pnpm-store
         run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
@@ -505,283 +106,12 @@ jobs:
           key: pnpm-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
           restore-keys: pnpm-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
-      # 브라우저 바이너리 캐시 — cold install 실측 25s. 키에 pnpm-lock 을 넣어 playwright
-      # 버전이 바뀌면 무효화한다.
-      - uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
-      # 캐시 hit 이어도 시스템 의존성(--with-deps)은 이미지에 없을 수 있어 항상 돌린다.
-      # 캐시가 있으면 바이너리 다운로드만 건너뛴다.
-      - run: pnpm exec playwright install --with-deps chromium
-      # C 디자인 언어 이식 S0 — 디자인 캐논 게이트 (병행안).
-      # 프로토타입 17벌 캘리브레이션(file://, 서버 불요) + 공개 라우트 런타임 토큰 검사.
-      # P1 4라우트는 전부 authed 라 로컬 `pnpm e2e:authed` 몫이고 CI 에는 없다.
-      # webServer 가 자동 기동하며 인증·백엔드 의존이 없다 (랜딩 CSS 변수만 읽는다).
-      #
-      # ★2026-08-06 — `pnpm e2e` + `pnpm e2e:design-canon` 2회 호출을 **한 번**으로 합쳤다.
-      #   따로 부르면 playwright 가 `webServer`(= `pnpm dev`)를 **두 번 기동**한다. Next.js dev
-      #   첫 페이지 렌더가 JIT 컴파일이라 그 기동 비용이 그대로 두 배가 된다.
-      #   ★벽시계 이득은 크지 않다 — 이 잡(실측 5.4분)은 frontend 잡(6.0분)보다 짧아 **임계경로가
-      #   아니다**. 얻는 것은 러너 분과 dev 서버 1회 기동이지 PR 대기시간이 아니다.
-      # ★`package.json` 에 스크립트로 넣지 않고 인라인이다 — 루트 prettier 가
-      #   `apps/web/*.json` 을 포맷할 때 `apps/web/.prettierrc` 의 tailwind 플러그인을
-      #   해석하지 못해 pre-commit 이 죽는다([BL-602]). 그 결함이 닫히면 스크립트로 옮겨라.
-      # ★`chromium-live-smoke` 를 **명시적으로** 포함한다 (codex P1). 앵커 수리 전에는
-      #   `chromium` 의 느슨한 정규식이 `live-smoke.spec.ts` 를 덤으로 잡아 CI 가 그걸 돌고
-      #   있었다 — 즉 **그 중복이 실제로 일하고 있었다.** 앵커만 고치고 두면 live-smoke 가
-      #   CI 에서 0회가 된다(전용 `live-smoke.yml` 은 `apps/web/src/**` 에만 발화해서
-      #   e2e·config 만 바뀐 PR 은 못 잡는다). 중복은 없애되 커버리지는 유지한다.
-      - run: >
-          pnpm exec playwright test
-          --project=chromium --project=chromium-live-smoke --project=chromium-design-canon
-      - name: Upload Playwright report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report
-          path: apps/web/playwright-report/
-          retention-days: 7
-
-  # [BL-789] — 인증된 화면도 PR CI에서 실제로 실행한다. 첫 라운드는 매니페스트의 한 spec만
-  # 대상으로 삼고, 나머지 authed spec의 미실행 사유도 같은 파일에 남긴다.
-  e2e_authed:
-    needs: changes
-    # ★★**backend 변경에도 발화한다** (2026-08-18 적대 리뷰 P1). 형제 `e2e` 잡은 공개 라우트만
-    #   재니까 `frontend` 만으로 충분하지만, **이 잡은 FastAPI 의 인증·CORS·JWKS 경로를 실제로
-    #   지난다** — 실제로 첫 두 라운드를 죽인 것이 그 둘이었다(`Invalid origin` · CORS `ERR_FAILED`).
-    #   `frontend` 만 보면 `apps/api/**` 만 고쳐 그 경로를 깨뜨린 PR 에서 이 잡이 **skip** 되고,
-    #   `ci` 요약은 skipped 를 통과로 세므로 초록으로 머지된다.
-    if: needs.changes.outputs.frontend == 'true' || needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
-    # ★잡 상한 — `workers: 1` · `fullyParallel: false` · `retries: 2` 라 깨진 spec 하나가
-    #   3배로 든다. 상한이 없으면 GitHub 기본 360분까지 러너를 붙잡는다([BL-802]).
-    #   ★★**30분은 빠듯해서 45분으로 올렸다** (2026-08-18 실측). spec 20건의 실행 단계만
-    #   **19.9분**이고(run `32082953745`), 여기에 setup·install·시더가 얹힌다. 그리고 30분판은
-    #   `playwright install --with-deps` 가 러너에서 25분 넘게 멎어 **그 단계에서** 잘렸다
-    #   (run `32084967676` — 내 스텝은 시작도 못 했다). 상한은 폭주 방지용이지 정상 실행을
-    #   자르는 값이 아니다.
-    timeout-minutes: 45
-    services:
-      db:
-        image: timescale/timescaledb:2.14.2-pg15
+      - run: pnpm lint
+      - run: pnpm tsc --noEmit
+      - run: pnpm test -- --run
+      # Better Auth 는 부팅 시점에만 필요하고 빌드에는 관여하지 않는다.
+      # 값이 없으면 개발 기본값으로 뜬다(production 에서만 throw).
+      - run: pnpm build
         env:
-          POSTGRES_USER: quantbridge
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: quantbridge_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U quantbridge"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    env:
-      DATABASE_URL: postgresql+asyncpg://quantbridge:password@localhost:5432/quantbridge_test
-      REDIS_URL: redis://localhost:6379/0
-      CELERY_BROKER_URL: redis://localhost:6379/1
-      CELERY_RESULT_BACKEND: redis://localhost:6379/2
-      REDIS_LOCK_URL: redis://localhost:6379/3
-      TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
-      BETTER_AUTH_SECRET: ci-e2e-only-placeholder-secret-0000000
-      BETTER_AUTH_DATABASE_URL: postgresql://quantbridge:password@localhost:5432/quantbridge_test
-      E2E_AUTH_EMAIL: ci-e2e-authed@example.test
-      E2E_AUTH_PASSWORD: ci-e2e-authed-password-0000000
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      # ★`테스트 주문` 버튼은 **데이터가 아니라 플래그**로 가려져 있다
-      #   (`features/trading/components/orders-panel.tsx:60`). 이게 없으면
-      #   `dogfood-flow` 와 `sprint46-tier1-critical #5` 가 「버튼을 못 찾는다」로 죽는데,
-      #   증상이 「거래소 계정이 없다」와 똑같이 보인다 — 2026-08-18 에 그렇게 오진했다.
-      #   `apps/web/.env.example:47` 이 이 값을 dogfood 전용으로 선언한다.
-      NEXT_PUBLIC_ENABLE_TEST_ORDER: "true"
-    steps:
-      - uses: actions/checkout@v4
-      - uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518 # v4.2.5
-      # ★★`BETTER_AUTH_URL` 을 **여기서 파생시킨다 — 상수를 두 번 적지 않는다.**
-      #   Better Auth 는 요청 Origin 이 `BETTER_AUTH_URL` 과 다르면 **403 `Invalid origin`** 으로
-      #   로그인을 거부한다. 증상은 「`waitForURL` 60s 타임아웃」이라 원인이 안 보인다 —
-      #   2026-08-18 첫 CI 라운드에서 실제로 밟았고([BL-781] 이 같은 기전을 격리 슬롯에서 이미 적발했다),
-      #   로그에 `Invalid origin: http://localhost:3100` 이 찍혀서야 갈렸다.
-      #   포트의 정본은 `e2e/_base-url.ts` 의 `DEFAULT_FE_PORT`(+슬롯) 하나뿐이고 CI 는 슬롯이 없어 그 값 그대로다.
-      #   ★값을 YAML 에 박으면 그 상수가 바뀌는 날 **조용히 403** 으로 돌아온다. 그래서 파일에서 읽는다 —
-      #   못 읽으면 `match` 가 null 이라 **여기서 죽는다**(fail-closed). 조용히 기본값으로 떨어지지 않는다.
-      #   ★★**포트를 보는 곳이 둘이다.** `BETTER_AUTH_URL`(로그인 Origin 검증)과
-      #   `FRONTEND_URL`(FastAPI 의 CORS `allow_origins`, `main.py:329`). 첫 수리에서 앞의 것만 고쳤더니
-      #   로그인은 지났는데 **authed 도달성 프로브가 죽었다** — 브라우저가 `:8000` 을 직접 부르는데
-      #   BE 가 `Origin: http://localhost:3100` 을 CORS 로 거부해 `net::ERR_FAILED` 8건이었다.
-      #   증상이 「백엔드 도달 불가」라 서버가 안 뜬 것처럼 보이지만 서버는 멀쩡했다.
-      - name: Resolve frontend port from e2e/_base-url.ts (SSOT)
-        working-directory: apps/web
-        shell: bash
-        run: |
-          set -euo pipefail
-          port="$(node -p "require('fs').readFileSync('e2e/_base-url.ts','utf8').match(/DEFAULT_FE_PORT = (\d+)/)[1]")"
-          echo "resolved frontend port: $port"
-          echo "BETTER_AUTH_URL=http://localhost:$port" >> "$GITHUB_ENV"
-          echo "FRONTEND_URL=http://localhost:$port" >> "$GITHUB_ENV"
-          # ★★**FE 서버를 이 잡이 직접 띄운다** ([BL-802], 2026-08-18). playwright 를 **두 번**
-          #   부르기 때문이다 — ⑴ 로그인/storageState → ⑵ 결정론 시더 → ⑶ authed spec.
-          #   `PLAYWRIGHT_BASE_URL` 이 있으면 `e2e/_base-url.ts` 의 `hasConfiguredBaseURL()` 이
-          #   true 라 playwright 가 자기 `webServer` 를 **안 띄운다**(`playwright.config.ts:204`).
-          #   그렇게 안 하면 두 번째 호출이 같은 포트에 dev 서버를 하나 더 띄워 충돌한다
-          #   (CI 는 `reuseExistingServer: !isCI` = false 다).
-          echo "QB_FE_PORT=$port" >> "$GITHUB_ENV"
-          echo "PLAYWRIGHT_BASE_URL=http://localhost:$port" >> "$GITHUB_ENV"
-      - run: pnpm install --frozen-lockfile
-        working-directory: apps/web
-      # ★형제 `e2e` 잡에는 있는데 여기엔 **없던** 브라우저 캐시다(`:506-510`).
-      #   `--with-deps` 의 apt 단계는 캐시로 못 건너뛰지만, 바이너리 다운로드는 건너뛴다.
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('apps/web/pnpm-lock.yaml') }}
-      - run: pnpm exec playwright install --with-deps chromium
-        working-directory: apps/web
-      - run: uv sync --all-extras --dev
-        working-directory: apps/api
-      - run: uv run alembic upgrade head
-        working-directory: apps/api
-      - name: Start API and wait for /health
-        working-directory: apps/api
-        shell: bash
-        run: |
-          set -euo pipefail
-          uv run uvicorn src.main:app --host 127.0.0.1 --port 8000 > "$RUNNER_TEMP/uvicorn.log" 2>&1 &
-          for attempt in {1..30}; do
-            if curl --fail --silent --show-error http://127.0.0.1:8000/health; then
-              exit 0
-            fi
-            sleep 1
-          done
-          cat "$RUNNER_TEMP/uvicorn.log"
-          exit 1
-      - name: Start frontend and wait for it
-        working-directory: apps/web
-        shell: bash
-        run: |
-          set -euo pipefail
-          pnpm dev --port "$QB_FE_PORT" > "$RUNNER_TEMP/next.log" 2>&1 &
-          for attempt in {1..120}; do
-            if curl --fail --silent --output /dev/null "http://localhost:$QB_FE_PORT/"; then
-              echo "frontend up after ${attempt}s"
-              exit 0
-            fi
-            sleep 1
-          done
-          cat "$RUNNER_TEMP/next.log"
-          exit 1
-      # ⑴ 로그인해서 storageState 를 만든다. `setup-authed-reachability` 가
-      #    `setup`·`setup-identity` 를 의존으로 끌어온다(`playwright.config.ts:111-115`).
-      - name: Bootstrap identity and storageState
-        working-directory: apps/web
-        run: pnpm exec playwright test --project=setup-authed-reachability
-      # ⑵ ★**시더는 반드시 ⑴ 뒤다.** 앱 `users` 행은 sign-up 만으로 안 생기고, 인증된 요청이
-      #    한 번 지나야 JIT 프로비저닝된다(`src/auth/service.py:89-129`). ⑴ 의 `/strategies`
-      #    방문이 그 요청이다. 시더는 `users` 0행이면 fail-closed 로 죽는다.
-      - name: Seed deterministic authed data
-        working-directory: apps/api
-        shell: bash
-        run: |
-          set -euo pipefail
-          # ★`--selftest` 를 먼저 — DB 없이 모든 행을 구성해 본다. 초판이 실재하지 않는 enum 멤버
-          #   (`OptimizationKind.GRID`)를 썼는데 로컬 검증이 그 줄에 **도달한 적이 없어**
-          #   CI 에서 처음 터졌다(run `32087714072`). 1초짜리 배선 확인이 그 왕복을 없앤다.
-          uv run python scripts/seed_ci_e2e.py --selftest
-          uv run python scripts/seed_ci_e2e.py --confirm
-      # ⑶ `--no-deps` — ⑴ 에서 이미 돌린 setup project 를 다시 돌리지 않는다.
-      - name: Run selected authed specs
-        working-directory: apps/web
-        shell: bash
-        run: |
-          set -euo pipefail
-          specs="$(node -p "require('./e2e/ci-authed-manifest.json').ci.map((file) => 'e2e/' + file).join(' ')")"
-          if [ -z "$specs" ]; then
-            echo "::error::ci-authed-manifest.json의 ci가 비어 있다"
-            exit 1
-          fi
-          echo "authed CI specs: $specs"
-          pnpm exec playwright test --project=chromium-authed --no-deps $specs
-      - name: Upload frontend log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-authed-next-log
-          path: ${{ runner.temp }}/next.log
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: Upload authed Playwright report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-authed-report
-          path: apps/web/playwright-report/
-          retention-days: 7
-      - name: Upload API log
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-authed-api-log
-          path: ${{ runner.temp }}/uvicorn.log
-          if-no-files-found: ignore
-          retention-days: 7
-
-  # 전체 잡이 skip 되어도 PR 머지 가능하도록 요약 잡
-  # ★2026-08-06 구멍 2개를 막았다.
-  #   ⑴ `documentation` 이 needs 에 **없었다** — `mise run docs-audit` 이 빨개도 `ci` 는 초록이었다.
-  #      새로 쪼갠 `backend_static` / `backend_coverage` 도 마찬가지로 넣는다.
-  #   ⑵ 판정이 `== "failure"` 였다 — `cancelled` 는 **통과로 읽혔다**. `success`/`skipped` 만
-  #      통과로 인정하도록 뒤집는다(모르는 상태가 생겨도 fail-closed).
-  #   ⑶ ★codex P1 — `changes` 가 needs 에 **없었다**(이 구멍은 본 변경 이전부터 있었다).
-  #      `changes` 가 실패하면 그 의존 잡들은 **`skipped`** 가 되고, ⑵ 규칙이 skipped 를 통과로
-  #      인정하므로 `documentation` 하나만 성공해도 `ci` 가 초록이었다. 즉 **경로 감지가 죽으면
-  #      게이트 전체가 조용히 사라진다.** `changes` 를 needs 에 넣어 닫는다.
-  #   ★잡 id 에 하이픈 대신 밑줄을 쓴 이유: `needs.backend-static.result` 는 표현식에서
-  #     뺄셈으로 파싱될 여지가 있어 대괄호 표기가 필요하다. 로컬에서 시험할 수 없는 문법이라
-  #     모호함이 없는 쪽을 택했다.
-  ci:
-    needs:
-      [
-        changes,
-        frontend,
-        backend,
-        backend_static,
-        backend_coverage,
-        e2e,
-        e2e_authed,
-        documentation,
-        secret_scan,
-      ]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Summary
-        shell: bash
-        run: |
-          fail=0
-          check() {
-            echo "$1=$2"
-            case "$2" in
-              success|skipped) ;;
-              *) echo "::error::$1 = $2"; fail=1 ;;
-            esac
-          }
-          check changes          "${{ needs.changes.result }}"
-          check frontend         "${{ needs.frontend.result }}"
-          check backend          "${{ needs.backend.result }}"
-          check backend_static   "${{ needs.backend_static.result }}"
-          check backend_coverage "${{ needs.backend_coverage.result }}"
-          check e2e              "${{ needs.e2e.result }}"
-          check e2e_authed       "${{ needs.e2e_authed.result }}"
-          check documentation    "${{ needs.documentation.result }}"
-          check secret_scan      "${{ needs.secret_scan.result }}"
-          exit $fail
+          BETTER_AUTH_SECRET: ci-build-only-placeholder-secret-000000
+          BETTER_AUTH_URL: http://localhost:3000

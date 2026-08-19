@@ -22,8 +22,9 @@
 # ── 인프라 ───────────────────────────────────────────────────────────────
 /infra/             @woosung-dev
 
-# ── 게이트·감사 셸 ───────────────────────────────────────────────────────
-# final-gates · bl-audit · docs-audit · context-budget · soak-gate 등.
+# ── 운영 셸 ──────────────────────────────────────────────────────────────
+# ledger-vitals · soak-gate 등. 구 감사기 층(final-gates·bl-audit·docs-audit 등)은
+# ADR-037 제로베이스로 철거 — 원문 = git show harness-v1:tools/scripts/.
 # ★여기가 바뀌면 「무엇이 통과인가」의 정의가 바뀐다 — 리뷰 우선순위가 가장 높은 구획이다.
 /tools/             @woosung-dev
 

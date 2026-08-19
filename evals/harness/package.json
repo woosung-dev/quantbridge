@@ -1,0 +1,20 @@
+{
+  "name": "@quantbridge/harness-eval",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "하네스 Eval — AGENTS.md CRITICAL 룰 준수를 golden set 으로 재는 독립 패키지 (루트는 pnpm workspace 가 아니므로 여기서 pnpm install)",
+  "scripts": {
+    "eval": "tsx run.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}

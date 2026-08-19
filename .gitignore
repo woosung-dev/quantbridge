@@ -19,6 +19,10 @@ sprint*-day*-*.jpeg
 # 프로젝트 고유 스킬을 만들면 그때 `!.claude/skills/` 를 추가한다 (개인용은 local-* 접두사).
 .claude/*
 !.claude/settings.json
+# ADR-037 이식분 — 프로젝트 고유 커맨드·워크플로우는 팀 공유 자산이라 뚫는다.
+# (이 예외가 없어서 /review-code 3파일이 zero-base 커밋에서 침묵 누락됐던 실사고, 2026-08-19)
+!.claude/commands/
+!.claude/workflows/
 # 아래 셋은 위 .claude/* 로 이미 무시되지만, 작업 찌꺼기임을 명시해 둔다.
 # (worktrees 무시는 조사한 90개 중 20개가 쓰는 최다 패턴)
 .claude/plans/
@@ -146,3 +150,4 @@ apps/web/e2e/.demo-shots/
 mise.local.toml
 .mise.local.toml
 mise.*.local.toml
+phases/*/runs/

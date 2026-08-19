@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # [BL-784] `e2e authed` 비결정성 관측기 — 게이트 실행을 **그 앞선 것들까지 포함해** 재현한다.
 #
+# ★ADR-037 주 — 아래의 `final-gates.sh` 서술은 이 스크립트가 만들어진 당시(철거 전) 동작의
+#   기록이다(원문 = git show harness-v1:tools/scripts/final-gates.sh). 재현기 자체는 게이트와
+#   독립적으로 여전히 유효하다 — authed 의 CI 잡이 없어진 지금은 이것이 유일한 반복 실행기다.
+#
 # 왜 있나
 #   `e2e authed` 는 단독 실행에서는 항상 green 이고 게이트 실행에서만 red 였다. 그러면 차이는
 #   테스트가 아니라 **게이트가 그 앞에 하는 일**에 있다. 그런데 그 「앞에 하는 일」은 한 가지가
-#   아니다 — `final-gates.sh` 의 영역 판정이 브랜치마다 다른 집합을 켠다. 그래서 모양이 둘이다.
+#   아니다 — 구 `final-gates.sh` 의 영역 판정이 브랜치마다 다른 집합을 켰다. 그래서 모양이 둘이다.
 #
 #   QB_REPRO_SHAPE=be-branch  (기본) — has_be=1 · has_fe=0. ★**[BL-784] 가 실제로 관측된 모양이다.**
 #       BE pytest (§2)  →  pnpm e2e:authed (§4 leg 3)
