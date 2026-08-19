@@ -49,4 +49,11 @@ describe("PricingPage", () => {
     expect(amts.length).toBe(3);
     amts.forEach((el) => expect(el.textContent).toBe("—"));
   });
+
+  it("가격 미정 — 진행 막대 없음 (BL-810)", () => {
+    const { container } = render(<PricingPage />);
+    expect(container.querySelectorAll(".plan .meter").length).toBe(0);
+    // 분모·분자 설명 문장은 남는다 — 정보 축은 그쪽이 담당한다.
+    expect(container.querySelectorAll(".plan-meter-foot").length).toBe(3);
+  });
 });

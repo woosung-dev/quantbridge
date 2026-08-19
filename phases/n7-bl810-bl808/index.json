@@ -32,14 +32,17 @@
     {
       "step": 2,
       "name": "bl810-pricing-meter",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && ! grep -q 'className=\"meter\"' src/app/pricing/page.tsx",
         "cd apps/web && grep -q 'className=\"meter\"' src/features/strategy/components/new/parse-result-panel.tsx",
         "cd apps/web && pnpm vitest run src/app/pricing/__tests__ src/__tests__",
         "cd apps/web && pnpm tsc --noEmit",
         "cd apps/web && pnpm build"
-      ]
+      ],
+      "started_at": "2026-08-19T09:47:04+0900",
+      "summary": "가격 미정인 세 구성 카드에서 채워진 진행 막대를 제거하고 설명 문단 유지 회귀 테스트를 추가했다.",
+      "completed_at": "2026-08-19T09:49:22+0900"
     },
     {
       "step": 3,

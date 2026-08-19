@@ -264,9 +264,6 @@ export default function PricingPage() {
                     </span>
                     <span className="unit">가격을 아직 정하지 않았습니다.</span>
                   </p>
-                  <div className="meter">
-                    <span style={{ width: "85.7%" }} />
-                  </div>
                   <p className="plan-meter-foot">
                     아래 비교표 11개 중 로컬에 해당하는 <span className="mono">7</span>개 기준으로
                     지금 되는 것 <span className="mono">6</span>개 (85.7%). 로컬 계획에 없는 4개
@@ -322,9 +319,6 @@ export default function PricingPage() {
                     </span>
                     <span className="unit">가격을 아직 정하지 않았습니다.</span>
                   </p>
-                  <div className="meter">
-                    <span style={{ width: "0%" }} />
-                  </div>
                   <p className="plan-meter-foot">
                     아래 비교표 11개 중 클라우드에 해당하는 <span className="mono">8</span>개
                     기준으로 지금 되는 것 <span className="mono">0</span>개 (0%). 포함 여부를 정하지
@@ -381,9 +375,6 @@ export default function PricingPage() {
                     </span>
                     <span className="unit">가격을 아직 정하지 않았습니다.</span>
                   </p>
-                  <div className="meter">
-                    <span style={{ width: "0%" }} />
-                  </div>
                   <p className="plan-meter-foot">
                     아래 비교표 11개 중 팀에 해당하는 <span className="mono">10</span>개 기준으로
                     지금 되는 것 <span className="mono">0</span>개 (0%). 결제는 가격을 정하지 않아
