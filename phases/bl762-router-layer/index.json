@@ -34,13 +34,16 @@
     {
       "step": 2,
       "name": "orders-axis",
-      "status": "pending",
+      "status": "completed",
+      "summary": "OrderService에 사용자 범위 목록·조회·취소 결과를 추가하고 orders 3 endpoint의 Repository 직접 조립 5곳을 service Depends로 교체했다.",
       "ac": [
         "n=$(grep -c 'Repository(' apps/api/src/trading/router.py); echo \"remaining=$n\"; test \"$n\" = \"6\"",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && uv run ruff check ."
-      ]
+      ],
+      "started_at": "2026-08-19T18:20:55+0900",
+      "completed_at": "2026-08-19T18:28:08+0900"
     },
     {
       "step": 3,

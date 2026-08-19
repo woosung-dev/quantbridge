@@ -45,7 +45,6 @@ from src.trading.liquidation_schemas import (
 from src.trading.models import OrderState
 from src.trading.outcome_parity_service import OutcomeParityService
 from src.trading.realtime_publisher import publish_realtime
-from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
 from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
@@ -291,10 +290,9 @@ async def list_orders(
     offset: int = Query(0, ge=0),
     state: list[OrderState] | None = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: OrderService = Depends(get_order_service),
 ) -> dict[str, object]:
-    repo = OrderRepository(session)
-    items, total = await repo.list_by_user(
+    items, total = await service.list_for_user(
         current_user.id, limit=limit, offset=offset, states=state
     )
     return {
@@ -309,16 +307,10 @@ async def list_orders(
 async def get_order(
     order_id: UUID = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse:
-    order_repo = OrderRepository(session)
-    acc_repo = ExchangeAccountRepository(session)
-
-    order = await order_repo.get_by_id(order_id)
+    order = await service.get_for_user(order_id, current_user.id)
     if order is None:
-        raise HTTPException(status_code=404, detail="order not found")
-    acc = await acc_repo.get_by_id(order.exchange_account_id)
-    if acc is None or acc.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="order not found")
     return OrderResponse.model_validate(order)
 
@@ -327,28 +319,14 @@ async def get_order(
 async def cancel_order(
     order_id: UUID = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse | JSONResponse:
     """CF4: pending(거래소 미발주)은 즉시 DB cancel. submitted(거래소 live)은 DB-only flip
     금지 — cancel_order_task 가 거래소 취소 성공 시에만 cancelled 전이 (orphan position 방지)."""
-    from datetime import UTC, datetime
-
-    repo = OrderRepository(session)
-    acc_repo = ExchangeAccountRepository(session)
-
-    order = await repo.get_by_id(order_id)
-    if order is None:
+    outcome = await service.cancel_for_user(order_id, current_user.id)
+    if outcome.kind == "not_found":
         raise HTTPException(status_code=404, detail="order not found")
-    # Ownership check
-    acc = await acc_repo.get_by_id(order.exchange_account_id)
-    if acc is None or acc.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="order not found")
-
-    # CF4: submitted 주문은 거래소에 live 가능 → DB-only cancel 금지. 거래소 취소 task 위임.
-    if order.state == OrderState.submitted:
-        from src.tasks.trading import cancel_order_task
-
-        cancel_order_task.delay(str(order_id))
+    if outcome.kind == "exchange_requested":
         return JSONResponse(
             status_code=202,
             content={
@@ -357,22 +335,16 @@ async def cancel_order(
                 "detail": "exchange cancel requested",
             },
         )
-
-    # pending(거래소 미발주)만 즉시 DB cancel — state==pending 조건부 (pending→submitted
-    # race 시 거래소 live 주문을 cancel 하지 않도록). terminal/raced → rowcount 0 → 409.
-    rowcount = await repo.transition_pending_to_cancelled(order_id, cancelled_at=datetime.now(UTC))
-    await repo.commit()
-    if rowcount == 0:
+    if outcome.kind == "conflict":
         raise HTTPException(status_code=409, detail="cannot cancel in current state")
     # Sprint 9 Phase D FIX-D1: cancel path 에서 gauge decrement
     # (service.execute 에서 +1 한 것을 cancelled terminal state 로 전이 시 -1).
     # ★BL-580 — `commit()` 뒤다. 여기서 던지면 **확정된 취소가 HTTP 500 으로 보고**된다
     #   (고장 주입 확인: `tests/trading/test_router_cancel_metric_failure.py`).
     record_metric_safely(qb_active_orders.dec)
-    fetched = await repo.get_by_id(order_id)
-    if not fetched:
+    if outcome.order is None:
         raise HTTPException(status_code=500, detail="order fetch failed after cancel")
-    return OrderResponse.model_validate(fetched)
+    return OrderResponse.model_validate(outcome.order)
 
 
 # ── Liquidation preview (demo-only calc+display, 주문 차단 없음) ───────
