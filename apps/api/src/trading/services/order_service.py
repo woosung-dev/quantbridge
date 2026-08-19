@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import (
@@ -37,6 +40,12 @@ from src.trading.services.protocols import OrderDispatcher, StrategySessionsPort
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class CancelOutcome:
+    kind: Literal["not_found", "exchange_requested", "cancelled", "conflict"]
+    order: Order | None = None
+
+
 class OrderService:
     """주문 생성 경로. Celery dispatch는 반드시 commit 이후 (visibility race 방지).
 
@@ -65,6 +74,39 @@ class OrderService:
         self._kill_switch = kill_switch
         self._sessions_port = sessions_port
         self._exchange_service = exchange_service
+
+    async def list_for_user(
+        self,
+        user_id: UUID,
+        *,
+        limit: int,
+        offset: int,
+        states: Sequence[OrderState] | None = None,
+    ) -> tuple[Sequence[Order], int]:
+        return await self._repo.list_by_user(user_id, limit=limit, offset=offset, states=states)
+
+    async def get_for_user(self, order_id: UUID, user_id: UUID) -> Order | None:
+        return await self._repo.get_by_id_for_user(order_id, user_id)
+
+    async def cancel_for_user(self, order_id: UUID, user_id: UUID) -> CancelOutcome:
+        order = await self._repo.get_by_id_for_user(order_id, user_id)
+        if order is None:
+            return CancelOutcome("not_found")
+
+        if order.state == OrderState.submitted:
+            from src.tasks.trading import cancel_order_task
+
+            cancel_order_task.delay(str(order_id))
+            return CancelOutcome("exchange_requested")
+
+        rowcount = await self._repo.transition_pending_to_cancelled(
+            order_id, cancelled_at=datetime.now(UTC)
+        )
+        await self._repo.commit()
+        if rowcount == 0:
+            return CancelOutcome("conflict")
+
+        return CancelOutcome("cancelled", order=await self._repo.get_by_id(order_id))
 
     async def execute(
         self,

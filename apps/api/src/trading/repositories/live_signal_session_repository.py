@@ -53,6 +53,18 @@ class LiveSignalSessionRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_user(self, session_id: UUID, user_id: UUID) -> LiveSignalSession | None:
+        """ID와 사용자 소유권을 한 질의로 함께 확인한다.
+
+        라우터에서 별도 비교하면 재사용 경로가 소유권 검사를 조용히 빼먹을 수 있다.
+        """
+        result = await self.session.execute(
+            select(LiveSignalSession)
+            .where(LiveSignalSession.id == session_id)  # type: ignore[arg-type]
+            .where(LiveSignalSession.user_id == user_id)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
     async def find_active_by_order_id(self, order_id: UUID) -> LiveSignalSession | None:
         """LiveSignalEvent.order_id에 정확히 귀속된 활성 세션을 찾는다."""
         result = await self.session.execute(

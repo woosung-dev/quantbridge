@@ -8,16 +8,13 @@ T20: Orders (list/get/cancel) + KillSwitch (events/resolve) REST endpoints.
 from __future__ import annotations
 
 import hashlib
-from decimal import Decimal
 from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
-from src.common.database import get_async_session
 from src.common.metrics import qb_active_orders
 from src.common.metrics_multiproc import record_metric_safely
 from src.trading.dependencies import (
@@ -25,19 +22,17 @@ from src.trading.dependencies import (
     get_balance_service,
     get_close_service,
     get_exchange_account_service,
+    get_kill_switch_service,
     get_liquidation_service,
+    get_live_session_query_service,
     get_live_signal_session_service,
     get_order_service,
     get_outcome_parity_service,
     get_position_service,
     get_webhook_service,
 )
-from src.trading.equity_calculator import (
-    RealizedPnlSource,
-    label_curve_provenance,
-    recompute_equity_curve,
-)
 from src.trading.exceptions import ProviderError
+from src.trading.kill_switch import KillSwitchService
 from src.trading.liquidation_schemas import (
     LiquidationInfoResponse,
     LiquidationPreviewRequest,
@@ -45,11 +40,6 @@ from src.trading.liquidation_schemas import (
 from src.trading.models import OrderState
 from src.trading.outcome_parity_service import OutcomeParityService
 from src.trading.realtime_publisher import publish_realtime
-from src.trading.repositories.exchange_account_repository import ExchangeAccountRepository
-from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
-from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
-from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
-from src.trading.repositories.order_repository import OrderRepository, SessionScope
 from src.trading.schemas import (
     AccountBalanceResponse,
     AccountPositionsResponse,
@@ -63,7 +53,6 @@ from src.trading.schemas import (
     LiveSessionPositionsResponse,
     LiveSessionResponse,
     LiveSignalEventListResponse,
-    LiveSignalEventResponse,
     LiveSignalStateResponse,
     OrderRequest,
     OrderResponse,
@@ -77,6 +66,7 @@ from src.trading.services.alert_rule_service import AlertRuleService
 from src.trading.services.balance_service import AccountBalanceService
 from src.trading.services.close_service import ClosePositionService
 from src.trading.services.liquidation_service import LiquidationService
+from src.trading.services.live_session_query_service import LiveSessionQueryService
 from src.trading.services.live_session_service import LiveSignalSessionService
 from src.trading.services.order_service import OrderService
 from src.trading.services.position_service import PositionService
@@ -291,10 +281,9 @@ async def list_orders(
     offset: int = Query(0, ge=0),
     state: list[OrderState] | None = Query(None),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: OrderService = Depends(get_order_service),
 ) -> dict[str, object]:
-    repo = OrderRepository(session)
-    items, total = await repo.list_by_user(
+    items, total = await service.list_for_user(
         current_user.id, limit=limit, offset=offset, states=state
     )
     return {
@@ -309,16 +298,10 @@ async def list_orders(
 async def get_order(
     order_id: UUID = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse:
-    order_repo = OrderRepository(session)
-    acc_repo = ExchangeAccountRepository(session)
-
-    order = await order_repo.get_by_id(order_id)
+    order = await service.get_for_user(order_id, current_user.id)
     if order is None:
-        raise HTTPException(status_code=404, detail="order not found")
-    acc = await acc_repo.get_by_id(order.exchange_account_id)
-    if acc is None or acc.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="order not found")
     return OrderResponse.model_validate(order)
 
@@ -327,28 +310,14 @@ async def get_order(
 async def cancel_order(
     order_id: UUID = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: OrderService = Depends(get_order_service),
 ) -> OrderResponse | JSONResponse:
     """CF4: pending(거래소 미발주)은 즉시 DB cancel. submitted(거래소 live)은 DB-only flip
     금지 — cancel_order_task 가 거래소 취소 성공 시에만 cancelled 전이 (orphan position 방지)."""
-    from datetime import UTC, datetime
-
-    repo = OrderRepository(session)
-    acc_repo = ExchangeAccountRepository(session)
-
-    order = await repo.get_by_id(order_id)
-    if order is None:
+    outcome = await service.cancel_for_user(order_id, current_user.id)
+    if outcome.kind == "not_found":
         raise HTTPException(status_code=404, detail="order not found")
-    # Ownership check
-    acc = await acc_repo.get_by_id(order.exchange_account_id)
-    if acc is None or acc.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="order not found")
-
-    # CF4: submitted 주문은 거래소에 live 가능 → DB-only cancel 금지. 거래소 취소 task 위임.
-    if order.state == OrderState.submitted:
-        from src.tasks.trading import cancel_order_task
-
-        cancel_order_task.delay(str(order_id))
+    if outcome.kind == "exchange_requested":
         return JSONResponse(
             status_code=202,
             content={
@@ -357,22 +326,16 @@ async def cancel_order(
                 "detail": "exchange cancel requested",
             },
         )
-
-    # pending(거래소 미발주)만 즉시 DB cancel — state==pending 조건부 (pending→submitted
-    # race 시 거래소 live 주문을 cancel 하지 않도록). terminal/raced → rowcount 0 → 409.
-    rowcount = await repo.transition_pending_to_cancelled(order_id, cancelled_at=datetime.now(UTC))
-    await repo.commit()
-    if rowcount == 0:
+    if outcome.kind == "conflict":
         raise HTTPException(status_code=409, detail="cannot cancel in current state")
     # Sprint 9 Phase D FIX-D1: cancel path 에서 gauge decrement
     # (service.execute 에서 +1 한 것을 cancelled terminal state 로 전이 시 -1).
     # ★BL-580 — `commit()` 뒤다. 여기서 던지면 **확정된 취소가 HTTP 500 으로 보고**된다
     #   (고장 주입 확인: `tests/trading/test_router_cancel_metric_failure.py`).
     record_metric_safely(qb_active_orders.dec)
-    fetched = await repo.get_by_id(order_id)
-    if not fetched:
+    if outcome.order is None:
         raise HTTPException(status_code=500, detail="order fetch failed after cancel")
-    return OrderResponse.model_validate(fetched)
+    return OrderResponse.model_validate(outcome.order)
 
 
 # ── Liquidation preview (demo-only calc+display, 주문 차단 없음) ───────
@@ -394,11 +357,10 @@ async def list_kill_switch_events(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: KillSwitchService = Depends(get_kill_switch_service),
 ) -> dict[str, object]:
     """CF1: 호출자 소유(strategy/account) kill-switch 이벤트만 반환 (cross-tenant IDOR 차단)."""
-    repo = KillSwitchEventRepository(session)
-    events = await repo.list_recent_by_user(user_id=current_user.id, limit=limit, offset=offset)
+    events = await service.list_events_for_user(current_user.id, limit=limit, offset=offset)
     return {
         "items": [
             KillSwitchEventResponse.model_validate(e).model_dump(mode="json") for e in events
@@ -417,29 +379,25 @@ async def resolve_kill_switch(
     event_id: UUID = Path(...),
     body: dict[str, object] = Body(default={}),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: KillSwitchService = Depends(get_kill_switch_service),
 ) -> KillSwitchEventResponse:
-    repo = KillSwitchEventRepository(session)
-    # CF1: ownership gate — 호출자 소유 이벤트가 아니면 404 (타 tenant safety gate 해제 차단).
-    owned = await repo.get_owned(event_id, user_id=current_user.id)
-    if owned is None:
-        raise HTTPException(status_code=404, detail="event not found")
     raw_note = body.get("note")
     note = str(raw_note) if raw_note is not None else None
-    rowcount = await repo.resolve(event_id, note=note)
-    await repo.commit()
-    if rowcount == 1:
-        await publish_realtime(
-            str(current_user.id),
-            "kill_switch_resolved",
-            {"event_id": str(event_id), "trigger_type": owned.trigger_type.value},
-        )
-    if rowcount == 0:
+    outcome = await service.resolve_for_user(event_id, user_id=current_user.id, note=note)
+    if outcome.kind == "not_owned":
+        raise HTTPException(status_code=404, detail="event not found")
+    if outcome.kind == "already_resolved":
         raise HTTPException(status_code=404, detail="event not found or already resolved")
-    fetched = await repo.get_by_id(event_id)
-    if not fetched:
+
+    event = outcome.event
+    if event is None:
         raise HTTPException(status_code=500, detail="event fetch failed after resolve")
-    return KillSwitchEventResponse.model_validate(fetched)
+    await publish_realtime(
+        str(current_user.id),
+        "kill_switch_resolved",
+        {"event_id": str(event_id), "trigger_type": event.trigger_type.value},
+    )
+    return KillSwitchEventResponse.model_validate(event)
 
 
 # ── Sprint 26: Live Signal Auto-Trading ────────────────────────────────────
@@ -504,7 +462,7 @@ async def get_live_session_outcome_parity(
 async def get_live_session_state(
     session_id: UUID = Path(...),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: LiveSessionQueryService = Depends(get_live_session_query_service),
 ) -> LiveSignalStateResponse:
     """Sprint 26 — Live Session 의 last strategy_state_report + 누적 PnL.
 
@@ -517,65 +475,10 @@ async def get_live_session_state(
     체결(state=filled) 주문만으로 재계산해 노출한다. `last_strategy_state_report` 는
     엔진이 파악하는 전략 내부 상태 표시 목적으로 그대로 유지한다.
     """
-    repo = LiveSignalSessionRepository(session)
-    sess = await repo.get_by_id(session_id)
-    if sess is None or sess.user_id != current_user.id:
-        raise HTTPException(status_code=404, detail="live session not found")
-    state = await repo.get_state(session_id)
+    state = await service.get_state_for_user(session_id, current_user.id)
     if state is None:
-        return LiveSignalStateResponse(
-            session_id=session_id,
-            evaluated=False,
-            schema_version=0,
-            last_strategy_state_report={},
-            total_closed_trades=0,
-            total_realized_pnl=Decimal("0"),
-            equity_curve=[],
-            updated_at=None,
-        )
-
-    # BL-445 — 예전에는 `(strategy, account)` 튜플만 넘겨서 같은 튜플 위의 비활성
-    # 세션들이 하나의 커브를 공유했다. 세션 창·심볼까지 담은 스코프를 넘긴다.
-    order_repo = OrderRepository(session)
-    filled_orders = await order_repo.list_filled_realized_for_session(
-        SessionScope.from_live_session(sess)
-    )
-    # BL-458 — 출처를 커브·소계와 **한 리스트에서** 파생한다. 두 번째 comprehension 에
-    # 같은 2절 필터를 복제하면 누가 한쪽만 고치는 날 라벨이 조용히 어긋난다.
-    rows: list[tuple[int, Decimal, RealizedPnlSource]] = [
-        (
-            int(o.filled_at.timestamp() * 1000),
-            Decimal(str(o.realized_pnl)),
-            "confirmed" if o.realized_pnl_synced_at is not None else "estimated",
-        )
-        for o in filled_orders
-        if o.filled_at is not None and o.realized_pnl is not None
-    ]
-    closed_pnls = [(timestamp_ms, pnl) for timestamp_ms, pnl, _ in rows]
-    real_total_realized_pnl = sum(
-        (pnl for _, pnl in closed_pnls), Decimal("0")
-    )  # Decimal-first 합산 (Sprint 4 D8)
-    real_equity_curve = label_curve_provenance(
-        recompute_equity_curve(closed_pnls), [source for _, _, source in rows]
-    )
-    # 소계도 Decimal-first. `total` 은 기존 계산을 그대로 두므로 항등식
-    # `confirmed + estimated == total` 이 대입이 아니라 **산술로** 성립한다.
-    confirmed_pnl = sum((pnl for _, pnl, source in rows if source == "confirmed"), Decimal("0"))
-    estimated_pnl = sum((pnl for _, pnl, source in rows if source == "estimated"), Decimal("0"))
-
-    return LiveSignalStateResponse(
-        session_id=state.session_id,
-        schema_version=state.schema_version,
-        last_strategy_state_report=state.last_strategy_state_report,
-        total_closed_trades=len(closed_pnls),
-        total_realized_pnl=real_total_realized_pnl,
-        confirmed_realized_pnl=confirmed_pnl,
-        estimated_realized_pnl=estimated_pnl,
-        confirmed_closed_trades=sum(1 for _, _, s in rows if s == "confirmed"),
-        estimated_closed_trades=sum(1 for _, _, s in rows if s == "estimated"),
-        equity_curve=[dict(p) for p in real_equity_curve],  # TypedDict → dict 호환 cast
-        updated_at=state.updated_at,
-    )
+        raise HTTPException(status_code=404, detail="live session not found")
+    return state
 
 
 @router.get(
@@ -617,23 +520,13 @@ async def list_live_session_events(
     session_id: UUID = Path(...),
     limit: int = Query(100, ge=1, le=500),
     current_user: CurrentUser = Depends(get_current_user),
-    session: AsyncSession = Depends(get_async_session),
+    service: LiveSessionQueryService = Depends(get_live_session_query_service),
 ) -> LiveSignalEventListResponse:
     """Sprint 26 — Live Session 의 outbox event log (debug + Detail UI 용)."""
-    sess_repo = LiveSignalSessionRepository(session)
-    sess = await sess_repo.get_by_id(session_id)
-    if sess is None or sess.user_id != current_user.id:
+    events = await service.list_events_for_user(session_id, current_user.id, limit=limit)
+    if events is None:
         raise HTTPException(status_code=404, detail="live session not found")
-    event_repo = LiveSignalEventRepository(session)
-    event_rows = await event_repo.list_by_session_with_order_state(session_id, limit=limit)
-    return LiveSignalEventListResponse(
-        items=[
-            LiveSignalEventResponse.model_validate(event).model_copy(
-                update={"order_state": order_state}
-            )
-            for event, order_state in event_rows
-        ]
-    )
+    return events
 
 
 @router.get(
