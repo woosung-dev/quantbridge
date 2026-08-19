@@ -85,11 +85,12 @@ cd $QB/apps/web && pnpm e2e:authed
   `**트리거 판정:**` 줄이 **0건**이다~~ → **2026-08-11 [BL-703] 이 채웠다.** PARTIAL 전건이
   판정줄을 갖고 `docs-audit` 이 그 의무를 강제하므로, 이 축은 이제 **두 항을 다 쓴다**
   (착수 근거였던 「P0 1 + P1 4 가 올라온다」는 실측으로 반증됐다 — 올라온 것은 다른 5건이다).
-- **`mise run gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **14종**(2026-08-13
+- **`mise run gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **15종**(2026-08-13
   [ADR-030] 이 `fleet-dispatch-test` 를 함대 축과 함께 회수해 9→8, 2026-08-14 `final-gates-test`
   ([BL-721])와 `assert-main-checkout-test`([BL-722])가 8→10, 2026-08-15 `soak-stack-test`
   ([BL-735])가 10→11, 2026-08-16 [ADR-033] 의 `db-backup-test`·`disk-guard-test` 가 11→13,
-  2026-08-17 [BL-785] 의 `tool-pin-audit-test` 가 13→14).
+  2026-08-17 [BL-785] 의 `tool-pin-audit-test` 가 13→14, 2026-08-18 [BL-805] 의
+  `api-service-test` 가 14→15).
   ★★**2026-08-11 실측 — CI 는 종전에 하네스를 하나도 돌지 않았다**(7종 전부 CI 호출 0).
   게이트 본체만 돌면 레포가 이미 깨끗하기 때문에 **판정 로직을 통째로 지워도 초록**이다
   (BL-569 가 `bl-audit` 에서, BL-601 이 구 `fleet-dispatch` 에서 겪은 그 모양). 종전에 그 회귀를
@@ -336,13 +337,17 @@ exit 2 한다(스택 호출 0건). 그러면 `--strategy-id/--account-id` 를 �
 | `quantbridge-api.service`            | `WorkingDirectory`·`ExecStart`·`PROMETHEUS_MULTIPROC_DIR` 이 `backend/` | 08-07 프로세스가 **삭제된 cwd** 로 연명 · 죽으면 `rc=203/EXEC` 영구 실패          |
 | `soak-stack.sh:SOAK_WATCHED_PATHS`   | 목록에 없는 경로 `scripts`                                              | 감시 축 침묵 (없는 경로의 `git log` 는 **빈 출력**이라 「누락 없음」과 구분 불가) |
 
-**재배치·경로 이동 뒤 필수 점검 3줄** — [BL-719] 류 롤아웃 체크리스트에 반드시 넣어라:
+**재배치·경로 이동 뒤 필수 점검 4줄** — [BL-719] 류 롤아웃 체크리스트에 반드시 넣어라:
 
 ```bash
 tools/scripts/soak-watch.sh --status          # rc=1 이면 설치본이 낡았다 (ExecStart 실재+일치 판정)
+tools/scripts/api-service.sh --status         # 위 표 2행 — ExecStart 의 .venv/bin/uvicorn 경로 대조 ([BL-805])
 grep -l quantbridge ~/.config/systemd/user/*  # 유닛 전수 — 각 파일의 절대경로를 눈으로 확인
 systemctl --user list-units --all | grep -i quantbridge   # failed 가 없어야 한다
 ```
+
+★2026-08-18 [BL-805] 전까지 **위 표 2행(`quantbridge-api.service`)에는 점검 수단이 없었다** —
+레포에 그 유닛을 만드는 코드가 0건이라 「무엇과 대조할 현재본」 자체가 없었기 때문이다.
 
 ★**「타이머가 waiting」은 건강 신호가 아니다.** 41시간 내내 타이머는 정상 waiting 이었다.
 ★**감시자는 자기 죽음을 알릴 수 없다** — 그래서 `--install` 이 `OnFailure=dev.quantbridge.soak-watch-alarm.service`

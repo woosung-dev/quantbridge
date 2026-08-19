@@ -17,6 +17,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     ForeignKey,
+    Integer,
     Numeric,
     String,
     UniqueConstraint,
@@ -540,7 +541,10 @@ class LiveSignalSession(SQLModel, table=True):
     # ★BL-453 — 새 세션이 재조회한 행은 plain str 로 온다(재캐스팅 없음).
     # `.value`/`.name` 금지, `==`/`!=`/`str()` 만 쓸 것.
     interval: LiveSignalInterval = Field(sa_column=Column("interval", String(8), nullable=False))
-    is_active: bool = Field(default=True)
+    is_active: bool = Field(
+        default=True,
+        sa_column=Column(Boolean, nullable=False, server_default=text("true")),
+    )
     last_evaluated_bar_time: datetime | None = Field(
         default=None,
         sa_column=Column(AwareDateTime(), nullable=True),
@@ -595,12 +599,18 @@ class LiveSignalState(SQLModel, table=True):
             nullable=False,
         ),
     )
-    schema_version: int = Field(default=1)
+    schema_version: int = Field(
+        default=1,
+        sa_column=Column(Integer, nullable=False, server_default=text("1")),
+    )
     last_strategy_state_report: dict[str, object] = Field(
         default_factory=dict,
         sa_column=Column(JSONB, nullable=False, server_default="{}"),
     )
-    total_closed_trades: int = Field(default=0)
+    total_closed_trades: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default=text("0")),
+    )
     total_realized_pnl: Decimal = Field(
         default=Decimal("0"),
         sa_column=Column(Numeric(18, 8), nullable=False, server_default=text("0")),
@@ -670,7 +680,10 @@ class LiveSignalEvent(SQLModel, table=True):
     direction: str = Field(max_length=8, nullable=False)  # "long" | "short"
     trade_id: str = Field(max_length=64, nullable=False)
     qty: Decimal = Field(sa_column=Column(Numeric(18, 8), nullable=False))
-    comment: str = Field(default="", max_length=200)
+    comment: str = Field(
+        default="",
+        sa_column=Column(String(200), nullable=False, server_default=text("''")),
+    )
     # MP-1 — close 이벤트의 청산 realized PnL (event-loop 계산). dispatch task 가
     # Order.realized_pnl 로 전파 → kill-switch 손실 평가기가 SUM 하여 작동. entry 는 None.
     realized_pnl: Decimal | None = Field(
@@ -703,7 +716,10 @@ class LiveSignalEvent(SQLModel, table=True):
         ),
     )
     error_message: str | None = Field(default=None, max_length=2000, nullable=True)
-    retry_count: int = Field(default=0)
+    retry_count: int = Field(
+        default=0,
+        sa_column=Column(Integer, nullable=False, server_default=text("0")),
+    )
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),
         sa_column=Column(AwareDateTime(), nullable=False, server_default=text("NOW()")),

@@ -522,7 +522,16 @@ export interface AuditOptions {
    */
   prepare?: (page: Page) => Promise<void>;
   /** true 를 주면 그 콘솔 에러는 집계하지 않는다. 백엔드 부재 소음 제외용. */
-  ignoreConsole?: (text: string) => boolean;
+  /**
+   * 콘솔 소음 allowlist.
+   * ★첫 인자는 **브라우저 콘솔 원문**이다 — 리포트에 붙는 `<- <url>` 출처는 아직 없다.
+   * ★★둘째 인자로 **출처 URL 을 따로** 준다 ([BL-807], 2026-08-19). 그 전에는 원문만 받아서
+   *   「어느 엔드포인트의 5xx 인가」를 판정할 방법이 없었고, URL 을 본다고 **믿은** 패턴이
+   *   조용히 발화하지 않았다. 문자열에 URL 을 덧붙여 넘기지 않는 이유는 이 파일의 아래
+   *   주석이 이미 경고한 그것이다 — 정규식의 사거리가 원문 밖으로 조용히 넓어진다.
+   *   인자를 나누면 spec 이 **어느 축을 보는지 명시**하게 된다.
+   */
+  ignoreConsole?: (text: string, originUrl?: string) => boolean;
   /**
    * 강제할 테마. 주면 컨텍스트 `colorScheme` + next-themes 선호값을 함께 세우고
    * **렌더 결과를 읽어 도달을 확인**한다(안 되면 던진다). 생략 = 앱 기본값(다크) = 종전 동작.
@@ -637,7 +646,7 @@ export async function auditUrl(
       const text = m.text();
       // ★allowlist 는 **원문**으로 판정한다 — 출처를 덧붙이기 전이다. 덧붙인 뒤에 걸면
       //   기존 `ignoreConsole` 정규식이 URL 문자열까지 훑게 돼 사거리가 조용히 넓어진다.
-      if (ignoreConsole?.(text)) return;
+      if (ignoreConsole?.(text, m.location().url)) return;
       res.console.push(`${w}px ${text.slice(0, 120)}${consoleOrigin(m.location().url, url)}`);
     });
     page.on("pageerror", (e) => {

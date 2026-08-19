@@ -164,6 +164,23 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
       dependencies: ["setup-identity"],
     },
+    // [BL-797] authed 화면 증거 — **수치 전용**(스크린샷 없음). 2026-08-18 신설.
+    //
+    // ★왜 별도 project 인가. 형제 `chromium-screen-evidence` 는 `setup-identity` 만 물어서
+    //   BE 없이 돈다(`--pre-pr` 에서 유예 없이 도는 레그다). authed 는 storageState 와
+    //   그 origin 을 아는 BE 를 요구하므로 dependency 가 다르다 — 한 project 에 섞으면
+    //   공개 측정이 BE 부재로 함께 죽는다.
+    // ★`snapshotPathTemplate` 이 없는 것은 의도다 — 이 project 는 스크린샷을 찍지 않는다.
+    {
+      name: "chromium-screen-evidence-authed",
+      outputDir: artifactDirFor("chromium-screen-evidence-authed"),
+      testMatch: /(^|\/)screen-evidence-authed\.spec\.ts$/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: "e2e/.auth/storageState.json",
+      },
+      dependencies: ["setup"],
+    },
     {
       name: "chromium-authed",
       outputDir: artifactDirFor("chromium-authed"),
@@ -193,6 +210,7 @@ export default defineConfig({
         /live-smoke\.spec\.ts$/, // chromium-live-smoke
         /design-canon-.*\.spec\.ts$/, // chromium-design-canon
         /(^|\/)screen-evidence\.spec\.ts$/, // chromium-screen-evidence ([BL-797])
+        /(^|\/)screen-evidence-authed\.spec\.ts$/, // chromium-screen-evidence-authed ([BL-797])
       ],
       fullyParallel: false,
       use: {
