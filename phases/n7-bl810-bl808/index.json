@@ -47,12 +47,15 @@
     {
       "step": 3,
       "name": "bl808-normalize-quoted-literal",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q -k preserves_quoted_literals",
         "cd apps/api && uv run ruff check ."
-      ]
+      ],
+      "summary": "server_default 정규화가 SQL 따옴표 리터럴의 대소문자·캐스트 모양을 보존하고, 리터럴 바깥 캐스트만 흡수하도록 회귀 테스트를 추가했다.",
+      "started_at": "2026-08-19T09:49:39+0900",
+      "completed_at": "2026-08-19T09:52:29+0900"
     },
     {
       "step": 4,

@@ -50,6 +50,7 @@ from src.trading.models import ExchangeExit, LiveSignalEvent
 from tests import _db_guard
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
+_SQL_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
 
 TypeDrift: TypeAlias = tuple[str, str, str, str, str]
 NullableDrift: TypeAlias = tuple[str, str, str, bool, bool]
@@ -200,6 +201,8 @@ def _strip_postgresql_type_casts(value: str) -> str:
     타입명을 열거하지 않는다. `jsonb`와 사용자 enum처럼 새 타입이 계속 늘어나므로
     `::<식별자>` 일반형을 지운다. `character varying`은 PostgreSQL의 두 낱말 타입 표기라
     `varying`만 같은 cast의 일부로 함께 허용한다.
+
+    호출자는 SQL 문자열 리터럴 바깥 조각만 넘긴다.
     """
     return re.sub(
         r"::\s*[a-z_][a-z0-9_]*(?:\s+varying)?(?:\s*\[\])?",
@@ -207,6 +210,21 @@ def _strip_postgresql_type_casts(value: str) -> str:
         value,
         flags=re.IGNORECASE,
     )
+
+
+def _split_sql_string_literals(value: str) -> list[tuple[bool, str]]:
+    """SQL 문자열 리터럴과 그 바깥을 등장 순서대로 (is_literal, 조각) 로 나눈다.
+
+    PostgreSQL 의 리터럴 안 작은따옴표 이스케이프(`''`)를 리터럴의 일부로 본다.
+    """
+    fragments: list[tuple[bool, str]] = []
+    cursor = 0
+    for match in _SQL_STRING_LITERAL.finditer(value):
+        fragments.append((False, value[cursor : match.start()]))
+        fragments.append((True, match.group()))
+        cursor = match.end()
+    fragments.append((False, value[cursor:]))
+    return fragments
 
 
 def _normalize_server_default(default: Any) -> DefaultValue:
@@ -219,9 +237,20 @@ def _normalize_server_default(default: Any) -> DefaultValue:
     if default is None:
         return None
     default_arg = getattr(default, "arg", default)
-    normalized = _strip_postgresql_type_casts(str(default_arg).strip().casefold()).strip()
-    if len(normalized) >= 2 and normalized.startswith("'") and normalized.endswith("'"):
-        return normalized[1:-1]
+    raw_default = str(default_arg).strip()
+    fragments = _split_sql_string_literals(raw_default)
+    normalized_fragments = [
+        (is_literal, fragment)
+        if is_literal
+        else (False, _strip_postgresql_type_casts(fragment.casefold()))
+        for is_literal, fragment in fragments
+    ]
+    normalized = "".join(fragment for _, fragment in normalized_fragments).strip()
+    literal_fragments = [fragment for is_literal, fragment in fragments if is_literal]
+    if len(literal_fragments) == 1 and all(
+        is_literal or not fragment.strip() for is_literal, fragment in normalized_fragments
+    ):
+        return literal_fragments[0][1:-1]
     return normalized
 
 
@@ -286,6 +315,17 @@ def test_server_default_normalization_absorbs_postgres_render_artifacts() -> Non
 def test_server_default_normalization_still_separates_different_values() -> None:
     """jsonb cast를 지워도 배열과 객체 default는 서로 달라야 한다."""
     assert _normalize_server_default("'[]'::jsonb") != _normalize_server_default("'{}'::jsonb")
+
+
+def test_server_default_normalization_preserves_quoted_literals() -> None:
+    """따옴표 리터럴 안의 캐스트 모양과 대소문자는 서로 다른 DEFAULT 로 남는다 (BL-808 ⑴)."""
+    assert _normalize_server_default("'literal::jsonb'") != _normalize_server_default("'literal'")
+    assert _normalize_server_default("'CaseSensitive'") != _normalize_server_default(
+        "'casesensitive'"
+    )
+    # 리터럴 **바깥** 캐스트는 여전히 흡수된다 — 이 축이 죽으면 안 된다.
+    assert _normalize_server_default("'{}'::jsonb") == _normalize_server_default("'{}'")
+    assert _normalize_server_default(text("NOW()")) == _normalize_server_default("now()")
 
 
 def test_empty_default_drift_baseline_rejects_a_server_default_mutation() -> None:
