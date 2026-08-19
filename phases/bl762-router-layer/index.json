@@ -20,13 +20,16 @@
     {
       "step": 1,
       "name": "repo-ownership-getters",
-      "status": "pending",
+      "status": "completed",
+      "summary": "OrderRepository와 LiveSignalSessionRepository에 소유권을 질의로 제한하는 get_by_id_for_user getter 2종과 DB 단위 테스트 6종을 추가했다.",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_repository_ownership_getters.py -q",
         "cd apps/api && n=$(uv run --env-file .env.local pytest tests/trading/test_repository_ownership_getters.py --collect-only -q 2>/dev/null | grep -c '::test_'); echo \"collected=$n\"; test \"$n\" -ge 6",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "cd apps/api && uv run ruff check ."
-      ]
+      ],
+      "started_at": "2026-08-19T18:16:33+0900",
+      "completed_at": "2026-08-19T18:20:54+0900"
     },
     {
       "step": 2,

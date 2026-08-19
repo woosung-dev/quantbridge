@@ -315,6 +315,19 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_id_for_user(self, order_id: UUID, user_id: UUID) -> Order | None:
+        """ID와 사용자 소유권을 한 질의로 함께 확인한다.
+
+        라우터에서 별도 비교하면 재사용 경로가 소유권 검사를 조용히 빼먹을 수 있다.
+        """
+        result = await self.session.execute(
+            select(Order)
+            .join(ExchangeAccount, Order.exchange_account_id == ExchangeAccount.id)  # type: ignore[arg-type]
+            .where(Order.id == order_id)  # type: ignore[arg-type]
+            .where(ExchangeAccount.user_id == user_id)  # type: ignore[arg-type]
+        )
+        return result.scalar_one_or_none()
+
     async def get_state_and_exchange_id_fresh(
         self, order_id: UUID
     ) -> tuple[OrderState, str | None] | None:
