@@ -28,8 +28,9 @@
   2026-08-19 제로베이스). 로컬 pre-flight 의식 없음 — PR 을 올리면 CI(be: ruff+pytest / fe:
   eslint+tsc+vitest+build)가 판정한다. 로컬에서 미리 보려면 그 러너를 직접 돌려라
   (BE pytest 는 `.env.local` 통째 소싱 의무 — 아래 Operational Commands)
-- ALWAYS — 리뷰 = `/review-code`(3차원 병렬 + finding 당 skeptic 3명 2/3 다수결). 소스 첫 3줄
-  한국어 헤더·컨벤션 검사는 이 리뷰의 conventions 차원이 흡수했다(구 header-audit)
+- ALWAYS — 리뷰 도구는 **둘**이다 — `/qb-review`(체크리스트 1패스, 가벼운 변경) ·
+  `/review-code`(3차원 병렬 + finding 당 skeptic 3명 2/3 다수결, 무거운 변경).
+  소스 첫 3줄 한국어 헤더·컨벤션 검사는 후자의 conventions 차원이 흡수했다(구 header-audit)
 - ALWAYS — `gh pr create` 전, `docs/status.md` 에 **살아 있는 「다음 행동 = …」이 둘 이상이면 안 된다**.
   끝난 것은 `~~옛 문장~~ → **날짜 + 새 사실**` 로 바꾼다 — 다음 세션은 남아 있는 것을 그대로 따른다.
   기계 집행 = pre-commit 의 `tools/scripts/ledger-vitals.sh` 3축(다음 행동 ≤1 · ⓪ 표 ≥3행 ·
