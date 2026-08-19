@@ -300,7 +300,6 @@ pnpm tsc --noEmit
 - 인증 셋업 상세: [`better-auth-setup.md`](./better-auth-setup.md)
 - Compose 운영: [`docker-compose-guide.md`](./docker-compose-guide.md)
 - CI/CD: [`ci-cd.md`](./ci-cd.md)
-- 개발 방법론: [`development-methodology.md`](./workflows/development-methodology.md)
 - Sprint 진행 상태: [`status.md`](../../status.md)
 
 ---

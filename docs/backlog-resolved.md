@@ -3884,3 +3884,77 @@ nullable → 인덱스) 켜면서 그때그때 정리하는 편이 안전하다.
 **트리거 판정:** 도래 → **소진** — authed 가 CI 에서 18/20 을 실제로 돈다 (2026-08-18 n5-ci-truth-close)
 
 ---
+
+### BL-808
+
+**Title:** 스키마 동등성 축의 잔여 3구멍 — 정규화 과잉 · cascading 정지 규칙 · CHECK 표현식 미검
+**Category:** Backend / test infra
+**Priority:** P3
+**Trigger:** 도래 — [BL-803] 이 5축을 켠 직후 적대 리뷰가 셋을 실측 시나리오와 함께 짚었다
+**Est:** S (셋 다 국소적. 다만 ⑵ 는 축 전체의 의미론 결정이다)
+**출처:** 2026-08-18 n5-ci-truth-close — codex 적대 리뷰 (P2 3건, 코드 대조로 채택)
+
+**원인 / 영향:**
+
+⑴ **`_normalize_server_default` 가 과하게 지운다** (`tests/test_migrations.py:204-231`).
+`::<식별자>` 를 위치와 무관하게 지우고 casefold 하므로 **따옴표 리터럴 안**까지 건드린다.
+⇒ 모델 `'literal::jsonb'` 과 DB `'literal'` 이 둘 다 `literal` 로, `'CaseSensitive'` 와
+`'casesensitive'` 가 둘 다 `casesensitive` 로 낮아진다. **서로 다른 DEFAULT 가 같다고 판정**된다.
+★현재 실측 35컬럼에 그런 값은 없다 — 잠재 결함이다.
+
+⑵ **정지 규칙이 cascading `return` 이라 앞 축의 baseline 이 뒤 축을 끈다**(`:1016-1083`).
+이 회차가 「축을 오래된 것부터 배치」로 한 번 고쳤지만 **구조는 그대로다.**
+⇒ CHECK baseline 이 6건이 되면, 이미 수집해 둔 `observed_default_drifts` 가 단언 없이 버려진다.
+nullable·index baseline 이 6건이 되면 그 뒤 축들이 함께 꺼진다.
+★지금은 `default`(유일한 비어 있지 않은 baseline, 6건)가 **맨 뒤**라 발화하지 않는다.
+
+⑶ **CHECK 를 이름 집합만 보므로 표현식 약화를 못 잡는다**(`:513-531`). 이것은 [BL-803] 의
+**의도된 설계**이고 근거도 코드 주석에 있다(PG 재작성 흡수 불가 · 시끄러운 축은 꺼진다).
+다만 적대 리뷰가 **구체적 위험 예시**를 줬다 — `ck_kill_switch_events_trigger_scope` 의 이름을
+유지한 채 `exchange_account_id IS NULL` 절만 지우면 축은 초록이고 DB 는 **strategy 와 exchange
+account 가 동시에 지정된 잘못된 kill-switch scope** 를 허용한다.
+
+**권장 접근:** ⑴ 따옴표 리터럴을 **먼저 분리**하고 그 바깥에서만 캐스트 제거·casefold 해라.
+⑵ ★**의미론을 먼저 정해라** — 「앞 축이 아프면 뒤 축을 얹지 마라」가 원래 의도인데, 그것이
+**이미 수집한 증거를 버리는 것**까지 뜻해야 하나? 아니라면 축별 지역 skip 으로 바꾸고
+skip 을 **출력에 찍어라**(조용한 skip 이 이 결함의 본체다). ⑶ 축을 넓히지 말고, 위험한 CHECK
+**3개에 한해** 표현식 스냅샷 테스트를 따로 둬라 —
+`test_deactivation_reason_check_matches_the_enum` 이 이미 그 모양이다.
+
+**Risk:** 🟢 (셋 다 테스트 전용. 다만 ⑵·⑶ 은 **가드가 조용히 약해지는** 종류라 늦게 드러난다)
+
+**상태:** ✅ **Resolved (2026-08-19 n7-harness-first-run · PR #691)** — 하네스 러너 v2 의 첫 실주행이 step 3~5 로 3구멍을 전건 닫았다. ⑴ `_split_sql_string_literals` 신설 — 따옴표 리터럴을 **먼저 분리**하고 바깥 조각에만 casefold·캐스트 제거를 적용한다. 회귀 `test_server_default_normalization_preserves_quoted_literals` 가 `'literal::jsonb'` ≠ `'literal'` · `'CaseSensitive'` ≠ `'casesensitive'` 를 단언하고, 바깥 캐스트 흡수(`'{}'::jsonb` == `'{}'`)와 `NOW()` == `now()` 는 그대로다. ⑵ cascading `return` 4개를 **축별 지역 skip**(`_axis_is_enabled`)으로 바꿨다 — 이제 어느 축이 시끄러워도 다른 축의 **수집과 단언이 끝까지 돈다**. skip 은 `warnings.warn(UserWarning)` 으로 **출력에 찍힌다**(조용한 skip 이 이 결함의 본체였다). ⑶ 위험 CHECK 3개(`ck_kill_switch_events_trigger_scope` · `ck_live_signal_sessions_deactivated_reason` · `ck_alert_rules_type_threshold`)의 `pg_get_constraintdef()` 표현식을 **공백 정규화 스냅샷**으로 동결했다 — 이름 집합 축은 그대로 두고(PG 재작성 흡수 불가) 표현식 약화만 따로 잡는다. 실측 **27 passed → 30 passed**.
+**트리거 판정:** 도래 → **소진** — 셋 다 코드로 닫혔다 (2026-08-19 n7-harness-first-run)
+
+---
+
+### BL-810
+
+**Title:** 마케팅 3종의 장식 요소(번호 아이브로우 · STEP 라벨 · filled meter)를 **마케팅 면 한정으로 제거**한다 — 사용자 결정
+**Category:** Frontend / 디자인
+**Priority:** P3
+**Trigger:** 도래 — 2026-08-19 사용자 결정으로 방향이 확정됐다. 집행만 남았다
+**Est:** S (제거 3종 · 대상 좌표 확정됨)
+**출처:** 2026-08-19 n6-authed-evidence — 08-18 design-t1t2 가 남긴 규범 충돌의 사용자 결정 접수
+
+**원인 / 영향:** 프로토타입 캐논은 이 셋을 쓰라 하고 `design-taste-frontend` §9.F 는 쓰지 말라
+한다. 두 규범이 겹치는 면은 **마케팅 3종뿐**이므로, 충돌 구간을 그쪽으로 좁혀 해소한다.
+**사용자 결정 = 「마케팅 면 한정 제거」** — 앱 내부(대시보드 등)의 캐논은 건드리지 않는다.
+
+**대상 좌표 (실측):**
+⑴ **번호 아이브로우** `<span class="num">01</span>` ~ `06` — `features/marketing/components/` 의
+`landing-features`·`landing-how-it-works`·`landing-support`·`landing-performance`·`landing-faq`·`landing-cta` **6컴포넌트**
+⑵ **STEP 라벨** `landing-how-it-works.tsx:12,17,22,27` (`STEP 1`~`STEP 4`)
+⑶ **filled meter** `app/pricing/page.tsx:267,325,384` — 「가격 미정」인데 85.7% / 0% / 0% 진행 막대가 붙어 신뢰 축에서 오해를 부른다
+
+**권장 접근:** ⑴ 셋을 한 커밋에 묶지 마라 — `/` 와 `/pricing` 은 다른 화면이고 증거도 따로 남는다
+⑵ ★**`/` 와 `/waitlist` 는 화면 증거 팩의 ROUTES 에 있다** — baseline 갱신이 곧 PR 의 after 다.
+**`/pricing` 은 지금 ROUTES 밖이라 그 변경은 무증거로 지나간다** — 같이 넣을지 먼저 정해라
+⑶ `landing-how-it-works.test.tsx` 등 기존 단위가 그 문자열을 단언하는지 확인해라
+
+**Risk:** 🟢 (표현 층 한정. 기능 무변경)
+
+**상태:** ✅ **Resolved (2026-08-19 n7-harness-first-run · PR #691)** — 하네스 러너 v2 가 step 0~2 로 셋을 **각각 다른 커밋**에 담아 닫았다(원장의 「셋을 한 커밋에 묶지 마라」 집행). ⑴ 번호 아이브로우 — `landing-features`·`landing-how-it-works`·`landing-support`·`landing-performance`·`landing-faq`·`landing-cta` 6컴포넌트의 `<span className="num">01~06</span>` 제거, `.eyebrow` 문단과 라벨 텍스트는 유지. ⑵ STEP 라벨 — `Step.num` 필드·`STEP 1~4` 데이터·`.lp-step-num` 마크업과 **CSS 규칙까지** 제거(`key` 는 `s.title` 로). ⑶ filled meter — `/pricing` 세 카드의 `<div className="meter">` 3개 제거, 분모·분자를 설명하는 `.plan-meter-foot` 문단은 유지. ★★**CSS 는 KITPORT 경계가 갈랐다** — `.eyebrow .num`(globals.css:1288)·`.meter`(1393)는 `KITPORT-START`~`END`(966~1876) **안**이라 `design-canon-kit-port.test.ts` 가 `_kit.html` 과 주석까지 바이트 대조하므로 **마크업만** 지웠고, `.lp-step-num`(3443)은 그 **밖** + 소비자 0 이라 함께 지웠다. ★**「마케팅 면 한정」이 실측으로 안전함을 확인**했다 — e2e `sprint46-tier3-nth.spec.ts:428` 의 `.section .eyebrow .num` 는 `/backtests/<id>` 리포트 셸을 보고, `.meter` 는 앱 내부 5곳이 계속 쓴다(그 생존을 **음성 대조 AC** 로 집행했다).
+**트리거 판정:** 도래 → **소진** — 좌표 3종 전건 제거 (2026-08-19 n7-harness-first-run)
+
+---

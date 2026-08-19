@@ -3440,18 +3440,6 @@ table.hm th[scope="row"] { text-align: right; }
 /* 작동 방식 */
 .lp-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .lp-step { display: flex; flex-direction: column; gap: 8px; padding: 18px 20px; }
-.lp-step-num {
-  align-self: flex-start;
-  font-family: var(--f-mono);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--copper);
-  background: var(--copper-soft);
-  border: 1px solid var(--copper-line);
-  border-radius: var(--r);
-  padding: 1px 8px;
-}
 .lp-step-title { font-size: 0.93rem; font-weight: 600; }
 .lp-step-desc { font-size: 0.82rem; color: var(--ink-3); line-height: 1.6; }
 

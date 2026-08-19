@@ -50,155 +50,16 @@ cd $QB/apps/web && pnpm e2e:authed
 ~~문서 구조·활성 Markdown 링크·폐기 경로는 루트에서 `mise run docs-audit`으로 검사한다.~~
 → **2026-08-19 [ADR-037] 철거** — `docs-audit` 은 없다(원문 = `git show harness-v1:tools/scripts/docs-audit.sh`).
 
-### 게이트 3종 신규 (2026-08-11 ledger-truth)
+### ~~게이트 3종 신규 · 게이트 2단(`--pre-pr`/`--deferred-only`) · 신호 4종(`.claude/gates/`)~~
 
-~~`cd $QB && bash tools/scripts/skip-ratchet.sh` — 무조건 skip 개수 동결 (baseline 0 · 스코프별 하한 미달 → rc=3)~~
-~~`cd $QB && mise run docs-audit` — ⓪ 표 정체성 축 포함 (아래)~~
-~~`cd $QB && mise run gate-harnesses` — ★게이트 하네스 14종 전량 (2026-08-17 · tool-pin-audit 추가)~~
+→ **2026-08-19 [ADR-037] 철거.** 세 절(150줄)이 기술하던 기계가 전부 사라졌다 —
+`tools/scripts/final-gates.sh` · `signal-check.sh` · `skip-ratchet.sh` · `docs-audit.sh` ·
+`mise run gate-harnesses`(자기시험 14종) · 증거 마커 디렉터리 `.claude/gates/<run>/`.
+**원문 = `git show harness-v1:docs/reference/operations/gates-and-traps.md`** (이 파일 53~202줄).
 
-→ **2026-08-19 [ADR-037] 철거** — 셋 다 없다(원문 = `git show harness-v1:<경로>`). green = CI 단일 게이트.
-
-> 아래 이어지는 `skip-ratchet`·`docs-audit ⓪ 축`·`gate-harnesses` 서술 블록은 **그 철거된 게이트들의
-> 존재 근거·판별력 이력 기록**이다 — 재입힘(사고 1건 = 슬림 복귀 1건) 판단 시 참고용으로만 읽어라.
-
-- **`skip-ratchet`** — `@pytest.mark.skip` 데코레이터 **와** 모듈 레벨 `pytestmark = pytest.mark.skip(...)`
-  을 센다. `skipif` 와 `conftest` 의 프로그램적 마커는 **세지 않는다**. baseline 초과 → rc=1,
-  **스코프 경로 부재·스코프별 하한 미달 → rc=3**(빈 입력을 초록으로 통과시키지 않는다).
-  ★왜 있나 — 2026-05-14 에 「Sprint 61 follow-up」 사유로 심긴 5건이 **Sprint 61 종료 후 3개월**
-  살아남았고 대응 BL 은 0건이었다. pytest 는 skip 을 초록으로 보고하므로 **꺼진 테스트는 통과와
-  구분되지 않는다.**
-  ★★**2026-08-11 [BL-705] — 하한이 두 스코프 「합계」였다.** `os.walk` 는 없는 디렉터리에서
-  조용히 0 을 내므로, 위반이 사는 `apps/api/tests`(505)가 통째로 안 스캔돼도 `apps/api/src`(217)가
-  합계 하한 200 을 넘겨 **「위반 0건 ✓ rc=0」** 이었다(`TARGETS` 두 항목 중 하나만 오타 나면
-  발화). 하한을 **스코프별**(tests 350 / src 150 = 실측의 70% 선)로 바꾸고 경로 부재를 따로
-  판정한다. ★그리고 그 회귀를 잡는 것은 자기검사가 아니라 **`tools/scripts/skip-ratchet-test.sh`**
-  (임시 트리 11케이스)다 — 자기검사의 입력은 「한 줄 문자열과 정수」라 **스캔층을 한 줄도
-  안 덮는다.** 「하네스는 고아가 된다」는 신설 시 판단이 여기서 반증됐다.
-  ★★**자기검사는 정상 상태에서 절대 발화하지 않는다 ⇒ 그것을 통째로 지워도 게이트는 초록**
-  이다(실측). 케이스 ⑩⑪ 이 래칫 **사본**에 변이를 심어 「자기검사가 실제로 우는가」를
-  behavioral 로 잰다 — 안 그러면 「검사기를 검사하는 검사기」가 다시 무증거가 된다.
-  남은 사각 = 함수 몸통 안 `pytest.skip(...)` 인라인 · 기본 ROOT 파생 경로(하네스가 env 로
-  트리를 주입하므로 그 갈래는 `final-gates.sh` 의 실물 실행이 덮는다).
-- **`docs-audit` ⓪ 표 정체성 축** — 살아 있는 행 == `bl-audit --list ACTIVE ∪ (PARTIAL ∧ 도래)`.
-  취소선은 **후보 셀만** 본다(다른 셀의 `~~정정 이력~~` 을 「죽었다」로 읽으면 안 된다).
-  양쪽이 비면 **rc=3**. ★~~`(PARTIAL ∧ 도래)` 는 지금 **구조적 공집합**이다 — PARTIAL 24건 중
-  `**트리거 판정:**` 줄이 **0건**이다~~ → **2026-08-11 [BL-703] 이 채웠다.** PARTIAL 전건이
-  판정줄을 갖고 `docs-audit` 이 그 의무를 강제하므로, 이 축은 이제 **두 항을 다 쓴다**
-  (착수 근거였던 「P0 1 + P1 4 가 올라온다」는 실측으로 반증됐다 — 올라온 것은 다른 5건이다).
-- **`mise run gate-harnesses`** — 「게이트가 무엇을 재는지 재는」 검사기 **15종**(2026-08-13
-  [ADR-030] 이 `fleet-dispatch-test` 를 함대 축과 함께 회수해 9→8, 2026-08-14 `final-gates-test`
-  ([BL-721])와 `assert-main-checkout-test`([BL-722])가 8→10, 2026-08-15 `soak-stack-test`
-  ([BL-735])가 10→11, 2026-08-16 [ADR-033] 의 `db-backup-test`·`disk-guard-test` 가 11→13,
-  2026-08-17 [BL-785] 의 `tool-pin-audit-test` 가 13→14, 2026-08-18 [BL-805] 의
-  `api-service-test` 가 14→15).
-  ★★**2026-08-11 실측 — CI 는 종전에 하네스를 하나도 돌지 않았다**(7종 전부 CI 호출 0).
-  게이트 본체만 돌면 레포가 이미 깨끗하기 때문에 **판정 로직을 통째로 지워도 초록**이다
-  (BL-569 가 `bl-audit` 에서, BL-601 이 구 `fleet-dispatch` 에서 겪은 그 모양). 종전에 그 회귀를
-  잡는 유일한 자리가 **회차 끝 로컬 `final-gates.sh` 1회**였다 = 회귀를 **다음 회차 끝까지 못 본다.**
-  ⇒ CI `documentation` 잡(경로 필터가 없어 **항상** 돈다)에 배선했다.
-  **판별력 실증** — ⓪ 축의 불일치 수집을 죽이면 `mise run docs-audit` 은 **rc=0**(회귀 불가시)인데
-  `mise run gate-harnesses` 는 **rc≠0** 으로 잡는다.
-  ★**고아 하네스 2종을 같이 붙였다** — `soak-watch-test` · `pre-push-guard-test` 는 레포에
-  **존재하고 초록인데 호출자가 0** 이었다. docker·네트워크 의존은 0 이다(`soak-restart-test` 는
-  docker 를 언급하지만 로그+`exit 1` 스텁을 PATH 앞단에 깔고 돌려 **17/17 통과 · 스텁 호출 0회**로
-  확인했다 — 진짜 docker 를 부르지 않는다).
-
-### 게이트 2단 — `--pre-pr` / `--deferred-only` (2026-08-14)
-
-**왜 나눴나 — 실측이다.** 전량 1회가 **15~20분**인데 그 대부분을 여섯이 먹고, **CI 가 같은 것을
-이미 샤딩해서 돈다**(`ci.yml` 의 `backend`·`backend_coverage`·`e2e` 잡). 로컬 전량 실행은 CI 를
-직렬로·비샤딩으로 한 번 더 하는 것이었다.
-
-| 게이트                                                        |                                     실측 | CI 가 도나                     |
-| ------------------------------------------------------------- | ---------------------------------------: | ------------------------------ |
-| BE pytest (4,604건)                                           |                                **379초** | ✅ `backend` 잡이 **샤딩**해서 |
-| e2e 3레인                                                     |                               ~**400초** | ✅ `e2e` 잡                    |
-| CI fresh DB alembic · 커버리지                                |                                 수십 초~ | ✅                             |
-| 나머지 21종 (ruff·mypy·typecheck·lint·감사·하네스 10종·build) | 합계 **1분 안쪽** (최장 = FE build 17초) | 일부만                         |
-
-★★**유예 ≠ 무조건 실행. 영역 판정이 먼저다** (2026-08-14 · [BL-723]). `--deferred-only` 가 도는
-것은 「유예분 ∩ **영역이 살아 있는 것**」이다. 종전에는 가장 비싼 셋만 영역 판정 밖에 있어서,
-`apps/web`·`apps/api` diff 가 **0줄**인 회차에서 **11분 10초**가 그냥 탔다(BE pytest 357초 ·
-e2e authed 268초 · design-canon 42초). 같은 회차에 CI 는 `backend`·`e2e` 잡을 **전부 skip** 했다 —
-로컬이 CI 보다 더 돌면서 잴 것은 없었다.
-
-| 게이트                               | 영역 술어               | 왜                                                   |
-| ------------------------------------ | ----------------------- | ---------------------------------------------------- |
-| BE ruff · mypy · **pytest**          | `has_be`                | `apps/api/**` 가 안 바뀌면 잴 것이 없다              |
-| FE typecheck · lint · vitest · build | `has_fe`                | `apps/web/**` 동일                                   |
-| `/vercel-react-best-practices`       | `has_fe`                | 신호 게이트도 같은 술어                              |
-| e2e chromium · **design-canon**      | `has_fe`                | 랜딩·hermetic `file://` — 서버 무결합                |
-| **e2e authed**                       | `has_fe` **∥** `has_be` | 로그인 후 데이터 화면 — **BE 가 죽으면 화면이 빈다** |
-| 감사·하네스·CI 재현·신호 3종         | 없음 (항상)             | 레포 전역 규율이라 영역이 없다                       |
-
-★`|| [ -z "$BASE" ]` **fail-safe 는 전부 유지한다** — `merge-base origin/main HEAD` 가 실패하면
-영역이 0 으로 보이므로, 그때는 **돈다**. 조용한 skip 이 조용한 초록보다 나쁘다.
-★세 e2e 레인 영역이 전부 비면 **정체성 프로브(curl)도 안 돈다** — 잴 것이 없는데 서버를
-요구하면 docs 만 고친 회차가 e2e **FAIL** 로 막힌다(종전 동작).
-
-```bash
-# ⑴ 중간·PR 직전 — 무거운 9종을 유예한다 (~1분)
-tools/scripts/final-gates.sh --run <슬러그> --pre-pr
-
-# ⑵ PR push 후 — CI 가 도는 동안 **나란히** 로컬에서 유예분만
-tools/scripts/final-gates.sh --run <슬러그> --deferred-only
-
-# 계획만 보고 싶으면 (아무것도 안 돌린다 — 더러운 트리에서도 된다)
-tools/scripts/final-gates.sh --run <슬러그> --pre-pr --dry-run
-```
-
-★★**유예는 면제가 아니다.** `--pre-pr` 은 미룬 것을 `.claude/gates/<슬러그>/deferred.txt` 에 적고
-종결 문구를 **다르게** 낸다(「pre-PR 통과 — 단 N종을 아직 안 돌렸다. 이것은 종결 판정이 아니다」).
-`--deferred-only` 통과가 그 파일을 지운다 ⇒ **원장이 남아 있으면 종결이 아니다.**
-같은 「✓ 전건 통과」를 냈으면 「초록인데 안 봤다」가 됐을 것이고, 그게 이 레포가 반복해 덴 병이다.
-
-★**신호 4종도 유예 대상이다** — `--pre-pr` 은 「코드가 성립하나」를 묻는 중간 검사라 아직 스킬을
-안 돌렸을 수 있다. 종결 판정(신호가 이 회차 것인가)은 `--deferred-only` 가 진다.
-
-★모드 3종은 **상호 배타**이고 둘을 주면 거부한다. 결과표에 **게이트별 소요(초)**와 실행 합계가
-찍히므로, 다음 사람은 인상이 아니라 수치로 무엇을 미룰지 정할 수 있다.
-판별력 = `tools/scripts/final-gates-test.sh`(케이스 8 · 변이 3 + 음성 대조 1). ★그 하네스가 **안**
-재는 것은 유예 원장의 기록·해제다(실제 통과 실행에서만 일어난다 — 2026-08-14 손으로 1회 확인).
-
-### 신호 4종 (`.claude/gates/<run>/`) — 판정식 · rc 규약 · ★브랜치 전제 ([BL-706]·[BL-714])
-
-`final-gates.sh` 는 스킬 실행의 증거로 파일 4개를 요구한다. 각 파일 **첫 줄은 `commit: <sha>`**
-(hex 7~40, `rev-parse` 로 해석)여야 하고, 그 sha 의 **신선도**를 `signal-check.sh` 가 판정한다.
-
-| 파일        | 무엇의 증거                      | 필수 여부                    |
-| ----------- | -------------------------------- | ---------------------------- |
-| `vercel.ok` | `/vercel-react-best-practices`   | `apps/web/**` diff 있을 때만 |
-| `screen.ok` | MCP playwright 또는 `/browse`    | 항상                         |
-| `codex.ok`  | `/codex` 적대 리뷰 findings 처분 | 항상                         |
-| `g9.ok`     | 계획 vs 실제 구현 최종 점검 표   | 항상                         |
-
-**신선도 판정 — 앵커 A1~A5 를 이 순서로 본다** (`signal-check.sh:60-79`):
-
-| 앵커 | 조건                                       | CODE                | rc  |
-| ---- | ------------------------------------------ | ------------------- | --- |
-| A1   | `merge-base(origin/main,HEAD)` **== HEAD** | `no-branch-commits` | 1   |
-| A2   | `sha == HEAD`                              | `head`              | 0   |
-| A3   | `origin/main` 부재                         | `no-origin-main`    | 1   |
-| A4   | `sha` 가 HEAD 의 조상이 **아님**           | `not-ancestor`      | 1   |
-| A5   | `sha` 가 merge-base 의 조상                | `origin-main`       | 1   |
-| —    | 그 외 (브랜치 범위 안)                     | `branch`            | 0   |
-
-**rc 규약** = `0` 신선 / `1` 낡음·부재·형식위반 / `2` 사용법 / **`3` 판정 불가(abort — ★초록을 내지 않는다)**.
-호출부 `final-gates.sh:check_signal()` 에서 **rc=3 은 필수 여부와 무관하게 FAIL** 이다(fail-open 금지).
-
-★★**브랜치 전제 — A1 이 A2 **앞**에 있다는 뜻은 이것이다.** 전건 머지돼 `merge-base == HEAD` 가 된
-main 에서는 신호 sha 가 HEAD 와 **정확히 같아도** `stale[no-branch-commits]` rc=1 이다. 즉
-**「마지막 커밋 뒤에 게이트」는 「그 회차의 PR 브랜치에서, 머지 전에」를 함께 뜻한다.**
-2026-08-12 회차가 먼저 머지한 뒤 신호를 취득해 4종을 초록으로 만들 수 없었다 ⇒ [BL-714].
-
-★**이 전제는 이제 문서 규율이 아니라 스크립트가 막는다** — `final-gates.sh` 가 인자 파싱 직후
-`merge-base == HEAD` 를 검사해 **게이트 체인 진입 전에 거부**한다([BL-706] 의 `--run eod` 거부와 같은 문형).
-`origin/main` 이 없는 저장소에서는 발화하지 않는다. 하네스 케이스 **㉖** 이 양·음성 양쪽을 고정한다.
-
-★**A1 을 우회하는 「범위 탈출구」는 기각됐다**([BL-714] 2026-08-14). A1 의 방어 대상은 정확히 1개
-상태이고 그 유일한 증인이 케이스 **⑫** 인데, `--range` 로 merge-base 를 사람이 대체하게 하면 ⑫ 가
-green 이 되어 **증인이 사라진다**. 신호 첫 줄에 `range:` 를 적는 안도 기각 — squash 머지라 브랜치
-팁이 HEAD 의 조상이 아니어서 제3자·CI 가 그 범위의 실재를 검증할 수 없다.
+지금의 판정은 **표준 러너 + CI 단일 게이트** 하나다(위 §1 명령 + `.github/workflows/ci.yml`).
+로컬에서 미리 보려면 그 러너를 직접 돌려라 — 유예 원장도, 신호 파일도, 브랜치 전제도 없다.
+복귀는 [ADR-037] 재입힘 규칙(문서화된 사고 1건 = 슬림 복귀 1건, 최소판) 경유다.
 
 ### 소크 (P0 [BL-003] 의 달력 시간 게이트)
 
@@ -278,12 +139,9 @@ tools/scripts/soak-watch.sh              # 게이트 1회 호출 + 지문 변화
 tools/scripts/soak-watch.sh --dry-run    # 게이트는 부르되 알림은 안 쏘고 판단만 출력
 tools/scripts/soak-watch.sh --install    # systemd user timer 30분 (★게이트 타이머는 꺼진다)
 tools/scripts/soak-watch.sh --status     # 마지막 지문 · heartbeat · 타이머 상태
-tools/scripts/soak-watch-test.sh         # 판단 로직 하네스 (실측 캡처 픽스처, 전건 통과 = exit 0)
 
 tools/scripts/soak-restart.sh            # 기본 = dry-run. 재기동 8단계와 실제 값을 출력만 한다
 tools/scripts/soak-restart.sh --confirm  # 집행 (⑴ FLAT=YES 아니면 그 자리에서 멈춘다)
-tools/scripts/soak-restart-test.sh       # 갈래·순서 하네스 (final-gates.sh 「소크 재기동 하네스」)
-tools/scripts/signal-check-test.sh       # 신호 신선도 하네스 ([BL-706] — 신호 첫 줄 `commit: <sha>` 대조. --mutants 로 변이·음성대조 전량)
 #                                        # ★종수를 여기 박지 마라 — 스크립트가 스스로 센다(13→14→15 로 두 번 낡았다)
 ```
 
@@ -1217,13 +1075,15 @@ null 저장 → 초기 DOM 값 `""` → `setValueAs` 는 change 에서만 도는
 
 ## 4. pre-push 훅
 
-`.husky/pre-push` 는 main worktree 에서:
+`.husky/pre-push` 는 **ref 가드 하나만** 한다 ([ADR-037] 2026-08-19 — 품질 검사부는 철거,
+원문 = `git show harness-v1:.husky/pre-push`). CI 가 품질을 단독 판정한다.
 
 - `main` / `master` push **영구 차단** (bypass 불가)
-- `feat/*` `fix/*` `chore/*` `docs/*` `test/*` `refactor/*` `hotfix/*` 만 허용. 그 외는 `QB_PRE_PUSH_BYPASS=1` 필요
-- `apps/web/` 변경 시 `pnpm typecheck && pnpm test`
-- `apps/api/` 변경 시 `uv run ruff check . && uv run mypy src/` (**pytest 는 opt-in** — `QB_RUN_PYTEST=1`)
-- `apps/api/.env.local` 에서 **`TEST_` 접두 변수만** 자동 export. `DATABASE_URL` 은 안 들어온다
+- `stage/*` `feat/*` `fix/*` `chore/*` `docs/*` `test/*` `refactor/*` `hotfix/*` 만 허용.
+  그 외 임의 브랜치는 차단 + bypass 안내 (판정 순수 함수 = `tools/scripts/lib/pre-push-ref-guard.sh`)
+- 판정 대상은 현재 브랜치가 아니라 **실제로 미는 ref** 다 ([BL-554]·[BL-555])
+- ~~`apps/web/` 변경 시 `pnpm typecheck && pnpm test`~~ ~~`apps/api/` 변경 시 `ruff`·`mypy`~~
+  ~~`.env.local` 의 `TEST_` 접두 자동 export~~ → **전부 철거됐다. push 는 품질을 안 본다.**
 
 ## 5. 격리 스택
 

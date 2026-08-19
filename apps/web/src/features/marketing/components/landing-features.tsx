@@ -81,9 +81,7 @@ export function LandingFeatures() {
   return (
     <section className="section rise d2" id="features" aria-label="기능">
       <header className="section-head">
-        <p className="eyebrow">
-          <span className="num">01</span> 기능
-        </p>
+        <p className="eyebrow">기능</p>
         <h2 className="section-title">전략 하나를 끝까지 확인하는 데 필요한 것들</h2>
         <p className="section-desc">
           여섯 가지가 한 줄기로 이어집니다. 각 기능이 무엇을 하고 무엇을 하지 않는지 카드 아래에

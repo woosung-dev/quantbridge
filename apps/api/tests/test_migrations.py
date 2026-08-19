@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import warnings
 from collections import Counter
 from hashlib import sha256
 from pathlib import Path
@@ -50,6 +51,7 @@ from src.trading.models import ExchangeExit, LiveSignalEvent
 from tests import _db_guard
 
 _BACKEND_ROOT = Path(__file__).resolve().parent.parent
+_SQL_STRING_LITERAL = re.compile(r"'(?:[^']|'')*'")
 
 TypeDrift: TypeAlias = tuple[str, str, str, str, str]
 NullableDrift: TypeAlias = tuple[str, str, str, bool, bool]
@@ -95,6 +97,50 @@ _INDEX_DRIFT_BASELINE: frozenset[IndexDrift] = frozenset()
 # 전부 명명돼 있다. 이름 없는 CheckConstraint가 생기면 PG 자동 이름과의 비교가 불안정하므로,
 # 그때만 정확한 양방향 drift를 이 baseline에 동결하고 이유를 이 자리 주석으로 남긴다.
 _CHECK_CONSTRAINT_DRIFT_BASELINE: frozenset[CheckConstraintDrift] = frozenset()
+
+# ★[BL-808] ⑶ — CHECK 이름 집합 축(`_check_constraint_drifts_for_table`)은 표현식을 보지 않는다.
+#   그 설계는 유지하되(PG 재작성 흡수 불가), **배타 조건을 담은 위험 CHECK 3개에 한해**
+#   표현식을 동결한다. 이름을 유지한 채 `exchange_account_id IS NULL` 절만 지우는 변경이
+#   이름 축에서는 초록이고 DB 는 잘못된 scope 를 허용하게 되는 것이 이 테스트의 존재 이유다.
+_RISKY_CHECK_CONSTRAINT_SNAPSHOTS: dict[tuple[str, str], str] = {
+    (
+        "kill_switch_events",
+        "ck_kill_switch_events_trigger_scope",
+    ): "CHECK ((((trigger_type = 'cumulative_loss'::killswitchtriggertype) AND (strategy_id IS NOT NULL) AND (exchange_account_id IS NULL)) OR ((trigger_type = ANY (ARRAY['daily_loss'::killswitchtriggertype, 'api_error'::killswitchtriggertype])) AND (exchange_account_id IS NOT NULL) AND (strategy_id IS NULL))))",
+    (
+        "live_signal_sessions",
+        "ck_live_signal_sessions_deactivated_reason",
+    ): "CHECK (((deactivated_reason IS NULL) OR ((deactivated_reason)::text = ANY ((ARRAY['coverage_unrunnable'::character varying, 'degraded_unconsented'::character varying, 'equity_baseline_missing'::character varying, 'equity_exhausted'::character varying, 'run_live_error'::character varying, 'runtime_divergence'::character varying, 'gap_resync_position_mismatch'::character varying, 'position_divergence'::character varying, 'user_stopped'::character varying, 'account_deleted'::character varying])::text[]))))",
+    (
+        "alert_rules",
+        "ck_alert_rules_type_threshold",
+    ): "CHECK (((((rule_type)::text = 'loss_limit'::text) AND (threshold_percent IS NOT NULL)) OR (((rule_type)::text = 'watchdog'::text) AND (threshold_percent IS NULL))))",
+}
+
+_AXIS_BASELINE_LIMIT = 5
+
+
+def _axis_is_enabled(axis: str, baseline: frozenset[Any], skipped: list[str]) -> bool:
+    """축의 baseline 이 한도를 넘으면 그 축만 끄고 이름을 `skipped` 에 남긴다.
+
+    정지 규칙의 의미는 「이 축이 시끄러우면 **이 축을** 이 회차에 얹지 마라」이지
+    「뒤 축을 전부 끄고 이미 모은 증거를 버려라」가 아니다 ([BL-808] ⑵, 2026-08-19).
+    """
+    if len(baseline) > _AXIS_BASELINE_LIMIT:
+        skipped.append(axis)
+        return False
+    return True
+
+
+def test_axis_skip_records_a_noisy_baseline_without_disabling_other_axes() -> None:
+    """한 축의 baseline 이 한도를 넘어도 그 축만 꺼지고 이름이 남는다 (BL-808 ⑵)."""
+    skipped: list[str] = []
+    noisy = frozenset((f"drift-{i}",) for i in range(_AXIS_BASELINE_LIMIT + 1))
+    quiet = frozenset()
+    assert _axis_is_enabled("noisy", noisy, skipped) is False
+    assert _axis_is_enabled("quiet", quiet, skipped) is True
+    assert skipped == ["noisy"]
+
 
 # TimescaleDB 가 hypertable 생성 때 소유하는 시간 인덱스다. metadata 에 선언하지 않아야
 # `create_all` 경로에서 중복 생성되지 않으므로, 모델 동등성 검사에서도 DB-only 로 보지 않는다.
@@ -200,6 +246,8 @@ def _strip_postgresql_type_casts(value: str) -> str:
     타입명을 열거하지 않는다. `jsonb`와 사용자 enum처럼 새 타입이 계속 늘어나므로
     `::<식별자>` 일반형을 지운다. `character varying`은 PostgreSQL의 두 낱말 타입 표기라
     `varying`만 같은 cast의 일부로 함께 허용한다.
+
+    호출자는 SQL 문자열 리터럴 바깥 조각만 넘긴다.
     """
     return re.sub(
         r"::\s*[a-z_][a-z0-9_]*(?:\s+varying)?(?:\s*\[\])?",
@@ -207,6 +255,21 @@ def _strip_postgresql_type_casts(value: str) -> str:
         value,
         flags=re.IGNORECASE,
     )
+
+
+def _split_sql_string_literals(value: str) -> list[tuple[bool, str]]:
+    """SQL 문자열 리터럴과 그 바깥을 등장 순서대로 (is_literal, 조각) 로 나눈다.
+
+    PostgreSQL 의 리터럴 안 작은따옴표 이스케이프(`''`)를 리터럴의 일부로 본다.
+    """
+    fragments: list[tuple[bool, str]] = []
+    cursor = 0
+    for match in _SQL_STRING_LITERAL.finditer(value):
+        fragments.append((False, value[cursor : match.start()]))
+        fragments.append((True, match.group()))
+        cursor = match.end()
+    fragments.append((False, value[cursor:]))
+    return fragments
 
 
 def _normalize_server_default(default: Any) -> DefaultValue:
@@ -219,9 +282,20 @@ def _normalize_server_default(default: Any) -> DefaultValue:
     if default is None:
         return None
     default_arg = getattr(default, "arg", default)
-    normalized = _strip_postgresql_type_casts(str(default_arg).strip().casefold()).strip()
-    if len(normalized) >= 2 and normalized.startswith("'") and normalized.endswith("'"):
-        return normalized[1:-1]
+    raw_default = str(default_arg).strip()
+    fragments = _split_sql_string_literals(raw_default)
+    normalized_fragments = [
+        (is_literal, fragment)
+        if is_literal
+        else (False, _strip_postgresql_type_casts(fragment.casefold()))
+        for is_literal, fragment in fragments
+    ]
+    normalized = "".join(fragment for _, fragment in normalized_fragments).strip()
+    literal_fragments = [fragment for is_literal, fragment in fragments if is_literal]
+    if len(literal_fragments) == 1 and all(
+        is_literal or not fragment.strip() for is_literal, fragment in normalized_fragments
+    ):
+        return literal_fragments[0][1:-1]
     return normalized
 
 
@@ -286,6 +360,17 @@ def test_server_default_normalization_absorbs_postgres_render_artifacts() -> Non
 def test_server_default_normalization_still_separates_different_values() -> None:
     """jsonb cast를 지워도 배열과 객체 default는 서로 달라야 한다."""
     assert _normalize_server_default("'[]'::jsonb") != _normalize_server_default("'{}'::jsonb")
+
+
+def test_server_default_normalization_preserves_quoted_literals() -> None:
+    """따옴표 리터럴 안의 캐스트 모양과 대소문자는 서로 다른 DEFAULT 로 남는다 (BL-808 ⑴)."""
+    assert _normalize_server_default("'literal::jsonb'") != _normalize_server_default("'literal'")
+    assert _normalize_server_default("'CaseSensitive'") != _normalize_server_default(
+        "'casesensitive'"
+    )
+    # 리터럴 **바깥** 캐스트는 여전히 흡수된다 — 이 축이 죽으면 안 된다.
+    assert _normalize_server_default("'{}'::jsonb") == _normalize_server_default("'{}'")
+    assert _normalize_server_default(text("NOW()")) == _normalize_server_default("now()")
 
 
 def test_empty_default_drift_baseline_rejects_a_server_default_mutation() -> None:
@@ -957,6 +1042,7 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     observed_type_drifts: set[TypeDrift] = set()
     observed_nullable_drifts: set[NullableDrift] = set()
     observed_default_drifts: set[DefaultDrift] = set()
+    skipped_axes: list[str] = []
     for (schema, table_name), metadata_table in metadata_tables.items():
         full_name = f"{schema}.{table_name}"
         metadata_columns = {column.name: column for column in metadata_table.columns}
@@ -1004,20 +1090,14 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
         )
 
     _assert_no_new_type_drifts(observed_type_drifts)
-    _assert_no_new_nullable_drifts(observed_nullable_drifts)
+    if _axis_is_enabled("nullable", _NULLABLE_DRIFT_BASELINE, skipped_axes):
+        _assert_no_new_nullable_drifts(observed_nullable_drifts)
 
-    # nullable 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
-    # 새 nullable drift는 위 단언에서 먼저 red가 나므로 baseline 밖 항목을 가리지 않는다.
-    if len(_NULLABLE_DRIFT_BASELINE) > 5:
-        return
-
-    # ★★**축은 켜진 순서대로 놓는다 — 정지 규칙이 cascading `return` 이기 때문이다** ([BL-803], 2026-08-18).
-    #   정지 규칙은 「이 축이 시끄러우면 그 **뒤** 축은 이 회차에 얹지 마라」는 뜻이고, 그래서
-    #   **뒤에 오는 축일수록 나중에 켜진 축**이어야 한다. 이 회차의 초판은 새 `default` 축을
-    #   index 축 **앞**에 뒀는데, `default` baseline 이 6건(>5)이라 그 `return` 이
-    #   [BL-749] 가 방금 착지시킨 **index 축을 통째로 끄고 있었다** — 새 축이 낡은 축을
-    #   조용히 죽이는 fail-open 이다. 그래서 순서를 type → nullable → index → CHECK → default 로 둔다
-    #   (이 목록은 2026-08-18 [BL-806] 까지 뒤 둘이 뒤바뀐 채였다 — 실제 코드가 늘 이 순서였다).
+    # ★★**과거에는 cascading `return` 때문에 축을 type → nullable → index → CHECK → default 로
+    #   놓는 순서 자체가 뒤 축의 실행 여부를 정했다** ([BL-803], 2026-08-18). `default` baseline 이
+    #   6건(>5)이던 초판에서 CHECK 뒤로 옮긴 이유도, index/CHECK를 조용히 끄는 fail-open을 피하기
+    #   위해서였다. 이제는 모든 축의 수집을 끝까지 수행하고 baseline 한도는 해당 축의 단언만 끈다
+    #   ([BL-808] ⑵, 2026-08-19). 순서는 검사 범위가 아니라 일관된 진단 순서다.
     observed_index_drifts: set[IndexDrift] = set()
     for (schema, table_name), metadata_table in metadata_tables.items():
         db_table = alembic_tables[(schema, table_name)]
@@ -1036,11 +1116,8 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             )
         )
 
-    _assert_no_new_index_drifts(observed_index_drifts)
-
-    # index 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
-    if len(_INDEX_DRIFT_BASELINE) > 5:
-        return
+    if _axis_is_enabled("index", _INDEX_DRIFT_BASELINE, skipped_axes):
+        _assert_no_new_index_drifts(observed_index_drifts)
 
     observed_check_constraint_drifts: set[CheckConstraintDrift] = set()
     for (schema, table_name), metadata_table in metadata_tables.items():
@@ -1058,26 +1135,21 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             )
         )
 
-    _assert_no_new_check_constraint_drifts(observed_check_constraint_drifts)
+    if _axis_is_enabled("check_constraint", _CHECK_CONSTRAINT_DRIFT_BASELINE, skipped_axes):
+        _assert_no_new_check_constraint_drifts(observed_check_constraint_drifts)
 
-    # CHECK 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
-    if len(_CHECK_CONSTRAINT_DRIFT_BASELINE) > 5:
-        return
+    # `default`가 마지막인 것은 과거 baseline 6건의 cascading skip을 피하려던 흔적이다.
+    # 지금은 그 축이 시끄러워도 앞선 type·nullable·index·CHECK 축의 수집·단언은 유지된다.
+    if _axis_is_enabled("default", _DEFAULT_DRIFT_BASELINE, skipped_axes):
+        _assert_no_new_default_drifts(observed_default_drifts)
 
-    # ★★**`default` 축이 마지막인 것은 의도다.** [BL-803] 당시에는 이 축의 baseline 이 **6건(>5)**
-    #   이라 바로 아래 정지 규칙이 **반드시 발화했고**, 앞에 두면 그 `return` 이 뒤 축을 통째로 껐다.
-    #   실제로 초판이 그랬고, `ck_alert_rules_type_threshold` 이름을 바꾸는 변이가
-    #   **27 passed 로 통과**해서 CHECK 축이 죽어 있음이 드러났다(2026-08-18 음성 대조).
-    #   ★**[BL-806] 이 baseline 을 6 → 0 으로 비워 그 `return` 은 이제 발화하지 않는다**
-    #     (2026-08-18). 이 축이 마지막이라 지금은 무해하지만 — 뒤에 축을 더 얹을 거라면
-    #     그때 이 자리가 다시 fail-open 지점이 된다는 뜻이다.
-    #   ⇒ **새 축은 항상 맨 뒤에, baseline 이 큰 축일수록 더 뒤에 둔다.**
-    _assert_no_new_default_drifts(observed_default_drifts)
-
-    # default 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
-    # 새 default drift는 위 단언에서 먼저 red가 나므로 baseline 밖 항목을 가리지 않는다.
-    if len(_DEFAULT_DRIFT_BASELINE) > 5:
-        return
+    if skipped_axes:
+        warnings.warn(
+            f"스키마 동등성 축 {sorted(skipped_axes)} 이(가) baseline "
+            f">{_AXIS_BASELINE_LIMIT} 로 이 회차에서 꺼졌다 — 조용한 skip 을 막기 위한 경고다.",
+            UserWarning,
+            stacklevel=2,
+        )
 
 
 def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:
@@ -1217,6 +1289,44 @@ def test_deactivation_reason_check_matches_the_enum(monkeypatch: pytest.MonkeyPa
         f"enum 에만 있음: {sorted(enum_values - ddl_values)}. "
         "새 사유는 enum + 마이그레이션 + FE 라벨 3곳을 함께 고쳐야 한다."
     )
+
+
+def test_risky_check_constraint_expressions_match_the_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """배타 조건을 담은 CHECK 3개의 표현식이 동결값과 같은지 검증한다 (BL-808 ⑶)."""
+    engine, _ = _upgrade_and_inspect(monkeypatch)
+    try:
+        with engine.connect() as conn:
+            for (
+                table_name,
+                constraint_name,
+            ), expected_definition in _RISKY_CHECK_CONSTRAINT_SNAPSHOTS.items():
+                actual_definition = conn.execute(
+                    text(
+                        "SELECT pg_get_constraintdef(c.oid) FROM pg_constraint c "
+                        "JOIN pg_class t ON t.oid = c.conrelid "
+                        "JOIN pg_namespace n ON n.oid = t.relnamespace "
+                        "WHERE n.nspname = 'trading' AND t.relname = :table_name "
+                        "AND c.conname = :constraint_name"
+                    ),
+                    {"table_name": table_name, "constraint_name": constraint_name},
+                ).scalar_one_or_none()
+
+                assert actual_definition is not None, (
+                    f"{constraint_name} 가 alembic DB 에 없다 — 마이그레이션이 빠졌거나 "
+                    "이름이 바뀌었다."
+                )
+                assert " ".join(actual_definition.split()) == " ".join(
+                    expected_definition.split()
+                ), (
+                    f"{constraint_name} 표현식이 동결값과 다르다.\n"
+                    f"기대값: {expected_definition}\n"
+                    f"실측값: {actual_definition}\n"
+                    "의도한 변경이면 PostgreSQL 실측값으로 스냅샷을 갱신해라."
+                )
+    finally:
+        engine.dispose()
 
 
 def test_destructive_migration_tests_refuse_a_non_disposable_database() -> None:

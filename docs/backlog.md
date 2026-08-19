@@ -1979,7 +1979,7 @@ pytest·`docker build` 가 3.1G 에서 돌아간다.
 **Title:** 라우터가 계층을 관통한다 — `trading/router.py` 가 Repository 를 직접 만들고 서비스의 private 을 뚫는다
 **Category:** Backend / 계층 (trading)
 **Priority:** P2
-**Trigger:** ★`trading/router.py` 의 해당 endpoint 군을 손대는 회차 (전량 수리는 단독 착수 대상이 아니다)
+**Trigger:** ~~해당 endpoint 군을 손대는 회차 (전량 수리는 단독 착수 대상이 아니다)~~ → **2026-08-19 사용자 결정으로 단독 착수** — 하네스 러너 2회차의 대상으로 지목됐다
 **Est:** M (축별 상이 — 아래 잔여 참조)
 **출처:** 2026-08-15 surface-truth 아키텍처 감사 §B ([BL-759] 에서 분리) · 2026-08-16 deploy-activation 실측
 
@@ -2017,6 +2017,43 @@ commit-spy 의무」가 그 경로에서만 **구조적으로 집행 불가**가
 
 **Risk:** 🟡 (동작은 정상이다 — 무너지는 것은 회귀 테스트를 붙일 수 있는 능력이다)
 
+**★2026-08-19 착수 전 실사 (하네스 2회차 대상 선정) — 좌표·함정·step 골격을 코드로 확정했다.**
+
+⓪ **11건은 실재한다** — `grep -c 'Repository(' apps/api/src/trading/router.py` = **11**(2026-08-19 실측).
+`src/*/router.py` 중 `get_async_session` 을 import 하는 파일도 **이 하나뿐**이다. ⇒ 11 → 0 이 이 항목의 판별식이고,
+지금 red 이므로 **항진명제가 아니다**([LESSON-111] 해당 없음 — 원장이 지목한 대상이 실재한다).
+
+① **설계는 「repository 에 소유권 getter 추가」로 푼다 — 생성자 변경 0건.** 다른 경로는 blast radius 가 터진다:
+`OrderService` 에 `ExchangeAccountRepository` 를 주입하면 **조립 지점 60곳**, `LiveSignalSessionService` 에
+`order_repo` 를 더하면 **17곳**(테스트 16 포함)이 깨진다. 이 결정을 세션 재량에 남기지 마라.
+
+② **함정 4종 (전부 실측):**
+⑴ `tests/common/test_metric_guard_census.py:559-563` 이 `("apps/api/src/trading/router.py", "cancel_order",
+`"qb_active_orders")`를`\_PROTECTED_SITES`로 **동결**했고`test_protected_site_list_is_not_vacuous`가 함수
+이동을 red 로 잡는다 ⇒`record_metric_safely(qb_active_orders.dec)`는 **router 에 남겨라**.
+⑵`tests/trading/test_router_kill_switch.py:79`가 문자열 경로`"src.trading.router.publish_realtime"`를
+monkeypatch 한다 ⇒`publish_realtime`호출을 서비스로 옮기면`AttributeError`로 죽는다.
+⑶`tests/trading/test_router_cancel_metric_failure.py:71`이`router_module.qb_active_orders`를 잡는다(같은 계열).
+⑷ ★**FE 계약 문자열이 BE 테스트에 없다** —`apps/web/src/features/trading/schemas.ts:62`가`z.literal("exchange cancel requested")`로 못박았는데`test_router_cancel_cf4.py` 는 202 status 만 본다.
+리팩터로 그 문자열이 바뀌면 **BE 전량 초록인 채 FE 만 깨진다.** 착수 첫 step 에 단언을 먼저 추가해라.
+
+③ **step 골격 5단** (한 step = 한 레이어):
+`step0` repository 소유권 getter 2종(`OrderRepository.get_by_id_for_user` — `list_by_user`(:529) 의 join 패턴 미러 ·
+`LiveSignalSessionRepository.get_by_id_for_user`). ★`KillSwitchEventRepository.get_owned`(:111) 는 **이미 있다**.
+`step1` orders 축(endpoint 3 · Repository 5건 :296/:314/:315/:336/:337) — 신규 `services/order_query_service.py`.
+`step2` kill-switch 축(endpoint 2 · 2건 :400/:422) — `KillSwitchService`(kill_switch.py:204)에 **메소드만** 추가.
+`step3` live-session read 축(endpoint 2 · 4건 :520/:539/:623/:627) — 신규 `services/live_session_query_service.py`.
+★router.py:520~577 의 equity-curve 재계산 블록(BL-445/BL-458 주석 포함)은 **한 글자도 바꾸지 말고 통째로** 옮겨라
+(`confirmed + estimated == total` 항등식이 산술로 성립해야 한다).
+`step4` 경계 못박기 — 신규 `tests/trading/test_router_layer_boundary.py` 를 **AST 로**(grep 아님) 세우고
+**양성 대조**(라우트 함수 ≥20개 · 파싱 성공)를 함께 단언한다. ⇒ `grep -c 'Repository('` 는 `import X as _Y` 로
+게임 가능하므로 **AST 테스트가 정본, grep 은 보조**다(harness.md §C-5b).
+
+④ **AC 실측** — `tests/trading` **1117 passed / 26.8s** · 6파일 표적 **17 passed / 2.5s** ·
+BE 전량 **4830 passed·32 skipped / 384s**(러너 `AC_TIMEOUT` 900s 대비 여유 2.3배 — 부하 시
+`QB_HARNESS_AC_TIMEOUT` 을 올려라) · `ruff check .` All checks passed.
+★celery 는 AC 에서 **실행되지 않는다** — `cancel_order` 의 `cancel_order_task.delay` 를
+`test_router_cancel_cf4.py:70` 이 monkeypatch 로 잡으므로 워크트리 침묵 실패 경로에 안 닿는다.
 **상태:** 🟡 **부분 해결 (2026-08-16 deploy-activation)** — private 관통 7건 제거 + commit-spy 성립. `Repository()` 직접 생성 11건은 미착수
 **트리거 판정:** 미도래 — 잔여 축은 해당 endpoint 군을 손대는 회차에 동승한다 (2026-08-16 deploy-activation)
 
@@ -2057,111 +2094,41 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
 
-### BL-808
-
-**Title:** 스키마 동등성 축의 잔여 3구멍 — 정규화 과잉 · cascading 정지 규칙 · CHECK 표현식 미검
-**Category:** Backend / test infra
-**Priority:** P3
-**Trigger:** 도래 — [BL-803] 이 5축을 켠 직후 적대 리뷰가 셋을 실측 시나리오와 함께 짚었다
-**Est:** S (셋 다 국소적. 다만 ⑵ 는 축 전체의 의미론 결정이다)
-**출처:** 2026-08-18 n5-ci-truth-close — codex 적대 리뷰 (P2 3건, 코드 대조로 채택)
-
-**원인 / 영향:**
-
-⑴ **`_normalize_server_default` 가 과하게 지운다** (`tests/test_migrations.py:204-231`).
-`::<식별자>` 를 위치와 무관하게 지우고 casefold 하므로 **따옴표 리터럴 안**까지 건드린다.
-⇒ 모델 `'literal::jsonb'` 과 DB `'literal'` 이 둘 다 `literal` 로, `'CaseSensitive'` 와
-`'casesensitive'` 가 둘 다 `casesensitive` 로 낮아진다. **서로 다른 DEFAULT 가 같다고 판정**된다.
-★현재 실측 35컬럼에 그런 값은 없다 — 잠재 결함이다.
-
-⑵ **정지 규칙이 cascading `return` 이라 앞 축의 baseline 이 뒤 축을 끈다**(`:1016-1083`).
-이 회차가 「축을 오래된 것부터 배치」로 한 번 고쳤지만 **구조는 그대로다.**
-⇒ CHECK baseline 이 6건이 되면, 이미 수집해 둔 `observed_default_drifts` 가 단언 없이 버려진다.
-nullable·index baseline 이 6건이 되면 그 뒤 축들이 함께 꺼진다.
-★지금은 `default`(유일한 비어 있지 않은 baseline, 6건)가 **맨 뒤**라 발화하지 않는다.
-
-⑶ **CHECK 를 이름 집합만 보므로 표현식 약화를 못 잡는다**(`:513-531`). 이것은 [BL-803] 의
-**의도된 설계**이고 근거도 코드 주석에 있다(PG 재작성 흡수 불가 · 시끄러운 축은 꺼진다).
-다만 적대 리뷰가 **구체적 위험 예시**를 줬다 — `ck_kill_switch_events_trigger_scope` 의 이름을
-유지한 채 `exchange_account_id IS NULL` 절만 지우면 축은 초록이고 DB 는 **strategy 와 exchange
-account 가 동시에 지정된 잘못된 kill-switch scope** 를 허용한다.
-
-**권장 접근:** ⑴ 따옴표 리터럴을 **먼저 분리**하고 그 바깥에서만 캐스트 제거·casefold 해라.
-⑵ ★**의미론을 먼저 정해라** — 「앞 축이 아프면 뒤 축을 얹지 마라」가 원래 의도인데, 그것이
-**이미 수집한 증거를 버리는 것**까지 뜻해야 하나? 아니라면 축별 지역 skip 으로 바꾸고
-skip 을 **출력에 찍어라**(조용한 skip 이 이 결함의 본체다). ⑶ 축을 넓히지 말고, 위험한 CHECK
-**3개에 한해** 표현식 스냅샷 테스트를 따로 둬라 —
-`test_deactivation_reason_check_matches_the_enum` 이 이미 그 모양이다.
-
-**Risk:** 🟢 (셋 다 테스트 전용. 다만 ⑵·⑶ 은 **가드가 조용히 약해지는** 종류라 늦게 드러난다)
-
-**상태:** ⬜ Open — 2026-08-18 등재. 미착수
-**트리거 판정:** 도래 — 적대 리뷰가 셋을 재현 시나리오와 함께 확정했다 (2026-08-18 n5-ci-truth-close)
-
----
-
-### BL-810
-
-**Title:** 마케팅 3종의 장식 요소(번호 아이브로우 · STEP 라벨 · filled meter)를 **마케팅 면 한정으로 제거**한다 — 사용자 결정
-**Category:** Frontend / 디자인
-**Priority:** P3
-**Trigger:** 도래 — 2026-08-19 사용자 결정으로 방향이 확정됐다. 집행만 남았다
-**Est:** S (제거 3종 · 대상 좌표 확정됨)
-**출처:** 2026-08-19 n6-authed-evidence — 08-18 design-t1t2 가 남긴 규범 충돌의 사용자 결정 접수
-
-**원인 / 영향:** 프로토타입 캐논은 이 셋을 쓰라 하고 `design-taste-frontend` §9.F 는 쓰지 말라
-한다. 두 규범이 겹치는 면은 **마케팅 3종뿐**이므로, 충돌 구간을 그쪽으로 좁혀 해소한다.
-**사용자 결정 = 「마케팅 면 한정 제거」** — 앱 내부(대시보드 등)의 캐논은 건드리지 않는다.
-
-**대상 좌표 (실측):**
-⑴ **번호 아이브로우** `<span class="num">01</span>` ~ `06` — `features/marketing/components/` 의
-`landing-features`·`landing-how-it-works`·`landing-support`·`landing-performance`·`landing-faq`·`landing-cta` **6컴포넌트**
-⑵ **STEP 라벨** `landing-how-it-works.tsx:12,17,22,27` (`STEP 1`~`STEP 4`)
-⑶ **filled meter** `app/pricing/page.tsx:267,325,384` — 「가격 미정」인데 85.7% / 0% / 0% 진행 막대가 붙어 신뢰 축에서 오해를 부른다
-
-**권장 접근:** ⑴ 셋을 한 커밋에 묶지 마라 — `/` 와 `/pricing` 은 다른 화면이고 증거도 따로 남는다
-⑵ ★**`/` 와 `/waitlist` 는 화면 증거 팩의 ROUTES 에 있다** — baseline 갱신이 곧 PR 의 after 다.
-**`/pricing` 은 지금 ROUTES 밖이라 그 변경은 무증거로 지나간다** — 같이 넣을지 먼저 정해라
-⑶ `landing-how-it-works.test.tsx` 등 기존 단위가 그 문자열을 단언하는지 확인해라
-
-**Risk:** 🟢 (표현 층 한정. 기능 무변경)
-
-**상태:** ⬜ Open — 2026-08-19 등재. 사용자 결정 접수 완료, 집행 미착수
-**트리거 판정:** 도래 — 결정이 섰고 대상 좌표가 실측으로 확정됐다 (2026-08-19 n6-authed-evidence)
-
----
-
 ### BL-811
 
-**Title:** `--deferred-only` 의 두 레그가 **같은 BE 를 서로 다른 origin 으로** 요구한다 — 한 번에 다 통과시킬 수 없다
+**Title:** 로컬 검증 두 레그가 **같은 BE 를 서로 다른 origin 으로** 요구한다 — 한 번에 다 통과시킬 수 없다
 **Category:** 테스트 / 인프라 / DX
 **Priority:** P3
-**Trigger:** 도래 — [BL-797] 이 authed 화면 증거 레그를 유예 집합에 넣으면서 그 자리에서 드러났다
+**Trigger:** 도래 — 2026-08-19 실측으로 확인됐다 (구 종결 게이트 실행 중)
 **Est:** S~M (갈래 선택이 먼저다. 코드는 그다음)
 **출처:** 2026-08-19 n6-authed-evidence — 종결 게이트를 돌리려다 실측
 
-**원인 / 영향:** `final-gates.sh` 의 유예 집합에는 이제 origin 요구가 **다른** 두 소비자가 있다.
+★**2026-08-19 재기술 ([ADR-037]).** 이 항목의 초판은 `final-gates.sh --deferred-only` 의 **유예 집합**을
+프레임으로 썼는데, 그 스크립트는 같은 날 제로베이스로 **철거됐다**(원문 = `git show harness-v1:tools/scripts/final-gates.sh`).
+유예 원장·종결 절차라는 껍데기는 사라졌지만 **밑에 있던 제약은 그대로 참이다** — 아래로 좁혀 다시 적는다.
 
-- `e2e chromium` · `e2e design-canon` · `e2e authed` — **FE dev 서버** `:3100`(`_base-url.ts` 파생)
-- `화면 증거 팩 (authed)` — 러너가 띄우는 **프로덕션 서버** `:3110`(`screen-evidence.config.json`
-  의 `serverPortBase` + 슬롯). dev 서버를 쓰면 Turbopack 캐시 상태에 따라 번들 바이트가 흔들려
-  이 게이트의 존재 이유가 사라지므로 **그 분리는 의도된 것**이다.
+**원인 / 영향:** 로컬에서 돌리는 두 검증이 서로 다른 origin 을 요구한다.
 
-그런데 BE 의 CORS 는 **단일 값**이다 — `main.py:329` `allow_origins=[settings.frontend_url]`.
-`BETTER_AUTH_URL`(JWKS 취득 + JWT issuer)도 하나다. ⇒ 한 BE 인스턴스가 두 origin 을 동시에
-받을 수 없고, **`--deferred-only` 를 한 번 돌려 두 레그를 다 통과시킬 방법이 지금 없다.**
+- `e2e chromium` · `e2e design-canon` · `e2e authed` — **FE dev 서버** `:3100` (`apps/web/e2e/_base-url.ts` 파생)
+- **화면 증거 팩 (authed)** — 러너가 띄우는 **프로덕션 서버** `:3110` (`screen-evidence.config.json` 의
+  `serverPortBase` + 슬롯). dev 서버를 쓰면 Turbopack 캐시 상태에 따라 번들 바이트가 흔들려 이 측정의
+  존재 이유가 사라지므로 **그 분리는 의도된 것**이다.
 
-★**게이트가 거짓 초록을 내지는 않는다** — origin 이 안 맞으면 화면 증거 레그의 전제 프로브가
-그 자리에서 죽는다(진단 문구가 두 변수를 다 짚는다). 잃는 것은 **한 번에 끝나는 종결**이다.
+그런데 BE 의 CORS 는 **단일 값**이다 — `apps/api/src/main.py` `allow_origins=[settings.frontend_url]`.
+`BETTER_AUTH_URL`(JWKS 취득 + JWT issuer)도 하나다. ⇒ 한 BE 인스턴스가 두 origin 을 동시에 받을 수 없고,
+**BE 를 한 번 띄운 채로 두 레그를 다 통과시킬 방법이 지금 없다.**
 
-**권장 접근:** ⑴ 갈래를 먼저 정해라 — ⓐ BE 를 **두 벌** 띄운다(포트가 다르면 `NEXT_PUBLIC_API_URL`
-도 갈라야 해서 빌드가 둘이 된다) ⓑ `allow_origins` 를 목록으로 넓힌다(**개발 전용 경로에 한정** —
-프로덕션에서 넓히면 [BL-754] 계열 결함이 된다) ⓒ 두 레그를 **다른 실행으로 나눈다**(가장 싸고
-지금 실질적으로 하는 것 — 다만 「유예 원장이 비어야 종결」 규약과 어긋나므로 원장에 그 예외를
-적어야 한다) ⑵ ★**ⓑ 를 고른다면 `frontend_url` 을 읽는 곳 전부**(`config.py` validator ·
+★**거짓 초록은 안 난다** — origin 이 안 맞으면 화면 증거 레그의 전제 프로브가 그 자리에서 죽는다
+(진단 문구가 두 변수를 다 짚는다). 잃는 것은 **BE 재기동 없이 한 번에 끝내는 것** 하나다.
+
+**권장 접근:** ⑴ 갈래를 먼저 정해라 — ⓐ BE 를 **두 벌** 띄운다(포트가 다르면 `NEXT_PUBLIC_API_URL` 도
+갈라야 해서 빌드가 둘이 된다) ⓑ `allow_origins` 를 목록으로 넓힌다(**개발 전용 경로에 한정** — 프로덕션에서
+넓히면 [BL-754] 계열 결함이 된다) ⓒ 두 레그를 **다른 실행으로 나눈다**(가장 싸고 지금 실질적으로 하는 것.
+★[ADR-037] 이후에는 「유예 원장이 비어야 종결」 규약 자체가 없으므로 **ⓒ 의 유일했던 단점이 사라졌다**
+— 현재 기본 권장은 ⓒ 다) ⑵ ★**ⓑ 를 고른다면 `frontend_url` 을 읽는 곳 전부**(`config.py` validator ·
 `waitlist_invite_base_url` · 초대 메일 링크)를 함께 봐라 — 이 값은 CORS 전용이 아니다.
 
-**Risk:** 🟢 (거짓 초록은 안 난다. 종결 절차가 두 번으로 나뉠 뿐)
+**Risk:** 🟢 (거짓 초록은 안 난다. 로컬 검증이 두 번으로 나뉠 뿐)
 
-**상태:** ⬜ Open — 2026-08-19 등재. 미착수. ★**같은 회차의 종결 게이트가 이것을 실증했다** — BE 를 `e2e` 짝(`FRONTEND_URL=:3100`)으로 맞춰 `--deferred-only` 를 돌리니 `e2e chromium`·`e2e design-canon`·`e2e authed`·`BE pytest`(401초)·`CI fresh DB alembic`·신호 4종은 통과하고 **`화면 증거 팩 (authed)` 만 전제 프로브에서 죽었다**: 「측정 서버: `http://localhost:3110` / BE 가 허용: (헤더 없음 — 거부)」. ⇒ **거짓 초록이 아니라 정확한 진단**이고, 잃은 것은 「한 번에 끝나는 종결」 하나다(그 레그 자체는 같은 회차에 **별도 실행으로 rc=0 을 여러 번** 확인했다)
+**상태:** ⬜ Open — 2026-08-19 등재 · 같은 날 **재기술**(구 `final-gates.sh` 프레임 제거). 미착수. ★실측: BE 를 `e2e` 짝(`FRONTEND_URL=:3100`)으로 맞추니 `e2e chromium`·`e2e design-canon`·`e2e authed`·`BE pytest`·`CI fresh DB alembic` 은 통과하고 **화면 증거 팩(authed)만 전제 프로브에서 죽었다** — 「측정 서버: `http://localhost:3110` / BE 가 허용: (헤더 없음 — 거부)」. 그 레그 자체는 별도 실행으로 rc=0 을 여러 번 확인했다
 **트리거 판정:** 도래 — 레그가 실재하고 충돌이 **종결 게이트 실행으로** 확인됐다 (2026-08-19 n6-authed-evidence)
