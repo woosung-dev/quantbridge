@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import warnings
 from collections import Counter
 from hashlib import sha256
 from pathlib import Path
@@ -96,6 +97,31 @@ _INDEX_DRIFT_BASELINE: frozenset[IndexDrift] = frozenset()
 # 전부 명명돼 있다. 이름 없는 CheckConstraint가 생기면 PG 자동 이름과의 비교가 불안정하므로,
 # 그때만 정확한 양방향 drift를 이 baseline에 동결하고 이유를 이 자리 주석으로 남긴다.
 _CHECK_CONSTRAINT_DRIFT_BASELINE: frozenset[CheckConstraintDrift] = frozenset()
+
+_AXIS_BASELINE_LIMIT = 5
+
+
+def _axis_is_enabled(axis: str, baseline: frozenset[Any], skipped: list[str]) -> bool:
+    """축의 baseline 이 한도를 넘으면 그 축만 끄고 이름을 `skipped` 에 남긴다.
+
+    정지 규칙의 의미는 「이 축이 시끄러우면 **이 축을** 이 회차에 얹지 마라」이지
+    「뒤 축을 전부 끄고 이미 모은 증거를 버려라」가 아니다 ([BL-808] ⑵, 2026-08-19).
+    """
+    if len(baseline) > _AXIS_BASELINE_LIMIT:
+        skipped.append(axis)
+        return False
+    return True
+
+
+def test_axis_skip_records_a_noisy_baseline_without_disabling_other_axes() -> None:
+    """한 축의 baseline 이 한도를 넘어도 그 축만 꺼지고 이름이 남는다 (BL-808 ⑵)."""
+    skipped: list[str] = []
+    noisy = frozenset((f"drift-{i}",) for i in range(_AXIS_BASELINE_LIMIT + 1))
+    quiet = frozenset()
+    assert _axis_is_enabled("noisy", noisy, skipped) is False
+    assert _axis_is_enabled("quiet", quiet, skipped) is True
+    assert skipped == ["noisy"]
+
 
 # TimescaleDB 가 hypertable 생성 때 소유하는 시간 인덱스다. metadata 에 선언하지 않아야
 # `create_all` 경로에서 중복 생성되지 않으므로, 모델 동등성 검사에서도 DB-only 로 보지 않는다.
@@ -997,6 +1023,7 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
     observed_type_drifts: set[TypeDrift] = set()
     observed_nullable_drifts: set[NullableDrift] = set()
     observed_default_drifts: set[DefaultDrift] = set()
+    skipped_axes: list[str] = []
     for (schema, table_name), metadata_table in metadata_tables.items():
         full_name = f"{schema}.{table_name}"
         metadata_columns = {column.name: column for column in metadata_table.columns}
@@ -1044,20 +1071,14 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
         )
 
     _assert_no_new_type_drifts(observed_type_drifts)
-    _assert_no_new_nullable_drifts(observed_nullable_drifts)
+    if _axis_is_enabled("nullable", _NULLABLE_DRIFT_BASELINE, skipped_axes):
+        _assert_no_new_nullable_drifts(observed_nullable_drifts)
 
-    # nullable 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
-    # 새 nullable drift는 위 단언에서 먼저 red가 나므로 baseline 밖 항목을 가리지 않는다.
-    if len(_NULLABLE_DRIFT_BASELINE) > 5:
-        return
-
-    # ★★**축은 켜진 순서대로 놓는다 — 정지 규칙이 cascading `return` 이기 때문이다** ([BL-803], 2026-08-18).
-    #   정지 규칙은 「이 축이 시끄러우면 그 **뒤** 축은 이 회차에 얹지 마라」는 뜻이고, 그래서
-    #   **뒤에 오는 축일수록 나중에 켜진 축**이어야 한다. 이 회차의 초판은 새 `default` 축을
-    #   index 축 **앞**에 뒀는데, `default` baseline 이 6건(>5)이라 그 `return` 이
-    #   [BL-749] 가 방금 착지시킨 **index 축을 통째로 끄고 있었다** — 새 축이 낡은 축을
-    #   조용히 죽이는 fail-open 이다. 그래서 순서를 type → nullable → index → CHECK → default 로 둔다
-    #   (이 목록은 2026-08-18 [BL-806] 까지 뒤 둘이 뒤바뀐 채였다 — 실제 코드가 늘 이 순서였다).
+    # ★★**과거에는 cascading `return` 때문에 축을 type → nullable → index → CHECK → default 로
+    #   놓는 순서 자체가 뒤 축의 실행 여부를 정했다** ([BL-803], 2026-08-18). `default` baseline 이
+    #   6건(>5)이던 초판에서 CHECK 뒤로 옮긴 이유도, index/CHECK를 조용히 끄는 fail-open을 피하기
+    #   위해서였다. 이제는 모든 축의 수집을 끝까지 수행하고 baseline 한도는 해당 축의 단언만 끈다
+    #   ([BL-808] ⑵, 2026-08-19). 순서는 검사 범위가 아니라 일관된 진단 순서다.
     observed_index_drifts: set[IndexDrift] = set()
     for (schema, table_name), metadata_table in metadata_tables.items():
         db_table = alembic_tables[(schema, table_name)]
@@ -1076,11 +1097,8 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             )
         )
 
-    _assert_no_new_index_drifts(observed_index_drifts)
-
-    # index 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
-    if len(_INDEX_DRIFT_BASELINE) > 5:
-        return
+    if _axis_is_enabled("index", _INDEX_DRIFT_BASELINE, skipped_axes):
+        _assert_no_new_index_drifts(observed_index_drifts)
 
     observed_check_constraint_drifts: set[CheckConstraintDrift] = set()
     for (schema, table_name), metadata_table in metadata_tables.items():
@@ -1098,26 +1116,21 @@ async def test_alembic_schema_matches_sqlmodel_metadata(monkeypatch):
             )
         )
 
-    _assert_no_new_check_constraint_drifts(observed_check_constraint_drifts)
+    if _axis_is_enabled("check_constraint", _CHECK_CONSTRAINT_DRIFT_BASELINE, skipped_axes):
+        _assert_no_new_check_constraint_drifts(observed_check_constraint_drifts)
 
-    # CHECK 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
-    if len(_CHECK_CONSTRAINT_DRIFT_BASELINE) > 5:
-        return
+    # `default`가 마지막인 것은 과거 baseline 6건의 cascading skip을 피하려던 흔적이다.
+    # 지금은 그 축이 시끄러워도 앞선 type·nullable·index·CHECK 축의 수집·단언은 유지된다.
+    if _axis_is_enabled("default", _DEFAULT_DRIFT_BASELINE, skipped_axes):
+        _assert_no_new_default_drifts(observed_default_drifts)
 
-    # ★★**`default` 축이 마지막인 것은 의도다.** [BL-803] 당시에는 이 축의 baseline 이 **6건(>5)**
-    #   이라 바로 아래 정지 규칙이 **반드시 발화했고**, 앞에 두면 그 `return` 이 뒤 축을 통째로 껐다.
-    #   실제로 초판이 그랬고, `ck_alert_rules_type_threshold` 이름을 바꾸는 변이가
-    #   **27 passed 로 통과**해서 CHECK 축이 죽어 있음이 드러났다(2026-08-18 음성 대조).
-    #   ★**[BL-806] 이 baseline 을 6 → 0 으로 비워 그 `return` 은 이제 발화하지 않는다**
-    #     (2026-08-18). 이 축이 마지막이라 지금은 무해하지만 — 뒤에 축을 더 얹을 거라면
-    #     그때 이 자리가 다시 fail-open 지점이 된다는 뜻이다.
-    #   ⇒ **새 축은 항상 맨 뒤에, baseline 이 큰 축일수록 더 뒤에 둔다.**
-    _assert_no_new_default_drifts(observed_default_drifts)
-
-    # default 축이 기존 drift를 5건 넘겨 동결됐다면, 정지 규칙상 이 회차는 여기서 끝낸다.
-    # 새 default drift는 위 단언에서 먼저 red가 나므로 baseline 밖 항목을 가리지 않는다.
-    if len(_DEFAULT_DRIFT_BASELINE) > 5:
-        return
+    if skipped_axes:
+        warnings.warn(
+            f"스키마 동등성 축 {sorted(skipped_axes)} 이(가) baseline "
+            f">{_AXIS_BASELINE_LIMIT} 로 이 회차에서 꺼졌다 — 조용한 skip 을 막기 위한 경고다.",
+            UserWarning,
+            stacklevel=2,
+        )
 
 
 def _upgrade_and_inspect(monkeypatch: pytest.MonkeyPatch) -> tuple[Any, Any]:

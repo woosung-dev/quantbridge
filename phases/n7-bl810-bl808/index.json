@@ -60,12 +60,15 @@
     {
       "step": 4,
       "name": "bl808-per-axis-skip",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/test_migrations.py -q -k axis_skip",
         "cd apps/api && uv run ruff check ."
-      ]
+      ],
+      "summary": "스키마 동등성 검사가 noisy baseline 축만 skip·경고하고, 다른 축의 수집과 단언을 끝까지 유지하도록 바꿨다.",
+      "started_at": "2026-08-19T09:52:30+0900",
+      "completed_at": "2026-08-19T09:54:55+0900"
     },
     {
       "step": 5,
