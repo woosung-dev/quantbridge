@@ -110,7 +110,8 @@
     },
     {
       "dir": "fe2-auth-hooks",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T02:47:16+0900"
     },
     {
       "dir": "fe2-auth-server",
