@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops2-prepush-guard",
+  "steps": [
+    {
+      "step": 0,
+      "name": "ref-predicates",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_pre_push_ref_guard.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_pre_push_ref_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "push-verdict-order",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_pre_push_ref_guard.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_pre_push_ref_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 14",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}

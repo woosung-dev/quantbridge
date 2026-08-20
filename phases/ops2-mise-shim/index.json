@@ -1,0 +1,16 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops2-mise-shim",
+  "steps": [
+    {
+      "step": 0,
+      "name": "shim-path-pin",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_mise_shim_path.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_mise_shim_path.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 5",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}
