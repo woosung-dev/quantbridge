@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "retain-and-upload-prefix",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_db_backup_retain.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_db_backup_retain.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "started_at": "2026-08-21T01:04:20+0900",
+      "summary": "`--help` 소싱이 exit 없이 함수를 적재함을 실측했고, tmp_path와 OCI argv 스텁으로 _retain·_upload 5건을 더해 누적 14건의 보관·prefix·rc 계약을 고정.",
+      "completed_at": "2026-08-21T01:07:31+0900"
     }
   ],
   "created_at": "2026-08-21T00:58:52+0900"
