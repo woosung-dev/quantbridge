@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops-openapi-poc",
+  "steps": [
+    {
+      "step": 0,
+      "name": "poc-filter-closure",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_openapi_poc_filter.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_openapi_poc_filter.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "poc-filter-check",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_openapi_poc_filter.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_openapi_poc_filter.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}

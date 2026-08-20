@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops-db-backup",
+  "steps": [
+    {
+      "step": 0,
+      "name": "backup-dispatch-contract",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_db_backup_target.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_db_backup_target.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 5",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "backup-prove-target",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_db_backup_target.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_db_backup_target.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 9",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}

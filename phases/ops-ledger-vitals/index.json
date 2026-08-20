@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops-ledger-vitals",
+  "steps": [
+    {
+      "step": 0,
+      "name": "vitals-axes",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_ledger_vitals.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_ledger_vitals.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "vitals-verdict-and-rc",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_ledger_vitals.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_ledger_vitals.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}

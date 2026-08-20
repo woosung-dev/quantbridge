@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops-soak-observe",
+  "steps": [
+    {
+      "step": 0,
+      "name": "observe-args-and-failclosed",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_soak_observe.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_soak_observe.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 5",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "observe-counter-diff",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_soak_observe.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_soak_observe.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 9",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}

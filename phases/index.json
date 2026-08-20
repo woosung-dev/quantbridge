@@ -29,6 +29,30 @@
       "dir": "runner-boot",
       "status": "completed",
       "completed_at": "2026-08-20T18:20:16+0900"
+    },
+    {
+      "dir": "ops-ledger-vitals",
+      "status": "pending"
+    },
+    {
+      "dir": "ops-disk-guard",
+      "status": "pending"
+    },
+    {
+      "dir": "ops-db-backup",
+      "status": "pending"
+    },
+    {
+      "dir": "ops-openapi-poc",
+      "status": "pending"
+    },
+    {
+      "dir": "ops-soak-observe",
+      "status": "pending"
+    },
+    {
+      "dir": "ops-main-checkout",
+      "status": "pending"
     }
   ]
 }
