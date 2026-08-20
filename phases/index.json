@@ -118,7 +118,8 @@
     },
     {
       "dir": "fe2-builtin-hints",
-      "status": "pending"
+      "status": "error",
+      "failed_at": "2026-08-21T02:49:27+0900"
     },
     {
       "dir": "fe2-marketing-canon",
