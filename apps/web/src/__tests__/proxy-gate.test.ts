@@ -70,6 +70,73 @@ describe("proxy 인증·지역 제한 게이트", () => {
     },
   );
 
+  it("보호 경로는 세션이 없으면 /sign-in으로 보낸다", async () => {
+    getSession.mockResolvedValue(null);
+
+    const res = await proxy(req("/strategies"));
+
+    expect(res.status).toBe(307);
+    expect(pathnameFromLocation(res.headers.get("location"))).toBe("/sign-in");
+  });
+
+  it("보호 경로 로그인 리다이렉트는 원래 경로와 쿼리만 redirect_url로 보존한다", async () => {
+    getSession.mockResolvedValue(null);
+
+    const res = await proxy(req("/backtests/abc?tab=trades"));
+    const location = new URL(res.headers.get("location")!);
+
+    expect(res.status).toBe(307);
+    expect(location.pathname).toBe("/sign-in");
+    expect(location.searchParams.get("redirect_url")).toBe("/backtests/abc?tab=trades");
+    expect([...location.searchParams.keys()]).toEqual(["redirect_url"]);
+  });
+
+  it("보호 경로는 완전 세션이 있으면 통과시킨다", async () => {
+    getSession.mockResolvedValue({ user: { id: "u1" } });
+
+    const res = await proxy(req("/strategies"));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("보호 경로는 쿠키 존재 검사로 인증을 우회하지 않는다", async () => {
+    getSession.mockResolvedValue(null);
+    getSessionCookie.mockReturnValue("forged-cookie");
+
+    const res = await proxy(req("/strategies"));
+
+    expect(res.status).toBe(307);
+    expect(getSessionCookie).not.toHaveBeenCalled();
+  });
+
+  it("루트는 쿠키가 있으면 DB 세션 조회 없이 /strategies로 보낸다", async () => {
+    getSessionCookie.mockReturnValue("session-cookie");
+
+    const res = await proxy(req("/"));
+
+    expect(res.status).toBe(307);
+    expect(pathnameFromLocation(res.headers.get("location"))).toBe("/strategies");
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
+  it("루트는 쿠키가 없으면 리다이렉트하지 않는다", async () => {
+    const res = await proxy(req("/"));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("pricing은 쿠키가 있어도 루트 UX 리다이렉트를 적용하지 않는다", async () => {
+    getSessionCookie.mockReturnValue("session-cookie");
+
+    const res = await proxy(req("/pricing"));
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    expect(getSession).not.toHaveBeenCalled();
+  });
+
   it("CF-IPCountry 제한 국가는 비면제 경로를 /not-available로 보낸다", async () => {
     const res = await proxy(req("/strategies", { "CF-IPCountry": "US" }));
 
