@@ -1,0 +1,18 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe2-ui-reactive",
+  "steps": [
+    {
+      "step": 0,
+      "name": "store-and-media-query",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run src/store/__tests__/ui-store.test.ts src/hooks/__tests__/use-media-query.test.ts",
+        "cd apps/web && test \"$(pnpm exec vitest list src/store/__tests__/ui-store.test.ts 2>/dev/null | grep -c ' > ')\" -ge 4",
+        "cd apps/web && test \"$(pnpm exec vitest list src/hooks/__tests__/use-media-query.test.ts 2>/dev/null | grep -c ' > ')\" -ge 6",
+        "cd apps/web && pnpm exec eslint src/store/__tests__/ui-store.test.ts src/hooks/__tests__/use-media-query.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

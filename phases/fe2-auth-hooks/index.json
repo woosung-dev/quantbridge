@@ -1,0 +1,28 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe2-auth-hooks",
+  "steps": [
+    {
+      "step": 0,
+      "name": "geo-l3-signup",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run src/lib/__tests__/auth-hooks.test.ts",
+        "cd apps/web && test \"$(pnpm exec vitest list src/lib/__tests__/auth-hooks.test.ts 2>/dev/null | grep -c ' > ')\" -ge 7",
+        "cd apps/web && pnpm exec eslint src/lib/__tests__/auth-hooks.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "delete-fail-closed",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run src/lib/__tests__/auth-hooks.test.ts",
+        "cd apps/web && test \"$(pnpm exec vitest list src/lib/__tests__/auth-hooks.test.ts 2>/dev/null | grep -c ' > ')\" -ge 13",
+        "cd apps/web && pnpm exec eslint src/lib/__tests__/auth-hooks.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

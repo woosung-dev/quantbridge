@@ -9,12 +9,48 @@
 (출처 레포 jha0313/finsight 에서는 `0-foundation` → `1-core-loop` → … 처럼 **순번**이었다.
 우리는 같은 파일을 병렬 묶음에도 쓴다. 어느 쪽인지는 아래 절이 말한다.)
 
-## 앞선 병렬 묶음 — `ops2-*` 8벌 **완주** (2026-08-21 · PR #712~#720)
+## 열린 병렬 묶음 — `fe2-*` 8벌 (2026-08-21 · 밤샘 루프 2차)
+
+`apps/web` 의 **순수 판정 모듈**에 테스트가 0건인 축이다. 소유 티켓 = **[BL-813]**.
+1차(`ops2-*`)에서 가장 깨끗하게 끝난 셋이 `tools/scripts/lib/*.sh`(source 전용 순수 함수)였고,
+FE 의 `src/lib/**` 이 같은 모양이다.
+
+| phase                 | 대상                                                 | 새 테스트 파일 (`apps/web/`)                                                           | 짊어진 이슈 (근거)         |
+| --------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------- | -------------------------- |
+| `fe2-proxy-gate`      | `src/proxy.ts` 공개/geo/세션 판정                    | `src/__tests__/proxy-gate.test.ts`                                                     | [ADR-034] · [BL-072]       |
+| `fe2-route-matcher`   | `src/lib/route-matcher.ts` 앵커 계약                 | `src/lib/__tests__/route-matcher.test.ts`                                              | [ADR-034]                  |
+| `fe2-auth-hooks`      | `src/lib/auth.ts` geo L3 · 탈퇴 fail-closed          | `src/lib/__tests__/auth-hooks.test.ts`                                                 | [LESSON-114] · codex P1/P2 |
+| `fe2-auth-server`     | `src/lib/auth-server.ts` 실패 삼킴                   | `src/lib/__tests__/auth-server.test.ts`                                                | [ADR-034]                  |
+| `fe2-builtin-hints`   | `src/lib/unsupported-builtin-hints.ts` (55 엔트리)   | `src/lib/__tests__/unsupported-builtin-hints.test.ts`                                  | Trust Layer (Sprint 21)    |
+| `fe2-marketing-canon` | `src/lib/marketing-canon.ts` + `legal-links.ts`      | `src/lib/__tests__/marketing-canon.test.ts`                                            | [BL-776] · LESSON-063      |
+| `fe2-lib-adapters`    | `src/lib/webhook-base.ts` + `zod-v4-resolver.ts`     | `src/lib/__tests__/{webhook-base,zod-v4-resolver}.test.ts`                             | [BL-268]                   |
+| `fe2-ui-reactive`     | `src/store/ui-store.ts` + `hooks/use-media-query.ts` | `src/store/__tests__/ui-store.test.ts` · `src/hooks/__tests__/use-media-query.test.ts` | [BL-300] · [BL-775]        |
+
+동시에 돌 수 있는 근거는 **파일 겹침 0** 이다 — 각 lane 은 자기 테스트 파일만 만들고 대상 소스 ·
+`vitest.config.ts` · `tests/setup.ts` 를 건드리지 않는다(각 step 의 금지사항에 박혀 있다).
+공용 헬퍼 모듈도 금지다 — 그것이 lane 사이의 유일한 공유 파일이 되기 때문이다.
+
+★★**FE 에는 셸 lane 에 없던 전제가 하나 있다 — `server-only`.**
+`src/lib/auth-server.ts` 의 `import "server-only"` 는 **vitest 에서 top-level throw** 다
+(패키지 exports 맵이 `react-server` 조건에서만 빈 모듈을 준다). ★**`vi.mock("server-only")` 로는
+못 막는다** — CJS 로 외부화돼 Node 의 require 가 먼저 돈다(2026-08-21 실측 FAIL).
+그래서 **사전 배치 커밋**이 `apps/web/vitest.config.ts` 의 `resolve.alias` 로
+`apps/web/tests/stubs/server-only.ts`(빈 모듈)에 매핑했다. lane 은 그 파일들을 건드리지 않는다.
+
+★**AC 4종(FE 판)** — ⑴ `pnpm test -- --run <파일>`(부재 시 **rc=1**) ⑵
+`test "$(pnpm exec vitest list <파일> | grep -c ' > ')" -ge N`(**파일별** 양성 대조 · 부재 시 rc=1)
+⑶ `pnpm exec eslint <파일>`(부재 시 rc=2) ⑷ `pnpm exec tsc --noEmit`.
+★모든 AC 가 `cd apps/web &&` 로 시작한다 — 러너는 AC 를 **워크트리 루트**에서 `bash -c` 로 돈다.
+
+★**착수 전 AC red 를 잴 때 각 AC 를 서브셸에 넣어라** — `cd apps/web` 이 잔류하면 뒤 lane 의 조회가
+전부 깨지고 **빈 문자열이 rc=0 으로 통과**한다(2026-08-21 CONTROL 이 첫 판에서 밟았다).
+
+### 앞선 병렬 묶음 — `ops2-*` 8벌 **완주** (2026-08-21 · PR #712~#720)
 
 [ADR-037] §① 이 「검사기 복귀 시 함께 복귀」라 적어 둔 자기시험 `*-test.sh` **14종** 중
 **대상 스크립트가 아직 살아 있는 7종**의 잔여(4벌) + **짝 하네스가 애초에 없던 인접 4종**이다.
 소유 티켓 = **[BL-812]**(✅ Resolved). **여덟은 동시에 돌도록 설계됐고 그대로 돌았다** — 8/8 completed · retry 0 · blocked 0 · **병합 충돌 0** · 변이 10/10 red · `apps/api/tests/scripts/` **0건 → 138 passed + 2 xfailed**.
-★열려 있는 묶음은 지금 **없다** — 다음 재료는 `docs/status.md` 의 살아 있는 「다음 행동」이 든다.
+★이 묶음은 닫혔다. **열려 있는 묶음 = `fe2-*` 8벌**(아래).
 
 | phase                   | 대상                                    | 새 테스트 파일 (`apps/api/tests/scripts/`) | 짊어진 이슈                     |
 | ----------------------- | --------------------------------------- | ------------------------------------------ | ------------------------------- |

@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe2-auth-server",
+  "steps": [
+    {
+      "step": 0,
+      "name": "server-auth-swallow",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run src/lib/__tests__/auth-server.test.ts",
+        "cd apps/web && test \"$(pnpm exec vitest list src/lib/__tests__/auth-server.test.ts 2>/dev/null | grep -c ' > ')\" -ge 6",
+        "cd apps/web && pnpm exec eslint src/lib/__tests__/auth-server.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

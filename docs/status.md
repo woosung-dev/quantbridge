@@ -877,10 +877,54 @@ xfail 제거(11+1xfail → **12 passed**), awk 트림 제거 변이로 판별력
 `test "$(pnpm exec vitest list <파일> | grep -c ' > ')" -ge N`(양성 대조 · 부재 시 count 0 → rc=1)
 ⑶ `pnpm exec tsc --noEmit`.
 
-**다음 행동 = 위 재료로 밤샘 루프 2차를 돌린다 — A축 6 lane 을 먼저, B축을 그 뒤로.**
-슬롯은 1·2 만 점유 중이라 **10벌 동시**가 가능하다(1차는 6+2 로 돌았고 병목 없었다).
-절차·저작 규약은 `phases/README.md` §밤샘 루프(1차 개선 반영본). 소유 티켓은 **착수 시 신설**해라 —
-[BL-812] 가 그랬듯 **BL 없이 돌면 「어느 이슈를 한 회차인가」에 좌표가 없다.**
+~~**다음 행동 = 위 재료로 밤샘 루프 2차를 돌린다 — A축 6 lane 을 먼저, B축을 그 뒤로.**~~
+→ **2026-08-21 착수.** 소유 티켓 **[BL-813]** 신설·3면 등재. 아래 「착수 실측」이 재료 표의 오류 2건을
+정정했고 A축은 **6 이 아니라 8 lane** 이 됐다(cap 8 · B축은 다음 회차).
+
+### 밤샘 루프 2차 — 착수 실측 (2026-08-21)
+
+★**재료 표 정정 2건** — ⑴ **`lib/api-base.ts` 는 이미 커버돼 있다**(`src/lib/__tests__/api-base.test.ts`
+9 케이스). 그 행에서 `webhook-base.ts` 만 살아남는다. ⑵ **「미커버 71」은 직접 import 기준**이다.
+전이 폐포로 다시 재면 소스 **343 중 미도달 58** 이고, **완전 미도달인 판정 로직은 5종**이다 —
+`proxy.ts` · `lib/route-matcher.ts` · `lib/auth.ts` · `lib/auth-server.ts` · `lib/legal-links.ts`.
+`ui-store`·`use-media-query`·`unsupported-builtin-hints` 는 「미도달」이 아니라 **「직접 단언 0」**이다
+(컴포넌트를 통해 전이적으로는 실행된다).
+
+★**AC 판별력 8/8 red 실측** — `pnpm test -- --run <부재 파일>` **rc=1** · 양성 대조
+`vitest list | grep -c ' > '` **count=0 → rc=1** · `eslint <부재 파일>` **rc=2**.
+rc 는 `$?` 직독이고 **각 AC 를 서브셸에서** 쟀다 — 첫 판이 `cd apps/web` 잔류로 뒤 lane 을 전부
+「AC 가 비었다 → rc=0」으로 읽는 **무증거**를 냈다(레포에서 반복되는 그 병의 이번 판이다).
+기준선 = `227 files / 1497 passed · 21초` · `tsc --noEmit` **rc=0 · 2초**.
+
+★★**구조적 전제 1건을 프로브가 착수 전에 잡았다** — `src/lib/auth-server.ts` 는
+`import "server-only"` 가 **vitest 에서 top-level throw** 라 **import 조차 불가능**했다.
+★`vi.mock("server-only", () => ({}))` **로는 못 막는다** — CJS 로 외부화돼 Node 의 require 가 먼저
+돈다(실측 FAIL). `vitest.config.ts` 의 `resolve.alias` → `tests/stubs/server-only.ts` 로 길을 텄다
+(실측 PASS · 기존 1,497 케이스 무영향). ★**이 별칭은 사전 배치 커밋의 것이고 lane 은 건드리지 않는다** —
+8 lane 이 동시에 도는 유일한 공유 설정이다.
+★같은 프로브가 나머지 둘은 **되는 것으로** 확인했다 — `@/lib/auth` 는 `new Pool()` 이 지연 연결이라
+DB 없이 import 되고 훅이 `auth.options.databaseHooks.user.create.before` 로 도달 가능하며,
+`@/proxy` 는 `vi.mock("@/lib/auth")` + `next/server` 의 `NextRequest` 로 **3케이스 실제 green** 이었다.
+
+| lane (`phases/fe2-*`) | 대상                                                 | 짊어진 이슈 (근거·맥락)      |
+| --------------------- | ---------------------------------------------------- | ---------------------------- |
+| `fe2-proxy-gate`      | `src/proxy.ts` — 공개/geo/세션 판정                  | [ADR-034] · [BL-072]         |
+| `fe2-route-matcher`   | `src/lib/route-matcher.ts` — 앵커 계약               | [ADR-034]                    |
+| `fe2-auth-hooks`      | `src/lib/auth.ts` — geo L3 · 탈퇴 fail-closed        | [LESSON-114] · codex P1/P2   |
+| `fe2-auth-server`     | `src/lib/auth-server.ts` — 실패 삼킴 계약            | [ADR-034]                    |
+| `fe2-builtin-hints`   | `src/lib/unsupported-builtin-hints.ts` (55 엔트리)   | Trust Layer (Sprint 21 G.0)  |
+| `fe2-marketing-canon` | `src/lib/marketing-canon.ts` + `legal-links.ts`      | [BL-776] · LESSON-063        |
+| `fe2-lib-adapters`    | `src/lib/webhook-base.ts` + `zod-v4-resolver.ts`     | [BL-268] · Phase C 라이브 QA |
+| `fe2-ui-reactive`     | `src/store/ui-store.ts` + `hooks/use-media-query.ts` | [BL-300] · [BL-775]          |
+
+★**닫히는 BL 은 [BL-813] 하나다** — 표의 나머지는 근거·맥락이고 상태가 바뀌지 않는다.
+**다시 닫았다고 적지 마라.**
+
+**다음 행동 = 8 lane 을 워크트리 병렬로 돌리고, CI 초록 확인 후 PR 을 머지한다.**
+★머지 조건은 `mergeStateStatus` 가 아니라 **`gh run view <id> --json conclusion` = `success`** 다
+(`phases/README.md` 4 — 이 레포엔 required check 가 없어 **CLEAN 은 초록이 아니다**).
+★세션이 남긴 `xfail`·`it.fails` 는 **전건 코드 대조**([LESSON-121]). B축(컴포넌트 클러스터
+`features/backtest/components/report` 11 · `features/optimizer/components` 8 등)은 **3차 재료**다.
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
