@@ -24,7 +24,8 @@
     },
     {
       "dir": "runner-boot",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-20T18:20:16+0900"
     }
   ]
 }
