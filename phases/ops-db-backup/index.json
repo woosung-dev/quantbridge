@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "backup-prove-target",
-      "status": "pending",
+      "status": "completed",
+      "summary": "PATH docker 스텁으로 _prove_target의 rc=1/2 거부 행렬, DB 이름 대조, 대상 증명 양성 대조와 생명주기 인자 금지를 고정한다.",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_db_backup_target.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_db_backup_target.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 9",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "started_at": "2026-08-20T21:20:21+0900",
+      "completed_at": "2026-08-20T21:24:07+0900"
     }
   ],
   "created_at": "2026-08-20T21:17:36+0900"
