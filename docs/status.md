@@ -673,11 +673,19 @@ collect-count AC **rc=1**. 테스트를 실제로 쓰지 않으면 어떤 lane �
 `account_exclusivity.py:31-46` docstring 이 **이미 결정·구현했다**고 명시한다.
 ★**⓪ 표에 RESOLVED 5건이 살아 있는 행으로 남아 있다**(BL-634·701·773·808·810) — 함께 정리해라.
 
-**다음 행동 = `chore/harness-lanes` 머지 후, 새 세션에서 lane 4벌을 워크트리 병렬로 돌린다.**
-lane 마다 `git worktree add ../quant-bridge-wt-h<N> -b feat/harness-<phase>` →
-`tools/scripts/worktree-bootstrap.sh --adopt-env`(`.venv` 가 없으면 AC 전건 red) →
-`nohup python3 tools/harness/execute.py <phase> --push &`. ★띄우는 셸 PATH 에 `uv` 가 있어야 한다 —
-러너는 AC 를 **비로그인 `bash -c`** 로 돌린다. PR 은 lane 별 diff 검수 후 사람이 올린다.
+~~**다음 행동 = `chore/harness-lanes` 머지 후, 새 세션에서 lane 4벌을 워크트리 병렬로 돌린다.**~~
+→ **2026-08-20 완주 — 4/4 completed · retry 0 · 25분**(17:55→18:20, 동시 2 상한). PR #698·#699·#700·#701.
+산출 = `apps/api/tests/harness/test_execute_{ac,retry,commit,boot}.py` — 러너 테스트 **0건 → 41 passed**.
+★**4벌 병합 충돌 0** — 워크트리를 파기 **전에** `phases/index.json` 에 lane 4벌을 등록해 둔 것이 갈랐다
+(각 lane 이 서로 다른 줄의 `status` 만 고쳐 3-way 자동 병합). 나중에 각자 추가했으면 배열 끝에서 충돌한다.
+★**변이 4/4 red**(조기반환 제거→ac 4 failed · 상태파일 `reset` 제거→commit 2 failed · `ac` 부재 거부
+무력화→boot 2 failed · `TimeoutExpired` 포착 해제→retry 1 failed). ★M4 는 첫 시도에 같은 `except` 가
+**파일에 2곳**이라 변이가 안 붙었다 — **앵커 개수 단언이 「안 잡혔다」 오독을 막았다.**
+★실행 실측 — 워크트리는 `--skip-deps` + `apps/api` 만 `uv sync` 면 된다(AC 가 BE 전용). 그 부작용으로
+`.husky/_` 가 없어 **워크트리에서는 pre-commit/pre-push 훅이 발화하지 않는다** — 러너 커밋은 안 막히지만
+status.md 를 고칠 땐 `ledger-vitals.sh` 를 손으로 돌려야 한다. ★`| tail` 이 또 rc 를 삼켰다(레포 6번째).
+
+**다음 행동 = PR #698·#699·#700·#701 과 이 PR 을 CI 초록 확인 후 머지한다.**
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
