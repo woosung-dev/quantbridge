@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "context-builders",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/harness/test_execute_boot.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/harness/test_execute_boot.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
         "cd apps/api && uv run ruff check tests/harness/"
-      ]
+      ],
+      "started_at": "2026-08-20T18:17:35+0900",
+      "summary": "KST 타임스탬프·한글 pretty JSON·4축 가드레일 조립·격리 run 저장 계약을 4건의 정상 경로 테스트로 고정.",
+      "completed_at": "2026-08-20T18:20:15+0900"
     }
   ],
   "created_at": "2026-08-20T18:12:38+0900"
