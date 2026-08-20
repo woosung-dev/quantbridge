@@ -62,7 +62,8 @@
     },
     {
       "dir": "ops2-prepush-guard",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T00:53:14+0900"
     },
     {
       "dir": "ops2-notify-telegram",
