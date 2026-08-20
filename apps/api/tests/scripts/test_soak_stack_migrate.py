@@ -16,9 +16,13 @@ import pytest
 REAL = Path(__file__).resolve().parents[4] / "tools" / "scripts" / "soak-stack.sh"
 CURRENT = "current"
 HEAD = "head"
-PENDING_HISTORY = """head -> pending (head)
-pending -> current
-current -> base
+# `alembic history` 는 **`<부모> -> <자식> (head), 메시지`** 를 최신순으로 찍는다
+# (2026-08-21 실측: `20260816_0001 -> 20260817_0002 (head), …`). 즉 첫 필드가 부모다.
+# `-r cur:head` 는 cur **를 포함**하므로 맨 아래에 「cur 를 만든 전이」(= 이미 적용된 것)가
+# 한 줄 끼어든다. 대기분은 `cur -> …` 줄까지이고 그 아래가 적용분이다.
+PENDING_HISTORY = """pending -> head (head)
+current -> pending
+previous -> current
 """
 
 
@@ -270,12 +274,8 @@ def test_migrate_dry_run_proves_target_without_running_upgrade(tmp_path: Path) -
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="현재 delimiter인 current -> base 행까지 대기 목록에 포함해 3을 센다",
-)
 def test_migrate_counts_only_revisions_pending_after_current(tmp_path: Path) -> None:
-    """history의 current 이전 전이는 대기 개수에 섞이면 안 된다."""
+    """history 맨 아래의 「cur 를 만든 전이」는 대기 개수에 섞이면 안 된다."""
     script = _fake_repo(tmp_path)
     stub_bin = _write_stubs(tmp_path)
 
