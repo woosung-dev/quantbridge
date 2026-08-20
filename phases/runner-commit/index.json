@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "two-stage-commit",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/harness/test_execute_commit.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/harness/test_execute_commit.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
         "cd apps/api && uv run ruff check tests/harness/"
-      ]
+      ],
+      "started_at": "2026-08-20T18:11:16+0900",
+      "summary": "격리 Git 저장소에서 코드·상태 2단 커밋의 파일 분리, 메시지, 반환값 계약 4건을 검증한다.",
+      "completed_at": "2026-08-20T18:17:01+0900"
     },
     {
       "step": 1,
@@ -22,5 +25,6 @@
         "cd apps/api && uv run ruff check tests/harness/"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-20T18:11:16+0900"
 }
