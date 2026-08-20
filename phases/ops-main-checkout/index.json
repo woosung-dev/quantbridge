@@ -5,12 +5,17 @@
     {
       "step": 0,
       "name": "main-checkout-verdict",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_assert_main_checkout.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_assert_main_checkout.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 5",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "summary": "실제 Git 메인·워크트리에서 assert-main-checkout의 판정 4분기와 복구 안내를 검증하는 pytest 5건을 추가했다.",
+      "started_at": "2026-08-20T21:17:36+0900",
+      "completed_at": "2026-08-20T21:21:11+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-20T21:17:36+0900",
+  "completed_at": "2026-08-20T21:21:11+0900"
 }
