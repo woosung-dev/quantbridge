@@ -87,7 +87,8 @@
     },
     {
       "dir": "ops2-stack-migrate",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T00:50:57+0900"
     },
     {
       "dir": "ops2-db-backup-retain",

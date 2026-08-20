@@ -5,12 +5,17 @@
     {
       "step": 0,
       "name": "migrate-target-proof",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_soak_stack_migrate.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_soak_stack_migrate.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 7",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "summary": "가짜 레포 PATH 스텁 12건으로 _migrate를 고정: uv alembic heads·history·lock-wrapper와 docker 사전 revision→port→사후 revision 호출 순서를 검증한다.",
+      "started_at": "2026-08-21T00:43:33+0900",
+      "completed_at": "2026-08-21T00:50:57+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T00:43:33+0900",
+  "completed_at": "2026-08-21T00:50:57+0900"
 }
