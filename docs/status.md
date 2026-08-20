@@ -920,11 +920,64 @@ DB 없이 import 되고 훅이 `auth.options.databaseHooks.user.create.before` �
 ★**닫히는 BL 은 [BL-813] 하나다** — 표의 나머지는 근거·맥락이고 상태가 바뀌지 않는다.
 **다시 닫았다고 적지 마라.**
 
-**다음 행동 = 8 lane 을 워크트리 병렬로 돌리고, CI 초록 확인 후 PR 을 머지한다.**
-★머지 조건은 `mergeStateStatus` 가 아니라 **`gh run view <id> --json conclusion` = `success`** 다
-(`phases/README.md` 4 — 이 레포엔 required check 가 없어 **CLEAN 은 초록이 아니다**).
-★세션이 남긴 `xfail`·`it.fails` 는 **전건 코드 대조**([LESSON-121]). B축(컴포넌트 클러스터
-`features/backtest/components/report` 11 · `features/optimizer/components` 8 등)은 **3차 재료**다.
+~~**다음 행동 = 8 lane 을 워크트리 병렬로 돌리고, CI 초록 확인 후 PR 을 머지한다.**~~
+→ **2026-08-21 완주.** 아래 「결과」 참조.
+
+### 밤샘 루프 2차 — 8 lane 완주 · [BL-813] 종결 (2026-08-21)
+
+**결과 — 8/8 completed · blocked 0 · 병합 충돌 0 · 변이 8/8 red.** PR **#724**(사전 배치) +
+**#725~#732**(lane 8) 전부 CI `conclusion=success` 확인 후 머지. 산출 = `apps/web` 신규 테스트
+파일 **10개 · +150 케이스** — vitest **227 files / 1,497 passed → 237 files / 1,647 passed**.
+**대상 소스는 전건 무변경**이고 `tsc --noEmit` rc=0 을 유지한다.
+
+★★★**착수 전 프로브가 lane 하나를 구조적 불가에서 건졌다.** `src/lib/auth-server.ts` 는
+`import "server-only"` 가 **vitest 에서 top-level throw** 라 **import 조차 불가능**했다. ★그리고
+**`vi.mock("server-only", () => ({}))` 로는 안 막힌다** — CJS 로 외부화돼 **Node 의 require 가 먼저
+실행**하므로 vitest 의 mock 레지스트리를 지나친다(실측 FAIL → `resolve.alias` 로 실측 PASS).
+**저작 단계에서 재지 않았으면 그 lane 은 새벽에 통째로 죽었다.** 같은 프로브가 나머지 둘은
+「된다」로 확인해 줬다(`@/lib/auth` 는 `new Pool()` 지연 연결 · `@/proxy` 는 `NextRequest` 로 3케이스 green).
+⇒ **프로브의 값은 「된다」를 확인하는 데 있지 않고 「안 된다」를 새벽 전에 만나는 데 있다.**
+
+★★**retry 0 이 아니었고, 그 실패가 이 회차의 산출이다.** `fe2-builtin-hints` step0 이 AC 3회 red 로
+`error` 를 냈는데 **테스트가 틀린 게 아니라 내 step 파일의 기대가 거짓**이었다 — 프로토타입 키에
+「fallback 이 나온다」고 적었지만 `_HINTS` 가 객체 리터럴이라 `_HINTS["toString"]` 이 **함수를 반환**하고,
+그것을 spread 하면 own enumerable 이 0개라 결과가 **`{ name }` 뿐**이 된다(`hint`·`category` 없음).
+CONTROL 이 검시해 **실측표를 step 에 박고** `pending` 으로 되돌려 재실행했다. 드러난 결함 = **[BL-814]**.
+⇒ **step 파일에 「이렇게 나올 것이다」를 쓰면 그것이 AC 가 된다** — 재지 않은 기대는 쓰지 마라.
+
+★**내 도구가 세 번 무증거·오작동을 냈고 전부 이 레포의 단골이다.**
+⑴ AC red 검증기가 `cd apps/web` **잔류**로 뒤 7 lane 을 「AC 가 비었다 → rc=0」으로 읽었다
+(각 AC 를 **서브셸**에 넣어 해결). ⑵ 워크트리 생성 루프가 **zsh 단어분할**로 lane 8개를 한 덩어리로
+읽었다(`bash -c` 로 해결 — 원장이 이미 경고한 그 함정이다). ⑶ PR 생성 스크립트가 **macOS bash 3.2
+에 연관 배열이 없어** `TITLE[proxy-gate]` 를 전부 **index 0** 에 덮어써 **7건이 같은 제목·본문**으로
+올라갔다(lane 별 파일로 갈라 정정). ★셋 다 **결과를 눈으로 확인했기 때문에** 잡혔다.
+
+★**변이 8/8 red 인데, 첫 판 하나는 판별력이 0이었고 그것은 테스트가 아니라 내 변이의 결함이었다** —
+`_HINTS[name] as undefined` 는 **타입 소거**라 런타임에 닿지 않는다. 「초록 = 안 잡혔다」로 읽지 않고
+변이를 `heikinashi` 의 category 강등으로 바꿔 다시 재 red 를 얻었다(레포에서 세 번째 실증).
+
+| lane                  | 대상                                             | 케이스 | PR   |
+| --------------------- | ------------------------------------------------ | ------ | ---- |
+| `fe2-proxy-gate`      | `src/proxy.ts` — 공개/geo/세션 판정              | 41     | #725 |
+| `fe2-route-matcher`   | `src/lib/route-matcher.ts` — 앵커 계약           | 10     | #726 |
+| `fe2-auth-hooks`      | `src/lib/auth.ts` — geo L3 · 탈퇴 fail-closed    | 17     | #727 |
+| `fe2-auth-server`     | `src/lib/auth-server.ts` — 실패 삼킴 · 병렬성    | 8      | #728 |
+| `fe2-builtin-hints`   | `src/lib/unsupported-builtin-hints.ts`           | 38     | #732 |
+| `fe2-marketing-canon` | `src/lib/marketing-canon.ts` + `legal-links.ts`  | 10     | #729 |
+| `fe2-lib-adapters`    | `webhook-base.ts` + `zod-v4-resolver.ts`         | 15     | #730 |
+| `fe2-ui-reactive`     | `store/ui-store.ts` + `hooks/use-media-query.ts` | 11     | #731 |
+
+★**닫힌 BL 은 [BL-813] 하나다** — [ADR-034]·[BL-072]·[BL-776]·[BL-268]·[BL-300]·[BL-775] 는
+근거·맥락으로 인용했을 뿐 상태가 바뀌지 않았다. **다시 닫았다고 적지 마라.**
+
+**다음 행동 = 밤샘 루프 3차를 B축으로 돌린다 — FE 컴포넌트 클러스터.**
+재료(2026-08-21 전이 폐포 실측, 이번 회차가 판정 로직을 걷어낸 뒤 남은 것): **완전 미도달 소스 53**(총 343 중 · 종전 58 에서 이번 회차가 5 를 걷어냈다) ·
+군집은 `app/**` 의 `page/error/loading`(약 30) · `components/`(`geo-block-banner`·`legal-notice-banner`·
+`tick-ruler`) · `components/providers`(`app-providers`·`query-provider`) · `features/optimizer/components/optimizer-page-view.tsx`(187줄) ·
+`features/waitlist/components/admin/waitlist-admin-view.tsx`(132줄) · `features/onboarding/schemas.ts`.
+★**1차·2차가 확인한 상한** — 동형(同型)이 아니면 저작이 안 된다. 컴포넌트는 「무엇이 red 를 내는가」가
+파일마다 달라 **A축만큼 깨끗하지 않다.** 순수한 것부터 골라라(`onboarding/schemas.ts` = Zod 판정 ·
+`query-provider` = 재시도/staleTime 정책 + 브라우저 싱글톤). ★[BL-814] 는 XS 라 아무 회차에 동승시켜라.
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 

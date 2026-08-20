@@ -21,6 +21,74 @@
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
+### BL-813
+
+**Title:** FE 순수 판정 모듈에 테스트가 0건이다 — 인증 경계(`proxy.ts`)·마케팅 캐논·어댑터가 무증거로 산다
+**Category:** 테스트 / 프런트엔드
+**상태:** ✅ **RESOLVED** (2026-08-21 밤샘 루프 2차 완주)
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-21 전이 폐포 실측으로 확인됐다
+**Est:** M (8 lane 워크트리 병렬)
+**출처:** 2026-08-21 밤샘 루프 2차 착수 (1차 [BL-812] 의 FE 판)
+
+**원인 / 영향:** `apps/web` 의 vitest 는 227 파일 1,497 케이스로 두텁지만, **어떤 테스트도 import 하지
+않는 소스가 58개**다(전이 폐포 실측 2026-08-21 — 소스 343 중). 그중 **완전 미도달 5종이 판정 로직**이다:
+
+- `src/proxy.ts` — **이 앱의 인증 경계**([ADR-034] 가 Clerk 미들웨어를 대신한 자리). 공개 라우트 판정 ·
+  geo L2 리다이렉트 · 세션 완전 검증이 전부 여기 있는데 테스트가 0건이다
+- `src/lib/route-matcher.ts` — 그 판정을 컴파일하는 술어
+- `src/lib/auth.ts` — **geo-block L3**(가입 거부)과 **탈퇴 fail-closed**(돈을 멈추는 경로).
+  둘 다 2026-08-17 codex 적대 리뷰의 P1/P2 수리인데 그 수리를 재는 테스트가 없다
+- `src/lib/auth-server.ts` — SSR prefetch 의 `{userId, token}`. 「실패를 삼킨다」가 계약이다
+- `src/lib/legal-links.ts` — 법무 링크 상수
+
+★**이 축의 위험은 「있다고 여겨진 것이 그 경로를 안 지났다」이다** — 이 레포가 이미 4번 밟았고,
+그중 하나가 바로 **geo-block L3 이 한 번도 발화한 적이 없었다**는 것이다([LESSON-114]).
+같은 자리에 다시 테스트가 없다.
+
+★**직접 단언 0(전이적으로만 실행)** 인 것도 함께 든다 — `lib/unsupported-builtin-hints.ts`(화면에
+나가는 미지원 사유 문장) · `lib/marketing-canon.ts`(화면 3벌이 셀 단위로 같은 값을 렌더하는 공동 원장) ·
+`lib/webhook-base.ts`(dev/prod 배지) · `lib/zod-v4-resolver.ts`(폼 오류 매핑) ·
+`store/ui-store.ts` · `hooks/use-media-query.ts`.
+
+**처방:** 대상 소스 **무변경**으로 `apps/web` 에 테스트 파일 10개를 신설한다. 8 lane 워크트리 병렬
+(`phases/fe2-*`). lane 간 파일 겹침 0 — 각 lane 은 자기 테스트 파일만 만들고 대상 소스 ·
+`vitest.config.ts` · `tests/setup.ts` 를 건드리지 않는다.
+
+★**착수 전 실측(2026-08-21)** — AC 판별력 8/8 red(`pnpm test -- --run <부재 파일>` rc=1 ·
+양성 대조 count=0 → rc=1) · 기준선 `227 files / 1497 passed · 21초` · `tsc --noEmit` rc=0 · 2초.
+★**구조적 전제 1건을 사전 배치 커밋이 해결했다** — `src/lib/auth-server.ts` 는 `import "server-only"`
+가 **vitest 에서 top-level throw** 라 import 조차 불가능했다(`vi.mock` 으로도 못 막는다 — CJS
+외부화라 Node 의 require 가 먼저 돈다). `vitest.config.ts` 의 `resolve.alias` + `tests/stubs/server-only.ts`
+로 길을 텄다.
+
+**결과 (2026-08-21):** 8 lane 워크트리 병렬 · **8/8 completed · blocked 0 · 병합 충돌 0** ·
+**변이 8/8 red**(CONTROL 이 직접 심고 sha256 왕복 복원) · PR **#725~#732 전부 CI 초록 후 머지**.
+`apps/web` vitest **227 files / 1,497 passed → 237 files / 1,647 passed**(신규 테스트 파일 10개 ·
+**+150 케이스**). **대상 소스는 전건 무변경**이다.
+
+| lane                  | 새 테스트 파일                                        | 케이스 | PR   |
+| --------------------- | ----------------------------------------------------- | ------ | ---- |
+| `fe2-proxy-gate`      | `src/__tests__/proxy-gate.test.ts`                    | 41     | #725 |
+| `fe2-route-matcher`   | `src/lib/__tests__/route-matcher.test.ts`             | 10     | #726 |
+| `fe2-auth-hooks`      | `src/lib/__tests__/auth-hooks.test.ts`                | 17     | #727 |
+| `fe2-auth-server`     | `src/lib/__tests__/auth-server.test.ts`               | 8      | #728 |
+| `fe2-builtin-hints`   | `src/lib/__tests__/unsupported-builtin-hints.test.ts` | 38     | #732 |
+| `fe2-marketing-canon` | `src/lib/__tests__/marketing-canon.test.ts`           | 10     | #729 |
+| `fe2-lib-adapters`    | `webhook-base` 9 + `zod-v4-resolver` 6                | 15     | #730 |
+| `fe2-ui-reactive`     | `ui-store` 5 + `use-media-query` 6                    | 11     | #731 |
+
+★**retry 는 0 이 아니었다 — lane 5 가 `error` 로 한 번 죽었고 그것이 이 회차의 산출이다.**
+**내 step 파일이 프로토타입 키에 「fallback 이 나와야 한다」를 기대로 적었고 그 기대가 거짓이었다.**
+세션은 시킨 대로 단언했고 AC 가 3회 red 로 정직하게 멈췄다. CONTROL 이 검시해 **실측값을 step 에
+표로 박고** `pending` 으로 되돌려 재실행했다(`.claude/commands/harness.md` §4 「AC 자체가 틀렸다면
+AC 를 먼저 고쳐라」의 적용). 드러난 결함 = **[BL-814]**.
+
+★**착수 전 프로브가 lane 하나를 구조적 불가에서 건졌다** — `src/lib/auth-server.ts` 는
+`import "server-only"` 가 vitest 에서 **top-level throw** 라 import 조차 불가능했고
+`vi.mock("server-only")` 로도 막히지 않는다(CJS 외부화라 Node 의 require 가 먼저 돈다).
+사전 배치 커밋(PR #724)이 `vitest.config.ts` 의 `resolve.alias` 로 길을 텄다.
+
 ### BL-807
 
 **Title:** authed 캐논 3케이스가 **행은 DB 에 있는데 화면이 비어** 떨어진다 — [BL-802] 의 잔여 2/20
