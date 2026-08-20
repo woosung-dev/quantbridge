@@ -130,7 +130,8 @@
     },
     {
       "dir": "fe2-ui-reactive",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T02:45:39+0900"
     }
   ]
 }
