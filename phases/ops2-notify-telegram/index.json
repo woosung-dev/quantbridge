@@ -5,12 +5,17 @@
     {
       "step": 0,
       "name": "notify-seam-and-token-silence",
-      "status": "pending",
+      "summary": "notify-telegram.sh를 source해 seam·HTTP 상태·curl argv·토큰/호스트 비노출을 PATH 스텁으로 고정한 12개 테스트를 추가했다.",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_notify_telegram_lib.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_notify_telegram_lib.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "started_at": "2026-08-21T00:43:33+0900",
+      "completed_at": "2026-08-21T00:52:00+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T00:43:33+0900",
+  "completed_at": "2026-08-21T00:52:00+0900"
 }
