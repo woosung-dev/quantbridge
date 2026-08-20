@@ -835,11 +835,52 @@ xfail 제거(11+1xfail → **12 passed**), awk 트림 제거 변이로 판별력
 `test_db_backup_target.py` 를 「부재」로 보고). 레포에서 반복되는 zsh 함정이다 — **짝 맞추기·
 분할은 `bash -c` 로 재라.**
 
-**다음 행동 = 2차 밤샘 루프 재료는 「FE 컴포넌트 테스트 0건 41개」다**(backtest 15 · optimizer 7 ·
-나머지 19). ★**착수 전에 동형도를 먼저 재라** — 1차 보류 사유가 「컴포넌트마다 무엇이 red 를
-내는가가 달라 동형도가 낮다」였다. 동형도가 안 나오면 lane 을 억지로 채우지 말고 줄여라.
-절차는 `phases/README.md` §밤샘 루프(1차에서 검증됨: 사전 등록 → 워크트리 → AC red 실측 →
-배치 → 변이 → PR → 슬롯 회수).
+### 밤샘 루프 2차 — 재료 확정 (2026-08-21 실측, 1차 마감 직후)
+
+★**1차가 「동형도 낮음」으로 보류했던 FE 재료를 다시 재니 숫자가 달랐다** — 종전 「컴포넌트
+테스트 0건 41개」는 **파일명 짝(sibling)** 기준이었는데 이 레포의 관행은 `__tests__/` 디렉터리라
+그 계수가 틀렸다(예: `exchange-accounts-panel` 은 `__tests__/ExchangeAccountsPanel.*.test.tsx` 가
+덮는다). **import 그래프**로 다시 재라 — 「어떤 테스트도 그 모듈을 import 하지 않는다」가 옳은 축이다.
+
+**실측(2026-08-21)** — 컴포넌트 191개 중 **어떤 테스트에서도 import 되지 않는 것 71개** ·
+`lib/` 미커버 **11**(생성 코드 1 제외 10) · `store/ui-store.ts` · `hooks/use-media-query.ts`.
+
+★★**최고 가치는 컴포넌트가 아니라 순수 판정 모듈이다** — 1차에서 가장 깨끗하게 끝난 셋이
+`lib/*.sh`(source 전용 순수 함수)였고, FE 에도 같은 모양이 있다:
+
+| lane 후보 (A축 — 순수 판정)                                                 | 대상       | 왜                                                                                                                                       |
+| --------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| ★`proxy.ts` + `lib/route-matcher.ts`                                        | 110 + 14줄 | **공개 라우트 판정 = 인증 경계**([ADR-034] 가 Clerk 매처를 대신한 자리)인데 **테스트 0건**. 1차의 `pre-push-ref-guard.sh` 와 같은 자리다 |
+| `lib/api-base.ts` + `lib/webhook-base.ts`                                   | 66 + 25줄  | base URL 파생 — 이 레포는 **사본 5벌이 CI 를 190ms 만에 죽인** 전례가 있다(`e2e/_base-url.ts`)                                           |
+| `lib/auth.ts` + `lib/auth-server.ts`                                        | 156 + 41줄 | self-host Better Auth 클라이언트/서버 경계                                                                                               |
+| `lib/unsupported-builtin-hints.ts`                                          | 247줄      | pine v2 미지원 빌트인 → 힌트 판정(데이터 + 매칭)                                                                                         |
+| `lib/marketing-canon.ts` + `lib/legal-links.ts`                             | 64 + 7줄   | 캐논 상수 — [BL-776] 카피 축과 맞물린다                                                                                                  |
+| `lib/zod-v4-resolver.ts` + `store/ui-store.ts` + `hooks/use-media-query.ts` | 40+        | Zod v4 리졸버 어댑터 · 전역 UI 상태                                                                                                      |
+
+| lane 후보 (B축 — 컴포넌트 클러스터)                    | 미커버 수                           |
+| ------------------------------------------------------ | ----------------------------------- |
+| `features/backtest/components/report`                  | 11                                  |
+| `features/optimizer/components`                        | 8                                   |
+| `components/` (최상위)                                 | 7                                   |
+| `components/ui`                                        | 7 (shadcn 래퍼 — 가치 낮음, 후순위) |
+| `features/backtest/components/forms` (FieldSet 5종)    | 5                                   |
+| `features/backtest/components` · `charts` · `share`    | 4 · 4 · 4                           |
+| `features/onboarding/components` · `components/layout` | 4 · 4                               |
+| `components/providers`                                 | 3                                   |
+
+★**`charts` 는 마지막 배치로 미뤄라** — jsdom 에서 canvas 가 걸린다(1차의 `logs-follow` 자리).
+
+★**부트스트랩·AC 를 착수 전에 실측해 뒀다**(2026-08-21, throwaway 워크트리):
+`pnpm install --frozen-lockfile` **6초**(pnpm store 하드링크라 lane 수만큼 곱해도 싸다 —
+★단 `--skip-deps` 만으로는 vitest 가 안 돈다) · 타깃 vitest **1.3초** · `tsc --noEmit` **7.5초**.
+**AC 3종도 확정** — ⑴ `pnpm test -- <파일>`(부재 시 **rc=1**) ⑵
+`test "$(pnpm exec vitest list <파일> | grep -c ' > ')" -ge N`(양성 대조 · 부재 시 count 0 → rc=1)
+⑶ `pnpm exec tsc --noEmit`.
+
+**다음 행동 = 위 재료로 밤샘 루프 2차를 돌린다 — A축 6 lane 을 먼저, B축을 그 뒤로.**
+슬롯은 1·2 만 점유 중이라 **10벌 동시**가 가능하다(1차는 6+2 로 돌았고 병목 없었다).
+절차·저작 규약은 `phases/README.md` §밤샘 루프(1차 개선 반영본). 소유 티켓은 **착수 시 신설**해라 —
+[BL-812] 가 그랬듯 **BL 없이 돌면 「어느 이슈를 한 회차인가」에 좌표가 없다.**
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
