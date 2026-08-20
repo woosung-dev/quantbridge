@@ -1,6 +1,60 @@
+---
+description: 다단계 작업을 무인 러너로 실행한다 — step 마다 코딩 에이전트를 호출하고, AC 를 러너가 재실행해 exit code 로 판정한다
+argument-hint: "[parallel|seq|plan|new] [N] [<phase>… | pool: <대상>…]"
+disable-model-invocation: true
+---
+
 다단계 작업을 무인 러너로 실행한다 — step 마다 코딩 에이전트를 호출하고, Acceptance Criteria 를 러너가 재실행해 exit code 로 판정한다.
 
 구현: `tools/harness/execute.py` · 회차 정의: `phases/` (규약은 `phases/README.md`)
+
+---
+
+## 0. 호출
+
+```
+/harness [모드] [N] [대상…]
+```
+
+**인자는 전부 생략 가능하다.** 생략하면 아래 「자동 판단」을 따른다.
+
+| 자리 | 값              | 뜻                                                                             |
+| ---- | --------------- | ------------------------------------------------------------------------------ |
+| 모드 | `parallel`      | 워크트리 병렬 실행 (§3.7)                                                      |
+|      | `seq`           | 순차 실행 — 여러 개면 하나씩 (§3.6)                                            |
+|      | `plan`          | **실행하지 않고** 계획만 출력                                                  |
+|      | `new`           | 저작부터 시작 (§3.1~3.5)                                                       |
+| N    | 숫자 하나       | 동시 실행 상한 (`parallel` 일 때만. 생략 시 대상 전부)                         |
+| 대상 | `<phase-dir>…`  | 실행할 phase. 생략 시 **`pending` 전량**                                       |
+|      | `pool: <대상>…` | `new` 모드에서 묶을 대상 풀. 묶음은 실사해 정하고 **배분표를 먼저 승인**받는다 |
+
+```
+/harness                                  # pending 전량 — 자동 판단
+/harness plan                             # 무엇을 어떻게 돌릴지만 본다
+/harness parallel 2                       # 동시 2벌 상한
+/harness runner-ac                        # 그 phase 만
+/harness parallel runner-ac runner-boot   # 둘만 병렬
+/harness new pool: <대상> <대상>          # 저작부터
+```
+
+### 자동 판단 (모드를 생략했을 때)
+
+| pending 수 | 동작                                                         |
+| ---------- | ------------------------------------------------------------ |
+| 0          | 「돌릴 것이 없다」고 보고하고 `new` 를 제안한다              |
+| 1          | 그대로 순차 실행한다                                         |
+| 2 이상     | **lane 배분과 실행 계획을 먼저 제시해 승인받고** 병렬로 간다 |
+
+★**`plan` 을 제외한 모든 모드에서, 실행 전에 무엇을 어떻게 돌릴지 한 번 보고한다.**
+무인 러너는 되돌리기가 비싸다 — 잘못된 대상으로 도는 것보다 한 번 묻는 것이 싸다.
+
+### 지금 상태
+
+받은 인자: $ARGUMENTS
+
+`phases/index.json` 현황:
+
+!`cd "${CLAUDE_PROJECT_DIR}" 2>/dev/null && jq -r '.phases[] | "  \(.status)\t\(.dir)"' phases/index.json 2>/dev/null || echo "  (phases/index.json 을 읽지 못했다 — 러너 회차가 아직 없다)"`
 
 ---
 
