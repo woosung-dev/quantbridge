@@ -38,6 +38,33 @@ cwd)은 **진짜 파일을 그대로 호출**하고, 못 바꾸는 둘(`soak-obs
 `runner-*` 4벌 (2026-08-20 · PR #698~#702) — 러너 자신(`tools/harness/execute.py`)의 테스트
 0건을 `apps/api/tests/harness/test_execute_{ac,retry,commit,boot}.py` **41건**으로 채웠다.
 
+## 밤샘 루프 — 배치를 이어 돌릴 때 (2026-08-20 설계)
+
+러너는 phase 하나만 처리한다. 여러 배치를 밤새 이어 돌리는 것은 **러너 밖 셸 루프**다.
+★**저작이 상한이다** — 밤에 도는 분량은 저녁에 저작해 둔 분량뿐이고, 그래서 재료는
+**동형(同型)**이어야 한다(같은 대상 종류 × 같은 종류의 일). 이질적인 티켓 N건은 저작이 안 된다.
+
+배치 루프가 하는 일 — 2026-08-20 6 lane 회차에서 **손으로 한 순서 그대로**다:
+
+1. `phases/index.json` 의 `pending` 에서 cap N 개를 꺼낸다 (**웨이브를 저작하지 마라** —
+   배치는 동시 실행 상한 + 체크포인트일 뿐이다)
+2. lane 마다 워크트리 생성 + `worktree-bootstrap.sh --adopt-env --skip-deps` + `apps/api` `uv sync`
+3. ★**착수 전 AC red 확인** — rc=0 인 lane 은 **판별력이 0** 이므로 큐에서 빼고 기록한다
+4. 러너 N벌 `nohup` 병렬 → `wait` (대화 세션 타임아웃이 러너를 죽인다)
+5. ★**변이 red 확인** — red 가 아니면 PR 을 올리지 말고 `unverified` 로 기록한다
+   (2026-08-20 에 이 축이 「옳은 단언 + 잘못된 픽스처」 1건을 잡았다)
+6. `--push` + `gh pr create` → **CI 가 밤새 대신 돈다.** 아침에 결과가 이미 있다
+7. ★`git worktree remove` 로 **슬롯을 회수**한다 — 슬롯은 1..12 뿐이라 회수 없이는 3배치째에 막힌다
+8. 시간 상한이 남았으면 1로
+
+★**자동 머지는 하지 않는다.** 「마지막 강력 검증」(사람 diff + 머지)은 아침의 몫이다.
+★`blocked` 는 즉시 알린다(자격증명 등 사람만 풀 수 있는 것) — 나머지는 아침에 몰아 본다.
+★**화면은 pane 2개면 된다** — 상태 보드 + `dispatch.log`. lane 당 `tail -f` 6벌은 새벽에 못 읽는다.
+`herdr pane split --current --direction right --ratio 0.3` · `herdr pane run <ID> <cmd>` ·
+`herdr notification show <제목> --sound done`. ★워크트리는 `herdr worktree create` 가 아니라
+`worktree-bootstrap.sh` 로 만든다 — herdr 은 슬롯·env·테스트DB 를 모르고, 워크트리마다 탭이
+생겨 [ADR-030] 이 걷어낸 함대 모델로 돌아간다.
+
 ## 이 저장소의 바인딩
 
 `/harness` 커맨드는 프로젝트에 무관하게 쓰이도록 되어 있다. 이 저장소에서 그 자리에 들어가는 값은 아래다.
