@@ -126,6 +126,48 @@ index.json 만 커밋). codex 트랜스크립트는 `phases/<dir>/runs/`(gitigno
 에러/차단 복구: 사유 해결 → 해당 step 의 `status` 를 `"pending"` 으로 되돌리고
 (`error_message`/`blocked_reason` 삭제) 재실행.
 
+### F. 병렬 모드 — `/harness parallel`
+
+★**2026-08-20 신설. 절차는 확정, 실측치는 미측정** — 아래 「미측정」 항목은 첫 회차가 채운다.
+
+**lane = phase = 브랜치 1개 = PR 1개.** lane 안의 step 은 순차(`summary` 누적)이고 **lane 사이가
+병렬**이다. 러너는 인자로 받은 phase 하나만 처리하므로, 병렬은 러너 안이 아니라 **밖에서
+프로세스를 N벌 띄워** 만든다. 사용자가 `pool:` 로 대상을 주면 묶음은 세션이 실사해 정하고
+**lane 배분표를 먼저 승인**받는다.
+
+**묶음 기준** (BL 개수가 아니다):
+
+1. **lane 간 파일 겹침 0** — 병렬의 유일한 구조적 비용이다. 호출 결합만 있고 파일이 갈리면
+   「그 시그니처를 바꾸지 마라」를 금지사항에 박아 분리할 수 있다
+2. **의존 있는 것은 같은 lane 안으로** — lane 사이에는 의존을 표현할 수단이 없다
+3. **AC 는 pytest/vitest/ruff/tsc/build 로 한정** — 워크트리에서 서버 기동·celery 경유 검증·
+   `mise run up|down|migrate|seed` 는 금지다(AGENTS.md NEVER)
+4. **BE 전량 pytest 를 lane AC 에 넣지 마라** — codex 와 러너가 두 번 돌아 lane 수 × 11분이 된다.
+   회귀는 CI 와 사람의 통합 검수가 본다
+
+**순서**:
+
+1. **`phases/index.json` 에 lane 항목을 전부 등록해 머지한 뒤** 워크트리를 판다. 그 파일은 모든
+   lane 이 갱신하는 유일한 공유 파일이라, 나중에 각자 추가하면 배열 끝 **같은 위치**를 고쳐
+   충돌한다. 미리 등록하면 서로 다른 줄의 `status` 만 바꿔 3-way 자동 병합된다
+2. `git worktree add <경로> -b feat/harness-<phase>` — ★브랜치 이름은 러너가 checkout 하는 그
+   이름이어야 한다(`execute.py:143`). 다른 이름으로 만들면 워크트리에 브랜치가 둘 생긴다
+3. 각 워크트리 안에서 `tools/scripts/worktree-bootstrap.sh --adopt-env` — `.venv` 가 없으면
+   AC 가 전건 red 다. ★`git worktree add` 가 선행이다(이 스크립트는 워크트리를 만들지 않는다)
+4. `nohup python3 tools/harness/execute.py <phase> --push &` — 도구 타임아웃이 러너를 10분에
+   죽인 실측이 있어 **분리 기동은 의무**다. ★띄우는 셸 PATH 에 `uv` 가 있어야 한다 — 러너는
+   AC 를 **비로그인 `bash -c`** 로 돌린다
+5. `phases/<dir>/index.json` 폴링으로 진행을 읽는다
+6. **lane 별 diff 를 사람이 직접 읽고** PR 을 올린다 — ★AC 초록은 AC 가 옳다는 뜻이 아니다.
+   이 레포는 AC 게임을 2번 겪었고 둘 다 사람 diff 대조가 유일한 검출자였다
+
+**미측정**: codex 동시 실행 한도(2벌 실증 · 4벌 미측정) · lane 4벌 동시 pytest 의 머신 부하 ·
+머지 충돌이 실제로 나는지. 첫 회차가 이 셋을 재고 이 절을 갱신한다.
+
+★**저작이 끝난 lane 을 실행만 할 때는 §A~D 를 건너뛰고 여기서 시작한다.**
+
+---
+
 ### 실행 환경 주의 (QuantBridge 고유)
 
 - **메인 체크아웃에서 돌려라** — 워크트리에서는 celery 경유 검증이 침묵으로 메인 코드를
