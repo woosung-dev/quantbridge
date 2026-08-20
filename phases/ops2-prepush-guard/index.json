@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "push-verdict-order",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_pre_push_ref_guard.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_pre_push_ref_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 14",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "started_at": "2026-08-21T00:50:42+0900",
+      "summary": "qb_push_ref_verdict의 allow-tag·allow-tag-delete·allow-delete·allow-whitelist·allow-bypass·deny-main·deny-arbitrary 7종과 원격 main 우선·양쪽 화이트리스트 조건을 회귀 테스트로 고정했다.",
+      "completed_at": "2026-08-21T00:53:14+0900"
     }
   ],
   "created_at": "2026-08-21T00:43:33+0900"
