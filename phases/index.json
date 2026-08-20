@@ -86,7 +86,8 @@
     },
     {
       "dir": "ops2-db-backup-retain",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T01:07:31+0900"
     },
     {
       "dir": "ops2-logs-follow",
