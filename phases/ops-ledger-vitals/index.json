@@ -5,22 +5,30 @@
     {
       "step": 0,
       "name": "vitals-axes",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_ledger_vitals.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_ledger_vitals.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "summary": "축 ① 살아 있는 다음 행동과 축 ② ⓪ 표 정족수를 임시 argv 원장으로 고정하는 7건 테스트를 추가했다.",
+      "started_at": "2026-08-20T21:17:36+0900",
+      "completed_at": "2026-08-20T21:20:35+0900"
     },
     {
       "step": 1,
       "name": "vitals-verdict-and-rc",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_ledger_vitals.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_ledger_vitals.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "summary": "축 ③ RESOLVED 역류 판정과 우선순위·취소선·코드펜스, argv rc 0/1/3 계약을 기존 임시 원장 테스트에 고정했다.",
+      "started_at": "2026-08-20T21:20:35+0900",
+      "completed_at": "2026-08-20T21:23:03+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-20T21:17:36+0900",
+  "completed_at": "2026-08-20T21:23:03+0900"
 }
