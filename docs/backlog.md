@@ -473,7 +473,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 | [BL-714](#bl-714) | ✅ **마감 게이트 브랜치 전제 — Resolved (2026-08-14 gate-surface-close)**. ★**원장 처방 2·3 을 착수 전 기각했다** — `--range` 는 압수 A1 의 **유일한 증인**(하네스 케이스 ⑫ · 변이 `M1=⑫` 정확 집합 일치)을 죽이고, `range:` 첫 줄은 squash 머지라 제3자 검증 불가. 채택 = **`final-gates.sh` 입구 거부**(`merge-base == HEAD` → 게이트 체인 진입 전 거부, `--run eod` 와 문형 동일 · `origin/main` 부재 시 비발화). A1 로직 **불변**, `WHY` 에 처방 문장만 추가. 하네스 **26/26** · 변이 **15종**(㉖ 을 지킬 **M12** 신설 — 그 전까지 자기 변이가 없는 케이스였다) · 문서 = `gates-and-traps.md` 「신호 4종」 절 신설                                                                                                                                                                                    | 마감 절차를 다시 쓸 때 / 같은 상태에 또 빠질 때                                                                 | XS-S            | 2026-08-12 surface-demo-pack                                 |
 | [BL-717](#bl-717) | ✅ **API 계약축 PoC — Resolved** (2026-08-13 contract-poc, [ADR-031]). 결정적 export `contracts/openapi/openapi.json`(2회 sha 동일·`--check` 양음성 실증) + 후보 판정 = **orval(client:'zod') 채택**(zod v4 직출력·tsc strict·수기와 공존 vitest 3/3). hey-api 는 자체 TS7 의존 크래시로 실행 불가 탈락. ★구조 diff 핵심 = **datetime 엄격도 역전**(계약 Z-only vs 수기 offset 허용 — BE 실직렬화 실측 전 런타임 투입 금지). 번들 3endpoint 2.9KB gz. CI 배선·전면 전환은 [ADR-031] §비결정                                                                                                                                                                                                                                                                                                               | PR-1(ADR-029 재배치) 머지 후                                                                                    | M               | 2026-08-13 monorepo-realign                                  |
 | [BL-742](#bl-742) | ⏳ 반전·순포지션 가정 **163곳/12파일** 전수 감사([ADR-032] §대가). ★긴급도 하락 — 2026-08-15 A1 이 「반전은 소크 사망 원인이 **아니다**」를 보였다(서버=계정 배타성, 로컬=맥 sleep). **예방 축**이다. ★감사(읽기)와 수리(쓰기)를 나눠라 — 수리는 재-pin 을 부른다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | 미도래 — 반전이 다시 지목되거나 헤지 재검토 시                                                                  | M (2-3h)        | 2026-08-15 soak-survival                                     |
-| [BL-812](#bl-812) | ⬜ **[ADR-037] 재입힘 목록의 대상 생존 7종에 pytest 최소판이 없다** — 철거된 자기시험 `*-test.sh` 14종 중 대상이 살아 있는 7종(`assert-main-checkout`·`db-backup`·`disk-guard`·`pre-push-guard`·`soak-watch`·`soak-restart`·`soak-stack`) 가운데 **3종만** 2026-08-20 4회차가 닫았다. 나머지 4종 + 짝 하네스가 애초에 없던 인접 4종(`lib/notify-telegram`·`lib/mise-shim-path`·`db-backup` 잔여축·`soak-logs-follow`)이 **판정 로직을 가진 채 테스트 0건**이다. ★[ADR-037] §④ 재입힘 규칙과 무관하다 — 산출은 셸 하네스가 아니라 **pytest + CI 단일 게이트 안**(§② 2)이다                                                                                                                                                                                                                                 | 도래 — 2026-08-20 실사(`git ls-tree harness-v1`)                                                                | M (8 lane 병렬) | 2026-08-20 하네스 4회차                                      |
+| [BL-812](#bl-812) | ✅ **[ADR-037] 재입힘 목록 대상 생존 7종에 pytest 최소판 — Resolved (2026-08-21 밤샘 루프 1차)**. 재입힘 **7/7** + 인접 4종. `apps/api/tests/scripts/` 신규 8파일 **0건 → 138 passed + 2 xfailed** (8 lane 워크트리 병렬 · 8/8 completed · retry 0 · 변이 10/10 red · PR #713~#720). ★러너가 남긴 xfail 1건이 **phantom** 이었다(픽스처가 alembic 화살표 의미를 뒤집음 → CONTROL 이 정정, [LESSON-121]). ★진짜 결함 2건은 strict xfail 로 고정 — `soak-restart.sh --help` 범위 드리프트 · [BL-791] shim 내용물 미검증                                                                                                                                                                                                                                                                                     | 도래 — 2026-08-20 실사(`git ls-tree harness-v1`)                                                                | M (8 lane 병렬) | 2026-08-20 하네스 4회차                                      |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -1986,44 +1986,3 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **트리거 판정:** 도래 — 레그가 실재하고 충돌이 **종결 게이트 실행으로** 확인됐다 (2026-08-19 n6-authed-evidence)
 
 ---
-
-### BL-812
-
-**Title:** [ADR-037] 재입힘 목록의 **대상 생존 7종**에 pytest 최소판이 없다 — 판정 로직이 테스트 0건으로 돈다
-**Category:** Infra / 게이트 · 테스트
-**Priority:** P2
-**Trigger:** 도래 — 2026-08-20 실사로 확정
-**Est:** M (8 lane 워크트리 병렬)
-**출처:** 2026-08-20 하네스 4회차(`ops-*` 6 lane) — 그 회차가 BL 없이 돌아 추적 좌표가 없었다
-
-**원인 / 영향:** [ADR-037] §① 이 자기시험 `*-test.sh` **14종**을 철거하면서 「검사기 복귀 시
-함께 복귀」라고 적었다. 실사(`git ls-tree --name-only harness-v1 tools/scripts/ | grep -- -test.sh`)
-결과 **대상 스크립트가 아직 살아 있는 것이 7종**이고, 나머지 7종은 대상도 함께 철거돼 복귀
-대상이 아니다. 2026-08-20 4회차가 그중 **3종**(`assert-main-checkout`·`db-backup`·`disk-guard`)을
-pytest 최소판으로 닫았고 **4종**(`pre-push-guard`·`soak-watch`·`soak-restart`·`soak-stack`)이 남았다.
-
-남은 넷이 지고 있는 것이 가볍지 않다 — `pre-push-ref-guard.sh` 는 **Golden Rule(main 직접 push
-영구 차단)의 집행기**이고, `soak-restart.sh` 의 `ps` rc 3값 판정은 [BL-656] 이 「정적 카운트로
-동결」이라 적어 놓고 **그 카운트를 도는 게이트가 없어 회귀했던** 바로 그 축이며,
-`soak-stack.sh migrate` 는 「서버 소크 DB 에 alembic 적용 = 매번 명시 승인」이라는 **비목표(불변)
-의 집행 도구**다. 그리고 `soak-watch.sh` 의 신선도 판정은 [BL-737] 의 **41시간 침묵** 사고가
-만든 축이다.
-
-**처방:** 8 lane 워크트리 병렬로 `apps/api/tests/scripts/` 에 **lane 당 새 파일 1개**를 만든다
-(회차 정의 = `phases/ops2-*`). 남은 재입힘 4종 + **짝 하네스가 애초에 없던 인접 4종**
-(`lib/notify-telegram.sh` [BL-768] · `lib/mise-shim-path.sh` [BL-785]/[BL-791] ·
-`db-backup.sh` 잔여축 [BL-767] · `soak-logs-follow.sh` [BL-619]).
-
-★**[ADR-037] §④ 재입힘 규칙과 충돌하지 않는다** — 걷어낸 것은 표준 러너 **밖**의 셸 하네스이고
-이 산출은 **pytest + CI 단일 게이트 안**이라 §② 2 「CI 테스트 인프라 = 제품 테스트」 쪽이다.
-4회차가 같은 경계 판정을 내렸다. 원문(`git show harness-v1:…`)은 **참조하지 않고** 최소판으로 새로 쓴다.
-
-★**대상 스크립트를 고치지 않는다.** 결함을 찾으면 `xfail(strict=True)` 로 고정한다 —
-4회차가 `db-backup.sh --help` 의 `sed '2,59p'` vs 65행 헤더를 그렇게 닫았다.
-
-**Risk:** 🟢 (테스트만 는다. 대상 스크립트 무변경)
-
-**상태:** ⬜ **Open — 2026-08-21 등재.** 재입힘 3/7 완료(2026-08-20 4회차 · PR #705·#706·#709).
-남은 4 + 인접 4 = **8 lane** 저작 완료(`phases/ops2-*`). 종결 조건 = **재입힘 7/7** + 인접 4종이
-`apps/api/tests/scripts/` 에 실재하고 **변이 red 로 판별력이 실증**될 것. 하나라도 어긋나면 PARTIAL
-**트리거 판정:** 도래 — 대상 7종의 생존을 `git ls-tree harness-v1` 로 실측했다 (2026-08-20 하네스 4회차)

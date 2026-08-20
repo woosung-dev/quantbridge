@@ -4143,3 +4143,46 @@ EXCLUSIVE ⟺ ∀ resting conditional order o (reduce_only=None 전량) : o.orde
 **미탐 2종**(시장가 전용 호스트 · 다심볼)이 남아 있으므로 「가드가 통과했다 = 배타적이다」로 읽지 마라.
 
 ---
+
+### BL-812
+
+**Title:** [ADR-037] 재입힘 목록의 **대상 생존 7종**에 pytest 최소판이 없다 — 판정 로직이 테스트 0건으로 돈다
+**Category:** Infra / 게이트 · 테스트
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-20 실사로 확정
+**Est:** M (8 lane 워크트리 병렬)
+**출처:** 2026-08-20 하네스 4회차(`ops-*` 6 lane) — 그 회차가 BL 없이 돌아 추적 좌표가 없었다
+
+**원인 / 영향:** [ADR-037] §① 이 자기시험 `*-test.sh` **14종**을 철거하면서 「검사기 복귀 시
+함께 복귀」라고 적었다. 실사(`git ls-tree --name-only harness-v1 tools/scripts/ | grep -- -test.sh`)
+결과 **대상 스크립트가 아직 살아 있는 것이 7종**이고, 나머지 7종은 대상도 함께 철거돼 복귀
+대상이 아니다. 2026-08-20 4회차가 그중 **3종**(`assert-main-checkout`·`db-backup`·`disk-guard`)을
+pytest 최소판으로 닫았고 **4종**(`pre-push-guard`·`soak-watch`·`soak-restart`·`soak-stack`)이 남았다.
+
+남은 넷이 지고 있는 것이 가볍지 않다 — `pre-push-ref-guard.sh` 는 **Golden Rule(main 직접 push
+영구 차단)의 집행기**이고, `soak-restart.sh` 의 `ps` rc 3값 판정은 [BL-656] 이 「정적 카운트로
+동결」이라 적어 놓고 **그 카운트를 도는 게이트가 없어 회귀했던** 바로 그 축이며,
+`soak-stack.sh migrate` 는 「서버 소크 DB 에 alembic 적용 = 매번 명시 승인」이라는 **비목표(불변)
+의 집행 도구**다. 그리고 `soak-watch.sh` 의 신선도 판정은 [BL-737] 의 **41시간 침묵** 사고가
+만든 축이다.
+
+**처방:** 8 lane 워크트리 병렬로 `apps/api/tests/scripts/` 에 **lane 당 새 파일 1개**를 만든다
+(회차 정의 = `phases/ops2-*`). 남은 재입힘 4종 + **짝 하네스가 애초에 없던 인접 4종**
+(`lib/notify-telegram.sh` [BL-768] · `lib/mise-shim-path.sh` [BL-785]/[BL-791] ·
+`db-backup.sh` 잔여축 [BL-767] · `soak-logs-follow.sh` [BL-619]).
+
+★**[ADR-037] §④ 재입힘 규칙과 충돌하지 않는다** — 걷어낸 것은 표준 러너 **밖**의 셸 하네스이고
+이 산출은 **pytest + CI 단일 게이트 안**이라 §② 2 「CI 테스트 인프라 = 제품 테스트」 쪽이다.
+4회차가 같은 경계 판정을 내렸다. 원문(`git show harness-v1:…`)은 **참조하지 않고** 최소판으로 새로 쓴다.
+
+★**대상 스크립트를 고치지 않는다.** 결함을 찾으면 `xfail(strict=True)` 로 고정한다 —
+4회차가 `db-backup.sh --help` 의 `sed '2,59p'` vs 65행 헤더를 그렇게 닫았다.
+
+**Risk:** 🟢 (테스트만 는다. 대상 스크립트 무변경)
+
+**상태:** ✅ **Resolved (2026-08-21 밤샘 루프 1차)** — 재입힘 **7/7** 충족(`assert-main-checkout`·`db-backup`·`disk-guard` = 2026-08-20 4회차 / `pre-push-guard`·`soak-watch`·`soak-restart`·`soak-stack` = 이번 회차) + 인접 4종(`lib/notify-telegram`·`lib/mise-shim-path`·`db-backup` 잔여축·`soak-logs-follow`). 8 lane 워크트리 병렬 **8/8 completed · retry 0 · blocked 0 · 병합 충돌 0**, `apps/api/tests/scripts/` 신규 8파일 **0건 → 138 passed + 2 xfailed**(디렉터리 전량 584 passed + 3 xfailed). 대상 스크립트 **무변경**. PR #712(정의)·#713~#720(lane)
+남은 4 + 인접 4 = **8 lane** 저작 완료(`phases/ops2-*`). 종결 조건 = **재입힘 7/7** + 인접 4종이
+`apps/api/tests/scripts/` 에 실재하고 **변이 red 로 판별력이 실증**될 것. 하나라도 어긋나면 PARTIAL
+**트리거 판정:** 도래 → **소진** — 재입힘 목록의 대상 생존 7종이 전부 테스트를 가졌다 (`git ls-tree --name-only harness-v1 tools/scripts/ | grep -- -test.sh` 14종 대조, 2026-08-21)
+
+★**회차 실측 3건**(다음 사람이 이 축을 다시 열 때 쓴다): ⑴ 러너가 남긴 `xfail(strict=True)` 하나가 **phantom** 이었다 — 픽스처가 alembic 출력의 화살표 의미를 뒤집어 옳은 awk 트림을 결함으로 박았다. AC·변이·diff 세 층이 다 통과시켰다([LESSON-121]). ⑵ 진짜 결함 2건은 strict xfail 로 고정했다 — `soak-restart.sh --help` 가 `sed '2,40p'` 로 **34행 헤더를 넘겨 실행 코드를 찍는다**(4회차 `db-backup.sh --help` 의 반대 방향) · [BL-791] shim 내용물 미검증. ⑶ **AC 판별력을 착수 전에 실측**했다 — 8 lane 전부 AC1 `rc=4`·AC2 `rc=1`.
