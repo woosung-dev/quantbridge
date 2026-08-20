@@ -9,34 +9,41 @@
 (출처 레포 jha0313/finsight 에서는 `0-foundation` → `1-core-loop` → … 처럼 **순번**이었다.
 우리는 같은 파일을 병렬 묶음에도 쓴다. 어느 쪽인지는 아래 절이 말한다.)
 
-## 지금 열려 있는 병렬 묶음 — `ops-*` 6벌 (2026-08-20)
+## 지금 열려 있는 병렬 묶음 — `ops2-*` 8벌 (2026-08-21)
 
-`tools/scripts/` 의 **운영 스크립트 판정 로직**을 6축으로 가른 것이다. **여섯은 동시에 돌도록 설계됐다.**
+[ADR-037] §① 이 「검사기 복귀 시 함께 복귀」라 적어 둔 자기시험 `*-test.sh` **14종** 중
+**대상 스크립트가 아직 살아 있는 7종**의 잔여(4벌) + **짝 하네스가 애초에 없던 인접 4종**이다.
+소유 티켓 = **[BL-812]**. **여덟은 동시에 돌도록 설계됐다.**
 
-| phase               | 대상 (`tools/scripts/`)            | 새 테스트 파일 (`apps/api/tests/scripts/`) |
-| ------------------- | ---------------------------------- | ------------------------------------------ |
-| `ops-ledger-vitals` | `ledger-vitals.sh` 3축 판정        | `test_ledger_vitals.py`                    |
-| `ops-disk-guard`    | `disk-guard.sh` 임계·전이 발화     | `test_disk_guard.py`                       |
-| `ops-db-backup`     | `db-backup.sh` 인자·대상 증명      | `test_db_backup_target.py`                 |
-| `ops-openapi-poc`   | `openapi-poc-filter.py` 폐포·drift | `test_openapi_poc_filter.py`               |
-| `ops-soak-observe`  | `soak-observe.sh` fail-closed·차분 | `test_soak_observe.py`                     |
-| `ops-main-checkout` | `assert-main-checkout.sh` 워크트리 | `test_assert_main_checkout.py`             |
+| phase                   | 대상                                    | 새 테스트 파일 (`apps/api/tests/scripts/`) | 짊어진 이슈                     |
+| ----------------------- | --------------------------------------- | ------------------------------------------ | ------------------------------- |
+| `ops2-prepush-guard`    | `lib/pre-push-ref-guard.sh` 판정 순서   | `test_pre_push_ref_guard.py`               | Golden Rule · [BL-554]·[BL-555] |
+| `ops2-notify-telegram`  | `lib/notify-telegram.sh` seam·토큰 침묵 | `test_notify_telegram_lib.py`              | [BL-768]                        |
+| `ops2-mise-shim`        | `lib/mise-shim-path.sh` PATH 계산       | `test_mise_shim_path.py`                   | [BL-785] · [BL-791] gap 고정    |
+| `ops2-soak-watch`       | `soak-watch.sh` 지문·신선도             | `test_soak_watch.py`                       | [BL-737]                        |
+| `ops2-soak-restart`     | `soak-restart.sh` `ps` rc 3값           | `test_soak_restart.py`                     | [BL-656]                        |
+| `ops2-stack-migrate`    | `soak-stack.sh` `_migrate` 대상 증명    | `test_soak_stack_migrate.py`               | [BL-743]                        |
+| `ops2-db-backup-retain` | `db-backup.sh` `--status`·`_retain`     | `test_db_backup_retain.py`                 | [BL-767]                        |
+| `ops2-logs-follow`      | `soak-logs-follow.sh` 회전·커서         | `test_soak_logs_follow.py`                 | [BL-619]                        |
 
 동시에 돌 수 있는 근거는 **파일 겹침 0** 이다 — 각 lane 은 자기 테스트 파일 하나만 만들고
 대상 스크립트·`conftest.py`·`shards.json` 을 건드리지 않는다(각 step 의 금지사항에 박혀 있다).
 공용 헬퍼 모듈도 금지다 — 그것이 lane 사이의 유일한 공유 파일이 되기 때문이다.
 
-★**대상을 tmp 로 돌리는 방식이 lane 마다 다르다.** 환경변수로 대상을 바꿀 수 있는 넷
-(`ledger-vitals` 는 argv 플래그 · `disk-guard`·`db-backup` 은 env · `assert-main-checkout` 은
-cwd)은 **진짜 파일을 그대로 호출**하고, 못 바꾸는 둘(`soak-observe.sh` 의
-`STATE_DIR=${REPO_ROOT}/.soak` · `openapi-poc-filter.py` 의 `SOURCE`/`OUTPUT`)은
-**`tmp_path` 아래 가짜 레포에 복사해서** 돈다. 진짜 경로를 겨누면 이 레포의 소크 앵커나
-커밋된 OpenAPI 산출물을 덮어쓴다.
+★**대상을 tmp 로 돌리는 방식이 lane 마다 다르다.** 진짜 파일을 그대로 부르는 넷
+(`lib/` 3종은 **source 전용**이라 `bash -c '. lib; fn'` · `db-backup` 은 env)과, 경로가
+`SCRIPT_DIR`/`ROOT` 파생이라 못 바꾸는 넷(`soak-watch`·`soak-restart`·`soak-stack`·
+`soak-logs-follow`)은 **`tmp_path` 아래 가짜 레포에 복사해서** 돈다. 진짜 경로를 겨누면
+이 레포의 소크 앵커·커서·백업 디렉터리를 덮어쓴다.
+
+★**외부 명령만 PATH 스텁**(`docker`·`oci`·`uv`·`timeout`) — `awk`/`sed`/`grep` 은 대상이
+쓰는 것이라 스텁하면 대상을 안 재게 된다.
 
 ### 앞선 묶음 (완주)
 
-`runner-*` 4벌 (2026-08-20 · PR #698~#702) — 러너 자신(`tools/harness/execute.py`)의 테스트
-0건을 `apps/api/tests/harness/test_execute_{ac,retry,commit,boot}.py` **41건**으로 채웠다.
+`ops-*` 6벌 (2026-08-20 · PR #703~#709) — 운영 스크립트 6종의 판정 로직 **0건 → 72 passed +
+1 xfailed**. `runner-*` 4벌 (2026-08-20 · PR #698~#702) — 러너 자신(`tools/harness/execute.py`)의
+테스트 0건을 `apps/api/tests/harness/test_execute_{ac,retry,commit,boot}.py` **41건**으로 채웠다.
 
 ## 밤샘 루프 — 배치를 이어 돌릴 때 (2026-08-20 설계)
 

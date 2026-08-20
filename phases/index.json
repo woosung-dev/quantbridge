@@ -59,6 +59,38 @@
       "dir": "ops-main-checkout",
       "status": "completed",
       "completed_at": "2026-08-20T21:21:11+0900"
+    },
+    {
+      "dir": "ops2-prepush-guard",
+      "status": "pending"
+    },
+    {
+      "dir": "ops2-notify-telegram",
+      "status": "pending"
+    },
+    {
+      "dir": "ops2-mise-shim",
+      "status": "pending"
+    },
+    {
+      "dir": "ops2-soak-watch",
+      "status": "pending"
+    },
+    {
+      "dir": "ops2-soak-restart",
+      "status": "pending"
+    },
+    {
+      "dir": "ops2-stack-migrate",
+      "status": "pending"
+    },
+    {
+      "dir": "ops2-db-backup-retain",
+      "status": "pending"
+    },
+    {
+      "dir": "ops2-logs-follow",
+      "status": "pending"
     }
   ]
 }

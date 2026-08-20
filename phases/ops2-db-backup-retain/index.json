@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops2-db-backup-retain",
+  "steps": [
+    {
+      "step": 0,
+      "name": "backup-status-freshness",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_db_backup_retain.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_db_backup_retain.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "retain-and-upload-prefix",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_db_backup_retain.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_db_backup_retain.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}

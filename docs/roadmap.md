@@ -412,6 +412,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-625** [P2] 플레이스홀더 시크릿이 development 에서는 아무 게이트에도 안 걸린다 — 당시 서버 `apps/api/.env.local` 의 `CLERK_SECRET_KEY` 가 문자 그대로 `sk_test_...` 인데 API 는 기동하고 `/health` 200 을 냈다(인증 경로를 한 번도 안 밟아서). ★2026-08-17 [ADR-034] 로 그 키는 사라졌지만 **기전은 남는다** — validator 는 여전히 `app_env == production` 일 때만 돈다 · (새 호스트에 API 를 세울 때 · BL-071 발동 시)
 - [x] **BL-631 ✅ Resolved** [P2] `runtime-check.mjs` 가 어느 게이트에도 안 붙어 있어 죽은 채로 방치됐다 — `docs/` 재편 이후 playwright import 상대깊이가 안 따라와 `ERR_MODULE_NOT_FOUND` 로 즉사했고, 그래서 핸드오프의 「다크 17벌 17/17 PASS」는 그 커밋 이후 재현된 적 없는 숫자였다. 뿌리는 경로가 아니라 **소유자 부재** — `pnpm test`·CI·`docs-audit` 어디도 안 부른다 · (`docs/` 재편·프로토타입 수정 전) — ★2026-08-08 bl003-unblock 이 수리 방향 ⑵ 로 닫았다: `docs-audit.sh` 가 `runtime-check.mjs` 와 `regen_golden.py --check` 둘 다의 존재+기동을 확인한다. 회차 말 실측 17/17 exit 0
 - [ ] **BL-632** [P2] 골든을 오라클로 승격했지만 그 기대값은 **엔진 자신의 출력**이다 — 회귀 감지기이지 정확성 오라클이 아니다. 반순환 근거인 손계산 오라클 `test_golden_oracle_ema_sltp.py` 는 4봉·고정 stop/limit 이라 `ta.atr` 를 한 번도 안 탄다 ⇒ BL-621 의 낡음을 만든 그 축이 구조적으로 오라클 밖이다 · (골든 값이 또 어긋났을 때 · 백테스트 정확성을 대외 주장해야 할 때)
+- [ ] **BL-812** [P2] [ADR-037] 재입힘 목록의 **대상 생존 7종**에 pytest 최소판이 없다 — 판정 로직(Golden Rule 집행기 `lib/pre-push-ref-guard.sh` 포함)이 테스트 0건으로 돈다. 2026-08-20 4회차가 3/7 을 닫았고 남은 4 + 인접 4 = **8 lane** 을 워크트리 병렬로 채운다(`phases/ops2-*`). ★셸 하네스 복귀가 아니라 **pytest + CI 단일 게이트 안**이다([ADR-037] §② 2)
 
 ### P3 — 문서 lint
 

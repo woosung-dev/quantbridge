@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops2-soak-watch",
+  "steps": [
+    {
+      "step": 0,
+      "name": "watch-fingerprint-and-notify",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_soak_watch.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_soak_watch.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 7",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "watch-freshness-and-state",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_soak_watch.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_soak_watch.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 12",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}
