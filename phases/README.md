@@ -88,8 +88,17 @@
    판별 방법은 문서가 아니라 **그 도구를 한 번 돌려 보는 것**이다.
 3. ★**CONTROL 의 검증 스크립트는 `bash -c` 로 돌려라** — zsh 는 unquoted 확장을 단어분할하지
    않아 `for x in ${v//|/ }` 이 한 덩어리로 돌고 **실재하는 것을 「부재」로** 보고한다(1차에서 밟았다).
-4. ★**`gh pr merge` 직후 나머지 PR 의 `mergeStateStatus` 는 `UNKNOWN`** 이 된다(GitHub 재계산).
-   `UNKNOWN` 이면 건너뛰지 말고 **CLEAN 이 될 때까지 폴링**해라 — 1차에서 7건을 한 번 건너뛰었다.
+4. ★★**`mergeStateStatus: CLEAN` 은 「CI 가 통과했다」가 아니다.** 이 레포에는 required status
+   check 가 없어 **체크가 도는 중에도 CLEAN 이고 머지가 된다.** 1차 마감에서 실제로 밟았다 —
+   폴링 루프의 **재시도 예산이 조용히 소진**되자 그 뒤 `CLEAN` 만 보고 머지했고, 그 시점
+   backend 는 `in_progress` 였다(결과는 사후에 success 였지만 **그것은 운이다**).
+   ⇒ 머지 조건은 **`gh run view <id> --json conclusion` = `success`** 로 재라.
+   ★그리고 **「예산 소진」과 「초록」을 같은 분기에 두지 마라** — 소진이면 **머지하지 말고 보고**해라
+   (「볼 창이 없으면 통과」와 같은 fail-open 이다).
+   ★`gh pr checks` 의 **`no checks reported` 도 초록이 아니다** — push 직후엔 체크가 아직 안 생겨서
+   「pending 0건」으로 읽힌다. **체크가 생겼는지(행 수 ≥ 2)를 먼저 확인**해라.
+   ★`gh pr merge` **직후** 나머지 PR 의 `mergeStateStatus` 는 `UNKNOWN` 이 된다(GitHub 재계산).
+   `UNKNOWN` 이면 건너뛰지 말고 CLEAN 이 될 때까지 폴링해라 — 1차에서 7건을 한 번 건너뛰었다.
 5. ★**FE lane 은 `--skip-deps` 만으로 안 돈다** — `apps/web` 에서 `pnpm install --frozen-lockfile`
    이 필요하다(실측 **6초**, pnpm store 하드링크). BE lane 은 `apps/api` `uv sync` 그대로.
 
