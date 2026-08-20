@@ -40,7 +40,8 @@
     },
     {
       "dir": "ops-db-backup",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-20T21:24:07+0900"
     },
     {
       "dir": "ops-openapi-poc",
