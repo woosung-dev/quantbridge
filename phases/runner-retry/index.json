@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "runner-retry",
+  "steps": [
+    {
+      "step": 0,
+      "name": "codex-invoke-and-retry",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/harness/test_execute_retry.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/harness/test_execute_retry.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
+        "cd apps/api && uv run ruff check tests/harness/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "step-exit-paths",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/harness/test_execute_retry.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/harness/test_execute_retry.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
+        "cd apps/api && uv run ruff check tests/harness/"
+      ]
+    }
+  ]
+}
