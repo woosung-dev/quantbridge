@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "ref-predicates",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_pre_push_ref_guard.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_pre_push_ref_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "started_at": "2026-08-21T00:43:33+0900",
+      "summary": "실제 라이브러리를 POSIX sh로 소싱하는 call(fn, *args, shell=\"sh\") 기반 5개 술어·정의 양성 대조·sh -e 계약 35케이스를 고정했다.",
+      "completed_at": "2026-08-21T00:50:42+0900"
     },
     {
       "step": 1,
@@ -22,5 +25,6 @@
         "cd apps/api && uv run ruff check tests/scripts/"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-21T00:43:33+0900"
 }
