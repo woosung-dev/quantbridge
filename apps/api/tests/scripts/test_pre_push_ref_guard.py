@@ -8,6 +8,32 @@ from pathlib import Path
 import pytest
 
 LIB = Path(__file__).resolve().parents[4] / "tools" / "scripts" / "lib" / "pre-push-ref-guard.sh"
+SHA = "a" * 40
+ZERO = "0" * 40
+VERDICT_VALUES = {
+    "allow-tag",
+    "allow-tag-delete",
+    "allow-delete",
+    "allow-whitelist",
+    "allow-bypass",
+    "deny-main",
+    "deny-arbitrary",
+}
+VERDICT_CASES = [
+    ("refs/heads/feat/foo", SHA, "refs/heads/main", SHA, "0", "deny-main"),
+    ("refs/heads/feat/foo", SHA, "refs/heads/main", SHA, "1", "deny-main"),
+    ("(delete)", ZERO, "refs/heads/main", SHA, "0", "deny-main"),
+    ("(delete)", ZERO, "refs/heads/master", SHA, "0", "deny-main"),
+    ("(delete)", ZERO, "refs/tags/v1.2.3", SHA, "0", "allow-tag-delete"),
+    ("refs/tags/v1.2.3", SHA, "refs/tags/v1.2.3", SHA, "0", "allow-tag"),
+    ("refs/heads/feat/foo", SHA, "refs/tags/x", SHA, "0", "deny-arbitrary"),
+    ("refs/heads/feat/foo", SHA, "refs/tags/x", SHA, "1", "allow-bypass"),
+    ("(delete)", ZERO, "refs/heads/somebody-else", SHA, "0", "allow-delete"),
+    ("refs/heads/feat/foo", SHA, "refs/heads/feat/bar", SHA, "0", "allow-whitelist"),
+    ("refs/heads/feat/foo", SHA, "refs/heads/wip-x", SHA, "0", "deny-arbitrary"),
+    ("refs/heads/feat/foo", SHA, "refs/heads/wip-x", SHA, "1", "allow-bypass"),
+    ("refs/heads/wip-y", SHA, "refs/heads/wip-x", SHA, "0", "deny-arbitrary"),
+]
 
 
 def call(fn: str, *args: str, shell: str = "sh") -> subprocess.CompletedProcess[str]:
@@ -19,6 +45,20 @@ def call(fn: str, *args: str, shell: str = "sh") -> subprocess.CompletedProcess[
         text=True,
         timeout=60,
     )
+
+
+def verdict(
+    local_ref: str,
+    local_sha: str,
+    remote_ref: str,
+    remote_sha: str,
+    bypass: str = "0",
+) -> str:
+    """판정 함수의 stdout 계약을 읽는다."""
+    result = call("qb_push_ref_verdict", local_ref, local_sha, remote_ref, remote_sha, bypass)
+
+    assert result.returncode == 0, result.stderr
+    return result.stdout.strip()
 
 
 @pytest.mark.parametrize("ref", ["refs/heads/main", "refs/heads/master", "main", "master"])
@@ -160,3 +200,44 @@ def test_sourcing_is_safe_under_sh_e_when_predicate_returns_false() -> None:
 
     assert result.returncode == 1
     assert "syntax" not in result.stderr.lower()
+
+
+@pytest.mark.parametrize(
+    ("local_ref", "local_sha", "remote_ref", "remote_sha", "bypass", "expected"),
+    VERDICT_CASES,
+)
+def test_push_ref_verdict_preserves_protection_order(
+    local_ref: str,
+    local_sha: str,
+    remote_ref: str,
+    remote_sha: str,
+    bypass: str,
+    expected: str,
+) -> None:
+    """원격 보호 브랜치·태그·삭제·화이트리스트·bypass의 판정 순서를 고정한다."""
+    assert verdict(local_ref, local_sha, remote_ref, remote_sha, bypass) == expected
+
+
+def test_push_ref_verdict_ignores_remote_sha() -> None:
+    """remote_sha는 git 4-튜플 호환용 인자이며 판정에는 관여하지 않는다."""
+    first = verdict("refs/heads/feat/foo", SHA, "refs/heads/wip-x", SHA)
+    second = verdict("refs/heads/feat/foo", SHA, "refs/heads/wip-x", "b" * 40)
+
+    assert first == second == "deny-arbitrary"
+
+
+def test_push_ref_verdict_returns_only_known_nonempty_values() -> None:
+    """양성 대조: 표의 실제 판정값은 허용된 일곱 문자열 중 하나다."""
+    observed = {verdict(*case[:5]) for case in VERDICT_CASES}
+
+    assert observed
+    assert observed <= VERDICT_VALUES
+
+
+def test_push_ref_verdict_prefers_tag_delete_over_head_delete() -> None:
+    """삭제가 태그와 겹치면 ②가 ③보다 먼저 적용된다."""
+    tag_delete = verdict("(delete)", ZERO, "refs/tags/x", SHA)
+    head_delete = verdict("(delete)", ZERO, "refs/heads/x", SHA)
+
+    assert tag_delete == "allow-tag-delete"
+    assert head_delete == "allow-delete"
