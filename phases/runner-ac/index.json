@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "ac-sequence-and-timeout",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/harness/test_execute_ac.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/harness/test_execute_ac.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 7",
         "cd apps/api && uv run ruff check tests/harness/"
-      ]
+      ],
+      "summary": "_run_ac의 실패 조기 반환·검시 tail 40줄 상한·AC timeout 실패 튜플을 pytest 3건으로 검증",
+      "started_at": "2026-08-20T18:09:03+0900",
+      "completed_at": "2026-08-20T18:11:13+0900"
     }
   ],
   "created_at": "2026-08-20T17:55:33+0900"
