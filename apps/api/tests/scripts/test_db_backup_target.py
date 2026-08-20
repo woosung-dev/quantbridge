@@ -21,6 +21,8 @@ def _env(tmp_path: Path, extra: dict[str, str] | None = None) -> dict[str, str]:
         "QB_OCI_BIN": str(tmp_path / "bin" / "oci"),
         "QB_SKIP_UPLOAD": "1",
     }
+    env.pop("QB_DB_USER", None)
+    env.pop("QB_DB_NAME", None)
     env.update(extra or {})
     return env
 
@@ -42,6 +44,54 @@ def run(
         timeout=60,
         env=_env(tmp_path, extra_env),
     )
+
+
+def _docker_stub(
+    tmp_path: Path,
+    *,
+    status: str = "running",
+    image: str = "timescale/timescaledb:2.17.2-pg16",
+    env_lines: str = "POSTGRES_USER=quantbridge\nPOSTGRES_DB=quantbridge",
+    psql_out: str = "quantbridge|2.17.2|16.4",
+    psql_rc: int = 0,
+    port: str = "0.0.0.0:5432",
+) -> Path:
+    """`docker` PATH 스텁을 만들고 모든 호출 인자를 로그에 누적한다."""
+    stub_dir = tmp_path / "bin"
+    log_path = tmp_path / "docker-args.log"
+    stub_dir.mkdir(exist_ok=True)
+    docker = stub_dir / "docker"
+    docker.write_text(
+        f"""#!/usr/bin/env bash
+set -u
+printf '%s\\n' \"$*\" >> {str(log_path)!r}
+
+case \"$1\" in
+  version)
+    printf 'stub-server\\n'
+    ;;
+  inspect)
+    case \"$4\" in
+      '{{{{.State.Status}}}}') printf '%s\\n' {status!r} ;;
+      '{{{{.Config.Image}}}}') printf '%s\\n' {image!r} ;;
+      '{{{{range .Config.Env}}}}{{{{println .}}}}{{{{end}}}}') printf '%b\\n' {env_lines!r} ;;
+    esac
+    ;;
+  exec)
+    if [ \"$3\" = 'psql' ]; then
+      printf '%s\\n' {psql_out!r}
+      exit {psql_rc}
+    fi
+    ;;
+  port)
+    printf '%s\\n' {port!r}
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    docker.chmod(0o755)
+    return stub_dir
 
 
 @pytest.mark.parametrize(
@@ -114,3 +164,103 @@ def test_help_starts_with_the_script_header_second_line(tmp_path: Path) -> None:
     header_second_line = SCRIPT.read_text(encoding="utf-8").splitlines()[1]
 
     assert result.stdout.splitlines()[0] == header_second_line
+
+
+def test_prove_target_rejection_matrix_and_preserves_container_lifecycle(
+    tmp_path: Path,
+) -> None:
+    """`run`은 대상 증명 실패를 구분하고 컨테이너 생명주기를 건드리지 않는다."""
+    cases = [
+        ("container_missing", {"status": ""}, 5432, "quantbridge", 2, "가 없다"),
+        ("container_exited", {"status": "exited"}, 5432, "quantbridge", 2, "running 이 아니다"),
+        (
+            "wrong_image",
+            {"image": "postgres:16"},
+            5432,
+            "quantbridge",
+            1,
+            "timescaledb 계열이 아니다",
+        ),
+        (
+            "missing_postgres_env",
+            {"env_lines": ""},
+            5432,
+            "quantbridge",
+            2,
+            "POSTGRES_USER/POSTGRES_DB 를 못 읽었다",
+        ),
+        (
+            "psql_failure",
+            {"psql_rc": 1},
+            5432,
+            "quantbridge",
+            2,
+            "psql 로 못 붙었다",
+        ),
+        (
+            "current_database_mismatch",
+            {"psql_out": "another_db|2.17.2|16.4"},
+            5432,
+            "quantbridge",
+            1,
+            "current_database() 가 another_db 다",
+        ),
+        (
+            "missing_timescaledb_extension",
+            {"psql_out": "quantbridge||16.4"},
+            5432,
+            "quantbridge",
+            1,
+            "timescaledb 확장이 없다",
+        ),
+        (
+            "published_port_mismatch",
+            {},
+            5433,
+            "quantbridge",
+            1,
+            "앱이 쓰는 DB 가 아닌 것을 백업할 뻔했다",
+        ),
+        (
+            "database_name_mismatch",
+            {},
+            5432,
+            "another_db",
+            1,
+            "앱이 쓰지 않는 DB 를 백업할 뻔했다",
+        ),
+    ]
+
+    for name, stub_options, url_port, url_db, expected_rc, expected_error in cases:
+        (tmp_path / "env.local").write_text(
+            "DATABASE_URL="
+            f"postgresql+asyncpg://u:p@localhost:{url_port}/{url_db}\n",
+            encoding="utf-8",
+        )
+        stub_dir = _docker_stub(tmp_path, **stub_options)
+
+        result = run(
+            tmp_path,
+            "run",
+            extra_env={"PATH": f"{stub_dir}{os.pathsep}{os.environ['PATH']}"},
+        )
+
+        assert result.returncode == expected_rc, name
+        assert expected_error in result.stderr, name
+
+    (tmp_path / "env.local").write_text(
+        "DATABASE_URL=postgresql+asyncpg://u:p@localhost:5432/quantbridge\n",
+        encoding="utf-8",
+    )
+    stub_dir = _docker_stub(tmp_path)
+    result = run(
+        tmp_path,
+        "run",
+        extra_env={"PATH": f"{stub_dir}{os.pathsep}{os.environ['PATH']}"},
+    )
+
+    assert "대상 증명 ✓" in result.stdout
+
+    docker_calls = (tmp_path / "docker-args.log").read_text(encoding="utf-8").splitlines()
+    assert docker_calls
+    assert all(call.split()[0] not in {"up", "down", "start", "stop", "restart"} for call in docker_calls)
