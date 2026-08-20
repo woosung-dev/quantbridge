@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "step-exit-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/harness/test_execute_retry.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/harness/test_execute_retry.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
         "cd apps/api && uv run ruff check tests/harness/"
-      ]
+      ],
+      "started_at": "2026-08-20T18:10:03+0900",
+      "summary": "종료 코드 error·blocked, 재시도 사유 프리앰블, completed step 문맥 필터를 고립 테스트 4건으로 고정했다.",
+      "completed_at": "2026-08-20T18:12:36+0900"
     }
   ],
   "created_at": "2026-08-20T17:55:33+0900"
