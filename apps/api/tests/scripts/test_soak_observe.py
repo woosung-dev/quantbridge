@@ -217,10 +217,21 @@ def test_missing_anchor_session_is_measurement_unavailable(tmp_path: Path) -> No
 
 
 def test_query_failure_after_t0_is_reported_as_unknown(tmp_path: Path) -> None:
-    """`q()`가 실패해도 요약 UNKNOWN을 남기고 3으로 종결한다."""
+    """`q()`가 실패해도 요약 UNKNOWN을 남기고 3으로 종결한다.
+
+    ★**다른 실패원을 전부 없앤 상태에서 재야 한다.** 지표 취득과 `/metrics` 디렉터리도
+    함께 실패시키면 `FAILED=1` 출처가 셋이 되어, `q()` 의 fail-closed 를 무력화하는 변이가
+    **초록으로 빠져나간다**(2026-08-20 변이 실측). 그래서 curl 스텁과 metrics 디렉터리를
+    성공 경로로 맞춰 두고 psql 실패만 남긴다.
+    """
     script = _fake_repo(tmp_path)
     _write_session(script)
-    environment = _env(tmp_path, _write_docker_stub(tmp_path, "q_failure_after_t0"))
+    stub_bin = _write_docker_stub(tmp_path, "q_failure_after_t0")
+    environment = _url_metrics_environment(
+        tmp_path,
+        stub_bin,
+        "qb_live_signal_evaluated_total 1\n",
+    )
 
     result = _run(script, environment)
 
