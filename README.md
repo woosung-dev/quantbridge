@@ -266,6 +266,27 @@ mise run fe           # Next.js  → http://localhost:3000
 mise run help         # 전체 태스크 목록 · 격리 포트 모드 안내
 ```
 
+<details>
+<summary>mise 없이 직접 띄우려면</summary>
+
+```bash
+docker compose --project-directory . -f infra/compose/docker-compose.yml up -d db redis
+
+cd apps/api
+uv sync
+uv run alembic upgrade head
+uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port 8000
+uv run celery -A src.tasks worker --loglevel=info --concurrency=4 --pool=prefork
+
+cd ../web && pnpm install && pnpm dev
+```
+
+> `--no-server-header` 는 선택이 아니다 — 이 플래그가 없으면 uvicorn 이 `Server: uvicorn`
+> 헤더를 ASGI 바깥에서 붙여 버려 미들웨어로는 지울 수 없다. 레포 안의 모든 기동 자리가
+> 이 플래그를 갖는지 `apps/api/tests/test_uvicorn_server_header.py` 가 검사한다.
+
+</details>
+
 ### 5. 동작 확인
 
 ```bash
