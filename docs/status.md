@@ -644,10 +644,40 @@ import 표면을 함께 재도록 보강해 변이 **5/5 red**. ⇒ 구조적 �
 ★**미커밋 보강분은 `git checkout -- <file>` 로 날아간다** — 변이 실험 중 되돌리기가 내 패치를
 함께 지웠다(재적용 후 커밋). 변이 실험 전에 보강분을 먼저 커밋해라.
 
-**다음 행동 = PR 3건을 순서대로 머지한다 — #687(zero-base) → #691(1회차 기능) →
-이번 회차(base=main, `feat/harness-bl762-router-layer`). 그 뒤 미이식 finsight 조각 3종**
-(`scripts/test_execute.py` · `evals/harness/*.test.ts` 5종 · `triager.ts`)**을 이식할지 정한다.**
-★러너에 테스트가 0건인 것이 지금 하네스의 가장 큰 빈칸이다 — [ADR-030] 파일럿 B 를 죽인 것도 러너 결함이었다.
+~~**다음 행동 = PR 3건을 순서대로 머지한다 — #687 → #691 → 이번 회차. 그 뒤 미이식 finsight 조각 3종**
+(`scripts/test_execute.py` · `evals/harness/*.test.ts` 5종 · `triager.ts`)**을 이식할지 정한다.**~~
+→ **2026-08-20 완료.** 셋 다 머지됐다(#687·#691·#692 · open PR 0건). ★**「미이식 3종」은 성격이 다른
+둘을 묶은 것이었다** — upstream 실사 결과 `scripts/test_execute.py`(567줄)만 러너 테스트이고
+`evals/harness/*.test.ts`·`triager.ts` 는 **LLM eval 하네스**(judge/responder/reviewer/rules)로 별개다.
+
+### 하네스 3회차 — 러너 테스트 4 lane 병렬 (2026-08-20 착수 준비 완료)
+
+★**러너에 테스트가 0건인 것이 지금 하네스의 가장 큰 빈칸이다** — [ADR-030] 파일럿 B 를 죽인 것도
+러너 결함(`TimeoutExpired` 미처리)이었다. 그 빈칸을 **4축으로 갈라 워크트리 병렬**로 채운다.
+`phases/{runner-ac,runner-retry,runner-commit,runner-boot}` 저작 완료(커밋 `c32b3747`).
+lane 간 파일 겹침 0 — 각 lane 은 `apps/api/tests/harness/` 아래 **자기 테스트 파일 하나만** 만든다.
+
+★**upstream 대조가 이식과 신규를 갈랐다** — finsight `test_execute.py` 는 클래스 11개를 갖지만
+**`_run_ac` 커버리지가 없다**(원본은 AC 를 러너가 안 돌린다). 우리 수리 4종(AC 러너 판정 ·
+TimeoutExpired 포착 · 가드레일 4축 · 커밋 2단 분리) 영역은 **전부 신규 작성**이다.
+★**finsight 에 병렬·워크트리 개념은 없다**(`threading` 은 progress spinner 전용) — 병렬은 우리 것이다.
+
+★**AC 판별력 사전 측정**(§C-5d) — 4 lane 전부 pytest AC **rc=4**(대상 파일 부재) ·
+collect-count AC **rc=1**. 테스트를 실제로 쓰지 않으면 어떤 lane 도 초록이 날 수 없다.
+
+★★**⓪ 표의 하네스 적합 후보 9건이 전부 「트리거 미도래」였다**(2026-08-20 실사). 도래한 것은
+[BL-547] 하나(머니패스라 유인 처리 대상)와 [BL-489](원장 처방이 **수렴하지 않음**으로 반증 —
+`percent_of_equity` 에서 고정점 `C*=(B+L)/(1+k)`)뿐이다. ⇒ **BL 을 재료로 한 병렬은 성립하지 않는다.**
+★**실사가 원장 3건을 반증했다 — 마감에 정정해라**: [BL-661] 잔여는 [BL-669](DEFERRED)로 이관 완료 ·
+[BL-671] 잔여 1건은 원장 자신이 「값 0」 근거 셋을 적어 뒀다 · [BL-639] 실패 모드 3은
+`account_exclusivity.py:31-46` docstring 이 **이미 결정·구현했다**고 명시한다.
+★**⓪ 표에 RESOLVED 5건이 살아 있는 행으로 남아 있다**(BL-634·701·773·808·810) — 함께 정리해라.
+
+**다음 행동 = `chore/harness-lanes` 머지 후, 새 세션에서 lane 4벌을 워크트리 병렬로 돌린다.**
+lane 마다 `git worktree add ../quant-bridge-wt-h<N> -b feat/harness-<phase>` →
+`tools/scripts/worktree-bootstrap.sh --adopt-env`(`.venv` 가 없으면 AC 전건 red) →
+`nohup python3 tools/harness/execute.py <phase> --push &`. ★띄우는 셸 PATH 에 `uv` 가 있어야 한다 —
+러너는 AC 를 **비로그인 `bash -c`** 로 돌린다. PR 은 lane 별 diff 검수 후 사람이 올린다.
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
