@@ -37,10 +37,26 @@ BE 목록과의 대조는 이 lane 의 일이 아니다(그건 별도 축이다)
 4. ★**미적중 fallback** — `"currency.USDXYZ123"` 처럼 목록에 없는 이름은
    `category: "noop"` 이고 `hint` 가 **그 이름으로 시작**한다(`` `${name} — 미지원 빌트인 …` ``).
    ★**fallback 이 던지지 않는다**는 것이 계약이다 — BE 가 새 빌트인을 내도 화면이 죽으면 안 된다
-5. ★★**프로토타입 오염 방어 — 음성 대조** — `getUnsupportedBuiltinHint("constructor")` ·
-   `"toString"` · `"__proto__"` 를 부르면 **fallback 이 나와야 한다**(`category: "noop"` ·
-   `hint` 가 이름으로 시작). `_HINTS` 는 객체 리터럴이라 `Object.prototype` 의 키가 **적중처럼
-   보일 수 있다.** 지금 무엇이 나오는지 재고, **fallback 이 아니면 고치지 말고 `summary` 에 적어라**
+5. ★★**프로토타입 상속 — 관측된 사실을 그대로 박아라(고치지 마라).**
+   ★**CONTROL 이 2026-08-21 에 직접 실측했다.** `_HINTS` 는 객체 리터럴이라 `Object.prototype` 을
+   상속하고, 조회가 `_HINTS[name]` 직접 인덱싱이라 **상속 키가 truthy 로 잡힌다.** 그 결과:
+
+   | 입력 | 실제 반환 |
+   | --- | --- |
+   | `"toString"` · `"__proto__"` · `"constructor"` · `"valueOf"` · `"hasOwnProperty"` | **`{ name }` 뿐 — `hint` 와 `category` 가 아예 없다** |
+   | `"nope1"`(진짜 미적중) | `{ name, hint: "nope1 — 미지원 …", category: "noop" }` |
+
+   ★**이것은 fallback 이 아니다.** 파일 주석이 「mapping 미존재 시 generic fallback」이라 적었지만
+   상속 키 5종에 대해 그 문장은 **거짓**이다(함수를 spread 하면 own enumerable 속성이 0개라
+   `{ name, ...meta }` 가 `{ name }` 이 된다).
+
+   ⇒ **`category: "noop"` 을 기대하는 단언을 쓰지 마라 — red 가 난다(2026-08-21 실측).**
+   대신 **관측된 것을 박아라**: 위 5개 이름에 대해
+   `Object.keys(result)` 가 **`["name"]` 하나뿐**이고 `result.hint` 와 `result.category` 가
+   **`undefined`** 임을 단언한다. 그리고 그 케이스에
+   **「이것은 결함이다 — 대상 무변경이 이 lane 의 계약이라 지금 동작을 고정만 한다」** 주석을 달아라.
+   ★`summary` 에도 한 줄로 적어라(사람이 BL 로 올린다).
+
 6. **빈 문자열** — `getUnsupportedBuiltinHint("")` 도 던지지 않고 fallback 을 낸다
 7. ★**목록 변환** — `getUnsupportedBuiltinHints(["heikinashi", "nope1"])` 가 **길이 2** 이고
    순서가 보존되며 첫째는 적중, 둘째는 fallback.
