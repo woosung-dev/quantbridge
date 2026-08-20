@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -162,3 +163,73 @@ def test_run_refuses_uninspected_step_state(
 
     assert "3" in str(exc_info.value)
     assert status in str(exc_info.value)
+
+
+def test_stamp_uses_kst_iso8601_format(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """실행 원장의 타임스탬프는 KST 오프셋을 가진 ISO 8601 초 단위다."""
+    monkeypatch.setattr(ex, "ROOT", tmp_path)
+    _write_phase(tmp_path)
+    executor = ex.StepExecutor("test-phase")
+
+    stamp = executor._stamp()
+
+    assert stamp.endswith("+0900")
+    datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%S%z")
+
+
+def test_write_json_preserves_korean_indentation_and_trailing_newline(tmp_path: Path) -> None:
+    """JSON 산출물은 한글·2칸 들여쓰기·끝 개행을 보존한다."""
+    output_file = tmp_path / "payload.json"
+    payload = {"요약": "한글 산출물", "중첩": {"시도": 2}}
+
+    ex.StepExecutor._write_json(output_file, payload)
+
+    content = output_file.read_text(encoding="utf-8")
+    assert content == '{\n  "요약": "한글 산출물",\n  "중첩": {\n    "시도": 2\n  }\n}\n'
+    assert ex.StepExecutor._read_json(output_file) == payload
+
+
+def test_load_guardrails_includes_each_distinct_required_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """가드레일 조립은 네 파일을 경로 제목과 각자 내용으로 한 번씩 포함한다."""
+    monkeypatch.setattr(ex, "ROOT", tmp_path)
+    _write_phase(tmp_path)
+    guardrail_contents = {
+        relative_path: f"guardrail-{position}-{relative_path}"
+        for position, relative_path in enumerate(ex.GUARDRAIL_FILES, start=1)
+    }
+    for relative_path, content in guardrail_contents.items():
+        path = tmp_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+    executor = ex.StepExecutor("test-phase")
+
+    guardrails = executor._load_guardrails()
+
+    for relative_path, content in guardrail_contents.items():
+        assert f"## 프로젝트 규칙 ({relative_path})" in guardrails
+        assert guardrails.count(content) == 1
+
+
+def test_save_run_creates_runs_directory_and_uses_step_attempt_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """run 산출물은 격리 phase의 runs 아래 step·attempt 이름으로 저장한다."""
+    monkeypatch.setattr(ex, "ROOT", tmp_path)
+    phase_dir = _write_phase(tmp_path)
+    executor = ex.StepExecutor("test-phase")
+    payload = {"summary": "한글 run 산출물"}
+    expected_file = phase_dir / "runs" / "step4-attempt2.json"
+
+    assert not expected_file.parent.exists()
+
+    executor._save_run(4, 2, payload)
+
+    assert expected_file.exists()
+    assert ex.StepExecutor._read_json(expected_file) == payload
