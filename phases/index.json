@@ -78,7 +78,8 @@
     },
     {
       "dir": "ops2-soak-restart",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T00:50:47+0900"
     },
     {
       "dir": "ops2-stack-migrate",
