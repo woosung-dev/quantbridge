@@ -152,3 +152,103 @@ def test_security_schemes_are_preserved_only_when_present(
         ]
     else:
         assert "securitySchemes" not in output["components"]
+
+
+def test_output_uses_deterministic_canonical_json_serialization(tmp_path: Path) -> None:
+    source_doc = _source_doc()
+    source_doc["info"]["description"] = "Deterministic output"
+    source_doc["paths"]["/health"] = {"get": _operation("A")}
+    source_doc["components"]["schemas"] = {
+        "A": {"$ref": "#/components/schemas/B"},
+        "B": {"type": "string"},
+    }
+    mixed_source_doc = {
+        "components": {"schemas": {"B": {"type": "string"}, "A": {"$ref": "#/components/schemas/B"}}},
+        "paths": {
+            "/api/v1/backtests/{backtest_id}": {"get": _operation()},
+            "/api/v1/strategies": {"get": _operation()},
+            "/health": {"get": _operation("A")},
+        },
+        "info": {
+            "description": "Deterministic output",
+            "version": "1.0.0",
+            "title": "Test API",
+        },
+        "openapi": "3.1.0",
+    }
+    first_script = _fake_repo(tmp_path / "first", source_doc)
+    second_script = _fake_repo(tmp_path / "second", mixed_source_doc)
+
+    first_result = _run(first_script)
+    second_result = _run(second_script)
+
+    assert first_result.returncode == 0, first_result.stderr
+    assert second_result.returncode == 0, second_result.stderr
+    first_text = _output_path(tmp_path / "first").read_text(encoding="utf-8")
+    second_text = _output_path(tmp_path / "second").read_text(encoding="utf-8")
+    assert first_text == json.dumps(
+        json.loads(first_text), sort_keys=True, indent=2, ensure_ascii=False
+    ) + "\n"
+    assert first_text == second_text
+
+
+def test_output_appends_poc_title_suffix_and_preserves_info_fields(tmp_path: Path) -> None:
+    source_doc = _source_doc()
+    source_doc["info"].update(
+        {
+            "description": "Preserved description",
+            "license": {"name": "Apache-2.0"},
+        }
+    )
+    script = _fake_repo(tmp_path, source_doc)
+
+    result = _run(script)
+
+    assert result.returncode == 0, result.stderr
+    output = json.loads(_output_path(tmp_path).read_text(encoding="utf-8"))
+    assert output["info"] == {
+        **source_doc["info"],
+        "title": "Test API (BL-717 PoC subset)",
+    }
+
+
+def test_default_run_creates_output_parent_and_reports_written_schema(tmp_path: Path) -> None:
+    script = _fake_repo(tmp_path, _source_doc())
+    output_path = _output_path(tmp_path)
+
+    assert not output_path.parent.exists()
+    result = _run(script)
+
+    assert result.returncode == 0, result.stderr
+    assert output_path.exists()
+    assert "작성:" in result.stdout
+    assert str(output_path) in result.stdout
+    assert "스키마 0개" in result.stdout
+
+
+def test_check_reports_missing_matching_and_byte_drift_without_writing(tmp_path: Path) -> None:
+    script = _fake_repo(tmp_path, _source_doc())
+    output_path = _output_path(tmp_path)
+
+    missing_result = _run(script, "--check")
+
+    assert missing_result.returncode == 1
+    assert "먼저 인자 없이 실행해라" in missing_result.stderr
+
+    write_result = _run(script)
+    matching_result = _run(script, "--check")
+
+    assert write_result.returncode == 0, write_result.stderr
+    assert matching_result.returncode == 0
+    assert "drift 없음" in matching_result.stdout
+
+    original = output_path.read_text(encoding="utf-8")
+    drifted = original + " "
+    assert json.loads(drifted) == json.loads(original)
+    output_path.write_text(drifted, encoding="utf-8")
+
+    drift_result = _run(script, "--check")
+
+    assert drift_result.returncode == 1
+    assert "재생성:" in drift_result.stderr
+    assert output_path.read_text(encoding="utf-8") == drifted
