@@ -129,3 +129,94 @@ def test_state_only_commit_preserves_caller_message(executor: object) -> None:
 def test_commit_returns_false_when_nothing_changed(executor: object) -> None:
     """커밋할 코드와 상태가 모두 없으면 실패가 아닌 False를 반환한다."""
     assert executor._commit("chore: no changes") is False
+
+
+def test_checkout_branch_uses_phase_value_from_index(executor: object) -> None:
+    """브랜치명은 디렉터리명이 아니라 phase index 값으로 만든다."""
+    index = json.loads(executor._index_file.read_text(encoding="utf-8"))
+    index["phase"] = "phase-from-index"
+    _write_json(executor._index_file, index)
+    indexed_executor = ex.StepExecutor(_PHASE_DIR_NAME)
+
+    indexed_executor._checkout_branch()
+
+    assert _git(indexed_executor._root, "branch", "--show-current").strip() == (
+        "feat/harness-phase-from-index"
+    )
+
+
+def test_checkout_branch_does_nothing_when_already_on_target(
+    executor: object, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """대상 브랜치가 HEAD면 checkout 또는 branch 생성 호출을 하지 않는다."""
+    calls: list[tuple[str, ...]] = []
+    target_branch = f"feat/harness-{executor._phase_name}"
+
+    def fake_run_git(*args: str) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 0, stdout=f"{target_branch}\n", stderr="")
+
+    monkeypatch.setattr(executor, "_run_git", fake_run_git)
+
+    executor._checkout_branch()
+
+    assert calls == [("rev-parse", "--abbrev-ref", "HEAD")]
+
+
+@pytest.mark.parametrize(
+    ("status", "timestamp_key"),
+    [("completed", "completed_at"), ("error", "failed_at"), ("blocked", "blocked_at")],
+)
+def test_update_top_index_stamps_target_status_only(
+    executor: object,
+    monkeypatch: pytest.MonkeyPatch,
+    status: str,
+    timestamp_key: str,
+) -> None:
+    """상태 타임스탬프는 대상 phase에만 기록하고 다른 lane은 보존한다."""
+    other_phase = {"dir": "parallel-lane", "status": "pending", "owner": "other"}
+    _write_json(
+        executor._top_index_file,
+        {
+            "phases": [
+                {"dir": _PHASE_DIR_NAME, "status": "pending", "owner": "current"},
+                other_phase,
+            ]
+        },
+    )
+    monkeypatch.setattr(executor, "_stamp", lambda: "2026-08-20T18:30:00+0900")
+
+    executor._update_top_index(status)
+
+    top = json.loads(executor._top_index_file.read_text(encoding="utf-8"))
+    target, other = top["phases"]
+    assert target["status"] == status
+    assert target[timestamp_key] == "2026-08-20T18:30:00+0900"
+    assert other == other_phase
+
+
+def test_update_top_index_ignores_missing_top_index(executor: object) -> None:
+    """최상위 index가 없으면 상태 갱신은 예외 없이 종료한다."""
+    executor._top_index_file.unlink()
+
+    assert executor._update_top_index("completed") is None
+
+
+def test_update_step_changes_only_requested_step(executor: object) -> None:
+    """step 상태 갱신은 요청받은 번호의 항목만 바꾼다."""
+    first_step = {"step": 0, "name": "first", "status": "pending", "ac": ["true"]}
+    second_step = {"step": 1, "name": "second", "status": "pending", "ac": ["true"]}
+    _write_json(
+        executor._index_file,
+        {"phase": _PHASE_DIR_NAME, "steps": [first_step, second_step]},
+    )
+
+    executor._update_step(1, status="blocked", blocked_reason="manual input required")
+
+    updated = json.loads(executor._index_file.read_text(encoding="utf-8"))
+    assert updated["steps"][0] == first_step
+    assert updated["steps"][1] == {
+        **second_step,
+        "status": "blocked",
+        "blocked_reason": "manual input required",
+    }
