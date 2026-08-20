@@ -20,7 +20,8 @@
     },
     {
       "dir": "runner-commit",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-20T18:19:33+0900"
     },
     {
       "dir": "runner-boot",
