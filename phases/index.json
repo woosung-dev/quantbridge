@@ -9,6 +9,22 @@
       "dir": "bl762-router-layer",
       "status": "completed",
       "completed_at": "2026-08-19T19:17:00+0900"
+    },
+    {
+      "dir": "runner-ac",
+      "status": "pending"
+    },
+    {
+      "dir": "runner-retry",
+      "status": "pending"
+    },
+    {
+      "dir": "runner-commit",
+      "status": "pending"
+    },
+    {
+      "dir": "runner-boot",
+      "status": "pending"
     }
   ]
 }
