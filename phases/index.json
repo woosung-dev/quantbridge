@@ -102,7 +102,8 @@
     },
     {
       "dir": "fe2-proxy-gate",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T02:46:58+0900"
     },
     {
       "dir": "fe2-route-matcher",
