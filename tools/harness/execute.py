@@ -153,16 +153,44 @@ class StepExecutor:
                      f"  Hint: 변경사항을 commit 하거나 치운 뒤 다시 시도해라.")
         print(f"  Branch: {branch}")
 
+    def _state_files(self) -> list:
+        """하네스 상태 파일 — 코드가 아니라 진행 기록이다."""
+        return [str(self._index_file.relative_to(self._root)),
+                str(self._top_index_file.relative_to(self._root))]
+
     def _commit(self, message: str) -> bool:
+        """코드와 하네스 상태를 **다른 커밋**으로 나눈다.
+
+        원본(finsight `scripts/execute.py::_commit_step`)의 2단 커밋 이식분이다.
+        한 커밋에 섞으면 step diff 가 「무엇을 고쳤나」를 잃는다 — 실측 `36e8732a`
+        (`feat(...): step 5` 에 `index.json` 6줄이 동승). 산출물 자체(`runs/`)는
+        `.gitignore` 가 이미 막으므로 여기서 뺄 것은 상태 파일 2개뿐이다.
+        """
+        state = self._state_files()
         self._run_git("add", "-A")
-        if self._run_git("diff", "--cached", "--quiet").returncode == 0:
-            return False
-        r = self._run_git("commit", "-m", message)
-        if r.returncode != 0:
-            print(f"  WARN: 커밋 실패 — {r.stderr.strip()[:300]}")
-            return False
-        print(f"  Commit: {message}")
-        return True
+        for rel in state:
+            self._run_git("reset", "HEAD", "--", rel)
+
+        code_committed = False
+        if self._run_git("diff", "--cached", "--quiet").returncode != 0:
+            r = self._run_git("commit", "-m", message)
+            if r.returncode == 0:
+                code_committed = True
+                print(f"  Commit: {message}")
+            else:
+                print(f"  WARN: 커밋 실패 — {r.stderr.strip()[:300]}")
+
+        # 상태 파일은 뒤따라 별도 커밋. 코드 커밋이 없었으면 원래 메시지를 그대로 써
+        # 「무엇을 기록한 커밋인가」를 잃지 않는다(blocked·completed 표시가 그 경우다).
+        self._run_git("add", "--", *state)
+        if self._run_git("diff", "--cached", "--quiet").returncode != 0:
+            msg = f"chore({self._phase_name}): harness state" if code_committed else message
+            r = self._run_git("commit", "-m", msg)
+            if r.returncode == 0:
+                print(f"  Commit: {msg}")
+                return True
+            print(f"  WARN: 상태 커밋 실패 — {r.stderr.strip()[:300]}")
+        return code_committed
 
     # ── 컨텍스트 ─────────────────────────────────────────────────────────
 

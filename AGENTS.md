@@ -119,5 +119,8 @@ codex 는 **가까운 것만** 본다. 충돌하는 문장을 쓰면 두 도구�
   `lib/`) + `ledger-vitals` + `hooks/`(codex 훅) + 스모크·재현·유틸(`bybit-smoke` · `e2e-authed-repro` ·
   `nightly-real-broker-local` · `metrics-wipe` · `worktree-bootstrap` · `openapi-poc-filter`).
   리뷰 = `.claude/workflows/review-code.js` · 하네스 Eval = `evals/harness/`
+- `phases/<회차>/` — 하네스 러너의 회차 정의(`step*.md`·`index.json` — 추적됨). ★**산출물은 `runs/` 에만**
+  둔다(gitignore). ★**러너 밖 회차(수동 병렬 레인)의 작업 보고서도 같은 자리다 — 레포 루트에 만들지 마라**
+  (2026-08-17·08-18 두 번 오염돼 삭제했다). 규약 전문 = `generator-evaluator-pipeline.md` §G8
 - `docs/` — 상태 3종 + `reference/` + `decisions/` + `lessons.md` (지도: `docs/README.md`)
 - `apps/api/AGENTS.md` · `apps/web/AGENTS.md` — 스택 규칙 (같은 자리 `CLAUDE.md` = `@AGENTS.md` 한 줄)

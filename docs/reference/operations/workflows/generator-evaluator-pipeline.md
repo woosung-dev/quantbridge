@@ -189,6 +189,15 @@ FE vitest·build 수 분이다. **풀 실행은 G7 에서 1회만, G3 중간에�
 
 - dev-log 신규 + INDEX + status + roadmap + backlog 를 **같은 커밋에서** 갱신한다.
 - ★**요약 레이어는 본문보다 늦는다.** 2026-07-27 종결 시 `dev-log/INDEX.md` 가 **폐기된 설계를 출시된 것처럼** 적고 있었고 `roadmap.md` 도 같은 상태였다. 종결 체크리스트에 **"요약(INDEX·roadmap·status)을 본문과 대조"** 를 고정 항목으로 넣는다.
+- ★**회차 작업 산출물(레인 원장 초안·보고서)의 자리는 `phases/<회차>/runs/` 하나다 — 레포 루트에
+  만들지 마라.** 러너가 이미 그 자리를 쓰고(`tools/harness/execute.py:19` 「산출물은
+  `phases/<dir>/runs/`(gitignore) 에만 남긴다」) `.gitignore` 의 `phases/*/runs/` 가 덮는다.
+  ★**러너 밖 회차(수동 병렬 레인)도 같은 자리를 쓴다** — 바로 여기에 규약이 없어서 루트가 두 번
+  오염됐다: 2026-08-17 레인 산출 6파일(`A`~`C` × `-ledger`/`-REPORT`/`C-PROPOSAL`)이 커밋 →
+  tombstone 후 삭제 → **08-18 회차가 같은 이름으로 재발** → 08-20 재삭제(`git show e9abca0e`·
+  `971448c8`·`76f7fab1`). 레인 초안은 원장(`docs/status.md`·`docs/backlog*.md`)에 옮겨 적히는
+  순간 소멸하는 것이지 레포에 남는 산출이 아니다. `.gitignore` 에 루트 파일명 패턴을 더하는 것은
+  처방이 아니다 — 그 이름을 **허용**한다는 신호가 되어 다음 회차가 같은 자리에 또 쓴다.
 - 작업 문서(`docs/<theme>/`)는 **흡수 대조 후 삭제**한다. 대조 없이 지우지 마라 — 2세션 연속으로 미흡수 2건이 나왔다. `docs/` 최상위 10 유지.
 - PR 생성까지. **squash 는 사용자.**
 - ★~~게이트는 2단이다 (2026-08-14, `final-gates.sh --pre-pr` → `--deferred-only`)~~ →

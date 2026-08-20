@@ -19,6 +19,7 @@
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
 - **2026-08-19 n6-authed-evidence** — 증거 게이트가 authed 를 잰다. [BL-797]·[BL-807]·[BL-805]·[BL-806] 종결, PR #684~#686. ★★★**[BL-807] 세 케이스 중 둘이 같은 결함** — 시더가 `equity_curve` 를 응답 형상으로 심어 500. ★★[BL-797] **baseline 이 gitignore 된 `.env.production.local` 에 의존**했다. ★원장 처방 절반 반증(요청 수 비결정).
+  - tombstone: 2026-08-18 야간 3레인 산출 6파일(`A`/`B`/`C` × `-ledger.md`/`-REPORT.md`)은 원장 반영 후 삭제(2026-08-20). 원문 = `git show e9abca0e` (α) · `971448c8` (β) · `76f7fab1` (γ). ★같은 tombstone 이 2026-08-17 항목에도 있다 — **재발**이라 산출 자리를 `phases/<회차>/runs/` 로 §G8 에 못박았다(gitignore 패턴은 그 이름을 허용한다는 신호라 안 쓴다)
 - **2026-08-16 layout-alignment** — 레이아웃 3축 대조([ADR-035]). ★★[ADR-034] 가 정본 12파일을 안 쓸어 `local-setup.md` 가 **없는 `CLERK_SECRET_KEY`** 를 지시 중이었다. ★★[ADR-031] 이 미룬 openapi drift 게이트를 배선하자 **첫 실행이 실제 drift 를 잡았다**. ★FE `_components` 234→features/ — 위험은 파일이 아니라 **검사기 스코프**였다. [BL-777~780]
 - **2026-08-17 night-3lane** — 야간 자율 3레인(claude ×3, 승인 왕복 **2회**) [BL-783]/[BL-784]/DEFERRED 178 재판정, PR #654·#655·#656. ★★★**[BL-784] 는 지연이 아니라 거부**(BE `100/minute` → 429)이고 **「단독은 항상 green」이 거짓**이라 넉 달 쓰던 진단 축이 틀렸다. ★★★**확인 행위가 증거를 파괴했다**([LESSON-117])
   - tombstone: 레인 산출 6파일(`A-REPORT`/`A-ledger`/`B-REPORT`/`B-ledger`/`C-REPORT`/`C-PROPOSAL`)은 원장 반영 후 삭제. 원문 = `git show 0875789c` (α) · `316b0541` (β) · `f75f9c34` (γ). ★DEFERRED 178건 판정 전문(③ 170 · ④ 5 · 근거 낡음 7)은 `C-PROPOSAL.md` 에만 있다
