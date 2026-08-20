@@ -12,7 +12,8 @@
     },
     {
       "dir": "runner-ac",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-20T18:11:14+0900"
     },
     {
       "dir": "runner-retry",
