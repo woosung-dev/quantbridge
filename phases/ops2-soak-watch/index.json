@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "watch-fingerprint-and-notify",
-      "status": "pending",
+      "status": "completed",
+      "summary": "가짜 게이트 앵커: `  ✓ C1 24h 창 3개` / `판정: PASS` / `  ✓ C3 실격 사건  0건` / `  귀속 창 2개: …` / `  ✓ C5 측정 무결  ⑴=✓ ⑵=✓`.",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_soak_watch.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_soak_watch.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 7",
         "cd apps/api && uv run ruff check tests/scripts/"
-      ]
+      ],
+      "started_at": "2026-08-21T00:43:33+0900",
+      "completed_at": "2026-08-21T00:50:39+0900"
     },
     {
       "step": 1,
@@ -22,5 +25,6 @@
         "cd apps/api && uv run ruff check tests/scripts/"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-21T00:43:33+0900"
 }
