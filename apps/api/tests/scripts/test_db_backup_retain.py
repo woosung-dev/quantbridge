@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
+
+import pytest
 
 SCRIPT = Path(__file__).resolve().parents[4] / "tools" / "scripts" / "db-backup.sh"
 UNIT_NAME = "dev.quantbridge.db-backup"
 ALARM_UNIT = "dev.quantbridge.db-backup-alarm"
+RETAIN_SNIPPET = 'set -- --help; . "$0" > /dev/null 2>&1; set +e; _retain'
+UPLOAD_SNIPPET = (
+    'upload_path="$1"; set -- --help; . "$0" > /dev/null 2>&1; '
+    'set +e; _upload "$upload_path"'
+)
 
 
 def run_status(
@@ -29,6 +37,62 @@ def run_status(
         cwd=tmp_path,
         check=False,
     )
+
+
+def run_retain(backup_dir: Path, retain_days: int) -> subprocess.CompletedProcess[str]:
+    """`--help`로 함수를 적재한 뒤 격리 디렉터리에서 `_retain`만 호출한다."""
+    env = {
+        **os.environ,
+        "QB_BACKUP_DIR": str(backup_dir),
+        "QB_BACKUP_RETAIN_DAYS": str(retain_days),
+    }
+    return subprocess.run(
+        ["bash", "-c", RETAIN_SNIPPET, str(SCRIPT)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+        cwd=backup_dir.parent,
+        check=False,
+    )
+
+
+def run_upload(
+    tmp_path: Path,
+    upload_path: Path,
+    *,
+    prefix: str,
+    oci_stub_rc: int = 0,
+) -> tuple[subprocess.CompletedProcess[str], Path]:
+    """OCI 스텁을 고정한 채 `_upload` argv와 종료 코드를 관찰한다."""
+    oci_stub = tmp_path / "bin" / "oci"
+    oci_log = tmp_path / "oci-argv.txt"
+    oci_stub.parent.mkdir()
+    oci_stub.write_text(
+        "#!/usr/bin/env bash\n"
+        "printf '%s\\n' \"$@\" > \"${OCI_STUB_LOG}\"\n"
+        "exit \"${OCI_STUB_RC:-0}\"\n",
+        encoding="utf-8",
+    )
+    oci_stub.chmod(0o755)
+    env = {
+        **os.environ,
+        "QB_BACKUP_BUCKET": "shared-backups",
+        "QB_BACKUP_PREFIX": prefix,
+        "QB_OCI_BIN": str(oci_stub),
+        "OCI_STUB_LOG": str(oci_log),
+        "OCI_STUB_RC": str(oci_stub_rc),
+    }
+    result = subprocess.run(
+        ["bash", "-c", UPLOAD_SNIPPET, str(SCRIPT), str(upload_path)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=env,
+        cwd=tmp_path,
+        check=False,
+    )
+    return result, oci_log
 
 
 def _unit_dir(xdg: Path) -> Path:
@@ -192,3 +256,85 @@ def test_status_prints_latest_dump_count_and_indented_metadata(tmp_path: Path) -
     assert "보관 2개" in result.stdout
     assert f"최근: {newest_dump}" in result.stdout
     assert "        finished_at=2026-08-21T00:00:00Z" in result.stdout
+
+
+def test_retain_deletes_only_expired_quantbridge_dump_and_meta(tmp_path: Path) -> None:
+    """보관 정리는 오래된 정본 덤프·메타만 지우고 얕은 디렉터리에서 끝난다."""
+    backup_dir = tmp_path / "backups"
+    retain_days = 14
+    old_dump = _write_dump(
+        backup_dir,
+        "quantbridge-20260701T000000Z.dump",
+        meta="created_at=2026-07-01T00:00:00Z\n",
+    )
+    fresh_dump = _write_dump(backup_dir, "quantbridge-20260820T000000Z.dump")
+    other_dump = _write_dump(backup_dir, "other-20260101.dump")
+    notes = backup_dir / "notes.txt"
+    notes.write_text("keep", encoding="utf-8")
+    nested_dump = _write_dump(
+        backup_dir / "sub", "quantbridge-20260101T000000Z.dump"
+    )
+    old_timestamp = time.time() - (retain_days + 16) * 86_400
+    fresh_timestamp = time.time() - 86_400
+    for path in (old_dump, old_dump.with_suffix(".dump.meta"), other_dump, notes, nested_dump):
+        os.utime(path, (old_timestamp, old_timestamp))
+    os.utime(fresh_dump, (fresh_timestamp, fresh_timestamp))
+
+    result = run_retain(backup_dir, retain_days)
+
+    assert result.returncode == 0, result.stderr
+    assert not old_dump.exists()
+    assert not old_dump.with_suffix(".dump.meta").exists()
+    assert fresh_dump.exists()
+    assert other_dump.exists()
+    assert notes.exists()
+    assert nested_dump.exists()
+    assert "14일 경과분 2개 파일 삭제 · 현재 보관 1개 /" in result.stdout
+
+
+@pytest.mark.parametrize(
+    ("prefix", "expected_name"),
+    [
+        ("", "quantbridge-20260821T000000Z.dump"),
+        ("qb", "qb/quantbridge-20260821T000000Z.dump"),
+        ("qb/", "qb/quantbridge-20260821T000000Z.dump"),
+    ],
+)
+def test_upload_normalizes_prefix_and_passes_oci_argv(
+    tmp_path: Path, prefix: str, expected_name: str
+) -> None:
+    """업로드는 스텁 호출을 증명하고 버킷·파일·인증 argv를 빠짐없이 전달한다."""
+    upload_path = _write_dump(tmp_path / "backups", "quantbridge-20260821T000000Z.dump")
+
+    result, oci_log = run_upload(tmp_path, upload_path, prefix=prefix)
+
+    assert result.returncode == 0, result.stderr
+    assert oci_log.is_file()
+    assert oci_log.read_text(encoding="utf-8")
+    argv = oci_log.read_text(encoding="utf-8").splitlines()
+    assert argv == [
+        "os",
+        "object",
+        "put",
+        "--auth",
+        "instance_principal",
+        "--bucket-name",
+        "shared-backups",
+        "--file",
+        str(upload_path),
+        "--name",
+        expected_name,
+        "--force",
+    ]
+    assert "//" not in argv[argv.index("--name") + 1]
+
+
+def test_upload_propagates_oci_failure_code(tmp_path: Path) -> None:
+    """원격 CLI 실패는 성공으로 감추지 않고 호출자의 종료 코드로 전달한다."""
+    upload_path = _write_dump(tmp_path / "backups", "quantbridge-20260821T000000Z.dump")
+
+    result, oci_log = run_upload(tmp_path, upload_path, prefix="qb", oci_stub_rc=7)
+
+    assert oci_log.is_file()
+    assert oci_log.read_text(encoding="utf-8")
+    assert result.returncode == 7
