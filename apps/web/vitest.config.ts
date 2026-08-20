@@ -33,6 +33,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(dirname, "./src"),
+      // ★`server-only` 는 vitest 에서 top-level throw 다(exports 맵이 `react-server` 조건에서만
+      //   빈 모듈을 준다). `vi.mock` 으로는 못 막는다 — CJS 외부화라 Node 의 require 가 먼저 돈다.
+      //   근거·범위는 `tests/stubs/server-only.ts` 헤더에 있다.
+      "server-only": path.resolve(dirname, "./tests/stubs/server-only.ts"),
     },
   },
 });

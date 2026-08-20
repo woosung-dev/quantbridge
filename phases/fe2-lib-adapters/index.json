@@ -1,0 +1,18 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe2-lib-adapters",
+  "steps": [
+    {
+      "step": 0,
+      "name": "url-and-resolver",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run src/lib/__tests__/webhook-base.test.ts src/lib/__tests__/zod-v4-resolver.test.ts",
+        "cd apps/web && test \"$(pnpm exec vitest list src/lib/__tests__/webhook-base.test.ts 2>/dev/null | grep -c ' > ')\" -ge 6",
+        "cd apps/web && test \"$(pnpm exec vitest list src/lib/__tests__/zod-v4-resolver.test.ts 2>/dev/null | grep -c ' > ')\" -ge 6",
+        "cd apps/web && pnpm exec eslint src/lib/__tests__/webhook-base.test.ts src/lib/__tests__/zod-v4-resolver.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

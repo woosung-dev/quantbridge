@@ -1,0 +1,28 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe2-proxy-gate",
+  "steps": [
+    {
+      "step": 0,
+      "name": "public-and-geo-verdict",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run src/__tests__/proxy-gate.test.ts",
+        "cd apps/web && test \"$(pnpm exec vitest list src/__tests__/proxy-gate.test.ts 2>/dev/null | grep -c ' > ')\" -ge 9",
+        "cd apps/web && pnpm exec eslint src/__tests__/proxy-gate.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "session-redirect",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run src/__tests__/proxy-gate.test.ts",
+        "cd apps/web && test \"$(pnpm exec vitest list src/__tests__/proxy-gate.test.ts 2>/dev/null | grep -c ' > ')\" -ge 15",
+        "cd apps/web && pnpm exec eslint src/__tests__/proxy-gate.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

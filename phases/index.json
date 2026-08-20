@@ -99,6 +99,38 @@
       "dir": "ops2-logs-follow",
       "status": "completed",
       "completed_at": "2026-08-21T01:05:32+0900"
+    },
+    {
+      "dir": "fe2-proxy-gate",
+      "status": "pending"
+    },
+    {
+      "dir": "fe2-route-matcher",
+      "status": "pending"
+    },
+    {
+      "dir": "fe2-auth-hooks",
+      "status": "pending"
+    },
+    {
+      "dir": "fe2-auth-server",
+      "status": "pending"
+    },
+    {
+      "dir": "fe2-builtin-hints",
+      "status": "pending"
+    },
+    {
+      "dir": "fe2-marketing-canon",
+      "status": "pending"
+    },
+    {
+      "dir": "fe2-lib-adapters",
+      "status": "pending"
+    },
+    {
+      "dir": "fe2-ui-reactive",
+      "status": "pending"
     }
   ]
 }

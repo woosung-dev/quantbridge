@@ -474,6 +474,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 | [BL-717](#bl-717) | ✅ **API 계약축 PoC — Resolved** (2026-08-13 contract-poc, [ADR-031]). 결정적 export `contracts/openapi/openapi.json`(2회 sha 동일·`--check` 양음성 실증) + 후보 판정 = **orval(client:'zod') 채택**(zod v4 직출력·tsc strict·수기와 공존 vitest 3/3). hey-api 는 자체 TS7 의존 크래시로 실행 불가 탈락. ★구조 diff 핵심 = **datetime 엄격도 역전**(계약 Z-only vs 수기 offset 허용 — BE 실직렬화 실측 전 런타임 투입 금지). 번들 3endpoint 2.9KB gz. CI 배선·전면 전환은 [ADR-031] §비결정                                                                                                                                                                                                                                                                                                               | PR-1(ADR-029 재배치) 머지 후                                                                                    | M               | 2026-08-13 monorepo-realign                                  |
 | [BL-742](#bl-742) | ⏳ 반전·순포지션 가정 **163곳/12파일** 전수 감사([ADR-032] §대가). ★긴급도 하락 — 2026-08-15 A1 이 「반전은 소크 사망 원인이 **아니다**」를 보였다(서버=계정 배타성, 로컬=맥 sleep). **예방 축**이다. ★감사(읽기)와 수리(쓰기)를 나눠라 — 수리는 재-pin 을 부른다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | 미도래 — 반전이 다시 지목되거나 헤지 재검토 시                                                                  | M (2-3h)        | 2026-08-15 soak-survival                                     |
 | [BL-812](#bl-812) | ✅ **[ADR-037] 재입힘 목록 대상 생존 7종에 pytest 최소판 — Resolved (2026-08-21 밤샘 루프 1차)**. 재입힘 **7/7** + 인접 4종. `apps/api/tests/scripts/` 신규 8파일 **0건 → 138 passed + 2 xfailed** (8 lane 워크트리 병렬 · 8/8 completed · retry 0 · 변이 10/10 red · PR #713~#720). ★러너가 남긴 xfail 1건이 **phantom** 이었다(픽스처가 alembic 화살표 의미를 뒤집음 → CONTROL 이 정정, [LESSON-121]). ★진짜 결함 2건은 strict xfail 로 고정 — `soak-restart.sh --help` 범위 드리프트 · [BL-791] shim 내용물 미검증                                                                                                                                                                                                                                                                                     | 도래 — 2026-08-20 실사(`git ls-tree harness-v1`)                                                                | M (8 lane 병렬) | 2026-08-20 하네스 4회차                                      |
+| [BL-813](#bl-813) | 🔵 **FE 순수 판정 모듈 테스트 0건 — 인증 경계가 무증거로 산다**. 전이 폐포 실측(2026-08-21) 소스 343 중 **어떤 테스트도 import 하지 않는 것 58**, 그중 판정 로직 5종이 완전 미도달 — `proxy.ts`(공개 라우트·geo L2·세션 완전 검증) · `lib/route-matcher.ts` · `lib/auth.ts`(**geo L3 + 탈퇴 fail-closed** — 둘 다 codex P1/P2 수리인데 재는 테스트가 없다) · `lib/auth-server.ts` · `lib/legal-links.ts`. ★같은 자리에서 이 레포는 이미 「**geo L3 이 한 번도 발화한 적 없었다**」를 밟았다([LESSON-114]). 처방 = 대상 **무변경**으로 테스트 파일 10개 신설, 8 lane 워크트리 병렬(`phases/fe2-*`)                                                                                                                                                                                                         | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 2차                                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -1945,6 +1946,47 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
+
+### BL-813
+
+**Title:** FE 순수 판정 모듈에 테스트가 0건이다 — 인증 경계(`proxy.ts`)·마케팅 캐논·어댑터가 무증거로 산다
+**Category:** 테스트 / 프런트엔드
+**상태:** 🔵 **ACTIVE** — 2026-08-21 밤샘 루프 2차가 짊어진다
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-21 전이 폐포 실측으로 확인됐다
+**Est:** M (8 lane 워크트리 병렬)
+**출처:** 2026-08-21 밤샘 루프 2차 착수 (1차 [BL-812] 의 FE 판)
+
+**원인 / 영향:** `apps/web` 의 vitest 는 227 파일 1,497 케이스로 두텁지만, **어떤 테스트도 import 하지
+않는 소스가 58개**다(전이 폐포 실측 2026-08-21 — 소스 343 중). 그중 **완전 미도달 5종이 판정 로직**이다:
+
+- `src/proxy.ts` — **이 앱의 인증 경계**([ADR-034] 가 Clerk 미들웨어를 대신한 자리). 공개 라우트 판정 ·
+  geo L2 리다이렉트 · 세션 완전 검증이 전부 여기 있는데 테스트가 0건이다
+- `src/lib/route-matcher.ts` — 그 판정을 컴파일하는 술어
+- `src/lib/auth.ts` — **geo-block L3**(가입 거부)과 **탈퇴 fail-closed**(돈을 멈추는 경로).
+  둘 다 2026-08-17 codex 적대 리뷰의 P1/P2 수리인데 그 수리를 재는 테스트가 없다
+- `src/lib/auth-server.ts` — SSR prefetch 의 `{userId, token}`. 「실패를 삼킨다」가 계약이다
+- `src/lib/legal-links.ts` — 법무 링크 상수
+
+★**이 축의 위험은 「있다고 여겨진 것이 그 경로를 안 지났다」이다** — 이 레포가 이미 4번 밟았고,
+그중 하나가 바로 **geo-block L3 이 한 번도 발화한 적이 없었다**는 것이다([LESSON-114]).
+같은 자리에 다시 테스트가 없다.
+
+★**직접 단언 0(전이적으로만 실행)** 인 것도 함께 든다 — `lib/unsupported-builtin-hints.ts`(화면에
+나가는 미지원 사유 문장) · `lib/marketing-canon.ts`(화면 3벌이 셀 단위로 같은 값을 렌더하는 공동 원장) ·
+`lib/webhook-base.ts`(dev/prod 배지) · `lib/zod-v4-resolver.ts`(폼 오류 매핑) ·
+`store/ui-store.ts` · `hooks/use-media-query.ts`.
+
+**처방:** 대상 소스 **무변경**으로 `apps/web` 에 테스트 파일 10개를 신설한다. 8 lane 워크트리 병렬
+(`phases/fe2-*`). lane 간 파일 겹침 0 — 각 lane 은 자기 테스트 파일만 만들고 대상 소스 ·
+`vitest.config.ts` · `tests/setup.ts` 를 건드리지 않는다.
+
+★**착수 전 실측(2026-08-21)** — AC 판별력 8/8 red(`pnpm test -- --run <부재 파일>` rc=1 ·
+양성 대조 count=0 → rc=1) · 기준선 `227 files / 1497 passed · 21초` · `tsc --noEmit` rc=0 · 2초.
+★**구조적 전제 1건을 사전 배치 커밋이 해결했다** — `src/lib/auth-server.ts` 는 `import "server-only"`
+가 **vitest 에서 top-level throw** 라 import 조차 불가능했다(`vi.mock` 으로도 못 막는다 — CJS
+외부화라 Node 의 require 가 먼저 돈다). `vitest.config.ts` 의 `resolve.alias` + `tests/stubs/server-only.ts`
+로 길을 텄다.
 
 ### BL-811
 

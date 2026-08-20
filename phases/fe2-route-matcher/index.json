@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe2-route-matcher",
+  "steps": [
+    {
+      "step": 0,
+      "name": "anchor-contract",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run src/lib/__tests__/route-matcher.test.ts",
+        "cd apps/web && test \"$(pnpm exec vitest list src/lib/__tests__/route-matcher.test.ts 2>/dev/null | grep -c ' > ')\" -ge 10",
+        "cd apps/web && pnpm exec eslint src/lib/__tests__/route-matcher.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}
