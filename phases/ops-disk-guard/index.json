@@ -1,0 +1,26 @@
+{
+  "project": "QuantBridge",
+  "phase": "ops-disk-guard",
+  "steps": [
+    {
+      "step": 0,
+      "name": "disk-firing-matrix",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_disk_guard.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_disk_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "disk-state-and-rc",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_disk_guard.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_disk_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
+        "cd apps/api && uv run ruff check tests/scripts/"
+      ]
+    }
+  ]
+}

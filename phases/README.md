@@ -9,26 +9,34 @@
 (출처 레포 jha0313/finsight 에서는 `0-foundation` → `1-core-loop` → … 처럼 **순번**이었다.
 우리는 같은 파일을 병렬 묶음에도 쓴다. 어느 쪽인지는 아래 절이 말한다.)
 
-## 지금 열려 있는 병렬 묶음 — `runner-*` 4벌 (2026-08-20)
+## 지금 열려 있는 병렬 묶음 — `ops-*` 6벌 (2026-08-20)
 
-러너 자신의 테스트를 4축으로 가른 것이다. **넷은 동시에 돌도록 설계됐다.**
+`tools/scripts/` 의 **운영 스크립트 판정 로직**을 6축으로 가른 것이다. **여섯은 동시에 돌도록 설계됐다.**
 
-| phase           | 대상 (`execute.py`)             | 새 테스트 파일                              |
-| --------------- | ------------------------------- | ------------------------------------------- |
-| `runner-ac`     | `_run_ac` 판정                  | `apps/api/tests/harness/test_execute_ac.py` |
-| `runner-retry`  | codex 호출 · 재시도 · 출구      | `.../test_execute_retry.py`                 |
-| `runner-commit` | 2단 커밋 · 브랜치 · 상태 인덱스 | `.../test_execute_commit.py`                |
-| `runner-boot`   | 시작 거부 · 형식 계약           | `.../test_execute_boot.py`                  |
+| phase               | 대상 (`tools/scripts/`)            | 새 테스트 파일 (`apps/api/tests/scripts/`) |
+| ------------------- | ---------------------------------- | ------------------------------------------ |
+| `ops-ledger-vitals` | `ledger-vitals.sh` 3축 판정        | `test_ledger_vitals.py`                    |
+| `ops-disk-guard`    | `disk-guard.sh` 임계·전이 발화     | `test_disk_guard.py`                       |
+| `ops-db-backup`     | `db-backup.sh` 인자·대상 증명      | `test_db_backup_target.py`                 |
+| `ops-openapi-poc`   | `openapi-poc-filter.py` 폐포·drift | `test_openapi_poc_filter.py`               |
+| `ops-soak-observe`  | `soak-observe.sh` fail-closed·차분 | `test_soak_observe.py`                     |
+| `ops-main-checkout` | `assert-main-checkout.sh` 워크트리 | `test_assert_main_checkout.py`             |
 
 동시에 돌 수 있는 근거는 **파일 겹침 0** 이다 — 각 lane 은 자기 테스트 파일 하나만 만들고
-`execute.py`·`conftest.py`·`shards.json` 을 건드리지 않는다(각 step 의 금지사항에 박혀 있다).
+대상 스크립트·`conftest.py`·`shards.json` 을 건드리지 않는다(각 step 의 금지사항에 박혀 있다).
+공용 헬퍼 모듈도 금지다 — 그것이 lane 사이의 유일한 공유 파일이 되기 때문이다.
 
-## ★ 병렬로 돌릴 때 먼저 할 것
+★**대상을 tmp 로 돌리는 방식이 lane 마다 다르다.** 환경변수로 대상을 바꿀 수 있는 넷
+(`ledger-vitals` 는 argv 플래그 · `disk-guard`·`db-backup` 은 env · `assert-main-checkout` 은
+cwd)은 **진짜 파일을 그대로 호출**하고, 못 바꾸는 둘(`soak-observe.sh` 의
+`STATE_DIR=${REPO_ROOT}/.soak` · `openapi-poc-filter.py` 의 `SOURCE`/`OUTPUT`)은
+**`tmp_path` 아래 가짜 레포에 복사해서** 돈다. 진짜 경로를 겨누면 이 레포의 소크 앵커나
+커밋된 OpenAPI 산출물을 덮어쓴다.
 
-**워크트리를 파기 전에 `phases/index.json` 에 lane 항목을 전부 등록해 둬라.**
-그 파일은 모든 lane 이 갱신하는 **유일한 공유 파일**이다(`execute.py` 의 `_update_top_index`).
-미리 등록해 두면 각 lane 이 **서로 다른 줄의 `status` 값만** 바꿔 3-way 자동 병합된다.
-나중에 각자 추가하면 배열 끝 **같은 위치**를 고쳐 충돌한다.
+### 앞선 묶음 (완주)
+
+`runner-*` 4벌 (2026-08-20 · PR #698~#702) — 러너 자신(`tools/harness/execute.py`)의 테스트
+0건을 `apps/api/tests/harness/test_execute_{ac,retry,commit,boot}.py` **41건**으로 채웠다.
 
 ## 이 저장소의 바인딩
 
