@@ -109,7 +109,7 @@ function productionFiles(): string[] {
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir)) {
       // generated/ — 코드젠 산출물(BL-717). 노출 산문의 저자가 아니다 — header-audit
-      // EXEMPT_PATH_PARTS(/generated/)·eslint ignores(src/**/generated/**)와 같은 축.
+      // EXEMPT_PATH_PARTS(/generated/)·biome.jsonc files.includes(!**/generated)와 같은 축.
       if (
         entry === "node_modules" ||
         entry === "__tests__" ||
