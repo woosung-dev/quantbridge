@@ -89,7 +89,7 @@ beforeEach(() => {
   mocks.useTradeOhlcv.mockReset();
   mocks.tradingChart.mockReset();
   mocks.tradingChart.mockImplementation((props: ChartProps) => (
-    <div data-testid="mock-trading-chart" aria-label={props.ariaLabel} />
+    <div data-testid="mock-trading-chart" role="img" aria-label={props.ariaLabel} />
   ));
   mocks.useTradeOhlcv.mockReturnValue(queryResult({ data: response }));
 });

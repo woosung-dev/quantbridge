@@ -38,7 +38,7 @@ describe("countActiveFilters", () => {
 });
 
 describe("TradeFilterRow", () => {
-  it("renders 6 filter inputs + role=group + 활성 0이면 pill 숨김", () => {
+  it("renders 6 filter inputs in a semantic fieldset + 활성 0이면 pill 숨김", () => {
     render(
       <TradeFilterRow
         filters={DEFAULT_FILTERS}
@@ -50,9 +50,9 @@ describe("TradeFilterRow", () => {
         onReset={vi.fn()}
       />,
     );
-    const group = screen.getByLabelText("거래 필터");
-    expect(group).toBeInTheDocument();
-    expect(group).toHaveAttribute("role", "group");
+    const fieldset = screen.getByLabelText("거래 필터");
+    expect(fieldset).toBeInTheDocument();
+    expect(fieldset.tagName).toBe("FIELDSET");
     // 검색 input
     expect(screen.getByLabelText("거래 검색")).toBeInTheDocument();
     // 기간 2개

@@ -37,11 +37,10 @@ export function ChartLegend({
   className,
 }: ChartLegendProps) {
   return (
-    <div
-      role="list"
+    <ul
       aria-label="차트 범례"
       className={[
-        "flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground",
+        "m-0 flex list-none flex-wrap items-center gap-x-4 gap-y-1 rounded-md border bg-card px-3 py-2 text-xs text-muted-foreground",
         className ?? "",
       ]
         .filter(Boolean)
@@ -116,7 +115,7 @@ export function ChartLegend({
           label="Drawdown (손실 폭)"
         />
       )}
-    </div>
+    </ul>
   );
 }
 
@@ -128,9 +127,9 @@ interface LegendItemProps {
 
 function LegendItem({ ariaLabel, marker, label }: LegendItemProps) {
   return (
-    <span role="listitem" aria-label={ariaLabel} className="inline-flex items-center gap-1.5">
+    <li aria-label={ariaLabel} className="inline-flex items-center gap-1.5">
       {marker}
       <span className="text-foreground/80">{label}</span>
-    </span>
+    </li>
   );
 }

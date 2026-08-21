@@ -65,12 +65,12 @@ describe("ParamStabilityHeatmap (Sprint 51 BL-220)", () => {
     expect(dashes.length).toBeGreaterThan(0);
   });
 
-  it("table aria-label + 셀 tabIndex (keyboard 접근)", () => {
+  it("table aria-label + 셀 aria-label", () => {
     render(<ParamStabilityHeatmap result={makeResult()} />);
     const table = screen.getByLabelText("Param Stability heatmap");
     expect(table).toBeInTheDocument();
     expect(table.tagName).toBe("TABLE");
-    const focusableCells = table.querySelectorAll('td[tabindex="0"]');
-    expect(focusableCells.length).toBe(9);
+    const labelledCells = table.querySelectorAll("td[aria-label]");
+    expect(labelledCells.length).toBe(9);
   });
 });

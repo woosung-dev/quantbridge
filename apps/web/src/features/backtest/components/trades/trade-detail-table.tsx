@@ -383,9 +383,8 @@ function ExpandedDetail({ backtestId, trade }: { backtestId?: string; trade: Tra
   const toneP = isProfit ? "pos" : "neg";
   return (
     <>
-      <div
+      <section
         className="trade-detail-metrics"
-        role="region"
         aria-label={`거래 #${trade.trade_index} 상세 정보`}
         data-testid="trade-detail-expanded"
       >
@@ -418,7 +417,7 @@ function ExpandedDetail({ backtestId, trade }: { backtestId?: string; trade: Tra
           <Metric label="수익률" value={formatPercent(trade.return_pct)} tone={toneP} />
           <Metric label="수수료" value={formatCurrency(trade.fees)} />
         </div>
-      </div>
+      </section>
       {backtestId ? (
         <TradeRangeChart backtestId={backtestId} tradeIndex={trade.trade_index} trade={trade} />
       ) : null}

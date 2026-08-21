@@ -38,7 +38,7 @@ export function BacktestTradingSessionsFieldSet({
           </p>
         </div>
       </div>
-      <div className="tabs" role="group" aria-label="거래 세션 선택">
+      <fieldset className="tabs m-0 min-w-0 border-0 p-0" aria-label="거래 세션 선택">
         {(["asia", "london", "ny"] as const).map((s) => {
           const checked = (watchedSessions ?? []).includes(s);
           return (
@@ -58,7 +58,7 @@ export function BacktestTradingSessionsFieldSet({
             </button>
           );
         })}
-      </div>
+      </fieldset>
     </section>
   );
 }

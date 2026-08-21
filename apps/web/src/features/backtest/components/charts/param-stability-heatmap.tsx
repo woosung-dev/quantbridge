@@ -77,12 +77,10 @@ export function ParamStabilityHeatmap({ result }: Props) {
                   <td
                     key={`${v1}-${v2}`}
                     className={cn(
-                      // 자체 focus ring 제거 — 전역 :focus-visible 카퍼 링을 소비한다.
                       "p-2 text-xs text-center min-w-[72px] border border-border",
                       cell.is_degenerate && "text-muted-foreground",
                     )}
                     style={cell.is_degenerate ? undefined : { background: bgFor(cell) }}
-                    tabIndex={0}
                     aria-label={tooltip.replace(/\n/g, ", ")}
                     title={tooltip}
                   >

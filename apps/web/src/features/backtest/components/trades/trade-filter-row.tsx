@@ -80,7 +80,11 @@ export function TradeFilterRow({
   const sortValue = `${sortField}:${sortDir}` as `${TradeSortField}:${TradeSortDir}`;
 
   return (
-    <div className="toolbar" role="group" aria-label="거래 필터" data-testid="trade-filter-row">
+    <fieldset
+      className="toolbar m-0 min-w-0 border-0 p-0"
+      aria-label="거래 필터"
+      data-testid="trade-filter-row"
+    >
       {/* 1. 검색 */}
       <input
         className="input"
@@ -185,15 +189,15 @@ export function TradeFilterRow({
       {/* 활성 pill + 초기화 */}
       {activeCount > 0 ? (
         <>
-          <span className="chip accent" aria-label={`활성 필터 ${activeCount}개`}>
+          <output className="chip accent" aria-label={`활성 필터 ${activeCount}개`}>
             필터 {activeCount}개
-          </span>
+          </output>
           <button type="button" className="btn btn-ghost btn-xs" onClick={onReset}>
             초기화
           </button>
         </>
       ) : null}
-    </div>
+    </fieldset>
   );
 }
 
