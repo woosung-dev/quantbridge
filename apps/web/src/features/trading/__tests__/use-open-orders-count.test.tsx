@@ -32,9 +32,10 @@ describe("useOpenOrdersCount", () => {
     const { result } = renderHook(() => useOpenOrdersCount(), { wrapper });
 
     await waitFor(() => expect(result.current).toBe(7));
-    expect(apiFetchMock).toHaveBeenCalledWith(
-      "/api/v1/orders?state=pending&state=submitted",
-      { method: "GET", token: "token", params: { limit: 1, offset: 0 } },
-    );
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/orders?state=pending&state=submitted", {
+      method: "GET",
+      token: "token",
+      params: { limit: 1, offset: 0 },
+    });
   });
 });

@@ -21,10 +21,7 @@ import {
   STRESS_TEST_STATUS_LABEL,
   stressTestHistoryTruncatedLabel,
 } from "@/features/backtest/labels";
-import type {
-  StressTestHeadlineMetric,
-  StressTestSummary,
-} from "@/features/backtest/schemas";
+import type { StressTestHeadlineMetric, StressTestSummary } from "@/features/backtest/schemas";
 import { formatDateTime, formatPercent } from "@/features/backtest/utils";
 import { CHIP_TONE_CLASS, EMPTY_CELL, labelOf, statusLabelOf } from "@/lib/labels";
 
@@ -46,9 +43,7 @@ export interface StressTestHistoryTableProps {
  * 대표 지표 1칸의 표기. 값이 없으면 `EMPTY_CELL`, 있으면 "이름 값" 이다.
  * 지표마다 단위가 다르므로 포맷도 지표별로 갈린다 — MDD 는 비율이라 %, 나머지는 배수/지수다.
  */
-export function formatHeadlineMetric(
-  metric: StressTestHeadlineMetric | null,
-): string {
+export function formatHeadlineMetric(metric: StressTestHeadlineMetric | null): string {
   if (metric === null) return EMPTY_CELL;
   const name = labelOf(
     STRESS_TEST_HEADLINE_METRIC_LABEL,
@@ -63,10 +58,7 @@ export function formatHeadlineMetric(
   }
   const parsed = Number(metric.value);
   if (!Number.isFinite(parsed)) return EMPTY_CELL;
-  const shown =
-    metric.key === "max_drawdown_p95"
-      ? formatPercent(parsed, 2)
-      : parsed.toFixed(2);
+  const shown = metric.key === "max_drawdown_p95" ? formatPercent(parsed, 2) : parsed.toFixed(2);
   return `${name} ${shown}`;
 }
 
@@ -79,27 +71,15 @@ export function StressTestHistoryTable({
   isError,
 }: StressTestHistoryTableProps) {
   if (isError) {
-    return (
-      <p className="text-sm text-destructive">
-        {STRESS_TEST_HISTORY_LABEL.loadFailed}
-      </p>
-    );
+    return <p className="text-sm text-destructive">{STRESS_TEST_HISTORY_LABEL.loadFailed}</p>;
   }
 
   if (isLoading && items.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        {STRESS_TEST_HISTORY_LABEL.loading}
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">{STRESS_TEST_HISTORY_LABEL.loading}</p>;
   }
 
   if (items.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        {STRESS_TEST_HISTORY_LABEL.empty}
-      </p>
-    );
+    return <p className="text-sm text-muted-foreground">{STRESS_TEST_HISTORY_LABEL.empty}</p>;
   }
 
   return (
@@ -143,23 +123,15 @@ export function StressTestHistoryTable({
                 className={isSelected ? "border-b bg-muted/50" : "border-b"}
               >
                 <td className="p-2">
-                  {labelOf(
-                    STRESS_TEST_KIND_LABEL,
-                    item.kind,
-                    "stress-test-kind",
-                  )}
+                  {labelOf(STRESS_TEST_KIND_LABEL, item.kind, "stress-test-kind")}
                 </td>
                 <td className="p-2">
-                  <span className={CHIP_TONE_CLASS[statusLabel.tone]}>
-                    {statusLabel.label}
-                  </span>
+                  <span className={CHIP_TONE_CLASS[statusLabel.tone]}>{statusLabel.label}</span>
                 </td>
                 <td className="p-2 tabular-nums" data-testid="stress-test-history-metric">
                   {formatHeadlineMetric(item.headline_metric)}
                 </td>
-                <td className="p-2 whitespace-nowrap">
-                  {formatDateTime(item.created_at)}
-                </td>
+                <td className="p-2 whitespace-nowrap">{formatDateTime(item.created_at)}</td>
                 <td className="p-2">
                   <Button
                     type="button"

@@ -118,10 +118,7 @@ vi.mock("@/components/ui/select", () => {
   const SelectTrigger = ({ children }: Props) => <div>{children}</div>;
   const SelectValue = ({ placeholder }: Props) => <span>{placeholder}</span>;
   const SelectContent = ({ children }: Props) => <div>{children}</div>;
-  const SelectItem = ({
-    value,
-    children,
-  }: Props & { value: string }) => {
+  const SelectItem = ({ value, children }: Props & { value: string }) => {
     const ctx = React.useContext(SelectCtx);
     return (
       <button
@@ -217,13 +214,9 @@ describe("TestOrderDialog", () => {
     clickSubmit();
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Webhook secret 캐시 없음/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Webhook secret 캐시 없음/)).toBeInTheDocument();
     });
-    expect(
-      screen.getByText(/테스트 주문 \(dogfood-only\)/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/테스트 주문 \(dogfood-only\)/)).toBeInTheDocument();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -232,8 +225,7 @@ describe("TestOrderDialog", () => {
     // Python: hmac.new(b"test_secret_abc",
     //   '{"symbol":"BTCUSDT","side":"buy","type":"market","quantity":"0.001","exchange_account_id":"550e8400-e29b-41d4-a716-446655440000"}'.encode(),
     //   hashlib.sha256).hexdigest()
-    const EXPECTED_HEX =
-      "e4afb16c0e07eaf8ed219a072b59a47ae7619231c03cace98b376795901031e5";
+    const EXPECTED_HEX = "e4afb16c0e07eaf8ed219a072b59a47ae7619231c03cace98b376795901031e5";
 
     const secret = "test_secret_abc";
     const bodyStr = JSON.stringify({
@@ -290,10 +282,7 @@ describe("TestOrderDialog", () => {
     expect(arg1?.description).toContain(FIXED_UUID.slice(-8));
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [calledUrl, calledInit] = fetchMock.mock.calls[0] as [
-      string,
-      RequestInit,
-    ];
+    const [calledUrl, calledInit] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(calledUrl).toContain(`/api/v1/webhooks/${STRATEGY_ID}?token=`);
     expect(calledUrl).toContain(`Idempotency-Key=${FIXED_UUID}`);
     expect(calledInit.method).toBe("POST");
@@ -309,9 +298,7 @@ describe("TestOrderDialog", () => {
     );
 
     await waitFor(() => {
-      expect(
-        screen.queryByText(/테스트 주문 \(dogfood-only\)/),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/테스트 주문 \(dogfood-only\)/)).not.toBeInTheDocument();
     });
   });
 
@@ -352,8 +339,7 @@ describe("TestOrderDialog", () => {
     readWebhookSecretMock.mockReturnValue("test_secret_abc");
     const fetchMock = vi.fn().mockResolvedValue({
       status: 422,
-      text: async () =>
-        '{"detail":"Missing required field: exchange_account_id"}',
+      text: async () => '{"detail":"Missing required field: exchange_account_id"}',
     } as Response);
     vi.stubGlobal("fetch", fetchMock);
 
@@ -366,9 +352,7 @@ describe("TestOrderDialog", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(/요청 실패 \(422\)/);
     });
     expect(toastSuccessMock).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(/테스트 주문 \(dogfood-only\)/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/테스트 주문 \(dogfood-only\)/)).toBeInTheDocument();
   });
 
   // Sprint 14 Phase B-1 — WebCrypto 미지원 / SubtleCrypto throw 시 unhandled
@@ -379,9 +363,7 @@ describe("TestOrderDialog", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     // crypto.subtle.sign mock — 첫 호출에서 throw (구식 브라우저 / non-HTTPS / 정책).
-    vi.spyOn(crypto.subtle, "sign").mockRejectedValue(
-      new Error("SubtleCrypto unavailable"),
-    );
+    vi.spyOn(crypto.subtle, "sign").mockRejectedValue(new Error("SubtleCrypto unavailable"));
 
     renderDialog();
     openDialog();
@@ -393,9 +375,7 @@ describe("TestOrderDialog", () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
     // dialog 유지
-    expect(
-      screen.getByText(/테스트 주문 \(dogfood-only\)/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/테스트 주문 \(dogfood-only\)/)).toBeInTheDocument();
   });
 
   // Wave 2 — TP/SL 입력 시 payload 에 값 있을 때만 append (기본 5필드 순서 보존).
@@ -474,10 +454,7 @@ describe("TestOrderDialog", () => {
       expect(fetchMock).toHaveBeenCalledTimes(1);
     });
     const [, calledInit] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(calledInit.body as string) as Record<
-      string,
-      unknown
-    >;
+    const body = JSON.parse(calledInit.body as string) as Record<string, unknown>;
     expect(body.quantity).toBe("0.001");
     expect(body.risk_percent).toBe("1.5");
   });
@@ -498,9 +475,7 @@ describe("TestOrderDialog", () => {
     clickSubmit();
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/리스크 % 상한 검증에는 손절가가 필요합니다/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/리스크 % 상한 검증에는 손절가가 필요합니다/)).toBeInTheDocument();
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });

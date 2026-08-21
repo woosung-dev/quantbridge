@@ -37,9 +37,8 @@ const BH: EquityPoint[] = Array.from({ length: 200 }, (_, i) => ({
 
 describe("EquityChartV2 — Sprint 43 W10 prototype 02 controls", () => {
   beforeEach(() => {
-    (
-      globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }
-    ).ResizeObserver = MockResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
+      MockResizeObserver;
   });
 
   afterEach(() => {
@@ -73,21 +72,13 @@ describe("EquityChartV2 — Sprint 43 W10 prototype 02 controls", () => {
   });
 
   it("Buy & Hold 체크박스는 buyAndHoldCurve 가 있을 때만 표시된다", () => {
-    const { rerender } = render(
-      <EquityChartV2 equityCurve={EQUITY} initialCapital={10000} />,
-    );
+    const { rerender } = render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} />);
 
     expect(
       screen.queryByRole("checkbox", { name: "Buy and Hold 비교 표시" }),
     ).not.toBeInTheDocument();
 
-    rerender(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        buyAndHoldCurve={BH}
-      />,
-    );
+    rerender(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} buyAndHoldCurve={BH} />);
 
     const bhCheckbox = screen.getByRole("checkbox", {
       name: "Buy and Hold 비교 표시",
@@ -110,31 +101,17 @@ describe("EquityChartV2 — Sprint 43 W10 prototype 02 controls", () => {
   });
 
   it("BH checkbox 를 끄면 ChartLegend 에서 BH 항목이 hide 된다", () => {
-    render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        buyAndHoldCurve={BH}
-      />,
-    );
+    render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} buyAndHoldCurve={BH} />);
 
     expect(screen.getByText("Buy & Hold (단순보유)")).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("checkbox", { name: "Buy and Hold 비교 표시" }),
-    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Buy and Hold 비교 표시" }));
 
     expect(screen.queryByText("Buy & Hold (단순보유)")).not.toBeInTheDocument();
   });
 
   it("aria-live status 영역이 현재 컨트롤 상태를 announce 한다", () => {
-    render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        buyAndHoldCurve={BH}
-      />,
-    );
+    render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} buyAndHoldCurve={BH} />);
 
     const status = screen.getByRole("status");
     expect(status.textContent).toContain("기간 전체");

@@ -36,11 +36,7 @@ export function describeSharpe(
     };
   }
 
-  if (
-    convention === SHARPE_CONVENTION.unavailable ||
-    value == null ||
-    !Number.isFinite(value)
-  ) {
+  if (convention === SHARPE_CONVENTION.unavailable || value == null || !Number.isFinite(value)) {
     return {
       display: EMPTY_CELL,
       foot: UNAVAILABLE_FOOT,

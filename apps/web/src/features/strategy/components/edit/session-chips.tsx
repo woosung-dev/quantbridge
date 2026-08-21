@@ -22,11 +22,7 @@ interface SessionChipsProps {
 
 export function SessionChips({ value, onChange }: SessionChipsProps) {
   function toggle(session: SessionValue) {
-    onChange(
-      value.includes(session)
-        ? value.filter((s) => s !== session)
-        : [...value, session],
-    );
+    onChange(value.includes(session) ? value.filter((s) => s !== session) : [...value, session]);
   }
 
   return (

@@ -55,10 +55,7 @@ describe("KillSwitchPanel — Sprint 44 W F3 danger state polish", () => {
     const resolveBtn = await screen.findByRole("button", { name: /해결/ });
     expect(resolveBtn.className).toContain("btn-danger");
     // 패널이 active 상태로 전환됐는지도 확인.
-    expect(screen.getByTestId("kill-switch-panel")).toHaveAttribute(
-      "data-state",
-      "active",
-    );
+    expect(screen.getByTestId("kill-switch-panel")).toHaveAttribute("data-state", "active");
   });
 
   // 2026-08-18 — 트리거는 배너와 같은 KS_TRIGGER_LABELS(labels.ts SSOT)를 거쳐

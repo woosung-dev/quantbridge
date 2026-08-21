@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  StrategyResponseSchema,
-  StrategySettingsSchema,
-} from "@/features/strategy/schemas";
+import { StrategyResponseSchema, StrategySettingsSchema } from "@/features/strategy/schemas";
 
 const baseSettings = {
   schema_version: 1,

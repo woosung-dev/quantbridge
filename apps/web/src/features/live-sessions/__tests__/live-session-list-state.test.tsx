@@ -20,9 +20,7 @@ vi.mock("../hooks", () => ({
 import { LiveSessionList } from "../components/live-session-list";
 import { useLiveSessions } from "../hooks";
 
-const mockUseLiveSessions = useLiveSessions as unknown as ReturnType<
-  typeof vi.fn
->;
+const mockUseLiveSessions = useLiveSessions as unknown as ReturnType<typeof vi.fn>;
 
 describe("LiveSessionList state view (BL-174 list-only)", () => {
   test("Loading state — title 로드 중 + testid live-session-loading", () => {
@@ -56,9 +54,7 @@ describe("LiveSessionList state view (BL-174 list-only)", () => {
     });
     render(<LiveSessionList />);
     expect(screen.getByTestId("live-session-empty")).toBeInTheDocument();
-    expect(
-      screen.getByText("활성 세션이 없습니다."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("활성 세션이 없습니다.")).toBeInTheDocument();
   });
 
   test("활성 0건이어도 최근 종료 세션을 표시하고 선택한다", () => {
@@ -140,9 +136,7 @@ describe("LiveSessionList state view (BL-174 list-only)", () => {
 
     // 카드는 그대로 뜨고 사유 칩만 없다 — 마이그레이션 이전 행에서 화면이 깨지지 않는다.
     expect(screen.getByTestId("inactive-live-session-id-legacy")).toBeInTheDocument();
-    expect(
-      screen.queryByTestId("inactive-live-session-reason-id-legacy"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("inactive-live-session-reason-id-legacy")).not.toBeInTheDocument();
   });
 
   test("최근 종료 세션이 없으면 별도 빈 상태를 표시한다", () => {

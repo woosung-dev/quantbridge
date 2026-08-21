@@ -12,10 +12,8 @@ export const strategyKeys = {
   lists: (userId: string) => [...strategyKeys.all(userId), "list"] as const,
   list: (userId: string, query: StrategyListQuery) =>
     [...strategyKeys.lists(userId), query] as const,
-  details: (userId: string) =>
-    [...strategyKeys.all(userId), "detail"] as const,
-  detail: (userId: string, id: string) =>
-    [...strategyKeys.details(userId), id] as const,
+  details: (userId: string) => [...strategyKeys.all(userId), "detail"] as const,
+  detail: (userId: string, id: string) => [...strategyKeys.details(userId), id] as const,
   parse: (userId: string) => [...strategyKeys.all(userId), "parse"] as const,
   // Sprint 7b FIX: 마운트 자동 파싱용 — useQuery 기반 (StrictMode-safe idempotent).
   // 소스 전체를 key로 쓰면 같은 코드에 대한 중복 파싱 방지.

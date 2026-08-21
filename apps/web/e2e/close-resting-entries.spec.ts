@@ -16,7 +16,7 @@ import { fulfillJson } from "./fixtures/api-mock";
 //   앞 시험이 깨질 때 **뒤가 skip 된다.** 이 파일의 뒤쪽 절반이 음성 대조라 그 순간
 //   「구분이 되는가」라는 판정 자체가 사라진다.
 
-const ACCOUNT_ID ="a0000000-0000-4000-a000-0000000000c1";
+const ACCOUNT_ID = "a0000000-0000-4000-a000-0000000000c1";
 const SESSION_ID = "c0000000-0000-4000-8000-0000000000c1";
 const SYMBOL = "BTC/USDT";
 
@@ -89,7 +89,10 @@ const CLOSE_ROUTE = "**/api/v1/live-sessions/*/positions/close**";
 async function openCloseDialog(page: Page, close: { status: number; body: unknown }) {
   await page.route("**/api/v1/live-sessions**", fulfillJson({ items: [], total: 0 }));
   await page.route("**/api/v1/exchange-accounts**", fulfillJson({ items: [ACCOUNT] }));
-  await page.route(`**/api/v1/exchange-accounts/${ACCOUNT_ID}/positions**`, fulfillJson(ACCOUNT_POSITIONS));
+  await page.route(
+    `**/api/v1/exchange-accounts/${ACCOUNT_ID}/positions**`,
+    fulfillJson(ACCOUNT_POSITIONS),
+  );
   await page.route(CLOSE_ROUTE, fulfillJson(close.body, close.status));
 
   await page.goto("/trading", { timeout: 60_000 });

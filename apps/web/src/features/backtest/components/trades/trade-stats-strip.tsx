@@ -47,21 +47,13 @@ export function TradeStatsStrip({ trades }: TradeStatsStripProps) {
       <StatKpi
         label="평균 수익"
         value={stats.winCount > 0 ? formatPercent(stats.avgWinPct) : "—"}
-        foot={
-          stats.winCount > 0
-            ? `최대 ${formatPercent(stats.maxWinPct)}`
-            : "데이터 없음"
-        }
+        foot={stats.winCount > 0 ? `최대 ${formatPercent(stats.maxWinPct)}` : "데이터 없음"}
         tone="pos"
       />
       <StatKpi
         label="평균 손실"
         value={stats.lossCount > 0 ? formatPercent(stats.avgLossPct) : "—"}
-        foot={
-          stats.lossCount > 0
-            ? `최대 ${formatPercent(stats.minLossPct)}`
-            : "데이터 없음"
-        }
+        foot={stats.lossCount > 0 ? `최대 ${formatPercent(stats.minLossPct)}` : "데이터 없음"}
         tone="neg"
       />
       <StatKpi
@@ -86,7 +78,11 @@ interface StatKpiProps {
 
 function StatKpi({ label, value, foot, tone = "neutral" }: StatKpiProps) {
   const valueClass =
-    tone === "pos" ? "kpi-value mono pos" : tone === "neg" ? "kpi-value mono neg" : "kpi-value mono";
+    tone === "pos"
+      ? "kpi-value mono pos"
+      : tone === "neg"
+        ? "kpi-value mono neg"
+        : "kpi-value mono";
   return (
     <article className="card kpi" role="listitem">
       <p className="kpi-label">{label}</p>
@@ -107,37 +103,27 @@ function aggregate(trades: readonly TradeItem[]): AggregatedStats {
   const losses = trades.filter((t) => t.pnl <= 0 && t.exit_time !== null);
 
   const winPcts = wins.map((t) => t.return_pct).filter((v) => Number.isFinite(v));
-  const lossPcts = losses
-    .map((t) => t.return_pct)
-    .filter((v) => Number.isFinite(v));
+  const lossPcts = losses.map((t) => t.return_pct).filter((v) => Number.isFinite(v));
 
-  const avgWinPct =
-    winPcts.length > 0 ? winPcts.reduce((a, b) => a + b, 0) / winPcts.length : 0;
+  const avgWinPct = winPcts.length > 0 ? winPcts.reduce((a, b) => a + b, 0) / winPcts.length : 0;
   const maxWinPct = winPcts.length > 0 ? Math.max(...winPcts) : 0;
   const avgLossPct =
-    lossPcts.length > 0
-      ? lossPcts.reduce((a, b) => a + b, 0) / lossPcts.length
-      : 0;
+    lossPcts.length > 0 ? lossPcts.reduce((a, b) => a + b, 0) / lossPcts.length : 0;
   const minLossPct = lossPcts.length > 0 ? Math.min(...lossPcts) : 0;
 
   const holdMinutes = trades
     .map((t) => {
       if (!t.exit_time) return 0;
-      const ms =
-        new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime();
+      const ms = new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime();
       return ms > 0 && Number.isFinite(ms) ? Math.round(ms / 60000) : 0;
     })
     .filter((v) => v > 0);
 
   const avgHoldMinutes =
-    holdMinutes.length > 0
-      ? holdMinutes.reduce((a, b) => a + b, 0) / holdMinutes.length
-      : 0;
+    holdMinutes.length > 0 ? holdMinutes.reduce((a, b) => a + b, 0) / holdMinutes.length : 0;
   const medianHoldMinutes =
     holdMinutes.length > 0
-      ? [...holdMinutes].sort((a, b) => a - b)[
-          Math.floor(holdMinutes.length / 2)
-        ] ?? 0
+      ? ([...holdMinutes].sort((a, b) => a - b)[Math.floor(holdMinutes.length / 2)] ?? 0)
       : 0;
 
   return {

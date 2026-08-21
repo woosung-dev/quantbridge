@@ -14,16 +14,9 @@ import {
 } from "@tanstack/react-query";
 
 import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
-import {
-  useInvalidatingMutation,
-  type MutationCallbacks,
-} from "@/hooks/use-invalidating-mutation";
+import { useInvalidatingMutation, type MutationCallbacks } from "@/hooks/use-invalidating-mutation";
 
-import {
-  approveWaitlistApplication,
-  listAdminWaitlist,
-  submitWaitlist,
-} from "./api";
+import { approveWaitlistApplication, listAdminWaitlist, submitWaitlist } from "./api";
 import { waitlistKeys } from "./query-keys";
 import type {
   AdminApproveResponse,
@@ -49,11 +42,7 @@ export type { MutationCallbacks };
 
 export function useCreateWaitlist(
   opts: MutationCallbacks<WaitlistApplicationAcceptedResponse> = {},
-): UseMutationResult<
-  WaitlistApplicationAcceptedResponse,
-  Error,
-  CreateWaitlistApplication
-> {
+): UseMutationResult<WaitlistApplicationAcceptedResponse, Error, CreateWaitlistApplication> {
   return useMutation({
     mutationFn: (body: CreateWaitlistApplication) => submitWaitlist(body),
     onSuccess: (data) => opts.onSuccess?.(data),

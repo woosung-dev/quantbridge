@@ -17,9 +17,7 @@ import {
 
 describe("computeOrdersRefetchInterval", () => {
   it("returns 5s when at least one order is pending", () => {
-    expect(
-      computeOrdersRefetchInterval([{ state: "pending" }]),
-    ).toBe(5_000);
+    expect(computeOrdersRefetchInterval([{ state: "pending" }])).toBe(5_000);
     expect(ORDERS_REFETCH_INTERVAL_ACTIVE_MS).toBe(5_000);
   });
 

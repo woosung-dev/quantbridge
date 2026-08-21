@@ -104,13 +104,27 @@ function TableHeaders() {
       <tr>
         <th scope="col">심볼</th>
         <th scope="col">방향</th>
-        <th scope="col" className="num">수량</th>
-        <th scope="col" className="num">진입가</th>
-        <th scope="col" className="num">마크가</th>
-        <th scope="col" className="num">미실현</th>
-        <th scope="col" className="num">수익률</th>
-        <th scope="col" className="num">청산가</th>
-        <th scope="col" className="num">레버리지</th>
+        <th scope="col" className="num">
+          수량
+        </th>
+        <th scope="col" className="num">
+          진입가
+        </th>
+        <th scope="col" className="num">
+          마크가
+        </th>
+        <th scope="col" className="num">
+          미실현
+        </th>
+        <th scope="col" className="num">
+          수익률
+        </th>
+        <th scope="col" className="num">
+          청산가
+        </th>
+        <th scope="col" className="num">
+          레버리지
+        </th>
         <th scope="col">계정</th>
         <th scope="col">청산</th>
       </tr>
@@ -118,34 +132,39 @@ function TableHeaders() {
   );
 }
 
-function PositionRow({
-  row,
-  onClose,
-}: {
-  row: Row;
-  onClose: (row: Row) => void;
-}) {
-  const isClosing = useIsMutating({
-    mutationKey: closePositionMutationKey({
-      sessionId: row.closable_session_id ?? "",
-      symbol: row.symbol,
-    }),
-  }) > 0;
+function PositionRow({ row, onClose }: { row: Row; onClose: (row: Row) => void }) {
+  const isClosing =
+    useIsMutating({
+      mutationKey: closePositionMutationKey({
+        sessionId: row.closable_session_id ?? "",
+        symbol: row.symbol,
+      }),
+    }) > 0;
   const { position } = row;
-  const returnValue = formatPositionReturn(position.side, position.entry_price, position.mark_price);
+  const returnValue = formatPositionReturn(
+    position.side,
+    position.entry_price,
+    position.mark_price,
+  );
   const pnl = Number(position.unrealized_pnl);
   const returnNumber = returnValue === null ? null : Number(returnValue.slice(0, -1));
   return (
     <tr>
       <td className="mono-l">{row.symbol}</td>
-      <td><span className={`side ${position.side}`}>{directionLabel(position.side)}</span></td>
+      <td>
+        <span className={`side ${position.side}`}>{directionLabel(position.side)}</span>
+      </td>
       <td className="num">{position.size}</td>
       <td className="num">{position.entry_price ?? EMPTY_CELL}</td>
       <td className="num">{position.mark_price ?? EMPTY_CELL}</td>
-      <td className={`num ${Number.isFinite(pnl) && pnl < 0 ? "neg" : Number.isFinite(pnl) && pnl > 0 ? "pos" : ""}`}>
+      <td
+        className={`num ${Number.isFinite(pnl) && pnl < 0 ? "neg" : Number.isFinite(pnl) && pnl > 0 ? "pos" : ""}`}
+      >
         {position.unrealized_pnl ?? EMPTY_CELL}
       </td>
-      <td className={`num ${returnNumber !== null && returnNumber < 0 ? "neg" : returnNumber !== null && returnNumber > 0 ? "pos" : ""}`}>
+      <td
+        className={`num ${returnNumber !== null && returnNumber < 0 ? "neg" : returnNumber !== null && returnNumber > 0 ? "pos" : ""}`}
+      >
         {returnValue ?? EMPTY_CELL}
       </td>
       <td className="num">{position.liquidation_price ?? EMPTY_CELL}</td>
@@ -227,7 +246,9 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
   if (isLoading) {
     return (
       <div className="card" data-testid="account-positions-table" aria-busy="true">
-        <div className="card-body"><div className="sk" style={{ height: 120 }} /></div>
+        <div className="card-body">
+          <div className="sk" style={{ height: 120 }} />
+        </div>
       </div>
     );
   }
@@ -263,7 +284,12 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
   // ★계정 하나가 실패해도 나머지는 보여준다. 그런데 실패한 계정을 **행에서 지우면**
   //   "이 계정에 포지션이 없다" 로 읽힌다 — 잔여 노출 관리 표에서 그건 정확히 반대의
   //   거짓말이다. 실패는 실패라고 말하고 그 계정만 다시 시도하게 한다.
-  const failed: { accountId: string; accountLabel: string; hasStaleData: boolean; retry: () => void }[] = [];
+  const failed: {
+    accountId: string;
+    accountLabel: string;
+    hasStaleData: boolean;
+    retry: () => void;
+  }[] = [];
   const settleCoins = new Set<string>();
   let truncated = false;
   let latestFetchedAt: string | null = null;
@@ -285,7 +311,11 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
     if (!data) continue;
     // ★`fetched_at` 은 성공한 조회에서만 취한다. 실패한 계정의 낡은 시각이 헤더의
     //   "조회 시각" 을 최신으로 물들이면 낡음이 그 한 줄에 가려진다.
-    if (!query.isError && data.fetched_at && (!latestFetchedAt || data.fetched_at > latestFetchedAt)) {
+    if (
+      !query.isError &&
+      data.fetched_at &&
+      (!latestFetchedAt || data.fetched_at > latestFetchedAt)
+    ) {
       latestFetchedAt = data.fetched_at;
     }
     if (!data.supported) {
@@ -391,7 +421,11 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
           <DialogHeader>
             <DialogTitle>포지션 청산</DialogTitle>
             <DialogDescription>
-              이 작업은 {closeTarget?.symbol}의 거래소 계정 단위 순 포지션을 평탄화하는 감소전용 시장가 주문을 냅니다. 주문 원장에는 이 계정·심볼로 만든 가장 최근 세션의 전략으로 기록됩니다. 그 세션이 아직 활성이면 다음 평가에서 다시 진입할 수 있으며, 수동 청산은 봇을 중단하지 않습니다. 주문은 접수 후 비동기로 체결되므로 결과는 §05 주문 원장에서 확인하세요.
+              이 작업은 {closeTarget?.symbol}의 거래소 계정 단위 순 포지션을 평탄화하는 감소전용
+              시장가 주문을 냅니다. 주문 원장에는 이 계정·심볼로 만든 가장 최근 세션의 전략으로
+              기록됩니다. 그 세션이 아직 활성이면 다음 평가에서 다시 진입할 수 있으며, 수동 청산은
+              봇을 중단하지 않습니다. 주문은 접수 후 비동기로 체결되므로 결과는 §05 주문 원장에서
+              확인하세요.
             </DialogDescription>
           </DialogHeader>
           <CloseOutcomePanel outcome={closeOutcome} />
@@ -416,7 +450,11 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
                 >
                   취소
                 </Button>
-                <Button variant="destructive" onClick={() => void handleClose()} disabled={closePosition.isPending}>
+                <Button
+                  variant="destructive"
+                  onClick={() => void handleClose()}
+                  disabled={closePosition.isPending}
+                >
                   청산 실행
                 </Button>
               </>
@@ -446,7 +484,8 @@ function ScopeFootnote({
         </p>
       ) : null}
       <p className="table-foot-note">
-        {[...settleCoins].join(", ")} 정산 선물(무기한·만기물)만 조회합니다. 다른 정산통화나 인버스 계약의 포지션은 이 표에 나타나지 않습니다.
+        {[...settleCoins].join(", ")} 정산 선물(무기한·만기물)만 조회합니다. 다른 정산통화나 인버스
+        계약의 포지션은 이 표에 나타나지 않습니다.
       </p>
     </>
   );

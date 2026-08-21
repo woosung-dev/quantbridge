@@ -57,11 +57,7 @@ const ORDER_FILLED = makeOrder({
   createdAt: "2026-07-23T01:00:00+00:00",
 });
 
-function makeStrategyListItem(opts: {
-  id: string;
-  name: string;
-  backtestCount?: number;
-}) {
+function makeStrategyListItem(opts: { id: string; name: string; backtestCount?: number }) {
   return {
     id: opts.id,
     name: opts.name,
@@ -79,9 +75,7 @@ function makeStrategyListItem(opts: {
     is_archived: false,
     created_at: "2026-07-01T00:00:00+00:00",
     updated_at: "2026-07-01T00:00:00+00:00",
-    ...(opts.backtestCount === undefined
-      ? {}
-      : { backtest_count: opts.backtestCount }),
+    ...(opts.backtestCount === undefined ? {} : { backtest_count: opts.backtestCount }),
   };
 }
 
@@ -99,15 +93,9 @@ function makeStrategyListEnvelope(items: unknown[]) {
 // 공용 셸(사이드바 nav-count 3종 + 코크핏)이 페치하는 목록들의 기본 mock.
 // orders 는 URL 에 state 필터가 있으면(사이드바 미체결 배지) filtered total 을,
 // 없으면(원장 FETCH_LIMIT=200) 전체 3건을 돌려준다.
-async function mockShellRoutes(
-  page: Page,
-  opts?: { openOrdersTotal?: number },
-) {
+async function mockShellRoutes(page: Page, opts?: { openOrdersTotal?: number }) {
   const context = page.context();
-  await context.route(
-    API_ROUTES.strategies,
-    fulfillJson(makeStrategyListEnvelope([])),
-  );
+  await context.route(API_ROUTES.strategies, fulfillJson(makeStrategyListEnvelope([])));
   await context.route(API_ROUTES.backtests, fulfillJson({ items: [], total: 0 }));
   await context.route(API_ROUTES.exchangeAccounts, fulfillJson({ items: [] }));
   await context.route(API_ROUTES.killSwitch, fulfillJson({ items: [] }));
@@ -146,15 +134,11 @@ test.describe("functional-parity 회귀 가드", () => {
     //   같은 파일 A1 이 이미 `tbody tr` 로 좁혀 뒀다(2026-08-15 실측). 나머지 3곳을 맞춘다.
     //   음성 대조 = `e2e/authed-row-locator-guard.spec.ts`.
     const pendingRow = page.locator("tbody tr").filter({ hasText: "대기" }).first();
-    await expect(
-      pendingRow.getByRole("button", { name: "주문 취소" }),
-    ).toBeVisible();
+    await expect(pendingRow.getByRole("button", { name: "주문 취소" })).toBeVisible();
 
     // filled 행은 취소 버튼 없이 dim "—" 셀.
     const filledRow = page.locator("tbody tr").filter({ hasText: "체결" }).first();
-    await expect(
-      filledRow.getByRole("button", { name: "주문 취소" }),
-    ).toHaveCount(0);
+    await expect(filledRow.getByRole("button", { name: "주문 취소" })).toHaveCount(0);
 
     await pendingRow.getByRole("button", { name: "주문 취소" }).click();
     await expect.poll(() => cancelPosted).toBe(true);
@@ -217,15 +201,11 @@ test.describe("functional-parity 회귀 가드", () => {
     await submittedRow.getByRole("button", { name: "주문 취소" }).click();
 
     // 202 = 비동기 취소 접수 — "요청" 안내만, 완료("취소됨") 표기는 금지.
-    await expect(
-      page.getByText("거래소에 취소를 요청했습니다"),
-    ).toBeVisible();
+    await expect(page.getByText("거래소에 취소를 요청했습니다")).toBeVisible();
     await expect(page.getByText("취소됨", { exact: true })).toHaveCount(0);
   });
 
-  test("B2 — 사이드바 주문 배지 = state 필터 total (미체결 수)", async ({
-    page,
-  }) => {
+  test("B2 — 사이드바 주문 배지 = state 필터 total (미체결 수)", async ({ page }) => {
     await mockShellRoutes(page, { openOrdersTotal: 7 });
 
     await page.goto("/orders");
@@ -243,9 +223,7 @@ test.describe("functional-parity 회귀 가드", () => {
   }) => {
     await page.goto("/strategies");
 
-    await expect(
-      page.getByRole("columnheader", { name: "백테스트" }),
-    ).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "백테스트" })).toBeVisible();
 
     // perf-surface 가 성과 3열(td.num, 미완료 시 '—')을 추가했으므로 count 열만 정확히 겨냥한다.
     const countCells = page.locator('tbody tr td[data-testid="strategy-backtest-count"]');
@@ -257,9 +235,7 @@ test.describe("functional-parity 회귀 가드", () => {
     }
   });
 
-  test("A1 — 대시보드 전략명 링크는 /strategies/{id}/edit 로 간다", async ({
-    page,
-  }) => {
+  test("A1 — 대시보드 전략명 링크는 /strategies/{id}/edit 로 간다", async ({ page }) => {
     const context = page.context();
     await context.route(API_ROUTES.backtests, fulfillJson({ items: [], total: 0 }));
     await context.route(API_ROUTES.exchangeAccounts, fulfillJson({ items: [] }));

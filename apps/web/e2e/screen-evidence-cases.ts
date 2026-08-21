@@ -205,7 +205,8 @@ export function registerScreenEvidenceTests(title: string, routes: readonly Rout
           ...(route.authed ? { authed: true } : {}),
         };
         // ★파일 이름은 slug 가 아니라 **경로에서 파생**한다 — 수치 전용 라우트에는 slug 가 없다.
-        const fileStem = route.path.replace(/[^A-Za-z0-9._-]/g, "-").replace(/^-+|-+$/g, "") || "root";
+        const fileStem =
+          route.path.replace(/[^A-Za-z0-9._-]/g, "-").replace(/^-+|-+$/g, "") || "root";
         writeFileSync(
           path.join(measuredDir, `${fileStem}.json`),
           `${JSON.stringify({ path: route.path, ...measured }, null, 2)}\n`,
@@ -219,25 +220,27 @@ export function registerScreenEvidenceTests(title: string, routes: readonly Rout
           baseline,
           `${route.path}: baseline 에 이 라우트가 없다. \`pnpm screen-evidence:update\` 로 만들어라.`,
         ).toBeTruthy();
-        expect.soft(
-          {
-            firstLoadBytes,
-            apiRequests: volatileCounts ? null : apiRequests,
-            totalRequests: volatileCounts ? null : totalRequests,
-          },
-          `${route.path}: 측정값이 커밋된 baseline 과 다르다.\n` +
-            `  first-load  ${baseline?.firstLoadBytes} → ${firstLoadBytes} 바이트\n` +
-            (volatileCounts
-              ? `  API 요청     ${apiRequests} 건 · 전체 요청 ${totalRequests} 건 (★대조 제외 — 실측상 비결정)\n`
-              : `  API 요청     ${baseline?.apiRequests} → ${apiRequests} 건\n` +
-                `  전체 요청    ${baseline?.totalRequests} → ${totalRequests} 건\n`) +
-            "화면을 의도적으로 바꿨다면 `pnpm screen-evidence:update` 로 baseline 을 갱신해라 — " +
-            "그 갱신분이 곧 PR 이 인쇄할 **after** 다.",
-        ).toEqual({
-          firstLoadBytes: baseline?.firstLoadBytes,
-          apiRequests: baseline?.apiRequests ?? null,
-          totalRequests: baseline?.totalRequests ?? null,
-        });
+        expect
+          .soft(
+            {
+              firstLoadBytes,
+              apiRequests: volatileCounts ? null : apiRequests,
+              totalRequests: volatileCounts ? null : totalRequests,
+            },
+            `${route.path}: 측정값이 커밋된 baseline 과 다르다.\n` +
+              `  first-load  ${baseline?.firstLoadBytes} → ${firstLoadBytes} 바이트\n` +
+              (volatileCounts
+                ? `  API 요청     ${apiRequests} 건 · 전체 요청 ${totalRequests} 건 (★대조 제외 — 실측상 비결정)\n`
+                : `  API 요청     ${baseline?.apiRequests} → ${apiRequests} 건\n` +
+                  `  전체 요청    ${baseline?.totalRequests} → ${totalRequests} 건\n`) +
+              "화면을 의도적으로 바꿨다면 `pnpm screen-evidence:update` 로 baseline 을 갱신해라 — " +
+              "그 갱신분이 곧 PR 이 인쇄할 **after** 다.",
+          )
+          .toEqual({
+            firstLoadBytes: baseline?.firstLoadBytes,
+            apiRequests: baseline?.apiRequests ?? null,
+            totalRequests: baseline?.totalRequests ?? null,
+          });
       });
     }
   });

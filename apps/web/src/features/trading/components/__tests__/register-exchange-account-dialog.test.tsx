@@ -30,9 +30,7 @@ afterEach(() => {
 });
 
 async function renderDialog() {
-  const { RegisterExchangeAccountDialog } = await import(
-    "../register-exchange-account-dialog"
-  );
+  const { RegisterExchangeAccountDialog } = await import("../register-exchange-account-dialog");
   const qc = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -47,10 +45,7 @@ async function renderDialog() {
   return utils;
 }
 
-async function fillAndSubmit(opts: {
-  apiKey?: string;
-  apiSecret?: string;
-}) {
+async function fillAndSubmit(opts: { apiKey?: string; apiSecret?: string }) {
   const apiKeyInput = screen.getByPlaceholderText("API Key");
   fireEvent.change(apiKeyInput, { target: { value: opts.apiKey ?? "K" } });
   const apiSecretInput = screen.getByPlaceholderText("API Secret");
@@ -109,7 +104,6 @@ describe("RegisterExchangeAccountDialog — P1-1/11 (S7-A)", () => {
       expect(mutateAsyncMock).toHaveBeenCalledTimes(2);
     });
   });
-
 });
 
 // C 이식(W3-F): 연결 거래소 Bybit 단일화 회귀. OKX enum·passphrase superRefine 을 걷어냈으므로
@@ -144,9 +138,7 @@ describe("RegisterAccountRequestSchema — Bybit 단일 (OKX 제거)", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const exchangeError = result.error.issues.find((i) =>
-        i.path.includes("exchange"),
-      );
+      const exchangeError = result.error.issues.find((i) => i.path.includes("exchange"));
       expect(exchangeError).toBeDefined();
     }
   });

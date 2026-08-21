@@ -17,9 +17,7 @@ test("ExchangeAccountsPanel 빈 상태 — 제목과 '계정 추가' 버튼 표�
     </QueryClientProvider>,
   );
 
-  expect(
-    await screen.findByText("연결된 거래소 계정이 없습니다."),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("연결된 거래소 계정이 없습니다.")).toBeInTheDocument();
   // 헤더 영역의 '계정 추가' 버튼 (RegisterExchangeAccountDialog)
   const addBtn = screen.getByRole("button", { name: "계정 추가" });
   expect(addBtn).toBeInTheDocument();

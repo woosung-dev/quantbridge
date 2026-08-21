@@ -1,0 +1,168 @@
+// Biome 2.5.9 — apps/web 의 **유일한** 포매터·린터다 ([ADR-039]).
+// prettier·ESLint 는 레포에서 제거됐다. 이 파일 하나가 FE 코드 품질 설정 전부다.
+//
+// ★규약 — **기본값과 같은 값은 적지 않는다.** 여기 있는 줄은 전부
+//   「기본값을 벗어났거나」 「recommended 가 안 켜 주는 것」이다. 실측으로 검증했다:
+//   각 항목을 하나씩 빼고 `biome check` 의 rc·진단수를 대조해 **잉여 13건을 걷어냈다**
+//   (2026-08-22). 새 줄을 넣을 때도 같은 검사를 통과시켜라 — 안 그러면 이 파일이 다시 분다.
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.9/schema.json",
+  "root": true,
+
+  // `.gitignore` 를 무시 목록으로 재사용 — 빌드 산출물 목록을 두 벌로 두지 않는다.
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+
+  "files": {
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.mjs",
+      "**/*.css",
+      "**/*.json",
+      "**/*.jsonc",
+
+      // 코드젠 산출물 — 재생성마다 diff 가 난다.
+      "!**/generated",
+
+      // ★shadcn/ui 는 `apps/web/AGENTS.md` §9 가 **직접 수정을 금지**한다(래핑으로 확장).
+      //   실제로 `useImportType` 이 7파일을 고쳤다 → `shadcn add` 와 영구 드리프트.
+      "!src/components/ui",
+
+      // ★★`globals.css` 의 KITPORT 구간은 `_kit.html` 과 **바이트 대조**로 묶여 있다
+      //   (`src/__tests__/design-canon-kit-port.test.ts`). 포맷하면 그 테스트가 즉시 red 다.
+      "!src/styles/globals.css"
+    ]
+  },
+
+  // ★기본값은 `indentStyle: tab` · `lineWidth: 80` 이다. 이 둘만 벗어난다 —
+  //   레포 전체가 space 2 이고(`.editorconfig`) 구 `.prettierrc` 가 100 이었다.
+  //   `indentWidth: 2` · `quoteStyle: double` · `semicolons: always` ·
+  //   `trailingCommas: all` 은 **전부 Biome 기본값과 같아 지웠다**(실측 확인).
+  "formatter": {
+    "indentStyle": "space",
+    "lineWidth": 100
+  },
+
+  // ★Tailwind v4 CSS-first — 없으면 `@theme`·`@custom-variant` 를 파싱 못 한다.
+  "css": { "parser": { "tailwindDirectives": true } },
+
+  // ★★**끄는 것이 load-bearing 이다** — 빼면 import 정렬이 켜져 **303 파일**이 어긋난다.
+  //   기존 트리의 import 순서를 갈아엎을 이유가 없다. 필요해지면 별도 회차에서 단독 판단.
+  "assist": { "actions": { "source": { "organizeImports": "off" } } },
+
+  "linter": {
+    "domains": { "next": "recommended", "react": "recommended" },
+    "rules": {
+      "preset": "recommended",
+
+      "correctness": {
+        // ★ESLint 제거([ADR-039])로 hooks 축의 주인이 Biome 이 됐다. 예전에 이 둘을 껐던
+        //   이유는 「ESLint 가 단독 판정자」였기 때문인데 그 도구가 없어졌다.
+        //   ⚠️`reportUnnecessaryDependencies: false` 가 핵심이다 — 기본값이면 7건이 뜨는데
+        //   전부 「빠진 dep」이 아니라 「남는 dep」이고, 지우라는 대상이 `themeKey`(테마 전환 시
+        //   차트 재그리기)·`data` 다. effect 본문이 **읽지 않고 트리거로만 쓰는** 값이라
+        //   Biome 은 불필요하다고 본다 — 따르면 테마를 바꿔도 차트가 안 다시 그려진다.
+        "useExhaustiveDependencies": {
+          "level": "error",
+          "options": { "reportUnnecessaryDependencies": false }
+        },
+
+        // ★★**「진단이 안 늘어난다」는 잉여의 증거가 아니다.** 최소화 스윕에서 이 줄을
+        //   「지워도 동작이 같다」로 분류해 지웠는데, 판별력 배터리가 **위반을 심자 green**
+        //   을 냈다 — 위반이 0이었을 뿐 규칙은 recommended 가 안 켜 준다(2026-08-22).
+        //   설정을 줄일 때는 **위반을 심어 다시 잡히는지**까지 봐라.
+        "noUnusedVariables": "error"
+      },
+
+      "style": {
+        // 기존 트리의 관용구 — 규칙이 틀린 게 아니라 우리가 그 스타일이다(281건).
+        "noNonNullAssertion": "off",
+
+        // 위 `noUnusedVariables` 와 같은 이유로 되살렸다 — recommended 에 없다.
+        "useImportType": "error",
+
+        // ★★[ADR-035] 레이어 경계. 하위 층이 `app/` 을 거슬러 참조하면 라우트를 못 옮긴다.
+        //   ★이 규칙은 정적 import 와 **동적 `import()` 를 같이** 본다 — 구 ESLint 는
+        //   그 둘을 `no-restricted-imports` + `no-restricted-syntax` 두 벌로 막아야 했다.
+        //   ⚠️미이관 1건 — 템플릿 리터럴 `import(`@/app/${x}`)` 은 Biome 이 못 본다.
+        //   ESLint 를 지우면서 그 갈래는 **사람이 지키는 것으로 넘어갔다**.
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": [
+                  "@/app/*",
+                  "@/app/**",
+                  "./app/*",
+                  "./app/**",
+                  "../**/app/*",
+                  "../**/app/**"
+                ],
+                "message": "하위 층은 app/ 을 import 하지 않는다 (ADR-035). 공유가 필요하면 그 컴포넌트를 features/<domain>/components/ 또는 components/ 로 올려라."
+              }
+            ]
+          }
+        }
+      },
+
+      "suspicious": {
+        "noConsole": { "level": "warn", "options": { "allow": ["warn", "error"] } },
+
+        // 아래 넷은 **기존 트리의 빚**이다 — 신규 위반이 아니라 과거 코드가 무더기로 뜬다.
+        // 되살릴 때는 「고칠 회차」와 함께 켜라. 괄호 안이 실측 건수.
+        "noArrayIndexKey": "off", // 59
+        "noUselessEscapeInString": "off", // 9
+        "noTemplateCurlyInString": "off", // 5
+        "useIterableCallbackReturn": "off", // 18 — 전부 `forEach(x => arr.push())` 반환값
+
+        // ★오탐 — TS 의 **타입 공간 / 값 공간 분리**를 못 본다. 실측 1건:
+        //   `import { type LiveSessionForm }` + `export function LiveSessionForm` 은
+        //   TS 가 허용하는 합법 패턴이고 `tsc --noEmit` 이 이미 통과시킨다.
+        "noRedeclare": "off"
+      },
+
+      // ★`domains.next` 가 이름을 걸어 두지만 실제 그룹은 **performance** 라 도메인
+      //   "recommended" 만으로는 안 켜진다. 회귀 커버리지 측정에서 이 둘이 비어 있었다.
+      //   (구 `@next/next/no-img-element` · `@next/next/no-sync-scripts`)
+      "performance": {
+        "noImgElement": "error",
+        "noSyncScripts": "error"
+      },
+
+      // ★a11y 7종은 **미도래**지 기각이 아니다 — 지금 트리에 67건이 있고 별도 회차의 일이다.
+      //   규칙 하나 = 수리 회차 하나로 가라. 괄호 안이 실측 건수.
+      "a11y": {
+        "useSemanticElements": "off", // 24
+        "noSvgWithoutTitle": "off", // 19
+        "useAriaPropsSupportedByRole": "off", // 14
+        "noNoninteractiveTabindex": "off", // 6
+        "useButtonType": "off", // 2
+        "useKeyWithClickEvents": "off", // 1
+        "noRedundantRoles": "off" // 1
+      }
+    }
+  },
+
+  "overrides": [
+    {
+      // ADR-035 는 **하위 층에만** 건다. 라우트끼리의 참조는 대상이 아니다.
+      // 검사기 테스트·e2e 는 소스를 문자열로 훑는 도구라 `while ((m = re.exec(s)))` 관용구와
+      // 헬퍼 `export` 가 의도다.
+      "includes": [
+        "src/app/**",
+        "e2e/**",
+        "scripts/**",
+        "**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ],
+      "linter": {
+        "rules": {
+          "style": { "noRestrictedImports": "off" },
+          "suspicious": { "noAssignInExpressions": "off", "noExportsInTest": "off" }
+        }
+      }
+    }
+  ]
+}

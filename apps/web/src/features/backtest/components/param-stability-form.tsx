@@ -26,12 +26,7 @@ const DEFAULT_VAR2_VALUES: readonly [string, string, string] = ["1.0", "2.0", "3
 
 type Triple = readonly [string, string, string];
 
-export function ParamStabilityForm({
-  backtestId,
-  onSubmit,
-  isSubmitting,
-  onCancel,
-}: Props) {
+export function ParamStabilityForm({ backtestId, onSubmit, isSubmitting, onCancel }: Props) {
   const [var1Name, setVar1Name] = useState(DEFAULT_VAR1);
   const [var1Values, setVar1Values] = useState<Triple>(DEFAULT_VAR1_VALUES);
   const [var2Name, setVar2Name] = useState(DEFAULT_VAR2);
@@ -70,9 +65,9 @@ export function ParamStabilityForm({
       className="space-y-3 rounded-lg border bg-muted/30 p-4"
     >
       <p className="text-sm text-muted-foreground">
-        Pine 전략의 <code>input.int</code> / <code>input.float</code> 변수 2개를
-        지정하면 9-cell 조합으로 실행됩니다. 변수명은 Pine 코드의{" "}
-        <code>strategyVar = input.int(...)</code> 좌변 이름과 동일해야 합니다.
+        Pine 전략의 <code>input.int</code> / <code>input.float</code> 변수 2개를 지정하면 9-cell
+        조합으로 실행됩니다. 변수명은 Pine 코드의 <code>strategyVar = input.int(...)</code> 좌변
+        이름과 동일해야 합니다.
       </p>
       <ParamRow
         label="변수 1"
@@ -92,18 +87,11 @@ export function ParamStabilityForm({
         <Button type="submit" disabled={isInvalid || isSubmitting}>
           {isSubmitting ? "제출 중…" : "Param Stability 실행"}
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={onCancel}
-          disabled={isSubmitting}
-        >
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           취소
         </Button>
         {var1Name.trim() === var2Name.trim() && var1Name.trim().length > 0 ? (
-          <p className="text-sm text-destructive">
-            두 변수 이름은 서로 달라야 합니다.
-          </p>
+          <p className="text-sm text-destructive">두 변수 이름은 서로 달라야 합니다.</p>
         ) : null}
       </div>
     </form>
@@ -118,13 +106,7 @@ interface RowProps {
   onValuesChange: (v: Triple) => void;
 }
 
-function ParamRow({
-  label,
-  name,
-  values,
-  onNameChange,
-  onValuesChange,
-}: RowProps) {
+function ParamRow({ label, name, values, onNameChange, onValuesChange }: RowProps) {
   return (
     <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
       <label className="flex flex-col text-sm">

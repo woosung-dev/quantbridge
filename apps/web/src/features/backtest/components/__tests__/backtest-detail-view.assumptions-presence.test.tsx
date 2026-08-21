@@ -3,14 +3,11 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  BacktestDetail,
-  BacktestProgressResponse,
-} from "@/features/backtest/schemas";
+import type { BacktestDetail, BacktestProgressResponse } from "@/features/backtest/schemas";
 
 // --- hooks mocks ---------------------------------------------------------
 
-let progressStatus: BacktestProgressResponse["status"] | undefined = undefined;
+let progressStatus: BacktestProgressResponse["status"] | undefined;
 let detailData: Partial<BacktestDetail> & { status: BacktestDetail["status"] };
 
 vi.mock("@/features/backtest/hooks", () => ({

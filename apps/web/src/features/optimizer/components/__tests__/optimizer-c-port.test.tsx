@@ -107,7 +107,10 @@ function completedGridRun(): OptimizationRunResponse {
   };
 }
 
-function listRow(status: OptimizationRunResponse["status"], idSuffix: string): OptimizationRunResponse {
+function listRow(
+  status: OptimizationRunResponse["status"],
+  idSuffix: string,
+): OptimizationRunResponse {
   return {
     ...completedGridRun(),
     id: `${idSuffix}9c41aa-1111-4222-8333-944455556666`,
@@ -216,7 +219,13 @@ describe("OptimizerRunList — C 시맨틱 구조 (screen-09 02 목록)", () => 
 
   it("페이지당 개수 토글 — role=group + aria-pressed (§3-6, tablist 아님)", () => {
     runsResult = {
-      data: { items: [listRow("completed", "1f")], total: 1, limit: 10, offset: 0, skipped_count: 0 },
+      data: {
+        items: [listRow("completed", "1f")],
+        total: 1,
+        limit: 10,
+        offset: 0,
+        skipped_count: 0,
+      },
       isLoading: false,
       error: null,
       refetch: vi.fn(),
@@ -332,9 +341,7 @@ describe("OptimizerRunDetail — C 시맨틱 구조 (screen-10)", () => {
   it("완료 grid — 섹션 번호 순차·유일 (03 파라미터 안정성 + 04 OOS, 중복 03 회귀 방지)", () => {
     runResult = { data: completedGridRun(), isLoading: false, error: null, refetch: vi.fn() };
     const { container } = render(<OptimizerRunDetail runId={UUID} />);
-    const nums = [...container.querySelectorAll(".eyebrow .num")].map(
-      (el) => el.textContent,
-    );
+    const nums = [...container.querySelectorAll(".eyebrow .num")].map((el) => el.textContent);
     expect(nums).toEqual(["01", "02", "03", "04"]);
   });
 

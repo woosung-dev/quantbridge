@@ -3,10 +3,7 @@
 // context7 TanStack Query 공식 SSR 패턴 — isServer 분기 + 브라우저 싱글톤.
 // useState 초기화는 Suspense boundary 없이 서버 렌더링 시 client 리셋 위험 (공식 주석 근거).
 
-import {
-  QueryClient,
-  QueryClientProvider,
-} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import type { ReactNode } from "react";
 
@@ -30,7 +27,7 @@ function makeQueryClient(): QueryClient {
   });
 }
 
-let browserQueryClient: QueryClient | undefined = undefined;
+let browserQueryClient: QueryClient | undefined;
 
 function getQueryClient(): QueryClient {
   if (isServerEnv) {
@@ -48,9 +45,7 @@ export function QueryProvider({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       {children}
-      {process.env.NODE_ENV === "development" && (
-        <ReactQueryDevtools initialIsOpen={false} />
-      )}
+      {process.env.NODE_ENV === "development" && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

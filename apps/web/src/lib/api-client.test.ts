@@ -23,10 +23,7 @@ describe("describeApiError", () => {
 
   it("여러 필드가 틀리면 모두 보여준다", () => {
     const err = new ApiError(422, "unknown_error", "API 422 /x", {
-      detail: [
-        { msg: "Value error, first" },
-        { msg: "Value error, second" },
-      ],
+      detail: [{ msg: "Value error, first" }, { msg: "Value error, second" }],
     });
 
     expect(describeApiError(err)).toBe("first · second");

@@ -80,8 +80,8 @@ export default function GlobalError({
             요청을 처리하지 못했습니다.
           </h1>
           <p className="section-desc">
-            서버가 준 진단 정보만 인쇄합니다. 요청 ID 는 서버가 줄 때만 그리고, 값이 없으면 지어내지 않고
-            없다고 표시합니다.
+            서버가 준 진단 정보만 인쇄합니다. 요청 ID 는 서버가 줄 때만 그리고, 값이 없으면 지어내지
+            않고 없다고 표시합니다.
           </p>
         </header>
 
@@ -150,8 +150,8 @@ export default function GlobalError({
           </div>
 
           <p className="chart-note">
-            <InfoIcon />
-            이 페이지는 시스템 전체 상태를 알지 못합니다. 상세 원인은 서버 로그에서 확인하세요.
+            <InfoIcon />이 페이지는 시스템 전체 상태를 알지 못합니다. 상세 원인은 서버 로그에서
+            확인하세요.
           </p>
 
           <div className="err-actions" role="group" aria-label="복구 동작">

@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { TradeItem } from "../schemas";
-import {
-  applyTradeFilterSort,
-  tradesToCsv,
-} from "../utils";
+import { applyTradeFilterSort, tradesToCsv } from "../utils";
 
 const T = (overrides: Partial<TradeItem> = {}): TradeItem => ({
   trade_index: 1,
@@ -61,9 +58,27 @@ describe("tradesToCsv (Sprint 30-δ)", () => {
 
 describe("applyTradeFilterSort (Sprint 30-δ)", () => {
   const trades: TradeItem[] = [
-    T({ trade_index: 1, direction: "long", pnl: 10, return_pct: 0.1, entry_time: "2026-01-03T00:00:00Z" }),
-    T({ trade_index: 2, direction: "short", pnl: -5, return_pct: -0.05, entry_time: "2026-01-01T00:00:00Z" }),
-    T({ trade_index: 3, direction: "long", pnl: 20, return_pct: 0.2, entry_time: "2026-01-02T00:00:00Z" }),
+    T({
+      trade_index: 1,
+      direction: "long",
+      pnl: 10,
+      return_pct: 0.1,
+      entry_time: "2026-01-03T00:00:00Z",
+    }),
+    T({
+      trade_index: 2,
+      direction: "short",
+      pnl: -5,
+      return_pct: -0.05,
+      entry_time: "2026-01-01T00:00:00Z",
+    }),
+    T({
+      trade_index: 3,
+      direction: "long",
+      pnl: 20,
+      return_pct: 0.2,
+      entry_time: "2026-01-02T00:00:00Z",
+    }),
   ];
 
   it("entry_time asc 기본 정렬", () => {
@@ -77,12 +92,7 @@ describe("applyTradeFilterSort (Sprint 30-δ)", () => {
   });
 
   it("pnl desc 정렬", () => {
-    const sorted = applyTradeFilterSort(
-      trades,
-      { direction: "all", result: "all" },
-      "pnl",
-      "desc",
-    );
+    const sorted = applyTradeFilterSort(trades, { direction: "all", result: "all" }, "pnl", "desc");
     expect(sorted.map((t) => t.trade_index)).toEqual([3, 1, 2]);
   });
 
@@ -135,7 +145,12 @@ describe("applyTradeFilterSort (Sprint 30-δ)", () => {
       T({ trade_index: 9, pnl: 1, entry_time: "2026-02-01T00:00:00Z" }),
     ];
     for (const dir of ["asc", "desc"] as const) {
-      const sorted = applyTradeFilterSort(tied, { direction: "all", result: "all" }, "entry_time", dir);
+      const sorted = applyTradeFilterSort(
+        tied,
+        { direction: "all", result: "all" },
+        "entry_time",
+        dir,
+      );
       expect(sorted.map((t) => t.trade_index)).toEqual([7, 8, 9]);
     }
   });

@@ -48,7 +48,6 @@ export const useEditStore = create<EditState>((set) => ({
 
 export const selectPineSource = (s: EditState): string => s.pineSource;
 export const selectServerSnapshot = (s: EditState): string => s.serverSnapshot;
-export const selectIsDirty = (s: EditState): boolean =>
-  s.pineSource !== s.serverSnapshot;
+export const selectIsDirty = (s: EditState): boolean => s.pineSource !== s.serverSnapshot;
 export const selectLastSavedAt = (s: EditState): Date | null => s.lastSavedAt;
 export const selectStrategyId = (s: EditState): string | null => s.strategyId;

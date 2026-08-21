@@ -81,9 +81,7 @@ export function statusLabelOf<K extends string>(
   key: string,
   scope = "labels",
 ): StatusLabelWithIcon {
-  const hit = (
-    table as Readonly<Record<string, StatusLabelWithIcon | undefined>>
-  )[key];
+  const hit = (table as Readonly<Record<string, StatusLabelWithIcon | undefined>>)[key];
   if (hit === undefined) {
     warnUnknownKey(key, scope);
     return { label: key, tone: "neutral" };

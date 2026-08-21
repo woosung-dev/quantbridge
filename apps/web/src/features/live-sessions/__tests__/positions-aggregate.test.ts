@@ -37,39 +37,50 @@ const exchangePosition = {
 
 describe("combineLiveSessionPositions", () => {
   it("같은 계정·심볼의 두 세션을 합치지 않고 각각의 전략 라벨로 보존한다", () => {
-    const aggregate = combineLiveSessionPositions([firstSession, secondSession], [
-      result({
-        supported: true,
-        symbol: "BTCUSDT",
-        fetched_at: "2026-07-24T12:00:00Z",
-        positions: [exchangePosition],
-        diff: { verdict: "match" },
-      }),
-      result({
-        supported: true,
-        symbol: "BTCUSDT",
-        fetched_at: "2026-07-24T12:01:00Z",
-        positions: [exchangePosition],
-        diff: { verdict: "qty_mismatch" },
-      }),
-    ]);
+    const aggregate = combineLiveSessionPositions(
+      [firstSession, secondSession],
+      [
+        result({
+          supported: true,
+          symbol: "BTCUSDT",
+          fetched_at: "2026-07-24T12:00:00Z",
+          positions: [exchangePosition],
+          diff: { verdict: "match" },
+        }),
+        result({
+          supported: true,
+          symbol: "BTCUSDT",
+          fetched_at: "2026-07-24T12:01:00Z",
+          positions: [exchangePosition],
+          diff: { verdict: "qty_mismatch" },
+        }),
+      ],
+    );
 
     expect(aggregate.rows).toMatchObject([
       { sessionId: firstSession.id, sessionLabel: "a0000000", symbol: "BTCUSDT", verdict: "match" },
-      { sessionId: secondSession.id, sessionLabel: "a0000000", symbol: "BTCUSDT", verdict: "qty_mismatch" },
+      {
+        sessionId: secondSession.id,
+        sessionLabel: "a0000000",
+        symbol: "BTCUSDT",
+        verdict: "qty_mismatch",
+      },
     ]);
     expect(aggregate.latestFetchedAt).toBe("2026-07-24T12:01:00Z");
   });
 
   it("지원하지 않는 세션은 행과 분리해 사유를 보존한다", () => {
-    const aggregate = combineLiveSessionPositions([firstSession], [
-      result({
-        supported: false,
-        symbol: "BTCUSDT",
-        fetched_at: null,
-        reason: "spot_position_api_unsupported",
-      }),
-    ]);
+    const aggregate = combineLiveSessionPositions(
+      [firstSession],
+      [
+        result({
+          supported: false,
+          symbol: "BTCUSDT",
+          fetched_at: null,
+          reason: "spot_position_api_unsupported",
+        }),
+      ],
+    );
 
     expect(aggregate.rows).toEqual([]);
     expect(aggregate.unsupported).toMatchObject([
@@ -78,16 +89,19 @@ describe("combineLiveSessionPositions", () => {
   });
 
   it("앞선 disabled 슬롯의 응답이 없어도 다음 세션의 인덱스를 보존한다", () => {
-    const aggregate = combineLiveSessionPositions([firstSession, secondSession], [
-      result(),
-      result({
-        supported: true,
-        symbol: "ETHUSDT",
-        fetched_at: null,
-        positions: [exchangePosition],
-        diff: { verdict: "match" },
-      }),
-    ]);
+    const aggregate = combineLiveSessionPositions(
+      [firstSession, secondSession],
+      [
+        result(),
+        result({
+          supported: true,
+          symbol: "ETHUSDT",
+          fetched_at: null,
+          positions: [exchangePosition],
+          diff: { verdict: "match" },
+        }),
+      ],
+    );
 
     expect(aggregate.rows).toMatchObject([{ sessionId: secondSession.id, symbol: "ETHUSDT" }]);
   });

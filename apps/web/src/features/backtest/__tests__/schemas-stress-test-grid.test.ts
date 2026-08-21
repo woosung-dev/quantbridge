@@ -3,10 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  CostAssumptionParamsSchema,
-  ParamStabilityParamsSchema,
-} from "../schemas";
+import { CostAssumptionParamsSchema, ParamStabilityParamsSchema } from "../schemas";
 
 describe("CostAssumptionParamsSchema (Sprint 52 BL-224 superRefine)", () => {
   it("happy path — fees + slippage 2 key 3x3 grid PASS", () => {

@@ -66,8 +66,7 @@ export function TradeDetailShell({ id }: { id: string }) {
   const bt = detail.data;
   const tradeCount = trades.data?.total ?? items.length;
   // 라벨·톤은 S4 용어 SSOT 에서만 온다 (원시 enum 렌더 금지 — no-raw-enum-labels 가드).
-  const { label: statusLabel, tone: statusTone, showCheckIcon } =
-    BACKTEST_STATUS_LABEL[bt.status];
+  const { label: statusLabel, tone: statusTone, showCheckIcon } = BACKTEST_STATUS_LABEL[bt.status];
 
   return (
     <main className="page">
@@ -165,7 +164,10 @@ export function TradeDetailSkeleton() {
           {Array.from({ length: 4 }).map((_, i) => (
             <article key={i} className="card kpi">
               <span className="sk" style={{ display: "block", width: 88, height: 12 }} />
-              <span className="sk" style={{ display: "block", width: 120, height: 30, marginTop: 12 }} />
+              <span
+                className="sk"
+                style={{ display: "block", width: 120, height: 30, marginTop: 12 }}
+              />
             </article>
           ))}
         </div>

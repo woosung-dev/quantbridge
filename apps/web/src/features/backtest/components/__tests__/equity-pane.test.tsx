@@ -1,10 +1,7 @@
 import { act, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  ChartMarker,
-  ChartPoint,
-} from "@/components/charts/trading-chart";
+import type { ChartMarker, ChartPoint } from "@/components/charts/trading-chart";
 
 import { EquityPane } from "@/features/backtest/components/charts/equity-pane";
 import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
@@ -106,24 +103,17 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
     createChartMock.mockClear();
     chartInstances.length = 0;
     roInstances = [];
-    (
-      globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }
-    ).ResizeObserver = MockResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
+      MockResizeObserver;
   });
 
   afterEach(() => {
-    delete (globalThis as unknown as { ResizeObserver?: unknown })
-      .ResizeObserver;
+    delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
   it("renders TradingChart with brand equity color (Equity series)", async () => {
     render(
-      <EquityPane
-        equityData={EQUITY}
-        benchmarkData={BENCHMARK}
-        markers={MARKERS}
-        height={216}
-      />,
+      <EquityPane equityData={EQUITY} benchmarkData={BENCHMARK} markers={MARKERS} height={216} />,
     );
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
@@ -145,14 +135,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
   });
 
   it("does not render benchmark series when benchmarkData is empty", async () => {
-    render(
-      <EquityPane
-        equityData={EQUITY}
-        benchmarkData={[]}
-        markers={[]}
-        height={216}
-      />,
-    );
+    render(<EquityPane equityData={EQUITY} benchmarkData={[]} markers={[]} height={216} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const chart = chartInstances[0]!;
@@ -161,14 +144,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
   });
 
   it("uses correct chart height (top pane)", async () => {
-    render(
-      <EquityPane
-        equityData={EQUITY}
-        benchmarkData={[]}
-        markers={[]}
-        height={216}
-      />,
-    );
+    render(<EquityPane equityData={EQUITY} benchmarkData={[]} markers={[]} height={216} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     // createChart 첫 인자는 container, 두번째 인자는 options.
@@ -178,14 +154,7 @@ describe("EquityPane (Sprint 32-B BL-169)", () => {
   });
 
   it("applies markers via series.setMarkers when provided", async () => {
-    render(
-      <EquityPane
-        equityData={EQUITY}
-        benchmarkData={[]}
-        markers={MARKERS}
-        height={216}
-      />,
-    );
+    render(<EquityPane equityData={EQUITY} benchmarkData={[]} markers={MARKERS} height={216} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const chart = chartInstances[0]!;

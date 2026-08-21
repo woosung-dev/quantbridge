@@ -62,20 +62,16 @@ test.describe("[BL-766] 표 행 로케이터 음성 대조", () => {
     // ⑴ ★위험한 패턴 — 헤더에 「체결가」·「체결수량」 열이 있어 `hasText: "체결"` 이 매치되고
     //    `.first()` 가 **헤더**를 집는다. 이 단언이 이 파일의 존재 이유다.
     const unsafeFirst = page.locator("tr", { hasText: "체결" }).first();
-    const unsafeIsHeader = await unsafeFirst.evaluate(
-      (el) => el.closest("thead") !== null,
-    );
+    const unsafeIsHeader = await unsafeFirst.evaluate((el) => el.closest("thead") !== null);
     expect(
       unsafeIsHeader,
-      '`tr` + .first() 가 헤더를 집지 않는다 — 헤더 문구가 바뀌었을 수 있다. ' +
+      "`tr` + .first() 가 헤더를 집지 않는다 — 헤더 문구가 바뀌었을 수 있다. " +
         "그렇다면 이 가드가 지키던 위험이 아직 있는지 다시 판단해라.",
     ).toBe(true);
 
     // ⑵ 그 헤더 행에는 클릭 핸들러도 버튼도 없다 — **이것이 거짓 초록의 정체다.**
     //    아래 단언이 통과하는 것 자체는 수리가 아니라 **증상**이다.
-    await expect(
-      unsafeFirst.getByRole("button", { name: "주문 취소" }),
-    ).toHaveCount(0);
+    await expect(unsafeFirst.getByRole("button", { name: "주문 취소" })).toHaveCount(0);
 
     // ⑶ 안전한 패턴 — 우리가 옮겨 간 형태가 실제로 데이터 행을 집는가.
     const safeFirst = page.locator("tbody tr").filter({ hasText: "체결" }).first();

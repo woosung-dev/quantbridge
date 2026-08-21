@@ -86,9 +86,7 @@ export function BacktestForm() {
   const barsPerDay = TIMEFRAME_BARS_PER_DAY[watchedTimeframe];
 
   const errorCount = Object.keys(errors).length;
-  const editHref = selectedStrategy
-    ? `/strategies/${selectedStrategy}/edit?tab=parse`
-    : null;
+  const editHref = selectedStrategy ? `/strategies/${selectedStrategy}/edit?tab=parse` : null;
 
   return (
     <main className="page">
@@ -142,8 +140,8 @@ export function BacktestForm() {
               </p>
               <h2 className="section-title">실행할 전략</h2>
               <p className="section-desc">
-                백테스트는 Pine 파일을 파싱한 결과를 그대로 실행합니다. 파싱 상태가
-                지원됨이 아니면 실행할 수 없습니다.
+                백테스트는 Pine 파일을 파싱한 결과를 그대로 실행합니다. 파싱 상태가 지원됨이 아니면
+                실행할 수 없습니다.
               </p>
             </header>
 
@@ -162,11 +160,7 @@ export function BacktestForm() {
               />
 
               {strategiesQuery.isLoading ? (
-                <div
-                  className="card-body"
-                  data-testid="strategy-select-skeleton"
-                  aria-busy="true"
-                >
+                <div className="card-body" data-testid="strategy-select-skeleton" aria-busy="true">
                   <div className="sk" style={{ height: 38 }} aria-hidden="true" />
                   <p className="state-note">
                     <svg
@@ -224,7 +218,9 @@ export function BacktestForm() {
                         <label className="field-label" htmlFor="strategy-select">
                           전략
                         </label>
-                        <span className="field-req" aria-hidden="true">필수</span>
+                        <span className="field-req" aria-hidden="true">
+                          필수
+                        </span>
                       </span>
                       <select
                         className="select"
@@ -251,8 +247,7 @@ export function BacktestForm() {
                         </p>
                       ) : null}
                       <p className="field-hint">
-                        전략을 바꾸면 아래 심볼과 기본값이 그 전략의 저장값으로 다시
-                        채워집니다.
+                        전략을 바꾸면 아래 심볼과 기본값이 그 전략의 저장값으로 다시 채워집니다.
                       </p>
                     </div>
                   </div>
@@ -263,9 +258,7 @@ export function BacktestForm() {
                         <p className="metric-group-title">선택한 전략</p>
                         <div className="metric">
                           <span className="metric-label">심볼</span>
-                          <span className="metric-value">
-                            {selectedItem.symbol ?? EMPTY_CELL}
-                          </span>
+                          <span className="metric-value">{selectedItem.symbol ?? EMPTY_CELL}</span>
                         </div>
                         <div className="metric">
                           <span className="metric-label">주기</span>
@@ -298,9 +291,8 @@ export function BacktestForm() {
 
               <p className="chart-note">
                 <InfoIcon />
-                미지원 Pine 함수가 하나라도 들어 있으면 부분 실행 없이 전체를
-                지원되지 않음으로 처리합니다. 잘못된 결과를 만드는 것보다 낫다고
-                봅니다.
+                미지원 Pine 함수가 하나라도 들어 있으면 부분 실행 없이 전체를 지원되지 않음으로
+                처리합니다. 잘못된 결과를 만드는 것보다 낫다고 봅니다.
               </p>
             </div>
           </section>
@@ -313,8 +305,8 @@ export function BacktestForm() {
               </p>
               <h2 className="section-title">어떤 데이터로 돌릴까요?</h2>
               <p className="section-desc">
-                기간과 주기를 고르면 실행할 봉 수가 결정됩니다. 봉 수는 소요 시간과
-                결과의 표본 크기를 함께 결정합니다.
+                기간과 주기를 고르면 실행할 봉 수가 결정됩니다. 봉 수는 소요 시간과 결과의 표본
+                크기를 함께 결정합니다.
               </p>
             </header>
 
@@ -344,9 +336,7 @@ export function BacktestForm() {
                   <p
                     className={spanDays != null ? "calc-value" : "calc-value empty"}
                     title={
-                      spanDays == null
-                        ? "시작일과 종료일이 정해져야 기간을 계산합니다."
-                        : undefined
+                      spanDays == null ? "시작일과 종료일이 정해져야 기간을 계산합니다." : undefined
                     }
                   >
                     {spanDays != null ? `${spanDays}일` : EMPTY_CELL}
@@ -379,8 +369,8 @@ export function BacktestForm() {
 
               <p className="chart-note">
                 <InfoIcon />
-                현재 연결된 거래소는 Bybit 하나입니다. 다른 거래소의 체결 결과는 이
-                실행으로 알 수 없습니다.
+                현재 연결된 거래소는 Bybit 하나입니다. 다른 거래소의 체결 결과는 이 실행으로 알 수
+                없습니다.
               </p>
             </div>
           </section>
@@ -393,8 +383,8 @@ export function BacktestForm() {
               </p>
               <h2 className="section-title">결과를 바꾸는 가정</h2>
               <p className="section-desc">
-                수익률이 달라지는 이유는 대부분 여기 있습니다. 리포트에도 같은 값이
-                그대로 인쇄됩니다.
+                수익률이 달라지는 이유는 대부분 여기 있습니다. 리포트에도 같은 값이 그대로
+                인쇄됩니다.
               </p>
             </header>
 
@@ -414,11 +404,7 @@ export function BacktestForm() {
                   liveFillTiming={strategy?.settings?.fill_timing ?? null}
                 />
 
-                <BacktestLeverageFieldSet
-                  control={control}
-                  register={register}
-                  errors={errors}
-                />
+                <BacktestLeverageFieldSet control={control} register={register} errors={errors} />
 
                 <BacktestSizingFieldSet
                   control={control}
@@ -429,10 +415,7 @@ export function BacktestForm() {
                   livePct={livePct}
                 />
 
-                <BacktestTradingSessionsFieldSet
-                  control={control}
-                  setValue={setValue}
-                />
+                <BacktestTradingSessionsFieldSet control={control} setValue={setValue} />
               </div>
             </div>
 
@@ -483,9 +466,7 @@ export function BacktestForm() {
                       type="button"
                       className="btn btn-ghost btn-xs"
                       onClick={() => {
-                        void navigator.clipboard.writeText(
-                          convertResult.converted_code,
-                        );
+                        void navigator.clipboard.writeText(convertResult.converted_code);
                         toast.success("클립보드에 복사됨");
                       }}
                     >

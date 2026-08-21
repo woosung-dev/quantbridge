@@ -70,10 +70,7 @@ describe("getLiveSessionState — BL-458 출처 필드", () => {
     expect(state!.estimated_realized_pnl).toBe("-4");
     expect(state!.confirmed_closed_trades).toBe(1);
     expect(state!.estimated_closed_trades).toBe(1);
-    expect(state!.equity_curve.map((p) => p.source)).toEqual([
-      "estimated",
-      "confirmed",
-    ]);
+    expect(state!.equity_curve.map((p) => p.source)).toEqual(["estimated", "confirmed"]);
   });
 
   it("source 가 없는 구 응답은 추정으로 폴백한다", async () => {

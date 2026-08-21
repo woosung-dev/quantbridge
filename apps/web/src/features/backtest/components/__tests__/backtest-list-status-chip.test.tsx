@@ -50,7 +50,10 @@ beforeEach(() => {
   mockUseStrategies.mockReturnValue({ data: { items: [] } });
 });
 
-function renderList(overrides: Partial<typeof baseItem> = {}, listOverrides: Record<string, unknown> = {}) {
+function renderList(
+  overrides: Partial<typeof baseItem> = {},
+  listOverrides: Record<string, unknown> = {},
+) {
   mockUseBacktests.mockReturnValue({
     data: { items: [{ ...baseItem, ...overrides }], total: 1, limit: 20, offset: 0 },
     isLoading: false,

@@ -107,7 +107,8 @@ export function StrategyList() {
     return matched;
   }, [items, activeStatus, symbolFilter, searchText]);
 
-  const isFiltering = activeStatus !== "all" || symbolFilter !== SYMBOL_ALL || searchText.trim() !== "";
+  const isFiltering =
+    activeStatus !== "all" || symbolFilter !== SYMBOL_ALL || searchText.trim() !== "";
 
   const pushStatus = (id: ParseStatusFilter) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -465,9 +466,7 @@ export function StrategyList() {
                           className="num"
                           data-testid="strategy-backtest-count"
                           title={
-                            s.backtest_count === 0
-                              ? STRATEGY_EMPTY_REASON.noBacktestYet
-                              : undefined
+                            s.backtest_count === 0 ? STRATEGY_EMPTY_REASON.noBacktestYet : undefined
                           }
                         >
                           {s.backtest_count ?? EMPTY_CELL}

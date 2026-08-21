@@ -102,7 +102,9 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
 
     const table = screen.getByRole("table", { name: /전략 목록 2개/ });
     expect(table.className).toContain("trades");
-    const headers = within(table).getAllByRole("columnheader").map((h) => h.textContent);
+    const headers = within(table)
+      .getAllByRole("columnheader")
+      .map((h) => h.textContent);
     expect(headers).toEqual([
       "전략명",
       "상태",
@@ -115,7 +117,11 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
       "마지막 수정",
       "액션",
     ]);
-    expect(within(table).getByTitle("완료된 백테스트 수입니다. 실행 중이거나 실패한 실행은 세지 않습니다.")).toHaveTextContent("백테스트");
+    expect(
+      within(table).getByTitle(
+        "완료된 백테스트 수입니다. 실행 중이거나 실패한 실행은 세지 않습니다.",
+      ),
+    ).toHaveTextContent("백테스트");
     // lifecycle validated → "검증됨" chip done (원시 enum 미노출)
     const row = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000001");
     expect(within(row).getByText("검증됨").className).toBe("chip done");
@@ -127,7 +133,9 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     expect(row.querySelectorAll("td")[3]).toHaveTextContent("3");
     expect(within(row).getByTestId("strategy-backtest-count")).toHaveClass("num");
     const emptyRow = screen.getByTestId("strategy-row-00000000-0000-4000-8000-000000000002");
-    expect(within(emptyRow).getByTitle("아직 백테스트를 실행하지 않았습니다.")).toHaveTextContent("0");
+    expect(within(emptyRow).getByTitle("아직 백테스트를 실행하지 않았습니다.")).toHaveTextContent(
+      "0",
+    );
   });
 
   it("파싱 상태 필터는 role=group + 탭 4종(전체/변환 가능/일부 미지원/오류)이다", () => {
@@ -140,7 +148,9 @@ describe("StrategyList — C 이식 시맨틱 구조", () => {
     });
     renderList();
     const group = screen.getByRole("group", { name: "파싱 상태 필터" });
-    const labels = within(group).getAllByRole("button").map((b) => b.textContent);
+    const labels = within(group)
+      .getAllByRole("button")
+      .map((b) => b.textContent);
     expect(labels).toEqual(["전체", "변환 가능", "일부 미지원", "오류"]);
   });
 
@@ -277,7 +287,9 @@ describe("StrategyList — 01 필터 구획 (screen-06 재도입)", () => {
     const symbol = screen.getByTestId("strategy-symbol-filter");
     expect(symbol.className).toBe("select");
     // 심볼 옵션은 로드된 데이터에서 실측(BTC/ETH) — 하드코딩 아님.
-    const symbolOpts = within(symbol).getAllByRole("option").map((o) => o.textContent);
+    const symbolOpts = within(symbol)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
     expect(symbolOpts).toEqual(["심볼 전체", "BTC/USDT", "ETH/USDT"]);
     const sort = screen.getByTestId("strategy-sort");
     const sortOpts = within(sort)
@@ -298,7 +310,9 @@ describe("StrategyList — 01 필터 구획 (screen-06 재도입)", () => {
   it("심볼 필터는 선택 심볼만 남긴다", () => {
     mockUseStrategies.mockReturnValue(makeMulti());
     renderList();
-    fireEvent.change(screen.getByTestId("strategy-symbol-filter"), { target: { value: "ETH/USDT" } });
+    fireEvent.change(screen.getByTestId("strategy-symbol-filter"), {
+      target: { value: "ETH/USDT" },
+    });
     const rows = screen.getAllByTestId(/^strategy-row-/);
     expect(rows).toHaveLength(1);
     expect(within(rows[0]!).getByText("RSI Divergence v3")).toBeTruthy();

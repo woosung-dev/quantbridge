@@ -53,24 +53,16 @@ const EQUITY: EquityPoint[] = [
 
 describe("EquityChartV2 — axis labels (Sprint 32-C BL-172)", () => {
   beforeEach(() => {
-    (
-      globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }
-    ).ResizeObserver = MockResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
+      MockResizeObserver;
   });
 
   afterEach(() => {
-    delete (globalThis as unknown as { ResizeObserver?: unknown })
-      .ResizeObserver;
+    delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
   it("renders axis label bar for equity pane — PnL (USDT, 시작=0) [Sprint 37 BL-184]", () => {
-    render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        timeframe="1h"
-      />,
-    );
+    render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} timeframe="1h" />);
 
     const equityAxis = screen.getByTestId("axis-label-bar-equity");
     expect(equityAxis).toBeInTheDocument();
@@ -80,13 +72,7 @@ describe("EquityChartV2 — axis labels (Sprint 32-C BL-172)", () => {
   });
 
   it("renders axis label bar for drawdown pane (% with default range)", () => {
-    render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        timeframe="1d"
-      />,
-    );
+    render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} timeframe="1d" />);
 
     const ddAxis = screen.getByTestId("axis-label-bar-drawdown");
     expect(ddAxis).toBeInTheDocument();

@@ -69,9 +69,7 @@ describe("GridSearchForm — 기본값 제출 body", () => {
 describe("BayesianSearchForm — 기본값 제출 body", () => {
   it("kind=bayesian / schema_version=2 / min·max 문자열 + prior/log_scale + 고유 필드", async () => {
     const onSuccess = vi.fn();
-    render(
-      <BayesianSearchForm backtestId={BACKTEST_ID} onSuccess={onSuccess} />,
-    );
+    render(<BayesianSearchForm backtestId={BACKTEST_ID} onSuccess={onSuccess} />);
     fillVarName("length");
     fireEvent.click(screen.getByRole("button", { name: /베이지안 탐색 실행/ }));
 
@@ -109,9 +107,7 @@ describe("BayesianSearchForm — 기본값 제출 body", () => {
     fireEvent.click(screen.getByRole("button", { name: /베이지안 탐색 실행/ }));
 
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        /초기 랜덤 탐색 횟수.*클 수 없습니다/,
-      ),
+      expect(screen.getByRole("alert")).toHaveTextContent(/초기 랜덤 탐색 횟수.*클 수 없습니다/),
     );
     expect(bayesianMutateAsync).not.toHaveBeenCalled();
   });
@@ -139,13 +135,9 @@ describe("BayesianSearchForm — 기본값 제출 body", () => {
 describe("GeneticSearchForm — 기본값 제출 body", () => {
   it("kind=genetic / schema_version=2 / integer row parseInt + 하이퍼파라미터", async () => {
     const onSuccess = vi.fn();
-    render(
-      <GeneticSearchForm backtestId={BACKTEST_ID} onSuccess={onSuccess} />,
-    );
+    render(<GeneticSearchForm backtestId={BACKTEST_ID} onSuccess={onSuccess} />);
     fillVarName("length");
-    fireEvent.click(
-      screen.getByRole("button", { name: /유전 알고리즘 탐색 실행/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /유전 알고리즘 탐색 실행/ }));
 
     await waitFor(() => expect(geneticMutateAsync).toHaveBeenCalledTimes(1));
     expect(geneticMutateAsync.mock.calls[0]![0]).toEqual({
@@ -175,9 +167,7 @@ describe("GeneticSearchForm — 기본값 제출 body", () => {
     fireEvent.change(screen.getByLabelText(/개체군 크기/), {
       target: { value: "10" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: /유전 알고리즘 탐색 실행/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /유전 알고리즘 탐색 실행/ }));
 
     // budget 10×5=50 > max_evaluations 25 → zod superRefine 이 제출 차단.
     await waitFor(() => expect(geneticMutateAsync).not.toHaveBeenCalled());

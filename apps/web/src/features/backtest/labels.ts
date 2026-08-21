@@ -17,10 +17,7 @@ import type {
  * screen-03-backtests-list.html:1215-1221 (aria-label="상태 필터" 셀렉트,
  * 옵션 5개 = 상태 전체 + 완료 + 실행 중 + 실패 + 대기)
  */
-export const BACKTEST_STATUS_LABEL: Record<
-  BacktestStatus,
-  StatusLabelWithIcon
-> = {
+export const BACKTEST_STATUS_LABEL: Record<BacktestStatus, StatusLabelWithIcon> = {
   queued: { label: "대기", tone: "neutral" },
   running: { label: "실행 중", tone: "accent" },
   completed: { label: "완료", tone: "done", showCheckIcon: true },
@@ -31,10 +28,7 @@ export const BACKTEST_STATUS_LABEL: Record<
 
 /** 상태 필터 탭. 라벨은 배지와 같은 문자열을 쓴다. */
 export type BacktestStatusFilter = "all" | BacktestStatus;
-export const BACKTEST_STATUS_FILTER_LABEL: Record<
-  BacktestStatusFilter,
-  string
-> = {
+export const BACKTEST_STATUS_FILTER_LABEL: Record<BacktestStatusFilter, string> = {
   all: "전체",
   queued: "대기",
   running: "실행 중",
@@ -144,11 +138,9 @@ export const BACKTEST_LIST_SORT_LABEL = {
 /** 무데이터 사유. screen-03-backtests-list.html:1350 / :1357 / :1369 / :1417 / :1424 */
 export const BACKTEST_EMPTY_REASON = {
   queuedNotStarted: "아직 실행이 시작되지 않았습니다.",
-  queuedNoQueuePosition:
-    "시작 시각이 아직 없습니다. 대기열 순번은 서버가 보고하지 않습니다.",
+  queuedNoQueuePosition: "시작 시각이 아직 없습니다. 대기열 순번은 서버가 보고하지 않습니다.",
   runningNotFinished: "실행이 끝나야 계산됩니다.",
-  failedDataCollection:
-    "Bybit OHLCV 수집이 중단되어 실행이 완료되지 않았습니다.",
+  failedDataCollection: "Bybit OHLCV 수집이 중단되어 실행이 완료되지 않았습니다.",
   failedStageNote: "데이터 수집 단계에서 중단",
 } as const;
 
@@ -170,10 +162,7 @@ export const STRESS_TEST_KIND_LABEL: Record<StressTestKind, string> = {
 };
 
 /** 스트레스 테스트 실행 상태. 백테스트와 달리 취소가 없어 4종뿐이다. */
-export const STRESS_TEST_STATUS_LABEL: Record<
-  StressTestStatus,
-  StatusLabelWithIcon
-> = {
+export const STRESS_TEST_STATUS_LABEL: Record<StressTestStatus, StatusLabelWithIcon> = {
   queued: { label: "대기", tone: "neutral" },
   running: { label: "실행 중", tone: "accent" },
   completed: { label: "완료", tone: "done", showCheckIcon: true },
@@ -181,10 +170,7 @@ export const STRESS_TEST_STATUS_LABEL: Record<
 };
 
 /** 이력 표의 대표 지표 이름. BE 가 보내는 키를 화면 표기로 옮긴다. */
-export const STRESS_TEST_HEADLINE_METRIC_LABEL: Record<
-  StressTestHeadlineMetricKey,
-  string
-> = {
+export const STRESS_TEST_HEADLINE_METRIC_LABEL: Record<StressTestHeadlineMetricKey, string> = {
   max_drawdown_p95: METRIC_ABBR.maxDrawdown + " p95",
   degradation_ratio: "열화 비율",
   worst_cell_sharpe: "최저 " + METRIC_ABBR.sharpeRatio,

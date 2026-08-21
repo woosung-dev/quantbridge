@@ -23,9 +23,7 @@ describe("binReturnDistribution", () => {
 
   it("empty → [], 단일 값 → 1버킷", () => {
     expect(binReturnDistribution([], 10)).toEqual([]);
-    expect(binReturnDistribution([0.05, 0.05], 10)).toEqual([
-      { from: 0.05, to: 0.05, count: 2 },
-    ]);
+    expect(binReturnDistribution([0.05, 0.05], 10)).toEqual([{ from: 0.05, to: 0.05, count: 2 }]);
   });
 
   it("non-finite 값 무시", () => {

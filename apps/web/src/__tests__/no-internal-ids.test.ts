@@ -14,10 +14,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-function walkPagesAndComponents(
-  dir: string,
-  results: string[] = [],
-): string[] {
+function walkPagesAndComponents(dir: string, results: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     if (entry === "node_modules" || entry === "__tests__" || entry.startsWith(".")) {
       continue;
@@ -132,9 +129,7 @@ describe("BL-265/280/303 — no internal dev artifact IDs in user-facing UI (★
     ];
     for (const req of required) {
       const matched = files.some((f) => f.includes(req));
-      expect(matched, `critical route missing from inventory: ${req}`).toBe(
-        true,
-      );
+      expect(matched, `critical route missing from inventory: ${req}`).toBe(true);
     }
   });
 

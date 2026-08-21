@@ -2,10 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type {
-  BacktestMetricsOut,
-  EquityPoint,
-} from "@/features/backtest/schemas";
+import type { BacktestMetricsOut, EquityPoint } from "@/features/backtest/schemas";
 
 import { MetricGroupsSection } from "@/features/backtest/components/report/metric-groups-section";
 

@@ -29,9 +29,9 @@ function decodeExpMs(token: string): number | null {
   const part = token.split(".")[1];
   if (!part) return null;
   try {
-    const json = JSON.parse(
-      atob(part.replace(/-/g, "+").replace(/_/g, "/")),
-    ) as unknown as { exp?: number };
+    const json = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))) as unknown as {
+      exp?: number;
+    };
     return typeof json.exp === "number" ? json.exp * 1000 : null;
   } catch {
     return null;

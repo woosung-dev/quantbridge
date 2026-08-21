@@ -126,10 +126,7 @@ export function SetupSummaryAside({
     {
       label: "봉 수",
       value: bars != null ? `${bars.toLocaleString()}개` : EMPTY_CELL,
-      title:
-        bars == null
-          ? "기간과 타임프레임이 정해져야 봉 수를 계산합니다."
-          : undefined,
+      title: bars == null ? "기간과 타임프레임이 정해져야 봉 수를 계산합니다." : undefined,
     },
     { label: "초기 자본", value: formatUsd(formValues.initial_capital) },
     { label: "포지션 사이징", value: summarizePositionSize(formValues) },
@@ -151,20 +148,12 @@ export function SetupSummaryAside({
   ];
 
   return (
-    <div
-      className="card"
-      aria-label="백테스트 설정 요약"
-      data-testid="setup-summary-aside"
-    >
+    <div className="card" aria-label="백테스트 설정 요약" data-testid="setup-summary-aside">
       <div className="side-rows">
         {rows.map((r) => (
           <div className="trust-row" key={r.label}>
             <span className="trust-key">{r.label}</span>
-            <span
-              className="trust-val"
-              title={r.title}
-              data-testid={`summary-row-${r.label}`}
-            >
+            <span className="trust-val" title={r.title} data-testid={`summary-row-${r.label}`}>
               {r.value}
             </span>
           </div>
@@ -225,8 +214,8 @@ export function SetupSummaryAside({
           <line x1="12" y1="7.5" x2="12.01" y2="7.5" />
         </svg>
         <span>
-          이 요약은 지금 폼에 입력한 값 그대로입니다. 위 가정 중 하나만 바뀌어도
-          결과는 달라지므로, 리포트를 읽기 전에 이 목록부터 확인하세요.
+          이 요약은 지금 폼에 입력한 값 그대로입니다. 위 가정 중 하나만 바뀌어도 결과는 달라지므로,
+          리포트를 읽기 전에 이 목록부터 확인하세요.
         </span>
       </p>
     </div>

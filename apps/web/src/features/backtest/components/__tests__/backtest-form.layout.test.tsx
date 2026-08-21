@@ -49,15 +49,11 @@ describe("BacktestForm layout — C 이식(W3-A)", () => {
     expect(layout.className).toMatch(/setup-grid/);
 
     // 양쪽 자식 모두 렌더
-    expect(
-      screen.getByRole("form", { name: "backtest-form" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("form", { name: "backtest-form" })).toBeInTheDocument();
     expect(screen.getByTestId("setup-summary-aside")).toBeInTheDocument();
 
     // h1 은 동사형 화면명(5축 규약 — h1 만 동사형)
-    expect(
-      screen.getByRole("heading", { level: 1, name: "새 백테스트 실행" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "새 백테스트 실행" })).toBeInTheDocument();
   });
 
   it("date preset 1Y 클릭 시 시작/종료일 input 값과 summary 기간 row 가 함께 갱신된다", () => {

@@ -37,11 +37,7 @@ import { useStrategies } from "@/features/strategy/hooks";
 import { readWebhookSecret } from "@/features/strategy/webhook-secret-storage";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import type { LiquidationParams } from "../api";
-import {
-  useExchangeAccounts,
-  useIsOrderDisabledByKs,
-  useLiquidationInfo,
-} from "../hooks";
+import { useExchangeAccounts, useIsOrderDisabledByKs, useLiquidationInfo } from "../hooks";
 import {
   isPositiveDecimalString,
   TEST_ORDER_FORM_SCHEMA,
@@ -101,9 +97,7 @@ function TestOrderDialogInner() {
   // BL-474 — 이 주문이 **어느 시장으로 나가는지** 를 발송 전에 보여준다.
   // 라우팅은 서버가 전략 Live Settings 로 결정한다(`webhook.resolve_trading_params`).
   // 추가 페치 0 — settings 는 이미 목록 응답에 실려 있다.
-  const selectedStrategy = strategiesQuery.data?.items.find(
-    (s) => s.id === strategyIdWatch,
-  );
+  const selectedStrategy = strategiesQuery.data?.items.find((s) => s.id === strategyIdWatch);
   const liveSettings = selectedStrategy?.settings ?? null;
 
   // Wave 2 청산가 미리보기 — 주문 payload 와 무관한 참고용 로컬 입력(예상 진입가 · 레버리지).
@@ -122,8 +116,7 @@ function TestOrderDialogInner() {
         ? String(liveSettings.leverage)
         : "";
   const liqEntryValid = isPositiveDecimalString(previewEntryPrice);
-  const liqLeverageValid =
-    /^\d+$/.test(effectiveLeverage) && Number(effectiveLeverage) > 0;
+  const liqLeverageValid = /^\d+$/.test(effectiveLeverage) && Number(effectiveLeverage) > 0;
   const liqParams: LiquidationParams | null =
     symbolWatch.length > 0 && liqEntryValid && liqLeverageValid
       ? {
@@ -192,8 +185,8 @@ function TestOrderDialogInner() {
           <DialogHeader className="qb-dialog-stagger-1">
             <DialogTitle>테스트 주문 (dogfood-only)</DialogTitle>
             <DialogDescription>
-              브라우저에서 webhook secret 으로 HMAC 서명 후 발송합니다.
-              실제 거래소로 주문이 전달되니 demo 계정에서만 사용하세요.
+              브라우저에서 webhook secret 으로 HMAC 서명 후 발송합니다. 실제 거래소로 주문이
+              전달되니 demo 계정에서만 사용하세요.
             </DialogDescription>
           </DialogHeader>
           <Form {...form}>
@@ -208,10 +201,7 @@ function TestOrderDialogInner() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>전략</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="전략 선택" />
@@ -240,8 +230,7 @@ function TestOrderDialogInner() {
                   >
                     라우팅{" "}
                     <span className="font-mono font-semibold text-foreground">
-                      Linear Perp · {liveSettings.leverage}x ·{" "}
-                      {liveSettings.margin_mode}
+                      Linear Perp · {liveSettings.leverage}x · {liveSettings.margin_mode}
                     </span>{" "}
                     (전략 Live Settings 를 서버가 적용합니다)
                   </p>
@@ -251,9 +240,8 @@ function TestOrderDialogInner() {
                     data-testid="routing-warning"
                     className="rounded-md border border-destructive/30 bg-destructive-light px-3 py-2 text-xs text-destructive"
                   >
-                    이 전략은 Live Settings(레버리지 · 마진 모드)가 없어 주문이
-                    422 로 거부됩니다. 전략 편집 → 트레이딩 설정에서 먼저
-                    지정하세요.
+                    이 전략은 Live Settings(레버리지 · 마진 모드)가 없어 주문이 422 로 거부됩니다.
+                    전략 편집 → 트레이딩 설정에서 먼저 지정하세요.
                   </p>
                 )
               ) : null}
@@ -263,10 +251,7 @@ function TestOrderDialogInner() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>거래소 계정</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="계정 선택" />
@@ -305,10 +290,7 @@ function TestOrderDialogInner() {
                   <FormItem>
                     <FormLabel>방향</FormLabel>
                     <FormControl>
-                      <fieldset
-                        className="flex gap-4"
-                        aria-label="주문 방향"
-                      >
+                      <fieldset className="flex gap-4" aria-label="주문 방향">
                         <label className="flex items-center gap-2 text-sm">
                           <input
                             type="radio"
@@ -341,10 +323,7 @@ function TestOrderDialogInner() {
                   <FormItem>
                     <FormLabel>사이징 방식</FormLabel>
                     <FormControl>
-                      <fieldset
-                        className="flex flex-wrap gap-4"
-                        aria-label="사이징 방식"
-                      >
+                      <fieldset className="flex flex-wrap gap-4" aria-label="사이징 방식">
                         <label className="flex min-h-11 items-center gap-2 text-sm">
                           <input
                             type="radio"
@@ -380,11 +359,7 @@ function TestOrderDialogInner() {
                   <FormItem>
                     <FormLabel>수량 (Decimal)</FormLabel>
                     <FormControl>
-                      <Input
-                        inputMode="decimal"
-                        placeholder="0.001"
-                        {...field}
-                      />
+                      <Input inputMode="decimal" placeholder="0.001" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -398,15 +373,11 @@ function TestOrderDialogInner() {
                     <FormItem>
                       <FormLabel>리스크 % (수량 상한 검증)</FormLabel>
                       <FormControl>
-                        <Input
-                          inputMode="decimal"
-                          placeholder="1.0"
-                          {...field}
-                        />
+                        <Input inputMode="decimal" placeholder="1.0" {...field} />
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
-                        서버가 자본 × 리스크% ÷ |진입가 − 손절가| 로 상한을 구해
-                        위 수량이 넘으면 거부합니다. 손절가가 있어야 계산됩니다.
+                        서버가 자본 × 리스크% ÷ |진입가 − 손절가| 로 상한을 구해 위 수량이 넘으면
+                        거부합니다. 손절가가 있어야 계산됩니다.
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -422,11 +393,7 @@ function TestOrderDialogInner() {
                     <FormItem>
                       <FormLabel>익절가 TP (선택)</FormLabel>
                       <FormControl>
-                        <Input
-                          inputMode="decimal"
-                          placeholder="예: 55000"
-                          {...field}
-                        />
+                        <Input inputMode="decimal" placeholder="예: 55000" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -439,11 +406,7 @@ function TestOrderDialogInner() {
                     <FormItem>
                       <FormLabel>손절가 SL (선택)</FormLabel>
                       <FormControl>
-                        <Input
-                          inputMode="decimal"
-                          placeholder="예: 48000"
-                          {...field}
-                        />
+                        <Input inputMode="decimal" placeholder="예: 48000" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -490,8 +453,8 @@ function TestOrderDialogInner() {
                         />
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
-                        거래소가 확정하기 전까지 표시될 추정값입니다. 스윕이
-                        확정 손익으로 교체합니다.
+                        거래소가 확정하기 전까지 표시될 추정값입니다. 스윕이 확정 손익으로
+                        교체합니다.
                       </p>
                       <FormMessage />
                     </FormItem>
@@ -503,10 +466,7 @@ function TestOrderDialogInner() {
                 <p className="text-sm font-medium">청산가 미리보기 (참고용)</p>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1">
-                    <label
-                      htmlFor="liq-preview-entry"
-                      className="text-sm font-medium"
-                    >
+                    <label htmlFor="liq-preview-entry" className="text-sm font-medium">
                       예상 진입가
                     </label>
                     <Input
@@ -518,10 +478,7 @@ function TestOrderDialogInner() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label
-                      htmlFor="liq-preview-leverage"
-                      className="text-sm font-medium"
-                    >
+                    <label htmlFor="liq-preview-leverage" className="text-sm font-medium">
                       레버리지 (배)
                       {liveSettings != null ? (
                         <span className="ml-1 font-normal text-muted-foreground">
@@ -539,22 +496,16 @@ function TestOrderDialogInner() {
                   </div>
                 </div>
                 {liquidation ? (
-                  <p
-                    data-testid="liquidation-preview"
-                    className="text-sm text-foreground"
-                  >
+                  <p data-testid="liquidation-preview" className="text-sm text-foreground">
                     예상 청산가{" "}
-                    <span className="font-mono font-semibold">
-                      {liquidation.liquidation_price}
-                    </span>{" "}
+                    <span className="font-mono font-semibold">{liquidation.liquidation_price}</span>{" "}
                     <span className="text-muted-foreground">
                       (진입가 대비 {liquidation.distance_pct}%)
                     </span>
                   </p>
                 ) : (
                   <p className="text-xs text-muted-foreground">
-                    심볼·방향 선택 후 예상 진입가와 레버리지를 입력하면 청산가를
-                    표시합니다.
+                    심볼·방향 선택 후 예상 진입가와 레버리지를 입력하면 청산가를 표시합니다.
                   </p>
                 )}
               </div>
@@ -567,11 +518,7 @@ function TestOrderDialogInner() {
                 </p>
               ) : null}
               <div className="qb-dialog-stagger-4 flex justify-end gap-2 pt-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setOpen(false)}
-                >
+                <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
                   취소
                 </Button>
                 <Button

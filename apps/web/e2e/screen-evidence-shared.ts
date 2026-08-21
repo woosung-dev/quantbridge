@@ -30,10 +30,10 @@ export interface RouteMetrics {
    */
   firstLoadBytes: number;
   /**
-    * 측정 창 안에서 브라우저가 낸 `/api/v1/` 요청 건수.
-    * ★`null` = **대조하지 않는다**(측정을 안 했다는 뜻이 아니다). authed 라우트가 그렇다 —
-    *   아래 `totalRequests` 주석의 실측 참조.
-    */
+   * 측정 창 안에서 브라우저가 낸 `/api/v1/` 요청 건수.
+   * ★`null` = **대조하지 않는다**(측정을 안 했다는 뜻이 아니다). authed 라우트가 그렇다 —
+   *   아래 `totalRequests` 주석의 실측 참조.
+   */
   apiRequests: number | null;
   /**
    * 측정 창 안의 **전체** 요청 건수. 계수기 생존 앵커 겸 화면의 총 대가.

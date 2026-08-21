@@ -29,9 +29,7 @@ export async function listLiveSessions(
   token: string | null,
   includeInactive = false,
 ): Promise<{ items: LiveSession[]; total: number }> {
-  const path = includeInactive
-    ? `${LIVE_SESSIONS_PATH}?include_inactive=true`
-    : LIVE_SESSIONS_PATH;
+  const path = includeInactive ? `${LIVE_SESSIONS_PATH}?include_inactive=true` : LIVE_SESSIONS_PATH;
   const raw = await apiFetch<unknown>(path, {
     method: "GET",
     token,

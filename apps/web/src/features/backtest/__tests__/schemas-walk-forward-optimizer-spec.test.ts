@@ -4,10 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ParamSpace } from "@/features/optimizer/schemas";
 
-import {
-  WalkForwardParamsSchema,
-  WalkForwardResultSchema,
-} from "../schemas";
+import { WalkForwardParamsSchema, WalkForwardResultSchema } from "../schemas";
 
 // param_space 는 옵티마이저 run 에서 온 검증완료 객체 — FE 는 passthrough, BE 가 재검증.
 const PARAM_SPACE = {

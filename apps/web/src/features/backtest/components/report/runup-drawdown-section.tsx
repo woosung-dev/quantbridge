@@ -4,19 +4,14 @@
 // 데이터 = metrics.excursion_stats (BE 팩). 구 백테스트(null) → 잠금 empty state.
 // `_intrabar` 행은 "(bar 근사)" 라벨 의무 (Surface Trust — 틱 데이터 아님).
 
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
-import type {
-  BacktestMetricsOut,
-  ExcursionStats,
-} from "@/features/backtest/schemas";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { BacktestMetricsOut, ExcursionStats } from "@/features/backtest/schemas";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 
-import { MetricTable, type MetricRowSpec } from "@/features/backtest/components/report/metric-table";
+import {
+  MetricTable,
+  type MetricRowSpec,
+} from "@/features/backtest/components/report/metric-table";
 
 interface RunupDrawdownSectionProps {
   metrics: BacktestMetricsOut;
@@ -44,10 +39,7 @@ function usdWithPct(
   return pctValue != null ? `${absStr} (${formatPercent(pctValue)})` : absStr;
 }
 
-export function RunupDrawdownSection({
-  metrics,
-  initialCapital,
-}: RunupDrawdownSectionProps) {
+export function RunupDrawdownSection({ metrics, initialCapital }: RunupDrawdownSectionProps) {
   const stats: ExcursionStats | null | undefined = metrics.excursion_stats;
 
   if (stats == null) {
@@ -103,10 +95,7 @@ export function RunupDrawdownSection({
     },
     {
       label: "최대 손실폭 (인트라바)",
-      value: usdWithPct(
-        stats.max_drawdown_intrabar_abs,
-        stats.max_drawdown_intrabar_pct,
-      ),
+      value: usdWithPct(stats.max_drawdown_intrabar_abs, stats.max_drawdown_intrabar_pct),
       hint: BAR_APPROX,
       tone: "bearish",
     },
@@ -142,8 +131,14 @@ export function RunupDrawdownSection({
 
         <TabsContent value="overview" className="mt-4">
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <OverviewKpi label="평균 상승 지속 기간" value={days(stats.avg_runup_duration_days) ?? "—"} />
-            <OverviewKpi label="평균 낙폭 지속 기간" value={days(stats.avg_drawdown_duration_days) ?? "—"} />
+            <OverviewKpi
+              label="평균 상승 지속 기간"
+              value={days(stats.avg_runup_duration_days) ?? "—"}
+            />
+            <OverviewKpi
+              label="평균 낙폭 지속 기간"
+              value={days(stats.avg_drawdown_duration_days) ?? "—"}
+            />
             <OverviewKpi
               label="초기 자본 대비 최대 손실률"
               value={mddVsCapital != null ? formatPercent(mddVsCapital) : "—"}
@@ -162,11 +157,17 @@ export function RunupDrawdownSection({
         </TabsContent>
 
         <TabsContent value="runup" className="mt-4">
-          <MetricTable rows={runupRows} caption={`인트라바 값은 bar high/low 근사 ${BAR_APPROX} — 틱 정밀 아님.`} />
+          <MetricTable
+            rows={runupRows}
+            caption={`인트라바 값은 bar high/low 근사 ${BAR_APPROX} — 틱 정밀 아님.`}
+          />
         </TabsContent>
 
         <TabsContent value="drawdown" className="mt-4">
-          <MetricTable rows={drawdownRows} caption={`인트라바 값은 bar high/low 근사 ${BAR_APPROX} — 틱 정밀 아님.`} />
+          <MetricTable
+            rows={drawdownRows}
+            caption={`인트라바 값은 bar high/low 근사 ${BAR_APPROX} — 틱 정밀 아님.`}
+          />
         </TabsContent>
       </Tabs>
     </section>
@@ -196,9 +197,7 @@ function OverviewKpi({
         {label}
         {hint ? <span className="ml-1 normal-case">{hint}</span> : null}
       </span>
-      <span className={`font-mono text-lg font-bold tabular-nums ${toneClass}`}>
-        {value}
-      </span>
+      <span className={`font-mono text-lg font-bold tabular-nums ${toneClass}`}>{value}</span>
     </div>
   );
 }

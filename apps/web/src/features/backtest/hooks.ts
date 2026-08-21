@@ -17,15 +17,8 @@ import {
 } from "@tanstack/react-query";
 
 import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
-import {
-  useInvalidatingMutation,
-  type MutationCallbacks,
-} from "@/hooks/use-invalidating-mutation";
-import {
-  makeRefetchInterval,
-  makeStatusPoll,
-  type RefetchIntervalFn,
-} from "@/lib/query-poll";
+import { useInvalidatingMutation, type MutationCallbacks } from "@/hooks/use-invalidating-mutation";
+import { makeRefetchInterval, makeStatusPoll, type RefetchIntervalFn } from "@/lib/query-poll";
 
 import {
   cancelBacktest,
@@ -98,11 +91,7 @@ function makeProgressFetcher(id: string, getToken: TokenGetter) {
   };
 }
 
-function makeTradesFetcher(
-  id: string,
-  query: BacktestTradesQuery,
-  getToken: TokenGetter,
-) {
+function makeTradesFetcher(id: string, query: BacktestTradesQuery, getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return listBacktestTrades(id, query, token);
@@ -136,21 +125,13 @@ export interface AllTradesResult {
 export function makeAllTradesFetcher(id: string, getToken: TokenGetter) {
   return async (): Promise<AllTradesResult> => {
     const token = await getToken();
-    const first = await listBacktestTrades(
-      id,
-      { limit: ALL_TRADES_PAGE_SIZE, offset: 0 },
-      token,
-    );
+    const first = await listBacktestTrades(id, { limit: ALL_TRADES_PAGE_SIZE, offset: 0 }, token);
     const total = first.total;
 
     // MAX_ANALYTICS_TRADES cap 유지 — 잔여 offset 은 min(total, cap) 까지만 생성.
     const cappedTotal = Math.min(total, MAX_ANALYTICS_TRADES);
     const restOffsets: number[] = [];
-    for (
-      let offset = ALL_TRADES_PAGE_SIZE;
-      offset < cappedTotal;
-      offset += ALL_TRADES_PAGE_SIZE
-    ) {
+    for (let offset = ALL_TRADES_PAGE_SIZE; offset < cappedTotal; offset += ALL_TRADES_PAGE_SIZE) {
       restOffsets.push(offset);
     }
     const restPages = await Promise.all(
@@ -187,9 +168,7 @@ export function useBacktests(
   });
 }
 
-export function useBacktest(
-  id: string | undefined,
-): UseQueryResult<BacktestDetail, Error> {
+export function useBacktest(id: string | undefined): UseQueryResult<BacktestDetail, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: id ? backtestKeys.detail(uid, id) : backtestKeys.details(uid),
@@ -218,9 +197,7 @@ export function useBacktestTrades(
 ): UseQueryResult<TradeListResponse, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
-    queryKey: id
-      ? backtestKeys.trades(uid, id, query)
-      : backtestKeys.all(uid),
+    queryKey: id ? backtestKeys.trades(uid, id, query) : backtestKeys.all(uid),
     queryFn: makeTradesFetcher(id ?? "", query, getToken),
     enabled: Boolean(id) && (options.enabled ?? true),
   });
@@ -232,8 +209,7 @@ export function useTradeOhlcv(
   options: { enabled?: boolean } = {},
 ): UseQueryResult<TradeOhlcvResponse, Error> {
   const { uid, getToken } = useAuthCtx();
-  const isEnabled =
-    Boolean(backtestId) && tradeIndex !== undefined && (options.enabled ?? true);
+  const isEnabled = Boolean(backtestId) && tradeIndex !== undefined && (options.enabled ?? true);
   return useQuery({
     queryKey:
       backtestId !== undefined && tradeIndex !== undefined
@@ -264,8 +240,7 @@ export function useCreateBacktest(
 ): UseMutationResult<BacktestCreatedResponse, Error, CreateBacktestRequest> {
   return useInvalidatingMutation(
     {
-      mutationFn: (body: CreateBacktestRequest, token) =>
-        createBacktest(body, token),
+      mutationFn: (body: CreateBacktestRequest, token) => createBacktest(body, token),
       invalidateKeys: (uid) => [backtestKeys.lists(uid)],
     },
     opts,
@@ -356,10 +331,7 @@ function makeStressTestFetcher(id: string, getToken: TokenGetter) {
 // ★「전체」가 아니다 — `offset` 은 0 고정이고 다음 페이지를 요청할 경로가 없다.
 // 응답의 `total` 이 `items.length` 보다 크면 표가 그 사실을 화면에 고지한다
 // (codex 적대 리뷰 P1, 2026-08-17 — 종전 주석이 「이력 전체」라 적어 코드보다 앞서 나갔다).
-function makeStressTestHistoryFetcher(
-  backtestId: string,
-  getToken: TokenGetter,
-) {
+function makeStressTestHistoryFetcher(backtestId: string, getToken: TokenGetter) {
   return async () => {
     const token = await getToken();
     return listStressTests(backtestId, STRESS_TEST_HISTORY_LIMIT, token);
@@ -368,8 +340,11 @@ function makeStressTestHistoryFetcher(
 
 // LESSON-004 guard: refetchInterval 은 module-level 순수 함수로, terminal status 에서 false 반환.
 // React Query data 객체를 useEffect dep 로 쓰지 않아 CPU 100% 루프를 원천 차단.
-export const stressTestRefetchInterval: RefetchIntervalFn<StressTestDetail> =
-  makeStatusPoll((d) => d.status, new Set(["completed", "failed"]), STRESS_TEST_POLL_MS);
+export const stressTestRefetchInterval: RefetchIntervalFn<StressTestDetail> = makeStatusPoll(
+  (d) => d.status,
+  new Set(["completed", "failed"]),
+  STRESS_TEST_POLL_MS,
+);
 
 // [BL-414] 이력 표 폴링 — 진행 중인 행이 하나라도 있을 때만. 도착 전(data 미도착)에는
 // 지켜볼 행 자체가 없으므로 false 다 (상세 폴링과 여기가 다른 점).
@@ -409,11 +384,7 @@ export function useCreateWalkForward(
 // Sprint 50 — Cost Assumption Sensitivity (fees x slippage 9-cell grid).
 export function useCreateCostAssumption(
   opts: MutationCallbacks<StressTestCreatedResponse> = {},
-): UseMutationResult<
-  StressTestCreatedResponse,
-  Error,
-  CreateCostAssumptionRequest
-> {
+): UseMutationResult<StressTestCreatedResponse, Error, CreateCostAssumptionRequest> {
   return useInvalidatingMutation(
     {
       mutationFn: (body: CreateCostAssumptionRequest, token) => postCostAssumption(body, token),
@@ -426,11 +397,7 @@ export function useCreateCostAssumption(
 // Sprint 52 BL-223 — Param Stability (pine input_overrides 9-cell grid).
 export function useCreateParamStability(
   opts: MutationCallbacks<StressTestCreatedResponse> = {},
-): UseMutationResult<
-  StressTestCreatedResponse,
-  Error,
-  CreateParamStabilityRequest
-> {
+): UseMutationResult<StressTestCreatedResponse, Error, CreateParamStabilityRequest> {
   return useInvalidatingMutation(
     {
       mutationFn: (body: CreateParamStabilityRequest, token) => postParamStability(body, token),
@@ -440,14 +407,10 @@ export function useCreateParamStability(
   );
 }
 
-export function useStressTest(
-  id: string | null,
-): UseQueryResult<StressTestDetail, Error> {
+export function useStressTest(id: string | null): UseQueryResult<StressTestDetail, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
-    queryKey: id
-      ? stressTestKeys.detail(uid, id)
-      : stressTestKeys.all(uid),
+    queryKey: id ? stressTestKeys.detail(uid, id) : stressTestKeys.all(uid),
     queryFn: makeStressTestFetcher(id ?? "", getToken),
     enabled: Boolean(id),
     refetchInterval: stressTestRefetchInterval,
@@ -470,9 +433,7 @@ export function useStressTestHistory(
 ): UseQueryResult<StressTestListResponse, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
-    queryKey: backtestId
-      ? stressTestKeys.byBacktest(uid, backtestId)
-      : stressTestKeys.all(uid),
+    queryKey: backtestId ? stressTestKeys.byBacktest(uid, backtestId) : stressTestKeys.all(uid),
     queryFn: makeStressTestHistoryFetcher(backtestId ?? "", getToken),
     enabled: Boolean(backtestId),
     refetchInterval: stressTestHistoryRefetchInterval,

@@ -6,16 +6,12 @@ import { MonthlyReturnsHeatmap } from "@/features/backtest/components/charts/mon
 describe("MonthlyReturnsHeatmap (Sprint 30-γ-FE)", () => {
   it("data null 시 안내 메시지", () => {
     render(<MonthlyReturnsHeatmap data={null} />);
-    expect(
-      screen.getByText(/월별 수익률 데이터가 없습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/월별 수익률 데이터가 없습니다/)).toBeInTheDocument();
   });
 
   it("data 빈 배열 시 안내 메시지", () => {
     render(<MonthlyReturnsHeatmap data={[]} />);
-    expect(
-      screen.getByText(/월별 수익률 데이터가 없습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/월별 수익률 데이터가 없습니다/)).toBeInTheDocument();
   });
 
   it("12 month × 1 year grid 정상 렌더 + 합계 column", () => {
@@ -37,9 +33,7 @@ describe("MonthlyReturnsHeatmap (Sprint 30-γ-FE)", () => {
     expect(screen.getByText("-2.0%")).toBeInTheDocument();
     expect(screen.getByText("8.0%")).toBeInTheDocument();
     // 안내 텍스트
-    expect(
-      screen.getByText(/합계는 산술 합 \(복리 아님\)/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/합계는 산술 합 \(복리 아님\)/)).toBeInTheDocument();
   });
 
   it("non-finite value 는 0 처리 (cumulative 영향 없음)", () => {

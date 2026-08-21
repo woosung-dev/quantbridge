@@ -17,12 +17,8 @@ test("OrdersPanel 빈 상태 — copy + CTA 표시", async () => {
     </QueryClientProvider>,
   );
 
-  expect(
-    await screen.findByText("아직 주문이 없습니다."),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText("전략을 실행하면 여기에 표시됩니다."),
-  ).toBeInTheDocument();
+  expect(await screen.findByText("아직 주문이 없습니다.")).toBeInTheDocument();
+  expect(screen.getByText("전략을 실행하면 여기에 표시됩니다.")).toBeInTheDocument();
   // C 이식(S8): CTA 는 공용 .btn 을 소비하는 next/link → role="link".
   const cta = screen.getByRole("link", { name: "전략 보기" });
   expect(cta).toHaveAttribute("href", "/strategies");

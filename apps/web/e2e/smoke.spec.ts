@@ -36,9 +36,7 @@ test("strategies redirect to sign-in (auth gate works)", async ({ page }) => {
   await expect(page).not.toHaveURL(/\/strategies$/);
 });
 
-test("no console errors on landing (LESSON-004 render loop proxy)", async ({
-  page,
-}) => {
+test("no console errors on landing (LESSON-004 render loop proxy)", async ({ page }) => {
   const consoleErrors: string[] = [];
   page.on("console", (msg) => {
     if (msg.type() === "error") consoleErrors.push(msg.text());
@@ -49,14 +47,7 @@ test("no console errors on landing (LESSON-004 render loop proxy)", async ({
   await page.waitForTimeout(2_000);
 
   // 개발 모드 경고는 무시
-  const relevantErrors = consoleErrors.filter(
-    (e) =>
-      !e.includes("development keys") &&
-      true,
-  );
+  const relevantErrors = consoleErrors.filter((e) => !e.includes("development keys") && true);
 
-  expect(
-    relevantErrors,
-    `console errors found:\n${relevantErrors.join("\n")}`,
-  ).toHaveLength(0);
+  expect(relevantErrors, `console errors found:\n${relevantErrors.join("\n")}`).toHaveLength(0);
 });

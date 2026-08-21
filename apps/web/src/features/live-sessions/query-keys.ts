@@ -7,8 +7,7 @@
 export const liveSessionKeys = {
   all: (userId: string) => ["live-sessions", userId] as const,
   list: (userId: string) => [...liveSessionKeys.all(userId), "list"] as const,
-  listWithInactive: (userId: string) =>
-    [...liveSessionKeys.list(userId), "with-inactive"] as const,
+  listWithInactive: (userId: string) => [...liveSessionKeys.list(userId), "with-inactive"] as const,
   detail: (userId: string, sessionId: string) =>
     [...liveSessionKeys.all(userId), "detail", sessionId] as const,
   state: (userId: string, sessionId: string) =>

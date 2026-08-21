@@ -177,20 +177,16 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
 
     // backend Phase A.0: ApiError.detail = readErrorBody 결과 =
     // { detail: { code, detail, unsupported_builtins: [...] } }
-    const err = Object.assign(
-      new Error("Strategy contains unsupported Pine built-ins"),
-      {
-        status: 422,
+    const err = Object.assign(new Error("Strategy contains unsupported Pine built-ins"), {
+      status: 422,
+      detail: {
         detail: {
-          detail: {
-            code: "strategy_not_runnable",
-            detail:
-              "Strategy contains unsupported Pine built-ins: heikinashi, security, max",
-            unsupported_builtins: ["heikinashi", "security", "max"],
-          },
+          code: "strategy_not_runnable",
+          detail: "Strategy contains unsupported Pine built-ins: heikinashi, security, max",
+          unsupported_builtins: ["heikinashi", "security", "max"],
         },
       },
-    );
+    });
 
     expect(capturedOpts.current.onError).toBeDefined();
     act(() => {
@@ -213,9 +209,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     // 422 는 toast 가 아닌 inline 카드로만 처리.
     expect(toastError).not.toHaveBeenCalled();
     // Sprint 13 의 root.serverError fallback 미사용 (구조화 list 우선).
-    expect(
-      screen.queryByTestId("backtest-form-server-error"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("backtest-form-server-error")).not.toBeInTheDocument();
   });
 
   it("422 + empty unsupported_builtins → fallback root.serverError (no card)", async () => {
@@ -258,9 +252,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     });
 
     // 빈 list — fallback root.serverError 카드 미노출
-    expect(
-      screen.queryByTestId("backtest-form-unsupported-card"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("backtest-form-unsupported-card")).not.toBeInTheDocument();
     const serverErr = await screen.findByTestId("backtest-form-server-error");
     expect(serverErr).toHaveTextContent("date out of range");
   });
@@ -296,9 +288,7 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       capturedOpts.current.onError?.(err);
     });
 
-    expect(
-      screen.queryByTestId("backtest-form-unsupported-card"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("backtest-form-unsupported-card")).not.toBeInTheDocument();
     const serverErr = await screen.findByTestId("backtest-form-server-error");
     expect(serverErr).toHaveTextContent("legacy 422");
   });
@@ -344,12 +334,8 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
     expect(callArg).toContain("백테스트 실행 중 오류 발생");
     expect(callArg).toContain("Internal server error");
     expect(callArg).toContain("지원 함수 목록 참조");
-    expect(
-      screen.queryByTestId("backtest-form-unsupported-card"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId("backtest-form-server-error"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("backtest-form-unsupported-card")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("backtest-form-server-error")).not.toBeInTheDocument();
   });
 
   // Sprint 32 E (BL-163) — 422 응답에 friendly_message 가 함께 오면 카드 헤더 노출.
@@ -377,22 +363,18 @@ describe("BacktestForm — Sprint 13 Phase C inline error UX", () => {
       expect(mutate).toHaveBeenCalledTimes(1);
     });
 
-    const err = Object.assign(
-      new Error("Strategy contains unsupported Pine built-ins"),
-      {
-        status: 422,
+    const err = Object.assign(new Error("Strategy contains unsupported Pine built-ins"), {
+      status: 422,
+      detail: {
         detail: {
-          detail: {
-            code: "strategy_not_runnable",
-            detail:
-              "Strategy contains unsupported Pine built-ins: array.new_float",
-            unsupported_builtins: ["array.new_float"],
-            friendly_message:
-              "이 strategy 는 미지원 Pine 빌트인을 포함합니다. array.new_float — Pine v6 collection types 미지원 (paradigm mismatch). ADR-003 supported list 참조.",
-          },
+          code: "strategy_not_runnable",
+          detail: "Strategy contains unsupported Pine built-ins: array.new_float",
+          unsupported_builtins: ["array.new_float"],
+          friendly_message:
+            "이 strategy 는 미지원 Pine 빌트인을 포함합니다. array.new_float — Pine v6 collection types 미지원 (paradigm mismatch). ADR-003 supported list 참조.",
         },
       },
-    );
+    });
 
     act(() => {
       capturedOpts.current.onError?.(err);

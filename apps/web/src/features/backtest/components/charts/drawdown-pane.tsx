@@ -16,10 +16,7 @@
 
 import { useMemo } from "react";
 
-import {
-  TradingChart,
-  type ChartPoint,
-} from "@/components/charts/trading-chart";
+import { TradingChart, type ChartPoint } from "@/components/charts/trading-chart";
 import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
 import type { LineSeriesPartialOptions } from "lightweight-charts";
 
@@ -80,10 +77,7 @@ function DrawdownChart({
   height: number;
 }) {
   // area 오버레이 — identity 를 drawdownData 에 고정 (spread 재생성 금지).
-  const area = useMemo(
-    () => ({ data: drawdownData, options: DD_AREA_OPTIONS }),
-    [drawdownData],
-  );
+  const area = useMemo(() => ({ data: drawdownData, options: DD_AREA_OPTIONS }), [drawdownData]);
   return (
     <TradingChart
       // main line series 는 area 라인과 동일 색 placeholder (last value 라벨용).

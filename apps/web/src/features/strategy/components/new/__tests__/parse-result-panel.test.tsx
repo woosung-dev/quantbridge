@@ -26,9 +26,7 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
   afterEach(cleanup);
 
   it("지원됨: .parse-kpi + chip done '지원됨' + 감지 함수 목록 + 저장 버튼", () => {
-    render(
-      <ParseResultPanel result={makeResult()} loading={false} canSave onSave={vi.fn()} />,
-    );
+    render(<ParseResultPanel result={makeResult()} loading={false} canSave onSave={vi.fn()} />);
     expect(screen.getByTestId("parse-supported")).toBeTruthy();
     expect(screen.getByText("지원됨").className).toBe("chip done");
     expect(screen.getByText("ta.sma")).toBeTruthy();

@@ -54,7 +54,7 @@ const BASE_DETAIL: StrategyDetail = {
   id: STRATEGY_ID,
   name: "BL-188 v3 Mirror Test Strategy",
   description: null,
-  pine_source: "//@version=5\nstrategy(\"t\", overlay=true)\n",
+  pine_source: '//@version=5\nstrategy("t", overlay=true)\n',
   pine_version: "v5",
   parse_status: "ok",
   parse_errors: null,
@@ -115,7 +115,10 @@ function routeStrategies(detail: StrategyDetail) {
       });
     });
     // backtests POST — 모든 case 가 submit 까지 가지 않으므로 noop OK.
-    await page.route(API_ROUTES.backtests, fulfillJson({ items: [], total: 0, page: 0, page_size: 20 }));
+    await page.route(
+      API_ROUTES.backtests,
+      fulfillJson({ items: [], total: 0, page: 0, page_size: 20 }),
+    );
   };
 }
 
@@ -181,9 +184,7 @@ test.describe("backtest live mirror — BL-188 v3 D", () => {
 
   // CASE 3: Pine `strategy(default_qty_type=cash, default_qty_value=5000)` → Pine
   // override 배지 + 폼 disabled.
-  test("Pine declared default_qty 명시 → Pine override 배지 + 폼 disabled", async ({
-    page,
-  }) => {
+  test("Pine declared default_qty 명시 → Pine override 배지 + 폼 disabled", async ({ page }) => {
     const detail: StrategyDetail = {
       ...BASE_DETAIL,
       pine_source:
@@ -255,9 +256,7 @@ test.describe("backtest live mirror — BL-188 v3 D", () => {
 
   // CASE 5: trading_sessions=[asia] strategy → 폼 prefill (asia checked,
   // london/ny unchecked). Strategy.trading_sessions 단일 reference 정합.
-  test("trading_sessions=[asia] strategy → asia checkbox prefill", async ({
-    page,
-  }) => {
+  test("trading_sessions=[asia] strategy → asia checkbox prefill", async ({ page }) => {
     const detail: StrategyDetail = {
       ...BASE_DETAIL,
       trading_sessions: ["asia"],

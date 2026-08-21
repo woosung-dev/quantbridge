@@ -52,8 +52,6 @@ describe("mergeCumulativeCurves", () => {
 
   it("ignores empty curves mixed with populated ones", () => {
     const a = [{ time: 5, value: 100 }];
-    expect(mergeCumulativeCurves([[], a, []])).toEqual([
-      { time: 5, value: 100 },
-    ]);
+    expect(mergeCumulativeCurves([[], a, []])).toEqual([{ time: 5, value: 100 }]);
   });
 });

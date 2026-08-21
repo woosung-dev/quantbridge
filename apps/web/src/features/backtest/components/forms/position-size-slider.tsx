@@ -46,10 +46,7 @@ export function PositionSizeSlider({
   const [isInteracting, setIsInteracting] = useState(false);
 
   return (
-    <div
-      className="flex flex-col gap-2.5"
-      data-testid="position-size-slider-root"
-    >
+    <div className="flex flex-col gap-2.5" data-testid="position-size-slider-root">
       <div className="flex items-baseline justify-between">
         <span className="text-sm font-medium">{label}</span>
         <span

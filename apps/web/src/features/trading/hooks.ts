@@ -65,28 +65,21 @@ const KILL_SWITCH_REFETCH_INTERVAL_MS = 30_000;
 const BALANCE_REFETCH_INTERVAL_MS = 30_000;
 
 // "진행 중" 상태 — 이 상태가 존재할 때 빠른 폴링
-export const ACTIVE_ORDER_STATES: ReadonlySet<Order["state"]> = new Set([
-  "pending",
-  "submitted",
-]);
+export const ACTIVE_ORDER_STATES: ReadonlySet<Order["state"]> = new Set(["pending", "submitted"]);
 export const OPEN_ORDER_STATES = ["pending", "submitted"] as const;
 
 /**
  * Sprint 12 Phase C — pure helper for unit testing.
  * orders 배열에 active state(`pending|submitted`) 가 1개라도 있으면 5s, 없으면 30s.
  */
-export function computeOrdersRefetchInterval(
-  orders: ReadonlyArray<Pick<Order, "state">>,
-): number {
+export function computeOrdersRefetchInterval(orders: ReadonlyArray<Pick<Order, "state">>): number {
   const hasActive = orders.some((o) => ACTIVE_ORDER_STATES.has(o.state));
-  return hasActive
-    ? ORDERS_REFETCH_INTERVAL_ACTIVE_MS
-    : ORDERS_REFETCH_INTERVAL_IDLE_MS;
+  return hasActive ? ORDERS_REFETCH_INTERVAL_ACTIVE_MS : ORDERS_REFETCH_INTERVAL_IDLE_MS;
 }
 
 // LESSON-004 가드 내장 폴링 — 진행 중 주문이 있으면 빠른 폴링, 없으면 느린 폴링.
-const ordersRefetchInterval = makeRefetchInterval<{ items: Order[]; total: number }>(
-  (data) => computeOrdersRefetchInterval(data?.items ?? []),
+const ordersRefetchInterval = makeRefetchInterval<{ items: Order[]; total: number }>((data) =>
+  computeOrdersRefetchInterval(data?.items ?? []),
 );
 
 const killSwitchRefetchInterval = makeRefetchInterval<{
@@ -154,10 +147,7 @@ function makeAccountBalanceFetcher(accountId: string, getToken: TokenGetter) {
   };
 }
 
-function makeLiquidationFetcher(
-  params: LiquidationParams | null,
-  getToken: TokenGetter,
-) {
+function makeLiquidationFetcher(params: LiquidationParams | null, getToken: TokenGetter) {
   return async () => {
     if (params === null) {
       throw new Error("liquidation params required");
@@ -213,9 +203,7 @@ export function useOrders(
         // 이전에 진행 중이었던 주문이 새 상태로 전환
         if (prevState !== order.state) {
           for (const rule of STATE_TRANSITION_RULES) {
-            const targets = Array.isArray(rule.toState)
-              ? rule.toState
-              : [rule.toState];
+            const targets = Array.isArray(rule.toState) ? rule.toState : [rule.toState];
             if (targets.includes(order.state)) {
               rule.toastFn(order.symbol);
               break;
@@ -271,10 +259,7 @@ export function useCancelOrder(): UseMutationResult<CancelOrderResponse, Error, 
   );
 }
 
-export function useKillSwitchEvents(): UseQueryResult<
-  { items: KillSwitchEvent[] },
-  Error
-> {
+export function useKillSwitchEvents(): UseQueryResult<{ items: KillSwitchEvent[] }, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: tradingKeys.killSwitch(uid),
@@ -283,11 +268,7 @@ export function useKillSwitchEvents(): UseQueryResult<
   });
 }
 
-export function useResolveKillSwitchEvent(): UseMutationResult<
-  void,
-  Error,
-  string
-> {
+export function useResolveKillSwitchEvent(): UseMutationResult<void, Error, string> {
   return useInvalidatingMutation({
     mutationFn: (id: string, token) => resolveKillSwitchEvent(id, token),
     invalidateKeys: (uid) => [tradingKeys.killSwitch(uid)],
@@ -325,8 +306,7 @@ export function useRegisterExchangeAccount(): UseMutationResult<
   RegisterAccountRequest
 > {
   return useInvalidatingMutation({
-    mutationFn: (req: RegisterAccountRequest, token) =>
-      registerExchangeAccount(req, token),
+    mutationFn: (req: RegisterAccountRequest, token) => registerExchangeAccount(req, token),
     invalidateKeys: (uid) => [tradingKeys.exchangeAccounts(uid)],
   });
 }

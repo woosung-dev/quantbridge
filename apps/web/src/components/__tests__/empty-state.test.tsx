@@ -13,9 +13,7 @@ describe("EmptyState", () => {
   it("headline 만 전달되면 description / cta 없이 렌더된다", () => {
     render(<EmptyState headline="아직 없습니다" />);
 
-    expect(screen.getByTestId("empty-state-headline")).toHaveTextContent(
-      "아직 없습니다",
-    );
+    expect(screen.getByTestId("empty-state-headline")).toHaveTextContent("아직 없습니다");
     expect(screen.queryByTestId("empty-state-description")).toBeNull();
     expect(screen.queryByTestId("empty-state-cta")).toBeNull();
   });
@@ -35,12 +33,7 @@ describe("EmptyState", () => {
 
   it("cta.onClick 가 클릭 시 호출된다", () => {
     const onClick = vi.fn();
-    render(
-      <EmptyState
-        headline="작업이 필요합니다"
-        cta={{ label: "시작하기", onClick }}
-      />,
-    );
+    render(<EmptyState headline="작업이 필요합니다" cta={{ label: "시작하기", onClick }} />);
 
     fireEvent.click(screen.getByTestId("empty-state-cta"));
     expect(onClick).toHaveBeenCalledTimes(1);

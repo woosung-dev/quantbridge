@@ -84,10 +84,7 @@ export function BacktestList() {
 
   // useMemo dep 안정성을 위해 items reference 자체를 memoize (H-1 정합 — RQ data 를 직접 dep 금지).
   const items = useMemo<readonly BacktestSummary[]>(() => data?.items ?? [], [data?.items]);
-  const strategyItems = useMemo(
-    () => strategiesQ.data?.items ?? [],
-    [strategiesQ.data?.items],
-  );
+  const strategyItems = useMemo(() => strategiesQ.data?.items ?? [], [strategiesQ.data?.items]);
   const strategyNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const strategy of strategyItems) map.set(strategy.id, strategy.name);
@@ -102,14 +99,10 @@ export function BacktestList() {
   const hasMixedSharpeConventions =
     orderBy === "sharpe_ratio" &&
     filtered.some(
-      (b) =>
-        b.metrics_summary?.sharpe_ratio != null &&
-        b.metrics_summary.sharpe_convention == null,
+      (b) => b.metrics_summary?.sharpe_ratio != null && b.metrics_summary.sharpe_convention == null,
     ) &&
     filtered.some(
-      (b) =>
-        b.metrics_summary?.sharpe_ratio != null &&
-        b.metrics_summary.sharpe_convention != null,
+      (b) => b.metrics_summary?.sharpe_ratio != null && b.metrics_summary.sharpe_convention != null,
     );
 
   const pushStatus = (id: "all" | BacktestStatus) => {
@@ -178,8 +171,8 @@ export function BacktestList() {
           </p>
           <h2 className="section-title">실행 {total}건</h2>
           <p className="section-desc">
-            최근에 실행한 순서로 정렬했습니다. 심볼과 주기는 전략의 기본값이 아니라 그 실행에 실제로 쓴
-            값입니다.
+            최근에 실행한 순서로 정렬했습니다. 심볼과 주기는 전략의 기본값이 아니라 그 실행에 실제로
+            쓴 값입니다.
           </p>
         </header>
 
@@ -279,7 +272,11 @@ export function BacktestList() {
                     첫 백테스트 실행
                   </Link>
                 ) : (
-                  <button className="btn btn-ghost btn-xs" type="button" onClick={() => pushStatus("all")}>
+                  <button
+                    className="btn btn-ghost btn-xs"
+                    type="button"
+                    onClick={() => pushStatus("all")}
+                  >
                     전체 보기
                   </button>
                 )}
@@ -288,130 +285,129 @@ export function BacktestList() {
           ) : (
             <>
               <div className="table-wrap">
-              <table
-                className="trades runs-table"
-                aria-label={`백테스트 실행 목록 ${filtered.length}건`}
-              >
-                <thead>
-                  <tr>
-                    <th scope="col">{hRunId}</th>
-                    <th scope="col">{hStrategy}</th>
-                    <th scope="col">{hSymbolTf}</th>
-                    <th scope="col">{hPeriod}</th>
-                    <SortHeader
-                      orderBy="total_return"
-                      label={hTotalReturn}
-                      ariaLabel={BACKTEST_LIST_SORT_LABEL.totalReturn}
-                      activeOrderBy={orderBy}
-                      order={order}
-                      onClick={pushSort}
-                    />
-                    <SortHeader
-                      orderBy="max_drawdown"
-                      label={hMaxDrawdown}
-                      ariaLabel={BACKTEST_LIST_SORT_LABEL.maxDrawdown}
-                      activeOrderBy={orderBy}
-                      order={order}
-                      onClick={pushSort}
-                    />
-                    <SortHeader
-                      orderBy="sharpe_ratio"
-                      label={hSharpeRatio}
-                      ariaLabel={BACKTEST_LIST_SORT_LABEL.sharpeRatio}
-                      activeOrderBy={orderBy}
-                      order={order}
-                      onClick={pushSort}
-                    />
-                    <SortHeader
-                      orderBy="num_trades"
-                      label={hNumTrades}
-                      ariaLabel={BACKTEST_LIST_SORT_LABEL.numTrades}
-                      activeOrderBy={orderBy}
-                      order={order}
-                      onClick={pushSort}
-                    />
-                    <th scope="col" className="col-status">
-                      {hStatus}
-                    </th>
-                    <SortHeader
-                      orderBy="created_at"
-                      label={hStartedAt}
-                      ariaLabel={BACKTEST_LIST_SORT_LABEL.startedAt}
-                      activeOrderBy={orderBy}
-                      order={order}
-                      onClick={pushSort}
-                    />
-                    <th scope="col">{hAction}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map((b) => {
-                    // 라벨·톤은 S4 용어 SSOT 에서만 온다 (원시 enum 렌더 금지 — no-raw-enum-labels 가드).
-                    const { label, tone, showCheckIcon } = BACKTEST_STATUS_LABEL[b.status];
-                    const sharpe = describeSharpe(
-                      b.metrics_summary?.sharpe_convention,
-                      b.metrics_summary?.sharpe_ratio,
-                    );
-                    return (
-                      <tr key={b.id} data-testid={`backtest-row-${b.id}`} data-status={b.status}>
-                        <td className="mono-l run-id">
-                          <Link href={`/backtests/${b.id}`}>{b.id.slice(0, 8)}</Link>
-                        </td>
-                        <td>{strategyNameById.get(b.strategy_id) ?? EMPTY_CELL}</td>
-                        <td className="mono-l">
-                          {b.symbol} · {b.timeframe}
-                        </td>
-                        <td className="mono-l">
-                          {formatDateTime(b.period_start)}
-                          <span className="run-sub">~ {formatDateTime(b.period_end)}</span>
-                        </td>
-                        <MetricCell
-                          value={b.metrics_summary?.[RETURN_METRIC]}
-                          missing={b.metrics_summary == null}
-                          format={(value) => formatPercent(value)}
-                          note={b.metrics_summary?.total_open_trades}
-                        />
-                        <MetricCell
-                          value={b.metrics_summary?.max_drawdown}
-                          missing={b.metrics_summary == null}
-                          format={(value) => formatPercent(value)}
-                        />
-                        <td
-                          className="num"
-                          title={
-                            b.metrics_summary == null
-                              ? UNFINISHED_METRICS_TITLE
-                              : sharpe.foot
-                          }
-                        >
-                          {b.metrics_summary == null ? EMPTY_CELL : sharpe.display}
-                        </td>
-                        <MetricCell
-                          value={b.metrics_summary?.num_trades}
-                          missing={b.metrics_summary == null}
-                          format={(value) => value.toLocaleString("en-US")}
-                        />
-                        <td className="col-status">
-                          <span className={CHIP_TONE_CLASS[tone]}>
-                            {showCheckIcon ? <CheckIcon aria-hidden="true" /> : null}
-                            {label}
-                          </span>
-                        </td>
-                        <td className="mono-l dim">{formatDateTime(b.created_at)}</td>
-                        <td>
-                          <Link className="btn btn-ghost btn-xs" href={`/backtests/${b.id}`}>
-                            상세
-                          </Link>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                <table
+                  className="trades runs-table"
+                  aria-label={`백테스트 실행 목록 ${filtered.length}건`}
+                >
+                  <thead>
+                    <tr>
+                      <th scope="col">{hRunId}</th>
+                      <th scope="col">{hStrategy}</th>
+                      <th scope="col">{hSymbolTf}</th>
+                      <th scope="col">{hPeriod}</th>
+                      <SortHeader
+                        orderBy="total_return"
+                        label={hTotalReturn}
+                        ariaLabel={BACKTEST_LIST_SORT_LABEL.totalReturn}
+                        activeOrderBy={orderBy}
+                        order={order}
+                        onClick={pushSort}
+                      />
+                      <SortHeader
+                        orderBy="max_drawdown"
+                        label={hMaxDrawdown}
+                        ariaLabel={BACKTEST_LIST_SORT_LABEL.maxDrawdown}
+                        activeOrderBy={orderBy}
+                        order={order}
+                        onClick={pushSort}
+                      />
+                      <SortHeader
+                        orderBy="sharpe_ratio"
+                        label={hSharpeRatio}
+                        ariaLabel={BACKTEST_LIST_SORT_LABEL.sharpeRatio}
+                        activeOrderBy={orderBy}
+                        order={order}
+                        onClick={pushSort}
+                      />
+                      <SortHeader
+                        orderBy="num_trades"
+                        label={hNumTrades}
+                        ariaLabel={BACKTEST_LIST_SORT_LABEL.numTrades}
+                        activeOrderBy={orderBy}
+                        order={order}
+                        onClick={pushSort}
+                      />
+                      <th scope="col" className="col-status">
+                        {hStatus}
+                      </th>
+                      <SortHeader
+                        orderBy="created_at"
+                        label={hStartedAt}
+                        ariaLabel={BACKTEST_LIST_SORT_LABEL.startedAt}
+                        activeOrderBy={orderBy}
+                        order={order}
+                        onClick={pushSort}
+                      />
+                      <th scope="col">{hAction}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((b) => {
+                      // 라벨·톤은 S4 용어 SSOT 에서만 온다 (원시 enum 렌더 금지 — no-raw-enum-labels 가드).
+                      const { label, tone, showCheckIcon } = BACKTEST_STATUS_LABEL[b.status];
+                      const sharpe = describeSharpe(
+                        b.metrics_summary?.sharpe_convention,
+                        b.metrics_summary?.sharpe_ratio,
+                      );
+                      return (
+                        <tr key={b.id} data-testid={`backtest-row-${b.id}`} data-status={b.status}>
+                          <td className="mono-l run-id">
+                            <Link href={`/backtests/${b.id}`}>{b.id.slice(0, 8)}</Link>
+                          </td>
+                          <td>{strategyNameById.get(b.strategy_id) ?? EMPTY_CELL}</td>
+                          <td className="mono-l">
+                            {b.symbol} · {b.timeframe}
+                          </td>
+                          <td className="mono-l">
+                            {formatDateTime(b.period_start)}
+                            <span className="run-sub">~ {formatDateTime(b.period_end)}</span>
+                          </td>
+                          <MetricCell
+                            value={b.metrics_summary?.[RETURN_METRIC]}
+                            missing={b.metrics_summary == null}
+                            format={(value) => formatPercent(value)}
+                            note={b.metrics_summary?.total_open_trades}
+                          />
+                          <MetricCell
+                            value={b.metrics_summary?.max_drawdown}
+                            missing={b.metrics_summary == null}
+                            format={(value) => formatPercent(value)}
+                          />
+                          <td
+                            className="num"
+                            title={
+                              b.metrics_summary == null ? UNFINISHED_METRICS_TITLE : sharpe.foot
+                            }
+                          >
+                            {b.metrics_summary == null ? EMPTY_CELL : sharpe.display}
+                          </td>
+                          <MetricCell
+                            value={b.metrics_summary?.num_trades}
+                            missing={b.metrics_summary == null}
+                            format={(value) => value.toLocaleString("en-US")}
+                          />
+                          <td className="col-status">
+                            <span className={CHIP_TONE_CLASS[tone]}>
+                              {showCheckIcon ? <CheckIcon aria-hidden="true" /> : null}
+                              {label}
+                            </span>
+                          </td>
+                          <td className="mono-l dim">{formatDateTime(b.created_at)}</td>
+                          <td>
+                            <Link className="btn btn-ghost btn-xs" href={`/backtests/${b.id}`}>
+                              상세
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
               {hasMixedSharpeConventions ? (
                 <p className="runs-summary" data-testid="backtest-sharpe-sort-notice">
-                  구 기준 샤프는 현재 기준과 비교할 수 없어 정렬 시 비교 가능한 결과 뒤로 분리됩니다.
+                  구 기준 샤프는 현재 기준과 비교할 수 없어 정렬 시 비교 가능한 결과 뒤로
+                  분리됩니다.
                 </p>
               ) : null}
             </>
@@ -439,8 +435,17 @@ function SortHeader({
 }) {
   const active = orderBy === activeOrderBy;
   return (
-    <th scope="col" className="num" aria-sort={active ? (order === "asc" ? "ascending" : "descending") : undefined}>
-      <button className="th-sort" type="button" aria-label={ariaLabel} onClick={() => onClick(orderBy)}>
+    <th
+      scope="col"
+      className="num"
+      aria-sort={active ? (order === "asc" ? "ascending" : "descending") : undefined}
+    >
+      <button
+        className="th-sort"
+        type="button"
+        aria-label={ariaLabel}
+        onClick={() => onClick(orderBy)}
+      >
         {label}
         <ArrowDownUpIcon aria-hidden="true" />
       </button>

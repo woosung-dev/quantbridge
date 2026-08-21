@@ -234,7 +234,7 @@ export function getUnsupportedBuiltinHint(name: string): UnsupportedBuiltinHint 
   //   `{ name }` 뿐이 된다 — `hint`·`category` 가 사라져 화면에 `undefined` 가 나갔다.
   //   소비자(`components/form-error-inline.tsx`)가 `hint.hint` 를 렌더하고 `hint.category` 로
   //   아이콘을 고르므로 둘 다 깨진다. 자기 소유 키만 적중으로 인정한다.
-  const meta = Object.prototype.hasOwnProperty.call(_HINTS, name) ? _HINTS[name] : undefined;
+  const meta = Object.hasOwn(_HINTS, name) ? _HINTS[name] : undefined;
   if (meta) {
     return { name, ...meta };
   }
@@ -246,8 +246,6 @@ export function getUnsupportedBuiltinHint(name: string): UnsupportedBuiltinHint 
 }
 
 /** 다중 builtin 의 hint list. UI 카드 렌더링 용. */
-export function getUnsupportedBuiltinHints(
-  names: readonly string[],
-): UnsupportedBuiltinHint[] {
+export function getUnsupportedBuiltinHints(names: readonly string[]): UnsupportedBuiltinHint[] {
   return names.map(getUnsupportedBuiltinHint);
 }

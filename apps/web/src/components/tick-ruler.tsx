@@ -10,10 +10,7 @@ type TickRulerProps = {
   className?: string;
 };
 
-export function TickRuler({
-  orientation = "horizontal",
-  className,
-}: TickRulerProps) {
+export function TickRuler({ orientation = "horizontal", className }: TickRulerProps) {
   return (
     <div
       aria-hidden="true"

@@ -29,13 +29,9 @@ describe("SetupSummaryAside — C 이식(W3-A)", () => {
     expect(screen.getByTestId("setup-summary-aside")).toBeInTheDocument();
     expect(screen.getByTestId("summary-row-전략")).toHaveTextContent("MA Crossover");
     expect(screen.getByTestId("summary-row-심볼")).toHaveTextContent("BTC/USDT");
-    expect(screen.getByTestId("summary-row-포지션 사이징")).toHaveTextContent(
-      "10% · 자기자본",
-    );
+    expect(screen.getByTestId("summary-row-포지션 사이징")).toHaveTextContent("10% · 자기자본");
     // 수수료는 소수 저장값을 백분율로 파생 렌더한다.
-    expect(screen.getByTestId("summary-row-수수료")).toHaveTextContent(
-      "테이커 0.1% · 양방향",
-    );
+    expect(screen.getByTestId("summary-row-수수료")).toHaveTextContent("테이커 0.1% · 양방향");
 
     rerender(
       <SetupSummaryAside
@@ -59,12 +55,8 @@ describe("SetupSummaryAside — C 이식(W3-A)", () => {
 
     expect(screen.getByTestId("summary-row-전략")).toHaveTextContent("RSI Strategy");
     expect(screen.getByTestId("summary-row-심볼")).toHaveTextContent("ETH/USDT");
-    expect(screen.getByTestId("summary-row-포지션 사이징")).toHaveTextContent(
-      "50% · 자기자본",
-    );
-    expect(screen.getByTestId("summary-row-체결 시점")).toHaveTextContent(
-      "시그널 다음 봉 시가",
-    );
+    expect(screen.getByTestId("summary-row-포지션 사이징")).toHaveTextContent("50% · 자기자본");
+    expect(screen.getByTestId("summary-row-체결 시점")).toHaveTextContent("시그널 다음 봉 시가");
   });
 
   it("기간과 타임프레임이 있으면 봉 수를 순수 파생으로 렌더한다 (181일 × 24)", () => {
@@ -101,18 +93,12 @@ describe("SetupSummaryAside — C 이식(W3-A)", () => {
     expect(btn.getAttribute("form")).toBe("bt-form");
     expect(btn.disabled).toBe(false);
 
-    rerender(
-      <SetupSummaryAside formId="bt-form" formValues={{}} submitting={true} />,
-    );
-    expect((screen.getByTestId("backtest-submit") as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    rerender(<SetupSummaryAside formId="bt-form" formValues={{}} submitting={true} />);
+    expect((screen.getByTestId("backtest-submit") as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("검증 오류가 있으면 실행 전 경고 문구를 띄운다", () => {
-    render(
-      <SetupSummaryAside formId="bt-form" formValues={{}} errorCount={2} />,
-    );
+    render(<SetupSummaryAside formId="bt-form" formValues={{}} errorCount={2} />);
     const warn = screen.getByTestId("summary-validation-warn");
     expect(warn).toHaveTextContent("입력값 2건");
   });

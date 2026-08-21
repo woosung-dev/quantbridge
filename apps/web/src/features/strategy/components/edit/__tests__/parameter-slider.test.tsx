@@ -16,9 +16,7 @@ describe("ParameterSlider", () => {
   });
 
   it("값 표시는 `{value}{unit}` 포맷 + monospace + primary 색상", () => {
-    render(
-      <ParameterSlider label="Position Size" value={25} onChange={() => {}} unit="%" />,
-    );
+    render(<ParameterSlider label="Position Size" value={25} onChange={() => {}} unit="%" />);
 
     const valueEl = screen.getByTestId("parameter-slider-value");
     expect(valueEl).toHaveTextContent("25%");
@@ -27,9 +25,7 @@ describe("ParameterSlider", () => {
   });
 
   it("aria-valuenow 가 value 와 동기화됨", () => {
-    render(
-      <ParameterSlider label="Position Size" value={75} onChange={() => {}} />,
-    );
+    render(<ParameterSlider label="Position Size" value={75} onChange={() => {}} />);
     const input = screen.getByTestId("parameter-slider-input");
     expect(input).toHaveAttribute("aria-valuenow", "75");
     expect(input).toHaveAttribute("aria-valuemin", "0");
@@ -37,15 +33,7 @@ describe("ParameterSlider", () => {
   });
 
   it("--qb-slider-progress CSS 변수가 정규화된 백분율로 설정됨", () => {
-    render(
-      <ParameterSlider
-        label="Slow MA"
-        value={50}
-        onChange={() => {}}
-        min={0}
-        max={100}
-      />,
-    );
+    render(<ParameterSlider label="Slow MA" value={50} onChange={() => {}} min={0} max={100} />);
     const input = screen.getByTestId("parameter-slider-input") as HTMLInputElement;
     // 50 / (100-0) * 100 = 50%
     expect(input.style.getPropertyValue("--qb-slider-progress")).toBe("50%");

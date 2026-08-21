@@ -109,10 +109,8 @@ export const useOnboardingStore = create<OnboardingState>()(
 // --- scalar selectors ---------------------------------------------------
 
 export const selectStep = (s: OnboardingState): OnboardingStep => s.step;
-export const selectStrategyId = (s: OnboardingState): string | null =>
-  s.strategyId;
-export const selectBacktestId = (s: OnboardingState): string | null =>
-  s.backtestId;
+export const selectStrategyId = (s: OnboardingState): string | null => s.strategyId;
+export const selectBacktestId = (s: OnboardingState): string | null => s.backtestId;
 export const selectStartedAt = (s: OnboardingState): number => s.startedAt;
 
 // --- TTL helpers (pure, testable without React) --------------------------

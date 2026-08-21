@@ -82,10 +82,7 @@ test.beforeEach(async ({ page }) => {
     `**/api/v1/live-sessions/${SESSION_ID}/alert-rules**`,
     fulfillJson({ items: [], total: 0 }),
   );
-  await page.route(
-    `**/api/v1/live-sessions/${SESSION_ID}/positions**`,
-    fulfillJson({ items: [] }),
-  );
+  await page.route(`**/api/v1/live-sessions/${SESSION_ID}/positions**`, fulfillJson({ items: [] }));
   // ★codex G6 발견 3. `LiveSessionDetail` 은 `OutcomeParityPanel` 을 **항상** 렌더하고
   //   (`live-session-detail.tsx:238`) 그 패널은 `OutcomeParityResponseSchema` 를 요구한다.
   //   catch-all 이 목록 payload 를 돌려주면 패널만 조용히 오류 상태가 되고, 루트 testid 만
@@ -97,9 +94,7 @@ test.beforeEach(async ({ page }) => {
 
   await page.route(API_ROUTES.liveSessions, (route, request) => {
     const url = request.url();
-    if (
-      /\/live-sessions\/[^/]+\/(state|events|alert-rules|positions|outcome-parity)/.test(url)
-    ) {
+    if (/\/live-sessions\/[^/]+\/(state|events|alert-rules|positions|outcome-parity)/.test(url)) {
       return route.fallback();
     }
     return fulfillJson({ items: [MOCK_SESSION], total: 1 })(route);
@@ -136,16 +131,16 @@ test("세션을 클릭한 뒤 새로고침해도 같은 상세가 열린다", as
   // ★공유 가능성의 실증. 선택이 URL 에 실려야만 새로고침을 넘어 살아남는다.
   await page.goto("/trading", { timeout: 60_000 });
 
-  await page
-    .getByTestId(`live-session-${SESSION_ID}`)
-    .getByRole("button")
-    .first()
-    .click();
+  await page.getByTestId(`live-session-${SESSION_ID}`).getByRole("button").first().click();
 
-  await expect(page.getByTestId(`live-session-detail-${SESSION_ID}`)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId(`live-session-detail-${SESSION_ID}`)).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(page).toHaveURL(new RegExp(`[?&]session=${SESSION_ID}`));
 
   await page.reload();
 
-  await expect(page.getByTestId(`live-session-detail-${SESSION_ID}`)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId(`live-session-detail-${SESSION_ID}`)).toBeVisible({
+    timeout: 30_000,
+  });
 });

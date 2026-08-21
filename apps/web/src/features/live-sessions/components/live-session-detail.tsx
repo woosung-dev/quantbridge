@@ -326,7 +326,11 @@ export function LiveSessionDetail({ session }: Props) {
                       <td className="py-1 font-mono">{formatDateTime(ev.bar_time)}</td>
                       <td className="py-1">{ev.action}</td>
                       <td className="py-1">
-                        {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, ev.direction, "live-signal-direction")}
+                        {labelOf(
+                          LIVE_SIGNAL_DIRECTION_LABEL,
+                          ev.direction,
+                          "live-signal-direction",
+                        )}
                       </td>
                       <td className="py-1 font-mono">{ev.qty}</td>
                       <td className="py-1">

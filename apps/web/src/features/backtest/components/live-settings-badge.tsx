@@ -9,11 +9,7 @@ export interface LiveSettingsBadgeProps {
   livePct?: number | null;
 }
 
-export function LiveSettingsBadge({
-  source,
-  liveLeverage,
-  livePct,
-}: LiveSettingsBadgeProps) {
+export function LiveSettingsBadge({ source, liveLeverage, livePct }: LiveSettingsBadgeProps) {
   switch (source) {
     case "pine":
       return (

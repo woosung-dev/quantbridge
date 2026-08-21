@@ -19,10 +19,8 @@ export function TapeProgress({
   ariaLabel = "진행률",
   className,
 }: TapeProgressProps) {
-  const clamped =
-    value == null ? null : Math.max(0, Math.min(100, Math.round(value)));
-  const filled =
-    clamped == null ? 0 : Math.round((clamped / 100) * segments);
+  const clamped = value == null ? null : Math.max(0, Math.min(100, Math.round(value)));
+  const filled = clamped == null ? 0 : Math.round((clamped / 100) * segments);
 
   return (
     <div

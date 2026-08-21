@@ -27,7 +27,9 @@ import { fileURLToPath } from "node:url";
 import { buildReport } from "./screen-evidence-lib.mjs";
 
 const WEB_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const CONFIG = JSON.parse(readFileSync(path.join(WEB_ROOT, "e2e/screen-evidence.config.json"), "utf8"));
+const CONFIG = JSON.parse(
+  readFileSync(path.join(WEB_ROOT, "e2e/screen-evidence.config.json"), "utf8"),
+);
 const REPO_ROOT = path.resolve(WEB_ROOT, "../..");
 /** 레포 루트 기준 경로 — `git show <ref>:<경로>` 가 요구하는 형태다. */
 const REPO_REL = (p) => path.relative(REPO_ROOT, path.resolve(WEB_ROOT, p));
@@ -71,7 +73,11 @@ const die = (message) => {
 
 function git(args, { allowFail = false } = {}) {
   try {
-    return execFileSync("git", args, { cwd: REPO_ROOT, encoding: "buffer", stdio: ["ignore", "pipe", "pipe"] });
+    return execFileSync("git", args, {
+      cwd: REPO_ROOT,
+      encoding: "buffer",
+      stdio: ["ignore", "pipe", "pipe"],
+    });
   } catch (error) {
     if (allowFail) return null;
     throw error;
@@ -209,7 +215,9 @@ async function assertAuthedPrereqs(baseURL, localEnv) {
   //   죽이면 fresh 워크스페이스는 setup 이 파일을 만들 기회를 영영 못 얻는다.
   //   ⇒ 안내만 남긴다. 실제로 못 만들면 그때 playwright 가 red 를 낸다(그쪽이 정확한 증인이다).
   const storage = path.join(WEB_ROOT, "e2e/.auth/storageState.json");
-  const storageNote = existsSync(storage) ? "storageState 있음" : "storageState 없음 — setup 이 만든다";
+  const storageNote = existsSync(storage)
+    ? "storageState 있음"
+    : "storageState 없음 — setup 이 만든다";
 
   // ★★**빌드·서버에 준 것과 같은 값으로 잰다** (codex 적대 리뷰 P1, 2026-08-19).
   //   초판은 `process.loadEnvFile` 로 `.env.local` 을 읽고 `process.env` 에서 꺼냈는데,
@@ -217,7 +225,11 @@ async function assertAuthedPrereqs(baseURL, localEnv) {
   //   이 남아 있으면 프로브는 **다른 API** 의 health·CORS 를 통과시키고, 브라우저는 실제 API 에
   //   CORS 로 막힌다. 그 실패는 `requestfailed` 라 spec 의 응답 수집에 안 잡히고, 번들 값이
   //   같으면 **초록**이 난다 — 이 게이트가 막으려는 바로 그 모양이다.
-  const apiUrl = (localEnv.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/\/+$/, "");
+  const apiUrl = (
+    localEnv.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://localhost:8000"
+  ).replace(/\/+$/, "");
 
   let health;
   try {
@@ -261,7 +273,9 @@ async function main() {
   const port = CONFIG.serverPortBase + slot;
   const baseURL = `http://localhost:${port}`;
 
-  console.log(`▶ 화면 증거 팩 — run=${RUN} slot=${slot} port=${port} mode=${UPDATE ? "update" : "check"}`);
+  console.log(
+    `▶ 화면 증거 팩 — run=${RUN} slot=${slot} port=${port} mode=${UPDATE ? "update" : "check"}`,
+  );
 
   // ★★포트가 이미 물려 있으면 **거기서 멈춘다.** `next start` 는 EADDRINUSE 로 죽는데 아래
   //   `waitForServer` 는 「누군가 응답한다」만 보므로 그대로 통과하고, 그러면 이 게이트는
@@ -284,7 +298,8 @@ async function main() {
   const build = run("pnpm", ["exec", "next", "build"], {
     env: { ...localEnv, BETTER_AUTH_URL: baseURL },
   });
-  if (build.status !== 0) die(`\`next build\` 가 rc=${build.status} 로 실패했다. 번들을 잴 수 없다.`);
+  if (build.status !== 0)
+    die(`\`next build\` 가 rc=${build.status} 로 실패했다. 번들을 잴 수 없다.`);
 
   // ⑵ 프로덕션 서버.
   // ★`next start` 는 `output: "standalone"` 설정 때문에 경고를 한 줄 찍지만 **정상 서빙한다**
@@ -366,7 +381,9 @@ async function main() {
 
   if (UPDATE) {
     if (playwrightStatus !== 0)
-      die(`갱신 모드인데 playwright 가 rc=${playwrightStatus} 로 실패했다 — baseline 을 쓰지 않는다.`);
+      die(
+        `갱신 모드인데 playwright 가 rc=${playwrightStatus} 로 실패했다 — baseline 을 쓰지 않는다.`,
+      );
     // ★★**범위 밖 행을 보존한다.** `--authed` 없이 `:update` 를 돌리면 이번 실행은 공개
     //   라우트만 쟀는데, 그 결과로 baseline 을 덮어쓰면 authed 행이 **통째로 사라진다** —
     //   그리고 그 삭제는 다음 실행에서 「신규 라우트」로 보여 아무도 눈치채지 못한다.
@@ -394,7 +411,9 @@ async function main() {
             "[BL-797] 화면 증거 팩 baseline. `pnpm screen-evidence:update` 가 쓴다 — 손으로 고치지 마라. " +
             "이 파일의 origin/main 판이 PR 리포트의 **before** 이고, 이 브랜치 판이 **after** 다.",
           platform: process.platform,
-          routes: Object.fromEntries(Object.entries(nextRoutes).sort(([a], [b]) => a.localeCompare(b))),
+          routes: Object.fromEntries(
+            Object.entries(nextRoutes).sort(([a], [b]) => a.localeCompare(b)),
+          ),
         },
         null,
         2,
@@ -419,7 +438,10 @@ async function main() {
   // ⑸ before ↔ after. after 는 워킹트리의 커밋된 baseline 이고, 방금 라이브 측정이 그것을
   //    검증했다(spec ⑸). before 는 같은 파일의 `origin/main` 판이다.
   const after = scopeOf(readBaselineHere());
-  if (!after || Object.keys(after).length === 0) die(`baseline 이 없다 — ${path.relative(REPO_ROOT, BASELINE_ABS)}. \`:update\` 를 먼저 돌려라.`);
+  if (!after || Object.keys(after).length === 0)
+    die(
+      `baseline 이 없다 — ${path.relative(REPO_ROOT, BASELINE_ABS)}. \`:update\` 를 먼저 돌려라.`,
+    );
 
   // ★`measured` 는 「이번에 실제로 잰 것」이고 `after` 는 「커밋된 baseline 전체」다.
   //   둘이 어긋나면 재지 않은 라우트의 낡은 수치가 리포트에 정상 측정처럼 실린다 —
@@ -435,7 +457,9 @@ async function main() {
         `  baseline: ${afterKeys.join(", ") || "(없음)"}\n` +
         `  측정됨  : ${measuredKeys.join(", ") || "(없음)"}\n` +
         (missing.length ? `  ★안 잰 것: ${missing.join(", ")}\n` : "") +
-        (extra.length ? `  ★baseline 에 없는 것: ${extra.join(", ")} — \`:update\` 를 돌려라\n` : ""),
+        (extra.length
+          ? `  ★baseline 에 없는 것: ${extra.join(", ")} — \`:update\` 를 돌려라\n`
+          : ""),
     );
   }
 
@@ -454,7 +478,9 @@ async function main() {
     const name = after[route]?.screenshot ?? before?.[route]?.screenshot;
     if (!name) die(`${route}: baseline 에 스냅샷 이름이 없다.`);
     const rel = snapshotFile(name);
-    const headBlob = existsSync(path.join(WEB_ROOT, rel)) ? readFileSync(path.join(WEB_ROOT, rel)) : null;
+    const headBlob = existsSync(path.join(WEB_ROOT, rel))
+      ? readFileSync(path.join(WEB_ROOT, rel))
+      : null;
     const baseBlob = git(["show", `${BASE_REF}:${REPO_REL(rel)}`], { allowFail: true });
     screenshots[route] = {
       basePath: REPO_REL(rel),
@@ -494,8 +520,12 @@ async function main() {
   const reportPath = path.join(OUT_DIR, "report.md");
   writeFileSync(reportPath, `${report.markdown}\n`, "utf8");
   console.log(`\n${report.markdown}\n`);
-  console.log(`✓ 리포트 — ${path.relative(REPO_ROOT, reportPath)} (라우트 ${report.rows.length}건 · 변경 ${report.changedCount}건)`);
-  console.log("  PR 코멘트로 올리기: gh pr comment --body-file " + path.relative(REPO_ROOT, reportPath));
+  console.log(
+    `✓ 리포트 — ${path.relative(REPO_ROOT, reportPath)} (라우트 ${report.rows.length}건 · 변경 ${report.changedCount}건)`,
+  );
+  console.log(
+    "  PR 코멘트로 올리기: gh pr comment --body-file " + path.relative(REPO_ROOT, reportPath),
+  );
 }
 
 main().catch((error) => die(error.stack ?? String(error)));

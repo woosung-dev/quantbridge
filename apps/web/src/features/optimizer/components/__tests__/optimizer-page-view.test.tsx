@@ -56,10 +56,7 @@ vi.mock("@/components/ui/select", () => {
     );
   }
 
-  function SelectTrigger({
-    children,
-    ...props
-  }: React.PropsWithChildren<Record<string, unknown>>) {
+  function SelectTrigger({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) {
     return <div {...props}>{children}</div>;
   }
 
@@ -115,24 +112,19 @@ function backtest(status: BacktestStatus, id: string, symbol: string): BacktestS
   };
 }
 
-const COMPLETED_BACKTEST = backtest(
-  "completed",
-  COMPLETED_BACKTEST_ID,
-  "BTC/USDT",
-);
+const COMPLETED_BACKTEST = backtest("completed", COMPLETED_BACKTEST_ID, "BTC/USDT");
 
 function mockBacktests(
   items: BacktestSummary[] = [COMPLETED_BACKTEST],
   options: { isLoading?: boolean; isPending?: boolean; data?: BacktestListResponse } = {},
 ) {
   useBacktests.mockReturnValue({
-    data:
-      options.data ?? {
-        items,
-        total: items.length,
-        limit: 100,
-        offset: 0,
-      },
+    data: options.data ?? {
+      items,
+      total: items.length,
+      limit: 100,
+      offset: 0,
+    },
     isLoading: options.isLoading ?? false,
     isPending: options.isPending ?? false,
   });
@@ -181,9 +173,7 @@ describe("OptimizerPageView", () => {
   });
 
   it("완료 Backtest가 없으면 옵션 없이 안내 문구를 표시한다", () => {
-    mockBacktests([
-      backtest("running", "44444444-4444-4444-a444-444444444444", "SOL/USDT"),
-    ]);
+    mockBacktests([backtest("running", "44444444-4444-4444-a444-444444444444", "SOL/USDT")]);
     const { container } = render(<OptimizerPageView />);
 
     expect(container.querySelectorAll("[data-mock-select-item]")).toHaveLength(0);

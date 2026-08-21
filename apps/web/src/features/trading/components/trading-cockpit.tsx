@@ -316,7 +316,8 @@ export function TradingCockpit() {
           </p>
           <h2 className="section-title">활성 세션 계정의 잔고</h2>
           <p className="section-desc">
-            활성 라이브 세션이 참조하는 거래소 계정만 표시합니다. 지원하지 않는 계정도 이유를 숨기지 않습니다.
+            활성 라이브 세션이 참조하는 거래소 계정만 표시합니다. 지원하지 않는 계정도 이유를 숨기지
+            않습니다.
           </p>
         </header>
         <AccountBalanceSection accounts={activeAccountTargets} />
@@ -330,7 +331,8 @@ export function TradingCockpit() {
           </p>
           <h2 className="section-title">거래소 보고 포지션</h2>
           <p className="section-desc">
-            먼저 계정에 남아 있는 포지션을 활성 세션과 무관하게 보여주고, 그 아래에서 같은 계정과 심볼을 쓰는 다른 전략도 합치지 않고 세션별로 대조합니다.
+            먼저 계정에 남아 있는 포지션을 활성 세션과 무관하게 보여주고, 그 아래에서 같은 계정과
+            심볼을 쓰는 다른 전략도 합치지 않고 세션별로 대조합니다.
           </p>
         </header>
         <AccountPositionsTable accounts={allAccountTargets} />
@@ -424,12 +426,10 @@ export function TradingCockpit() {
               <h3 className="card-title">세션 목록</h3>
               <p className="card-sub session-card-sub">
                 지금 돌고 있는 세션을 고르면 오른쪽에 상세가 열립니다. 안전 점검이 세션을 자동으로
-                중단하면 아래 &ldquo;최근 종료된 세션&rdquo; 으로 내려가고 종료 사유가 함께 붙습니다.
+                중단하면 아래 &ldquo;최근 종료된 세션&rdquo; 으로 내려가고 종료 사유가 함께
+                붙습니다.
               </p>
-              <LiveSessionList
-                onSelect={handleSessionSelect}
-                selectedId={selectedId}
-              />
+              <LiveSessionList onSelect={handleSessionSelect} selectedId={selectedId} />
             </div>
           </div>
           <div className="session-manage-col">

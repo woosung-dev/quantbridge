@@ -23,9 +23,7 @@ export function ServerIdentityProvider({
   userId: string | null;
   children: ReactNode;
 }) {
-  return (
-    <ServerIdentityContext.Provider value={userId}>{children}</ServerIdentityContext.Provider>
-  );
+  return <ServerIdentityContext.Provider value={userId}>{children}</ServerIdentityContext.Provider>;
 }
 
 /** SSR 이 준 사용자 id. Provider 밖(공개 라우트)에서는 `null`. */

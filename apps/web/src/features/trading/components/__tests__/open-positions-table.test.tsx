@@ -2,10 +2,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  useClosePosition,
-  useLiveSessionsPositions,
-} from "@/features/live-sessions/hooks";
+import { useClosePosition, useLiveSessionsPositions } from "@/features/live-sessions/hooks";
 import type { LiveSession } from "@/features/live-sessions/schemas";
 import { ApiError } from "@/lib/api-client";
 
@@ -16,8 +13,11 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@/features/live-sessions/hooks", () => ({
-  closePositionMutationKey: ({ sessionId, symbol }: { sessionId: string; symbol: string }) =>
-    ["close-position", sessionId, symbol],
+  closePositionMutationKey: ({ sessionId, symbol }: { sessionId: string; symbol: string }) => [
+    "close-position",
+    sessionId,
+    symbol,
+  ],
   useClosePosition: vi.fn(),
   useLiveSessionsPositions: vi.fn(),
 }));
@@ -121,7 +121,9 @@ describe("OpenPositionsTable", () => {
   it("오류는 실제 positions 경로와 재시도를 제공한다", () => {
     mockPositions.mockReturnValue(aggregate({ isError: true }));
     render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
-    expect(screen.getByText(/GET \/api\/v1\/live-sessions\/\{session_id\}\/positions · 503/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/GET \/api\/v1\/live-sessions\/\{session_id\}\/positions · 503/),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
     expect(refetch).toHaveBeenCalledOnce();
   });
@@ -181,7 +183,9 @@ describe("OpenPositionsTable", () => {
     expect(screen.getByText("80, 70")).toBeInTheDocument();
     expect(screen.getAllByText("\u2014").length).toBeGreaterThan(0);
     expect(screen.getByText(/포지션-부착 값과 별도 조건부 주문/)).toBeInTheDocument();
-    expect(screen.queryByText("트레일링 스톱은 거리 기반이라 가격 열에는 표시되지 않습니다.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("트레일링 스톱은 거리 기반이라 가격 열에는 표시되지 않습니다."),
+    ).not.toBeInTheDocument();
   });
 
   it("트레일링 스톱이 있는 포지션이면 가격 열 제외 안내를 표시한다", () => {
@@ -212,7 +216,9 @@ describe("OpenPositionsTable", () => {
 
     render(<OpenPositionsTable sessions={[session]} demoSessionIds={demoSessionIds} />);
 
-    expect(screen.getByText("트레일링 스톱은 거리 기반이라 가격 열에는 표시되지 않습니다.")).toBeInTheDocument();
+    expect(
+      screen.getByText("트레일링 스톱은 거리 기반이라 가격 열에는 표시되지 않습니다."),
+    ).toBeInTheDocument();
   });
 
   it("청산 확인창은 계정 단위 시장가 주문과 봇 재진입 가능성을 알린다", () => {

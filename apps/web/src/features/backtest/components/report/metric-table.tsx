@@ -28,14 +28,10 @@ export function MetricTable({
   rows: readonly MetricRowSpec[];
   caption?: ReactNode;
 }) {
-  const visible = rows.filter(
-    (r) => r.value !== null || (r.nullPolicy ?? "dash") === "dash",
-  );
+  const visible = rows.filter((r) => r.value !== null || (r.nullPolicy ?? "dash") === "dash");
   if (visible.length === 0) {
     return (
-      <p className="py-6 text-center text-sm text-muted-foreground">
-        표시할 메트릭이 없습니다
-      </p>
+      <p className="py-6 text-center text-sm text-muted-foreground">표시할 메트릭이 없습니다</p>
     );
   }
   return (
@@ -49,30 +45,21 @@ export function MetricTable({
         </thead>
         <tbody>
           {visible.map((row) => (
-            <tr
-              key={row.label}
-              className="border-b border-[color:var(--border)] last:border-b-0"
-            >
+            <tr key={row.label} className="border-b border-[color:var(--border)] last:border-b-0">
               <td className="py-2.5 text-[color:var(--text-secondary)]">
                 {row.label}
                 {row.hint ? (
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    {row.hint}
-                  </span>
+                  <span className="ml-1 text-xs text-muted-foreground">{row.hint}</span>
                 ) : null}
               </td>
-              <td
-                className={`py-2.5 text-right font-mono tabular-nums ${toneClass(row.tone)}`}
-              >
+              <td className={`py-2.5 text-right font-mono tabular-nums ${toneClass(row.tone)}`}>
                 {row.value ?? "—"}
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-      {caption ? (
-        <p className="mt-2 text-xs text-muted-foreground">{caption}</p>
-      ) : null}
+      {caption ? <p className="mt-2 text-xs text-muted-foreground">{caption}</p> : null}
     </div>
   );
 }

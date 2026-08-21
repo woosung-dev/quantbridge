@@ -1,9 +1,18 @@
 // 백테스트 폼의 주문 크기 방식 필드 (Sprint 38 BL-188 v3) — C 디자인 언어 이식(W3-A). 로직·testid 보존.
 "use client";
 
-import { useWatch, type Control, type UseFormRegister, type UseFormSetValue, type FieldErrors } from "react-hook-form";
+import {
+  useWatch,
+  type Control,
+  type UseFormRegister,
+  type UseFormSetValue,
+  type FieldErrors,
+} from "react-hook-form";
 
-import { LiveSettingsBadge, type SizingSource } from "@/features/backtest/components/live-settings-badge";
+import {
+  LiveSettingsBadge,
+  type SizingSource,
+} from "@/features/backtest/components/live-settings-badge";
 import { PositionSizeSlider } from "@/features/backtest/components/forms/position-size-slider";
 import type { BacktestFormValues } from "@/features/backtest/components/forms/useBacktestForm";
 
@@ -40,21 +49,18 @@ export function BacktestSizingFieldSet({
           <h3 className="card-title">주문 크기 방식</h3>
           <p className="card-sub">진입할 때마다 얼마를 쓸지 정합니다.</p>
         </div>
-        <LiveSettingsBadge
-          source={sizingSource}
-          liveLeverage={liveLeverage}
-          livePct={livePct}
-        />
+        <LiveSettingsBadge source={sizingSource} liveLeverage={liveLeverage} livePct={livePct} />
       </div>
 
       {sizingSource === "pine" ? (
         <p className="field-hint">
-          Pine 코드가 <code>strategy(default_qty_type=...)</code> 를 명시했습니다.
-          Pine 지정이 우선 적용되어 폼 입력은 비활성화됩니다.
+          Pine 코드가 <code>strategy(default_qty_type=...)</code> 를 명시했습니다. Pine 지정이 우선
+          적용되어 폼 입력은 비활성화됩니다.
         </p>
       ) : sizingSource === "live_blocked_leverage" ? (
         <p className="field-hint">
-          Live 레버리지는 이 폼에 자동으로 미러되지 않습니다. 백테스트 레버리지 필드에 직접 입력하세요.
+          Live 레버리지는 이 폼에 자동으로 미러되지 않습니다. 백테스트 레버리지 필드에 직접
+          입력하세요.
         </p>
       ) : (
         <div className="field sizing-narrow">
@@ -106,8 +112,7 @@ export function BacktestSizingFieldSet({
             })}
           />
           <p className="field-hint">
-            전략 설정의 포지션 비율과 같습니다. 바꾸려면 수동 입력으로 전환하거나
-            전략을 편집하세요.
+            전략 설정의 포지션 비율과 같습니다. 바꾸려면 수동 입력으로 전환하거나 전략을 편집하세요.
           </p>
           {errors.position_size_pct ? (
             <p className="field-error" role="alert">
@@ -127,10 +132,7 @@ export function BacktestSizingFieldSet({
               disabled={sizingSource === "pine"}
               data-testid="default-qty-type-select"
               {...register("default_qty_type", {
-                required:
-                  sizingSource === "pine"
-                    ? false
-                    : "주문 크기 기준을 선택하세요",
+                required: sizingSource === "pine" ? false : "주문 크기 기준을 선택하세요",
               })}
             >
               <option value="strategy.percent_of_equity">자기자본 비율</option>
@@ -156,13 +158,10 @@ export function BacktestSizingFieldSet({
               disabled={sizingSource === "pine"}
               data-testid="default-qty-value-input"
               {...register("default_qty_value", {
-                required:
-                  sizingSource === "pine" ? false : "주문 크기 값을 입력하세요",
+                required: sizingSource === "pine" ? false : "주문 크기 값을 입력하세요",
                 valueAsNumber: true,
                 validate: (v) =>
-                  sizingSource === "pine" ||
-                  (Number.isFinite(v) && v > 0) ||
-                  "양수여야 합니다",
+                  sizingSource === "pine" || (Number.isFinite(v) && v > 0) || "양수여야 합니다",
               })}
             />
             {errors.default_qty_value ? (
@@ -185,12 +184,8 @@ export function BacktestSizingFieldSet({
                 ? Math.min(100, Math.max(1, Number(watchedQtyValue)))
                 : 10
             }
-            onChange={(v) =>
-              setValue("default_qty_value", v, { shouldDirty: true })
-            }
-            capitalUsd={
-              Number.isFinite(watchedCapital) ? Number(watchedCapital) : null
-            }
+            onChange={(v) => setValue("default_qty_value", v, { shouldDirty: true })}
+            capitalUsd={Number.isFinite(watchedCapital) ? Number(watchedCapital) : null}
             label="포지션 사이즈"
             unit="%"
             min={1}

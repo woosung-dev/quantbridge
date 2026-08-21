@@ -1,16 +1,14 @@
 // 백테스트 폼의 시장과 기간 필드 (심볼 + 타임프레임 + 기간 프리셋 + 시작/종료일) — C 디자인 언어 이식(W3-A).
 "use client";
 
-import {
-  type Control,
-  type UseFormRegister,
-  type UseFormSetValue,
-  type FieldErrors,
-} from "react-hook-form";
+import type { Control, UseFormRegister, UseFormSetValue, FieldErrors } from "react-hook-form";
 
 import type { Timeframe } from "@/features/backtest/schemas";
 
-import { DatePresetPills, type DatePreset } from "@/features/backtest/components/forms/date-preset-pills";
+import {
+  DatePresetPills,
+  type DatePreset,
+} from "@/features/backtest/components/forms/date-preset-pills";
 import type { BacktestFormValues } from "@/features/backtest/components/forms/useBacktestForm";
 
 const SYMBOLS = ["BTC/USDT", "ETH/USDT", "SOL/USDT"] as const;
@@ -41,7 +39,9 @@ export function BacktestSessionFieldSet({
             <label className="field-label" htmlFor="symbol">
               심볼
             </label>
-            <span className="field-req" aria-hidden="true">필수</span>
+            <span className="field-req" aria-hidden="true">
+              필수
+            </span>
           </span>
           <select
             className="select"
@@ -70,7 +70,9 @@ export function BacktestSessionFieldSet({
             <label className="field-label" htmlFor="timeframe">
               타임프레임
             </label>
-            <span className="field-req" aria-hidden="true">필수</span>
+            <span className="field-req" aria-hidden="true">
+              필수
+            </span>
           </span>
           <select className="select" id="timeframe" {...register("timeframe")}>
             {TIMEFRAMES.map((tf) => (
@@ -133,8 +135,8 @@ export function BacktestSessionFieldSet({
           <span className="field-label">기간 프리셋</span>
           <DatePresetPills value={datePreset} onSelect={onDatePreset} />
           <p className="field-hint">
-            프리셋을 고르면 시작일과 종료일이 함께 채워집니다. 직접 날짜를 바꾸면
-            커스텀으로 전환됩니다.
+            프리셋을 고르면 시작일과 종료일이 함께 채워집니다. 직접 날짜를 바꾸면 커스텀으로
+            전환됩니다.
           </p>
         </div>
 
@@ -156,8 +158,8 @@ export function BacktestSessionFieldSet({
             Bybit
           </p>
           <p className="field-hint">
-            현재 연결된 거래소는 Bybit 하나입니다. 바꾸려면 연결 설정에서 다른
-            거래소 API 키를 먼저 등록해야 합니다.
+            현재 연결된 거래소는 Bybit 하나입니다. 바꾸려면 연결 설정에서 다른 거래소 API 키를 먼저
+            등록해야 합니다.
           </p>
         </div>
       </div>

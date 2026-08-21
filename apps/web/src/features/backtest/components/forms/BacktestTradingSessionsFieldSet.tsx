@@ -34,8 +34,7 @@ export function BacktestTradingSessionsFieldSet({
         <div>
           <h3 className="card-title">거래 세션</h3>
           <p className="card-sub">
-            Live 전략의 거래 세션을 미러합니다. 선택하지 않으면 24시간 거래로
-            봅니다.
+            Live 전략의 거래 세션을 미러합니다. 선택하지 않으면 24시간 거래로 봅니다.
           </p>
         </div>
       </div>
@@ -50,12 +49,8 @@ export function BacktestTradingSessionsFieldSet({
               aria-pressed={checked}
               data-testid={`session-checkbox-${s}`}
               onClick={() => {
-                const current = (watchedSessions ?? []).filter(
-                  (x): x is TradingSession => x !== s,
-                );
-                const next: TradingSession[] = checked
-                  ? current
-                  : [...current, s];
+                const current = (watchedSessions ?? []).filter((x): x is TradingSession => x !== s);
+                const next: TradingSession[] = checked ? current : [...current, s];
                 setValue("trading_sessions", next, { shouldDirty: true });
               }}
             >

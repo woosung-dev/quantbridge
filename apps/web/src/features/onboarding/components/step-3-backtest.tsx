@@ -8,10 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { AlertCircleIcon, CheckIcon, LoaderIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import {
-  useBacktestProgress,
-  useCreateBacktest,
-} from "@/features/backtest/hooks";
+import { useBacktestProgress, useCreateBacktest } from "@/features/backtest/hooks";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
 const INITIAL_CAPITAL = 10_000;
@@ -94,25 +91,15 @@ export function Step3Backtest({
     onBacktestReady(backtestId);
   }, [progressStatus, backtestId, onBacktestReady]);
 
-  const isFailed =
-    progressStatus === "failed" || progressStatus === "cancelled";
-  const isRunning =
-    create.isPending ||
-    progressStatus === "queued" ||
-    progressStatus === "running";
-  const isIdle =
-    !isRunning && !isFailed && progressStatus === undefined && !backtestId;
+  const isFailed = progressStatus === "failed" || progressStatus === "cancelled";
+  const isRunning = create.isPending || progressStatus === "queued" || progressStatus === "running";
+  const isIdle = !isRunning && !isFailed && progressStatus === undefined && !backtestId;
 
   return (
     <div>
       <div className="ob-lede">
         <span className="ob-lede-icon" aria-hidden="true">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
+          <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
             <line x1="6" y1="20" x2="6" y2="14" />
             <line x1="12" y1="20" x2="12" y2="4" />
             <line x1="18" y1="20" x2="18" y2="10" />
@@ -121,8 +108,7 @@ export function Step3Backtest({
         <div>
           <h2 className="ob-heading">백테스트 실행</h2>
           <p className="ob-subtle break-keep">
-            BTC/USDT 1H · 최근 {LOOKBACK_DAYS}일 · 초기 자본{" "}
-            ${INITIAL_CAPITAL.toLocaleString()}
+            BTC/USDT 1H · 최근 {LOOKBACK_DAYS}일 · 초기 자본 ${INITIAL_CAPITAL.toLocaleString()}
           </p>
         </div>
       </div>
@@ -144,22 +130,20 @@ export function Step3Backtest({
                       ? "대기열에서 순서를 기다리는 중"
                       : "시장 데이터 수집 및 계산 중"}
                 </p>
-                <p className="ob-run-sub">
-                  백테스트 엔진이 계산 중입니다. 보통 5~30초 걸립니다.
-                </p>
+                <p className="ob-run-sub">백테스트 엔진이 계산 중입니다. 보통 5~30초 걸립니다.</p>
               </div>
             </div>
             {/* 스켈레톤 — 계산 중 결과 자리를 예약한다 (KIT 상태 4종 중 스켈레톤). */}
-            <div className="sk sk-line" style={{ width: "58%", marginTop: 16 }} aria-hidden="true" />
+            <div
+              className="sk sk-line"
+              style={{ width: "58%", marginTop: 16 }}
+              aria-hidden="true"
+            />
           </>
         )}
         {progressStatus === "completed" && (
           <div className="ob-run-row">
-            <CheckIcon
-              className="ob-run-done"
-              strokeWidth={2.4}
-              aria-hidden="true"
-            />
+            <CheckIcon className="ob-run-done" strokeWidth={2.4} aria-hidden="true" />
             <p className="ob-run-title ob-run-done">
               백테스트가 완료되었습니다. 결과로 이동합니다.
             </p>
@@ -168,14 +152,10 @@ export function Step3Backtest({
         {isFailed && (
           <p role="alert" className="ob-run-row ob-run-fail">
             <AlertCircleIcon strokeWidth={2} aria-hidden="true" />
-            <span>
-              백테스트가 실패했습니다. {progress.data?.error ?? "알 수 없는 오류"}
-            </span>
+            <span>백테스트가 실패했습니다. {progress.data?.error ?? "알 수 없는 오류"}</span>
           </p>
         )}
-        {isIdle && (
-          <p className="ob-run-sub">전략이 준비되면 자동으로 실행됩니다.</p>
-        )}
+        {isIdle && <p className="ob-run-sub">전략이 준비되면 자동으로 실행됩니다.</p>}
       </div>
 
       {submitError !== null && (
@@ -183,21 +163,13 @@ export function Step3Backtest({
           role="alert"
           className="mb-4 flex items-start gap-2 rounded-[var(--r)] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] p-3 text-xs text-[color:var(--warn)]"
         >
-          <AlertCircleIcon
-            className="mt-0.5 size-4 shrink-0"
-            aria-hidden="true"
-          />
+          <AlertCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span className="break-all">{submitError}</span>
         </p>
       )}
 
       <div className="ob-actions between">
-        <button
-          className="btn btn-ghost"
-          type="button"
-          onClick={onBack}
-          disabled={isRunning}
-        >
+        <button className="btn btn-ghost" type="button" onClick={onBack} disabled={isRunning}>
           ← 이전
         </button>
         {isFailed && (

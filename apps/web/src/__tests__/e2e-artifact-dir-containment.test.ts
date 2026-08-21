@@ -57,17 +57,19 @@ describe("PW_ARTIFACT_RUN outputDir 격리", () => {
   });
 
   // ★이 케이스가 codex 가 잡은 결함이다. 수리 전에는 `test-results/../chromium` 이 나왔다.
-  it.each([["..", "상위 탈출"], [".", "현재 디렉터리"], ["../..", "두 단계 탈출"], ["a/../..", "경로 조각"]])(
-    "%s (%s) 를 줘도 test-results/ 밖으로 나가지 않는다",
-    async (evil) => {
-      const projects = await loadProjects(evil);
-      for (const project of projects) {
-        const resolved = path.resolve(WEB_ROOT, project.outputDir as string);
-        expect(
-          resolved.startsWith(ARTIFACT_ROOT + path.sep),
-          `${project.name}: ${project.outputDir} → ${resolved} 가 test-results/ 밖이다`,
-        ).toBe(true);
-      }
-    },
-  );
+  it.each([
+    ["..", "상위 탈출"],
+    [".", "현재 디렉터리"],
+    ["../..", "두 단계 탈출"],
+    ["a/../..", "경로 조각"],
+  ])("%s (%s) 를 줘도 test-results/ 밖으로 나가지 않는다", async (evil) => {
+    const projects = await loadProjects(evil);
+    for (const project of projects) {
+      const resolved = path.resolve(WEB_ROOT, project.outputDir as string);
+      expect(
+        resolved.startsWith(ARTIFACT_ROOT + path.sep),
+        `${project.name}: ${project.outputDir} → ${resolved} 가 test-results/ 밖이다`,
+      ).toBe(true);
+    }
+  });
 });

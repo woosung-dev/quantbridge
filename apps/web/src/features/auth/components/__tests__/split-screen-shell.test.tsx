@@ -29,9 +29,7 @@ describe("SplitScreenShell", () => {
         <div>x</div>
       </SplitScreenShell>,
     );
-    expect(
-      screen.getByRole("heading", { level: 2, name: "로그인" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "로그인" })).toBeInTheDocument();
   });
 
   it("sign-up 모드 — form-col 제목 회원가입", () => {
@@ -40,9 +38,7 @@ describe("SplitScreenShell", () => {
         <div>x</div>
       </SplitScreenShell>,
     );
-    expect(
-      screen.getByRole("heading", { level: 2, name: "회원가입" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "회원가입" })).toBeInTheDocument();
   });
 
   it("거짓 카피 없음 — 소셜(Google·GitHub) 로그인은 배선이 없으므로 언급하지 않는다", () => {
@@ -62,10 +58,7 @@ describe("SplitScreenShell", () => {
         <div>x</div>
       </SplitScreenShell>,
     );
-    expect(screen.getByRole("link", { name: "회원가입" })).toHaveAttribute(
-      "href",
-      "/sign-up",
-    );
+    expect(screen.getByRole("link", { name: "회원가입" })).toHaveAttribute("href", "/sign-up");
   });
 
   it("sign-up 모드 — 우상단에 로그인 상호 링크 → /sign-in", () => {
@@ -74,10 +67,7 @@ describe("SplitScreenShell", () => {
         <div>x</div>
       </SplitScreenShell>,
     );
-    expect(screen.getByRole("link", { name: "로그인" })).toHaveAttribute(
-      "href",
-      "/sign-in",
-    );
+    expect(screen.getByRole("link", { name: "로그인" })).toHaveAttribute("href", "/sign-in");
   });
 
   it("자체 푸터 노출 (계정 관리 주체 명시)", () => {

@@ -9,10 +9,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-const STORAGE_PATH = path.resolve(
-  process.cwd(),
-  "e2e/.auth/storageState.json",
-);
+const STORAGE_PATH = path.resolve(process.cwd(), "e2e/.auth/storageState.json");
 
 export function expectStorageStateReady(): void {
   if (!fs.existsSync(STORAGE_PATH)) {

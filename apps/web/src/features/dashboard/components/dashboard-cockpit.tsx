@@ -104,8 +104,16 @@ export function DashboardCockpit() {
   );
   const recentRuns = useMemo<readonly RecentRun[]>(() => {
     const merged: RecentRun[] = [
-      ...backtestItems.map((run) => ({ type: "backtest" as const, createdAt: run.created_at, run })),
-      ...optimizationItems.map((run) => ({ type: "optimization" as const, createdAt: run.created_at, run })),
+      ...backtestItems.map((run) => ({
+        type: "backtest" as const,
+        createdAt: run.created_at,
+        run,
+      })),
+      ...optimizationItems.map((run) => ({
+        type: "optimization" as const,
+        createdAt: run.created_at,
+        run,
+      })),
     ];
     return merged
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -221,8 +229,7 @@ export function DashboardCockpit() {
                     전체인 것처럼 보여주지 않는다. */}
                 {agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null ? (
                   <>
-                    <br />
-                    이 중 {ORDER_REALIZED_PNL_SOURCE_LABEL.confirmed}{" "}
+                    <br />이 중 {ORDER_REALIZED_PNL_SOURCE_LABEL.confirmed}{" "}
                     {formatSignedUsd(agg.confirmedRealizedPnl)} ·{" "}
                     {ORDER_REALIZED_PNL_SOURCE_LABEL.estimated}{" "}
                     {formatSignedUsd(agg.estimatedRealizedPnl)} 입니다.{" "}
@@ -263,9 +270,7 @@ export function DashboardCockpit() {
           isLoading={agg.isLoading}
           activeSessionCount={activeSessions.length}
           latestValue={agg.totalRealizedPnl}
-          hasProvenanceSplit={
-            agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null
-          }
+          hasProvenanceSplit={agg.confirmedRealizedPnl != null && agg.estimatedRealizedPnl != null}
         />
       </section>
 
@@ -277,8 +282,8 @@ export function DashboardCockpit() {
           </p>
           <h2 className="section-title">최근 실행 {recentRuns.length}건</h2>
           <p className="section-desc">
-            백테스트와 최적화 원장을 각각 최근 순으로 가져와 합쳤습니다. 최적화 결과의 성과는 상세에서
-            확인합니다.
+            백테스트와 최적화 원장을 각각 최근 순으로 가져와 합쳤습니다. 최적화 결과의 성과는
+            상세에서 확인합니다.
           </p>
         </header>
 
@@ -355,18 +360,19 @@ export function DashboardCockpit() {
             </div>
           ) : (
             <div className="table-wrap">
-              <table
-                className="trades runs-table"
-                aria-label={`최근 실행 ${recentRuns.length}건`}
-              >
+              <table className="trades runs-table" aria-label={`최근 실행 ${recentRuns.length}건`}>
                 <thead>
                   <tr>
                     <th scope="col">실행 ID</th>
                     <th scope="col">유형</th>
                     <th scope="col">전략</th>
                     <th scope="col">심볼 · 주기</th>
-                    <th scope="col" className="num">수익률</th>
-                    <th scope="col" className="num">MDD</th>
+                    <th scope="col" className="num">
+                      수익률
+                    </th>
+                    <th scope="col" className="num">
+                      MDD
+                    </th>
                     <th scope="col" className="col-status">
                       상태
                     </th>
@@ -546,7 +552,13 @@ function RecentRunRow({
   );
 }
 
-function MetricValue({ value, format }: { value: number | null | undefined; format: (value: number) => string }) {
+function MetricValue({
+  value,
+  format,
+}: {
+  value: number | null | undefined;
+  format: (value: number) => string;
+}) {
   return <td className="num">{value == null ? EMPTY_CELL : format(value)}</td>;
 }
 
@@ -561,7 +573,10 @@ function StrategyPerformanceRow({ strategy }: { strategy: StrategyListItem }) {
   const returnPct = totalReturn == null ? null : totalReturn * 100;
   const meterPct = returnPct == null ? null : Math.max(0, Math.min(returnPct, METER_CAP_PCT));
   const meterWidth = meterPct == null ? 0 : (meterPct / METER_CAP_PCT) * 100;
-  const basis = meterPct == null ? null : `${returnPct!.toFixed(2)} / ${METER_CAP_PCT.toFixed(2)} = ${meterWidth.toFixed(1)}%`;
+  const basis =
+    meterPct == null
+      ? null
+      : `${returnPct!.toFixed(2)} / ${METER_CAP_PCT.toFixed(2)} = ${meterWidth.toFixed(1)}%`;
 
   return (
     <div className="perf-row" data-testid={`strategy-row-${strategy.id}`}>
@@ -574,12 +589,16 @@ function StrategyPerformanceRow({ strategy }: { strategy: StrategyListItem }) {
             {strategy.symbol ?? EMPTY_CELL} · {strategy.timeframe ?? EMPTY_CELL}
           </span>
           {latest ? <span className="chip">{latest.backtest_id.slice(0, 8)}</span> : null}
-          {latest?.completed_at ? <span className="chip">{formatDateTime(latest.completed_at)}</span> : null}
+          {latest?.completed_at ? (
+            <span className="chip">{formatDateTime(latest.completed_at)}</span>
+          ) : null}
         </div>
       </div>
       <div className="perf-figure" title={latest == null ? "완료 실행 없음" : undefined}>
         <span className="k">최근 수익률</span>
-        <span className={`v ${totalReturn != null && totalReturn > 0 ? "pos" : totalReturn != null && totalReturn < 0 ? "neg" : ""}`}>
+        <span
+          className={`v ${totalReturn != null && totalReturn > 0 ? "pos" : totalReturn != null && totalReturn < 0 ? "neg" : ""}`}
+        >
           {totalReturn == null ? EMPTY_CELL : formatPercent(totalReturn)}
         </span>
       </div>
@@ -592,7 +611,9 @@ function StrategyPerformanceRow({ strategy }: { strategy: StrategyListItem }) {
           <p className="perf-note">완료 실행 없음</p>
         ) : (
           <>
-            <div className="meter bull"><span style={{ width: `${meterWidth}%` }} /></div>
+            <div className="meter bull">
+              <span style={{ width: `${meterWidth}%` }} />
+            </div>
             <p className="perf-basis">{basis}</p>
           </>
         )}

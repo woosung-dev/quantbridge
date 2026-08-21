@@ -2,13 +2,7 @@
 
 // 코크핏 §08의 알림 규칙·실시간 스트림 진단을 실제 계약으로 렌더한다.
 import { useState, type ReactNode } from "react";
-import {
-  AlertTriangleIcon,
-  BellIcon,
-  ClockIcon,
-  RefreshCwIcon,
-  WifiIcon,
-} from "lucide-react";
+import { AlertTriangleIcon, BellIcon, ClockIcon, RefreshCwIcon, WifiIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
 import { AlertRuleForm } from "@/features/alert-rules/components/alert-rule-form";

@@ -3,15 +3,7 @@
 // 수익 구조 waterfall 의 recharts plot 서브트리 — 부모(profit-waterfall.tsx)가
 // next/dynamic 으로 지연 로딩해 recharts 를 route 초기 번들에서 제외한다.
 
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { useChartTheme } from "@/lib/chart-tokens";
 import { formatCurrency } from "@/features/backtest/utils";
@@ -41,10 +33,7 @@ export function ProfitWaterfallPlot({ data }: { data: readonly WaterfallDatum[] 
 
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <BarChart
-        data={data as WaterfallDatum[]}
-        margin={{ top: 8, right: 8, left: 8, bottom: 0 }}
-      >
+      <BarChart data={data as WaterfallDatum[]} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={palette.grid} />
         <XAxis
           dataKey="name"

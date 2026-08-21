@@ -45,10 +45,7 @@ vi.mock("@/features/backtest/hooks", () => ({
     },
     isPending: createPending,
   }),
-  useRevokeBacktestShare: (opts: {
-    onSuccess?: () => void;
-    onError?: (e: Error) => void;
-  }) => ({
+  useRevokeBacktestShare: (opts: { onSuccess?: () => void; onError?: (e: Error) => void }) => ({
     mutate: (id: string) => {
       mockRevokeMutate(id);
       opts.onSuccess?.();

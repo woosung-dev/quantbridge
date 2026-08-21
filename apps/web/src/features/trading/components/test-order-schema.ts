@@ -62,10 +62,7 @@ export const TEST_ORDER_FORM_SCHEMA = z
           path: ["risk_percent"],
           message: "리스크 %를 입력하세요.",
         });
-      } else if (
-        !isPositiveDecimalString(data.risk_percent) ||
-        Number(data.risk_percent) > 100
-      ) {
+      } else if (!isPositiveDecimalString(data.risk_percent) || Number(data.risk_percent) > 100) {
         ctx.addIssue({
           code: "custom",
           path: ["risk_percent"],
@@ -96,10 +93,7 @@ export const TEST_ORDER_FORM_SCHEMA = z
         message: "손절가는 0보다 큰 숫자여야 합니다.",
       });
     }
-    if (
-      data.realized_pnl.length > 0 &&
-      !isSignedDecimalString(data.realized_pnl)
-    ) {
+    if (data.realized_pnl.length > 0 && !isSignedDecimalString(data.realized_pnl)) {
       ctx.addIssue({
         code: "custom",
         path: ["realized_pnl"],

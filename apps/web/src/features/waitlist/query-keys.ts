@@ -5,8 +5,7 @@ import type { WaitlistStatus } from "./schemas";
 
 export const waitlistKeys = {
   all: (userId: string) => ["waitlist", userId] as const,
-  adminLists: (userId: string) =>
-    [...waitlistKeys.all(userId), "admin", "list"] as const,
+  adminLists: (userId: string) => [...waitlistKeys.all(userId), "admin", "list"] as const,
   adminList: (
     userId: string,
     query: { status?: WaitlistStatus; limit?: number; offset?: number },

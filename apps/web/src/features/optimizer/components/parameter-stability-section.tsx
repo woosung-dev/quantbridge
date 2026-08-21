@@ -64,9 +64,7 @@ export function ParameterStabilitySection({ result }: { result: GridSearchResult
                     ) : (
                       <span aria-hidden="true" />
                     )}
-                    <span className="pval">
-                      {v.average === null ? EMPTY_CELL : fmt(v.average)}
-                    </span>
+                    <span className="pval">{v.average === null ? EMPTY_CELL : fmt(v.average)}</span>
                   </div>
                 ))}
 
@@ -84,9 +82,9 @@ export function ParameterStabilitySection({ result }: { result: GridSearchResult
                 <p className="pfoot">
                   {param.highest && param.lowest ? (
                     <>
-                      최고 {fmt(param.highest.average)} ({param.paramName}{" "}
-                      {param.highest.value}) · 최저 {fmt(param.lowest.average)} (
-                      {param.paramName} {param.lowest.value}) · 폭 {fmt(param.spread)}.
+                      최고 {fmt(param.highest.average)} ({param.paramName} {param.highest.value}) ·
+                      최저 {fmt(param.lowest.average)} ({param.paramName} {param.lowest.value}) · 폭{" "}
+                      {fmt(param.spread)}.
                     </>
                   ) : null}
                   {!stability.canRenderBars

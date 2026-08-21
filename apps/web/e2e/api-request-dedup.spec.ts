@@ -70,7 +70,8 @@ for (const route of ROUTES) {
       if (!capturing) return;
       const url = res.url();
       if (!url.includes(API_MARKER)) return;
-      if (res.status() >= 400) failedResponses.push(`${res.status()} ${res.request().method()} ${url}`);
+      if (res.status() >= 400)
+        failedResponses.push(`${res.status()} ${res.request().method()} ${url}`);
     });
 
     await page.goto(route.path, { timeout: 60_000 });

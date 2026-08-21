@@ -4,14 +4,7 @@
  * 비용(테이커 수수료/슬리피지) 입력 + 시뮬레이션 모델 info + payload default 자동 채움 +
  * 주문 크기 방식(default_qty_type/value) 을 검증한다. 폼 로직은 재스킨 전과 동일하다.
  */
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { BacktestForm } from "@/features/backtest/components/forms/backtest-form";
@@ -173,9 +166,7 @@ describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
     render(<BacktestForm />);
 
     expect(screen.getByRole("checkbox", { name: /펀딩 반영/ })).toBeEnabled();
-    expect(
-      screen.getByText(/Bybit 실측 펀딩 데이터를 사용하며/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Bybit 실측 펀딩 데이터를 사용하며/)).toBeInTheDocument();
   });
 
   it("validation — fees_pct -0.1 (음수) 입력 시 inline error", async () => {
@@ -200,9 +191,7 @@ describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
       fireEvent.submit(screen.getByLabelText("backtest-form"));
     });
 
-    expect(
-      await screen.findByText(/0 ~ 0.01 \(1%\) 범위여야 합니다/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/0 ~ 0.01 \(1%\) 범위여야 합니다/)).toBeInTheDocument();
     expect(mutate).not.toHaveBeenCalled();
   });
 
@@ -215,9 +204,7 @@ describe("BacktestForm — 자본과 체결 입력 (C 이식 W3-A)", () => {
     const valueInput = screen.getByLabelText("값") as HTMLInputElement;
     expect(valueInput).toBeInTheDocument();
     expect(valueInput.value).toBe("10");
-    expect(
-      screen.getByTestId("backtest-form-sizing-source-section"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("backtest-form-sizing-source-section")).toBeInTheDocument();
   });
 
   it("주문 크기 방식 — form 제출 → payload 에 default_qty_type/value 포함", async () => {

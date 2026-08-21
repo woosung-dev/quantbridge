@@ -22,11 +22,7 @@ import {
   stressTestRefetchInterval,
   useStressTestHistory,
 } from "../hooks";
-import type {
-  StressTestDetail,
-  StressTestListResponse,
-  StressTestSummary,
-} from "../schemas";
+import type { StressTestDetail, StressTestListResponse, StressTestSummary } from "../schemas";
 
 vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof ApiModule>();
@@ -156,9 +152,7 @@ describe("useStressTestHistory", () => {
 
     await waitFor(() => expect(result.current.data).toEqual(page));
     expect(listStressTestsMock).toHaveBeenCalledWith(backtestId, 20, "test-token");
-    expect(
-      queryClient.getQueryData(stressTestKeys.byBacktest("user_1", backtestId)),
-    ).toEqual(page);
+    expect(queryClient.getQueryData(stressTestKeys.byBacktest("user_1", backtestId))).toEqual(page);
   });
 
   it("스트레스 테스트가 없으면 빈 페이지를 반환하고 error 상태가 아니다", async () => {
@@ -187,9 +181,7 @@ describe("useStressTestHistory", () => {
 describe("stressTestHistoryRefetchInterval", () => {
   const BT = "22222222-2222-4222-8222-222222222222";
 
-  function pageQuery(
-    items: StressTestSummary[],
-  ): Query<StressTestListResponse, Error> {
+  function pageQuery(items: StressTestSummary[]): Query<StressTestListResponse, Error> {
     return {
       state: { status: "success", data: { items, total: items.length, limit: 20, offset: 0 } },
     } as unknown as Query<StressTestListResponse, Error>;

@@ -122,8 +122,7 @@ export function deriveTradeMarkers(
 
   for (const trade of capped) {
     // --- entry marker -------------------------------------------------------
-    const entryColor =
-      trade.direction === "long" ? COLORS.longEntry : COLORS.shortEntry;
+    const entryColor = trade.direction === "long" ? COLORS.longEntry : COLORS.shortEntry;
     const directionLabel = trade.direction === "long" ? "L" : "S";
     const entryText = compact
       ? directionLabel

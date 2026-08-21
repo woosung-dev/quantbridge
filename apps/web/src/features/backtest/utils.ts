@@ -11,10 +11,7 @@ import type { EquityPoint, TradeItem } from "./schemas";
  *
  * MVP: recharts LineChart 성능 보호 (너무 많은 포인트 = 느린 hover/tooltip).
  */
-export function downsampleEquity(
-  points: readonly EquityPoint[],
-  max = 1000,
-): EquityPoint[] {
+export function downsampleEquity(points: readonly EquityPoint[], max = 1000): EquityPoint[] {
   if (max <= 1) throw new Error("max must be > 1");
   const n = points.length;
   if (n <= max) return [...points];
@@ -182,12 +179,7 @@ export function downloadCsv(filename: string, csv: string): void {
 
 // --- Trade table sort/filter (Sprint 30-δ) ------------------------------
 
-export type TradeSortField =
-  | "entry_time"
-  | "exit_time"
-  | "pnl"
-  | "return_pct"
-  | "size";
+export type TradeSortField = "entry_time" | "exit_time" | "pnl" | "return_pct" | "size";
 export type TradeSortDir = "asc" | "desc";
 
 export interface TradeFilters {
@@ -282,9 +274,7 @@ function emptyStats(): DirectionStats {
  * decimalString transform 으로 zod 파싱 직후 number 로 변환됨. 이 함수는
  * number 입력을 가정한다.
  */
-export function computeDirectionBreakdown(
-  trades: readonly TradeItem[],
-): DirectionBreakdown {
+export function computeDirectionBreakdown(trades: readonly TradeItem[]): DirectionBreakdown {
   const long = emptyStats();
   const short = emptyStats();
 
@@ -304,4 +294,3 @@ export function computeDirectionBreakdown(
 
   return { long, short };
 }
-

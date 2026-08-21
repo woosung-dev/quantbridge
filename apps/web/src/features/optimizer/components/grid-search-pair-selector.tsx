@@ -20,8 +20,8 @@ export function GridSearchPairSelector({ result }: Props) {
     // 1D — 안내만 표시.
     return (
       <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
-        파라미터 공간이 변수 1개라 2D 히트맵을 그리지 않습니다. 위 리더보드가 전체 조합을
-        순위로 보여 줍니다.
+        파라미터 공간이 변수 1개라 2D 히트맵을 그리지 않습니다. 위 리더보드가 전체 조합을 순위로
+        보여 줍니다.
       </p>
     );
   }
@@ -35,8 +35,8 @@ export function GridSearchPairSelector({ result }: Props) {
     <div>
       <p className="notice-inline" style={{ marginBottom: 14 }} role="status">
         <span>
-          변수 {names.length}개 결과입니다. 히트맵으로 볼 변수쌍 2개를 고르세요. 나머지 변수는
-          최적 셀 값으로 고정한 단면을 그립니다.
+          변수 {names.length}개 결과입니다. 히트맵으로 볼 변수쌍 2개를 고르세요. 나머지 변수는 최적
+          셀 값으로 고정한 단면을 그립니다.
         </span>
       </p>
       <div className="toolbar" style={{ marginBottom: 14 }}>

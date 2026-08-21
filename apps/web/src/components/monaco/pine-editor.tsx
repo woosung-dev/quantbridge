@@ -10,10 +10,10 @@ import { ibmPlexMono } from "@/lib/fonts";
 import { registerPineLanguage } from "./pine-language";
 
 // Monaco는 bundle size가 커서 client-only + dynamic import.
-const MonacoEditor = dynamic(
-  () => import("@monaco-editor/react").then((m) => m.default),
-  { ssr: false, loading: () => <div className="h-full animate-pulse rounded-md bg-muted" /> },
-);
+const MonacoEditor = dynamic(() => import("@monaco-editor/react").then((m) => m.default), {
+  ssr: false,
+  loading: () => <div className="h-full animate-pulse rounded-md bg-muted" />,
+});
 
 export interface PineEditorProps {
   value: string;

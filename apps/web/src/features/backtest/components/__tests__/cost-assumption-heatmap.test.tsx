@@ -7,9 +7,7 @@ import type { CostAssumptionResult } from "@/features/backtest/schemas";
 
 import { CostAssumptionHeatmap } from "@/features/backtest/components/charts/cost-assumption-heatmap";
 
-function makeResult(
-  overrides: Partial<CostAssumptionResult> = {},
-): CostAssumptionResult {
+function makeResult(overrides: Partial<CostAssumptionResult> = {}): CostAssumptionResult {
   return {
     param1_name: "fees",
     param2_name: "slippage",

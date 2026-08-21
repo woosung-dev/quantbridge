@@ -14,17 +14,15 @@ export interface CurvePoint {
  *
  * 순수 함수. 입력 곡선은 time 오름차순 가정(정렬 안 돼 있어도 내부에서 정렬).
  */
-export function mergeCumulativeCurves(
-  curves: readonly (readonly CurvePoint[])[],
-): CurvePoint[] {
+export function mergeCumulativeCurves(curves: readonly (readonly CurvePoint[])[]): CurvePoint[] {
   const sorted = curves
     .map((c) => [...c].sort((a, b) => a.time - b.time))
     .filter((c) => c.length > 0);
   if (sorted.length === 0) return [];
 
-  const allTimes = Array.from(
-    new Set(sorted.flatMap((c) => c.map((p) => p.time))),
-  ).sort((a, b) => a - b);
+  const allTimes = Array.from(new Set(sorted.flatMap((c) => c.map((p) => p.time)))).sort(
+    (a, b) => a - b,
+  );
 
   const cursor = sorted.map(() => 0);
   const lastValue = sorted.map(() => 0);

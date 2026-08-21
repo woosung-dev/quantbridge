@@ -1,11 +1,7 @@
 "use client";
 
 // 세션 알림 규칙의 조회와 변경 후 무효화를 제공한다.
-import {
-  useQuery,
-  type UseMutationResult,
-  type UseQueryResult,
-} from "@tanstack/react-query";
+import { useQuery, type UseMutationResult, type UseQueryResult } from "@tanstack/react-query";
 
 import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
 import { useInvalidatingMutation } from "@/hooks/use-invalidating-mutation";
@@ -38,9 +34,7 @@ export function useCreateAlertRule(
   });
 }
 
-export function useDeactivateAlertRule(
-  sessionId: string,
-): UseMutationResult<void, Error, string> {
+export function useDeactivateAlertRule(sessionId: string): UseMutationResult<void, Error, string> {
   return useInvalidatingMutation({
     mutationFn: (ruleId, token) => deactivateAlertRule(sessionId, ruleId, token),
     invalidateKeys: (uid) => [alertRuleKeys.list(uid, sessionId)],

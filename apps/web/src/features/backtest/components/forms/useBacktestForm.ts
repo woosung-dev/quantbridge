@@ -14,8 +14,11 @@ import type {
 } from "@/features/backtest/schemas";
 import { useStrategy } from "@/features/strategy/hooks";
 
-import { calcDateRange, type DatePreset } from "@/features/backtest/components/forms/date-preset-pills";
-import { type SizingSource } from "@/features/backtest/components/live-settings-badge";
+import {
+  calcDateRange,
+  type DatePreset,
+} from "@/features/backtest/components/forms/date-preset-pills";
+import type { SizingSource } from "@/features/backtest/components/live-settings-badge";
 import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
 export interface BacktestFormValues {
@@ -31,10 +34,7 @@ export interface BacktestFormValues {
   include_funding: boolean;
   // TV parity — 시장가 체결 타이밍 (bar_close 기본 | next_bar_open = TV 정합).
   fill_timing: "bar_close" | "next_bar_open";
-  default_qty_type:
-    | "strategy.percent_of_equity"
-    | "strategy.cash"
-    | "strategy.fixed";
+  default_qty_type: "strategy.percent_of_equity" | "strategy.cash" | "strategy.fixed";
   default_qty_value: number;
   sizing_source: SizingSource;
   position_size_pct: number | null;
@@ -114,8 +114,7 @@ export function useBacktestForm() {
   //   ★effect 로 되돌리지 않고 **render-time 파생**으로 푼다(LESSON-004 H-1: dep 에 불안정
   //   참조를 넣지 말고 비교로 처리해라). 전략이 바뀌면 동의는 자동으로 무효가 된다.
   const [degradedConsentFor, setDegradedConsentFor] = useState<string | null>(null);
-  const [convertResult, setConvertResult] =
-    useState<ConvertIndicatorResponse | null>(null);
+  const [convertResult, setConvertResult] = useState<ConvertIndicatorResponse | null>(null);
   const [datePreset, setDatePreset] = useState<DatePreset>("6m");
 
   const create = useCreateBacktest({
@@ -168,9 +167,7 @@ export function useBacktestForm() {
       ...(isLive
         ? {
             position_size_pct:
-              values.position_size_pct != null
-                ? Number(values.position_size_pct)
-                : undefined,
+              values.position_size_pct != null ? Number(values.position_size_pct) : undefined,
           }
         : {
             default_qty_type: values.default_qty_type,
@@ -183,8 +180,7 @@ export function useBacktestForm() {
 
   // Sprint 38 BL-188 v3 — strategy detail fetch (settings + trading_sessions prefill).
   const selectedStrategy = useWatch({ control, name: "strategy_id" });
-  const allowDegradedPine =
-    degradedConsentFor !== null && degradedConsentFor === selectedStrategy;
+  const allowDegradedPine = degradedConsentFor !== null && degradedConsentFor === selectedStrategy;
   const setAllowDegradedPine = (accepted: boolean) => {
     setDegradedConsentFor(accepted ? selectedStrategy : null);
   };
@@ -203,30 +199,19 @@ export function useBacktestForm() {
     const allowedSessions: TradingSession[] = sessionsKey
       ? sessionsKey
           .split("|")
-          .filter((s): s is TradingSession =>
-            s === "asia" || s === "london" || s === "ny",
-          )
+          .filter((s): s is TradingSession => s === "asia" || s === "london" || s === "ny")
       : [];
     const current = getValues();
     reset(
       {
         ...current,
         sizing_source: computedSource,
-        position_size_pct:
-          computedSource === "live" && livePct != null ? livePct : null,
+        position_size_pct: computedSource === "live" && livePct != null ? livePct : null,
         trading_sessions: allowedSessions,
       },
       { keepDirtyValues: false },
     );
-  }, [
-    strategyId,
-    livePct,
-    liveLeverage,
-    sessionsKey,
-    pineDeclared,
-    reset,
-    getValues,
-  ]);
+  }, [strategyId, livePct, liveLeverage, sessionsKey, pineDeclared, reset, getValues]);
 
   const handleDatePreset = useCallback(
     (preset: DatePreset) => {

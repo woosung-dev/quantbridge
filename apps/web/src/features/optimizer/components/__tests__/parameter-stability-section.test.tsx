@@ -82,9 +82,7 @@ describe("ParameterStabilitySection — screen-10 03 구조", () => {
   });
 
   it("metric=total_return 이면 평균·축 스케일을 % 로 인쇄한다 (formatObjectiveValue 분기)", () => {
-    render(
-      <ParameterStabilitySection result={{ ...RESULT, objective_metric: "total_return" }} />,
-    );
+    render(<ParameterStabilitySection result={{ ...RESULT, objective_metric: "total_return" }} />);
     const grid = screen.getByTestId("param-stability-grid");
     const fastCol = grid.querySelectorAll(".pcol")[0]!;
     const pvals = Array.from(fastCol.querySelectorAll(".pval")).map((e) => e.textContent);

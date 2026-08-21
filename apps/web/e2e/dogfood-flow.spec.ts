@@ -35,9 +35,9 @@ test.describe("dogfood flow regression", () => {
     await page.goto("/strategies/new");
 
     // C 이식(screen-07): report-title "새 전략" + 좌우 2단(기본 정보 / 파싱 결과) 로드.
-    await expect(
-      page.getByRole("heading", { name: "새 전략", exact: true }),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "새 전략", exact: true })).toBeVisible({
+      timeout: 10_000,
+    });
     await expect(page.getByRole("heading", { name: "전략 메타데이터" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "지원 여부 판정" })).toBeVisible();
   });
@@ -45,9 +45,7 @@ test.describe("dogfood flow regression", () => {
   // 시나리오 2: Backtest form 422 inline error
   // Sprint 13 Phase C — setError("root.serverError") 패턴 회귀 가드.
   // codex G.2 P1 #3 fix — 페이지 로드 only → submit + inline error assert 보강.
-  test("backtest form — 422 응답 시 root.serverError inline 표시", async ({
-    page,
-  }) => {
+  test("backtest form — 422 응답 시 root.serverError inline 표시", async ({ page }) => {
     const STRATEGY_ID = "s0000000-0000-4000-a000-000000000001";
 
     // strategies list — backtest form 의 strategy select 채움
@@ -96,9 +94,9 @@ test.describe("dogfood flow regression", () => {
     await page.goto("/backtests/new");
 
     // 페이지 헤더 + submit 버튼 보임
-    await expect(
-      page.getByRole("heading", { name: "새 백테스트" }),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "새 백테스트" })).toBeVisible({
+      timeout: 10_000,
+    });
 
     // submit 버튼 클릭 → 422 mock → root.serverError inline 표시
     // form 의 client validation 은 react-hook-form mode:"onChange" 라 빈 form 이면
@@ -114,30 +112,17 @@ test.describe("dogfood flow regression", () => {
     // 적어도 하나의 alert/error 가 표시 (server 422 또는 client validation).
     // sprint 25 의도는 422 path 검증이지만 mock fulfill 보장이 form state 와
     // 의존 — 둘 중 하나라도 보이면 inline error 회귀 가드 의도 충족.
-    await expect(
-      serverError.or(clientErrors.first()),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(serverError.or(clientErrors.first())).toBeVisible({ timeout: 5_000 });
   });
 
   // 시나리오 3: TestOrderDialog 트리거 + dialog 열림 + KS bypass guard
   // Sprint 13 Phase B — HMAC 발송 dogfood-only 도구.
   // codex G.2 P1 #4 fix — KS active 시 submit 버튼 disabled assert 추가.
-  test("trading test order — dialog 열림 + KS bypass guard (submit disabled)", async ({
-    page,
-  }) => {
-    await page.route(
-      API_ROUTES.exchangeAccounts,
-      fulfillJson({ items: [MOCK_DEMO_ACCOUNT] }),
-    );
+  test("trading test order — dialog 열림 + KS bypass guard (submit disabled)", async ({ page }) => {
+    await page.route(API_ROUTES.exchangeAccounts, fulfillJson({ items: [MOCK_DEMO_ACCOUNT] }));
     // KS active mock — useIsOrderDisabledByKs hook 이 true 반환 → submit disabled
-    await page.route(
-      API_ROUTES.killSwitch,
-      fulfillJson({ items: [MOCK_KS_EVENT_ACTIVE] }),
-    );
-    await page.route(
-      API_ROUTES.orders,
-      fulfillJson({ items: [], total: 0 }),
-    );
+    await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [MOCK_KS_EVENT_ACTIVE] }));
+    await page.route(API_ROUTES.orders, fulfillJson({ items: [], total: 0 }));
 
     await page.goto("/trading", { timeout: 60_000 });
 
@@ -151,14 +136,12 @@ test.describe("dogfood flow regression", () => {
     // dispatchEvent('click') — Tanstack Query refetchInterval 로 인한 layout shift +
     // force: true click 가 React onClick handler 안 도달하는 issue 우회.
     // dispatchEvent 는 Synthetic React event 직접 트리거 → onClick={() => setOpen(true)} 보장.
-    await page
-      .getByRole("button", { name: /^테스트 주문$/ })
-      .dispatchEvent("click");
+    await page.getByRole("button", { name: /^테스트 주문$/ }).dispatchEvent("click");
 
     // 2) DialogTitle 표시
-    await expect(
-      page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" }),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" })).toBeVisible({
+      timeout: 10_000,
+    });
 
     // 3) KS active → dialog submit button disabled (test-order-dialog.tsx).
     // ksDisabled=true 이면 dialog 제출 버튼 라벨이 "Kill Switch 활성화" 로 바뀌고 disabled 된다.

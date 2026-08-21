@@ -74,8 +74,11 @@ export function BacktestDetailView({ id }: { id: string }) {
   const bt = detail.data;
   const effectiveStatus: BacktestStatus = progress.data?.status ?? bt.status;
   const isTerminal = (TERMINAL_STATUSES as readonly string[]).includes(effectiveStatus);
-  const { label: statusLabel, tone: statusTone, showCheckIcon } =
-    BACKTEST_STATUS_LABEL[effectiveStatus];
+  const {
+    label: statusLabel,
+    tone: statusTone,
+    showCheckIcon,
+  } = BACKTEST_STATUS_LABEL[effectiveStatus];
 
   const isInProgress =
     effectiveStatus === "queued" ||
@@ -106,9 +109,7 @@ export function BacktestDetailView({ id }: { id: string }) {
             </div>
           </div>
           <div className="report-actions">
-            {effectiveStatus === "completed" ? (
-              <ShareButton backtestId={bt.id} isEnabled />
-            ) : null}
+            {effectiveStatus === "completed" ? <ShareButton backtestId={bt.id} isEnabled /> : null}
             <RerunButton backtest={bt} isEnabled={isTerminal} />
             <Link className="btn btn-ghost" href="/backtests">
               <ArrowLeftIcon aria-hidden="true" />
@@ -119,9 +120,7 @@ export function BacktestDetailView({ id }: { id: string }) {
       </section>
 
       {/* ===== 상태 분기 ===== */}
-      {isInProgress ? (
-        <InProgressCard status={effectiveStatus} />
-      ) : null}
+      {isInProgress ? <InProgressCard status={effectiveStatus} /> : null}
 
       {effectiveStatus === "failed" ? (
         <section className="card" aria-label="실행 실패">
@@ -184,10 +183,14 @@ export function BacktestDetailView({ id }: { id: string }) {
 
 // 대기/실행 중/취소 중 — 서버가 진행 % 를 보고하지 않아 스켈레톤(shimmer)으로만 알린다.
 function InProgressCard({ status }: { status: "queued" | "running" | "cancelling" }) {
-  const label =
-    status === "queued" ? "대기" : status === "cancelling" ? "취소 중" : "실행 중";
+  const label = status === "queued" ? "대기" : status === "cancelling" ? "취소 중" : "실행 중";
   return (
-    <section className="card" aria-busy="true" aria-label={`${label} 상태`} data-testid="backtest-in-progress">
+    <section
+      className="card"
+      aria-busy="true"
+      aria-label={`${label} 상태`}
+      data-testid="backtest-in-progress"
+    >
       <div className="card-body">
         <div className="sk-bars" aria-hidden="true">
           {[46, 72, 30, 88, 54, 66, 38, 78].map((h, i) => (

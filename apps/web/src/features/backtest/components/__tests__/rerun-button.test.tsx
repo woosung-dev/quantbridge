@@ -131,8 +131,6 @@ describe("RerunButton", () => {
     fireEvent.click(screen.getByRole("button", { name: /재실행/ }));
 
     expect(mockMutate).not.toHaveBeenCalled();
-    expect(mockToastError).toHaveBeenCalledWith(
-      expect.stringContaining("유효하지 않은 초기 자본"),
-    );
+    expect(mockToastError).toHaveBeenCalledWith(expect.stringContaining("유효하지 않은 초기 자본"));
   });
 });

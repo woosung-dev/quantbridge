@@ -73,9 +73,7 @@ describe("adviseError", () => {
 
 describe("adviseWarning", () => {
   it("detects duplicate strategy.exit pattern", () => {
-    const a = adviseWarning(
-      "duplicate strategy.exit calls at lines [10, 15]",
-    );
+    const a = adviseWarning("duplicate strategy.exit calls at lines [10, 15]");
     expect(a.what).toMatch(/exit/);
     expect(a.action).toMatch(/마지막/);
   });

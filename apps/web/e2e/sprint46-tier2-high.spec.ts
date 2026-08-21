@@ -30,11 +30,9 @@ const MOCK_BYBIT_REGISTERED = {
 
 test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
   // #6 ExchAccount 등록 — Bybit demo + OKX demo (passphrase 분기) + AES-256 평문 미노출
-  test("#6 exch account 등록 — Bybit/OKX 등록 + 평문 secret 미노출", async ({
-    page,
-  }) => {
+  test("#6 exch account 등록 — Bybit/OKX 등록 + 평문 secret 미노출", async ({ page }) => {
     let postedBody: Record<string, unknown> | null = null;
-    const initialList: typeof MOCK_BYBIT_REGISTERED[] = [];
+    const initialList: (typeof MOCK_BYBIT_REGISTERED)[] = [];
 
     // GET → 빈 list (등록 전), POST → 등록 성공 후 mocked detail.
     await page.route(API_ROUTES.exchangeAccounts, async (route) => {
@@ -66,15 +64,13 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
     await addBtn.click();
 
     // Dialog 열림.
-    await expect(
-      page.getByRole("heading", { name: "거래소 계정 등록" }),
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("heading", { name: "거래소 계정 등록" })).toBeVisible({
+      timeout: 5_000,
+    });
 
     // Bybit 는 default — api_key + api_secret 만 입력 (passphrase 미노출).
     await page.getByLabel("API Key").fill("BYBI_PLAINTEXT_KEY_FULL_VALUE_001");
-    await page
-      .getByLabel("API Secret")
-      .fill("BYBI_PLAINTEXT_SECRET_FULL_VALUE_001");
+    await page.getByLabel("API Secret").fill("BYBI_PLAINTEXT_SECRET_FULL_VALUE_001");
 
     // OKX passphrase field 는 Bybit 선택 시 미노출 (조건부 렌더).
     await expect(page.getByLabel("Passphrase")).toHaveCount(0);
@@ -84,22 +80,18 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
     await page.getByRole("button", { name: "등록" }).click();
 
     // Dialog 닫힘.
-    await expect(
-      page.getByRole("heading", { name: "거래소 계정 등록" }),
-    ).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: "거래소 계정 등록" })).toHaveCount(0, {
+      timeout: 10_000,
+    });
 
     // POST body 검증 — secret 평문 전송했지만 응답에는 mask 만 (BE 가 AES-256).
     expect(postedBody).not.toBeNull();
     expect(postedBody!.api_key).toBe("BYBI_PLAINTEXT_KEY_FULL_VALUE_001");
-    expect(postedBody!.api_secret).toBe(
-      "BYBI_PLAINTEXT_SECRET_FULL_VALUE_001",
-    );
+    expect(postedBody!.api_secret).toBe("BYBI_PLAINTEXT_SECRET_FULL_VALUE_001");
     // 응답으로 받은 list cell 은 masked 만 표시 (평문 절대 X).
     // ★계정 표를 접근성 이름으로 집는다 — `.locator("table").first()` 는 소크 세션이
     //   포지션을 들고 있으면 위쪽 포지션 표를 집어 거짓 red 를 냈다(BL-597).
-    const tableText = await page
-      .getByRole("table", { name: /거래소 계정/ })
-      .innerText();
+    const tableText = await page.getByRole("table", { name: /거래소 계정/ }).innerText();
     expect(tableText).not.toContain("BYBI_PLAINTEXT_KEY");
     expect(tableText).not.toContain("BYBI_PLAINTEXT_SECRET");
     expect(tableText).toContain("BYBI********KEY1");
@@ -108,11 +100,9 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
   // #7 ExchAccount 삭제 — delete 버튼 click → DELETE 호출 → row 사라짐.
   // 현재 구현에는 confirm dialog 가 없음 (panel 의 직접 mutate). future-Sprint
   // 에서 dialog stagger 패턴 추가 시 이 테스트를 확장.
-  test("#7 exch account 삭제 — delete 버튼 → DELETE 호출 → row 사라짐", async ({
-    page,
-  }) => {
+  test("#7 exch account 삭제 — delete 버튼 → DELETE 호출 → row 사라짐", async ({ page }) => {
     let deletedId: string | null = null;
-    const list: typeof MOCK_BYBIT_REGISTERED[] = [{ ...MOCK_BYBIT_REGISTERED }];
+    const list: (typeof MOCK_BYBIT_REGISTERED)[] = [{ ...MOCK_BYBIT_REGISTERED }];
 
     await page.route(API_ROUTES.exchangeAccounts, async (route) => {
       const req = route.request();
@@ -121,7 +111,7 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
       if (method === "DELETE") {
         // /api/v1/exchange-accounts/:id 패턴.
         const match = url.match(/exchange-accounts\/([\w-]+)/);
-        deletedId = match ? match[1] ?? null : null;
+        deletedId = match ? (match[1] ?? null) : null;
         // DELETE 후 list 비움 (다음 GET 응답 반영).
         list.length = 0;
         return route.fulfill({ status: 204, body: "" });
@@ -138,9 +128,9 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
     await page.goto("/trading", { timeout: 60_000 });
 
     // 등록된 row 보임.
-    await expect(
-      page.getByRole("cell", { name: "BYBI********KEY1" }),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("cell", { name: "BYBI********KEY1" })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // 삭제 버튼 (aria-label="계정 삭제") click.
     const deleteBtn = page.getByRole("button", { name: "계정 삭제" });
@@ -148,18 +138,16 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
     await deleteBtn.click();
 
     // DELETE 호출됨 + 응답 후 list 갱신 (row 사라짐).
-    await expect(
-      page.getByRole("cell", { name: "BYBI********KEY1" }),
-    ).toHaveCount(0, { timeout: 10_000 });
+    await expect(page.getByRole("cell", { name: "BYBI********KEY1" })).toHaveCount(0, {
+      timeout: 10_000,
+    });
     expect(deletedId).toBe(ACCOUNT_ID_BYBIT);
   });
 
   // #8 422 다중 field error — Backtest form 에서 multiple required fields 비움 →
   // client mode:"onChange" 가 각 field 옆 inline FormMessage 표시 + 서버 422 응답
   // 시 FormErrorInline 안 server-side error inline 노출.
-  test("#8 422 다중 field — client × 3 inline + server FormErrorInline", async ({
-    page,
-  }) => {
+  test("#8 422 다중 field — client × 3 inline + server FormErrorInline", async ({ page }) => {
     const STRATEGY_ID = "9d000000-0000-4000-9d00-000000000031";
 
     await page.route(
@@ -228,18 +216,14 @@ test.describe("sprint46 tier 2 high — dogfood polish e2e", () => {
 
     // "× 3" 의도: client/server 두 path 중 어느 한 쪽이라도 다중 alert 표시.
     // 422 mock 발생 시 friendly_message 또는 server inline visible.
-    await expect(
-      serverError.or(friendly).or(anyAlert.first()),
-    ).toBeVisible({ timeout: 10_000 });
+    await expect(serverError.or(friendly).or(anyAlert.first())).toBeVisible({ timeout: 10_000 });
     // 다중 inline error 확인 — alert role 의 갯수 ≥1 (client validation 또는 server).
     await expect(anyAlert.first()).toBeVisible({ timeout: 5_000 });
   });
 
   // #9 24 metric 전수 렌더링 — completed backtest detail → overview 5 card +
   // 성과 지표 tab detail 18 row → label + value spot-check + NaN/undefined 미허용.
-  test("#9 24 metric 전수 — overview cards + 성과 지표 detail 라벨 + 값 정확", async ({
-    page,
-  }) => {
+  test("#9 24 metric 전수 — overview cards + 성과 지표 detail 라벨 + 값 정확", async ({ page }) => {
     const BACKTEST_ID = "b1000000-0000-4000-b100-000000000091";
     const STRATEGY_ID = "9d000000-0000-4000-9d00-000000000041";
 

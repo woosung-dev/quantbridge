@@ -21,7 +21,6 @@ import { authMockState } from "@/lib/__mocks__/auth-client";
 // 다르므로 여기서 명시한다(ADR-034).
 authMockState.userId = "test-user";
 
-
 const listLiveSessionsMock = vi.fn();
 
 vi.mock("../api", () => ({
@@ -47,10 +46,7 @@ function stripComments(source: string): string {
 
 // ★파일시스템 경로다 — `@/` 별칭은 `path.resolve` 에 의미가 없다.
 //   2026-08-16 ADR-035 이동에서 이 줄을 별칭으로 바꿨다가 ENOENT 로 red 가 났다.
-const COCKPIT = path.resolve(
-  __dirname,
-  "../../trading/components/trading-cockpit.tsx",
-);
+const COCKPIT = path.resolve(__dirname, "../../trading/components/trading-cockpit.tsx");
 
 function makeClient() {
   // 한 화면 = 한 QueryClient. 두 훅이 이 캐시를 공유한다.

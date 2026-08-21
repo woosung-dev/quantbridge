@@ -5,12 +5,7 @@ import { z } from "zod/v4";
 
 import { ONBOARDING_VERSION } from "./types";
 
-export const OnboardingStepSchema = z.enum([
-  "welcome",
-  "strategy",
-  "backtest",
-  "result",
-]);
+export const OnboardingStepSchema = z.enum(["welcome", "strategy", "backtest", "result"]);
 
 // persist payload — 버전 mismatch 시 reset.
 export const OnboardingPersistSchema = z.object({

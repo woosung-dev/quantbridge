@@ -32,8 +32,8 @@ export default function MaintenancePage() {
             서비스를 일시적으로 사용할 수 없습니다.
           </h1>
           <p className="section-desc">
-            예상 복구 시간과 진행률은 인쇄하지 않습니다. 서버가 주지 않은 값이기 때문입니다. 아는 사실만
-            표에 남깁니다.
+            예상 복구 시간과 진행률은 인쇄하지 않습니다. 서버가 주지 않은 값이기 때문입니다. 아는
+            사실만 표에 남깁니다.
           </p>
         </header>
 
@@ -76,7 +76,10 @@ export default function MaintenancePage() {
               </div>
               <div className="trust-row">
                 <span className="trust-key">예상 복구 시간</span>
-                <span className="trust-val empty" title="서버가 복구 예정 시각을 제공하지 않습니다.">
+                <span
+                  className="trust-val empty"
+                  title="서버가 복구 예정 시각을 제공하지 않습니다."
+                >
                   {EMPTY_CELL}
                 </span>
               </div>
@@ -104,8 +107,8 @@ export default function MaintenancePage() {
           <p className="disclaimer">
             <InfoIcon />
             <span>
-              이 화면은 상태를 자동으로 갱신하지 않습니다. 복구 여부는 다시 시도 버튼으로만 확인하며,
-              그래서 맥동 점 · 진행률 바 · 카운트다운을 넣지 않았습니다.
+              이 화면은 상태를 자동으로 갱신하지 않습니다. 복구 여부는 다시 시도 버튼으로만
+              확인하며, 그래서 맥동 점 · 진행률 바 · 카운트다운을 넣지 않았습니다.
             </span>
           </p>
         </div>

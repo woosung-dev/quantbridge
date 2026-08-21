@@ -7,9 +7,7 @@ import { computeDirectionBreakdown } from "../utils";
 
 // schema 와 일치하는 trade fixture. pnl 등은 decimalString → number 로 transform 된 후의
 // 형태를 그대로 사용 (BE → FE 파싱 직후 시점).
-function mkTrade(
-  overrides: Pick<TradeItem, "direction" | "pnl"> & Partial<TradeItem>,
-): TradeItem {
+function mkTrade(overrides: Pick<TradeItem, "direction" | "pnl"> & Partial<TradeItem>): TradeItem {
   return {
     trade_index: 0,
     status: "closed",

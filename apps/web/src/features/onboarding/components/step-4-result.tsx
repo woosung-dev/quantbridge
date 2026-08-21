@@ -70,8 +70,7 @@ export function Step4Result({
           <div>
             <h2 className="ob-heading">결과를 불러오지 못했습니다</h2>
             <p className="ob-subtle break-keep">
-              원인은 두 가지로 갈립니다. 어느 쪽인지에 따라 눌러야 할 버튼이
-              다릅니다.
+              원인은 두 가지로 갈립니다. 어느 쪽인지에 따라 눌러야 할 버튼이 다릅니다.
             </p>
           </div>
         </div>
@@ -87,16 +86,16 @@ export function Step4Result({
             <p className="ob-cause">
               <span className="ob-cause-tag">원인 A</span>
               <span>
-                결과 조회 실패. 실행 ID 는 남아 있는데 서버가 결과를 돌려주지
-                않았습니다. 다시 시도로 같은 ID 를 한 번 더 조회합니다.
+                결과 조회 실패. 실행 ID 는 남아 있는데 서버가 결과를 돌려주지 않았습니다. 다시
+                시도로 같은 ID 를 한 번 더 조회합니다.
               </span>
             </p>
             <p className="ob-cause">
               <span className="ob-cause-tag">원인 B</span>
               <span>
-                세션 초기화. 온보딩 시작 시각에서 5분이 지나면 진행도가 첫
-                스텝으로 되돌아가면서 실행 ID 를 잃습니다. 중간에 조작해도 이
-                5분은 연장되지 않습니다. 이때는 백테스트를 다시 실행해야 합니다.
+                세션 초기화. 온보딩 시작 시각에서 5분이 지나면 진행도가 첫 스텝으로 되돌아가면서
+                실행 ID 를 잃습니다. 중간에 조작해도 이 5분은 연장되지 않습니다. 이때는 백테스트를
+                다시 실행해야 합니다.
               </span>
             </p>
           </div>
@@ -129,10 +128,8 @@ export function Step4Result({
   }
 
   // ── 정상 결과 ──────────────────────────────────────────────────────────────
-  const returnTone =
-    totalReturn === null ? "" : totalReturn >= 0 ? " pos" : " neg";
-  const winMeterWidth =
-    winRate === null ? 0 : Math.max(0, Math.min(100, winRate * 100));
+  const returnTone = totalReturn === null ? "" : totalReturn >= 0 ? " pos" : " neg";
+  const winMeterWidth = winRate === null ? 0 : Math.max(0, Math.min(100, winRate * 100));
 
   return (
     <div>
@@ -174,10 +171,7 @@ export function Step4Result({
           <p className="kpi-value mono">
             <StatValue isPending={isPending}>
               {winRate === null ? (
-                <span
-                  className="dim"
-                  title="완료된 거래가 없어 승률의 분모가 없습니다."
-                >
+                <span className="dim" title="완료된 거래가 없어 승률의 분모가 없습니다.">
                   {EMPTY_CELL}
                 </span>
               ) : (
@@ -228,27 +222,20 @@ export function Step4Result({
       <div className="ob-next">
         <p className="ob-next-title">다음 단계</p>
         <p className="ob-subtle break-keep">
-          한 번의 백테스트는 가설 하나입니다. 아래 순서로 검증 강도를 올리는 것을
-          권합니다.
+          한 번의 백테스트는 가설 하나입니다. 아래 순서로 검증 강도를 올리는 것을 권합니다.
         </p>
         <div className="cta-row">
           <article className="card cta recommended">
             <span className="cta-badge">권장</span>
             <span className="cta-icon" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="3" />
                 <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
               </svg>
             </span>
             <h3 className="cta-title">파라미터 최적화</h3>
             <p className="cta-desc">
-              이동평균 길이 두 개를 그리드로 훑어 이 결과가 특정 값에만 기대고
-              있는지 확인합니다.
+              이동평균 길이 두 개를 그리드로 훑어 이 결과가 특정 값에만 기대고 있는지 확인합니다.
             </p>
             <p className="cta-meta">그리드 9조합 (3 x 3) · 바 단위 이벤트 루프</p>
             <Link className="btn btn-primary btn-block" href="/optimizer">
@@ -258,20 +245,14 @@ export function Step4Result({
 
           <article className="card cta">
             <span className="cta-icon" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 17l4-6 4 3 4-8 6 11" />
                 <line x1="3" y1="21" x2="21" y2="21" />
               </svg>
             </span>
             <h3 className="cta-title">스트레스 테스트</h3>
             <p className="cta-desc">
-              거래 순서를 뒤섞었을 때 낙폭이 어디까지 벌어지는지 몬테카를로와
-              워크포워드로 봅니다.
+              거래 순서를 뒤섞었을 때 낙폭이 어디까지 벌어지는지 몬테카를로와 워크포워드로 봅니다.
             </p>
             <p className="cta-meta">이 백테스트의 거래를 그대로 입력으로 사용</p>
             <Link
@@ -284,12 +265,7 @@ export function Step4Result({
 
           <article className="card cta">
             <span className="cta-icon" aria-hidden="true">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
+              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="5" width="18" height="14" rx="2" />
                 <line x1="3" y1="10" x2="21" y2="10" />
                 <line x1="7" y1="14.5" x2="11" y2="14.5" />
@@ -297,8 +273,8 @@ export function Step4Result({
             </span>
             <h3 className="cta-title">데모 세션 연결</h3>
             <p className="cta-desc">
-              Bybit 데모 한정. 가상 자금만 사용하며 실제 자금 손실은 없습니다.
-              같은 전략의 체결 품질을 먼저 봅니다.
+              Bybit 데모 한정. 가상 자금만 사용하며 실제 자금 손실은 없습니다. 같은 전략의 체결
+              품질을 먼저 봅니다.
             </p>
             <p className="cta-meta">거래소 API 키 등록 필요</p>
             <Link className="btn btn-block" href="/trading">
@@ -311,8 +287,7 @@ export function Step4Result({
       <p className="disclaimer ob-disclaimer">
         <InfoIcon />
         <span>
-          백테스트 결과는 과거 데이터를 그대로 재생한 것이며, 미래 수익을
-          보장하지 않습니다.
+          백테스트 결과는 과거 데이터를 그대로 재생한 것이며, 미래 수익을 보장하지 않습니다.
         </span>
       </p>
 

@@ -63,10 +63,7 @@ export async function listBacktests(
   return BacktestListResponseSchema.parse(raw);
 }
 
-export async function getBacktest(
-  id: string,
-  token: string | null,
-): Promise<BacktestDetail> {
+export async function getBacktest(id: string, token: string | null): Promise<BacktestDetail> {
   const raw = await apiFetch<unknown>(`${BACKTESTS_PATH}/${id}`, {
     method: "GET",
     token,
@@ -138,10 +135,7 @@ export async function cancelBacktest(
   return BacktestCancelResponseSchema.parse(raw);
 }
 
-export async function deleteBacktest(
-  id: string,
-  token: string | null,
-): Promise<void> {
+export async function deleteBacktest(id: string, token: string | null): Promise<void> {
   await apiFetch<void>(`${BACKTESTS_PATH}/${id}`, {
     method: "DELETE",
     token,
@@ -161,10 +155,7 @@ export async function createBacktestShare(
   return ShareTokenResponseSchema.parse(raw);
 }
 
-export async function revokeBacktestShare(
-  id: string,
-  token: string | null,
-): Promise<void> {
+export async function revokeBacktestShare(id: string, token: string | null): Promise<void> {
   await apiFetch<void>(`${BACKTESTS_PATH}/${id}/share`, {
     method: "DELETE",
     token,
@@ -205,14 +196,11 @@ export async function postCostAssumption(
   token: string | null,
 ): Promise<StressTestCreatedResponse> {
   const parsed = CreateCostAssumptionRequestSchema.parse(body);
-  const raw = await apiFetch<unknown>(
-    `${STRESS_TESTS_PATH}/cost-assumption-sensitivity`,
-    {
-      method: "POST",
-      token,
-      body: parsed,
-    },
-  );
+  const raw = await apiFetch<unknown>(`${STRESS_TESTS_PATH}/cost-assumption-sensitivity`, {
+    method: "POST",
+    token,
+    body: parsed,
+  });
   return StressTestCreatedResponseSchema.parse(raw);
 }
 
@@ -222,21 +210,15 @@ export async function postParamStability(
   token: string | null,
 ): Promise<StressTestCreatedResponse> {
   const parsed = CreateParamStabilityRequestSchema.parse(body);
-  const raw = await apiFetch<unknown>(
-    `${STRESS_TESTS_PATH}/param-stability`,
-    {
-      method: "POST",
-      token,
-      body: parsed,
-    },
-  );
+  const raw = await apiFetch<unknown>(`${STRESS_TESTS_PATH}/param-stability`, {
+    method: "POST",
+    token,
+    body: parsed,
+  });
   return StressTestCreatedResponseSchema.parse(raw);
 }
 
-export async function getStressTest(
-  id: string,
-  token: string | null,
-): Promise<StressTestDetail> {
+export async function getStressTest(id: string, token: string | null): Promise<StressTestDetail> {
   const raw = await apiFetch<unknown>(`${STRESS_TESTS_PATH}/${id}`, {
     method: "GET",
     token,

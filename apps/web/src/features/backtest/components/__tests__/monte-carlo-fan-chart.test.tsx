@@ -35,9 +35,7 @@ const RESULT_3BARS: MonteCarloResult = {
 describe("MonteCarloFanChart", () => {
   it("renders empty-state when equity_percentiles is empty", () => {
     render(<MonteCarloFanChart result={RESULT_EMPTY} />);
-    expect(
-      screen.getByText(/Monte Carlo 데이터가 없습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Monte Carlo 데이터가 없습니다/)).toBeInTheDocument();
   });
 
   it("does not emit recharts width(-1) warning in jsdom (placeholder branch)", () => {
@@ -48,9 +46,7 @@ describe("MonteCarloFanChart", () => {
 
     // jsdom 기본: rect width=0 + ResizeObserver 미정의 → placeholder 렌더
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
-    expect(
-      container.querySelector(".recharts-responsive-container"),
-    ).toBeNull();
+    expect(container.querySelector(".recharts-responsive-container")).toBeNull();
 
     const hasWarn = warnSpy.mock.calls.some((args) =>
       args.some((a) => typeof a === "string" && /width\(-1\)/.test(a)),

@@ -2,10 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  normalizeToPercentCurve,
-  normalizeToPnlCurve,
-} from "../normalize-to-pnl-curve";
+import { normalizeToPercentCurve, normalizeToPnlCurve } from "../normalize-to-pnl-curve";
 
 describe("normalizeToPnlCurve — Sprint 37 BL-184", () => {
   it("returns empty array for empty input", () => {
@@ -18,21 +15,12 @@ describe("normalizeToPnlCurve — Sprint 37 BL-184", () => {
   });
 
   it("subtracts the first value from every point (PnL 기준)", () => {
-    const out = normalizeToPnlCurve([
-      { value: 100 },
-      { value: 150 },
-      { value: 80 },
-    ]);
+    const out = normalizeToPnlCurve([{ value: 100 }, { value: 150 }, { value: 80 }]);
     expect(out).toEqual([{ value: 0 }, { value: 50 }, { value: -20 }]);
   });
 
   it("is idempotent — normalize(normalize(x)) === normalize(x)", () => {
-    const input = [
-      { value: 10000 },
-      { value: 10200 },
-      { value: 9800 },
-      { value: 10500 },
-    ];
+    const input = [{ value: 10000 }, { value: 10200 }, { value: 9800 }, { value: 10500 }];
     const once = normalizeToPnlCurve(input);
     const twice = normalizeToPnlCurve(once);
     expect(twice).toEqual(once);
@@ -61,11 +49,7 @@ describe("normalizeToPercentCurve — Compare 오버레이 (% 수익률)", () =>
   });
 
   it("computes percent return relative to the first value (시작=0%)", () => {
-    const out = normalizeToPercentCurve([
-      { value: 100 },
-      { value: 150 },
-      { value: 80 },
-    ]);
+    const out = normalizeToPercentCurve([{ value: 100 }, { value: 150 }, { value: 80 }]);
     expect(out[0]!.value).toBeCloseTo(0, 9);
     expect(out[1]!.value).toBeCloseTo(50, 9);
     expect(out[2]!.value).toBeCloseTo(-20, 9);
@@ -73,10 +57,7 @@ describe("normalizeToPercentCurve — Compare 오버레이 (% 수익률)", () =>
 
   it("is capital-agnostic — 두 자본금이 달라도 동일 % 곡선", () => {
     const small = normalizeToPercentCurve([{ value: 100 }, { value: 120 }]);
-    const large = normalizeToPercentCurve([
-      { value: 1_000_000 },
-      { value: 1_200_000 },
-    ]);
+    const large = normalizeToPercentCurve([{ value: 1_000_000 }, { value: 1_200_000 }]);
     expect(small).toEqual(large); // 둘 다 [0, 20]
   });
 

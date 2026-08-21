@@ -13,7 +13,8 @@ import type { FanDatum } from "@/features/backtest/components/charts/monte-carlo
 
 // recharts plot 은 무거워서 지연 로딩 — 로딩 중엔 hasWidth 대기 placeholder 와 동일 형태.
 const MonteCarloFanPlot = dynamic(
-  () => import("@/features/backtest/components/charts/recharts-plots").then((m) => m.MonteCarloFanPlot),
+  () =>
+    import("@/features/backtest/components/charts/recharts-plots").then((m) => m.MonteCarloFanPlot),
   { ssr: false, loading: () => <div className="h-full w-full" aria-busy="true" /> },
 );
 
@@ -119,10 +120,7 @@ export function MonteCarloFanChart({ result }: Props) {
 
   return (
     <div className="space-y-3">
-      <div
-        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
-        data-testid="mc-summary-cards"
-      >
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="mc-summary-cards">
         {summaryItems.map((item) => (
           <div
             key={item.label}
@@ -141,18 +139,16 @@ export function MonteCarloFanChart({ result }: Props) {
             >
               {item.value}
             </div>
-            <div className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">
-              {item.helper}
-            </div>
+            <div className="mt-0.5 text-[11px] text-[color:var(--text-muted)]">{item.helper}</div>
           </div>
         ))}
       </div>
       <div ref={wrapperRef} className="h-80 w-full" style={{ minWidth: 0 }}>
-      {hasWidth ? (
-        <MonteCarloFanPlot data={data} />
-      ) : (
-        <div className="h-full w-full" aria-busy="true" />
-      )}
+        {hasWidth ? (
+          <MonteCarloFanPlot data={data} />
+        ) : (
+          <div className="h-full w-full" aria-busy="true" />
+        )}
       </div>
     </div>
   );

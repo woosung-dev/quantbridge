@@ -3,10 +3,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type {
-  WalkForwardFold,
-  WalkForwardResult,
-} from "@/features/backtest/schemas";
+import type { WalkForwardFold, WalkForwardResult } from "@/features/backtest/schemas";
 import { WalkForwardBarChart } from "@/features/backtest/components/charts/walk-forward-bar-chart";
 
 function makeFold(index: number): WalkForwardFold {
@@ -81,8 +78,6 @@ describe("WalkForwardBarChart", () => {
       degenerate_folds_skipped: 0,
     };
     render(<WalkForwardBarChart result={result} />);
-    expect(
-      screen.getByText(/fold 데이터가 없습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/fold 데이터가 없습니다/)).toBeInTheDocument();
   });
 });

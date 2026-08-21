@@ -128,14 +128,24 @@ describe("[BL-817] 대시보드 동적 라우트 params", () => {
     const html = await renderPage(StrategyEditPage, LOWERCASE_UUID);
 
     expect(notFound).not.toHaveBeenCalled();
-    expectMarkerProps(vi.mocked(EditorView), "strategy-editor-marker", { id: LOWERCASE_UUID }, html);
+    expectMarkerProps(
+      vi.mocked(EditorView),
+      "strategy-editor-marker",
+      { id: LOWERCASE_UUID },
+      html,
+    );
   });
 
   it("strategies/[id]/edit — 대문자 UUID도 EditorView로 전달하고 404를 내지 않는다", async () => {
     const html = await renderPage(StrategyEditPage, UPPERCASE_UUID);
 
     expect(notFound).not.toHaveBeenCalled();
-    expectMarkerProps(vi.mocked(EditorView), "strategy-editor-marker", { id: UPPERCASE_UUID }, html);
+    expectMarkerProps(
+      vi.mocked(EditorView),
+      "strategy-editor-marker",
+      { id: UPPERCASE_UUID },
+      html,
+    );
   });
 
   it.each([
@@ -143,25 +153,31 @@ describe("[BL-817] 대시보드 동적 라우트 params", () => {
     ["일반 문자열", "abc"],
     ["하이픈 없는 32자 hex", "123e4567e89b42d3a456426614174000"],
     ["하이픈 위치가 틀린 36자", "123e456-7e89b-42d3-a456-426614174000"],
-  ] as const)("strategies/[id]/edit — %s면 notFound에서 중단하고 뷰를 렌더하지 않는다", async (_, id) => {
-    await expect(renderPage(StrategyEditPage, id)).rejects.toBe(notFoundError);
+  ] as const)(
+    "strategies/[id]/edit — %s면 notFound에서 중단하고 뷰를 렌더하지 않는다",
+    async (_, id) => {
+      await expect(renderPage(StrategyEditPage, id)).rejects.toBe(notFoundError);
 
-    expect(notFound).toHaveBeenCalledOnce();
-    expect(vi.mocked(EditorView).mock.calls).toHaveLength(0);
-  });
+      expect(notFound).toHaveBeenCalledOnce();
+      expect(vi.mocked(EditorView).mock.calls).toHaveLength(0);
+    },
+  );
 
   // 두 라우트의 404는 뷰 또는 BE가 소유한다. 여기서는 현재의 무형식검증 동작만 고정한다.
-  it.each(UNVALIDATED_ROUTE_CASES)("$name — 임의 문자열 id를 자체 404 없이 뷰로 전달한다", async (route) => {
-    const arbitraryId = "not-a-uuid";
-    const html = await renderPage(route.page, arbitraryId);
+  it.each(UNVALIDATED_ROUTE_CASES)(
+    "$name — 임의 문자열 id를 자체 404 없이 뷰로 전달한다",
+    async (route) => {
+      const arbitraryId = "not-a-uuid";
+      const html = await renderPage(route.page, arbitraryId);
 
-    expect(notFound).not.toHaveBeenCalled();
-    expectMarkerProps(route.marker, route.markerTestId, route.propsForId(arbitraryId), html);
-  });
+      expect(notFound).not.toHaveBeenCalled();
+      expectMarkerProps(route.marker, route.markerTestId, route.propsForId(arbitraryId), html);
+    },
+  );
 
   it("세 라우트의 metadata.title은 비어 있지 않고 서로 다르다", () => {
-    const titles = [backtestMetadata.title, optimizerMetadata.title, strategyMetadata.title].map((title) =>
-      String(title ?? ""),
+    const titles = [backtestMetadata.title, optimizerMetadata.title, strategyMetadata.title].map(
+      (title) => String(title ?? ""),
     );
 
     expect(titles.every((title) => title.trim().length > 0)).toBe(true);
@@ -172,6 +188,11 @@ describe("[BL-817] 대시보드 동적 라우트 params", () => {
     const encodedId = "a%2Fb";
     const html = await renderPage(BacktestDetailPage, encodedId);
 
-    expectMarkerProps(vi.mocked(BacktestDetailView), "backtest-detail-marker", { id: encodedId }, html);
+    expectMarkerProps(
+      vi.mocked(BacktestDetailView),
+      "backtest-detail-marker",
+      { id: encodedId },
+      html,
+    );
   });
 });

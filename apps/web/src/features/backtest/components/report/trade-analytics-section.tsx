@@ -10,10 +10,7 @@
 import { useMemo } from "react";
 
 import { computeOutcomeCounts } from "@/features/backtest/analytics";
-import type {
-  BacktestMetricsOut,
-  TradeItem,
-} from "@/features/backtest/schemas";
+import type { BacktestMetricsOut, TradeItem } from "@/features/backtest/schemas";
 import {
   computeDirectionBreakdown,
   formatCurrency,
@@ -53,13 +50,9 @@ function Kpi({
       <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </span>
-      <span className={`font-mono text-lg font-bold tabular-nums ${toneClass}`}>
-        {value}
-      </span>
+      <span className={`font-mono text-lg font-bold tabular-nums ${toneClass}`}>{value}</span>
       {sub ? (
-        <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {sub}
-        </span>
+        <span className="font-mono text-xs tabular-nums text-muted-foreground">{sub}</span>
       ) : null}
     </div>
   );
@@ -85,9 +78,7 @@ function DirectionRow({
       <td className="py-1.5">
         <span className={`text-xs font-semibold uppercase ${tone}`}>{label}</span>
       </td>
-      <td className="py-1.5 text-right font-mono tabular-nums">
-        {count != null ? count : "—"}
-      </td>
+      <td className="py-1.5 text-right font-mono tabular-nums">{count != null ? count : "—"}</td>
       <td className="py-1.5 text-right font-mono tabular-nums">
         {hasStats ? formatPercent(stats.winRate, 1) : "—"}
       </td>
@@ -107,14 +98,8 @@ export function TradeAnalyticsSection({
   trades,
   truncated = false,
 }: TradeAnalyticsSectionProps) {
-  const closed = useMemo(
-    () => trades.filter((t) => t.status === "closed"),
-    [trades],
-  );
-  const counts = useMemo(
-    () => computeOutcomeCounts(closed.map((t) => t.pnl)),
-    [closed],
-  );
+  const closed = useMemo(() => trades.filter((t) => t.status === "closed"), [trades]);
+  const counts = useMemo(() => computeOutcomeCounts(closed.map((t) => t.pnl)), [closed]);
 
   // LESSON-004: dep 는 부모가 내려준 stable trades reference 만 사용 (구 TradeAnalysis 관례 승계).
   const breakdown = useMemo<DirectionBreakdown | null>(() => {
@@ -124,8 +109,7 @@ export function TradeAnalyticsSection({
 
   // 승률·평균 PnL 은 로드된 trades 표본 파생, 거래 수는 metrics 모집단 — 표본이 전체의
   // 부분집합이면(캡 초과 truncated) 헤더 * + 각주로 두 분모를 갈라 고지한다 (codex P2).
-  const statsFromSubset =
-    trades.length > 0 && m.num_trades > 0 && trades.length < m.num_trades;
+  const statsFromSubset = trades.length > 0 && m.num_trades > 0 && trades.length < m.num_trades;
 
   const avgPnlAbs = m.avg_trade_abs ?? null;
 
@@ -140,36 +124,22 @@ export function TradeAnalyticsSection({
               : "—"
           }
           sub={m.avg_trade_pct != null ? formatPercent(m.avg_trade_pct) : null}
-          tone={
-            avgPnlAbs !== null ? (avgPnlAbs >= 0 ? "bullish" : "bearish") : "neutral"
-          }
+          tone={avgPnlAbs !== null ? (avgPnlAbs >= 0 ? "bullish" : "bearish") : "neutral"}
         />
         <Kpi
           label="평균 거래 바수"
           value={m.avg_bars_in_trade != null ? m.avg_bars_in_trade.toFixed(1) : "—"}
-          sub={
-            m.avg_holding_hours != null
-              ? `평균 보유 ${m.avg_holding_hours.toFixed(1)}h`
-              : null
-          }
+          sub={m.avg_holding_hours != null ? `평균 보유 ${m.avg_holding_hours.toFixed(1)}h` : null}
         />
         <Kpi
           label="최대 수익 거래"
-          value={
-            m.largest_win_abs != null
-              ? `+${formatCurrency(m.largest_win_abs)} USDT`
-              : "—"
-          }
+          value={m.largest_win_abs != null ? `+${formatCurrency(m.largest_win_abs)} USDT` : "—"}
           sub={m.best_trade_pct != null ? `+${formatPercent(m.best_trade_pct)}` : null}
           tone="bullish"
         />
         <Kpi
           label="최대 손실 거래"
-          value={
-            m.largest_loss_abs != null
-              ? `${formatCurrency(m.largest_loss_abs)} USDT`
-              : "—"
-          }
+          value={m.largest_loss_abs != null ? `${formatCurrency(m.largest_loss_abs)} USDT` : "—"}
           sub={m.worst_trade_pct != null ? formatPercent(m.worst_trade_pct) : null}
           tone="bearish"
         />

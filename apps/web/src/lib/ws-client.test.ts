@@ -1,11 +1,7 @@
 // 실시간 WebSocket 클라이언트의 인증·재연결 수명 계약을 검증한다.
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  RealtimeWsClient,
-  reconnectDelayMs,
-  type WebSocketLike,
-} from "./ws-client";
+import { RealtimeWsClient, reconnectDelayMs, type WebSocketLike } from "./ws-client";
 
 class FakeSocket implements WebSocketLike {
   readyState = 0;

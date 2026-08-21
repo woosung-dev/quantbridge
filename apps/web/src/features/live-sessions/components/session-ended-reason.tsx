@@ -24,11 +24,7 @@ export function SessionEndedReason({ reason, testId }: Props) {
       data-testid={testId}
       title="세션이 종료된 사유"
     >
-      {labelOf(
-        LIVE_SESSION_DEACTIVATION_REASON_LABEL,
-        reason,
-        "live-session deactivation reason",
-      )}
+      {labelOf(LIVE_SESSION_DEACTIVATION_REASON_LABEL, reason, "live-session deactivation reason")}
     </span>
   );
 }

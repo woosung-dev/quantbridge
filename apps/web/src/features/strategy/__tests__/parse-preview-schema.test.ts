@@ -16,11 +16,7 @@ describe("ParsePreviewResponseSchema", () => {
       functions_used: ["strategy.entry", "ta.crossover", "ta.ema"],
     };
     const parsed = ParsePreviewResponseSchema.parse(raw);
-    expect(parsed.functions_used).toEqual([
-      "strategy.entry",
-      "ta.crossover",
-      "ta.ema",
-    ]);
+    expect(parsed.functions_used).toEqual(["strategy.entry", "ta.crossover", "ta.ema"]);
   });
 
   it("defaults functions_used to empty array when omitted", () => {

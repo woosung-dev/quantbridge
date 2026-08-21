@@ -27,7 +27,9 @@ beforeEach(() => {
 describe("AccountBalanceSection", () => {
   it("활성 세션 계정이 없으면 빈 상태를 표시한다", () => {
     render(<AccountBalanceSection accounts={[]} />);
-    expect(screen.getByTestId("account-balance-empty")).toHaveTextContent("활성 라이브 세션이 없습니다.");
+    expect(screen.getByTestId("account-balance-empty")).toHaveTextContent(
+      "활성 라이브 세션이 없습니다.",
+    );
   });
 
   it("총 자산·사용 가능 값과 0~100으로 clamp된 미터를 표시한다", () => {

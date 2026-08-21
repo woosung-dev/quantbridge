@@ -16,10 +16,7 @@ interface ConvertWithAIButtonProps {
   onConverted: (result: ConvertIndicatorResponse) => void;
 }
 
-export function ConvertWithAIButton({
-  indicatorCode,
-  onConverted,
-}: ConvertWithAIButtonProps) {
+export function ConvertWithAIButton({ indicatorCode, onConverted }: ConvertWithAIButtonProps) {
   const { getToken } = useAuthCtx();
   const [isConverting, setIsConverting] = useState(false);
 

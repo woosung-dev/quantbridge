@@ -293,7 +293,7 @@ export const AUDIT = () => {
   });
   const lin = (v: number) => {
     v /= 255;
-    return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   };
   const lum = (c: Rgba) => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
   const ratio = (a: Rgba, b: Rgba) => {

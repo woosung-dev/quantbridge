@@ -6,10 +6,7 @@
 
 import { useMemo } from "react";
 
-import {
-  OBJECTIVE_DIRECTION_LABEL,
-  OBJECTIVE_METRIC_LABEL,
-} from "@/features/optimizer/labels";
+import { OBJECTIVE_DIRECTION_LABEL, OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
 import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { GeneticSearchResult } from "@/features/optimizer/schemas";
 
@@ -74,8 +71,7 @@ export function GeneticGenerationChart({ result }: Props) {
   const yRange = yMax - yMin || 1;
 
   const xScale = (x: number) => PAD + (x / Math.max(xMax, 1)) * (W - 2 * PAD);
-  const yScale = (y: number) =>
-    H - PAD - ((y - yMin) / yRange) * (H - 2 * PAD);
+  const yScale = (y: number) => H - PAD - ((y - yMin) / yRange) * (H - 2 * PAD);
 
   const linePath = data
     .map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(d.idx)} ${yScale(d.bestSoFar)}`)
@@ -152,12 +148,7 @@ export function GeneticGenerationChart({ result }: Props) {
               </g>
             ))}
           {/* line */}
-          <path
-            d={linePath}
-            fill="none"
-            stroke="var(--copper)"
-            strokeWidth={2}
-          />
+          <path d={linePath} fill="none" stroke="var(--copper)" strokeWidth={2} />
           {/* points — 최적 반복은 코퍼 채움 + 반지름 확대(r=4), 나머지는 무채색 점 (§9). */}
           {data.map((d) => {
             const isBest = result.best_iteration_idx === d.idx;
@@ -174,10 +165,16 @@ export function GeneticGenerationChart({ result }: Props) {
           })}
           {/* y axis labels — 목표값 단위 SSOT (ratio 지표는 %, sharpe 는 소수 3자리 유지). */}
           <text x={4} y={PAD + 4} fontSize={10} fill="var(--ink-3)" className="mono">
-            {formatObjectiveValue(result.objective_metric, yMax, { percentDigits: 1, plainDigits: 3 })}
+            {formatObjectiveValue(result.objective_metric, yMax, {
+              percentDigits: 1,
+              plainDigits: 3,
+            })}
           </text>
           <text x={4} y={H - PAD + 4} fontSize={10} fill="var(--ink-3)" className="mono">
-            {formatObjectiveValue(result.objective_metric, yMin, { percentDigits: 1, plainDigits: 3 })}
+            {formatObjectiveValue(result.objective_metric, yMin, {
+              percentDigits: 1,
+              plainDigits: 3,
+            })}
           </text>
           {/* x axis labels */}
           <text x={PAD} y={H - 8} fontSize={10} fill="var(--ink-3)" className="mono">

@@ -65,10 +65,7 @@ function Section({
   );
 }
 
-export function BacktestReportShell({
-  backtest: bt,
-  currentId,
-}: BacktestReportShellProps) {
+export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportShellProps) {
   const trades = useAllBacktestTrades(currentId);
   const tradeItems = trades.data?.items;
   const truncated = trades.data?.truncated ?? false;

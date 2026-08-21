@@ -429,7 +429,7 @@ description = "frontend Playwright authed (.env.local 필요)"
 run = "cd apps/web && pnpm e2e:authed"
 
 [tasks.lint]
-description = "ruff + eslint"
+description = "ruff + biome"
 run = """
 set -eu
 cd apps/api && uv run ruff check .

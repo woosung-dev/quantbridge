@@ -11,21 +11,11 @@
 //  7) a11y — group role + aria-label 노출.
 
 import { act, render, screen } from "@testing-library/react";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ChartMarker } from "@/components/charts/trading-chart";
 
-import type {
-  ActivityTimelinePoint,
-  ActivityTimelineWithEquityPoint,
-} from "../../utils";
+import type { ActivityTimelinePoint, ActivityTimelineWithEquityPoint } from "../../utils";
 import { ActivityTimelineChart } from "../activity-timeline-chart";
 
 // --- lightweight-charts mock ---------------------------------------------
@@ -57,9 +47,7 @@ vi.mock("lightweight-charts", () => {
         addLineSeries: vi.fn((): SeriesSpy => {
           const series: SeriesSpy = {
             setData: vi.fn((d: unknown) => {
-              lineSeriesSetDataCalls.push(
-                d as Array<{ time: number; value: number }>,
-              );
+              lineSeriesSetDataCalls.push(d as Array<{ time: number; value: number }>);
             }),
             applyOptions: vi.fn(),
             setMarkers: vi.fn(),
@@ -146,20 +134,16 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
     chartInstances.length = 0;
     lineSeriesSetDataCalls.length = 0;
     roInstances = [];
-    (
-      globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }
-    ).ResizeObserver = MockResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
+      MockResizeObserver;
   });
 
   afterEach(() => {
-    delete (globalThis as unknown as { ResizeObserver?: unknown })
-      .ResizeObserver;
+    delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
   it("renders nothing when data is empty (defensive)", async () => {
-    const { container } = render(
-      <ActivityTimelineChart data={[]} showEquity={false} />,
-    );
+    const { container } = render(<ActivityTimelineChart data={[]} showEquity={false} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
     expect(container).toBeEmptyDOMElement();
     expect(createChartMock).not.toHaveBeenCalled();
@@ -178,9 +162,7 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
   });
 
   it("creates 2 chart instances when showEquity=true (counts + equity pane)", async () => {
-    render(
-      <ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />,
-    );
+    render(<ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     expect(createChartMock).toHaveBeenCalledTimes(2);
@@ -202,9 +184,7 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
   });
 
   it("legend shows Equity (PnL) item when showEquity=true", async () => {
-    render(
-      <ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />,
-    );
+    render(<ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     expect(screen.getByText("Entries (window)")).toBeInTheDocument();
@@ -213,13 +193,7 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
   });
 
   it("respects 60/40 height ratio when showEquity=true (top=115, bottom=77 for height=192)", async () => {
-    render(
-      <ActivityTimelineChart
-        data={POINTS_WITH_EQUITY}
-        showEquity={true}
-        height={192}
-      />,
-    );
+    render(<ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} height={192} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const top = createChartMock.mock.calls[0]![1] as { height: number };
@@ -229,9 +203,7 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
   });
 
   it("uses full height for counts pane when showEquity=false", async () => {
-    render(
-      <ActivityTimelineChart data={POINTS} showEquity={false} height={192} />,
-    );
+    render(<ActivityTimelineChart data={POINTS} showEquity={false} height={192} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     const top = createChartMock.mock.calls[0]![1] as { height: number };
@@ -266,9 +238,7 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
     // currentColor regression (Sprint 30 BL-157) 재현 방어 — 렌더 자체가 throw X.
     // trading-chart wrapper 가 hex 색상으로 명시적 변환했으므로 안전.
     expect(() => {
-      render(
-        <ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />,
-      );
+      render(<ActivityTimelineChart data={POINTS_WITH_EQUITY} showEquity={true} />);
     }).not.toThrow();
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
   });

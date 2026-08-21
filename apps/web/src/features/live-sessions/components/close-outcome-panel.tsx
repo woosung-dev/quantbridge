@@ -103,8 +103,7 @@ export function CloseOutcomePanel({ outcome }: { outcome: CloseOutcome | null })
           <LedgerNote />
           <span>미체결 진입 주문이 남아 있는지 확인하지 못했습니다.</span>
           <span className="text-xs opacity-80">
-            거래소 조회에 실패했습니다. 잔량이 없다는 뜻이 아니므로 거래소에서 직접
-            확인하세요.
+            거래소 조회에 실패했습니다. 잔량이 없다는 뜻이 아니므로 거래소에서 직접 확인하세요.
           </span>
         </div>
       </div>

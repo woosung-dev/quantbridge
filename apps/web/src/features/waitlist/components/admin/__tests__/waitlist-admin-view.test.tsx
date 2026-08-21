@@ -89,7 +89,7 @@ type ApproveCallbacks = {
 };
 
 let listState: {
-  data: { items: typeof APPLICATION[]; total: number } | undefined;
+  data: { items: (typeof APPLICATION)[]; total: number } | undefined;
   isPending: boolean;
   error: Error | null;
 };

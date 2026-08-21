@@ -47,9 +47,7 @@ function readVariableNames(source: string): string[] {
 function definedIn(css: string, blockPattern: RegExp): Set<string> {
   const block = css.match(blockPattern);
   if (!block) throw new Error(`CSS 블록을 찾지 못했다: ${String(blockPattern)}`);
-  return new Set(
-    [...block[0].matchAll(/^\s*(--[a-z0-9-]+)\s*:/gim)].map((m) => m[1]!),
-  );
+  return new Set([...block[0].matchAll(/^\s*(--[a-z0-9-]+)\s*:/gim)].map((m) => m[1]!));
 }
 
 const readNames = readVariableNames(chartTokensSource);
@@ -72,21 +70,12 @@ describe("chart-tokens.ts CSS 변수 계약 (이식 S1a 안전망)", () => {
     expect([...readNames].sort()).toEqual([...CHART_TOKEN_CONTRACT].sort());
   });
 
-  it.each(CHART_TOKEN_CONTRACT)(
-    "%s 가 :root(라이트)에 정의돼 있다",
-    (token) => {
-      expect(
-        rootTokens.has(token),
-        `${token} 이 :root 에 없다. 폴백으로 조용히 떨어진다`,
-      ).toBe(true);
-    },
-  );
+  it.each(CHART_TOKEN_CONTRACT)("%s 가 :root(라이트)에 정의돼 있다", (token) => {
+    expect(rootTokens.has(token), `${token} 이 :root 에 없다. 폴백으로 조용히 떨어진다`).toBe(true);
+  });
 
   it.each(CHART_TOKEN_CONTRACT)("%s 가 .dark 에 정의돼 있다", (token) => {
-    expect(
-      darkTokens.has(token),
-      `${token} 이 .dark 에 없다. 폴백으로 조용히 떨어진다`,
-    ).toBe(true);
+    expect(darkTokens.has(token), `${token} 이 .dark 에 없다. 폴백으로 조용히 떨어진다`).toBe(true);
   });
 
   // ── 역방향 래칫 [BL-629] ──

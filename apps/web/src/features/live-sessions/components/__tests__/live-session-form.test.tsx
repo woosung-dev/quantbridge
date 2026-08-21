@@ -55,9 +55,7 @@ vi.mock("@/components/ui/select", () => {
     onValueChange?: (v: string) => void;
     disabled?: boolean;
   }>;
-  type ChildrenLike =
-    | React.ReactNode
-    | ((value: string | null) => React.ReactNode);
+  type ChildrenLike = React.ReactNode | ((value: string | null) => React.ReactNode);
   type ValueProps = {
     placeholder?: React.ReactNode;
     children?: ChildrenLike;
@@ -94,9 +92,7 @@ vi.mock("@/components/ui/select", () => {
         : (children ?? placeholder);
     return <span data-mock-select-value>{rendered}</span>;
   };
-  const SelectContent = ({ children }: React.PropsWithChildren) => (
-    <div>{children}</div>
-  );
+  const SelectContent = ({ children }: React.PropsWithChildren) => <div>{children}</div>;
   const SelectItem = ({ value, children, disabled }: ItemProps) => {
     const ctx = React.useContext(Ctx);
     return (
@@ -254,9 +250,7 @@ describe("LiveSessionForm — BL-164 emptyMessage", () => {
         />
       </QueryClientProvider>,
     );
-    expect(
-      screen.getByText("Bybit 데모 계정 없음. 먼저 등록해주세요"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Bybit 데모 계정 없음. 먼저 등록해주세요")).toBeInTheDocument();
     // submit 버튼 disabled 검증.
     const submit = screen.getByTestId("live-session-submit");
     expect(submit).toBeDisabled();

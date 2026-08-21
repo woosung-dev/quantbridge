@@ -31,21 +31,14 @@ export interface PnlDistributionPlotProps {
   avgLossPct?: number | null;
 }
 
-export function PnlDistributionPlot({
-  data,
-  avgWinPct,
-  avgLossPct,
-}: PnlDistributionPlotProps) {
+export function PnlDistributionPlot({ data, avgWinPct, avgLossPct }: PnlDistributionPlotProps) {
   const palette = useChartTheme();
 
   const avgWinLabel = avgWinPct != null ? data.length > 0 : false;
 
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <BarChart
-        data={data as HistogramDatum[]}
-        margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-      >
+      <BarChart data={data as HistogramDatum[]} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke={palette.grid} />
         <XAxis
           dataKey="label"
@@ -71,12 +64,7 @@ export function PnlDistributionPlot({
           labelStyle={{ fontSize: 12 }}
         />
         <Bar dataKey="win" stackId="dist" fill={palette.bullish} isAnimationActive={false} />
-        <Bar
-          dataKey="lossCount"
-          stackId="dist"
-          fill={palette.bearish}
-          isAnimationActive={false}
-        />
+        <Bar dataKey="lossCount" stackId="dist" fill={palette.bearish} isAnimationActive={false} />
         {avgWinLabel && avgWinPct != null ? (
           <ReferenceLine
             x={nearestLabel(data, avgWinPct)}
@@ -112,10 +100,7 @@ export function PnlDistributionPlot({
 function nearestLabel(data: readonly HistogramDatum[], value: number): string {
   let best = data[0];
   for (const d of data) {
-    if (
-      best === undefined ||
-      Math.abs(d.mid - value) < Math.abs(best.mid - value)
-    ) {
+    if (best === undefined || Math.abs(d.mid - value) < Math.abs(best.mid - value)) {
       best = d;
     }
   }

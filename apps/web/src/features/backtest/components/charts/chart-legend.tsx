@@ -128,11 +128,7 @@ interface LegendItemProps {
 
 function LegendItem({ ariaLabel, marker, label }: LegendItemProps) {
   return (
-    <span
-      role="listitem"
-      aria-label={ariaLabel}
-      className="inline-flex items-center gap-1.5"
-    >
+    <span role="listitem" aria-label={ariaLabel} className="inline-flex items-center gap-1.5">
       {marker}
       <span className="text-foreground/80">{label}</span>
     </span>

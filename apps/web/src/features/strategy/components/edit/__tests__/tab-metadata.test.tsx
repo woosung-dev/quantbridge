@@ -126,9 +126,7 @@ describe("BL-570 검증 탈락이 침묵하지 않는다", () => {
     fireEvent.click(screen.getByRole("button", { name: /설정 저장|설정 등록/ }));
 
     await waitFor(() => {
-      expect(toastError).toHaveBeenCalledWith(
-        "저장하지 못했습니다: 입력값을 확인해 주세요",
-      );
+      expect(toastError).toHaveBeenCalledWith("저장하지 못했습니다: 입력값을 확인해 주세요");
     });
     expect(updateSettingsMutate).not.toHaveBeenCalled();
     expect(document.querySelectorAll(".field-error").length).toBeGreaterThan(0);

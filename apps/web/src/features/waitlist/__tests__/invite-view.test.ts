@@ -10,26 +10,25 @@ import { resolveInviteView } from "../invite-view";
 
 describe("[BL-072] resolveInviteView", () => {
   it("invited 만 가입 CTA 갈래를 연다", () => {
-    expect(
-      resolveInviteView({ kind: "ok", email: "a@b.co", status: "invited" }),
-    ).toEqual({ view: "invited", email: "a@b.co" });
+    expect(resolveInviteView({ kind: "ok", email: "a@b.co", status: "invited" })).toEqual({
+      view: "invited",
+      email: "a@b.co",
+    });
   });
 
   it("joined 는 두 번째 계정을 막는 갈래다", () => {
-    expect(
-      resolveInviteView({ kind: "ok", email: "a@b.co", status: "joined" }),
-    ).toEqual({ view: "already-joined", email: "a@b.co" });
+    expect(resolveInviteView({ kind: "ok", email: "a@b.co", status: "joined" })).toEqual({
+      view: "already-joined",
+      email: "a@b.co",
+    });
   });
 
-  it.each(["pending", "rejected"] as const)(
-    "%s 는 초대 확정으로 읽히지 않는다",
-    (status) => {
-      const view = resolveInviteView({ kind: "ok", email: "a@b.co", status });
-      expect(view.view).toBe("not-yet");
-      // ★음성 대조 — 미승인/거절이 가입 갈래로 새면 승인 전 가입이 열린다.
-      expect(view.view).not.toBe("invited");
-    },
-  );
+  it.each(["pending", "rejected"] as const)("%s 는 초대 확정으로 읽히지 않는다", (status) => {
+    const view = resolveInviteView({ kind: "ok", email: "a@b.co", status });
+    expect(view.view).toBe("not-yet");
+    // ★음성 대조 — 미승인/거절이 가입 갈래로 새면 승인 전 가입이 열린다.
+    expect(view.view).not.toBe("invited");
+  });
 
   it("★거절 사실을 링크 소유자에게 통보하지 않는다 — pending 과 같은 갈래다", () => {
     const rejected = resolveInviteView({

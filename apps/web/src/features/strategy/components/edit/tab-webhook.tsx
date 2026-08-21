@@ -71,7 +71,9 @@ export function TabWebhook({ strategyId }: TabWebhookProps) {
       <div className="card-head">
         <div>
           <h3 className="card-title">Webhook</h3>
-          <p className="card-sub">TradingView alert 또는 외부 시스템이 이 URL 로 신호를 보냅니다.</p>
+          <p className="card-sub">
+            TradingView alert 또는 외부 시스템이 이 URL 로 신호를 보냅니다.
+          </p>
         </div>
       </div>
       <div className="card-body">
@@ -85,7 +87,11 @@ export function TabWebhook({ strategyId }: TabWebhookProps) {
               aria-label="URL 복사"
               onClick={() => handleCopy(webhookUrl, "url")}
             >
-              {copiedField === "url" ? <CheckIcon aria-hidden="true" /> : <CopyIcon aria-hidden="true" />}
+              {copiedField === "url" ? (
+                <CheckIcon aria-hidden="true" />
+              ) : (
+                <CopyIcon aria-hidden="true" />
+              )}
               복사
             </button>
           </div>

@@ -37,10 +37,7 @@ export function EquityChartWithCompare({
   // 완료된 백테스트 목록 (자기 자신 제외).
   const list = useBacktests({ limit: 50, offset: 0 });
   const candidates = useMemo(
-    () =>
-      (list.data?.items ?? []).filter(
-        (b) => b.id !== currentId && b.status === "completed",
-      ),
+    () => (list.data?.items ?? []).filter((b) => b.id !== currentId && b.status === "completed"),
     [list.data?.items, currentId],
   );
 
@@ -69,10 +66,7 @@ export function EquityChartWithCompare({
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium">수익률 · 단순보유 · 낙폭</h2>
         <div className="flex items-center gap-2">
-          <GitCompareArrows
-            className="h-4 w-4 text-muted-foreground"
-            aria-hidden="true"
-          />
+          <GitCompareArrows className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
           <SelectWithDisplayName
             options={options}
             value={compareId}
@@ -85,9 +79,7 @@ export function EquityChartWithCompare({
       </div>
 
       {selectedId && compareDetail.isError ? (
-        <p className="mb-2 text-xs text-destructive">
-          비교 백테스트를 불러오지 못했습니다.
-        </p>
+        <p className="mb-2 text-xs text-destructive">비교 백테스트를 불러오지 못했습니다.</p>
       ) : null}
 
       <EquityChartV2

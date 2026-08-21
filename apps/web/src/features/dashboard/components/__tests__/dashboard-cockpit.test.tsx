@@ -291,8 +291,12 @@ describe("DashboardCockpit — 최근 실행 원장", () => {
     render(<DashboardCockpit />);
     expect(screen.getByTestId("run-row-run-2f9c41aa")).toBeInTheDocument();
     expect(screen.getByTestId("run-row-opt-c268af00")).toBeInTheDocument();
-    expect(within(screen.getByTestId("run-row-run-2f9c41aa")).getByText("백테스트")).toBeInTheDocument();
-    expect(within(screen.getByTestId("run-row-opt-c268af00")).getByText("최적화")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("run-row-run-2f9c41aa")).getByText("백테스트"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("run-row-opt-c268af00")).getByText("최적화"),
+    ).toBeInTheDocument();
     // 상태 칩은 S4 라벨(완료/실행 중/실패)로만 나온다.
     expect(screen.getAllByText("완료").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("실행 중")).toBeInTheDocument();
@@ -411,8 +415,12 @@ describe("DashboardCockpit — 전략 §04 수명주기 칩 미렌더", () => {
     expect(screen.queryByText("배포됨")).not.toBeInTheDocument();
     expect(screen.queryByText("검증됨")).not.toBeInTheDocument();
     expect(screen.queryByText("초안")).not.toBeInTheDocument();
-    expect(within(screen.getByTestId("strategy-row-strat-1")).getByText("12.34%")).toBeInTheDocument();
-    expect(within(screen.getByTestId("strategy-row-strat-1")).getByText("1.50")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("strategy-row-strat-1")).getByText("12.34%"),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("strategy-row-strat-1")).getByText("1.50"),
+    ).toBeInTheDocument();
     // 심볼이 null 인 전략은 무데이터 표기(EMPTY_CELL)로 떨어진다.
     expect(screen.getByTestId("strategy-row-strat-2")).toBeInTheDocument();
     expect(

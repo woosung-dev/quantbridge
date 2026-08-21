@@ -1,12 +1,5 @@
 import { act, cleanup, render } from "@testing-library/react";
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // chart 생성이 effect 내 dynamic import 후 비동기로 일어나므로 렌더 뒤 microtask flush 필수.
 async function flushChartInit() {
@@ -48,21 +41,27 @@ vi.mock("lightweight-charts", () => {
     createChart: (...args: unknown[]) => {
       createChartMock(...args);
       const chart: ChartSpy = {
-        addLineSeries: vi.fn((): SeriesSpy => ({
-          setData: vi.fn(),
-          applyOptions: vi.fn(),
-          setMarkers: vi.fn(),
-        })),
-        addAreaSeries: vi.fn((): SeriesSpy => ({
-          setData: vi.fn(),
-          applyOptions: vi.fn(),
-          setMarkers: vi.fn(),
-        })),
-        addHistogramSeries: vi.fn((): SeriesSpy => ({
-          setData: vi.fn(),
-          applyOptions: vi.fn(),
-          setMarkers: vi.fn(),
-        })),
+        addLineSeries: vi.fn(
+          (): SeriesSpy => ({
+            setData: vi.fn(),
+            applyOptions: vi.fn(),
+            setMarkers: vi.fn(),
+          }),
+        ),
+        addAreaSeries: vi.fn(
+          (): SeriesSpy => ({
+            setData: vi.fn(),
+            applyOptions: vi.fn(),
+            setMarkers: vi.fn(),
+          }),
+        ),
+        addHistogramSeries: vi.fn(
+          (): SeriesSpy => ({
+            setData: vi.fn(),
+            applyOptions: vi.fn(),
+            setMarkers: vi.fn(),
+          }),
+        ),
         removeSeries: vi.fn(),
         applyOptions: vi.fn(),
         remove: vi.fn(),
@@ -115,24 +114,16 @@ describe("TradingChart", () => {
     createChartMock.mockClear();
     chartInstances.length = 0;
     roInstances = [];
-    (
-      globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }
-    ).ResizeObserver = MockResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
+      MockResizeObserver;
   });
 
   afterEach(() => {
-    delete (globalThis as unknown as { ResizeObserver?: unknown })
-      .ResizeObserver;
+    delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
   it("calls createChart exactly once on mount and sets main line series data", async () => {
-    render(
-      <TradingChart
-        data={POINTS}
-        ariaLabel="Equity chart"
-        height={300}
-      />,
-    );
+    render(<TradingChart data={POINTS} ariaLabel="Equity chart" height={300} />);
     await flushChartInit();
 
     // createChart 호출 1회 (Strict Mode 가 아니어도 1회, Strict Mode 에서도 cleanup 후 재invoke 시 누수 없이 1회 유지).
@@ -154,13 +145,7 @@ describe("TradingChart", () => {
   });
 
   it("applies markers via series.setMarkers when markers prop is provided", async () => {
-    render(
-      <TradingChart
-        data={POINTS}
-        markers={MARKERS}
-        ariaLabel="Equity chart with markers"
-      />,
-    );
+    render(<TradingChart data={POINTS} markers={MARKERS} ariaLabel="Equity chart with markers" />);
     await flushChartInit();
 
     const chart = chartInstances[0]!;
@@ -224,9 +209,7 @@ describe("TradingChart", () => {
   });
 
   it("removes histogram series when histogram prop is dropped", async () => {
-    const histogramPoints: HistogramPoint[] = [
-      { time: "2026-01-01T00:00:00Z", value: 120 },
-    ];
+    const histogramPoints: HistogramPoint[] = [{ time: "2026-01-01T00:00:00Z", value: 120 }];
     const { rerender } = render(
       <TradingChart
         data={POINTS}
@@ -243,9 +226,7 @@ describe("TradingChart", () => {
   });
 
   it("calls chart.remove() on unmount (cleanup)", async () => {
-    const { unmount } = render(
-      <TradingChart data={POINTS} ariaLabel="Equity chart" />,
-    );
+    const { unmount } = render(<TradingChart data={POINTS} ariaLabel="Equity chart" />);
     await flushChartInit();
 
     const chart = chartInstances[0]!;
@@ -257,9 +238,7 @@ describe("TradingChart", () => {
   });
 
   it("renders with role=img and aria-label for a11y", () => {
-    const { getByRole } = render(
-      <TradingChart data={POINTS} ariaLabel="Backtest equity curve" />,
-    );
+    const { getByRole } = render(<TradingChart data={POINTS} ariaLabel="Backtest equity curve" />);
 
     const node = getByRole("img");
     expect(node).toBeInTheDocument();
@@ -272,9 +251,8 @@ describe("TradingChart", () => {
     // `color: undefined` 키가 끼면 그 계약이 깨진다.
     render(<TradingChart data={POINTS} ariaLabel="Equity chart" height={300} />);
     await flushChartInit();
-    const plain = (
-      chartInstances[0]!.addLineSeries.mock.results[0]!.value as SeriesSpy
-    ).setData.mock.calls[0]![0] as Array<Record<string, unknown>>;
+    const plain = (chartInstances[0]!.addLineSeries.mock.results[0]!.value as SeriesSpy).setData
+      .mock.calls[0]![0] as Array<Record<string, unknown>>;
     expect(plain.every((d) => !("color" in d))).toBe(true);
 
     cleanup();
@@ -287,13 +265,8 @@ describe("TradingChart", () => {
     }));
     render(<TradingChart data={coloured} ariaLabel="Equity chart" height={300} />);
     await flushChartInit();
-    const withColor = (
-      chartInstances[0]!.addLineSeries.mock.results[0]!.value as SeriesSpy
-    ).setData.mock.calls[0]![0] as Array<Record<string, unknown>>;
-    expect(withColor.map((d) => d.color)).toEqual([
-      "#111111",
-      "#222222",
-      "#222222",
-    ]);
+    const withColor = (chartInstances[0]!.addLineSeries.mock.results[0]!.value as SeriesSpy).setData
+      .mock.calls[0]![0] as Array<Record<string, unknown>>;
+    expect(withColor.map((d) => d.color)).toEqual(["#111111", "#222222", "#222222"]);
   });
 });

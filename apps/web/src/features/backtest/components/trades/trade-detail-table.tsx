@@ -227,11 +227,7 @@ export function TradeDetailTable({
           <StateBox
             testId="trade-empty"
             icon={<InboxIcon />}
-            title={
-              activeCount > 0
-                ? "조건에 맞는 거래가 없습니다"
-                : "표시할 거래가 없습니다"
-            }
+            title={activeCount > 0 ? "조건에 맞는 거래가 없습니다" : "표시할 거래가 없습니다"}
             body={
               activeCount > 0
                 ? "필터를 완화하거나 초기화하면 거래가 다시 나타납니다."
@@ -288,8 +284,7 @@ export function TradeDetailTable({
                 const isExpanded = expandedIndex === t.trade_index;
                 const isProfit = t.pnl >= 0;
                 const toneClass = isProfit ? "num pos" : "num neg";
-                const sideClass =
-                  t.direction === "long" ? "side long" : "side short";
+                const sideClass = t.direction === "long" ? "side long" : "side short";
                 return [
                   <tr
                     key={`row-${t.trade_index}`}
@@ -299,9 +294,7 @@ export function TradeDetailTable({
                   >
                     <td className="num">{t.trade_index}</td>
                     <td>
-                      <span className={sideClass}>
-                        {TRADE_DIRECTION_LABEL[t.direction]}
-                      </span>
+                      <span className={sideClass}>{TRADE_DIRECTION_LABEL[t.direction]}</span>
                     </td>
                     <td className="mono-l">{formatDateTime(t.entry_time)}</td>
                     <td className="mono-l">
@@ -309,9 +302,7 @@ export function TradeDetailTable({
                     </td>
                     <td className="num">{formatCurrency(t.entry_price)}</td>
                     <td className="num">
-                      {t.exit_price !== null
-                        ? formatCurrency(t.exit_price)
-                        : EMPTY_CELL}
+                      {t.exit_price !== null ? formatCurrency(t.exit_price) : EMPTY_CELL}
                     </td>
                     <td className="num">{formatCurrency(t.size, 4)}</td>
                     <td className={toneClass}>{formatCurrency(t.pnl)}</td>
@@ -322,9 +313,7 @@ export function TradeDetailTable({
                       <button
                         type="button"
                         className="pg"
-                        style={
-                          isExpanded ? { transform: "rotate(90deg)" } : undefined
-                        }
+                        style={isExpanded ? { transform: "rotate(90deg)" } : undefined}
                         aria-expanded={isExpanded}
                         aria-label={
                           isExpanded
@@ -381,21 +370,13 @@ export function TradeDetailTable({
 
 // --- 펼침 상세 — 진입/청산/성과 3열. 공용 .metric-group/.metric 소비. ------------
 
-function ExpandedDetail({
-  backtestId,
-  trade,
-}: {
-  backtestId?: string;
-  trade: TradeItem;
-}) {
+function ExpandedDetail({ backtestId, trade }: { backtestId?: string; trade: TradeItem }) {
   const isProfit = trade.pnl >= 0;
   const holdMinutes = trade.exit_time
     ? Math.max(
         0,
         Math.round(
-          (new Date(trade.exit_time).getTime() -
-            new Date(trade.entry_time).getTime()) /
-            60000,
+          (new Date(trade.exit_time).getTime() - new Date(trade.entry_time).getTime()) / 60000,
         ),
       )
     : null;
@@ -423,11 +404,7 @@ function ExpandedDetail({
           />
           <Metric
             label="청산가"
-            value={
-              trade.exit_price !== null
-                ? formatCurrency(trade.exit_price)
-                : EMPTY_CELL
-            }
+            value={trade.exit_price !== null ? formatCurrency(trade.exit_price) : EMPTY_CELL}
           />
           <Metric label="상태" value={TRADE_STATUS_LABEL[trade.status]} />
           <Metric
@@ -443,31 +420,15 @@ function ExpandedDetail({
         </div>
       </div>
       {backtestId ? (
-        <TradeRangeChart
-          backtestId={backtestId}
-          tradeIndex={trade.trade_index}
-          trade={trade}
-        />
+        <TradeRangeChart backtestId={backtestId} tradeIndex={trade.trade_index} trade={trade} />
       ) : null}
     </>
   );
 }
 
-function Metric({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: "pos" | "neg";
-}) {
+function Metric({ label, value, tone }: { label: string; value: string; tone?: "pos" | "neg" }) {
   const valueClass =
-    tone === "pos"
-      ? "metric-value pos"
-      : tone === "neg"
-        ? "metric-value neg"
-        : "metric-value";
+    tone === "pos" ? "metric-value pos" : tone === "neg" ? "metric-value neg" : "metric-value";
   return (
     <div className="metric">
       <span className="metric-label">{label}</span>
@@ -507,15 +468,11 @@ function Pager({ page, totalPages, totalItems, pageSize, onPage }: PagerProps) {
           </button>
           {pageWindow(page, totalPages).map((p, i) =>
             p === "gap" ? (
-              <button
-                key={`gap-${i}`}
-                type="button"
-                className="pg"
-                aria-hidden="true"
-                disabled
-              >
+              // 생략 기호는 **조작 대상이 아니다** — 버튼이면 aria-hidden 이 상호작용 요소를
+              // 숨기는 모양이 된다(a11y/noAriaHiddenOnFocusable). span 이 맞는 마크업이다.
+              <span key={`gap-${i}`} className="pg" aria-hidden="true">
                 …
-              </button>
+              </span>
             ) : (
               <button
                 key={p}

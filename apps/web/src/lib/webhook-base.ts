@@ -18,8 +18,6 @@ export function getWebhookBaseUrl(): WebhookBaseInfo {
   // fallback: NEXT_PUBLIC_API_URL (dev 환경) → isDev 표시
   const apiBase = getApiBase();
   const isDev =
-    apiBase.includes("localhost") ||
-    apiBase.includes("127.0.0.1") ||
-    apiBase.startsWith("http://");
+    apiBase.includes("localhost") || apiBase.includes("127.0.0.1") || apiBase.startsWith("http://");
   return { url: apiBase, isDev };
 }

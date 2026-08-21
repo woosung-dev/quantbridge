@@ -70,9 +70,7 @@ export function ObjectiveFields<TValues extends FieldValues>({
           id="optimizer-objective-metric"
           className={SELECT_CLS}
           aria-invalid={metricError ? "true" : "false"}
-          aria-describedby={
-            metricError ? "optimizer-objective-metric-error" : undefined
-          }
+          aria-describedby={metricError ? "optimizer-objective-metric-error" : undefined}
           {...register(path("objective_metric"))}
         >
           <option value="sharpe_ratio">{OBJECTIVE_METRIC_LABEL.sharpe_ratio}</option>
@@ -108,16 +106,11 @@ export function ObjectiveFields<TValues extends FieldValues>({
           max={maxEvaluations}
           className={INPUT_CLS}
           aria-invalid={evaluationsError ? "true" : "false"}
-          aria-describedby={
-            evaluationsError ? "optimizer-max-evaluations-error" : undefined
-          }
+          aria-describedby={evaluationsError ? "optimizer-max-evaluations-error" : undefined}
           {...register(path("max_evaluations"), { valueAsNumber: true })}
         />
         {evaluationsError && (
-          <FieldError
-            id="optimizer-max-evaluations-error"
-            message={evaluationsError}
-          />
+          <FieldError id="optimizer-max-evaluations-error" message={evaluationsError} />
         )}
       </label>
     </div>

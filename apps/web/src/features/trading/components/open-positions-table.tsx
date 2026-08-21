@@ -80,15 +80,33 @@ function TableHeaders() {
       <tr>
         <th scope="col">심볼</th>
         <th scope="col">방향</th>
-        <th scope="col" className="num">수량</th>
-        <th scope="col" className="num">진입가</th>
-        <th scope="col" className="num">마크가</th>
-        <th scope="col" className="num">미실현</th>
-        <th scope="col" className="num">수익률</th>
-        <th scope="col" className="num">익절</th>
-        <th scope="col" className="num">손절</th>
-        <th scope="col" className="num">청산가</th>
-        <th scope="col" className="num">레버리지</th>
+        <th scope="col" className="num">
+          수량
+        </th>
+        <th scope="col" className="num">
+          진입가
+        </th>
+        <th scope="col" className="num">
+          마크가
+        </th>
+        <th scope="col" className="num">
+          미실현
+        </th>
+        <th scope="col" className="num">
+          수익률
+        </th>
+        <th scope="col" className="num">
+          익절
+        </th>
+        <th scope="col" className="num">
+          손절
+        </th>
+        <th scope="col" className="num">
+          청산가
+        </th>
+        <th scope="col" className="num">
+          레버리지
+        </th>
         <th scope="col">세션(전략)</th>
         <th scope="col">대조</th>
         <th scope="col">청산</th>
@@ -108,24 +126,35 @@ function PositionRow({
   canClose: boolean;
   onClose: (row: LiveSessionPositionRow) => void;
 }) {
-  const isClosing = useIsMutating({
-    mutationKey: closePositionMutationKey({ sessionId: row.sessionId, symbol: row.symbol }),
-  }) > 0;
+  const isClosing =
+    useIsMutating({
+      mutationKey: closePositionMutationKey({ sessionId: row.sessionId, symbol: row.symbol }),
+    }) > 0;
   const { position } = row;
-  const returnValue = formatPositionReturn(position.side, position.entry_price, position.mark_price);
+  const returnValue = formatPositionReturn(
+    position.side,
+    position.entry_price,
+    position.mark_price,
+  );
   const pnl = Number(position.unrealized_pnl);
   const returnNumber = returnValue === null ? null : Number(returnValue.slice(0, -1));
   return (
     <tr>
       <td className="mono-l">{row.symbol}</td>
-      <td><span className={`side ${position.side}`}>{directionLabel(position.side)}</span></td>
+      <td>
+        <span className={`side ${position.side}`}>{directionLabel(position.side)}</span>
+      </td>
       <td className="num">{position.size}</td>
       <td className="num">{position.entry_price ?? EMPTY_CELL}</td>
       <td className="num">{position.mark_price ?? EMPTY_CELL}</td>
-      <td className={`num ${Number.isFinite(pnl) && pnl < 0 ? "neg" : Number.isFinite(pnl) && pnl > 0 ? "pos" : ""}`}>
+      <td
+        className={`num ${Number.isFinite(pnl) && pnl < 0 ? "neg" : Number.isFinite(pnl) && pnl > 0 ? "pos" : ""}`}
+      >
         {position.unrealized_pnl ?? EMPTY_CELL}
       </td>
-      <td className={`num ${returnNumber !== null && returnNumber < 0 ? "neg" : returnNumber !== null && returnNumber > 0 ? "pos" : ""}`}>
+      <td
+        className={`num ${returnNumber !== null && returnNumber < 0 ? "neg" : returnNumber !== null && returnNumber > 0 ? "pos" : ""}`}
+      >
         {returnValue ?? EMPTY_CELL}
       </td>
       <td className="num">{formatPrices(position.take_profit_prices)}</td>
@@ -159,7 +188,8 @@ function PositionFootnote({ hasTrailingStop }: { hasTrailingStop: boolean }) {
         §01 미실현(추정)과 이 표의 거래소 보고값은 다를 수 있으며 임의로 맞추지 않습니다.
       </p>
       <p className="table-foot-note">
-        익절/손절은 포지션-부착 값과 별도 조건부 주문(Partial 지정가 익절·독립 손절)을 합산해 표시합니다.
+        익절/손절은 포지션-부착 값과 별도 조건부 주문(Partial 지정가 익절·독립 손절)을 합산해
+        표시합니다.
       </p>
       {hasTrailingStop ? (
         <p className="table-foot-note">
@@ -182,9 +212,7 @@ export function OpenPositionsTable({
   const positions = useLiveSessionsPositions(sessions);
   const [closeTarget, setCloseTarget] = useState<LiveSessionPositionRow | null>(null);
   const closePosition = useClosePosition(
-    closeTarget
-      ? { sessionId: closeTarget.sessionId, symbol: closeTarget.symbol }
-      : undefined,
+    closeTarget ? { sessionId: closeTarget.sessionId, symbol: closeTarget.symbol } : undefined,
   );
   const [closeOutcome, setCloseOutcome] = useState<CloseOutcome | null>(null);
 
@@ -220,7 +248,9 @@ export function OpenPositionsTable({
   if (positions.isLoading || positions.isPending) {
     return (
       <div className="card" data-testid="open-positions-table" aria-busy="true">
-        <div className="card-body"><div className="sk" style={{ height: 160 }} /></div>
+        <div className="card-body">
+          <div className="sk" style={{ height: 160 }} />
+        </div>
       </div>
     );
   }
@@ -237,7 +267,11 @@ export function OpenPositionsTable({
             body="거래소 응답을 확인하지 못했습니다."
             code="GET /api/v1/live-sessions/{session_id}/positions · 503"
           >
-            <button className="btn btn-ghost" type="button" onClick={() => void positions.refetch()}>
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={() => void positions.refetch()}
+            >
               <RefreshCwIcon aria-hidden="true" />
               다시 시도
             </button>
@@ -303,8 +337,7 @@ export function OpenPositionsTable({
                 <tr key={`div-${item.sessionId}`} data-testid="open-positions-divergence">
                   <td colSpan={14}>
                     {item.symbol} ·{" "}
-                    {resolveStrategyName?.(item.sessionId, item.sessionLabel) ??
-                      item.sessionLabel}{" "}
+                    {resolveStrategyName?.(item.sessionId, item.sessionLabel) ?? item.sessionLabel}{" "}
                     · <strong>{POSITION_VERDICT_HEADING[item.verdict]}</strong>
                     {item.localOpenTrades.length > 0 ? (
                       <>
@@ -330,7 +363,11 @@ export function OpenPositionsTable({
               {positions.unsupported.map((item) => (
                 <tr key={item.sessionId} data-testid="open-positions-unsupported">
                   <td colSpan={14}>
-                    {item.symbol} · {resolveStrategyName?.(item.sessionId, item.sessionLabel) ?? item.sessionLabel} · {POSITION_UNSUPPORTED_BODY[item.reason ?? ""] ?? "포지션 대조 조건을 확인하지 못했습니다."}
+                    {item.symbol} ·{" "}
+                    {resolveStrategyName?.(item.sessionId, item.sessionLabel) ?? item.sessionLabel}{" "}
+                    ·{" "}
+                    {POSITION_UNSUPPORTED_BODY[item.reason ?? ""] ??
+                      "포지션 대조 조건을 확인하지 못했습니다."}
                   </td>
                 </tr>
               ))}
@@ -352,7 +389,9 @@ export function OpenPositionsTable({
           <DialogHeader>
             <DialogTitle>포지션 청산</DialogTitle>
             <DialogDescription>
-              이 작업은 {closeTarget?.symbol}의 거래소 계정 단위 순 포지션을 평탄화하는 감소전용 시장가 주문을 냅니다. 세션이 활성 상태면 다음 평가에서 다시 진입할 수 있으며, 수동 청산은 봇을 중단하지 않습니다.
+              이 작업은 {closeTarget?.symbol}의 거래소 계정 단위 순 포지션을 평탄화하는 감소전용
+              시장가 주문을 냅니다. 세션이 활성 상태면 다음 평가에서 다시 진입할 수 있으며, 수동
+              청산은 봇을 중단하지 않습니다.
             </DialogDescription>
           </DialogHeader>
           <CloseOutcomePanel outcome={closeOutcome} />
@@ -377,7 +416,11 @@ export function OpenPositionsTable({
                 >
                   취소
                 </Button>
-                <Button variant="destructive" onClick={() => void handleClose()} disabled={closePosition.isPending}>
+                <Button
+                  variant="destructive"
+                  onClick={() => void handleClose()}
+                  disabled={closePosition.isPending}
+                >
                   청산 실행
                 </Button>
               </>

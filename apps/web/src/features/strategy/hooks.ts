@@ -21,10 +21,7 @@ import {
 } from "@tanstack/react-query";
 
 import { useAuthCtx, type TokenGetter } from "@/hooks/use-auth-ctx";
-import {
-  useInvalidatingMutation,
-  type MutationCallbacks,
-} from "@/hooks/use-invalidating-mutation";
+import { useInvalidatingMutation, type MutationCallbacks } from "@/hooks/use-invalidating-mutation";
 
 import {
   createStrategy,
@@ -52,7 +49,6 @@ import { cacheWebhookSecret } from "./webhook-secret-storage";
 
 // RSC에서도 참조할 수 있도록 key factory는 query-keys.ts에 분리. 호환성 re-export.
 export { strategyKeys };
-
 
 // --- queryFn factories (module-level, no closure capture at call site) -------
 // Hook 내부에서 이 함수들을 호출해 그 반환값을 queryFn으로 넘긴다.
@@ -95,9 +91,7 @@ export function useStrategies(
   });
 }
 
-export function useStrategy(
-  id: string | undefined,
-): UseQueryResult<StrategyResponse, Error> {
+export function useStrategy(id: string | undefined): UseQueryResult<StrategyResponse, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
     queryKey: id ? strategyKeys.detail(uid, id) : strategyKeys.details(uid),
@@ -129,10 +123,7 @@ export function useCreateStrategy(
       // G.2 challenge P2 #2 fix: webhook_secret 은 sessionStorage TTL/hide 정책으로
       // 만 수명 관리. react-query detail cache 에는 secret 제외 sanitized 만 저장.
       const { webhook_secret: _omitted, ...sanitized } = created;
-      qc.setQueryData(
-        strategyKeys.detail(uid, created.id),
-        sanitized as StrategyResponse,
-      );
+      qc.setQueryData(strategyKeys.detail(uid, created.id), sanitized as StrategyResponse);
       opts.onSuccess?.(created);
     },
     onError: (err) => opts.onError?.(err),
@@ -233,9 +224,7 @@ export function useParseStrategy(
 // cleanup 시 observer가 unsubscribe되어 isPending=true에 stuck되는 버그를 회피.
 // useQuery는 idempotent하므로 StrictMode 더블 인보크에도 안전.
 // ⌘+Enter 수동 재파싱은 useParseStrategy mutation을 그대로 사용.
-export function usePreviewParse(
-  pineSource: string,
-): UseQueryResult<ParsePreviewResponse, Error> {
+export function usePreviewParse(pineSource: string): UseQueryResult<ParsePreviewResponse, Error> {
   const { uid, getToken } = useAuthCtx();
   const trimmed = pineSource.trim();
   return useQuery({

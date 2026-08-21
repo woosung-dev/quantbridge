@@ -38,10 +38,9 @@ export function BrandPanel() {
         Pine Script 전략을 검증하고, 검증한 그대로 주문까지 잇습니다.
       </h1>
       <p className="auth-lede">
-        QuantBridge 는 TradingView 에서 쓰던 Pine Script 를 파싱해 자체
-        인터프리터로 백테스트하고, 같은 전략을 거래소 주문으로 연결하는 로컬
-        워크스페이스입니다. 백테스트와 실제 주문이 서로 다른 코드 경로를 타지
-        않도록 만들었습니다.
+        QuantBridge 는 TradingView 에서 쓰던 Pine Script 를 파싱해 자체 인터프리터로 백테스트하고,
+        같은 전략을 거래소 주문으로 연결하는 로컬 워크스페이스입니다. 백테스트와 실제 주문이 서로
+        다른 코드 경로를 타지 않도록 만들었습니다.
       </p>
 
       <header className="auth-facts-head section-head">
@@ -50,8 +49,8 @@ export function BrandPanel() {
         </p>
         <h2 className="section-title">숫자 자랑 대신 정책을 적습니다.</h2>
         <p className="section-desc">
-          사용자 수나 체결 속도처럼 이 화면에서 확인할 수 없는 수치는 싣지
-          않습니다. 대신 코드와 문서로 확인할 수 있는 규칙 네 가지를 적습니다.
+          사용자 수나 체결 속도처럼 이 화면에서 확인할 수 없는 수치는 싣지 않습니다. 대신 코드와
+          문서로 확인할 수 있는 규칙 네 가지를 적습니다.
         </p>
       </header>
 
@@ -81,8 +80,7 @@ export function BrandPanel() {
           <line x1="12" y1="11" x2="12" y2="16.5" />
           <circle cx="12" cy="7.8" r="0.6" fill="currentColor" />
         </svg>
-        계정은 QuantBridge 가 직접 관리합니다. 이메일과 비밀번호로
-        워크스페이스에 들어갑니다.
+        계정은 QuantBridge 가 직접 관리합니다. 이메일과 비밀번호로 워크스페이스에 들어갑니다.
       </p>
     </section>
   );

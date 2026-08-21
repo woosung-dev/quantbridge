@@ -1,10 +1,13 @@
 # ADR-037 제로베이스: CI = 표준 러너 단일 게이트, 이전 판 = git show harness-v1:.github/workflows/ci.yml
 #
-# 남긴 것: backend(ruff + pytest 전량) · frontend(eslint + tsc + vitest + next build).
+# 남긴 것: backend(ruff + pytest 전량) · frontend(biome + tsc + vitest + next build).
+#   ★frontend 의 `pnpm lint` 는 2026-08-22 부터 **Biome 단독**이다([ADR-039]) — prettier·ESLint 제거.
 # 지운 것: paths-filter/changes · documentation · secret_scan · e2e/e2e_authed ·
 #   pytest 샤딩 · coverage 래칫 · alembic 스텝 · OpenAPI drift · mypy · 집계(summary) 잡 ·
-#   rules-of-hooks eslint-disable 차단 grep(LESSON-004 보조 방어선 — eslint error 레벨 규칙과
-#   /review-code conventions 차원이 잔여 방어선이다).
+#   rules-of-hooks eslint-disable 차단 grep(LESSON-004 보조 방어선 — 2026-08-22 [ADR-039] 로
+#   ESLint 자체가 없어졌다. 그 축의 잔여 방어선은 Biome 의 `useHookAtTopLevel` ·
+#   `useExhaustiveDependencies` 와 /review-code conventions 차원이다. `set-state-in-effect` 는
+#   **대체물이 없어 사람이 지킨다** — ADR-039 「무엇을 잃었나」 참조).
 # 하네스 재추가는 「문서화된 사고 1건 = 슬림 복귀 1건」 규칙만 허용한다.
 #
 # tombstone(2026-08-21) — `.gitleaks.toml` 삭제. secret_scan 잡이 위에서 철거되면서 그 설정을

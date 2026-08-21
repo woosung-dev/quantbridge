@@ -31,36 +31,33 @@ interface UtilityRow {
 
 /** 각 유틸리티의 computed 값과, 참조 변수를 직접 해석한 값을 같은 정규화(rgb/rgba)로 뽑는다. */
 async function measure(page: Page): Promise<UtilityRow[]> {
-  return page.evaluate((entries) => {
-    return entries.map(([cls, prop, varName]) => {
-      const el = document.createElement("div");
-      el.className = cls;
-      document.body.appendChild(el);
-      const got = getComputedStyle(el).getPropertyValue(prop).trim();
-      el.remove();
+  return page.evaluate(
+    (entries) => {
+      return entries.map(([cls, prop, varName]) => {
+        const el = document.createElement("div");
+        el.className = cls;
+        document.body.appendChild(el);
+        const got = getComputedStyle(el).getPropertyValue(prop).trim();
+        el.remove();
 
-      // 같은 속성에 var() 를 직접 걸어 해석 — 유틸리티와 동일한 색 표기로 정규화된다.
-      const probe = document.createElement("div");
-      probe.style.setProperty(prop, `var(${varName})`);
-      document.body.appendChild(probe);
-      const want = getComputedStyle(probe).getPropertyValue(prop).trim();
-      probe.remove();
+        // 같은 속성에 var() 를 직접 걸어 해석 — 유틸리티와 동일한 색 표기로 정규화된다.
+        const probe = document.createElement("div");
+        probe.style.setProperty(prop, `var(${varName})`);
+        document.body.appendChild(probe);
+        const want = getComputedStyle(probe).getPropertyValue(prop).trim();
+        probe.remove();
 
-      return { cls, prop, varName, got, want };
-    });
-  }, UTILITY_TOKEN_MAP as Array<[string, string, string]>);
+        return { cls, prop, varName, got, want };
+      });
+    },
+    UTILITY_TOKEN_MAP as Array<[string, string, string]>,
+  );
 }
 
 function assertLinked(rows: UtilityRow[]): void {
   for (const r of rows) {
-    expect(
-      r.got,
-      `${r.cls}(${r.prop}) 이 비었다 — @theme inline 매핑이 끊겼다`,
-    ).not.toBe("");
-    expect(
-      r.got,
-      `${r.cls} → ${r.varName} 링크 끊김: got ${r.got} / want ${r.want}`,
-    ).toBe(r.want);
+    expect(r.got, `${r.cls}(${r.prop}) 이 비었다 — @theme inline 매핑이 끊겼다`).not.toBe("");
+    expect(r.got, `${r.cls} → ${r.varName} 링크 끊김: got ${r.got} / want ${r.want}`).toBe(r.want);
   }
 }
 

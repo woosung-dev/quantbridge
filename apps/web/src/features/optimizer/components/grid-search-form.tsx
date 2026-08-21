@@ -50,9 +50,7 @@ export function GridSearchForm({ backtestId, onSuccess }: Props) {
       objective_metric: "sharpe_ratio",
       direction: "maximize",
       max_evaluations: 9,
-      parameters: [
-        { var_name: "", kind: "integer", min: 10, max: 30, step: 5 },
-      ],
+      parameters: [{ var_name: "", kind: "integer", min: 10, max: 30, step: 5 }],
     },
   });
 
@@ -74,11 +72,7 @@ export function GridSearchForm({ backtestId, onSuccess }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <ObjectiveFields
-        register={form.register}
-        errors={form.formState.errors}
-        maxEvaluations={9}
-      />
+      <ObjectiveFields register={form.register} errors={form.formState.errors} maxEvaluations={9} />
 
       <ParamRowsFieldset
         control={form.control}

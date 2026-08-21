@@ -73,10 +73,7 @@ export function clearWizardDraft(userId: string | null | undefined): void {
 // Render-time localStorage 읽기 캐시. useSyncExternalStore 가 동일 참조를 반환하도록 보장.
 // key: userId | "__anon__". value: { stamp: 직렬화된 원본, parsed: 파싱 결과 }.
 // stamp 비교로 외부 storage event 없이도 로컬 mutation (save/clear) 후 stale 방지.
-const snapshotCache = new Map<
-  string,
-  { stamp: string | null; parsed: WizardDraft | null }
->();
+const snapshotCache = new Map<string, { stamp: string | null; parsed: WizardDraft | null }>();
 
 function snapshotKey(userId: string | null | undefined): string {
   return userId ?? "__anon__";

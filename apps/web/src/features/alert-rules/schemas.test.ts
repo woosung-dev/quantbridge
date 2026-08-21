@@ -2,10 +2,7 @@
 import { describe, expect, test } from "vitest";
 
 import { alertRuleKeys } from "./query-keys";
-import {
-  AlertRuleCreateRequestSchema,
-  AlertRuleListResponseSchema,
-} from "./schemas";
+import { AlertRuleCreateRequestSchema, AlertRuleListResponseSchema } from "./schemas";
 
 describe("alert rules schemas", () => {
   test("백엔드 활성 규칙 응답을 round-trip 한다", () => {

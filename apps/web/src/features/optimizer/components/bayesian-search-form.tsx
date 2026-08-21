@@ -27,8 +27,7 @@ import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 
 const FormSchema = z.object({
   ...makeOptimizerFormBaseFields(100),
-  bayesian_n_initial_random: z
-    .coerce
+  bayesian_n_initial_random: z.coerce
     .number()
     .int("초기 랜덤 탐색 횟수는 정수여야 합니다.")
     .min(1, "초기 랜덤 탐색 횟수는 1 이상이어야 합니다.")
@@ -154,12 +153,9 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
         renderRowCells={(idx, removeButton, errors, errorId) => {
           const logScaleError =
             form.formState.errors.parameters?.[idx]?.log_scale?.message ??
-            (
-              form.formState.errors as Record<
-                string,
-                { message?: string } | undefined
-              >
-            )[`parameters.${idx}.log_scale`]?.message;
+            (form.formState.errors as Record<string, { message?: string } | undefined>)[
+              `parameters.${idx}.log_scale`
+            ]?.message;
 
           return (
             <>
@@ -187,16 +183,12 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
                   <input
                     type="checkbox"
                     aria-invalid={logScaleError ? "true" : "false"}
-                    aria-describedby={
-                      logScaleError ? errorId("log_scale") : undefined
-                    }
+                    aria-describedby={logScaleError ? errorId("log_scale") : undefined}
                     {...form.register(`parameters.${idx}.log_scale`)}
                   />
                   로그 스케일
                 </label>
-                {logScaleError && (
-                  <FieldError id={errorId("log_scale")} message={logScaleError} />
-                )}
+                {logScaleError && <FieldError id={errorId("log_scale")} message={logScaleError} />}
                 {removeButton}
               </div>
             </>

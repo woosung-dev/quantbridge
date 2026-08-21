@@ -46,7 +46,9 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         <div>
           <h3 className="card-title">정적 진단</h3>
           <p className="card-sub">
-            {preview.isFetching ? "편집 중인 소스를 다시 파싱하고 있습니다." : "편집 중인 소스 기준"}
+            {preview.isFetching
+              ? "편집 중인 소스를 다시 파싱하고 있습니다."
+              : "편집 중인 소스 기준"}
           </p>
         </div>
         <div className="strip-head-right">

@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-  type Mock,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 // ---------------------------------------------------------------------------
@@ -34,14 +26,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("next/link", () => ({
-  default: ({
-    href,
-    children,
-    ...rest
-  }: {
-    href: string;
-    children: React.ReactNode;
-  }) => (
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
     <a href={href} {...rest}>
       {children}
     </a>
@@ -108,10 +93,7 @@ vi.stubGlobal("fetch", fetchMock);
 // ---------------------------------------------------------------------------
 
 import OnboardingPage from "../page";
-import {
-  createInitialState,
-  useOnboardingStore,
-} from "@/features/onboarding/store";
+import { createInitialState, useOnboardingStore } from "@/features/onboarding/store";
 
 function resetStoreAndMocks() {
   useOnboardingStore.setState(createInitialState());
@@ -143,18 +125,12 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     expect(screen.getByText(/QuantBridge 에 오신 것을 환영합니다/)).toBeInTheDocument();
 
     // 시작하기 → strategy step
-    fireEvent.click(
-      screen.getByRole("button", { name: /다음 단계로 진행/ }),
-    );
-    expect(
-      screen.getByTestId("onboarding-step-panel").getAttribute("data-step"),
-    ).toBe("strategy");
+    fireEvent.click(screen.getByRole("button", { name: /다음 단계로 진행/ }));
+    expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("strategy");
 
     // 뒤로 버튼 → welcome
     fireEvent.click(screen.getByRole("button", { name: /← 이전/ }));
-    expect(
-      screen.getByTestId("onboarding-step-panel").getAttribute("data-step"),
-    ).toBe("welcome");
+    expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("welcome");
   });
 
   it("샘플 Pine load 성공 시 strategyId 를 store 에 저장하고 backtest step 으로 이동", async () => {
@@ -168,10 +144,7 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     // createStrategy mutate 가 호출되면 onSuccess 를 즉시 실행해 id 를 전달.
     const FIXED_STRATEGY_ID = "11111111-2222-4333-8444-555555555555";
     (hoisted.createMutate as Mock).mockImplementation(
-      (
-        _body: unknown,
-        options?: { onSuccess?: (d: { id: string }) => void },
-      ) => {
+      (_body: unknown, options?: { onSuccess?: (d: { id: string }) => void }) => {
         options?.onSuccess?.({ id: FIXED_STRATEGY_ID });
       },
     );
@@ -219,8 +192,6 @@ describe("OnboardingPage — 4-step wizard integration", () => {
     expect(state.strategyId).toBeNull();
     expect(state.backtestId).toBeNull();
     // welcome panel 이 실제로 렌더되었는지도 확인
-    expect(
-      screen.getByTestId("onboarding-step-panel").getAttribute("data-step"),
-    ).toBe("welcome");
+    expect(screen.getByTestId("onboarding-step-panel").getAttribute("data-step")).toBe("welcome");
   });
 });

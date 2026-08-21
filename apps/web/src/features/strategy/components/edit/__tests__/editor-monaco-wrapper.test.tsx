@@ -20,7 +20,12 @@ describe("EditorMonacoWrapper — 파일 탭 toolbar (screen-08 이식)", () => 
 
   it("파일탭에 파일명과 버전 라벨을 그린다", () => {
     render(
-      <EditorMonacoWrapper fileName="ma-cross.pine" versionLabel="Pine v5" value="//@version=5" onChange={() => {}} />,
+      <EditorMonacoWrapper
+        fileName="ma-cross.pine"
+        versionLabel="Pine v5"
+        value="//@version=5"
+        onChange={() => {}}
+      />,
     );
     const filetab = screen.getByTestId("editor-monaco-wrapper-filetab");
     expect(filetab.textContent).toContain("ma-cross.pine");

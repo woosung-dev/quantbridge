@@ -137,10 +137,7 @@ describe("deriveParamStability — 방향/경계", () => {
   });
 
   it("음수 평균이 섞이면 0 기준 막대를 그리지 않는다 (canRenderBars=false)", () => {
-    const cells: GridSearchCell[] = [
-      cell({ p: 1 }, -11, 5),
-      cell({ p: 2 }, -24, 5),
-    ];
+    const cells: GridSearchCell[] = [cell({ p: 1 }, -11, 5), cell({ p: 2 }, -24, 5)];
     const result = deriveParamStability(cells, ["p"], "minimize");
     expect(result.canRenderBars).toBe(false);
     expect(result.hasData).toBe(true);

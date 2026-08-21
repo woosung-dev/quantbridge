@@ -23,9 +23,7 @@ describe("BrandPanel", () => {
   it("사실 4가지(.fact) + pine_v2 정책 문구", () => {
     const { container } = render(<BrandPanel />);
     expect(container.querySelectorAll(".fact").length).toBe(4);
-    const idx = Array.from(container.querySelectorAll(".fact-idx")).map(
-      (el) => el.textContent,
-    );
+    const idx = Array.from(container.querySelectorAll(".fact-idx")).map((el) => el.textContent);
     expect(idx).toEqual(["01", "02", "03", "04"]);
     expect(screen.getByText(/자체 인터프리터입니다/)).toBeInTheDocument();
   });

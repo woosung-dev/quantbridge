@@ -10,10 +10,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import { OrderDetailDrawer } from "@/features/trading/components/orders/order-detail-drawer";
-import {
-  ORDER_CSV_EXTRA_HEADER,
-  ORDER_REALIZED_PNL_SOURCE_LABEL,
-} from "@/features/trading/labels";
+import { ORDER_CSV_EXTRA_HEADER, ORDER_REALIZED_PNL_SOURCE_LABEL } from "@/features/trading/labels";
 import { EMPTY_CELL } from "@/lib/labels";
 import type { Order } from "@/features/trading/schemas";
 
@@ -55,10 +52,9 @@ function makeOrder(overrides: Partial<Order> = {}): Order {
 /** 「손익 출처」 행의 값 셀 텍스트. 라벨 옆 값만 집는다. */
 function sourceCellText(): string | null {
   const label = screen.getByText(ORDER_CSV_EXTRA_HEADER.realizedPnlSource);
-  return label.parentElement?.textContent?.replace(
-    ORDER_CSV_EXTRA_HEADER.realizedPnlSource,
-    "",
-  ) ?? null;
+  return (
+    label.parentElement?.textContent?.replace(ORDER_CSV_EXTRA_HEADER.realizedPnlSource, "") ?? null
+  );
 }
 
 describe("OrderDetailDrawer — 실현 손익 출처", () => {

@@ -96,13 +96,7 @@ export function TableSkeleton({
   );
 }
 
-export function FormSkeleton({
-  fields = 3,
-  className,
-}: {
-  fields?: number;
-  className?: string;
-}) {
+export function FormSkeleton({ fields = 3, className }: { fields?: number; className?: string }) {
   return (
     <div
       data-testid="form-skeleton"
@@ -111,11 +105,7 @@ export function FormSkeleton({
       className={cn("flex flex-col gap-5", className)}
     >
       {Array.from({ length: fields }).map((_, i) => (
-        <div
-          key={`field-${i}`}
-          data-testid="form-skeleton-field"
-          className="flex flex-col gap-1.5"
-        >
+        <div key={`field-${i}`} data-testid="form-skeleton-field" className="flex flex-col gap-1.5">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-10 w-full" />
         </div>

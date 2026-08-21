@@ -7,9 +7,7 @@ import type { ParamStabilityResult } from "@/features/backtest/schemas";
 
 import { ParamStabilityHeatmap } from "@/features/backtest/components/charts/param-stability-heatmap";
 
-function makeResult(
-  overrides: Partial<ParamStabilityResult> = {},
-): ParamStabilityResult {
+function makeResult(overrides: Partial<ParamStabilityResult> = {}): ParamStabilityResult {
   return {
     param1_name: "emaPeriod",
     param2_name: "stopLossPct",

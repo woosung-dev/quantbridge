@@ -41,10 +41,7 @@ export function StateBox({
       data-testid={testId}
     >
       {icon != null && (
-        <span
-          className={isFailed ? "state-icon failed" : "state-icon"}
-          aria-hidden="true"
-        >
+        <span className={isFailed ? "state-icon failed" : "state-icon"} aria-hidden="true">
           {icon}
         </span>
       )}

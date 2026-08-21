@@ -7,9 +7,7 @@ import type { TradeItem } from "@/features/backtest/schemas";
 
 import { TradeStatsStrip } from "@/features/backtest/components/trades/trade-stats-strip";
 
-function mkTrade(
-  overrides: Partial<TradeItem> & Pick<TradeItem, "direction" | "pnl">,
-): TradeItem {
+function mkTrade(overrides: Partial<TradeItem> & Pick<TradeItem, "direction" | "pnl">): TradeItem {
   return {
     trade_index: 1,
     status: "closed",
@@ -60,13 +58,9 @@ describe("TradeStatsStrip", () => {
     // 승률 텍스트: "2승 1패"
     expect(screen.getByText("2승 1패")).toBeInTheDocument();
     // 평균 수익률 6% (= avg of 4% / 8%)
-    expect(screen.getByTestId("trade-stat-평균 수익")).toHaveTextContent(
-      /\+?6\.00%/,
-    );
+    expect(screen.getByTestId("trade-stat-평균 수익")).toHaveTextContent(/\+?6\.00%/);
     // 평균 손실 -2%
-    expect(screen.getByTestId("trade-stat-평균 손실")).toHaveTextContent(
-      /-2\.00%/,
-    );
+    expect(screen.getByTestId("trade-stat-평균 손실")).toHaveTextContent(/-2\.00%/);
   });
 
   // C 이식 S6 — 공용 .kpi 카드 4개(role=listitem)로 렌더한다.
@@ -97,8 +91,6 @@ describe("TradeStatsStrip", () => {
     ];
     render(<TradeStatsStrip trades={trades} />);
     // 평균 3h
-    expect(screen.getByTestId("trade-stat-평균 보유 시간")).toHaveTextContent(
-      /3h/,
-    );
+    expect(screen.getByTestId("trade-stat-평균 보유 시간")).toHaveTextContent(/3h/);
   });
 });
