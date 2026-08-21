@@ -5,13 +5,17 @@
     {
       "step": 0,
       "name": "og-image",
-      "status": "pending",
+      "status": "completed",
+      "summary": "OG ImageResponse 대역 테스트 10건: 최소 정상 객체={id,strategy_id,symbol,timeframe,period_start,period_end,status,created_at,completed_at,initial_capital,metrics{total_return,sharpe_ratio,max_drawdown,win_rate,num_trades}}; total_return null·NaN·비숫자 문자열은 decimalString 스키마에서 거부되어 fallback(—)으로 측정.",
       "ac": [
         "cd apps/web && pnpm test -- --run 'src/app/share/backtests/[token]/__tests__/opengraph-image.test.tsx'",
         "cd apps/web && test \"$(pnpm exec vitest list 'src/app/share/backtests/[token]/__tests__/opengraph-image.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 8",
         "cd apps/web && pnpm exec eslint 'src/app/share/backtests/[token]/__tests__/opengraph-image.test.tsx'",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-21T14:08:14+0900",
+      "completed_at": "2026-08-21T14:12:39+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T14:08:14+0900"
 }
