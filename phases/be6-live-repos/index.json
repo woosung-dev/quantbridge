@@ -5,7 +5,7 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist",
@@ -14,7 +14,10 @@
         "cd apps/api && uv run coverage report --include=src/waitlist/repository.py --fail-under=64",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
         "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:15:31+0900",
+      "summary": "재측정(AC ①: 두 파일 부재 rc=1; AC ②: 1187 passed, 세션/이벤트/waitlist 52/60/68%로 CONTROL 50.9/58.6/60.4%와 상이). 세션은 claim·비활성 목록·state upsert를 실DB 시드/재조회, 이벤트는 빈 입력·PG idempotency·pending→failed, waitlist는 정규화 조회·초대·상태 페이지·commit/rollback으로 도달. mock 없음: Repository SQL 계약을 실제 test DB로 측정.",
+      "completed_at": "2026-08-22T04:32:59+0900"
     },
     {
       "step": 1,
@@ -60,5 +63,6 @@
         "cd apps/api && uv run ruff format --check tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T04:15:31+0900"
 }
