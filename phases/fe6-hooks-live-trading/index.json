@@ -1,0 +1,53 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe6-hooks-live-trading",
+  "steps": [
+    {
+      "step": 0,
+      "name": "probe-and-skeleton",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/live-sessions/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/trading/__tests__/hooks.core.test.tsx",
+        "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/live-sessions/hooks.ts' --coverage.include='src/features/trading/hooks.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-hooks-live-trading --reporter=json --outputFile=coverage/fe6-hooks-live-trading/results.json",
+        "python3 tools/harness/assert_fe.py apps/web/coverage/fe6-hooks-live-trading --min-cases 6 --target src/features/live-sessions/hooks.ts --min-cov 12 --target src/features/trading/hooks.ts --min-cov 12",
+        "git diff --quiet -- apps/web/src/features/live-sessions/hooks.ts apps/web/src/features/trading/hooks.ts"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "happy-paths",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/live-sessions/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/trading/__tests__/hooks.core.test.tsx",
+        "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/live-sessions/hooks.ts' --coverage.include='src/features/trading/hooks.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-hooks-live-trading --reporter=json --outputFile=coverage/fe6-hooks-live-trading/results.json",
+        "python3 tools/harness/assert_fe.py apps/web/coverage/fe6-hooks-live-trading --min-cases 16 --target src/features/live-sessions/hooks.ts --min-cov 30 --target src/features/trading/hooks.ts --min-cov 30",
+        "git diff --quiet -- apps/web/src/features/live-sessions/hooks.ts apps/web/src/features/trading/hooks.ts"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "error-and-edges",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/live-sessions/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/trading/__tests__/hooks.core.test.tsx",
+        "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/live-sessions/hooks.ts' --coverage.include='src/features/trading/hooks.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-hooks-live-trading --reporter=json --outputFile=coverage/fe6-hooks-live-trading/results.json",
+        "python3 tools/harness/assert_fe.py apps/web/coverage/fe6-hooks-live-trading --min-cases 26 --target src/features/live-sessions/hooks.ts --min-cov 45 --target src/features/trading/hooks.ts --min-cov 45",
+        "git diff --quiet -- apps/web/src/features/live-sessions/hooks.ts apps/web/src/features/trading/hooks.ts"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/live-sessions/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/trading/__tests__/hooks.core.test.tsx",
+        "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/live-sessions/hooks.ts' --coverage.include='src/features/trading/hooks.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-hooks-live-trading --reporter=json --outputFile=coverage/fe6-hooks-live-trading/results.json",
+        "python3 tools/harness/assert_fe.py apps/web/coverage/fe6-hooks-live-trading --min-cases 26 --target src/features/live-sessions/hooks.ts --min-cov 50 --target src/features/trading/hooks.ts --min-cov 50",
+        "git diff --quiet -- apps/web/src/features/live-sessions/hooks.ts apps/web/src/features/trading/hooks.ts",
+        "cd apps/web && pnpm exec vitest run",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "cd apps/web && pnpm exec biome check src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx"
+      ]
+    }
+  ]
+}

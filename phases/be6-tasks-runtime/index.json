@@ -1,0 +1,56 @@
+{
+  "project": "QuantBridge",
+  "phase": "be6-tasks-runtime",
+  "steps": [
+    {
+      "step": 0,
+      "name": "probe-and-skeleton",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks --cov-report=json:.coverage.harness.json",
+        "python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/tasks/celery_app.py --min-cov 38 --target src/tasks/websocket_task.py --min-cov 62 --target src/tasks/_ws_lease.py --min-cov 85",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "happy-paths",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks --cov-report=json:.coverage.harness.json",
+        "python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/tasks/celery_app.py --min-cov 50 --target src/tasks/websocket_task.py --min-cov 68 --target src/tasks/_ws_lease.py --min-cov 88",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 14",
+        "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "error-and-edges",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks --cov-report=json:.coverage.harness.json",
+        "python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/tasks/celery_app.py --min-cov 64 --target src/tasks/websocket_task.py --min-cov 76 --target src/tasks/_ws_lease.py --min-cov 90",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 22",
+        "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks --cov-report=json:.coverage.harness.json",
+        "python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/tasks/celery_app.py --min-cov 70 --target src/tasks/websocket_task.py --min-cov 80 --target src/tasks/_ws_lease.py --min-cov 92",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 22",
+        "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py",
+        "cd apps/api && uv run ruff check tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run ruff format --check tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py"
+      ]
+    }
+  ]
+}

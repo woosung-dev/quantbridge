@@ -1,0 +1,56 @@
+{
+  "project": "QuantBridge",
+  "phase": "be6-live-repos",
+  "steps": [
+    {
+      "step": 0,
+      "name": "probe-and-skeleton",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist --cov-report=json:.coverage.harness.json",
+        "python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/trading/repositories/live_signal_session_repository.py --min-cov 55 --target src/trading/repositories/live_signal_event_repository.py --min-cov 62 --target src/waitlist/repository.py --min-cov 64",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "happy-paths",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist --cov-report=json:.coverage.harness.json",
+        "python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/trading/repositories/live_signal_session_repository.py --min-cov 65 --target src/trading/repositories/live_signal_event_repository.py --min-cov 70 --target src/waitlist/repository.py --min-cov 72",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 14",
+        "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "error-and-edges",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist --cov-report=json:.coverage.harness.json",
+        "python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/trading/repositories/live_signal_session_repository.py --min-cov 78 --target src/trading/repositories/live_signal_event_repository.py --min-cov 80 --target src/waitlist/repository.py --min-cov 82",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 22",
+        "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist --cov-report=json:.coverage.harness.json",
+        "python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/trading/repositories/live_signal_session_repository.py --min-cov 82 --target src/trading/repositories/live_signal_event_repository.py --min-cov 84 --target src/waitlist/repository.py --min-cov 85",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 22",
+        "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py",
+        "cd apps/api && uv run ruff check tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py",
+        "cd apps/api && uv run ruff format --check tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py"
+      ]
+    }
+  ]
+}

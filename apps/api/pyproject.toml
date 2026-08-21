@@ -77,3 +77,9 @@ markers = [
 [tool.coverage.run]
 source = ["src"]
 branch = true
+# ★2026-08-22 — 이 줄이 없으면 async 레포의 커버리지가 거짓으로 낮게 나온다.
+# SQLAlchemy 는 async 경계를 greenlet 으로 전환하는데, coverage 가 그 컨텍스트를 추적하지
+# 못하면 전환 뒤의 줄을 전부 미커버로 센다. 5차 실측: `outcome_parity_service.py` 가
+# 테스트 파일 하나만으로 80% → **100%** (설정 외 변경 0). 전량 스위트 TOTAL 은 90% → 91.51%.
+# 근거·전말 = docs/lessons.md [LESSON-125] · docs/status.md 밤샘 루프 5차 절.
+concurrency = ["greenlet", "thread"]

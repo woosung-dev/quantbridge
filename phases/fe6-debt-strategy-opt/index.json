@@ -1,0 +1,45 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe6-debt-strategy-opt",
+  "steps": [
+    {
+      "step": 0,
+      "name": "probe-and-safe-rules",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/noSvgWithoutTitle,a11y/useButtonType,a11y/noRedundantRoles --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "template-and-complexity",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && python3 ../../tools/harness/assert_biome.py --rules style/useTemplate,complexity/noUselessSwitchCase,complexity/noUselessFragments,complexity/useOptionalChain,complexity/useLiteralKeys --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "aria-and-semantics",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/useSemanticElements,a11y/useAriaPropsSupportedByRole,a11y/noNoninteractiveTabindex,a11y/useKeyWithClickEvents --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "array-index-key",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/noSvgWithoutTitle,a11y/useButtonType,a11y/noRedundantRoles,style/useTemplate,complexity/noUselessSwitchCase,complexity/noUselessFragments,complexity/useOptionalChain,complexity/useLiteralKeys,a11y/useSemanticElements,a11y/useAriaPropsSupportedByRole,a11y/noNoninteractiveTabindex,a11y/useKeyWithClickEvents,suspicious/noArrayIndexKey,suspicious/noConsole --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec vitest run",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "cd apps/web && pnpm exec biome check ."
+      ]
+    }
+  ]
+}

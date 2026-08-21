@@ -1,0 +1,67 @@
+# Step 0: 재료 실사 + 테스트 파일 신설 — backtest React Query 훅
+
+## 읽어야 할 파일
+
+- ★**[`phases/fe6-common.md`](../fe6-common.md) — 이 회차 FE lane 공통 규약. 먼저 읽어라**
+- `apps/web/src/features/backtest/hooks.ts` — **이번 회차의 대상**
+
+## 이 lane 이 만드는 파일
+
+- `apps/web/src/features/backtest/__tests__/hooks.core.test.tsx`
+
+## 착수 전 실측 (2026-08-22 · CONTROL 이 전량 스위트 커버리지로 쟀다)
+
+`backtest/hooks.ts` — 290 stmt 중 **213 미커버 (26.6% · 함수 12.0%)** · export 23개
+
+## 이 lane 만의 사실
+
+★★**기존 테스트 두 개가 이 파일의 일부를 이미 덮는다** — `hooks.all-trades.test.ts`
+  (`makeAllTradesFetcher`) 와 `hooks.stress-test.test.ts`. **그 둘을 고치지 마라.**
+  새 파일 이름이 `hooks.core.test.tsx` 인 이유다. 단, **커버리지 AC 는 새 파일만으로 잰다** —
+  기존 파일이 덮은 몫은 네 점수에 **안 들어간다.** 그래서 하한(45%→62%)은 전량 스위트
+  기준 26.6% 와 비교할 값이 아니다 — **네 파일 하나가 그만큼 덮어야 한다**는 뜻이다.
+★모듈 레벨로 export 된 **비-훅 심볼**이 먼저다 — `makeAllTradesFetcher`(이미 덮임)·
+  `stressTestRefetchInterval`·`stressTestHistoryRefetchInterval` 은 `renderHook` 없이 부를 수 있다.
+★[LESSON-004] — polling 훅의 `refetchInterval` 은 **error 일 때 false** 여야 한다.
+  그것이 무한 루프·CPU 100% 를 막는 계약이다. 그 분기를 반드시 단언해라.
+
+## 작업
+
+1. **대상을 직접 읽어라.** 위 대상 파일을 전부 열고, export 되는 심볼마다
+   「무엇을 하는가 · 외부 경계가 어디인가(무엇을 mock 해야 하는가)」를 한 줄로 정리해라.
+2. **커버리지를 네가 직접 재라.** 아래 AC 의 첫 명령이 그것을 한다. 착수 전 수치가
+   위 「착수 전 실측」과 크게 다르면 **그 사실을 `summary` 맨 앞에 적어라** —
+   5차에서 재료 8개 중 6개가 이 대조로 갈렸다.
+   ★**대상이 이미 85% 이상 덮여 있으면 재료가 아니다.** `status` 를 `blocked` 로 하고
+   `blocked_reason` 에 측정 명령과 수치를 적고 **즉시 중단**해라.
+3. **테스트 파일을 신설한다** — 위 경로 그대로. 이 step 에서는 **가장 확실한 것부터
+   최소 6케이스**만 쓴다. 전부 덮으려 하지 마라(그건 step1~2 의 일이다).
+
+## `summary` 에 반드시 담을 것
+
+- 심볼별 「덮음/안 덮음」 표
+- 착수 전 실측 커버리지 (AC 첫 명령의 출력 수치)
+- mock 을 어디에 걸었는지와 **왜 거기인지**
+
+## Acceptance Criteria
+
+1. `test -f apps/web/src/features/backtest/__tests__/hooks.core.test.tsx`
+2. `cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/backtest/hooks.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-hooks-backtest --reporter=json --outputFile=coverage/fe6-hooks-backtest/results.json`
+3. `python3 tools/harness/assert_fe.py apps/web/coverage/fe6-hooks-backtest --min-cases 6 --target src/features/backtest/hooks.ts --min-cov 12`
+4. `git diff --quiet -- apps/web/src/features/backtest/hooks.ts`
+
+## 자기 점검
+
+1. 위 AC 를 직접 실행해 green 을 확인한다. ★최종 판정은 러너가 재실행해 내린다 —
+   `status` 를 `completed` 로 바꾸지 마라.
+2. `phases/fe6-common.md` 의 금지사항을 어기지 않았는지 확인한다.
+3. 사람 개입이 필요하면 `status:"blocked"` + `blocked_reason` 을 쓰고 즉시 중단한다.
+
+## 금지사항
+
+- **대상 소스를 한 줄도 고치지 마라.** 이유: 이 lane 은 커버리지 lane 이고, 소스 변경은
+  부채 lane 의 몫이다. 두 lane 이 같은 파일을 고치면 병합이 충돌한다.
+  ★소스에 결함이 보이면 **고치지 말고 `summary` 에 적어라** — 5차에서 그렇게 [BL-819] 를 잡았다.
+- **기존 테스트 파일을 고치지 마라.** 이유: 그 파일들은 다른 것을 재고 있고, 고치면
+  「내 테스트가 통과하도록 남의 단언을 낮춘」 것이 된다.
+- 커밋하지 마라(커밋은 러너 소관).

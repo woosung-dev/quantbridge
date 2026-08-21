@@ -9,6 +9,73 @@
 (출처 레포 jha0313/finsight 에서는 `0-foundation` → `1-core-loop` → … 처럼 **순번**이었다.
 우리는 같은 파일을 병렬 묶음에도 쓴다. 어느 쪽인지는 아래 절이 말한다.)
 
+## ★열린 묶음 — `fe6-*` 10 + `be6-*` 2 **저작 완료 · 실행 대기** (2026-08-22 · 소유 티켓 [BL-820])
+
+**12 lane × step 4 · 동시 4 · base `stage/night6`.** 5차 회고(아래 「병렬 구조 자체에 대한 반성」)를
+처음으로 구조에 반영한 회차다 — **step0 재료 자가검증 → step1 정상 경로 → step2 에러·경계 →
+step3 자기 변이**. step 이 넷이라 러너의 `summary` 누적 전달·재시도 피드백이 비로소 쓰인다.
+
+### 실행
+
+```bash
+python3 tools/harness/night_run.py --stage stage/night6 --jobs 4            # 계획만 (기본 dry-run)
+python3 tools/harness/night_run.py --stage stage/night6 --jobs 4 --confirm  # 집행
+python3 tools/harness/night_run.py --status                                 # 진행 상황
+```
+
+★**무인 구간은 lane PR 의 stage 머지까지다.** 오케스트레이터가 stage 브랜치를 만들고, 워크트리
+**4벌**에 lane 12개를 큐로 흘리고, 완주한 lane 을 `stage/night6` 로 PR·CI 대기·머지한 뒤,
+마지막에 **stage→main PR 하나**를 남긴다. **사람이 판단하는 자리는 그 PR 하나뿐이다.**
+★워크트리를 12벌 만들지 않는 이유는 디스크와 테스트 DB 다 — 슬롯 재사용이 5차에서 `blocked` 를 만들었다.
+
+### lane 배분 — 파일 겹침 0 을 실측으로 확인했다
+
+| lane | 축 | 대상 | 착수 전 실측 |
+| --- | --- | --- | --- |
+| `fe6-api-backtest` | FE cov | `backtest/api.ts` | 1.6% · 182 미커버 |
+| `fe6-api-strategy-opt` | FE cov | `strategy`·`optimizer`·`alert-rules` `/api.ts` | 3.2%·0%·— · 216 |
+| `fe6-api-trading-live` | FE cov | `live-sessions`·`trading`·`waitlist` `/api.ts` + `unrealized.ts` | 26.3%·60.8%·25.0%·24.7% · 225 |
+| `fe6-hooks-backtest` | FE cov | `backtest/hooks.ts` | 26.6% · 213 |
+| `fe6-hooks-strategy-opt` | FE cov | `strategy`·`optimizer`·`waitlist` `/hooks.ts` | 6.8%·0%·0% · 230 |
+| `fe6-hooks-live-trading` | FE cov | `live-sessions`·`trading` `/hooks.ts` | 63.0%·71.0% · 180 |
+| `be6-tasks-runtime` | BE cov | `tasks/{celery_app,websocket_task,_ws_lease}.py` | 54.9%·61.0%·84.0% · 123 |
+| `be6-live-repos` | BE cov | live-signal 2 repo + `waitlist/repository.py` (**DB ✅**) | 66.7%·60.3%·67.9% · 63 |
+| `fe6-debt-backtest` | 부채 | `features/backtest/**` | 위반 42 |
+| `fe6-debt-strategy-opt` | 부채 | `strategy`·`optimizer`·`onboarding`·`marketing`·`auth` | 40 |
+| `fe6-debt-trading-dash` | 부채 | `trading`·`live-sessions`·`dashboard`·`waitlist`·`components`·`lib` | 42 |
+| `fe6-debt-app-tooling` | 부채 | `app/**`·`e2e/**`·`scripts/**` | 41 |
+
+**착수 전 AC red 12/12** · 판정기 3종 판별력 배터리 **15/15**
+(`assert_fe.py` 5 · `assert_biome.py` 4 · `assert_be.py` 6). 공통 규약 = [`fe6-common.md`](./fe6-common.md).
+
+### ★★저작 중 실측이 설계를 네 번 반증했다 — 다음 회차가 재사용할 것
+
+1. ★★★**AC 가 재는 커버리지와 전량 스위트 값이 다르다.** AC 는 한 디렉터리만 돌리므로 다른
+   디렉터리의 테스트가 그 모듈을 import 하며 덮던 몫이 **안 들어온다**:
+   `celery_app.py` **54.9% → AC 기준 32.0%** · `live_signal_session_repository.py` **66.7% → 50.9%**.
+   ⇒ **임계는 「AC 가 실제로 재는 값」 위에서 잡아라.** 전량 스위트 수치로 잡으면 첫 step 부터 불가능하다.
+2. ★★**vitest 는 인자 중 존재하지 않는 파일을 조용히 무시한다** — 있는 것 1 + 없는 것 1 → **rc=0**
+   (없는 것만 주면 rc=1). ⇒ cov lane 의 첫 AC 는 **`test -f` 파일 존재**다. 그게 없으면 lane 이
+   테스트 파일을 일부만 만들어도 뒤의 AC 가 통과할 수 있다.
+3. ★**새 파일로 지정한 경로 하나가 이미 있었다**(`live-sessions/__tests__/unrealized.test.ts`) —
+   그 파일이 있는데도 대상이 24.7% 였다. **이름이 맞는 테스트는 증거가 아니다**(5차 교훈의 재현).
+4. ★★**부채 lane 을 「규칙 축」으로 자르면 lane 끼리 파일이 26건 겹친다** — 같은 컴포넌트가 여러
+   규칙에 걸리기 때문이다. ⇒ **디렉터리 축**으로 갈랐다. 규칙 축은 표에서는 깔끔하고 병합에서는 재앙이다.
+
+★**`| tail` 이 biome 의 rc 를 또 삼켰다 — 레포 11번째.** 위반 17건인데 `rc=0` 이 나왔다.
+**AC 에 파이프를 쓰지 마라**(zsh 는 `$pipestatus`, 그러나 AC 는 애초에 파이프 없이 쓸 수 있어야 한다).
+
+★**`biome lint --only=<규칙> <경로>` 는 rc 로 답한다**(위반 rc=1 · 없으면 rc=0 — 양성·음성 대조 확인).
+판정기가 더하는 것은 **검사된 파일 수 하한** 하나다 — 경로 오타로 0파일을 검사해도 rc=0 이기 때문이다.
+
+### 규칙 활성화는 CONTROL 이 마지막에 한 번에 한다
+
+★**부채 lane 은 `biome.jsonc` 를 고치지 않는다.** 12 lane 이 공유하는 유일한 설정 파일이고,
+**위반이 남은 채로 규칙을 켜면 `lint-staged` 의 `biome check --write` 가 그 파일을 건드리는
+모든 커밋을 막는다**(그 경고는 `biome.jsonc` 주석에 이미 있다). 전 lane 머지 후 CONTROL 이
+a11y 7종 + `noArrayIndexKey` 를 켜고, **`e2e/**`·`scripts/**` 의 `noConsole` 15건은 `overrides` 로 면제**한다
+(그 자리의 `console.log` 는 의도다 — 그래서 `fe6-debt-app-tooling` 의 AC 는 범위를 둘로 나눠 잰다).
+
 ## 앞선 병렬 묶음 — `be5-*` 8벌 **완주** (2026-08-21 · PR #755~#764 · 소유 티켓 [BL-818])
 
 4차가 FE 축을 바닥까지 닫아(미도달 15 중 실질 후보 1건) **`apps/api` 차례**다.

@@ -1,0 +1,53 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe6-api-backtest",
+  "steps": [
+    {
+      "step": 0,
+      "name": "probe-and-skeleton",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/backtest/__tests__/api.test.ts",
+        "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-api-backtest --reporter=json --outputFile=coverage/fe6-api-backtest/results.json",
+        "python3 tools/harness/assert_fe.py apps/web/coverage/fe6-api-backtest --min-cases 6 --target src/features/backtest/api.ts --min-cov 15",
+        "git diff --quiet -- apps/web/src/features/backtest/api.ts"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "happy-paths",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/backtest/__tests__/api.test.ts",
+        "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-api-backtest --reporter=json --outputFile=coverage/fe6-api-backtest/results.json",
+        "python3 tools/harness/assert_fe.py apps/web/coverage/fe6-api-backtest --min-cases 17 --target src/features/backtest/api.ts --min-cov 55",
+        "git diff --quiet -- apps/web/src/features/backtest/api.ts"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "error-and-edges",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/backtest/__tests__/api.test.ts",
+        "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-api-backtest --reporter=json --outputFile=coverage/fe6-api-backtest/results.json",
+        "python3 tools/harness/assert_fe.py apps/web/coverage/fe6-api-backtest --min-cases 26 --target src/features/backtest/api.ts --min-cov 80",
+        "git diff --quiet -- apps/web/src/features/backtest/api.ts"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/backtest/__tests__/api.test.ts",
+        "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-api-backtest --reporter=json --outputFile=coverage/fe6-api-backtest/results.json",
+        "python3 tools/harness/assert_fe.py apps/web/coverage/fe6-api-backtest --min-cases 26 --target src/features/backtest/api.ts --min-cov 85",
+        "git diff --quiet -- apps/web/src/features/backtest/api.ts",
+        "cd apps/web && pnpm exec vitest run",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "cd apps/web && pnpm exec biome check src/features/backtest/__tests__/api.test.ts"
+      ]
+    }
+  ]
+}
