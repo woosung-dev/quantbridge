@@ -604,9 +604,16 @@ def run_parallel(args) -> int:
     if _git("rev-parse", "--verify", args.stage).returncode != 0:
         _log(f"stage 브랜치 생성: {args.stage}")
         _git("branch", args.stage, "main")
-    r = _git("push", "-u", "origin", args.stage)
-    if r.returncode != 0 and "up to date" not in (r.stderr + r.stdout):
-        sys.exit(f"ERROR: stage push 실패 — {r.stderr.strip()[:300]}")
+    # ★이미 원격과 같으면 push 하지 않는다 — 2026-08-22 실측: 올릴 ref 가 없는 push 는
+    #   pre-push 훅에 **stdin 을 주지 않고**, 훅은 그때 「현재 브랜치」로 폴백한다. 메인
+    #   체크아웃은 `main` 이므로(전제 검사가 그렇게 요구한다) 가드가 정당하게 거부한다.
+    #   즉 재시작 때마다 시작 자체가 막힌다. 비교로 push 를 건너뛰면 그 경로에 안 들어간다.
+    local = _git("rev-parse", args.stage).stdout.strip()
+    remote = _git("rev-parse", f"origin/{args.stage}").stdout.strip()
+    if local != remote:
+        r = _git("push", "-u", "origin", args.stage)
+        if r.returncode != 0 and "up to date" not in (r.stderr + r.stdout):
+            sys.exit(f"ERROR: stage push 실패 — {r.stderr.strip()[:300]}")
 
     wts = [_ensure_worktree(i + 1, args.stage) for i in range(args.parallel)]
     results = {lane: LaneResult(lane) for lane in lanes}
