@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "be5-dispatch-trio",
+  "steps": [
+    {
+      "step": 0,
+      "name": "dispatch-trio",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks/test_dispatch_contracts.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_dispatch_contracts.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks/test_backtest_task.py tests/tasks/test_beat_schedule.py -q",
+        "cd apps/api && uv run ruff check tests/tasks/test_dispatch_contracts.py && uv run ruff format --check tests/tasks/test_dispatch_contracts.py"
+      ]
+    }
+  ]
+}

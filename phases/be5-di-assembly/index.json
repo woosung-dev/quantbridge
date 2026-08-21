@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "be5-di-assembly",
+  "steps": [
+    {
+      "step": 0,
+      "name": "di-assembly",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_worker_di_assembly.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_worker_di_assembly.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
+        "cd apps/api && uv run ruff check tests/common/test_worker_di_assembly.py && uv run ruff format --check tests/common/test_worker_di_assembly.py"
+      ]
+    }
+  ]
+}

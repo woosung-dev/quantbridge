@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "be5-waitlist-services",
+  "steps": [
+    {
+      "step": 0,
+      "name": "waitlist-services",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/waitlist/test_waitlist_service_failures.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/waitlist/test_waitlist_service_failures.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
+        "cd apps/api && uv run --env-file .env.local pytest tests/waitlist -q",
+        "cd apps/api && uv run ruff check tests/waitlist/test_waitlist_service_failures.py && uv run ruff format --check tests/waitlist/test_waitlist_service_failures.py"
+      ]
+    }
+  ]
+}
