@@ -96,13 +96,13 @@ export default function MaintenancePage() {
             약속처럼 보이게 하지 않습니다.
           </p>
 
-          <div className="err-actions" role="group" aria-label="복구 동작">
+          <fieldset className="err-actions m-0 min-w-0" aria-label="복구 동작">
             <MaintenanceRetryButton />
             <Link className="btn" href="/">
               <HomeIcon aria-hidden="true" />
               홈으로
             </Link>
-          </div>
+          </fieldset>
 
           <p className="disclaimer">
             <InfoIcon />

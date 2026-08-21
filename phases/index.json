@@ -319,7 +319,8 @@
     },
     {
       "dir": "fe6-debt-app-tooling",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T05:18:54+0900"
     }
   ]
 }

@@ -1,5 +1,7 @@
 // Optimizer 목록 라우트 레벨 Suspense fallback — App Router 규약. C 셸(.page/.card/.sk) 정합.
 
+const OPTIMIZER_LINE_KEYS = ["line-1", "line-2", "line-3", "line-4", "line-5"];
+
 export default function OptimizerLoading() {
   return (
     <main className="page" aria-busy="true">
@@ -12,8 +14,8 @@ export default function OptimizerLoading() {
       <div className="section">
         <div className="card">
           <div className="card-body">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <span key={i} className="sk sk-line" style={{ width: "100%", height: 14 }} />
+            {OPTIMIZER_LINE_KEYS.map((key) => (
+              <span key={key} className="sk sk-line" style={{ width: "100%", height: 14 }} />
             ))}
           </div>
         </div>

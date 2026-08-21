@@ -1,6 +1,9 @@
 // 전략 리스트 라우트 레벨 Suspense fallback — C 디자인 언어(screen-06) 표 스켈레톤.
 // server prefetch 실패/스트리밍 지연 시 노출. 목록 컴포넌트의 .sk .sk-cell 골격과 같다.
 
+const STRATEGY_ROW_KEYS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"];
+const STRATEGY_CELL_KEYS = ["cell-1", "cell-2", "cell-3", "cell-4", "cell-5"];
+
 export default function StrategiesLoading() {
   return (
     <main className="page" aria-busy="true" aria-label="전략 목록 불러오는 중">
@@ -14,10 +17,10 @@ export default function StrategiesLoading() {
           <div className="table-wrap">
             <table className="trades runs-table">
               <tbody>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 5 }).map((__, j) => (
-                      <td key={j}>
+                {STRATEGY_ROW_KEYS.map((rowKey) => (
+                  <tr key={rowKey}>
+                    {STRATEGY_CELL_KEYS.map((cellKey) => (
+                      <td key={cellKey}>
                         <span className="sk sk-cell" />
                       </td>
                     ))}

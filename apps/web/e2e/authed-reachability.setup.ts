@@ -15,6 +15,6 @@ setup("authed 백엔드 도달성 확인", async ({ browser }) => {
     widths: [1440],
     contextOptions: { storageState: STORAGE_STATE },
   });
-  process.stdout.write(formatCanonResult(res) + "\n");
+  process.stdout.write(`${formatCanonResult(res)}\n`);
   assertAuthedReachability(res);
 });
