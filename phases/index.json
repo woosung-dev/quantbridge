@@ -212,7 +212,8 @@
     },
     {
       "dir": "be4-funding-task",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T14:11:54+0900"
     }
   ]
 }
