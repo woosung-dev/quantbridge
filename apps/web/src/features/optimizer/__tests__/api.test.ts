@@ -4,8 +4,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return { ...actual, apiFetch: apiFetchMock };
+});
 
+import { ApiError } from "@/lib/api-client";
 import {
   getOptimizationRun,
   listOptimizationRuns,
@@ -144,4 +148,81 @@ describe("optimizer api", () => {
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
+
+  it("postGeneticSearch는 ApiError의 status와 code를 감싸지 않고 그대로 전파한다", async () => {
+    const body = { ...REQUEST_BASE, kind: "genetic" as const };
+    const error = new ApiError(422, "invalid_param_space", "invalid parameter space");
+    apiFetchMock.mockRejectedValueOnce(error);
+
+    await expect(postGeneticSearch(body, TOKEN)).rejects.toBe(error);
+
+    expect(error).toMatchObject({ status: 422, code: "invalid_param_space" });
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/optimizer/runs/genetic", {
+      method: "POST",
+      token: TOKEN,
+      body: normalizedRequest("genetic"),
+    });
+  });
+
+  it("getOptimizationRun은 계약을 어긴 응답을 조용히 반환하지 않는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ id: RUN_ID });
+
+    await expect(getOptimizationRun(RUN_ID, TOKEN)).rejects.toThrow();
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("listOptimizationRuns는 backtest_id 없이 빈 첫 페이지와 total=0을 보존한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0, limit: 1, offset: 0 });
+
+    await expect(listOptimizationRuns({ limit: 1, offset: 0 }, null)).resolves.toEqual({
+      items: [],
+      total: 0,
+      limit: 1,
+      offset: 0,
+      skipped_count: 0,
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/optimizer/runs", {
+      method: "GET",
+      token: null,
+      params: { limit: 1, offset: 0 },
+    });
+  });
+
+  it("listOptimizationRuns는 outer 목록 계약 위반을 조용히 통과시키지 않는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: -1, limit: 1, offset: 0 });
+
+    await expect(listOptimizationRuns({ limit: 1, offset: 0 }, TOKEN)).rejects.toThrow();
+  });
+
+  it("listOptimizationRuns는 호환 불가 행만 건너뛰고 건너뛴 수를 노출한다", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    apiFetchMock.mockResolvedValueOnce({ items: [{ id: RUN_ID }], total: 1, limit: 1, offset: 0 });
+
+    await expect(listOptimizationRuns({ limit: 1, offset: 0 }, TOKEN)).resolves.toEqual({
+      items: [],
+      total: 1,
+      limit: 1,
+      offset: 0,
+      skipped_count: 1,
+    });
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+  });
+
+  it.each([0, -1])(
+    "postGridSearch는 max_evaluations=%i를 요청 전에 거절한다",
+    async (maxEvaluations) => {
+      const body = {
+        ...REQUEST_BASE,
+        kind: "grid_search" as const,
+        param_space: { ...REQUEST_BASE.param_space, max_evaluations: maxEvaluations },
+      };
+
+      await expect(postGridSearch(body, TOKEN)).rejects.toThrow();
+
+      expect(apiFetchMock).not.toHaveBeenCalled();
+    },
+  );
 });

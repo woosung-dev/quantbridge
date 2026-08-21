@@ -4,8 +4,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return { ...actual, apiFetch: apiFetchMock };
+});
 
+import { ApiError } from "@/lib/api-client";
 import {
   createStrategy,
   deleteStrategy,
@@ -41,6 +45,7 @@ function strategyResponse() {
 
 afterEach(() => {
   apiFetchMock.mockReset();
+  vi.unstubAllGlobals();
 });
 
 describe("strategy api", () => {
@@ -216,5 +221,56 @@ describe("strategy api", () => {
       body: { pine_source: "strategy('Parse me')" },
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("getStrategy는 ApiError의 status와 code를 감싸지 않고 그대로 전파한다", async () => {
+    const error = new ApiError(409, "strategy_in_use", "strategy is referenced");
+    apiFetchMock.mockRejectedValueOnce(error);
+
+    await expect(getStrategy(STRATEGY_ID, TOKEN)).rejects.toBe(error);
+
+    expect(error).toMatchObject({ status: 409, code: "strategy_in_use" });
+    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/strategies/${STRATEGY_ID}`, {
+      method: "GET",
+      token: TOKEN,
+    });
+  });
+
+  it("getStrategy는 계약을 어긴 응답을 조용히 반환하지 않는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ id: STRATEGY_ID });
+
+    await expect(getStrategy(STRATEGY_ID, TOKEN)).rejects.toThrow();
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("listStrategies는 선택 parse_status가 없으면 전송 URL에 undefined를 넣지 않는다", async () => {
+    const { apiFetch: actualApiFetch } =
+      await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ items: [], total: 0, page: 1, limit: 1, total_pages: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    apiFetchMock.mockImplementation(actualApiFetch);
+
+    await expect(
+      listStrategies({ limit: 1, offset: 0, parse_status: undefined }, TOKEN),
+    ).resolves.toMatchObject({ items: [], total: 0, page: 1 });
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).not.toContain("parse_status");
+    expect(url).not.toContain("undefined");
+  });
+
+  it.each([
+    [{ limit: 0, offset: 0 }, "0 limit"],
+    [{ limit: 1, offset: -1 }, "negative offset"],
+  ])("listStrategies는 %s에서 요청 전에 경계값을 거절한다", async (query) => {
+    await expect(listStrategies(query, TOKEN)).rejects.toThrow();
+
+    expect(apiFetchMock).not.toHaveBeenCalled();
   });
 });

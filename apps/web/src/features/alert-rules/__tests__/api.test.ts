@@ -4,8 +4,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return { ...actual, apiFetch: apiFetchMock };
+});
 
+import { ApiError } from "@/lib/api-client";
 import { createAlertRule, deactivateAlertRule, listAlertRules } from "../api";
 
 const TOKEN = "access-token";
@@ -74,5 +78,41 @@ describe("alert rules api", () => {
       },
     );
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("createAlertRule은 ApiError의 status와 code를 감싸지 않고 그대로 전파한다", async () => {
+    const request = {
+      rule_type: "loss_limit" as const,
+      threshold_percent: "5.5",
+      channel: "slack" as const,
+    };
+    const error = new ApiError(409, "alert_rule_conflict", "rule already exists");
+    apiFetchMock.mockRejectedValueOnce(error);
+
+    await expect(createAlertRule(SESSION_ID, request, TOKEN)).rejects.toBe(error);
+
+    expect(error).toMatchObject({ status: 409, code: "alert_rule_conflict" });
+    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/live-sessions/${SESSION_ID}/alert-rules`, {
+      method: "POST",
+      token: TOKEN,
+      body: request,
+    });
+  });
+
+  it("listAlertRules는 계약을 어긴 목록 응답을 조용히 반환하지 않는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [alertRuleResponse()], total: "1" });
+
+    await expect(listAlertRules(SESSION_ID, TOKEN)).rejects.toThrow();
+
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deactivateAlertRule은 204가 아닌 ApiError도 그대로 전파한다", async () => {
+    const error = new ApiError(404, "alert_rule_not_found", "rule not found");
+    apiFetchMock.mockRejectedValueOnce(error);
+
+    await expect(deactivateAlertRule(SESSION_ID, RULE_ID, TOKEN)).rejects.toBe(error);
+
+    expect(error).toMatchObject({ status: 404, code: "alert_rule_not_found" });
   });
 });
