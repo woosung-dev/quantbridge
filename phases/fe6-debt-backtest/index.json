@@ -41,7 +41,7 @@
     {
       "step": 3,
       "name": "array-index-key",
-      "status": "blocked",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents --only=suspicious/noArrayIndexKey --only=suspicious/noConsole src/features/backtest",
         "cd apps/web && pnpm exec vitest run src/features/backtest",
@@ -50,9 +50,8 @@
         "cd apps/web && pnpm exec biome check ."
       ],
       "started_at": "2026-08-22T04:57:09+0900",
-      "summary": "규칙군별 이번 step 고침/biome-ignore 표: suspicious/noArrayIndexKey 15/0 | a11y/noSvgWithoutTitle·useButtonType·noRedundantRoles·useSemanticElements·useAriaPropsSupportedByRole·noNoninteractiveTabindex·useKeyWithClickEvents 각 0/0 | style/useTemplate 0/0 | complexity/noUselessSwitchCase·noUselessFragments·useOptionalChain·useLiteralKeys 각 0/0 | suspicious/noConsole 0/0. 회귀 수정 없음: features/backtest 67파일·518테스트 통과. 동작 의심 자리: pageWindow의 내부 gap token을 leading/trailing 안정 key로 나눴으나 렌더되는 말줄임표와 페이지 동작은 동일. 전체 Vitest는 범위 밖 share-page.test.tsx의 직접 role 속성 기대 1건으로 실패; tsc·features/backtest Biome·전수 Biome은 통과.",
-      "blocked_reason": "AC 3 `pnpm exec vitest run`이 src/app/share/backtests/__tests__/share-page.test.tsx:77의 role=region 직접 속성 기대 1건으로 실패한다. SharePublicBanner는 이미 semantic <section>이라 implicit region role을 제공하지만, 테스트는 속성 자체를 요구한다. 해당 테스트는 담당 범위(src/features/backtest) 밖이므로 수정 권한이 필요하다.",
-      "blocked_at": "2026-08-22T05:03:19+0900"
+      "summary": "noArrayIndexKey 11건 + a11y/complexity 위반을 해소했다. step3 는 범위 밖 `app/share/backtests/__tests__/share-page.test.tsx:77` 이 `role=\"region\"` 을 **속성**으로 단언해 blocked 였고, CONTROL 이 그 단언을 계산된 role (`getByRole(\"region\", {name})`)로 바꿔 해소했다. AC 5종 전건 통과 — 전체 vitest 265파일 2,064테스트.",
+      "completed_at": "2026-08-22T05:35:00+09:00"
     }
   ],
   "created_at": "2026-08-22T04:44:55+0900"
