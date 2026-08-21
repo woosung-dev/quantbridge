@@ -5,13 +5,17 @@
     {
       "step": 0,
       "name": "query-client-policy",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm test -- --run 'src/components/providers/__tests__/query-provider.test.tsx'",
         "cd apps/web && test \"$(pnpm exec vitest list 'src/components/providers/__tests__/query-provider.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 7",
         "cd apps/web && pnpm exec eslint 'src/components/providers/__tests__/query-provider.test.tsx'",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-21T09:54:05+0900",
+      "summary": "QueryProvider 정책값 5종·브라우저 싱글톤·children·Devtools 양방향·AppProviders 배선을 11건으로 고정; 서버 갈래는 jsdom에서 도달 불가로 미검증.",
+      "completed_at": "2026-08-21T09:57:46+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T09:54:05+0900"
 }
