@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "probe-and-safe-rules",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles src/app src/__tests__ src/styles",
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles e2e scripts",
         "cd apps/web && pnpm exec vitest run src/app"
-      ]
+      ],
+      "started_at": "2026-08-22T05:07:09+0900",
+      "summary": "CONTROL 일치: app 5건(svg 장식 4, button 1), e2e·scripts 0건을 aria-hidden/type=button으로 해소; Biome 2.5.9는 --min-files 미지원이라 --max-diagnostics=1000으로 전수 측정.",
+      "completed_at": "2026-08-22T05:09:15+0900"
     },
     {
       "step": 1,
@@ -45,5 +48,6 @@
         "cd apps/web && pnpm exec biome check ."
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T05:07:09+0900"
 }
