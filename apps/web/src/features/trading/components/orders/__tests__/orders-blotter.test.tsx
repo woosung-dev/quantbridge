@@ -350,7 +350,7 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     fireEvent.click(screen.getByRole("button", { name: "CSV 내보내기" }));
 
     const csv = mockDownloadCsv.mock.calls[0]![1] as string;
-    const rows = csv.split("\n").map((line) => line.slice(1, -1).split('\",\"'));
+    const rows = csv.split("\n").map((line) => line.slice(1, -1).split('","'));
     const [header, ...dataRows] = rows;
     const sourceIndex = header!.indexOf("손익 출처");
     const filledQuantityIndex = header!.indexOf("체결 수량");
