@@ -15,7 +15,10 @@
 - NEVER — 환경 변수·API 키·시크릿을 코드에 하드코딩 (`SecretStr` 사용)
 - NEVER — Repository layer 밖에서 DB 접근 (`apps/api/AGENTS.md` §3)
 - NEVER — `.env.example` 에 없는 환경 변수를 코드에서 참조
-- NEVER — 사용자 승인 없는 `git push` / 배포 (main 직접 push 영구 차단)
+- NEVER — **main/master 직접 push** (영구 차단 · bypass 불가 · PR 경유 의무).
+  ★**작업 브랜치 push 와 `gh pr create` 는 승인 없이 해도 된다**(2026-08-22 사용자 결정) —
+  기계 집행 `.husky/pre-push` 도 처음부터 그렇게 돼 있었다(main/master 만 거부 ·
+  `stage|feat|fix|chore|docs|test|refactor|hotfix/*` 는 통과). 막고 있던 것은 이 문서였다
 - NEVER — LLM 생성 규칙 파일을 검토 없이 그대로 사용
 
 ## 개발 원칙
@@ -23,7 +26,8 @@
 - ALWAYS — 사고/계획/대화/문서/주석 = **한국어**, 코드 네이밍/커밋 메시지 = **영어**
 - ALWAYS — 코드 작성 전 「어떤 설계 문서 + 어떤 방향」 짧게 브리핑, 코드 수정 시 관련 문서 **동일 세션** 갱신
 - ALWAYS — 확인된 사실 / 추론(`[가정]`) / 확인 필요(`[확인 필요]`) 구분 표기
-- ALWAYS — 커밋/푸쉬/배포는 단계별 사용자 승인 (묶음 요청만 한 번에)
+- ALWAYS — **배포**는 단계별 사용자 승인. 커밋·작업 브랜치 push·PR 생성은 **승인 불요** —
+  거기서 멈추지 말고 PR 까지 올려라(2026-08-22). 승인이 필요한 나머지 = **실주문 · 남의 데이터 삭제**
 - ALWAYS — **green = 표준 러너 + CI 단일 게이트**([ADR-037](./docs/adr/037-harness-zero-base.md),
   2026-08-19 제로베이스). 로컬 pre-flight 의식 없음 — PR 을 올리면 CI(be: ruff+pytest / fe:
   **biome**+tsc+vitest+build)가 판정한다 — FE 는 **Biome 단독**이다. prettier·ESLint 는
