@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api.test.ts -a -f apps/web/src/features/optimizer/__tests__/api.test.ts -a -f apps/web/src/features/alert-rules/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=55",
         "git diff --quiet -- apps/web/src/features/strategy/api.ts apps/web/src/features/optimizer/api.ts apps/web/src/features/alert-rules/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:36:18+0900",
+      "summary": "정상 경로 10건을 추가해 16건 전부가 apiFetch 단일 mock에서 리터럴 URL·method·params/body·token·1회 호출·Zod 반환을 단언한다. Step 1은 Strategy[getStrategy, rotateWebhookSecret, updateStrategy, updateStrategySettings, deleteStrategy, parseStrategy]·Optimizer[getOptimizationRun, listOptimizationRuns]·Alert-rules[createAlertRule, deactivateAlertRule]를 덮었다. 실측: settings schema는 누락된 max_trigger_breach_pct/max_reversal_overshoot_ratio를 null로 보완하고, optimizer 목록은 valid item만 반환하며 skipped_count=0을 붙인다. 대상 소스 변경 0줄.",
+      "completed_at": "2026-08-22T03:40:03+0900"
     },
     {
       "step": 2,
