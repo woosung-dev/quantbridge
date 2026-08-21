@@ -221,7 +221,10 @@ function ScopeParity({
             />
           </div>
           {hasPartialDecomposition ? (
-            <p className="text-muted-foreground mt-1 text-xs" data-testid={`${scopeId}-waterfall-note`}>
+            <p
+              className="text-muted-foreground mt-1 text-xs"
+              data-testid={`${scopeId}-waterfall-note`}
+            >
               이 막대는 매칭 {scope.matched_count}건 중 {scope.decomposable_count}건만 반영합니다.
             </p>
           ) : null}
@@ -243,7 +246,9 @@ function ScopeParity({
                 </li>
                 <li className="flex items-center justify-between gap-3 border-t pt-2">
                   <span>+ 비용 (수수료·펀딩 등 잔차)</span>
-                  <span data-testid={`${scopeId}-waterfall-cost`}><DecimalValue value={scope.cost} /></span>
+                  <span data-testid={`${scopeId}-waterfall-cost`}>
+                    <DecimalValue value={scope.cost} />
+                  </span>
                 </li>
                 <li className="flex items-center justify-between gap-3 border-t pt-2 font-bold">
                   <span>= 거래소 확정 net (분해 가능분)</span>
@@ -357,9 +362,8 @@ function ScopeParity({
             size="sm"
             sub={
               <span className="break-words">
-                gross {scope.expected_only_gross}. 대기 {scope.expected_only_pending_count}건 ·
-                실패 {scope.expected_only_failed_count}건 · 발주{" "}
-                {scope.expected_only_dispatched_count}건
+                gross {scope.expected_only_gross}. 대기 {scope.expected_only_pending_count}건 · 실패{" "}
+                {scope.expected_only_failed_count}건 · 발주 {scope.expected_only_dispatched_count}건
               </span>
             }
             valueTestId={`${scopeId}-expected-only-count`}
@@ -391,9 +395,7 @@ function ScopeParity({
 
 function scopeHasOutsideCoverage(scope: OutcomeParityScope): boolean {
   return (
-    scope.expected_only_count > 0 ||
-    scope.actual_only_count > 0 ||
-    scope.ledger_only_count > 0
+    scope.expected_only_count > 0 || scope.actual_only_count > 0 || scope.ledger_only_count > 0
   );
 }
 

@@ -3,10 +3,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type {
-  BacktestMetricsOut,
-  TradeItem,
-} from "@/features/backtest/schemas";
+import type { BacktestMetricsOut, TradeItem } from "@/features/backtest/schemas";
 
 import { TradeAnalyticsSection } from "@/features/backtest/components/report/trade-analytics-section";
 
@@ -27,11 +24,7 @@ const METRICS = {
   avg_loss: -0.015,
 } as unknown as BacktestMetricsOut;
 
-function trade(
-  idx: number,
-  pnl: number,
-  direction: "long" | "short" = "long",
-): TradeItem {
+function trade(idx: number, pnl: number, direction: "long" | "short" = "long"): TradeItem {
   return {
     trade_index: idx,
     direction,

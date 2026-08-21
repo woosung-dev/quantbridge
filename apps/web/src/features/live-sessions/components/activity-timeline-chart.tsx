@@ -18,16 +18,10 @@ import { useMemo } from "react";
 
 import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
 
-import {
-  TradingChart,
-  type ChartPoint,
-} from "@/components/charts/trading-chart";
+import { TradingChart, type ChartPoint } from "@/components/charts/trading-chart";
 import type { LineSeriesPartialOptions } from "lightweight-charts";
 
-import type {
-  ActivityTimelinePoint,
-  ActivityTimelineWithEquityPoint,
-} from "../utils";
+import type { ActivityTimelinePoint, ActivityTimelineWithEquityPoint } from "../utils";
 
 // 2-pane 비율 (EquityChartV2 와 동일).
 const TOP_PANE_RATIO = 0.6;
@@ -70,9 +64,7 @@ const EQUITY_LINE_OPTIONS: LineSeriesPartialOptions = {
 
 interface ActivityTimelineChartProps {
   /** buildActivityTimeline / buildActivityTimelineWithEquity 결과. ascending 정렬됨. */
-  data:
-    | readonly ActivityTimelinePoint[]
-    | readonly ActivityTimelineWithEquityPoint[];
+  data: readonly ActivityTimelinePoint[] | readonly ActivityTimelineWithEquityPoint[];
   /** equity (cumulative_pnl) 표시 여부. true 면 bottom pane 노출. */
   showEquity: boolean;
   /** 전체 차트 높이 (top + bottom 합계). default 192 (recharts 시절 h-48). */
@@ -151,9 +143,7 @@ export function ActivityTimelineChart({
   // benchmark 슬롯 (closes) — 인라인 객체 대신 useMemo 로 identity 안정화.
   const benchmark = useMemo(
     () =>
-      closesData.length > 0
-        ? { data: closesData, options: CLOSES_BENCHMARK_OPTIONS }
-        : undefined,
+      closesData.length > 0 ? { data: closesData, options: CLOSES_BENCHMARK_OPTIONS } : undefined,
     [closesData],
   );
 
@@ -163,12 +153,8 @@ export function ActivityTimelineChart({
   }
 
   // 2-pane 또는 단일 pane.
-  const topHeight = showEquity
-    ? Math.round(height * TOP_PANE_RATIO)
-    : height;
-  const bottomHeight = showEquity
-    ? Math.round(height * BOTTOM_PANE_RATIO)
-    : 0;
+  const topHeight = showEquity ? Math.round(height * TOP_PANE_RATIO) : height;
+  const bottomHeight = showEquity ? Math.round(height * BOTTOM_PANE_RATIO) : 0;
 
   return (
     <div

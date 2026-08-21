@@ -68,15 +68,23 @@ describe("BacktestList 서버 정렬", () => {
   it("정렬 헤더 클릭은 order_by/order URL을 갱신하고 활성 th만 aria-sort를 가진다", () => {
     renderList();
 
-    expect(screen.getByRole("columnheader", { name: /실행 시각/ })).toHaveAttribute("aria-sort", "descending");
+    expect(screen.getByRole("columnheader", { name: /실행 시각/ })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
     fireEvent.click(screen.getByRole("button", { name: "수익률 기준 정렬" }));
     expect(replace).toHaveBeenCalledWith("/backtests?order_by=total_return&order=desc");
 
     cleanup();
     queryString = "order_by=total_return&order=desc";
     renderList();
-    expect(screen.getByRole("columnheader", { name: /수익률/ })).toHaveAttribute("aria-sort", "descending");
-    expect(screen.getByRole("columnheader", { name: /실행 시각/ })).not.toHaveAttribute("aria-sort");
+    expect(screen.getByRole("columnheader", { name: /수익률/ })).toHaveAttribute(
+      "aria-sort",
+      "descending",
+    );
+    expect(screen.getByRole("columnheader", { name: /실행 시각/ })).not.toHaveAttribute(
+      "aria-sort",
+    );
     fireEvent.click(screen.getByRole("button", { name: "수익률 기준 정렬" }));
     expect(replace).toHaveBeenLastCalledWith("/backtests?order_by=total_return&order=asc");
   });

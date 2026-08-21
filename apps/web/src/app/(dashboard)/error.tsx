@@ -18,9 +18,7 @@ export default function DashboardError({
 
   return (
     <div className="mx-auto flex max-w-[520px] flex-col items-start gap-4 px-6 py-12">
-      <h2 className="font-display text-xl font-bold">
-        대시보드를 불러오지 못했습니다
-      </h2>
+      <h2 className="font-display text-xl font-bold">대시보드를 불러오지 못했습니다</h2>
       <p className="text-sm text-[color:var(--text-secondary)]">
         네트워크 또는 인증 상태를 확인한 뒤 다시 시도해 주세요.
         {error.digest ? (

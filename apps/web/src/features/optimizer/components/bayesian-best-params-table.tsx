@@ -15,9 +15,7 @@ interface Props {
 export function BayesianBestParamsTable({ result }: Props) {
   const hasBest = result.best_iteration_idx !== null && result.best_params !== null;
   const degenerateRatio =
-    result.total_iterations > 0
-      ? (result.degenerate_count / result.total_iterations) * 100
-      : 0;
+    result.total_iterations > 0 ? (result.degenerate_count / result.total_iterations) * 100 : 0;
 
   return (
     <div className="space-y-2">
@@ -29,8 +27,8 @@ export function BayesianBestParamsTable({ result }: Props) {
             aria-label={`${result.total_iterations}회 중 ${result.degenerate_count}회가 축퇴 반복입니다.`}
           >
             <AlertTriangleIcon aria-hidden="true" />
-            축퇴 {result.degenerate_count} / {result.total_iterations} (
-            {degenerateRatio.toFixed(0)}%)
+            축퇴 {result.degenerate_count} / {result.total_iterations} ({degenerateRatio.toFixed(0)}
+            %)
           </span>
         ) : null}
       </div>

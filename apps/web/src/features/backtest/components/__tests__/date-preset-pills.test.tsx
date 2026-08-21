@@ -2,7 +2,10 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { DatePresetPills, calcDateRange } from "@/features/backtest/components/forms/date-preset-pills";
+import {
+  DatePresetPills,
+  calcDateRange,
+} from "@/features/backtest/components/forms/date-preset-pills";
 
 describe("DatePresetPills", () => {
   it("1Y 클릭 시 onSelect 가 1y 와 12개월 range 와 함께 호출됨", () => {
@@ -31,14 +34,8 @@ describe("DatePresetPills", () => {
     const onSelect = vi.fn();
     render(<DatePresetPills value="3m" onSelect={onSelect} />);
 
-    expect(screen.getByTestId("date-preset-3m")).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    expect(screen.getByTestId("date-preset-1m")).toHaveAttribute(
-      "aria-pressed",
-      "false",
-    );
+    expect(screen.getByTestId("date-preset-3m")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("date-preset-1m")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("커스텀 클릭 시 range=null 전달", () => {
@@ -56,9 +53,7 @@ describe("DatePresetPills", () => {
     render(<DatePresetPills value="6m" onSelect={onSelect} />);
 
     expect(screen.getByTestId("date-preset-6m").className).toContain("active");
-    expect(screen.getByTestId("date-preset-1m").className).not.toContain(
-      "active",
-    );
+    expect(screen.getByTestId("date-preset-1m").className).not.toContain("active");
   });
 
   it("calcDateRange — 1m 은 약 30일 range", () => {

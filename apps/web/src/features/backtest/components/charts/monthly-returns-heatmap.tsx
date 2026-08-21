@@ -36,8 +36,7 @@ export function MonthlyReturnsHeatmap({ data }: MonthlyReturnsHeatmapProps) {
   if (!grid || grid.years.length === 0) {
     return (
       <p className="text-sm text-[color:var(--text-muted)]">
-        월별 수익률 데이터가 없습니다 (이전 버전 백테스트 또는 1개월 미만
-        기간).
+        월별 수익률 데이터가 없습니다 (이전 버전 백테스트 또는 1개월 미만 기간).
       </p>
     );
   }
@@ -47,9 +46,7 @@ export function MonthlyReturnsHeatmap({ data }: MonthlyReturnsHeatmapProps) {
       <table className="border-collapse text-xs">
         <thead>
           <tr>
-            <th className="px-2 py-1 text-right text-[color:var(--text-muted)]">
-              {/* corner */}
-            </th>
+            <th className="px-2 py-1 text-right text-[color:var(--text-muted)]">{/* corner */}</th>
             {MONTH_LABELS.map((label) => (
               <th
                 key={label}
@@ -102,9 +99,7 @@ export function MonthlyReturnsHeatmap({ data }: MonthlyReturnsHeatmapProps) {
                       }
                       title={tooltipText}
                     >
-                      {value != null
-                        ? `${(value * 100).toFixed(1)}%`
-                        : "·"}
+                      {value != null ? `${(value * 100).toFixed(1)}%` : "·"}
                     </td>
                   );
                 })}
@@ -134,9 +129,7 @@ interface Grid {
   maxAbs: number;
 }
 
-function buildGrid(
-  data: MonthlyReturnsHeatmapProps["data"],
-): Grid | null {
+function buildGrid(data: MonthlyReturnsHeatmapProps["data"]): Grid | null {
   if (!data || data.length === 0) return null;
 
   const cells: Record<string, number> = {};

@@ -17,10 +17,7 @@ export interface ReturnBin {
  * 수익률 분포 histogram 버킷 (TV "수익 분포").
  * 등폭 버킷 — [min, max] 를 binCount 등분. 단일 값이면 1버킷.
  */
-export function binReturnDistribution(
-  returnsPct: readonly number[],
-  binCount = 10,
-): ReturnBin[] {
+export function binReturnDistribution(returnsPct: readonly number[], binCount = 10): ReturnBin[] {
   const finite = returnsPct.filter((v) => Number.isFinite(v));
   if (finite.length === 0 || binCount < 1) {
     return [];
@@ -125,9 +122,7 @@ export interface BuyAndHoldMetrics {
 }
 
 /** B&H 커브 → 수익률/MDD 파생 (TV "벤치마킹" 테이블). */
-export function deriveBuyAndHoldMetrics(
-  values: readonly number[],
-): BuyAndHoldMetrics | null {
+export function deriveBuyAndHoldMetrics(values: readonly number[]): BuyAndHoldMetrics | null {
   const base = values[0];
   const last = values[values.length - 1];
   if (

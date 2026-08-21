@@ -48,9 +48,7 @@ export function ExchangeAccountsPanel() {
       <div className="card-head">
         <div>
           <h3 className="card-title">거래소 계정</h3>
-          <p className="card-sub">
-            API 키는 AES-256 으로 암호화 저장되며 마스킹해 보여 줍니다.
-          </p>
+          <p className="card-sub">API 키는 AES-256 으로 암호화 저장되며 마스킹해 보여 줍니다.</p>
         </div>
         <div className="chart-head-actions">
           <RegisterExchangeAccountDialog />
@@ -59,11 +57,7 @@ export function ExchangeAccountsPanel() {
 
       {isLoading || (!data && !isError) ? (
         <div className="card-body">
-          <div
-            className="sk"
-            style={{ height: 80 }}
-            aria-label="거래소 계정 불러오는 중"
-          />
+          <div className="sk" style={{ height: 80 }} aria-label="거래소 계정 불러오는 중" />
         </div>
       ) : isError ? (
         <div className="card-body">

@@ -20,11 +20,7 @@ interface TradeRangeChartProps {
   trade: TradeItem;
 }
 
-export function TradeRangeChart({
-  backtestId,
-  tradeIndex,
-  trade,
-}: TradeRangeChartProps) {
+export function TradeRangeChart({ backtestId, tradeIndex, trade }: TradeRangeChartProps) {
   const ohlcv = useTradeOhlcv(backtestId, tradeIndex, { enabled: true });
 
   // TradingChart 는 data/markers/options 참조 안정성을 요구한다(그 doc-comment). 인라인 생성 시
@@ -86,14 +82,14 @@ export function TradeRangeChart({
 
   const entryTime = formatDateTime(data.entry_time);
   const entryPrice = formatCurrency(trade.entry_price);
-  const ariaLabel = data.exit_time && trade.exit_price !== null
-    ? `${trade.trade_index}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입해 ${formatDateTime(data.exit_time)}에 ${formatCurrency(trade.exit_price)}에 청산했습니다.`
-    : `${trade.trade_index}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입한 뒤 아직 청산하지 않았습니다.`;
+  const ariaLabel =
+    data.exit_time && trade.exit_price !== null
+      ? `${trade.trade_index}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입해 ${formatDateTime(data.exit_time)}에 ${formatCurrency(trade.exit_price)}에 청산했습니다.`
+      : `${trade.trade_index}번 거래 구간의 ${data.timeframe} 봉 가격 차트. ${entryTime}에 ${entryPrice}에 진입한 뒤 아직 청산하지 않았습니다.`;
   // 청산된 거래는 보유 봉 수, 미청산(open) 거래는 bars_in_trade 가 null 이므로 "보유 중" 으로 표기.
-  const holdLabel = trade.bars_in_trade != null ? `보유 ${trade.bars_in_trade}봉` : "미청산(보유 중)";
-  const samplingNote = data.stride > 1
-    ? ` ${data.stride}봉 간격으로 표본을 표시했습니다.`
-    : "";
+  const holdLabel =
+    trade.bars_in_trade != null ? `보유 ${trade.bars_in_trade}봉` : "미청산(보유 중)";
+  const samplingNote = data.stride > 1 ? ` ${data.stride}봉 간격으로 표본을 표시했습니다.` : "";
 
   return (
     <section className="card" data-testid="trade-range-chart">

@@ -7,10 +7,7 @@
 
 import { useMemo } from "react";
 
-import {
-  OBJECTIVE_DIRECTION_LABEL,
-  OBJECTIVE_METRIC_LABEL,
-} from "@/features/optimizer/labels";
+import { OBJECTIVE_DIRECTION_LABEL, OBJECTIVE_METRIC_LABEL } from "@/features/optimizer/labels";
 import { formatObjectiveValue } from "@/features/optimizer/format";
 import type { BayesianSearchResult } from "@/features/optimizer/schemas";
 
@@ -63,8 +60,7 @@ export function BayesianIterationChart({ result }: Props) {
   const yRange = yMax - yMin || 1;
 
   const xScale = (x: number) => PAD + (x / Math.max(xMax, 1)) * (W - 2 * PAD);
-  const yScale = (y: number) =>
-    H - PAD - ((y - yMin) / yRange) * (H - 2 * PAD);
+  const yScale = (y: number) => H - PAD - ((y - yMin) / yRange) * (H - 2 * PAD);
 
   const linePath = data
     .map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(d.idx)} ${yScale(d.bestSoFar)}`)
@@ -99,13 +95,29 @@ export function BayesianIterationChart({ result }: Props) {
         </span>
       </div>
       {/* 범례 — 페이즈는 색이 아니라 모양(중공/채움)으로 구분한다 (DESIGN.md §9). */}
-      <p className="card-sub" style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 0 }}>
+      <p
+        className="card-sub"
+        style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 0 }}
+      >
         <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden="true">
           {/* 범례는 카드(--card) 위라 중공 fill 도 --card — 차트 내부 점(--bg 배경)과 배경이 다르다 */}
-          <circle cx="6" cy="6" r="3.5" fill="var(--card)" stroke="var(--copper)" strokeWidth={1.5} />
+          <circle
+            cx="6"
+            cy="6"
+            r="3.5"
+            fill="var(--card)"
+            stroke="var(--copper)"
+            strokeWidth={1.5}
+          />
         </svg>
         초기 랜덤 (중공)
-        <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden="true" style={{ marginLeft: 8 }}>
+        <svg
+          width={12}
+          height={12}
+          viewBox="0 0 12 12"
+          aria-hidden="true"
+          style={{ marginLeft: 8 }}
+        >
           <circle cx="6" cy="6" r="3.5" fill="var(--copper)" />
         </svg>
         획득 함수 (채움)
@@ -148,12 +160,7 @@ export function BayesianIterationChart({ result }: Props) {
             </>
           )}
           {/* line */}
-          <path
-            d={linePath}
-            fill="none"
-            stroke="var(--copper)"
-            strokeWidth={2}
-          />
+          <path d={linePath} fill="none" stroke="var(--copper)" strokeWidth={2} />
           {/* points — random 페이즈는 중공 원, acquisition 은 채움 원 (모양으로 구분, §9).
               최적 반복은 채움 + 반지름 확대(r=4)로 색·크기 이중 표시. */}
           {data.map((d) => {
@@ -174,10 +181,16 @@ export function BayesianIterationChart({ result }: Props) {
           })}
           {/* y axis labels — 목표값 단위 SSOT (ratio 지표는 %, sharpe 는 소수 3자리 유지). */}
           <text x={4} y={PAD + 4} fontSize={10} fill="var(--ink-3)" className="mono">
-            {formatObjectiveValue(result.objective_metric, yMax, { percentDigits: 1, plainDigits: 3 })}
+            {formatObjectiveValue(result.objective_metric, yMax, {
+              percentDigits: 1,
+              plainDigits: 3,
+            })}
           </text>
           <text x={4} y={H - PAD + 4} fontSize={10} fill="var(--ink-3)" className="mono">
-            {formatObjectiveValue(result.objective_metric, yMin, { percentDigits: 1, plainDigits: 3 })}
+            {formatObjectiveValue(result.objective_metric, yMin, {
+              percentDigits: 1,
+              plainDigits: 3,
+            })}
           </text>
           {/* x axis labels */}
           <text x={PAD} y={H - 8} fontSize={10} fill="var(--ink-3)" className="mono">

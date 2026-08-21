@@ -94,9 +94,7 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
           return route.fulfill({
             status: 422,
             contentType: "application/json",
-            body: JSON.stringify(
-              makeUnsupported422(["heikinashi", "request.security"]),
-            ),
+            body: JSON.stringify(makeUnsupported422(["heikinashi", "request.security"])),
           });
         }
         return fulfillJson(
@@ -161,21 +159,15 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
   // 로 transition trigger (mock 응답 swap 후 강제 fetch). 각 단계마다 InProgressCard
   // 의 라벨 또는 chart 가 visible 한지 검증.
   // ─────────────────────────────────────────────────────────────────────────
-  test("#2 Backtest polling — queued → running → completed transitions", async ({
-    page,
-  }) => {
+  test("#2 Backtest polling — queued → running → completed transitions", async ({ page }) => {
     // Phase 1: queued.
     await page.route(API_ROUTES.backtests, (route, request) => {
       const url = request.url();
       if (url.includes(`/backtests/${BACKTEST_ID}/progress`)) {
-        return fulfillJson(
-          makeBacktestProgress({ id: BACKTEST_ID, status: "queued" }),
-        )(route);
+        return fulfillJson(makeBacktestProgress({ id: BACKTEST_ID, status: "queued" }))(route);
       }
       if (url.includes(`/backtests/${BACKTEST_ID}/trades`)) {
-        return fulfillJson({ items: [], total: 0, limit: 200, offset: 0 })(
-          route,
-        );
+        return fulfillJson({ items: [], total: 0, limit: 200, offset: 0 })(route);
       }
       if (url.includes(`/backtests/${BACKTEST_ID}`)) {
         return fulfillJson(
@@ -192,23 +184,19 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
     await page.goto(`/backtests/${BACKTEST_ID}`, { timeout: 60_000 });
     // C 이식: InProgressCard 안내 문구가 "{label}입니다. … 30초 간격으로 다시 확인합니다." 로
     // 재작성됨(queued label="대기"). 30초 폴링 안내 + 대기 상태 표지 검증 의도 유지.
-    await expect(
-      page.getByText(/대기입니다.*30초 간격으로 다시 확인/),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/대기입니다.*30초 간격으로 다시 확인/)).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Phase 2: running. mock swap + reload (refetchInterval 30s 우회).
     await page.unroute(API_ROUTES.backtests);
     await page.route(API_ROUTES.backtests, (route, request) => {
       const url = request.url();
       if (url.includes(`/backtests/${BACKTEST_ID}/progress`)) {
-        return fulfillJson(
-          makeBacktestProgress({ id: BACKTEST_ID, status: "running" }),
-        )(route);
+        return fulfillJson(makeBacktestProgress({ id: BACKTEST_ID, status: "running" }))(route);
       }
       if (url.includes(`/backtests/${BACKTEST_ID}/trades`)) {
-        return fulfillJson({ items: [], total: 0, limit: 200, offset: 0 })(
-          route,
-        );
+        return fulfillJson({ items: [], total: 0, limit: 200, offset: 0 })(route);
       }
       if (url.includes(`/backtests/${BACKTEST_ID}`)) {
         return fulfillJson(
@@ -223,23 +211,19 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
     });
 
     await page.reload({ timeout: 60_000 });
-    await expect(
-      page.getByText(/실행 중입니다.*30초 간격으로 다시 확인/),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/실행 중입니다.*30초 간격으로 다시 확인/)).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Phase 3: completed + metrics + equity_curve → chart shell + tabs visible.
     await page.unroute(API_ROUTES.backtests);
     await page.route(API_ROUTES.backtests, (route, request) => {
       const url = request.url();
       if (url.includes(`/backtests/${BACKTEST_ID}/progress`)) {
-        return fulfillJson(
-          makeBacktestProgress({ id: BACKTEST_ID, status: "completed" }),
-        )(route);
+        return fulfillJson(makeBacktestProgress({ id: BACKTEST_ID, status: "completed" }))(route);
       }
       if (url.includes(`/backtests/${BACKTEST_ID}/trades`)) {
-        return fulfillJson({ items: [], total: 0, limit: 200, offset: 0 })(
-          route,
-        );
+        return fulfillJson({ items: [], total: 0, limit: 200, offset: 0 })(route);
       }
       if (url.includes(`/backtests/${BACKTEST_ID}`)) {
         return fulfillJson(
@@ -275,9 +259,7 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
   // 본 테스트는 in-app share button 상태 머신만 검증. 공개 페이지 410/404 는
   // share-page.test.tsx (vitest) 가 이미 커버.
   // ─────────────────────────────────────────────────────────────────────────
-  test("#3 Backtest share button — create → 공유 중 → revoke → 공유 복원", async ({
-    page,
-  }) => {
+  test("#3 Backtest share button — create → 공유 중 → revoke → 공유 복원", async ({ page }) => {
     const shareToken = "share-46-w2-token";
 
     await page.route(API_ROUTES.backtests, (route, request) => {
@@ -287,21 +269,14 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
       if (url.includes(`/backtests/${BACKTEST_ID}/share`) && method === "POST") {
         return fulfillJson(makeShareToken(BACKTEST_ID, shareToken))(route);
       }
-      if (
-        url.includes(`/backtests/${BACKTEST_ID}/share`) &&
-        method === "DELETE"
-      ) {
+      if (url.includes(`/backtests/${BACKTEST_ID}/share`) && method === "DELETE") {
         return route.fulfill({ status: 204, body: "" });
       }
       if (url.includes(`/backtests/${BACKTEST_ID}/progress`)) {
-        return fulfillJson(
-          makeBacktestProgress({ id: BACKTEST_ID, status: "completed" }),
-        )(route);
+        return fulfillJson(makeBacktestProgress({ id: BACKTEST_ID, status: "completed" }))(route);
       }
       if (url.includes(`/backtests/${BACKTEST_ID}/trades`)) {
-        return fulfillJson({ items: [], total: 0, limit: 200, offset: 0 })(
-          route,
-        );
+        return fulfillJson({ items: [], total: 0, limit: 200, offset: 0 })(route);
       }
       if (url.includes(`/backtests/${BACKTEST_ID}`)) {
         return fulfillJson(
@@ -365,10 +340,7 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
         total_pages: 1,
       }),
     );
-    await page.route(
-      API_ROUTES.exchangeAccounts,
-      fulfillJson({ items: [MOCK_DEMO_ACCOUNT] }),
-    );
+    await page.route(API_ROUTES.exchangeAccounts, fulfillJson({ items: [MOCK_DEMO_ACCOUNT] }));
     await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [] }));
     await page.route(API_ROUTES.orders, fulfillJson({ items: [], total: 0 }));
 
@@ -394,38 +366,33 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
     // state 응답 swap-able — 초기 closed=2.
     let stateClosed = 2;
     let statePnl = "100";
-    await page.route(
-      `**/api/v1/live-sessions/${LIVE_SESSION_ID}/state**`,
-      (route) => {
-        return fulfillJson(
-          makeLiveSessionState({
-            sessionId: LIVE_SESSION_ID,
-            closedTrades: stateClosed,
-            realizedPnl: statePnl,
-          }),
-        )(route);
-      },
-    );
+    await page.route(`**/api/v1/live-sessions/${LIVE_SESSION_ID}/state**`, (route) => {
+      return fulfillJson(
+        makeLiveSessionState({
+          sessionId: LIVE_SESSION_ID,
+          closedTrades: stateClosed,
+          realizedPnl: statePnl,
+        }),
+      )(route);
+    });
 
     await page.goto("/trading?tab=live-sessions", { timeout: 60_000 });
 
     // 활성 세션 list 의 select button 클릭 — symbol 텍스트 매칭.
-    await expect(page.getByTestId(`live-session-${LIVE_SESSION_ID}`)).toBeVisible(
-      { timeout: 30_000 },
-    );
+    await expect(page.getByTestId(`live-session-${LIVE_SESSION_ID}`)).toBeVisible({
+      timeout: 30_000,
+    });
     await page
       .getByTestId(`live-session-${LIVE_SESSION_ID}`)
       .getByRole("button", { name: /BTCUSDT/ })
       .click();
 
     // detail panel mount — 초기 closed=2 / pnl=100.
+    await expect(page.getByTestId(`live-session-detail-${LIVE_SESSION_ID}`)).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(
-      page.getByTestId(`live-session-detail-${LIVE_SESSION_ID}`),
-    ).toBeVisible({ timeout: 15_000 });
-    await expect(
-      page
-        .getByTestId(`live-session-detail-${LIVE_SESSION_ID}`)
-        .getByText("2", { exact: true }),
+      page.getByTestId(`live-session-detail-${LIVE_SESSION_ID}`).getByText("2", { exact: true }),
     ).toBeVisible();
 
     // mock swap — 다음 polling tick 부터 closed=5 / pnl=200.
@@ -434,9 +401,7 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
 
     // 5s polling tick (LIVE_SESSION_STATE_REFETCH_ACTIVE_MS) + 1s margin.
     await expect(
-      page
-        .getByTestId(`live-session-detail-${LIVE_SESSION_ID}`)
-        .getByText("5", { exact: true }),
+      page.getByTestId(`live-session-detail-${LIVE_SESSION_ID}`).getByText("5", { exact: true }),
     ).toBeVisible({ timeout: 8_000 });
   });
 
@@ -475,10 +440,7 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
     ];
 
     await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [] }));
-    await page.route(
-      API_ROUTES.exchangeAccounts,
-      fulfillJson({ items: [MOCK_DEMO_ACCOUNT] }),
-    );
+    await page.route(API_ROUTES.exchangeAccounts, fulfillJson({ items: [MOCK_DEMO_ACCOUNT] }));
     await page.route(API_ROUTES.strategies, (route, request) => {
       if (request.method() === "GET") {
         return fulfillJson({
@@ -547,21 +509,17 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
     await page.goto("/trading", { timeout: 60_000 });
 
     // 테스트 주문 button → dialog open.
-    await page
-      .getByRole("button", { name: /^테스트 주문$/ })
-      .dispatchEvent("click");
-    await expect(
-      page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" }),
-    ).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: /^테스트 주문$/ }).dispatchEvent("click");
+    await expect(page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // 전략/계정/수량 select — C 이식 코크핏에는 nav "전략" 링크 + 라이브 세션 폼의 전략/계정
     // trigger 도 있어 getByLabel 이 전역에서 다중 매칭된다. 다이얼로그로 scope 한다.
     // (옵션 listbox 는 포털이라 page 레벨 getByRole("option") 유지.)
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("전략").click();
-    await page
-      .getByRole("option", { name: STRATEGY_DETAIL.name })
-      .click();
+    await page.getByRole("option", { name: STRATEGY_DETAIL.name }).click();
 
     // 거래소 계정 select — getByRole("option").first() 는 방금 닫힌 전략 listbox 의 숨은
     // option 을 잡을 수 있어(hidden), 계정 option 을 식별 텍스트(라벨 "Bybit Demo")로 지정한다.
@@ -575,9 +533,9 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
     await page.getByRole("button", { name: /^발송$/ }).click();
 
     // dialog 닫힘 + sonner toast 성공.
-    await expect(
-      page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" }),
-    ).toBeHidden({ timeout: 15_000 });
+    await expect(page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" })).toBeHidden({
+      timeout: 15_000,
+    });
 
     // HMAC token 64자 hex (SHA-256 hexdigest) 검증.
     expect(capturedHmacToken, "HMAC token query param").not.toBeNull();

@@ -50,12 +50,7 @@ export interface DatePresetPillsProps {
 
 export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
   return (
-    <div
-      className="tabs"
-      role="group"
-      aria-label="기간 프리셋"
-      data-testid="date-preset-pills"
-    >
+    <div className="tabs" role="group" aria-label="기간 프리셋" data-testid="date-preset-pills">
       {PRESETS.map((p) => {
         const isActive = value === p.key;
         return (

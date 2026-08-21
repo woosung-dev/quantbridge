@@ -23,7 +23,10 @@ export function DetailSkeleton() {
           {Array.from({ length: 4 }).map((_, i) => (
             <article key={i} className="card kpi">
               <span className="sk" style={{ display: "block", width: 88, height: 12 }} />
-              <span className="sk" style={{ display: "block", width: 120, height: 30, marginTop: 12 }} />
+              <span
+                className="sk"
+                style={{ display: "block", width: 120, height: 30, marginTop: 12 }}
+              />
             </article>
           ))}
         </div>

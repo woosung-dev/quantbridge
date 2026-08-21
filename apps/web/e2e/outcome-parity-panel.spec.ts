@@ -49,10 +49,7 @@ async function mockTradingPage(page: Page, parity: unknown = MOCK_OUTCOME_PARITY
     `**/api/v1/live-sessions/${SESSION_ID}/alert-rules**`,
     fulfillJson({ items: [], total: 0 }),
   );
-  await page.route(
-    `**/api/v1/live-sessions/${SESSION_ID}/outcome-parity**`,
-    fulfillJson(parity),
-  );
+  await page.route(`**/api/v1/live-sessions/${SESSION_ID}/outcome-parity**`, fulfillJson(parity));
 
   await page.route(API_ROUTES.liveSessions, (route, request) => {
     const url = request.url();

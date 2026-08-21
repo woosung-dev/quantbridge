@@ -27,14 +27,12 @@ import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 const FormSchema = z
   .object({
     ...makeOptimizerFormBaseFields(100), // BL-237: 50→100
-    population_size: z
-      .coerce
+    population_size: z.coerce
       .number()
       .int("개체군 크기는 정수여야 합니다.")
       .min(2, "개체군 크기는 2 이상이어야 합니다.")
       .max(200, "개체군 크기는 200 이하여야 합니다."),
-    n_generations: z
-      .coerce
+    n_generations: z.coerce
       .number()
       .int("세대 수는 정수여야 합니다.")
       .min(1, "세대 수는 1 이상이어야 합니다.")
@@ -42,9 +40,7 @@ const FormSchema = z
     mutation_rate: z.string().min(1, "돌연변이율을 입력하세요."),
     crossover_rate: z.string().min(1, "교차율을 입력하세요."),
     // Sprint 57 BL-234: roulette selection method enum.
-    genetic_selection_method: z
-      .enum(["tournament", "roulette"])
-      .default("tournament"),
+    genetic_selection_method: z.enum(["tournament", "roulette"]).default("tournament"),
     parameters: makeParametersArraySchema(GeneticRowSchema),
   })
   .superRefine((values, ctx) => {

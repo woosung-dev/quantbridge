@@ -47,10 +47,7 @@ export async function listStrategies(
   return StrategyListResponseSchema.parse(raw);
 }
 
-export async function getStrategy(
-  id: string,
-  token: string | null,
-): Promise<StrategyResponse> {
+export async function getStrategy(id: string, token: string | null): Promise<StrategyResponse> {
   const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${id}`, {
     method: "GET",
     token,
@@ -79,13 +76,10 @@ export async function rotateWebhookSecret(
   strategyId: string,
   token: string | null,
 ): Promise<WebhookRotateResponse> {
-  const raw = await apiFetch<unknown>(
-    `${STRATEGIES_PATH}/${strategyId}/rotate-webhook-secret`,
-    {
-      method: "POST",
-      token,
-    },
-  );
+  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${strategyId}/rotate-webhook-secret`, {
+    method: "POST",
+    token,
+  });
   return WebhookRotateResponseSchema.parse(raw);
 }
 
@@ -118,10 +112,7 @@ export async function updateStrategySettings(
   return StrategyResponseSchema.parse(raw);
 }
 
-export async function deleteStrategy(
-  id: string,
-  token: string | null,
-): Promise<void> {
+export async function deleteStrategy(id: string, token: string | null): Promise<void> {
   await apiFetch<void>(`${STRATEGIES_PATH}/${id}`, {
     method: "DELETE",
     token,

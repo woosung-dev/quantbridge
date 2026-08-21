@@ -18,9 +18,7 @@ describe("RunupDrawdownSection", () => {
   it("excursion_stats null (구 백테스트) → 잠금 empty state + 재실행 안내", () => {
     render(<RunupDrawdownSection metrics={BASE} initialCapital={10000} />);
     expect(screen.getByTestId("runup-drawdown-locked")).toBeInTheDocument();
-    expect(
-      screen.getByText("런업/드로다운 통계가 없는 구 백테스트입니다"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("런업/드로다운 통계가 없는 구 백테스트입니다")).toBeInTheDocument();
   });
 
   it("팩 존재 시 오버뷰 KPI + 서브탭 3 렌더, 인트라바 근사 라벨 명시", () => {

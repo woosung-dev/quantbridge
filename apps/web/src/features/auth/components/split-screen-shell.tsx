@@ -32,13 +32,7 @@ const MODE_COPY: Record<SplitMode, ModeCopy> = {
   },
 };
 
-export function SplitScreenShell({
-  mode,
-  children,
-}: {
-  mode: SplitMode;
-  children: ReactNode;
-}) {
+export function SplitScreenShell({ mode, children }: { mode: SplitMode; children: ReactNode }) {
   const copy = MODE_COPY[mode];
 
   return (

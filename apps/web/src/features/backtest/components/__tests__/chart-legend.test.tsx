@@ -39,15 +39,9 @@ describe("ChartLegend (Sprint 32-B BL-169)", () => {
   it("each legend item has descriptive aria-label for accessibility", () => {
     render(<ChartLegend />);
 
-    expect(
-      screen.getByLabelText("Equity (자본 곡선): 실선 코퍼"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Buy & Hold 벤치마크: 점선 파란색"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByLabelText("Drawdown (손실 폭): 빨간 영역"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Equity (자본 곡선): 실선 코퍼")).toBeInTheDocument();
+    expect(screen.getByLabelText("Buy & Hold 벤치마크: 점선 파란색")).toBeInTheDocument();
+    expect(screen.getByLabelText("Drawdown (손실 폭): 빨간 영역")).toBeInTheDocument();
   });
 
   it("accepts custom className", () => {

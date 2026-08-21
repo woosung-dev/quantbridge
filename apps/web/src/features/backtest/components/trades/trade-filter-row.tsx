@@ -4,11 +4,7 @@
 "use client";
 
 import { TRADE_DIRECTION_LABEL } from "@/features/backtest/labels";
-import type {
-  TradeFilters,
-  TradeSortDir,
-  TradeSortField,
-} from "@/features/backtest/utils";
+import type { TradeFilters, TradeSortDir, TradeSortField } from "@/features/backtest/utils";
 
 export interface ExtendedTradeFilters extends TradeFilters {
   /** 텍스트 검색어 (trade_index 또는 direction match). 빈 문자열 = no filter. */
@@ -77,23 +73,14 @@ export function TradeFilterRow({
   activeCount,
   onReset,
 }: TradeFilterRowProps) {
-  const update = <K extends keyof ExtendedTradeFilters>(
-    key: K,
-    value: ExtendedTradeFilters[K],
-  ) => {
+  const update = <K extends keyof ExtendedTradeFilters>(key: K, value: ExtendedTradeFilters[K]) => {
     onFiltersChange({ ...filters, [key]: value });
   };
 
-  const sortValue =
-    `${sortField}:${sortDir}` as `${TradeSortField}:${TradeSortDir}`;
+  const sortValue = `${sortField}:${sortDir}` as `${TradeSortField}:${TradeSortDir}`;
 
   return (
-    <div
-      className="toolbar"
-      role="group"
-      aria-label="거래 필터"
-      data-testid="trade-filter-row"
-    >
+    <div className="toolbar" role="group" aria-label="거래 필터" data-testid="trade-filter-row">
       {/* 1. 검색 */}
       <input
         className="input"
@@ -109,9 +96,7 @@ export function TradeFilterRow({
         className="select"
         aria-label="방향 필터"
         value={filters.direction}
-        onChange={(e) =>
-          update("direction", e.target.value as TradeFilters["direction"])
-        }
+        onChange={(e) => update("direction", e.target.value as TradeFilters["direction"])}
       >
         {DIRECTION_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
@@ -125,9 +110,7 @@ export function TradeFilterRow({
         className="select"
         aria-label="결과 필터"
         value={filters.result}
-        onChange={(e) =>
-          update("result", e.target.value as TradeFilters["result"])
-        }
+        onChange={(e) => update("result", e.target.value as TradeFilters["result"])}
       >
         {RESULT_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>
@@ -164,10 +147,7 @@ export function TradeFilterRow({
         placeholder="PnL≥"
         value={filters.pnlMinPct === null ? "" : filters.pnlMinPct}
         onChange={(e) =>
-          update(
-            "pnlMinPct",
-            e.target.value === "" ? null : Number.parseFloat(e.target.value),
-          )
+          update("pnlMinPct", e.target.value === "" ? null : Number.parseFloat(e.target.value))
         }
       />
       <span aria-hidden className="filter-sep">
@@ -181,10 +161,7 @@ export function TradeFilterRow({
         placeholder="≤PnL"
         value={filters.pnlMaxPct === null ? "" : filters.pnlMaxPct}
         onChange={(e) =>
-          update(
-            "pnlMaxPct",
-            e.target.value === "" ? null : Number.parseFloat(e.target.value),
-          )
+          update("pnlMaxPct", e.target.value === "" ? null : Number.parseFloat(e.target.value))
         }
       />
 
@@ -194,10 +171,7 @@ export function TradeFilterRow({
         aria-label="정렬"
         value={sortValue}
         onChange={(e) => {
-          const [f, d] = e.target.value.split(":") as [
-            TradeSortField,
-            TradeSortDir,
-          ];
+          const [f, d] = e.target.value.split(":") as [TradeSortField, TradeSortDir];
           onSortChange(f, d);
         }}
       >
@@ -214,11 +188,7 @@ export function TradeFilterRow({
           <span className="chip accent" aria-label={`활성 필터 ${activeCount}개`}>
             필터 {activeCount}개
           </span>
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs"
-            onClick={onReset}
-          >
+          <button type="button" className="btn btn-ghost btn-xs" onClick={onReset}>
             초기화
           </button>
         </>

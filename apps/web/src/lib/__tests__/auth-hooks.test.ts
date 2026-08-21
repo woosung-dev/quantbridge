@@ -42,7 +42,10 @@ describe("auth database hooks", () => {
 
   it("rejects signups from a restricted Cloudflare country", async () => {
     await expect(
-      createBefore({ email: "blocked@example.com" }, { headers: new Headers({ "cf-ipcountry": "US" }) }),
+      createBefore(
+        { email: "blocked@example.com" },
+        { headers: new Headers({ "cf-ipcountry": "US" }) },
+      ),
     ).rejects.toMatchObject({
       status: "FORBIDDEN",
       body: { code: "GEO_BLOCKED_COUNTRY" },
@@ -51,7 +54,10 @@ describe("auth database hooks", () => {
 
   it("normalizes lowercase Cloudflare country codes before blocking", async () => {
     await expect(
-      createBefore({ email: "blocked@example.com" }, { headers: new Headers({ "cf-ipcountry": "us" }) }),
+      createBefore(
+        { email: "blocked@example.com" },
+        { headers: new Headers({ "cf-ipcountry": "us" }) },
+      ),
     ).rejects.toMatchObject({
       status: "FORBIDDEN",
       body: { code: "GEO_BLOCKED_COUNTRY" },
@@ -60,7 +66,10 @@ describe("auth database hooks", () => {
 
   it("trims Cloudflare country codes before blocking", async () => {
     await expect(
-      createBefore({ email: "blocked@example.com" }, { headers: new Headers({ "cf-ipcountry": " US " }) }),
+      createBefore(
+        { email: "blocked@example.com" },
+        { headers: new Headers({ "cf-ipcountry": " US " }) },
+      ),
     ).rejects.toMatchObject({
       status: "FORBIDDEN",
       body: { code: "GEO_BLOCKED_COUNTRY" },
@@ -136,19 +145,18 @@ describe("auth database hooks", () => {
 
     await expect(beforeDelete({}, new Request("http://app.local/delete"))).resolves.toBeUndefined();
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringMatching(/\/api\/v1\/auth\/me$/),
-      {
-        method: "DELETE",
-        headers: { Authorization: "Bearer jwt-x" },
-      },
-    );
+    expect(fetchMock).toHaveBeenCalledWith(expect.stringMatching(/\/api\/v1\/auth\/me$/), {
+      method: "DELETE",
+      headers: { Authorization: "Bearer jwt-x" },
+    });
   });
 
   it("allows retry when the API reports an already inactive user", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ detail: { code: "auth_user_inactive" } }), { status: 403 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ detail: { code: "auth_user_inactive" } }), { status: 403 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(auth.api, "getToken").mockResolvedValue({ token: "jwt-x" } as never);
 
@@ -157,13 +165,17 @@ describe("auth database hooks", () => {
   });
 
   it("rejects a 403 response with a different error code", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ detail: { code: "forbidden" } }), { status: 403 }),
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ detail: { code: "forbidden" } }), { status: 403 }),
+      );
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(auth.api, "getToken").mockResolvedValue({ token: "jwt-x" } as never);
 
-    await expect(beforeDelete({}, new Request("http://app.local/delete"))).rejects.toThrow("status 403");
+    await expect(beforeDelete({}, new Request("http://app.local/delete"))).rejects.toThrow(
+      "status 403",
+    );
   });
 
   it("rejects a 403 response whose body is not JSON", async () => {
@@ -171,7 +183,9 @@ describe("auth database hooks", () => {
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(auth.api, "getToken").mockResolvedValue({ token: "jwt-x" } as never);
 
-    await expect(beforeDelete({}, new Request("http://app.local/delete"))).rejects.toThrow("status 403");
+    await expect(beforeDelete({}, new Request("http://app.local/delete"))).rejects.toThrow(
+      "status 403",
+    );
   });
 
   it("rejects a 500 cleanup failure", async () => {
@@ -179,7 +193,9 @@ describe("auth database hooks", () => {
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(auth.api, "getToken").mockResolvedValue({ token: "jwt-x" } as never);
 
-    await expect(beforeDelete({}, new Request("http://app.local/delete"))).rejects.toThrow("status 500");
+    await expect(beforeDelete({}, new Request("http://app.local/delete"))).rejects.toThrow(
+      "status 500",
+    );
   });
 
   it("rejects a 502 cleanup failure", async () => {
@@ -187,7 +203,9 @@ describe("auth database hooks", () => {
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(auth.api, "getToken").mockResolvedValue({ token: "jwt-x" } as never);
 
-    await expect(beforeDelete({}, new Request("http://app.local/delete"))).rejects.toThrow("status 502");
+    await expect(beforeDelete({}, new Request("http://app.local/delete"))).rejects.toThrow(
+      "status 502",
+    );
   });
 
   it("rejects deletion without a request and does not call the API", async () => {

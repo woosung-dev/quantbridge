@@ -68,14 +68,11 @@ export async function approveWaitlistApplication(
 //   보여줄 갈래」로 다뤄야 하지 예외로 다루면 안 된다(서버 컴포넌트에서 throw 하면
 //   `error.tsx` 로 떨어져 「만료된 링크」가 「오류 화면」이 된다).
 // ★2026-08-16 codex 적대 리뷰 P3 — 초판은 이 fetch 를 페이지 안에 뒀다(`AGENTS.md` §3 위반).
-export async function verifyInviteToken(
-  token: string,
-): Promise<InviteFetchResult> {
+export async function verifyInviteToken(token: string): Promise<InviteFetchResult> {
   try {
-    const res = await fetch(
-      `${getApiBase()}/api/v1/waitlist/invite/${encodeURIComponent(token)}`,
-      { cache: "no-store" },
-    );
+    const res = await fetch(`${getApiBase()}/api/v1/waitlist/invite/${encodeURIComponent(token)}`, {
+      cache: "no-store",
+    });
     // BE 는 서명 불일치와 만료를 둘 다 400 으로 낸다
     // (`waitlist/exceptions.py` — InviteTokenInvalidError / InviteTokenExpiredError).
     if (res.status === 400) return { kind: "invalid" };

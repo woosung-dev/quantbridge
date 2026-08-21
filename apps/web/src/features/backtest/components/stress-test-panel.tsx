@@ -36,9 +36,7 @@ interface Props {
 }
 
 export function StressTestPanel({ backtestId }: Props) {
-  const [activeStressTestId, setActiveStressTestId] = useState<string | null>(
-    null,
-  );
+  const [activeStressTestId, setActiveStressTestId] = useState<string | null>(null);
   const [showParamStabilityForm, setShowParamStabilityForm] = useState(false);
 
   const mcMutation = useCreateMonteCarlo({
@@ -51,23 +49,20 @@ export function StressTestPanel({ backtestId }: Props) {
   });
   const caMutation = useCreateCostAssumption({
     onSuccess: (created) => setActiveStressTestId(created.stress_test_id),
-    onError: (err) =>
-      toast.error(`Cost Assumption Sensitivity 실행 실패: ${err.message}`),
+    onError: (err) => toast.error(`Cost Assumption Sensitivity 실행 실패: ${err.message}`),
   });
   const psMutation = useCreateParamStability({
     onSuccess: (created) => {
       setActiveStressTestId(created.stress_test_id);
       setShowParamStabilityForm(false);
     },
-    onError: (err) =>
-      toast.error(`Param Stability 실행 실패: ${err.message}`),
+    onError: (err) => toast.error(`Param Stability 실행 실패: ${err.message}`),
   });
   // [BL-414] 이력 전체를 가져온다. BE 가 created_at 내림차순으로 주므로 items[0] 이 최신이고,
   // 사용자가 행을 고르지 않았을 때 그것이 상세 패널의 기본값이다 (종전 동작 유지).
   const history = useStressTestHistory(backtestId);
   const historyItems = history.data?.items ?? [];
-  const displayedStressTestId =
-    activeStressTestId ?? historyItems[0]?.id ?? null;
+  const displayedStressTestId = activeStressTestId ?? historyItems[0]?.id ?? null;
   const stress = useStressTest(displayedStressTestId);
 
   const handleRunMonteCarlo = () => {
@@ -117,21 +112,14 @@ export function StressTestPanel({ backtestId }: Props) {
 
   // polling 중 (queued/running) 버튼 재클릭 시 activeStressTestId 가 교체되어
   // 첫 stress test 가 UI 에서 고아가 되는 것을 방지 (Celery 에서는 계속 실행).
-  const isStressTestActive =
-    stressData?.status === "queued" || stressData?.status === "running";
+  const isStressTestActive = stressData?.status === "queued" || stressData?.status === "running";
   const isAnyMutationPending =
-    mcMutation.isPending ||
-    wfMutation.isPending ||
-    caMutation.isPending ||
-    psMutation.isPending;
+    mcMutation.isPending || wfMutation.isPending || caMutation.isPending || psMutation.isPending;
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <Button
-          onClick={handleRunMonteCarlo}
-          disabled={isAnyMutationPending || isStressTestActive}
-        >
+        <Button onClick={handleRunMonteCarlo} disabled={isAnyMutationPending || isStressTestActive}>
           Monte Carlo 실행
         </Button>
         <Button
@@ -153,9 +141,7 @@ export function StressTestPanel({ backtestId }: Props) {
           onClick={() => setShowParamStabilityForm((v) => !v)}
           disabled={isAnyMutationPending || isStressTestActive}
         >
-          {showParamStabilityForm
-            ? "Param Stability 닫기"
-            : "Param Stability 실행"}
+          {showParamStabilityForm ? "Param Stability 닫기" : "Param Stability 실행"}
         </Button>
       </div>
 
@@ -194,9 +180,7 @@ export function StressTestPanel({ backtestId }: Props) {
           {stressData?.status === "running" ? (
             <div className="space-y-2">
               <TapeProgress value={null} ariaLabel="스트레스 테스트 진행률" />
-              <p className="text-sm text-muted-foreground">
-                실행 중… (2초 간격 자동 새로고침)
-              </p>
+              <p className="text-sm text-muted-foreground">실행 중… (2초 간격 자동 새로고침)</p>
             </div>
           ) : null}
 
@@ -212,9 +196,7 @@ export function StressTestPanel({ backtestId }: Props) {
             // Sprint 37 BL-183: 숫자 요약표 (위) + fan chart (아래) 조합.
             // 사용자가 수치 기반 의사결정과 분포 시각 둘 다 확보 가능.
             <div className="space-y-4">
-              <MonteCarloSummaryTable
-                mcResult={stressData.monte_carlo_result}
-              />
+              <MonteCarloSummaryTable mcResult={stressData.monte_carlo_result} />
               <MonteCarloFanChart result={stressData.monte_carlo_result} />
             </div>
           ) : null}
@@ -234,9 +216,7 @@ export function StressTestPanel({ backtestId }: Props) {
           {stressData?.status === "completed" &&
           stressData.kind === "param_stability" &&
           stressData.param_stability_result ? (
-            <ParamStabilityHeatmap
-              result={stressData.param_stability_result}
-            />
+            <ParamStabilityHeatmap result={stressData.param_stability_result} />
           ) : null}
 
           {stress.isError ? (

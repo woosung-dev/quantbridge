@@ -16,12 +16,7 @@ interface PnlTapeProps {
   className?: string;
 }
 
-export function PnlTape({
-  deltas,
-  maxBars = 48,
-  size = "default",
-  className,
-}: PnlTapeProps) {
+export function PnlTape({ deltas, maxBars = 48, size = "default", className }: PnlTapeProps) {
   const bars = useMemo(() => {
     const sliced = deltas.slice(-maxBars);
     const peak = sliced.reduce((m, d) => Math.max(m, Math.abs(d)), 0) || 1;
@@ -37,10 +32,7 @@ export function PnlTape({
     size === "micro" ? "h-4 gap-px" : "h-6 gap-[2px]",
     className,
   );
-  const barClass = cn(
-    "flex-1 rounded-[1px]",
-    size === "micro" ? "min-w-px" : "min-w-[2px]",
-  );
+  const barClass = cn("flex-1 rounded-[1px]", size === "micro" ? "min-w-px" : "min-w-[2px]");
 
   if (bars.length === 0) {
     // 데이터 없음 — faint baseline 틱으로 시그니처 자리 유지.

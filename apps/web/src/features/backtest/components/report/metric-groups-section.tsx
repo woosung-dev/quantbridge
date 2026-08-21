@@ -8,10 +8,7 @@
 import { useMemo } from "react";
 
 import { deriveBuyAndHoldMetrics } from "@/features/backtest/analytics";
-import type {
-  BacktestMetricsOut,
-  EquityPoint,
-} from "@/features/backtest/schemas";
+import type { BacktestMetricsOut, EquityPoint } from "@/features/backtest/schemas";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
 import { EMPTY_CELL } from "@/lib/labels";
@@ -81,12 +78,32 @@ export function MetricGroupsSection({
   const sharpe = describeSharpe(m.sharpe_convention, m.sharpe_ratio);
 
   const profitability: MetricSpec[] = [
-    { label: "총 수익률", value: signedPct(m.total_return), tone: m.total_return >= 0 ? "pos" : "neg" },
-    { label: "연환산 수익률", value: signedPct(m.annual_return_pct), tone: (m.annual_return_pct ?? 0) >= 0 ? "pos" : "neg" },
-    { label: "순손익", value: signedCurrency(m.net_profit_abs), tone: (m.net_profit_abs ?? 0) >= 0 ? "pos" : "neg" },
+    {
+      label: "총 수익률",
+      value: signedPct(m.total_return),
+      tone: m.total_return >= 0 ? "pos" : "neg",
+    },
+    {
+      label: "연환산 수익률",
+      value: signedPct(m.annual_return_pct),
+      tone: (m.annual_return_pct ?? 0) >= 0 ? "pos" : "neg",
+    },
+    {
+      label: "순손익",
+      value: signedCurrency(m.net_profit_abs),
+      tone: (m.net_profit_abs ?? 0) >= 0 ? "pos" : "neg",
+    },
     { label: "총 이익", value: signedCurrency(m.gross_profit_abs), tone: "pos" },
-    { label: "총 손실", value: signedCurrency(m.gross_loss_abs != null ? -Math.abs(m.gross_loss_abs) : null), tone: "neg" },
-    { label: "수익 팩터", value: fixed(m.profit_factor), emptyTitle: "손실 거래가 없어 수익 팩터를 계산할 수 없습니다." },
+    {
+      label: "총 손실",
+      value: signedCurrency(m.gross_loss_abs != null ? -Math.abs(m.gross_loss_abs) : null),
+      tone: "neg",
+    },
+    {
+      label: "수익 팩터",
+      value: fixed(m.profit_factor),
+      emptyTitle: "손실 거래가 없어 수익 팩터를 계산할 수 없습니다.",
+    },
   ];
 
   const risk: MetricSpec[] = [
@@ -110,16 +127,34 @@ export function MetricGroupsSection({
     { label: "총 거래 수", value: String(m.num_trades) },
     { label: "승률", value: formatPercent(m.win_rate) },
     { label: "평균 수익", value: signedCurrency(m.avg_win_abs), tone: "pos" },
-    { label: "평균 손실", value: signedCurrency(m.avg_loss_abs != null ? -Math.abs(m.avg_loss_abs) : null), tone: "neg" },
+    {
+      label: "평균 손실",
+      value: signedCurrency(m.avg_loss_abs != null ? -Math.abs(m.avg_loss_abs) : null),
+      tone: "neg",
+    },
     { label: "손익비", value: fixed(m.ratio_avg_win_loss) },
     { label: "평균 보유 기간", value: formatHoldingDuration(m.avg_holding_hours) },
   ];
 
   const execution: MetricSpec[] = [
-    { label: "최대 연속 승", value: m.consecutive_wins_max != null ? String(m.consecutive_wins_max) : null },
-    { label: "최대 연속 패", value: m.consecutive_losses_max != null ? String(m.consecutive_losses_max) : null },
-    { label: "총 수수료", value: signedCurrency(m.total_fees != null ? -Math.abs(m.total_fees) : null), tone: "neg" },
-    { label: "슬리피지 비용", value: signedCurrency(m.total_slippage != null ? -Math.abs(m.total_slippage) : null), tone: "neg" },
+    {
+      label: "최대 연속 승",
+      value: m.consecutive_wins_max != null ? String(m.consecutive_wins_max) : null,
+    },
+    {
+      label: "최대 연속 패",
+      value: m.consecutive_losses_max != null ? String(m.consecutive_losses_max) : null,
+    },
+    {
+      label: "총 수수료",
+      value: signedCurrency(m.total_fees != null ? -Math.abs(m.total_fees) : null),
+      tone: "neg",
+    },
+    {
+      label: "슬리피지 비용",
+      value: signedCurrency(m.total_slippage != null ? -Math.abs(m.total_slippage) : null),
+      tone: "neg",
+    },
     {
       label: "벤치마크 초과",
       value: excessPct != null ? `${signedPct(excessPct)}p` : null,

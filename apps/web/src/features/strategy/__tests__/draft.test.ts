@@ -56,10 +56,9 @@ describe("useAutoSaveDraft (debounce + userId scoping)", () => {
   });
 
   it("pineSource 변경 시 타이머가 리셋되고 최종 값이 저장된다", () => {
-    const { rerender } = renderHook(
-      ({ uid, draft }) => useAutoSaveDraft(uid, draft),
-      { initialProps: { uid: USER_A, draft: baseDraft } },
-    );
+    const { rerender } = renderHook(({ uid, draft }) => useAutoSaveDraft(uid, draft), {
+      initialProps: { uid: USER_A, draft: baseDraft },
+    });
 
     act(() => {
       vi.advanceTimersByTime(300);
@@ -87,10 +86,9 @@ describe("useAutoSaveDraft (debounce + userId scoping)", () => {
   });
 
   it("metadata 는 ref 를 통해 최신 값이 저장 payload 에 반영된다", () => {
-    const { rerender } = renderHook(
-      ({ uid, draft }) => useAutoSaveDraft(uid, draft),
-      { initialProps: { uid: USER_A, draft: baseDraft } },
-    );
+    const { rerender } = renderHook(({ uid, draft }) => useAutoSaveDraft(uid, draft), {
+      initialProps: { uid: USER_A, draft: baseDraft },
+    });
 
     act(() => {
       vi.advanceTimersByTime(300);
@@ -126,10 +124,9 @@ describe("useAutoSaveDraft (debounce + userId scoping)", () => {
     saveWizardDraft(USER_A, baseDraft);
     expect(window.localStorage.getItem(draftKeyFor(USER_A))).not.toBeNull();
 
-    const { rerender } = renderHook(
-      ({ uid, draft }) => useAutoSaveDraft(uid, draft),
-      { initialProps: { uid: USER_A, draft: baseDraft } },
-    );
+    const { rerender } = renderHook(({ uid, draft }) => useAutoSaveDraft(uid, draft), {
+      initialProps: { uid: USER_A, draft: baseDraft },
+    });
 
     // sign-out 후 user_B 로 로그인
     rerender({ uid: USER_B, draft: baseDraft });

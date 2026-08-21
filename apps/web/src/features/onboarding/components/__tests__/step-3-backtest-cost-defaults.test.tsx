@@ -14,10 +14,7 @@
 import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  DEFAULT_FEES_PCT,
-  DEFAULT_SLIPPAGE_PCT,
-} from "@/features/backtest/cost-defaults";
+import { DEFAULT_FEES_PCT, DEFAULT_SLIPPAGE_PCT } from "@/features/backtest/cost-defaults";
 
 const mutate = vi.fn();
 

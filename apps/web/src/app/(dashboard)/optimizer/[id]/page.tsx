@@ -8,11 +8,7 @@ export const metadata: Metadata = {
   title: "최적화 실행 상세",
 };
 
-export default async function OptimizerRunPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function OptimizerRunPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   // OptimizerRunDetail 이 <main className="page"> 셸을 직접 렌더한다(C 이식). 여기서 감싸지 않는다.
   return <OptimizerRunDetail runId={id} />;

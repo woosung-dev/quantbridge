@@ -1,0 +1,223 @@
+// Biome 2.5.9 — apps/web 의 **포매터 + 1차 린터**.
+// ★역할 경계가 이 파일의 전부다. Biome 이 모든 것을 대체하지 **않는다** — 아래 「왜 남겼나」 참조.
+// 정본 = ADR-039. 도구 버전 SSOT 는 `package.json` 의 `@biomejs/biome` 핀이다.
+//
+// ┌ 누가 무엇을 맡나 ────────────────────────────────────────────────────────────┐
+// │ Biome    : apps/web 의 ts · tsx · mjs · css  → 포맷 + 린트                    │
+// │ ESLint   : React 안전 3축(아래) — Biome 에 **대응 규칙이 없거나 못 돈다**      │
+// │ prettier : json · md · yml · yaml (루트 lint-staged) + tailwind 클래스 정렬   │
+// └──────────────────────────────────────────────────────────────────────────────┘
+//
+// ★**포맷 출력은 prettier 와 바이트 동일하다** — 598 파일 전수 실측(2026-08-21).
+//   단 `css.parser.tailwindDirectives` 가 켜져 있어야 한다(끄면 globals.css 의 Tailwind v4
+//   `@theme` 를 못 읽어 6건 불일치). 그래서 아래 두 블록의 값은 `.prettierrc` 와 1:1 이다.
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.9/schema.json",
+  "root": true,
+
+  // `.gitignore` 를 무시 목록으로 재사용한다 — 빌드 산출물 목록을 두 벌로 두지 않는다.
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+
+  "files": {
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.mjs",
+      "**/*.css",
+
+      // ★json 은 prettier 제거([ADR-039])와 함께 Biome 이 인수했다. 둘의 출력은 **다르다** —
+      //   `tsconfig.json` 한 파일에서만 4곳이 갈린다(prettier 는 배열을 한 줄씩 펴고 Biome 은
+      //   100자 안에서 접는다, 2026-08-21 실측). 그래서 **주인이 하나여야** 하고, 지금은 Biome 이다.
+      "**/*.json",
+      "**/*.jsonc",
+
+      // 코드젠 산출물 — 사람이 안 고치는 파일에 규칙을 걸면 재생성마다 diff 가 난다.
+      "!**/generated",
+
+      // ★shadcn/ui 는 `apps/web/AGENTS.md` §9 가 **직접 수정을 금지**한다(래핑으로 확장).
+      //   실제로 Biome 의 `useImportType` 이 7 파일을 `import type * as React` 로 고쳤다 —
+      //   기술적으로는 맞지만 `shadcn add` 재생성과 영구 드리프트가 난다(2026-08-21 되돌림).
+      "!src/components/ui",
+
+      // ★★`globals.css` 는 **포맷 대상이 아니다.** `KITPORT-START`~`KITPORT-END` 구간이
+      //   `_kit.html` 과 **바이트 대조**로 묶여 있고(`src/__tests__/design-canon-kit-port.test.ts`),
+      //   토큰 표도 `:root` 블록을 문자열로 판다(`design-canon-tokens.test.ts`).
+      //   Biome 에 맡겼더니 그 두 테스트가 즉시 red 였다(2026-08-21 실측 3건).
+      //   이 파일의 포맷 주인은 이식 원본이지 포매터가 아니다.
+      "!src/styles/globals.css",
+
+      "!.next*",
+      "!test-results",
+      "!playwright-report",
+      "!coverage"
+    ]
+  },
+
+  // 값 4종 = `.prettierrc` 와 동일. `useEditorconfig` 로 루트 `.editorconfig` 도 읽는다
+  // (충돌 시 이 파일이 이긴다 — editorconfig 는 에디터와의 정합용이다).
+  "formatter": {
+    "enabled": true,
+    "useEditorconfig": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+
+  "javascript": {
+    "formatter": { "quoteStyle": "double", "semicolons": "always", "trailingCommas": "all" }
+  },
+
+  // ★Tailwind v4 CSS-first — 이게 없으면 globals.css 의 `@theme`·`@custom-variant` 를
+  //   파싱 못 해 prettier 와 6건 갈린다. 켜면 0건이다.
+  "css": { "parser": { "tailwindDirectives": true } },
+
+  // import 정렬은 켜지 않는다 — 기존 트리의 import 순서를 통째로 갈아엎어 diff 를 키운다.
+  // 필요해지면 별도 회차에서 단독으로 판단한다.
+  "assist": { "actions": { "source": { "organizeImports": "off" } } },
+
+  "linter": {
+    "enabled": true,
+    "domains": { "next": "recommended", "react": "recommended" },
+    "rules": {
+      "recommended": true,
+
+      "correctness": {
+        // ★★**React Hooks 축은 통째로 ESLint 소유다** — 아래 둘을 여기서 끄는 이유.
+        //
+        //   ⑴ Biome 은 이 축을 **절반만** 갖는다. `set-state-in-effect` /
+        //      `set-state-in-render` 에 **대응 규칙이 없다**(523 규칙 중 React 관련 56건 전수
+        //      확인). 그 둘이 LESSON-004(CPU 100% 무한루프 실사고)의 핵심 방어선이라
+        //      `eslint-plugin-react-hooks` 는 어차피 남는다.
+        //   ⑵ 남는 도구가 그 축의 **단독 판정자**여야 한다. 둘 다 켜면 같은 위반이 두 번
+        //      보고되고, 더 나쁘게는 **판정이 갈린다** — `useExhaustiveDependencies` 는
+        //      공식 구현이 아니라 "inspired" 라 실측 7건이 어긋났다(전부 「남는 dep」이었고
+        //      그 대상이 `themeKey`·`data`, 즉 effect 가 읽지 않고 **트리거로만 쓰는** 값이라
+        //      Biome 말대로 지우면 테마를 바꿔도 차트가 안 다시 그려진다).
+        //
+        //   ⇒ 경계: **hooks = ESLint · 나머지 = Biome.** 한 축에 주인은 하나다.
+        "useExhaustiveDependencies": "off",
+        "useHookAtTopLevel": "off",
+
+        "noUnusedVariables": { "level": "error", "options": { "ignoreRestSiblings": true } }
+      },
+
+      "style": {
+        "useImportType": "error",
+
+        // 아래 둘은 **기존 트리의 관용구**라 끈다 — 규칙이 틀린 게 아니라 우리가 그 스타일이다.
+        // noNonNullAssertion: 281건 · noDescendingSpecificity: globals.css 의 KITPORT 이식 구간.
+        "noNonNullAssertion": "off",
+        "noDescendingSpecificity": "off",
+
+        // ★[ADR-035] 레이어 경계 — 하위 층이 `app/` 을 거슬러 참조하면 라우트를 못 옮긴다.
+        //   ESLint 판(`no-restricted-imports` + `no-restricted-syntax` 2벌)을 **한 규칙으로**
+        //   옮겼다: Biome 의 이 규칙은 정적 import 와 **동적 `import()` 를 같이 본다.
+        //   ⚠️미이관 1건 — 템플릿 리터럴 `import(`@/app/${name}`)` 은 Biome 이 못 본다.
+        //   ESLint 의 `no-restricted-syntax` TemplateLiteral 선택자가 그 축을 계속 맡는다.
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": [
+                  "@/app/*",
+                  "@/app/**",
+                  "./app/*",
+                  "./app/**",
+                  "../**/app/*",
+                  "../**/app/**"
+                ],
+                "message": "하위 층은 app/ 을 import 하지 않는다 (ADR-035). 공유가 필요하면 그 컴포넌트를 features/<domain>/components/ 또는 components/ 로 올려라."
+              }
+            ]
+          }
+        }
+      },
+
+      "suspicious": {
+        "noConsole": { "level": "warn", "options": { "allow": ["warn", "error"] } },
+
+        // 기존 트리 관용구 — 켜면 신규 위반이 아니라 과거 코드가 무더기로 뜬다.
+        // 되살릴 때는 「고칠 회차」와 함께 켜라. noArrayIndexKey 52 · 나머지 14.
+        "noArrayIndexKey": "off",
+        "noUselessEscapeInString": "off",
+        "noTemplateCurlyInString": "off",
+
+        // `forEach((c) => arr.push(x))` 가 `push` 반환값을 흘린다는 지적 18건. forEach 는 그
+        // 값을 버리므로 **동작 결함이 아니다** — 중괄호를 씌우라는 스타일 요구다. 18건 중
+        // 15건이 `e2e/design-canon-audit.ts` 한 파일이라 이 PR(도구 교체)의 범위를 넘는다.
+        "useIterableCallbackReturn": "off",
+
+        // ★오탐 — TS 의 **타입 공간 / 값 공간 분리**를 못 본다. 실측 1건:
+        //   `import { type LiveSessionForm }`(타입) + `export function LiveSessionForm`(값)은
+        //   TS 가 허용하는 합법 패턴이고 `tsc --noEmit` 이 이미 통과시킨다(CI 초록).
+        //   진짜 재선언은 tsc 가 잡는다 — 이 규칙이 없어도 그 축엔 구멍이 없다.
+        "noRedeclare": "off"
+      },
+
+      "complexity": { "noImportantStyles": "off" },
+
+      // ★a11y 8종은 **미도래**지 기각이 아니다 — 지금 트리에 70건이 있고 그건 별도 회차의
+      //   일이다. 이 PR 의 범위는 도구 교체지 접근성 수리가 아니다. 켤 때는 한 번에 켜지 말고
+      //   규칙 하나 = 수리 회차 하나로 가라(끄지 않으면 이 PR 이 70건짜리 a11y PR 이 된다).
+      "a11y": {
+        "useSemanticElements": "off",
+        "noSvgWithoutTitle": "off",
+        "useAriaPropsSupportedByRole": "off",
+        "noNoninteractiveTabindex": "off",
+        "useButtonType": "off",
+        "useKeyWithClickEvents": "off",
+        "noRedundantRoles": "off",
+        "noAriaHiddenOnFocusable": "off"
+      },
+
+      "nursery": {
+        // ★★★**끈 이유 — 이 규칙은 코드를 깨뜨린다. 취향 문제가 아니다.**
+        //   `prettier-plugin-tailwindcss` 의 대체품으로 켰다가 vitest 가 잡았다(2026-08-21):
+        //
+        //     - className={"order-side " + o.side}   // "order-side buy"
+        //     + className={"order-side" + o.side}    // "order-sidebuy"  ← 클래스가 사라진다
+        //
+        //   문서의 "Whitespace is collapsed" 가 **런타임에 연결되는 문자열의 유의미한 끝 공백**
+        //   까지 지운다. 조용한 프로덕션 결함이고, 마침 그 클래스를 세는 테스트가 있어서
+        //   걸렸다 — 없었으면 통과했다.
+        //   ⇒ tailwind 클래스 자동 정렬은 [ADR-039] 에서 **포기**했다. 정렬은 사람이 한다.
+        "useSortedClasses": "off",
+
+        // ★★**끈 이유가 취향이 아니다 — 이 레포에서 크래시한다.**
+        //   `useReactCompiler` 는 진단 위치를 **바이트 오프셋**으로 잘라내는데 multi-byte
+        //   UTF-8 경계를 안 본다. 우리 규약이 주석·문자열을 한국어로 쓰므로 13 파일이
+        //   `processing panicked: ... is not a char boundary; it is inside '제'` 로 죽는다.
+        //   음성 대조 — 이 규칙만 빼면 panic 0 (2026-08-21 실측).
+        //   ⇒ React Compiler 축은 `eslint-plugin-react-compiler` 가 계속 맡는다.
+        "useReactCompiler": "off"
+      }
+    }
+  },
+
+  "overrides": [
+    {
+      // ADR-035 는 **하위 층에만** 건다. `app/` 끼리의 참조는 이 규칙의 대상이 아니다.
+      "includes": [
+        "src/app/**",
+        "e2e/**",
+        "scripts/**",
+        "**/__tests__/**",
+        "**/*.test.ts",
+        "**/*.test.tsx"
+      ],
+      "linter": { "rules": { "style": { "noRestrictedImports": "off" } } }
+    },
+    {
+      // 검사기 테스트(`src/__tests__/`)와 e2e 감사 스크립트는 **소스를 문자열로 훑는 도구**다.
+      // `while ((m = re.exec(s)))` 는 정규식 전역 순회의 표준 관용구이고, 그 파일들이
+      // 헬퍼를 `export` 하는 것도 의도다(다른 검사기가 재사용한다).
+      "includes": ["src/__tests__/**", "e2e/**", "scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noAssignInExpressions": "off", "noExportsInTest": "off" }
+        }
+      }
+    }
+  ]
+}

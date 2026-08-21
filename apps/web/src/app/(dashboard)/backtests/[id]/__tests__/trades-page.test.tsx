@@ -37,9 +37,9 @@ describe("BacktestTradesPage — UUID 검증", () => {
   });
 
   it("빈 문자열 → notFound() throw", async () => {
-    await expect(() =>
-      BacktestTradesPage({ params: Promise.resolve({ id: "" }) }),
-    ).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(() => BacktestTradesPage({ params: Promise.resolve({ id: "" }) })).rejects.toThrow(
+      "NEXT_NOT_FOUND",
+    );
   });
 
   it("SQL injection 시도 → notFound() throw (UUID 포맷 미통과)", async () => {

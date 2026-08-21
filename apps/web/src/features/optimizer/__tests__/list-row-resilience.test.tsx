@@ -22,9 +22,7 @@ function renderWithQueryClient(ui: React.ReactElement) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
-  );
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
 describe("OptimizerRunList graceful error (Sprint 62 T-1, BL-350+354)", () => {

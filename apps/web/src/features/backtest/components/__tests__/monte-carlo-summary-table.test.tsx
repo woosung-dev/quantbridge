@@ -36,9 +36,7 @@ describe("MonteCarloSummaryTable (BL-183)", () => {
   // BL-187 의 일부로 testid 추가 → e2e 자동 검증 가능.
   it("BL-187 보강: section 에 data-testid 노출 (e2e 셀렉터)", () => {
     const { container } = render(<MonteCarloSummaryTable mcResult={RESULT} />);
-    const section = container.querySelector(
-      '[data-testid="monte-carlo-summary-table"]',
-    );
+    const section = container.querySelector('[data-testid="monte-carlo-summary-table"]');
     expect(section).not.toBeNull();
     expect(section?.getAttribute("aria-label")).toBe("Monte Carlo 요약 통계");
   });
@@ -74,9 +72,7 @@ describe("MonteCarloSummaryTable (BL-183)", () => {
 
   it("aria-label 'Monte Carlo 요약 통계' a11y 적용", () => {
     render(<MonteCarloSummaryTable mcResult={RESULT} />);
-    expect(
-      screen.getByLabelText("Monte Carlo 요약 통계"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Monte Carlo 요약 통계")).toBeInTheDocument();
   });
 
   it("role='table' 로 테이블 시멘틱 노출", () => {

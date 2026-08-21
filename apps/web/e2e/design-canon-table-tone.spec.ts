@@ -39,46 +39,42 @@ interface ToneRow {
 
 /** 주입한 `table.trades` 의 각 셀 computed color 와, 대응 변수의 직접 해석값을 함께 뽑는다. */
 async function measure(page: Page): Promise<ToneRow[]> {
-  return page.evaluate((cases) => {
-    const table = document.createElement("table");
-    table.className = "trades";
-    table.innerHTML =
-      "<tbody><tr>" +
-      cases.map(([cls]) => `<td class="${cls}">1.00</td>`).join("") +
-      "</tr></tbody>";
-    document.body.appendChild(table);
-    const got = [...table.querySelectorAll("td")].map(
-      (td) => getComputedStyle(td).color,
-    );
-    table.remove();
+  return page.evaluate(
+    (cases) => {
+      const table = document.createElement("table");
+      table.className = "trades";
+      table.innerHTML =
+        "<tbody><tr>" +
+        cases.map(([cls]) => `<td class="${cls}">1.00</td>`).join("") +
+        "</tr></tbody>";
+      document.body.appendChild(table);
+      const got = [...table.querySelectorAll("td")].map((td) => getComputedStyle(td).color);
+      table.remove();
 
-    const probe = document.createElement("div");
-    document.body.appendChild(probe);
-    const want = cases.map(([, varName]) => {
-      probe.style.color = `var(${varName})`;
-      return getComputedStyle(probe).color;
-    });
-    probe.remove();
+      const probe = document.createElement("div");
+      document.body.appendChild(probe);
+      const want = cases.map(([, varName]) => {
+        probe.style.color = `var(${varName})`;
+        return getComputedStyle(probe).color;
+      });
+      probe.remove();
 
-    return cases.map(([cls, varName, why], i) => ({
-      cls,
-      varName,
-      why,
-      got: got[i]!,
-      want: want[i]!,
-    }));
-  }, TONE_CASES as Array<[string, string, string]>);
+      return cases.map(([cls, varName, why], i) => ({
+        cls,
+        varName,
+        why,
+        got: got[i]!,
+        want: want[i]!,
+      }));
+    },
+    TONE_CASES as Array<[string, string, string]>,
+  );
 }
 
 function assertTone(rows: ToneRow[]): void {
-  expect(rows, "주입한 td 개수가 케이스 수와 다르다").toHaveLength(
-    TONE_CASES.length,
-  );
+  expect(rows, "주입한 td 개수가 케이스 수와 다르다").toHaveLength(TONE_CASES.length);
   for (const r of rows) {
-    expect(
-      r.want,
-      `var(${r.varName}) 가 해석되지 않았다 — 캐논 별칭 토큰이 사라졌다`,
-    ).not.toBe("");
+    expect(r.want, `var(${r.varName}) 가 해석되지 않았다 — 캐논 별칭 토큰이 사라졌다`).not.toBe("");
     expect(
       r.got,
       `<td class="${r.cls || "(민짜)"}"> 의 색이 ${r.varName} 가 아니다 ` +

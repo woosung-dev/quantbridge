@@ -72,9 +72,7 @@ describe("makeAllTradesFetcher (first-page-then-parallel)", () => {
 
     const result = await makeAllTradesFetcher("bt-1", getToken)();
 
-    const calledOffsets = listBacktestTradesMock.mock.calls.map(
-      (c) => c[1].offset,
-    );
+    const calledOffsets = listBacktestTradesMock.mock.calls.map((c) => c[1].offset);
     expect(calledOffsets).toEqual([0, 200, 400]);
     // 응답 도착 순서와 무관하게 offset 순 concat.
     expect(result.items.map((t) => t.trade_index)).toEqual(
@@ -92,12 +90,8 @@ describe("makeAllTradesFetcher (first-page-then-parallel)", () => {
 
     const result = await makeAllTradesFetcher("bt-1", getToken)();
 
-    const calledOffsets = listBacktestTradesMock.mock.calls.map(
-      (c) => c[1].offset,
-    );
-    expect(calledOffsets).toEqual([
-      0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800,
-    ]);
+    const calledOffsets = listBacktestTradesMock.mock.calls.map((c) => c[1].offset);
+    expect(calledOffsets).toEqual([0, 200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800]);
     expect(calledOffsets.every((o) => o < MAX_CAP)).toBe(true);
     expect(result.items).toHaveLength(MAX_CAP);
     expect(result.total).toBe(total);

@@ -74,9 +74,7 @@ describe("BacktestList — Sprint 41-B2 hasMorePages filter UX", () => {
       </QueryClientProvider>,
     );
 
-    expect(
-      screen.queryByTestId("backtest-filter-notice"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("backtest-filter-notice")).not.toBeInTheDocument();
     // '완료' chip 은 활성 (disabled 아님)
     const completedChip = screen.getByTestId("backtest-filter-completed");
     expect(completedChip).not.toBeDisabled();

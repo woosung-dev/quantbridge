@@ -15,9 +15,7 @@ describe("BacktestsLoading — C 골격 스켈레톤", () => {
     expect(main?.getAttribute("aria-busy")).toBe("true");
     expect(container.querySelector(".card .report")).not.toBeNull();
     expect(container.querySelectorAll(".report-meta .sk").length).toBeGreaterThan(0);
-    expect(
-      container.querySelectorAll("table.runs-table td .sk-cell").length,
-    ).toBeGreaterThan(0);
+    expect(container.querySelectorAll("table.runs-table td .sk-cell").length).toBeGreaterThan(0);
   });
 
   it("실화면에 없는 KPI 그리드·구세대 컨테이너를 그리지 않는다", () => {

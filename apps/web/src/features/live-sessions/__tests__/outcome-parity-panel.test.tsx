@@ -270,9 +270,7 @@ describe("OutcomeParityPanel", () => {
   it("원장에만 있는 청산을 별도 버킷으로 표시한다", () => {
     renderLoaded();
 
-    expect(screen.getByTestId("outcome-parity-session-ledger-only-count")).toHaveTextContent(
-      "1건",
-    );
+    expect(screen.getByTestId("outcome-parity-session-ledger-only-count")).toHaveTextContent("1건");
     expect(screen.getByTestId("outcome-parity-session-outside-coverage")).toHaveTextContent(
       "거래소 네이티브 TP/SL 등 로컬 주문 없이 실행된 청산입니다",
     );
@@ -346,9 +344,9 @@ describe("OutcomeParityPanel", () => {
   it("1% 미만 비용률은 유효숫자를 보존하고 비교 블록은 왕복 값을 쓴다", () => {
     renderLoaded();
 
-    expect(screen.getByTestId("outcome-parity-session-effective-cost-pct-per-leg")).toHaveTextContent(
-      "0.0558%",
-    );
+    expect(
+      screen.getByTestId("outcome-parity-session-effective-cost-pct-per-leg"),
+    ).toHaveTextContent("0.0558%");
     expect(
       screen.getByTestId("outcome-parity-session-effective-cost-pct-round-trip"),
     ).toHaveTextContent("0.1116%");
@@ -372,8 +370,12 @@ describe("OutcomeParityPanel", () => {
   it("표본 게이트가 닫히면 엣지율과 비용 엣지 배수를 표시하지 않는다", () => {
     renderLoaded();
 
-    expect(screen.queryByTestId("outcome-parity-session-edge-pct-round-trip")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("outcome-parity-session-cost-to-edge-ratio")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("outcome-parity-session-edge-pct-round-trip"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("outcome-parity-session-cost-to-edge-ratio"),
+    ).not.toBeInTheDocument();
   });
 
   it("매칭 표본이 충분해도 분해 가능 표본이 적으면 성과 비율을 차단한다", () => {
@@ -388,10 +390,12 @@ describe("OutcomeParityPanel", () => {
     renderLoaded(responseWith(insufficientRatioSample, insufficientRatioSample));
 
     expect(screen.getByTestId("outcome-parity-session-sample-mean-net")).toBeInTheDocument();
-    expect(screen.queryByTestId("outcome-parity-session-edge-pct-round-trip")).not.toBeInTheDocument();
-    expect(screen.getByTestId("outcome-parity-session-ratio-performance-blocked")).toHaveTextContent(
-      "분해 가능한 표본 1건",
-    );
+    expect(
+      screen.queryByTestId("outcome-parity-session-edge-pct-round-trip"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("outcome-parity-session-ratio-performance-blocked"),
+    ).toHaveTextContent("분해 가능한 표본 1건");
   });
 
   it("분해 가능한 거래소 gross를 워터폴 근처에 표시한다", () => {
@@ -404,7 +408,9 @@ describe("OutcomeParityPanel", () => {
     renderLoaded(responseWith(COMPLETE_SCOPE, COMPLETE_SCOPE, { ledger_supported: false }));
 
     expect(screen.queryByTestId("outcome-parity-session-waterfall")).not.toBeInTheDocument();
-    expect(screen.getByTestId("outcome-parity-session-ledger-unsupported-message")).toHaveTextContent(
+    expect(
+      screen.getByTestId("outcome-parity-session-ledger-unsupported-message"),
+    ).toHaveTextContent(
       "이 거래소는 청산 원장 적재가 아직 지원되지 않아 비용 분해를 할 수 없습니다.",
     );
   });
@@ -597,9 +603,9 @@ describe("OutcomeParityPanel", () => {
     renderLoaded();
 
     expect(screen.getByText(/귀하의 백테스트 설정이 아닙니다/)).toBeInTheDocument();
-    expect(screen.getByTestId("outcome-parity-assumption-maker-fee")).toHaveTextContent(
-      "0.0200%",
-    );
-    expect(screen.getByText(/TP 지정가 청산은 maker 수수료라 이 왕복 가정은 과대계상입니다/)).toBeInTheDocument();
+    expect(screen.getByTestId("outcome-parity-assumption-maker-fee")).toHaveTextContent("0.0200%");
+    expect(
+      screen.getByText(/TP 지정가 청산은 maker 수수료라 이 왕복 가정은 과대계상입니다/),
+    ).toBeInTheDocument();
   });
 });

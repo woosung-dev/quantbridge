@@ -5,11 +5,7 @@
 
 // polling refetchInterval = RUNNING/QUEUED 시 2s, COMPLETED/FAILED 시 false (LESSON-004 CPU 보호).
 
-import {
-  useQuery,
-  type UseMutationResult,
-  type UseQueryResult,
-} from "@tanstack/react-query";
+import { useQuery, type UseMutationResult, type UseQueryResult } from "@tanstack/react-query";
 
 import { useAuthCtx } from "@/hooks/use-auth-ctx";
 import { useInvalidatingMutation } from "@/hooks/use-invalidating-mutation";
@@ -22,10 +18,7 @@ import {
   postGeneticSearch,
   postGridSearch,
 } from "./api";
-import {
-  optimizerKeys,
-  type OptimizationRunListQuery,
-} from "./query-keys";
+import { optimizerKeys, type OptimizationRunListQuery } from "./query-keys";
 import type {
   CreateOptimizationRunRequest,
   OptimizationRunListResponse,
@@ -36,14 +29,15 @@ export { optimizerKeys };
 
 // LESSON-004: status QUEUED/RUNNING 시 2s polling, 종료 status/data 미도착 시 false.
 // (기존 `q.state.error` 가드는 다른 도메인과 동일한 status 기반 가드로 통일 — makeRefetchInterval.)
-const runDetailRefetchInterval = makeRefetchInterval<OptimizationRunResponse>(
-  (data) => {
-    const status = data?.status;
-    return status === "queued" || status === "running" ? 2_000 : false;
-  },
-);
+const runDetailRefetchInterval = makeRefetchInterval<OptimizationRunResponse>((data) => {
+  const status = data?.status;
+  return status === "queued" || status === "running" ? 2_000 : false;
+});
 
-function makeRunListFetcher(query: OptimizationRunListQuery, getToken: () => Promise<string | null>) {
+function makeRunListFetcher(
+  query: OptimizationRunListQuery,
+  getToken: () => Promise<string | null>,
+) {
   return async () => listOptimizationRuns(query, await getToken());
 }
 
@@ -62,9 +56,7 @@ export function useOptimizationRuns(
   });
 }
 
-export function useOptimizationRun(
-  id: string | null,
-): UseQueryResult<OptimizationRunResponse> {
+export function useOptimizationRun(id: string | null): UseQueryResult<OptimizationRunResponse> {
   const { uid, userId, getToken } = useAuthCtx();
   return useQuery({
     queryKey: optimizerKeys.detail(uid, id ?? "none"),
@@ -80,8 +72,7 @@ export function useSubmitGridSearch(): UseMutationResult<
   CreateOptimizationRunRequest
 > {
   return useInvalidatingMutation({
-    mutationFn: (body: CreateOptimizationRunRequest, token) =>
-      postGridSearch(body, token),
+    mutationFn: (body: CreateOptimizationRunRequest, token) => postGridSearch(body, token),
     invalidateKeys: (uid) => [optimizerKeys.all(uid)],
   });
 }
@@ -93,8 +84,7 @@ export function useSubmitBayesianSearch(): UseMutationResult<
   CreateOptimizationRunRequest
 > {
   return useInvalidatingMutation({
-    mutationFn: (body: CreateOptimizationRunRequest, token) =>
-      postBayesianSearch(body, token),
+    mutationFn: (body: CreateOptimizationRunRequest, token) => postBayesianSearch(body, token),
     invalidateKeys: (uid) => [optimizerKeys.all(uid)],
   });
 }
@@ -106,8 +96,7 @@ export function useSubmitGeneticSearch(): UseMutationResult<
   CreateOptimizationRunRequest
 > {
   return useInvalidatingMutation({
-    mutationFn: (body: CreateOptimizationRunRequest, token) =>
-      postGeneticSearch(body, token),
+    mutationFn: (body: CreateOptimizationRunRequest, token) => postGeneticSearch(body, token),
     invalidateKeys: (uid) => [optimizerKeys.all(uid)],
   });
 }

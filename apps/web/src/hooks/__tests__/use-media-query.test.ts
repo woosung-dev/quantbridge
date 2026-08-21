@@ -61,7 +61,10 @@ describe("useMediaQuery", () => {
 
   it("matches가 false면 false를 반환한다", () => {
     const mediaQuery = createMediaQueryList(false);
-    vi.stubGlobal("matchMedia", vi.fn(() => mediaQuery.mediaQueryList));
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => mediaQuery.mediaQueryList),
+    );
 
     const { result } = renderHook(() => useMediaQuery("(min-width: 768px)"));
 
@@ -70,7 +73,10 @@ describe("useMediaQuery", () => {
 
   it("change 이벤트가 오면 최신 matches 값으로 갱신한다", () => {
     const mediaQuery = createMediaQueryList(true);
-    vi.stubGlobal("matchMedia", vi.fn(() => mediaQuery.mediaQueryList));
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => mediaQuery.mediaQueryList),
+    );
     const { result } = renderHook(() => useMediaQuery("(min-width: 768px)"));
     const listener = mediaQuery.getChangeListener();
 
@@ -86,7 +92,10 @@ describe("useMediaQuery", () => {
 
   it("구독과 해제에 같은 change 리스너를 사용한다", () => {
     const mediaQuery = createMediaQueryList(true);
-    vi.stubGlobal("matchMedia", vi.fn(() => mediaQuery.mediaQueryList));
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => mediaQuery.mediaQueryList),
+    );
     const { unmount } = renderHook(() => useMediaQuery("(min-width: 768px)"));
 
     expect(mediaQuery.addEventListener).toHaveBeenCalledTimes(1);

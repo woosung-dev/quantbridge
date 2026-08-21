@@ -51,9 +51,7 @@ export function KillSwitchBanner() {
         <ShieldAlertIcon />
       </span>
       <div className="ks-banner-main">
-        <p className="ks-banner-title">
-          {KILL_SWITCH_LABEL.feature} 활성. 자동 주문이 중지됩니다.
-        </p>
+        <p className="ks-banner-title">{KILL_SWITCH_LABEL.feature} 활성. 자동 주문이 중지됩니다.</p>
         <ul className="ks-banner-list mono">
           {activeEvents.map((e) => (
             <li key={e.id}>

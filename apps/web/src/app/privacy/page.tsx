@@ -25,24 +25,23 @@ export default function PrivacyPage() {
       footnote="최종 개정: 2026-04-25. 정식 개정본은 H2 말 공지."
     >
       <LegalCallout label="[Beta 단계 — 사용자와 함께 다듬는 중입니다]">
-        본 방침은 H2 Beta 단계 임시 템플릿입니다. H2 말 (~2026-06-30) 한국 변호사
-        검토본으로 교체 예정. 개인정보보호법상 필수 고지 항목은 정식본에서 보완.
+        본 방침은 H2 Beta 단계 임시 템플릿입니다. H2 말 (~2026-06-30) 한국 변호사 검토본으로 교체
+        예정. 개인정보보호법상 필수 고지 항목은 정식본에서 보완.
       </LegalCallout>
 
       <section className="space-y-3">
         <h2 className={headingClass}>1. Data We Collect / 수집 정보</h2>
         <ul className={bodyListClass}>
           <li>
-            <strong>계정 정보:</strong> 이메일, 이름, 가입 시점, 국가 코드
-            (ISO 3166-1 alpha-2)
+            <strong>계정 정보:</strong> 이메일, 이름, 가입 시점, 국가 코드 (ISO 3166-1 alpha-2)
           </li>
           <li>
-            <strong>거래소 연동:</strong> API Key / Secret (AES-256 암호화 저장), 거래소명,
-            모드 (demo/live)
+            <strong>거래소 연동:</strong> API Key / Secret (AES-256 암호화 저장), 거래소명, 모드
+            (demo/live)
           </li>
           <li>
-            <strong>전략 데이터:</strong> 업로드한 Pine Script 코드, 메타데이터, 백테스트
-            파라미터 / 결과
+            <strong>전략 데이터:</strong> 업로드한 Pine Script 코드, 메타데이터, 백테스트 파라미터 /
+            결과
           </li>
           <li>
             <strong>기술 로그:</strong> 요청 IP (rate-limit 용 해시 형태), User-Agent, 에러

@@ -9,12 +9,9 @@ import { TradeDetailTable } from "@/features/backtest/components/trades/trade-de
 
 const tradeRangeChartMock = vi.hoisted(() => vi.fn());
 
-vi.mock(
-  "@/features/backtest/components/trades/trade-range-chart",
-  () => ({
-    TradeRangeChart: tradeRangeChartMock,
-  }),
-);
+vi.mock("@/features/backtest/components/trades/trade-range-chart", () => ({
+  TradeRangeChart: tradeRangeChartMock,
+}));
 
 const ENDPOINT = "GET /api/v1/backtests/abcd1234/trades";
 

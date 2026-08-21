@@ -94,9 +94,7 @@ export function OnboardingView() {
           <div className="report">
             <div>
               <h1 className="report-title">온보딩</h1>
-              <p className="card-sub">
-                5분 안에 첫 Pine Script 백테스트를 완주해보세요.
-              </p>
+              <p className="card-sub">5분 안에 첫 Pine Script 백테스트를 완주해보세요.</p>
               <div className="report-meta">
                 {/* 프로토타입의 하드코딩 사용자명 칩(woosung)은 실 신원이 아니므로 재현하지
                     않는다(dashboard-sidebar 정직성 선례). 실 계정 표시는 셸의 Clerk
@@ -130,10 +128,7 @@ export function OnboardingView() {
               <div className="ob-step-content">
                 {step === "welcome" && <Step1Welcome onNext={handleNext} />}
                 {step === "strategy" && (
-                  <Step2Strategy
-                    onStrategyReady={handleStrategyReady}
-                    onBack={handleBack}
-                  />
+                  <Step2Strategy onStrategyReady={handleStrategyReady} onBack={handleBack} />
                 )}
                 {step === "backtest" && (
                   <Step3Backtest

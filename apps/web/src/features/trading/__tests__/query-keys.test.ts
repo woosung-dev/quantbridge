@@ -11,13 +11,7 @@ describe("tradingKeys", () => {
 
   it("orders key includes userId, limit, and states", () => {
     const key = tradingKeys.orders("user_a", 50, ["pending", "submitted"]);
-    expect(key).toEqual([
-      "trading",
-      "user_a",
-      "orders",
-      50,
-      ["pending", "submitted"],
-    ]);
+    expect(key).toEqual(["trading", "user_a", "orders", 50, ["pending", "submitted"]]);
   });
 
   it("different userId isolates orders cache for same limit", () => {
@@ -27,11 +21,7 @@ describe("tradingKeys", () => {
   });
 
   it("killSwitch key scoped to userId", () => {
-    expect(tradingKeys.killSwitch("user_k")).toEqual([
-      "trading",
-      "user_k",
-      "kill-switch",
-    ]);
+    expect(tradingKeys.killSwitch("user_k")).toEqual(["trading", "user_k", "kill-switch"]);
   });
 
   it("exchangeAccounts key scoped to userId", () => {

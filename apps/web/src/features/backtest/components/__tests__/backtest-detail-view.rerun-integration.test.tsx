@@ -4,14 +4,11 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  BacktestDetail,
-  BacktestProgressResponse,
-} from "@/features/backtest/schemas";
+import type { BacktestDetail, BacktestProgressResponse } from "@/features/backtest/schemas";
 
 // --- hooks mocks ---------------------------------------------------------
 
-let progressStatus: BacktestProgressResponse["status"] | undefined = undefined;
+let progressStatus: BacktestProgressResponse["status"] | undefined;
 let detailData: Partial<BacktestDetail> & { status: BacktestDetail["status"] };
 
 vi.mock("@/features/backtest/hooks", () => ({
@@ -129,8 +126,8 @@ describe("BacktestDetailView — 리포트 헤더 중복 칩 제거", () => {
     const { container } = render(<BacktestDetailView id="abc" />);
     const h1 = container.querySelector("h1.report-title");
     expect(h1?.textContent).toContain("BTC/USDT · 1h");
-    const chipTexts = Array.from(container.querySelectorAll(".report-meta .chip")).map(
-      (el) => el.textContent?.trim(),
+    const chipTexts = Array.from(container.querySelectorAll(".report-meta .chip")).map((el) =>
+      el.textContent?.trim(),
     );
     expect(chipTexts).not.toContain("BTC/USDT");
     expect(chipTexts).not.toContain("1h");

@@ -101,10 +101,11 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
 
   if (data == null) return null;
 
-  const { label: statusLabel, tone: statusTone, showCheckIcon } = statusLabelOf(
-    OPTIMIZATION_STATUS_LABEL,
-    data.status,
-  );
+  const {
+    label: statusLabel,
+    tone: statusTone,
+    showCheckIcon,
+  } = statusLabelOf(OPTIMIZATION_STATUS_LABEL, data.status);
   const bestParams = data.status === "completed" ? extractBestParams(data.result) : null;
 
   return (
@@ -198,21 +199,15 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
                 </div>
                 <div className="trust-row">
                   <span className="trust-key">세대 수</span>
-                  <span className="trust-val">
-                    {data.param_space.n_generations ?? EMPTY_CELL}
-                  </span>
+                  <span className="trust-val">{data.param_space.n_generations ?? EMPTY_CELL}</span>
                 </div>
                 <div className="trust-row">
                   <span className="trust-key">돌연변이율</span>
-                  <span className="trust-val">
-                    {data.param_space.mutation_rate ?? EMPTY_CELL}
-                  </span>
+                  <span className="trust-val">{data.param_space.mutation_rate ?? EMPTY_CELL}</span>
                 </div>
                 <div className="trust-row">
                   <span className="trust-key">교차율</span>
-                  <span className="trust-val">
-                    {data.param_space.crossover_rate ?? EMPTY_CELL}
-                  </span>
+                  <span className="trust-val">{data.param_space.crossover_rate ?? EMPTY_CELL}</span>
                 </div>
                 <div className="trust-row">
                   <span className="trust-key">최대 평가 횟수</span>
@@ -256,7 +251,9 @@ export function OptimizerRunDetail({ runId }: { runId: string }) {
 }
 
 // 파라미터 필드를 W1 라벨 경유 문자열로 변환 — 원시 kind 문자열 인쇄 금지.
-function describeField(field: OptimizationRunResponse["param_space"]["parameters"][string]): string {
+function describeField(
+  field: OptimizationRunResponse["param_space"]["parameters"][string],
+): string {
   if (field.kind === "integer" || field.kind === "decimal") {
     return `${PARAM_FIELD_KIND_LABEL[field.kind]} ${field.min} .. ${field.max} · 간격 ${field.step}`;
   }
@@ -295,8 +292,8 @@ function GridResult({ result }: { result: GridSearchResult }) {
         </p>
         <h2 className="section-title">조합 {result.cells.length}개 전체 순위</h2>
         <p className="section-desc">
-          목표 함수는 {OBJECTIVE_METRIC_LABEL[result.objective_metric]}입니다. 아래 KPI 는 최적
-          셀 기준이고, 리더보드와 히트맵은 같은 값을 두 방식으로 보여 줍니다.
+          목표 함수는 {OBJECTIVE_METRIC_LABEL[result.objective_metric]}입니다. 아래 KPI 는 최적 셀
+          기준이고, 리더보드와 히트맵은 같은 값을 두 방식으로 보여 줍니다.
         </p>
       </header>
 
@@ -353,10 +350,7 @@ function GridResult({ result }: { result: GridSearchResult }) {
           </div>
         </div>
         <div className="table-wrap">
-          <table
-            className="trades"
-            aria-label={`조합 순위표 ${result.cells.length}행`}
-          >
+          <table className="trades" aria-label={`조합 순위표 ${result.cells.length}행`}>
             <thead>
               <tr>
                 <th scope="col">{OPTIMIZER_CELL_HEADER.displayOrder}</th>
@@ -392,10 +386,7 @@ function GridResult({ result }: { result: GridSearchResult }) {
                     <td className="mono-l">
                       <span className="lb-rank">
                         {isDegenerate ? (
-                          <span
-                            className="dim"
-                            title={OPTIMIZER_EMPTY_REASON.degenerateNoRank}
-                          >
+                          <span className="dim" title={OPTIMIZER_EMPTY_REASON.degenerateNoRank}>
                             {EMPTY_CELL}
                           </span>
                         ) : (
@@ -424,8 +415,12 @@ function GridResult({ result }: { result: GridSearchResult }) {
                       )}
                     </td>
                     {/* 수익률·낙폭은 raw ratio — formatPercent 로 % 인쇄 (KPI 와 동일 표기). */}
-                    <td className={pnlClass(cell.total_return)}>{formatPercent(cell.total_return)}</td>
-                    <td className={pnlClass(cell.max_drawdown)}>{formatPercent(cell.max_drawdown)}</td>
+                    <td className={pnlClass(cell.total_return)}>
+                      {formatPercent(cell.total_return)}
+                    </td>
+                    <td className={pnlClass(cell.max_drawdown)}>
+                      {formatPercent(cell.max_drawdown)}
+                    </td>
                     <td className="num">{cell.num_trades}</td>
                   </tr>
                 );
@@ -444,9 +439,7 @@ function GridResult({ result }: { result: GridSearchResult }) {
                 이 회전 규약과 어긋난다). 크기·stroke 는 .hm-chev CSS 가 기존과 동일하게 잡는다. */}
             <ChevronRightIcon className="hm-chev" aria-hidden="true" />
             히트맵 펼치기
-            <span className="hm-tail">
-              값 = {OBJECTIVE_METRIC_LABEL[result.objective_metric]}
-            </span>
+            <span className="hm-tail">값 = {OBJECTIVE_METRIC_LABEL[result.objective_metric]}</span>
           </summary>
           <div className="hm-body">
             <GridSearchPairSelector result={result} />
@@ -504,7 +497,10 @@ function BayesianResult({ result }: { result: BayesianSearchResult }) {
             </thead>
             <tbody>
               {result.iterations.map((it) => (
-                <tr key={it.idx} className={it.idx === result.best_iteration_idx ? "row-best" : undefined}>
+                <tr
+                  key={it.idx}
+                  className={it.idx === result.best_iteration_idx ? "row-best" : undefined}
+                >
                   <td className="num">{it.idx}</td>
                   <td>{BAYESIAN_PHASE_LABEL[it.phase]}</td>
                   <td className="mono-l">
@@ -545,9 +541,7 @@ function GeneticResult({ result }: { result: GeneticSearchResult }) {
           <span className="num">02</span> 결과
         </p>
         <h2 className="section-title">유전 알고리즘 세대 이력</h2>
-        <p className="section-desc">
-          세대가 진행되며 누적 최고값이 어떻게 수렴하는지 봅니다.
-        </p>
+        <p className="section-desc">세대가 진행되며 누적 최고값이 어떻게 수렴하는지 봅니다.</p>
       </header>
       <div className="card">
         <div className="card-body">
@@ -581,7 +575,10 @@ function GeneticResult({ result }: { result: GeneticSearchResult }) {
             </thead>
             <tbody>
               {result.iterations.map((it) => (
-                <tr key={it.idx} className={it.idx === result.best_iteration_idx ? "row-best" : undefined}>
+                <tr
+                  key={it.idx}
+                  className={it.idx === result.best_iteration_idx ? "row-best" : undefined}
+                >
                   <td className="num">{it.idx}</td>
                   <td className="num">{it.generation}</td>
                   <td className="mono-l">

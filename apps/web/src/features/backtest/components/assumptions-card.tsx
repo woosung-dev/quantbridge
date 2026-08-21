@@ -155,24 +155,20 @@ export function AssumptionsCard({
     dataRows.push({
       label: "총 펀딩",
       value: formatUsdt(totalFunding),
-      title: "8시간 정산 주기 무기한 선물 펀딩비 순액. 양수 = 지불, 음수 = 수취 (Bybit 실측 rate 기반)",
+      title:
+        "8시간 정산 주기 무기한 선물 펀딩비 순액. 양수 = 지불, 음수 = 수취 (Bybit 실측 rate 기반)",
       isDefault: false,
     });
   }
 
   // 수수료 + 슬리피지 모두 default = BE config 미응답.
-  const allAssumptionsDefaulted = execRows
-    .slice(3)
-    .every((it) => it.isDefault);
+  const allAssumptionsDefaulted = execRows.slice(3).every((it) => it.isDefault);
 
   return (
     <section className="card" aria-label="백테스트 가정">
       {allAssumptionsDefaulted ? (
         <div className="card-head">
-          <span
-            className="card-sub assumptions-notice"
-            data-testid="assumptions-default-notice"
-          >
+          <span className="card-sub assumptions-notice" data-testid="assumptions-default-notice">
             <InfoIcon />
             표준 가정값 (BE config 미응답)
           </span>
@@ -195,9 +191,8 @@ export function AssumptionsCard({
       <p className="disclaimer" data-testid="backtest-honesty-note">
         <InfoIcon />
         <span>
-          가설적 결과입니다. 후행 데이터로 계산되며 위 수수료·슬리피지가 차감된 순(net)
-          수치입니다. 체결 가정. 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후 트리거가에
-          체결됩니다.
+          가설적 결과입니다. 후행 데이터로 계산되며 위 수수료·슬리피지가 차감된 순(net) 수치입니다.
+          체결 가정. 시장가는 현재 봉 종가, 지정가·스톱은 다음 봉 이후 트리거가에 체결됩니다.
         </span>
       </p>
 
@@ -205,9 +200,9 @@ export function AssumptionsCard({
         <p className="disclaimer report-note-warn" data-testid="backtest-funding-incomplete-note">
           <AlertTriangle aria-hidden="true" />
           <span>
-            펀딩 비용 미반영 구간이 있습니다. funding 데이터 가용 범위(최근 Bybit BTC/ETH)
-            밖의 보유 구간은 펀딩비가 차감되지 않았습니다. 해당 구간 손익은 펀딩 비용만큼 낙관
-            편향일 수 있습니다.
+            펀딩 비용 미반영 구간이 있습니다. funding 데이터 가용 범위(최근 Bybit BTC/ETH) 밖의 보유
+            구간은 펀딩비가 차감되지 않았습니다. 해당 구간 손익은 펀딩 비용만큼 낙관 편향일 수
+            있습니다.
           </span>
         </p>
       ) : null}
@@ -216,9 +211,7 @@ export function AssumptionsCard({
         <div className="disclaimer report-note-warn" data-testid="backtest-engine-warnings">
           <AlertTriangle aria-hidden="true" />
           <div>
-            <p>
-              이 실행에서 엔진이 남긴 알림입니다. 숫자를 읽기 전에 먼저 보세요.
-            </p>
+            <p>이 실행에서 엔진이 남긴 알림입니다. 숫자를 읽기 전에 먼저 보세요.</p>
             {/*
              * ★건수를 세지 않는다 (2026-08-15 적대 리뷰 P3). 서버는 서로 다른 경고가 상한
              * (50건)을 넘으면 **합성 요약 한 줄**("… N건이 더 있습니다")을 배열 끝에 붙인다.

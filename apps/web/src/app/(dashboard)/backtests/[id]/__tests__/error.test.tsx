@@ -30,29 +30,18 @@ describe("BacktestDetailError — Sprint 32 E (BL-163)", () => {
     expect(screen.getByTestId("backtest-detail-error")).toBeInTheDocument();
     expect(screen.getByText(/백테스트를 불러오지 못했습니다/)).toBeInTheDocument();
     // error.message 노출 (root cause 파악 보조)
-    expect(
-      screen.getByTestId("backtest-detail-error-message"),
-    ).toHaveTextContent("Network failed");
+    expect(screen.getByTestId("backtest-detail-error-message")).toHaveTextContent("Network failed");
     // digest 노출 (observability)
     expect(screen.getByText(/ref: ref-abc-123/)).toBeInTheDocument();
     // ADR-003 supported list 참조 링크 (actionable CTA)
-    const supportedLink = screen.getByTestId(
-      "backtest-detail-error-supported-link",
-    );
+    const supportedLink = screen.getByTestId("backtest-detail-error-supported-link");
     expect(supportedLink).toBeInTheDocument();
-    expect(supportedLink.closest("a")?.getAttribute("href")).toBe(
-      "/strategies",
-    );
+    expect(supportedLink.closest("a")?.getAttribute("href")).toBe("/strategies");
   });
 
   it("다시 시도 버튼 클릭 → reset 호출", () => {
     const reset = vi.fn();
-    render(
-      <BacktestDetailError
-        error={new Error("transient")}
-        reset={reset}
-      />,
-    );
+    render(<BacktestDetailError error={new Error("transient")} reset={reset} />);
 
     fireEvent.click(screen.getByText("다시 시도"));
     expect(reset).toHaveBeenCalledTimes(1);
@@ -62,9 +51,7 @@ describe("BacktestDetailError — Sprint 32 E (BL-163)", () => {
     const reset = vi.fn();
     render(<BacktestDetailError error={new Error("")} reset={reset} />);
 
-    expect(
-      screen.queryByTestId("backtest-detail-error-message"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("backtest-detail-error-message")).not.toBeInTheDocument();
   });
 
   it("digest 미설정 시 ref 노출 안 함", () => {

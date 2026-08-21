@@ -80,10 +80,7 @@ test.describe("BL-570 트레이딩 설정 저장", () => {
       page.locator("[data-sonner-toast]").filter({ hasText: "저장하지 못했습니다" }),
       "onInvalid 토스트가 뜨지 않았다 — 검증 탈락이 다시 침묵한다",
     ).toBeVisible();
-    await expect(
-      page.locator(".field-error").first(),
-      "필드 에러가 렌더되지 않았다",
-    ).toBeVisible();
+    await expect(page.locator(".field-error").first(), "필드 에러가 렌더되지 않았다").toBeVisible();
   });
 
   test("Z4 — 편집 후 저장은 그대로 200 (음성 대조)", async ({ page }) => {

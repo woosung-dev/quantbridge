@@ -20,11 +20,7 @@ export interface WalkForwardBarDatum {
   OOS: number;
 }
 
-export function WalkForwardBarPlot({
-  data,
-}: {
-  data: readonly WalkForwardBarDatum[];
-}) {
+export function WalkForwardBarPlot({ data }: { data: readonly WalkForwardBarDatum[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
       <BarChart

@@ -3,10 +3,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type {
-  StressTestDetail,
-  StressTestSummary,
-} from "@/features/backtest/schemas";
+import type { StressTestDetail, StressTestSummary } from "@/features/backtest/schemas";
 
 // --- hooks mocks ---------------------------------------------------------
 
@@ -78,10 +75,10 @@ vi.mock("@/features/backtest/hooks", () => ({
   useStressTest: (id: string | null) => {
     requestedStressTestId = id;
     return {
-    data: stressData,
-    isLoading: false,
-    isError: false,
-    error: null,
+      data: stressData,
+      isLoading: false,
+      isError: false,
+      error: null,
     };
   },
 }));
@@ -112,15 +109,9 @@ beforeEach(() => {
 describe("StressTestPanel", () => {
   it("renders run buttons and initial empty-state hint", () => {
     render(<StressTestPanel backtestId="abc" />);
-    expect(
-      screen.getByRole("button", { name: /Monte Carlo/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Walk-Forward/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/스트레스 테스트를 실행하세요/),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Monte Carlo/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Walk-Forward/ })).toBeInTheDocument();
+    expect(screen.getByText(/스트레스 테스트를 실행하세요/)).toBeInTheDocument();
   });
 
   it("스트레스 테스트가 없으면 빈 패널을 렌더한다", () => {
@@ -129,9 +120,7 @@ describe("StressTestPanel", () => {
     render(<StressTestPanel backtestId="abc" />);
 
     expect(requestedStressTestId).toBeNull();
-    expect(
-      screen.getByText(/스트레스 테스트를 실행하세요/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/스트레스 테스트를 실행하세요/)).toBeInTheDocument();
   });
 
   it("clicking Monte Carlo button calls mutation with correct body", () => {
@@ -163,9 +152,7 @@ describe("StressTestPanel", () => {
 
   it("Sprint 50: Cost Assumption Sensitivity 버튼 클릭 시 9-cell preset 호출", () => {
     render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /Cost Assumption/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Cost Assumption/ }));
     expect(caMutation.mutate).toHaveBeenCalledTimes(1);
     const arg = caMutation.mutate.mock.calls[0]?.[0];
     expect(arg.backtest_id).toBe("abc12345-1111-4111-8111-111111111111");
@@ -178,9 +165,7 @@ describe("StressTestPanel", () => {
   //   유지해야 한다. 「기본값 포함」과 「상단 보존」은 양립 가능하므로 둘 다 단언한다.
   it("BL-730: 격자가 종전 상단(0.002 / 0.001)을 유지한다", () => {
     render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /Cost Assumption/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Cost Assumption/ }));
     const grid = caMutation.mutate.mock.calls[0]?.[0].params.param_grid;
     expect(grid.fees).toContain("0.002");
     expect(grid.slippage).toContain("0.001");
@@ -192,9 +177,7 @@ describe("StressTestPanel", () => {
   //   상수를 import 해서 재므로 기본값이 또 바뀌어도 이 계약은 살아 있다.
   it("BL-730: 비용 민감도 격자에 **현재 기본값**이 들어 있다", () => {
     render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
-    fireEvent.click(
-      screen.getByRole("button", { name: /Cost Assumption/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Cost Assumption/ }));
     const grid = caMutation.mutate.mock.calls[0]?.[0].params.param_grid;
     expect(grid.fees).toContain(String(DEFAULT_FEES_PCT));
     expect(grid.slippage).toContain(String(DEFAULT_SLIPPAGE_PCT));
@@ -243,9 +226,7 @@ describe("StressTestPanel", () => {
     });
 
     // BL-183: 숫자 요약표 노출 (책임 분리 신규 컴포넌트).
-    expect(
-      screen.getByLabelText("Monte Carlo 요약 통계"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Monte Carlo 요약 통계")).toBeInTheDocument();
     expect(screen.getByText(/CI 95% 하한/)).toBeInTheDocument();
     expect(screen.getByText(/MDD p95/)).toBeInTheDocument();
     // fan chart 도 같이 렌더 (책임 분리 유지 검증).
@@ -280,9 +261,7 @@ describe("StressTestPanel", () => {
       completed_at: latestStressTest.completed_at,
     };
 
-    render(
-      <StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />,
-    );
+    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
 
     expect(requestedStressTestId).toBe(latestStressTest.id);
     expect(screen.getByLabelText("Monte Carlo 요약 통계")).toBeInTheDocument();
@@ -327,18 +306,14 @@ describe("StressTestPanel", () => {
 
   // Sprint 52 BL-223 — Param Stability wire-up
   it("Param Stability 버튼 클릭 시 form toggle + 제출 시 psMutation.mutate 호출", () => {
-    render(
-      <StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />,
-    );
+    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
     // 초기 form 미표시
     expect(screen.queryByTestId("param-stability-form")).not.toBeInTheDocument();
     // 버튼 클릭 → form 표시
     fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
     expect(screen.getByTestId("param-stability-form")).toBeInTheDocument();
     // form 제출 → mutation 호출
-    fireEvent.click(
-      screen.getByRole("button", { name: "Param Stability 실행" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
     // 첫 번째는 panel 버튼이지만 form 내부 submit 버튼도 같은 라벨 → 같은 form 의 submit 버튼이 호출됨
     // 정확한 검증: 4 개 button (panel 4 + form 2 = 6) 중 form submit 만 mutation 호출
     expect(psMutation.mutate).toHaveBeenCalled();
@@ -346,19 +321,12 @@ describe("StressTestPanel", () => {
       backtest_id: string;
       params: { param_grid: Record<string, string[]> };
     };
-    expect(payload.backtest_id).toBe(
-      "abc12345-1111-4111-8111-111111111111",
-    );
-    expect(Object.keys(payload.params.param_grid)).toEqual([
-      "emaPeriod",
-      "stopLossPct",
-    ]);
+    expect(payload.backtest_id).toBe("abc12345-1111-4111-8111-111111111111");
+    expect(Object.keys(payload.params.param_grid)).toEqual(["emaPeriod", "stopLossPct"]);
   });
 
   it("psMutation onSuccess → activeStressTestId 설정 + form 자동 닫힘", () => {
-    render(
-      <StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />,
-    );
+    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
     fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
     expect(screen.getByTestId("param-stability-form")).toBeInTheDocument();
 
@@ -402,9 +370,7 @@ describe("StressTestPanel", () => {
       completed_at: "2026-05-11T00:01:00+00:00",
     };
 
-    render(
-      <StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />,
-    );
+    render(<StressTestPanel backtestId="abc12345-1111-4111-8111-111111111111" />);
     fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
     act(() => {
       lastPsOpts?.onSuccess?.({
@@ -447,9 +413,7 @@ describe("StressTestPanel — 스트레스 테스트 이력 ([BL-414])", () => {
     render(<StressTestPanel backtestId={BACKTEST_ID} />);
 
     expect(screen.queryAllByTestId("stress-test-history-row")).toHaveLength(0);
-    expect(
-      screen.getByText(/아직 실행한 스트레스 테스트가 없습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/아직 실행한 스트레스 테스트가 없습니다/)).toBeInTheDocument();
   });
 
   // ★[BL-465] — "없음" 과 "0" 을 같게 렌더하면 화면이 거짓말을 한다. 실패한 실행의
@@ -522,9 +486,7 @@ describe("StressTestPanel — 이력 1페이지 상한과 지표 표기 ([BL-414
 
     render(<StressTestPanel backtestId={BACKTEST_ID} />);
 
-    expect(
-      screen.queryByTestId("stress-test-history-truncated"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("stress-test-history-truncated")).not.toBeInTheDocument();
   });
 
   it("P2: 열화 비율이 Infinity 면 ∞ 로 그리고 무데이터(—)와 구분한다", () => {

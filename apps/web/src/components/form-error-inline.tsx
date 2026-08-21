@@ -60,9 +60,7 @@ function parseError(err: unknown): Parsed | null {
   const errObj = err as { status?: unknown; detail?: unknown; message?: unknown };
   const status = typeof errObj.status === "number" ? errObj.status : null;
   const message =
-    typeof errObj.message === "string" && errObj.message.length > 0
-      ? errObj.message
-      : null;
+    typeof errObj.message === "string" && errObj.message.length > 0 ? errObj.message : null;
   const fallback = message || (status != null ? `요청 실패 (${status})` : "요청 실패");
 
   if (status === 422) {
@@ -158,10 +156,7 @@ export function FormErrorInline({
         )}
       >
         <div className="mb-1 flex items-start gap-2">
-          <TriangleAlertIcon
-            aria-hidden="true"
-            className="mt-0.5 size-4 shrink-0 text-warning"
-          />
+          <TriangleAlertIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
           <p className="font-semibold leading-snug text-warning">
             이 strategy 는 미지원 builtin 을 포함합니다
           </p>
@@ -192,10 +187,7 @@ export function FormErrorInline({
             </Link>
           ) : null}
           {indicatorCode && onConverted ? (
-            <ConvertWithAIButton
-              indicatorCode={indicatorCode}
-              onConverted={onConverted}
-            />
+            <ConvertWithAIButton indicatorCode={indicatorCode} onConverted={onConverted} />
           ) : null}
         </div>
       </div>
@@ -213,10 +205,7 @@ export function FormErrorInline({
         )}
       >
         <div className="mb-1 flex items-start gap-2">
-          <TriangleAlertIcon
-            aria-hidden="true"
-            className="mt-0.5 size-4 shrink-0 text-warning"
-          />
+          <TriangleAlertIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
           <p className="font-semibold leading-snug text-warning">이 strategy 는 근사 실행됩니다</p>
         </div>
         <p className="mb-2 pl-6 text-xs leading-relaxed text-warning">

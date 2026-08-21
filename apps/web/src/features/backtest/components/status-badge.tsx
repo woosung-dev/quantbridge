@@ -19,11 +19,7 @@ const STATUS_VARIANT: Record<BacktestStatus, BadgeVariant> = {
 
 export function BacktestStatusBadge({ status }: { status: BacktestStatus }) {
   const variant = STATUS_VARIANT[status];
-  const { label } = statusLabelOf(
-    BACKTEST_STATUS_LABEL,
-    status,
-    "backtest.status",
-  );
+  const { label } = statusLabelOf(BACKTEST_STATUS_LABEL, status, "backtest.status");
   return (
     <Badge
       variant={variant}

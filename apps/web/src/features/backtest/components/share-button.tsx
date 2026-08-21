@@ -4,10 +4,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  useCreateBacktestShare,
-  useRevokeBacktestShare,
-} from "@/features/backtest/hooks";
+import { useCreateBacktestShare, useRevokeBacktestShare } from "@/features/backtest/hooks";
 
 interface ShareButtonProps {
   backtestId: string;

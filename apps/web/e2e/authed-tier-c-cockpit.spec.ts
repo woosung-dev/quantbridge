@@ -31,9 +31,7 @@ test("코크핏 §03 포지션 표는 TP/SL·청산 열 구조를 갖는다", as
   if (tableCount > 0) {
     await expect(section.getByRole("columnheader", { name: "익절" })).toBeVisible();
     await expect(section.getByRole("columnheader", { name: "손절" })).toBeVisible();
-    await expect(
-      section.getByRole("columnheader", { name: "청산", exact: true }),
-    ).toBeVisible();
+    await expect(section.getByRole("columnheader", { name: "청산", exact: true })).toBeVisible();
   } else {
     await expect(page.getByText("활성 라이브 세션이 없습니다.").first()).toBeVisible();
   }

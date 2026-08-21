@@ -10,9 +10,7 @@ import type { ChartPoint } from "@/components/charts/trading-chart";
 import { CHART_PALETTE_FALLBACK } from "@/lib/chart-tokens";
 
 import { WorkspaceEquityCard } from "../workspace-equity-card";
-import {
-  PRICE_SCALE_MODE,
-} from "../equity-chart-config";
+import { PRICE_SCALE_MODE } from "../equity-chart-config";
 
 // --- lightweight-charts mock (equity-pane.test.tsx 동형) ------------------
 
@@ -90,9 +88,8 @@ describe("WorkspaceEquityCard (S7)", () => {
   beforeEach(() => {
     createChartMock.mockClear();
     chartInstances.length = 0;
-    (
-      globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }
-    ).ResizeObserver = MockResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
+      MockResizeObserver;
   });
 
   afterEach(() => {
@@ -100,9 +97,7 @@ describe("WorkspaceEquityCard (S7)", () => {
   });
 
   it("로딩 상태 — 스켈레톤을 그리고 차트를 만들지 않는다", async () => {
-    render(
-      <WorkspaceEquityCard data={[]} isLoading activeSessionCount={0} latestValue={0} />,
-    );
+    render(<WorkspaceEquityCard data={[]} isLoading activeSessionCount={0} latestValue={0} />);
     await act(async () => {});
     expect(screen.getByTestId("equity-loading")).toBeInTheDocument();
     expect(createChartMock).not.toHaveBeenCalled();

@@ -83,7 +83,9 @@ const COCKPIT_RISE_DELAYS = normalize(`
 // 375px 폭에서 문서가 통째로 넘쳤다(scrollWidth 490 > innerWidth 375, 캐논 overflow 하드 실패).
 // 부모 `.pager` 는 이미 flex-wrap: wrap 이라 그 안에서만 줄바꿈이 막혀 있던 것이다.
 // _kit.html 이 줄바꿈을 반영하면 이 항목을 지운다.
-const PAGER_WRAP_PORTED = normalize(`.pager-nums { display: inline-flex; gap: 4px; flex-wrap: wrap; }`);
+const PAGER_WRAP_PORTED = normalize(
+  `.pager-nums { display: inline-flex; gap: 4px; flex-wrap: wrap; }`,
+);
 const PAGER_WRAP_KIT = normalize(`.pager-nums { display: inline-flex; gap: 4px; }`);
 
 describe("C 공용 CSS 이식 무결성 (S2)", () => {

@@ -26,10 +26,8 @@ describe("ProgressStepper", () => {
 
   it("currentStep=2 → step 1 completed (✓), step 2 active, line 1 success", () => {
     render(<ProgressStepper currentStep={2} steps={STEPS} />);
-    const step1Li = screen.getByTestId("progress-step-circle-1").parentElement
-      ?.parentElement;
-    const step2Li = screen.getByTestId("progress-step-circle-2").parentElement
-      ?.parentElement;
+    const step1Li = screen.getByTestId("progress-step-circle-1").parentElement?.parentElement;
+    const step2Li = screen.getByTestId("progress-step-circle-2").parentElement?.parentElement;
     expect(step1Li?.dataset.state).toBe("completed");
     expect(step2Li?.dataset.state).toBe("active");
     // 단계 카운터 텍스트
@@ -39,16 +37,13 @@ describe("ProgressStepper", () => {
   it("currentStep=4 → step 1/2/3 completed, step 4 active", () => {
     render(<ProgressStepper currentStep={4} steps={STEPS} />);
     expect(
-      screen.getByTestId("progress-step-circle-1").parentElement?.parentElement
-        ?.dataset.state,
+      screen.getByTestId("progress-step-circle-1").parentElement?.parentElement?.dataset.state,
     ).toBe("completed");
     expect(
-      screen.getByTestId("progress-step-circle-3").parentElement?.parentElement
-        ?.dataset.state,
+      screen.getByTestId("progress-step-circle-3").parentElement?.parentElement?.dataset.state,
     ).toBe("completed");
     expect(
-      screen.getByTestId("progress-step-circle-4").parentElement?.parentElement
-        ?.dataset.state,
+      screen.getByTestId("progress-step-circle-4").parentElement?.parentElement?.dataset.state,
     ).toBe("active");
   });
 });

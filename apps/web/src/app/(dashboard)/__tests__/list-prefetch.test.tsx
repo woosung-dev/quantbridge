@@ -85,7 +85,10 @@ function getPrefetchedKeys(element: ReactElement) {
 
   const queryClient = new QueryClient();
   hydrate(queryClient, state);
-  return queryClient.getQueryCache().getAll().map((query) => query.queryKey);
+  return queryClient
+    .getQueryCache()
+    .getAll()
+    .map((query) => query.queryKey);
 }
 
 function renderPage(element: ReactElement) {

@@ -102,9 +102,7 @@ describe("dashboard route error boundaries", () => {
   it.each(ERROR_BOUNDARIES)(
     "%s records whether it has a readable heading",
     ({ ErrorBoundary, hasHeading }) => {
-      render(
-        <ErrorBoundary error={new Error("Network failed")} reset={vi.fn()} />,
-      );
+      render(<ErrorBoundary error={new Error("Network failed")} reset={vi.fn()} />);
 
       const headings = screen.queryAllByRole("heading");
       if (hasHeading) {

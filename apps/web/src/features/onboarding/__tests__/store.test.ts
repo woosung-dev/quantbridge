@@ -58,16 +58,12 @@ describe("useOnboardingStore — step 전진/후진", () => {
     useOnboardingStore.getState().setStrategy(FIXED_STRATEGY_ID);
     const firstStartedAt = useOnboardingStore.getState().startedAt;
     expect(firstStartedAt).toBeGreaterThanOrEqual(before);
-    expect(selectStrategyId(useOnboardingStore.getState())).toBe(
-      FIXED_STRATEGY_ID,
-    );
+    expect(selectStrategyId(useOnboardingStore.getState())).toBe(FIXED_STRATEGY_ID);
 
     // 이후 호출은 startedAt 을 덮어쓰지 않는다 (세션 수명 기준).
     useOnboardingStore.getState().setBacktest(FIXED_BACKTEST_ID);
     expect(useOnboardingStore.getState().startedAt).toBe(firstStartedAt);
-    expect(selectBacktestId(useOnboardingStore.getState())).toBe(
-      FIXED_BACKTEST_ID,
-    );
+    expect(selectBacktestId(useOnboardingStore.getState())).toBe(FIXED_BACKTEST_ID);
   });
 
   it("nextStep / prevStep 이 경계에서 clamp 된다", () => {

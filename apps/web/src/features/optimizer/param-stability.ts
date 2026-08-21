@@ -62,9 +62,7 @@ export function deriveParamStability(
     // 축은 전 셀(축퇴 포함)의 값 집합에서 오름차순으로 뽑는다.
     const axis = Array.from(
       new Set(
-        cells
-          .map((c) => c.param_values[paramName])
-          .filter((v): v is number => v !== undefined),
+        cells.map((c) => c.param_values[paramName]).filter((v): v is number => v !== undefined),
       ),
     ).sort((a, b) => a - b);
 
@@ -72,9 +70,7 @@ export function deriveParamStability(
       const group = validCells.filter((c) => c.param_values[paramName] === value);
       const count = group.length;
       const average =
-        count > 0
-          ? group.reduce((sum, c) => sum + (c.objective_value as number), 0) / count
-          : null;
+        count > 0 ? group.reduce((sum, c) => sum + (c.objective_value as number), 0) / count : null;
       return { value, average, validCellCount: count };
     });
     return { paramName, values };
@@ -111,9 +107,7 @@ export function deriveParamStability(
         average: v.average,
         validCellCount: v.validCellCount,
         widthPct:
-          canRenderBars && v.average !== null
-            ? clampPct((v.average / globalMaxAverage) * 100)
-            : 0,
+          canRenderBars && v.average !== null ? clampPct((v.average / globalMaxAverage) * 100) : 0,
         isBest: v.average !== null && v.value === bestValue,
       })),
       highest: highestEntry ? { value: highestEntry.value, average: highestEntry.average } : null,

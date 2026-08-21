@@ -53,9 +53,7 @@ const SAMPLE_DETAIL = {
 
 describe("SharedBacktestPage (server component)", () => {
   it("200 — 백테스트 메트릭과 CTA 가 렌더된다", async () => {
-    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-      mockOk(SAMPLE_DETAIL),
-    );
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(mockOk(SAMPLE_DETAIL));
     const ui = await SharedBacktestPage({
       params: Promise.resolve({ token: "tkn-ok" }),
     });
@@ -63,15 +61,11 @@ describe("SharedBacktestPage (server component)", () => {
     expect(screen.getByText(/BTCUSDT/)).toBeInTheDocument();
     expect(screen.getByText(/총 수익률/)).toBeInTheDocument();
     // CTA 가 banner + footer 양쪽에 노출되므로 최소 1개 이상
-    expect(screen.getAllByText(/QuantBridge 시작하기/).length).toBeGreaterThan(
-      0,
-    );
+    expect(screen.getAllByText(/QuantBridge 시작하기/).length).toBeGreaterThan(0);
   });
 
   it("200 — 상단 SharePublicBanner 가 렌더되고 read-only 안내가 노출된다", async () => {
-    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-      mockOk(SAMPLE_DETAIL),
-    );
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(mockOk(SAMPLE_DETAIL));
     const ui = await SharedBacktestPage({
       params: Promise.resolve({ token: "tkn-ok" }),
     });
@@ -85,16 +79,12 @@ describe("SharedBacktestPage (server component)", () => {
   });
 
   it("410 — 시각 안내 (illustration + signup CTA)", async () => {
-    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-      mockStatus(410),
-    );
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(mockStatus(410));
     const ui = await SharedBacktestPage({
       params: Promise.resolve({ token: "tkn-revoked" }),
     });
     render(ui);
-    expect(
-      screen.getByText(/공유 링크가 해제되었습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/공유 링크가 해제되었습니다/)).toBeInTheDocument();
     // ErrorIllustration 패턴 차용 검증
     expect(screen.getByTestId("share-revoked-icon")).toBeInTheDocument();
     expect(screen.getByTestId("share-revoked-backdrop")).toBeInTheDocument();
@@ -102,16 +92,12 @@ describe("SharedBacktestPage (server component)", () => {
   });
 
   it("404 — 시각 안내 (illustration + signup CTA)", async () => {
-    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(
-      mockStatus(404),
-    );
+    (global.fetch as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(mockStatus(404));
     const ui = await SharedBacktestPage({
       params: Promise.resolve({ token: "tkn-missing" }),
     });
     render(ui);
-    expect(
-      screen.getByText(/공유 링크를 찾을 수 없습니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/공유 링크를 찾을 수 없습니다/)).toBeInTheDocument();
     expect(screen.getByTestId("share-not-found-icon")).toBeInTheDocument();
     expect(screen.getByTestId("share-not-found-backdrop")).toBeInTheDocument();
     expect(screen.getByText(/QuantBridge 시작하기/)).toBeInTheDocument();
@@ -134,9 +120,7 @@ describe("SharedBacktestPage (server component)", () => {
       params: Promise.resolve({ token: "abc-123" }),
     });
     const og = meta.openGraph;
-    expect(og?.images).toEqual([
-      "/share/backtests/abc-123/opengraph-image",
-    ]);
+    expect(og?.images).toEqual(["/share/backtests/abc-123/opengraph-image"]);
   });
 });
 

@@ -15,10 +15,7 @@ const RATIO_METRICS: ReadonlySet<OptimizationObjectiveMetric> = new Set([
 export function formatObjectiveValue(
   metric: OptimizationObjectiveMetric,
   value: number,
-  {
-    percentDigits = 2,
-    plainDigits = 2,
-  }: { percentDigits?: number; plainDigits?: number } = {},
+  { percentDigits = 2, plainDigits = 2 }: { percentDigits?: number; plainDigits?: number } = {},
 ): string {
   if (RATIO_METRICS.has(metric)) return formatPercent(value, percentDigits);
   return value.toFixed(plainDigits);

@@ -3,10 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  OnboardingPersistSchema,
-  OnboardingStepSchema,
-} from "@/features/onboarding/schemas";
+import { OnboardingPersistSchema, OnboardingStepSchema } from "@/features/onboarding/schemas";
 import { ONBOARDING_VERSION } from "@/features/onboarding/types";
 
 const STRATEGY_ID = "11111111-2222-4333-8444-555555555555";
@@ -44,48 +41,35 @@ describe("OnboardingPersistSchema", () => {
 
   it("상위 버전 payload를 거부한다", () => {
     expect(
-      OnboardingPersistSchema.safeParse(
-        validPayload({ version: ONBOARDING_VERSION + 1 }),
-      ).success,
+      OnboardingPersistSchema.safeParse(validPayload({ version: ONBOARDING_VERSION + 1 })).success,
     ).toBe(false);
   });
 
   it("하위 버전 payload를 거부한다", () => {
     expect(
-      OnboardingPersistSchema.safeParse(
-        validPayload({ version: ONBOARDING_VERSION - 1 }),
-      ).success,
+      OnboardingPersistSchema.safeParse(validPayload({ version: ONBOARDING_VERSION - 1 })).success,
     ).toBe(false);
   });
 
-  it.each(["welcome", "strategy", "backtest", "result"])(
-    "%s step을 통과시킨다",
-    (step) => {
-      expect(OnboardingPersistSchema.safeParse(validPayload({ step })).success).toBe(
-        true,
-      );
-    },
-  );
+  it.each(["welcome", "strategy", "backtest", "result"])("%s step을 통과시킨다", (step) => {
+    expect(OnboardingPersistSchema.safeParse(validPayload({ step })).success).toBe(true);
+  });
 
   it.each(["done", "WELCOME", ""])("목록 밖 step %j을 거부한다", (step) => {
-    expect(OnboardingPersistSchema.safeParse(validPayload({ step })).success).toBe(
-      false,
-    );
+    expect(OnboardingPersistSchema.safeParse(validPayload({ step })).success).toBe(false);
   });
 
   it("두 id의 null을 통과시킨다", () => {
     expect(
-      OnboardingPersistSchema.safeParse(
-        validPayload({ strategyId: null, backtestId: null }),
-      ).success,
+      OnboardingPersistSchema.safeParse(validPayload({ strategyId: null, backtestId: null }))
+        .success,
     ).toBe(true);
   });
 
   it.each(["strategyId", "backtestId"] as const)("비-UUID %s를 거부한다", (idKey) => {
-    expect(
-      OnboardingPersistSchema.safeParse(validPayload({ [idKey]: "not-a-uuid" }))
-        .success,
-    ).toBe(false);
+    expect(OnboardingPersistSchema.safeParse(validPayload({ [idKey]: "not-a-uuid" })).success).toBe(
+      false,
+    );
   });
 
   it.each(["strategyId", "backtestId"] as const)("누락한 %s를 거부한다", (idKey) => {
@@ -96,15 +80,11 @@ describe("OnboardingPersistSchema", () => {
   });
 
   it("startedAt=0을 통과시킨다", () => {
-    expect(OnboardingPersistSchema.safeParse(validPayload({ startedAt: 0 })).success).toBe(
-      true,
-    );
+    expect(OnboardingPersistSchema.safeParse(validPayload({ startedAt: 0 })).success).toBe(true);
   });
 
   it.each([-1, 1.5, "123"])("유효하지 않은 startedAt %j를 거부한다", (startedAt) => {
-    expect(
-      OnboardingPersistSchema.safeParse(validPayload({ startedAt })).success,
-    ).toBe(false);
+    expect(OnboardingPersistSchema.safeParse(validPayload({ startedAt })).success).toBe(false);
   });
 
   it("여분 키를 strip하고 payload를 통과시킨다", () => {

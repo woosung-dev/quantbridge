@@ -21,10 +21,7 @@ interface BacktestDetailErrorProps {
   reset: () => void;
 }
 
-export default function BacktestDetailError({
-  error,
-  reset,
-}: BacktestDetailErrorProps) {
+export default function BacktestDetailError({ error, reset }: BacktestDetailErrorProps) {
   useEffect(() => {
     // Sprint 32 E (BL-163): error.message 는 일반 message — sensitive
     // payload 노출 risk 적음 (backend unhandled_exc_handler 가 sanitize).
@@ -37,12 +34,10 @@ export default function BacktestDetailError({
       role="alert"
       data-testid="backtest-detail-error"
     >
-      <h2 className="font-display text-xl font-bold">
-        백테스트를 불러오지 못했습니다
-      </h2>
+      <h2 className="font-display text-xl font-bold">백테스트를 불러오지 못했습니다</h2>
       <p className="text-sm text-[color:var(--text-secondary)]">
-        네트워크 또는 서버 상태 일시적 오류일 수 있습니다. 다시 시도하거나 잠시
-        후 새로고침해 주세요.
+        네트워크 또는 서버 상태 일시적 오류일 수 있습니다. 다시 시도하거나 잠시 후 새로고침해
+        주세요.
       </p>
       {error.message ? (
         <p
@@ -53,9 +48,7 @@ export default function BacktestDetailError({
         </p>
       ) : null}
       {error.digest ? (
-        <p className="text-xs font-mono text-[color:var(--text-muted)]">
-          ref: {error.digest}
-        </p>
+        <p className="text-xs font-mono text-[color:var(--text-muted)]">ref: {error.digest}</p>
       ) : null}
 
       {/* Sprint 32 E (BL-163): actionable CTA — strategy_not_runnable 케이스 대비
@@ -63,10 +56,7 @@ export default function BacktestDetailError({
           Button 컴포넌트가 asChild 미지원 → Link 에 buttonVariants 직접 적용. */}
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button onClick={reset}>다시 시도</Button>
-        <Link
-          href="/backtests"
-          className={cn(buttonVariants({ variant: "outline" }))}
-        >
+        <Link href="/backtests" className={cn(buttonVariants({ variant: "outline" }))}>
           백테스트 목록으로
         </Link>
         <Link

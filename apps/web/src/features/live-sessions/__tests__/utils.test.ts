@@ -32,8 +32,7 @@ describe("formatDateTime — 결정적 UTC 표기", () => {
 
 // Helper — fixture builder. status는 최소 valid 값 ("dispatched").
 function ev(
-  partial: Partial<LiveSignalEvent> &
-    Pick<LiveSignalEvent, "bar_time" | "sequence_no" | "action">,
+  partial: Partial<LiveSignalEvent> & Pick<LiveSignalEvent, "bar_time" | "sequence_no" | "action">,
 ): LiveSignalEvent {
   return {
     id: "00000000-0000-0000-0000-000000000000",
@@ -54,9 +53,7 @@ function ev(
 
 describe("computeLiveSessionStateRefetchInterval", () => {
   it("active=true → 5s", () => {
-    expect(computeLiveSessionStateRefetchInterval(true)).toBe(
-      LIVE_SESSION_STATE_REFETCH_ACTIVE_MS,
-    );
+    expect(computeLiveSessionStateRefetchInterval(true)).toBe(LIVE_SESSION_STATE_REFETCH_ACTIVE_MS);
   });
 
   it("active=false → 폴링 중단", () => {
@@ -143,9 +140,7 @@ describe("buildActivityTimelineWithEquity (two-pointer 경계)", () => {
 
   it("이벤트가 첫 equity point 이전 → cumulative_pnl=0", () => {
     const result = buildActivityTimelineWithEquity(
-      [
-        ev({ bar_time: "2026-05-01T11:00:00Z", sequence_no: 0, action: "entry" }),
-      ],
+      [ev({ bar_time: "2026-05-01T11:00:00Z", sequence_no: 0, action: "entry" })],
       [eq("2026-05-01T12:00:00Z", "10.5")],
     );
     expect(result).toHaveLength(1);
@@ -181,10 +176,7 @@ describe("buildActivityTimelineWithEquity (two-pointer 경계)", () => {
     );
 
     expect(result.map((p) => p.cumulative_pnl)).toEqual([-4, -6]);
-    expect(result.map((p) => p.cumulative_pnl_source)).toEqual([
-      "estimated",
-      "confirmed",
-    ]);
+    expect(result.map((p) => p.cumulative_pnl_source)).toEqual(["estimated", "confirmed"]);
   });
 
   it("BL-458 — source 가 없는 구 응답은 추정으로 폴백한다", () => {

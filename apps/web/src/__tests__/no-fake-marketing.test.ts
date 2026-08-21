@@ -14,11 +14,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-function walkSync(
-  dir: string,
-  extensions: string[],
-  results: string[] = [],
-): string[] {
+function walkSync(dir: string, extensions: string[], results: string[] = []): string[] {
   for (const entry of readdirSync(dir)) {
     if (entry === "node_modules" || entry === "__tests__" || entry.startsWith(".")) {
       continue;

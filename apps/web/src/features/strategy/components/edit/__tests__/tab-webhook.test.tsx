@@ -5,10 +5,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import {
-  cacheWebhookSecret,
-  readWebhookSecret,
-} from "@/features/strategy/webhook-secret-storage";
+import { cacheWebhookSecret, readWebhookSecret } from "@/features/strategy/webhook-secret-storage";
 
 // react-query mutation 체인 mock — 실제 useRotateWebhookSecret 는 onSuccess 안에서
 // cacheWebhookSecret 을 호출하므로, 회전 성공은 테스트에서 그 순서를 그대로 재현한다.

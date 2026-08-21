@@ -45,18 +45,14 @@ describe("ExchangeAccountsPanel loading/error UX (Phase B-2)", () => {
   it("isLoading=true → skeleton placeholder 렌더 + 표/이모티 부재", () => {
     mockState = { data: undefined, isLoading: true, isError: false };
     renderPanel();
-    expect(
-      screen.getByLabelText("거래소 계정 불러오는 중"),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText("거래소 계정 불러오는 중")).toBeInTheDocument();
     expect(screen.queryByText("Exchange Accounts")).toBeNull();
   });
 
   it("isError=true → 안내 메시지 + 다시 시도 버튼 → refetch 호출", () => {
     mockState = { data: undefined, isLoading: false, isError: true };
     renderPanel();
-    expect(
-      screen.getByText("거래소 계정 목록을 불러오지 못했습니다."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("거래소 계정 목록을 불러오지 못했습니다.")).toBeInTheDocument();
     const retryBtn = screen.getByRole("button", { name: "다시 시도" });
     expect(retryBtn).toBeInTheDocument();
     fireEvent.click(retryBtn);

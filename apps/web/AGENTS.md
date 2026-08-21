@@ -149,11 +149,16 @@ src/
 
 ★**의심스러우면 feature 로 보내라.**
 
-### ★ 레이어 경계는 eslint 가 집행한다
+### ★ 레이어 경계는 **Biome + eslint 둘이 나눠** 집행한다 ([ADR-039], 2026-08-21)
 
-`features/`·`components/`·`lib/`·`hooks/`·`store/` 에서 **`@/app/*` 를 import 하면 error** 다
-(`eslint.config.mjs` `no-restricted-imports`). `app/` 은 최상위 조립층이라 아래 층이 그것을
-거슬러 참조하면 라우트를 못 옮긴다.
+`features/`·`components/`·`lib/`·`hooks/`·`store/` 에서 **`@/app/*` 를 import 하면 error** 다.
+`app/` 은 최상위 조립층이라 아래 층이 그것을 거슬러 참조하면 라우트를 못 옮긴다.
+
+| 우회 갈래 | 집행자 |
+| --- | --- |
+| 정적 `import`·`export from` | `biome.jsonc` `style/noRestrictedImports` |
+| 동적 `import("@/app/x")` | 같은 규칙 — Biome 은 동적 import 를 **네이티브로** 본다 |
+| 템플릿 리터럴 ``import(`@/app/${x}`)`` | `eslint.config.mjs` `no-restricted-syntax` (Biome 이 못 보는 유일한 갈래) |
 
 ### ★ 컴포넌트를 옮기기 전에 — 검사기 스코프를 먼저 재라
 

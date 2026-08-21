@@ -51,7 +51,9 @@ describe("useCancelOrder", () => {
     result.current.mutate("order-1");
 
     await waitFor(() =>
-      expect(toastError).toHaveBeenCalledWith("주문 취소에 실패했습니다. 잠시 후 다시 시도해주세요."),
+      expect(toastError).toHaveBeenCalledWith(
+        "주문 취소에 실패했습니다. 잠시 후 다시 시도해주세요.",
+      ),
     );
   });
 });

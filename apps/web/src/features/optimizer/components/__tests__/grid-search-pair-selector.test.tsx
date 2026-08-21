@@ -40,9 +40,7 @@ function colHeaders(container: HTMLElement): string[] {
 
 /** tbody 의 행 헤더(th[scope=row]) 텍스트 목록 */
 function rowHeaders(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('tbody th[scope="row"]')].map(
-    (el) => el.textContent ?? "",
-  );
+  return [...container.querySelectorAll('tbody th[scope="row"]')].map((el) => el.textContent ?? "");
 }
 
 describe("GridSearchPairSelector — 축 셀렉터 ↔ 히트맵 렌더 방향 계약", () => {

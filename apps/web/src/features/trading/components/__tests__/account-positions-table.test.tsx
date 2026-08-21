@@ -13,8 +13,11 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 vi.mock("@/features/live-sessions/hooks", () => ({
-  closePositionMutationKey: ({ sessionId, symbol }: { sessionId: string; symbol: string }) =>
-    ["close-position", sessionId, symbol],
+  closePositionMutationKey: ({ sessionId, symbol }: { sessionId: string; symbol: string }) => [
+    "close-position",
+    sessionId,
+    symbol,
+  ],
   useAccountPositions: vi.fn(),
   useClosePosition: vi.fn(),
 }));
@@ -221,16 +224,21 @@ describe("AccountPositionsTable", () => {
   it("조회 범위를 각주로 고지한다", () => {
     render(<AccountPositionsTable accounts={[ACCOUNT]} />);
 
-    expect(
-      screen.getByText(/USDT 정산 선물\(무기한·만기물\)만 조회합니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/USDT 정산 선물\(무기한·만기물\)만 조회합니다/)).toBeInTheDocument();
   });
 
   it("같은 uid와 심볼의 포지션을 한 행으로 접는다", () => {
     mockAccountPositions.mockReturnValue([
       query({
         data: payload({
-          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: null, close_blocked_reason: "read_only_key" }],
+          rows: [
+            {
+              symbol: "BTC/USDT",
+              position: position(),
+              closable_session_id: null,
+              close_blocked_reason: "read_only_key",
+            },
+          ],
         } as Partial<AccountPositions>),
       }),
       query(),
@@ -252,12 +260,26 @@ describe("AccountPositionsTable", () => {
     mockAccountPositions.mockReturnValue([
       query({
         data: payload({
-          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: null, close_blocked_reason: "read_only_key" }],
+          rows: [
+            {
+              symbol: "BTC/USDT",
+              position: position(),
+              closable_session_id: null,
+              close_blocked_reason: "read_only_key",
+            },
+          ],
         } as Partial<AccountPositions>),
       }),
       query({
         data: payload({
-          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: WRITABLE_SESSION_ID, close_blocked_reason: null }],
+          rows: [
+            {
+              symbol: "BTC/USDT",
+              position: position(),
+              closable_session_id: WRITABLE_SESSION_ID,
+              close_blocked_reason: null,
+            },
+          ],
         } as Partial<AccountPositions>),
       }),
     ]);
@@ -283,12 +305,26 @@ describe("AccountPositionsTable", () => {
     mockAccountPositions.mockReturnValue([
       query({
         data: payload({
-          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: null, close_blocked_reason: "read_only_key" }],
+          rows: [
+            {
+              symbol: "BTC/USDT",
+              position: position(),
+              closable_session_id: null,
+              close_blocked_reason: "read_only_key",
+            },
+          ],
         } as Partial<AccountPositions>),
       }),
       query({
         data: payload({
-          rows: [{ symbol: "BTC/USDT", position: position(), closable_session_id: null, close_blocked_reason: "read_only_key" }],
+          rows: [
+            {
+              symbol: "BTC/USDT",
+              position: position(),
+              closable_session_id: null,
+              close_blocked_reason: "read_only_key",
+            },
+          ],
         } as Partial<AccountPositions>),
       }),
     ]);
@@ -329,10 +365,7 @@ describe("AccountPositionsTable", () => {
   it("계정 하나가 실패해도 나머지를 보여주고 실패를 실패라고 말한다", () => {
     // ★행에서 지우면 "이 계정에 포지션이 없다" 로 읽힌다 — 잔여 노출 관리 표에서
     //   그건 정확히 반대의 거짓말이다.
-    mockAccountPositions.mockReturnValue([
-      query(),
-      query({ data: undefined, isError: true }),
-    ]);
+    mockAccountPositions.mockReturnValue([query(), query({ data: undefined, isError: true })]);
 
     render(
       <AccountPositionsTable
@@ -341,9 +374,7 @@ describe("AccountPositionsTable", () => {
     );
 
     expect(screen.getByText("BTC/USDT")).toBeInTheDocument();
-    expect(screen.getByTestId("account-positions-account-error")).toHaveTextContent(
-      "Bybit 데모 2",
-    );
+    expect(screen.getByTestId("account-positions-account-error")).toHaveTextContent("Bybit 데모 2");
     expect(screen.queryByTestId("account-positions-empty")).not.toBeInTheDocument();
   });
 
@@ -360,7 +391,11 @@ describe("AccountPositionsTable", () => {
   it("미지원 계정은 이유를 숨기지 않는다", () => {
     mockAccountPositions.mockReturnValue([
       query({
-        data: payload({ supported: false, reason: "live_mode_stub", rows: [] } as Partial<AccountPositions>),
+        data: payload({
+          supported: false,
+          reason: "live_mode_stub",
+          rows: [],
+        } as Partial<AccountPositions>),
       }),
     ]);
 

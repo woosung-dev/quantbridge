@@ -360,8 +360,8 @@ export function NewStrategyWizard() {
 
               <p className="disclaimer">
                 <span>
-                  실제 판정은 서버의 지원 함수 사전으로 결정되며, 원문은 변환 없이 바 단위 이벤트 루프
-                  엔진이 그대로 실행합니다.
+                  실제 판정은 서버의 지원 함수 사전으로 결정되며, 원문은 변환 없이 바 단위 이벤트
+                  루프 엔진이 그대로 실행합니다.
                 </span>
               </p>
             </div>
@@ -401,8 +401,8 @@ export function NewStrategyWizard() {
           </p>
           <h2 className="section-title">준비 중이거나 비어 있는 항목</h2>
           <p className="section-desc">
-            지원 함수 사전과 저장된 초안은 아직 준비되지 않았거나 비어 있는 상태도 감추지 않고 그대로
-            보여줍니다.
+            지원 함수 사전과 저장된 초안은 아직 준비되지 않았거나 비어 있는 상태도 감추지 않고
+            그대로 보여줍니다.
           </p>
         </header>
 
@@ -445,17 +445,18 @@ export function NewStrategyWizard() {
               {hasMeaningfulDraft && availableDraft ? (
                 <div className="draft-present" data-testid="draft-present">
                   <p className="draft-meta">
-                    {formatDateTime(availableDraft.savedAt)}에 저장한 초안이
-                    있습니다.
-                    {availableDraft.metadata.name
-                      ? ` 이름 "${availableDraft.metadata.name}".`
-                      : ""}
+                    {formatDateTime(availableDraft.savedAt)}에 저장한 초안이 있습니다.
+                    {availableDraft.metadata.name ? ` 이름 "${availableDraft.metadata.name}".` : ""}
                   </p>
                   <div className="draft-actions">
                     <button className="btn btn-ghost btn-xs" type="button" onClick={handleRestore}>
                       이어서 작성
                     </button>
-                    <button className="btn btn-ghost btn-xs" type="button" onClick={handleSaveDraft}>
+                    <button
+                      className="btn btn-ghost btn-xs"
+                      type="button"
+                      onClick={handleSaveDraft}
+                    >
                       <SaveIcon aria-hidden="true" />
                       지금 다시 저장
                     </button>

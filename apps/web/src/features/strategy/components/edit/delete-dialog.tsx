@@ -113,8 +113,8 @@ function Body({
           <div className="min-w-0 flex-1">
             <TitleEl>삭제할 수 없습니다</TitleEl>
             <DescriptionEl className="pt-1">
-              이 전략에 연관된 백테스트가 있습니다. 대신 <strong>보관</strong>하면 목록에서
-              숨기지만 백테스트 기록은 유지됩니다.
+              이 전략에 연관된 백테스트가 있습니다. 대신 <strong>보관</strong>하면 목록에서 숨기지만
+              백테스트 기록은 유지됩니다.
             </DescriptionEl>
           </div>
         </div>

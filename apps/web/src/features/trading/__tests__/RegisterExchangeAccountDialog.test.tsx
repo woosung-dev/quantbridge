@@ -29,9 +29,7 @@ describe("RegisterExchangeAccountDialog", () => {
     await waitFor(() => screen.getByText("거래소 계정 등록"));
     // 연결 거래소는 Bybit 하나뿐 — passphrase 입력이 어느 상태에서도 없다.
     expect(screen.queryByText(/Passphrase/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByText("현재 연결된 거래소는 Bybit 하나입니다."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("현재 연결된 거래소는 Bybit 하나입니다.")).toBeInTheDocument();
   });
 
   it("renders cancel and submit buttons after opening", async () => {

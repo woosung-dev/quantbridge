@@ -45,9 +45,7 @@ const NON_ENUM_UPPERCASE_ALLOWLIST: readonly string[] = [
   "PNL", // 손익 지표의 관용 약어다.
   "ROI", // 수익률 지표의 관용 약어다.
 ];
-const UPPERCASE_LITERAL_SCOPE: readonly string[] = [
-  join("features", "live-sessions"),
-];
+const UPPERCASE_LITERAL_SCOPE: readonly string[] = [join("features", "live-sessions")];
 
 // BL-572 이전 실제 위반: f631f1c7^:live-session-table.tsx
 const BL572_HISTORICAL_SNIPPET =
@@ -56,13 +54,11 @@ const BL572_HISTORICAL_SNIPPET =
 // `{ 멤버체인 }` 이 중괄호의 전체 내용인 경우만 잡는다(체인 뒤에 곧바로 `}` 필요).
 // 그래서 `{data.status === "x" && ...}` 같은 boolean 식은 매치되지 않고, `?.`(옵셔널
 // 체이닝)도 허용한다. 마지막 세그먼트가 가드 필드인지는 아래에서 별도로 판정한다.
-const MEMBER_CHAIN_EXPR =
-  /\{\s*([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)+)\s*\}/g;
+const MEMBER_CHAIN_EXPR = /\{\s*([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)+)\s*\}/g;
 
 // JSX 안 템플릿 리터럴 보간 `${ 멤버체인 }`. 보간 전체가 멤버체인일 때만(예: `${field.kind}`).
 // `${LABEL[x.field]}` 처럼 `[` 가 끼면 매치되지 않아, 라벨 매핑 경유는 자동 통과한다.
-const TEMPLATE_CHAIN_EXPR =
-  /\$\{\s*([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)+)\s*\}/g;
+const TEMPLATE_CHAIN_EXPR = /\$\{\s*([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)+)\s*\}/g;
 
 function lastSegment(chain: string): string {
   return (
@@ -104,11 +100,7 @@ function lastRealGt(content: string): number {
 }
 
 // JSX 식 컨테이너 안이면서, 속성이나 prop 안은 아닌지를 두 검출기가 같은 방식으로 판정한다.
-function isJsxChild(
-  content: string,
-  matchStart: number,
-  matchLen: number,
-): boolean {
+function isJsxChild(content: string, matchStart: number, matchLen: number): boolean {
   const before = content.slice(Math.max(0, matchStart - 500), matchStart);
   const after = content.slice(matchStart + matchLen, matchStart + matchLen + 500);
   // JSX text 문맥 = match 앞의 가장 가까운 (화살표 아닌) `>` 가 `<` 보다 뒤 + 뒤에 `<` 존재.
@@ -272,49 +264,37 @@ describe("S4/S9/W1 — no raw enum rendered in P1 route UI", () => {
   // 위생 메타테스트 (falsification) — 검출기가 실제로 동작함을 증명한다.
   it("detector flags a raw {o.state} JSX child", () => {
     expect(detectRawEnumRenders("<td>{o.state}</td>")).toEqual(["{o.state}"]);
-    expect(detectRawEnumRenders("<td>{ run?.status }</td>")).toEqual([
-      "{ run?.status }",
-    ]);
+    expect(detectRawEnumRenders("<td>{ run?.status }</td>")).toEqual(["{ run?.status }"]);
   });
 
   // W1 신규 필드 — kind/direction/objective_metric/prior/phase 를 JSX 자식으로 인쇄하면 잡는다.
   it("detector flags the W1 enum fields as JSX children", () => {
-    expect(detectRawEnumRenders("<td>{data.kind}</td>")).toEqual([
-      "{data.kind}",
+    expect(detectRawEnumRenders("<td>{data.kind}</td>")).toEqual(["{data.kind}"]);
+    expect(detectRawEnumRenders("<span>{r.param_space.direction}</span>")).toEqual([
+      "{r.param_space.direction}",
     ]);
-    expect(detectRawEnumRenders("<span>{r.param_space.direction}</span>")).toEqual(
-      ["{r.param_space.direction}"],
-    );
-    expect(
-      detectRawEnumRenders("<td>{data.result.objective_metric}</td>"),
-    ).toEqual(["{data.result.objective_metric}"]);
-    expect(detectRawEnumRenders("<b>{field.prior}</b>")).toEqual([
-      "{field.prior}",
+    expect(detectRawEnumRenders("<td>{data.result.objective_metric}</td>")).toEqual([
+      "{data.result.objective_metric}",
     ]);
+    expect(detectRawEnumRenders("<b>{field.prior}</b>")).toEqual(["{field.prior}"]);
     expect(detectRawEnumRenders("<td>{it.phase}</td>")).toEqual(["{it.phase}"]);
   });
 
   // W1 템플릿 보간 — JSX 안 `${chain.field}` 도 잡는다. `[` 매핑 경유는 통과.
   it("detector flags a `${chain.field}` interpolation inside a JSX child template", () => {
-    expect(detectRawEnumRenders("<li>{`x ${field.kind} y`}</li>")).toEqual([
-      "${field.kind}",
-    ]);
+    expect(detectRawEnumRenders("<li>{`x ${field.kind} y`}</li>")).toEqual(["${field.kind}"]);
     // 라벨 매핑 경유(`[`)는 통과.
-    expect(
-      detectRawEnumRenders("<li>{`x ${LABEL[field.kind]} y`}</li>"),
-    ).toEqual([]);
+    expect(detectRawEnumRenders("<li>{`x ${LABEL[field.kind]} y`}</li>")).toEqual([]);
   });
 
   it("detector ignores attribute / prop / boolean-expr / key-template usages", () => {
     expect(detectRawEnumRenders(`<tr data-status={b.status}>`)).toEqual([]);
     expect(detectRawEnumRenders(`<Badge status={b.status} />`)).toEqual([]);
-    expect(
-      detectRawEnumRenders(`<div>{data.status === "running" && <Spinner />}</div>`),
-    ).toEqual([]);
+    expect(detectRawEnumRenders(`<div>{data.status === "running" && <Spinner />}</div>`)).toEqual(
+      [],
+    );
     // 비-enum kind 비교식(categorical 값 판별)은 pure-chain 이 아니라 매치 안 됨.
-    expect(
-      detectRawEnumRenders(`<div>{field.kind === "categorical" && <X />}</div>`),
-    ).toEqual([]);
+    expect(detectRawEnumRenders(`<div>{field.kind === "categorical" && <X />}</div>`)).toEqual([]);
     // React key 안 템플릿 보간(속성 위치)은 JSX 자식이 아니므로 제외.
     expect(detectRawEnumRenders("<li key={`${p.kind}-1`}>x</li>")).toEqual([]);
     // prop 위치 `kind={data.kind}` 도 제외.
@@ -351,30 +331,22 @@ describe("BL-577 — no raw uppercase enum literal in live sessions", () => {
   });
 
   it("detector flags the BL-572 historical literal and direct JSX child", () => {
-    expect(
-      detectRawUppercaseEnumLiterals(BL572_HISTORICAL_SNIPPET).length,
-    ).toBeGreaterThan(0);
-    expect(detectRawUppercaseEnumLiterals('<span>{"FILLED"}</span>')).toEqual([
-      '"FILLED"',
-    ]);
+    expect(detectRawUppercaseEnumLiterals(BL572_HISTORICAL_SNIPPET).length).toBeGreaterThan(0);
+    expect(detectRawUppercaseEnumLiterals('<span>{"FILLED"}</span>')).toEqual(['"FILLED"']);
   });
 
   it("detector ignores non-enum JSX positions and toUpperCase output", () => {
     expect(
-      detectRawUppercaseEnumLiterals(
-        '<span>{(mode ?? "UNKNOWN").toUpperCase()}</span>',
-      ),
+      detectRawUppercaseEnumLiterals('<span>{(mode ?? "UNKNOWN").toUpperCase()}</span>'),
     ).toEqual([]);
     expect(detectRawUppercaseEnumLiterals("<th>MDD</th>")).toEqual([]);
     expect(detectRawUppercaseEnumLiterals('<Badge label="ACTIVE" />')).toEqual([]);
-    expect(
-      detectRawUppercaseEnumLiterals(
-        "<td>{LIVE_SESSION_STATUS_LABEL[k].label}</td>",
-      ),
-    ).toEqual([]);
-    expect(
-      detectRawUppercaseEnumLiterals('<td>{s.symbol === "BTC/USDT" && <X/>}</td>'),
-    ).toEqual([]);
+    expect(detectRawUppercaseEnumLiterals("<td>{LIVE_SESSION_STATUS_LABEL[k].label}</td>")).toEqual(
+      [],
+    );
+    expect(detectRawUppercaseEnumLiterals('<td>{s.symbol === "BTC/USDT" && <X/>}</td>')).toEqual(
+      [],
+    );
   });
 
   it("detector ignores every allowed uppercase non-enum literal", () => {
@@ -404,9 +376,7 @@ describe("BL-577 — no raw uppercase enum literal in live sessions", () => {
       expect.arrayContaining(['"ACTIVE"', '"PAUSED"']),
     );
     for (const canary of ["PAUSED", "PENDING", "CANCELLED", "REJECTED"]) {
-      expect(
-        detectRawUppercaseEnumLiterals(`<span>{"${canary}"}</span>`),
-      ).toEqual([`"${canary}"`]);
+      expect(detectRawUppercaseEnumLiterals(`<span>{"${canary}"}</span>`)).toEqual([`"${canary}"`]);
     }
     expect(violations).toEqual([]);
   });

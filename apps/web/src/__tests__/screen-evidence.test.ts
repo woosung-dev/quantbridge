@@ -84,9 +84,9 @@ describe("화면 증거 팩 — 빈 결과는 통과가 아니다", () => {
     expect(() =>
       report({ after: { "/": metrics({ firstLoadBytes: undefined as unknown as number }) } }),
     ).toThrow(/숫자가 아니다/);
-    expect(() =>
-      report({ after: { "/": metrics({ totalRequests: NaN }) } }),
-    ).toThrow(/숫자가 아니다/);
+    expect(() => report({ after: { "/": metrics({ totalRequests: NaN }) } })).toThrow(
+      /숫자가 아니다/,
+    );
   });
 
   it("스크린샷 경로가 빠지면 던진다 — 화면 축이 조용히 사라지지 않는다", () => {

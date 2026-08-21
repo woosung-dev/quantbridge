@@ -45,12 +45,8 @@ describe("LiveSessionTable", () => {
     expect(screen.getByText("BTC/USDT")).toBeInTheDocument();
     expect(screen.getByText("ETH/USDT")).toBeInTheDocument();
     // BL-572 — 표가 자체 문자열을 만들지 않고 목록 카드와 같은 SSOT 를 읽는다.
-    expect(
-      screen.getByText(LIVE_SESSION_STATUS_LABEL.active.label),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(LIVE_SESSION_STATUS_LABEL.ended.label),
-    ).toBeInTheDocument();
+    expect(screen.getByText(LIVE_SESSION_STATUS_LABEL.active.label)).toBeInTheDocument();
+    expect(screen.getByText(LIVE_SESSION_STATUS_LABEL.ended.label)).toBeInTheDocument();
     expect(screen.getByText("라이브 세션 (2)")).toBeInTheDocument();
   });
 

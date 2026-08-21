@@ -50,7 +50,9 @@ describe("marketing canon invariants", () => {
 
   it("contains both roadmap and supported rows", () => {
     expect(EXCHANGE_SUPPORT.filter(({ status }) => status === "roadmap").length).toBeGreaterThan(0);
-    expect(EXCHANGE_SUPPORT.filter(({ status }) => status === "supported").length).toBeGreaterThan(0);
+    expect(EXCHANGE_SUPPORT.filter(({ status }) => status === "supported").length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("keeps OKX on the roadmap and limits supported exchanges to Bybit", () => {

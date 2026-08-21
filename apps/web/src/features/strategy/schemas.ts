@@ -170,9 +170,7 @@ export type UpdateStrategyRequest = z.infer<typeof UpdateStrategyRequestSchema>;
 // Sprint 27 BL-137 — PUT /strategies/{id}/settings request body. Backend
 // UpdateStrategySettingsRequest (extra="forbid") 와 동일 spec.
 export const UpdateStrategySettingsRequestSchema = StrategySettingsSchema;
-export type UpdateStrategySettingsRequest = z.infer<
-  typeof UpdateStrategySettingsRequestSchema
->;
+export type UpdateStrategySettingsRequest = z.infer<typeof UpdateStrategySettingsRequestSchema>;
 
 export const StrategyListQuerySchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),

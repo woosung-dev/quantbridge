@@ -37,15 +37,12 @@ describe("Skeleton", () => {
     ["text", "h-4"],
     ["card", "h-36"],
     ["list-row", "h-12"],
-  ] as const)(
-    "variant=%s 는 %s 클래스를 적용한다",
-    (variant, expectedClass) => {
-      render(<Skeleton variant={variant} />);
-      const el = screen.getByTestId("skeleton");
-      expect(el.className).toContain(expectedClass);
-      expect(el.dataset.variant).toBe(variant);
-    },
-  );
+  ] as const)("variant=%s 는 %s 클래스를 적용한다", (variant, expectedClass) => {
+    render(<Skeleton variant={variant} />);
+    const el = screen.getByTestId("skeleton");
+    expect(el.className).toContain(expectedClass);
+    expect(el.dataset.variant).toBe(variant);
+  });
 
   it("variant 와 className 가 충돌하면 className 이 우선한다 (twMerge)", () => {
     render(<Skeleton variant="text" className="h-20" />);

@@ -12,7 +12,10 @@ import type { WaterfallDatum } from "@/features/backtest/components/report/profi
 
 // recharts plot 은 무거워서 지연 로딩 — hasWidth 대기 placeholder 와 동일 높이 유지.
 const ProfitWaterfallPlot = dynamic(
-  () => import("@/features/backtest/components/charts/recharts-plots").then((m) => m.ProfitWaterfallPlot),
+  () =>
+    import("@/features/backtest/components/charts/recharts-plots").then(
+      (m) => m.ProfitWaterfallPlot,
+    ),
   { ssr: false, loading: () => <div style={{ height: 220 }} /> },
 );
 
@@ -96,11 +99,7 @@ export function ProfitWaterfall({
 
   return (
     <div ref={wrapperRef} data-testid="profit-waterfall">
-      {hasWidth ? (
-        <ProfitWaterfallPlot data={data} />
-      ) : (
-        <div style={{ height: 220 }} />
-      )}
+      {hasWidth ? <ProfitWaterfallPlot data={data} /> : <div style={{ height: 220 }} />}
     </div>
   );
 }

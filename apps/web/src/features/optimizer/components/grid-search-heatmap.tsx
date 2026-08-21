@@ -66,17 +66,13 @@ export function GridSearchHeatmap({ result, pair }: Props) {
   function bgFor(value: number | null): string | undefined {
     if (value === null) return undefined;
     const t =
-      result.direction === "minimize"
-        ? (objMax - value) / objRange
-        : (value - objMin) / objRange;
+      result.direction === "minimize" ? (objMax - value) / objRange : (value - objMin) / objRange;
     const alpha = 0.05 + Math.max(0, Math.min(1, t)) * 0.3;
     return `color-mix(in srgb, var(--copper) ${(alpha * 100).toFixed(1)}%, transparent)`;
   }
 
   const bestParamValues =
-    result.best_cell_index !== null
-      ? result.cells[result.best_cell_index]?.param_values
-      : null;
+    result.best_cell_index !== null ? result.cells[result.best_cell_index]?.param_values : null;
 
   return (
     <div className="table-wrap">
@@ -153,10 +149,9 @@ export function GridSearchHeatmap({ result, pair }: Props) {
         </tbody>
       </table>
       <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>
-        <InfoIcon />
-        칸 농도는 목표값을 선형으로 이었습니다. 색만으로 읽지 않도록 숫자를 함께 인쇄합니다. 최적
-        칸은 색이 아니라 코퍼 테두리로, 거래 0건 축퇴 칸은 색을 넣지 않고 점선 테두리로 스케일에서
-        빼냅니다.
+        <InfoIcon />칸 농도는 목표값을 선형으로 이었습니다. 색만으로 읽지 않도록 숫자를 함께
+        인쇄합니다. 최적 칸은 색이 아니라 코퍼 테두리로, 거래 0건 축퇴 칸은 색을 넣지 않고 점선
+        테두리로 스케일에서 빼냅니다.
       </p>
       {result.param_names.length > 2 && Object.keys(fixOthers).length > 0 ? (
         <p className="chart-note" style={{ paddingLeft: 0, paddingRight: 0 }}>

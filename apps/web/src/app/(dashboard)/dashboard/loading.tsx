@@ -15,10 +15,7 @@ export default function DashboardLoading() {
         {Array.from({ length: 4 }).map((_, i) => (
           <article key={i} className="card kpi">
             <div className="sk sk-line" style={{ width: "50%" }} />
-            <div
-              className="sk sk-line"
-              style={{ width: "70%", height: 28, marginTop: 12 }}
-            />
+            <div className="sk sk-line" style={{ width: "70%", height: 28, marginTop: 12 }} />
             <div className="sk sk-line" style={{ width: "90%", marginTop: 12 }} />
           </article>
         ))}

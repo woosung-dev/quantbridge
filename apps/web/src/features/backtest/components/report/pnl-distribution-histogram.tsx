@@ -13,7 +13,10 @@ import type { HistogramDatum } from "@/features/backtest/components/report/pnl-d
 
 // recharts plot 은 무거워서 지연 로딩 — hasWidth 대기 placeholder 와 동일 높이 유지.
 const PnlDistributionPlot = dynamic(
-  () => import("@/features/backtest/components/charts/recharts-plots").then((m) => m.PnlDistributionPlot),
+  () =>
+    import("@/features/backtest/components/charts/recharts-plots").then(
+      (m) => m.PnlDistributionPlot,
+    ),
   { ssr: false, loading: () => <div style={{ height: 220 }} /> },
 );
 
@@ -78,11 +81,7 @@ export function PnlDistributionHistogram({
   return (
     <div ref={wrapperRef} data-testid="pnl-distribution-histogram">
       {hasWidth ? (
-        <PnlDistributionPlot
-          data={data}
-          avgWinPct={avgWinPct}
-          avgLossPct={avgLossPct}
-        />
+        <PnlDistributionPlot data={data} avgWinPct={avgWinPct} avgLossPct={avgLossPct} />
       ) : (
         <div style={{ height: 220 }} />
       )}

@@ -2,7 +2,7 @@
 // 기존 strategy-empty-state / trading-empty-state 와 별도 운영 (점진적 통합).
 
 import Link from "next/link";
-import { type ReactNode } from "react";
+import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,13 +21,7 @@ export type EmptyStateProps = {
   className?: string;
 };
 
-export function EmptyState({
-  icon,
-  headline,
-  description,
-  cta,
-  className,
-}: EmptyStateProps) {
+export function EmptyState({ icon, headline, description, cta, className }: EmptyStateProps) {
   return (
     <div
       role="status"

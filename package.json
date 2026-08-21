@@ -8,21 +8,17 @@
   },
   "devDependencies": {
     "husky": "^9.1.7",
-    "lint-staged": "^15.2.10",
-    "prettier": "^3.8.2",
-    "prettier-plugin-tailwindcss": "^0.6.0"
+    "lint-staged": "^15.2.10"
   },
   "lint-staged": {
-    "apps/web/**/*.{ts,tsx,js,jsx}": [
+    "apps/web/**/*.{ts,tsx,mjs,css,json}": [
+      "bash -c 'cd apps/web && ./node_modules/.bin/biome check --write --no-errors-on-unmatched \"${0#apps/web/}\" \"${@#apps/web/}\"'",
       "bash -c 'cd apps/web && pnpm exec eslint --fix --no-warn-ignored --'"
     ],
     "apps/api/**/*.py": [
       "bash -c 'cd apps/api && .venv/bin/ruff check --fix --exit-non-zero-on-fix \"${0#apps/api/}\" \"${@#apps/api/}\"'",
       "bash -c 'cd apps/api && .venv/bin/ruff check \"${0#apps/api/}\" \"${@#apps/api/}\"'",
       "bash -c 'cd apps/api && .venv/bin/ruff format \"${0#apps/api/}\" \"${@#apps/api/}\"'"
-    ],
-    "*.{json,md,yml,yaml}": [
-      "bash -c 'a=(); for f in \"$@\"; do [ -L \"$f\" ] || a+=(\"$f\"); done; [ ${#a[@]} -eq 0 ] || prettier --write \"${a[@]}\"' --"
     ]
   }
 }

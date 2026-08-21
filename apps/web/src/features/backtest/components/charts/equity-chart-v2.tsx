@@ -24,10 +24,7 @@ import {
   normalizeToPercentCurve,
   normalizeToPnlCurve,
 } from "@/components/charts/normalize-to-pnl-curve";
-import type {
-  ChartMarker,
-  ChartPoint,
-} from "@/components/charts/trading-chart";
+import type { ChartMarker, ChartPoint } from "@/components/charts/trading-chart";
 import type { EquityPoint, TradeItem } from "@/features/backtest/schemas";
 
 import { AxisLabelBar } from "@/features/backtest/components/charts/axis-label-bar";
@@ -60,10 +57,7 @@ const TIMEFRAME_DAYS: Record<Exclude<Timeframe, "ALL">, number> = {
  * 선택된 timeframe 에 맞춰 curve 끝에서 N일 윈도우 슬라이싱.
  * ALL 또는 데이터 부족 시 원본 그대로 반환.
  */
-function sliceByTimeframe(
-  curve: readonly EquityPoint[],
-  tf: Timeframe,
-): readonly EquityPoint[] {
+function sliceByTimeframe(curve: readonly EquityPoint[], tf: Timeframe): readonly EquityPoint[] {
   if (tf === "ALL" || curve.length === 0) return curve;
   const days = TIMEFRAME_DAYS[tf];
   const lastTs = curve[curve.length - 1]?.timestamp;
@@ -130,9 +124,7 @@ interface DrawdownPoint {
  * 본 컴포넌트는 BE drawdown_curve 부재 시 자체 계산 fallback.
  * BL-156 (Worker D) MDD 수학 검증 시 본 fallback 도 보완 대상.
  */
-function computeDrawdownArea(
-  curve: readonly EquityPoint[],
-): DrawdownPoint[] {
+function computeDrawdownArea(curve: readonly EquityPoint[]): DrawdownPoint[] {
   if (curve.length === 0) return [];
   const out: DrawdownPoint[] = [];
   let peak = curve[0]!.value;
@@ -350,9 +342,7 @@ export function EquityChartV2({
           // Compare 활성 시에는 % 수익률 기준으로 전환 (자본금 상이 대응).
           yAxisLabel={comparing ? "% 수익률 (시작=0%)" : "PnL (USDT, 시작=0)"}
           xAxisLabel={
-            timeframe !== undefined && timeframe !== ""
-              ? `시간 · ${timeframe} 단위 캔들`
-              : "시간"
+            timeframe !== undefined && timeframe !== "" ? `시간 · ${timeframe} 단위 캔들` : "시간"
           }
           variant="equity"
         />
@@ -371,9 +361,7 @@ export function EquityChartV2({
                 : "% (자본 대비 손실 · 0 ~ -100%)"
             }
             xAxisLabel={
-              timeframe !== undefined && timeframe !== ""
-                ? `시간 · ${timeframe} 단위 캔들`
-                : "시간"
+              timeframe !== undefined && timeframe !== "" ? `시간 · ${timeframe} 단위 캔들` : "시간"
             }
             variant="drawdown"
           />

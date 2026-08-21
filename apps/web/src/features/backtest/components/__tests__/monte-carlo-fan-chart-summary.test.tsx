@@ -39,9 +39,7 @@ describe("MonteCarloFanChart — Sprint 43 W10 prototype 02 summary cards", () =
     render(<MonteCarloFanChart result={RESULT} />);
 
     expect(screen.getByText("9,500 ~ 11,000")).toBeInTheDocument();
-    expect(
-      screen.getByText("1,000 회 시뮬레이션"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("1,000 회 시뮬레이션")).toBeInTheDocument();
   });
 
   it("MDD p95 카드는 destructive tone 으로 렌더된다", () => {
@@ -49,24 +47,14 @@ describe("MonteCarloFanChart — Sprint 43 W10 prototype 02 summary cards", () =
 
     // 3번째 카드 = MDD. font-mono value 노드에 destructive 색 클래스 포함.
     const valueNodes = container.querySelectorAll(".font-mono.text-lg");
-    const mddValue = Array.from(valueNodes).find((n) =>
-      (n.textContent ?? "").includes("-1,200"),
-    );
+    const mddValue = Array.from(valueNodes).find((n) => (n.textContent ?? "").includes("-1,200"));
     expect(mddValue?.className).toContain("var(--destructive)");
   });
 
   it("빈 결과 시 요약 카드 표시 없이 empty-state 만 보인다", () => {
-    render(
-      <MonteCarloFanChart
-        result={{ ...RESULT, equity_percentiles: {} }}
-      />,
-    );
+    render(<MonteCarloFanChart result={{ ...RESULT, equity_percentiles: {} }} />);
 
-    expect(
-      screen.queryByTestId("mc-summary-cards"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/Monte Carlo 데이터가 없습니다/),
-    ).toBeInTheDocument();
+    expect(screen.queryByTestId("mc-summary-cards")).not.toBeInTheDocument();
+    expect(screen.getByText(/Monte Carlo 데이터가 없습니다/)).toBeInTheDocument();
   });
 });

@@ -222,8 +222,6 @@ describe("CreateBacktestRequestSchema", () => {
   });
 
   it("rejects symbol under 3 chars", () => {
-    expect(() =>
-      CreateBacktestRequestSchema.parse({ ...valid, symbol: "BT" }),
-    ).toThrow();
+    expect(() => CreateBacktestRequestSchema.parse({ ...valid, symbol: "BT" })).toThrow();
   });
 });

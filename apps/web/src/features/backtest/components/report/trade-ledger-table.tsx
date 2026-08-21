@@ -30,14 +30,9 @@ interface TradeLedgerTableProps {
   filenamePrefix?: string;
 }
 
-export function TradeLedgerTable({
-  trades,
-  filenamePrefix = "trades",
-}: TradeLedgerTableProps) {
-  const [directionFilter, setDirectionFilter] =
-    useState<TradeFilters["direction"]>("all");
-  const [resultFilter, setResultFilter] =
-    useState<TradeFilters["result"]>("all");
+export function TradeLedgerTable({ trades, filenamePrefix = "trades" }: TradeLedgerTableProps) {
+  const [directionFilter, setDirectionFilter] = useState<TradeFilters["direction"]>("all");
+  const [resultFilter, setResultFilter] = useState<TradeFilters["result"]>("all");
 
   // 최신 거래가 위(번호 내림차순) — variant-c 는 186 이 맨 위다.
   const sorted = useMemo(
@@ -78,7 +73,8 @@ export function TradeLedgerTable({
         <div>
           <h3 className="card-title">거래 목록</h3>
           <p className="card-sub">
-            최근 순 · {shown.length}건 표시{sorted.length > shown.length ? ` · 전체 ${sorted.length}건 중` : ""}
+            최근 순 · {shown.length}건 표시
+            {sorted.length > shown.length ? ` · 전체 ${sorted.length}건 중` : ""}
           </p>
         </div>
         <div className="toolbar">
@@ -113,15 +109,27 @@ export function TradeLedgerTable({
         <table className="trades" aria-label={`거래 목록 ${shown.length}건`}>
           <thead>
             <tr>
-              <th scope="col" className="num">번호</th>
+              <th scope="col" className="num">
+                번호
+              </th>
               <th scope="col">방향</th>
               <th scope="col">진입 시각</th>
-              <th scope="col" className="num">진입가</th>
+              <th scope="col" className="num">
+                진입가
+              </th>
               <th scope="col">청산 시각</th>
-              <th scope="col" className="num">청산가</th>
-              <th scope="col" className="num">수량</th>
-              <th scope="col" className="num">손익</th>
-              <th scope="col" className="num">수익률</th>
+              <th scope="col" className="num">
+                청산가
+              </th>
+              <th scope="col" className="num">
+                수량
+              </th>
+              <th scope="col" className="num">
+                손익
+              </th>
+              <th scope="col" className="num">
+                수익률
+              </th>
               <th scope="col">청산 사유</th>
             </tr>
           </thead>
@@ -165,9 +173,7 @@ function TradeRow({ trade: t }: { trade: TradeItem }) {
       <td className="mono-l">{formatDateTime(t.entry_time)}</td>
       <td className="num">{formatCurrency(t.entry_price)}</td>
       <td className="mono-l">{isClosed ? formatDateTime(t.exit_time) : EMPTY_CELL}</td>
-      <td className="num">
-        {t.exit_price !== null ? formatCurrency(t.exit_price) : EMPTY_CELL}
-      </td>
+      <td className="num">{t.exit_price !== null ? formatCurrency(t.exit_price) : EMPTY_CELL}</td>
       <td className="num">{formatCurrency(t.size, 4)}</td>
       <td className={pnlTone}>
         {t.pnl >= 0 ? "+" : ""}

@@ -74,7 +74,9 @@ describe("BacktestList 성과 열", () => {
       error: null,
       refetch: vi.fn(),
     });
-    mockUseStrategies.mockReturnValue({ data: { items: [{ id: item.strategy_id, name: "MA 전략" }] } });
+    mockUseStrategies.mockReturnValue({
+      data: { items: [{ id: item.strategy_id, name: "MA 전략" }] },
+    });
 
     renderList();
 
@@ -84,9 +86,7 @@ describe("BacktestList 성과 열", () => {
     expect(within(row).getByText("12.34%")).toBeInTheDocument();
     expect(within(row).getByText("-4.00%")).toBeInTheDocument();
     expect(within(row).getByText("1.50")).toBeInTheDocument();
-    expect(
-      within(row).getByTitle("무위험 2%/년 · 월간 수익률 기준"),
-    ).toHaveTextContent("1.50");
+    expect(within(row).getByTitle("무위험 2%/년 · 월간 수익률 기준")).toHaveTextContent("1.50");
     expect(within(row).getByText("1,234")).toBeInTheDocument();
     expect(within(row).getByText("미청산 포함")).toBeInTheDocument();
   });
@@ -104,7 +104,9 @@ describe("BacktestList 성과 열", () => {
     renderList();
 
     const row = screen.getByTestId(`backtest-row-${item.id}`);
-    expect(within(row).getAllByTitle("아직 끝나지 않은 실행은 수익률을 채우지 않습니다.")).toHaveLength(4);
+    expect(
+      within(row).getAllByTitle("아직 끝나지 않은 실행은 수익률을 채우지 않습니다."),
+    ).toHaveLength(4);
   });
 
   it("구 기준과 산출 불가 샤프의 사유를 표시하고 혼합 정렬을 고지한다", () => {
@@ -148,8 +150,12 @@ describe("BacktestList 성과 열", () => {
 
     renderList();
 
-    expect(screen.getByTitle("구 기준(봉 수익률 · 무위험 0%) - 현재 기준과 비교 불가")).toHaveTextContent("1.50");
-    expect(screen.getByTitle("변동이 없거나 기간이 짧아 산출되지 않았습니다")).toHaveTextContent("—");
+    expect(
+      screen.getByTitle("구 기준(봉 수익률 · 무위험 0%) - 현재 기준과 비교 불가"),
+    ).toHaveTextContent("1.50");
+    expect(screen.getByTitle("변동이 없거나 기간이 짧아 산출되지 않았습니다")).toHaveTextContent(
+      "—",
+    );
     expect(screen.getByTestId("backtest-sharpe-sort-notice")).toHaveTextContent(
       "구 기준 샤프는 현재 기준과 비교할 수 없어 정렬 시 비교 가능한 결과 뒤로 분리됩니다.",
     );

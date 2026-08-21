@@ -12,9 +12,7 @@ import {
 
 describe("StressTestKindSchema (Sprint 51)", () => {
   it("'param_stability' enum value 허용", () => {
-    expect(StressTestKindSchema.parse("param_stability")).toBe(
-      "param_stability",
-    );
+    expect(StressTestKindSchema.parse("param_stability")).toBe("param_stability");
   });
 
   it("invalid kind reject", () => {

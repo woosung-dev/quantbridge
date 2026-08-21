@@ -36,11 +36,7 @@ import {
 import { SelectWithDisplayName } from "@/components/ui/select-with-display-name";
 
 import { useRegisterLiveSession } from "../hooks";
-import {
-  LiveSessionFormSchema,
-  type LiveSessionForm,
-  type LiveSession,
-} from "../schemas";
+import { LiveSessionFormSchema, type LiveSessionForm, type LiveSession } from "../schemas";
 import { MAX_LIVE_SESSIONS_PER_USER } from "../utils";
 
 type Props = {
@@ -100,12 +96,9 @@ export function LiveSessionForm({
   return (
     <div className="space-y-4">
       {/* Bybit 데모 한정 안내 — 메인넷 출시 전까지 */}
-      <p
-        className="notice-inline"
-        data-testid="live-session-bybit-demo-notice"
-      >
-        <strong>Bybit 데모 한정</strong>. 가상 자금만 사용합니다. 실제 자금 손실은
-        없습니다. 라이브 메인넷은 안정성 검증 후 단계적으로 활성화할 예정입니다.
+      <p className="notice-inline" data-testid="live-session-bybit-demo-notice">
+        <strong>Bybit 데모 한정</strong>. 가상 자금만 사용합니다. 실제 자금 손실은 없습니다. 라이브
+        메인넷은 안정성 검증 후 단계적으로 활성화할 예정입니다.
       </p>
 
       <Form {...form}>
@@ -201,11 +194,7 @@ export function LiveSessionForm({
           />
 
           {serverError ? (
-            <p
-              className="notice-inline"
-              role="alert"
-              data-testid="live-session-form-error"
-            >
+            <p className="notice-inline" role="alert" data-testid="live-session-form-error">
               {serverError}
             </p>
           ) : null}
@@ -217,15 +206,9 @@ export function LiveSessionForm({
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={
-                register.isPending ||
-                isQuotaReached ||
-                selectableAccounts.length === 0
-              }
+              disabled={register.isPending || isQuotaReached || selectableAccounts.length === 0}
               title={
-                isQuotaReached
-                  ? `최대 ${MAX_LIVE_SESSIONS_PER_USER}건까지 활성 가능`
-                  : undefined
+                isQuotaReached ? `최대 ${MAX_LIVE_SESSIONS_PER_USER}건까지 활성 가능` : undefined
               }
               data-testid="live-session-submit"
             >

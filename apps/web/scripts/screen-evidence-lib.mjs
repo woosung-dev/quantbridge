@@ -130,7 +130,10 @@ function assertMeasurable(label, metrics) {
   // ★`null` 은 **「대조 제외」의 선언**이지 결측이 아니다(authed — 실측상 요청 수가 ±1 로
   //   흔들린다). `undefined` 는 여전히 결측이라 던진다 — 둘을 같게 낮추면 계수기가 통째로
   //   빠진 회차가 「비결정 축」으로 위장한다.
-  if (metrics.apiRequests !== null && (typeof metrics.apiRequests !== "number" || !Number.isFinite(metrics.apiRequests)))
+  if (
+    metrics.apiRequests !== null &&
+    (typeof metrics.apiRequests !== "number" || !Number.isFinite(metrics.apiRequests))
+  )
     throw new Error(`${label}: apiRequests 가 숫자가 아니다 (${metrics.apiRequests}).`);
   // ★공개 라우트의 `apiRequests` 는 실측 0 이다 — 그래서 **그 축만으로는 계수기가 죽어도
   //   0 == 0 으로 초록이다.** 전체 요청 수는 0 일 수 없으므로 여기가 계수기의 생존 앵커다.
@@ -152,7 +155,15 @@ function assertMeasurable(label, metrics) {
  * @param screenshots `{ [route]: { basePath, headPath, changed } }`
  * @throws 표가 비거나 측정이 성립하지 않으면 — **rc≠0 의 유일한 출처다.**
  */
-export function buildReport({ before, after, screenshots, repoSlug, baseRef, headRef, notes = [] }) {
+export function buildReport({
+  before,
+  after,
+  screenshots,
+  repoSlug,
+  baseRef,
+  headRef,
+  notes = [],
+}) {
   const routes = [...new Set([...Object.keys(before ?? {}), ...Object.keys(after ?? {})])].sort();
 
   if (routes.length < MIN_ROWS)

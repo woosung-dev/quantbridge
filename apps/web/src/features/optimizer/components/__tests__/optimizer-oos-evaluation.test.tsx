@@ -111,9 +111,7 @@ beforeEach(() => {
 describe("OptimizerOosEvaluation (true WFO)", () => {
   it("CTA + 진짜 WFO 정직 고지 렌더", () => {
     renderOos();
-    expect(
-      screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Walk-Forward OOS 검증/ })).toBeInTheDocument();
     // 섹션 번호는 페이지 조립부가 주입 — grid 는 03 파라미터 안정성 뒤라 04 (중복 03 회귀 방지).
     expect(screen.getByText("04")).toBeInTheDocument();
     // 진짜 out-of-sample 고지 (낙관 경고 X).
@@ -125,9 +123,7 @@ describe("OptimizerOosEvaluation (true WFO)", () => {
 
   it("CTA 클릭 시 optimizer_param_space + optimizer_kind 로 WFO submit", () => {
     renderOos();
-    fireEvent.click(
-      screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }));
     expect(wfMutation.mutate).toHaveBeenCalledTimes(1);
     const arg = wfMutation.mutate.mock.calls[0]?.[0];
     expect(arg).toMatchObject({
@@ -147,9 +143,7 @@ describe("OptimizerOosEvaluation (true WFO)", () => {
   it("completed → 재최적화 뱃지 + WalkForwardBarChart 임베드", () => {
     stressData = walkForwardDetail("completed");
     renderOos();
-    fireEvent.click(
-      screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }));
     act(() => {
       lastWfOpts?.onSuccess?.({ stress_test_id: STRESS_ID });
     });
@@ -162,9 +156,7 @@ describe("OptimizerOosEvaluation (true WFO)", () => {
   it("degenerate_folds_skipped > 0 → fragility 경고 노출", () => {
     stressData = walkForwardDetail("completed", { skipped: 2 });
     renderOos();
-    fireEvent.click(
-      screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }));
     act(() => {
       lastWfOpts?.onSuccess?.({ stress_test_id: STRESS_ID });
     });
@@ -174,14 +166,10 @@ describe("OptimizerOosEvaluation (true WFO)", () => {
   it("running 상태에서 CTA disabled", () => {
     stressData = walkForwardDetail("running");
     renderOos();
-    fireEvent.click(
-      screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }));
     act(() => {
       lastWfOpts?.onSuccess?.({ stress_test_id: STRESS_ID });
     });
-    expect(
-      screen.getByRole("button", { name: /Walk-Forward OOS 검증/ }),
-    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Walk-Forward OOS 검증/ })).toBeDisabled();
   });
 });

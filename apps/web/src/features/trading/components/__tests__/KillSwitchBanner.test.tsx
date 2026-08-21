@@ -101,9 +101,7 @@ describe("KillSwitchBanner", () => {
 
   test("API 오류 → 황색 경고 배너", async () => {
     const { apiFetch } = await import("@/lib/api-client");
-    vi.mocked(apiFetch).mockRejectedValueOnce(
-      new Error("500 Internal Server Error"),
-    );
+    vi.mocked(apiFetch).mockRejectedValueOnce(new Error("500 Internal Server Error"));
 
     render(
       <QueryClientProvider client={makeQc()}>

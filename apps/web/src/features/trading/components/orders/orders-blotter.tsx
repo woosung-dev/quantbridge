@@ -262,9 +262,8 @@ export function OrdersBlotter() {
 
   // ★목록에서 **매 렌더 다시 찾는다** — polling 이 갱신한 최신 행이 드로어에 그대로 반영된다.
   //   목록에서 사라진 주문(필터 변경·페이지 밖·서버에서 제거)은 `undefined` 라 드로어가 닫힌다.
-  const selectedOrder = selectedOrderId == null
-    ? null
-    : (allOrders.find((o) => o.id === selectedOrderId) ?? null);
+  const selectedOrder =
+    selectedOrderId == null ? null : (allOrders.find((o) => o.id === selectedOrderId) ?? null);
 
   const handleDetailOpenChange = (open: boolean) => {
     if (!open) setSelectedOrderId(null);

@@ -33,8 +33,7 @@ export function LegalCallout({ tone = "amber", label, children }: LegalCalloutPr
       role="note"
       className={`rounded-md border-l-4 ${palette} p-4 text-[14px] leading-[1.6] shadow-sm legal-fade-in-2`}
     >
-      {label ? <strong className="font-semibold">{label}</strong> : null}{" "}
-      {children}
+      {label ? <strong className="font-semibold">{label}</strong> : null} {children}
     </div>
   );
 }

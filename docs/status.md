@@ -561,6 +561,15 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 
 ~~**다음 행동 = FE 테스트 축은 닫고 Beta 진입을 연다 — [BL-070]→[BL-071]→[BL-072].**~~ → **2026-08-21 — Beta 진입 3종은 사용자 게이트다**([BL-005] self-assess ≥7 + 본인 의지). 세션이 열 수 없어 그 사이 BE 테스트 축으로 간다.
 ~~**다음 행동 = [BL-818] `apps/api` 미커버 모듈을 8 lane 병렬로 채운다 (밤샘 루프 5차).**~~ → **2026-08-21 ✅ 완주**(8/8 · PR #755·#756~#764).
+**FE 툴체인 — prettier 제거 · Biome 도입 ([ADR-039], 2026-08-21):** prettier 는 **완전 제거**(설정 3 · 패키지 2),
+`apps/web` 포맷·린트 주력이 Biome 2.5.9 다. **ESLint 는 못 없앴다** — Biome 523 규칙에
+`set-state-in-effect`/`-in-render` 가 **없고**(프로브 ESLint 3검출 / Biome 0검출 · 양성 대조 2/2 로 검사기 생존 확인),
+`useReactCompiler` 는 **한글 주석에서 13파일 panic**(`is not a char boundary`), tanstack query 축은 대응 0건.
+★★**GritQL 플러그인 복원 시도는 실패**했다 — 프로브 2/2 를 맞혔지만 실트리 **11/11 오탐**(비동기 경계·ref 가드).
+★★★**`useSortedClasses` 는 코드를 깨뜨린다** — `{"order-side " + side}` 의 **끝 공백을 지워** `"order-sidebuy"` 로 만들었고
+**vitest 가 잡았다**. tailwind 자동 정렬은 포기했다. ★대량 리포맷 374파일은 Biome 탓이 아니다 — **ts/tsx 포맷 게이트가 애초에 없었다**.
+검증: biome rc=0 · eslint rc=0 · tsc rc=0 · vitest **1896/1896** · build rc=0.
+
 **다음 행동 = `[tool.coverage.run]` 에 `concurrency = greenlet,thread` 를 넣고 [BL-308]/[BL-309] 래칫 기준선을 다시 잡는다.**
 ★근거는 5차 실측이다 — 그 설정 없이 재면 SQLAlchemy greenlet 전환 뒤의 줄이 전부 미커버로 나온다(`outcome_parity_service.py` 가 테스트 파일 하나만으로 **80% → 100%**). **래칫이 지금 재는 값은 실제보다 낮다** — 설정을 켜면 임계가 한 번에 올라가므로 기준선 재산정이 함께 가야 한다.
 

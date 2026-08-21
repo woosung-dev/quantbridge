@@ -27,9 +27,7 @@ describe("AssumptionsCard — Sprint 37 BL-187a graceful upgrade (fees/slippage)
     expect(screen.getByText("0.020%")).toBeInTheDocument();
 
     // (기본) 마크 전부 제거 — graceful upgrade 완성
-    expect(
-      screen.queryByTestId("assumptions-default-notice"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("assumptions-default-notice")).not.toBeInTheDocument();
 
     // fees / slippage row 모두 (기본) 마크 없음
     const labels = ["수수료", "슬리피지"];
@@ -56,9 +54,7 @@ describe("AssumptionsCard — Sprint 37 BL-187a graceful upgrade (fees/slippage)
     expect(screen.getByText("0.014%")).toBeInTheDocument();
 
     // 일부만 default 이므로 전체 default 안내 문구 없음
-    expect(
-      screen.queryByTestId("assumptions-default-notice"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("assumptions-default-notice")).not.toBeInTheDocument();
 
     // fees row 만 (기본) 마크 없음
     const feesRow = screen.getByText("수수료").parentElement;
@@ -93,18 +89,14 @@ describe("AssumptionsCard — Sprint 37 BL-187a graceful upgrade (fees/slippage)
     expect(screen.queryByText("OFF")).toBeNull();
 
     // 안내 문구 없음 (fees+slippage set)
-    expect(
-      screen.queryByTestId("assumptions-default-notice"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("assumptions-default-notice")).not.toBeInTheDocument();
   });
 
   it("legacy fallback — config undefined 시 fees+slippage 모두 (기본) + 안내", () => {
     render(<AssumptionsCard initialCapital={10000} />);
 
     // 표준 가정값 안내
-    expect(
-      screen.getByTestId("assumptions-default-notice"),
-    ).toHaveTextContent(/표준 가정값/);
+    expect(screen.getByTestId("assumptions-default-notice")).toHaveTextContent(/표준 가정값/);
     // fees + slippage row 모두 (기본) 마크
     const labels = ["수수료", "슬리피지"];
     labels.forEach((label) => {

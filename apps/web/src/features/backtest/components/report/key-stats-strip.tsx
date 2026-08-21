@@ -64,8 +64,7 @@ function KpiCard({
 
 export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
   const totalReturn = m.total_return;
-  const returnTone: Tone =
-    totalReturn > 0 ? "pos" : totalReturn < 0 ? "neg" : "neutral";
+  const returnTone: Tone = totalReturn > 0 ? "pos" : totalReturn < 0 ? "neg" : "neutral";
 
   const netAbs = m.net_profit_abs ?? null;
   const totalFees = m.total_fees ?? null;
@@ -81,12 +80,7 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
   });
 
   return (
-    <div
-      className="kpi-row"
-      role="list"
-      aria-label="성과 요약"
-      data-testid="key-stats-strip"
-    >
+    <div className="kpi-row" role="list" aria-label="성과 요약" data-testid="key-stats-strip">
       <KpiCard
         label="총 수익률"
         value={signedPct(totalReturn)}
@@ -110,7 +104,8 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
         foot={
           totalFees != null ? (
             <>
-              USDT · 수수료 <span className="mono neg">{signedCurrency(-Math.abs(totalFees))}</span> 반영
+              USDT · 수수료 <span className="mono neg">{signedCurrency(-Math.abs(totalFees))}</span>{" "}
+              반영
             </>
           ) : (
             "USDT · 순(net) 기준"
@@ -128,16 +123,11 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
               회복 <span className="mono">{Math.round(recoveryDays)}일</span>
             </>
           ) : (
-            mddCaption ?? "종가 기준"
+            (mddCaption ?? "종가 기준")
           )
         }
       />
-      <KpiCard
-        label="샤프 지수"
-        value={sharpe.display}
-        testId="kpi-sharpe"
-        foot={sharpe.foot}
-      />
+      <KpiCard label="샤프 지수" value={sharpe.display} testId="kpi-sharpe" foot={sharpe.foot} />
     </div>
   );
 }

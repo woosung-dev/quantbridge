@@ -95,11 +95,7 @@ export const CreateBacktestRequestSchema = z
     // Sprint 37 BL-188a — 폼 default_qty_type/value (Pine 미명시 시 사용).
     // priority chain: Pine strategy(default_qty_type=...) > 폼 입력 > None.
     default_qty_type: z
-      .enum([
-        "strategy.percent_of_equity",
-        "strategy.cash",
-        "strategy.fixed",
-      ])
+      .enum(["strategy.percent_of_equity", "strategy.cash", "strategy.fixed"])
       .optional(),
     default_qty_value: z.number().positive().refine(Number.isFinite).optional(),
     // Sprint 38 BL-188 v3 — Live mirror canonical 입력 (1x equity-basis 한정).
@@ -122,26 +118,18 @@ export const CreateBacktestRequestSchema = z
     message: "period_end must be after period_start",
     path: ["period_end"],
   })
-  .refine(
-    (v) =>
-      (v.default_qty_type == null) === (v.default_qty_value == null),
-    {
-      message: "default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None",
-      path: ["default_qty_value"],
-    },
-  )
+  .refine((v) => (v.default_qty_type == null) === (v.default_qty_value == null), {
+    message: "default_qty_type 와 default_qty_value 는 함께 명시 또는 함께 None",
+    path: ["default_qty_value"],
+  })
   // Sprint 38 BL-188 v3 — double-sizing reject (BE `_no_double_sizing` parity).
   // position_size_pct (Live mirror) 와 default_qty_type/value (manual) 동시
   // 명시 = client-side 422 회피. canonical 1개 강제 — D2 toggle UI 가 한쪽만 fill.
   .refine(
     (v) =>
-      !(
-        v.position_size_pct != null &&
-        (v.default_qty_type != null || v.default_qty_value != null)
-      ),
+      !(v.position_size_pct != null && (v.default_qty_type != null || v.default_qty_value != null)),
     {
-      message:
-        "position_size_pct (Live mirror) 와 default_qty_type/value (manual) 동시 명시 불가",
+      message: "position_size_pct (Live mirror) 와 default_qty_type/value (manual) 동시 명시 불가",
       path: ["position_size_pct"],
     },
   );
@@ -154,9 +142,7 @@ export const BacktestCreatedResponseSchema = z.object({
   status: BacktestStatusSchema,
   created_at: z.iso.datetime({ offset: true }),
 });
-export type BacktestCreatedResponse = z.infer<
-  typeof BacktestCreatedResponseSchema
->;
+export type BacktestCreatedResponse = z.infer<typeof BacktestCreatedResponseSchema>;
 
 export const BacktestProgressResponseSchema = z.object({
   backtest_id: z.uuid(),
@@ -166,18 +152,14 @@ export const BacktestProgressResponseSchema = z.object({
   error: z.string().nullable(),
   stale: z.boolean().default(false),
 });
-export type BacktestProgressResponse = z.infer<
-  typeof BacktestProgressResponseSchema
->;
+export type BacktestProgressResponse = z.infer<typeof BacktestProgressResponseSchema>;
 
 export const BacktestCancelResponseSchema = z.object({
   backtest_id: z.uuid(),
   status: BacktestStatusSchema,
   message: z.string(),
 });
-export type BacktestCancelResponse = z.infer<
-  typeof BacktestCancelResponseSchema
->;
+export type BacktestCancelResponse = z.infer<typeof BacktestCancelResponseSchema>;
 
 // --- Summary + Detail -----------------------------------------------------
 
@@ -445,12 +427,7 @@ export const StressTestKindSchema = z.enum([
 ]);
 export type StressTestKind = z.infer<typeof StressTestKindSchema>;
 
-export const StressTestStatusSchema = z.enum([
-  "queued",
-  "running",
-  "completed",
-  "failed",
-]);
+export const StressTestStatusSchema = z.enum(["queued", "running", "completed", "failed"]);
 export type StressTestStatus = z.infer<typeof StressTestStatusSchema>;
 
 // [BL-414] 목록 행의 대표 지표 — kind 마다 다른 result 에서 뽑은 값 1개.
@@ -460,17 +437,13 @@ export const StressTestHeadlineMetricKeySchema = z.enum([
   "degradation_ratio", // Walk-Forward ("Infinity" 리터럴 가능)
   "worst_cell_sharpe", // Cost Assumption / Param Stability (2D grid)
 ]);
-export type StressTestHeadlineMetricKey = z.infer<
-  typeof StressTestHeadlineMetricKeySchema
->;
+export type StressTestHeadlineMetricKey = z.infer<typeof StressTestHeadlineMetricKeySchema>;
 
 export const StressTestHeadlineMetricSchema = z.object({
   key: StressTestHeadlineMetricKeySchema,
   value: z.string(),
 });
-export type StressTestHeadlineMetric = z.infer<
-  typeof StressTestHeadlineMetricSchema
->;
+export type StressTestHeadlineMetric = z.infer<typeof StressTestHeadlineMetricSchema>;
 
 // 목록 항목은 결과 payload 없이 실행 메타데이터 + 대표 지표만 반환한다.
 export const StressTestSummarySchema = z.object({
@@ -492,9 +465,7 @@ export const StressTestListResponseSchema = z.object({
   limit: z.number().int(),
   offset: z.number().int(),
 });
-export type StressTestListResponse = z.infer<
-  typeof StressTestListResponseSchema
->;
+export type StressTestListResponse = z.infer<typeof StressTestListResponseSchema>;
 
 // Monte Carlo result — BE Decimal → str 직렬화에 대해 transform 적용.
 // `equity_percentiles` 는 "5"/"25"/"50"/"75"/"95" 키를 가진 dict; 각 시계열은 number 배열로 변환.
@@ -608,9 +579,7 @@ export const StressTestCreatedResponseSchema = z.object({
   status: StressTestStatusSchema,
   created_at: z.iso.datetime({ offset: true }),
 });
-export type StressTestCreatedResponse = z.infer<
-  typeof StressTestCreatedResponseSchema
->;
+export type StressTestCreatedResponse = z.infer<typeof StressTestCreatedResponseSchema>;
 
 // Requests — BE 는 `{backtest_id, params: {...}}` 중첩 구조.
 export const MonteCarloParamsSchema = z.object({
@@ -623,9 +592,7 @@ export const CreateMonteCarloRequestSchema = z.object({
   backtest_id: z.uuid(),
   params: MonteCarloParamsSchema.default({ n_samples: 1000, seed: 42 }),
 });
-export type CreateMonteCarloRequest = z.infer<
-  typeof CreateMonteCarloRequestSchema
->;
+export type CreateMonteCarloRequest = z.infer<typeof CreateMonteCarloRequestSchema>;
 
 export const WalkForwardParamsSchema = z.object({
   train_bars: z.number().int().min(1),
@@ -636,9 +603,12 @@ export const WalkForwardParamsSchema = z.object({
   // BE WalkForwardParams.best_params: dict[str, Decimal] parity. key = pine input
   // var_name, value = 최적값. Pydantic v2 가 JSON number→Decimal 무손실 변환.
   best_params: z
-    .record(z.string(), z.number().refine(Number.isFinite, {
-      message: "best_params value must be finite",
-    }))
+    .record(
+      z.string(),
+      z.number().refine(Number.isFinite, {
+        message: "best_params value must be finite",
+      }),
+    )
     .optional(),
   // C13 진짜 OOS — fold별 재최적화(true WFO). param_space + kind 는 옵티마이저 run 에서
   // 온 검증완료 spec → FE passthrough, BE 가 ParamSpace.model_validate 로 재검증.
@@ -652,9 +622,7 @@ export const CreateWalkForwardRequestSchema = z.object({
   backtest_id: z.uuid(),
   params: WalkForwardParamsSchema,
 });
-export type CreateWalkForwardRequest = z.infer<
-  typeof CreateWalkForwardRequestSchema
->;
+export type CreateWalkForwardRequest = z.infer<typeof CreateWalkForwardRequestSchema>;
 
 // Sprint 52 BL-224 P2 — param_grid superRefine 공통 helper (codex G.0 P1 권고).
 // BE `apps/api/src/stress_test/schemas.py:144-164,212-227` 의 grid validator 와 정합:
@@ -720,10 +688,7 @@ function refineParamGrid(
     });
   }
   // ≤9 cell 검증 (∏len(values))
-  const cellCount = keys.reduce(
-    (acc, k) => acc * Math.max((paramGrid[k] ?? []).length, 1),
-    1,
-  );
+  const cellCount = keys.reduce((acc, k) => acc * Math.max((paramGrid[k] ?? []).length, 1), 1);
   if (cellCount > MAX_GRID_CELLS) {
     ctx.addIssue({
       code: "custom",
@@ -751,9 +716,7 @@ export const CreateCostAssumptionRequestSchema = z.object({
   backtest_id: z.uuid(),
   params: CostAssumptionParamsSchema,
 });
-export type CreateCostAssumptionRequest = z.infer<
-  typeof CreateCostAssumptionRequestSchema
->;
+export type CreateCostAssumptionRequest = z.infer<typeof CreateCostAssumptionRequestSchema>;
 
 // Sprint 51 BL-220 — Param Stability request. param_grid 는 pine InputDecl.var_name → string[]
 // (Decimal serialized). 서버 9 cell 강제 (Sprint 50 codex P1#5 패턴) + Sprint 52 BL-224
@@ -772,9 +735,7 @@ export const CreateParamStabilityRequestSchema = z.object({
   backtest_id: z.uuid(),
   params: ParamStabilityParamsSchema,
 });
-export type CreateParamStabilityRequest = z.infer<
-  typeof CreateParamStabilityRequestSchema
->;
+export type CreateParamStabilityRequest = z.infer<typeof CreateParamStabilityRequestSchema>;
 
 // ─── Indicator Convert ────────────────────────────────────────────────────────
 

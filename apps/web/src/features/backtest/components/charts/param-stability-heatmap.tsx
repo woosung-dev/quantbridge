@@ -15,16 +15,14 @@ function signMarkerFor(sharpe: number | null): string {
 }
 
 export function ParamStabilityHeatmap({ result }: Props) {
-  const { param1_name, param2_name, param1_values, param2_values, cells } =
-    result;
+  const { param1_name, param2_name, param1_values, param2_values, cells } = result;
 
   const sharpeNumbers = cells
     .map((c) => (c.is_degenerate || c.sharpe === null ? null : Number(c.sharpe)))
     .filter((v): v is number => v !== null);
   // codex G.4 P3 fix: 모든 non-degenerate cell sharpe=0 시 maxAbs=0 → bgFor() 의
   // (Math.abs(sharpe) / maxAbs) * 100 가 0/0 NaN% CSS. || 1 fallback 으로 차단.
-  const maxAbsRaw =
-    sharpeNumbers.length > 0 ? Math.max(...sharpeNumbers.map(Math.abs)) : 1;
+  const maxAbsRaw = sharpeNumbers.length > 0 ? Math.max(...sharpeNumbers.map(Math.abs)) : 1;
   const maxAbs = maxAbsRaw || 1;
 
   function bgFor(cell: (typeof cells)[number]): string | undefined {
@@ -47,10 +45,7 @@ export function ParamStabilityHeatmap({ result }: Props) {
         </span>
         <span>— 거래 0건 (degenerate cell)</span>
       </div>
-      <table
-        className="border-collapse"
-        aria-label="Param Stability heatmap"
-      >
+      <table className="border-collapse" aria-label="Param Stability heatmap">
         <thead>
           <tr>
             <th
@@ -67,19 +62,14 @@ export function ParamStabilityHeatmap({ result }: Props) {
         <tbody>
           {param1_values.map((v1, i) => (
             <tr key={v1}>
-              <th
-                className="p-1 text-xs font-medium text-right"
-                scope="row"
-              >
+              <th className="p-1 text-xs font-medium text-right" scope="row">
                 {v1}
               </th>
               {param2_values.map((v2, j) => {
                 const cell = cells[i * param2_values.length + j];
                 if (cell == null) return null;
                 const sharpeNum =
-                  cell.is_degenerate || cell.sharpe === null
-                    ? null
-                    : Number(cell.sharpe);
+                  cell.is_degenerate || cell.sharpe === null ? null : Number(cell.sharpe);
                 const tooltip = cell.is_degenerate
                   ? `${param1_name}=${v1}, ${param2_name}=${v2}\n거래 0건 (degenerate)`
                   : `${param1_name}=${v1}, ${param2_name}=${v2}\nSharpe=${cell.sharpe ?? "—"}\nReturn=${cell.total_return}\nMDD=${cell.max_drawdown}\nTrades=${cell.num_trades}`;
@@ -91,9 +81,7 @@ export function ParamStabilityHeatmap({ result }: Props) {
                       "p-2 text-xs text-center min-w-[72px] border border-border",
                       cell.is_degenerate && "text-muted-foreground",
                     )}
-                    style={
-                      cell.is_degenerate ? undefined : { background: bgFor(cell) }
-                    }
+                    style={cell.is_degenerate ? undefined : { background: bgFor(cell) }}
                     tabIndex={0}
                     aria-label={tooltip.replace(/\n/g, ", ")}
                     title={tooltip}

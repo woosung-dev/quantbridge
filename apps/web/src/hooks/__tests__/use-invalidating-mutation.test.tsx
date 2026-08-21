@@ -68,23 +68,17 @@ describe("useInvalidatingMutation", () => {
     authState.userId = "user_1";
     const qc = new QueryClient();
     const calls: string[] = [];
-    const removeSpy = vi
-      .spyOn(qc, "removeQueries")
-      .mockImplementation((f) => {
-        calls.push(`remove:${JSON.stringify(f?.queryKey)}`);
-      });
-    const invalidateSpy = vi
-      .spyOn(qc, "invalidateQueries")
-      .mockImplementation(async (f) => {
-        calls.push(`invalidate:${JSON.stringify(f?.queryKey)}`);
-      });
+    const removeSpy = vi.spyOn(qc, "removeQueries").mockImplementation((f) => {
+      calls.push(`remove:${JSON.stringify(f?.queryKey)}`);
+    });
+    const invalidateSpy = vi.spyOn(qc, "invalidateQueries").mockImplementation(async (f) => {
+      calls.push(`invalidate:${JSON.stringify(f?.queryKey)}`);
+    });
     const onSuccess = vi.fn();
-    const mutationFn = vi.fn(
-      async (vars: { id: string }, token: string | null) => ({
-        echoed: vars.id,
-        token,
-      }),
-    );
+    const mutationFn = vi.fn(async (vars: { id: string }, token: string | null) => ({
+      echoed: vars.id,
+      token,
+    }));
 
     const { result } = renderHook(
       () =>
@@ -95,9 +89,7 @@ describe("useInvalidatingMutation", () => {
               ["domain", "list", uid],
               ["domain", "detail", uid, vars.id, data.echoed],
             ],
-            removeKeys: (uid, _data, vars) => [
-              ["domain", "detail", uid, vars.id],
-            ],
+            removeKeys: (uid, _data, vars) => [["domain", "detail", uid, vars.id]],
           },
           { onSuccess },
         ),

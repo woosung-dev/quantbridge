@@ -105,13 +105,7 @@ function CodeArt() {
         <circle cx="36" cy="66" r="3.5" fill="var(--bearish)" />
         <circle cx="48" cy="66" r="3.5" fill="var(--warning)" />
         <circle cx="60" cy="66" r="3.5" fill="var(--bullish)" />
-        <text
-          x="80"
-          y="70"
-          fontFamily="var(--font-mono)"
-          fontSize="9"
-          fill="var(--text-muted)"
-        >
+        <text x="80" y="70" fontFamily="var(--font-mono)" fontSize="9" fill="var(--text-muted)">
           strategy.pine
         </text>
         <line x1="28" y1="82" x2="192" y2="82" stroke="var(--border)" />
@@ -230,7 +224,13 @@ function CodeArt() {
       </g>
 
       {/* Arrow — dashed marching line + arrowhead */}
-      <g stroke="var(--primary)" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <g
+        stroke="var(--primary)"
+        strokeWidth="2.4"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <path
           d="M210 130 C 230 130, 230 180, 210 200"
           strokeDasharray="4 5"
@@ -317,13 +317,7 @@ function ChartArt() {
         >
           Equity Curve
         </text>
-        <text
-          x="36"
-          y="94"
-          fontFamily="var(--font-mono)"
-          fontSize="9"
-          fill="var(--text-muted)"
-        >
+        <text x="36" y="94" fontFamily="var(--font-mono)" fontSize="9" fill="var(--text-muted)">
           backtest · 6mo
         </text>
         {/* P&L badge */}
@@ -525,7 +519,15 @@ function CompleteArt() {
       <g>
         <circle cx="80" cy="240" r="3" fill="var(--primary)" opacity="0.7" />
         <circle cx="220" cy="260" r="3" fill="var(--chart-compare)" opacity="0.7" />
-        <rect x="60" y="120" width="6" height="6" rx="1" fill="var(--chart-benchmark)" opacity="0.7" />
+        <rect
+          x="60"
+          y="120"
+          width="6"
+          height="6"
+          rx="1"
+          fill="var(--chart-benchmark)"
+          opacity="0.7"
+        />
         <rect x="216" y="170" width="6" height="6" rx="1" fill="var(--bullish)" opacity="0.7" />
       </g>
     </>

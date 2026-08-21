@@ -28,10 +28,7 @@ export const OPTIMIZATION_KIND_LABEL: Record<OptimizationKind, string> = {
 };
 
 /** 실행 상태 4종. screen-09-optimizer-list.html:1296/1310/1323/1346 */
-export const OPTIMIZATION_STATUS_LABEL: Record<
-  OptimizationStatus,
-  StatusLabelWithIcon
-> = {
+export const OPTIMIZATION_STATUS_LABEL: Record<OptimizationStatus, StatusLabelWithIcon> = {
   queued: { label: "대기", tone: "neutral" },
   running: { label: "실행 중", tone: "accent" },
   completed: { label: "완료", tone: "done", showCheckIcon: true },
@@ -39,10 +36,7 @@ export const OPTIMIZATION_STATUS_LABEL: Record<
 };
 
 /** 목표 지표 3종 완전형. screen-09-optimizer-list.html:1209-1211 셀렉트 옵션 */
-export const OBJECTIVE_METRIC_LABEL: Record<
-  OptimizationObjectiveMetric,
-  string
-> = {
+export const OBJECTIVE_METRIC_LABEL: Record<OptimizationObjectiveMetric, string> = {
   sharpe_ratio: "샤프 지수",
   total_return: "총 수익률",
   max_drawdown: "최대 낙폭",
@@ -52,21 +46,17 @@ export const OBJECTIVE_METRIC_LABEL: Record<
  * 표 헤더용 축약. 시각 텍스트는 완전형을 쓰고 이 값은 th 의 abbr 속성에만 넣는다.
  * 정답 형태는 screen-02-dashboard.html:1304 의 <th abbr="MDD">최대 낙폭</th> 이다.
  */
-export const OBJECTIVE_METRIC_ABBR: Record<
-  OptimizationObjectiveMetric,
-  string
-> = {
+export const OBJECTIVE_METRIC_ABBR: Record<OptimizationObjectiveMetric, string> = {
   sharpe_ratio: "샤프",
   total_return: "수익률",
   max_drawdown: "MDD",
 };
 
 /** 최적화 방향. screen-09-optimizer-list.html:1218-1219 */
-export const OBJECTIVE_DIRECTION_LABEL: Record<OptimizationDirection, string> =
-  {
-    maximize: "최대화",
-    minimize: "최소화",
-  };
+export const OBJECTIVE_DIRECTION_LABEL: Record<OptimizationDirection, string> = {
+  maximize: "최대화",
+  minimize: "최소화",
+};
 export const OBJECTIVE_DIRECTION_HINT: Record<OptimizationDirection, string> = {
   maximize: "큰 값이 좋음",
   minimize: "작은 값이 좋음",
@@ -137,18 +127,15 @@ export const OPTIMIZER_CELL_HEADER = {
  */
 export const OPTIMIZER_EMPTY_REASON = {
   queuedNotStarted: "아직 실행이 시작되지 않아 평가 결과가 없습니다.",
-  queuedNoQueuePosition:
-    "시작 시각이 아직 없습니다. 대기열 순번은 서버가 보고하지 않습니다.",
-  runningNoIntermediate:
-    "실행이 끝나야 결과가 저장됩니다. 서버는 중간 최고값을 보고하지 않습니다.",
+  queuedNoQueuePosition: "시작 시각이 아직 없습니다. 대기열 순번은 서버가 보고하지 않습니다.",
+  runningNoIntermediate: "실행이 끝나야 결과가 저장됩니다. 서버는 중간 최고값을 보고하지 않습니다.",
   failedInvalidRange:
     "파라미터 공간의 하한이 상한보다 커서 탐색 범위를 만들지 못했고, 평가가 한 번도 실행되지 않았습니다.",
   degenerateNoSharpe: "거래가 0건이라 샤프 지수를 계산할 표본이 없습니다.",
   degenerateNoRank: "거래가 0건이라 순위를 매길 근거가 없습니다.",
   noEtaByDesign:
     "실행 중 작업의 남은 시간은 표시하지 않습니다. 서버가 진행 회차를 아직 보고하지 않기 때문입니다.",
-  noProgressMeter:
-    "최적화는 서버가 진행률을 보고하지 않아 미터를 그리지 않습니다.",
+  noProgressMeter: "최적화는 서버가 진행률을 보고하지 않아 미터를 그리지 않습니다.",
 } as const;
 
 /**
@@ -157,15 +144,13 @@ export const OPTIMIZER_EMPTY_REASON = {
  */
 export const OPTIMIZER_ARCHIVE_EMPTY_STATE = {
   headline: "보관한 실행이 없습니다.",
-  description:
-    "끝난 실행을 보관해 두면 목록에서 빠지고, 결과는 그대로 남습니다.",
+  description: "끝난 실행을 보관해 두면 목록에서 빠지고, 결과는 그대로 남습니다.",
 } as const;
 
 /** 목록 로드 실패. screen-09-optimizer-list.html:1460-1461 */
 export const OPTIMIZER_LIST_ERROR_STATE = {
   headline: "목록을 다시 불러오지 못했습니다.",
-  description:
-    "위 표는 마지막으로 성공한 응답입니다. 그 뒤로 갱신되지 않았습니다.",
+  description: "위 표는 마지막으로 성공한 응답입니다. 그 뒤로 갱신되지 않았습니다.",
 } as const;
 
 /** 대상 백테스트 선택 제약. screen-09-optimizer-list.html:1235 · 원문 3문장 그대로다 */

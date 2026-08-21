@@ -87,8 +87,7 @@ export function ShareRevokedState() {
       </h1>
       <p className="relative z-[2] mt-2 max-w-sm text-sm text-muted-foreground">
         백테스트 소유자가 이 링크를 비공개로 전환했습니다.
-        <br />
-        새 링크가 필요하면 공유한 분께 다시 요청해 주세요.
+        <br />새 링크가 필요하면 공유한 분께 다시 요청해 주세요.
       </p>
       <div className="relative z-[2] mt-6 flex flex-col items-center gap-2 sm:flex-row">
         <Link

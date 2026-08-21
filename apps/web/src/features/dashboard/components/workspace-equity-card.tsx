@@ -54,8 +54,7 @@ export function WorkspaceEquityCard({
       <div className="legend">
         <span className="legend-item">
           <span className="legend-key eq" aria-hidden="true" />
-          누적 실현 손익{" "}
-          <span className="legend-val">{formatEquityAxis(latestValue)}</span>
+          누적 실현 손익 <span className="legend-val">{formatEquityAxis(latestValue)}</span>
         </span>
       </div>
 
@@ -104,8 +103,7 @@ export function WorkspaceEquityCard({
           <>
             {" "}
             구간별 출처는 이 곡선에 표시하지 않습니다. 병합 지점의 값은 여러 세션의 과거 누적이
-            합쳐진 값이라 한 시점의 출처로 칠할 수 없습니다. 확정·추정 구분은 세션 상세에서
-            봅니다.
+            합쳐진 값이라 한 시점의 출처로 칠할 수 없습니다. 확정·추정 구분은 세션 상세에서 봅니다.
           </>
         ) : null}
       </p>

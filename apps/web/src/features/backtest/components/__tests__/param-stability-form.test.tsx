@@ -18,9 +18,7 @@ describe("ParamStabilityForm (Sprint 52 BL-223)", () => {
       />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Param Stability 실행" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith({
       backtest_id: "bt-1",
@@ -47,9 +45,7 @@ describe("ParamStabilityForm (Sprint 52 BL-223)", () => {
     const var1NameInput = screen.getByLabelText("변수 1 변수명") as HTMLInputElement;
     fireEvent.change(var1NameInput, { target: { value: "rsiLen" } });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Param Stability 실행" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Param Stability 실행" }));
     expect(onSubmit).toHaveBeenCalledWith({
       backtest_id: "bt-2",
       params: {

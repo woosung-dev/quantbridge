@@ -37,10 +37,7 @@ export const PARSE_STATUS_FILTER_LABEL: Record<ParseStatusFilter, string> = {
  * screen-06-strategies-list.html:1260(배포됨) · :1281(검증됨) · :1302(초안)
  */
 export type StrategyLifecycle = "draft" | "validated" | "deployed";
-export const STRATEGY_LIFECYCLE_LABEL: Record<
-  StrategyLifecycle,
-  StatusLabelWithIcon
-> = {
+export const STRATEGY_LIFECYCLE_LABEL: Record<StrategyLifecycle, StatusLabelWithIcon> = {
   draft: { label: "초안", tone: "neutral" },
   validated: { label: "검증됨", tone: "done" }, // 체크 아이콘 없음 (screen-06 6건 전부)
   deployed: { label: "배포됨", tone: "accent" },

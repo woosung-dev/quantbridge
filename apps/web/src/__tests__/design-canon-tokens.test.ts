@@ -16,14 +16,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = resolve(__dirname, "../../../..");
-const CANON_HTML = resolve(
-  REPO_ROOT,
-  "docs/design/prototypes/shotgun-2026-07/variant-c.html",
-);
-const GLOBALS_CSS = resolve(
-  REPO_ROOT,
-  "apps/web/src/styles/globals.css",
-);
+const CANON_HTML = resolve(REPO_ROOT, "docs/design/prototypes/shotgun-2026-07/variant-c.html");
+const GLOBALS_CSS = resolve(REPO_ROOT, "apps/web/src/styles/globals.css");
 
 /**
  * 캐논 토큰 -> 앱 토큰 매핑.
@@ -119,10 +113,7 @@ const appDarkTokens = readTokenBlock(
   /^\.dark\s*\{[\s\S]*?^\}/m,
 );
 // 비색상 상수는 테마 무관이라 `.dark` 가 아니라 `:root` 에 산다.
-const appRootTokens = readTokenBlock(
-  readFileSync(GLOBALS_CSS, "utf-8"),
-  /^:root\s*\{[\s\S]*?^\}/m,
-);
+const appRootTokens = readTokenBlock(readFileSync(GLOBALS_CSS, "utf-8"), /^:root\s*\{[\s\S]*?^\}/m);
 
 function findMismatches(): { canon: string; app: string; canonValue: string; appValue: string }[] {
   const mismatches: { canon: string; app: string; canonValue: string; appValue: string }[] = [];
@@ -167,10 +158,7 @@ describe("C 디자인 언어 캐논 토큰 정합 (이식 S1a 안전망)", () =>
       }
       return [];
     });
-    expect(
-      mismatches,
-      `캐논과 어긋난 비색상 상수:\n${mismatches.join("\n")}`,
-    ).toEqual([]);
+    expect(mismatches, `캐논과 어긋난 비색상 상수:\n${mismatches.join("\n")}`).toEqual([]);
   });
 
   it("매핑표의 앱 토큰이 전부 .dark 에 실재한다", () => {
@@ -195,12 +183,7 @@ describe("C 디자인 언어 캐논 토큰 정합 (이식 S1a 안전망)", () =>
   // ── 래칫 — 고쳤으면 allowlist 도 줄여야 한다 ──
   it("allowlist 에 이미 해소된 항목이 남아 있지 않다", () => {
     const stillMismatched = new Set(findMismatches().map((m) => m.canon));
-    const stale = KNOWN_MISMATCHES.filter((m) => !stillMismatched.has(m.canon)).map(
-      (m) => m.canon,
-    );
-    expect(
-      stale,
-      `해소됐으니 KNOWN_MISMATCHES 에서 지워라: ${stale.join(", ")}`,
-    ).toEqual([]);
+    const stale = KNOWN_MISMATCHES.filter((m) => !stillMismatched.has(m.canon)).map((m) => m.canon);
+    expect(stale, `해소됐으니 KNOWN_MISMATCHES 에서 지워라: ${stale.join(", ")}`).toEqual([]);
   });
 });

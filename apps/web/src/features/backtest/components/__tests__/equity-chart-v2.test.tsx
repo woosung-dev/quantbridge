@@ -119,14 +119,12 @@ describe("EquityChartV2 — 2-pane shell (Sprint 32-B BL-169+170)", () => {
     chartInstances.length = 0;
     lineSeriesMarkerCalls.length = 0;
     roInstances = [];
-    (
-      globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }
-    ).ResizeObserver = MockResizeObserver;
+    (globalThis as unknown as { ResizeObserver: typeof MockResizeObserver }).ResizeObserver =
+      MockResizeObserver;
   });
 
   afterEach(() => {
-    delete (globalThis as unknown as { ResizeObserver?: unknown })
-      .ResizeObserver;
+    delete (globalThis as unknown as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
   it("renders empty state when equityCurve is empty", async () => {
@@ -137,13 +135,7 @@ describe("EquityChartV2 — 2-pane shell (Sprint 32-B BL-169+170)", () => {
   });
 
   it("creates two chart instances (top Equity + bottom Drawdown panes)", async () => {
-    render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        height={400}
-      />,
-    );
+    render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} height={400} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     // 2-pane = 2 createChart calls.
@@ -172,11 +164,7 @@ describe("EquityChartV2 — 2-pane shell (Sprint 32-B BL-169+170)", () => {
       { timestamp: "2026-01-03T00:00:00Z", value: 10250 },
     ];
     render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        buyAndHoldCurve={BH_CURVE}
-      />,
+      <EquityChartV2 equityCurve={EQUITY} initialCapital={10000} buyAndHoldCurve={BH_CURVE} />,
     );
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
@@ -189,26 +177,14 @@ describe("EquityChartV2 — 2-pane shell (Sprint 32-B BL-169+170)", () => {
   it("hides BH series when buyAndHoldCurve is empty array (fail-closed BE response)", async () => {
     // BE 가 OHLCV invalid close 발견 시 None → FE schema 가 null 로 받음.
     // 빈 배열도 동일 처리 (defensive — schema 변경 시 보호).
-    render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        buyAndHoldCurve={[]}
-      />,
-    );
+    render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} buyAndHoldCurve={[]} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     expect(screen.queryByText("Buy & Hold (단순보유)")).not.toBeInTheDocument();
   });
 
   it("computes trade markers automatically (entry + exit) for Equity pane", async () => {
-    render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        trades={TRADES}
-        initialCapital={10000}
-      />,
-    );
+    render(<EquityChartV2 equityCurve={EQUITY} trades={TRADES} initialCapital={10000} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     // Equity pane line series 의 setMarkers 호출 — entry + exit = 2 markers.
@@ -247,13 +223,7 @@ describe("EquityChartV2 — 2-pane shell (Sprint 32-B BL-169+170)", () => {
   });
 
   it("respects 60/40 height ratio (top=216, bottom=144 for height=360)", async () => {
-    render(
-      <EquityChartV2
-        equityCurve={EQUITY}
-        initialCapital={10000}
-        height={360}
-      />,
-    );
+    render(<EquityChartV2 equityCurve={EQUITY} initialCapital={10000} height={360} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
     // 첫 createChart = top pane, 두번째 = bottom pane.

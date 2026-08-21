@@ -86,11 +86,46 @@ const RUN_COMPLETED = {
     kind: "bayesian",
     param_names: ["emaPeriod"],
     iterations: [
-      { idx: 0, params: { emaPeriod: "12" }, objective_value: "1.20", best_so_far: "1.20", is_degenerate: false, phase: "random" },
-      { idx: 1, params: { emaPeriod: "25" }, objective_value: null, best_so_far: "1.20", is_degenerate: true, phase: "random" },
-      { idx: 2, params: { emaPeriod: "17" }, objective_value: "1.85", best_so_far: "1.85", is_degenerate: false, phase: "acquisition" },
-      { idx: 3, params: { emaPeriod: "18" }, objective_value: "1.75", best_so_far: "1.85", is_degenerate: false, phase: "acquisition" },
-      { idx: 4, params: { emaPeriod: "16" }, objective_value: "1.92", best_so_far: "1.92", is_degenerate: false, phase: "acquisition" },
+      {
+        idx: 0,
+        params: { emaPeriod: "12" },
+        objective_value: "1.20",
+        best_so_far: "1.20",
+        is_degenerate: false,
+        phase: "random",
+      },
+      {
+        idx: 1,
+        params: { emaPeriod: "25" },
+        objective_value: null,
+        best_so_far: "1.20",
+        is_degenerate: true,
+        phase: "random",
+      },
+      {
+        idx: 2,
+        params: { emaPeriod: "17" },
+        objective_value: "1.85",
+        best_so_far: "1.85",
+        is_degenerate: false,
+        phase: "acquisition",
+      },
+      {
+        idx: 3,
+        params: { emaPeriod: "18" },
+        objective_value: "1.75",
+        best_so_far: "1.85",
+        is_degenerate: false,
+        phase: "acquisition",
+      },
+      {
+        idx: 4,
+        params: { emaPeriod: "16" },
+        objective_value: "1.92",
+        best_so_far: "1.92",
+        is_degenerate: false,
+        phase: "acquisition",
+      },
     ],
     best_params: { emaPeriod: "16" },
     best_objective_value: "1.92",
@@ -165,9 +200,7 @@ test.describe("Bayesian optimizer (LESSON-066 6차 + Sprint 50/51/52 retro 차�
 
   // functional-parity BL-401 — 검증 실패가 무피드백 제출 차단이 아니라 field-level
   // 에러(role=alert)로 표출되는지 가드. var_name 을 비운 채 제출 → 에러 렌더 + POST 미발사.
-  test("BL-401 — 빈 var_name 제출 시 field error 표출 + POST 미발사", async ({
-    page,
-  }) => {
+  test("BL-401 — 빈 var_name 제출 시 field error 표출 + POST 미발사", async ({ page }) => {
     let postedToBayesianEndpoint = false;
     const context = page.context();
 

@@ -7,14 +7,7 @@ import { MetricTile } from "../metric-tile";
 
 describe("MetricTile", () => {
   it("label/value/sub 를 렌더하고 valueTestId 를 값 요소에 부여", () => {
-    render(
-      <MetricTile
-        label="총 거래"
-        value="42"
-        sub="지난 30일"
-        valueTestId="stat-총 거래"
-      />,
-    );
+    render(<MetricTile label="총 거래" value="42" sub="지난 30일" valueTestId="stat-총 거래" />);
     expect(screen.getByText("총 거래")).toBeInTheDocument();
     expect(screen.getByTestId("stat-총 거래")).toHaveTextContent("42");
     expect(screen.getByText("지난 30일")).toBeInTheDocument();
@@ -38,11 +31,7 @@ describe("MetricTile", () => {
         <MetricTile label="b" value="2" variant="bare" className="probe-bare" />
       </>,
     );
-    expect(container.querySelector(".probe-card")?.className).toContain(
-      "border",
-    );
-    expect(container.querySelector(".probe-bare")?.className).not.toContain(
-      "bg-card",
-    );
+    expect(container.querySelector(".probe-card")?.className).toContain("border");
+    expect(container.querySelector(".probe-bare")?.className).not.toContain("bg-card");
   });
 });

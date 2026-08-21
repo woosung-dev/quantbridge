@@ -9,9 +9,7 @@ describe("PositionSizeSlider", () => {
     const onChange = vi.fn();
     render(<PositionSizeSlider value={10} onChange={onChange} />);
 
-    const slider = screen.getByTestId(
-      "position-size-slider-input",
-    ) as HTMLInputElement;
+    const slider = screen.getByTestId("position-size-slider-input") as HTMLInputElement;
     fireEvent.change(slider, { target: { value: "50" } });
 
     expect(onChange).toHaveBeenCalledWith(50);
@@ -26,21 +24,14 @@ describe("PositionSizeSlider", () => {
   });
 
   it("capitalUsd 지정 시 자기자본 환산 표시 (≈ $...)", () => {
-    render(
-      <PositionSizeSlider value={10} onChange={() => {}} capitalUsd={10000} />,
-    );
+    render(<PositionSizeSlider value={10} onChange={() => {}} capitalUsd={10000} />);
 
-    expect(screen.getByTestId("position-size-slider-value")).toHaveTextContent(
-      "≈ $1,000",
-    );
+    expect(screen.getByTestId("position-size-slider-value")).toHaveTextContent("≈ $1,000");
   });
 
   it("aria-valuenow 가 value 와 동기화됨", () => {
     render(<PositionSizeSlider value={75} onChange={() => {}} />);
-    expect(screen.getByTestId("position-size-slider-input")).toHaveAttribute(
-      "aria-valuenow",
-      "75",
-    );
+    expect(screen.getByTestId("position-size-slider-input")).toHaveAttribute("aria-valuenow", "75");
   });
 
   // Sprint 44 W F3 — hover/focus tooltip

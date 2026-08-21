@@ -52,6 +52,4 @@ export const AlertRuleCreateRequestSchema = z
       });
     }
   });
-export type AlertRuleCreateRequest = z.infer<
-  typeof AlertRuleCreateRequestSchema
->;
+export type AlertRuleCreateRequest = z.infer<typeof AlertRuleCreateRequestSchema>;

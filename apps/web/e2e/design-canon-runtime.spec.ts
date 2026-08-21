@@ -71,10 +71,7 @@ test.describe("차트 팔레트 런타임 해석 (이식 S1a 안전망)", () => 
     const unresolved = Object.entries(resolved)
       .filter(([, value]) => value === "")
       .map(([name]) => name);
-    expect(
-      unresolved,
-      `:root 에서 해석되지 않은 변수: ${unresolved.join(", ")}`,
-    ).toEqual([]);
+    expect(unresolved, `:root 에서 해석되지 않은 변수: ${unresolved.join(", ")}`).toEqual([]);
   });
 
   test("다크와 라이트가 서로 다른 값을 준다 (테마 인지 확인)", async ({ page }) => {
@@ -86,9 +83,7 @@ test.describe("차트 팔레트 런타임 해석 (이식 S1a 안전망)", () => 
     const light = await readRootTokens(page, CHART_TOKEN_CONTRACT);
 
     // 전부 같다면 `.dark` 블록이 실제로는 적용되지 않고 있다는 뜻이다.
-    const differing = CHART_TOKEN_CONTRACT.filter(
-      (name) => dark[name] !== light[name],
-    );
+    const differing = CHART_TOKEN_CONTRACT.filter((name) => dark[name] !== light[name]);
     expect(
       differing.length,
       `다크와 라이트가 같은 값을 준다. .dark 블록이 적용되지 않는다`,

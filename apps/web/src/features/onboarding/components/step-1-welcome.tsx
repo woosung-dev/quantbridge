@@ -17,9 +17,7 @@ export function Step1Welcome({ onNext }: { onNext: () => void }) {
         </span>
         <div>
           <h2 className="ob-heading">QuantBridge 에 오신 것을 환영합니다</h2>
-          <p className="ob-subtle">
-            5분 안에 첫 Pine Script 백테스트를 완주해보세요.
-          </p>
+          <p className="ob-subtle">5분 안에 첫 Pine Script 백테스트를 완주해보세요.</p>
         </div>
       </div>
 
@@ -27,15 +25,14 @@ export function Step1Welcome({ onNext }: { onNext: () => void }) {
         <li>
           <ClockIcon aria-hidden="true" strokeWidth={2} />
           <span className="break-keep">
-            샘플 <strong>EMA Crossover</strong> 전략으로 시작하세요. 복사·붙여넣기
-            없이 한 번의 클릭으로 등록됩니다.
+            샘플 <strong>EMA Crossover</strong> 전략으로 시작하세요. 복사·붙여넣기 없이 한 번의
+            클릭으로 등록됩니다.
           </span>
         </li>
         <li>
           <ClockIcon aria-hidden="true" strokeWidth={2} />
           <span className="break-keep">
-            최근 30일 <strong>BTC/USDT 1H</strong> 캔들로 자동 백테스트가
-            실행됩니다.
+            최근 30일 <strong>BTC/USDT 1H</strong> 캔들로 자동 백테스트가 실행됩니다.
           </span>
         </li>
         <li>

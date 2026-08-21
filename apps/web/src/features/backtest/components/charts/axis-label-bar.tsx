@@ -23,17 +23,10 @@ interface AxisLabelBarProps {
   variant: "equity" | "drawdown";
 }
 
-export function AxisLabelBar({
-  yAxisLabel,
-  xAxisLabel,
-  variant,
-}: AxisLabelBarProps) {
-  const dotColor =
-    variant === "equity" ? "var(--chart-equity)" : "var(--chart-dd-line)";
+export function AxisLabelBar({ yAxisLabel, xAxisLabel, variant }: AxisLabelBarProps) {
+  const dotColor = variant === "equity" ? "var(--chart-equity)" : "var(--chart-dd-line)";
   const ariaLabel =
-    variant === "equity"
-      ? "자본 곡선 차트 축 단위 안내"
-      : "Drawdown 차트 축 단위 안내";
+    variant === "equity" ? "자본 곡선 차트 축 단위 안내" : "Drawdown 차트 축 단위 안내";
 
   return (
     <div

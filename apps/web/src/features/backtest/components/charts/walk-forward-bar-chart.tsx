@@ -13,7 +13,10 @@ import type { WalkForwardBarDatum as BarDatum } from "@/features/backtest/compon
 
 // recharts plot 은 무거워서 지연 로딩 — 로딩 중엔 hasWidth 대기 placeholder 와 동일 형태.
 const WalkForwardBarPlot = dynamic(
-  () => import("@/features/backtest/components/charts/recharts-plots").then((m) => m.WalkForwardBarPlot),
+  () =>
+    import("@/features/backtest/components/charts/recharts-plots").then(
+      (m) => m.WalkForwardBarPlot,
+    ),
   { ssr: false, loading: () => <div className="h-full w-full" aria-busy="true" /> },
 );
 
@@ -71,9 +74,7 @@ export function WalkForwardBarChart({ result }: Props) {
   if (data.length === 0) {
     return (
       <div>
-        <p className="text-sm text-muted-foreground">
-          Walk-Forward fold 데이터가 없습니다.
-        </p>
+        <p className="text-sm text-muted-foreground">Walk-Forward fold 데이터가 없습니다.</p>
       </div>
     );
   }
@@ -84,11 +85,7 @@ export function WalkForwardBarChart({ result }: Props) {
         {degradationText}
         {truncationText}
       </p>
-      <div
-        ref={wrapperRef}
-        className="h-80 w-full overflow-x-auto"
-        style={{ minWidth: 0 }}
-      >
+      <div ref={wrapperRef} className="h-80 w-full overflow-x-auto" style={{ minWidth: 0 }}>
         {hasWidth ? (
           <div className="h-full min-w-[600px]">
             <WalkForwardBarPlot data={data} />

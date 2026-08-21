@@ -378,9 +378,7 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
 
     renderWith(<LiveSessionDetail session={INACTIVE_SESSION_WITH_REASON} />);
 
-    expect(await screen.findByTestId("live-session-ended-badge")).toHaveTextContent(
-      "종료된 세션",
-    );
+    expect(await screen.findByTestId("live-session-ended-badge")).toHaveTextContent("종료된 세션");
     expect(screen.getByTestId("live-session-ended-reason")).toHaveTextContent("자본 소진");
   });
 
@@ -438,9 +436,7 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     stateMock.mockResolvedValue(STATE_NO_EQUITY);
     eventsMock.mockResolvedValue({ items: [] });
 
-    renderWith(
-      <LiveSessionDetail session={{ ...SESSION, equity_baseline_usdt: "1234.5" }} />,
-    );
+    renderWith(<LiveSessionDetail session={{ ...SESSION, equity_baseline_usdt: "1234.5" }} />);
 
     expect(screen.getByText("기준 자본")).toBeInTheDocument();
     expect(screen.getByTestId("live-session-equity-baseline")).toHaveTextContent("1234.5 USDT");
@@ -599,9 +595,9 @@ describe("LiveSessionDetail (Sprint 33-A BL-150 partial)", () => {
     renderWith(<LiveSessionDetail session={SESSION} />);
 
     await waitFor(() => {
-      expect(
-        screen.getByTestId("live-session-liquidations").textContent?.trim(),
-      ).toBe(String.fromCharCode(0x2014));
+      expect(screen.getByTestId("live-session-liquidations").textContent?.trim()).toBe(
+        String.fromCharCode(0x2014),
+      );
     });
   });
 

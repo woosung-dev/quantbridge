@@ -18,14 +18,7 @@ export interface TagInputProps {
   className?: string;
 }
 
-export function TagInput({
-  value,
-  onChange,
-  placeholder,
-  maxTags,
-  id,
-  className,
-}: TagInputProps) {
+export function TagInput({ value, onChange, placeholder, maxTags, id, className }: TagInputProps) {
   const [draft, setDraft] = useState("");
 
   const commit = (): boolean => {
@@ -77,11 +70,7 @@ export function TagInput({
     >
       {value.map((tag, index) => (
         // Precision Instrument: rounded-full chip → 기본 Badge(4px 계측기 태그)
-        <Badge
-          key={`${tag}-${index}`}
-          variant="secondary"
-          data-slot="tag-chip"
-        >
+        <Badge key={`${tag}-${index}`} variant="secondary" data-slot="tag-chip">
           <span>{tag}</span>
           <button
             type="button"

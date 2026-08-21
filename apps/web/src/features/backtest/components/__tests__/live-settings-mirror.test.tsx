@@ -1,12 +1,6 @@
 // Sprint 38 BL-188 v3 B — 4-state Live mirror + D2 manual override toggle 검증
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  act,
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-} from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { BacktestForm } from "@/features/backtest/components/forms/backtest-form";
 import { CreateBacktestRequestSchema } from "@/features/backtest/schemas";
@@ -14,9 +8,7 @@ import { CreateBacktestRequestSchema } from "@/features/backtest/schemas";
 // 전략 목록 (useStrategies stub) — 4 case 모두 동일.
 const strategiesList = {
   data: {
-    items: [
-      { id: "abc", name: "Test strategy", parse_status: "ok" },
-    ],
+    items: [{ id: "abc", name: "Test strategy", parse_status: "ok" }],
   },
 };
 
@@ -98,17 +90,11 @@ describe("BacktestForm Live Settings mirror (BL-188 v3 B — 4-state)", () => {
       render(<BacktestForm />);
     });
 
-    expect(
-      screen.getByTestId("live-settings-badge-pine"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("live-settings-badge-pine")).toBeInTheDocument();
     // Pine override 시 default qty 폼 disabled.
-    const qtyTypeSelect = screen.getByTestId(
-      "default-qty-type-select",
-    ) as HTMLSelectElement;
+    const qtyTypeSelect = screen.getByTestId("default-qty-type-select") as HTMLSelectElement;
     expect(qtyTypeSelect.disabled).toBe(true);
-    const qtyValueInput = screen.getByTestId(
-      "default-qty-value-input",
-    ) as HTMLInputElement;
+    const qtyValueInput = screen.getByTestId("default-qty-value-input") as HTMLInputElement;
     expect(qtyValueInput.disabled).toBe(true);
   });
 
@@ -128,12 +114,8 @@ describe("BacktestForm Live Settings mirror (BL-188 v3 B — 4-state)", () => {
       render(<BacktestForm />);
     });
 
-    expect(
-      screen.getByTestId("live-settings-badge-live"),
-    ).toBeInTheDocument();
-    const pctInput = screen.getByTestId(
-      "position-size-pct-input",
-    ) as HTMLInputElement;
+    expect(screen.getByTestId("live-settings-badge-live")).toBeInTheDocument();
+    const pctInput = screen.getByTestId("position-size-pct-input") as HTMLInputElement;
     expect(pctInput.value).toBe("30");
     expect(pctInput.readOnly).toBe(true);
   });
@@ -158,9 +140,7 @@ describe("BacktestForm Live Settings mirror (BL-188 v3 B — 4-state)", () => {
     expect(blockedBadge).toBeInTheDocument();
     expect(blockedBadge.textContent).toMatch(/3x/);
     // manual 폼 enabled (sizing source 가 live_blocked_leverage 이므로 폼 활성화).
-    const qtyTypeSelect = screen.getByTestId(
-      "default-qty-type-select",
-    ) as HTMLSelectElement;
+    const qtyTypeSelect = screen.getByTestId("default-qty-type-select") as HTMLSelectElement;
     expect(qtyTypeSelect.disabled).toBe(false);
   });
 
@@ -180,25 +160,17 @@ describe("BacktestForm Live Settings mirror (BL-188 v3 B — 4-state)", () => {
       render(<BacktestForm />);
     });
 
-    expect(
-      screen.getByTestId("live-settings-badge-live"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("live-settings-badge-live")).toBeInTheDocument();
 
     // Manual 로 토글 — sizing-source-select 가 노출되어야 함.
-    const sourceSelect = screen.getByTestId(
-      "sizing-source-select",
-    ) as HTMLSelectElement;
+    const sourceSelect = screen.getByTestId("sizing-source-select") as HTMLSelectElement;
     await act(async () => {
       fireEvent.change(sourceSelect, { target: { value: "manual" } });
     });
 
     // Manual toggle 후 → manual 폼 enabled.
-    expect(
-      screen.getByTestId("live-settings-badge-manual"),
-    ).toBeInTheDocument();
-    const qtyTypeSelect = screen.getByTestId(
-      "default-qty-type-select",
-    ) as HTMLSelectElement;
+    expect(screen.getByTestId("live-settings-badge-manual")).toBeInTheDocument();
+    const qtyTypeSelect = screen.getByTestId("default-qty-type-select") as HTMLSelectElement;
     expect(qtyTypeSelect.disabled).toBe(false);
 
     // Zod schema 차원 double-sizing reject 검증 (BE _no_double_sizing parity).
@@ -236,9 +208,7 @@ describe("BacktestForm Live Settings mirror (BL-188 v3 B — 4-state)", () => {
       render(<BacktestForm />);
     });
 
-    expect(
-      screen.getByTestId("live-fill-timing-mismatch-badge"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("live-fill-timing-mismatch-badge")).toBeInTheDocument();
   });
 
   it("(6) 백테스트 fill_timing 이 Live 설정과 같으면 경고 배지가 없다", async () => {

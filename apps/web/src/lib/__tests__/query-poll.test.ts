@@ -54,17 +54,11 @@ describe("makeStatusPoll", () => {
     expect(fn(fakeQuery<FakeStatusData>({ data: undefined }))).toBe(2_000);
   });
 
-  it.each(["completed", "failed", "cancelled"])(
-    "terminal status %s → false",
-    (status) => {
-      expect(fn(fakeQuery({ data: { status } }))).toBe(false);
-    },
-  );
+  it.each(["completed", "failed", "cancelled"])("terminal status %s → false", (status) => {
+    expect(fn(fakeQuery({ data: { status } }))).toBe(false);
+  });
 
-  it.each(["queued", "running", "cancelling"])(
-    "active status %s → interval",
-    (status) => {
-      expect(fn(fakeQuery({ data: { status } }))).toBe(2_000);
-    },
-  );
+  it.each(["queued", "running", "cancelling"])("active status %s → interval", (status) => {
+    expect(fn(fakeQuery({ data: { status } }))).toBe(2_000);
+  });
 });

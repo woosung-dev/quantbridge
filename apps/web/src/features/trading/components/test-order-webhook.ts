@@ -19,10 +19,7 @@ function bufferToHex(buf: ArrayBuffer): string {
     .join("");
 }
 
-export async function computeHmacSha256Hex(
-  secret: string,
-  bodyStr: string,
-): Promise<string> {
+export async function computeHmacSha256Hex(secret: string, bodyStr: string): Promise<string> {
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -31,11 +28,7 @@ export async function computeHmacSha256Hex(
     false,
     ["sign"],
   );
-  const sigBuf = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(bodyStr),
-  );
+  const sigBuf = await crypto.subtle.sign("HMAC", key, encoder.encode(bodyStr));
   return bufferToHex(sigBuf);
 }
 
@@ -48,9 +41,7 @@ export async function computeHmacSha256Hex(
  * 는 수량을 계산하지 않고 상한만 검사하므로, risk_percent 는 quantity 를 대체하는
  * 값이 아니라 그것을 검증하는 상한이다.
  */
-export function buildTestOrderPayload(
-  values: TestOrderFormValues,
-): Record<string, unknown> {
+export function buildTestOrderPayload(values: TestOrderFormValues): Record<string, unknown> {
   const payload: Record<string, unknown> = {
     symbol: values.symbol,
     side: values.side,

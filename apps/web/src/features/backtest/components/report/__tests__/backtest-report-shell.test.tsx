@@ -69,18 +69,7 @@ describe("BacktestReportShell (variant-c 번호 섹션 IA)", () => {
     const nums = Array.from(container.querySelectorAll(".eyebrow .num")).map(
       (el) => el.textContent,
     );
-    expect(nums).toEqual([
-      "01",
-      "02",
-      "03",
-      "04",
-      "05",
-      "06",
-      "07",
-      "08",
-      "09",
-      "10",
-    ]);
+    expect(nums).toEqual(["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]);
   });
 
   it("실행 조건 섹션에 AssumptionsCard(초기 자본) 가 1회만 렌더", () => {
@@ -92,9 +81,7 @@ describe("BacktestReportShell (variant-c 번호 섹션 IA)", () => {
     const { container } = render(<BacktestReportShell backtest={BT} currentId={BT.id} />);
     expect(container.querySelector("#stress-test")).not.toBeNull();
     const cta = screen.getByTestId("report-next-steps");
-    expect(within(cta).getByText("스트레스 테스트 열기").getAttribute("href")).toBe(
-      "#stress-test",
-    );
+    expect(within(cta).getByText("스트레스 테스트 열기").getAttribute("href")).toBe("#stress-test");
   });
 
   // ── BL-397 앵커 계약 ──────────────────────────────────────────────────────
@@ -167,7 +154,7 @@ describe("BacktestReportShell (variant-c 번호 섹션 IA)", () => {
   // 심어 두고 **어떤 엘리먼트로** 불렸는지만 본다. 위치는 e2e 가 잰다.
   function withScrollSpy(hash: string, run: (scrolled: Element[]) => void) {
     const scrolled: Element[] = [];
-    const had = Object.prototype.hasOwnProperty.call(Element.prototype, "scrollIntoView");
+    const had = Object.hasOwn(Element.prototype, "scrollIntoView");
     const original = Element.prototype.scrollIntoView;
     Element.prototype.scrollIntoView = function scrollIntoViewSpy(this: Element) {
       scrolled.push(this);

@@ -117,10 +117,7 @@ interface SeriesRefs {
 // lightweight-charts dynamic import 싱글턴 — 여러 chart 인스턴스가 동시에 마운트돼도
 // 모듈 로드는 1회만 발생 (vitest mock 레지스트리 동시 해석 경합 회피 겸용).
 interface LightweightChartsModule {
-  createChart: (
-    container: string | HTMLElement,
-    options?: DeepPartial<ChartOptions>,
-  ) => IChartApi;
+  createChart: (container: string | HTMLElement, options?: DeepPartial<ChartOptions>) => IChartApi;
 }
 
 let lwcModulePromise: Promise<LightweightChartsModule> | null = null;
@@ -485,11 +482,6 @@ export function TradingChart({
   }, [data, markers, benchmark, compare, area, histogram, options, themeKey]);
 
   return (
-    <div
-      ref={containerRef}
-      role="img"
-      aria-label={ariaLabel}
-      style={{ width: "100%", height }}
-    />
+    <div ref={containerRef} role="img" aria-label={ariaLabel} style={{ width: "100%", height }} />
   );
 }

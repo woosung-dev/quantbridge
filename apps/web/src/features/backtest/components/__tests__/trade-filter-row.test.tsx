@@ -59,9 +59,7 @@ describe("TradeFilterRow", () => {
     expect(screen.getByLabelText("기간 시작")).toBeInTheDocument();
     expect(screen.getByLabelText("기간 종료")).toBeInTheDocument();
     // PnL 2개
-    expect(
-      screen.getByLabelText(/최소 손익 비율/),
-    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/최소 손익 비율/)).toBeInTheDocument();
     expect(screen.getByLabelText("최대 손익 비율")).toBeInTheDocument();
     // 정렬
     expect(screen.getByLabelText("정렬")).toBeInTheDocument();

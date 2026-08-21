@@ -34,11 +34,7 @@ const strictDecimalInput = z
 
 // --- Enums ------------------------------------------------------------------
 
-export const OptimizationKindSchema = z.enum([
-  "grid_search",
-  "bayesian",
-  "genetic",
-]);
+export const OptimizationKindSchema = z.enum(["grid_search", "bayesian", "genetic"]);
 export type OptimizationKind = z.infer<typeof OptimizationKindSchema>;
 
 export const BayesianAcquisitionSchema = z.enum(["EI", "UCB", "PI"]);
@@ -47,12 +43,7 @@ export type BayesianAcquisition = z.infer<typeof BayesianAcquisitionSchema>;
 export const BayesianPriorSchema = z.enum(["uniform", "log_uniform", "normal"]);
 export type BayesianPrior = z.infer<typeof BayesianPriorSchema>;
 
-export const OptimizationStatusSchema = z.enum([
-  "queued",
-  "running",
-  "completed",
-  "failed",
-]);
+export const OptimizationStatusSchema = z.enum(["queued", "running", "completed", "failed"]);
 export type OptimizationStatus = z.infer<typeof OptimizationStatusSchema>;
 
 export const OptimizationDirectionSchema = z.enum(["maximize", "minimize"]);
@@ -64,9 +55,7 @@ export const OptimizationObjectiveMetricSchema = z.enum([
   "total_return",
   "max_drawdown",
 ]);
-export type OptimizationObjectiveMetric = z.infer<
-  typeof OptimizationObjectiveMetricSchema
->;
+export type OptimizationObjectiveMetric = z.infer<typeof OptimizationObjectiveMetricSchema>;
 
 // --- ParamSpaceField discriminated union ------------------------------------
 
@@ -112,8 +101,7 @@ export const BayesianHyperparamsFieldSchema = z
     if ((field.log_scale || field.prior === "log_uniform") && minN <= 0) {
       ctx.addIssue({
         code: "custom",
-        message:
-          "log_scale=true / prior='log_uniform' requires min > 0 (ADR-013 §2.5)",
+        message: "log_scale=true / prior='log_uniform' requires min > 0 (ADR-013 §2.5)",
       });
     }
     // Sprint 57 BL-234 E1: prior=normal + log_scale=true 조합 미지원.
@@ -155,10 +143,7 @@ export const ParamSpaceSchema = z
     mutation_rate: strictDecimalInput.nullable().optional(),
     crossover_rate: strictDecimalInput.nullable().optional(),
     // Sprint 57 BL-234 = selection algorithm enum (null → engine default "tournament").
-    genetic_selection_method: z
-      .enum(["tournament", "roulette"])
-      .nullable()
-      .default(null),
+    genetic_selection_method: z.enum(["tournament", "roulette"]).nullable().default(null),
   })
   .superRefine((space, ctx) => {
     const v2OnlyEntries: Array<[string, unknown]> = [
@@ -174,9 +159,7 @@ export const ParamSpaceSchema = z
       // null = BE 가 grid(v1) 직렬화 시 내보내는 "미설정" → undefined 와 동일 취급.
       .filter(([, v]) => v != null)
       .map(([k]) => k);
-    const hasBayesian = Object.values(space.parameters).some(
-      (p) => p.kind === "bayesian",
-    );
+    const hasBayesian = Object.values(space.parameters).some((p) => p.kind === "bayesian");
 
     if (space.schema_version === 1) {
       if (populated.length > 0) {
@@ -188,30 +171,26 @@ export const ParamSpaceSchema = z
       if (hasBayesian) {
         ctx.addIssue({
           code: "custom",
-          message:
-            "schema_version=1 forbids BayesianHyperparamsField; set schema_version=2",
+          message: "schema_version=1 forbids BayesianHyperparamsField; set schema_version=2",
         });
       }
     }
     if (hasBayesian && space.schema_version !== 2) {
       ctx.addIssue({
         code: "custom",
-        message:
-          "BayesianHyperparamsField requires schema_version=2 (ADR-013 §2.2)",
+        message: "BayesianHyperparamsField requires schema_version=2 (ADR-013 §2.2)",
       });
     }
 
     // Sprint 56 ADR-013 §7 amendment — mutation_rate / crossover_rate ∈ (0, 1].
-    const mutN =
-      space.mutation_rate != null ? Number(space.mutation_rate) : null;
+    const mutN = space.mutation_rate != null ? Number(space.mutation_rate) : null;
     if (mutN !== null && !(mutN > 0 && mutN <= 1)) {
       ctx.addIssue({
         code: "custom",
         message: `mutation_rate must be in (0, 1] (got ${space.mutation_rate})`,
       });
     }
-    const crossN =
-      space.crossover_rate != null ? Number(space.crossover_rate) : null;
+    const crossN = space.crossover_rate != null ? Number(space.crossover_rate) : null;
     if (crossN !== null && !(crossN > 0 && crossN <= 1)) {
       ctx.addIssue({
         code: "custom",
@@ -228,9 +207,7 @@ export const CreateOptimizationRunRequestSchema = z.object({
   kind: OptimizationKindSchema,
   param_space: ParamSpaceSchema,
 });
-export type CreateOptimizationRunRequest = z.infer<
-  typeof CreateOptimizationRunRequestSchema
->;
+export type CreateOptimizationRunRequest = z.infer<typeof CreateOptimizationRunRequestSchema>;
 
 // --- Response — GridSearch result_jsonb shape -------------------------------
 

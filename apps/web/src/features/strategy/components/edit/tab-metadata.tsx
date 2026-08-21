@@ -8,10 +8,7 @@ import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
-import {
-  useUpdateStrategy,
-  useUpdateStrategySettings,
-} from "@/features/strategy/hooks";
+import { useUpdateStrategy, useUpdateStrategySettings } from "@/features/strategy/hooks";
 import {
   type StrategyResponse,
   UpdateStrategyRequestSchema,
@@ -99,13 +96,25 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                 <label className="field-label" htmlFor="m-symbol">
                   심볼
                 </label>
-                <input className="input" id="m-symbol" type="text" maxLength={32} {...form.register("symbol")} />
+                <input
+                  className="input"
+                  id="m-symbol"
+                  type="text"
+                  maxLength={32}
+                  {...form.register("symbol")}
+                />
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="m-tf">
                   타임프레임
                 </label>
-                <input className="input" id="m-tf" type="text" maxLength={16} {...form.register("timeframe")} />
+                <input
+                  className="input"
+                  id="m-tf"
+                  type="text"
+                  maxLength={16}
+                  {...form.register("timeframe")}
+                />
               </div>
               <div className="field span-2">
                 <label className="field-label" htmlFor="m-tags">
@@ -191,7 +200,9 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                 {settingsErrors.leverage?.message ? (
                   <span className="field-error">{settingsErrors.leverage.message}</span>
                 ) : null}
-                <span className="field-hint">거래소 마진 배수입니다. Bybit 은 최대 125배입니다.</span>
+                <span className="field-hint">
+                  거래소 마진 배수입니다. Bybit 은 최대 125배입니다.
+                </span>
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="s-margin">
@@ -218,7 +229,9 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                 {settingsErrors.position_size_pct?.message ? (
                   <span className="field-error">{settingsErrors.position_size_pct.message}</span>
                 ) : null}
-                <span className="field-hint">가용 잔고 대비 포지션 크기입니다. 100 이면 전액입니다.</span>
+                <span className="field-hint">
+                  가용 잔고 대비 포지션 크기입니다. 100 이면 전액입니다.
+                </span>
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="s-trigger-breach-cap">
@@ -246,7 +259,9 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                 ) : null}
                 {/* ★min={0} 이라 브라우저는 0 을 받아주지만 스키마는 `.gt(0)` 라 거부한다.
                     UI 가 0 을 허용하는 것처럼 보이지 않도록 힌트에 적는다. */}
-                <span className="field-hint">비워두면 제한 없음입니다. 값을 넣으려면 0 보다 커야 합니다.</span>
+                <span className="field-hint">
+                  비워두면 제한 없음입니다. 값을 넣으려면 0 보다 커야 합니다.
+                </span>
               </div>
               <div className="field">
                 <label className="field-label" htmlFor="s-fill-timing">
@@ -261,7 +276,8 @@ export function TabMetadata({ strategy }: { strategy: StrategyResponse }) {
                   <option value="next_bar_open">시그널 다음 봉 시가</option>
                 </select>
                 <span className="field-hint">
-                  다음 봉 시가를 선택하면 진입과 청산이 모두 한 bar 늦게 체결됩니다. 손절 청산도 지연될 수 있습니다.
+                  다음 봉 시가를 선택하면 진입과 청산이 모두 한 bar 늦게 체결됩니다. 손절 청산도
+                  지연될 수 있습니다.
                 </span>
               </div>
             </div>

@@ -72,7 +72,12 @@ export class RealtimeWsClient implements RealtimeClient {
   }
 
   ensureConnected(): void {
-    if (this.destroyed || this.stopped || this.status === "connecting" || this.status === "authed") {
+    if (
+      this.destroyed ||
+      this.stopped ||
+      this.status === "connecting" ||
+      this.status === "authed"
+    ) {
       return;
     }
     this.clearReconnectTimer();

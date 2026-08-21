@@ -24,9 +24,7 @@ export function TradeOutcomeDonutPlot({ data }: { data: readonly DonutDatum[] })
           strokeWidth={0}
           isAnimationActive={false}
         />
-        <Tooltip
-          formatter={(value, name) => [`${String(value)}건`, String(name)]}
-        />
+        <Tooltip formatter={(value, name) => [`${String(value)}건`, String(name)]} />
       </PieChart>
     </ResponsiveContainer>
   );

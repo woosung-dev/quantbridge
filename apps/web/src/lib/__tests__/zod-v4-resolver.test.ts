@@ -12,11 +12,7 @@ describe("zodV4Resolver", () => {
       label: z.string().default("default label"),
     });
 
-    const result = await zodV4Resolver(schema)(
-      { amount: "42" } as never,
-      undefined,
-      {} as never,
-    );
+    const result = await zodV4Resolver(schema)({ amount: "42" } as never, undefined, {} as never);
 
     expect(result.values).toEqual({ amount: 42, label: "default label" });
     expect(result.errors).toEqual({});
@@ -30,11 +26,7 @@ describe("zodV4Resolver", () => {
       return;
     }
 
-    const result = await zodV4Resolver(schema)(
-      { email: "nope" },
-      undefined,
-      {} as never,
-    );
+    const result = await zodV4Resolver(schema)({ email: "nope" }, undefined, {} as never);
     const errors = result.errors as unknown as FlatErrors;
 
     expect(result.values).toEqual({});
@@ -47,11 +39,7 @@ describe("zodV4Resolver", () => {
   it("joins nested issue paths with dots", async () => {
     const schema = z.object({ a: z.object({ b: z.string() }) });
 
-    const result = await zodV4Resolver(schema)(
-      { a: { b: 1 } } as never,
-      undefined,
-      {} as never,
-    );
+    const result = await zodV4Resolver(schema)({ a: { b: 1 } } as never, undefined, {} as never);
     const errors = result.errors as unknown as FlatErrors;
 
     expect(errors["a.b"]).toMatchObject({
@@ -71,11 +59,7 @@ describe("zodV4Resolver", () => {
     }
     expect(parsed.error.issues).toHaveLength(2);
 
-    const result = await zodV4Resolver(schema)(
-      { code: "ab" },
-      undefined,
-      {} as never,
-    );
+    const result = await zodV4Resolver(schema)({ code: "ab" }, undefined, {} as never);
     const errors = result.errors as unknown as FlatErrors;
 
     expect(errors.code).toEqual({

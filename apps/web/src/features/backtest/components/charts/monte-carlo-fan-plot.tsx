@@ -27,10 +27,7 @@ export interface FanDatum {
 export function MonteCarloFanPlot({ data }: { data: readonly FanDatum[] }) {
   return (
     <ResponsiveContainer width="100%" height="100%" minWidth={0}>
-      <ComposedChart
-        data={data as FanDatum[]}
-        margin={{ top: 12, right: 16, bottom: 24, left: 8 }}
-      >
+      <ComposedChart data={data as FanDatum[]} margin={{ top: 12, right: 16, bottom: 24, left: 8 }}>
         <CartesianGrid strokeDasharray="3 3" vertical={false} />
         <XAxis
           dataKey="bar"

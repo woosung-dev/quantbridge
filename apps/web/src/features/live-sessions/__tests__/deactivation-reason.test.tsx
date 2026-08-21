@@ -15,17 +15,16 @@ import { describe, expect, it } from "vitest";
 import { LIVE_SESSION_DEACTIVATION_REASON_LABEL } from "../labels";
 import { SessionEndedReason } from "../components/session-ended-reason";
 
-const BACKEND_MODELS = path.resolve(
-  __dirname,
-  "../../../../../../apps/api/src/trading/models.py",
-);
+const BACKEND_MODELS = path.resolve(__dirname, "../../../../../../apps/api/src/trading/models.py");
 
 /** BE enum 블록에서 사유 문자열을 뽑는다. 블록을 못 찾으면 실패 — 조용히 통과하면 가드가 죽는다. */
 function backendReasonCodes(): string[] {
   const source = readFileSync(BACKEND_MODELS, "utf8");
   const start = source.indexOf("class SessionDeactivationReason(StrEnum):");
-  expect(start, "BE 의 SessionDeactivationReason 을 못 찾았다 — 이 테스트가 stale 이다").
-    toBeGreaterThan(-1);
+  expect(
+    start,
+    "BE 의 SessionDeactivationReason 을 못 찾았다 — 이 테스트가 stale 이다",
+  ).toBeGreaterThan(-1);
   // 다음 top-level 정의까지가 그 클래스 본문이다.
   const rest = source.slice(start + 1);
   const end = rest.search(/\nclass |\ndef /);
@@ -45,9 +44,7 @@ describe("세션 종료 사유 (BL-484)", () => {
   it.each([null, undefined, ""])(
     "사유가 %s 면 아무것도 그리지 않는다 (과거 행에서 깨지지 않고 가짜 확정도 안 만든다)",
     (reason) => {
-      const { container } = render(
-        <SessionEndedReason reason={reason} testId="reason-chip" />,
-      );
+      const { container } = render(<SessionEndedReason reason={reason} testId="reason-chip" />);
 
       expect(screen.queryByTestId("reason-chip")).not.toBeInTheDocument();
       expect(container).toBeEmptyDOMElement();

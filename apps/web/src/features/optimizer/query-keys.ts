@@ -12,6 +12,5 @@ export const optimizerKeys = {
   list: (userId: string, query: OptimizationRunListQuery) =>
     [...optimizerKeys.lists(userId), query] as const,
   details: (userId: string) => [...optimizerKeys.all(userId), "detail"] as const,
-  detail: (userId: string, id: string) =>
-    [...optimizerKeys.details(userId), id] as const,
+  detail: (userId: string, id: string) => [...optimizerKeys.details(userId), id] as const,
 };

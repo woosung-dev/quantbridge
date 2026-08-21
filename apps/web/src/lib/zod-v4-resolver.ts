@@ -11,7 +11,7 @@
 // (당시 예시였던 OKX passphrase 분기는 C 이식 W3-F 에서 Bybit 단일화로 제거됐다.)
 
 import type { Resolver, FieldValues } from "react-hook-form";
-import { type core, type ZodType } from "zod/v4";
+import type { core, ZodType } from "zod/v4";
 
 export function zodV4Resolver<TValues extends FieldValues>(
   schema: ZodType<TValues>,
@@ -31,9 +31,7 @@ export function zodV4Resolver<TValues extends FieldValues>(
     return {
       values: {},
       // RHF nested errors path 는 flat key (예: "passphrase") 이므로 cast 안전.
-      errors: errors as unknown as Awaited<
-        ReturnType<Resolver<TValues>>
-      >["errors"],
+      errors: errors as unknown as Awaited<ReturnType<Resolver<TValues>>>["errors"],
     };
   };
   return resolver;

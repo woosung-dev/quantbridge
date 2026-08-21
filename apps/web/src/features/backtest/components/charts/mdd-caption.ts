@@ -18,8 +18,7 @@ export function buildMddCaption({
   liquidationOccurred,
 }: MddCaptionInput): string | null {
   const exceedsCapital = mddExceedsCapital ?? mddBelowCapital;
-  const leverageLabel =
-    leverage === 1 ? "leverage 1x · 현물" : `leverage ${leverage.toFixed(1)}x`;
+  const leverageLabel = leverage === 1 ? "leverage 1x · 현물" : `leverage ${leverage.toFixed(1)}x`;
 
   if (leverage > 1 && liquidationOccurred) {
     return `${leverageLabel} · 강제청산 발생${exceedsCapital ? " · 갭 체결로 증거금 초과" : ""}`;

@@ -46,7 +46,9 @@ function getPool(): Pool {
  * Better Auth 는 Next 안에서 돌아 가입 요청의 헤더를 직접 보므로, 여기가 L3 이 처음으로
  * 실재하게 되는 자리다. 헤더가 없으면 `null` — 차단하지 않는다(로컬 개발·기존 호환).
  */
-function countryFromContext(context: { headers?: Headers; request?: Request } | null): string | null {
+function countryFromContext(
+  context: { headers?: Headers; request?: Request } | null,
+): string | null {
   const headers = context?.headers ?? context?.request?.headers;
   const raw = headers?.get("cf-ipcountry") ?? headers?.get("x-vercel-ip-country") ?? null;
   if (!raw) return null;
@@ -102,14 +104,16 @@ export const auth = betterAuth({
         //   영영 지울 수 없는** 상태가 된다. 403+그 코드는 「우리 쪽 정리는 이미 끝났다」는
         //   뜻이므로 통과시킨다 — 멱등이다(2026-08-17 codex 적대 리뷰 P2).
         if (res.status === 403) {
-          const body = (await res.json().catch(() => null)) as
-            | { detail?: { code?: string } }
-            | null;
+          const body = (await res.json().catch(() => null)) as {
+            detail?: { code?: string };
+          } | null;
           if (body?.detail?.code === "auth_user_inactive") return;
         }
 
         // 그 밖에는 **삭제를 진행하지 않는다** — 돈이 안 멈춘 채로 인증 사용자가 사라지는 것이 최악이다.
-        throw new Error(`계정 정리에 실패했습니다 (status ${res.status}). 잠시 후 다시 시도해 주세요.`);
+        throw new Error(
+          `계정 정리에 실패했습니다 (status ${res.status}). 잠시 후 다시 시도해 주세요.`,
+        );
       },
     },
   },

@@ -34,9 +34,7 @@ test.describe("[BL-072] 초대 링크 착지 페이지", () => {
     await page.goto(`/invite/${BOGUS_TOKEN}`);
 
     // 실 BE 가 이 토큰을 거부한다(서명 불일치 → 400). 화면은 한 갈래로만 답한다.
-    await expect(
-      page.getByRole("heading", { name: /확인할 수 없습니다/ }),
-    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: /확인할 수 없습니다/ })).toBeVisible();
 
     // ★음성 대조 — BE 의 에러 코드도 「서명」 같은 내부 사유도 새면 안 된다.
     const body = await page.locator("body").innerText();

@@ -92,9 +92,7 @@ const MOCK_BACKTEST_DETAIL = {
 // 실제 brower beforeunload prompt 는 Playwright 가 직접 잡을 수 없음 (브라우저 native).
 // 대신 isDirty 시 beforeunload listener 가 등록되는지 page.evaluate 로 확인.
 // 검증 체인: dirty pulse Badge 노출 → window 가 beforeunload listener 보유.
-test("#10 strategy edit — dirty 상태에서 unload 경고 listener 등록", async ({
-  page,
-}) => {
+test("#10 strategy edit — dirty 상태에서 unload 경고 listener 등록", async ({ page }) => {
   // Sprint 46 codex G.4 [P2] fix — broad list route 먼저 등록 후 exact detail route 등록
   // (Playwright page.route LIFO: 나중 등록된 핸들러가 우선순위 높음 → broad 가 먼저면 detail 이 위에 우선)
   await page.route(
@@ -107,17 +105,14 @@ test("#10 strategy edit — dirty 상태에서 unload 경고 listener 등록", a
       total_pages: 1,
     }),
   );
-  await page.route(
-    `**/api/v1/strategies/${MOCK_STRATEGY.id}`,
-    fulfillJson(MOCK_STRATEGY),
-  );
+  await page.route(`**/api/v1/strategies/${MOCK_STRATEGY.id}`, fulfillJson(MOCK_STRATEGY));
 
   await page.goto(`/strategies/${MOCK_STRATEGY.id}/edit`, { timeout: 60_000 });
 
   // 페이지 로드 완료 — 헤더 진입 확인.
-  await expect(
-    page.getByRole("heading", { name: MOCK_STRATEGY.name }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: MOCK_STRATEGY.name })).toBeVisible({
+    timeout: 30_000,
+  });
 
   // dirty pulse badge 는 store mutation 미노출 시 not visible. 대신 beforeunload
   // listener 가 동작하는 환경인지만 spy — Sprint FE-03 의 useEffect 가 isDirty 시
@@ -156,13 +151,10 @@ test("#11 KS resolve UI button — active 이벤트 '해결' CTA → resolve 엔
 
   // resolve endpoint (POST) — killSwitch 브로드 glob 이후 등록해 LIFO 우선권을 준다.
   let resolveCalled = false;
-  await page.route(
-    `**/api/v1/kill-switch/events/${KS_EVENT.id}/resolve`,
-    (route) => {
-      resolveCalled = true;
-      return route.fulfill({ status: 204, body: "" });
-    },
-  );
+  await page.route(`**/api/v1/kill-switch/events/${KS_EVENT.id}/resolve`, (route) => {
+    resolveCalled = true;
+    return route.fulfill({ status: 204, body: "" });
+  });
 
   await page.goto("/trading", { timeout: 60_000 });
 
@@ -222,9 +214,9 @@ test("#12 FormErrorInline a11y — role/aria + icon visible", async ({ page }) =
 
   // 422 트리거 없이 component 자체 a11y 만 검증해도 충분 — but 422 inline 노출이
   // 더 의미있음. submit 까지 가지 않고 페이지 자체 한국어 heading 으로 로드 검증만.
-  await expect(
-    page.getByRole("heading", { name: /백테스트|새 백테스트/i }).first(),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: /백테스트|새 백테스트/i }).first()).toBeVisible({
+    timeout: 30_000,
+  });
 
   // 페이지 자체에 lucide AlertTriangle/OctagonX SVG 가 렌더 가능한 환경 — DOM 에
   // svg 요소 존재 확인 (FormErrorInline 미렌더 시점에는 아직 noop, 컴포넌트 단위
@@ -241,9 +233,7 @@ test("#12 FormErrorInline a11y — role/aria + icon visible", async ({ page }) =
 //
 // viewport 375×667 (iPhone SE). Strategy list grid → grid-cols-1 (filter bar
 // 가 flex-col 로 wrap). 페이지 자체 overflow-x 없는지 검증.
-test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async ({
-  page,
-}) => {
+test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 667 });
 
   await page.route(
@@ -260,9 +250,9 @@ test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async 
   await page.goto("/strategies", { timeout: 60_000 });
 
   // C 이식(screen-06): report-title "전략".
-  await expect(
-    page.getByRole("heading", { name: "전략", exact: true }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "전략", exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
 
   // 페이지 horizontal overflow 검출 — 표는 .table-wrap 안에서만 스크롤하고 본문은 넘치지 않는다.
   const overflow = await page.evaluate(() => {
@@ -274,9 +264,7 @@ test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async 
   expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.clientWidth + 1);
 
   // 파싱 상태 필터 group 이 모바일에서도 visible.
-  await expect(
-    page.getByRole("group", { name: "파싱 상태 필터" }),
-  ).toBeVisible();
+  await expect(page.getByRole("group", { name: "파싱 상태 필터" })).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------
@@ -288,10 +276,7 @@ test("#13 모바일 responsive — /strategies 375×667 overflow 없음", async 
 test("#14 단축키 help dialog — ? 키로 열고 ESC 로 닫힘", async ({ page }) => {
   await page.route(API_ROUTES.exchangeAccounts, fulfillJson({ items: [] }));
   await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [] }));
-  await page.route(
-    API_ROUTES.orders,
-    fulfillJson({ items: [], total: 0 }),
-  );
+  await page.route(API_ROUTES.orders, fulfillJson({ items: [], total: 0 }));
 
   await page.goto("/trading", { timeout: 60_000 });
 
@@ -316,21 +301,19 @@ test("#14 단축키 help dialog — ? 키로 열고 ESC 로 닫힘", async ({ pa
     await page.evaluate(() => {
       const el = document.activeElement;
       if (el instanceof HTMLElement) el.blur();
-      document.dispatchEvent(
-        new KeyboardEvent("keydown", { key: "?", bubbles: true }),
-      );
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "?", bubbles: true }));
     });
-    await expect(
-      page.getByRole("heading", { name: "키보드 단축키" }),
-    ).toBeVisible({ timeout: 1_000 });
+    await expect(page.getByRole("heading", { name: "키보드 단축키" })).toBeVisible({
+      timeout: 1_000,
+    });
   }).toPass({ timeout: 15_000 });
   await expect(page.getByTestId("shortcut-list")).toBeVisible();
 
   // ESC 닫힘 (Base UI Dialog 내장)
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("heading", { name: "키보드 단축키" }),
-  ).not.toBeVisible({ timeout: 5_000 });
+  await expect(page.getByRole("heading", { name: "키보드 단축키" })).not.toBeVisible({
+    timeout: 5_000,
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -359,12 +342,12 @@ test("#15 Strategy list — 11+ items + filter input 동작", async ({ page }) =
   // 컴포넌트가 실 백엔드 목록을 prefetch→HydrationBoundary 로 수화하므로 client page.route mock
   // (11건)은 이기지 못한다. 따라서 정확 건수 대신 "목록 표가 렌더되고 필터가 동작한다"는
   // 등가 의도로 검증한다(표 aria-label 은 filtered.length 로 파생 — 건수 비의존).
-  await expect(
-    page.getByRole("heading", { name: "전략", exact: true }),
-  ).toBeVisible({ timeout: 30_000 });
-  await expect(
-    page.getByRole("table", { name: /전략 목록 \d+개/ }),
-  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("heading", { name: "전략", exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByRole("table", { name: /전략 목록 \d+개/ })).toBeVisible({
+    timeout: 15_000,
+  });
 
   // 프로토타입 상태 필터(수명주기)는 스키마에 필드가 0건이라 실존 필드 parse_status 필터로
   // 대체했다(§4.9). 상호배타 아닌 다중토글이 아니라 단일 활성 필터라 role=group + aria-pressed.
@@ -392,10 +375,7 @@ test("#16 Backtest result — 번호 섹션 IA 노출", async ({ page }) => {
     `**/api/v1/backtests/${MOCK_BACKTEST_DETAIL.id}/trades**`,
     fulfillJson({ items: [], total: 0 }),
   );
-  await page.route(
-    API_ROUTES.stressTests,
-    fulfillJson({ items: [], total: 0 }),
-  );
+  await page.route(API_ROUTES.stressTests, fulfillJson({ items: [], total: 0 }));
 
   await page.goto(`/backtests/${MOCK_BACKTEST_DETAIL.id}`, { timeout: 60_000 });
 
@@ -442,9 +422,7 @@ test("#16 Backtest result — 번호 섹션 IA 노출", async ({ page }) => {
 // 검증 영역: §1 chart shell(BL-169+170) · §2 MDD leverage 캡션(BL-156) · §4 축 라벨(BL-171+172).
 // ───────────────────────────────────────────────────────────────────────────
 
-test("#17 Backtest result — chart shell 2-pane + 범례 3항목 + MDD 카드", async ({
-  page,
-}) => {
+test("#17 Backtest result — chart shell 2-pane + 범례 3항목 + MDD 카드", async ({ page }) => {
   await routeBacktestDetail(page, REPORT_DETAIL);
   await page.goto(`/backtests/${REPORT_ID}`, { timeout: 60_000 });
 
@@ -462,9 +440,7 @@ test("#17 Backtest result — chart shell 2-pane + 범례 3항목 + MDD 카드",
   await expect(page.getByText("최대 낙폭").first()).toBeVisible();
 });
 
-test("#18 Backtest result — MDD leverage 캡션 (leverage 5x + 자본 초과)", async ({
-  page,
-}) => {
+test("#18 Backtest result — MDD leverage 캡션 (leverage 5x + 자본 초과)", async ({ page }) => {
   await routeBacktestDetail(page, {
     ...REPORT_DETAIL,
     config: { ...REPORT_DETAIL.config, leverage: 5 },

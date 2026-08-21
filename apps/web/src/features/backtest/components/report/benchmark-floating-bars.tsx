@@ -19,22 +19,16 @@ const H = 220;
 const PAD_Y = 18;
 const BAR_W = 120;
 
-export function BenchmarkFloatingBars({
-  strategyRange,
-  bhRange,
-}: BenchmarkFloatingBarsProps) {
+export function BenchmarkFloatingBars({ strategyRange, bhRange }: BenchmarkFloatingBarsProps) {
   const palette = useChartTheme();
 
   const layout = useMemo(() => {
     if (strategyRange === null) return null;
-    const ranges = [bhRange, strategyRange].filter(
-      (r): r is CurveRange => r !== null,
-    );
+    const ranges = [bhRange, strategyRange].filter((r): r is CurveRange => r !== null);
     const maxAll = Math.max(0, ...ranges.map((r) => r.maxPct));
     const minAll = Math.min(0, ...ranges.map((r) => r.minPct));
     const span = maxAll - minAll || 1;
-    const toY = (pct: number): number =>
-      PAD_Y + ((maxAll - pct) / span) * (H - PAD_Y * 2);
+    const toY = (pct: number): number => PAD_Y + ((maxAll - pct) / span) * (H - PAD_Y * 2);
     return { toY, zeroY: toY(0) };
   }, [strategyRange, bhRange]);
 

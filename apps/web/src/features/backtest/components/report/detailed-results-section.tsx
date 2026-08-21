@@ -7,15 +7,8 @@
 
 import { useMemo } from "react";
 
-import {
-  computeCurveRange,
-  computeProfitStructure,
-} from "@/features/backtest/analytics";
-import type {
-  BacktestMetricsOut,
-  EquityPoint,
-  TradeItem,
-} from "@/features/backtest/schemas";
+import { computeCurveRange, computeProfitStructure } from "@/features/backtest/analytics";
+import type { BacktestMetricsOut, EquityPoint, TradeItem } from "@/features/backtest/schemas";
 
 import { MonthlyReturnsHeatmap } from "@/features/backtest/components/charts/monthly-returns-heatmap";
 import { BenchmarkFloatingBars } from "@/features/backtest/components/report/benchmark-floating-bars";
@@ -39,19 +32,10 @@ export function DetailedResultsSection({
   trades,
   tradesTruncated = false,
 }: DetailedResultsSectionProps) {
-  const equityValues = useMemo(
-    () => (equityCurve ?? []).map((p) => p.value),
-    [equityCurve],
-  );
-  const bhValues = useMemo(
-    () => (buyAndHoldCurve ?? []).map((p) => p.value),
-    [buyAndHoldCurve],
-  );
+  const equityValues = useMemo(() => (equityCurve ?? []).map((p) => p.value), [equityCurve]);
+  const bhValues = useMemo(() => (buyAndHoldCurve ?? []).map((p) => p.value), [buyAndHoldCurve]);
 
-  const profitStructure = useMemo(
-    () => computeProfitStructure(trades ?? []),
-    [trades],
-  );
+  const profitStructure = useMemo(() => computeProfitStructure(trades ?? []), [trades]);
   const strategyRange = useMemo(() => computeCurveRange(equityValues), [equityValues]);
   const bhRange = useMemo(() => computeCurveRange(bhValues), [bhValues]);
 
@@ -84,7 +68,9 @@ export function DetailedResultsSection({
         <div className="card-head">
           <div>
             <h3 className="card-title">벤치마킹</h3>
-            <p className="card-sub">전략과 매수 후 보유의 최고·현재·최저 수익률 범위를 겹쳐 봅니다.</p>
+            <p className="card-sub">
+              전략과 매수 후 보유의 최고·현재·최저 수익률 범위를 겹쳐 봅니다.
+            </p>
           </div>
         </div>
         <div className="card-body">

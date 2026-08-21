@@ -2,11 +2,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type {
-  BacktestMetricsOut,
-  EquityPoint,
-  TradeItem,
-} from "@/features/backtest/schemas";
+import type { BacktestMetricsOut, EquityPoint, TradeItem } from "@/features/backtest/schemas";
 
 import { DetailedResultsSection } from "@/features/backtest/components/report/detailed-results-section";
 
@@ -71,8 +67,6 @@ describe("DetailedResultsSection (심화 분석)", () => {
       />,
     );
     expect(screen.getByTestId("profit-waterfall-locked")).toBeInTheDocument();
-    expect(
-      screen.getByText("수익 구조 데이터가 없는 구 백테스트입니다"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("수익 구조 데이터가 없는 구 백테스트입니다")).toBeInTheDocument();
   });
 });

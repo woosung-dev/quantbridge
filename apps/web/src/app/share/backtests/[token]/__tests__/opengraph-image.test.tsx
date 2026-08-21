@@ -15,9 +15,7 @@ function collectText(node: ReactNode): string[] {
   return [];
 }
 
-function mockFetch(
-  responder: (input: RequestInfo | URL, init?: RequestInit) => Promise<unknown>,
-) {
+function mockFetch(responder: (input: RequestInfo | URL, init?: RequestInit) => Promise<unknown>) {
   const fetchMock = vi.fn(responder);
   vi.stubGlobal("fetch", fetchMock);
   return fetchMock;
@@ -60,9 +58,7 @@ async function renderOG(token = "share-token") {
   await OG({ params: Promise.resolve({ token }) });
 
   expect(imageResponseSpy).toHaveBeenCalledOnce();
-  const call = imageResponseSpy.mock.calls[0] as unknown as
-    | ImageResponseCall
-    | undefined;
+  const call = imageResponseSpy.mock.calls[0] as unknown as ImageResponseCall | undefined;
   if (!call) throw new Error("ImageResponse가 호출되지 않았습니다");
   return { element: call[0], options: call[1], text: collectText(call[0]) };
 }
@@ -95,9 +91,7 @@ describe("공유 백테스트 OG 이미지", () => {
     await route.default({ params: Promise.resolve({ token: "share-token" }) });
 
     expect(imageResponseSpy).toHaveBeenCalledOnce();
-    const call = imageResponseSpy.mock.calls[0] as unknown as
-      | ImageResponseCall
-      | undefined;
+    const call = imageResponseSpy.mock.calls[0] as unknown as ImageResponseCall | undefined;
     expect(call?.[1]).toBe(route.size);
     expect(call?.[1]).toEqual({ width: 1200, height: 630 });
   });

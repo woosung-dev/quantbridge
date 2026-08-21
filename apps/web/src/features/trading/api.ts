@@ -88,9 +88,7 @@ export async function resolveKillSwitchEvent(
   });
 }
 
-export async function listExchangeAccounts(
-  token: string | null,
-): Promise<ExchangeAccount[]> {
+export async function listExchangeAccounts(token: string | null): Promise<ExchangeAccount[]> {
   const raw = await apiFetch<unknown>(EXCHANGE_ACCOUNTS_PATH, {
     method: "GET",
     token,
@@ -121,10 +119,7 @@ export async function registerExchangeAccount(
   return ExchangeAccountSchema.parse(raw);
 }
 
-export async function deleteExchangeAccount(
-  id: string,
-  token: string | null,
-): Promise<void> {
+export async function deleteExchangeAccount(id: string, token: string | null): Promise<void> {
   await apiFetch<void>(`${EXCHANGE_ACCOUNTS_PATH}/${id}`, {
     method: "DELETE",
     token,

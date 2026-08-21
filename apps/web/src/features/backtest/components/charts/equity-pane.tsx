@@ -13,11 +13,7 @@
 
 import { useMemo } from "react";
 
-import {
-  TradingChart,
-  type ChartMarker,
-  type ChartPoint,
-} from "@/components/charts/trading-chart";
+import { TradingChart, type ChartMarker, type ChartPoint } from "@/components/charts/trading-chart";
 import type { LineSeriesPartialOptions } from "lightweight-charts";
 
 interface EquityPaneProps {
@@ -58,10 +54,7 @@ export function EquityPane({
     [benchmarkData],
   );
   const compare = useMemo(
-    () =>
-      compareData !== undefined && compareData.length > 0
-        ? { data: compareData }
-        : undefined,
+    () => (compareData !== undefined && compareData.length > 0 ? { data: compareData } : undefined),
     [compareData],
   );
 

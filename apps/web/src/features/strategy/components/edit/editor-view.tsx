@@ -228,7 +228,12 @@ export function EditorView({ id }: { id: string }) {
               </p>
             </div>
             <div className="toolbar">
-              <button className="btn btn-ghost" type="button" onClick={handleCopySource} aria-label="소스 전체 복사">
+              <button
+                className="btn btn-ghost"
+                type="button"
+                onClick={handleCopySource}
+                aria-label="소스 전체 복사"
+              >
                 <CopyIcon aria-hidden="true" />
                 복사
               </button>
@@ -246,7 +251,8 @@ export function EditorView({ id }: { id: string }) {
           </div>
 
           <p className="code-foot">
-            Pine {strategy.pine_version} · {lineCount}줄 · UTF-8 · 편집 즉시 위 진단에서 재파싱됩니다.
+            Pine {strategy.pine_version} · {lineCount}줄 · UTF-8 · 편집 즉시 위 진단에서
+            재파싱됩니다.
           </p>
         </div>
       </section>
@@ -372,7 +378,8 @@ export function EditorView({ id }: { id: string }) {
           </p>
           <h2 className="section-title">외부 신호 수신 주소</h2>
           <p className="section-desc">
-            TradingView alert 나 외부 시스템이 이 전략으로 신호를 보내는 주소와 secret 을 관리합니다.
+            TradingView alert 나 외부 시스템이 이 전략으로 신호를 보내는 주소와 secret 을
+            관리합니다.
           </p>
         </header>
         <TabWebhook strategyId={strategy.id} />

@@ -23,13 +23,9 @@ describe("LegalPageShell", () => {
     );
 
     expect(screen.getByTestId("legal-page-shell")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 1, name: /Privacy Policy/ }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: /Privacy Policy/ })).toBeInTheDocument();
     expect(screen.getByTestId("legal-page-breadcrumb")).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: "Home" }),
-    ).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
     expect(screen.getByTestId("legal-page-badge")).toHaveTextContent("Beta 임시본");
     expect(screen.getByText("최종 개정: 2026-04-25")).toBeInTheDocument();
     expect(screen.getByText("본문")).toBeInTheDocument();

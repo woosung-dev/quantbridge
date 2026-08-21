@@ -9,12 +9,7 @@ import { useForm } from "react-hook-form";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -32,10 +27,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useRegisterExchangeAccount } from "../hooks";
-import {
-  RegisterAccountRequestSchema,
-  type RegisterAccountRequest,
-} from "../schemas";
+import { RegisterAccountRequestSchema, type RegisterAccountRequest } from "../schemas";
 
 export function RegisterExchangeAccountDialog() {
   const [open, setOpen] = useState(false);
@@ -78,123 +70,119 @@ export function RegisterExchangeAccountDialog() {
         계정 추가
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>거래소 계정 등록</DialogTitle>
-        </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="exchange"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>거래소</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>거래소 계정 등록</DialogTitle>
+          </DialogHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="exchange"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>거래소</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="거래소 선택" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="bybit">Bybit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      현재 연결된 거래소는 Bybit 하나입니다.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="mode"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>모드</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="demo">데모</SelectItem>
+                        <SelectItem value="live">라이브</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="label"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>레이블 (선택)</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="거래소 선택" />
-                      </SelectTrigger>
+                      <Input
+                        placeholder="예: bybit-demo-main"
+                        {...field}
+                        value={field.value ?? ""}
+                        onChange={(e) => field.onChange(e.target.value || null)}
+                      />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="bybit">Bybit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    현재 연결된 거래소는 Bybit 하나입니다.
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="mode"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>모드</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="api_key"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>API Key</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
+                      <Input placeholder="API Key" {...field} />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="demo">데모</SelectItem>
-                      <SelectItem value="live">라이브</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="label"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>레이블 (선택)</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="예: bybit-demo-main"
-                      {...field}
-                      value={field.value ?? ""}
-                      onChange={(e) => field.onChange(e.target.value || null)}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="api_key"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>API Key</FormLabel>
-                  <FormControl>
-                    <Input placeholder="API Key" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="api_secret"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>API Secret</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="API Secret" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            {rootError ? (
-              <p
-                role="alert"
-                className="rounded-md border border-destructive/30 bg-destructive-light px-3 py-2 text-sm text-destructive"
-              >
-                {rootError}
-              </p>
-            ) : null}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
-                취소
-              </Button>
-              <Button type="submit" disabled={register.isPending}>
-                {register.isPending ? "등록 중..." : "등록"}
-              </Button>
-            </div>
-          </form>
-        </Form>
-      </DialogContent>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="api_secret"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>API Secret</FormLabel>
+                    <FormControl>
+                      <Input type="password" placeholder="API Secret" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              {rootError ? (
+                <p
+                  role="alert"
+                  className="rounded-md border border-destructive/30 bg-destructive-light px-3 py-2 text-sm text-destructive"
+                >
+                  {rootError}
+                </p>
+              ) : null}
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+                  취소
+                </Button>
+                <Button type="submit" disabled={register.isPending}>
+                  {register.isPending ? "등록 중..." : "등록"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
       </Dialog>
     </>
   );

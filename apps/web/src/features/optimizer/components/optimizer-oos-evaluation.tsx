@@ -42,8 +42,7 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind, sectionNu
   const stress = useStressTest(activeStressTestId);
   const stressData = stress.data;
 
-  const isActive =
-    stressData?.status === "queued" || stressData?.status === "running";
+  const isActive = stressData?.status === "queued" || stressData?.status === "running";
 
   const handleRun = () => {
     wfMutation.mutate({
@@ -71,9 +70,9 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind, sectionNu
         </p>
         <h2 className="section-title">최적화 OOS 검증 (진짜 walk-forward)</h2>
         <p className="section-desc">
-          각 fold 는 자신의 in-sample(학습) 구간에서만 파라미터를 재최적화하고
-          out-of-sample(검증) 구간에 적용합니다. 진짜 out-of-sample 입니다. IS 가 OOS 보다 크게
-          높으면 과최적 경고입니다.
+          각 fold 는 자신의 in-sample(학습) 구간에서만 파라미터를 재최적화하고 out-of-sample(검증)
+          구간에 적용합니다. 진짜 out-of-sample 입니다. IS 가 OOS 보다 크게 높으면 과최적
+          경고입니다.
         </p>
       </header>
 
@@ -132,8 +131,8 @@ export function OptimizerOosEvaluation({ backtestId, paramSpace, kind, sectionNu
                       <p className="chart-note" style={{ paddingLeft: 0 }}>
                         <AlertTriangleIcon aria-hidden="true" />
                         <span>
-                          {wfResult.degenerate_folds_skipped}개 fold 제외. 해당 학습 구간에서
-                          전략이 거래를 내지 못했습니다 (취약성 신호).
+                          {wfResult.degenerate_folds_skipped}개 fold 제외. 해당 학습 구간에서 전략이
+                          거래를 내지 못했습니다 (취약성 신호).
                         </span>
                       </p>
                     ) : null}

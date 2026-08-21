@@ -63,11 +63,7 @@ export function PerformanceChart({
             aria-expanded={!collapsed}
             aria-label={collapsed ? "성과 차트 펼치기" : "성과 차트 접기"}
           >
-            {collapsed ? (
-              <ChevronDown aria-hidden="true" />
-            ) : (
-              <ChevronUp aria-hidden="true" />
-            )}
+            {collapsed ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
           </button>
         </div>
       </div>

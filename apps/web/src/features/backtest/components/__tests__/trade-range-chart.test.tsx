@@ -118,11 +118,7 @@ describe("TradeRangeChart", () => {
 
   it("종가 데이터와 거래 마커를 TradingChart에 전달한다", () => {
     render(
-      <TradeRangeChart
-        backtestId={BACKTEST_ID}
-        tradeIndex={trade.trade_index}
-        trade={trade}
-      />,
+      <TradeRangeChart backtestId={BACKTEST_ID} tradeIndex={trade.trade_index} trade={trade} />,
     );
 
     const props = mocks.tradingChart.mock.calls[0]?.[0] as ChartProps;
@@ -140,11 +136,7 @@ describe("TradeRangeChart", () => {
     );
 
     render(
-      <TradeRangeChart
-        backtestId={BACKTEST_ID}
-        tradeIndex={trade.trade_index}
-        trade={trade}
-      />,
+      <TradeRangeChart backtestId={BACKTEST_ID} tradeIndex={trade.trade_index} trade={trade} />,
     );
 
     expect(screen.getByText(/3봉 간격으로 표본을 표시했습니다/)).toBeInTheDocument();
@@ -165,7 +157,11 @@ describe("TradeRangeChart", () => {
     };
     mocks.useTradeOhlcv.mockReturnValue(queryResult({ data: { ...response, exit_time: null } }));
     rerender(
-      <TradeRangeChart backtestId={BACKTEST_ID} tradeIndex={openTrade.trade_index} trade={openTrade} />,
+      <TradeRangeChart
+        backtestId={BACKTEST_ID}
+        tradeIndex={openTrade.trade_index}
+        trade={openTrade}
+      />,
     );
     expect(screen.getByText(/미청산\(보유 중\)/)).toBeInTheDocument();
     expect(screen.queryByText(/알 수 없음/)).not.toBeInTheDocument();
@@ -176,21 +172,13 @@ describe("TradeRangeChart", () => {
       queryResult({ isError: true, error: new Error("network") }),
     );
     const { rerender } = render(
-      <TradeRangeChart
-        backtestId={BACKTEST_ID}
-        tradeIndex={trade.trade_index}
-        trade={trade}
-      />,
+      <TradeRangeChart backtestId={BACKTEST_ID} tradeIndex={trade.trade_index} trade={trade} />,
     );
     expect(screen.getByTestId("trade-range-chart-error")).toHaveAttribute("role", "alert");
 
     mocks.useTradeOhlcv.mockReturnValue(queryResult({ data: { ...response, bars: [] } }));
     rerender(
-      <TradeRangeChart
-        backtestId={BACKTEST_ID}
-        tradeIndex={trade.trade_index}
-        trade={trade}
-      />,
+      <TradeRangeChart backtestId={BACKTEST_ID} tradeIndex={trade.trade_index} trade={trade} />,
     );
     expect(screen.getByTestId("trade-range-chart-empty")).toHaveAttribute("role", "status");
   });

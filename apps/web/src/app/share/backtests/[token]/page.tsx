@@ -3,10 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { getApiBase } from "@/lib/api-base";
-import {
-  BacktestDetailSchema,
-  type BacktestDetail,
-} from "@/features/backtest/schemas";
+import { BacktestDetailSchema, type BacktestDetail } from "@/features/backtest/schemas";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
 
 import { ShareNotFoundState } from "@/features/backtest/components/share/share-not-found-state";
@@ -27,10 +24,9 @@ type FetchResult =
 
 async function fetchShare(token: string): Promise<FetchResult> {
   try {
-    const res = await fetch(
-      `${getApiBase()}/api/v1/backtests/share/${encodeURIComponent(token)}`,
-      { cache: "no-store" },
-    );
+    const res = await fetch(`${getApiBase()}/api/v1/backtests/share/${encodeURIComponent(token)}`, {
+      cache: "no-store",
+    });
     if (res.status === 404) return { kind: "not-found" };
     if (res.status === 410) return { kind: "revoked" };
     if (!res.ok) {
@@ -47,9 +43,7 @@ async function fetchShare(token: string): Promise<FetchResult> {
   }
 }
 
-export async function generateMetadata({
-  params,
-}: PageProps): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { token } = await params;
   return {
     title: "백테스트 결과 공유",
@@ -157,10 +151,7 @@ function CenteredCard({ title, body }: { title: string; body: string }) {
     <main className="mx-auto flex max-w-md flex-col items-center gap-3 px-6 py-20 text-center">
       <h1 className="font-display text-xl font-bold">{title}</h1>
       <p className="text-sm text-muted-foreground">{body}</p>
-      <Link
-        href="/"
-        className="mt-4 text-sm text-muted-foreground underline hover:text-foreground"
-      >
+      <Link href="/" className="mt-4 text-sm text-muted-foreground underline hover:text-foreground">
         QuantBridge 홈으로
       </Link>
     </main>
@@ -192,11 +183,7 @@ function Stat({
 /** 스파크라인 가로 픽셀당 1 표본이면 충분하다 — 그 이상은 화면에 나타나지 않는다. */
 const SPARKLINE_MAX_SAMPLES = 600;
 
-function EquitySparkline({
-  points,
-}: {
-  points: BacktestDetail["equity_curve"];
-}) {
+function EquitySparkline({ points }: { points: BacktestDetail["equity_curve"] }) {
   if (!points || points.length < 2) return null;
 
   // `equity_curve` 는 **OHLCV 바 하나당 1 포인트**다(백엔드 `_compute_equity_curve`
@@ -235,9 +222,7 @@ function EquitySparkline({
     if (!Number.isFinite(v)) continue;
     const x = (i / lastIndex) * w;
     const y = h - ((v - min) / range) * h;
-    segments.push(
-      `${segments.length === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`,
-    );
+    segments.push(`${segments.length === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`);
   }
   // 솎아내기가 마지막 점을 건너뛰면 커브가 끝에서 잘려 보인다.
   if (lastIndex % stride !== 0) {
@@ -259,13 +244,7 @@ function EquitySparkline({
       aria-label="Equity curve sparkline"
       preserveAspectRatio="none"
     >
-      <path
-        d={path}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        className="text-primary"
-      />
+      <path d={path} fill="none" stroke="currentColor" strokeWidth="2" className="text-primary" />
     </svg>
   );
 }

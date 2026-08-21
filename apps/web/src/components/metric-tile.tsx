@@ -50,12 +50,7 @@ export function MetricTile({
   className,
 }: MetricTileProps) {
   return (
-    <div
-      className={cn(
-        variant === "card" && "rounded-lg border bg-card px-4 py-3",
-        className,
-      )}
-    >
+    <div className={cn(variant === "card" && "rounded-lg border bg-card px-4 py-3", className)}>
       <div className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
         {label}
       </div>
@@ -69,9 +64,7 @@ export function MetricTile({
       >
         {value}
       </div>
-      {sub ? (
-        <div className="mt-1 text-xs text-muted-foreground">{sub}</div>
-      ) : null}
+      {sub ? <div className="mt-1 text-xs text-muted-foreground">{sub}</div> : null}
     </div>
   );
 }

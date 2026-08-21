@@ -65,16 +65,14 @@ export function LiveSessionTable({
         <div>
           <h3 className="card-title">라이브 세션 ({sessions.length})</h3>
           <p className="card-sub">
-            라이브 세션의 읽기 전용 요약입니다. 활성 세션과 최근 종료된 세션 20건을 함께
-            보여주고, 상태 칩으로 구분합니다.
+            라이브 세션의 읽기 전용 요약입니다. 활성 세션과 최근 종료된 세션 20건을 함께 보여주고,
+            상태 칩으로 구분합니다.
           </p>
         </div>
         <div className="chart-head-actions">
           <button
             type="button"
-            onClick={() =>
-              setSortMode((m) => (m === "recent" ? "active" : "recent"))
-            }
+            onClick={() => setSortMode((m) => (m === "recent" ? "active" : "recent"))}
             className="btn btn-ghost btn-xs"
             data-testid="live-session-sort-toggle"
           >
@@ -84,10 +82,7 @@ export function LiveSessionTable({
         </div>
       </div>
       <div className="table-wrap">
-        <table
-          className="trades"
-          aria-label={`라이브 세션 ${sessions.length}건`}
-        >
+        <table className="trades" aria-label={`라이브 세션 ${sessions.length}건`}>
           <thead>
             <tr>
               <th scope="col">상태</th>
@@ -100,24 +95,17 @@ export function LiveSessionTable({
             {sorted.map((s) => {
               // BL-572 — 라벨도 톤도 ../labels 의 SSOT 에서 읽는다. 여기서 문자열을 다시
               // 만들면 같은 세션을 목록 카드와 다른 이름으로 부르게 된다.
-              const status =
-                LIVE_SESSION_STATUS_LABEL[s.is_active ? "active" : "ended"];
+              const status = LIVE_SESSION_STATUS_LABEL[s.is_active ? "active" : "ended"];
               return (
                 <tr key={s.id}>
                   <td>
-                    <span className={CHIP_TONE_CLASS[status.tone]}>
-                      {status.label}
-                    </span>
+                    <span className={CHIP_TONE_CLASS[status.tone]}>{status.label}</span>
                   </td>
                   <td className="mono-l">{s.symbol}</td>
                   <td>
-                    {resolveStrategyName?.(s.strategy_id) ??
-                      s.strategy_id.slice(0, 8)}
+                    {resolveStrategyName?.(s.strategy_id) ?? s.strategy_id.slice(0, 8)}
                     {resolveExchangeLabel ? (
-                      <span className="dim">
-                        {" "}
-                        · {resolveExchangeLabel(s.exchange_account_id)}
-                      </span>
+                      <span className="dim"> · {resolveExchangeLabel(s.exchange_account_id)}</span>
                     ) : null}
                   </td>
                   <td className="mono-l dim">{s.interval}</td>

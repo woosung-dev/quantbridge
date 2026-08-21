@@ -152,7 +152,13 @@ test.describe("앱 셸 반응형 경계 실측 (BL-618, CI)", () => {
       [1024, "none", false, true, true], // 레일 끝(경계 포함)
       [1025, "none", false, false, false], // 풀 사이드바 — 사이드바 액션 복귀, 상단바 계정 숨김
     ];
-    for (const [cssWidth, wantHamburger, wantMobileVisible, wantHeaderAccount, wantRailHidden] of LADDER) {
+    for (const [
+      cssWidth,
+      wantHamburger,
+      wantMobileVisible,
+      wantHeaderAccount,
+      wantRailHidden,
+    ] of LADDER) {
       await setCssWidth(page, cssWidth);
       const got = await probe();
       expect(

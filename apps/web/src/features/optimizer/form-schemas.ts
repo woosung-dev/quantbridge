@@ -20,8 +20,7 @@ export function makeOptimizerFormBaseFields(maxEvaluations: number) {
     backtest_id: z.uuid("백테스트 ID 형식이 올바르지 않습니다."),
     objective_metric: OptimizationObjectiveMetricSchema,
     direction: OptimizationDirectionSchema,
-    max_evaluations: z
-      .coerce
+    max_evaluations: z.coerce
       .number()
       .int("최대 평가 횟수는 정수여야 합니다.")
       .min(1, "최대 평가 횟수는 1 이상이어야 합니다.")
@@ -61,7 +60,11 @@ export const GridParameterRowSchema = z
     }),
   ])
   .superRefine((row, ctx) => {
-    if (Number.isFinite(Number(row.min)) && Number.isFinite(Number(row.max)) && Number(row.min) > Number(row.max)) {
+    if (
+      Number.isFinite(Number(row.min)) &&
+      Number.isFinite(Number(row.max)) &&
+      Number(row.min) > Number(row.max)
+    ) {
       ctx.addIssue({
         code: "custom",
         path: ["max"],

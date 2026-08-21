@@ -44,7 +44,6 @@ export function computeLiveSessionStateRefetchInterval(isActive: boolean): numbe
   return isActive ? LIVE_SESSION_STATE_REFETCH_ACTIVE_MS : false;
 }
 
-
 // ── 실현손익 표시 포맷 (Wave0 cockpit — 부호·tone SSOT) ──────────────────
 // BE Decimal-as-string 입력. precision 보존 위해 원본 string 유지(재포맷 X),
 // 부호 판정만 Number 로. detail 패널 + list 배지가 공유.
@@ -67,7 +66,6 @@ export function formatRealizedPnl(raw: string): RealizedPnlDisplay {
   return { text: raw, tone: "loss" };
 }
 
-
 // ── Activity Timeline — events windowed cumulative entry/close (Sprint 27 BL-140) ─
 
 export type ActivityTimelinePoint = {
@@ -81,20 +79,14 @@ export type ActivityTimelinePoint = {
 // buildActivityTimeline / buildActivityTimelineWithEquity 가 공유 (정렬 1회 통합).
 type SortedEvent = { ev: LiveSignalEvent; ts: number };
 
-function sortEventsChronologically(
-  events: ReadonlyArray<LiveSignalEvent>,
-): SortedEvent[] {
+function sortEventsChronologically(events: ReadonlyArray<LiveSignalEvent>): SortedEvent[] {
   return events
     .map((ev) => ({ ev, ts: Date.parse(ev.bar_time) }))
-    .sort((a, b) =>
-      a.ts !== b.ts ? a.ts - b.ts : a.ev.sequence_no - b.ev.sequence_no,
-    );
+    .sort((a, b) => (a.ts !== b.ts ? a.ts - b.ts : a.ev.sequence_no - b.ev.sequence_no));
 }
 
 // 정렬된 events → cumulative entry/close datapoint 변환.
-function toTimelinePoints(
-  sorted: ReadonlyArray<SortedEvent>,
-): ActivityTimelinePoint[] {
+function toTimelinePoints(sorted: ReadonlyArray<SortedEvent>): ActivityTimelinePoint[] {
   let entries = 0;
   let closes = 0;
   return sorted.map(({ ev }) => {
@@ -155,9 +147,7 @@ export function buildActivityTimelineWithEquity(
   const baseTimeline = toTimelinePoints(sortedEvents);
 
   // equity_curve 의 timestamp_ms → cumulative_pnl 매핑
-  const sortedEquity = equityCurve
-    .slice()
-    .sort((a, b) => a.timestamp_ms - b.timestamp_ms);
+  const sortedEquity = equityCurve.slice().sort((a, b) => a.timestamp_ms - b.timestamp_ms);
 
   // two-pointer — 양쪽 모두 asc 정렬이므로 equity 인덱스는 뒤로만 전진 O(E+N).
   // (기존: 이벤트마다 sortedEquity 전체 선형 재스캔 O(E×N).)
@@ -173,10 +163,7 @@ export function buildActivityTimelineWithEquity(
     }
 
     // bar_time 이전(≤)의 마지막 equity 값 carry-forward.
-    while (
-      eqIdx < sortedEquity.length &&
-      sortedEquity[eqIdx]!.timestamp_ms <= entry.ts
-    ) {
+    while (eqIdx < sortedEquity.length && sortedEquity[eqIdx]!.timestamp_ms <= entry.ts) {
       cumulativePnl = parseFloat(sortedEquity[eqIdx]!.cumulative_pnl);
       cumulativeSource = curvePointSource(sortedEquity[eqIdx]!);
       eqIdx += 1;

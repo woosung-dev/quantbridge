@@ -23,8 +23,7 @@ export default function TermsPage() {
       footnote="최종 개정: 2026-04-25. 정식 개정본은 H2 말 공지."
     >
       <LegalCallout label="[Beta 단계 — 사용자와 함께 다듬는 중입니다]">
-        본 약관은 H2 Beta 단계 초안입니다. H2 말 (~2026-06-30) 한국 변호사 검토본으로
-        교체 예정.
+        본 약관은 H2 Beta 단계 초안입니다. H2 말 (~2026-06-30) 한국 변호사 검토본으로 교체 예정.
       </LegalCallout>
 
       <section className="space-y-3">
@@ -49,8 +48,8 @@ export default function TermsPage() {
         <h2 className={headingClass}>3. Account Security / 계정 보안</h2>
         <p>
           사용자는 거래소 API Key, QuantBridge 계정 비밀번호, MFA 토큰의 기밀성을 유지할 책임이
-          있습니다. 서비스는 API Key 를 AES-256 으로 암호화하여 저장하되, 사용자의 부주의로
-          인한 유출·도용에 대한 책임을 지지 않습니다.
+          있습니다. 서비스는 API Key 를 AES-256 으로 암호화하여 저장하되, 사용자의 부주의로 인한
+          유출·도용에 대한 책임을 지지 않습니다.
         </p>
       </section>
 
@@ -76,16 +75,16 @@ export default function TermsPage() {
         <h2 className={headingClass}>6. Termination / 이용 정지</h2>
         <p>
           본 약관 위반, 기술적 장애 방지, 법적 요구에 응하기 위해 사전 통지 없이 계정을 정지하거나
-          서비스를 종료할 수 있습니다. 사용자는 언제든지 계정 삭제를 요청할 수 있으며, 30일 내
-          관련 데이터가 제거됩니다 (법적 보존 의무 제외).
+          서비스를 종료할 수 있습니다. 사용자는 언제든지 계정 삭제를 요청할 수 있으며, 30일 내 관련
+          데이터가 제거됩니다 (법적 보존 의무 제외).
         </p>
       </section>
 
       <section className="space-y-3">
         <h2 className={headingClass}>7. Governing Law / 준거법</h2>
         <p>
-          본 약관은 대한민국 법을 준거법으로 하며, 분쟁 발생 시 서울중앙지방법원을 제1심 전속
-          관할 법원으로 합니다.
+          본 약관은 대한민국 법을 준거법으로 하며, 분쟁 발생 시 서울중앙지방법원을 제1심 전속 관할
+          법원으로 합니다.
         </p>
       </section>
 

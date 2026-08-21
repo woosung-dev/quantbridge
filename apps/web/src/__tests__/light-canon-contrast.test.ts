@@ -86,19 +86,14 @@ function luminance(hex: string): number {
 }
 
 function ratio(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((p, q) => q - p) as [
-    number,
-    number,
-  ];
+  const [hi, lo] = [luminance(a), luminance(b)].sort((p, q) => q - p) as [number, number];
   return (hi + 0.05) / (lo + 0.05);
 }
 
 const tokens = rootTokens();
 const HEX = /^#[0-9a-f]{3}(?:[0-9a-f]{3})?$/i;
 
-const CASES = PAIRS.flatMap(([fg, surfaces]) =>
-  surfaces.map((bg) => [fg, bg] as const),
-);
+const CASES = PAIRS.flatMap(([fg, surfaces]) => surfaces.map((bg) => [fg, bg] as const));
 
 describe("라이트 팔레트 캐논 대비 래칫 (BL-628)", () => {
   // ── 위생 — 아무것도 못 읽었는데 통과하는 사태 차단 ──

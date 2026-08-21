@@ -1,122 +1,83 @@
-import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
-import nextTypescript from "eslint-config-next/typescript";
-import prettier from "eslint-config-prettier";
+// ESLint v9 flat config — **React 안전 축 전용**으로 좁혔다 ([ADR-039], 2026-08-21).
+// 포맷·스타일·a11y·Next 규칙은 `biome.jsonc` 가 가져갔다. 여기 남은 것은
+// **Biome 이 못 하는 일**뿐이고, 항목마다 「왜 못 하나」를 실측째로 적어 둔다.
+//
+// ┌ 왜 ESLint 가 안 없어지나 (2026-08-21 실측) ──────────────────────────────────┐
+// │ ⑴ set-state-in-effect / -in-render : Biome 523 규칙에 **대응 규칙 없음**      │
+// │     프로브 3형태 → ESLint 3검출 / Biome 0검출 (양성 대조 2/2 로 검사기 생존 확인) │
+// │ ⑵ react-compiler                   : Biome 의 `useReactCompiler` 가 **한글에서 panic** │
+// │     13 파일 `is not a char boundary; it is inside '제'` — 우리 규약이 한국어다  │
+// │ ⑶ @tanstack/query/exhaustive-deps  : Biome 에 대응 규칙 **0건**               │
+// │ ⑷ no-restricted-syntax (템플릿 리터럴): Biome 의 noRestrictedImports 는        │
+// │     정적 import 와 동적 `import("...")` 는 보지만 `import(`@/app/${x}`)` 은 못 본다 │
+// └──────────────────────────────────────────────────────────────────────────────┘
+//
+// ★`eslint-config-next` 를 뺐으므로 파서를 **직접** 물린다. 없으면 espree 가 TS 를 못 읽고
+//   `Parsing error: Unexpected token :` 로 죽는다(실측).
+import tsParser from "@typescript-eslint/parser";
 import reactHooks from "eslint-plugin-react-hooks";
-import queryPlugin from "@tanstack/eslint-plugin-query";
 import reactCompiler from "eslint-plugin-react-compiler";
+import queryPlugin from "@tanstack/eslint-plugin-query";
 
-// ESLint v9 flat config — Next.js 16부터 next lint 제거, eslint 직접 호출
-// Sprint FE-01 LESSON-004 (CPU 100% 무한 루프 사고) 대응:
-// - react-hooks/* 규칙 모두 error 격상 (set-state-in-effect 는 infinite-loop 방어선)
-// - @tanstack/eslint-plugin-query: queryKey 안정성 / 캐시 정책 검증
-// - eslint-plugin-react-compiler: React 19 컴파일러 호환성 검증
-// Sprint FE-02: 잔여 warn 8건을 0건으로 떨어뜨리고 warn → error 일괄 격상
-// (react-compiler 1건, @tanstack/query/exhaustive-deps 7건 모두 해소)
 const config = [
-  ...nextCoreWebVitals,
-  ...nextTypescript,
-  ...queryPlugin.configs["flat/recommended"],
   {
-    plugins: {
-      "react-hooks": reactHooks,
-      "react-compiler": reactCompiler,
-    },
-    rules: {
-      // ★ LESSON-004 핵심 방어선 (infinite-loop 방지) — disable 금지
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "error",
-      "react-hooks/set-state-in-effect": "error",
-      "react-hooks/set-state-in-render": "error",
-      // React 19 컴파일러 호환성 — Sprint FE-02 에서 draft.ts useRef 패턴으로
-      // 잔여 warn 0건 달성 → error 격상 (이후 신규 위반 CI 에서 차단)
-      "react-compiler/react-compiler": "error",
-      // queryKey 일관성 — Sprint FE-02 에서 Clerk userId identity 를 factory 에
-      // 통합하고 queryFn 을 모듈-level factory 로 분리하여 잔여 warn 0건 → error 격상
-      "@tanstack/query/exhaustive-deps": "error",
-    },
-  },
-  prettier,
-  {
-    // src/**/generated/** — 코드젠 산출물(BL-717 PoC). header-audit 의 /generated/ 면제와 같은 축.
-    // ★`test-results/` · `playwright-report/` 는 **실행 산출물**이다(둘 다 `.gitignore` 에 있다).
-    //   Playwright 는 실패 시 `test-results/.playwright-artifacts-*/traces/resources/*.js` 로
-    //   페이지의 **minified 번들 사본**을 떨군다. 그것까지 lint 하면 남의 코드가 우리 규칙에
-    //   걸려 `no-unused-vars` **error** 가 나고, 그 결과 「e2e 를 돌린 뒤 lint 를 돌리면 red」가
-    //   된다(2026-08-14 실측 — `final-gates` 가 FE lint FAIL 1건을 냈고 원인이 이것이었다).
-    //   게이트 순서상 lint 가 e2e 보다 앞이라 평소엔 안 걸리고 **연속 실행에서만** 걸린다.
+    // Biome 의 `files.includes` 와 **같은 제외 집합**을 쓴다. 한쪽만 제외하면 그 경로에
+    // 주인이 둘이 되거나 없어진다. `test-results/` 는 Playwright 가 남의 minified 번들
+    // 사본을 떨구는 자리라 반드시 빠져야 한다(2026-08-14 실측 — lint 를 e2e 뒤에 돌리면 red).
     ignores: [
       ".next*/**",
       "node_modules/**",
       "dist/**",
       "coverage/**",
       "src/**/generated/**",
+      "src/components/ui/**",
       "test-results/**",
       "playwright-report/**",
     ],
   },
   {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: { ecmaFeatures: { jsx: true }, sourceType: "module" },
+    },
+    plugins: {
+      "react-hooks": reactHooks,
+      "react-compiler": reactCompiler,
+      "@tanstack/query": queryPlugin,
+    },
     rules: {
-      "@typescript-eslint/consistent-type-imports": [
-        "error",
-        { prefer: "type-imports" },
-      ],
-      "@typescript-eslint/no-unused-vars": [
-        "error",
-        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
-      ],
-      "no-console": ["warn", { allow: ["warn", "error"] }],
+      // ★ LESSON-004 핵심 방어선 (infinite-loop 방지) — disable 금지.
+      //   ★★넷을 **한 벌로** 둔다. rules-of-hooks / exhaustive-deps 는 Biome 에도 있지만
+      //     거기선 껐다 — 한 축의 판정자는 하나여야 하고, 공식 구현이 이쪽이다.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "error",
+      "react-hooks/set-state-in-effect": "error",
+      "react-hooks/set-state-in-render": "error",
+
+      // React 19 컴파일러 호환성. Biome 대체분(`nursery/useReactCompiler`)은 한글 파일에서
+      // panic 하므로 이 축은 옮길 수 없다 — 위 헤더 ⑵.
+      "react-compiler/react-compiler": "error",
+
+      // queryKey 일관성 (AGENTS.md §H-2). Biome 에 대응 규칙이 없다.
+      "@tanstack/query/exhaustive-deps": "error",
     },
   },
   {
-    // ★★FSD Lite 레이어 경계 ([ADR-035], 2026-08-16). `app/` 은 **최상위 조립층**이다 —
-    //   아래 층(features · components · lib · hooks · store)이 그것을 거슬러 참조하면
-    //   라우트 구조가 도메인 코드의 의존성이 되어 라우트를 못 옮긴다.
-    //
-    // ★왜 규칙으로 박는가: 2026-08-16 에 `app/**/_components/` 234파일을
-    //   `features/*/components/` 로 옮겼는데, 그 배치를 **강제하는 장치가 하나도 없었다.**
-    //   규칙이 없으면 다음 회차가 같은 자리로 되돌린다. 이동 시점 위반 = 0건이다.
-    //
-    // ★`app/` 자신은 제외다 — 라우트끼리의 참조는 이 규칙의 대상이 아니다.
+    // ★★FSD Lite 레이어 경계 ([ADR-035]) — **정적/동적 import 는 Biome 이 가져갔다**
+    //   (`style/noRestrictedImports`. 그 규칙은 `import()` 를 네이티브로 본다).
+    //   여기 남은 것은 **템플릿 리터럴 우회 하나뿐**이다:
+    //   `import(`@/app/${name}`)` — 라우트명을 변수로 받는 lazy import 가 이 위반의 가장
+    //   현실적인 모양이고, 2026-08-16 적대 리뷰가 탐침으로 통과를 실측해 닫은 갈래다.
+    //   Biome 은 이 모양을 못 보므로 AST 선택자를 계속 ESLint 가 든다.
     files: ["src/features/**", "src/components/**", "src/lib/**", "src/hooks/**", "src/store/**"],
     rules: {
-      // ★★2026-08-16 codex P2 — 초판은 `@/app/*` 만 막아 **두 갈래로 뚫렸다**:
-      //   ⑴ 상대경로 `../app/page` ⑵ 동적 `import("@/app/page")`.
-      //   둘 다 탐침으로 실측해 통과를 확인한 뒤 아래로 닫았다.
-      //   ★오탐 위험은 0으로 쟀다 — 하위 층에서 `app/` 을 포함하는 합법 import 가 0건이다.
-      "no-restricted-imports": [
-        "error",
-        {
-          patterns: [
-            {
-              // 별칭 + **상대경로만** 문다. `**/app/**` 로 넓히면 `@sentry/nextjs/app/router`
-              // 같은 **벤더 패키지 하위경로**까지 걸려 ADR-035 와 무관한 error 가 난다
-              // (2026-08-16 적대 리뷰가 탐침으로 실측). 지금 그런 import 는 0건이지만
-              // 패턴의 성질은 트리 상태와 무관하다 — 상대경로 화살표에 앵커를 박는다.
-              group: ["@/app/*", "@/app/**", "./app/*", "./app/**", "../**/app/*", "../**/app/**"],
-              message:
-                "하위 층은 app/ 을 import 하지 않는다 (ADR-035). 공유가 필요하면 그 컴포넌트를 features/<domain>/components/ 또는 components/ 로 올려라.",
-            },
-          ],
-        },
-      ],
-      // ★`no-restricted-imports` 는 **동적 import 를 보지 않는다**(정적 선언 전용).
-      //   그래서 `import()` 표현식은 AST 선택자로 따로 막는다.
       "no-restricted-syntax": [
         "error",
         {
           selector:
-            "ImportExpression > Literal[value=/(^@\\u002Fapp\\u002F)|(^\\.{1,2}\\u002F.*\\bapp\\u002F)/]",
-          message:
-            "하위 층은 app/ 을 동적 import 하지도 않는다 (ADR-035). 정적 import 와 같은 경계다.",
-        },
-        {
-          // ★템플릿 리터럴 우회 — `import(\`@/app/${name}\`)`. `Literal` 선택자만으로는 안 걸린다
-          //   (2026-08-16 적대 리뷰가 탐침으로 실측). 라우트명을 변수로 받는 lazy import 가
-          //   이 위반의 가장 현실적인 모양이라 따로 막는다.
-          selector:
             "ImportExpression > TemplateLiteral > TemplateElement:first-child[value.raw=/(^@\\u002Fapp\\u002F)|(^\\.{1,2}\\u002F.*\\bapp\\u002F)/]",
-          message:
-            "하위 층은 app/ 을 템플릿 리터럴로도 동적 import 하지 않는다 (ADR-035).",
+          message: "하위 층은 app/ 을 템플릿 리터럴로도 동적 import 하지 않는다 (ADR-035).",
         },
       ],
     },

@@ -6,12 +6,7 @@
 // (S4 인계 — 원시 enum JSX 자식 렌더 금지). 4상태(로딩/에러/빈/채움)를 실제로 렌더한다.
 
 import Link from "next/link";
-import {
-  AlertTriangleIcon,
-  CheckIcon,
-  InboxIcon,
-  RefreshCwIcon,
-} from "lucide-react";
+import { AlertTriangleIcon, CheckIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
 
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
@@ -57,8 +52,7 @@ function BrokerBadge({ orderId }: { orderId: string | null | undefined }) {
 export function OrdersPanel() {
   const { data, isLoading, isError, isFetching, refetch } = useOrders(50);
   const ksDisabled = useIsOrderDisabledByKs();
-  const isTestOrderEnabled =
-    process.env.NEXT_PUBLIC_ENABLE_TEST_ORDER === "true";
+  const isTestOrderEnabled = process.env.NEXT_PUBLIC_ENABLE_TEST_ORDER === "true";
 
   return (
     <div className="card">
@@ -81,10 +75,7 @@ export function OrdersPanel() {
         </div>
         {isTestOrderEnabled ? (
           <div
-            className={
-              "chart-head-actions" +
-              (ksDisabled ? " pointer-events-none opacity-50" : "")
-            }
+            className={"chart-head-actions" + (ksDisabled ? " pointer-events-none opacity-50" : "")}
           >
             <TestOrderDialog />
           </div>

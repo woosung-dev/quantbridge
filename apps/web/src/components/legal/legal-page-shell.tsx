@@ -34,9 +34,7 @@ export function LegalPageShell({
   footnote,
   centered = false,
 }: LegalPageShellProps) {
-  const containerLayout = centered
-    ? "items-center justify-center text-center py-20"
-    : "py-14";
+  const containerLayout = centered ? "items-center justify-center text-center py-20" : "py-14";
 
   return (
     <main
@@ -72,9 +70,7 @@ export function LegalPageShell({
         <h1
           className={
             "font-display font-extrabold tracking-[-0.02em] text-[color:var(--text-primary)] " +
-            (centered
-              ? "text-[28px] leading-tight md:text-[32px]"
-              : "text-[28px] leading-tight")
+            (centered ? "text-[28px] leading-tight md:text-[32px]" : "text-[28px] leading-tight")
           }
         >
           {title}

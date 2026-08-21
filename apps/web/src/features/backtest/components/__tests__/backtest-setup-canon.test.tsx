@@ -53,13 +53,9 @@ describe("BacktestForm — C 디자인 언어 시맨틱 구조 (W3-A)", () => {
 
     expect(container.querySelector("main.page")).not.toBeNull();
     // 헤더: report-title h1 은 5축 규약상 동사형
-    expect(
-      screen.getByRole("heading", { level: 1, name: "새 백테스트 실행" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "새 백테스트 실행" })).toBeInTheDocument();
     // 헤더 칩 + 요약 행에 엔진 문구 (accent 칩 포함). 내부 모듈명(pine_v2)은 UI 에 노출하지 않는다.
-    expect(
-      screen.getAllByText("바 단위 이벤트 루프").length,
-    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("바 단위 이벤트 루프").length).toBeGreaterThan(0);
     // 거래소는 Bybit 고정 (앱 화면 상한 §4.8)
     const bybitChips = screen.getAllByText("Bybit");
     expect(bybitChips.length).toBeGreaterThan(0);
@@ -82,9 +78,7 @@ describe("BacktestForm — C 디자인 언어 시맨틱 구조 (W3-A)", () => {
     const strip = container.querySelector(".calc-strip");
     expect(strip).not.toBeNull();
     // 기본 기간(180일)과 1h 봉이 채워져 있어 두 셀 모두 값이 있다.
-    const values = Array.from(strip!.querySelectorAll(".calc-value")).map(
-      (e) => e.textContent,
-    );
+    const values = Array.from(strip!.querySelectorAll(".calc-value")).map((e) => e.textContent);
     expect(values[0]).toMatch(/일$/);
     expect(values[1]).toMatch(/개$/);
   });
@@ -92,9 +86,7 @@ describe("BacktestForm — C 디자인 언어 시맨틱 구조 (W3-A)", () => {
   it("요약 사이드(side-rows): 엔진·심볼 등 백드 행 + 제출 버튼(form 연결)", () => {
     const { container } = render(<BacktestForm />);
     expect(container.querySelector(".side-rows")).not.toBeNull();
-    expect(screen.getByTestId("summary-row-엔진")).toHaveTextContent(
-      "바 단위 이벤트 루프",
-    );
+    expect(screen.getByTestId("summary-row-엔진")).toHaveTextContent("바 단위 이벤트 루프");
     const submit = screen.getByTestId("backtest-submit");
     expect(submit.getAttribute("form")).toBe("backtest-setup-form");
   });

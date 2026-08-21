@@ -8,7 +8,7 @@ import { EMPTY_CELL } from "@/lib/labels";
 import { KeyStatsStrip } from "@/features/backtest/components/report/key-stats-strip";
 
 const BASE_METRICS = {
-  total_return: 0.1890,
+  total_return: 0.189,
   sharpe_ratio: 1.154,
   sharpe_convention: "tv_monthly_rfr2",
   max_drawdown: -0.0252,
@@ -22,11 +22,13 @@ describe("KeyStatsStrip (01 요약)", () => {
   it("공용 .kpi-row 안 4 KPI(총 수익률/순손익/최대 낙폭/샤프 지수) 를 카드로 렌더", () => {
     const { container } = render(
       <KeyStatsStrip
-        metrics={{
-          ...BASE_METRICS,
-          net_profit_abs: 1890087.72,
-          total_fees: 482.16,
-        } as unknown as BacktestMetricsOut}
+        metrics={
+          {
+            ...BASE_METRICS,
+            net_profit_abs: 1890087.72,
+            total_fees: 482.16,
+          } as unknown as BacktestMetricsOut
+        }
       />,
     );
     // 시맨틱 구조 — kpi-row + card kpi 4개
@@ -47,11 +49,13 @@ describe("KeyStatsStrip (01 요약)", () => {
   it("샤프 산출 불가 값은 0 대신 무데이터 표기로 렌더한다", () => {
     render(
       <KeyStatsStrip
-        metrics={{
-          ...BASE_METRICS,
-          sharpe_ratio: 0,
-          sharpe_convention: "unavailable",
-        } as unknown as BacktestMetricsOut}
+        metrics={
+          {
+            ...BASE_METRICS,
+            sharpe_ratio: 0,
+            sharpe_convention: "unavailable",
+          } as unknown as BacktestMetricsOut
+        }
       />,
     );
 
@@ -62,14 +66,18 @@ describe("KeyStatsStrip (01 요약)", () => {
   it("샤프 기준이 없는 구 실행은 비교 불가 각주를 렌더한다", () => {
     render(
       <KeyStatsStrip
-        metrics={{
-          ...BASE_METRICS,
-          sharpe_convention: null,
-        } as unknown as BacktestMetricsOut}
+        metrics={
+          {
+            ...BASE_METRICS,
+            sharpe_convention: null,
+          } as unknown as BacktestMetricsOut
+        }
       />,
     );
 
-    expect(screen.getByText("구 기준(봉 수익률 · 무위험 0%) - 현재 기준과 비교 불가")).toBeInTheDocument();
+    expect(
+      screen.getByText("구 기준(봉 수익률 · 무위험 0%) - 현재 기준과 비교 불가"),
+    ).toBeInTheDocument();
   });
 
   it("net_profit_abs null (구 백테스트) → 순손익이 % 단독으로 graceful", () => {
@@ -81,11 +89,13 @@ describe("KeyStatsStrip (01 요약)", () => {
   it("연환산 수익률 foot + 수수료 반영 foot 을 스키마 값으로 표기", () => {
     render(
       <KeyStatsStrip
-        metrics={{
-          ...BASE_METRICS,
-          net_profit_abs: 12740.18,
-          total_fees: 482.16,
-        } as unknown as BacktestMetricsOut}
+        metrics={
+          {
+            ...BASE_METRICS,
+            net_profit_abs: 12740.18,
+            total_fees: 482.16,
+          } as unknown as BacktestMetricsOut
+        }
       />,
     );
     expect(screen.getByText(/연환산/)).toBeInTheDocument();

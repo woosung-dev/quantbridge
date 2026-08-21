@@ -13,8 +13,7 @@ import { useCreateStrategy } from "@/features/strategy/hooks";
 
 const SAMPLE_PINE_URL = "/samples/ema-crossover.pine";
 const SAMPLE_STRATEGY_NAME = "EMA Crossover Demo (Onboarding)";
-const SAMPLE_DESCRIPTION =
-  "온보딩 샘플: ta.ema(close, 12/26) + ta.crossover/under 진입 조건.";
+const SAMPLE_DESCRIPTION = "온보딩 샘플: ta.ema(close, 12/26) + ta.crossover/under 진입 조건.";
 
 export function Step2Strategy({
   onStrategyReady,
@@ -95,8 +94,8 @@ export function Step2Strategy({
         <div>
           <h2 className="ob-heading">샘플 전략으로 시작</h2>
           <p className="ob-subtle break-keep">
-            EMA Crossover 전략이 자동으로 등록됩니다. ta.ema(close, 12/26) 교차
-            시점에 롱 진입·청산합니다.
+            EMA Crossover 전략이 자동으로 등록됩니다. ta.ema(close, 12/26) 교차 시점에 롱
+            진입·청산합니다.
           </p>
         </div>
       </div>
@@ -120,21 +119,13 @@ export function Step2Strategy({
           role="alert"
           className="mb-4 flex items-start gap-2 rounded-[var(--r)] border border-[color:var(--warn)] bg-[color:var(--warn-soft)] p-3 text-xs text-[color:var(--warn)]"
         >
-          <AlertCircleIcon
-            className="mt-0.5 size-4 shrink-0"
-            aria-hidden="true"
-          />
+          <AlertCircleIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span className="break-all">{fetchError}</span>
         </p>
       )}
 
       <div className="ob-actions between">
-        <button
-          className="btn btn-ghost"
-          type="button"
-          onClick={onBack}
-          disabled={isBusy}
-        >
+        <button className="btn btn-ghost" type="button" onClick={onBack} disabled={isBusy}>
           ← 이전
         </button>
         <button
@@ -147,12 +138,7 @@ export function Step2Strategy({
           aria-busy={isBusy || undefined}
           aria-label="샘플 전략 등록 및 다음 단계"
         >
-          {isBusy && (
-            <Loader2Icon
-              className="size-4 motion-safe:animate-spin"
-              aria-hidden="true"
-            />
-          )}
+          {isBusy && <Loader2Icon className="size-4 motion-safe:animate-spin" aria-hidden="true" />}
           {isBusy ? "등록 중" : "샘플로 시작하기"}
         </button>
       </div>

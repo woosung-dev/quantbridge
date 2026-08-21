@@ -24,10 +24,7 @@ import { formatDateTime } from "@/features/backtest/utils";
 import { formatObjectiveValue } from "@/features/optimizer/format";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL, statusLabelOf } from "@/lib/labels";
-import type {
-  OptimizationRunResponse,
-  OptimizationStatus,
-} from "@/features/optimizer/schemas";
+import type { OptimizationRunResponse, OptimizationStatus } from "@/features/optimizer/schemas";
 
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/optimizer/runs";
@@ -208,9 +205,7 @@ export function OptimizerRunList({
                     </td>
                     <td>
                       <span className="run-main">{OPTIMIZATION_KIND_LABEL[r.kind]}</span>
-                      <span className="run-sub">
-                        최대 평가 {r.param_space.max_evaluations}회
-                      </span>
+                      <span className="run-sub">최대 평가 {r.param_space.max_evaluations}회</span>
                     </td>
                     {/* §4.9: 백테스트 조인(심볼·주기)이 목록 응답에 없어 backtest_id 8자만 인쇄한다. */}
                     <td className="mono-l">{r.backtest_id.slice(0, 8)}</td>
@@ -255,9 +250,8 @@ export function OptimizerRunList({
         <p className="chart-note no-eta">
           <RefreshCwIcon aria-hidden="true" />
           <span>
-            <strong>{OPTIMIZER_EMPTY_REASON.noEtaByDesign}</strong> 실행 중 작업은 새로
-            고쳐야 상태가 갱신됩니다. 최적화는 서버가 진행률을 보고하지 않아 미터를 그리지
-            않습니다.
+            <strong>{OPTIMIZER_EMPTY_REASON.noEtaByDesign}</strong> 실행 중 작업은 새로 고쳐야
+            상태가 갱신됩니다. 최적화는 서버가 진행률을 보고하지 않아 미터를 그리지 않습니다.
           </span>
         </p>
       ) : null}
@@ -268,7 +262,12 @@ export function OptimizerRunList({
 // 목록을 불러오는 동안의 스켈레톤 — 프로토타입 aria-busy tbody 관례 (.sk .sk-cell).
 function ListSkeleton() {
   return (
-    <div className="table-wrap" data-testid="optimizer-skeleton" aria-busy="true" aria-hidden="true">
+    <div
+      className="table-wrap"
+      data-testid="optimizer-skeleton"
+      aria-busy="true"
+      aria-hidden="true"
+    >
       <table className="trades opt-table">
         <tbody>
           {Array.from({ length: 6 }).map((_, i) => (

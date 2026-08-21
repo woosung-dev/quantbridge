@@ -16,11 +16,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import {
-  useDeactivateLiveSession,
-  useLiveSessionState,
-  useLiveSessions,
-} from "../hooks";
+import { useDeactivateLiveSession, useLiveSessionState, useLiveSessions } from "../hooks";
 import { LIVE_SESSION_STATUS_LABEL } from "../labels";
 import type { LiveSession } from "../schemas";
 import { formatDateTime, formatRealizedPnl } from "../utils";
@@ -70,9 +66,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
       await deactivate.mutateAsync(confirmId);
       toast.success("Session 중단됨");
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Stop 실패",
-      );
+      toast.error(err instanceof Error ? err.message : "Stop 실패");
     } finally {
       setConfirmId(null);
     }
@@ -97,11 +91,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
               }`}
               data-testid={`live-session-${s.id}`}
             >
-              <button
-                type="button"
-                onClick={() => onSelect?.(s)}
-                className="text-left"
-              >
+              <button type="button" onClick={() => onSelect?.(s)} className="text-left">
                 <span className="block font-medium">{s.symbol}</span>
                 <p className="text-xs text-muted-foreground">
                   {s.interval} · 생성 {formatDateTime(s.created_at)}
@@ -180,11 +170,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
             <Button variant="outline" onClick={() => setConfirmId(null)}>
               취소
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleStop}
-              disabled={deactivate.isPending}
-            >
+            <Button variant="destructive" onClick={handleStop} disabled={deactivate.isPending}>
               중단
             </Button>
           </DialogFooter>
@@ -196,13 +182,7 @@ export function LiveSessionList({ onSelect, selectedId }: Props) {
 
 // 세션별 실현손익 배지 — useLiveSessionState 재사용(queryKey 공유 → 추가 네트워크 0).
 // 활성 세션 행에서만 쓰므로 항상 enabled. LESSON-004: primitive dep 전달.
-function SessionPnlBadge({
-  sessionId,
-  isActive,
-}: {
-  sessionId: string;
-  isActive: boolean;
-}) {
+function SessionPnlBadge({ sessionId, isActive }: { sessionId: string; isActive: boolean }) {
   const { data: state, isLoading } = useLiveSessionState(sessionId, isActive);
   if (isLoading || !state) {
     return null;
@@ -218,9 +198,7 @@ function SessionPnlBadge({
     <p className="mt-1 flex items-center gap-2 font-mono text-xs">
       <span className="text-muted-foreground">PnL</span>
       <span className={toneClass}>{text}</span>
-      <span className="text-muted-foreground">
-        · {state.total_closed_trades} 청산
-      </span>
+      <span className="text-muted-foreground">· {state.total_closed_trades} 청산</span>
     </p>
   );
 }

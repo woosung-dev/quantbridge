@@ -12,11 +12,7 @@ export default function BacktestsLoading() {
             <div className="report-meta">
               {/* 실헤더 칩 3개(건수·Bybit·엔진)와 개수를 맞춘다. */}
               {Array.from({ length: 3 }).map((_, i) => (
-                <span
-                  key={i}
-                  className="sk"
-                  style={{ display: "block", width: 96, height: 26 }}
-                />
+                <span key={i} className="sk" style={{ display: "block", width: 96, height: 26 }} />
               ))}
             </div>
           </div>

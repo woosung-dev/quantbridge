@@ -3,11 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  backtestKeys,
-  type BacktestListQuery,
-  type BacktestTradesQuery,
-} from "../query-keys";
+import { backtestKeys, type BacktestListQuery, type BacktestTradesQuery } from "../query-keys";
 
 describe("backtestKeys", () => {
   const listQ: BacktestListQuery = { limit: 20, offset: 0 };

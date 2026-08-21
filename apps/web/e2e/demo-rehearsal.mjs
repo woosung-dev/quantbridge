@@ -19,7 +19,10 @@ const ROUTES = [
 ];
 
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ storageState: STATE, viewport: { width: 1440, height: 900 } });
+const ctx = await browser.newContext({
+  storageState: STATE,
+  viewport: { width: 1440, height: 900 },
+});
 const page = await ctx.newPage();
 
 const consoleErrors = [];
@@ -31,10 +34,22 @@ for (const [slug, route] of ROUTES) {
   const res = await page.goto(BASE + route, { waitUntil: "domcontentloaded", timeout: 120_000 });
   await page.waitForTimeout(3500); // 데이터 패칭 + 첫 컴파일
   const title = await page.title();
-  const h1 = await page.locator("h1, h2.section-title, .report-title").first().textContent().catch(() => null);
+  const h1 = await page
+    .locator("h1, h2.section-title, .report-title")
+    .first()
+    .textContent()
+    .catch(() => null);
   const rows = await page.locator("tbody tr").count();
-  const chips = await page.locator('td .chip, [data-lifecycle]').allTextContents().catch(() => []);
-  const bodyText = (await page.locator("body").innerText().catch(() => "")).replace(/\s+/g, " ");
+  const chips = await page
+    .locator("td .chip, [data-lifecycle]")
+    .allTextContents()
+    .catch(() => []);
+  const bodyText = (
+    await page
+      .locator("body")
+      .innerText()
+      .catch(() => "")
+  ).replace(/\s+/g, " ");
   await page.screenshot({ path: `${OUT}/${slug}.png`, fullPage: false });
   console.log(
     JSON.stringify({
@@ -43,12 +58,20 @@ for (const [slug, route] of ROUTES) {
       title,
       heading: (h1 ?? "").trim().slice(0, 80),
       tbodyRows: rows,
-      chipSample: chips.slice(0, 6).map((c) => c.trim()).filter(Boolean),
+      chipSample: chips
+        .slice(0, 6)
+        .map((c) => c.trim())
+        .filter(Boolean),
       hasEmptyState: /데이터가 없|비어 있|없습니다|등록된 .*없/.test(bodyText),
       excerpt: bodyText.slice(0, 220),
     }),
   );
 }
 
-console.log(JSON.stringify({ consoleErrorCount: consoleErrors.length, consoleErrors: consoleErrors.slice(0, 8) }));
+console.log(
+  JSON.stringify({
+    consoleErrorCount: consoleErrors.length,
+    consoleErrors: consoleErrors.slice(0, 8),
+  }),
+);
 await browser.close();

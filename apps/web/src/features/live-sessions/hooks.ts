@@ -288,9 +288,7 @@ export function useLiveSessions(
 ): UseQueryResult<{ items: LiveSession[]; total: number }, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
-    queryKey: includeInactive
-      ? liveSessionKeys.listWithInactive(uid)
-      : liveSessionKeys.list(uid),
+    queryKey: includeInactive ? liveSessionKeys.listWithInactive(uid) : liveSessionKeys.list(uid),
     queryFn: makeListFetcher(includeInactive, getToken),
     refetchInterval: listRefetchInterval,
   });

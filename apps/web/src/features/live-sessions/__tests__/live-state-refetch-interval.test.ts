@@ -7,13 +7,8 @@ import { liveSessionEventsRefetchInterval, liveStateRefetchInterval } from "../h
 import type { LiveSignalEvent, LiveSignalState } from "../schemas";
 import { LIVE_SESSION_STATE_REFETCH_ACTIVE_MS } from "../utils";
 
-function fakeQuery(
-  status: "success" | "error",
-): Query<LiveSignalState | null, Error> {
-  return { state: { status, data: undefined } } as unknown as Query<
-    LiveSignalState | null,
-    Error
-  >;
+function fakeQuery(status: "success" | "error"): Query<LiveSignalState | null, Error> {
+  return { state: { status, data: undefined } } as unknown as Query<LiveSignalState | null, Error>;
 }
 
 function fakeEventsQuery(status: "success" | "error"): Query<{ items: LiveSignalEvent[] }, Error> {
@@ -40,8 +35,6 @@ describe("liveStateRefetchInterval", () => {
   });
 
   it("종료 세션의 이벤트도 폴링하지 않는다", () => {
-    expect(
-      liveSessionEventsRefetchInterval(false)(fakeEventsQuery("success")),
-    ).toBe(false);
+    expect(liveSessionEventsRefetchInterval(false)(fakeEventsQuery("success"))).toBe(false);
   });
 });

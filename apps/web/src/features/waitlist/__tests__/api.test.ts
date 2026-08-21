@@ -57,13 +57,7 @@ describe("waitlistKeys", () => {
 
   it("admin list key includes 'admin' discriminator", () => {
     const key = waitlistKeys.adminList("user_x", { status: "invited" });
-    expect(key).toEqual([
-      "waitlist",
-      "user_x",
-      "admin",
-      "list",
-      { status: "invited" },
-    ]);
+    expect(key).toEqual(["waitlist", "user_x", "admin", "list", { status: "invited" }]);
   });
 });
 
@@ -102,9 +96,7 @@ describe("submitWaitlist api", () => {
     });
 
     // schema round-trip 검증
-    expect(() =>
-      WaitlistApplicationAcceptedResponseSchema.parse(result),
-    ).not.toThrow();
+    expect(() => WaitlistApplicationAcceptedResponseSchema.parse(result)).not.toThrow();
     expect(result.status).toBe("pending");
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const firstCall = fetchMock.mock.calls[0];

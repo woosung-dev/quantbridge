@@ -10,10 +10,7 @@ describe("extractBestParams", () => {
     const result = {
       kind: "grid_search",
       best_cell_index: 1,
-      cells: [
-        { param_values: { ema: 10 } },
-        { param_values: { ema: 20, sl: 2.5 } },
-      ],
+      cells: [{ param_values: { ema: 10 } }, { param_values: { ema: 20, sl: 2.5 } }],
     } as unknown as OptimizationResult;
     expect(extractBestParams(result)).toEqual({ ema: 20, sl: 2.5 });
   });

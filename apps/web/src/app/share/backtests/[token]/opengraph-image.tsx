@@ -20,10 +20,9 @@ interface OGProps {
 
 async function loadDetail(token: string) {
   try {
-    const res = await fetch(
-      `${getApiBase()}/api/v1/backtests/share/${encodeURIComponent(token)}`,
-      { cache: "no-store" },
-    );
+    const res = await fetch(`${getApiBase()}/api/v1/backtests/share/${encodeURIComponent(token)}`, {
+      cache: "no-store",
+    });
     if (!res.ok) return null;
     return BacktestDetailSchema.parse(await res.json());
   } catch {
@@ -44,89 +43,75 @@ export default async function OG({ params }: OGProps) {
   const mdd = detail?.metrics?.max_drawdown ?? null;
 
   return new ImageResponse(
-    (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        background: P.bg,
+        color: P.textPrimary,
+        padding: 64,
+        fontFamily: "system-ui, sans-serif",
+      }}
+    >
       <div
         style={{
-          width: "100%",
-          height: "100%",
           display: "flex",
-          flexDirection: "column",
-          background: P.bg,
-          color: P.textPrimary,
-          padding: 64,
-          fontFamily: "system-ui, sans-serif",
+          alignItems: "center",
+          gap: 12,
+          fontSize: 24,
+          color: P.textSecondary,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            fontSize: 24,
-            color: P.textSecondary,
-          }}
-        >
-          <span style={{ fontWeight: 700, color: P.primary }}>QuantBridge</span>
-          <span style={{ opacity: 0.5 }}>·</span>
-          <span>백테스트 결과</span>
-        </div>
-        <div
-          style={{
-            marginTop: 28,
-            display: "flex",
-            alignItems: "baseline",
-            gap: 18,
-            fontSize: 84,
-            fontWeight: 800,
-            letterSpacing: "-0.02em",
-          }}
-        >
-          <span>{symbol}</span>
-          <span
-            style={{ fontSize: 40, color: P.textSecondary, fontWeight: 500 }}
-          >
-            {timeframe}
-          </span>
-        </div>
-        <div
-          style={{
-            marginTop: 60,
-            display: "flex",
-            gap: 28,
-          }}
-        >
-          <Stat label="총 수익률" value={pct(totalReturn)} accent={P.bullish} />
-          <Stat label="Sharpe" value={sharpeDisplay} accent={P.primary} />
-          <Stat label="MDD" value={pct(mdd)} accent={P.bearish} />
-        </div>
-        <div
-          style={{
-            marginTop: "auto",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: 22,
-            color: P.textMuted,
-          }}
-        >
-          <span>quantbridge.app/share</span>
-          <span>데모 트레이딩 무료 시작</span>
-        </div>
+        <span style={{ fontWeight: 700, color: P.primary }}>QuantBridge</span>
+        <span style={{ opacity: 0.5 }}>·</span>
+        <span>백테스트 결과</span>
       </div>
-    ),
+      <div
+        style={{
+          marginTop: 28,
+          display: "flex",
+          alignItems: "baseline",
+          gap: 18,
+          fontSize: 84,
+          fontWeight: 800,
+          letterSpacing: "-0.02em",
+        }}
+      >
+        <span>{symbol}</span>
+        <span style={{ fontSize: 40, color: P.textSecondary, fontWeight: 500 }}>{timeframe}</span>
+      </div>
+      <div
+        style={{
+          marginTop: 60,
+          display: "flex",
+          gap: 28,
+        }}
+      >
+        <Stat label="총 수익률" value={pct(totalReturn)} accent={P.bullish} />
+        <Stat label="Sharpe" value={sharpeDisplay} accent={P.primary} />
+        <Stat label="MDD" value={pct(mdd)} accent={P.bearish} />
+      </div>
+      <div
+        style={{
+          marginTop: "auto",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          fontSize: 22,
+          color: P.textMuted,
+        }}
+      >
+        <span>quantbridge.app/share</span>
+        <span>데모 트레이딩 무료 시작</span>
+      </div>
+    </div>,
     size,
   );
 }
 
-function Stat({
-  label,
-  value,
-  accent,
-}: {
-  label: string;
-  value: string;
-  accent: string;
-}) {
+function Stat({ label, value, accent }: { label: string; value: string; accent: string }) {
   return (
     <div
       style={{

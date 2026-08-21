@@ -55,10 +55,7 @@ test.describe("live session flow", () => {
       API_ROUTES.exchangeAccounts,
       fulfillJson({ items: [MOCK_BYBIT_DEMO_ACCOUNT] }),
     );
-    await page.route(
-      API_ROUTES.liveSessions,
-      fulfillJson({ items: [], total: 0 }),
-    );
+    await page.route(API_ROUTES.liveSessions, fulfillJson({ items: [], total: 0 }));
     await page.route(API_ROUTES.orders, fulfillJson({ items: [], total: 0 }));
     await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [] }));
 
@@ -70,15 +67,11 @@ test.describe("live session flow", () => {
     });
 
     // Bybit Demo notice 가 form 위에 보임
-    await expect(
-      page.getByTestId("live-session-bybit-demo-notice"),
-    ).toBeVisible();
+    await expect(page.getByTestId("live-session-bybit-demo-notice")).toBeVisible();
   });
 
   // 시나리오 2: form submit 버튼 enabled (Bybit Demo 계정 + 0건 active)
-  test("Live Sessions form — Bybit Demo 계정 + 0건 active → submit enabled", async ({
-    page,
-  }) => {
+  test("Live Sessions form — Bybit Demo 계정 + 0건 active → submit enabled", async ({ page }) => {
     await page.route(
       API_ROUTES.strategies,
       fulfillJson({
@@ -92,10 +85,7 @@ test.describe("live session flow", () => {
       API_ROUTES.exchangeAccounts,
       fulfillJson({ items: [MOCK_BYBIT_DEMO_ACCOUNT] }),
     );
-    await page.route(
-      API_ROUTES.liveSessions,
-      fulfillJson({ items: [], total: 0 }),
-    );
+    await page.route(API_ROUTES.liveSessions, fulfillJson({ items: [], total: 0 }));
     await page.route(API_ROUTES.orders, fulfillJson({ items: [], total: 0 }));
     await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [] }));
 
@@ -108,9 +98,7 @@ test.describe("live session flow", () => {
   });
 
   // 시나리오 3: 5건 quota 도달 → submit disabled
-  test("Live Sessions form — 5건 quota 도달 시 submit disabled", async ({
-    page,
-  }) => {
+  test("Live Sessions form — 5건 quota 도달 시 submit disabled", async ({ page }) => {
     const fiveActive = Array.from({ length: 5 }, (_, i) => ({
       // z.uuid()(LiveSessionSchema) 준수 — id variant nibble 'c'→'8', user_id 'u'(non-hex)→'a'.
       id: `e0000000-0000-4000-8000-00000000000${i}`,
@@ -138,10 +126,7 @@ test.describe("live session flow", () => {
       API_ROUTES.exchangeAccounts,
       fulfillJson({ items: [MOCK_BYBIT_DEMO_ACCOUNT] }),
     );
-    await page.route(
-      API_ROUTES.liveSessions,
-      fulfillJson({ items: fiveActive, total: 5 }),
-    );
+    await page.route(API_ROUTES.liveSessions, fulfillJson({ items: fiveActive, total: 5 }));
     await page.route(API_ROUTES.orders, fulfillJson({ items: [], total: 0 }));
     await page.route(API_ROUTES.killSwitch, fulfillJson({ items: [] }));
 
@@ -156,9 +141,7 @@ test.describe("live session flow", () => {
   //
   // ★고치기 전 상태 — 사유는 Slack/Telegram 으로만 나가고 DB·API·화면에 없었다.
   // 알림을 놓치면 세션이 멈춘 이유를 화면 어디에서도 알 수 없었다.
-  test("종료된 세션 — 목록 카드와 상세 배지에 종료 사유가 보인다", async ({
-    page,
-  }) => {
+  test("종료된 세션 — 목록 카드와 상세 배지에 종료 사유가 보인다", async ({ page }) => {
     const INACTIVE_ID = "e0000000-0000-4000-8000-0000000000f1";
     const inactiveSession = {
       id: INACTIVE_ID,
@@ -207,10 +190,7 @@ test.describe("live session flow", () => {
         updated_at: "2026-07-30T12:00:00Z",
       }),
     );
-    await page.route(
-      `**/api/v1/live-sessions/${INACTIVE_ID}/events**`,
-      fulfillJson({ items: [] }),
-    );
+    await page.route(`**/api/v1/live-sessions/${INACTIVE_ID}/events**`, fulfillJson({ items: [] }));
     await page.route(
       `**/api/v1/live-sessions/${INACTIVE_ID}/alert-rules**`,
       fulfillJson({ items: [], total: 0 }),
@@ -231,17 +211,13 @@ test.describe("live session flow", () => {
     await page.goto("/trading?tab=live-sessions");
 
     // (a) 목록 카드 — 종료 세션 섹션에 한국어 사유가 붙는다.
-    const listReason = page.getByTestId(
-      `inactive-live-session-reason-${INACTIVE_ID}`,
-    );
+    const listReason = page.getByTestId(`inactive-live-session-reason-${INACTIVE_ID}`);
     await expect(listReason).toBeVisible({ timeout: 15_000 });
     await expect(listReason).toHaveText("자본 소진");
 
     // (b) 그 카드를 고르면 상세가 열리고 배지 옆에 같은 사유가 보인다.
     await page.getByTestId(`inactive-live-session-${INACTIVE_ID}`).click();
     await expect(page.getByTestId("live-session-ended-badge")).toBeVisible();
-    await expect(page.getByTestId("live-session-ended-reason")).toHaveText(
-      "자본 소진",
-    );
+    await expect(page.getByTestId("live-session-ended-reason")).toHaveText("자본 소진");
   });
 });
