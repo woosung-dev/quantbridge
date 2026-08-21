@@ -44,7 +44,7 @@
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/live-sessions/__tests__/api-contract.test.ts -a -f apps/web/src/features/trading/__tests__/api-contract.test.ts -a -f apps/web/src/features/waitlist/__tests__/api-contract.test.ts -a -f apps/web/src/features/live-sessions/__tests__/unrealized-branches.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/api-contract.test.ts src/features/trading/__tests__/api-contract.test.ts src/features/waitlist/__tests__/api-contract.test.ts src/features/live-sessions/__tests__/unrealized-branches.test.ts --coverage --coverage.include='src/features/live-sessions/api.ts' --coverage.include='src/features/trading/api.ts' --coverage.include='src/features/waitlist/api.ts' --coverage.include='src/features/live-sessions/unrealized.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=78",
@@ -52,7 +52,10 @@
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check src/features/live-sessions/__tests__/api-contract.test.ts src/features/trading/__tests__/api-contract.test.ts src/features/waitlist/__tests__/api-contract.test.ts src/features/live-sessions/__tests__/unrealized-branches.test.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:55:41+0900",
+      "summary": "변이 검증 표:\n\n| 위치 | 변경 | red |\n| --- | --- | --- |\n| live-sessions/api.ts:54 | deactivateLiveSession `DELETE → POST` | 비활성화 DELETE 계약 1건 |\n| trading/api.ts:46 | listOrders 반복 query 키 `state → states` | 상태 필터 계약 1건 |\n| live-sessions/unrealized.ts:51 | long/short 손익 계수 반전 | 순수 계산·훅 조립 3건 |\n\nred 없이 빠진 변이는 없었고, 매번 SHA-256 원복 및 대상 소스 diff=0을 확인했다. 최종 표적 43/43 green, lines 98.85%(346/350), branches 89.61%, functions 100%; 전체 Vitest 1,939/1,939, tsc·Biome green.",
+      "completed_at": "2026-08-22T04:01:44+0900"
     }
   ],
   "created_at": "2026-08-22T03:31:02+0900"
