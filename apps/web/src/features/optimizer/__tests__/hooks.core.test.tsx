@@ -9,6 +9,7 @@ import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
 
 import type * as ApiModule from "../api";
 import {
+  getOptimizationRun,
   listOptimizationRuns,
   postBayesianSearch,
   postGeneticSearch,
@@ -16,6 +17,7 @@ import {
 } from "../api";
 import {
   optimizerKeys,
+  useOptimizationRun,
   useOptimizationRuns,
   useSubmitBayesianSearch,
   useSubmitGeneticSearch,
@@ -34,6 +36,7 @@ vi.mock("../api", async (importOriginal) => {
   const actual = await importOriginal<typeof ApiModule>();
   return {
     ...actual,
+    getOptimizationRun: vi.fn(),
     listOptimizationRuns: vi.fn(),
     postBayesianSearch: vi.fn(),
     postGeneticSearch: vi.fn(),
@@ -47,6 +50,7 @@ vi.mock("@/hooks/use-invalidating-mutation", async (importOriginal) => {
 });
 
 const listOptimizationRunsMock = vi.mocked(listOptimizationRuns);
+const getOptimizationRunMock = vi.mocked(getOptimizationRun);
 const postBayesianSearchMock = vi.mocked(postBayesianSearch);
 const postGeneticSearchMock = vi.mocked(postGeneticSearch);
 const postGridSearchMock = vi.mocked(postGridSearch);
@@ -82,6 +86,7 @@ describe("optimizer hooks", () => {
     });
 
     await waitFor(() => expect(result.current.data).toEqual(page));
+    expect(listOptimizationRunsMock).toHaveBeenCalledTimes(1);
     expect(listOptimizationRunsMock).toHaveBeenCalledWith(query, "test-token");
     expect(queryClient.getQueryData(optimizerKeys.list("optimizer-user", query))).toEqual(page);
   });
@@ -111,6 +116,9 @@ describe("optimizer hooks", () => {
     await expect(options[0]?.mutationFn(request, "test-token")).resolves.toBe(response);
     await expect(options[1]?.mutationFn(request, "test-token")).resolves.toBe(response);
     await expect(options[2]?.mutationFn(request, "test-token")).resolves.toBe(response);
+    expect(postGridSearchMock).toHaveBeenCalledTimes(1);
+    expect(postBayesianSearchMock).toHaveBeenCalledTimes(1);
+    expect(postGeneticSearchMock).toHaveBeenCalledTimes(1);
     expect(postGridSearchMock).toHaveBeenCalledWith(request, "test-token");
     expect(postBayesianSearchMock).toHaveBeenCalledWith(request, "test-token");
     expect(postGeneticSearchMock).toHaveBeenCalledWith(request, "test-token");
@@ -119,5 +127,21 @@ describe("optimizer hooks", () => {
         optimizerKeys.all("optimizer-user"),
       ]);
     }
+  });
+
+  it("useOptimizationRun returns one tokenized detail request under the user-scoped key", async () => {
+    authMockState.userId = "optimizer-user";
+    const run = { id: "run-1", status: "completed" } as OptimizationRunResponse;
+    getOptimizationRunMock.mockResolvedValue(run);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
+    const { result } = renderHook(() => useOptimizationRun("run-1"), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.data).toBe(run));
+    expect(getOptimizationRunMock).toHaveBeenCalledTimes(1);
+    expect(getOptimizationRunMock).toHaveBeenCalledWith("run-1", "test-token");
+    expect(queryClient.getQueryData(optimizerKeys.detail("optimizer-user", "run-1"))).toBe(run);
   });
 });

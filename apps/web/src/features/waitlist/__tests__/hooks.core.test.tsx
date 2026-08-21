@@ -65,6 +65,7 @@ describe("waitlist hooks", () => {
     });
 
     await act(async () => expect(await result.current.mutateAsync(body)).toEqual(accepted));
+    expect(submitWaitlistMock).toHaveBeenCalledTimes(1);
     expect(submitWaitlistMock).toHaveBeenCalledWith(body);
   });
 
@@ -80,6 +81,7 @@ describe("waitlist hooks", () => {
     });
 
     await waitFor(() => expect(result.current.data).toEqual(page));
+    expect(listAdminWaitlistMock).toHaveBeenCalledTimes(1);
     expect(listAdminWaitlistMock).toHaveBeenCalledWith(query, "test-token");
     expect(queryClient.getQueryData(waitlistKeys.adminList("admin-user", query))).toEqual(page);
   });
