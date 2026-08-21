@@ -31,12 +31,15 @@
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/live-sessions/__tests__/api-contract.test.ts -a -f apps/web/src/features/trading/__tests__/api-contract.test.ts -a -f apps/web/src/features/waitlist/__tests__/api-contract.test.ts -a -f apps/web/src/features/live-sessions/__tests__/unrealized-branches.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/api-contract.test.ts src/features/trading/__tests__/api-contract.test.ts src/features/waitlist/__tests__/api-contract.test.ts src/features/live-sessions/__tests__/unrealized-branches.test.ts --coverage --coverage.include='src/features/live-sessions/api.ts' --coverage.include='src/features/trading/api.ts' --coverage.include='src/features/waitlist/api.ts' --coverage.include='src/features/live-sessions/unrealized.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=72",
         "git diff --quiet -- apps/web/src/features/live-sessions/api.ts apps/web/src/features/trading/api.ts apps/web/src/features/waitlist/api.ts apps/web/src/features/live-sessions/unrealized.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:49:08+0900",
+      "summary": "오류·경계 19건을 추가해 총 43건: live state 404는 null, 그 밖의 ApiError(status·code)는 그대로 전파, 세 REST 응답 계약 위반은 Zod throw로 고정했다. waitlist는 실제 apiFetch가 undefined status를 URL에서 제외하고 verifyInviteToken의 400/404/5xx/network/인코딩 성공을 덮었다. unrealized는 0·음수·빈 세션·누락 ticker·불량 open_trades를 덮었고 대상 소스 0줄 변경, AC lines 98.85%다.",
+      "completed_at": "2026-08-22T03:55:37+0900"
     },
     {
       "step": 3,
