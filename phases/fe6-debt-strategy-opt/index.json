@@ -17,11 +17,14 @@
     {
       "step": 1,
       "name": "template-and-complexity",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
         "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
-      ]
+      ],
+      "summary": "지정 5개 feature에서 useTemplate 7건과 useLiteralKeys 1건을 동작·클래스 공백 보존 상태로 해소했다; noUselessSwitchCase·noUselessFragments·useOptionalChain은 착수·종료 실측 모두 0건이고 AC lint와 Vitest 53파일·325테스트가 통과했다.",
+      "started_at": "2026-08-22T04:54:03+0900",
+      "completed_at": "2026-08-22T04:55:58+0900"
     },
     {
       "step": 2,
