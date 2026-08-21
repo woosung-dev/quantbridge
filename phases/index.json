@@ -169,7 +169,8 @@
     },
     {
       "dir": "fe3-numeric-display",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T09:57:46+0900"
     },
     {
       "dir": "fe3-optimizer-view",
