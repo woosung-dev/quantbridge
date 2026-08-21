@@ -6,10 +6,24 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const apiFetchMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
 
-import { listAlertRules } from "../api";
+import { createAlertRule, deactivateAlertRule, listAlertRules } from "../api";
 
 const TOKEN = "access-token";
 const SESSION_ID = "55555555-5555-4555-8555-555555555555";
+const RULE_ID = "66666666-6666-4666-8666-666666666666";
+
+function alertRuleResponse() {
+  return {
+    id: RULE_ID,
+    session_id: SESSION_ID,
+    rule_type: "loss_limit" as const,
+    threshold_percent: "5.5",
+    channel: "slack" as const,
+    is_active: true,
+    created_at: "2026-08-22T00:00:00Z",
+    updated_at: "2026-08-22T00:00:00Z",
+  };
+}
 
 afterEach(() => {
   apiFetchMock.mockReset();
@@ -25,5 +39,40 @@ describe("alert rules api", () => {
       method: "GET",
       token: TOKEN,
     });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("createAlertRule은 세션별 create endpoint로 요청을 보내고 검증된 규칙을 반환한다", async () => {
+    const request = {
+      rule_type: "loss_limit" as const,
+      threshold_percent: "5.5",
+      channel: "slack" as const,
+    };
+    const response = alertRuleResponse();
+    apiFetchMock.mockResolvedValueOnce(response);
+
+    await expect(createAlertRule(SESSION_ID, request, TOKEN)).resolves.toEqual(response);
+
+    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/live-sessions/${SESSION_ID}/alert-rules`, {
+      method: "POST",
+      token: TOKEN,
+      body: request,
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deactivateAlertRule은 세션 범위 rule delete endpoint를 한 번 호출한다", async () => {
+    apiFetchMock.mockResolvedValueOnce(undefined);
+
+    await expect(deactivateAlertRule(SESSION_ID, RULE_ID, TOKEN)).resolves.toBeUndefined();
+
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      `/api/v1/live-sessions/${SESSION_ID}/alert-rules/${RULE_ID}`,
+      {
+        method: "DELETE",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });

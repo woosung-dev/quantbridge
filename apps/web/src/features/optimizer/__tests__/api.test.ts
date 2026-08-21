@@ -6,7 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const apiFetchMock = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
 
-import { postBayesianSearch, postGeneticSearch, postGridSearch } from "../api";
+import {
+  getOptimizationRun,
+  listOptimizationRuns,
+  postBayesianSearch,
+  postGeneticSearch,
+  postGridSearch,
+} from "../api";
 
 const TOKEN = "access-token";
 const BACKTEST_ID = "22222222-2222-4222-8222-222222222222";
@@ -65,6 +71,7 @@ describe("optimizer api", () => {
       token: TOKEN,
       body: normalizedRequest(body.kind),
     });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("postBayesianSearch는 bayesian endpoint로 제출한다", async () => {
@@ -78,6 +85,7 @@ describe("optimizer api", () => {
       token: TOKEN,
       body: normalizedRequest(body.kind),
     });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("postGeneticSearch는 genetic endpoint로 제출한다", async () => {
@@ -91,5 +99,49 @@ describe("optimizer api", () => {
       token: TOKEN,
       body: normalizedRequest(body.kind),
     });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("getOptimizationRun은 실행 상세 endpoint에서 검증된 실행을 반환한다", async () => {
+    const response = runResponse("grid_search");
+    apiFetchMock.mockResolvedValueOnce(response);
+
+    await expect(getOptimizationRun(RUN_ID, TOKEN)).resolves.toMatchObject({
+      id: RUN_ID,
+      kind: "grid_search",
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/optimizer/runs/${RUN_ID}`, {
+      method: "GET",
+      token: TOKEN,
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("listOptimizationRuns는 backtest_id를 목록 query params로 보내고 유효 행을 반환한다", async () => {
+    const response = {
+      items: [runResponse("bayesian")],
+      total: 1,
+      limit: 10,
+      offset: 20,
+    };
+    apiFetchMock.mockResolvedValueOnce(response);
+
+    await expect(
+      listOptimizationRuns({ limit: 10, offset: 20, backtest_id: BACKTEST_ID }, TOKEN),
+    ).resolves.toMatchObject({
+      items: [{ id: RUN_ID, kind: "bayesian" }],
+      total: 1,
+      limit: 10,
+      offset: 20,
+      skipped_count: 0,
+    });
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/optimizer/runs", {
+      method: "GET",
+      token: TOKEN,
+      params: { limit: 10, offset: 20, backtest_id: BACKTEST_ID },
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });
