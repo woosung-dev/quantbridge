@@ -291,7 +291,8 @@
     },
     {
       "dir": "fe6-hooks-live-trading",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:37:17+0900"
     },
     {
       "dir": "be6-tasks-runtime",
