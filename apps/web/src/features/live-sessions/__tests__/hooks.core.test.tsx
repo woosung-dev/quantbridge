@@ -3,7 +3,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ZodError } from "zod/v4";
 
+import { ApiError } from "@/lib/api-client";
 import type {
   ExchangePosition,
   LiveSession,
@@ -21,11 +23,18 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 });
 
 import {
+  closePositionMutationKey,
+  combineLiveSessionPositions,
   useAccountPositions,
+  useClosePosition,
   useDeactivateLiveSession,
+  useLiveSessionEvents,
+  useLiveSessionOutcomeParity,
   useLiveSessionPositions,
+  useLiveSessions,
   useLiveSessionsAggregate,
   useLiveSessionsPositions,
+  useLiveSessionState,
   useRegisterLiveSession,
 } from "../hooks";
 
@@ -112,7 +121,10 @@ function makeSessionPositions(
   };
 }
 
-afterEach(() => apiFetchMock.mockReset());
+afterEach(() => {
+  apiFetchMock.mockReset();
+  vi.unstubAllGlobals();
+});
 
 describe("live session core hooks", () => {
   it("세션 포지션 조회가 경로·토큰을 한 번 전달하고 파싱된 응답을 캐시한다", async () => {
@@ -361,5 +373,158 @@ describe("live session core hooks", () => {
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: liveSessionKeys.list("user-1") }),
     );
+  });
+
+  it("포지션 조회는 ApiError의 status와 code를 같은 객체로 전파한다", async () => {
+    const error = new ApiError(403, "session_forbidden", "session access denied");
+    apiFetchMock.mockRejectedValueOnce(error);
+    const { result } = renderHook(() => useLiveSessionPositions(SESSION_ID), {
+      wrapper: makeWrapper(makeClient()),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBe(error);
+    expect(error).toMatchObject({ status: 403, code: "session_forbidden" });
+  });
+
+  it("포지션 조회는 계약을 어긴 응답을 조용히 통과시키지 않는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ session_id: SESSION_ID });
+    const { result } = renderHook(() => useLiveSessionPositions(SESSION_ID), {
+      wrapper: makeWrapper(makeClient()),
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error).toBeInstanceOf(ZodError);
+  });
+
+  it("빈 라이브 세션 목록과 total=0을 그대로 반환한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0 });
+    const { result } = renderHook(() => useLiveSessions(), {
+      wrapper: makeWrapper(makeClient()),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual({ items: [], total: 0 }));
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/live-sessions", {
+      method: "GET",
+      token: "test-token",
+    });
+  });
+
+  it("비활성 세션 포함 목록은 include_inactive 쿼리를 사용한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0 });
+    const { result } = renderHook(() => useLiveSessions(true), {
+      wrapper: makeWrapper(makeClient()),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual({ items: [], total: 0 }));
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/live-sessions?include_inactive=true", {
+      method: "GET",
+      token: "test-token",
+    });
+  });
+
+  it("세션 ID가 없으면 state 조회를 발사하지 않는다", () => {
+    const { result } = renderHook(() => useLiveSessionState(null, true), {
+      wrapper: makeWrapper(makeClient()),
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("세션 ID가 없으면 outcome parity 조회를 발사하지 않는다", () => {
+    const { result } = renderHook(() => useLiveSessionOutcomeParity(null), {
+      wrapper: makeWrapper(makeClient()),
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("세션 ID가 없으면 이벤트 조회를 발사하지 않는다", () => {
+    const { result } = renderHook(() => useLiveSessionEvents(null, true), {
+      wrapper: makeWrapper(makeClient()),
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("지원하지 않는 포지션 응답은 별도 목록으로 남기고 빈 상태로 오인하지 않는다", () => {
+    const aggregate = combineLiveSessionPositions(
+      [makeSession()],
+      [
+        {
+          data: makeSessionPositions(SESSION_ID, {
+            supported: false,
+            reason: "settings_unset",
+            positions: [],
+          }),
+          isLoading: false,
+          isError: false,
+          isPending: false,
+          refetch: async () => ({}),
+        } as never,
+      ],
+    );
+
+    expect(aggregate).toMatchObject({
+      rows: [],
+      unsupported: [{ sessionId: SESSION_ID, reason: "settings_unset" }],
+      isEmpty: false,
+    });
+  });
+
+  it("거래소 포지션 없는 local_only는 숫자 스냅샷을 정규화해 발산으로 남긴다", () => {
+    const aggregate = combineLiveSessionPositions(
+      [makeSession()],
+      [
+        {
+          data: makeSessionPositions(SESSION_ID, {
+            positions: [],
+            local_open_trades_snapshot: [
+              { id: "trade-1", direction: -1, qty: Number.POSITIVE_INFINITY },
+            ],
+            diff: { verdict: "local_only", local_source: "strategy_state_report" },
+          }),
+          isLoading: false,
+          isError: false,
+          isPending: false,
+          refetch: async () => ({}),
+        } as never,
+      ],
+    );
+
+    expect(aggregate.divergences).toMatchObject([
+      {
+        sessionId: SESSION_ID,
+        localOpenTrades: [{ id: "trade-1", direction: "-1", qty: null }],
+      },
+    ]);
+    expect(aggregate.isEmpty).toBe(false);
+  });
+
+  it("빈 포지션 팬아웃의 refetch는 빈 결과를 반환한다", async () => {
+    const aggregate = combineLiveSessionPositions([], []);
+
+    expect(aggregate.isEmpty).toBe(true);
+    await expect(aggregate.refetch()).resolves.toEqual([]);
+  });
+
+  it("청산 대상이 없으면 mutation은 요청 없이 실패한다", async () => {
+    const { result } = renderHook(() => useClosePosition(), {
+      wrapper: makeWrapper(makeClient()),
+    });
+
+    await expect(result.current.mutateAsync()).rejects.toThrow("close position target is required");
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("청산 mutation key는 세션과 심볼 경계를 보존한다", () => {
+    expect(closePositionMutationKey({ sessionId: SESSION_ID, symbol: "BTCUSDT" })).toEqual([
+      "close-position",
+      SESSION_ID,
+      "BTCUSDT",
+    ]);
   });
 });
