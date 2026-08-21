@@ -30,10 +30,13 @@ disable-model-invocation: true
 
 ```
 /harness                          # pending 전량 — 알아서
-/harness parallel 2               # 동시 2벌 상한
+/harness parallel 4               # 동시 4벌 상한 (러너가 워크트리·PR·머지까지 무인으로)
 /harness runner-ac                # 그 phase 만
 /harness parallel BL-11 BL-42     # 두 티켓으로 회차를 설계해 병렬로
 ```
+
+★**저작이 끝나 있고 실행만 하면 되는 묶음이 있으면 `phases/README.md` 의 「열린 묶음」 절이
+그 실행 명령(stage 브랜치 이름 포함)을 그대로 들고 있다.** 거기부터 읽어라.
 
 ★**실행 전에 항상 한 번 보고한다.** 무인 러너는 되돌리기가 비싸다.
 
@@ -173,26 +176,44 @@ python3 <러너 경로> <phase-dir> [--push]
 
 ### 5. 병렬 (`parallel`)
 
-러너는 phase 하나만 처리한다. 병렬은 **러너 밖에서 프로세스를 N벌 띄워** 만든다.
+★**러너가 직접 한다 — 손으로 워크트리를 파던 옛 절차는 폐기됐다**(2026-08-22).
+`StepExecutor` 는 여전히 phase 하나만 처리하고, `--parallel` 은 그 러너를 워크트리에서
+N벌 띄우는 **바깥 루프**다.
+
+```bash
+python3 tools/harness/execute.py --parallel <N> --stage stage/<이름>            # 계획만 (기본 dry-run)
+python3 tools/harness/execute.py --parallel <N> --stage stage/<이름> --confirm  # 집행
+python3 tools/harness/execute.py --status                                       # 진행 상황
+```
+
+**무인 구간과 사람의 자리** — 이 경계가 이 모드의 계약이다:
+
+| 무인 | 사람 |
+| --- | --- |
+| stage 브랜치 생성·push · 워크트리 N벌 준비 · lane 큐잉 · 러너 실행 · 완주 lane push · **base=stage/\*\* 로 PR** · CI 대기 · green 이면 머지 | **마지막 stage→main PR 하나** |
+
+★**base 는 반드시 `stage/` 로 시작해야 한다** — `ci.yml` 의 `pull_request.branches` 가
+`[main, "stage/**"]` 라, `feat/**` 를 base 로 하면 **CI 가 아예 안 돈다**(`no checks reported` 는
+초록이 아니다). 러너가 그것을 전제 검사에서 거부한다.
+★CI red·충돌 난 lane 은 **그 lane 만 남기고** 나머지를 계속 간다.
+★워크트리는 **`--parallel N` 만큼만** 만들어 재사용한다 — lane 수만큼 만들면 디스크
+(`node_modules`·`.venv`)와 슬롯 테스트 DB 를 그만큼 쓴다.
+
+**전제 검사(실패하면 시작하지 않는다):** 메인이 `main` 브랜치 · 워킹트리 clean · `gh` 인증 ·
+`git`/`gh`/`codex` PATH · lane 전부 `pending` · 모든 step 에 `ac` 와 `step{N}.md` 존재 ·
+`--stage` 가 `stage/` 접두.
 
 **묶음 기준** — 대상 개수가 아니라 이 넷이 lane 을 정한다:
 
-1. **lane 간 파일 겹침 0.** 병렬의 유일한 구조적 비용이다
+1. **lane 간 파일 겹침 0.** 병렬의 유일한 구조적 비용이다.
+   ★2026-08-22 실증 — 린트 부채를 **규칙 축**으로 자르면 같은 컴포넌트가 여러 규칙에 걸려
+   lane 끼리 **26건 겹친다.** **디렉터리 축**으로 갈라라
 2. **의존 있는 것은 같은 lane 안으로.** lane 사이에는 의존을 표현할 수단이 없다
 3. **AC 가 lane 끼리 자원을 다투지 않아야 한다** (포트·DB·캐시)
 4. **소요를 대략 맞춰라.** lane 하나가 길면 나머지가 논다
 
-**순서**:
-
-1. **`phases/index.json` 에 lane 항목을 전부 등록해 머지한 뒤** 워크트리를 판다 — 모든 lane 이
-   갱신하는 유일한 공유 파일이라, 나중에 각자 추가하면 배열 끝 같은 위치를 고쳐 충돌한다
-2. lane 마다 워크트리 생성 — **브랜치 이름은 러너가 checkout 할 그 이름**이어야 한다
-3. 각 워크트리를 실행 가능 상태로 (의존성·가상환경이 워크트리마다 필요하다)
-4. 러너를 **분리 기동**(`nohup … &`) — 대화 세션의 타임아웃이 러너를 죽인다.
-   ★띄우는 셸의 환경이 AC 에 상속된다
-5. `phases/<dir>/index.json` 폴링
-6. **lane 별 diff 를 사람이 읽고** PR — ★AC 초록은 AC 가 옳다는 뜻이 아니다
-
+★**`phases/index.json` 에 lane 을 전부 사전 등록해 머지한 뒤 시작해라** — 모든 lane 이 갱신하는
+유일한 공유 파일이라, 나중에 각자 추가하면 배열 끝 같은 자리를 고쳐 충돌한다.
 ★**저작이 끝난 lane 을 실행만 할 때는 §1~3 을 건너뛴다.**
 
 ## 실패 모드
@@ -202,7 +223,7 @@ python3 <러너 경로> <phase-dir> [--push]
 | AC 는 초록인데 결과가 틀렸다 | 우회 가능한 단언                  | §2. 사람 diff 대조가 최종 검출자다 |
 | 테스트 없이 통과             | 판별력 없는 AC                    | §2 — 착수 전 red 확인              |
 | AC 가 간헐 red               | 타임아웃 여유 부족 · 자원 경합    | AC 를 가볍게 · §5 묶음 기준 3      |
-| 러너가 도중에 사라졌다       | 세션 타임아웃이 프로세스를 죽였다 | §5 순서 4 — 분리 기동              |
-| lane 머지 충돌               | 공유 파일을 lane 이 각자 추가     | §5 순서 1 — 사전 등록              |
+| 러너가 도중에 사라졌다       | 세션 타임아웃이 프로세스를 죽였다 | `--parallel` 은 러너가 직접 관리한다. 대화 세션과 분리하려면 `nohup … &` |
+| lane 머지 충돌               | 공유 파일을 lane 이 각자 추가     | §5 — `phases/index.json` 사전 등록 |
 
 완주 후 PR 생성·머지는 **사람이 한다.** `--push` 는 브랜치 push 까지다.
