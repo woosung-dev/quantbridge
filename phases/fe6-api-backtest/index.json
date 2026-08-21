@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/backtest/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=55",
         "git diff --quiet -- apps/web/src/features/backtest/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:35:12+0900",
+      "summary": "`apiFetch`를 mock한 `api.test.ts`에서 17개 export의 정상 경로를 전부 덮었다. 각 케이스는 문자열 리터럴 경로·HTTP method·token·params/body·Zod 파싱 반환값·정확히 1회 호출을 단언한다. `getTradeOhlcv`만 `_userId` 대신 await한 `getToken()`을 쓰는 예외도 유지했다. 다음 Step은 이 mock seam에서 오류 전파·경계 입력을 추가하면 된다. 대상 `api.ts`는 수정하지 않았다.",
+      "completed_at": "2026-08-22T03:39:18+0900"
     },
     {
       "step": 2,
