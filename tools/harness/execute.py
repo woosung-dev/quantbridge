@@ -568,10 +568,20 @@ def _wait_ci_and_merge(res: LaneResult) -> None:
         if checks and all(c.get("status") == "COMPLETED" for c in checks):
             concl = [c.get("conclusion") for c in checks]
             if all(c in ("SUCCESS", "NEUTRAL", "SKIPPED") for c in concl):
-                m = _sh("gh", "pr", "merge", res.pr, "--squash", "--delete-branch")
+                # ★`--delete-branch` 를 쓰지 않는다 — 2026-08-22 실측: 이 시점의 lane 브랜치는
+                #   **방금 그 lane 을 돌린 워크트리에 체크아웃돼 있어** 로컬 삭제가 반드시 실패하고,
+                #   gh 는 머지에 성공하고도 rc≠0 을 낸다("failed to delete local branch …").
+                #   11 lane 중 10건이 그렇게 「머지 실패」로 오기록됐다(실제로는 전부 머지됨).
+                #   브랜치 정리는 회차 종료 후 일괄로 한다 — 머지 판정과 섞을 일이 아니다.
+                m = _sh("gh", "pr", "merge", res.pr, "--squash")
                 res.merged = m.returncode == 0
                 if not res.merged:
-                    res.detail += f" | 머지 실패: {m.stderr.strip()[:200]}"
+                    # rc 만 실패일 수 있다. 판정의 정본은 PR 상태다.
+                    v = _sh("gh", "pr", "view", res.pr, "--json", "state")
+                    if v.returncode == 0 and json.loads(v.stdout).get("state") == "MERGED":
+                        res.merged = True
+                    else:
+                        res.detail += f" | 머지 실패: {m.stderr.strip()[:200]}"
                 _log(f"  {'✓ 머지' if res.merged else '✗ 머지 실패'}: {res.pr}")
             else:
                 res.detail += f" | CI red: {concl}"
