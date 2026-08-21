@@ -274,7 +274,8 @@
     },
     {
       "dir": "fe6-api-trading-live",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:01:46+0900"
     },
     {
       "dir": "fe6-hooks-backtest",
