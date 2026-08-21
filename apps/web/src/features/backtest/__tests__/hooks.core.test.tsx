@@ -3,14 +3,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/lib/api-client", () => ({ apiFetch: apiFetchMock }));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return { ...actual, apiFetch: apiFetchMock };
+});
 
+import { ApiError } from "@/lib/api-client";
 import {
   backtestKeys,
   stressTestHistoryRefetchInterval,
@@ -211,6 +215,10 @@ describe("backtest core hooks", () => {
     apiFetchMock.mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("useBacktests는 userId query key와 JWT를 list API에 전달한다", async () => {
     const queryClient = makeQueryClient();
     apiFetchMock.mockResolvedValue(LIST_RESPONSE);
@@ -260,7 +268,13 @@ describe("backtest core hooks", () => {
     expect(query).toBeDefined();
     if (query === undefined) throw new Error("progress query가 생성되지 않았습니다");
 
-    const refetchInterval = query.options.refetchInterval;
+    const refetchInterval = (
+      query.options as {
+        refetchInterval?: (currentQuery: {
+          state: { status: string; data: unknown };
+        }) => number | false;
+      }
+    ).refetchInterval;
     expect(refetchInterval).toBeTypeOf("function");
     if (typeof refetchInterval === "function") {
       expect(refetchInterval(query)).toBe(false);
@@ -291,7 +305,7 @@ describe("backtest core hooks", () => {
     const query = queryClient.getQueryCache().find({
       queryKey: backtestKeys.tradeOhlcv(USER_ID, BACKTEST_ID, 7),
     });
-    expect(query?.options.staleTime).toBe(Infinity);
+    expect((query?.options as { staleTime?: unknown } | undefined)?.staleTime).toBe(Infinity);
     expectSingleApiFetch(`/api/v1/backtests/${BACKTEST_ID}/trades/7/ohlcv`, {
       method: "GET",
       token: "test-token",
@@ -535,7 +549,9 @@ describe("backtest core hooks", () => {
     const query = queryClient.getQueryCache().find({
       queryKey: stressTestKeys.detail(USER_ID, STRESS_TEST_ID),
     });
-    expect(query?.options.refetchInterval).toBeTypeOf("function");
+    expect(
+      (query?.options as { refetchInterval?: unknown } | undefined)?.refetchInterval,
+    ).toBeTypeOf("function");
     expectSingleApiFetch(`/api/v1/stress-tests/${STRESS_TEST_ID}`, {
       method: "GET",
       token: "test-token",
@@ -572,8 +588,189 @@ describe("backtest core hooks", () => {
   it("stressTestHistoryRefetchInterval은 terminal 이력에서 false를 반환한다", () => {
     const query = {
       state: { status: "success", data: STRESS_TEST_HISTORY_RESPONSE },
-    } as Parameters<typeof stressTestHistoryRefetchInterval>[0];
+    } as unknown as Parameters<typeof stressTestHistoryRefetchInterval>[0];
 
     expect(stressTestHistoryRefetchInterval(query)).toBe(false);
+  });
+
+  it("useBacktests는 ApiError의 status와 code를 바꾸지 않고 전파한다", async () => {
+    const queryClient = makeQueryClient();
+    const apiError = new ApiError(429, "rate_limited", "API 429 /api/v1/backtests", {
+      detail: { code: "rate_limited" },
+    });
+    apiFetchMock.mockRejectedValueOnce(apiError);
+
+    const { result } = renderHook(() => useBacktests(LIST_QUERY), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.error).toBe(apiError));
+    expect(apiError.status).toBe(429);
+    expect(apiError.code).toBe("rate_limited");
+    expectSingleApiFetch("/api/v1/backtests", {
+      method: "GET",
+      token: "test-token",
+      params: { limit: 10, offset: 20, order_by: undefined, order: undefined },
+    });
+  });
+
+  it("useBacktests는 계약 밖 응답을 Zod 오류로 노출하고 data를 만들지 않는다", async () => {
+    const queryClient = makeQueryClient();
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: "0", limit: 0, offset: -1 });
+
+    const { result } = renderHook(() => useBacktests({ limit: 0, offset: -1 }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.error?.name).toBe("ZodError"));
+    expect(result.current.data).toBeUndefined();
+    expectSingleApiFetch("/api/v1/backtests", {
+      method: "GET",
+      token: "test-token",
+      params: { limit: 0, offset: -1, order_by: undefined, order: undefined },
+    });
+  });
+
+  it("apiFetch는 undefined query를 제외하고 0·음수 값을 보존하며 204를 void로 반환한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiFetch } =
+      await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
+
+    await expect(
+      apiFetch<void>("/api/v1/backtests/boundary", {
+        method: "DELETE",
+        params: { limit: 0, offset: -1, order_by: undefined, order: undefined },
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const firstCall = fetchMock.mock.calls[0];
+    if (firstCall === undefined) throw new Error("fetch가 호출되지 않았습니다");
+    const [url] = firstCall;
+    expect(String(url)).toContain("limit=0");
+    expect(String(url)).toContain("offset=-1");
+    expect(String(url)).not.toContain("order_by=undefined");
+    expect(String(url)).not.toContain("order=undefined");
+  });
+
+  it.each([0, -1])(
+    "useTradeOhlcv는 trade index %i를 false로 취급하지 않고 요청한다",
+    async (tradeIndex) => {
+      const queryClient = makeQueryClient();
+      const response = { ...OHLCV_RESPONSE, trade_index: tradeIndex };
+      apiFetchMock.mockResolvedValueOnce(response);
+
+      const { result } = renderHook(() => useTradeOhlcv(BACKTEST_ID, tradeIndex), {
+        wrapper: makeWrapper(queryClient),
+      });
+
+      await waitFor(() => expect(result.current.data).toEqual(response));
+      expectSingleApiFetch(`/api/v1/backtests/${BACKTEST_ID}/trades/${tradeIndex}/ohlcv`, {
+        method: "GET",
+        token: "test-token",
+      });
+    },
+  );
+
+  it("useTradeOhlcv는 trade index가 undefined이면 API 요청을 시작하지 않는다", async () => {
+    const queryClient = makeQueryClient();
+
+    const { result } = renderHook(() => useTradeOhlcv(BACKTEST_ID, undefined), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("useBacktestTrades는 0·음수 페이지 경계를 그대로 전달한다", async () => {
+    const queryClient = makeQueryClient();
+    const response = { items: [], total: 0, limit: 0, offset: -1 };
+    apiFetchMock.mockResolvedValueOnce(response);
+
+    const { result } = renderHook(() => useBacktestTrades(BACKTEST_ID, { limit: 0, offset: -1 }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(response));
+    expectSingleApiFetch(`/api/v1/backtests/${BACKTEST_ID}/trades`, {
+      method: "GET",
+      token: "test-token",
+      params: { limit: 0, offset: -1 },
+    });
+  });
+
+  it("useAllBacktestTrades는 disabled 옵션이면 빈 결과도 요청하지 않는다", async () => {
+    const queryClient = makeQueryClient();
+
+    const { result } = renderHook(() => useAllBacktestTrades(BACKTEST_ID, { enabled: false }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("useStressTest와 useStressTestHistory는 식별자가 없으면 요청하지 않는다", async () => {
+    const queryClient = makeQueryClient();
+    const { result: detailResult } = renderHook(() => useStressTest(null), {
+      wrapper: makeWrapper(queryClient),
+    });
+    const { result: historyResult } = renderHook(() => useStressTestHistory(undefined), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(detailResult.current.fetchStatus).toBe("idle"));
+    await waitFor(() => expect(historyResult.current.fetchStatus).toBe("idle"));
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("stressTestRefetchInterval은 data 없음·진행 중에는 2초, terminal에는 false를 반환한다", () => {
+    const noDataQuery = {
+      state: { status: "pending", data: undefined },
+    } as Parameters<typeof stressTestRefetchInterval>[0];
+    const runningQuery = {
+      state: { status: "success", data: { ...STRESS_TEST_DETAIL_RESPONSE, status: "running" } },
+    } as Parameters<typeof stressTestRefetchInterval>[0];
+    const failedQuery = {
+      state: { status: "success", data: { ...STRESS_TEST_DETAIL_RESPONSE, status: "failed" } },
+    } as Parameters<typeof stressTestRefetchInterval>[0];
+
+    expect(stressTestRefetchInterval(noDataQuery)).toBe(2_000);
+    expect(stressTestRefetchInterval(runningQuery)).toBe(2_000);
+    expect(stressTestRefetchInterval(failedQuery)).toBe(false);
+  });
+
+  it("stressTestHistoryRefetchInterval은 data 없음·오류에는 false, queued 행에는 2초를 반환한다", () => {
+    const noDataQuery = {
+      state: { status: "pending", data: undefined },
+    } as Parameters<typeof stressTestHistoryRefetchInterval>[0];
+    const errorQuery = {
+      state: { status: "error", data: undefined },
+    } as Parameters<typeof stressTestHistoryRefetchInterval>[0];
+    const queuedQuery = {
+      state: {
+        status: "success",
+        data: {
+          ...STRESS_TEST_HISTORY_RESPONSE,
+          items: [
+            {
+              id: STRESS_TEST_ID,
+              backtest_id: BACKTEST_ID,
+              kind: "monte_carlo",
+              status: "queued",
+              created_at: STARTED_AT,
+              completed_at: null,
+              headline_metric: null,
+            },
+          ],
+        },
+      },
+    } as Parameters<typeof stressTestHistoryRefetchInterval>[0];
+
+    expect(stressTestHistoryRefetchInterval(noDataQuery)).toBe(false);
+    expect(stressTestHistoryRefetchInterval(errorQuery)).toBe(false);
+    expect(stressTestHistoryRefetchInterval(queuedQuery)).toBe(2_000);
   });
 });
