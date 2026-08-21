@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 import DisclaimerPage, { metadata as disclaimerMetadata } from "../disclaimer/page";
-import NotAvailablePage, { metadata as notAvailableMetadata } from "../not-available/page";
+import NotAvailablePage, * as notAvailableModule from "../not-available/page";
 import PrivacyPage, { metadata as privacyMetadata } from "../privacy/page";
 import TermsPage, { metadata as termsMetadata } from "../terms/page";
 import { LEGAL_LINKS } from "@/lib/legal-links";
@@ -27,40 +27,49 @@ const PUBLIC_PAGES: readonly PublicPage[] = [
   { name: "Not available", route: "/not-available", Page: NotAvailablePage },
 ];
 
-const PAGE_METADATA = [
+const LEGAL_METADATA = [
   { name: "Disclaimer", metadata: disclaimerMetadata },
   { name: "Terms", metadata: termsMetadata },
   { name: "Privacy", metadata: privacyMetadata },
-  { name: "Not available", metadata: notAvailableMetadata },
 ];
 
 afterEach(() => cleanup());
 
 describe("공개 법무 페이지", () => {
-  it.each(PUBLIC_PAGES)("%s 페이지가 비어 있지 않게 렌더된다", ({ Page }) => {
+  it.each(PUBLIC_PAGES)("$name 페이지가 비어 있지 않게 렌더된다", ({ Page }) => {
     render(<Page />);
 
     const bodyText = document.body.textContent?.trim() ?? "";
     expect(bodyText).not.toBe("");
   });
 
-  it.each(PUBLIC_PAGES)("%s 페이지에 비어 있지 않은 제목이 있다", ({ Page }) => {
+  it.each(PUBLIC_PAGES)("$name 페이지에 비어 있지 않은 제목이 있다", ({ Page }) => {
     render(<Page />);
 
-    const headings = screen.queryAllByRole("heading");
-    expect(headings.length).toBeGreaterThan(0);
+    const headings = screen.getAllByRole("heading");
     expect(headings.every((heading) => (heading.textContent?.trim().length ?? 0) > 0)).toBe(true);
   });
 
-  it.each(PAGE_METADATA)("%s metadata에 비어 있지 않은 title이 있다", ({ metadata }) => {
-    expect(metadata.title).toBeTruthy();
-    expect(String(metadata.title).trim()).not.toBe("");
+  it.each(LEGAL_METADATA)("$name metadata에 비어 있지 않은 title이 있다", ({ metadata }) => {
+    expect(typeof metadata.title).toBe("string");
+    expect((metadata.title as string).trim()).not.toBe("");
+  });
+
+  it("법무 3종 metadata title은 서로 다르다", () => {
+    const titles = LEGAL_METADATA.map(({ metadata }) => metadata.title);
+
+    expect(new Set(titles)).toHaveLength(3);
+  });
+
+  it("not-available은 metadata를 export하지 않는다", () => {
+    // [BL-816] 대상 무변경 lane의 결함 계약: 메타데이터를 추가하면 이 테스트가 red가 된다.
+    expect("metadata" in notAvailableModule).toBe(false);
   });
 
   it("not-available은 지역 제한 안내와 이메일 연락 수단을 제공한다", () => {
     render(<NotAvailablePage />);
 
-    expect(screen.getByText(/아시아-태평양 지역에서만 제공됩니다/)).toBeInTheDocument();
+    expect(screen.getByText(/아시아-태평양 지역/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "hello@quantbridge.ai" })).toHaveAttribute(
       "href",
       "mailto:hello@quantbridge.ai",
@@ -78,7 +87,7 @@ describe("공개 법무 페이지", () => {
     expect(new Set(bodyTexts)).toHaveLength(3);
   });
 
-  it.each(LEGAL_PAGES)("%s 본문은 최소 200자다", ({ Page }) => {
+  it.each(LEGAL_PAGES)("$name 본문은 최소 200자다", ({ Page }) => {
     render(<Page />);
 
     const bodyText = document.body.textContent?.trim() ?? "";
