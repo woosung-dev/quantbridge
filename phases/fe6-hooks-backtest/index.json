@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/backtest/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/backtest/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=12",
         "git diff --quiet -- apps/web/src/features/backtest/hooks.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:31:02+0900",
+      "summary": "새 파일 baseline=0/290 lines (0%; CONTROL 전량 26.6%와 측정 범위 다름) → 6 tests=126/290 (43.44%). | 심볼 상태 | 항목 | 외부 경계/mock | 새 파일 덮음 | useBacktests[listBacktests], useBacktest[disabled], useBacktestProgress[getBacktestProgress+error→false], useBacktestTrades[disabled], useTradeOhlcv[getTradeOhlcv+getter/staleTime=Infinity], useCreateBacktestShare[createBacktestShare] | ../api partial mock(원본 export 유지), setup의 auth-client 전역 mock | 기존 별도 테스트(이번 score 제외) | makeAllTradesFetcher[listBacktestTrades], stressTestRefetchInterval, stressTestHistoryRefetchInterval, useStressTestHistory[listStressTests] | ../api partial mock | 미덮음 | backtestKeys/stressTestKeys re-export, AllTradesResult, MutationCallbacks, useAllBacktestTrades, useCreateBacktest, useCancelBacktest, useDeleteBacktest, useRevokeBacktestShare, useCreateMonteCarlo, useCreateWalkForward, useCreateCostAssumption, useCreateParamStability, useStressTest | 각 API/invalidating-mutation boundary. Mock은 훅의 HTTP 함수·토큰 전달만 고립해 Query Key·enabled·polling 계약을 실제 React Query로 검증했다.",
+      "completed_at": "2026-08-22T03:37:15+0900"
     },
     {
       "step": 1,
@@ -45,5 +48,6 @@
         "cd apps/web && pnpm exec biome check src/features/backtest/__tests__/hooks.core.test.tsx"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T03:31:02+0900"
 }
