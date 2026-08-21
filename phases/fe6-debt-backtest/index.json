@@ -5,11 +5,14 @@
     {
       "step": 0,
       "name": "probe-and-safe-rules",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles src/features/backtest",
         "cd apps/web && pnpm exec vitest run src/features/backtest"
-      ]
+      ],
+      "started_at": "2026-08-22T04:44:55+0900",
+      "summary": "실사: Biome 2.5.9 lint는 --min-files를 지원하지 않았고, 옵션 없는 전수 진단은 CONTROL과 동일한 42건(오류 37·정보 5)이었다. 장식 SVG 2개(share-not-found-state·share-revoked-state)에 aria-hidden을 추가해 Step 0 규칙군을 0건으로 만들었으며, 나머지 위반은 다음 step의 판별력을 위해 보존했다.",
+      "completed_at": "2026-08-22T04:47:42+0900"
     },
     {
       "step": 1,
@@ -41,5 +44,6 @@
         "cd apps/web && pnpm exec biome check ."
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T04:44:55+0900"
 }
