@@ -107,3 +107,19 @@ async def test_commit_persists_and_rollback_discards_waitlist_application(
     await repository.rollback()
 
     assert await repository.find_by_id(rolled_back.id) is None
+
+
+@pytest.mark.asyncio
+async def test_find_by_invite_token_returns_the_invited_application(
+    db_session: AsyncSession,
+) -> None:
+    """초대 토큰 조회는 같은 초대 신청서를 실제 DB에서 다시 찾는다."""
+    repository = WaitlistRepository(db_session)
+    application = await repository.create(_application("token@example.com"))
+    invited = await repository.mark_invited(application, invite_token="token-123")
+
+    found = await repository.find_by_invite_token("token-123")
+
+    assert found is not None
+    assert found.id == invited.id
+    assert found.status == WaitlistStatus.invited

@@ -18,6 +18,10 @@ from src.trading.models import (
     LiveSignalEventStatus,
     LiveSignalInterval,
     LiveSignalSession,
+    Order,
+    OrderSide,
+    OrderState,
+    OrderType,
     SessionDeactivationReason,
 )
 from src.trading.repositories.live_signal_event_repository import LiveSignalEventRepository
@@ -46,16 +50,21 @@ async def _seed_session(
     symbol: str,
     is_active: bool = True,
     deactivated_at: datetime | None = None,
+    created_at: datetime | None = None,
+    interval: LiveSignalInterval = LiveSignalInterval.m5,
+    last_evaluated_bar_time: datetime | None = None,
 ) -> LiveSignalSession:
     live_session = LiveSignalSession(
         user_id=user.id,
         strategy_id=strategy.id,
         exchange_account_id=account.id,
         symbol=symbol,
-        interval=LiveSignalInterval.m5,
+        interval=interval,
         is_active=is_active,
         deactivated_at=deactivated_at,
         deactivated_reason=(SessionDeactivationReason.user_stopped if not is_active else None),
+        created_at=created_at or datetime.now(UTC),
+        last_evaluated_bar_time=last_evaluated_bar_time,
     )
     db_session.add(live_session)
     await db_session.flush()
@@ -274,3 +283,297 @@ async def test_session_repository_lists_inactive_rows_and_upserts_state(
     assert updated.total_closed_trades == 3
     assert updated.total_realized_pnl == Decimal("5.25")
     assert updated.equity_curve == [{"timestamp_ms": 1, "cumulative_pnl": "4.50"}]
+
+
+@pytest.mark.asyncio
+async def test_session_repository_saves_and_reads_active_rows(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """저장한 활성 세션은 소유 조회와 최신순 목록에서 같은 행으로 읽힌다."""
+    account = await _seed_account(db_session, user)
+    repository = LiveSignalSessionRepository(db_session)
+    created_at = datetime(2026, 8, 22, 12, tzinfo=UTC)
+    earlier = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="BTCUSDT",
+        created_at=created_at,
+    )
+    later = LiveSignalSession(
+        user_id=user.id,
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="ETHUSDT",
+        interval=LiveSignalInterval.m5,
+        created_at=created_at + timedelta(minutes=1),
+    )
+
+    saved = await repository.save(later)
+
+    assert saved is later
+    assert (await repository.get_by_id(later.id)).id == later.id
+    assert (await repository.get_by_id_for_user(later.id, user.id)).id == later.id
+    assert [row.id for row in await repository.list_active_by_user(user.id)] == [
+        later.id,
+        earlier.id,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_session_repository_filters_account_strategy_and_symbol_rows(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """계정·전략·심볼 조회는 활성 여부와 요구한 스코프를 각각 보존한다."""
+    account = await _seed_account(db_session, user)
+    started_at = datetime(2026, 8, 22, 13, tzinfo=UTC)
+    inactive = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="BTCUSDT",
+        is_active=False,
+        deactivated_at=started_at + timedelta(minutes=2),
+        created_at=started_at,
+    )
+    active = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="ETHUSDT",
+        created_at=started_at + timedelta(minutes=1),
+    )
+    repository = LiveSignalSessionRepository(db_session)
+
+    assert [row.id for row in await repository.list_active_by_account(account.id)] == [active.id]
+    assert [row.id for row in await repository.list_by_account(account.id, user_id=user.id)] == [
+        active.id,
+        inactive.id,
+    ]
+    assert await repository.list_active_strategy_ids([strategy.id, uuid4()]) == {strategy.id}
+    assert [
+        row.id
+        for row in await repository.list_by_strategy_account_symbol(
+            user_id=user.id,
+            strategy_id=strategy.id,
+            exchange_account_id=account.id,
+            symbol="ETHUSDT",
+        )
+    ] == [active.id]
+
+
+@pytest.mark.asyncio
+async def test_session_repository_lists_due_and_overlapping_windows(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """due 조회와 생존 구간 조회는 시간 경계에 맞는 세션만 반환한다."""
+    account = await _seed_account(db_session, user)
+    repository = LiveSignalSessionRepository(db_session)
+    now = datetime(2026, 8, 22, 14, tzinfo=UTC)
+    window_start = now - timedelta(minutes=15)
+    never_evaluated = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="BTCUSDT",
+        created_at=now - timedelta(hours=3),
+    )
+    due = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="ETHUSDT",
+        created_at=now - timedelta(hours=2),
+        last_evaluated_bar_time=now - timedelta(minutes=6),
+    )
+    not_due = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="SOLUSDT",
+        created_at=now - timedelta(hours=1),
+        interval=LiveSignalInterval.m1,
+        last_evaluated_bar_time=now - timedelta(seconds=30),
+    )
+    await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="XRPUSDT",
+        is_active=False,
+        created_at=now - timedelta(hours=4),
+        deactivated_at=window_start - timedelta(seconds=1),
+    )
+
+    due_rows = await repository.list_active_due(now)
+    overlapping_rows = await repository.list_overlapping_window(
+        since=window_start,
+        until=now + timedelta(minutes=15),
+        limit=2,
+    )
+
+    assert {row.id for row in due_rows} == {never_evaluated.id, due.id}
+    assert [row.id for row in overlapping_rows] == [
+        never_evaluated.id,
+        due.id,
+        not_due.id,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_session_repository_deactivates_one_row_and_recounts_symbols(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """단일 종료 뒤 활성 쿼터와 ticker 집합은 남은 세션만 반영한다."""
+    account = await _seed_account(db_session, user)
+    first = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="BTCUSDT",
+    )
+    await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="ETHUSDT",
+    )
+    repository = LiveSignalSessionRepository(db_session)
+    deactivated_at = datetime(2026, 8, 22, 15, tzinfo=UTC)
+
+    assert await repository.count_active_by_user(user.id) == 2
+    assert await repository.list_distinct_active_symbols() == ["BTCUSDT", "ETHUSDT"]
+    assert (
+        await repository.deactivate(
+            first.id,
+            at=deactivated_at,
+            reason=SessionDeactivationReason.user_stopped,
+        )
+        == 1
+    )
+
+    await db_session.refresh(first)
+    assert first.deactivated_at == deactivated_at
+    assert first.deactivated_reason == SessionDeactivationReason.user_stopped
+    assert await repository.count_active_by_user(user.id) == 1
+    assert await repository.list_distinct_active_symbols() == ["ETHUSDT"]
+
+
+@pytest.mark.asyncio
+async def test_event_repository_dispatches_and_joins_order_state(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """발주 성공은 event 상태·주문 FK·세션 귀속 조회에 함께 반영된다."""
+    account = await _seed_account(db_session, user)
+    live_session = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="BTCUSDT",
+    )
+    event_repository = LiveSignalEventRepository(db_session)
+    [pending] = await event_repository.insert_pending_events(
+        session_id=live_session.id,
+        bar_time=datetime(2026, 8, 22, 16, tzinfo=UTC),
+        signals=[
+            {
+                "sequence_no": 1,
+                "action": "entry",
+                "direction": "long",
+                "trade_id": "dispatch-1",
+                "qty": "1.5",
+            }
+        ],
+    )
+    order = Order(
+        strategy_id=strategy.id,
+        exchange_account_id=account.id,
+        symbol="BTCUSDT",
+        side=OrderSide.buy,
+        type=OrderType.market,
+        quantity=Decimal("1.5"),
+        state=OrderState.submitted,
+    )
+    db_session.add(order)
+    await db_session.flush()
+
+    assert await event_repository.mark_dispatched(pending.id, order_id=order.id) == 1
+
+    stored = await event_repository.get_by_id(pending.id)
+    assert stored is not None
+    assert stored.status == LiveSignalEventStatus.dispatched
+    assert stored.order_id == order.id
+    assert stored.dispatched_at is not None
+    assert [row.id for row in await event_repository.list_by_session(live_session.id)] == [
+        pending.id
+    ]
+    assert await event_repository.list_by_session_with_order_state(live_session.id) == [
+        (pending, str(OrderState.submitted))
+    ]
+    found_session = await LiveSignalSessionRepository(db_session).find_active_by_order_id(order.id)
+    assert found_session is not None
+    assert found_session.id == live_session.id
+
+
+@pytest.mark.asyncio
+async def test_event_repository_sums_realized_pnl_for_all_and_prior_window(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """실현 손익 집계는 Decimal 합계와 창 이전 건수를 함께 반환한다."""
+    account = await _seed_account(db_session, user)
+    live_session = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="ETHUSDT",
+    )
+    repository = LiveSignalEventRepository(db_session)
+    first_bar_time = datetime(2026, 8, 22, 17, tzinfo=UTC)
+    second_bar_time = first_bar_time + timedelta(minutes=5)
+    await repository.insert_pending_events(
+        session_id=live_session.id,
+        bar_time=first_bar_time,
+        signals=[
+            {
+                "sequence_no": 1,
+                "action": "close",
+                "direction": "long",
+                "trade_id": "close-profit",
+                "qty": "1",
+                "realized_pnl": "2.25",
+            },
+            {
+                "sequence_no": 2,
+                "action": "entry",
+                "direction": "short",
+                "trade_id": "entry-no-pnl",
+                "qty": "1",
+            },
+            {
+                "sequence_no": 3,
+                "action": "close",
+                "direction": "short",
+                "trade_id": "close-loss",
+                "qty": "1",
+                "realized_pnl": "-0.75",
+                "bar_time": second_bar_time,
+            },
+        ],
+    )
+
+    assert await repository.sum_realized_pnl_all(live_session.id) == (Decimal("1.50"), 2)
+    assert await repository.sum_realized_pnl_before(
+        live_session.id,
+        bar_time=second_bar_time,
+    ) == (Decimal("2.25"), 1)
