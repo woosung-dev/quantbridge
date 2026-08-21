@@ -99,6 +99,17 @@ afterEach(() => {
 });
 
 describe("live sessions API contract", () => {
+  it("기본 목록은 빈 결과와 total=0을 그대로 반환하고 inactive query를 붙이지 않는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0 });
+
+    await expect(listLiveSessions(null)).resolves.toEqual({ items: [], total: 0 });
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/live-sessions", {
+      method: "GET",
+      token: null,
+    });
+  });
+
   it("비활성 포함 목록은 query 경로와 GET 인증을 전달하고 목록 응답을 파싱한다", async () => {
     apiFetchMock.mockResolvedValueOnce({ items: [SESSION], total: 1 });
 
@@ -152,6 +163,28 @@ describe("live sessions API contract", () => {
       token: "jwt",
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("state 조회의 404 race는 null로 흡수한다", async () => {
+    apiFetchMock.mockRejectedValueOnce(new Error("API 404 /api/v1/live-sessions/session/state"));
+
+    await expect(getLiveSessionState(SESSION.id, "jwt")).resolves.toBeNull();
+  });
+
+  it("state 외 API 오류는 status·code가 든 같은 Error 객체를 그대로 전파한다", async () => {
+    const { ApiError } =
+      await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
+    const apiError = new ApiError(429, "rate_limited", "API 429 /api/v1/live-sessions/events");
+    apiFetchMock.mockRejectedValueOnce(apiError);
+
+    await expect(listLiveSessionEvents(SESSION.id, "jwt")).rejects.toBe(apiError);
+    expect(apiError).toMatchObject({ status: 429, code: "rate_limited" });
+  });
+
+  it("목록 응답이 계약을 어기면 Zod parse 오류로 중단한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: "0" });
+
+    await expect(listLiveSessions("jwt")).rejects.toThrow();
   });
 
   it("세션 이벤트는 events GET 응답의 목록을 파싱한다", async () => {

@@ -44,6 +44,18 @@ afterEach(() => {
 });
 
 describe("trading API contract", () => {
+  it("상태 필터가 없고 limit=0이면 query 없이 빈 페이지를 요청한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0 });
+
+    await expect(listOrders(0, null)).resolves.toEqual({ items: [], total: 0 });
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/orders", {
+      method: "GET",
+      token: null,
+      params: { limit: 0, offset: 0 },
+    });
+  });
+
   it("주문 상태 필터는 반복 query string과 페이지 파라미터를 함께 전달한다", async () => {
     apiFetchMock.mockResolvedValueOnce({ items: [ORDER], total: 1 });
 
@@ -77,6 +89,20 @@ describe("trading API contract", () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("주문 취소 API 오류는 status·code가 든 같은 Error 객체를 그대로 전파한다", async () => {
+    const { ApiError } =
+      await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
+    const apiError = new ApiError(
+      409,
+      "order_not_cancellable",
+      "API 409 /api/v1/orders/order/cancel",
+    );
+    apiFetchMock.mockRejectedValueOnce(apiError);
+
+    await expect(cancelOrder(ORDER.id, "jwt")).rejects.toBe(apiError);
+    expect(apiError).toMatchObject({ status: 409, code: "order_not_cancellable" });
+  });
+
   it("킬 스위치 목록은 기본 limit와 GET 인증을 전달한다", async () => {
     const event = {
       id: "00000000-0000-4000-a000-000000000013",
@@ -96,6 +122,18 @@ describe("trading API contract", () => {
       params: { limit: 20 },
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("킬 스위치 목록은 0 limit도 기본값으로 바꾸지 않는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [] });
+
+    await expect(listKillSwitchEvents("jwt", 0)).resolves.toEqual({ items: [] });
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/kill-switch/events", {
+      method: "GET",
+      token: "jwt",
+      params: { limit: 0 },
+    });
   });
 
   it("킬 스위치 해제는 기본 관리 메모를 POST body로 보낸다", async () => {
@@ -164,6 +202,12 @@ describe("trading API contract", () => {
       body: request,
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("거래소 계정 응답이 계약을 어기면 Zod parse 오류로 중단한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ ...ACCOUNT, api_key_masked: null });
+
+    await expect(listExchangeAccounts("jwt")).rejects.toThrow();
   });
 
   it("거래소 계정 삭제는 식별자 DELETE와 인증만 전달한다", async () => {

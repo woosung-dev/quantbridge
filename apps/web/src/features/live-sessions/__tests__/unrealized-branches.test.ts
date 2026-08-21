@@ -82,6 +82,16 @@ describe("computeUnrealizedPnl 추가 분기", () => {
     expect(OpenTradeSchema.safeParse(invalidTrade).success).toBe(false);
     expect(computeUnrealizedPnl([invalidTrade] as never, "90")).toBeNull();
   });
+
+  it("0 mark와 0 수량은 유효한 경계값으로 계산한다", () => {
+    expect(OpenTradeSchema.parse({ direction: "long", qty: 0, entry_price: -100 })).toEqual({
+      direction: "long",
+      qty: 0,
+      entry_price: -100,
+    });
+    expect(computeUnrealizedPnl([{ direction: "long", qty: 1, entry_price: 100 }], "0")).toBe(-100);
+    expect(computeUnrealizedPnl([{ direction: "short", qty: 0, entry_price: 100 }], "0")).toBe(0);
+  });
 });
 
 describe("useUnrealizedPnlEstimate 정상 경로", () => {
@@ -117,6 +127,46 @@ describe("useUnrealizedPnlEstimate 정상 경로", () => {
     await expect(queries[0].queryFn()).resolves.toEqual(LIVE_STATE);
     expect(mocks.getToken).toHaveBeenCalledTimes(1);
     expect(mocks.getLiveSessionState).toHaveBeenCalledWith(SESSION.id, "jwt");
+    unmount();
+  });
+});
+
+describe("useUnrealizedPnlEstimate 경계", () => {
+  it("활성 세션이 없으면 ticker·state와 무관하게 0을 반환한다", () => {
+    mocks.useQueries.mockImplementation(({ combine }) => combine([]));
+
+    const { result, unmount } = renderHook(() => useUnrealizedPnlEstimate([]));
+
+    expect(result.current).toEqual({ total: 0, isEstimating: false, latestTs: null });
+    unmount();
+  });
+
+  it("ticker가 아직 없으면 합산하지 않고 estimating으로 남긴다", () => {
+    mocks.useQueries.mockImplementation(({ combine }) => combine([{ data: LIVE_STATE }]));
+
+    const { result, unmount } = renderHook(() => useUnrealizedPnlEstimate([SESSION]));
+
+    expect(result.current).toEqual({ total: null, isEstimating: true, latestTs: null });
+    unmount();
+  });
+
+  it("state의 open_trades가 계약을 어기면 ticker가 있어도 손익을 거절한다", () => {
+    mocks.useQueries.mockImplementation(({ combine }) =>
+      combine([{ data: { ...LIVE_STATE, last_strategy_state_report: { open_trades: [{}] } } }]),
+    );
+    useRealtimeStore.getState().applyTicker("BTCUSDT", {
+      markPrice: "110",
+      lastPrice: "110",
+      ts: 1_725_000_000_001,
+    });
+
+    const { result, unmount } = renderHook(() => useUnrealizedPnlEstimate([SESSION]));
+
+    expect(result.current).toEqual({
+      total: null,
+      isEstimating: false,
+      latestTs: 1_725_000_000_001,
+    });
     unmount();
   });
 });
