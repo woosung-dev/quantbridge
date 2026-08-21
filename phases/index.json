@@ -174,7 +174,8 @@
     },
     {
       "dir": "fe3-optimizer-view",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T09:58:52+0900"
     },
     {
       "dir": "fe3-waitlist-admin",
