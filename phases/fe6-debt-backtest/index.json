@@ -29,11 +29,14 @@
     {
       "step": 2,
       "name": "aria-and-semantics",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents src/features/backtest",
         "cd apps/web && pnpm exec vitest run src/features/backtest"
-      ]
+      ],
+      "started_at": "2026-08-22T04:51:20+0900",
+      "summary": "features/backtest의 시맨틱 14건·지원 불가 ARIA 4건·비대화형 tabIndex 2건을 fieldset·ul/li·section 등 네이티브 요소로 정리했다. 히트맵 셀은 비조작 요소라 tabIndex를 제거하고 9개 aria-label 검증을 보존했으며 useKeyWithClickEvents 위반은 없었다.",
+      "completed_at": "2026-08-22T04:57:08+0900"
     },
     {
       "step": 3,
