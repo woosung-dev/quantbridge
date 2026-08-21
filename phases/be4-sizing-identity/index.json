@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "be4-sizing-identity",
+  "steps": [
+    {
+      "step": 0,
+      "name": "sizing-identity",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/strategy/pine_v2/test_default_qty_resolution.py tests/trading/test_account_identity.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/strategy/pine_v2/test_default_qty_resolution.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_account_identity.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 7",
+        "cd apps/api && uv run ruff check tests/strategy/pine_v2/test_default_qty_resolution.py tests/trading/test_account_identity.py"
+      ]
+    }
+  ]
+}

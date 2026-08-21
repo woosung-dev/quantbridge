@@ -9,6 +9,48 @@
 (출처 레포 jha0313/finsight 에서는 `0-foundation` → `1-core-loop` → … 처럼 **순번**이었다.
 우리는 같은 파일을 병렬 묶음에도 쓴다. 어느 쪽인지는 아래 절이 말한다.)
 
+## ★열려 있는 병렬 묶음 — `fe4-*` 6 + `be4-*` 2 (2026-08-21 저작 · 미실행)
+
+3차가 화면 계층을 닫고 남긴 **`src/app/` 라우트 조립층**이다. 소유 티켓 = **[BL-817]**. `apps/web/AGENTS.md` §4 가 「조립층: 라우트·레이아웃·loading·error·metadata + feature 조립」이라
+정의한 그 자리에 [BL-786] **프리페치 키 동일성** · **UUID→`notFound()` 가드** · **`getServerAuth` 배선** · **`metadata` 계약**이 살고 테스트가 0건이었다.
+
+| phase                  | 대상                                                         | 새 테스트 파일                                                                                     | AC ≥ |
+| ---------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | ---- |
+| `fe4-list-prefetch`    | `(dashboard)/{backtests,strategies}/page.tsx`                | `src/app/(dashboard)/__tests__/list-prefetch.test.tsx`                                             | 10   |
+| `fe4-route-params`     | `backtests/[id]` · `optimizer/[id]` · `strategies/[id]/edit` | `src/app/(dashboard)/__tests__/route-params.test.tsx`                                              | 10   |
+| `fe4-app-shell`        | `app/layout.tsx` · `(dashboard)/layout.tsx`                  | `src/app/__tests__/app-shell.test.tsx`                                                             | 10   |
+| `fe4-landing-waitlist` | `app/page.tsx` · `waitlist/page.tsx`                         | `src/app/__tests__/landing-waitlist.test.tsx`                                                      | 9    |
+| `fe4-thin-routes`      | 얇은 위임 7종                                                | `src/app/(dashboard)/__tests__/thin-routes.test.tsx`                                               | 9    |
+| `fe4-og-image`         | `share/backtests/[token]/opengraph-image.tsx`                | `.../[token]/__tests__/opengraph-image.test.tsx`                                                   | 8    |
+| `be4-sizing-identity`  | `pine_v2/sizing.py` · `trading/account_identity.py`          | `tests/strategy/pine_v2/test_default_qty_resolution.py` + `tests/trading/test_account_identity.py` | 10+7 |
+| `be4-funding-task`     | `tasks/funding.py`                                           | `apps/api/tests/tasks/test_funding_task.py`                                                        | 8    |
+
+★★**착수 프롬프트의 재료 주장 2건이 실측에서 거짓이었다 — 4차가 더한 것 넷:**
+
+1. ★★★**「BE 전이 폐포 미도달 6」은 실측 2였다**(`scripts/run_alembic_with_lock.py` · `tasks/funding.py`).
+   프롬프트가 든 넷 중 `param_stability.py`·`conditional_entry_janitor.py` 는 **이미 테스트가 있었다**
+   (`test_param_stability_state_isolation.py:23` · `test_conditional_entry_janitor.py:20`).
+   ⇒ 「janitor 가 lane 을 혼자 끌면 7 lane 으로」는 **비용이 아니라 커버 때문에** 무의미해졌고
+   **FE 6 + BE 2** 로 재배분했다. **[LESSON-122] 는 step 뿐 아니라 착수 프롬프트에도 적용된다.**
+2. ★★**AC red 측정이 또 lane 하나를 폐기시켰다**(3차에 이어 두 번째). 초판 `be4-pine-persistent` 가
+   `runtime/persistent.py` 를 겨눴는데 **AC1 이 rc=0** 이었다 — `tests/strategy/pine_v2/test_persistent_store.py`
+   가 **이미 있고 15 케이스**였다. ★**내 python 검사기가 거짓 재료를 냈다**: 테스트가 패키지
+   `runtime` 의 **재export** 를 import 해서 리졸버가 `__init__.py` 로 귀속시켰다.
+   ⇒ **`from pkg import Sym` 은 `pkg/__init__.py` 가 아니라 원 모듈에 귀속시켜야 한다.**
+   `be4-sizing-identity` 로 교체하고 AC red 를 다시 쟀다(rc=4/1/1).
+3. ★★**`next/font/google` 이 vitest 에서 top-level throw 다** — 빌드타임 SWC 변환이 치환하는
+   자리표라 런타임에 함수가 아니고 `Archivo is not a function` 이 난다. `src/lib/fonts.ts` 를
+   전이로 무는 모듈이 전부 죽었고 사슬 하나가 `components/monaco/pine-editor.tsx` 를 지나
+   **`strategies/new`·`strategies/[id]/edit` 까지** 번졌다. ★**`server-only` 와 같은 처방**
+   (`resolve.alias` → `tests/stubs/next-font-google.ts`)을 ① 사전 배치 PR 이 세웠다 —
+   **lane 안에서 고치면 8 lane 병합 충돌**이다([LESSON-123] 세 번째 사례).
+4. ★★**`ImageResponse` 는 vitest 에서 실행할 수 없다** — satori → `sharp` 경로가
+   `Error: Unsupported input '...' of type object` 로 죽는다(jsdom). ★**`vi.doMock("next/og")` 는
+   먹는다**(ESM 이라 — CJS 인 `server-only` 와 다르다). 프로브에서 인자 가로채기 성공했고
+   2번째 인자가 `{width:1200, height:630}` 임을 확인했다. ⇒ lane 6 은 **대역으로 인자만 잰다.**
+
+★**착수 전 AC red 8/8 확인 완료**(2026-08-21 · python 으로 각 AC 를 `bash -c` 서브셸에 넣어 측정).
+
 ## 앞선 병렬 묶음 — `fe3-*` 8벌 **완주** (2026-08-21 · PR #735~#743)
 
 `apps/web` 의 **화면 계층**에 테스트가 0건이던 축이다. 소유 티켓 = **[BL-815]**(✅ Resolved).
@@ -16,7 +58,7 @@
 9개 중 2개만 테스트가 있었다. **8/8 completed · 병합 충돌 0 · 변이 8/8 red** ·
 `apps/web` **237 files / 1,647 → 247 files / 1,780 passed**(신규 10파일 **+133 케이스**) ·
 전이 폐포 미도달 **53 → 32**. **대상 소스 전건 무변경.**
-★열려 있는 묶음은 지금 **없다** — 다음 재료는 `docs/status.md` 의 살아 있는 「다음 행동」이 든다.
+★이 묶음은 닫혔다. **열려 있는 묶음 = `fe4-*`/`be4-*` 8벌**(아래).
 
 | phase                    | 대상                                                    | 새 테스트 파일 (`apps/web/`)                                 |
 | ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------ |
