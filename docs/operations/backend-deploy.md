@@ -109,7 +109,7 @@ entrypoint의 migration 경로를 우회한다(`tools/scripts/soak-stack.sh:310-
    소크 정본은 리눅스 서버다(`tools/scripts/soak-stack.sh:243-249`).
 2. `quantbridge-api.service`의 유닛 파일, `WorkingDirectory`, `ExecStart`,
    `PROMETHEUS_MULTIPROC_DIR`를 확인한다. 유닛이 재배치 전 절대경로를 물면 죽은 경로로 남는다.
-   이 위험과 점검 대상은 `docs/development/gates-and-traps.md:312-331`에 기록돼 있다.
+   이 위험과 점검 대상은 `docs/development/traps-environment-shell.md` §환경(mise 면제·워크스페이스 아님·격리 포트 항목)에 기록돼 있다.
    ~~**레포는 이 API 유닛을 만들지 않는다.**~~ → **2026-08-18 [BL-805]**: 이제 만든다
    (`tools/scripts/api-service.sh`). 아래 실측값이 그 인스톨러의 기준선이다. ★**2026-08-18 서버 실측 — 유닛은 실재하고 running 이다:**
 

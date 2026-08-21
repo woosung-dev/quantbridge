@@ -1,7 +1,7 @@
 # Sprint 종료 Sweep 템플릿
 
 > **목적:** Sprint 종료 시 회고 + dual metric 측정 + dev-log 작성을 표준화한다.
-> **짝:** [`sprint-kickoff-template.md`](./sprint-kickoff-template.md) (시작 시 사용).
+> **짝:** 시작은 `docs/status.md` 「다음 스프린트」 블록이 유일한 진입점이다(구 `sprint-kickoff-template.md` 는 2026-08-21 삭제 — 원문 `git show 9e91809c:docs/development/workflows/sprint-kickoff-template.md`).
 > **도입:** Sprint 28 Slice 1a (Phase C.1 prototype) — 첫 검증 케이스.
 > **승격 경로:** Sprint 29+ 회고에서 동일 frontmatter 4 신규 필드 적용 시 영구 규칙 승격.
 

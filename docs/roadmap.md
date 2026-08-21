@@ -302,7 +302,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 > UNKNOWN 0 / 전체 191.** P별 ACTIVE = **P0 1 · P1 7 · P2 71 · P3 99**.
 > ★**이 값은 커밋마다 낡는다 — 손으로 세지 말고 `bash tools/scripts/bl-audit.sh` 를 다시 돌려라.**
 > 판정 SSOT 는 `docs/backlog.md` 각 섹션의 `**상태:**` 줄이고 산식은
-> [`tools/scripts/bl-audit.sh`](../tools/scripts/bl-audit.sh) 다. PARTIAL 은 active 로 세지 않는다.
+> `tools/scripts/bl-audit.sh` 였다(**2026-08-19 [ADR-037] 로 철거** — 원문 `git show harness-v1:tools/scripts/bl-audit.sh`). PARTIAL 은 active 로 세지 않는다.
 > 낡은 인라인 awk 산식은 폐기다 — cross-ref 한 줄이 항목을 지워서 BL-003 P0 를
 > RESOLVED 로 집계하고 **P0 active 를 0 으로 보고**했다.
 > ★과거 스냅샷 표기 4벌과 그 증감 귀속 서술은 **git history 로 내렸다** —
