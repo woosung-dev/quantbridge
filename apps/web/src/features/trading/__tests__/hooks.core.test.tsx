@@ -1,50 +1,39 @@
-// 트레이딩 훅의 미커버 React Query 경계를 고정한다.
+// 트레이딩 훅의 정상 React Query 경계와 API 요청 계약을 고정한다.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type * as ApiModule from "../api";
+import type {
+  AccountBalance,
+  ExchangeAccount,
+  KillSwitchEvent,
+  LiquidationInfoResponse,
+  RegisterAccountRequest,
+} from "../schemas";
 import { tradingKeys } from "../query-keys";
-import type { AccountBalance, KillSwitchEvent, LiquidationInfoResponse } from "../schemas";
 
-vi.mock("../api", async (importOriginal) => {
-  const actual = await importOriginal<typeof ApiModule>();
-  return {
-    ...actual,
-    getAccountBalance: vi.fn(),
-    getLiquidationInfo: vi.fn(),
-    listKillSwitchEvents: vi.fn(),
-    resolveKillSwitchEvent: vi.fn(),
-  };
+const apiFetchMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return { ...actual, apiFetch: apiFetchMock };
 });
 
 import {
-  getAccountBalance,
-  getLiquidationInfo,
-  listKillSwitchEvents,
-  resolveKillSwitchEvent,
-} from "../api";
-import {
   useAccountBalances,
+  useDeleteExchangeAccount,
   useIsOrderDisabledByKs,
   useLiquidationInfo,
+  useRegisterExchangeAccount,
   useResolveKillSwitchEvent,
 } from "../hooks";
-
-const getAccountBalanceMock = vi.mocked(getAccountBalance);
-const getLiquidationInfoMock = vi.mocked(getLiquidationInfo);
-const listKillSwitchEventsMock = vi.mocked(listKillSwitchEvents);
-const resolveKillSwitchEventMock = vi.mocked(resolveKillSwitchEvent);
 
 const ACCOUNT_ID = "50000000-0000-4000-8000-000000000001";
 
 function makeClient(): QueryClient {
   return new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-      mutations: { retry: false },
-    },
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
 }
 
@@ -66,26 +55,53 @@ function makeBalance(accountId: string): AccountBalance {
   };
 }
 
-afterEach(() => {
-  vi.clearAllMocks();
-});
+function makeAccount(overrides: Partial<ExchangeAccount> = {}): ExchangeAccount {
+  return {
+    id: ACCOUNT_ID,
+    exchange: "bybit",
+    mode: "demo",
+    label: "Demo account",
+    api_key_masked: "abcd••••wxyz",
+    exchange_uid: null,
+    read_only: false,
+    created_at: "2026-08-22T00:00:00Z",
+    ...overrides,
+  };
+}
+
+afterEach(() => apiFetchMock.mockReset());
 
 describe("trading core hooks", () => {
-  it("계정 잔고 팬아웃이 계정별 API와 인증 토큰을 사용한다", async () => {
+  it("계정 잔고 팬아웃이 계정별 경로와 인증 토큰을 사용한다", async () => {
     const secondAccountId = "50000000-0000-4000-8000-000000000002";
-    getAccountBalanceMock.mockImplementation(async (accountId) => makeBalance(accountId));
-
+    apiFetchMock.mockImplementation(async (path: string) =>
+      makeBalance(path.includes(secondAccountId) ? secondAccountId : ACCOUNT_ID),
+    );
     const { result } = renderHook(
       () => useAccountBalances([{ id: ACCOUNT_ID }, { id: secondAccountId }]),
       { wrapper: makeWrapper(makeClient()) },
     );
 
     await waitFor(() => expect(result.current.every((query) => query.isSuccess)).toBe(true));
-    expect(getAccountBalanceMock).toHaveBeenCalledWith(ACCOUNT_ID, "test-token");
-    expect(getAccountBalanceMock).toHaveBeenCalledWith(secondAccountId, "test-token");
+    expect(result.current.map((query) => query.data?.account_id)).toEqual([
+      ACCOUNT_ID,
+      secondAccountId,
+    ]);
+    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/exchange-accounts/${ACCOUNT_ID}/balance`, {
+      method: "GET",
+      token: "test-token",
+    });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      `/api/v1/exchange-accounts/${secondAccountId}/balance`,
+      {
+        method: "GET",
+        token: "test-token",
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("완비된 청산가 입력만 조회 키와 API 호출에 전달한다", async () => {
+  it("완비된 청산가 입력이 POST body와 사용자별 조회 키로 흐른다", async () => {
     const params = { symbol: "BTCUSDT", side: "buy" as const, entry_price: "100", leverage: 10 };
     const response: LiquidationInfoResponse = {
       ...params,
@@ -93,30 +109,38 @@ describe("trading core hooks", () => {
       maintenance_margin_rate: "0.005",
       distance_pct: "10",
     };
-    getLiquidationInfoMock.mockResolvedValue(response);
+    apiFetchMock.mockResolvedValueOnce(response);
     const queryClient = makeClient();
-
     const { result } = renderHook(() => useLiquidationInfo(params), {
       wrapper: makeWrapper(queryClient),
     });
 
     await waitFor(() => expect(result.current.data).toEqual(response));
-    expect(getLiquidationInfoMock).toHaveBeenCalledWith(params, "test-token");
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/liquidation/preview", {
+      method: "POST",
+      token: "test-token",
+      body: params,
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
     expect(queryClient.getQueryData(tradingKeys.liquidation("user-1", params))).toEqual(response);
   });
 
-  it("킬 스위치 해제 뒤 사용자별 이벤트 캐시를 무효화한다", async () => {
+  it("킬 스위치 해제가 기본 note를 POST하고 사용자별 이벤트 캐시를 무효화한다", async () => {
     const eventId = "60000000-0000-4000-8000-000000000001";
-    resolveKillSwitchEventMock.mockResolvedValue(undefined);
+    apiFetchMock.mockResolvedValueOnce(undefined);
     const queryClient = makeClient();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-
     const { result } = renderHook(() => useResolveKillSwitchEvent(), {
       wrapper: makeWrapper(queryClient),
     });
 
     await expect(result.current.mutateAsync(eventId)).resolves.toBeUndefined();
-    expect(resolveKillSwitchEventMock).toHaveBeenCalledWith(eventId, "test-token");
+    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/kill-switch/events/${eventId}/resolve`, {
+      method: "POST",
+      token: "test-token",
+      body: { note: "manual unlock from dashboard" },
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: tradingKeys.killSwitch("user-1") }),
     );
@@ -131,13 +155,69 @@ describe("trading core hooks", () => {
       triggered_at: "2026-08-22T00:00:00Z",
       resolved_at: null,
     };
-    listKillSwitchEventsMock.mockResolvedValue({ items: [activeEvent] });
-
+    apiFetchMock.mockResolvedValueOnce({ items: [activeEvent] });
     const { result } = renderHook(() => useIsOrderDisabledByKs(), {
       wrapper: makeWrapper(makeClient()),
     });
 
     await waitFor(() => expect(result.current).toBe(true));
-    expect(listKillSwitchEventsMock).toHaveBeenCalledWith("test-token");
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/kill-switch/events", {
+      method: "GET",
+      token: "test-token",
+      params: { limit: 20 },
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("거래소 계정 등록이 요청 body를 POST하고 계정 목록 캐시를 무효화한다", async () => {
+    const request: RegisterAccountRequest = {
+      exchange: "bybit",
+      mode: "demo",
+      label: "Demo account",
+      api_key: "api-key",
+      api_secret: "api-secret",
+      passphrase: null,
+    };
+    const response = makeAccount();
+    apiFetchMock.mockResolvedValueOnce(response);
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useRegisterExchangeAccount(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await expect(result.current.mutateAsync(request)).resolves.toEqual(response);
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/exchange-accounts", {
+      method: "POST",
+      token: "test-token",
+      body: request,
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: tradingKeys.exchangeAccounts("user-1"),
+      }),
+    );
+  });
+
+  it("거래소 계정 삭제가 DELETE 요청 뒤 계정 목록 캐시를 무효화한다", async () => {
+    apiFetchMock.mockResolvedValueOnce(undefined);
+    const queryClient = makeClient();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const { result } = renderHook(() => useDeleteExchangeAccount(), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await expect(result.current.mutateAsync(ACCOUNT_ID)).resolves.toBeUndefined();
+    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/exchange-accounts/${ACCOUNT_ID}`, {
+      method: "DELETE",
+      token: "test-token",
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: tradingKeys.exchangeAccounts("user-1"),
+      }),
+    );
   });
 });
