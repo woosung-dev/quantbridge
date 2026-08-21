@@ -44,7 +44,7 @@
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=50",
@@ -52,7 +52,10 @@
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx"
-      ]
+      ],
+      "started_at": "2026-08-22T04:23:48+0900",
+      "summary": "자기 변이 3건 모두 red·원복 확인: | 위치 | 변경 | red |\\n| --- | --- | --- |\\n| strategy/hooks.ts:233 | `trimmed.length > 0` → `< 0` | usePreviewParse의 trim 뒤 파싱 data가 undefined |\\n| optimizer/hooks.ts:75 | grid endpoint → Bayesian endpoint | grid mock 0회 호출 |\\n| waitlist/hooks.ts:71 | adminLists key → all key | approve invalidate key 불일치 |. 초록 변이는 없어 추가 케이스는 불필요했다. `tsc`가 lane fixture의 최신 schema 필수값(tags·settings)과 waitlist response 리터럴 4곳을 잡아 단언을 낮추지 않고 보정했다. 최종 표적 28/28, coverage lines 98.75%(237/240)·branches 89.39%·functions 90.19%, 대상 hooks 소스 diff 0; 전량 Vitest 257 files/1,954 tests, tsc, biome green.",
+      "completed_at": "2026-08-22T04:34:38+0900"
     }
   ],
   "created_at": "2026-08-22T04:02:23+0900"
