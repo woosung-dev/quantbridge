@@ -164,7 +164,8 @@
     },
     {
       "dir": "fe3-legal-geo-banner",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T09:57:30+0900"
     },
     {
       "dir": "fe3-numeric-display",
