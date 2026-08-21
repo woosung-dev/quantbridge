@@ -239,7 +239,8 @@
     },
     {
       "dir": "be5-di-assembly",
-      "status": "pending"
+      "status": "blocked",
+      "blocked_at": "2026-08-21T17:44:19+0900"
     },
     {
       "dir": "be5-dispatch-trio",

@@ -5,13 +5,18 @@
     {
       "step": 0,
       "name": "di-assembly",
-      "status": "pending",
+      "status": "blocked",
+      "blocked_reason": "build_backtest_service_for_worker()의 fixture 갈래가 함수 내부 timescale 전용 OHLCVRepository import의 shadowing으로 반환부에서 UnboundLocalError를 내므로, 대상 소스 0줄 변경 계약상 수정하지 않고 중단함.",
+      "summary": "20개 순수 DI 조립 케이스를 추가했다. worker repository는 Optimizer=Optimization·Backtest·Strategy, Stress=StressTest·Backtest·Strategy, Backtest=Backtest·Strategy·OHLCV·FundingRate이며, settings는 호출 시점 fixture→timescale 변경을 반영했다. 실행은 17 passed/3 failed(Backtest fixture 조립 UnboundLocalError).",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_worker_di_assembly.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_worker_di_assembly.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
         "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
         "cd apps/api && uv run ruff check tests/common/test_worker_di_assembly.py && uv run ruff format --check tests/common/test_worker_di_assembly.py"
-      ]
+      ],
+      "started_at": "2026-08-21T17:34:03+0900",
+      "blocked_at": "2026-08-21T17:44:19+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T17:34:03+0900"
 }
