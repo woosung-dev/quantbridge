@@ -56,7 +56,7 @@
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist",
@@ -67,7 +67,10 @@
         "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py",
         "cd apps/api && uv run ruff check tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run ruff format --check tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:49:22+0900",
+      "summary": "자기 변이 검증(실DB):\n| 위치 | 변이 | red |\n| --- | --- | --- |\n| live_signal_event_repository.py:list_pending | pending 상태 필터를 dispatched로 변경 | 예 |\n| live_signal_session_repository.py:try_claim_bar | 이전 bar 비교 <를 >로 변경 | 예 |\n| waitlist/repository.py:find_by_email | strip().lower() 정규화를 제거 | 예 |\nred가 안 난 변이: 없음(추가 케이스 불필요). 최종 AC: 1,210 passed, 수집 23건, session/event/waitlist 100%/100%/100%.",
+      "completed_at": "2026-08-22T04:54:51+0900"
     }
   ],
   "created_at": "2026-08-22T04:15:31+0900"
