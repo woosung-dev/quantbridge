@@ -524,7 +524,7 @@ async function main() {
     `✓ 리포트 — ${path.relative(REPO_ROOT, reportPath)} (라우트 ${report.rows.length}건 · 변경 ${report.changedCount}건)`,
   );
   console.log(
-    "  PR 코멘트로 올리기: gh pr comment --body-file " + path.relative(REPO_ROOT, reportPath),
+    `  PR 코멘트로 올리기: gh pr comment --body-file ${path.relative(REPO_ROOT, reportPath)}`,
   );
 }
 
