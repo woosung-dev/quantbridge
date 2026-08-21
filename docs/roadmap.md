@@ -2,6 +2,15 @@
 
 # QuantBridge — 제품 로드맵 · 남은 작업 체크리스트 (Living)
 
+> ★★★**2026-08-21 — 이 파일이 언급하는 검사기 4종은 존재하지 않는다.** [ADR-037] 제로베이스가
+> `bl-audit.sh` · `docs-audit.sh` · `bl-trigger-sweep.sh` · `final-gates.sh` 를 **2026-08-19 에
+> 철거했다**(원문 = `git show harness-v1:tools/scripts/`). 아래 산문에 남은 그 이름들은 **당시의
+> 이력**이지 지금 돌릴 명령이 아니다 — **치지 마라, 없다.**
+> 지금 기계로 집행되는 것은 `tools/scripts/ledger-vitals.sh` **3축뿐**이다(다음 행동 ≤1 ·
+> ⓪ 표 행 ≥3 · RESOLVED 역류 0). 나머지 규칙(원장 3분할 · `**상태:**` 줄 · 3면 일치 · 줄 길이
+> 상한)은 **규칙으로 남았고 사람이 지킨다.** 판정어별 목록이 필요하면 `grep '^### BL-'` 과
+> `grep '^\*\*상태:\*\*'` 로 직접 세라. 복귀는 **재입힘 규칙**(문서화된 사고 1건 = 슬림 복귀 1건) 경유다.
+
 > **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](backlog.md), 활성 sprint 상태 = [`status.md`](status.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
 >
 > **최종 갱신:** 2026-08-04 (**handler-visibility + nightly-real-broker 완료 · PR 준비 중** — 갈래 A: `_reconcile_conditional_entries` **876줄/try 본문 845줄 → 46/8**, `_evaluate_session_inner` **796/770 → 17/1**, 운반자에 `try` **0개**, 새 `.py` **0개**. ★★★**codex 가 「행위 변경 0」을 반증** — lazy import 를 헬퍼로 옮기자 **실패 시점이 커밋 뒤로** 밀렸다(`get_ccxt_provider_for_worker` 가 `commit()` 뒤, `run_live` 가 `try_claim_bar` 뒤); 복원 후 재확인. ★**다중집합 비교는 문장 순서를 구조적으로 못 본다.** ★내 검증 도구가 적대 검증에서 **42주입 중 16 거짓 음성**(가장 큰 것: `except`/`else`/`finally` 구역 site **24개**가 감싸는 `try` 를 통째로 잃음). 갈래 B: nightly 가 **10/10 실패**했고 지점은 pytest 가 아니라 `alembic` 이었다 ⇒ **pytest 는 한 번도 안 돌았고 이슈 89건은 flakiness 증거가 아니다**; 워크플로 9건 수리 + 계약 감사 13테스트. ★**실거래소는 1바이트도 미검증**)
@@ -414,7 +423,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [ ] **BL-632** [P2] 골든을 오라클로 승격했지만 그 기대값은 **엔진 자신의 출력**이다 — 회귀 감지기이지 정확성 오라클이 아니다. 반순환 근거인 손계산 오라클 `test_golden_oracle_ema_sltp.py` 는 4봉·고정 stop/limit 이라 `ta.atr` 를 한 번도 안 탄다 ⇒ BL-621 의 낡음을 만든 그 축이 구조적으로 오라클 밖이다 · (골든 값이 또 어긋났을 때 · 백테스트 정확성을 대외 주장해야 할 때)
 - [x] **BL-812 ✅ Resolved** [P2] [ADR-037] 재입힘 목록의 대상 생존 7종에 pytest 최소판이 없었다 — **2026-08-21 밤샘 루프 1차 종결**. 재입힘 **7/7** + 인접 4종을 8 lane 워크트리 병렬로 채웠다(`phases/ops2-*` · 8/8 completed · retry 0 · 변이 10/10 red · PR #712~#720). `apps/api/tests/scripts/` 신규 8파일 **0건 → 138 passed + 2 xfailed**, 대상 스크립트 무변경. ★러너가 남긴 xfail 1건이 phantom 이었다(픽스처가 alembic 화살표 의미를 뒤집음 — [LESSON-121]) · 진짜 결함 2건은 strict xfail 로 고정
 - [x] **BL-813 ✅ Resolved** [P2] FE 순수 판정 모듈 테스트 0건 — **2026-08-21 밤샘 루프 2차 종결**. 인증 경계(`proxy.ts`)·`route-matcher`·`auth.ts`(geo L3 + 탈퇴 fail-closed)·`auth-server`·마케팅 캐논·어댑터·전역 상태를 8 lane 워크트리 병렬로 채웠다(`phases/fe2-*` · 8/8 completed · 병합 충돌 0 · 변이 8/8 red · PR #725~#732). `apps/web` vitest **227 files/1,497 → 237 files/1,647 passed**(신규 10파일 **+150 케이스**), **대상 소스 전건 무변경**. ★lane 5 가 `error` 로 한 번 죽었고 그것이 산출이다 — 내 step 의 기대가 거짓이었다(→ [BL-814])
-- [ ] **BL-814** [P3] `_HINTS[name]` 이 `Object.prototype` 을 상속해 **상속 키 5종이 fallback 을 못 받는다** — `toString`·`__proto__`·`constructor`·`valueOf`·`hasOwnProperty` 는 `{name}` 만 나오고 `hint`·`category` 가 없다(2026-08-21 실측). 소비자가 `hint.hint` 를 렌더하므로 **화면에 `undefined`** 가 나간다. 처방 = `hasOwnProperty.call` 가드 또는 `Map`(1~2줄). ★지금 동작은 PR #732 가 테스트로 고정해 뒀다 — 고치면 그 케이스가 red 로 뒤집히고 그것이 종결 신호다
+- [x] **BL-814 ✅ Resolved** [P3] `_HINTS` 가 `Object.prototype` 을 상속해 상속 키 5종이 fallback 을 못 받았다 — **2026-08-21 종결**(발견 당일). 수리 = `hasOwnProperty.call` 가드 1줄. ★PR #732 가 고정해 둔 케이스가 **예고대로 red 로 뒤집혀** 갱신했다 — 원장이 적은 종결 신호가 실제로 발화한 사례다. ★변이(가드 제거) red · 38 passed
 
 ### P3 — 문서 lint
 
@@ -502,6 +511,13 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 - [x] **G1 DB 호스팅 재결정** — ✅ **2026-08-16 확정: ① self-host TimescaleDB CE 유지** ([ADR-033](decisions/033-db-hosting-self-host-timescaledb.md)). 관리형이 막힌 것은 업체 사정이 아니라 TimescaleDB 의 **TSL 라이선스**(RDS·Supabase PG17·Fly MPG 전부 같은 이유). DB 24MB · hypertable 고유 기능 사용처 0건이라 되돌리기가 덤프 한 번이다. 조건 3종 동시 확정 — 백업 자동화([BL-767]) · 디스크 80% 경보([BL-768]) · 전환 트리거 4종. ⇒ **아래 셋의 선행이 풀렸다**
 - [ ] **BL-070** 도메인 + DNS + (옵션) Cloudflare — 1-2h + 전파 24h ★선행 해제(G1)
+
+> ★★**2026-08-21 — BL-070~075 여섯은 여기 체크박스로만 산다.** 원장 3종에 **섹션이 없어**
+> 판정어(`**상태:**` 줄) 체계가 이들을 못 본다 — ⓪ 표에도, 판정어 집계에도 안 잡힌다.
+> 같은 결손이 **[BL-005]**(본인 dogfood)·**[BL-145]**(EffectiveLeverageEvaluator)에도 있다.
+> ⇒ **열린 항목 8건이 원장에서 보이지 않는다.** Beta 를 실제로 열 때 이 여섯에 섹션을 세워라
+> (지금 세우면 내용이 로드맵 한 줄의 복사본이 될 뿐이라 미뤘다).
+
 - [ ] **BL-071** Backend 프로덕션 배포 — ★배포 대상 확정(self-host CE, [ADR-033]). ★★**2026-08-17 [ADR-034] 로 「Clerk production 승격」 축이 사라졌다** — 인증이 self-host 로 왔다. ★**2026-08-16 beta-cutover 에서 코드 축이 전부 닫혔다**: 전용 DB 롤 `qb_auth` 생성 완료 · rate limit([BL-754]) 종결 · uvicorn `--no-server-header`([BL-347]) 종결. 남은 것은 **서버 env 주입 + `APP_ENV=production` 플립** 하나이고, validator 5종(SECRET_KEY 비-placeholder · WAITLIST_TOKEN_SECRET · FRONTEND_URL/WAITLIST_INVITE_BASE_URL/BETTER_AUTH_URL 비-localhost · PROMETHEUS_BEARER_TOKEN)을 채우지 못하면 **부팅이 거부된다**
 - [ ] **BL-072** Resend 이메일 + Waitlist 활성화 — 1-2h + verify 24h ★선행 해제(G1). ★**2026-08-16 beta-cutover 에서 실코드 결손을 닫았다** — `/invite/[token]` 페이지 신설(BE·config·Makefile·env 넷이 이미 `/invite` 를 가리키는데 라우트만 없어 **초대 메일 링크가 404** 였다) + `RESEND_FROM_ADDRESS` 설정화(기본값 `…@quantbridge.app` 은 실도메인이 아니라 Resend 가 403 을 낸다). 남은 것은 **Resend 도메인 검증(사용자 수동)** + 키 주입
 - [ ] **BL-073** Twitter/X #buildinpublic 캠페인 — (BL-070~072 후 trigger)

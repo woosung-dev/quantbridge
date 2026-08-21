@@ -22,7 +22,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 4. **원클릭 라이브 전환** — 동일 코드, URL만 변경하여 라이브 트레이딩
 5. **(2026-05-04 Addendum) Auto-Loop 자동화** — Beat scheduler + Worker dispatch 로 dogfood/Beta 사용자가 매분 수동 개입 없이 평가→주문→close cycle 자동 실행 (Sprint 27 §0.5 dogfood Day 0-4 evidence: 26h+ 무중단, dispatch rate 1.0/min, 5 sessions 동시). **외부 노출 가능 핵심 신뢰 지표** — 처음 office-hours (Sprint 7c) 의 "curl/psql 감내" 가정이 dogfood 결과로 무효화, 자동화 필수성으로 승격. 상세: [`ADR-008`](../../decisions/008-sprint7c-scope-decision.md) "2026-05-04 Addendum"
 
-## 4 신규 도메인 (Sprint 12-27 dogfood 부상, Sprint 28 office-hours 재진행 시 명시)
+## 4 신규 도메인 (2026-05~06 dogfood 3개월 누적으로 부상 — 구 `Sprint 12~28` 구간)
 
 처음 vision (2026-04-14) 에는 미존재. dogfood 3개월 누적으로 부상한 cross-cutting 도메인:
 
@@ -31,7 +31,10 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 3. **Auto-Loop 자동화** — Sprint 27 §0.5 first run 으로 외부 노출 가능 신뢰 지표 부상 (위 핵심 가치 §5 와 동일).
 4. **Multi-account / symbol / timeframe Live Trading** — Sprint 26 PR #100. 두 ExchangeAccount + BTC/SOL + 1m/5m/15m/1h 혼합.
 
-이 4 도메인이 Sprint 28 narrowest wedge 정의 (BL-141 / BL-140b / BL-004 = Beta 진입) 의 evidence base.
+이 4 도메인이 당시 narrowest wedge 정의의 evidence base 였다.
+
+> ★**2026-08-21 정정.** 이 문단이 가리키던 `BL-141 / BL-140b / BL-004` 는 **원장 3종에 섹션이 없다**(아카이브됨). **Beta 진입의 현행 정의는 [BL-070](도메인·DNS) → [BL-071](백엔드 프로덕션 배포, self-host CE [ADR-033]) → [BL-072](Resend + Waitlist 활성화)** 이고, 그 뒤가 [BL-073](캠페인) · [BL-074](인터뷰) · [BL-075](H2 게이트)다 — 정본은 [`roadmap.md`](../../roadmap.md) §Beta 배포. ★**이 여섯은 `roadmap.md` 체크박스로만 살아 있고 원장 섹션이 없다** — 판정어 체계가 못 보는 상태다(2026-08-21 실측).
+> ★그리고 **[BL-070] 의 Cloudflare Access 축은 [BL-776] 뒤로 간다** — 걷으면 가입에 초대 토큰이 없어 **개방 가입만 열린다**(2026-08-16 사용자 결정).
 
 ## 차별화 (Positioning)
 

@@ -1,5 +1,14 @@
 # QuantBridge — Refactoring Backlog · RESOLVED 본문
 
+> ★★★**2026-08-21 — 이 파일이 언급하는 검사기 4종은 존재하지 않는다.** [ADR-037] 제로베이스가
+> `bl-audit.sh` · `docs-audit.sh` · `bl-trigger-sweep.sh` · `final-gates.sh` 를 **2026-08-19 에
+> 철거했다**(원문 = `git show harness-v1:tools/scripts/`). 아래 산문에 남은 그 이름들은 **당시의
+> 이력**이지 지금 돌릴 명령이 아니다 — **치지 마라, 없다.**
+> 지금 기계로 집행되는 것은 `tools/scripts/ledger-vitals.sh` **3축뿐**이다(다음 행동 ≤1 ·
+> ⓪ 표 행 ≥3 · RESOLVED 역류 0). 나머지 규칙(원장 3분할 · `**상태:**` 줄 · 3면 일치 · 줄 길이
+> 상한)은 **규칙으로 남았고 사람이 지킨다.** 판정어별 목록이 필요하면 `grep '^### BL-'` 과
+> `grep '^\*\*상태:\*\*'` 로 직접 세라. 복귀는 **재입힘 규칙**(문서화된 사고 1건 = 슬림 복귀 1건) 경유다.
+
 > ★**이 파일은 원장의 일부다.** `docs/backlog.md` · `docs/backlog-deferred.md` 와 **한 벌로**
 > `tools/scripts/bl-audit.sh` 가 읽는다 — 섹션 수·판정 수는 **세 파일의 합계**이고,
 > 인덱스 표 행(`| [BL-nnn](#bl-nnn) | … |`)은 `docs/backlog.md` 에 남아 있다.
@@ -20,6 +29,56 @@
 > 「중복 섹션 헤더」로 red 를 낸다(뒤 섹션이 앞 섹션 판정을 덮어쓰기 때문이다).
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
+
+### BL-814
+
+**Title:** `_HINTS[name]` 이 `Object.prototype` 을 상속해 **상속 키 5종은 fallback 을 못 받는다** — 화면에 `undefined` 가 나간다
+**Category:** 버그 / 프런트엔드
+**상태:** ✅ **RESOLVED** (2026-08-21 ledger-resync — 발견 당일 종결)
+**Priority:** P3
+**Trigger:** 도래 — 2026-08-21 실측으로 확인됐다
+**Est:** XS (수리) + S (BE 목록에 실제로 그런 이름이 오는지 확인)
+**출처:** 2026-08-21 밤샘 루프 2차 `fe2-builtin-hints` lane (PR #732)
+
+**원인:** `apps/web/src/lib/unsupported-builtin-hints.ts` 의 `_HINTS` 는 **객체 리터럴**이고 조회가
+`const meta = _HINTS[name];` **직접 인덱싱**이다. 그래서 `Object.prototype` 의 키가 **truthy 로 잡히고**
+`if (meta)` 를 통과한다. 그런데 그 값은 함수라 `{ name, ...meta }` 가 **own enumerable 속성 0개**를
+퍼뜨려 결과가 **`{ name }` 뿐**이 된다.
+
+**실측 (2026-08-21 · CONTROL 직접):**
+
+| 입력                                                                    | 실제 반환                                              |
+| ----------------------------------------------------------------------- | ------------------------------------------------------ |
+| `toString` · `__proto__` · `constructor` · `valueOf` · `hasOwnProperty` | **`{ name }` — `hint` 와 `category` 가 아예 없다**     |
+| `nope1` (진짜 미적중)                                                   | `{ name, hint: "nope1 — 미지원 …", category: "noop" }` |
+
+**영향:** 파일 주석이 「mapping 미존재 시 generic fallback」이라 적었지만 **상속 키 5종에 대해 그
+문장은 거짓**이다. 소비자 `apps/web/src/components/form-error-inline.tsx` 는 `hint.hint` 를 렌더하고
+`hint.category` 로 아이콘·심각도를 고르므로 **화면에 `undefined` 가 나가고 분기가 깨진다.**
+
+★**긴급도가 낮은 이유** — 이름은 BE 의 `unsupported_builtins` 에서 오고 Pine 에 `toString` 같은
+빌트인은 없다. **[확인 필요]** BE 가 그런 이름을 낼 수 있는 경로가 실제로 있는지는 안 쟀다.
+
+**처방 (택1, 둘 다 1~2줄):**
+
+- `const meta = Object.prototype.hasOwnProperty.call(_HINTS, name) ? _HINTS[name] : undefined;`
+- `_HINTS` 를 `Object.create(null)` 기반이나 `Map` 으로 바꾼다
+
+★**지금 동작은 PR #732 가 테스트로 고정해 뒀다**(`expectInheritedPrototypeLookup`).
+**고칠 때 그 케이스가 red 로 뒤집히므로 함께 갱신해라** — 그것이 이 항목이 닫혔다는 신호다.
+
+**수리 (2026-08-21):** `getUnsupportedBuiltinHint` 의 조회를
+`Object.prototype.hasOwnProperty.call(_HINTS, name) ? _HINTS[name] : undefined` 로 바꿔
+**자기 소유 키만 적중으로 인정**하게 했다(1줄 + 근거 주석 6줄). 상속 키 5종은 이제 일반
+미적중과 **똑같은 fallback** 을 받는다.
+
+★**PR #732 가 고정해 둔 케이스가 종결 신호대로 뒤집혔다** — `expectInheritedPrototypeLookup`
+이 「`{name}` 만 나온다」를 단언하고 있었고, 수리 후 그것이 red 가 되어 **`expectFallback` 으로
+다시 썼다.** 원장이 예고한 그대로다.
+
+★**변이로 판별력 확인** — 가드를 되돌리는 변이(`const meta = _HINTS[name];`)에 **rc=1 red** ·
+sha256 왕복 복원 OK. 테스트가 수리를 실제로 재고 있다(항진명제가 아니다).
+파일 전체 **38 passed** 유지.
 
 ### BL-813
 
