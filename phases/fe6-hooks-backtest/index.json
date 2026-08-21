@@ -44,7 +44,7 @@
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/backtest/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/backtest/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=50",
@@ -52,7 +52,10 @@
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check src/features/backtest/__tests__/hooks.core.test.tsx"
-      ]
+      ],
+      "started_at": "2026-08-22T03:51:58+0900",
+      "summary": "QueryClient 캐시로 useCreateBacktest(목록 invalidate+onSuccess), useCancelBacktest(목록·상세·진행률 invalidate+onSuccess), useDeleteBacktest(상세·진행률 remove+목록 invalidate+onSuccess)를 보강했다. | 변이 | 위치·변경 | red | create L244 invalidateKeys→[] | 목록 isInvalidated=false | 예 | cancel L258 detail→lists | detail isInvalidated=false | 예 | delete L275 progress→detail | progress 캐시 잔존 | 예 | red 탈출 변이 0건. 매 변이 뒤 SHA-256 4289afdb…6822047c로 byte-identical 복구했고 hooks.ts diff=0. hooks.core 36 tests, hooks.ts lines 287/290 (98.96%).",
+      "completed_at": "2026-08-22T04:00:08+0900"
     }
   ],
   "created_at": "2026-08-22T03:31:02+0900"
