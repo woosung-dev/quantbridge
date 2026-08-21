@@ -5,13 +5,17 @@
     {
       "step": 0,
       "name": "convert-service",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/strategy/convert/test_convert_service_fallback.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/strategy/convert/test_convert_service_fallback.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
         "cd apps/api && uv run --env-file .env.local pytest tests/strategy/convert -q",
         "cd apps/api && uv run ruff check tests/strategy/convert/test_convert_service_fallback.py && uv run ruff format --check tests/strategy/convert/test_convert_service_fallback.py"
-      ]
+      ],
+      "started_at": "2026-08-21T17:34:03+0900",
+      "summary": "Gemini fallback 회귀 18건: RetryError last_attempt.exception() 1회 관측; 기존 error_leak의 monkeypatch 200-warning 축과 부분 중첩하나 실제 client·Gemini 본문 경로는 신규.",
+      "completed_at": "2026-08-21T17:48:06+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T17:34:03+0900"
 }
