@@ -215,9 +215,13 @@ describe("strategy hooks", () => {
     >;
     const updated = { id: "strategy-1" } as StrategyResponse;
     const request: UpdateStrategySettingsRequest = {
+      schema_version: 1,
       leverage: 2,
       margin_mode: "cross",
       position_size_pct: 10,
+      max_trigger_breach_pct: null,
+      max_reversal_overshoot_ratio: null,
+      fill_timing: "bar_close",
     };
 
     expect(options.invalidateKeys("strategy-user", updated, request)).toEqual([
@@ -273,6 +277,7 @@ describe("strategy hooks", () => {
     const body: CreateStrategyRequest = {
       name: "Core strategy",
       pine_source: "strategy('core')",
+      tags: [],
     };
     const created = { id: "strategy-1" } as StrategyCreateResponse;
     createStrategyMock.mockResolvedValue(created);
@@ -290,6 +295,7 @@ describe("strategy hooks", () => {
     const body: CreateStrategyRequest = {
       name: "Core strategy",
       pine_source: "strategy('core')",
+      tags: [],
     };
     const error = new ApiError(409, "strategy_conflict", "API 409 /api/v1/strategies");
     const onError = vi.fn();

@@ -129,7 +129,7 @@ describe("waitlist hooks", () => {
       AdminApproveResponse,
       string
     >;
-    const response = {
+    const response: AdminApproveResponse = {
       id: "application-1",
       status: "invited",
       email: "alice@example.com",
