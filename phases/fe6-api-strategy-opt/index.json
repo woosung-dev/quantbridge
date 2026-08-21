@@ -5,37 +5,46 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api.test.ts -a -f apps/web/src/features/optimizer/__tests__/api.test.ts -a -f apps/web/src/features/alert-rules/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=15",
         "git diff --quiet -- apps/web/src/features/strategy/api.ts apps/web/src/features/optimizer/api.ts apps/web/src/features/alert-rules/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:31:02+0900",
+      "summary": "실측 차이: 신설 전 지정 AC는 테스트 파일 부재로 세 대상 모두 lines 0%(0/219)였으며 CONTROL의 strategy 3.2%와 다르다. 최종 lines=Strategy 36.17%(34/94), Optimizer 42.69%(38/89), Alert-rules 38.88%(14/36). 심볼 표: Strategy 덮음[listStrategies, createStrategy] / 안 덮음[getStrategy, rotateWebhookSecret, updateStrategy, updateStrategySettings, deleteStrategy, parseStrategy]; Optimizer 덮음[postGridSearch, postBayesianSearch, postGeneticSearch] / 안 덮음[getOptimizationRun, listOptimizationRuns]; Alert-rules 덮음[listAlertRules] / 안 덮음[createAlertRule, deactivateAlertRule]. mock=@/lib/api-client의 apiFetch(HTTP 전송의 유일한 외부 경계) — URL·method·token·Zod 정규화/응답 parse를 격리 단언했고, optimizer POST URL은 grid-search·bayesian·genetic으로 각각 다름을 확인.",
+      "completed_at": "2026-08-22T03:36:13+0900"
     },
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api.test.ts -a -f apps/web/src/features/optimizer/__tests__/api.test.ts -a -f apps/web/src/features/alert-rules/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=55",
         "git diff --quiet -- apps/web/src/features/strategy/api.ts apps/web/src/features/optimizer/api.ts apps/web/src/features/alert-rules/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:36:18+0900",
+      "summary": "정상 경로 10건을 추가해 16건 전부가 apiFetch 단일 mock에서 리터럴 URL·method·params/body·token·1회 호출·Zod 반환을 단언한다. Step 1은 Strategy[getStrategy, rotateWebhookSecret, updateStrategy, updateStrategySettings, deleteStrategy, parseStrategy]·Optimizer[getOptimizationRun, listOptimizationRuns]·Alert-rules[createAlertRule, deactivateAlertRule]를 덮었다. 실측: settings schema는 누락된 max_trigger_breach_pct/max_reversal_overshoot_ratio를 null로 보완하고, optimizer 목록은 valid item만 반환하며 skipped_count=0을 붙인다. 대상 소스 변경 0줄.",
+      "completed_at": "2026-08-22T03:40:03+0900"
     },
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api.test.ts -a -f apps/web/src/features/optimizer/__tests__/api.test.ts -a -f apps/web/src/features/alert-rules/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=80",
         "git diff --quiet -- apps/web/src/features/strategy/api.ts apps/web/src/features/optimizer/api.ts apps/web/src/features/alert-rules/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:40:07+0900",
+      "summary": "오류·경계 15건을 추가해 세 API의 ApiError 동일 객체(status/code) 전파·Zod 계약 위반·204 void·빈 목록/total=0/첫 페이지·0/음수 입력을 덮었다. Strategy는 실제 apiFetch 1회 전송으로 parse_status=undefined가 URL에 없음을 확인했고, Optimizer의 호환 불가 행 skip도 단언했다. mock=@/lib/api-client의 apiFetch; 31건·대상 3파일 lines 100%, 소스 변경 0줄.",
+      "completed_at": "2026-08-22T03:45:27+0900"
     },
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api.test.ts -a -f apps/web/src/features/optimizer/__tests__/api.test.ts -a -f apps/web/src/features/alert-rules/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=85",
@@ -43,7 +52,12 @@
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:45:29+0900",
+      "summary": "변이 검증 표:\n| 위치 | 변이 | red |\n| --- | --- | --- |\n| strategy/api.ts:127 `parseStrategy` | POST→GET | 예 — method 단언 1건 실패 |\n| optimizer/api.ts:39 `postBayesianSearch` | bayesian→grid-search 경로 | 예 — URL 단언 1건 실패 |\n| alert-rules/api.ts:45 `deactivateAlertRule` | DELETE→GET | 예 — method 단언 1건 실패 |\n초록 변이 0건이라 추가 케이스 없음. 최종 대상 31/31·lines 100%(219/219), 전체 Vitest 256 files/1,927 tests, tsc·Biome 통과, 대상 소스 diff 0. API 함수 입력은 Zod output 타입이므로 기본값 생략 테스트 입력을 타입 완전형으로 보완했다.",
+      "completed_at": "2026-08-22T03:54:47+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-22T03:31:02+0900",
+  "completed_at": "2026-08-22T03:54:51+0900"
 }
