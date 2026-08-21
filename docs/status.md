@@ -411,7 +411,7 @@ OCI `quantbridge/` prefix 객체 · **C2 24.0007h 전후 불변**) + 디스크 �
 | **BO** | [BL-811] `--deferred-only` 의 두 레그가 **같은 BE 를 서로 다른 origin 으로** 요구한다 — e2e 는 dev `:3100` · 화면 증거 authed 는 프로덕션 `:3110` 인데 CORS 는 단일 값이다                                                                                                                                                                                                                                                                                           | P3  | ★★                                                                                                                | 하     | S~M             | ✗              | 거짓 초록은 안 난다(전제 프로브가 죽는다). 잃는 것은 **한 번에 끝나는 종결**이고, 「유예 원장이 비어야 종결」 규약과 어긋난다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | **BP** | ~~[BL-808] 스키마 동등성 축의 잔여 3구멍~~ → **2026-08-19 ✅ RESOLVED (PR #691, phase `n7-bl810-bl808`)** — 본문은 `docs/backlog-resolved.md` 소관이다. 2026-08-21 표에서 내림. ★라벨이 위 행과 함께 `BN` 으로 중복돼 있었다 → `BP`                                                                                                                                                                                                                                  | P3  | ★                                                                                                                 | 하     | S               | ✓              | 적대 리뷰가 셋을 재현 시나리오와 함께 확정했다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **BQ** | ~~[BL-816] `/not-available` 만 `metadata` 를 export 하지 않는다~~ → **2026-08-21 ✅ RESOLVED (밤샘 루프 4차 ① 사전 배치 PR)** — 같은 병 7건을 함께 채웠다. ★**이 행은 뒤늦게 세운 것이다**: BL-816 은 하루 내내 ACTIVE 였는데 이 표에 행이 없었다. 계약(살아있는 행 == ACTIVE ∪ (PARTIAL ∧ 도래))이 깨져 있었고 `ledger-vitals.sh` 는 **행 수만** 세서 못 잡는다                                                                                                     | P3  | —                                                                                                                 | 낮     | XS              | 0줄            | 종결 — 본문은 `backlog-resolved.md` 소관                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| **BR** | [BL-817] `app/**` 라우트 조립층에 테스트가 0건이다 — [BL-786] 프리페치 키 동일성 · UUID→`notFound()` 가드 · `getServerAuth` 배선 · `metadata` 계약이 무증거다                                                                                                                                                                                                                                                                                                        | P2  | ★★★                                                                                                               | 낮     | M (8 lane 병렬) | 0줄            | ★전이 폐포 실측 2026-08-21 — `apps/web` **33/344** 미도달(실질 = `page.tsx` 14 + `layout` 2 + og 1) · `apps/api` **2/193**. 3차가 화면 계층을 닫고 **이 층만** 남겼다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **BR** | ~~[BL-817] `app/**` 라우트 조립층에 테스트가 0건이다~~ → **2026-08-21 ✅ RESOLVED (밤샘 루프 4차)** — 8/8 · 변이 8/8 red · 미도달 33→15 — [BL-786] 프리페치 키 동일성 · UUID→`notFound()` 가드 · `getServerAuth` 배선 · `metadata` 계약이 무증거다                                                                                                                                                                                                                   | P2  | —                                                                                                                 | 낮     | M (8 lane 병렬) | 0줄            | ★전이 폐포 실측 2026-08-21 — `apps/web` **33/344** 미도달(실질 = `page.tsx` 14 + `layout` 2 + og 1) · `apps/api` **2/193**. 3차가 화면 계층을 닫고 **이 층만** 남겼다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 > ★**강등** — 2026-08-16 에 5행([BL-026]·[BL-726]·[BL-729]·[BL-730]·[BL-731], 원문 `git show b5e24fbf:docs/status.md`), 2026-08-17 야간에 4행([BL-725]·[BL-732]·[BL-735]·[BL-737], 원문 `git show 0875789c:docs/status.md`)을 지워 700줄 상한 안에서 신규 행 자리를 만들었다. 지운 것은 전부 **이미 취소선이던 사문**이다.
 > ★난이도·소요는 `[가정]`이고 preflight 에서 재측정한다.
@@ -532,56 +532,48 @@ FE 순수 판정 모듈 `apps/web` **1,497 → 1,647 passed**(PR #724~#733).
 
 ### 밤샘 루프 2·3차 — 8+8 lane 완주 · [BL-813]·[BL-815] 종결 (2026-08-21)
 
-**누적 — FE 테스트가 두 회차로 1,497 → 1,780 passed 가 됐다**(파일 227 → 247 · **신규 20파일 ·
-+283 케이스**). 전이 폐포 미도달 **58 → 32**(총 343 중). **대상 소스는 두 회차 다 전건 무변경**이고
-`tsc --noEmit` rc=0 유지. 2차 = 순수 판정 모듈(PR #724~#733) · 3차 = 화면 계층(PR #735~#743).
-**8/8 · 8/8 completed · 병합 충돌 0 · 변이 8/8 · 8/8 red.**
+FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · 신규 20파일 **+283**). 전이 폐포 미도달
+**58 → 32**. **대상 소스 두 회차 다 전건 무변경.** 2차 = 순수 판정 모듈(PR #724~#733) · 3차 = 화면 계층(PR #735~#743).
 
-> **강등 tombstone (2026-08-21 · 700줄 상한).** 두 회차 서술 65줄을 이 블록으로 줄였다.
-> 원문 = `git show 56347626:docs/status.md`. 절차·교훈은 [`phases/README.md`](../phases/README.md),
-> 반증은 [`lessons.md`](lessons.md) **LESSON-122~124**, 티켓 본문은 `backlog-resolved.md` 가 진다.
+> **강등 tombstone (2026-08-21 · 700줄 상한).** 두 회차 서술을 4차 종결과 함께 6줄로 더 줄였다.
+> 원문 = `git show 97f97efd:docs/status.md`. 절차·교훈은 [`phases/README.md`](../phases/README.md),
+> 반증은 [`lessons.md`](lessons.md) **LESSON-122~125**, 티켓 본문은 `backlog-resolved.md` 가 진다.
+> ★두 회차가 남긴 한 줄 = **「내가 step 에 적은 기대가 사실상 AC 다」**([LESSON-122]) — 4차는 그것이
+> **착수 프롬프트에도 적용된다**는 것을 더했다.
 
-★★★**두 회차가 같은 것을 두 번 가르쳤다 — 「내가 step 에 적은 기대가 사실상 AC 다」**([LESSON-122]).
-2차는 `fe2-builtin-hints` 가 **AC 3회 red 로 `error`**(`_HINTS` 프로토타입 상속 → [BL-814]),
-3차는 `fe3-public-legal-pages` 가 **`blocked`**(`/not-available` 에 `metadata` 부재 → [BL-816]).
-**두 번 다 틀린 것은 테스트가 아니라 내 기대였고, 두 번 다 진짜 결함이 드러났다.**
-⇒ **재지 않은 값을 step 에 쓰지 마라 — 쓰려면 먼저 돌려 보고 실측표로 박아라.**
+### 밤샘 루프 4차 — [BL-817] 종결 · FE 라우트 조립층 8 lane 완주 (2026-08-21)
 
-★★**착수 전 실측이 lane 을 두 번 구했다** — 2차는 프로브가 `server-only` **top-level throw**(그리고
-`vi.mock` 으로 안 막힌다는 것)를 잡아 공유 설정으로 길을 텄고([LESSON-123]), 3차는 **AC red 측정
-자체**가 `src/app/error.tsx` 가 **이미 커버돼 있음**(rc=0 · 판별력 0)을 드러내 lane 을 교체시켰다.
-⇒ **「AC red 측정」은 판별력 검사이자 재료 실사다.**
+**8/8 completed · retry 0 · blocked 0 · 병합 충돌 0 · 변이 8/8 red · 6분.** PR #745(① 사전 배치) +
+**#746~#753 전부 머지**. `apps/web` **247 files/1,780 → 253 files/1,896 passed**(신규 6파일 **+116**) ·
+`apps/api` 신규 **29** · 전이 폐포 미도달 `web` **33 → 15** · `api` **2 → 1** · **대상 소스 전건 무변경**.
+[BL-816] 도 ① PR 에서 함께 닫았다(`metadata` 미export **8 → 1**).
 
-★**내 도구가 여섯 번 무증거·오작동을 냈고 전부 셸이었다** — `cd` 잔류로 빈 AC 가 rc=0 ·
-zsh 단어분할로 워크트리 0개 생성 · **macOS bash 3.2 에 연관 배열이 없어 PR 7건이 같은 본문** ·
-같은 이유로 **`mapfile` 부재**가 검사기를 「테스트 0파일 clean」으로 · AC 생성기가 경로를 `\"` 로
-감싸 **파일이 생겨도 실패할 AC** · 변이를 **타입 수준**(`as undefined`)으로 심어 런타임 미도달.
-⇒ **CONTROL 의 검사기는 셸이 아니라 python 으로 써라.** 셸을 쓸 거면 각 단계를 서브셸에 넣어라.
-
-~~**다음 행동 = 남은 미도달 32 를 볼지, Beta 진입 축을 열지 사용자가 고른다.**~~
-→ **2026-08-21 사용자 결정 = 밤샘 루프 4차 속행**(정합·metadata 축을 ① 사전 배치 PR 에 흡수).
-소유 티켓 = **[BL-817]** · ① PR 에서 **[BL-816] 종결**.
-★**「서버 컴포넌트라 비싸다」던 내 인상은 반증됐다** — 실측하니 `page.tsx` 14개 중 **async 는 8개**,
-`getServerAuth` 의존은 **4개**뿐이고 나머지는 6~19줄 순수 래퍼다. 얇은 것과 잴 것이 없는 것은 다르다.
-
-### 밤샘 루프 4차 — [BL-817] · FE 라우트 조립층 8 lane (2026-08-21 착수)
-
-**다음 행동 = ① 사전 배치 PR(`feat/harness-fe4-boot`)을 `main` 에 머지한 뒤 lane 8벌 워크트리를 판다.**
-lane 배분·AC·함정 전문은 [BL-817] 본문과 [`phases/README.md`](../phases/README.md) 가 진다.
+**다음 행동 = FE 테스트 축은 닫고 Beta 진입을 연다 — [BL-070]→[BL-071]→[BL-072].**
+★단 **이 여섯은 `roadmap.md` 체크박스로만 살고 원장 섹션이 없다**([BL-005]·[BL-145] 도 같다) —
+열려면 **섹션부터 세워야** 판정어 체계가 그것을 본다.
+★**FE 축을 닫는 근거는 실측이다** — 남은 미도달 15 중 `loading.tsx` **7** · 생성 코드 **2** ·
+`types.ts` **3** · shadcn 래퍼 **2** 는 테스트가 항진명제가 된다. **실질 후보는
+`src/app/api/auth/[...all]/route.ts` 하나**이고, `apps/api` 도 `run_alembic_with_lock.py` 하나 남았다.
 
 ★★★**착수 프롬프트의 재료 주장 2건이 실측에서 거짓이었다.** ⑴ **「BE 전이 폐포 미도달 6」은 실측 2**다 —
-프롬프트가 든 넷 중 `param_stability.py`·`conditional_entry_janitor.py` 는 **이미 테스트가 있었다**
-(`test_param_stability_state_isolation.py:23` · `test_conditional_entry_janitor.py:20`). ⇒ 프롬프트가 물은
-「janitor 가 lane 을 혼자 끌면 7 lane 으로」는 **비용이 아니라 커버 때문에** 무의미해졌고 **FE 6 + BE 2** 로
+프롬프트가 든 넷 중 `param_stability.py`·`conditional_entry_janitor.py` 는 **이미 테스트가 있었다**.
+⇒ 「janitor 가 lane 을 혼자 끌면 7 lane 으로」는 **비용이 아니라 커버 때문에** 무의미해졌고 **FE 6 + BE 2** 로
 재배분했다. ⑵ **[BL-816] 의 「`<title>` 이 비어 나간다」도 과장**이었다(template default 로 `"QuantBridge"`).
 ⇒ **[LESSON-122] 는 내 step 뿐 아니라 내 프롬프트에도 적용된다.**
 
-★**착수 전 프로브가 「안 된다」를 하나 잡았다**([LESSON-123] 세 번째) — `next/font/google` 은 빌드타임 SWC
-변환이 치환하는 자리표라 vitest 런타임에 함수가 아니고 **`Archivo is not a function` top-level throw** 다.
-`src/lib/fonts.ts` 를 전이로 무는 모듈이 전부 죽었고 사슬 하나가 `monaco/pine-editor.tsx` 를 지나
-**`strategies/new`·`strategies/[id]/edit` 까지** 번졌다. ★**`server-only` 와 같은 처방**(`resolve.alias` →
-`tests/stubs/next-font-google.ts`)을 ① PR 이 세웠다 — **lane 안에서 고치면 8 lane 병합 충돌**이다(기존 1,780 무영향).
-★**5차 재료** = 전이 폐포(2) 대신 **「직접 import 하는 테스트가 0건인 모듈」 25/193** — [BL-817] 본문 표.
+★**착수 전 프로브가 「안 된다」를 둘 잡았다**([LESSON-123] 세·네 번째) — ⑴ `next/font/google` 은 빌드타임
+SWC 자리표라 vitest 에서 **`Archivo is not a function` top-level throw** 이고, 사슬 하나가
+`monaco/pine-editor.tsx` 를 지나 **`strategies/new`·`strategies/[id]/edit` 까지** 번졌다.
+`server-only` 와 같은 처방(`resolve.alias`)을 ① PR 이 세웠다 — **lane 안에서 고치면 8 lane 병합 충돌**이다.
+⑵ **`ImageResponse` 는 vitest 에서 실행 불가**(satori→`sharp` 가 `Unsupported input`). `vi.doMock("next/og")` 는
+먹는다(ESM — CJS 인 `server-only` 와 다르다) ⇒ lane 6 은 대역으로 인자만 잰다.
+
+★★**내 판정 도구가 이번에도 세 번 틀렸고, 셋 다 python 이었다**([LESSON-125]) —
+⑴ 리졸버가 패키지 **재export** 를 `__init__.py` 로 귀속시켜 **거짓 재료**를 냈다(AC red 측정이 잡았다) ·
+⑵ `gh pr merge --delete-branch` 의 rc 를 머지 판정으로 읽어 **8/8 머지를 「0/8」로** 보고했다 ·
+⑶ 원장 섹션 슬라이스가 다음 `###` 까지 잡아 **인덱스 표 96행(95KB)을 함께 삭제**했다.
+⇒ **도구를 셸→python 으로 바꿔도 「엉뚱한 축을 재는」 병은 안 낫는다.** ⑶ 은 내 검증이
+`### BL-` 헤더만 세고 **표 행을 안 봐서** 한 번 놓쳤고, **95,321자라는 이상 신호를 내가 해명해 버렸다.**
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
