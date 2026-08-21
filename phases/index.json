@@ -204,7 +204,8 @@
     },
     {
       "dir": "fe4-og-image",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T14:12:39+0900"
     },
     {
       "dir": "be4-sizing-identity",
