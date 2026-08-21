@@ -467,6 +467,45 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 
 ## P2 — Hardening / 건강도 작업
 
+### BL-819
+
+**Title:** `build_backtest_service_for_worker()` 가 **기본 설정(`fixture`)에서 `UnboundLocalError` 로 죽는다** — 함수-지역 재import 가 이름을 통째로 지역화한다
+**Category:** 버그 / 백엔드 · Celery
+**상태:** ✅ **RESOLVED** (2026-08-21 밤샘 루프 5차 — lane `be5-di-assembly` 가 `blocked` 로 잡았다)
+**Priority:** P2 (잠복 — 배포 env 는 `timescale`)
+**Trigger:** 도래 — 2026-08-21 실측
+**출처:** 2026-08-21 밤샘 루프 5차, 무인 세션의 `blocked_reason`
+
+**원인:** `apps/api/src/backtest/dependencies.py` 가 `OHLCVRepository` 를 **15행에서 모듈 레벨로 import** 하는데,
+`build_backtest_service_for_worker()` 의 `else`(timescale) 갈래가 **같은 이름을 함수 안에서 다시 import** 했다.
+Python 은 함수 본문 어디서든 이름을 바인딩하면 **그 이름을 함수 전체에서 지역**으로 잡는다.
+그래서 `fixture` 갈래(else 를 안 타는 경로)로 들어오면 반환부 63행의 `OHLCVRepository(session)` 이
+**아직 바인딩되지 않은 지역 변수**를 읽어 `UnboundLocalError` 를 낸다.
+
+**실측 (수리 전):**
+
+```
+settings.ohlcv_provider 기본값 = 'fixture'
+  fixture    → UnboundLocalError: cannot access local variable 'OHLCVRepository'
+  timescale  → OK  BacktestService
+```
+
+**영향:** 호출 경로는 `src/tasks/backtest.py:_execute` — **Celery 백테스트 워커**다.
+`OHLCV_PROVIDER=fixture` 로 도는 워커는 백테스트를 한 건도 처리하지 못한다.
+★**심각도가 잠복인 이유:** 배포는 `timescale` 이다(`infra/compose/docker-compose.yml` 의 `${OHLCV_PROVIDER:-timescale}` ·
+`.env.example:109`). 그러나 **코드 기본값은 `fixture`** 이고 `.env.example` 이 그것을 「CI/oracle 전용」이라 적어 뒀다.
+
+**형제 모듈은 무사하다** — `optimizer/dependencies.py` · `stress_test/dependencies.py` 도 같은 함수-지역 재import 를
+갖고 있지만 **반환부에서 `OHLCVRepository` 를 쓰지 않아** 지역화가 드러나지 않는다(실측으로 둘 다 `fixture` OK).
+
+**수리:** 중복된 함수-지역 import **1줄 삭제** + 재발 방지 주석. 회귀 테스트는 lane `be5-di-assembly` 의
+`apps/api/tests/common/test_worker_di_assembly.py` 가 진다(`[backtest]` 파라미터 2건이 정확히 이 갈래를 잡았다).
+
+**★이 항목이 남기는 것:** 무인 세션의 `blocked` 는 **자격증명 문제가 아니라 결함 보고일 수 있다**([LESSON-122] 계열 3번째).
+이 회차는 `blocked` 2건 중 1건이 진짜 제품 결함이었고, 나머지 1건은 내 테스트 DB 가 낡은 것이었다.
+
+---
+
 ### BL-817
 
 **Title:** `app/**` 라우트 조립층에 테스트가 0건이다 — 프리페치 키 동일성·UUID 가드·`metadata` 계약이 무증거로 산다
