@@ -5,13 +5,17 @@
     {
       "step": 0,
       "name": "alembic-lock",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts/test_run_alembic_with_lock.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/scripts/test_run_alembic_with_lock.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
         "cd apps/api && uv run --env-file .env.local pytest tests/scripts -q",
         "cd apps/api && uv run ruff check tests/scripts/test_run_alembic_with_lock.py && uv run ruff format --check tests/scripts/test_run_alembic_with_lock.py"
-      ]
+      ],
+      "started_at": "2026-08-21T17:34:03+0900",
+      "summary": "16 cases: URL·CLI·advisory lock·subprocess·run/main contracts; timeout_s=0 first failure raises RuntimeError with 0 sleeps.",
+      "completed_at": "2026-08-21T17:45:33+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T17:34:03+0900"
 }
