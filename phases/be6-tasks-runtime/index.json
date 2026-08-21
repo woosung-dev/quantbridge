@@ -22,7 +22,7 @@
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks",
@@ -31,7 +31,10 @@
         "cd apps/api && uv run coverage report --include=src/tasks/_ws_lease.py --fail-under=88",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 14",
         "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:31:33+0900",
+      "summary": "정상 경로 12건을 추가해 Celery는 logging·prefork init(loop/Redis/DNS)·worker_ready 3도메인 reclaim·beat metric·master shutdown(CCXT close/실행 중 loop skip)을, WebSocket은 3 wrapper·private/public lease 전달·ticker 정상 종료·Bybit 계정 복호화/handler 조립·inactive account/public ticker reconcile enqueue를 외부 I/O 없이 단언했다. AC 전체는 750 passed·12 skipped, celery/websocket/lease 85%/77%/89%, 수집 21건, 대상 소스 diff 0이다.",
+      "completed_at": "2026-08-22T04:43:23+0900"
     },
     {
       "step": 2,
