@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe4-landing-waitlist",
+  "steps": [
+    {
+      "step": 0,
+      "name": "landing-waitlist",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run 'src/app/__tests__/landing-waitlist.test.tsx'",
+        "cd apps/web && test \"$(pnpm exec vitest list 'src/app/__tests__/landing-waitlist.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 9",
+        "cd apps/web && pnpm exec eslint 'src/app/__tests__/landing-waitlist.test.tsx'",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

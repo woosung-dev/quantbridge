@@ -1,9 +1,18 @@
 // geo-block 에 의해 redirect 되는 안내 페이지. Sprint 43 W14: legal-page-shell centered + email contact.
 
+import type { Metadata } from "next";
+
 import { LegalPageShell } from "@/components/legal/legal-page-shell";
 
 const linkClass =
   "underline decoration-[color:var(--border-dark)] underline-offset-4 transition-colors duration-200 ease-out hover:text-[color:var(--text-primary)] hover:decoration-[color:var(--text-primary)]";
+
+// [BL-816] — geo-block L2 착지점. 종전엔 metadata 가 없어 root template 의 default 로
+// "QuantBridge" 만 나갔다(빈 <title> 이 아니다). 브랜드 접미는 template 이 붙이므로
+// 여기엔 h1 을 축약한 페이지명만 넣는다.
+export const metadata: Metadata = {
+  title: "Not available in your region",
+};
 
 export default function NotAvailablePage() {
   return (

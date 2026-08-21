@@ -181,6 +181,38 @@
       "dir": "fe3-waitlist-admin",
       "status": "completed",
       "completed_at": "2026-08-21T09:59:13+0900"
+    },
+    {
+      "dir": "fe4-list-prefetch",
+      "status": "pending"
+    },
+    {
+      "dir": "fe4-route-params",
+      "status": "pending"
+    },
+    {
+      "dir": "fe4-app-shell",
+      "status": "pending"
+    },
+    {
+      "dir": "fe4-landing-waitlist",
+      "status": "pending"
+    },
+    {
+      "dir": "fe4-thin-routes",
+      "status": "pending"
+    },
+    {
+      "dir": "fe4-og-image",
+      "status": "pending"
+    },
+    {
+      "dir": "be4-sizing-identity",
+      "status": "pending"
+    },
+    {
+      "dir": "be4-funding-task",
+      "status": "pending"
     }
   ]
 }

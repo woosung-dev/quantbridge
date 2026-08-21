@@ -22,7 +22,9 @@ interface PageProps {
 }
 
 export const metadata: Metadata = {
-  title: "초대 확인 · QuantBridge",
+  // ★브랜드 접미는 root layout 의 `template: "%s · QuantBridge"` 가 붙인다 —
+  //   여기에 또 적으면 "초대 확인 · QuantBridge · QuantBridge" 로 두 번 나간다.
+  title: "초대 확인",
   description: "QuantBridge Beta 초대 링크를 확인합니다.",
   // 초대 링크가 검색 결과에 남으면 안 된다.
   robots: { index: false, follow: false },

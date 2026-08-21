@@ -37,6 +37,10 @@ export default defineConfig({
       //   빈 모듈을 준다). `vi.mock` 으로는 못 막는다 — CJS 외부화라 Node 의 require 가 먼저 돈다.
       //   근거·범위는 `tests/stubs/server-only.ts` 헤더에 있다.
       "server-only": path.resolve(dirname, "./tests/stubs/server-only.ts"),
+      // ★`next/font/google` 은 빌드타임 SWC 변환이 치환하는 자리표라 런타임에 함수가 아니다
+      //   (`Archivo is not a function` top-level throw). `src/lib/fonts.ts` 를 전이로 무는
+      //   모듈이 전부 죽는다 — 근거·범위는 `tests/stubs/next-font-google.ts` 헤더에 있다.
+      "next/font/google": path.resolve(dirname, "./tests/stubs/next-font-google.ts"),
     },
   },
 });

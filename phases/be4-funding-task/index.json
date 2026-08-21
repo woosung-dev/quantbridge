@@ -1,0 +1,16 @@
+{
+  "project": "QuantBridge",
+  "phase": "be4-funding-task",
+  "steps": [
+    {
+      "step": 0,
+      "name": "funding-task",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks/test_funding_task.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_funding_task.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
+        "cd apps/api && uv run ruff check tests/tasks/test_funding_task.py"
+      ]
+    }
+  ]
+}

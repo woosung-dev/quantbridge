@@ -595,6 +595,69 @@ Error: 완료 상태 백테스트를 목록에서 찾지 못했다 (백엔드 80
 
 ## P3 — Nice-to-have / 컨벤션 정합
 
+### BL-816
+
+**Title:** `/not-available` 만 `metadata` 를 export 하지 않는다 — geo-block 착지 페이지가 root template 의 default 로 새 나간다
+**Category:** 버그 / 프런트엔드 · SEO
+**상태:** ✅ **RESOLVED** (2026-08-21 밤샘 루프 4차 ① 사전 배치 PR)
+**Priority:** P3
+**Trigger:** 도래 — 2026-08-21 실측
+**Est:** XS
+**출처:** 2026-08-21 밤샘 루프 3차 `fe3-public-legal-pages` lane (러너가 `blocked` 로 멈춰 드러났다)
+
+**실측 (2026-08-21 · CONTROL 직접):**
+
+| 페이지                           | `export const metadata`            |
+| -------------------------------- | ---------------------------------- |
+| `app/disclaimer/page.tsx`        | 있다 — `title: "Disclaimer"`       |
+| `app/terms/page.tsx`             | 있다 — `title: "Terms of Service"` |
+| `app/privacy/page.tsx`           | 있다 — `title: "Privacy Policy"`   |
+| **`app/not-available/page.tsx`** | ★**없다**                          |
+
+**영향:** `/not-available` 은 **geo-block L2 의 착지점**이다(`proxy.ts` 가 제한 국가를 여기로
+리다이렉트한다). 제한 국가 방문자가 **처음이자 유일하게** 보는 화면인데 브라우저 탭과 검색 결과에
+제목이 비어 나간다. 나머지 법무 3종은 전부 갖고 있으므로 **빠뜨린 것**이지 의도가 아니다.
+★★**2026-08-21 실측 — 위 「비어 나간다」는 과장이었다.** `src/app/layout.tsx` 가
+`title: { default: "QuantBridge", template: "%s · QuantBridge" }` 를 갖는다 ⇒ `metadata` 없는
+페이지는 **빈 `<title>` 이 아니라 `"QuantBridge"`** 로 나간다. 결함의 실질은 「제목이 없다」가
+아니라 **「이 화면이 다른 모든 페이지와 구별되지 않는다」**다 — 착지점으로서의 값은 그대로 0 이다.
+(원장이 `[확인 필요]` 로 남겨 둔 자리를 4차가 쟀다.)
+
+**처방(적용됨):** 나머지 셋과 같은 모양으로 넣되 **브랜드 접미는 넣지 않는다**(root template 이 붙인다).
+
+```ts
+export const metadata: Metadata = {
+  title: "Not available in your region",
+};
+```
+
+★**4차는 범위를 넓혔다** — 같은 병을 앓던 `page.tsx` 가 `/not-available` 말고도 **6개 더** 있었다
+(실측 2026-08-21: `sign-in` · `sign-up` · `admin/waitlist` · `dashboard` · `strategies/[id]/edit` ·
+`maintenance`). 일곱을 한 PR 에서 함께 채웠고, 제목은 **§4.10 「페이지 이름 5축 일치」**대로
+각 화면의 h1/셸에서 땄다. ★**랜딩(`src/app/page.tsx`)만 일부러 남겼다** — root template 이
+`"QuantBridge · QuantBridge"` 를 만들기 때문이다(미export 8 → 1).
+
+★**동승 결함 1건** — `app/invite/[token]/page.tsx` 가 `title: "초대 확인 · QuantBridge"` 였다.
+문자열 title 에는 template 이 **적용되므로** 실제로는 `"초대 확인 · QuantBridge · QuantBridge"` 로
+브랜드가 두 번 나갔다. 같은 PR 에서 `"초대 확인"` 으로 고쳤다.
+
+★**지금 동작은 PR(`fe3-public-legal-pages`)이 테스트로 고정해 뒀다** — 「`not-available` 은
+`metadata` 를 export 하지 않는다」를 단언한다. **고치면 그 케이스가 red 로 뒤집히므로 함께
+갱신해라** — 그것이 이 항목이 닫혔다는 신호다([BL-814] 와 같은 계약이다).
+
+★**발견 경로가 특이하다** — 내 step 파일이 「넷 다 `metadata` 를 갖는다」를 **재지 않고** 요구했고,
+무인 세션이 그것을 만족시키려면 대상 파일을 고쳐야 하는데 그것이 금지라 **정직하게 `blocked`**
+했다. [LESSON-122] 의 두 번째 실증이고, 이번엔 **red 가 아니라 `blocked` 로** 드러났다.
+
+**종결 증거 (2026-08-21):**
+
+- `metadata` 미export **8 → 1**(랜딩만 · 의도적) · 페이지 제목 **24종 중복 0**
+- ★**고정 테스트가 예측대로 red 로 뒤집혔다** — `public-legal-pages.test.tsx` 의
+  「`not-available` 은 `metadata` 를 export 하지 않는다」가 `expected true to be false` 로 실패했다.
+  **그것이 이 항목의 종결 신호**였고([BL-814] 와 같은 계약), 같은 PR 에서 「공개 4종이 서로 다른
+  제목을 갖는다」로 갱신했다
+- `apps/web` vitest **1,780 → 1,781 passed** · eslint·`tsc --noEmit` rc=0
+
 ### BL-306
 
 **Title:** `~/.claude/CLAUDE.md` §5 한국어 콜론 종결 lint mechanism 도입

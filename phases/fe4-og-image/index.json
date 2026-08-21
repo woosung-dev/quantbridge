@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe4-og-image",
+  "steps": [
+    {
+      "step": 0,
+      "name": "og-image",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run 'src/app/share/backtests/[token]/__tests__/opengraph-image.test.tsx'",
+        "cd apps/web && test \"$(pnpm exec vitest list 'src/app/share/backtests/[token]/__tests__/opengraph-image.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 8",
+        "cd apps/web && pnpm exec eslint 'src/app/share/backtests/[token]/__tests__/opengraph-image.test.tsx'",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

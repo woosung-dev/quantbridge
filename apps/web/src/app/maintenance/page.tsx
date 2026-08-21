@@ -5,6 +5,8 @@
 // 백오프)와 다른 개념이라 섞지 않는다(§4.7). page 는 서버 컴포넌트로 유지하고 재시도 버튼만
 // 말단 클라이언트 컴포넌트로 분리한다.
 
+import type { Metadata } from "next";
+
 import Link from "next/link";
 import { HomeIcon, PowerIcon } from "lucide-react";
 
@@ -12,6 +14,11 @@ import { StateBox } from "@/components/state-box";
 import { InfoIcon } from "@/components/info-icon";
 import { EMPTY_CELL } from "@/lib/labels";
 import { MaintenanceRetryButton } from "@/components/maintenance-retry-button";
+
+// 페이지 이름 5축 일치(§4.10) — eyebrow("503 사용 불가")와 <title> 을 맞춘다.
+export const metadata: Metadata = {
+  title: "503 사용 불가",
+};
 
 export default function MaintenancePage() {
   return (
