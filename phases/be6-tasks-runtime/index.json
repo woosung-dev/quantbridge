@@ -5,7 +5,7 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks",
@@ -14,7 +14,10 @@
         "cd apps/api && uv run coverage report --include=src/tasks/_ws_lease.py --fail-under=85",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
         "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:13:45+0900",
+      "summary": "재측정 AC②는 CONTROL과 달리 celery/websocket/lease 50%/61%/89%였고 최종 50%/66%/89%다. celery 264-283(child stop·metric·beat atexit)는 signal/loop/metric mock으로 직접 callback, 299-326(ready stale reclaim)은 registry·reclaim mock, 342-346(lazy provider)은 provider fake, 376-413(master 종료)는 loop·provider fake로 도달한다. websocket 63-64(stop 실패)는 fake loop, 96-111(wrapper)은 worker-loop fake, 148-235(public lease·timeout)은 lease/symbol/stream/circuit fake로 도달했고, 278-405(private 계정·lease·예외)는 account/session/stream fake, 427-470(reconcile)은 engine/repo/lease/delay fake가 남았다. lease 162-184(heartbeat extend 예외·false)는 lock/sleep fake이며 false를 덮었다. 모든 mock은 Celery·Redis·실제 WebSocket 외부 경계에만 걸었다.",
+      "completed_at": "2026-08-22T04:31:27+0900"
     },
     {
       "step": 1,
@@ -60,5 +63,6 @@
         "cd apps/api && uv run ruff format --check tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T04:13:45+0900"
 }
