@@ -412,7 +412,7 @@ OCI `quantbridge/` prefix 객체 · **C2 24.0007h 전후 불변**) + 디스크 �
 | **BP** | ~~[BL-808] 스키마 동등성 축의 잔여 3구멍~~ → **2026-08-19 ✅ RESOLVED (PR #691, phase `n7-bl810-bl808`)** — 본문은 `docs/backlog-resolved.md` 소관이다. 2026-08-21 표에서 내림. ★라벨이 위 행과 함께 `BN` 으로 중복돼 있었다 → `BP`                                                                                                                                                                                                                                  | P3  | ★                                                                                                                 | 하     | S               | ✓              | 적대 리뷰가 셋을 재현 시나리오와 함께 확정했다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **BQ** | ~~[BL-816] `/not-available` 만 `metadata` 를 export 하지 않는다~~ → **2026-08-21 ✅ RESOLVED (밤샘 루프 4차 ① 사전 배치 PR)** — 같은 병 7건을 함께 채웠다. ★**이 행은 뒤늦게 세운 것이다**: BL-816 은 하루 내내 ACTIVE 였는데 이 표에 행이 없었다. 계약(살아있는 행 == ACTIVE ∪ (PARTIAL ∧ 도래))이 깨져 있었고 `ledger-vitals.sh` 는 **행 수만** 세서 못 잡는다                                                                                                     | P3  | —                                                                                                                 | 낮     | XS              | 0줄            | 종결 — 본문은 `backlog-resolved.md` 소관                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **BR** | ~~[BL-817] `app/**` 라우트 조립층에 테스트가 0건이다~~ → **2026-08-21 ✅ RESOLVED (밤샘 루프 4차)** — 8/8 · 변이 8/8 red · 미도달 33→15 — [BL-786] 프리페치 키 동일성 · UUID→`notFound()` 가드 · `getServerAuth` 배선 · `metadata` 계약이 무증거다                                                                                                                                                                                                                   | P2  | —                                                                                                                 | 낮     | M (8 lane 병렬) | 0줄            | ★전이 폐포 실측 2026-08-21 — `apps/web` **33/344** 미도달(실질 = `page.tsx` 14 + `layout` 2 + og 1) · `apps/api` **2/193**. 3차가 화면 계층을 닫고 **이 층만** 남겼다                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **BS** | [BL-818] `apps/api` 미커버 모듈 커버리지 — 8 lane 병렬(밤샘 루프 5차). ★★**재료를 AST 가 아니라 커버리지가 정했다** — 초판 8 lane 중 **둘이 실제로는 100% 커버**였다                                                                                                                                                                                                                                                                                                 | P2  | ★★★                                                                                                               | 낮     | M (8 lane 병렬) | 0줄            | ★착수 전 전량 스위트 실측 2026-08-21 — **5,130 passed · TOTAL 90%**(`concurrency=greenlet,thread` 교정본) · 219 모듈 중 96개 100%. 확정 재료 = `run_alembic_with_lock` **0%** · `optimizer/stress_test_tasks` 35% · `health/router` **54%** · DI 4종 52~62% · `convert/service` 61% · `alert_rule_repository` 67% · `tasks/backtest`+dispatcher 3종 · `waitlist` 서비스 3종. **AC red 8/8 · 인접 회귀 8/8 green** · 대상 소스 0줄 변경. ★부수 — `[tool.coverage.run]` 에 `concurrency` 부재로 **async 커버리지가 낮게 나온다**([BL-308]/[BL-309] 래칫 동반 영향)                                                                                                                                                          |
+| **BS** | ~~[BL-818] `apps/api` 미커버 모듈 커버리지 — 8 lane 병렬~~ → **2026-08-21 ✅ RESOLVED (밤샘 루프 5차)** — 8/8 · 변이 8/8 red · **5,165 → 5,292 collected**(+127) · 소스 전건 무변경                                                                                                                                                                                                                                                                                  | P2  | —                                                                                                                 | 낮     | M (8 lane 병렬) | 0줄            | ★★**재료를 AST 가 아니라 커버리지가 정했다** — 초판 8 lane 중 **둘이 100% 커버**였고 셋은 89~94%. ★★★**blocked 2건 중 하나가 진짜 제품 결함**([BL-819]). ★**남은 것 = `[tool.coverage.run]` 의 `concurrency` 부재**로 async 커버리지가 저평가되고 [BL-308]/[BL-309] 래칫이 그 왜곡을 받는다 — 미해결                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 > ★**강등** — 2026-08-16 에 5행([BL-026]·[BL-726]·[BL-729]·[BL-730]·[BL-731], 원문 `git show b5e24fbf:docs/status.md`), 2026-08-17 야간에 4행([BL-725]·[BL-732]·[BL-735]·[BL-737], 원문 `git show 0875789c:docs/status.md`)을 지워 700줄 상한 안에서 신규 행 자리를 만들었다. 지운 것은 전부 **이미 취소선이던 사문**이다.
 > ★난이도·소요는 `[가정]`이고 preflight 에서 재측정한다.
@@ -542,42 +542,27 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 > ★두 회차가 남긴 한 줄 = **「내가 step 에 적은 기대가 사실상 AC 다」**([LESSON-122]) — 4차는 그것이
 > **착수 프롬프트에도 적용된다**는 것을 더했다.
 
-### 밤샘 루프 4차 — [BL-817] 종결 · FE 라우트 조립층 8 lane 완주 (2026-08-21)
+### 밤샘 루프 4·5차 tombstone — [BL-817]·[BL-818] 종결 (2026-08-21)
 
-**8/8 completed · retry 0 · blocked 0 · 병합 충돌 0 · 변이 8/8 red · 6분.** PR #745(① 사전 배치) +
-**#746~#753 전부 머지**. `apps/web` **247 files/1,780 → 253 files/1,896 passed**(신규 6파일 **+116**) ·
-`apps/api` 신규 **29** · 전이 폐포 미도달 `web` **33 → 15** · `api` **2 → 1** · **대상 소스 전건 무변경**.
-[BL-816] 도 ① PR 에서 함께 닫았다(`metadata` 미export **8 → 1**).
+> **강등 (2026-08-21 · 700줄 상한).** 4차 서술 40줄을 5차와 함께 이 블록으로 줄였다.
+> 원문 = `git show 664f77a2:docs/status.md`. **회차 절차·lane 표·교훈의 정본은**
+> [`phases/README.md`](../phases/README.md) 이고, 반증은 [`lessons.md`](lessons.md),
+> 티켓 본문은 `backlog-resolved.md` 가 진다. 여기 남는 것은 「지금 어디까지 왔나」뿐이다.
+
+**4차 ([BL-817], FE 라우트 조립층 · PR #745~#753):** 8/8 · 변이 8/8 red · 6분.
+`apps/web` **1,780 → 1,896 passed** · 전이 폐포 미도달 `web` 33 → 15 · `api` 2 → 1.
+[BL-816] 동승 종결. **이로써 FE 축은 바닥에 닿았다** — 남은 15 중 실질 후보는 1건이다.
+
+**5차 ([BL-818], BE 미커버 모듈 · PR #755~#764):** 8/8 · 변이 8/8 red · 대상 소스 전건 무변경.
+`apps/api` **5,165 → 5,292 collected**(신규 8파일 · 92 함수 → **+127 케이스**).
+★★**재료를 AST 가 아니라 커버리지가 정했고, 그 차이가 초판 lane 6개를 갈아치웠다** — 둘은 **실제로 100% 커버**였다.
+★★★**blocked 2건 중 하나가 진짜 제품 결함**([BL-819] — worker DI 가 기본 설정에서 `UnboundLocalError`),
+나머지 하나는 **내 낡은 테스트 DB** 였다.
 
 ~~**다음 행동 = FE 테스트 축은 닫고 Beta 진입을 연다 — [BL-070]→[BL-071]→[BL-072].**~~ → **2026-08-21 — Beta 진입 3종은 사용자 게이트다**([BL-005] self-assess ≥7 + 본인 의지). 세션이 열 수 없어 그 사이 BE 테스트 축으로 간다.
-
-**다음 행동 = [BL-818] `apps/api` 미커버 모듈을 8 lane 병렬로 채운다 (밤샘 루프 5차).**
-★★**재료는 커버리지가 정했다** — AST 로 고른 초판 8 lane 중 **둘이 실제로는 100% 커버**였고 셋은 89~94% 였다. 확정 재료·lane 표·착수 전 실측(AC red 8/8 · 인접 회귀 8/8 green)은 [`phases/README.md`](../phases/README.md) 「지금 도는 묶음」 절이 진다.
-★단 **이 여섯은 `roadmap.md` 체크박스로만 살고 원장 섹션이 없다**([BL-005]·[BL-145] 도 같다) —
-열려면 **섹션부터 세워야** 판정어 체계가 그것을 본다.
-★**FE 축을 닫는 근거는 실측이다** — 남은 미도달 15 중 `loading.tsx` **7** · 생성 코드 **2** ·
-`types.ts` **3** · shadcn 래퍼 **2** 는 테스트가 항진명제가 된다. **실질 후보는
-`src/app/api/auth/[...all]/route.ts` 하나**이고, `apps/api` 도 `run_alembic_with_lock.py` 하나 남았다.
-
-★★★**착수 프롬프트의 재료 주장 2건이 실측에서 거짓이었다.** ⑴ **「BE 전이 폐포 미도달 6」은 실측 2**다 —
-프롬프트가 든 넷 중 `param_stability.py`·`conditional_entry_janitor.py` 는 **이미 테스트가 있었다**.
-⇒ 「janitor 가 lane 을 혼자 끌면 7 lane 으로」는 **비용이 아니라 커버 때문에** 무의미해졌고 **FE 6 + BE 2** 로
-재배분했다. ⑵ **[BL-816] 의 「`<title>` 이 비어 나간다」도 과장**이었다(template default 로 `"QuantBridge"`).
-⇒ **[LESSON-122] 는 내 step 뿐 아니라 내 프롬프트에도 적용된다.**
-
-★**착수 전 프로브가 「안 된다」를 둘 잡았다**([LESSON-123] 세·네 번째) — ⑴ `next/font/google` 은 빌드타임
-SWC 자리표라 vitest 에서 **`Archivo is not a function` top-level throw** 이고, 사슬 하나가
-`monaco/pine-editor.tsx` 를 지나 **`strategies/new`·`strategies/[id]/edit` 까지** 번졌다.
-`server-only` 와 같은 처방(`resolve.alias`)을 ① PR 이 세웠다 — **lane 안에서 고치면 8 lane 병합 충돌**이다.
-⑵ **`ImageResponse` 는 vitest 에서 실행 불가**(satori→`sharp` 가 `Unsupported input`). `vi.doMock("next/og")` 는
-먹는다(ESM — CJS 인 `server-only` 와 다르다) ⇒ lane 6 은 대역으로 인자만 잰다.
-
-★★**내 판정 도구가 이번에도 세 번 틀렸고, 셋 다 python 이었다**([LESSON-125]) —
-⑴ 리졸버가 패키지 **재export** 를 `__init__.py` 로 귀속시켜 **거짓 재료**를 냈다(AC red 측정이 잡았다) ·
-⑵ `gh pr merge --delete-branch` 의 rc 를 머지 판정으로 읽어 **8/8 머지를 「0/8」로** 보고했다 ·
-⑶ 원장 섹션 슬라이스가 다음 `###` 까지 잡아 **인덱스 표 96행(95KB)을 함께 삭제**했다.
-⇒ **도구를 셸→python 으로 바꿔도 「엉뚱한 축을 재는」 병은 안 낫는다.** ⑶ 은 내 검증이
-`### BL-` 헤더만 세고 **표 행을 안 봐서** 한 번 놓쳤고, **95,321자라는 이상 신호를 내가 해명해 버렸다.**
+~~**다음 행동 = [BL-818] `apps/api` 미커버 모듈을 8 lane 병렬로 채운다 (밤샘 루프 5차).**~~ → **2026-08-21 ✅ 완주**(8/8 · PR #755·#756~#764).
+**다음 행동 = `[tool.coverage.run]` 에 `concurrency = greenlet,thread` 를 넣고 [BL-308]/[BL-309] 래칫 기준선을 다시 잡는다.**
+★근거는 5차 실측이다 — 그 설정 없이 재면 SQLAlchemy greenlet 전환 뒤의 줄이 전부 미커버로 나온다(`outcome_parity_service.py` 가 테스트 파일 하나만으로 **80% → 100%**). **래칫이 지금 재는 값은 실제보다 낮다** — 설정을 켜면 임계가 한 번에 올라가므로 기준선 재산정이 함께 가야 한다.
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
