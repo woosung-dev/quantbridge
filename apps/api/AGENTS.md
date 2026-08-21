@@ -4,21 +4,15 @@
 
 ## 1. Tech Stack
 
-| 항목            | 기술                                                       |
-| --------------- | ---------------------------------------------------------- |
-| Framework       | FastAPI (100% Async)                                       |
-| ORM             | SQLModel + SQLAlchemy 2.0 (`asyncpg`)                      |
-| Validation      | Pydantic V2 + `pydantic-settings`                          |
-| Package Manager | `uv`                                                       |
-| Database        | PostgreSQL + **TimescaleDB hypertable** (OHLCV 시계열)     |
-| Cache / Broker  | Redis (Celery broker + 락 / 캐시)                          |
-| Async Worker    | Celery (prefork pool, `_WORKER_LOOP` 통일 — §8)            |
-| Auth            | Better Auth JWT 를 JWKS 로 검증 (`pyjwt[crypto]`, ADR-034) |
-| Exchange SDK    | CCXT (Bybit / OKX / Binance 등 데모·라이브)                |
-| 시크릿 암호화   | API 키는 AES-256 (Fernet) 암호화 저장                      |
-| 배포            | Docker compose (개발) / TBD (프로덕션 H2+)                 |
+의존성·버전의 정본은 [`pyproject.toml`](./pyproject.toml) 이다. 여기엔 **매니페스트가 말해 주지 않는 것만** 둔다.
 
-> **참고**: 본 프로젝트는 백엔드에서 LLM SDK / Object Storage / Vector DB 를 사용하지 않는다. Pine Script 변환 등 AI 보조는 frontend → backend HTTP API 만 거쳐 진행한다.
+- DB 는 두 겹 — PostgreSQL + **TimescaleDB hypertable**(`ts.ohlcv`) · Celery 는 **prefork 고정**(§9) ·
+  거래소 API 키는 **AES-256(Fernet)** 저장(§4) · 배포 = Docker compose(개발) / 프로덕션 H2+ TBD.
+- ★**인증 시크릿은 백엔드에 없다** — Better Auth JWT 를 JWKS 로 검증만 한다(§2, [ADR-034](../../docs/adr/034-auth-self-host-better-auth.md)).
+- ★**LLM SDK 는 백엔드에 있다** (2026-08-22 정정 — 종전 문장은 「쓰지 않는다」였고 거짓이었다).
+  `strategy/convert/service.py` 가 `anthropic`(우선) + `google.genai`(fallback) 를 **직접 호출**하고
+  키는 `core/config.py` 의 `anthropic_api_key`/`gemini_api_key` 다(미설정 시 convert 엔드포인트 비활성).
+  Object Storage / Vector DB 는 쓰지 않는다.
 
 ---
 
@@ -228,20 +222,9 @@ class OrderService:
 
 ## 5. 스트리밍 응답
 
-```python
-from fastapi.responses import StreamingResponse
-
-@router.post("/stream-progress")
-async def stream(
-    data: StreamRequest,
-    service: ProgressService = Depends(get_progress_service),
-):
-    async def generate():
-        async for chunk in service.stream_progress(data):
-            yield f"data: {chunk}\n\n"
-
-    return StreamingResponse(generate(), media_type="text/event-stream")
-```
+레포는 SSE 를 **쓰지 않는다** — 2026-08-22 실측으로 `apps/api/src` 에 `StreamingResponse` **0건** ·
+`text/event-stream` **0건**이다. 진척률은 §6 의 폴링 또는 WebSocket(`realtime/`)이 낸다.
+예제는 지웠고 절 번호는 외부 참조(`docs/lessons.md`·`status.md`) 때문에 당기지 않는다.
 
 ---
 
@@ -249,26 +232,8 @@ async def stream(
 
 수초 이상 걸리는 작업(백테스트, 최적화, 스트레스 테스트)은 HTTP 응답을 블로킹하지 않는다.
 
-### Celery shared_task (QuantBridge 표준)
-
-```python
-# apps/api/src/tasks/backtest.py
-@shared_task(name="backtest.run")
-def run_backtest_task(backtest_id: str) -> dict:
-    from src.tasks._worker_loop import run_in_worker_loop
-    return run_in_worker_loop(_async_run_backtest(backtest_id))
-```
-
-### 상태 폴링 (클라이언트)
-
-```python
-@router.get("/backtests/{backtest_id}/status")
-async def get_status(
-    backtest_id: str,
-    service: BacktestService = Depends(get_backtest_service),
-):
-    return await service.get_status(backtest_id)
-```
+task entry 의 코드 정본은 **§9.1**(`run_in_worker_loop` 의무)이고 실물 reference 는
+`apps/api/src/tasks/backtest.py` 다. 상태 조회는 평범한 GET 라우터라 §3 패턴 그대로다.
 
 **원칙:**
 
