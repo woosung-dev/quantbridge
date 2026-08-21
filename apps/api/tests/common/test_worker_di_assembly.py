@@ -168,7 +168,9 @@ def test_worker_services_share_one_session_across_repositories(
 
     service = builder(session)
 
-    assert all(getattr(service, attribute).session is session for attribute in repository_attributes)
+    assert all(
+        getattr(service, attribute).session is session for attribute in repository_attributes
+    )
 
 
 def test_worker_builder_reads_provider_setting_at_call_time(
