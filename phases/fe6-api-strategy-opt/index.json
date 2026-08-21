@@ -31,12 +31,15 @@
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api.test.ts -a -f apps/web/src/features/optimizer/__tests__/api.test.ts -a -f apps/web/src/features/alert-rules/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=80",
         "git diff --quiet -- apps/web/src/features/strategy/api.ts apps/web/src/features/optimizer/api.ts apps/web/src/features/alert-rules/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:40:07+0900",
+      "summary": "오류·경계 15건을 추가해 세 API의 ApiError 동일 객체(status/code) 전파·Zod 계약 위반·204 void·빈 목록/total=0/첫 페이지·0/음수 입력을 덮었다. Strategy는 실제 apiFetch 1회 전송으로 parse_status=undefined가 URL에 없음을 확인했고, Optimizer의 호환 불가 행 skip도 단언했다. mock=@/lib/api-client의 apiFetch; 31건·대상 3파일 lines 100%, 소스 변경 0줄.",
+      "completed_at": "2026-08-22T03:45:27+0900"
     },
     {
       "step": 3,
