@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import asynccontextmanager
 from importlib import import_module
-from unittest.mock import AsyncMock, MagicMock
+from types import SimpleNamespace
+from unittest.mock import ANY, AsyncMock, MagicMock
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -14,6 +17,7 @@ import pytest
     [
         ("run_bybit_private_stream", "_run_async", {"status": "private"}),
         ("run_bybit_public_ticker_stream", "_run_public_ticker_async", {"status": "public"}),
+        ("reconcile_ws_streams", "_reconcile_async", {"status": "reconciled"}),
     ],
 )
 def test_stream_task_wrappers_delegate_one_coroutine_to_persistent_worker_loop(
@@ -46,6 +50,265 @@ def test_stream_task_wrappers_delegate_one_coroutine_to_persistent_worker_loop(
     assert result is expected
     assert len(received) == 1
     assert asyncio.iscoroutine(received[0])
+
+
+class _Lease:
+    """외부 Redis 없이 async lease 진입·해제와 lost_event 전달을 기록한다."""
+
+    def __init__(self) -> None:
+        self.lost_event = asyncio.Event()
+        self.entered = 0
+        self.exited = 0
+
+    async def __aenter__(self) -> _Lease:
+        self.entered += 1
+        return self
+
+    async def __aexit__(self, *_args: object) -> None:
+        self.exited += 1
+
+
+@pytest.mark.asyncio
+async def test_private_stream_enters_lease_and_passes_heartbeat_loss_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """private task는 circuit 통과 뒤 lease 안에서 같은 lost_event로 stream을 실행한다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    circuit_breaker_module = import_module("src.tasks._ws_circuit_breaker")
+    lease_module = import_module("src.tasks._ws_lease")
+    lease = _Lease()
+    stream_main = AsyncMock(return_value={"status": "completed", "account_id": "account-1"})
+    acquire_ws_lease = AsyncMock(return_value=lease)
+
+    monkeypatch.setattr(circuit_breaker_module, "is_circuit_open", AsyncMock(return_value=False))
+    monkeypatch.setattr(lease_module, "acquire_ws_lease", acquire_ws_lease)
+    monkeypatch.setattr(websocket_module, "_stream_main", stream_main)
+
+    result = await websocket_module._run_async("account-1")
+
+    assert result == {"status": "completed", "account_id": "account-1"}
+    acquire_ws_lease.assert_awaited_once_with("account-1")
+    stream_main.assert_awaited_once_with("account-1", lease_lost_event=lease.lost_event)
+    assert lease.entered == 1
+    assert lease.exited == 1
+
+
+@pytest.mark.asyncio
+async def test_public_ticker_enters_dedicated_lease_and_passes_loss_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """public ticker task는 전용 lease 안에서 heartbeat loss event를 stream에 전달한다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    lease_module = import_module("src.tasks._ws_lease")
+    lease = _Lease()
+    stream_main = AsyncMock(return_value={"status": "completed"})
+    acquire_ws_lease = AsyncMock(return_value=lease)
+
+    monkeypatch.setattr(lease_module, "acquire_ws_lease", acquire_ws_lease)
+    monkeypatch.setattr(websocket_module, "_public_ticker_stream_main", stream_main)
+
+    result = await websocket_module._run_public_ticker_async()
+
+    assert result == {"status": "completed"}
+    acquire_ws_lease.assert_awaited_once_with(websocket_module._PUBLIC_TICKER_LEASE_ID)
+    stream_main.assert_awaited_once_with(lease_lost_event=lease.lost_event)
+    assert lease.entered == 1
+    assert lease.exited == 1
+
+
+@pytest.mark.asyncio
+async def test_public_ticker_stream_completes_after_shutdown_signal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """정상 종료 신호는 ticker stream 연결을 닫고 stop registry·engine을 함께 정리한다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    public_stream_module = import_module("src.trading.websocket.bybit_public_stream")
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+
+    class _StoppingPublicStream:
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def __aenter__(self) -> _StoppingPublicStream:
+            self.kwargs["stop_event"].set()
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    public_stream_factory = MagicMock(side_effect=_StoppingPublicStream)
+    monkeypatch.setattr(websocket_module, "create_worker_engine_and_sm", lambda: (engine, object()))
+    monkeypatch.setattr(
+        websocket_module,
+        "_list_active_ticker_symbols",
+        AsyncMock(return_value={"BTCUSDT", "ETHUSDT"}),
+    )
+    monkeypatch.setattr(public_stream_module, "BybitPublicTickerStream", public_stream_factory)
+
+    result = await websocket_module._public_ticker_stream_main()
+
+    assert result == {"status": "completed"}
+    assert public_stream_factory.call_args.kwargs["symbols"] == {"BTCUSDT", "ETHUSDT"}
+    engine.dispose.assert_awaited_once_with()
+    with websocket_module._STOP_EVENTS_LOCK:
+        assert websocket_module._PUBLIC_TICKER_LEASE_ID not in websocket_module._STOP_EVENTS
+
+
+@pytest.mark.asyncio
+async def test_private_stream_builds_handlers_and_returns_reconnect_count_on_stop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bybit 계정 stream은 복호화·handler 조립 뒤 shutdown signal로 정상 종료한다."""
+    from src.trading.models import ExchangeAccount, ExchangeName
+
+    websocket_module = import_module("src.tasks.websocket_task")
+    encryption_module = import_module("src.trading.encryption")
+    redis_module = import_module("src.common.redis_client")
+    trading_websocket_module = import_module("src.trading.websocket")
+    reconcile_fetcher_module = import_module("src.trading.websocket.reconcile_fetcher")
+    account_id = str(uuid4())
+    account_uuid = UUID(account_id)
+    user_id = uuid4()
+    account = SimpleNamespace(
+        exchange=ExchangeName.bybit,
+        api_key_encrypted=b"encrypted-key",
+        api_secret_encrypted=b"encrypted-secret",
+        mode=SimpleNamespace(value="demo"),
+        user_id=user_id,
+    )
+    session = MagicMock()
+    session.get = AsyncMock(return_value=account)
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    settings = SimpleNamespace(trading_encryption_keys=["test-key"])
+    crypto = MagicMock()
+    crypto.decrypt.side_effect = ["api-key", "api-secret"]
+
+    @asynccontextmanager
+    async def session_context():
+        yield session
+
+    class _SessionMaker:
+        def __call__(self):
+            return session_context()
+
+    class _StoppingPrivateStream:
+        reconnect_count = 4
+
+        def __init__(self, **kwargs: object) -> None:
+            self.kwargs = kwargs
+
+        async def __aenter__(self) -> _StoppingPrivateStream:
+            self.kwargs["stop_event"].set()
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+    state_handler = MagicMock(return_value=object())
+    position_handler = MagicMock(return_value=object())
+    topic_router = MagicMock(return_value=object())
+    reconcile_fetcher = MagicMock(return_value=object())
+    reconciler = MagicMock(return_value=object())
+    private_stream_factory = MagicMock(side_effect=_StoppingPrivateStream)
+    redis_pool = object()
+
+    monkeypatch.setattr(websocket_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(
+        websocket_module, "create_worker_engine_and_sm", lambda: (engine, _SessionMaker())
+    )
+    monkeypatch.setattr(encryption_module, "EncryptionService", MagicMock(return_value=crypto))
+    monkeypatch.setattr(redis_module, "get_redis_lock_pool", lambda: redis_pool)
+    monkeypatch.setattr(trading_websocket_module, "StateHandler", state_handler)
+    monkeypatch.setattr(trading_websocket_module, "PositionFanoutHandler", position_handler)
+    monkeypatch.setattr(trading_websocket_module, "PrivateTopicRouter", topic_router)
+    monkeypatch.setattr(trading_websocket_module, "Reconciler", reconciler)
+    monkeypatch.setattr(trading_websocket_module, "BybitPrivateStream", private_stream_factory)
+    monkeypatch.setattr(reconcile_fetcher_module, "BybitReconcileFetcher", reconcile_fetcher)
+
+    result = await websocket_module._stream_main(account_id)
+
+    assert result == {"status": "completed", "account_id": account_id, "reconnect_count": 4}
+    session.get.assert_awaited_once_with(ExchangeAccount, account_uuid)
+    assert crypto.decrypt.call_args_list[0].args == (b"encrypted-key",)
+    assert crypto.decrypt.call_args_list[1].args == (b"encrypted-secret",)
+    state_handler.assert_called_once_with(session_factory=ANY, settings=settings, user_id=user_id)
+    position_handler.assert_called_once_with(ANY, redis_pool, str(user_id), account_uuid)
+    topic_router.assert_called_once()
+    reconcile_fetcher.assert_called_once_with(account=account, crypto=crypto)
+    private_stream_kwargs = private_stream_factory.call_args.kwargs
+    assert private_stream_kwargs["endpoint"] == websocket_module._BYBIT_WS_ENDPOINTS["demo"]
+    assert private_stream_kwargs["api_key"] == "api-key"
+    assert private_stream_kwargs["api_secret"] == "api-secret"
+    assert private_stream_kwargs["account_id"] == account_uuid
+    assert private_stream_kwargs["topics"] == ("order", "position")
+    engine.dispose.assert_awaited_once_with()
+    with websocket_module._STOP_EVENTS_LOCK:
+        assert account_id not in websocket_module._STOP_EVENTS
+
+
+@pytest.mark.asyncio
+async def test_reconcile_enqueues_only_inactive_private_and_public_streams(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """reconcile은 active lease는 건너뛰고 비활성 Bybit 계정·public ticker만 재등록한다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    lease_module = import_module("src.tasks._ws_lease")
+    repository_module = import_module("src.trading.repositories.live_signal_session_repository")
+    first_account = SimpleNamespace(id=uuid4())
+    second_account = SimpleNamespace(id=uuid4())
+    session = MagicMock()
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [first_account, second_account]
+    session.execute = AsyncMock(return_value=result)
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+
+    @asynccontextmanager
+    async def session_context():
+        yield session
+
+    class _SessionMaker:
+        def __call__(self):
+            return session_context()
+
+    class _LiveSessionRepository:
+        def __init__(self, received_session: object) -> None:
+            assert received_session is session
+
+        async def list_distinct_active_symbols(self) -> list[str]:
+            return ["BTCUSDT"]
+
+    is_lease_active = AsyncMock(side_effect=[True, False, False])
+    private_delay = MagicMock()
+    public_delay = MagicMock()
+    monkeypatch.setattr(
+        websocket_module, "create_worker_engine_and_sm", lambda: (engine, _SessionMaker())
+    )
+    monkeypatch.setattr(repository_module, "LiveSignalSessionRepository", _LiveSessionRepository)
+    monkeypatch.setattr(lease_module, "is_lease_active", is_lease_active)
+    monkeypatch.setattr(websocket_module.run_bybit_private_stream, "delay", private_delay)
+    monkeypatch.setattr(websocket_module.run_bybit_public_ticker_stream, "delay", public_delay)
+
+    reconciled = await websocket_module._reconcile_async()
+
+    first_id = str(first_account.id)
+    second_id = str(second_account.id)
+    assert reconciled == {
+        "enqueued": [second_id],
+        "skipped_active": [first_id],
+        "total": 2,
+        "public_ticker": "enqueued",
+    }
+    assert [args.args[0] for args in is_lease_active.await_args_list] == [
+        first_id,
+        second_id,
+        websocket_module._PUBLIC_TICKER_LEASE_ID,
+    ]
+    private_delay.assert_called_once_with(second_id)
+    public_delay.assert_called_once_with()
+    engine.dispose.assert_awaited_once_with()
 
 
 def test_signal_all_stop_events_ignores_one_failed_loop() -> None:
