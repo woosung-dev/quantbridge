@@ -45,9 +45,8 @@
 ## Acceptance Criteria
 
 1. `test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx`
-2. `cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-hooks-strategy-opt --reporter=json --outputFile=coverage/fe6-hooks-strategy-opt/results.json`
-3. `python3 tools/harness/assert_fe.py apps/web/coverage/fe6-hooks-strategy-opt --min-cases 6 --target src/features/strategy/hooks.ts --min-cov 12 --target src/features/optimizer/hooks.ts --min-cov 12 --target src/features/waitlist/hooks.ts --min-cov 12`
-4. `git diff --quiet -- apps/web/src/features/strategy/hooks.ts apps/web/src/features/optimizer/hooks.ts apps/web/src/features/waitlist/hooks.ts`
+2. `cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=12`
+3. `git diff --quiet -- apps/web/src/features/strategy/hooks.ts apps/web/src/features/optimizer/hooks.ts apps/web/src/features/waitlist/hooks.ts`
 
 ## 자기 점검
 

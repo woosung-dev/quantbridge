@@ -33,17 +33,20 @@
 
 ## AC 는 러너가 재실행한다 — 네가 통과시키는 것이 아니다
 
-각 step 의 AC 는 다음 셋으로 구성된다. 형태는 `index.json` 의 `ac` 배열이 정본이다.
+★**AC 는 그 프로젝트의 표준 러너만 쓴다.** 판정 전용 스크립트는 두지 않는다 — vitest·biome·
+coverage 가 이미 필요한 것을 **rc 로** 답하기 때문이다(2026-08-22 실측으로 확인하고 판정기 3종을 지웠다).
 
-1. **vitest 실행** — 새 테스트 파일만 돌리고 `--coverage.include` 로 **대상 소스만** 잰다.
-   산출물 2개(`coverage-summary.json` · `results.json`)를 `apps/web/coverage/<lane>/` 에 남긴다
-   (그 경로는 `apps/web/.gitignore` 가 이미 무시한다)
-2. **판정** — `python3 tools/harness/assert_fe.py` 가 케이스 수와 커버리지를 rc 로 답한다.
-   ★**이 스크립트는 아무것도 실행하지 않는다** — ⑴ 이 만든 JSON 을 읽을 뿐이다
-3. **소스 무변경** — `git diff --quiet -- <대상 소스>`. cov lane 에만 붙는다
+| 갈래 | AC 구성 |
+| --- | --- |
+| cov lane | ⑴ `test -f` **새 테스트 파일이 실제로 있는가** ⑵ `vitest run <새 파일> --coverage --coverage.include=<대상> --coverage.thresholds.perFile --coverage.thresholds.lines=N` ⑶ `git diff --quiet -- <대상 소스>` |
+| debt lane | ⑴ `biome lint --only=<규칙…> <담당 경로>` ⑵ 담당 범위 `vitest run` 회귀 |
 
-★**케이스 수 하한을 채우려고 의미 없는 케이스를 늘리지 마라.** 그것은 AC 를 게임하는 것이고,
-사람이 diff 를 읽을 때 걸린다. 하한은 「이만큼은 덮어야 대상을 실제로 실행한 것」의 최소치다.
+★**⑴ 이 있는 이유** — **vitest 는 인자 중 없는 파일을 조용히 무시한다**(있는 것 1 + 없는 것 1 → rc=0,
+실측). 그게 없으면 테스트 파일을 일부만 만들어도 나머지 AC 가 통과할 수 있다.
+★**`perFile` 이 핵심이다** — 대상이 여럿인 lane 에서 **각 파일이** 하한을 넘어야 한다.
+한 파일을 몰아서 덮고 나머지를 비워 두면 통과하지 못한다.
+★**커버리지 하한을 채우려고 단언 없는 케이스를 늘리지 마라.** 커버리지는 실행만 해도 오른다 —
+사람이 diff 를 읽을 때 걸린다.
 
 ## 금지사항 (갈래 공통)
 

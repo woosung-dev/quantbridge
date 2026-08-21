@@ -392,13 +392,289 @@ class StepExecutor:
         print(f"\n{'=' * 60}\n  Phase '{self._phase_name}' completed!\n{'=' * 60}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# 병렬 오케스트레이션 (`--parallel`)
+#
+# ★위의 `StepExecutor` 는 그대로 **phase 하나만** 처리한다 — 그 설계는 안 바뀐다.
+#   아래는 그 러너를 **워크트리에서 여러 벌 띄우는 바깥 루프**이고, 위 코드를 건드리지 않는다.
+# ★사람이 판단하는 자리는 **마지막 stage→main PR 하나**다. 그 앞은 무인이다:
+#   lane 완주 → push → base=stage/** 로 PR(그래야 `ci.yml` 이 발화한다) → CI green → 머지.
+#   CI red·충돌 난 lane 은 그 lane 만 남기고 나머지를 계속 간다.
+# ★기본은 dry-run 이다. 실제 집행은 `--confirm`.
+# ═══════════════════════════════════════════════════════════════════════════
+
+PHASES_DIR = ROOT / "phases"
+WT_BASE = ROOT / ".claude" / "worktrees"
+CI_POLL_SEC = 60
+CI_TIMEOUT_SEC = 45 * 60
+
+
+def _log(msg: str) -> None:
+    print(f"[{datetime.now(timezone(timedelta(hours=9))):%H:%M:%S}] {msg}", flush=True)
+
+
+def _sh(*args, cwd: Path | None = None, timeout: int = 600) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        list(args), cwd=cwd or ROOT, capture_output=True, text=True, timeout=timeout
+    )
+
+
+def _git(*args, cwd: Path | None = None) -> subprocess.CompletedProcess:
+    return _sh("git", *args, cwd=cwd)
+
+
+def _slug(stage: str) -> str:
+    """`stage/night6` → `night6`. 워크트리 이름을 특정 회차에 묶지 않기 위한 파생."""
+    return stage.split("/", 1)[-1].replace("/", "-")
+
+
+def _pending_lanes() -> list:
+    idx = json.loads((PHASES_DIR / "index.json").read_text(encoding="utf-8"))
+    return [p["dir"] for p in idx["phases"] if p["status"] == "pending"]
+
+
+def _preflight(lanes: list, stage: str) -> list:
+    """막을 수 있는 실패를 착수 전에 전부 낸다. 반환값이 비면 통과."""
+    problems = []
+    for tool in ("git", "gh", "codex"):
+        if not _sh("which", tool).stdout.strip():
+            problems.append(f"`{tool}` 이 PATH 에 없다")
+    if _git("diff", "--quiet").returncode != 0 or _git("diff", "--cached", "--quiet").returncode != 0:
+        problems.append("메인 워킹트리가 dirty 하다 — 커밋하거나 치운 뒤 시작해라")
+    head = _git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    if head != "main":
+        problems.append(f"메인 체크아웃이 main 이 아니다(현재 {head})")
+    if _sh("gh", "auth", "status").returncode != 0:
+        problems.append("`gh` 인증이 없다 — `gh auth login`")
+    if not lanes:
+        problems.append("pending lane 이 없다")
+    if not stage.startswith("stage/"):
+        problems.append(
+            f"stage 브랜치 이름이 `stage/` 로 시작하지 않는다({stage}) — "
+            "CI 는 base=stage/** 인 PR 에만 발화한다(ci.yml)"
+        )
+    for lane in lanes:
+        d = PHASES_DIR / lane
+        if not (d / "index.json").is_file():
+            problems.append(f"{lane}: index.json 이 없다")
+            continue
+        for s in json.loads((d / "index.json").read_text(encoding="utf-8"))["steps"]:
+            if not s.get("ac"):
+                problems.append(f"{lane} step{s['step']}: ac 가 없다 — 러너가 시작을 거부한다")
+            if s["status"] != "pending":
+                problems.append(f"{lane} step{s['step']}: status 가 {s['status']} 다")
+            if not (d / f"step{s['step']}.md").is_file():
+                problems.append(f"{lane}: step{s['step']}.md 가 없다")
+    return problems
+
+
+def _ensure_worktree(slot: int, stage: str) -> Path:
+    """워크트리는 `--parallel N` 만큼만 만들어 **재사용**한다 — lane 수만큼 만들면
+    디스크(node_modules·.venv)와 슬롯 테스트 DB 를 그만큼 쓴다."""
+    wt = WT_BASE / f"{_slug(stage)}-w{slot}"
+    if wt.exists():
+        _log(f"  · 워크트리 재사용: {wt.name}")
+        return wt
+    _log(f"  · 워크트리 생성: {wt.name} (base={stage})")
+    r = _git("worktree", "add", "--detach", str(wt), stage)
+    if r.returncode != 0:
+        sys.exit(f"ERROR: worktree add 실패 — {r.stderr.strip()[:300]}")
+    r = _sh("bash", str(ROOT / "tools" / "scripts" / "worktree-bootstrap.sh"),
+            "--slot", str(slot), "--adopt-env", cwd=wt, timeout=1800)
+    if r.returncode != 0:
+        sys.exit(f"ERROR: worktree-bootstrap 실패({wt.name}) — {(r.stdout + r.stderr)[-800:]}")
+    return wt
+
+
+def _reset_worktree(wt: Path, stage: str, lane: str) -> None:
+    """다음 lane 을 위해 워크트리를 stage 최신으로 되돌리고 lane 브랜치를 새로 판다."""
+    branch = f"feat/harness-{lane}"
+    _git("fetch", "origin", stage, cwd=wt)
+    _git("checkout", "--detach", f"origin/{stage}", cwd=wt)
+    _git("branch", "-D", branch, cwd=wt)  # 남아 있으면 지운다(없으면 실패해도 무방)
+    r = _git("checkout", "-b", branch, cwd=wt)
+    if r.returncode != 0:
+        raise RuntimeError(f"{lane}: 브랜치 생성 실패 — {r.stderr.strip()[:200]}")
+
+
+class LaneResult:
+    def __init__(self, lane: str):
+        self.lane = lane
+        self.state = "pending"  # completed | error | blocked | crashed
+        self.pr = None
+        self.merged = False
+        self.detail = ""
+
+
+def _run_lane(lane: str, wt: Path, stage: str, res: LaneResult) -> None:
+    _reset_worktree(wt, stage, lane)
+    _log(f"▶ {lane} 시작 ({wt.name})")
+    r = subprocess.run([sys.executable, str(wt / "tools" / "harness" / "execute.py"), lane, "--push"],
+                       cwd=wt, capture_output=True, text=True, timeout=4 * 3600)
+    try:
+        steps = json.loads((wt / "phases" / lane / "index.json").read_text(encoding="utf-8"))["steps"]
+    except Exception as exc:  # noqa: BLE001 — 파일이 없거나 깨진 것도 결과다
+        res.state, res.detail = "crashed", f"index.json 을 못 읽는다: {exc}"
+        return
+    bad = [s for s in steps if s["status"] in ("error", "blocked")]
+    if bad:
+        res.state = bad[0]["status"]
+        res.detail = (bad[0].get("error_message") or bad[0].get("blocked_reason") or "")[:400]
+    elif all(s["status"] == "completed" for s in steps):
+        res.state = "completed"
+    else:
+        res.state, res.detail = "crashed", (r.stdout + r.stderr)[-400:]
+    _log(f"■ {lane} → {res.state}")
+
+
+def _open_pr(lane: str, stage: str, res: LaneResult) -> None:
+    body = (f"하네스 lane `{lane}` — 러너 무인 실행 결과.\n\n"
+            f"- base: `{stage}` (CI 는 base=stage/** 인 PR 에 발화한다)\n"
+            f"- step 전부 `completed` · AC 는 러너가 재실행해 판정했다\n"
+            f"- ★**AC 초록은 AC 가 옳다는 뜻이 아니다** — diff 는 사람이 읽는다\n\n"
+            f"상세 = `phases/{lane}/index.json` 의 step 별 `summary`\n")
+    r = _sh("gh", "pr", "create", "--base", stage, "--head", f"feat/harness-{lane}",
+            "--title", f"test({lane}): 하네스 무인 실행 — {lane}", "--body", body)
+    if r.returncode != 0:
+        res.detail += f" | PR 생성 실패: {r.stderr.strip()[:200]}"
+        return
+    res.pr = r.stdout.strip().splitlines()[-1]
+    _log(f"  ↑ PR: {res.pr}")
+
+
+def _wait_ci_and_merge(res: LaneResult) -> None:
+    if not res.pr:
+        return
+    deadline = time.time() + CI_TIMEOUT_SEC
+    while time.time() < deadline:
+        r = _sh("gh", "pr", "view", res.pr, "--json", "statusCheckRollup,mergeable,state")
+        if r.returncode != 0:
+            time.sleep(CI_POLL_SEC)
+            continue
+        checks = json.loads(r.stdout).get("statusCheckRollup") or []
+        if checks and all(c.get("status") == "COMPLETED" for c in checks):
+            concl = [c.get("conclusion") for c in checks]
+            if all(c in ("SUCCESS", "NEUTRAL", "SKIPPED") for c in concl):
+                m = _sh("gh", "pr", "merge", res.pr, "--squash", "--delete-branch")
+                res.merged = m.returncode == 0
+                if not res.merged:
+                    res.detail += f" | 머지 실패: {m.stderr.strip()[:200]}"
+                _log(f"  {'✓ 머지' if res.merged else '✗ 머지 실패'}: {res.pr}")
+            else:
+                res.detail += f" | CI red: {concl}"
+                _log(f"  ✗ CI red — 머지하지 않는다: {res.pr}")
+            return
+        time.sleep(CI_POLL_SEC)
+    res.detail += " | CI 대기 시간 초과"
+
+
+def run_parallel(args) -> int:
+    lanes = args.lanes if args.lanes else _pending_lanes()
+    problems = _preflight(lanes, args.stage)
+
+    print("=" * 72)
+    print(f"  하네스 병렬 오케스트레이션 — lane {len(lanes)} · 동시 {args.parallel} · base {args.stage}")
+    print(f"  모드: {'집행(--confirm)' if args.confirm else 'DRY-RUN — 아무것도 바꾸지 않는다'}")
+    print("=" * 72)
+    for i, lane in enumerate(lanes):
+        print(f"  {i + 1:2}. {lane}")
+    if problems:
+        print("\n✗ 전제 위반 — 고치기 전에는 시작하지 않는다:")
+        for why in problems:
+            print(f"  - {why}")
+        return 1
+    print("\n✓ 전제 통과")
+    if not args.confirm:
+        print("\n집행하려면 --confirm 을 붙여라.")
+        return 0
+
+    if _git("rev-parse", "--verify", args.stage).returncode != 0:
+        _log(f"stage 브랜치 생성: {args.stage}")
+        _git("branch", args.stage, "main")
+    r = _git("push", "-u", "origin", args.stage)
+    if r.returncode != 0 and "up to date" not in (r.stderr + r.stdout):
+        sys.exit(f"ERROR: stage push 실패 — {r.stderr.strip()[:300]}")
+
+    wts = [_ensure_worktree(i + 1, args.stage) for i in range(args.parallel)]
+    results = {lane: LaneResult(lane) for lane in lanes}
+    queue = list(lanes)
+    qlock = threading.Lock()
+
+    def worker(wt: Path) -> None:
+        while True:
+            with qlock:
+                if not queue:
+                    return
+                lane = queue.pop(0)
+            res = results[lane]
+            try:
+                _run_lane(lane, wt, args.stage, res)
+            except Exception as exc:  # noqa: BLE001 — 한 lane 의 사고가 밤을 끝내면 안 된다
+                res.state, res.detail = "crashed", str(exc)[:400]
+                _log(f"■ {lane} → crashed: {exc}")
+            if res.state == "completed":
+                _open_pr(lane, args.stage, res)
+                _wait_ci_and_merge(res)
+
+    threads = [threading.Thread(target=worker, args=(wt,)) for wt in wts]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    print("\n" + "=" * 72)
+    done = [r for r in results.values() if r.state == "completed"]
+    merged = [r for r in done if r.merged]
+    for r in results.values():
+        mark = "✓" if r.merged else ("·" if r.state == "completed" else "✗")
+        print(f"  {mark} {r.lane:24} {r.state:10} {r.pr or '':40} {r.detail[:60]}")
+    print(f"\n  완주 {len(done)}/{len(lanes)} · 머지 {len(merged)}")
+
+    if merged:
+        body = (f"`{args.stage}` 통합 PR — lane PR 들이 이 브랜치로 머지된 결과다.\n\n"
+                f"- 완주 {len(done)}/{len(lanes)} · 머지 {len(merged)}\n"
+                + "\n".join(f"- `{r.lane}` — {r.pr}" for r in merged)
+                + "\n\n★**여기서부터는 사람이 판단한다.** lane 별 diff 를 읽고 머지해라 —\n"
+                  "AC 초록은 AC 가 옳다는 뜻이 아니다.\n")
+        r = _sh("gh", "pr", "create", "--base", "main", "--head", args.stage,
+                "--title", f"test({_slug(args.stage)}): 하네스 통합 — lane {len(merged)}건", "--body", body)
+        print("\n  통합 PR:", r.stdout.strip().splitlines()[-1] if r.returncode == 0
+              else f"생성 실패 — {r.stderr.strip()[:200]}")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="QuantBridge Harness Step Runner (v2)")
-    parser.add_argument("phase_dir", help="phases/ 아래 phase 디렉터리명")
+    parser.add_argument("phase_dir", nargs="?", help="phases/ 아래 phase 디렉터리명")
     parser.add_argument("--push", action="store_true", help="완주 후 branch push")
+    # ── 병렬 오케스트레이션 — 러너를 워크트리에서 N벌 띄우는 바깥 루프 ──────
+    parser.add_argument("--parallel", type=int, metavar="N",
+                        help="lane 을 워크트리 N벌에서 큐로 돌린다 (기본 dry-run)")
+    parser.add_argument("--stage", help="lane PR 의 base 브랜치 (`stage/...`) — --parallel 에 필수")
+    parser.add_argument("--lanes", nargs="*", default=None, help="생략하면 pending 전량")
+    parser.add_argument("--confirm", action="store_true", help="--parallel 을 실제로 집행한다")
+    parser.add_argument("--status", action="store_true", help="phase 진행 상황만 출력한다")
     args = parser.parse_args()
+
+    if args.status:
+        idx = json.loads((PHASES_DIR / "index.json").read_text(encoding="utf-8"))
+        for ph in idx["phases"]:
+            if ph["status"] != "completed":
+                print(f"  {ph['status']:10} {ph['dir']}")
+        return 0
+
+    if args.parallel:
+        if args.phase_dir:
+            parser.error("--parallel 과 phase_dir 은 함께 쓸 수 없다 (lane 은 --lanes 로 준다)")
+        if not args.stage:
+            parser.error("--parallel 에는 --stage 가 필요하다 (예: --stage stage/night6)")
+        return run_parallel(args)
+
+    if not args.phase_dir:
+        parser.error("phase_dir 이 필요하다 (또는 --parallel / --status)")
     StepExecutor(args.phase_dir, auto_push=args.push).run()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

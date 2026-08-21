@@ -62,10 +62,12 @@ AC 는 `tests/tasks` 만 돌린다. 다른 디렉터리의 테스트가 이 모�
 ## Acceptance Criteria
 
 1. `test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py`
-2. `cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks --cov-report=json:.coverage.harness.json`
-3. `python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/tasks/celery_app.py --min-cov 50 --target src/tasks/websocket_task.py --min-cov 68 --target src/tasks/_ws_lease.py --min-cov 88`
-4. `cd apps/api && test "$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')" -ge 14`
-5. `git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py`
+2. `cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks`
+3. `cd apps/api && uv run coverage report --include=src/tasks/celery_app.py --fail-under=50`
+4. `cd apps/api && uv run coverage report --include=src/tasks/websocket_task.py --fail-under=68`
+5. `cd apps/api && uv run coverage report --include=src/tasks/_ws_lease.py --fail-under=88`
+6. `cd apps/api && test "$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')" -ge 14`
+7. `git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py`
 
 ## 자기 점검
 

@@ -41,9 +41,8 @@
 ## Acceptance Criteria
 
 1. `test -f apps/web/src/features/backtest/__tests__/api.test.ts`
-2. `cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-api-backtest --reporter=json --outputFile=coverage/fe6-api-backtest/results.json`
-3. `python3 tools/harness/assert_fe.py apps/web/coverage/fe6-api-backtest --min-cases 6 --target src/features/backtest/api.ts --min-cov 15`
-4. `git diff --quiet -- apps/web/src/features/backtest/api.ts`
+2. `cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=15`
+3. `git diff --quiet -- apps/web/src/features/backtest/api.ts`
 
 ## 자기 점검
 

@@ -7,7 +7,7 @@
       "name": "probe-and-safe-rules",
       "status": "pending",
       "ac": [
-        "cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/noSvgWithoutTitle,a11y/useButtonType,a11y/noRedundantRoles --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
         "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
       ]
     },
@@ -16,7 +16,7 @@
       "name": "template-and-complexity",
       "status": "pending",
       "ac": [
-        "cd apps/web && python3 ../../tools/harness/assert_biome.py --rules style/useTemplate,complexity/noUselessSwitchCase,complexity/noUselessFragments,complexity/useOptionalChain,complexity/useLiteralKeys --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
         "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
       ]
     },
@@ -25,7 +25,7 @@
       "name": "aria-and-semantics",
       "status": "pending",
       "ac": [
-        "cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/useSemanticElements,a11y/useAriaPropsSupportedByRole,a11y/noNoninteractiveTabindex,a11y/useKeyWithClickEvents --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
         "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
       ]
     },
@@ -34,7 +34,7 @@
       "name": "array-index-key",
       "status": "pending",
       "ac": [
-        "cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/noSvgWithoutTitle,a11y/useButtonType,a11y/noRedundantRoles,style/useTemplate,complexity/noUselessSwitchCase,complexity/noUselessFragments,complexity/useOptionalChain,complexity/useLiteralKeys,a11y/useSemanticElements,a11y/useAriaPropsSupportedByRole,a11y/noNoninteractiveTabindex,a11y/useKeyWithClickEvents,suspicious/noArrayIndexKey,suspicious/noConsole --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
+        "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents --only=suspicious/noArrayIndexKey --only=suspicious/noConsole src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
         "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",

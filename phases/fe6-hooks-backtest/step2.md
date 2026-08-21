@@ -43,9 +43,8 @@
 ## Acceptance Criteria
 
 1. `test -f apps/web/src/features/backtest/__tests__/hooks.core.test.tsx`
-2. `cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/backtest/hooks.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-hooks-backtest --reporter=json --outputFile=coverage/fe6-hooks-backtest/results.json`
-3. `python3 tools/harness/assert_fe.py apps/web/coverage/fe6-hooks-backtest --min-cases 20 --target src/features/backtest/hooks.ts --min-cov 45`
-4. `git diff --quiet -- apps/web/src/features/backtest/hooks.ts`
+2. `cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/backtest/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=45`
+3. `git diff --quiet -- apps/web/src/features/backtest/hooks.ts`
 
 ## 자기 점검
 

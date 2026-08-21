@@ -42,9 +42,8 @@
 ## Acceptance Criteria
 
 1. `test -f apps/web/src/features/strategy/__tests__/api.test.ts -a -f apps/web/src/features/optimizer/__tests__/api.test.ts -a -f apps/web/src/features/alert-rules/__tests__/api.test.ts`
-2. `cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-api-strategy-opt --reporter=json --outputFile=coverage/fe6-api-strategy-opt/results.json`
-3. `python3 tools/harness/assert_fe.py apps/web/coverage/fe6-api-strategy-opt --min-cases 24 --target src/features/strategy/api.ts --min-cov 80 --target src/features/optimizer/api.ts --min-cov 80 --target src/features/alert-rules/api.ts --min-cov 80`
-4. `git diff --quiet -- apps/web/src/features/strategy/api.ts apps/web/src/features/optimizer/api.ts apps/web/src/features/alert-rules/api.ts`
+2. `cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=80`
+3. `git diff --quiet -- apps/web/src/features/strategy/api.ts apps/web/src/features/optimizer/api.ts apps/web/src/features/alert-rules/api.ts`
 
 ## 자기 점검
 

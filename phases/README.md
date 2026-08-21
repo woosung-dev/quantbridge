@@ -18,9 +18,10 @@ step3 자기 변이**. step 이 넷이라 러너의 `summary` 누적 전달·재
 ### 실행
 
 ```bash
-python3 tools/harness/night_run.py --stage stage/night6 --jobs 4            # 계획만 (기본 dry-run)
-python3 tools/harness/night_run.py --stage stage/night6 --jobs 4 --confirm  # 집행
-python3 tools/harness/night_run.py --status                                 # 진행 상황
+python3 tools/harness/execute.py --parallel 4 --stage stage/night6            # 계획만 (기본 dry-run)
+python3 tools/harness/execute.py --parallel 4 --stage stage/night6 --confirm  # 집행
+python3 tools/harness/execute.py --status                                     # 진행 상황
+python3 tools/harness/execute.py <phase>                                      # 기존 단일 실행 — 그대로다
 ```
 
 ★**무인 구간은 lane PR 의 stage 머지까지다.** 오케스트레이터가 stage 브랜치를 만들고, 워크트리
@@ -45,10 +46,9 @@ python3 tools/harness/night_run.py --status                                 # �
 | `fe6-debt-trading-dash` | 부채 | `trading`·`live-sessions`·`dashboard`·`waitlist`·`components`·`lib` | 42 |
 | `fe6-debt-app-tooling` | 부채 | `app/**`·`e2e/**`·`scripts/**` | 41 |
 
-**착수 전 AC red 12/12** · 판정기 3종 판별력 배터리 **15/15**
-(`assert_fe.py` 5 · `assert_biome.py` 4 · `assert_be.py` 6). 공통 규약 = [`fe6-common.md`](./fe6-common.md).
+**착수 전 AC red 12/12.** 공통 규약 = [`fe6-common.md`](./fe6-common.md).
 
-### ★★저작 중 실측이 설계를 네 번 반증했다 — 다음 회차가 재사용할 것
+### ★★저작 중 실측이 설계를 다섯 번 반증했다 — 다음 회차가 재사용할 것
 
 1. ★★★**AC 가 재는 커버리지와 전량 스위트 값이 다르다.** AC 는 한 디렉터리만 돌리므로 다른
    디렉터리의 테스트가 그 모듈을 import 하며 덮던 몫이 **안 들어온다**:
@@ -61,6 +61,18 @@ python3 tools/harness/night_run.py --status                                 # �
    그 파일이 있는데도 대상이 24.7% 였다. **이름이 맞는 테스트는 증거가 아니다**(5차 교훈의 재현).
 4. ★★**부채 lane 을 「규칙 축」으로 자르면 lane 끼리 파일이 26건 겹친다** — 같은 컴포넌트가 여러
    규칙에 걸리기 때문이다. ⇒ **디렉터리 축**으로 갈랐다. 규칙 축은 표에서는 깔끔하고 병합에서는 재앙이다.
+
+5. ★★★**판정 전용 스크립트 3종을 만들었다가 전부 지웠다 — 표준 러너가 이미 rc 로 답한다.**
+   `assert_fe.py`·`assert_be.py`·`assert_biome.py` 를 「vitest/pytest 는 케이스 수와 파일별
+   커버리지를 rc 로 안 준다」는 **추측** 위에 지었다. 사용자 지적을 받고 실측하니 셋 다 거짓이었다:
+   `vitest --coverage.thresholds.perFile --coverage.thresholds.lines=N` **rc 로 답한다**(18.6% vs
+   하한 50 → rc=1 · 하한 10 → rc=0) · `coverage report --include=<파일> --fail-under=N` **rc 로
+   답하고 데이터가 없으면 rc≠0**(fail-closed) · `biome lint` 는 **존재하지 않는 경로에 rc=1** 이라
+   내가 「유일한 존재 이유」로 든 파일 수 하한도 이미 있었다.
+   ⇒ **[ADR-037] 재입힘 규칙(「하네스는 추측으로 자라지 못한다」)을 내가 어긴 것이다.**
+   ★그리고 `night_run.py` 도 별도 파일로 둘 이유가 없었다 — `execute.py --parallel` 로 흡수했다.
+   `StepExecutor` 는 그대로 phase 하나만 처리하고, 병렬은 그 **바깥 루프**로 붙였다(러너 코드 무변경).
+   **하네스 파일은 4개에서 `execute.py` 1개로 돌아갔다.**
 
 ★**`| tail` 이 biome 의 rc 를 또 삼켰다 — 레포 11번째.** 위반 17건인데 `rc=0` 이 나왔다.
 **AC 에 파이프를 쓰지 마라**(zsh 는 `$pipestatus`, 그러나 AC 는 애초에 파이프 없이 쓸 수 있어야 한다).

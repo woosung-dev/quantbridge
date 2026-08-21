@@ -61,7 +61,7 @@
 
 ## Acceptance Criteria
 
-1. `cd apps/web && python3 ../../tools/harness/assert_biome.py --rules style/useTemplate,complexity/noUselessSwitchCase,complexity/noUselessFragments,complexity/useOptionalChain,complexity/useLiteralKeys --min-files 210 src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/features/alert-rules src/features/realtime src/components src/lib src/hooks src/store`
+1. `cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/features/alert-rules src/features/realtime src/components src/lib src/hooks src/store`
 2. `cd apps/web && pnpm exec vitest run src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/components src/lib src/hooks`
 
 ## 자기 점검

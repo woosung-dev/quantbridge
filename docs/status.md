@@ -574,13 +574,12 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 구조로 반영했다 — step0 재료 자가검증 → step1 정상 → step2 에러·경계 → step3 자기 변이.
 ★★**재료 4축 전부 실측 확정** — FE 커버리지 **85.04%**(미커버 **4,597줄/344파일**) · BE **91.51%**(1,385줄) ·
 린트 부채 **180건**(a11y 67 + 113). ★★★**「FE 축은 바닥」은 AST 축의 결론이었다** — 커버리지로 재니
-`api.ts` 6종·`hooks.ts` 6종이 통째로 비었다. ★**착수 전 AC red 12/12** · 판정기 판별력 **15/15**.
+`api.ts` 6종·`hooks.ts` 6종이 통째로 비었다. ★**착수 전 AC red 12/12.**
 
-★★**저작 중 실측이 내 설계를 네 번 반증했다** — AC 가 재는 커버리지 ≠ 전량 스위트 값 · vitest 는
-없는 파일을 **조용히 무시**(rc=0) · 새 파일 경로 1건이 **이미 존재** · 부채를 **규칙 축**으로 자르면
-lane 끼리 파일이 26건 겹친다(⇒ 디렉터리 축). 수치·전말 = [`phases/README.md`](../phases/README.md) 6차 절.
+★★**저작 중 실측이 내 설계를 다섯 번 반증했다** — AC 가 재는 커버리지 ≠ 전량 스위트 값 · vitest 는 없는 파일을 **조용히 무시**(rc=0) · 새 파일 경로 1건이 **이미 존재** · 부채를 **규칙 축**으로 자르면 lane 끼리 파일이 26건 겹친다.
+★★★**다섯째는 사용자가 잡았다 — 판정기 3종을 「표준 러너가 rc 로 안 준다」는 추측 위에 지었는데 셋 다 거짓이었다**(vitest `--coverage.thresholds.perFile` · `coverage report --fail-under` · biome 경로 rc 전부 실측 확인). [ADR-037] 재입힘 규칙을 내가 어겼다 ⇒ 전부 삭제하고 `night_run.py` 도 `execute.py --parallel` 로 흡수해 **하네스 파일 4 → 1**. 전말 = [`phases/README.md`](../phases/README.md) 6차 절.
 
-**다음 행동 = 밤샘 루프 6차를 실행한다 — `/harness parallel 4` 또는 `python3 tools/harness/night_run.py --stage stage/night6 --jobs 4 --confirm`.**
+**다음 행동 = 밤샘 루프 6차를 실행한다 — `python3 tools/harness/execute.py --parallel 4 --stage stage/night6 --confirm`**(기본 dry-run).
 ★무인 구간은 lane PR 의 stage 머지까지이고 **사람이 판단하는 자리는 stage→main PR 하나**다.
 전제·절차·함정 전문 = [`phases/README.md`](../phases/README.md) 6차 절 · lane 공통 규약 = `phases/fe6-common.md`.
 

@@ -52,7 +52,7 @@
 
 ## Acceptance Criteria
 
-1. `cd apps/web && python3 ../../tools/harness/assert_biome.py --rules style/useTemplate,complexity/noUselessSwitchCase,complexity/noUselessFragments,complexity/useOptionalChain,complexity/useLiteralKeys --min-files 130 src/features/backtest`
+1. `cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys src/features/backtest`
 2. `cd apps/web && pnpm exec vitest run src/features/backtest`
 
 ## 자기 점검

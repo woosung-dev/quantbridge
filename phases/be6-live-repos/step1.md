@@ -60,10 +60,12 @@ AC 는 `tests/trading tests/waitlist` 만 돌린다. 다른 디렉터리의 테�
 ## Acceptance Criteria
 
 1. `test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py`
-2. `cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist --cov-report=json:.coverage.harness.json`
-3. `python3 tools/harness/assert_be.py apps/api/.coverage.harness.json --target src/trading/repositories/live_signal_session_repository.py --min-cov 65 --target src/trading/repositories/live_signal_event_repository.py --min-cov 70 --target src/waitlist/repository.py --min-cov 72`
-4. `cd apps/api && test "$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')" -ge 14`
-5. `git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py`
+2. `cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist`
+3. `cd apps/api && uv run coverage report --include=src/trading/repositories/live_signal_session_repository.py --fail-under=65`
+4. `cd apps/api && uv run coverage report --include=src/trading/repositories/live_signal_event_repository.py --fail-under=70`
+5. `cd apps/api && uv run coverage report --include=src/waitlist/repository.py --fail-under=72`
+6. `cd apps/api && test "$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')" -ge 14`
+7. `git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py`
 
 ## 자기 점검
 

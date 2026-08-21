@@ -52,9 +52,8 @@
 ## Acceptance Criteria
 
 1. `test -f apps/web/src/features/live-sessions/__tests__/api-contract.test.ts -a -f apps/web/src/features/trading/__tests__/api-contract.test.ts -a -f apps/web/src/features/waitlist/__tests__/api-contract.test.ts -a -f apps/web/src/features/live-sessions/__tests__/unrealized-branches.test.ts`
-2. `cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/api-contract.test.ts src/features/trading/__tests__/api-contract.test.ts src/features/waitlist/__tests__/api-contract.test.ts src/features/live-sessions/__tests__/unrealized-branches.test.ts --coverage --coverage.include='src/features/live-sessions/api.ts' --coverage.include='src/features/trading/api.ts' --coverage.include='src/features/waitlist/api.ts' --coverage.include='src/features/live-sessions/unrealized.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-api-trading-live --reporter=json --outputFile=coverage/fe6-api-trading-live/results.json`
-3. `python3 tools/harness/assert_fe.py apps/web/coverage/fe6-api-trading-live --min-cases 6 --target src/features/live-sessions/api.ts --min-cov 12 --target src/features/trading/api.ts --min-cov 12 --target src/features/waitlist/api.ts --min-cov 12 --target src/features/live-sessions/unrealized.ts --min-cov 12`
-4. `git diff --quiet -- apps/web/src/features/live-sessions/api.ts apps/web/src/features/trading/api.ts apps/web/src/features/waitlist/api.ts apps/web/src/features/live-sessions/unrealized.ts`
+2. `cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/api-contract.test.ts src/features/trading/__tests__/api-contract.test.ts src/features/waitlist/__tests__/api-contract.test.ts src/features/live-sessions/__tests__/unrealized-branches.test.ts --coverage --coverage.include='src/features/live-sessions/api.ts' --coverage.include='src/features/trading/api.ts' --coverage.include='src/features/waitlist/api.ts' --coverage.include='src/features/live-sessions/unrealized.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=12`
+3. `git diff --quiet -- apps/web/src/features/live-sessions/api.ts apps/web/src/features/trading/api.ts apps/web/src/features/waitlist/api.ts apps/web/src/features/live-sessions/unrealized.ts`
 
 ## 자기 점검
 

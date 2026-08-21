@@ -58,7 +58,7 @@
 
 ## Acceptance Criteria
 
-1. `cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/useSemanticElements,a11y/useAriaPropsSupportedByRole,a11y/noNoninteractiveTabindex,a11y/useKeyWithClickEvents --min-files 110 src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth`
+1. `cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth`
 2. `cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth`
 
 ## 자기 점검

@@ -48,9 +48,8 @@
 ## Acceptance Criteria
 
 1. `test -f apps/web/src/features/live-sessions/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/trading/__tests__/hooks.core.test.tsx`
-2. `cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/live-sessions/hooks.ts' --coverage.include='src/features/trading/hooks.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-hooks-live-trading --reporter=json --outputFile=coverage/fe6-hooks-live-trading/results.json`
-3. `python3 tools/harness/assert_fe.py apps/web/coverage/fe6-hooks-live-trading --min-cases 6 --target src/features/live-sessions/hooks.ts --min-cov 12 --target src/features/trading/hooks.ts --min-cov 12`
-4. `git diff --quiet -- apps/web/src/features/live-sessions/hooks.ts apps/web/src/features/trading/hooks.ts`
+2. `cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/live-sessions/hooks.ts' --coverage.include='src/features/trading/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=12`
+3. `git diff --quiet -- apps/web/src/features/live-sessions/hooks.ts apps/web/src/features/trading/hooks.ts`
 
 ## 자기 점검
 

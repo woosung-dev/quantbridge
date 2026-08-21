@@ -42,12 +42,11 @@
 ## Acceptance Criteria
 
 1. `test -f apps/web/src/features/backtest/__tests__/api.test.ts`
-2. `cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.reporter=json-summary --coverage.reportsDirectory=coverage/fe6-api-backtest --reporter=json --outputFile=coverage/fe6-api-backtest/results.json`
-3. `python3 tools/harness/assert_fe.py apps/web/coverage/fe6-api-backtest --min-cases 26 --target src/features/backtest/api.ts --min-cov 85`
-4. `git diff --quiet -- apps/web/src/features/backtest/api.ts`
-5. `cd apps/web && pnpm exec vitest run`
-6. `cd apps/web && pnpm exec tsc --noEmit`
-7. `cd apps/web && pnpm exec biome check src/features/backtest/__tests__/api.test.ts`
+2. `cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=85`
+3. `git diff --quiet -- apps/web/src/features/backtest/api.ts`
+4. `cd apps/web && pnpm exec vitest run`
+5. `cd apps/web && pnpm exec tsc --noEmit`
+6. `cd apps/web && pnpm exec biome check src/features/backtest/__tests__/api.test.ts`
 
 ## 자기 점검
 

@@ -61,8 +61,8 @@
 
 ## Acceptance Criteria
 
-1. `cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/useSemanticElements,a11y/useAriaPropsSupportedByRole,a11y/noNoninteractiveTabindex,a11y/useKeyWithClickEvents --min-files 70 src/app src/__tests__ src/styles`
-2. `cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/useSemanticElements,a11y/useAriaPropsSupportedByRole,a11y/noNoninteractiveTabindex,a11y/useKeyWithClickEvents --min-files 40 e2e scripts`
+1. `cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents src/app src/__tests__ src/styles`
+2. `cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents e2e scripts`
 3. `cd apps/web && pnpm exec vitest run src/app`
 
 ## 자기 점검

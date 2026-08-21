@@ -51,7 +51,7 @@
 
 ## Acceptance Criteria
 
-1. `cd apps/web && python3 ../../tools/harness/assert_biome.py --rules a11y/noSvgWithoutTitle,a11y/useButtonType,a11y/noRedundantRoles --min-files 130 src/features/backtest`
+1. `cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles src/features/backtest`
 2. `cd apps/web && pnpm exec vitest run src/features/backtest`
 
 ## 자기 점검
