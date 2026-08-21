@@ -80,7 +80,10 @@ if (!isPublicRoute(pathname)) {
   - "prop change 시 state 초기화" 패턴은 render-time clamp/compare 로 대체 (예: `const clamped = Math.min(index, len - 1)`)
   - 부득이할 때 scalar dep 선호 (`[items.length]` > `[items]`)
   - React 공식 "reset state on prop change" 패턴 (`if (prev !== curr) setState(...)`) 사용
-- **Lint 규약**: `react-hooks/set-state-in-effect` 경고는 **override 절대 금지**. 해당 lint 는 바로 이 패턴을 차단하기 위해 존재
+- ⚠️**Lint 규약 (2026-08-22 변경)**: 종전엔 `react-hooks/set-state-in-effect` 가 이 패턴을 **차단**했다.
+  [ADR-039] 로 ESLint 를 제거하면서 **그 규칙이 사라졌다** — Biome 523 규칙에 대응물이 없고
+  GritQL 복원도 실패했다(실트리 11/11 오탐). **지금 이 항목은 기계가 아니라 사람이 지킨다.**
+  대신 Biome 이 `useExhaustiveDependencies`(빠진 dep)와 `useHookAtTopLevel` 은 계속 잡는다
 - **PR 규약**: hooks diff 가 있는 PR 은 **dev server live smoke 5분 이상** 필수. unit test 만으로 green 인정 안 됨
 
 #### H-2. React Query `queryKey` 에 JWT accessor (`getToken`) 직접 포함 금지
@@ -88,22 +91,26 @@ if (!isPublicRoute(pathname)) {
 - **금지**: `queryKey: [..., await getToken()]` 또는 `getToken` 함수 참조 자체를 queryKey 에 포함
 - **이유**:
   - `getToken` 은 매 렌더마다 새 함수 참조 → queryKey identity 망가짐 → cache 무효화 폭주
-  - `@tanstack/eslint-plugin-query`의 `exhaustive-deps` rule 이 closure capture 추적으로 차단 (`reference.resolved?.scope`). 동일 스코프 alias 우회 불가
+  - ⚠️종전엔 `@tanstack/eslint-plugin-query` 의 `exhaustive-deps` 가 closure capture 추적으로 차단했다.
+    [ADR-039] 로 **그 플러그인이 제거됐다** — Biome 에 대응 규칙이 0건이라 **기계 방어선이 없다**
 - **대신**:
   - `userId` identity 를 queryKey factory 첫 인자로 사용 (`strategyKeys.list(userId, query)`)
   - 로그아웃 방어: 호출부에서 `userId ?? "anon"` sentinel
   - queryFn 은 **모듈-level factory** 호출식으로 분리 (`queryFn: makeListFetcher(query, getToken)`) — rule 이 `CallExpression` 에선 내부 capture 검사 skip
-- **Lint 규약**: `@tanstack/query/exhaustive-deps` override 금지. 우회 패턴 (factory 추출) 이 있음
+- ⚠️**Lint 규약 (2026-08-22 변경)**: 이 축을 **재는 도구가 없다**([ADR-039]). 규칙은 유효하고
+  우회 패턴(factory 추출)도 그대로지만, 위반해도 CI 가 안 잡는다 — 리뷰에서 봐야 한다
 
 #### H-3. React Compiler 호환 — render body 에서 `ref.current = value` 대입 금지
 
 - **금지**: 함수형 컴포넌트 render phase 에서 `ref.current = x` 직접 대입 (React 공식 "latest state in closures" 예시 따라도 안 됨)
 - **이유**: Compiler 의 재실행/메모이제이션 가정과 충돌한다.
-  > ★**2026-08-22 실측 정정** — 종전 문장은 「`eslint-plugin-react-compiler` 가 "Cannot access
-  > refs during render" 로 **error 차단**한다」였다. **현재 핀(19.1.0-rc.2)에서 그 모양은 발화하지
-  > 않는다**(최소 재현 `r.current = v` → eslint rc=0). 규칙은 살아 있다 — props 변이는 error 로
-  > 잡고, `eslint --print-config` 상 `[2]` 다([ADR-039](../../docs/adr/039-frontend-biome.md) 판별력 배터리).
-  > ⇒ **권고는 유효하되 lint 가 막아 준다고 믿지 마라.** 이 패턴은 사람이 지켜야 한다.
+  > ⚠️**2026-08-22 — 이 축의 기계 방어선이 없다**([ADR-039](../../docs/adr/039-frontend-biome.md)).
+  > 종전 문장은 「`eslint-plugin-react-compiler` 가 "Cannot access refs during render" 로
+  > **error 차단**한다」였는데, 실측 결과 ⑴ 그 핀(19.1.0-rc.2)에서 **그 모양은 애초에 발화하지
+  > 않았고**(최소 재현 rc=0 · props 변이만 잡혔다) ⑵ 그 뒤 ESLint 자체가 제거됐다.
+  > Biome 대체분(`nursery/useReactCompiler`)은 **한글 파일에서 panic** 해 못 쓴다.
+  > ⇒ **권고는 유효하다. 다만 사람이 지킨다.** 참고로 React Compiler 는 `next.config.ts` 에
+  > 켜져 있지도 않다 — 이 항목은 「지금의 버그 방지」가 아니라 「나중에 켤 때를 위한 대비」다.
 - **대신**: **dependency array 없는 sync `useEffect`** 로 이동 (매 commit 후 실행). 기능상 render 직후 commit phase 라 동일
   ```tsx
   const latest = useRef(value);
@@ -154,7 +161,7 @@ src/
 
 ★**의심스러우면 feature 로 보내라.**
 
-### ★ 레이어 경계는 **Biome + eslint 둘이 나눠** 집행한다 ([ADR-039], 2026-08-21)
+### ★ 레이어 경계는 **Biome 이** 집행한다 ([ADR-039], 2026-08-22)
 
 `features/`·`components/`·`lib/`·`hooks/`·`store/` 에서 **`@/app/*` 를 import 하면 error** 다.
 `app/` 은 최상위 조립층이라 아래 층이 그것을 거슬러 참조하면 라우트를 못 옮긴다.
@@ -163,7 +170,7 @@ src/
 | --- | --- |
 | 정적 `import`·`export from` | `biome.jsonc` `style/noRestrictedImports` |
 | 동적 `import("@/app/x")` | 같은 규칙 — Biome 은 동적 import 를 **네이티브로** 본다 |
-| 템플릿 리터럴 ``import(`@/app/${x}`)`` | `eslint.config.mjs` `no-restricted-syntax` (Biome 이 못 보는 유일한 갈래) |
+| 템플릿 리터럴 ``import(`@/app/${x}`)`` | ⚠️**없다.** ESLint 제거로 이 갈래는 **사람이 지킨다** |
 
 ### ★ 컴포넌트를 옮기기 전에 — 검사기 스코프를 먼저 재라
 

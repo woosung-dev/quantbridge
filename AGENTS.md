@@ -26,8 +26,9 @@
 - ALWAYS — 커밋/푸쉬/배포는 단계별 사용자 승인 (묶음 요청만 한 번에)
 - ALWAYS — **green = 표준 러너 + CI 단일 게이트**([ADR-037](./docs/adr/037-harness-zero-base.md),
   2026-08-19 제로베이스). 로컬 pre-flight 의식 없음 — PR 을 올리면 CI(be: ruff+pytest / fe:
-  **biome+eslint**+tsc+vitest+build)가 판정한다 — FE 포맷·린트 주력은 Biome 이고 ESLint 는
-  React 안전 3축만 든다([ADR-039](./docs/adr/039-frontend-biome.md)). 로컬에서 미리 보려면 그 러너를 직접 돌려라
+  **biome**+tsc+vitest+build)가 판정한다 — FE 는 **Biome 단독**이다. prettier·ESLint 는
+  2026-08-22 에 제거됐고 잃은 검사 4종이 명시돼 있다([ADR-039](./docs/adr/039-frontend-biome.md)).
+  로컬에서 미리 보려면 그 러너를 직접 돌려라
   (BE pytest 는 `.env.local` 통째 소싱 의무 — 아래 Operational Commands)
 - ALWAYS — 리뷰 도구는 **둘**이다 — `/qb-review`(체크리스트 1패스, 가벼운 변경) ·
   `/review-code`(3차원 병렬 + finding 당 skeptic 3명 2/3 다수결, 무거운 변경).

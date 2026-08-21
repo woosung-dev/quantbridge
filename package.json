@@ -12,8 +12,7 @@
   },
   "lint-staged": {
     "apps/web/**/*.{ts,tsx,mjs,css,json}": [
-      "bash -c 'cd apps/web && ./node_modules/.bin/biome check --write --no-errors-on-unmatched \"${0#apps/web/}\" \"${@#apps/web/}\"'",
-      "bash -c 'cd apps/web && pnpm exec eslint --fix --no-warn-ignored --'"
+      "bash -c 'cd apps/web && ./node_modules/.bin/biome check --write --no-errors-on-unmatched \"${0#apps/web/}\" \"${@#apps/web/}\"'"
     ],
     "apps/api/**/*.py": [
       "bash -c 'cd apps/api && .venv/bin/ruff check --fix --exit-non-zero-on-fix \"${0#apps/api/}\" \"${@#apps/api/}\"'",

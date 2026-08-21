@@ -6,12 +6,17 @@
 
 ## 결정
 
-1. **prettier 를 레포에서 완전히 제거한다.** 설정 3개(`.prettierrc` · `.prettierignore` ×2)와
-   패키지 2개(`prettier` · `prettier-plugin-tailwindcss`)를 지운다.
-2. **`apps/web` 의 포맷·린트 주력은 Biome 2.5.9** 다 (`apps/web/biome.jsonc`).
-3. **ESLint 는 없애지 않는다.** Biome 이 **구조적으로 못 하는 3축**만 남기고 126줄 → 78줄로 줄인다.
+1. **prettier 와 ESLint 를 레포에서 완전히 제거한다.** 설정 4개(`.prettierrc` ·
+   `.prettierignore` ×2 · `eslint.config.mjs`)와 패키지 9개를 지운다.
+2. **`apps/web` 의 포맷·린트는 Biome 2.5.9 단독**이다 (`apps/web/biome.jsonc` 하나).
+3. **검사 4종을 잃는다.** 아래에 무엇을·왜·무슨 대안을 시도했는지 남긴다 — 이 절이 이 ADR 의
+   본체다. 「없앴다」보다 「무엇이 이제 안 잡히는가」가 다음 사람에게 필요한 정보다.
 
-## 왜 ESLint 를 못 없앴나 — 실측 4건
+> ★**초판(2026-08-21)은 「ESLint 는 못 없앤다」였다.** 사용자 판단으로 검사 4종을 포기하고
+> 도구를 하나로 줄였다(2026-08-22). 아래 실측은 그대로 유효하다 — **못 하는 것의 목록**이지
+> 남겨야 하는 이유가 아니다.
+
+## 무엇을 잃었나 — 실측 4건
 
 전부 2026-08-21 에 이 레포의 실제 트리로 잰 값이다.
 
@@ -85,13 +90,14 @@ Biome 2.5.9 는 이 셋을 **파싱 중(⌛️)**이고 포맷을 못 한다. pr
 | 대상 | 주인 |
 | --- | --- |
 | `apps/web` 의 ts · tsx · mjs · css · json | **Biome** (포맷 + 린트) |
-| React Hooks 4종 · react-compiler · tanstack query · 템플릿 리터럴 import | **ESLint** |
+| `set-state-in-effect`·`-in-render` · react-compiler · tanstack queryKey · 템플릿 리터럴 import | **없음 — 사람이 지킨다** |
 | md · yml · yaml · 레포 루트 json | **없음** (수동) |
 
-★**한 축에 주인은 하나다.** Biome 의 `useExhaustiveDependencies` / `useHookAtTopLevel` 은
-**껐다** — 남는 도구가 그 축의 단독 판정자여야 하고, hooks 의 공식 구현은 ESLint 쪽이다.
-실제로 Biome 판은 7건이 어긋났는데 전부 「남는 dep」이었고 그 대상이 `themeKey`·`data`,
-즉 effect 가 읽지 않고 **트리거로만 쓰는** 값이었다 — 지우면 테마를 바꿔도 차트가 안 다시 그려진다.
+★**hooks 축 2종은 Biome 으로 돌아왔다.** 초판에서 `useExhaustiveDependencies` /
+`useHookAtTopLevel` 을 껐던 이유는 「ESLint 가 단독 판정자」였기 때문인데 그 도구가 없어졌다.
+단 `reportUnnecessaryDependencies: false` 는 필수다 — 기본값이면 7건이 뜨는데 전부
+「남는 dep」이고 그 대상이 `themeKey`·`data`, 즉 effect 가 읽지 않고 **트리거로만 쓰는** 값이라
+따르면 테마를 바꿔도 차트가 안 다시 그려진다.
 
 ## 제외 경로 3종 (`biome.jsonc` `files.includes`)
 
@@ -103,14 +109,28 @@ Biome 2.5.9 는 이 셋을 **파싱 중(⌛️)**이고 포맷을 못 한다. pr
 
 ## 측정
 
-| 항목 | 전 | 후 |
+| 항목 | 전 (eslint+prettier) | 후 (Biome 단독) |
 | --- | --- | --- |
-| FE lint | eslint 16.0s | biome 0.2s + eslint 12.4s |
+| **도구** | 2 | **1** |
+| **설정 파일** | 4 | **1** |
+| **설정 실효 줄**(주석 제외) | 109 | **98** |
+| FE lint | eslint **16.0s** | biome **0.2s** |
 | FE format | **게이트 없음** (트리의 379파일이 미정렬이었다) | biome 0.1s |
-| `eslint.config.mjs` | 126줄 | 78줄 |
-| 제거 패키지 | — | `prettier` · `prettier-plugin-tailwindcss` · `eslint-config-next` · `eslint-config-prettier` |
-| 추가 패키지 | — | `@biomejs/biome` · `@typescript-eslint/parser`(파서 직접 물림) |
-| 디스크 | — | **+10MB** (@biomejs 네이티브 바이너리 61MB) |
+| **CI frontend 잡** | 233.6s (직전 5회 평균) | **186s** → ESLint 제거 후 재측정 필요 |
+| `apps/web` 패키지(transitive) | 1,034 | **813** |
+| 제거 패키지(직접) | — | prettier · prettier-plugin-tailwindcss · eslint · eslint-config-next · eslint-config-prettier · @typescript-eslint/parser · eslint-plugin-react-hooks · eslint-plugin-react-compiler · @tanstack/eslint-plugin-query (**9**) |
+| 추가 패키지 | — | `@biomejs/biome` (**1**) |
+| 디스크 | — | **+61MB** (네이티브 바이너리) |
+
+★**설정이 도입 전보다 작아진 것은 최소화를 실측했기 때문이다.** 초판 설정은 실효 165줄이었고,
+각 항목을 하나씩 빼서 `biome check` 의 rc·진단수를 대조해 **잉여 13건**을 걷어냈다 —
+`indentWidth`·`quoteStyle`·`semicolons`·`trailingCommas` 등은 **Biome 기본값과 같은 값**이었다.
+⚠️단 `assist.organizeImports: "off"` 는 **빼면 안 된다** — 지우면 import 정렬이 켜져 303파일이 어긋난다.
+
+★★**「진단이 안 늘어난다」를 「잉여」로 읽으면 안 된다.** 그 스윕이 `noUnusedVariables` 와
+`useImportType` 을 잉여로 분류했는데, 판별력 배터리가 **위반을 심자 green** 을 냈다 —
+위반이 0이었을 뿐 recommended 가 안 켜 주는 규칙이었다. 설정을 줄일 때는 **위반을 심어
+다시 잡히는지**까지 봐라. 이 두 줄은 되살렸다.
 
 ★**대량 리포맷 374 파일은 Biome 의 비용이 아니다.** ts/tsx 포맷 게이트가 **애초에 없었고**
 (`lint-staged` 는 `*.{json,md,yml,yaml}` 에만 prettier 를 걸었다), prettier 로 게이트를 세워도
@@ -129,19 +149,23 @@ CI(PR #769) — backend · frontend · live-smoke **전부 SUCCESS**.
 초록은 게이트가 옳다는 증거가 아니다. 이 레포에서 검사기가 무증거를 낸 적이 여러 번이라
 ([LESSON-124]) 케이스마다 임시 파일 1개를 심고 rc 를 직접 읽었다(파이프·`tail` 없이 python).
 
-| 심은 위반 | Biome | ESLint |
+**최종 배터리 (Biome 단독, 18케이스 · 18/18 일치, 2026-08-22)**
+
+| 심은 위반 | 기대 | 실측 |
 | --- | --- | --- |
-| 포맷 위반(들여쓰기·따옴표) | **RED** | green |
-| `noUnusedVariables` | **RED** | green |
-| `useImportType` | **RED** | green |
-| ADR-035 정적 `import` | **RED** | green |
-| ADR-035 동적 `import("@/app/x")` | **RED** | green |
-| ADR-035 ``import(`@/app/${x}`)`` | green | **RED** |
-| `set-state-in-effect` | green | **RED** |
-| `react-compiler`(props 변이) | green | **RED** |
-| `@tanstack/query/exhaustive-deps` | green | **RED** |
-| **제외 경로** `src/components/ui` 안의 포맷 위반 | green | green |
-| **제외 경로** `**/generated` 안의 포맷 위반 | green | green |
+| 포맷 위반 | RED | **RED** |
+| `noUnusedVariables` · `useImportType` | RED | **RED** |
+| ADR-035 정적 `import` · 동적 `import("@/app/x")` | RED | **RED** |
+| rules-of-hooks(조건부 훅) · exhaustive-deps(빠진 dep) | RED | **RED** |
+| `<img>` · 동기 script · iterable key 없음 · img alt 없음 · 포커서블 aria-hidden | RED | **RED** |
+| **제외 경로** `src/components/ui` · `**/generated` | green | **green** |
+| **[상실]** `set-state-in-effect` | green | **green** |
+| **[상실]** `react-compiler`(props 변이) | green | **green** |
+| **[상실]** tanstack queryKey | green | **green** |
+| **[상실]** 템플릿 리터럴 import | green | **green** |
+
+「상실」 4행은 **green 이 나오는 것이 정상**이다 — 그 축에 판정자가 없음을 배터리가 명시적으로
+기록한다. 다음 사람이 「왜 안 잡히지?」를 다시 조사하지 않게 하려는 것이다.
 
 기준선(무변경 트리) 및 배터리 종료 후 트리 모두 green · dirty 0 — 배터리가 트리를 오염시키지 않았다.
 
