@@ -315,7 +315,7 @@ export function DashboardCockpit() {
             </div>
           </div>
 
-          <div className="report-meta" aria-label="실행 원장 상태">
+          <div className="report-meta">
             {backtestsQ.isError ? <span className="chip warn">백테스트 확인 불가</span> : null}
             {optimizationsQ.isError ? <span className="chip warn">최적화 확인 불가</span> : null}
           </div>
@@ -465,7 +465,7 @@ export function DashboardCockpit() {
               </StateBox>
             </div>
           ) : (
-            <div aria-label={`전략 목록 ${strategyItems.length}종`}>
+            <div>
               {strategyItems.map((strategy) => (
                 <StrategyPerformanceRow key={strategy.id} strategy={strategy} />
               ))}

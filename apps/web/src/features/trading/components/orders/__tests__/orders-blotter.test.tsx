@@ -440,7 +440,7 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     ).toHaveClass("dim");
   });
 
-  it("행 클릭과 Enter·Space 키로 상세를 열고 닫는다", () => {
+  it("행 클릭과 native 상세 버튼으로 상세를 열고 닫는다", () => {
     withOrders([makeOrder()]);
     render(<OrdersBlotter />);
 
@@ -450,11 +450,11 @@ describe("OrdersBlotter — 프로토타입 시맨틱 구조", () => {
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
     expect(screen.queryByRole("dialog")).toBeNull();
 
-    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.click(screen.getByRole("button", { name: "BTC/USDT 주문 상세 열기" }));
     expect(screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
 
-    fireEvent.keyDown(row, { key: " " });
+    fireEvent.click(screen.getByRole("button", { name: "BTC/USDT 주문 상세 열기" }));
     expect(screen.getByRole("dialog", { name: "BTC/USDT 주문 상세" })).toBeInTheDocument();
   });
 

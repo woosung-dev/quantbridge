@@ -62,11 +62,7 @@ export function OrdersPanel() {
             주문 원장{data ? ` (${data.total})` : ""}
             {/* Sprint 44 W F3 — refetch / polling 진행 중 subtle dot pulse. 정지 상태는 정적. */}
             {isFetching ? (
-              <span
-                aria-label="주문 목록 polling 중"
-                data-testid="orders-polling-dot"
-                className="polling-dot"
-              />
+              <span aria-hidden="true" data-testid="orders-polling-dot" className="polling-dot" />
             ) : null}
           </h3>
           <p className="card-sub">

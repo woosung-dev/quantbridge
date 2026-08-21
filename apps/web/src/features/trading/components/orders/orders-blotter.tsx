@@ -340,8 +340,9 @@ export function OrdersBlotter() {
 
         <div className="card">
           <div className="card-body">
-            {/* 탭이 아니라 상호배타 토글 — role=group + aria-pressed (프로토타입 §3-6 교정). */}
-            <div className="tabs" role="group" aria-label="주문 상태 필터">
+            {/* 탭이 아니라 상호배타 토글 — fieldset + aria-pressed (프로토타입 §3-6 교정). */}
+            <fieldset className="tabs">
+              <legend className="sr-only">주문 상태 필터</legend>
               {STATE_FILTERS.map((f) => {
                 const active = f === filter;
                 return (
@@ -357,7 +358,7 @@ export function OrdersBlotter() {
                   </button>
                 );
               })}
-            </div>
+            </fieldset>
             <p
               className="filter-state"
               role="status"
@@ -612,23 +613,21 @@ function OrderRow({
       className="cursor-pointer"
       data-state={o.state}
       data-testid={`order-row-${o.id}`}
-      // ★행이 상세를 여는 **제어**라는 사실을 보조기술에 알린다. tabIndex 만 주면 스크린리더는
-      //   포커스 가능한 일반 행으로만 안내해서, 숨은 Enter/Space 를 발견할 수 없다.
-      role="button"
-      aria-label={`${o.symbol} 주문 상세 열기`}
-      tabIndex={0}
       onClick={() => onSelect(o.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect(o.id);
-        }
-      }}
     >
       <td className="mono-l">
-        {time}
-        {date ? <span className="cell-sub">{date}</span> : null}
+        <button
+          className="w-full cursor-pointer appearance-none border-0 bg-transparent p-0 text-left"
+          type="button"
+          aria-label={`${o.symbol} 주문 상세 열기`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(o.id);
+          }}
+        >
+          {time}
+          {date ? <span className="cell-sub">{date}</span> : null}
+        </button>
       </td>
       <td className="mono-l">{o.symbol}</td>
       <td className="dir-cell">
