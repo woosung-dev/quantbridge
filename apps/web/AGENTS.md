@@ -344,48 +344,6 @@ Tailwind 접두사는 없다 — 위 사다리 표에 행이 없는 이유가 �
 (`components/layout/dashboard-sidebar.tsx:3`). 경계 실측 집행 =
 `e2e/design-canon-responsive.spec.ts`.
 
-### 레이아웃 패턴
-
-```tsx
-// ✅ 반응형 그리드 — 모바일 1열 → 데스크탑 3열
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
-// ✅ Flex 방향 전환 — 모바일 세로 → 데스크탑 가로
-<div className="flex flex-col md:flex-row gap-4">
-
-// ✅ 레이아웃 기본 래퍼
-<div className="container mx-auto px-4">
-
-// ✅ 모바일/데스크탑 분기
-<nav className="hidden md:flex">           {/* 데스크탑 전용 */}
-<button className="md:hidden">            {/* 모바일 전용 */}
-
-// ✅ 반응형 타이포그래피
-<h1 className="text-2xl md:text-3xl lg:text-4xl font-bold">
-
-// ✅ 테이블 — 가로 스크롤 래퍼 필수
-<div className="overflow-x-auto">
-  <table className="min-w-[600px] w-full">
-```
-
-### 금지 패턴
-
-```tsx
-// ❌ 페이지 레이아웃에 고정 너비 — 모바일에서 가로 스크롤 발생
-<div className="w-[600px]">
-<main className="min-w-[800px]">
-
-// ✅ 최대 너비 제한은 허용 — 콘텐츠 가독성 확보에 유효
-<div className="max-w-[600px] w-full">
-<article className="max-w-prose">
-
-// ❌ 페이지 레벨에서 브레이크포인트 없는 다열 그리드
-<div className="grid-cols-3">          {/* 모바일에서 찌그러짐 */}
-
-// ✅ 소형 컴포넌트 내부 고정 열은 허용
-<div className="grid grid-cols-3 gap-1">  {/* 예: 아이콘 3개 나열 */}
-```
-
 ### 완료 체크리스트
 
 > UI 컴포넌트 작성 후 아래 항목을 자가 검증한다.
@@ -403,7 +361,10 @@ Tailwind 접두사는 없다 — 위 사다리 표에 행이 없는 이유가 �
 - **Strict 모드 필수**, `any` 사용 엄격히 금지 (부득이한 경우 `unknown` + Type Guard)
 - 모든 API 응답 타입은 명시적으로 정의
 - 네이밍 — Boolean: `is`/`has`/`should` 접두사 · 이벤트 핸들러: `handle` 접두사 · Props 이벤트: `on` 접두사
-- 파일 케이싱 — 컴포넌트: PascalCase · 훅: camelCase `use` 접두사 · 상수: UPPER_SNAKE_CASE
+- ★파일 케이싱 — **컴포넌트도 kebab-case** 다 (2026-08-22 정정: 종전 문장은 「PascalCase」였고 트리와 반대였다).
+  실측 `components/ui/` 제외 `.tsx` **388개 중 372개(96%)가 kebab-case** — `dashboard-sidebar.tsx`·`account-button.tsx`.
+  훅은 `use-` 접두사 kebab-case(`use-auth-ctx.ts`), 상수 **값**은 UPPER_SNAKE_CASE.
+  ⚠️`biome.jsonc` 에 `useFilenamingConvention` 이 **없다** — 이 축은 기계가 아니라 사람이 지킨다.
 - ★**non-null assertion(`!`)은 허용한다 — 린터가 안 막는다.** `noNonNullAssertion` 은 의도적으로
   `off` 다([ADR-039], 실측 291건). 규칙이 틀린 게 아니라 이 트리가 그 스타일이고, **되살릴 때
   쓰라는 autofix 가 `foo!.bar` → `foo?.bar` 로 런타임 의미를 바꾼다** — `!` 는 null 이면 throw,
