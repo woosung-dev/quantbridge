@@ -18,6 +18,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-21 docs-structure-bprime** — `docs/` 최상위를 질문별 6축 + `adr/` 로 재배치([ADR-038]), `reference/`·`decisions/` 해체. 이동 104 · 삭제 10 · 링크 파손 0. ★타 LLM 추천안의 80% 는 ADR-026 이 15일 전에 한 것 — `specs/`·frontmatter·Issues 기각.
 - **2026-08-21 night-loop-4** — FE 라우트 조립층 8 lane 병렬(FE 6 + BE 2). [BL-817]·[BL-816] 종결, PR #745~#753. 8/8 · retry 0 · 충돌 0 · 변이 8/8 red · 6분 · vitest 1,780→1,896 · 미도달 web 33→15 · api 2→1. ★★착수 프롬프트의 BE 재료가 거짓(「미도달 6」은 실측 2) · ★내 python 도구가 3번 틀렸다([LESSON-125]).
 - **2026-08-21 night-loop-3** — FE 화면 계층 8 lane 병렬. [BL-815] 종결, PR #735~#743. 8/8 · 충돌 0 · 변이 8/8 red · vitest 1,647→1,780 · 미도달 53→32. ★AC red 측정이 lane 1을 폐기시켰고(이미 커버) · 러너가 `blocked` 로 멈춰 [BL-816] 이 드러났다([LESSON-122] 2번째).
 - **2026-08-21 night-loop-2** — FE 순수 판정 모듈 8 lane 병렬. [BL-813] 종결, PR #724~#733. 8/8 · 충돌 0 · 변이 8/8 red · vitest 1,497→1,647. ★프로브가 `server-only` top-level throw 를 착수 전에 잡았다([LESSON-123]) · ★내 step 의 기대가 거짓이라 lane 1개가 죽었고 그것이 [BL-814] 를 드러냈다([LESSON-122]).
@@ -41,7 +42,7 @@
 - **2026-08-13 contract-poc** — [BL-717] 종결. 결정적 export `contracts/openapi.json` + **orval(client:'zod') 채택**(hey-api 는 TS7 크래시로 탈락). 전문 = [ADR-031] · 런타임 투입 판정은 §비결정으로 남겼다 — dev-log
 - **2026-08-14 gate-pointer-axis** — [BL-720]·[BL-722] 종결 · 하네스 **9→10종**. ★★★**11/11 초록인 축이 정본 `lessons.md` 에서 오탐 3건** — 스텁은 내 가설의 사본이다([LESSON-108]). ★★원장 처방 3건 반증. ★★부수로 `final-gates-test` ⑥ 이 docs·tools 브랜치에서 상시 red 였고 **내 첫 수리판은 변이를 통과**했다
 - **2026-08-14 gate-surface-close** — [BL-716]·[BL-707]·[BL-714]·[BL-715] 종결 + [BL-720] 신설. [LESSON-101]→§8.6 승격(14회). ★★★**4건 전부 트리거는 옳았고 처방이 틀렸다** — `--range` 는 A1 의 유일한 증인(⑫·M1)을 죽이고, 「22장을 카드로」는 규약 충돌이라 자리 확보가 불필요(362→358), BL-715 「C 14」는 방향이 뒤집혀 있었다(실은 안전망 **있는** 9건) — dev-log
-- **2026-08-13 harness-teardown** — [ADR-030](../decisions/030-harness-pilot-verdict.md) 확정 — 조종 장치 **230.7 KB / 27파일** 회수(harness 축 + 함대 축). 같은 날 「일단 유지」를 **뒤집었다**. ★★★**걷어낸 근거는 「모델이 좋아졌으니까」가 아니다** — 잰 것은 40건 캐치 **0** + 커밋 노이즈 **5배**다. (b) 증거 장치 249.7 KB 는 전량 유지(하네스 9→8종).
+- **2026-08-13 harness-teardown** — [ADR-030](../adr/030-harness-pilot-verdict.md) 확정 — 조종 장치 **230.7 KB / 27파일** 회수(harness 축 + 함대 축). 같은 날 「일단 유지」를 **뒤집었다**. ★★★**걷어낸 근거는 「모델이 좋아졌으니까」가 아니다** — 잰 것은 40건 캐치 **0** + 커밋 노이즈 **5배**다. (b) 증거 장치 249.7 KB 는 전량 유지(하네스 9→8종).
 
 ## 전체 이력
 
@@ -222,28 +223,28 @@
 
 ## ADR + 사후 회고 (번호순, 신뢰도 높은 결정 기록)
 
-- 021 — backtest 제출 멱등성 Redis + PG advisory dual-lock 유지 (단일 unit 통합 거부, 2026-06-30 backtest-deepen C3 KILL) — [`021-backtest-idempotency-dual-lock.md`](../decisions/021-backtest-idempotency-dual-lock.md)
-- 020 — Trust Layer CI — 3-Layer Parity (P-1/2/3) 설계 (구 ADR-013, 2026-05-29 renumber — Optimizer ADR-013 과 ID 충돌 해소) — [`020-trust-layer-ci-design.md`](../decisions/020-trust-layer-ci-design.md)
-- 018 — Sprint 12 WebSocket Supervisor + Sprint 15-A/B Architecture Cleanup — [`018-sprint12-ws-supervisor-and-exchange-stub-removal.md`](../decisions/018-sprint12-ws-supervisor-and-exchange-stub-removal.md)
-- 017 — FE Polish Bundle 1/2 묶음 회고 (FE-01~04 + FE-A~F) — [`017-fe-polish-bundle-1-2-retro.md`](../decisions/017-fe-polish-bundle-1-2-retro.md)
-- 016 — Sprint Y1 Pre-flight Pine Coverage Analyzer (Trust Layer 사용자 축) — [`016-sprint-y1-coverage-analyzer.md`](../decisions/016-sprint-y1-coverage-analyzer.md)
-- 015 — Sprint 7d 회고 (OKX Adapter + Trading Sessions + Passphrase 암호화) — [`015-sprint-7d-okx-sessions.md`](../decisions/015-sprint-7d-okx-sessions.md)
-- 014 — Sprint 8b + 8c 합본 회고 (pine_v2 Tier-1 래퍼 + 3-Track Dispatcher) — [`014-sprint-8b-8c-pine-v2-expansion.md`](../decisions/014-sprint-8b-8c-pine-v2-expansion.md)
+- 021 — backtest 제출 멱등성 Redis + PG advisory dual-lock 유지 (단일 unit 통합 거부, 2026-06-30 backtest-deepen C3 KILL) — [`021-backtest-idempotency-dual-lock.md`](../adr/021-backtest-idempotency-dual-lock.md)
+- 020 — Trust Layer CI — 3-Layer Parity (P-1/2/3) 설계 (구 ADR-013, 2026-05-29 renumber — Optimizer ADR-013 과 ID 충돌 해소) — [`020-trust-layer-ci-design.md`](../adr/020-trust-layer-ci-design.md)
+- 018 — Sprint 12 WebSocket Supervisor + Sprint 15-A/B Architecture Cleanup — [`018-sprint12-ws-supervisor-and-exchange-stub-removal.md`](../adr/018-sprint12-ws-supervisor-and-exchange-stub-removal.md)
+- 017 — FE Polish Bundle 1/2 묶음 회고 (FE-01~04 + FE-A~F) — [`017-fe-polish-bundle-1-2-retro.md`](../adr/017-fe-polish-bundle-1-2-retro.md)
+- 016 — Sprint Y1 Pre-flight Pine Coverage Analyzer (Trust Layer 사용자 축) — [`016-sprint-y1-coverage-analyzer.md`](../adr/016-sprint-y1-coverage-analyzer.md)
+- 015 — Sprint 7d 회고 (OKX Adapter + Trading Sessions + Passphrase 암호화) — [`015-sprint-7d-okx-sessions.md`](../adr/015-sprint-7d-okx-sessions.md)
+- 014 — Sprint 8b + 8c 합본 회고 (pine_v2 Tier-1 래퍼 + 3-Track Dispatcher) — [`014-sprint-8b-8c-pine-v2-expansion.md`](../adr/014-sprint-8b-8c-pine-v2-expansion.md)
 - ~~013~~ — Trust Layer CI → **ADR-020 으로 renumber** (2026-05-29, Optimizer ADR-013 과 충돌 해소). 위 020 항목 참조
-- 012 — Sprint 8a Tier-0 Final Report (Week 1-3 완주, v3.0) — [`012-sprint-8a-tier0-final-report.md`](../decisions/012-sprint-8a-tier0-final-report.md)
-- 011 — Pine Script 실행 전략 v4 (Alert Hook Parser + 3-Track Architecture) — [`011-pine-execution-strategy-v4.md`](../decisions/011-pine-execution-strategy-v4.md)
-- 010b — Product Roadmap 프레임 & 입력 결정 (재작성본, canonical) — [`010b-product-roadmap.md`](../decisions/010b-product-roadmap.md)
-- 010a — Dev CPU Budget Policy + Next.js Anti-Pattern 15건 — [`010a-dev-cpu-budget.md`](../decisions/010a-dev-cpu-budget.md)
+- 012 — Sprint 8a Tier-0 Final Report (Week 1-3 완주, v3.0) — [`012-sprint-8a-tier0-final-report.md`](../adr/012-sprint-8a-tier0-final-report.md)
+- 011 — Pine Script 실행 전략 v4 (Alert Hook Parser + 3-Track Architecture) — [`011-pine-execution-strategy-v4.md`](../adr/011-pine-execution-strategy-v4.md)
+- 010b — Product Roadmap 프레임 & 입력 결정 (재작성본, canonical) — [`010b-product-roadmap.md`](../adr/010b-product-roadmap.md)
+- 010a — Dev CPU Budget Policy + Next.js Anti-Pattern 15건 — [`010a-dev-cpu-budget.md`](../adr/010a-dev-cpu-budget.md)
 - ~~010~~ — Product Roadmap 1차 초안 (DEPRECATED, 2026-05-15 cleanup git rm — git history 보존, 010b 가 canonical)
-- 009 — shadcn/ui v4 Nova Preset 규칙 예외 (form.tsx radix-ui + ui/ 직접 수정) — [`009-shadcn-v4-form-radix-exception.md`](../decisions/009-shadcn-v4-form-radix-exception.md)
-- 008 — Sprint 7c FE 따라잡기 — 스코프 결정 기록 — [`008-sprint7c-scope-decision.md`](../decisions/008-sprint7c-scope-decision.md)
-- 007 — Sprint 7a Bybit Futures + Cross Margin — 사전 결정 기록 — [`007-sprint7a-futures-decisions.md`](../decisions/007-sprint7a-futures-decisions.md)
-- 006 — Sprint 6 Trading 데모 설계 리뷰 결과 + 3 핵심 의사결정 — [`006-sprint6-design-review-summary.md`](../decisions/006-sprint6-design-review-summary.md)
-- 005 — DateTime tz-aware + AwareDateTime TypeDecorator 도입 — [`005-datetime-tz-aware.md`](../decisions/005-datetime-tz-aware.md)
-- 004 — Pine 파서 접근법 선택 근거 — [`004-pine-parser-approach-selection.md`](../decisions/004-pine-parser-approach-selection.md)
-- 003 — Pine 런타임 안전성 + 파서 범위 결정 — [`003-pine-runtime-safety-and-parser-scope.md`](../decisions/003-pine-runtime-safety-and-parser-scope.md)
-- 002 — 병렬 스캐폴딩 전략 — [`002-parallel-scaffold-strategy.md`](../decisions/002-parallel-scaffold-strategy.md)
-- 001 — 기술 스택 결정 — [`001-tech-stack.md`](../decisions/001-tech-stack.md)
+- 009 — shadcn/ui v4 Nova Preset 규칙 예외 (form.tsx radix-ui + ui/ 직접 수정) — [`009-shadcn-v4-form-radix-exception.md`](../adr/009-shadcn-v4-form-radix-exception.md)
+- 008 — Sprint 7c FE 따라잡기 — 스코프 결정 기록 — [`008-sprint7c-scope-decision.md`](../adr/008-sprint7c-scope-decision.md)
+- 007 — Sprint 7a Bybit Futures + Cross Margin — 사전 결정 기록 — [`007-sprint7a-futures-decisions.md`](../adr/007-sprint7a-futures-decisions.md)
+- 006 — Sprint 6 Trading 데모 설계 리뷰 결과 + 3 핵심 의사결정 — [`006-sprint6-design-review-summary.md`](../adr/006-sprint6-design-review-summary.md)
+- 005 — DateTime tz-aware + AwareDateTime TypeDecorator 도입 — [`005-datetime-tz-aware.md`](../adr/005-datetime-tz-aware.md)
+- 004 — Pine 파서 접근법 선택 근거 — [`004-pine-parser-approach-selection.md`](../adr/004-pine-parser-approach-selection.md)
+- 003 — Pine 런타임 안전성 + 파서 범위 결정 — [`003-pine-runtime-safety-and-parser-scope.md`](../adr/003-pine-runtime-safety-and-parser-scope.md)
+- 002 — 병렬 스캐폴딩 전략 — [`002-parallel-scaffold-strategy.md`](../adr/002-parallel-scaffold-strategy.md)
+- 001 — 기술 스택 결정 — [`001-tech-stack.md`](../adr/001-tech-stack.md)
 
 ---
 

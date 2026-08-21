@@ -15,7 +15,7 @@ BL-530 이 라이브 경로 1사이트를 perp 로 정렬했지만 백테스트�
 4. **화면 정합** — 거래 상세 차트가 엔진이 재생한 것과 같은 상품을 그린다(perp 우선,
    그 창에 perp 가 없으면 legacy 스팟).
 
-경계 정본: `docs/reference/instrument-symbol-boundary.md`.
+경계 정본: `docs/domain/instrument-symbol-boundary.md`.
 """
 
 from __future__ import annotations

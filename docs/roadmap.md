@@ -11,12 +11,12 @@
 > 상한)은 **규칙으로 남았고 사람이 지킨다.** 판정어별 목록이 필요하면 `grep '^### BL-'` 과
 > `grep '^\*\*상태:\*\*'` 로 직접 세라. 복귀는 **재입힘 규칙**(문서화된 사고 1건 = 슬림 복귀 1건) 경유다.
 
-> **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](backlog.md), 활성 sprint 상태 = [`status.md`](status.md), 회고 = [`dev-log/INDEX.md`](dev-log/INDEX.md).
+> **용도.** 남은 작업을 그룹별로 추적하는 living 체크리스트. **매 세션 kickoff 시 이 문서에서 다음 후보를 고르고, 스프린트 완료 시 해당 항목을 체크**한다. 상세 8필드 = [`backlog.md`](./backlog.md), 활성 sprint 상태 = [`status.md`](./status.md), 회고 = [`dev-log/INDEX.md`](./dev-log/INDEX.md).
 >
 > **최종 갱신:** 2026-08-04 (**handler-visibility + nightly-real-broker 완료 · PR 준비 중** — 갈래 A: `_reconcile_conditional_entries` **876줄/try 본문 845줄 → 46/8**, `_evaluate_session_inner` **796/770 → 17/1**, 운반자에 `try` **0개**, 새 `.py` **0개**. ★★★**codex 가 「행위 변경 0」을 반증** — lazy import 를 헬퍼로 옮기자 **실패 시점이 커밋 뒤로** 밀렸다(`get_ccxt_provider_for_worker` 가 `commit()` 뒤, `run_live` 가 `try_claim_bar` 뒤); 복원 후 재확인. ★**다중집합 비교는 문장 순서를 구조적으로 못 본다.** ★내 검증 도구가 적대 검증에서 **42주입 중 16 거짓 음성**(가장 큰 것: `except`/`else`/`finally` 구역 site **24개**가 감싸는 `try` 를 통째로 잃음). 갈래 B: nightly 가 **10/10 실패**했고 지점은 pytest 가 아니라 `alembic` 이었다 ⇒ **pytest 는 한 번도 안 돌았고 이슈 89건은 flakiness 증거가 아니다**; 워크플로 9건 수리 + 계약 감사 13테스트. ★**실거래소는 1바이트도 미검증**)
 >
 > **그 앞:** 2026-08-03 (**metric-guard-residual-close 완료 · PR 준비 중** — [BL-580] 잔여 **25곳**을 고장 주입으로 판정 — **수리함 23 · 판정 보류 2**, census **129→104**. ★★★**산문 2줄이 25곳을 잘못 뺐다** — 「`order_service.py` 10곳은 blast radius 0」은 **10/10 이 도메인 예외 대신 OSError 를 탈출**시켜 4xx 가 500 이 되고 호출자 타입 분기(`mark_failed`·무재시도)가 통째로 빠지는 것으로 반증됐고, 「closed_pnl 은 `already_synced` 로 수렴」은 **7곳 중 1곳만 성립**했다(5곳은 수렴을 만드는 함수를 아예 안 부르고, `already_synced` 자신은 고정점 실패). ★★★**백로그가 이름을 대지 않은 8곳이 더 나빴다** — census 는 15곳인데 「7곳」은 한 함수의 부분집합이었고, 나머지 중 하나는 **계정 격리를 지키는 `except` 의 첫 줄**이라 계측 지속 실패 시 계정 루프 전체가 중단된다. ★★★**반쪽 수리는 사이트 주입 29건을 전부 통과**한다(변이 M5) — 가드 폭은 `_count_safely` 전용 테스트가 지킨다. 누적 판정 34곳 중 **「가드 없이 유지」 0곳**. 신규 [BL-584])
-> **그 앞:** 2026-08-02 (**divergence-label-split 완료 · PR 준비 중** — ★★★**판정식을 고치는 회차에 판정식이 다섯 번째로 깨져 있었고, 규율을 쓰는 그 회차에 같은 병이 재발했다.** [BL-576] Resolved(발화 8곳 → 사건별 6 이름 + `qb_live_conditional_divergence_total{event,reason}`) · 사전등록 정본을 **[§G1.1](reference/operations/workflows/generator-evaluator-pipeline.md)** 로 이관. ★★★**「OR 3곳」 중 2곳은 고쳐서가 아니라 삭제돼서 사라져 있었고 살아남은 유일한 완전 판정 표가 OR 버전이었다**(삭제에 의한 역선택). ★★**표적 변이 1종이 탈출** — 워커의 「충돌 테스트」가 이름이 주장하는 것보다 적게 단언했다. ★★**Evaluator 가 CONTROL 을 7건 적발, 전건 재검증해 7/7 인정**(가장 아픈 것 = **직전 회차가 기록한 술어 함정을 같은 술어로 재밟음**). [BL-574]·[BL-578] 은 **측정 완료 · 수리 보류**, [BL-577] 은 **(a) 확정**. 게이트 BE 3792→**3804**(+12) · BL active **−1**(절대 수치는 §3 한 곳에만 적는다).)
+> **그 앞:** 2026-08-02 (**divergence-label-split 완료 · PR 준비 중** — ★★★**판정식을 고치는 회차에 판정식이 다섯 번째로 깨져 있었고, 규율을 쓰는 그 회차에 같은 병이 재발했다.** [BL-576] Resolved(발화 8곳 → 사건별 6 이름 + `qb_live_conditional_divergence_total{event,reason}`) · 사전등록 정본을 **[§G1.1](./development/workflows/generator-evaluator-pipeline.md)** 로 이관. ★★★**「OR 3곳」 중 2곳은 고쳐서가 아니라 삭제돼서 사라져 있었고 살아남은 유일한 완전 판정 표가 OR 버전이었다**(삭제에 의한 역선택). ★★**표적 변이 1종이 탈출** — 워커의 「충돌 테스트」가 이름이 주장하는 것보다 적게 단언했다. ★★**Evaluator 가 CONTROL 을 7건 적발, 전건 재검증해 7/7 인정**(가장 아픈 것 = **직전 회차가 기록한 술어 함정을 같은 술어로 재밟음**). [BL-574]·[BL-578] 은 **측정 완료 · 수리 보류**, [BL-577] 은 **(a) 확정**. 게이트 BE 3792→**3804**(+12) · BL active **−1**(절대 수치는 §3 한 곳에만 적는다).)
 > **그 앞:** 2026-08-03 (**metric-guard-residual + gate-trustworthiness 완료 · PR #528 머지** — ★★★**「~라서 안전하다」는 산문 4곳이 고장 주입으로 전건 반증**(판정 9곳 중 「가드 없이 유지」 **0곳**) ⇒ 12곳 수리, census **141→129**. [BL-582] 「도달 불가 7종」→**5종**(게이트 테스트가 스냅샷을 손조립해 엔진을 안 본 결과였다). ★★★**[BL-583] Resolved — 스위트 red/green 이 랜덤 순서가 아니라 「수집 집합」 운이었다**: `pytest-randomly` **미설치**라 `-p no:randomly` 는 no-op 이고, 무관한 파일 **6개**가 문제 모듈을 수집 시점에 미리 적재해 전체 스위트를 green 으로 가렸다(**4개만 빼면 여전히 green** = 마스킹). 뿌리 = **정의 모듈 패치 창의 첫 적재가 가짜를 모듈 전역으로 영구 복사**(teardown 은 정의 모듈만 되돌린다) — 오염원 **4곳**·전역 **8개**. 상시 가드 신설(비용 0.9초), 프로덕션 `src/` **0줄**. ★★**「전체에서 가드 발화 0」은 아무 증명도 아니다** — 거기서는 창이 거의 닫혀 있다(미적재 **9/214**).)
 >
 > **그 앞:** 2026-07-31 (**reversal-ledger-sync 완료 · PR #TBD** — ★★★**코드 대조로 세운 뿌리 가설을 실주행이 반증했다.** 엔진이 자기 반전 체결의 청산 leg 를 재발신하는 게 아니라 **엔진이 체결을 13분 38초 동안 몰랐다** — 리컨사일러가 거래소에 물어 `filled` 을 **7번 확인하고도** 원장에 기록하지 않았다(세션 `70063496` · 주문 `9c7aef0b`). 직전 회차의 「6/6 이 +50~104초」는 **두 가설 모두와 맞아 판별력이 없었고**, **BL-561(포매터)이 착지한 뒤에야** 갈렸다 — 선행 지정이 실제로 뿌리를 바꿨다. ★★**BL-560 은 「고쳤다」로 닫지 않는다** — 수정은 들어갔으나 `_write_back_confirmed_terminal` 이 최종 창에서 **한 번도 발화하지 않았다**(프로덕션 미검증). `same_side` 는 4창 4.48h 동안 **0건 · 청산 시도 0건**이라 **W2/W3 판정 불가**(이 구간 PbR 은 전량 조건부 진입만 낸다). 간접 신호만 개선: 미기록 반복 **7→0회** · divergence **41.6→12/h** · 세션 생존 **0.36h(fail-closed)→0.86h**. ★codex 적대 리뷰 **3회에 MAJOR 8건** — **거짓 그린 4건** · 죽은 배선 2곳 · 틀린 anchor · 거짓 주장 1건. BL-561/562/563/564 착지, `bl-audit` **exit 0 게이트 편입**. 신규 BL-565/566.)
@@ -51,7 +51,7 @@
 
 ~~★**현재 최대 리스크는 「크기 근거가 전파되지 않는다」 — [BL-576] + 사전등록 문턱 결함 3건이다**~~
 → **2026-08-02 divergence-label-split 로 착지.** [BL-576] Resolved(라벨 8곳 → 6 이름 + `{event,reason}` counter) ·
-문턱 결함은 **3건이 아니라 5건**이었고 전건 정정해 **[§G1.1](reference/operations/workflows/generator-evaluator-pipeline.md) 정본**으로 옮겼다.
+문턱 결함은 **3건이 아니라 5건**이었고 전건 정정해 **[§G1.1](./development/workflows/generator-evaluator-pipeline.md) 정본**으로 옮겼다.
 
 ~~★**현재 최대 리스크는 「정본이 코드에 있는데 측정은 손 SQL 로 한다」 — 문서 규율이 막지 못한다**~~
 → **2026-08-02 canonical-measurement-surface 로 착지.** 세 질문(`conditional_population` ·
@@ -225,7 +225,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 ## ⭐ 권장 착수 순서 (제안 — Trust ≥ Scale · dogfood-first 기준)
 
-> ★**다음에 무엇을 할지의 진입점은 이 목록이 아니라 [`status.md`](status.md) 의 「다음 스프린트」 블록 하나다.**
+> ★**다음에 무엇을 할지의 진입점은 이 목록이 아니라 [`status.md`](./status.md) 의 「다음 스프린트」 블록 하나다.**
 > 이 목록은 **후보 풀**이고 여기 적힌 어떤 줄도 착수 지시가 아니다 — 「(다음)」 같은 표기를 다시 넣지 마라.
 > 2026-08-02 codex MINOR#5 가 같은 병을 지적했다: 취소되지 않은 지시가 다음 세션을 잘못 이끈다.
 
@@ -355,7 +355,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-716** [P1] ✅ **2026-08-14 종결** — dev-log 22회차의 반증 카드가 `lessons.md` 승격 없이 git 으로 내려갔다(2026-08-13 docs-diet). ADR-026 §3 은 승격이 **의무**이고 §5 는 「git 은 **발견 매체가 아니다**」다 — 3층 중 **가운데(지식 정본)가 비었다**. 발견 층은 살아 있다(★★★반증이 INDEX 한 줄씩). ★선행 = `lessons.md` 자리 확보(362/400줄). ★처방은 **회차별 1:1 승격이 아니라 반복 3회 이상 패턴만** 올리는 것 — 초벌 후보 3종(검사기 판별력 0 · 변이 전건 red 통과 · 착수 전제 반증)
 - [x] **BL-719 ✅ Resolved** [P1] 재배치 머지 롤아웃 lockstep — 2026-08-13 PR #619 머지 직후 5단계 완주(서버 pin `c3a39d0d` · 첫 판독 tick_stall 1건 = down 창 자체 → operational 등재·창 리셋 예정대로 / 맥 LaunchAgent 재설치 / 메인 이행 6컨테이너 Healthy·볼륨 무손실 / canary #620 backend 3레인 발화 / 핫픽스 #621 `--strip-components` 2→3) (ADR-029)
 - [x] **BL-717** [P2] ✅ Resolved (2026-08-13 contract-poc, [ADR-031]) — 결정적 export `contracts/openapi/openapi.json` + 후보 판정 **orval(client:'zod') 채택**(zod v4 직출력·공존 vitest 3/3), hey-api 실행 불가 탈락. AC 5종 이행. CI 배선·전면 전환은 ADR-031 §비결정
-- [x] **BL-718** [P3] ✅ **2026-08-18 night4-ci-truth** — `.github/CODEOWNERS` 신설(`/apps/`·`/infra/`·`/tools/`·`/docs/decisions/`·`/.github/`). `codeowners/errors` 0건이고 **일부러 망가뜨린 판이 red 로 갈렸다**(양성 대조). ★강제력 0(브랜치 보호·ruleset 부재)을 파일 머리에 못박았다
+- [x] **BL-718** [P3] ✅ **2026-08-18 night4-ci-truth** — `.github/CODEOWNERS` 신설(`/apps/`·`/infra/`·`/tools/`·`/docs/adr/`·`/.github/`). `codeowners/errors` 0건이고 **일부러 망가뜨린 판이 red 로 갈렸다**(양성 대조). ★강제력 0(브랜치 보호·ruleset 부재)을 파일 머리에 못박았다
 - [x] **BL-642 ✅ Resolved** [P2] `soak-observe.sh` 가 게이트와 같은 취득 경로를 쓴다 — 기본 `.metrics` 직독 · `QB_METRICS_URL` 명시 시 HTTP. 5경로 격리 검증 5/5(직독 244 series · 200+빈 본문은 실패로 유지), 음성 대조 rc=7
 - [x] **BL-643 ✅ Resolved** [P2] `docs/status.md` 진입점의 최신성을 `docs-audit.sh` 가 집행한다 — 술어 2개(⓪ 표 행수 ≥3 · 살아 있는 `다음 행동 =` ≤1). 낱말이 아니라 **구문**을 재서 오탐 0, **파일 전체**로 세서 「블록당 1개」가 놓치던 실제 사고를 문다. 변이 6/6 · 음성 대조 `ce583eef^` 2건 검출. 산문 처방 3회 실패 뒤 첫 집행처
 - [x] **BL-707** ✅ **2026-08-14 종결** [P2] authed e2e 실패 메시지가 「API 도달 불가」를 「데이터 없음」으로 오지목한다 — 12건이 `mise run seed` 를 지시했지만 `mise run seed` 는 전건 「이미 존재」였고 진짜 원인은 BE 가 `:8100` 에 없었던 것(콘솔 `ERR_CONNECTION_REFUSED` 109건). 처방 = 단정 앞에 **API 도달성 프로브**
@@ -514,7 +514,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 
 ### 그룹 4 — Beta 본격 진입 (사용자 manual · deploy-time)
 
-- [x] **G1 DB 호스팅 재결정** — ✅ **2026-08-16 확정: ① self-host TimescaleDB CE 유지** ([ADR-033](decisions/033-db-hosting-self-host-timescaledb.md)). 관리형이 막힌 것은 업체 사정이 아니라 TimescaleDB 의 **TSL 라이선스**(RDS·Supabase PG17·Fly MPG 전부 같은 이유). DB 24MB · hypertable 고유 기능 사용처 0건이라 되돌리기가 덤프 한 번이다. 조건 3종 동시 확정 — 백업 자동화([BL-767]) · 디스크 80% 경보([BL-768]) · 전환 트리거 4종. ⇒ **아래 셋의 선행이 풀렸다**
+- [x] **G1 DB 호스팅 재결정** — ✅ **2026-08-16 확정: ① self-host TimescaleDB CE 유지** ([ADR-033](./adr/033-db-hosting-self-host-timescaledb.md)). 관리형이 막힌 것은 업체 사정이 아니라 TimescaleDB 의 **TSL 라이선스**(RDS·Supabase PG17·Fly MPG 전부 같은 이유). DB 24MB · hypertable 고유 기능 사용처 0건이라 되돌리기가 덤프 한 번이다. 조건 3종 동시 확정 — 백업 자동화([BL-767]) · 디스크 80% 경보([BL-768]) · 전환 트리거 4종. ⇒ **아래 셋의 선행이 풀렸다**
 - [ ] **BL-070** 도메인 + DNS + (옵션) Cloudflare — 1-2h + 전파 24h ★선행 해제(G1)
 
 > ★★**2026-08-21 — BL-070~075 여섯은 여기 체크박스로만 산다.** 원장 3종에 **섹션이 없어**

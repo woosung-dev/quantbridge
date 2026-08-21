@@ -22,7 +22,7 @@
 
 > Next.js 16, Zod v4, shadcn/ui v4, 반응형·TS 컨벤션은 본 문서 **§7~§11**(구 `nextjs-shared.md`, ADR-027 병합) 참조.
 
-### 인증 — Better Auth (Next.js 16 · [ADR-034](../../docs/decisions/034-auth-self-host-better-auth.md))
+### 인증 — Better Auth (Next.js 16 · [ADR-034](../../docs/adr/034-auth-self-host-better-auth.md))
 
 ★**이 앱이 인증 서버 본체다.** `/api/auth/[...all]` 이 로그인·세션·JWKS 를 낸다.
 
@@ -137,7 +137,7 @@ src/
 └── store/                  # Global State: 앱 전역 Zustand (Theme 등)
 ```
 
-### ★ `app/**/_components/` 는 언제 쓰나 ([ADR-035](../../docs/decisions/035-fe-component-ownership.md))
+### ★ `app/**/_components/` 는 언제 쓰나 ([ADR-035](../../docs/adr/035-fe-component-ownership.md))
 
 2026-08-16 에 `_components/` **234파일을 `features/` 로 옮겼다.** 금지는 아니지만 기본이 아니다.
 

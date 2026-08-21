@@ -69,7 +69,7 @@
   → **2026-08-19 [ADR-037]** 두 스크립트는 철거됐다(원문 = `git show harness-v1:tools/scripts/`).
   판정어 5종 규칙은 산문으로 유지한다 — 판정은 섹션의 상태줄 `**상태:**` 를 직접 읽는다.
 - ★**[BL-003] 을 이어받는다면 첫 파일은 하나다** —
-  [`bybit-mainnet-runbook.md`](reference/operations/bybit-mainnet-runbook.md).
+  [`bybit-mainnet-runbook.md`](./operations/bybit-mainnet-runbook.md).
   **§0(착수 전 재측정)을 먼저 돌려라** — 이 문서의 실측에는 유효기한이 있다.
 - ★**원장은 파일 셋이고 축은 판정어다**(2026-08-18 3분할 · [BL-779]): `backlog.md`(ACTIVE ∪ PARTIAL
   - 인덱스 표 전량, **2,3천 줄**) · `backlog-deferred.md`(DEFERRED) · `backlog-resolved.md`(RESOLVED).
@@ -77,8 +77,8 @@
     → **2026-08-19 [ADR-037]** bl-audit 철거 — 어느 파일인지는 판정어가 정한다(위 3분할 규칙 ·
     확인은 `grep -l '^### BL-NNN' docs/backlog*.md`)
     — 표 행의 `#bl-NNN` 은 접두사가 없어 다른 파일을 못 가리킨다([BL-801]). 통째로 읽지 마라.
-- [`gates-and-traps.md`](reference/operations/gates-and-traps.md) — 게이트 전문
-- [`generator-evaluator-pipeline.md`](reference/operations/workflows/generator-evaluator-pipeline.md)
+- [`gates-and-traps.md`](./development/gates-and-traps.md) — 게이트 전문
+- [`generator-evaluator-pipeline.md`](./development/workflows/generator-evaluator-pipeline.md)
   **§2**(적용/비적용 — 단건·문서 전용에 파이프라인은 과하다) · **§G8**(종결 절차)
 
 ### ⓷ 작업 단위 — 각 단위는 독립적으로 완료·보류할 수 있다
@@ -317,7 +317,7 @@ OCI `quantbridge/` prefix 객체 · **C2 24.0007h 전후 불변**) + 디스크 �
 (gunicorn 은 레포에 0건이고 `--server_header False` 라는 플래그 자체가 없다 → uvicorn
 `--no-server-header` 하나, [BL-347]).
 
-> **강등 tombstone (2026-08-17 sprint-parallel-lanes · 700줄 상한).** auth-selfhost 블록 압축. 원문 = `git show 9e71aa96:docs/status.md` · 정본 = [ADR-034](decisions/034-auth-self-host-better-auth.md) · [LESSON-114].
+> **강등 tombstone (2026-08-17 sprint-parallel-lanes · 700줄 상한).** auth-selfhost 블록 압축. 원문 = `git show 9e71aa96:docs/status.md` · 정본 = [ADR-034](adr/034-auth-self-host-better-auth.md) · [LESSON-114].
 > ★**남길 한 줄** — `docs-audit.sh` 는 살아 있는 `다음 행동 =` 을 **≤1 만** 재므로 **0 도 통과시킨다**. 진입점이
 > 사라진 상태가 게이트를 초록으로 지나간다. 상한만 있고 하한이 없다([BL-643] 후속 후보).
 
@@ -434,7 +434,7 @@ C4 ✓ · C5 전건 ✓ · 창 시작 `2026-08-07T15:10:49.561534Z` · 귀속 �
 ~~「지금 스택은 내려가 있다 · C1/C2 15.3007h」~~ → ★★★**2026-08-11 정정 — 그 값은 2026-08-08
 down 직전 것이고 사흘이 지났다.** 그리고 「C2 는 max 라 재기동을 넘어 남는다」는 08-10 정정이
 **실증됐다**(15.3007h → **41.1057h**). 근거는 아래 §pin 의 비용과
-[ADR-024](decisions/024-soak-stability-gate.md) §pin.
+[ADR-024](./adr/024-soak-stability-gate.md) §pin.
 ★★**여기 숫자를 인용하지 마라 — 게이트를 돌려라.**
 ~~★서버 시계는 로컬 날짜보다 뒤에 있다(판독 시점 `2026-08-10T16:23Z`)~~ → ★★**2026-08-16 반증 —
 두 시계는 정확히 일치한다.** 같은 순간 로컬 `date -u` 와 서버 `date -u` 가 **둘 다
@@ -492,9 +492,9 @@ attribution 을 sha 로 쪼갤 뿐이다. 실측 확증 = 귀속 창 3개에 고
 > 68줄을 이 블록으로 줄였다. 원문 = `git show 728ae1cc:docs/status.md`.
 >
 > ★**압축한 이유는 반증이 이미 승격됐기 때문이다** — 두 회차의 반증 카드는
-> [`docs/lessons.md`](lessons.md) **LESSON-115~120** 으로 올라갔고, 닫힌 티켓
+> [`docs/lessons.md`](./lessons.md) **LESSON-115~120** 으로 올라갔고, 닫힌 티켓
 > ([BL-797]·[BL-807]·[BL-805]·[BL-806])의 본문은 `backlog-resolved.md` 가 진다.
-> 하네스 제로베이스의 결정 근거는 [ADR-037](decisions/037-harness-zero-base.md) 이 정본이다.
+> 하네스 제로베이스의 결정 근거는 [ADR-037](./adr/037-harness-zero-base.md) 이 정본이다.
 > **여기 남기는 것은 두 회차가 바꾼 「지금 상태」 두 줄뿐이다.**
 
 - **authed 증거 축이 실재하게 됐다** — 화면 증거 게이트가 로그인 뒤 화면을 잰다([BL-797]·[BL-807]).
@@ -538,7 +538,7 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 
 > **강등 tombstone (2026-08-21 · 700줄 상한).** 두 회차 서술을 4차 종결과 함께 6줄로 더 줄였다.
 > 원문 = `git show 97f97efd:docs/status.md`. 절차·교훈은 [`phases/README.md`](../phases/README.md),
-> 반증은 [`lessons.md`](lessons.md) **LESSON-122~125**, 티켓 본문은 `backlog-resolved.md` 가 진다.
+> 반증은 [`lessons.md`](./lessons.md) **LESSON-122~125**, 티켓 본문은 `backlog-resolved.md` 가 진다.
 > ★두 회차가 남긴 한 줄 = **「내가 step 에 적은 기대가 사실상 AC 다」**([LESSON-122]) — 4차는 그것이
 > **착수 프롬프트에도 적용된다**는 것을 더했다.
 
@@ -546,7 +546,7 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 
 > **강등 (2026-08-21 · 700줄 상한).** 4차 서술 40줄을 5차와 함께 이 블록으로 줄였다.
 > 원문 = `git show 664f77a2:docs/status.md`. **회차 절차·lane 표·교훈의 정본은**
-> [`phases/README.md`](../phases/README.md) 이고, 반증은 [`lessons.md`](lessons.md),
+> [`phases/README.md`](../phases/README.md) 이고, 반증은 [`lessons.md`](./lessons.md),
 > 티켓 본문은 `backlog-resolved.md` 가 진다. 여기 남는 것은 「지금 어디까지 왔나」뿐이다.
 
 **4차 ([BL-817], FE 라우트 조립층 · PR #745~#753):** 8/8 · 변이 8/8 red · 6분.
@@ -621,7 +621,7 @@ docker logs quantbridge-worker 2>&1 | (cd apps/api && uv run python \
 노출 12.28h 에서 사전등록 4관측량 전건 충족 — ① phantom **0건**(관측 4건 전부 `replay_lag`,
 p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 **84건**(≥40) · ④ 카운터 차분
 **+223**(형 A +183 · 형 B +6 — 양쪽 수리 갈래 발화). 실측 전문 =
-[ADR-025 §판정](decisions/025-conditional-fill-ownership.md).
+[ADR-025 §판정](./adr/025-conditional-fill-ownership.md).
 
 ### ★착수 전 반드시 읽을 것 (2026-08-21 정정본)
 
@@ -639,7 +639,7 @@ p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 *
    낡음) — 「타이머가 waiting」은 건강 신호가 아니다. ★**watch 는 단일 장애점**이라
    `OnFailure=…soak-watch-alarm.service` 를 붙였다([BL-737] — 41시간 침묵의 대가).
 6. ★**게이트를 파이프에 넣지 마라**(rc 를 삼킨다) · **`cd apps/api && set -a; . ./.env.local` 금지**.
-   정본 = [`gates-and-traps.md`](reference/operations/gates-and-traps.md) §함정.
+   정본 = [`gates-and-traps.md`](./development/gates-and-traps.md) §함정.
 7. ★**표적 변이는 CONTROL 이 직접 집행**(`git checkout` 금지 · **sha256 왕복 복원 대조**).
    치환 문자열이 다른 함수와 겹치는지 **먼저 세라**. ★**TS 대상에 타입 수준 변이는 변이가 아니다**
    (`as undefined` 는 타입 소거 — 2026-08-21 실증).

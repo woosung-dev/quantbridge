@@ -5,8 +5,8 @@ Path β Stage 2 실 구현 (2026-04-23). P-1 은 기존
 P-3 / Mutation / regen 은 fixture 생성 후 green (현재는 skipif).
 
 **참조:**
-- ADR-020: `docs/decisions/020-trust-layer-ci-design.md`
-- 아키텍처: `docs/reference/architecture/trust-layer-architecture.md`
+- ADR-020: `docs/adr/020-trust-layer-ci-design.md`
+- 아키텍처: `docs/architecture/trust-layer-architecture.md`
 - 당시 요구사항/SLO: `git:0ddf2b53 docs/archive/product/requirements/2026-04-23-trust-layer-requirements.md`
 
 **구조 (ADR-020 §4):**

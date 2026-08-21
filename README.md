@@ -14,7 +14,7 @@ Pine Script 를 파이썬으로 **트랜스파일하지 않는다.** AST 를 봉
 | 비동기     | Celery 태스크 27 · beat 스케줄 15 · 큐 3                            |
 | 프론트엔드 | 라우트 26 · feature 도메인 12                                       |
 | 테스트     | pytest 4,026 케이스 · vitest 227파일 · Playwright 31 spec           |
-| 설계 기록  | ADR 37건 (`docs/decisions/`)                                        |
+| 설계 기록  | ADR 37건 (`docs/adr/`)                                              |
 
 ---
 
@@ -36,7 +36,7 @@ Pine Script 를 파이썬으로 **트랜스파일하지 않는다.** AST 를 봉
 
 - **Pine v4/v5 소스 등록** — 붙여넣으면 즉시 파싱하고 문법 오류를 진단으로 되돌려 준다
 - **Monaco 에디터** — Pine 전용 Monarch 문법 하이라이팅과 다크/라이트 테마를 직접 정의했다. `⌘/Ctrl + Enter` 로 재파싱
-- **커버리지 판정** — 실행 _전에_ 미지원 builtin 을 전수 탐지해 실행 가능 여부를 all-or-nothing 으로 확정한다 (부분 실행 금지 — [ADR-003](docs/decisions/003-pine-runtime-safety-and-parser-scope.md))
+- **커버리지 판정** — 실행 _전에_ 미지원 builtin 을 전수 탐지해 실행 가능 여부를 all-or-nothing 으로 확정한다 (부분 실행 금지 — [ADR-003](./docs/adr/003-pine-runtime-safety-and-parser-scope.md))
 - **파라미터 조정 · Webhook 시크릿** — 전략별 실행 설정 슬라이더, TradingView 알림용 시크릿 발급·회전
 
 ### 백테스트 (Backtest)
@@ -124,7 +124,7 @@ flowchart TB
     LIVE --> PG
 ```
 
-정본: [`docs/reference/architecture/system-architecture.md`](docs/reference/architecture/system-architecture.md) · [`data-flow.md`](docs/reference/architecture/data-flow.md)
+정본: [`docs/architecture/system-architecture.md`](./docs/architecture/system-architecture.md) · [`data-flow.md`](./docs/architecture/data-flow.md)
 
 ---
 
@@ -156,7 +156,7 @@ flowchart TB
 | 인증 · 보안   | PyJWT (EdDSA/JWKS 검증) · cryptography (Fernet AES-256)         |
 | 테스트 · 품질 | pytest `8.3` · Ruff · mypy                                      |
 
-도구 버전(node · python · pnpm · uv)의 SSOT 는 루트 [`mise.toml`](mise.toml) 하나다 ([ADR-036](docs/decisions/036-tool-version-ssot-mise.md)).
+도구 버전(node · python · pnpm · uv)의 SSOT 는 루트 [`mise.toml`](mise.toml) 하나다 ([ADR-036](./docs/adr/036-tool-version-ssot-mise.md)).
 
 ---
 
@@ -164,7 +164,7 @@ flowchart TB
 
 ### 1. Pine Script 를 트랜스파일하지 않고 인터프리터로 실행한다
 
-**판단** — Pine 소스를 파이썬 코드로 변환해 `exec()` 하는 흔한 방식을 버리고, AST 를 봉 단위로 순회하는 인터프리터를 직접 만들었다 ([ADR-003](docs/decisions/003-pine-runtime-safety-and-parser-scope.md) · [ADR-011](docs/decisions/011-pine-execution-strategy-v4.md)).
+**판단** — Pine 소스를 파이썬 코드로 변환해 `exec()` 하는 흔한 방식을 버리고, AST 를 봉 단위로 순회하는 인터프리터를 직접 만들었다 ([ADR-003](./docs/adr/003-pine-runtime-safety-and-parser-scope.md) · [ADR-011](./docs/adr/011-pine-execution-strategy-v4.md)).
 
 **이유** — 두 가지다. (1) 사용자가 붙여넣은 문자열이 서버에서 임의 코드로 실행되는 경로를 원천 차단한다. (2) 백테스트와 라이브 자동매매가 **문자 그대로 같은 엔진**을 쓴다. 변환기를 두면 "백테스트에서는 되는데 실거래에서는 다르게 도는" 격차가 반드시 생기고, 그 격차는 돈으로 계산된다.
 
@@ -186,7 +186,7 @@ flowchart TB
 
 ### 4. 인증을 self-host 로 전환했다 (Clerk → Better Auth)
 
-**판단** — SaaS 인증을 걷어내고 Next.js 앱 자체를 인증 서버로 만들었다. FastAPI 는 시크릿을 쥐지 않고 JWKS 공개키로 EdDSA 서명만 검증한다 ([ADR-034](docs/decisions/034-auth-self-host-better-auth.md)).
+**판단** — SaaS 인증을 걷어내고 Next.js 앱 자체를 인증 서버로 만들었다. FastAPI 는 시크릿을 쥐지 않고 JWKS 공개키로 EdDSA 서명만 검증한다 ([ADR-034](./docs/adr/034-auth-self-host-better-auth.md)).
 
 **이유** — 벤더 종속과 비용도 있지만, 결정적인 것은 **검증 경로를 우리가 볼 수 있느냐**였다. 전환 과정에서 기존 인증 테스트가 SDK 를 mock 하느라 서명·만료·`iss`·`aud` 를 한 번도 검증한 적이 없다는 사실이 드러났다. 지금은 검증기가 한 곳(`realtime/auth.py`)이고 HTTP·WebSocket 이 그것을 공유한다.
 
@@ -296,7 +296,7 @@ open http://localhost:3000           # 홈 → 로그인
 mise run test                        # 백엔드 pytest + 프론트엔드 vitest
 ```
 
-상세 셋업·환경변수·트러블슈팅은 [`docs/reference/operations/local-setup.md`](docs/reference/operations/local-setup.md) 참조.
+상세 셋업·환경변수·트러블슈팅은 [`docs/development/local-setup.md`](./docs/development/local-setup.md) 참조.
 
 ---
 
@@ -329,9 +329,9 @@ quant-bridge/
 | [`CONTEXT.md`](CONTEXT.md)                                                              | 도메인 용어·관계의 SSOT (Strategy / Backtest / Trading 정의)   |
 | [`AGENTS.md`](AGENTS.md)                                                                | 개발 원칙 · 스택 규칙 · 문서 체계 (LLM 에이전트 + 개발자 공용) |
 | [`DESIGN.md`](DESIGN.md)                                                                | 디자인 시스템 — 색상·타이포·간격 토큰 SSOT                     |
-| [`docs/README.md`](docs/README.md)                                                      | 문서 지도 — 어느 질문을 어느 문서가 답하는가                   |
-| [`docs/status.md`](docs/status.md)                                                      | 지금 진행 중인 작업 (현행 sprint 상태의 SSOT)                  |
-| [`docs/decisions/`](docs/decisions/)                                                    | ADR 37건 — 왜 그렇게 결정했는가                                |
+| [`docs/README.md`](./docs/README.md)                                                    | 문서 지도 — 어느 질문을 어느 문서가 답하는가                   |
+| [`docs/status.md`](./docs/status.md)                                                    | 지금 진행 중인 작업 (현행 sprint 상태의 SSOT)                  |
+| [`docs/adr/`](./docs/adr/)                                                              | ADR 37건 — 왜 그렇게 결정했는가                                |
 | [`apps/api/AGENTS.md`](apps/api/AGENTS.md) · [`apps/web/AGENTS.md`](apps/web/AGENTS.md) | 스택별 강제 규칙 (FastAPI 3-Layer · React Hooks 안전 등)       |
 
 ---

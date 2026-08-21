@@ -4,7 +4,7 @@
 
 - `tools/scripts/ledger-vitals.sh` — 특히 축 ③ 블록(74~111행)의 `lead()` / `verdict_of()` awk 함수
 - `apps/api/tests/scripts/test_ledger_vitals.py` — **앞 step 이 만든 파일. 여기에 이어 붙인다**
-- `docs/decisions/028-backlog-deferred-verdict.md` — 판정어 5종의 정본 (DEFERRED 가 왜 있나)
+- `docs/adr/028-backlog-deferred-verdict.md` — 판정어 5종의 정본 (DEFERRED 가 왜 있나)
 
 ## 배경
 

@@ -42,7 +42,7 @@ _LAUNCH_SITES = [
     _REPO / "mise.toml",
     _REPO / "README.md",
     _REPO / "apps/api/README.md",
-    _REPO / "docs/reference/operations/local-setup.md",
+    _REPO / "docs/development/local-setup.md",
 ]
 
 _UVICORN_CALL = re.compile(r"uvicorn\s+src\.main:app[^\n]*")

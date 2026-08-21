@@ -129,10 +129,8 @@ apps/web/playwright/.cache/
 # === Docs cleanup (2026-05-15 CLAUDE.md align audit) ===
 # 폐지된 sprint plan archive — git history 만 보존, 작업 폴더 신규 추가 차단
 docs/_archive/
-# 자동 생성 sprint retro HTML 보고서 — template + auto-dogfood/ 만 추적
-docs/reports/*.html
-!docs/reports/_template-*.html
-!docs/reports/auto-dogfood/
+# 자동 생성 산출물(run_auto_dogfood.py 등) — 2026-08-21 docs/reports/ 철거([ADR-038]), 산출물은 runs/ 에만
+/runs/
 # 데모 소크 관측 상태 — 세션 앵커 + /metrics 스냅샷 (tools/scripts/soak-observe.sh)
 .soak/
 

@@ -13,7 +13,9 @@ SCRIPT = Path(__file__).resolve().parents[4] / "tools" / "scripts" / "assert-mai
 _BASH = Path("/bin/bash")
 
 
-def run(cwd: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def run(
+    cwd: Path, *args: str, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     """가드는 원본 그대로 두고 cwd만 바꿔 실제 Git 판정을 실행한다."""
     return subprocess.run(
         [str(_BASH), str(SCRIPT), *args],
@@ -74,7 +76,7 @@ def test_worktree_is_rejected_but_main_checkout_is_allowed(tmp_path: Path) -> No
     assert "'migrate'" in worktree_result.stderr
     assert "mise run migrate" in worktree_result.stderr
     assert str(main) in worktree_result.stderr
-    assert "docs/reference/operations/worktree-parallel.md §2.1" in worktree_result.stderr
+    assert "docs/development/worktree-parallel.md §2.1" in worktree_result.stderr
 
 
 def test_worktree_without_target_uses_default_target_name(tmp_path: Path) -> None:

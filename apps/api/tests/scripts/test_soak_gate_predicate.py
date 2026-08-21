@@ -1239,13 +1239,7 @@ def test_the_shipped_ledger_is_readable_by_the_gate(gate: Any) -> None:
     """
     import json
 
-    ledger_path = (
-        Path(__file__).parents[4]
-        / "docs"
-        / "reference"
-        / "operations"
-        / "soak-disqualifications.jsonl"
-    )
+    ledger_path = Path(__file__).parents[4] / "docs" / "operations" / "soak-disqualifications.jsonl"
     rows = [json.loads(line) for line in ledger_path.read_text().splitlines() if line.strip()]
     entries = [row for row in rows if "_comment" not in row]
 

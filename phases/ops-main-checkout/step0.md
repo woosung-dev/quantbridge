@@ -3,7 +3,7 @@
 ## 읽어야 할 파일
 
 - `tools/scripts/assert-main-checkout.sh` — **이번 테스트의 대상** (49줄 전량, 주석이 절반)
-- `docs/reference/operations/worktree-parallel.md` §2.1 — 이 가드가 막는 사고
+- `docs/development/worktree-parallel.md` §2.1 — 이 가드가 막는 사고
 - `apps/api/tests/harness/test_execute_commit.py` — `tmp_path` 안에 **진짜 git 저장소**를
   만드는 선례
 - `apps/api/tests/scripts/test_soak_gate_predicate.py` — 이 디렉터리의 테스트 관용구

@@ -56,7 +56,7 @@ QB_SLOT="${QB_SLOT:-0}"
 echo "QuantBridge — 워크트리 슬롯 ${QB_SLOT} (FE $((3100 + QB_SLOT)) / BE $((8100 + QB_SLOT)))"
 echo "  * 슬롯 != 0 에서는 up/down/migrate/seed 계열이 거부된다 (공유 자원 보호)"
 echo "  * 새 워크트리 준비 = tools/scripts/worktree-bootstrap.sh"
-echo "  * 무엇이 병렬 가능한가 = docs/reference/operations/worktree-parallel.md"
+echo "  * 무엇이 병렬 가능한가 = docs/development/worktree-parallel.md"
 echo ""
 mise tasks
 """

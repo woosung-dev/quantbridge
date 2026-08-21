@@ -66,11 +66,7 @@ SELF_CHECK = [
 # 실격 귀속 원장 ([BL-641]) — 위 층 경계는 **날짜**이고 사람이 손으로 넣는다. 원장은 **사인**으로
 # 층을 만든다. 종전에는 「오염 1건」 같은 주석으로만 적혀 있었고, 주석은 재현되지 않는다.
 LEDGER_DEFAULT = (
-    Path(__file__).resolve().parents[3]
-    / "docs"
-    / "reference"
-    / "operations"
-    / "soak-disqualifications.jsonl"
+    Path(__file__).resolve().parents[3] / "docs" / "operations" / "soak-disqualifications.jsonl"
 )
 
 
@@ -220,7 +216,7 @@ def main() -> int:
         "--ledger",
         type=Path,
         default=LEDGER_DEFAULT,
-        help="실격 귀속 원장 (기본 = docs/reference/operations/soak-disqualifications.jsonl)",
+        help="실격 귀속 원장 (기본 = docs/operations/soak-disqualifications.jsonl)",
     )
     parser.add_argument(
         "--no-ledger",

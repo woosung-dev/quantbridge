@@ -21,7 +21,7 @@
 
 `--market spot` 은 2·3(마진/레버리지)을 건너뛴다 — spot 계정에 없는 개념이라 거래소가 거부한다.
 ★단계 1 smoke($50)가 spot 인 이유: perp 최소 주문 0.001 BTC 는 명목 ~$100 이라 1x 증거금이
-자본을 넘는다. perp 경로는 단계 2 에서 검증한다(`docs/reference/operations/bybit-mainnet-runbook.md`).
+자본을 넘는다. perp 경로는 단계 2 에서 검증한다(`docs/operations/bybit-mainnet-runbook.md`).
 
 ★**mode 는 실제로 분기한다.** rename 이전 판은 `mode` 를 인자로 받고도 쓰지 않고
 `enable_demo_trading(True)` 를 하드코딩했다 — choices 가 `demo` 뿐이라 무해했지만, live 를

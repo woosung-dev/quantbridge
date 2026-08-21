@@ -163,7 +163,7 @@ if [[ "${MODE}" == "live" ]]; then
   printf '\n'
   printf '  ★★★ mode=live — **실자금**이다. api.bybit.com 으로 진짜 주문이 나간다.\n'
   printf '      진행 전 확인: 출금 권한 OFF · IP whitelist 등록 · 레버리지 1:1\n'
-  printf '      절차 전문 = docs/reference/operations/bybit-mainnet-runbook.md\n\n'
+  printf '      절차 전문 = docs/operations/bybit-mainnet-runbook.md\n\n'
 fi
 
 CMD_DISPLAY="uv run python scripts/bybit_smoke.py --mode ${MODE} --market ${MARKET} --symbol ${SYMBOL} --quantity ${QUANTITY} --leverage ${LEVERAGE}"

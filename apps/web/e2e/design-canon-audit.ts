@@ -1,6 +1,6 @@
 // C 디자인 캐논 런타임 감사의 공용 코어 — 프로토타입과 React 앱이 같은 자를 쓰게 한다
 //
-// 출처는 `docs/reference/design/prototypes/shotgun-2026-07/runtime-check.mjs` (212줄) 다.
+// 출처는 `docs/design/prototypes/shotgun-2026-07/runtime-check.mjs` (212줄) 다.
 // 그 검사기는 이미 Playwright 기반이고 핵심 로직이 `page.evaluate` 안에서 도는
 // URL 무관한 순수 함수였다. 따라서 "새로 만든다" 가 아니라 "다시 겨눈다" 가 맞다.
 // AUDIT / MOTION_AUDIT / 포커스링 프로브 / 4폭 은 의미 변경 없이 옮긴 것이다.

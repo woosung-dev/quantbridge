@@ -13,7 +13,7 @@
 # host src 가 SoT 이므로 `:ro` 안전. 패키지 추가는 image rebuild 가 의무 (별도 ADR).
 #
 # WARNING: base mode (`mise run up`) 와 isolated mode 동시 운영 시 `quantbridge-*` container_name
-# 충돌 발생. base 와 isolated 는 mutually exclusive (ADR docs/decisions/019-worker-auto-rebuild.md).
+# 충돌 발생. base 와 isolated 는 mutually exclusive (ADR docs/adr/019-worker-auto-rebuild.md).
 
 services:
   # ★host 인터페이스를 loopback 으로 고정한다. base 의 `"5432:5432"` 는 `0.0.0.0` 바인딩이라

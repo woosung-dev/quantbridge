@@ -837,7 +837,7 @@ class OrderRepository:
         걸 수 없다 — 걸면 거래소가 포지션 크기까지만 체결해 반전이 깨진다.
 
         `reduce_only` 는 「내가 요청한 안전장치」이지 「이 주문이 청산했는가」의 답이
-        아니다([ADR-032](../../../../docs/decisions/032-no-hedge-mode.md)). Bybit one-way 는
+        아니다([ADR-032](../../../../docs/adr/032-no-hedge-mode.md)). Bybit one-way 는
         수량이 포지션을 넘으면 반전하고, OKX 의 `reduceOnly` 는 net mode 전용이며
         `sz > 포지션`이면 주문 자체를 거부한다 — 어느 계약에서도 등가가 성립하지 않는다.
         판정의 정본은 **거래소 원장이 그 주문의 청산 행을 갖고 있는가**이고, 그것이

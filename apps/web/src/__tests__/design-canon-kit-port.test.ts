@@ -1,6 +1,6 @@
 // 이식된 C 공용 CSS 를 프로토타입 정본(_kit.html)에 잠그는 무결성 가드 (이식 S2)
 //
-// 목적. globals.css @layer components 안의 이식 블록이 docs/reference/design/prototypes/shotgun-2026-07/_kit.html
+// 목적. globals.css @layer components 안의 이식 블록이 docs/design/prototypes/shotgun-2026-07/_kit.html
 // 의 공용 컴포넌트 CSS 와 "정규화 동일" 함을 동결한다. 프로토타입은 바이트 정본이며 다크 17벌이
 // 그것을 참조하므로, 이식본이 정본에서 조용히 표류(kitdrift)하면 이 테스트가 즉시 빨개진다.
 //
@@ -18,7 +18,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const GLOBALS = resolve(__dirname, "../styles/globals.css");
-const KIT = resolve(__dirname, "../../../../docs/reference/design/prototypes/shotgun-2026-07/_kit.html");
+const KIT = resolve(__dirname, "../../../../docs/design/prototypes/shotgun-2026-07/_kit.html");
 
 /** 공백/개행/들여쓰기를 단일 공백으로 접는다. prettier 재포맷을 무력화하되 값·주석은 보존한다. */
 function normalize(css: string): string {
