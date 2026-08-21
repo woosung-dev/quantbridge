@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from uuid import uuid4
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.waitlist.models import WaitlistApplication, WaitlistStatus
@@ -123,3 +125,41 @@ async def test_find_by_invite_token_returns_the_invited_application(
     assert found is not None
     assert found.id == invited.id
     assert found.status == WaitlistStatus.invited
+
+
+@pytest.mark.asyncio
+async def test_create_propagates_duplicate_email_and_rollback_restores_repository(
+    db_session: AsyncSession,
+) -> None:
+    """중복 이메일 DB 오류는 삼키지 않고 전파되며 rollback 뒤 조회가 다시 가능하다."""
+    repository = WaitlistRepository(db_session)
+    original = await repository.create(_application("duplicate@example.com"))
+    await repository.commit()
+
+    with pytest.raises(IntegrityError):
+        await repository.create(_application("duplicate@example.com"))
+    await repository.rollback()
+
+    found = await repository.find_by_email("DUPLICATE@EXAMPLE.COM")
+    assert found is not None
+    assert found.id == original.id
+
+
+@pytest.mark.asyncio
+async def test_lookup_and_pagination_boundaries_return_empty_results(
+    db_session: AsyncSession,
+) -> None:
+    """없는 식별자와 0건 페이지는 예외 없이 빈 조회 결과를 반환한다."""
+    repository = WaitlistRepository(db_session)
+
+    assert await repository.find_by_id(uuid4()) is None
+    assert await repository.find_by_email("missing@example.com") is None
+    assert await repository.find_by_invite_token("missing-token") is None
+    items, total = await repository.list_by_status(
+        status=WaitlistStatus.joined,
+        limit=0,
+        offset=0,
+    )
+
+    assert items == []
+    assert total == 0

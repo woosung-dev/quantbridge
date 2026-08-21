@@ -577,3 +577,225 @@ async def test_event_repository_sums_realized_pnl_for_all_and_prior_window(
         live_session.id,
         bar_time=second_bar_time,
     ) == (Decimal("2.25"), 1)
+
+
+@pytest.mark.asyncio
+async def test_session_repository_acquires_quota_lock_and_commits_saved_session(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """쿼터 advisory lock과 명시적 commit 뒤에도 저장한 세션을 다시 읽는다."""
+    account = await _seed_account(db_session, user)
+    repository = LiveSignalSessionRepository(db_session)
+    live_session = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="AVAXUSDT",
+    )
+
+    await repository.acquire_quota_lock(user.id)
+    await repository.commit()
+
+    stored = await repository.get_by_id(live_session.id)
+    assert stored is not None
+    assert stored.id == live_session.id
+
+
+@pytest.mark.asyncio
+async def test_session_repository_returns_empty_for_empty_or_unmatched_scopes(
+    db_session: AsyncSession,
+) -> None:
+    """빈 전략 입력과 존재하지 않는 소유·세션 스코프는 빈 결과로 닫힌다."""
+    repository = LiveSignalSessionRepository(db_session)
+    unknown_id = uuid4()
+
+    assert await repository.get_by_id(unknown_id) is None
+    assert await repository.get_by_id_for_user(unknown_id, uuid4()) is None
+    assert await repository.list_active_strategy_ids([]) == set()
+    assert await repository.list_active_by_user(uuid4()) == []
+    assert await repository.list_recent_inactive_by_user(uuid4(), limit=-1) == []
+    assert await repository.count_active_by_user(uuid4()) == 0
+    assert await repository.list_distinct_active_symbols() == []
+
+
+@pytest.mark.asyncio
+async def test_session_repository_keeps_unbounded_window_and_replaces_equity_curve(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """상한 없는 생존 창은 활성 세션을 포함하고, 명시 curve는 기존 상태를 교체한다."""
+    account = await _seed_account(db_session, user)
+    repository = LiveSignalSessionRepository(db_session)
+    created_at = datetime(2026, 8, 22, 18, tzinfo=UTC)
+    live_session = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="LINKUSDT",
+        created_at=created_at,
+    )
+
+    rows = await repository.list_overlapping_window(
+        since=created_at + timedelta(minutes=1),
+        limit=1,
+    )
+    created = await repository.upsert_state(
+        session_id=live_session.id,
+        last_strategy_state_report={"bar": 1},
+        total_closed_trades=0,
+        total_realized_pnl=Decimal("0"),
+    )
+    assert created.equity_curve == []
+    updated = await repository.upsert_state(
+        session_id=live_session.id,
+        last_strategy_state_report={"bar": 2},
+        total_closed_trades=1,
+        total_realized_pnl=Decimal("1.25"),
+        equity_curve=[{"timestamp_ms": 2, "cumulative_pnl": "1.25"}],
+    )
+
+    assert [row.id for row in rows] == [live_session.id]
+    assert updated.equity_curve == [{"timestamp_ms": 2, "cumulative_pnl": "1.25"}]
+
+
+@pytest.mark.asyncio
+async def test_session_repository_does_not_deactivate_inactive_or_missing_rows(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """이미 종료됐거나 없는 세션 종료는 0건이며 기존 종료 사유를 덮어쓰지 않는다."""
+    account = await _seed_account(db_session, user)
+    original_at = datetime(2026, 8, 22, 19, tzinfo=UTC)
+    inactive = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="ATOMUSDT",
+        is_active=False,
+        deactivated_at=original_at,
+    )
+    repository = LiveSignalSessionRepository(db_session)
+
+    assert (
+        await repository.deactivate(
+            inactive.id,
+            at=original_at + timedelta(minutes=1),
+            reason=SessionDeactivationReason.run_live_error,
+        )
+        == 0
+    )
+    assert (
+        await repository.deactivate(
+            uuid4(),
+            at=original_at + timedelta(minutes=1),
+            reason=SessionDeactivationReason.run_live_error,
+        )
+        == 0
+    )
+
+    await db_session.refresh(inactive)
+    assert inactive.deactivated_at == original_at
+    assert inactive.deactivated_reason == SessionDeactivationReason.user_stopped
+
+
+@pytest.mark.asyncio
+async def test_event_repository_commits_and_returns_zero_for_absent_realized_pnl(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """명시 commit은 pending event를 유지하고, 실현 손익 없는 원장은 0을 반환한다."""
+    account = await _seed_account(db_session, user)
+    live_session = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="UNIUSDT",
+    )
+    repository = LiveSignalEventRepository(db_session)
+    [event] = await repository.insert_pending_events(
+        session_id=live_session.id,
+        bar_time=datetime(2026, 8, 22, 20, tzinfo=UTC),
+        signals=[
+            {
+                "sequence_no": 1,
+                "action": "entry",
+                "direction": "long",
+                "trade_id": "no-pnl",
+                "qty": "1",
+            }
+        ],
+    )
+
+    await repository.commit()
+
+    assert await repository.get_by_id(uuid4()) is None
+    assert await repository.get_by_id(event.id) is not None
+    assert await repository.sum_realized_pnl_all(live_session.id) == (Decimal("0"), 0)
+
+
+@pytest.mark.asyncio
+async def test_event_repository_applies_zero_limits_and_keeps_orderless_event_visible(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """0건 페이지는 비고, 주문 없는 event는 LEFT JOIN에서 None 상태로 보존된다."""
+    account = await _seed_account(db_session, user)
+    live_session = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="MATICUSDT",
+    )
+    repository = LiveSignalEventRepository(db_session)
+    [event] = await repository.insert_pending_events(
+        session_id=live_session.id,
+        bar_time=datetime(2026, 8, 22, 21, tzinfo=UTC),
+        signals=[
+            {
+                "sequence_no": 1,
+                "action": "entry",
+                "direction": "short",
+                "trade_id": "orderless",
+                "qty": "2",
+            }
+        ],
+    )
+
+    assert await repository.list_pending(limit=0) == []
+    assert await repository.list_by_session(live_session.id, limit=0) == []
+    assert await repository.list_by_session_with_order_state(live_session.id) == [(event, None)]
+
+
+@pytest.mark.asyncio
+async def test_event_repository_does_not_dispatch_failed_or_missing_event(
+    db_session: AsyncSession, user: User, strategy: Strategy
+) -> None:
+    """terminal failed event와 없는 event는 dispatch 경쟁의 winner가 될 수 없다."""
+    account = await _seed_account(db_session, user)
+    live_session = await _seed_session(
+        db_session,
+        user=user,
+        strategy=strategy,
+        account=account,
+        symbol="NEARUSDT",
+    )
+    repository = LiveSignalEventRepository(db_session)
+    [event] = await repository.insert_pending_events(
+        session_id=live_session.id,
+        bar_time=datetime(2026, 8, 22, 22, tzinfo=UTC),
+        signals=[
+            {
+                "sequence_no": 1,
+                "action": "entry",
+                "direction": "long",
+                "trade_id": "failed-before-dispatch",
+                "qty": "1",
+            }
+        ],
+    )
+
+    assert await repository.mark_failed(event.id, error="blocked") == 1
+    assert await repository.mark_dispatched(event.id, order_id=uuid4()) == 0
+    assert await repository.mark_dispatched(uuid4(), order_id=uuid4()) == 0
+    assert await repository.mark_failed(uuid4(), error="missing") == 0
