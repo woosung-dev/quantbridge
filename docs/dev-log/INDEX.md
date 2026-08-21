@@ -19,6 +19,7 @@
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
 - **2026-08-21 docs-structure-bprime** — `docs/` 최상위를 질문별 6축 + `adr/` 로 재배치([ADR-038]), `reference/`·`decisions/` 해체. 이동 104 · 삭제 10 · 링크 파손 0. ★타 LLM 추천안의 80% 는 ADR-026 이 15일 전에 한 것 — `specs/`·frontmatter·Issues 기각.
+  - 후속(같은 날): `gates-and-traps.md` §3 94.6KB → `traps-{environment-shell,ci-e2e,gates-measurement,live-trading}.md` 4파일 · kickoff 템플릿 삭제 · 깨진 링크 6 수리 · 로컬 브랜치 45·워크트리 3 정리(sha 목록 = PR 본문)
 - **2026-08-21 night-loop-4** — FE 라우트 조립층 8 lane 병렬(FE 6 + BE 2). [BL-817]·[BL-816] 종결, PR #745~#753. 8/8 · retry 0 · 충돌 0 · 변이 8/8 red · 6분 · vitest 1,780→1,896 · 미도달 web 33→15 · api 2→1. ★★착수 프롬프트의 BE 재료가 거짓(「미도달 6」은 실측 2) · ★내 python 도구가 3번 틀렸다([LESSON-125]).
 - **2026-08-21 night-loop-3** — FE 화면 계층 8 lane 병렬. [BL-815] 종결, PR #735~#743. 8/8 · 충돌 0 · 변이 8/8 red · vitest 1,647→1,780 · 미도달 53→32. ★AC red 측정이 lane 1을 폐기시켰고(이미 커버) · 러너가 `blocked` 로 멈춰 [BL-816] 이 드러났다([LESSON-122] 2번째).
 - **2026-08-21 night-loop-2** — FE 순수 판정 모듈 8 lane 병렬. [BL-813] 종결, PR #724~#733. 8/8 · 충돌 0 · 변이 8/8 red · vitest 1,497→1,647. ★프로브가 `server-only` top-level throw 를 착수 전에 잡았다([LESSON-123]) · ★내 step 의 기대가 거짓이라 lane 1개가 죽었고 그것이 [BL-814] 를 드러냈다([LESSON-122]).

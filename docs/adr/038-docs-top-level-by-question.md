@@ -69,7 +69,7 @@ docs/
 | `docs/evidence/` (png 4)                                             | 참조 0건 · 대상 [BL-414]·[BL-429] 는 RESOLVED                                                                            |
 | `docs/reports/` (README · 템플릿 · auto-dogfood 2026-05-03)          | gitignore 산출 자리 — 「아무도 안 읽는다」(2026-08-15 사용자 지시). `run_auto_dogfood.py` 출력은 `runs/auto-dogfood/` 로 |
 
-`sprint-kickoff-template.md` 는 `ci-cd.md`·`pre-commit.md` 가 §B 를 인용 중이라 **이번엔 이동만** 했다 — 삭제는 별도 판정.
+`sprint-kickoff-template.md` 는 `ci-cd.md`·`pre-commit.md` 가 §B 를 인용 중이라 **이번엔 이동만** 했다 — 삭제는 별도 판정. → **같은 날 후속 PR 에서 삭제**(규칙은 두 파일에 인라인, 원문 `git show 9e91809c:docs/development/workflows/sprint-kickoff-template.md`).
 
 ## Consequences
 

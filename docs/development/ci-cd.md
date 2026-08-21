@@ -270,7 +270,7 @@ PR 에서 backend 계열이 전부 skip 되어, **샤드 배선·artifact·cover
 
 ---
 
-## 5. PR 정책 (sprint-kickoff-template §B 인용)
+## 5. PR 정책 (구 `sprint-kickoff-template.md` §B 에서 가져옴 — 그 파일은 2026-08-21 삭제, 원문 `git show 9e91809c:docs/development/workflows/sprint-kickoff-template.md`)
 
 - **Draft 시작** — sprint 진행 중 WIP
 - **Milestone push 직후** `gh pr checks` 확인 — 실패 즉시 fix
@@ -359,7 +359,6 @@ production deploy on tag `v*.*.*`.
 - CI workflow: [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
 - Pre-commit: [`./pre-commit.md`](./pre-commit.md)
 - Local setup: [`local-setup.md`](./local-setup.md)
-- Sprint kickoff: [`sprint-kickoff-template.md`](./workflows/sprint-kickoff-template.md) §B
 
 ---
 

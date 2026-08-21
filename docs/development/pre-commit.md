@@ -45,7 +45,7 @@ git commit -m "..."
 
 ## 4. 우회 정책
 
-> sprint-kickoff-template §방법론 규칙 인용:
+> 구 `sprint-kickoff-template.md` §방법론 규칙(2026-08-21 삭제, 원문 `git show 9e91809c:docs/development/workflows/sprint-kickoff-template.md`)에서 가져온 규칙:
 > **`--no-verify` 절대 금지. 사용자 명시 승인 시만 허용.**
 
 이유:
@@ -105,7 +105,6 @@ chmod +x .husky/pre-commit
 - lint-staged: https://github.com/okonet/lint-staged
 - ruff: https://docs.astral.sh/ruff/
 - ESLint config: `apps/web/eslint.config.*`
-- Sprint kickoff 방법론 규칙: [`sprint-kickoff-template.md`](./workflows/sprint-kickoff-template.md)
 
 ---
 

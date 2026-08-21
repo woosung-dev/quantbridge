@@ -87,7 +87,7 @@ Trading(CCXT 주문 — 계정 모드는 **Bybit demo 만**) / Market Data(Times
   정본: [`docs/development/worktree-parallel.md`](./docs/development/worktree-parallel.md)
 - ALWAYS — BE pytest 전 `.env.local` **통째** 소싱: `cd apps/api && set -a; . ./.env.local; set +a; uv run pytest`
 - NEVER — `DATABASE_URL` 만 단독 주입(서브에이전트 포함) — 세션 픽스처 `drop_all` 이 **개발 DB 를 겨냥**한다.
-  상세·함정 전체: `gates-and-traps.md` §환경
+  상세·함정 전체: `docs/development/traps-environment-shell.md` §환경
 
 ## 스택 규칙 (그 디렉터리 파일을 열면 자동 로드)
 
