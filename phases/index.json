@@ -243,7 +243,9 @@
     },
     {
       "dir": "be5-dispatch-trio",
-      "status": "pending"
+      "status": "completed",
+      "blocked_at": "2026-08-21T17:45:14+0900",
+      "completed_at": "2026-08-21T18:08:17+0900"
     },
     {
       "dir": "be5-health-probes",
