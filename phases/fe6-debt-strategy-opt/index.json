@@ -29,11 +29,14 @@
     {
       "step": 2,
       "name": "aria-and-semantics",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
         "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
-      ]
+      ],
+      "summary": "시맨틱·ARIA 12건을 fieldset, 네이티브 radio, 불필요 ARIA·tabpanel tabindex 제거로 해소했다. OptionCardRadio는 label+hidden native radio로 Space 선택과 카드 focus outline을 유지하며, 지정 Biome lint와 Vitest 53파일·325테스트가 통과했다.",
+      "started_at": "2026-08-22T04:55:59+0900",
+      "completed_at": "2026-08-22T05:02:14+0900"
     },
     {
       "step": 3,
