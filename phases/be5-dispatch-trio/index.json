@@ -5,17 +5,16 @@
     {
       "step": 0,
       "name": "dispatch-trio",
-      "status": "blocked",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks/test_dispatch_contracts.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_dispatch_contracts.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks/test_backtest_task.py tests/tasks/test_beat_schedule.py -q",
         "cd apps/api && uv run ruff check tests/tasks/test_dispatch_contracts.py && uv run ruff format --check tests/tasks/test_dispatch_contracts.py"
       ],
-      "started_at": "2026-08-21T17:34:03+0900",
-      "summary": "12개 계약 케이스 추가(Noop 3·Celery 3·histogram 2·engine 2·reclaim/등록 2); FakeStressTaskDispatcher는 tests/stress_test/helpers.py와 worker happy-path 3개에서 기존 사용되어 선택 케이스를 생략했으며 신규 AC·수집 12개·ruff는 통과했다.",
-      "blocked_reason": "인접 AC가 quantbridge_w7_test 스키마 초기화에서 strategies FK(fk_strategies_strategy_version_id_strategy_versions) 부재로 실패한다. 테스트 DB 재설정은 파괴 작업이므로 사용자 승인 없이 실행하지 않았다.",
-      "blocked_at": "2026-08-21T17:45:14+0900"
+      "started_at": "2026-08-21T17:59:34+0900",
+      "summary": "12개 계약 케이스 추가(Noop 3·Celery 3·histogram 2·engine 2·reclaim/등록 2); FakeTaskDispatcher는 tests/backtest/test_dispatcher.py·tests/api/test_backtests_submit.py, FakeOptimizationTaskDispatcher는 tests/optimizer/test_service_commits.py, FakeStressTaskDispatcher는 tests/stress_test/helpers.py·test_worker_walk_forward_optimization_happy_path.py에서 기존 사용되어 선택 케이스를 생략했으며 신규 AC·수집 12개·ruff는 통과했다.",
+      "completed_at": "2026-08-21T18:08:17+0900"
     }
   ],
   "created_at": "2026-08-21T17:34:03+0900"
