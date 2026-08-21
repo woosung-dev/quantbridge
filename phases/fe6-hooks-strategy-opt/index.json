@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=12",
         "git diff --quiet -- apps/web/src/features/strategy/hooks.ts apps/web/src/features/optimizer/hooks.ts apps/web/src/features/waitlist/hooks.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T04:02:23+0900",
+      "summary": "기준(전량 vitest): strategy 6.75%(10/148), optimizer 0%(0/54), waitlist 0%(0/38). 심볼: strategy [덮음 useStrategies(list API+user key), useUpdateStrategySettings(invalidate list/detail), usePreviewParse(blank 차단+trim parse); 미덮음 useStrategy/useCreateStrategy/useRotateWebhookSecret/useUpdateStrategy/useDeleteStrategy/useParseStrategy], optimizer [덮음 useOptimizationRuns(list API+user key), useSubmitGridSearch/useSubmitBayesianSearch/useSubmitGeneticSearch(각 endpoint+optimizer root invalidate); 미덮음 useOptimizationRun], waitlist [덮음 useCreateWaitlist(public submit), useAdminWaitlistList(admin API+user key), useApproveWaitlist(admin-list invalidate)]. Mock: ../api는 HTTP 없이 token·endpoint 인자를 단언하기 위한 경계, useInvalidatingMutation은 공용 helper 행위 대신 도메인 훅의 invalidateKeys 계약을 단언하기 위한 경계, auth-client 전역 mock은 Better Auth user/token 경계. AC 후 lines: strategy 37.83%, optimizer 74.07%, waitlist 100%.",
+      "completed_at": "2026-08-22T04:09:07+0900"
     },
     {
       "step": 1,
@@ -45,5 +48,6 @@
         "cd apps/web && pnpm exec biome check src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T04:02:23+0900"
 }
