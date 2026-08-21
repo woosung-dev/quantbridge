@@ -44,7 +44,7 @@
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/live-sessions/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/trading/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/live-sessions/hooks.ts' --coverage.include='src/features/trading/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=50",
@@ -52,7 +52,10 @@
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx"
-      ]
+      ],
+      "started_at": "2026-08-22T04:33:19+0900",
+      "summary": "자기 변이 3건 모두 red: | 위치 | 변경 | red |\\n| --- | --- | --- |\\n| live-sessions/hooks.ts:456 | useLiveSessionPositions의 enabled를 false로 변경 | 예(조회·ApiError·ZodError 3건) |\\n| trading/hooks.ts:77 | 활성/유휴 폴링 간격 반환을 반전 | 예(활성 주문 5초 단언) |\\n| trading/hooks.ts:333 | leverage > 0을 >= 0으로 변경 | 예(leverage=0 미발사 단언) |. red 미발생 변이는 없어서 테스트 추가 없음. core 38/38 green, 최종 대상 커버리지 statement/line 88.18%(470/533), branch 90.64%, function 89.83%; 대상 소스 SHA-256 복구 확인.",
+      "completed_at": "2026-08-22T04:37:16+0900"
     }
   ],
   "created_at": "2026-08-22T04:06:31+0900"
