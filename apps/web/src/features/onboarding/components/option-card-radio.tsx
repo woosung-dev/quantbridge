@@ -1,11 +1,11 @@
 // 온보딩 옵션 선택형 라디오 카드 — C 디자인 언어 이식 (W3-E).
 // 반경 var(--r)(원형 배지는 프로토타입 없음). 선택 시 코퍼 테두리 + 코퍼-소프트 배경.
-// 자체 focus ring 은 제거하고 전역 카퍼 :focus-visible(globals.css) 을 소비한다
-// (운영 계약 §1-2 이중 링 해소). 반경 리터럴 rounded-[10px] → var(--r) 로 래칫 하강.
+// 네이티브 radio 는 시각적으로 숨기고, 카드 label 이 focus-visible outline 을 그린다.
+// 반경 리터럴 rounded-[10px] → var(--r) 로 래칫 하강.
 "use client";
 
 import { CheckIcon } from "lucide-react";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 export interface OptionCardRadioProps {
   value: string;
@@ -26,31 +26,27 @@ export function OptionCardRadio({
   onSelect,
   badge,
 }: OptionCardRadioProps) {
-  const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
-    if (e.key === " " || e.key === "Enter") {
-      e.preventDefault();
-      onSelect(value);
-    }
-  };
-
   return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
+    <label
       data-value={value}
       data-selected={selected}
       data-testid={`option-card-${value}`}
-      onClick={() => onSelect(value)}
-      onKeyDown={handleKeyDown}
       className={[
-        "flex w-full items-center gap-3 rounded-[var(--r)] border-[1.5px] p-4 text-left",
+        "flex w-full cursor-pointer items-center gap-3 rounded-[var(--r)] border-[1.5px] p-4 text-left",
         "transition-[border-color,background-color,transform] duration-200 ease-out",
+        "has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-[color:var(--copper)]",
         selected
           ? "border-[color:var(--copper)] bg-[color:var(--copper-soft)]"
           : "border-[color:var(--line)] bg-[color:var(--card-2)] hover:border-[color:var(--copper)] hover:bg-[color:var(--copper-soft)]",
       ].join(" ")}
     >
+      <input
+        type="radio"
+        value={value}
+        checked={selected}
+        onChange={() => onSelect(value)}
+        className="sr-only"
+      />
       <span
         aria-hidden="true"
         className={[
@@ -87,6 +83,6 @@ export function OptionCardRadio({
       >
         <CheckIcon className="h-3 w-3" strokeWidth={3.5} />
       </span>
-    </button>
+    </label>
   );
 }

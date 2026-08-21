@@ -57,7 +57,7 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
               <button
                 key={t.id}
                 id={`diag-tab-${t.id}`}
-                className={"tab" + (tab === t.id ? " active" : "")}
+                className={`tab${tab === t.id ? " active" : ""}`}
                 role="tab"
                 type="button"
                 aria-selected={tab === t.id}
@@ -89,7 +89,6 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-parse"
         role="tabpanel"
-        tabIndex={0}
         aria-labelledby="diag-tab-parse"
         hidden={tab !== "parse"}
       >
@@ -167,7 +166,6 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-param"
         role="tabpanel"
-        tabIndex={0}
         aria-labelledby="diag-tab-param"
         hidden={tab !== "param"}
       >
@@ -183,7 +181,6 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-indicator"
         role="tabpanel"
-        tabIndex={0}
         aria-labelledby="diag-tab-indicator"
         hidden={tab !== "indicator"}
       >
@@ -254,8 +251,8 @@ function ParseSkeleton() {
       <div className="strip-col">
         <p className="strip-col-title">지표 미리보기</p>
         <div className="sk-bars" aria-hidden="true">
-          {[44, 70, 33, 86, 52, 64, 38, 76].map((h, i) => (
-            <span key={i} className="sk" style={{ height: `${h}%` }} />
+          {[44, 70, 33, 86, 52, 64, 38, 76].map((h) => (
+            <span key={h} className="sk" style={{ height: `${h}%` }} />
           ))}
         </div>
         <div className="sk sk-line" style={{ width: "56%" }} aria-hidden="true" />

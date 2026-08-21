@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { OptionCardRadio } from "../option-card-radio";
 
 describe("OptionCardRadio", () => {
-  it("selected=true 상태에서 aria-checked + data-selected 반영", () => {
+  it("selected=true 상태에서 네이티브 radio checked + data-selected 반영", () => {
     const onSelect = vi.fn();
     render(
       <OptionCardRadio
@@ -17,10 +17,9 @@ describe("OptionCardRadio", () => {
         onSelect={onSelect}
       />,
     );
-    const btn = screen.getByTestId("option-card-paste");
-    expect(btn).toHaveAttribute("aria-checked", "true");
-    expect(btn).toHaveAttribute("role", "radio");
-    expect(btn.dataset.selected).toBe("true");
+    const card = screen.getByTestId("option-card-paste");
+    expect(screen.getByRole("radio", { name: /Pine Script 붙여넣기/ })).toBeChecked();
+    expect(card.dataset.selected).toBe("true");
     expect(screen.getByText("Pine Script 붙여넣기")).toBeInTheDocument();
     expect(screen.getByText("TradingView에서 코드 복사")).toBeInTheDocument();
   });
@@ -38,8 +37,8 @@ describe("OptionCardRadio", () => {
         badge="추천"
       />,
     );
-    const btn = screen.getByTestId("option-card-template");
-    fireEvent.click(btn);
+    const card = screen.getByTestId("option-card-template");
+    fireEvent.click(card);
     expect(onSelect).toHaveBeenCalledWith("template");
     // badge 노출
     expect(screen.getByText("추천")).toBeInTheDocument();

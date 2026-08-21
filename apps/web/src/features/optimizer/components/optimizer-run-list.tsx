@@ -31,6 +31,17 @@ const LIST_ENDPOINT = "GET /api/v1/optimizer/runs";
 
 // 페이지당 요청 개수 토글 값 (screen-09 02 목록 · role=group + aria-pressed).
 const PAGE_SIZES = [10, 25, 50] as const;
+const SKELETON_ROW_KEYS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
+const SKELETON_CELL_KEYS = [
+  "cell-1",
+  "cell-2",
+  "cell-3",
+  "cell-4",
+  "cell-5",
+  "cell-6",
+  "cell-7",
+  "cell-8",
+] as const;
 
 // grid 는 cell objective, bayesian/genetic 은 best_iteration objective_value 로 최고 목표값 파생.
 function bestObjectiveOf(r: OptimizationRunResponse): number | null {
@@ -108,14 +119,14 @@ export function OptimizerRunList({
             {items.length}건 표시{total > items.length ? ` · 전체 ${total}건 중` : ""}
           </p>
         </div>
-        {/* 페이지당 요청 개수 토글 — 패널을 바꾸지 않는 상호배타 버튼이라 role=group + aria-pressed (§3-6). */}
+        {/* 페이지당 요청 개수 토글 — 패널을 바꾸지 않는 상호배타 버튼을 fieldset + aria-pressed 로 묶는다. */}
         <div className="chart-head-actions">
-          <div className="tabs" role="group" aria-label="페이지당 요청 개수">
+          <fieldset className="tabs m-0 min-w-0" aria-label="페이지당 요청 개수">
             {PAGE_SIZES.map((size) => (
               <button
                 key={size}
                 type="button"
-                className={"tab" + (size === pageSize ? " active" : "")}
+                className={`tab${size === pageSize ? " active" : ""}`}
                 aria-pressed={size === pageSize}
                 data-testid={`optimizer-pagesize-${size}`}
                 onClick={() => setPageSize(size)}
@@ -123,7 +134,7 @@ export function OptimizerRunList({
                 {size}
               </button>
             ))}
-          </div>
+          </fieldset>
         </div>
       </div>
 
@@ -270,10 +281,10 @@ function ListSkeleton() {
     >
       <table className="trades opt-table">
         <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 8 }).map((__, j) => (
-                <td key={j}>
+          {SKELETON_ROW_KEYS.map((rowKey) => (
+            <tr key={rowKey}>
+              {SKELETON_CELL_KEYS.map((cellKey) => (
+                <td key={cellKey}>
                   <span className="sk sk-cell" />
                 </td>
               ))}

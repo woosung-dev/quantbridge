@@ -20,6 +20,7 @@ export function LandingNav() {
       <a className="lp-brand" href="#main-content" aria-label="QuantBridge 홈으로">
         <span className="brand-mark" aria-hidden="true">
           <svg
+            aria-hidden="true"
             width="16"
             height="16"
             viewBox="0 0 24 24"
@@ -45,6 +46,7 @@ export function LandingNav() {
         onClick={() => setMenuOpen((v) => !v)}
       >
         <svg
+          aria-hidden="true"
           width="19"
           height="19"
           viewBox="0 0 24 24"
@@ -59,20 +61,13 @@ export function LandingNav() {
         </svg>
       </button>
 
-      <nav
-        className={menuOpen ? "lp-nav open" : "lp-nav"}
-        id="lp-nav"
-        aria-label="페이지 안 이동"
-        onClick={(e) => {
-          if ((e.target as HTMLElement).tagName === "A") setMenuOpen(false);
-        }}
-      >
+      <nav className={menuOpen ? "lp-nav open" : "lp-nav"} id="lp-nav" aria-label="페이지 안 이동">
         {NAV_ANCHORS.map((a) => (
-          <a key={a.href} href={a.href}>
+          <a key={a.href} href={a.href} onClick={() => setMenuOpen(false)}>
             {a.label}
           </a>
         ))}
-        <Link href="/sign-in" className="lp-nav-login">
+        <Link href="/sign-in" className="lp-nav-login" onClick={() => setMenuOpen(false)}>
           로그인
         </Link>
       </nav>
