@@ -31,12 +31,15 @@
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/live-sessions/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/trading/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/hooks.core.test.tsx src/features/trading/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/live-sessions/hooks.ts' --coverage.include='src/features/trading/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=45",
         "git diff --quiet -- apps/web/src/features/live-sessions/hooks.ts apps/web/src/features/trading/hooks.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T04:25:20+0900",
+      "summary": "오류·경계 22건을 더해 core 38건, 대상 hooks 커버리지를 60.41%(322/533)→88.18%(470/533)로 올렸다. live는 ApiError/ZodError, 빈 목록 total=0, null ID 비발사(state/outcome/events), unsupported·local_only·빈 refetch, target 없는 close/key를; trading은 ACTIVE_ORDER_STATES 기반 5s/30s, states 없음 URL의 undefined 미포함·limit=0, limit=-1, ApiError/ZodError, 빈 계정, leverage 0/-1 비발사, resolved KS=false, 실제 apiFetch 204 void·undefined 쿼리 생략을 덮었다. mock은 @/lib/api-client의 apiFetch만 교체하고, URL/204 두 케이스는 vi.importActual + global fetch stub으로 실제 클라이언트를 통과시켰다. 아직 core 단독 미커버=live 성공 close invalidation, trading useCancelOrder·useOpenOrdersCount·3개 terminal toast callback 및 일부 compound branch.",
+      "completed_at": "2026-08-22T04:33:16+0900"
     },
     {
       "step": 3,
