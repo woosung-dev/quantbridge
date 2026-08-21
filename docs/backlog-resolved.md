@@ -3165,7 +3165,7 @@ allowlist 가 넓어지면 본 스캔은 **영구 0건 = 영구 초록**이 된�
 ★이 소음을 줄이겠다고 경로 allowlist 를 넣으면 CI 에서 그 디렉터리가 통째로 무방비가 된다.
 이 함정을 `ci.yml` 의 본 스캔 스텝 주석에 실측째로 박았다 — 다음 사람이 같은 자리에서 놀란다.
 
-**상태:** ✅ **Resolved (2026-08-16 production-readiness)** — `.gitignore` 3파일 + `.gitleaks.toml`(값 단위 allowlist 4개, 경로 면제 0) + `ci.yml` `secret_scan` 잡(`ci` 집계 잡의 `needs`·`check` 양쪽 배선). 판별력 증명 4종 실행: 양성(가짜 키 2건 검출 rc=1) · 음성(제거 후 0건 rc=0) · `--no-index` 9경로 전건 무시 + `.example` 4건 추적 유지 · 히스토리 1,056커밋(위 2건 발견·rotate 불요)
+**상태:** ✅ **Resolved (2026-08-16 production-readiness)** — `.gitignore` 3파일 + ~~`.gitleaks.toml`(값 단위 allowlist 4개, 경로 면제 0) + `ci.yml` `secret_scan` 잡(`ci` 집계 잡의 `needs`·`check` 양쪽 배선)~~ → **2026-08-21 — 이 축은 더 이상 돌지 않는다.** [ADR-037] 제로베이스가 `secret_scan` 잡을 철거했고(2026-08-19), 그 뒤 `.gitleaks.toml` 은 **읽는 곳이 0인 채로 이틀을 살아** 있다가 2026-08-21 에 삭제됐다 — **남은 설정 파일이 「스캔이 돈다」로 오독되는 것이 이 축의 실제 위험**이었다. 복귀 좌표는 `ci.yml` 의 tombstone(원문 = `git show 29176d1e:.gitleaks.toml`). 아래 판별력 증명 4종은 **그때 실측된 기록**이며 지금 발화하는 게이트가 아니다: 양성(가짜 키 2건 검출 rc=1) · 음성(제거 후 0건 rc=0) · `--no-index` 9경로 전건 무시 + `.example` 4건 추적 유지 · 히스토리 1,056커밋(위 2건 발견·rotate 불요)
 **트리거 판정:** 해소 — 2026-08-16 에 수리 완료 (2026-08-16 production-readiness)
 
 ---
