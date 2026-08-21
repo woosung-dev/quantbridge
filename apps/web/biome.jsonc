@@ -157,6 +157,16 @@
 
       "complexity": { "noImportantStyles": "off" },
 
+      // ★**회귀 커버리지 복구** — `eslint-config-next` 를 뺀 뒤 무엇을 잃었는지 위반을 심어
+      //   재봤더니(2026-08-22, 8케이스) 3건이 빠져 있었다. 아래 둘이 그중 둘이다.
+      //   `domains.next` 가 이름을 걸어 두지만 실제 그룹은 **performance** 라 도메인
+      //   "recommended" 만으로는 안 켜진다 — 명시해야 한다.
+      //   (구 `@next/next/no-img-element` · `@next/next/no-sync-scripts`)
+      "performance": {
+        "noImgElement": "error",
+        "noSyncScripts": "error"
+      },
+
       // ★a11y 8종은 **미도래**지 기각이 아니다 — 지금 트리에 70건이 있고 그건 별도 회차의
       //   일이다. 이 PR 의 범위는 도구 교체지 접근성 수리가 아니다. 켤 때는 한 번에 켜지 말고
       //   규칙 하나 = 수리 회차 하나로 가라(끄지 않으면 이 PR 이 70건짜리 a11y PR 이 된다).
@@ -168,7 +178,11 @@
         "useButtonType": "off",
         "useKeyWithClickEvents": "off",
         "noRedundantRoles": "off",
-        "noAriaHiddenOnFocusable": "off"
+
+        // ★이 하나는 **켜 뒀다** — 회귀 커버리지 측정에서 구 `jsx-a11y/aria-hidden` 축이
+        //   비어 있음이 드러났고, 위반이 1건뿐이라 마크업을 고쳐서 되살렸다.
+        //   (페이지네이션 생략기호가 `<button disabled aria-hidden>` 이었다 → `<span>`)
+        "noAriaHiddenOnFocusable": "error"
       },
 
       "nursery": {

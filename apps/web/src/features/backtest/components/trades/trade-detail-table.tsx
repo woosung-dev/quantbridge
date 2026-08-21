@@ -468,9 +468,11 @@ function Pager({ page, totalPages, totalItems, pageSize, onPage }: PagerProps) {
           </button>
           {pageWindow(page, totalPages).map((p, i) =>
             p === "gap" ? (
-              <button key={`gap-${i}`} type="button" className="pg" aria-hidden="true" disabled>
+              // 생략 기호는 **조작 대상이 아니다** — 버튼이면 aria-hidden 이 상호작용 요소를
+              // 숨기는 모양이 된다(a11y/noAriaHiddenOnFocusable). span 이 맞는 마크업이다.
+              <span key={`gap-${i}`} className="pg" aria-hidden="true">
                 …
-              </button>
+              </span>
             ) : (
               <button
                 key={p}
