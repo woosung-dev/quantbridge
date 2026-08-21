@@ -3,10 +3,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const apiFetchMock = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/api-client", () => ({
-  apiFetch: apiFetchMock,
-}));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return { ...actual, apiFetch: apiFetchMock };
+});
 
+import { ApiError } from "@/lib/api-client";
 import {
   cancelBacktest,
   convertIndicator,
@@ -84,6 +86,7 @@ const convertIndicatorBody: ConvertIndicatorRequest = {
 
 afterEach(() => {
   apiFetchMock.mockReset();
+  vi.unstubAllGlobals();
 });
 
 describe("backtest api", () => {
@@ -465,5 +468,180 @@ describe("backtest api", () => {
       body: convertIndicatorBody,
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("apiFetch의 ApiError를 status·code를 보존한 같은 객체로 전파한다", async () => {
+    const error = new ApiError(429, "rate_limited", "API 429 /api/v1/backtests", {
+      detail: { code: "rate_limited" },
+    });
+    apiFetchMock.mockRejectedValueOnce(error);
+
+    await expect(listBacktests({ limit: 20, offset: 0 }, TOKEN)).rejects.toBe(error);
+    expect(error.status).toBe(429);
+    expect(error.code).toBe("rate_limited");
+  });
+
+  it("getTradeOhlcv도 getToken 호출 뒤 ApiError를 감싸지 않고 전파한다", async () => {
+    const error = new ApiError(503, "upstream_unavailable", "API 503 /ohlcv");
+    const getToken = vi.fn(async () => TOKEN);
+    apiFetchMock.mockRejectedValueOnce(error);
+
+    await expect(getTradeOhlcv("unused-user-id", BACKTEST_ID, 0, getToken)).rejects.toBe(error);
+    expect(getToken).toHaveBeenCalledOnce();
+    expect(error.status).toBe(503);
+    expect(error.code).toBe("upstream_unavailable");
+  });
+
+  it("listBacktests는 pagination 계약이 깨진 응답을 조용히 통과시키지 않는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0, limit: 0 });
+
+    await expect(listBacktests({ limit: 0, offset: 0 }, TOKEN)).rejects.toThrow();
+  });
+
+  it("getTradeOhlcv는 non-finite Decimal 응답을 파싱 오류로 막는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      backtest_id: BACKTEST_ID,
+      trade_index: 0,
+      symbol: "BTCUSDT",
+      timeframe: "1h",
+      entry_time: CREATED_AT,
+      exit_time: null,
+      pad_bars: 0,
+      stride: 1,
+      truncated: false,
+      bars: [
+        {
+          time: CREATED_AT,
+          open: "100",
+          high: "102",
+          low: "99",
+          close: "NaN",
+          volume: "12",
+        },
+      ],
+    });
+
+    await expect(
+      getTradeOhlcv("unused-user-id", BACKTEST_ID, 0, async () => TOKEN),
+    ).rejects.toThrow("non-finite decimal string");
+  });
+
+  it("postMonteCarlo는 enum 계약을 벗어난 생성 응답을 파싱 오류로 막는다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      stress_test_id: STRESS_TEST_ID,
+      kind: "not-a-stress-test",
+      status: "queued",
+      created_at: CREATED_AT,
+    });
+
+    await expect(postMonteCarlo(monteCarloBody, TOKEN)).rejects.toThrow();
+  });
+
+  it("createBacktest는 initial_capital=0 요청을 HTTP 호출 전에 거부한다", async () => {
+    await expect(
+      createBacktest({ ...createBacktestBody, initial_capital: 0 }, TOKEN),
+    ).rejects.toThrow();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("createBacktest는 음수 fees_pct 요청을 HTTP 호출 전에 거부한다", async () => {
+    await expect(
+      createBacktest({ ...createBacktestBody, fees_pct: -0.001 }, TOKEN),
+    ).rejects.toThrow();
+    expect(apiFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("listBacktests는 선택 정렬값이 없으면 undefined를 apiFetch에 그대로 전달한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0, limit: 0, offset: 0 });
+
+    await listBacktests({ limit: 0, offset: 0 }, null);
+
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/backtests", {
+      method: "GET",
+      token: null,
+      params: { limit: 0, offset: 0, order_by: undefined, order: undefined },
+    });
+  });
+
+  it("listBacktests는 0 limit과 음수 offset을 변형 없이 전달한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0, limit: 0, offset: -1 });
+
+    const result = await listBacktests({ limit: 0, offset: -1 }, TOKEN);
+
+    expect(result).toEqual({ items: [], total: 0, limit: 0, offset: -1 });
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/backtests", {
+      method: "GET",
+      token: TOKEN,
+      params: { limit: 0, offset: -1, order_by: undefined, order: undefined },
+    });
+  });
+
+  it("listBacktestTrades는 빈 목록의 0 limit과 음수 offset을 변형 없이 전달한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({ items: [], total: 0, limit: 0, offset: -1 });
+
+    const result = await listBacktestTrades(BACKTEST_ID, { limit: 0, offset: -1 }, TOKEN);
+
+    expect(result).toEqual({ items: [], total: 0, limit: 0, offset: -1 });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111/trades",
+      {
+        method: "GET",
+        token: TOKEN,
+        params: { limit: 0, offset: -1 },
+      },
+    );
+  });
+
+  it.each([0, -1])("getTradeOhlcv는 tradeIndex=%i를 경로에 그대로 쓴다", async (tradeIndex) => {
+    apiFetchMock.mockResolvedValueOnce({
+      backtest_id: BACKTEST_ID,
+      trade_index: tradeIndex,
+      symbol: "BTCUSDT",
+      timeframe: "1h",
+      entry_time: CREATED_AT,
+      exit_time: null,
+      pad_bars: 0,
+      stride: 1,
+      truncated: false,
+      bars: [],
+    });
+
+    const result = await getTradeOhlcv(
+      "unused-user-id",
+      BACKTEST_ID,
+      tradeIndex,
+      async () => TOKEN,
+    );
+
+    expect(result).toMatchObject({ trade_index: tradeIndex, bars: [] });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      `/api/v1/backtests/${BACKTEST_ID}/trades/${tradeIndex}/ohlcv`,
+      {
+        method: "GET",
+        token: TOKEN,
+      },
+    );
+  });
+
+  it("apiFetch는 undefined 쿼리를 생략하고 204 응답을 void로 반환한다", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiFetch: actualApiFetch } =
+      await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
+
+    const result = await actualApiFetch<void>("/api/v1/backtests", {
+      method: "DELETE",
+      params: { limit: 0, offset: -1, order_by: undefined },
+    });
+
+    expect(result).toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const call = fetchMock.mock.calls[0];
+    expect(call).toBeDefined();
+    if (!call) throw new Error("fetch must be called");
+    const [url] = call;
+    expect(String(url)).toContain("limit=0");
+    expect(String(url)).toContain("offset=-1");
+    expect(String(url)).not.toContain("order_by=undefined");
   });
 });
