@@ -4,15 +4,28 @@
 
 ## 1. Tech Stack
 
-의존성·버전의 정본은 [`pyproject.toml`](./pyproject.toml) 이다. 여기엔 **매니페스트가 말해 주지 않는 것만** 둔다.
+| 항목            | 기술                                                       |
+| --------------- | ---------------------------------------------------------- |
+| Framework       | FastAPI (100% Async)                                       |
+| ORM             | SQLModel + SQLAlchemy 2.0 (`asyncpg`)                      |
+| Validation      | Pydantic V2 + `pydantic-settings`                          |
+| Package Manager | `uv`                                                       |
+| Database        | PostgreSQL + **TimescaleDB hypertable** (OHLCV 시계열)     |
+| Cache / Broker  | Redis (Celery broker + 락 / 캐시)                          |
+| Async Worker    | Celery (prefork pool, `_WORKER_LOOP` 통일 — §9)            |
+| Auth            | Better Auth JWT 를 JWKS 로 검증 (`pyjwt[crypto]`, ADR-034) |
+| Exchange SDK    | CCXT (Bybit / OKX / Binance 등 데모·라이브)                |
+| LLM             | `anthropic` 우선 + `google-genai` fallback (§4 convert)    |
+| 시크릿 암호화   | API 키는 AES-256 (Fernet) 암호화 저장                      |
+| 배포            | Docker compose (개발) / TBD (프로덕션 H2+)                 |
 
-- DB 는 두 겹 — PostgreSQL + **TimescaleDB hypertable**(`ts.ohlcv`) · Celery 는 **prefork 고정**(§9) ·
-  거래소 API 키는 **AES-256(Fernet)** 저장(§4) · 배포 = Docker compose(개발) / 프로덕션 H2+ TBD.
-- ★**인증 시크릿은 백엔드에 없다** — Better Auth JWT 를 JWKS 로 검증만 한다(§2, [ADR-034](../../docs/adr/034-auth-self-host-better-auth.md)).
-- ★**LLM SDK 는 백엔드에 있다** (2026-08-22 정정 — 종전 문장은 「쓰지 않는다」였고 거짓이었다).
-  `strategy/convert/service.py` 가 `anthropic`(우선) + `google.genai`(fallback) 를 **직접 호출**하고
-  키는 `core/config.py` 의 `anthropic_api_key`/`gemini_api_key` 다(미설정 시 convert 엔드포인트 비활성).
-  Object Storage / Vector DB 는 쓰지 않는다.
+> **참고**: LLM 호출부는 `strategy/convert/service.py` **한 곳**이고, 키는 `core/config.py` 의
+> `anthropic_api_key` / `gemini_api_key` 다 (미설정 시 convert 엔드포인트 비활성). Object Storage /
+> Vector DB 는 사용하지 않는다.
+>
+> ★**2026-08-22 정정** — 종전 문장은 「본 프로젝트는 백엔드에서 LLM SDK 를 사용하지 않는다. Pine Script
+> 변환 등 AI 보조는 frontend → backend HTTP API 만 거쳐 진행한다」였고 **거짓이었다**. 같은 줄에서
+> `Async Worker` 의 `§8` 포인터도 `§9`(Celery prefork-safe)로 고쳤다 — §8 은 폴더 구조다.
 
 ---
 

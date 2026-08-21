@@ -4,11 +4,17 @@
 
 ## 1. Tech Stack
 
-의존성·버전의 정본은 [`package.json`](./package.json) 이다 — 그 파일에 없는 것은 **배포처 = Vercel** 하나다.
-
-스택 고유의 함정은 절별로 있다: §2(이 앱이 인증 서버 본체다) · §3(상태 3단계 · Hooks 안전 H-1~H-3) ·
-§7(Next.js 16 — `params` 는 `Promise`, `middleware.ts` 아니라 `proxy.ts`) · §8(`zod/v4` 경로 필수) ·
-§9(shadcn v4 는 Radix 아니라 `@base-ui/react`) · §10(★**브레이크포인트가 Tailwind 기본값이 아니다**).
+| 항목            | 기술                                               |
+| --------------- | -------------------------------------------------- |
+| Framework       | Next.js 16 (App Router)                            |
+| Language        | TypeScript Strict                                  |
+| Styling         | Tailwind CSS v4 + shadcn/ui v4                     |
+| Package Manager | `pnpm`                                             |
+| Server State    | React Query (`@tanstack/react-query`)              |
+| Client State    | Zustand                                            |
+| Form            | `react-hook-form` + `zod v4`                       |
+| Auth            | Better Auth (`better-auth`, 자체 호스팅 — ADR-034) |
+| 배포            | Vercel                                             |
 
 ---
 
