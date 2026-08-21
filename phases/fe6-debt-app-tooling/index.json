@@ -31,12 +31,15 @@
     {
       "step": 2,
       "name": "aria-and-semantics",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents src/app src/__tests__ src/styles",
         "cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents e2e scripts",
         "cd apps/web && pnpm exec vitest run src/app"
-      ]
+      ],
+      "started_at": "2026-08-22T05:11:28+0900",
+      "summary": "복구 동작 액션 줄 2곳을 aria group div에서 fieldset으로 바꾸고 fieldset 기본 여백·최소폭만 Tailwind로 중화했다; Step 3의 noArrayIndexKey 대상은 아직 그대로다.",
+      "completed_at": "2026-08-22T05:13:45+0900"
     },
     {
       "step": 3,
