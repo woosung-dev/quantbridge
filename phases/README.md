@@ -9,6 +9,32 @@
 (출처 레포 jha0313/finsight 에서는 `0-foundation` → `1-core-loop` → … 처럼 **순번**이었다.
 우리는 같은 파일을 병렬 묶음에도 쓴다. 어느 쪽인지는 아래 절이 말한다.)
 
+## 열린 병렬 묶음 — `fe3-*` 8벌 (2026-08-21 · 밤샘 루프 3차)
+
+`apps/web` 의 **화면 계층**에 테스트가 0건인 축이다. 소유 티켓 = **[BL-815]**.
+1차·2차가 순수 판정 로직을 채운 뒤 남은 것이고, 가장 값이 큰 것은 **`error.tsx` 7개** —
+`apps/web/AGENTS.md` §3/§6 이 **의무로 강제**하는데 9개 중 2개만 테스트가 있다.
+
+| phase                    | 대상                                                    | 새 테스트 파일 (`apps/web/`)                                 |
+| ------------------------ | ------------------------------------------------------- | ------------------------------------------------------------ |
+| `fe3-public-legal-pages` | `app/{disclaimer,terms,privacy,not-available}/page.tsx` | `src/app/__tests__/public-legal-pages.test.tsx`              |
+| `fe3-dashboard-errors`   | `error.tsx` **7개**(dashboard 6 + invite 1)             | `src/app/(dashboard)/__tests__/error-boundaries.test.tsx`    |
+| `fe3-query-provider`     | `components/providers/{query,app}-provider(s).tsx`      | `src/components/providers/__tests__/query-provider.test.tsx` |
+| `fe3-onboarding-schema`  | `features/onboarding/schemas.ts` (persist 검증)         | `src/features/onboarding/__tests__/schemas.test.ts`          |
+| `fe3-legal-geo-banner`   | `components/{legal-notice,geo-block}-banner.tsx`        | `src/components/__tests__/legal-geo-banner.test.tsx`         |
+| `fe3-numeric-display`    | `components/tape/pnl-tape.tsx` + `tick-ruler.tsx`       | 각 `__tests__` 2파일                                         |
+| `fe3-optimizer-view`     | `features/optimizer/components/optimizer-page-view.tsx` | `.../__tests__/optimizer-page-view.test.tsx`                 |
+| `fe3-waitlist-admin`     | `waitlist-header.tsx` + `admin/waitlist-admin-view.tsx` | 각 `__tests__` 2파일                                         |
+
+★★**경로에 `(dashboard)`·`[token]` 괄호가 들어가는 첫 묶음이다.** vitest CLI 필터는 그 경로를
+**정상 처리한다**(실측 4건) — 깨지는 것은 **셸 따옴표**다. AC 의 경로는 **작은따옴표**로 감싼다.
+★**큰따옴표 이스케이프(`\"`)를 쓰지 마라** — 러너가 AC 를 `bash -c` 로 돌리는데 거기서
+`syntax error near unexpected token '('` 로 죽는다(2026-08-21 CONTROL 이 착수 전에 밟았다).
+
+★**AC red 측정이 lane 하나를 폐기시켰다** — 초판 `fe3-root-error` 는 `src/app/error.tsx` 를
+겨눴는데 그 파일에는 **이미 테스트가 있었다**. 판별력 0(rc=0)으로 드러나 교체했다 —
+[LESSON-123] 이 말한 「프로브의 값은 안 된다를 미리 만나는 데 있다」의 두 번째 사례다.
+
 ## 앞선 병렬 묶음 — `fe2-*` 8벌 **완주** (2026-08-21 · PR #724~#732)
 
 `apps/web` 의 **순수 판정 모듈**에 테스트가 0건이던 축이다. 소유 티켓 = **[BL-813]**(✅ Resolved).

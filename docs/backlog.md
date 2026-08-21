@@ -216,6 +216,41 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 > 추가 P0 — BL-005 본인 dogfood + BL-145 EffectiveLeverageEvaluator (deferred). Resolved P0 = BL-001/002/004 (`_archived.md`).
 
+### BL-815
+
+**Title:** FE 화면 계층에 테스트가 0건이다 — **에러 경계 7개·법무 페이지 4개·데이터 정책·관리자 승인 흐름**이 무증거로 산다
+**Category:** 테스트 / 프런트엔드
+**상태:** 🔵 **ACTIVE** — 2026-08-21 밤샘 루프 3차가 짊어진다
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-21 전이 폐포 실측
+**Est:** M (8 lane 워크트리 병렬)
+**출처:** 2026-08-21 밤샘 루프 3차 (2차 [BL-813] 의 B축 — 판정 로직을 걷어낸 뒤 남은 화면 계층)
+
+**원인 / 영향:** [BL-813] 이 순수 판정 모듈을 채운 뒤에도 **어떤 테스트도 import 하지 않는 소스가
+53개**다(총 343 중). 그중 화면 계층에 **자동 검증이 특히 필요한 넷**이 있다:
+
+- ★★**`error.tsx` 7개** — `apps/web/AGENTS.md` §3/§6 이 **의무로 강제한 파일**인데 9개 중 2개만
+  테스트가 있다. **에러 경계가 깨지면 사용자는 흰 화면을 보고, 그 화면은 정의상 이미 뭔가 실패한
+  뒤라 아무도 신고하지 않는다.** 특히 `reset` 이 배선 안 된 경계는 **없는 것보다 나쁘다**
+  (사용자가 고칠 수 있다고 믿게 만든다)
+- ★**공개 법무 페이지 4개**(`disclaimer`·`terms`·`privacy`·`not-available`) — 로그인 이전에 실제
+  사용자가 보는 화면이고 `/not-available` 은 **geo-block L2 의 착지점**이다. 조용히 비면
+  규제 프레이밍이 사라진다
+- ★**`QueryProvider` 정책** — `staleTime`·`retry`·**mutation `retry: 0`**. 정책이 바뀌면 증상이
+  화면이 아니라 **요금과 중복 발주**로 나온다
+- ★**Waitlist 관리자 승인 흐름**([BL-072] 표면) · **`OptimizerPageView`**(187줄, 최대 미커버
+  컴포넌트) · **온보딩 persist 스키마**(rehydrate 검증) · **손익 마이크로바**(부호·정규화)
+
+**처방:** 대상 소스 **무변경**으로 `apps/web` 에 테스트 파일 11개를 신설한다. 8 lane 워크트리
+병렬(`phases/fe3-*`). lane 간 파일 겹침 0.
+
+★**착수 전 프로브가 lane 하나를 폐기시켰다**([LESSON-123] 적용) — 초판 lane 1 은 `src/app/error.tsx`
+를 겨눴는데 **이미 테스트가 있었다**(4 케이스). AC red 측정에서 **rc=0(판별력 0)** 으로 드러나
+공개 법무 페이지로 교체했다.
+★**그리고 내 AC 생성기가 경로를 `\"` 로 감싸 `bash -c` 에서 깨졌다** — 파일이 생겨도 실패할 AC 였다.
+경로에 `(dashboard)`·`[token]` 괄호가 들어가므로 **작은따옴표**로 감싼다.
+★**vitest CLI 필터는 괄호 경로를 정상 처리한다**(실측 4건) — 문제는 셸 따옴표였다.
+
 ### BL-003
 
 **Title:** Bybit mainnet 진입 runbook + smoke 스크립트
@@ -506,6 +541,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 | [BL-812](#bl-812) | ✅ **[ADR-037] 재입힘 목록 대상 생존 7종에 pytest 최소판 — Resolved (2026-08-21 밤샘 루프 1차)**. 재입힘 **7/7** + 인접 4종. `apps/api/tests/scripts/` 신규 8파일 **0건 → 138 passed + 2 xfailed** (8 lane 워크트리 병렬 · 8/8 completed · retry 0 · 변이 10/10 red · PR #713~#720). ★러너가 남긴 xfail 1건이 **phantom** 이었다(픽스처가 alembic 화살표 의미를 뒤집음 → CONTROL 이 정정, [LESSON-121]). ★진짜 결함 2건은 strict xfail 로 고정 — `soak-restart.sh --help` 범위 드리프트 · [BL-791] shim 내용물 미검증                                                                                                                                                                                                                                                                                     | 도래 — 2026-08-20 실사(`git ls-tree harness-v1`)                                                                | M (8 lane 병렬) | 2026-08-20 하네스 4회차                                      |
 | [BL-813](#bl-813) | ✅ **FE 순수 판정 모듈 테스트 0건 — Resolved (2026-08-21 밤샘 루프 2차)**. 8 lane 워크트리 병렬 · **8/8 completed · 병합 충돌 0 · 변이 8/8 red** · PR #725~#732 전부 머지. `apps/web` vitest **227 files/1,497 → 237 files/1,647 passed**(신규 10파일 **+150 케이스**), **대상 소스 전건 무변경**. ★lane 5 가 한 번 `error` 로 죽었고 그것이 산출이다 — **내 step 이 프로토타입 키에 「fallback 이 나온다」를 기대로 적었는데 거짓**이었다(→ [BL-814]). ★`auth-server` lane 은 `server-only` 가 vitest top-level throw 라 착수 전 프로브가 없었으면 통째로 막혔다(#724 가 별칭으로 해결)                                                                                                                                                                                                                  | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 2차                                     |
 | [BL-814](#bl-814) | ✅ **`_HINTS` 프로토타입 상속 — Resolved (2026-08-21 ledger-resync · 발견 당일)**. `toString`·`__proto__`·`constructor`·`valueOf`·`hasOwnProperty` 가 함수를 반환해 truthy 로 잡히고 spread 하면 `{name}` 만 남아 **화면에 `undefined`** 가 나갔다. 수리 = `hasOwnProperty.call` 가드 1줄. ★**PR #732 가 고정해 둔 케이스가 예고대로 red 로 뒤집혀** `expectFallback` 으로 다시 썼다 — 원장이 적어 둔 종결 신호가 실제로 발화했다. ★변이(가드 제거) rc=1 red · sha256 복원 OK · 38 passed                                                                                                                                                                                                                                                                                                                 | 도래 — 2026-08-21 실측                                                                                          | XS              | 2026-08-21 밤샘 루프 2차                                     |
+| [BL-815](#bl-815) | 🔵 **FE 화면 계층 테스트 0건 — 에러 경계가 무증거로 산다**. `error.tsx` 는 `apps/web/AGENTS.md` §3/§6 이 **의무로 강제**하는데 9개 중 **2개만** 테스트가 있다 — **reset 이 배선 안 된 경계는 없는 것보다 나쁘다**(사용자가 고칠 수 있다고 믿는다). 함께: 공개 법무 페이지 4(`/not-available` = geo L2 착지점) · `QueryProvider` 정책(mutation `retry:0` = 중복 발주 방어) · Waitlist 승인 흐름([BL-072] 표면) · `OptimizerPageView`(187줄) · 온보딩 persist 스키마 · 손익 마이크로바. 처방 = 대상 **무변경** + 테스트 11파일, 8 lane 병렬(`phases/fe3-*`)                                                                                                                                                                                                                                                 | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 3차                                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 

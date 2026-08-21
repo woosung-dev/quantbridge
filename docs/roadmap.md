@@ -424,6 +424,7 @@ _(직전 상태: 2026-08-01 soak 으로 [BL-560]·[BL-566] 이 함께 닫혀 슬
 - [x] **BL-812 ✅ Resolved** [P2] [ADR-037] 재입힘 목록의 대상 생존 7종에 pytest 최소판이 없었다 — **2026-08-21 밤샘 루프 1차 종결**. 재입힘 **7/7** + 인접 4종을 8 lane 워크트리 병렬로 채웠다(`phases/ops2-*` · 8/8 completed · retry 0 · 변이 10/10 red · PR #712~#720). `apps/api/tests/scripts/` 신규 8파일 **0건 → 138 passed + 2 xfailed**, 대상 스크립트 무변경. ★러너가 남긴 xfail 1건이 phantom 이었다(픽스처가 alembic 화살표 의미를 뒤집음 — [LESSON-121]) · 진짜 결함 2건은 strict xfail 로 고정
 - [x] **BL-813 ✅ Resolved** [P2] FE 순수 판정 모듈 테스트 0건 — **2026-08-21 밤샘 루프 2차 종결**. 인증 경계(`proxy.ts`)·`route-matcher`·`auth.ts`(geo L3 + 탈퇴 fail-closed)·`auth-server`·마케팅 캐논·어댑터·전역 상태를 8 lane 워크트리 병렬로 채웠다(`phases/fe2-*` · 8/8 completed · 병합 충돌 0 · 변이 8/8 red · PR #725~#732). `apps/web` vitest **227 files/1,497 → 237 files/1,647 passed**(신규 10파일 **+150 케이스**), **대상 소스 전건 무변경**. ★lane 5 가 `error` 로 한 번 죽었고 그것이 산출이다 — 내 step 의 기대가 거짓이었다(→ [BL-814])
 - [x] **BL-814 ✅ Resolved** [P3] `_HINTS` 가 `Object.prototype` 을 상속해 상속 키 5종이 fallback 을 못 받았다 — **2026-08-21 종결**(발견 당일). 수리 = `hasOwnProperty.call` 가드 1줄. ★PR #732 가 고정해 둔 케이스가 **예고대로 red 로 뒤집혀** 갱신했다 — 원장이 적은 종결 신호가 실제로 발화한 사례다. ★변이(가드 제거) red · 38 passed
+- [ ] **BL-815** [P2] FE 화면 계층 테스트 0건 — **에러 경계가 무증거로 산다**. `error.tsx` 는 `apps/web/AGENTS.md` §3/§6 의무인데 9개 중 2개만 테스트가 있다(reset 미배선 경계는 없는 것보다 나쁘다). 함께 공개 법무 페이지 4 · `QueryProvider` 정책 · Waitlist 승인 흐름 · `OptimizerPageView` · 온보딩 persist 스키마 · 손익 마이크로바. 처방 = 대상 무변경 + 테스트 11파일, 8 lane 병렬(`phases/fe3-*`)
 
 ### P3 — 문서 lint
 

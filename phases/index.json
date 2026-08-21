@@ -140,6 +140,38 @@
       "dir": "fe2-ui-reactive",
       "status": "completed",
       "completed_at": "2026-08-21T02:45:39+0900"
+    },
+    {
+      "dir": "fe3-public-legal-pages",
+      "status": "pending"
+    },
+    {
+      "dir": "fe3-dashboard-errors",
+      "status": "pending"
+    },
+    {
+      "dir": "fe3-query-provider",
+      "status": "pending"
+    },
+    {
+      "dir": "fe3-onboarding-schema",
+      "status": "pending"
+    },
+    {
+      "dir": "fe3-legal-geo-banner",
+      "status": "pending"
+    },
+    {
+      "dir": "fe3-numeric-display",
+      "status": "pending"
+    },
+    {
+      "dir": "fe3-optimizer-view",
+      "status": "pending"
+    },
+    {
+      "dir": "fe3-waitlist-admin",
+      "status": "pending"
     }
   ]
 }

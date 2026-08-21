@@ -1,0 +1,17 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe3-optimizer-view",
+  "steps": [
+    {
+      "step": 0,
+      "name": "optimizer-page-view",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run 'src/features/optimizer/components/__tests__/optimizer-page-view.test.tsx'",
+        "cd apps/web && test \"$(pnpm exec vitest list 'src/features/optimizer/components/__tests__/optimizer-page-view.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 9",
+        "cd apps/web && pnpm exec eslint 'src/features/optimizer/components/__tests__/optimizer-page-view.test.tsx'",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}
