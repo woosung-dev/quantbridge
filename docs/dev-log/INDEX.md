@@ -18,6 +18,7 @@
 > 13번째가 생기면 **가장 오래된 항목을 아래 「전체 이력」으로 내린다** — 이 섹션은 12개를 넘지 않는다.
 > PR 번호는 머지 커밋(`git log`)으로 검증했다 — dev-log 본문은 머지 **전**에 쓰이므로 PR 번호를 담지 않는다.
 
+- **2026-08-21 night-loop-3** — FE 화면 계층 8 lane 병렬. [BL-815] 종결, PR #735~#743. 8/8 · 충돌 0 · 변이 8/8 red · vitest 1,647→1,780 · 미도달 53→32. ★AC red 측정이 lane 1을 폐기시켰고(이미 커버) · 러너가 `blocked` 로 멈춰 [BL-816] 이 드러났다([LESSON-122] 2번째).
 - **2026-08-21 night-loop-2** — FE 순수 판정 모듈 8 lane 병렬. [BL-813] 종결, PR #724~#733. 8/8 · 충돌 0 · 변이 8/8 red · vitest 1,497→1,647. ★프로브가 `server-only` top-level throw 를 착수 전에 잡았다([LESSON-123]) · ★내 step 의 기대가 거짓이라 lane 1개가 죽었고 그것이 [BL-814] 를 드러냈다([LESSON-122]).
 - **2026-08-21 night-loop-1** — 운영 스크립트 판정 2회차 8 lane 병렬. [BL-812] 종결(재입힘 7/7), PR #712~#720. 8/8 · 충돌 0 · 변이 10/10 red · 0건 → **138 passed + 2 xfailed**. ★★★**러너가 남긴 `xfail(strict=True)` 1건이 phantom** — 픽스처가 alembic 화살표를 뒤집어 옳은 코드를 결함으로 박았고 AC·변이·diff 가 다 통과시켰다([LESSON-121]).
 - **2026-08-19 n6-authed-evidence** — 증거 게이트가 authed 를 잰다. [BL-797]·[BL-807]·[BL-805]·[BL-806] 종결, PR #684~#686. ★★★**[BL-807] 세 케이스 중 둘이 같은 결함** — 시더가 `equity_curve` 를 응답 형상으로 심어 500. ★★[BL-797] **baseline 이 gitignore 된 `.env.production.local` 에 의존**했다. ★원장 처방 절반 반증(요청 수 비결정).

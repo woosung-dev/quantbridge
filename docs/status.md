@@ -528,70 +528,44 @@ FE 순수 판정 모듈 `apps/web` **1,497 → 1,647 passed**(PR #724~#733).
    배열 끝 같은 위치를 고쳐 충돌한다. 공용 헬퍼 모듈 금지도 같은 이유다.
 3. ★**저작이 상한이다** — 밤에 도는 분량은 저녁에 저작해 둔 분량뿐이라 재료는 **동형**이어야 한다.
 
-### 밤샘 루프 2차 — 8 lane 완주 · [BL-813] 종결 (2026-08-21)
+### 밤샘 루프 2·3차 — 8+8 lane 완주 · [BL-813]·[BL-815] 종결 (2026-08-21)
 
-**결과 — 8/8 completed · blocked 0 · 병합 충돌 0 · 변이 8/8 red.** PR **#724**(사전 배치) +
-**#725~#732**(lane 8) 전부 CI `conclusion=success` 확인 후 머지. 산출 = `apps/web` 신규 테스트
-파일 **10개 · +150 케이스** — vitest **227 files / 1,497 passed → 237 files / 1,647 passed**.
-**대상 소스는 전건 무변경**이고 `tsc --noEmit` rc=0 을 유지한다.
+**누적 — FE 테스트가 두 회차로 1,497 → 1,780 passed 가 됐다**(파일 227 → 247 · **신규 20파일 ·
++283 케이스**). 전이 폐포 미도달 **58 → 32**(총 343 중). **대상 소스는 두 회차 다 전건 무변경**이고
+`tsc --noEmit` rc=0 유지. 2차 = 순수 판정 모듈(PR #724~#733) · 3차 = 화면 계층(PR #735~#743).
+**8/8 · 8/8 completed · 병합 충돌 0 · 변이 8/8 · 8/8 red.**
 
-★★★**착수 전 프로브가 lane 하나를 구조적 불가에서 건졌다.** `src/lib/auth-server.ts` 는
-`import "server-only"` 가 **vitest 에서 top-level throw** 라 **import 조차 불가능**했다. ★그리고
-**`vi.mock("server-only", () => ({}))` 로는 안 막힌다** — CJS 로 외부화돼 **Node 의 require 가 먼저
-실행**하므로 vitest 의 mock 레지스트리를 지나친다(실측 FAIL → `resolve.alias` 로 실측 PASS).
-**저작 단계에서 재지 않았으면 그 lane 은 새벽에 통째로 죽었다.** 같은 프로브가 나머지 둘은
-「된다」로 확인해 줬다(`@/lib/auth` 는 `new Pool()` 지연 연결 · `@/proxy` 는 `NextRequest` 로 3케이스 green).
-⇒ **프로브의 값은 「된다」를 확인하는 데 있지 않고 「안 된다」를 새벽 전에 만나는 데 있다.**
+> **강등 tombstone (2026-08-21 · 700줄 상한).** 두 회차 서술 65줄을 이 블록으로 줄였다.
+> 원문 = `git show 56347626:docs/status.md`. 절차·교훈은 [`phases/README.md`](../phases/README.md),
+> 반증은 [`lessons.md`](lessons.md) **LESSON-122~124**, 티켓 본문은 `backlog-resolved.md` 가 진다.
 
-★★**retry 0 이 아니었고, 그 실패가 이 회차의 산출이다.** `fe2-builtin-hints` step0 이 AC 3회 red 로
-`error` 를 냈는데 **테스트가 틀린 게 아니라 내 step 파일의 기대가 거짓**이었다 — 프로토타입 키에
-「fallback 이 나온다」고 적었지만 `_HINTS` 가 객체 리터럴이라 `_HINTS["toString"]` 이 **함수를 반환**하고,
-그것을 spread 하면 own enumerable 이 0개라 결과가 **`{ name }` 뿐**이 된다(`hint`·`category` 없음).
-CONTROL 이 검시해 **실측표를 step 에 박고** `pending` 으로 되돌려 재실행했다. 드러난 결함 = **[BL-814]**.
-⇒ **step 파일에 「이렇게 나올 것이다」를 쓰면 그것이 AC 가 된다** — 재지 않은 기대는 쓰지 마라.
+★★★**두 회차가 같은 것을 두 번 가르쳤다 — 「내가 step 에 적은 기대가 사실상 AC 다」**([LESSON-122]).
+2차는 `fe2-builtin-hints` 가 **AC 3회 red 로 `error`**(`_HINTS` 프로토타입 상속 → [BL-814]),
+3차는 `fe3-public-legal-pages` 가 **`blocked`**(`/not-available` 에 `metadata` 부재 → [BL-816]).
+**두 번 다 틀린 것은 테스트가 아니라 내 기대였고, 두 번 다 진짜 결함이 드러났다.**
+⇒ **재지 않은 값을 step 에 쓰지 마라 — 쓰려면 먼저 돌려 보고 실측표로 박아라.**
 
-★**내 도구가 세 번 무증거·오작동을 냈고 전부 이 레포의 단골이다.**
-⑴ AC red 검증기가 `cd apps/web` **잔류**로 뒤 7 lane 을 「AC 가 비었다 → rc=0」으로 읽었다
-(각 AC 를 **서브셸**에 넣어 해결). ⑵ 워크트리 생성 루프가 **zsh 단어분할**로 lane 8개를 한 덩어리로
-읽었다(`bash -c` 로 해결 — 원장이 이미 경고한 그 함정이다). ⑶ PR 생성 스크립트가 **macOS bash 3.2
-에 연관 배열이 없어** `TITLE[proxy-gate]` 를 전부 **index 0** 에 덮어써 **7건이 같은 제목·본문**으로
-올라갔다(lane 별 파일로 갈라 정정). ★셋 다 **결과를 눈으로 확인했기 때문에** 잡혔다.
+★★**착수 전 실측이 lane 을 두 번 구했다** — 2차는 프로브가 `server-only` **top-level throw**(그리고
+`vi.mock` 으로 안 막힌다는 것)를 잡아 공유 설정으로 길을 텄고([LESSON-123]), 3차는 **AC red 측정
+자체**가 `src/app/error.tsx` 가 **이미 커버돼 있음**(rc=0 · 판별력 0)을 드러내 lane 을 교체시켰다.
+⇒ **「AC red 측정」은 판별력 검사이자 재료 실사다.**
 
-★**변이 8/8 red 인데, 첫 판 하나는 판별력이 0이었고 그것은 테스트가 아니라 내 변이의 결함이었다** —
-`_HINTS[name] as undefined` 는 **타입 소거**라 런타임에 닿지 않는다. 「초록 = 안 잡혔다」로 읽지 않고
-변이를 `heikinashi` 의 category 강등으로 바꿔 다시 재 red 를 얻었다(레포에서 세 번째 실증).
+★**내 도구가 여섯 번 무증거·오작동을 냈고 전부 셸이었다** — `cd` 잔류로 빈 AC 가 rc=0 ·
+zsh 단어분할로 워크트리 0개 생성 · **macOS bash 3.2 에 연관 배열이 없어 PR 7건이 같은 본문** ·
+같은 이유로 **`mapfile` 부재**가 검사기를 「테스트 0파일 clean」으로 · AC 생성기가 경로를 `\"` 로
+감싸 **파일이 생겨도 실패할 AC** · 변이를 **타입 수준**(`as undefined`)으로 심어 런타임 미도달.
+⇒ **CONTROL 의 검사기는 셸이 아니라 python 으로 써라.** 셸을 쓸 거면 각 단계를 서브셸에 넣어라.
 
-| lane                  | 대상                                             | 케이스 | PR   |
-| --------------------- | ------------------------------------------------ | ------ | ---- |
-| `fe2-proxy-gate`      | `src/proxy.ts` — 공개/geo/세션 판정              | 41     | #725 |
-| `fe2-route-matcher`   | `src/lib/route-matcher.ts` — 앵커 계약           | 10     | #726 |
-| `fe2-auth-hooks`      | `src/lib/auth.ts` — geo L3 · 탈퇴 fail-closed    | 17     | #727 |
-| `fe2-auth-server`     | `src/lib/auth-server.ts` — 실패 삼킴 · 병렬성    | 8      | #728 |
-| `fe2-builtin-hints`   | `src/lib/unsupported-builtin-hints.ts`           | 38     | #732 |
-| `fe2-marketing-canon` | `src/lib/marketing-canon.ts` + `legal-links.ts`  | 10     | #729 |
-| `fe2-lib-adapters`    | `webhook-base.ts` + `zod-v4-resolver.ts`         | 15     | #730 |
-| `fe2-ui-reactive`     | `store/ui-store.ts` + `hooks/use-media-query.ts` | 11     | #731 |
-
-★**닫힌 BL 은 [BL-813] 하나다** — [ADR-034]·[BL-072]·[BL-776]·[BL-268]·[BL-300]·[BL-775] 는
-근거·맥락으로 인용했을 뿐 상태가 바뀌지 않았다. **다시 닫았다고 적지 마라.**
-
-~~**다음 행동 = 밤샘 루프 3차를 B축으로 돌린다 — FE 컴포넌트 클러스터.**~~
-→ **2026-08-21 착수.** 소유 티켓 **[BL-815]** 신설·3면 등재. 8 lane = `phases/fe3-*`.
-
-★**착수 전 프로브가 lane 하나를 폐기시켰다** — 초판 lane 1 이 `src/app/error.tsx` 를 겨눴는데
-**이미 테스트가 있었다**(4 케이스). AC red 측정에서 **rc=0(판별력 0)** 으로 드러나 공개 법무
-페이지 4종으로 교체했다. ★**그리고 내 AC 생성기가 경로를 `\"` 로 감싸 `bash -c` 에서 깨졌다** —
-파일이 생겨도 실패할 AC 였다. 경로에 `(dashboard)`·`[token]` 괄호가 있으므로 **작은따옴표**로 감싼다
-(vitest CLI 필터 자체는 괄호 경로를 정상 처리한다 — 실측 4건. 문제는 셸이었다).
-
-**다음 행동 = fe3 8 lane 을 워크트리 병렬로 돌리고, CI conclusion=success 확인 후 머지한다.**
-재료(2026-08-21 전이 폐포 실측, 이번 회차가 판정 로직을 걷어낸 뒤 남은 것): **완전 미도달 소스 53**(총 343 중 · 종전 58 에서 이번 회차가 5 를 걷어냈다) ·
-군집은 `app/**` 의 `page/error/loading`(약 30) · `components/`(`geo-block-banner`·`legal-notice-banner`·
-`tick-ruler`) · `components/providers`(`app-providers`·`query-provider`) · `features/optimizer/components/optimizer-page-view.tsx`(187줄) ·
-`features/waitlist/components/admin/waitlist-admin-view.tsx`(132줄) · `features/onboarding/schemas.ts`.
-★**1차·2차가 확인한 상한** — 동형(同型)이 아니면 저작이 안 된다. 컴포넌트는 「무엇이 red 를 내는가」가
-파일마다 달라 **A축만큼 깨끗하지 않다.** 순수한 것부터 골라라(`onboarding/schemas.ts` = Zod 판정 ·
-`query-provider` = 재시도/staleTime 정책 + 브라우저 싱글톤). ★[BL-814] 는 XS 라 아무 회차에 동승시켜라.
+**다음 행동 = 남은 미도달 32 를 볼지, Beta 진입 축을 열지 사용자가 고른다.**
+★**FE 테스트 축은 수확 체감 구간에 들어갔다** — 남은 32 중 **type-only 4**(`features/*/types.ts`) ·
+**생성 코드 1**(`api-contract-poc/generated/schema.ts`) · **shadcn 래퍼 3**(`ui/{card,sonner,textarea}`) ·
+**`loading.tsx` 6**(스켈레톤)은 테스트가 항진명제가 된다. **실질 후보는 `app/**/page.tsx`약 14개**
+이고 대부분 **서버 컴포넌트 + 데이터 페칭**이라 지금까지의 lane 보다 비싸다.
+★**반대편 후보 = Beta 진입** — [BL-070]→[BL-071]→[BL-072]. ★단 **이 여섯은`roadmap.md`
+체크박스로만 살고 원장 섹션이 없다**(2026-08-21 실측 · [BL-005]·[BL-145] 도 같다) — 열려면
+**섹션부터 세워야** 판정어 체계가 그것을 본다.
+★**XS 동승 후보 = [BL-816]**(`/not-available` metadata 4줄). **고치면 지금 테스트가 red 로
+뒤집힌다** — 그것이 종결 신호다.
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
