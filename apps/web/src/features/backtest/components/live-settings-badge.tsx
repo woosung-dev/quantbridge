@@ -33,7 +33,6 @@ export function LiveSettingsBadge({ source, liveLeverage, livePct }: LiveSetting
         </span>
       );
     }
-    case "manual":
     default:
       return (
         <span className="chip" data-testid="live-settings-badge-manual">

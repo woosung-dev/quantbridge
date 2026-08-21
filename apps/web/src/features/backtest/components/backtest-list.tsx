@@ -193,7 +193,7 @@ export function BacktestList() {
                     <button
                       key={f.id}
                       type="button"
-                      className={"tab" + (active ? " active" : "")}
+                      className={`tab${active ? " active" : ""}`}
                       aria-pressed={active}
                       aria-disabled={isDisabled || undefined}
                       disabled={isDisabled}
