@@ -56,7 +56,7 @@
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks",
@@ -67,7 +67,10 @@
         "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py",
         "cd apps/api && uv run ruff check tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py",
         "cd apps/api && uv run ruff format --check tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:52:35+0900",
+      "summary": "변이 표: celery_app.py:303 `if missing_tasks`→`if not missing_tasks`=red(정상 등록 worker_ready가 RuntimeError); websocket_task.py:221 lease-lost 반환 `lease_lost`→`completed`=red; _ws_lease.py:183 lost_event `.set()`→`.clear()`=red. red 미발생 0건·추가 테스트 0건, 대상 소스 원복 diff 0. AC 커버리지 celery/websocket/lease=94%/85%/96%, 수집 33건, ruff check·format 통과.",
+      "completed_at": "2026-08-22T05:04:26+0900"
     }
   ],
   "created_at": "2026-08-22T04:13:45+0900"
