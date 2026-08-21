@@ -216,6 +216,47 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 > 추가 P0 — BL-005 본인 dogfood + BL-145 EffectiveLeverageEvaluator (deferred). Resolved P0 = BL-001/002/004 (`_archived.md`).
 
+### BL-816
+
+**Title:** `/not-available` 만 `metadata` 를 export 하지 않는다 — geo-block 착지 페이지의 `<title>` 이 비어 나간다
+**Category:** 버그 / 프런트엔드 · SEO
+**상태:** 🔵 **ACTIVE** — 지금 단독 착수 가능 (수리 4줄)
+**Priority:** P3
+**Trigger:** 도래 — 2026-08-21 실측
+**Est:** XS
+**출처:** 2026-08-21 밤샘 루프 3차 `fe3-public-legal-pages` lane (러너가 `blocked` 로 멈춰 드러났다)
+
+**실측 (2026-08-21 · CONTROL 직접):**
+
+| 페이지                           | `export const metadata`            |
+| -------------------------------- | ---------------------------------- |
+| `app/disclaimer/page.tsx`        | 있다 — `title: "Disclaimer"`       |
+| `app/terms/page.tsx`             | 있다 — `title: "Terms of Service"` |
+| `app/privacy/page.tsx`           | 있다 — `title: "Privacy Policy"`   |
+| **`app/not-available/page.tsx`** | ★**없다**                          |
+
+**영향:** `/not-available` 은 **geo-block L2 의 착지점**이다(`proxy.ts` 가 제한 국가를 여기로
+리다이렉트한다). 제한 국가 방문자가 **처음이자 유일하게** 보는 화면인데 브라우저 탭과 검색 결과에
+제목이 비어 나간다. 나머지 법무 3종은 전부 갖고 있으므로 **빠뜨린 것**이지 의도가 아니다.
+**[확인 필요]** 상위 `layout.tsx` 의 `title.default` 가 채워 주는지는 안 쟀다 — 쟀다면 여기 적어라.
+
+**처방:** 나머지 셋과 같은 모양으로 4줄을 더한다.
+
+```ts
+export const metadata: Metadata = {
+  title: "Not Available",
+  description: "QuantBridge 는 현재 이 지역에서 이용할 수 없습니다.",
+};
+```
+
+★**지금 동작은 PR(`fe3-public-legal-pages`)이 테스트로 고정해 뒀다** — 「`not-available` 은
+`metadata` 를 export 하지 않는다」를 단언한다. **고치면 그 케이스가 red 로 뒤집히므로 함께
+갱신해라** — 그것이 이 항목이 닫혔다는 신호다([BL-814] 와 같은 계약이다).
+
+★**발견 경로가 특이하다** — 내 step 파일이 「넷 다 `metadata` 를 갖는다」를 **재지 않고** 요구했고,
+무인 세션이 그것을 만족시키려면 대상 파일을 고쳐야 하는데 그것이 금지라 **정직하게 `blocked`**
+했다. [LESSON-122] 의 두 번째 실증이고, 이번엔 **red 가 아니라 `blocked` 로** 드러났다.
+
 ### BL-815
 
 **Title:** FE 화면 계층에 테스트가 0건이다 — **에러 경계 7개·법무 페이지 4개·데이터 정책·관리자 승인 흐름**이 무증거로 산다
@@ -542,6 +583,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 | [BL-813](#bl-813) | ✅ **FE 순수 판정 모듈 테스트 0건 — Resolved (2026-08-21 밤샘 루프 2차)**. 8 lane 워크트리 병렬 · **8/8 completed · 병합 충돌 0 · 변이 8/8 red** · PR #725~#732 전부 머지. `apps/web` vitest **227 files/1,497 → 237 files/1,647 passed**(신규 10파일 **+150 케이스**), **대상 소스 전건 무변경**. ★lane 5 가 한 번 `error` 로 죽었고 그것이 산출이다 — **내 step 이 프로토타입 키에 「fallback 이 나온다」를 기대로 적었는데 거짓**이었다(→ [BL-814]). ★`auth-server` lane 은 `server-only` 가 vitest top-level throw 라 착수 전 프로브가 없었으면 통째로 막혔다(#724 가 별칭으로 해결)                                                                                                                                                                                                                  | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 2차                                     |
 | [BL-814](#bl-814) | ✅ **`_HINTS` 프로토타입 상속 — Resolved (2026-08-21 ledger-resync · 발견 당일)**. `toString`·`__proto__`·`constructor`·`valueOf`·`hasOwnProperty` 가 함수를 반환해 truthy 로 잡히고 spread 하면 `{name}` 만 남아 **화면에 `undefined`** 가 나갔다. 수리 = `hasOwnProperty.call` 가드 1줄. ★**PR #732 가 고정해 둔 케이스가 예고대로 red 로 뒤집혀** `expectFallback` 으로 다시 썼다 — 원장이 적어 둔 종결 신호가 실제로 발화했다. ★변이(가드 제거) rc=1 red · sha256 복원 OK · 38 passed                                                                                                                                                                                                                                                                                                                 | 도래 — 2026-08-21 실측                                                                                          | XS              | 2026-08-21 밤샘 루프 2차                                     |
 | [BL-815](#bl-815) | 🔵 **FE 화면 계층 테스트 0건 — 에러 경계가 무증거로 산다**. `error.tsx` 는 `apps/web/AGENTS.md` §3/§6 이 **의무로 강제**하는데 9개 중 **2개만** 테스트가 있다 — **reset 이 배선 안 된 경계는 없는 것보다 나쁘다**(사용자가 고칠 수 있다고 믿는다). 함께: 공개 법무 페이지 4(`/not-available` = geo L2 착지점) · `QueryProvider` 정책(mutation `retry:0` = 중복 발주 방어) · Waitlist 승인 흐름([BL-072] 표면) · `OptimizerPageView`(187줄) · 온보딩 persist 스키마 · 손익 마이크로바. 처방 = 대상 **무변경** + 테스트 11파일, 8 lane 병렬(`phases/fe3-*`)                                                                                                                                                                                                                                                 | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 3차                                     |
+| [BL-816](#bl-816) | 🔵 **`/not-available` 만 `metadata` 를 export 하지 않는다** — geo-block L2 **착지점**인데 `<title>` 이 비어 나간다(법무 3종은 전부 갖고 있다 · 실측 2026-08-21). 제한 국가 방문자가 처음이자 유일하게 보는 화면이다. 처방 = 나머지와 같은 모양 4줄. ★지금 동작은 `fe3-public-legal-pages` 가 테스트로 고정해 뒀다 — 고치면 red 로 뒤집힌다(종결 신호). ★**러너가 `blocked` 로 멈춰 드러났다** — 내 step 이 재지 않은 기대를 요구했고 세션이 대상 수정 금지를 지켜 멈췄다([LESSON-122] 2번째)                                                                                                                                                                                                                                                                                                              | 도래 — 2026-08-21 실측                                                                                          | XS              | 2026-08-21 밤샘 루프 3차                                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
