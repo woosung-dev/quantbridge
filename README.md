@@ -338,4 +338,5 @@ quant-bridge/
 
 ## License
 
-Private (개인 프로젝트).
+Proprietary — All rights reserved. 전문은 [`LICENSE`](LICENSE).
+제3자 의존성의 라이선스 고지는 [`NOTICE`](NOTICE) 에 있다.

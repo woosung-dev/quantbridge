@@ -78,7 +78,54 @@ ADR-035 경계의 정적/동적 import 는 Biome 의 `noRestrictedImports` 가 *
 (실측 열화 45줄). 단 **prettier 플러그인도 우리 테마를 안 읽고 있었다** — 레포에
 `tailwind.config.*` 가 없고(v4 CSS-first) `.prettierrc` 에 `tailwindStylesheet` 도 없었다.
 
-⇒ **정렬은 사람이 한다.** 되살리려면 위 공백 결함이 고쳐졌는지부터 재라.
+⇒ **정렬은 사람이 한다.**
+
+#### ★★재검증 (2026-08-22) — 판정 유지, 단 **위험은 그때보다 커졌다**
+
+「되살리려면 공백 결함이 고쳐졌는지부터 재라」는 위 지시를 실제로 이행했다. 2.5.9 에
+`--write --unsafe` 를 **전체 트리**에 걸어 실측했다(89 파일 / 406줄 변경, 위반 252건 / 71 파일).
+
+| 축 | 실측 |
+| --- | --- |
+| 위 diff 에 적힌 바로 그 케이스 (`"order-side " + o.side`) | ✅ **고쳐졌다** — `` `order-side ${o.side}` `` 로 공백 보존 |
+| 실제 문자열 결합 9곳 중 | ❌ **7곳이 깨졌다** |
+| **vitest** | **1896/1896 통과 — 한 건도 안 잡았다** |
+
+깨진 모양 — 삼항 안의 **앞** 공백이 먹힌다:
+
+```diff
+- className={"tab" + (active ? " active" : "")}
++ className={`tab${active ? "active" : ""}`}          // "tabactive"
+- className={"pg" + (i === safePage ? " active" : "")}
++ className={`pg${i === safePage ? "active" : ""}`}   // "pgactive"
+- className={"chart-head-actions" + (ksDisabled ? " pointer-events-none opacity-50" : "")}
++ className={`chart-head-actions${ksDisabled ? "pointer-events-none opacity-50" : ""}`}
+```
+
+`.tab.active` 는 `globals.css:1427` 의 **실제 복합 선택자**다. 옵티마이저·백테스트·주문·전략·
+진단 5개 화면의 탭 활성 스타일과 주문 페이지네이션이 죽는다.
+
+★★★**초판보다 지금이 더 위험하다.** 초판에서 이 결함을 발견한 것은 vitest 였는데, Biome 이
+**하필 그 케이스만 고쳐서** 우리 테스트가 덮던 유일한 지점이 사라졌다. 남은 7곳은 커버리지가
+없다 ⇒ **초록만 보고 머지하면 5개 화면이 조용히 깨진다.** 「고쳐졌는지 재라」를 rc 나 테스트
+초록으로 재면 안 되고, **결합 지점을 눈으로 대조**해야 한다.
+
+#### 재평가 조건 — upstream 좌표 (2026-08-22 확인)
+
+| 이슈 | 상태 | 우리에게 무엇을 막나 |
+| --- | --- | --- |
+| [#10797](https://github.com/biomejs/biome/pull/10797) *preserve template literal class boundaries* | **open** (2026-06-29~) | 위 7곳. **이것이 유일한 차단자다** |
+| [#10297](https://github.com/biomejs/biome/issues/10297) *removes required leading space* | **open** (2026-05-07~) | 같은 결함의 이슈 쪽 |
+| [#10454](https://github.com/biomejs/biome/pull/10454) *keep required spaces* | **closed — 머지 안 됨** | 선행 시도가 무산됐다 |
+| [#7752](https://github.com/biomejs/biome/issues/7752) *support for custom classes* | **open** (2025-10-14~) | `globals.css` 의 커스텀 클래스 888개. 단 실측상 **뭉개지 않고 그대로 둔다** — 차단자는 아니다 |
+| [#11396](https://github.com/biomejs/biome/pull/11396) *sort with the Tailwind v4 engine* | **open** (2026-08-18~) | v4 CSS-first 테마 반영 |
+
+옵션으로는 못 푼다 — `schemas/2.5.9/schema.json` 의 `UseSortedClassesOptions` 는 `attributes` ·
+`functions` 둘뿐이고 둘 다 **어디를** 정렬할지만 정한다. 문서 원문: *"this rule does not support
+customizing the sort options. Instead, the default Tailwind CSS configuration is hard-coded."*
+버전 탈출구도 없다 — `dist-tags` 실측 `latest: 2.5.9` = 우리 핀(beta·nightly 는 구버전).
+
+⇒ **#10797 이 머지되면 재평가한다.** 그전에 켜려면 결합 9곳을 `cn()` 으로 먼저 옮겨야 한다.
 
 ### md · yml · yaml 포맷 (201 파일)
 
@@ -106,6 +153,87 @@ Biome 2.5.9 는 이 셋을 **파싱 중(⌛️)**이고 포맷을 못 한다. pr
 | `src/components/ui` | AGENTS.md §9 가 shadcn 직접 수정을 금지. `useImportType` 이 7파일을 고쳤다 |
 | `src/styles/globals.css` | KITPORT 구간이 `_kit.html` 과 **바이트 대조**. 맡겼더니 테스트 3건 red |
 | `**/generated` | 코드젠 산출물 — 재생성마다 diff |
+
+## 잔여 부채 상환 ①  (2026-08-22 후속) — suspicious 4종 중 3종을 켰다
+
+초판이 「기존 트리의 빚」이라며 끈 12규칙(439 위반)을 Biome 공식 문서 + `schemas/2.5.9/schema.json`
++ upstream 이슈로 전수 재조사하고, **비용이 낮은 것부터** 갚기 시작했다.
+
+### ★실측이 초판 수치 2건을 반증했다
+
+`--only=<group>/<rule>` 은 `off` 인 규칙도 켜서 재므로 **설정을 안 건드리고** 셀 수 있다
+(`--reporter=json` + python 파싱 — 파이프·`tail` 금지).
+
+| 규칙 | 초판 기재 | **재실측** |
+| --- | --- | --- |
+| `suspicious/noUselessEscapeInString` | 9 | **1** |
+| `style/noNonNullAssertion` | 281 | **291** |
+| 나머지 11종 | — | **전건 일치** |
+
+### ★★`checkForEach` — 공식 문서와 JSON 스키마가 서로 반대를 적는다
+
+| 출처 | 진술 |
+| --- | --- |
+| 문서 페이지 | *"Since v2.4.0 — **Default: `true`**"* (= 기본이 forEach 검사함) |
+| `schemas/2.5.9/schema.json` | *"When `false` **or unset**, such callbacks are ignored."* (= 기본이 무시함) |
+
+양립 불가다. **실측이 갈랐다** — 옵션 없이 `--only` 로 재니 **18건**, `checkForEach: false` 를 넣으니
+**0건**. ⇒ **스키마 설명이 틀렸다.** 문서 쪽이 참이다. 다음 사람이 스키마를 읽고 「옵션 불필요」로
+판단하지 않게 여기 남긴다.
+
+18건은 전부 `forEach(el => expect(...))`·`listeners.forEach(l => l())` 형태이고, ESLint
+`array-callback-return` 도 `checkForEach` 기본값이 **false** 다 — 생태계 관행과 같은 자리로 맞췄다.
+`map`·`filter`·`reduce`·`sort` 축은 살아 있다(아래 배터리 4·5행).
+
+### 켠 것 · 남긴 것
+
+| 규칙 | 위반 | 처리 |
+| --- | --- | --- |
+| `noUselessEscapeInString` | 1 | **safe autofix** — `split('\",\"')` → `split('","')` (홑따옴표 안이라 의미 동일) |
+| `noRedeclare` | 1 | 켜고 **그 1곳만** `biome-ignore`. 1건 때문에 규칙 전체를 끈 것이 과했다 |
+| `noTemplateCurlyInString` | 5 | 켜고 `no-raw-enum-labels.test.ts` 에 `biome-ignore-start/end`. 그 문자열들은 검사기에 먹이는 **소스 코드 표본**이라 템플릿 리터럴로 바꾸면 보간이 평가돼 표본이 사라진다 |
+| `useIterableCallbackReturn` | 18 | 켜고 `checkForEach: false` → **0** |
+| `noArrayIndexKey` | 59 | **유지 off** — fix 없음 · 옵션 없음. 지점마다 안정 key 설계가 필요하다 |
+
+★**`biome-ignore` 는 코드 줄에 인접해야 한다.** 설명 주석 3줄을 `biome-ignore` **아래**에 두었더니
+억제가 안 걸려 `biome check` 가 red 였다. 설명은 위로, `biome-ignore` 는 코드 바로 위로.
+
+### 판별력 배터리 7/7 — 초록은 규칙이 산다는 증거가 아니다
+
+초판의 사고(*"「진단이 안 늘어난다」를 「잉여」로 읽어 게이트 2개를 죽였다"*)가 **켤 때도 그대로**
+적용된다. 규칙마다 임시 파일에 위반을 심고 그 category 가 실제로 나오는지 python 으로 셌다.
+
+| 심은 것 | 기대 | 실측 |
+| --- | --- | --- |
+| 진짜 중복선언(`function dup(){} ×2`) | 검출 | **1건** |
+| `"Hello ${name}!"` | 검출 | **1건** |
+| `'\a'` | 검출 | **1건** |
+| `map` 콜백 무반환 | 검출 | **1건** |
+| `filter` 콜백 무반환 | 검출 | **1건** |
+| **[음성대조]** `forEach(x => x*2)` | 무검출 | **0건** ← `checkForEach:false` 가 이 축만 껐다 |
+| **[음성대조]** `key={i}` | 무검출 | **0건** ← `noArrayIndexKey` 는 여전히 off |
+
+검증: `biome check` rc=0(errors 0 · warnings 16 · infos 38 = 기준선 동일) · `tsc --noEmit` rc=0 ·
+vitest **1896/1896** · `next build` rc=0.
+
+### `noNonNullAssertion` (291) 은 **갚지 않는다** — 부채가 아니라 결정
+
+`NoNonNullAssertionOptions` 는 스키마상 `{}`(옵션 0개). autofix 는 **unsafe** 이고
+`foo!.bar` → `foo?.bar` 로 바꾸는데 이것은 **런타임 의미 변경**이다 — `!` 는 null 이면 throw,
+`?.` 는 `undefined` 를 반환한다. 분포 상위 3이 backtest(60)·optimizer(42)·trading(38) 이라
+자동 적용하면 **에러가 조용한 `undefined` 로 바뀐다.** 결정을 `apps/web/AGENTS.md` §11 에 적었다.
+
+### a11y 7종 (67) — 다음 회차
+
+문서 실측: **5종이 fix 없음**, 2종만 unsafe 삭제 fix ⇒ `biome check --write` 로는 **0건** 고쳐진다.
+7종 모두 **옵션 0개**. 비용 오름차순 = `noRedundantRoles`(1) → `useKeyWithClickEvents`(1) →
+`useButtonType`(2) → `noNoninteractiveTabindex`(6) → `useAriaPropsSupportedByRole`(14) →
+`noSvgWithoutTitle`(19) → `useSemanticElements`(24). 이 중 실제 버그 부류는 `useButtonType`
+하나다(`<form>` 안 `<button>` 의 기본 `type=submit`).
+
+★**집행 제약** — `lint-staged` 가 스테이지 파일에 `biome check --write` 를 건다. 규칙을 켜 놓고
+위반을 남기면 **그 파일을 건드리는 모든 커밋이 pre-commit 에서 막힌다.** ⇒ 규칙 하나 = 그 PR
+안에서 위반 0(또는 억제 완료).
 
 ## 측정
 

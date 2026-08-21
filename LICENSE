@@ -1,0 +1,35 @@
+QuantBridge — Proprietary License
+=================================
+
+Copyright (c) 2026 woo sung. All rights reserved.
+
+This software and its source code are proprietary and confidential. No license,
+express or implied, is granted to any person or entity except by a separate
+written agreement signed by the copyright holder.
+
+Without such an agreement, you may NOT:
+
+  - copy, reproduce, or redistribute this software or any part of it;
+  - modify, adapt, translate, or create derivative works from it;
+  - publish, sublicense, sell, rent, lease, or otherwise transfer it;
+  - reverse engineer, decompile, or disassemble it, except to the extent that
+    applicable law expressly permits despite this limitation;
+  - remove or alter any copyright, trademark, or other proprietary notice.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+QuantBridge is a research and trading-automation tool. It does not provide
+investment advice, and nothing it produces is a recommendation to buy or sell
+any financial instrument. Trading carries risk of loss.
+
+---------------------------------------------------------------------------
+Third-party components
+---------------------------------------------------------------------------
+This software depends on third-party packages distributed under their own
+licenses. Those terms govern those components, not this license. See NOTICE
+in the repository root.

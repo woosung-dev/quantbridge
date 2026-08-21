@@ -52,6 +52,9 @@ type Props = {
   onSuccess?: (session: LiveSession) => void;
 };
 
+// 39행의 `import { type LiveSessionForm }`(타입)과 아래 함수(값)는 TS 의 타입 공간 /
+// 값 공간 분리라 충돌이 아니다 — `tsc --noEmit` 이 이미 통과시킨다 (ADR-039).
+// biome-ignore lint/suspicious/noRedeclare: Biome 은 그 분리를 못 본다
 export function LiveSessionForm({
   strategies,
   exchangeAccounts,

@@ -109,17 +109,22 @@
       "suspicious": {
         "noConsole": { "level": "warn", "options": { "allow": ["warn", "error"] } },
 
-        // 아래 넷은 **기존 트리의 빚**이다 — 신규 위반이 아니라 과거 코드가 무더기로 뜬다.
-        // 되살릴 때는 「고칠 회차」와 함께 켜라. 괄호 안이 실측 건수.
+        // ★남은 유일한 off — 안정 key 도입이 지점마다 데이터 모델 판단을 요구한다.
+        //   fix 없음 · 옵션 없음. 되살릴 때는 「고칠 회차」와 함께 켜라. 괄호 안이 실측 건수.
         "noArrayIndexKey": "off", // 59
-        "noUselessEscapeInString": "off", // 9
-        "noTemplateCurlyInString": "off", // 5
-        "useIterableCallbackReturn": "off", // 18 — 전부 `forEach(x => arr.push())` 반환값
 
-        // ★오탐 — TS 의 **타입 공간 / 값 공간 분리**를 못 본다. 실측 1건:
-        //   `import { type LiveSessionForm }` + `export function LiveSessionForm` 은
-        //   TS 가 허용하는 합법 패턴이고 `tsc --noEmit` 이 이미 통과시킨다.
-        "noRedeclare": "off"
+        // ★★**`checkForEach` 는 문서와 스키마가 서로 다르게 적는다 — 실측이 문서 쪽이다.**
+        //   문서: "Default: true". `schemas/2.5.9/schema.json`: "When `false` **or unset**,
+        //   such callbacks are ignored." 후자가 참이면 옵션 없이도 forEach 는 안 잡혀야 하는데
+        //   실측은 **18건**이었다(2026-08-22, `--only` 로 측정) ⇒ **스키마 설명이 틀렸다.**
+        //   이 옵션을 넣으면 18 → **0**. 껍데기만 끄는 게 아니라 `forEach` 축만 끄는 것이고
+        //   `map`·`filter`·`reduce`·`sort` 축은 살아 있다(판별력 배터리로 확인).
+        //   18건은 전부 `forEach(el => expect(...))` 형태이고 ESLint `array-callback-return`
+        //   도 `checkForEach` 기본값이 false 다 — 생태계 관행과 같은 자리로 맞췄다.
+        "useIterableCallbackReturn": {
+          "level": "error",
+          "options": { "checkForEach": false }
+        }
       },
 
       // ★`domains.next` 가 이름을 걸어 두지만 실제 그룹은 **performance** 라 도메인
@@ -131,7 +136,12 @@
       },
 
       // ★a11y 7종은 **미도래**지 기각이 아니다 — 지금 트리에 67건이 있고 별도 회차의 일이다.
-      //   규칙 하나 = 수리 회차 하나로 가라. 괄호 안이 실측 건수.
+      //   규칙 하나 = 수리 회차 하나로 가라. 괄호 안이 실측 건수(2026-08-22 재확인, 7/7 일치).
+      // ★★**`--write` 로는 한 건도 안 고쳐진다** — 7종 중 5종이 fix 없음이고, 나머지 둘
+      //   (`noRedundantRoles`·`noNoninteractiveTabindex`)만 **unsafe** 삭제 fix 다.
+      //   7종 모두 옵션 0개 ⇒ 레버는 level·overrides·biome-ignore 뿐. 비용 오름차순으로 켜라.
+      //   ⚠️`lint-staged` 가 `biome check --write` 를 걸므로 **위반을 남긴 채 켜면 그 파일을
+      //   건드리는 커밋이 전부 막힌다** — 규칙 하나 = 그 PR 안에서 위반 0.
       "a11y": {
         "useSemanticElements": "off", // 24
         "noSvgWithoutTitle": "off", // 19

@@ -568,6 +568,9 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 ★**잃은 검사 4종을 명시했다** — `set-state-in-effect`·react-compiler·tanstack queryKey·템플릿 리터럴 import. 관련 `AGENTS.md` 4곳을 「사람이 지킨다」로 정정했다.
 최종 배터리 **18/18**(상실 4행은 green 이 정상). 검증: biome rc=0 · tsc rc=0 · vitest **1896/1896** · build rc=0.
 
+**FE 잔여 부채 상환 ① — suspicious 3종 재가동 + LICENSE ([ADR-039] 후속, 2026-08-22):** 끈 12규칙을 전수 재조사했다. ★**실측이 초판 수치 2건을 반증** — `noUselessEscapeInString` 9→**1** · `noNonNullAssertion` 281→**291**(나머지 11종 전건 일치, `--only` 로 설정 무변경 측정). ★★**`checkForEach` 는 공식 문서와 JSON 스키마가 정반대를 적는다** — 스키마는 「unset 이면 forEach 무시」인데 실측은 **18건**이었고 옵션을 넣으니 **0** ⇒ **스키마 설명이 틀렸다**. `noRedeclare`·`noTemplateCurlyInString` 은 켜고 각 1곳·1파일만 억제(1건 때문에 규칙 전체를 껐던 것이 과했다). ★`biome-ignore` 는 **코드 줄에 인접**해야 한다 — 설명 3줄을 그 아래 뒀더니 억제가 안 걸려 red. 판별력 **7/7**(음성 대조 2 포함). 레포 루트에 `LICENSE`(proprietary) 신설 — `NOTICE`·`README` 가 가리킬 대상이 생겼다.
+★★★**`useSortedClasses` 재검증 — 판정 유지, 위험은 그때보다 커졌다.** 전체 트리 `--write --unsafe` 실측(89파일/406줄): ADR 이 적은 그 케이스(`"order-side " + side`)는 **2.5.9 에서 고쳐졌는데**, 결합 9곳 중 **7곳이 깨졌다**(`"tab" + (active ? " active" : "")` → `"tabactive"`, `.tab.active` 는 globals.css:1427 실선택자). **vitest 1896/1896 전부 통과 — 한 건도 안 잡았다**: 초판에서 이 결함을 잡았던 그 테스트의 대상만 고쳐진 탓이다. 차단자 = upstream PR **#10797 open**. `noNonNullAssertion`(291)은 **갚지 않는다** — autofix 가 `!`→`?.` 로 런타임 의미를 바꾼다(`AGENTS.md` §11 에 결정 기록). a11y 7종(67)은 다음 회차 — **`--write` 로는 0건 고쳐진다**(5종 fix 없음).
+
 **(초판 기록) prettier 제거 단계 — 2026-08-21:** prettier 는 **완전 제거**(설정 3 · 패키지 2),
 `apps/web` 포맷·린트 주력이 Biome 2.5.9 다. **ESLint 는 못 없앴다** — Biome 523 규칙에
 `set-state-in-effect`/`-in-render` 가 **없고**(프로브 ESLint 3검출 / Biome 0검출 · 양성 대조 2/2 로 검사기 생존 확인),

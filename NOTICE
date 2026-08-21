@@ -2,8 +2,8 @@ QuantBridge — Third-Party Notices
 ==================================
 
 This product depends on third-party software licensed under terms separate from
-QuantBridge's own license. This NOTICE file is maintained in compliance with
-those licenses.
+QuantBridge's own license (see LICENSE in the repository root). This NOTICE file
+is maintained in compliance with those licenses.
 
 ---------------------------------------------------------------------------
 pynescript  (https://github.com/elbakramer/pynescript)

@@ -404,3 +404,9 @@ Tailwind 접두사는 없다 — 위 사다리 표에 행이 없는 이유가 �
 - 모든 API 응답 타입은 명시적으로 정의
 - 네이밍 — Boolean: `is`/`has`/`should` 접두사 · 이벤트 핸들러: `handle` 접두사 · Props 이벤트: `on` 접두사
 - 파일 케이싱 — 컴포넌트: PascalCase · 훅: camelCase `use` 접두사 · 상수: UPPER_SNAKE_CASE
+- ★**non-null assertion(`!`)은 허용한다 — 린터가 안 막는다.** `noNonNullAssertion` 은 의도적으로
+  `off` 다([ADR-039], 실측 291건). 규칙이 틀린 게 아니라 이 트리가 그 스타일이고, **되살릴 때
+  쓰라는 autofix 가 `foo!.bar` → `foo?.bar` 로 런타임 의미를 바꾼다** — `!` 는 null 이면 throw,
+  `?.` 는 `undefined` 를 반환한다. 백테스트·옵티마이저·트레이딩에 자동 적용하면 에러가 조용한
+  `undefined` 가 된다. ⇒ **`biome check --write --unsafe` 를 이 규칙에 걸지 마라.**
+  대신 사람이 지킨다 — `!` 는 「그 위 몇 줄에서 non-null 이 이미 보장된 곳」에만 쓴다.

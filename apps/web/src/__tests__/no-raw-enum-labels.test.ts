@@ -17,6 +17,9 @@
 //   JSX 자식으로 인쇄돼 왔고 그것이 이 가드의 대상이다. Pine 파라미터 식별자·문제 종류
 //   discriminator(`p.kind` React key) 같은 비-enum 값은 속성/키 위치라 휴리스틱에서 빠진다.
 
+// biome-ignore-start lint/suspicious/noTemplateCurlyInString: 이 파일의 문자열은 검사기에
+// 먹이는 **소스 코드 표본**이다 — `"<li>{`x ${field.kind} y`}</li>"` 를 템플릿 리터럴로
+// 바꾸면 보간이 실제로 평가돼 표본이 사라지고 테스트가 무의미해진다.
 import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -381,3 +384,4 @@ describe("BL-577 — no raw uppercase enum literal in live sessions", () => {
     expect(violations).toEqual([]);
   });
 });
+// biome-ignore-end lint/suspicious/noTemplateCurlyInString: 위 참조
