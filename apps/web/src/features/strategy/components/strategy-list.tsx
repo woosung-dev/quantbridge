@@ -138,7 +138,7 @@ export function StrategyList() {
   const handleExportCsv = () => {
     const csv = buildCsv(filtered);
     // Excel 한글 인코딩 보정용 UTF-8 BOM 접두.
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -305,7 +305,7 @@ export function StrategyList() {
                     <button
                       key={f.id}
                       type="button"
-                      className={"tab" + (active ? " active" : "")}
+                      className={`tab${active ? " active" : ""}`}
                       aria-pressed={active}
                       aria-disabled={isDisabled || undefined}
                       disabled={isDisabled}

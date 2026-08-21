@@ -57,7 +57,7 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
               <button
                 key={t.id}
                 id={`diag-tab-${t.id}`}
-                className={"tab" + (tab === t.id ? " active" : "")}
+                className={`tab${tab === t.id ? " active" : ""}`}
                 role="tab"
                 type="button"
                 aria-selected={tab === t.id}

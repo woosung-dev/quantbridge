@@ -115,7 +115,7 @@ export function OptimizerRunList({
               <button
                 key={size}
                 type="button"
-                className={"tab" + (size === pageSize ? " active" : "")}
+                className={`tab${size === pageSize ? " active" : ""}`}
                 aria-pressed={size === pageSize}
                 data-testid={`optimizer-pagesize-${size}`}
                 onClick={() => setPageSize(size)}

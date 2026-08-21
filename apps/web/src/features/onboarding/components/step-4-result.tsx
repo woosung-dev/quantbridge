@@ -148,7 +148,7 @@ export function Step4Result({
       <div className="ob-stats">
         <div className="ob-stat">
           <p className="kpi-label">총 수익률</p>
-          <p className={"kpi-value mono" + returnTone}>
+          <p className={`kpi-value mono${returnTone}`}>
             <StatValue isPending={isPending}>
               {totalReturn === null ? (
                 <span

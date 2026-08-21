@@ -21,8 +21,7 @@ export function handleMutationError(
   const e = err as Partial<ApiError>;
   if (e?.status === 401 && ctx.redirectOn401) {
     if (typeof window !== "undefined") {
-      window.location.href =
-        "/sign-in?redirect_url=" + encodeURIComponent(window.location.pathname);
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.pathname)}`;
     }
     return;
   }
