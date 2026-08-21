@@ -10,6 +10,7 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 });
 
 import { ApiError } from "@/lib/api-client";
+import type { CreateStrategyRequest, UpdateStrategySettingsRequest } from "../schemas";
 import {
   createStrategy,
   deleteStrategy,
@@ -78,31 +79,25 @@ describe("strategy api", () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("createStrategy는 정규화한 본문을 create endpoint로 보낸다", async () => {
+  it("createStrategy는 검증된 본문을 create endpoint로 보낸다", async () => {
     apiFetchMock.mockResolvedValueOnce(strategyResponse());
+    const body: CreateStrategyRequest = {
+      name: "Breakout",
+      pine_source: "strategy('Breakout')",
+      timeframe: "1h",
+      symbol: "BTCUSDT",
+      tags: [],
+    };
 
-    await expect(
-      createStrategy(
-        {
-          name: "Breakout",
-          pine_source: "strategy('Breakout')",
-          timeframe: "1h",
-          symbol: "BTCUSDT",
-        },
-        TOKEN,
-      ),
-    ).resolves.toMatchObject({ id: STRATEGY_ID, name: "Breakout" });
+    await expect(createStrategy(body, TOKEN)).resolves.toMatchObject({
+      id: STRATEGY_ID,
+      name: "Breakout",
+    });
 
     expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/strategies", {
       method: "POST",
       token: TOKEN,
-      body: {
-        name: "Breakout",
-        pine_source: "strategy('Breakout')",
-        timeframe: "1h",
-        symbol: "BTCUSDT",
-        tags: [],
-      },
+      body,
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
@@ -154,21 +149,19 @@ describe("strategy api", () => {
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("updateStrategySettings는 기본 schema_version을 보완해 settings endpoint로 보낸다", async () => {
-    const body = {
+  it("updateStrategySettings는 검증된 설정 본문을 settings endpoint로 보낸다", async () => {
+    const body: UpdateStrategySettingsRequest = {
+      schema_version: 1,
       leverage: 3,
-      margin_mode: "isolated" as const,
+      margin_mode: "isolated",
       position_size_pct: 25,
-      fill_timing: "next_bar_open" as const,
+      max_trigger_breach_pct: null,
+      max_reversal_overshoot_ratio: null,
+      fill_timing: "next_bar_open",
     };
     const response = {
       ...strategyResponse(),
-      settings: {
-        schema_version: 1,
-        max_trigger_breach_pct: null,
-        max_reversal_overshoot_ratio: null,
-        ...body,
-      },
+      settings: body,
     };
     apiFetchMock.mockResolvedValueOnce(response);
 
@@ -177,12 +170,7 @@ describe("strategy api", () => {
     expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/strategies/${STRATEGY_ID}/settings`, {
       method: "PUT",
       token: TOKEN,
-      body: {
-        schema_version: 1,
-        max_trigger_breach_pct: null,
-        max_reversal_overshoot_ratio: null,
-        ...body,
-      },
+      body,
     });
     expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });

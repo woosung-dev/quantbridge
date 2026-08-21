@@ -10,6 +10,7 @@ vi.mock("@/lib/api-client", async (importOriginal) => {
 });
 
 import { ApiError } from "@/lib/api-client";
+import type { CreateOptimizationRunRequest } from "../schemas";
 import {
   getOptimizationRun,
   listOptimizationRuns,
@@ -32,8 +33,9 @@ const REQUEST_BASE = {
     parameters: {
       length: { kind: "integer", min: 5, max: 20, step: 1 },
     },
+    genetic_selection_method: null,
   },
-};
+} satisfies Omit<CreateOptimizationRunRequest, "kind">;
 
 function runResponse(kind: "grid_search" | "bayesian" | "genetic") {
   return {
@@ -52,10 +54,6 @@ function normalizedRequest(kind: "grid_search" | "bayesian" | "genetic") {
   return {
     ...REQUEST_BASE,
     kind,
-    param_space: {
-      ...REQUEST_BASE.param_space,
-      genetic_selection_method: null,
-    },
   };
 }
 
