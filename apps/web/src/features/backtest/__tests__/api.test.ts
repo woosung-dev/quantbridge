@@ -9,17 +9,37 @@ vi.mock("@/lib/api-client", () => ({
 
 import {
   cancelBacktest,
+  convertIndicator,
   createBacktest,
+  createBacktestShare,
+  deleteBacktest,
+  getBacktest,
   getBacktestProgress,
+  getStressTest,
   getTradeOhlcv,
   listBacktests,
+  listBacktestTrades,
+  listStressTests,
+  postCostAssumption,
   postMonteCarlo,
+  postParamStability,
+  postWalkForward,
+  revokeBacktestShare,
 } from "../api";
-import type { CreateBacktestRequest, CreateMonteCarloRequest } from "../schemas";
+import type {
+  ConvertIndicatorRequest,
+  CreateBacktestRequest,
+  CreateCostAssumptionRequest,
+  CreateMonteCarloRequest,
+  CreateParamStabilityRequest,
+  CreateWalkForwardRequest,
+} from "../schemas";
 
 const BACKTEST_ID = "11111111-1111-4111-8111-111111111111";
 const STRATEGY_ID = "22222222-2222-4222-8222-222222222222";
+const STRESS_TEST_ID = "33333333-3333-4333-8333-333333333333";
 const CREATED_AT = "2026-08-22T00:00:00+00:00";
+const PERIOD_END = "2026-08-22T01:00:00+00:00";
 const TOKEN = "test-token";
 
 const createBacktestBody: CreateBacktestRequest = {
@@ -41,6 +61,27 @@ const monteCarloBody: CreateMonteCarloRequest = {
   params: { n_samples: 100, seed: 42 },
 };
 
+const walkForwardBody: CreateWalkForwardRequest = {
+  backtest_id: BACKTEST_ID,
+  params: { train_bars: 100, test_bars: 25, step_bars: 25, max_folds: 3 },
+};
+
+const costAssumptionBody: CreateCostAssumptionRequest = {
+  backtest_id: BACKTEST_ID,
+  params: { param_grid: { fees: ["0.001", "0.002"], slippage: ["0.0005", "0.001"] } },
+};
+
+const paramStabilityBody: CreateParamStabilityRequest = {
+  backtest_id: BACKTEST_ID,
+  params: { param_grid: { fast_length: ["10", "20"], slow_length: ["30", "50"] } },
+};
+
+const convertIndicatorBody: ConvertIndicatorRequest = {
+  code: "indicator('Example')",
+  strategy_name: "Example Strategy",
+  mode: "sliced",
+};
+
 afterEach(() => {
   apiFetchMock.mockReset();
 });
@@ -60,6 +101,34 @@ describe("backtest api", () => {
       token: TOKEN,
       params: { limit: 20, offset: 40, order_by: "sharpe_ratio", order: "desc" },
     });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("getBacktest는 식별자 GET 결과를 상세 스키마로 파싱한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: BACKTEST_ID,
+      strategy_id: STRATEGY_ID,
+      symbol: "BTCUSDT",
+      timeframe: "1h",
+      period_start: CREATED_AT,
+      period_end: PERIOD_END,
+      status: "completed",
+      created_at: CREATED_AT,
+      completed_at: PERIOD_END,
+      initial_capital: "10000",
+    });
+
+    const result = await getBacktest(BACKTEST_ID, TOKEN);
+
+    expect(result).toMatchObject({ id: BACKTEST_ID, initial_capital: 10_000 });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111",
+      {
+        method: "GET",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("createBacktest는 검증한 본문을 backtests POST로 전달하고 생성 응답을 파싱한다", async () => {
@@ -77,6 +146,7 @@ describe("backtest api", () => {
       token: TOKEN,
       body: createBacktestBody,
     });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("getBacktestProgress는 누락된 stale을 false로 파싱한다", async () => {
@@ -91,10 +161,50 @@ describe("backtest api", () => {
     const result = await getBacktestProgress(BACKTEST_ID, TOKEN);
 
     expect(result.stale).toBe(false);
-    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/backtests/${BACKTEST_ID}/progress`, {
-      method: "GET",
-      token: TOKEN,
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111/progress",
+      {
+        method: "GET",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("listBacktestTrades는 페이지 쿼리를 trades GET으로 전달하고 Decimal을 파싱한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      items: [
+        {
+          trade_index: 7,
+          direction: "long",
+          status: "closed",
+          entry_time: CREATED_AT,
+          exit_time: PERIOD_END,
+          entry_price: "100",
+          exit_price: "112.5",
+          size: "2",
+          pnl: "25",
+          return_pct: "12.5",
+          fees: "0.2",
+        },
+      ],
+      total: 1,
+      limit: 50,
+      offset: 100,
     });
+
+    const result = await listBacktestTrades(BACKTEST_ID, { limit: 50, offset: 100 }, TOKEN);
+
+    expect(result.items[0]).toMatchObject({ trade_index: 7, pnl: 25 });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111/trades",
+      {
+        method: "GET",
+        token: TOKEN,
+        params: { limit: 50, offset: 100 },
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("getTradeOhlcv는 userId 대신 await한 getToken 값으로 OHLCV GET을 호출한다", async () => {
@@ -125,10 +235,14 @@ describe("backtest api", () => {
 
     expect(getToken).toHaveBeenCalledOnce();
     expect(result.bars[0]?.close).toBe(101);
-    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/backtests/${BACKTEST_ID}/trades/3/ohlcv`, {
-      method: "GET",
-      token: TOKEN,
-    });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111/trades/3/ohlcv",
+      {
+        method: "GET",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("cancelBacktest는 취소 경로로 POST하고 상태 응답을 파싱한다", async () => {
@@ -141,15 +255,72 @@ describe("backtest api", () => {
     const result = await cancelBacktest(BACKTEST_ID, TOKEN);
 
     expect(result.status).toBe("cancelling");
-    expect(apiFetchMock).toHaveBeenCalledWith(`/api/v1/backtests/${BACKTEST_ID}/cancel`, {
-      method: "POST",
-      token: TOKEN,
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111/cancel",
+      {
+        method: "POST",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("deleteBacktest는 대상 backtest를 DELETE하고 undefined를 반환한다", async () => {
+    apiFetchMock.mockResolvedValueOnce(undefined);
+
+    const result = await deleteBacktest(BACKTEST_ID, TOKEN);
+
+    expect(result).toBeUndefined();
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111",
+      {
+        method: "DELETE",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("createBacktestShare는 share POST 결과를 토큰 응답으로 파싱한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      backtest_id: BACKTEST_ID,
+      share_token: "public-token",
+      share_url_path: "/shared/public-token",
+      revoked: false,
     });
+
+    const result = await createBacktestShare(BACKTEST_ID, TOKEN);
+
+    expect(result).toMatchObject({ share_token: "public-token", revoked: false });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111/share",
+      {
+        method: "POST",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("revokeBacktestShare는 share DELETE를 한 번 호출하고 undefined를 반환한다", async () => {
+    apiFetchMock.mockResolvedValueOnce(undefined);
+
+    const result = await revokeBacktestShare(BACKTEST_ID, TOKEN);
+
+    expect(result).toBeUndefined();
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/backtests/11111111-1111-4111-8111-111111111111/share",
+      {
+        method: "DELETE",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("postMonteCarlo는 stress-tests 경로에 중첩 파라미터를 POST한다", async () => {
     apiFetchMock.mockResolvedValueOnce({
-      stress_test_id: "33333333-3333-4333-8333-333333333333",
+      stress_test_id: STRESS_TEST_ID,
       kind: "monte_carlo",
       status: "queued",
       created_at: CREATED_AT,
@@ -163,5 +334,136 @@ describe("backtest api", () => {
       token: TOKEN,
       body: monteCarloBody,
     });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("postWalkForward는 walk-forward POST 본문과 queued 응답을 전달한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      stress_test_id: STRESS_TEST_ID,
+      kind: "walk_forward",
+      status: "queued",
+      created_at: CREATED_AT,
+    });
+
+    const result = await postWalkForward(walkForwardBody, TOKEN);
+
+    expect(result).toMatchObject({ stress_test_id: STRESS_TEST_ID, kind: "walk_forward" });
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/stress-tests/walk-forward", {
+      method: "POST",
+      token: TOKEN,
+      body: walkForwardBody,
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("postCostAssumption은 비용 격자 본문을 sensitivity 경로로 POST한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      stress_test_id: STRESS_TEST_ID,
+      kind: "cost_assumption_sensitivity",
+      status: "queued",
+      created_at: CREATED_AT,
+    });
+
+    const result = await postCostAssumption(costAssumptionBody, TOKEN);
+
+    expect(result.kind).toBe("cost_assumption_sensitivity");
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/stress-tests/cost-assumption-sensitivity", {
+      method: "POST",
+      token: TOKEN,
+      body: costAssumptionBody,
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("postParamStability는 Pine 입력 격자 본문을 stability 경로로 POST한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      stress_test_id: STRESS_TEST_ID,
+      kind: "param_stability",
+      status: "queued",
+      created_at: CREATED_AT,
+    });
+
+    const result = await postParamStability(paramStabilityBody, TOKEN);
+
+    expect(result.kind).toBe("param_stability");
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/stress-tests/param-stability", {
+      method: "POST",
+      token: TOKEN,
+      body: paramStabilityBody,
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("getStressTest는 상세 GET 결과를 스트레스 테스트 스키마로 파싱한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      id: STRESS_TEST_ID,
+      backtest_id: BACKTEST_ID,
+      kind: "monte_carlo",
+      status: "completed",
+      params: { n_samples: 100 },
+      created_at: CREATED_AT,
+      completed_at: PERIOD_END,
+    });
+
+    const result = await getStressTest(STRESS_TEST_ID, TOKEN);
+
+    expect(result).toMatchObject({ id: STRESS_TEST_ID, params: { n_samples: 100 } });
+    expect(apiFetchMock).toHaveBeenCalledWith(
+      "/api/v1/stress-tests/33333333-3333-4333-8333-333333333333",
+      {
+        method: "GET",
+        token: TOKEN,
+      },
+    );
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("listStressTests는 backtest_id와 고정 offset을 목록 GET params로 전달한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      items: [
+        {
+          id: STRESS_TEST_ID,
+          backtest_id: BACKTEST_ID,
+          kind: "monte_carlo",
+          status: "completed",
+          created_at: CREATED_AT,
+          completed_at: PERIOD_END,
+        },
+      ],
+      total: 1,
+      limit: 10,
+      offset: 0,
+    });
+
+    const result = await listStressTests(BACKTEST_ID, 10, TOKEN);
+
+    expect(result.items[0]?.headline_metric).toBeNull();
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/stress-tests", {
+      method: "GET",
+      token: TOKEN,
+      params: { backtest_id: BACKTEST_ID, limit: 10, offset: 0 },
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("convertIndicator는 전략 변환 전용 경로로 POST하고 기본 warnings를 파싱한다", async () => {
+    apiFetchMock.mockResolvedValueOnce({
+      converted_code: "strategy('Example')",
+      input_tokens: 10,
+      output_tokens: 12,
+      sliced_from: null,
+      sliced_to: null,
+      token_reduction_pct: null,
+    });
+
+    const result = await convertIndicator(convertIndicatorBody, TOKEN);
+
+    expect(result).toMatchObject({ converted_code: "strategy('Example')", warnings: [] });
+    expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/strategies/convert-indicator", {
+      method: "POST",
+      token: TOKEN,
+      body: convertIndicatorBody,
+    });
+    expect(apiFetchMock).toHaveBeenCalledTimes(1);
   });
 });
