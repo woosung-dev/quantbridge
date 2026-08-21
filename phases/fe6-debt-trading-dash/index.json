@@ -5,11 +5,14 @@
     {
       "step": 0,
       "name": "probe-and-safe-rules",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/features/alert-rules src/features/realtime src/components src/lib src/hooks src/store",
         "cd apps/web && pnpm exec vitest run src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/components src/lib src/hooks"
-      ]
+      ],
+      "started_at": "2026-08-22T05:03:21+0900",
+      "summary": "CONTROL: Biome 2.5.9 CLI는 --min-files 옵션을 지원하지 않아 동일 경로 일반 lint로 6건(SVG 4·button 1·table role 1)을 재측정; 장식 SVG 4개 aria-hidden, mock 버튼 type, table role을 수리했고 AC lint·vitest 103파일 813건 통과.",
+      "completed_at": "2026-08-22T05:06:50+0900"
     },
     {
       "step": 1,
@@ -41,5 +44,6 @@
         "cd apps/web && pnpm exec biome check ."
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T05:03:21+0900"
 }
