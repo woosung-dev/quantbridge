@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/backtest/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=15",
         "git diff --quiet -- apps/web/src/features/backtest/api.ts"
-      ]
+      ],
+      "summary": "사전 AC 커버리지는 제시된 1.6%와 달리 새 파일 부재 상태에서 0/185 lines(0%)였고, 6건 후 78/185 lines(42.16%)다. `@/lib/api-client`의 `apiFetch`를 vi.mock했다—이 wrapper가 직접 의존하는 HTTP 경계라서 경로·메서드·토큰·body/params와 Zod parse를 검증하고, apiFetch 자체의 fetch 직렬화는 중복 검증하지 않는다. | 심볼 | 동작·외부 경계 | 상태 |\n|---|---|---|\n| listBacktests | GET /api/v1/backtests, 목록·정렬 쿼리 | 덮음 |\n| getBacktest | GET /api/v1/backtests/:id | 안 덮음 |\n| createBacktest | POST /api/v1/backtests, 요청·생성 응답 파싱 | 덮음 |\n| getBacktestProgress | GET /api/v1/backtests/:id/progress | 덮음 |\n| listBacktestTrades | GET /api/v1/backtests/:id/trades, 페이지 쿼리 | 안 덮음 |\n| getTradeOhlcv | getToken() await 후 GET /trades/:index/ohlcv | 덮음 |\n| cancelBacktest | POST /api/v1/backtests/:id/cancel | 덮음 |\n| deleteBacktest | DELETE /api/v1/backtests/:id | 안 덮음 |\n| createBacktestShare | POST /api/v1/backtests/:id/share | 안 덮음 |\n| revokeBacktestShare | DELETE /api/v1/backtests/:id/share | 안 덮음 |\n| postMonteCarlo | POST /api/v1/stress-tests/monte-carlo | 덮음 |\n| postWalkForward | POST /api/v1/stress-tests/walk-forward | 안 덮음 |\n| postCostAssumption | POST /cost-assumption-sensitivity | 안 덮음 |\n| postParamStability | POST /api/v1/stress-tests/param-stability | 안 덮음 |\n| getStressTest | GET /api/v1/stress-tests/:id | 안 덮음 |\n| listStressTests | GET /api/v1/stress-tests, backtest_id 페이지 쿼리 | 안 덮음 |\n| convertIndicator | POST /api/v1/strategies/convert-indicator | 안 덮음 |",
+      "started_at": "2026-08-22T03:31:02+0900",
+      "completed_at": "2026-08-22T03:35:08+0900"
     },
     {
       "step": 1,
@@ -45,5 +48,6 @@
         "cd apps/web && pnpm exec biome check src/features/backtest/__tests__/api.test.ts"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T03:31:02+0900"
 }
