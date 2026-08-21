@@ -44,7 +44,7 @@
     {
       "step": 3,
       "name": "array-index-key",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents --only=suspicious/noArrayIndexKey --only=suspicious/noConsole src/app src/__tests__ src/styles",
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents --only=suspicious/noArrayIndexKey e2e scripts",
@@ -52,7 +52,10 @@
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check ."
-      ]
+      ],
+      "started_at": "2026-08-22T05:13:46+0900",
+      "summary": "| 규칙군 | 고친 건수 / biome-ignore 건수 |; | suspicious/noArrayIndexKey | 13 / 0 |; | 나머지 13규칙 | 0 / 0 |. 고정 skeleton은 명시 문자열 key, 가격표는 행 label+local/cloud/team key로 교체했으며 회귀 red·동작 변경 의심 지점은 없었다.",
+      "completed_at": "2026-08-22T05:18:51+0900"
     }
   ],
   "created_at": "2026-08-22T05:07:09+0900"
