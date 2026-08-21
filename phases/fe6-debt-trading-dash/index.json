@@ -17,11 +17,14 @@
     {
       "step": 1,
       "name": "template-and-complexity",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/features/alert-rules src/features/realtime src/components src/lib src/hooks src/store",
         "cd apps/web && pnpm exec vitest run src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/components src/lib src/hooks"
-      ]
+      ],
+      "started_at": "2026-08-22T05:06:51+0900",
+      "summary": "trading 주문 UI 4곳과 lib/api-base의 문자열 결합 5건을 템플릿 리터럴로 정리했고, 대상 범위 complexity 4종은 처음부터 0건이었다; order-side 클래스의 끝 공백은 템플릿에서도 보존했다.",
+      "completed_at": "2026-08-22T05:08:47+0900"
     },
     {
       "step": 2,
