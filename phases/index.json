@@ -224,7 +224,8 @@
     },
     {
       "dir": "be5-alembic-lock",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T17:45:34+0900"
     },
     {
       "dir": "be5-alert-rule-repo",
