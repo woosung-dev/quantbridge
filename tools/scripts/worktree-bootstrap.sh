@@ -356,10 +356,20 @@ if [ "$SKIP_DEPS" -eq 1 ]; then
   echo "▶ 의존성 — --skip-deps (문서/계획 전용 워크트리)"
 else
   echo "▶ 의존성 설치"
-  # 루트 devDependencies (husky/lint-staged/prettier) — 빠뜨리면 pre-commit 훅이
-  # `Command "lint-staged" not found` 로 죽고, 훅이 무력화된 채로 커밋이 통과한다(실측).
-  pnpm install --frozen-lockfile >/dev/null 2>&1 && ok "루트 node_modules (husky/lint-staged)" \
-    || echo "  ! 루트 pnpm install 실패 — pre-commit 훅이 무력화된다. pnpm-lock.yaml 복사 여부를 확인해라."
+  # 루트 devDependencies (husky/lint-staged) — 빠뜨리면 pre-commit 훅이
+  # `Command "lint-staged" not found`(rc=254) 로 죽는다.
+  # ★2026-08-22 정정 — 옛 주석은 「훅이 무력화된 채로 커밋이 통과한다」고 적었으나 **코드가 반증했다.**
+  #   `core.hooksPath` 는 메인 체크아웃의 **절대경로**라 워크트리에서도 훅이 발화하고, 실패한 훅은
+  #   커밋을 **막는다**. 하네스 6차가 그 위에서 12 lane 을 돌아 커밋 0건으로 끝날 뻔했다.
+  # ★루트 pnpm-lock.yaml 은 gitignore 대상이라 `.worktreeinclude` 가 메인 것을 복사한다 —
+  #   메인 것이 낡으면(실측: #769 가 prettier 를 지웠는데 lockfile 미갱신) 여기서 반드시 깨진다.
+  #   그러므로 이 실패는 경고가 아니라 **중단**이다: 커밋 못 하는 워크트리는 만들지 않는다.
+  pnpm install --frozen-lockfile >/dev/null 2>&1 && ok "루트 node_modules (husky/lint-staged)" || {
+    echo "  ✗ 루트 pnpm install 실패 — 이 워크트리에서는 pre-commit 이 죽어 **커밋이 전건 막힌다**."
+    echo "    고치는 법: 메인 체크아웃에서 \`pnpm install --lockfile-only\` 로 루트 pnpm-lock.yaml 을"
+    echo "    package.json 과 맞춘 뒤, 그 파일을 이 워크트리에 복사하고 다시 부트스트랩해라."
+    exit 1
+  }
   (cd apps/web && pnpm install --frozen-lockfile) && ok "apps/web/node_modules"
   (cd apps/api && uv sync) && ok "apps/api/.venv"
 fi

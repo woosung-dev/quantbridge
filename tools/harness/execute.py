@@ -524,6 +524,18 @@ def _run_lane(lane: str, wt: Path, stage: str, res: LaneResult) -> None:
         res.state = "completed"
     else:
         res.state, res.detail = "crashed", (r.stdout + r.stderr)[-400:]
+
+    # ★2026-08-22 사고 — lane 이 step 4/4 completed 를 선언했는데 브랜치가 base 와 같은 SHA 였다.
+    #   워크트리에서 pre-commit 이 죽어(`pnpm exec lint-staged` rc=254 — 루트 node_modules 부재)
+    #   `_commit` 의 WARN 이 버려지는 stdout 에만 찍혔고, 빈 브랜치가 push 돼 `gh pr create` 가
+    #   "no commits between" 으로 실패했다. 그 실패도 `res.detail` 에만 적혀 로그는 침묵했다.
+    #   ⇒ 「완주」의 정의에 **커밋이 존재한다**를 넣는다. 판정은 러너가, 로그는 사람이 읽는다.
+    if res.state == "completed":
+        ahead = _git("rev-list", "--count", f"origin/{stage}..HEAD", cwd=wt)
+        if ahead.returncode != 0 or ahead.stdout.strip() == "0":
+            res.state = "crashed"
+            res.detail = (f"step 은 전부 completed 인데 origin/{stage} 대비 커밋이 0건이다 — "
+                          f"커밋이 막혔다(pre-commit 훅 · 작업 트리 = {wt.name})")
     _log(f"■ {lane} → {res.state}")
 
 
@@ -537,6 +549,7 @@ def _open_pr(lane: str, stage: str, res: LaneResult) -> None:
             "--title", f"test({lane}): 하네스 무인 실행 — {lane}", "--body", body)
     if r.returncode != 0:
         res.detail += f" | PR 생성 실패: {r.stderr.strip()[:200]}"
+        _log(f"  ✗ PR 생성 실패: {lane} — {r.stderr.strip()[:200]}")
         return
     res.pr = r.stdout.strip().splitlines()[-1]
     _log(f"  ↑ PR: {res.pr}")
@@ -591,9 +604,16 @@ def run_parallel(args) -> int:
     if _git("rev-parse", "--verify", args.stage).returncode != 0:
         _log(f"stage 브랜치 생성: {args.stage}")
         _git("branch", args.stage, "main")
-    r = _git("push", "-u", "origin", args.stage)
-    if r.returncode != 0 and "up to date" not in (r.stderr + r.stdout):
-        sys.exit(f"ERROR: stage push 실패 — {r.stderr.strip()[:300]}")
+    # ★이미 원격과 같으면 push 하지 않는다 — 2026-08-22 실측: 올릴 ref 가 없는 push 는
+    #   pre-push 훅에 **stdin 을 주지 않고**, 훅은 그때 「현재 브랜치」로 폴백한다. 메인
+    #   체크아웃은 `main` 이므로(전제 검사가 그렇게 요구한다) 가드가 정당하게 거부한다.
+    #   즉 재시작 때마다 시작 자체가 막힌다. 비교로 push 를 건너뛰면 그 경로에 안 들어간다.
+    local = _git("rev-parse", args.stage).stdout.strip()
+    remote = _git("rev-parse", f"origin/{args.stage}").stdout.strip()
+    if local != remote:
+        r = _git("push", "-u", "origin", args.stage)
+        if r.returncode != 0 and "up to date" not in (r.stderr + r.stdout):
+            sys.exit(f"ERROR: stage push 실패 — {r.stderr.strip()[:300]}")
 
     wts = [_ensure_worktree(i + 1, args.stage) for i in range(args.parallel)]
     results = {lane: LaneResult(lane) for lane in lanes}
