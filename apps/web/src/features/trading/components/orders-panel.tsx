@@ -75,7 +75,7 @@ export function OrdersPanel() {
         </div>
         {isTestOrderEnabled ? (
           <div
-            className={"chart-head-actions" + (ksDisabled ? " pointer-events-none opacity-50" : "")}
+            className={`chart-head-actions${ksDisabled ? " pointer-events-none opacity-50" : ""}`}
           >
             <TestOrderDialog />
           </div>

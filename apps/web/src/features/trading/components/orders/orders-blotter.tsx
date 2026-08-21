@@ -348,7 +348,7 @@ export function OrdersBlotter() {
                   <button
                     key={f}
                     type="button"
-                    className={"tab" + (active ? " active" : "")}
+                    className={`tab${active ? " active" : ""}`}
                     aria-pressed={active}
                     data-testid={`order-filter-${f}`}
                     onClick={() => handleFilter(f)}
@@ -548,7 +548,7 @@ export function OrdersBlotter() {
                   {Array.from({ length: pageCount }).map((_, i) => (
                     <button
                       key={i}
-                      className={"pg" + (i === safePage ? " active" : "")}
+                      className={`pg${i === safePage ? " active" : ""}`}
                       type="button"
                       aria-current={i === safePage ? "page" : undefined}
                       onClick={() => setPage(i)}
@@ -632,7 +632,7 @@ function OrderRow({
       </td>
       <td className="mono-l">{o.symbol}</td>
       <td className="dir-cell">
-        <span className={"order-side " + o.side}>{ORDER_SIDE_LABEL[o.side]}</span>
+        <span className={`order-side ${o.side}`}>{ORDER_SIDE_LABEL[o.side]}</span>
         {o.reduce_only ? (
           <span className="chip chip-xs" title={ORDER_FLAG_HINT.reduceOnly}>
             {ORDER_FLAG_LABEL.reduceOnly}
