@@ -73,23 +73,25 @@ export function TableSkeleton({
       className={cn("flex flex-col gap-3", className)}
     >
       <div className="flex gap-3">
-        {Array.from({ length: columns }).map((_, i) => (
+        {Array.from({ length: columns }, (_, column) => `header-${column}`).map((headerKey) => (
           <Skeleton
-            key={`hdr-${i}`}
+            key={headerKey}
             className="h-4 flex-1"
             data-testid="table-skeleton-header-cell"
           />
         ))}
       </div>
-      {Array.from({ length: rows }).map((_, r) => (
-        <div key={`row-${r}`} className="flex gap-3">
-          {Array.from({ length: columns }).map((_, c) => (
-            <Skeleton
-              key={`row-${r}-col-${c}`}
-              className="h-8 flex-1"
-              data-testid="table-skeleton-row-cell"
-            />
-          ))}
+      {Array.from({ length: rows }, (_, row) => `row-${row}`).map((rowKey) => (
+        <div key={rowKey} className="flex gap-3">
+          {Array.from({ length: columns }, (_, column) => `${rowKey}-column-${column}`).map(
+            (cellKey) => (
+              <Skeleton
+                key={cellKey}
+                className="h-8 flex-1"
+                data-testid="table-skeleton-row-cell"
+              />
+            ),
+          )}
         </div>
       ))}
     </div>
@@ -104,8 +106,8 @@ export function FormSkeleton({ fields = 3, className }: { fields?: number; class
       aria-label="폼을 불러오는 중"
       className={cn("flex flex-col gap-5", className)}
     >
-      {Array.from({ length: fields }).map((_, i) => (
-        <div key={`field-${i}`} data-testid="form-skeleton-field" className="flex flex-col gap-1.5">
+      {Array.from({ length: fields }, (_, field) => `field-${field}`).map((fieldKey) => (
+        <div key={fieldKey} data-testid="form-skeleton-field" className="flex flex-col gap-1.5">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="h-10 w-full" />
         </div>

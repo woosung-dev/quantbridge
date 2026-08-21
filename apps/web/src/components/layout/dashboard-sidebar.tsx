@@ -35,6 +35,7 @@ export function DashboardSidebar({ pathname }: DashboardSidebarProps) {
       <Link href="/dashboard" className="brand" aria-label="QuantBridge 홈">
         <span className="brand-mark" aria-hidden="true">
           <svg
+            aria-hidden="true"
             width="16"
             height="16"
             viewBox="0 0 24 24"

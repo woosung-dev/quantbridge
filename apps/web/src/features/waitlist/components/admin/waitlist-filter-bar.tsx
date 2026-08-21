@@ -70,11 +70,8 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
         />
       </label>
 
-      <div
-        role="radiogroup"
-        aria-label="상태 필터"
-        className="-mx-2 flex flex-nowrap gap-2 overflow-x-auto px-2 md:mx-0 md:flex-wrap md:overflow-visible md:px-0"
-      >
+      <fieldset className="-mx-2 flex flex-nowrap gap-2 overflow-x-auto px-2 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+        <legend className="sr-only">상태 필터</legend>
         {CHIPS.map((chip) => {
           const active = chip.id === status;
           const count = counts?.[chip.id];
@@ -82,8 +79,7 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
             <button
               key={chip.id}
               type="button"
-              role="radio"
-              aria-checked={active}
+              aria-pressed={active}
               onClick={() => onStatusChange(chip.id)}
               data-active={active || undefined}
               className={
@@ -104,7 +100,7 @@ export function WaitlistFilterBar(props: WaitlistFilterBarProps) {
             </button>
           );
         })}
-      </div>
+      </fieldset>
     </div>
   );
 }

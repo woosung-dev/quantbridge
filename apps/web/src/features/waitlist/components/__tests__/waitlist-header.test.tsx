@@ -4,7 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
 vi.mock("@/components/ui/theme-toggle", () => ({
-  ThemeToggle: () => <button data-testid="theme-toggle">테마 전환</button>,
+  ThemeToggle: () => (
+    <button type="button" data-testid="theme-toggle">
+      테마 전환
+    </button>
+  ),
 }));
 
 import { WaitlistHeader } from "../waitlist-header";

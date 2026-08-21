@@ -15,8 +15,9 @@ describe("WaitlistFilterBar", () => {
         onSearchChange={() => {}}
       />,
     );
-    const chips = screen.getAllByRole("radio");
+    const chips = screen.getAllByRole("button");
     expect(chips).toHaveLength(5);
+    expect(screen.getByRole("button", { name: "대기중" })).toHaveAttribute("aria-pressed", "true");
     for (const chip of chips) {
       expect(chip.className).toContain("rounded-[var(--radius-sm)]");
       expect(chip.className).not.toContain("rounded-full");

@@ -224,11 +224,11 @@ describe("ActivityTimelineChart (Sprint 33-A BL-150 partial)", () => {
     expect(first[0]!.time).toBeLessThan(first[1]!.time);
   });
 
-  it("group role + aria-label for a11y", async () => {
+  it("figure role + caption for a11y", async () => {
     render(<ActivityTimelineChart data={POINTS} showEquity={false} />);
     await act(async () => {}); // chart 생성(dynamic import) microtask flush
 
-    const group = screen.getByRole("group", {
+    const group = screen.getByRole("figure", {
       name: /Live session activity timeline/,
     });
     expect(group).toBeInTheDocument();

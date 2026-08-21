@@ -20,11 +20,18 @@ export function PnlTape({ deltas, maxBars = 48, size = "default", className }: P
   const bars = useMemo(() => {
     const sliced = deltas.slice(-maxBars);
     const peak = sliced.reduce((m, d) => Math.max(m, Math.abs(d)), 0) || 1;
-    return sliced.map((d) => ({
-      // 최소 6% 높이 보장 → 0 근처도 가시화.
-      height: Math.max(6, (Math.abs(d) / peak) * 100),
-      up: d >= 0,
-    }));
+    const occurrences = new Map<number, number>();
+    return sliced.map((d) => {
+      const occurrence = occurrences.get(d) ?? 0;
+      occurrences.set(d, occurrence + 1);
+      return {
+        // 동일 델타도 출현 순서를 더해 list 안에서 유일하게 식별한다.
+        key: `${d}-${occurrence}`,
+        // 최소 6% 높이 보장 → 0 근처도 가시화.
+        height: Math.max(6, (Math.abs(d) / peak) * 100),
+        up: d >= 0,
+      };
+    });
   }, [deltas, maxBars]);
 
   const frameClass = cn(
@@ -38,9 +45,9 @@ export function PnlTape({ deltas, maxBars = 48, size = "default", className }: P
     // 데이터 없음 — faint baseline 틱으로 시그니처 자리 유지.
     return (
       <div className={frameClass} aria-hidden="true">
-        {Array.from({ length: 40 }).map((_, i) => (
+        {Array.from({ length: 40 }, (_, slot) => `baseline-${slot}`).map((barKey) => (
           <span
-            key={i}
+            key={barKey}
             className={cn(barClass, "bg-muted-foreground/25")}
             style={{ height: "18%" }}
           />
@@ -51,9 +58,9 @@ export function PnlTape({ deltas, maxBars = 48, size = "default", className }: P
 
   return (
     <div className={frameClass} role="img" aria-label="구간별 손익 추이 마이크로바">
-      {bars.map((b, i) => (
+      {bars.map((b) => (
         <span
-          key={i}
+          key={b.key}
           className={barClass}
           style={{
             height: `${b.height}%`,

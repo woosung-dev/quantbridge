@@ -59,7 +59,7 @@ export function WaitlistTable({ items, onApprove, isApproving }: WaitlistTablePr
 
   return (
     <div className="bg-card overflow-x-auto rounded-[var(--radius-lg)] border border-[color:var(--border)]">
-      <table className="w-full text-left text-sm" role="table">
+      <table className="w-full text-left text-sm">
         <thead className="bg-[color:var(--bg-alt)] text-xs tracking-wide text-[color:var(--text-secondary)] uppercase">
           <tr>
             <SortHeader

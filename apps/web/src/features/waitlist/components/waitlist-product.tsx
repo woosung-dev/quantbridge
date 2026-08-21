@@ -78,7 +78,13 @@ export function WaitlistProduct() {
         {CARDS.map((c) => (
           <article key={c.title} className="card cta">
             <span className="cta-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 {c.icon}
               </svg>
             </span>

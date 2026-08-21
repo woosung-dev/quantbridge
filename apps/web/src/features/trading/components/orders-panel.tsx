@@ -62,11 +62,7 @@ export function OrdersPanel() {
             주문 원장{data ? ` (${data.total})` : ""}
             {/* Sprint 44 W F3 — refetch / polling 진행 중 subtle dot pulse. 정지 상태는 정적. */}
             {isFetching ? (
-              <span
-                aria-label="주문 목록 polling 중"
-                data-testid="orders-polling-dot"
-                className="polling-dot"
-              />
+              <span aria-hidden="true" data-testid="orders-polling-dot" className="polling-dot" />
             ) : null}
           </h3>
           <p className="card-sub">
@@ -75,7 +71,7 @@ export function OrdersPanel() {
         </div>
         {isTestOrderEnabled ? (
           <div
-            className={"chart-head-actions" + (ksDisabled ? " pointer-events-none opacity-50" : "")}
+            className={`chart-head-actions${ksDisabled ? " pointer-events-none opacity-50" : ""}`}
           >
             <TestOrderDialog />
           </div>
@@ -189,13 +185,15 @@ function OrdersSkeleton() {
     <div className="table-wrap" data-testid="orders-skeleton" aria-hidden="true">
       <table className="trades">
         <tbody>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 8 }).map((__, j) => (
-                <td key={j}>
-                  <span className="sk sk-cell" />
-                </td>
-              ))}
+          {Array.from({ length: 5 }, (_, row) => `row-${row}`).map((rowKey) => (
+            <tr key={rowKey}>
+              {Array.from({ length: 8 }, (_, column) => `${rowKey}-column-${column}`).map(
+                (cellKey) => (
+                  <td key={cellKey}>
+                    <span className="sk sk-cell" />
+                  </td>
+                ),
+              )}
             </tr>
           ))}
         </tbody>

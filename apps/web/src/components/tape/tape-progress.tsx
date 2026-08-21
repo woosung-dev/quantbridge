@@ -31,14 +31,14 @@ export function TapeProgress({
       aria-valuenow={clamped ?? undefined}
       className={cn("flex h-3 items-stretch gap-[2px]", className)}
     >
-      {Array.from({ length: segments }).map((_, i) => (
+      {Array.from({ length: segments }, (_, segment) => segment).map((segment) => (
         <span
-          key={i}
+          key={segment}
           className={cn(
             "min-w-[2px] flex-1 rounded-[1px] transition-colors duration-200",
             clamped == null
               ? "animate-pulse bg-muted-foreground/25"
-              : i < filled
+              : segment < filled
                 ? "bg-primary"
                 : "bg-border-dark",
           )}

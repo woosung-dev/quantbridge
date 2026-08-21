@@ -157,12 +157,14 @@ export function ActivityTimelineChart({
   const bottomHeight = showEquity ? Math.round(height * BOTTOM_PANE_RATIO) : 0;
 
   return (
-    <div
-      className="space-y-1"
+    <figure
+      className="m-0 space-y-1"
       data-testid="activity-timeline-chart"
-      role="group"
-      aria-label="Live session activity timeline — entries / closes 누적 + (optional) cumulative PnL"
+      aria-labelledby="activity-timeline-caption"
     >
+      <figcaption id="activity-timeline-caption" className="sr-only">
+        Live session activity timeline — entries / closes 누적 + (optional) cumulative PnL
+      </figcaption>
       <div data-testid="activity-timeline-counts-pane">
         <TradingChart
           data={entriesData}
@@ -212,6 +214,6 @@ export function ActivityTimelineChart({
           />
         </div>
       )}
-    </div>
+    </figure>
   );
 }
