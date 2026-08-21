@@ -232,7 +232,8 @@
     },
     {
       "dir": "be5-convert-service",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T17:48:06+0900"
     },
     {
       "dir": "be5-di-assembly",
