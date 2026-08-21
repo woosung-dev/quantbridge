@@ -22,7 +22,7 @@
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist",
@@ -31,7 +31,10 @@
         "cd apps/api && uv run coverage report --include=src/waitlist/repository.py --fail-under=72",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 14",
         "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:33:02+0900",
+      "summary": "실DB 계약 14건으로 세션 저장·범위별/도래/시간 창 조회·종료, 이벤트 발주 상태·주문 결합·Decimal 손익 집계, 대기자 명단 초대 토큰 조회를 검증했고 대상 소스는 무변경이다.",
+      "completed_at": "2026-08-22T04:41:29+0900"
     },
     {
       "step": 2,
