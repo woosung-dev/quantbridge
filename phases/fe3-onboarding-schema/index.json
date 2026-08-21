@@ -5,13 +5,18 @@
     {
       "step": 0,
       "name": "persist-schema",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm test -- --run 'src/features/onboarding/__tests__/schemas.test.ts'",
         "cd apps/web && test \"$(pnpm exec vitest list 'src/features/onboarding/__tests__/schemas.test.ts' 2>/dev/null | grep -c ' > ')\" -ge 8",
         "cd apps/web && pnpm exec eslint 'src/features/onboarding/__tests__/schemas.test.ts'",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-21T09:54:05+0900",
+      "summary": "OnboardingPersistSchema 직접 safeParse 21건 추가: 버전·step·nullable UUID·startedAt·Zod 양성 대조를 검증했고 여분 키는 strip됨.",
+      "completed_at": "2026-08-21T09:57:51+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T09:54:05+0900",
+  "completed_at": "2026-08-21T09:57:52+0900"
 }
