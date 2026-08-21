@@ -184,7 +184,8 @@
     },
     {
       "dir": "fe4-list-prefetch",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T14:14:07+0900"
     },
     {
       "dir": "fe4-route-params",
