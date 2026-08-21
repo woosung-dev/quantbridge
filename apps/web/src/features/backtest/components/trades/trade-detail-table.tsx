@@ -40,6 +40,30 @@ const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 200;
 // 번호·방향·진입시각·청산시각·진입가·청산가·수량·손익·수익률·수수료·청산사유·펼침
 const COL_COUNT = 12;
+const TABLE_SKELETON_ROWS = [
+  "row-1",
+  "row-2",
+  "row-3",
+  "row-4",
+  "row-5",
+  "row-6",
+  "row-7",
+  "row-8",
+] as const;
+const TABLE_SKELETON_CELLS = [
+  "cell-1",
+  "cell-2",
+  "cell-3",
+  "cell-4",
+  "cell-5",
+  "cell-6",
+  "cell-7",
+  "cell-8",
+  "cell-9",
+  "cell-10",
+  "cell-11",
+  "cell-12",
+] as const;
 
 interface TradeDetailTableProps {
   backtestId?: string;
@@ -465,11 +489,11 @@ function Pager({ page, totalPages, totalItems, pageSize, onPage }: PagerProps) {
           >
             ‹
           </button>
-          {pageWindow(page, totalPages).map((p, i) =>
-            p === "gap" ? (
+          {pageWindow(page, totalPages).map((p) =>
+            typeof p === "string" ? (
               // 생략 기호는 **조작 대상이 아니다** — 버튼이면 aria-hidden 이 상호작용 요소를
               // 숨기는 모양이 된다(a11y/noAriaHiddenOnFocusable). span 이 맞는 마크업이다.
-              <span key={`gap-${i}`} className="pg" aria-hidden="true">
+              <span key={p} className="pg" aria-hidden="true">
                 …
               </span>
             ) : (
@@ -500,14 +524,17 @@ function Pager({ page, totalPages, totalItems, pageSize, onPage }: PagerProps) {
 }
 
 // 1-indexed 페이지 번호 창 — 첫/끝/현재±1 + 사이 gap. prototype: ‹ 1 2 … 19 › 관례.
-function pageWindow(page0: number, totalPages: number): (number | "gap")[] {
+function pageWindow(
+  page0: number,
+  totalPages: number,
+): (number | "leading-gap" | "trailing-gap")[] {
   const cur = page0 + 1;
   const want = new Set<number>([1, totalPages, cur, cur - 1, cur + 1]);
   const sorted = [...want].filter((p) => p >= 1 && p <= totalPages).sort((a, b) => a - b);
-  const out: (number | "gap")[] = [];
+  const out: (number | "leading-gap" | "trailing-gap")[] = [];
   let prev = 0;
   for (const p of sorted) {
-    if (p - prev > 1) out.push("gap");
+    if (p - prev > 1) out.push(prev === 1 ? "leading-gap" : "trailing-gap");
     out.push(p);
     prev = p;
   }
@@ -520,10 +547,10 @@ function TableSkeleton() {
     <div className="table-wrap" data-testid="trade-skeleton" aria-hidden="true">
       <table className="trades">
         <tbody>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: COL_COUNT }).map((__, j) => (
-                <td key={j}>
+          {TABLE_SKELETON_ROWS.map((rowKey) => (
+            <tr key={rowKey}>
+              {TABLE_SKELETON_CELLS.map((cellKey) => (
+                <td key={cellKey}>
                   <span className="sk sk-cell" />
                 </td>
               ))}
