@@ -248,10 +248,9 @@ export function EquityChartV2({
   const hasBuyAndHoldData = (buyAndHoldCurve?.length ?? 0) > 0;
 
   return (
-    <div
-      className="space-y-2"
+    <fieldset
+      className="m-0 min-w-0 space-y-2 border-0 p-0"
       data-testid="equity-chart-v2"
-      role="group"
       aria-label="백테스트 자본 곡선 + Buy and Hold 비교 + Drawdown 차트"
     >
       {/* Sprint 43 W10 — prototype 02 정합. 타임프레임 탭 + checkbox 컨트롤 바. */}
@@ -367,6 +366,6 @@ export function EquityChartV2({
           />
         </div>
       )}
-    </div>
+    </fieldset>
   );
 }

@@ -8,14 +8,13 @@ import { ShareCopyLinkButton } from "./share-copy-link-button";
  *
  * - 좌측: "공유 링크 · 읽기 전용" 라벨 + 이 페이지가 누군가의 백테스트 결과 1개를 보여줄 뿐임을 명시
  * - 우측: 공유 URL 복사 버튼 (client) + signup CTA (`/sign-up`) — 가입 시 본인 백테스트를 만들 수 있다는 다음 액션 유도
- * - aria-live=polite + role=region 으로 외부 viewer 가 banner 존재를 인지하도록 함
+ * - aria-live=polite + section 으로 외부 viewer 가 banner 존재를 인지하도록 함
  *
  * 토큰: primary-light / primary / border / muted-foreground 시맨틱 유틸 (라이트/다크 flip).
  */
 export function SharePublicBanner() {
   return (
-    <div
-      role="region"
+    <section
       aria-live="polite"
       aria-label="공유 링크 안내"
       data-testid="share-public-banner"
@@ -46,6 +45,6 @@ export function SharePublicBanner() {
           </Link>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

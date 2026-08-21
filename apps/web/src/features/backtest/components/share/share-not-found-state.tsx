@@ -29,7 +29,7 @@ export function ShareNotFoundState() {
         className="relative z-[2] mb-6 grid h-24 w-24 place-items-center rounded-3xl bg-gradient-to-br from-primary-light to-primary-100 shadow-lg motion-safe:animate-[errIllustEnter_360ms_cubic-bezier(0.34,1.56,0.64,1)_both]"
         aria-hidden="true"
       >
-        <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+        <svg aria-hidden="true" width="56" height="56" viewBox="0 0 56 56" fill="none">
           {/* 돋보기 모티프 — 백테스트 결과 미발견 의미 */}
           <circle
             cx="24"

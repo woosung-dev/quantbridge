@@ -148,7 +148,7 @@ export function SetupSummaryAside({
   ];
 
   return (
-    <div className="card" aria-label="백테스트 설정 요약" data-testid="setup-summary-aside">
+    <div className="card" data-testid="setup-summary-aside">
       <div className="side-rows">
         {rows.map((r) => (
           <div className="trust-row" key={r.label}>

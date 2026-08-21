@@ -171,9 +171,9 @@ export const STRESS_TEST_STATUS_LABEL: Record<StressTestStatus, StatusLabelWithI
 
 /** 이력 표의 대표 지표 이름. BE 가 보내는 키를 화면 표기로 옮긴다. */
 export const STRESS_TEST_HEADLINE_METRIC_LABEL: Record<StressTestHeadlineMetricKey, string> = {
-  max_drawdown_p95: METRIC_ABBR.maxDrawdown + " p95",
+  max_drawdown_p95: `${METRIC_ABBR.maxDrawdown} p95`,
   degradation_ratio: "열화 비율",
-  worst_cell_sharpe: "최저 " + METRIC_ABBR.sharpeRatio,
+  worst_cell_sharpe: `최저 ${METRIC_ABBR.sharpeRatio}`,
 };
 
 /**

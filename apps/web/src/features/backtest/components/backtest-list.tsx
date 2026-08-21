@@ -43,6 +43,20 @@ const LIST_ENDPOINT = "GET /api/v1/backtests";
 const STRATEGY_FETCH_LIMIT = 100;
 const RETURN_METRIC = "total_return";
 const UNFINISHED_METRICS_TITLE = "아직 끝나지 않은 실행은 수익률을 채우지 않습니다.";
+const LIST_SKELETON_ROWS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
+const LIST_SKELETON_CELLS = [
+  "cell-1",
+  "cell-2",
+  "cell-3",
+  "cell-4",
+  "cell-5",
+  "cell-6",
+  "cell-7",
+  "cell-8",
+  "cell-9",
+  "cell-10",
+  "cell-11",
+] as const;
 
 // 라벨은 용어 SSOT(BACKTEST_STATUS_FILTER_LABEL)에서 파생 — 배지 표기와 불일치 방지.
 const STATUS_FILTERS: ReadonlyArray<{ id: "all" | BacktestStatus }> = [
@@ -185,7 +199,7 @@ export function BacktestList() {
               </p>
             </div>
             <div className="chart-head-actions">
-              <div className="tabs" role="group" aria-label="상태 필터">
+              <fieldset className="tabs m-0 min-w-0 border-0 p-0" aria-label="상태 필터">
                 {STATUS_FILTERS.map((f) => {
                   const active = f.id === activeStatus;
                   const isDisabled = hasMorePages && f.id !== "all";
@@ -193,7 +207,7 @@ export function BacktestList() {
                     <button
                       key={f.id}
                       type="button"
-                      className={"tab" + (active ? " active" : "")}
+                      className={`tab${active ? " active" : ""}`}
                       aria-pressed={active}
                       aria-disabled={isDisabled || undefined}
                       disabled={isDisabled}
@@ -212,7 +226,7 @@ export function BacktestList() {
                     </button>
                   );
                 })}
-              </div>
+              </fieldset>
             </div>
           </div>
 
@@ -510,10 +524,10 @@ function ListSkeleton() {
     <div className="table-wrap" data-testid="backtest-skeleton" aria-hidden="true">
       <table className="trades runs-table">
         <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 11 }).map((__, j) => (
-                <td key={j}>
+          {LIST_SKELETON_ROWS.map((rowKey) => (
+            <tr key={rowKey}>
+              {LIST_SKELETON_CELLS.map((cellKey) => (
+                <td key={cellKey}>
                   <span className="sk sk-cell" />
                 </td>
               ))}

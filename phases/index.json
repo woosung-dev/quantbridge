@@ -306,7 +306,8 @@
     },
     {
       "dir": "fe6-debt-backtest",
-      "status": "pending"
+      "status": "completed",
+      "blocked_at": "2026-08-22T05:03:19+0900"
     },
     {
       "dir": "fe6-debt-strategy-opt",

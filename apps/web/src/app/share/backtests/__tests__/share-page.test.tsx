@@ -72,9 +72,11 @@ describe("SharedBacktestPage (server component)", () => {
     render(ui);
     const banner = screen.getByTestId("share-public-banner");
     expect(banner).toBeInTheDocument();
-    // aria-live + role=region — 외부 viewer SR 인지 가능
+    // aria-live + region role — 외부 viewer SR 인지 가능.
+    // ★role 은 속성이 아니라 **계산된 값**으로 잰다. 배너는 `<section aria-label>` 이라
+    //   암묵 role 이 region 이고, 명시 role="region" 은 useSemanticElements 위반이었다.
     expect(banner).toHaveAttribute("aria-live", "polite");
-    expect(banner).toHaveAttribute("role", "region");
+    expect(screen.getByRole("region", { name: "공유 링크 안내" })).toBe(banner);
     expect(screen.getByText(/읽기 전용 백테스트 결과입니다/)).toBeInTheDocument();
   });
 

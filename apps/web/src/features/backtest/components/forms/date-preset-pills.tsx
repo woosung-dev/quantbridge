@@ -1,4 +1,4 @@
-// 백테스트 기간 프리셋 토글 — C 디자인 언어 이식(W3-A). 상호배타 토글이라 role=group + aria-pressed.
+// 백테스트 기간 프리셋 토글 — C 디자인 언어 이식(W3-A). 상호배타 토글이라 fieldset + aria-pressed.
 "use client";
 
 export type DatePreset = "1m" | "3m" | "6m" | "1y" | "3y" | "5y" | "custom";
@@ -50,7 +50,11 @@ export interface DatePresetPillsProps {
 
 export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
   return (
-    <div className="tabs" role="group" aria-label="기간 프리셋" data-testid="date-preset-pills">
+    <fieldset
+      className="tabs m-0 min-w-0 border-0 p-0"
+      aria-label="기간 프리셋"
+      data-testid="date-preset-pills"
+    >
       {PRESETS.map((p) => {
         const isActive = value === p.key;
         return (
@@ -75,6 +79,6 @@ export function DatePresetPills({ value, onSelect }: DatePresetPillsProps) {
       >
         커스텀
       </button>
-    </div>
+    </fieldset>
   );
 }
