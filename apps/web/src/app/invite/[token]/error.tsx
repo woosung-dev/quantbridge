@@ -13,6 +13,7 @@ export default function InviteError({
       <h2 className="text-xl font-bold">초대 링크를 여는 중 문제가 발생했습니다</h2>
       <p className="text-muted-foreground">{error.message}</p>
       <button
+        type="button"
         onClick={reset}
         className="rounded-md bg-primary px-4 py-2 font-medium text-primary-foreground"
       >

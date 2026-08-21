@@ -120,6 +120,7 @@ export default function PricingPage() {
           <Link className="site-brand" href="/" aria-label="QuantBridge 홈으로">
             <span className="brand-mark" aria-hidden="true">
               <svg
+                aria-hidden="true"
                 width="16"
                 height="16"
                 viewBox="0 0 24 24"
@@ -182,7 +183,13 @@ export default function PricingPage() {
             <div className="card">
               <div className="notice-card">
                 <span className="state-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <circle cx="12" cy="12" r="9" />
                     <line x1="12" y1="8" x2="12" y2="13" />
                     <line x1="12" y1="16.4" x2="12" y2="16.5" />
@@ -549,6 +556,7 @@ export default function PricingPage() {
               <span className="site-brand">
                 <span className="brand-mark" aria-hidden="true">
                   <svg
+                    aria-hidden="true"
                     width="16"
                     height="16"
                     viewBox="0 0 24 24"
