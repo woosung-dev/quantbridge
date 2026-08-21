@@ -296,7 +296,8 @@
     },
     {
       "dir": "be6-tasks-runtime",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T05:04:27+0900"
     },
     {
       "dir": "be6-live-repos",
