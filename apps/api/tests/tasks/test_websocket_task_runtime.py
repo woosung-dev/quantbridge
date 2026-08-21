@@ -383,3 +383,234 @@ async def test_lease_heartbeat_marks_lost_when_extend_returns_false(
 
     lock.extend.assert_awaited_once_with(3)
     assert lost_event.is_set()
+
+
+@pytest.mark.asyncio
+async def test_private_stream_circuit_open_skips_lease_and_records_metric(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """열린 auth circuit은 lease·stream 진입 없이 metric과 info log만 남기고 종료한다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    circuit_breaker_module = import_module("src.tasks._ws_circuit_breaker")
+    metrics_module = import_module("src.common.metrics")
+    logger = MagicMock()
+    counter = MagicMock()
+    stream_main = AsyncMock()
+
+    monkeypatch.setattr(circuit_breaker_module, "is_circuit_open", AsyncMock(return_value=True))
+    monkeypatch.setattr(metrics_module, "qb_ws_auth_circuit_total", counter)
+    monkeypatch.setattr(websocket_module, "_stream_main", stream_main)
+    monkeypatch.setattr(websocket_module, "logger", logger)
+
+    result = await websocket_module._run_async("account-1")
+
+    assert result == {"status": "circuit_open", "account_id": "account-1"}
+    counter.labels.assert_called_once_with(outcome="skipped")
+    counter.labels.return_value.inc.assert_called_once_with()
+    stream_main.assert_not_awaited()
+    logger.info.assert_called_once_with("ws_stream_circuit_open_skip account=%s", "account-1")
+
+
+@pytest.mark.asyncio
+async def test_public_ticker_duplicate_lease_records_metric_and_skips_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """public ticker lease 경쟁은 duplicate metric·log를 남기고 stream을 만들지 않는다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    lease_module = import_module("src.tasks._ws_lease")
+    logger = MagicMock()
+    counter = MagicMock()
+    stream_main = AsyncMock()
+
+    monkeypatch.setattr(lease_module, "acquire_ws_lease", AsyncMock(return_value=None))
+    monkeypatch.setattr(websocket_module, "qb_ws_duplicate_enqueue_total", counter)
+    monkeypatch.setattr(websocket_module, "_public_ticker_stream_main", stream_main)
+    monkeypatch.setattr(websocket_module, "logger", logger)
+
+    result = await websocket_module._run_public_ticker_async()
+
+    assert result == {"status": "duplicate"}
+    counter.inc.assert_called_once_with()
+    stream_main.assert_not_awaited()
+    logger.info.assert_called_once_with("ws_public_ticker_duplicate_skip")
+
+
+@pytest.mark.asyncio
+async def test_public_ticker_returns_no_symbols_and_disposes_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """활성 심볼 0건이면 연결·stop registry 등록 없이 engine을 정리한다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+
+    monkeypatch.setattr(websocket_module, "create_worker_engine_and_sm", lambda: (engine, object()))
+    monkeypatch.setattr(
+        websocket_module, "_list_active_ticker_symbols", AsyncMock(return_value=set())
+    )
+
+    result = await websocket_module._public_ticker_stream_main()
+
+    assert result == {"status": "no_symbols"}
+    engine.dispose.assert_awaited_once_with()
+    with websocket_module._STOP_EVENTS_LOCK:
+        assert websocket_module._PUBLIC_TICKER_LEASE_ID not in websocket_module._STOP_EVENTS
+
+
+@pytest.mark.asyncio
+async def test_public_ticker_lease_loss_logs_and_closes_stream(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """heartbeat lease 손실은 warning을 남기고 public ticker 연결·engine을 정리한다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    public_stream_module = import_module("src.trading.websocket.bybit_public_stream")
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    logger = MagicMock()
+    lost_event = asyncio.Event()
+    lost_event.set()
+
+    class _PublicStream:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _PublicStream:
+            return self
+
+        async def __aexit__(self, *_args: object) -> None:
+            return None
+
+        async def update_symbols(self, _symbols: set[str]) -> None:
+            raise AssertionError("lease loss must terminate before symbol refresh")
+
+    monkeypatch.setattr(websocket_module, "create_worker_engine_and_sm", lambda: (engine, object()))
+    monkeypatch.setattr(
+        websocket_module,
+        "_list_active_ticker_symbols",
+        AsyncMock(return_value={"BTCUSDT"}),
+    )
+    monkeypatch.setattr(public_stream_module, "BybitPublicTickerStream", _PublicStream)
+    monkeypatch.setattr(websocket_module, "logger", logger)
+
+    result = await websocket_module._public_ticker_stream_main(lease_lost_event=lost_event)
+
+    assert result == {"status": "lease_lost"}
+    logger.warning.assert_called_once_with("ws_public_ticker_lease_lost_terminating")
+    engine.dispose.assert_awaited_once_with()
+    with websocket_module._STOP_EVENTS_LOCK:
+        assert websocket_module._PUBLIC_TICKER_LEASE_ID not in websocket_module._STOP_EVENTS
+
+
+@pytest.mark.asyncio
+async def test_private_stream_missing_account_logs_error_and_disposes_engine(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """삭제된 계정의 private stream 요청은 error log 뒤 engine을 정리하고 연결하지 않는다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    session = MagicMock()
+    session.get = AsyncMock(return_value=None)
+    logger = MagicMock()
+
+    @asynccontextmanager
+    async def session_context():
+        yield session
+
+    class _SessionMaker:
+        def __call__(self):
+            return session_context()
+
+    account_id = str(uuid4())
+    monkeypatch.setattr(
+        websocket_module,
+        "create_worker_engine_and_sm",
+        lambda: (engine, _SessionMaker()),
+    )
+    monkeypatch.setattr(websocket_module, "logger", logger)
+
+    result = await websocket_module._stream_main(account_id)
+
+    assert result == {"status": "error", "reason": "account_not_found"}
+    logger.error.assert_called_once_with("ws_stream_account_not_found account=%s", account_id)
+    engine.dispose.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_zero_accounts_and_symbols_skips_all_enqueue(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """계정·활성 심볼이 모두 0건이면 lease 조회와 Celery enqueue 없이 종료한다."""
+    websocket_module = import_module("src.tasks.websocket_task")
+    repository_module = import_module("src.trading.repositories.live_signal_session_repository")
+    engine = MagicMock()
+    engine.dispose = AsyncMock()
+    session = MagicMock()
+    query_result = MagicMock()
+    query_result.scalars.return_value.all.return_value = []
+    session.execute = AsyncMock(return_value=query_result)
+    private_delay = MagicMock()
+    public_delay = MagicMock()
+
+    @asynccontextmanager
+    async def session_context():
+        yield session
+
+    class _SessionMaker:
+        def __call__(self):
+            return session_context()
+
+    class _LiveSessionRepository:
+        def __init__(self, received_session: object) -> None:
+            assert received_session is session
+
+        async def list_distinct_active_symbols(self) -> list[str]:
+            return []
+
+    monkeypatch.setattr(
+        websocket_module,
+        "create_worker_engine_and_sm",
+        lambda: (engine, _SessionMaker()),
+    )
+    monkeypatch.setattr(repository_module, "LiveSignalSessionRepository", _LiveSessionRepository)
+    monkeypatch.setattr(websocket_module.run_bybit_private_stream, "delay", private_delay)
+    monkeypatch.setattr(websocket_module.run_bybit_public_ticker_stream, "delay", public_delay)
+
+    result = await websocket_module._reconcile_async()
+
+    assert result == {
+        "enqueued": [],
+        "skipped_active": [],
+        "total": 0,
+        "public_ticker": "not_needed",
+    }
+    private_delay.assert_not_called()
+    public_delay.assert_not_called()
+    engine.dispose.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_lease_heartbeat_exception_sets_lost_event_and_logs_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Redis extend 예외는 heartbeat를 조용히 죽이지 않고 lost_event·warning으로 전환한다."""
+    lease_module = import_module("src.tasks._ws_lease")
+    lock = MagicMock()
+    error = ConnectionError("redis disconnected")
+    lock.extend = AsyncMock(side_effect=error)
+    lost_event = asyncio.Event()
+    logger = MagicMock()
+    lease = lease_module.WsLease(lock, "account-1", ttl_ms=3, lost_event=lost_event)
+
+    monkeypatch.setattr(lease_module.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(lease_module, "logger", logger)
+
+    await lease._heartbeat_loop()
+
+    lock.extend.assert_awaited_once_with(3)
+    assert lost_event.is_set()
+    logger.warning.assert_called_once_with(
+        "ws_lease_extend_exception account=%s err=%r — lost_event set",
+        "account-1",
+        error,
+    )
