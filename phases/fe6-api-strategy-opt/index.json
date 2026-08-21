@@ -44,7 +44,7 @@
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api.test.ts -a -f apps/web/src/features/optimizer/__tests__/api.test.ts -a -f apps/web/src/features/alert-rules/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts --coverage --coverage.include='src/features/strategy/api.ts' --coverage.include='src/features/optimizer/api.ts' --coverage.include='src/features/alert-rules/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=85",
@@ -52,7 +52,10 @@
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check src/features/strategy/__tests__/api.test.ts src/features/optimizer/__tests__/api.test.ts src/features/alert-rules/__tests__/api.test.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:45:29+0900",
+      "summary": "변이 검증 표:\n| 위치 | 변이 | red |\n| --- | --- | --- |\n| strategy/api.ts:127 `parseStrategy` | POST→GET | 예 — method 단언 1건 실패 |\n| optimizer/api.ts:39 `postBayesianSearch` | bayesian→grid-search 경로 | 예 — URL 단언 1건 실패 |\n| alert-rules/api.ts:45 `deactivateAlertRule` | DELETE→GET | 예 — method 단언 1건 실패 |\n초록 변이 0건이라 추가 케이스 없음. 최종 대상 31/31·lines 100%(219/219), 전체 Vitest 256 files/1,927 tests, tsc·Biome 통과, 대상 소스 diff 0. API 함수 입력은 Zod output 타입이므로 기본값 생략 테스트 입력을 타입 완전형으로 보완했다.",
+      "completed_at": "2026-08-22T03:54:47+0900"
     }
   ],
   "created_at": "2026-08-22T03:31:02+0900"
