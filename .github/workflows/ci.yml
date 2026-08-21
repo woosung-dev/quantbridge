@@ -6,6 +6,11 @@
 #   rules-of-hooks eslint-disable 차단 grep(LESSON-004 보조 방어선 — eslint error 레벨 규칙과
 #   /review-code conventions 차원이 잔여 방어선이다).
 # 하네스 재추가는 「문서화된 사고 1건 = 슬림 복귀 1건」 규칙만 허용한다.
+#
+# tombstone(2026-08-21) — `.gitleaks.toml` 삭제. secret_scan 잡이 위에서 철거되면서 그 설정을
+#   읽는 곳이 0 이 됐다(훅·스크립트 포함 전수 grep 0건). 원문 = `git show 29176d1e:.gitleaks.toml`
+#   (값 단위 allowlist 4건 + 「왜 안전한가」 주석). 재입힘 시 그 파일을 되살리고 `gitleaks dir`
+#   잡 1개만 추가하면 된다 — 판별력 증명 4종은 [BL-757](docs/backlog-resolved.md)에 남아 있다.
 
 name: CI
 
