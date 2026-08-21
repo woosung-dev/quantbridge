@@ -263,6 +263,54 @@
       "dir": "be5-worker-tasks",
       "status": "completed",
       "completed_at": "2026-08-21T17:53:38+0900"
+    },
+    {
+      "dir": "fe6-api-backtest",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-api-strategy-opt",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-api-trading-live",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-hooks-backtest",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-hooks-strategy-opt",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-hooks-live-trading",
+      "status": "pending"
+    },
+    {
+      "dir": "be6-tasks-runtime",
+      "status": "pending"
+    },
+    {
+      "dir": "be6-live-repos",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-debt-backtest",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-debt-strategy-opt",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-debt-trading-dash",
+      "status": "pending"
+    },
+    {
+      "dir": "fe6-debt-app-tooling",
+      "status": "pending"
     }
   ]
 }

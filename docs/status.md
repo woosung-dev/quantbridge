@@ -544,44 +544,44 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 
 ### 밤샘 루프 4·5차 tombstone — [BL-817]·[BL-818] 종결 (2026-08-21)
 
-> **강등 (2026-08-21 · 700줄 상한).** 4차 서술 40줄을 5차와 함께 이 블록으로 줄였다.
-> 원문 = `git show 664f77a2:docs/status.md`. **회차 절차·lane 표·교훈의 정본은**
-> [`phases/README.md`](../phases/README.md) 이고, 반증은 [`lessons.md`](./lessons.md),
-> 티켓 본문은 `backlog-resolved.md` 가 진다. 여기 남는 것은 「지금 어디까지 왔나」뿐이다.
+> **강등 (2026-08-21 → 2026-08-22 재압축 · 700줄 상한).** 원문 = `git show 664f77a2:docs/status.md`.
+> **회차 절차·lane 표·교훈의 정본 = [`phases/README.md`](../phases/README.md)** · 반증 = [`lessons.md`](./lessons.md) · 티켓 = `backlog-resolved.md`.
 
-**4차 ([BL-817], FE 라우트 조립층 · PR #745~#753):** 8/8 · 변이 8/8 red · 6분.
-`apps/web` **1,780 → 1,896 passed** · 전이 폐포 미도달 `web` 33 → 15 · `api` 2 → 1.
-[BL-816] 동승 종결. **이로써 FE 축은 바닥에 닿았다** — 남은 15 중 실질 후보는 1건이다.
-
-**5차 ([BL-818], BE 미커버 모듈 · PR #755~#764):** 8/8 · 변이 8/8 red · 대상 소스 전건 무변경.
-`apps/api` **5,165 → 5,292 collected**(신규 8파일 · 92 함수 → **+127 케이스**).
-★★**재료를 AST 가 아니라 커버리지가 정했고, 그 차이가 초판 lane 6개를 갈아치웠다** — 둘은 **실제로 100% 커버**였다.
-★★★**blocked 2건 중 하나가 진짜 제품 결함**([BL-819] — worker DI 가 기본 설정에서 `UnboundLocalError`),
-나머지 하나는 **내 낡은 테스트 DB** 였다.
+**4차 ([BL-817], FE 라우트 조립층 · PR #745~#753):** 8/8 · 변이 8/8 red · 6분. `apps/web` **1,780 → 1,896 passed**.
+★「FE 축이 바닥에 닿았다」는 **AST(전이 폐포) 축의 결론**이었다 — 2026-08-22 커버리지 실측이 그 반대를 보였다(6차 참조).
+**5차 ([BL-818], BE 미커버 모듈 · PR #755~#764):** 8/8 · 변이 8/8 red · 소스 전건 무변경 · `apps/api` **5,165 → 5,292 collected**(+127).
+★★**재료를 AST 가 아니라 커버리지가 정했고 그 차이가 초판 lane 6개를 갈아치웠다.** ★★★**blocked 2건 중 하나가 진짜 제품 결함**([BL-819]).
 
 ~~**다음 행동 = FE 테스트 축은 닫고 Beta 진입을 연다 — [BL-070]→[BL-071]→[BL-072].**~~ → **2026-08-21 — Beta 진입 3종은 사용자 게이트다**([BL-005] self-assess ≥7 + 본인 의지). 세션이 열 수 없어 그 사이 BE 테스트 축으로 간다.
 ~~**다음 행동 = [BL-818] `apps/api` 미커버 모듈을 8 lane 병렬로 채운다 (밤샘 루프 5차).**~~ → **2026-08-21 ✅ 완주**(8/8 · PR #755·#756~#764).
-**FE 툴체인 — prettier·ESLint **둘 다** 제거 · Biome 단독 ([ADR-039], 2026-08-22):** 도구 2→**1** · 설정 파일 4→**1** ·
-설정 실효 줄 109→**98**(도입 전보다 작다) · `apps/web` 패키지 1,034→**813** · FE lint 16.0s→**0.2s** · CI frontend 233.6s→**186s**.
-★**설정이 작아진 건 최소화를 실측했기 때문**이다 — 항목을 하나씩 빼고 rc·진단수를 대조해 **잉여 13건**을 걷어냈다(`indentWidth`·`quoteStyle` 등이 Biome 기본값과 동일).
-★★**「진단이 안 는다」를 「잉여」로 읽으면 안 된다** — 그 스윕이 `noUnusedVariables`·`useImportType` 을 잉여로 분류했는데 **위반을 심으니 green** 이었다(위반이 0이었을 뿐). 판별력 배터리가 잡아 되살렸다.
-★**잃은 검사 4종을 명시했다** — `set-state-in-effect`·react-compiler·tanstack queryKey·템플릿 리터럴 import. 관련 `AGENTS.md` 4곳을 「사람이 지킨다」로 정정했다.
-최종 배터리 **18/18**(상실 4행은 green 이 정상). 검증: biome rc=0 · tsc rc=0 · vitest **1896/1896** · build rc=0.
+### FE 툴체인 tombstone — [ADR-039] 전환 + 잔여 부채 상환 ① (2026-08-21~22)
 
-**FE 잔여 부채 상환 ① — suspicious 3종 재가동 + LICENSE ([ADR-039] 후속, 2026-08-22):** 끈 12규칙을 전수 재조사했다. ★**실측이 초판 수치 2건을 반증** — `noUselessEscapeInString` 9→**1** · `noNonNullAssertion` 281→**291**(나머지 11종 전건 일치, `--only` 로 설정 무변경 측정). ★★**`checkForEach` 는 공식 문서와 JSON 스키마가 정반대를 적는다** — 스키마는 「unset 이면 forEach 무시」인데 실측은 **18건**이었고 옵션을 넣으니 **0** ⇒ **스키마 설명이 틀렸다**. `noRedeclare`·`noTemplateCurlyInString` 은 켜고 각 1곳·1파일만 억제(1건 때문에 규칙 전체를 껐던 것이 과했다). ★`biome-ignore` 는 **코드 줄에 인접**해야 한다 — 설명 3줄을 그 아래 뒀더니 억제가 안 걸려 red. 판별력 **7/7**(음성 대조 2 포함). 레포 루트에 `LICENSE`(proprietary) 신설 — `NOTICE`·`README` 가 가리킬 대상이 생겼다.
-★★★**`useSortedClasses` 재검증 — 판정 유지, 위험은 그때보다 커졌다.** 전체 트리 `--write --unsafe` 실측(89파일/406줄): ADR 이 적은 그 케이스(`"order-side " + side`)는 **2.5.9 에서 고쳐졌는데**, 결합 9곳 중 **7곳이 깨졌다**(`"tab" + (active ? " active" : "")` → `"tabactive"`, `.tab.active` 는 globals.css:1427 실선택자). **vitest 1896/1896 전부 통과 — 한 건도 안 잡았다**: 초판에서 이 결함을 잡았던 그 테스트의 대상만 고쳐진 탓이다. 차단자 = upstream PR **#10797 open**. `noNonNullAssertion`(291)은 **갚지 않는다** — autofix 가 `!`→`?.` 로 런타임 의미를 바꾼다(`AGENTS.md` §11 에 결정 기록). a11y 7종(67)은 다음 회차 — **`--write` 로는 0건 고쳐진다**(5종 fix 없음).
+> **강등 (2026-08-22 · 700줄 상한).** 3블록 18줄 → 이 6줄. 원문 = `git show 98e07034:docs/status.md`(564~580행).
+> **정본 = [ADR-039]** · 반증 = [`lessons.md`](./lessons.md) · 규칙별 근거 = `apps/web/biome.jsonc` 주석.
 
-**(초판 기록) prettier 제거 단계 — 2026-08-21:** prettier 는 **완전 제거**(설정 3 · 패키지 2),
-`apps/web` 포맷·린트 주력이 Biome 2.5.9 다. **ESLint 는 못 없앴다** — Biome 523 규칙에
-`set-state-in-effect`/`-in-render` 가 **없고**(프로브 ESLint 3검출 / Biome 0검출 · 양성 대조 2/2 로 검사기 생존 확인),
-`useReactCompiler` 는 **한글 주석에서 13파일 panic**(`is not a char boundary`), tanstack query 축은 대응 0건.
-★★**GritQL 플러그인 복원 시도는 실패**했다 — 프로브 2/2 를 맞혔지만 실트리 **11/11 오탐**(비동기 경계·ref 가드).
-★★★**`useSortedClasses` 는 코드를 깨뜨린다** — `{"order-side " + side}` 의 **끝 공백을 지워** `"order-sidebuy"` 로 만들었고
-**vitest 가 잡았다**. tailwind 자동 정렬은 포기했다. ★대량 리포맷 374파일은 Biome 탓이 아니다 — **ts/tsx 포맷 게이트가 애초에 없었다**.
-검증: biome rc=0 · eslint rc=0 · tsc rc=0 · vitest **1896/1896** · build rc=0.
+**남는 것:** prettier·ESLint 제거 · **Biome 단독**(도구 2→1 · 설정 4→1 · FE lint 16.0s→**0.2s**). 잃은 검사 4종은 **사람이 지킨다**.
+★★**「진단이 안 는다」는 잉여의 증거가 아니다** — 스윕이 지운 2규칙이 **위반을 심으니 green** 이었다(위반이 0이었을 뿐).
+★★**`useSortedClasses` 는 여전히 코드를 깨뜨린다**(결합 9곳 중 7곳 파손 · **vitest 1896/1896 이 0건 검출**). 차단자 = upstream #10797 open.
+★`noNonNullAssertion`(291)은 **갚지 않는다**(autofix 가 런타임 의미를 바꾼다 — `AGENTS.md` §11). **a11y 7종(67건)은 6차 부채 lane 이 갚는다.**
 
-**다음 행동 = `[tool.coverage.run]` 에 `concurrency = greenlet,thread` 를 넣고 [BL-308]/[BL-309] 래칫 기준선을 다시 잡는다.**
-★근거는 5차 실측이다 — 그 설정 없이 재면 SQLAlchemy greenlet 전환 뒤의 줄이 전부 미커버로 나온다(`outcome_parity_service.py` 가 테스트 파일 하나만으로 **80% → 100%**). **래칫이 지금 재는 값은 실제보다 낮다** — 설정을 켜면 임계가 한 번에 올라가므로 기준선 재산정이 함께 가야 한다.
+~~**다음 행동 = `[tool.coverage.run]` 에 `concurrency = greenlet,thread` 를 넣고 [BL-308]/[BL-309] 래칫 기준선을 다시 잡는다.**~~
+→ **2026-08-22 ✅ 앞은 했고 뒤는 대상이 없었다.** 설정은 넣었다(전량 스위트 TOTAL **90% → 91.51%**).
+★★**「래칫 기준선 재산정」은 대상이 실재하지 않는다** — [ADR-037] 이 CI 의 coverage 래칫을 철거했고(`ci.yml` 머리말 「지운 것」에 명시) 지금 `ci.yml` 에 `--cov` 는 **0건**, [BL-308]/[BL-309] 도 원장 3파일에 섹션이 없다(2026-06-29 Resolved). **원장 처방의 대상이 실재하지 않은 N번째** — [LESSON-111] 계열.
+
+### 밤샘 루프 6차 착수 — [BL-820] 저작 완료 · 실행은 다음 세션 (2026-08-22)
+
+**12 lane × step 4 · 동시 4 · base `stage/night6`.** 5차 회고(「step 1개짜리 lane 8벌은 러너를 안 쓴 것」)를
+구조로 반영했다 — step0 재료 자가검증 → step1 정상 → step2 에러·경계 → step3 자기 변이.
+★★**재료 4축 전부 실측 확정** — FE 커버리지 **85.04%**(미커버 **4,597줄/344파일**) · BE **91.51%**(1,385줄) ·
+린트 부채 **180건**(a11y 67 + 113). ★★★**「FE 축은 바닥」은 AST 축의 결론이었다** — 커버리지로 재니
+`api.ts` 6종·`hooks.ts` 6종이 통째로 비었다. ★**착수 전 AC red 12/12.**
+
+★★**저작 중 실측이 내 설계를 다섯 번 반증했다** — AC 가 재는 커버리지 ≠ 전량 스위트 값 · vitest 는 없는 파일을 **조용히 무시**(rc=0) · 새 파일 경로 1건이 **이미 존재** · 부채를 **규칙 축**으로 자르면 lane 끼리 파일이 26건 겹친다.
+★★★**다섯째는 사용자가 잡았다 — 판정기 3종을 「표준 러너가 rc 로 안 준다」는 추측 위에 지었는데 셋 다 거짓이었다**(vitest `--coverage.thresholds.perFile` · `coverage report --fail-under` · biome 경로 rc 전부 실측 확인). [ADR-037] 재입힘 규칙을 내가 어겼다 ⇒ 전부 삭제하고 `night_run.py` 도 `execute.py --parallel` 로 흡수해 **하네스 파일 4 → 1**. 전말 = [`phases/README.md`](../phases/README.md) 6차 절.
+
+**다음 행동 = 밤샘 루프 6차를 실행한다 — `python3 tools/harness/execute.py --parallel 4 --stage stage/night6 --confirm`**(기본 dry-run).
+★무인 구간은 lane PR 의 stage 머지까지이고 **사람이 판단하는 자리는 stage→main PR 하나**다.
+전제·절차·함정 전문 = [`phases/README.md`](../phases/README.md) 6차 절 · lane 공통 규약 = `phases/fe6-common.md`.
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 

@@ -1,0 +1,64 @@
+{
+  "project": "QuantBridge",
+  "phase": "be6-tasks-runtime",
+  "steps": [
+    {
+      "step": 0,
+      "name": "probe-and-skeleton",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks",
+        "cd apps/api && uv run coverage report --include=src/tasks/celery_app.py --fail-under=38",
+        "cd apps/api && uv run coverage report --include=src/tasks/websocket_task.py --fail-under=62",
+        "cd apps/api && uv run coverage report --include=src/tasks/_ws_lease.py --fail-under=85",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "happy-paths",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks",
+        "cd apps/api && uv run coverage report --include=src/tasks/celery_app.py --fail-under=50",
+        "cd apps/api && uv run coverage report --include=src/tasks/websocket_task.py --fail-under=68",
+        "cd apps/api && uv run coverage report --include=src/tasks/_ws_lease.py --fail-under=88",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 14",
+        "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "error-and-edges",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks",
+        "cd apps/api && uv run coverage report --include=src/tasks/celery_app.py --fail-under=64",
+        "cd apps/api && uv run coverage report --include=src/tasks/websocket_task.py --fail-under=76",
+        "cd apps/api && uv run coverage report --include=src/tasks/_ws_lease.py --fail-under=90",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 22",
+        "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks",
+        "cd apps/api && uv run coverage report --include=src/tasks/celery_app.py --fail-under=70",
+        "cd apps/api && uv run coverage report --include=src/tasks/websocket_task.py --fail-under=80",
+        "cd apps/api && uv run coverage report --include=src/tasks/_ws_lease.py --fail-under=92",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 22",
+        "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py",
+        "cd apps/api && uv run ruff check tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py",
+        "cd apps/api && uv run ruff format --check tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py"
+      ]
+    }
+  ]
+}
