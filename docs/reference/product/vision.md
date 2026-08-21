@@ -22,7 +22,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 4. **원클릭 라이브 전환** — 동일 코드, URL만 변경하여 라이브 트레이딩
 5. **(2026-05-04 Addendum) Auto-Loop 자동화** — Beat scheduler + Worker dispatch 로 dogfood/Beta 사용자가 매분 수동 개입 없이 평가→주문→close cycle 자동 실행 (Sprint 27 §0.5 dogfood Day 0-4 evidence: 26h+ 무중단, dispatch rate 1.0/min, 5 sessions 동시). **외부 노출 가능 핵심 신뢰 지표** — 처음 office-hours (Sprint 7c) 의 "curl/psql 감내" 가정이 dogfood 결과로 무효화, 자동화 필수성으로 승격. 상세: [`ADR-008`](../../decisions/008-sprint7c-scope-decision.md) "2026-05-04 Addendum"
 
-## 4 신규 도메인 (Sprint 12-27 dogfood 부상, Sprint 28 office-hours 재진행 시 명시)
+## 4 신규 도메인 (2026-05~06 dogfood 3개월 누적으로 부상 — 구 `Sprint 12~28` 구간)
 
 처음 vision (2026-04-14) 에는 미존재. dogfood 3개월 누적으로 부상한 cross-cutting 도메인:
 
@@ -31,7 +31,10 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 3. **Auto-Loop 자동화** — Sprint 27 §0.5 first run 으로 외부 노출 가능 신뢰 지표 부상 (위 핵심 가치 §5 와 동일).
 4. **Multi-account / symbol / timeframe Live Trading** — Sprint 26 PR #100. 두 ExchangeAccount + BTC/SOL + 1m/5m/15m/1h 혼합.
 
-이 4 도메인이 Sprint 28 narrowest wedge 정의 (BL-141 / BL-140b / BL-004 = Beta 진입) 의 evidence base.
+이 4 도메인이 당시 narrowest wedge 정의의 evidence base 였다.
+
+> ★**2026-08-21 정정.** 이 문단이 가리키던 `BL-141 / BL-140b / BL-004` 는 **원장 3종에 섹션이 없다**(아카이브됨). **Beta 진입의 현행 정의는 [BL-070](도메인·DNS) → [BL-071](백엔드 프로덕션 배포, self-host CE [ADR-033]) → [BL-072](Resend + Waitlist 활성화)** 이고, 그 뒤가 [BL-073](캠페인) · [BL-074](인터뷰) · [BL-075](H2 게이트)다 — 정본은 [`roadmap.md`](../../roadmap.md) §Beta 배포. ★**이 여섯은 `roadmap.md` 체크박스로만 살아 있고 원장 섹션이 없다** — 판정어 체계가 못 보는 상태다(2026-08-21 실측).
+> ★그리고 **[BL-070] 의 Cloudflare Access 축은 [BL-776] 뒤로 간다** — 걷으면 가입에 초대 토큰이 없어 **개방 가입만 열린다**(2026-08-16 사용자 결정).
 
 ## 차별화 (Positioning)
 
@@ -70,7 +73,7 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 
 - 프로젝트 스캐폴딩 (Next.js 16 + FastAPI + Docker)
 - 자체 인증 (Better Auth, ADR-034 — 최초 스캐폴딩은 Clerk 였다)
-- Pine Script 파서 (Regex 기반 MVP)
+- Pine Script 파서 (**당시** Regex 기반 MVP — ★현재 정본은 `apps/api/src/strategy/pine_v2/` **AST 인터프리터 21파일**이다)
 - 기본 백테스트 엔진 (vectorbt, 단일 심볼)
 - 전략 CRUD + 편집기 UI
 - 백테스트 결과 리포트 UI
@@ -78,16 +81,19 @@ QuantBridge는 이 세 단절을 **하나의 파이프라인**으로 연결한�
 ## Sprint 로드맵 요약 (기술 관점)
 
 > 상세 진행 상황은 [`status.md`](../../status.md). 본 섹션은 Phase 단위 **기술** 로드맵 한눈에 보기.
+> ★★**이 문서의 `Sprint NN` 좌표는 발화하지 않는다**(2026-08-21 실측 — 최근 80커밋 0건 ·
+> `status.md` 1건 · `roadmap.md` 3건 · **이 문서 14건**). 스프린트 번호로 항해하지 마라 —
+> 지금 좌표계는 **BL 번호 + 날짜**다. 아래 표는 **완료된 과거의 기술 순서**로만 읽어라.
 > **제품 로드맵(Horizon × Pillars, 비즈니스·수익화·Launch 포함)**은 [`roadmap.md`](../../roadmap.md) 참조.
 
-| Phase     | 기간 (계획) | 핵심 산출물                                             | 진행 상태                                                   | Horizon 매핑 |
-| --------- | ----------- | ------------------------------------------------------- | ----------------------------------------------------------- | ------------ |
-| Phase 0   | 1주         | 스캐폴딩 (Next.js 16 + FastAPI + Docker + Clerk※)       | ✅ 2026-04-15 완료 (※인증은 2026-08-17 Better Auth 로 교체) | (pre-H1)     |
-| Phase 1   | 4주         | Pine 파서 + 백테스트 + 전략 CRUD + 백테스트 리포트 BE   | ✅ Sprint 1~4 완료 (2026-04-16)                             | (pre-H1)     |
-| Phase 1.5 | 2주         | Infra Hardening + market_data (TimescaleDB hypertable)  | ✅ Sprint 5 완료 (2026-04-16)                               | (pre-H1)     |
-| Phase 2   | 4주         | 스트레스 테스트 + 파라미터 최적화                       | ⏳ Sprint 9~10                                              | **H2**       |
-| Phase 3   | 4주         | 데모 트레이딩 (Bybit/Binance), 리스크 관리, Kill Switch | ✅ Sprint 6 완료 + Sprint 7a Futures 완료 (2026-04-17)      | (pre-H1)     |
-| Phase 4   | 4주         | 라이브 트레이딩, 멀티 거래소, 알림                      | 🔄 Sprint 7b/7c/8a/8b                                       | **H1**       |
+| Phase     | 기간 (계획) | 핵심 산출물                                            | 진행 상태                                                                                                                  | Horizon 매핑 |
+| --------- | ----------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| Phase 0   | 1주         | 스캐폴딩 (Next.js 16 + FastAPI + Docker + Clerk※)      | ✅ 2026-04-15 완료 (※인증은 2026-08-17 Better Auth 로 교체)                                                                | (pre-H1)     |
+| Phase 1   | 4주         | Pine 파서 + 백테스트 + 전략 CRUD + 백테스트 리포트 BE  | ✅ Sprint 1~4 완료 (2026-04-16)                                                                                            | (pre-H1)     |
+| Phase 1.5 | 2주         | Infra Hardening + market_data (TimescaleDB hypertable) | ✅ Sprint 5 완료 (2026-04-16)                                                                                              | (pre-H1)     |
+| Phase 2   | 4주         | 스트레스 테스트 + 파라미터 최적화                      | ✅ 완료 — Stress Test·Optimizer 는 `CONTEXT.md` 의 핵심 도메인 6종에 들어 있다                                             | **H2**       |
+| Phase 3   | 4주         | 데모 트레이딩, 리스크 관리, Kill Switch                | ✅ 완료 (2026-04-17) — ★**Bybit 만이다.** Binance 는 연결 코드가 0건이고 `lib/marketing-canon.ts` 도 `roadmap` 으로 적는다 | (pre-H1)     |
+| Phase 4   | 4주         | 라이브 트레이딩, 멀티 거래소, 알림                     | 🔄 진행 — 라이브·알림은 있고 **멀티 거래소는 [BL-015] 로 보류**(2026-08-18 P1→P3)                                          | **H1**       |
 
 > 본 Phase 표는 **기술 관점**의 로드맵이다. "언제 외부 공개할지 / 어떻게 수익화할지 / 어떤 규제 프레이밍을 쓸지" 같은 **제품 관점 결정**은 [`roadmap.md`](../../roadmap.md) 참조.
 

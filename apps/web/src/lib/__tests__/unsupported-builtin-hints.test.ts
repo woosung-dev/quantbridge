@@ -61,12 +61,11 @@ function expectMappedCategory(
   expect(hint.hint).not.toHaveLength(0);
 }
 
+// [BL-814] 종결 (2026-08-21) — 종전 이 헬퍼는 `{ name }` 만 나오는 **결함 동작을 고정**하고
+// 있었다(`Object.prototype` 상속 키가 truthy 로 잡혀 hint·category 가 사라졌다).
+// 수리 후에는 상속 키도 **일반 미적중과 똑같이 fallback** 을 받아야 한다.
 function expectInheritedPrototypeLookup(name: string): void {
-  const result = getUnsupportedBuiltinHint(name);
-
-  expect(Object.keys(result)).toEqual(["name"]);
-  expect(result.hint).toBeUndefined();
-  expect(result.category).toBeUndefined();
+  expectFallback(name);
 }
 
 describe("unsupported builtin hints", () => {
@@ -132,9 +131,9 @@ describe("unsupported builtin hints", () => {
     expectFallback("currency.USDXYZ123");
   });
 
-  // 이것은 결함이다 — 대상 무변경이 이 lane 의 계약이라 지금 동작을 고정만 한다.
+  // [BL-814] 수리 확인 — 상속 키도 일반 미적중과 같은 fallback 을 받는다.
   it.each(["toString", "__proto__", "constructor", "valueOf", "hasOwnProperty"])(
-    "returns only the name for the inherited prototype property name %s",
+    "returns a fallback for the inherited prototype property name %s",
     (name) => {
       expectInheritedPrototypeLookup(name);
     },

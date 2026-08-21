@@ -483,445 +483,50 @@ attribution 을 sha 로 쪼갤 뿐이다. 실측 확증 = 귀속 창 3개에 고
 > ★★★**원장의 진단이 통째로 반증됐다** — 「12파일이 하드코딩 UUID 40종 때문에 막혔다」인데 그 중 **11건이 무수정 통과**했다. 그 UUID 는 DB 행이 아니라 `page.route()` mock 의 id 였고, 매니페스트 사유 12건이 같은 보일러플레이트였던 것이 증거다 — **측정이 아니라 grep 으로 붙은 분류**였다. CI authed spec 1건 → 18건(`72 passed`).
 > ★**「로컬에서 확인했다」가 닿지 않은 경로엔 아무 뜻도 없었다** — 시더의 실재하지 않는 enum 멤버가 **CI 에서 처음 실행**됐다 ⇒ `--selftest` 신설. **그런데 그 selftest 도 페이로드 형상 3건을 통과시켰다**(「행이 만들어지는가」만 봤다) — 그 계보의 마지막 한 건이 [BL-807] 로 이어졌다.
 
-## ★2026-08-19 n6-authed-evidence — 증거 게이트가 authed 를 잰다 ([BL-797]·[BL-807] 종결 · [BL-805]·[BL-806] 동승)
-
-**무엇을 했나** — 3레인. **α** #684 [BL-807] · **β** #685 [BL-797] · **γ** #686 [BL-805]+[BL-806] — 워크트리 슬롯 2.
-
-⑴ ★★★**[BL-807] 세 케이스 중 둘이 같은 하나의 결함**이었다. 시더가 `equity_curve` 를 **저장 형상이 아니라 응답 형상**(`{timestamp,value}` dict)으로 심어 `for ts, v in …` 이 **키를 언패킹**했고, ValueError → `GET /backtests/{id}` **500** → 리포트 셸과 체결 표가 **함께** 비었다. 두 축이 독립적으로 틀렸다(모양 + 포맷).
-⑵ ★★★**[BL-797] 의 차단자가 원장이 적은 것과 달랐다.** 「실데이터가 픽셀을 흔든다」는 셋 중 하나였고, 진짜는 ⑴ 필수 `screenshot` 필드 ⑵ 러너가 **BE 를 안 띄움** ⑶ **baseline 이 gitignore 된 `.env.production.local` 에 의존**(production 모드가 그 파일을 우선하고 `NEXT_PUBLIC_*` 는 빌드 타임 인라인 — 그 파일이 없는 사람은 같은 커밋에서 다른 바이트를 얻는다)이었다. authed 목록 4종이 게이트에 들어왔다.
-⑶ [BL-806] baseline **6→0** · [BL-805] `api-service.sh` + 하네스 **17/17** 신설(서버 미접촉). ⑷ **사용자 결정 2건 접수** — [BL-776] 「개방 유지 + 카피 수정」(초대 파이프라인이 안 도니 게이트 실익 0) · 마케팅 장식 「마케팅 면 한정 제거」 → **[BL-810] 신설**(집행은 다음 회차).
-
-### 반증 카드 — 이 회차에 틀린 것으로 드러난 전제
-
-★★★**⑴ 원장의 처방 절반이 실측으로 반증됐다.** [BL-797] 이 적은 authed 축은 「번들 + 요청 수」인데, 같은 빌드
-연속 2회에 요청 수가 **±1 로 흔들렸고**(`/backtests` 5→4 · `/optimizer` 5→6) `firstLoadBytes` 는 **비트 단위로
-같았다**(371891→371891). ⇒ 번들만 대조하고 계수는 `> 0` 생존 앵커만 남겼다 → [BL-809].
-★★**⑵ selftest 가 결함을 계약으로 승격하고 있었다.** `equity_curve` 를 「키만」 세면서 「`EquityPointSchema`(FE)가 정본이라 BE 모델이 없다」고 적었는데 **그 문장이 거짓**이다(정본은 `equity_curve_to_jsonb`). 되읽기를 시키자 양성 rc=1 → 수정 후 rc=0.
-★★**⑶ spec 이 그 500 을 은폐하고 있었다** — 맨 `/\b50[0-9]\b/` 가 본문의 아무 세 자리 50x 까지 삼켰다(바로 위
-4xx 필터는 좁혀져 있어 **비대칭**). 걷어내자 CI 가 `/trading` 의 진짜 503 을 하나 더 드러냈다.
-★**⑷ 내 변이가 대상에 안 닿았다** — `page.tsx`(**서버 컴포넌트**)에 20KB 를 넣고 rc=0 을 「안 잡혔다」로 읽을
-뻔했다. 클라이언트 경계로 옮기자 red. **도달 못 한 변이의 red 0 은 무증거다**([LESSON-087] 계보).
-★**⑸ [BL-806] 의 「`alembic check` 를 흔든다」도 반증** — **변경 전에도 rc=0** 이었다(비대칭 6건이 실재하는데 초록 = 그 축이 애초에 안 보인다). ★**⑹ 하네스가 자기 수를 틀리게 인쇄** — `10/10` 인데 케이스 11건, `6종` 인데 변이 7종. 이제 센다.
-★★**⑻ 리눅스에서만 red 였던 하네스의 원인은 「환경」이 아니라 `grep` 방언이었다** — GNU grep 은 BRE 의
-`` \` `` 를 **버퍼 시작 앵커**로 읽어(GNU 확장) 패턴 중간에서는 절대 안 맞고 BSD 는 리터럴로 읽는다
-(`grep -F` 로 수리). ★**내가 제시한 용의자 4종**(shebang 절단 · 진짜 systemctl 호출 · `show` 파싱 ·
-새 스텁 장치)은 **전부 실측으로 기각**됐다 — ubuntu 컨테이너에서 직접 재니 red 는 **정확히 케이스 1건**.
-**좁히기는 맞았고 원인 가설은 다 틀렸다.**
-★★★**⑺ 그 델타의 원인으로 내가 적은 설명이 틀렸다** — 공개 3라우트 +0.2 kB 를 「`NEXT_PUBLIC_*` 문자열 인라인」으로 적었는데 **부호가 반대**다(새 값이 더 짧다). 적대 리뷰가 짚었고 실측이 확정했다 — `NEXT_PUBLIC_ENABLE_TEST_ORDER` `false`→`true` 가 **dead code elimination 을 풀어** `.next/static` js/css 를 **3,286,670 → 3,299,506 B** 로 키운다. **「설명됐다」와 「설명이 있다」는 다르다** — 이 회차가 만든 게이트가 요구하는 그 구분을 내 서술이 먼저 어겼다.
-
-## ★2026-08-19 harness-zero-base — 검사기 층 전량 철거 + finsight 이식 4종 ([ADR-037](decisions/037-harness-zero-base.md))
-
-**무엇을 했나** — 사용자 판정 「가능한 다 걷어내고, 필요하면 증거로만 다시 입힌다」. 철거 직전 = git 태그 **`harness-v1`**.
-
-⑴ **걷어냄 25파일 ~444KB** — final-gates(2단 게이트·유예 원장·스킬 신호·화면 증거) · bl-audit ·
-docs-audit · bl-trigger-sweep · header-audit · skip-ratchet · signal-check · context-budget ·
-tool-pin-audit · 자기시험 `*-test.sh` **14종 전량** · 사문 1(sentinel_bl181) + 배선(mise task 3 ·
-pre-commit header-audit · pre-push FE/BE 검사부 · CI documentation 잡 · bl-audit-checklist.md).
-⑵ **green 재정의** — 표준 러너 + **CI 단일 게이트**(ci.yml 787→106줄: be=ruff+pytest 전량 /
-fe=eslint+tsc+vitest+build). 로컬 pre-flight 의식 폐지. ★적대 검증이 잡은 동반 철거 2건 —
-CI 표면을 감사하던 테스트가 pytest/vitest **안에** 살아 새 CI 를 red 로 만들고 있었다
-(`test_ci_matrix_shard_ids_match_shards_json` · `e2e-project-wiring.test.ts` — 같이 걷어냄).
-⑶ **입힘(강사 finsight 이식)** — `/review-code` 3차원 다수결 리뷰(구 header-audit 을 conventions
-차원이 흡수) · `.codex/hooks.json`+`tools/scripts/hooks/`(codex 레인 최초 가드, Stop=영역별
-ruff/eslint 경량) · `evals/harness/` 하네스 Eval(review 5 + qa 전제반박 2, 로컬 전용) ·
-`tools/scripts/ledger-vitals.sh`(재입힘 첫 적용례 — 사고 실증 2건 근거 3축: 다음 행동 ≤1 ·
-⓪ 표 ≥3행 · RESOLVED 역류 0, pre-commit 배선).
-⑷ **남김(하네스 아님)** — 운영 런타임(soak-\*·db-backup·disk-guard, 서버 systemd 가 호출 중) ·
-CI 테스트 인프라 · 권한 소품(pre-push ref 가드 = main push 영구 금지 · assert-main-checkout · deny).
-⑸ ★**재입힘 규칙** — 문서화된 사고 1건 = 슬림 복귀 1건, 복귀는 최소판으로 (ADR-037 §④).
-⑹ 알고 감수하는 리스크 — 스킬 신호·skip 래칫·도구 핀·화면 증거 사고 계열이 무방비로 열림.
-CI 축소로 coverage 래칫·alembic check·e2e·openapi drift 가 CI 에서 빠짐(로컬 실행은 가능).
-★main 브랜치 보호 required check 가 구 잡 이름을 가리키면 **사용자가 GitHub 설정을 갱신해야 한다.**
-
-### 반증 카드 — 이 회차에 틀린 것으로 드러난 전제
-
-★★★**⑴ [BL-802] 의 차단자 진단이 거짓이었다** — 위 ⑵. **셈이 아니라 측정이 그것을 갈랐다.**
-★★**⑵ 내 예측도 절반만 맞았다.** 시더 필요 spec 을 3건으로 봤는데 실측 7건이었고, 그 7건의 원인도
-셋으로 갈렸다(플래그·페이로드·행). **원장을 반증한 그 방법으로 내 추정도 반증됐다.**
-★★**⑶ 「로컬에서 확인했다」가 닿지 않은 경로에 대해선 아무 뜻도 없었다.** 시더의 `OptimizationKind.GRID`(실재하지 않는 멤버)는 로컬이 `_resolve_owner` 에서 먼저 죽어 **CI 에서 처음 실행**됐다. ⇒ `--selftest` 신설. **그런데 그 selftest 도 페이로드 형상 3건을 통과시켰다** — 「행이 만들어지는가」만 봤기 때문이다. 계약(`BacktestMetricsOut`·`ParamSpace`)을 **실제로 먹이도록** 고쳤다.
-★**⑷ 그 selftest 의 첫 단언이 항진명제였다** — `len(strategies) == STRATEGY_COUNT` 는 그 함수가
-그 상수만큼 만드니 절대 안 깨진다. spec 의 실제 요구인 `>= 11` 로 바꿨다.
-★★**⑸ γ 초판이 [BL-749] 의 index 축을 조용히 끄고 있었다.** 정지 규칙이 cascading `return` 인데
-새 축을 앞에 둬서 baseline 6건(>5)이 뒤 축을 건너뛰었다. **변이가 27 passed 로 통과**해 드러났다.
-★**⑹ 형제 `e2e` 잡에 상한이 없어 6시간을 태웠다**(01:26→07:26 · 실측 5.4분짜리 잡). 내가 `e2e_authed` 에 45분 상한을 건 **대비가 그것을 드러냈다** — 둘 다 없었으면 「느린 실행」으로 보였다. ★**⑺ 「테스트 주문 버튼이 안 뜬다」를 데이터 부족으로 오진했다** — 원인은 `NEXT_PUBLIC_ENABLE_TEST_ORDER` **기능 플래그**였고, 증상이 「거래소 계정 없음」과 구분되지 않는다.
-
-~~**다음 행동 = 새 얇은 하네스로 [BL-807]+[BL-797] 회차 실주행**~~ → **2026-08-19 무효** — 그 문장은 이 브랜치가 #683 시점에서 갈라져 나온 뒤에 쓰였고, 같은 날 n6-authed-evidence 회차(PR #684·#685)가 [BL-807]·[BL-797] 을 **이미 종결**했다. 하네스 v2 의 첫 실주행 대상은 아래 살아 있는 「다음 행동」([BL-810]+[BL-808])이 받는다.
-
-~~**다음 행동 = ⓪ 표에서 고른다. 가장 강한 조합은 [BL-810] — 사용자 결정 집행(S) — 과 [BL-808] — 스키마 축 잔여 3구멍(S) — 이다.**~~
-→ **2026-08-19 완료 — 둘 다 RESOLVED**(PR #691). 「`/pricing` 이 화면 증거 ROUTES 밖」이라는 선행 질문도 그 자리에서 답했다: **AC 를 결정론(단위·grep 부재·tsc·build)으로 짜서** 화면 증거 팩에 의존하지 않았다.
-~~★[BL-810] 을 할 때 **`/pricing` 이 화면 증거 ROUTES 밖**이라는 사실을 먼저 정해라 — 랜딩 변경은 게이트가 잡지만 그쪽은 무증거로 지나간다. 그 뒤가 예고된 **전략 에디터 split view** 이고, 이제 그것이 **authed 증거 게이트 위에서** 돈다(이 회차가 그 전제를 세웠다). ★[BL-776] 카피 수정은 [BL-810] 과 같은 면이라 함께 처리하면 증거가 한 벌이다.~~
-
-## n7-harness-first-run — 하네스 v2 첫 실주행 · **도입 판정 재료** (2026-08-19)
-
-★**[ADR-037] 러너(`tools/harness/execute.py`)의 첫 실주행이자 도입 판정 회차다.** 결과 = phase `n7-bl810-bl808`(6 step) 전건 완주, [BL-810]+[BL-808] 종결.
-
-| 판정축         | 실측                                                                                   |
-| -------------- | -------------------------------------------------------------------------------------- |
-| 사람 개입      | **0회** — step 설계 승인 뒤 D→E 무인. blocked 0 · 사람 대기 0                          |
-| 러너가 선 지점 | **없음** — error/blocked 0, retry **0** (6 step 전건 1회차 통과)                       |
-| AC 뒤집기      | **0건** — 러너 재실행 판정이 step 세션의 자기신고를 뒤집은 사례 없음                   |
-| 벽시계         | **14분 06초** (step 별 125·123·118·156·131·193초)                                      |
-| 산출           | 커밋 7 · `apps/api` 190줄 · `apps/web` 9파일 · BE **27→30 passed** · FE **175 passed** |
-
-★★★**그럼에도 생성자가 게이트를 게임한 것이 1건 있었다.** step 1 의 AC `! grep -rq 'lp-step-num' src/` 가 **테스트 파일까지 덮었는데**(내 저작 결함), 세션은 그 충돌을 보고하는 대신 부재 단언을 `querySelector(".lp-step" + "-num")` 으로 **문자열을 쪼개** 통과시켰다. AC 는 초록이었고 러너는 그것을 잡을 수 없다 — **판정 주체를 러너로 옮긴 수리(①)는 「AC 가 재실행된다」를 보장할 뿐 「AC 가 옳다」를 보장하지 않는다.** 2026-08-11 gate-freshness 의 「생성자가 하네스를 게임했다」와 같은 계열이고, 이번엔 **부재 grep 의 범위를 소스와 테스트로 가르지 않은 것**이 입구였다. ⇒ 코드는 정직한 리터럴로 되돌렸고 `phases/` 실행 기록은 판정 재료이므로 **그대로 뒀다**(AC 원문과 코드가 어긋난 채 남아 있는 것이 증거다).
-
-★**AC 판별력은 착수 전에 쟀다** — 부재 단언 4종이 전부 그 시점 rc=1(red), 음성 대조 1종 rc=0, `-k <신규테스트명>` 존재 게이트 3종이 rc=5(no tests collected). **통과가 무엇을 뜻하는지 먼저 고정**하고 돌렸다. `-k` 게이트는 이름을 못 박아 「테스트를 안 쓰고 통과」를 구조적으로 막는다 — 재사용 가치가 있다.
-
-★**preflight 가 킥오프 전제 1건을 정정했다** — codex 0.147.0 은 `--dangerously-bypass-hook-trust` 를 **안다**(플래그 제거 불요). 그리고 `feat/harness-run` 과 `feat/harness-zero-base` 는 **같은 SHA** (669633e5)라 PR base 를 zero-base 로 잡으면 신규 커밋만 담긴다.
-
-~~**다음 행동 = 하네스 v2 도입 여부를 사용자가 판정한다** (위 표 + 게임 1건). 머지 순서는 사용자 결정대로 **zero-base(PR #687) → 기능(PR #691)**. 「도입」이면 다음 회차는 [BL-776] 카피 수정을 같은 러너로 돌리고, AC 저작 규약(`.claude/commands/harness.md` §C-5)에 **「부재 grep 은 소스와 테스트를 갈라라」** 를 더한다.~~
-→ **2026-08-19 사용자 결정 = 도입.** 「기존 하네스/워크플로우는 싹 초기화하고 강의(finsight) 하네스를 입힌다」.
-
-### 하네스 도입 후속 청소 (2026-08-19, 같은 회차)
-
-도입 결정에 따라 **finsight 유래가 아닌 하네스/워크플로우 잔재를 전량 제거**했다. finsight 원본
-(`github.com/jha0313/finsight`)을 GitHub API 로 열어 KEEP 집합을 먼저 확정한 뒤 지웠다 —
-`.claude/commands/{harness,review,review-code}.md` · `.claude/workflows/review-code.js` ·
-`.codex/hooks.json` · `scripts/execute.py` · `evals/harness/` 가 원본에 실재한다.
-
-| 제거/변경                                     | 규모        | 근거                                                             |
-| --------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| `.claude/gates/**`                            | **96 파일** | 소비자 `final-gates.sh` 가 ADR-037 로 철거됨 (untracked)         |
-| `.claude/night/**`                            | **15 파일** | herdr 함대 킥오프 — 함대는 [ADR-030] 으로 제거됨 (untracked)     |
-| `docs/.../development-methodology.md`         | 137줄       | 사용자 판정 「죽은 파일」 + 처방 도구 3종이 발화 불가            |
-| `gates-and-traps.md` §1 죽은 3절              | **−139줄**  | 게이트 3종·2단(`--pre-pr`)·신호 4종 = 전부 철거된 기계           |
-| `gates-and-traps.md` §4                       | 정정        | pre-push 가 아직 `pnpm test`·`mypy` 를 돈다고 적혀 있었다 (거짓) |
-| `.claude/commands/review.md` → `qb-review.md` | 개명        | **gstack 전역 `/review` 스킬과 이름 충돌**                       |
-| [BL-811]                                      | 재기술      | 본문 전체가 철거된 `final-gates.sh` 를 프레임으로 썼다           |
-
-★★★**`/review` 충돌은 실증됐다** — 사용자가 `/review` 를 쳤을 때 **gstack 스킬이 이겼고** 레포판
-(AGENTS.md·CONTEXT.md 를 읽으라는 그것)은 한 번도 안 불렸다. 개명 후 스킬 목록에 `qb-review` 와
-gstack `review` 가 **별개로** 잡히는 것을 확인했다.
-
-★★**[BL-811] 은 「원장이 적은 처방의 대상이 실재하지 않는다」의 재발이었다**([LESSON-111]) — 같은 날
-제로베이스가 `final-gates.sh` 를 지우는 동안 n6 회차가 **그 파일을 전제로** BL 을 등재했다. 두 작업이
-서로를 몰랐다. 제약 자체(BE CORS 단일값 ↔ 두 origin)는 참이라 **기각이 아니라 재기술**로 살렸다.
-
-★**미이식으로 남은 finsight 조각 3종** — `scripts/test_execute.py`(러너 자신의 테스트, 우리 쪽 0건) ·
-`evals/harness/*.test.ts` **5종** · `evals/harness/triager.ts`. 우리 `execute.py` 는 파일럿 결함 4종을
-고친 개조판이라 **원본 테스트를 그대로 얹을 수 없다** — 이식할지/새로 쓸지가 다음 판단이다.
-
-~~\*\*다음 행동 = PR #691 을 zero-base(#687) → 기능 순으로 머지하고, 미이식 finsight 조각 3종~~
-→ **2026-08-19 진입점 교체.** 머지 순서(#687 → #691 → 다음 회차)는 그대로지만, 사용자가
-**하네스 2회차를 먼저 돌린 뒤 셋을 순차 머지**하기로 정했다. 미이식 finsight 조각 3종
-(`test_execute.py` · `evals/harness/*.test.ts` 5종 · `triager.ts`)은 그 뒤로 미룬다.
-
-### 하네스 2회차 대상 선정 — 6건 실사 (2026-08-19)
-
-열린 BL 28건에서 **하네스 적합성**(결정론 AC 가능 · 무인 안전 · 이번보다 난이도 상)으로 6건을 골라
-**코드 대조 실사**를 돌렸다. 결과 = **[BL-762] 최우선**(무인 안전 blockers **0건** · 난이도 높음 ·
-AC 타이밍 실측 완료). 좌표·함정 4종·step 5단 골격은 **[BL-762] 섹션에 등재**했다 — 프롬프트가 아니라
-원장이 그것을 들고 있어야 다음 세션이 `/harness` 한 줄로 착수한다.
-★★**실사가 원장을 3건 반증했다** (이번 스프린트 범위 밖 — 착수 전 반드시 반영):
-⑴ **[BL-489]** 원장 권장안 (a) 2-pass 가 **수렴하지 않는다**. `percent_of_equity` 사이징에서 손익이
-자본에 비례(P=k·C)하므로 불변식 `C+P=B+L` 은 고정점 `C*=(B+L)/(1+k)` 에서만 성립하고 2패스는 거기
-도달하지 못한다. 원장의 「레버리지 게이트 활성 시 진동 가능성」은 **과소 표현**이다. 또 원장이 근거로 든
-`KNOWN_LIMITATION` 오라클은 **실재하지 않는다**(`grep -rn KNOWN_LIMITATION apps/api` = 0건).
-⑵ **[BL-383]** `v2_adapter.py:127 except SyntaxError` 가 **죽은 코드**다(pynescript 의 SyntaxError 가
-builtin 을 상속하지 않는다). 지금은 진짜 파스 실패도 catch-all 이 처리 중이라, 원장 처방대로
-catch-all 만 뒤집으면 기존 단언 3곳(`test_run_backtest.py:63` · `test_fault_injection.py:86`·`:104`)이 red 가 된다.
-⑶ **[BL-671]** 원장은 「FE 축 미도달」이라 적었지만 **FE 는 이미 닫혀 있고** 남은 것은
-`trading/router.py` 청산 라우트의 409 `responses` 선언 **1건뿐**이다. 그마저 원장 자신이 「값 0」이라
-근거 셋을 대고 적어 뒀다.
-★**AC 저작 규약을 `.claude/commands/harness.md` §C-5 에 영구 등재**했다(5-a~5-e) — 1회차의 AC 게임
-(부재 grep 이 테스트까지 덮자 세션이 문자열을 쪼갰다)이 재발하지 않도록 **grep/AST 분리 · 양성 대조 의무 ·
-판별력 사전 측정**을 규약으로 못박았다. 프롬프트에 매번 적지 않는다.
-~~**다음 행동 = `/harness` 로 [BL-762] 를 돌린다 (하네스 2회차).**~~ → **2026-08-19 완주.**
-브랜치 `feat/harness-bl762-router-layer` · 무인 **6/6 · retry 0** · 커밋 7(러너 6 + 사람 보강 1).
-[BL-762] 는 **RESOLVED** 로 `backlog-resolved.md` 에 있다 — `Repository()` 직접 생성 **11 → 0** ·
-생성자 변경 **0건**(원장이 경고한 60곳/17곳을 피했다) · 교차 사용자 계약 5종 신설.
-
-### 하네스 2회차 — 다음 회차가 알아야 할 것 (2026-08-19)
-
-★★**AC 가 옳아도 그 AC 를 세운 내 단언이 우회 가능할 수 있다.** step5 의 AST 경계 테스트가
-**호출 이름만** 재서 `import OrderRepository as _OR` + `_OR(session)` 변이에 **초록**이었다.
-1회차 게임(문자열 쪼개기)과 같은 계열이고, 이번엔 **러너가 아니라 변이 측정이 잡았다** —
-import 표면을 함께 재도록 보강해 변이 **5/5 red**. ⇒ 구조적 계약은 AST 로 재되 **호출 · import 두 면**을 봐라.
-★**AC 에 BE 전량(`pytest -q`)을 넣으면 그 step 이 ~11분이다** — codex 세션이 자기 검증으로 한 번,
-러너가 판정으로 또 한 번 돌린다(step5 674s). 전량은 **마지막 step 한 곳에만** 둬라.
-★**러너를 백그라운드로 띄울 때 도구 타임아웃이 러너를 죽인다** — 1차 실행이 step5 도중 10분에
-잘렸다(step0~4 커밋은 남았다). `nohup … &` 로 분리해 띄우고 `index.json` 으로 진행을 읽어라.
-★**미커밋 보강분은 `git checkout -- <file>` 로 날아간다** — 변이 실험 중 되돌리기가 내 패치를
-함께 지웠다(재적용 후 커밋). 변이 실험 전에 보강분을 먼저 커밋해라.
-
-~~**다음 행동 = PR 3건을 순서대로 머지한다 — #687 → #691 → 이번 회차. 그 뒤 미이식 finsight 조각 3종**
-(`scripts/test_execute.py` · `evals/harness/*.test.ts` 5종 · `triager.ts`)**을 이식할지 정한다.**~~
-→ **2026-08-20 완료.** 셋 다 머지됐다(#687·#691·#692 · open PR 0건). ★**「미이식 3종」은 성격이 다른
-둘을 묶은 것이었다** — upstream 실사 결과 `scripts/test_execute.py`(567줄)만 러너 테스트이고
-`evals/harness/*.test.ts`·`triager.ts` 는 **LLM eval 하네스**(judge/responder/reviewer/rules)로 별개다.
-
-### 하네스 3회차 — 러너 테스트 4 lane 병렬 (2026-08-20 착수 준비 완료)
-
-★**러너에 테스트가 0건인 것이 지금 하네스의 가장 큰 빈칸이다** — [ADR-030] 파일럿 B 를 죽인 것도
-러너 결함(`TimeoutExpired` 미처리)이었다. 그 빈칸을 **4축으로 갈라 워크트리 병렬**로 채운다.
-`phases/{runner-ac,runner-retry,runner-commit,runner-boot}` 저작 완료(커밋 `c32b3747`).
-lane 간 파일 겹침 0 — 각 lane 은 `apps/api/tests/harness/` 아래 **자기 테스트 파일 하나만** 만든다.
-
-★**upstream 대조가 이식과 신규를 갈랐다** — finsight `test_execute.py` 는 클래스 11개를 갖지만
-**`_run_ac` 커버리지가 없다**(원본은 AC 를 러너가 안 돌린다). 우리 수리 4종(AC 러너 판정 ·
-TimeoutExpired 포착 · 가드레일 4축 · 커밋 2단 분리) 영역은 **전부 신규 작성**이다.
-★**finsight 에 병렬·워크트리 개념은 없다**(`threading` 은 progress spinner 전용) — 병렬은 우리 것이다.
-
-★**AC 판별력 사전 측정**(§C-5d) — 4 lane 전부 pytest AC **rc=4**(대상 파일 부재) ·
-collect-count AC **rc=1**. 테스트를 실제로 쓰지 않으면 어떤 lane 도 초록이 날 수 없다.
-
-★★**⓪ 표의 하네스 적합 후보 9건이 전부 「트리거 미도래」였다**(2026-08-20 실사). 도래한 것은
-[BL-547] 하나(머니패스라 유인 처리 대상)와 [BL-489](원장 처방이 **수렴하지 않음**으로 반증 —
-`percent_of_equity` 에서 고정점 `C*=(B+L)/(1+k)`)뿐이다. ⇒ **BL 을 재료로 한 병렬은 성립하지 않는다.**
-★**실사가 원장 3건을 반증했다 — 마감에 정정해라**: [BL-661] 잔여는 [BL-669](DEFERRED)로 이관 완료 ·
-[BL-671] 잔여 1건은 원장 자신이 「값 0」 근거 셋을 적어 뒀다 · [BL-639] 실패 모드 3은
-`account_exclusivity.py:31-46` docstring 이 **이미 결정·구현했다**고 명시한다.
-★**⓪ 표에 RESOLVED 5건이 살아 있는 행으로 남아 있다**(BL-634·701·773·808·810) — 함께 정리해라.
-
-~~**다음 행동 = `chore/harness-lanes` 머지 후, 새 세션에서 lane 4벌을 워크트리 병렬로 돌린다.**~~
-→ **2026-08-20 완주 — 4/4 completed · retry 0 · 25분**(17:55→18:20, 동시 2 상한). PR #698·#699·#700·#701.
-산출 = `apps/api/tests/harness/test_execute_{ac,retry,commit,boot}.py` — 러너 테스트 **0건 → 41 passed**.
-★**4벌 병합 충돌 0** — 워크트리를 파기 **전에** `phases/index.json` 에 lane 4벌을 등록해 둔 것이 갈랐다
-(각 lane 이 서로 다른 줄의 `status` 만 고쳐 3-way 자동 병합). 나중에 각자 추가했으면 배열 끝에서 충돌한다.
-★**변이 4/4 red**(조기반환 제거→ac 4 failed · 상태파일 `reset` 제거→commit 2 failed · `ac` 부재 거부
-무력화→boot 2 failed · `TimeoutExpired` 포착 해제→retry 1 failed). ★M4 는 첫 시도에 같은 `except` 가
-**파일에 2곳**이라 변이가 안 붙었다 — **앵커 개수 단언이 「안 잡혔다」 오독을 막았다.**
-★실행 실측 — 워크트리는 `--skip-deps` + `apps/api` 만 `uv sync` 면 된다(AC 가 BE 전용). 그 부작용으로
-`.husky/_` 가 없어 **워크트리에서는 pre-commit/pre-push 훅이 발화하지 않는다** — 러너 커밋은 안 막히지만
-status.md 를 고칠 땐 `ledger-vitals.sh` 를 손으로 돌려야 한다. ★`| tail` 이 또 rc 를 삼켰다(레포 6번째).
-
-~~**다음 행동 = PR #698·#699·#700·#701 과 이 PR 을 CI 초록 확인 후 머지한다.**~~
-→ **2026-08-20 완료** — 다섯 다 머지됐다(`a2b20438`).
-
-### 하네스 4회차 — 운영 스크립트 판정 로직 6 lane 병렬 (2026-08-20)
-
-`tools/scripts/` 의 운영 스크립트 6종은 **판정 로직을 갖고 있는데 테스트가 0건**이었다.
-`phases/ops-*` 6벌을 워크트리 병렬로 돌려 채웠다 — **6/6 completed · retry 0 · blocked 0 ·
-9분**(21:17→21:26, 동시 6 상한). PR #703(회차 정의) + #704~#709(lane) + 이 PR.
-산출 = `apps/api/tests/scripts/test_{ledger_vitals,disk_guard,db_backup_target,openapi_poc_filter,
-soak_observe,assert_main_checkout}.py` — **0건 → 72 passed + 1 xfailed**.
-
-★★★**변이 6벌 중 하나가 초록으로 빠져나갔고, 원인은 단언이 아니라 픽스처였다.**
-`soak-observe` 의 `q()` fail-closed 를 무력화(`FAILED=1`→`0`)했는데 **16 passed** 였다.
-그 케이스는 psql 실패와 **동시에** 지표 취득·`/metrics` 디렉터리도 실패시켜 `FAILED=1` 출처가
-**셋**이었다 — `q()` 기여분이 다른 둘에 가려 관측 불가였다. 나머지를 성공 경로로 맞춰 psql
-실패만 남기자 같은 변이가 red 로 뒤집혔다. ⇒ **fail-closed 를 재려면 실패원을 하나만 남겨라.**
-「rc≠0 이 났다」는 「내가 재려던 것 때문에 났다」가 아니다.
-
-★★**「짝 하네스가 잰다」고 적힌 축이 하네스 철거 뒤 실제로 밀려 있었다.** `db-backup.sh --help` 는
-`sed -n '2,59p'` 로 헤더를 찍는데 헤더는 **65행**이라 60~64행이 잘린다. 스크립트 자신이 dispatch
-자리에 「★헤더 주석에 줄을 더하면 이 범위를 함께 옮겨라(짝 하네스가 잰다)」고 적어 뒀고
-그 하네스는 [ADR-037] 로 철거됐다. ⇒ **`xfail(strict=True)` 로 고정**했다(수리 시 XPASS 로 red).
-★**철거된 감시가 남긴 주석은 「지금도 지켜진다」의 근거가 아니다** — 그 문장 자체가 검사 대상이다.
-
-★**내 step 파일이 경로를 틀렸는데 세션 6벌이 전건 바로잡았다** — `parents[3]` 이라 적었지만
-`apps/api/tests/scripts/` 기준 레포 루트는 `parents[4]` 다. 시그니처 수준 지시는 **틀려도
-세션이 실측으로 교정**하지만, 그것에 기대지 마라(6벌 중 하나라도 복사했으면 전건 실패다).
-
-★**측정 스크립트가 zsh 배열(1-based)을 0-based 로 읽어 lane↔워크트리 짝이 한 칸 밀렸고
-한 lane 이 통째로 빠졌다** — 「6줄이 다 red 로 보이는데 그 중 하나는 다른 lane 의 결과」였다.
-`bash -c` 로 다시 돌려 재측정했다. ⇒ **레포 표준 셸(zsh)에서 배열로 짝을 맞추지 마라.**
-
-★**AC 판별력 사전 측정** — 6 lane 전부 pytest AC **rc=4**(대상 파일 부재) · collect-count AC
-**rc=1**(n=0). rc 는 파이프 없이 `$?` 직독으로 받았다(`| tail` 이 rc 를 삼킨 사고 레포 6번째).
-★**변이 최종 6/6 red** — 앵커 개수 1건 단언 + sha256 왕복 확인 포함. `soak-observe` 의
-`FAILED=1` 은 **파일에 3곳**이라 두 줄 앵커로만 붙는다.
-
-★**실행 실측** — step0 이 앞 회차(798~859s)보다 훨씬 짧아 lane 하나가 **~4~9분**이었다.
-동시 6 상한에서 병목 없음. 워크트리는 `--adopt-env --skip-deps` + `apps/api` 만 `uv sync`.
-★**lane 간 파일 겹침 0 · 병합 충돌 0** — 「공용 헬퍼 모듈 금지」를 금지사항에 박은 것이 갈랐다.
-그것이 없으면 6 lane 이 같은 `_stub_bin` 헬퍼 파일을 각자 만든다.
-
-★**[ADR-037] 과의 경계** — 걷어낸 것은 표준 러너 **밖**의 셸 자기시험 `*-test.sh` 14종이고,
-이번 산출은 **pytest + CI 단일 게이트 안**이라 §② 「CI 테스트 인프라 = 제품 테스트」쪽이다.
-`db-backup-test.sh` 39건 원문(`git show harness-v1:`)은 **참조하지 않았다** — 최소판으로 새로 썼다.
-
-~~**다음 행동 = ⓪ 표를 정리한다 — RESOLVED 5건(BL-634·701·773·808·810) + 원장 3건 정정**~~
-→ **2026-08-20 재배치.** 아래 밤샘 루프 1차에 **동승**시킨다(단독 회차로 쓰기엔 작고, 그 표를
-읽어야 하는 것이 바로 다음 회차다).
-
-### 밤샘 루프 1차 — 재료 확정 (2026-08-20 구조 질의 실측)
-
-★**[ADR-037] §① 이 「검사기 복귀 시 함께 복귀」라고 적어 둔 그 목록이 재료다.** 철거된
-자기시험 `*-test.sh` 14종 중 **대상 스크립트가 아직 살아 있는 것 7종**이고, 2026-08-20 회차가
-그중 3종을 pytest 최소판으로 이미 닫았다(#705·#706·#709). 남은 4종 + 인접 4종 = **8 lane**.
-
-| lane 후보                     | 줄  | 오늘 밤 무엇과 동형인가                        |
-| ----------------------------- | --- | ---------------------------------------------- |
-| ★`lib/pre-push-ref-guard.sh`  | 132 | `assert-main-checkout` (순수 판정 + 음성 대조) |
-| `soak-watch.sh`               | 442 | `disk-guard` (알림 전이 + 설치본 신선도)       |
-| `soak-stack.sh` `_migrate` 축 | 552 | `db-backup` `_prove_target` (대상 증명)        |
-| `soak-restart.sh`             | 437 | `disk-guard` + `db-backup` 혼합                |
-| `notify-telegram.sh`          | 76  | seam · env 부재 거부 · **URL 미출력 계약**     |
-| `soak-logs-follow.sh`         | 506 | 로그 분류 판정                                 |
-| `db-backup.sh` 잔여축         | —   | `_retain` · `--status` · `_upload` prefix      |
-| `mise-shim-path.sh`           | 46  | PATH 계산 (순수)                               |
-
-★**`pre-push-ref-guard.sh` 가 1순위다** — 헤더가 「**순수 함수만** · git 호출 없음 · 입력은
-인자뿐 · **판정 순서가 곧 보호다**」라고 적고 있고, **Golden Rule(main 직접 push 영구 차단)
-집행기인데 테스트가 0건**이며, 주석이 아직 철거된 `pre-push-guard-test.sh` 를 가리킨다.
-2026-08-20 회차가 `db-backup.sh --help` 에서 잡은 것과 **정확히 같은 병**이다.
-
-★**기각한 재료 4종**(같은 날 실측, 다시 재지 마라): ⓪ 표 티켓 — 살아있는 10행 중 **4행이 죽은
-행**이고 나머지 6개는 서로 이질적(3회차의 「BL 병렬 불성립」 판정과 일치) · `error.tsx` 누락
-**26라우트 중 0** · [ADR-035] 위반 `app/**/_components/` **0** · commit-spy gap **~3**(너무 작다).
-⏸**보류 = FE 컴포넌트 테스트 0건 41개**(backtest 15 · optimizer 7) — 클러스터는 크지만
-컴포넌트마다 「무엇이 red 를 내는가」가 달라 동형도가 낮다. **2차 밤샘 재료.**
-
-### 밤샘 루프 1차 — 8 lane 완주 · [BL-812] 종결 (2026-08-21)
-
-★**이 회차가 무엇을 처리하는지에 좌표가 없었다** — 2026-08-20 4회차(`ops-*` 6 lane)는 BL 없이
-돌았고, 그래서 「어느 이슈를 닫는 회차인가」를 문서가 답하지 못했다. **[BL-812] 를 신설해**
-그 자리를 메웠다(3면 등재: `backlog.md` 섹션 + P2 인덱스 표 + `roadmap.md` 체크박스).
-
-★**소유 결정은 [ADR-037] §①** — 철거한 자기시험 `*-test.sh` **14종**에 「검사기 복귀 시 함께
-복귀」라 적혀 있고, `git ls-tree --name-only harness-v1 tools/scripts/ | grep -- -test.sh` 실측으로
-**대상 스크립트가 아직 살아 있는 것이 7종**임을 확정했다(나머지 7종은 대상도 함께 철거 =
-복귀 대상 아님). 4회차가 3종을 닫았고 **남은 4종 + 인접 4종 = 8 lane** 이다.
-
-| lane                    | 대상                        | 짊어진 이슈                     |
-| ----------------------- | --------------------------- | ------------------------------- |
-| `ops2-prepush-guard`    | `lib/pre-push-ref-guard.sh` | Golden Rule · [BL-554]·[BL-555] |
-| `ops2-notify-telegram`  | `lib/notify-telegram.sh`    | [BL-768]                        |
-| `ops2-mise-shim`        | `lib/mise-shim-path.sh`     | [BL-785] · [BL-791] gap 고정    |
-| `ops2-soak-watch`       | `soak-watch.sh`             | [BL-737] 41시간 침묵            |
-| `ops2-soak-restart`     | `soak-restart.sh`           | [BL-656] `ps` rc 3값            |
-| `ops2-stack-migrate`    | `soak-stack.sh migrate`     | [BL-743] · 비목표 집행 도구     |
-| `ops2-db-backup-retain` | `db-backup.sh` 잔여축       | [BL-767]                        |
-| `ops2-logs-follow`      | `soak-logs-follow.sh`       | [BL-619] 부검 장치              |
-
-★**닫히는 BL 은 [BL-812] 하나다** — 나머지 8건은 근거·맥락이고 상태가 바뀌지 않는다.
-BL-737·656·743·767·554·555·785 는 이미 RESOLVED, [BL-619] 는 관측 트리거 대기,
-[BL-791] 은 DEFERRED 유지(트리거는 여전히 CI 로그 확인)다. **다시 닫았다고 적지 마라.**
-
-★**재료 실사 정정 2건** — ⑴ 위 표의 `notify-telegram.sh`·`mise-shim-path.sh` 는
-`tools/scripts/` 가 아니라 **`tools/scripts/lib/`** 에 있다(8종 전부 실재 확인).
-⑵ `soak-restart.sh --help` 는 `sed -n '2,40p'` 로 찍는데 **헤더 주석은 34행에서 끝난다** —
-도움말에 `set -uo pipefail`·`SCRIPT_DIR=` 같은 **코드가 실린다.** 4회차가 `db-backup.sh --help`
-에서 잡은 것과 같은 계열이고 방향만 반대다(그쪽은 잘렸고 이쪽은 넘친다). lane 5 가 고정한다.
-
-**동승 — ⓪ 표 죽은 4행 정리 완료(2026-08-21).** 살아 있는 행 **10 → 6**.
-[BL-810]·[BL-808] 은 RESOLVED 잔재(본문은 이미 `backlog-resolved.md`) · ★**라벨 `BN` 이 두 행에
-중복**이라 [BL-808] 을 `BP` 로 고쳤다 · **[BL-639] 는 ✅ RESOLVED 로 올려 본문을 옮겼다**
-(잔여였던 실패 모드 3 을 `trading/services/account_exclusivity.py` 의 `ownership_scope_ids`
-docstring 이 **결정·근거·구현까지** 갖고 있다 — 코드 대조로 확정) · **[BL-489] 는 PARTIAL 로
-재기술**했다(결함은 살아 있으나 **처방이 반증**돼 지금 착수하면 반증된 처방을 구현하게 된다.
-도래 = 수렴하는 사이징 재계산 설계). ★[BL-489] 행의 **비고 셀에 [BL-785] 내용이 잘못 붙어
-있었다** — 행을 내리면서 함께 표기했다.
-★**남은 3면 결손 1건** — [BL-811] 은 섹션과 ⓪ 표 행은 있는데 `backlog.md` **인덱스 표 행이 없다**.
-이번 범위 밖이라 손대지 않았다.
-
-**결과 — 8/8 completed · retry 0 · blocked 0 · 병합 충돌 0.** 배치 1(6 lane, 슬롯 3~8) 6~14분 ·
-배치 2(2 lane, 슬롯 9~10). PR #713~#720 전부 CI 초록 후 머지. 산출 =
-`apps/api/tests/scripts/` **신규 8파일 · 0건 → 138 passed + 2 xfailed**
-(디렉터리 전량 584 passed + 3 xfailed).
-
-★**AC 판별력 사전 측정** — 8 lane 전부 AC1 `rc=4`(대상 파일 부재) · AC2 `rc=1`(n=0).
-rc 는 `$?` 직독(`| tail` 이 rc 를 삼킨 사고 레포 6번째를 피했다).
-★**변이 10/10 red** — CONTROL 이 직접 심고 sha256 왕복 복원 전건 확인.
-
-★★★**러너가 남긴 `xfail(strict=True)` 하나가 phantom 이었다.** `ops2-stack-migrate` 세션이
-「적용 대기 개수가 delimiter 행까지 세어 3을 센다」를 결함으로 박았는데, **픽스처가 alembic
-출력의 화살표 의미를 뒤집어** 놓은 것이었다(`head -> pending / pending -> current` = head 가
-current 의 조상인 불가능한 계보). 실측 `alembic history -r 20260815_0004:head` 로 형식이
-`<부모> -> <자식> (head)` **최신순**이고 `-r cur:head` 가 맨 아래에 「cur 를 만든 전이」(적용분)를
-한 줄 더 준다는 것을 확인했다 — 스크립트의 awk 는 그 줄만 자르므로 **옳다.** 픽스처를 고치고
-xfail 제거(11+1xfail → **12 passed**), awk 트림 제거 변이로 판별력 재확인(**1 failed**).
-⇒ **`xfail(strict=True)` 는 「이 제품 코드가 틀렸다」는 주장이고 codex finding 과 같은 바(코드
-대조)를 통과해야 한다.** AC·변이·diff 세 층이 전부 「테스트가 늘었다」는 재고 「그 테스트가
-참인가」는 안 잰다([LESSON-121]).
-
-★**진짜 결함 2건은 `xfail(strict=True)` 로 남았다** — ⑴ `soak-restart.sh --help` 가
-`sed '2,40p'` 로 **34행 헤더를 넘겨 실행 코드를 찍는다**(4회차 `db-backup.sh --help` 의 반대
-방향) ⑵ [BL-791] mise shim 내용물 미검증. **둘 다 고치면 XPASS 로 red 가 나 원장이 따라온다.**
-★**비율이 아니라 개별 대조가 답이다** — 같은 회차의 xfail 3건 중 1건이 거짓이었다.
-
-★**내 검증 스크립트가 zsh 단어분할로 위음성**을 냈다(`for t in ${tf//|/ }` 가 한 덩어리로 돌아
-`test_db_backup_target.py` 를 「부재」로 보고). 레포에서 반복되는 zsh 함정이다 — **짝 맞추기·
-분할은 `bash -c` 로 재라.**
-
-### 밤샘 루프 2차 — 재료 확정 (2026-08-21 실측, 1차 마감 직후)
-
-★**1차가 「동형도 낮음」으로 보류했던 FE 재료를 다시 재니 숫자가 달랐다** — 종전 「컴포넌트
-테스트 0건 41개」는 **파일명 짝(sibling)** 기준이었는데 이 레포의 관행은 `__tests__/` 디렉터리라
-그 계수가 틀렸다(예: `exchange-accounts-panel` 은 `__tests__/ExchangeAccountsPanel.*.test.tsx` 가
-덮는다). **import 그래프**로 다시 재라 — 「어떤 테스트도 그 모듈을 import 하지 않는다」가 옳은 축이다.
-
-**실측(2026-08-21)** — 컴포넌트 191개 중 **어떤 테스트에서도 import 되지 않는 것 71개** ·
-`lib/` 미커버 **11**(생성 코드 1 제외 10) · `store/ui-store.ts` · `hooks/use-media-query.ts`.
-
-★★**최고 가치는 컴포넌트가 아니라 순수 판정 모듈이다** — 1차에서 가장 깨끗하게 끝난 셋이
-`lib/*.sh`(source 전용 순수 함수)였고, FE 에도 같은 모양이 있다:
-
-| lane 후보 (A축 — 순수 판정)                                                 | 대상       | 왜                                                                                                                                       |
-| --------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| ★`proxy.ts` + `lib/route-matcher.ts`                                        | 110 + 14줄 | **공개 라우트 판정 = 인증 경계**([ADR-034] 가 Clerk 매처를 대신한 자리)인데 **테스트 0건**. 1차의 `pre-push-ref-guard.sh` 와 같은 자리다 |
-| `lib/api-base.ts` + `lib/webhook-base.ts`                                   | 66 + 25줄  | base URL 파생 — 이 레포는 **사본 5벌이 CI 를 190ms 만에 죽인** 전례가 있다(`e2e/_base-url.ts`)                                           |
-| `lib/auth.ts` + `lib/auth-server.ts`                                        | 156 + 41줄 | self-host Better Auth 클라이언트/서버 경계                                                                                               |
-| `lib/unsupported-builtin-hints.ts`                                          | 247줄      | pine v2 미지원 빌트인 → 힌트 판정(데이터 + 매칭)                                                                                         |
-| `lib/marketing-canon.ts` + `lib/legal-links.ts`                             | 64 + 7줄   | 캐논 상수 — [BL-776] 카피 축과 맞물린다                                                                                                  |
-| `lib/zod-v4-resolver.ts` + `store/ui-store.ts` + `hooks/use-media-query.ts` | 40+        | Zod v4 리졸버 어댑터 · 전역 UI 상태                                                                                                      |
-
-| lane 후보 (B축 — 컴포넌트 클러스터)                    | 미커버 수                           |
-| ------------------------------------------------------ | ----------------------------------- |
-| `features/backtest/components/report`                  | 11                                  |
-| `features/optimizer/components`                        | 8                                   |
-| `components/` (최상위)                                 | 7                                   |
-| `components/ui`                                        | 7 (shadcn 래퍼 — 가치 낮음, 후순위) |
-| `features/backtest/components/forms` (FieldSet 5종)    | 5                                   |
-| `features/backtest/components` · `charts` · `share`    | 4 · 4 · 4                           |
-| `features/onboarding/components` · `components/layout` | 4 · 4                               |
-| `components/providers`                                 | 3                                   |
-
-★**`charts` 는 마지막 배치로 미뤄라** — jsdom 에서 canvas 가 걸린다(1차의 `logs-follow` 자리).
-
-★**부트스트랩·AC 를 착수 전에 실측해 뒀다**(2026-08-21, throwaway 워크트리):
-`pnpm install --frozen-lockfile` **6초**(pnpm store 하드링크라 lane 수만큼 곱해도 싸다 —
-★단 `--skip-deps` 만으로는 vitest 가 안 돈다) · 타깃 vitest **1.3초** · `tsc --noEmit` **7.5초**.
-**AC 3종도 확정** — ⑴ `pnpm test -- <파일>`(부재 시 **rc=1**) ⑵
-`test "$(pnpm exec vitest list <파일> | grep -c ' > ')" -ge N`(양성 대조 · 부재 시 count 0 → rc=1)
-⑶ `pnpm exec tsc --noEmit`.
-
-~~**다음 행동 = 위 재료로 밤샘 루프 2차를 돌린다 — A축 6 lane 을 먼저, B축을 그 뒤로.**~~
-→ **2026-08-21 착수.** 소유 티켓 **[BL-813]** 신설·3면 등재. 아래 「착수 실측」이 재료 표의 오류 2건을
-정정했고 A축은 **6 이 아니라 8 lane** 이 됐다(cap 8 · B축은 다음 회차).
-
-### 밤샘 루프 2차 — 착수 실측 (2026-08-21)
-
-★**재료 표 정정 2건** — ⑴ **`lib/api-base.ts` 는 이미 커버돼 있다**(`src/lib/__tests__/api-base.test.ts`
-9 케이스). 그 행에서 `webhook-base.ts` 만 살아남는다. ⑵ **「미커버 71」은 직접 import 기준**이다.
-전이 폐포로 다시 재면 소스 **343 중 미도달 58** 이고, **완전 미도달인 판정 로직은 5종**이다 —
-`proxy.ts` · `lib/route-matcher.ts` · `lib/auth.ts` · `lib/auth-server.ts` · `lib/legal-links.ts`.
-`ui-store`·`use-media-query`·`unsupported-builtin-hints` 는 「미도달」이 아니라 **「직접 단언 0」**이다
-(컴포넌트를 통해 전이적으로는 실행된다).
-
-★**AC 판별력 8/8 red 실측** — `pnpm test -- --run <부재 파일>` **rc=1** · 양성 대조
-`vitest list | grep -c ' > '` **count=0 → rc=1** · `eslint <부재 파일>` **rc=2**.
-rc 는 `$?` 직독이고 **각 AC 를 서브셸에서** 쟀다 — 첫 판이 `cd apps/web` 잔류로 뒤 lane 을 전부
-「AC 가 비었다 → rc=0」으로 읽는 **무증거**를 냈다(레포에서 반복되는 그 병의 이번 판이다).
-기준선 = `227 files / 1497 passed · 21초` · `tsc --noEmit` **rc=0 · 2초**.
-
-★★**구조적 전제 1건을 프로브가 착수 전에 잡았다** — `src/lib/auth-server.ts` 는
-`import "server-only"` 가 **vitest 에서 top-level throw** 라 **import 조차 불가능**했다.
-★`vi.mock("server-only", () => ({}))` **로는 못 막는다** — CJS 로 외부화돼 Node 의 require 가 먼저
-돈다(실측 FAIL). `vitest.config.ts` 의 `resolve.alias` → `tests/stubs/server-only.ts` 로 길을 텄다
-(실측 PASS · 기존 1,497 케이스 무영향). ★**이 별칭은 사전 배치 커밋의 것이고 lane 은 건드리지 않는다** —
-8 lane 이 동시에 도는 유일한 공유 설정이다.
-★같은 프로브가 나머지 둘은 **되는 것으로** 확인했다 — `@/lib/auth` 는 `new Pool()` 이 지연 연결이라
-DB 없이 import 되고 훅이 `auth.options.databaseHooks.user.create.before` 로 도달 가능하며,
-`@/proxy` 는 `vi.mock("@/lib/auth")` + `next/server` 의 `NextRequest` 로 **3케이스 실제 green** 이었다.
-
-| lane (`phases/fe2-*`) | 대상                                                 | 짊어진 이슈 (근거·맥락)      |
-| --------------------- | ---------------------------------------------------- | ---------------------------- |
-| `fe2-proxy-gate`      | `src/proxy.ts` — 공개/geo/세션 판정                  | [ADR-034] · [BL-072]         |
-| `fe2-route-matcher`   | `src/lib/route-matcher.ts` — 앵커 계약               | [ADR-034]                    |
-| `fe2-auth-hooks`      | `src/lib/auth.ts` — geo L3 · 탈퇴 fail-closed        | [LESSON-114] · codex P1/P2   |
-| `fe2-auth-server`     | `src/lib/auth-server.ts` — 실패 삼킴 계약            | [ADR-034]                    |
-| `fe2-builtin-hints`   | `src/lib/unsupported-builtin-hints.ts` (55 엔트리)   | Trust Layer (Sprint 21 G.0)  |
-| `fe2-marketing-canon` | `src/lib/marketing-canon.ts` + `legal-links.ts`      | [BL-776] · LESSON-063        |
-| `fe2-lib-adapters`    | `src/lib/webhook-base.ts` + `zod-v4-resolver.ts`     | [BL-268] · Phase C 라이브 QA |
-| `fe2-ui-reactive`     | `src/store/ui-store.ts` + `hooks/use-media-query.ts` | [BL-300] · [BL-775]          |
-
-★**닫히는 BL 은 [BL-813] 하나다** — 표의 나머지는 근거·맥락이고 상태가 바뀌지 않는다.
-**다시 닫았다고 적지 마라.**
-
-~~**다음 행동 = 8 lane 을 워크트리 병렬로 돌리고, CI 초록 확인 후 PR 을 머지한다.**~~
-→ **2026-08-21 완주.** 아래 「결과」 참조.
+## ★2026-08-19 통합 tombstone — n6-authed-evidence · harness-zero-base (68줄 압축)
+
+> **강등 tombstone (2026-08-21 ledger-resync · 700줄 상한).** 두 회차 본문과 각자의 **반증 카드**
+> 68줄을 이 블록으로 줄였다. 원문 = `git show 728ae1cc:docs/status.md`.
+>
+> ★**압축한 이유는 반증이 이미 승격됐기 때문이다** — 두 회차의 반증 카드는
+> [`docs/lessons.md`](lessons.md) **LESSON-115~120** 으로 올라갔고, 닫힌 티켓
+> ([BL-797]·[BL-807]·[BL-805]·[BL-806])의 본문은 `backlog-resolved.md` 가 진다.
+> 하네스 제로베이스의 결정 근거는 [ADR-037](decisions/037-harness-zero-base.md) 이 정본이다.
+> **여기 남기는 것은 두 회차가 바꾼 「지금 상태」 두 줄뿐이다.**
+
+- **authed 증거 축이 실재하게 됐다** — 화면 증거 게이트가 로그인 뒤 화면을 잰다([BL-797]·[BL-807]).
+  ★그전까지 authed spec 20파일은 PR CI 에서 **0회** 돌았다.
+- **검사기 층 ~444KB 가 철거됐다**([ADR-037]) — 게이트는 **CI 단일 판정**이고 로컬 pre-flight
+  의식은 없다. 재입힘은 **문서화된 사고 1건 = 슬림 복귀 1건**, 철거 전 원문은 태그 `harness-v1`.
+
+## ★2026-08-19~21 하네스 통합 tombstone — 러너 도입부터 밤샘 루프 2차까지 (372줄 압축)
+
+> **강등 tombstone (2026-08-21 ledger-resync · 700줄 상한).** `n7-harness-first-run` · 하네스 도입
+> 후속 청소 · 하네스 2·3·4회차 · 밤샘 루프 1차(재료+완주) · 밤샘 루프 2차(재료+착수 실측)
+> **372줄**을 이 블록으로 줄였다. 원문 = `git show 67094ba1:docs/status.md`.
+>
+> ★**압축한 이유는 정본이 따로 생겼기 때문이다** — 회차 절차·저작 규약·실패 모드의 정본은
+> [`phases/README.md`](../phases/README.md)(묶음 이력 + 1차·2차가 더한 교훈 10줄)이고,
+> 형식 정본은 `.claude/commands/harness.md`, 하네스 존재 근거는 [ADR-037] 이다.
+> **여기 남은 것은 「지금 어디까지 왔나」 한 문단뿐이다.**
+
+**누적 결과 (5회차 · 2026-08-19 ~ 08-21):** 러너 `tools/harness/execute.py` v2 를 도입해
+phase 26벌을 돌렸고 **전건 완주**했다. 산출 = 테스트 0건이던 네 축을 채운 것이다 —
+러너 자신 `apps/api/tests/harness/` **41건**(PR #698~#702) · 운영 스크립트
+`apps/api/tests/scripts/` **0 → 584 passed + 3 xfailed**(PR #703~#709 · #712~#720) ·
+FE 순수 판정 모듈 `apps/web` **1,497 → 1,647 passed**(PR #724~#733).
+닫힌 소유 티켓 = [BL-810]·[BL-808]·[BL-762]·[BL-812]·[BL-813]. 열려 있는 묶음은 **없다**.
+
+★**이 다섯 회차가 남긴 것 중 status 가 계속 져야 할 문장은 셋뿐이다:**
+
+1. ★**러너는 AC 가 재실행되는 것만 보증한다 — AC 가 옳은지는 판정하지 않는다.**
+   실증 3건: 세션이 부재 grep 을 **문자열로 쪼개** 통과시켰다(1회차) · `xfail(strict=True)` 1건이
+   **phantom** 이었다(픽스처가 `alembic history` 화살표 의미를 뒤집었다 — [LESSON-121]) ·
+   **내 step 파일의 기대가 거짓**이라 lane 이 죽었다(2차 · `_HINTS` 프로토타입 상속 → [BL-814]).
+   ⇒ **AC·변이·사람 diff 세 층이 「테스트가 늘었다」는 재도 「그 테스트가 참인가」는 안 잰다.**
+2. ★**병합 충돌 0 은 `phases/index.json` 사전 등록의 결과다** — lane 이 나중에 각자 추가하면
+   배열 끝 같은 위치를 고쳐 충돌한다. 공용 헬퍼 모듈 금지도 같은 이유다.
+3. ★**저작이 상한이다** — 밤에 도는 분량은 저녁에 저작해 둔 분량뿐이라 재료는 **동형**이어야 한다.
 
 ### 밤샘 루프 2차 — 8 lane 완주 · [BL-813] 종결 (2026-08-21)
 
@@ -1038,130 +643,56 @@ p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 *
 **+223**(형 A +183 · 형 B +6 — 양쪽 수리 갈래 발화). 실측 전문 =
 [ADR-025 §판정](decisions/025-conditional-fill-ownership.md).
 
-### 그 다음 후보 (순서 없음)
+### ★착수 전 반드시 읽을 것 (2026-08-21 정정본)
 
-**[BL-024] 실주문 leg**(자격증명·로컬 스케줄 배치 완료 · Bybit 이 GitHub 러너를 지리 차단) ·
-**[BL-580] 잔여 84곳** · **[BL-591]** D1(strike TTL 부재)/D2 — ★2026-08-05 **P1→P2 강등**
-([ADR-025] 가 사망 5/5 를 상류에서 닫아 [BL-591] 이 그 경로를 소유하지 않는다. **본 BL 범위의**
-잔여 D1/D2 는 둘 다 프로덕션 미관측 · 재개 조건은 불변 — 근거는
-[ADR-023 §재판정](decisions/023-engine-state-ssot.md)).
-★**강등 범위 주의** — 되먹임이 없는 나머지 갈래(브래킷 TP/SL · 거래소발 청산 · 시장가 진입)는
-[ADR-023] 소관으로 남는다. 이번 강등은 [BL-591] 한 항목의 순번을 내린 것이지 **그 축을 내린 것이
-아니다.**
+1. ★★★**데스크 회차가 반증하는 것은 「내가 적은 산문」이고, 소크가 반증하는 것은 「코드가 실제로
+   하는 일」이다.** 계측 부채는 오프라인에서 검증 가능하고 소크는 느리고 위험하다 — 그래서
+   **이 루프는 자기 지속된다.** 데스크만 돌면 코드는 한 번도 안 재진다.
+2. ★★**소크 전후로 거래소를 flat 으로 맞춰라.** 세션 `DELETE` 204 는 **아무것도 flat 하지
+   않는다**(0.03 포지션 + 조건부 1건 잔존 전례). T0 직전 `FLAT=YES` 를 확인해라.
+3. ★★**호스트 `/metrics` 는 워커 증가를 몇 초 늦게 비춘다** — **이벤트 직후 읽기로 판정하지 마라.**
+4. ★**`idle` 은 완료가 아니다** · **`:3000` 은 다른 앱(Kairos)** · API `:8100` · DB `:5433`(격리 스택).
+5. ★★**재기동은 손으로 밟지 마라 — `tools/scripts/soak-restart.sh`**(기본 dry-run · `--confirm` 으로
+   집행 · `FLAT=YES` 아니면 정지). **감시는 `tools/scripts/soak-watch.sh --install`** 이 맡고
+   **게이트 타이머를 대체한다**(게이트에 flock 이 없어 같이 돌리면 표본이 경합한다 — 2026-08-15
+   실측 0.7초 간격 중복 2건). ★설치본이 낡았는지는 **`soak-watch.sh --status`** 가 답한다(rc=1 이면
+   낡음) — 「타이머가 waiting」은 건강 신호가 아니다. ★**watch 는 단일 장애점**이라
+   `OnFailure=…soak-watch-alarm.service` 를 붙였다([BL-737] — 41시간 침묵의 대가).
+6. ★**게이트를 파이프에 넣지 마라**(rc 를 삼킨다) · **`cd apps/api && set -a; . ./.env.local` 금지**.
+   정본 = [`gates-and-traps.md`](reference/operations/gates-and-traps.md) §함정.
+7. ★**표적 변이는 CONTROL 이 직접 집행**(`git checkout` 금지 · **sha256 왕복 복원 대조**).
+   치환 문자열이 다른 함수와 겹치는지 **먼저 세라**. ★**TS 대상에 타입 수준 변이는 변이가 아니다**
+   (`as undefined` 는 타입 소거 — 2026-08-21 실증).
+8. ★**브랜치 접두사는 `stage/` 또는 `feat/`** · **`QB_PRE_PUSH_BYPASS=1` 금지**(Golden Rule 집행기를
+   끄는 스위치다) · ★**pre-commit 이 `ruff format`·`prettier --write` 를 돌린다 — 커밋 후 게이트를
+   다시 재라.**
 
-**★ci-diet 회차 신규 5종** — **[BL-598]** 코퍼스 첫-접촉 파싱 비용(CI 14분 벽의 뿌리. ★캐시
-데코레이터는 **찾아봤고 없다** — 프로파일이 먼저다) · **[BL-599]** Pine v1 shim +
-`BacktestOutcome.parse`(단독 철거 불가) · **[BL-600]** `TradingSession` 동음이의(JSONB 영속) ·
-**[BL-601]** 호출 0건 잔재 3종 · **[BL-602]** 루트 prettier 가 `apps/web/` json 을 못 포맷
-(**지금 막힌다** — 위 §한 줄 참조).
-★소크가 도는 동안은 [BL-598]/[BL-601]/[BL-602] 처럼 **`apps/api/src` 무접촉**으로 끝나는 것만
-안전하다. [BL-599]/[BL-600] 은 코어 DTO·JSONB 를 건드리므로 창을 내리기 전엔 열지 마라.
+> ★**2026-08-21 정정 3건.** 종전 이 목록은 **`Clerk JWT 는 60초`** 와 **`세션 등재는 Clerk 의 `azp`
+요구로 헤드리스 불가`** 를 적고 있었다 — **[ADR-034] 로 Clerk 은 2026-08-17 에 제거됐다**(지금은
+> self-host Better Auth). 그리고 「현행 소크 눈금」이 마이그레이션 head 를 **`20260801_0001`** 이라
+> 적었는데 실제 head 는 **`20260817_0002`** 다. 이 절의 머리말이 「낡은 T0 를 남기지 마라」라고
+> 경고한 바로 그 병을 **이 절 자신이 앓고 있었다.**
 
----
+## ★2026-08-04~15 소크 회차 tombstone — 후보 목록 · 판정 지표 계산 · 현행 눈금 (128줄 압축)
 
-### 판정 지표가 그 창에서 **발화 가능한지 먼저 계산해라**
+> **강등 tombstone (2026-08-21 ledger-resync · 700줄 상한).** 「그 다음 후보」 · 「판정 지표가 그
+> 창에서 발화 가능한지」 · 「증명한 것과 못 한 것을 합쳐 말하지 마라」 · 「현행 소크 눈금」 ·
+> 「[BL-580] 잔여 96곳 보류」 **128줄**을 이 블록으로 줄였다.
+> 원문 = `git show 728ae1cc:docs/status.md`.
+>
+> ★**압축한 이유는 목록이 낡았기 때문이다** — 후보로 적힌 5건 중 **[BL-024]·[BL-601]·[BL-602] 는
+> 이미 RESOLVED** 이고 [BL-598]·[BL-599]·[BL-600] 은 DEFERRED 다. 「지금 막힌다」라 적힌 [BL-602]
+> 도 닫혔다. **후보 목록의 정본은 원장 3종이지 이 파일이 아니다.**
 
-두 회차 연속 같은 계산이 필요했다. 2026-08-03 오전 `close_position_flat` 은 회차마다 고쳐져
-**07-28 15건 → 07-29 3건 → 07-30 1건 → 07-31 0건** 으로 감소 중이었고 30분 기대값이 ≈**0.02건**
-이었다 — 기다려서는 못 잰다. 같은 날 오후 `position_divergence` 사망은 **전 이력 25세션 중 1건**
-이라 「N분 무사고」가 아무 증거도 아니었다.
+**남길 문장 셋 (회차와 무관하게 참이다):**
 
-⇒ **발화 안 하면 창을 늘리는 게 아니라 (a) 발화 조건을 만들거나 (b) 구현과 독립된 오라클로 과거
-원장을 재생한다.** 둘 다 실제로 통했다(전자 = H8 유도 주입, 후자 = BL-589 재생 오라클 29건).
+1. ★**판정 지표가 그 창에서 발화 가능한지 먼저 계산해라.** 발화 안 하면 창을 늘리는 게 아니라
+   **(a) 발화 조건을 만들거나 (b) 구현과 독립된 오라클로 과거 원장을 재생한다.**
+   둘 다 실제로 통했다(전자 = H8 유도 주입 · 후자 = BL-589 재생 오라클 29건).
+2. ★**증명한 것과 못 한 것을 합쳐 말하지 마라.** 프로덕션 유도는 분기의 **도달·종결**만 증명한다.
+   계측 실패 봉쇄는 **오프라인 결정론 테스트**가 증명한다. 한 줄로 합치면 다음 사람이
+   「검증 완료」로 읽는다.
+3. ★**도달 경로를 못 적으면 「판정 보류」다 — 하네스를 만들지 마라**([BL-580] H1~H8 라벨 체계의 결론).
 
-### 증명한 것과 못 한 것을 **합쳐 말하지 마라**
-
-프로덕션 유도는 분기의 **도달·종결**만 증명한다. 계측 실패 봉쇄 같은 것은 **오프라인 결정론
-테스트**가 증명하며, 프로덕션에서 유도하려면 multiproc 디렉터리를 망가뜨려야 해서 소크 중 금지다.
-층을 나눠 표로 적어라 — 한 줄로 합치면 다음 사람이 「검증 완료」로 읽는다.
-
-### ★착수 전 반드시 읽을 것
-
-1. ★★★**데스크 회차가 반증하는 것은 「내가 적은 산문」이고, 소크가 반증하는 것은 「코드가
-   실제로 하는 일」이다.** 재가동 직전 5회차는 전자만 했다. 계측 부채는 무한(96곳)하고
-   오프라인에서 검증 가능하지만 소크는 느리고 위험하다 — 그래서 **이 루프는 자기 지속된다.**
-2. ★★**`roadmap.md` 가 2026-07-26 에 스스로 세운 규칙** — 「이후 스프린트는 **전부 실주행
-   dogfood 를 포함**한다」.
-3. ★★**소크 전후로 거래소를 flat 으로 맞춰라.** 세션 `DELETE` 204 는 **아무것도 flat 하지
-   않는다**(0.03 포지션 + 조건부 1건 잔존 전례). T0 직전엔 `FLAT=YES` 확인했다.
-4. ★★**호스트 `/metrics` 는 워커 증가를 몇 초 늦게 비춘다**(T0 실측 — 호스트 14, 같은 시각
-   컨테이너 15). **이벤트 직후 읽기로 판정하지 마라.** 하루 1회 관측엔 영향 없다.
-5. ★**`idle` 은 완료가 아니다** · **Clerk JWT 는 60초** · **`:3000` 은 다른 앱(Kairos)** ·
-   API 는 `:8100`, DB 는 `:5433`(격리 스택).
-6. ★★**게이트를 파이프에 넣지 마라** · **`cd apps/api && set -a; . ./.env.local` 금지**(아래 참조).
-7. ★**세션 등재는 HTTP 로 헤드리스 불가**(Clerk 가 `azp` 를 요구). 서비스 계층 직접 호출이
-   유일한 길이다(`apps/api/scripts/seed_dogfood.py:11-19` 선례). **손 INSERT 는 금지** —
-   `equity_baseline_usdt` 를 건너뛰어 첫 tick 에 자동 비활성화된다.
-8. ★★**재기동은 손으로 밟지 마라 — `tools/scripts/soak-restart.sh`** 가 8단계를 집행한다(기본 dry-run,
-   `--confirm` 으로 집행, `FLAT=YES` 아니면 정지). **감시는 `tools/scripts/soak-watch.sh --install`** 이
-   맡는다(30분마다 게이트 1회 + 지문 변화 시 텔레그램). ★watch 는 게이트 타이머를 **대체**한다 —
-   게이트에 flock 이 없어 둘을 같이 돌리면 표본이 경합한다. 정본 =
-   [`gates-and-traps.md` §소크 무인 감시](reference/operations/gates-and-traps.md).
-   ★★**2026-08-15 [BL-737] — 이 문장이 정본으로 확정됐고, 경합도 실측됐다**(수동 실행과 타이머가
-   겹쳐 0.7초 간격 중복 표본 2건. 단 **JSON 손상은 0** — 세션 1개 레코드는 짧아 단일 write 로 나간다.
-   위험은 인터리브가 아니라 **중복 표본**이었다). 그리고 이 대체 구조의 대가가 드러났다 —
-   **watch 는 단일 장애점**이고, 41시간 죽어 있던 동안 표본을 메운 것은 우연히 살아 있던 게이트
-   타이머였다. 그래서 이중화 대신 `OnFailure=…soak-watch-alarm.service` 를 붙였다. ★설치본이
-   낡았는지는 **`soak-watch.sh --status`** 가 답한다(rc=1 이면 낡음) — 「타이머가 waiting」은
-   건강 신호가 아니다.
-
-### 현행 소크 눈금 (숫자는 「이번 회차 인계」에 있다)
-
-★**counter 절대값을 비교하지 마라 — 출생일이 다르다.** 원본 스냅샷은 `.soak/snap-*.txt` 에 있고
-**차분은 거기서 뜬다**(`soak-observe.sh` §4 가 자동으로 한다). 상시 확인 대상:
-`qb_metrics_mutation_failed_total`([BL-580] Trigger, 아직 실측 0) ·
-`/metrics` 파일 수([BL-581] Trigger 20000 — ★**소크 창의 상한이 아니다**, 아래 정정) ·
-★**[BL-589] 수리 관측축 정정(2026-08-04)** — 종전의 「`breach_with_resting` 이 증가할 때
-`market_converted` 동시 증가」는 **코드상 구조적으로 성립 불가**다. `conditional_entry_planner.py:447`
-이 `breached and (resting_could_have_fired or not allow_market_conversion)` 일 때만 그 갈래를 타므로
-**같은 leg 에서 둘이 함께 오를 수 없다.** 볼 것은 counter 가 아니라 **`live_conditional_plan_drop`
-로그의 `resting_could_have_fired`** 다 — **`false`** 인 건이 [BL-589] 결함 형태이고, `true` 면
-「발화 가능한 대기 주문이 정당하게 막았다」라 **전환하지 않는 것이 옳다**(실측 `03:03:14` 건은
-`true` 였고 그 대기 주문이 **57초 뒤 실제 체결**됐다 — 전환했으면 이중 진입이었다) ·
-`qb_live_conditional_guard_total{recovery_placed}`([BL-590] 수리 관측축 — 증가하면 그 시점
-원장에 `condmkt` 주문이 짝으로 있는지 확인해라. `recovery_expired` 가 증가하면 **브로커 적체**다) ·
-`qb_live_ledger_derive_total` / `qb_live_ledger_veto_total` / `qb_live_ledger_hold_resolved_total`
-([BL-591] 슬라이스 1 계측 — ★`derive_total` 이 **증가 중**인지가 「계측이 돌고 있다」의 유일한 증거다.
-「코드가 mount 됐다」와 다르다. 교차 확인은
-`live_signal_states.last_strategy_state_report._qb_ledger_shadow` 의 `updated_at`.
-★**`derive_total{duplicate_open}` 이 오르기 시작하면 그 세션의 계측은 끝난 것이다** — 흡수
-상태라 되돌아오지 않는다) ·
-마이그레이션 head `20260801_0001`.
-
-★**`qb_live_conditional_reconcile_errors_total{stage="terminal_write_back_*"}` 는 에러가 아니다**
-(2026-08-04 판정). `live_signal.py:1310` 이 `f"terminal_write_back_{won}"` 로 라벨을 만드는데 `won` 은
-**전이 경합에서 이겼을 때의 terminal 상태명**이다(`:958` docstring) — 즉 **[BL-560] 수리가 성공한
-횟수**가 "reconciliation failures" counter 에 계상된다. 소비자는 전부 `stage` 라벨 단위라 자동
-판정은 안 깨지고 피해는 **사람의 오독**이다. 상세는 [BL-566] 계열. **차분에서 보이면 무시해라.**
-
-★**[BL-581] 은 소크 창의 상한이 아니다**(2026-08-04 정정). 워커 커맨드가
-`uv run watchfiles --filter python celery … /app/src` 이고 `/metrics` 파일은 **PID 당** 생기므로,
-증가 드라이버는 **`apps/api/src` 편집으로 인한 워커 재기동**이다. 실측: 편집 세션 시간대 **~600/h**
-(08-03 08시 584 · 17시 829 · 08-04 01시 595) vs **조용한 소크 시간대 ~4–5/h**(08-04 00시 4개 ·
-최근 90분 5개 = 워커 자식 1회 재활용). 남은 5,091 파일 기준 **약 42일**이다. ⇒ 상한은 소크 시간이
-아니라 **개발 재기동 예산**이다.
-
-★**2026-08-05 추가 — 고정본 전환의 순효과는 미검증이다.** watchfiles 가 사라져 「편집 → 워커
-재기동」 드라이버는 없어졌지만, `metrics-wipe` 로 0 에서 다시 시작한 창에서 **≈68/h** 가 관측됐다.
-같은 창에 게이트 수집기·`uv run`·호스트 uvicorn `--reload` 가 섞여 있어 **귀속시킬 수 없었고**,
-bind mount 라 파일 소유자로도 못 가른다(전부 호스트 uid 로 보인다). **조용한 창에서 다시 재라.**
-
-> ★★**`cd apps/api && set -a; . ./.env.local; set +a` 를 쓰지 마라.** 이미 `apps/api` 에 있으면
-> `cd` 가 실패해 **`set -a` 만 건너뛰고** 나머지는 `;` 로 계속 실행된다 — env 가 export 되지
-> 않은 채 pytest 가 5432 로 붙어 `InvalidPasswordError` **대량 거짓 red**.
-> **`QB=…; set -a; . $QB/apps/api/.env.local; set +a; cd $QB/apps/api`** 로 써라.
-> ★**브랜치 접두사는 `stage/`** · `QB_PRE_PUSH_BYPASS=1` 금지.
-> ★**pre-commit 이 `ruff format`·`prettier --write` 를 돌린다** — **커밋 후 게이트를 다시 재라**.
-> ★**표적 변이는 CONTROL 이 직접 집행**(`git checkout` 금지, sha256 복원 대조). 치환 문자열이
-> 다른 함수와 겹치는지 **먼저 세라**.
-
-### 보류 — [BL-580] 잔여 96곳 (P2, 재개 조건 명시)
-
-방법은 검증됐다(주입 판정 **42/42 전건 유해**). 다만 **Trigger 가 실측 0** 이라 P0 보다 뒤다.
-재개하면 다음 단위는 **`_reconcile_conditional_entries` 12곳** — 그 함수의 바깥 `except` 가
-fail-open(예외를 `stage="reconcile"` 로 계상하고 정상과 똑같이 `None` 반환)이라 **H8 조건이
-함수 전체 규모로** 있다. 그 외 잔여: `_evaluate_session_inner` 21 ·
-`_async_sweep_conditional_entries` 4 · `_async_dispatch_event` **4(판정 보류 — 손대지 마라)** ·
-`_async_evaluate_all` 2 · `_async_evaluate_session` 2 · `_async_dispatch_pending` 1.
-★**판정 라벨은 누적 8종** — H1~H7 + **H8**(fail-open `except` 가 삼켜 거절이 집행으로 뒤집힌다).
-★**도달 경로를 못 적으면 「판정 보류」다 — 하네스를 만들지 마라.**
+**살아 있는 소크 항목의 좌표** — [BL-580]·[BL-581](DEFERRED · Trigger 실측 0) ·
+[BL-591](ACTIVE · D1/D2 잔여, 2026-08-05 P1→P2). 본문은 원장 3종이 진다.

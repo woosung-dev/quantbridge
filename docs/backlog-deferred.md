@@ -1,5 +1,14 @@
 # QuantBridge — Refactoring Backlog · DEFERRED 본문
 
+> ★★★**2026-08-21 — 이 파일이 언급하는 검사기 4종은 존재하지 않는다.** [ADR-037] 제로베이스가
+> `bl-audit.sh` · `docs-audit.sh` · `bl-trigger-sweep.sh` · `final-gates.sh` 를 **2026-08-19 에
+> 철거했다**(원문 = `git show harness-v1:tools/scripts/`). 아래 산문에 남은 그 이름들은 **당시의
+> 이력**이지 지금 돌릴 명령이 아니다 — **치지 마라, 없다.**
+> 지금 기계로 집행되는 것은 `tools/scripts/ledger-vitals.sh` **3축뿐**이다(다음 행동 ≤1 ·
+> ⓪ 표 행 ≥3 · RESOLVED 역류 0). 나머지 규칙(원장 3분할 · `**상태:**` 줄 · 3면 일치 · 줄 길이
+> 상한)은 **규칙으로 남았고 사람이 지킨다.** 판정어별 목록이 필요하면 `grep '^### BL-'` 과
+> `grep '^\*\*상태:\*\*'` 로 직접 세라. 복귀는 **재입힘 규칙**(문서화된 사고 1건 = 슬림 복귀 1건) 경유다.
+
 > ★**이 파일은 원장의 일부다.** `docs/backlog.md` · `docs/backlog-resolved.md` 와 **한 벌로**
 > `tools/scripts/bl-audit.sh` 가 읽는다 — 섹션 수·판정 수는 세 파일의 **합계**이고,
 > 인덱스 표 행(`| [BL-nnn](#bl-nnn) | … |`)은 `docs/backlog.md` 에 남아 있다.
