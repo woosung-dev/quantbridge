@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "template-and-complexity",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys src/app src/__tests__ src/styles",
         "cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys e2e scripts",
         "cd apps/web && pnpm exec vitest run src/app"
-      ]
+      ],
+      "started_at": "2026-08-22T05:09:16+0900",
+      "summary": "style/useTemplate 20건과 useOptionalChain 1건을 해소했다; CSS allowlist의 선행 공백을 보존했고 sign-in redirect의 undefined·빈 문자열은 계속 /strategies로 귀결된다.",
+      "completed_at": "2026-08-22T05:11:27+0900"
     },
     {
       "step": 2,
