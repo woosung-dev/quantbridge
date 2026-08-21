@@ -31,12 +31,15 @@
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/backtest/__tests__/api.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api.test.ts --coverage --coverage.include='src/features/backtest/api.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=80",
         "git diff --quiet -- apps/web/src/features/backtest/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:39:22+0900",
+      "summary": "apiFetch mock seam에서 ApiError 원형 전파·Zod 파싱 실패·0/음수 경계와 선택 params를 추가하고, 실제 apiFetch로 undefined 쿼리 생략·204 void를 확인했다. api.test.ts 30건이 api.ts 185/185 lines(100%)를 덮었고 대상 소스는 변경하지 않았다.",
+      "completed_at": "2026-08-22T03:43:49+0900"
     },
     {
       "step": 3,
