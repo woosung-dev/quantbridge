@@ -143,7 +143,9 @@
     },
     {
       "dir": "fe3-public-legal-pages",
-      "status": "pending"
+      "status": "completed",
+      "blocked_at": "2026-08-21T09:58:34+0900",
+      "completed_at": "2026-08-21T10:04:07+0900"
     },
     {
       "dir": "fe3-dashboard-errors",

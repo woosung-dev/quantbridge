@@ -33,8 +33,20 @@
    빈 화면이 나가는 것을 잡는다
 2. **각 페이지가 자기 제목을 갖는다** — 넷 각각에서 `heading` role 요소가 **1개 이상** 있고
    텍스트가 비어 있지 않다. ★문구 전문을 단언하지 마라(개정될 문서다)
-3. ★**`metadata` export 가 넷 다 `title` 을 갖는다** — `import { metadata } from "../disclaimer/page"`
-   식으로 읽어 `title` 이 비어 있지 않은지. 없으면 브라우저 탭·검색 결과가 비어 나간다
+3. ★**`metadata` — 관측된 사실을 그대로 박아라(고치지 마라).**
+   ★**CONTROL 이 2026-08-21 에 직접 실측했다:**
+
+   | 페이지 | `export const metadata` |
+   | --- | --- |
+   | `disclaimer` · `terms` · `privacy` | **있다** (`title` = Disclaimer / Terms of Service / Privacy Policy) |
+   | **`not-available`** | ★**없다** — `<title>` 이 비어 나간다 |
+
+   ⇒ **넷 다 갖는다고 단언하지 마라 — red 가 난다(실측).** 대신 이렇게 재라:
+   ⑴ 법무 3종은 `metadata.title` 이 **비어 있지 않다**(각각 import 해서),
+   ⑵ 세 `title` 이 **서로 다르다**,
+   ⑶ ★**`not-available` 은 `metadata` 를 export 하지 않는다**를 **지금 동작으로 고정**하고
+   「이것은 결함이다 — [BL-816] · 대상 무변경이 이 lane 의 계약이라 고정만 한다」 주석을 달아라.
+   ★고쳐지면 이 케이스가 red 로 뒤집힌다 — **그것이 [BL-816] 의 종결 신호다.**
 4. ★★**`/not-available` 은 geo-block 의 착지점이다** — 「이 지역에서는 이용할 수 없다」는 뜻이
    화면에 있고(문구 전문이 아니라 **연락 수단**), ★**이메일 링크(`mailto:`)가 있다**를 단언해라.
    막힌 사용자가 나갈 문이 그것뿐이다
