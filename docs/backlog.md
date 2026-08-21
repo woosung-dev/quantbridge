@@ -411,71 +411,6 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 
 ## P2 — Hardening / 건강도 작업
 
-### BL-817
-
-**Title:** `app/**` 라우트 조립층에 테스트가 0건이다 — 프리페치 키 동일성·UUID 가드·`metadata` 계약이 무증거로 산다
-**Category:** 테스트 / 프런트엔드 · 백엔드
-**상태:** 🔵 **ACTIVE** — 지금 단독 착수 가능 (8 lane 워크트리 병렬)
-**Priority:** P2
-**Trigger:** 도래 — 2026-08-21 전이 폐포 실측
-**Est:** M (8 lane 병렬)
-**출처:** 2026-08-21 밤샘 루프 4차 (3차 [BL-815] 가 화면 계층을 닫고 남긴 층)
-
-**원인 / 영향:** [BL-813](fe2)·[BL-815](fe3)가 `src/lib/**` 와 화면 컴포넌트를 채우면서
-**`src/app/**`라우트 조립층만 통째로 남았다.** 이 층은 얇지만 비어 있지 않다 —`apps/web/AGENTS.md` §4 가 「조립층: 라우트·레이아웃·loading·error·metadata + feature 조립」이라
-정의한 그 자리에 **[BL-786] 프리페치 키 동일성 · UUID→`notFound()`분기 ·`getServerAuth`배선 ·`metadata` 계약\*\*이 살고 있고 전부 테스트가 없다.
-
-**실측 (2026-08-21 · 전이 폐포 = `tests/**`에서 도달하지 못하는`src/**`):**
-
-| 축                     | 수           | 비고                                                                   |
-| ---------------------- | ------------ | ---------------------------------------------------------------------- |
-| `apps/web` 미도달      | **33** / 344 | 실질 후보 = `page.tsx` **14** + `layout.tsx` **2** + og-image **1**    |
-| 그 밖(테스트가 무의미) | 16           | `loading.tsx` 7 · shadcn 래퍼 3 · `types.ts` 3 · 생성 코드 2 · route 1 |
-| `apps/api` 미도달      | ★**2** / 193 | `scripts/run_alembic_with_lock.py`(162) · `tasks/funding.py`(93)       |
-
-★★**BE 축은 예상보다 훨씬 얇았다.** 4차 착수 프롬프트가 후보로 든 넷 중 **둘이 이미 테스트를
-갖고 있었다** — `stress_test/engine/param_stability.py`(`tests/stress_test/engine/test_param_stability_state_isolation.py:23`)
-와 `tasks/conditional_entry_janitor.py`(`tests/tasks/test_conditional_entry_janitor.py:20`).
-「BE 미도달 6」은 실측 **2**였다. ⇒ BE 를 2 lane 으로 줄이고 FE 를 6 lane 으로 늘려 8을 채웠다.
-
-**★5차 재료 (같은 실측에서 나온 더 쓸모 있는 BE 축)** — 「전이 도달은 하지만 **직접 import 하는
-테스트가 0건**인 모듈」 **25/193**. 전이 폐포보다 이쪽이 커버리지 신호로 낫다:
-
-| 모듈                                | 줄  | `src` import | 성격                           |
-| ----------------------------------- | --- | ------------ | ------------------------------ |
-| `trading/outcome_parity_service.py` | 167 | 22           | 체결 정합 — 무겁지만 값이 크다 |
-| `trading/account_identity.py`       | 70  | **0**        | 순수 ([BL-605]·[BL-651])       |
-| `common/security_headers.py`        | 64  | **0**        | ASGI 미들웨어 ([BL-311])       |
-| `strategy/pine_v2/sizing.py`        | 67  | 2            | 순수 — 주문 수량 우선순위      |
-| `stress_test/engine/grid_result.py` | 96  | 3            | 공유 DTO ([BL-392])            |
-| `optimizer/engine/_common.py`       | 103 | 5            | 엔진 3종 공유 헬퍼             |
-
-**권장 접근:** 8 lane 병렬 — FE 6 + BE 2. **lane 은 테스트만 추가한다**(대상 소스 0줄 변경,
-fe2·fe3 와 같은 계약). 결함을 발견하면 고치지 말고 `blocked` 로 멈춘다 — 3차가 그 규약으로
-[BL-816] 을 드러냈다.
-
-| lane                   | 대상                                                         | 잴 것                                                                       |
-| ---------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
-| `fe4-list-prefetch`    | `(dashboard)/{backtests,strategies}/page.tsx`                | ★[BL-786] 프리페치 키 == 클라이언트 키 · `uid ?? "anon"` · 실패 삼킴        |
-| `fe4-route-params`     | `backtests/[id]` · `optimizer/[id]` · `strategies/[id]/edit` | `await params` 전달 · ★UUID 아니면 `notFound()`                             |
-| `fe4-app-shell`        | `app/layout.tsx` · `(dashboard)/layout.tsx`                  | title template · viewport 팔레트 동기 · ★`ServerIdentityProvider` userId    |
-| `fe4-landing-waitlist` | `app/page.tsx` · `waitlist/page.tsx`                         | ★인증 시 `/strategies` redirect · `?email=` 프리필                          |
-| `fe4-thin-routes`      | 얇은 위임 7종                                                | 약속된 뷰 1개에 위임 · `metadata.title` 7종 상호 구별                       |
-| `fe4-og-image`         | `share/backtests/[token]/opengraph-image.tsx`                | fetch 3갈래 fallback · `size`/`contentType`/`runtime` · 토큰 인코딩         |
-| `be4-pine-persistent`  | `strategy/pine_v2/runtime/persistent.py`                     | `declare_if_new` 1회 · ★`rollback_bar` 는 `var` 만 되돌리고 `varip` 는 유지 |
-| `be4-funding-task`     | `tasks/funding.py`                                           | bybit 외 dispatch 제외 · 시간창 경계 · prefork-safe 세션 · retry            |
-
-**★착수 전 프로브가 「안 된다」를 하나 잡았다** ([LESSON-123]) — `next/font/google` 은 **빌드타임
-SWC 변환이 치환하는 자리표**라 vitest 런타임에 함수가 아니고 `Archivo is not a function` 으로
-**top-level throw** 한다. `src/lib/fonts.ts` 를 전이로 무는 모듈이 전부 죽었다(실측 사슬 2개:
-`app/layout.tsx` · `components/monaco/pine-editor.tsx` → 후자를 통해 `strategies/new` ·
-`strategies/[id]/edit` 까지). ★**`server-only` 와 같은 처방**으로 ① 사전 배치 PR 이
-`vitest.config.ts` `resolve.alias` → `tests/stubs/next-font-google.ts` 를 세웠다 —
-**lane 안에서 고치면 8 lane 이 같은 공유 파일을 건드려 병합 충돌**이 난다. 기존 1,780 케이스 무영향 실측.
-
-**의존성:** 없다. ① 사전 배치 PR([BL-816] 종결 + 별칭 + `phases/index.json` 사전 등록)이 `main` 에
-머지된 뒤 lane 워크트리를 판다.
-
 | ID                | 제목                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Trigger                                                                                                         | Est             | 출처                                                         |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------ |
 | [BL-732](#bl-732) | ⏳ **대기 — 표본이 반증됐다.** 등재 근거였던 로컬 소크 6h33m 사망은 **맥 sleep** 이 원인이다(`pmset` 로그와 초 단위 일치 · beat 가 168회 중 **15회**만 tick 했고 그 15회가 DarkWake 횟수). `gap_resync_position_mismatch` 는 그 공백의 하류 증상이라 코드 축 판별에 못 쓴다. C1 을 실제로 끊은 사건은 [BL-734] 로 확정·수리됐다                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | ~~도래~~ → **미도래** (깨끗한 창에서 재발 시)                                                                   | M (3-4h)        | 2026-08-14 money-path-close → 08-15 재기술                   |
@@ -573,7 +508,7 @@ SWC 변환이 치환하는 자리표**라 vitest 런타임에 함수가 아니�
 | [BL-814](#bl-814) | ✅ **`_HINTS` 프로토타입 상속 — Resolved (2026-08-21 ledger-resync · 발견 당일)**. `toString`·`__proto__`·`constructor`·`valueOf`·`hasOwnProperty` 가 함수를 반환해 truthy 로 잡히고 spread 하면 `{name}` 만 남아 **화면에 `undefined`** 가 나갔다. 수리 = `hasOwnProperty.call` 가드 1줄. ★**PR #732 가 고정해 둔 케이스가 예고대로 red 로 뒤집혀** `expectFallback` 으로 다시 썼다 — 원장이 적어 둔 종결 신호가 실제로 발화했다. ★변이(가드 제거) rc=1 red · sha256 복원 OK · 38 passed                                                                                                                                                                                                                                                                                                                 | 도래 — 2026-08-21 실측                                                                                          | XS              | 2026-08-21 밤샘 루프 2차                                     |
 | [BL-815](#bl-815) | ✅ **FE 화면 계층 테스트 0건 — Resolved (2026-08-21 밤샘 루프 3차)**. 8 lane 병렬 · **8/8 completed · 충돌 0 · 변이 8/8 red** · PR #735~#743 전부 머지. `apps/web` **237 files/1,647 → 247 files/1,780 passed**(신규 10파일 **+133 케이스**) · 미도달 **53 → 32** · 대상 소스 전건 무변경. ★**AC red 측정이 lane 하나를 폐기시켰다**(`src/app/error.tsx` 는 이미 커버 — rc=0). ★**러너가 `blocked` 로 멈춰 [BL-816] 이 드러났다** — 내 step 이 재지 않은 기대를 요구했고 세션이 대상 수정 금지를 지켰다                                                                                                                                                                                                                                                                                                   | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 3차                                     |
 | [BL-816](#bl-816) | ✅ **`/not-available` metadata 부재 — Resolved (2026-08-21 밤샘 루프 4차 ① 사전 배치 PR)**. ★본문의 「`<title>` 이 비어 나간다」는 **과장이었다** — root layout 의 `template` default 로 **`"QuantBridge"`** 가 나간다(실측). 실질은 「geo-block 착지 화면이 다른 모든 페이지와 **구별되지 않는다**」다. ★**같은 병을 앓던 `page.tsx` 가 6개 더 있어 일곱을 함께 채웠다**(미export **8 → 1** · 랜딩만 의도적 제외 — template 이 브랜드를 두 번 붙인다). 동승 = `invite` 의 브랜드 2회 중복 제거. ★고정 테스트가 **예측대로 red 로 뒤집혔다** — 그것이 종결 신호였다                                                                                                                                                                                                                                       | 도래 — 2026-08-21 실측                                                                                          | XS              | 2026-08-21 밤샘 루프 3차                                     |
-| [BL-817](#bl-817) | 🔵 **`app/**` 라우트 조립층에 테스트가 0건이다** — [BL-786] 프리페치 키 동일성 · UUID→`notFound()`가드 ·`getServerAuth`배선 ·`metadata`계약이 전부 무증거다. 전이 폐포 미도달`apps/web`**33/344**(실질 =`page.tsx`14 +`layout`2 + og 1) ·`apps/api`★**2/193**. ★★착수 프롬프트가 든 BE 후보 4 중 **둘은 이미 테스트가 있었다** — 「BE 미도달 6」은 실측 2였다. ⇒ 8 lane = **FE 6 + BE 2**. ★프로브가`next/font/google`top-level throw 를 잡아 ① PR 이`resolve.alias` 로 뚫었다(lane 안에서 고치면 8 lane 병합 충돌)                                                                                                                                                                                                                                                                                       | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 4차                                     |
+| [BL-817](#bl-817) | ✅ **`app/**`라우트 조립층 테스트 0건 — Resolved (2026-08-21 밤샘 루프 4차)**. 8 lane 병렬 · **8/8 completed · retry 0 · 충돌 0 · 변이 8/8 red · 6분** · PR #746~#753 전부 머지(① 사전 배치 = #745).`apps/web`**247 files/1,780 → 253 files/1,896 passed**(신규 6파일 **+116**) ·`apps/api`신규 **29 passed** · 미도달`web`**33 → 15** ·`api` **2 → 1** · 대상 소스 전건 무변경. ★★**착수 프롬프트의 BE 재료 주장이 거짓이었다** — 「미도달 6」은 실측 2였고 명명된 4 중 둘은 **이미 테스트가 있었다**. ★**AC red 측정이 또 lane 하나를 폐기**시켰다                                                                                                                                                                                                                                                      | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 4차                                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 

@@ -467,6 +467,104 @@ skip 이고 그게 실주문 leg 의 본 작업이다.
 
 ## P2 — Hardening / 건강도 작업
 
+### BL-817
+
+**Title:** `app/**` 라우트 조립층에 테스트가 0건이다 — 프리페치 키 동일성·UUID 가드·`metadata` 계약이 무증거로 산다
+**Category:** 테스트 / 프런트엔드 · 백엔드
+**상태:** ✅ **RESOLVED** (2026-08-21 밤샘 루프 4차 완주)
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-21 전이 폐포 실측
+**Est:** M (8 lane 병렬)
+**출처:** 2026-08-21 밤샘 루프 4차 (3차 [BL-815] 가 화면 계층을 닫고 남긴 층)
+
+**원인 / 영향:** [BL-813](fe2)·[BL-815](fe3)가 `src/lib/**` 와 화면 컴포넌트를 채우면서
+**`src/app/**`라우트 조립층만 통째로 남았다.** 이 층은 얇지만 비어 있지 않다 —`apps/web/AGENTS.md` §4 가 「조립층: 라우트·레이아웃·loading·error·metadata + feature 조립」이라
+정의한 그 자리에 **[BL-786] 프리페치 키 동일성 · UUID→`notFound()`분기 ·`getServerAuth`배선 ·`metadata` 계약\*\*이 살고 있고 전부 테스트가 없다.
+
+**실측 (2026-08-21 · 전이 폐포 = `tests/**`에서 도달하지 못하는`src/**`):**
+
+| 축                     | 수           | 비고                                                                   |
+| ---------------------- | ------------ | ---------------------------------------------------------------------- |
+| `apps/web` 미도달      | **33** / 344 | 실질 후보 = `page.tsx` **14** + `layout.tsx` **2** + og-image **1**    |
+| 그 밖(테스트가 무의미) | 16           | `loading.tsx` 7 · shadcn 래퍼 3 · `types.ts` 3 · 생성 코드 2 · route 1 |
+| `apps/api` 미도달      | ★**2** / 193 | `scripts/run_alembic_with_lock.py`(162) · `tasks/funding.py`(93)       |
+
+★★**BE 축은 예상보다 훨씬 얇았다.** 4차 착수 프롬프트가 후보로 든 넷 중 **둘이 이미 테스트를
+갖고 있었다** — `stress_test/engine/param_stability.py`(`tests/stress_test/engine/test_param_stability_state_isolation.py:23`)
+와 `tasks/conditional_entry_janitor.py`(`tests/tasks/test_conditional_entry_janitor.py:20`).
+「BE 미도달 6」은 실측 **2**였다. ⇒ BE 를 2 lane 으로 줄이고 FE 를 6 lane 으로 늘려 8을 채웠다.
+
+**★5차 재료 (같은 실측에서 나온 더 쓸모 있는 BE 축)** — 「전이 도달은 하지만 **직접 import 하는
+테스트가 0건**인 모듈」 **25/193**. 전이 폐포보다 이쪽이 커버리지 신호로 낫다:
+
+| 모듈                                | 줄  | `src` import | 성격                           |
+| ----------------------------------- | --- | ------------ | ------------------------------ |
+| `trading/outcome_parity_service.py` | 167 | 22           | 체결 정합 — 무겁지만 값이 크다 |
+| `trading/account_identity.py`       | 70  | **0**        | 순수 ([BL-605]·[BL-651])       |
+| `common/security_headers.py`        | 64  | **0**        | ASGI 미들웨어 ([BL-311])       |
+| `strategy/pine_v2/sizing.py`        | 67  | 2            | 순수 — 주문 수량 우선순위      |
+| `stress_test/engine/grid_result.py` | 96  | 3            | 공유 DTO ([BL-392])            |
+| `optimizer/engine/_common.py`       | 103 | 5            | 엔진 3종 공유 헬퍼             |
+
+**권장 접근:** 8 lane 병렬 — FE 6 + BE 2. **lane 은 테스트만 추가한다**(대상 소스 0줄 변경,
+fe2·fe3 와 같은 계약). 결함을 발견하면 고치지 말고 `blocked` 로 멈춘다 — 3차가 그 규약으로
+[BL-816] 을 드러냈다.
+
+| lane                   | 대상                                                         | 잴 것                                                                       |
+| ---------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `fe4-list-prefetch`    | `(dashboard)/{backtests,strategies}/page.tsx`                | ★[BL-786] 프리페치 키 == 클라이언트 키 · `uid ?? "anon"` · 실패 삼킴        |
+| `fe4-route-params`     | `backtests/[id]` · `optimizer/[id]` · `strategies/[id]/edit` | `await params` 전달 · ★UUID 아니면 `notFound()`                             |
+| `fe4-app-shell`        | `app/layout.tsx` · `(dashboard)/layout.tsx`                  | title template · viewport 팔레트 동기 · ★`ServerIdentityProvider` userId    |
+| `fe4-landing-waitlist` | `app/page.tsx` · `waitlist/page.tsx`                         | ★인증 시 `/strategies` redirect · `?email=` 프리필                          |
+| `fe4-thin-routes`      | 얇은 위임 7종                                                | 약속된 뷰 1개에 위임 · `metadata.title` 7종 상호 구별                       |
+| `fe4-og-image`         | `share/backtests/[token]/opengraph-image.tsx`                | fetch 3갈래 fallback · `size`/`contentType`/`runtime` · 토큰 인코딩         |
+| `be4-pine-persistent`  | `strategy/pine_v2/runtime/persistent.py`                     | `declare_if_new` 1회 · ★`rollback_bar` 는 `var` 만 되돌리고 `varip` 는 유지 |
+| `be4-funding-task`     | `tasks/funding.py`                                           | bybit 외 dispatch 제외 · 시간창 경계 · prefork-safe 세션 · retry            |
+
+**★착수 전 프로브가 「안 된다」를 하나 잡았다** ([LESSON-123]) — `next/font/google` 은 **빌드타임
+SWC 변환이 치환하는 자리표**라 vitest 런타임에 함수가 아니고 `Archivo is not a function` 으로
+**top-level throw** 한다. `src/lib/fonts.ts` 를 전이로 무는 모듈이 전부 죽었다(실측 사슬 2개:
+`app/layout.tsx` · `components/monaco/pine-editor.tsx` → 후자를 통해 `strategies/new` ·
+`strategies/[id]/edit` 까지). ★**`server-only` 와 같은 처방**으로 ① 사전 배치 PR 이
+`vitest.config.ts` `resolve.alias` → `tests/stubs/next-font-google.ts` 를 세웠다 —
+**lane 안에서 고치면 8 lane 이 같은 공유 파일을 건드려 병합 충돌**이 난다. 기존 1,780 케이스 무영향 실측.
+
+**의존성:** 없다. ① 사전 배치 PR([BL-816] 종결 + 별칭 + `phases/index.json` 사전 등록)이 `main` 에
+머지된 뒤 lane 워크트리를 판다.
+
+---
+
+## ✅ 종결 (2026-08-21 밤샘 루프 4차)
+
+**8/8 completed · retry 0 · blocked 0 · 병합 충돌 0 · 변이 8/8 red · 6분.**
+PR **#746~#753** 전부 머지(① 사전 배치 = #745).
+
+| 축                | 결과                                                                                                           |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| `apps/web` vitest | **247 files / 1,780 → 253 files / 1,896 passed** (신규 6파일 **+116 케이스**)                                  |
+| `apps/api` 신규   | `test_default_qty_resolution.py` 11 · `test_account_identity.py` 8 · `test_funding_task.py` 10 = **29 passed** |
+| 전이 폐포 미도달  | `apps/web` **33 → 15** · `apps/api` **2 → 1**                                                                  |
+| 대상 소스 변경    | **0줄** (8 lane 전건) · `xfail`/`skip`/`only` **0건**                                                          |
+
+★**FE 축은 여기서 사실상 바닥이다** — 남은 15 중 `loading.tsx` **7**(스켈레톤) · 생성 코드 **2** ·
+`types.ts` **3** · shadcn 래퍼 **2** 는 테스트가 항진명제가 된다. **실질 후보는
+`src/app/api/auth/[...all]/route.ts` 하나뿐**이다. `apps/api` 도 `scripts/run_alembic_with_lock.py` 하나 남았다.
+
+**세션이 관측해서 새로 밝힌 사실 4건** (내가 「관측한 것을 박아라」로만 지시한 자리):
+
+1. ★**`tasks/funding.py` 의 실패 경로가 비대칭이다** — 알 수 없는 거래소(`ExchangeName("kraken")`)는
+   **엔진 생성 후** 터져 `dispose()` 가 1회 돌지만, 잘못된 backfill ISO 문자열은 **엔진 생성 전**
+   터져 dispose 가 없다. 둘 다 지금 동작으로 고정했다
+2. ★**비숫자 Pine `default_qty_value` 는 type 은 유지되고 value 만 `None` 이 된다** — 그래서
+   `resolve_default_qty` 의 「type·value 둘 다 있어야 쓴다」 조건에 걸려 form/live 로 내려간다
+3. ★**`read_only=None` 행이 `read_only=True` 대표를 교체한다** — 코드가 `is True` / `is not True` 로
+   비교하므로 `None` 은 「read_only 아님」쪽이다
+4. ★**OG 의 `total_return` 비정상 입력은 `pct()` 가 아니라 `decimalString` 스키마가 먼저 거부한다**
+
+**5차 재료** — 위 「직접 import 하는 테스트가 0건인 모듈」 표에서 이번에 닫은 셋을 뺀 나머지
+(`trading/outcome_parity_service.py` 167줄 등). ★단 그 표는 **재export 추적을 넣은 뒤에도 위양성이 있다** —
+쓰기 전에 **AC red 로 실사해라**([LESSON-125]).
+
 ### BL-195
 
 **Title:** qb-form-slide-down animation 영구 truncation (max-height 600px + overflow-hidden, 600px 초과 시 hint list 잘림)
