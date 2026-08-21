@@ -575,7 +575,16 @@ CONTROL 이 검시해 **실측표를 step 에 박고** `pending` 으로 되돌�
 ★**닫힌 BL 은 [BL-813] 하나다** — [ADR-034]·[BL-072]·[BL-776]·[BL-268]·[BL-300]·[BL-775] 는
 근거·맥락으로 인용했을 뿐 상태가 바뀌지 않았다. **다시 닫았다고 적지 마라.**
 
-**다음 행동 = 밤샘 루프 3차를 B축으로 돌린다 — FE 컴포넌트 클러스터.**
+~~**다음 행동 = 밤샘 루프 3차를 B축으로 돌린다 — FE 컴포넌트 클러스터.**~~
+→ **2026-08-21 착수.** 소유 티켓 **[BL-815]** 신설·3면 등재. 8 lane = `phases/fe3-*`.
+
+★**착수 전 프로브가 lane 하나를 폐기시켰다** — 초판 lane 1 이 `src/app/error.tsx` 를 겨눴는데
+**이미 테스트가 있었다**(4 케이스). AC red 측정에서 **rc=0(판별력 0)** 으로 드러나 공개 법무
+페이지 4종으로 교체했다. ★**그리고 내 AC 생성기가 경로를 `\"` 로 감싸 `bash -c` 에서 깨졌다** —
+파일이 생겨도 실패할 AC 였다. 경로에 `(dashboard)`·`[token]` 괄호가 있으므로 **작은따옴표**로 감싼다
+(vitest CLI 필터 자체는 괄호 경로를 정상 처리한다 — 실측 4건. 문제는 셸이었다).
+
+**다음 행동 = fe3 8 lane 을 워크트리 병렬로 돌리고, CI conclusion=success 확인 후 머지한다.**
 재료(2026-08-21 전이 폐포 실측, 이번 회차가 판정 로직을 걷어낸 뒤 남은 것): **완전 미도달 소스 53**(총 343 중 · 종전 58 에서 이번 회차가 5 를 걷어냈다) ·
 군집은 `app/**` 의 `page/error/loading`(약 30) · `components/`(`geo-block-banner`·`legal-notice-banner`·
 `tick-ruler`) · `components/providers`(`app-providers`·`query-provider`) · `features/optimizer/components/optimizer-page-view.tsx`(187줄) ·

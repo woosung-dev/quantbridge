@@ -1,0 +1,18 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe3-waitlist-admin",
+  "steps": [
+    {
+      "step": 0,
+      "name": "waitlist-header-and-admin",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run 'src/features/waitlist/components/__tests__/waitlist-header.test.tsx' 'src/features/waitlist/components/admin/__tests__/waitlist-admin-view.test.tsx'",
+        "cd apps/web && test \"$(pnpm exec vitest list 'src/features/waitlist/components/__tests__/waitlist-header.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 6",
+        "cd apps/web && test \"$(pnpm exec vitest list 'src/features/waitlist/components/admin/__tests__/waitlist-admin-view.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 7",
+        "cd apps/web && pnpm exec eslint 'src/features/waitlist/components/__tests__/waitlist-header.test.tsx' 'src/features/waitlist/components/admin/__tests__/waitlist-admin-view.test.tsx'",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

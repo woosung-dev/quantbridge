@@ -1,0 +1,18 @@
+{
+  "project": "QuantBridge",
+  "phase": "fe3-numeric-display",
+  "steps": [
+    {
+      "step": 0,
+      "name": "tick-ruler-and-pnl-tape",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm test -- --run 'src/components/__tests__/tick-ruler.test.tsx' 'src/components/tape/__tests__/pnl-tape.test.tsx'",
+        "cd apps/web && test \"$(pnpm exec vitest list 'src/components/__tests__/tick-ruler.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 6",
+        "cd apps/web && test \"$(pnpm exec vitest list 'src/components/tape/__tests__/pnl-tape.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 6",
+        "cd apps/web && pnpm exec eslint 'src/components/__tests__/tick-ruler.test.tsx' 'src/components/tape/__tests__/pnl-tape.test.tsx'",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}
