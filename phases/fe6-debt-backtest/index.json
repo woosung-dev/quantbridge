@@ -17,11 +17,14 @@
     {
       "step": 1,
       "name": "template-and-complexity",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys src/features/backtest",
         "cd apps/web && pnpm exec vitest run src/features/backtest"
-      ]
+      ],
+      "started_at": "2026-08-22T04:47:43+0900",
+      "summary": "style/useTemplate 3건(backtest-list 탭 class·스트레스 지표 레이블 2건)과 complexity 2건(단일 자식 Fragment·manual/default 중복 case)을 의미 보존으로 제거했다. useOptionalChain·useLiteralKeys 위반은 없었다.",
+      "completed_at": "2026-08-22T04:51:18+0900"
     },
     {
       "step": 2,
