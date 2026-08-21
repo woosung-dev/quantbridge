@@ -41,14 +41,17 @@
     {
       "step": 3,
       "name": "array-index-key",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents --only=suspicious/noArrayIndexKey --only=suspicious/noConsole src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/features/alert-rules src/features/realtime src/components src/lib src/hooks src/store",
         "cd apps/web && pnpm exec vitest run src/features/trading src/features/live-sessions src/features/dashboard src/features/waitlist src/components src/lib src/hooks",
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check ."
-      ]
+      ],
+      "started_at": "2026-08-22T05:15:20+0900",
+      "summary": "규칙군 | 고친/biome-ignore: noArrayIndexKey 20/0; noSvgWithoutTitle·useButtonType·noRedundantRoles 0/0; useTemplate 0/0; complexity 4종 0/0; useSemanticElements·useAriaPropsSupportedByRole·noNoninteractiveTabindex·useKeyWithClickEvents 0/0; noConsole 0/0. 표·주문·포지션은 도메인 복합 식별자, 정적 스켈레톤은 생성 슬롯 ID, PnlTape는 delta+출현순서를 쓴다. 회귀에서 깨져 되살린 테스트 없음; 동작 변경 의심 없음(키만 교체). 전체 biome check는 담당 밖 e2e/scripts/src/__tests__의 기존 진단으로 rc=1.",
+      "completed_at": "2026-08-22T05:22:23+0900"
     }
   ],
   "created_at": "2026-08-22T05:03:21+0900"
