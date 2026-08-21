@@ -9,6 +9,45 @@
 (출처 레포 jha0313/finsight 에서는 `0-foundation` → `1-core-loop` → … 처럼 **순번**이었다.
 우리는 같은 파일을 병렬 묶음에도 쓴다. 어느 쪽인지는 아래 절이 말한다.)
 
+## 지금 도는 묶음 — `be5-*` 8벌 (2026-08-21 · 밤샘 루프 5차 · 소유 티켓 [BL-818])
+
+4차가 FE 축을 바닥까지 닫아(미도달 15 중 실질 후보 1건) **`apps/api` 차례**다.
+`docs/status.md` 의 「다음 행동」이 가리키던 Beta 진입은 **사용자 게이트**([BL-005])라 세션이 못 연다.
+
+★★★**이 회차의 재료는 AST 가 아니라 커버리지가 정했다 — 그 차이가 lane 6개를 갈아치웠다.**
+
+| phase                   | 대상 (`apps/api/src/`)                                                | 착수 전 커버 → 미커버 | DB  | 새 파일 (`apps/api/tests/`)                         |
+| ----------------------- | --------------------------------------------------------------------- | --------------------- | --- | --------------------------------------------------- |
+| `be5-alembic-lock`      | `scripts/run_alembic_with_lock.py`                                    | **0%** · 64/64        | ❌  | `scripts/test_run_alembic_with_lock.py`             |
+| `be5-worker-tasks`      | `tasks/optimizer_tasks.py` + `tasks/stress_test_tasks.py`             | 35%·35% · 44줄        | ❌  | `tasks/test_worker_task_lifecycle.py`               |
+| `be5-health-probes`     | `health/router.py`                                                    | **54%** · 41/85       | ❌  | `health/test_health_probes.py`                      |
+| `be5-di-assembly`       | `optimizer`·`stress_test`·`backtest`·`market_data` `/dependencies.py` | 56·56·62·52% · 34줄   | ❌  | `common/test_worker_di_assembly.py`                 |
+| `be5-convert-service`   | `strategy/convert/service.py`                                         | 61% · 35/104          | ❌  | `strategy/convert/test_convert_service_fallback.py` |
+| `be5-alert-rule-repo`   | `trading/repositories/alert_rule_repository.py`                       | 67% · 11/33           | ✅  | `trading/test_alert_rule_repository_contract.py`    |
+| `be5-dispatch-trio`     | `tasks/backtest.py` + dispatcher 3종                                  | 65·80·80·85% · 25줄   | ❌  | `tasks/test_dispatch_contracts.py`                  |
+| `be5-waitlist-services` | `waitlist/{service,email_service,token_service}.py`                   | 80·80·85% · 26줄      | ❌  | `waitlist/test_waitlist_service_failures.py`        |
+
+★**착수 전 실측 (2026-08-21):** AC red **8/8**(전부 rc=4) · 인접 회귀 **8/8 green** ·
+전량 스위트 기준선 **5,130 passed · 32 skipped · 3 xfailed · 0 failed · TOTAL 90%**(17분 48초).
+
+★★★**5차가 더한 것 — 「미커버」를 무엇으로 재느냐가 재료를 바꾼다:**
+
+1. ★★★**AST 축(「테스트가 이 모듈을 import 하는가」)과 커버리지 축(「이 줄이 돌았는가」)이 6건에서 갈렸다.**
+   초판 8 lane 중 **둘은 실제로 100% 커버**였고(`outcome_parity_service` · `live_session_query_service`)
+   셋은 89~94% 였다. **살아남은 것은 `run_alembic_with_lock`(0%)과 `alert_rule_repository`(67%) 둘뿐이다.**
+   ⇒ **커버리지가 있는 레포에서 「미커버 재료」를 AST 로 고르지 마라.**
+2. ★★★**그 커버리지 도구 자신이 두 번 틀렸다** — ⑴ `--cov=<파일.py>` 는 유효한 source 스펙이 아니라
+   **데이터를 한 건도 수집하지 않는다**(tail 만 보면 「0%」가 확증으로 읽힌다). ⑵ 고친 뒤에도
+   `[tool.coverage.run]` 에 **`concurrency` 가 없어** SQLAlchemy greenlet 전환 뒤의 줄을 전부 미커버로 냈다.
+   `outcome_parity_service.py` 가 **80% → `concurrency=greenlet,thread` 로 100%** 가 됐다.
+   ⇒ **`--cov-config` 로 `concurrency = greenlet,thread` 를 주지 않으면 async 레포의 커버리지는 거짓이다.**
+3. ★★**갈라낸 방법은 해명이 아니라 재측정이었다**([LESSON-125]) — 「소유권 가드가 미커버」라는 수치와
+   「`tests/api/test_live_session_outcome_parity.py` 가 11 케이스로 200 을 단언한다」는 코드가 모순이었고,
+   **모순을 설명하지 않고 설정을 바꿔 다시 쟀다.**
+4. ★★**「실행 우회는 커버가 아니다」가 이번에도 재료를 만들었다** — `health/router.py` 의 세 프로브는
+   기존 5 케이스가 **monkeypatch 로 통째 치환**해서 본문이 41줄 미커버였고, `AlertRuleRepository` 는
+   두 테스트가 **클래스를 페이크로 갈아끼워** 11줄 미커버였다. **이름이 맞는 테스트 파일은 증거가 아니다.**
+
 ## 앞선 병렬 묶음 — `fe4-*` 6 + `be4-*` 2 **완주** (2026-08-21 · PR #746~#753)
 
 3차가 화면 계층을 닫고 남긴 **`src/app/` 라우트 조립층**이다. 소유 티켓 = **[BL-817]**. `apps/web/AGENTS.md` §4 가 「조립층: 라우트·레이아웃·loading·error·metadata + feature 조립」이라

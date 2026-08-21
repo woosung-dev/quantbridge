@@ -221,6 +221,38 @@
       "dir": "be4-funding-task",
       "status": "completed",
       "completed_at": "2026-08-21T14:11:54+0900"
+    },
+    {
+      "dir": "be5-alembic-lock",
+      "status": "pending"
+    },
+    {
+      "dir": "be5-alert-rule-repo",
+      "status": "pending"
+    },
+    {
+      "dir": "be5-convert-service",
+      "status": "pending"
+    },
+    {
+      "dir": "be5-di-assembly",
+      "status": "pending"
+    },
+    {
+      "dir": "be5-dispatch-trio",
+      "status": "pending"
+    },
+    {
+      "dir": "be5-health-probes",
+      "status": "pending"
+    },
+    {
+      "dir": "be5-waitlist-services",
+      "status": "pending"
+    },
+    {
+      "dir": "be5-worker-tasks",
+      "status": "pending"
     }
   ]
 }

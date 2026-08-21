@@ -509,6 +509,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 | [BL-815](#bl-815) | ✅ **FE 화면 계층 테스트 0건 — Resolved (2026-08-21 밤샘 루프 3차)**. 8 lane 병렬 · **8/8 completed · 충돌 0 · 변이 8/8 red** · PR #735~#743 전부 머지. `apps/web` **237 files/1,647 → 247 files/1,780 passed**(신규 10파일 **+133 케이스**) · 미도달 **53 → 32** · 대상 소스 전건 무변경. ★**AC red 측정이 lane 하나를 폐기시켰다**(`src/app/error.tsx` 는 이미 커버 — rc=0). ★**러너가 `blocked` 로 멈춰 [BL-816] 이 드러났다** — 내 step 이 재지 않은 기대를 요구했고 세션이 대상 수정 금지를 지켰다                                                                                                                                                                                                                                                                                                   | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 3차                                     |
 | [BL-816](#bl-816) | ✅ **`/not-available` metadata 부재 — Resolved (2026-08-21 밤샘 루프 4차 ① 사전 배치 PR)**. ★본문의 「`<title>` 이 비어 나간다」는 **과장이었다** — root layout 의 `template` default 로 **`"QuantBridge"`** 가 나간다(실측). 실질은 「geo-block 착지 화면이 다른 모든 페이지와 **구별되지 않는다**」다. ★**같은 병을 앓던 `page.tsx` 가 6개 더 있어 일곱을 함께 채웠다**(미export **8 → 1** · 랜딩만 의도적 제외 — template 이 브랜드를 두 번 붙인다). 동승 = `invite` 의 브랜드 2회 중복 제거. ★고정 테스트가 **예측대로 red 로 뒤집혔다** — 그것이 종결 신호였다                                                                                                                                                                                                                                       | 도래 — 2026-08-21 실측                                                                                          | XS              | 2026-08-21 밤샘 루프 3차                                     |
 | [BL-817](#bl-817) | ✅ **`app/**`라우트 조립층 테스트 0건 — Resolved (2026-08-21 밤샘 루프 4차)**. 8 lane 병렬 · **8/8 completed · retry 0 · 충돌 0 · 변이 8/8 red · 6분** · PR #746~#753 전부 머지(① 사전 배치 = #745).`apps/web`**247 files/1,780 → 253 files/1,896 passed**(신규 6파일 **+116**) ·`apps/api`신규 **29 passed** · 미도달`web`**33 → 15** ·`api` **2 → 1** · 대상 소스 전건 무변경. ★★**착수 프롬프트의 BE 재료 주장이 거짓이었다** — 「미도달 6」은 실측 2였고 명명된 4 중 둘은 **이미 테스트가 있었다**. ★**AC red 측정이 또 lane 하나를 폐기**시켰다                                                                                                                                                                                                                                                      | 도래 — 2026-08-21 전이 폐포 실측                                                                                | M (8 lane 병렬) | 2026-08-21 밤샘 루프 4차                                     |
+| [BL-818](#bl-818) | ⬜ **BE 미커버 모듈 커버리지 — `apps/api` 8 lane 병렬 (밤샘 루프 5차)**. 4차가 FE 축을 바닥까지 닫아(미도달 15 중 실질 후보 1건) BE 차례다. ★★**재료를 AST 가 아니라 커버리지가 정했다** — 착수 전 전량 스위트 실측 **5,130 passed · TOTAL 90%**(`concurrency=greenlet,thread` 교정본) 기준 미커버 상위 8묶음: `run_alembic_with_lock` **0%** · `optimizer/stress_test_tasks` 35% · `health/router` **54%** · `dependencies` 4종 52~62% · `convert/service` 61% · `alert_rule_repository` 67% · `tasks/backtest`+dispatcher 3종 · `waitlist` 서비스 3종. 착수 전 **AC red 8/8 · 인접 회귀 8/8 green**. ★대상 소스 0줄 변경(1~4차 전건 유지)                                                                                                                                                               | 도래 — 2026-08-21 커버리지 실측                                                                                 | M (8 lane 병렬) | 2026-08-21 밤샘 루프 5차                                     |
 
 > Resolved P2 = BL-027/137/140/140b/141/144/150/152/176/178/180/181/183/184/185/187/187a/188/188a/189/200~206/219~234/237 + 30+ Sprint 16~30 stale (`_archived.md`). + BL-603 (2026-08-07 gap-resync-autopsy). + BL-597 (2026-08-06 entry-set-divergence).
 
@@ -2019,5 +2020,67 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **상태:** ⬜ Open — 2026-08-19 등재 · 같은 날 **재기술**(구 `final-gates.sh` 프레임 제거). 미착수. ★실측: BE 를 `e2e` 짝(`FRONTEND_URL=:3100`)으로 맞추니 `e2e chromium`·`e2e design-canon`·`e2e authed`·`BE pytest`·`CI fresh DB alembic` 은 통과하고 **화면 증거 팩(authed)만 전제 프로브에서 죽었다** — 「측정 서버: `http://localhost:3110` / BE 가 허용: (헤더 없음 — 거부)」. 그 레그 자체는 별도 실행으로 rc=0 을 여러 번 확인했다
 **트리거 판정:** 도래 — 레그가 실재하고 충돌이 **종결 게이트 실행으로** 확인됐다 (2026-08-19 n6-authed-evidence)
+
+---
+
+### BL-818
+
+**Title:** `apps/api` 미커버 모듈 커버리지 — 8 lane 병렬 (밤샘 루프 5차)
+**Category:** 테스트 / 건강도
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-21 전량 스위트 커버리지 실측
+**Est:** M (8 lane 병렬 · 대상 소스 0줄 변경)
+**출처:** 2026-08-21 밤샘 루프 5차 — 4차([BL-817])가 FE 축을 닫고 넘긴 자리
+
+4차가 `apps/web` 라우트 조립층을 닫으면서 **FE 축은 바닥에 닿았다**(미도달 15 중 실질 후보 1건).
+`docs/status.md` 의 「다음 행동」이 가리키던 Beta 진입 3종([BL-070]→[BL-071]→[BL-072])은
+**사용자 게이트**([BL-005] self-assess ≥7 + 본인 의지)라 세션이 못 연다. 그래서 사용자 개입 없이
+닫히는 축 = **`apps/api` 에서 테스트가 겨누지 않는 모듈**로 간다.
+
+★★★**이 회차의 재료는 AST 가 아니라 커버리지가 정했고, 그 차이가 초판 lane 6개를 갈아치웠다.**
+초판은 「테스트가 이 모듈을 import 하는가」(AST 3축)로 골랐는데, 커버리지로 재니 **둘은 100% 커버**였고
+(`outcome_parity_service.py` · `live_session_query_service.py`) 셋은 89~94% 였다.
+살아남은 것은 `run_alembic_with_lock.py`(0%)와 `alert_rule_repository.py`(67%) **둘뿐**이다.
+
+★**착수 전 기준선 (2026-08-21 · `concurrency=greenlet,thread` 교정본):**
+전량 스위트 **5,130 passed · 32 skipped · 3 xfailed · 0 failed · TOTAL 90%**(17분 48초) · 219 모듈 중 96개 100%.
+
+| lane                    | 대상 (`apps/api/src/`)                                    | 커버 → 미커버   | DB  |
+| ----------------------- | --------------------------------------------------------- | --------------- | --- |
+| `be5-alembic-lock`      | `scripts/run_alembic_with_lock.py`                        | **0%** · 64/64  | ❌  |
+| `be5-worker-tasks`      | `tasks/optimizer_tasks.py` + `tasks/stress_test_tasks.py` | 35%·35% · 44줄  | ❌  |
+| `be5-health-probes`     | `health/router.py`                                        | **54%** · 41/85 | ❌  |
+| `be5-di-assembly`       | `optimizer`·`stress_test`·`backtest`·`market_data` DI 4종 | 52~62% · 34줄   | ❌  |
+| `be5-convert-service`   | `strategy/convert/service.py`                             | 61% · 35/104    | ❌  |
+| `be5-alert-rule-repo`   | `trading/repositories/alert_rule_repository.py`           | 67% · 11/33     | ✅  |
+| `be5-dispatch-trio`     | `tasks/backtest.py` + dispatcher 3종                      | 65~85% · 25줄   | ❌  |
+| `be5-waitlist-services` | `waitlist/{service,email_service,token_service}.py`       | 80~85% · 26줄   | ❌  |
+
+★★**이 회차가 드러낸 계측기 결함 2건 (이 항목의 진짜 산출일 수 있다):**
+
+1. ★★★**`[tool.coverage.run]` 에 `concurrency` 가 없다.** SQLAlchemy 는 async 경로에서 greenlet 을 쓰는데,
+   `concurrency = greenlet,thread` 없이 재면 **`await` 뒤에 오는 줄이 전부 미커버로 나온다.**
+   실측 — `outcome_parity_service.py` 가 테스트 파일 하나만으로 **80% → 100%**.
+   ⇒ **BL-308/309 의 money-path 커버리지 래칫도 같은 왜곡을 받고 있다**(래칫이 재는 값이 실제보다 낮다).
+   래칫 임계를 손대는 것은 이 항목의 범위 밖이라 **별도 판단이 필요하다**.
+2. ★**`--cov=<파일.py>` 는 유효한 source 스펙이 아니다** — 데이터를 한 건도 수집하지 않고
+   「No data was collected」 경고만 낸다. tail 만 보면 **「0%」가 확증으로 읽힌다.**
+
+★**「실행 우회는 커버가 아니다」가 이 회차의 재료 둘을 만들었다** — `health/router.py` 의 프로브 3종은
+기존 5 케이스가 **`monkeypatch` 로 통째 치환**해서 본문 41줄이 미커버였고, `AlertRuleRepository` 는
+두 테스트가 **클래스를 페이크로 갈아끼워** 11줄이 미커버였다. 게다가
+`tests/trading/test_alert_rule_repository.py` 는 **이름만 같고 그 클래스를 안 쓴다.**
+
+**비고 — 이번에 뺀 것(후속 후보):** 고아 라우트 7종(`GET /backtests/{id}/trades/{i}/ohlcv` ·
+`POST /optimizer/runs/{bayesian,genetic}` · `PUT /strategies/{id}/settings` ·
+`POST /strategies/{id}/rotate-webhook-secret` · `POST /stress-tests/cost-assumption-sensitivity` ·
+`GET /waitlist/invite/{token}`) · `tasks/celery_app.py` 55% · `websocket_task.py` 61% ·
+`live_signal_event_repository.py` 60% · `live_signal_session_repository.py` 67% · `waitlist/repository.py` 68%.
+★그리고 `tests/strategy/pine_v2/test_trust_layer_parity.py` 는 **단독 실행 시 7 passed** 인데
+`-p no:randomly` + 커버리지 통합 실행에서 2건 red 였다 — **순서/계측 의존**이고 CI 는 그 파일을 샤드 `b` 로
+격리한다. 이 회차의 대상은 아니지만 좌표를 남긴다.
+
+**상태:** ⬜ Open — 2026-08-21 등재. ① 사전 배치 PR 에서 phases 8벌 + 3면 등재. 착수 전 **AC red 8/8**(전부 rc=4) · **인접 회귀 8/8 green** 확인 완료
+**트리거 판정:** 도래 — 커버리지 실측으로 재료가 확정됐고 8 lane 이 전부 판별력을 가졌다 (2026-08-21)
 
 ---
