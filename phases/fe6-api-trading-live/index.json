@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/live-sessions/__tests__/api-contract.test.ts -a -f apps/web/src/features/trading/__tests__/api-contract.test.ts -a -f apps/web/src/features/waitlist/__tests__/api-contract.test.ts -a -f apps/web/src/features/live-sessions/__tests__/unrealized-branches.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/api-contract.test.ts src/features/trading/__tests__/api-contract.test.ts src/features/waitlist/__tests__/api-contract.test.ts src/features/live-sessions/__tests__/unrealized-branches.test.ts --coverage --coverage.include='src/features/live-sessions/api.ts' --coverage.include='src/features/trading/api.ts' --coverage.include='src/features/waitlist/api.ts' --coverage.include='src/features/live-sessions/unrealized.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=45",
         "git diff --quiet -- apps/web/src/features/live-sessions/api.ts apps/web/src/features/trading/api.ts apps/web/src/features/waitlist/api.ts apps/web/src/features/live-sessions/unrealized.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:36:41+0900",
+      "summary": "정상 경로 24건: live-sessions API 9 export(등록·비활성화·state·events·세션/계정 positions·outcome parity 포함), trading API 9 export, waitlist apiFetch 경계 3 export, unrealized 순수 계산+훅 조립을 고정했다. 세 REST 래퍼는 @/lib/api-client apiFetch를 mock했고, unrealized 훅은 useQueries·auth·state API를 mock하되 실제 Zustand ticker를 주입했다. 다음 Step 2는 404/오류·누락 ticker/state와 verifyInviteToken의 직접 fetch 경계를 다룬다. AC: 24/24 green, 대상 lines 91.42%.",
+      "completed_at": "2026-08-22T03:49:04+0900"
     },
     {
       "step": 2,
