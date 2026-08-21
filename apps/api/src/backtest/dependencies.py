@@ -46,8 +46,10 @@ def build_backtest_service_for_worker(session: AsyncSession) -> BacktestService:
 
         ohlcv_provider = FixtureProvider(root=settings.ohlcv_fixture_root)
     else:
+        # ★[BL-819] `OHLCVRepository` 를 여기서 다시 import 하지 마라 — 15행에 이미 있다.
+        #   함수 안 어디서든 그 이름을 바인딩하면 **함수 전체에서 지역**이 되어,
+        #   fixture 갈래(이 else 를 안 타는 경로)의 63행 사용이 `UnboundLocalError` 로 죽는다.
         from src.market_data.providers.timescale import TimescaleProvider
-        from src.market_data.repository import OHLCVRepository
         from src.tasks.celery_app import get_ccxt_provider_for_worker
 
         ohlcv_provider = TimescaleProvider(
