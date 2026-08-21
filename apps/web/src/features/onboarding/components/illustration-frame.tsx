@@ -344,7 +344,7 @@ function ChartArt() {
         <g>
           {bars.map((b, i) => (
             <rect
-              key={i}
+              key={b.x}
               x={b.x}
               y={240 - b.h}
               width="14"

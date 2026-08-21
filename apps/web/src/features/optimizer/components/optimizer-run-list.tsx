@@ -31,6 +31,17 @@ const LIST_ENDPOINT = "GET /api/v1/optimizer/runs";
 
 // 페이지당 요청 개수 토글 값 (screen-09 02 목록 · role=group + aria-pressed).
 const PAGE_SIZES = [10, 25, 50] as const;
+const SKELETON_ROW_KEYS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
+const SKELETON_CELL_KEYS = [
+  "cell-1",
+  "cell-2",
+  "cell-3",
+  "cell-4",
+  "cell-5",
+  "cell-6",
+  "cell-7",
+  "cell-8",
+] as const;
 
 // grid 는 cell objective, bayesian/genetic 은 best_iteration objective_value 로 최고 목표값 파생.
 function bestObjectiveOf(r: OptimizationRunResponse): number | null {
@@ -270,10 +281,10 @@ function ListSkeleton() {
     >
       <table className="trades opt-table">
         <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 8 }).map((__, j) => (
-                <td key={j}>
+          {SKELETON_ROW_KEYS.map((rowKey) => (
+            <tr key={rowKey}>
+              {SKELETON_CELL_KEYS.map((cellKey) => (
+                <td key={cellKey}>
                   <span className="sk sk-cell" />
                 </td>
               ))}

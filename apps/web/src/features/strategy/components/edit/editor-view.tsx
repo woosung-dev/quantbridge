@@ -42,6 +42,13 @@ const MARGIN_MODE_LABEL: Record<MarginMode, string> = {
   cross: "교차 (Cross)",
   isolated: "격리 (Isolated)",
 };
+const EDITOR_META_SKELETON_KEYS = ["meta-1", "meta-2", "meta-3", "meta-4", "meta-5"] as const;
+const EDITOR_SETTING_SKELETON_LINES = [
+  { key: "setting-1", width: "72%", marginTop: 0 },
+  { key: "setting-2", width: "64%", marginTop: 10 },
+  { key: "setting-3", width: "56%", marginTop: 10 },
+  { key: "setting-4", width: "48%", marginTop: 10 },
+] as const;
 
 export function EditorView({ id }: { id: string }) {
   const router = useRouter();
@@ -416,8 +423,12 @@ function EditorSkeleton() {
           <div>
             <span className="sk" style={{ display: "block", width: 220, height: 32 }} />
             <div className="report-meta">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <span key={i} className="sk" style={{ display: "block", width: 74, height: 26 }} />
+              {EDITOR_META_SKELETON_KEYS.map((key) => (
+                <span
+                  key={key}
+                  className="sk"
+                  style={{ display: "block", width: 74, height: 26 }}
+                />
               ))}
             </div>
           </div>
@@ -444,11 +455,11 @@ function EditorSkeleton() {
       <section className="section" aria-hidden="true">
         <div className="card">
           <div className="card-body">
-            {Array.from({ length: 4 }).map((_, i) => (
+            {EDITOR_SETTING_SKELETON_LINES.map((line) => (
               <span
-                key={i}
+                key={line.key}
                 className="sk sk-line"
-                style={{ width: `${72 - i * 8}%`, marginTop: i === 0 ? 0 : 10 }}
+                style={{ width: line.width, marginTop: line.marginTop }}
               />
             ))}
           </div>

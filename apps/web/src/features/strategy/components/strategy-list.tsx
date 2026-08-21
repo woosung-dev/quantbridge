@@ -40,6 +40,19 @@ import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 const PAGE_SIZE = 20;
+const SKELETON_ROW_KEYS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
+const SKELETON_CELL_KEYS = [
+  "cell-1",
+  "cell-2",
+  "cell-3",
+  "cell-4",
+  "cell-5",
+  "cell-6",
+  "cell-7",
+  "cell-8",
+  "cell-9",
+  "cell-10",
+] as const;
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/strategies";
 
@@ -585,10 +598,10 @@ function ListSkeleton() {
     <div className="table-wrap" data-testid="strategy-skeleton" aria-hidden="true">
       <table className="trades runs-table">
         <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 10 }).map((__, j) => (
-                <td key={j}>
+          {SKELETON_ROW_KEYS.map((rowKey) => (
+            <tr key={rowKey}>
+              {SKELETON_CELL_KEYS.map((cellKey) => (
+                <td key={cellKey}>
                   <span className="sk sk-cell" />
                 </td>
               ))}

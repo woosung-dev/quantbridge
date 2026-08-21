@@ -69,7 +69,7 @@ export function TagInput({ value, onChange, placeholder, maxTags, id, className 
     >
       {value.map((tag, index) => (
         // Precision Instrument: rounded-full chip → 기본 Badge(4px 계측기 태그)
-        <Badge key={`${tag}-${index}`} variant="secondary" data-slot="tag-chip">
+        <Badge key={tag} variant="secondary" data-slot="tag-chip">
           <span>{tag}</span>
           <button
             type="button"

@@ -84,8 +84,8 @@ function ParseSkeleton() {
   return (
     <div aria-busy="true" data-testid="parse-skeleton">
       <div className="sk-bars" aria-hidden="true">
-        {[52, 74, 36, 84, 48, 62, 40, 70].map((h, i) => (
-          <span key={i} className="sk" style={{ height: `${h}%` }} />
+        {[52, 74, 36, 84, 48, 62, 40, 70].map((h) => (
+          <span key={h} className="sk" style={{ height: `${h}%` }} />
         ))}
       </div>
       <div className="sk sk-line" style={{ width: "58%" }} aria-hidden="true" />
@@ -232,8 +232,8 @@ function UnsupportedBody({ result }: { result: ParsePreviewResponse }) {
       ) : null}
       {result.errors.length > 0 ? (
         <ul className="unsupported">
-          {result.errors.map((e, i) => (
-            <li key={`${e.code}-${i}`}>
+          {result.errors.map((e) => (
+            <li key={`${e.code}-${e.line ?? "unknown"}-${e.message}`}>
               <span className="mono">{e.line != null ? `L${e.line}` : e.code}</span>
               {e.message}
             </li>

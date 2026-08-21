@@ -377,9 +377,12 @@ function GridResult({ result }: { result: GridSearchResult }) {
               {ranked.map(({ cell, index }, order) => {
                 const isBest = index === bestIdx;
                 const isDegenerate = cell.is_degenerate || cell.num_trades === 0;
+                const cellKey = result.param_names
+                  .map((name) => `${name}:${cell.param_values[name]}`)
+                  .join("|");
                 return (
                   <tr
-                    key={index}
+                    key={cellKey}
                     className={isBest ? "row-best" : isDegenerate ? "row-nodata" : undefined}
                     data-testid={`leaderboard-row-${index}`}
                   >
