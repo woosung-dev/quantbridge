@@ -773,4 +773,69 @@ describe("backtest core hooks", () => {
     expect(stressTestHistoryRefetchInterval(errorQuery)).toBe(false);
     expect(stressTestHistoryRefetchInterval(queuedQuery)).toBe(2_000);
   });
+
+  it("useCreateBacktest는 목록 캐시를 무효화하고 성공 콜백에 생성 결과를 전달한다", async () => {
+    const queryClient = makeQueryClient();
+    const onSuccess = vi.fn();
+    apiFetchMock.mockResolvedValueOnce(BACKTEST_CREATED_RESPONSE);
+    queryClient.setQueryData(backtestKeys.list(USER_ID, LIST_QUERY), LIST_RESPONSE);
+
+    const { result } = renderHook(() => useCreateBacktest({ onSuccess }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await expect(result.current.mutateAsync(BACKTEST_REQUEST)).resolves.toEqual(
+      BACKTEST_CREATED_RESPONSE,
+    );
+    expect(queryClient.getQueryState(backtestKeys.list(USER_ID, LIST_QUERY))?.isInvalidated).toBe(
+      true,
+    );
+    expect(onSuccess).toHaveBeenCalledWith(BACKTEST_CREATED_RESPONSE);
+  });
+
+  it("useCancelBacktest는 응답의 backtest_id로 목록·상세·진행률 캐시를 무효화한다", async () => {
+    const queryClient = makeQueryClient();
+    const onSuccess = vi.fn();
+    const listKey = backtestKeys.list(USER_ID, LIST_QUERY);
+    const detailKey = backtestKeys.detail(USER_ID, BACKTEST_ID);
+    const progressKey = backtestKeys.progress(USER_ID, BACKTEST_ID);
+    apiFetchMock.mockResolvedValueOnce(BACKTEST_CANCEL_RESPONSE);
+    queryClient.setQueryData(listKey, LIST_RESPONSE);
+    queryClient.setQueryData(detailKey, BACKTEST_DETAIL_RESPONSE);
+    queryClient.setQueryData(progressKey, PROGRESS_RESPONSE);
+
+    const { result } = renderHook(() => useCancelBacktest({ onSuccess }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await expect(result.current.mutateAsync(BACKTEST_ID)).resolves.toEqual(
+      BACKTEST_CANCEL_RESPONSE,
+    );
+    expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(detailKey)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(progressKey)?.isInvalidated).toBe(true);
+    expect(onSuccess).toHaveBeenCalledWith(BACKTEST_CANCEL_RESPONSE);
+  });
+
+  it("useDeleteBacktest는 상세·진행률 캐시를 제거하고 목록을 무효화한다", async () => {
+    const queryClient = makeQueryClient();
+    const onSuccess = vi.fn();
+    const listKey = backtestKeys.list(USER_ID, LIST_QUERY);
+    const detailKey = backtestKeys.detail(USER_ID, BACKTEST_ID);
+    const progressKey = backtestKeys.progress(USER_ID, BACKTEST_ID);
+    apiFetchMock.mockResolvedValueOnce(undefined);
+    queryClient.setQueryData(listKey, LIST_RESPONSE);
+    queryClient.setQueryData(detailKey, BACKTEST_DETAIL_RESPONSE);
+    queryClient.setQueryData(progressKey, PROGRESS_RESPONSE);
+
+    const { result } = renderHook(() => useDeleteBacktest({ onSuccess }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await expect(result.current.mutateAsync(BACKTEST_ID)).resolves.toBeUndefined();
+    expect(queryClient.getQueryData(detailKey)).toBeUndefined();
+    expect(queryClient.getQueryData(progressKey)).toBeUndefined();
+    expect(queryClient.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(onSuccess).toHaveBeenCalledWith(undefined);
+  });
 });
