@@ -506,6 +506,84 @@ settings.ohlcv_provider 기본값 = 'fixture'
 
 ---
 
+### BL-818
+
+**Title:** `apps/api` 미커버 모듈 커버리지 — 8 lane 병렬 (밤샘 루프 5차)
+**Category:** 테스트 / 건강도
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-21 전량 스위트 커버리지 실측
+**Est:** M (8 lane 병렬 · 대상 소스 0줄 변경)
+**출처:** 2026-08-21 밤샘 루프 5차 — 4차([BL-817])가 FE 축을 닫고 넘긴 자리
+
+4차가 `apps/web` 라우트 조립층을 닫으면서 **FE 축은 바닥에 닿았다**(미도달 15 중 실질 후보 1건).
+`docs/status.md` 의 「다음 행동」이 가리키던 Beta 진입 3종([BL-070]→[BL-071]→[BL-072])은
+**사용자 게이트**([BL-005] self-assess ≥7 + 본인 의지)라 세션이 못 연다. 그래서 사용자 개입 없이
+닫히는 축 = **`apps/api` 에서 테스트가 겨누지 않는 모듈**로 간다.
+
+★★★**이 회차의 재료는 AST 가 아니라 커버리지가 정했고, 그 차이가 초판 lane 6개를 갈아치웠다.**
+초판은 「테스트가 이 모듈을 import 하는가」(AST 3축)로 골랐는데, 커버리지로 재니 **둘은 100% 커버**였고
+(`outcome_parity_service.py` · `live_session_query_service.py`) 셋은 89~94% 였다.
+살아남은 것은 `run_alembic_with_lock.py`(0%)와 `alert_rule_repository.py`(67%) **둘뿐**이다.
+
+★**착수 전 기준선 (2026-08-21 · `concurrency=greenlet,thread` 교정본):**
+전량 스위트 **5,130 passed · 32 skipped · 3 xfailed · 0 failed · TOTAL 90%**(17분 48초) · 219 모듈 중 96개 100%.
+
+| lane                    | 대상 (`apps/api/src/`)                                    | 커버 → 미커버   | DB  |
+| ----------------------- | --------------------------------------------------------- | --------------- | --- |
+| `be5-alembic-lock`      | `scripts/run_alembic_with_lock.py`                        | **0%** · 64/64  | ❌  |
+| `be5-worker-tasks`      | `tasks/optimizer_tasks.py` + `tasks/stress_test_tasks.py` | 35%·35% · 44줄  | ❌  |
+| `be5-health-probes`     | `health/router.py`                                        | **54%** · 41/85 | ❌  |
+| `be5-di-assembly`       | `optimizer`·`stress_test`·`backtest`·`market_data` DI 4종 | 52~62% · 34줄   | ❌  |
+| `be5-convert-service`   | `strategy/convert/service.py`                             | 61% · 35/104    | ❌  |
+| `be5-alert-rule-repo`   | `trading/repositories/alert_rule_repository.py`           | 67% · 11/33     | ✅  |
+| `be5-dispatch-trio`     | `tasks/backtest.py` + dispatcher 3종                      | 65~85% · 25줄   | ❌  |
+| `be5-waitlist-services` | `waitlist/{service,email_service,token_service}.py`       | 80~85% · 26줄   | ❌  |
+
+★★**이 회차가 드러낸 계측기 결함 2건 (이 항목의 진짜 산출일 수 있다):**
+
+1. ★★★**`[tool.coverage.run]` 에 `concurrency` 가 없다.** SQLAlchemy 는 async 경로에서 greenlet 을 쓰는데,
+   `concurrency = greenlet,thread` 없이 재면 **`await` 뒤에 오는 줄이 전부 미커버로 나온다.**
+   실측 — `outcome_parity_service.py` 가 테스트 파일 하나만으로 **80% → 100%**.
+   ⇒ **BL-308/309 의 money-path 커버리지 래칫도 같은 왜곡을 받고 있다**(래칫이 재는 값이 실제보다 낮다).
+   래칫 임계를 손대는 것은 이 항목의 범위 밖이라 **별도 판단이 필요하다**.
+2. ★**`--cov=<파일.py>` 는 유효한 source 스펙이 아니다** — 데이터를 한 건도 수집하지 않고
+   「No data was collected」 경고만 낸다. tail 만 보면 **「0%」가 확증으로 읽힌다.**
+
+★**「실행 우회는 커버가 아니다」가 이 회차의 재료 둘을 만들었다** — `health/router.py` 의 프로브 3종은
+기존 5 케이스가 **`monkeypatch` 로 통째 치환**해서 본문 41줄이 미커버였고, `AlertRuleRepository` 는
+두 테스트가 **클래스를 페이크로 갈아끼워** 11줄이 미커버였다. 게다가
+`tests/trading/test_alert_rule_repository.py` 는 **이름만 같고 그 클래스를 안 쓴다.**
+
+**비고 — 이번에 뺀 것(후속 후보):** 고아 라우트 7종(`GET /backtests/{id}/trades/{i}/ohlcv` ·
+`POST /optimizer/runs/{bayesian,genetic}` · `PUT /strategies/{id}/settings` ·
+`POST /strategies/{id}/rotate-webhook-secret` · `POST /stress-tests/cost-assumption-sensitivity` ·
+`GET /waitlist/invite/{token}`) · `tasks/celery_app.py` 55% · `websocket_task.py` 61% ·
+`live_signal_event_repository.py` 60% · `live_signal_session_repository.py` 67% · `waitlist/repository.py` 68%.
+★그리고 `tests/strategy/pine_v2/test_trust_layer_parity.py` 는 **단독 실행 시 7 passed** 인데
+`-p no:randomly` + 커버리지 통합 실행에서 2건 red 였다 — **순서/계측 의존**이고 CI 는 그 파일을 샤드 `b` 로
+격리한다. 이 회차의 대상은 아니지만 좌표를 남긴다.
+
+**상태:** ✅ **RESOLVED** (2026-08-21 밤샘 루프 5차 완주 — 8/8 · PR #755·#756~#764)
+**트리거 판정:** 도래 — 커버리지 실측으로 재료가 확정됐고 8 lane 이 전부 판별력을 가졌다 (2026-08-21)
+
+---
+
+**결과 (2026-08-21 완주):** **8/8 completed** · 병합 충돌 **0** · **변이 8/8 red**(복구 8/8 바이트 동일) ·
+대상 소스 **전건 0줄 변경** · `xfail`/`skip`/`only` **0건**.
+`apps/api` **5,165 → 5,292 collected**(신규 8파일 · 92 테스트 함수 → **+127 케이스**).
+PR = **#755**(① 사전 배치) · **#756~#762**(lane 7벌) · **#763**([BL-819] 수리) · **#764**(lane 4).
+
+**★blocked 2건이 이 회차의 값이었다:**
+
+1. ★★★**`be5-di-assembly` 가 진짜 제품 결함을 잡았다 → [BL-819]** — `build_backtest_service_for_worker()` 가
+   **기본 설정 `fixture` 에서 `UnboundLocalError`**. lane 은 소스를 고치지 않고 `blocked` + 사유를 남겼고,
+   CONTROL 이 코드 대조 + 실증으로 확인해 1줄 수리(#763)했다. **그 lane 의 `[backtest]` 파라미터 2건이 회귀 테스트**다.
+2. **`be5-dispatch-trio` 는 내 환경이었다** — `quantbridge_w7_test`·`w8_test` 가 **이전 회차가 남긴 낡은 스키마**였고
+   (`strategies` FK 부재 → `drop_all` 이 없는 제약을 DROP), `worktree-bootstrap.sh` 는 「이미 있으면 안 만든다」라 그대로 물려받았다.
+   w4·w10 은 정상 — **4벌 중 2벌**이었다. 재생성 후 green.
+
+---
+
 ### BL-817
 
 **Title:** `app/**` 라우트 조립층에 테스트가 0건이다 — 프리페치 키 동일성·UUID 가드·`metadata` 계약이 무증거로 산다
