@@ -6,6 +6,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
+import { ApiError } from "@/lib/api-client";
 
 import type * as ApiModule from "../api";
 import { listAdminWaitlist, submitWaitlist } from "../api";
@@ -84,6 +85,41 @@ describe("waitlist hooks", () => {
     expect(listAdminWaitlistMock).toHaveBeenCalledTimes(1);
     expect(listAdminWaitlistMock).toHaveBeenCalledWith(query, "test-token");
     expect(queryClient.getQueryData(waitlistKeys.adminList("admin-user", query))).toEqual(page);
+  });
+
+  it("useAdminWaitlistList preserves zero and negative page bounds at its API boundary", async () => {
+    authMockState.userId = "admin-user";
+    const query = { limit: 0, offset: -1 };
+    const page: AdminWaitlistListResponse = { items: [], total: 0 };
+    listAdminWaitlistMock.mockResolvedValue(page);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useAdminWaitlistList(query), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(page));
+    expect(listAdminWaitlistMock).toHaveBeenCalledWith(query, "test-token");
+  });
+
+  it("useCreateWaitlist forwards an ApiError to its error callback without wrapping it", async () => {
+    const body: CreateWaitlistApplication = {
+      email: "alice@example.com",
+      tv_subscription: "pro",
+      exchange_capital: "under_1k",
+      pine_experience: "beginner",
+      pain_point: "I need one place for validation and execution.",
+    };
+    const error = new ApiError(422, "invalid_waitlist", "API 422 /api/v1/waitlist");
+    const onError = vi.fn();
+    submitWaitlistMock.mockRejectedValue(error);
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const { result } = renderHook(() => useCreateWaitlist({ onError }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => expect(result.current.mutateAsync(body)).rejects.toBe(error));
+    expect(onError).toHaveBeenCalledWith(error);
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 
   it("useApproveWaitlist invalidates every admin-list variant for the current user", () => {

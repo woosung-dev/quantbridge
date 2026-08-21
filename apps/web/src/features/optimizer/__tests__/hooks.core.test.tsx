@@ -6,6 +6,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
+import { ApiError } from "@/lib/api-client";
 
 import type * as ApiModule from "../api";
 import {
@@ -91,6 +92,49 @@ describe("optimizer hooks", () => {
     expect(queryClient.getQueryData(optimizerKeys.list("optimizer-user", query))).toEqual(page);
   });
 
+  it("useOptimizationRuns keeps the query idle until the auth user is known", () => {
+    authMockState.userId = null;
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useOptimizationRuns({ limit: 0, offset: -1 }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(listOptimizationRunsMock).not.toHaveBeenCalled();
+  });
+
+  it("useOptimizationRuns preserves zero and negative page bounds at its API boundary", async () => {
+    authMockState.userId = "optimizer-user";
+    const query: OptimizationRunListQuery = { limit: 0, offset: -1 };
+    const page: OptimizationRunListResponse = {
+      items: [],
+      total: 0,
+      limit: 0,
+      offset: -1,
+      skipped_count: 0,
+    };
+    listOptimizationRunsMock.mockResolvedValue(page);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useOptimizationRuns(query), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(page));
+    expect(listOptimizationRunsMock).toHaveBeenCalledWith(query, "test-token");
+  });
+
+  it("useOptimizationRuns exposes the same ApiError returned by its API boundary", async () => {
+    const error = new ApiError(502, "optimizer_unavailable", "API 502 /api/v1/optimizer/runs");
+    listOptimizationRunsMock.mockRejectedValue(error);
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useOptimizationRuns({ limit: 20, offset: 0 }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await waitFor(() => expect(result.current.error).toBe(error));
+    expect(result.current.error).toMatchObject({ status: 502, code: "optimizer_unavailable" });
+  });
+
   it("three submit hooks preserve endpoint selection and invalidate the optimizer root key", async () => {
     renderHook(() => {
       useSubmitGridSearch();
@@ -143,5 +187,16 @@ describe("optimizer hooks", () => {
     expect(getOptimizationRunMock).toHaveBeenCalledTimes(1);
     expect(getOptimizationRunMock).toHaveBeenCalledWith("run-1", "test-token");
     expect(queryClient.getQueryData(optimizerKeys.detail("optimizer-user", "run-1"))).toBe(run);
+  });
+
+  it("useOptimizationRun disables its detail query when its id is null", () => {
+    authMockState.userId = "optimizer-user";
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useOptimizationRun(null), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(getOptimizationRunMock).not.toHaveBeenCalled();
   });
 });

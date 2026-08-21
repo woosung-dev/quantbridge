@@ -6,6 +6,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { authMockState, resetAuthMock } from "@/lib/__mocks__/auth-client";
+import { ApiError } from "@/lib/api-client";
 
 import type * as ApiModule from "../api";
 import {
@@ -80,6 +81,7 @@ function makeWrapper(queryClient: QueryClient) {
 afterEach(() => {
   resetAuthMock();
   vi.clearAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("strategy hooks", () => {
@@ -104,6 +106,70 @@ describe("strategy hooks", () => {
     expect(listStrategiesMock).toHaveBeenCalledTimes(1);
     expect(listStrategiesMock).toHaveBeenCalledWith(query, "test-token");
     expect(queryClient.getQueryData(strategyKeys.list("strategy-user", query))).toEqual(page);
+  });
+
+  it("listStrategies propagates apiFetch ApiError without changing its status or code", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ detail: { code: "strategy_invalid" } }), { status: 422 }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const actualApi = await vi.importActual<typeof ApiModule>("../api");
+
+    const error = await actualApi
+      .listStrategies({ limit: 20, offset: 0, is_archived: false }, "test-token")
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 422, code: "strategy_invalid" });
+  });
+
+  it("listStrategies rejects a response that violates the list schema", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ items: "not-an-array", total: 0, page: 1, limit: 20, total_pages: 0 }),
+          { status: 200 },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+    const actualApi = await vi.importActual<typeof ApiModule>("../api");
+
+    await expect(
+      actualApi.listStrategies({ limit: 20, offset: 0, is_archived: false }, "test-token"),
+    ).rejects.toThrow();
+  });
+
+  it("listStrategies rejects zero limit and negative offset before an HTTP request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const actualApi = await vi.importActual<typeof ApiModule>("../api");
+
+    await expect(
+      actualApi.listStrategies({ limit: 0, offset: -1, is_archived: false }, "test-token"),
+    ).rejects.toThrow();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("apiFetch omits undefined params and returns void for a 204 response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { apiFetch: actualApiFetch } =
+      await vi.importActual<typeof import("@/lib/api-client")>("@/lib/api-client");
+
+    await expect(
+      actualApiFetch<void>("/api/v1/strategies/strategy-1", {
+        method: "DELETE",
+        params: { limit: 0, offset: -1, parse_status: undefined },
+      }),
+    ).resolves.toBeUndefined();
+
+    const [url] = fetchMock.mock.calls[0] ?? [];
+    expect(String(url)).toContain("limit=0");
+    expect(String(url)).toContain("offset=-1");
+    expect(String(url)).not.toContain("parse_status=undefined");
   });
 
   it("usePreviewParse skips blank source and parses the trimmed source", async () => {
@@ -178,6 +244,31 @@ describe("strategy hooks", () => {
     );
   });
 
+  it("useStrategy disables its detail query when the id is undefined", () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const { result } = renderHook(() => useStrategy(undefined), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    expect(result.current.fetchStatus).toBe("idle");
+    expect(getStrategyMock).not.toHaveBeenCalled();
+  });
+
+  it("useStrategies exposes the same ApiError returned by its API boundary", async () => {
+    const error = new ApiError(503, "upstream_unavailable", "API 503 /api/v1/strategies");
+    listStrategiesMock.mockRejectedValue(error);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, retryDelay: 1 } },
+    });
+    const { result } = renderHook(
+      () => useStrategies({ limit: 20, offset: 0, is_archived: false }),
+      { wrapper: makeWrapper(queryClient) },
+    );
+
+    await waitFor(() => expect(result.current.error).toBe(error));
+    expect(result.current.error).toMatchObject({ status: 503, code: "upstream_unavailable" });
+  });
+
   it("useCreateStrategy returns the created strategy from one tokenized request", async () => {
     const body: CreateStrategyRequest = {
       name: "Core strategy",
@@ -193,6 +284,24 @@ describe("strategy hooks", () => {
     await act(async () => expect(await result.current.mutateAsync(body)).toBe(created));
     expect(createStrategyMock).toHaveBeenCalledTimes(1);
     expect(createStrategyMock).toHaveBeenCalledWith(body, "test-token");
+  });
+
+  it("useCreateStrategy forwards an ApiError to its error callback without wrapping it", async () => {
+    const body: CreateStrategyRequest = {
+      name: "Core strategy",
+      pine_source: "strategy('core')",
+    };
+    const error = new ApiError(409, "strategy_conflict", "API 409 /api/v1/strategies");
+    const onError = vi.fn();
+    createStrategyMock.mockRejectedValue(error);
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+    const { result } = renderHook(() => useCreateStrategy({ onError }), {
+      wrapper: makeWrapper(queryClient),
+    });
+
+    await act(async () => expect(result.current.mutateAsync(body)).rejects.toBe(error));
+    expect(onError).toHaveBeenCalledWith(error);
+    expect(onError).toHaveBeenCalledTimes(1);
   });
 
   it("useRotateWebhookSecret returns the replacement secret from one tokenized request", async () => {
