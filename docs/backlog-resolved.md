@@ -30,6 +30,72 @@
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
+### BL-815
+
+**Title:** FE 화면 계층에 테스트가 0건이다 — **에러 경계 7개·법무 페이지 4개·데이터 정책·관리자 승인 흐름**이 무증거로 산다
+**Category:** 테스트 / 프런트엔드
+**상태:** ✅ **RESOLVED** (2026-08-21 밤샘 루프 3차 완주)
+**Priority:** P2
+**Trigger:** 도래 — 2026-08-21 전이 폐포 실측
+**Est:** M (8 lane 워크트리 병렬)
+**출처:** 2026-08-21 밤샘 루프 3차 (2차 [BL-813] 의 B축 — 판정 로직을 걷어낸 뒤 남은 화면 계층)
+
+**원인 / 영향:** [BL-813] 이 순수 판정 모듈을 채운 뒤에도 **어떤 테스트도 import 하지 않는 소스가
+53개**다(총 343 중). 그중 화면 계층에 **자동 검증이 특히 필요한 넷**이 있다:
+
+- ★★**`error.tsx` 7개** — `apps/web/AGENTS.md` §3/§6 이 **의무로 강제한 파일**인데 9개 중 2개만
+  테스트가 있다. **에러 경계가 깨지면 사용자는 흰 화면을 보고, 그 화면은 정의상 이미 뭔가 실패한
+  뒤라 아무도 신고하지 않는다.** 특히 `reset` 이 배선 안 된 경계는 **없는 것보다 나쁘다**
+  (사용자가 고칠 수 있다고 믿게 만든다)
+- ★**공개 법무 페이지 4개**(`disclaimer`·`terms`·`privacy`·`not-available`) — 로그인 이전에 실제
+  사용자가 보는 화면이고 `/not-available` 은 **geo-block L2 의 착지점**이다. 조용히 비면
+  규제 프레이밍이 사라진다
+- ★**`QueryProvider` 정책** — `staleTime`·`retry`·**mutation `retry: 0`**. 정책이 바뀌면 증상이
+  화면이 아니라 **요금과 중복 발주**로 나온다
+- ★**Waitlist 관리자 승인 흐름**([BL-072] 표면) · **`OptimizerPageView`**(187줄, 최대 미커버
+  컴포넌트) · **온보딩 persist 스키마**(rehydrate 검증) · **손익 마이크로바**(부호·정규화)
+
+**처방:** 대상 소스 **무변경**으로 `apps/web` 에 테스트 파일 11개를 신설한다. 8 lane 워크트리
+병렬(`phases/fe3-*`). lane 간 파일 겹침 0.
+
+★**착수 전 프로브가 lane 하나를 폐기시켰다**([LESSON-123] 적용) — 초판 lane 1 은 `src/app/error.tsx`
+를 겨눴는데 **이미 테스트가 있었다**(4 케이스). AC red 측정에서 **rc=0(판별력 0)** 으로 드러나
+공개 법무 페이지로 교체했다.
+★**그리고 내 AC 생성기가 경로를 `\"` 로 감싸 `bash -c` 에서 깨졌다** — 파일이 생겨도 실패할 AC 였다.
+경로에 `(dashboard)`·`[token]` 괄호가 들어가므로 **작은따옴표**로 감싼다.
+★**vitest CLI 필터는 괄호 경로를 정상 처리한다**(실측 4건) — 문제는 셸 따옴표였다.
+
+**결과 (2026-08-21):** 8 lane 워크트리 병렬 · **8/8 completed · 병합 충돌 0 · 변이 8/8 red**
+(CONTROL 이 직접 심고 sha256 왕복 복원) · PR **#735~#743 전부 CI `conclusion=success` 후 머지**.
+`apps/web` vitest **237 files / 1,647 passed → 247 files / 1,780 passed**(신규 10파일 · **+133 케이스**).
+전이 폐포 미도달 **53 → 32**(총 343 중). **대상 소스는 전건 무변경**이고 `tsc --noEmit` rc=0 유지.
+
+| lane                     | 새 테스트 파일                                                | 케이스 | PR   |
+| ------------------------ | ------------------------------------------------------------- | ------ | ---- |
+| `fe3-public-legal-pages` | `src/app/__tests__/public-legal-pages.test.tsx`               | 20     | #736 |
+| `fe3-dashboard-errors`   | `src/app/(dashboard)/__tests__/error-boundaries.test.tsx`     | 36     | #737 |
+| `fe3-query-provider`     | `providers/__tests__/query-provider.test.tsx`                 | 11     | #738 |
+| `fe3-onboarding-schema`  | `features/onboarding/__tests__/schemas.test.ts`               | 21     | #739 |
+| `fe3-legal-geo-banner`   | `components/__tests__/legal-geo-banner.test.tsx`              | 8      | #740 |
+| `fe3-numeric-display`    | `tick-ruler` 6 + `pnl-tape` 8                                 | 14     | #741 |
+| `fe3-optimizer-view`     | `optimizer/components/__tests__/optimizer-page-view.test.tsx` | 9      | #742 |
+| `fe3-waitlist-admin`     | `waitlist-header` 6 + `waitlist-admin-view` 8                 | 14     | #743 |
+
+★★**착수 전 AC red 측정이 lane 하나를 폐기시켰다.** 초판 `fe3-root-error` 는 `src/app/error.tsx`
+를 겨눴는데 **이미 테스트가 있었다**(4 케이스) — **rc=0, 판별력 0**. 공개 법무 페이지 4종으로
+교체했다. ⇒ **「AC red 측정」은 판별력 검사이자 재료 실사다.**
+
+★★**러너가 `blocked` 로 정직하게 멈췄고 그것이 결함을 드러냈다** — `fe3-public-legal-pages` step 이
+「법무 4페이지 **전부** `metadata` 를 갖는다」를 **재지 않고** 요구했는데 **`/not-available` 만
+없었다.** 세션은 대상 수정 금지를 지켜 `blocked` 를 썼다. CONTROL 이 검시해 실측표를 step 에 박고
+재실행했다. 드러난 결함 = **[BL-816]**. ⇒ [LESSON-122] 의 두 번째 실증이고, 이번엔 red 가 아니라
+**`blocked` 로** 드러났다.
+
+★**내 AC 생성기가 파일이 생겨도 실패할 AC 를 만들었다** — 경로를 `\"` 로 감쌌는데 러너는 AC 를
+`bash -c` 로 돌린다. 경로에 `(dashboard)`·`[token]` 괄호가 들어가는 첫 묶음이라 드러났다
+(수정 = 작은따옴표). ★**vitest CLI 필터 자체는 괄호 경로를 정상 처리한다**(실측 4건) — 처음엔
+vitest 글롭 문제로 오진했다가 **대조군**으로 갈랐다.
+
 ### BL-814
 
 **Title:** `_HINTS[name]` 이 `Object.prototype` 을 상속해 **상속 키 5종은 fallback 을 못 받는다** — 화면에 `undefined` 가 나간다
