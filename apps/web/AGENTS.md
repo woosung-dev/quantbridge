@@ -98,7 +98,12 @@ if (!isPublicRoute(pathname)) {
 #### H-3. React Compiler 호환 — render body 에서 `ref.current = value` 대입 금지
 
 - **금지**: 함수형 컴포넌트 render phase 에서 `ref.current = x` 직접 대입 (React 공식 "latest state in closures" 예시 따라도 안 됨)
-- **이유**: `eslint-plugin-react-compiler` 가 "Cannot access refs during render" 로 error 차단. Compiler 의 재실행/메모이제이션 가정과 충돌
+- **이유**: Compiler 의 재실행/메모이제이션 가정과 충돌한다.
+  > ★**2026-08-22 실측 정정** — 종전 문장은 「`eslint-plugin-react-compiler` 가 "Cannot access
+  > refs during render" 로 **error 차단**한다」였다. **현재 핀(19.1.0-rc.2)에서 그 모양은 발화하지
+  > 않는다**(최소 재현 `r.current = v` → eslint rc=0). 규칙은 살아 있다 — props 변이는 error 로
+  > 잡고, `eslint --print-config` 상 `[2]` 다([ADR-039](../../docs/adr/039-frontend-biome.md) 판별력 배터리).
+  > ⇒ **권고는 유효하되 lint 가 막아 준다고 믿지 마라.** 이 패턴은 사람이 지켜야 한다.
 - **대신**: **dependency array 없는 sync `useEffect`** 로 이동 (매 commit 후 실행). 기능상 render 직후 commit phase 라 동일
   ```tsx
   const latest = useRef(value);

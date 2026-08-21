@@ -119,4 +119,49 @@ Biome 2.5.9 는 이 셋을 **파싱 중(⌛️)**이고 포맷을 못 한다. pr
 
 ## 검증
 
+### ⑴ 게이트 초록
+
 `biome check` rc=0 · `eslint` rc=0 · `tsc --noEmit` rc=0 · `vitest` **1896/1896** · `next build` rc=0.
+CI(PR #769) — backend · frontend · live-smoke **전부 SUCCESS**.
+
+### ⑵ 판별력 — 위반을 심어 「누가 무엇을 잡나」를 전수 측정 (10/10)
+
+초록은 게이트가 옳다는 증거가 아니다. 이 레포에서 검사기가 무증거를 낸 적이 여러 번이라
+([LESSON-124]) 케이스마다 임시 파일 1개를 심고 rc 를 직접 읽었다(파이프·`tail` 없이 python).
+
+| 심은 위반 | Biome | ESLint |
+| --- | --- | --- |
+| 포맷 위반(들여쓰기·따옴표) | **RED** | green |
+| `noUnusedVariables` | **RED** | green |
+| `useImportType` | **RED** | green |
+| ADR-035 정적 `import` | **RED** | green |
+| ADR-035 동적 `import("@/app/x")` | **RED** | green |
+| ADR-035 ``import(`@/app/${x}`)`` | green | **RED** |
+| `set-state-in-effect` | green | **RED** |
+| `react-compiler`(props 변이) | green | **RED** |
+| `@tanstack/query/exhaustive-deps` | green | **RED** |
+| **제외 경로** `src/components/ui` 안의 포맷 위반 | green | green |
+| **제외 경로** `**/generated` 안의 포맷 위반 | green | green |
+
+기준선(무변경 트리) 및 배터리 종료 후 트리 모두 green · dirty 0 — 배터리가 트리를 오염시키지 않았다.
+
+★**이 배터리가 내 오독 1건을 잡았다.** `react-compiler` 초판 프로브(`render 중 ref.current = v`)가
+green 을 냈다. 배선이 죽은 줄 알았으나 `eslint --print-config` 로 규칙이 `[2]` 로 살아 있음을
+확인했고, props 변이로 바꾸자 즉시 red 였다 — **틀린 것은 게이트가 아니라 내 프로브**였다.
+그 과정에서 §H-3 드리프트(아래)가 드러났다.
+
+### ⑶ 멱등성 · 재현성 · 상호 안정성
+
+| 축 | 결과 |
+| --- | --- |
+| 멱등성 | `check --write` 2회 → 변경 **0 · 0** |
+| **재현성** | 소스를 이전 커밋으로 되돌린 뒤 재포맷 → 트리 해시가 **기준과 바이트 동일**(`2e95352622ecaeb9`) |
+| 상호 안정성 | `format --write` 뒤 `lint` rc=0 · `ci` rc=0 · dirty 0 (서로를 안 깨뜨린다) |
+| 성능 | `biome ci` 0.33s · `format` 0.13s · `lint` 0.22s |
+
+## 곁다리 발견 — `apps/web/AGENTS.md` §H-3 이 낡았다
+
+§H-3 은 「render phase 에서 `ref.current = x` 대입을 `eslint-plugin-react-compiler` 가
+"Cannot access refs during render" 로 error 차단한다」고 적는다. **현재 핀(19.1.0-rc.2)에서
+그 모양은 발화하지 않는다**(최소 재현으로 실측 green). 규칙 자체는 살아 있다 — props 변이는
+error 로 잡는다. §H-3 의 **권고는 유효**하되 「lint 가 막아 준다」는 부분이 보증되지 않는다.
