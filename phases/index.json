@@ -300,7 +300,8 @@
     },
     {
       "dir": "be6-live-repos",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:54:52+0900"
     },
     {
       "dir": "fe6-debt-backtest",

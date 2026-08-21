@@ -5,7 +5,7 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist",
@@ -14,12 +14,15 @@
         "cd apps/api && uv run coverage report --include=src/waitlist/repository.py --fail-under=64",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
         "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:15:31+0900",
+      "summary": "재측정(AC ①: 두 파일 부재 rc=1; AC ②: 1187 passed, 세션/이벤트/waitlist 52/60/68%로 CONTROL 50.9/58.6/60.4%와 상이). 세션은 claim·비활성 목록·state upsert를 실DB 시드/재조회, 이벤트는 빈 입력·PG idempotency·pending→failed, waitlist는 정규화 조회·초대·상태 페이지·commit/rollback으로 도달. mock 없음: Repository SQL 계약을 실제 test DB로 측정.",
+      "completed_at": "2026-08-22T04:32:59+0900"
     },
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist",
@@ -28,12 +31,15 @@
         "cd apps/api && uv run coverage report --include=src/waitlist/repository.py --fail-under=72",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 14",
         "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:33:02+0900",
+      "summary": "실DB 계약 14건으로 세션 저장·범위별/도래/시간 창 조회·종료, 이벤트 발주 상태·주문 결합·Decimal 손익 집계, 대기자 명단 초대 토큰 조회를 검증했고 대상 소스는 무변경이다.",
+      "completed_at": "2026-08-22T04:41:29+0900"
     },
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist",
@@ -42,12 +48,15 @@
         "cd apps/api && uv run coverage report --include=src/waitlist/repository.py --fail-under=82",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 22",
         "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:41:30+0900",
+      "summary": "실DB 경계·오류 계약 9건을 추가했다: 세션 advisory lock·빈 스코프·상한 없는 창·비활성 종료, 이벤트 commit·0건 페이지·terminal 경쟁, waitlist 중복 이메일 IntegrityError 전파 후 rollback 복구를 검증했다. 대상 소스는 무변경이며 세 저장소 모두 AC 커버리지 100%다.",
+      "completed_at": "2026-08-22T04:49:21+0900"
     },
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_live_signal_repositories.py -a -f apps/api/tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/waitlist -q --cov=src/trading/repositories --cov=src/waitlist",
@@ -58,7 +67,12 @@
         "git diff --quiet -- apps/api/src/trading/repositories/live_signal_session_repository.py apps/api/src/trading/repositories/live_signal_event_repository.py apps/api/src/waitlist/repository.py",
         "cd apps/api && uv run ruff check tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py",
         "cd apps/api && uv run ruff format --check tests/trading/test_live_signal_repositories.py tests/waitlist/test_waitlist_repository.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:49:22+0900",
+      "summary": "자기 변이 검증(실DB):\n| 위치 | 변이 | red |\n| --- | --- | --- |\n| live_signal_event_repository.py:list_pending | pending 상태 필터를 dispatched로 변경 | 예 |\n| live_signal_session_repository.py:try_claim_bar | 이전 bar 비교 <를 >로 변경 | 예 |\n| waitlist/repository.py:find_by_email | strip().lower() 정규화를 제거 | 예 |\nred가 안 난 변이: 없음(추가 케이스 불필요). 최종 AC: 1,210 passed, 수집 23건, session/event/waitlist 100%/100%/100%.",
+      "completed_at": "2026-08-22T04:54:51+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-22T04:15:31+0900",
+  "completed_at": "2026-08-22T04:54:52+0900"
 }
