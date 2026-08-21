@@ -250,8 +250,11 @@ export function LiveSessionDetail({ session }: Props) {
             않습니다.
           </p>
           <ul className="space-y-1 text-sm">
-            {pendingConditionalEntries.map((order, index) => (
-              <li key={`${order.direction}-${order.stopPrice}-${index}`} className="font-mono">
+            {pendingConditionalEntries.map((order) => (
+              <li
+                key={`${order.direction}-${order.stopPrice}-${order.targetPosition}`}
+                className="font-mono"
+              >
                 {labelOf(LIVE_SIGNAL_DIRECTION_LABEL, order.direction, "live-signal-direction")} ·
                 트리거 {order.stopPrice} · 목표 포지션 {order.targetPosition}
               </li>

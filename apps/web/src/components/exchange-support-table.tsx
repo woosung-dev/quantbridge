@@ -24,8 +24,8 @@ export function ExchangeSupportTable({ ariaLabel }: { ariaLabel?: string }) {
           </tr>
         </thead>
         <tbody>
-          {EXCHANGE_SUPPORT.map((row, i) => (
-            <tr key={`${row.exchange}-${i}`}>
+          {EXCHANGE_SUPPORT.map((row) => (
+            <tr key={`${row.exchange}-${row.environment ?? "roadmap"}`}>
               <td className="mono-l">{row.exchange}</td>
               {row.environment === null ? (
                 <td className="mono-l dim" title={EXCHANGE_NO_ENV_TITLE}>

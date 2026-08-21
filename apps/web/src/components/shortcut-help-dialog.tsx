@@ -80,7 +80,7 @@ export function ShortcutHelpDialog() {
             >
               <div className="flex items-center gap-1.5">
                 {shortcut.keys.map((k, idx) => (
-                  <span key={`${shortcut.label}-${idx}`} className="flex items-center gap-1.5">
+                  <span key={`${shortcut.label}-${k}`} className="flex items-center gap-1.5">
                     {idx > 0 && (
                       <span
                         aria-hidden="true"

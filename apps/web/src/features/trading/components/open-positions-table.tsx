@@ -321,9 +321,9 @@ export function OpenPositionsTable({
           <table className="trades" aria-label="세션별 열린 포지션 대조">
             <TableHeaders />
             <tbody>
-              {positions.rows.map((row, index) => (
+              {positions.rows.map((row) => (
                 <PositionRow
-                  key={`${row.sessionId}-${row.symbol}-${row.position.side}-${index}`}
+                  key={`${row.sessionId}-${row.symbol}-${row.position.side}`}
                   row={row}
                   resolveStrategyName={resolveStrategyName}
                   canClose={demoSessionIds.has(row.sessionId)}

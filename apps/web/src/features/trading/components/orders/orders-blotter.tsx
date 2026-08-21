@@ -546,15 +546,15 @@ export function OrdersBlotter() {
                   >
                     ‹
                   </button>
-                  {Array.from({ length: pageCount }).map((_, i) => (
+                  {Array.from({ length: pageCount }, (_, page) => page + 1).map((pageNumber) => (
                     <button
-                      key={i}
-                      className={`pg${i === safePage ? " active" : ""}`}
+                      key={pageNumber}
+                      className={`pg${pageNumber - 1 === safePage ? " active" : ""}`}
                       type="button"
-                      aria-current={i === safePage ? "page" : undefined}
-                      onClick={() => setPage(i)}
+                      aria-current={pageNumber - 1 === safePage ? "page" : undefined}
+                      onClick={() => setPage(pageNumber - 1)}
                     >
-                      {i + 1}
+                      {pageNumber}
                     </button>
                   ))}
                   <button
@@ -772,13 +772,15 @@ function ListSkeleton() {
     <div className="table-wrap" data-testid="order-skeleton" aria-hidden="true">
       <table className="trades orders-table">
         <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 12 }).map((__, j) => (
-                <td key={j}>
-                  <span className="sk sk-cell" />
-                </td>
-              ))}
+          {Array.from({ length: 6 }, (_, row) => `row-${row}`).map((rowKey) => (
+            <tr key={rowKey}>
+              {Array.from({ length: 12 }, (_, column) => `${rowKey}-column-${column}`).map(
+                (cellKey) => (
+                  <td key={cellKey}>
+                    <span className="sk sk-cell" />
+                  </td>
+                ),
+              )}
             </tr>
           ))}
         </tbody>

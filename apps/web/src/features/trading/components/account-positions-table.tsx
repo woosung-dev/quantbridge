@@ -371,9 +371,9 @@ export function AccountPositionsTable({ accounts }: { accounts: readonly Account
           <table className="trades" aria-label="계정별 잔여 포지션">
             <TableHeaders />
             <tbody>
-              {visibleRows.map((row, index) => (
+              {visibleRows.map((row) => (
                 <PositionRow
-                  key={`${row.accountId}-${row.symbol}-${row.position.side}-${index}`}
+                  key={`${row.accountId}-${row.symbol}-${row.position.side}`}
                   row={row}
                   onClose={(target) => {
                     setCloseOutcome(null);

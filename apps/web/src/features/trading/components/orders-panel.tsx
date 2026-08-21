@@ -185,13 +185,15 @@ function OrdersSkeleton() {
     <div className="table-wrap" data-testid="orders-skeleton" aria-hidden="true">
       <table className="trades">
         <tbody>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 8 }).map((__, j) => (
-                <td key={j}>
-                  <span className="sk sk-cell" />
-                </td>
-              ))}
+          {Array.from({ length: 5 }, (_, row) => `row-${row}`).map((rowKey) => (
+            <tr key={rowKey}>
+              {Array.from({ length: 8 }, (_, column) => `${rowKey}-column-${column}`).map(
+                (cellKey) => (
+                  <td key={cellKey}>
+                    <span className="sk sk-cell" />
+                  </td>
+                ),
+              )}
             </tr>
           ))}
         </tbody>
