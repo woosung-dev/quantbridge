@@ -173,7 +173,7 @@ class BacktestService:
             raise StrategyNotRunnable(
                 detail=(
                     f"Strategy contains unsupported Pine built-ins: {unsupported_str}. "
-                    f"See docs/reference/domain/supported-indicators.md for the supported list."
+                    f"See docs/domain/supported-indicators.md for the supported list."
                 ),
                 unsupported_builtins=unsupported_list,
             )
@@ -599,7 +599,7 @@ class BacktestService:
         # 다만 어느 상품으로 돈 백테스트인지는 행에 적혀 있지 않으므로(컬럼 추가 =
         # 마이그레이션 ≠ 0) **perp 우선, 그 창에 perp 가 없으면 legacy 스팟**으로 떨어진다.
         # 계기 정렬 이전 백테스트의 차트가 통째로 비는 회귀를 막는 fallback 이다.
-        # 경계 정본: `docs/reference/instrument-symbol-boundary.md` §3.1.
+        # 경계 정본: `docs/domain/instrument-symbol-boundary.md` §3.1.
         rows = await self.ohlcv_repo.get_range(
             to_ccxt_perpetual_symbol(bt.symbol), bt.timeframe, range_start, range_end
         )

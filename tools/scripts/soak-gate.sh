@@ -16,7 +16,7 @@
 #   ★**UNKNOWN 을 PASS 로 접지 않는다.** 이 스크립트의 존재 이유가 그것이다.
 #   낱말은 셋뿐이라 `진행중`(시간 부족)과 `측정불가`(잴 수 없음)는 **사유 낱말**로 가른다.
 #
-# 술어와 창 정의: docs/decisions/024-soak-stability-gate.md
+# 술어와 창 정의: docs/adr/024-soak-stability-gate.md
 # 계산: apps/api/scripts/soak_gate_predicate.py (순수 함수 — I/O 없음, 손 계산과 대조 가능)
 
 set -uo pipefail
@@ -693,7 +693,7 @@ payload = {
     #   빈 목록이 실리고, 그러면 모든 실격이 `undecided` 로 보고된다(엄격 쪽). 이 축이
     #   C1~C5 를 한 글자도 못 바꾼다는 것은 `test_soak_gate_predicate.py` 가 지킨다.
     "disqualification_ledger": read_jsonl(
-        repo_root / "docs" / "reference" / "operations" / "soak-disqualifications.jsonl"
+        repo_root / "docs" / "operations" / "soak-disqualifications.jsonl"
     ),
 }
 if since:
@@ -815,7 +815,7 @@ if att:
           % (n.get("code_defect", 0), n.get("operational", 0), n.get("undecided", 0)))
     if att["unregistered"]:
         print("        원장 미등재 %d건 — undecided 로 센다 "
-              "(docs/reference/operations/soak-disqualifications.jsonl)" % len(att["unregistered"]))
+              "(docs/operations/soak-disqualifications.jsonl)" % len(att["unregistered"]))
     # ★「원장이 낡았다」로 단정하지 마라 ([BL-751], 2026-08-15). 이 판독은 **한 호스트의 DB**
     #   만 보고, 원장은 서버·로컬 맥 두 소크의 사건을 함께 담는다. 실제로 2026-08-15 판독이
     #   찍던 1건은 로컬 맥 세션(e9c504f1, 08-14T12:26 사망)이라 서버 DB 에 있을 수 없었다 —

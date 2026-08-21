@@ -1,6 +1,6 @@
 # QuantBridge — Frontend
 
-Next.js 16 App Router 로 만든 대시보드이자, **이 레포의 인증 서버 본체**다 ([ADR-034](../../docs/decisions/034-auth-self-host-better-auth.md)). 로그인·세션·JWKS 발급을 이 앱이 담당하고, FastAPI 는 그 JWKS 로 토큰을 검증만 한다.
+Next.js 16 App Router 로 만든 대시보드이자, **이 레포의 인증 서버 본체**다 ([ADR-034](../../docs/adr/034-auth-self-host-better-auth.md)). 로그인·세션·JWKS 발급을 이 앱이 담당하고, FastAPI 는 그 JWKS 로 토큰을 검증만 한다.
 
 - 라우트 26 · feature 도메인 12 · Vitest 227파일 · Playwright 31 spec
 - 전체 제품 소개와 최초 셋업은 [루트 README](../../README.md) 참조
@@ -79,7 +79,7 @@ pnpm dev                         # http://localhost:3000
 ```
 
 > 루트에서 `mise run fe` 로도 같은 서버가 뜬다. 인프라·백엔드까지 한 번에 띄우려면 `mise run dev`.
-> `.env.example` 은 서비스별 분리다 — 전체 구조는 [루트 README](../../README.md#2-클론--환경-변수) + [local-setup.md](../../docs/reference/operations/local-setup.md) 참조.
+> `.env.example` 은 서비스별 분리다 — 전체 구조는 [루트 README](../../README.md#2-클론--환경-변수) + [local-setup.md](../../docs/development/local-setup.md) 참조.
 
 ## 환경 변수
 

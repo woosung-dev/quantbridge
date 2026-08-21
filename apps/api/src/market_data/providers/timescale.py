@@ -8,6 +8,7 @@
     # 3) 빈 구간만 CCXT fetch → insert_bulk
     # 4) 최종 cache get_range → pd.DataFrame
 """
+
 from __future__ import annotations
 
 from datetime import UTC, datetime
@@ -44,7 +45,7 @@ class TimescaleProvider:
         """cache-first 조회 — gap만 CCXT로 fetch 후 캐시 저장.
 
         ★BL-535 — 인자는 canonical 시장(`BTC/USDT`)이지만 **저장 키와 거래소 fetch 는 상품**
-        (`BTC/USDT:USDT`)이다. 여기가 그 경계다 (`docs/reference/instrument-symbol-boundary.md`).
+        (`BTC/USDT:USDT`)이다. 여기가 그 경계다 (`docs/domain/instrument-symbol-boundary.md`).
 
         `CCXTProvider` 는 `defaultType: "spot"` 이라 canonical 을 그대로 넘기면 **스팟 봉**이
         온다. 그런데 주문은 `BybitFuturesProvider`(defaultType "linear")로 무기한선물에 나간다.
@@ -60,20 +61,14 @@ class TimescaleProvider:
         tf_sec = TIMEFRAME_SECONDS[timeframe]
 
         # 1. advisory lock — 동시 fetch race 방지 (트랜잭션 종료 시 해제)
-        await self.repo.acquire_fetch_lock(
-            symbol, timeframe, period_start, period_end
-        )
+        await self.repo.acquire_fetch_lock(symbol, timeframe, period_start, period_end)
 
         # 2. lock 획득 후 gap 재조회 — 다른 트랜잭션이 이미 채웠을 수 있음
-        gaps = await self.repo.find_gaps(
-            symbol, timeframe, period_start, period_end, tf_sec
-        )
+        gaps = await self.repo.find_gaps(symbol, timeframe, period_start, period_end, tf_sec)
 
         # 3. 빈 구간만 CCXT fetch
         for gap_start, gap_end in gaps:
-            raw = await self.ccxt.fetch_ohlcv(
-                symbol, timeframe, gap_start, gap_end
-            )
+            raw = await self.ccxt.fetch_ohlcv(symbol, timeframe, gap_start, gap_end)
             rows = self._to_db_rows(raw, symbol, timeframe)
             await self.repo.insert_bulk(rows)
 
@@ -81,9 +76,7 @@ class TimescaleProvider:
             await self.repo.commit()
 
         # 4. 최종 cache 조회 → DataFrame
-        cached = await self.repo.get_range(
-            symbol, timeframe, period_start, period_end
-        )
+        cached = await self.repo.get_range(symbol, timeframe, period_start, period_end)
         return self._to_dataframe(cached)
 
     def _to_db_rows(

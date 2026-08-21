@@ -3,7 +3,7 @@
 ## 읽어야 할 파일
 
 - `tools/scripts/lib/mise-shim-path.sh` — **이번 테스트의 대상** (46줄 전량, 대부분이 근거 주석)
-- `docs/decisions/036-tool-version-ssot-mise.md` — 이 파일이 집행하는 결정
+- `docs/adr/036-tool-version-ssot-mise.md` — 이 파일이 집행하는 결정
 - `apps/api/tests/scripts/test_assert_main_checkout.py` — PATH 를 좁혀서 재는 선례(케이스 5)
 
 ## 배경

@@ -178,7 +178,7 @@ def _verify_prometheus_bearer(
     그 문장이 이 회차의 오류였다.** `core/config.py:369` 의 가드는 `app_env` 문자열이
     정확히 `production` 일 때만 돈다(staging 은 `:367` 이 명시적으로 면제). 그런데
     **이 레포의 실배포 호스트는 `APP_ENV` 를 아예 설정하지 않아 기본값 `development` 로
-    돈다**(`config.py:33` · `docs/reference/operations/frontend-deploy.md:13`). 즉 그 호스트는
+    돈다**(`config.py:33` · `docs/operations/frontend-deploy.md:13`). 즉 그 호스트는
     부팅 가드의 보호를 **받지 않는다.**
 
     2026-08-11 실측 — 그 호스트의 `.env.local` 에는 토큰이 **설정돼 있다**(비어 있지 않음).

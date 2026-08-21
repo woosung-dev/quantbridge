@@ -46,7 +46,7 @@
 - 가격 / 수량 / 수익률 / 레버리지 등은 `Decimal` 사용 (float 금지).
 - 합산 시 `Decimal(str(a)) + Decimal(str(b))` — float 공간 합산 후 변환 금지 (Sprint 4 D8 교훈).
 
-### JWT 검증 — JWKS 공개 키 ([ADR-034](../../docs/decisions/034-auth-self-host-better-auth.md))
+### JWT 검증 — JWKS 공개 키 ([ADR-034](../../docs/adr/034-auth-self-host-better-auth.md))
 
 ★**백엔드는 인증 시크릿을 쥐지 않는다.** 검증기는 `src/realtime/auth.py` **한 곳**이고
 HTTP·WebSocket 이 그것을 공유한다. 새 검증 경로를 만들지 마라.
@@ -295,7 +295,7 @@ alembic -x allow_destructive=1 downgrade -1
 ```
 
 > ★**서버 소크 DB 는 별개다** — DDL 은 매번 명시 승인이고 집행 도구는 `soak-stack.sh migrate` 다.
-> 절차 정본 = [`backend-deploy.md`](../../docs/reference/operations/backend-deploy.md).
+> 절차 정본 = [`backend-deploy.md`](../../docs/operations/backend-deploy.md).
 
 ### 규칙
 

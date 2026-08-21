@@ -7,7 +7,7 @@
 「DB 를 나눴으니 격리된다」고 적고 있었다:
 
 - `.env.example` — 「broker burst·eviction 으로 lock 유실 방지」
-- `docs/reference/operations/docker-compose-guide.md` — 「Celery 큐는 별도 DB로 분리」
+- `docs/development/docker-compose-guide.md` — 「Celery 큐는 별도 DB로 분리」
 - `core/config.py` 의 `redis_lock_url` description — 「격리된 DB 3 사용」
 
 ★**전부 거짓이다.** `maxmemory-policy` 는 **인스턴스 전역**이고, Redis 의 축출 후보 선정은

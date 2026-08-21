@@ -2,7 +2,7 @@
 #
 # QuantBridge DB 무인 백업 — pg_dump 커스텀 포맷(-Fc) + OCI Object Storage 사본 + 보관 정리.
 #
-# [BL-767] · [ADR-033](docs/decisions/033-db-hosting-self-host-timescaledb.md) 조건 ⑴.
+# [BL-767] · [ADR-033](docs/adr/033-db-hosting-self-host-timescaledb.md) 조건 ⑴.
 #   self-host TimescaleDB 를 고른 대가가 「백업이 전적으로 우리 책임」이고, ADR 이 없던 것으로
 #   지목한 셋이 정확히 이 스크립트의 세 축이다 — ⑴ 스케줄(`--install`) ⑵ 오프서버 보관(OCI)
 #   ⑶ **복원 실증**(`verify-restore`).

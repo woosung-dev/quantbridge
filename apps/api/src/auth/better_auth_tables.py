@@ -10,7 +10,7 @@ alembic revision 으로 옮겼고, 그 결과를 metadata 에 선언해 `alembic
 소유자는 Next 앱 안의 Better Auth 이고, 우리는 그 사람이 발급한 JWT 만 본다.
 
 ★**부채 하나**: Better Auth 버전을 올릴 때 `pnpm --dir apps/web exec @better-auth/cli generate`
-를 다시 돌려 이 선언과 대조해라. 절차는 `docs/reference/operations/better-auth-setup.md`.
+를 다시 돌려 이 선언과 대조해라. 절차는 `docs/operations/better-auth-setup.md`.
 컬럼 이름이 camelCase 인 것은 Better Auth 규약이라 그대로 둔다(따옴표 식별자).
 """
 

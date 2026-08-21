@@ -1154,7 +1154,7 @@ lev 125x -> 진입가 x 0.99700  (하락  0.30%)
 - ~~**`qb_ws_orphan_buffer_size` 값 범위 변화.** docstring 은 "capped at 1000" 인데 `concurrency=3` + `livesum` 이라 0~3000. 기존 임계 재조정 필요.~~ → **2026-08-09 무효 — 그 gauge 는 [BL-448](#bl-448) 에서 삭제됐다**(버퍼째 제거). 이 항목이 재던 「livesum × concurrency 로 범위가 배수가 된다」는 성질 자체는 남은 `livesum` gauge(`qb_pending_alerts`)에 그대로 유효하다.
 - **`qb_redis_lock_pool_healthy` 가 fail-open.** `mostrecent` 는 죽은 프로세스가 남긴 `1` 을 계속 서빙한다 — 건강한 프로세스가 없어도 healthy=1. `livemostrecent`/`min` 이 후보이나 각각 다른 실패 모드가 있다.
 
-**권장 접근:** 위 4건을 `docs/reference/` 관측 계약 문서에 명시 + multiproc 모드 endpoint 테스트 추가.
+**권장 접근:** 위 4건을 `docs/operations/` 관측 계약 문서에 명시 + multiproc 모드 endpoint 테스트 추가.
 **Risk:** 🟢
 
 ---
@@ -2531,7 +2531,7 @@ GROUP BY 1 HAVING count(*) >= 3 ORDER BY 1"
 > 07-28(**20**) 을 그대로 담아 **2행을 돌려줬고**, 위 결정 규칙이 「행이 하나라도 나오면 되살린다」라
 > **2026-08-11 04:26 UTC 까지 매번 되살림을 지시하는 항상-참 판정식**이었다(verbatim 실행 확인).
 > 원장에 **2026-07-31 18:39 UTC 이후 주문이 0건**이므로 새 증거 없이 발화한다.
-> 정본 규율 = [`reference/operations/workflows/generator-evaluator-pipeline.md`](reference/operations/workflows/generator-evaluator-pipeline.md) §G1.1 규율 6.
+> 정본 규율 = [`development/workflows/generator-evaluator-pipeline.md`](./development/workflows/generator-evaluator-pipeline.md) §G1.1 규율 6.
 > 수정 후 실행 = **0행**(= 보류 유지). 판별력 확인 = 같은 쿼리의 `HAVING count(*) >= 1` 이 07-29(**2**)·07-31(**1**)을 돌려준다(창이 빈 게 아니다).
 
 **Est:** S
@@ -3179,7 +3179,7 @@ LiveSignalEvent」로 못박아 두었는데, 이 파일은 같은 이름을 **�
 
 **Priority:** P3
 **카테고리:** Docs / 스택 규칙 크기 (ADR-027 후속)
-**Trigger:** 스택 규칙을 다음에 손댈 때 ([ADR-027](decisions/027-nested-agents-md.md) 정착 후)
+**Trigger:** 스택 규칙을 다음에 손댈 때 ([ADR-027](./adr/027-nested-agents-md.md) 정착 후)
 **Est:** S
 **상태:** ⏳ **대기 (트리거 미도래)**
 **트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
@@ -3261,7 +3261,7 @@ ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 
 **미래 유용성**이 아니었다. 그 결과 아직 **실행하지 않은 절차**가 「과거 원문」으로 함께 나갔다.
 
 ★★**2026-08-16 정정 — 4종이 아니라 3종이다.** mainnet 축은 이미 대체됐다:
-`docs/reference/operations/bybit-mainnet-runbook.md`(26,325 B)가 **워킹트리에 존재**한다. 그것은
+`docs/operations/bybit-mainnet-runbook.md`(26,325 B)가 **워킹트리에 존재**한다. 그것은
 회수본이 아니라 [BL-003] 으로 **새로 쓴 문서**(`3915bd7b`, 2026-08-09 — 삭제 커밋 3일 후)다.
 ⇒ 남은 회수 대상은 Cloud Run · Grafana · 법무 **3종**.
 
@@ -3280,10 +3280,10 @@ ADR-026 은 `docs/archive/` 를 통째로 삭제했는데, 그 분류 기준은 
 워크플로 4종은 **레포에 살아 있다** — 설정은 있고 「왜/어떻게」만 이력으로 빠지는 비대칭이다.
 
 ★**지금 되살리지 않는 것이 맞다** — 넷 다 3개월 이상 낡았고, 실제 배포·전환 시점에 어차피 다시 쓴다.
-지금 `reference/` 로 옮기면 안 쓰는 채로 다시 썩는다. 필요한 것은 **꺼낼 수 있다는 사실의 보존**이고,
+지금 정본 층으로 옮기면 안 쓰는 채로 다시 썩는다. 필요한 것은 **꺼낼 수 있다는 사실의 보존**이고,
 그 경로는 [`docs/README.md`](./README.md) §문서의 수명과 위치에 명시했다.
 
-**수리** = 트리거 발동 시 위 경로에서 꺼내 **갱신한 뒤** `docs/reference/operations/` 로 재등재.
+**수리** = 트리거 발동 시 위 경로에서 꺼내 **갱신한 뒤** `docs/operations/` 로 재등재.
 그대로 복사하지 않는다 (낡은 절차를 정본으로 만드는 것이 더 나쁘다).
 
 **Risk:** 🟢 지금은 영향 없다. 단 트리거가 왔을 때 **이 항목이 없으면 그 문서들의 존재 자체를
@@ -3725,10 +3725,10 @@ golden 갱신 커밋에 적어라.
 **상태:** ⏳ 대기 (트리거 미도래) — 2026-08-09 등재. **착수 금지**(이 회차 비목표 = M/L 급).
 **트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
 
-**`decisions/013-optimizer-strategy.md` 를 소급 작성해 ADR-013 결번을 닫는다.**
+**`adr/013-optimizer-strategy.md` 를 소급 작성해 ADR-013 결번을 닫는다.**
 
 [BL-504](#bl-504) 가 2026-08-09 에 인용 축을 닫았다 — 살아 있는 인용 4곳에 git tombstone 경로를 병기했다.
-남은 것은 **실체를 `decisions/` 로 승격**하는 일이고, 그것은 별개 작업이다.
+남은 것은 **실체를 `adr/` 로 승격**하는 일이고, 그것은 별개 작업이다.
 
 **실체(확인됨):** `docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` — **24,703바이트**,
 도입 `9c93fa70`(PR #258), 삭제 `94da86b1`(2026-08-06 문서 대개편).
@@ -3740,13 +3740,13 @@ golden 갱신 커밋에 적어라.
 없는 근거를 지어내지 말고 실제 코드(`apps/api/src/optimizer/executors/`)와 **대조**해라 —
 dev-log 가 적은 결정과 코드가 어긋나면 **코드가 맞다**([ADR-026] 「지금 무엇을 하는가」 축).
 
-★**같이 볼 것 — ADR-019 는 결번이 아니다.** `decisions/019-worker-auto-rebuild.md` 가 실재한다(Sprint 38).
+★**같이 볼 것 — ADR-019 는 결번이 아니다.** `adr/019-worker-auto-rebuild.md` 가 실재한다(Sprint 38).
 `docs/dev-log/INDEX.md:141` 의 `2026-05-05 · ADR-019 Surface Trust Pillar` 는 **ID 중복 호칭**이므로
 그 줄을 고칠지도 이 작업에서 함께 정한다(고칠 거면 `020-trust-layer-ci-design.md:3` 의 renumber 서술과 정합시켜라).
 
 **Risk:** 🟢 동작 무영향. 비용은 24,703바이트를 읽고 코드와 대조하는 시간이다.
 
-**연결:** [BL-504](#bl-504) (인용 축 — 닫힘) · [ADR-026](decisions/026-documentation-ssot.md) (tombstone 규약)
+**연결:** [BL-504](#bl-504) (인용 축 — 닫힘) · [ADR-026](./adr/026-documentation-ssot.md) (tombstone 규약)
 
 **출처:** 2026-08-09 backlog-sweep ([BL-504] G0 에서 실체가 git 에 살아 있음을 확인하고 분리)
 
@@ -3860,7 +3860,7 @@ pre-commit 의 `prettier --write` 가 `*.json` 을 대상으로 하므로 커밋
 **원인 / 영향:** `docs/status.md:396` 이 「원장 못 읽은 tick 은 리컨사일을 1 tick 미룬다
 (취소는 비가역, 미룸은 가역)」를 **[ADR-025] §⑧** 으로 돌린다. 그런데
 `025-conditional-fill-ownership.md` 에는 **번호 절이 없고**(전부 이름 헤딩),
-`비가역` 은 `docs/decisions/` **전체에 0건**이다(grep 실측). **죽은 앵커다.**
+`비가역` 은 `docs/adr/` **전체에 0건**이다(grep 실측). **죽은 앵커다.**
 
 ★원칙 자체는 유효하다 — 정본은 **구현**이다: `live_signal.py:1467-1512` 가 취소 대신
 `"deferred"` 를 돌려 janitor 로 넘기고(`:1499`), gap-resync 는 `_GAP_RESYNC_DEFER_KEY`(`:273`)로
@@ -4283,7 +4283,7 @@ for account_id in scope_ids:
 **Est:** S
 **상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-10 bl-trigger-triage 가 등재만 하고 통합하지 않았다.
 **트리거 판정:** 미도래 — 동승 조건. 단독 착수 시 값이 0이라 인접 작업 회차에 붙인다 (2026-08-10 bl-trigger-triage)
-**출처:** 2026-08-10 bl-trigger-triage ([ADR-028](decisions/028-backlog-deferred-verdict.md) Consequences)
+**출처:** 2026-08-10 bl-trigger-triage ([ADR-028](./adr/028-backlog-deferred-verdict.md) Consequences)
 
 **원인 / 영향:** `## Deferred — trigger 미도래 · 의도적 부활 가능` 표(BL-070~075 · BL-005 · BL-145,
 8건)는 **섹션이 없어서** `bl-audit` 집계 밖이다(의도). 그런데 [ADR-028] 이 같은 의미의 판정어
@@ -4380,7 +4380,7 @@ tombstone 으로 되돌린다. **⑵ 가 가장 싸고 ⑴ 이 가장 정합적�
 
 ★**지금 붉지 않다.** 6개의 native 제약을 전수 확인한 결과 전부 `step="any"` 이거나 정수 step +
 정수 경계라 기본값이 격자 안이다. 즉 **잠복**이지 발현이 아니다 — 그래서 ACTIVE 가 아니라 DEFERRED
-([ADR-028](decisions/028-backlog-deferred-verdict.md)).
+([ADR-028](./adr/028-backlog-deferred-verdict.md)).
 
 ★**위험은 「지금 틀렸다」가 아니라 「조용히 틀려진다」다.** [BL-698] 은 폼 코드를 한 줄도 안 건드린
 커밋(`753f4bf6` — 기본값 상수만 좁혔다)이 만들었고, **212 커밋 동안 아무 게이트도 못 잡았다.**
@@ -4693,7 +4693,7 @@ seed watermark([BL-547]).
 
 **원인 / 영향:** `soak_gate_predicate.py:attribute_disqualifications` 는 원장 행을 `(at, kind)` 로
 매칭하고 **남은 행을 `stale_ledger_rows`** 로 낸다. 그런데 원장
-(`docs/reference/operations/soak-disqualifications.jsonl`)은 **서버 소크와 로컬 맥 소크의 사건을
+(`docs/operations/soak-disqualifications.jsonl`)은 **서버 소크와 로컬 맥 소크의 사건을
 함께** 담고, 판독은 **한 호스트의 DB** 만 본다. ⇒ 다른 호스트 행은 구조적으로 매칭될 수 없고
 매 판독마다 남는다.
 
@@ -5234,7 +5234,7 @@ raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족�
 계약 drift 는 2026-08-16 에 배선한 `mise run openapi-check` 가 막는다. 버저닝이 필요해지는 것은
 **우리가 배포 시점을 통제하지 못하는 소비자**(모바일 앱·외부 파트너)가 생기는 순간이다.
 
-**권장 접근:** ⑴ 트리거가 오면 `docs/reference/interfaces/versioning.md` 신설 — 무엇이 breaking
+**권장 접근:** ⑴ 트리거가 오면 `docs/api/versioning.md` 신설 — 무엇이 breaking
 인가(필드 제거·타입 변경·enum 값 제거) / 병행 유지 기간 / deprecation 헤더
 ⑵ `/api/v1` 을 상수로 뽑는다 — 지금 뽑아도 값은 없다(9곳이 전부 같고 바뀔 이유가 없다)
 ⑶ ★**빈 문서를 미리 만들지 마라** — 권장 구조에 칸이 있다는 것이 트리거가 아니다

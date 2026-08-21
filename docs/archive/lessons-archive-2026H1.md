@@ -156,7 +156,7 @@
 
 ## LESSON-050 — Sprint kickoff design source 명시 의무
 
-- **해결:** 디자인 트랙 sprint kickoff prereq 첫 step = `docs/reference/design/prototypes/` + `DESIGN.md` + `*.pen` + Figma URL 모두 grep + 5지선다 prereq 옵션 (없음 + 4 source 종류). design source 누락 발견 시 즉시 Wave 2 추가 spawn.
+- **해결:** 디자인 트랙 sprint kickoff prereq 첫 step = `docs/design/prototypes/` + `DESIGN.md` + `*.pen` + Figma URL 모두 grep + 5지선다 prereq 옵션 (없음 + 4 source 종류). design source 누락 발견 시 즉시 Wave 2 추가 spawn.
 
 ## LESSON-051 — Agent isolation worktree 4 spawn 시 baseline 정리 의무
 
@@ -239,7 +239,7 @@
   전에 뿌리를 확정해라 ⑵ 뿌리 확정의 가장 싼 도구는 **셈이 닫히는지**다(574 = 287×2 이고 287/287
   이 두 계정에 걸림 ⇒ 배수의 정체가 계정 수임이 즉시 나온다) ⑶ 같은 회차에서 **선례를 먼저 찾아라**
   — 이 레포는 `exchange_uid` 형제를 펴는 관용구를 이미 3곳에 갖고 있었다.
-- **1차 누적.** ★**축 판정 (2026-08-14 재계수)** — 「착수 전제·상속 사실이 반증됐다」는 `dev-log/INDEX.md` 2026-08-07~08-12 **22줄 중 12줄**이다. 다만 이 축은 이미 [generator-evaluator-pipeline.md](reference/operations/workflows/generator-evaluator-pipeline.md) **§8.1**(=[LESSON-037])로 승격돼 있으므로 **다시 승격하지 않는다** — 이 카드는 그 축의 개별 사례로 남는다(`lessons.md:12` 규약).
+- **1차 누적.** ★**축 판정 (2026-08-14 재계수)** — 「착수 전제·상속 사실이 반증됐다」는 `dev-log/INDEX.md` 2026-08-07~08-12 **22줄 중 12줄**이다. 다만 이 축은 이미 [generator-evaluator-pipeline.md](../development/workflows/generator-evaluator-pipeline.md) **§8.1**(=[LESSON-037])로 승격돼 있으므로 **다시 승격하지 않는다** — 이 카드는 그 축의 개별 사례로 남는다(`lessons.md:12` 규약).
 
 ---
 

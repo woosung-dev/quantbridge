@@ -83,7 +83,7 @@ def _validate_param_grid_for_cost_assumption(
         unsupported = ", ".join(coverage.all_unsupported)
         raise ValueError(
             f"Strategy contains unsupported Pine built-ins: {unsupported}. "
-            f"See docs/reference/domain/supported-indicators.md for the supported list."
+            f"See docs/domain/supported-indicators.md for the supported list."
         )
 
 

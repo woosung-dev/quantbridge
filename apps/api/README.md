@@ -29,9 +29,9 @@ FastAPI + SQLModel + Celery. 100% 비동기. 도메인별 3-Layer(Router / Servi
 읽을 때 헷갈리기 쉬운 세 가지:
 
 - **`trading/` 만 구조가 다르다** — `service.py`/`repository.py` 가 파일이 아니라 `services/`(13개) · `repositories/`(10개) 디렉터리로 분해돼 있고, `websocket/` 서브패키지를 따로 갖는다
-- **JWT 검증기는 `realtime/auth.py`** 한 곳이다. `auth/` 는 사용자 원장만 갖는다 (횡단 관심사라 도메인 밖 — [ADR-034](../../docs/decisions/034-auth-self-host-better-auth.md))
+- **JWT 검증기는 `realtime/auth.py`** 한 곳이다. `auth/` 는 사용자 원장만 갖는다 (횡단 관심사라 도메인 밖 — [ADR-034](../../docs/adr/034-auth-self-host-better-auth.md))
 - **Service 는 `src.tasks` 를 직접 import 하지 않는다** — 순환 의존을 피하려고 `dispatcher.py` Protocol 로 추상화했다 (`backtest/dispatcher.py` 참조)
-- `exchange/` 는 없다 — [ADR-018](../../docs/decisions/018-sprint12-ws-supervisor-and-exchange-stub-removal.md) 로 `trading/` 에 통합됐다
+- `exchange/` 는 없다 — [ADR-018](../../docs/adr/018-sprint12-ws-supervisor-and-exchange-stub-removal.md) 로 `trading/` 에 통합됐다
 
 ---
 
@@ -61,7 +61,7 @@ OpenAPI 계약(`contracts/openapi/openapi.json`)이 레포에 커밋돼 있고, 
 
 ## `pine_v2` 인터프리터
 
-이 레포의 심장. `src/strategy/pine_v2/` 에 22모듈 8.3k LOC. **백테스트와 라이브 신호가 같은 코드로 돈다** ([ADR-011](../../docs/decisions/011-pine-execution-strategy-v4.md)).
+이 레포의 심장. `src/strategy/pine_v2/` 에 22모듈 8.3k LOC. **백테스트와 라이브 신호가 같은 코드로 돈다** ([ADR-011](../../docs/adr/011-pine-execution-strategy-v4.md)).
 
 | 파일                  | 역할                                                                     |
 | --------------------- | ------------------------------------------------------------------------ |
@@ -78,7 +78,7 @@ OpenAPI 계약(`contracts/openapi/openapi.json`)이 레포에 커밋돼 있고, 
 
 ★**라이선스 경계가 설계 제약이다.** 파서인 pynescript 는 LGPL-3.0 이라 **PyPI 의존성으로만** 쓰고 소스를 복사하지 않는다. `import pynescript` 는 `parser_adapter.py` 한 파일에서만 허용된다 — 다른 파일에 쓰지 마라.
 
-★**`exec()` / `eval()` 절대 금지** ([ADR-003](../../docs/decisions/003-pine-runtime-safety-and-parser-scope.md)).
+★**`exec()` / `eval()` 절대 금지** ([ADR-003](../../docs/adr/003-pine-runtime-safety-and-parser-scope.md)).
 
 ---
 
@@ -179,7 +179,7 @@ uv run alembic -x allow_destructive=1 downgrade -1
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest
 ```
 
-**`.env.local` 을 통째로 소싱해라.** `DATABASE_URL` 만 단독으로 주입하면 세션 픽스처의 `drop_all` 이 **개발 DB 를 겨냥한다.** 서브에이전트·스크립트에서도 마찬가지다. 상세는 [`gates-and-traps.md`](../../docs/reference/operations/gates-and-traps.md) §환경.
+**`.env.local` 을 통째로 소싱해라.** `DATABASE_URL` 만 단독으로 주입하면 세션 픽스처의 `drop_all` 이 **개발 DB 를 겨냥한다.** 서브에이전트·스크립트에서도 마찬가지다. 상세는 [`gates-and-traps.md`](../../docs/development/gates-and-traps.md) §환경.
 
 또 하나 — **판정 명령에 파이프를 붙이지 마라.** `uv run pytest ... | tail -3` 은 pytest 가 아니라 `tail` 의 종료 코드를 읽어서, 실패한 테스트를 초록으로 보고한다.
 

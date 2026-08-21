@@ -25,7 +25,7 @@
 # 공유하면 두 워크트리가 서로의 테이블을 날린다. 인스턴스가 아니라 DB 이름만 나누면 되므로
 # 추가 컨테이너는 필요 없다.
 #
-# ⚠️ 이 스크립트로도 해결되지 않는 구조적 제약 — docs/reference/operations/worktree-parallel.md §3 참조.
+# ⚠️ 이 스크립트로도 해결되지 않는 구조적 제약 — docs/development/worktree-parallel.md §3 참조.
 #    celery worker 컨테이너가 메인 체크아웃의 `./apps/api/src` 를 bind-mount 하므로,
 #    워크트리에서 고친 백엔드 코드는 백테스트/라이브신호/옵티마이저에 반영되지 않는다.
 

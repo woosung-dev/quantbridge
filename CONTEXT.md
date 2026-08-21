@@ -4,7 +4,7 @@
 
 TradingView Pine Script 전략을 가져와 **백테스트 → 스트레스 테스트 → 최적화 → 데모/라이브 트레이딩** 한 파이프라인으로 잇는 퀀트 플랫폼. 본 문서는 도메인 용어의 canonical 정의와 경계를 고정하는 헌법이며, 충돌하는 명명/코드는 즉시 정렬한다.
 
-> **SSOT 위임:** 컬럼 정의 = [`docs/reference/domain/erd.md`](docs/reference/domain/erd.md) · 엔티티 책임 = [`docs/reference/domain/entities.md`](docs/reference/domain/entities.md) · 상태 전이 = [`docs/reference/domain/state-machines.md`](docs/reference/domain/state-machines.md) · 결정 근거 = `docs/decisions/`(ADR). 본 문서는 **용어/관계** 만 보유.
+> **SSOT 위임:** 컬럼 정의 = [`docs/domain/erd.md`](./docs/domain/erd.md) · 엔티티 책임 = [`docs/domain/entities.md`](./docs/domain/entities.md) · 상태 전이 = [`docs/domain/state-machines.md`](./docs/domain/state-machines.md) · 결정 근거 = `docs/adr/`(ADR). 본 문서는 **용어/관계** 만 보유.
 
 ## Language
 
@@ -16,7 +16,7 @@ _Avoid_: Algorithm, Script(원본 코드 문자열은 `pine_source` 로 한정)
 
 **pine_v2**:
 Pine Script 를 트랜스파일 없이 AST 를 bar-by-bar 해석·실행하는 자체 인터프리터이자 백테스트·라이브 **신호**의 단일 진실(SSOT).
-★**신호이지 체결이 아니다.** 백테스트에는 거래소가 없으므로 시뮬이 곧 거래소이고 체결도 `pine_v2` 가 정한다. 라이브에는 진짜 매칭엔진이 있으므로 **조건부 진입 체결의 권한은 주문 원장에 있다** — 원장이 증언하지 않은 체결을 엔진이 만들지 않고, 증언하면 엔진의 봉·트리거 판정과 무관하게 체결한다([ADR-025](docs/decisions/025-conditional-fill-ownership.md) / [BL-595]). 그 결과 **라이브 재생은 「전략 + OHLCV」만으로 재현되지 않는다** — 원장이 입력에 들어간다. 백테스트 경로는 인자 기본값으로 byte-identical 이며 테스트가 그 경계를 집행한다.
+★**신호이지 체결이 아니다.** 백테스트에는 거래소가 없으므로 시뮬이 곧 거래소이고 체결도 `pine_v2` 가 정한다. 라이브에는 진짜 매칭엔진이 있으므로 **조건부 진입 체결의 권한은 주문 원장에 있다** — 원장이 증언하지 않은 체결을 엔진이 만들지 않고, 증언하면 엔진의 봉·트리거 판정과 무관하게 체결한다([ADR-025](./docs/adr/025-conditional-fill-ownership.md) / [BL-595]). 그 결과 **라이브 재생은 「전략 + OHLCV」만으로 재현되지 않는다** — 원장이 입력에 들어간다. 백테스트 경로는 인자 기본값으로 byte-identical 이며 테스트가 그 경계를 집행한다.
 _Avoid_: transpiler, "vectorbt 엔진", Pine v1(철거됨, Sprint 59)
 
 **Track**:
@@ -44,7 +44,7 @@ Backtest 시뮬레이션 내부의 개별 가상 체결 기록.
 완료된 Backtest 위에서 Monte Carlo / Walk-Forward / Cost-Assumption / Param-Stability 로 강건성을 평가하는 분석.
 
 **Optimizer**:
-한 Strategy 의 파라미터 공간을 Grid / Bayesian(scikit-optimize) / Genetic(자체 GA) 으로 탐색하는 실행(엔티티 = `OptimizationRun`, ADR-013). ★**ADR-013 은 `docs/decisions/` 에 파일이 없다**(결번) — 실체는 삭제된 dev-log 이고 git 에 살아 있다: `git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` ([BL-504] · 소급 ADR 작성은 [BL-658]).
+한 Strategy 의 파라미터 공간을 Grid / Bayesian(scikit-optimize) / Genetic(자체 GA) 으로 탐색하는 실행(엔티티 = `OptimizationRun`, ADR-013). ★**ADR-013 은 `docs/adr/` 에 파일이 없다**(결번) — 실체는 삭제된 dev-log 이고 git 에 살아 있다: `git show 94da86b1^:docs/dev-log/2026-05-12-sprint54-bayesian-genetic-grammar-adr.md` ([BL-504] · 소급 ADR 작성은 [BL-658]).
 _Avoid_: Optuna(채택 안 함)
 
 **vectorbt**:
@@ -134,7 +134,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 
 ## Flagged ambiguities
 
-- **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/reference/domain/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 완료(본 브랜치).
+- **"TradingSession"** 이 라이브 lifecycle 을 가리키는 데 쓰임 → 해소: 그런 테이블 없음. **LiveSignalSession** + **Order** + **LiveSignalEvent** 사용. _잔여 드리프트_: `docs/domain/domain-overview.md` §4.1 FK 표 + `entities.md` ENT-007/008 이 phantom `trading_sessions`/`live_trades` 를 실재처럼 표기 → Phase 2 정정 완료(본 브랜치).
 - **"engine" / "backtest engine"** 이 vectorbt 를 지칭 → 해소: 실행 엔진 SSOT 는 **pine_v2**. ★2026-08-06 에 한 겹 더 벗겼다 — 「vectorbt 는 지표계산 전용」이라는 강등 서술**조차** 드리프트였고(코드 import 0건), 의존성 자체를 제거했다. _잔여 드리프트_: `system-architecture.md` L82/L143 → Phase 2 정정 완료.
 - **"exchange"** 가 별도 도메인으로 쓰임 → 해소: **Trading** 으로 통합(ADR-018), `apps/api/src/exchange/` 부재. _잔여 드리프트_: `entities.md` ENT-009 가 `domain: exchange` / `apps/api/src/exchange/models.py` 표기 → Phase 2 정정 완료(본 브랜치).
 - **"testnet"** vs **"demo"** → 해소: testnet 모드 제거됨. **ExchangeMode** = `demo | live` 뿐이고 demo 의미는 거래소별 상이(Bybit demo = 실 매칭엔진 / OKX demo = CCXT sandbox).
@@ -145,7 +145,7 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
 
 ## 변경 이력
 
-- **2026-06-30** — 초안 작성(verification loop Stage 0). `docs/reference/{domain-overview,entities,state-machines}.md` + ADR-003/011/013/018/020 + 코드(`trading/models.py`, `pine_v2/compat.py`) 교차 ground. Flagged ambiguities 6건 중 3건은 Phase 2 문서 정정으로 연계.
+- **2026-06-30** — 초안 작성(verification loop Stage 0). `docs/domain/{domain-overview,entities,state-machines}.md` + ADR-003/011/013/018/020 + 코드(`trading/models.py`, `pine_v2/compat.py`) 교차 ground. Flagged ambiguities 6건 중 3건은 Phase 2 문서 정정으로 연계.
 - **2026-06-30** — codex consult gate 7건 보정(직접 코드 검증 후 반영) — Track A/M 에 `library` 포함 / Degraded Pine·allow_degraded_pine 신설 / LiveSignalSession Bybit-demo 한정 명시 / ExchangeName 신설 + registry SSOT / demo 의미 거래소별 상이 / Kill Switch 트리거별 scope / Provider 라우팅 튜플 relationship.
 - **2026-08-06** — **vectorbt 항목을 묘비로 전환**(ci-diet 후속 dead-code-sweep). 의존성 4종
   (`vectorbt` · `pandas-ta` · `aioboto3` · `orjson`)을 제거했고 lock 에서 **47 패키지**가 빠졌다

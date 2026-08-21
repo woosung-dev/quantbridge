@@ -215,7 +215,7 @@ def _validate_bayesian_search_pre(pine_source: str, param_space: ParamSpace) -> 
         unsupported = ", ".join(coverage.all_unsupported)
         raise ValueError(
             f"Strategy contains unsupported Pine built-ins: {unsupported}. "
-            f"See docs/reference/domain/supported-indicators.md for the supported list."
+            f"See docs/domain/supported-indicators.md for the supported list."
         )
 
     content = extract_content(pine_source)

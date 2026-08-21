@@ -594,7 +594,7 @@ PR = **#755**(① 사전 배치) · **#756~#762**(lane 7벌) · **#763**([BL-819
 **Est:** M (8 lane 병렬)
 **출처:** 2026-08-21 밤샘 루프 4차 (3차 [BL-815] 가 화면 계층을 닫고 남긴 층)
 
-**원인 / 영향:** [BL-813](fe2)·[BL-815](fe3)가 `src/lib/**` 와 화면 컴포넌트를 채우면서
+**원인 / 영향:** [BL-813](./fe2)·[BL-815](./fe3)가 `src/lib/**` 와 화면 컴포넌트를 채우면서
 **`src/app/**`라우트 조립층만 통째로 남았다.** 이 층은 얇지만 비어 있지 않다 —`apps/web/AGENTS.md` §4 가 「조립층: 라우트·레이아웃·loading·error·metadata + feature 조립」이라
 정의한 그 자리에 **[BL-786] 프리페치 키 동일성 · UUID→`notFound()`분기 ·`getServerAuth`배선 ·`metadata` 계약\*\*이 살고 있고 전부 테스트가 없다.
 
@@ -1980,7 +1980,7 @@ backend 3레인 발화 + FE 정상 skip 을 실증. 이행 중 실물 결함 1�
 ① 은 **이행 불가**다. `legacy_paths` 판정은 `if legacy in text` — **파일 전체 부분문자열**이라
 (`docs-audit.sh:100-102`) 예외를 못 준다. 살아 있는 문서(frozen 3종 제외)에 `backend/`·`frontend/`
 리터럴이 **147줄**이고, 그중 다수가 **고칠 수 없는 정당한 인용**이다:
-[ADR-029](decisions/029-monorepo-standard-layout.md) 의 **이동 매핑 표 자신**(:22-23 — 여기서 지우면
+[ADR-029](./adr/029-monorepo-standard-layout.md) 의 **이동 매핑 표 자신**(:22-23 — 여기서 지우면
 ADR 이 무엇을 옮겼는지 말할 수 없다) · `lessons.md` 의 그때 실측 기록 · `status.md` 재배치 서사.
 ⇒ 등재문이 스스로 단 경고(「과거 서사는 정당한 인용」)가 **예외가 아니라 지배적 다수**였다.
 죽은 포인터는 축 ②가 **이유 불문** 잡으므로(`` `backend/AGENTS.md` `` 도 같은 축에서 red) 흡수했다.
@@ -3527,7 +3527,7 @@ document 리스너를 붙이는 시점은 **페이지 제목 가시 시점과 �
 **Risk:** 🟢 (문서)
 
 **상태:** ✅ **Resolved** — 2026-08-17 e2e-truth (PR #663). `gates-and-traps.md` 의 429 축([BL-784]) 바로 다음에 **2원인 대조표**를 넣었다 — 실패가 `setup` 단계에서 나고 429 가 **0건**이면 캐시 쪽, 처방은 `rm -rf apps/web/.next`. 종전 「★복구 = 재기동뿐 … 지우지 말고 재기동해라」를 폐기하고 「재기동 먼저, 남으면 서버를 죽인 뒤 캐시 제거」로 통합했다.
-★★**「모순 문장이 남아 있지 않다」는 수용 기준을 이 회차가 두 번 틀렸다.** 잔존 확인을 `gates-and-traps.md` **한 파일**에서만 돌린 것이 원인이다. ⑴ 3렌즈 적대 리뷰가 `docs/reference/operations/workflows/generator-evaluator-pipeline.md:142`(하필 `AGENTS.md` 가 메타-방법론 정본으로 지목한 파일의 §G4) 에서 같은 처방이 살아 있는 것을 찾았다. ⑵ `/codex` 가 [BL-650] 본문의 「dev 가 이상하면 `rm -rf .next` 부터가 유일한 처방」을 찾았다(이 원장 PR 이 정정). ⇒ **잔존 확인은 처음부터 `git grep -- docs/` 전체여야 했다.** 지금은 `git grep "재기동뿐" -- docs/` 의 히트가 **전부 폐기 선언 안의 인용**이다.
+★★**「모순 문장이 남아 있지 않다」는 수용 기준을 이 회차가 두 번 틀렸다.** 잔존 확인을 `gates-and-traps.md` **한 파일**에서만 돌린 것이 원인이다. ⑴ 3렌즈 적대 리뷰가 `docs/development/workflows/generator-evaluator-pipeline.md:142`(하필 `AGENTS.md` 가 메타-방법론 정본으로 지목한 파일의 §G4) 에서 같은 처방이 살아 있는 것을 찾았다. ⑵ `/codex` 가 [BL-650] 본문의 「dev 가 이상하면 `rm -rf .next` 부터가 유일한 처방」을 찾았다(이 원장 PR 이 정정). ⇒ **잔존 확인은 처음부터 `git grep -- docs/` 전체여야 했다.** 지금은 `git grep "재기동뿐" -- docs/` 의 히트가 **전부 폐기 선언 안의 인용**이다.
 ★**정직한 한계** — 이 항목의 산출물은 전부 산문이라 판정식의 참·거짓을 잴 검사면이 **구조적으로 없다**. 수용 기준을 「판정식이 맞다」가 아니라 「두 원인이 한자리에서 대조되고 모순되는 종전 문장이 남아 있지 않다」로 두고 닫았다. 판정식 자체의 실증은 **다음 authed red 회차**에 달려 있다.
 **트리거 판정:** 도래 — 이 회차가 실제로 밟았고 원인을 특정했다
 
@@ -3628,7 +3628,7 @@ document 리스너를 붙이는 시점은 **페이지 제목 가시 시점과 �
 $ ./node_modules/.bin/prettier --check apps/web/package.json
 [error] Cannot find package 'prettier-plugin-tailwindcss' imported from .../quant-bridge/noop.js
 
-$ ./node_modules/.bin/prettier --check docs/reference/operations/gates-and-traps.md
+$ ./node_modules/.bin/prettier --check docs/development/gates-and-traps.md
 All matched files use Prettier code style!     ← 루트 밖 파일은 정상
 ```
 
@@ -3791,7 +3791,7 @@ worker 는 **버전을 읽고 Strategy 를 읽지 않는다** ⑶ optimizer 는 
 
 **Risk:** 🟡 (검증 레인만. 프로덕션 인증에는 영향 없다 — 거기서는 URL 이 맞다)
 
-**상태:** ✅ **Resolved (2026-08-17, PR #651 머지 `d28bf28f` — 슬롯 2 실측).** 격리 슬롯에서 `pnpm e2e:authed` 가 **90 passed / rc=0** 으로 돌았다. 수리 자체는 [ADR-036] 회차가 러너를 옮기며 이미 들어가 있었고(`mise.toml:312` be-isolated · `:330` fe-isolated 가 **같은 표현식** `BETTER_AUTH_URL="http://localhost:${QB_FE_PORT}"`), 이 회차가 한 것은 **증명**이다. ★**변이 2종이 서로 다른 사인을 냈다** — ⑴ `fe-isolated` 에서 그 줄을 빼면 `global.setup.ts` 가 `page.waitForURL` 60s timeout 으로 죽어 **authed 스위트가 아예 실행되지 않는다**(`POST /api/auth/sign-in/email` 이 `Origin: http://localhost:3102` 에 **403 `INVALID_ORIGIN`**) ⑵ FE·BE 를 서로 다르게 두면 setup 은 **통과**하고 BE authed API 가 전건 401 이 되어 **12 failed / 78 passed** 다. ★★**`curl` 은 이 검사를 안 거친다** — 같은 엔드포인트가 `Origin` 헤더 없이는 자격증명 검사까지 도달해 401 을 낸다. 2026-08-16 회차가 `curl` 을 먼저 쳐 「인증은 된다」고 오판한 경로가 이것이다. **판정 증인은 브라우저다.** 짝 규칙과 이 함정은 `docs/reference/operations/worktree-parallel.md` §6 에 있다
+**상태:** ✅ **Resolved (2026-08-17, PR #651 머지 `d28bf28f` — 슬롯 2 실측).** 격리 슬롯에서 `pnpm e2e:authed` 가 **90 passed / rc=0** 으로 돌았다. 수리 자체는 [ADR-036] 회차가 러너를 옮기며 이미 들어가 있었고(`mise.toml:312` be-isolated · `:330` fe-isolated 가 **같은 표현식** `BETTER_AUTH_URL="http://localhost:${QB_FE_PORT}"`), 이 회차가 한 것은 **증명**이다. ★**변이 2종이 서로 다른 사인을 냈다** — ⑴ `fe-isolated` 에서 그 줄을 빼면 `global.setup.ts` 가 `page.waitForURL` 60s timeout 으로 죽어 **authed 스위트가 아예 실행되지 않는다**(`POST /api/auth/sign-in/email` 이 `Origin: http://localhost:3102` 에 **403 `INVALID_ORIGIN`**) ⑵ FE·BE 를 서로 다르게 두면 setup 은 **통과**하고 BE authed API 가 전건 401 이 되어 **12 failed / 78 passed** 다. ★★**`curl` 은 이 검사를 안 거친다** — 같은 엔드포인트가 `Origin` 헤더 없이는 자격증명 검사까지 도달해 401 을 낸다. 2026-08-16 회차가 `curl` 을 먼저 쳐 「인증은 된다」고 오판한 경로가 이것이다. **판정 증인은 브라우저다.** 짝 규칙과 이 함정은 `docs/development/worktree-parallel.md` §6 에 있다
 **트리거 판정:** 도래 — 워크트리 FE 회차마다 발현한다 (2026-08-16 layout-alignment)
 
 ### BL-782
@@ -4107,7 +4107,7 @@ Open 항목과 **같은 파일에** 있다.
 **Priority:** P3
 **Trigger:** PR-1 머지 후
 **Est:** XS
-**상태:** ✅ **Resolved (2026-08-18 night4-ci-truth)** — `.github/CODEOWNERS` 신설. `* @woosung-dev` + `/apps/`·`/infra/`·`/tools/`·`/docs/decisions/`·`/.github/` 구획(경로 전부 실재 확인). AC 충족: `gh api repos/woosung-dev/quantbridge/codeowners/errors` **0건**. ★★**「0건」을 양성 대조로 갈랐다** — 일부러 망가뜨린 판(존재하지 않는 소유자 + `[[[bad` 패턴)을 임시 ref 에 올리자 검사기가 `Unknown owner`·`Invalid pattern` 을 정확히 짚었다. 빈 입력이 초록으로 통과한 것이 아니다. ★**강제력 0 을 파일 머리에 못박았다** — 브랜치 보호·ruleset 둘 다 부재(404 · `[]`, 2026-08-18 재확인)라 GitHub 은 이 파일로 아무것도 막지 않는다. 얻는 것은 리뷰 자동 배정과 구획 문서화뿐이고, 강제가 필요하면 ruleset 도입이 **별도 결정**이다.
+**상태:** ✅ **Resolved (2026-08-18 night4-ci-truth)** — `.github/CODEOWNERS` 신설. `* @woosung-dev` + `/apps/`·`/infra/`·`/tools/`·`/docs/adr/`·`/.github/` 구획(경로 전부 실재 확인). AC 충족: `gh api repos/woosung-dev/quantbridge/codeowners/errors` **0건**. ★★**「0건」을 양성 대조로 갈랐다** — 일부러 망가뜨린 판(존재하지 않는 소유자 + `[[[bad` 패턴)을 임시 ref 에 올리자 검사기가 `Unknown owner`·`Invalid pattern` 을 정확히 짚었다. 빈 입력이 초록으로 통과한 것이 아니다. ★**강제력 0 을 파일 머리에 못박았다** — 브랜치 보호·ruleset 둘 다 부재(404 · `[]`, 2026-08-18 재확인)라 GitHub 은 이 파일로 아무것도 막지 않는다. 얻는 것은 리뷰 자동 배정과 구획 문서화뿐이고, 강제가 필요하면 ruleset 도입이 **별도 결정**이다.
 **트리거 판정:** 도래 → **소진** — PR-1([ADR-029] `1cd5345a`) 머지 뒤 실제로 착수해 닫았다 (2026-08-18)
 **출처:** 2026-08-13 monorepo-realign
 
@@ -4220,7 +4220,7 @@ Sharpe 를 판단에 쓰려면 먼저 확인해야 한다 → [BL-740].
 `alembic downgrade` 는 `env.py` 가 막고 있어 정당한 롤백조차 `-x allow_destructive=1` 이
 필요한데 그 사실이 런북이 아니라 `gates-and-traps.md` 함정 목록에만 있다.
 
-**권장 접근:** ⑴ `docs/reference/operations/backend-deploy.md` 신설 — `frontend-deploy.md` 와
+**권장 접근:** ⑴ `docs/operations/backend-deploy.md` 신설 — `frontend-deploy.md` 와
 같은 골격(구조도 → 최초 1회 → 매 배포 → 롤백 → 함정) ⑵ ★**적으면서 실제로 한 번 밟아라.**
 안 밟고 적으면 `--project-directory` 누락 같은 것이 그대로 남는다(FE 쪽에서 실제로 밟았다)
 ⑶ DB 롤백은 **백업 복원**과 `alembic downgrade` 두 갈래를 나눠 적고, 후자는 소크 창 중 DDL 금지
@@ -4228,7 +4228,7 @@ Sharpe 를 판단에 쓰려면 먼저 확인해야 한다 → [BL-740].
 
 **Risk:** 🟡 (문서만. 다만 없는 상태로 장애를 맞으면 그때 비용을 낸다)
 
-**상태:** ✅ **Resolved (2026-08-18 n5-ci-truth-close · PR #678)** — `docs/reference/operations/backend-deploy.md` 신설(376줄). 골격은 `frontend-deploy.md` 를 따르고 맨 앞에 **「어느 명령이 소크 창을 끊는가」 표**를 뒀다(5개 파일에 흩어져 있던 지식). ★**`pin` 이 실질 배포 단계**임을 못박았다 — `ci-cd.md` 는 서브커맨드를 3개로 적었는데 실제는 8개이고 `up` 만으로는 새 코드가 안 뜬다. ★**롤백 = `down → pin <옛 sha> → up`** (`.soak/src` bind mount 라 코드가 이미지에 안 구워져 있다). 대가는 연속 창 단절이고, `_assert_no_missing_commits` 가 옛 sha 를 거부하므로 `QB_SOAK_OVERRIDE=1` 이 필요하다는 **연결이 처음 적혔다**. ★**의존성 롤백은 불가능**(BE 4서비스가 `build:` 만 있고 `image:` 없음) — 덮지 않고 한계로 적었다 → [BL-804]. DB 롤백 2갈래(백업 복원 · `-x allow_destructive=1` downgrade)도 승인 경계와 함께. ★★**서버 실측으로 확인**: `quantbridge-api.service` 실재·running(`FragmentPath`·`ExecStart`·`WorkingDirectory`·`Environment` 기록 → 레포가 안 만드는 유일한 유닛 [BL-805]) · `Linger=yes` · `/opt/backups` 덤프 11개 664M. 동승으로 **문서 오류 9건 정정**(`ci-cd.md` §7 · `apps/api/AGENTS.md` §7 롤백 명령 · `soak-gate.sh` 5종→6종 · `docker-compose-guide.md` · `env-vars.md` · `db-backup.sh` 2곳).
+**상태:** ✅ **Resolved (2026-08-18 n5-ci-truth-close · PR #678)** — `docs/operations/backend-deploy.md` 신설(376줄). 골격은 `frontend-deploy.md` 를 따르고 맨 앞에 **「어느 명령이 소크 창을 끊는가」 표**를 뒀다(5개 파일에 흩어져 있던 지식). ★**`pin` 이 실질 배포 단계**임을 못박았다 — `ci-cd.md` 는 서브커맨드를 3개로 적었는데 실제는 8개이고 `up` 만으로는 새 코드가 안 뜬다. ★**롤백 = `down → pin <옛 sha> → up`** (`.soak/src` bind mount 라 코드가 이미지에 안 구워져 있다). 대가는 연속 창 단절이고, `_assert_no_missing_commits` 가 옛 sha 를 거부하므로 `QB_SOAK_OVERRIDE=1` 이 필요하다는 **연결이 처음 적혔다**. ★**의존성 롤백은 불가능**(BE 4서비스가 `build:` 만 있고 `image:` 없음) — 덮지 않고 한계로 적었다 → [BL-804]. DB 롤백 2갈래(백업 복원 · `-x allow_destructive=1` downgrade)도 승인 경계와 함께. ★★**서버 실측으로 확인**: `quantbridge-api.service` 실재·running(`FragmentPath`·`ExecStart`·`WorkingDirectory`·`Environment` 기록 → 레포가 안 만드는 유일한 유닛 [BL-805]) · `Linger=yes` · `/opt/backups` 덤프 11개 664M. 동승으로 **문서 오류 9건 정정**(`ci-cd.md` §7 · `apps/api/AGENTS.md` §7 롤백 명령 · `soak-gate.sh` 5종→6종 · `docker-compose-guide.md` · `env-vars.md` · `db-backup.sh` 2곳).
 **트리거 판정:** 도래 → **소진** — 런북이 서고 서버 실측으로 검증됐다 (2026-08-18 n5-ci-truth-close)
 
 ---

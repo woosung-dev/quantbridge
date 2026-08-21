@@ -240,7 +240,7 @@ export function getUnsupportedBuiltinHint(name: string): UnsupportedBuiltinHint 
   }
   return {
     name,
-    hint: `${name} — 미지원 빌트인 (자세한 정책은 docs/reference/domain/supported-indicators.md 참고).`,
+    hint: `${name} — 미지원 빌트인 (자세한 정책은 docs/domain/supported-indicators.md 참고).`,
     category: "noop",
   };
 }

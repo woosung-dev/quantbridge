@@ -28,8 +28,8 @@ python apps/api/scripts/run_auto_dogfood.py
 
 출력:
 - stdout: 시나리오별 PASS/FAIL 요약
-- docs/reports/auto-dogfood/<YYYY-MM-DD>.json — pytest 결과 + 시나리오 metadata
-- docs/reports/auto-dogfood/<YYYY-MM-DD>.html — 사람 친화적 요약 (escaped)
+- runs/auto-dogfood/<YYYY-MM-DD>.json — pytest 결과 + 시나리오 metadata
+- runs/auto-dogfood/<YYYY-MM-DD>.html — 사람 친화적 요약 (escaped)
 
 codex G.0 P2 #3: subprocess.run 으로 `pytest --run-integration` 명시 호출.
 """
@@ -49,7 +49,8 @@ from typing import Any
 # Sprint 25 — script 실행 cwd 무관하게 동작 (repo root / apps/api/ 어디서든 OK).
 _BACKEND_DIR = Path(__file__).resolve().parent.parent  # apps/api/
 _REPO_ROOT = _BACKEND_DIR.parent.parent
-_REPORT_DIR = _REPO_ROOT / "docs" / "reports" / "auto-dogfood"
+# 2026-08-21 docs/reports/ 철거([ADR-038]) — 산출물은 runs/(gitignore) 에만.
+_REPORT_DIR = _REPO_ROOT / "runs" / "auto-dogfood"
 _TEST_PATH = "tests/integration/test_auto_dogfood.py"
 
 _SCENARIOS: list[dict[str, Any]] = [

@@ -13,7 +13,7 @@ celery worker 는 `apps/api/src` 를 bind-mount 하고 **watchfiles** 로 문다
   = **celery 태스크 미등록**. 비활성화 코드조차 안 돌고 beat 는 계속 큐에 쌓는다.
 
 2026-07-27 에 이 파일에서 정확히 그 종류의 `NameError` 가 실제로 났다
-(`docs/reference/gates-and-traps.md` §3).
+(`docs/development/gates-and-traps.md` §3).
 
 ## ★래칫이지 금지가 아니다 — 그 이유
 
