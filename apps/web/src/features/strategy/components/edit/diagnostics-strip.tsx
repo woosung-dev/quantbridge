@@ -89,7 +89,6 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-parse"
         role="tabpanel"
-        tabIndex={0}
         aria-labelledby="diag-tab-parse"
         hidden={tab !== "parse"}
       >
@@ -167,7 +166,6 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-param"
         role="tabpanel"
-        tabIndex={0}
         aria-labelledby="diag-tab-param"
         hidden={tab !== "param"}
       >
@@ -183,7 +181,6 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-indicator"
         role="tabpanel"
-        tabIndex={0}
         aria-labelledby="diag-tab-indicator"
         hidden={tab !== "indicator"}
       >

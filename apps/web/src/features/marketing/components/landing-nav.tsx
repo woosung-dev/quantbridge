@@ -61,20 +61,13 @@ export function LandingNav() {
         </svg>
       </button>
 
-      <nav
-        className={menuOpen ? "lp-nav open" : "lp-nav"}
-        id="lp-nav"
-        aria-label="페이지 안 이동"
-        onClick={(e) => {
-          if ((e.target as HTMLElement).tagName === "A") setMenuOpen(false);
-        }}
-      >
+      <nav className={menuOpen ? "lp-nav open" : "lp-nav"} id="lp-nav" aria-label="페이지 안 이동">
         {NAV_ANCHORS.map((a) => (
-          <a key={a.href} href={a.href}>
+          <a key={a.href} href={a.href} onClick={() => setMenuOpen(false)}>
             {a.label}
           </a>
         ))}
-        <Link href="/sign-in" className="lp-nav-login">
+        <Link href="/sign-in" className="lp-nav-login" onClick={() => setMenuOpen(false)}>
           로그인
         </Link>
       </nav>

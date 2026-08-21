@@ -47,7 +47,7 @@ export function LandingHero() {
         </p>
       </div>
 
-      <div className="card" aria-label="화면 예시">
+      <div className="card">
         <div className="mock-head">
           <div>
             <p className="mock-title">백테스트 리포트</p>

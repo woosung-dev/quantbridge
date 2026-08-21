@@ -297,7 +297,7 @@ export function StrategyList() {
               </p>
             </div>
             <div className="chart-head-actions">
-              <div className="tabs" role="group" aria-label="파싱 상태 필터">
+              <fieldset className="tabs m-0 min-w-0" aria-label="파싱 상태 필터">
                 {STATUS_FILTERS.map((f) => {
                   const active = f.id === activeStatus;
                   const isDisabled = hasMorePages && f.id !== "all";
@@ -324,7 +324,7 @@ export function StrategyList() {
                     </button>
                   );
                 })}
-              </div>
+              </fieldset>
             </div>
           </div>
 

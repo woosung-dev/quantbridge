@@ -35,7 +35,7 @@ export function ParseResultPanel({
   const supported = result?.status === "ok" && (result?.unsupported_builtins.length ?? 0) === 0;
 
   return (
-    <div className="card" aria-live="polite" aria-label="파싱 결과">
+    <div className="card" aria-live="polite">
       <div className="card-head">
         <div>
           <h3 className="card-title">판정 결과</h3>

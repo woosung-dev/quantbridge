@@ -60,11 +60,10 @@ export function TagInput({ value, onChange, placeholder, maxTags, id, className 
   };
 
   return (
-    <div
-      role="group"
+    <fieldset
       aria-label="태그"
       className={cn(
-        "flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-2 text-sm shadow-xs",
+        "m-0 min-w-0 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-input bg-transparent px-3 py-2 text-sm shadow-xs",
         className,
       )}
     >
@@ -94,6 +93,6 @@ export function TagInput({ value, onChange, placeholder, maxTags, id, className 
         }}
         className="min-w-[120px] flex-1 bg-transparent text-sm placeholder:text-muted-foreground"
       />
-    </div>
+    </fieldset>
   );
 }

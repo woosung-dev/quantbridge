@@ -22,10 +22,7 @@ export function BayesianBestParamsTable({ result }: Props) {
       <div className="card-head" style={{ border: "none", padding: 0 }}>
         <h3 className="card-title">최적 파라미터</h3>
         {result.degenerate_count > 0 ? (
-          <span
-            className="chip warn"
-            aria-label={`${result.total_iterations}회 중 ${result.degenerate_count}회가 축퇴 반복입니다.`}
-          >
+          <span className="chip warn">
             <AlertTriangleIcon aria-hidden="true" />
             축퇴 {result.degenerate_count} / {result.total_iterations} ({degenerateRatio.toFixed(0)}
             %)
