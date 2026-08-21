@@ -20,6 +20,7 @@ export function LandingNav() {
       <a className="lp-brand" href="#main-content" aria-label="QuantBridge 홈으로">
         <span className="brand-mark" aria-hidden="true">
           <svg
+            aria-hidden="true"
             width="16"
             height="16"
             viewBox="0 0 24 24"
@@ -45,6 +46,7 @@ export function LandingNav() {
         onClick={() => setMenuOpen((v) => !v)}
       >
         <svg
+          aria-hidden="true"
           width="19"
           height="19"
           viewBox="0 0 24 24"

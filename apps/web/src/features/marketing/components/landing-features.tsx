@@ -93,7 +93,13 @@ export function LandingFeatures() {
         {FEATURES.map((f) => (
           <article key={f.title} className="card lp-feat">
             <span className="cta-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 {f.icon}
               </svg>
             </span>

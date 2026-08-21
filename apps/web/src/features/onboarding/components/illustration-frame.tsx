@@ -29,10 +29,10 @@ export function IllustrationFrame({ variant }: IllustrationFrameProps) {
       aria-hidden="true"
     >
       <svg
+        aria-hidden="true"
         className="h-auto w-full max-w-[280px]"
         viewBox="0 0 280 320"
         xmlns="http://www.w3.org/2000/svg"
-        role="img"
       >
         <defs>
           <linearGradient id="onb-codeBg" x1="0" x2="0" y1="0" y2="1">
