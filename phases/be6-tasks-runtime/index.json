@@ -39,7 +39,7 @@
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/tasks/test_celery_app_lifecycle.py -a -f apps/api/tests/tasks/test_websocket_task_runtime.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q --cov=src/tasks",
@@ -48,7 +48,10 @@
         "cd apps/api && uv run coverage report --include=src/tasks/_ws_lease.py --fail-under=90",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks/test_celery_app_lifecycle.py tests/tasks/test_websocket_task_runtime.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 22",
         "git diff --quiet -- apps/api/src/tasks/celery_app.py apps/api/src/tasks/websocket_task.py apps/api/src/tasks/_ws_lease.py"
-      ]
+      ],
+      "started_at": "2026-08-22T04:43:24+0900",
+      "summary": "오류·경계 12건을 추가해 Celery는 task 등록 누락·reclaim 격리·child/master cleanup 실패의 로그/finally를, WebSocket은 circuit/duplicate·0건·lease 손실·계정 없음·reconcile 0건을, lease는 Redis extend 예외의 lost_event/log를 외부 I/O 없이 고정했다. AC 전체는 762 passed·12 skipped, celery/websocket/lease 94%/85%/96%, 수집 33건, 대상 소스 diff 0이다.",
+      "completed_at": "2026-08-22T04:52:34+0900"
     },
     {
       "step": 3,
