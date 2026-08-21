@@ -5,13 +5,18 @@
     {
       "step": 0,
       "name": "route-params",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm test -- --run 'src/app/(dashboard)/__tests__/route-params.test.tsx'",
         "cd apps/web && test \"$(pnpm exec vitest list 'src/app/(dashboard)/__tests__/route-params.test.tsx' 2>/dev/null | grep -c ' > ')\" -ge 10",
         "cd apps/web && pnpm exec eslint 'src/app/(dashboard)/__tests__/route-params.test.tsx'",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "summary": "route-params.test.tsx 16건: BacktestDetailView={id}, OptimizerRunDetail={runId}, EditorView={id}의 Promise params 위임·UUID 404·metadata를 고정.",
+      "started_at": "2026-08-21T14:08:14+0900",
+      "completed_at": "2026-08-21T14:13:00+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-21T14:08:14+0900",
+  "completed_at": "2026-08-21T14:13:00+0900"
 }

@@ -189,7 +189,8 @@
     },
     {
       "dir": "fe4-route-params",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-21T14:13:00+0900"
     },
     {
       "dir": "fe4-app-shell",
