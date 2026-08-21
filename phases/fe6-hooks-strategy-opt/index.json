@@ -31,12 +31,15 @@
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=45",
         "git diff --quiet -- apps/web/src/features/strategy/hooks.ts apps/web/src/features/optimizer/hooks.ts apps/web/src/features/waitlist/hooks.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T04:15:32+0900",
+      "summary": "경계 13건을 더해 28건: strategy는 실제 API 경계에서 ApiError status/code 보존·응답 schema 실패·0/음수 page의 HTTP 전 거부와 apiFetch undefined 쿼리 생략·204 void를, 훅에서 undefined detail disabled·list 오류·create 오류 callback을 검증했다. optimizer는 미인증 list/null detail disabled·0/-1 전달·ApiError를, waitlist는 0/-1 전달·public submit 오류 callback을 검증했다. `../api` mock은 유지하고 실제 HTTP 계약만 strategy에서 `vi.importActual`+fetch mock으로 쟀다; useInvalidatingMutation은 계속 mock 경계이므로 Step 3가 helper 실제 lifecycle을 다룬다.",
+      "completed_at": "2026-08-22T04:23:44+0900"
     },
     {
       "step": 3,
