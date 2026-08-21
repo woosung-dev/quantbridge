@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/live-sessions/__tests__/api-contract.test.ts -a -f apps/web/src/features/trading/__tests__/api-contract.test.ts -a -f apps/web/src/features/waitlist/__tests__/api-contract.test.ts -a -f apps/web/src/features/live-sessions/__tests__/unrealized-branches.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/live-sessions/__tests__/api-contract.test.ts src/features/trading/__tests__/api-contract.test.ts src/features/waitlist/__tests__/api-contract.test.ts src/features/live-sessions/__tests__/unrealized-branches.test.ts --coverage --coverage.include='src/features/live-sessions/api.ts' --coverage.include='src/features/trading/api.ts' --coverage.include='src/features/waitlist/api.ts' --coverage.include='src/features/live-sessions/unrealized.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=12",
         "git diff --quiet -- apps/web/src/features/live-sessions/api.ts apps/web/src/features/trading/api.ts apps/web/src/features/waitlist/api.ts apps/web/src/features/live-sessions/unrealized.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T03:31:02+0900",
+      "summary": "착수 전 lines: live-sessions/api 26.26%(26/99), trading/api 60.78%(62/102), waitlist/api 25.00%(14/56), unrealized 24.73%(23/93) — 모두 재료 기준 85% 미만. [심볼·경계] live: ✓ listLiveSessions(GET+include_inactive), closePosition(POST+구 응답 default); - registerLiveSession, deactivateLiveSession, getLiveSessionState, listLiveSessionEvents, getLiveSessionPositions, getLiveSessionOutcomeParity, getAccountPositions. trading: ✓ listOrders(반복 state query), getLiquidationInfo(POST body); - cancelOrder, listKillSwitchEvents, resolveKillSwitchEvent, listExchangeAccounts, getAccountBalance, registerExchangeAccount, deleteExchangeAccount. waitlist: ✓ submitWaitlist(public POST), listAdminWaitlist(default pagination); - approveWaitlistApplication, verifyInviteToken(직접 fetch). unrealized: ✓ OpenTradeSchema 방향 거절, computeUnrealizedPnl short/공백 mark; - useUnrealizedPnlEstimate. apiFetch를 mock한 이유: 세 REST 래퍼의 유일한 네트워크 경계라 URL·method·token·params/body와 Zod 응답 파싱을 독립 단언한다. verifyInviteToken은 apiFetch가 아닌 getApiBase+fetch 경계라 이번 step에서 미대상.",
+      "completed_at": "2026-08-22T03:36:35+0900"
     },
     {
       "step": 1,
@@ -45,5 +48,6 @@
         "cd apps/web && pnpm exec biome check src/features/live-sessions/__tests__/api-contract.test.ts src/features/trading/__tests__/api-contract.test.ts src/features/waitlist/__tests__/api-contract.test.ts src/features/live-sessions/__tests__/unrealized-branches.test.ts"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T03:31:02+0900"
 }
