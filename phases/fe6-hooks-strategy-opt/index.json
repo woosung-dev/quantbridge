@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=30",
         "git diff --quiet -- apps/web/src/features/strategy/hooks.ts apps/web/src/features/optimizer/hooks.ts apps/web/src/features/waitlist/hooks.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T04:09:11+0900",
+      "summary": "정상 경로 15건: strategy의 상세 조회·생성·웹훅 회전·수정·삭제·수동 파싱과 optimizer 상세 조회를 추가해 export 전부의 성공 API 경계를 실행했다. `../api` mock에서 요청 변수·토큰·1회 호출·반환값을, `useInvalidatingMutation` mock에서 settings/delete·세 optimizer submit·waitlist approve의 invalidate/remove key 계약을 단언했다. 목록·preview query는 user-scoped cache key까지 확인했다. 다음 Step 2는 실패/disabled 경계만 다루면 된다.",
+      "completed_at": "2026-08-22T04:15:29+0900"
     },
     {
       "step": 2,
