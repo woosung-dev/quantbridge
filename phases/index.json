@@ -278,7 +278,8 @@
     },
     {
       "dir": "fe6-hooks-backtest",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:00:12+0900"
     },
     {
       "dir": "fe6-hooks-strategy-opt",
