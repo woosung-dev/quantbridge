@@ -15,5 +15,6 @@
       "summary": "17개 worker lifecycle 계약 테스트를 추가했다. invalid UUID는 sync wrapper의 UUID 변환에서 run_in_worker_loop·engine 생성 전에 ValueError로 끝난다. 표적·전체 tasks·Ruff AC green.",
       "completed_at": "2026-08-21T17:53:38+0900"
     }
-  ]
+  ],
+  "completed_at": "2026-08-21T17:53:38+0900"
 }
