@@ -303,19 +303,10 @@ C1 은 pin 으로 안 죽고 C2 도 `max` 라 **벌어 둔 최장 창은 살아�
 
 → ★★**2026-08-15 완료. C1 = 1/3회.** 창 2가 `b5e24fbf` pin 위에서 16:35:32Z 부터 돈다(위 §소크 창).
 
-~~**다음 행동 = [BL-767]·[BL-768] 의 서버 잔여를 닫는다**~~ → ★★**2026-08-16 완료.**
-PR #643 머지 → 서버 pull → `--install` ×2 → `run` 1회. **검증 3종 전건 통과**(덤프 2,315,852B ·
-OCI `quantbridge/` prefix 객체 · **C2 24.0007h 전후 불변**) + 디스크 경보 양성/회복 발화(HTTP 200).
-두 BL 모두 ✅ 로 갔다. 서버 타이머 3종 = 백업 `03,09,15,21:00` · 디스크 `*:15` · 소크 `*:00/30`.
-
-~~**다음 행동 = Beta 진입 3종을 연다 — [BL-070] → [BL-071] → [BL-072]**~~
-→ ★★**2026-08-17 — 그 진입점이 「인증을 누구에게 맡기는가」로 먼저 갈렸다.** 착수 실측에서
-[BL-071] 의 실질이 **「Clerk 을 production 인스턴스로 승격」**임이 드러났고, 사용자 결정은
-승격이 아니라 **self-host 전환**이었다([ADR-034]). 그래서 이 회차의 몸통은 인증 교체다.
-★남아 있는 사실 둘은 그대로다: **[BL-070] 은 「도메인을 사야 한다」가 아니다**(`qb.woosung.dev`
-302 · `qb-api.woosung.dev/health` 200 — 2026-08-16 실측) · **「gunicorn 보안헤더」는 대상이 없다**
-(gunicorn 은 레포에 0건이고 `--server_header False` 라는 플래그 자체가 없다 → uvicorn
-`--no-server-header` 하나, [BL-347]).
+> **강등 tombstone (2026-08-22 밤샘 6차 · 700줄 상한).** 2026-08-16 서버 잔여([BL-767]/[BL-768] 발효)와
+> 2026-08-17 Beta 진입 갈림(인증 self-host 전환) 두 블록 **17줄 → 이 3줄**. 원문 = `git show 8d3e0e27:docs/status.md`.
+> 정본 = [ADR-033]·[ADR-034] · **남길 사실 둘**: [BL-070] 은 도메인 구매가 아니다(`qb.woosung.dev` 302 실측) ·
+> 「gunicorn 보안헤더」는 대상이 없다(레포에 gunicorn 0건 → uvicorn `--no-server-header`, [BL-347]).
 
 > **강등 tombstone (2026-08-17 sprint-parallel-lanes · 700줄 상한).** auth-selfhost 블록 압축. 원문 = `git show 9e71aa96:docs/status.md` · 정본 = [ADR-034](adr/034-auth-self-host-better-auth.md) · [LESSON-114].
 > ★**남길 한 줄** — `docs-audit.sh` 는 살아 있는 `다음 행동 =` 을 **≤1 만** 재므로 **0 도 통과시킨다**. 진입점이
@@ -568,20 +559,32 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 → **2026-08-22 ✅ 앞은 했고 뒤는 대상이 없었다.** 설정은 넣었다(전량 스위트 TOTAL **90% → 91.51%**).
 ★★**「래칫 기준선 재산정」은 대상이 실재하지 않는다** — [ADR-037] 이 CI 의 coverage 래칫을 철거했고(`ci.yml` 머리말 「지운 것」에 명시) 지금 `ci.yml` 에 `--cov` 는 **0건**, [BL-308]/[BL-309] 도 원장 3파일에 섹션이 없다(2026-06-29 Resolved). **원장 처방의 대상이 실재하지 않은 N번째** — [LESSON-111] 계열.
 
-### 밤샘 루프 6차 착수 — [BL-820] 저작 완료 · 실행은 다음 세션 (2026-08-22)
+### 밤샘 루프 6차 — [BL-820] 저작 + 실행 (2026-08-22)
 
-**12 lane × step 4 · 동시 4 · base `stage/night6`.** 5차 회고(「step 1개짜리 lane 8벌은 러너를 안 쓴 것」)를
-구조로 반영했다 — step0 재료 자가검증 → step1 정상 → step2 에러·경계 → step3 자기 변이.
-★★**재료 4축 전부 실측 확정** — FE 커버리지 **85.04%**(미커버 **4,597줄/344파일**) · BE **91.51%**(1,385줄) ·
-린트 부채 **180건**(a11y 67 + 113). ★★★**「FE 축은 바닥」은 AST 축의 결론이었다** — 커버리지로 재니
-`api.ts` 6종·`hooks.ts` 6종이 통째로 비었다. ★**착수 전 AC red 12/12.**
+**12 lane × step 4 · 동시 4 · base `stage/night6`.** 5차 회고를 구조로 반영(step0 재료 자가검증 → step1 정상
+→ step2 에러·경계 → step3 자기 변이). **착수 전 AC red 12/12.** ★★★**「FE 축은 바닥」은 AST 축의 결론이었다** —
+커버리지로 재니 `api.ts`·`hooks.ts` 각 6종이 통째로 비었다(FE 85.04% · BE 91.51% · 린트 부채 180건).
+★★★**저작 중 사용자가 잡은 것 — 판정기 3종을 「표준 러너가 rc 로 안 준다」는 추측 위에 지었고 셋 다 거짓**이었다
+([ADR-037] 재입힘 규칙 위반) ⇒ 전부 삭제 + `night_run.py` 흡수로 **하네스 파일 4 → 1**.
+저작·실행 실측 전문 = [`phases/README.md`](../phases/README.md) 6차 절.
 
-★★**저작 중 실측이 내 설계를 다섯 번 반증했다** — AC 가 재는 커버리지 ≠ 전량 스위트 값 · vitest 는 없는 파일을 **조용히 무시**(rc=0) · 새 파일 경로 1건이 **이미 존재** · 부채를 **규칙 축**으로 자르면 lane 끼리 파일이 26건 겹친다.
-★★★**다섯째는 사용자가 잡았다 — 판정기 3종을 「표준 러너가 rc 로 안 준다」는 추측 위에 지었는데 셋 다 거짓이었다**(vitest `--coverage.thresholds.perFile` · `coverage report --fail-under` · biome 경로 rc 전부 실측 확인). [ADR-037] 재입힘 규칙을 내가 어겼다 ⇒ 전부 삭제하고 `night_run.py` 도 `execute.py --parallel` 로 흡수해 **하네스 파일 4 → 1**. 전말 = [`phases/README.md`](../phases/README.md) 6차 절.
+~~**다음 행동 = 밤샘 루프 6차를 실행한다.**~~ → **2026-08-22 ✅ 완주** — lane **11 완주 + 1 blocked(해소)** · PR **#774~#786** 전부 stage 머지 · 통합 PR **#787**. 산출 = FE 테스트 **+14파일 it 198·expect 552** · BE 2 lane · 부채 3 lane(실제 `biome-ignore` **0건**).
 
-**다음 행동 = 밤샘 루프 6차를 실행한다 — `python3 tools/harness/execute.py --parallel 4 --stage stage/night6 --confirm`**(기본 dry-run).
-★무인 구간은 lane PR 의 stage 머지까지이고 **사람이 판단하는 자리는 stage→main PR 하나**다.
-전제·절차·함정 전문 = [`phases/README.md`](../phases/README.md) 6차 절 · lane 공통 규약 = `phases/fe6-common.md`.
+### 밤샘 루프 6차 실행 — 하네스 결함 5건이 첫 주행을 통째로 삼킬 뻔했다 (2026-08-22)
+
+★★★**첫 주행은 「완주」를 선언하고 커밋이 0건이었다** — 사슬 6단(gitignore 된 루트 lockfile 낡음 → 워크트리 루트 `node_modules` 부재 → `pre-commit` 의 `lint-staged` rc=254 → **커밋 전건 차단** → 빈 브랜치 push → `gh pr create` 실패 → **로그 침묵**).
+★★★**반증 — 「워크트리는 git 훅이 안 돈다」가 거짓이다**(`core.hooksPath` 가 메인 절대경로 ⇒ 발화하고, 실패한 훅은 **커밋을 막는다**). 전문 = **[LESSON-127]**.
+
+수리 5건 — **#773**(main): 「완주」 정의에 **커밋 존재** 추가 · PR 실패 `_log` · stage push 조건화(**올릴 ref 가
+없는 push 는 pre-push 에 stdin 을 안 줘 `main` 으로 폴백 거부 ⇒ 모든 재시작이 막혔다**) · 부트스트랩 루트 설치
+실패를 **중단**으로. **#787**: `--delete-branch` 가 워크트리 체크아웃 탓에 반드시 rc≠0 ⇒ **10건 오기록** → 제거 + 판정 정본을 **PR 상태**로.
+
+★★**사람 diff 대조가 회귀 1건을 잡았다** — 부채 lane 이 규칙대로 tabpanel 3곳의 `tabIndex={0}` 을 지웠는데 **규칙이 틀렸다**(Biome 이 `jsx-a11y` 의 `roles:["tabpanel"]` 면제를 안 가져왔다 · 패널 2/3 은 포커스 가능 요소가 **아예 없어** 키보드 도달 불가) ⇒ 근거 주석 + `biome-ignore` 로 복원(#785).
+★`fe6-debt-backtest` 의 `blocked` 는 **옳은 정지**였다 — 담당 밖 단언이 `role` 을 **속성**으로 봤다. 계산된 role(`getByRole`)로 바꿔 해소(#786) · step3 AC 5종 재통과(전체 vitest **265파일 2,064테스트**).
+
+**다음 행동 = 통합 PR [#787](https://github.com/woosung-dev/quantbridge/pull/787)(stage/night6 → main) 을 판단해 머지한다.**
+★그 뒤 CONTROL 몫이 하나 남는다 — `apps/web/biome.jsonc` 의 **a11y 7종 + `noArrayIndexKey` 활성화**와
+`e2e/**`·`scripts/**` 의 `noConsole` **`overrides` 면제**(그 자리 `console.log` 는 의도다). 근거 = `phases/README.md` 6차 절.
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 

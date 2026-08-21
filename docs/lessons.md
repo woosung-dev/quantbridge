@@ -422,6 +422,15 @@
 - **해결:** ⑴ ★**커버리지가 있는 레포에서 「미커버 재료」를 AST 로 고르지 마라.** import 그래프는 「누가 이름을 안다」를 재지 「무엇이 실행됐다」를 못 잰다. ⑵ ★**async 레포의 커버리지는 `concurrency = greenlet,thread` 없이는 거짓이다.** SQLAlchemy·asyncpg 를 쓰면 `await` 뒤 줄이 조용히 미커버로 나온다. ⑶ ★**`--cov` 에는 패키지/디렉터리를 줘라 — 파일 경로는 조용히 무데이터다.** ⑷ ★**「실행 우회는 커버가 아니다」** — 이 회차 재료 둘이 그렇게 생겼다: `health/router.py` 의 프로브 3종은 기존 5 케이스가 **monkeypatch 로 통째 치환**해 본문 41줄이 무증거였고, `AlertRuleRepository` 는 두 테스트가 **클래스를 페이크로 갈아끼워** 11줄이 무증거였다(게다가 `test_alert_rule_repository.py` 는 **이름만 같고 그 클래스를 안 쓴다**).
 - **1차 누적.** ★[LESSON-125] 는 「python 으로 바꿔도 엉뚱한 축을 재는 병은 안 낫는다」였고, 이 카드는 그 다음 질문에 답한다 — **축을 바꾼 뒤에는 그 새 축의 계측기를 의심해라.** 커버리지는 AST 보다 옳은 축이었지만 **기본 설정으로는 거짓을 냈다.** ★그리고 이 레포의 `| tail` rc 삼킴 계열에 **아홉 번째**가 붙었다(`pytest … | tail -20` 이 ERROR 를 띄운 채 rc=0 을 보고했다).
 
+### LESSON-127 — **「워크트리는 git 훅이 안 돈다」가 거짓이었고, 실패한 훅은 무력화가 아니라 커밋을 막았다 — 12 lane 이 「완주」를 선언하고 산출물은 0줄이었다** (1/3)
+
+- **상황:** 2026-08-22 밤샘 루프 6차([BL-820], 12 lane × step 4). 첫 lane 이 16분에 step 4/4 `completed` + 실물 summary 를 남겼는데 **브랜치 SHA 가 base 와 같았다**. AC 는 러너가 재실행해 전건 통과시켰고, 원장도 정상이었다.
+- **사슬 6단:** ⑴ PR #769 가 루트 `package.json` 에서 prettier 2종을 뺐으나 **루트 `pnpm-lock.yaml` 미갱신** — 그 파일은 `.gitignore:120` 대상이라 **CI·리뷰·PR diff 어디에도 안 나온다.** ⑵ 워크트리 부트스트랩의 `pnpm install --frozen-lockfile` 이 `ERR_PNPM_OUTDATED_LOCKFILE`. ⑶ 루트 `node_modules` 부재 — 부트스트랩은 `|| echo` 로 **경고만 하고 rc=0**. ⑷ `pre-commit` 첫 줄 `pnpm exec lint-staged` **rc=254**. ⑸ **커밋 전건 차단** — `_commit` 의 WARN 은 `_run_lane` 이 **버리는 stdout** 에만 찍혔다. ⑹ 빈 브랜치 push → `gh pr create` 가 "no commits between" 실패 → 그 실패도 `res.detail` 에만 적혀 **로그는 침묵**.
+- **반증:** `core.hooksPath` 는 메인 체크아웃의 **절대경로**(`/…/quant-bridge/.husky/_`)다. 그래서 **워크트리에서도 훅이 발화한다.** [LESSON 계열의 기존 기록]과 `worktree-bootstrap.sh` §8 주석은 「`.husky/_` 부재로 훅이 통째로 안 돈다 ⇒ 무인 러너 커밋이 lint-staged 에 안 막히는 이점」이라 **「실측」이라 적고 있었다.** 절반은 맞고(과거엔 상대경로였을 것) **지금은 정반대**다. 메인 체크아웃이 멀쩡했던 것은 #769 **이전에** 깔린 `node_modules` 가 남아서다 — 우연이다.
+- **무엇이 갈랐나:** **「완주」와 「산출물 존재」를 다른 축으로 본 것**이다. 러너는 AC 를 재실행해 판정하지만 그것은 **판정**이지 **보존**이 아니다. 검시 순서가 그대로 재사용 가능하다 — `git rev-parse <branch> <base>` 비교 → `git status --short`(staged 인데 미커밋이면 훅) → `git reflog` → 훅 명령 직접 재현(`pnpm exec lint-staged --version` rc=254).
+- **해결:** ⑴ ★**무인 파이프라인의 「완주」 정의에 산출물 존재 확인을 넣어라** — `origin/<stage>..HEAD` 가 0이면 `crashed`. ⑵ ★**`except`/early-return 뒤에 문자열로만 누적되는 실패 기록은 없는 것과 같다** — 이 회차의 침묵 2곳이 모두 그 모양이었다(`res.detail`). ⑶ ★**gitignore 된 재료(lockfile)를 쓰는 절차는 그 낡음을 스스로 감지해야 한다** — 부트스트랩의 루트 설치 실패를 경고에서 **중단**으로 바꿨다. ⑷ ★**「올릴 ref 가 없는 push」는 pre-push 훅에 stdin 을 안 준다** — 훅이 「현재 브랜치」로 폴백해 `main` 을 보고 정당하게 거부하므로, stage 가 이미 존재하는 **모든 재시작이 시작조차 못 했다**. ⑸ ★**`gh pr merge --delete-branch` 는 그 브랜치가 워크트리에 체크아웃돼 있으면 반드시 rc≠0** — 머지 11건 중 **10건이 「실패」로 오기록**됐다(실제론 전부 머지). 판정의 정본은 **PR 상태**다.
+- **1차 누적.** ★이 카드는 [LESSON-121]([xfail phantom])·[LESSON-124] 계열과 같은 뿌리다 — **하네스의 초록은 하네스가 옳다는 뜻이 아니다.** 다만 그 셋과 달리 이번엔 **AC 도 옳았고 코드도 옳았다** — 틀린 것은 그 사이의 **전달 경로**였다. ★부수 반증 1건: **Biome 의 `biome-ignore` 는 바로 다음 줄만 덮는다**(설명 줄이 사이에 끼면 억제가 안 먹는다) · **Biome 의 `noNoninteractiveTabindex` 는 원본 `jsx-a11y` 의 `roles:["tabpanel"]` 기본 면제를 안 가져왔다**(WAI-ARIA APG 와 충돌 — 실측 3 errors).
+
 ---
 
 ## 확장 시점 판단 기준 (변경 없음)
