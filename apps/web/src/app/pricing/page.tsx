@@ -86,6 +86,7 @@ const CMP_ROWS: CmpRow[] = [
   { label: "팀 전략 공유", cells: [empty(NO_LOCAL), empty(NO_CLOUD), road] },
   { label: "결제 · 청구", cells: [empty(NO_PAY_LOCAL), empty(NO_PAY), empty(NO_PAY)] },
 ];
+const CMP_PLAN_KEYS = ["local", "cloud", "team"];
 
 const PRICE_UNSET_TITLE = "아직 정하지 않았습니다.";
 
@@ -463,11 +464,11 @@ export default function PricingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {CMP_ROWS.map((row, i) => (
-                      <tr key={i}>
+                    {CMP_ROWS.map((row) => (
+                      <tr key={row.label}>
                         <td className="row-label">{row.label}</td>
-                        {row.cells.map((cell, j) => (
-                          <CmpCell key={j}>{cell}</CmpCell>
+                        {row.cells.map((cell, planIndex) => (
+                          <CmpCell key={`${row.label}-${CMP_PLAN_KEYS[planIndex]}`}>{cell}</CmpCell>
                         ))}
                       </tr>
                     ))}

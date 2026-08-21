@@ -2,6 +2,8 @@
 
 import { Skeleton } from "@/components/skeleton";
 
+const TRADING_SKELETON_ROW_KEYS = ["row-1", "row-2", "row-3", "row-4"];
+
 export default function TradingLoading() {
   return (
     <div className="container mx-auto space-y-6 px-4 py-6">
@@ -14,8 +16,8 @@ export default function TradingLoading() {
         <Skeleton variant="card" />
       </div>
       <div className="space-y-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} variant="list-row" />
+        {TRADING_SKELETON_ROW_KEYS.map((key) => (
+          <Skeleton key={key} variant="list-row" />
         ))}
       </div>
     </div>
