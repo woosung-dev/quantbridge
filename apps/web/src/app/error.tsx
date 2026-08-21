@@ -154,7 +154,7 @@ export default function GlobalError({
             확인하세요.
           </p>
 
-          <div className="err-actions" role="group" aria-label="복구 동작">
+          <fieldset className="err-actions m-0 min-w-0" aria-label="복구 동작">
             <button
               type="button"
               className="btn btn-primary"
@@ -173,7 +173,7 @@ export default function GlobalError({
             <button type="button" className="btn btn-ghost" onClick={handleShowLog}>
               로그 확인 방법
             </button>
-          </div>
+          </fieldset>
         </div>
       </section>
     </main>
