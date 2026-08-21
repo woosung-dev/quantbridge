@@ -5,11 +5,14 @@
     {
       "step": 0,
       "name": "probe-and-safe-rules",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth",
         "cd apps/web && pnpm exec vitest run src/features/strategy src/features/optimizer src/features/onboarding src/features/marketing src/features/auth"
-      ]
+      ],
+      "summary": "장식 SVG 9개에 aria-hidden을 적용하고 IllustrationFrame의 role=img를 제거했다. 지정 Biome lint와 Vitest 53파일·325테스트가 통과했다; Biome 2.5.9은 --min-files를 지원하지 않아 무옵션으로 실측했다.",
+      "started_at": "2026-08-22T04:51:35+0900",
+      "completed_at": "2026-08-22T04:54:02+0900"
     },
     {
       "step": 1,
@@ -41,5 +44,6 @@
         "cd apps/web && pnpm exec biome check ."
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-22T04:51:35+0900"
 }
