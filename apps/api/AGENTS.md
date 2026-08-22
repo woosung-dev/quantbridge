@@ -118,8 +118,13 @@ payload = jwt.decode(token, signing_key.key, algorithms=["EdDSA"],
 `trading/` 은 예외가 아니라 **확장**이다 — `service.py`/`repository.py` 가 파일이 아니라
 `services/`·`repositories/` 디렉터리로 분해돼 있고, 그 밖에 `websocket/` 서브패키지를 갖는다.
 
-★**코드 예제 전문**(router/service/repository/dependencies 스니펫 · commit-spy 표준 ·
-크로스 레포지토리 트랜잭션) = [`docs/development/backend-layering.md`](../../docs/development/backend-layering.md).
+★**PR 리뷰 의무** — `git diff -- '*service.py'` 에 `repo.save|repo.update|repo.delete` 가
+추가·수정되면 **같은 PR 에 commit-spy 테스트가 있는지** 본다. atomic 옵션(`commit=False`)은
+`assert_not_called()` 로 명시 검증한다.
+
+★**코드 예제는 문서가 아니라 실물을 봐라** — `apps/api/src/<도메인>/dependencies.py` **8개** ·
+commit-spy 표준 = `apps/api/tests/*/test_*commits*.py` **9개**. **이유:** 문서 안의 예제는 낡지만
+실물은 CI 가 지킨다. 새 도메인은 가장 가까운 기존 도메인을 복사해서 시작해라.
 
 ## 4. QuantBridge 도메인 고유 규칙
 
