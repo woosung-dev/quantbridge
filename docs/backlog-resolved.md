@@ -30,6 +30,75 @@
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
+### BL-820
+
+**Title:** 밤샘 루프 6차 — FE·BE 커버리지 + 린트 부채 180건, 12 lane × step 4 병렬
+**Category:** 테스트 / 코드 품질
+**Priority:** P2
+**상태:** ✅ **Resolved (2026-08-23 실행 완주)** — lane **11 completed + 1 blocked(해소)** · PR **#774~#786** 전부 stage 머지 · 통합 PR **#787** 머지. 착수 전 AC red **12/12** · 재시도 **0회**
+**Trigger:** 도래 — 2026-08-22 커버리지·린트 실측
+**Est:** L (12 lane 병렬 · 동시 4 · 예상 4~5시간)
+**출처:** 2026-08-22 night-loop-6 저작 세션
+
+**왜 지금:** 4·5차가 「FE 축은 바닥에 닿았다」로 닫혔는데 **그 판정은 AST(전이 폐포) 축의 것**이었다.
+2026-08-22 에 커버리지로 다시 재니 `apps/web` **85.04%** · 미커버 **4,597줄 / 344파일**이고,
+`features/*/api.ts` 6종(553줄)·`*/hooks.ts` 6종(623줄)이 **통째로 비어 있다**. 5차가 남긴
+「재료는 AST 가 아니라 커버리지가 정한다」를 FE 에 처음 적용한 회차다.
+
+**범위 (4축 · 12 lane):**
+
+| 축 | lane | 재료 |
+| --- | --- | --- |
+| FE 커버리지 | `fe6-api-*` 3 · `fe6-hooks-*` 3 | 미커버 4,597줄 중 상위 밀집 1,246줄 |
+| BE 커버리지 | `be6-tasks-runtime` · `be6-live-repos` | 미커버 1,385줄 중 186줄(커버율 최저 축) |
+| a11y 7종 | `fe6-debt-*` 4 에 분산 | **67건** (`biome.jsonc` 가 「다음 회차」라 적어 둔 그것) |
+| 린트 부채 | 같은 4 lane | `noArrayIndexKey` 59 · `useTemplate` 35 · `noConsole` 15 · complexity 4 |
+
+**구조:** step0 재료 자가검증 → step1 정상 경로 → step2 에러·경계 → step3 자기 변이.
+5차 회고(「step 1개짜리 lane 8벌은 러너를 안 쓴 것」)를 처음 반영했다.
+실행 = `python3 tools/harness/execute.py --parallel 4 --stage stage/night6 --confirm` (기본 dry-run).
+**무인 구간은 lane PR 의 stage 머지까지이고 사람이 판단하는 자리는 stage→main PR 하나다.**
+
+**동승 종결:** `[tool.coverage.run]` 의 `concurrency = greenlet,thread` (전량 TOTAL 90% → **91.51%**).
+★함께 지시돼 있던 「[BL-308]/[BL-309] 래칫 기준선 재산정」은 **대상이 실재하지 않는다** —
+[ADR-037] 이 CI coverage 래칫을 철거했고 지금 `ci.yml` 에 `--cov` 는 0건, 두 BL 도 원장에 섹션이 없다.
+
+**절차·반증 전문:** [`phases/README.md`](../phases/README.md) 6차 절 · lane 공통 규약 = `phases/fe6-common.md`
+
+---
+
+## 실행 결과 (2026-08-23)
+
+**lane 12/12 · CPU-분 314 → 벽시계 111분(2.83×) · 재시도 0 · 병합 충돌 0.**
+산출 = FE 테스트 **14파일 신설**(it 198 · expect 552 · 소스 0줄 변경) · BE 테스트 4파일(케이스 54) ·
+부채 4 lane 이 FE 소스 83파일 수정(**실제 `biome-ignore` 0건**). 후속 활성화 = a11y 7종 + `noArrayIndexKey`.
+
+★★★**첫 주행은 「완주」를 선언하고 커밋이 0건이었다.** 사슬 6단 — #769 가 루트 `package.json` 에서
+prettier 를 뺐으나 **루트 `pnpm-lock.yaml`(gitignore) 미갱신** → 워크트리 부트스트랩의
+`pnpm install --frozen-lockfile` 실패 → 루트 `node_modules` 부재 → `pre-commit` 의
+`pnpm exec lint-staged` **rc=254** → **커밋 전건 차단** → 빈 브랜치 push → `gh pr create`
+"no commits" 실패 → **그 실패가 로그에 안 찍혔다**. 메인이 멀쩡했던 것은 #769 **이전에** 깔린
+`node_modules` 가 남아서다 — 우연이다.
+
+★★★**반증 — 「워크트리는 git 훅이 안 돈다」가 거짓이다.** `core.hooksPath` 는 메인 체크아웃의
+**절대경로**라 워크트리에서도 발화하고, 실패한 훅은 「무력화」가 아니라 **커밋을 막는다**.
+전문 = [LESSON-127].
+
+하네스 수리 5건 — **#773**: 「완주」 정의에 **커밋 존재** 추가 · PR 실패 `_log` · stage push 조건화
+(**올릴 ref 가 없는 push 는 pre-push 에 stdin 을 안 줘 `main` 으로 폴백 거부 ⇒ 모든 재시작이 막혔다**) ·
+부트스트랩 루트 설치 실패를 **중단**으로. **#787**: `gh pr merge --delete-branch` 가 lane 브랜치의
+워크트리 체크아웃 탓에 **반드시 rc≠0** ⇒ 머지 11건 중 **10건 오기록** → 플래그 제거 + 판정 정본을
+**PR 상태**로.
+
+★★**사람 diff 대조가 회귀 1건을 잡았다** — 부채 lane 이 규칙대로 tabpanel 3곳의 `tabIndex={0}` 을
+지웠는데 **규칙이 틀렸다**(Biome 이 `jsx-a11y` 의 `roles:["tabpanel"]` 면제를 안 가져왔다 · 패널 2/3 은
+포커스 가능 요소가 **아예 없어** 키보드 도달 불가) ⇒ 근거 주석 + `biome-ignore` 로 복원(#785).
+★`fe6-debt-backtest` 의 `blocked` 는 **옳은 정지**였다 — 담당 밖 단언이 `role` 을 **속성**으로 봤다.
+계산된 role(`getByRole`)로 바꿔 해소(#786).
+
+**남은 하네스 부채:** `execute.py` 의 `--parallel` 층 테스트 **0건**(StepExecutor 층은 41건).
+이번 결함 5건 중 4건이 그 층에서 났다.
+
 ### BL-815
 
 **Title:** FE 화면 계층에 테스트가 0건이다 — **에러 경계 7개·법무 페이지 4개·데이터 정책·관리자 승인 흐름**이 무증거로 산다
