@@ -71,8 +71,9 @@
 - ★**[BL-003] 을 이어받는다면 첫 파일은 하나다** —
   [`bybit-mainnet-runbook.md`](./operations/bybit-mainnet-runbook.md).
   **§0(착수 전 재측정)을 먼저 돌려라** — 이 문서의 실측에는 유효기한이 있다.
-- ★**원장은 파일 셋이고 축은 판정어다**(2026-08-18 3분할 · [BL-779]): `backlog.md`(ACTIVE ∪ PARTIAL
-  - 인덱스 표 전량, **2,3천 줄**) · `backlog-deferred.md`(DEFERRED) · `backlog-resolved.md`(RESOLVED).
+- ★**원장은 파일 둘이고 축은 판정어다**: `backlog.md`(ACTIVE ∪ PARTIAL + 인덱스 표 전량) ·
+  `backlog-deferred.md`(DEFERRED). ★**RESOLVED 는 파일이 아니라 삭제다**(2026-08-23 · `AGENTS.md` §6) —
+  닫힌 BL 본문의 좌표는 [`docs/README.md`](./README.md) 가 갖는다.
     ~~★**어느 파일에 있는지는 앵커가 아니라 `bash tools/scripts/bl-audit.sh --list <판정어>` 의 4번째 칸이 답한다**~~
     → **2026-08-19 [ADR-037]** bl-audit 철거 — 어느 파일인지는 판정어가 정한다(위 3분할 규칙 ·
     확인은 `grep -l '^### BL-NNN' docs/backlog*.md`)
@@ -340,10 +341,12 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 **둘 다 「남은 건수」를 뺄셈으로 보고했다가 실측에서 드러났다.** ⇒ **절 단위 삭제 전에 그 범위
 안의 `###` 를 먼저 세라. 그리고 삭제 후 건수는 반드시 다시 grep 해라.**
 
-**다음 행동 = 남은 세션 비용 축을 마저 깎는다 — `apps/api/AGENTS.md` 508줄(10,040 tok)을 200줄 아래로.**
-BE 파일을 열 때마다 자동 로드되는데 업계 권장(<200줄)의 2.5배다. §9(Celery prefork-safe) 같은 긴 절을
-`docs/development/` 로 빼고 포인터만 남긴다. 그다음이 `apps/web/AGENTS.md` 373줄(7,195 tok)이다.
-★그 뒤의 개발 항목은 **⓪ 표에서 사용자가 고른다** — 남은 16건은 전부 데모 라이브의 현존 결함이다.
+**다음 행동 = 남은 세션 비용 축을 마저 깎는다 — `apps/web/AGENTS.md` 373줄(7,195 tok)을 200줄 아래로.**
+~~`apps/api/AGENTS.md` 508줄(10,040 tok)~~ → **2026-08-23 이 회차로 275줄**(30,122→18,878B). §9(Celery
+prefork-safe) 119줄은 `docs/development/celery-prefork.md` 로 분리하고 포인터만 남겼다. **목표 <200줄은
+아직 75줄 미달** — 남은 후보는 §3 트리·§2 규칙 표다. FE 도 같은 방법(긴 절 → `docs/development/` + 포인터)으로 깎는다.
+★그 뒤의 개발 항목은 **⓪ 표에서 사용자가 고른다** — 열린 16건은 **ACTIVE 3 · PARTIAL 13** 이고,
+11건이 데모 라이브 축이다(나머지 5건 = Pine 관측성·소크 게이트·DX 빌드캐시·TV webhook·로컬 origin).
 
 ## ★회차 이력 tombstone — 2026-04~08 (2026-08-23 통합)
 
@@ -442,7 +445,7 @@ docker logs quantbridge-worker 2>&1 | (cd apps/api && uv run python \
 노출 12.28h 에서 사전등록 4관측량 전건 충족 — ① phantom **0건**(관측 4건 전부 `replay_lag`,
 p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 **84건**(≥40) · ④ 카운터 차분
 **+223**(형 A +183 · 형 B +6 — 양쪽 수리 갈래 발화). 실측 전문 =
-[ADR-025 §판정](./adr/025-conditional-fill-ownership.md).
+[ADR-025](./adr/025-conditional-fill-ownership.md).
 
 ### ★착수 전 반드시 읽을 것 (2026-08-21 정정본)
 

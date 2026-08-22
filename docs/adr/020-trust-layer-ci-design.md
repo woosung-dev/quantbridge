@@ -59,15 +59,16 @@ stdlib 의 **단 한 줄 수정** (예: `ta.rsi` 의 warm-up 기간을 14 → 15
 
 ## ★회차 기록 tombstone (2026-08-23 ADR 다이어트)
 
-> **잘라낸 것: 4절 · 190줄 · 21,694B.** 원문 = `git show 4c65bc0e:docs/adr/020-trust-layer-ci-design.md`.
+> **잘라낸 것: 3절 · 176줄 · 20,033B.** 원문 = `git show 4c65bc0e:docs/adr/020-trust-layer-ci-design.md`.
 >
-> **ADR 은 「왜 그렇게 정했나」다.** 「그 뒤 무엇을 발견했나」는 `docs/lessons.md` 와 git log 가 맡는다.
+> **ADR 은 「왜 그렇게 정했나」다** — 결정 / 이유 / 트레이드오프. 「그 뒤 무엇을 발견했나」는
+> `docs/lessons.md`(반증)와 git log 가 맡는다.
+> 여기 쌓인 회차 기록이 ADR 하나(ADR-024)를 72KB 로 만들었다(2026-08-23 실측 · finsight 의 ADR **전체**가 8.5KB).
 >
 > 잘라낸 절:
-> - 3. 고려한 대안 (15줄·### 0개)
 > - 8. 다음 단계 (23줄·### 3개)
 > - 10. 오픈 이슈 (140줄·### 4개)
-> - 11. Amendment History (12줄·### 0개)
+> - 11. Amendment History (13줄·### 0개)
 
 ## 4. 설계 상세
 

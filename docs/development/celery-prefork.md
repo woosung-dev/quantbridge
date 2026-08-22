@@ -5,7 +5,7 @@
 
 > Sprint 17 → Sprint 18 architectural 진화. `asyncio.run()` per task 패턴이 module-level async state 와 함께 쓰이면 **2nd+ task 부터 `RuntimeError("Future ... attached to a different loop")` / `InterfaceError("another operation is in progress")` 로 silent fail**. asyncpg 의 `BaseProtocol._on_waiter_completed` callback 이 1st task asyncio.run() loop 에 stale bound. Option C (영속 worker loop) 로 root fix.
 
-### 9.1 의무 — `_WORKER_LOOP` 통일
+## 의무 — `_WORKER_LOOP` 통일
 
 **모든 Celery task entry point** 는 `asyncio.run(coro)` 대신 `run_in_worker_loop(coro)` 사용.
 
@@ -35,7 +35,7 @@ def _shutdown(...):
     shutdown_worker_loop()     # pending cancel + asyncgens drain + close
 ```
 
-### 9.2 의무 — Module-level async state 검증 (Sprint 19 BL-084 AST audit gate)
+## 의무 — Module-level async state 검증
 
 `asyncio.Semaphore` / `Lock` / `Event` / `Queue` 를 module-level 에 두는 것 자체는 OK 이지만 (영속 loop 통일로 stale 안 됨), **새 module-level async object 추가 시 PR 리뷰 의무**:
 
@@ -43,7 +43,7 @@ def _shutdown(...):
 2. `worker_process_init` 의 reset hook 필요한가? (Redis pool 처럼 fork 시 FD 공유 회피)
 3. `_WORKER_LOOP` 미초기화 환경 (uvicorn FastAPI / pytest unit) 에서 안전한가?
 
-**자동 audit gate**: `tests/tasks/test_no_module_level_loop_bound_state.py` (Sprint 19 BL-084) 가 `src/tasks/*.py` + `src/common/alert.py` + `src/common/redis_client.py` 의 module-level `Assign + AnnAssign` 노드에서 `asyncio.<Semaphore|Lock|Event|Queue|Condition|...>(...)` 호출 검출. import alias (`from asyncio import Semaphore as S`) 도 catch.
+**자동 audit gate**: `tests/tasks/test_no_module_level_loop_bound_state.py` (Sprint 19 BL-084) 가 `src/tasks/*.py` + `src/common/alert.py` + `src/common/redis_client.py` + **`src/trading/services/*.py`**([BL-203] Sprint 48) 의 module-level `Assign + AnnAssign` 노드에서 `asyncio.<Semaphore|Lock|Event|Queue|Condition|...>(...)` 호출 검출. import alias (`from asyncio import Semaphore as S`) 도 catch.
 
 **Allowlist 갱신 절차**:
 
@@ -56,7 +56,7 @@ def _shutdown(...):
 
 - `src.common.alert._SEND_SEMAPHORE` — Slack send burst 상한 `asyncio.Semaphore(8)`. Sprint 18 `_WORKER_LOOP` 통일로 모든 acquire 가 동일 loop. Sprint 19 BL-081 `track_pending_alert` helper 가 cross-task semantic 명시화.
 
-### 9.3 의무 — Per-call engine + dispose (Sprint 17 패턴 유지)
+## 의무 — Per-call engine + dispose
 
 Option C 가 loop 통일하더라도 **engine 수명은 task 단위로 유지**:
 
@@ -72,11 +72,11 @@ async def _async_impl():
 
 이유: connection pool stale connection 누수 방어 (loop binding 과 별개). `apps/api/src/tasks/backtest.py:31-91` 가 표준 reference.
 
-### 9.4 금지 — `run_in_worker_loop` 안에서 `run_in_worker_loop` (nested)
+## 금지 — nested `run_in_worker_loop`
 
 `run_in_worker_loop` 는 이미 실행 중인 loop 안에서 호출 시 `RuntimeError` raise (silent fallback 금지). pytest-asyncio / celery_eager 환경에서 호출자가 직접 coroutine 을 await 해야 함.
 
-### 9.5 라이브 검증 의무 (sprint 신규 task type 추가 시)
+## 라이브 검증 의무
 
 새 Celery task 추가 시:
 
@@ -84,7 +84,7 @@ async def _async_impl():
 2. ws_stream 같은 long-running 은 별도 queue (`task_routes`) 로 분리 — pool 은 prefork 고정 (Sprint 12 solo → Sprint 24 BL-012 prefork 복귀, `docker-compose.yml` 이 정본)
 3. Sprint 19 BL-082 1h soak gate 통과 (RSS slope < 임계, fd 누수 없음)
 
-### 9.6 Alert task pending observability (Sprint 19 BL-081)
+## Alert task pending observability
 
 영속 `_WORKER_LOOP` 채택으로 fire-and-forget alert task (e.g. `KillSwitchService` 의 Slack 발송 task) 가 **Celery task 경계를 넘어 살아남을 수 있음** — 이전 `asyncio.run()` 패턴은 task 종료 시 모든 pending task 자동 cancel. cross-task semantic 변화 → 운영 모니터링 의무.
 

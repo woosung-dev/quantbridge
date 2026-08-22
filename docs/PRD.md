@@ -19,9 +19,11 @@
 | --- | --- | --- |
 | ⑴ | **실자금(mainnet) 안 간다** | 계정 모드는 **Bybit Demo 만**. money-path 「실자금 정밀도」 축은 닫혀 있다 |
 | ⑵ | **Beta 외부 공개 당분간 안 연다** | **실사용자 0명**이 전제다. waitlist 파이프라인은 키만 넣으면 열리지만 열지 않는다 |
-| ⑶ | **멀티 거래소 안 한다** | **Bybit 하나**. OKX·Binance 연결 코드는 0건이고 그대로 둔다 |
+| ⑶ | **멀티 거래소 안 한다** | **Bybit 하나**. ★OKX 는 BE 에 어댑터가 **남아 있다**(`trading/providers.py:1878` `OkxDemoProvider` + `registry.py:41` 등록) — **더 안 키운다**. FE 는 이미 `schemas.ts:114` 에서 `z.enum(["bybit"])` 로 하나만 받는다. **Binance 는 주석뿐이라 진짜 0건** |
 
-★**하나가 뒤집히면 `git show 21e40d5c:docs/backlog*.md` 에서 해당 축을 되살려라 — 다시 쓰지 마라.**
+★**하나가 뒤집히면 `git show 21e40d5c:docs/backlog.md` 에서 해당 축을 되살려라 — 다시 쓰지 마라**
+(`backlog-deferred.md`·`backlog-resolved.md` 동일 SHA). ★**glob 을 쓰지 마라** — `git show <sha>:docs/backlog*.md` 는
+확장이 안 돼 **rc=0 인데 0바이트**다(2026-08-23 실측). 이 레포가 반복해 밟은 「빈 입력이 초록으로」 패턴이다.
 
 ---
 
@@ -90,7 +92,11 @@ TradingView Pine Script 전략을 가져와 **같은 코드로** 백테스트 �
 
 **안 여는 것** — waitlist 초대 파이프라인은 **코드·테스트·화면 완비**이고 서버에 키 3종만 넣으면 열린다. 결정 ⑵ 로 **열지 않는다**. 절차 = [`operations/waitlist-activation.md`](./operations/waitlist-activation.md).
 
-**열린 결함** — [`backlog.md`](./backlog.md) 의 ACTIVE 16건. 전부 **데모 라이브의 현존 결함**이다(청산 원장 2배 적재 · StrEnum 크래시 · 409 계약 불일치 등). 실자금 정밀도 항목은 결정 ⑴ 로 닫혔다.
+**열린 결함** — [`backlog.md`](./backlog.md) 의 **미완 16건(ACTIVE 3 · PARTIAL 13**, 2026-08-23 상태줄 실측**)**.
+**11건이 데모 라이브 축**이다(청산 원장 2배 적재 [BL-477]·[BL-529] · StrEnum 크래시 [BL-453] · 409 계약 불일치 [BL-671] 등).
+나머지 5건은 데모 라이브 밖이다 — Pine 파싱 관측성([BL-383]) · 소크 C1 게이트 해석([BL-641]) · DX 빌드 캐시([BL-650]) ·
+TradingView webhook 실측 미착수([BL-774]) · 로컬 검증 origin 분리([BL-811]). 실자금 정밀도 항목은 결정 ⑴ 로 닫혔다.
+★**착수 가능한 후보는 [`status.md`](./status.md) 의 ⓪ 표**(= ACTIVE ∪ (PARTIAL ∧ 트리거 도래))가 정한다 — 16 이 아니다.
 
 **다음에 할 일** — [`status.md`](./status.md) 의 살아 있는 `다음 행동 =` **하나**가 유일한 진입점이다. 그 뒤 개발 항목은 ⓪ 표에서 고른다.
 

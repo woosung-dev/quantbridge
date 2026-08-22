@@ -187,8 +187,9 @@ FE vitest·build 수 분이다. **풀 실행은 G7 에서 1회만, G3 중간에�
 
 ### G8 — 문서 원자 갱신 + PR
 
-- dev-log 신규 + INDEX + status + roadmap + backlog 를 **같은 커밋에서** 갱신한다.
-- ★**요약 레이어는 본문보다 늦는다.** 2026-07-27 종결 시 `dev-log/INDEX.md` 가 **폐기된 설계를 출시된 것처럼** 적고 있었고 `roadmap.md` 도 같은 상태였다. 종결 체크리스트에 **"요약(INDEX·roadmap·status)을 본문과 대조"** 를 고정 항목으로 넣는다.
+- INDEX + status + backlog 를 **같은 커밋에서** 갱신한다. 제품 범위가 바뀐 경우에만 `PRD.md` 도 함께
+  (구 `roadmap.md` 는 2026-08-23 PRD 로 통합). ★**끝난 회차 원문은 어느 문서에도 안 쌓는다** — 커밋 메시지와 git log 가 정본이다(루트 `AGENTS.md` §6).
+- ★**요약 레이어는 본문보다 늦는다.** 2026-07-27 종결 시 `dev-log/INDEX.md` 가 **폐기된 설계를 출시된 것처럼** 적고 있었고 `roadmap.md` 도 같은 상태였다. 종결 체크리스트에 **"요약(INDEX·status·PRD)을 본문과 대조"** 를 고정 항목으로 넣는다(`roadmap.md` 는 2026-08-23 PRD 로 통합).
 - ★**회차 작업 산출물(레인 원장 초안·보고서)의 자리는 `phases/<회차>/runs/` 하나다 — 레포 루트에
   만들지 마라.** 러너가 이미 그 자리를 쓰고(`tools/harness/execute.py:19` 「산출물은
   `phases/<dir>/runs/`(gitignore) 에만 남긴다」) `.gitignore` 의 `phases/*/runs/` 가 덮는다.

@@ -370,7 +370,7 @@ sequenceDiagram
 
 ## 8. Observability (Sprint 10/12 도입 ✅)
 
-> 구현 메트릭의 정본은 [`apps/api/src/common/metrics.py`](../../apps/api/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`PRD.md`](../PRD.md)의 Beta·Deferred 게이트에서 관리한다.
+> 구현 메트릭의 정본은 [`apps/api/src/common/metrics.py`](../../apps/api/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`PRD.md`](../PRD.md) §0 **결정 ⑵**(Beta 외부 공개 안 연다)가 정본이다.
 
 | 영역     | 현재 상태                                                             | 도입 sprint           |
 | -------- | --------------------------------------------------------------------- | --------------------- |
@@ -378,7 +378,7 @@ sequenceDiagram
 | 메트릭   | Prometheus `prometheus_client` (`/metrics`, Celery multiprocess 지원) | Sprint 9 Phase D 이후 |
 | 알림     | Slack webhook (best-effort, BoundedSemaphore(8) + 15s timeout)        | Sprint 12 Phase A     |
 | 트레이싱 | 미적용 — H2 후반 OpenTelemetry 검토                                   | TODO                  |
-| 대시보드 | 외부 수집·대시보드 배포는 미결정                                      | Beta·Deferred         |
+| 대시보드 | 외부 수집·대시보드 배포는 미결정                                      | PRD §0 결정 ⑵         |
 
 ### 메트릭 카탈로그
 
@@ -426,7 +426,7 @@ sequenceDiagram
 
 ## 9. 배포 토폴로지 (계획)
 
-> 프로덕션 토폴로지 선택과 배포 trigger는 [`PRD.md`](../PRD.md)의 Beta·Deferred 게이트가 정본이다.
+> 프로덕션 토폴로지 선택과 배포 trigger는 [`PRD.md`](../PRD.md) §0 **결정 3건**이 정본이다.
 
 현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.
 
