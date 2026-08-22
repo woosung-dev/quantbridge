@@ -47,11 +47,20 @@ Cloudflare Access 가 그 관문 역할을 유지한다(§4.0).
 | `WAITLIST_TOKEN_SECRET` | 직접 생성 — `openssl rand -hex 32`                              | hex 64자 (**최소 16자 강제**, `token_service.py:49-52`)  | 같음                               | `APP_ENV=production` 이면 **부팅 거부** (§5.1)         |
 | `WAITLIST_ADMIN_EMAILS` | 운영자가 정한다 (Beta 초기 수동 운영)                            | 콤마 구분 소문자 이메일 · `a@x.com,b@y.com`              | 같음                               | 승인·목록 엔드포인트 **전원 403** (§5.4)              |
 
-⚠️★**발신 도메인이 레포 안에서 두 갈래다 — 세션이 정할 수 없다.**
-`test_email_from_address_wiring.py` 의 docstring 은 「이 배포의 도메인은 **`qb.woosung.dev`**」라
-적고 그 값을 쓰는데, FE 호스트는 `qb.woosung.dev` 이고 Access 발급자는 `woosung.dev` 다.
+⚠️★**발신 도메인이 레포 안에서 두 갈래다 — 세션이 정할 수 없다** (2026-08-23 실측).
+★★`.env.example` 은 **인접한 두 줄에서 자기모순**이다:
+
+| 좌표                                              | 무엇이라 적혀 있나                              |
+| ------------------------------------------------- | ------------------------------------------------ |
+| `apps/api/.env.example:168` (주석)                | 「…도메인이 아니다(**`qb.woosung.dev`**)」        |
+| `apps/api/.env.example:169` (**바로 다음 줄** 예시) | `예: QuantBridge <noreply@`**`woosung.dev`**`>`  |
+| `src/core/config.py:363`                          | 「이 배포의 도메인이 아니므로(**`qb.woosung.dev`**)」 |
+| `tests/waitlist/test_email_from_address_wiring.py:6,27,30` | **`qb.woosung.dev`** (docstring + 단언 값)  |
+
+⇒ **3:1 로 `qb.woosung.dev` 쪽이 많지만 다수결로 정할 문제가 아니다.**
 **결정 규칙은 하나뿐이다 — Resend 대시보드에서 실제로 인증(DNS 레코드 검증 완료)한 도메인과
 바이트로 일치시켜라.** 어긋나면 승인이 502 다(§5.3). 여기서 추측한 값을 넣지 마라(§9 ⑵).
+값이 정해지면 `.env.example:169` 의 예시도 그 값으로 맞춰 이 모순을 없애라.
 
 ★**다섯 번째가 있다 — `WAITLIST_INVITE_BASE_URL`.** `.env.example:175` 이 `[기본값 OK]` 라 적고 있어
 넷만 세기 쉽지만, `APP_ENV=production` 에서는 이 값이 localhost 면 **부팅이 거부된다**
@@ -364,7 +373,8 @@ Cloudflare 대시보드에서 그 이메일을 정책에 넣는 **수동 단계*
 1. 서버 `.env.local` 의 `RESEND_API_KEY`·`RESEND_FROM_ADDRESS`·`WAITLIST_ADMIN_EMAILS` 실제 설정 여부
    — §3 의 명령으로 CONTROL 이 잰다. `/health` 로는 안 보인다(§1.1).
 2. Resend 계정의 **도메인 인증 상태** — `woosung.dev` 인지 `qb.woosung.dev` 인지, 그리고 그것이
-   인증(DNS 검증 완료)됐는지. **레포는 두 표기를 다 갖고 있어 답을 못 준다**(§1 의 ⚠️ 항목).
+   인증(DNS 검증 완료)됐는지. **레포는 두 표기를 3:1 로 갖고 있고 `.env.example` 은 168·169
+   인접 두 줄에서 서로 어긋난다** ⇒ 코드는 이 질문의 증인이 아니다(§1 의 ⚠️ 표).
    미인증이면 `RESEND_FROM_ADDRESS` 를 무엇으로 넣어도 발송이 실패한다.
 3. Resend API key 의 접두 `re_` 는 `[가정]` 이다 — 레포에 근거가 없다. 발급 화면의 실제 값을 따른다.
 4. Cloudflare Access 정책의 현재 허용 이메일 목록 — 대시보드에서만 읽을 수 있다.
