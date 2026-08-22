@@ -107,7 +107,7 @@ cd ../..
 
 > **rotation 전략:** 콤마 구분으로 여러 키 허용 (`TRADING_ENCRYPTION_KEYS=new_key,old_key`). 첫 번째 키가 encrypt, 나머지는 decrypt 허용 — 무중단 키 교체.
 
-> 상세 획득법은 [`clerk-setup.md`](../operations/better-auth-setup.md). 모든 변수는 [`env-vars.md`](./env-vars.md) 카탈로그.
+> 상세 획득법은 [`better-auth-setup.md`](../operations/better-auth-setup.md). 모든 변수는 [`env-vars.md`](./env-vars.md) 카탈로그.
 
 ---
 

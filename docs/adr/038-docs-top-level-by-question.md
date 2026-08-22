@@ -40,6 +40,7 @@ docs/
 ├── design/         화면·상호작용의 정본(프로토타입)     ← reference/design
 ├── adr/            왜 이 선택을 했는가                  ← decisions
 ├── status.md · roadmap.md · backlog*.md · lessons.md   (상태 3종 + 반증 — 변경 없음)
+│      ★2026-08-23: roadmap.md → PRD.md 통합 · backlog-resolved.md 삭제(git 이 정본). 축은 그대로
 └── dev-log/ · archive/                                 (색인 · lessons 넘침분 — 변경 없음)
 ```
 

@@ -370,7 +370,7 @@ sequenceDiagram
 
 ## 8. Observability (Sprint 10/12 도입 ✅)
 
-> 구현 메트릭의 정본은 [`apps/api/src/common/metrics.py`](../../apps/api/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`roadmap.md`](../PRD.md)의 Beta·Deferred 게이트에서 관리한다.
+> 구현 메트릭의 정본은 [`apps/api/src/common/metrics.py`](../../apps/api/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`PRD.md`](../PRD.md)의 Beta·Deferred 게이트에서 관리한다.
 
 | 영역     | 현재 상태                                                             | 도입 sprint           |
 | -------- | --------------------------------------------------------------------- | --------------------- |
@@ -426,7 +426,7 @@ sequenceDiagram
 
 ## 9. 배포 토폴로지 (계획)
 
-> 프로덕션 토폴로지 선택과 배포 trigger는 [`roadmap.md`](../PRD.md)의 Beta·Deferred 게이트가 정본이다.
+> 프로덕션 토폴로지 선택과 배포 trigger는 [`PRD.md`](../PRD.md)의 Beta·Deferred 게이트가 정본이다.
 
 현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.
 
