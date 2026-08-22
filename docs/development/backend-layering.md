@@ -23,22 +23,8 @@
 - **Repository** — AsyncSession 유일 보유. DB 접근만. commit()은 service 요청으로만.
 - **Dependencies** — Depends() 조립의 유일한 위치. service.py/repository.py에 Depends import 금지.
 
-### ★ 이 표준을 따르지 않는 디렉터리 (예외 — 위반이 아니다)
-
-`src/` 하위 전부가 도메인 모듈은 아니다. 아래는 **의도된 예외**이고, 여기에 없는 디렉터리를
-7파일 표준에서 벗어나게 만들려면 먼저 이 표에 줄을 추가해라.
-
-| 디렉터리            | 무엇인가                                                  | 왜 3-Layer 가 아닌가                                                                                                                                                                                        |
-| ------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `market_data/`      | OHLCV provider(CCXT·Timescale·fixture) 공급               | **공개 REST 가 없는 내부 전용 subdomain**(`CONTEXT.md` Data Context). `main.py` 에 마운트되지 않고 `backtest`·`optimizer`·`stress_test`·`tasks`·`trading` 이 라이브러리로 쓴다. router/service/schemas 없음 |
-| `realtime/`         | WS 라우터 + **JWT/JWKS 검증기**(`auth.py`) + 연결 manager | 검증기는 도메인이 아니라 횡단 관심사다. 원장은 `auth/` 가 갖는다                                                                                                                                            |
-| `health/`           | `/healthz`·`/livez`                                       | 상태 프로브. 소유 엔티티가 없다                                                                                                                                                                             |
-| `tasks/`            | Celery task entrypoint                                    | HTTP 표면이 아니다. prefork-safe 규칙은 §9                                                                                                                                                                  |
-| `scripts/`          | 운영 entrypoint helper (`run_alembic_with_lock`)          | `python -m src.scripts.*` 로 실행. 테스트·dogfood 스크립트는 여기가 아니라 `apps/api/scripts/`(앱 루트)                                                                                                     |
-| `common/` · `core/` | 기술 기반 · 설정                                          | 도메인이 아니다                                                                                                                                                                                             |
-
-`trading/` 은 예외가 아니라 **확장**이다 — `service.py`/`repository.py` 가 파일이 아니라
-`services/`·`repositories/` 디렉터리로 분해돼 있고, 그 밖에 `websocket/` 서브패키지를 갖는다.
+> ★**예외 표와 7파일 트리는 `apps/api/AGENTS.md` §3 이 갖는다**(자동 로드되므로 그쪽이 정본).
+> 이 문서는 코드 예제만 맡는다.
 
 ### 필수 코드 패턴
 

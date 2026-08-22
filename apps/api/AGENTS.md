@@ -77,6 +77,17 @@ payload = jwt.decode(token, signing_key.key, algorithms=["EdDSA"],
 
 **핵심: `AsyncSession` 은 Repository 만 보유한다.**
 
+```
+[domain]/
+├── router.py        # HTTP 전용 (10줄 이하)
+├── service.py       # 비즈니스 로직 (AsyncSession 보유 금지)
+├── repository.py    # DB 접근 전담 (AsyncSession 유일 보유자)
+├── schemas.py       # Pydantic V2 입출력
+├── models.py        # SQLModel 테이블
+├── dependencies.py  # Depends() 조립 (repo → service)
+└── exceptions.py    # 도메인 예외
+```
+
 - **Router** — HTTP 수신·스키마 검증·service 호출만. **이유:** DB/로직이 들어오면 테스트가 HTTP 를 통과해야만 돌아간다
 - **Service** — 비즈니스 로직 + 트랜잭션 경계. `AsyncSession` **import 금지**. Repository 만 생성자 주입.
   **이유:** 세션을 쥐면 DB 없이 단위 테스트가 불가능해진다
@@ -90,9 +101,25 @@ payload = jwt.decode(token, signing_key.key, algorithms=["EdDSA"],
 
 ★**여러 repo 를 묶는 service** 는 `dependencies.py` 에서 **동일 session** 으로 조립하고 **한 번만 commit** 한다.
 
-★**7파일 표준의 예외**(`market_data/`·`realtime/`·`health/`·`tasks/`·`scripts/`·`common/`·`core/`)와
-코드 예제 전문 = [`docs/development/backend-layering.md`](../../docs/development/backend-layering.md).
-여기에 없는 디렉터리를 표준에서 벗어나게 하려면 **그 문서의 예외 표에 먼저 줄을 추가해라.**
+### ★ 이 표준을 따르지 않는 디렉터리 (예외 — 위반이 아니다)
+
+`src/` 하위 전부가 도메인 모듈은 아니다. 아래는 **의도된 예외**이고, 여기에 없는 디렉터리를
+7파일 표준에서 벗어나게 만들려면 먼저 이 표에 줄을 추가해라.
+
+| 디렉터리            | 무엇인가                                                  | 왜 3-Layer 가 아닌가                                                                                                                                                                                        |
+| ------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `market_data/`      | OHLCV provider(CCXT·Timescale·fixture) 공급               | **공개 REST 가 없는 내부 전용 subdomain**(`CONTEXT.md` Data Context). `main.py` 에 마운트되지 않고 `backtest`·`optimizer`·`stress_test`·`tasks`·`trading` 이 라이브러리로 쓴다. router/service/schemas 없음 |
+| `realtime/`         | WS 라우터 + **JWT/JWKS 검증기**(`auth.py`) + 연결 manager | 검증기는 도메인이 아니라 횡단 관심사다. 원장은 `auth/` 가 갖는다                                                                                                                                            |
+| `health/`           | `/healthz`·`/livez`                                       | 상태 프로브. 소유 엔티티가 없다                                                                                                                                                                             |
+| `tasks/`            | Celery task entrypoint                                    | HTTP 표면이 아니다. prefork-safe 규칙은 §9                                                                                                                                                                  |
+| `scripts/`          | 운영 entrypoint helper (`run_alembic_with_lock`)          | `python -m src.scripts.*` 로 실행. 테스트·dogfood 스크립트는 여기가 아니라 `apps/api/scripts/`(앱 루트)                                                                                                     |
+| `common/` · `core/` | 기술 기반 · 설정                                          | 도메인이 아니다                                                                                                                                                                                             |
+
+`trading/` 은 예외가 아니라 **확장**이다 — `service.py`/`repository.py` 가 파일이 아니라
+`services/`·`repositories/` 디렉터리로 분해돼 있고, 그 밖에 `websocket/` 서브패키지를 갖는다.
+
+★**코드 예제 전문**(router/service/repository/dependencies 스니펫 · commit-spy 표준 ·
+크로스 레포지토리 트랜잭션) = [`docs/development/backend-layering.md`](../../docs/development/backend-layering.md).
 
 ## 4. QuantBridge 도메인 고유 규칙
 
