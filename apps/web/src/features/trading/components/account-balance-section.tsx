@@ -83,7 +83,11 @@ export function AccountBalanceSection({ accounts }: { accounts: readonly Account
                 <>
                   <div
                     className="meter"
+                    role="progressbar"
                     aria-label={`사용 가능 잔고 ${percent.toFixed(0)}%`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percent}
                     data-testid={`balance-meter-${account.id}`}
                   >
                     <span style={{ width: `${percent}%` }} />

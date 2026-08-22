@@ -11,6 +11,7 @@ export function WaitlistHeader() {
         <Link className="mkt-brand" href="/" aria-label="QuantBridge 홈으로">
           <span className="brand-mark" aria-hidden="true">
             <svg
+              aria-hidden="true"
               width="16"
               height="16"
               viewBox="0 0 24 24"

@@ -225,7 +225,7 @@ test.describe("캘리브레이션 — 다크 정본 17벌", () => {
       // 출력을 그대로 기록한다 — 재현했다는 주장의 근거가 리포트에 남아야 한다.
       // `console.log` 가 아니라 stdout 직접 쓰기다. 이건 디버그 로그가 아니라
       // 검사기의 산출물이며, no-console 룰이 막으려는 대상이 아니다.
-      process.stdout.write(formatCanonResult(res) + "\n");
+      process.stdout.write(`${formatCanonResult(res)}\n`);
 
       assertCalibrationContract(file, res, expectedCanon);
     });
@@ -240,7 +240,7 @@ test.describe("캘리브레이션 — 라이트 2벌", () => {
       const url = pathToFileURL(resolve(PROTOTYPE_DIR, file)).href;
       const res = await auditUrl(browser, url, { label: file });
 
-      process.stdout.write(formatCanonResult(res) + "\n");
+      process.stdout.write(`${formatCanonResult(res)}\n`);
 
       // 라이트 2벌도 **같은 계약**이다. 종전에는 여기 단언이 다크와 따로 적혀 있어
       // 메시지가 더 얇았고, 한쪽만 손대면 갈라질 수 있었다.

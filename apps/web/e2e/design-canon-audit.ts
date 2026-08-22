@@ -370,7 +370,7 @@ export const AUDIT = () => {
     // 지표이고, 판정 기준은 "라이트가 다크 짝보다 나쁘지 않은가" 라는 상대 비교다.
     const need = large ? 3 : 4.5;
     const canonNeed = large ? 3 : 5.82;
-    const key = cs.color + "|" + Math.round(size) + "|" + txt.slice(0, 20);
+    const key = `${cs.color}|${Math.round(size)}|${txt.slice(0, 20)}`;
     // WCAG 1.4.3(Contrast Minimum) 예외 — "inactive user interface component" 안의
     // 텍스트는 대비 요구 대상이 아니다. 자기 또는 조상 중 하나라도 :disabled / [disabled] /
     // [aria-disabled="true"] 인 비활성 컨트롤의 텍스트를 하드 대비(WCAG AA 게이트)에서 뺀다.
@@ -394,8 +394,8 @@ export const AUDIT = () => {
         ratio: +cr.toFixed(2),
         need,
       });
-    } else if (cr < canonNeed && !seen.has("c" + key)) {
-      seen.add("c" + key);
+    } else if (cr < canonNeed && !seen.has(`c${key}`)) {
+      seen.add(`c${key}`);
       out.canon.push({
         text: txt.slice(0, 42),
         color: cs.color,
@@ -404,9 +404,9 @@ export const AUDIT = () => {
         need: canonNeed,
       });
     }
-    if (size < 9.4 && !seen.has("t" + key)) {
+    if (size < 9.4 && !seen.has(`t${key}`)) {
       // C 정본 최소치 0.68rem=9.52px 보다 작은 것만
-      seen.add("t" + key);
+      seen.add(`t${key}`);
       out.tiny.push({ text: txt.slice(0, 30), size });
     }
   });

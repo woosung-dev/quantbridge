@@ -60,7 +60,7 @@ export async function readErrorBody(res: Response): Promise<unknown> {
     return "";
   }
   if (text.length > ERROR_BODY_MAX_BYTES) {
-    return text.slice(0, ERROR_BODY_MAX_BYTES) + "...(truncated)";
+    return `${text.slice(0, ERROR_BODY_MAX_BYTES)}...(truncated)`;
   }
   return text;
 }

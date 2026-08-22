@@ -340,15 +340,16 @@ export function OrdersBlotter() {
 
         <div className="card">
           <div className="card-body">
-            {/* 탭이 아니라 상호배타 토글 — role=group + aria-pressed (프로토타입 §3-6 교정). */}
-            <div className="tabs" role="group" aria-label="주문 상태 필터">
+            {/* 탭이 아니라 상호배타 토글 — fieldset + aria-pressed (프로토타입 §3-6 교정). */}
+            <fieldset className="tabs">
+              <legend className="sr-only">주문 상태 필터</legend>
               {STATE_FILTERS.map((f) => {
                 const active = f === filter;
                 return (
                   <button
                     key={f}
                     type="button"
-                    className={"tab" + (active ? " active" : "")}
+                    className={`tab${active ? " active" : ""}`}
                     aria-pressed={active}
                     data-testid={`order-filter-${f}`}
                     onClick={() => handleFilter(f)}
@@ -357,7 +358,7 @@ export function OrdersBlotter() {
                   </button>
                 );
               })}
-            </div>
+            </fieldset>
             <p
               className="filter-state"
               role="status"
@@ -545,15 +546,15 @@ export function OrdersBlotter() {
                   >
                     ‹
                   </button>
-                  {Array.from({ length: pageCount }).map((_, i) => (
+                  {Array.from({ length: pageCount }, (_, page) => page + 1).map((pageNumber) => (
                     <button
-                      key={i}
-                      className={"pg" + (i === safePage ? " active" : "")}
+                      key={pageNumber}
+                      className={`pg${pageNumber - 1 === safePage ? " active" : ""}`}
                       type="button"
-                      aria-current={i === safePage ? "page" : undefined}
-                      onClick={() => setPage(i)}
+                      aria-current={pageNumber - 1 === safePage ? "page" : undefined}
+                      onClick={() => setPage(pageNumber - 1)}
                     >
-                      {i + 1}
+                      {pageNumber}
                     </button>
                   ))}
                   <button
@@ -612,27 +613,25 @@ function OrderRow({
       className="cursor-pointer"
       data-state={o.state}
       data-testid={`order-row-${o.id}`}
-      // ★행이 상세를 여는 **제어**라는 사실을 보조기술에 알린다. tabIndex 만 주면 스크린리더는
-      //   포커스 가능한 일반 행으로만 안내해서, 숨은 Enter/Space 를 발견할 수 없다.
-      role="button"
-      aria-label={`${o.symbol} 주문 상세 열기`}
-      tabIndex={0}
       onClick={() => onSelect(o.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect(o.id);
-        }
-      }}
     >
       <td className="mono-l">
-        {time}
-        {date ? <span className="cell-sub">{date}</span> : null}
+        <button
+          className="w-full cursor-pointer appearance-none border-0 bg-transparent p-0 text-left"
+          type="button"
+          aria-label={`${o.symbol} 주문 상세 열기`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onSelect(o.id);
+          }}
+        >
+          {time}
+          {date ? <span className="cell-sub">{date}</span> : null}
+        </button>
       </td>
       <td className="mono-l">{o.symbol}</td>
       <td className="dir-cell">
-        <span className={"order-side " + o.side}>{ORDER_SIDE_LABEL[o.side]}</span>
+        <span className={`order-side ${o.side}`}>{ORDER_SIDE_LABEL[o.side]}</span>
         {o.reduce_only ? (
           <span className="chip chip-xs" title={ORDER_FLAG_HINT.reduceOnly}>
             {ORDER_FLAG_LABEL.reduceOnly}
@@ -773,13 +772,15 @@ function ListSkeleton() {
     <div className="table-wrap" data-testid="order-skeleton" aria-hidden="true">
       <table className="trades orders-table">
         <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 12 }).map((__, j) => (
-                <td key={j}>
-                  <span className="sk sk-cell" />
-                </td>
-              ))}
+          {Array.from({ length: 6 }, (_, row) => `row-${row}`).map((rowKey) => (
+            <tr key={rowKey}>
+              {Array.from({ length: 12 }, (_, column) => `${rowKey}-column-${column}`).map(
+                (cellKey) => (
+                  <td key={cellKey}>
+                    <span className="sk sk-cell" />
+                  </td>
+                ),
+              )}
             </tr>
           ))}
         </tbody>

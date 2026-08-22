@@ -193,8 +193,8 @@ function InProgressCard({ status }: { status: "queued" | "running" | "cancelling
     >
       <div className="card-body">
         <div className="sk-bars" aria-hidden="true">
-          {[46, 72, 30, 88, 54, 66, 38, 78].map((h, i) => (
-            <span key={i} className="sk" style={{ height: `${h}%` }} />
+          {[46, 72, 30, 88, 54, 66, 38, 78].map((height) => (
+            <span key={height} className="sk" style={{ height: `${height}%` }} />
           ))}
         </div>
         <div className="sk sk-line" style={{ width: "58%" }} aria-hidden="true" />

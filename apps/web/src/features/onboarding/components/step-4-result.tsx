@@ -148,7 +148,7 @@ export function Step4Result({
       <div className="ob-stats">
         <div className="ob-stat">
           <p className="kpi-label">총 수익률</p>
-          <p className={"kpi-value mono" + returnTone}>
+          <p className={`kpi-value mono${returnTone}`}>
             <StatValue isPending={isPending}>
               {totalReturn === null ? (
                 <span
@@ -228,7 +228,13 @@ export function Step4Result({
           <article className="card cta recommended">
             <span className="cta-badge">권장</span>
             <span className="cta-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <circle cx="12" cy="12" r="3" />
                 <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
               </svg>
@@ -245,7 +251,13 @@ export function Step4Result({
 
           <article className="card cta">
             <span className="cta-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M3 17l4-6 4 3 4-8 6 11" />
                 <line x1="3" y1="21" x2="21" y2="21" />
               </svg>
@@ -265,7 +277,13 @@ export function Step4Result({
 
           <article className="card cta">
             <span className="cta-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <rect x="3" y="5" width="18" height="14" rx="2" />
                 <line x1="3" y1="10" x2="21" y2="10" />
                 <line x1="7" y1="14.5" x2="11" y2="14.5" />

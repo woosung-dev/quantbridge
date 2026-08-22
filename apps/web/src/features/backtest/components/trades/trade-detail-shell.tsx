@@ -18,6 +18,22 @@ import { TradeDetailTable } from "@/features/backtest/components/trades/trade-de
 import { TradeStatsStrip } from "@/features/backtest/components/trades/trade-stats-strip";
 
 const EMPTY_TRADES: readonly TradeItem[] = [];
+const HEADER_SKELETON_CHIPS = ["id", "symbol", "timeframe", "status", "trade-count"] as const;
+const KPI_SKELETON_CARDS = ["trade-count", "win-rate", "profit-factor", "net-profit"] as const;
+const TABLE_SKELETON_ROWS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
+const TABLE_SKELETON_CELLS = [
+  "cell-1",
+  "cell-2",
+  "cell-3",
+  "cell-4",
+  "cell-5",
+  "cell-6",
+  "cell-7",
+  "cell-8",
+  "cell-9",
+  "cell-10",
+  "cell-11",
+] as const;
 
 export function TradeDetailShell({ id }: { id: string }) {
   const detail = useBacktest(id);
@@ -151,8 +167,12 @@ export function TradeDetailSkeleton() {
           <div>
             <span className="sk" style={{ display: "block", width: 180, height: 30 }} />
             <div className="report-meta">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <span key={i} className="sk" style={{ display: "block", width: 72, height: 26 }} />
+              {HEADER_SKELETON_CHIPS.map((chip) => (
+                <span
+                  key={chip}
+                  className="sk"
+                  style={{ display: "block", width: 72, height: 26 }}
+                />
               ))}
             </div>
           </div>
@@ -161,8 +181,8 @@ export function TradeDetailSkeleton() {
 
       <section className="section" aria-hidden="true">
         <div className="kpi-row">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <article key={i} className="card kpi">
+          {KPI_SKELETON_CARDS.map((card) => (
+            <article key={card} className="card kpi">
               <span className="sk" style={{ display: "block", width: 88, height: 12 }} />
               <span
                 className="sk"
@@ -178,10 +198,10 @@ export function TradeDetailSkeleton() {
           <div className="table-wrap">
             <table className="trades">
               <tbody>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 11 }).map((__, j) => (
-                      <td key={j}>
+                {TABLE_SKELETON_ROWS.map((rowKey) => (
+                  <tr key={rowKey}>
+                    {TABLE_SKELETON_CELLS.map((cellKey) => (
+                      <td key={cellKey}>
                         <span className="sk sk-cell" />
                       </td>
                     ))}

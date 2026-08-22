@@ -154,7 +154,7 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
       test.setTimeout(180_000);
 
       const res = await auditUrl(browser, `${BASE_URL}${path}`, { label: path, ...auditOptions });
-      process.stdout.write(formatCanonResult(res) + "\n");
+      process.stdout.write(`${formatCanonResult(res)}\n`);
       assertAuthedReachability(res);
 
       const precondition = DATA_PRECONDITION[path];
@@ -215,7 +215,7 @@ test.describe("P1 4라우트 디자인 캐논 baseline (이식 seam #1, 로컬 �
       label: `${href}/trades`,
       ...auditOptions,
     });
-    process.stdout.write(formatCanonResult(res) + "\n");
+    process.stdout.write(`${formatCanonResult(res)}\n`);
     assertAuthedReachability(res);
     expect(
       minExamined(res),

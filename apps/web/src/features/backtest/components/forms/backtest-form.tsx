@@ -450,8 +450,8 @@ export function BacktestForm() {
                   </p>
                   {convertResult.warnings.length > 0 ? (
                     <ul className="unsupported">
-                      {convertResult.warnings.map((w, i) => (
-                        <li key={i}>{w}</li>
+                      {convertResult.warnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
                       ))}
                     </ul>
                   ) : null}

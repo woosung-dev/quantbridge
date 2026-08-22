@@ -217,7 +217,7 @@ describe("OptimizerRunList — C 시맨틱 구조 (screen-09 02 목록)", () => 
     expect(container.textContent).not.toContain("0.87");
   });
 
-  it("페이지당 개수 토글 — role=group + aria-pressed (§3-6, tablist 아님)", () => {
+  it("페이지당 개수 토글 — fieldset group + aria-pressed (tablist 아님)", () => {
     runsResult = {
       data: {
         items: [listRow("completed", "1f")],
@@ -231,9 +231,8 @@ describe("OptimizerRunList — C 시맨틱 구조 (screen-09 02 목록)", () => 
       refetch: vi.fn(),
     };
     const group = render(<OptimizerRunList />).getByRole("group", { name: "페이지당 요청 개수" });
-    expect(group).not.toBeNull();
-    // role=tablist 오용이 아니다.
-    expect(group.getAttribute("role")).toBe("group");
+    expect(group.tagName).toBe("FIELDSET");
+    // tablist 오용이 아닌 네이티브 fieldset group 이다.
     const btn10 = screen.getByTestId("optimizer-pagesize-10");
     expect(btn10).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("optimizer-pagesize-25")).toHaveAttribute("aria-pressed", "false");

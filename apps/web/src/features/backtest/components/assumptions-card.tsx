@@ -236,12 +236,7 @@ function TrustRow({ row }: { row: AssumptionRow }) {
     <div className="trust-row">
       <span className="trust-key" title={row.title}>
         <span>{row.label}</span>
-        {row.isDefault ? (
-          <span className="dim" aria-label="기본 가정값">
-            {" "}
-            (기본)
-          </span>
-        ) : null}
+        {row.isDefault ? <span className="dim"> (기본)</span> : null}
       </span>
       <span className="trust-val">{row.value}</span>
     </div>

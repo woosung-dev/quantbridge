@@ -87,7 +87,7 @@ describe("ShortcutHelpDialog", () => {
   it("contentEditable 요소에 focus 가 있을 때 `?` 키는 모달을 열지 않는다", () => {
     render(
       <>
-        <div data-testid="probe-editable" contentEditable tabIndex={0} />
+        <div data-testid="probe-editable" contentEditable />
         <ShortcutHelpDialog />
       </>,
     );

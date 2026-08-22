@@ -67,13 +67,12 @@ describe("CostAssumptionHeatmap (Sprint 50)", () => {
     expect(dashes.length).toBeGreaterThan(0);
   });
 
-  it("table aria-label + 셀 tabIndex (keyboard 접근, codex P2#8)", () => {
+  it("table aria-label + 셀 aria-label (codex P2#8)", () => {
     render(<CostAssumptionHeatmap result={makeResult()} />);
     const table = screen.getByLabelText("Cost Assumption Sensitivity heatmap");
     expect(table).toBeInTheDocument();
     expect(table.tagName).toBe("TABLE");
-    // td 가 tabIndex=0 + aria-label 포함하는지 확인
-    const focusableCells = table.querySelectorAll('td[tabindex="0"]');
-    expect(focusableCells.length).toBe(9);
+    const labelledCells = table.querySelectorAll("td[aria-label]");
+    expect(labelledCells.length).toBe(9);
   });
 });

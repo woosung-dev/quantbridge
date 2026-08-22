@@ -5,37 +5,46 @@
     {
       "step": 0,
       "name": "probe-and-skeleton",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=12",
         "git diff --quiet -- apps/web/src/features/strategy/hooks.ts apps/web/src/features/optimizer/hooks.ts apps/web/src/features/waitlist/hooks.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T04:02:23+0900",
+      "summary": "기준(전량 vitest): strategy 6.75%(10/148), optimizer 0%(0/54), waitlist 0%(0/38). 심볼: strategy [덮음 useStrategies(list API+user key), useUpdateStrategySettings(invalidate list/detail), usePreviewParse(blank 차단+trim parse); 미덮음 useStrategy/useCreateStrategy/useRotateWebhookSecret/useUpdateStrategy/useDeleteStrategy/useParseStrategy], optimizer [덮음 useOptimizationRuns(list API+user key), useSubmitGridSearch/useSubmitBayesianSearch/useSubmitGeneticSearch(각 endpoint+optimizer root invalidate); 미덮음 useOptimizationRun], waitlist [덮음 useCreateWaitlist(public submit), useAdminWaitlistList(admin API+user key), useApproveWaitlist(admin-list invalidate)]. Mock: ../api는 HTTP 없이 token·endpoint 인자를 단언하기 위한 경계, useInvalidatingMutation은 공용 helper 행위 대신 도메인 훅의 invalidateKeys 계약을 단언하기 위한 경계, auth-client 전역 mock은 Better Auth user/token 경계. AC 후 lines: strategy 37.83%, optimizer 74.07%, waitlist 100%.",
+      "completed_at": "2026-08-22T04:09:07+0900"
     },
     {
       "step": 1,
       "name": "happy-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=30",
         "git diff --quiet -- apps/web/src/features/strategy/hooks.ts apps/web/src/features/optimizer/hooks.ts apps/web/src/features/waitlist/hooks.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T04:09:11+0900",
+      "summary": "정상 경로 15건: strategy의 상세 조회·생성·웹훅 회전·수정·삭제·수동 파싱과 optimizer 상세 조회를 추가해 export 전부의 성공 API 경계를 실행했다. `../api` mock에서 요청 변수·토큰·1회 호출·반환값을, `useInvalidatingMutation` mock에서 settings/delete·세 optimizer submit·waitlist approve의 invalidate/remove key 계약을 단언했다. 목록·preview query는 user-scoped cache key까지 확인했다. 다음 Step 2는 실패/disabled 경계만 다루면 된다.",
+      "completed_at": "2026-08-22T04:15:29+0900"
     },
     {
       "step": 2,
       "name": "error-and-edges",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=45",
         "git diff --quiet -- apps/web/src/features/strategy/hooks.ts apps/web/src/features/optimizer/hooks.ts apps/web/src/features/waitlist/hooks.ts"
-      ]
+      ],
+      "started_at": "2026-08-22T04:15:32+0900",
+      "summary": "경계 13건을 더해 28건: strategy는 실제 API 경계에서 ApiError status/code 보존·응답 schema 실패·0/음수 page의 HTTP 전 거부와 apiFetch undefined 쿼리 생략·204 void를, 훅에서 undefined detail disabled·list 오류·create 오류 callback을 검증했다. optimizer는 미인증 list/null detail disabled·0/-1 전달·ApiError를, waitlist는 0/-1 전달·public submit 오류 callback을 검증했다. `../api` mock은 유지하고 실제 HTTP 계약만 strategy에서 `vi.importActual`+fetch mock으로 쟀다; useInvalidatingMutation은 계속 mock 경계이므로 Step 3가 helper 실제 lifecycle을 다룬다.",
+      "completed_at": "2026-08-22T04:23:44+0900"
     },
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/optimizer/__tests__/hooks.core.test.tsx -a -f apps/web/src/features/waitlist/__tests__/hooks.core.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx --coverage --coverage.include='src/features/strategy/hooks.ts' --coverage.include='src/features/optimizer/hooks.ts' --coverage.include='src/features/waitlist/hooks.ts' --coverage.thresholds.perFile --coverage.thresholds.lines=50",
@@ -43,7 +52,12 @@
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check src/features/strategy/__tests__/hooks.core.test.tsx src/features/optimizer/__tests__/hooks.core.test.tsx src/features/waitlist/__tests__/hooks.core.test.tsx"
-      ]
+      ],
+      "started_at": "2026-08-22T04:23:48+0900",
+      "summary": "자기 변이 3건 모두 red·원복 확인: | 위치 | 변경 | red |\\n| --- | --- | --- |\\n| strategy/hooks.ts:233 | `trimmed.length > 0` → `< 0` | usePreviewParse의 trim 뒤 파싱 data가 undefined |\\n| optimizer/hooks.ts:75 | grid endpoint → Bayesian endpoint | grid mock 0회 호출 |\\n| waitlist/hooks.ts:71 | adminLists key → all key | approve invalidate key 불일치 |. 초록 변이는 없어 추가 케이스는 불필요했다. `tsc`가 lane fixture의 최신 schema 필수값(tags·settings)과 waitlist response 리터럴 4곳을 잡아 단언을 낮추지 않고 보정했다. 최종 표적 28/28, coverage lines 98.75%(237/240)·branches 89.39%·functions 90.19%, 대상 hooks 소스 diff 0; 전량 Vitest 257 files/1,954 tests, tsc, biome green.",
+      "completed_at": "2026-08-22T04:34:38+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-22T04:02:23+0900",
+  "completed_at": "2026-08-22T04:34:40+0900"
 }

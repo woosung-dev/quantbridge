@@ -52,13 +52,13 @@ function KpiCard({
   testId?: string;
 }) {
   return (
-    <article className="card kpi" role="listitem">
+    <li className="card kpi">
       <p className="kpi-label">{label}</p>
       <p className={toneClass(tone)} data-testid={testId}>
         {value}
       </p>
       {foot ? <p className="kpi-foot">{foot}</p> : null}
-    </article>
+    </li>
   );
 }
 
@@ -80,7 +80,7 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
   });
 
   return (
-    <div className="kpi-row" role="list" aria-label="성과 요약" data-testid="key-stats-strip">
+    <ul className="kpi-row m-0 list-none p-0" aria-label="성과 요약" data-testid="key-stats-strip">
       <KpiCard
         label="총 수익률"
         value={signedPct(totalReturn)}
@@ -128,6 +128,6 @@ export function KeyStatsStrip({ metrics: m, config }: KeyStatsStripProps) {
         }
       />
       <KpiCard label="샤프 지수" value={sharpe.display} testId="kpi-sharpe" foot={sharpe.foot} />
-    </div>
+    </ul>
   );
 }

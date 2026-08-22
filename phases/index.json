@@ -266,51 +266,63 @@
     },
     {
       "dir": "fe6-api-backtest",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T03:48:32+0900"
     },
     {
       "dir": "fe6-api-strategy-opt",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T03:54:51+0900"
     },
     {
       "dir": "fe6-api-trading-live",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:01:46+0900"
     },
     {
       "dir": "fe6-hooks-backtest",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:00:12+0900"
     },
     {
       "dir": "fe6-hooks-strategy-opt",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:34:40+0900"
     },
     {
       "dir": "fe6-hooks-live-trading",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:37:17+0900"
     },
     {
       "dir": "be6-tasks-runtime",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T05:04:27+0900"
     },
     {
       "dir": "be6-live-repos",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T04:54:52+0900"
     },
     {
       "dir": "fe6-debt-backtest",
-      "status": "pending"
+      "status": "completed",
+      "blocked_at": "2026-08-22T05:03:19+0900"
     },
     {
       "dir": "fe6-debt-strategy-opt",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T05:07:51+0900"
     },
     {
       "dir": "fe6-debt-trading-dash",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T05:22:25+0900"
     },
     {
       "dir": "fe6-debt-app-tooling",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-22T05:18:54+0900"
     }
   ]
 }

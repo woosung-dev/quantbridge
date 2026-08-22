@@ -47,7 +47,7 @@ export function ProgressStepper({ currentStep, steps }: ProgressStepperProps) {
           const completed = step.id < currentStep;
           const active = step.id === currentStep;
           const state: StepState = completed ? "completed" : active ? "active" : "pending";
-          const stepClass = "ob-step" + (completed ? " is-done" : active ? " is-current" : "");
+          const stepClass = `ob-step${completed ? " is-done" : active ? " is-current" : ""}`;
           return (
             <li
               key={step.id}

@@ -57,7 +57,12 @@ export function ExchangeAccountsPanel() {
 
       {isLoading || (!data && !isError) ? (
         <div className="card-body">
-          <div className="sk" style={{ height: 80 }} aria-label="거래소 계정 불러오는 중" />
+          <div
+            className="sk"
+            style={{ height: 80 }}
+            role="status"
+            aria-label="거래소 계정 불러오는 중"
+          />
         </div>
       ) : isError ? (
         <div className="card-body">

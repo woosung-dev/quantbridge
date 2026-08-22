@@ -112,7 +112,13 @@ export function WaitlistFormCard({ defaultEmail = "" }: { defaultEmail?: string 
           <StateBox
             tone="neutral"
             icon={
-              <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <polyline points="4 12.5 9.5 18 20 6.5" />
               </svg>
             }

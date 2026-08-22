@@ -40,6 +40,19 @@ import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 const PAGE_SIZE = 20;
+const SKELETON_ROW_KEYS = ["row-1", "row-2", "row-3", "row-4", "row-5", "row-6"] as const;
+const SKELETON_CELL_KEYS = [
+  "cell-1",
+  "cell-2",
+  "cell-3",
+  "cell-4",
+  "cell-5",
+  "cell-6",
+  "cell-7",
+  "cell-8",
+  "cell-9",
+  "cell-10",
+] as const;
 // 목록 조회 엔드포인트 — 에러 상태에 실제 경로를 노출한다 (프로토타입 state-code 관례).
 const LIST_ENDPOINT = "GET /api/v1/strategies";
 
@@ -138,7 +151,7 @@ export function StrategyList() {
   const handleExportCsv = () => {
     const csv = buildCsv(filtered);
     // Excel 한글 인코딩 보정용 UTF-8 BOM 접두.
-    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -297,7 +310,7 @@ export function StrategyList() {
               </p>
             </div>
             <div className="chart-head-actions">
-              <div className="tabs" role="group" aria-label="파싱 상태 필터">
+              <fieldset className="tabs m-0 min-w-0" aria-label="파싱 상태 필터">
                 {STATUS_FILTERS.map((f) => {
                   const active = f.id === activeStatus;
                   const isDisabled = hasMorePages && f.id !== "all";
@@ -305,7 +318,7 @@ export function StrategyList() {
                     <button
                       key={f.id}
                       type="button"
-                      className={"tab" + (active ? " active" : "")}
+                      className={`tab${active ? " active" : ""}`}
                       aria-pressed={active}
                       aria-disabled={isDisabled || undefined}
                       disabled={isDisabled}
@@ -324,7 +337,7 @@ export function StrategyList() {
                     </button>
                   );
                 })}
-              </div>
+              </fieldset>
             </div>
           </div>
 
@@ -585,10 +598,10 @@ function ListSkeleton() {
     <div className="table-wrap" data-testid="strategy-skeleton" aria-hidden="true">
       <table className="trades runs-table">
         <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: 10 }).map((__, j) => (
-                <td key={j}>
+          {SKELETON_ROW_KEYS.map((rowKey) => (
+            <tr key={rowKey}>
+              {SKELETON_CELL_KEYS.map((cellKey) => (
+                <td key={cellKey}>
                   <span className="sk sk-cell" />
                 </td>
               ))}

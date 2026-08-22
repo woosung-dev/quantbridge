@@ -70,8 +70,8 @@ export function WorkspaceEquityCard({
       ) : isLoading ? (
         <div className="card-body" data-testid="equity-loading">
           <div className="sk-bars" aria-hidden="true">
-            {SK_BAR_HEIGHTS.map((h, i) => (
-              <span key={i} className="sk" style={{ height: `${h}%` }} />
+            {SK_BAR_HEIGHTS.map((h) => (
+              <span key={`equity-skeleton-${h}`} className="sk" style={{ height: `${h}%` }} />
             ))}
           </div>
           <div className="sk sk-line" style={{ width: "58%" }} aria-hidden="true" />

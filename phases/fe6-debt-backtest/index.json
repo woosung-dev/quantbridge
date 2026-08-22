@@ -5,41 +5,54 @@
     {
       "step": 0,
       "name": "probe-and-safe-rules",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles src/features/backtest",
         "cd apps/web && pnpm exec vitest run src/features/backtest"
-      ]
+      ],
+      "started_at": "2026-08-22T04:44:55+0900",
+      "summary": "실사: Biome 2.5.9 lint는 --min-files를 지원하지 않았고, 옵션 없는 전수 진단은 CONTROL과 동일한 42건(오류 37·정보 5)이었다. 장식 SVG 2개(share-not-found-state·share-revoked-state)에 aria-hidden을 추가해 Step 0 규칙군을 0건으로 만들었으며, 나머지 위반은 다음 step의 판별력을 위해 보존했다.",
+      "completed_at": "2026-08-22T04:47:42+0900"
     },
     {
       "step": 1,
       "name": "template-and-complexity",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys src/features/backtest",
         "cd apps/web && pnpm exec vitest run src/features/backtest"
-      ]
+      ],
+      "started_at": "2026-08-22T04:47:43+0900",
+      "summary": "style/useTemplate 3건(backtest-list 탭 class·스트레스 지표 레이블 2건)과 complexity 2건(단일 자식 Fragment·manual/default 중복 case)을 의미 보존으로 제거했다. useOptionalChain·useLiteralKeys 위반은 없었다.",
+      "completed_at": "2026-08-22T04:51:18+0900"
     },
     {
       "step": 2,
       "name": "aria-and-semantics",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents src/features/backtest",
         "cd apps/web && pnpm exec vitest run src/features/backtest"
-      ]
+      ],
+      "started_at": "2026-08-22T04:51:20+0900",
+      "summary": "features/backtest의 시맨틱 14건·지원 불가 ARIA 4건·비대화형 tabIndex 2건을 fieldset·ul/li·section 등 네이티브 요소로 정리했다. 히트맵 셀은 비조작 요소라 tabIndex를 제거하고 9개 aria-label 검증을 보존했으며 useKeyWithClickEvents 위반은 없었다.",
+      "completed_at": "2026-08-22T04:57:08+0900"
     },
     {
       "step": 3,
       "name": "array-index-key",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec biome lint --only=a11y/noSvgWithoutTitle --only=a11y/useButtonType --only=a11y/noRedundantRoles --only=style/useTemplate --only=complexity/noUselessSwitchCase --only=complexity/noUselessFragments --only=complexity/useOptionalChain --only=complexity/useLiteralKeys --only=a11y/useSemanticElements --only=a11y/useAriaPropsSupportedByRole --only=a11y/noNoninteractiveTabindex --only=a11y/useKeyWithClickEvents --only=suspicious/noArrayIndexKey --only=suspicious/noConsole src/features/backtest",
         "cd apps/web && pnpm exec vitest run src/features/backtest",
         "cd apps/web && pnpm exec vitest run",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check ."
-      ]
+      ],
+      "started_at": "2026-08-22T04:57:09+0900",
+      "summary": "noArrayIndexKey 11건 + a11y/complexity 위반을 해소했다. step3 는 범위 밖 `app/share/backtests/__tests__/share-page.test.tsx:77` 이 `role=\"region\"` 을 **속성**으로 단언해 blocked 였고, CONTROL 이 그 단언을 계산된 role (`getByRole(\"region\", {name})`)로 바꿔 해소했다. AC 5종 전건 통과 — 전체 vitest 265파일 2,064테스트.",
+      "completed_at": "2026-08-22T05:35:00+09:00"
     }
-  ]
+  ],
+  "created_at": "2026-08-22T04:44:55+0900"
 }

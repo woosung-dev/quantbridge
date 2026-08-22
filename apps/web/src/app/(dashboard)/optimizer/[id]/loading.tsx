@@ -1,5 +1,7 @@
 // Optimizer run 상세 라우트 레벨 Suspense fallback — App Router 규약. C 셸(.page/.card/.kpi/.sk) 정합.
 
+const OPTIMIZER_KPI_KEYS = ["kpi-1", "kpi-2", "kpi-3", "kpi-4"];
+
 export default function OptimizerRunLoading() {
   return (
     <main className="page" aria-busy="true">
@@ -11,8 +13,8 @@ export default function OptimizerRunLoading() {
       </div>
       <div className="section">
         <div className="kpi-row">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="card kpi">
+          {OPTIMIZER_KPI_KEYS.map((key) => (
+            <div key={key} className="card kpi">
               <span className="sk sk-line" style={{ width: "60%" }} />
               <span className="sk sk-line" style={{ width: "80%", height: 24, marginTop: 10 }} />
             </div>

@@ -63,7 +63,7 @@ export function ParamRowsFieldset<TValues extends FieldValues>({
   const arrayLevelMessage = [
     arrayLevelHolder?.message,
     arrayLevelHolder?.root?.message,
-    (errors as Record<string, { message?: unknown } | undefined>)["parameters"]?.message,
+    (errors as Record<string, { message?: unknown } | undefined>).parameters?.message,
   ].find((m): m is string => typeof m === "string");
 
   return (

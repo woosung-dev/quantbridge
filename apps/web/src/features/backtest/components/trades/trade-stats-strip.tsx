@@ -33,9 +33,8 @@ export function TradeStatsStrip({ trades }: TradeStatsStripProps) {
   const stats = useMemo(() => aggregate(trades), [trades]);
 
   return (
-    <div
-      className="kpi-row"
-      role="list"
+    <ul
+      className="kpi-row m-0 list-none p-0"
       aria-label="거래 요약 통계"
       data-testid="trade-stats-strip"
     >
@@ -65,7 +64,7 @@ export function TradeStatsStrip({ trades }: TradeStatsStripProps) {
             : "데이터 없음"
         }
       />
-    </div>
+    </ul>
   );
 }
 
@@ -84,7 +83,7 @@ function StatKpi({ label, value, foot, tone = "neutral" }: StatKpiProps) {
         ? "kpi-value mono neg"
         : "kpi-value mono";
   return (
-    <article className="card kpi" role="listitem">
+    <li className="card kpi">
       <p className="kpi-label">{label}</p>
       <p className={valueClass} data-testid={`trade-stat-${label}`}>
         {value}
@@ -94,7 +93,7 @@ function StatKpi({ label, value, foot, tone = "neutral" }: StatKpiProps) {
           <span>{foot}</span>
         </p>
       ) : null}
-    </article>
+    </li>
   );
 }
 

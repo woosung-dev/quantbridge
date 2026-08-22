@@ -72,7 +72,7 @@ test.describe("공개 라우트 디자인 캐논 baseline (이식 seam #1, CI)",
         label: path,
         ignoreConsole,
       });
-      process.stdout.write(formatCanonResult(res) + "\n");
+      process.stdout.write(`${formatCanonResult(res)}\n`);
       expect(
         hardFailCount(res),
         `${path} 하드 실패:\n${formatCanonResult(res)}`,

@@ -119,7 +119,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
     test(`${path} — 하드 실패 ≤ allowlist`, async ({ browser }) => {
       test.setTimeout(180_000);
       const res = await auditUrl(browser, `${BASE_URL}${path}`, { label: path, ...auditOptions });
-      process.stdout.write(formatCanonResult(res) + "\n");
+      process.stdout.write(`${formatCanonResult(res)}\n`);
       assertAuthedReachability(res);
       expect(
         hardFailCount(res),
@@ -159,7 +159,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       label: editHref ?? "/strategies/:id/edit",
       ...auditOptions,
     });
-    process.stdout.write(formatCanonResult(res) + "\n");
+    process.stdout.write(`${formatCanonResult(res)}\n`);
     assertAuthedReachability(res);
     expect(
       hardFailCount(res),
@@ -193,7 +193,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
       label: `${optHref}`,
       ...auditOptions,
     });
-    process.stdout.write(formatCanonResult(res) + "\n");
+    process.stdout.write(`${formatCanonResult(res)}\n`);
     assertAuthedReachability(res);
     expect(
       hardFailCount(res),
@@ -239,7 +239,7 @@ test.describe("잔여 authed 라우트 디자인 캐논 (이식 seam #1 확장, 
         });
       },
     });
-    process.stdout.write(formatCanonResult(res) + "\n");
+    process.stdout.write(`${formatCanonResult(res)}\n`);
     assertAuthedReachability(res);
     expect(
       hardFailCount(res),

@@ -57,7 +57,7 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
               <button
                 key={t.id}
                 id={`diag-tab-${t.id}`}
-                className={"tab" + (tab === t.id ? " active" : "")}
+                className={`tab${tab === t.id ? " active" : ""}`}
                 role="tab"
                 type="button"
                 aria-selected={tab === t.id}
@@ -89,6 +89,10 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-parse"
         role="tabpanel"
+        // ★WAI-ARIA APG(Tabs) — 포커스 가능한 요소가 없는 tabpanel 은 tabindex=0 이어야 키보드로
+        //   도달·스크롤할 수 있다. 원본 규칙 jsx-a11y/no-noninteractive-tabindex 는 이 자리를
+        //   `roles:["tabpanel"]` 로 기본 면제하는데 Biome 포팅에는 그 옵션이 없어 잡는다(2026-08-22 실측).
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: 위 근거 — 규칙이 아니라 이 자리가 옳다.
         tabIndex={0}
         aria-labelledby="diag-tab-parse"
         hidden={tab !== "parse"}
@@ -167,6 +171,10 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-param"
         role="tabpanel"
+        // ★WAI-ARIA APG(Tabs) — 포커스 가능한 요소가 없는 tabpanel 은 tabindex=0 이어야 키보드로
+        //   도달·스크롤할 수 있다. 원본 규칙 jsx-a11y/no-noninteractive-tabindex 는 이 자리를
+        //   `roles:["tabpanel"]` 로 기본 면제하는데 Biome 포팅에는 그 옵션이 없어 잡는다(2026-08-22 실측).
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: 위 근거 — 규칙이 아니라 이 자리가 옳다.
         tabIndex={0}
         aria-labelledby="diag-tab-param"
         hidden={tab !== "param"}
@@ -183,6 +191,10 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         className="strip-body"
         id="diag-panel-indicator"
         role="tabpanel"
+        // ★WAI-ARIA APG(Tabs) — 포커스 가능한 요소가 없는 tabpanel 은 tabindex=0 이어야 키보드로
+        //   도달·스크롤할 수 있다. 원본 규칙 jsx-a11y/no-noninteractive-tabindex 는 이 자리를
+        //   `roles:["tabpanel"]` 로 기본 면제하는데 Biome 포팅에는 그 옵션이 없어 잡는다(2026-08-22 실측).
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: 위 근거 — 규칙이 아니라 이 자리가 옳다.
         tabIndex={0}
         aria-labelledby="diag-tab-indicator"
         hidden={tab !== "indicator"}
@@ -254,8 +266,8 @@ function ParseSkeleton() {
       <div className="strip-col">
         <p className="strip-col-title">지표 미리보기</p>
         <div className="sk-bars" aria-hidden="true">
-          {[44, 70, 33, 86, 52, 64, 38, 76].map((h, i) => (
-            <span key={i} className="sk" style={{ height: `${h}%` }} />
+          {[44, 70, 33, 86, 52, 64, 38, 76].map((h) => (
+            <span key={h} className="sk" style={{ height: `${h}%` }} />
           ))}
         </div>
         <div className="sk sk-line" style={{ width: "56%" }} aria-hidden="true" />

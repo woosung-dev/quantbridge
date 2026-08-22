@@ -19,7 +19,7 @@ export default async function SignInPage({
   const params = await searchParams;
   const raw = Array.isArray(params.redirect_url) ? params.redirect_url[0] : params.redirect_url;
   // ★열린 리다이렉트 차단 — 앱 내부 경로만 허용한다(`//host` 는 프로토콜 상대 URL 이다).
-  const redirectTo = raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/strategies";
+  const redirectTo = raw?.startsWith("/") && !raw.startsWith("//") ? raw : "/strategies";
 
   return (
     <SplitScreenShell mode="sign-in">

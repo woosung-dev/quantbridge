@@ -35,7 +35,7 @@ vi.mock("@/features/trading/hooks", () => ({
 }));
 vi.mock("@/components/charts/trading-chart", () => ({
   TradingChart: (props: { ariaLabel: string }) => (
-    <div data-testid="mock-trading-chart" aria-label={props.ariaLabel} />
+    <div data-testid="mock-trading-chart" role="img" aria-label={props.ariaLabel} />
   ),
 }));
 

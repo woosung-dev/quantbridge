@@ -315,7 +315,7 @@ export function DashboardCockpit() {
             </div>
           </div>
 
-          <div className="report-meta" aria-label="실행 원장 상태">
+          <div className="report-meta">
             {backtestsQ.isError ? <span className="chip warn">백테스트 확인 불가</span> : null}
             {optimizationsQ.isError ? <span className="chip warn">최적화 확인 불가</span> : null}
           </div>
@@ -465,7 +465,7 @@ export function DashboardCockpit() {
               </StateBox>
             </div>
           ) : (
-            <div aria-label={`전략 목록 ${strategyItems.length}종`}>
+            <div>
               {strategyItems.map((strategy) => (
                 <StrategyPerformanceRow key={strategy.id} strategy={strategy} />
               ))}
@@ -628,13 +628,15 @@ function RunsSkeleton({ columns = 6 }: { columns?: number }) {
     <div className="table-wrap" data-testid="runs-skeleton" aria-hidden="true">
       <table className="trades runs-table">
         <tbody>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <tr key={i}>
-              {Array.from({ length: columns }).map((__, j) => (
-                <td key={j}>
-                  <span className="sk sk-cell" />
-                </td>
-              ))}
+          {Array.from({ length: 6 }, (_, row) => `row-${row}`).map((rowKey) => (
+            <tr key={rowKey}>
+              {Array.from({ length: columns }, (_, column) => `${rowKey}-column-${column}`).map(
+                (cellKey) => (
+                  <td key={cellKey}>
+                    <span className="sk sk-cell" />
+                  </td>
+                ),
+              )}
             </tr>
           ))}
         </tbody>

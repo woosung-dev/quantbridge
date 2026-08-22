@@ -149,7 +149,7 @@ test.describe("공개 라우트 라이트 테마 캐논 ([BL-648])", () => {
       theme: "light",
       ignoreConsole,
     });
-    process.stdout.write(formatCanonResult(res) + "\n");
+    process.stdout.write(`${formatCanonResult(res)}\n`);
 
     expect(res.themeProbe, "themeProbe 가 비었다 — 감사가 테마를 강제하지 않았다").not.toBeNull();
     expect(res.themeProbe?.htmlClass.split(/\s+/)).toContain("light");
@@ -172,7 +172,7 @@ test.describe("공개 라우트 라이트 테마 캐논 ([BL-648])", () => {
         theme: "light",
         ignoreConsole,
       });
-      process.stdout.write(formatCanonResult(res) + "\n");
+      process.stdout.write(`${formatCanonResult(res)}\n`);
 
       // ── 도달 확인 (fail-open 차단) ────────────────────────────────────────
       // ★★**이 두 단언이 나머지 셋에 의미를 준다.** 없으면 404·500·빈 fallback 을 재도

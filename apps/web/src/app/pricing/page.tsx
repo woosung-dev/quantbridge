@@ -86,6 +86,7 @@ const CMP_ROWS: CmpRow[] = [
   { label: "팀 전략 공유", cells: [empty(NO_LOCAL), empty(NO_CLOUD), road] },
   { label: "결제 · 청구", cells: [empty(NO_PAY_LOCAL), empty(NO_PAY), empty(NO_PAY)] },
 ];
+const CMP_PLAN_KEYS = ["local", "cloud", "team"];
 
 const PRICE_UNSET_TITLE = "아직 정하지 않았습니다.";
 
@@ -120,6 +121,7 @@ export default function PricingPage() {
           <Link className="site-brand" href="/" aria-label="QuantBridge 홈으로">
             <span className="brand-mark" aria-hidden="true">
               <svg
+                aria-hidden="true"
                 width="16"
                 height="16"
                 viewBox="0 0 24 24"
@@ -182,7 +184,13 @@ export default function PricingPage() {
             <div className="card">
               <div className="notice-card">
                 <span className="state-icon" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <circle cx="12" cy="12" r="9" />
                     <line x1="12" y1="8" x2="12" y2="13" />
                     <line x1="12" y1="16.4" x2="12" y2="16.5" />
@@ -456,11 +464,11 @@ export default function PricingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {CMP_ROWS.map((row, i) => (
-                      <tr key={i}>
+                    {CMP_ROWS.map((row) => (
+                      <tr key={row.label}>
                         <td className="row-label">{row.label}</td>
-                        {row.cells.map((cell, j) => (
-                          <CmpCell key={j}>{cell}</CmpCell>
+                        {row.cells.map((cell, planIndex) => (
+                          <CmpCell key={`${row.label}-${CMP_PLAN_KEYS[planIndex]}`}>{cell}</CmpCell>
                         ))}
                       </tr>
                     ))}
@@ -549,6 +557,7 @@ export default function PricingPage() {
               <span className="site-brand">
                 <span className="brand-mark" aria-hidden="true">
                   <svg
+                    aria-hidden="true"
                     width="16"
                     height="16"
                     viewBox="0 0 24 24"

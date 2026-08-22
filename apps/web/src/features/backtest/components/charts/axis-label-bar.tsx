@@ -29,11 +29,10 @@ export function AxisLabelBar({ yAxisLabel, xAxisLabel, variant }: AxisLabelBarPr
     variant === "equity" ? "자본 곡선 차트 축 단위 안내" : "Drawdown 차트 축 단위 안내";
 
   return (
-    <div
-      role="group"
+    <fieldset
       aria-label={ariaLabel}
       data-testid={`axis-label-bar-${variant}`}
-      className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 px-1 text-[11px] text-muted-foreground"
+      className="m-0 mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 border-0 p-0 px-1 text-[11px] text-muted-foreground"
     >
       <span
         aria-hidden="true"
@@ -49,6 +48,6 @@ export function AxisLabelBar({ yAxisLabel, xAxisLabel, variant }: AxisLabelBarPr
       <span data-testid="x-axis-label">
         <span className="font-medium text-foreground/70">X축:</span> {xAxisLabel}
       </span>
-    </div>
+    </fieldset>
   );
 }
