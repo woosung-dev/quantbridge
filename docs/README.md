@@ -28,7 +28,7 @@
 | [`domain/`](./domain/)                   | 용어·엔티티·상태·제품 요구는 무엇인가              | 같음 — overview, ERD, entities, state machines, vision, requirements                        |
 | [`api/`](./api/)                         | API·외부 경계는 무엇인가                           | 같음 — endpoints. 계약 원본은 OpenAPI export([ADR-031](./adr/031-api-contract-axis-poc.md)) |
 | [`development/`](./development/)         | 어떻게 설치·검증·병렬 작업·반복 workflow 를 도는가 | 같음 — local setup, gates, CI, worktree, env, `workflows/`                                  |
-| [`operations/`](./operations/)           | 어떻게 배포·운영·진단하는가                        | 같음 — BE/FE deploy, mainnet runbook, live-close, auth setup, `security/`, soak 원장        |
+| [`operations/`](./operations/)           | 어떻게 배포·운영·진단하는가                        | 같음 — BE/FE deploy, waitlist 활성화, mainnet runbook, live-close, auth setup, `security/` |
 | [`design/`](./design/)                   | 화면·상호작용의 정본(프로토타입)은 무엇인가        | 프로토타입은 **테스트 픽스처**다 — `design-canon-*` 가 바이트 대조한다                      |
 | [`adr/`](./adr/README.md)                | 왜 이 선택을 했는가                                | 폐기해도 삭제하지 않고 `Superseded`로 남긴다. 색인 = `adr/README.md`                        |
 | [`lessons.md`](./lessons.md)             | 무엇이 반증됐는가 (LESSON 카드)                    | **400줄** 상한(관례 — 자동 집행은 ADR-037 로 철거). 넘으면 `archive/`로 내린다              |
