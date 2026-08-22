@@ -107,11 +107,14 @@
       },
 
       "suspicious": {
-        "noConsole": { "level": "warn", "options": { "allow": ["warn", "error"] } },
+        // ★2026-08-23 warn → error. `src` 실측 **0건**이라 지금이 무비용 시점이다.
+        //   e2e/scripts 의 15건(e2e 2 · scripts 13)은 **의도된 로그**라 아래 overrides 로 면제한다.
+        "noConsole": { "level": "error", "options": { "allow": ["warn", "error"] } },
 
-        // ★남은 유일한 off — 안정 key 도입이 지점마다 데이터 모델 판단을 요구한다.
-        //   fix 없음 · 옵션 없음. 되살릴 때는 「고칠 회차」와 함께 켜라. 괄호 안이 실측 건수.
-        "noArrayIndexKey": "off", // 59
+        // ★2026-08-23 활성화 — 「되살릴 때는 고칠 회차와 함께 켜라」는 이 주석의 지시를 따랐다.
+        //   밤샘 6차 부채 lane 4벌이 59건을 0으로 만들었다(고정 skeleton 은 명시 문자열 key,
+        //   가격표는 행 label + local/cloud/team key). fix 없음 · 옵션 없음.
+        "noArrayIndexKey": "error",
 
         // ★★**`checkForEach` 는 문서와 스키마가 서로 다르게 적는다 — 실측이 문서 쪽이다.**
         //   문서: "Default: true". `schemas/2.5.9/schema.json`: "When `false` **or unset**,
@@ -142,19 +145,32 @@
       //   7종 모두 옵션 0개 ⇒ 레버는 level·overrides·biome-ignore 뿐. 비용 오름차순으로 켜라.
       //   ⚠️`lint-staged` 가 `biome check --write` 를 걸므로 **위반을 남긴 채 켜면 그 파일을
       //   건드리는 커밋이 전부 막힌다** — 규칙 하나 = 그 PR 안에서 위반 0.
+      // ★2026-08-23 활성화 — 밤샘 6차 부채 lane 4벌이 67건을 0으로 만들었다(PR #782~#786).
+      //   착수 전 실측: 7규칙 전건 0건 · 검사 645파일 · 양성 대조(위반 주입) rc=1 로 판별력 확인.
+      //   ★`noNoninteractiveTabindex` 는 원본 `jsx-a11y` 의 `roles:["tabpanel"]` 기본 면제를
+      //     Biome 이 안 가져왔다 — WAI-ARIA APG 와 충돌하는 자리는 `biome-ignore` 로 근거를
+      //     남겨 뒀다(`diagnostics-strip.tsx`, PR #785). 규칙이 아니라 그 자리가 옳다.
       "a11y": {
-        "useSemanticElements": "off", // 24
-        "noSvgWithoutTitle": "off", // 19
-        "useAriaPropsSupportedByRole": "off", // 14
-        "noNoninteractiveTabindex": "off", // 6
-        "useButtonType": "off", // 2
-        "useKeyWithClickEvents": "off", // 1
-        "noRedundantRoles": "off" // 1
+        "useSemanticElements": "error",
+        "noSvgWithoutTitle": "error",
+        "useAriaPropsSupportedByRole": "error",
+        "noNoninteractiveTabindex": "error",
+        "useButtonType": "error",
+        "useKeyWithClickEvents": "error",
+        "noRedundantRoles": "error"
       }
     }
   },
 
   "overrides": [
+    {
+      // ★e2e·scripts 의 `console.log` 는 의도다 — 러너가 사람에게 보고하는 유일한 경로이고
+      //   그 자리에 로거를 세울 이유가 없다(2026-08-23 실측 e2e 2 · scripts 13).
+      //   ★별도 블록인 이유: 아래 블록은 `src/app/**` 과 테스트까지 포함하는데, 거기까지
+      //     `noConsole` 을 끄면 제품 코드의 로그가 조용히 새어 들어온다.
+      "includes": ["e2e/**", "scripts/**"],
+      "linter": { "rules": { "suspicious": { "noConsole": "off" } } }
+    },
     {
       // ADR-035 는 **하위 층에만** 건다. 라우트끼리의 참조는 대상이 아니다.
       // 검사기 테스트·e2e 는 소스를 문자열로 훑는 도구라 `while ((m = re.exec(s)))` 관용구와
