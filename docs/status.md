@@ -539,32 +539,17 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 → **2026-08-22 ✅ 앞은 했고 뒤는 대상이 없었다.** 설정은 넣었다(전량 스위트 TOTAL **90% → 91.51%**).
 ★★**「래칫 기준선 재산정」은 대상이 실재하지 않는다** — [ADR-037] 이 CI 의 coverage 래칫을 철거했고(`ci.yml` 머리말 「지운 것」에 명시) 지금 `ci.yml` 에 `--cov` 는 **0건**, [BL-308]/[BL-309] 도 원장 3파일에 섹션이 없다(2026-06-29 Resolved). **원장 처방의 대상이 실재하지 않은 N번째** — [LESSON-111] 계열.
 
-### 밤샘 루프 6차 — [BL-820] 저작 + 실행 (2026-08-22)
+### 밤샘 루프 6차 tombstone — [BL-820] 저작·실행·수리 (2026-08-22~23)
 
-**12 lane × step 4 · 동시 4 · base `stage/night6`.** 5차 회고를 구조로 반영(step0 재료 자가검증 → step1 정상
-→ step2 에러·경계 → step3 자기 변이). **착수 전 AC red 12/12.** ★★★**「FE 축은 바닥」은 AST 축의 결론이었다** —
-커버리지로 재니 `api.ts`·`hooks.ts` 각 6종이 통째로 비었다(FE 85.04% · BE 91.51% · 린트 부채 180건).
-★★★**저작 중 사용자가 잡은 것 — 판정기 3종을 「표준 러너가 rc 로 안 준다」는 추측 위에 지었고 셋 다 거짓**이었다
-([ADR-037] 재입힘 규칙 위반) ⇒ 전부 삭제 + `night_run.py` 흡수로 **하네스 파일 4 → 1**.
-저작·실행 실측 전문 = [`phases/README.md`](../phases/README.md) 6차 절.
+> **강등 (2026-08-23 · 700줄 상한).** 2블록 26줄 → 이 6줄. 원문 = `git show d978f4d7:docs/status.md`(542~567행).
+> 실측 전문 = [`phases/README.md`](../phases/README.md) 6차 절 · 반증 = **[LESSON-127]**.
 
-~~**다음 행동 = 밤샘 루프 6차를 실행한다.**~~ → **2026-08-22 ✅ 완주** — lane **11 완주 + 1 blocked(해소)** · PR **#774~#786** 전부 stage 머지 · 통합 PR **#787**. 산출 = FE 테스트 **+14파일 it 198·expect 552** · BE 2 lane · 부채 3 lane(실제 `biome-ignore` **0건**).
-
-### 밤샘 루프 6차 실행 — 하네스 결함 5건이 첫 주행을 통째로 삼킬 뻔했다 (2026-08-22)
-
-★★★**첫 주행은 「완주」를 선언하고 커밋이 0건이었다** — 사슬 6단(gitignore 된 루트 lockfile 낡음 → 워크트리 루트 `node_modules` 부재 → `pre-commit` 의 `lint-staged` rc=254 → **커밋 전건 차단** → 빈 브랜치 push → `gh pr create` 실패 → **로그 침묵**).
-★★★**반증 — 「워크트리는 git 훅이 안 돈다」가 거짓이다**(`core.hooksPath` 가 메인 절대경로 ⇒ 발화하고, 실패한 훅은 **커밋을 막는다**). 전문 = **[LESSON-127]**.
-
-수리 5건 — **#773**(main): 「완주」 정의에 **커밋 존재** 추가 · PR 실패 `_log` · stage push 조건화(**올릴 ref 가
-없는 push 는 pre-push 에 stdin 을 안 줘 `main` 으로 폴백 거부 ⇒ 모든 재시작이 막혔다**) · 부트스트랩 루트 설치
-실패를 **중단**으로. **#787**: `--delete-branch` 가 워크트리 체크아웃 탓에 반드시 rc≠0 ⇒ **10건 오기록** → 제거 + 판정 정본을 **PR 상태**로.
-
-★★**사람 diff 대조가 회귀 1건을 잡았다** — 부채 lane 이 규칙대로 tabpanel 3곳의 `tabIndex={0}` 을 지웠는데 **규칙이 틀렸다**(Biome 이 `jsx-a11y` 의 `roles:["tabpanel"]` 면제를 안 가져왔다 · 패널 2/3 은 포커스 가능 요소가 **아예 없어** 키보드 도달 불가) ⇒ 근거 주석 + `biome-ignore` 로 복원(#785).
-★`fe6-debt-backtest` 의 `blocked` 는 **옳은 정지**였다 — 담당 밖 단언이 `role` 을 **속성**으로 봤다. 계산된 role(`getByRole`)로 바꿔 해소(#786) · step3 AC 5종 재통과(전체 vitest **265파일 2,064테스트**).
-
-~~**다음 행동 = 통합 PR #787 을 머지한다.**~~ → **2026-08-23 ✅ 머지**(`dfbdfad3`). 후속 CONTROL 2건도 같은 날 처리 —
-**a11y 7종 + `noArrayIndexKey` 활성화**(착수 전 7/7 전건 0건 · 양성 대조 rc=1 로 판별력 확인) + `noConsole` **warn→error**
-(src 0건) & `e2e/**`·`scripts/**` **overrides 면제**(15건은 의도된 로그).
+**남는 것:** 12 lane × step 4 · **11 완주 + 1 blocked(해소)** · PR #774~#786 + 통합 **#787**(`dfbdfad3` 머지).
+★★★**첫 주행은 「완주」를 선언하고 커밋이 0건이었다** — 사슬 6단의 뿌리는 **워크트리에서도 git 훅이 돈다**는 것이고
+(`core.hooksPath` 가 메인 절대경로) 실패한 훅은 **커밋을 막는다**. 수리 5건 = #773·#787.
+★★**「FE 축은 바닥」은 AST 축의 결론이었다** — 커버리지로 재니 `api.ts`·`hooks.ts` 각 6종이 통째로 비어 있었다.
+★★**사람 diff 대조가 회귀 1건을 잡았다**(tabpanel `tabIndex={0}` — Biome 이 `jsx-a11y` 면제를 안 가져왔다 → #785 복원).
+후속 CONTROL = **a11y 7종 + `noArrayIndexKey` 활성화**(양성 대조 rc=1) · `noConsole` warn→error + `e2e/**`·`scripts/**` 면제.
 
 ### 다음 스프린트 — `beta-unlock` (2026-08-23 결정)
 
@@ -576,15 +561,28 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 `RESEND_API_KEY` 언급이 레포 전체에 `.env.example` **한 줄뿐**이고 `docs/operations/` 에 waitlist 항목이 **0건**이다.
 코드·테스트는 완비인데 **「키를 어디 넣고 무엇으로 됐다고 판정하나」가 없다.**
 
-★★**Beta 는 「본인 의지」만의 문제가 아니다**([BL-005] 섹션 신설하며 드러남 — 6밤 연속 그 게이트로 우회했는데 섹션이 없었다).
-트리거 첫 절 `BL-001~004 완료` 가 **미충족** — 「Resolved P0 = BL-001/002/**004**」이고 **[BL-003] 은 `**상태:**` 줄조차 없다.**
-사슬 = **[BL-641] → [BL-003] → [BL-005] → [BL-070~072]**.
+★★**Beta 는 「본인 의지」만의 문제가 아니다**([BL-005] 섹션 신설하며 드러남). 트리거 첫 절 `BL-001~004 완료` 가 **미충족**.
+~~**[BL-003] 은 `**상태:**` 줄조차 없다**(동승 후보).~~ → **2026-08-23 반증** — `backlog.md:254` 의 `**Status:**` 줄을
+`ledger-vitals.sh:82,100` 이 **동등하게 읽어 PARTIAL** 로 판정한다(실행 확인). `backlog.md:107` 이 두 표기를 SSOT 로
+**명시**하고 `test_ledger_vitals.py:196` 이 영문판을 테스트한다 ⇒ **손댈 것이 없다**([LESSON-111] 계열, N+1번째).
+사슬 **[BL-641] → [BL-003] → [BL-005]** 를 막는 것은 표기가 아니라 **소크 시간**이다.
 
-**다음 행동 = `docs/operations/waitlist-activation.md` 런북을 세우고 로컬 종단 리허설 1회를 통과시킨다.**
-환경 변수 4종(`RESEND_API_KEY`·`RESEND_FROM_ADDRESS`·`WAITLIST_TOKEN_SECRET`·`WAITLIST_ADMIN_EMAILS`)의 발급·주입·
-**판정 기준**과 실패 시 되돌리는 절차를 적는다. Resend HTTP 만 스텁하고 나머지는 실경로로 돌린다.
+~~**다음 행동 = `waitlist-activation.md` 런북 + 로컬 종단 리허설 1회.**~~ → **2026-08-23 ✅ 완주.**
+런북 369줄 + `tests/waitlist/test_activation_rehearsal.py` 3건(46 → **49 passed**) · 변이 **3/3 red**(앵커 확인 후 주입 · sha256 복원).
+
+★★★**최대 산출은 런북이 아니라 §4.0 이다 — Cloudflare Access 가 `qb.woosung.dev` 전 경로를 덮는다**
+(2026-08-23 실측 `/`·`/waitlist`·`/invite/<token>`·`/sign-up` **넷 전부 302 → Access 로그인**). ⇒ **초대 메일 링크는
+받는 사람이 Access 정책에 들어가기 전까지 안 열리고 `/waitlist` 신청 폼조차 외부인에게 안 닿는다.** env 로는 못 여는
+관문이고 [BL-776] **권장 접근 ⑷** 가 이미 이 운영 형태를 적어 뒀다.
+★★**부팅 성공은 활성화의 증거가 아니다** — validator 는 `WAITLIST_TOKEN_SECRET` 만 보고 `RESEND_API_KEY`·`WAITLIST_ADMIN_EMAILS`
+는 **안 본다**. 역으로 `/health` = `{"env":"production"}` 실측에서 **앞 둘은 이미 서버에 있다**가 따라 나온다 ⇒ 미지수는 **셋**.
+★waitlist env 는 **4종이 아니라 5종** — `WAITLIST_INVITE_BASE_URL` 은 `[기본값 OK]` 로 적혀 있지만 prod 에서 localhost 면 부팅 거부다.
+
+**다음 행동 = 사용자가 서버 `~/quantbridge/apps/api/.env.local` 에 키 3종을 넣는다** — `RESEND_API_KEY` ·
+`RESEND_FROM_ADDRESS`(인증된 도메인) · `WAITLIST_ADMIN_EMAILS`. 절차·판정·롤백 = [`operations/waitlist-activation.md`](./operations/waitlist-activation.md) §2·§4·§7.
+반영은 `systemctl --user restart quantbridge-api.service` 하나다(waitlist 는 celery 를 안 써 **소크 창을 안 끊는다**).
+세션이 대신 못 하는 이유 = Resend 키 발급과 Access 정책 편집이 둘 다 사용자 소유 콘솔이다.
 ★**금지** — `lib/auth.ts` 의 `databaseHooks`·`requireEmailVerification`·`proxy.ts` 공개 라우트를 수정하거나 Cloudflare Access 를 제거하지 마라(제거하면 [BL-776] 이 즉시 발현한다).
-★동승 후보 = **[BL-003] 에 `**상태:**` 줄 세우기**(산출물 축은 2026-08-09 에 닫혔고 잔여가 원장에 없다).
 
 ## 📌 소크 운영 상비 참조 (창이 도는 동안 계속 유효)
 
