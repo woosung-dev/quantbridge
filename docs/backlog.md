@@ -168,9 +168,22 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **P0 / P1 active short list (Beta 본격 진입 prep):**
 
 - **🚀 Beta 진입 milestone (BL-070~072) — active P0** (`_deferred.md` 에서 승격):
-  - **BL-070** 도메인 + DNS + Cloudflare (사용자 manual 1-2h + DNS 전파 24h)
-  - **BL-071** Backend 프로덕션 배포 (Cloud Run/Railway/Render + Postgres prod + Redis prod + Clerk production + 보안 헤더 gunicorn) — 2-4h. **BL-347 server strip 동시 처리** (gunicorn `--server_header False`).
-  - **BL-072** Resend 이메일 + Waitlist 활성화 — 1-2h + 24h verify
+  - ~~**BL-070** 도메인 + DNS + Cloudflare~~ → **2026-08-23 정정: 도메인·DNS 는 이미 있다**
+    (2026-08-16 실측 — `qb.woosung.dev` 302 · `qb-api.woosung.dev/health` 200). 남은 것은
+    **Cloudflare Access 제거 여부**이고 그것은 **「유지」가 사용자 결정**이다(`status.md` §320).
+    걷으면 [BL-776](개방 가입)이 즉시 발현한다.
+  - ~~**BL-071** Backend 프로덕션 배포 (Cloud Run/Railway/Render + … + Clerk production + 보안 헤더 gunicorn)~~
+    → **2026-08-23 정정: 서술 3절 중 2절이 죽었다.** ⑴ **Clerk 은 없다** — [ADR-034](../adr/034-auth-self-host-better-auth.md)
+    가 2026-08-17 에 self-host Better Auth 로 교체했고 코드의 `clerk` 언급 8건은 전부 **묘비 주석**이다.
+    ⑵ **gunicorn 은 대상이 없다** — 레포에 0건이고 `apps/api/tests/test_uvicorn_server_header.py:84`
+    `test_repo_has_no_gunicorn()` 이 그것을 단언한다([BL-347] 처방의 대상 부재). ⑶ 호스팅은
+    [ADR-033](../adr/033-production-readiness-g1.md) 이 **self-host CE** 로 확정했고 **서버는 이미 돌고 있다**(소크 상시 가동).
+  - **BL-072** Resend 이메일 + Waitlist 활성화 — **코드·테스트는 완비**(`apps/api/src/waitlist/` 11파일 ·
+    BE 테스트 8파일 · FE `/invite/[token]` 페이지+테스트). 남은 것은 **환경 변수 4종과 그 절차**다:
+    `RESEND_API_KEY` · `RESEND_FROM_ADDRESS`(도메인 verify 24h) · `WAITLIST_TOKEN_SECRET` ·
+    `WAITLIST_ADMIN_EMAILS`. ★**2026-08-23 실측 — 그 절차를 적은 문서가 레포에 0건이다**
+    (`docs/operations/` 에 waitlist 항목 없음 · `RESEND_API_KEY` 언급은 `.env.example` 한 줄뿐).
+    ⇒ 다음 회차의 실질 = **활성화 런북 신설**.
   - BL-073/074/075 = 위 완료 후 자연 trigger (Twitter/X 캠페인 + Beta 인터뷰 + H2 진입 gate)
 - **Sprint 62 Resolved (6 BL)** ✅:
   - BL-350+354 ★★★ Optimizer Zod resilience / BL-353 step 01 라벨 / BL-356/357/358/359 모바일 터치 ≥44pt 묶음
@@ -413,7 +426,7 @@ mainnet `0.001 × 64,957 / 3,276 = **2.0%**`. 산수 실수가 있었다면 여�
 
 | ID                | 제목                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Trigger                                                                                                         | Est             | 출처                                                         |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------ |
-| [BL-820](#bl-820) | 🟢 **밤샘 루프 6차 — FE·BE 커버리지 + 린트 부채 180건 (12 lane × step 4 · 동시 4).** 저작 완료·실행 대기. ★**「FE 축은 바닥」은 AST 축의 결론이었다** — 커버리지로 재니 `apps/web` **85.04%** · 미커버 **4,597줄/344파일** 이고 `api.ts`·`hooks.ts` 12파일이 통째로 비었다. a11y **67건** + 린트 부채 113건 동승. 착수 전 AC red **12/12**. 동승 종결 = coverage `concurrency`(TOTAL 90%→**91.51%**) | 도래 — 2026-08-22 커버리지·린트 실측 | L (12 lane 병렬) | 2026-08-22 night-loop-6 |
+| [BL-820](#bl-820) | ✅ **밤샘 루프 6차 — FE·BE 커버리지 + 린트 부채 180건, 12 lane × step 4 — Resolved (2026-08-23 실행 완주)**. lane **11 completed + 1 blocked(해소)** · PR #774~#786 전부 stage 머지 · 통합 **#787**. CPU-분 314 → 벽시계 **111분**(2.83×) · 재시도 **0**. 산출 = FE 테스트 14파일(it 198·expect 552, 소스 0줄 변경) · BE 4파일(케이스 54) · 부채 4 lane 이 FE 소스 83파일 수정(`biome-ignore` **0건**). ★★★**첫 주행은 「완주」를 선언하고 커밋이 0건이었다** — 루트 lockfile 낡음이 워크트리 `pre-commit` 을 rc=254 로 죽여 커밋을 전건 막았고 그 실패가 **로그에 안 찍혔다**. ★★★**반증 — 워크트리에서도 git 훅은 돈다**(`core.hooksPath` 절대경로) → [LESSON-127]. 하네스 수리 **5건**(#773·#787). 본문은 `backlog-resolved.md` 소관 | 도래 — 2026-08-22 커버리지·린트 실측 | L (12 lane 병렬) | 2026-08-22 night-loop-6 |
 | [BL-732](#bl-732) | ⏳ **대기 — 표본이 반증됐다.** 등재 근거였던 로컬 소크 6h33m 사망은 **맥 sleep** 이 원인이다(`pmset` 로그와 초 단위 일치 · beat 가 168회 중 **15회**만 tick 했고 그 15회가 DarkWake 횟수). `gap_resync_position_mismatch` 는 그 공백의 하류 증상이라 코드 축 판별에 못 쓴다. C1 을 실제로 끊은 사건은 [BL-734] 로 확정·수리됐다                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | ~~도래~~ → **미도래** (깨끗한 창에서 재발 시)                                                                   | M (3-4h)        | 2026-08-14 money-path-close → 08-15 재기술                   |
 | [BL-747](#bl-747) | ✅ **감시 타이머 위상 고정 — Resolved (2026-08-15 soak-watch-restore 후속)**. `OnUnitActiveSec` 은 **마지막 활성화 기준**이라 사람이 손으로 한 번 돌리면 위상이 밀린다 — 최악 `29+30=59`분이고 C4 한계가 60분인데 systemd 기본 `AccuracySec` 이 1분이라 여유가 사실상 0. 실측 **53분**. ★**이 회차의 검증 자신이 만든 위험**이었다. `OnCalendar=*:00/30`+`AccuracySec=30s` 로 벽시계 고정 — 강제 발화 전후 `NEXT` 불변 실증                                                                                                                                                                                                                                                                                                                                                                               | 도래 — 53분 간격 실측                                                                                           | XS (20분)       | 2026-08-15 soak-watch-restore                                |
 | [BL-720](#bl-720) | ✅ **Resolved (2026-08-14 gate-pointer-axis)** — 축 **2종** 신설(LESSON ID 유일성·오름차순 = 헤딩 ∪ 승격 표 · 승격 표 백틱 포인터 실재). 하네스 7→**12 케이스**. ★**처방 ②(`legacy_paths` 확장)는 착수 전 반증돼 폐기** — 살아 있는 문서에 `backend/`·`frontend/` 리터럴이 **147줄**이고 [ADR-029] 매핑 표 자신을 포함해 대부분이 고칠 수 없는 정당한 인용이다(부분문자열 매치라 예외 불가). 죽은 포인터는 새 축이 이유 불문 잡으므로 흡수했다. ★**새 축의 첫 판이 실제 트리에서 오탐 3건**(자리표시자·코드 표현식·슬래시 커맨드) — 스텁만 봤으면 못 봤다                                                                                                                                                                                                                                                 | 도래 — 결손 3종이 실측 확정                                                                                     | S               | 2026-08-14 gate-surface-close                                |
@@ -1983,41 +1996,6 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
-
-### BL-820
-
-**Title:** 밤샘 루프 6차 — FE·BE 커버리지 + 린트 부채 180건, 12 lane × step 4 병렬
-**Category:** 테스트 / 코드 품질
-**Priority:** P2
-**상태:** 🟢 **ACTIVE — 저작 완료, 실행 대기 (2026-08-22)**. `phases/` 12 lane · 착수 전 AC red **12/12**
-**Trigger:** 도래 — 2026-08-22 커버리지·린트 실측
-**Est:** L (12 lane 병렬 · 동시 4 · 예상 4~5시간)
-**출처:** 2026-08-22 night-loop-6 저작 세션
-
-**왜 지금:** 4·5차가 「FE 축은 바닥에 닿았다」로 닫혔는데 **그 판정은 AST(전이 폐포) 축의 것**이었다.
-2026-08-22 에 커버리지로 다시 재니 `apps/web` **85.04%** · 미커버 **4,597줄 / 344파일**이고,
-`features/*/api.ts` 6종(553줄)·`*/hooks.ts` 6종(623줄)이 **통째로 비어 있다**. 5차가 남긴
-「재료는 AST 가 아니라 커버리지가 정한다」를 FE 에 처음 적용한 회차다.
-
-**범위 (4축 · 12 lane):**
-
-| 축 | lane | 재료 |
-| --- | --- | --- |
-| FE 커버리지 | `fe6-api-*` 3 · `fe6-hooks-*` 3 | 미커버 4,597줄 중 상위 밀집 1,246줄 |
-| BE 커버리지 | `be6-tasks-runtime` · `be6-live-repos` | 미커버 1,385줄 중 186줄(커버율 최저 축) |
-| a11y 7종 | `fe6-debt-*` 4 에 분산 | **67건** (`biome.jsonc` 가 「다음 회차」라 적어 둔 그것) |
-| 린트 부채 | 같은 4 lane | `noArrayIndexKey` 59 · `useTemplate` 35 · `noConsole` 15 · complexity 4 |
-
-**구조:** step0 재료 자가검증 → step1 정상 경로 → step2 에러·경계 → step3 자기 변이.
-5차 회고(「step 1개짜리 lane 8벌은 러너를 안 쓴 것」)를 처음 반영했다.
-실행 = `python3 tools/harness/execute.py --parallel 4 --stage stage/night6 --confirm` (기본 dry-run).
-**무인 구간은 lane PR 의 stage 머지까지이고 사람이 판단하는 자리는 stage→main PR 하나다.**
-
-**동승 종결:** `[tool.coverage.run]` 의 `concurrency = greenlet,thread` (전량 TOTAL 90% → **91.51%**).
-★함께 지시돼 있던 「[BL-308]/[BL-309] 래칫 기준선 재산정」은 **대상이 실재하지 않는다** —
-[ADR-037] 이 CI coverage 래칫을 철거했고 지금 `ci.yml` 에 `--cov` 는 0건, 두 BL 도 원장에 섹션이 없다.
-
-**절차·반증 전문:** [`phases/README.md`](../phases/README.md) 6차 절 · lane 공통 규약 = `phases/fe6-common.md`
 
 ### BL-811
 
