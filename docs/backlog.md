@@ -56,7 +56,7 @@
 > ★★★**2026-08-18 수명 분리 완료 ([BL-779]).** 원장은 이제 **파일 셋**이고 **축은 판정어**다 —
 > 본 파일 = **ACTIVE ∪ PARTIAL** + **인덱스 표 전량** ·
 > [`backlog-deferred.md`](./backlog-deferred.md) = **DEFERRED** ·
-> [`backlog-resolved.md`](./backlog-resolved.md) = **RESOLVED**.
+> [`backlog-resolved.md`](backlog.md) = **RESOLVED**.
 > ★**규칙을 산문으로 두지 않았다** — `bl-audit.sh` 의 「파일 배치」 축이 rc=1 로 집행한다.
 > 2026-08-16 의 1차 분할이 산문이라 그 뒤 닫힌 **13건이 전부 이 파일에 다시 쌓여 있었다**.
 > ★**표 행의 `#bl-nnn` 앵커는 다른 파일을 안 가리킨다**(접두사 시도 → +18자/행이 줄 길이
@@ -195,11 +195,11 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
     **Cloudflare Access 제거 여부**이고 그것은 **「유지」가 사용자 결정**이다(`status.md` §320).
     걷으면 [BL-776](개방 가입)이 즉시 발현한다.
   - ~~**BL-071** Backend 프로덕션 배포 (Cloud Run/Railway/Render + … + Clerk production + 보안 헤더 gunicorn)~~
-    → **2026-08-23 정정: 서술 3절 중 2절이 죽었다.** ⑴ **Clerk 은 없다** — [ADR-034](../adr/034-auth-self-host-better-auth.md)
+    → **2026-08-23 정정: 서술 3절 중 2절이 죽었다.** ⑴ **Clerk 은 없다** — [ADR-034](./adr/034-auth-self-host-better-auth.md)
     가 2026-08-17 에 self-host Better Auth 로 교체했고 코드의 `clerk` 언급 8건은 전부 **묘비 주석**이다.
     ⑵ **gunicorn 은 대상이 없다** — 레포에 0건이고 `apps/api/tests/test_uvicorn_server_header.py:84`
     `test_repo_has_no_gunicorn()` 이 그것을 단언한다([BL-347] 처방의 대상 부재). ⑶ 호스팅은
-    [ADR-033](../adr/033-production-readiness-g1.md) 이 **self-host CE** 로 확정했고 **서버는 이미 돌고 있다**(소크 상시 가동).
+    [ADR-033](./adr/033-db-hosting-self-host-timescaledb.md) 이 **self-host CE** 로 확정했고 **서버는 이미 돌고 있다**(소크 상시 가동).
   - **BL-072** Resend 이메일 + Waitlist 활성화 — **코드·테스트는 완비**(`apps/api/src/waitlist/` 11파일 ·
     BE 테스트 8파일 · FE `/invite/[token]` 페이지+테스트). 남은 것은 **환경 변수 4종과 그 절차**다:
     `RESEND_API_KEY` · `RESEND_FROM_ADDRESS`(도메인 verify 24h) · `WAITLIST_TOKEN_SECRET` ·

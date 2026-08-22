@@ -10,10 +10,10 @@
 | 질문                          | 정본                                                                 | 역할                                                                                                     |
 | ----------------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | 지금 무엇을 하는가            | [`status.md`](./status.md)                                           | 활성 또는 다음 스프린트의 실행 계약 — 「다음 스프린트」 블록이 **유일한 진입점**                         |
-| 다음에는 무엇을 하는가        | [`roadmap.md`](./roadmap.md)                                         | 다음 1~2개 스프린트 후보와 먼 제품 방향                                                                  |
+| 제품이 무엇이고 무엇을 안 하나 | [`PRD.md`](PRD.md)                                             | 제품 정의·범위·비범위·성공 지표·현재 위치 (구 vision+roadmap+requirements 통합)                          |
 | 아직 풀지 못한 일은 무엇인가  | [`backlog.md`](./backlog.md)                                         | 열린 `BL-`의 상태·영향·재개 조건·검증 링크 (ACTIVE ∪ PARTIAL + 인덱스 표 전량)                           |
 | 트리거 대기 `BL-`의 본문은    | [`backlog-deferred.md`](./backlog-deferred.md)                       | DEFERRED 본문 (2026-08-18 3분할 — 인덱스 표 행은 `backlog.md` 에 남는다)                                 |
-| 닫힌 `BL-`의 본문은 어디 있나 | [`backlog-resolved.md`](./backlog-resolved.md)                       | RESOLVED 본문. 인덱스 표 행은 `backlog.md` 에 남는다 — 원장 사활 검사 = `tools/scripts/ledger-vitals.sh` |
+| 닫힌 `BL-`의 본문은 어디 있나 | **git** — `git show 21e40d5c:docs/backlog-resolved.md`      | ★2026-08-23 부터 RESOLVED 는 **삭제**한다(파일 없음). 원장 사활 검사 = `tools/scripts/ledger-vitals.sh` |
 | 무엇을 실행해 검증하는가      | [`development/gates-and-traps.md`](./development/gates-and-traps.md) | 게이트 명령과 조용히 통과하는 함정                                                                       |
 | FE 를 어떻게 배포하는가       | [`operations/frontend-deploy.md`](./operations/frontend-deploy.md)   | 오라클 A1 배포 절차·구조 근거·실측 함정                                                                  |
 
@@ -25,7 +25,7 @@
 | 위치                                     | 읽는 사람의 질문                                   | 갱신 원칙                                                                                   |
 | ---------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | [`architecture/`](./architecture/)       | 시스템·실행·데이터 흐름은 어떻게 조립되는가        | 코드와 어긋나면 코드에 맞춰 고친다 — system, data flow, Pine/Trust Layer                    |
-| [`domain/`](./domain/)                   | 용어·엔티티·상태·제품 요구는 무엇인가              | 같음 — overview, ERD, entities, state machines, vision, requirements                        |
+| [`domain/`](./domain/)                   | 용어·엔티티·상태는 무엇인가                        | 같음 — overview, ERD, entities, state machines (★제품 요구는 `PRD.md`)                       |
 | [`api/`](./api/)                         | API·외부 경계는 무엇인가                           | 같음 — endpoints. 계약 원본은 OpenAPI export([ADR-031](./adr/031-api-contract-axis-poc.md)) |
 | [`development/`](./development/)         | 어떻게 설치·검증·병렬 작업·반복 workflow 를 도는가 | 같음 — local setup, gates, CI, worktree, env, `workflows/`                                  |
 | [`operations/`](./operations/)           | 어떻게 배포·운영·진단하는가                        | 같음 — BE/FE deploy, waitlist 활성화, mainnet runbook, live-close, auth setup, `security/` |
@@ -69,7 +69,7 @@ Bybit mainnet 체크리스트 · 법무 임시 런북. 아직 실행하지 않�
 
 ## 새 문서를 만들기 전
 
-1. 지금 실행할 일인가 → `status.md`, 아직 해결하지 못한 일인가 → `backlog.md`, 다음 후보인가 → `roadmap.md`에 먼저 둔다.
+1. 지금 실행할 일인가 → `status.md`, 아직 해결하지 못한 일인가 → `backlog.md`, 제품 범위가 바뀌는가 → `PRD.md`에 먼저 둔다.
 2. 스프린트가 끝나도 계속 참인가 → 위 표의 정본 6축 중 **질문이 맞는 폴더**, 결정 이유인가 → `adr/`,
    결과 기록인가 → `dev-log/INDEX.md` 요약 한 줄(원문은 커밋·git history)로 남긴다.
 3. 어느 경우에도 맞지 않으면 새 폴더를 만들지 말고 독자와 수명을 먼저 정한다. 하위 폴더(`runbooks/`·`diagrams/`)는

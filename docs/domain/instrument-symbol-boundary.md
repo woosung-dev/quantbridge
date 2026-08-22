@@ -78,7 +78,7 @@ BL-454 가 지적한 결함이 정확히 그 형태였다. 그래서 **프로토
   회귀 잠금: `tests/market_data/test_backtest_instrument_parity.py::TestLegacySpotRowsAreUntouched`.
 - 이미 저장된 백테스트 결과(metrics·trades·equity_curve)는 재계산하지 않으므로 값이 바뀌지 않는다.
 - 시딩은 별도 작업이 아니다 — `TimescaleProvider` 가 cache-first 라 **백테스트 1회가 곧 perp 시딩**이다
-  (`Makefile:246` 의 dogfood-restore 선례와 같은 성질). ★이것이 [BL-469](../backlog-resolved.md#bl-469) 에서
+  (`Makefile:246` 의 dogfood-restore 선례와 같은 성질). ★이것이 [BL-469](../backlog.md) 에서
   `market_data.backfill_ohlcv` 를 **되살리지 않고 제거한** 근거다 — 별도 백필 경로가 필요 없다.
 
 ### 3.1 `trade_ohlcv` 의 fallback 이 있는 이유

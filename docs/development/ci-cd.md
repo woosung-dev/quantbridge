@@ -319,7 +319,7 @@ production deploy on tag `v*.*.*`.
 ★**staging 은 없고 production 은 이미 돈다** — 오라클 A1 한 대에 소크 스택·FE·호스트 uvicorn 이
 함께 올라가 있다. 「미정」이라 적힌 표를 실태로 읽지 마라(2026-08-18).
 
-프로덕션 배포의 선택과 시작 조건은 [`roadmap.md`](../roadmap.md)의 Beta·Deferred 게이트가 정본이다.
+프로덕션 배포의 선택과 시작 조건은 [`roadmap.md`](../PRD.md)의 Beta·Deferred 게이트가 정본이다.
 
 ---
 

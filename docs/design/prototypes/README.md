@@ -110,3 +110,13 @@ git show prototypes-gen1:docs/reference/design/prototypes/05-onboarding.html
 | 접근성                    | 폐기 | `_KIT.md` §1 #2/#3/#4/#11 + §4.10 + §7 `runtime-check.mjs` 가 **실측 가능한 형태의 상위집합**                                                                                                                                                                       |
 | 반응형                    | 폐기 | ★**4개 중 3개가 틀렸다** — `_kit.html` 실측은 1440 구간 없음(`max-width:1240px` 무조건) · 검색바 숨김 **1024**(1200 아님) · 사이드바 **64px**(60 아님). 768 햄버거만 일치                                                                                           |
 | Kill Switch 특별 주의사항 | 폐기 | ★**아키텍처가 다르다** — Kill Switch 는 버튼이 아니라 자동 게이트(`ensure_not_gated`)이고 `POST …/kill` 은 없다. 타이핑 확인·30초 쿨다운·전량 청산 버튼 전부 **0건**. 실재하는 건 감사 로그(`KillSwitchEvent` row)뿐이고 정본은 `../../domain/state-machines.md` 다 |
+
+---
+
+> ★**2026-08-23 다이어트.** `shotgun-2026-07/` 의 회차 문서 **5개 · 118 KB** 를 삭제했다 —
+> `checklist.md`(43KB) · `HANDOFF-react-port.md`(34.5KB) · `cross-audit-notes.md`(16KB) ·
+> `context-notes.md`(15KB) · `evaluation-report.md`(10KB). 원문 = `git show 4c65bc0e:docs/design/prototypes/shotgun-2026-07/`.
+>
+> **남긴 둘과 근거:** `_KIT.md`(규약 본문 — 코드 주석 3곳이 `_KIT.md §4.5`·`§4.8` 로 절 번호를 인용한다) ·
+> `terminology-ssot.md`(화면 용어 원장). **`screen-*.html` 도 남는다** —
+> `apps/web/e2e/design-canon-calibration.spec.ts:116` 이 `readdirSync` 로 그 글롭을 읽는다(마크다운은 안 읽는다).

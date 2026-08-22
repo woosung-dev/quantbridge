@@ -370,7 +370,7 @@ sequenceDiagram
 
 ## 8. Observability (Sprint 10/12 도입 ✅)
 
-> 구현 메트릭의 정본은 [`apps/api/src/common/metrics.py`](../../apps/api/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`roadmap.md`](../roadmap.md)의 Beta·Deferred 게이트에서 관리한다.
+> 구현 메트릭의 정본은 [`apps/api/src/common/metrics.py`](../../apps/api/src/common/metrics.py)다. 외부 수집·운영 알림의 배포 결정은 [`roadmap.md`](../PRD.md)의 Beta·Deferred 게이트에서 관리한다.
 
 | 영역     | 현재 상태                                                             | 도입 sprint           |
 | -------- | --------------------------------------------------------------------- | --------------------- |
@@ -399,7 +399,7 @@ sequenceDiagram
 - `qb_ws_orphan_event_total{exchange, reason}` Counter — 도착 축
 - `qb_ws_orphan_discarded_total{account_id, reason}` Counter — 폐기 축. `reason` 은
   `terminal_event_lost`(머니-패스 손실 — reconciler 가 회수 대상) / `non_terminal_ignored`(무해).
-  ★종전 `qb_ws_orphan_buffer_size` Gauge 는 [BL-448](../backlog-resolved.md#bl-448) 에서 **삭제**했다 —
+  ★종전 `qb_ws_orphan_buffer_size` Gauge 는 [BL-448](../backlog.md) 에서 **삭제**했다 —
   5초 재생 버퍼를 읽는 프로덕션 경로가 없어(`replay_orphan` 호출자 0) 버퍼째 걷어냈다.
 - `qb_ws_reconcile_unknown_total{exchange}` Counter
 - `qb_ws_reconcile_skipped_total{exchange, reason}` Counter
@@ -426,7 +426,7 @@ sequenceDiagram
 
 ## 9. 배포 토폴로지 (계획)
 
-> 프로덕션 토폴로지 선택과 배포 trigger는 [`roadmap.md`](../roadmap.md)의 Beta·Deferred 게이트가 정본이다.
+> 프로덕션 토폴로지 선택과 배포 trigger는 [`roadmap.md`](../PRD.md)의 Beta·Deferred 게이트가 정본이다.
 
 현재: `docker compose up -d` (dev only). 프로덕션 배포 옵션 미정.
 

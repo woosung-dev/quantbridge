@@ -638,7 +638,7 @@ raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족�
 | 절 | 상태 | 근거 |
 | --- | --- | --- |
 | BL-001~004 완료 | ⚠ **미충족 — [BL-003] 이 빠져 있다** | `backlog.md:230` 「Resolved P0 = BL-001/002/**004**」. [BL-003](Bybit mainnet 진입 runbook + smoke, P0)은 `roadmap.md:319` 에서 여전히 `- [ ]` 이고 **원장 섹션에 `**상태:**` 줄이 없다** |
-| self-assessment ≥7/10 | ❔ **측정 정의는 있으나 이 게이트용 측정 기록은 없다** | `development/workflows/sprint-template.md:79` 가 self-assess 를 **sprint 종료 dual metric**(`≥7 AND 신규 P0=0 AND 기존 P0 잔여 ≥1 감소`)으로 정의한다. [ADR-008](../adr/008-sprint7c-scope-decision.md) §172 는 3축(system/UX/종합) 분리를 적는다. **Beta 게이트로서의 측정은 기록이 없다** |
+| self-assessment ≥7/10 | ❔ **측정 정의는 있으나 이 게이트용 측정 기록은 없다** | `development/workflows/sprint-template.md:79` 가 self-assess 를 **sprint 종료 dual metric**(`≥7 AND 신규 P0=0 AND 기존 P0 잔여 ≥1 감소`)으로 정의한다. [ADR-008](./adr/008-sprint7c-scope-decision.md) §172 는 3축(system/UX/종합) 분리를 적는다. **Beta 게이트로서의 측정은 기록이 없다** |
 | 본인 의지 second gate | ❔ 사용자 소관 | — |
 
 ⇒ **Beta 가 「본인 의지」만으로 막혀 있다는 통념은 부정확하다.** 객관 선행 1건([BL-003])이

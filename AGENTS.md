@@ -4,7 +4,7 @@
 > ★**`CONTEXT.md` 는 자동 로드가 아니다 — 읽어야 들어온다.** `CLAUDE.md` 가 import 하는 것은 본 파일 **하나뿐**이다.
 > ★**`docs/status.md` 의 「다음 스프린트」 블록이 다음에 무엇을 할지의 유일한 진입점이다.** 별도 킥오프
 > 파일을 만들지 않는다 (`docs/development/workflows/generator-evaluator-pipeline.md` §G8).
-> `docs/roadmap.md`(다음 후보)와 `docs/backlog.md`(open BL)는 **필요할 때 grep 으로 연다** — 통째로 읽지 않는다.
+> `docs/PRD.md`(제품 정의·범위·현재 위치)와 `docs/backlog.md`(open BL)는 **필요할 때 연다** — 통째로 읽지 않는다.
 > 본 파일은 **오리엔테이션 전용**이다([ADR-026](./docs/adr/026-documentation-ssot.md)). 규칙 본문은
 > `apps/api/AGENTS.md`·`apps/web/AGENTS.md`, 결정 근거는 `docs/adr/`, 반증 기록은 `docs/lessons.md` 가 정본이다.
 
@@ -47,24 +47,24 @@
 
 ## 문서 — 어느 질문은 어디가 답하나 (SSOT 7축, ADR-026)
 
-- **지금 상태** — `docs/status.md`(활성 sprint) · `docs/roadmap.md`(다음 후보) · **원장 3분할**([BL-779], 2026-08-18):
-  `docs/backlog.md`(**ACTIVE ∪ PARTIAL** + 인덱스 표 전량) · `docs/backlog-deferred.md`(**DEFERRED**) ·
-  `docs/backlog-resolved.md`(**RESOLVED**). ★**축은 판정어**이고 셋은 **한 벌로** 읽는다 — 섹션 수·판정
-  수는 합계다. 파일 배치 위반 중 RESOLVED 역류만 `ledger-vitals.sh` 가 집행한다([ADR-037] — 구 감사기는 철거)
+- **지금 상태** — `docs/status.md`(활성 sprint) · `docs/PRD.md`(제품 정의·범위) · **원장 2분할**(2026-08-23 다이어트):
+  `docs/backlog.md`(**ACTIVE ∪ PARTIAL** + 인덱스 표) · `docs/backlog-deferred.md`(**DEFERRED**).
+  ★**축은 판정어**이고 둘은 **한 벌로** 읽는다. ★**RESOLVED 는 파일이 아니라 삭제다**(2026-08-23) —
+  끝난 것은 git 이 원문을 갖는다. `ledger-vitals.sh` 축 ③ 이 backlog.md 로의 역류를 집행한다
 - **정본** — `docs/{architecture,domain,api,development,operations,design}/`([ADR-038](./docs/adr/038-docs-top-level-by-question.md)). 코드와 어긋나면 **코드가 맞다** — 단 「지금 무엇을 하는가」에 한해서다.
   「왜 그렇게 했나」(`docs/adr/`)와 「무엇이 반증됐나」(`docs/lessons.md`)에 대해 **코드는 증인이 아니다**
 - **결정 근거** — `docs/adr/`. 규칙 변경 전 필독. 폐기는 삭제가 아니라 `Superseded` 표기
 - **과거 원문** — git history. 삭제 시 tombstone(무엇을+어디로+SHA) 1줄 의무. 발견 색인 = `docs/dev-log/INDEX.md`
 - **뭘 돌려야 통과인가** — `docs/development/gates-and-traps.md` · 전체 목차 = `docs/README.md`
 
-- 원장 3분할 · BL `**상태:**` 줄 의무 · 3면(섹션 상태줄·인덱스 표·roadmap 체크박스) 일치는 **규칙으로
+- 원장 2분할 · BL `**상태:**` 줄 의무 · 2면(섹션 상태줄·인덱스 표) 일치는 **규칙으로
   유지**된다 — 기계 집행은 [ADR-037] 로 `ledger-vitals.sh` 3축만 남았다(구 감사기 원문 =
   `git show harness-v1:tools/scripts/`, 복귀는 재입힘 규칙 경유)
 - ★**판정어 5종** — `ACTIVE`(지금 단독 착수 가능) / `DEFERRED`(**트리거 미도래** — 상태줄 `⏳ **대기 (트리거
 미도래)**`) / `PARTIAL` / `RESOLVED` / `UNKNOWN`. DEFERRED 는 active 로 안 세고 3면에서는 ACTIVE 와 같은
   「미완」 쪽이다([ADR-028](./docs/adr/028-backlog-deferred-verdict.md)). 도래 판정·⓪ 표 갱신은
   세션이 `**Trigger:**` 줄을 직접 읽어 한다(구 `bl-trigger-sweep` 은 ADR-037 로 철거)
-- ALWAYS — 요약 줄 길이 상한 준수: `dev-log/INDEX.md` **300자** · `backlog.md`·`backlog-resolved.md`·`roadmap.md` **1,000자**
+- ALWAYS — 요약 줄 길이 상한 준수: `dev-log/INDEX.md` **300자** · `backlog.md`·`backlog-deferred.md` **1,000자**
   (ADR-037 이후 기계 강제 없음 — 스스로 지켜라)
 - ALWAYS — 스프린트 종료 시 작업 문서는 승격(정본 층)·강등·삭제 중 하나로 종결. 회고는 **반증 카드
   1~2천자 → `docs/lessons.md` 승격 → INDEX 한 줄** (ADR-026 §3)

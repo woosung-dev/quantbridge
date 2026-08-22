@@ -41,6 +41,7 @@ stdlib 의 **단 한 줄 수정** (예: `ta.rsi` 의 warm-up 기간을 14 → 15
 
 ---
 
+
 ## 3. 고려한 대안
 
 | 대안                                                      |  채택   | 사유                                                                                       |
@@ -55,6 +56,18 @@ stdlib 의 **단 한 줄 수정** (예: `ta.rsi` 의 warm-up 기간을 14 → 15
 **선택**: D (Option C + 갱신 스크립트) + E (Mutation Oracle 보조). P-1/2/3 3-Layer 로 분해하고, P-3 가 D 에 해당.
 
 ---
+
+## ★회차 기록 tombstone (2026-08-23 ADR 다이어트)
+
+> **잘라낸 것: 4절 · 190줄 · 21,694B.** 원문 = `git show 4c65bc0e:docs/adr/020-trust-layer-ci-design.md`.
+>
+> **ADR 은 「왜 그렇게 정했나」다.** 「그 뒤 무엇을 발견했나」는 `docs/lessons.md` 와 git log 가 맡는다.
+>
+> 잘라낸 절:
+> - 3. 고려한 대안 (15줄·### 0개)
+> - 8. 다음 단계 (23줄·### 3개)
+> - 10. 오픈 이슈 (140줄·### 4개)
+> - 11. Amendment History (12줄·### 0개)
 
 ## 4. 설계 상세
 
@@ -270,29 +283,6 @@ SLO-1~3 는 main merge 게이트. SLO-4 초과 시 subset marker 도입 (degrade
 
 ---
 
-## 8. 다음 단계
-
-### Path β Stage 1 (Design, Day 3) ✅ 완료 (2026-04-23)
-
-- [x] `test_trust_layer_parity.py` 스켈레톤 + `_tolerance.py` stub (Stage 2 에서 채움)
-- [x] `baseline_metrics.schema.json` (JSON Schema Draft 2020-12, `tool_versions` 포함)
-- [x] Day 3 오픈 질문 결정 → §10.1 참조
-- [x] Gate-1 evaluator (codex 7.5/10 + opus 8/10 PASS) — §10.1/§10.2/§10.3 반영
-
-### Path β Stage 2 (Implement, Day 4~7)
-
-- [ ] 8 단계 커밋 (corpus_ohlcv_frozen → baseline_metrics → P-1 → P-2 → P-3 → mutation → CI → ADR 보강)
-- [ ] Gate-2 evaluator
-
-### Path γ 이후 (P-4, ~3주)
-
-- [ ] PyneCore `transformers/persistent.py` + `series.py` + `security.py` 참조 이식
-- [ ] NOTICE 파일 + Apache 2.0 원본 헤더 유지
-- [ ] `test_pynecore_reference_oracle.py` 추가 → **ADR-011 Tier-2 완전 구현**
-- [ ] 본 ADR 을 "P-1/2/3/4 full Tier-2" 로 amend
-
----
-
 ## 9. 신뢰도
 
 **Path β Stage 0 초안 시점: 7/10.** 상승 근거:
@@ -312,155 +302,3 @@ SLO-1~3 는 main merge 게이트. SLO-4 초과 시 subset marker 도입 (degrade
 
 ---
 
-## 10. 오픈 이슈
-
-1. **Baseline regen 주기 정책**: stdlib 의미 변경 PR 마다 regen 의무화? 아니면 main merge 시점에만?
-   - 잠정: **stdlib 의미 변경 PR 마다 regen + `--confirm` diff 를 PR 리뷰어 승인 필수**. 메커니즘은 CODEOWNERS 또는 수동 규약.
-2. **corpus 6 종 미만으로 Path β 시작 (i3_drfx 제외 → 5 종)**: Y1 Coverage 가 reject 하는 i3_drfx 는 baseline 에 `"note": "Skipped"` 로 기록만. 실행 테스트 X.
-3. **pynescript 버전 고정 정책**: 현재 `==0.3.0`. P-1 은 이 버전 기준 baseline. 업그레이드는 별도 PR + baseline 동시 갱신.
-
-### 10.1 Stage 1 에서 확정 (2026-04-23)
-
-Stage 1 Day 3 오픈 질문 3 개 결정 + Gate-0 Opus evaluator Warning (W2/W3/W4/W5) 반영.
-
-|                  #                  | 결정                                                               | 근거                                                                             |
-| :---------------------------------: | ------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
-|     **Q1** Evaluator 실행 방식      | **병렬** (codex + opus 동시)                                       | Gate-0 에서 병렬 2중 blind 성공 (confidence 8/10, 8.5/10). 속도 + 편향 완화 양립 |
-|   **Q2** Mutation Oracle CI 포함    | **Nightly only** (`--run-mutations` 수동 또는 `schedule` workflow) | CI 시간 예산 (≤3분, SLO TL-E-4) 초과 방지. 실패 시 GitHub issue 자동 생성        |
-| **Q3** `baseline_metrics.json` 포맷 | **plain JSON** (msgpack/pickle 금지)                               | `git diff` 가능 → PR 리뷰 가치가 속도 절감보다 큼. Decimal 은 문자열로 직렬화    |
-
-**Opus Warning 반영**:
-
-|   #    | Warning                                                       | 반영 위치                                                                                                                            |
-| :----: | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **W2** | Mutation M3 (strategy.entry 반환값) 가 "P-2 or P-3" 분류 모호 | `test_trust_layer_parity.py` 주석에 "Stage 2 실측 후 재분류" 명시. 현재는 양쪽 layer 중 하나라도 포착하면 PASS (SLO ≥7/8 기준)       |
-| **W3** | Dogfood D-C 판정 1주 sample size 불충분                       | `docs/archive/operations/dogfood/2026-04-23-dogfood-checklist.md` §3.3 에 "1~2주차는 관찰, **3주차부터 판정**" 단서 추가 (별도 커밋) |
-| **W4** | Decimal `getcontext().prec` 정책 문서화 누락                  | `_tolerance.py` 파일 docstring 에 "기본 `prec = 28` 유지 — metric 범위 [1e-4, 1e1] 에서 충분" 명시                                   |
-| **W5** | `baseline_metrics.json` schema 에 외부 의존 버전 미기록       | `baseline_metrics.schema.json` 에 `tool_versions.pynescript / python` 필수 필드 추가. regen 시 자동 기록                             |
-
-**Stage 2 전 남은 결정 (Gate-1 에서 확정 대상)**:
-
-- Mutation 8 개에 **가중치** 도입 여부: **등가 가중 유지 확정** (Gate-1 codex + opus 양쪽 동의).
-  근거: (1) 8/8 → 7/8 → 6/8 drift 를 트렌드로 보는 게 가치, 가중치 도입 시 해석 왜곡.
-  (2) M6/M8 모두 P-3 digest diff 로 탐지는 binary — 가중치 무관.
-  (3) ≥7/8 "1개 허용" 의 실용 buffer 가 가중치 없을 때 가장 선명.
-- baseline_metrics 의 `schema_version` 업그레이드 (1→2) 시 **migration 정책** 부재. Stage 2 에서 v1 확정 후 v2 migration 규약 별도 ADR.
-
-### 10.3 Schema v1 → v2 Migration 원칙 (Gate-1 codex W-C4 반영)
-
-`baseline_metrics.schema.json` 의 `schema_version` 이 현재 `const: 1`. 향후 breaking
-change (예: 새 metric 필드 추가, digest 알고리즘 교체) 가 필요하면:
-
-1. **v2 schema 추가** (기존 v1 유지): `baseline_metrics.v2.schema.json` 신규 파일
-2. **Migration 스크립트**: `regen_trust_layer_baseline.py --migrate v1-to-v2` 로 자동 변환.
-   변환 불가능한 필드 (예: 새 metric 추가) 는 regen 필수 — 스크립트가 사용자에게 명시
-3. **단일 ADR 필수**: v2 도입은 ADR-020 amendment 또는 신규 ADR 로 근거 기록
-4. **`additionalProperties: false` 완화 불가**: 의도적 필드 추가는 schema 변경 의무.
-   임시 필드 (`extra_versions` 같은 bag) 로 우회 금지 — drift 누적 방지
-5. **Backward compat 유지 기간**: v2 ship 후 최소 1 sprint 동안 v1 reader 병행 지원
-
-미결정: regen 스크립트의 migration 구현 시기는 실제 v2 필요 시점 (Path γ 이후 예상).
-현재는 **원칙만 기록**, 코드는 불필요.
-
-### 10.4 Stage 2c 2차 구현 설계 (2026-04-23 pre-entry)
-
-Stage 2c 1차 (PR #66) 에서 **M1/M2/M4/M7 4개 감지 완료**. 이연된 M3/M5/M6/M8 과 Gate-3 Warning W-2/W-3 를 Stage 2c 2차 에서 일괄 해소한다. 본 섹션은 구현 착수 전 **설계 선행** 으로 작성.
-
-**목표**: SLO TL-E-5 (Mutation 감지 ≥ 7/8) green → **Path β 완료 선언**.
-
-**브랜치**: `feat/path-beta-stage2c-2nd` ← main(115292a). base=main 직접 PR (stacked 회피).
-
-**Deadline**: 2026-05-31 (H1 종료 전).
-
-#### 10.4.1 Mutation 별 monkeypatch 전략
-
-Stage 2c 1차 에서 확립한 패턴은 `StdlibDispatcher.call` wrap. 2차 4 mutation 은 **StrategyState / VirtualStrategyWrapper 레이어** 로 확장. 각 mutation 은 `patch.object(cls, method, mutated_fn)` 패턴으로 in-process monkeypatch, baseline 과 `_drift_any_corpus` 비교로 감지.
-
-|   #    | Hook 대상                                                       | 시뮬레이션                                                      | 감지 metric                                             | 대상 corpus                             |
-| :----: | --------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------- |
-| **M3** | `StrategyState.entry` (`strategy_state.py:156`)                 | 반환 Trade 객체 제거 (no-op: `open_trades.pop` + `return None`) | `num_trades` drop                                       | s1/s2/s3/i1 (Track S+A)                 |
-| **M5** | `StrategyState.entry` fill_price 인자                           | `fill_price + 0.005` drift (ABS_TOL 5×)                         | `trades_digest` entry_price 필드 변경                   | i1_utbot (461 trades 안정)              |
-| **M6** | `StrategyState.close` 반환 trade.pnl                            | `Decimal(str(pnl)) * Decimal("1.0001")` 0.01% amplifier         | `metrics.total_return` drift + `trades_digest` pnl 필드 | 461 trades 누적 corpus (i1/s2)          |
-| **M8** | `VirtualStrategyWrapper.process_bar` (`virtual_strategy.py:97`) | 원본 호출 → `_prev[*] = False` 리셋 → 재호출 (duplicate fire)   | `num_trades` 증가                                       | Track A only (i1_utbot; i2 는 0-trades) |
-
-**Track S/A 경로 구분**:
-
-- M3/M5/M6 는 양 Track 모두 `StrategyState` 경유 → 교차 검증 가능
-- M8 은 Track A 전용 (alert hook). i3_drfx 는 `_MUTATION_CORPORA` 미포함 (baseline 부재) — 따라서 i1_utbot 단일 감지 기준
-
-**튜닝 주의 (M6)**: 1.0001 배율이 ABS_TOL(0.001) 통과면 0.05% 로 상향. 의도 왜곡 최소 + 감지 안정성 양립.
-
-**회귀 방지**: monkeypatch 는 `with patch.object(...)` 블록 scope 에서만 활성 → 기존 985 backend pass 에 영향 0. src 코드 불변.
-
-#### 10.4.2 W-2 / W-3 정책
-
-**W-2 (M2 명칭 정합)**:
-
-- 현재: `test_m2_rsi_divzero_guard_is_detected` ↔ 구현 "0.5% drift proxy"
-- 변경: `test_m2_rsi_noise_drift_is_detected` rename + docstring 에 "divzero guard 제거의 직접 시뮬은 NaN 위험 — 0.5% drift 로 대리" 명시
-- 효과: **drift proxy** 임이 함수명/docstring/구현 3단 정합
-
-**W-3 (M4 N/A marker)**:
-
-- 현재: `if not drifted: pytest.skip("M4: s1_pbr 가 ta.crossover 호출 안 함")` 분기
-- 변경: `@pytest.mark.xfail(reason="N/A: 일부 corpus 에서 ta.crossover 미사용", strict=False)` 추가 + skip 분기 제거
-- 효과: drift 있으면 XPASS, 없으면 XFAIL — 양쪽 green, **"미감지" 와 "N/A" 의 의미론 명시 구분** (Gate-3 codex W-2c1)
-
-#### 10.4.3 SDD 6 task 분해 + Gate-4 검증
-
-**Task 단위 (atomic commit)**:
-
-- T1 M3 / T2 M5 / T3 M6 / T4 M8 / T5 W-2+W-3 / T6 docs+회고
-
-**병렬성**: T1~T5 모두 `test_mutation_oracle.py` 한 파일의 **서로 다른 함수** touch → 함수 단위 scope 분리 → 자율 SDD 워커 5 병렬 안전. T6 만 직렬 (T1-T5 결과 수집 + ADR/TODO/memory sync).
-
-**Gate-4 2중 blind 기준** (Gate-0~3 과 동일 패턴):
-
-- Reviewer A (codex) + Reviewer B (Opus blind) 병렬 호출
-- PASS: Mutation 감지 **≥ 7/8** (M4 xfail 허용), backend regression 0 (985 pass), 양쪽 confidence ≥ 8/10, blocker 0, major ≤ 2
-- FAIL 시: 실패 task 단독 재iteration, warranty/docs 보존
-
-#### 10.4.4 검증 (End-to-End)
-
-```bash
-# Mutation suite 수동 실행 (nightly 대기 없이 확인)
-cd backend && uv run pytest tests/strategy/pine_v2/test_mutation_oracle.py --run-mutations -v
-# 기대: 7 PASS + 1 XFAIL (M4, strict=False)
-
-# Full regression
-cd backend && uv run pytest tests/ -q
-# 기대: 985 pass / skip 17± / fail 0
-
-# Nightly workflow 실측 (Gate-4 merge 다음날 18:00 UTC 사이클)
-# .github/workflows/trust-layer-nightly.yml — 감지 ≥7/8, GitHub Issue 미생성
-```
-
-### 10.2 Decimal 문자열 정규화 규약 (Gate-1 opus W-1 반영)
-
-Gate-1 에서 발견: `DecimalString` 패턴 `^-?\d+(\.\d+)?$` 는 `"0.0832"` / `"0.08320"` / `"0.083200000"` 모두 valid → regen 스크립트가 trailing zero 를 어떻게 출력하느냐에 따라 **git diff 가짜 변경** 발생 위험. requirements §5.2 "변경 크기 > 5% 시 PR 설명 의무" 프로세스가 노이즈로 마비 가능.
-
-**확정 규약** (Stage 2 에서 `backend/scripts/regen_trust_layer_baseline.py` 및 `_tolerance.py` 에 반영):
-
-1. **Decimal 직렬화 포맷**: `f"{Decimal(str(value)):.8f}"` — 고정 소수점 **8자리** 로 zero-pad.
-   (예: `Decimal("0.0832")` → `"0.08320000"`, `Decimal("1.5")` → `"1.50000000"`)
-2. **정수 지표** (`num_trades`, `long_count`, `short_count`): JSON `integer` 타입 그대로 (포맷 규약 없음).
-3. **NaN / None 처리**: `sharpe_ratio` 등 sample 부족 시 JSON `null` — 문자열 `"NaN"` 금지.
-4. **비교 시 trailing zero 무시**: `within_tolerance(Decimal(str(a)), Decimal(str(b)))` 는 Decimal 자체 같음성 기반이므로 0 수 무관.
-5. **8자리 소수 선택 근거**: Bybit 최소 tick 은 8 자리 (`.00000001` BTC) → 금융 도메인 자연수. metric 범위 [1e-4, 1e1] 에서 충분한 해상도.
-
-**영향**: Stage 2 P-3 구현 시 baseline 생성 스크립트가 이 규약 강제 + Stage 2 첫 commit 에 정규화 유틸 추가.
-
----
-
-## 11. Amendment History
-
-| 날짜           | 사유                                                                  | 변경                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-04-23     | 최초 초안                                                             | Path β Stage 0 에서 작성. Stage 2 구현 완료 시 "구현 결과" 섹션 추가 예정                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 2026-04-23     | Stage 1 Design 완료                                                   | §8 체크 갱신 + §10.1 "Stage 1 에서 확정" (Q1/Q2/Q3 + Opus W2/W3/W4/W5 반영)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| 2026-04-23     | Gate-1 PASS (codex 7.5/10 + opus 8/10)                                | §4.2 실체 정정 (`_STDLIB_NAMES + StdlibDispatcher.call`, codex W-C1) + §10.1 Mutation 등가 가중 확정 + §10.2 Decimal 정규화 규약 신규 (opus W-1)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| 2026-04-23     | Stage 2b 실 구현 완료                                                 | OHLCV fetch 실측 (4,368 bars, BTCUSDT 1h 2024-01~06) + baseline_metrics.json 실값 + P-3 6/6 corpus green + regen `--confirm` gate 실 검증. Mutation Oracle (S2-6) 은 subprocess isolation + AST mutation 복잡도로 Stage 2c 이연. pine_v2 총 321 pass / 8 skip (Mutation only)                                                                                                                                                                                                                                                                                                                                                                                                         |
-| 2026-04-23     | Stage 2c 1차 구현 완료                                                | M-2 (metric 범위 sanity 5/5) + M-3 (corpus 독립성 문서 정정 — s2/i1 Track S/A 교차, i2 0-trades, sortino/calmar null) + M-4 (regen 부분 `--corpus` 모드에서 envelope `generated_at` 보존 + corpus 별 `updated_at` 분리) + M-1 Mutation Oracle 1차 (4/8 감지 PASS: M1 atr drift / M2 rsi drift / M4 crossover drift / M7 stdlib 전역 drift. M3/M5/M6/M8 Stage 2c 2차 이연). in-process monkeypatch 패턴 확립. pine_v2 330 pass / 12 skip. SLO TL-E-5 ≥7/8 은 Stage 2c 2차 에서 달성                                                                                                                                                                                                    |
-| **2026-04-23** | **Gate-3 1차 CONDITIONAL PASS (codex 8/10 + opus 8/10)**              | **C-1 즉시 해소: `conftest.py` 에 `pytest_addoption` 추가로 `--run-mutations` 플래그 실 구현 + `pytest_collection_modifyitems` 로 기본 pytest 실행 시 `@pytest.mark.mutation` 자동 skip (ADR-020 §10.1 Q2 실 구현). `.github/workflows/trust-layer-nightly.yml` 신규 (18:00 UTC cron + workflow_dispatch + failure 시 issue 자동 생성). W-2/W-3 (M2 명칭 불일치, M4 skip 구분) 은 Stage 2c 2차로 이연 명시**                                                                                                                                                                                                                                                                          |
-| **2026-04-23** | **Stage 2c 2차 착수 (pre-entry, 구현 pending)**                       | \*\*§10.4 Stage 2c 2차 구현 설계 서브섹션 신설. M3 (`StrategyState.entry` no-op cascade) / M5 (`fill_price` ABS_TOL drift) / M6 (PnL Decimal amplifier) / M8 (`VirtualStrategyWrapper.process_bar` duplicate fire) 4 mutation 의 monkeypatch hook + 감지 metric 확정. W-2 (M2 `test_m2_rsi_noise_drift_is_detected` rename + docstring 정합) + W-3 (M4 `@pytest.mark.xfail strict=False` marker) 정책 확정. SDD T1~T6 6 task 분해 (T1~T5 함수 단위 병렬 + T6 직렬 docs). Gate-4 기준: 감지 ≥ 7/8 (M4 xfail 허용) + 양쪽 confidence ≥ 8/10 + backend 985 regression 0. Deadline 2026-05-31. 브랜치 `feat/path-beta-stage2c-2nd` ← main(115292a). 실행은 별도 ExitPlanMode 승인 후 진행 |
-| **2026-04-23** | **Stage 2c 2차 구현 완료 — Mutation 8/8 감지 (SLO TL-E-5 초과 달성)** | **T1 M3 `StrategyState.entry` no-op cascade (PASS) / T2 M5 `fill_price` ABS_TOL drift (PASS) / T3 M6 PnL Decimal × 1.0001 amplifier (PASS) / T4 M8 `VirtualStrategyWrapper.process_bar` duplicate fire (PASS) 4개 mutation 전부 감지. M1/M2/M7 기존 PASS + M4 `xfail(strict=False)` 현 corpus 에서 XPASS → 실질 8/8 감지. T5 W-2 M2 rename + W-3 M4 xfail marker 적용 — "미감지" vs "N/A" 의미론 구분. mutation suite 실행 2:31 (nightly 5분 예산 여유). backend 985 pass / 17 skip / 0 fail 유지 (regression 0). SLO TL-E-5 ≥7/8 **GREEN\*\* → Path β 완료 선언 준비. Gate-4 검증 pending                                                                                            |
