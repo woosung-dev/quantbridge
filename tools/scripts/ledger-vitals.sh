@@ -2,7 +2,7 @@
 # ledger-vitals.sh — 원장 활력 3축 (슬림 복귀 1호, 근거 사고: BL-643 「다음 행동」 중복 · RESOLVED 13건 역류)
 # ① status.md 살아 있는 `다음 행동 =` ≤1 (파일 전체 — 취소선·인라인코드·코드펜스 제외)
 # ② status.md ⓪ 표 데이터 행 ≥3
-# ③ backlog.md 에 상태줄 RESOLVED 섹션 0건 (RESOLVED 는 backlog-resolved.md 소관)
+# ③ backlog.md 에 상태줄 RESOLVED 섹션 0건 (끝난 것은 **지운다** — git 이 원문을 갖는다)
 # rc: 0=통과 / 1=위반 / 3=대상 파일 부재(판정 포기 — 초록 아님). bash 3.2 호환.
 set -u
 
@@ -71,7 +71,7 @@ if [ "$rows" -lt 3 ]; then
   FAIL=1
 fi
 
-# ── ③ backlog.md 안 RESOLVED 섹션 0건 — 원장 3분할(BL-779): RESOLVED 는 backlog-resolved.md 로 ──
+# ── ③ backlog.md 안 RESOLVED 섹션 0건 — 2026-08-23 원장 다이어트: RESOLVED 는 삭제한다 ──
 # 판정 = harness-v1 bl-audit.sh 상태줄 판정과 동치 — lead() 로 첫 문장만 절단(`:**`·`—`·`.` 중
 # 최선두)한 뒤 DEFERRED → ACTIVE → PARTIAL → RESOLVED 순으로 어휘를 대조한다(앞이 이긴다).
 # 대소문자만 추가로 무시한다(toupper) — 대문자 RESOLVED 상태줄이 안 세지던 결함의 수리.
@@ -105,7 +105,7 @@ bad=$(awk '
   END { print n + 0 }
 ' "$BACKLOG" 2>"${TMPDIR:-/tmp}/lv-resolved.$$")
 if [ "$bad" -gt 0 ]; then
-  echo "✗ ③ backlog.md 에 RESOLVED 섹션이 ${bad}건 있다 (계약 0건) — backlog-resolved.md 로 옮겨라: $(tr '\n' ' ' < "${TMPDIR:-/tmp}/lv-resolved.$$")"
+  echo "✗ ③ backlog.md 에 RESOLVED 섹션이 ${bad}건 있다 (계약 0건) — 지워라(원문은 git 이 갖는다): $(tr '\n' ' ' < "${TMPDIR:-/tmp}/lv-resolved.$$")"
   FAIL=1
 fi
 rm -f "${TMPDIR:-/tmp}/lv-resolved.$$"
