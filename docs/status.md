@@ -568,7 +568,8 @@ FE 테스트를 두 회차로 **1,497 → 1,780 passed**(파일 227 → 247 · �
 사슬 **[BL-641] → [BL-003] → [BL-005]** 를 막는 것은 표기가 아니라 **소크 시간**이다.
 
 ~~**다음 행동 = `waitlist-activation.md` 런북 + 로컬 종단 리허설 1회.**~~ → **2026-08-23 ✅ 완주.**
-런북 369줄 + `tests/waitlist/test_activation_rehearsal.py` 3건(46 → **49 passed**) · 변이 **3/3 red**(앵커 확인 후 주입 · sha256 복원).
+런북 + `tests/waitlist/test_activation_rehearsal.py` 3건(46 → **49 passed**) · 변이 **3/3 red**(앵커 확인 후 주입 · sha256 복원).
+★**같은 날 자기검증에서 런북 결함 4건** — ⑴ §2 「넣을 네 줄」이 `WAITLIST_TOKEN_SECRET` 을 포함해 **따라 하면 비밀이 회전**(§5.1 의 「이미 있다 + 회전하면 기존 초대 전멸」과 모순) → **세 줄**로 · ⑵ 발신 도메인이 레포 안에서 **두 갈래**(`woosung.dev` vs `test_email_from_address_wiring.py` 의 `qb.woosung.dev`) → 추측 금지·Resend 인증값과 바이트 일치로 · ⑶ 파일 수·기준선 낡음 · ⑷ **미커밋 테스트가 순수 중복**(403·401 둘 다 `_is_retryable_status` False, 단언 1:1) → **재시도 소진 분기**로 재조준(429 · 3회 · DB 4필드 미전이, **49 → 50 passed**). ★그 재조준분의 **격리 변이는 못 찾았다**(변이 2종 다 red 지만 기존 단위도 함께 red) — 근거는 커버리지가 아니라 「재시도 대상 실패를 `POST …/approve` 로 통과시킨 케이스가 0건」이라는 **조합**이고, 그 한계를 테스트 docstring 에 적었다.
 
 ★★★**최대 산출은 런북이 아니라 §4.0 이다 — Cloudflare Access 가 `qb.woosung.dev` 전 경로를 덮는다**
 (2026-08-23 실측 `/`·`/waitlist`·`/invite/<token>`·`/sign-up` **넷 전부 302 → Access 로그인**). ⇒ **초대 메일 링크는

@@ -25,7 +25,7 @@ Cloudflare Access 가 그 관문 역할을 유지한다(§4.0).
 | 축                    | 실측                                                                                                   |
 | --------------------- | ------------------------------------------------------------------------------------------------------ |
 | BE 코드               | `apps/api/src/waitlist/` **10 모듈** (router·service·repository·models·schemas·token_service·email_service·dependencies·exceptions·`__init__`) |
-| BE 테스트             | `apps/api/tests/waitlist/` **8 파일 · 49 passed** (리허설 3건 포함, 2026-08-23)                        |
+| BE 테스트             | `apps/api/tests/waitlist/` **9 파일 · 50 passed** (리허설 3건 + 재시도 소진 1건 포함, 2026-08-23)       |
 | FE 화면               | `/waitlist` · `/invite/[token]` · `/(dashboard)/admin/waitlist` — 전부 존재, vitest 커버 있음           |
 | 라우터 마운트         | `apps/api/src/main.py:436-438` — `prefix="/api/v1"`                                                     |
 | celery 의존           | **0건** (`apps/api/src/tasks/` 에 waitlist 참조 없음) ⇒ **워커 재배포 불필요, API 재기동만 필요**       |
@@ -43,9 +43,15 @@ Cloudflare Access 가 그 관문 역할을 유지한다(§4.0).
 | 변수                    | 발급처                                                          | 형식                                                    | 주입 위치                          | 미설정 시                                            |
 | ----------------------- | --------------------------------------------------------------- | -------------------------------------------------------- | ---------------------------------- | ------------------------------------------------------ |
 | `RESEND_API_KEY`        | https://resend.com/ → API Keys (**도메인 인증 후**)             | 단일 문자열 · 접두 `re_` `[가정]`                        | 서버 `~/quantbridge/apps/api/.env.local` | **부팅은 통과** · 승인 시 502 (§5.2)               |
-| `RESEND_FROM_ADDRESS`   | 같은 Resend 계정에서 **인증한 도메인**의 주소                    | RFC 5322 · `QuantBridge <noreply@woosung.dev>`           | 같음                               | 기본값 `…@quantbridge.app` 이 남아 **발송 실패** (§5.3) |
+| `RESEND_FROM_ADDRESS`   | 같은 Resend 계정에서 **인증한 도메인**의 주소 (★어느 도메인인지는 아래 주의) | RFC 5322 · `QuantBridge <noreply@…>`                    | 같음                               | 기본값 `…@quantbridge.app` 이 남아 **발송 실패** (§5.3) |
 | `WAITLIST_TOKEN_SECRET` | 직접 생성 — `openssl rand -hex 32`                              | hex 64자 (**최소 16자 강제**, `token_service.py:49-52`)  | 같음                               | `APP_ENV=production` 이면 **부팅 거부** (§5.1)         |
 | `WAITLIST_ADMIN_EMAILS` | 운영자가 정한다 (Beta 초기 수동 운영)                            | 콤마 구분 소문자 이메일 · `a@x.com,b@y.com`              | 같음                               | 승인·목록 엔드포인트 **전원 403** (§5.4)              |
+
+⚠️★**발신 도메인이 레포 안에서 두 갈래다 — 세션이 정할 수 없다.**
+`test_email_from_address_wiring.py` 의 docstring 은 「이 배포의 도메인은 **`qb.woosung.dev`**」라
+적고 그 값을 쓰는데, FE 호스트는 `qb.woosung.dev` 이고 Access 발급자는 `woosung.dev` 다.
+**결정 규칙은 하나뿐이다 — Resend 대시보드에서 실제로 인증(DNS 레코드 검증 완료)한 도메인과
+바이트로 일치시켜라.** 어긋나면 승인이 502 다(§5.3). 여기서 추측한 값을 넣지 마라(§9 ⑵).
 
 ★**다섯 번째가 있다 — `WAITLIST_INVITE_BASE_URL`.** `.env.example:175` 이 `[기본값 OK]` 라 적고 있어
 넷만 세기 쉽지만, `APP_ENV=production` 에서는 이 값이 localhost 면 **부팅이 거부된다**
@@ -76,14 +82,19 @@ cp apps/api/.env.local apps/api/.env.local.bak.$(date -u +%Y%m%dT%H%M%SZ)   # �
 vi apps/api/.env.local
 ```
 
-넣을 네 줄 (기존 줄이 있으면 **덧붙이지 말고 교체**한다 — 중복 키는 뒤가 이긴다):
+넣을 **세 줄** (기존 줄이 있으면 **덧붙이지 말고 교체**한다 — 중복 키는 뒤가 이긴다):
 
 ```
 RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx
-RESEND_FROM_ADDRESS=QuantBridge <noreply@woosung.dev>
-WAITLIST_TOKEN_SECRET=<openssl rand -hex 32 의 출력>
+RESEND_FROM_ADDRESS=QuantBridge <noreply@<Resend 에서 인증한 도메인>>
 WAITLIST_ADMIN_EMAILS=<운영자 이메일>
 ```
+
+⚠️★**`WAITLIST_TOKEN_SECRET` 은 넣지 마라 — 이미 서버에 있다.** `/health` 가
+`{"env":"production"}` 를 낸다는 사실에서 그것이 따라 나오고(§5.1), **새로 생성해 덮어쓰면
+이미 발송된 초대 토큰이 전부 무효가 된다**(서명 불일치 → 400). `openssl rand -hex 32` 는
+**최초 1회 발급용**이지 이 절차의 일부가 아니다. 회전이 필요할 때의 조건도 §5.1 에 있다.
+같은 이유로 `WAITLIST_INVITE_BASE_URL` 도 이미 실도메인이다(localhost 면 부팅이 거부된다).
 
 반영:
 
@@ -198,7 +209,7 @@ curl -s https://qb-api.woosung.dev/api/v1/waitlist/invite/aaaaaaaaaaaaaaaa
 
 ```bash
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/waitlist -q
-# 기대: 49 passed (2026-08-23 기준선 — 테스트가 늘면 이 숫자를 갱신해라)
+# 기대: 50 passed (2026-08-23 기준선 — 테스트가 늘면 이 숫자를 갱신해라)
 ```
 
 `tests/waitlist/test_activation_rehearsal.py` 가 하는 일:
@@ -338,7 +349,7 @@ validator 가 **안 본다**(§1.1). 이 레포는 「있다고 여겨진 것이
 ★**단계 ①만 보고 끝내지 마라.** `POST /waitlist` 는 키가 하나도 없어도 202 다. 랜딩에서
 신청이 들어온다는 사실은 초대가 나간다는 증거가 **아니다.**
 
-★**Access 는 env 로 못 연다**(§4.0). 네 키를 다 넣어도 초대받은 사람은 링크를 못 연다 —
+★**Access 는 env 로 못 연다**(§4.0). 세 키를 다 넣어도 초대받은 사람은 링크를 못 연다 —
 Cloudflare 대시보드에서 그 이메일을 정책에 넣는 **수동 단계**가 파이프라인의 일부다.
 
 ★**`.env` 값에 인라인 주석 금지** — 401 이 아니라 500 이 난다([BL-625]).
@@ -352,8 +363,9 @@ Cloudflare 대시보드에서 그 이메일을 정책에 넣는 **수동 단계*
 
 1. 서버 `.env.local` 의 `RESEND_API_KEY`·`RESEND_FROM_ADDRESS`·`WAITLIST_ADMIN_EMAILS` 실제 설정 여부
    — §3 의 명령으로 CONTROL 이 잰다. `/health` 로는 안 보인다(§1.1).
-2. Resend 계정의 **도메인 인증 상태** — `woosung.dev` 가 인증돼 있는지. 미인증이면
-   `RESEND_FROM_ADDRESS` 를 무엇으로 넣어도 발송이 실패한다.
+2. Resend 계정의 **도메인 인증 상태** — `woosung.dev` 인지 `qb.woosung.dev` 인지, 그리고 그것이
+   인증(DNS 검증 완료)됐는지. **레포는 두 표기를 다 갖고 있어 답을 못 준다**(§1 의 ⚠️ 항목).
+   미인증이면 `RESEND_FROM_ADDRESS` 를 무엇으로 넣어도 발송이 실패한다.
 3. Resend API key 의 접두 `re_` 는 `[가정]` 이다 — 레포에 근거가 없다. 발급 화면의 실제 값을 따른다.
 4. Cloudflare Access 정책의 현재 허용 이메일 목록 — 대시보드에서만 읽을 수 있다.
    §4.0 의 302 는 **정책이 걸려 있다**는 것만 증명하고 **누가 들어 있는지**는 말하지 않는다.
