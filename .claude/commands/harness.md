@@ -35,8 +35,6 @@ disable-model-invocation: true
 /harness parallel BL-11 BL-42     # 두 티켓으로 회차를 설계해 병렬로
 ```
 
-★**저작이 끝나 있고 실행만 하면 되는 묶음이 있으면 `phases/README.md` 의 「열린 묶음」 절이
-그 실행 명령(stage 브랜치 이름 포함)을 그대로 들고 있다.** 거기부터 읽어라.
 
 ★**실행 전에 항상 한 번 보고한다.** 무인 러너는 되돌리기가 비싸다.
 

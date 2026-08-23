@@ -37,4 +37,4 @@ flowchart LR
 3. 사용자에게 노출되는 지원 목록이 변하면 [`supported-indicators.md`](../domain/supported-indicators.md)도 갱신한다.
 4. 회귀 기준 자체를 바꾸면 ADR 또는 dev-log에 근거를 남긴다.
 
-Pine 실행의 전체 경로는 [`pine-execution-architecture.md`](./pine-execution-architecture.md), 현재 제품 약속은 [`requirements-overview.md`](../domain/requirements-overview.md)를 따른다.
+Pine 실행의 전체 경로는 [`pine-execution-architecture.md`](./pine-execution-architecture.md), 현재 제품 약속은 [`PRD.md`](../PRD.md)를 따른다.

@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-08-14)
 - **회차:** money-path-attribution
-- **관련:** [BL-438](../backlog-resolved.md#bl-438) · [ADR-025](./025-conditional-fill-ownership.md) · [BL-003](../backlog.md#bl-003)
+- **관련:** [BL-438](../backlog.md) · [ADR-025](./025-conditional-fill-ownership.md) · [BL-003](../backlog.md#bl-003)
 
 ## Context
 
@@ -94,4 +94,4 @@ side symbol updatedTime
   `110029` 이 심볼 헤지 미지원 · `110025` 변경 없음.
 - **ccxt 4.5.49** 가 `set_position_mode(hedged, symbol)` 을 심볼 단위로 지원한다.
 - 수수료 지배가 ETH 왕복에서도 재현됐다 — gross `+0.0017` · 수수료 `0.0206` · 순 `−0.0189`
-  ([BL-724](../backlog-resolved.md#bl-724)).
+  ([BL-724](../backlog.md)).

@@ -45,6 +45,10 @@
 ⑤ **근거**(왜 이것이고 왜 저것이 아닌가) = `docs/adr/` (한 ADR = 한 결정, Accepted 불변) ·
 ⑥ **반증**(시험해서 거짓으로 밝혀진 것) = `docs/lessons.md` ·
 ⑦ **상태** = `status.md`·`roadmap.md`·`backlog.md` (`bl-audit.sh` 기계 검증)
+  > ★**2026-08-23 개정** — ⑦축의 실물이 둘 바뀌었다. `roadmap.md` 는 `docs/PRD.md` 로 통합됐고(vision·requirements-overview 와 함께),
+  > `bl-audit.sh` 는 [ADR-037] 제로베이스로 **철거**돼 기계 검증은 `tools/scripts/ledger-vitals.sh` 3축뿐이다.
+  > 지금 ⑦축 = `status.md`(지금 할 일) · `PRD.md`(제품 범위) · `backlog.md`+`backlog-deferred.md`(열린 결함).
+  > **RESOLVED 는 파일이 아니라 삭제**다 — git 이 원문을 갖는다. 축의 *의미*는 그대로다.
 
 ★**「코드와 어긋나면 코드가 맞다」에 단서를 단다** — 그 원칙은 **①축에서만** 참이다. ⑤ 근거와
 ⑥ 반증에 대해 **코드는 증인이 아니다.** 코드는 무엇을 하는지 말할 뿐, 무엇을 버렸는지는 말하지 않는다.

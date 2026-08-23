@@ -117,7 +117,7 @@ tools/scripts/soak-gate.sh --prune-archives --confirm  #   ★[BL-626] 기준은
 ★**실격의 원인은 게이트가 모른다** — 사람이
 [`soak-disqualifications.jsonl`](../operations/soak-disqualifications.jsonl) 에 근거와 함께 등재하고, 게이트는
 그것을 **보고 줄 한 줄**로만 낸다(`★실격 귀속(보고 전용 · 판정 불참)`). 판정 C1~C5 는 원장이
-있든 없든 같은 값이다 — 계약과 기각된 대안은 [ADR-024 §실격 귀속 원장](../adr/024-soak-stability-gate.md).
+있든 없든 같은 값이다 — 계약과 기각된 대안은 [ADR-024](../adr/024-soak-stability-gate.md) 의 「실격 귀속 원장」(§tombstone · `git show 4c65bc0e:docs/adr/024-soak-stability-gate.md`).
 MTBF 층화는 `apps/api/scripts/mtbf_stratified.py` 가 그 원장을 읽어 자동으로 만든다.
 
 ★**원장은 두 호스트(서버·로컬 맥)의 사건을 함께 담고 판독은 한 호스트만 본다** ([BL-751],
