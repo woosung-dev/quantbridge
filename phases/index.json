@@ -1,7 +1,3 @@
 {
-  "phases": [
-    { "dir": "n11-census-scope", "status": "pending" },
-    { "dir": "n11-strenum-mypy", "status": "pending" },
-    { "dir": "n11-guard-truth", "status": "pending" }
-  ]
+  "phases": []
 }
