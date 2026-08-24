@@ -54,7 +54,7 @@
     {
       "step": 3,
       "name": "waitlist-product-and-absence-guard",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/lib/__tests__/decision-surface-guard.test.ts",
         "cd apps/web && pnpm exec vitest run src/lib/__tests__/decision-surface-guard.test.ts",
@@ -63,7 +63,10 @@
         "cd apps/web && pnpm exec biome check src",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm test -- --run"
-      ]
+      ],
+      "started_at": "2026-08-24T11:18:09+0900",
+      "summary": "실측 차이: 착수 전 AC 4가 잡은 소스는 지시의 7개가 아니라 ①②③ 3개였다. ① waitlist-faq.tsx:3,23은 `지금 연결되는 거래소는 Bybit 하나뿐이며 데모 환경만 제공합니다. ${ROADMAP_DISCLAIMER}`로 Step 0 고지를 재사용했고 테스트도 같은 상수로 갱신했다. ② waitlist-hero.tsx:16은 `Bybit 데모` 단일 칩으로 바꿨다. ③ live-session-form.tsx:101-104의 미래 약속은 `Bybit 데모 한정. Bybit 데모 계정만 사용할 수 있습니다. 가상 자금만 사용하므로 실제 자금 손실은 없습니다.`로 완전히 교체했다. privacy:68은 Bybit 데모 주문만, terms:42는 Bybit 데모 계정만으로 정리했다. 새 decision-surface guard는 명시 10 경로를 실제 존재·readFile·총 바이트 >0으로 양성 대조한 뒤, 조립한 금지 토큰으로 결정 1 및 OKX 직접 문구 부재를 검사한다. 변이: waitlist-hero.tsx:17에 메인넷을 심으니 `메인넷 문구가 남은 소스 파일`과 해당 경로로 red; 스냅샷 복원 SHA-256 15dca70b2824e82d086beebaafee622c938760389a7bdd22af4b2ca9e03f0993 일치. 음성 대조: __tests__/waitlist-hero.test.tsx 내 같은 토큰은 guard green, SHA-256 951cd21a80632a20e9a41fc7f815fb4f9e5b3a323df27bc3d2ad01876c433f56 복원 일치. 이 가드는 이미지·번역 리소스·서버/런타임 응답 문자열은 못 잡는다.",
+      "completed_at": "2026-08-24T11:28:41+0900"
     }
   ],
   "created_at": "2026-08-24T11:06:16+0900"
