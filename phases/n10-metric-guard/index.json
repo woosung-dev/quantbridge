@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "census-message-and-labels-axis",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k labels_outside_guard -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k labels_outside_guard --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2"
-      ]
+      ],
+      "started_at": "2026-08-24T23:32:37+0900",
+      "summary": "착수 red 동결: labels-outside-guard 14건 (`apps/api/src/tasks/live_signal.py`: 14); lambda 지연평가 음성 대조 4건 (`apps/api/src/common/metrics.py`: 1, `apps/api/src/common/metrics_multiproc.py`: 2, `apps/api/src/tasks/trading.py`: 1).",
+      "completed_at": "2026-08-24T23:39:16+0900"
     },
     {
       "step": 1,
@@ -99,5 +102,6 @@
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks tests/trading tests/common -q"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T23:32:37+0900"
 }
