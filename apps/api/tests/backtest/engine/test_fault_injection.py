@@ -6,12 +6,18 @@ pine_v2 경로로 재작성됐다 (fault 지점이 변경됨).
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from datetime import UTC, datetime
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pandas as pd
 import pytest
 
 from src.backtest.engine import run_backtest
+from src.backtest.models import Backtest, BacktestStatus
+from src.backtest.service import BacktestService
 from src.strategy.pine_v2.interpreter import PineRuntimeError
 
 SIMPLE_PINE_V5 = """//@version=5
@@ -146,3 +152,46 @@ class TestRunBacktestFaultInjection:
         outcome = run_backtest(malformed, valid_ohlcv)
         assert outcome.status == "parse_failed"
         assert outcome.parse.status == "error"
+
+    @pytest.mark.asyncio
+    async def test_unexpected_runtime_error_persists_without_parse_failed_label(
+        self, valid_ohlcv: pd.DataFrame
+    ) -> None:
+        """임의 런타임 오류가 사용자 진행 조회에 Pine 문법 실패로 저장되지 않는다."""
+        with patch(
+            "src.backtest.engine.v2_adapter.parse_and_run_v2",
+            side_effect=RuntimeError("runtime boom"),
+        ):
+            outcome = run_backtest(SIMPLE_PINE_V5, valid_ohlcv)
+
+        backtest = Backtest(
+            id=uuid4(),
+            user_id=uuid4(),
+            strategy_id=uuid4(),
+            symbol="BTCUSDT",
+            timeframe="1h",
+            period_start=datetime(2024, 1, 1, tzinfo=UTC),
+            period_end=datetime(2024, 1, 2, tzinfo=UTC),
+            initial_capital=Decimal("10000"),
+            status=BacktestStatus.QUEUED,
+        )
+        repo = AsyncMock()
+        repo.get_by_id.return_value = backtest
+        repo.transition_to_running.return_value = 1
+        repo.fail.return_value = 1
+        strategy_repo = AsyncMock()
+        strategy_repo.get_version_by_id.return_value = SimpleNamespace(pine_source=SIMPLE_PINE_V5)
+        service = BacktestService(
+            repo=repo,
+            strategy_repo=strategy_repo,
+            ohlcv_provider=AsyncMock(get_ohlcv=AsyncMock(return_value=valid_ohlcv)),
+            dispatcher=AsyncMock(),
+        )
+
+        with patch("src.backtest.service.run_backtest", return_value=outcome):
+            await service.run(backtest.id)
+
+        persisted_error = repo.fail.await_args.kwargs["error"]
+        assert persisted_error == "runtime boom"
+        assert "parse_failed" not in persisted_error
+        assert "engine status=" not in persisted_error
