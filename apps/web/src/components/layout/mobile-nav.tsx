@@ -20,7 +20,7 @@ export function MobileNav({ pathname }: MobileNavProps) {
   const setMobileNavOpen = useUiStore((s) => s.setMobileNavOpen);
 
   // route 변경 시 drawer 자동 close — Link click 후 새 페이지에서 drawer 잔존 방지.
-  // dep 없는 unstable 객체 회피 위해 string pathname + prev ref 비교 패턴 (frontend.md H-1).
+  // dep 없는 unstable 객체 회피 위해 string pathname + prev ref 비교 패턴 (apps/web/AGENTS.md §3 H-1).
   const lastPathRef = useRef(pathname);
   useEffect(() => {
     if (pathname !== lastPathRef.current) {

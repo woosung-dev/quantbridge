@@ -71,7 +71,7 @@
 | `--text-muted`                   | `#585f68` (card 6.35)  | `#8b939c` (캐논 `--ink-3` 정의값) |
 
 ★순백·순흑을 쓰지 않는다 — `--card` 는 `#ffffff` 가 아니라 `#fdfdfc`, `--bg` 는 `#f6f7f8` 가
-아니라 `#f4f5f6` 다(근거 주석 `globals.css:17-19`). 다크 `--text-muted` 는 캐논 5.82 의
+아니라 `#f4f5f6` 다(근거 주석 = 파일 상단 `:root`의 `--bg`·`--card` 선언). 다크 `--text-muted` 는 캐논 5.82 의
 **정의 토큰**이라 함부로 옮기면 임계 자체가 움직인다.
 
 ### 2.2 브랜드 / 시맨틱
@@ -88,14 +88,14 @@
 
 ★라이트 `--warning` 은 [BL-628] 로 `#875206` → `#824e05` 다 — `--warning-subtle` 위에서
 5.66 이라 캐논 5.82 에 미달했다(AA 는 통과). 다크 `--success-subtle` 은 `--success` 가 아니라
-**`--bullish` 파생**이다(구값은 앱 내부 모순이었다, `globals.css:441`).
+**`--bullish` 파생**이다(구값은 앱 내부 모순이었다, `.dark`의 `--success-subtle` 선언).
 
 ★**2026-08-08 [BL-649] — `--accent-amber` / `--accent-amber-light` 를 삭제했다**(라이트·다크·
 `@theme inline` 3면 6줄). 종전 이 자리는 「`--accent-amber` 는 라이트에서 `--warning` 과
 **바이트 동일**을 유지한다」였는데, 그 문장이 곧 삭제 사유다 — TSX 소비가 **0건**인데 같은
 값을 두 이름으로 들고 있었고, 다크에서는 이미 갈려 있었다(`-light` 0.12 vs
 `--warning-subtle` 0.10). 앰버가 필요하면 `--warning` / `--warning-subtle` 하나뿐이다.
-툼스톤은 `globals.css:57`.
+툼스톤은 파일 상단 `:root`의 `[BL-649] --accent-amber 삭제` 주석이다.
 
 ### 2.3 차트 (테마 인지 — `:root`/`.dark` 양쪽 정의)
 
@@ -118,7 +118,8 @@
 이 자리는 「별개로 존속한다」였으나 존속시킬 이유가 소멸했다 — `--color-chart-N` 유틸 소비가
 **0건**이고, `--chart-4` 는 구 `--warning`(`#875206`) 사본이라 [BL-628] 이후 **드리프트한
 복사본**이었다. 삭제하려면 `chart-tokens-contract.test.ts` 의 역방향 래칫
-`CHART_VARS_FROZEN` 을 먼저 고쳐야 했다(래칫이 설계대로 물었다). 툼스톤은 `globals.css:118`.
+`CHART_VARS_FROZEN` 을 먼저 고쳐야 했다(래칫이 설계대로 물었다). 툼스톤은 `:root`의
+`[BL-649] --chart-1..5 삭제` 주석이다.
 
 CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는 `lib/brand-palette.ts` 상수를 import — 하드코딩 hex 신규 작성 금지.
 
@@ -198,14 +199,15 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 
 | 컨테이너                | max-width  | 정의 위치                                          |
 | ----------------------- | ---------- | -------------------------------------------------- |
-| `.page` (앱 셸 공용)    | **1240px** | `globals.css:1210` (`@layer components`, KITPORT)  |
-| `.lp-page .page` (랜딩) | **1120px** | `:3328`                                            |
-| `.pricing-page .page`   | 1240px     | `:3541`                                            |
-| `.waitlist-page .page`  | 1240px     | `:3690`                                            |
+| `.page` (앱 셸 공용)    | **1240px** | KITPORT `@layer components` 안의 `.page` 규칙       |
+| `.lp-page .page` (랜딩) | **1120px** | `.lp-page .page` 규칙                               |
+| `.pricing-page .page`   | 1240px     | `.pricing-page .page` 규칙                          |
+| `.waitlist-page .page`  | 1240px     | `.waitlist-page .page` 규칙                         |
 | 대기자 명단 어드민      | 1200px     | `waitlist-admin-view.tsx:47` `max-w-[1200px]` (TW) |
 
 ★`.page` 의 max-width 는 **모든 뷰포트에서 고정**이다. 폭에 따라 바뀌는 것은 패딩뿐
-(`≤768px` → `18px 14px 48px`, `globals.css:1863`). 경계 실측 집행 = `e2e/design-canon-responsive.spec.ts`.
+(`≤768px` → `18px 14px 48px`, KITPORT `@media (max-width: 768px)` 안의 `.page` 패딩 규칙).
+경계 실측 집행 = `e2e/design-canon-responsive.spec.ts`.
 
 > ~~`.container` 1200px / `.dash-container` 1000px / `.narrow` 720px~~
 > ★**2026-08-08 삭제 — 셋 다 이 레포에 존재하지 않았다(v2 잔재).** 실측:
@@ -217,7 +219,7 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 
 ### 4.3 반응형 브레이크포인트
 
-**정본 = `globals.css:204-211` 의 `@theme` 블록.** ★Tailwind v4 **기본값이 아니다** —
+**정본 = `globals.css`의 `@theme` 블록 안 `--breakpoint-sm`~`--breakpoint-2xl` 선언.** ★Tailwind v4 **기본값이 아니다** —
 `sm:` 과 `xl:`, `2xl:` 이 재정의돼 있다. 코드를 쓸 때의 규칙(min/max 방향·데드심·`max-[N]:` 경계 미포함)은
 `apps/web/AGENTS.md` §10 이 갖는다 — 이 절은 **왜 그 값인가**를 갖는다.
 
@@ -233,7 +235,7 @@ CSS 변수를 못 읽는 소비자(차트 SSR 폴백 / Monaco / OG 이미지)는
 Tailwind 유틸 접두사(min-width)와 CSS 미디어(max-width)가 **같은 숫자를 반대 방향으로** 쓴다는
 뜻이다 — 섞어 읽지 마라.
 
-> ★★**2026-08-24 정정 — 종전의 「`min-width` 는 0건」은 거짓이다.** `globals.css:4017` 에
+> ★★**2026-08-24 정정 — 종전의 「`min-width` 는 0건」은 거짓이다.** CSS 하단의
 > `@media (min-width: 769px) and (max-width: 1024px)`(아이콘 레일 구간 계정 액션 숨김)가 있다.
 > **그것을 만든 것은 §4.3 자신의 처방**이다 — Tailwind `max-[N]:` 이 경계를 포함하지 않아
 > KITPORT(포함)와 어긋나는 자리를 raw 규칙으로 잡은 결과다(codex P2 수리, 2026-08-18).
@@ -585,21 +587,24 @@ transition: all 200ms ease;
 
 ### 10.2 Sidebar 사양
 
-**정본 = `globals.css`.** 기본 `:168` · 아이콘 레일 `:184-186` · 숨김 `:187-189`.
-★이 세 곳은 **언레이어드**여야 한다 — KITPORT 사본(`:1846` 1024 / `:1856` 768)은
-`@layer components` 소속이라 언레이어드 base 에 캐스케이드로 항상 진다(근거 주석 `:175-183`).
+**정본 = `globals.css`.** 기본 `:root`의 `--sidebar-w: 232px` 선언 · `아이콘 레일 브레이크포인트`
+주석 바로 뒤 언레이어드 `@media (max-width: 1024px)` 안의 `--sidebar-w: 64px` 재선언 · 그 다음
+언레이어드 `@media (max-width: 768px)` 안의 `--sidebar-w: 0px` 재선언.
+★이 세 곳은 **언레이어드**여야 한다 — KITPORT 사본(`KITPORT-START`~`KITPORT-END` 센티넬 안의
+두 미디어 재선언)은 `@layer components` 소속이라 언레이어드 base 에 캐스케이드로 항상 진다
+(근거 = `--sidebar-w` 언레이어드 오버라이드 주석).
 값은 `_kit.html` 실측(232 / 64 / 0)과 동일하다.
 
 | 속성          | 확장 (기본, `>1024px`)                                                                                                 | 아이콘 레일 (`≤1024px`)                                              | 숨김 (`≤768px`)                                                                         |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `--sidebar-w` | **232px**                                                                                                              | **64px**                                                             | **0px** + `.sidebar { display: none }`                                                  |
 | 표시          | 아이콘 + 레이블 + 계정 카드                                                                                            | 아이콘만 (브랜드명·nav 레이블·계정 텍스트·nav 카운트 `display:none`) | 셸에서 제거 → 햄버거 + 모바일 drawer                                                    |
-| 토글          | **없음 — 순수 CSS 로 접힌다.** `sidebarOpen` 프롭·스토어는 삭제됐다 (`dashboard-sidebar.tsx:3`, `store/ui-store.ts:5`) | —                                                                    | drawer 만 JS. drawer 는 레일 collapse 를 받지 않고 항상 풀 라벨 (`globals.css:191-197`) |
+| 토글          | **없음 — 순수 CSS 로 접힌다.** `sidebarOpen` 프롭·스토어는 삭제됐다 (`dashboard-sidebar.tsx:3`, `store/ui-store.ts:5`) | —                                                                    | drawer 만 JS. drawer 는 레일 collapse 를 받지 않고 항상 풀 라벨 (언레이어드 `.qb-mobile-nav .nav-item`의 `max-width: 1024px` 재확장 규칙) |
 
 > ~~기본 동작: 데스크톱 확장, **1200px↓ 축소**, 768px↓ 숨김+햄버거~~ · ~~Width 220px / 60px~~
 > · ~~토글 = chevron 버튼~~
 > ★★**2026-08-08 정정 — 1200px 는 셸 브레이크포인트가 아니다.** 코드의
-> `@media (max-width: 1200px)` **5곳**(`globals.css:1836 · 2442 · 2531 · 2991 · 3503`)은
+> `@media (max-width: 1200px)` **5곳**(각각 `.kpi-row`·`.create-grid`·`.strip-3`·`.setup-grid`·`.lp-hero` 규칙에서 시작)은
 > 전부 **콘텐츠 그리드 열 수 축소**(`.kpi-row`·`.metric-groups`·`.diag-row`·`.cta-row` /
 > `.create-grid` / `.strip-3` / `.setup-grid` / `.lp-hero`·`.lp-feat-grid`·`.lp-steps`)이고
 > 사이드바·토프바·`.page` 폭에는 **개입하지 않는다**(5블록 전수 확인). 셸 경계는 **1024 와
@@ -721,19 +726,19 @@ transition: all 200ms ease;
 
 > ~~`≥1440px` 행~~ · ~~`1200px~ 검색 축소` 행~~
 > ★**2026-08-08 삭제.** 1440px 미디어는 **0건**이다. (~~raw CSS 미디어에 `min-width` 는 0건~~ →
-> **2026-08-24 반증: `globals.css:4017` 1건**. §4.3 정정 박스를 봐라.) `--breakpoint-2xl: 1440px` · `--breakpoint-xl: 1200px`
-> (`globals.css:204-211`)는 Tailwind 유틸 접두사용 값이지 셸 규칙이 아니다. 1200px 의 정체는
+> **2026-08-24 반증: CSS 하단의 `@media (min-width: 769px) and (max-width: 1024px)` 1건**. §4.3 정정 박스를 봐라.) `--breakpoint-2xl: 1440px` · `--breakpoint-xl: 1200px`
+> (`@theme` 블록의 선언)는 Tailwind 유틸 접두사용 값이지 셸 규칙이 아니다. 1200px 의 정체는
 > §10.2 정정을 봐라 — 콘텐츠 그리드 축이다.
 >
 > ~~`1024px~ 검색 숨김`~~
-> ★**검증 불가 — 검색창이 렌더되지 않는다.** `.searchbox` CSS(`globals.css:1146-1165` 정의,
-> `:1840` 1024px 숨김)는 이식돼 있으나 **그것을 렌더하는 TSX 가 0건**이다
+> ★**검증 불가 — 검색창이 렌더되지 않는다.** `.searchbox` CSS(KITPORT 안의 `.searchbox` 규칙과
+> `@media (max-width: 1024px)` 안의 `display: none` 규칙)는 이식돼 있으나 **그것을 렌더하는 TSX 가 0건**이다
 > (`components/layout/dashboard-header.tsx:5` — 「검색창은 백엔드 검색 기능이 없어 이식하지
 > 않는다(가짜 UI 방지)」). 데드 CSS 의 처분은 [BL-645].
 >
-> ★**2026-08-09 (W3) 정정 — 위 줄 번호가 낡아 있었다.** 종전 표기 `1159-1178`·`:1853` 은
-> 지금의 파일에서 각각 `.searchbox:hover` 중간과 `@media (max-width: 1024px)` 바깥을 가리켰다.
-> 실측 재확인 = 정의 **1146-1165** · 1024px 숨김 **1840** · 렌더 TSX **0건**
+> ★**2026-08-09 (W3) 정정 — 종전 줄 번호 표기가 낡아 있었다.** 지금의 파일에서 각각
+> `.searchbox:hover` 중간과 `@media (max-width: 1024px)` 바깥을 가리켰다.
+> 실측 재확인 = 정의 `.searchbox` 규칙 · 1024px 숨김 `@media (max-width: 1024px)` 안의 `display: none` 규칙 · 렌더 TSX **0건**
 > (`grep -rn searchbox apps/web/src --include=*.tsx` 의 유일한 히트는
 > `app/__tests__/not-found.test.tsx` 의 ARIA role `searchbox` 로, 이 CSS 클래스가 아니다).
 >

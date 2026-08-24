@@ -6,7 +6,7 @@
 > **대체:** [ADR-026](./026-documentation-ssot.md) **§2 「`.ai/` 를 해체한다」의 배치 결정만** 대체한다.
 > ADR-026 의 §1 SSOT 7축 · §3 기록 정책 · §4 AGENTS.md 오리엔테이션 전용 · §5 tombstone 의무는 **그대로 유효**하다.
 > **출처:** 2026-08-07 실측 3건 — 하위 `CLAUDE.md` 로드 재현 · Claude Code 공식 메모리 문서 · `agents.md` 스펙
-> **관련:** [`AGENTS.md`](../../AGENTS.md) · `backend/AGENTS.md` · `frontend/AGENTS.md`
+> **관련:** [`AGENTS.md`](../../AGENTS.md) · `backend/AGENTS.md` · `apps/web/AGENTS.md`
 
 ---
 
@@ -56,7 +56,7 @@ one takes precedence and every subproject can ship tailored instructions」. 지
 ```
 backend/AGENTS.md      # 구 .claude/rules/backend.md
 backend/CLAUDE.md      # @AGENTS.md (한 줄)
-frontend/AGENTS.md     # 구 frontend.md + nextjs-shared.md 병합 (§7~§11)
+apps/web/AGENTS.md     # 구 FE 규칙 파일 병합 (§7~§11)
 frontend/CLAUDE.md     # @AGENTS.md (한 줄)
 ```
 
@@ -78,7 +78,7 @@ frontend/CLAUDE.md     # @AGENTS.md (한 줄)
 
 ### 3. `paths` glob 정밀도는 포기한다
 
-구 `nextjs-shared.md` 는 `frontend/**/*.{ts,tsx}` 로 확장자까지 좁혔다. 새 배치는 **디렉터리 단위**다 —
+구 FE 규칙은 `frontend/**/*.{ts,tsx}` 로 확장자까지 좁혔다. 새 배치는 **디렉터리 단위**다 —
 `frontend/` 안의 `.md`·`.json` 을 열어도 프런트 규칙이 들어온다. 현행 규칙 3 종은 전부 디렉터리 경계와
 일치하므로 실질 손실이 없다. ★**규칙이 디렉터리 경계를 넘어야 할 때**(예: `tests/**` 와 `backend/**` 를
 함께 겨냥) 는 이 배치로 표현할 수 없다 — 그때가 재평가 시점이다.

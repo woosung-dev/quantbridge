@@ -39,7 +39,7 @@ Sprint 7c FE 구현 중 `next-server` Node 프로세스가 **331% CPU (3.3 cores
 
 ### 3) Rules에 dev performance 의식 전무
 
-- `.ai/stacks/nextjs-shared.md` / `frontend.md` / `fullstack.md` — Turbopack, HMR watch ignore, heavy deps splitting 언급 **0건**
+- `apps/web/AGENTS.md` / `fullstack.md` — Turbopack, HMR watch ignore, heavy deps splitting 언급 **0건**
 - `.ai/common/typescript.md` — `useEffect` deps 안정화 규칙 **없음** (object literal → infinite re-render loop 위험)
 - `.ai/project/lessons.md` — CPU/HMR 관련 학습 **0건** (문제가 지식 자산화 안 됨)
 
@@ -51,17 +51,17 @@ Sprint 7c FE 구현 중 `next-server` Node 프로세스가 **331% CPU (3.3 cores
 
 1. **`.ai/templates/ralph-loop.md:145` 기본값 `--max-iterations 50`** — Dev server 동시 구동 시 HMR 폭주 (일반성 100%)
 2. **`.ai/templates/settings.json.example:3-12` PostToolUse prettier hook** — 매 Edit마다 prettier 실행 누적 (일반성 100%)
-3. **`.ai/stacks/nextjs-shared.md` HMR watch 가이드 부재** — node_modules/.next watch 제외 명시 없음 (일반성 100%)
+3. **`apps/web/AGENTS.md` HMR watch 가이드 부재** — node_modules/.next watch 제외 명시 없음 (일반성 100%)
 4. **`AGENTS.md:40` "완전한 코드" 원칙** — 파일 변경 범위 2~3배 확대 (일반성 100%)
 5. **`.ai/common/typescript.md` useEffect deps 규칙 부재** — object literal inline → re-render loop (일반성 100%)
 
 ### Important (간접 CPU 비용)
 
 6. **`AGENTS.md:54-55` Atomic Update** — 코드+문서 동반 수정 → HMR noise
-7. **`nextjs-shared.md:40` Zod v4 규칙** — render body에 `z.parse()` 유입 가능성
+7. **`apps/web/AGENTS.md` §8 Zod v4 규칙** — render body에 `z.parse()` 유입 가능성
 8. **`fullstack.md:368` 폴링 interval 가이드 없음** — 5초 interval 남용 위험
 9. **`.ai/templates/methodology.md` "docs 계속 touch"** — Tailwind/MDX 재스캔 연쇄
-10. **`frontend.md:68-69` Query Key factory 가이드 부재** — 캐시 collision → 불필요 refetch
+10. **`apps/web/AGENTS.md` §3 Query Key factory 가이드 부재** — 캐시 collision → 불필요 refetch
 
 ### Minor (체감 작지만 개선 가치)
 
@@ -107,7 +107,7 @@ rm -rf frontend/.next
 
 `.ai/`는 gitignored라 본 프로젝트에서 commit 불가. User의 main `.ai/` repo에서 별도 브랜치로 적용 후 배포:
 
-1. **`.ai/stacks/nextjs-shared.md` 상단에 "Dev Performance" 섹션 신설**
+1. **`apps/web/AGENTS.md`에 "Dev Performance" 섹션 신설**
    - Turbopack 기본 (`next dev --turbopack`)
    - `typedRoutes: isBuild`
    - `webpack: { watchOptions: { ignored: ['**/node_modules', '**/.next'] } }`
