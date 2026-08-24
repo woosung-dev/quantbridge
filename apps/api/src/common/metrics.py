@@ -57,7 +57,7 @@ from typing import Any
 
 from prometheus_client import Counter, Gauge, Histogram
 
-from src.common.metrics_multiproc import configure_multiprocess, record_metric_safely
+from src.common.metrics_multiproc import _count_safely, configure_multiprocess, record_metric_safely
 
 configure_multiprocess()
 
@@ -916,13 +916,16 @@ async def ccxt_timer(exchange: str, endpoint: str) -> AsyncIterator[None]:
         yield
     except Exception as exc:
         # 거래소 API 오류 계측 — BaseException (CancelledError, KeyboardInterrupt 등) 제외
-        qb_ccxt_request_errors_total.labels(
+        _count_safely(
+            qb_ccxt_request_errors_total,
             exchange=exchange,
             endpoint=endpoint,
             error_class=_normalize_error_class(exc),
-        ).inc()
+        )
         raise
     finally:
-        qb_ccxt_request_duration_seconds.labels(exchange=exchange, endpoint=endpoint).observe(
-            time.monotonic() - started
+        record_metric_safely(
+            lambda: qb_ccxt_request_duration_seconds.labels(
+                exchange=exchange, endpoint=endpoint
+            ).observe(time.monotonic() - started)
         )

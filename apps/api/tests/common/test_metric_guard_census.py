@@ -86,13 +86,9 @@ _HARMFUL_MUTATION_CANDIDATES = frozenset(
 
 _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/common/alert.py", "qb_pending_alerts"): 2,
-    ("apps/api/src/common/metrics.py", "qb_ccxt_request_duration_seconds"): 1,
-    ("apps/api/src/common/metrics.py", "qb_ccxt_request_errors_total"): 1,
     ("apps/api/src/common/metrics_multiproc.py", "qb_metrics_mutation_failed_total"): 1,
     ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): 1,
     ("apps/api/src/common/redis_client.py", "qb_redis_lock_pool_healthy"): 1,
-    ("apps/api/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
-    ("apps/api/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 3,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): 1,
@@ -516,8 +512,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 22
-    assert sum(_FROZEN_CENSUS.values()) == 37
+    assert len(_FROZEN_CENSUS) == 18
+    assert sum(_FROZEN_CENSUS.values()) == 31
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)

@@ -17,7 +17,7 @@ _SOURCE_ROOT = _BACKEND_ROOT / "src"
 _FROZEN_LABELS_OUTSIDE_GUARD: dict[str, int] = {}
 
 _EXPECTED_LAMBDA_WRAPPED_LABELS: dict[str, int] = {
-    "apps/api/src/common/metrics.py": 1,
+    "apps/api/src/common/metrics.py": 2,
     "apps/api/src/common/metrics_multiproc.py": 2,
     "apps/api/src/tasks/live_signal.py": 1,
     "apps/api/src/tasks/trading.py": 1,
