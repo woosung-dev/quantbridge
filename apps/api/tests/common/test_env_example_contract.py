@@ -57,10 +57,10 @@ def _settings_field_env_keys() -> list[str]:
     return env_keys
 
 
-def _env_example_keys() -> set[str]:
+def _env_example_keys(path: Path = _ENV_EXAMPLE_PATH) -> set[str]:
     return {
         line.split("=", 1)[0]
-        for line in _ENV_EXAMPLE_PATH.read_text().splitlines()
+        for line in path.read_text().splitlines()
         if line and not line.lstrip().startswith("#") and "=" in line
     }
 
@@ -84,3 +84,24 @@ def test_env_example_keys_without_settings_match_allowlist() -> None:
 
 def test_allowlist_non_settings_keys_exist_in_env_example() -> None:
     assert _env_example_keys() >= _ALLOWLIST_NON_SETTINGS
+
+
+def test_field_aliases_are_contract_keys_in_both_directions() -> None:
+    settings_keys = set(_settings_field_env_keys())
+    env_example_keys = _env_example_keys()
+    aliases = {"TRUSTED_PROXIES", "WAITLIST_ADMIN_EMAILS"}
+    attribute_names = {"TRUSTED_PROXIES_RAW", "WAITLIST_ADMIN_EMAILS_RAW"}
+
+    assert aliases <= settings_keys
+    assert aliases <= env_example_keys
+    assert aliases.isdisjoint(settings_keys - env_example_keys)
+    assert aliases.isdisjoint(env_example_keys - settings_keys)
+    assert attribute_names.isdisjoint(settings_keys)
+    assert attribute_names.isdisjoint(env_example_keys)
+
+
+def test_env_example_parser_ignores_commented_assignments(tmp_path: Path) -> None:
+    env_example = tmp_path / ".env.example"
+    env_example.write_text("# COMMENT_ONLY=ignored\nACTIVE_KEY=accepted\n")
+
+    assert _env_example_keys(env_example) == {"ACTIVE_KEY"}
