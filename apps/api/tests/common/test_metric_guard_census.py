@@ -368,9 +368,20 @@ def _nearest_result_reporting_try_shape(node: ast.AST, parents: dict[int, ast.AS
     return None
 
 
+def _in_scope_census_entries() -> frozenset[tuple[str, str]]:
+    """step 0 범위 판정에서 결과 보고 try의 A/B에 든 census 키를 도출한다."""
+    return frozenset(key for key, (in_scope, _) in _census_scope_counts().items() if in_scope > 0)
+
+
+def _harmful_scan_candidates() -> frozenset[tuple[str, str]]:
+    """전량 범위 대상과 수동 하한선 제어군을 함께 훑을 후보 집합."""
+    return _in_scope_census_entries() | _HARMFUL_MUTATION_CANDIDATES
+
+
 def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
-    """수동 동결 후보의 raw mutation이 A/B 해로운 try 자리에 남았는지 수집한다."""
+    """범위 도출 후보의 raw mutation이 A/B 해로운 try 자리에 남았는지 수집한다."""
     harmful_sites: list[_HarmfulMetricSite] = []
+    candidates = _harmful_scan_candidates()
     for path, tree in _source_trees():
         relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
         parents = _parent_nodes(tree)
@@ -381,7 +392,7 @@ def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
             if mutation is None:
                 continue
             metric, _ = mutation
-            if (relative_path, metric) not in _HARMFUL_MUTATION_CANDIDATES:
+            if (relative_path, metric) not in candidates:
                 continue
             shape = _nearest_result_reporting_try_shape(node, parents)
             if shape is None:
@@ -629,6 +640,21 @@ def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:
         "결과 보고 try 스캐너가 100곳 미만만 훑었다 — 해로운 자리 0건은 대상 미도달로도 참이다: "
         f"{reporting_try_count}"
     )
+
+
+def test_harmful_scan_covers_every_in_scope_census_entry() -> None:
+    assert _harmful_scan_candidates() >= _in_scope_census_entries()
+
+
+def test_harmful_candidate_lower_bound_is_still_covered() -> None:
+    assert _harmful_scan_candidates() >= _HARMFUL_MUTATION_CANDIDATES
+
+
+def test_harmful_sites_are_empty_with_a_positive_control() -> None:
+    actual = _harmful_mutation_sites()
+
+    assert not actual, actual
+    assert _result_reporting_try_count() >= 1
 
 
 def test_guard_outcome_literals_are_all_allowed() -> None:
