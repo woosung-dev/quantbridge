@@ -124,6 +124,10 @@ def _dependency_paths() -> list[Path]:
     return sorted(_SOURCE_ROOT.glob("*/dependencies.py"))
 
 
+# 동결된 기지 위반 — 지금은 비어 있다(경계 밖 `select(` 0건).
+# ★비어 있는 동안 「동결분이 아직 남아 있다」쪽 대칭 검사를 두지 마라 — `actual >= frozenset()`
+#   은 **항상 참**이라 판별력이 0이면서 통과 수만 늘린다(2026-08-24 제거).
+#   이 집합이 비지 않게 되는 날 그 검사를 함께 되살려라.
 _FROZEN_VIOLATIONS = frozenset()
 
 
@@ -194,8 +198,3 @@ def test_repository_boundary_violations_do_not_expand_beyond_the_frozen_census()
 
     assert actual <= _FROZEN_VIOLATIONS, actual - _FROZEN_VIOLATIONS
 
-
-def test_frozen_repository_boundary_violations_are_still_present() -> None:
-    actual = _actual_violations()
-
-    assert actual >= _FROZEN_VIOLATIONS, _FROZEN_VIOLATIONS - actual
