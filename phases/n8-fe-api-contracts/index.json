@@ -21,7 +21,7 @@
     {
       "step": 1,
       "name": "strategy-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api-contract.test.ts",
@@ -29,7 +29,10 @@
         "cd apps/web && pnpm exec biome check src/features/strategy/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec tsc --noEmit",
         "git diff --quiet -- apps/web/src/features/strategy/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-24T14:39:23+0900",
+      "summary": "Strategy API 8개 export의 apiFetch 경로·메서드/본문·Zod 응답 파싱을 고정했다. 확인된 불일치: BE ParsePreviewResponse.dogfood_only_warning은 FE 스키마가 제거하고, BE CreateStrategyRequest.trading_sessions는 FE 생성 스키마에서 전달할 수 없다(api.ts 미수정).",
+      "completed_at": "2026-08-24T14:43:53+0900"
     },
     {
       "step": 2,
