@@ -111,7 +111,6 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     # ★내가 처음 12곳을 전부 (b)로 적었고 **테스트가 그 일반화를 반증했다.** 직전 회차의
     #   「8곳 중 1곳만 fail-open `try` 안」과 같은 함정이다.
     ("apps/api/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 3,
-    ("apps/api/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     # ★2026-08-03 metric-guard-residual-sweep — 12곳 중 8곳 수리. 잔여 4곳은 **판정 보류**
     #   (프로덕션 도달 경로를 한 줄로 못 적어 주입 하네스를 만들지 않았다. 만들면 프로덕션이
@@ -140,7 +139,6 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     #   `tasks/trading.py`+`qb_closed_pnl_backfill_total`(15) ·
     #   `services/order_service.py`+`qb_order_rejected_total`(10).
     ("apps/api/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
-    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_link_unverified_total"): 1,
     ("apps/api/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
     ("apps/api/src/tasks/trading.py", "qb_order_snapshot_fallback_total"): 2,
     ("apps/api/src/tasks/trading.py", "qb_trailing_placement_total"): 9,
@@ -198,6 +196,22 @@ def _mutation_site(call: ast.Call) -> tuple[str, str] | None:
     if metric is None:
         return None
     return metric, call.func.attr
+
+
+def _guarded_bound_metric_site(call: ast.Call) -> tuple[str, str] | None:
+    """가드에 bound metric method를 넘긴 자리도 harmful-try 위치 확인에는 포함한다."""
+    if not _is_guard_call(call) or not call.args:
+        return None
+    callable_argument = call.args[0]
+    if (
+        not isinstance(callable_argument, ast.Attribute)
+        or callable_argument.attr not in _MUTATION_METHODS
+    ):
+        return None
+    metric = _metric_name(callable_argument.value)
+    if metric is None:
+        return None
+    return metric, callable_argument.attr
 
 
 def _labels_site(call: ast.Call, mutation_receivers: set[int]) -> tuple[str, str] | None:
@@ -403,7 +417,7 @@ def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            mutation = _mutation_site(node)
+            mutation = _mutation_site(node) or _guarded_bound_metric_site(node)
             if mutation is None:
                 continue
             metric, _ = mutation
@@ -551,8 +565,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 40
-    assert sum(_FROZEN_CENSUS.values()) == 83
+    assert len(_FROZEN_CENSUS) == 38
+    assert sum(_FROZEN_CENSUS.values()) == 81
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
@@ -724,6 +738,12 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "★commit 앞 + except 가 rollback — 계측 예외가 terminal DB 전이를 되돌린다",
     ),
     (
+        "apps/api/src/tasks/live_signal.py",
+        "_async_sweep_conditional_entries",
+        "qb_live_conditional_sweep_filled_total",
+        "체결 발견 뒤 — 예외가 rollback + sweep_cancel_failed로 실제 체결을 취소 실패로 오기록",
+    ),
+    (
         "apps/api/src/tasks/conditional_entry_janitor.py",
         "_async_conditional_entry_janitor",
         "qb_active_orders",
@@ -816,6 +836,12 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "_sweep_closed_pnl_with_session",
         "qb_closed_pnl_backfill_total",
         "★계정 격리 handler 의 첫 줄 + 신규 청산 알림 앞 + 원장 적재 앞 (H4·H2·H7)",
+    ),
+    (
+        "apps/api/src/tasks/trading.py",
+        "_sweep_closed_pnl_with_session",
+        "qb_exchange_exit_link_unverified_total",
+        "청산 원장 행 관측 뒤 — 예외가 계정 격리 handler로 가서 이 계정 스윕 후속 처리를 중단",
     ),
     # ★2026-08-03 metric-guard-residual-sweep — 라이브 발주 outbox 경로 8곳(전건 「수리함」).
     #   전부 `mark_failed`/`mark_dispatched` + `commit()` **뒤**이고, 호출자

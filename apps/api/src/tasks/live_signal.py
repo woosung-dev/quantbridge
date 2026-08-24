@@ -4198,7 +4198,7 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                         if won == "cancelled":
                             cancelled += 1
                         elif won == "filled":
-                            qb_live_conditional_sweep_filled_total.inc()
+                            record_metric_safely(qb_live_conditional_sweep_filled_total.inc)
                             logger.warning(
                                 "live_conditional_entry_sweep_found_filled",
                                 extra={"order_id": str(order_id)},
