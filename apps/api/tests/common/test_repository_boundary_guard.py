@@ -126,9 +126,6 @@ def _dependency_paths() -> list[Path]:
 
 _FROZEN_VIOLATIONS = frozenset(
     {
-        ("apps/api/src/trading/dependencies.py", "_StrategySessionsAdapter.get_sessions"),
-        ("apps/api/src/trading/dependencies.py", "_StrategySessionsAdapter.get_owner"),
-        ("apps/api/src/trading/dependencies.py", "_StrategySessionsAdapter.is_owner_active"),
         ("apps/api/src/trading/kill_switch.py", "CumulativeLossEvaluator.evaluate"),
         ("apps/api/src/trading/kill_switch.py", "DailyLossEvaluator.evaluate"),
         ("apps/api/src/trading/websocket/reconciliation.py", "Reconciler._list_local_active"),
@@ -180,10 +177,10 @@ def test_repository_boundary_census_has_positive_control() -> None:
     calls = [call for path in paths for call in _select_calls(path)]
 
     assert len(paths) >= 60
-    assert len(calls) >= 6
+    assert len(calls) >= 4
 
 
-def test_only_trading_dependencies_contain_scoped_select_calls() -> None:
+def test_dependencies_do_not_contain_scoped_select_calls() -> None:
     dependency_paths = _dependency_paths()
     paths_with_calls = {
         path.relative_to(_REPOSITORY_ROOT).as_posix()
@@ -192,7 +189,7 @@ def test_only_trading_dependencies_contain_scoped_select_calls() -> None:
     }
 
     assert len(dependency_paths) == 8
-    assert paths_with_calls == {"apps/api/src/trading/dependencies.py"}
+    assert paths_with_calls == set()
 
 
 def test_repository_boundary_violations_do_not_expand_beyond_the_frozen_census() -> None:

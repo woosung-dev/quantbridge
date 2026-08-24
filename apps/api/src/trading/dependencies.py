@@ -9,14 +9,12 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import Depends
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.auth.repository import UserRepository
 from src.common.database import get_async_session
 from src.common.redis_client import get_redis_lock_pool
 from src.core.config import settings
-from src.strategy.models import Strategy
 from src.strategy.repository import StrategyRepository
 from src.trading.encryption import EncryptionService
 from src.trading.kill_switch import (
@@ -152,38 +150,27 @@ class _StrategySessionsAdapter:
     trading_sessions 컬럼은 nullable이므로 NULL(pre-migration rows) → []로 정규화.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
-        self._session = session
+    def __init__(
+        self,
+        strategy_repo: StrategyRepository,
+        user_repo: UserRepository,
+    ) -> None:
+        self._strategy_repo = strategy_repo
+        self._user_repo = user_repo
 
     async def get_sessions(self, strategy_id: UUID) -> list[str]:
-        stmt = select(Strategy).where(Strategy.id == strategy_id)  # type: ignore[arg-type]
-        result = await self._session.execute(stmt)
-        strategy = result.scalar_one_or_none()
-        if strategy is None or strategy.trading_sessions is None:
-            return []
-        return list(strategy.trading_sessions)
+        return await self._strategy_repo.get_trading_sessions(strategy_id)
 
     async def get_owner(self, strategy_id: UUID) -> UUID | None:
         """TRD-4 — strategy 소유자(user_id) 반환. 없으면 None."""
-        stmt = select(Strategy).where(Strategy.id == strategy_id)  # type: ignore[arg-type]
-        result = await self._session.execute(stmt)
-        strategy = result.scalar_one_or_none()
-        return strategy.user_id if strategy is not None else None
+        return await self._strategy_repo.get_owner_id(strategy_id)
 
     async def is_owner_active(self, user_id: UUID) -> bool:
         """2026-08-15 surface-truth (S3) — 소유자가 탈퇴했으면 주문을 막는다.
 
         행이 없으면 False (fail-closed) — 「모르면 보낸다」가 이 도메인에서 가장 비싼 기본값이다.
         """
-        from src.auth.models import User
-
-        # ★단일 컬럼 select 대신 **행 조회**다 — 이 레포의 관용구가 그것이고
-        #   (`get_owner` 바로 위), `select(User.is_active)` 는 SQLModel 타입이 bool 로
-        #   좁혀져 mypy 가 overload 를 못 고른다.
-        stmt = select(User).where(User.id == user_id)  # type: ignore[arg-type]
-        result = await self._session.execute(stmt)
-        user = result.scalar_one_or_none()
-        return user is not None and user.is_active
+        return await self._user_repo.is_active(user_id)
 
 
 # ── OrderService ─────────────────────────────────────────────────────
@@ -199,7 +186,10 @@ async def get_order_service(
         repo=repo,
         dispatcher=dispatcher,
         kill_switch=kill_switch,
-        sessions_port=_StrategySessionsAdapter(session),
+        sessions_port=_StrategySessionsAdapter(
+            strategy_repo=StrategyRepository(session),
+            user_repo=UserRepository(session),
+        ),
         # Sprint 8+ notional check: qty x price x leverage ≤ available x max_leverage x 0.95
         exchange_service=exchange_service,
     )

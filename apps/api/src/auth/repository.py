@@ -26,6 +26,11 @@ class UserRepository:
         result = await self.session.execute(select(User).where(User.id == user_id))  # type: ignore[arg-type]
         return result.scalar_one_or_none()
 
+    async def is_active(self, user_id: UUID) -> bool:
+        """존재하는 활성 사용자만 True로 반환한다."""
+        user = await self.find_by_id(user_id)
+        return user is not None and user.is_active
+
     async def get_created_at(self, user_id: UUID) -> datetime | None:
         """readiness gate 용 — user.created_at 조회 (없으면 None)."""
         user = await self.find_by_id(user_id)

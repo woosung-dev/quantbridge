@@ -1940,6 +1940,8 @@ def _build_placement_order_service(
 
     ★**감싸는 핸들러: 없다** — fail-open `except Exception` 으로 전파된다.
     """
+    from src.auth.repository import UserRepository
+    from src.strategy.repository import StrategyRepository
     from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
     from src.trading.kill_switch import (
         CumulativeLossEvaluator,
@@ -1966,7 +1968,10 @@ def _build_placement_order_service(
         repo=order_repo,
         dispatcher=_CeleryOrderDispatcher(),
         kill_switch=KillSwitchService(evaluators=evaluators, events_repo=kse_repo),
-        sessions_port=_StrategySessionsAdapter(session),
+        sessions_port=_StrategySessionsAdapter(
+            strategy_repo=StrategyRepository(session),
+            user_repo=UserRepository(session),
+        ),
         exchange_service=exchange_service,
     )
 
@@ -4243,6 +4248,7 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
     - idempotency_key with sequence_no (P2 #5 — 같은 bar entry+close 분리)
     - mark_failed 도 commit 의무 (LESSON-019)
     """
+    from src.auth.repository import UserRepository
     from src.strategy.repository import StrategyRepository
     from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
     from src.trading.encryption import EncryptionService
@@ -4373,7 +4379,10 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 repo=order_repo,
                 dispatcher=_CeleryOrderDispatcher(),
                 kill_switch=ks_svc,
-                sessions_port=_StrategySessionsAdapter(session),  # P1 #5 fix
+                sessions_port=_StrategySessionsAdapter(
+                    strategy_repo=StrategyRepository(session),
+                    user_repo=UserRepository(session),
+                ),  # P1 #5 fix
                 exchange_service=exchange_svc,
             )
 

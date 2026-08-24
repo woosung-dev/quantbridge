@@ -30,6 +30,18 @@ class StrategyRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_trading_sessions(self, strategy_id: UUID) -> list[str]:
+        """전략의 거래 시간대 목록을 반환한다. 없거나 NULL이면 24시간으로 정규화한다."""
+        strategy = await self.find_by_id(strategy_id)
+        if strategy is None or strategy.trading_sessions is None:
+            return []
+        return list(strategy.trading_sessions)
+
+    async def get_owner_id(self, strategy_id: UUID) -> UUID | None:
+        """전략 소유자 ID를 반환한다. 전략이 없으면 None이다."""
+        strategy = await self.find_by_id(strategy_id)
+        return strategy.user_id if strategy is not None else None
+
     async def find_by_id_and_owner(self, strategy_id: UUID, owner_id: UUID) -> Strategy | None:
         result = await self.session.execute(
             select(Strategy).where(

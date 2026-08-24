@@ -55,6 +55,7 @@ async def _async_recover_breached_entry(order_id: str) -> dict[str, str]:
     except (TypeError, ValueError):
         return {"order_id": str(order_id), "outcome": "not_applicable"}
 
+    from src.auth.repository import UserRepository
     from src.strategy.repository import StrategyRepository
     from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
     from src.trading.encryption import EncryptionService
@@ -297,7 +298,10 @@ async def _async_recover_breached_entry(order_id: str) -> dict[str, str]:
                 repo=order_repo,
                 dispatcher=_CeleryOrderDispatcher(),
                 kill_switch=KillSwitchService(evaluators=evaluators, events_repo=kse_repo),
-                sessions_port=_StrategySessionsAdapter(session),
+                sessions_port=_StrategySessionsAdapter(
+                    strategy_repo=StrategyRepository(session),
+                    user_repo=UserRepository(session),
+                ),
                 exchange_service=exchange_service,
             )
             request = OrderRequest(
