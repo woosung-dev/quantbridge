@@ -115,13 +115,15 @@
     {
       "step": 8,
       "name": "fault-injection-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks tests/trading tests/common -k metric_failure_does_not_escape -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/tasks tests/trading tests/common -k metric_failure_does_not_escape --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py tests/common -k 'census or labels_outside_guard' -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks tests/trading tests/common -q"
-      ]
+      ],
+      "summary": "청산 원장·조건부 체결·WS 인증 차단·Redis 락의 `.labels()` 고장 주입 4건과 eager 음성 대조 1건을 추가했다; 회차는 46개 site를 감쌌고 `_FROZEN_CENSUS`는 17항목/30건, allowlist는 1항목이며, raw redlock 변이는 red 후 SHA-256 원복했고 AC는 2203 passed/12 skipped였다.",
+      "completed_at": "2026-08-25T00:30:56+0900"
     }
   ],
   "created_at": "2026-08-24T23:32:37+0900"
