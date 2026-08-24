@@ -15,7 +15,8 @@
     },
     {
       "dir": "n7-backtest-error-class",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-24T11:24:27+0900"
     }
   ]
 }
