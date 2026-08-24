@@ -34,13 +34,16 @@
     {
       "step": 2,
       "name": "ledger-seed-watermark-write",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test \"$(grep -c '_qb_ledger_seed_since' apps/api/src/tasks/live_signal.py)\" -ge 2",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q -k 'seed or watermark or gap'",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks -q -k 'ledger_seed_watermark' --collect-only 2>/dev/null | grep -c '::')\" -ge 2",
         "cd apps/api && uv run ruff check src/tasks/live_signal.py"
-      ]
+      ],
+      "started_at": "2026-08-24T18:49:13+0900",
+      "summary": "seedable 공백 재동기 tick이 원장 조회 창의 UTC watermark를 기존 JSONB 리포트에 기록하고 안전한 parser와 양·음성 회귀를 갖춘다.",
+      "completed_at": "2026-08-24T18:53:44+0900"
     },
     {
       "step": 3,
