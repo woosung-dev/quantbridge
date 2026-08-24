@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -17,9 +18,9 @@ class _RecordingPool:
         self._error = error
 
     async def publish(self, channel: str, message: str) -> None:
+        self.calls.append((channel, message))
         if self._error is not None:
             raise self._error
-        self.calls.append((channel, message))
 
 
 @pytest.mark.asyncio
@@ -72,6 +73,24 @@ async def test_publish_realtime_swallows_redis_error_and_counts_failure(
     )
 
     assert qb_rt_publish_failed_total._value.get() == before + 1
+
+
+@pytest.mark.asyncio
+async def test_publish_realtime_swallows_metric_mutation_failure_after_redis_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """모양 B: except 본문의 metric 고장도 이미 잡은 Redis 오류를 다시 누출시키지 않는다."""
+    pool = _RecordingPool(RuntimeError("redis unavailable"))
+    mutation = MagicMock(side_effect=OSError("metric mmap is read-only"))
+    monkeypatch.setattr(realtime_publisher, "_get_redis_lock_pool", lambda: pool)
+    monkeypatch.setattr(realtime_publisher.qb_rt_publish_failed_total, "inc", mutation)
+
+    await realtime_publisher.publish_realtime(
+        "user-1", "session_state", {"session_id": "session-1"}
+    )
+
+    assert len(pool.calls) == 1
+    mutation.assert_called_once_with()
 
 
 @pytest.mark.asyncio

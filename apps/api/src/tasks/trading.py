@@ -2213,7 +2213,7 @@ async def _sweep_closed_pnl_with_session(
                         parse_our_order_link_id(row.order_link_id) is not None
                         and row.classification != ExitClassification.ours
                     ):
-                        qb_exchange_exit_link_unverified_total.inc()
+                        record_metric_safely(qb_exchange_exit_link_unverified_total.inc)
                         logger.warning(
                             "exchange_exit_link_id_unverified",
                             extra={
