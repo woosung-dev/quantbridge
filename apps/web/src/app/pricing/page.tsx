@@ -1,11 +1,15 @@
 // 요금제 페이지 (/pricing) — C 디자인 언어 이식. screen-16-pricing.html.
 // 가격은 미정이라 비워 두고, 지금 무엇이 되고 무엇이 안 되는지를 그대로 적는다(§4.8 정직성).
-// OKX/Binance/Bitget 은 로드맵으로만 표기(§4.8). 공개 판매 전 · 사용자 1명.
+// 거래소 지원 상태는 공동 지원표에서 렌더한다. 공개 판매 전 · 사용자 1명.
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-import { EMPTY_CELL } from "@/lib/marketing-canon";
+import { ExchangeSupportTable } from "@/components/exchange-support-table";
+import {
+  EMPTY_CELL,
+  ROADMAP_DISCLAIMER as EXCHANGE_SUPPORT_DISCLAIMER,
+} from "@/lib/marketing-canon";
 
 import { PricingWaitlistForm } from "@/features/marketing/components/pricing-waitlist-form";
 
@@ -66,7 +70,8 @@ const NO_PAY_LOCAL = "로컬 실행에는 결제 경로가 필요하지 않습�
 const NO_PAY = "결제 수단과 가격을 아직 정하지 않았습니다.";
 
 const yes = <td className="val yes">지원</td>;
-const road = <td className="val">로드맵</td>;
+const planned = <td className="val">계획</td>;
+const unsupported = <td className="val">지원하지 않음</td>;
 const empty = (title: string) => (
   <td className="val" title={title}>
     {EMPTY_CELL}
@@ -74,16 +79,16 @@ const empty = (title: string) => (
 );
 
 const CMP_ROWS: CmpRow[] = [
-  { label: "Pine Script 파싱", cells: [yes, road, road] },
-  { label: "자체 인터프리터 백테스트 (바 단위 이벤트 루프)", cells: [yes, road, road] },
-  { label: "파라미터 최적화 (그리드 · 베이지안 · 유전)", cells: [yes, road, road] },
-  { label: "스트레스 테스트 (몬테카를로 · 워크포워드)", cells: [yes, road, road] },
-  { label: "Bybit 데모 트레이딩", cells: [yes, road, road] },
-  { label: "Kill Switch (신규 주문 차단)", cells: [yes, road, road] },
-  { label: "OKX · Binance · Bitget 연동", cells: [road, road, road] },
-  { label: "클라우드 실행", cells: [empty(NO_LOCAL), road, road] },
-  { label: "다중 사용자 계정", cells: [empty(NO_LOCAL), empty(NO_CLOUD), road] },
-  { label: "팀 전략 공유", cells: [empty(NO_LOCAL), empty(NO_CLOUD), road] },
+  { label: "Pine Script 파싱", cells: [yes, planned, planned] },
+  { label: "자체 인터프리터 백테스트 (바 단위 이벤트 루프)", cells: [yes, planned, planned] },
+  { label: "파라미터 최적화 (그리드 · 베이지안 · 유전)", cells: [yes, planned, planned] },
+  { label: "스트레스 테스트 (몬테카를로 · 워크포워드)", cells: [yes, planned, planned] },
+  { label: "Bybit 데모 트레이딩", cells: [yes, planned, planned] },
+  { label: "Kill Switch (신규 주문 차단)", cells: [yes, planned, planned] },
+  { label: "다른 거래소 연동", cells: [unsupported, unsupported, unsupported] },
+  { label: "클라우드 실행", cells: [empty(NO_LOCAL), planned, planned] },
+  { label: "다중 사용자 계정", cells: [empty(NO_LOCAL), empty(NO_CLOUD), planned] },
+  { label: "팀 전략 공유", cells: [empty(NO_LOCAL), empty(NO_CLOUD), planned] },
   { label: "결제 · 청구", cells: [empty(NO_PAY_LOCAL), empty(NO_PAY), empty(NO_PAY)] },
 ];
 const CMP_PLAN_KEYS = ["local", "cloud", "team"];
@@ -104,8 +109,8 @@ const PRICING_FAQ: { q: string; a: string }[] = [
     a: "실행하는 컴퓨터 안의 PostgreSQL (TimescaleDB) 와 Redis 에만 저장됩니다. 외부로 나가는 통신은 거래소 API 호출과 시세 수집뿐이고, 분석 도구나 광고 스크립트는 붙어 있지 않습니다. 거래소 API 키는 AES-256 (Fernet) 으로 암호화해 저장합니다.",
   },
   {
-    q: "라이브 거래는 얼마나 위험한가요?",
-    a: "백테스트 결과는 미래 수익을 보장하지 않습니다. 라이브 주문은 실제 자금을 움직이고 손실은 사용자 책임입니다. 먼저 데모 세션으로 검증하기를 권합니다. Kill Switch 는 신규 주문을 막을 뿐, 이미 열려 있는 포지션을 자동으로 청산하지는 않습니다.",
+    q: "데모 트레이딩은 얼마나 위험한가요?",
+    a: "백테스트 결과는 미래 수익을 보장하지 않습니다. 현재는 Bybit 데모로만 주문을 검증합니다. Kill Switch 는 신규 주문을 막을 뿐, 이미 열려 있는 포지션을 자동으로 청산하지는 않습니다.",
   },
 ];
 
@@ -297,8 +302,7 @@ export default function PricingPage() {
                         설치 문서와 사용자 지원<span className="chip">로드맵</span>
                       </FeatOff>
                       <FeatOff>
-                        OKX · Binance · Bitget 연동
-                        <span className="chip">로드맵</span>
+                        다른 거래소 연동<span className="chip">지원하지 않음</span>
                       </FeatOff>
                       <FeatOff>결제. 로컬 실행에는 결제 경로 자체가 없습니다.</FeatOff>
                     </div>
@@ -488,8 +492,24 @@ export default function PricingPage() {
                   <line x1="12" y1="11" x2="12" y2="16" />
                   <line x1="12" y1="7.6" x2="12" y2="7.7" />
                 </svg>
-                연결해 본 거래소는 Bybit (데모 · 메인넷) 하나입니다. OKX 와 Binance 와 Bitget 은
-                로드맵이며 아직 연결하지 않았습니다.
+                지원하는 거래소는 Bybit 데모 하나입니다.
+              </p>
+
+              <ExchangeSupportTable ariaLabel="거래소별 연동 상태" />
+
+              <p className="disclaimer">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 3 3 20h18z" />
+                  <line x1="12" y1="10" x2="12" y2="14.5" />
+                  <line x1="12" y1="17" x2="12" y2="17.1" />
+                </svg>
+                <span>{EXCHANGE_SUPPORT_DISCLAIMER}</span>
               </p>
 
               <p className="disclaimer">
