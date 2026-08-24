@@ -2788,7 +2788,7 @@ async def _async_evaluate_all() -> dict[str, Any]:
                 logger.exception(
                     "live_signal_eval_session_error", extra={"session_id": str(sess.id)}
                 )
-                record_metric_safely(qb_live_signal_skipped_total.labels(reason="eval_error").inc)
+                _count_safely(qb_live_signal_skipped_total, reason="eval_error")
                 res = {"error": "eval_error"}
             results.append({"session_id": str(sess.id), **res})
 
@@ -2808,7 +2808,7 @@ async def _async_evaluate_session(session_id: UUID, interval_value: str) -> dict
     try:
         async with lock as acquired:
             if not acquired:
-                record_metric_safely(qb_live_signal_skipped_total.labels(reason="contention").inc)
+                _count_safely(qb_live_signal_skipped_total, reason="contention")
                 return {"skipped": "contention"}
 
             heartbeat = asyncio.create_task(_heartbeat_extend(lock, period_s=20.0, ttl_ms=60_000))
@@ -2820,9 +2820,11 @@ async def _async_evaluate_session(session_id: UUID, interval_value: str) -> dict
                     await heartbeat
             return outcome
     finally:
+        duration = time.monotonic() - started
         record_metric_safely(
-            qb_live_signal_eval_duration_seconds.labels(interval=interval_value).observe,
-            time.monotonic() - started,
+            lambda: qb_live_signal_eval_duration_seconds.labels(interval=interval_value).observe(
+                duration
+            )
         )
 
 
@@ -2839,14 +2841,14 @@ def _load_strategy_settings(strategy: Any, *, session_id: UUID) -> StrategySetti
     try:
         parsed: StrategySettings | None = validate_strategy_settings(strategy.settings)
     except ValidationError as exc:
-        record_metric_safely(qb_live_signal_skipped_total.labels(reason="invalid_settings").inc)
+        _count_safely(qb_live_signal_skipped_total, reason="invalid_settings")
         logger.warning(
             "live_signal_invalid_settings",
             extra={"session_id": str(session_id), "error": str(exc)},
         )
         return "invalid_settings"
     if parsed is None:
-        record_metric_safely(qb_live_signal_skipped_total.labels(reason="invalid_settings").inc)
+        _count_safely(qb_live_signal_skipped_total, reason="invalid_settings")
         return "settings_unset"
     return parsed
 
@@ -3064,15 +3066,15 @@ async def _run_live_or_deactivate(
         if rows == 1:
             _enqueue_conditional_entry_sweep()
             await publish_realtime(str(sess.user_id), "session_state", {"session_id": str(sess.id)})
-            record_metric_safely(
-                qb_live_signal_divergence_total.labels(
-                    stage="runtime", category="run_live_error"
-                ).inc
+            _count_safely(
+                qb_live_signal_divergence_total,
+                stage="runtime",
+                category="run_live_error",
             )
-            record_metric_safely(
-                qb_live_signal_evaluated_total.labels(
-                    interval=interval_value, outcome="divergence_blocked"
-                ).inc
+            _count_safely(
+                qb_live_signal_evaluated_total,
+                interval=interval_value,
+                outcome="divergence_blocked",
             )
             # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). Telegram까지
             # fan-out하므로 호출부에서 예외 클래스명만 전달한다. 전체 원문은 아래 logger에만 남긴다.
@@ -4267,10 +4269,9 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                         except Exception:
                             with contextlib.suppress(Exception):
                                 await session.rollback()
-                            record_metric_safely(
-                                qb_live_conditional_reconcile_errors_total.labels(
-                                    stage="sweep_cancel"
-                                ).inc
+                            _count_safely(
+                                qb_live_conditional_reconcile_errors_total,
+                                stage="sweep_cancel",
                             )
                             logger.exception(
                                 "live_conditional_entry_sweep_cancel_failed",
@@ -4286,10 +4287,9 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                             "cancelled",
                             "rejected",
                         ):
-                            record_metric_safely(
-                                qb_live_conditional_reconcile_errors_total.labels(
-                                    stage="sweep_cancel_stalled"
-                                ).inc
+                            _count_safely(
+                                qb_live_conditional_reconcile_errors_total,
+                                stage="sweep_cancel_stalled",
                             )
                             logger.warning(
                                 "live_conditional_entry_sweep_cancel_stalled",
@@ -4331,8 +4331,9 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                 except Exception:
                     with contextlib.suppress(Exception):
                         await session.rollback()
-                    record_metric_safely(
-                        qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel").inc
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total,
+                        stage="sweep_cancel",
                     )
                     logger.exception(
                         "live_conditional_entry_sweep_cancel_failed",
@@ -4408,10 +4409,10 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             if strategy is None:
                 await event_repo.mark_failed(event.id, error="strategy_missing")
                 await event_repo.commit()
-                record_metric_safely(
-                    qb_live_signal_dispatch_total.labels(
-                        action=event.action, outcome="strategy_missing"
-                    ).inc
+                _count_safely(
+                    qb_live_signal_dispatch_total,
+                    action=event.action,
+                    outcome="strategy_missing",
                 )
                 return {"failed": "strategy_missing"}
             try:
@@ -4419,19 +4420,19 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             except ValidationError as exc:
                 await event_repo.mark_failed(event.id, error=f"invalid_settings: {exc}")
                 await event_repo.commit()
-                record_metric_safely(
-                    qb_live_signal_dispatch_total.labels(
-                        action=event.action, outcome="invalid_settings"
-                    ).inc
+                _count_safely(
+                    qb_live_signal_dispatch_total,
+                    action=event.action,
+                    outcome="invalid_settings",
                 )
                 return {"failed": "invalid_settings"}
             if parsed_settings is None:
                 await event_repo.mark_failed(event.id, error="settings_unset")
                 await event_repo.commit()
-                record_metric_safely(
-                    qb_live_signal_dispatch_total.labels(
-                        action=event.action, outcome="settings_unset"
-                    ).inc
+                _count_safely(
+                    qb_live_signal_dispatch_total,
+                    action=event.action,
+                    outcome="settings_unset",
                 )
                 return {"failed": "settings_unset"}
 
@@ -4587,10 +4588,10 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 # 같은 idempotency_key 가 다른 payload — 복구 불가, mark_failed
                 await event_repo.mark_failed(event.id, error=f"idempotency_conflict: {exc}")
                 await event_repo.commit()
-                record_metric_safely(
-                    qb_live_signal_dispatch_total.labels(
-                        action=event.action, outcome="idempotency_conflict"
-                    ).inc
+                _count_safely(
+                    qb_live_signal_dispatch_total,
+                    action=event.action,
+                    outcome="idempotency_conflict",
                 )
                 return {"failed": "idempotency_conflict"}
 

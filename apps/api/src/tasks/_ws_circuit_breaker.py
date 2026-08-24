@@ -19,11 +19,13 @@ docker exec quantbridge-redis redis-cli -n 3 DEL ws:auth:blocked:{account_id} ws
 Sprint 24 BL-016 (first_connect race): 본 모듈의 `record_network_failure()` 를
 재사용 — first_connect timeout 발생 횟수도 동일 counter 에 누적.
 """
+
 from __future__ import annotations
 
 import logging
 
 from src.common.metrics import qb_ws_auth_circuit_total
+from src.common.metrics_multiproc import _count_safely
 from src.common.redis_client import get_redis_lock_pool
 
 logger = logging.getLogger(__name__)
@@ -72,16 +74,14 @@ async def record_auth_failure(account_id: str) -> None:
         await pool.set(_blocked_key(account_id), b"1", px=_BLOCKED_TTL_MS)
         # failures counter 도 reset (정합)
         await pool.delete(_failures_key(account_id))
-        qb_ws_auth_circuit_total.labels(outcome="block_auth").inc()
+        _count_safely(qb_ws_auth_circuit_total, outcome="block_auth")
         logger.warning(
             "ws_circuit_opened reason=auth account=%s ttl_ms=%d",
             account_id,
             _BLOCKED_TTL_MS,
         )
     except Exception as exc:
-        logger.warning(
-            "ws_circuit_record_auth_failed account=%s err=%s", account_id, exc
-        )
+        logger.warning("ws_circuit_record_auth_failed account=%s err=%s", account_id, exc)
 
 
 async def record_network_failure(account_id: str) -> bool:
@@ -94,15 +94,14 @@ async def record_network_failure(account_id: str) -> bool:
         new_count = await pool.incr(_failures_key(account_id))
         # EXPIRE 매번 재설정 — sliding window (마지막 failure 후 10분 동안만 누적)
         await pool.expire(_failures_key(account_id), _FAILURES_TTL_MS // 1000)
-        qb_ws_auth_circuit_total.labels(outcome="network_failure").inc()
+        _count_safely(qb_ws_auth_circuit_total, outcome="network_failure")
 
         if new_count >= _NETWORK_FAILURE_THRESHOLD:
             await pool.set(_blocked_key(account_id), b"1", px=_BLOCKED_TTL_MS)
             await pool.delete(_failures_key(account_id))
-            qb_ws_auth_circuit_total.labels(outcome="block_network").inc()
+            _count_safely(qb_ws_auth_circuit_total, outcome="block_network")
             logger.warning(
-                "ws_circuit_opened reason=network_threshold account=%s "
-                "count=%d ttl_ms=%d",
+                "ws_circuit_opened reason=network_threshold account=%s count=%d ttl_ms=%d",
                 account_id,
                 new_count,
                 _BLOCKED_TTL_MS,
@@ -132,7 +131,7 @@ async def reset_circuit(account_id: str) -> None:
     pool = get_redis_lock_pool()
     try:
         await pool.delete(_blocked_key(account_id), _failures_key(account_id))
-        qb_ws_auth_circuit_total.labels(outcome="restored").inc()
+        _count_safely(qb_ws_auth_circuit_total, outcome="restored")
         logger.info("ws_circuit_reset account=%s", account_id)
     except Exception as exc:
         logger.warning("ws_circuit_reset_failed account=%s err=%s", account_id, exc)

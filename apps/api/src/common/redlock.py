@@ -116,6 +116,7 @@ class RedisLock:
         PG fallback 경로 유지 (codex Critical 반영).
         """
         from src.common.metrics import qb_redlock_acquire_total  # circular import 방지 (lazy)
+        from src.common.metrics_multiproc import _count_safely
 
         try:
             if self._pool is None:
@@ -130,17 +131,17 @@ class RedisLock:
                     "error_class": type(exc).__name__,
                 },
             )
-            qb_redlock_acquire_total.labels(outcome="unavailable").inc()
+            _count_safely(qb_redlock_acquire_total, outcome="unavailable")
             self._acquired = False
             return False
 
         if result is True:
             # SET NX 성공 — 분산 lock 획득
-            qb_redlock_acquire_total.labels(outcome="success").inc()
+            _count_safely(qb_redlock_acquire_total, outcome="success")
             self._acquired = True
         else:
             # result is None → contention (다른 워커가 이미 보유)
-            qb_redlock_acquire_total.labels(outcome="contention").inc()
+            _count_safely(qb_redlock_acquire_total, outcome="contention")
             self._acquired = False
         return self._acquired
 

@@ -167,6 +167,36 @@ async def test_malformed_row_skip_still_persists_the_rest(
 
 
 @pytest.mark.asyncio
+async def test_closed_pnl_metric_failure_does_not_escape_and_persists_valid_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """라벨 mmap 실패가 유효한 청산 원장 적재를 멈추지 않는다."""
+    import src.tasks.trading as trading_mod
+
+    state = _State([_account()])
+    _install_repositories(monkeypatch, state)
+    provider = SimpleNamespace(
+        fetch_closed_pnl_window=AsyncMock(
+            return_value=[
+                _snapshot("missing-time", created_at_ms=None),
+                _snapshot("valid", created_at_ms=1),
+            ]
+        ),
+        fetch_closed_order_meta=AsyncMock(return_value={}),
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(qb_closed_pnl_backfill_total, "labels", _explode_labels(calls))
+
+    summary = await trading_mod._sweep_closed_pnl_with_session(
+        _sessionmaker(state), provider=provider, now=_NOW
+    )
+
+    assert calls == ["labels"], "계측 라벨 생성 실패가 실제 보호 지점을 지나야 한다"
+    assert summary["inserted"] == 1
+    assert [row.exchange_order_id for row in state.rows] == ["valid"]
+
+
+@pytest.mark.asyncio
 async def test_applied_count_failure_does_not_lose_the_new_exit_alert(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
