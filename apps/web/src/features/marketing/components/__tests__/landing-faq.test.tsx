@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
+import { EXCHANGE_SUPPORT, ROADMAP_DISCLAIMER } from "@/lib/marketing-canon";
+
 import { LandingFaq } from "../landing-faq";
 
 describe("LandingFaq", () => {
@@ -23,6 +25,18 @@ describe("LandingFaq", () => {
     expect(items.length).toBe(5);
     expect(screen.getByText("어떤 거래소를 지원하나요?")).toBeInTheDocument();
     expect(screen.getByText("지금 쓸 수 있나요?")).toBeInTheDocument();
+  });
+
+  it("현재 제공 범위와 미지원 고지를 SSOT로 렌더", () => {
+    const [supportedExchange] = EXCHANGE_SUPPORT.filter(({ status }) => status === "supported");
+    render(<LandingFaq />);
+
+    expect(
+      screen.getByText(
+        `지금 연결되는 거래소는 ${supportedExchange?.exchange} 하나뿐이며 ${supportedExchange?.environment} 환경만 제공합니다.`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(ROADMAP_DISCLAIMER)).toBeInTheDocument();
   });
 
   it("첫 항목 기본 open · 다른 summary 클릭 시 open 토글", () => {
