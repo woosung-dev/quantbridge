@@ -1,4 +1,4 @@
-name: Live Dev Smoke (frontend hooks diff)
+name: Live Dev Smoke (public-route runtime console errors)
 
 # Sprint 31-D BL-157 — PR pre-merge live dev smoke gate.
 #
@@ -7,8 +7,9 @@ name: Live Dev Smoke (frontend hooks diff)
 # (`Cannot parse color: currentcolor` → AttributionLogoWidget throw → 결과 페이지
 # ErrorBoundary fallback). hot-fix `edcfaa0` PR #124 회복.
 #
-# LESSON-004 PR 규약 ("hooks diff 가 있는 PR 은 dev server live smoke 5분 이상 필수")
-# 자동화 — frontend hooks/chart/widget 변경 PR 은 본 워크플로우 PASS 의무.
+# LESSON-004의 배경: 브라우저 dev server smoke는 Vitest mock만으로 놓치는 회귀를 잡는다.
+# 이 워크플로우는 경로 glob으로 발화하는 공개 라우트 런타임 console.error 스모크다.
+# 인증된 hooks는 실행하지 않고 required check가 아니며 hooks 판별식도 없다.
 
 on:
   pull_request:
