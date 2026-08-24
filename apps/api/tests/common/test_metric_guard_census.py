@@ -35,6 +35,8 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 
+import pytest
+
 from src.common.metrics import _LIVE_CONDITIONAL_GUARD_OUTCOMES
 
 _MUTATION_METHODS = frozenset({"inc", "dec", "observe", "set"})
@@ -966,3 +968,13 @@ def test_protected_site_list_is_not_vacuous() -> None:
                 "자리가 비었으면 통과가 아니라 갱신 대상이다"
             )
     assert not problems, "\n".join(problems)
+
+
+@pytest.mark.parametrize(("path", "metric"), sorted(_HARMFUL_MUTATION_CANDIDATES))
+def test_each_harmful_candidate_has_a_runtime_protection_contract(path: str, metric: str) -> None:
+    """수동 동결한 해로운 후보가 보호 목록에서 빠져 static census만 남는 것을 막는다."""
+    protected = {
+        (site_path, site_metric) for site_path, _function, site_metric, _reason in _PROTECTED_SITES
+    }
+
+    assert (path, metric) in protected

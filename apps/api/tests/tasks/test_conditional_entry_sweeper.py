@@ -281,6 +281,106 @@ async def test_sweeper_uses_conditional_probe_after_cancel_failure(
 
 
 @pytest.mark.asyncio
+async def test_sweeper_keeps_confirmed_fill_when_sweep_metric_mutation_fails(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """BL-520: metric write failure must not turn a confirmed fill into a cancel failure."""
+    orphan = await conditional_entry_factory(active=False)
+    await db_session.commit()
+    cancel_attempts: list[str] = []
+    probe_attempts: list[str] = []
+
+    class _Provider:
+        async def cancel_order(self, _creds: Any, exchange_order_id: str, _symbol: str) -> None:
+            cancel_attempts.append(exchange_order_id)
+            raise RuntimeError("cancel raced with fill")
+
+        async def fetch_order_by_client_id(
+            self, _creds: Any, client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> Any:
+            probe_attempts.append(client_order_id)
+            assert trigger is True
+            return SimpleNamespace(
+                exchange_order_id=orphan.exchange_order_id,
+                status="filled",
+                filled_price=Decimal("101"),
+                filled_quantity=Decimal("0.001"),
+            )
+
+    from src.tasks import trading as trading_module
+
+    trailing = MagicMock()
+    closed_pnl = MagicMock()
+    monkeypatch.setattr(trading_module, "_enqueue_trailing_if_intended", trailing)
+    monkeypatch.setattr(trading_module, "_enqueue_closed_pnl_refresh", closed_pnl)
+    monkeypatch.setattr(
+        trading_module.measure_conditional_reversal_task, "apply_async", MagicMock()
+    )
+    _patch_sweeper(monkeypatch, db_session, _Provider)
+
+    mutation = MagicMock(side_effect=OSError("metric mmap is read-only"))
+    monkeypatch.setattr(live_signal_module.qb_live_conditional_sweep_filled_total, "inc", mutation)
+    caplog.set_level(logging.ERROR, logger=live_signal_module.__name__)
+
+    result = await live_signal_module._async_sweep_conditional_entries()
+    await db_session.refresh(orphan)
+
+    assert cancel_attempts == [orphan.exchange_order_id]
+    assert probe_attempts == [str(orphan.id)]
+    mutation.assert_called_once_with()
+    assert result == {"cancelled": 0}
+    assert orphan.state == OrderState.filled
+    assert "live_conditional_entry_sweep_cancel_failed" not in caplog.messages
+    trailing.assert_called_once()
+    closed_pnl.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_sweeper_raw_metric_failure_still_escapes_its_unguarded_path(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """음성 대조: frozen census의 raw metric은 같은 고장 주입으로 여전히 스윕을 깨뜨린다."""
+    orphan = await conditional_entry_factory(active=False)
+    await db_session.commit()
+    orphan_id = orphan.id
+    orphan_exchange_order_id = orphan.exchange_order_id
+    cancel_attempts: list[str] = []
+    probe_attempts: list[str] = []
+
+    class _Provider:
+        async def cancel_order(self, _creds: Any, exchange_order_id: str, _symbol: str) -> None:
+            cancel_attempts.append(exchange_order_id)
+            raise RuntimeError("provider unavailable")
+
+        async def fetch_order_by_client_id(
+            self, _creds: Any, client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> Any:
+            probe_attempts.append(client_order_id)
+            assert trigger is True
+            raise RuntimeError("provider unavailable")
+
+    _patch_sweeper(monkeypatch, db_session, _Provider)
+    raw_metric = MagicMock()
+    raw_metric.labels.return_value.inc.side_effect = OSError("metric mmap is read-only")
+    monkeypatch.setattr(
+        live_signal_module, "qb_live_conditional_reconcile_errors_total", raw_metric
+    )
+
+    with pytest.raises(OSError, match="metric mmap is read-only"):
+        await live_signal_module._async_sweep_conditional_entries()
+
+    assert cancel_attempts == [orphan_exchange_order_id]
+    assert probe_attempts == [str(orphan_id)]
+    assert raw_metric.labels.call_count == 2
+    assert raw_metric.labels.return_value.inc.call_count == 2
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("status", "filled_quantity", "expected_state"),
     [
