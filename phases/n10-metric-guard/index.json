@@ -18,13 +18,16 @@
     {
       "step": 1,
       "name": "fix-live-signal-labels-outside-guard",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k labels_outside_guard -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks -q",
         "cd apps/api && uv run ruff check src/tasks/live_signal.py"
-      ]
+      ],
+      "started_at": "2026-08-24T23:39:19+0900",
+      "summary": "`live_signal.py`의 labels-outside-guard 14건을 13개 `_count_safely`와 duration observe 1개 lambda 지연평가로 치환해 scanner 0건과 Step 1 AC를 통과했다.",
+      "completed_at": "2026-08-24T23:43:45+0900"
     },
     {
       "step": 2,
