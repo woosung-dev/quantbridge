@@ -20,14 +20,17 @@
     {
       "step": 1,
       "name": "contract-guard-and-allowlist",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/common/test_env_example_contract.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_env_example_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
         "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T14:40:16+0900",
+      "summary": "Settings→.env.example 누락 4개 동결을 유지하고, .env.example→Settings 차집합 11개를 테스트·툴링 allowlist로 양방향 고정했다.",
+      "completed_at": "2026-08-24T14:48:06+0900"
     },
     {
       "step": 2,
