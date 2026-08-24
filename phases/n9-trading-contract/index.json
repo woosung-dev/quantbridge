@@ -35,13 +35,16 @@
     {
       "step": 2,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run python -c \"from tests.trading.test_strenum_column_contract import strenum_string_columns, uncontracted_columns; import sys; sys.exit(0 if len(strenum_string_columns())>=6 and len(uncontracted_columns())==0 else 1)\"",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "cd apps/api && uv run ruff check src/trading tests/trading/test_strenum_column_contract.py",
         "cd apps/api && uv run ruff format --check tests/trading/test_strenum_column_contract.py"
-      ]
+      ],
+      "started_at": "2026-08-24T18:50:10+0900",
+      "summary": "변이① BL-453 계약 주석 제거→red(미계약 LiveSignalSession.interval 1건, 기대 일치), ② 비-StrEnum Decimal 필드 주석 제거→green(기대 일치), ③ 409 항목 제거→OpenAPI red(기대 일치), ④ 409는 유지하고 model 제거→형상 red(기대 일치); 기준선의 계약 주석 누락 필드는 []; Step 0 가드는 선언 축만 검사하며 사용처의 .value/.name 접근은 전혀 보지 않는다.",
+      "completed_at": "2026-08-24T18:54:26+0900"
     }
   ],
   "created_at": "2026-08-24T18:38:54+0900"
