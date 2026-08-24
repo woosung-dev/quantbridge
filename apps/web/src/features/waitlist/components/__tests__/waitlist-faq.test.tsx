@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
+import { ROADMAP_DISCLAIMER } from "@/lib/marketing-canon";
+
 import { WaitlistFaq } from "../waitlist-faq";
 
 describe("WaitlistFaq", () => {
@@ -18,9 +20,13 @@ describe("WaitlistFaq", () => {
     expect(screen.getByText("언제 공개되나요?")).toBeInTheDocument();
   });
 
-  it("Bybit 데모·메인넷 확인 + OKX/Binance/Bitget 로드맵 표기", () => {
+  it("Bybit 데모 단일 지원 + 미지원 거래소 추가 계획 없음 고지", () => {
     render(<WaitlistFaq />);
-    expect(screen.getByText(/OKX, Binance, Bitget 은 로드맵에 있을 뿐/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `지금 연결되는 거래소는 Bybit 하나뿐이며 데모 환경만 제공합니다. ${ROADMAP_DISCLAIMER}`,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("AI-slop 제거 — 평생 할인/무료 약속 없음", () => {

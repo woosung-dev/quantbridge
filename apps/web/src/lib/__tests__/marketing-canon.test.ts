@@ -28,42 +28,34 @@ describe("marketing canon invariants", () => {
     expect(Math.round(candleCount! / elapsedSeconds!)).toBe(barsPerSecond);
   });
 
-  it("keeps roadmap rows as environment and scope no-data pairs", () => {
-    const roadmapRows = EXCHANGE_SUPPORT.filter(({ status }) => status === "roadmap");
+  it("keeps unsupported rows as environment and scope no-data pairs", () => {
+    const unsupportedRows = EXCHANGE_SUPPORT.filter(({ status }) => status === "unsupported");
 
-    for (const row of roadmapRows) {
+    expect(unsupportedRows.length).toBeGreaterThanOrEqual(1);
+    for (const row of unsupportedRows) {
       expect(row.environment).toBeNull();
       expect(row.scope).toBeNull();
     }
   });
 
-  it("keeps supported rows with non-empty environment and scope pairs", () => {
+  it("keeps exactly one supported Bybit Demo row with a verified scope", () => {
     const supportedRows = EXCHANGE_SUPPORT.filter(({ status }) => status === "supported");
 
-    for (const row of supportedRows) {
-      expect(row.environment?.trim()).not.toBe("");
-      expect(row.environment).not.toBeNull();
-      expect(row.scope?.trim()).not.toBe("");
-      expect(row.scope).not.toBeNull();
-    }
+    expect(supportedRows).toEqual([
+      {
+        exchange: "Bybit",
+        environment: "데모",
+        status: "supported",
+        scope: "주문 · 포지션 · TP/SL",
+      },
+    ]);
   });
 
-  it("contains both roadmap and supported rows", () => {
-    expect(EXCHANGE_SUPPORT.filter(({ status }) => status === "roadmap").length).toBeGreaterThan(0);
-    expect(EXCHANGE_SUPPORT.filter(({ status }) => status === "supported").length).toBeGreaterThan(
-      0,
-    );
-  });
+  it("lists the known out-of-scope exchanges as unsupported rows", () => {
+    const unsupportedRows = EXCHANGE_SUPPORT.filter(({ status }) => status === "unsupported");
 
-  it("keeps OKX on the roadmap and limits supported exchanges to Bybit", () => {
-    const okx = EXCHANGE_SUPPORT.find(({ exchange }) => exchange === "OKX");
-    const supportedRows = EXCHANGE_SUPPORT.filter(({ status }) => status === "supported");
-
-    expect(okx).toBeDefined();
-    expect(okx?.status).toBe("roadmap");
-    for (const row of supportedRows) {
-      expect(row.exchange).toBe("Bybit");
-    }
+    expect(unsupportedRows.map(({ exchange }) => exchange)).toEqual(["OKX", "Binance", "Bitget"]);
+    expect(EXCHANGE_SUPPORT).toHaveLength(4);
   });
 
   it("keeps the three disclosures non-empty and distinct", () => {
@@ -96,7 +88,7 @@ describe("marketing canon invariants", () => {
   });
 
   it("loads the expected exchange, performance, and legal-link collections", () => {
-    expect(EXCHANGE_SUPPORT.length).toBeGreaterThanOrEqual(5);
+    expect(EXCHANGE_SUPPORT).toHaveLength(4);
     expect(PERF_FIGURES).toHaveLength(3);
     expect(Object.keys(LEGAL_LINKS)).toHaveLength(3);
   });

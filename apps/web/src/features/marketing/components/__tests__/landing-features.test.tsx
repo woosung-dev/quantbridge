@@ -2,6 +2,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 
+import { EXCHANGE_SUPPORT } from "@/lib/marketing-canon";
+
 import { LandingFeatures } from "../landing-features";
 
 describe("LandingFeatures", () => {
@@ -17,10 +19,14 @@ describe("LandingFeatures", () => {
   });
 
   it("6개 기능 카드(.lp-feat) + 대표 타이틀 노출", () => {
+    const [supportedExchange] = EXCHANGE_SUPPORT.filter(({ status }) => status === "supported");
     const { container } = render(<LandingFeatures />);
     expect(container.querySelectorAll(".lp-feat").length).toBe(6);
     expect(screen.getByText("Pine Script 파싱")).toBeInTheDocument();
     expect(screen.getByText("데모 트레이딩")).toBeInTheDocument();
+    expect(
+      screen.getByText(`${supportedExchange?.exchange} ${supportedExchange?.environment}`),
+    ).toBeInTheDocument();
     expect(screen.getByText("리스크 가드와 Kill Switch")).toBeInTheDocument();
   });
 

@@ -39,7 +39,7 @@ export default function TermsPage() {
         <ul className={bodyListClass}>
           <li>만 19세 이상 자연인 또는 적법 설립된 법인.</li>
           <li>미국, 영국, EU 27개국 거주자는 가입 제한.</li>
-          <li>해당 거래소 (Bybit, OKX 등) 의 KYC 를 직접 통과한 계정 소유자.</li>
+          <li>Bybit 데모 계정을 직접 연동할 수 있는 계정 소유자.</li>
           <li>제재 대상자 (OFAC, EU 제재 리스트) 는 이용 불가.</li>
         </ul>
       </section>

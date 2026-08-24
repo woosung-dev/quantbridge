@@ -98,10 +98,10 @@ export function LiveSessionForm({
 
   return (
     <div className="space-y-4">
-      {/* Bybit 데모 한정 안내 — 메인넷 출시 전까지 */}
+      {/* Bybit 데모 한정 안내 */}
       <p className="notice-inline" data-testid="live-session-bybit-demo-notice">
-        <strong>Bybit 데모 한정</strong>. 가상 자금만 사용합니다. 실제 자금 손실은 없습니다. 라이브
-        메인넷은 안정성 검증 후 단계적으로 활성화할 예정입니다.
+        <strong>Bybit 데모 한정</strong>. Bybit 데모 계정만 사용할 수 있습니다. 가상 자금만
+        사용하므로 실제 자금 손실은 없습니다.
       </p>
 
       <Form {...form}>

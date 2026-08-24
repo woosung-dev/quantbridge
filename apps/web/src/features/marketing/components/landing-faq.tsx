@@ -1,5 +1,6 @@
 // 랜딩 05 FAQ (.lp-faq) — <details> 네이티브 토글. screen-14-landing.html 이식.
 // 답을 모르는 항목은 모른다고 적는다(정직성).
+import { ROADMAP_DISCLAIMER } from "@/lib/marketing-canon";
 
 interface FaqItem {
   question: string;
@@ -12,7 +13,8 @@ const FAQ_ITEMS: FaqItem[] = [
     question: "어떤 거래소를 지원하나요?",
     open: true,
     paragraphs: [
-      "지금 연결되는 거래소는 Bybit 하나뿐입니다. 데모와 메인넷 두 환경을 지원합니다. OKX 와 Binance, Bitget 은 로드맵에 있을 뿐 아직 연동 코드가 없습니다.",
+      "지금 연결되는 거래소는 Bybit 하나뿐이며 데모 환경만 제공합니다.",
+      ROADMAP_DISCLAIMER,
       "거래소 연결은 CCXT 를 씁니다. 라이브러리가 지원한다고 해서 이 도구가 지원하는 것은 아니라서, 주문이 실제로 오간 것만 지원으로 적습니다.",
     ],
   },
