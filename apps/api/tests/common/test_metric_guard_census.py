@@ -92,7 +92,6 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): 1,
     ("apps/api/src/common/redis_client.py", "qb_redis_lock_pool_healthy"): 1,
     ("apps/api/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
-    ("apps/api/src/tasks/_ws_circuit_breaker.py", "qb_ws_auth_circuit_total"): 4,
     ("apps/api/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 3,
@@ -525,8 +524,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 31
-    assert sum(_FROZEN_CENSUS.values()) == 58
+    assert len(_FROZEN_CENSUS) == 30
+    assert sum(_FROZEN_CENSUS.values()) == 54
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
