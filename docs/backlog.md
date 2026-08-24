@@ -739,6 +739,8 @@ soak-exclusivity-and-observability 회차). 서버에 `dev.quantbridge.soak-logs
 **Trigger:** dev 서버가 느려지거나 CSS 변경이 안 먹을 때 · 캐시 정책을 정할 때
 **Est:** S
 **상태:** 🟡 **부분 해결 — 부수(디스크 8.5GB)는 닫혔고 관측 장치를 걸었다. 정책은 미정이다**
+★**3번째 측정점 (2026-08-24 실측) — `du -sm apps/web/.next` = 1,711MB.** 사망 관측점 1.99GB 까지 **0.28GB** 남았다(직전 실측 2026-08-11 = 1.2GB ⇒ 13일에 +0.5GB). ★이 표본은 **소멸성**이다 — `mise.toml`·`docs/status.md` 가 회차 착수 시 `rm -rf apps/web/.next` 를 지시하므로 다음 회차가 지운다. 문턱을 재려면 **지우기 전에** 채취해라.
+★**PRD §6 의 차단자 표기 정정 필요** — 이 항목을 「사용자 결정 4건」에 넣었는데, 이 절 본문이 적는 실제 차단자는 **측정 부재**다.
 (2026-08-08 soak-window-and-gate-attribution). ⑴ 낡은 빌드 디렉터리를 지웠다 — **4벌이 아니라
 5벌**이고 합계 **8.5GB** 였다(`.next.stale-fp-20260723` **5.8G** · `.next.bak-turbocache` **2.0G** ·
 나머지 3벌 117M). 레포 26G → **18G**. ⑵ `mise run fe` 가 `.next` 크기를 재서 1GB 초과 시 경고한다
