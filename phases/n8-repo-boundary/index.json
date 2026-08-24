@@ -33,13 +33,16 @@
     {
       "step": 2,
       "name": "move-dependencies-queries",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test \"$(grep -c 'select(' apps/api/src/trading/dependencies.py)\" -eq 0",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "cd apps/api && uv run ruff check src/trading"
-      ]
+      ],
+      "started_at": "2026-08-24T14:46:30+0900",
+      "summary": "재측정: 실행 SQL은 Strategy 2·User 1건(네 번째 grep 일치는 주석)이며, 소유 repository와 task DI 호출부로 옮겨 dependencies의 select를 0건으로 만들고 동결 3건을 제거했다.",
+      "completed_at": "2026-08-24T14:55:42+0900"
     },
     {
       "step": 3,
