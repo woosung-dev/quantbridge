@@ -431,6 +431,15 @@
 - **해결:** ⑴ ★**무인 파이프라인의 「완주」 정의에 산출물 존재 확인을 넣어라** — `origin/<stage>..HEAD` 가 0이면 `crashed`. ⑵ ★**`except`/early-return 뒤에 문자열로만 누적되는 실패 기록은 없는 것과 같다** — 이 회차의 침묵 2곳이 모두 그 모양이었다(`res.detail`). ⑶ ★**gitignore 된 재료(lockfile)를 쓰는 절차는 그 낡음을 스스로 감지해야 한다** — 부트스트랩의 루트 설치 실패를 경고에서 **중단**으로 바꿨다. ⑷ ★**「올릴 ref 가 없는 push」는 pre-push 훅에 stdin 을 안 준다** — 훅이 「현재 브랜치」로 폴백해 `main` 을 보고 정당하게 거부하므로, stage 가 이미 존재하는 **모든 재시작이 시작조차 못 했다**. ⑸ ★**`gh pr merge --delete-branch` 는 그 브랜치가 워크트리에 체크아웃돼 있으면 반드시 rc≠0** — 머지 11건 중 **10건이 「실패」로 오기록**됐다(실제론 전부 머지). 판정의 정본은 **PR 상태**다.
 - **1차 누적.** ★이 카드는 [LESSON-121]([xfail phantom])·[LESSON-124] 계열과 같은 뿌리다 — **하네스의 초록은 하네스가 옳다는 뜻이 아니다.** 다만 그 셋과 달리 이번엔 **AC 도 옳았고 코드도 옳았다** — 틀린 것은 그 사이의 **전달 경로**였다. ★부수 반증 1건: **Biome 의 `biome-ignore` 는 바로 다음 줄만 덮는다**(설명 줄이 사이에 끼면 억제가 안 먹는다) · **Biome 의 `noNoninteractiveTabindex` 는 원본 `jsx-a11y` 의 `roles:["tabpanel"]` 기본 면제를 안 가져왔다**(WAI-ARIA APG 와 충돌 — 실측 3 errors).
 
+### LESSON-128 — **「`phases/index.json` 사전 등록이 병합 충돌 0 을 만들었다」가 절반만 참이었다 — 사전 등록은 *배열 추가* 충돌만 막고, 러너가 lane 별 `status` 를 인접 줄에 쓰는 충돌은 못 막는다** (1/3)
+
+- **상황:** 2026-08-24 n7 4 lane 병렬 주행(`stage/n7-truth`). 러너는 4/4 를 `completed` 로 완주시키고 PR 4건을 올렸으나 **머지는 1건만** 됐다. lane 별 파일 겹침은 설계대로 0 이었고 lane 3벌의 CI 는 초록이었다.
+- **사슬:** ⑴ 첫 lane(#793)이 머지되며 `phases/index.json` 의 자기 줄을 `completed` 로 바꾼다. ⑵ 나머지 3벌은 **각자 자기 줄만** `completed` 로 바꾼 상태다. ⑶ 4개 항목이 인접 줄이라 git 이 같은 hunk 로 보고 **3벌 전부 `CONFLICTING`**. ⑷ **CONFLICTING 이면 CI 가 아예 안 돈다** — 마지막 lane(#796)은 `statusCheckRollup` 이 **빈 배열**이었다. ⑸ 러너의 `_wait_ci_and_merge` 는 「checks 가 비었다」를 **아직 안 붙었다**로 읽어 타임아웃까지 폴링하고 `CI 대기 시간 초과` 를 남겼다 — **증상 문구가 원인과 무관**했다.
+- **반증:** [2026-08-20 러너 lane 회차]가 「병합 충돌 0 은 `phases/index.json` 사전 등록의 결과」라 적어 둔 것은 **추가 충돌(배열 끝에 각자 append)** 에만 참이다. 그 회차는 lane 끝나는 시각이 흩어져 **직렬로 머지돼 우연히 안 부딪혔을 뿐**이고, 이번엔 4벌이 17~36분 사이에 몰려 첫 머지 후 나머지가 전부 낡았다.
+- **무엇이 갈랐나:** `gh pr view --json mergeable` 을 본 것이다. `mergeStateStatus: DIRTY` + `checks: []` 조합은 **「CI 미발화」의 지문**이고, 「대기 중」과 구분된다. 러너 로그만 읽으면 CI 인프라 문제로 오진한다.
+- **해결:** ⑴ 충돌 파일이 `phases/index.json` **하나뿐**임을 확인하고(`gh pr diff --name-only` 교차) 3벌을 stage 에 순차 병합, `status` 를 **합집합**으로 해소했다. lane 코드는 무변경. ⑵ 통합 PR(stage→main)의 CI 를 단일 게이트로 썼다 — lane 별 CI 3라운드 대신 1라운드. ⑶ ★**러너 개선 후보 2건**: `phases/index.json` 을 lane 이 쓰지 않게 하거나(완주 기록을 CONTROL 이 회차 끝에 일괄) `mergeable == "CONFLICTING"` 을 **즉시 반환 조건**으로 넣어 「대기 시간 초과」 오기록을 없앤다. ADR-037 재입힘 규칙에 따라 **사고 1건 = 슬림 복귀 1건**이므로 둘 중 하나만.
+- **부수 반증(내 것):** `git checkout -b stage/n7-truth` 가 「already exists」로 실패했는데 **`| tail -2` 가 rc 를 삼켜** `&&` 뒤의 `git merge` 가 통과했고, lane 병합이 **로컬 `main` 에** 붙었다(즉시 `git branch -f main origin/main` 으로 복구, push 0건). **레포에서 11번째 같은 함정** — 「판정 명령에 파이프를 붙이지 마라」가 `AGENTS.md` §5 에 이미 박혀 있다. ★교훈의 갱신형: **rc 를 읽는 자리에 파이프가 없어야 하는 것은 테스트 러너뿐이 아니다 — `checkout`·`merge` 처럼 「성공했나」로 분기하는 모든 git 명령이 대상이다.**
+
 ---
 
 ## 확장 시점 판단 기준 (변경 없음)

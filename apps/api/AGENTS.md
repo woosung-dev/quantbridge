@@ -136,6 +136,7 @@ commit-spy 표준 = `apps/api/tests/*/test_*commits*.py` **9개**. **이유:** �
 | 거래소 API Key   | AES-256 (`Fernet`) 암호화 후 DB 저장. 평문 컬럼 금지.                                                                                                                 |
 | OHLCV 시계열     | TimescaleDB hypertable (`ts.ohlcv`) 에 저장. 일반 PostgreSQL 테이블 사용 금지.                                                                                        |
 | 실시간 가격      | WebSocket + Zustand 캐시 (frontend). 백엔드는 `ws_stream` 별도 queue + prefork worker (Sprint 24 BL-012 prefork 복귀 — `docker-compose.yml` ws-stream 서비스가 정본). |
+| 관측 metric      | 업무 **결과를 보고하는** `try` 본문·`except` 본문에서 metric mutation 을 raw 로 두지 마라 — `record_metric_safely` / `_count_safely` / `_touch_safely` 로 감싼다. 이유: metric 실패 예외가 그 handler 로 흘러 **체결을 취소 실패로 오기록**하거나 계정 스윕을 중단시킨다(2026-08-24 실측 4건).       |
 
 ---
 

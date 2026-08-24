@@ -22,3 +22,8 @@ phases/<회차명>/
 >
 > ★**회차가 끝나면 그 디렉터리를 지워라.** 남겨 두면 여기가 두 번째 changelog 가 된다 —
 > 이 레포는 `status.md`(124KB)·`roadmap.md`(550줄)·ADR-024(72KB)에서 같은 병을 이미 겪었다.
+
+## ★2026-08-24 n7 tombstone
+
+> **n7 4 lane(14 step) + `n7-common.md` 삭제.** 전량 `completed` — PR #793~#796 → 통합 #797(`159745b7`) 머지.
+> **원문 = `git show 159745b7:phases/`**. 무엇을 했는지는 커밋 메시지와 PR, 반증은 [`docs/lessons.md`](../docs/lessons.md) LESSON-128 이 정본이다.
