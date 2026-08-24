@@ -341,7 +341,9 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 **둘 다 「남은 건수」를 뺄셈으로 보고했다가 실측에서 드러났다.** ⇒ **절 단위 삭제 전에 그 범위
 안의 `###` 를 먼저 세라. 그리고 삭제 후 건수는 반드시 다시 grep 해라.**
 
-**다음 행동 = 남은 세션 비용 축을 마저 깎는다 — `apps/web/AGENTS.md` 373줄(7,195 tok)을 200줄 아래로.**
+**다음 행동 = `python3 tools/harness/execute.py --parallel 4 --stage stage/n7-truth --confirm`** — n7 4 lane 저작 완료(2026-08-24). `phases/index.json` 에 `pending` 4벌이 등재돼 있다.
+~~남은 세션 비용 축을 마저 깎는다 — `apps/web/AGENTS.md` 373줄(7,195 tok)을 200줄 아래로~~ → **2026-08-24 — 이 항목은 lane 이 될 수 없다.** 그 파일은 **모든 lane 프롬프트에 전문 주입되는 가드레일**이라
+주행 중에 바뀌면 lane 마다 다른 규칙을 본다. **CONTROL 이 하네스 주행 전/후에 단독으로** 처리한다. 미착수.
 ~~`apps/api/AGENTS.md` 508줄(10,040 tok)~~ → **2026-08-23 이 회차로 275줄**(30,122→18,878B). §9(Celery
 prefork-safe) 119줄은 `docs/development/celery-prefork.md` 로 분리하고 포인터만 남겼다. **목표 <200줄은
 아직 75줄 미달** — 남은 후보는 §3 트리·§2 규칙 표다. FE 도 같은 방법(긴 절 → `docs/development/` + 포인터)으로 깎는다.

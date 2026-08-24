@@ -1,0 +1,52 @@
+{
+  "project": "QuantBridge",
+  "phase": "n7-metric-guard-sweep",
+  "steps": [
+    {
+      "step": 0,
+      "name": "harm-census",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/common/test_metric_guard_census.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
+        "cd apps/api && test \"$(grep -c 'len(_FROZEN_CENSUS) == 40' tests/common/test_metric_guard_census.py)\" -ge 1",
+        "git diff --quiet -- apps/api/src"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "guard-shape-a-inside-try",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
+        "cd apps/api && test \"$(grep -c 'len(_FROZEN_CENSUS) == 38' tests/common/test_metric_guard_census.py)\" -ge 1",
+        "cd apps/api && test \"$(grep -c 'sum(_FROZEN_CENSUS.values()) == 81' tests/common/test_metric_guard_census.py)\" -ge 1",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks tests/common -q"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "guard-shape-b-inside-except",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
+        "cd apps/api && test \"$(grep -c 'len(_FROZEN_CENSUS) == 36' tests/common/test_metric_guard_census.py)\" -ge 1",
+        "cd apps/api && test \"$(grep -c 'sum(_FROZEN_CENSUS.values()) == 79' tests/common/test_metric_guard_census.py)\" -ge 1",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks tests/common tests/trading -q"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 9",
+        "cd apps/api && test \"$(grep -c 'len(_FROZEN_CENSUS) == 36' tests/common/test_metric_guard_census.py)\" -ge 1",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks tests/common tests/trading -q",
+        "cd apps/api && uv run ruff check src/tasks/live_signal.py src/tasks/trading.py src/trading/realtime_publisher.py src/trading/webhook.py tests/common/test_metric_guard_census.py"
+      ]
+    }
+  ]
+}

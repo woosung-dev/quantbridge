@@ -1,0 +1,60 @@
+{
+  "project": "QuantBridge",
+  "phase": "n7-marketing-truth",
+  "steps": [
+    {
+      "step": 0,
+      "name": "canon-ssot-demo-only",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm exec vitest run src/lib/__tests__/marketing-canon.test.ts src/components/__tests__/exchange-support-table.test.tsx",
+        "test \"$(grep -c '메인넷' apps/web/src/lib/marketing-canon.ts)\" -eq 0",
+        "test \"$(grep -c '로드맵' apps/web/src/lib/marketing-canon.ts)\" -eq 0",
+        "test \"$(grep -c 'exchange:' apps/web/src/lib/marketing-canon.ts)\" -ge 1",
+        "test \"$(grep -c 'Bybit' apps/web/src/lib/marketing-canon.ts)\" -ge 1",
+        "cd apps/web && pnpm exec biome check src/lib src/components/exchange-support-table.tsx",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "pricing-surface",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm exec vitest run src/app/pricing src/lib/__tests__/marketing-canon.test.ts",
+        "test \"$(grep -c '메인넷' apps/web/src/app/pricing/page.tsx)\" -eq 0",
+        "test \"$(grep -ci 'okx' apps/web/src/app/pricing/page.tsx)\" -eq 0",
+        "test \"$(grep -c 'Bybit' apps/web/src/app/pricing/page.tsx)\" -ge 1",
+        "cd apps/web && pnpm exec biome check src/app/pricing",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "landing-surface",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm exec vitest run src/features/marketing src/lib/__tests__/marketing-canon.test.ts",
+        "test \"$(grep -l '메인넷' apps/web/src/features/marketing/components/landing-faq.tsx apps/web/src/features/marketing/components/landing-features.tsx 2>/dev/null | wc -l | tr -d ' ')\" -eq 0",
+        "test \"$(grep -rli 'okx' apps/web/src/features/marketing 2>/dev/null | wc -l | tr -d ' ')\" -eq 0",
+        "test \"$(grep -c 'Bybit' apps/web/src/features/marketing/components/landing-faq.tsx)\" -ge 1",
+        "cd apps/web && pnpm exec biome check src/features/marketing",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "waitlist-product-and-absence-guard",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/lib/__tests__/decision-surface-guard.test.ts",
+        "cd apps/web && pnpm exec vitest run src/lib/__tests__/decision-surface-guard.test.ts",
+        "test \"$(grep -c 'src/' apps/web/src/lib/__tests__/decision-surface-guard.test.ts)\" -ge 7",
+        "test \"$(grep -rl '메인넷' apps/web/src --include='*.ts' --include='*.tsx' 2>/dev/null | grep -v '__tests__' | wc -l | tr -d ' ')\" -eq 0",
+        "cd apps/web && pnpm exec biome check src",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "cd apps/web && pnpm test -- --run"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "project": "QuantBridge",
+  "phase": "n7-backtest-error-class",
+  "steps": [
+    {
+      "step": 0,
+      "name": "pin-existing-branches",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/backtest/engine/test_fault_injection.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 9",
+        "git diff --quiet -- apps/api/src/backtest/engine/v2_adapter.py"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "split-runtime-from-parse",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
+        "cd apps/api && uv run --env-file .env.local pytest tests/backtest -q",
+        "cd apps/api && test \"$(grep -c 'parse_failed' src/backtest/engine/v2_adapter.py)\" -ge 1"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "mutation-and-contrast",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 11",
+        "cd apps/api && uv run --env-file .env.local pytest tests/backtest -q",
+        "cd apps/api && uv run ruff check src/backtest/engine/v2_adapter.py tests/backtest/engine/test_fault_injection.py",
+        "cd apps/api && uv run ruff format --check tests/backtest/engine/test_fault_injection.py"
+      ]
+    }
+  ]
+}
