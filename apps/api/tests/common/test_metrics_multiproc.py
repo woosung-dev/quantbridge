@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import asyncio
 import os
+import re
 import subprocess
 import sys
 from collections.abc import Iterator
@@ -415,11 +416,14 @@ def test_mostrecent_gauges_are_set_only() -> None:
         "qb_redis_lock_pool_healthy",
         "qb_live_signal_outbox_pending_gauge",
     ):
+        # ★호출 형태에 기대지 마라 — `record_metric_safely(g.set, value)` 로 감싸면
+        #   `.set(` 가 사라져 이 검사가 **빈 목록**을 낸다(2026-08-24 n9 실측).
+        #   재는 것은 「어떤 mutation 을 쓰는가」이지 「어떻게 호출하는가」가 아니다.
         calls = [
             method
             for path in source_root.rglob("*.py")
             for method in ("set", "inc", "dec")
-            if f"{metric_name}.{method}(" in path.read_text()
+            if re.search(rf"{re.escape(metric_name)}\.{method}\b", path.read_text())
         ]
         assert calls and set(calls) == {"set"}
 

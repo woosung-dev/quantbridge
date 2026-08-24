@@ -94,53 +94,13 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
     ("apps/api/src/tasks/_ws_circuit_breaker.py", "qb_ws_auth_circuit_total"): 4,
     ("apps/api/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
-    (
-        "apps/api/src/tasks/conditional_entry_janitor.py",
-        "qb_live_conditional_reconcile_errors_total",
-    ): 5,
-    # ★2026-08-04 direction-channel-decomposition 연장 — `_reconcile_conditional_entries`
-    # **12곳 전건 수리**(`qb_live_conditional_guard_total` 4곳은 여기서 **0** 이 됐다).
-    # 판정 — ★**「전부 같은 형태」가 아니다.** 감싸는 핸들러가 갈린다:
-    #   (a) **안쪽 `except` 에 잡히는 자리** → 예외가 그 핸들러의 라벨로 **오기록**되고
-    #       루프는 계속된다. 실증: `unrepresentable_key` 는 발주 `try` 안이라 발주를
-    #       시도한 적도 없는데 `stage="conditional_place"`(= 발주 실패)가 올랐다
-    #       (`test_pre_execute_metric_failure_no_longer_masquerades_as_a_place_failure`).
-    #   (b) **바깥 fail-open `except` 까지 가는 자리** → `stage="reconcile"` 로 계상하고
-    #       **정상과 똑같이 `None` 을 반환**한다. 호출자(평가 tick)는 곧바로
-    #       `outcome="success"` 를 계상하므로 **리컨사일이 조용히 사라지는데 성공으로
-    #       기록된다.** 지속 실패 시 resting 조건부 주문 수렴이 멈춘다.
-    # ★H8(거절이 집행으로 뒤집힘)은 **아니다** — 어느 갈래든 예외는 `continue` 와
-    #   `execute` 를 함께 건너뛰므로 잘못된 주문이 나가지 않는다.
-    # ★내가 처음 12곳을 전부 (b)로 적었고 **테스트가 그 일반화를 반증했다.** 직전 회차의
-    #   「8곳 중 1곳만 fail-open `try` 안」과 같은 함정이다.
-    ("apps/api/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 3,
+    ("apps/api/src/tasks/conditional_entry_janitor.py", "qb_live_conditional_reconcile_errors_total"): 5,
     ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
-    # ★2026-08-03 metric-guard-residual-sweep — 12곳 중 8곳 수리. 잔여 4곳은 **판정 보류**
-    #   (프로덕션 도달 경로를 한 줄로 못 적어 주입 하네스를 만들지 않았다. 만들면 프로덕션이
-    #   못 만드는 상태를 손조립해 「실측 유해」로 적게 된다 — [BL-582] 함정의 거울상):
-    #     `:3095` strategy_missing — FK `strategies.id ON DELETE RESTRICT`(`models.py:502`)가
-    #        세션 존재 중 삭제를 막고, owner 는 등재 시 일치 후 이전 경로가 없다.
-    #     `:3104` invalid_settings — `update_settings(settings: StrategySettings)` 가 같은
-    #        클래스를 `model_dump()` 하므로 round-trip 이 항상 유효하다.
-    #     `:3111` settings_unset — 등록 게이트(`live_session_service.py:84`)가 유일 방벽이고
-    #        통과 뒤 settings 가 비는 경로가 없다.
-    #     `:3278` idempotency_conflict — ★**도달 불가**. 유일 raise 지점
-    #        (`order_service.py:369`)이 `if body_hash is not None` 안인데 `:3246` 은
-    #        `body_hash=None` 을 넘긴다. 그 `except` 는 이 호출자에게 사문(死文)이다.
-    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_dispatch_total"): 4,
-    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 4,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 3,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): 1,
-    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_eval_duration_seconds"): 1,
-    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 6,
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 5,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
-    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_outbox_pending_gauge"): 2,
-    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 10,
-    # ★`tasks/trading.py` · `trading/router.py` 의 `qb_active_orders` 는 2026-08-03
-    #   metric-guard-residual 이 전건 감쌌다. Counter 는 0 인 키를 만들지 않으므로 항목
-    #   자체를 지운다 — `: 0` 으로 남기면 `actual == _FROZEN_CENSUS` 가 영구 red 다.
-    #   ★2026-08-03 metric-guard-residual-close 가 같은 이유로 두 항목을 더 지웠다:
-    #   `tasks/trading.py`+`qb_closed_pnl_backfill_total`(15) ·
-    #   `services/order_service.py`+`qb_order_rejected_total`(10).
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 6,
     ("apps/api/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
     ("apps/api/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
     ("apps/api/src/tasks/trading.py", "qb_order_snapshot_fallback_total"): 2,
@@ -474,6 +434,8 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
         "Metric guard census diverged from the frozen R1 baseline.",
         "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129 "
         "− 2026-08-03 수리 25 = 104 − 2026-08-03 수리 8 = 96 − 2026-08-04 수리 12 = 84",
+        "★2026-08-24 n9-metric-safety — 동결 합 79 → 63 (`live_signal.py` 16건 수리, 신규 0). "
+        "위 체인의 84 는 이 합과 다른 계열이니 이어 붙이지 마라.",
         "새 site (file, lineno, metric, verb, 함수명):",
     ]
     lines.extend(
@@ -561,8 +523,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 36
-    assert sum(_FROZEN_CENSUS.values()) == 79
+    assert len(_FROZEN_CENSUS) == 32
+    assert sum(_FROZEN_CENSUS.values()) == 63
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)

@@ -263,6 +263,10 @@ _DIRECTION_STRIKE_MAX_BARS = 3
 # position epoch 은 마지막 성공 평가 이후 실제 outbox 발행을 허용한 시각이다. 기존 JSONB
 # 리포트에만 저장하므로 마이그레이션 없이 재생 포지션을 거래소 상태와 정렬할 수 있다.
 _POSITION_EPOCH_KEY = "_qb_position_epoch"
+# BL-547 — `_qb_ledger_seed_since`는 seedable 공백 창의 시작 시각이다. 기존 JSONB 리포트에만
+# 저장하므로 마이그레이션 없이 다음 평가가 같은 원장 창을 재도출할 수 있다. 밑줄 접두어는
+# 엔진 산출물이 아님을 표시한다.
+_LEDGER_SEED_SINCE_KEY = "_qb_ledger_seed_since"
 # BL-591 / ADR-022 슬라이스 1 — tick 마다 원장↔거래소 대조 결과를 남기는 자리.
 # ★새 컬럼도 새 저장소도 만들지 않는다(마이그레이션 0) — 이 dict 는 이미 매 tick upsert 된다.
 _LEDGER_SHADOW_KEY = "_qb_ledger_shadow"
@@ -835,6 +839,27 @@ def _direction_strike_bar(previous_report: Any) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def _ledger_seed_since(previous_report: Any) -> datetime | None:
+    """직전 seedable 공백 창의 시작 시각. 못 읽으면 None.
+
+    ★**감싸는 핸들러: 없다.** 순수 함수다.
+
+    JSONB에는 어떤 값도 들어올 수 있으므로 손상된 marker가 평가 tick 전체를 죽이면 안 된다.
+    유효한 marker는 매 평가 tick에 같은 원장 창을 재도출하고, 창이 flat이면 다음 리포트에서
+    제거한다.
+    """
+    if not isinstance(previous_report, dict):
+        return None
+    raw = previous_report.get(_LEDGER_SEED_SINCE_KEY)
+    if not isinstance(raw, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
 def _direction_strike_ttl(interval_value: str) -> timedelta | None:
@@ -2746,7 +2771,7 @@ async def _async_evaluate_all() -> dict[str, Any]:
             due_sessions = list(await repo.list_active_due(now=datetime.now(UTC)))
             event_repo = LiveSignalEventRepository(session)
             pending = await event_repo.list_pending(limit=10_000)
-            qb_live_signal_outbox_pending_gauge.set(len(pending))
+            record_metric_safely(qb_live_signal_outbox_pending_gauge.set, len(pending))
 
         if not due_sessions:
             return {"due_count": 0, "evaluated": 0}
@@ -2763,7 +2788,7 @@ async def _async_evaluate_all() -> dict[str, Any]:
                 logger.exception(
                     "live_signal_eval_session_error", extra={"session_id": str(sess.id)}
                 )
-                qb_live_signal_skipped_total.labels(reason="eval_error").inc()
+                record_metric_safely(qb_live_signal_skipped_total.labels(reason="eval_error").inc)
                 res = {"error": "eval_error"}
             results.append({"session_id": str(sess.id), **res})
 
@@ -2783,7 +2808,7 @@ async def _async_evaluate_session(session_id: UUID, interval_value: str) -> dict
     try:
         async with lock as acquired:
             if not acquired:
-                qb_live_signal_skipped_total.labels(reason="contention").inc()
+                record_metric_safely(qb_live_signal_skipped_total.labels(reason="contention").inc)
                 return {"skipped": "contention"}
 
             heartbeat = asyncio.create_task(_heartbeat_extend(lock, period_s=20.0, ttl_ms=60_000))
@@ -2795,8 +2820,9 @@ async def _async_evaluate_session(session_id: UUID, interval_value: str) -> dict
                     await heartbeat
             return outcome
     finally:
-        qb_live_signal_eval_duration_seconds.labels(interval=interval_value).observe(
-            time.monotonic() - started
+        record_metric_safely(
+            qb_live_signal_eval_duration_seconds.labels(interval=interval_value).observe,
+            time.monotonic() - started,
         )
 
 
@@ -2813,14 +2839,14 @@ def _load_strategy_settings(strategy: Any, *, session_id: UUID) -> StrategySetti
     try:
         parsed: StrategySettings | None = validate_strategy_settings(strategy.settings)
     except ValidationError as exc:
-        qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
+        record_metric_safely(qb_live_signal_skipped_total.labels(reason="invalid_settings").inc)
         logger.warning(
             "live_signal_invalid_settings",
             extra={"session_id": str(session_id), "error": str(exc)},
         )
         return "invalid_settings"
     if parsed is None:
-        qb_live_signal_skipped_total.labels(reason="invalid_settings").inc()
+        record_metric_safely(qb_live_signal_skipped_total.labels(reason="invalid_settings").inc)
         return "settings_unset"
     return parsed
 
@@ -2911,6 +2937,7 @@ async def _probe_gap_resync_state(
     session: Any,
     account_repo: Any,
     last_evaluated_bar_time: datetime | None,
+    ledger_seed_since: datetime | None = None,
 ) -> tuple[list[Any] | None, _LedgerGapSeed]:
     """평가 공백 뒤 재동기 판정에 쓸 `(거래소 포지션, 원장 seed)`.
 
@@ -2948,32 +2975,42 @@ async def _probe_gap_resync_state(
             extra={"session_id": str(sess.id), "symbol": sess.symbol},
         )
 
-    if last_evaluated_bar_time is not None:
-        from src.trading.repositories.order_repository import (
-            LEDGER_FILL_SCAN_LIMIT,
-            OrderRepository,
-            SessionScope,
-        )
-
-        try:
-            fills = await OrderRepository(session).list_fills_since(
-                SessionScope.from_live_session(sess),
-                since=last_evaluated_bar_time,
-            )
-            ledger_seed = _ledger_gap_seed(
-                fills[:LEDGER_FILL_SCAN_LIMIT],
-                session_id=sess.id,
-                overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
-            )
-        except Exception:
-            # 조회 실패는 seed 없음 = 기존 fail-closed 판정 그대로다.
-            ledger_seed = _LedgerGapSeed(net=None, legs=(), outcome="fetch_failed", order_ids=())
-            logger.warning(
-                "live_signal_gap_ledger_fetch_failed",
-                exc_info=True,
-                extra={"session_id": str(sess.id), "symbol": sess.symbol},
-            )
+    seed_since = ledger_seed_since or last_evaluated_bar_time
+    if seed_since is not None:
+        ledger_seed = await _read_ledger_gap_seed(sess, session=session, since=seed_since)
     return exchange_positions, ledger_seed
+
+
+async def _read_ledger_gap_seed(sess: Any, *, session: Any, since: datetime) -> _LedgerGapSeed:
+    """원장 창 하나를 기존 gap-seed 규칙으로 읽는다.
+
+    공백 재동기와 BL-547 marker 재도출은 같은 원장을 같은 상한으로 봐야 한다.
+    조회 실패는 seed를 비우되 호출자가 marker를 지우지 않게 `fetch_failed`로 표현한다.
+    """
+    from src.trading.repositories.order_repository import (
+        LEDGER_FILL_SCAN_LIMIT,
+        OrderRepository,
+        SessionScope,
+    )
+
+    try:
+        fills = await OrderRepository(session).list_fills_since(
+            SessionScope.from_live_session(sess),
+            since=since,
+        )
+        return _ledger_gap_seed(
+            fills[:LEDGER_FILL_SCAN_LIMIT],
+            session_id=sess.id,
+            overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
+        )
+    except Exception:
+        # 조회 실패는 seed 없음이다. marker는 호출부가 유지해 다음 tick에 같은 창을 재시도한다.
+        logger.warning(
+            "live_signal_gap_ledger_fetch_failed",
+            exc_info=True,
+            extra={"session_id": str(sess.id), "symbol": sess.symbol},
+        )
+        return _LedgerGapSeed(net=None, legs=(), outcome="fetch_failed", order_ids=())
 
 
 def _extract_pyramiding(pine_source: str, *, session_id: UUID) -> int | None:
@@ -3027,10 +3064,16 @@ async def _run_live_or_deactivate(
         if rows == 1:
             _enqueue_conditional_entry_sweep()
             await publish_realtime(str(sess.user_id), "session_state", {"session_id": str(sess.id)})
-            qb_live_signal_divergence_total.labels(stage="runtime", category="run_live_error").inc()
-            qb_live_signal_evaluated_total.labels(
-                interval=interval_value, outcome="divergence_blocked"
-            ).inc()
+            record_metric_safely(
+                qb_live_signal_divergence_total.labels(
+                    stage="runtime", category="run_live_error"
+                ).inc
+            )
+            record_metric_safely(
+                qb_live_signal_evaluated_total.labels(
+                    interval=interval_value, outcome="divergence_blocked"
+                ).inc
+            )
             # G3 NIT#4 — raw_msg 는 임의 예외 str (구조적 audit 범위 밖). Telegram까지
             # fan-out하므로 호출부에서 예외 클래스명만 전달한다. 전체 원문은 아래 logger에만 남긴다.
             _fire_divergence_alert(
@@ -3506,6 +3549,7 @@ async def _evaluate_session_with_engine(
         previous_report = (
             previous_state.last_strategy_state_report if previous_state is not None else None
         )
+        ledger_seed_since = _ledger_seed_since(previous_report)
 
         # 5.5 BL-622 — 원장이 아직 따라잡는 중이면 공백 재동기 **판정 자체를 미룬다.**
         #
@@ -3574,6 +3618,15 @@ async def _evaluate_session_with_engine(
                 session=session,
                 account_repo=account_repo,
                 last_evaluated_bar_time=last_evaluated_bar_time,
+                ledger_seed_since=ledger_seed_since,
+            )
+        elif ledger_seed_since is not None:
+            # BL-547 — 공백 tick 뒤에도 같은 원장 창에서 seed를 다시 도출한다. 거래소
+            # 포지션을 seed로 쓰면 아래 대조가 동어반복이 되므로 원장만 읽는다.
+            ledger_seed = await _read_ledger_gap_seed(
+                sess,
+                session=session,
+                since=ledger_seed_since,
             )
 
         # 7. run_live (warmup replay, Option B)
@@ -3892,6 +3945,21 @@ async def _evaluate_session_with_engine(
             if direction_strike_bar is not None:
                 sanitized_report[_DIRECTION_STRIKE_BAR_KEY] = direction_strike_bar.isoformat()
             sanitized_report[_POSITION_EPOCH_KEY] = position_epoch.isoformat()
+            # BL-547 — marker가 있으면 매 tick 같은 원장 창을 다시 읽는다. 순포지션이
+            # flat이면 창이 자기 종결되므로 지우고, 판정 불가/조회 실패면 다음 tick 재시도를
+            # 위해 그대로 보존한다. 부분 청산의 inadmissible도 여기서는 보존 대상이다.
+            if ledger_seed_since is not None:
+                if ledger_seed.net == Decimal("0"):
+                    sanitized_report.pop(_LEDGER_SEED_SINCE_KEY, None)
+                else:
+                    sanitized_report[_LEDGER_SEED_SINCE_KEY] = ledger_seed_since.isoformat()
+            elif ledger_seed.outcome == "seedable" and last_evaluated_bar_time is not None:
+                seed_since = (
+                    last_evaluated_bar_time.replace(tzinfo=UTC)
+                    if last_evaluated_bar_time.tzinfo is None
+                    else last_evaluated_bar_time.astimezone(UTC)
+                )
+                sanitized_report[_LEDGER_SEED_SINCE_KEY] = seed_since.isoformat()
         # BL-591 슬라이스 1 — 위에서 뜬 계측 스냅샷을 counter + 이 dict 에 남긴다.
         # ★`engine_position` 은 `run_live` **결과**다(주입 가능 여부는 엔진이 flat 일
         #   때만이므로 이 label 없이는 「주입 가능 tick 수」를 못 센다).
@@ -3981,6 +4049,29 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
         return await _evaluate_session_with_engine(session_id, interval_value, sm)
     finally:
         await engine.dispose()
+
+
+async def _close_position_is_flat(
+    *, sess: Any, event_id: UUID, bybit_provider: Any, exchange_svc: Any
+) -> bool:
+    """close 발주 전 거래소 포지션이 명시적으로 flat인지 확인한다.
+
+    조회 실패는 정당한 청산을 막지 않도록 False로 fail-open 한다. False는 포지션이 남았거나
+    조회에 실패했다는 뜻이며, 호출부는 기존처럼 발주 경로를 계속 진행한다.
+    """
+    try:
+        positions = await bybit_provider.fetch_open_positions(
+            await exchange_svc.get_credentials_for_order(sess.exchange_account_id),
+            sess.symbol,
+        )
+    except Exception:
+        logger.warning(
+            "live_signal_close_position_check_failed_open",
+            exc_info=True,
+            extra={"event_id": str(event_id), "session_id": str(sess.id)},
+        )
+        return False
+    return len(positions) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -4094,7 +4185,7 @@ async def _async_dispatch_pending() -> dict[str, Any]:
         async with sm() as session:
             repo = LiveSignalEventRepository(session)
             pending = await repo.list_pending(limit=50)
-        qb_live_signal_outbox_pending_gauge.set(len(pending))
+        record_metric_safely(qb_live_signal_outbox_pending_gauge.set, len(pending))
         for ev in pending:
             dispatch_live_signal_event_task.apply_async(
                 args=[str(ev.id)],
@@ -4176,9 +4267,11 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                         except Exception:
                             with contextlib.suppress(Exception):
                                 await session.rollback()
-                            qb_live_conditional_reconcile_errors_total.labels(
-                                stage="sweep_cancel"
-                            ).inc()
+                            record_metric_safely(
+                                qb_live_conditional_reconcile_errors_total.labels(
+                                    stage="sweep_cancel"
+                                ).inc
+                            )
                             logger.exception(
                                 "live_conditional_entry_sweep_cancel_failed",
                                 extra={"order_id": str(order_id)},
@@ -4193,9 +4286,11 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                             "cancelled",
                             "rejected",
                         ):
-                            qb_live_conditional_reconcile_errors_total.labels(
-                                stage="sweep_cancel_stalled"
-                            ).inc()
+                            record_metric_safely(
+                                qb_live_conditional_reconcile_errors_total.labels(
+                                    stage="sweep_cancel_stalled"
+                                ).inc
+                            )
                             logger.warning(
                                 "live_conditional_entry_sweep_cancel_stalled",
                                 extra={"order_id": str(order_id)},
@@ -4236,7 +4331,9 @@ async def _async_sweep_conditional_entries() -> dict[str, int]:
                 except Exception:
                     with contextlib.suppress(Exception):
                         await session.rollback()
-                    qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel").inc()
+                    record_metric_safely(
+                        qb_live_conditional_reconcile_errors_total.labels(stage="sweep_cancel").inc
+                    )
                     logger.exception(
                         "live_conditional_entry_sweep_cancel_failed",
                         extra={"order_id": str(order_id)},
@@ -4311,25 +4408,31 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             if strategy is None:
                 await event_repo.mark_failed(event.id, error="strategy_missing")
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(
-                    action=event.action, outcome="strategy_missing"
-                ).inc()
+                record_metric_safely(
+                    qb_live_signal_dispatch_total.labels(
+                        action=event.action, outcome="strategy_missing"
+                    ).inc
+                )
                 return {"failed": "strategy_missing"}
             try:
                 parsed_settings = validate_strategy_settings(strategy.settings)
             except ValidationError as exc:
                 await event_repo.mark_failed(event.id, error=f"invalid_settings: {exc}")
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(
-                    action=event.action, outcome="invalid_settings"
-                ).inc()
+                record_metric_safely(
+                    qb_live_signal_dispatch_total.labels(
+                        action=event.action, outcome="invalid_settings"
+                    ).inc
+                )
                 return {"failed": "invalid_settings"}
             if parsed_settings is None:
                 await event_repo.mark_failed(event.id, error="settings_unset")
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(
-                    action=event.action, outcome="settings_unset"
-                ).inc()
+                record_metric_safely(
+                    qb_live_signal_dispatch_total.labels(
+                        action=event.action, outcome="settings_unset"
+                    ).inc
+                )
                 return {"failed": "settings_unset"}
 
             # OrderService 조립 (P1 #5: sessions_port 의무)
@@ -4345,32 +4448,22 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             )
 
             # close만 거래소 flat을 확인한다. 명시적 0건이면 reduce-only 거부 주문을 만들지
-            # 않고 실패 전이한다. 조회 실패는 정당한 청산을 막지 않도록 fail-open이다.
-            if event.action == "close":
-                try:
-                    positions = await bybit_provider.fetch_open_positions(
-                        await exchange_svc.get_credentials_for_order(sess.exchange_account_id),
-                        sess.symbol,
-                    )
-                    if len(positions) == 0:
-                        await event_repo.mark_failed(event.id, error="close_position_flat")
-                        await event_repo.commit()
-                        # ★BL-580 D5 — 이 자리만 **fail-open `try` 안**이다. raw 로 두면
-                        #   계측 예외를 아래 `except` 가 「포지션 조회 실패」로 오인해 삼키고
-                        #   `return` 을 건너뛴 채 **그대로 발주한다**(주입 실측: 거래소가
-                        #   flat 인데 청산 주문이 나갔다). 오기록이 아니라 원장 분기다.
-                        _count_safely(
-                            qb_live_signal_dispatch_total,
-                            action=event.action,
-                            outcome="close_position_flat",
-                        )
-                        return {"failed": "close_position_flat"}
-                except Exception:
-                    logger.warning(
-                        "live_signal_close_position_check_failed_open",
-                        exc_info=True,
-                        extra={"event_id": str(event.id), "session_id": str(sess.id)},
-                    )
+            # 않고 실패 전이한다. 조회 실패는 헬퍼가 fail-open으로 False를 돌려 발주를 막지
+            # 않는다. metric도 안전 래퍼라 이 terminal return을 넘을 수 없다.
+            if event.action == "close" and await _close_position_is_flat(
+                sess=sess,
+                event_id=event.id,
+                bybit_provider=bybit_provider,
+                exchange_svc=exchange_svc,
+            ):
+                await event_repo.mark_failed(event.id, error="close_position_flat")
+                await event_repo.commit()
+                _count_safely(
+                    qb_live_signal_dispatch_total,
+                    action=event.action,
+                    outcome="close_position_flat",
+                )
+                return {"failed": "close_position_flat"}
             evaluators: list[KillSwitchEvaluator] = [
                 CumulativeLossEvaluator(
                     order_repo,
@@ -4494,9 +4587,11 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 # 같은 idempotency_key 가 다른 payload — 복구 불가, mark_failed
                 await event_repo.mark_failed(event.id, error=f"idempotency_conflict: {exc}")
                 await event_repo.commit()
-                qb_live_signal_dispatch_total.labels(
-                    action=event.action, outcome="idempotency_conflict"
-                ).inc()
+                record_metric_safely(
+                    qb_live_signal_dispatch_total.labels(
+                        action=event.action, outcome="idempotency_conflict"
+                    ).inc
+                )
                 return {"failed": "idempotency_conflict"}
 
             # OrderService.execute 가 self._session.commit() 내부 호출 — Order INSERT 영구화 완료.

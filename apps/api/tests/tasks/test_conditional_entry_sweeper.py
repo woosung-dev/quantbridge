@@ -339,12 +339,12 @@ async def test_sweeper_keeps_confirmed_fill_when_sweep_metric_mutation_fails(
 
 
 @pytest.mark.asyncio
-async def test_sweeper_raw_metric_failure_still_escapes_its_unguarded_path(
+async def test_sweeper_metric_failure_does_not_escape_its_safe_path(
     db_session: AsyncSession,
     conditional_entry_factory,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """음성 대조: frozen census의 raw metric은 같은 고장 주입으로 여전히 스윕을 깨뜨린다."""
+    """metric mmap 오류가 스위퍼의 취소 실패 처리를 중단시키지 않는다."""
     orphan = await conditional_entry_factory(active=False)
     await db_session.commit()
     orphan_id = orphan.id
@@ -371,13 +371,13 @@ async def test_sweeper_raw_metric_failure_still_escapes_its_unguarded_path(
         live_signal_module, "qb_live_conditional_reconcile_errors_total", raw_metric
     )
 
-    with pytest.raises(OSError, match="metric mmap is read-only"):
-        await live_signal_module._async_sweep_conditional_entries()
+    result = await live_signal_module._async_sweep_conditional_entries()
 
     assert cancel_attempts == [orphan_exchange_order_id]
     assert probe_attempts == [str(orphan_id)]
-    assert raw_metric.labels.call_count == 2
-    assert raw_metric.labels.return_value.inc.call_count == 2
+    assert raw_metric.labels.call_count == 1
+    assert raw_metric.labels.return_value.inc.call_count == 1
+    assert result == {"cancelled": 0}
 
 
 @pytest.mark.asyncio

@@ -49,6 +49,7 @@ _EVALUATOR_FAMILY = (
     "_evaluate_session_with_engine",
     "_load_strategy_settings",
     "_probe_gap_resync_state",
+    "_read_ledger_gap_seed",
     "_extract_pyramiding",
     "_run_live_or_deactivate",
     "_positions_are_aligned",
@@ -104,7 +105,11 @@ def _try_shape() -> tuple[dict[str, int], dict[str, int], int]:
             continue
         seen += 1
         function = enclosing_function(node)
-        name = function.name if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)) else "<module>"
+        name = (
+            function.name
+            if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+            else "<module>"
+        )
         nesting, current = 1, parents.get(node)
         while current is not None and current is not function:
             if isinstance(current, ast.Try):
