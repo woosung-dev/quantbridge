@@ -365,7 +365,7 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 ~~**다음 행동 = ⓪ 표에서 다음 항목을 고른다**~~ → **2026-08-24 n10 저작으로 확정.**
 
 ~~**다음 행동 = n10 2 lane 병렬 주행**~~ → **2026-08-25 완주** — 13 step 전부 `completed`(blocked·error 0건), PR #813·#814 → `stage/n10`.
-★**산출 실측** — 미보호 metric census **63 → 30**(동결 키 32→17) · `record_metric_safely` 의 첫 인자에서 `.labels()` 가 **가드 밖**이던 **14건 → 0**(정답 형태 = `_count_safely` 또는 `lambda` 지연 평가) · metric 삭제 **0건**(제거·추가 1:1 대조) · `xfail` 신설 **0건**. 좌표 축 = `globals.css` 줄 번호 인용 **0건**(앵커 전환이고 삭제가 아니다 — `DESIGN.md` 순증 **+5줄**) · 철거된 FE 규칙 문서 경로(`frontend.md`·`nextjs-shared.md`·`frontend/AGENTS.md`) 참조 **0건** · 신설 `tools/scripts/doc-coord-audit.py`(`--check`·`--dead-paths`·`--selftest`).
+★**산출 실측** — 미보호 metric census **63 → 30**(동결 키 32→17) · `record_metric_safely` 의 첫 인자에서 `.labels()` 가 **가드 밖**이던 **14건 → 0**(정답 형태 = `_count_safely` 또는 `lambda` 지연 평가) · metric 삭제 **0건**(제거·추가 1:1 대조) · `xfail` 신설 **0건**. 좌표 축 = `globals.css` 줄 번호 인용 **0건**(앵커 전환이고 삭제가 아니다 — `DESIGN.md` 순증 **+5줄**) · 철거된 FE 규칙 문서 경로 **3종** 참조 **0건**(경로명은 `d1c8fd67` 커밋이 갖는다 — 여기 적으면 감사기 자신이 잡는다) · 신설 `tools/scripts/doc-coord-audit.py`(`--check`·`--dead-paths`·`--selftest`).
 ★**CONTROL 대조 — 두 lane 다 실체가 있었다.** 감사기 판별력은 selftest 를 믿지 않고 **실파일에 위반을 심어** 쟀다(`DESIGN.md` 좌표 1건 · `ui-store.ts` 죽은 경로 1건 → 둘 다 rc=1, 복구). 새로 심은 좌표의 참·거짓도 대조했다 — `apps/web/AGENTS.md` §3·§9 는 실재하고 인용된 규칙 문장도 그 안에 있으며, `auth-server.ts` 주석이 「3곳 → **4곳**」으로 고친 호출부 수는 실측과 일치한다(비-테스트 4곳).
 ★★**러너 부모 프로세스가 주행 39분 시점에 환경에 의해 kill 됐다.** lane B 는 이미 머지된 뒤였고 lane A 는 step 8/9 에서 멈췄다. **step 마다 커밋하는 설계 덕에 손실 0** — 워크트리에서 같은 러너를 재기동하니 step 8 만 이어 돌았다. ⇒ **러너를 대화 세션의 백그라운드 태스크로 띄우지 마라. 별도 세션 그룹으로 분리해라**(`start_new_session=True` · `nohup`). 이 실패 모드는 `/harness` 문서가 이미 적어 두었고 **내가 안 따랐다.**
 ★**[BL-650] 소멸성 표본 재채취** — `du -sm apps/web/.next` = **1,711MB** 로 3번째 측정점과 **같다**(이 회차는 메인에서 FE 빌드를 안 돌렸다). 측정점은 여전히 셋이다.
@@ -375,7 +375,12 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 **남은 census 30건이 「결과 보고 `try` 본문」 안인지 실측** — 이 측정 하나가 [BL-520] 을 가른다(범위 밖이면 RESOLVED · 안이면 n11 lane 재료). `apps/api/tests/common/test_metric_guard_census.py` 의 `_result_reporting_try_count` 스캐너를 `_FROZEN_CENSUS` 30건에 교차해라.
 ★**왜 지금 재야 하나** — 현재 「해로운 자리 0건」 단언은 **손으로 고른 후보 4쌍**만 본다(`_HARMFUL_MUTATION_CANDIDATES`). 30건 전체를 덮지 않으므로 **BL-520 의 종결 여부는 지금 미측정**이다.
 
-**다음 행동 = n11 3 lane 병렬 주행**(`n11-census-scope` 4 step · `n11-strenum-mypy` 3 step · `n11-guard-truth` 3 step, base `stage/n11`). ★러너는 **대화 세션과 분리해** 띄운다(`nohup` + 별도 세션 그룹) — n10 에서 부모 프로세스가 39분 시점에 kill 됐다.
+~~**다음 행동 = n11 3 lane 병렬 주행**~~ → **2026-08-25 2/3 완주** — `n11-census-scope`(4 step) · `n11-strenum-mypy`(3 step) 이 PR #819·#818 로 `stage/n11` 에 머지됐고, `n11-guard-truth` 는 step0 에서 `blocked`.
+★**러너 분리는 성공했다** — macOS 에 `setsid` 가 없어 `nohup setsid` 는 죽는다. `subprocess.Popen(start_new_session=True)` 로 띄워 PPID=1 · 자기 PGID · 세션 리더(`Ss`)를 `ps` 로 확인했다. n10 의 39분 kill 은 재발하지 않았다.
+★★**`blocked` 가 진짜 결함이었고, 그 결함이 그 lane 의 주제 자체였다** — `doc-coord-audit.py --dead-paths` 가 레포에서 **rc=1** 이고 원인은 `docs/status.md:368` 의 「철거된 FE 규칙 문서 경로(3종) 참조 **0건**」이라는 n10 산출 요약 문장 **자신이 그 3건**이었다는 것. 감사기(`c3cac3f4`)와 그 줄(`d1c8fd67`)이 **같은 PR #815 로 main 에 들어왔으므로 감사기는 태어난 순간부터 red 였고 아무도 돌리지 않았다.** 「감사기가 있다 ≠ 감사가 돈다」를 lane 이 착수 5분 만에 자기 자신으로 실증했다. ⇒ CONTROL 이 그 줄에서 경로명을 뺐다(감사기는 **안 건드렸다** — red 는 고칠 신호이지 약화할 신호가 아니다). 경로명 원문은 `d1c8fd67` 이 갖는다.
+★**내 저작 결함 1건** — step0 은 테스트 1의 `--check` 에는 「현재 실측 rc=0」을 적었는데 테스트 2의 `--dead-paths` 는 **재지 않고 rc=0 을 전제**했다. 재료 실사에서 한 축을 빠뜨리면 그 전제가 곧 AC 가 되어 lane 을 세운다([BL-814] 와 같은 가족).
+
+**다음 행동 = `n11-guard-truth` lane 재주행**(`--lanes n11-guard-truth --stage stage/n11`) — 차단자는 위에서 제거됐다. 완주하면 `stage/n11` → `main` 통합 PR #820 하나가 남는다.
 
 ★**재료 선별에서 나온 것 — 「하네스 가능」이 「트리거 도래」보다 훨씬 좁다.** 열린 12건 중 lane 이 된 것은 **1건**([BL-520])뿐이고, 나머지 lane 은 이번 세션이 표면화한 부채로 채웠다. 기각 사유: [BL-434] 최종 증명이 실주문(외부 네트워크) + 근거 `BL-437` 절이 **docs 에 부재**(죽은 앵커) · [BL-371] 하네스는 가능하나 **아무 원장도 안 닫는다**(투기적 커버리지) · [BL-641] 판정식 테스트가 이미 72건으로 포화 · [BL-453] 아래 ⓪ 표 B행 참조 · 나머지는 사용자 결정·외부 접근.
 ★★**[BL-520] 착수 전 실측이 n9 선례의 결함을 찾았다** — `record_metric_safely(X.labels(..).inc)` 는 **인자 선평가**라 `.labels()` 가 가드 **밖**에서 돈다(`_count_safely` docstring 이 이미 경고한 것). 실측 **14건 · 전부 `live_signal.py`**. census 는 인자 서브트리를 guarded 로 세어 **거짓 초록**을 낸다 ⇒ lane step0 이 이 축의 검사기를 먼저 세운다. **그 축 없이 스윕했으면 lane 이 초록을 내면서 결함을 복제했다.**
