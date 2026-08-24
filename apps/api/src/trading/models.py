@@ -535,11 +535,10 @@ class LiveSignalSession(SQLModel, table=True):
         ),
     )
     symbol: str = Field(max_length=32, nullable=False)
-    # Sprint 26 Phase D fix — Alembic 이 String(8) 로 컬럼 생성. SQLAlchemy 가 자동
-    # PG enum cast (`$N::livesignalinterval`) 시도해 UndefinedObjectError 발생하므로
-    # 명시적 String 컬럼 + Python-level StrEnum 으로 round-trip.
+    # Sprint 26 Phase D fix — SQLAlchemy 자동 PG enum cast를 막기 위한 명시적 String 컬럼.
     # ★BL-453 — 새 세션이 재조회한 행은 plain str 로 온다(재캐스팅 없음).
     # `.value`/`.name` 금지, `==`/`!=`/`str()` 만 쓸 것.
+    # 집행: apps/api/tests/trading/test_no_strenum_value_access.py.
     interval: LiveSignalInterval = Field(sa_column=Column("interval", String(8), nullable=False))
     is_active: bool = Field(
         default=True,
@@ -701,8 +700,10 @@ class LiveSignalEvent(SQLModel, table=True):
     trailing_stop: Decimal | None = Field(
         default=None, sa_column=Column("trailing_stop", Numeric(18, 8), nullable=True)
     )
-    # Sprint 26 Phase D fix — interval 과 동일 사유 (PG enum 미생성, String(16) 컬럼).
-    # ★BL-453 — 재조회 시 plain str. `.value`/`.name` 금지, `==`/`!=`/`str()` 만.
+    # Sprint 26 Phase D fix — SQLAlchemy 자동 PG enum cast를 막기 위한 명시적 String 컬럼.
+    # ★BL-453 — 새 세션이 재조회한 행은 plain str 로 온다(재캐스팅 없음).
+    # `.value`/`.name` 금지, `==`/`!=`/`str()` 만 쓸 것.
+    # 집행: apps/api/tests/trading/test_no_strenum_value_access.py.
     status: LiveSignalEventStatus = Field(
         default=LiveSignalEventStatus.pending,
         sa_column=Column("status", String(16), nullable=False, server_default="pending"),
@@ -758,14 +759,19 @@ class AlertRule(SQLModel, table=True):
             nullable=False,
         ),
     )
-    # LiveSignalInterval 과 같은 String + StrEnum 계약. PG enum 생성 금지.
-    # ★BL-453 — 재조회 시 plain str. `.value`/`.name` 금지, `==`/`!=`/`str()` 만.
+    # Sprint 26 Phase D fix — SQLAlchemy 자동 PG enum cast를 막기 위한 명시적 String 컬럼.
+    # ★BL-453 — 새 세션이 재조회한 행은 plain str 로 온다(재캐스팅 없음).
+    # `.value`/`.name` 금지, `==`/`!=`/`str()` 만 쓸 것.
+    # 집행: apps/api/tests/trading/test_no_strenum_value_access.py.
     rule_type: AlertRuleType = Field(sa_column=Column("rule_type", String(32), nullable=False))
     threshold_percent: Decimal | None = Field(
         default=None,
         sa_column=Column("threshold_percent", Numeric(18, 8), nullable=True),
     )
-    # ★BL-453 — 재조회 시 plain str. `.value`/`.name` 금지, `==`/`!=`/`str()` 만.
+    # Sprint 26 Phase D fix — SQLAlchemy 자동 PG enum cast를 막기 위한 명시적 String 컬럼.
+    # ★BL-453 — 새 세션이 재조회한 행은 plain str 로 온다(재캐스팅 없음).
+    # `.value`/`.name` 금지, `==`/`!=`/`str()` 만 쓸 것.
+    # 집행: apps/api/tests/trading/test_no_strenum_value_access.py.
     channel: AlertChannel = Field(
         sa_column=Column("channel", String(16), nullable=False),
     )
@@ -850,7 +856,10 @@ class ExchangeExit(SQLModel, table=True):
     exchange_updated_at: datetime | None = Field(
         default=None, sa_column=Column(AwareDateTime(), nullable=True)
     )
-    # ★BL-453 — 재조회 시 plain str. `.value`/`.name` 금지, `==`/`!=`/`str()` 만.
+    # Sprint 26 Phase D fix — SQLAlchemy 자동 PG enum cast를 막기 위한 명시적 String 컬럼.
+    # ★BL-453 — 새 세션이 재조회한 행은 plain str 로 온다(재캐스팅 없음).
+    # `.value`/`.name` 금지, `==`/`!=`/`str()` 만 쓸 것.
+    # 집행: apps/api/tests/trading/test_no_strenum_value_access.py.
     # dogfood 에서 실제로 `_alert_new_exchange_exits` 가 이 경로로 매 사이클 죽었다.
     classification: ExitClassification = Field(
         sa_column=Column("classification", String(24), nullable=False)

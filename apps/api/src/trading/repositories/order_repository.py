@@ -356,8 +356,8 @@ class OrderRepository:
 
     async def get_by_exchange_order_id(self, exchange_order_id: str) -> Order | None:
         result = await self.session.execute(
-            select(Order).where(  # type: ignore[arg-type]
-                Order.exchange_order_id == exchange_order_id
+            select(Order).where(
+                Order.exchange_order_id == exchange_order_id  # type: ignore[arg-type]
             )
         )
         return result.scalar_one_or_none()

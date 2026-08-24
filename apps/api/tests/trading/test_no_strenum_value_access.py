@@ -19,8 +19,10 @@ _STR_ENUM_GUARD_FAILURE_MESSAGE = """
 BL-453 plain-string StrEnum access guard:
 (a) 대상 필드는 trading/models.py에서 StrEnum 주석 + Field(sa_column=Column(..., String(N), ...))로 파생한다.
 (b) 대상은 src/trading 과 src/tasks 안의 직접 속성 접근 ``row.<field>.value`` / ``row.<field>.name`` 이다.
-(c) allowlist는 (파일, 속성, 비어 있지 않은 사유) 3튜플이며, 각 항목은 실제 AST hit 하나와 대응해야 한다.
-못 잡는 것: 별칭(``c = row.channel; c.value``), getattr 같은 동적 접근, 그리고 스코프 밖 파일이다.
+(c) 같은 함수 스코프의 1홉 별칭(``c = row.channel; c.value``)과 리터럴 getattr 결과도 검사한다.
+(d) getattr 필드명이 변수·f-string이면 정적으로 셀 수 없어 대상이 아니다.
+(e) direct access allowlist는 (파일, 속성, 비어 있지 않은 사유) 3튜플이며, 각 항목은 실제 AST hit 하나와 대응해야 한다.
+못 잡는 것: 2홉 이상 별칭, 재대입·분기 해석, 함수 경계 너머 접근, 리터럴이 아닌 getattr 필드명, 그리고 스코프 밖 파일이다.
 """.strip()
 
 # `ChannelTally.channel`은 AlertRule.channel DB 필드가 아니라 LedgerChannel 메모리 dataclass 값이다.
@@ -42,6 +44,19 @@ _ALLOWLIST: tuple[tuple[str, str, str], ...] = (
         "후보·부분집합 검증은 메모리 원장 집계만 사용한다.",
     ),
 )
+
+# 별칭·리터럴 getattr 축은 2026-08-25 실측에서 위반이 없어 빈 지도를 동결한다.
+_FROZEN_ALIAS_VIOLATIONS: dict[str, int] = {}
+
+_SYNTHETIC_ACCESS_FIXTURE = """
+def inspect(row):
+    row.classification.value
+    row.attribution_confidence.name
+    row.state.value
+    alias = row.classification
+    alias.value
+    getattr(row, "classification").value
+"""
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +84,25 @@ _EXPECTED_GUARDED_FIELDS = {
     ("ExchangeExit", "classification"),
     ("ExchangeExit", "attribution_confidence"),
 }
+
+_COMMENT_CONTRACT_FIELDS = frozenset(
+    {
+        ("LiveSignalSession", "interval"),
+        ("LiveSignalEvent", "status"),
+        ("AlertRule", "rule_type"),
+        ("AlertRule", "channel"),
+        ("ExchangeExit", "classification"),
+    }
+)
+_COMMENT_CONTRACT_MARKERS = frozenset(
+    {
+        "Sprint 26 Phase D fix",
+        "명시적 String 컬럼",
+        "`.value`/`.name` 금지",
+        "`==`/`!=`/`str()` 만 쓸 것.",
+        "apps/api/tests/trading/test_no_strenum_value_access.py",
+    }
+)
 
 # SQLModel이 native PG enum으로 자동 생성해 재조회 시 StrEnum으로 재캐스팅하는 안전한 필드다.
 _NATIVE_ENUM_FIELDS = {
@@ -131,6 +165,40 @@ def _derive_guarded_fields() -> set[tuple[str, str]]:
     return guarded_fields
 
 
+def _comment_lines_before_or_on_field(source_lines: list[str], field_lineno: int) -> list[str]:
+    comment_lines = [source_lines[field_lineno - 1]]
+    line_index = field_lineno - 2
+
+    while line_index >= 0 and source_lines[line_index].lstrip().startswith("#"):
+        comment_lines.append(source_lines[line_index])
+        line_index -= 1
+
+    return comment_lines
+
+
+def _comment_contract_markers_by_field() -> dict[tuple[str, str], set[str]]:
+    source = _MODELS_PATH.read_text(encoding="utf-8")
+    source_lines = source.splitlines()
+    tree = ast.parse(source, filename=str(_MODELS_PATH))
+    markers_by_field: dict[tuple[str, str], set[str]] = {}
+
+    for model in tree.body:
+        if not isinstance(model, ast.ClassDef):
+            continue
+        for field in model.body:
+            if not isinstance(field, ast.AnnAssign) or not isinstance(field.target, ast.Name):
+                continue
+            identity = model.name, field.target.id
+            if identity not in _COMMENT_CONTRACT_FIELDS:
+                continue
+            comment = "\n".join(_comment_lines_before_or_on_field(source_lines, field.lineno))
+            markers_by_field[identity] = {
+                marker for marker in _COMMENT_CONTRACT_MARKERS if marker in comment
+            }
+
+    return markers_by_field
+
+
 def _scoped_source_paths() -> list[Path]:
     return sorted(path for directory in _SCANNED_DIRECTORIES for path in directory.rglob("*.py"))
 
@@ -148,6 +216,64 @@ def _direct_guarded_field_access(
     return node.value.attr, node.attr
 
 
+def _nodes_in_function_scope(
+    scope: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[ast.AST]:
+    """중첩 함수·클래스·lambda를 넘지 않는 한 함수 스코프의 AST 노드만 수집한다."""
+    nodes: list[ast.AST] = []
+
+    def visit(node: ast.AST) -> None:
+        if node is not scope and isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+        ):
+            return
+        nodes.append(node)
+        for child in ast.iter_child_nodes(node):
+            visit(child)
+
+    visit(scope)
+    return nodes
+
+
+def _alias_guarded_field_accesses(
+    tree: ast.Module, guarded_field_names: set[str]
+) -> list[tuple[int, str, str]]:
+    """함수 안의 단일 대입 별칭과 리터럴 getattr 결과에서만 `.value`/`.name`을 찾는다."""
+    accesses: list[tuple[int, str, str]] = []
+
+    for scope in ast.walk(tree):
+        if not isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        scope_nodes = _nodes_in_function_scope(scope)
+        aliases = {
+            target.id: value.attr
+            for node in scope_nodes
+            if isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(target := node.targets[0], ast.Name)
+            and isinstance(value := node.value, ast.Attribute)
+            and value.attr in guarded_field_names
+        }
+
+        for node in scope_nodes:
+            if not isinstance(node, ast.Attribute) or node.attr not in _ENUM_ACCESSORS:
+                continue
+            if isinstance(node.value, ast.Name) and (field := aliases.get(node.value.id)):
+                accesses.append((node.lineno, field, node.attr))
+                continue
+            if not _is_call_named(node.value, "getattr") or len(node.value.args) < 2:
+                continue
+            field_name = node.value.args[1]
+            if (
+                isinstance(field_name, ast.Constant)
+                and isinstance(field_name.value, str)
+                and field_name.value in guarded_field_names
+            ):
+                accesses.append((node.lineno, field_name.value, node.attr))
+
+    return sorted(accesses)
+
+
 def _scoped_strenum_accesses() -> list[_StrEnumAccess]:
     guarded_field_names = {field for _, field in _derive_guarded_fields()}
     accesses: list[_StrEnumAccess] = []
@@ -161,6 +287,21 @@ def _scoped_strenum_accesses() -> list[_StrEnumAccess]:
                 continue
             field, accessor = access
             accesses.append(_StrEnumAccess(relative_path, node.lineno, field, accessor))
+
+    return sorted(accesses, key=lambda access: (access.path, access.lineno))
+
+
+def _scoped_strenum_alias_accesses() -> list[_StrEnumAccess]:
+    guarded_field_names = {field for _, field in _derive_guarded_fields()}
+    accesses: list[_StrEnumAccess] = []
+
+    for path in _scoped_source_paths():
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        relative_path = path.relative_to(_BACKEND_ROOT).as_posix()
+        accesses.extend(
+            _StrEnumAccess(relative_path, lineno, field, accessor)
+            for lineno, field, accessor in _alias_guarded_field_accesses(tree, guarded_field_names)
+        )
 
     return sorted(accesses, key=lambda access: (access.path, access.lineno))
 
@@ -226,6 +367,28 @@ def test_derivation_is_nonempty_and_excludes_native_enums() -> None:
     )
 
 
+def test_strenum_string_column_fields_carry_the_ban_comment() -> None:
+    markers_by_field = _comment_contract_markers_by_field()
+
+    assert len(_COMMENT_CONTRACT_FIELDS) == 5, (
+        "BL-453 선언부 주석 제어군은 정확히 5개 필드여야 한다. "
+        f"실제: {sorted(_COMMENT_CONTRACT_FIELDS)}"
+    )
+    assert set(markers_by_field) == _COMMENT_CONTRACT_FIELDS, (
+        "BL-453 선언부 주석 검사 대상이 AST에서 누락되었거나 늘었다. "
+        f"실제: {sorted(markers_by_field)}"
+    )
+    missing_markers = {
+        identity: sorted(_COMMENT_CONTRACT_MARKERS - markers)
+        for identity, markers in markers_by_field.items()
+        if _COMMENT_CONTRACT_MARKERS - markers
+    }
+
+    assert not missing_markers, (
+        f"BL-453 평문 String StrEnum 필드의 금지 주석이 불완전하다. 누락: {missing_markers}"
+    )
+
+
 def test_no_unallowlisted_plain_string_strenum_value_accesses() -> None:
     accesses = _scoped_strenum_accesses()
     violations = _unallowlisted_accesses(accesses)
@@ -238,16 +401,7 @@ def test_no_unallowlisted_plain_string_strenum_value_accesses() -> None:
 
 
 def test_direct_access_scanner_classifies_the_synthetic_fixture() -> None:
-    fixture = ast.parse(
-        """
-row.classification.value
-row.attribution_confidence.name
-row.state.value
-alias = row.classification
-alias.value
-getattr(row, "classification").value
-"""
-    )
+    fixture = ast.parse(_SYNTHETIC_ACCESS_FIXTURE)
     guarded_field_names = {field for _, field in _derive_guarded_fields()}
     accesses = {
         access
@@ -256,6 +410,42 @@ getattr(row, "classification").value
     }
 
     assert accesses == {("classification", "value"), ("attribution_confidence", "name")}
+
+
+def test_strenum_alias_access_matches_the_frozen_map() -> None:
+    actual = dict(Counter(access.path for access in _scoped_strenum_alias_accesses()))
+
+    assert actual == _FROZEN_ALIAS_VIOLATIONS, (
+        f"{_STR_ENUM_GUARD_FAILURE_MESSAGE}\n"
+        f"별칭·getattr 위반 지도 변경: 기대 {_FROZEN_ALIAS_VIOLATIONS}; 실제 {actual}"
+    )
+
+
+def test_strenum_alias_scanner_detects_synthetic_violations() -> None:
+    fixture = ast.parse(_SYNTHETIC_ACCESS_FIXTURE)
+    guarded_field_names = {field for _, field in _derive_guarded_fields()}
+    accesses = _alias_guarded_field_accesses(fixture, guarded_field_names)
+
+    assert [(field, accessor) for _, field, accessor in accesses] == [
+        ("classification", "value"),
+        ("classification", "value"),
+    ]
+
+
+def test_strenum_alias_scanner_ignores_safe_comparisons() -> None:
+    fixture = ast.parse(
+        """
+def inspect(row, expected):
+    alias = row.classification
+    alias == expected
+    str(alias)
+    state_alias = row.state
+    state_alias.value
+"""
+    )
+    guarded_field_names = {field for _, field in _derive_guarded_fields()}
+
+    assert _alias_guarded_field_accesses(fixture, guarded_field_names) == []
 
 
 def test_guard_scans_a_nonempty_scope() -> None:
