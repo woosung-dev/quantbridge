@@ -99,10 +99,6 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 5,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 6,
-    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
-    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
-    ("apps/api/src/tasks/trading.py", "qb_order_snapshot_fallback_total"): 2,
-    ("apps/api/src/tasks/trading.py", "qb_trailing_placement_total"): 9,
     ("apps/api/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): 1,
     ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
     ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
@@ -524,8 +520,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 30
-    assert sum(_FROZEN_CENSUS.values()) == 54
+    assert len(_FROZEN_CENSUS) == 26
+    assert sum(_FROZEN_CENSUS.values()) == 41
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
