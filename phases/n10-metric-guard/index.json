@@ -32,13 +32,16 @@
     {
       "step": 2,
       "name": "wrap-conditional-entry-janitor",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k labels_outside_guard -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks -q",
         "cd apps/api && uv run ruff check src/tasks/conditional_entry_janitor.py"
-      ]
+      ],
+      "started_at": "2026-08-24T23:43:46+0900",
+      "summary": "`conditional_entry_janitor.py`의 reconcile error counter 5건을 `_count_safely`로 감싸고 frozen census 항목을 삭제해 Step 2 AC를 통과했다.",
+      "completed_at": "2026-08-24T23:47:26+0900"
     },
     {
       "step": 3,
