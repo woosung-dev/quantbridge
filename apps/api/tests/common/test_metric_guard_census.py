@@ -84,6 +84,8 @@ _HARMFUL_MUTATION_CANDIDATES = frozenset(
 )
 
 
+# `_FROZEN_CENSUS`는 규칙 범위(결과 보고 `try`의 A/B)의 상위집합이며, 규칙 위반 건수가 아니다.
+# Step 0 범위 판정 축 `_FROZEN_CENSUS_SCOPE`가 각 자리를 기계로 다시 검증한다.
 _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/common/alert.py", "qb_pending_alerts"): 2,
     ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): 1,
