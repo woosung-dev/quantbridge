@@ -57,8 +57,9 @@ site outside the frozen harmful candidates belongs to a business path.
 
 
 # ★「업무 결과를 뒤집는가」는 AST만으로 판정할 수 없다. 이 4곳은 CONTROL 재측정으로
-# 동결한 후보이고, 아래 AST 규칙은 가드 유무와 무관하게 후보가 실제 A/B 해로운 try 자리에
-# 남았는지만 검증한다. 가드 밖인지 여부는 `_FROZEN_CENSUS` 래칫이 따로 맡는다.
+# 동결한 후보다. 아래 AST 규칙은 후보의 **raw** mutation 이 결과 보고 try의 A/B 자리에
+# 남았는지만 검증한다. 전건 가드 뒤에는 반드시 0건이어야 하며, 공허화 방지는 결과 보고
+# try 수 하한이 맡는다.
 _HARMFUL_MUTATION_CANDIDATES = frozenset(
     {
         (
@@ -146,10 +147,8 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
     ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
     ("apps/api/src/trading/providers.py", "qb_closed_pnl_backfill_total"): 1,
-    ("apps/api/src/trading/realtime_publisher.py", "qb_rt_publish_failed_total"): 1,
     ("apps/api/src/trading/realtime_publisher.py", "qb_rt_publish_invalid_total"): 1,
     ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): 1,
-    ("apps/api/src/trading/webhook.py", "qb_webhook_symbol_rejected_total"): 1,
     ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconcile_skipped_total"): 1,
     ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconnect_total"): 1,
     ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
@@ -196,22 +195,6 @@ def _mutation_site(call: ast.Call) -> tuple[str, str] | None:
     if metric is None:
         return None
     return metric, call.func.attr
-
-
-def _guarded_bound_metric_site(call: ast.Call) -> tuple[str, str] | None:
-    """가드에 bound metric method를 넘긴 자리도 harmful-try 위치 확인에는 포함한다."""
-    if not _is_guard_call(call) or not call.args:
-        return None
-    callable_argument = call.args[0]
-    if (
-        not isinstance(callable_argument, ast.Attribute)
-        or callable_argument.attr not in _MUTATION_METHODS
-    ):
-        return None
-    metric = _metric_name(callable_argument.value)
-    if metric is None:
-        return None
-    return metric, callable_argument.attr
 
 
 def _labels_site(call: ast.Call, mutation_receivers: set[int]) -> tuple[str, str] | None:
@@ -409,7 +392,7 @@ def _nearest_result_reporting_try_shape(node: ast.AST, parents: dict[int, ast.AS
 
 
 def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
-    """수동 동결 후보가 가드 유무와 무관하게 A/B 해로운 try 자리에 있는지 수집한다."""
+    """수동 동결 후보의 raw mutation이 A/B 해로운 try 자리에 남았는지 수집한다."""
     harmful_sites: list[_HarmfulMetricSite] = []
     for path, tree in _source_trees():
         relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
@@ -417,7 +400,7 @@ def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
-            mutation = _mutation_site(node) or _guarded_bound_metric_site(node)
+            mutation = _mutation_site(node)
             if mutation is None:
                 continue
             metric, _ = mutation
@@ -441,6 +424,17 @@ def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
                 )
             )
     return harmful_sites
+
+
+def _result_reporting_try_count() -> int:
+    """해로운 자리 스캐너가 의존하는 결과 보고 try를 전 소스에서 센다."""
+    return sum(
+        1
+        for _, tree in _source_trees()
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Try)
+        and any(_handler_reports_business_result(handler) for handler in node.handlers)
+    )
 
 
 def _source_trees() -> list[tuple[Path, ast.Module]]:
@@ -565,8 +559,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 38
-    assert sum(_FROZEN_CENSUS.values()) == 81
+    assert len(_FROZEN_CENSUS) == 36
+    assert sum(_FROZEN_CENSUS.values()) == 79
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
@@ -574,36 +568,15 @@ def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
     assert actual == _FROZEN_CENSUS, _census_failure_message(actual, sites)
 
 
-def test_harmful_mutation_sites_match_the_control_census() -> None:
-    actual = {(site.path, site.metric, site.shape) for site in _harmful_mutation_sites()}
+def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:
+    """0건 단언은 결과 보고 try 양성 대조와 함께만 허용한다 (2026-08-24 실측 138건)."""
+    actual = _harmful_mutation_sites()
+    reporting_try_count = _result_reporting_try_count()
 
-    assert actual == {
-        (
-            "apps/api/src/tasks/live_signal.py",
-            "qb_live_conditional_sweep_filled_total",
-            "A",
-        ),
-        (
-            "apps/api/src/tasks/trading.py",
-            "qb_exchange_exit_link_unverified_total",
-            "A",
-        ),
-        (
-            "apps/api/src/trading/realtime_publisher.py",
-            "qb_rt_publish_failed_total",
-            "B",
-        ),
-        (
-            "apps/api/src/trading/webhook.py",
-            "qb_webhook_symbol_rejected_total",
-            "B",
-        ),
-    }
-
-
-def test_harmful_mutation_sites_are_not_empty() -> None:
-    assert _harmful_mutation_sites(), (
-        "해로운 보호 mutation 목록이 비었다 — 이 census는 아무것도 집행하지 않는다"
+    assert not actual, actual
+    assert reporting_try_count >= 100, (
+        "결과 보고 try 스캐너가 100곳 미만만 훑었다 — 해로운 자리 0건은 대상 미도달로도 참이다: "
+        f"{reporting_try_count}"
     )
 
 
@@ -842,6 +815,20 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "_sweep_closed_pnl_with_session",
         "qb_exchange_exit_link_unverified_total",
         "청산 원장 행 관측 뒤 — 예외가 계정 격리 handler로 가서 이 계정 스윕 후속 처리를 중단",
+    ),
+    # ★2026-08-24 n7-metric-guard-sweep 모양 B — except 본문의 계측 실패는 잡은 예외까지
+    #   다시 누출시킨다. 두 자리는 각각 Redis 발행 실패와 심볼 거절의 응답 경로다.
+    (
+        "apps/api/src/trading/realtime_publisher.py",
+        "_publish_envelope",
+        "qb_rt_publish_failed_total",
+        "발행 실패 handler 안 — 계측 예외가 원래 Redis 발행 예외를 상위 경로로 누출",
+    ),
+    (
+        "apps/api/src/trading/webhook.py",
+        "_normalized_symbol_or_reject",
+        "qb_webhook_symbol_rejected_total",
+        "심볼 거절 handler 안 — 계측 예외가 원래 ValueError와 웹훅 응답 경로를 함께 누출",
     ),
     # ★2026-08-03 metric-guard-residual-sweep — 라이브 발주 outbox 경로 8곳(전건 「수리함」).
     #   전부 `mark_failed`/`mark_dispatched` + `commit()` **뒤**이고, 호출자
