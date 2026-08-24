@@ -5,13 +5,16 @@
     {
       "step": 0,
       "name": "boundary-census",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/common/test_repository_boundary_guard.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T14:32:20+0900",
+      "summary": "AST census 추가: 스코프 147파일에서 SQLAlchemy/SQLModel select 8건(의존성 4·kill_switch 2·state/reconciliation 각 1)을 검출했고, dependencies 제어군은 trading만 양성이다.",
+      "completed_at": "2026-08-24T14:38:51+0900"
     },
     {
       "step": 1,
@@ -60,5 +63,6 @@
         "cd apps/api && uv run ruff format --check tests/common/test_repository_boundary_guard.py"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T14:32:20+0900"
 }
