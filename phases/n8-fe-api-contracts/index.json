@@ -1,0 +1,71 @@
+{
+  "project": "QuantBridge",
+  "phase": "n8-fe-api-contracts",
+  "steps": [
+    {
+      "step": 0,
+      "name": "backtest-contract",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/backtest/__tests__/api-contract.test.ts",
+        "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api-contract.test.ts",
+        "test \"$(grep -cE '\\bit\\(' apps/web/src/features/backtest/__tests__/api-contract.test.ts)\" -ge 10",
+        "cd apps/web && pnpm exec biome check src/features/backtest/__tests__/api-contract.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "git diff --quiet -- apps/web/src/features/backtest/api.ts"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "strategy-contract",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/strategy/__tests__/api-contract.test.ts",
+        "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api-contract.test.ts",
+        "test \"$(grep -cE '\\bit\\(' apps/web/src/features/strategy/__tests__/api-contract.test.ts)\" -ge 6",
+        "cd apps/web && pnpm exec biome check src/features/strategy/__tests__/api-contract.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "git diff --quiet -- apps/web/src/features/strategy/api.ts"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "optimizer-contract",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/optimizer/__tests__/api-contract.test.ts",
+        "cd apps/web && pnpm exec vitest run src/features/optimizer/__tests__/api-contract.test.ts",
+        "test \"$(grep -cE '\\bit\\(' apps/web/src/features/optimizer/__tests__/api-contract.test.ts)\" -ge 4",
+        "cd apps/web && pnpm exec biome check src/features/optimizer/__tests__/api-contract.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "git diff --quiet -- apps/web/src/features/optimizer/api.ts"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "alert-rules-contract",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/features/alert-rules/__tests__/api-contract.test.ts",
+        "cd apps/web && pnpm exec vitest run src/features/alert-rules/__tests__/api-contract.test.ts",
+        "test \"$(grep -cE '\\bit\\(' apps/web/src/features/alert-rules/__tests__/api-contract.test.ts)\" -ge 3",
+        "cd apps/web && pnpm exec biome check src/features/alert-rules/__tests__/api-contract.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "git diff --quiet -- apps/web/src/features/alert-rules/api.ts"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "coverage-guard-and-selfcheck",
+      "status": "pending",
+      "ac": [
+        "test -f apps/web/src/lib/__tests__/api-contract-coverage.test.ts",
+        "cd apps/web && pnpm exec vitest run src/lib/__tests__/api-contract-coverage.test.ts",
+        "test \"$(grep -cE '\\bit\\(' apps/web/src/lib/__tests__/api-contract-coverage.test.ts)\" -ge 3",
+        "cd apps/web && pnpm exec vitest run src/features/backtest src/features/strategy src/features/optimizer src/features/alert-rules",
+        "cd apps/web && pnpm exec biome check src/lib/__tests__/api-contract-coverage.test.ts",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}

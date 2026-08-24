@@ -1,0 +1,57 @@
+{
+  "project": "QuantBridge",
+  "phase": "n8-env-contract",
+  "steps": [
+    {
+      "step": 0,
+      "name": "env-census",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/common/test_env_example_contract.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_env_example_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
+        "git diff --quiet -- apps/api/src",
+        "git diff --quiet -- apps/api/.env.example"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "contract-guard-and-allowlist",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/common/test_env_example_contract.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_env_example_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
+        "git diff --quiet -- apps/api/src"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "fill-env-example",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
+        "test \"$(grep -c '^E2E_RATE_LIMIT_EXEMPT_EMAIL=' apps/api/.env.example)\" -eq 1",
+        "test \"$(grep -c '^OPTIMIZER_STALE_THRESHOLD_SECONDS=' apps/api/.env.example)\" -eq 1",
+        "test \"$(grep -c '^STRESS_TEST_STALE_THRESHOLD_SECONDS=' apps/api/.env.example)\" -eq 1",
+        "test \"$(grep -c '^DOGFOOD_REPORT_OUTPUT_DIR=' apps/api/.env.example)\" -eq 1",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
+        "git diff --quiet -- apps/api/src"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_env_example_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
+        "cd apps/api && uv run ruff check tests/common/test_env_example_contract.py",
+        "cd apps/api && uv run ruff format --check tests/common/test_env_example_contract.py",
+        "git diff --quiet -- apps/api/src"
+      ]
+    }
+  ]
+}

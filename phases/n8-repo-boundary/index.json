@@ -1,0 +1,64 @@
+{
+  "project": "QuantBridge",
+  "phase": "n8-repo-boundary",
+  "steps": [
+    {
+      "step": 0,
+      "name": "boundary-census",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/common/test_repository_boundary_guard.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
+        "git diff --quiet -- apps/api/src"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "guard-and-frozen-census",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
+        "git diff --quiet -- apps/api/src"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "move-dependencies-queries",
+      "status": "pending",
+      "ac": [
+        "test \"$(grep -c 'select(' apps/api/src/trading/dependencies.py)\" -eq 0",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "cd apps/api && uv run ruff check src/trading"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "move-remaining-queries",
+      "status": "pending",
+      "ac": [
+        "test \"$(grep -c 'select(' apps/api/src/trading/kill_switch.py)\" -eq 0",
+        "test \"$(grep -c 'select(' apps/api/src/trading/websocket/state_handler.py)\" -eq 0",
+        "test \"$(grep -c 'select(' apps/api/src/trading/websocket/reconciliation.py)\" -eq 0",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "cd apps/api && uv run ruff check src/trading"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/common -q",
+        "cd apps/api && uv run ruff check tests/common/test_repository_boundary_guard.py src/trading",
+        "cd apps/api && uv run ruff format --check tests/common/test_repository_boundary_guard.py"
+      ]
+    }
+  ]
+}
