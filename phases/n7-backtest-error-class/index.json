@@ -5,36 +5,47 @@
     {
       "step": 0,
       "name": "pin-existing-branches",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/backtest/engine/test_fault_injection.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 9",
         "git diff --quiet -- apps/api/src/backtest/engine/v2_adapter.py"
-      ]
+      ],
+      "started_at": "2026-08-24T11:06:16+0900",
+      "summary": "실측 분기 좌표: v2_adapter.py 119 PineRuntimeError→error, 127 SyntaxError→parse_failed, 135 ValueError→error, 144 Exception→parse_failed. PineRuntimeError/runtime boom은 실행 오류→error, SyntaxError/syntax boom은 진짜 문법 오류→parse_failed, ValueError/data boom은 데이터·분류 오류→error를 각각 result=None·오류 문자열 전파와 함께 고정해 fault test 9건이 됐다. SyntaxError→parse_failed는 사용자 Pine 문법 실패의 생존 증인이므로 Step 1의 미지 예외 분류 변경 뒤에도 유지한다.",
+      "completed_at": "2026-08-24T11:09:24+0900"
     },
     {
       "step": 1,
       "name": "split-runtime-from-parse",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
         "cd apps/api && uv run --env-file .env.local pytest tests/backtest -q",
         "cd apps/api && test \"$(grep -c 'parse_failed' src/backtest/engine/v2_adapter.py)\" -ge 1"
-      ]
+      ],
+      "started_at": "2026-08-24T11:09:26+0900",
+      "summary": "실제 수정: apps/api/src/backtest/engine/v2_adapter.py:23,128,145-154에서 알려진 PyneSyntaxError는 SyntaxError와 함께 parse_failed로 유지하고 catch-all은 error+주석+v2_adapter_unexpected_error 로거로 변경했다. tests/backtest/engine/test_fault_injection.py:81의 test_parse_and_run_v2_raises_becomes_parse_failed→test_parse_and_run_v2_raises_becomes_error는 결함(미지 RuntimeError를 사용자 Pine 문법 실패로 단정)을 계약화했으므로 회귀가 아니며 KeyError→error 사례를 :92에 추가했다. AC3 첫 실행의 다른 red는 test_run_backtest_parse_failed_returns_parse_failed_status 1건이었고, pynescript 고유 SyntaxError가 내장 SyntaxError 미상속인 알려진 파싱 실패여서 위 특수 분기에 포함해 처리했으며 최종 AC3은 609 passed다.",
+      "completed_at": "2026-08-24T11:16:13+0900"
     },
     {
       "step": 2,
       "name": "mutation-and-contrast",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 11",
         "cd apps/api && uv run --env-file .env.local pytest tests/backtest -q",
         "cd apps/api && uv run ruff check src/backtest/engine/v2_adapter.py tests/backtest/engine/test_fault_injection.py",
         "cd apps/api && uv run ruff format --check tests/backtest/engine/test_fault_injection.py"
-      ]
+      ],
+      "started_at": "2026-08-24T11:16:14+0900",
+      "summary": "변이⑴ catch-all status를 error→parse_failed로 되돌리자 test_parse_and_run_v2_raises_becomes_error가 AssertionError: assert 'parse_failed' == 'error'로 red, 변이⑵ SyntaxError 분기 status를 parse_failed→error로 과잉 적용하자 [syntax-error]가 AssertionError: assert 'error' == 'parse_failed'로 red였다. 각 스냅샷 diff가 각각 catch-all/SyntaxError 한 줄만 바꾼 것을 보이고 RuntimeError·SyntaxError 주입 테스트가 해당 분기만 red여서 도달을 확인했다. 두 변이 뒤 스냅샷 되쓰기 SHA-256은 595d1377469caaaec769a69cd027bcd4e4d050dac93db4d95532581cbab06e21로 모두 원복 일치했다. 11번째 케이스는 임의 RuntimeError가 사용자 진행 조회용 실패 문구에 runtime boom으로 저장되고 parse_failed·engine status=를 포함하지 않음을 고정한다.",
+      "completed_at": "2026-08-24T11:24:24+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-24T11:06:16+0900",
+  "completed_at": "2026-08-24T11:24:27+0900"
 }

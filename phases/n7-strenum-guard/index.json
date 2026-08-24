@@ -5,30 +5,36 @@
     {
       "step": 0,
       "name": "derive-guarded-fields",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T11:06:16+0900",
+      "summary": "AST 재측정은 CONTROL 표와 일치: 6건(LiveSignalSession.interval, LiveSignalEvent.status, AlertRule.rule_type/channel, ExchangeExit.classification/attribution_confidence). ClassDef·AnnAssign에서 StrEnum base/Name annotation 및 Field의 sa_column=Column args 속 String Call을 파생했고, sa_column 없는 native enum 7개는 제외 검증했다. deactivated_reason은 str | None 주석이라 자동 제외되며, 이 step에서 추가 위양성 후보 판정은 하지 않았다.",
+      "completed_at": "2026-08-24T11:11:37+0900"
     },
     {
       "step": 1,
       "name": "scoped-guard-and-allowlist",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 5",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T11:11:39+0900",
+      "summary": "실측은 CONTROL 표와 일치: 전체 12건은 모두 위양성(스코프 밖 backtest 4·optimizer 3·stress_test 2, 스코프 안 entry_completeness.py channel.value 3건은 allowlist, 위반 0건)이다. AST는 src/trading+src/tasks Python 73개를 훑고 allowlist 사유 필수·3건 실매치를 고정했다. 못 잡는 것: 별칭(c = row.channel; c.value), getattr 동적 접근, 스코프 밖 파일.",
+      "completed_at": "2026-08-24T11:17:45+0900"
     },
     {
       "step": 2,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
@@ -37,7 +43,12 @@
         "cd apps/api && uv run ruff check tests/trading/test_no_strenum_value_access.py",
         "cd apps/api && uv run ruff format --check tests/trading/test_no_strenum_value_access.py",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T11:17:46+0900",
+      "summary": "양성: src/trading/repositories/exchange_exit_repository.py:27에 `_ = rows[0].classification.value`를 심자 가드가 `allowlist 밖 접근: ['src/trading/repositories/exchange_exit_repository.py:27: classification.value']`로 red였다. 도달: _scoped_source_paths에 대상 파일이 있고 _scoped_strenum_accesses가 그 한 hit를 반환했다. 음성: entry_completeness.py channel.value 3건은 allowlist로 위반이 아니었고, 스코프 밖 backtest/service.py의 status.value는 스캔하지 않았다. 스냅샷 재쓰기 뒤 source와 snapshot SHA-256은 모두 84c24acaa62b5329dda66ed01724b6ebe68fe02fce54eaf182054d68b59ece79로 일치했다. 합성 AST 픽스처는 direct classification.value·attribution_confidence.name 검출과 native state·별칭·getattr 제외를 상시 고정한다.",
+      "completed_at": "2026-08-24T11:23:19+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-24T11:06:16+0900",
+  "completed_at": "2026-08-24T11:23:20+0900"
 }

@@ -9,6 +9,7 @@ from typing import Any, Literal, cast
 from pydantic import ValidationError
 
 from src.common.metrics import qb_rt_publish_failed_total, qb_rt_publish_invalid_total
+from src.common.metrics_multiproc import record_metric_safely
 from src.common.redis_client import get_redis_lock_pool
 from src.realtime.schemas import PAYLOAD_MODELS, RealtimeEnvelope, ticker_channel, user_channel
 
@@ -20,9 +21,7 @@ def _get_redis_lock_pool() -> Any:
     return get_redis_lock_pool()
 
 
-async def _publish_envelope(
-    channel: str, event_type: str, payload: dict[str, Any]
-) -> None:
+async def _publish_envelope(channel: str, event_type: str, payload: dict[str, Any]) -> None:
     """계약 검증 뒤 Redis pub/sub envelope를 발행한다."""
     try:
         PAYLOAD_MODELS[event_type].model_validate(payload)
@@ -51,13 +50,10 @@ async def _publish_envelope(
         await _get_redis_lock_pool().publish(channel, envelope.model_dump_json())
     except Exception:
         logger.exception("realtime_publish_failed event_type=%s", event_type)
-        with suppress(Exception):
-            qb_rt_publish_failed_total.inc()
+        record_metric_safely(qb_rt_publish_failed_total.inc)
 
 
-async def publish_realtime(
-    user_id: str, event_type: str, payload: dict[str, Any]
-) -> None:
+async def publish_realtime(user_id: str, event_type: str, payload: dict[str, Any]) -> None:
     """사용자별 Redis pub/sub 발행 실패가 거래 상태 전이를 방해하지 않게 한다."""
     await _publish_envelope(user_channel(user_id), event_type, payload)
 

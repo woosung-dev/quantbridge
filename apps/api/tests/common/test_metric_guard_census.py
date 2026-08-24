@@ -17,8 +17,15 @@ guarded는 ``record_metric_safely`` / ``_count_safely`` / ``_touch_safely`` 호�
 (ii) 이름으로 넘긴 중첩 ``def`` 본문. 예를 들어 ``def increment(): ...`` 뒤에
      ``record_metric_safely(increment)`` 를 호출하면 그 본문은 guarded다.
 
+해로운 try는 수동 동결한 보호 후보 mutation 이 예외 결과를 보고하는 가장 가까운 ``try`` 안에
+있는지로 판정한다. A 는 ``try`` 본문, B 는 ``except`` 본문이다. 결과 보고는 rollback,
+``*_errors_total`` mutation, 또는 ``failed`` 로그다. 중첩 ``try`` 의 ``except`` 안에 있는
+call은 그 handler가 직접 결과를 보고하지 않으면 바깥 ``try`` 를 계속 찾는다. 가드 밖인지는
+위 frozen census가 별도로 집행하므로, 보호 자리는 가드 추가 뒤에도 남는다.
+
 못 잡는 것: 별칭(``c = qb_x; c.inc()``), ``getattr`` 등 동적 접근, 모듈 alias 경유,
-``qb_`` 아닌 이름, 그리고 가드 밖인지만 알 뿐 그 자리가 머니-패스인지는 모른다.
+``qb_`` 아닌 이름, 그리고 후보 밖 자리가 실제 업무 경로인지다. 그 의미 판정은 AST가
+아니라 수동 census 기준이 맡는다.
 """
 
 from __future__ import annotations
@@ -27,6 +34,8 @@ import ast
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+
+import pytest
 
 from src.common.metrics import _LIVE_CONDITIONAL_GUARD_OUTCOMES
 
@@ -42,9 +51,37 @@ R1 metric guard census rule:
 (b) a root-``qb_`` ``.labels(...)`` Call that is not the receiver of (a).
 (i) Guard coverage includes every argument subtree, including lambda bodies.
 (ii) Guard coverage includes the body of a nested def passed to the guard by name.
-못 잡는 것: aliases, dynamic getattr access, module aliases, non-qb_ names, and whether an
-unguarded site belongs to a money path.
+(iii) Harmful-try candidates must remain mutations inside the nearest result-reporting try.
+(iv) A is a try body site; B is an except body site.
+못 잡는 것: aliases, dynamic getattr access, module aliases, non-qb_ names, and whether a
+site outside the frozen harmful candidates belongs to a business path.
 """.strip()
+
+
+# ★「업무 결과를 뒤집는가」는 AST만으로 판정할 수 없다. 이 4곳은 CONTROL 재측정으로
+# 동결한 후보다. 아래 AST 규칙은 후보의 **raw** mutation 이 결과 보고 try의 A/B 자리에
+# 남았는지만 검증한다. 전건 가드 뒤에는 반드시 0건이어야 하며, 공허화 방지는 결과 보고
+# try 수 하한이 맡는다.
+_HARMFUL_MUTATION_CANDIDATES = frozenset(
+    {
+        (
+            "apps/api/src/tasks/live_signal.py",
+            "qb_live_conditional_sweep_filled_total",
+        ),
+        (
+            "apps/api/src/tasks/trading.py",
+            "qb_exchange_exit_link_unverified_total",
+        ),
+        (
+            "apps/api/src/trading/realtime_publisher.py",
+            "qb_rt_publish_failed_total",
+        ),
+        (
+            "apps/api/src/trading/webhook.py",
+            "qb_webhook_symbol_rejected_total",
+        ),
+    }
+)
 
 
 _FROZEN_CENSUS: dict[tuple[str, str], int] = {
@@ -77,7 +114,6 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     # ★내가 처음 12곳을 전부 (b)로 적었고 **테스트가 그 일반화를 반증했다.** 직전 회차의
     #   「8곳 중 1곳만 fail-open `try` 안」과 같은 함정이다.
     ("apps/api/src/tasks/live_signal.py", "qb_live_conditional_reconcile_errors_total"): 3,
-    ("apps/api/src/tasks/live_signal.py", "qb_live_conditional_sweep_filled_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     # ★2026-08-03 metric-guard-residual-sweep — 12곳 중 8곳 수리. 잔여 4곳은 **판정 보류**
     #   (프로덕션 도달 경로를 한 줄로 못 적어 주입 하네스를 만들지 않았다. 만들면 프로덕션이
@@ -106,7 +142,6 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     #   `tasks/trading.py`+`qb_closed_pnl_backfill_total`(15) ·
     #   `services/order_service.py`+`qb_order_rejected_total`(10).
     ("apps/api/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
-    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_link_unverified_total"): 1,
     ("apps/api/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
     ("apps/api/src/tasks/trading.py", "qb_order_snapshot_fallback_total"): 2,
     ("apps/api/src/tasks/trading.py", "qb_trailing_placement_total"): 9,
@@ -114,10 +149,8 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
     ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
     ("apps/api/src/trading/providers.py", "qb_closed_pnl_backfill_total"): 1,
-    ("apps/api/src/trading/realtime_publisher.py", "qb_rt_publish_failed_total"): 1,
     ("apps/api/src/trading/realtime_publisher.py", "qb_rt_publish_invalid_total"): 1,
     ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): 1,
-    ("apps/api/src/trading/webhook.py", "qb_webhook_symbol_rejected_total"): 1,
     ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconcile_skipped_total"): 1,
     ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconnect_total"): 1,
     ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
@@ -133,6 +166,15 @@ class _MetricSite:
     lineno: int
     metric: str
     verb: str
+    function_name: str
+
+
+@dataclass(frozen=True)
+class _HarmfulMetricSite:
+    path: str
+    lineno: int
+    metric: str
+    shape: str
     function_name: str
 
 
@@ -270,6 +312,133 @@ def _collect_unguarded_sites(tree: ast.AST, path: str) -> list[_MetricSite]:
     return collector.collect()
 
 
+def _parent_nodes(tree: ast.AST) -> dict[int, ast.AST]:
+    return {
+        id(child): parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)
+    }
+
+
+def _try_position(
+    node: ast.AST, try_node: ast.Try, parents: dict[int, ast.AST]
+) -> tuple[str, ast.ExceptHandler | None] | None:
+    """node가 이 try의 본문(A) 또는 handler(B) 어느 쪽에 있는지 돌려준다."""
+    current = node
+    while parents.get(id(current)) is not try_node:
+        parent = parents.get(id(current))
+        if parent is None:
+            return None
+        current = parent
+    if current in try_node.body:
+        return "A", None
+    if isinstance(current, ast.ExceptHandler):
+        return "B", current
+    return None
+
+
+def _handler_result_nodes(handler: ast.ExceptHandler) -> list[ast.AST]:
+    """handler의 무조건 실행 경로만 편다 — 중첩 try/if의 분기는 이 handler의 보고가 아니다."""
+    result_nodes: list[ast.AST] = []
+    pending = list(handler.body)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            pending.extend(node.body)
+            continue
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.If, ast.Match, ast.Try, ast.While)):
+            continue
+        result_nodes.append(node)
+    return result_nodes
+
+
+def _handler_reports_business_result(handler: ast.ExceptHandler) -> bool:
+    """rollback·errors_total·failed 로그 중 하나가 handler의 무조건 경로에 있는지 확인한다."""
+    for root in _handler_result_nodes(handler):
+        for node in ast.walk(root):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "rollback":
+                return True
+            if (
+                isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "logger"
+                and any(
+                    isinstance(argument, ast.Constant)
+                    and isinstance(argument.value, str)
+                    and "failed" in argument.value
+                    for argument in node.args
+                )
+            ):
+                return True
+            mutation = _mutation_site(node)
+            if mutation is not None and mutation[0].endswith("_errors_total"):
+                return True
+    return False
+
+
+def _nearest_result_reporting_try_shape(node: ast.AST, parents: dict[int, ast.AST]) -> str | None:
+    """예외를 업무 결과로 보고하는 가장 가까운 try에서 node의 A/B 모양을 찾는다."""
+    current = parents.get(id(node))
+    while current is not None:
+        if isinstance(current, ast.Try):
+            position = _try_position(node, current, parents)
+            if position is None:
+                current = parents.get(id(current))
+                continue
+            shape, handler = position
+            handlers = current.handlers if handler is None else [handler]
+            if any(_handler_reports_business_result(candidate) for candidate in handlers):
+                return shape
+        current = parents.get(id(current))
+    return None
+
+
+def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
+    """수동 동결 후보의 raw mutation이 A/B 해로운 try 자리에 남았는지 수집한다."""
+    harmful_sites: list[_HarmfulMetricSite] = []
+    for path, tree in _source_trees():
+        relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
+        parents = _parent_nodes(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            mutation = _mutation_site(node)
+            if mutation is None:
+                continue
+            metric, _ = mutation
+            if (relative_path, metric) not in _HARMFUL_MUTATION_CANDIDATES:
+                continue
+            shape = _nearest_result_reporting_try_shape(node, parents)
+            if shape is None:
+                continue
+            function = _enclosing_function(node, parents)
+            harmful_sites.append(
+                _HarmfulMetricSite(
+                    path=relative_path,
+                    lineno=node.lineno,
+                    metric=metric,
+                    shape=shape,
+                    function_name=(
+                        function.name
+                        if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        else "<module>"
+                    ),
+                )
+            )
+    return harmful_sites
+
+
+def _result_reporting_try_count() -> int:
+    """해로운 자리 스캐너가 의존하는 결과 보고 try를 전 소스에서 센다."""
+    return sum(
+        1
+        for _, tree in _source_trees()
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Try)
+        and any(_handler_reports_business_result(handler) for handler in node.handlers)
+    )
+
+
 def _source_trees() -> list[tuple[Path, ast.Module]]:
     return [
         (path, ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
@@ -353,7 +522,7 @@ def _guard_outcome_calls(tree: ast.AST) -> list[ast.Call]:
 
 
 def test_census_rule_is_stated_in_the_failure_message() -> None:
-    for required_text in ("(a)", "(b)", "(i)", "(ii)", "못 잡는 것"):
+    for required_text in ("(a)", "(b)", "(i)", "(ii)", "(iii)", "(iv)", "못 잡는 것"):
         assert required_text in _CENSUS_RULE_FAILURE_MESSAGE
 
 
@@ -392,13 +561,25 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 40
-    assert sum(_FROZEN_CENSUS.values()) == 83
+    assert len(_FROZEN_CENSUS) == 36
+    assert sum(_FROZEN_CENSUS.values()) == 79
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
 
     assert actual == _FROZEN_CENSUS, _census_failure_message(actual, sites)
+
+
+def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:
+    """0건 단언은 결과 보고 try 양성 대조와 함께만 허용한다 (2026-08-24 실측 138건)."""
+    actual = _harmful_mutation_sites()
+    reporting_try_count = _result_reporting_try_count()
+
+    assert not actual, actual
+    assert reporting_try_count >= 100, (
+        "결과 보고 try 스캐너가 100곳 미만만 훑었다 — 해로운 자리 0건은 대상 미도달로도 참이다: "
+        f"{reporting_try_count}"
+    )
 
 
 def test_guard_outcome_literals_are_all_allowed() -> None:
@@ -532,6 +713,12 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "★commit 앞 + except 가 rollback — 계측 예외가 terminal DB 전이를 되돌린다",
     ),
     (
+        "apps/api/src/tasks/live_signal.py",
+        "_async_sweep_conditional_entries",
+        "qb_live_conditional_sweep_filled_total",
+        "체결 발견 뒤 — 예외가 rollback + sweep_cancel_failed로 실제 체결을 취소 실패로 오기록",
+    ),
+    (
         "apps/api/src/tasks/conditional_entry_janitor.py",
         "_async_conditional_entry_janitor",
         "qb_active_orders",
@@ -624,6 +811,26 @@ _PROTECTED_SITES: tuple[tuple[str, str, str, str], ...] = (
         "_sweep_closed_pnl_with_session",
         "qb_closed_pnl_backfill_total",
         "★계정 격리 handler 의 첫 줄 + 신규 청산 알림 앞 + 원장 적재 앞 (H4·H2·H7)",
+    ),
+    (
+        "apps/api/src/tasks/trading.py",
+        "_sweep_closed_pnl_with_session",
+        "qb_exchange_exit_link_unverified_total",
+        "청산 원장 행 관측 뒤 — 예외가 계정 격리 handler로 가서 이 계정 스윕 후속 처리를 중단",
+    ),
+    # ★2026-08-24 n7-metric-guard-sweep 모양 B — except 본문의 계측 실패는 잡은 예외까지
+    #   다시 누출시킨다. 두 자리는 각각 Redis 발행 실패와 심볼 거절의 응답 경로다.
+    (
+        "apps/api/src/trading/realtime_publisher.py",
+        "_publish_envelope",
+        "qb_rt_publish_failed_total",
+        "발행 실패 handler 안 — 계측 예외가 원래 Redis 발행 예외를 상위 경로로 누출",
+    ),
+    (
+        "apps/api/src/trading/webhook.py",
+        "_normalized_symbol_or_reject",
+        "qb_webhook_symbol_rejected_total",
+        "심볼 거절 handler 안 — 계측 예외가 원래 ValueError와 웹훅 응답 경로를 함께 누출",
     ),
     # ★2026-08-03 metric-guard-residual-sweep — 라이브 발주 outbox 경로 8곳(전건 「수리함」).
     #   전부 `mark_failed`/`mark_dispatched` + `commit()` **뒤**이고, 호출자
@@ -761,3 +968,13 @@ def test_protected_site_list_is_not_vacuous() -> None:
                 "자리가 비었으면 통과가 아니라 갱신 대상이다"
             )
     assert not problems, "\n".join(problems)
+
+
+@pytest.mark.parametrize(("path", "metric"), sorted(_HARMFUL_MUTATION_CANDIDATES))
+def test_each_harmful_candidate_has_a_runtime_protection_contract(path: str, metric: str) -> None:
+    """수동 동결한 해로운 후보가 보호 목록에서 빠져 static census만 남는 것을 막는다."""
+    protected = {
+        (site_path, site_metric) for site_path, _function, site_metric, _reason in _PROTECTED_SITES
+    }
+
+    assert (path, metric) in protected

@@ -20,6 +20,7 @@ from decimal import Decimal
 from typing import Literal
 
 import pandas as pd
+from pynescript.ast.error import SyntaxError as PyneSyntaxError
 
 from src.backtest.engine.metrics import (
     calmar_ratio,
@@ -124,7 +125,7 @@ def run_backtest_v2(
             result=None,
             error=str(exc),
         )
-    except SyntaxError as exc:
+    except (SyntaxError, PyneSyntaxError) as exc:
         logger.info("v2_adapter_parse_failed (syntax): %s", exc)
         return BacktestOutcome(
             status="parse_failed",
@@ -142,9 +143,11 @@ def run_backtest_v2(
             error=str(exc),
         )
     except Exception as exc:
-        logger.exception("v2_adapter_parse_failed_unexpected")
+        # 이 경계에서는 파싱/실행 중 어느 단계인지 알 수 없다. 원인 미지 오류를
+        # 사용자 Pine 문법 탓으로 단정하지 않도록 약한 주장인 error로 노출한다.
+        logger.exception("v2_adapter_unexpected_error")
         return BacktestOutcome(
-            status="parse_failed",
+            status="error",
             parse=_stub_parse_outcome(source, status="error"),
             result=None,
             error=str(exc),

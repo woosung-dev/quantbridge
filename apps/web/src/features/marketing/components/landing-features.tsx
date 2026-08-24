@@ -61,7 +61,7 @@ const FEATURES: Feature[] = [
     ),
     title: "데모 트레이딩",
     desc: "데모 계정에 실제 주문을 냅니다. 라이브와 같은 코드 경로를 쓰기 때문에 배선 오류가 여기서 먼저 드러납니다.",
-    note: "Bybit 데모 · Bybit 메인넷",
+    note: "Bybit 데모",
   },
   {
     icon: (

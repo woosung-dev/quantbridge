@@ -19,6 +19,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from src.common.metrics import qb_order_rejected_total, qb_webhook_symbol_rejected_total
+from src.common.metrics_multiproc import record_metric_safely
 from src.common.normalized_symbol import normalize_symbol_input
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import StrategySettings, validate_strategy_settings
@@ -173,7 +174,7 @@ def _normalized_symbol_or_reject(raw: object) -> str:
     try:
         return normalize_symbol_input(raw)
     except ValueError:
-        qb_webhook_symbol_rejected_total.inc()
+        record_metric_safely(qb_webhook_symbol_rejected_total.inc)
         logger.warning(
             "webhook_symbol_normalize_failed",
             extra={"symbol": str(raw)[:_SYMBOL_LOG_MAX]},

@@ -1,6 +1,8 @@
-// PricingPage (C 이식) — 시맨틱 구조 assert: 히어로/3구성/11행 대조표/FAQ/웨이트리스트 + OKX 로드맵.
+// PricingPage (C 이식) — 시맨틱 구조 assert: 히어로/3구성/11행 대조표/SSOT 거래소 지원표/FAQ/웨이트리스트.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
+
+import { ROADMAP_DISCLAIMER } from "@/lib/marketing-canon";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -27,13 +29,15 @@ describe("PricingPage", () => {
     expect(screen.getAllByText("아직 열 수 없습니다").length).toBe(2);
   });
 
-  it("대조표 11행 + Bybit 단일 연결 문구(OKX 로드맵)", () => {
+  it("대조표 11행 + Bybit 데모 단일 지원과 SSOT 미지원 렌더", () => {
     const { container } = render(<PricingPage />);
     const rows = container.querySelectorAll("table.cmp tbody tr");
     expect(rows.length).toBe(11);
-    expect(
-      screen.getByText(/연결해 본 거래소는 Bybit \(데모 · 메인넷\) 하나입니다/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("지원하는 거래소는 Bybit 데모 하나입니다.")).toBeInTheDocument();
+
+    const exchangeTable = screen.getByRole("table", { name: "거래소별 연동 상태" });
+    expect(within(exchangeTable).getAllByText("지원하지 않음")).toHaveLength(3);
+    expect(screen.getByText(ROADMAP_DISCLAIMER)).toBeInTheDocument();
   });
 
   it("FAQ 4문항 + 웨이트리스트 폼", () => {
