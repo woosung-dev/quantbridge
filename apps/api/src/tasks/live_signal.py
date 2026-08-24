@@ -1933,6 +1933,23 @@ def _count_plan_divergences(divergences: Sequence[Any], *, sess: Any) -> None:
         )
 
 
+def _build_sessions_adapter(session: Any) -> Any:
+    """`_StrategySessionsAdapter` 를 repository 2벌로 조립한다.
+
+    ★**감싸는 핸들러: 없다** — 호출부의 핸들러로 전파된다.
+    ★조립을 호출부에 인라인하면 `_async_dispatch_event` 의 `try` 본문이 동결 천장
+      (225줄)을 넘는다 — `tests/tasks/test_live_signal_handler_visibility.py`.
+    """
+    from src.auth.repository import UserRepository
+    from src.strategy.repository import StrategyRepository
+    from src.trading.dependencies import _StrategySessionsAdapter
+
+    return _StrategySessionsAdapter(
+        strategy_repo=StrategyRepository(session),
+        user_repo=UserRepository(session),
+    )
+
+
 def _build_placement_order_service(
     session: Any, *, order_repo: Any, kse_repo: Any, exchange_service: Any
 ) -> Any:
@@ -1940,9 +1957,7 @@ def _build_placement_order_service(
 
     ★**감싸는 핸들러: 없다** — fail-open `except Exception` 으로 전파된다.
     """
-    from src.auth.repository import UserRepository
-    from src.strategy.repository import StrategyRepository
-    from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
+    from src.trading.dependencies import _CeleryOrderDispatcher
     from src.trading.kill_switch import (
         CumulativeLossEvaluator,
         DailyLossEvaluator,
@@ -1968,10 +1983,7 @@ def _build_placement_order_service(
         repo=order_repo,
         dispatcher=_CeleryOrderDispatcher(),
         kill_switch=KillSwitchService(evaluators=evaluators, events_repo=kse_repo),
-        sessions_port=_StrategySessionsAdapter(
-            strategy_repo=StrategyRepository(session),
-            user_repo=UserRepository(session),
-        ),
+        sessions_port=_build_sessions_adapter(session),
         exchange_service=exchange_service,
     )
 
@@ -4248,9 +4260,8 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
     - idempotency_key with sequence_no (P2 #5 — 같은 bar entry+close 분리)
     - mark_failed 도 commit 의무 (LESSON-019)
     """
-    from src.auth.repository import UserRepository
     from src.strategy.repository import StrategyRepository
-    from src.trading.dependencies import _CeleryOrderDispatcher, _StrategySessionsAdapter
+    from src.trading.dependencies import _CeleryOrderDispatcher
     from src.trading.encryption import EncryptionService
     from src.trading.kill_switch import (
         CumulativeLossEvaluator,
@@ -4379,10 +4390,7 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
                 repo=order_repo,
                 dispatcher=_CeleryOrderDispatcher(),
                 kill_switch=ks_svc,
-                sessions_port=_StrategySessionsAdapter(
-                    strategy_repo=StrategyRepository(session),
-                    user_repo=UserRepository(session),
-                ),  # P1 #5 fix
+                sessions_port=_build_sessions_adapter(session),  # P1 #5 fix
                 exchange_service=exchange_svc,
             )
 
