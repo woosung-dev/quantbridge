@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "design-md-to-anchors",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "python3 tools/scripts/doc-coord-audit.py --selftest",
         "python3 tools/scripts/doc-coord-audit.py --check --only DESIGN.md",
         "python3 tools/scripts/doc-coord-audit.py --check --baseline"
-      ]
+      ],
+      "started_at": "2026-08-24T23:40:18+0900",
+      "summary": "DESIGN.md의 globals.css 좌표 인용 24건을 CSS 앵커로 전환했고, 인용 이동 중 새 사실 오류는 발견하지 못했다.",
+      "completed_at": "2026-08-24T23:44:49+0900"
     },
     {
       "step": 2,
