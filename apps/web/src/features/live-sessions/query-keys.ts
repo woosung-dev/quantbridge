@@ -1,6 +1,6 @@
 // Sprint 26 — Live Sessions query key factory.
 //
-// LESSON-004 H-2 (frontend.md §3.H-2): JWT accessor (`getToken`) 직접 포함 금지.
+// LESSON-004 H-2 (apps/web/AGENTS.md §3): JWT accessor (`getToken`) 직접 포함 금지.
 // `userId` 를 첫 인자로 — Clerk JWT 교체 시 cache 격리 + queryFn 은 module-level
 // factory 를 hooks.ts 에서 호출.
 

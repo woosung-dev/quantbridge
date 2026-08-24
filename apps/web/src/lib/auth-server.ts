@@ -1,6 +1,6 @@
 // 서버 컴포넌트에서 쓰는 인증 헬퍼 — SSR prefetch 가 FastAPI 를 부를 때 필요한 두 값만 준다.
 // ★구 Clerk `auth()` 의 자리다(ADR-034). 반환 형태를 `{ userId, token }` 으로 맞춰 둔 것은
-//   호출부 3곳(`app/page.tsx` · `(dashboard)/{backtests,strategies}/page.tsx`)의 diff 를 줄이려는 것이다.
+//   호출부 4곳(`app/page.tsx` · `(dashboard)/layout.tsx` · `(dashboard)/{backtests,strategies}/page.tsx`)의 diff 를 줄이려는 것이다.
 import "server-only";
 
 import { cache } from "react";

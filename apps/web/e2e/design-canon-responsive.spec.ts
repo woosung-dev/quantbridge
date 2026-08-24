@@ -9,11 +9,12 @@
 // ★공개 라우트에는 `.sidebar` 가 렌더되지 않는다(앱 셸은 인증 뒤에 있고, 인증 e2e 는 소크
 // 상태에 결합된다 — [BL-597]). 그래서 3층으로 나눠 잰다:
 //   ① 토큰 사다리   — `:root` 의 `--sidebar-w`. 미디어쿼리 자체를 집행한다.
-//   ② 주입 `.sidebar` — 토큰 → `width`(globals.css:990) 사슬과 `≤768 display:none`(:1858).
+//   ② 주입 `.sidebar` — `--sidebar-w` → `.sidebar { width: var(--sidebar-w) }` 사슬과
+//                       `@media (max-width: 768px)`의 `.sidebar { display: none }`.
 //                       ①만 재면 이 사슬이 끊겨도 green 이다. `.sidebar` 는 `position:fixed`
 //                       에 조상 셀렉터가 없어 body 직속 주입으로 정확히 잰다.
 //   ③ 실물 `.page`   — 주입이 아니라 진짜 렌더 요소. `/maintenance` 는 화면 스코프 래퍼가
-//                       없어 base 1240(:1210), `/` 는 `.lp-page .page` 1120(:3328).
+//                       없어 `.page { max-width: 1240px }`, `/` 는 `.lp-page .page { max-width: 1120px }`.
 //
 // 인증 셸에서 **실제로 렌더된** `.sidebar` 실측은 이 회차 범위 밖이다 — [BL-648].
 
@@ -22,10 +23,10 @@ import type { Page } from "@playwright/test";
 
 /** [CSS 유효 폭, 기대 `--sidebar-w`, 근거]. 경계 **양쪽**을 다 재야 off-by-one 을 잡는다. */
 const SIDEBAR_LADDER: ReadonlyArray<readonly [number, string, string]> = [
-  [1025, "232px", "globals.css:168 기본 — 1024 초과"],
-  [1024, "64px", ":184-186 아이콘 레일 (max-width:1024 는 경계 포함)"],
+  [1025, "232px", "기본 `:root`의 `--sidebar-w: 232px` — 1024 초과"],
+  [1024, "64px", "`@media (max-width: 1024px)`의 `--sidebar-w: 64px` (경계 포함)"],
   [769, "64px", "768 초과이므로 레일 유지"],
-  [768, "0px", ":187-189 숨김 (max-width:768 은 경계 포함) + 모바일 drawer"],
+  [768, "0px", "`@media (max-width: 768px)`의 `--sidebar-w: 0px` (경계 포함) + 모바일 drawer"],
 ];
 
 /**
@@ -92,10 +93,10 @@ test.describe("앱 셸 반응형 경계 실측 (BL-618, CI)", () => {
 
       const wantPx = Number.parseInt(want, 10);
       if (wantPx === 0) {
-        // 토큰만 0 이면 반쪽이다. `.sidebar { display: none }`(:1858) 이 살아 있어야 한다.
+        // 토큰만 0 이면 반쪽이다. `@media (max-width: 768px)`의 `.sidebar { display: none }`이 살아 있어야 한다.
         expect(
           got.display,
-          `${cssWidth}px: .sidebar 가 display:none 이어야 한다 (globals.css:1858)`,
+          `${cssWidth}px: .sidebar 가 display:none 이어야 한다 (@media (max-width: 768px)의 .sidebar 규칙)`,
         ).toBe("none");
       } else {
         expect(
@@ -105,7 +106,7 @@ test.describe("앱 셸 반응형 경계 실측 (BL-618, CI)", () => {
         expect(
           got.width,
           `${cssWidth}px: .sidebar 실폭이 --sidebar-w(${want})와 다르다 — ` +
-            `토큰→width 사슬(globals.css:990)이 끊겼다. box-sizing=${got.boxSizing}`,
+            `토큰→width 사슬(.sidebar { width: var(--sidebar-w) })이 끊겼다. box-sizing=${got.boxSizing}`,
         ).toBe(wantPx);
       }
     }
@@ -185,13 +186,13 @@ test.describe("앱 셸 반응형 경계 실측 (BL-618, CI)", () => {
 
   test(".page max-width — 앱 셸 공용 1240 / 랜딩 1120", async ({ page }) => {
     // 어느 미디어도 발화하지 않는 폭. `.page` 의 max-width 는 폭에 따라 바뀌지 않는다
-    // (≤768 에서 바뀌는 것은 padding 뿐 — globals.css:1863).
+    // (≤768 에서 바뀌는 것은 `@media (max-width: 768px)`의 `.page` padding 뿐).
     await page.goto("/maintenance");
     await setCssWidth(page, 1440);
     await expect(page.locator("main.page")).toBeVisible();
     expect(
       await page.locator("main.page").evaluate((el) => getComputedStyle(el).maxWidth),
-      "공용 .page 는 1240px 이어야 한다 (globals.css:1210). " +
+      "공용 .page 는 1240px 이어야 한다 (.page { max-width: 1240px }). " +
         "/maintenance 는 화면 스코프 래퍼가 없어 base 규칙이 그대로 걸린다",
     ).toBe("1240px");
 
@@ -200,7 +201,7 @@ test.describe("앱 셸 반응형 경계 실측 (BL-618, CI)", () => {
     await expect(landing).toBeVisible();
     expect(
       await landing.evaluate((el) => getComputedStyle(el).maxWidth),
-      "랜딩 `.lp-page .page` 는 1120px 이어야 한다 (globals.css:3328)",
+      "랜딩 `.lp-page .page` 는 1120px 이어야 한다 (.lp-page .page { max-width: 1120px })",
     ).toBe("1120px");
   });
 });
