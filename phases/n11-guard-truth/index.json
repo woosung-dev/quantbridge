@@ -33,13 +33,16 @@
     {
       "step": 2,
       "name": "fe-decision-surface-blindspot",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec vitest run src/lib/__tests__/decision-surface-guard.test.ts",
         "cd apps/web && pnpm exec vitest run src/lib/__tests__/decision-surface-guard.test.ts --reporter=json --outputFile=/tmp/qb-decision-surface.json && node -e \"const r=require('/tmp/qb-decision-surface.json');process.exit(r.numTotalTests>=6?0:1)\"",
         "cd apps/web && pnpm exec biome check src/lib/__tests__",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-25T03:08:15+0900",
+      "summary": "FE 제품 결정 가드가 src TypeScript를 재귀 스캔하고, 10개 하한선·합성 문자열·실파일 변이를 검증한다.",
+      "completed_at": "2026-08-25T03:15:27+0900"
     }
   ],
   "created_at": "2026-08-25T02:56:14+0900"
