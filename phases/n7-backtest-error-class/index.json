@@ -19,13 +19,16 @@
     {
       "step": 1,
       "name": "split-runtime-from-parse",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 10",
         "cd apps/api && uv run --env-file .env.local pytest tests/backtest -q",
         "cd apps/api && test \"$(grep -c 'parse_failed' src/backtest/engine/v2_adapter.py)\" -ge 1"
-      ]
+      ],
+      "started_at": "2026-08-24T11:09:26+0900",
+      "summary": "실제 수정: apps/api/src/backtest/engine/v2_adapter.py:23,128,145-154에서 알려진 PyneSyntaxError는 SyntaxError와 함께 parse_failed로 유지하고 catch-all은 error+주석+v2_adapter_unexpected_error 로거로 변경했다. tests/backtest/engine/test_fault_injection.py:81의 test_parse_and_run_v2_raises_becomes_parse_failed→test_parse_and_run_v2_raises_becomes_error는 결함(미지 RuntimeError를 사용자 Pine 문법 실패로 단정)을 계약화했으므로 회귀가 아니며 KeyError→error 사례를 :92에 추가했다. AC3 첫 실행의 다른 red는 test_run_backtest_parse_failed_returns_parse_failed_status 1건이었고, pynescript 고유 SyntaxError가 내장 SyntaxError 미상속인 알려진 파싱 실패여서 위 특수 분기에 포함해 처리했으며 최종 AC3은 609 passed다.",
+      "completed_at": "2026-08-24T11:16:13+0900"
     },
     {
       "step": 2,
