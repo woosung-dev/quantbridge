@@ -237,6 +237,27 @@ def test_no_unallowlisted_plain_string_strenum_value_accesses() -> None:
     )
 
 
+def test_direct_access_scanner_classifies_the_synthetic_fixture() -> None:
+    fixture = ast.parse(
+        """
+row.classification.value
+row.attribution_confidence.name
+row.state.value
+alias = row.classification
+alias.value
+getattr(row, "classification").value
+"""
+    )
+    guarded_field_names = {field for _, field in _derive_guarded_fields()}
+    accesses = {
+        access
+        for node in ast.walk(fixture)
+        if (access := _direct_guarded_field_access(node, guarded_field_names)) is not None
+    }
+
+    assert accesses == {("classification", "value"), ("attribution_confidence", "name")}
+
+
 def test_guard_scans_a_nonempty_scope() -> None:
     scanned_paths = _scoped_source_paths()
 
