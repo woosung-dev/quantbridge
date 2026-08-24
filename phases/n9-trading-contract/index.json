@@ -20,14 +20,17 @@
     {
       "step": 1,
       "name": "close-409-openapi-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local python -c \"from src.main import create_app; s=create_app().openapi(); r=s['paths']['/api/v1/live-sessions/{session_id}/positions/close']['post']['responses']; import sys; sys.exit(0 if '409' in r else 1)\"",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q -k 'close_409 or openapi'",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading -q -k 'close_409' --collect-only 2>/dev/null | grep -c '::')\" -ge 2",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "cd apps/api && uv run ruff check src/trading/router.py"
-      ]
+      ],
+      "started_at": "2026-08-24T18:43:37+0900",
+      "summary": "청산 409의 평문·미체결 진입 객체 detail을 OpenAPI에 선언하고 런타임 응답과 회귀 테스트로 고정한다.",
+      "completed_at": "2026-08-24T18:50:08+0900"
     },
     {
       "step": 2,
