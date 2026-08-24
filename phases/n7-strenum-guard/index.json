@@ -34,7 +34,7 @@
     {
       "step": 2,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
@@ -43,7 +43,10 @@
         "cd apps/api && uv run ruff check tests/trading/test_no_strenum_value_access.py",
         "cd apps/api && uv run ruff format --check tests/trading/test_no_strenum_value_access.py",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T11:17:46+0900",
+      "summary": "양성: src/trading/repositories/exchange_exit_repository.py:27에 `_ = rows[0].classification.value`를 심자 가드가 `allowlist 밖 접근: ['src/trading/repositories/exchange_exit_repository.py:27: classification.value']`로 red였다. 도달: _scoped_source_paths에 대상 파일이 있고 _scoped_strenum_accesses가 그 한 hit를 반환했다. 음성: entry_completeness.py channel.value 3건은 allowlist로 위반이 아니었고, 스코프 밖 backtest/service.py의 status.value는 스캔하지 않았다. 스냅샷 재쓰기 뒤 source와 snapshot SHA-256은 모두 84c24acaa62b5329dda66ed01724b6ebe68fe02fce54eaf182054d68b59ece79로 일치했다. 합성 AST 픽스처는 direct classification.value·attribution_confidence.name 검출과 native state·별칭·getattr 제외를 상시 고정한다.",
+      "completed_at": "2026-08-24T11:23:19+0900"
     }
   ],
   "created_at": "2026-08-24T11:06:16+0900"
