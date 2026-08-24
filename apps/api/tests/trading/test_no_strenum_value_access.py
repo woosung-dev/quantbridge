@@ -70,6 +70,25 @@ _EXPECTED_GUARDED_FIELDS = {
     ("ExchangeExit", "attribution_confidence"),
 }
 
+_COMMENT_CONTRACT_FIELDS = frozenset(
+    {
+        ("LiveSignalSession", "interval"),
+        ("LiveSignalEvent", "status"),
+        ("AlertRule", "rule_type"),
+        ("AlertRule", "channel"),
+        ("ExchangeExit", "classification"),
+    }
+)
+_COMMENT_CONTRACT_MARKERS = frozenset(
+    {
+        "Sprint 26 Phase D fix",
+        "명시적 String 컬럼",
+        "`.value`/`.name` 금지",
+        "`==`/`!=`/`str()` 만 쓸 것.",
+        "apps/api/tests/trading/test_no_strenum_value_access.py",
+    }
+)
+
 # SQLModel이 native PG enum으로 자동 생성해 재조회 시 StrEnum으로 재캐스팅하는 안전한 필드다.
 _NATIVE_ENUM_FIELDS = {
     ("ExchangeAccount", "exchange"),
@@ -129,6 +148,40 @@ def _derive_guarded_fields() -> set[tuple[str, str]]:
             guarded_fields.add((model.name, field.target.id))
 
     return guarded_fields
+
+
+def _comment_lines_before_or_on_field(source_lines: list[str], field_lineno: int) -> list[str]:
+    comment_lines = [source_lines[field_lineno - 1]]
+    line_index = field_lineno - 2
+
+    while line_index >= 0 and source_lines[line_index].lstrip().startswith("#"):
+        comment_lines.append(source_lines[line_index])
+        line_index -= 1
+
+    return comment_lines
+
+
+def _comment_contract_markers_by_field() -> dict[tuple[str, str], set[str]]:
+    source = _MODELS_PATH.read_text(encoding="utf-8")
+    source_lines = source.splitlines()
+    tree = ast.parse(source, filename=str(_MODELS_PATH))
+    markers_by_field: dict[tuple[str, str], set[str]] = {}
+
+    for model in tree.body:
+        if not isinstance(model, ast.ClassDef):
+            continue
+        for field in model.body:
+            if not isinstance(field, ast.AnnAssign) or not isinstance(field.target, ast.Name):
+                continue
+            identity = model.name, field.target.id
+            if identity not in _COMMENT_CONTRACT_FIELDS:
+                continue
+            comment = "\n".join(_comment_lines_before_or_on_field(source_lines, field.lineno))
+            markers_by_field[identity] = {
+                marker for marker in _COMMENT_CONTRACT_MARKERS if marker in comment
+            }
+
+    return markers_by_field
 
 
 def _scoped_source_paths() -> list[Path]:
@@ -223,6 +276,28 @@ def test_derivation_is_nonempty_and_excludes_native_enums() -> None:
     assert not unexpected_native_enums, (
         "sa_column 없는 native PG enum 필드가 BL-453 대상에 들어왔다. "
         f"위양성: {sorted(unexpected_native_enums)}"
+    )
+
+
+def test_strenum_string_column_fields_carry_the_ban_comment() -> None:
+    markers_by_field = _comment_contract_markers_by_field()
+
+    assert len(_COMMENT_CONTRACT_FIELDS) == 5, (
+        "BL-453 선언부 주석 제어군은 정확히 5개 필드여야 한다. "
+        f"실제: {sorted(_COMMENT_CONTRACT_FIELDS)}"
+    )
+    assert set(markers_by_field) == _COMMENT_CONTRACT_FIELDS, (
+        "BL-453 선언부 주석 검사 대상이 AST에서 누락되었거나 늘었다. "
+        f"실제: {sorted(markers_by_field)}"
+    )
+    missing_markers = {
+        identity: sorted(_COMMENT_CONTRACT_MARKERS - markers)
+        for identity, markers in markers_by_field.items()
+        if _COMMENT_CONTRACT_MARKERS - markers
+    }
+
+    assert not missing_markers, (
+        f"BL-453 평문 String StrEnum 필드의 금지 주석이 불완전하다. 누락: {missing_markers}"
     )
 
 
