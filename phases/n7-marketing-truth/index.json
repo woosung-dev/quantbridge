@@ -22,7 +22,7 @@
     {
       "step": 1,
       "name": "pricing-surface",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec vitest run src/app/pricing src/lib/__tests__/marketing-canon.test.ts",
         "test \"$(grep -c '메인넷' apps/web/src/app/pricing/page.tsx)\" -eq 0",
@@ -30,7 +30,10 @@
         "test \"$(grep -c 'Bybit' apps/web/src/app/pricing/page.tsx)\" -ge 1",
         "cd apps/web && pnpm exec biome check src/app/pricing",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-24T11:09:59+0900",
+      "summary": "재측정: page.tsx 기존 메인넷 1건·OKX 4건(주석:3, 비교표:83, 기능목록:300, 안내:491)에서 수정 후 둘 다 0건이다. 고친 좌표는 page.tsx:3,8-12,73-92,112-113,305,495-512 및 page.test.tsx:1-6,32-40이다. 비교표의 road/로드맵은 planned/계획으로 바꾸고 다른 거래소 연동은 지원하지 않음으로 고정했다. 거래소 이름은 화면에 다시 쓰지 않고 ExchangeSupportTable(EXCHANGE_SUPPORT)과 Step 0 고지문을 렌더했다. 테스트 단언은 기존 Bybit 데모·메인넷 단일 연결 문구에서 Bybit 데모 단일 지원 + SSOT 표의 지원하지 않음 3행·고지문으로 뒤집었다.",
+      "completed_at": "2026-08-24T11:13:47+0900"
     },
     {
       "step": 2,
