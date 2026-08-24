@@ -5,13 +5,16 @@
     {
       "step": 0,
       "name": "pin-existing-branches",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/backtest/engine/test_fault_injection.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/backtest/engine/test_fault_injection.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 9",
         "git diff --quiet -- apps/api/src/backtest/engine/v2_adapter.py"
-      ]
+      ],
+      "started_at": "2026-08-24T11:06:16+0900",
+      "summary": "실측 분기 좌표: v2_adapter.py 119 PineRuntimeError→error, 127 SyntaxError→parse_failed, 135 ValueError→error, 144 Exception→parse_failed. PineRuntimeError/runtime boom은 실행 오류→error, SyntaxError/syntax boom은 진짜 문법 오류→parse_failed, ValueError/data boom은 데이터·분류 오류→error를 각각 result=None·오류 문자열 전파와 함께 고정해 fault test 9건이 됐다. SyntaxError→parse_failed는 사용자 Pine 문법 실패의 생존 증인이므로 Step 1의 미지 예외 분류 변경 뒤에도 유지한다.",
+      "completed_at": "2026-08-24T11:09:24+0900"
     },
     {
       "step": 1,
@@ -36,5 +39,6 @@
         "cd apps/api && uv run ruff format --check tests/backtest/engine/test_fault_injection.py"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T11:06:16+0900"
 }
