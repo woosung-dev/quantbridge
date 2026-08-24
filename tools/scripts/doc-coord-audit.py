@@ -16,6 +16,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BASELINE_PATH = Path("tools/scripts/doc-coord-audit.baseline.json")
 
+# Step 3에서 baseline은 0건 종결 상태를 동결한다. 기본 판정은 여전히 --check이며,
+# --baseline은 기존 CLI 계약을 보존하면서 파일별 0건 상태가 흔들렸는지 확인한다.
 # 가드레일 4축(CONTEXT.md, AGENTS.md, apps/api/AGENTS.md, apps/web/AGENTS.md)은 lane이
 # 고칠 수 없는 파일이다. 수정 가능한 DESIGN.md와 반응형 spec만 시작 대상으로 둔다.
 COORDINATE_TARGETS = (
@@ -115,8 +117,6 @@ def load_baseline() -> dict[str, int]:
         raise ValueError("baseline violations_by_file 이 감사 대상 전체와 일치하지 않는다")
     if not all(isinstance(count, int) and count >= 0 for count in counts.values()):
         raise ValueError("baseline 위반 수는 0 이상의 정수여야 한다")
-    if sum(counts.values()) == 0:
-        raise ValueError("착수 baseline 위반 수가 0건이다 — 감사기가 대상에 닿지 않았을 수 있다")
     return counts
 
 
