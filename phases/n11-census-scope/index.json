@@ -1,0 +1,47 @@
+{
+  "project": "QuantBridge",
+  "phase": "n11-census-scope",
+  "steps": [
+    {
+      "step": 0,
+      "name": "census-scope-crosscheck",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k census_scope -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k census_scope --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "harmful-candidates-full-coverage",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k harmful -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k harmful --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "census-scope-verdict-and-narrow",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks -q",
+        "cd apps/api && uv run ruff check src tests/common"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "metric-alias-blindspot",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k metric_alias -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k metric_alias --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -q",
+        "cd apps/api && uv run ruff check tests/common"
+      ]
+    }
+  ]
+}

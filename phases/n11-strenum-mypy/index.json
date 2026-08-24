@@ -1,0 +1,38 @@
+{
+  "project": "QuantBridge",
+  "phase": "n11-strenum-mypy",
+  "steps": [
+    {
+      "step": 0,
+      "name": "mypy-src-zero-errors",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run mypy src",
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -q",
+        "cd apps/api && uv run ruff check src/trading/repositories"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "strenum-field-comment-parity",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -k strenum -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/trading -k strenum --collect-only -q 2>/dev/null | grep -c '::')\" -ge 12",
+        "cd apps/api && uv run mypy src",
+        "cd apps/api && uv run ruff check src tests/trading"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "strenum-alias-getattr-axis",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -k strenum_alias -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/trading -k strenum_alias --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -q",
+        "cd apps/api && uv run ruff check tests/trading"
+      ]
+    }
+  ]
+}
