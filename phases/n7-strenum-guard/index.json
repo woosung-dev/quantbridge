@@ -1,0 +1,43 @@
+{
+  "project": "QuantBridge",
+  "phase": "n7-strenum-guard",
+  "steps": [
+    {
+      "step": 0,
+      "name": "derive-guarded-fields",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
+        "git diff --quiet -- apps/api/src"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "scoped-guard-and-allowlist",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 5",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "git diff --quiet -- apps/api/src"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
+        "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
+        "cd apps/api && uv run ruff check tests/trading/test_no_strenum_value_access.py",
+        "cd apps/api && uv run ruff format --check tests/trading/test_no_strenum_value_access.py",
+        "git diff --quiet -- apps/api/src"
+      ]
+    }
+  ]
+}
