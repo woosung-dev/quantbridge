@@ -44,6 +44,7 @@
 | `docs/reference/README.md`                                  | 2026-08-21 — 이 파일의 표로 합쳐졌다               | `git show c3b35e5f:docs/reference/README.md`        |
 | `docs/reports/` (README·템플릿·auto-dogfood 2026-05-03)     | 2026-08-21 — gitignore 산출 자리. 산출물은 `runs/` | `git show c3b35e5f:docs/reports/README.md`          |
 | `docs/evidence/` (png 4) · `sprint60-interview-template.md` | 2026-08-21 — 참조 0건                              | `git show c3b35e5f:docs/evidence/` · `…/workflows/` |
+| `backlog.md` 의 [BL-547]·[BL-671]·[BL-383]·[BL-811] 본문 4절     | 2026-08-24 n9 — RESOLVED (RESOLVED 는 삭제다)      | `git show 1a1169a5:docs/backlog.md`                 |
 | 구 `archive/` 375파일 · `dev-log/*.md` 135파일              | 2026-08-06 문서 대개편                             | 아래 `0f0f0b06` 명령                                |
 
 ★**2026-08-06 이전 원문의 「목록」은 파일로 남아 있지 않다 — 명령으로 뽑는다.** `dev-log/INDEX.md`가 색인하는
