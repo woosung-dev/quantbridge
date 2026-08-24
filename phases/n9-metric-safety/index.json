@@ -1,0 +1,62 @@
+{
+  "project": "QuantBridge",
+  "phase": "n9-metric-safety",
+  "steps": [
+    {
+      "step": 0,
+      "name": "raw-metric-census-guard",
+      "status": "pending",
+      "ac": [
+        "test -f apps/api/tests/common/test_metric_safety_guard.py",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py -q",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
+        "cd apps/api && uv run python -c \"from tests.common.test_metric_safety_guard import all_metric_sites, raw_metric_sites; import sys; sys.exit(0 if len(all_metric_sites())>=30 and len(raw_metric_sites())==15 else 1)\"",
+        "git diff --quiet -- apps/api/src"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "wrap-raw-metric-sites",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run python -c \"from tests.common.test_metric_safety_guard import all_metric_sites, raw_metric_sites; import sys; sys.exit(0 if len(all_metric_sites())>=30 and len(raw_metric_sites())==0 else 1)\"",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py -q",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q",
+        "cd apps/api && uv run ruff check src/tasks/live_signal.py tests/common/test_metric_safety_guard.py"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "ledger-seed-watermark-write",
+      "status": "pending",
+      "ac": [
+        "test \"$(grep -c '_qb_ledger_seed_since' apps/api/src/tasks/live_signal.py)\" -ge 2",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q -k 'seed or watermark or gap'",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks -q -k 'ledger_seed_watermark' --collect-only 2>/dev/null | grep -c '::')\" -ge 2",
+        "cd apps/api && uv run ruff check src/tasks/live_signal.py"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "ledger-seed-rederive-each-tick",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q -k 'ledger_seed_watermark'",
+        "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks -q -k 'ledger_seed_watermark' --collect-only 2>/dev/null | grep -c '::')\" -ge 4",
+        "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q",
+        "cd apps/api && uv run ruff check src/tasks/live_signal.py"
+      ]
+    },
+    {
+      "step": 4,
+      "name": "mutation-selfcheck",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run python -c \"from tests.common.test_metric_safety_guard import all_metric_sites, raw_metric_sites; import sys; sys.exit(0 if len(all_metric_sites())>=30 and len(raw_metric_sites())==0 else 1)\"",
+        "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py tests/tasks -q",
+        "cd apps/api && uv run ruff check src/tasks/live_signal.py tests/common/test_metric_safety_guard.py",
+        "cd apps/api && uv run ruff format --check tests/common/test_metric_safety_guard.py"
+      ]
+    }
+  ]
+}
