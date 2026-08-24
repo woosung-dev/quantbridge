@@ -9,14 +9,7 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _CONFIG_PATH = _BACKEND_ROOT / "src/core/config.py"
 _ENV_EXAMPLE_PATH = _BACKEND_ROOT / ".env.example"
 
-_FROZEN_MISSING_FROM_EXAMPLE = frozenset(
-    {
-        "DOGFOOD_REPORT_OUTPUT_DIR",
-        "E2E_RATE_LIMIT_EXEMPT_EMAIL",
-        "OPTIMIZER_STALE_THRESHOLD_SECONDS",
-        "STRESS_TEST_STALE_THRESHOLD_SECONDS",
-    }
-)
+_FROZEN_MISSING_FROM_EXAMPLE = frozenset()
 
 _ALLOWLIST_NON_SETTINGS = frozenset(
     {
