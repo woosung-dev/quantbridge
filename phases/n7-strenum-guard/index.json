@@ -19,14 +19,17 @@
     {
       "step": 1,
       "name": "scoped-guard-and-allowlist",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 5",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T11:11:39+0900",
+      "summary": "실측은 CONTROL 표와 일치: 전체 12건은 모두 위양성(스코프 밖 backtest 4·optimizer 3·stress_test 2, 스코프 안 entry_completeness.py channel.value 3건은 allowlist, 위반 0건)이다. AST는 src/trading+src/tasks Python 73개를 훑고 allowlist 사유 필수·3건 실매치를 고정했다. 못 잡는 것: 별칭(c = row.channel; c.value), getattr 동적 접근, 스코프 밖 파일.",
+      "completed_at": "2026-08-24T11:17:45+0900"
     },
     {
       "step": 2,
