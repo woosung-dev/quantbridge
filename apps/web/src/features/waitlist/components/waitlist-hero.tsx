@@ -13,7 +13,7 @@ export function WaitlistHero() {
 
       <div className="hero-chips">
         <span className="chip">바 단위 이벤트 루프 자체 인터프리터</span>
-        <span className="chip">Bybit 데모 · 메인넷</span>
+        <span className="chip">Bybit 데모</span>
       </div>
 
       <div className="card hero-facts">

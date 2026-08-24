@@ -166,6 +166,14 @@ function submitValidForm() {
 }
 
 describe("LiveSessionForm — BL-164 dropdown UUID 노출 차단", () => {
+  it("Bybit 데모 계정만 사용하는 현재 안내를 표시한다", () => {
+    renderForm();
+
+    expect(screen.getByTestId("live-session-bybit-demo-notice")).toHaveTextContent(
+      "Bybit 데모 계정만 사용할 수 있습니다.",
+    );
+  });
+
   it("strategy dropdown trigger 가 초기에는 placeholder 를 표시 (UUID 노출 X)", () => {
     renderForm();
     const trigger = screen.getByTestId("live-session-strategy-trigger");

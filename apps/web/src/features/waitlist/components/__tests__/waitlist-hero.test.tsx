@@ -14,7 +14,7 @@ describe("WaitlistHero", () => {
     const heading = screen.getByRole("heading", { level: 1 });
     expect(heading.textContent).toContain("TradingView Pine 전략을 백테스트");
     expect(screen.getByText("바 단위 이벤트 루프 자체 인터프리터")).toBeInTheDocument();
-    expect(screen.getByText("Bybit 데모 · 메인넷")).toBeInTheDocument();
+    expect(screen.getByText("Bybit 데모")).toBeInTheDocument();
   });
 
   it("사실 카드 — 공개 시점/가격 미정(무데이터 + title)", () => {

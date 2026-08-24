@@ -1,5 +1,7 @@
 // 웨이트리스트 04 FAQ (.faq-item) — 3문항 + 프로토타입 고지. screen-17-waitlist.html 이식.
 // 날짜를 지어내지 않고, 집계 근거 없는 수치는 싣지 않는다(정직성).
+import { ROADMAP_DISCLAIMER } from "@/lib/marketing-canon";
+
 interface FaqItem {
   question: string;
   answer: string;
@@ -18,8 +20,7 @@ const FAQ_ITEMS: FaqItem[] = [
   },
   {
     question: "지금 어떤 거래소에 연결할 수 있나요?",
-    answer:
-      "Bybit 데모와 메인넷입니다. 두 환경 모두 주문 제출, 포지션 조회, TP/SL 부착까지 실제로 주문을 넣어 확인했습니다. OKX, Binance, Bitget 은 로드맵에 있을 뿐 아직 연결 코드가 없습니다.",
+    answer: `지금 연결되는 거래소는 Bybit 하나뿐이며 데모 환경만 제공합니다. ${ROADMAP_DISCLAIMER}`,
   },
 ];
 

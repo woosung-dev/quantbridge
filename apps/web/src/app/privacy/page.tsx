@@ -65,7 +65,7 @@ export default function PrivacyPage() {
         <h2 className={headingClass}>3. Third-Party Processors / 제3자 처리</h2>
         <ul className={bodyListClass}>
           <li>
-            <strong>Bybit / OKX</strong> — 주문 실행, OHLCV 수집 (사용자가 연동한 계정 한정)
+            <strong>Bybit</strong> — 데모 주문 실행, OHLCV 수집 (사용자가 연동한 계정 한정)
           </li>
           <li>
             <strong>Cloudflare</strong> — CDN, WAF, DDoS 보호
