@@ -18,6 +18,22 @@ _FROZEN_MISSING_FROM_EXAMPLE = frozenset(
     }
 )
 
+_ALLOWLIST_NON_SETTINGS = frozenset(
+    {
+        "BYBIT_DEMO_API_KEY_TEST",
+        "BYBIT_DEMO_API_SECRET_TEST",
+        "BYBIT_DEMO_KEY",
+        "BYBIT_DEMO_SECRET",
+        "BYBIT_SMOKE_API_KEY",
+        "BYBIT_SMOKE_API_SECRET",
+        "PINE_ALERT_HEURISTIC_MODE",
+        "PROMETHEUS_MULTIPROC_DIR",
+        "QB_METRICS_ROLE",
+        "TEST_DATABASE_URL",
+        "TEST_REDIS_LOCK_URL",
+    }
+)
+
 
 def _settings_field_env_keys() -> list[str]:
     tree = ast.parse(_CONFIG_PATH.read_text())
@@ -65,3 +81,13 @@ def test_settings_keys_missing_from_env_example_match_frozen_census() -> None:
     actual = set(_settings_field_env_keys()) - _env_example_keys()
 
     assert actual == _FROZEN_MISSING_FROM_EXAMPLE
+
+
+def test_env_example_keys_without_settings_match_allowlist() -> None:
+    actual = _env_example_keys() - set(_settings_field_env_keys())
+
+    assert actual == _ALLOWLIST_NON_SETTINGS
+
+
+def test_allowlist_non_settings_keys_exist_in_env_example() -> None:
+    assert _env_example_keys() >= _ALLOWLIST_NON_SETTINGS
