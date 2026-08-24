@@ -263,6 +263,10 @@ _DIRECTION_STRIKE_MAX_BARS = 3
 # position epoch 은 마지막 성공 평가 이후 실제 outbox 발행을 허용한 시각이다. 기존 JSONB
 # 리포트에만 저장하므로 마이그레이션 없이 재생 포지션을 거래소 상태와 정렬할 수 있다.
 _POSITION_EPOCH_KEY = "_qb_position_epoch"
+# BL-547 — `_qb_ledger_seed_since`는 seedable 공백 창의 시작 시각이다. 기존 JSONB 리포트에만
+# 저장하므로 마이그레이션 없이 다음 평가가 같은 원장 창을 재도출할 수 있다. 밑줄 접두어는
+# 엔진 산출물이 아님을 표시한다.
+_LEDGER_SEED_SINCE_KEY = "_qb_ledger_seed_since"
 # BL-591 / ADR-022 슬라이스 1 — tick 마다 원장↔거래소 대조 결과를 남기는 자리.
 # ★새 컬럼도 새 저장소도 만들지 않는다(마이그레이션 0) — 이 dict 는 이미 매 tick upsert 된다.
 _LEDGER_SHADOW_KEY = "_qb_ledger_shadow"
@@ -835,6 +839,26 @@ def _direction_strike_bar(previous_report: Any) -> datetime | None:
     except ValueError:
         return None
     return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
+
+
+def _ledger_seed_since(previous_report: Any) -> datetime | None:
+    """직전 seedable 공백 창의 시작 시각. 못 읽으면 None.
+
+    ★**감싸는 핸들러: 없다.** 순수 함수다.
+
+    JSONB에는 어떤 값도 들어올 수 있으므로 손상된 marker가 평가 tick 전체를 죽이면 안 된다.
+    이 step은 marker를 기록만 한다. 다음 step이 이 값을 읽어 같은 원장 창을 재도출한다.
+    """
+    if not isinstance(previous_report, dict):
+        return None
+    raw = previous_report.get(_LEDGER_SEED_SINCE_KEY)
+    if not isinstance(raw, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
 
 
 def _direction_strike_ttl(interval_value: str) -> timedelta | None:
@@ -3899,6 +3923,15 @@ async def _evaluate_session_with_engine(
             if direction_strike_bar is not None:
                 sanitized_report[_DIRECTION_STRIKE_BAR_KEY] = direction_strike_bar.isoformat()
             sanitized_report[_POSITION_EPOCH_KEY] = position_epoch.isoformat()
+            # BL-547 — seed를 실제로 산출한 공백 tick에만 그 조회 창의 시작 시각을 남긴다.
+            # 재도출·유지·삭제 판단은 다음 step의 책임이다. 이 step은 기록만 한다.
+            if ledger_seed.outcome == "seedable" and last_evaluated_bar_time is not None:
+                seed_since = (
+                    last_evaluated_bar_time.replace(tzinfo=UTC)
+                    if last_evaluated_bar_time.tzinfo is None
+                    else last_evaluated_bar_time.astimezone(UTC)
+                )
+                sanitized_report[_LEDGER_SEED_SINCE_KEY] = seed_since.isoformat()
         # BL-591 슬라이스 1 — 위에서 뜬 계측 스냅샷을 counter + 이 dict 에 남긴다.
         # ★`engine_position` 은 `run_live` **결과**다(주입 가능 여부는 엔진이 flat 일
         #   때만이므로 이 label 없이는 「주입 가능 tick 수」를 못 센다).
