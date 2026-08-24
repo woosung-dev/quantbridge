@@ -102,12 +102,15 @@
     {
       "step": 7,
       "name": "allowlist-self-accounting-site",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k census_allowlist -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k census_allowlist --collect-only -q 2>/dev/null | grep -c '::')\" -ge 1"
-      ]
+      ],
+      "started_at": "2026-08-25T00:09:01+0900",
+      "summary": "`record_metric_safely`의 자기-계상 `inc()` 1건을 명시적 allowlist로 분리하고, allowlist 원본 존재·공백 시 census 위반 회귀를 추가했다.",
+      "completed_at": "2026-08-25T00:12:27+0900"
     },
     {
       "step": 8,
