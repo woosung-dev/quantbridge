@@ -5,7 +5,7 @@
     {
       "step": 0,
       "name": "backtest-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/backtest/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api-contract.test.ts",
@@ -13,7 +13,10 @@
         "cd apps/web && pnpm exec biome check src/features/backtest/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec tsc --noEmit",
         "git diff --quiet -- apps/web/src/features/backtest/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-24T14:32:20+0900",
+      "summary": "backtest API 17개 export의 apiFetch 경로·메서드/본문·Zod 응답 파싱을 고정했다. 확인된 불일치: BE BacktestCreatedResponse.replayed는 FE schema가 제거해 createBacktest 반환에 없다(api.ts 미수정).",
+      "completed_at": "2026-08-24T14:39:21+0900"
     },
     {
       "step": 1,
@@ -67,5 +70,6 @@
         "cd apps/web && pnpm exec tsc --noEmit"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T14:32:20+0900"
 }
