@@ -46,6 +46,7 @@ from src.trading.schemas import (
     AlertRuleCreateRequest,
     AlertRuleListResponse,
     AlertRuleResponse,
+    ClosePositionConflictResponse,
     ClosePositionResponse,
     ExchangeAccountResponse,
     KillSwitchEventResponse,
@@ -500,6 +501,12 @@ async def get_live_session_positions(
     "/live-sessions/{session_id}/positions/close",
     status_code=202,
     response_model=ClosePositionResponse,
+    responses={
+        409: {
+            "description": "포지션이 없거나 미체결 진입 주문이 남아 청산할 수 없습니다.",
+            "model": ClosePositionConflictResponse,
+        }
+    },
 )
 async def close_live_session_position(
     session_id: UUID = Path(...),
