@@ -74,13 +74,16 @@
     {
       "step": 5,
       "name": "wrap-trading-package",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k labels_outside_guard -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -q",
         "cd apps/api && uv run ruff check src/trading"
-      ]
+      ],
+      "started_at": "2026-08-24T23:58:59+0900",
+      "summary": "`providers.py`·`realtime_publisher.py`·`bybit_private_stream.py`의 가드 밖 metric mutation 4건을 안전 가드로 치환하고 frozen census 4개 항목을 삭제했다.",
+      "completed_at": "2026-08-25T00:03:02+0900"
     },
     {
       "step": 6,
