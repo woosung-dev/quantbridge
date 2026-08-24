@@ -117,7 +117,7 @@ def test_metric_census_finds_all_live_signal_mutations() -> None:
 
 
 def test_raw_metric_census_matches_frozen_control_count() -> None:
-    assert len(raw_metric_sites()) == 15
+    assert len(raw_metric_sites()) == 0
 
 
 def test_metric_collector_distinguishes_try_context_and_safe_wrapper() -> None:
