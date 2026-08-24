@@ -3,13 +3,12 @@ from __future__ import annotations
 
 import logging
 import time
-from contextlib import suppress
 from typing import Any, Literal, cast
 
 from pydantic import ValidationError
 
 from src.common.metrics import qb_rt_publish_failed_total, qb_rt_publish_invalid_total
-from src.common.metrics_multiproc import record_metric_safely
+from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.common.redis_client import get_redis_lock_pool
 from src.realtime.schemas import PAYLOAD_MODELS, RealtimeEnvelope, ticker_channel, user_channel
 
@@ -27,8 +26,7 @@ async def _publish_envelope(channel: str, event_type: str, payload: dict[str, An
         PAYLOAD_MODELS[event_type].model_validate(payload)
     except (KeyError, ValidationError):
         logger.warning("realtime_publish_invalid_payload event_type=%s", event_type)
-        with suppress(Exception):
-            qb_rt_publish_invalid_total.labels(event_type=event_type).inc()
+        _count_safely(qb_rt_publish_invalid_total, event_type=event_type)
         return
 
     try:

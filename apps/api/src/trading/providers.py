@@ -17,6 +17,7 @@ from typing import Any, Literal, Protocol
 import ccxt.async_support as ccxt_async
 
 from src.common.metrics import ccxt_timer, qb_closed_pnl_backfill_total
+from src.common.metrics_multiproc import _count_safely
 from src.trading.exceptions import ProviderError, TrailingContractError
 from src.trading.models import ExchangeMode, OrderSide, OrderType
 
@@ -1480,7 +1481,7 @@ class BybitFuturesProvider:
             for position in positions:
                 snapshot = _closed_pnl_snapshot_from_position(position)
                 if snapshot is None:
-                    qb_closed_pnl_backfill_total.labels(outcome="malformed_row").inc()
+                    _count_safely(qb_closed_pnl_backfill_total, outcome="malformed_row")
                     logger.warning("bybit_closed_pnl_row_skipped", extra={"symbol": linear_symbol})
                     continue
                 snapshots.append(snapshot)

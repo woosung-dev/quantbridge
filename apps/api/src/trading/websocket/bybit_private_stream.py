@@ -33,6 +33,7 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 from src.common.metrics import qb_ws_reconcile_skipped_total, qb_ws_reconnect_total
+from src.common.metrics_multiproc import _count_safely, record_metric_safely
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,7 @@ class BybitPrivateStream:
             return
         now = time.monotonic()
         if now - self._last_reconciled_at < _RECONCILE_DEBOUNCE_S:
-            qb_ws_reconcile_skipped_total.inc()
+            record_metric_safely(qb_ws_reconcile_skipped_total.inc)
             return
         self._last_reconciled_at = now
         try:
@@ -276,7 +277,7 @@ class BybitPrivateStream:
                     return
                 # 연결 끊김 → reconnect 카운트 + metric
                 self.reconnect_count += 1
-                qb_ws_reconnect_total.labels(account_id=str(self.account_id)).inc()
+                _count_safely(qb_ws_reconnect_total, account_id=str(self.account_id))
                 logger.info(
                     "ws_supervisor_reconnect account=%s count=%d backoff=%.1f",
                     self.account_id,

@@ -102,11 +102,7 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): 1,
     ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
     ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
-    ("apps/api/src/trading/providers.py", "qb_closed_pnl_backfill_total"): 1,
-    ("apps/api/src/trading/realtime_publisher.py", "qb_rt_publish_invalid_total"): 1,
     ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): 1,
-    ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconcile_skipped_total"): 1,
-    ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconnect_total"): 1,
     ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
     ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
     ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): 1,
@@ -520,8 +516,8 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 26
-    assert sum(_FROZEN_CENSUS.values()) == 41
+    assert len(_FROZEN_CENSUS) == 22
+    assert sum(_FROZEN_CENSUS.values()) == 37
 
     sites = _census_sites()
     actual = Counter((site.path, site.metric) for site in sites)
