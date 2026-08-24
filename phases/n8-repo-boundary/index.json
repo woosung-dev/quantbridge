@@ -63,14 +63,17 @@
     {
       "step": 4,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading tests/common -q",
         "cd apps/api && uv run ruff check tests/common/test_repository_boundary_guard.py src/trading",
         "cd apps/api && uv run ruff format --check tests/common/test_repository_boundary_guard.py"
-      ]
+      ],
+      "started_at": "2026-08-24T15:05:18+0900",
+      "summary": "양성: OrderService.get_for_user에 sqlmodel.select(Order) 삽입 → census가 _SelectCall(order_service.py, OrderService.get_for_user), 래칫이 새 tuple로 red; 음성: 같은 위치 numpy.select 삽입은 green; 두 변이 뒤 order_service.py SHA fc07096cef2668bceac7774c1fbae6370aa15946822d5c76ade373cdf3940c4b 복원, 실제 OrderRepository select 제외 테스트를 더해 6개가 됨.",
+      "completed_at": "2026-08-24T15:12:56+0900"
     }
   ],
   "created_at": "2026-08-24T14:32:20+0900"
