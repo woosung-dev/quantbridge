@@ -182,6 +182,13 @@ def test_dependencies_do_not_contain_scoped_select_calls() -> None:
     assert paths_with_calls == set()
 
 
+def test_repository_select_calls_are_excluded_from_the_census() -> None:
+    repository_path = _SOURCE_ROOT / "trading/repositories/order_repository.py"
+
+    assert _select_calls(repository_path)
+    assert repository_path not in _scoped_source_paths()
+
+
 def test_repository_boundary_violations_do_not_expand_beyond_the_frozen_census() -> None:
     actual = _actual_violations()
 
