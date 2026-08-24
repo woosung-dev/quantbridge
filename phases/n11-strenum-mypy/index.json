@@ -18,13 +18,16 @@
     {
       "step": 1,
       "name": "strenum-field-comment-parity",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -k strenum -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/trading -k strenum --collect-only -q 2>/dev/null | grep -c '::')\" -ge 12",
         "cd apps/api && uv run mypy src",
         "cd apps/api && uv run ruff check src tests/trading"
-      ]
+      ],
+      "started_at": "2026-08-25T02:19:07+0900",
+      "summary": "5필드 좌표: apps/api/src/trading/models.py:542(interval), apps/api/src/trading/models.py:707(status), apps/api/src/trading/models.py:766(rule_type), apps/api/src/trading/models.py:775(channel), apps/api/src/trading/models.py:864(classification). (b) AST 가드는 이미 존재·green이며 mypy는 이 축을 못 잡는다; Step 2 측정 전이라 RESOLVED 결론은 유보한다.",
+      "completed_at": "2026-08-25T02:24:22+0900"
     },
     {
       "step": 2,
