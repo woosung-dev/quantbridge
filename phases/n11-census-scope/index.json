@@ -18,12 +18,15 @@
     {
       "step": 1,
       "name": "harmful-candidates-full-coverage",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k harmful -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k harmful --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8"
-      ]
+      ],
+      "started_at": "2026-08-25T02:21:10+0900",
+      "summary": "자동 harmful 후보를 in-scope census∪4쌍 제어군으로 도출했고, in-scope 0건·해로운 자리 0건이며 apps/api/src/trading/webhook.py:178:qb_order_rejected_total 임시 미가드 변이에서 red 후 원복했다.",
+      "completed_at": "2026-08-25T02:28:18+0900"
     },
     {
       "step": 2,
