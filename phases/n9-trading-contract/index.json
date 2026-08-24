@@ -5,14 +5,17 @@
     {
       "step": 0,
       "name": "strenum-column-contract-guard",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_strenum_column_contract.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_strenum_column_contract.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_strenum_column_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
         "cd apps/api && uv run python -c \"from tests.trading.test_strenum_column_contract import strenum_string_columns, uncontracted_columns; import sys; sys.exit(0 if len(strenum_string_columns())>=6 and len(uncontracted_columns())==0 else 1)\"",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T18:38:54+0900",
+      "summary": "models.py의 런타임 StrEnum 6개 String 컬럼과 바로 위 BL-453 계약 주석을 AST로 동결 검증한다.",
+      "completed_at": "2026-08-24T18:43:35+0900"
     },
     {
       "step": 1,
@@ -37,5 +40,6 @@
         "cd apps/api && uv run ruff format --check tests/trading/test_strenum_column_contract.py"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T18:38:54+0900"
 }
