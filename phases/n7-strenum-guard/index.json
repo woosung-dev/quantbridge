@@ -5,13 +5,16 @@
     {
       "step": 0,
       "name": "derive-guarded-fields",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/trading/test_no_strenum_value_access.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/trading/test_no_strenum_value_access.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T11:06:16+0900",
+      "summary": "AST 재측정은 CONTROL 표와 일치: 6건(LiveSignalSession.interval, LiveSignalEvent.status, AlertRule.rule_type/channel, ExchangeExit.classification/attribution_confidence). ClassDef·AnnAssign에서 StrEnum base/Name annotation 및 Field의 sa_column=Column args 속 String Call을 파생했고, sa_column 없는 native enum 7개는 제외 검증했다. deactivated_reason은 str | None 주석이라 자동 제외되며, 이 step에서 추가 위양성 후보 판정은 하지 않았다.",
+      "completed_at": "2026-08-24T11:11:37+0900"
     },
     {
       "step": 1,
@@ -39,5 +42,6 @@
         "git diff --quiet -- apps/api/src"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T11:06:16+0900"
 }
