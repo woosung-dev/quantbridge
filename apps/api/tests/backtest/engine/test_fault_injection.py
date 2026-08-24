@@ -3,6 +3,7 @@
 이전 구 엔진(vectorbt) 기반 테스트는 run_backtest_v2 마이그레이션과 함께
 pine_v2 경로로 재작성됐다 (fault 지점이 변경됨).
 """
+
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -11,6 +12,7 @@ import pandas as pd
 import pytest
 
 from src.backtest.engine import run_backtest
+from src.strategy.pine_v2.interpreter import PineRuntimeError
 
 SIMPLE_PINE_V5 = """//@version=5
 strategy("T", overlay=true)
@@ -39,9 +41,44 @@ def valid_ohlcv() -> pd.DataFrame:
 
 
 class TestRunBacktestFaultInjection:
-    def test_parse_and_run_v2_raises_becomes_parse_failed(
-        self, valid_ohlcv: pd.DataFrame
+    @pytest.mark.parametrize(
+        ("raised", "expected_status"),
+        [
+            pytest.param(
+                PineRuntimeError("runtime boom"),
+                "error",
+                id="pine-runtime-error",
+            ),
+            pytest.param(
+                SyntaxError("syntax boom"),
+                "parse_failed",
+                id="syntax-error",
+            ),
+            pytest.param(
+                ValueError("data boom"),
+                "error",
+                id="value-error",
+            ),
+        ],
+    )
+    def test_parse_and_run_v2_expected_exceptions_keep_status(
+        self,
+        valid_ohlcv: pd.DataFrame,
+        raised: Exception,
+        expected_status: str,
     ) -> None:
+        """명시 분기 예외는 사용자 노출 status와 오류 문자열을 보존한다."""
+        with patch(
+            "src.backtest.engine.v2_adapter.parse_and_run_v2",
+            side_effect=raised,
+        ):
+            outcome = run_backtest(SIMPLE_PINE_V5, valid_ohlcv)
+
+        assert outcome.status == expected_status
+        assert outcome.result is None
+        assert str(raised) in str(outcome.error)
+
+    def test_parse_and_run_v2_raises_becomes_parse_failed(self, valid_ohlcv: pd.DataFrame) -> None:
         """pine_v2 parse/classify 예외 → BacktestOutcome(status='parse_failed')."""
         with patch(
             "src.backtest.engine.v2_adapter.parse_and_run_v2",
@@ -52,9 +89,7 @@ class TestRunBacktestFaultInjection:
         assert outcome.result is None
         assert "parse boom" in str(outcome.error)
 
-    def test_build_raw_trades_exception_becomes_error(
-        self, valid_ohlcv: pd.DataFrame
-    ) -> None:
+    def test_build_raw_trades_exception_becomes_error(self, valid_ohlcv: pd.DataFrame) -> None:
         """_build_raw_trades 예외 → BacktestOutcome(status='error')."""
         with patch(
             "src.backtest.engine.v2_adapter._build_raw_trades",
@@ -65,9 +100,7 @@ class TestRunBacktestFaultInjection:
         assert outcome.result is None
         assert "trades boom" in str(outcome.error)
 
-    def test_compute_metrics_exception_becomes_error(
-        self, valid_ohlcv: pd.DataFrame
-    ) -> None:
+    def test_compute_metrics_exception_becomes_error(self, valid_ohlcv: pd.DataFrame) -> None:
         """_compute_metrics 예외 → error status."""
         with patch(
             "src.backtest.engine.v2_adapter._compute_metrics",
@@ -77,9 +110,7 @@ class TestRunBacktestFaultInjection:
         assert outcome.status == "error"
         assert "metrics fail" in str(outcome.error)
 
-    def test_malformed_pine_source_becomes_parse_failed(
-        self, valid_ohlcv: pd.DataFrame
-    ) -> None:
+    def test_malformed_pine_source_becomes_parse_failed(self, valid_ohlcv: pd.DataFrame) -> None:
         """pynescript 가 파싱 불가인 소스 → parse_failed (선언조차 없음)."""
         malformed = "this is not pine script at all @@@ $$$"
         outcome = run_backtest(malformed, valid_ohlcv)
@@ -88,13 +119,13 @@ class TestRunBacktestFaultInjection:
 
     def test_empty_ohlcv_becomes_error_not_parse_failed(self) -> None:
         """Codex P2: empty OHLCV 는 data 오류 → status=error ('parse_failed' 오분류 방지)."""
-        outcome = run_backtest(SIMPLE_PINE_V5, pd.DataFrame(columns=["open", "high", "low", "close", "volume"]))
+        outcome = run_backtest(
+            SIMPLE_PINE_V5, pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+        )
         assert outcome.status == "error"
         assert outcome.result is None
 
-    def test_failure_outcome_parse_stub_has_error_status(
-        self, valid_ohlcv: pd.DataFrame
-    ) -> None:
+    def test_failure_outcome_parse_stub_has_error_status(self, valid_ohlcv: pd.DataFrame) -> None:
         """Codex P2: 실패 경로의 ParseOutcome stub 은 status='error' 를 반환해야 한다.
 
         소비자가 out.parse.status 를 읽어 파싱 성공으로 오해하지 않도록 한다.
