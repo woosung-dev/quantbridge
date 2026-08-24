@@ -1,8 +1,21 @@
 {
   "phases": [
-    { "dir": "n7-marketing-truth", "status": "pending" },
-    { "dir": "n7-strenum-guard", "status": "pending" },
-    { "dir": "n7-metric-guard-sweep", "status": "pending" },
-    { "dir": "n7-backtest-error-class", "status": "pending" }
+    {
+      "dir": "n7-marketing-truth",
+      "status": "completed",
+      "completed_at": "2026-08-24T11:28:43+0900"
+    },
+    {
+      "dir": "n7-strenum-guard",
+      "status": "pending"
+    },
+    {
+      "dir": "n7-metric-guard-sweep",
+      "status": "pending"
+    },
+    {
+      "dir": "n7-backtest-error-class",
+      "status": "pending"
+    }
   ]
 }
