@@ -31,14 +31,17 @@
     {
       "step": 2,
       "name": "spec-comments-and-dead-paths",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "python3 tools/scripts/doc-coord-audit.py --selftest",
         "python3 tools/scripts/doc-coord-audit.py --check",
         "python3 tools/scripts/doc-coord-audit.py --dead-paths",
         "cd apps/web && pnpm exec biome check .",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-24T23:44:51+0900",
+      "summary": "⑴ spec 주석·진단의 globals.css 좌표 7건을 CSS 앵커로 전환, ⑵ 폐기 FE 규칙 문서 경로 39건을 apps/web/AGENTS.md 좌표로 정정하고 감사 범위에 .gitkeep을 포함, ⑶ getServerAuth 호출부 4곳을 머리 주석에 반영; CONTROL 인계: 없음.",
+      "completed_at": "2026-08-24T23:51:04+0900"
     },
     {
       "step": 3,
