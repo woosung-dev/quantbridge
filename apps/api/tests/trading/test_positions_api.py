@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from httpx import ASGITransport, AsyncClient
 
 from src.auth.dependencies import get_current_user
@@ -19,8 +19,11 @@ from src.trading.router import router
 from src.trading.schemas import (
     AccountPositionRow,
     AccountPositionsResponse,
+    ClosePositionConflictResponse,
     ClosePositionResponse,
     ExchangePositionSchema,
+    RestingEntriesConflictDetail,
+    RestingEntryOrder,
 )
 
 
@@ -55,6 +58,60 @@ async def test_close_positions_api_returns_202() -> None:
 
     assert response.status_code == 202
     assert response.json() == result.model_dump(mode="json")
+
+
+def test_close_409_openapi_declares_string_or_resting_entries_detail() -> None:
+    app = FastAPI()
+    app.include_router(router, prefix="/api/v1")
+
+    openapi = app.openapi()
+    responses = openapi["paths"]["/api/v1/live-sessions/{session_id}/positions/close"]["post"][
+        "responses"
+    ]
+    response_409 = responses["409"]
+    response_ref = response_409["content"]["application/json"]["schema"]["$ref"]
+    response_schema = openapi["components"]["schemas"][response_ref.rsplit("/", maxsplit=1)[-1]]
+    detail_variants = response_schema["properties"]["detail"]["anyOf"]
+    resting_ref = next(variant["$ref"] for variant in detail_variants if "$ref" in variant)
+    resting_schema = openapi["components"]["schemas"][resting_ref.rsplit("/", maxsplit=1)[-1]]
+
+    assert response_409["description"]
+    assert {"code", "count", "orders"} <= resting_schema["properties"].keys()
+    assert resting_schema["properties"]["code"]["const"] == "resting_conditional_entries"
+    assert any(variant.get("type") == "string" for variant in detail_variants)
+
+
+@pytest.mark.asyncio
+async def test_close_409_runtime_response_matches_declared_shape() -> None:
+    app = FastAPI()
+    app.include_router(router, prefix="/api/v1")
+    conflict_detail = RestingEntriesConflictDetail(
+        code="resting_conditional_entries",
+        count=1,
+        detail="포지션은 없지만 미체결 진입 주문 1건이 남아 있습니다.",
+        orders=[
+            RestingEntryOrder(
+                order_id="ex-cond-1",
+                side="buy",
+                qty=Decimal("0.029"),
+                trigger_price=Decimal("100"),
+                order_link_id="link-1",
+            )
+        ],
+    )
+    service = AsyncMock()
+    service.close_position.side_effect = HTTPException(
+        status_code=409,
+        detail=conflict_detail.model_dump(mode="json"),
+    )
+    app.dependency_overrides[get_close_service] = lambda: service
+    app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=uuid4())
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(f"/api/v1/live-sessions/{uuid4()}/positions/close")
+
+    assert response.status_code == 409
+    assert ClosePositionConflictResponse.model_validate(response.json()).detail == conflict_detail
 
 
 @pytest.mark.asyncio
