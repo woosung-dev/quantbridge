@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "coord-audit-tool",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f tools/scripts/doc-coord-audit.py",
         "python3 tools/scripts/doc-coord-audit.py --selftest",
         "python3 tools/scripts/doc-coord-audit.py --check --baseline"
-      ]
+      ],
+      "started_at": "2026-08-24T23:32:37+0900",
+      "summary": "Python 좌표 감사기와 baseline을 신설했다: globals.css 줄 번호 인용은 DESIGN.md 24건·반응형 spec 7건(합계 31건)으로 동결했고, dead-path 감사는 237건을 실측한다.",
+      "completed_at": "2026-08-24T23:40:16+0900"
     },
     {
       "step": 1,
@@ -46,5 +49,6 @@
         "cd apps/web && pnpm exec vitest run --silent"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T23:32:37+0900"
 }
