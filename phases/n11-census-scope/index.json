@@ -31,12 +31,15 @@
     {
       "step": 2,
       "name": "census-scope-verdict-and-narrow",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks -q",
         "cd apps/api && uv run ruff check src tests/common"
-      ]
+      ],
+      "started_at": "2026-08-25T02:28:20+0900",
+      "summary": "동결 census 30건은 범위 밖임을 주석과 `_FROZEN_CENSUS_SCOPE` 검증으로 고정했다; BL-520 판정 = RESOLVED 후보.",
+      "completed_at": "2026-08-25T02:34:47+0900"
     },
     {
       "step": 3,
