@@ -1,3 +1,7 @@
 {
-  "phases": []
+  "phases": [
+    { "dir": "n8-env-contract", "status": "pending" },
+    { "dir": "n8-repo-boundary", "status": "pending" },
+    { "dir": "n8-fe-api-contracts", "status": "pending" }
+  ]
 }
