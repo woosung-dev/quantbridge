@@ -1,0 +1,39 @@
+{
+  "project": "QuantBridge",
+  "phase": "n11-guard-truth",
+  "steps": [
+    {
+      "step": 0,
+      "name": "doc-coord-audit-pytest-guard",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/scripts -k doc_coord -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/scripts -k doc_coord --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
+        "python3 tools/scripts/doc-coord-audit.py --selftest",
+        "cd apps/api && uv run ruff check tests/scripts"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "live-smoke-name-truth",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/scripts -k live_smoke_workflow -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/scripts -k live_smoke_workflow --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/scripts -q",
+        "cd apps/api && uv run ruff check tests/scripts"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "fe-decision-surface-blindspot",
+      "status": "pending",
+      "ac": [
+        "cd apps/web && pnpm exec vitest run src/lib/__tests__/decision-surface-guard.test.ts",
+        "cd apps/web && pnpm exec vitest run src/lib/__tests__/decision-surface-guard.test.ts --reporter=json --outputFile=/tmp/qb-decision-surface.json && node -e \"const r=require('/tmp/qb-decision-surface.json');process.exit(r.numTotalTests>=6?0:1)\"",
+        "cd apps/web && pnpm exec biome check src/lib/__tests__",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    }
+  ]
+}
