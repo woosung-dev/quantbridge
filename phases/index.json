@@ -1,7 +1,17 @@
 {
   "phases": [
-    { "dir": "n8-env-contract", "status": "pending" },
-    { "dir": "n8-repo-boundary", "status": "pending" },
-    { "dir": "n8-fe-api-contracts", "status": "pending" }
+    {
+      "dir": "n8-env-contract",
+      "status": "pending"
+    },
+    {
+      "dir": "n8-repo-boundary",
+      "status": "pending"
+    },
+    {
+      "dir": "n8-fe-api-contracts",
+      "status": "completed",
+      "completed_at": "2026-08-24T14:54:58+0900"
+    }
   ]
 }
