@@ -40,6 +40,29 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 
+
+def _in_linked_worktree(root: Path) -> bool:
+    """이 체크아웃이 **연결된 워크트리**인가 (= 메인 체크아웃이 아닌가).
+
+    linked worktree 는 `.git` 이 파일이고 `--git-dir` 이 `--git-common-dir` 아래의
+    `worktrees/<이름>` 을 가리킨다. 메인 체크아웃은 둘이 같은 곳을 가리킨다.
+    판정에 실패하면 **메인으로 본다** — 공유 파일을 안 쓰는 쪽이 아니라 쓰는 쪽이
+    기존 동작이라, 모를 때 동작을 바꾸지 않는 방향이다.
+    """
+    try:
+        r = subprocess.run(["git", "rev-parse", "--git-dir", "--git-common-dir"],
+                           cwd=root, capture_output=True, text=True, timeout=30)
+        if r.returncode != 0:
+            return False
+        lines = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+        if len(lines) != 2:
+            return False
+        git_dir, common = (Path(root, ln).resolve() for ln in lines)
+        return git_dir != common
+    except Exception:  # noqa: BLE001 — 판정 실패는 「메인이다」로 떨어뜨린다
+        return False
+
+
 # 가드레일 4축 — 하나라도 없으면 시작하지 않는다 (무근거 주입 금지).
 GUARDRAIL_FILES = ["CONTEXT.md", "AGENTS.md", "apps/api/AGENTS.md", "apps/web/AGENTS.md"]
 
@@ -99,6 +122,13 @@ class StepExecutor:
         self._phase_dir = self._phases_dir / phase_dir_name
         self._phase_dir_name = phase_dir_name
         self._top_index_file = self._phases_dir / "index.json"
+        # ★공유 파일은 **워크트리에서 만지지 않는다**(2026-08-24 [BL-820]).
+        #   `phases/index.json` 은 lane 마다 자기 항목의 `status` 를 **인접 줄**에 쓰는 유일한
+        #   공유 파일이라, 병렬 lane N벌이 커밋하면 첫 머지 뒤 나머지가 전부 CONFLICTING 이 된다
+        #   (n7·n8·n9 3회차 연속 실측 — 매번 사람이 합집합으로 풀었다).
+        #   이 파일이 담는 것은 **오케스트레이션 상태**지 lane 의 산출이 아니다. 소유자를 하나로
+        #   되돌린다: 순차 모드는 러너 자신이, 병렬 모드는 메인 레포의 오케스트레이터가 쓴다.
+        self._owns_top_index = not _in_linked_worktree(self._root)
         self._runs_dir = self._phase_dir / "runs"
         self._auto_push = auto_push
 
@@ -154,9 +184,14 @@ class StepExecutor:
         print(f"  Branch: {branch}")
 
     def _state_files(self) -> list:
-        """하네스 상태 파일 — 코드가 아니라 진행 기록이다."""
-        return [str(self._index_file.relative_to(self._root)),
-                str(self._top_index_file.relative_to(self._root))]
+        """하네스 상태 파일 — 코드가 아니라 진행 기록이다.
+
+        ★워크트리에서는 공유 top index 를 **뺀다** — 위 `_owns_top_index` 주석 참조.
+        """
+        files = [str(self._index_file.relative_to(self._root))]
+        if self._owns_top_index:
+            files.append(str(self._top_index_file.relative_to(self._root)))
+        return files
 
     def _commit(self, message: str) -> bool:
         """코드와 하네스 상태를 **다른 커밋**으로 나눈다.
@@ -288,6 +323,8 @@ class StepExecutor:
         self._write_json(self._index_file, index)
 
     def _update_top_index(self, status: str):
+        if not self._owns_top_index:
+            return  # 병렬 lane — 오케스트레이터가 메인 레포에서 쓴다
         if not self._top_index_file.exists():
             return
         top = self._read_json(self._top_index_file)
@@ -344,8 +381,7 @@ class StepExecutor:
                 self._update_top_index("error")
                 # ★코드 변경은 커밋하지 않는다 — AC 미통과 코드가 「진행」으로 읽히면 안 된다.
                 #   index.json 만 남겨 상태를 보존한다(작업 트리는 사람이 검시).
-                self._run_git("add", "--", str(self._index_file.relative_to(self._root)),
-                              str(self._top_index_file.relative_to(self._root)))
+                self._run_git("add", "--", *self._state_files())
                 self._run_git("commit", "-m", f"chore({self._phase_name}): step {step_num} error")
                 print(f"  ✗ Step {step_num}: {self.MAX_RETRIES}회 실패 [{elapsed}s]\n    {why.splitlines()[0]}")
                 print("    → 원인 해결 후 status 를 pending 으로 되돌리고 재실행해라. 작업 트리는 그대로 뒀다.")
@@ -564,7 +600,16 @@ def _wait_ci_and_merge(res: LaneResult) -> None:
         if r.returncode != 0:
             time.sleep(CI_POLL_SEC)
             continue
-        checks = json.loads(r.stdout).get("statusCheckRollup") or []
+        view = json.loads(r.stdout)
+        # ★2026-08-24 [BL-820] — `mergeable` 을 **요청해 놓고 읽지 않았다.**
+        #   충돌한 PR 은 CI 가 아예 안 돌아 `statusCheckRollup` 이 영원히 비고, 아래 루프가
+        #   45분을 태운 뒤 「CI 대기 시간 초과」로 적었다. 실제 원인은 충돌이다(n7·n8 실측).
+        #   충돌은 기다려서 풀리지 않으므로 **즉시 사실대로 보고하고 나간다.**
+        if view.get("mergeable") == "CONFLICTING":
+            res.detail += " | base 와 충돌 — CI 가 아예 돌지 않는다(대기해도 안 풀린다)"
+            _log(f"  ✗ 충돌 — 머지하지 않는다: {res.pr}")
+            return
+        checks = view.get("statusCheckRollup") or []
         if checks and all(c.get("status") == "COMPLETED" for c in checks):
             concl = [c.get("conclusion") for c in checks]
             if all(c in ("SUCCESS", "NEUTRAL", "SKIPPED") for c in concl):
@@ -589,6 +634,31 @@ def _wait_ci_and_merge(res: LaneResult) -> None:
             return
         time.sleep(CI_POLL_SEC)
     res.detail += " | CI 대기 시간 초과"
+
+
+def _lane_progress(lane: str) -> str:
+    """병렬 주행 중인 lane 의 step 진행 — **워크트리에서 읽는다.**
+
+    ★메인 레포의 `phases/index.json` 은 병렬 주행 중 갱신되지 않는다([BL-820] 수리 이후
+      lane 은 그 공유 파일을 만지지 않는다). 진행은 각 lane 이 실제로 도는 워크트리의
+      `phases/<lane>/index.json` 에 있다 — 그것을 읽어야 `--status` 가 사실을 말한다.
+      종전에는 메인 파일만 읽어 주행 내내 `pending` 만 찍었다(2026-08-24 실측).
+    """
+    best = ""
+    for wt in sorted((ROOT / ".claude" / "worktrees").glob("*")):
+        f = wt / "phases" / lane / "index.json"
+        if not f.is_file():
+            continue
+        try:
+            steps = json.loads(f.read_text(encoding="utf-8"))["steps"]
+        except Exception:  # noqa: BLE001 — 못 읽는 것도 결과다
+            continue
+        done = sum(1 for st in steps if st["status"] == "completed")
+        bad = [st for st in steps if st["status"] in ("error", "blocked")]
+        if done or bad:
+            mark = f" [{bad[0]['status']} @step {bad[0]['step']}]" if bad else ""
+            best = f"— {wt.name}: step {done}/{len(steps)}{mark}"
+    return best
 
 
 def run_parallel(args) -> int:
@@ -690,7 +760,7 @@ def main():
         idx = json.loads((PHASES_DIR / "index.json").read_text(encoding="utf-8"))
         for ph in idx["phases"]:
             if ph["status"] != "completed":
-                print(f"  {ph['status']:10} {ph['dir']}")
+                print(f"  {ph['status']:10} {ph['dir']}  {_lane_progress(ph['dir'])}")
         return 0
 
     if args.parallel:

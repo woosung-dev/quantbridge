@@ -7,6 +7,8 @@ const FEATURES_ROOT = resolve(__dirname, "../../features");
 const CONTRACT_TEST_PATH = "__tests__/api-contract.test.ts";
 
 // 빈 배열이 정상이다. 면제할 feature를 추가할 때는 이유를 바로 위에 남긴다.
+// ★비어 있는 동안 「allowlist 의 feature 가 실재한다」 검사를 두지 마라 — 빈 배열을 필터하면
+//   결과가 **언제나** `[]` 라 판별력이 0이다(2026-08-24 제거). 항목이 생기면 함께 되살려라.
 const _ALLOWLIST_NO_CONTRACT: readonly string[] = [];
 
 type FeatureSnapshot = {
@@ -45,14 +47,5 @@ describe("feature API 계약 테스트 커버리지 가드", () => {
 
   it("api.ts를 가진 모든 feature에는 계약 테스트가 있다", () => {
     expect(missingContractTests(readFeatureSnapshot())).toEqual([]);
-  });
-
-  it("allowlist의 feature는 모두 실재한다", () => {
-    const snapshot = readFeatureSnapshot();
-    const unknownFeatureNames = _ALLOWLIST_NO_CONTRACT.filter(
-      (featureName) => !snapshot.featureNames.includes(featureName),
-    );
-
-    expect(unknownFeatureNames).toEqual([]);
   });
 });
