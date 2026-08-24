@@ -47,7 +47,7 @@
     {
       "step": 3,
       "name": "move-remaining-queries",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test \"$(grep -c 'select(' apps/api/src/trading/kill_switch.py)\" -eq 0",
         "test \"$(grep -c 'select(' apps/api/src/trading/websocket/state_handler.py)\" -eq 0",
@@ -55,7 +55,10 @@
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/trading -q",
         "cd apps/api && uv run ruff check src/trading"
-      ]
+      ],
+      "started_at": "2026-08-24T14:55:44+0900",
+      "summary": "OrderRepository로 kill switch Decimal 손익 집계 2건과 WebSocket 주문 조회 2건을 이관해 스코프 위반·동결 목록을 모두 0건으로 만들었다.",
+      "completed_at": "2026-08-24T15:05:16+0900"
     },
     {
       "step": 4,
