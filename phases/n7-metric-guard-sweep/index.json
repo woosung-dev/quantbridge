@@ -20,13 +20,16 @@
     {
       "step": 1,
       "name": "guard-shape-a-inside-try",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && test \"$(grep -c 'len(_FROZEN_CENSUS) == 38' tests/common/test_metric_guard_census.py)\" -ge 1",
         "cd apps/api && test \"$(grep -c 'sum(_FROZEN_CENSUS.values()) == 81' tests/common/test_metric_guard_census.py)\" -ge 1",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks tests/common -q"
-      ]
+      ],
+      "started_at": "2026-08-24T11:16:41+0900",
+      "summary": "실측 수정 좌표: `apps/api/src/tasks/live_signal.py:4201`과 `apps/api/src/tasks/trading.py:2216`; 두 호출 모두 `.labels(...)` 없음, `record_metric_safely(qb_…inc)` bound-method 형식으로 감쌌다. `_PROTECTED_SITES` 추가 형식: (`apps/api/src/tasks/live_signal.py`, `_async_sweep_conditional_entries`, `qb_live_conditional_sweep_filled_total`, `체결 발견 뒤 — 예외가 rollback + sweep_cancel_failed로 실제 체결을 취소 실패로 오기록`) 및 (`apps/api/src/tasks/trading.py`, `_sweep_closed_pnl_with_session`, `qb_exchange_exit_link_unverified_total`, `청산 원장 행 관측 뒤 — 예외가 계정 격리 handler로 가서 이 계정 스윕 후속 처리를 중단`). bound-method 가드도 Step 0의 A/B 검사에 포함하도록 helper를 보완했고, AC 4 동반 red 없음 (`994 passed, 12 skipped`).",
+      "completed_at": "2026-08-24T11:25:03+0900"
     },
     {
       "step": 2,
