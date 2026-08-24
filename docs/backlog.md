@@ -251,21 +251,6 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 > 추가 P0 — BL-005 본인 dogfood + BL-145 EffectiveLeverageEvaluator (deferred). Resolved P0 = BL-001/002/004 (`_archived.md`).
 
-### BL-383
-
-**Title:** v2_adapter catch-all 이 런타임 예외를 parse_failed 로 오분류 (관측성)
-**Category:** Backtest / engine (관측성)
-**Priority:** P3
-**Trigger:** pine_v2 관측성 후속
-**Est:** S (2-3h)
-**상태:** 🟡 부분 해결 — 실행단계 PineRuntimeError·ValueError 는 이미 status=error 로 분기됐고, 잔여는 144줄 catch-all(+이를 고정한 테스트 1건)뿐. (2026-08-09 status-triage-mass 코드 대조)
-**트리거 판정:** 미도래 — 동승 조건(pine_v2 관측성 후속). 잔여는 `v2_adapter` 144줄 catch-all 하나뿐이라 단독 착수 시 값이 0이다 (2026-08-11 bl-703-partial-verdicts)
-**출처:** 2026-06-30 QA codex G2 (G1 에서도 지적)
-
-**원인 / 영향:** `v2_adapter.py:126-133` generic `except Exception` → `status="parse_failed"`. parse 성공 후 실행 중 예외(TypeError 등)도 "parse failed"로 표시 → 사용자 원인 분류 오도. BL-376 이 na/inf escape 는 닫았으나 catch-all 잔존. **권장:** 실행-단계 예외를 `status="error"` 로 분기(parse 단계와 구분).
-
----
-
 ### BL-489
 
 **Title:** 사이징 자본이 D2 구간(진입 창 밖 / 청산 창 안)에서 일시 함몰한다
@@ -307,8 +292,13 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **Priority:** P2
 **Trigger:** 실자금 cutover 전
 **Est:** S
-**상태:** 🟡 부분 해결 — qb_active_orders inc/dec 는 감싸졌으나 live_signal.py:4180 sweep_filled inc 가 래퍼 밖 — metric 실패가 filled 를 sweep_cancel_failed 로 뒤집는다. AGENTS.md … (2026-08-09 status-triage-mass 코드 대조)
-**트리거 판정:** 미도래 — 외생 조건(실자금 cutover). [BL-003] 이 막고 있다. ★잔여 (`live_signal.py:4180` sweep_filled inc 가 래퍼 밖)는 **지금도 데모에서 발화 가능**하지만 Trigger 가 정한 창은 cutover 전이다 (2026-08-11 bl-703-partial-verdicts)
+**상태:** 🟡 **부분 해결 — `live_signal.py` 축은 닫혔다. 나머지 22건이 남았다** (2026-08-24 n9-metric-safety).
+★**종전 상태줄이 지목한 좌표는 거짓이었다** — `live_signal.py:4180` 의 그 호출은 **이미 `record_metric_safely` 로 감싸져 있었다**(`record_metric_safely(\n  qb_active_orders.dec\n)` 로 줄이 나뉘어 grep 에 안 보였을 뿐이다). 문자열 검색으로 구조를 읽어 생긴 오기다.
+★**AST 로 다시 잰 실측** — 규칙(`apps/api/AGENTS.md` §4: 「업무 결과를 보고하는 `try`·`except` 본문」)의 범위에서 `live_signal.py` 위반 **15건**을 n9 가 전건 수리했고(census 15→0, 변이 4/4 기대 일치), 가드는 `apps/api/tests/common/test_metric_safety_guard.py` 가 동결한다.
+★**잔여 22건**(`apps/api/src` 전량 AST 실측 2026-08-24) — `tasks/trading.py` 5 · `tasks/conditional_entry_janitor.py` 5 · `tasks/_ws_circuit_breaker.py` 4 · `trading/providers.py` 1 · `common/redlock.py` 1 · `tasks/backtest.py` 1 · 그 외. ★그중 `common/metrics_multiproc.py:35` 는 **`record_metric_safely` 자신의 실패 계상**이라 대상이 아니다 — 스윕을 이어받으면 그것부터 제외해라.
+★**가드의 사각** — `live_signal.py` 의 **직접 `qb_*` 호출만** 본다. 별칭·동적 접근·다른 파일은 못 잡는다.
+**트리거 판정:** ~~미도래 — 외생 조건(실자금 cutover)~~ → ★★**2026-08-24 — 이 Trigger 는 발화 불가가 됐다.**
+2026-08-23 사용자 결정 ⑴「실자금 안 간다」로 cutover 자체가 없다(`docs/PRD.md` §0). Trigger 를 그대로 두면 이 항목은**영구히 미도래**로 남는다. ⇒ n9 는 Trigger 를 기다리지 않고 **데모에서 지금 발화 가능하다**는 근거로 착수했다(그 판단은 종전 판정줄 자신이 이미 적어 두었다). **잔여 22건도 같은 근거로 단독 착수 가능하다.**
 **출처:** 2026-07-28 live-observability G6 codex 최종 적대 리뷰 (P1 의 후속)
 
 **원인 / 영향:** BL-506 이 metric mutation 을 in-memory 증가에서 **공유 mmap 파일 쓰기**로 바꿨다. 그래서 read-only 마운트·ENOSPC·I/O 오류에 예외를 던질 수 있다.
@@ -326,7 +316,6 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 | ID                | 제목                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Trigger                                                                                                           | Est       | 출처                                                   |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------- | ------------------------------------------------------ |
-| [BL-383](#bl-383) | 🟡 v2_adapter catch-all 이 런타임 예외를 parse_failed 로 오분류 (관측성)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | pine_v2 관측성 후속                                                                                               | S (2-3h)  | 2026-06-30 QA codex G2                                 |
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 그 게이지로 무언가를 판단하기 전                                                                                  | S         | 2026-07-30 live-entry-completeness                     |
 | [BL-616](#bl-616) | 부트스트랩을 **우회해 만든** 워크트리는 husky 훅이 없다 — `pnpm install` 을 건너뛰면 `prepare: husky` 가 안 돌아 `.husky/_`(미트래킹)가 안 생기고, git 은 없는 `core.hooksPath` 를 **경고 없이 무시**한다. 실태: 워크트리 5개 중 **4개 정상**, 우회 생성된 1개만 결손(2026-08-07 정상화 완료). ★남은 축 = **감지 수단이 없다** — 훅이 안 도는 실패 모드는 출력이 0줄이라 「통과」와 구별되지 않는다                                                                                                                                                                                                                                                                                            | 워크트리에서 훅 미작동이 또 관측되면                                                                              | S         | 2026-08-07 ADR-027 회차 (자기 커밋에서 발견)           |
 
@@ -427,7 +416,11 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 **Risk:** 🟢 (현재 실제 발생한 크래시는 이미 수정됨. 이 항목은 재발 방지용 예방적 등재)
 
-**상태:** 🟡 **부분 Resolved — 권장안 (a) 까지 (2026-07-25, `stage/exit-money-path`).** `tasks/trading.py:1698` 의 마지막 `.value` 잔존(`qb_exchange_exit_rows_total` 라벨)을 `str(row.classification)` 로 바꿨다. 지금은 메모리 객체라 안전하지만, 소스가 재조회 경로로 바뀌는 리팩터 한 번이면 dogfood 때와 같은 크래시가 재현되는 자리였다(grep 결과 코드베이스에 남은 유일한 `.value`). 그리고 **감사 목록에서 빠져 있던 `ExchangeExit.attribution_confidence` 를 포함해 6개 필드 전부**에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만" 주석을 통일했다(`models.py:441 · 583 · 634 · 640 · 718 · 742`). 권장안 (b) 정적 가드와 (c) `sa.Enum` 복귀는 미착수.
+**상태:** 🟡 **부분 Resolved — 권장안 (a) 까지 (2026-07-25, `stage/exit-money-path`).** `tasks/trading.py:1698` 의 마지막 `.value` 잔존(`qb_exchange_exit_rows_total` 라벨)을 `str(row.classification)` 로 바꿨다. 지금은 메모리 객체라 안전하지만, 소스가 재조회 경로로 바뀌는 리팩터 한 번이면 dogfood 때와 같은 크래시가 재현되는 자리였다(grep 결과 코드베이스에 남은 유일한 `.value`). 그리고 **감사 목록에서 빠져 있던 `ExchangeExit.attribution_confidence` 를 포함해 6개 필드 전부**에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만" 주석을 통일했다(`models.py:441 · 583 · 634 · 640 · 718 · 742`). ~~권장안 (b) 정적 가드와 (c) `sa.Enum` 복귀는 미착수.~~
+→ ★**2026-08-24 n9-trading-contract — (b) 의 「선언 축」만 닫혔다. 「사용 축」은 구조적으로 못 닫는다.**
+신설 `apps/api/tests/trading/test_strenum_column_contract.py` 가 `sa_column=Column(..., String(...))` 위에 StrEnum 주석이 얹힌 필드를 AST 로 수집해(6건) **전건이 BL-453 계약 주석을 달고 있는지**를 잰다. 7번째 필드를 계약 없이 추가하면 red 다.
+★★**사용처 가드(「이 6개 필드에 `.value`/`.name` 금지」)는 기각됐다 — 다시 만들지 마라.** `apps/api/src` 전량 AST 실측에서 12건이 걸렸고 **12건 전부 위양성**이었다: `bt.status.value`·`run.status.value`(backtest·optimizer·stress_test)의 `status` 는 **진짜 Enum 컬럼**이라 `.value` 가 정당하고, `tally.channel.value`(`trading/entry_completeness.py`)의 `tally` 는 `ChannelTally` 라는 **로컬 dataclass** 다. ⇒ **필드 이름만으로는 소유 클래스를 못 가른다.**
+⇒ **잔여 = 사용 축 · (c) `sa.Enum` 복귀.** 사용 축을 닫으려면 이름이 아니라 **타입**을 봐야 하므로 mypy 게이트가 선행 조건이다(현재 CI 는 `ruff` 만 잰다).
 **트리거 판정:** 미도래 — 동승 조건. 「이 5개 필드에 `.value` 를 새로 쓰는 코드가 추가될 때」라 그 코드를 쓰는 회차에 붙는다. 단독 착수 시 값이 0이다 (2026-08-11 bl-703-partial-verdicts)
 
 ---
@@ -615,7 +608,9 @@ CI 를 표와 같은 실행에서 내게 만든 이유다.
 밀도가 함께 올라야 한다.** 이 회차는 그것을 재기만 했다 — 밀도를 올리는 처방은 미착수다.
 ★이 값을 「소크가 안 돌았다」로 읽지 마라. 2026-08-14 에 실제로 그렇게 읽어 status.md 표에
 「7일째 정지」를 적었는데, 그때 서버 소크는 돌고 있었다(2026-08-15 반증).
-**트리거 판정:** 도래 — Trigger 앞절이 발화했다. 「[BL-003] 재계획 시 즉시」인데 **2026-08-11 사용자 결정으로 C1 문턱이 「168h」에서 「누적 24h × 3회」로 교체**됐고(그 미반영이 [BL-701] 로 등재됐다), 뒷절 「소크 재기동 회차마다 재측정」도 2026-08-08 재기동으로 충족된다. ★기계는 트리거에 「소크」가 들어 있어 소크 축으로 버킷하고 미도래를 냈다 — **절의 접속을 반쪽만 읽은 것**이다 (2026-08-11 bl-703-partial-verdicts)
+**트리거 판정:** ★**2026-08-24 재분류 — 이 항목은 「닫을 수 있는 일」이 아니라 「소크 창마다 반복하는 측정」이다.**
+Trigger 뒷절이 「소크 **재기동 회차마다** 재측정」이라 일회성 종결점이 없고, 입력이 **살아 있는 소크 창**이라 코드 작업만으로는 진행이 안 된다. ⇒ ⓪ 표의 ★★★(= 지금 착수하면 닫힌다)는 **과대평가**였다. 소크 창을 다루는 회차에 **동승**시켜라 — 단독 회차의 주제로 고르지 마라.
+~~도래 — Trigger 앞절이 발화했다.~~ 「[BL-003] 재계획 시 즉시」인데 **2026-08-11 사용자 결정으로 C1 문턱이 「168h」에서 「누적 24h × 3회」로 교체**됐고(그 미반영이 [BL-701] 로 등재됐다), 뒷절 「소크 재기동 회차마다 재측정」도 2026-08-08 재기동으로 충족된다. ★기계는 트리거에 「소크」가 들어 있어 소크 축으로 버킷하고 미도래를 냈다 — **절의 접속을 반쪽만 읽은 것**이다 (2026-08-11 bl-703-partial-verdicts)
 
 **BL-003 의 실질 선행조건은 문턱이 아니라 MTBF 다.**
 
@@ -650,54 +645,6 @@ ADR-024 리셋 표에 의해 실격은 C1 을 0 으로 되돌린다. 그러므�
 이 BL 은 BL-003 의 하위 작업이 아니라 게이트 해석이므로, BL-003 의 Est 를 다시 잡기 전에 읽어야 한다.
 
 **Risk:** 🔴 MTBF 를 개선하지 않으면 168h 연속 무실격 조건은 사실상 도달 불가다.
-
-### BL-547
-
-**Title:** ★원장 seed 는 **그 tick 한 번만** 산다 — 다음 tick 에 조용한 고아가 될 수 있다 (아직 실측된 적 없음)
-**Category:** Backend / trading (BL-544 잔여)
-**Priority:** P2
-**Trigger:** ★`qb_live_position_divergence_total{category="exchange_only"}` 이 **실제로 오르는 것이 관측될 때**
-**Est:** M
-**상태:** ⬜ Open — seed 는 여전히 gap tick 1회에만 계산되고 `_qb_ledger_seed_since` watermark 는 레포에 0건 — 처방 미착수. ★**2026-08-11 ledger-truth: 트리거가 도래했다** (아래 판정 줄).
-**트리거 판정:** ~~미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)~~
-→ ★★★**2026-08-11 ledger-truth — 도래. `/metrics` 실측이 「미도래」와 본문 서술을 함께 반증했다.**
-
-서버 `apps/api/.metrics` **1회** 스냅샷(2026-08-11 · prometheus multiproc 직독):
-
-```
-qb_live_position_divergence_total{category="exchange_only"} 3.0
-qb_live_position_divergence_total{category="size"} 52.0
-qb_live_position_divergence_total{category="direction_transient"} 5.0
-qb_live_position_divergence_total{category="engine_only_awaiting_trigger"} 1.0
-```
-
-트리거는 「`…{category="exchange_only"}` 이 **실제로 오르는 것이 관측될 때**」다. **3.0 이다** ⇒ 도래.
-
-★★**본문의 「그 counter 는 역사적으로도 한 번도 오른 적이 없다」도 같이 반증됐다.** 그 문장이
-「미도래」 판정의 근거였으므로 **판정과 근거가 함께 무너진다.** 「외생 조건이라 우리 의지로
-만들 수 없다」는 참이지만, **외생 조건은 이미 발생했다** — 만들 필요가 없었다.
-
-★**동시에 상속받은 진단 하나를 기각한다.** 2026-08-11 착수 계획은 이 자기모순의 근거로
-「같은 파일이 그 카테고리 **21건**을 기록한다」를 들었다(현 `backlog.md` §divergence 분류 표).
-**그 표는 이 counter 가 아니다** — 표는 특정 분석 창의 이벤트 행 집계이고 라이브 counter 는
-**3.0** 이다. 결론(도래)은 같지만 **근거가 달랐다** ⇒ 「남이 준 실측도 실측이 아니다」.
-
-★**음성 대조 — 모든 판정이 뒤집힌 것은 아니다.** 같은 스냅샷에서 [BL-499] 의
-`cancel`/`cancel_raced`/`cancel_stalled` 는 **여전히 부재**다(`qb_live_conditional_cancelled_total`
-은 `reason="replaced"` 150.0 **하나뿐**). ⇒ [BL-499] 의 「미도래」는 **유지**다. 스냅샷이
-전건을 도래로 밀어 올리지 않았다는 것이 이 판독에 판별력이 있다는 증거다.
-**출처:** 2026-07-30 conditional-entry-alignment — 워커 `bl544` 가 자기 구현의 한계로 스스로 올린 것(codex G1 F6), 오케스트레이터가 코드 대조로 확인
-
-**원인 / 영향:** `ledger_seed` 는 `if requires_gap_resync:` **안에서만** 계산된다(`live_signal.py:1678` 초기화 · `:1720` 계산). 다음 tick 은 공백이 아니므로 원장을 읽지 않는다. 재생이 그 진입을 스스로 다시 만들지 못하면 엔진은 **다시 flat** 이 되고, 그때 발산은 `exchange_only` 로 분류돼 **counter 만 올리고 세션을 죽이지 않는다**(`live_signal.py:1765-1772`). 즉 이론상 **시끄러운 사망이 한 tick 뒤 조용한 고아로 바뀔 수 있다.**
-
-★**다만 2026-07-30 soak 3 leg 에서 발현하지 않았다.** 세 leg 모두 재생이 포지션을 스스로 재현했고 `exchange_only` 는 **부재(0) 를 유지**했다(그 counter 는 역사적으로도 한 번도 오른 적이 없다 — 세션이 gap 판정에서 먼저 죽어 발산 감지까지 도달한 적이 없었기 때문). 완화 요인 하나 — seed 를 **마지막 bar 직전**에 심으므로 그 tick 의 Pine 이 포지션을 보고 청산을 낼 수 있다. 전략이 닫으면 그 자리에서 해소된다.
-
-★[BL-541](#bl-541) 과 같은 프레임으로 둔다 — **측정되지 않은 필요 위에 상태 저장소를 짓지 않는다.**
-
-**권장 접근 (관측되면):** seed 창 watermark 를 `last_strategy_state_report` JSONB 에 `_qb_ledger_seed_since` 로 남기고(`_qb_position_epoch`(`:237`) / `_qb_direction_mismatch_seen`(`:233`) 과 같은 자리·같은 방식, 마이그레이션 0), 매 tick 그 창의 원장에서 seed 를 **재도출**한다. 창의 순포지션이 0 이 되면 marker 를 지워 자기 종결시킨다. **남는 구멍:** 부분 청산은 창이 inadmissible 이 되어 seed 가 끊긴다.
-**Risk:** 🟡 (관측되면 🔴 — 조용한 고아는 관리 주체가 없다)
-
----
 
 ### BL-619
 
@@ -901,42 +848,6 @@ CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최�
 
 ---
 
-### BL-671
-
-**Title:** [BL-661] 의 새 409 계약이 웹 UI 와 OpenAPI 에 **도달하지 않는다**
-**Category:** Frontend / trading · API 계약
-**Priority:** P2
-**Trigger:** 코크핏 청산 버튼으로 조건부 잔량을 봐야 할 때
-**Est:** S
-**상태:** 🟡 부분 해결 — 2026-08-10 close-ownership-axis 가 409 body 의 키를 레포 계약에 맞췄고(`message` → `detail`), 2026-08-10 fe-close-surface 가 **FE 축을 닫았다**: `RestingEntriesConflictSchema` 로 `orders` 를 펴고 `CloseOutcomePanel` 이 목록으로 그린다. 함께 `api-client.ts` 의 `code` 해석이 FastAPI 의 `{detail:{code}}` 한 겹을 파도록 고쳤다(종전에는 도메인 코드가 **언제나** `unknown_error` 였다). ★**본문의 「화면에 generic `API 409` 만 뜬다」는 두 표 중 하나에만 참이었다** — `account-positions-table` 은 이미 `describeApiError` 를 썼고 `open-positions-table` 만 `error.message` 였다. 그 비대칭도 함께 없앴다. **잔여 1건 = `router.py` 의 409 `responses` 선언(OpenAPI)**. 넣지 않은 이유는 아래 §OpenAPI 판단
-**트리거 판정:** 미도래 — 동승 조건(코크핏 청산 버튼으로 조건부 잔량을 봐야 할 때). 잔여 1건 = `router.py` 의 409 `responses` OpenAPI 선언이고, 본문 §OpenAPI 판단이 넣지 않은 이유를 적어 뒀다 (2026-08-11 bl-703-partial-verdicts)
-**출처:** 2026-08-10 guards-blind-spots codex 최종 적대 리뷰 (P2 — 코드 대조로 확정)
-
-**원인 / 영향:** 서버는 `409 {"detail": {"code": "resting_conditional_entries", "message": …,
-"orders": […]}}` 를 낸다. 그런데 `apps/web/src/lib/api-client.ts:53,97` 은 **최상위 `code`** 와
-**`detail.detail` 문자열**만 처리한다 ⇒ 주문 목록과 메시지가 사라지고 화면에는
-generic `API 409 …` 만 뜬다. `router.py:610` 에 409 `responses` 선언이 없어 **OpenAPI 에도
-이 구조가 없다**(생성 응답은 202·422 뿐).
-
-★백엔드는 완화를 이미 넣었다 — `message` 필드에 사람이 읽을 한국어 한 문장을 싣는다.
-그러나 클라이언트가 중첩 `detail` 을 안 펴므로 그것조차 화면에 안 나온다.
-★2026-08-10 회차는 `apps/web/` **0줄** 제약이라 손대지 않았다.
-
-**권장 접근:** 라우터에 409 error schema 를 선언하고, `api-client.ts` 가 중첩
-`detail.code`/`message`/`orders` 를 펴서 렌더하도록 맞춘다.
-
-**§OpenAPI 판단 (2026-08-10 fe-close-surface).** 409 `responses` 선언을 **넣지 않았다**.
-근거 셋이 전부 실측이다 — ⑴ `apps/web/` 에 OpenAPI 코드젠이 **없다**(생성 타입 파일 0 ·
-codegen 스크립트 0). 화면은 수기 Zod 로만 계약을 아니까 선언이 화면에 도달하는 경로 자체가
-없다. ⑵ `responses=` 를 쓰는 라우트가 `apps/api/src` 전체에 **0건**이다 — 넣으면 FE 회차가
-선례 없는 관례를 연다. ⑶ `test_main_openapi_gating.py` 는 docs **노출** 게이팅만 재고, 에러
-응답 문서화를 요구하는 게이트는 없다. ⇒ 값이 0 인데 `apps/api/src` 를 건드리게 된다.
-**넣을 값이 생기는 시점은 FE 가 OpenAPI 에서 타입을 생성하기 시작할 때**다.
-
-**Risk:** 🟡 ~~운영자가 화면만 보면 조건부 잔량을 못 본다~~ → 🟢 화면 축은 닫혔다. 남은 것은 문서 축
-
----
-
 ### BL-774
 
 **Title:** TradingView webhook 이 **body 기반 HMAC** 을 요구한다 — 동적 alert 본문에서 성립하는지 미확인
@@ -972,43 +883,3 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
 
-### BL-811
-
-**Title:** 로컬 검증 두 레그가 **같은 BE 를 서로 다른 origin 으로** 요구한다 — 한 번에 다 통과시킬 수 없다
-**Category:** 테스트 / 인프라 / DX
-**Priority:** P3
-**Trigger:** 도래 — 2026-08-19 실측으로 확인됐다 (구 종결 게이트 실행 중)
-**Est:** S~M (갈래 선택이 먼저다. 코드는 그다음)
-**출처:** 2026-08-19 n6-authed-evidence — 종결 게이트를 돌리려다 실측
-
-★**2026-08-19 재기술 ([ADR-037]).** 이 항목의 초판은 `final-gates.sh --deferred-only` 의 **유예 집합**을
-프레임으로 썼는데, 그 스크립트는 같은 날 제로베이스로 **철거됐다**(원문 = `git show harness-v1:tools/scripts/final-gates.sh`).
-유예 원장·종결 절차라는 껍데기는 사라졌지만 **밑에 있던 제약은 그대로 참이다** — 아래로 좁혀 다시 적는다.
-
-**원인 / 영향:** 로컬에서 돌리는 두 검증이 서로 다른 origin 을 요구한다.
-
-- `e2e chromium` · `e2e design-canon` · `e2e authed` — **FE dev 서버** `:3100` (`apps/web/e2e/_base-url.ts` 파생)
-- **화면 증거 팩 (authed)** — 러너가 띄우는 **프로덕션 서버** `:3110` (`screen-evidence.config.json` 의
-  `serverPortBase` + 슬롯). dev 서버를 쓰면 Turbopack 캐시 상태에 따라 번들 바이트가 흔들려 이 측정의
-  존재 이유가 사라지므로 **그 분리는 의도된 것**이다.
-
-그런데 BE 의 CORS 는 **단일 값**이다 — `apps/api/src/main.py` `allow_origins=[settings.frontend_url]`.
-`BETTER_AUTH_URL`(JWKS 취득 + JWT issuer)도 하나다. ⇒ 한 BE 인스턴스가 두 origin 을 동시에 받을 수 없고,
-**BE 를 한 번 띄운 채로 두 레그를 다 통과시킬 방법이 지금 없다.**
-
-★**거짓 초록은 안 난다** — origin 이 안 맞으면 화면 증거 레그의 전제 프로브가 그 자리에서 죽는다
-(진단 문구가 두 변수를 다 짚는다). 잃는 것은 **BE 재기동 없이 한 번에 끝내는 것** 하나다.
-
-**권장 접근:** ⑴ 갈래를 먼저 정해라 — ⓐ BE 를 **두 벌** 띄운다(포트가 다르면 `NEXT_PUBLIC_API_URL` 도
-갈라야 해서 빌드가 둘이 된다) ⓑ `allow_origins` 를 목록으로 넓힌다(**개발 전용 경로에 한정** — 프로덕션에서
-넓히면 [BL-754] 계열 결함이 된다) ⓒ 두 레그를 **다른 실행으로 나눈다**(가장 싸고 지금 실질적으로 하는 것.
-★[ADR-037] 이후에는 「유예 원장이 비어야 종결」 규약 자체가 없으므로 **ⓒ 의 유일했던 단점이 사라졌다**
-— 현재 기본 권장은 ⓒ 다) ⑵ ★**ⓑ 를 고른다면 `frontend_url` 을 읽는 곳 전부**(`config.py` validator ·
-`waitlist_invite_base_url` · 초대 메일 링크)를 함께 봐라 — 이 값은 CORS 전용이 아니다.
-
-**Risk:** 🟢 (거짓 초록은 안 난다. 로컬 검증이 두 번으로 나뉠 뿐)
-
-**상태:** ⬜ Open — 2026-08-19 등재 · 같은 날 **재기술**(구 `final-gates.sh` 프레임 제거). 미착수. ★실측: BE 를 `e2e` 짝(`FRONTEND_URL=:3100`)으로 맞추니 `e2e chromium`·`e2e design-canon`·`e2e authed`·`BE pytest`·`CI fresh DB alembic` 은 통과하고 **화면 증거 팩(authed)만 전제 프로브에서 죽었다** — 「측정 서버: `http://localhost:3110` / BE 가 허용: (헤더 없음 — 거부)」. 그 레그 자체는 별도 실행으로 rc=0 을 여러 번 확인했다
-**트리거 판정:** 도래 — 레그가 실재하고 충돌이 **종결 게이트 실행으로** 확인됐다 (2026-08-19 n6-authed-evidence)
-
----
