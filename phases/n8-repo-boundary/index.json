@@ -19,13 +19,16 @@
     {
       "step": 1,
       "name": "guard-and-frozen-census",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_repository_boundary_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
         "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T14:38:54+0900",
+      "summary": "AST 동결 래칫 추가: 실측 위반 7건을 파일+정규화 함수명으로 동결하고 새 위반·죽은 동결을 각각 차단한다(이전 Step 0 요약의 8건은 코드 재측정과 불일치).",
+      "completed_at": "2026-08-24T14:46:28+0900"
     },
     {
       "step": 2,
