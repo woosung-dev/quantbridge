@@ -285,34 +285,6 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 ---
 
-### BL-520
-
-**Title:** 머니-패스의 metric mutation 전면 sweep — 관측 코드가 주문 경로를 막을 수 없어야 한다
-**Category:** Backend / trading (money-path)
-**Priority:** P2
-**Trigger:** 실자금 cutover 전
-**Est:** S
-**상태:** 🟡 **부분 해결 — 좌표로 지목된 것은 전건 스윕됐다. 남은 것은 「남은 census 가 규칙 범위인가」 실측 1건** (2026-08-25 n10-metric-guard).
-★**2026-08-25 n10 실측** — 미보호 census **63 → 30**(동결 키 32→17). 위 잔여 22건이 지목한 파일 6종(`tasks/trading.py`·`conditional_entry_janitor.py`·`_ws_circuit_breaker.py`·`trading/providers.py`·`common/redlock.py`·`tasks/backtest.py`)은 census 에서 **전부 사라졌다**. metric 삭제로 줄인 것이 아니다 — 제거·추가 1:1 대조로 확인했다.
-★**동승 수리 — 「감쌌다」의 절반이 가짜였다.** `record_metric_safely(qb_x.labels(...).inc)` 는 인자가 **먼저 평가**돼 `.labels()` 가 가드 **밖**에서 돈다(멀티프로세스 모드에서 새 라벨 조합은 그 시점에 mmap 을 늘린다). 이 형태 **14건**을 `_count_safely` / `lambda` 지연 평가로 바꿔 **0건**. 새 가드 = `tests/common/test_labels_outside_guard.py`(동결 `{}` + 양성 대조 `_EXPECTED_LAMBDA_WRAPPED_LABELS` 4파일).
-★★**남은 30건은 범위 미측정이다** — 규칙(`apps/api/AGENTS.md` §4)의 범위는 「업무 결과를 보고하는 `try`·`except` 본문」인데, census 는 **그 밖까지** 센다. 현재 「해로운 자리 0건」 단언은 손으로 고른 후보 **4쌍만** 본다(`_HARMFUL_MUTATION_CANDIDATES`). **이 항목을 닫으려면 30건을 그 스캐너에 교차하는 실측 1건이 먼저다.**
-★**종전 상태줄이 지목한 좌표는 거짓이었다** — `live_signal.py:4180` 의 그 호출은 **이미 `record_metric_safely` 로 감싸져 있었다**(`record_metric_safely(\n  qb_active_orders.dec\n)` 로 줄이 나뉘어 grep 에 안 보였을 뿐이다). 문자열 검색으로 구조를 읽어 생긴 오기다.
-★**AST 로 다시 잰 실측** — 규칙(`apps/api/AGENTS.md` §4: 「업무 결과를 보고하는 `try`·`except` 본문」)의 범위에서 `live_signal.py` 위반 **15건**을 n9 가 전건 수리했고(census 15→0, 변이 4/4 기대 일치), 가드는 `apps/api/tests/common/test_metric_safety_guard.py` 가 동결한다.
-★**잔여 22건**(`apps/api/src` 전량 AST 실측 2026-08-24) — `tasks/trading.py` 5 · `tasks/conditional_entry_janitor.py` 5 · `tasks/_ws_circuit_breaker.py` 4 · `trading/providers.py` 1 · `common/redlock.py` 1 · `tasks/backtest.py` 1 · 그 외. ★그중 `common/metrics_multiproc.py:35` 는 **`record_metric_safely` 자신의 실패 계상**이라 대상이 아니다 — 스윕을 이어받으면 그것부터 제외해라.
-★**가드의 사각** — `live_signal.py` 의 **직접 `qb_*` 호출만** 본다. 별칭·동적 접근·다른 파일은 못 잡는다.
-**트리거 판정:** ~~미도래 — 외생 조건(실자금 cutover)~~ → ★★**2026-08-24 — 이 Trigger 는 발화 불가가 됐다.**
-2026-08-23 사용자 결정 ⑴「실자금 안 간다」로 cutover 자체가 없다(`docs/PRD.md` §0). Trigger 를 그대로 두면 이 항목은**영구히 미도래**로 남는다. ⇒ n9 는 Trigger 를 기다리지 않고 **데모에서 지금 발화 가능하다**는 근거로 착수했다(그 판단은 종전 판정줄 자신이 이미 적어 두었다). **잔여 22건도 같은 근거로 단독 착수 가능하다.**
-**출처:** 2026-07-28 live-observability G6 codex 최종 적대 리뷰 (P1 의 후속)
-
-**원인 / 영향:** BL-506 이 metric mutation 을 in-memory 증가에서 **공유 mmap 파일 쓰기**로 바꿨다. 그래서 read-only 마운트·ENOSPC·I/O 오류에 예외를 던질 수 있다.
-
-이번 세션은 **주문을 영구 좌초시키는 유일한 지점** 하나만 고쳤다 — `order_service.py` 의 commit 직후·dispatch 직전 `qb_active_orders.inc()`(예외 시 주문 행은 commit 됐는데 dispatch 가 안 되고, 멱등 재시도는 캐시 조기 반환에 걸려 **영구 미발주**).
-
-남은 것: `dec()` **13곳**과 `tasks/trading.py`·`tasks/live_signal.py`의 다른 metric 호출. 이들은 terminal 전이 이후라 예외 시 Celery 재시도로 회복되므로 좌초시키지는 않지만, **불변식으로 못박는 것이 옳다.**
-
-**권장 접근:** 머니-패스의 모든 metric mutation 을 `record_metric_safely` 로 감싸고, 그 규칙을 `apps/api/AGENTS.md` 에 등재한다.
-**Risk:** 🟡
-
 ## P3 — Nice-to-have / 컨벤션 정합
 
 > 12 archived (BL-050/051/052/053/054/055/056/057/138/139/151/153). ~~**활성 P3 = 8**~~ ★**stale** — 2026-08-08 `bl-audit.sh` 실측 P3 ACTIVE **101**. 이 파일 헤더 규약대로 집계 수치는 여기 박지 말고 스크립트를 돌려라 (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen). ★2026-08-06 entry-set-divergence 강등 = BL-606/607/608/609.
