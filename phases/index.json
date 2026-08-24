@@ -1,3 +1,6 @@
 {
-  "phases": []
+  "phases": [
+    { "dir": "n9-metric-safety", "status": "pending" },
+    { "dir": "n9-trading-contract", "status": "pending" }
+  ]
 }
