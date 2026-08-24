@@ -341,9 +341,10 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 **둘 다 「남은 건수」를 뺄셈으로 보고했다가 실측에서 드러났다.** ⇒ **절 단위 삭제 전에 그 범위
 안의 `###` 를 먼저 세라. 그리고 삭제 후 건수는 반드시 다시 grep 해라.**
 
-**다음 행동 = `python3 tools/harness/execute.py --parallel 4 --stage stage/n7-truth --confirm`** — n7 4 lane 저작 완료(2026-08-24). `phases/index.json` 에 `pending` 4벌이 등재돼 있다.
+~~**다음 행동 = n7 4 lane 병렬 주행**~~ → **2026-08-24 완주** — 14 step 전부 `completed`(blocked·error 0건), PR #793~#796 → 통합 #797 머지(`159745b7`). ★러너 반증 2건: **`phases/index.json` 사전 등록은 충돌을 못 막는다**(러너가 lane 별 `status` 를 **인접 줄**에 써 첫 머지 후 나머지 3벌이 DIRTY — 사전 등록이 막는 것은 *배열 추가* 충돌뿐) · **러너가 충돌을 「CI 대기 시간 초과」로 오기록한다**(CONFLICTING 이면 CI 가 아예 안 도는데 빈 `statusCheckRollup` 을 「대기」로 읽는다). ★lane→CONTROL 인계 3건 처리: ⑴ 「관측 metric 은 `record_metric_safely` 로 감싼다」를 `apps/api/AGENTS.md` §4 에 등재(lane 은 가드레일 파일을 못 만진다) · ⑵ 기존 테스트 `test_parse_and_run_v2_raises_becomes_parse_failed` 가 **결함을 계약화**하고 있었다(미지 `RuntimeError` 를 사용자 Pine 문법 실패로 단정) — 이름·단언을 `…becomes_error` 로 정정 · ⑶ 신설 가드 2종의 사각을 기록: FE decision-surface 가드는 **이미지·번역 리소스·런타임 응답 문자열**을 못 잡고, BE metric AST 가드는 **별칭·동적 접근·모듈 alias** 를 못 잡는다.
+**다음 행동 = `apps/web/AGENTS.md` 373줄(7,195 tok)을 200줄 아래로** — 하네스 주행이 끝나 「주행 중 가드레일 전문 변경」 충돌이 사라졌다. `apps/api/AGENTS.md` 와 같은 방법(긴 절 → `docs/development/` + 포인터).
 ~~남은 세션 비용 축을 마저 깎는다 — `apps/web/AGENTS.md` 373줄(7,195 tok)을 200줄 아래로~~ → **2026-08-24 — 이 항목은 lane 이 될 수 없다.** 그 파일은 **모든 lane 프롬프트에 전문 주입되는 가드레일**이라
-주행 중에 바뀌면 lane 마다 다른 규칙을 본다. **CONTROL 이 하네스 주행 전/후에 단독으로** 처리한다. 미착수.
+주행 중에 바뀌면 lane 마다 다른 규칙을 본다. **CONTROL 이 하네스 주행 전/후에 단독으로** 처리한다. → **2026-08-24 주행 종료로 조건 충족 — 위의 살아 있는 `다음 행동` 으로 승격.**
 ~~`apps/api/AGENTS.md` 508줄(10,040 tok)~~ → **2026-08-23 이 회차로 275줄**(30,122→18,878B). §9(Celery
 prefork-safe) 119줄은 `docs/development/celery-prefork.md` 로 분리하고 포인터만 남겼다. **목표 <200줄은
 아직 75줄 미달** — 남은 후보는 §3 트리·§2 규칙 표다. FE 도 같은 방법(긴 절 → `docs/development/` + 포인터)으로 깎는다.
