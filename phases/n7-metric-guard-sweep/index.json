@@ -34,13 +34,16 @@
     {
       "step": 2,
       "name": "guard-shape-b-inside-except",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && test \"$(grep -c 'len(_FROZEN_CENSUS) == 36' tests/common/test_metric_guard_census.py)\" -ge 1",
         "cd apps/api && test \"$(grep -c 'sum(_FROZEN_CENSUS.values()) == 79' tests/common/test_metric_guard_census.py)\" -ge 1",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks tests/common tests/trading -q"
-      ]
+      ],
+      "started_at": "2026-08-24T11:25:04+0900",
+      "summary": "실측 수정 좌표: `apps/api/src/trading/realtime_publisher.py:55 qb_rt_publish_failed_total`와 `apps/api/src/trading/webhook.py:177 qb_webhook_symbol_rejected_total`; 둘 다 `record_metric_safely(qb_…inc)` bound-method 형식으로 감쌌다. 해로운 raw 자리 검증은 0건(`harmful_raw=0`)을 요구하되, 같은 결과보고-try 스캐너가 전 소스에서 최소 100곳을 훑게 해 양성 대조를 붙였다(재측정 138곳). `_PROTECTED_SITES`는 기존 27 + Step 1의 2 + Step 2의 2로 총 31건이며, 새 항목은 `_publish_envelope`와 `_normalized_symbol_or_reject`의 except-handler 예외 누출 이유를 고정한다. AC 전체 통과: census 7 passed, tasks/common/trading 2157 passed·12 skipped.",
+      "completed_at": "2026-08-24T11:32:35+0900"
     },
     {
       "step": 3,
