@@ -77,9 +77,7 @@ class StateHandler:
         self._alert_sender = alert_sender or send_critical_alert
         self._user_id = user_id
 
-    async def handle_order_event(
-        self, account_id: UUID, payload: dict[str, Any]
-    ) -> None:
+    async def handle_order_event(self, account_id: UUID, payload: dict[str, Any]) -> None:
         order_link_id = payload.get("orderLinkId")
         exchange_order_id = payload.get("orderId")
 
@@ -94,9 +92,7 @@ class StateHandler:
                     order = await repo.get_by_id(UUID(order_link_id))
             # fallback: exchange_order_id
             if order is None and exchange_order_id:
-                order = await self._get_by_exchange_order_id(
-                    repo, exchange_order_id
-                )
+                order = await repo.get_by_exchange_order_id(exchange_order_id)
 
             if order is None:
                 # 로컬 행이 없다 — 회수는 reconciler 몫이므로 여기선 폐기하고 계상한다.
@@ -173,9 +169,7 @@ class StateHandler:
                         },
                     )
 
-    def _discard_orphan(
-        self, key: str, payload: dict[str, Any], account_id: UUID
-    ) -> None:
+    def _discard_orphan(self, key: str, payload: dict[str, Any], account_id: UUID) -> None:
         """로컬 행이 없는 WS 이벤트를 폐기하고 **폐기 축**으로 계상한다 (BL-448).
 
         ★도착 축(`qb_ws_orphan_event_total`)과 따로 세는 이유 — 도착 수만으로는 **무엇을
@@ -192,9 +186,7 @@ class StateHandler:
         reason = "terminal_event_lost" if is_terminal else "non_terminal_ignored"
 
         qb_ws_orphan_event_total.labels(account_id=str(account_id)).inc()
-        qb_ws_orphan_discarded_total.labels(
-            account_id=str(account_id), reason=reason
-        ).inc()
+        qb_ws_orphan_discarded_total.labels(account_id=str(account_id), reason=reason).inc()
 
         log = logger.warning if is_terminal else logger.debug
         log(
@@ -243,17 +235,3 @@ class StateHandler:
         elif new_state == OrderState.cancelled:
             return await repo.transition_to_cancelled(order_id, cancelled_at=now)
         return 0
-
-    async def _get_by_exchange_order_id(
-        self, repo: OrderRepository, exchange_order_id: str
-    ) -> Any:
-        """OrderRepository 가 이 메소드를 직접 제공하지 않으면 raw SQL 로."""
-        from sqlalchemy import select
-
-        from src.trading.models import Order
-
-        stmt = select(Order).where(
-            Order.exchange_order_id == exchange_order_id  # type: ignore[arg-type]
-        )
-        result = await repo.session.execute(stmt)
-        return result.scalar_one_or_none()

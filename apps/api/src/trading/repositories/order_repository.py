@@ -354,6 +354,55 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_by_exchange_order_id(self, exchange_order_id: str) -> Order | None:
+        result = await self.session.execute(
+            select(Order).where(  # type: ignore[arg-type]
+                Order.exchange_order_id == exchange_order_id
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def sum_filled_realized_pnl_by_strategy(self, strategy_id: UUID) -> Decimal:
+        """전략의 filled 주문 실현 손익 합계를 항상 Decimal로 반환한다."""
+        stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
+            and_(
+                Order.strategy_id == strategy_id,  # type: ignore[arg-type]
+                Order.state == OrderState.filled,  # type: ignore[arg-type]
+            )
+        )
+        raw = (await self.session.execute(stmt)).scalar_one()
+        return Decimal(str(raw))
+
+    async def sum_filled_realized_pnl_by_account_in_window(
+        self,
+        account_id: UUID,
+        *,
+        started_at: datetime,
+        ended_at: datetime,
+    ) -> Decimal:
+        """계정의 시간 창 안 filled 주문 실현 손익 합계를 항상 Decimal로 반환한다."""
+        stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
+            and_(
+                Order.exchange_account_id == account_id,  # type: ignore[arg-type]
+                Order.state == OrderState.filled,  # type: ignore[arg-type]
+                Order.filled_at >= started_at,  # type: ignore[arg-type,operator]
+                Order.filled_at < ended_at,  # type: ignore[arg-type,operator]
+            )
+        )
+        raw = (await self.session.execute(stmt)).scalar_one()
+        return Decimal(str(raw))
+
+    async def list_active_by_exchange_account(self, account_id: UUID) -> list[Order]:
+        """계정의 pending / submitted 주문을 반환한다."""
+        stmt = select(Order).where(
+            Order.exchange_account_id == account_id,  # type: ignore[arg-type]
+            Order.state.in_(  # type: ignore[attr-defined]
+                [OrderState.pending, OrderState.submitted]
+            ),
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
     async def list_resting_conditional_entries(
         self, strategy_id: UUID, exchange_account_id: UUID
     ) -> Sequence[Order]:

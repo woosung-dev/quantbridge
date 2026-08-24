@@ -7,7 +7,8 @@
     },
     {
       "dir": "n8-repo-boundary",
-      "status": "pending"
+      "status": "completed",
+      "completed_at": "2026-08-24T15:12:58+0900"
     },
     {
       "dir": "n8-fe-api-contracts",
