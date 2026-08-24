@@ -105,6 +105,29 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
 }
 
 
+# `_FROZEN_CENSUS`의 raw mutation을 업무 결과 보고 try의 A/B 자리에만 한정해 다시 센다.
+# 값은 (in_scope, out_of_scope)이며, 각 합은 위 census의 같은 키 수와 같아야 한다.
+_FROZEN_CENSUS_SCOPE: dict[tuple[str, str], tuple[int, int]] = {
+    ("apps/api/src/common/alert.py", "qb_pending_alerts"): (0, 2),
+    ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): (0, 1),
+    ("apps/api/src/common/redis_client.py", "qb_redis_lock_pool_healthy"): (0, 1),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): (0, 1),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): (0, 3),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): (0, 1),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): (0, 5),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): (0, 1),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): (0, 6),
+    ("apps/api/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): (0, 1),
+    ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): (0, 2),
+    ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): (0, 1),
+    ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): (0, 1),
+    ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): (0, 1),
+    ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): (0, 1),
+    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): (0, 1),
+    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): (0, 1),
+}
+
+
 _CENSUS_ALLOWLIST: dict[tuple[str, str], int] = {
     # 자기-계상 실패 counter를 다시 record_metric_safely로 감싸면 무한 재귀한다.
     # 이 inc()는 record_metric_safely의 자체 try/except 안에서 이미 보호된다.
@@ -412,6 +435,28 @@ def _census_counts(
     return Counter((site.path, site.metric) for site in sites) - Counter(allowlist)
 
 
+def _census_scope_counts() -> dict[tuple[str, str], tuple[int, int]]:
+    """동결 census의 개별 raw mutation을 결과 보고 try 범위로 분류한다."""
+    scope_counts = {key: [0, 0] for key in _FROZEN_CENSUS}
+    for path, tree in _source_trees():
+        relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
+        parents = _parent_nodes(tree)
+        guarded_node_ids = _guarded_node_ids(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or id(node) in guarded_node_ids:
+                continue
+            mutation = _mutation_site(node)
+            if mutation is None:
+                continue
+            metric, _ = mutation
+            key = relative_path, metric
+            if key not in scope_counts:
+                continue
+            is_in_scope = _nearest_result_reporting_try_shape(node, parents) is not None
+            scope_counts[key][0 if is_in_scope else 1] += 1
+    return {key: (counts[0], counts[1]) for key, counts in scope_counts.items()}
+
+
 def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_MetricSite]) -> str:
     added_sites: list[_MetricSite] = []
     for key, actual_count in actual.items():
@@ -539,6 +584,39 @@ def test_census_allowlist_entries_exist_and_are_required() -> None:
 
     assert {key: without_allowlist[key] for key in _CENSUS_ALLOWLIST} == _CENSUS_ALLOWLIST
     assert without_allowlist != _FROZEN_CENSUS
+
+
+def test_census_scope_classification_matches_the_frozen_map() -> None:
+    assert _census_scope_counts() == _FROZEN_CENSUS_SCOPE
+
+
+def test_census_scope_totals_reconcile_with_the_census() -> None:
+    actual = _census_scope_counts()
+
+    assert actual.keys() == _FROZEN_CENSUS.keys()
+    assert all(
+        in_scope + out_of_scope == _FROZEN_CENSUS[key]
+        for key, (in_scope, out_of_scope) in actual.items()
+    )
+
+
+def test_census_scope_scanner_is_not_vacuous() -> None:
+    fixture = ast.parse(
+        """
+try:
+    qb_census_scope.inc()
+except Exception:
+    logger.error("business operation failed")
+"""
+    )
+    mutation = next(
+        node
+        for node in ast.walk(fixture)
+        if isinstance(node, ast.Call) and _mutation_site(node) == ("qb_census_scope", "inc")
+    )
+
+    assert _result_reporting_try_count() >= 1
+    assert _nearest_result_reporting_try_shape(mutation, _parent_nodes(fixture)) == "A"
 
 
 def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:
