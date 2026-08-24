@@ -156,6 +156,21 @@ class RestingEntryOrder(BaseModel):
         )
 
 
+class RestingEntriesConflictDetail(BaseModel):
+    """포지션 없이 미체결 진입 주문만 남은 청산 차단 사유."""
+
+    code: Literal["resting_conditional_entries"]
+    count: int
+    detail: str
+    orders: list[RestingEntryOrder]
+
+
+class ClosePositionConflictResponse(BaseModel):
+    """청산 409 응답의 FastAPI ``detail`` 외피를 포함한 계약."""
+
+    detail: str | RestingEntriesConflictDetail
+
+
 class ClosePositionResponse(BaseModel):
     order_id: UUID
     state: OrderState

@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.trading.exceptions import ProviderError
 from src.trading.models import ExchangeMode, ExchangeName, Order, OrderSide, OrderState, OrderType
 from src.trading.providers import ConditionalOrderSnapshot, PositionSnapshot
+from src.trading.schemas import ClosePositionConflictResponse
 from src.trading.services.close_service import ClosePositionService
 from src.trading.services.order_service import OrderService
 
@@ -219,7 +220,7 @@ async def test_close_rejects_flat_or_hedged_position(positions, reason) -> None:
     orders.execute.assert_not_awaited()
 
 
-async def test_close_still_returns_no_open_position_when_truly_flat() -> None:
+async def test_close_409_still_returns_no_open_position_when_truly_flat() -> None:
     """[BL-661] **음성 대조** — 포지션도 조건부도 없으면 계약은 한 글자도 안 바뀐다.
 
     `detail` 은 여전히 **문자열** `no_open_position` 이다. 이걸 dict 로 바꾸면
@@ -233,10 +234,13 @@ async def test_close_still_returns_no_open_position_when_truly_flat() -> None:
 
     assert exc_info.value.status_code == 409
     assert exc_info.value.detail == "no_open_position"
+    assert ClosePositionConflictResponse.model_validate(
+        {"detail": exc_info.value.detail}
+    ).detail == ("no_open_position")
     orders.execute.assert_not_awaited()
 
 
-async def test_close_reports_resting_conditional_entries_when_flat() -> None:
+async def test_close_409_reports_resting_conditional_entries_when_flat() -> None:
     """[BL-661] 포지션이 비어도 **미체결 조건부 진입**이 남아 있으면 flat 이 아니다.
 
     그 주문은 나중에 트리거되어 아무도 안 보는 때 포지션을 연다. 종전에는 이 경우가
@@ -258,6 +262,8 @@ async def test_close_reports_resting_conditional_entries_when_flat() -> None:
     assert detail["count"] == 2
     assert detail["detail"] == "포지션은 없지만 미체결 진입 주문 2건이 남아 있습니다."
     assert [o["order_id"] for o in detail["orders"]] == ["ex-cond-1", "ex-cond-2"]
+    conflict = ClosePositionConflictResponse.model_validate({"detail": detail})
+    assert conflict.detail.code == "resting_conditional_entries"
     # 청산 주문은 나가지 않는다 — 포지션이 없으므로 낼 것이 없다.
     orders.execute.assert_not_awaited()
 
