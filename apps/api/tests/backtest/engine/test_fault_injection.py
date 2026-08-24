@@ -78,16 +78,28 @@ class TestRunBacktestFaultInjection:
         assert outcome.result is None
         assert str(raised) in str(outcome.error)
 
-    def test_parse_and_run_v2_raises_becomes_parse_failed(self, valid_ohlcv: pd.DataFrame) -> None:
-        """pine_v2 parse/classify 예외 → BacktestOutcome(status='parse_failed')."""
+    def test_parse_and_run_v2_raises_becomes_error(self, valid_ohlcv: pd.DataFrame) -> None:
+        """원인 미지 예외는 Pine 문법 오류로 단정하지 않고 error로 노출한다."""
         with patch(
             "src.backtest.engine.v2_adapter.parse_and_run_v2",
             side_effect=RuntimeError("parse boom"),
         ):
             outcome = run_backtest(SIMPLE_PINE_V5, valid_ohlcv)
-        assert outcome.status == "parse_failed"
+        assert outcome.status == "error"
         assert outcome.result is None
         assert "parse boom" in str(outcome.error)
+
+    def test_parse_and_run_v2_key_error_becomes_error(self, valid_ohlcv: pd.DataFrame) -> None:
+        """임의 런타임 예외도 catch-all에서 error로 노출한다."""
+        with patch(
+            "src.backtest.engine.v2_adapter.parse_and_run_v2",
+            side_effect=KeyError("missing state"),
+        ):
+            outcome = run_backtest(SIMPLE_PINE_V5, valid_ohlcv)
+
+        assert outcome.status == "error"
+        assert outcome.result is None
+        assert "missing state" in str(outcome.error)
 
     def test_build_raw_trades_exception_becomes_error(self, valid_ohlcv: pd.DataFrame) -> None:
         """_build_raw_trades 예외 → BacktestOutcome(status='error')."""
