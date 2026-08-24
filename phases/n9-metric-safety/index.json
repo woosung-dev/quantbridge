@@ -20,13 +20,16 @@
     {
       "step": 1,
       "name": "wrap-raw-metric-sites",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run python -c \"from tests.common.test_metric_safety_guard import all_metric_sites, raw_metric_sites; import sys; sys.exit(0 if len(all_metric_sites())>=30 and len(raw_metric_sites())==0 else 1)\"",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q",
         "cd apps/api && uv run ruff check src/tasks/live_signal.py tests/common/test_metric_safety_guard.py"
-      ]
+      ],
+      "started_at": "2026-08-24T18:43:41+0900",
+      "summary": "live_signal.py의 try/except/finally 내부 raw metric mutation 15건을 record_metric_safely로 감싸고 AST census를 0건으로 갱신한다.",
+      "completed_at": "2026-08-24T18:49:12+0900"
     },
     {
       "step": 2,
