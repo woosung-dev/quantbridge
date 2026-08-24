@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "violations_by_file": {
+    "DESIGN.md": 24,
+    "apps/web/e2e/design-canon-responsive.spec.ts": 7
+  }
+}
