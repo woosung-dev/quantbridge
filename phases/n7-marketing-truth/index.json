@@ -38,7 +38,7 @@
     {
       "step": 2,
       "name": "landing-surface",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec vitest run src/features/marketing src/lib/__tests__/marketing-canon.test.ts",
         "test \"$(grep -l '메인넷' apps/web/src/features/marketing/components/landing-faq.tsx apps/web/src/features/marketing/components/landing-features.tsx 2>/dev/null | wc -l | tr -d ' ')\" -eq 0",
@@ -46,7 +46,10 @@
         "test \"$(grep -c 'Bybit' apps/web/src/features/marketing/components/landing-faq.tsx)\" -ge 1",
         "cd apps/web && pnpm exec biome check src/features/marketing",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-24T11:13:48+0900",
+      "summary": "새 FAQ 답변 전문: \"지금 연결되는 거래소는 Bybit 하나뿐이며 데모 환경만 제공합니다. 표에 없는 거래소는 지원하지 않습니다. OKX, Binance, Bitget은 지원하지 않으며 추가 계획도 없습니다. 거래소 연결은 CCXT 를 씁니다. 라이브러리가 지원한다고 해서 이 도구가 지원하는 것은 아니라서, 주문이 실제로 오간 것만 지원으로 적습니다.\" 미지원 고지는 Step 0의 ROADMAP_DISCLAIMER를 그대로 렌더했다. 메인넷 주문의 과거 이력은 부정하지 않고 현재 제공 범위를 말했으며, 단언은 \"데모와 메인넷 두 환경을 지원합니다\"에서 \"데모 환경만 제공합니다\"로, \"로드맵에 있을 뿐 아직 연동 코드가 없습니다\"에서 \"지원하지 않으며 추가 계획도 없습니다\"로 바꿨다. 기능 카드도 \"Bybit 데모 · Bybit 메인넷\"에서 \"Bybit 데모\"로 정렬했다.",
+      "completed_at": "2026-08-24T11:18:07+0900"
     },
     {
       "step": 3,
