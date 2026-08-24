@@ -84,6 +84,8 @@ _HARMFUL_MUTATION_CANDIDATES = frozenset(
 )
 
 
+# `_FROZEN_CENSUS`는 규칙 범위(결과 보고 `try`의 A/B)의 상위집합이며, 규칙 위반 건수가 아니다.
+# Step 0 범위 판정 축 `_FROZEN_CENSUS_SCOPE`가 각 자리를 기계로 다시 검증한다.
 _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/common/alert.py", "qb_pending_alerts"): 2,
     ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): 1,
@@ -102,6 +104,29 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
     ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): 1,
     ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): 1,
+}
+
+
+# `_FROZEN_CENSUS`의 raw mutation을 업무 결과 보고 try의 A/B 자리에만 한정해 다시 센다.
+# 값은 (in_scope, out_of_scope)이며, 각 합은 위 census의 같은 키 수와 같아야 한다.
+_FROZEN_CENSUS_SCOPE: dict[tuple[str, str], tuple[int, int]] = {
+    ("apps/api/src/common/alert.py", "qb_pending_alerts"): (0, 2),
+    ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): (0, 1),
+    ("apps/api/src/common/redis_client.py", "qb_redis_lock_pool_healthy"): (0, 1),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): (0, 1),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): (0, 3),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): (0, 1),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): (0, 5),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): (0, 1),
+    ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): (0, 6),
+    ("apps/api/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): (0, 1),
+    ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): (0, 2),
+    ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): (0, 1),
+    ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): (0, 1),
+    ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): (0, 1),
+    ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): (0, 1),
+    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): (0, 1),
+    ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): (0, 1),
 }
 
 
@@ -345,9 +370,20 @@ def _nearest_result_reporting_try_shape(node: ast.AST, parents: dict[int, ast.AS
     return None
 
 
+def _in_scope_census_entries() -> frozenset[tuple[str, str]]:
+    """step 0 범위 판정에서 결과 보고 try의 A/B에 든 census 키를 도출한다."""
+    return frozenset(key for key, (in_scope, _) in _census_scope_counts().items() if in_scope > 0)
+
+
+def _harmful_scan_candidates() -> frozenset[tuple[str, str]]:
+    """전량 범위 대상과 수동 하한선 제어군을 함께 훑을 후보 집합."""
+    return _in_scope_census_entries() | _HARMFUL_MUTATION_CANDIDATES
+
+
 def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
-    """수동 동결 후보의 raw mutation이 A/B 해로운 try 자리에 남았는지 수집한다."""
+    """범위 도출 후보의 raw mutation이 A/B 해로운 try 자리에 남았는지 수집한다."""
     harmful_sites: list[_HarmfulMetricSite] = []
+    candidates = _harmful_scan_candidates()
     for path, tree in _source_trees():
         relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
         parents = _parent_nodes(tree)
@@ -358,7 +394,7 @@ def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
             if mutation is None:
                 continue
             metric, _ = mutation
-            if (relative_path, metric) not in _HARMFUL_MUTATION_CANDIDATES:
+            if (relative_path, metric) not in candidates:
                 continue
             shape = _nearest_result_reporting_try_shape(node, parents)
             if shape is None:
@@ -410,6 +446,28 @@ def _census_counts(
     sites: list[_MetricSite], allowlist: dict[tuple[str, str], int]
 ) -> Counter[tuple[str, str]]:
     return Counter((site.path, site.metric) for site in sites) - Counter(allowlist)
+
+
+def _census_scope_counts() -> dict[tuple[str, str], tuple[int, int]]:
+    """동결 census의 개별 raw mutation을 결과 보고 try 범위로 분류한다."""
+    scope_counts = {key: [0, 0] for key in _FROZEN_CENSUS}
+    for path, tree in _source_trees():
+        relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
+        parents = _parent_nodes(tree)
+        guarded_node_ids = _guarded_node_ids(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or id(node) in guarded_node_ids:
+                continue
+            mutation = _mutation_site(node)
+            if mutation is None:
+                continue
+            metric, _ = mutation
+            key = relative_path, metric
+            if key not in scope_counts:
+                continue
+            is_in_scope = _nearest_result_reporting_try_shape(node, parents) is not None
+            scope_counts[key][0 if is_in_scope else 1] += 1
+    return {key: (counts[0], counts[1]) for key, counts in scope_counts.items()}
 
 
 def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_MetricSite]) -> str:
@@ -541,6 +599,39 @@ def test_census_allowlist_entries_exist_and_are_required() -> None:
     assert without_allowlist != _FROZEN_CENSUS
 
 
+def test_census_scope_classification_matches_the_frozen_map() -> None:
+    assert _census_scope_counts() == _FROZEN_CENSUS_SCOPE
+
+
+def test_census_scope_totals_reconcile_with_the_census() -> None:
+    actual = _census_scope_counts()
+
+    assert actual.keys() == _FROZEN_CENSUS.keys()
+    assert all(
+        in_scope + out_of_scope == _FROZEN_CENSUS[key]
+        for key, (in_scope, out_of_scope) in actual.items()
+    )
+
+
+def test_census_scope_scanner_is_not_vacuous() -> None:
+    fixture = ast.parse(
+        """
+try:
+    qb_census_scope.inc()
+except Exception:
+    logger.error("business operation failed")
+"""
+    )
+    mutation = next(
+        node
+        for node in ast.walk(fixture)
+        if isinstance(node, ast.Call) and _mutation_site(node) == ("qb_census_scope", "inc")
+    )
+
+    assert _result_reporting_try_count() >= 1
+    assert _nearest_result_reporting_try_shape(mutation, _parent_nodes(fixture)) == "A"
+
+
 def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:
     """0건 단언은 결과 보고 try 양성 대조와 함께만 허용한다 (2026-08-24 실측 138건)."""
     actual = _harmful_mutation_sites()
@@ -551,6 +642,21 @@ def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:
         "결과 보고 try 스캐너가 100곳 미만만 훑었다 — 해로운 자리 0건은 대상 미도달로도 참이다: "
         f"{reporting_try_count}"
     )
+
+
+def test_harmful_scan_covers_every_in_scope_census_entry() -> None:
+    assert _harmful_scan_candidates() >= _in_scope_census_entries()
+
+
+def test_harmful_candidate_lower_bound_is_still_covered() -> None:
+    assert _harmful_scan_candidates() >= _HARMFUL_MUTATION_CANDIDATES
+
+
+def test_harmful_sites_are_empty_with_a_positive_control() -> None:
+    actual = _harmful_mutation_sites()
+
+    assert not actual, actual
+    assert _result_reporting_try_count() >= 1
 
 
 def test_guard_outcome_literals_are_all_allowed() -> None:
