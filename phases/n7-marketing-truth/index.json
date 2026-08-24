@@ -5,7 +5,7 @@
     {
       "step": 0,
       "name": "canon-ssot-demo-only",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec vitest run src/lib/__tests__/marketing-canon.test.ts src/components/__tests__/exchange-support-table.test.tsx",
         "test \"$(grep -c '메인넷' apps/web/src/lib/marketing-canon.ts)\" -eq 0",
@@ -14,7 +14,10 @@
         "test \"$(grep -c 'Bybit' apps/web/src/lib/marketing-canon.ts)\" -ge 1",
         "cd apps/web && pnpm exec biome check src/lib src/components/exchange-support-table.tsx",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-24T11:06:16+0900",
+      "summary": "status 유니언을 \"supported\" | \"unsupported\"로 변경했다. 로드맵이 아니라 현재 지원하지 않고 추가 계획도 없다는 뜻을 코드·표기 모두에 고정하기 위해서다. EXCHANGE_SUPPORT는 Bybit 데모 supported 1행과 OKX·Binance·Bitget unsupported 3행이다. 새 disclaimer 전문: \"표에 없는 거래소는 지원하지 않습니다. OKX, Binance, Bitget은 지원하지 않으며 추가 계획도 없습니다.\" 불변식: (1) unsupported 행 >=1 및 environment/scope=null으로 표가 비어 공허하게 통과하거나 미지원 범위가 채워지는 것을 막고, (2) supported 행 정확히 1개=Bybit 데모·검증 범위로 메인넷·다른 거래소 지원 회귀를 막고, (3) 미지원 3거래소와 전체 4행으로 행 구성 드리프트를 막고, (4) 표 렌더링의 4행·지원 chip 1개·미지원 라벨/무데이터 title 3개로 SSOT와 화면 표기 불일치를 막는다.",
+      "completed_at": "2026-08-24T11:09:57+0900"
     },
     {
       "step": 1,
@@ -56,5 +59,6 @@
         "cd apps/web && pnpm test -- --run"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T11:06:16+0900"
 }
