@@ -5,58 +5,74 @@
     {
       "step": 0,
       "name": "raw-metric-census-guard",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/common/test_metric_safety_guard.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
         "cd apps/api && uv run python -c \"from tests.common.test_metric_safety_guard import all_metric_sites, raw_metric_sites; import sys; sys.exit(0 if len(all_metric_sites())>=30 and len(raw_metric_sites())==15 else 1)\"",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T18:38:53+0900",
+      "summary": "AST 가드가 live_signal.py의 모든 qb_* mutation과 try/except/finally 내부 raw 15건을 동결 census로 검증한다.",
+      "completed_at": "2026-08-24T18:43:39+0900"
     },
     {
       "step": 1,
       "name": "wrap-raw-metric-sites",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run python -c \"from tests.common.test_metric_safety_guard import all_metric_sites, raw_metric_sites; import sys; sys.exit(0 if len(all_metric_sites())>=30 and len(raw_metric_sites())==0 else 1)\"",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py -q",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q",
         "cd apps/api && uv run ruff check src/tasks/live_signal.py tests/common/test_metric_safety_guard.py"
-      ]
+      ],
+      "started_at": "2026-08-24T18:43:41+0900",
+      "summary": "live_signal.py의 try/except/finally 내부 raw metric mutation 15건을 record_metric_safely로 감싸고 AST census를 0건으로 갱신한다.",
+      "completed_at": "2026-08-24T18:49:12+0900"
     },
     {
       "step": 2,
       "name": "ledger-seed-watermark-write",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test \"$(grep -c '_qb_ledger_seed_since' apps/api/src/tasks/live_signal.py)\" -ge 2",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q -k 'seed or watermark or gap'",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks -q -k 'ledger_seed_watermark' --collect-only 2>/dev/null | grep -c '::')\" -ge 2",
         "cd apps/api && uv run ruff check src/tasks/live_signal.py"
-      ]
+      ],
+      "started_at": "2026-08-24T18:49:13+0900",
+      "summary": "seedable 공백 재동기 tick이 원장 조회 창의 UTC watermark를 기존 JSONB 리포트에 기록하고 안전한 parser와 양·음성 회귀를 갖춘다.",
+      "completed_at": "2026-08-24T18:53:44+0900"
     },
     {
       "step": 3,
       "name": "ledger-seed-rederive-each-tick",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q -k 'ledger_seed_watermark'",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/tasks -q -k 'ledger_seed_watermark' --collect-only 2>/dev/null | grep -c '::')\" -ge 4",
         "cd apps/api && uv run --env-file .env.local pytest tests/tasks -q",
         "cd apps/api && uv run ruff check src/tasks/live_signal.py"
-      ]
+      ],
+      "summary": "marker가 있는 매 tick은 원장 창으로 seed를 재도출하고 순포지션 0에서 제거한다; 조회 실패와 부분 청산 inadmissible에서는 marker를 보존한다.",
+      "completed_at": "2026-08-24T19:12:36+0900"
     },
     {
       "step": 4,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run python -c \"from tests.common.test_metric_safety_guard import all_metric_sites, raw_metric_sites; import sys; sys.exit(0 if len(all_metric_sites())>=30 and len(raw_metric_sites())==0 else 1)\"",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_safety_guard.py tests/tasks -q",
         "cd apps/api && uv run ruff check src/tasks/live_signal.py tests/common/test_metric_safety_guard.py",
         "cd apps/api && uv run ruff format --check tests/common/test_metric_safety_guard.py"
-      ]
+      ],
+      "started_at": "2026-08-24T19:12:38+0900",
+      "summary": "변이 1=red(감싼 metric을 raw로 복귀하면 raw 1건), 2=green(try 밖 raw 1건은 범위 밖), 3=red(since=None이면 marker 창 재조회 실패), 4=red(flat marker 삭제 제거 시 정리 실패); 부분 청산 inadmissible·원장 조회 실패는 marker 보존; AST 가드는 live_signal.py의 직접 qb_* 호출만 보므로 별칭·동적 접근·다른 파일은 못 잡는다.",
+      "completed_at": "2026-08-24T19:19:54+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-24T18:38:53+0900",
+  "completed_at": "2026-08-24T19:19:55+0900"
 }
