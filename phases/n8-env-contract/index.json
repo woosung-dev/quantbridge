@@ -52,7 +52,7 @@
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_env_example_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
@@ -60,7 +60,10 @@
         "cd apps/api && uv run ruff check tests/common/test_env_example_contract.py",
         "cd apps/api && uv run ruff format --check tests/common/test_env_example_contract.py",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T14:53:53+0900",
+      "summary": "config.py 신규 필드 변이는 test_settings_keys_missing_from_env_example_match_frozen_census를 N8_MUTATION_PROBE 누락으로 red, .env.example의 BYBIT_DEMO_KEY 삭제는 test_env_example_keys_without_settings_match_allowlist와 test_allowlist_non_settings_keys_exist_in_env_example를 해당 allowlist 키 누락으로 red로 만들었고 SHA 복원 뒤 alias·주석 파서 회귀 2건을 추가했다.",
+      "completed_at": "2026-08-24T15:02:18+0900"
     }
   ],
   "created_at": "2026-08-24T14:32:20+0900"
