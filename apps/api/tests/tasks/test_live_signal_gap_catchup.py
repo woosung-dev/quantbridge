@@ -1168,6 +1168,175 @@ async def test_ledger_seed_watermark_omits_non_seedable_gap(
 
 
 @pytest.mark.asyncio
+async def test_ledger_seed_watermark_rederives_on_non_gap_tick(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """marker가 있으면 공백이 아닌 tick도 같은 원장 창의 seed를 다시 주입한다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    marker = t0 + timedelta(minutes=1)
+    t5 = t0 + timedelta(minutes=5)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t5)
+    sess_repo, _event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t6),
+        run_result=_result(
+            last_bar_time=t6,
+            signals=[],
+            open_trades=[_open_trade(trade_id="L", direction="long", qty=0.029, entry_bar=0)],
+            ledger_seed_applied=("L",),
+        ),
+        inserted_events=[],
+        ledger_fills=[
+            _fill(
+                session_id=sess.id,
+                side=OrderSide.buy,
+                quantity="0.029",
+                price="64166.9",
+                filled_at=t0 + timedelta(minutes=2),
+            )
+        ],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={"_qb_ledger_seed_since": marker.isoformat()},
+            equity_curve=None,
+        ),
+    )
+    _patch_positions(monkeypatch, positions=[_position(side="long", size="0.029")])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    assert [leg.trade_id for leg in run_kwargs[0]["ledger_seed_legs"]] == ["L"]
+    report = sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"]
+    assert report["_qb_ledger_seed_since"] == marker.isoformat()
+
+    import src.trading.repositories.order_repository as order_repository_module
+
+    order_repository_module.OrderRepository.return_value.list_fills_since.assert_any_await(
+        ANY, since=marker
+    )
+
+
+@pytest.mark.asyncio
+async def test_ledger_seed_watermark_clears_when_window_nets_flat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """marker 창의 순포지션이 0이면 다음 리포트에서 marker를 제거한다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    marker = t0 + timedelta(minutes=1)
+    t5 = t0 + timedelta(minutes=5)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t5)
+    sess_repo, _event_repo, _run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={"_qb_ledger_seed_since": marker.isoformat()},
+            equity_curve=None,
+        ),
+    )
+    _patch_positions(monkeypatch, positions=[])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    report = sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"]
+    assert "_qb_ledger_seed_since" not in report
+
+
+@pytest.mark.asyncio
+async def test_ledger_seed_watermark_survives_ledger_fetch_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """재도출 원장 조회가 실패해도 marker를 지워 다음 tick 창을 잃지 않는다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    marker = t0 + timedelta(minutes=1)
+    t5 = t0 + timedelta(minutes=5)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t5)
+    sess_repo, _event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={"_qb_ledger_seed_since": marker.isoformat()},
+            equity_curve=None,
+        ),
+    )
+    _patch_positions(monkeypatch, positions=[])
+
+    import src.trading.repositories.order_repository as order_repository_module
+
+    order_repository_module.OrderRepository.return_value.list_fills_since.side_effect = [
+        RuntimeError("ledger down"),
+        [],
+        [],
+    ]
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    assert "ledger_seed_legs" not in run_kwargs[0]
+    report = sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"]
+    assert report["_qb_ledger_seed_since"] == marker.isoformat()
+
+
+@pytest.mark.asyncio
+async def test_ledger_seed_watermark_survives_inadmissible_partial_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """부분 청산 창은 seed가 끊겨도 marker를 남긴다 — BL-547의 기지 한계다."""
+    t0 = datetime(2026, 5, 1, 12, tzinfo=UTC)
+    marker = t0 + timedelta(minutes=1)
+    t5 = t0 + timedelta(minutes=5)
+    t6 = t0 + timedelta(minutes=6)
+    sess = _session(last_evaluated_bar_time=t5)
+    sess_repo, _event_repo, run_kwargs = _install_evaluation(
+        monkeypatch,
+        sess=sess,
+        rows=_rows(t6),
+        run_result=_result(last_bar_time=t6, signals=[]),
+        inserted_events=[],
+        ledger_fills=[
+            _fill(
+                session_id=sess.id,
+                side=OrderSide.buy,
+                quantity="0.029",
+                price="64166.9",
+                filled_at=t0 + timedelta(minutes=2),
+            ),
+            _fill(
+                session_id=sess.id,
+                side=OrderSide.sell,
+                quantity="0.010",
+                price="64170.0",
+                filled_at=t0 + timedelta(minutes=3),
+                reduce_only=True,
+            ),
+        ],
+        previous_state=SimpleNamespace(
+            last_strategy_state_report={"_qb_ledger_seed_since": marker.isoformat()},
+            equity_curve=None,
+        ),
+    )
+    _patch_positions(monkeypatch, positions=[])
+
+    result = await live_signal_module._evaluate_session_inner(sess.id, "1m")
+
+    assert result["evaluated"] is True
+    assert "ledger_seed_legs" not in run_kwargs[0]
+    report = sess_repo.upsert_state.await_args.kwargs["last_strategy_state_report"]
+    assert report["_qb_ledger_seed_since"] == marker.isoformat()
+
+
+@pytest.mark.asyncio
 async def test_long_gap_partially_filled_then_cancelled_entry_is_seeded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

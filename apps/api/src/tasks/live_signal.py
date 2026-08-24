@@ -847,7 +847,8 @@ def _ledger_seed_since(previous_report: Any) -> datetime | None:
     ★**감싸는 핸들러: 없다.** 순수 함수다.
 
     JSONB에는 어떤 값도 들어올 수 있으므로 손상된 marker가 평가 tick 전체를 죽이면 안 된다.
-    이 step은 marker를 기록만 한다. 다음 step이 이 값을 읽어 같은 원장 창을 재도출한다.
+    유효한 marker는 매 평가 tick에 같은 원장 창을 재도출하고, 창이 flat이면 다음 리포트에서
+    제거한다.
     """
     if not isinstance(previous_report, dict):
         return None
@@ -2936,6 +2937,7 @@ async def _probe_gap_resync_state(
     session: Any,
     account_repo: Any,
     last_evaluated_bar_time: datetime | None,
+    ledger_seed_since: datetime | None = None,
 ) -> tuple[list[Any] | None, _LedgerGapSeed]:
     """평가 공백 뒤 재동기 판정에 쓸 `(거래소 포지션, 원장 seed)`.
 
@@ -2973,32 +2975,42 @@ async def _probe_gap_resync_state(
             extra={"session_id": str(sess.id), "symbol": sess.symbol},
         )
 
-    if last_evaluated_bar_time is not None:
-        from src.trading.repositories.order_repository import (
-            LEDGER_FILL_SCAN_LIMIT,
-            OrderRepository,
-            SessionScope,
-        )
-
-        try:
-            fills = await OrderRepository(session).list_fills_since(
-                SessionScope.from_live_session(sess),
-                since=last_evaluated_bar_time,
-            )
-            ledger_seed = _ledger_gap_seed(
-                fills[:LEDGER_FILL_SCAN_LIMIT],
-                session_id=sess.id,
-                overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
-            )
-        except Exception:
-            # 조회 실패는 seed 없음 = 기존 fail-closed 판정 그대로다.
-            ledger_seed = _LedgerGapSeed(net=None, legs=(), outcome="fetch_failed", order_ids=())
-            logger.warning(
-                "live_signal_gap_ledger_fetch_failed",
-                exc_info=True,
-                extra={"session_id": str(sess.id), "symbol": sess.symbol},
-            )
+    seed_since = ledger_seed_since or last_evaluated_bar_time
+    if seed_since is not None:
+        ledger_seed = await _read_ledger_gap_seed(sess, session=session, since=seed_since)
     return exchange_positions, ledger_seed
+
+
+async def _read_ledger_gap_seed(sess: Any, *, session: Any, since: datetime) -> _LedgerGapSeed:
+    """원장 창 하나를 기존 gap-seed 규칙으로 읽는다.
+
+    공백 재동기와 BL-547 marker 재도출은 같은 원장을 같은 상한으로 봐야 한다.
+    조회 실패는 seed를 비우되 호출자가 marker를 지우지 않게 `fetch_failed`로 표현한다.
+    """
+    from src.trading.repositories.order_repository import (
+        LEDGER_FILL_SCAN_LIMIT,
+        OrderRepository,
+        SessionScope,
+    )
+
+    try:
+        fills = await OrderRepository(session).list_fills_since(
+            SessionScope.from_live_session(sess),
+            since=since,
+        )
+        return _ledger_gap_seed(
+            fills[:LEDGER_FILL_SCAN_LIMIT],
+            session_id=sess.id,
+            overflowed=len(fills) > LEDGER_FILL_SCAN_LIMIT,
+        )
+    except Exception:
+        # 조회 실패는 seed 없음이다. marker는 호출부가 유지해 다음 tick에 같은 창을 재시도한다.
+        logger.warning(
+            "live_signal_gap_ledger_fetch_failed",
+            exc_info=True,
+            extra={"session_id": str(sess.id), "symbol": sess.symbol},
+        )
+        return _LedgerGapSeed(net=None, legs=(), outcome="fetch_failed", order_ids=())
 
 
 def _extract_pyramiding(pine_source: str, *, session_id: UUID) -> int | None:
@@ -3537,6 +3549,7 @@ async def _evaluate_session_with_engine(
         previous_report = (
             previous_state.last_strategy_state_report if previous_state is not None else None
         )
+        ledger_seed_since = _ledger_seed_since(previous_report)
 
         # 5.5 BL-622 — 원장이 아직 따라잡는 중이면 공백 재동기 **판정 자체를 미룬다.**
         #
@@ -3605,6 +3618,15 @@ async def _evaluate_session_with_engine(
                 session=session,
                 account_repo=account_repo,
                 last_evaluated_bar_time=last_evaluated_bar_time,
+                ledger_seed_since=ledger_seed_since,
+            )
+        elif ledger_seed_since is not None:
+            # BL-547 — 공백 tick 뒤에도 같은 원장 창에서 seed를 다시 도출한다. 거래소
+            # 포지션을 seed로 쓰면 아래 대조가 동어반복이 되므로 원장만 읽는다.
+            ledger_seed = await _read_ledger_gap_seed(
+                sess,
+                session=session,
+                since=ledger_seed_since,
             )
 
         # 7. run_live (warmup replay, Option B)
@@ -3923,9 +3945,15 @@ async def _evaluate_session_with_engine(
             if direction_strike_bar is not None:
                 sanitized_report[_DIRECTION_STRIKE_BAR_KEY] = direction_strike_bar.isoformat()
             sanitized_report[_POSITION_EPOCH_KEY] = position_epoch.isoformat()
-            # BL-547 — seed를 실제로 산출한 공백 tick에만 그 조회 창의 시작 시각을 남긴다.
-            # 재도출·유지·삭제 판단은 다음 step의 책임이다. 이 step은 기록만 한다.
-            if ledger_seed.outcome == "seedable" and last_evaluated_bar_time is not None:
+            # BL-547 — marker가 있으면 매 tick 같은 원장 창을 다시 읽는다. 순포지션이
+            # flat이면 창이 자기 종결되므로 지우고, 판정 불가/조회 실패면 다음 tick 재시도를
+            # 위해 그대로 보존한다. 부분 청산의 inadmissible도 여기서는 보존 대상이다.
+            if ledger_seed_since is not None:
+                if ledger_seed.net == Decimal("0"):
+                    sanitized_report.pop(_LEDGER_SEED_SINCE_KEY, None)
+                else:
+                    sanitized_report[_LEDGER_SEED_SINCE_KEY] = ledger_seed_since.isoformat()
+            elif ledger_seed.outcome == "seedable" and last_evaluated_bar_time is not None:
                 seed_since = (
                     last_evaluated_bar_time.replace(tzinfo=UTC)
                     if last_evaluated_bar_time.tzinfo is None
@@ -4021,6 +4049,29 @@ async def _evaluate_session_inner(session_id: UUID, interval_value: str) -> dict
         return await _evaluate_session_with_engine(session_id, interval_value, sm)
     finally:
         await engine.dispose()
+
+
+async def _close_position_is_flat(
+    *, sess: Any, event_id: UUID, bybit_provider: Any, exchange_svc: Any
+) -> bool:
+    """close 발주 전 거래소 포지션이 명시적으로 flat인지 확인한다.
+
+    조회 실패는 정당한 청산을 막지 않도록 False로 fail-open 한다. False는 포지션이 남았거나
+    조회에 실패했다는 뜻이며, 호출부는 기존처럼 발주 경로를 계속 진행한다.
+    """
+    try:
+        positions = await bybit_provider.fetch_open_positions(
+            await exchange_svc.get_credentials_for_order(sess.exchange_account_id),
+            sess.symbol,
+        )
+    except Exception:
+        logger.warning(
+            "live_signal_close_position_check_failed_open",
+            exc_info=True,
+            extra={"event_id": str(event_id), "session_id": str(sess.id)},
+        )
+        return False
+    return len(positions) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -4397,32 +4448,22 @@ async def _async_dispatch_event(event_id: UUID) -> dict[str, Any]:
             )
 
             # close만 거래소 flat을 확인한다. 명시적 0건이면 reduce-only 거부 주문을 만들지
-            # 않고 실패 전이한다. 조회 실패는 정당한 청산을 막지 않도록 fail-open이다.
-            if event.action == "close":
-                try:
-                    positions = await bybit_provider.fetch_open_positions(
-                        await exchange_svc.get_credentials_for_order(sess.exchange_account_id),
-                        sess.symbol,
-                    )
-                    if len(positions) == 0:
-                        await event_repo.mark_failed(event.id, error="close_position_flat")
-                        await event_repo.commit()
-                        # ★BL-580 D5 — 이 자리만 **fail-open `try` 안**이다. raw 로 두면
-                        #   계측 예외를 아래 `except` 가 「포지션 조회 실패」로 오인해 삼키고
-                        #   `return` 을 건너뛴 채 **그대로 발주한다**(주입 실측: 거래소가
-                        #   flat 인데 청산 주문이 나갔다). 오기록이 아니라 원장 분기다.
-                        _count_safely(
-                            qb_live_signal_dispatch_total,
-                            action=event.action,
-                            outcome="close_position_flat",
-                        )
-                        return {"failed": "close_position_flat"}
-                except Exception:
-                    logger.warning(
-                        "live_signal_close_position_check_failed_open",
-                        exc_info=True,
-                        extra={"event_id": str(event.id), "session_id": str(sess.id)},
-                    )
+            # 않고 실패 전이한다. 조회 실패는 헬퍼가 fail-open으로 False를 돌려 발주를 막지
+            # 않는다. metric도 안전 래퍼라 이 terminal return을 넘을 수 없다.
+            if event.action == "close" and await _close_position_is_flat(
+                sess=sess,
+                event_id=event.id,
+                bybit_provider=bybit_provider,
+                exchange_svc=exchange_svc,
+            ):
+                await event_repo.mark_failed(event.id, error="close_position_flat")
+                await event_repo.commit()
+                _count_safely(
+                    qb_live_signal_dispatch_total,
+                    action=event.action,
+                    outcome="close_position_flat",
+                )
+                return {"failed": "close_position_flat"}
             evaluators: list[KillSwitchEvaluator] = [
                 CumulativeLossEvaluator(
                     order_repo,
