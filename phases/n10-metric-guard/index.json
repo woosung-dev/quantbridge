@@ -88,13 +88,16 @@
     {
       "step": 6,
       "name": "wrap-common-and-backtest",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k labels_outside_guard -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common tests/tasks -q",
         "cd apps/api && uv run ruff check src/common src/tasks/backtest.py"
-      ]
+      ],
+      "started_at": "2026-08-25T00:03:03+0900",
+      "summary": "`metrics.py`·`redlock.py`·`backtest.py`의 가드 밖 metric mutation 6건을 안전 래퍼로 치환하고 frozen census 4개 항목을 삭제했다.",
+      "completed_at": "2026-08-25T00:09:00+0900"
     },
     {
       "step": 7,
