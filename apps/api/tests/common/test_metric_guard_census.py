@@ -17,8 +17,15 @@ guarded는 ``record_metric_safely`` / ``_count_safely`` / ``_touch_safely`` 호�
 (ii) 이름으로 넘긴 중첩 ``def`` 본문. 예를 들어 ``def increment(): ...`` 뒤에
      ``record_metric_safely(increment)`` 를 호출하면 그 본문은 guarded다.
 
+해로운 try는 수동 동결한 보호 후보 mutation 이 예외 결과를 보고하는 가장 가까운 ``try`` 안에
+있는지로 판정한다. A 는 ``try`` 본문, B 는 ``except`` 본문이다. 결과 보고는 rollback,
+``*_errors_total`` mutation, 또는 ``failed`` 로그다. 중첩 ``try`` 의 ``except`` 안에 있는
+call은 그 handler가 직접 결과를 보고하지 않으면 바깥 ``try`` 를 계속 찾는다. 가드 밖인지는
+위 frozen census가 별도로 집행하므로, 보호 자리는 가드 추가 뒤에도 남는다.
+
 못 잡는 것: 별칭(``c = qb_x; c.inc()``), ``getattr`` 등 동적 접근, 모듈 alias 경유,
-``qb_`` 아닌 이름, 그리고 가드 밖인지만 알 뿐 그 자리가 머니-패스인지는 모른다.
+``qb_`` 아닌 이름, 그리고 후보 밖 자리가 실제 업무 경로인지다. 그 의미 판정은 AST가
+아니라 수동 census 기준이 맡는다.
 """
 
 from __future__ import annotations
@@ -42,9 +49,36 @@ R1 metric guard census rule:
 (b) a root-``qb_`` ``.labels(...)`` Call that is not the receiver of (a).
 (i) Guard coverage includes every argument subtree, including lambda bodies.
 (ii) Guard coverage includes the body of a nested def passed to the guard by name.
-못 잡는 것: aliases, dynamic getattr access, module aliases, non-qb_ names, and whether an
-unguarded site belongs to a money path.
+(iii) Harmful-try candidates must remain mutations inside the nearest result-reporting try.
+(iv) A is a try body site; B is an except body site.
+못 잡는 것: aliases, dynamic getattr access, module aliases, non-qb_ names, and whether a
+site outside the frozen harmful candidates belongs to a business path.
 """.strip()
+
+
+# ★「업무 결과를 뒤집는가」는 AST만으로 판정할 수 없다. 이 4곳은 CONTROL 재측정으로
+# 동결한 후보이고, 아래 AST 규칙은 가드 유무와 무관하게 후보가 실제 A/B 해로운 try 자리에
+# 남았는지만 검증한다. 가드 밖인지 여부는 `_FROZEN_CENSUS` 래칫이 따로 맡는다.
+_HARMFUL_MUTATION_CANDIDATES = frozenset(
+    {
+        (
+            "apps/api/src/tasks/live_signal.py",
+            "qb_live_conditional_sweep_filled_total",
+        ),
+        (
+            "apps/api/src/tasks/trading.py",
+            "qb_exchange_exit_link_unverified_total",
+        ),
+        (
+            "apps/api/src/trading/realtime_publisher.py",
+            "qb_rt_publish_failed_total",
+        ),
+        (
+            "apps/api/src/trading/webhook.py",
+            "qb_webhook_symbol_rejected_total",
+        ),
+    }
+)
 
 
 _FROZEN_CENSUS: dict[tuple[str, str], int] = {
@@ -133,6 +167,15 @@ class _MetricSite:
     lineno: int
     metric: str
     verb: str
+    function_name: str
+
+
+@dataclass(frozen=True)
+class _HarmfulMetricSite:
+    path: str
+    lineno: int
+    metric: str
+    shape: str
     function_name: str
 
 
@@ -270,6 +313,122 @@ def _collect_unguarded_sites(tree: ast.AST, path: str) -> list[_MetricSite]:
     return collector.collect()
 
 
+def _parent_nodes(tree: ast.AST) -> dict[int, ast.AST]:
+    return {
+        id(child): parent for parent in ast.walk(tree) for child in ast.iter_child_nodes(parent)
+    }
+
+
+def _try_position(
+    node: ast.AST, try_node: ast.Try, parents: dict[int, ast.AST]
+) -> tuple[str, ast.ExceptHandler | None] | None:
+    """node가 이 try의 본문(A) 또는 handler(B) 어느 쪽에 있는지 돌려준다."""
+    current = node
+    while parents.get(id(current)) is not try_node:
+        parent = parents.get(id(current))
+        if parent is None:
+            return None
+        current = parent
+    if current in try_node.body:
+        return "A", None
+    if isinstance(current, ast.ExceptHandler):
+        return "B", current
+    return None
+
+
+def _handler_result_nodes(handler: ast.ExceptHandler) -> list[ast.AST]:
+    """handler의 무조건 실행 경로만 편다 — 중첩 try/if의 분기는 이 handler의 보고가 아니다."""
+    result_nodes: list[ast.AST] = []
+    pending = list(handler.body)
+    while pending:
+        node = pending.pop()
+        if isinstance(node, (ast.With, ast.AsyncWith)):
+            pending.extend(node.body)
+            continue
+        if isinstance(node, (ast.For, ast.AsyncFor, ast.If, ast.Match, ast.Try, ast.While)):
+            continue
+        result_nodes.append(node)
+    return result_nodes
+
+
+def _handler_reports_business_result(handler: ast.ExceptHandler) -> bool:
+    """rollback·errors_total·failed 로그 중 하나가 handler의 무조건 경로에 있는지 확인한다."""
+    for root in _handler_result_nodes(handler):
+        for node in ast.walk(root):
+            if not isinstance(node, ast.Call):
+                continue
+            if isinstance(node.func, ast.Attribute) and node.func.attr == "rollback":
+                return True
+            if (
+                isinstance(node.func, ast.Attribute)
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "logger"
+                and any(
+                    isinstance(argument, ast.Constant)
+                    and isinstance(argument.value, str)
+                    and "failed" in argument.value
+                    for argument in node.args
+                )
+            ):
+                return True
+            mutation = _mutation_site(node)
+            if mutation is not None and mutation[0].endswith("_errors_total"):
+                return True
+    return False
+
+
+def _nearest_result_reporting_try_shape(node: ast.AST, parents: dict[int, ast.AST]) -> str | None:
+    """예외를 업무 결과로 보고하는 가장 가까운 try에서 node의 A/B 모양을 찾는다."""
+    current = parents.get(id(node))
+    while current is not None:
+        if isinstance(current, ast.Try):
+            position = _try_position(node, current, parents)
+            if position is None:
+                current = parents.get(id(current))
+                continue
+            shape, handler = position
+            handlers = current.handlers if handler is None else [handler]
+            if any(_handler_reports_business_result(candidate) for candidate in handlers):
+                return shape
+        current = parents.get(id(current))
+    return None
+
+
+def _harmful_mutation_sites() -> list[_HarmfulMetricSite]:
+    """수동 동결 후보가 가드 유무와 무관하게 A/B 해로운 try 자리에 있는지 수집한다."""
+    harmful_sites: list[_HarmfulMetricSite] = []
+    for path, tree in _source_trees():
+        relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
+        parents = _parent_nodes(tree)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            mutation = _mutation_site(node)
+            if mutation is None:
+                continue
+            metric, _ = mutation
+            if (relative_path, metric) not in _HARMFUL_MUTATION_CANDIDATES:
+                continue
+            shape = _nearest_result_reporting_try_shape(node, parents)
+            if shape is None:
+                continue
+            function = _enclosing_function(node, parents)
+            harmful_sites.append(
+                _HarmfulMetricSite(
+                    path=relative_path,
+                    lineno=node.lineno,
+                    metric=metric,
+                    shape=shape,
+                    function_name=(
+                        function.name
+                        if isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        else "<module>"
+                    ),
+                )
+            )
+    return harmful_sites
+
+
 def _source_trees() -> list[tuple[Path, ast.Module]]:
     return [
         (path, ast.parse(path.read_text(encoding="utf-8"), filename=str(path)))
@@ -353,7 +512,7 @@ def _guard_outcome_calls(tree: ast.AST) -> list[ast.Call]:
 
 
 def test_census_rule_is_stated_in_the_failure_message() -> None:
-    for required_text in ("(a)", "(b)", "(i)", "(ii)", "못 잡는 것"):
+    for required_text in ("(a)", "(b)", "(i)", "(ii)", "(iii)", "(iv)", "못 잡는 것"):
         assert required_text in _CENSUS_RULE_FAILURE_MESSAGE
 
 
@@ -399,6 +558,39 @@ def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
     actual = Counter((site.path, site.metric) for site in sites)
 
     assert actual == _FROZEN_CENSUS, _census_failure_message(actual, sites)
+
+
+def test_harmful_mutation_sites_match_the_control_census() -> None:
+    actual = {(site.path, site.metric, site.shape) for site in _harmful_mutation_sites()}
+
+    assert actual == {
+        (
+            "apps/api/src/tasks/live_signal.py",
+            "qb_live_conditional_sweep_filled_total",
+            "A",
+        ),
+        (
+            "apps/api/src/tasks/trading.py",
+            "qb_exchange_exit_link_unverified_total",
+            "A",
+        ),
+        (
+            "apps/api/src/trading/realtime_publisher.py",
+            "qb_rt_publish_failed_total",
+            "B",
+        ),
+        (
+            "apps/api/src/trading/webhook.py",
+            "qb_webhook_symbol_rejected_total",
+            "B",
+        ),
+    }
+
+
+def test_harmful_mutation_sites_are_not_empty() -> None:
+    assert _harmful_mutation_sites(), (
+        "해로운 보호 mutation 목록이 비었다 — 이 census는 아무것도 집행하지 않는다"
+    )
 
 
 def test_guard_outcome_literals_are_all_allowed() -> None:
