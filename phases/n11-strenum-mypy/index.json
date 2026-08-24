@@ -5,34 +5,45 @@
     {
       "step": 0,
       "name": "mypy-src-zero-errors",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run mypy src",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -q",
         "cd apps/api && uv run ruff check src/trading/repositories"
-      ]
+      ],
+      "summary": "Moved the SQLAlchemy arg-type ignore to the diagnosed condition line; mypy src now has zero errors.",
+      "started_at": "2026-08-25T02:12:04+0900",
+      "completed_at": "2026-08-25T02:19:04+0900"
     },
     {
       "step": 1,
       "name": "strenum-field-comment-parity",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -k strenum -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/trading -k strenum --collect-only -q 2>/dev/null | grep -c '::')\" -ge 12",
         "cd apps/api && uv run mypy src",
         "cd apps/api && uv run ruff check src tests/trading"
-      ]
+      ],
+      "started_at": "2026-08-25T02:19:07+0900",
+      "summary": "5필드 좌표: apps/api/src/trading/models.py:542(interval), apps/api/src/trading/models.py:707(status), apps/api/src/trading/models.py:766(rule_type), apps/api/src/trading/models.py:775(channel), apps/api/src/trading/models.py:864(classification). (b) AST 가드는 이미 존재·green이며 mypy는 이 축을 못 잡는다; Step 2 측정 전이라 RESOLVED 결론은 유보한다.",
+      "completed_at": "2026-08-25T02:24:22+0900"
     },
     {
       "step": 2,
       "name": "strenum-alias-getattr-axis",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -k strenum_alias -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/trading -k strenum_alias --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/trading -q",
         "cd apps/api && uv run ruff check tests/trading"
-      ]
+      ],
+      "started_at": "2026-08-25T02:24:23+0900",
+      "summary": "1홉 별칭·리터럴 getattr의 `.value`/`.name` AST 가드를 같은 검사기에 추가했고 src/trading 실측은 0건(`{}` 동결); 양성·음성 대조와 실파일 임시 변이 red를 확인했다.",
+      "completed_at": "2026-08-25T02:31:30+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-25T02:12:04+0900",
+  "completed_at": "2026-08-25T02:31:31+0900"
 }

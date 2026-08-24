@@ -93,8 +93,8 @@ TradingView Pine Script 전략을 가져와 **같은 코드로** 백테스트 �
 
 **안 여는 것** — waitlist 초대 파이프라인은 **코드·테스트·화면 완비**이고 서버에 키 3종만 넣으면 열린다. 결정 ⑵ 로 **열지 않는다**. 절차 = [`operations/waitlist-activation.md`](./operations/waitlist-activation.md).
 
-**열린 결함** — [`backlog.md`](./backlog.md) 의 **미완 12건**(2026-08-24 n9 실측 — 종전 16건에서 [BL-547]·[BL-671]·[BL-383]·[BL-811] 종결).
-**8건이 데모 라이브 축**이다(청산 원장 2배 적재 [BL-477]·[BL-529] · StrEnum 크래시 [BL-453] · metric mutation 잔여 [BL-520] 등).
+**열린 결함** — [`backlog.md`](./backlog.md) 의 **미완 11건**(2026-08-25 n11 실측 — 종전 12건에서 [BL-520] 종결: 동결 census 30건이 규칙 범위 **밖**임을 실측해 닫는 조건을 충족했다).
+**7건이 데모 라이브 축**이다(청산 원장 2배 적재 [BL-477]·[BL-529] · StrEnum 크래시 [BL-453] 등).
 나머지 4건은 데모 라이브 밖이다 — 소크 C1 게이트 해석([BL-641]) · DX 빌드 캐시([BL-650]) ·
 TradingView webhook 실측 미착수([BL-774]) · ws-stream 스트레스([BL-371]). 실자금 정밀도 항목은 결정 ⑴ 로 닫혔다.
 ★**착수 가능한 후보는 [`status.md`](./status.md) 의 ⓪ 표**(= ACTIVE ∪ (PARTIAL ∧ 트리거 도래))가 정한다 — 12 가 아니다.

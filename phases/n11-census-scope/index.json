@@ -5,43 +5,57 @@
     {
       "step": 0,
       "name": "census-scope-crosscheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k census_scope -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k census_scope --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3"
-      ]
+      ],
+      "started_at": "2026-08-25T02:12:03+0900",
+      "summary": "동결 census 30건은 in-scope 0건·out-of-scope 30건이며, 결과보고 try 137건과 합성 A 양성 대조로 스캐너 도달성을 확인했다.",
+      "completed_at": "2026-08-25T02:21:06+0900"
     },
     {
       "step": 1,
       "name": "harmful-candidates-full-coverage",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k harmful -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k harmful --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8"
-      ]
+      ],
+      "started_at": "2026-08-25T02:21:10+0900",
+      "summary": "자동 harmful 후보를 in-scope census∪4쌍 제어군으로 도출했고, in-scope 0건·해로운 자리 0건이며 apps/api/src/trading/webhook.py:178:qb_order_rejected_total 임시 미가드 변이에서 red 후 원복했다.",
+      "completed_at": "2026-08-25T02:28:18+0900"
     },
     {
       "step": 2,
       "name": "census-scope-verdict-and-narrow",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks -q",
         "cd apps/api && uv run ruff check src tests/common"
-      ]
+      ],
+      "started_at": "2026-08-25T02:28:20+0900",
+      "summary": "동결 census 30건은 범위 밖임을 주석과 `_FROZEN_CENSUS_SCOPE` 검증으로 고정했다; BL-520 판정 = RESOLVED 후보.",
+      "completed_at": "2026-08-25T02:34:47+0900"
     },
     {
       "step": 3,
       "name": "metric-alias-blindspot",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k metric_alias -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/common -k metric_alias --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -q",
         "cd apps/api && uv run ruff check tests/common"
-      ]
+      ],
+      "started_at": "2026-08-25T02:34:49+0900",
+      "summary": "metric alias AST guard는 별칭 대입·모듈 별칭·getattr을 경로별 동결하고, 실측 모듈 별칭 1건과 합성 양성·음성 대조 및 실파일 임시 변이 red 후 원복을 확인했다.",
+      "completed_at": "2026-08-25T02:41:00+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-25T02:12:03+0900",
+  "completed_at": "2026-08-25T02:41:02+0900"
 }
