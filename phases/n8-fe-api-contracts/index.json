@@ -53,7 +53,7 @@
     {
       "step": 3,
       "name": "alert-rules-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/alert-rules/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/alert-rules/__tests__/api-contract.test.ts",
@@ -61,7 +61,10 @@
         "cd apps/web && pnpm exec biome check src/features/alert-rules/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec tsc --noEmit",
         "git diff --quiet -- apps/web/src/features/alert-rules/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-24T14:48:00+0900",
+      "summary": "alert-rules API 3개 export의 apiFetch 경로·메서드/본문·Zod 응답 파싱(DELETE=204 void)을 고정했다. 확인된 불일치 없음(api.ts 미수정).",
+      "completed_at": "2026-08-24T14:51:46+0900"
     },
     {
       "step": 4,
