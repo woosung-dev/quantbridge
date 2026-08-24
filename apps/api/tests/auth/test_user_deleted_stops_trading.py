@@ -235,9 +235,14 @@ async def test_owner_inactive_gate_blocks_orders(db_session: AsyncSession) -> No
     원천 차단(세션·시크릿)이 한 박자 늦는 자리(큐에 이미 들어간 tick·수기 주문)에서
     `OrderService` 가 마지막으로 묻는 술어다. 모르는 user_id 는 **fail-closed** 다.
     """
+    from src.auth.repository import UserRepository
+    from src.strategy.repository import StrategyRepository
     from src.trading.dependencies import _StrategySessionsAdapter
 
-    adapter = _StrategySessionsAdapter(db_session)
+    adapter = _StrategySessionsAdapter(
+        strategy_repo=StrategyRepository(db_session),
+        user_repo=UserRepository(db_session),
+    )
     alive = User(auth_subject=f"alive-{uuid4().hex[:8]}", email=f"{uuid4().hex[:8]}@t.local")
     db_session.add(alive)
     await db_session.flush()

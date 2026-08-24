@@ -49,6 +49,30 @@ async def _make_filled_order(db_session, strategy, account, *, pnl: Decimal, fil
     return o
 
 
+async def test_realized_pnl_aggregates_return_decimal_zero_for_no_matches(
+    db_session, strat_account
+):
+    """COALESCE 빈 집계도 evaluator 경계에서는 Decimal 0으로 고정한다."""
+    from src.trading.repositories.order_repository import OrderRepository
+
+    strategy, account = strat_account
+    now = datetime.now(UTC)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    repo = OrderRepository(db_session)
+
+    cumulative = await repo.sum_filled_realized_pnl_by_strategy(strategy.id)
+    daily = await repo.sum_filled_realized_pnl_by_account_in_window(
+        account.id,
+        started_at=day_start,
+        ended_at=day_start + timedelta(days=1),
+    )
+
+    assert isinstance(cumulative, Decimal)
+    assert cumulative == Decimal("0")
+    assert isinstance(daily, Decimal)
+    assert daily == Decimal("0")
+
+
 async def test_cumulative_loss_evaluator_not_gated_when_below_threshold(db_session, strat_account):
     from src.trading.kill_switch import CumulativeLossEvaluator, EvaluationContext
     from src.trading.repositories.order_repository import OrderRepository

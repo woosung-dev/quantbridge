@@ -5,7 +5,7 @@
     {
       "step": 0,
       "name": "backtest-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/backtest/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/backtest/__tests__/api-contract.test.ts",
@@ -13,12 +13,15 @@
         "cd apps/web && pnpm exec biome check src/features/backtest/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec tsc --noEmit",
         "git diff --quiet -- apps/web/src/features/backtest/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-24T14:32:20+0900",
+      "summary": "backtest API 17개 export의 apiFetch 경로·메서드/본문·Zod 응답 파싱을 고정했다. 확인된 불일치: BE BacktestCreatedResponse.replayed는 FE schema가 제거해 createBacktest 반환에 없다(api.ts 미수정).",
+      "completed_at": "2026-08-24T14:39:21+0900"
     },
     {
       "step": 1,
       "name": "strategy-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/strategy/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/strategy/__tests__/api-contract.test.ts",
@@ -26,12 +29,15 @@
         "cd apps/web && pnpm exec biome check src/features/strategy/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec tsc --noEmit",
         "git diff --quiet -- apps/web/src/features/strategy/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-24T14:39:23+0900",
+      "summary": "Strategy API 8개 export의 apiFetch 경로·메서드/본문·Zod 응답 파싱을 고정했다. 확인된 불일치: BE ParsePreviewResponse.dogfood_only_warning은 FE 스키마가 제거하고, BE CreateStrategyRequest.trading_sessions는 FE 생성 스키마에서 전달할 수 없다(api.ts 미수정).",
+      "completed_at": "2026-08-24T14:43:53+0900"
     },
     {
       "step": 2,
       "name": "optimizer-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/optimizer/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/optimizer/__tests__/api-contract.test.ts",
@@ -39,12 +45,15 @@
         "cd apps/web && pnpm exec biome check src/features/optimizer/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec tsc --noEmit",
         "git diff --quiet -- apps/web/src/features/optimizer/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-24T14:43:54+0900",
+      "summary": "optimizer API 5개 export의 apiFetch 경로·메서드/본문·Zod 응답 파싱을 고정했다. 확인된 불일치: FE ParamSpaceSchema.bayesian_n_initial_random는 1..100을 허용하지만 BE ParamSpace는 1..50만 허용한다(api.ts 미수정).",
+      "completed_at": "2026-08-24T14:47:59+0900"
     },
     {
       "step": 3,
       "name": "alert-rules-contract",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/features/alert-rules/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec vitest run src/features/alert-rules/__tests__/api-contract.test.ts",
@@ -52,12 +61,15 @@
         "cd apps/web && pnpm exec biome check src/features/alert-rules/__tests__/api-contract.test.ts",
         "cd apps/web && pnpm exec tsc --noEmit",
         "git diff --quiet -- apps/web/src/features/alert-rules/api.ts"
-      ]
+      ],
+      "started_at": "2026-08-24T14:48:00+0900",
+      "summary": "alert-rules API 3개 export의 apiFetch 경로·메서드/본문·Zod 응답 파싱(DELETE=204 void)을 고정했다. 확인된 불일치 없음(api.ts 미수정).",
+      "completed_at": "2026-08-24T14:51:46+0900"
     },
     {
       "step": 4,
       "name": "coverage-guard-and-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/web/src/lib/__tests__/api-contract-coverage.test.ts",
         "cd apps/web && pnpm exec vitest run src/lib/__tests__/api-contract-coverage.test.ts",
@@ -65,7 +77,12 @@
         "cd apps/web && pnpm exec vitest run src/features/backtest src/features/strategy src/features/optimizer src/features/alert-rules",
         "cd apps/web && pnpm exec biome check src/lib/__tests__/api-contract-coverage.test.ts",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-24T14:51:48+0900",
+      "summary": "feature 12개·api.ts 대상 7개를 실측해 계약 테스트 존재 가드 3개를 추가했다; optimizer 계약 테스트 파일명 변이는 optimizer 누락으로 red, api.ts 없는 marketing은 자동 제외로 green(allowlist 비어 있음).",
+      "completed_at": "2026-08-24T14:54:56+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-24T14:32:20+0900",
+  "completed_at": "2026-08-24T14:54:58+0900"
 }

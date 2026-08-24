@@ -5,31 +5,37 @@
     {
       "step": 0,
       "name": "env-census",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/common/test_env_example_contract.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_env_example_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
         "git diff --quiet -- apps/api/src",
         "git diff --quiet -- apps/api/.env.example"
-      ]
+      ],
+      "started_at": "2026-08-24T14:32:20+0900",
+      "summary": "AST 기반 Settings↔.env.example 대조기: 42개 필드·49개 키를 양성 대조하고 alias 해소 후 누락 4개를 동결했다.",
+      "completed_at": "2026-08-24T14:40:13+0900"
     },
     {
       "step": 1,
       "name": "contract-guard-and-allowlist",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/common/test_env_example_contract.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_env_example_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
         "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T14:40:16+0900",
+      "summary": "Settings→.env.example 누락 4개 동결을 유지하고, .env.example→Settings 차집합 11개를 테스트·툴링 allowlist로 양방향 고정했다.",
+      "completed_at": "2026-08-24T14:48:06+0900"
     },
     {
       "step": 2,
       "name": "fill-env-example",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
         "test \"$(grep -c '^E2E_RATE_LIMIT_EXEMPT_EMAIL=' apps/api/.env.example)\" -eq 1",
@@ -38,12 +44,15 @@
         "test \"$(grep -c '^DOGFOOD_REPORT_OUTPUT_DIR=' apps/api/.env.example)\" -eq 1",
         "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T14:48:08+0900",
+      "summary": "누락 4개 Settings 키를 .env.example에 기본값으로 등재하고 Settings→견본 동결을 빈 집합으로 전환했다.",
+      "completed_at": "2026-08-24T14:53:50+0900"
     },
     {
       "step": 3,
       "name": "mutation-selfcheck",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_env_example_contract.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
@@ -51,7 +60,12 @@
         "cd apps/api && uv run ruff check tests/common/test_env_example_contract.py",
         "cd apps/api && uv run ruff format --check tests/common/test_env_example_contract.py",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T14:53:53+0900",
+      "summary": "config.py 신규 필드 변이는 test_settings_keys_missing_from_env_example_match_frozen_census를 N8_MUTATION_PROBE 누락으로 red, .env.example의 BYBIT_DEMO_KEY 삭제는 test_env_example_keys_without_settings_match_allowlist와 test_allowlist_non_settings_keys_exist_in_env_example를 해당 allowlist 키 누락으로 red로 만들었고 SHA 복원 뒤 alias·주석 파서 회귀 2건을 추가했다.",
+      "completed_at": "2026-08-24T15:02:18+0900"
     }
-  ]
+  ],
+  "created_at": "2026-08-24T14:32:20+0900",
+  "completed_at": "2026-08-24T15:02:19+0900"
 }
