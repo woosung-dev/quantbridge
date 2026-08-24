@@ -1,6 +1,13 @@
 {
   "phases": [
-    { "dir": "n9-metric-safety", "status": "pending" },
-    { "dir": "n9-trading-contract", "status": "pending" }
+    {
+      "dir": "n9-metric-safety",
+      "status": "pending"
+    },
+    {
+      "dir": "n9-trading-contract",
+      "status": "completed",
+      "completed_at": "2026-08-24T18:54:26+0900"
+    }
   ]
 }
