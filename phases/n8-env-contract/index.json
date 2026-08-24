@@ -35,7 +35,7 @@
     {
       "step": 2,
       "name": "fill-env-example",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_env_example_contract.py -q",
         "test \"$(grep -c '^E2E_RATE_LIMIT_EXEMPT_EMAIL=' apps/api/.env.example)\" -eq 1",
@@ -44,7 +44,10 @@
         "test \"$(grep -c '^DOGFOOD_REPORT_OUTPUT_DIR=' apps/api/.env.example)\" -eq 1",
         "cd apps/api && uv run --env-file .env.local pytest tests/common -q",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T14:48:08+0900",
+      "summary": "누락 4개 Settings 키를 .env.example에 기본값으로 등재하고 Settings→견본 동결을 빈 집합으로 전환했다.",
+      "completed_at": "2026-08-24T14:53:50+0900"
     },
     {
       "step": 3,
