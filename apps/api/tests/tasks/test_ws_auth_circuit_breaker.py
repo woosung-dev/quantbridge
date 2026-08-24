@@ -8,12 +8,14 @@ codex G.0 P1 #3 verifier:
 - 수동 reset 후 즉시 재개
 - metric inc 검증
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.common.metrics import qb_ws_auth_circuit_total
 from src.tasks._ws_circuit_breaker import (
     _NETWORK_FAILURE_THRESHOLD,
     is_circuit_open,
@@ -142,3 +144,28 @@ async def test_record_network_failure_isolates_per_account(fake_redis_pool) -> N
     ):
         await record_network_failure("acct-a")
     fake_redis_pool.incr.assert_awaited_with("ws:auth:failures:acct-a")
+
+
+@pytest.mark.asyncio
+async def test_ws_auth_circuit_metric_failure_does_not_escape_and_blocks_account(
+    fake_redis_pool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """라벨 mmap 실패가 인증 거부 계정의 즉시 차단 기록을 막지 않는다."""
+    calls: list[str] = []
+
+    def _explode_labels(*_args: object, **_kwargs: object) -> object:
+        calls.append("labels")
+        raise OSError("mmap allocation failed")
+
+    monkeypatch.setattr(qb_ws_auth_circuit_total, "labels", _explode_labels)
+
+    with patch(
+        "src.tasks._ws_circuit_breaker.get_redis_lock_pool",
+        return_value=fake_redis_pool,
+    ):
+        await record_auth_failure("acct-1")
+
+    assert calls == ["labels"], "계측 라벨 생성 실패가 실제 보호 지점을 지나야 한다"
+    fake_redis_pool.set.assert_awaited_once_with("ws:auth:blocked:acct-1", b"1", px=3_600_000)
+    fake_redis_pool.delete.assert_awaited_once_with("ws:auth:failures:acct-1")

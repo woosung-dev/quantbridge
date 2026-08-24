@@ -413,6 +413,59 @@ async def test_janitor_failure_does_not_stop_later_snapshot(
 
 
 @pytest.mark.asyncio
+async def test_conditional_janitor_metric_failure_does_not_escape_and_records_later_fill(
+    db_session: AsyncSession,
+    conditional_entry_factory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """첫 probe의 라벨 mmap 실패 뒤에도 다음 조건부 진입은 체결로 종결한다."""
+    first = await conditional_entry_factory(
+        exchange_order_id="exchange-first",
+        submitted_at=datetime.now(UTC) - timedelta(minutes=32),
+    )
+    second = await conditional_entry_factory(
+        exchange_order_id="exchange-second",
+        submitted_at=datetime.now(UTC) - timedelta(minutes=31),
+    )
+    first_id, second_id = first.id, second.id
+    await db_session.commit()
+
+    class _Provider:
+        async def fetch_order_by_client_id(
+            self, _creds: object, client_order_id: str, _symbol: str, *, trigger: bool = False
+        ) -> OrderStatusFetch:
+            if client_order_id == str(first_id):
+                raise RuntimeError("first probe fails")
+            assert client_order_id == str(second_id)
+            return OrderStatusFetch(
+                exchange_order_id="exchange-second",
+                status="filled",
+                filled_price=Decimal("101"),
+                filled_quantity=Decimal("0.001"),
+                raw={},
+            )
+
+    calls: list[str] = []
+
+    def _explode_labels(*_args: object, **_kwargs: object) -> object:
+        calls.append("labels")
+        raise OSError("mmap allocation failed")
+
+    monkeypatch.setattr(qb_live_conditional_reconcile_errors_total, "labels", _explode_labels)
+    dec, _ = _patch_task(monkeypatch, db_session, _Provider)
+
+    result = await janitor_module._async_conditional_entry_janitor()
+    first_after = await db_session.get(Order, first_id)
+    second_after = await db_session.get(Order, second_id)
+
+    assert calls == ["labels"], "계측 라벨 생성 실패가 실제 보호 지점을 지나야 한다"
+    assert result == {"repaired": 0, "rejected": 0, "terminal": 1}
+    assert first_after is not None and first_after.state == OrderState.submitted
+    assert second_after is not None and second_after.state == OrderState.filled
+    dec.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_janitor_ignores_conditional_entry_inside_cutoff(
     db_session: AsyncSession,
     conditional_entry_factory,
