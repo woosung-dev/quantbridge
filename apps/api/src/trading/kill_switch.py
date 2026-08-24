@@ -19,8 +19,6 @@ from decimal import Decimal
 from typing import Literal, Protocol
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
-
 from src.common.alert import send_critical_alert, track_pending_alert
 from src.common.metrics import qb_kill_switch_triggered_total
 from src.core.config import Settings, get_settings
@@ -29,8 +27,6 @@ from src.trading.models import (
     ExchangeAccount,
     KillSwitchEvent,
     KillSwitchTriggerType,
-    Order,
-    OrderState,
 )
 from src.trading.realtime_publisher import publish_realtime
 from src.trading.repositories.kill_switch_event_repository import KillSwitchEventRepository
@@ -129,14 +125,7 @@ class CumulativeLossEvaluator:
         #     `"confirmed" if o.realized_pnl_synced_at is not None else "estimated"`). 그 축을
         #     여기 필터로 **추가하지 않는다** — 아직 백필 안 된 filled 주문의 추정 손익까지
         #     SUM 에서 빠져 게이트가 일시적으로 느슨해진다. 지금 필터가 더 안전한 쪽이다.
-        stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
-            and_(
-                Order.strategy_id == ctx.strategy_id,  # type: ignore[arg-type]
-                Order.state == OrderState.filled,  # type: ignore[arg-type]
-            )
-        )
-        raw = (await self._repo.session.execute(stmt)).scalar_one()
-        total_pnl = Decimal(str(raw))  # Decimal-first (Sprint 4 D8 교훈)
+        total_pnl = await self._repo.sum_filled_realized_pnl_by_strategy(ctx.strategy_id)
 
         if total_pnl >= Decimal("0"):
             return EvaluationResult(gated=False)
@@ -184,15 +173,11 @@ class DailyLossEvaluator:
 
         # ★[BL-726] `state == filled` 필터 판정 근거는 `CumulativeLossEvaluator.evaluate`
         #   주석에 있다 — 같은 판정이 두 SUM 에 함께 적용된다.
-        stmt = select(func.coalesce(func.sum(Order.realized_pnl), 0)).where(
-            and_(
-                Order.exchange_account_id == ctx.account_id,  # type: ignore[arg-type]
-                Order.state == OrderState.filled,  # type: ignore[arg-type]
-                Order.filled_at >= day_start,  # type: ignore[arg-type,operator]
-                Order.filled_at < day_end,  # type: ignore[arg-type,operator]
-            )
+        daily = await self._repo.sum_filled_realized_pnl_by_account_in_window(
+            ctx.account_id,
+            started_at=day_start,
+            ended_at=day_end,
         )
-        daily: Decimal = Decimal(str((await self._repo.session.execute(stmt)).scalar_one()))
 
         if daily >= Decimal("0"):
             return EvaluationResult(gated=False)

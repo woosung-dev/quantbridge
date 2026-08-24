@@ -124,17 +124,7 @@ def _dependency_paths() -> list[Path]:
     return sorted(_SOURCE_ROOT.glob("*/dependencies.py"))
 
 
-_FROZEN_VIOLATIONS = frozenset(
-    {
-        ("apps/api/src/trading/kill_switch.py", "CumulativeLossEvaluator.evaluate"),
-        ("apps/api/src/trading/kill_switch.py", "DailyLossEvaluator.evaluate"),
-        ("apps/api/src/trading/websocket/reconciliation.py", "Reconciler._list_local_active"),
-        (
-            "apps/api/src/trading/websocket/state_handler.py",
-            "StateHandler._get_by_exchange_order_id",
-        ),
-    }
-)
+_FROZEN_VIOLATIONS = frozenset()
 
 
 def _actual_violations() -> set[tuple[str, str]]:
@@ -172,12 +162,12 @@ sm.select(Model)
     assert calls == [9, 11, 12]
 
 
-def test_repository_boundary_census_has_positive_control() -> None:
+def test_repository_boundary_census_is_clean() -> None:
     paths = _scoped_source_paths()
     calls = [call for path in paths for call in _select_calls(path)]
 
     assert len(paths) >= 60
-    assert len(calls) >= 4
+    assert calls == []
 
 
 def test_dependencies_do_not_contain_scoped_select_calls() -> None:
