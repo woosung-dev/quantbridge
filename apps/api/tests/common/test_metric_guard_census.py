@@ -86,7 +86,6 @@ _HARMFUL_MUTATION_CANDIDATES = frozenset(
 
 _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/common/alert.py", "qb_pending_alerts"): 2,
-    ("apps/api/src/common/metrics_multiproc.py", "qb_metrics_mutation_failed_total"): 1,
     ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): 1,
     ("apps/api/src/common/redis_client.py", "qb_redis_lock_pool_healthy"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
@@ -103,6 +102,13 @@ _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
     ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): 1,
     ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): 1,
+}
+
+
+_CENSUS_ALLOWLIST: dict[tuple[str, str], int] = {
+    # 자기-계상 실패 counter를 다시 record_metric_safely로 감싸면 무한 재귀한다.
+    # 이 inc()는 record_metric_safely의 자체 try/except 안에서 이미 보호된다.
+    ("apps/api/src/common/metrics_multiproc.py", "qb_metrics_mutation_failed_total"): 1,
 }
 
 
@@ -400,6 +406,12 @@ def _census_sites() -> list[_MetricSite]:
     return sites
 
 
+def _census_counts(
+    sites: list[_MetricSite], allowlist: dict[tuple[str, str], int]
+) -> Counter[tuple[str, str]]:
+    return Counter((site.path, site.metric) for site in sites) - Counter(allowlist)
+
+
 def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_MetricSite]) -> str:
     added_sites: list[_MetricSite] = []
     for key, actual_count in actual.items():
@@ -417,7 +429,7 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
         if actual.get(key, 0) < frozen_count
     ]
     lines = [
-        "Metric guard census diverged from the frozen R1 baseline.",
+        "Metric guard census diverged from the frozen R1 baseline after allowlist exclusion.",
         "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129 "
         "− 2026-08-03 수리 25 = 104 − 2026-08-03 수리 8 = 96 − 2026-08-04 수리 12 = 84",
         "★2026-08-24 n9-metric-safety — 동결 합 79 → 63 (`live_signal.py` 16건 수리, 신규 0). "
@@ -512,13 +524,21 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 18
-    assert sum(_FROZEN_CENSUS.values()) == 31
+    assert len(_FROZEN_CENSUS) == 17
+    assert sum(_FROZEN_CENSUS.values()) == 30
 
     sites = _census_sites()
-    actual = Counter((site.path, site.metric) for site in sites)
+    actual = _census_counts(sites, _CENSUS_ALLOWLIST)
 
     assert actual == _FROZEN_CENSUS, _census_failure_message(actual, sites)
+
+
+def test_census_allowlist_entries_exist_and_are_required() -> None:
+    sites = _census_sites()
+    without_allowlist = _census_counts(sites, {})
+
+    assert {key: without_allowlist[key] for key in _CENSUS_ALLOWLIST} == _CENSUS_ALLOWLIST
+    assert without_allowlist != _FROZEN_CENSUS
 
 
 def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:
