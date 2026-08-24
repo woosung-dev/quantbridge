@@ -1,5 +1,5 @@
 // 거래소 지원 현황 표 — 마케팅 공동 원장(_KIT.md §4.1). 랜딩·웨이트리스트가 셀 단위로 공유.
-// 지원 행은 chip done, 로드맵 행은 chip + 무데이터 셀(title 로 사유). 표기는 한글 통일.
+// 지원 행은 chip done, 미지원 행은 chip + 무데이터 셀(title 로 사유). 표기는 한글 통일.
 
 import {
   EMPTY_CELL,
@@ -25,7 +25,7 @@ export function ExchangeSupportTable({ ariaLabel }: { ariaLabel?: string }) {
         </thead>
         <tbody>
           {EXCHANGE_SUPPORT.map((row) => (
-            <tr key={`${row.exchange}-${row.environment ?? "roadmap"}`}>
+            <tr key={`${row.exchange}-${row.environment ?? "unsupported"}`}>
               <td className="mono-l">{row.exchange}</td>
               {row.environment === null ? (
                 <td className="mono-l dim" title={EXCHANGE_NO_ENV_TITLE}>
@@ -49,7 +49,7 @@ export function ExchangeSupportTable({ ariaLabel }: { ariaLabel?: string }) {
                     지원
                   </span>
                 ) : (
-                  <span className="chip">로드맵</span>
+                  <span className="chip">지원하지 않음</span>
                 )}
               </td>
               {row.scope === null ? (
