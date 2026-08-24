@@ -14,13 +14,12 @@ _SOURCE_ROOT = _BACKEND_ROOT / "src"
 
 # `record_metric_safely(qb_x.labels(...).inc)`는 `.labels()`가 가드보다 먼저 평가된다.
 # 다음 step이 실제 호출부를 감싸기 전의 분포를 동결한다.
-_FROZEN_LABELS_OUTSIDE_GUARD: dict[str, int] = {
-    "apps/api/src/tasks/live_signal.py": 14,
-}
+_FROZEN_LABELS_OUTSIDE_GUARD: dict[str, int] = {}
 
 _EXPECTED_LAMBDA_WRAPPED_LABELS: dict[str, int] = {
     "apps/api/src/common/metrics.py": 1,
     "apps/api/src/common/metrics_multiproc.py": 2,
+    "apps/api/src/tasks/live_signal.py": 1,
     "apps/api/src/tasks/trading.py": 1,
 }
 
