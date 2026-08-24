@@ -292,7 +292,10 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **Priority:** P2
 **Trigger:** 실자금 cutover 전
 **Est:** S
-**상태:** 🟡 **부분 해결 — `live_signal.py` 축은 닫혔다. 나머지 22건이 남았다** (2026-08-24 n9-metric-safety).
+**상태:** 🟡 **부분 해결 — 좌표로 지목된 것은 전건 스윕됐다. 남은 것은 「남은 census 가 규칙 범위인가」 실측 1건** (2026-08-25 n10-metric-guard).
+★**2026-08-25 n10 실측** — 미보호 census **63 → 30**(동결 키 32→17). 위 잔여 22건이 지목한 파일 6종(`tasks/trading.py`·`conditional_entry_janitor.py`·`_ws_circuit_breaker.py`·`trading/providers.py`·`common/redlock.py`·`tasks/backtest.py`)은 census 에서 **전부 사라졌다**. metric 삭제로 줄인 것이 아니다 — 제거·추가 1:1 대조로 확인했다.
+★**동승 수리 — 「감쌌다」의 절반이 가짜였다.** `record_metric_safely(qb_x.labels(...).inc)` 는 인자가 **먼저 평가**돼 `.labels()` 가 가드 **밖**에서 돈다(멀티프로세스 모드에서 새 라벨 조합은 그 시점에 mmap 을 늘린다). 이 형태 **14건**을 `_count_safely` / `lambda` 지연 평가로 바꿔 **0건**. 새 가드 = `tests/common/test_labels_outside_guard.py`(동결 `{}` + 양성 대조 `_EXPECTED_LAMBDA_WRAPPED_LABELS` 4파일).
+★★**남은 30건은 범위 미측정이다** — 규칙(`apps/api/AGENTS.md` §4)의 범위는 「업무 결과를 보고하는 `try`·`except` 본문」인데, census 는 **그 밖까지** 센다. 현재 「해로운 자리 0건」 단언은 손으로 고른 후보 **4쌍만** 본다(`_HARMFUL_MUTATION_CANDIDATES`). **이 항목을 닫으려면 30건을 그 스캐너에 교차하는 실측 1건이 먼저다.**
 ★**종전 상태줄이 지목한 좌표는 거짓이었다** — `live_signal.py:4180` 의 그 호출은 **이미 `record_metric_safely` 로 감싸져 있었다**(`record_metric_safely(\n  qb_active_orders.dec\n)` 로 줄이 나뉘어 grep 에 안 보였을 뿐이다). 문자열 검색으로 구조를 읽어 생긴 오기다.
 ★**AST 로 다시 잰 실측** — 규칙(`apps/api/AGENTS.md` §4: 「업무 결과를 보고하는 `try`·`except` 본문」)의 범위에서 `live_signal.py` 위반 **15건**을 n9 가 전건 수리했고(census 15→0, 변이 4/4 기대 일치), 가드는 `apps/api/tests/common/test_metric_safety_guard.py` 가 동결한다.
 ★**잔여 22건**(`apps/api/src` 전량 AST 실측 2026-08-24) — `tasks/trading.py` 5 · `tasks/conditional_entry_janitor.py` 5 · `tasks/_ws_circuit_breaker.py` 4 · `trading/providers.py` 1 · `common/redlock.py` 1 · `tasks/backtest.py` 1 · 그 외. ★그중 `common/metrics_multiproc.py:35` 는 **`record_metric_safely` 자신의 실패 계상**이라 대상이 아니다 — 스윕을 이어받으면 그것부터 제외해라.
@@ -739,6 +742,7 @@ soak-exclusivity-and-observability 회차). 서버에 `dev.quantbridge.soak-logs
 **Trigger:** dev 서버가 느려지거나 CSS 변경이 안 먹을 때 · 캐시 정책을 정할 때
 **Est:** S
 **상태:** 🟡 **부분 해결 — 부수(디스크 8.5GB)는 닫혔고 관측 장치를 걸었다. 정책은 미정이다**
+★**2026-08-25 재채취 — `du -sm apps/web/.next` = 1,711MB 로 3번째 측정점과 바이트급으로 같다**(n10 은 메인에서 FE 빌드를 안 돌렸다 — lane 은 워크트리의 별도 `.next` 를 쓴다). **측정점은 늘지 않았다, 여전히 셋이다.**
 ★**3번째 측정점 (2026-08-24 실측) — `du -sm apps/web/.next` = 1,711MB.** 사망 관측점 1.99GB 까지 **0.28GB** 남았다(직전 실측 2026-08-11 = 1.2GB ⇒ 13일에 +0.5GB). ★이 표본은 **소멸성**이다 — `mise.toml`·`docs/status.md` 가 회차 착수 시 `rm -rf apps/web/.next` 를 지시하므로 다음 회차가 지운다. 문턱을 재려면 **지우기 전에** 채취해라.
 ★**PRD §6 의 차단자 표기 정정 필요** — 이 항목을 「사용자 결정 4건」에 넣었는데, 이 절 본문이 적는 실제 차단자는 **측정 부재**다.
 (2026-08-08 soak-window-and-gate-attribution). ⑴ 낡은 빌드 디렉터리를 지웠다 — **4벌이 아니라
