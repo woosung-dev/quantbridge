@@ -5,14 +5,17 @@
     {
       "step": 0,
       "name": "harm-census",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "test -f apps/api/tests/common/test_metric_guard_census.py",
         "cd apps/api && uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && test \"$(uv run --env-file .env.local pytest tests/common/test_metric_guard_census.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 8",
         "cd apps/api && test \"$(grep -c 'len(_FROZEN_CENSUS) == 40' tests/common/test_metric_guard_census.py)\" -ge 1",
         "git diff --quiet -- apps/api/src"
-      ]
+      ],
+      "started_at": "2026-08-24T11:06:16+0900",
+      "summary": "실측 차이 없음 — 현재 가드 밖 해로운 mutation 4건: A `tasks/live_signal.py:4201 qb_live_conditional_sweep_filled_total`(metric 실패가 체결됨을 cancel 실패+rollback으로 뒤집음), A `tasks/trading.py:2216 qb_exchange_exit_link_unverified_total`(청산 스윕 계정 처리 중단), B `trading/realtime_publisher.py:55 qb_rt_publish_failed_total`(실패 handler 예외 누출), B `trading/webhook.py:176 qb_webhook_symbol_rejected_total`(거부 handler 예외 누출). 수동 동결한 보호 후보마다 AST로 rollback·`*_errors_total`·`failed` 로그로 결과를 보고하는 가장 가까운 try의 A/B 자리를 검증하고, raw 여부는 기존 `_FROZEN_CENSUS` 래칫이 맡는다. 따라서 Step 1·2의 가드 추가 뒤에도 보호 목록·공허성 방어는 남는다. 중첩 try handler가 직접 결과를 보고하지 않으면 바깥 try까지 찾는다. 별칭·동적 접근·모듈 alias와 후보 밖 업무 경로는 AST만으로 잡지 못한다. 통합 PR용 규칙 문안: 관측 metric mutation은 업무 결과를 보고하는 try 본문 또는 except 본문에 raw로 두지 말고 `record_metric_safely`/`_count_safely`/`_touch_safely`로 감싼다.",
+      "completed_at": "2026-08-24T11:16:38+0900"
     },
     {
       "step": 1,
@@ -48,5 +51,6 @@
         "cd apps/api && uv run ruff check src/tasks/live_signal.py src/tasks/trading.py src/trading/realtime_publisher.py src/trading/webhook.py tests/common/test_metric_guard_census.py"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-24T11:06:16+0900"
 }
