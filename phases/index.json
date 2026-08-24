@@ -1,3 +1,6 @@
 {
-  "phases": []
+  "phases": [
+    { "dir": "n10-metric-guard", "status": "pending" },
+    { "dir": "n10-coord-anchors", "status": "pending" }
+  ]
 }

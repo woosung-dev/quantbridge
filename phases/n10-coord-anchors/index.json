@@ -1,0 +1,50 @@
+{
+  "project": "QuantBridge",
+  "phase": "n10-coord-anchors",
+  "steps": [
+    {
+      "step": 0,
+      "name": "coord-audit-tool",
+      "status": "pending",
+      "ac": [
+        "test -f tools/scripts/doc-coord-audit.py",
+        "python3 tools/scripts/doc-coord-audit.py --selftest",
+        "python3 tools/scripts/doc-coord-audit.py --check --baseline"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "design-md-to-anchors",
+      "status": "pending",
+      "ac": [
+        "python3 tools/scripts/doc-coord-audit.py --selftest",
+        "python3 tools/scripts/doc-coord-audit.py --check --only DESIGN.md",
+        "python3 tools/scripts/doc-coord-audit.py --check --baseline"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "spec-comments-and-dead-paths",
+      "status": "pending",
+      "ac": [
+        "python3 tools/scripts/doc-coord-audit.py --selftest",
+        "python3 tools/scripts/doc-coord-audit.py --check",
+        "python3 tools/scripts/doc-coord-audit.py --dead-paths",
+        "cd apps/web && pnpm exec biome check .",
+        "cd apps/web && pnpm exec tsc --noEmit"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "close-and-prove-discrimination",
+      "status": "pending",
+      "ac": [
+        "python3 tools/scripts/doc-coord-audit.py --selftest",
+        "python3 tools/scripts/doc-coord-audit.py --check",
+        "python3 tools/scripts/doc-coord-audit.py --dead-paths",
+        "cd apps/web && pnpm exec biome check .",
+        "cd apps/web && pnpm exec vitest run --silent"
+      ]
+    }
+  ]
+}
