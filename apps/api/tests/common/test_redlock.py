@@ -54,6 +54,31 @@ async def test_redlock_basic_acquire_and_release(fake_redis: AsyncMock) -> None:
     assert await fake_redis.get("test:basic") is None
 
 
+@pytest.mark.asyncio
+async def test_redlock_metric_failure_does_not_escape_and_releases_lock(
+    fake_redis: AsyncMock,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """라벨 생성 실패가 lock 획득 본문과 Lua CAS 해제를 막지 않는다."""
+    from src.common.metrics import qb_redlock_acquire_total
+    from src.common.redlock import RedisLock
+
+    calls: list[str] = []
+
+    def _explode_labels(*_args: object, **_kwargs: object) -> object:
+        calls.append("labels")
+        raise OSError("mmap allocation failed")
+
+    monkeypatch.setattr(qb_redlock_acquire_total, "labels", _explode_labels)
+
+    async with RedisLock("test:metric-failure", ttl_ms=5000) as acquired:
+        assert acquired is True
+        assert await fake_redis.get("test:metric-failure") is not None
+
+    assert calls == ["labels"], "계측 라벨 생성 실패가 실제 보호 지점을 지나야 한다"
+    assert await fake_redis.get("test:metric-failure") is None
+
+
 # ---------------------------------------------------------------------------
 # TDD 2: contention (두 번째 acquire → False)
 # ---------------------------------------------------------------------------

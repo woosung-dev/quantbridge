@@ -1,6 +1,6 @@
 // 서버/클라이언트 공용 query key factory.
 // hooks.ts는 "use client"이므로 RSC에서 직접 import 시 제약 → 여기를 pure module로 분리.
-// frontend.md §3.2 — Query Key 하드코딩 금지.
+// apps/web/AGENTS.md §3 — Query Key 하드코딩 금지.
 //
 // Sprint FE-02: factory 시그니처에 `userId` identity 추가 (Clerk JWT 교체 시 cache 격리).
 // 모든 호출부는 `useAuth().userId ?? "anon"` 를 맨 앞 인자로 넘긴다.

@@ -264,7 +264,7 @@ def _provider_from_order_snapshot_or_fallback(
         # codex G.2 P1 #1 — drift 검증. snapshot vs current account mismatch
         # 시 reject (creds 가 account 현재값이라 silent broker bypass 위험).
         if exch != account.exchange or mode != account.mode:
-            qb_order_snapshot_fallback_total.labels(reason="drift").inc()
+            _count_safely(qb_order_snapshot_fallback_total, reason="drift")
             raise UnsupportedExchangeError(
                 (
                     "snapshot",
@@ -277,7 +277,7 @@ def _provider_from_order_snapshot_or_fallback(
 
     # Legacy fallback (Sprint 23 이전 row 또는 invalid snapshot)
     reason = "missing" if not getattr(order, "dispatch_snapshot", None) else "invalid"
-    qb_order_snapshot_fallback_total.labels(reason=reason).inc()
+    _count_safely(qb_order_snapshot_fallback_total, reason=reason)
     has_lev_fallback = _has_leverage(submit) if submit is not None else _has_leverage(order)
     return _provider_for_account_and_leverage(account.exchange, account.mode, has_lev_fallback)
 
@@ -1286,7 +1286,7 @@ async def _do_place_trailing_stop(
         #   transient 분류 반환 → place_trailing_stop_task 가 bounded 재시도 후에야 concede.
         #   side-mismatch 가드가 flip 오부착을 막으므로 재시도는 안전.
         logger.info("trailing_position_not_visible", extra={"order_id": str(order_id)})
-        qb_trailing_placement_total.labels(outcome="skipped_position_flat_premature").inc()
+        _count_safely(qb_trailing_placement_total, outcome="skipped_position_flat_premature")
         return {"transient": "position_not_visible"}
     if pos.side != expected_side:
         # close + reopen flip → stale task. 신규 포지션에 잘못된 trailing 부착 차단.
@@ -1294,7 +1294,7 @@ async def _do_place_trailing_stop(
             "trailing_skip_position_mismatch",
             extra={"order_id": str(order_id), "expected": expected_side, "actual": pos.side},
         )
-        qb_trailing_placement_total.labels(outcome="skipped_position_mismatch").inc()
+        _count_safely(qb_trailing_placement_total, outcome="skipped_position_mismatch")
         return {"skipped": "position_mismatch"}
 
     # BL-372 same-side stale — side 는 같지만 우리 fill *후* 생성된(close→동일방향 reopen)
@@ -1319,7 +1319,7 @@ async def _do_place_trailing_stop(
                 "order_filled_at": order_filled_at.isoformat(),
             },
         )
-        qb_trailing_placement_total.labels(outcome="skipped_position_reopened").inc()
+        _count_safely(qb_trailing_placement_total, outcome="skipped_position_reopened")
         return {"skipped": "position_reopened"}
     if pos.created_at is None or order_filled_at is None:
         logger.debug(
@@ -1334,13 +1334,13 @@ async def _do_place_trailing_stop(
     except ProviderError as exc:
         if _is_position_zero_error(exc):
             logger.info("trailing_skip_position_zero", extra={"order_id": str(order_id)})
-            qb_trailing_placement_total.labels(outcome="skipped_position_zero").inc()
+            _count_safely(qb_trailing_placement_total, outcome="skipped_position_zero")
             return {"skipped": "position_zero"}
         if isinstance(exc, TrailingContractError):
             # contract 위반은 task 가 failed_contract 로 단일 집계 → 여기서 이중카운트 회피.
             raise
         # network/exchange 실패 = 포지션 무방비 → raise(상위 retry + alert).
-        qb_trailing_placement_total.labels(outcome="failed").inc()
+        _count_safely(qb_trailing_placement_total, outcome="failed")
         raise
 
     logger.info("trailing_placed", extra={"order_id": str(order_id)})
@@ -1357,7 +1357,7 @@ async def _place_trailing_stop_with_session(
         if order is None:
             return {"skipped": "order_missing"}
         if order.trailing_stop is None:
-            qb_trailing_placement_total.labels(outcome="skipped_no_intent").inc()
+            _count_safely(qb_trailing_placement_total, outcome="skipped_no_intent")
             return {"skipped": "no_trailing_intent"}
         crypto = EncryptionService(settings.trading_encryption_keys)
         account = await session.get(ExchangeAccount, order.exchange_account_id)
@@ -1370,7 +1370,7 @@ async def _place_trailing_stop_with_session(
                 "trailing_skip_unsupported_exchange",
                 extra={"order_id": str(order_id), "exchange": str(account.exchange)},
             )
-            qb_trailing_placement_total.labels(outcome="skipped_unsupported").inc()
+            _count_safely(qb_trailing_placement_total, outcome="skipped_unsupported")
             return {"skipped": "unsupported_exchange"}
         passphrase_pt = (
             crypto.decrypt(account.passphrase_encrypted)
@@ -1450,7 +1450,7 @@ def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
         if isinstance(exc, TrailingContractError):
             logger.exception("trailing_contract_violation", extra={"order_id": order_id})
             run_in_worker_loop(_alert_trailing_unprotected(UUID(order_id), reason=exc.reason))
-            qb_trailing_placement_total.labels(outcome="failed_contract").inc()
+            _count_safely(qb_trailing_placement_total, outcome="failed_contract")
             return {"failed": exc.reason, "order_id": order_id}
         if self.request.retries >= _TRAILING_MAX_RETRIES:
             # BL-372 #7 — 원본 str(exc) 는 logger.exception 으로만, Slack 엔 분류 문자열.
@@ -1471,7 +1471,7 @@ def place_trailing_stop_task(self: Any, order_id: str) -> dict[str, Any]:
         if self.request.retries < _TRAILING_FLAT_RETRY_LIMIT:
             raise self.retry(countdown=_TRAILING_RETRY_BASE_SECONDS * (2**self.request.retries))
         logger.warning("trailing_concede_position_flat", extra={"order_id": order_id})
-        qb_trailing_placement_total.labels(outcome="skipped_position_flat_confirmed").inc()
+        _count_safely(qb_trailing_placement_total, outcome="skipped_position_flat_confirmed")
         return {"skipped": "position_flat", "order_id": order_id}
     return result
 
@@ -2200,10 +2200,13 @@ async def _sweep_closed_pnl_with_session(
                     # 행에서는 plain str 로 온다. 여기 `rows` 는 아직 메모리 객체지만
                     # `.value` 를 남겨두면 소스가 재조회 경로로 바뀌는 순간 조용히 죽는다.
                     # `str()` 은 양쪽 모두 안전하다(StrEnum.__str__ 이 값 자체를 돌려준다).
-                    qb_exchange_exit_rows_total.labels(classification=str(row.classification)).inc()
-                    qb_exchange_exit_attribution_total.labels(
-                        confidence=str(row.attribution_confidence)
-                    ).inc()
+                    _count_safely(
+                        qb_exchange_exit_rows_total, classification=str(row.classification)
+                    )
+                    _count_safely(
+                        qb_exchange_exit_attribution_total,
+                        confidence=str(row.attribution_confidence),
+                    )
                     # BL-457 — 형식은 우리 것인데 실재 확인이 안 된 행. 라벨은 소유를
                     # 주장하지 않고 떨어졌지만, 그 사실을 관측하지 않으면 "우리 주문
                     # 이력이 사라졌다" 와 "외부 도구가 UUID 를 쓴다" 를 구분할 수 없다.

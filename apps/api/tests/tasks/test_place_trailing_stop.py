@@ -484,8 +484,8 @@ def test_provider_failure_still_retries_when_only_failed_label_explodes(monkeypa
     retry.assert_called_once()
 
 
-def test_pre_write_skip_metric_failure_changes_nothing(monkeypatch):
-    """거래소 쓰기 전 skip 계측 오류는 기존 재시도 분류를 유지한다."""
+def test_pre_write_skip_metric_failure_does_not_change_skip_result(monkeypatch):
+    """거래소 쓰기 전 skip 계측 오류도 실제 skip 결과를 바꾸지 않는다."""
     import src.common.metrics as metrics_mod
 
     provider = _provider(pos=PositionInfo(size=Decimal("0.001"), side="short"))
@@ -500,9 +500,9 @@ def test_pre_write_skip_metric_failure_changes_nothing(monkeypatch):
 
     result, retry, raised = _drive_task_for_real(monkeypatch, retries=0, provider=provider)
 
-    assert result is None
-    assert raised is not None
-    retry.assert_called_once()
+    assert result == {"skipped": "position_mismatch"}
+    assert raised is None
+    retry.assert_not_called()
     provider.set_trading_stop.assert_not_awaited()
 
 

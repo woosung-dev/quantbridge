@@ -323,6 +323,17 @@ def test_count_safely_swallows_child_inc_failure() -> None:
     child.inc.assert_called_once_with()
 
 
+def test_metric_failure_does_not_escape_negative_control_proves_eager_labels_escape() -> None:
+    """가드 인자에서 먼저 평가한 `.labels()` 예외는 가드에 도달하기 전에 탈출한다."""
+    counter = Mock()
+    counter.labels = Mock(side_effect=OSError("mmap allocation failed"))
+
+    with pytest.raises(OSError, match="mmap allocation failed"):
+        record_metric_safely(counter.labels(outcome="x").inc)
+
+    counter.labels.assert_called_once_with(outcome="x")
+
+
 def test_render_metrics_counts_zero_byte_mmap_fallback(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

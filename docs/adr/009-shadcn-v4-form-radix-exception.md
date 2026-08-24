@@ -3,7 +3,7 @@
 > **작성일:** 2026-04-17
 > **작성 세션:** /superpowers:subagent-driven-development Sprint 7c T1 post-review
 > **관련 커밋:** `a6e99e4` (T1 Foundation)
-> **적용 규칙:** `frontend/AGENTS.md`(구 `.ai/stacks/nextjs-shared.md` → `.claude/rules/`) **§9** shadcn/ui v4
+> **적용 규칙:** `apps/web/AGENTS.md` **§9** shadcn/ui v4
 
 ---
 
@@ -13,7 +13,7 @@ Sprint 7c T1 Foundation 구현 중 `pnpm dlx shadcn@latest init` + `add` 실행 
 
 ### 위반 1 — `form.tsx`가 `radix-ui` umbrella package 사용
 
-- **규칙:** `.ai/stacks/nextjs-shared.md:58` "`@radix-ui/*` 직접 import 금지"
+- **규칙:** `apps/web/AGENTS.md` §9 "`@radix-ui/*` 직접 import 금지"
 - **실제:** `frontend/src/components/ui/form.tsx:4-5`
 
   ```tsx
@@ -26,7 +26,7 @@ Sprint 7c T1 Foundation 구현 중 `pnpm dlx shadcn@latest init` + `add` 실행 
 
 ### 위반 2 — `frontend/src/components/ui/*.tsx` 직접 수정
 
-- **규칙:** `.ai/stacks/nextjs-shared.md:60` "`components/ui/` 직접 수정 금지 → 래핑 컴포넌트"
+- **규칙:** `apps/web/AGENTS.md` §9 "`components/ui/` 직접 수정 금지 → 래핑 컴포넌트"
 - **실제:** T1 Step 1.4b에서 DESIGN.md §7.1 (Button min-height 48px WCAG) + §7.3 (Input) 준수를 위해 4개 파일 수정:
   - `button.tsx` — `buttonVariants` size 토큰 (default h-12, lg h-14, sm 유지, icon size-12)
   - `input.tsx` — `h-10` → `h-12`
@@ -55,7 +55,7 @@ Sprint 7c T1 Foundation 구현 중 `pnpm dlx shadcn@latest init` + `add` 실행 
 
 ## 규칙 파일 변경
 
-`.ai/stacks/nextjs-shared.md` §3 shadcn/ui v4 섹션에 exception clause 추가 (본 ADR과 동일 커밋).
+`apps/web/AGENTS.md` §9 shadcn/ui v4 섹션에 exception clause 추가 (본 ADR과 동일 커밋).
 
 ---
 
@@ -85,7 +85,7 @@ Sprint 7c T1 Foundation 구현 중 `pnpm dlx shadcn@latest init` + `add` 실행 
 ## 관련 자산
 
 - 구현 commit: `a6e99e4` (Sprint 7c T1)
-- 본 ADR은 규칙 변경 + 예외 rationale. `.ai/stacks/nextjs-shared.md:60~68` 구간이 업데이트 대상.
+- 본 ADR은 규칙 변경 + 예외 rationale. `apps/web/AGENTS.md` §9가 업데이트 대상.
 - 플랜 대상 task: Sprint 7c T4 / T5 (Form 실사용)
 
 ---

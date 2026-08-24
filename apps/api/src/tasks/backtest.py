@@ -9,6 +9,7 @@ from uuid import UUID
 
 from src.backtest.repository import BacktestRepository
 from src.common.metrics import qb_backtest_duration_seconds
+from src.common.metrics_multiproc import record_metric_safely
 from src.core.config import settings
 from src.tasks._worker_engine import create_worker_engine_and_sm
 from src.tasks.celery_app import celery_app
@@ -31,7 +32,7 @@ def run_backtest_task(self: object, backtest_id: str) -> None:
     try:
         run_in_worker_loop(_execute(UUID(backtest_id)))
     finally:
-        qb_backtest_duration_seconds.observe(time.monotonic() - started)
+        record_metric_safely(qb_backtest_duration_seconds.observe, time.monotonic() - started)
 
 
 async def _execute(backtest_id: UUID) -> None:

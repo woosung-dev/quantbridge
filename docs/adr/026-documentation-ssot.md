@@ -2,7 +2,7 @@
 
 > **상태:** 확정 (Accepted — 2026-08-06, 사용자 판정)
 > ★**§2 의 배치 결정만 [ADR-027](./027-nested-agents-md.md) 로 Superseded (2026-08-07)** — 스택 규칙은
-> `.claude/rules/` 가 아니라 `backend/AGENTS.md`·`frontend/AGENTS.md` 에 둔다(codex 가 읽지 못한다는
+> `.claude/rules/` 가 아니라 `backend/AGENTS.md`·`apps/web/AGENTS.md` 에 둔다(codex 가 읽지 못한다는
 > 본 ADR 의 `[가정]` 이 그 배치에서 문제 자체로 사라진다). **§1·§3·§4·§5 는 그대로 유효하다.**
 > ★**§1 ④ 의 위치(`docs/reference/` 래퍼)는 [ADR-038](038-docs-top-level-by-question.md) 로 Superseded (2026-08-21)** —
 > 정본은 `docs/{architecture,domain,api,development,operations,design}/` 최상위로 올라갔고 `decisions/` 는 `adr/` 가
@@ -56,12 +56,10 @@
 ### 2. `.ai/` 를 해체한다
 
 > ★**배치 부분은 [ADR-027](./027-nested-agents-md.md) 로 Superseded (2026-08-07).** 아래 「`.ai/` 를 없앤다」는
-> 유효하고, 옮겨 간 자리만 `.claude/rules/` → `backend/AGENTS.md`·`frontend/AGENTS.md` 로 바뀌었다.
+> 유효하고, 옮겨 간 자리만 `.claude/rules/` → `backend/AGENTS.md`·`apps/web/AGENTS.md` 로 바뀌었다.
 
 - `.ai/stacks/fastapi/backend.md` → `.claude/rules/backend.md` (실파일, `paths: ["backend/**"]`)
-- `.ai/stacks/nextjs/frontend.md` → `.claude/rules/frontend.md` (`paths: ["frontend/**"]`)
-- `.ai/stacks/nextjs-shared.md` + `.ai/common/typescript.md`(28줄 · TS 는 frontend 뿐)
-  → `.claude/rules/nextjs-shared.md` 병합
+- `apps/web/AGENTS.md` (`paths: ["frontend/**"]`에 있던 FE 규칙을 병합)
 - `.ai/common/global.md` §7 → `generator-evaluator-pipeline.md` 병합, §1~§6 은 소멸
 - `.ai/project/lessons.md` → `docs/lessons.md` · dead 58%(flutter/integrations/templates) → 삭제
 

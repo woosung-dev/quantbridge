@@ -79,17 +79,17 @@ Sprint 7c (Strategy CRUD UI) 이후 dogfood 준비 단계에서 FE 편집 경험
 - **원인**: `result` 가 React Query `preview.data` 객체 참조. Fast Refresh / StrictMode 더블 인보크에서 참조 흔들림 → dep 인식 → setState → 재렌더 → 무한 루프
 - **해결**: useEffect 제거. `clampedIndex = Math.min(index, steps.length - 1)` 로 render-time clamp
 - **영구 규칙**: `react-hooks/set-state-in-effect` lint 규칙 disable 금지. RQ/Zustand/RHF/Zod 결과를 `useEffect` dep 로 쓰지 말 것
-- **.ai/stacks/nextjs/frontend.md 승격 예정** (Path β Stage 0 C5)
+- **`apps/web/AGENTS.md` §3으로 승격 예정** (Path β Stage 0 C5)
 
 ### LESSON-005: React Query queryKey + Clerk JWT
 
 - queryKey 에 `userId` identity만 포함. `getToken()` 직접 포함 금지 (매 호출 새 JWT → 매번 queryKey 달라짐 → 무한 refetch)
-- **.ai/stacks/nextjs/frontend.md 승격 예정**
+- **`apps/web/AGENTS.md` §3으로 승격 예정**
 
 ### LESSON-006: React Compiler 와 ref.current
 
 - React Compiler 가 render 중 ref.current 직접 mutate 를 금지 (panic). `useEffect` 내부 또는 이벤트 핸들러에서만 허용
-- **.ai/stacks/nextjs/frontend.md 승격 예정**
+- **`apps/web/AGENTS.md` §3으로 승격 예정**
 
 ---
 
@@ -135,7 +135,7 @@ Sprint 단위 초기 계획 (FE-01~10 개별 sprint) → Bundle 3묶음 (1+2+3) 
 ### L-2: FE-specific LESSON 은 stack rule 로 승격해야 반복 방지
 
 - LESSON-004/005/006 모두 Next.js + React 컴파일러 조합 특유의 함정
-- `.ai/project/lessons.md` 에만 있으면 이 프로젝트만 방어. `.ai/stacks/nextjs/frontend.md` 로 승격해야 향후 FE 프로젝트에도 전파
+- `.ai/project/lessons.md` 에만 있으면 이 프로젝트만 방어. `apps/web/AGENTS.md` §3으로 승격해야 향후 FE 프로젝트에도 전파
 - Path β Stage 0 C5 에서 공식 승격
 
 ### L-3: CPU 100% 같은 dev-only 이슈는 vitest 로 못 잡는다
@@ -165,13 +165,13 @@ Sprint 단위 초기 계획 (FE-01~10 개별 sprint) → Bundle 3묶음 (1+2+3) 
 
 ### 문서
 
-- (본 ADR 로 공식 회고). `.ai/project/lessons.md` 의 LESSON-004/005/006 → `.ai/stacks/nextjs/frontend.md` 승격 (Path β S0-C5)
+- (본 ADR 로 공식 회고). `.ai/project/lessons.md` 의 LESSON-004/005/006 → `apps/web/AGENTS.md` §3으로 승격 (Path β S0-C5)
 
 ---
 
 ## 8. 다음 단계
 
-- [x] LESSON-004/005/006 `.ai/stacks/nextjs/frontend.md` 승격 (Path β S0-C5)
+- [x] LESSON-004/005/006 `apps/web/AGENTS.md` §3으로 승격 (Path β S0-C5)
 - [x] 자율 병렬 Option C default 화 (memory 규칙화 완료)
 - [ ] FE Sprint cadence 재검토 — 묶음 vs 개별 가이드라인 정리 (Path γ 이후)
 

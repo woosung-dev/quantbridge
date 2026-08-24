@@ -86,37 +86,29 @@ _HARMFUL_MUTATION_CANDIDATES = frozenset(
 
 _FROZEN_CENSUS: dict[tuple[str, str], int] = {
     ("apps/api/src/common/alert.py", "qb_pending_alerts"): 2,
-    ("apps/api/src/common/metrics.py", "qb_ccxt_request_duration_seconds"): 1,
-    ("apps/api/src/common/metrics.py", "qb_ccxt_request_errors_total"): 1,
-    ("apps/api/src/common/metrics_multiproc.py", "qb_metrics_mutation_failed_total"): 1,
     ("apps/api/src/common/rate_limit.py", "qb_rate_limit_throttled_total"): 1,
     ("apps/api/src/common/redis_client.py", "qb_redis_lock_pool_healthy"): 1,
-    ("apps/api/src/common/redlock.py", "qb_redlock_acquire_total"): 3,
-    ("apps/api/src/tasks/_ws_circuit_breaker.py", "qb_ws_auth_circuit_total"): 4,
-    ("apps/api/src/tasks/backtest.py", "qb_backtest_duration_seconds"): 1,
-    ("apps/api/src/tasks/conditional_entry_janitor.py", "qb_live_conditional_reconcile_errors_total"): 5,
     ("apps/api/src/tasks/live_signal.py", "qb_live_gap_ledger_seed_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_divergence_total"): 3,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_entry_skipped_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_evaluated_total"): 5,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_liquidation_total"): 1,
     ("apps/api/src/tasks/live_signal.py", "qb_live_signal_skipped_total"): 6,
-    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_attribution_total"): 1,
-    ("apps/api/src/tasks/trading.py", "qb_exchange_exit_rows_total"): 1,
-    ("apps/api/src/tasks/trading.py", "qb_order_snapshot_fallback_total"): 2,
-    ("apps/api/src/tasks/trading.py", "qb_trailing_placement_total"): 9,
     ("apps/api/src/tasks/websocket_task.py", "qb_ws_auth_circuit_total"): 1,
     ("apps/api/src/tasks/websocket_task.py", "qb_ws_duplicate_enqueue_total"): 2,
     ("apps/api/src/trading/kill_switch.py", "qb_kill_switch_triggered_total"): 1,
-    ("apps/api/src/trading/providers.py", "qb_closed_pnl_backfill_total"): 1,
-    ("apps/api/src/trading/realtime_publisher.py", "qb_rt_publish_invalid_total"): 1,
     ("apps/api/src/trading/webhook.py", "qb_order_rejected_total"): 1,
-    ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconcile_skipped_total"): 1,
-    ("apps/api/src/trading/websocket/bybit_private_stream.py", "qb_ws_reconnect_total"): 1,
     ("apps/api/src/trading/websocket/position_fanout.py", "qb_ws_subscribe_rejected_total"): 1,
     ("apps/api/src/trading/websocket/reconciliation.py", "qb_ws_reconcile_unknown_total"): 1,
     ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_discarded_total"): 1,
     ("apps/api/src/trading/websocket/state_handler.py", "qb_ws_orphan_event_total"): 1,
+}
+
+
+_CENSUS_ALLOWLIST: dict[tuple[str, str], int] = {
+    # 자기-계상 실패 counter를 다시 record_metric_safely로 감싸면 무한 재귀한다.
+    # 이 inc()는 record_metric_safely의 자체 try/except 안에서 이미 보호된다.
+    ("apps/api/src/common/metrics_multiproc.py", "qb_metrics_mutation_failed_total"): 1,
 }
 
 
@@ -414,6 +406,12 @@ def _census_sites() -> list[_MetricSite]:
     return sites
 
 
+def _census_counts(
+    sites: list[_MetricSite], allowlist: dict[tuple[str, str], int]
+) -> Counter[tuple[str, str]]:
+    return Counter((site.path, site.metric) for site in sites) - Counter(allowlist)
+
+
 def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_MetricSite]) -> str:
     added_sites: list[_MetricSite] = []
     for key, actual_count in actual.items():
@@ -431,7 +429,7 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
         if actual.get(key, 0) < frozen_count
     ]
     lines = [
-        "Metric guard census diverged from the frozen R1 baseline.",
+        "Metric guard census diverged from the frozen R1 baseline after allowlist exclusion.",
         "159 − 2026-08-02 수리 18 = 141 − 2026-08-03 수리 12 = 129 "
         "− 2026-08-03 수리 25 = 104 − 2026-08-03 수리 8 = 96 − 2026-08-04 수리 12 = 84",
         "★2026-08-24 n9-metric-safety — 동결 합 79 → 63 (`live_signal.py` 16건 수리, 신규 0). "
@@ -442,8 +440,11 @@ def _census_failure_message(actual: Counter[tuple[str, str]], sites: list[_Metri
         f"  ({site.path}, {site.lineno}, {site.metric}, {site.verb}, {site.function_name})"
         for site in sorted(added_sites, key=lambda site: (site.path, site.lineno))
     )
-    lines.append("줄어든 항목 (동결값의 이 항목을 N으로 낮춰라):")
-    lines.extend(f"  {key}: 이 항목을 {count} 으로 낮춰라" for key, count in reduced_entries)
+    lines.append("줄어든 항목 (_FROZEN_CENSUS에서 이 항목을 삭제해라):")
+    lines.extend(
+        f"  {key}: 이 항목을 _FROZEN_CENSUS에서 삭제해라 (실측 {count})"
+        for key, count in reduced_entries
+    )
     return "\n".join(lines)
 
 
@@ -523,13 +524,21 @@ c.inc()
 
 
 def test_unguarded_mutation_counts_match_the_frozen_census() -> None:
-    assert len(_FROZEN_CENSUS) == 32
-    assert sum(_FROZEN_CENSUS.values()) == 63
+    assert len(_FROZEN_CENSUS) == 17
+    assert sum(_FROZEN_CENSUS.values()) == 30
 
     sites = _census_sites()
-    actual = Counter((site.path, site.metric) for site in sites)
+    actual = _census_counts(sites, _CENSUS_ALLOWLIST)
 
     assert actual == _FROZEN_CENSUS, _census_failure_message(actual, sites)
+
+
+def test_census_allowlist_entries_exist_and_are_required() -> None:
+    sites = _census_sites()
+    without_allowlist = _census_counts(sites, {})
+
+    assert {key: without_allowlist[key] for key in _CENSUS_ALLOWLIST} == _CENSUS_ALLOWLIST
+    assert without_allowlist != _FROZEN_CENSUS
 
 
 def test_known_harmful_mutation_sites_are_gone_with_try_scan_control() -> None:

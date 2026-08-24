@@ -1,7 +1,7 @@
 "use client";
 
 // Sprint 7c: Strategy React Query 훅 — Clerk JWT 자동 주입 + invalidate/setQueryData 패턴.
-// frontend.md §3.2 — Query Key 하드코딩 금지 → 도메인 팩토리(strategyKeys).
+// apps/web/AGENTS.md §3 — Query Key 하드코딩 금지 → 도메인 팩토리(strategyKeys).
 //
 // Sprint FE-02:
 //  1) useAuth().userId를 queryKey factory의 identity로 통합 — JWT 교체 시 cache 격리.

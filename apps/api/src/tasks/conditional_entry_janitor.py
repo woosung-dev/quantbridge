@@ -10,7 +10,7 @@ from types import SimpleNamespace
 from celery import shared_task
 
 from src.common.metrics import qb_active_orders, qb_live_conditional_reconcile_errors_total
-from src.common.metrics_multiproc import record_metric_safely
+from src.common.metrics_multiproc import _count_safely, record_metric_safely
 from src.core.config import settings
 from src.tasks._worker_engine import create_worker_engine_and_sm
 from src.tasks.orphan_scanner import _SCAN_STUCK_THRESHOLD_MINUTES
@@ -93,9 +93,10 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                                 rejected += 1
                                 record_metric_safely(qb_active_orders.dec)
                             else:
-                                qb_live_conditional_reconcile_errors_total.labels(
-                                    stage="janitor_race"
-                                ).inc()
+                                _count_safely(
+                                    qb_live_conditional_reconcile_errors_total,
+                                    stage="janitor_race",
+                                )
                             continue
                         rows = await order_repo.transition_to_rejected(
                             order_id,
@@ -107,9 +108,10 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                             rejected += 1
                             record_metric_safely(qb_active_orders.dec)
                         else:
-                            qb_live_conditional_reconcile_errors_total.labels(
-                                stage="janitor_race"
-                            ).inc()
+                            _count_safely(
+                                qb_live_conditional_reconcile_errors_total,
+                                stage="janitor_race",
+                            )
                         continue
                     if probe.status == "submitted":
                         if exchange_order_id != probe.exchange_order_id:
@@ -120,9 +122,10 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                                 await order_repo.commit()
                                 repaired += 1
                             else:
-                                qb_live_conditional_reconcile_errors_total.labels(
-                                    stage="janitor_race"
-                                ).inc()
+                                _count_safely(
+                                    qb_live_conditional_reconcile_errors_total,
+                                    stage="janitor_race",
+                                )
                         continue
 
                     now = datetime.now(UTC)
@@ -160,13 +163,17 @@ async def _async_conditional_entry_janitor() -> dict[str, int]:
                             _enqueue_closed_pnl_refresh(hook_order)
                             _enqueue_conditional_reversal_measure(hook_order)
                     else:
-                        qb_live_conditional_reconcile_errors_total.labels(
-                            stage="janitor_race"
-                        ).inc()
+                        _count_safely(
+                            qb_live_conditional_reconcile_errors_total,
+                            stage="janitor_race",
+                        )
                 except Exception:
                     with contextlib.suppress(Exception):
                         await session.rollback()
-                    qb_live_conditional_reconcile_errors_total.labels(stage="janitor_probe").inc()
+                    _count_safely(
+                        qb_live_conditional_reconcile_errors_total,
+                        stage="janitor_probe",
+                    )
                     logger.exception(
                         "conditional_entry_janitor_probe_failed",
                         extra={"order_id": str(order_id)},

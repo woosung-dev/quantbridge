@@ -381,7 +381,7 @@ React 로 옮겨 CSS 를 한 스코프에 합치는 순간 전부 충돌한다. 
 
 근거 넷.
 
-1. 프로젝트 구조 규약이 도메인 자산을 `features/[domain]/` 아래 두라고 정한다(`frontend/AGENTS.md` §4 FSD Lite). 단일 전역 모듈은 이 규약의 예외를 새로 만든다.
+1. 프로젝트 구조 규약이 도메인 자산을 `features/[domain]/` 아래 두라고 정한다(`apps/web/AGENTS.md` §4 FSD Lite). 단일 전역 모듈은 이 규약의 예외를 새로 만든다.
 2. enum 원본이 이미 `features/[domain]/schemas.ts` 에 있다. 라벨을 같은 폴더에 두면 `z.infer` 유니온과 `Record` 키가 한 파일 거리 안에 붙어, enum 추가 시 `Record` 누락이 즉시 타입 에러가 된다. `ONBOARDING_STEP_LABEL`(`frontend/src/features/onboarding/types.ts:15`)이 이미 그 형태다.
 3. 단일 모듈이면 trading 화면이 optimizer enum 까지 import 하게 되어 도메인 경계가 무너진다. 지금 문제(`STATE_META` 가 라우트 폴더에 갇힘)의 반대 극단으로 넘어가는 것이지 해결이 아니다.
 4. 다만 **톤 토큰과 폴백 규칙은 한 곳이어야 한다.** 그것이 갈리면 지금의 칩 톤 분기(§2-4)가 코드에서 재현된다. 그래서 `lib/labels.ts` 하나만 공용으로 둔다.
