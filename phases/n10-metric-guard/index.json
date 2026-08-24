@@ -60,13 +60,16 @@
     {
       "step": 4,
       "name": "wrap-tasks-trading",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common/test_metric_guard_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/common -k labels_outside_guard -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/tasks -q",
         "cd apps/api && uv run ruff check src/tasks/trading.py"
-      ]
+      ],
+      "started_at": "2026-08-24T23:51:34+0900",
+      "summary": "`trading.py`의 가드 밖 metric mutation 13건을 `_count_safely`로 감싸고 frozen census 항목 4개를 삭제했다.",
+      "completed_at": "2026-08-24T23:58:58+0900"
     },
     {
       "step": 5,
