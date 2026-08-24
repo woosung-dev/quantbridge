@@ -24,6 +24,7 @@ _SQL_MODULE_PREFIXES = ("sqlalchemy", "sqlmodel")
 class _SelectCall:
     path: str
     lineno: int
+    function_name: str
 
 
 def _is_sql_module(module: str) -> bool:
@@ -76,20 +77,75 @@ def _is_bound_select_call(
     )
 
 
+class _SelectCallCollector(ast.NodeVisitor):
+    def __init__(self, path: str, direct_bindings: set[str], module_bindings: set[str]) -> None:
+        self._path = path
+        self._direct_bindings = direct_bindings
+        self._module_bindings = module_bindings
+        self._scope: list[str] = []
+        self.calls: list[_SelectCall] = []
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        self._visit_scoped(node, node.name)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        self._visit_scoped(node, node.name)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        self._visit_scoped(node, node.name)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        if _is_bound_select_call(node, self._direct_bindings, self._module_bindings):
+            self.calls.append(
+                _SelectCall(
+                    path=self._path,
+                    lineno=node.lineno,
+                    function_name=".".join(self._scope) or "<module>",
+                )
+            )
+        self.generic_visit(node)
+
+    def _visit_scoped(self, node: ast.AST, name: str) -> None:
+        self._scope.append(name)
+        self.generic_visit(node)
+        self._scope.pop()
+
+
 def _select_calls(path: Path) -> list[_SelectCall]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     direct_bindings, module_bindings = _select_bindings(tree)
     relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
-    return [
-        _SelectCall(path=relative_path, lineno=node.lineno)
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Call)
-        and _is_bound_select_call(node, direct_bindings, module_bindings)
-    ]
+    collector = _SelectCallCollector(relative_path, direct_bindings, module_bindings)
+    collector.visit(tree)
+    return collector.calls
 
 
 def _dependency_paths() -> list[Path]:
     return sorted(_SOURCE_ROOT.glob("*/dependencies.py"))
+
+
+_FROZEN_VIOLATIONS = frozenset(
+    {
+        ("apps/api/src/trading/dependencies.py", "_StrategySessionsAdapter.get_sessions"),
+        ("apps/api/src/trading/dependencies.py", "_StrategySessionsAdapter.get_owner"),
+        ("apps/api/src/trading/dependencies.py", "_StrategySessionsAdapter.is_owner_active"),
+        ("apps/api/src/trading/kill_switch.py", "CumulativeLossEvaluator.evaluate"),
+        ("apps/api/src/trading/kill_switch.py", "DailyLossEvaluator.evaluate"),
+        ("apps/api/src/trading/websocket/reconciliation.py", "Reconciler._list_local_active"),
+        (
+            "apps/api/src/trading/websocket/state_handler.py",
+            "StateHandler._get_by_exchange_order_id",
+        ),
+    }
+)
+
+
+def _actual_violations() -> set[tuple[str, str]]:
+    return {
+        (call.path, call.function_name)
+        for path in _scoped_source_paths()
+        for call in _select_calls(path)
+    }
 
 
 def test_select_collector_ignores_non_sql_select_names() -> None:
@@ -137,3 +193,15 @@ def test_only_trading_dependencies_contain_scoped_select_calls() -> None:
 
     assert len(dependency_paths) == 8
     assert paths_with_calls == {"apps/api/src/trading/dependencies.py"}
+
+
+def test_repository_boundary_violations_do_not_expand_beyond_the_frozen_census() -> None:
+    actual = _actual_violations()
+
+    assert actual <= _FROZEN_VIOLATIONS, actual - _FROZEN_VIOLATIONS
+
+
+def test_frozen_repository_boundary_violations_are_still_present() -> None:
+    actual = _actual_violations()
+
+    assert actual >= _FROZEN_VIOLATIONS, _FROZEN_VIOLATIONS - actual
