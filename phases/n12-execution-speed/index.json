@@ -47,14 +47,17 @@
     {
       "step": 3,
       "name": "restate-prd-speed-metric",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "grep -q 'bar/s' docs/PRD.md",
         "grep -q '~~단일 심볼 1Y/1H 백테스트~~' docs/PRD.md",
         "grep -q 'test_execution_speed.py' docs/PRD.md",
         "grep -q 'LESSON-129' docs/lessons.md",
         "./tools/scripts/ledger-vitals.sh"
-      ]
+      ],
+      "started_at": "2026-08-25T19:18:54+0900",
+      "summary": "PRD §5의 근거 없는 1Y/1H 단일 목표를 6M/1H `run_backtest_v2`의 277.18~3,689.36 bar/s 실측·측정 경로·[가정] 1Y 선형 환산으로 재기술했고, LESSON-129에 측정 가능성 반증을 남겼다.",
+      "completed_at": "2026-08-25T19:21:14+0900"
     }
   ],
   "created_at": "2026-08-25T18:45:20+0900"
