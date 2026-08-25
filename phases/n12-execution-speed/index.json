@@ -19,13 +19,16 @@
     {
       "step": 1,
       "name": "decompose-execution-stages",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_stage_breakdown.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/pine_v2/test_execution_stage_breakdown.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
         "cd apps/api && uv run python -c \"import json; d=json.load(open('tests/fixtures/pine_corpus_v2/execution_stage_breakdown.json')); s=d['s3_rsid']['stages']; assert set(s)>= {'parse','execute','metrics'}, sorted(s); assert all(v>=0 for v in s.values()); cov=sum(s.values())/d['s3_rsid']['total_seconds']; assert cov>=0.90, cov; print('coverage', round(cov,3))\"",
         "cd apps/api && uv run ruff check tests/strategy/pine_v2"
-      ]
+      ],
+      "started_at": "2026-08-25T18:57:45+0900",
+      "summary": "s3_rsid 21.752초 중 classify_script(parse)가 16.432초(75.5%), execute 5.185초·후처리 0.132초여서 ⑴ strict sizing과 ⑵ 후처리 모두 아닌 cold parse 병목으로 확인됐다.",
+      "completed_at": "2026-08-25T19:06:53+0900"
     },
     {
       "step": 2,
