@@ -47,12 +47,15 @@
     {
       "step": 3,
       "name": "regen-execution-fixtures",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_hotspots.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_speed.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_stage_breakdown.py -q"
-      ]
+      ],
+      "started_at": "2026-08-25T23:10:28+0900",
+      "summary": "hotspots·speed를 지정 REGEN으로 재생성했고 s5_ema_trend stage parse는 0.4625861670356244s→0.3121312080183998s(같은 speed fixture의 parse_and_run은 1.0793893749942072s→0.7520633329986595s)로 갱신했다; execution_stage_breakdown.json은 REGEN env·writer가 레포에 0건이라 새 프로세스에서 test의 _measure_stage_breakdown()을 s3_rsid→s5_ema_trend 순서로 직접 호출해 total−stage 합의 unaccounted_seconds까지 수동 반영했다. 알려진 결함: execution_speed_baseline.json은 실행 순서에 오염돼 있다. test_execution_speed.py:56이 단일 프로세스에서 RUNNABLE_CORPUS를 순서대로 돌고 bars_per_second를 콜드 호출로만 재므로 첫 corpus만 온전한 콜드 비용을 물고 나머지는 앞 corpus가 데운 DFA를 물려받는다. 그래서 20줄짜리 s1_pbr의 ratio_to_fastest 8.43이 42줄짜리 s4_hma_curvature의 2.19보다 나쁘고, 같은 s3_rsid가 breakdown(자기 프로세스 1번째) 21.752s vs speed(3번째) 14.471s로 50% 차이가 순서 하나에서 난다. 격리 실측(corpus당 새 프로세스, median-of-3)의 진짜 콜드는 s1_pbr 5.35s·s3_rsid 11.55s·s5_ema_trend 2.61s·i3_drfx 52.37s다. execution_stage_breakdown.json의 parse는 그 실행의 총 파싱 시간이 아니다. 계측 래퍼가 classify_script 하나만 감싸며(test_execution_stage_breakdown.py:49-53), 나머지 파스는 execute 구간 안에 숨는다. test_execution_stage_breakdown.py:87의 parse_and_run >= parse 부등식은 파스 진입점이 classify_script 바깥으로 나가면 깨진다. step 1은 진입점을 옮기지 않았으므로 유지돼야 하며, 깨지면 이 step이 아니라 step 1이 범위를 벗어난 신호이므로 blocked로 멈춘다.",
+      "completed_at": "2026-08-25T23:19:49+0900"
     }
   ],
   "created_at": "2026-08-25T22:39:39+0900"
