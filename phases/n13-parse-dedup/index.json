@@ -5,13 +5,16 @@
     {
       "step": 0,
       "name": "parse-call-census-harness",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_parse_call_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/pine_v2/test_parse_call_census.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 4",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_speed.py -k ratio_guard -q",
         "cd apps/api && uv run ruff check tests/strategy/pine_v2"
-      ]
+      ],
+      "started_at": "2026-08-25T22:39:39+0900",
+      "summary": "Track S s5_ema_trend=4회·코드 판별 Track A i1_utbot=5회 pynescript.ast.parse census와 내부 정합/상대비 임계 양성 대조를 추가했다.",
+      "completed_at": "2026-08-25T22:45:36+0900"
     },
     {
       "step": 1,
@@ -45,5 +48,6 @@
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_stage_breakdown.py -q"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-25T22:39:39+0900"
 }
