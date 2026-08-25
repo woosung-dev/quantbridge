@@ -122,21 +122,26 @@ QB_METRICS_ROLE=api \
   uv run uvicorn src.main:app --no-server-header --reload --host 0.0.0.0 --port 8000
 """
 
-# ★[BL-650] — Turbopack 영속 캐시가 자라면 `next dev` 가 **요청 0건에서** CPU 를 태우고
-#   낡은 CSS 를 재기동 너머로 계속 준다(음성 대조를 거짓 통과시킨다). 처방은 `rm -rf .next` 뿐이다.
-#   ★★임계 1GB 는 **정책이 아니라 관측 장치**다. 근거는 두 점뿐이다 — 1.99GB 에서 417% CPU /
-#   120초 타임아웃(2026-08-08), 593MB 에서 0.1% CPU / 0.61초(2026-08-08 재측정). 그 사이 어디가
-#   문턱인지는 **아직 아무도 모른다.** 숫자를 정본으로 인용하지 마라.
+# ★[BL-650 종결] — Turbopack dev 영속 캐시(`.next/dev/cache`)가 자라면 `next dev` 가 **요청
+#   0건에서** CPU 를 태우고 낡은 CSS 를 재기동 너머로 계속 준다(1.99GB 사망 · 593MB 무해,
+#   2026-08-08 실측). 키우는 것은 빌드가 아니라 **dev 서버 가동 시간**이다 — `.next` 총량 1,715MB
+#   중 94.4% 가 이 캐시였다(2026-08-25 실측). Next 16 에 디스크 캐시 상한·GC 옵션은 **없다**
+#   (2026-08-25 업스트림 재확인 — 손잡이는 FS 캐시 on/off 와 메모리 eviction 뿐).
+#   ★2026-08-25 사용자 결정 — **기동 시 자동 소각.** 임계 1GB 는 문턱 실측치가 아니라 사망점의
+#   절반에서 끊는 보수값이다. dev 가 이미 3000 을 듣고 있으면 소각하지 않는다(가동 중 캐시 삭제 금지).
 [tasks.fe]
 description = "frontend Next.js (port 3000)"
 run = """
 set -eu
-warn="${FE_CACHE_WARN_MB:-1024}"
-sz="$(du -sm apps/web/.next 2>/dev/null | cut -f1 || true)"
-if [ -n "$sz" ] && [ "$sz" -ge "$warn" ]; then
-  echo "⚠ apps/web/.next 가 ${sz}MB 다 (경고선 ${warn}MB) — [BL-650]"
-  echo "  dev 가 느리거나 CSS 변경이 안 먹으면 먼저: rm -rf apps/web/.next"
-  echo "  ★이 경고선은 문턱의 실측치가 아니다. 태우기 시작하는 크기를 재면 백로그에 적어라."
+burn="${FE_CACHE_BURN_MB:-1024}"
+sz="$(du -sm apps/web/.next/dev/cache 2>/dev/null | cut -f1 || true)"
+if [ -n "$sz" ] && [ "$sz" -ge "$burn" ]; then
+  if lsof -nP -iTCP:3000 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo "⚠ .next/dev/cache 가 ${sz}MB ≥ ${burn}MB 인데 3000 이 청취 중이다 — 소각 생략 [BL-650]"
+  else
+    echo "🔥 apps/web/.next/dev/cache 가 ${sz}MB ≥ ${burn}MB — 소각 후 기동한다 [BL-650]"
+    rm -rf apps/web/.next
+  fi
 fi
 cd apps/web && pnpm dev
 """
