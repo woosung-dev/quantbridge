@@ -19,14 +19,17 @@
     {
       "step": 1,
       "name": "route-parse-through-cached-adapter",
-      "status": "pending",
+      "status": "completed",
+      "summary": "parse_to_ast를 LRU(maxsize=8) 단일 백테스트 파싱 진입점으로 두고 Track S/A 계수를 4→1·5→1로 고정했으며, 변경 source cache miss·문법 예외 비캐시 대조와 `REGEN_EXECUTION_HOTSPOTS=1` 실행-hotspot fixture 재생성을 적용했다.",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_parse_call_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/pine_v2/test_parse_call_census.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 6",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2 -q",
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/backtest tests/optimizer -q",
         "cd apps/api && uv run ruff check src/strategy tests/strategy"
-      ]
+      ],
+      "started_at": "2026-08-25T22:45:39+0900",
+      "completed_at": "2026-08-25T23:05:58+0900"
     },
     {
       "step": 2,
