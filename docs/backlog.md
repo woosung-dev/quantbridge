@@ -782,20 +782,6 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
 
-### BL-821
-
-**Title:** waitlist 카피가 **실계정 연결을 약속한다** — PRD 결정(실자금 안 간다) 위반 + 같은 페이지 FAQ 와 자기모순
-**Category:** FE / 공개 카피
-**Priority:** P2
-**출처:** 2026-08-25 qa-sweep J1 (화면 실측 + 코드 대조)
-
-**증상:** `/waitlist` 「거래소 연결」 카드가 「검증한 전략을 데모 계정과 **실계정**에 같은 코드 경로로 붙입니다」라고 적는다. 같은 페이지 FAQ 는 「데모 환경만 제공합니다」, 랜딩·PRD(2026-08-23 사용자 결정 ⑴)는 실자금 비목표.
-**코드 좌표:** `apps/web/src/features/waitlist/components/waitlist-product.tsx:58`
-**권장 접근:** 해당 desc 를 데모 한정 표현으로 정정(한 줄 수정). [BL-776](개방 가입)과 별개 축 — 이것은 카피만이다.
-
-**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
-**트리거 판정:** 도래 (한 줄 카피 수정, 단독 착수 가능)
-
 ### BL-822
 
 **Title:** 거래 수 분모 모순 — detail API 가 num_trades 를 **open 포함(13)** 으로 덮어쓰는데 승률은 **완료(12) 기준** 그대로라 화면들이 서로 다른 숫자를 말한다
