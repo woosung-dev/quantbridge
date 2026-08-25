@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "prove-parse-blocks-event-loop",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/test_parse_event_loop_blocking.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/test_parse_event_loop_blocking.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
         "cd apps/api && uv run ruff check tests/strategy"
-      ]
+      ],
+      "started_at": "2026-08-25T22:39:39+0900",
+      "summary": "parse_preview 엔드포인트를 선택: 파스 시작 뒤 10회 asyncio.sleep(0) 양보 틱(0.2초 동기 스텁의 절반 관측 창에도 즉시 반환 대조가 안정적으로 완료하는 소량)을 측정하고, 스텁 sleep은 0.2초; step 1 대상은 test_parse_preview_blocks_event_loop_when_parse_to_ast_blocks, test_parse_preview_heartbeat_reaches_target_when_parse_to_ast_returns_immediately, test_parse_preview_calls_service_parse_to_ast.",
+      "completed_at": "2026-08-25T22:46:34+0900"
     },
     {
       "step": 1,
@@ -23,5 +26,6 @@
         "cd apps/api && uv run ruff check src/strategy tests/strategy"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-25T22:39:39+0900"
 }
