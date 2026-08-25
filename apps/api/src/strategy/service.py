@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -126,7 +127,7 @@ def _collect_functions(source: str) -> list[str]:
     return sorted(found.keys())
 
 
-def _parse(
+async def _parse(
     source: str,
 ) -> tuple[
     ParseStatus,
@@ -140,7 +141,9 @@ def _parse(
     """pine_v2 `parse_to_ast` 로 파싱 → (status, version, warnings, errors, entry_count, exit_count, functions_used).
 
     AST 생성에 성공하면 status=ok. entry/exit 개수와 함수 사용 목록은 원본
-    소스에서 regex 로 근사 수집 (실행 없이 정적 분석).
+    소스에서 regex 로 근사 수집 (실행 없이 정적 분석). CPU 병목인 parse_to_ast
+    한 호출만 asyncio.to_thread로 옮긴다. 가벼운 regex 수집은 현재 이벤트 루프에
+    남기며, health router의 기존 asyncio.to_thread 선례를 따른다.
     """
     version = _detect_version(source)
     clean = _strip_comments(source)
@@ -149,7 +152,7 @@ def _parse(
     functions_used = _collect_functions(source)
 
     try:
-        parse_to_ast(source)
+        await asyncio.to_thread(parse_to_ast, source)
     except Exception as exc:  # pynescript / lexer / classifier 오류 전부 error
         return (
             ParseStatus.error,
@@ -198,7 +201,7 @@ class StrategyService:
         self.live_session_repo = live_session_repo
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
-        status, version, warnings, errors, entry_count, exit_count, functions_used = _parse(
+        status, version, warnings, errors, entry_count, exit_count, functions_used = await _parse(
             pine_source
         )
         # Sprint Y1: pre-flight coverage analyzer — 미지원 built-in 식별
@@ -228,7 +231,7 @@ class StrategyService:
         가 add+flush 만 하고, repo.commit() 이 둘 다 영구 저장. repo.commit() 실패 시
         plaintext 응답 X (둘 다 rollback).
         """
-        status, version, _warnings, errors, _e, _x, _fu = _parse(data.pine_source)
+        status, version, _warnings, errors, _e, _x, _fu = await _parse(data.pine_source)
         parse_errors = [e.model_dump() for e in errors] if errors else None
         strategy = Strategy(
             user_id=owner_id,
@@ -372,7 +375,7 @@ class StrategyService:
         if data.is_archived is not None:
             strategy.is_archived = data.is_archived
         if data.pine_source is not None:
-            status, version, _w, errors, _e, _x, _fu = _parse(data.pine_source)
+            status, version, _w, errors, _e, _x, _fu = await _parse(data.pine_source)
             strategy.pine_source = data.pine_source
             strategy.pine_version = version
             strategy.parse_status = status

@@ -176,11 +176,30 @@ def test_execution_speed_relative_ratios_do_not_regress() -> None:
 
 
 def test_execution_speed_ratio_guard_rejects_tampered_baseline() -> None:
-    """양성 대조: 기록 ratio를 10배 조작하면 판정 함수가 거부한다."""
+    """양성 대조: baseline 내부 ratio 정합성이 깨지면 판정 함수가 거부한다."""
     baseline = _baseline_for_test()
     tampered_baseline = deepcopy(baseline)
     corpus_id = RUNNABLE_CORPUS[0]
     tampered_baseline["corpora"][corpus_id]["ratio_to_fastest"] *= 10
 
-    with pytest.raises(AssertionError, match="ratio_to_fastest"):
+    with pytest.raises(AssertionError, match="bars_per_second에서 계산한"):
         _assert_relative_ratio_regression(baseline["corpora"], tampered_baseline)
+
+
+def test_execution_speed_ratio_guard_rejects_relative_ratio_regression() -> None:
+    """양성 대조: 정합한 측정값의 상대비가 허용 임계를 넘으면 거부한다."""
+    baseline = _baseline_for_test()
+    measured_corpora = deepcopy(baseline["corpora"])
+    corpus_id = max(
+        RUNNABLE_CORPUS,
+        key=lambda item: float(baseline["corpora"][item]["ratio_to_fastest"]),
+    )
+    baseline_ratio = float(baseline["corpora"][corpus_id]["ratio_to_fastest"])
+    assert baseline_ratio > 1.0, "상대비 회귀 양성 대조에는 fastest 외 corpus가 필요합니다"
+
+    slowdown = _RATIO_REGRESSION_LIMIT + 1.0
+    measured_corpora[corpus_id]["bars_per_second"] /= slowdown
+    measured_corpora[corpus_id]["ratio_to_fastest"] *= slowdown
+
+    with pytest.raises(AssertionError, match="상대비 회귀"):
+        _assert_relative_ratio_regression(measured_corpora, baseline)

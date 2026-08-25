@@ -426,7 +426,19 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 
 ★**사용자 결정 2건(2026-08-25)** — ⑴ 회차 범위 = **A+F 2 lane**(중복 파스 제거 · API 루프 블로킹). ⑵ `worker_max_tasks_per_child` 250→1000 완화는 **이번엔 손대지 않는다**(판정 수단이 소크뿐이라 AC 를 못 세운다 — [BL-828]). 기각·유예된 축은 [BL-828]·[BL-829]·[BL-830]·[BL-831] 로 등재했다.
 
-**다음 행동 = n13 2 lane 병렬 주행** — `python3 tools/harness/execute.py --parallel 2 --stage stage/n13 --confirm`. lane = `n13-parse-dedup`(4 step: 파스 계수 census 하네스 + 2.0배 임계 양성 대조 수리 → 세 직접 호출을 `parse_to_ast` 경유로 + `lru_cache(maxsize=8급)` → AST 불변성 census 집행 → 픽스처 3벌 재생성) · `n13-api-parse-offload`(2 step: 이벤트 루프 블로킹을 **틱 수**로 red 세우기 → `run_in_threadpool` 이관, 호출부 3곳 `service.py:201·231·375` 전부). ★**파일 겹침 0** — lane 1 = `src/strategy/pine_v2/**`, lane 2 = `src/strategy/service.py`.
+~~**다음 행동 = n13 2 lane 병렬 주행**~~ → **2026-08-25 완주** — 6 step 전부 `completed`(blocked·error 0건), PR #832·#833 → `stage/n13`, 통합 PR **#834**.
+
+★★**산출 — 백테스트 1회의 파스가 4→1(Track A 5→1)이 됐고 그것이 결정적으로 단언된다.** `parse_to_ast` 에 `lru_cache(maxsize=8)` + `ast_classifier.py`·`ast_extractor.py`·`alert_hook.py` 의 직접 `pyne_ast.parse` 3곳을 어댑터 경유로. 신설 `test_parse_call_census.py` 6건 = 계수 단언 2(Track S/A · sha1 동일성 포함) + **양성 3**(직접 호출 N회 계수 · 소스 변경 시 캐시 미스 · 예외는 캐시되지 않음) + **음성 1**. ★값이 큰 곳은 백테스트 1건이 아니라 **옵티마이저**다 — genetic 상한 `200 × 101` 셀이 동일 소스를 셀마다 파싱하던 것이 프로세스당 1회가 된다.
+★**API 파스가 이벤트 루프를 막던 것도 닫혔다** — `service.py` 의 세 `async def`(`:201`·`:231`·`:375`)가 동기 `_parse` 를 직접 부르고 uvicorn 워커가 1개라 콜드 파스(최대 52초) 동안 `/healthz` 까지 멈췄다. 신설 `test_parse_event_loop_blocking.py` 는 **경과 초가 아니라 하트비트 틱 수**로 판정한다.
+★**기존 가드의 판별력 0 을 고쳤다** — `test_execution_speed.py` 의 양성 대조가 `:149` 내부 정합 검사에서 먼저 터지고 두 메시지가 같은 문자열을 담아 `match=` 가 못 갈랐다. 기존 것은 정직한 이름·`match=` 로 정정하고, **2.0배 임계를 실제로 통과하는 새 대조**를 더했다(`bars_per_second` 와 `ratio_to_fastest` 의 정합을 유지한 채 한 corpus 만 임계 밖으로).
+
+★★**lane AC 초록이 광역 green 이 아님을 #833 이 또 실증했다**(n8 에 이어 두 번째). lane 4 step 전부 통과 후 광역 CI 가 `test_live_signal_import_blast_radius.py::test_pine_v2_import_surface_does_not_grow` 로 red — `ast_classifier` 를 어댑터 경유로 바꾸자 `parser_adapter` 가 `live_signal` 의 top-level 폐포에 들어왔다. **가드가 요구한 대로 근거를 적어 동결 집합을 갱신**했다(잎 모듈·`src` import 0건 · 본문이 데코레이터+1줄 · `pynescript` 는 이미 허용된 `ast_extractor` 가 같이 끌어옴). CONTROL 이 수리 후 **로컬 전량 5427 passed / 0 failed** 로 재확인.
+
+★**주의 — 픽스처의 초 값으로 절감량을 주장하지 마라.** 재생성된 `execution_stage_breakdown.json` 은 s3_rsid `execute` 5.185→2.787초(총 21.75→14.60)를 보이지만 **1회 측정**이고, 웜 중복 3회의 실측 합은 0.830초다. 차이는 측정 소음이다([BL-830]). 이 회차의 방어 가능한 주장은 **결정적 계수 4→1** 뿐이다.
+
+★**회고 = 반증 카드 2장으로 정본 층에 올렸다** — [LESSON-130](「ANTLR DFA 는 프로세스당 1회」가 거짓이고 그 한 문장이 방향 둘을 잘못 세웠다) · [LESSON-131](동료 세션의 실측이 자기 문장으로 반증됐다 — 소음 폭이 주장 효과보다 컸다).
+
+**다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 후보는 B([BL-453] 재기술 필요)·AP([BL-774] 사람 동반 필요) 둘이고, n13 이 유예 등재한 넷([BL-828] 소크 동승 · [BL-829] SLL 2단계 · [BL-830] 측정 구조 · [BL-831] 파스 엔드포인트 제한)은 전부 트리거 미도래다. ★[BL-829] 는 **콜드 파스 자체를 줄이는 유일한 축**이므로, 콜드가 여전히 문제로 관측되면 그것이 최우선이다.
 
 ★★**2026-08-25 외부 관례 대조(n12 가 안 한 것을 사후 보강).** n12 의 `bar/s` 는 레포 사정에서 나온 단위였고 **업계 대조 없이 골랐다.** 대조 결과 **단위 선택 자체는 관례와 일치한다** — QuantConnect LEAN 은 **DPS(data points per second)** 를 「**각 벤치마크 알고리즘별로**」 재고(우리가 corpus 별로 나눠 잰 것과 같은 형태), backtrader 벤치마크는 **candles/second**(지표·브로커 포함 12,473 c/s)로 공표한다. vectorbt 만 처리량이 아니라 「N개 백테스트를 T초에」로 낸다. ★**그러나 방법론 결함 3건이 드러났다.** ⑴ **median-of-3 를 안 했다** — 공개 벤치마크 관례는 **동일 머신 3회의 중앙값**이고, `s1_pbr` 이 3.88초↔9.98초(2.6배)로 흔들린 것이 정확히 그 이유다(가드 임계 2.0배가 이 소음을 흡수하는 것이지 코드 회귀만 보는 게 아니다). ⑵ **TradingView 기준을 안 봤다** — 이 제품은 TV Pine 을 가져오는 제품인데 **TV 는 처리량을 안 쓴다**: 스크립트 실행 **20초(basic)/40초**, bar 당 루프 **500ms**, plan 별 bar 수 상한 5,000~40,000. `s3_rsid` 의 첫 파스 16초는 그 상한권 안에 있는 값이므로, **제품 기준으로는 「TV 가 통과시키는 스크립트가 우리 엔진에서 통과하는가」가 처리량보다 맞는 축일 수 있다.** ⑶ **`bar/s` 의 분모가 오염됐다** — 위 PRD 항목에 적었다(파스는 bar 수 무관 고정비 ⇒ 데이터가 길수록 수치가 저절로 좋아지고 1Y 선형 환산은 60% 과대). 출처 = TradingView Pine 문서 「Limitations」 · QuantConnect 「Engine Performance」 · backtrader 성능 벤치마크 · BacktestScore 2026 벤치마크 방법론.
 
@@ -571,4 +583,3 @@ p≈0.020 기각 성립) · ② 자동 사망 **0건** · ③ 조건부 발주 *
 > self-host Better Auth). 그리고 「현행 소크 눈금」이 마이그레이션 head 를 **`20260801_0001`** 이라
 > 적었는데 실제 head 는 **`20260817_0002`** 다. 이 절의 머리말이 「낡은 T0 를 남기지 마라」라고
 > 경고한 바로 그 병을 **이 절 자신이 앓고 있었다.**
-

@@ -1,6 +1,3 @@
 {
-  "phases": [
-    { "dir": "n13-parse-dedup", "status": "pending" },
-    { "dir": "n13-api-parse-offload", "status": "pending" }
-  ]
+  "phases": []
 }

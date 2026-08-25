@@ -36,6 +36,8 @@ from typing import Any
 
 from pynescript import ast as pyne_ast
 
+from src.strategy.pine_v2.parser_adapter import parse_to_ast
+
 
 class SignalKind(StrEnum):
     LONG_ENTRY = "long_entry"
@@ -385,7 +387,7 @@ def _walk_with_if_context(node: Any) -> Iterator[tuple[Any, Any | None, str | No
 
 def collect_alerts(source: str) -> list[AlertHook]:
     """Pine 소스에서 alert/alertcondition을 추출·분류 (v1: condition-trace 포함)."""
-    tree = pyne_ast.parse(source)
+    tree = parse_to_ast(source)
     symbol_table = _build_symbol_table(tree)
     hooks: list[AlertHook] = []
     idx = 0

@@ -21,6 +21,8 @@ from typing import Any, Literal
 
 from pynescript import ast as pyne_ast
 
+from src.strategy.pine_v2.parser_adapter import parse_to_ast
+
 DeclarationKind = Literal["strategy", "indicator", "library", "unknown"]
 VarKind = Literal["var", "varip"]
 
@@ -379,7 +381,7 @@ def _extract_strategy_calls(tree: Any) -> list[StrategyCall]:
 
 def extract_content(source: str) -> ScriptContent:
     """Pine 소스의 구조화 내용을 ScriptContent로 추출."""
-    tree = pyne_ast.parse(source)
+    tree = parse_to_ast(source)
     return ScriptContent(
         declaration=_extract_declaration(tree),
         inputs=_extract_inputs(tree),

@@ -15,6 +15,7 @@ Execution-First 원칙(P1) 검증용 카운트:
 공개 API:
 - `classify_script(source: str) -> ScriptProfile`
 """
+
 from __future__ import annotations
 
 from collections import Counter
@@ -24,19 +25,34 @@ from typing import Any, Literal
 
 from pynescript import ast as pyne_ast
 
+from src.strategy.pine_v2.parser_adapter import parse_to_ast
+
 Declaration = Literal["strategy", "indicator", "library", "unknown"]
 Track = Literal["S", "A", "M", "unknown"]
 
 _INDICATOR_ALIASES: frozenset[str] = frozenset({"indicator", "study"})
 _RENDER_SCOPE_A_PREFIXES: frozenset[str] = frozenset({"box", "label", "line", "table"})
-_RENDER_NOP_NAMES: frozenset[str] = frozenset({
-    "plot", "plotshape", "plotchar", "plotbar", "plotcandle", "plotarrow",
-    "bgcolor", "barcolor", "fill", "hline",
-})
+_RENDER_NOP_NAMES: frozenset[str] = frozenset(
+    {
+        "plot",
+        "plotshape",
+        "plotchar",
+        "plotbar",
+        "plotcandle",
+        "plotarrow",
+        "bgcolor",
+        "barcolor",
+        "fill",
+        "hline",
+    }
+)
 _ALERT_NAMES: frozenset[str] = frozenset({"alert", "alertcondition"})
-_SECURITY_NAMES: frozenset[str] = frozenset({
-    "request.security", "request.security_lower_tf",
-})
+_SECURITY_NAMES: frozenset[str] = frozenset(
+    {
+        "request.security",
+        "request.security_lower_tf",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -116,7 +132,7 @@ def _classify_track(decl: Declaration, alert_count: int) -> Track:
 
 def classify_script(source: str) -> ScriptProfile:
     """Pine 소스를 pynescript로 파싱하여 구조 프로파일 반환."""
-    tree = pyne_ast.parse(source)
+    tree = parse_to_ast(source)
 
     declaration = _detect_declaration(tree)
 
