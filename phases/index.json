@@ -1,5 +1,9 @@
 {
   "phases": [
-    { "dir": "n12-execution-speed", "status": "pending" }
+    {
+      "dir": "n12-execution-speed",
+      "status": "completed",
+      "completed_at": "2026-08-25T19:21:15+0900"
+    }
   ]
 }
