@@ -52,6 +52,14 @@ function statValue(label: string): string {
 }
 
 describe("Step4Result 결과 카드의 거래 수 (BL-822)", () => {
+  it("라벨이 「완료 거래」다 — 「거래 수」는 상세 화면에서 미청산 포함 수를 가리킨다", () => {
+    mockMetrics({ total_return: "0.1", win_rate: "0.5", num_trades: 13, completed_trades: 12 });
+    renderCard();
+
+    expect(screen.getByText("완료 거래")).toBeInTheDocument();
+    expect(screen.queryByText("거래 수")).toBeNull();
+  });
+
   it("실측 케이스 재현 — 13 이 아니라 완료 12 를 인쇄하고 승률과 곱해 정수가 된다", () => {
     // backtest 20128227: JSONB num_trades 12 · win_rate 2/12, detail API 는 13 으로 override.
     mockMetrics({
@@ -62,9 +70,9 @@ describe("Step4Result 결과 카드의 거래 수 (BL-822)", () => {
     });
     renderCard();
 
-    expect(statValue("거래 수")).toBe("12");
+    expect(statValue("완료 거래")).toBe("12");
     const winRate = Number("0.166667");
-    const shown = Number(statValue("거래 수"));
+    const shown = Number(statValue("완료 거래"));
     expect(Math.round(winRate * shown)).toBe(2);
     // 정직성 축 — 표시된 분모로 계산한 승리 건수가 반올림 오차 0.05건 안이어야 한다.
     expect(Math.abs(winRate * shown - 2)).toBeLessThan(0.05);
@@ -79,7 +87,7 @@ describe("Step4Result 결과 카드의 거래 수 (BL-822)", () => {
     });
     renderCard();
 
-    const foot = screen.getByText("거래 수").closest(".ob-stat")?.querySelector(".kpi-foot");
+    const foot = screen.getByText("완료 거래").closest(".ob-stat")?.querySelector(".kpi-foot");
     expect(foot?.textContent).toContain("진입·청산이 완료된 건수입니다.");
     expect(foot?.textContent).toContain("미청산 1건은 제외했습니다.");
   });
@@ -93,8 +101,8 @@ describe("Step4Result 결과 카드의 거래 수 (BL-822)", () => {
     });
     renderCard();
 
-    expect(statValue("거래 수")).toBe("12");
-    const foot = screen.getByText("거래 수").closest(".ob-stat")?.querySelector(".kpi-foot");
+    expect(statValue("완료 거래")).toBe("12");
+    const foot = screen.getByText("완료 거래").closest(".ob-stat")?.querySelector(".kpi-foot");
     expect(foot?.textContent).not.toContain("미청산");
   });
 
@@ -102,6 +110,6 @@ describe("Step4Result 결과 카드의 거래 수 (BL-822)", () => {
     mockMetrics({ total_return: "0.1", win_rate: "0.5", num_trades: 8 });
     renderCard();
 
-    expect(statValue("거래 수")).toBe("8");
+    expect(statValue("완료 거래")).toBe("8");
   });
 });

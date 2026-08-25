@@ -196,7 +196,7 @@ export function Step4Result({
         </div>
 
         <div className="ob-stat">
-          <p className="kpi-label">거래 수</p>
+          <p className="kpi-label">완료 거래</p>
           <p className="kpi-value mono">
             <StatValue isPending={isPending}>
               {numTrades === null ? (

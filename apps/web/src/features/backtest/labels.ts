@@ -117,7 +117,10 @@ export const BACKTEST_LIST_HEADER = {
   totalReturn: "수익률",
   maxDrawdown: "MDD",
   sharpeRatio: "샤프",
-  numTrades: "거래 수",
+  // ★BL-822 — 이 열의 값도 정렬 키도 `metrics_summary.num_trades` = JSONB **closed** 카운트다
+  //   (BE `repository.py` order_by 매핑 · summary 는 detail 의 open 포함 override 를 안 탄다).
+  //   상세 화면의 「총 거래 수」(미청산 포함)와 다른 수이므로 이름도 달라야 한다.
+  numTrades: "완료 거래",
   status: "상태",
   startedAt: "실행 시각",
   action: "액션",
@@ -131,7 +134,7 @@ export const BACKTEST_LIST_SORT_LABEL = {
   totalReturn: "수익률 기준 정렬",
   maxDrawdown: "최대 낙폭 기준 정렬",
   sharpeRatio: "샤프 지수 기준 정렬",
-  numTrades: "거래 수 기준 정렬",
+  numTrades: "완료 거래 기준 정렬",
   startedAt: "실행 시각 기준 정렬, 현재 내림차순으로 최근 실행이 위에 옵니다",
 } as const;
 

@@ -194,6 +194,10 @@ describe("BacktestList 성과 열", () => {
     const row = screen.getByTestId(`backtest-row-${item.id}`);
     expect(within(row).getByText("12")).toBeInTheDocument();
     expect(within(row).getByText("미청산 1")).toBeInTheDocument();
+    // 열 이름도 값과 같은 뜻이어야 한다 — 상세의 「총 거래 수」(13)와 다른 수이므로.
+    const table = screen.getByRole("table", { name: /백테스트 실행 목록/ });
+    expect(within(table).getByRole("button", { name: "완료 거래 기준 정렬" })).toBeInTheDocument();
+    expect(within(table).queryByText("거래 수")).toBeNull();
   });
 
   it("음성 대조 — 미청산 0건이면 부기가 붙지 않는다", () => {
