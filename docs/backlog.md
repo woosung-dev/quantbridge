@@ -781,18 +781,3 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
-
-### BL-822
-
-**Title:** 거래 수 분모 모순 — detail API 가 num_trades 를 **open 포함(13)** 으로 덮어쓰는데 승률은 **완료(12) 기준** 그대로라 화면들이 서로 다른 숫자를 말한다
-**Category:** Backend / Backtest serializer + FE 라벨
-**Priority:** P2
-**출처:** 2026-08-25 qa-sweep J3/J5 (온보딩 완주 실측 → DB·API 대조)
-
-**증상 (실측, backtest `20128227`):** DB metrics = num_trades **12** · win_rate 2/12=16.67%. detail API 는 Sprint 31-E override(`backtest/service.py:825-847` ← `repository.py:366 count_trades_by_direction` = **open+closed**)로 num_trades/total_trades 를 **13** 으로 응답. 결과 — ⑴ 상세 「총 거래 수 13 · 승률 16.67%」 산술 불능(13×16.67%≈2.17) ⑵ 목록(`/backtests`)은 12, 상세는 13 — 같은 실행이 화면마다 다름 ⑶ 온보딩 결과 카드는 13 에 「**진입·청산이 완료된 건수**입니다」 거짓 라벨(`step-4-result.tsx:209`) ⑷ 상세 페이지 안에서도 「체결된 거래 13건」 vs 거래 분포 합 12.
-**원인:** override 자체는 의도된 결정(BL-155 — FE 거래 목록 길이와 일치)이나, 승률·라벨·목록이 **완료 기준**을 유지해 분모가 갈라졌다.
-**권장 접근:** 두 셈을 **이름으로 가르라** — 「거래 수(미청산 포함) N」과 「완료 거래 M(승률 분모)」를 각각 명시. 최소 수리 = FE 라벨 2곳(온보딩 카드 foot + 상세 지표 카드)과 목록/상세 표기 통일. BE 응답에 completed count 를 별도 필드로 주는 것이 정본 수리.
-
-**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
-**트리거 판정:** 도래 (제품 핵심 축 「결과가 정직하게 보이는가」 직결)
-

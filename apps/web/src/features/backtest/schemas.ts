@@ -239,6 +239,11 @@ export const BacktestMetricsOutSchema = z.object({
   max_drawdown: decimalString,
   win_rate: decimalString,
   num_trades: z.number().int(),
+  // BL-822 — 승률·평균손익 등 모든 성과 지표의 **분모**(= 청산 완료 거래 수).
+  // num_trades 는 Sprint 31-E(BL-155) override 로 미청산까지 포함한 수(= 거래 목록 길이)라
+  // 둘이 갈린다. BE service 가 JSONB num_trades 에서 파생시키므로 구 백테스트도 값이 있다.
+  // 읽는 쪽은 `deriveTradeCounts`(trade-counts.ts)를 쓴다 — 직접 빼지 마라.
+  completed_trades: z.number().int().nullable().optional(),
   // Sprint 8b 확장 지표 (구 완료 백테스트 null)
   sortino_ratio: decimalString.nullable().optional(),
   calmar_ratio: decimalString.nullable().optional(),

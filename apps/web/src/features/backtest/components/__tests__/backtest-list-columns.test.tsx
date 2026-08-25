@@ -160,4 +160,70 @@ describe("BacktestList 성과 열", () => {
       "구 기준 샤프는 현재 기준과 비교할 수 없어 정렬 시 비교 가능한 결과 뒤로 분리됩니다.",
     );
   });
+
+  // BL-822 — 목록의 거래 수 칸은 **완료 거래**(summary 는 JSONB closed 카운트)다.
+  // 상세는 미청산까지 포함한 「거래 수」를 보여 주므로, 여기에 미청산 건수를 적어 두
+  // 화면의 숫자가 더해서 맞는 것이 보이게 한다.
+  it("거래 수 칸에 미청산 건수를 부기한다", () => {
+    mockUseBacktests.mockReturnValue({
+      data: {
+        items: [
+          {
+            ...item,
+            metrics_summary: {
+              total_return: 0.1234,
+              net_profit_abs: 12,
+              sharpe_ratio: 1.5,
+              max_drawdown: -0.04,
+              num_trades: 12,
+              total_open_trades: 1,
+            },
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseStrategies.mockReturnValue({ data: { items: [] } });
+
+    renderList();
+
+    const row = screen.getByTestId(`backtest-row-${item.id}`);
+    expect(within(row).getByText("12")).toBeInTheDocument();
+    expect(within(row).getByText("미청산 1")).toBeInTheDocument();
+  });
+
+  it("음성 대조 — 미청산 0건이면 부기가 붙지 않는다", () => {
+    mockUseBacktests.mockReturnValue({
+      data: {
+        items: [
+          {
+            ...item,
+            metrics_summary: {
+              total_return: 0.1234,
+              net_profit_abs: 12,
+              sharpe_ratio: 1.5,
+              max_drawdown: -0.04,
+              num_trades: 12,
+              total_open_trades: 0,
+            },
+          },
+        ],
+        total: 1,
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    mockUseStrategies.mockReturnValue({ data: { items: [] } });
+
+    renderList();
+
+    const row = screen.getByTestId(`backtest-row-${item.id}`);
+    expect(within(row).queryByText(/미청산/)).toBeNull();
+  });
 });

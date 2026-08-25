@@ -268,3 +268,124 @@ async def test_repository_count_trades_by_direction(
     assert total == 13
     assert long_n == 6
     assert short_n == 7
+
+
+# ---------------------------------------------------------------------------
+# BL-822 — 「거래 수 N」과 「완료 거래 M」을 이름으로 가른다
+#
+# 위 Sprint 31-E override 는 유지하되(BL-155 의 의도된 결정), 승률의 분모가 무엇인지
+# 응답이 스스로 말하게 한다. 그러지 않으면 화면이 「총 거래 수 13 · 승률 16.67%」처럼
+# 곱해서 정수가 안 나오는 조합을 인쇄한다 (2026-08-25 qa-sweep 실측, backtest 20128227).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_completed_trades_is_win_rate_denominator(
+    service: BacktestService, db_session: AsyncSession
+) -> None:
+    """win_rate × completed_trades 는 정수(= 승리 건수)여야 한다. num_trades 로는 안 된다.
+
+    fixture: 5 closed long + 1 open long + 3 closed short + 1 open short = 10 trades.
+    JSONB win_rate = 0.375 = 3/8 — **완료 8건** 기준에서만 정수 승수(3)가 나오고
+    override 값 10 을 분모로 쓰면 3.75 라 산술이 불가능하다.
+    """
+    user, bt = await _seed_completed_bt_with_trades(
+        db_session,
+        closed_long=5,
+        open_long=1,
+        closed_short=3,
+        open_short=1,
+        metrics_long_count=5,
+        metrics_short_count=3,
+    )
+    bt.metrics["win_rate"] = "0.375"  # type: ignore[index]
+    await db_session.flush()
+
+    detail = await service.get(bt.id, user_id=user.id)
+
+    assert detail.metrics is not None
+    assert detail.metrics.num_trades == 10  # override 유지 (BL-155)
+    assert detail.metrics.completed_trades == 8  # 승률 분모
+
+    wins = detail.metrics.win_rate * detail.metrics.completed_trades
+    assert wins == Decimal("3"), f"완료 거래를 분모로 쓰면 정수 승수여야 한다 (got {wins})"
+    # 음성 대조 — override 된 num_trades 를 분모로 쓰면 정수가 아니다(그래서 갈라야 했다).
+    assert detail.metrics.win_rate * detail.metrics.num_trades != Decimal("3")
+
+
+@pytest.mark.asyncio
+async def test_trade_count_invariant_num_equals_completed_plus_open(
+    service: BacktestService, db_session: AsyncSession
+) -> None:
+    """불변식: num_trades == completed_trades + total_open_trades (override 경로)."""
+    user, bt = await _seed_completed_bt_with_trades(
+        db_session,
+        closed_long=10,
+        open_long=2,
+        closed_short=7,
+        open_short=3,
+        metrics_long_count=10,
+        metrics_short_count=7,
+    )
+    bt.metrics["total_open_trades"] = 5  # type: ignore[index]  # engine 이 세는 open 개수
+    await db_session.flush()
+
+    detail = await service.get(bt.id, user_id=user.id)
+
+    assert detail.metrics is not None
+    assert detail.metrics.completed_trades == 17
+    assert detail.metrics.total_open_trades == 5
+    assert detail.metrics.num_trades - detail.metrics.completed_trades == 5
+
+
+@pytest.mark.asyncio
+async def test_no_open_trades_means_counts_do_not_split(
+    service: BacktestService, db_session: AsyncSession
+) -> None:
+    """음성 대조 — 미청산 0건이면 두 셈이 갈리지 않는다(갈라짐이 없는 곳에서 갈리면 결함)."""
+    user, bt = await _seed_completed_bt_with_trades(
+        db_session,
+        closed_long=4,
+        open_long=0,
+        closed_short=2,
+        open_short=0,
+        metrics_long_count=4,
+        metrics_short_count=2,
+    )
+
+    detail = await service.get(bt.id, user_id=user.id)
+
+    assert detail.metrics is not None
+    assert detail.metrics.num_trades == 6
+    assert detail.metrics.completed_trades == 6
+
+
+@pytest.mark.asyncio
+async def test_legacy_fallback_completed_equals_num_trades(
+    service: BacktestService, db_session: AsyncSession
+) -> None:
+    """trades 0건(legacy) 경로 — override 가 안 걸리므로 두 값이 같다.
+
+    ★이 경로가 「FE 가 num_trades − total_open_trades 로 파생시키면 된다」를 반증한다.
+      여기서 num_trades 는 이미 closed 라 빼면 M 보다 작아진다.
+    """
+    user, bt = await _seed_completed_bt_with_trades(
+        db_session,
+        closed_long=0,
+        open_long=0,
+        closed_short=0,
+        open_short=0,
+        metrics_long_count=12,
+        metrics_short_count=8,
+    )
+    bt.metrics["num_trades"] = 20  # type: ignore[index]
+    bt.metrics["total_open_trades"] = 3  # type: ignore[index]  # 구 실행의 잔존 값
+    await db_session.flush()
+
+    detail = await service.get(bt.id, user_id=user.id)
+
+    assert detail.metrics is not None
+    assert detail.metrics.num_trades == 20
+    assert detail.metrics.completed_trades == 20
+    # 빼기 파생이었다면 17 이 나왔을 자리다.
+    assert detail.metrics.completed_trades != 17

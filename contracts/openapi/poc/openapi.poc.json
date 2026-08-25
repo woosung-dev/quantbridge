@@ -338,6 +338,17 @@
             ],
             "title": "Calmar Ratio"
           },
+          "completed_trades": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed Trades"
+          },
           "consecutive_losses_max": {
             "anyOf": [
               {

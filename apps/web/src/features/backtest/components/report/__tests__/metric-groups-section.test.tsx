@@ -47,7 +47,8 @@ describe("MetricGroupsSection (03 상세 지표)", () => {
       expect(screen.getByText(title)).toBeInTheDocument();
     }
     // 실행 품질 묶음은 강제청산을 포함해 7행이다.
-    expect(container.querySelectorAll(".metric")).toHaveLength(25);
+    // 거래 통계 묶음은 BL-822 로 「완료 거래」 행이 늘어 7행이다.
+    expect(container.querySelectorAll(".metric")).toHaveLength(26);
   });
 
   it("스키마가 받치는 값을 검산대로 렌더 (평균 보유 → 일·시간, 벤치마크 초과 %p 파생)", () => {
@@ -132,5 +133,56 @@ describe("MetricGroupsSection (03 상세 지표)", () => {
       "title",
       "플랫 유지증거금률 0.5% · 단일 tier · 격리마진 · Bybit 기준.",
     );
+  });
+
+  // BL-822 — 「거래 수」(미청산 포함)와 「완료 거래」(승률 분모)를 이름으로 가른다.
+  // 갈리기 전에는 「총 거래 수 13 · 승률 16.67%」처럼 곱해서 정수가 안 나오는 조합이 났다.
+  describe("거래 수 vs 완료 거래 (BL-822)", () => {
+    const SPLIT = {
+      ...FULL_METRICS,
+      num_trades: 13,
+      completed_trades: 12,
+      win_rate: 0.1667,
+    } as unknown as BacktestMetricsOut;
+
+    function metricRow(label: string) {
+      return screen.getByText(label).closest(".metric");
+    }
+
+    it("두 행이 각자의 이름으로 서로 다른 값을 인쇄한다", () => {
+      render(<MetricGroupsSection metrics={SPLIT} buyAndHoldCurve={BH} />);
+      expect(metricRow("총 거래 수")).toHaveTextContent("13");
+      expect(metricRow("완료 거래")).toHaveTextContent("12");
+    });
+
+    it("승률 셀이 분모가 완료 거래임을 말한다", () => {
+      render(<MetricGroupsSection metrics={SPLIT} buyAndHoldCurve={BH} />);
+      expect(metricRow("승률")?.querySelector(".metric-value")).toHaveAttribute(
+        "title",
+        "완료 거래 12건 기준입니다.",
+      );
+      expect(metricRow("총 거래 수")?.querySelector(".metric-value")).toHaveAttribute(
+        "title",
+        "미청산 1건을 포함한 수입니다. 거래 목록의 행 수와 같습니다.",
+      );
+    });
+
+    it("음성 대조 — 미청산이 없으면 두 행이 같은 값이고 「포함」 고지도 없다", () => {
+      render(
+        <MetricGroupsSection
+          metrics={{ ...SPLIT, num_trades: 12 } as unknown as BacktestMetricsOut}
+          buyAndHoldCurve={BH}
+        />,
+      );
+      expect(metricRow("총 거래 수")).toHaveTextContent("12");
+      expect(metricRow("완료 거래")).toHaveTextContent("12");
+      expect(metricRow("총 거래 수")?.querySelector(".metric-value")).not.toHaveAttribute("title");
+    });
+
+    it("completed_trades 없는 구 응답도 무너지지 않는다 — 총계로 접는다", () => {
+      render(<MetricGroupsSection metrics={FULL_METRICS} buyAndHoldCurve={BH} />);
+      expect(metricRow("총 거래 수")).toHaveTextContent("186");
+      expect(metricRow("완료 거래")).toHaveTextContent("186");
+    });
   });
 });

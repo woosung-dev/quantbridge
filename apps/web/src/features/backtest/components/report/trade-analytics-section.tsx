@@ -11,6 +11,7 @@ import { useMemo } from "react";
 
 import { computeOutcomeCounts } from "@/features/backtest/analytics";
 import type { BacktestMetricsOut, TradeItem } from "@/features/backtest/schemas";
+import { deriveTradeCounts } from "@/features/backtest/trade-counts";
 import {
   computeDirectionBreakdown,
   formatCurrency,
@@ -101,15 +102,31 @@ export function TradeAnalyticsSection({
   const closed = useMemo(() => trades.filter((t) => t.status === "closed"), [trades]);
   const counts = useMemo(() => computeOutcomeCounts(closed.map((t) => t.pnl)), [closed]);
 
-  // LESSON-004: dep 는 부모가 내려준 stable trades reference 만 사용 (구 TradeAnalysis 관례 승계).
+  // LESSON-004: dep 는 useMemo 로 안정화된 closed reference 만 사용 (구 TradeAnalysis 관례 승계).
+  // ★BL-822 — 분모는 **완료 거래**다. 미청산 거래는 `pnl` 이 없어 computeDirectionBreakdown 이
+  //   0 으로 강제하는데, 그러면 「이기지 못한 거래」로 승률 분모에 들어간다. closed 만 넘긴다.
   const breakdown = useMemo<DirectionBreakdown | null>(() => {
-    if (trades.length === 0) return null;
-    return computeDirectionBreakdown(trades);
-  }, [trades]);
+    if (closed.length === 0) return null;
+    return computeDirectionBreakdown(closed);
+  }, [closed]);
 
-  // 승률·평균 PnL 은 로드된 trades 표본 파생, 거래 수는 metrics 모집단 — 표본이 전체의
+  const tradeCounts = deriveTradeCounts(m);
+
+  // 승률·평균 PnL 은 로드된 완료 거래 표본 파생, 거래 수는 metrics 모집단 — 표본이 전체의
   // 부분집합이면(캡 초과 truncated) 헤더 * + 각주로 두 분모를 갈라 고지한다 (codex P2).
-  const statsFromSubset = trades.length > 0 && m.num_trades > 0 && trades.length < m.num_trades;
+  const statsFromSubset =
+    closed.length > 0 && tradeCounts.completed > 0 && closed.length < tradeCounts.completed;
+
+  // ★BL-822 — 분모가 갈리는 사유가 **둘**이다. ⑴ 표본 캡(truncated) ⑵ 미청산 거래.
+  //   ⑵ 는 캡과 무관하게 늘 갈린다 — 거래 수 열은 미청산을 포함하고 승률은 완료 거래만 센다.
+  //   실측(backtest 20128227)에서 「롱 13건 · 승률 16.7%(=2/12)」가 아무 고지 없이 한 행에
+  //   나란히 있었다. 사유가 있을 때만 * 를 붙이고, 그 사유를 문장으로 말한다.
+  const denominatorNote = statsFromSubset
+    ? `* 표시된 완료 거래 ${closed.length}건 기준 (완료 ${tradeCounts.completed}건 중). 거래 수 열은 미청산을 포함한 전체 기준입니다.`
+    : tradeCounts.open > 0
+      ? `* 승률·평균 PnL 은 완료 거래 ${tradeCounts.completed}건 기준입니다. 거래 수 열은 미청산 ${tradeCounts.open}건을 포함한 전체 기준입니다.`
+      : null;
+  const splitMarker = denominatorNote !== null ? "*" : "";
 
   const avgPnlAbs = m.avg_trade_abs ?? null;
 
@@ -155,7 +172,7 @@ export function TradeAnalyticsSection({
             avgWinPct={m.avg_win}
             avgLossPct={m.avg_loss}
             truncated={truncated}
-            totalTrades={m.num_trades}
+            totalTrades={tradeCounts.completed}
           />
         </div>
         <div>
@@ -180,13 +197,11 @@ export function TradeAnalyticsSection({
             <tr className="text-xs text-muted-foreground">
               <th className="py-1.5 text-left font-medium">방향</th>
               <th className="py-1.5 text-right font-medium">거래 수</th>
-              {/* ★분모 분리 고지 — 거래 수는 metrics 모집단, 승률·평균 PnL 은 로드된 표본
-                  (MAX_ANALYTICS_TRADES cap) 파생이라 truncated 시 한 행에 두 분모가 공존한다
-                  (codex P2). 표본이 부분집합일 때만 * 를 붙여 아래 각주와 결속한다. */}
-              <th className="py-1.5 text-right font-medium">승률{statsFromSubset ? "*" : ""}</th>
-              <th className="py-1.5 text-right font-medium">
-                평균 PnL{statsFromSubset ? "*" : ""}
-              </th>
+              {/* ★분모 분리 고지 — 거래 수는 metrics 모집단(미청산 포함), 승률·평균 PnL 은
+                  로드된 완료 거래 파생이라 한 행에 두 분모가 공존할 수 있다 (codex P2 · BL-822).
+                  갈리는 사유가 있을 때만 * 를 붙여 아래 각주와 결속한다. */}
+              <th className="py-1.5 text-right font-medium">승률{splitMarker}</th>
+              <th className="py-1.5 text-right font-medium">평균 PnL{splitMarker}</th>
             </tr>
           </thead>
           <tbody>
@@ -204,13 +219,10 @@ export function TradeAnalyticsSection({
             />
           </tbody>
         </table>
-        {/* 부분집합 안내 — 구 TradeAnalysis 의 disclosure 승계. 거래 목록 탭도 같은 cap 을
+        {/* 분모 분리 안내 — 구 TradeAnalysis 의 disclosure 승계. 거래 목록 탭도 같은 cap 을
             가지므로 거기로 안내하지 않고 사실만 표기. */}
-        {statsFromSubset ? (
-          <p className="mt-2 text-xs text-muted-foreground">
-            * 표시된 거래 {trades.length}건 기준 (전체 {m.num_trades}건 중). 거래 수 열은 전체
-            기준입니다.
-          </p>
+        {denominatorNote !== null ? (
+          <p className="mt-2 text-xs text-muted-foreground">{denominatorNote}</p>
         ) : null}
       </div>
     </section>

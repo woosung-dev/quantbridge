@@ -4,7 +4,7 @@
 // 총수익 / 승률 / 트레이드 수 3 지표(ob-stat)만 간결히 표시 — 상세는 /backtests/:id 로.
 // isError 분기(S1b ②)는 보존한다: 결과 조회 실패 시 완주 축하 헤드라인을 띄우지 않고
 // (Surface Trust — 실데이터 없는 성공 표기 금지) 원인 A/B 를 구분해 안내한다.
-// §4.9: metrics 스키마가 받치는 total_return / win_rate / num_trades 만 렌더한다. 벤치마크·
+// §4.9: metrics 스키마가 받치는 total_return / win_rate / completed_trades 만 렌더한다. 벤치마크·
 // 승패 분해 같은 미백업 파생값은 만들지 않는다(프로토타입은 캐논 샘플이라 인쇄했으나 라이브 X).
 
 import Link from "next/link";
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { useBacktest } from "@/features/backtest/hooks";
+import { deriveTradeCounts } from "@/features/backtest/trade-counts";
 import { StateBox } from "@/components/state-box";
 import { StatValue } from "@/components/stat-value";
 import { EMPTY_CELL } from "@/lib/labels";
@@ -55,7 +56,12 @@ export function Step4Result({
 
   const totalReturn = toNumOrNull(metrics?.total_return);
   const winRate = toNumOrNull(metrics?.win_rate);
-  const numTrades = toNumOrNull(metrics?.num_trades);
+  // BL-822 — 카드가 승률을 바로 옆에 인쇄하므로 거래 수도 **같은 분모**여야 한다.
+  // num_trades 는 미청산까지 포함한 수(BE Sprint 31-E override)라 승률과 곱해서 정수가
+  // 안 나온다. 목록 화면이 쓰는 수와도 같아진다.
+  const counts = metrics ? deriveTradeCounts(metrics) : null;
+  const numTrades = counts?.completed ?? null;
+  const openTrades = counts?.open ?? 0;
   const isPending = detail.isLoading;
 
   // ── 결과 조회 실패 (isError 분기 보존) ─────────────────────────────────────
@@ -206,7 +212,10 @@ export function Step4Result({
             </StatValue>
           </p>
           <div className="meter-void" aria-hidden="true" />
-          <p className="kpi-foot">진입·청산이 완료된 건수입니다.</p>
+          <p className="kpi-foot">
+            진입·청산이 완료된 건수입니다.
+            {openTrades > 0 ? ` 미청산 ${openTrades}건은 제외했습니다.` : ""}
+          </p>
         </div>
       </div>
 

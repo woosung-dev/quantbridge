@@ -395,10 +395,16 @@ export function BacktestList() {
                           >
                             {b.metrics_summary == null ? EMPTY_CELL : sharpe.display}
                           </td>
+                          {/* ★BL-822 — 목록의 이 값은 **완료 거래**다(summary 는 JSONB
+                              closed 카운트를 그대로 싣는다). 상세는 미청산까지 포함한
+                              「거래 수」를 별도로 보여 주므로, 여기서 미청산 건수를 함께
+                              적어 두 화면의 숫자가 더해서 맞는 것이 보이게 한다. */}
                           <MetricCell
                             value={b.metrics_summary?.num_trades}
                             missing={b.metrics_summary == null}
                             format={(value) => value.toLocaleString("en-US")}
+                            note={b.metrics_summary?.total_open_trades}
+                            noteLabel={`미청산 ${b.metrics_summary?.total_open_trades ?? 0}`}
                           />
                           <td className="col-status">
                             <span className={CHIP_TONE_CLASS[tone]}>
@@ -472,11 +478,14 @@ function MetricCell({
   missing,
   format,
   note,
+  noteLabel = "미청산 포함",
 }: {
   value: number | null | undefined;
   missing: boolean;
   format: (value: number) => string;
+  /** >0 일 때만 보조 표기를 붙인다. 수익률 열은 「미청산 포함」, 거래 수 열은 그 건수. */
   note?: number | null;
+  noteLabel?: string;
 }) {
   if (value == null) {
     return (
@@ -488,7 +497,7 @@ function MetricCell({
   return (
     <td className="num">
       {format(value)}
-      {note != null && note > 0 ? <span className="run-sub">미청산 포함</span> : null}
+      {note != null && note > 0 ? <span className="run-sub">{noteLabel}</span> : null}
     </td>
   );
 }
