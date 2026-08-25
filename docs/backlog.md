@@ -782,20 +782,6 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
 
-### BL-821
-
-**Title:** waitlist 카피가 **실계정 연결을 약속한다** — PRD 결정(실자금 안 간다) 위반 + 같은 페이지 FAQ 와 자기모순
-**Category:** FE / 공개 카피
-**Priority:** P2
-**출처:** 2026-08-25 qa-sweep J1 (화면 실측 + 코드 대조)
-
-**증상:** `/waitlist` 「거래소 연결」 카드가 「검증한 전략을 데모 계정과 **실계정**에 같은 코드 경로로 붙입니다」라고 적는다. 같은 페이지 FAQ 는 「데모 환경만 제공합니다」, 랜딩·PRD(2026-08-23 사용자 결정 ⑴)는 실자금 비목표.
-**코드 좌표:** `apps/web/src/features/waitlist/components/waitlist-product.tsx:58`
-**권장 접근:** 해당 desc 를 데모 한정 표현으로 정정(한 줄 수정). [BL-776](개방 가입)과 별개 축 — 이것은 카피만이다.
-
-**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
-**트리거 판정:** 도래 (한 줄 카피 수정, 단독 착수 가능)
-
 ### BL-822
 
 **Title:** 거래 수 분모 모순 — detail API 가 num_trades 를 **open 포함(13)** 으로 덮어쓰는데 승률은 **완료(12) 기준** 그대로라 화면들이 서로 다른 숫자를 말한다
@@ -837,19 +823,4 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
 **트리거 판정:** 도래 (표기 한 줄 수정으로 최소 수리 가능)
-
-### BL-825
-
-**Title:** 테스트 주문 다이얼로그가 세로 ≤~1000px 뷰포트에서 **발송 버튼에 도달 불가** — max-height·스크롤 없음 + body overflow:hidden
-**Category:** FE / Trading test-order dialog
-**Priority:** P2
-**출처:** 2026-08-25 qa-sweep 2차 (라이브 주문 실측 중 재현 · 기하 계측)
-
-**증상 (실측, 뷰포트 1440×850):** 테스트 주문 다이얼로그 높이 **1,008px** > 뷰포트 850px. `getComputedStyle` — `overflow-y: visible` · `max-height: none`. 다이얼로그가 뜨는 동안 `body { overflow: hidden }` 라 페이지 스크롤도 막혀, 마우스 휠(`scrollY` 불변)로도 하단 「발송」 버튼(top≈864px, 뷰포트 밖)에 **도달할 수 없다**. 표준 노트북 세로(~800~900px)에서 dogfood 핵심 기능인 주문 발송이 마우스로 불가.
-**원인:** `test-order-dialog.tsx:183` `<DialogContent className="sm:max-w-md">` — 너비만 제약, `max-h`/`overflow-y-auto` 부재. TP/SL·청산가 미리보기까지 세로가 길어 뷰포트를 넘긴다.
-**우회 (측정 중 사용):** 뷰포트 높이를 1100px 로 키우면 버튼이 보여 정상 발송됨(201 Created 확인). 실사용자에겐 우회로가 없다.
-**권장 접근:** `DialogContent` 에 `max-h-[85dvh] overflow-y-auto`(또는 본문 스크롤 영역 분리) 추가. 트레이딩 코크핏의 다른 다이얼로그(청산 확인 등)도 같은 패턴인지 함께 점검.
-
-**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
-**트리거 판정:** 도래 (dogfood 주문 발송 경로의 상시 차단 — 단, 큰 세로 모니터에서는 우회됨)
 
