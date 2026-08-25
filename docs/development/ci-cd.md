@@ -9,19 +9,21 @@
 
 ```mermaid
 flowchart TB
-    Trigger[PR → main / stage/**\n+ workflow_dispatch]
+    Trigger[PR → main / stage/**\n+ merge_group + workflow_dispatch]
+    CH[changes\n경로 스코프 판정 ~30초]
     BE[backend\nruff + pytest 전량]
-    FE[frontend\neslint + tsc + vitest + build]
+    FE[frontend\nbiome + tsc + vitest + build]
 
-    Trigger --> BE
-    Trigger --> FE
+    Trigger --> CH
+    CH -->|backend == true| BE
+    CH -->|frontend == true| FE
 ```
 
 ★**2026-08-19 [ADR-037] 제로베이스 — 잡은 이 2개가 전부다.** 구 구조(changes paths-filter ·
 documentation · backend_static · backend ×3샤드 · backend_coverage · e2e · ci summary) 원문 =
 `git show harness-v1:.github/workflows/ci.yml`.
 
-- **무조건 실행** — paths 필터가 없다. docs only PR 에서도 두 잡이 다 돈다.
+- **경로 스코프 실행** — `changes` 잡이 정한다(2026-08-26 재입힘 · 아래 절). docs only PR 은 두 잡 다 skip 이고, **판정이 애매하면 둘 다 돈다.**
 - **병렬 2잡** — 서로 `needs` 없음. 집계(summary) 잡도 없다.
 - **branch protection required check 이름 = `backend` · `frontend`** — 구 `ci` 집계 check 는
   더 이상 생성되지 않으므로, required check 에 그 이름을 남겨두면 영구 pending 이다(ADR-037).
@@ -36,10 +38,45 @@ documentation · backend_static · backend ×3샤드 · backend_coverage · e2e 
 순차 머지 + 머지 직전 `gh pr checks` 재확인이 그 구간을 덮는다(로컬 게이트 러너는 ADR-037 제로베이스로 철거). main 을 손으로 확인해야 하면
 `workflow_dispatch` 로 돌린다.
 
-### Changes-aware 분기 (구 구조 기록)
+### Changes-aware 분기 — **2026-08-26 재입힘 (현행)**
 
-> **2026-08-19 [ADR-037] tombstone** — paths-filter 는 철거됐고 두 잡은 무조건 돈다.
-> 원문 = `git show harness-v1:.github/workflows/ci.yml`. 아래는 구 구조 기록이다.
+`changes` 잡이 PR diff 를 분류해 `backend` · `frontend` 의 `if:` 조건을 만든다.
+판정 로직은 **`tools/scripts/ci-changed-scopes.sh` 하나**이고, 그 판정은
+`apps/api/tests/scripts/test_ci_changed_scopes.py`(23건)가 지킨다.
+
+| 변경 경로 | backend | frontend |
+| --- | --- | --- |
+| `apps/api/**` | ✅ | — |
+| `apps/web/**` | — | ✅ |
+| `.github/**` · `tools/**` · `infra/**` · `mise.toml` · 루트 `package.json` · `pnpm-workspace.yaml` · `.husky/**` · `Dockerfile*` · `docker-compose*` | ✅ | ✅ |
+| `docs/**` · `phases/**` · `*.md` · `.claude/**` · `.codex/**` · `.vscode/**` · `LICENSE` · `.gitignore` 류 | — | — |
+| **위 어디에도 안 맞는 경로 1건이라도 있으면** | ✅ | ✅ |
+
+**재입힘 근거는 실측이다**([ADR-037] 「문서화된 사고 1건 = 슬림 복귀 1건」). 2026-08-26 기준
+최근 머지 PR 30건 분류 — **문서만 9건(30%)** · BE만 11건(37%) · FE만 3건(10%) · 둘다/공유 7건(23%).
+BE 잡 ~13분 · FE 잡 ~4분이므로 **30 PR 당 약 236분**이 검증 대상 없는 잡에 들어가고 있었다.
+
+★★★**구 구조의 사고를 되풀이하지 않기 위해 지킨 것 3가지** — 아래 tombstone 이 기록한
+「필터가 좁아 워크플로만 고친 PR 에서 감사가 skip 되고 초록이었다」가 그 사고다.
+
+1. **`on.pull_request.paths` 를 쓰지 않는다.** 그러면 워크플로 자체가 안 돌아 required check 가
+   **영구 대기**한다(§1 의 merge_group 함정과 같은 뿌리). 잡은 항상 생성되고 `if:` 로 skip 된다 —
+   skip 은 branch protection 이 성공으로 친다. main 은 2026-08-26 현재 보호가 없지만
+   (`gh api .../branches/main/protection` = 404) 켜는 날 이 구조가 그대로 성립해야 한다.
+2. **`.github/**` 와 `tools/**` 는 양쪽을 켠다.** 워크플로·스크립트를 **입력으로 읽는 감사 테스트**가
+   양쪽 스위트에 있기 때문이다. 이 단언은 테스트에 박혀 있다(`test_shared_paths_run_both`).
+3. **fail-safe 3중** — ⑴ diff 취득 실패 ⑵ 변경 파일 0건(빈 입력을 통과로 읽지 않는다) ⑶ **분류표에
+   없는 경로 1건이라도 있으면** 전량 실행. ⑶ 이 없으면 새 최상위 디렉터리가 조용히 미검증으로 샌다.
+
+★**판별력 증명** — 변이 4종(⑴ unknown fail-safe 제거 ⑵ 빈 입력 fail-safe 제거 ⑶ `docs/*` 를
+backend 로 오분류 ⑷ `tools/*` 를 BE 전용으로 축소) 전부 red 이고, **각각 다른 테스트가 잡았다**
+(1~2건 red · 나머지 초록). 「전건 red」는 판별력의 증거가 아니다([LESSON-105] 계열).
+
+★**무엇을 왜 건너뛰었는지 항상 로그에 남는다** — `changes` 잡의 stderr 가 변경 파일 전량과
+판정 사유 1줄을 찍는다. 이 레포는 「돌았다고 여겼는데 안 돌았다」를 두 번 겪었다(night4-ci-truth).
+
+<details>
+<summary>구 구조 기록 (2026-08-19 [ADR-037] 철거 · 원문 <code>git show harness-v1:.github/workflows/ci.yml</code>)</summary>
 
 - `dorny/paths-filter@v3`로 PR diff에서 변경된 경로 감지
 - `apps/web/**` 또는 `.github/workflows/**` 변경 시 frontend / e2e job 실행
@@ -51,10 +88,14 @@ documentation · backend_static · backend ×3샤드 · backend_coverage · e2e 
 > `e2e-project-wiring.test.ts` 의 「CI 실행 표면」). 필터가 좁으면 **워크플로만 고친 PR 에서 그
 > 감사들이 skip** 되고 `ci` 요약이 skipped 를 통과로 셌으므로, 감사 대상을 망가뜨려도 초록이었다.
 > FE 축은 2026-08-17 [BL-789] 적대 리뷰가 실측으로 잡아 뒤늦게 넣었다 — **게이트를 붙일 때는
-> 「무엇이 그것을 발화시키나」를 같이 봐라**(무조건 실행 2잡에서는 이 함정 자체가 사라졌다).
+> 「무엇이 그것을 발화시키나」를 같이 봐라.**
+> ★2026-08-26 재입힘은 이 함정을 **분류표 + 테스트**로 막았다(위 2번). 그리고 구 구조와 달리
+> **skipped 를 통과로 세는 집계 잡이 없다** — 집계 잡 자체가 [ADR-037] 로 철거됐다.
 
 > PR이 docs only 변경이면 code job 이 전부 skip — `ci` summary가 통과 처리했다.
 > 단 `documentation` 잡은 **항상** 돌았고 `ci` 가 그 결과를 봤다(아래 §4 — 잡 자체가 철거됨).
+
+</details>
 
 ---
 
@@ -335,7 +376,14 @@ production deploy on tag `v*.*.*`.
 
 ### 9.1 frontend / backend job이 실행 안 됨
 
-- `dorny/paths-filter` 패턴 확인 — 디렉토리 변경 없으면 skip 정상
+**먼저 `changes` 잡의 로그를 봐라** — 변경 파일 전량과 판정 사유가 stderr 에 찍혀 있다.
+「검증 대상 경로 변경 0건」이면 skip 이 정상이다(docs only PR).
+
+- 돌아야 하는데 skip 됐다면 그것은 **분류표 결함**이다 —
+  `tools/scripts/ci-changed-scopes.sh` 의 `case` 목록에 그 경로를 넣고
+  `apps/api/tests/scripts/test_ci_changed_scopes.py` 에 **양성 대조를 같이 추가**해라.
+  로컬 재현: `printf '<경로>\n' | ./tools/scripts/ci-changed-scopes.sh --stdin`
+- ★`dorny/paths-filter` 는 안 쓴다(2026-08-19 철거 · 2026-08-26 재입힘은 자체 스크립트).
 
 ### 9.2 backend job: alembic 실패
 
