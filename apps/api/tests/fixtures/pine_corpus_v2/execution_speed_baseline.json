@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-25T09:49:55.257658Z",
+  "generated_at": "2026-08-25T14:13:09.733592Z",
   "ohlcv_sha256": "1a99144813f15ebc029f4c2d18cf4e657eb54f1a7317e28820380b80ebec5038",
   "bars": 4368,
   "machine": {
@@ -9,45 +9,45 @@
   },
   "corpora": {
     "s1_pbr": {
-      "run_backtest_seconds": 9.979372166038956,
-      "parse_and_run_seconds": 1.345134707982652,
-      "bars_per_second": 437.7028862461756,
-      "ratio_to_fastest": 8.428905837582649
+      "run_backtest_seconds": 6.976193707960192,
+      "parse_and_run_seconds": 0.9574400829733349,
+      "bars_per_second": 626.1294027738779,
+      "ratio_to_fastest": 8.327426994109917
     },
     "s2_utbot": {
-      "run_backtest_seconds": 15.75856908300193,
-      "parse_and_run_seconds": 2.458569374983199,
-      "bars_per_second": 277.18252697902426,
-      "ratio_to_fastest": 13.31020556460384
+      "run_backtest_seconds": 11.6419133329764,
+      "parse_and_run_seconds": 1.7178763329866342,
+      "bars_per_second": 375.19605884948345,
+      "ratio_to_fastest": 13.896859435180845
     },
     "s3_rsid": {
-      "run_backtest_seconds": 14.47117337497184,
-      "parse_and_run_seconds": 5.411477833986282,
-      "bars_per_second": 301.84145313016126,
-      "ratio_to_fastest": 12.222828822044614
+      "run_backtest_seconds": 9.028625249979086,
+      "parse_and_run_seconds": 2.831640625023283,
+      "bars_per_second": 483.7945843427401,
+      "ratio_to_fastest": 10.77739821653577
     },
     "i1_utbot": {
-      "run_backtest_seconds": 2.2278680839808658,
-      "parse_and_run_seconds": 1.9727160829934292,
-      "bars_per_second": 1960.6187778385154,
-      "ratio_to_fastest": 1.8817306325477996
+      "run_backtest_seconds": 1.542156832991168,
+      "parse_and_run_seconds": 1.367243500018958,
+      "bars_per_second": 2832.396748862323,
+      "ratio_to_fastest": 1.840860357066649
     },
     "i2_luxalgo": {
-      "run_backtest_seconds": 9.79926937498385,
-      "parse_and_run_seconds": 1.5955397080397233,
-      "bars_per_second": 445.7475177844265,
-      "ratio_to_fastest": 8.27678509875947
+      "run_backtest_seconds": 6.578806958044879,
+      "parse_and_run_seconds": 1.027437957993243,
+      "bars_per_second": 663.9501702749617,
+      "ratio_to_fastest": 7.853069588499117
     },
     "s4_hma_curvature": {
-      "run_backtest_seconds": 2.594076540961396,
-      "parse_and_run_seconds": 1.6723344580386765,
-      "bars_per_second": 1683.8362056892765,
-      "ratio_to_fastest": 2.191042335674763
+      "run_backtest_seconds": 1.8209645000169985,
+      "parse_and_run_seconds": 1.1999882500385866,
+      "bars_per_second": 2398.7288055089625,
+      "ratio_to_fastest": 2.1736708536998597
     },
     "s5_ema_trend": {
-      "run_backtest_seconds": 1.1839463340002112,
-      "parse_and_run_seconds": 1.0793893749942072,
-      "bars_per_second": 3689.356413007163,
+      "run_backtest_seconds": 0.8377370000234805,
+      "parse_and_run_seconds": 0.7520633329986595,
+      "bars_per_second": 5214.046890465112,
       "ratio_to_fastest": 1.0
     }
   }
