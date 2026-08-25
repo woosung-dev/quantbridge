@@ -852,3 +852,62 @@ runbook → [BL-005] 실자본 dogfood → [BL-070~072] Beta`** 였다.
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 등재. FE 표기는 [BL-824] 수리로 이미 옳다
 **트리거:** orders 스키마 또는 주문 serializer 를 손대는 회차에 동승 — 단독 착수 가치가 낮다
+
+### BL-828
+
+**Title:** `worker_max_tasks_per_child=250` 완화 — 콜드 파스 창의 **빈도**를 낮추는 1줄 축
+**Category:** Backend / Celery worker 운영
+**출처:** 2026-08-25 n13 preflight (파스 콜드 비용 실측)
+**Priority:** P2
+
+**증상 (실측·[가정] 혼재, 2026-08-25):** prefork child 는 250 task 마다 교체되고(`apps/api/src/tasks/celery_app.py:98`, CLI 오버라이드 0건) 교체된 child 는 **빈 ANTLR DFA** 로 시작한다 — `worker_process_init`(`:208-238`)이 파싱을 하지 않으므로 fork 시점 상속도 없다. beat_schedule 16건이 전부 라우팅 없이 기본 큐로 가서(`:109-205`) **≈195회/시**, concurrency=2 이므로 **[가정]** child 당 ≈97.5회/시 ⇒ **≈1.3시간마다 콜드 child 1개 · 하루 ≈19회**. 콜드 창 1회의 크기는 실측 `s5_ema_trend` 2.61s · `s3_rsid` 11.55s · `i3_drfx` **52.37s**(격리·median-of-3).
+**영향:** 사용자가 아무것도 안 해도 하루 ≈19번, 누군가의 첫 백테스트가 최대 52초를 문다.
+**권장 접근:** 250 → 1000. 코드 주석이 이미 이 완화를 예고했다 — `celery_app.py:90-91`「1h soak gate(RSS slope + asyncpg/Redis fd count) 미수행 상태이므로 conservative. Sprint 19 의 soak 결과로 1000 으로 완화 검토」. 위험 = 메모리 누수 시 컨테이너 OOM(`infra/compose/docker-compose.soak.yml:33` `mem_limit: 2g`, idle 692MiB) → 콜드 창 2개 동시.
+★**하네스 lane 이 될 수 없다** — 판정 수단이 소크(RSS slope)뿐이라 AC 로 세울 수 없다.
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 **사용자 결정으로 이번 회차 제외**
+**트리거:** 소크 창이 열리는 회차에 동승. 착수 첫 작업 = child 교체 **실빈도** 측정(`docker logs` 의 child exit 간격 — CPU 0). 위 하루 ≈19회는 산술이지 실측이 아니다
+
+### BL-829
+
+**Title:** SLL 2단계 예측 — ANTLR **콜드 파스 자체**를 줄이는 유일한 축
+**Category:** Backend / pine_v2 파서 어댑터
+**출처:** 2026-08-25 n13 preflight
+**Priority:** P2
+
+**증상 (확인된 사실, 2026-08-25):** 콜드 파스의 지배 성분인 full-context(LL) 재시도 경로는 **DFA 에 전혀 기록되지 않는다** — `antlr4/atn/ParserATNSimulator.py:418` 이 `requiresFullContext` 에서 갈라져 `:441-445` 가 매번 `computeStartState(fullCtx=True)` + `execATNWithFullContext` 를 돌고, 그 함수 본문(`:558-659`)에 `addDFAEdge`/`addDFAState` **0건**이다. 결과가 `outerContext` 에 의존하므로 **원리상 캐시 가능하지도 않다.** ⇒ 워밍(BL 없음·기각)·프로세스 수명 캐시(n13 Lane 1)·교체 빈도(BL-828) 어느 것도 이 성분을 못 건드린다.
+**영향:** 격리 실측상 8벌 전량 워밍 후에도 홀드아웃이 자기 웜값의 **9.2~11.4배**로 남는다(`s3_rsid` 3.04s vs 0.25s · `i3_drfx` 34.67s vs 3.66s).
+**권장 접근:** `parser_adapter.py` 안에서 `PinescriptLexer`/`CommonTokenStream`/`PinescriptParser`/`PinescriptASTBuilder` 를 직접 조립하고 `parser._interp.predictionMode = PredictionMode.SLL` → 실패 시 LL 재파스. **pynescript 수정 0줄**(전부 공개 경로). 정확성은 **결정적 AC 로 판정 가능** — 9 corpus 전량에서 SLL AST 의 구조 digest ≡ LL(`tests/strategy/pine_v2/test_pynescript_baseline_parity.py` 의 `count_nodes`/`compute_edge_digest` 재사용). 시간 단언 불필요.
+★**분기점 2건.** ⑴ SLL 은 충돌 시 `min(conflictingAlts)` 를 찍어(`ParserATNSimulator.py:523-529,447-449`) LL 과 다른 트리를 낼 수 있다 — 2단계 fallback 이면 「느려질 뿐」로 격하된다. ⑵ **[확인 필요·법적]** `helper.py:112-116` 의 annotation 2패스를 복제해야 하는지, 그리고 그 복제가 LGPL-3.0-or-later 상 「수정본」인지. **착수 첫 작업 = QB 가 Pine annotation(`//@…`)을 읽는지 코드 대조** — 안 읽으면 복제도 법적 분기도 사라진다.
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 **사용자 결정으로 이번 회차 제외**(범위를 A+F 2 lane 으로 확정)
+**트리거:** n13 Lane 1 머지 후, 남은 콜드 비용이 여전히 문제로 관측될 때. 또는 파서 층을 손대는 회차에 동승
+
+### BL-830
+
+**Title:** `execution_speed_baseline.json` 이 **코드 속도가 아니라 실행 순서**를 재고 있다
+**Category:** Backend / 테스트 픽스처 · 측정 구조
+**출처:** 2026-08-25 n13 preflight (n12 산출물 재검증)
+**Priority:** P2
+
+**증상 (확인된 사실, 2026-08-25):** `tests/strategy/pine_v2/test_execution_speed.py:56` 이 **단일 프로세스**에서 `RUNNABLE_CORPUS` 를 순서대로 돌고 `bars_per_second` 를 **콜드 호출**로만 계산한다(`:70`). ANTLR DFA 는 파서 **클래스 속성**이라 프로세스 전역이므로(`PinescriptParser.py:346,348,606`) 첫 corpus 만 온전한 콜드 비용을 물고 나머지는 앞 corpus 가 데운 DFA 를 물려받는다. 그 결과 **20줄 `s1_pbr` 의 `ratio_to_fastest` 8.43 이 42줄 `s4_hma_curvature` 의 2.19 보다 4배 나쁘다.** 같은 `s3_rsid` 가 breakdown(자기 프로세스 1번째) 21.752s vs speed(3번째) 14.471s — **50% 차이가 순서 하나에서 난다.**
+**영향:** `ratio_to_fastest` 로 코드 회귀를 판정하는 가드(`:154`)의 입력이 오염돼 있다. 그리고 n12 가 「s1_pbr 이 2.6배 흔들린다 ⇒ median-of-3 필요」로 귀속한 원인이 틀렸다 — **프로세스를 격리하면 9벌 전부 스프레드 1.013~1.065×** 다(격리 실측). 흔들림은 콜드 파스의 본질적 분산이 아니라 **측정 방식**에서 왔다.
+**권장 접근:** corpus 당 **새 프로세스**로 재고(`subprocess` 또는 `pytest-forked`), median-of-3 를 채택한다. 격리 실측의 진짜 콜드 = `s1_pbr` 5.35 · `s2_utbot` 11.45 · `s3_rsid` 11.55 · `s4_hma` 4.06 · `s5_ema` 2.61 · `i1_utbot` 10.86 · `i2_luxalgo` 9.21 · `i3_drfx` 52.37 · `i4_bs` 16.95 (초).
+★함께 볼 것 — `execution_stage_breakdown.json` 의 `parse` 는 **그 실행의 총 파싱 시간이 아니다**(계측 래퍼가 `classify_script` 하나만 감싼다 — `test_execution_stage_breakdown.py:49-53`). 그리고 이 파일에는 **재생성 경로가 레포에 없다**(REGEN env·writer 함수 0건).
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 등재. n13 은 이 구조를 **의도적으로 안 바꾼다**(측정 구조를 같이 바꾸면 회차의 전/후 비교가 무엇 때문에 움직였는지 갈리지 않는다)
+**트리거:** 속도를 **목표선으로 삼는** 회차가 열릴 때. 그전까지 이 픽스처는 회귀 신호로만 쓰고 절대값으로 인용하지 마라
+
+### BL-831
+
+**Title:** `POST /api/v1/strategies/parse` 에 rate limit 도 소스 길이 상한도 없다
+**Category:** Backend / Strategy router
+**출처:** 2026-08-25 n13 preflight
+**Priority:** P3
+
+**증상 (확인된 사실, 2026-08-25):** `apps/api/src/strategy/router.py:38-44` 의 파스 엔드포인트는 인증은 요구하지만(`get_current_user`) **rate limit 이 없다** — 바로 아래 `:48` 의 `create_strategy` 가 `@limiter.limit("30/minute")` 를 건 것이 대조군이다. `pine_source` 에 **길이 상한도 없다**(`schemas.py` `Field(min_length=1)`).
+**영향:** 파스는 CPU 를 실제로 잡는 연산이다 — 격리 실측상 39KB 소스(`i3_drfx`)의 콜드 파스가 **52.37초**다. 인증된 사용자 하나가 큰 소스를 반복 던지면 CPU 를 점유한다. ★n13 Lane 2 가 스레드풀 이관으로 **이벤트 루프 블로킹**은 없앴지만 **CPU 점유 자체**는 남는다. 또한 n13 Lane 1 이 `parse_to_ast` 에 `lru_cache(maxsize=N)` 를 걸었으므로 **임의 입력으로 채워지는 캐시 표면**이 생겼다(그래서 `maxsize=None` 을 금지했다).
+**권장 접근:** `create_strategy` 와 같은 `@limiter.limit(...)` + `pine_source` 에 `max_length`. 상한 값은 실사용 전략 크기 분포를 보고 정한다(레포 corpus 최대 = `i3_drfx` 38,954B).
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 등재. n13 은 범위 밖으로 명시 제외(회차 범위 = 블로킹 하나)
+**트리거:** strategy router 의 인증·제한 축을 손대는 회차, 또는 외부 공개(Beta) 판단이 열릴 때
