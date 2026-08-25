@@ -782,3 +782,59 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
 
+### BL-821
+
+**Title:** waitlist 카피가 **실계정 연결을 약속한다** — PRD 결정(실자금 안 간다) 위반 + 같은 페이지 FAQ 와 자기모순
+**Category:** FE / 공개 카피
+**Priority:** P2
+**출처:** 2026-08-25 qa-sweep J1 (화면 실측 + 코드 대조)
+
+**증상:** `/waitlist` 「거래소 연결」 카드가 「검증한 전략을 데모 계정과 **실계정**에 같은 코드 경로로 붙입니다」라고 적는다. 같은 페이지 FAQ 는 「데모 환경만 제공합니다」, 랜딩·PRD(2026-08-23 사용자 결정 ⑴)는 실자금 비목표.
+**코드 좌표:** `apps/web/src/features/waitlist/components/waitlist-product.tsx:58`
+**권장 접근:** 해당 desc 를 데모 한정 표현으로 정정(한 줄 수정). [BL-776](개방 가입)과 별개 축 — 이것은 카피만이다.
+
+**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
+**트리거 판정:** 도래 (한 줄 카피 수정, 단독 착수 가능)
+
+### BL-822
+
+**Title:** 거래 수 분모 모순 — detail API 가 num_trades 를 **open 포함(13)** 으로 덮어쓰는데 승률은 **완료(12) 기준** 그대로라 화면들이 서로 다른 숫자를 말한다
+**Category:** Backend / Backtest serializer + FE 라벨
+**Priority:** P2
+**출처:** 2026-08-25 qa-sweep J3/J5 (온보딩 완주 실측 → DB·API 대조)
+
+**증상 (실측, backtest `20128227`):** DB metrics = num_trades **12** · win_rate 2/12=16.67%. detail API 는 Sprint 31-E override(`backtest/service.py:825-847` ← `repository.py:366 count_trades_by_direction` = **open+closed**)로 num_trades/total_trades 를 **13** 으로 응답. 결과 — ⑴ 상세 「총 거래 수 13 · 승률 16.67%」 산술 불능(13×16.67%≈2.17) ⑵ 목록(`/backtests`)은 12, 상세는 13 — 같은 실행이 화면마다 다름 ⑶ 온보딩 결과 카드는 13 에 「**진입·청산이 완료된 건수**입니다」 거짓 라벨(`step-4-result.tsx:209`) ⑷ 상세 페이지 안에서도 「체결된 거래 13건」 vs 거래 분포 합 12.
+**원인:** override 자체는 의도된 결정(BL-155 — FE 거래 목록 길이와 일치)이나, 승률·라벨·목록이 **완료 기준**을 유지해 분모가 갈라졌다.
+**권장 접근:** 두 셈을 **이름으로 가르라** — 「거래 수(미청산 포함) N」과 「완료 거래 M(승률 분모)」를 각각 명시. 최소 수리 = FE 라벨 2곳(온보딩 카드 foot + 상세 지표 카드)과 목록/상세 표기 통일. BE 응답에 completed count 를 별도 필드로 주는 것이 정본 수리.
+
+**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
+**트리거 판정:** 도래 (제품 핵심 축 「결과가 정직하게 보이는가」 직결)
+
+### BL-823
+
+**Title:** 새 전략 위저드 — **자기 세션의 자동저장 초안**에 「이어서 작성하시겠어요?」 복원 모달이 떠 편집을 차단한다
+**Category:** FE / Strategy wizard
+**Priority:** P2
+**출처:** 2026-08-25 qa-sweep J4 (예제 로드 후 ~30초 내 무행동 발화 실측, Fast Refresh 리마운트 없음을 콘솔로 배제)
+
+**증상:** `/strategies/new` 에서 첫 의미 있는 입력(타이핑·예제 로드) 직후, auto-save 가 만든 **지금 이 세션의** 초안을 복원 프롬프트가 「작성 중이던 초안」으로 오인해 blocking 모달이 뜬다. 기본 포커스는 「새로 시작」.
+**원인:** `new-strategy-wizard.tsx:67-71` — `shouldPromptRestore = !promptDismissed && hasMeaningfulDraft` 에 「이 마운트에서 사용자가 이미 편집을 시작했다」 가드가 없다. `draft.ts:114 useDraftSnapshot` 이 `useSyncExternalStore` 라이브 구독이라 `useAutoSaveDraft`(`:79`) 의 쓰기를 즉시 되읽는다. 데이터 손실은 없음(「새로 시작」은 저장분만 삭제, 폼 유지 — `:175-178`).
+**권장 접근:** 마운트 시점에 초안 존재 여부를 **한 번만** 평가해 프롬프트 게이트로 쓰거나, 이 세션에서 입력이 시작되면 `promptDismissed` 를 자동 set.
+
+**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
+**트리거 판정:** 도래 (전략 등록 진입로의 상시 마찰)
+
+### BL-824
+
+**Title:** 취소 주문 드로어가 취소 시각을 「**체결 시각**」으로 적는다 — rejected 만 갈라놓은 라벨 분기에서 cancelled 가 빠졌다
+**Category:** FE / Trading orders (+ BE 기록 의미론)
+**Priority:** P2
+**출처:** 2026-08-25 qa-sweep J7 (주문 63dea22b 드로어 실측 → DB 전수 대조)
+
+**증상 (실측):** 상태 「취소」· 체결가/체결 수량 「—」 인 주문의 드로어가 「체결 시각 2026-08-14 09:37:49 UTC」를 표시. DB 전수 — cancelled **431/431** 이 `filled_at` 보유, 그중 부분 체결 **0건**. rejected 88/88 도 동일하나 그쪽은 이미 「실패 시각」으로 갈라져 있다.
+**원인:** BE 가 종결 전이 시각을 `filled_at` 에 쓴다(rejected 는 `order_repository.py:941-945` 주석으로 문서화). FE 수리(2026-08-15 codex P1, [clock-fill-sweep])가 `order-detail-drawer.tsx:180` 에서 `state === "rejected"` **만** 「실패 시각」으로 분기 — cancelled 는 「체결 시각」 그대로.
+**권장 접근:** 최소 수리 = 라벨 분기를 terminal-비체결 상태 전체로 확장(`cancelled` → 「취소 시각」). 정본 수리 = BE 가 cancelled/rejected 의 종결 시각을 `filled_at` 이 아닌 별도 컬럼(또는 null 유지)으로 — 기록 의미론 자체가 오염원이다.
+
+**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
+**트리거 판정:** 도래 (표기 한 줄 수정으로 최소 수리 가능)
+
