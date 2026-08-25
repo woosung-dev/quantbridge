@@ -173,11 +173,18 @@ function OrderDetailBody({ order, onClose, variant }: OrderDetailBodyProps) {
           items={[
             { label: "생성 시각", value: formatOrderDateTime(order.created_at) },
             { label: "제출 시각", value: formatOrderDateTime(order.submitted_at) },
-            // ★거부 주문도 `filled_at` 이 채워진다 — BE `mark_rejected` 가 그 자리에 **실패 시각**을
-            //   쓴다(`order_repository.py:941-945`). 그대로 「체결 시각」이라 적으면 체결되지 않은
-            //   주문이 체결된 것처럼 보인다(2026-08-15 codex P1).
+            // ★거부·취소 주문도 `filled_at` 이 채워진다 — BE 가 그 자리에 **종결 시각**을 쓴다
+            //   (rejected 는 `order_repository.py:941-945` 주석으로 문서화 · cancelled 도 실측
+            //   431/431, 부분 체결 0 — 2026-08-25 qa-sweep). 그대로 「체결 시각」이라 적으면
+            //   체결되지 않은 주문이 체결된 것처럼 보인다(2026-08-15 codex P1 · BL-824).
+            //   기록 의미론 자체(정본 수리)는 [BL-826].
             {
-              label: order.state === "rejected" ? "실패 시각" : "체결 시각",
+              label:
+                order.state === "rejected"
+                  ? "실패 시각"
+                  : order.state === "cancelled"
+                    ? "취소 시각"
+                    : "체결 시각",
               value: formatOrderDateTime(order.filled_at),
             },
             { label: "체결가", value: order.filled_price ?? EMPTY_CELL },
