@@ -1,0 +1,55 @@
+{
+  "project": "QuantBridge",
+  "phase": "n12-execution-speed",
+  "steps": [
+    {
+      "step": 0,
+      "name": "measure-execution-speed-baseline",
+      "status": "completed",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_speed.py -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/pine_v2/test_execution_speed.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
+        "cd apps/api && uv run python -c \"import json,sys; d=json.load(open('tests/fixtures/pine_corpus_v2/execution_speed_baseline.json')); c=d['corpora']; assert len(c)==7, len(c); assert all(v['bars_per_second']>0 for v in c.values()); assert all('ratio_to_fastest' in v for v in c.values()); print('ok', len(c))\"",
+        "cd apps/api && uv run ruff check tests/strategy/pine_v2"
+      ],
+      "started_at": "2026-08-25T18:45:20+0900",
+      "summary": "RUNNABLE_CORPUS 7개의 실행시간·상대비 baseline 및 REGEN_EXECUTION_SPEED 재생성 가드를 추가했고 전체 pytest는 70.71초였다.",
+      "completed_at": "2026-08-25T18:57:43+0900"
+    },
+    {
+      "step": 1,
+      "name": "decompose-execution-stages",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_stage_breakdown.py -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/pine_v2/test_execution_stage_breakdown.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
+        "cd apps/api && uv run python -c \"import json; d=json.load(open('tests/fixtures/pine_corpus_v2/execution_stage_breakdown.json')); s=d['s3_rsid']['stages']; assert set(s)>= {'parse','execute','metrics'}, sorted(s); assert all(v>=0 for v in s.values()); cov=sum(s.values())/d['s3_rsid']['total_seconds']; assert cov>=0.90, cov; print('coverage', round(cov,3))\"",
+        "cd apps/api && uv run ruff check tests/strategy/pine_v2"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "profile-slowest-corpus-hotspots",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_execution_hotspots.py -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/pine_v2/test_execution_hotspots.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 2",
+        "cd apps/api && uv run python -c \"import json; d=json.load(open('tests/fixtures/pine_corpus_v2/execution_hotspots.json')); h=d['s3_rsid']['hotspots']; assert len(h)>=5, len(h); assert all(x['cumulative_seconds']>0 for x in h); assert any('src/' in x['file'] for x in h), [x['file'] for x in h]; print('ok', len(h))\"",
+        "cd apps/api && uv run ruff check tests/strategy/pine_v2"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "restate-prd-speed-metric",
+      "status": "pending",
+      "ac": [
+        "grep -q 'bar/s' docs/PRD.md",
+        "grep -q '~~단일 심볼 1Y/1H 백테스트~~' docs/PRD.md",
+        "grep -q 'test_execution_speed.py' docs/PRD.md",
+        "grep -q 'LESSON-129' docs/lessons.md",
+        "./tools/scripts/ledger-vitals.sh"
+      ]
+    }
+  ],
+  "created_at": "2026-08-25T18:45:20+0900"
+}

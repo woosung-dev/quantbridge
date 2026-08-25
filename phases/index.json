@@ -1,3 +1,5 @@
 {
-  "phases": []
+  "phases": [
+    { "dir": "n12-execution-speed", "status": "pending" }
+  ]
 }
