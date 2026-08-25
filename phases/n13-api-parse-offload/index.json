@@ -1,0 +1,27 @@
+{
+  "project": "QuantBridge",
+  "phase": "n13-api-parse-offload",
+  "steps": [
+    {
+      "step": 0,
+      "name": "prove-parse-blocks-event-loop",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/test_parse_event_loop_blocking.py -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/test_parse_event_loop_blocking.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
+        "cd apps/api && uv run ruff check tests/strategy"
+      ]
+    },
+    {
+      "step": 1,
+      "name": "offload-parse-to-threadpool",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/test_parse_event_loop_blocking.py -q",
+        "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy -q",
+        "cd apps/api && uv run mypy src/strategy/service.py",
+        "cd apps/api && uv run ruff check src/strategy tests/strategy"
+      ]
+    }
+  ]
+}
