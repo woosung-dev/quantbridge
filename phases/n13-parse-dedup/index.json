@@ -34,12 +34,15 @@
     {
       "step": 2,
       "name": "enforce-ast-immutability",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api && set -a; . ./.env.local; set +a; uv run pytest tests/strategy/pine_v2/test_ast_immutability_census.py -q",
         "cd apps/api && set -a; . ./.env.local; set +a; test \"$(uv run pytest tests/strategy/pine_v2/test_ast_immutability_census.py --collect-only -q 2>/dev/null | grep -c '::')\" -ge 3",
         "cd apps/api && uv run ruff check tests/strategy/pine_v2"
-      ]
+      ],
+      "started_at": "2026-08-25T23:06:00+0900",
+      "summary": "strategy/backtest 56개 파일을 스캔해 AST 변형 0건을 고정했다; 동일 lexical scope의 parse_to_ast/pyne_ast.parse 반환 지역 이름과 그 attribute/subscript 대입 파생 이름을 추적하며 양성 대조 7개 변형을 잡고, 별칭·동적 접근·모듈 alias·함수 인자/반환 전달은 사각이다.",
+      "completed_at": "2026-08-25T23:10:27+0900"
     },
     {
       "step": 3,
