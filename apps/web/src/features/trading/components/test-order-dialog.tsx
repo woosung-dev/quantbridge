@@ -180,7 +180,7 @@ function TestOrderDialogInner() {
         테스트 주문
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
           {/* Sprint 44 W C4 — header / desc / form / footer stagger entrance (50/100/150/200ms) */}
           <DialogHeader className="qb-dialog-stagger-1">
             <DialogTitle>테스트 주문 (dogfood-only)</DialogTitle>

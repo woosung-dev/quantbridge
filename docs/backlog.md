@@ -824,18 +824,3 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
 **트리거 판정:** 도래 (표기 한 줄 수정으로 최소 수리 가능)
 
-### BL-825
-
-**Title:** 테스트 주문 다이얼로그가 세로 ≤~1000px 뷰포트에서 **발송 버튼에 도달 불가** — max-height·스크롤 없음 + body overflow:hidden
-**Category:** FE / Trading test-order dialog
-**Priority:** P2
-**출처:** 2026-08-25 qa-sweep 2차 (라이브 주문 실측 중 재현 · 기하 계측)
-
-**증상 (실측, 뷰포트 1440×850):** 테스트 주문 다이얼로그 높이 **1,008px** > 뷰포트 850px. `getComputedStyle` — `overflow-y: visible` · `max-height: none`. 다이얼로그가 뜨는 동안 `body { overflow: hidden }` 라 페이지 스크롤도 막혀, 마우스 휠(`scrollY` 불변)로도 하단 「발송」 버튼(top≈864px, 뷰포트 밖)에 **도달할 수 없다**. 표준 노트북 세로(~800~900px)에서 dogfood 핵심 기능인 주문 발송이 마우스로 불가.
-**원인:** `test-order-dialog.tsx:183` `<DialogContent className="sm:max-w-md">` — 너비만 제약, `max-h`/`overflow-y-auto` 부재. TP/SL·청산가 미리보기까지 세로가 길어 뷰포트를 넘긴다.
-**우회 (측정 중 사용):** 뷰포트 높이를 1100px 로 키우면 버튼이 보여 정상 발송됨(201 Created 확인). 실사용자에겐 우회로가 없다.
-**권장 접근:** `DialogContent` 에 `max-h-[85dvh] overflow-y-auto`(또는 본문 스크롤 영역 분리) 추가. 트레이딩 코크핏의 다른 다이얼로그(청산 확인 등)도 같은 패턴인지 함께 점검.
-
-**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
-**트리거 판정:** 도래 (dogfood 주문 발송 경로의 상시 차단 — 단, 큰 세로 모니터에서는 우회됨)
-
