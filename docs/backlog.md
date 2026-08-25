@@ -810,20 +810,6 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
 **트리거 판정:** 도래 (제품 핵심 축 「결과가 정직하게 보이는가」 직결)
 
-### BL-823
-
-**Title:** 새 전략 위저드 — **자기 세션의 자동저장 초안**에 「이어서 작성하시겠어요?」 복원 모달이 떠 편집을 차단한다
-**Category:** FE / Strategy wizard
-**Priority:** P2
-**출처:** 2026-08-25 qa-sweep J4 (예제 로드 후 ~30초 내 무행동 발화 실측, Fast Refresh 리마운트 없음을 콘솔로 배제)
-
-**증상:** `/strategies/new` 에서 첫 의미 있는 입력(타이핑·예제 로드) 직후, auto-save 가 만든 **지금 이 세션의** 초안을 복원 프롬프트가 「작성 중이던 초안」으로 오인해 blocking 모달이 뜬다. 기본 포커스는 「새로 시작」.
-**원인:** `new-strategy-wizard.tsx:67-71` — `shouldPromptRestore = !promptDismissed && hasMeaningfulDraft` 에 「이 마운트에서 사용자가 이미 편집을 시작했다」 가드가 없다. `draft.ts:114 useDraftSnapshot` 이 `useSyncExternalStore` 라이브 구독이라 `useAutoSaveDraft`(`:79`) 의 쓰기를 즉시 되읽는다. 데이터 손실은 없음(「새로 시작」은 저장분만 삭제, 폼 유지 — `:175-178`).
-**권장 접근:** 마운트 시점에 초안 존재 여부를 **한 번만** 평가해 프롬프트 게이트로 쓰거나, 이 세션에서 입력이 시작되면 `promptDismissed` 를 자동 set.
-
-**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
-**트리거 판정:** 도래 (전략 등록 진입로의 상시 마찰)
-
 ### BL-824
 
 **Title:** 취소 주문 드로어가 취소 시각을 「**체결 시각**」으로 적는다 — rejected 만 갈라놓은 라벨 분기에서 cancelled 가 빠졌다
