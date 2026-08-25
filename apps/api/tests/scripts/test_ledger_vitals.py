@@ -18,7 +18,14 @@ def run(status_text: str, backlog_text: str, tmp_path: Path) -> subprocess.Compl
     status_file.write_text(status_text, encoding="utf-8")
     backlog_file.write_text(backlog_text, encoding="utf-8")
     return subprocess.run(
-        ["bash", str(SCRIPT), "--status-file", str(status_file), "--backlog-file", str(backlog_file)],
+        [
+            "bash",
+            str(SCRIPT),
+            "--status-file",
+            str(status_file),
+            "--backlog-file",
+            str(backlog_file),
+        ],
         capture_output=True,
         text=True,
         timeout=60,
@@ -79,7 +86,9 @@ def test_next_action_inside_strikethrough_is_ignored(tmp_path: Path) -> None:
 
 def test_next_action_inside_inline_code_is_ignored(tmp_path: Path) -> None:
     """인라인 코드의 다음 행동 표기는 인용이므로 세지 않는다."""
-    result = run(_status_with_zero_table("`다음 행동 =` 는 인용이다. 다음 행동 = 현재 것"), "", tmp_path)
+    result = run(
+        _status_with_zero_table("`다음 행동 =` 는 인용이다. 다음 행동 = 현재 것"), "", tmp_path
+    )
 
     assert result.returncode == 0
     assert "다음 행동=1" in result.stdout
@@ -100,25 +109,25 @@ def test_next_action_inside_indented_and_quoted_fences_is_ignored(tmp_path: Path
     assert "다음 행동=1" in result.stdout
 
 
-def test_zero_table_allows_three_rows_and_rejects_two(tmp_path: Path) -> None:
-    """⓪ 표의 데이터 세 행은 통과하고, 두 행은 ② 위반으로 실패한다."""
-    allowed = run(_status_with_next_action(f"### ⓪ 다음 후보\n{_pipe_table(3)}"), "", tmp_path)
-    rejected = run(_status_with_next_action(f"### ⓪ 다음 후보\n{_pipe_table(2)}"), "", tmp_path)
+def test_zero_table_allows_one_row_and_rejects_zero(tmp_path: Path) -> None:
+    """⓪ 표의 데이터 한 행은 통과하고, 빈 표는 ② 위반으로 실패한다 (하한 ≥1 — 2026-08-25 사용자 결정)."""
+    allowed = run(_status_with_next_action(f"### ⓪ 다음 후보\n{_pipe_table(1)}"), "", tmp_path)
+    rejected = run(_status_with_next_action(f"### ⓪ 다음 후보\n{_pipe_table(0)}"), "", tmp_path)
 
     assert allowed.returncode == 0
-    assert "⓪ 행=3" in allowed.stdout
+    assert "⓪ 행=1" in allowed.stdout
     assert rejected.returncode == 1
     assert "✗ ②" in rejected.stdout
-    assert "2개" in rejected.stdout
+    assert "0개" in rejected.stdout
 
 
 def test_zero_table_header_and_separator_are_not_data_rows(tmp_path: Path) -> None:
-    """머리행과 구분행은 데이터가 아니므로 데이터 두 행만 있으면 실패한다."""
-    result = run(_status_with_next_action(f"### ⓪ 다음 후보\n{_pipe_table(2)}"), "", tmp_path)
+    """머리행과 구분행은 데이터가 아니므로 그 둘만 있는 표는 빈 표로 실패한다."""
+    result = run(_status_with_next_action(f"### ⓪ 다음 후보\n{_pipe_table(0)}"), "", tmp_path)
 
     assert result.returncode == 1
     assert "✗ ②" in result.stdout
-    assert "2개" in result.stdout
+    assert "0개" in result.stdout
 
 
 def test_table_outside_zero_heading_does_not_count(tmp_path: Path) -> None:
@@ -227,7 +236,9 @@ def test_struck_status_line_does_not_consume_section_verdict_slot(tmp_path: Path
     assert "BL-107" in resolved_after_struck_active.stdout
 
 
-def test_each_section_is_counted_once_and_lines_outside_sections_are_ignored(tmp_path: Path) -> None:
+def test_each_section_is_counted_once_and_lines_outside_sections_are_ignored(
+    tmp_path: Path,
+) -> None:
     """③은 한 BL 섹션을 한 번만 세고 BL 헤딩 밖 상태줄은 보지 않는다."""
     result = run(
         _status_with_zero_table(),
