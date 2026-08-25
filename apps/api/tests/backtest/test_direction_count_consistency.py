@@ -298,7 +298,10 @@ async def test_completed_trades_is_win_rate_denominator(
         metrics_long_count=5,
         metrics_short_count=3,
     )
-    bt.metrics["win_rate"] = "0.375"  # type: ignore[index]
+    # ★JSONB 는 `Column(JSONB)`(MutableDict 아님)라 **in-place 변경을 unit-of-work 가 못 본다**.
+    #   재대입해야 dirty 로 잡혀 flush 가 실제 UPDATE 를 낸다 (in-place 는 identity map
+    #   덕에 우연히 통과할 뿐이라 populate_existing/새 세션이면 뒤집힌다).
+    bt.metrics = {**(bt.metrics or {}), "win_rate": "0.375"}
     await db_session.flush()
 
     detail = await service.get(bt.id, user_id=user.id)
@@ -327,7 +330,7 @@ async def test_trade_count_invariant_num_equals_completed_plus_open(
         metrics_long_count=10,
         metrics_short_count=7,
     )
-    bt.metrics["total_open_trades"] = 5  # type: ignore[index]  # engine 이 세는 open 개수
+    bt.metrics = {**(bt.metrics or {}), "total_open_trades": 5}  # engine 이 세는 open 개수
     await db_session.flush()
 
     detail = await service.get(bt.id, user_id=user.id)
@@ -378,8 +381,8 @@ async def test_legacy_fallback_completed_equals_num_trades(
         metrics_long_count=12,
         metrics_short_count=8,
     )
-    bt.metrics["num_trades"] = 20  # type: ignore[index]
-    bt.metrics["total_open_trades"] = 3  # type: ignore[index]  # 구 실행의 잔존 값
+    # 구 실행의 잔존 값까지 함께 심는다 — 재대입이라 flush 가 실제 UPDATE 를 낸다.
+    bt.metrics = {**(bt.metrics or {}), "num_trades": 20, "total_open_trades": 3}
     await db_session.flush()
 
     detail = await service.get(bt.id, user_id=user.id)

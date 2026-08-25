@@ -56,6 +56,20 @@ _NESTED_PAIRS: tuple[tuple[type, type], ...] = (
 _SERVICE_DERIVED_FIELDS: frozenset[str] = frozenset({"completed_trades"})
 
 
+def _field_set_drift(dataclass_fields: set[str], schema_fields: set[str]) -> dict[str, set[str]]:
+    """tripwire ① 의 세 축을 이름 붙여 돌려준다 — 빈 메시지로 터지지 않게 하려는 것이다.
+
+    ★`service_derived_leaked_into_dataclass` 가 없으면, 누군가 `completed_trades` 를
+      engine dataclass 에 **추가**했을 때 앞의 두 집합이 둘 다 공집합이라
+      「dataclass-only=set(), schema-only=set()」이라는 아무것도 안 가리키는 메시지가 난다.
+    """
+    return {
+        "dataclass_only": dataclass_fields - schema_fields,
+        "schema_only": schema_fields - _SERVICE_DERIVED_FIELDS - dataclass_fields,
+        "service_derived_leaked_into_dataclass": _SERVICE_DERIVED_FIELDS & dataclass_fields,
+    }
+
+
 def _strip_optional(tp: Any) -> Any:
     """`X | None` → X. Optional 아니면 그대로."""
     if typing.get_origin(tp) in (typing.Union, types.UnionType):
@@ -111,11 +125,8 @@ def test_dataclass_and_schema_field_sets_match() -> None:
         f"BL-822: service 파생 예외 목록에 스키마에 없는 이름이 있다 — "
         f"{_SERVICE_DERIVED_FIELDS - schema_fields}"
     )
-    assert dataclass_fields == schema_fields - _SERVICE_DERIVED_FIELDS, (
-        f"BL-388 drift: dataclass-only={dataclass_fields - schema_fields}, "
-        f"schema-only={schema_fields - _SERVICE_DERIVED_FIELDS - dataclass_fields} "
-        "— 4-site 동시 수정 필요"
-    )
+    drift = _field_set_drift(dataclass_fields, schema_fields)
+    assert not any(drift.values()), f"BL-388 drift: {drift} — 4-site 동시 수정 필요"
 
 
 # BacktestMetricsSummary 는 목록·대시보드 응답에 실리지만 tripwire ①의 사각지대다.
@@ -219,6 +230,19 @@ def _completed_bt(m: BacktestMetrics) -> Backtest:
 
 # BL-822 — tripwire ①·③ 이 _SERVICE_DERIVED_FIELDS 를 건너뛰므로, 그 필드가 **실제로
 # 채워지는지**를 여기서 값으로 잰다. 예외를 뚫어 놓고 아무도 안 보는 상태가 되는 것을 막는다.
+def test_drift_message_names_the_dataclass_leak() -> None:
+    """음성 대조 — service 파생 이름을 dataclass 에 넣는 실수가 **이름과 함께** 보고되는가."""
+    base = {f.name for f in dataclasses.fields(BacktestMetrics)}
+    schema = set(BacktestMetricsOut.model_fields)
+
+    clean = _field_set_drift(base, schema)
+    assert not any(clean.values()), f"현행 트리는 drift 0 이어야 한다 — {clean}"
+
+    leaked = _field_set_drift(base | _SERVICE_DERIVED_FIELDS, schema)
+    assert leaked["service_derived_leaked_into_dataclass"] == _SERVICE_DERIVED_FIELDS
+    assert any(leaked.values()), "누출을 감지하고도 메시지가 비면 tripwire 가 무증거다"
+
+
 def test_service_derived_fields_are_filled_on_both_paths() -> None:
     """completed_trades = override **전** JSONB num_trades — override/legacy 양 경로 공통."""
     m = _full_metrics()

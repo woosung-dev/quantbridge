@@ -117,6 +117,12 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
   // 다르다는 사실 자체를 문장으로 말해 준다.
   const counts = deriveTradeCounts(metrics);
   const openSuffix = counts.open > 0 ? ` 미청산 ${counts.open}건을 포함합니다.` : "";
+  // ★§05 의 건수는 아래 donut 이 실제로 세는 수여야 한다. 표본이 상한(MAX_ANALYTICS_TRADES)
+  //   에서 잘리면 donut 은 로드된 만큼만 세므로 모집단 수를 적으면 **이 PR 이 없애려던
+  //   산술 모순을 새로 만든다.** 잘린 경우엔 수를 적지 않고 각주에 맡긴다.
+  const analyticsDesc = truncated
+    ? "청산이 끝난 완료 거래를 승패와 손익 크기로 나눠 봅니다. 표본이 상한에서 잘려 아래 각주의 건수를 따릅니다."
+    : `청산이 끝난 완료 거래 ${counts.completed}건을 승패와 손익 크기로 나눠 봅니다.`;
 
   return (
     <div data-testid="backtest-report-shell">
@@ -216,7 +222,7 @@ export function BacktestReportShell({ backtest: bt, currentId }: BacktestReportS
         num="05"
         eyebrow="거래 분석"
         title="거래 분포와 수익 분포"
-        desc={`청산이 끝난 완료 거래 ${counts.completed}건을 승패와 손익 크기로 나눠 봅니다.`}
+        desc={analyticsDesc}
         ariaLabel="거래 분석"
         id="distributions"
       >

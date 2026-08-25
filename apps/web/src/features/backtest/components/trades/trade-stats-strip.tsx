@@ -15,6 +15,8 @@ interface AggregatedStats {
   totalCount: number;
   winCount: number;
   lossCount: number;
+  /** 미청산 건수 — 승/패 어느 쪽도 아니다(BL-822). totalCount = win + loss + open. */
+  openCount: number;
   /** 승리 거래 평균 return_pct (decimal). */
   avgWinPct: number;
   /** 승리 거래 max return_pct (decimal). */
@@ -38,10 +40,16 @@ export function TradeStatsStrip({ trades }: TradeStatsStripProps) {
       aria-label="거래 요약 통계"
       data-testid="trade-stats-strip"
     >
+      {/* ★BL-822 — 총 거래는 나열된 행 수(미청산 포함)이고 승/패는 청산된 것만 센다.
+          미청산을 안 적으면 「총 거래 13 · 2승 10패」처럼 더해서 안 맞는 표기가 된다. */}
       <StatKpi
         label="총 거래"
         value={stats.totalCount.toString()}
-        foot={`${stats.winCount}승 ${stats.lossCount}패`}
+        foot={
+          stats.openCount > 0
+            ? `${stats.winCount}승 ${stats.lossCount}패 · 미청산 ${stats.openCount}건`
+            : `${stats.winCount}승 ${stats.lossCount}패`
+        }
       />
       <StatKpi
         label="평균 수익"
@@ -98,8 +106,13 @@ function StatKpi({ label, value, foot, tone = "neutral" }: StatKpiProps) {
 }
 
 function aggregate(trades: readonly TradeItem[]): AggregatedStats {
-  const wins = trades.filter((t) => t.pnl > 0);
-  const losses = trades.filter((t) => t.pnl <= 0 && t.exit_time !== null);
+  // ★미청산 거래는 `exit_time === null` 이고 pnl 이 진입 수수료만큼 **음수**라, 걸러내지
+  //   않으면 패배로 세어진다(losses 필터가 이미 그렇게 하고 있었다). wins 도 같은 모수여야
+  //   총계가 닫힌다 — 미청산은 별도로 센다(BL-822).
+  const closed = trades.filter((t) => t.exit_time !== null);
+  const wins = closed.filter((t) => t.pnl > 0);
+  const losses = closed.filter((t) => t.pnl <= 0);
+  const openCount = trades.length - closed.length;
 
   const winPcts = wins.map((t) => t.return_pct).filter((v) => Number.isFinite(v));
   const lossPcts = losses.map((t) => t.return_pct).filter((v) => Number.isFinite(v));
@@ -129,6 +142,7 @@ function aggregate(trades: readonly TradeItem[]): AggregatedStats {
     totalCount: trades.length,
     winCount: wins.length,
     lossCount: losses.length,
+    openCount,
     avgWinPct,
     maxWinPct,
     avgLossPct,

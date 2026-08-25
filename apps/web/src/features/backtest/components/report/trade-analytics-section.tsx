@@ -112,19 +112,26 @@ export function TradeAnalyticsSection({
 
   const tradeCounts = deriveTradeCounts(m);
 
-  // 승률·평균 PnL 은 로드된 완료 거래 표본 파생, 거래 수는 metrics 모집단 — 표본이 전체의
-  // 부분집합이면(캡 초과 truncated) 헤더 * + 각주로 두 분모를 갈라 고지한다 (codex P2).
-  const statsFromSubset =
-    closed.length > 0 && tradeCounts.completed > 0 && closed.length < tradeCounts.completed;
+  // 승률·평균 PnL 은 로드된 완료 거래 표본 파생, 거래 수는 metrics 모집단 — 두 분모가
+  // 갈리면 헤더 * + 각주로 고지한다 (codex P2 · BL-822).
+  //
+  // ★표본이 잘렸는지는 **추정하지 않고 부모가 준 신호를 받아 쓴다.** 종전 식은
+  //   `trades.length < m.num_trades` 였는데, 분모를 완료 거래로 바꾸자
+  //   `completed_trades` 가 없는 응답(롤링 배포·캐시된 구 payload)에서 completed 가
+  //   num_trades(미청산 포함)로 접혀 12 < 13 이 되고, **잘리지도 않았는데** 「일부만
+  //   보여 준다」는 거짓 고지가 났다. `truncated` 는 `items.length < total` 실측이다.
+  const statsFromSubset = truncated && closed.length > 0;
 
-  // ★BL-822 — 분모가 갈리는 사유가 **둘**이다. ⑴ 표본 캡(truncated) ⑵ 미청산 거래.
-  //   ⑵ 는 캡과 무관하게 늘 갈린다 — 거래 수 열은 미청산을 포함하고 승률은 완료 거래만 센다.
+  // ★분모가 갈리는 둘째 사유 = 미청산 거래. `completed_trades` 가 없는 응답에서도
+  //   **표본 안에서 직접 관측**되므로(전체 − 완료) 고지가 사라지지 않는다.
   //   실측(backtest 20128227)에서 「롱 13건 · 승률 16.7%(=2/12)」가 아무 고지 없이 한 행에
   //   나란히 있었다. 사유가 있을 때만 * 를 붙이고, 그 사유를 문장으로 말한다.
+  const openInSample = trades.length - closed.length;
+  const openCount = tradeCounts.open > 0 ? tradeCounts.open : openInSample;
   const denominatorNote = statsFromSubset
-    ? `* 표시된 완료 거래 ${closed.length}건 기준 (완료 ${tradeCounts.completed}건 중). 거래 수 열은 미청산을 포함한 전체 기준입니다.`
-    : tradeCounts.open > 0
-      ? `* 승률·평균 PnL 은 완료 거래 ${tradeCounts.completed}건 기준입니다. 거래 수 열은 미청산 ${tradeCounts.open}건을 포함한 전체 기준입니다.`
+    ? `* 승률·평균 PnL 은 표시된 완료 거래 ${closed.length}건 기준입니다. 거래 수 열은 미청산을 포함한 전체 기준입니다.`
+    : openCount > 0
+      ? `* 승률·평균 PnL 은 완료 거래 ${closed.length}건 기준입니다. 거래 수 열은 미청산 ${openCount}건을 포함한 전체 기준입니다.`
       : null;
   const splitMarker = denominatorNote !== null ? "*" : "";
 

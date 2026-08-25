@@ -398,11 +398,7 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 
 ~~**다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 후보는 B([BL-453] 재기술 필요)·AP([BL-774] 사람 동반 필요) 둘이다.~~ → **2026-08-25 qa-sweep(2026-08-25) 이 등재한 P2 5건이 먼저 큐에 들어왔고 전부 종결됐다** — [BL-821]·[BL-825] = PR #826, [BL-823]·[BL-824] = PR #827(잔여 축은 [BL-826] DEFERRED), [BL-822] = 아래.
 
-★★**[BL-822] 종결 — 「거래 수」와 「완료 거래」를 이름으로 갈랐다.** BE detail 응답이 두 셈을 함께 싣는다: `num_trades`(미청산 포함, Sprint 31-E/BL-155 override 유지) + **신규 `completed_trades`**(승률·평균손익 등 모든 성과 지표의 분모). 불변식 `num_trades == completed_trades + total_open_trades`(override 경로) · `== completed_trades`(legacy 경로).
-★**정본을 택한 근거 = FE 가 뺄셈으로 파생시킬 수 없다.** override 경로에서는 `num_trades − total_open_trades` 가 맞지만 **legacy fallback 경로에서는 `num_trades` 가 이미 closed** 라 빼면 분모가 작아진다. FE 는 어느 경로가 탔는지 알 수 없다. 게다가 `total_open_trades` 는 TV parity 팩 이후 실행에만 있어 구 백테스트는 분모를 영영 못 적는다.
-★**필드를 engine dataclass 가 아니라 API 스키마에만 뒀다** — engine 에선 `num_trades` 자체가 이미 closed 개수라(`v2_adapter._build_metrics`) 중복 JSONB 키가 되고, 구 행에는 그 키가 없어 `None` 이 된다. service 가 JSONB `num_trades`(필수 필드)에서 파생시키면 legacy 도 정확하다. 대가로 `test_metrics_field_parity` tripwire ①·③ 에 `_SERVICE_DERIVED_FIELDS` 예외 1개가 생겼고, **잃은 자동 보증을 양 경로 값 단언 테스트로 교체**했다.
-★★**원장에 없던 다섯째 증상을 화면 실측이 잡았다** — 방향별 성과 표가 `computeDirectionBreakdown(trades)` 로 **미청산 거래를 승률 분모에 넣고 있었다**(`pnl` 이 없어 `0` 으로 강제 → 「이기지 못한 거래」). `closed` 만 넘기도록 고쳤고, 같은 표가 한 행에 「거래 수 13」과 「승률 16.7%(=2/12)」를 **아무 고지 없이** 나란히 두던 것도 각주 조건을 넓혀 갈랐다(종전 조건은 표본 캡 truncated 뿐이었다).
-★**실측(backtest `20128227`, 로컬 실서버 · Playwright)** — 목록 `12` + 「미청산 1」 · 상세 지표 `총 거래 수 13`(title: 미청산 1건 포함) / `완료 거래 12` / `승률 16.67%`(title: 완료 거래 12건 기준) · §04 「거래 13건」 = 원장 행 13 · §05 「완료 거래 12건」 = 거래 분포 donut 합(2+10+0=12) · 온보딩 카드 `거래 수 12` + 「미청산 1건은 제외했습니다」. **12 × 16.67% = 2 로 카드 3개가 처음으로 서로 맞는다.**
+★**[BL-822] 종결** — 응답이 「거래 수」(미청산 포함)와 **`completed_trades`**(승률 분모)를 각각의 이름으로 싣고, 목록·상세·온보딩·share·거래 목록 탭이 같은 정의를 인쇄한다. 근거·실측·반증은 PR #828 과 커밋 메시지가 갖는다.
 
 **다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 후보는 B([BL-453] 재기술 필요)·AP([BL-774] 사람 동반 필요) 둘이다. qa-sweep P2 큐는 비었다.
 

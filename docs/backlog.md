@@ -781,3 +781,17 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
+
+### BL-827
+
+**Title:** 계약 drift 게이트가 CI 밖이라 2주간 아무도 안 봤고, PoC 생성물은 그 소스와 어긋난 채 굳었다
+**Category:** Tooling / OpenAPI 계약
+**Priority:** P3
+**출처:** 2026-08-25 BL-822 PR #828 의 `/code-review` 발견 (코드 대조 확인)
+
+**증상 (실측):** `mise run openapi-check` 가 `.github/workflows/ci.yml` 어디에서도 호출되지 않는다(`grep openapi ci.yml` = 0건). 그래서 BL-822 회차가 `export_openapi.py` 를 돌리자 **이 회차와 무관한 선행 drift** 가 딸려 나왔다 — `ClosePositionConflictResponse` · `RestingEntriesConflictDetail` · `/close` 409 응답이 커밋된 계약에 빠져 있었다(코드 유입은 `6784fceb`/PR #809). 2단(orval 부분집합)도 같은 처지고, 거기서 파생되는 `apps/web/src/lib/api-contract-poc/generated/**`(orval + openapi-typescript)는 **재생성 자체가 아무 절차에도 없어** `completed_trades` 가 0건이다(소스인 `openapi.poc.json` 에는 있다). 생성기 설정은 `apps/web/orval.poc.config.ts` 로 실재한다.
+**동승 항목:** `deriveTradeCounts`(`apps/web/src/features/backtest/trade-counts.ts`)가 `Math.max(0, total - completed)` 로 **두 저장소(trades 테이블 vs JSONB)의 불일치를 조용히 0 으로 눌러** 준다. `apps/api/src/backtest/schemas.py` 가 문서화한 불변식 `num_trades == completed_trades + total_open_trades` 를 `_to_detail` 도 테스트도 단언하지 않는다.
+**권장 접근:** ⑴ `openapi-check` 를 CI backend 잡에 얹는다(2단까지). ⑵ PoC 생성물을 계약에서 재생성하거나, 비교 산출물로서의 수명이 끝났으면 **삭제**한다([ADR-031] PoC 결론 확인 필요) — 어느 쪽이든 「소스와 어긋난 채 남아 있는」 지금 상태만 아니면 된다. ⑶ `_to_detail` 에 `direction_counts[0] >= m.num_trades` 위반을 관측 로그로 남긴다(응답을 깨지 말고).
+
+**상태:** 🔵 ACTIVE — 2026-08-25 등재, 미수리
+**트리거 판정:** 도래 (⑴ 은 CI 한 줄. ⑵ 는 PoC 수명 판단이 선행)

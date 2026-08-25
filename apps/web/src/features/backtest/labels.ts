@@ -83,6 +83,8 @@ export const METRIC_LABEL = {
   winRate: "승률", // screen-04-trade-detail.html · screen-12-onboarding.html
   profitLossRatio: "손익비", // screen-04-trade-detail.html
   profitFactor: "수익 팩터", // screen-04-trade-detail.html
+  // ★BL-822 — 「거래 수」는 **미청산 포함** 전체를 뜻한다. 승률 등 성과 지표의 분모로 쓸
+  //   수를 인쇄할 자리라면 이 라벨이 아니라 「완료 거래」다(`deriveTradeCounts`).
   numTrades: "거래 수",
   avgHoldingTime: "평균 보유", // screen-04-trade-detail.html
   /** 미결제 포지션의 진입가 대비 등락률. screen-01-trading-cockpit.html:1228 */
