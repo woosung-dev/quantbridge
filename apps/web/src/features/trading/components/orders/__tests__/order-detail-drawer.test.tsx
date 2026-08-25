@@ -104,3 +104,33 @@ describe("OrderDetailDrawer — 실현 손익 출처", () => {
     expect(sourceCellText()?.trim()).toBe(EMPTY_CELL);
   });
 });
+
+// BL-824 — BE 는 cancelled/rejected 의 **종결 시각**을 `filled_at` 에 쓴다(실측 cancelled 431/431 ·
+// rejected 88/88, 부분 체결 0). 드로어가 그 값을 「체결 시각」이라 적으면 체결되지 않은 주문이
+// 체결된 것처럼 보인다. 라벨은 상태를 따라간다 — 정본 수리(BE 기록 의미론)는 [BL-826].
+describe("OrderDetailDrawer — filled_at 시각 라벨 (BL-824)", () => {
+  afterEach(cleanup);
+
+  function renderState(state: Order["state"]) {
+    render(<OrderDetailDrawer order={makeOrder({ state })} open onOpenChange={() => {}} />);
+  }
+
+  it("cancelled 주문은 「취소 시각」으로 적고 「체결 시각」을 쓰지 않는다", () => {
+    renderState("cancelled");
+    expect(screen.getByText("취소 시각")).toBeTruthy();
+    expect(screen.queryByText("체결 시각")).toBeNull();
+  });
+
+  it("rejected 주문은 「실패 시각」으로 적는다 (기존 분기 회귀 방지)", () => {
+    renderState("rejected");
+    expect(screen.getByText("실패 시각")).toBeTruthy();
+    expect(screen.queryByText("체결 시각")).toBeNull();
+  });
+
+  it("filled 주문은 「체결 시각」 그대로다 — 음성 대조", () => {
+    renderState("filled");
+    expect(screen.getByText("체결 시각")).toBeTruthy();
+    expect(screen.queryByText("취소 시각")).toBeNull();
+    expect(screen.queryByText("실패 시각")).toBeNull();
+  });
+});

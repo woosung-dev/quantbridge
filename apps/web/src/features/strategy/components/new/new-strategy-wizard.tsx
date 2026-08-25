@@ -70,6 +70,15 @@ export function NewStrategyWizard() {
   const [promptDismissed, setPromptDismissed] = useState(false);
   const shouldPromptRestore = !promptDismissed && hasMeaningfulDraft;
 
+  // ★복원 모달은 **이전 세션의** 초안에만 뜬다(BL-823). useDraftSnapshot 이 라이브 구독이라
+  //   useAutoSaveDraft/수동 저장이 방금 쓴 「지금 세션의」 초안을 즉시 되읽는다 — 이 세션에서
+  //   저장을 만들 수 있는 입력이 시작되면 게이트를 닫는다. 전부 이벤트 핸들러 안 setState 다
+  //   (H-1: 구독 결과를 dep 로 갖는 effect 를 쓰면 dev 전용 무한 루프가 된다).
+  const applyPineSource = (value: string) => {
+    setPineSource(value);
+    setPromptDismissed(true);
+  };
+
   // 계정 전환 대비 — 다른 userId 의 잔여 draft 를 best-effort 로 정리.
   useEffect(() => {
     if (!userId) return;
@@ -128,6 +137,7 @@ export function NewStrategyWizard() {
       pineSource,
       metadata: { name, description, symbol, timeframe },
     });
+    setPromptDismissed(true);
     toast.success("초안을 저장했습니다");
   };
 
@@ -139,7 +149,7 @@ export function NewStrategyWizard() {
     if (!file) return;
     try {
       const text = await file.text();
-      setPineSource(text);
+      applyPineSource(text);
       toast.success(`"${file.name}" 을 불러왔습니다`);
     } catch {
       toast.error("파일을 읽지 못했습니다");
@@ -152,7 +162,7 @@ export function NewStrategyWizard() {
       const res = await fetch(EXAMPLE_PINE_URL);
       if (!res.ok) throw new Error(`샘플 응답 ${res.status}`);
       const text = await res.text();
-      setPineSource(text);
+      applyPineSource(text);
       toast.success("예제 스크립트를 불러왔습니다");
     } catch {
       toast.error("예제를 불러오지 못했습니다");
@@ -351,7 +361,7 @@ export function NewStrategyWizard() {
                 <div className="editor-shell">
                   <PineEditor
                     value={pineSource}
-                    onChange={setPineSource}
+                    onChange={applyPineSource}
                     onTriggerParse={() => pineSource.trim() && manualParse.mutate(pineSource)}
                     height={360}
                   />

@@ -838,3 +838,17 @@ runbook → [BL-005] 실자본 dogfood → [BL-070~072] Beta`** 였다.
 
 **Risk:** 🟡 빌드가 `next/font/google` 로 네트워크에 매달려 있다 — 레인 α 실측에서 13회 중 1회가 폰트 CSS 를 못 받아 죽었다. **오프라인이면 이 게이트는 못 돈다.**
 
+
+### BL-826
+
+**Title:** BE 가 cancelled/rejected 주문의 **종결 시각**을 `filled_at` 에 쓴다 — 기록 의미론 오염 ([BL-824] 의 정본 수리 축)
+**Category:** Backend / Trading order repository (+ DB 스키마)
+**Priority:** P3
+**출처:** [BL-824] 잔여 축 (2026-08-25 qa-sweep J7 — FE 라벨 최소 수리로 종결, 원문 = git)
+
+**증상 (실측, 2026-08-25):** cancelled **431/431** · rejected **88/88** 이 `filled_at` 을 보유하나 부분 체결 0건 — 값의 실체는 체결이 아니라 **종결 전이 시각**이다. rejected 축은 `order_repository.py:941-945` 가 주석으로 문서화까지 해 뒀다.
+**영향:** 컬럼 이름이 값의 의미와 어긋나 소비자마다 라벨 분기를 반복해야 한다 — FE 드로어가 두 번(2026-08-15 rejected · 2026-08-25 cancelled) 같은 병을 앓았고, CSV/API 를 직접 읽는 쪽은 여전히 「체결 시각」으로 오독한다.
+**권장 접근:** cancelled/rejected 의 종결 시각을 `filled_at` 이 아닌 별도 컬럼(예: `closed_at`)에 쓰거나 `filled_at` 은 null 유지. migration + 기존 519건 backfill + FE 라벨 분기 단순화(`order-detail-drawer.tsx` BL-824 주석 참조)가 한 묶음이다.
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 등재. FE 표기는 [BL-824] 수리로 이미 옳다
+**트리거:** orders 스키마 또는 주문 serializer 를 손대는 회차에 동승 — 단독 착수 가치가 낮다

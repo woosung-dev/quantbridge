@@ -796,31 +796,3 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
 **트리거 판정:** 도래 (제품 핵심 축 「결과가 정직하게 보이는가」 직결)
 
-### BL-823
-
-**Title:** 새 전략 위저드 — **자기 세션의 자동저장 초안**에 「이어서 작성하시겠어요?」 복원 모달이 떠 편집을 차단한다
-**Category:** FE / Strategy wizard
-**Priority:** P2
-**출처:** 2026-08-25 qa-sweep J4 (예제 로드 후 ~30초 내 무행동 발화 실측, Fast Refresh 리마운트 없음을 콘솔로 배제)
-
-**증상:** `/strategies/new` 에서 첫 의미 있는 입력(타이핑·예제 로드) 직후, auto-save 가 만든 **지금 이 세션의** 초안을 복원 프롬프트가 「작성 중이던 초안」으로 오인해 blocking 모달이 뜬다. 기본 포커스는 「새로 시작」.
-**원인:** `new-strategy-wizard.tsx:67-71` — `shouldPromptRestore = !promptDismissed && hasMeaningfulDraft` 에 「이 마운트에서 사용자가 이미 편집을 시작했다」 가드가 없다. `draft.ts:114 useDraftSnapshot` 이 `useSyncExternalStore` 라이브 구독이라 `useAutoSaveDraft`(`:79`) 의 쓰기를 즉시 되읽는다. 데이터 손실은 없음(「새로 시작」은 저장분만 삭제, 폼 유지 — `:175-178`).
-**권장 접근:** 마운트 시점에 초안 존재 여부를 **한 번만** 평가해 프롬프트 게이트로 쓰거나, 이 세션에서 입력이 시작되면 `promptDismissed` 를 자동 set.
-
-**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
-**트리거 판정:** 도래 (전략 등록 진입로의 상시 마찰)
-
-### BL-824
-
-**Title:** 취소 주문 드로어가 취소 시각을 「**체결 시각**」으로 적는다 — rejected 만 갈라놓은 라벨 분기에서 cancelled 가 빠졌다
-**Category:** FE / Trading orders (+ BE 기록 의미론)
-**Priority:** P2
-**출처:** 2026-08-25 qa-sweep J7 (주문 63dea22b 드로어 실측 → DB 전수 대조)
-
-**증상 (실측):** 상태 「취소」· 체결가/체결 수량 「—」 인 주문의 드로어가 「체결 시각 2026-08-14 09:37:49 UTC」를 표시. DB 전수 — cancelled **431/431** 이 `filled_at` 보유, 그중 부분 체결 **0건**. rejected 88/88 도 동일하나 그쪽은 이미 「실패 시각」으로 갈라져 있다.
-**원인:** BE 가 종결 전이 시각을 `filled_at` 에 쓴다(rejected 는 `order_repository.py:941-945` 주석으로 문서화). FE 수리(2026-08-15 codex P1, [clock-fill-sweep])가 `order-detail-drawer.tsx:180` 에서 `state === "rejected"` **만** 「실패 시각」으로 분기 — cancelled 는 「체결 시각」 그대로.
-**권장 접근:** 최소 수리 = 라벨 분기를 terminal-비체결 상태 전체로 확장(`cancelled` → 「취소 시각」). 정본 수리 = BE 가 cancelled/rejected 의 종결 시각을 `filled_at` 이 아닌 별도 컬럼(또는 null 유지)으로 — 기록 의미론 자체가 오염원이다.
-
-**상태:** 🔵 ACTIVE — 2026-08-25 qa-sweep 발견, 미수리
-**트리거 판정:** 도래 (표기 한 줄 수정으로 최소 수리 가능)
-
