@@ -502,9 +502,9 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
       )(route);
     });
 
-    // 테스트 주문 다이얼로그는 필드가 많아 기본 720px 뷰포트에서 제출("발송") 버튼이 접힘
-    // 아래로 밀린다(스크롤해도 viewport 밖). 높은 뷰포트로 버튼이 보이게 해 실제 click 을 유지한다.
-    await page.setViewportSize({ width: 1280, height: 1400 });
+    // [BL-825 회귀] 표준 노트북 세로(850px)에서 다이얼로그가 max-h-[85dvh]+overflow 로
+    // 스크롤돼 발송 버튼에 도달 가능해야 한다. 뷰포트를 키워 우회하면 회귀를 못 잡는다.
+    await page.setViewportSize({ width: 1440, height: 850 });
 
     await page.goto("/trading", { timeout: 60_000 });
 
@@ -529,8 +529,18 @@ test.describe("Sprint 46 Tier 1 critical user journey", () => {
     // 수량 입력.
     await dialog.getByLabel(/수량/).fill("0.001");
 
+    // [BL-825 회귀] 발송 버튼이 850px 뷰포트 안에 실제로 들어와야 클릭이 가능하다.
+    const submitButton = page.getByRole("button", { name: /^발송$/ });
+    await submitButton.scrollIntoViewIfNeeded();
+    const submitBox = await submitButton.boundingBox();
+    expect(submitBox, "발송 버튼 boundingBox").not.toBeNull();
+    expect(
+      submitBox!.y + submitBox!.height,
+      "발송 버튼 하단이 뷰포트(850px) 안",
+    ).toBeLessThanOrEqual(850);
+
     // 발송 → POST webhook.
-    await page.getByRole("button", { name: /^발송$/ }).click();
+    await submitButton.click();
 
     // dialog 닫힘 + sonner toast 성공.
     await expect(page.getByRole("heading", { name: "테스트 주문 (dogfood-only)" })).toBeHidden({

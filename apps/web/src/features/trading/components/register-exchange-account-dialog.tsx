@@ -70,7 +70,7 @@ export function RegisterExchangeAccountDialog() {
         계정 추가
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-md">
           <DialogHeader>
             <DialogTitle>거래소 계정 등록</DialogTitle>
           </DialogHeader>
