@@ -63,6 +63,43 @@ describe("TradeStatsStrip", () => {
     expect(screen.getByTestId("trade-stat-평균 손실")).toHaveTextContent(/-2\.00%/);
   });
 
+  // ★BL-822 — 거래 목록 탭도 같은 병을 앓고 있었다. 실측(backtest 20128227)에서
+  // 「총 거래 13 · 2승 10패」라 더해서 안 맞았다. 미청산은 승도 패도 아니므로 따로 센다.
+  it("미청산 거래는 승/패 어느 쪽도 아니고 총계가 닫히도록 따로 적는다", () => {
+    const trades: TradeItem[] = [
+      mkTrade({ trade_index: 1, direction: "long", pnl: 100, return_pct: 0.04 }),
+      mkTrade({ trade_index: 2, direction: "short", pnl: -50, return_pct: -0.02 }),
+      // 미청산 — exit_time null, pnl 은 진입 수수료만큼 음수(non-nullable 계약).
+      mkTrade({
+        trade_index: 3,
+        direction: "long",
+        status: "open",
+        exit_time: null,
+        exit_price: null,
+        pnl: -0.6,
+        return_pct: -0.006,
+        fees: 0.6,
+      }),
+    ];
+    render(<TradeStatsStrip trades={trades} />);
+
+    expect(screen.getByTestId("trade-stat-총 거래")).toHaveTextContent("3");
+    // 1 + 1 + 1 = 3 — 종전에는 "1승 2패"(미청산이 패로 세어짐)라 총계가 닫히지 않았다.
+    expect(screen.getByText("1승 1패 · 미청산 1건")).toBeInTheDocument();
+    // 미청산의 음수 pnl 이 평균 손실을 오염시키지 않는다.
+    expect(screen.getByTestId("trade-stat-평균 손실")).toHaveTextContent(/-2\.00%/);
+  });
+
+  it("음성 대조 — 미청산이 없으면 부기가 붙지 않는다", () => {
+    const trades: TradeItem[] = [
+      mkTrade({ trade_index: 1, direction: "long", pnl: 100, return_pct: 0.04 }),
+      mkTrade({ trade_index: 2, direction: "short", pnl: -50, return_pct: -0.02 }),
+    ];
+    render(<TradeStatsStrip trades={trades} />);
+    expect(screen.getByText("1승 1패")).toBeInTheDocument();
+    expect(screen.queryByText(/미청산/)).toBeNull();
+  });
+
   // C 이식 S6 — 공용 .kpi 카드 4개(role=listitem)로 렌더한다.
   it("4개 KPI 카드가 공용 .card.kpi 로 렌더된다", () => {
     render(<TradeStatsStrip trades={[]} />);

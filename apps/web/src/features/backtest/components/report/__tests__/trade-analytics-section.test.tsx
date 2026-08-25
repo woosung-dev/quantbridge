@@ -130,18 +130,21 @@ describe("TradeAnalyticsSection", () => {
         trades={[trade(0, 10), trade(1, -5), trade(2, 0), trade(3, 8)]}
       />,
     ); // 4 === METRICS.num_trades(4)
-    expect(screen.queryByText(/표시된 거래/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/표시된 완료 거래/)).not.toBeInTheDocument();
   });
 
-  it("trades.length < num_trades 이면 부분집합 안내를 표시한다", () => {
+  // ★BL-822 — 표본 캡 고지의 근거는 추정식이 아니라 `truncated`(= items.length < total) 다.
+  //   종전 `trades.length < num_trades` 추정은 미청산이 있으면 잘리지도 않았는데 발화했다.
+  it("truncated 신호가 오면 표본 기준 안내를 표시한다", () => {
     render(
       <TradeAnalyticsSection
         metrics={{ ...METRICS, num_trades: 10 } as BacktestMetricsOut}
         trades={[trade(0, 10)]}
+        truncated
       />,
     );
-    expect(screen.getByText(/표시된 거래 1건 기준/)).toBeInTheDocument();
-    expect(screen.getByText(/전체 10건 중/)).toBeInTheDocument();
+    expect(screen.getByText(/표시된 완료 거래 1건 기준/)).toBeInTheDocument();
+    expect(screen.getByText(/거래 수 열은 미청산을 포함한 전체 기준/)).toBeInTheDocument();
   });
 
   it("표본이 부분집합이면 승률·평균 PnL 헤더에 * 가 붙어 분모 분리를 고지한다 (codex P2)", () => {
@@ -151,11 +154,12 @@ describe("TradeAnalyticsSection", () => {
       <TradeAnalyticsSection
         metrics={{ ...METRICS, num_trades: 6 } as BacktestMetricsOut}
         trades={[trade(0, 10), trade(1, -5, "short")]}
+        truncated
       />,
     );
     expect(screen.getByText("승률*")).toBeInTheDocument();
     expect(screen.getByText("평균 PnL*")).toBeInTheDocument();
-    expect(screen.getByText(/거래 수 열은 전체 기준/)).toBeInTheDocument();
+    expect(screen.getByText(/거래 수 열은 미청산을 포함한 전체 기준/)).toBeInTheDocument();
   });
 
   it("표본 = 전체면 * 마커가 붙지 않는다", () => {
@@ -167,5 +171,88 @@ describe("TradeAnalyticsSection", () => {
     );
     expect(screen.queryByText("승률*")).toBeNull();
     expect(screen.queryByText("평균 PnL*")).toBeNull();
+  });
+
+  // BL-822 — 방향별 승률의 분모는 **완료 거래**다.
+  // 미청산 거래는 pnl 이 없어 computeDirectionBreakdown 이 0 으로 강제하는데, 그러면
+  // 「이기지 못한 거래」로 분모에 들어가 승률이 조용히 낮아진다 (2026-08-25 qa-sweep 추가 발견).
+  describe("미청산 거래와 승률 분모 (BL-822)", () => {
+    // ★미청산 거래의 **실제 shape** — `pnl` 은 BE·FE 스키마 모두 non-nullable 이고
+    //   (`schemas.py:509` · `schemas.ts:355`) 엔진은 `gross_pnl = 0` 에서 진입 수수료를 빼므로
+    //   (`v2_adapter._build_raw_trades`) 값이 **음수**다. null 로 두면 계약이 금지하는 모양을
+    //   재는 것이라, 실제 회귀(음수 pnl 이 「패배」로 분모에 들어감)를 못 잡는다.
+    function openTrade(idx: number, direction: "long" | "short" = "long"): TradeItem {
+      return {
+        trade_index: idx,
+        direction,
+        status: "open",
+        entry_time: "2026-01-03T00:00:00Z",
+        exit_time: null,
+        entry_price: 100,
+        exit_price: null,
+        size: 1,
+        pnl: -0.6, // 진입 수수료만큼 음수 — 청산 전이라 실현 손익이 아니다
+        return_pct: -0.006,
+        fees: 0.6,
+      } as unknown as TradeItem;
+    }
+
+    // 롱 3건 중 완료 2건(승 1 · 패 1) + 미청산 1건. long_count 는 BE override 라 3 이다.
+    const SPLIT = {
+      ...METRICS,
+      num_trades: 3,
+      completed_trades: 2,
+      long_count: 3,
+      short_count: 0,
+    } as unknown as BacktestMetricsOut;
+    const TRADES = [trade(0, 10), trade(1, -5), openTrade(2)];
+
+    it("미청산 1건이 승률 분모에 들어가지 않는다", () => {
+      render(<TradeAnalyticsSection metrics={SPLIT} trades={TRADES} />);
+      const table = within(screen.getByTestId("direction-breakdown-table"));
+      expect(table.getByText("50.0%")).toBeInTheDocument(); // 완료 2건 중 1승
+      expect(table.queryByText("33.3%")).toBeNull(); // 미청산까지 센 옛 분모
+    });
+
+    it("거래 수 열은 미청산을 포함한 모집단(long_count)을 그대로 유지한다", () => {
+      render(<TradeAnalyticsSection metrics={SPLIT} trades={TRADES} />);
+      const table = within(screen.getByTestId("direction-breakdown-table"));
+      expect(table.getByText("3")).toBeInTheDocument();
+    });
+
+    it("표본 축소 문구 대신 **분모가 갈린 사유**를 말한다", () => {
+      // 완료 2건을 전부 실었으므로 「일부만 보여 준다」는 거짓이다. 그러나 거래 수 열(3)과
+      // 승률 분모(2)는 여전히 다르므로 침묵해서도 안 된다 — 2026-08-25 화면 실측에서
+      // 「롱 13건 · 승률 16.7%(=2/12)」가 아무 고지 없이 한 행에 있었다.
+      render(<TradeAnalyticsSection metrics={SPLIT} trades={TRADES} />);
+      expect(screen.queryByText(/표시된 완료 거래/)).not.toBeInTheDocument();
+      expect(screen.getByText("승률*")).toBeInTheDocument();
+      expect(screen.getByText(/승률·평균 PnL 은 완료 거래 2건 기준/)).toBeInTheDocument();
+      expect(screen.getByText(/거래 수 열은 미청산 1건을 포함한 전체 기준/)).toBeInTheDocument();
+    });
+
+    // BL-822 리뷰 발견 — `completed_trades` 가 없는 응답(롤링 배포·캐시된 구 payload)에서
+    // completed 가 num_trades(미청산 포함)로 접히면, 종전 추정식은 closed(2) < 3 이라
+    // **잘리지도 않았는데** 「일부만 보여 준다」는 거짓 고지를 냈다.
+    it("completed_trades 없는 응답에서 표본 고지가 거짓 발화하지 않는다", () => {
+      const { completed_trades: _omitted, ...legacy } = SPLIT as Record<string, unknown>;
+      render(
+        <TradeAnalyticsSection metrics={legacy as unknown as BacktestMetricsOut} trades={TRADES} />,
+      );
+      expect(screen.queryByText(/표시된 완료 거래/)).not.toBeInTheDocument();
+      // 대신 미청산으로 분모가 갈린 사실은 표본에서 직접 관측해 그대로 고지한다.
+      expect(screen.getByText(/거래 수 열은 미청산 1건을 포함한 전체 기준/)).toBeInTheDocument();
+    });
+
+    it("음성 대조 — 미청산이 없고 표본도 전체면 * 도 각주도 없다", () => {
+      render(
+        <TradeAnalyticsSection
+          metrics={{ ...SPLIT, num_trades: 2 } as unknown as BacktestMetricsOut}
+          trades={[trade(0, 10), trade(1, -5)]}
+        />,
+      );
+      expect(screen.queryByText("승률*")).toBeNull();
+      expect(screen.queryByText(/거래 수 열은/)).not.toBeInTheDocument();
+    });
   });
 });

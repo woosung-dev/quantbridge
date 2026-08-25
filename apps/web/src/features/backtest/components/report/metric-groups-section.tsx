@@ -8,6 +8,7 @@
 import { useMemo } from "react";
 
 import { deriveBuyAndHoldMetrics } from "@/features/backtest/analytics";
+import { deriveTradeCounts } from "@/features/backtest/trade-counts";
 import type { BacktestMetricsOut, EquityPoint } from "@/features/backtest/schemas";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import { formatCurrency, formatPercent } from "@/features/backtest/utils";
@@ -123,9 +124,28 @@ export function MetricGroupsSection({
     { label: "연환산 변동성", value: null, emptyTitle: NOT_COMPUTED },
   ];
 
+  // BL-822 — 「거래 수」(미청산 포함)와 「완료 거래」(승률 분모)를 각각의 이름으로 인쇄한다.
+  // 한 이름을 둘이 쓰던 동안 「총 거래 수 13 · 승률 16.67%」가 곱해서 정수가 안 나왔다.
+  const counts = deriveTradeCounts(m);
   const tradeStats: MetricSpec[] = [
-    { label: "총 거래 수", value: String(m.num_trades) },
-    { label: "승률", value: formatPercent(m.win_rate) },
+    {
+      label: "총 거래 수",
+      value: String(counts.total),
+      valueTitle:
+        counts.open > 0
+          ? `미청산 ${counts.open}건을 포함한 수입니다. 거래 목록의 행 수와 같습니다.`
+          : undefined,
+    },
+    {
+      label: "완료 거래",
+      value: String(counts.completed),
+      valueTitle: "진입·청산이 모두 끝난 거래입니다. 아래 승률의 분모입니다.",
+    },
+    {
+      label: "승률",
+      value: formatPercent(m.win_rate),
+      valueTitle: `완료 거래 ${counts.completed}건 기준입니다.`,
+    },
     { label: "평균 수익", value: signedCurrency(m.avg_win_abs), tone: "pos" },
     {
       label: "평균 손실",

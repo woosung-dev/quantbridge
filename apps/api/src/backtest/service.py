@@ -830,13 +830,18 @@ class BacktestService:
                     num_trades_out = m.num_trades
                     long_count_out = m.long_count
                     short_count_out = m.short_count
-                # BL-388: dataclass 전 필드 spread + override 4종만 명시.
+                # BL-388: dataclass 전 필드 spread + override 4종(+BL-822 파생 1종)만 명시.
                 # 필드별 손매핑 제거 — 신규 metric 은 asdict 로 자동 전달되고,
                 # 누락 drift 는 test_metrics_field_parity.py tripwire 가 차단.
                 # total_trades 는 PRD parity alias — num_trades override 시 함께 갱신
                 # (legacy fallback 시 m.total_trades 그대로).
+                # BL-822: `completed_trades` 는 override **전** JSONB 값 = closed 개수다.
+                # 양 경로 공통으로 넣는다 — override 경로에선 num_trades(13) 와 갈라지고,
+                # legacy fallback 경로에선 num_trades 와 같아진다. 승률 분모가 이 값이라
+                # FE 가 「거래 수 N」과 「완료 거래 M」을 각각의 이름으로 인쇄할 수 있다.
                 overrides: dict[str, Any] = {
                     "num_trades": num_trades_out,
+                    "completed_trades": m.num_trades,
                     "long_count": long_count_out,
                     "short_count": short_count_out,
                     "total_trades": (

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { getApiBase } from "@/lib/api-base";
 import { BacktestDetailSchema, type BacktestDetail } from "@/features/backtest/schemas";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
+import { deriveTradeCounts } from "@/features/backtest/trade-counts";
 
 import { ShareNotFoundState } from "@/features/backtest/components/share/share-not-found-state";
 import { SharePublicBanner } from "@/features/backtest/components/share/share-public-banner";
@@ -102,8 +103,11 @@ export default async function SharedBacktestPage({ params }: PageProps) {
               },
               { label: "MDD", value: `${pct(toNum(m.max_drawdown))}%` },
               {
-                label: "거래 수",
-                value: `${m.num_trades.toLocaleString("ko-KR")}건`,
+                // ★BL-822 — 단일 숫자만 보이는 표면은 **완료 거래**로 통일한다.
+                //   detail 응답의 num_trades 는 미청산까지 포함한 수라 목록 화면과
+                //   어긋나고, 링크를 받은 사람에겐 대조할 수단이 없다.
+                label: "완료 거래",
+                value: `${deriveTradeCounts(m).completed.toLocaleString("ko-KR")}건`,
               },
             ].map((stat, idx) => (
               <Stat

@@ -773,6 +773,17 @@
             ],
             "title": "Calmar Ratio"
           },
+          "completed_trades": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed Trades"
+          },
           "consecutive_losses_max": {
             "anyOf": [
               {
@@ -1561,6 +1572,27 @@
           "values"
         ],
         "title": "CategoricalField",
+        "type": "object"
+      },
+      "ClosePositionConflictResponse": {
+        "description": "청산 409 응답의 FastAPI ``detail`` 외피를 포함한 계약.",
+        "properties": {
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "$ref": "#/components/schemas/RestingEntriesConflictDetail"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ClosePositionConflictResponse",
         "type": "object"
       },
       "ClosePositionResponse": {
@@ -5260,6 +5292,39 @@
         "title": "RegisterLiveSessionRequest",
         "type": "object"
       },
+      "RestingEntriesConflictDetail": {
+        "description": "포지션 없이 미체결 진입 주문만 남은 청산 차단 사유.",
+        "properties": {
+          "code": {
+            "const": "resting_conditional_entries",
+            "title": "Code",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/RestingEntryOrder"
+            },
+            "title": "Orders",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code",
+          "count",
+          "detail",
+          "orders"
+        ],
+        "title": "RestingEntriesConflictDetail",
+        "type": "object"
+      },
       "RestingEntryOrder": {
         "description": "청산 시점에 거래소에 남아 있던 미체결 진입 주문 1건.\n\ntrigger 주문뿐 아니라 **일반 지정가 진입도 포함**된다. provider 가 비-trigger\n`fetch_open_orders` 와 trigger 주문을 합쳐 반환하기 때문이다 — 이름을\n`Conditional…` 로 좁히지 마라.\n\n★수량·가격은 `Decimal` 이다(§2 Decimal-first). 「JSONResponse 가 Decimal 을\n직렬화하지 못한다」는 제약은 **`response_model` 경로에 해당하지 않는다** — 그 경로는\nPydantic 이 직렬화하고, 같은 파일의 `ExchangePositionSchema` 가 이미 `Decimal` 을\n그대로 낸다. 문자열이 필요한 것은 `HTTPException(detail=<raw dict>)` 로 나가는\n409 경로뿐이고, 거기서만 `str()` 로 담는다(`close_service.py`).",
         "properties": {
@@ -8607,6 +8672,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClosePositionConflictResponse"
+                }
+              }
+            },
+            "description": "포지션이 없거나 미체결 진입 주문이 남아 청산할 수 없습니다."
           },
           "422": {
             "content": {

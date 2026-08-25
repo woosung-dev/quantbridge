@@ -304,6 +304,16 @@ class BacktestMetricsOut(BaseModel):
     max_drawdown: Decimal
     win_rate: Decimal
     num_trades: int
+    # BL-822 — 승률·평균손익 등 **모든 성과 지표의 분모**(= 청산 완료 거래 수).
+    # ★engine dataclass 에는 없다. 거기선 `num_trades` 자체가 이미 closed 개수라
+    #   (`v2_adapter._build_metrics`: `num_trades = len(closed)`) 중복 키가 된다.
+    #   이 이름이 필요해진 것은 service 가 Sprint 31-E(BL-155) override 로
+    #   `num_trades` 를 **open+closed** 로 덮어쓰기 때문이다 — 두 셈이 한 이름을
+    #   쓰면서 「거래 13건 · 승률 16.67%」 같은 산술 불능 표기가 났다.
+    #   service 가 JSONB `num_trades`(필수 필드라 legacy 행에도 항상 있다)에서
+    #   파생시킨다. 불변식: num_trades == completed_trades + total_open_trades
+    #   (override 경로) · num_trades == completed_trades (legacy fallback 경로).
+    completed_trades: int | None = None
     # 확장 지표 — Optional (기존 완료 백테스트는 None 반환)
     sortino_ratio: Decimal | None = None
     calmar_ratio: Decimal | None = None

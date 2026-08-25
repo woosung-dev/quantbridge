@@ -7,6 +7,7 @@
 - ③ _to_detail passthrough: 완전-채움 JSONB → BacktestDetail.metrics 전 필드 값 일치
 - negative-control: tripwire ② 가 키 누락을 실제로 검출하는지 자기 검증 (mutation guard)
 """
+
 from __future__ import annotations
 
 import dataclasses
@@ -43,6 +44,31 @@ _NESTED_PAIRS: tuple[tuple[type, type], ...] = (
     (ExcursionStats, ExcursionStatsOut),
 )
 
+# BL-822 — engine dataclass 에는 없고 **service 가 파생시켜** 응답에만 싣는 필드.
+# 이 층이 존재하는 이유: service 가 Sprint 31-E(BL-155) override 로 `num_trades` 를
+# open+closed 로 덮어쓰므로, 승률의 분모(= closed 개수)를 가리킬 이름이 응답에만 따로
+# 필요하다. engine 에 넣으면 `num_trades` 와 값이 같은 **중복 JSONB 키**가 되고, 더
+# 나쁘게는 구 백테스트 행에 그 키가 없어 None 이 된다.
+#
+# 이 예외로 tripwire ①·③ 의 자동 보증을 잃는 대신,
+# `test_service_derived_fields_are_filled_on_both_paths` 가 **값 자체**를 양 경로에서
+# 단언한다 (passthrough 검사보다 강하다). 새 이름을 여기 넣기 전에 그 테스트도 함께 늘려라.
+_SERVICE_DERIVED_FIELDS: frozenset[str] = frozenset({"completed_trades"})
+
+
+def _field_set_drift(dataclass_fields: set[str], schema_fields: set[str]) -> dict[str, set[str]]:
+    """tripwire ① 의 세 축을 이름 붙여 돌려준다 — 빈 메시지로 터지지 않게 하려는 것이다.
+
+    ★`service_derived_leaked_into_dataclass` 가 없으면, 누군가 `completed_trades` 를
+      engine dataclass 에 **추가**했을 때 앞의 두 집합이 둘 다 공집합이라
+      「dataclass-only=set(), schema-only=set()」이라는 아무것도 안 가리키는 메시지가 난다.
+    """
+    return {
+        "dataclass_only": dataclass_fields - schema_fields,
+        "schema_only": schema_fields - _SERVICE_DERIVED_FIELDS - dataclass_fields,
+        "service_derived_leaked_into_dataclass": _SERVICE_DERIVED_FIELDS & dataclass_fields,
+    }
+
 
 def _strip_optional(tp: Any) -> Any:
     """`X | None` → X. Optional 아니면 그대로."""
@@ -69,10 +95,12 @@ def _synthetic_value(tp: Any, i: int) -> Any:
     if dataclasses.is_dataclass(base) and isinstance(base, type):
         # nested dataclass — 재귀 완전-채움 (per_side/excursion_stats).
         hints = typing.get_type_hints(base)
-        return base(**{
-            f.name: _synthetic_value(hints[f.name], i * 31 + j)
-            for j, f in enumerate(dataclasses.fields(base))
-        })
+        return base(
+            **{
+                f.name: _synthetic_value(hints[f.name], i * 31 + j)
+                for j, f in enumerate(dataclasses.fields(base))
+            }
+        )
     raise AssertionError(
         f"tripwire 합성기 미지원 타입 {tp!r} — 신규 필드 타입이면 본 함수에 분기 추가"
     )
@@ -92,10 +120,13 @@ def test_dataclass_and_schema_field_sets_match() -> None:
     """tripwire ①: engine dataclass ↔ BacktestMetricsOut 필드 집합 parity."""
     dataclass_fields = {f.name for f in dataclasses.fields(BacktestMetrics)}
     schema_fields = set(BacktestMetricsOut.model_fields)
-    assert dataclass_fields == schema_fields, (
-        f"BL-388 drift: dataclass-only={dataclass_fields - schema_fields}, "
-        f"schema-only={schema_fields - dataclass_fields} — 4-site 동시 수정 필요"
+    # 예외 목록이 유령이 되는 것(스키마에서 사라졌는데 목록에만 남는 것)을 먼저 막는다.
+    assert schema_fields >= _SERVICE_DERIVED_FIELDS, (
+        f"BL-822: service 파생 예외 목록에 스키마에 없는 이름이 있다 — "
+        f"{_SERVICE_DERIVED_FIELDS - schema_fields}"
     )
+    drift = _field_set_drift(dataclass_fields, schema_fields)
+    assert not any(drift.values()), f"BL-388 drift: {drift} — 4-site 동시 수정 필요"
 
 
 # BacktestMetricsSummary 는 목록·대시보드 응답에 실리지만 tripwire ①의 사각지대다.
@@ -105,8 +136,7 @@ def test_summary_keys_subset_of_dataclass() -> None:
     dataclass_fields = {f.name for f in dataclasses.fields(BacktestMetrics)}
     summary_fields = set(BacktestMetricsSummary.model_fields)
     assert summary_fields <= dataclass_fields, (
-        "BL-388 summary drift: dataclass 에 없는 summary keys="
-        f"{summary_fields - dataclass_fields}"
+        f"BL-388 summary drift: dataclass 에 없는 summary keys={summary_fields - dataclass_fields}"
     )
 
 
@@ -179,13 +209,9 @@ def _dbless_service() -> BacktestService:
     )
 
 
-def test_to_detail_passes_through_every_metric_field() -> None:
-    """tripwire ③: 완전-채움 JSONB → BacktestDetail.metrics 전 필드 passthrough.
-
-    direction_counts=None → override 없이 JSONB 값 그대로 (레거시 fallback 경로).
-    """
-    m = _full_metrics()
-    bt = Backtest(
+def _completed_bt(m: BacktestMetrics) -> Backtest:
+    """주어진 metrics 를 JSONB 로 담은 COMPLETED Backtest ORM 인스턴스."""
+    return Backtest(
         id=uuid4(),
         user_id=uuid4(),
         strategy_id=uuid4(),
@@ -200,9 +226,57 @@ def test_to_detail_passes_through_every_metric_field() -> None:
         created_at=datetime.now(UTC),
         completed_at=datetime.now(UTC),
     )
-    detail = _dbless_service()._to_detail(bt)
+
+
+# BL-822 — tripwire ①·③ 이 _SERVICE_DERIVED_FIELDS 를 건너뛰므로, 그 필드가 **실제로
+# 채워지는지**를 여기서 값으로 잰다. 예외를 뚫어 놓고 아무도 안 보는 상태가 되는 것을 막는다.
+def test_drift_message_names_the_dataclass_leak() -> None:
+    """음성 대조 — service 파생 이름을 dataclass 에 넣는 실수가 **이름과 함께** 보고되는가."""
+    base = {f.name for f in dataclasses.fields(BacktestMetrics)}
+    schema = set(BacktestMetricsOut.model_fields)
+
+    clean = _field_set_drift(base, schema)
+    assert not any(clean.values()), f"현행 트리는 drift 0 이어야 한다 — {clean}"
+
+    leaked = _field_set_drift(base | _SERVICE_DERIVED_FIELDS, schema)
+    assert leaked["service_derived_leaked_into_dataclass"] == _SERVICE_DERIVED_FIELDS
+    assert any(leaked.values()), "누출을 감지하고도 메시지가 비면 tripwire 가 무증거다"
+
+
+def test_service_derived_fields_are_filled_on_both_paths() -> None:
+    """completed_trades = override **전** JSONB num_trades — override/legacy 양 경로 공통."""
+    m = _full_metrics()
+    bt = _completed_bt(m)
+    service = _dbless_service()
+
+    # ⑴ override 경로 — num_trades 는 trades 테이블 재집계로 갈리지만 분모는 JSONB 값이다.
+    overridden = service._to_detail(bt, direction_counts=(m.num_trades + 3, 2, 1))
+    assert overridden.metrics is not None
+    assert overridden.metrics.num_trades == m.num_trades + 3
+    assert overridden.metrics.completed_trades == m.num_trades
+
+    # ⑵ legacy fallback 경로 — 갈릴 것이 없으니 둘이 같다.
+    legacy = service._to_detail(bt, direction_counts=None)
+    assert legacy.metrics is not None
+    assert legacy.metrics.num_trades == m.num_trades
+    assert legacy.metrics.completed_trades == m.num_trades
+
+    # 예외 목록 전량이 응답에서 non-None 인지 — 새 이름을 목록에만 넣고 배선을 잊는 것 차단.
+    for name in _SERVICE_DERIVED_FIELDS:
+        assert getattr(overridden.metrics, name) is not None, f"{name} 이 응답에서 None"
+
+
+def test_to_detail_passes_through_every_metric_field() -> None:
+    """tripwire ③: 완전-채움 JSONB → BacktestDetail.metrics 전 필드 passthrough.
+
+    direction_counts=None → override 없이 JSONB 값 그대로 (레거시 fallback 경로).
+    """
+    m = _full_metrics()
+    detail = _dbless_service()._to_detail(_completed_bt(m))
     assert detail.metrics is not None
     for name in BacktestMetricsOut.model_fields:
+        if name in _SERVICE_DERIVED_FIELDS:
+            continue  # engine dataclass 에 대응 필드가 없다 — 아래 전용 테스트가 값을 잰다
         got = _plain(getattr(detail.metrics, name))
         expected = _plain(getattr(m, name))
         assert got == expected, (
