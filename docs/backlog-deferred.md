@@ -7,6 +7,17 @@
 > 걸리는 축을 더해 닫았다. 상세 표 = `backlog.md` 헤더의 「원장 다이어트 tombstone」.
 > **남은 23건의 공통점** — 트리거가 **관측 가능한 사건**이거나(재발·측정치) 우리가 **실제로 갈 길**의 게이트다.
 
+> ★★★**2026-08-25 [BL-829] 기각 tombstone — 증상 절이 실측으로 반증됐다.**
+> 「SLL 2단계 예측 — ANTLR 콜드 파스 자체를 줄이는 유일한 축」을 **본문 삭제**했다 —
+> 원문 = `git show 3ee036bb:docs/backlog-deferred.md`. 그 항목은 「콜드 파스의 **지배 성분**은
+> full-context(LL) 재시도」를 전제했는데, preflight 실측이 그것을 깼다: `execATNWithFullContext`
+> 는 `s5_ema_trend` **0회** · `s3_rsid` **29회**(`adaptivePredict` 3,672 중) · `i3_drfx` **204회**
+> (27,652 중 **0.7%**)뿐이고, SLL 로 **전부 0 으로 만들어도** 49.91→48.06초(**3.7%**)다.
+> 진짜 지배 성분은 `closure_` = `s3_rsid` cProfile cumtime **35.77/36.96초(96.8%)** — SLL 이
+> 안 건드리는 ATN 클로저 계산 본체다. 대체 축 = **[BL-832] 프로세스 밖 AST 캐시**.
+> ★되살리지 마라 — 되살리려면 「full-context 가 지배 성분이 되는 코퍼스」를 먼저 실측해라.
+
+
 > ★★★**2026-08-21 — 이 파일이 언급하는 검사기 4종은 존재하지 않는다.** [ADR-037] 제로베이스가
 > `bl-audit.sh` · `docs-audit.sh` · `bl-trigger-sweep.sh` · `final-gates.sh` 를 **2026-08-19 에
 > 철거했다**(원문 = `git show harness-v1:tools/scripts/`). 아래 산문에 남은 그 이름들은 **당시의
@@ -867,21 +878,6 @@ runbook → [BL-005] 실자본 dogfood → [BL-070~072] Beta`** 였다.
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 **사용자 결정으로 이번 회차 제외**
 **트리거:** 소크 창이 열리는 회차에 동승. 착수 첫 작업 = child 교체 **실빈도** 측정(`docker logs` 의 child exit 간격 — CPU 0). 위 하루 ≈19회는 산술이지 실측이 아니다
-
-### BL-829
-
-**Title:** SLL 2단계 예측 — ANTLR **콜드 파스 자체**를 줄이는 유일한 축
-**Category:** Backend / pine_v2 파서 어댑터
-**출처:** 2026-08-25 n13 preflight
-**Priority:** P2
-
-**증상 (확인된 사실, 2026-08-25):** 콜드 파스의 지배 성분인 full-context(LL) 재시도 경로는 **DFA 에 전혀 기록되지 않는다** — `antlr4/atn/ParserATNSimulator.py:418` 이 `requiresFullContext` 에서 갈라져 `:441-445` 가 매번 `computeStartState(fullCtx=True)` + `execATNWithFullContext` 를 돌고, 그 함수 본문(`:558-659`)에 `addDFAEdge`/`addDFAState` **0건**이다. 결과가 `outerContext` 에 의존하므로 **원리상 캐시 가능하지도 않다.** ⇒ 워밍(BL 없음·기각)·프로세스 수명 캐시(n13 Lane 1)·교체 빈도(BL-828) 어느 것도 이 성분을 못 건드린다.
-**영향:** 격리 실측상 8벌 전량 워밍 후에도 홀드아웃이 자기 웜값의 **9.2~11.4배**로 남는다(`s3_rsid` 3.04s vs 0.25s · `i3_drfx` 34.67s vs 3.66s).
-**권장 접근:** `parser_adapter.py` 안에서 `PinescriptLexer`/`CommonTokenStream`/`PinescriptParser`/`PinescriptASTBuilder` 를 직접 조립하고 `parser._interp.predictionMode = PredictionMode.SLL` → 실패 시 LL 재파스. **pynescript 수정 0줄**(전부 공개 경로). 정확성은 **결정적 AC 로 판정 가능** — 9 corpus 전량에서 SLL AST 의 구조 digest ≡ LL(`tests/strategy/pine_v2/test_pynescript_baseline_parity.py` 의 `count_nodes`/`compute_edge_digest` 재사용). 시간 단언 불필요.
-★**분기점 2건.** ⑴ SLL 은 충돌 시 `min(conflictingAlts)` 를 찍어(`ParserATNSimulator.py:523-529,447-449`) LL 과 다른 트리를 낼 수 있다 — 2단계 fallback 이면 「느려질 뿐」로 격하된다. ⑵ **[확인 필요·법적]** `helper.py:112-116` 의 annotation 2패스를 복제해야 하는지, 그리고 그 복제가 LGPL-3.0-or-later 상 「수정본」인지. **착수 첫 작업 = QB 가 Pine annotation(`//@…`)을 읽는지 코드 대조** — 안 읽으면 복제도 법적 분기도 사라진다.
-
-**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 **사용자 결정으로 이번 회차 제외**(범위를 A+F 2 lane 으로 확정)
-**트리거:** n13 Lane 1 머지 후, 남은 콜드 비용이 여전히 문제로 관측될 때. 또는 파서 층을 손대는 회차에 동승
 
 ### BL-830
 
