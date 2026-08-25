@@ -9,7 +9,8 @@
   - 이 디렉토리에 pynescript 소스 복사
   - pynescript 내부 구현을 QB 코드로 재작성 (공개 API만 호출)
   - LGPL 파일을 다른 모듈로 이동
-- **허용:** `parser_adapter.py` / `ast_metrics.py`에서 `import pynescript` + 공개 API 호출
+- **허용:** 백테스트 Pine source 파싱은 `parser_adapter.py`의 `parse_to_ast()`만 사용. AST 노드
+  순회·`isinstance` 판정에는 다른 모듈의 `import pynescript` + 공개 API 호출을 허용.
 - 혹시 향후 포크·패치가 필요하면 `third_party/pynescript/` 서브디렉토리에 원본 LGPL 헤더 보존 + 리포 루트 `NOTICE` 갱신 후 격리
 - PyneCore `transformers/` (Apache 2.0)는 **Sprint 8a Week 2+에 별도로 참조 이식**. Day 1 범위 밖.
 

@@ -56,6 +56,14 @@ ALLOWED_PINE_V2_MODULES: frozenset[str] = frozenset(
         "src.strategy.pine_v2.coverage",
         "src.strategy.pine_v2.exit_orders",
         "src.strategy.pine_v2.leverage_model",
+        # 2026-08-25 n13 — `ast_classifier` 가 직접 `pyne_ast.parse` 를 부르던 것을
+        # `parser_adapter.parse_to_ast`(lru_cache) 경유로 바꾸면서 폐포에 들어왔다.
+        # 안전한 이유 3가지: ⑴ **`src` import 0건인 잎 모듈**이라 폐포를 더 넓히지 않는다
+        # ⑵ 본문이 `lru_cache` 데코레이터 + 한 줄 위임뿐이라 편집 빈도가 사실상 0 이다
+        # ⑶ 끌고 오는 `pynescript` 는 이미 허용된 `ast_extractor` 가 같이 끌어온다.
+        # 이 가드가 막으려는 것은 인터프리터 본체의 편집 중간 상태이고(FORBIDDEN 참조),
+        # 이 모듈은 그 반대편이다.
+        "src.strategy.pine_v2.parser_adapter",
         "src.strategy.pine_v2.strategy_state",
     }
 )
