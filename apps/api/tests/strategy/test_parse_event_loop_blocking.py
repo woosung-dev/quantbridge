@@ -1,4 +1,4 @@
-"""parse-preview의 동기 파싱이 이벤트 루프를 멈추는 현재 동작을 고정한다."""
+"""parse-preview의 스레드풀 파싱이 이벤트 루프를 양보하는 동작을 고정한다."""
 
 from __future__ import annotations
 
@@ -42,10 +42,10 @@ async def _request_parse_preview_with_heartbeat(client, parse_started: Event, wi
 
 
 @pytest.mark.asyncio
-async def test_parse_preview_blocks_event_loop_when_parse_to_ast_blocks(
+async def test_parse_preview_yields_event_loop_when_parse_to_ast_blocks(
     client, mock_authed_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """현재는 동기 parse_to_ast가 하트비트 목표 전 루프를 점유한다."""
+    """블로킹 parse_to_ast도 스레드풀에서 실행돼 하트비트 목표를 완료한다."""
     parse_started = Event()
     window_closed = Event()
     timers: list[Timer] = []
@@ -67,7 +67,7 @@ async def test_parse_preview_blocks_event_loop_when_parse_to_ast_blocks(
             timer.cancel()
 
     assert response.status_code == 200
-    assert ticks < _HEARTBEAT_TARGET
+    assert ticks == _HEARTBEAT_TARGET
 
 
 @pytest.mark.asyncio
