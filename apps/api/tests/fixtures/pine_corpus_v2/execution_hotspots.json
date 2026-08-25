@@ -1,331 +1,331 @@
 {
   "s3_rsid": {
-    "total_seconds": 48.70643554197159,
+    "total_seconds": 47.902306083007716,
     "hotspots": [
       {
         "function": "run_backtest_v2",
         "file": "src/backtest/engine/v2_adapter.py",
         "line": 52,
         "call_count": 1,
-        "cumulative_seconds": 48.579783208,
-        "tottime_seconds": 0.000129626
+        "cumulative_seconds": 47.816752750000006,
+        "tottime_seconds": 0.00013420900000000002
       },
       {
         "function": "parse_and_run_v2",
         "file": "src/strategy/pine_v2/compat.py",
         "line": 42,
         "call_count": 1,
-        "cumulative_seconds": 48.351642417,
-        "tottime_seconds": 3.0874e-05
+        "cumulative_seconds": 47.601196667,
+        "tottime_seconds": 1.671e-05
       },
       {
         "function": "classify_script",
         "file": "src/strategy/pine_v2/ast_classifier.py",
         "line": 133,
         "call_count": 1,
-        "cumulative_seconds": 37.911268833,
-        "tottime_seconds": 0.000249653
+        "cumulative_seconds": 37.483049291,
+        "tottime_seconds": 0.000250948
       },
       {
         "function": "parse_to_ast",
         "file": "src/strategy/pine_v2/parser_adapter.py",
-        "line": 16,
+        "line": 114,
         "call_count": 1,
-        "cumulative_seconds": 37.908417917,
-        "tottime_seconds": 2.8330000000000002e-06
+        "cumulative_seconds": 37.480327375,
+        "tottime_seconds": 6e-06
       },
       {
         "function": "parse",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 164,
         "call_count": 1,
-        "cumulative_seconds": 37.908415084000005,
-        "tottime_seconds": 2.543e-06
+        "cumulative_seconds": 37.48031875,
+        "tottime_seconds": 2.0830000000000002e-06
       },
       {
         "function": "_parse_inputstream",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 143,
         "call_count": 1,
-        "cumulative_seconds": 37.908412541000004,
-        "tottime_seconds": 1.6791000000000002e-05
+        "cumulative_seconds": 37.480316667000004,
+        "tottime_seconds": 1.1999000000000001e-05
       },
       {
         "function": "_parse",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 82,
         "call_count": 1,
-        "cumulative_seconds": 37.907888542,
-        "tottime_seconds": 6.6875e-05
+        "cumulative_seconds": 37.479801709,
+        "tottime_seconds": 6.2248e-05
       },
       {
         "function": "start_script",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 694,
         "call_count": 1,
-        "cumulative_seconds": 37.878528625,
-        "tottime_seconds": 1.9124000000000002e-05
+        "cumulative_seconds": 37.452982708,
+        "tottime_seconds": 2.6626000000000002e-05
       },
       {
         "function": "statements",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 932,
         "call_count": 1,
-        "cumulative_seconds": 37.862280916,
-        "tottime_seconds": 0.000127457
+        "cumulative_seconds": 37.436547958000006,
+        "tottime_seconds": 0.00010169100000000001
       },
       {
         "function": "statement",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 995,
         "call_count": 59,
-        "cumulative_seconds": 37.846077991,
-        "tottime_seconds": 0.00021132800000000002
+        "cumulative_seconds": 37.414433540000005,
+        "tottime_seconds": 0.00022645100000000002
       },
       {
         "function": "adaptivePredict",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 294,
         "call_count": 3672,
-        "cumulative_seconds": 37.717331279,
-        "tottime_seconds": 0.12031684200000001
+        "cumulative_seconds": 37.287889575,
+        "tottime_seconds": 0.11413129300000001
       },
       {
         "function": "simple_statements",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 1163,
         "call_count": 60,
-        "cumulative_seconds": 36.959113961,
-        "tottime_seconds": 0.00025732900000000004
+        "cumulative_seconds": 36.565040413000006,
+        "tottime_seconds": 0.000247387
       },
       {
         "function": "simple_statement",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 1251,
         "call_count": 60,
-        "cumulative_seconds": 36.955640749000004,
-        "tottime_seconds": 0.00021893200000000002
+        "cumulative_seconds": 36.561445042,
+        "tottime_seconds": 0.00019641500000000002
       },
       {
         "function": "closure",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 1097,
         "call_count": 3949,
-        "cumulative_seconds": 36.726885100000004,
-        "tottime_seconds": 0.001434464
+        "cumulative_seconds": 36.317326831,
+        "tottime_seconds": 0.0013898250000000001
       },
       {
         "function": "closureCheckingStopState",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 1103,
         "call_count": 3949,
-        "cumulative_seconds": 36.725450636000005,
-        "tottime_seconds": 2.004490312
+        "cumulative_seconds": 36.315937006000006,
+        "tottime_seconds": 1.9191671680000002
       },
       {
         "function": "closure_",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 1145,
         "call_count": 3949,
-        "cumulative_seconds": 36.723618205,
-        "tottime_seconds": 4.709514191
+        "cumulative_seconds": 36.314181782000006,
+        "tottime_seconds": 4.6717487890000005
       },
       {
         "function": "expression",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 4229,
         "call_count": 60,
-        "cumulative_seconds": 36.332161333,
-        "tottime_seconds": 0.000544499
+        "cumulative_seconds": 35.987261367,
+        "tottime_seconds": 0.0005577760000000001
       },
       {
         "function": "conditional_expression",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 4329,
         "call_count": 60,
-        "cumulative_seconds": 36.331737248,
-        "tottime_seconds": 0.0008590920000000001
+        "cumulative_seconds": 35.986889837,
+        "tottime_seconds": 0.0008983740000000001
       },
       {
         "function": "execATN",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 386,
         "call_count": 3672,
-        "cumulative_seconds": 36.065679669000005,
-        "tottime_seconds": 0.009654254000000001
+        "cumulative_seconds": 35.684177867,
+        "tottime_seconds": 0.009534508
       },
       {
         "function": "computeReachSet",
         "file": ".venv/lib/python3.12/site-packages/antlr4/atn/ParserATNSimulator.py",
         "line": 661,
         "call_count": 1867,
-        "cumulative_seconds": 35.251259211000004,
-        "tottime_seconds": 0.028226154000000003
+        "cumulative_seconds": 34.884782413,
+        "tottime_seconds": 0.027068507000000002
       }
     ]
   },
   "s5_ema_trend": {
-    "total_seconds": 3.9037543750018813,
+    "total_seconds": 3.8565153749659657,
     "hotspots": [
       {
         "function": "run_backtest_v2",
         "file": "src/backtest/engine/v2_adapter.py",
         "line": 52,
         "call_count": 1,
-        "cumulative_seconds": 3.9005359580000003,
-        "tottime_seconds": 7.9542e-05
+        "cumulative_seconds": 3.853221833,
+        "tottime_seconds": 7.9085e-05
       },
       {
         "function": "parse_and_run_v2",
         "file": "src/strategy/pine_v2/compat.py",
         "line": 42,
         "call_count": 1,
-        "cumulative_seconds": 3.694608333,
-        "tottime_seconds": 1.0708000000000001e-05
+        "cumulative_seconds": 3.6497565830000003,
+        "tottime_seconds": 1.1375e-05
       },
       {
         "function": "invoke",
         "file": "src/strategy/pine_v2/track_runner.py",
         "line": 55,
         "call_count": 1,
-        "cumulative_seconds": 2.669508708,
-        "tottime_seconds": 2.0458e-05
+        "cumulative_seconds": 2.6376217090000003,
+        "tottime_seconds": 2.4502e-05
       },
       {
         "function": "run_historical",
         "file": "src/strategy/pine_v2/event_loop.py",
         "line": 74,
         "call_count": 1,
-        "cumulative_seconds": 2.66948575,
-        "tottime_seconds": 0.028466982000000002
+        "cumulative_seconds": 2.637591708,
+        "tottime_seconds": 0.02754515
       },
       {
         "function": "current",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 170,
         "call_count": 87407,
-        "cumulative_seconds": 1.87947177,
-        "tottime_seconds": 0.071681176
+        "cumulative_seconds": 1.857612169,
+        "tottime_seconds": 0.071366565
       },
       {
         "function": "__getitem__",
         "file": ".venv/lib/python3.12/site-packages/pandas/core/indexing.py",
         "line": 1177,
         "call_count": 104883,
-        "cumulative_seconds": 1.6820418830000001,
-        "tottime_seconds": 0.08408902
+        "cumulative_seconds": 1.660935405,
+        "tottime_seconds": 0.082417825
       },
       {
         "function": "execute",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 358,
         "call_count": 4368,
-        "cumulative_seconds": 1.5470812150000002,
-        "tottime_seconds": 0.008451778
+        "cumulative_seconds": 1.5299222840000002,
+        "tottime_seconds": 0.008203923
       },
       {
         "function": "_exec_stmt",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 365,
         "call_count": 48048,
-        "cumulative_seconds": 1.5381138900000002,
-        "tottime_seconds": 0.025588911000000002
+        "cumulative_seconds": 1.5211969220000001,
+        "tottime_seconds": 0.025409504000000003
       },
       {
         "function": "_getitem_axis",
         "file": ".venv/lib/python3.12/site-packages/pandas/core/indexing.py",
         "line": 1720,
         "call_count": 104883,
-        "cumulative_seconds": 1.491430717,
-        "tottime_seconds": 0.125359982
+        "cumulative_seconds": 1.4733456340000002,
+        "tottime_seconds": 0.12314422600000001
       },
       {
         "function": "_exec_assign",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 401,
         "call_count": 26208,
-        "cumulative_seconds": 1.430976585,
-        "tottime_seconds": 0.050312208000000004
+        "cumulative_seconds": 1.4155671250000001,
+        "tottime_seconds": 0.049349016
       },
       {
         "function": "_eval_expr",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 699,
         "call_count": 48095,
-        "cumulative_seconds": 1.3105882100000001,
-        "tottime_seconds": 0.06538703400000001
+        "cumulative_seconds": 1.2967385020000002,
+        "tottime_seconds": 0.064857816
       },
       {
         "function": "_eval_call",
         "file": "src/strategy/pine_v2/interpreter.py",
         "line": 952,
         "call_count": 39359,
-        "cumulative_seconds": 1.229557398,
-        "tottime_seconds": 0.077427617
+        "cumulative_seconds": 1.2163681370000001,
+        "tottime_seconds": 0.078079151
       },
       {
         "function": "classify_script",
         "file": "src/strategy/pine_v2/ast_classifier.py",
         "line": 133,
         "call_count": 1,
-        "cumulative_seconds": 1.022970417,
-        "tottime_seconds": 4.3465000000000005e-05
+        "cumulative_seconds": 1.009985125,
+        "tottime_seconds": 4.4896000000000005e-05
       },
       {
         "function": "parse_to_ast",
         "file": "src/strategy/pine_v2/parser_adapter.py",
-        "line": 16,
+        "line": 114,
         "call_count": 1,
-        "cumulative_seconds": 1.022566375,
-        "tottime_seconds": 1.416e-06
+        "cumulative_seconds": 1.009555959,
+        "tottime_seconds": 2.125e-06
       },
       {
         "function": "parse",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 164,
         "call_count": 1,
-        "cumulative_seconds": 1.022564959,
-        "tottime_seconds": 8.750000000000001e-07
+        "cumulative_seconds": 1.0095505,
+        "tottime_seconds": 7.91e-07
       },
       {
         "function": "_parse_inputstream",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 143,
         "call_count": 1,
-        "cumulative_seconds": 1.022564084,
-        "tottime_seconds": 3.5440000000000003e-06
+        "cumulative_seconds": 1.009549709,
+        "tottime_seconds": 2.9180000000000003e-06
       },
       {
         "function": "_parse",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/helper.py",
         "line": 82,
         "call_count": 1,
-        "cumulative_seconds": 1.022451083,
-        "tottime_seconds": 1.9458000000000002e-05
+        "cumulative_seconds": 1.009442041,
+        "tottime_seconds": 2.004e-05
       },
       {
         "function": "start_script",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 694,
         "call_count": 1,
-        "cumulative_seconds": 1.018815958,
-        "tottime_seconds": 1.0042000000000001e-05
+        "cumulative_seconds": 1.0055752500000001,
+        "tottime_seconds": 1.6875e-05
       },
       {
         "function": "statements",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 932,
         "call_count": 1,
-        "cumulative_seconds": 1.012030416,
-        "tottime_seconds": 2.987e-05
+        "cumulative_seconds": 0.999019584,
+        "tottime_seconds": 2.262e-05
       },
       {
         "function": "statement",
         "file": ".venv/lib/python3.12/site-packages/pynescript/ast/grammar/antlr4/generated/PinescriptParser.py",
         "line": 995,
         "call_count": 11,
-        "cumulative_seconds": 1.011938916,
-        "tottime_seconds": 4.0289e-05
+        "cumulative_seconds": 0.9989397510000001,
+        "tottime_seconds": 3.2214e-05
       }
     ]
   },
@@ -5846,9 +5846,9 @@
       "ratio": 5.0
     },
     "<string>:2:__init__": {
-      "s3_rsid": 65,
-      "s5_ema_trend": 24,
-      "ratio": 2.7083333333333335
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
     },
     "src/backtest/engine/metrics.py:108:sharpe_ratio": {
       "s3_rsid": 1,
@@ -6385,7 +6385,12 @@
       "s5_ema_trend": 4417,
       "ratio": 1.0185646366311976
     },
-    "src/strategy/pine_v2/parser_adapter.py:16:parse_to_ast": {
+    "src/strategy/pine_v2/parser_adapter.py:114:parse_to_ast": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
+    },
+    "src/strategy/pine_v2/parser_adapter.py:54:_cache_dir": {
       "s3_rsid": 1,
       "s5_ema_trend": 1,
       "ratio": 1.0
@@ -6545,7 +6550,7 @@
       "s5_ema_trend": 1,
       "ratio": 1.0
     },
-    "~:0:<built-in method __new__ of type object at 0x1046de058>": {
+    "~:0:<built-in method __new__ of type object at 0x107352058>": {
       "s3_rsid": 256330,
       "s5_ema_trend": 91850,
       "ratio": 2.7907457811649428
@@ -7104,6 +7109,11 @@
       "s3_rsid": 632088,
       "s5_ema_trend": 100600,
       "ratio": 6.283180914512922
+    },
+    "~:0:<method 'strip' of 'str' objects>": {
+      "s3_rsid": 1,
+      "s5_ema_trend": 1,
+      "ratio": 1.0
     },
     "~:0:<method 'sub' of 're.Pattern' objects>": {
       "s3_rsid": 113,

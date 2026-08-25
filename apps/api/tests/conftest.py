@@ -501,6 +501,21 @@ def _force_fixture_provider(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("src.core.config.settings.ohlcv_provider", "fixture")
 
 
+@pytest.fixture(autouse=True)
+def _disable_pine_ast_disk_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AST 디스크 캐시(BL-832)를 기본 비활성 — 테스트는 hermetic해야 한다.
+
+    켜 두면 캐시가 **테스트 프로세스 사이에서도 살아남아** 파스 계수를 바꾼다.
+    실제로 그렇게 됐다: 이 캐시를 넣자 n13의 `test_parse_call_census.py`가
+    `assert 0 == 1`로 3건 red였고, 원인은 앞선 실행이 채운 `apps/api/.ast-cache`였다.
+    계수를 세는 테스트가 어제 무엇을 돌렸는지에 의존하면 그것은 테스트가 아니다.
+
+    캐시 자체를 검증하는 `test_parse_ast_disk_cache.py`는 자기 fixture로 tmp_path를
+    덮어써서 이 기본값을 무력화한다.
+    """
+    monkeypatch.setattr("src.core.config.settings.pine_ast_cache_dir", "")
+
+
 @pytest.fixture
 def celery_eager(monkeypatch: pytest.MonkeyPatch):
     """Celery eager mode — task.apply() executes synchronously in-process."""

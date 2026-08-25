@@ -208,6 +208,24 @@ class Settings(BaseSettings):
         description="Webhook secret rotation 후 구 secret 수락 grace period (초).",
     )
 
+    # --- pine_v2 AST 디스크 캐시 (BL-832) ---
+    pine_ast_cache_dir: str = Field(
+        default=".ast-cache",
+        description=(
+            "pynescript AST 디스크 캐시 디렉토리 (apps/api 상대 경로). "
+            "빈 문자열이면 비활성 — 프로세스 지역 lru_cache만 남는다."
+        ),
+    )
+    pine_ast_cache_max_bytes: int = Field(
+        default=512 * 1024 * 1024,
+        ge=0,
+        description=(
+            "AST 캐시 총 용량 상한. 초과 시 mtime이 오래된 항목부터 지운다. "
+            "파스 엔드포인트에 소스 길이 상한이 없어(BL-831) 캐시 표면이 임의 입력으로 "
+            "채워질 수 있으므로 디스크 증가를 여기서 막는다."
+        ),
+    )
+
     # --- Dogfood Daily Report ---
     dogfood_report_output_dir: str = Field(
         default="docs/reports/dogfood",
