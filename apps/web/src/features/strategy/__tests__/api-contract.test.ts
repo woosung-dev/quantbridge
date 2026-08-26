@@ -124,6 +124,9 @@ const PARSED_PARSE_PREVIEW_RESPONSE = {
   unsupported_builtins: PARSE_PREVIEW_RESPONSE.unsupported_builtins,
   unsupported_calls: PARSE_PREVIEW_RESPONSE.unsupported_calls,
   is_runnable: PARSE_PREVIEW_RESPONSE.is_runnable,
+  // [ADR-040] Stage 1 — BE 가 안 보내도 Zod 기본값이 채운다(구 응답 호환).
+  declaration: null,
+  inputs: [],
 };
 
 afterEach(() => {

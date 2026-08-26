@@ -18,6 +18,8 @@ function makeResult(overrides: Partial<ParsePreviewResponse> = {}): ParsePreview
     unsupported_builtins: [],
     unsupported_calls: [],
     is_runnable: true,
+    declaration: null,
+    inputs: [],
     ...overrides,
   };
 }
@@ -95,5 +97,26 @@ describe("ParseResultPanel — C 이식 시맨틱 구조", () => {
     const box = screen.getByTestId("parse-request-error");
     expect(box.className).toContain("state-box failed");
     expect(screen.getByText("POST /api/v1/strategies/parse")).toBeTruthy();
+  });
+
+  // [ADR-040] Stage 1 — 종전 이 패널은 「서버 응답에 파라미터 필드가 없어 표시하지
+  // 않습니다」를 인쇄했다. `inputs` 가 열린 뒤 그 문장은 거짓이 되므로 실개수로 바꿨다.
+  it("파라미터 개수와 스윕 가능 수를 실데이터로 그린다", () => {
+    render(
+      <ParseResultPanel
+        result={makeResult({
+          inputs: [
+            { input_type: "int", var_name: "length", defval: "14", title: null },
+            { input_type: "generic", var_name: "legacy", defval: "7", title: null },
+          ],
+        })}
+        onSave={vi.fn()}
+        canSave
+        loading={false}
+      />,
+    );
+    expect(screen.getByText("파라미터")).toBeTruthy();
+    // 2개 중 int 하나만 최적화가 스윕할 수 있다(BE `_validate_grid_search_pre`).
+    expect(screen.getByText(/스윕할 수 있는 것은 1개/)).toBeTruthy();
   });
 });

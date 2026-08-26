@@ -8,7 +8,7 @@
 import { AlertTriangleIcon, CheckIcon } from "lucide-react";
 
 import { PARSE_STATUS_LABEL, UNSUPPORTED_POLICY_NOTE } from "@/features/strategy/labels";
-import type { ParsePreviewResponse } from "@/features/strategy/schemas";
+import { isSweepable, type ParsePreviewResponse } from "@/features/strategy/schemas";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
@@ -119,6 +119,7 @@ function SupportedBody({
   const unsupportedCount = result.unsupported_builtins.length;
   const detected = supportedCount + unsupportedCount;
   const pct = detected > 0 ? Math.round((supportedCount / detected) * 100) : 100;
+  const sweepableCount = result.inputs.filter(isSweepable).length;
 
   return (
     <div data-testid="parse-supported">
@@ -172,10 +173,17 @@ function SupportedBody({
               {EMPTY_CELL}
             </span>
           </div>
-          {/* 파라미터 표는 스키마에 파라미터 필드가 0건이라 렌더하지 않는다(§4.9). */}
-          <p className="metric-note">
-            추출된 파라미터 표는 서버 응답에 파라미터 필드가 없어 표시하지 않습니다.
-          </p>
+          {/* [ADR-040] Stage 1 — `inputs` 가 열리며 실데이터가 됐다. 위저드는 개수만 낸다:
+              이름·타입·기본값 표는 저장 뒤 편집 화면의 「진단 > 파라미터」 탭이 그린다. */}
+          <div className="metric">
+            <span className="metric-label">파라미터</span>
+            <span className="metric-value">{result.inputs.length}</span>
+          </div>
+          {result.inputs.length > 0 ? (
+            <p className="metric-note">
+              {`최적화로 스윕할 수 있는 것은 ${sweepableCount}개입니다. 나머지는 기본값으로 실행됩니다.`}
+            </p>
+          ) : null}
         </div>
       </div>
 

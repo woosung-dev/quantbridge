@@ -201,6 +201,9 @@ describe("strategy api", () => {
       unsupported_builtins: [],
       unsupported_calls: [],
       is_runnable: true,
+      // [ADR-040] Stage 1 — Zod 기본값이 구 응답도 채운다.
+      declaration: null,
+      inputs: [],
     });
 
     expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/strategies/parse", {

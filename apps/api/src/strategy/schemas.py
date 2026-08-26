@@ -89,6 +89,33 @@ class CoverageReportResponse(BaseModel):
     dogfood_only_warning: str | None = None  # Sprint 29 Slice A
 
 
+# [ADR-040] Stage 1 — 파라미터 표의 데이터. `ast_extractor.extract_content()` 가
+# 뽑아 두고 있었으나 응답에 실리지 않아 FE 가 표를 못 그렸다
+# (`diagnostics-strip.tsx` 의 「파라미터」 탭이 빈 슬롯으로 대기 중이었다).
+class InputDeclResponse(BaseModel):
+    """Pine `input.*()` 선언 하나.
+
+    ★`var_name` 은 장식이 아니라 **override 키**다 — 엔진은 `input_overrides[var_name]`
+    으로 값을 갈아끼우고(`pine_v2/interpreter.py` 의 `_assignment_target_stack`),
+    Optimizer / Param-Stability 의 pre-validate 가 같은 이름으로 대조한다.
+    """
+
+    input_type: str  # int / float / bool / string / source / timeframe / generic ...
+    var_name: str
+    defval: str | None = None
+    title: str | None = None
+
+
+class DeclarationResponse(BaseModel):
+    """스크립트 선언부(`strategy()` / `indicator()` / `library()`) 요약."""
+
+    kind: Literal["strategy", "indicator", "library", "unknown"]
+    title: str | None = None
+    default_qty_type: str | None = None
+    default_qty_value: str | None = None
+    pyramiding: int | None = None
+
+
 class ParsePreviewResponse(BaseModel):
     status: ParseStatus
     pine_version: PineVersion
@@ -108,6 +135,10 @@ class ParsePreviewResponse(BaseModel):
     dogfood_only_warning: str | None = None
     # 실행 가능 여부 (FE 가 backtest 버튼 비활성화 + 안내 표시 결정에 사용)
     is_runnable: bool = True
+    # [ADR-040] Stage 1 — 선언부 + input 선언 전량. 파싱 실패 시 둘 다 비어 있다
+    # (`None` / `[]`) — 이 필드들이 없다고 파싱 성공이 취소되지는 않는다.
+    declaration: DeclarationResponse | None = None
+    inputs: list[InputDeclResponse] = Field(default_factory=list)
 
 
 class StrategySettings(BaseModel):

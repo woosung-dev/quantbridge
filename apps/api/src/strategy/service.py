@@ -18,11 +18,14 @@ from sqlalchemy.exc import IntegrityError
 from src.backtest.serializers import metrics_summary_from_jsonb
 from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import (
     CreateStrategyRequest,
+    DeclarationResponse,
+    InputDeclResponse,
     LatestBacktestSummary,
     ParseError,
     ParsePreviewResponse,
@@ -45,6 +48,16 @@ if TYPE_CHECKING:
 _VERSION_RE = re.compile(r"//\s*@version\s*=\s*(\d+)", re.MULTILINE)
 _STRATEGY_ENTRY_RE = re.compile(r"\bstrategy\.entry\s*\(", re.MULTILINE)
 _STRATEGY_EXIT_RE = re.compile(r"\bstrategy\.(?:close(?:_all)?|exit)\s*\(", re.MULTILINE)
+# ★`_INPUT_RE` 는 `ast_extractor.extract_content().inputs` 의 중복 구현이 **아니다** —
+#   두 수는 다른 것을 센다. 정규식 = `input(` **호출 지점** 수, AST = **override 가능한**
+#   input 선언 수(= 단순 대입문의 좌변이 있는 것. 엔진이 그 이름으로만 값을 갈아끼운다).
+#   실측 2026-08-27 — corpus 9건은 전건 일치하고, 갈리는 것은 대입 없는 `plot(w=input.int(2))` ·
+#   중첩 · 사용자함수 본문 · 튜플 좌변 4형태이며 **AST 가 적게 센다**(`tests/strategy/
+#   test_param_count_vs_ast_inputs.py` 가 그 4형태를 고정한다).
+# ★★그리고 목록 경로는 AST 로 바꿀 수 없다 — 이 함수는 페이지의 **전 전략**에 대해 돌고,
+#   콜드 `extract_content` 는 실측 corpus 9건 합계 **72초**다(정규식 5.7ms · 12,700배).
+#   `parse_to_ast` 캐시가 비었거나(신규 프로세스·pynescript 업그레이드) LRU 로 밀리면
+#   목록 API 가 그 값을 문다. **파라미터 표·Optimizer 드롭다운은 AST 를 쓰고 목록은 이걸 쓴다.**
 _INPUT_RE = re.compile(r"\binput(?:\.\w+)?\s*\(", re.MULTILINE)
 _CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
 _COMMENT_RE = re.compile(r"//[^\n]*")
@@ -181,6 +194,41 @@ async def _parse(
     )
 
 
+def _extract_structure(
+    source: str,
+) -> tuple[DeclarationResponse | None, list[InputDeclResponse]]:
+    """[ADR-040] 선언부 + input 선언을 AST 에서 뽑는다. **실패는 조용히 빈 값**이다.
+
+    ★파싱 비용이 여기서 새로 들지 않는다 — 호출 직전 `_parse` 가 부른 `parse_to_ast` 가
+    `lru_cache` 로 살아 있어 같은 소스는 L1 hit 다(`pine_v2/parser_adapter.py`).
+    ★`extract_content` 는 파싱 실패 시 예외를 던진다(그 모듈이 「호출자가 안전망을 둬야 한다」고
+    적어 뒀다). 판정은 이미 `_parse` 가 냈으므로 여기서 삼킨다 — **구조 추출 실패가 파싱
+    판정을 뒤집으면 안 된다.**
+    """
+    try:
+        content = extract_content(source)
+    except Exception:
+        return None, []
+
+    decl = DeclarationResponse(
+        kind=content.declaration.kind,
+        title=content.declaration.title,
+        default_qty_type=content.declaration.default_qty_type,
+        default_qty_value=content.declaration.default_qty_value,
+        pyramiding=content.declaration.pyramiding,
+    )
+    inputs = [
+        InputDeclResponse(
+            input_type=i.input_type,
+            var_name=i.var_name,
+            defval=i.defval,
+            title=i.title,
+        )
+        for i in content.inputs
+    ]
+    return decl, inputs
+
+
 class StrategyService:
     def __init__(
         self,
@@ -206,6 +254,9 @@ class StrategyService:
         )
         # Sprint Y1: pre-flight coverage analyzer — 미지원 built-in 식별
         coverage = analyze_coverage(pine_source)
+        # [ADR-040] Stage 1 — 선언부 + 파라미터 표. `_parse` 의 L1 캐시에 얹히지만
+        # 트리 순회는 CPU 라 to_thread 선례(`_parse`)를 그대로 따른다.
+        declaration, inputs = await asyncio.to_thread(_extract_structure, pine_source)
         return ParsePreviewResponse(
             status=status,
             pine_version=version,
@@ -220,6 +271,8 @@ class StrategyService:
             # Sprint 29 Slice A: heikinashi Trust Layer 위반 경고
             dogfood_only_warning=coverage.dogfood_only_warning,
             is_runnable=(status == ParseStatus.ok and coverage.is_runnable),
+            declaration=declaration,
+            inputs=inputs,
         )
 
     async def create(

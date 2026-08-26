@@ -31,6 +31,34 @@ export const UnsupportedCallSchema = z.object({
 });
 export type UnsupportedCall = z.infer<typeof UnsupportedCallSchema>;
 
+// [ADR-040] Stage 1 — BE `InputDeclResponse` / `DeclarationResponse`.
+// ★`var_name` 은 표시용 라벨이 아니라 **override 키**다 — Optimizer / Param-Stability 가
+//   이 이름으로 파라미터를 스윕한다. 표에서 이름을 가공하지 마라.
+export const InputDeclSchema = z.object({
+  input_type: z.string(),
+  var_name: z.string(),
+  defval: z.string().nullable().default(null),
+  title: z.string().nullable().default(null),
+});
+export type InputDecl = z.infer<typeof InputDeclSchema>;
+
+export const DeclarationSchema = z.object({
+  kind: z.enum(["strategy", "indicator", "library", "unknown"]),
+  title: z.string().nullable().default(null),
+  default_qty_type: z.string().nullable().default(null),
+  default_qty_value: z.string().nullable().default(null),
+  pyramiding: z.number().int().nullable().default(null),
+});
+export type Declaration = z.infer<typeof DeclarationSchema>;
+
+// ★Optimizer 가 스윕할 수 있는 input_type 은 둘뿐이다 — BE `_validate_grid_search_pre`
+//   (`optimizer/engine/grid_search.py`) 가 `int`/`float` 외를 422 로 거부한다(BL-225).
+//   v4 무네임스페이스 `input(...)` 은 `generic` 이라 여기 안 든다.
+export const SWEEPABLE_INPUT_TYPES = ["int", "float"] as const;
+export function isSweepable(input: InputDecl): boolean {
+  return (SWEEPABLE_INPUT_TYPES as readonly string[]).includes(input.input_type);
+}
+
 export const ParsePreviewResponseSchema = z.object({
   status: ParseStatusSchema,
   pine_version: PineVersionSchema,
@@ -45,6 +73,9 @@ export const ParsePreviewResponseSchema = z.object({
   // BE UnsupportedCallResponse의 코드 위치와 우회안. 배열이 없던 구 응답도 허용한다.
   unsupported_calls: z.array(UnsupportedCallSchema).default([]),
   is_runnable: z.boolean().default(true),
+  // [ADR-040] Stage 1 — 파싱 실패 시 BE 가 null/[] 를 보낸다. 구 응답도 통과해야 한다.
+  declaration: DeclarationSchema.nullable().default(null),
+  inputs: z.array(InputDeclSchema).default([]),
 });
 export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;
 
