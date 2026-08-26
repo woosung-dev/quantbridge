@@ -17,6 +17,8 @@ import {
   type ParsePreviewResponse,
   type StrategyCreateResponse,
   type StrategyListQuery,
+  type StrategyBrief,
+  StrategyBriefSchema,
   type StrategyListResponse,
   type StrategyResponse,
   type UpdateStrategyRequest,
@@ -53,6 +55,14 @@ export async function getStrategy(id: string, token: string | null): Promise<Str
     token,
   });
   return StrategyResponseSchema.parse(raw);
+}
+
+export async function getStrategyBrief(id: string, token: string | null): Promise<StrategyBrief> {
+  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${id}/brief`, {
+    method: "GET",
+    token,
+  });
+  return StrategyBriefSchema.parse(raw);
 }
 
 export async function createStrategy(

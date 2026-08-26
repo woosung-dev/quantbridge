@@ -204,6 +204,7 @@ describe("strategy api", () => {
       // [ADR-040] Stage 1 — Zod 기본값이 구 응답도 채운다.
       declaration: null,
       inputs: [],
+      dogfood_only_warning: null,
     });
 
     expect(apiFetchMock).toHaveBeenCalledWith("/api/v1/strategies/parse", {

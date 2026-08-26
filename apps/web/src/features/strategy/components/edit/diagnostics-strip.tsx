@@ -14,13 +14,16 @@ import { usePreviewParse } from "@/features/strategy/hooks";
 import { PARSE_STATUS_LABEL, UNSUPPORTED_POLICY_NOTE } from "@/features/strategy/labels";
 import { type InputDecl, isSweepable, type StrategyResponse } from "@/features/strategy/schemas";
 import { useDebouncedValue } from "@/features/strategy/utils";
+import { StrategyBriefPanel } from "@/features/strategy/components/brief/strategy-brief";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
-type DiagTab = "parse" | "param" | "indicator";
+type DiagTab = "brief" | "parse" | "param" | "indicator";
 const PARSE_ENDPOINT_TEMPLATE = "POST /api/v1/strategies/parse";
 
 const TABS: ReadonlyArray<{ id: DiagTab; label: string }> = [
+  // [ADR-040] 브리핑이 첫 탭이다 — 「무엇을 하는 전략인가」가 「문법이 맞나」보다 먼저다.
+  { id: "brief", label: "브리핑" },
   { id: "parse", label: "파싱" },
   { id: "param", label: "파라미터" },
   { id: "indicator", label: "지표" },
@@ -31,7 +34,7 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
   const debounced = useDebouncedValue(pineSource, 500);
   const preview = usePreviewParse(debounced);
   const live = preview.data ?? null;
-  const [tab, setTab] = useState<DiagTab>("parse");
+  const [tab, setTab] = useState<DiagTab>("brief");
 
   const status = live?.status ?? strategy.parse_status;
   const supportedCount = live?.functions_used.length ?? 0;
@@ -82,6 +85,21 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* [ADR-040] 브리핑 탭 — 결정론 층 전용. LLM 이 만든 값은 하나도 없다. */}
+      <div
+        className="strip-body"
+        id="diag-panel-brief"
+        // ★WAI-ARIA APG(Tabs) — 포커스 가능한 요소가 없는 tabpanel 은 tabindex=0 이어야 키보드로
+        //   도달·스크롤할 수 있다(위 두 패널과 같은 근거).
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: 위 근거 — 규칙이 아니라 이 자리가 옳다.
+        tabIndex={0}
+        role="tabpanel"
+        aria-labelledby="diag-tab-brief"
+        hidden={tab !== "brief"}
+      >
+        <StrategyBriefPanel strategyId={strategy.id} />
       </div>
 
       {/* (a) 파싱 탭 */}

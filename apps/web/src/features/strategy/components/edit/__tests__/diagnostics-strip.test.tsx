@@ -15,6 +15,10 @@ vi.mock("@/features/strategy/edit-store", () => ({
 const mockUsePreviewParse = vi.fn();
 vi.mock("@/features/strategy/hooks", () => ({
   usePreviewParse: (...args: unknown[]) => mockUsePreviewParse(...args),
+  // [ADR-040] 브리핑 탭은 자기 쿼리를 갖는다. 이 파일은 **탭 구조**를 재는 곳이라
+  // 브리핑 본문은 대상이 아니다 — 로딩 상태로 고정해 스켈레톤만 그리게 한다.
+  // 브리핑 본문 계약은 `components/brief/__tests__/strategy-brief.test.tsx` 가 잰다.
+  useStrategyBrief: () => ({ isPending: true, isError: false, data: undefined }),
 }));
 
 function makeStrategy(): StrategyResponse {
@@ -52,6 +56,7 @@ function makeResult(overrides: Partial<ParsePreviewResponse> = {}): ParsePreview
     is_runnable: true,
     declaration: null,
     inputs: [],
+    dogfood_only_warning: null,
     ...overrides,
   };
 }
@@ -62,7 +67,7 @@ describe("DiagnosticsStrip — C 이식 진짜 탭 구조 (§3-6)", () => {
     mockUsePreviewParse.mockReset();
   });
 
-  it("role=tablist + tab 3종(파싱/파라미터/지표) + tabpanel 3종을 그린다", () => {
+  it("role=tablist + tab 4종(브리핑/파싱/파라미터/지표) + tabpanel 4종을 그린다", () => {
     mockUsePreviewParse.mockReturnValue({
       data: makeResult(),
       isFetching: false,
@@ -75,11 +80,11 @@ describe("DiagnosticsStrip — C 이식 진짜 탭 구조 (§3-6)", () => {
     const tabs = within(tablist)
       .getAllByRole("tab")
       .map((t) => t.textContent);
-    expect(tabs).toEqual(["파싱", "파라미터", "지표"]);
+    expect(tabs).toEqual(["브리핑", "파싱", "파라미터", "지표"]);
     // 3 tabpanel 이 실재한다 (오용 아님). 비활성 2개는 hidden 이라 hidden:true 로 조회.
-    expect(screen.getAllByRole("tabpanel", { hidden: true }).length).toBe(3);
+    expect(screen.getAllByRole("tabpanel", { hidden: true }).length).toBe(4);
     // 각 tab 의 aria-controls 가 실제 tabpanel id 를 가리킨다.
-    for (const id of ["parse", "param", "indicator"]) {
+    for (const id of ["brief", "parse", "param", "indicator"]) {
       expect(document.getElementById(`diag-panel-${id}`)?.getAttribute("role")).toBe("tabpanel");
     }
   });

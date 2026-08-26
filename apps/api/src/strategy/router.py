@@ -20,6 +20,7 @@ from src.strategy.schemas import (
     CreateStrategyRequest,
     ParsePreviewResponse,
     ParseRequest,
+    StrategyBriefResponse,
     StrategyCreateResponse,
     StrategyListResponse,
     StrategyResponse,
@@ -98,6 +99,16 @@ async def get_strategy(
     service: StrategyService = Depends(get_strategy_service),
 ) -> StrategyResponse:
     return await service.get(strategy_id=strategy_id, owner_id=current_user.id)
+
+
+@router.get("/{strategy_id}/brief", response_model=StrategyBriefResponse)
+async def get_strategy_brief(
+    strategy_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: StrategyService = Depends(get_strategy_service),
+) -> StrategyBriefResponse:
+    """[ADR-040] 백테스트 제출 전 결정론 브리핑 — LLM 이 만든 값이 하나도 없다."""
+    return await service.brief(strategy_id=strategy_id, owner_id=current_user.id)
 
 
 @router.put("/{strategy_id}", response_model=StrategyResponse)

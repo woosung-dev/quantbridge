@@ -20,6 +20,7 @@ function makeResult(overrides: Partial<ParsePreviewResponse> = {}): ParsePreview
     is_runnable: true,
     declaration: null,
     inputs: [],
+    dogfood_only_warning: null,
     ...overrides,
   };
 }

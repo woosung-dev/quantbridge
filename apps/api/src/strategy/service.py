@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -18,17 +19,22 @@ from sqlalchemy.exc import IntegrityError
 from src.backtest.serializers import metrics_summary_from_jsonb
 from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.pine_v2.ast_classifier import classify_script
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
+from src.strategy.pine_v2.signal_extractor import SignalExtractor
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import (
+    BriefArg,
+    BriefOrderCall,
     CreateStrategyRequest,
     DeclarationResponse,
     InputDeclResponse,
     LatestBacktestSummary,
     ParseError,
     ParsePreviewResponse,
+    StrategyBriefResponse,
     StrategyCreateResponse,
     StrategyLifecycle,
     StrategyListItem,
@@ -229,6 +235,47 @@ def _extract_structure(
     return decl, inputs
 
 
+def _extract_brief_parts(
+    source: str,
+) -> tuple[str | None, list[BriefOrderCall], list[str]]:
+    """[ADR-040] track · 주문 호출(줄번호 포함) · 신호 변수. **실패는 조용히 빈 값**이다.
+
+    ★`_extract_structure` 와 같은 계약이다 — 판정은 `_parse`/`analyze_coverage` 가 이미 냈고
+    여기서 던지는 예외가 브리핑 전체를 500 으로 만들면 **사용자는 판정조차 못 본다.**
+    ★셋을 한 함수에 묶은 이유는 셋 다 같은 AST 를 읽기 때문이다(파스 1회 · L1 캐시 공유).
+    """
+    track: str | None = None
+    orders: list[BriefOrderCall] = []
+    signals: list[str] = []
+
+    try:
+        track = classify_script(source).track
+    except Exception:
+        track = None
+
+    try:
+        calls = extract_content(source).strategy_calls
+    except Exception:
+        calls = []
+    for call in calls:
+        orders.append(
+            BriefOrderCall(
+                name=call.name,
+                line=call.line,
+                args=[BriefArg(name=a.name, value=a.value) for a in call.args],
+            )
+        )
+    # 소스 순서를 보존하되 줄번호가 있으면 그것으로 정렬한다 — 화면이 위에서 아래로 읽힌다.
+    orders.sort(key=lambda o: (o.line is None, o.line or 0))
+
+    try:
+        signals = list(SignalExtractor().extract(source, mode="ast").signal_vars)
+    except Exception:
+        signals = []
+
+    return track, orders, signals
+
+
 class StrategyService:
     def __init__(
         self,
@@ -401,6 +448,32 @@ class StrategyService:
         if strategy is None:
             raise StrategyNotFoundError()
         return StrategyResponse.model_validate(strategy)
+
+    async def brief(self, *, strategy_id: UUID, owner_id: UUID) -> StrategyBriefResponse:
+        """[ADR-040] 백테스트 제출 **전에** 보는 결정론 브리핑.
+
+        ★**LLM 이 만든 값이 하나도 없다.** 해설 층은 별 엔드포인트이고, 그쪽이 죽어도
+        이 응답만으로 화면이 완결되어야 한다는 것이 [ADR-040] 결정 4 다.
+        ★분석 대상은 `Strategy.pine_source` — 백테스트 제출 시 그 소스가 스냅샷으로 고정되므로
+        (`_ensure_current_strategy_version`) 「지금 제출하면 무엇이 도는가」와 일치한다.
+        """
+        strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
+        if strategy is None:
+            raise StrategyNotFoundError()
+
+        source = strategy.pine_source
+        parse = await self.parse_preview(source)
+        track, orders, signals = await asyncio.to_thread(_extract_brief_parts, source)
+
+        return StrategyBriefResponse(
+            strategy_id=strategy.id,
+            # `repository.create_version` 과 **같은 식**이어야 한다 — 해설 캐시가 이 값을 키로 쓴다.
+            source_hash=hashlib.sha256(source.encode()).hexdigest(),
+            track=track,
+            parse=parse,
+            orders=orders,
+            signals=signals,
+        )
 
     async def update(
         self,

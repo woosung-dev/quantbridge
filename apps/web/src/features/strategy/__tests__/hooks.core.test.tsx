@@ -187,6 +187,7 @@ describe("strategy hooks", () => {
       is_runnable: true,
       declaration: null,
       inputs: [],
+      dogfood_only_warning: null,
     };
     parseStrategyMock.mockResolvedValue(preview);
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -376,6 +377,7 @@ describe("strategy hooks", () => {
       is_runnable: true,
       declaration: null,
       inputs: [],
+      dogfood_only_warning: null,
     };
     parseStrategyMock.mockResolvedValue(preview);
     const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } });

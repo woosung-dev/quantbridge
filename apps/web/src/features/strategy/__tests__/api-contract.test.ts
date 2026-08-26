@@ -127,6 +127,9 @@ const PARSED_PARSE_PREVIEW_RESPONSE = {
   // [ADR-040] Stage 1 — BE 가 안 보내도 Zod 기본값이 채운다(구 응답 호환).
   declaration: null,
   inputs: [],
+  // ★이 필드는 종전 FE 스키마에 없어서 **조용히 버려지고 있었다**(BE 는 보내고 있었다).
+  //   Trust Layer 위반 경고라 브리핑이 반드시 보여야 한다 — 이 줄이 그 보존을 잠근다.
+  dogfood_only_warning: PARSE_PREVIEW_RESPONSE.dogfood_only_warning,
 };
 
 afterEach(() => {

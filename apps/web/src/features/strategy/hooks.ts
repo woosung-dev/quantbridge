@@ -27,6 +27,7 @@ import {
   createStrategy,
   deleteStrategy,
   getStrategy,
+  getStrategyBrief,
   listStrategies,
   parseStrategy,
   rotateWebhookSecret,
@@ -37,6 +38,7 @@ import { strategyKeys } from "./query-keys";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
+  StrategyBrief,
   StrategyCreateResponse,
   StrategyListQuery,
   StrategyListResponse,
@@ -97,6 +99,29 @@ export function useStrategy(id: string | undefined): UseQueryResult<StrategyResp
     queryKey: id ? strategyKeys.detail(uid, id) : strategyKeys.details(uid),
     queryFn: makeDetailFetcher(id ?? "", getToken),
     enabled: Boolean(id),
+  });
+}
+
+function makeBriefFetcher(id: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getStrategyBrief(id, token);
+  };
+}
+
+/**
+ * [ADR-040] 전략 브리핑 — 백테스트 제출 **전에** 보는 결정론 응답.
+ *
+ * ★서버가 Pine 을 파싱하므로 콜드 파스가 붙을 수 있다(큰 스크립트는 수십 초). 편집 중
+ * 재파싱하는 `usePreviewParse` 와 달리 **전략 id 단위**라 소스가 안 바뀌면 다시 안 부른다.
+ */
+export function useStrategyBrief(id: string | undefined): UseQueryResult<StrategyBrief, Error> {
+  const { uid, getToken } = useAuthCtx();
+  return useQuery({
+    queryKey: id ? strategyKeys.brief(uid, id) : strategyKeys.all(uid),
+    queryFn: makeBriefFetcher(id ?? "", getToken),
+    enabled: Boolean(id),
+    retry: 1,
   });
 }
 

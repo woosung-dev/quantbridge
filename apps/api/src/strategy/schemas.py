@@ -141,6 +141,49 @@ class ParsePreviewResponse(BaseModel):
     inputs: list[InputDeclResponse] = Field(default_factory=list)
 
 
+# ── [ADR-040] 전략 브리핑 ─────────────────────────────────────────────────────
+# ★**판정어는 전부 결정론 층이 낸다.** 이 응답에 LLM 이 만든 값은 하나도 없다 —
+#   해설 층은 별 엔드포인트(`/brief/narrative`)이고, 실패해도 이 응답으로 화면이 완결된다.
+class BriefArg(BaseModel):
+    """주문 호출의 인자 하나. `name=None` 이면 positional."""
+
+    name: str | None = None
+    value: str
+
+
+class BriefOrderCall(BaseModel):
+    """`strategy.entry` / `exit` / `close` / `close_all` 호출 한 건 + **소스 줄번호**."""
+
+    name: str
+    line: int | None = None
+    args: list[BriefArg] = Field(default_factory=list)
+
+
+class StrategyBriefResponse(BaseModel):
+    """백테스트 **제출 전에** 「이 전략이 무엇을 하는가」를 답하는 결정론 응답.
+
+    `parse` 를 **품는다** — 판정·미지원 목록·파라미터·지표는 `POST /strategies/parse` 와
+    같은 값이어야 하므로 필드를 복제하지 않고 그 스키마를 그대로 담는다.
+    """
+
+    strategy_id: UUID
+    # Stage 4 의 해설 캐시 키 = **분석한 소스의 sha256**(`repository.create_version` 과 같은 식).
+    # ★`StrategyVersion` 을 조회하지 않고 `Strategy.pine_source` 에서 직접 계산한다 —
+    #   백테스트 제출이 그 소스를 스냅샷으로 고정하므로 「지금 제출하면 무엇이 도는가」와 일치한다.
+    source_hash: str | None = None
+    # `ast_classifier` 의 실행 경로 분류. 파싱 실패 시 None.
+    track: Literal["S", "A", "M"] | None = None
+    parse: ParsePreviewResponse
+    orders: list[BriefOrderCall] = Field(default_factory=list)
+    # `SignalExtractor` 가 찾은 신호 변수.
+    # ★★**Track S 의 `if cond` 형태에서는 비어 있는 것이 정상이다.** 그 추출기는
+    #   `strategy.entry(..., when=v)` · `plotshape` · `alertcondition(v, ..)` ·
+    #   `label.new(v ? ..)` 네 형태만 본다(`_find_signal_vars_ast`) — 즉 indicator 계열에서만
+    #   값이 나온다. **소비자는 빈 배열을 「신호 없음」으로 읽으면 안 된다.**
+    #   계약 고정 = `tests/strategy/test_strategy_brief.py`(빈 단언 + Track A 양성 대조).
+    signals: list[str] = Field(default_factory=list)
+
+
 class StrategySettings(BaseModel):
     """Sprint 26 — Live Signal Auto-Trading 의 trading params.
 

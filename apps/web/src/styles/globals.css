@@ -4017,3 +4017,29 @@ a.chip:focus-visible {
 @media (min-width: 769px) and (max-width: 1024px) {
   .sidebar .qb-acct-action { display: none; }
 }
+
+/* ── [ADR-040] 전략 브리핑 ────────────────────────────────────────────────────
+   KITPORT 밖 언레이어드. 판정 칩 → 절 목록 구조이고 새 색/그림자를 만들지 않는다 —
+   전부 기존 토큰(--line, --muted, --bg-soft)을 쓴다. */
+.brief { display: flex; flex-direction: column; gap: 14px; }
+
+.brief-verdict { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.brief-section { display: flex; flex-direction: column; gap: 6px; }
+
+.brief-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.brief-list > li { padding-left: 10px; border-left: 2px solid var(--line); }
+
+/* 백테스트 폼의 접힌 카드 — 열어야 서버를 부른다(콜드 파스 비용). */
+.brief-details { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.brief-details > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.brief-details[open] > summary { margin-bottom: 12px; }

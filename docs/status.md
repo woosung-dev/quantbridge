@@ -461,10 +461,46 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 ~~**다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 표는 4행이고 살아 있는 후보는 **D([BL-827] `openapi-check` CI 편입 · ⑴ 은 한 줄)** · **B([BL-453] 재기술 필요)** · **AP([BL-774] 사람 동반 필요)** 셋이다(C행 [BL-832] 는 이 회차가 종결). ★[BL-827] ⑴ 은 **다른 회차에 동승 가능한 크기**라 단독 회차로 열 필요가 없다.~~
 → **2026-08-27 사용자가 ⓪ 표 밖에서 새 축을 열었다 — 「전략 브리핑」.** ⓪ 표의 세 후보(D·B·AP)는 그대로 살아 있고 이 회차 뒤에 다시 고른다.
 
-**다음 행동 = Stage 1 — `ParsePreviewResponse` 에 `declaration`/`inputs` 를 노출한다** ([ADR-040] Stage 1).
-착수 전 실측 1건이 선행이다 — `strategy/service.py:48` 의 정규식 `param_count` 와
-`ast_extractor.extract_content().inputs` 의 개수가 `tests/fixtures/pine_corpus_v2/` 전건에서 **일치하는지**부터 재라.
-어긋나면 그 차이가 이 Stage 의 진짜 산출이다(둘 중 하나는 지금 틀린 수를 화면에 인쇄하고 있다).
+~~**다음 행동 = Stage 1 — `ParsePreviewResponse` 에 `declaration`/`inputs` 를 노출한다**~~
+→ **2026-08-27 Stage 1·2 완주**(PR #839 · CI 4잡 전부 pass). 아래가 그 실측 산출이다.
+
+**다음 행동 = Stage 3 — Pine AST → Python **읽기 전용** 렌더러**([ADR-042]).
+첫 step 은 구현이 아니라 **범위 결정**이다 — `pine_corpus_v2` 9건의 노드 종류를 census 해서
+「무엇을 렌더하고 무엇을 주석으로 보존하나」를 먼저 정해라. 못 렌더하는 노드를 **조용히 빼면
+사용자가 없는 로직을 없다고 믿는다**([ADR-042] §트레이드오프). ★집행 테스트 2종이 같은 PR 에 들어간다.
+
+> ★★★**Stage 1 의 최대 산출은 코드가 아니라 계획 3건의 반증이다.**
+>
+> ⑴ ~~`param_count` 를 AST 로 교체(이중 구현 제거)~~ → **거짓 전제였다.** 두 수는 다른 것을 센다 —
+> 정규식은 `input(` **호출 지점**, AST 는 **override 가능한 선언**(엔진이 대입문 좌변 이름으로만 값을
+> 갈아끼운다: `interpreter.py` `_assignment_target_stack`). 갈리는 것은 **4형태**이고 전부 AST 가 적게 센다:
+> 대입 없는 `plot(w=input.int(2))` · 중첩 · 사용자함수 본문 · 튜플 좌변.
+> ★**결정타는 비용** — 콜드 `extract_content` 가 corpus 9건에 **72.0초**(정규식 5.658ms · **12,727배**)이고
+> `param_count` 는 목록 페이지의 **전 전략**에 대해 돈다. ⇒ **목록은 정규식, 표·드롭다운은 AST.**
+> ★★**corpus 9/9 일치는 증거가 아니었다** — 그 4형태가 corpus 에 없을 뿐이다.
+> `test_param_count_vs_ast_inputs.py` 가 **그 초록에 판별력이 없다는 사실 자체**를 고정한다.
+>
+> ⑵ ~~Optimizer `var_name` 드롭다운을 Stage 1 에 동승~~ → **Stage 2 뒤로 미뤘다.** 지금 붙이면
+> 옵티마이저 화면에 콜드 파스(`i3_drfx` 53.38초)를 얹는다. brief 엔드포인트가 그 데이터의 공급처다.
+> **여전히 열려 있다** — `features/optimizer/form-schemas.ts:44` 는 아직 자유 타이핑이다.
+>
+> ⑶ ~~`signals` 를 `SignalExtractor` 로 채운다~~ → **가장 흔한 형태에서 항상 빈 배열이다.**
+> 그 추출기는 `when=` · `plotshape` · `alertcondition` · `label.new(v ? ..)` **네 형태만** 본다
+> (`_find_signal_vars_ast`). 즉 **indicator 계열에서만** 값이 나오고 Track S 의 `if cond` 형태는 0건이다.
+> 감추지 않고 **계약으로 고정**했다 — 빈 배열 단언 + **Track A 양성 대조**(그 대조가 없으면 추출기가
+> 통째로 죽어도 초록이다) + 화면은 비면 **절 자체를 안 그린다**(「신호 없음」은 거짓이다).
+>
+> ★**설계 1건도 바꿨다** — 계획은 `strategy/brief/` 서브도메인이었으나 brief 는 DB 에서 `pine_source` 를
+> 읽어야 해서 `convert/`(무DB)와 동형이 아니다. 기존 `StrategyService`(repo 보유 + 소유권 검사)에 얹어
+> **새 DI 배선도 `apps/api/AGENTS.md` §3 예외 표 행도 만들지 않았다.**
+>
+> ★**곁다리로 잡은 것 2건** — ⑴ FE Zod 가 `dogfood_only_warning` 을 **조용히 버리고 있었다**(BE 는 보내고
+> 있었고 Trust Layer 위반 경고다). 계약 테스트가 잡았다. ⑵ 위저드 패널의 「서버 응답에 파라미터 필드가
+> 없어」 문장이 내 변경으로 **거짓이 되어** 실개수로 교체했다.
+>
+> ★**베이스라인 1건 재생성** — `StrategyCall.line` 추가가 `ast_content_report.json` 을 바꿨다.
+> 맹목 재생성 대신 **`line` 키를 벗기면 옛 것과 완전히 같은지** 대조하고 나서 썼다(드리프트 0 · 바뀐 것은
+> strategy_calls 를 가진 3건뿐 · indicator 3건은 0개라 무변경).
 
 > ★**2026-08-27 착수 — 전략 브리핑 축([ADR-040]·[ADR-041]·[ADR-042]).** 사용자 질문 3건(「Python 도 쓰고 싶다」·
 > 「LLM 이 전략을 구현해줬으면」·「백테스트 전에 어떤 전략인지 보는 화면」)이 **하나의 화면으로 수렴**했다.

@@ -72,12 +72,42 @@ export const ParsePreviewResponseSchema = z.object({
   unsupported_builtins: z.array(z.string()).default([]),
   // BE UnsupportedCallResponse의 코드 위치와 우회안. 배열이 없던 구 응답도 허용한다.
   unsupported_calls: z.array(UnsupportedCallSchema).default([]),
+  // ★BE 는 이 필드를 보내는데(`coverage.dogfood_only_warning`) FE 스키마가 빠뜨려 버리고
+  //   있었다 — heikinashi 등 Trust Layer 위반 경고라 브리핑이 반드시 보여야 한다.
+  dogfood_only_warning: z.string().nullable().default(null),
   is_runnable: z.boolean().default(true),
   // [ADR-040] Stage 1 — 파싱 실패 시 BE 가 null/[] 를 보낸다. 구 응답도 통과해야 한다.
   declaration: DeclarationSchema.nullable().default(null),
   inputs: z.array(InputDeclSchema).default([]),
 });
 export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;
+
+// ── [ADR-040] 전략 브리핑 (결정론 층) ────────────────────────────────────────
+// ★이 응답에 LLM 이 만든 값은 하나도 없다. 해설 층은 별 엔드포인트다.
+export const BriefArgSchema = z.object({
+  name: z.string().nullable().default(null),
+  value: z.string(),
+});
+
+export const BriefOrderCallSchema = z.object({
+  name: z.string(),
+  line: z.number().int().nullable().default(null),
+  args: z.array(BriefArgSchema).default([]),
+});
+export type BriefOrderCall = z.infer<typeof BriefOrderCallSchema>;
+
+export const StrategyBriefSchema = z.object({
+  strategy_id: z.string(),
+  source_hash: z.string().nullable().default(null),
+  track: z.enum(["S", "A", "M"]).nullable().default(null),
+  parse: ParsePreviewResponseSchema,
+  orders: z.array(BriefOrderCallSchema).default([]),
+  // ★Track S 의 `if cond` 형태에서는 **비는 것이 정상**이다 — BE `SignalExtractor` 는
+  //   `when=` · `plotshape` · `alertcondition` · `label.new(v ? ..)` 네 형태만 본다.
+  //   비었을 때 이 절을 **그리지 마라**. 「신호 없음」으로 읽히면 거짓이다(`_KIT.md` §4.9).
+  signals: z.array(z.string()).default([]),
+});
+export type StrategyBrief = z.infer<typeof StrategyBriefSchema>;
 
 export const TradingSessionSchema = z.enum(["asia", "london", "ny"]);
 export type TradingSession = z.infer<typeof TradingSessionSchema>;
