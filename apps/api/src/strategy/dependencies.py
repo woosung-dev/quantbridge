@@ -36,9 +36,14 @@ async def get_strategy_service(
         repo=WebhookSecretRepository(session),
         crypto=crypto,
     )
+    # [ADR-040] 해설 층은 DB 를 안 쥔다(`convert/` 와 같은 형태). 키가 없으면 그 엔드포인트만
+    # 503 이고 결정론 브리핑은 그대로 돈다 — 조립 시점에 막지 않는 이유다.
+    from src.strategy.narrative.dependencies import get_narrative_service
+
     return StrategyService(
         repo=StrategyRepository(session),
         backtest_repo=BacktestRepository(session),
         live_session_repo=LiveSignalSessionRepository(session),
         secret_svc=secret_svc,
+        narrative_svc=get_narrative_service(),
     )

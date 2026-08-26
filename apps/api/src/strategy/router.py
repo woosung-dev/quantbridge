@@ -5,17 +5,20 @@ T19: rotate-webhook-secret endpoint 추가 (ownership은 StrategyService.get으�
 
 from __future__ import annotations
 
+import logging
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, Path, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, Response
 
 from src.auth.dependencies import get_current_user
 from src.auth.schemas import CurrentUser
 from src.common.rate_limit import limiter
 from src.core.config import settings
 from src.strategy.dependencies import get_strategy_service
+from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import ParseStatus
+from src.strategy.narrative.schemas import StrategyNarrativeResponse
 from src.strategy.schemas import (
     CreateStrategyRequest,
     ParsePreviewResponse,
@@ -33,7 +36,23 @@ from src.trading.dependencies import get_webhook_secret_service
 from src.trading.schemas import WebhookRotateResponse
 from src.trading.services.webhook_secret_service import WebhookSecretService
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/strategies", tags=["strategies"])
+
+
+def _opaque(status_code: int, code: str, message: str, exc: Exception) -> HTTPException:
+    """[BL-772] 예외 상세를 응답에서 지우고 **로그와 잇는 상관 ID** 만 남긴다.
+
+    `convert/router.py:_opaque` 와 같은 계약이다 — 지우기만 하면 사용자 문의를 추적할 수 없어
+    `error_id` 가 그 대가를 상쇄한다.
+    """
+    error_id = uuid4().hex[:12]
+    logger.exception("%s error_id=%s exc_type=%s", code, error_id, type(exc).__name__)
+    return HTTPException(
+        status_code=status_code,
+        detail={"code": code, "detail": message, "error_id": error_id},
+    )
 
 
 @router.post("/parse", response_model=ParsePreviewResponse)
@@ -109,6 +128,36 @@ async def get_strategy_brief(
 ) -> StrategyBriefResponse:
     """[ADR-040] 백테스트 제출 전 결정론 브리핑 — LLM 이 만든 값이 하나도 없다."""
     return await service.brief(strategy_id=strategy_id, owner_id=current_user.id)
+
+
+@router.get("/{strategy_id}/brief/narrative", response_model=StrategyNarrativeResponse)
+@limiter.limit("10/minute")
+async def get_strategy_brief_narrative(
+    request: Request,
+    strategy_id: UUID = Path(...),
+    current_user: CurrentUser = Depends(get_current_user),
+    service: StrategyService = Depends(get_strategy_service),
+) -> StrategyNarrativeResponse:
+    """[ADR-040] 해설 층 — **판정하지 않는다.** 실패해도 `/brief` 로 화면이 완결된다."""
+    try:
+        return await service.brief_narrative(strategy_id=strategy_id, owner_id=current_user.id)
+    except StrategyNotFoundError:
+        raise
+    except RuntimeError as exc:
+        # ★[BL-772] 계약 — SDK 예외 문자열을 응답에 싣지 않고 상관 ID 만 남긴다.
+        raise _opaque(
+            503,
+            "narrative_provider_unavailable",
+            "전략 해설을 만들 수 없습니다. 잠시 후 다시 시도해 주세요.",
+            exc,
+        ) from exc
+    except Exception as exc:
+        raise _opaque(
+            502,
+            "narrative_failed",
+            "전략 해설 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+            exc,
+        ) from exc
 
 
 @router.put("/{strategy_id}", response_model=StrategyResponse)

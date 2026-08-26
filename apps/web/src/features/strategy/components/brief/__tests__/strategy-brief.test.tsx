@@ -14,6 +14,10 @@ import type { StrategyBrief } from "@/features/strategy/schemas";
 const mockUseStrategyBrief = vi.fn();
 vi.mock("@/features/strategy/hooks", () => ({
   useStrategyBrief: (...args: unknown[]) => mockUseStrategyBrief(...args),
+  // [ADR-040] 브리핑이 해설 패널을 품는다. 이 파일은 **결정론 층**을 재는 곳이라
+  // 해설 본문은 대상이 아니다 — 열기 전 상태로 고정한다(그때는 서버를 안 부른다).
+  // 해설 계약은 `narrative-panel.test.tsx` 가 잰다.
+  useStrategyNarrative: () => ({ isPending: false, isError: false, data: undefined }),
 }));
 
 function makeBrief(overrides: Partial<StrategyBrief> = {}): StrategyBrief {

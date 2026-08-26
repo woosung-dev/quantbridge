@@ -43,7 +43,7 @@ health 계열을 제외한 전부가 `/api/v1` 프리픽스다. 조립 지점은
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | meta               | `GET /health` · `/healthz` · `/livez` · `/metrics` (Prometheus, bearer 인증)                                                                                                 |
 | auth               | `GET /api/v1/auth/me` · `DELETE /api/v1/auth/me`                                                                                                                             |
-| strategies         | `POST /strategies/parse` · `GET`·`POST /strategies` · **`GET /strategies/{id}/brief`**([ADR-040]) · `PUT /strategies/{id}/settings` · `POST /strategies/{id}/rotate-webhook-secret` · `POST /strategies/convert-indicator` |
+| strategies         | `POST /strategies/parse` · `GET`·`POST /strategies` · **`GET /strategies/{id}/brief`**([ADR-040]) · `GET /strategies/{id}/brief/narrative` · `PUT /strategies/{id}/settings` · `POST /strategies/{id}/rotate-webhook-secret` · `POST /strategies/convert-indicator` |
 | backtests          | `POST /backtests` (202) · `GET /backtests/{id}/trades` · `/progress` · `POST`·`DELETE /backtests/{id}/share` · `GET /backtests/share/{token}`                                |
 | stress-tests       | `POST /stress-tests/{monte-carlo,walk-forward,cost-assumption-sensitivity,param-stability}`                                                                                  |
 | optimizer          | `POST /optimizer/runs/{grid-search,bayesian,genetic}` · `GET /optimizer/runs[/{id}]`                                                                                         |

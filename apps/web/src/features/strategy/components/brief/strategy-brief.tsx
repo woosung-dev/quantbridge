@@ -11,6 +11,7 @@
 import Link from "next/link";
 
 import { StateBox } from "@/components/state-box";
+import { NarrativePanel } from "@/features/strategy/components/brief/narrative-panel";
 import { PythonViewPanel } from "@/features/strategy/components/brief/python-view";
 import { useStrategyBrief } from "@/features/strategy/hooks";
 import { PINE_FUNCTION_LEXICON } from "@/features/strategy/pine-lexicon";
@@ -173,6 +174,9 @@ function BriefBody({ brief, editHref }: { brief: StrategyBrief; editHref?: strin
       ) : null}
 
       {parse.declaration ? <SizingSection declaration={parse.declaration} /> : null}
+
+      {/* [ADR-040] 해설 층 — ★결정론 층 **아래**에 온다. 순서가 곧 권한이다. */}
+      <NarrativePanel strategyId={brief.strategy_id} />
 
       {/* [ADR-042] 읽기 전용 Python 뷰 — 기본은 접혀 있다. */}
       {brief.python_view ? (

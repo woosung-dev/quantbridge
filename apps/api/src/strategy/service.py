@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 from src.backtest.serializers import metrics_summary_from_jsonb
 from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.narrative.schemas import StrategyNarrativeResponse
 from src.strategy.pine_v2.ast_classifier import classify_script
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
@@ -49,6 +50,7 @@ from src.strategy.schemas import (
 
 if TYPE_CHECKING:
     from src.backtest.repository import BacktestRepository
+    from src.strategy.narrative.service import NarrativeService
     from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
     from src.trading.services.webhook_secret_service import WebhookSecretService
 
@@ -310,11 +312,15 @@ class StrategyService:
         # None 이면 auto-issue 스킵 (테스트 / CLI 경로 호환).
         secret_svc: WebhookSecretService | None = None,
         live_session_repo: LiveSignalSessionRepository | None = None,
+        # [ADR-040] 해설 층. `secret_svc` 와 같은 optional 주입 형태다 — 없으면 그 엔드포인트만
+        # 503 이고 결정론 브리핑은 그대로 돈다.
+        narrative_svc: NarrativeService | None = None,
     ) -> None:
         self.repo = repo
         self.backtest_repo = backtest_repo
         self._secret_svc = secret_svc
         self.live_session_repo = live_session_repo
+        self._narrative_svc = narrative_svc
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
         status, version, warnings, errors, entry_count, exit_count, functions_used = await _parse(
@@ -496,6 +502,39 @@ class StrategyService:
             orders=orders,
             signals=signals,
             python_view=python_view,
+        )
+
+    async def brief_narrative(
+        self, *, strategy_id: UUID, owner_id: UUID
+    ) -> StrategyNarrativeResponse:
+        """[ADR-040] 해설 층 — **판정하지 않는다.**
+
+        ★결정론 브리핑(`brief`)과 **별 엔드포인트**인 이유는 하나다. 이쪽은 LLM 왕복이라 느리고
+        실패할 수 있는데, 화면은 그것을 기다리지 않고 이미 완결돼 있어야 한다([ADR-040] 결정 4).
+        ★같은 `source_hash` 를 실어 화면이 두 응답이 같은 소스를 말하는지 대조할 수 있게 한다.
+        """
+        strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
+        if strategy is None:
+            raise StrategyNotFoundError()
+        if self._narrative_svc is None:
+            raise RuntimeError("해설 provider 가 설정되지 않았습니다")
+
+        source = strategy.pine_source
+        source_hash = hashlib.sha256(source.encode()).hexdigest()
+        # 결정론 층이 뽑은 사실을 프롬프트 입력으로 준다 — 모델이 파싱을 다시 하지 않게.
+        declaration, inputs = await asyncio.to_thread(_extract_structure, source)
+        _track, orders, _signals = await asyncio.to_thread(_extract_brief_parts, source)
+        coverage = analyze_coverage(source)
+        facts = {
+            "declaration": declaration.model_dump() if declaration else None,
+            "inputs": [i.model_dump() for i in inputs],
+            "functions_used": list(coverage.used_functions),
+            "orders": [o.model_dump() for o in orders],
+        }
+
+        svc = self._narrative_svc
+        return await asyncio.to_thread(
+            svc.explain, source=source, facts=facts, source_hash=source_hash
         )
 
     async def update(

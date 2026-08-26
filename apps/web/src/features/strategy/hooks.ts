@@ -28,6 +28,7 @@ import {
   deleteStrategy,
   getStrategy,
   getStrategyBrief,
+  getStrategyNarrative,
   listStrategies,
   parseStrategy,
   rotateWebhookSecret,
@@ -39,6 +40,7 @@ import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
   StrategyBrief,
+  StrategyNarrative,
   StrategyCreateResponse,
   StrategyListQuery,
   StrategyListResponse,
@@ -99,6 +101,33 @@ export function useStrategy(id: string | undefined): UseQueryResult<StrategyResp
     queryKey: id ? strategyKeys.detail(uid, id) : strategyKeys.details(uid),
     queryFn: makeDetailFetcher(id ?? "", getToken),
     enabled: Boolean(id),
+  });
+}
+
+function makeNarrativeFetcher(id: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getStrategyNarrative(id, token);
+  };
+}
+
+/**
+ * [ADR-040] 해설 층 — **판정이 아니다.**
+ *
+ * ★`enabled` 로 **사용자가 열 때만** 부른다. LLM 왕복이라 느리고 돈이 들며, 결정론 브리핑은
+ * 이미 화면을 완결시켜 두었다. 실패해도 브리핑은 그대로 산다(별 쿼리 키).
+ */
+export function useStrategyNarrative(
+  id: string | undefined,
+  enabled: boolean,
+): UseQueryResult<StrategyNarrative, Error> {
+  const { uid, getToken } = useAuthCtx();
+  return useQuery({
+    queryKey: id ? strategyKeys.narrative(uid, id) : strategyKeys.all(uid),
+    queryFn: makeNarrativeFetcher(id ?? "", getToken),
+    enabled: Boolean(id) && enabled,
+    retry: 0,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 }
 

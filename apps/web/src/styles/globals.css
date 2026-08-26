@@ -4065,3 +4065,11 @@ a.chip:focus-visible {
   user-select: none;
 }
 .python-view-code { padding-right: 12px; }
+
+/* [ADR-040] AI 해설 층 — ★결정론 층과 **시각적으로 갈라야** 한다. 판정처럼 보이면 안 된다. */
+.narrative {
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--card-2);
+}

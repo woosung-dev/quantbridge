@@ -120,6 +120,35 @@ export const StrategyBriefSchema = z.object({
 });
 export type StrategyBrief = z.infer<typeof StrategyBriefSchema>;
 
+// ── [ADR-040] 해설 층 (LLM) ─────────────────────────────────────────────────
+// ★★**판정이 아니다.** 실행 가능/미지원/degraded/Track 은 결정론 층이 낸다.
+//   화면은 이 층을 **시각적으로 격리**하고 「AI 해설 — 판정이 아닙니다」를 붙인다.
+export const NarrativeNoteSchema = z.object({
+  text: z.string(),
+  // ★서버가 실재하지 않는 줄을 이미 버렸다. 그래도 비면 렌더하지 않는다(두 겹).
+  pine_lines: z.array(z.number().int()).default([]),
+});
+export type NarrativeNote = z.infer<typeof NarrativeNoteSchema>;
+
+export const NARRATIVE_STYLE_LABEL: Record<string, string> = {
+  trend_following: "추세추종",
+  mean_reversion: "평균회귀",
+  breakout: "브레이크아웃",
+  volatility: "변동성",
+  other: "기타",
+};
+
+export const StrategyNarrativeSchema = z.object({
+  source_hash: z.string(),
+  provider: z.enum(["anthropic", "gemini"]),
+  summary: z.string(),
+  style: z.enum(["trend_following", "mean_reversion", "breakout", "volatility", "other"]),
+  assumptions: z.array(NarrativeNoteSchema).default([]),
+  risks: z.array(NarrativeNoteSchema).default([]),
+  dropped_ungrounded: z.number().int().default(0),
+});
+export type StrategyNarrative = z.infer<typeof StrategyNarrativeSchema>;
+
 export const TradingSessionSchema = z.enum(["asia", "london", "ny"]);
 export type TradingSession = z.infer<typeof TradingSessionSchema>;
 
