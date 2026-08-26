@@ -107,6 +107,43 @@ alertcondition(buySignal, title="Buy")
 
 
 @pytest.mark.asyncio
+async def test_brief_carries_a_read_only_python_view(client, mock_authed_user):
+    """[ADR-042] 「파이썬으로 보기」의 데이터. ★**실행되는 코드가 아니다.**"""
+    sid = await _create(client, RSI_V5, name="brief-python-view")
+
+    res = await client.get(f"/api/v1/strategies/{sid}/brief")
+    assert res.status_code == 200, res.text
+    view = res.json()["python_view"]
+    assert view is not None
+
+    code = view["code"]
+    # ★헤더가 두 사실을 말해야 한다 — 안 말하면 이 뷰는 거짓말이 된다.
+    assert "실행되지 않습니다" in code
+    assert "한 봉 전의 값" in code
+    # 전략의 실체가 코드로 보여야 한다(주석이 아니라).
+    assert "if " in code
+    assert "strategy.entry" in code
+
+    # 줄 대응은 **실재하는 Pine 줄**만 가리킨다 — 없는 대응을 지어내지 않는다.
+    pine_lines = RSI_V5.count("\n")
+    assert view["source_map"], "source_map 이 비면 원본으로 데려갈 수 없다"
+    for py_line, pine_line in view["source_map"]:
+        assert 1 <= pine_line <= pine_lines, (py_line, pine_line)
+
+
+@pytest.mark.asyncio
+async def test_python_view_is_absent_when_parsing_fails(client, mock_authed_user):
+    """★렌더는 판정자가 아니다 — 못 그려도 브리핑은 살아야 한다."""
+    sid = await _create(client, "//@version=5\nstrategy(  <<< broken", name="brief-broken")
+
+    res = await client.get(f"/api/v1/strategies/{sid}/brief")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["python_view"] is None
+    assert body["parse"]["status"] == "error"  # 판정은 살아 있다
+
+
+@pytest.mark.asyncio
 async def test_brief_shows_what_blocks_the_backtest(client, mock_authed_user):
     """★미지원이 있을 때가 브리핑이 가장 필요한 순간이다 — 404/422 로 감추지 않는다."""
     sid = await _create(client, UNSUPPORTED, name="brief-unsupported")

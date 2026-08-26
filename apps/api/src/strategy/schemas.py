@@ -159,6 +159,21 @@ class BriefOrderCall(BaseModel):
     args: list[BriefArg] = Field(default_factory=list)
 
 
+class PythonView(BaseModel):
+    """[ADR-042] Pine AST 를 옮긴 **읽기 전용** Python 뷰.
+
+    ★**실행되지 않는다.** 실행 경로가 없다는 것을 `tests/strategy/pine_v2/
+    test_py_renderer_not_executed.py` 가 집행한다. 의미 보존을 보증하지 않는 **읽기용 근사**이고
+    진실은 언제나 원본 Pine 이라, `source_map` 이 모든 출력 줄을 원본 줄에 묶는다.
+    """
+
+    code: str
+    # `(python 줄, pine 줄)` 1-based. 대응을 모르는 줄은 **아예 등장하지 않는다** — 지어내지 않는다.
+    source_map: list[tuple[int, int]] = Field(default_factory=list)
+    # 못 옮겨 원문을 주석으로 보존한 노드 수. >0 이면 화면이 그 사실을 말해야 한다.
+    unrendered: int = 0
+
+
 class StrategyBriefResponse(BaseModel):
     """백테스트 **제출 전에** 「이 전략이 무엇을 하는가」를 답하는 결정론 응답.
 
@@ -182,6 +197,8 @@ class StrategyBriefResponse(BaseModel):
     #   값이 나온다. **소비자는 빈 배열을 「신호 없음」으로 읽으면 안 된다.**
     #   계약 고정 = `tests/strategy/test_strategy_brief.py`(빈 단언 + Track A 양성 대조).
     signals: list[str] = Field(default_factory=list)
+    # [ADR-042] 파싱 실패 시 None. **실행되지 않는 읽기용 뷰**다.
+    python_view: PythonView | None = None
 
 
 class StrategySettings(BaseModel):

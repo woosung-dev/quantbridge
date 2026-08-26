@@ -4043,3 +4043,25 @@ a.chip:focus-visible {
 .brief-details { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
 .brief-details > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
 .brief-details[open] > summary { margin-bottom: 12px; }
+
+/* [ADR-042] 읽기 전용 Python 뷰 — 왼쪽 거터는 **원본 Pine 줄번호**다. */
+.python-view {
+  margin: 0;
+  padding: 10px 0;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.python-view-line { display: block; white-space: pre; }
+.python-view-gutter {
+  display: inline-block;
+  width: 44px;
+  padding-right: 10px;
+  text-align: right;
+  color: var(--ink-3);
+  user-select: none;
+}
+.python-view-code { padding-right: 12px; }

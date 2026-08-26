@@ -23,6 +23,7 @@ from src.strategy.pine_v2.ast_classifier import classify_script
 from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
+from src.strategy.pine_v2.py_renderer import render_python
 from src.strategy.pine_v2.signal_extractor import SignalExtractor
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import (
@@ -34,6 +35,7 @@ from src.strategy.schemas import (
     LatestBacktestSummary,
     ParseError,
     ParsePreviewResponse,
+    PythonView,
     StrategyBriefResponse,
     StrategyCreateResponse,
     StrategyLifecycle,
@@ -233,6 +235,25 @@ def _extract_structure(
         for i in content.inputs
     ]
     return decl, inputs
+
+
+def _render_python_view(source: str) -> PythonView | None:
+    """[ADR-042] 읽기 전용 Python 뷰. **실패는 조용히 None** 이다.
+
+    ★렌더는 판정자가 아니다 — 여기서 던지는 예외가 브리핑 전체를 500 으로 만들면
+    사용자는 판정조차 못 본다. `_extract_structure` · `_extract_brief_parts` 와 같은 계약이다.
+    ★★**이 산출물은 실행되지 않는다.** 응답 스키마 말고 어디로도 흘러가지 않으며,
+    그 부재를 `tests/strategy/pine_v2/test_py_renderer_not_executed.py` 가 집행한다.
+    """
+    try:
+        view = render_python(source)
+    except Exception:
+        return None
+    return PythonView(
+        code=view.code,
+        source_map=list(view.source_map),
+        unrendered=view.unrendered,
+    )
 
 
 def _extract_brief_parts(
@@ -464,6 +485,7 @@ class StrategyService:
         source = strategy.pine_source
         parse = await self.parse_preview(source)
         track, orders, signals = await asyncio.to_thread(_extract_brief_parts, source)
+        python_view = await asyncio.to_thread(_render_python_view, source)
 
         return StrategyBriefResponse(
             strategy_id=strategy.id,
@@ -473,6 +495,7 @@ class StrategyService:
             parse=parse,
             orders=orders,
             signals=signals,
+            python_view=python_view,
         )
 
     async def update(

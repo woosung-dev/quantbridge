@@ -11,6 +11,7 @@
 import Link from "next/link";
 
 import { StateBox } from "@/components/state-box";
+import { PythonViewPanel } from "@/features/strategy/components/brief/python-view";
 import { useStrategyBrief } from "@/features/strategy/hooks";
 import { PINE_FUNCTION_LEXICON } from "@/features/strategy/pine-lexicon";
 import { isSweepable, type StrategyBrief } from "@/features/strategy/schemas";
@@ -172,6 +173,13 @@ function BriefBody({ brief, editHref }: { brief: StrategyBrief; editHref?: strin
       ) : null}
 
       {parse.declaration ? <SizingSection declaration={parse.declaration} /> : null}
+
+      {/* [ADR-042] 읽기 전용 Python 뷰 — 기본은 접혀 있다. */}
+      {brief.python_view ? (
+        <div className="brief-section">
+          <PythonViewPanel view={brief.python_view} />
+        </div>
+      ) : null}
     </div>
   );
 }

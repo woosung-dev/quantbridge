@@ -6,7 +6,7 @@
 //     비는 것이 정상이고, 그때 「신호 없음」이라고 쓰면 거짓이다.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { StrategyBriefPanel } from "@/features/strategy/components/brief/strategy-brief";
 import type { StrategyBrief } from "@/features/strategy/schemas";
@@ -47,6 +47,7 @@ function makeBrief(overrides: Partial<StrategyBrief> = {}): StrategyBrief {
       { name: "strategy.close", line: 8, args: [] },
     ],
     signals: [],
+    python_view: null,
     ...overrides,
   };
 }
@@ -146,5 +147,51 @@ describe("StrategyBriefPanel — 결정론 층", () => {
     mockUseStrategyBrief.mockReturnValue({ isPending: false, isError: true, data: undefined });
     render(<StrategyBriefPanel strategyId="s-1" />);
     expect(screen.getByTestId("brief-error")).toBeTruthy();
+  });
+
+  it("[ADR-042] python_view 가 있으면 「파이썬으로 보기」가 뜨고, 열면 실행 안 됨을 먼저 말한다", () => {
+    ready(
+      makeBrief({
+        python_view: {
+          code: "# 헤더\nlength = 14\nif close > open:\n    strategy.entry()\n",
+          source_map: [
+            [2, 3],
+            [3, 5],
+          ],
+          unrendered: 0,
+        },
+      }),
+    );
+    render(<StrategyBriefPanel strategyId="s-1" />);
+
+    const toggle = screen.getByRole("button", { name: "파이썬으로 보기" });
+    fireEvent.click(toggle);
+
+    // ★본문보다 먼저 「실행되는 코드가 아니다」가 나와야 한다.
+    expect(screen.getByTestId("python-view-disclaimer").textContent).toContain(
+      "실행되는 코드가 아닙니다",
+    );
+    const body = screen.getByTestId("python-view").textContent ?? "";
+    expect(body).toContain("strategy.entry()");
+    // 거터는 **원본 Pine 줄번호**다 — python 2번째 줄 → pine 3번째 줄.
+    expect(body).toContain("3");
+  });
+
+  it("옮기지 못한 곳이 있으면 「지운 것이 아니다」를 말한다", () => {
+    ready(
+      makeBrief({
+        python_view: { code: "# [원문 보존] for v in arr\n", source_map: [], unrendered: 2 },
+      }),
+    );
+    render(<StrategyBriefPanel strategyId="s-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "파이썬으로 보기" }));
+
+    expect(screen.getByTestId("python-view-preserved").textContent).toContain("2곳");
+  });
+
+  it("python_view 가 없으면 버튼 자체를 그리지 않는다", () => {
+    ready(makeBrief({ python_view: null }));
+    render(<StrategyBriefPanel strategyId="s-1" />);
+    expect(screen.queryByRole("button", { name: "파이썬으로 보기" })).toBeNull();
   });
 });

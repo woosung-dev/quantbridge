@@ -96,6 +96,16 @@ export const BriefOrderCallSchema = z.object({
 });
 export type BriefOrderCall = z.infer<typeof BriefOrderCallSchema>;
 
+// [ADR-042] Pine AST 를 옮긴 **읽기 전용** Python 뷰. ★실행되는 코드가 아니다.
+export const PythonViewSchema = z.object({
+  code: z.string(),
+  // `[python 줄, pine 줄]` 1-based. 대응을 모르는 줄은 등장하지 않는다 — 지어내지 않는다.
+  source_map: z.array(z.tuple([z.number().int(), z.number().int()])).default([]),
+  // 못 옮겨 원문을 주석으로 보존한 노드 수. >0 이면 화면이 그 사실을 말해야 한다.
+  unrendered: z.number().int().default(0),
+});
+export type PythonView = z.infer<typeof PythonViewSchema>;
+
 export const StrategyBriefSchema = z.object({
   strategy_id: z.string(),
   source_hash: z.string().nullable().default(null),
@@ -106,6 +116,7 @@ export const StrategyBriefSchema = z.object({
   //   `when=` · `plotshape` · `alertcondition` · `label.new(v ? ..)` 네 형태만 본다.
   //   비었을 때 이 절을 **그리지 마라**. 「신호 없음」으로 읽히면 거짓이다(`_KIT.md` §4.9).
   signals: z.array(z.string()).default([]),
+  python_view: PythonViewSchema.nullable().default(null),
 });
 export type StrategyBrief = z.infer<typeof StrategyBriefSchema>;
 
