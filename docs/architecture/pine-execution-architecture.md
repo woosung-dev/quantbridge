@@ -31,6 +31,25 @@ flowchart LR
 
 분류 규칙의 정본은 `ast_classifier._classify_track`, 외부 진입점은 `compat.parse_and_run_v2`다. Track A는 `next_bar_open`을 그대로 재현하지 못할 때 경고를 남기고 bar-close로 실행한다.
 
+### 파스 캐시 2층 (BL-832)
+
+파싱 진입점은 `parser_adapter.parse_to_ast` **하나**다(n13 이 직접 `pynescript.ast.parse` 를 부르던 3곳을 여기로 모았다). 그 위에 캐시가 2층이다.
+
+| 층 | 범위 | 무엇을 없애나 |
+| --- | --- | --- |
+| **L1** `lru_cache(maxsize=8)` | 프로세스 안 | 백테스트 1회의 중복 파스 4→1 (Track A 5→1) |
+| **L2** 디스크(`PINE_AST_CACHE_DIR`) | 프로세스 **밖** | 프로세스 경계마다 다시 무는 콜드 파스 |
+
+★**왜 디스크까지 가나** — 콜드 파스 1회는 실측상 `s5_ema_trend` 2.69초 · `s3_rsid` 11.47초 · `i3_drfx`(38,954B) **53.38초**이고, celery `worker_max_tasks_per_child` 재활용 · uvicorn 워커 · 테스트 프로세스가 각각 자기 콜드를 문다. L1 만으로는 그 경계를 못 넘는다.
+
+★★**그 초의 정체는 「느린 코드」가 아니다** — `s3_rsid` cProfile 에서 `ParserATNSimulator.closure_` 의 cumtime 이 **35.77/36.96초(96.8%)** 다. ANTLR Python 런타임의 ATN 클로저 계산이고, **파서 층을 손대는 축(SLL 2단계·기동 워밍·문법 모호성 축소)은 이 성분을 못 건드린다**([BL-829] 기각 tombstone = `docs/backlog-deferred.md` 헤더). 줄이는 방법은 **다시 파싱하지 않는 것** 하나다.
+
+- **캐시 키** = `sha256(스키마 버전 ∥ pynescript 버전 ∥ 소스)`. 버전이 바뀌면 미스다 — 업그레이드 후 낡은 AST 가 조용히 살아남으면 안 된다.
+- **실패는 캐시되지 않는다.** 캐시 읽기가 어떤 이유로든 실패하면(동시 쓰기·클래스 소멸·손상) 조용히 정상 파스로 떨어진다 — 캐시는 파스를 **못 막는다**.
+- **용량 상한**(`PINE_AST_CACHE_MAX_BYTES`, 기본 512MiB) 초과 시 mtime 오래된 것부터 소각한다. 파스 엔드포인트에 소스 길이 상한이 없어([BL-831]) 캐시 표면이 임의 입력으로 채워질 수 있다.
+- ★**테스트는 기본 비활성**이다(`tests/conftest.py` autouse). 켜 두면 캐시가 테스트 프로세스 사이에서도 살아남아 파스 계수를 바꾼다 — 실제로 n13 계수 테스트 3건이 그렇게 red 였다.
+- 판정은 **초가 아니라 계수·digest 동일성**이다: `test_parse_ast_disk_cache.py`(10건) · `test_parse_call_census.py`(6건).
+
 ## 지원 범위와 Trust Layer
 
 `coverage.py`의 지원 집합과 `interpreter.py`의 실제 바인딩은 함께 바뀌어야 한다. 이 둘의 정합과 실행 회귀는 [`trust-layer-architecture.md`](./trust-layer-architecture.md)가 설명하며, 사용자에게 보이는 지원/미지원 목록은 [`supported-indicators.md`](../domain/supported-indicators.md)가 맡는다.

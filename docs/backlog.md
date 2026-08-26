@@ -796,29 +796,3 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** 🔵 ACTIVE — 2026-08-25 등재, 미수리
 **트리거 판정:** 도래 (⑴ 은 CI 한 줄. ⑵ 는 PoC 수명 판단이 선행)
 
-### BL-832
-
-**Title:** 콜드 파스가 **프로세스 경계마다** 다시 든다 — AST 를 프로세스 밖으로 캐시하면 51초가 5ms 다
-**Category:** Backend / pine_v2 파서 어댑터 · 성능
-**Priority:** P1
-**출처:** 2026-08-26 [BL-829] preflight (그 항목을 기각시킨 실측이 이 항목을 낳았다)
-
-**증상 (확인된 사실, 2026-08-26):** n13 이 `parse_to_ast` 에 `lru_cache(maxsize=8)` 를 걸어 **프로세스 안**의 중복 파스를 4→1 로 없앴지만, 캐시가 프로세스 지역이라 **프로세스가 바뀌면 같은 소스를 처음부터 다시 판다**. 콜드 1회 비용(격리 실측 · 프로세스당 1파스)은 `s5_ema_trend` 2.69초 · `s3_rsid` 11.47초 · `i3_drfx`(38,954B) **53.38초**다. 그 비용의 정체는 ANTLR Python 런타임의 ATN 클로저 계산이다 — `s3_rsid` cProfile 에서 `ParserATNSimulator.closure_` 의 cumtime 이 **35.77/36.96초(96.8%)**, 총 함수 호출 **1억 6,963만회**(6,555B 소스). ★**따라서 파서 층을 손대는 축(SLL·워밍·문법)은 전부 이 성분을 못 건드린다** — [BL-829] 기각 tombstone 참조.
-**영향:** 프로세스 경계는 실제로 자주 넘는다 — celery `worker_max_tasks_per_child=250`(`celery_app.py:90-91`) 이 워커를 주기적으로 재활용하고, uvicorn 워커·워크트리 슬롯·테스트 프로세스가 각각 자기 콜드를 문다. `POST /api/v1/strategies/parse` 는 사용자가 그 초를 **직접 기다린다**(n13 Lane 2 가 이벤트 루프 블로킹은 풀었지만 대기 시간 자체는 남았다).
-**실측 근거 (pickle 왕복 · digest 보존 확인):**
-
-| corpus | 콜드 파스 | `pickle.loads` | blob | AST digest |
-| --- | --- | --- | --- | --- |
-| `s5_ema_trend` | 2.69초 | **0.0002초** | 4.9KB | 일치 |
-| `s3_rsid` | 11.47초 | **0.0006초** | 34.3KB | 일치 |
-| `i3_drfx` | 53.38초 | **0.0048초** | 283.2KB | 일치 |
-
-digest = `pyne_ast.dump(annotate_fields=True, include_attributes=False)` 의 sha256. 3벌 전부 왕복 후 동일.
-
-**권장 접근:** `parser_adapter.py`(n13 이 진입점을 이 파일 하나로 모아 뒀다)에 프로세스 밖 캐시 층을 얹는다. 키 = `sha1(source)` + **pynescript 버전** + AST 스키마 버전. 저장소 후보 = Redis(이미 있다) 또는 로컬 디스크. `lru_cache` 는 L1 로 남기고 그 아래 L2 를 둔다.
-**AC 는 시간이 아니라 계수·동일성이다** — ⑴ 새 프로세스 2개가 같은 소스를 파싱할 때 `pyne_ast.parse` 실호출이 **합계 1회**(n13 `test_parse_call_census.py` 의 계수 단언 재사용) ⑵ 캐시 왕복 AST 의 `compute_edge_digest`(`src/strategy/pine_v2/ast_metrics.py`)가 직파스와 **동일** ⑶ 소스 1바이트 변경 시 **미스** ⑷ 버전 키 변경 시 **미스**(stale AST 방어) ⑸ 예외는 캐시되지 않는다.
-
-**Risk:** 🟡 — ⑴ **pickle 역직렬화 신뢰 경계**: 캐시 저장소가 오염되면 임의 객체가 들어온다. Redis 를 쓸 거면 이 판단이 선행이고, 로컬 디스크 전용이면 표면이 좁다. ⑵ pynescript 업그레이드 시 stale AST — 버전 키가 막는다(AC ⑷). ⑶ `i3_drfx` 283KB × 전략 수 = 저장소 용량.
-
-**상태:** 🔵 ACTIVE — 2026-08-26 등재, 미착수
-**트리거 판정:** 도래 — [BL-829] 가 기각되면서 이것이 콜드 비용을 줄이는 **유일하게 실측된 축**이 됐다. 첫 step 은 구현이 아니라 **저장소·신뢰 경계 결정**(Redis vs 디스크)이다
