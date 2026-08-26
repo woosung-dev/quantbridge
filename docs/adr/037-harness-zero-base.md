@@ -55,7 +55,7 @@ pre-push 의 FE/BE 품질 검사부(ref 가드만 존치) · CI `documentation` 
 3. **권한 경계 소품**: pre-push **ref 가드**(main 직접 push 영구 금지 = Golden Rule) ·
    `assert-main-checkout.sh`(워크트리→공유 DB 파괴 차단, mise 15개 task 인라인) · settings.json deny.
 
-### ③ 입힌 것 — finsight 이식 4종 + 슬림 복귀 1종
+### ③ 입힌 것 — finsight 이식 4종 + 슬림 복귀 2종
 
 - `/review-code` — 3차원(correctness·security·conventions) 병렬 리뷰 + finding 당 skeptic 3명
   2/3 다수결. 차원 프롬프트는 우리 규칙(Decimal-first·Repository·SecretStr·prefork-safe·H-1~H-3).
@@ -70,6 +70,23 @@ pre-push 의 FE/BE 품질 검사부(ref 가드만 존치) · CI `documentation` 
   ★**2026-08-25 개정 — ② 하한 ≥3→≥1**(사용자 결정). 실재 후보가 2건뿐인데 3행을 강제하니
   도래 안 한 행이 억지로 표에 올라왔다(규칙이 사실을 이긴 자리). 표의 불변량은 「고를 수 있다」가
   아니라 「진입점이 실재한다」로 좁혔다.
+- `changes` 잡 + `tools/scripts/ci-changed-scopes.sh` — **재입힘 규칙의 두 번째 적용례**
+  (2026-08-26, PR #836). ②에서 철거한 `paths-filter/changes` 축이다. 근거는 **실측**이다 —
+  최근 머지 PR 30건 중 **문서만 9건(30%)** · BE만 11 · FE만 3 · 둘다/공유 7 이고, BE 잡 ~13분 ·
+  FE 잡 ~4분 기준 **30 PR 당 약 236분**이 검증 대상 없는 잡에 들어가고 있었다.
+  ★**복귀는 최소판이다** — `dorny/paths-filter` 액션을 되살리지 않았고(서드파티 SHA 핀 유지비 회피),
+  판정은 **셸 스크립트 한 파일**이며 그 판정은 `apps/api/tests/scripts/test_ci_changed_scopes.py`
+  23건이 지킨다(변이 4종 전부 **국소** red).
+  ★★**구판이 잡던 사고를 되풀이하지 않는 장치 3종** — 구판의 사고는 「필터가 좁아 워크플로만 고친
+  PR 에서 그 파일을 입력으로 읽는 감사가 skip 되고 `ci` 요약이 skipped 를 통과로 셌다」였다
+  (`docs/development/ci-cd.md`). ⑴ **`on.pull_request.paths` 를 쓰지 않는다** — 그러면 워크플로가
+  아예 안 돌아 required check 가 영구 대기한다. 잡은 항상 생성되고 `if:` 로 skip 된다.
+  ⑵ `.github/**` · `tools/**` 는 **양쪽을 켠다**(테스트에 단언). ⑶ **fail-safe 3중** — diff 취득 실패 ·
+  변경 파일 0건 · **분류표에 없는 경로 1건**이면 전량 실행. 그리고 구판과 달리 **skipped 를 통과로
+  세는 집계 잡이 존재하지 않는다**(집계 잡 자체가 이 ADR 로 철거됐다).
+  ★아래 Consequences 의 「무조건 skip 심기(skip-ratchet)」와 같은 계열의 위험이므로, 이 축은
+  **덜 돌리는 이득보다 fail-safe 를 우선**하도록 설계했다 — 「덜 돌린다」는 이득이고
+  「돌려야 할 것을 안 돌린다」는 사고다.
 
 ### ④ ★재입힘 규칙 (이 ADR 의 실질)
 
