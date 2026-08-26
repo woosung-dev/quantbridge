@@ -10,6 +10,17 @@
 #   **대체물이 없어 사람이 지킨다** — ADR-039 「무엇을 잃었나」 참조).
 # 하네스 재추가는 「문서화된 사고 1건 = 슬림 복귀 1건」 규칙만 허용한다.
 #
+# ★★★2026-08-26 재입힘 1건 — `changes` 잡(경로 스코프 판정)을 되돌렸다.
+#   위 「지운 것」 목록의 paths-filter/changes 축이다. 근거는 추측이 아니라 실측이다:
+#   최근 머지 PR 30건 중 **문서만 9건(30%)** · BE만 11건(37%) · FE만 3건(10%) 이고,
+#   BE 잡 ~13분 · FE 잡 ~4분 기준 **30 PR 당 약 236분**이 검증 대상 없는 잡에 들어갔다.
+#   복귀는 최소판이다 — 판정 로직은 `tools/scripts/ci-changed-scopes.sh` 하나이고,
+#   그 파일의 판정은 `apps/api/tests/scripts/test_ci_changed_scopes.py` 가 지킨다.
+#   ★종전 판과 다른 점 = **`on.paths` 를 쓰지 않는다.** 그러면 워크플로가 아예 안 돌아
+#   required check 가 영구 대기한다(아래 merge_group 주석과 같은 함정). 잡은 항상
+#   생성되고 `if:` 로 skip 된다 — skip 은 branch protection 이 성공으로 친다.
+#   ★fail-safe: diff 취득 실패 · 빈 diff · **분류 안 되는 경로 1건** 이면 전량 실행.
+#
 # tombstone(2026-08-21) — `.gitleaks.toml` 삭제. secret_scan 잡이 위에서 철거되면서 그 설정을
 #   읽는 곳이 0 이 됐다(훅·스크립트 포함 전수 grep 0건). 원문 = `git show 29176d1e:.gitleaks.toml`
 #   (값 단위 allowlist 4건 + 「왜 안전한가」 주석). 재입힘 시 그 파일을 되살리고 `gitleaks dir`
@@ -36,7 +47,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 무엇을 돌릴지 정한다. 이 잡 자신은 항상 돈다(30초) — 판정의 근거를 로그로 남기는 것이
+  # 이 잡의 두 번째 일이다. 「돌았다고 여겼는데 안 돌았다」를 두 번 겪은 레포다.
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.classify.outputs.backend }}
+      frontend: ${{ steps.classify.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # base..head diff 를 뜨려면 전체 히스토리가 필요하다.
+          fetch-depth: 0
+      - id: classify
+        # PR 이 아닌 트리거(merge_group·workflow_dispatch)는 base sha 가 없다 →
+        # 스크립트가 fail-safe 로 전량 실행을 낸다. 그것이 의도다.
+        run: |
+          bash tools/scripts/ci-changed-scopes.sh \
+            "${{ github.event.pull_request.base.sha }}" \
+            "${{ github.event.pull_request.head.sha }}"
+
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     # 실측 12m20s (PR #687 첫 완주) — 행이 걸려도 기본 360분을 태우지 않게 상한을 건다.
     timeout-minutes: 25
@@ -96,6 +130,8 @@ jobs:
           TRADING_ENCRYPTION_KEYS: "MiqlMqTkIxWclJ-STQ7t6BUyYlh4qnhminJHXUJJouc="
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     # 실측 3m42s (PR #687 첫 완주).
     timeout-minutes: 10
