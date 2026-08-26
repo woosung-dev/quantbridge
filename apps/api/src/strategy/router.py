@@ -5,6 +5,7 @@ T19: rotate-webhook-secret endpoint 추가 (ownership은 StrategyService.get으�
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Literal
 from uuid import UUID, uuid4
@@ -18,7 +19,13 @@ from src.core.config import settings
 from src.strategy.dependencies import get_strategy_service
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import ParseStatus
-from src.strategy.narrative.schemas import StrategyNarrativeResponse
+from src.strategy.narrative.dependencies import get_generate_service
+from src.strategy.narrative.generate_service import GenerateService
+from src.strategy.narrative.schemas import (
+    GenerateStrategyRequest,
+    GenerateStrategyResponse,
+    StrategyNarrativeResponse,
+)
 from src.strategy.schemas import (
     CreateStrategyRequest,
     ParsePreviewResponse,
@@ -109,6 +116,38 @@ async def list_strategies(
         order_by=order_by,
         order=order,
     )
+
+
+@router.post("/generate", response_model=GenerateStrategyResponse)
+@limiter.limit("5/minute")
+async def generate_strategy(
+    request: Request,
+    req: GenerateStrategyRequest,
+    _: CurrentUser = Depends(get_current_user),
+    svc: GenerateService = Depends(get_generate_service),
+) -> GenerateStrategyResponse:
+    """[ADR-041] 자연어 → 전략 생성. **저장하지 않는다.**
+
+    ★산출물만 돌려주고 사용자가 검토한 뒤 기존 생성 흐름으로 저장한다(`convert` 선례) —
+    이 엔드포인트가 DB 를 안 쥐는 이유이고, 검토 없이 저장되는 경로를 만들지 않는 이유다.
+    ★판정(`is_runnable`·`unsupported`)은 LLM 이 아니라 `analyze_coverage` 가 낸다.
+    """
+    try:
+        return await asyncio.to_thread(svc.generate, req)
+    except RuntimeError as exc:
+        raise _opaque(
+            503,
+            "generate_provider_unavailable",
+            "전략 생성 provider 를 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+            exc,
+        ) from exc
+    except Exception as exc:
+        raise _opaque(
+            502,
+            "generate_failed",
+            "전략 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+            exc,
+        ) from exc
 
 
 @router.get("/{strategy_id}", response_model=StrategyResponse)

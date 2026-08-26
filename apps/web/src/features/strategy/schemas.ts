@@ -149,6 +149,33 @@ export const StrategyNarrativeSchema = z.object({
 });
 export type StrategyNarrative = z.infer<typeof StrategyNarrativeSchema>;
 
+// ── [ADR-041] 자연어 → 전략 생성 ─────────────────────────────────────────────
+// ★**Pine 이 정본이다.** Python 은 사람이 읽는 뷰이고, 둘이 어긋나는 것을 **막을 수단이 없다** —
+//   설계는 제거 대신 **가시화**한다([ADR-041] §트레이드오프).
+export const DriftReportSchema = z.object({
+  // 렌더러가 Pine 에서 뽑은 **정본** Python. 어긋나면 이쪽이 진실이다.
+  rendered_python: z.string(),
+  only_in_llm: z.array(z.string()).default([]),
+  only_in_rendered: z.array(z.string()).default([]),
+});
+export type DriftReport = z.infer<typeof DriftReportSchema>;
+
+export const GenerateStrategyResponseSchema = z.object({
+  provider: z.enum(["anthropic", "gemini"]),
+  pine_source: z.string(),
+  llm_python: z.string(),
+  notes: z.array(z.string()).default([]),
+  // ★판정은 LLM 이 아니라 `analyze_coverage` 가 낸다.
+  is_runnable: z.boolean(),
+  unsupported: z.array(z.string()).default([]),
+  drift: DriftReportSchema.nullable().default(null),
+});
+export type GenerateStrategyResponse = z.infer<typeof GenerateStrategyResponseSchema>;
+
+export function hasDrift(d: DriftReport | null): boolean {
+  return d !== null && (d.only_in_llm.length > 0 || d.only_in_rendered.length > 0);
+}
+
 export const TradingSessionSchema = z.enum(["asia", "london", "ny"]);
 export type TradingSession = z.infer<typeof TradingSessionSchema>;
 

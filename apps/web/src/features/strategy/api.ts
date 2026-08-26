@@ -17,6 +17,8 @@ import {
   type ParsePreviewResponse,
   type StrategyCreateResponse,
   type StrategyListQuery,
+  type GenerateStrategyResponse,
+  GenerateStrategyResponseSchema,
   type StrategyBrief,
   StrategyBriefSchema,
   type StrategyNarrative,
@@ -76,6 +78,18 @@ export async function getStrategyNarrative(
     token,
   });
   return StrategyNarrativeSchema.parse(raw);
+}
+
+export async function generateStrategy(
+  body: { prompt: string; symbol: string; timeframe: string },
+  token: string | null,
+): Promise<GenerateStrategyResponse> {
+  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/generate`, {
+    method: "POST",
+    token,
+    body,
+  });
+  return GenerateStrategyResponseSchema.parse(raw);
 }
 
 export async function createStrategy(

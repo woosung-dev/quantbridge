@@ -28,6 +28,7 @@ import {
   deleteStrategy,
   getStrategy,
   getStrategyBrief,
+  generateStrategy,
   getStrategyNarrative,
   listStrategies,
   parseStrategy,
@@ -40,6 +41,7 @@ import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
   StrategyBrief,
+  GenerateStrategyResponse,
   StrategyNarrative,
   StrategyCreateResponse,
   StrategyListQuery,
@@ -101,6 +103,26 @@ export function useStrategy(id: string | undefined): UseQueryResult<StrategyResp
     queryKey: id ? strategyKeys.detail(uid, id) : strategyKeys.details(uid),
     queryFn: makeDetailFetcher(id ?? "", getToken),
     enabled: Boolean(id),
+  });
+}
+
+/**
+ * [ADR-041] 자연어 → 전략 생성. ★**저장하지 않는다** — 산출물만 돌려준다.
+ *
+ * 사용자가 검토한 뒤 기존 생성 흐름으로 저장한다(`convert` 선례). 검토 없이 저장되는 경로를
+ * 만들지 않는 것이 이 설계의 핵심이다 — Pine/Python 드리프트를 **막을 수 없기** 때문이다.
+ */
+export function useGenerateStrategy(): UseMutationResult<
+  GenerateStrategyResponse,
+  Error,
+  { prompt: string; symbol: string; timeframe: string }
+> {
+  const { getToken } = useAuthCtx();
+  return useMutation({
+    mutationFn: async (body) => {
+      const token = await getToken();
+      return generateStrategy(body, token);
+    },
   });
 }
 

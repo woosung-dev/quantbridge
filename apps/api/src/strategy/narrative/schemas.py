@@ -46,3 +46,44 @@ class StrategyNarrativeResponse(BaseModel):
     risks: list[NarrativeNote] = Field(default_factory=list)
     # 근거가 실재하지 않아 버려진 항목 수. >0 이면 LLM 이 없는 줄을 지어냈다는 뜻이라 관측 가치가 있다.
     dropped_ungrounded: int = 0
+
+
+# ── [ADR-041] 자연어 → 전략 생성 ────────────────────────────────────────────
+class GenerateStrategyRequest(BaseModel):
+    prompt: str = Field(min_length=10, max_length=2000)
+    symbol: str = Field(default="BTC/USDT", max_length=32)
+    timeframe: str = Field(default="1h", max_length=16)
+
+
+class DriftReport(BaseModel):
+    """★LLM 이 낸 Python 과 **실제 실행되는 Pine** 이 같은 전략인지.
+
+    ★★**이 보고서는 위험을 제거하지 않는다. 가시화한다.** 통과한 Pine 을 [ADR-042] 렌더러로
+    Python 화해 LLM 이 쓴 Python 과 대조하는 방식이라, **의미가 같은데 표현이 다른 경우와
+    표현이 같은데 의미가 다른 경우를 완전히 가르지 못한다**([ADR-041] §트레이드오프).
+    그래서 화면은 「다릅니다」가 아니라 「**다를 수 있습니다**」로 말해야 한다.
+    """
+
+    # 렌더러가 Pine 에서 뽑은 정본 Python. 어긋나면 이쪽이 진실이다.
+    rendered_python: str
+    # 두 산출물이 함께 쓰는 식별자 수 대비 LLM 쪽에만 있는 것들.
+    only_in_llm: list[str] = Field(default_factory=list)
+    only_in_rendered: list[str] = Field(default_factory=list)
+
+    @property
+    def diverged(self) -> bool:
+        return bool(self.only_in_llm or self.only_in_rendered)
+
+
+class GenerateStrategyResponse(BaseModel):
+    """생성 결과. **Pine 이 정본**이고 Python 은 사람이 읽는 뷰다."""
+
+    provider: Literal["anthropic", "gemini"]
+    pine_source: str
+    llm_python: str
+    notes: list[str] = Field(default_factory=list)
+    # `analyze_coverage` all-or-nothing 판정. False 면 저장하지 않는다.
+    is_runnable: bool
+    unsupported: list[str] = Field(default_factory=list)
+    # 실행 가능할 때만 채워진다 — 못 도는 Pine 은 렌더 기준선이 될 수 없다.
+    drift: DriftReport | None = None

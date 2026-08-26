@@ -50,6 +50,9 @@ _Avoid_: transpile, Python 전략, "Python 으로 변환"(전부 실행을 함�
 자연어 프롬프트로 LLM 이 만든 전략([ADR-041](./docs/adr/041-ai-strategy-generation.md)). LLM 이 **Pine 과 Python 을 둘 다** 내지만
 **Pine 이 정본**이고 Python 은 사람이 읽는 뷰다. `analyze_coverage` all-or-nothing 을 통과하지 못하면 저장되지 않는다.
 ★**두 산출물의 드리프트는 제거되지 않고 가시화된다** — 통과한 Pine 을 **Python View** 로 렌더해 LLM 이 쓴 Python 과 대조한다.
+★★**탐지기는 식별자 집합 비교라 확정하지 못한다** — 「의미가 같은데 표현이 다름」과 「표현이 같은데 의미가 다름」을 못 가른다.
+그래서 화면은 「다릅니다」가 아니라 **「다를 수 있습니다」**로 말하고, 어긋나면 **렌더링본을 정본으로 제시**한다.
+★생성은 **저장하지 않는다** — 사용자가 검토하고 눌러야 편집기에 들어간다(검토 없는 저장 경로를 만들지 않는다).
 _Avoid_: "LLM 변환"(= 기존 전략의 **번역**이고 그것은 [ADR-011](./docs/adr/011-pine-execution-strategy-v4.md) §7 이 기각한 축이다 — 생성과 번역을 섞지 마라)
 
 ### Verification Context

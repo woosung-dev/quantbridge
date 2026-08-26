@@ -35,6 +35,7 @@ import {
   useDraftSnapshot,
 } from "@/features/strategy/draft";
 
+import { GenerateWithAI } from "@/features/strategy/components/new/generate-with-ai";
 import { ParseResultPanel } from "./parse-result-panel";
 
 const SYMBOL_OPTIONS = ["BTC/USDT", "ETH/USDT", "SOL/USDT"] as const;
@@ -375,6 +376,10 @@ export function NewStrategyWizard() {
                 </span>
               </p>
             </div>
+
+            {/* [ADR-041] 자연어 → 전략 생성. ★결과는 **바로 저장되지 않는다** —
+                `applyPineSource` 로 편집기에 넣을 뿐이고 판정은 위 03 파싱 결과가 다시 낸다. */}
+            <GenerateWithAI symbol={symbol} timeframe={timeframe} onUsePine={applyPineSource} />
           </section>
         </div>
 
