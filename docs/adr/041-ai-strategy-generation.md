@@ -1,0 +1,56 @@
+# ADR-041 — 자연어로 전략을 생성한다. LLM 이 Pine 과 Python 을 둘 다 내고 **Pine 이 정본**이다
+
+- **상태:** Accepted (2026-08-27, 사용자 결정)
+- **범위:** `apps/api/src/strategy/` (`generate` 경로 · `convert/` 재사용) · `apps/web/src/features/strategy/`
+- **관련:** [ADR-011](./011-pine-execution-strategy-v4.md)(§7 기피 · Tier-5) · [ADR-003](./003-pine-runtime-safety-and-parser-scope.md)(결정 2 all-or-nothing) · [ADR-010b](./010b-product-roadmap.md)(#11 H3) · [ADR-040](./040-strategy-brief-outside-trust-layer.md) · [ADR-042](./042-pine-to-python-readonly-renderer.md)
+- **개정:** [`docs/PRD.md`](../PRD.md) §4 의 「AI 전략 자동 생성 — LLM 이 전략을 만들어주지 않는다」 줄을 교체한다
+
+## 결정
+
+1. **자연어 → 전략 생성을 제품 범위 안으로 들인다.** `POST /api/v1/strategies/generate`.
+2. LLM 은 **Pine 과 Python 을 둘 다** 산출한다. **Pine 이 정본이고 Python 은 사람이 읽는 뷰다.**
+3. **판정은 LLM 이 하지 않는다** — 산출된 Pine 을 `coverage.analyze_coverage` 가
+   **all-or-nothing**([ADR-003] 결정 2)으로 통과시키지 못하면 **저장을 거부**하고, 무엇이 막았는지
+   함수명과 줄번호로 보여준다.
+4. **드리프트를 가시화한다** — 통과한 Pine 을 [ADR-042](./042-pine-to-python-readonly-renderer.md) 의
+   렌더러로 Python 화해서 LLM 이 쓴 Python 과 대조한다. 어긋나면 「AI 가 쓴 Python 과 실제
+   실행되는 코드가 다릅니다」를 diff 와 함께 띄우고 **렌더링본을 정본으로 제시**한다.
+5. 생성물 Python 은 **어디서도 실행되지 않는다**([ADR-042] 가 그 부재를 집행한다).
+
+## 이유
+
+[ADR-010b](./010b-product-roadmap.md) #11 이 「AI 전략 생성 = H3 유지(실험 태그)」로 미룬 사유는
+셋이었다 — ⑴ ADR-003 충돌 미검증 ⑵ scope creep ⑶ dogfood 불명확. ⑴ 은 **이 ADR 이 해소한다**:
+생성물은 Pine 이고 Pine 은 `pine_v2` 인터프리터가 돌린다 — `exec`/`eval` 경로가 생기지 않는다.
+⑶ 은 사용자가 판단했다(2026-08-27).
+
+### [ADR-011] §7 「LLM 원샷 번역 ❌」과 무엇이 다른가
+
+그 줄이 기각한 것은 **번역**이다. 기각 근거는 정확도 손실이었고 이 레포가 실측했다
+(`ADR-011:275-289` — DrFX 변환에서 Opus/Sonnet/GPT-5/Gemini 가 각각 다른 구조적 버그, 「수렴도 0」).
+
+| | 번역 (기각 유지) | 생성 (채택) |
+| --- | --- | --- |
+| 입력 | **사용자의 기존 전략** | 자연어 의도 |
+| 손실되는 것 | 원본의 의미 — 사용자는 자기 전략이 바뀐 줄 모른다 | 없다. **대조할 원본이 존재하지 않는다** |
+| 판정자 | 없었다 | `analyze_coverage` all-or-nothing |
+
+⇒ **「기존 Pine 을 Python 으로 옮겨 실행」은 여전히 금지다.** 그것은 [ADR-011] §7 이 그대로 지킨다.
+이 ADR 이 여는 것은 원본이 없는 생성뿐이고, 이는 [ADR-011] §4 Tier-5 「Rule+LLM — LLM 이 만들고
+결정론적 검증기가 판정」 궤도와 같은 자리다.
+
+## 트레이드오프 — **정직하게 남긴다**
+
+★**두 산출물이 어긋나는 것을 막을 수단이 없다.** LLM 이 Pine 과 Python 을 각각 쓰면 둘이
+다른 전략일 수 있고, 그것이 정확히 `ADR-011:275` 가 실측한 실패 모드다. 이 설계는 그 위험을
+**제거하지 않고 가시화**한다(결정 4). 렌더러 대조는 구조 차이를 잡지만 **의미가 같은데 표현이
+다른 경우와 표현이 같은데 의미가 다른 경우를 완전히 가르지는 못한다.**
+
+- 대안이었던 것: ⑴ LLM 이 Pine 만 내고 Python 은 렌더링(드리프트 구조적 0) ⑵ LLM 이 Python 만 내고
+  결정론적 컴파일러가 Pine 화. **사용자가 ⑶(둘 다 생성)을 골랐다** — 「모델 성능 향상으로
+  자연히 해소될 축」이라는 판단이다. 이 줄은 그 판단이 반증되면 되돌릴 자리를 표시해 둔 것이다.
+- **되돌리는 법:** 결정 2 를 「Pine 만 생성」으로 바꾸고 Python 을 [ADR-042] 렌더러 출력으로 교체한다.
+  결정 4 의 탐지기가 그대로 검증 수단이 되므로 되돌림 비용은 낮다.
+- LLM 비용·지연이 붙는다. 레이트리밋은 `convert` 와 같은 `5/minute`, 인증 필수.
+- **생성된 전략의 품질은 보증하지 않는다.** all-or-nothing 이 보증하는 것은 **실행 가능성**이지
+  전략이 좋다는 뜻이 아니다. 그 구분을 화면이 말해야 한다([ADR-040] 브리핑이 그 자리다).
