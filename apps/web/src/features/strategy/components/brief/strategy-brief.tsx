@@ -11,6 +11,8 @@
 import Link from "next/link";
 
 import { StateBox } from "@/components/state-box";
+import { describeApiError } from "@/lib/api-client";
+import { errorIdOf } from "@/features/strategy/error-id";
 import { NarrativePanel } from "@/features/strategy/components/brief/narrative-panel";
 import { PythonViewPanel } from "@/features/strategy/components/brief/python-view";
 import { useStrategyBrief } from "@/features/strategy/hooks";
@@ -50,8 +52,15 @@ export function StrategyBriefPanel({
         testId="brief-error"
         tone="failed"
         title="브리핑을 불러오지 못했습니다."
-        body="전략 소스를 파싱하는 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."
-      />
+        body={describeApiError(query.error, "전략 소스를 파싱하는 중 오류가 발생했습니다.")}
+        code={errorIdOf(query.error)}
+      >
+        {/* ★재시도가 없으면 유일한 탈출구가 새로고침이고, 백테스트 폼 안에서는
+            새로고침이 사용자가 채운 기간·자본·수수료를 전부 날린다. */}
+        <button type="button" className="btn btn-ghost btn-xs" onClick={() => query.refetch()}>
+          다시 시도
+        </button>
+      </StateBox>
     );
   }
 
@@ -61,6 +70,11 @@ export function StrategyBriefPanel({
 function BriefBody({ brief, editHref }: { brief: StrategyBrief; editHref?: string }) {
   const { parse, orders, signals, track } = brief;
   const blocked = parse.unsupported_calls.length > 0 || parse.unsupported_builtins.length > 0;
+  // ★★파싱이 실패하면 BE 의 구조 추출기가 예외를 삼키고 빈 목록을 돌려준다
+  //   (`service.py` `_extract_structure` / `_extract_brief_parts` 의 명시된 계약).
+  //   그 빈 목록을 「없다」로 인쇄하면 **사용자가 자기 전략에 진입/청산이 없다고 믿는다.**
+  //   빈 이유를 「선언 안 함」과 「못 읽음」으로 갈라야 한다.
+  const parseFailed = parse.status === "error" || parse.errors.length > 0;
 
   return (
     <div className="brief" data-testid="strategy-brief">
@@ -74,9 +88,41 @@ function BriefBody({ brief, editHref }: { brief: StrategyBrief; editHref?: strin
         </span>
         {track ? <span className={CHIP_TONE_CLASS.neutral}>{TRACK_LABEL[track]}</span> : null}
         {parse.dogfood_only_warning ? (
-          <span className={CHIP_TONE_CLASS.warn}>{parse.dogfood_only_warning}</span>
+          <span className={CHIP_TONE_CLASS.warn} data-testid="brief-degraded">
+            TradingView 와 결과가 다를 수 있음
+          </span>
         ) : null}
       </div>
+
+      {/* ★서버 문자열은 내부 개발 메모라 판정 칩에 원문을 박지 않는다. 상세는 본문으로 내린다. */}
+      {parse.dogfood_only_warning ? (
+        <div className="brief-section" data-testid="brief-degraded-detail">
+          <p className="metric-group-title">TradingView 와 달라질 수 있는 이유</p>
+          <p className="dim">{parse.dogfood_only_warning}</p>
+        </div>
+      ) : null}
+
+      {parseFailed ? (
+        <div className="brief-section" data-testid="brief-parse-failed">
+          <p className="metric-group-title">소스를 읽지 못했습니다</p>
+          {parse.errors.length > 0 ? (
+            <ul className="brief-list">
+              {parse.errors.map((e) => (
+                <li key={`${e.code}-${e.line}`}>
+                  {e.message}
+                  {e.line !== null ? <SourceLine line={e.line} editHref={editHref} /> : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="dim">문법 오류로 파싱이 중단됐습니다.</p>
+          )}
+          <p className="strip-note">
+            아래 목록은 <strong>읽지 못한 상태에서 만든 것</strong>이라 비어 있을 수 있습니다.
+            문법을 고치면 다시 채워집니다.
+          </p>
+        </div>
+      ) : null}
 
       {blocked ? (
         <div className="brief-section" data-testid="brief-blocked">
@@ -101,7 +147,11 @@ function BriefBody({ brief, editHref }: { brief: StrategyBrief; editHref?: strin
       <div className="brief-section">
         <p className="metric-group-title">파라미터</p>
         {parse.inputs.length === 0 ? (
-          <p className="dim">조절할 파라미터를 선언하지 않았습니다.</p>
+          <p className="dim">
+            {parseFailed
+              ? "소스를 읽지 못해 파라미터를 확인하지 못했습니다."
+              : "조절할 파라미터를 선언하지 않았습니다."}
+          </p>
         ) : (
           <ul className="brief-list" data-testid="brief-params">
             {parse.inputs.map((p) => (
@@ -118,9 +168,11 @@ function BriefBody({ brief, editHref }: { brief: StrategyBrief; editHref?: strin
       </div>
 
       <div className="brief-section">
-        <p className="metric-group-title">사용 지표</p>
+        <p className="metric-group-title">감지된 함수 호출</p>
         {parse.functions_used.length === 0 ? (
-          <p className="dim">감지된 함수가 없습니다.</p>
+          <p className="dim">
+            {parseFailed ? "소스를 읽지 못해 확인하지 못했습니다." : "감지된 함수가 없습니다."}
+          </p>
         ) : (
           <ul className="brief-list" data-testid="brief-indicators">
             {parse.functions_used.map((fn) => {
@@ -142,7 +194,11 @@ function BriefBody({ brief, editHref }: { brief: StrategyBrief; editHref?: strin
       <div className="brief-section">
         <p className="metric-group-title">진입 · 청산</p>
         {orders.length === 0 ? (
-          <p className="dim">주문 호출이 없습니다. 이 스크립트는 신호만 냅니다.</p>
+          <p className="dim">
+            {parseFailed
+              ? "소스를 읽지 못해 주문 호출을 확인하지 못했습니다."
+              : "주문 호출이 없습니다. 이 스크립트는 신호만 냅니다."}
+          </p>
         ) : (
           <ul className="brief-list" data-testid="brief-orders">
             {orders.map((o) => (

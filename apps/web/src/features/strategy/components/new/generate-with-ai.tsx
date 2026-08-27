@@ -10,11 +10,16 @@
 // ★생성은 **저장하지 않는다** — 사용자가 검토하고 「이 코드 쓰기」를 눌러야 소스에 들어간다.
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { StateBox } from "@/components/state-box";
 import { useGenerateStrategy } from "@/features/strategy/hooks";
 import { hasDrift } from "@/features/strategy/schemas";
 import { CHIP_TONE_CLASS } from "@/lib/labels";
+
+// 서버 계약(`GenerateStrategyRequest`)과 **같은 수**여야 한다. 어긋나면 화면이 통과시킨 입력이 422 가 된다.
+const PROMPT_MIN = 10;
+const PROMPT_MAX = 2000;
 
 export function GenerateWithAI({
   symbol,
@@ -27,6 +32,7 @@ export function GenerateWithAI({
   onUsePine: (pine: string) => void;
 }) {
   const [prompt, setPrompt] = useState("");
+  const tooShort = prompt.trim().length > 0 && prompt.trim().length < PROMPT_MIN;
   const generate = useGenerateStrategy();
   const result = generate.data ?? null;
 
@@ -39,10 +45,19 @@ export function GenerateWithAI({
         id="generate-prompt"
         className="input"
         rows={3}
+        // ★서버 계약이 `Field(min_length=10, max_length=2000)` 이다. 상한을 화면이 막지 않으면
+        //   사용자는 422 를 받고 「잠시 후 다시 시도」라는, 절대 통하지 않는 조언을 듣는다.
+        maxLength={PROMPT_MAX}
+        aria-describedby="generate-prompt-hint"
         placeholder="예: RSI 가 30 아래로 내려갔다 올라오면 롱, 70 위에서 청산"
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
       />
+      <p className="field-hint" id="generate-prompt-hint">
+        {tooShort
+          ? `조금 더 자세히 적어주세요. ${PROMPT_MIN}자 이상 필요합니다. (현재 ${prompt.trim().length}자)`
+          : `${prompt.length} / ${PROMPT_MAX}자`}
+      </p>
       <button
         type="button"
         className="btn btn-ghost btn-xs"
@@ -64,6 +79,14 @@ export function GenerateWithAI({
           body="잠시 후 다시 시도해 주세요."
         />
       ) : null}
+
+      <p className="sr-only" role="status">
+        {generate.isPending
+          ? "전략을 만들고 있습니다."
+          : result
+            ? `전략을 만들었습니다. ${result.is_runnable ? "실행 가능합니다." : "실행 불가입니다."}`
+            : ""}
+      </p>
 
       {result ? (
         <div className="brief-section" data-testid="generate-result">
@@ -98,16 +121,37 @@ export function GenerateWithAI({
               testId="generate-drift"
               tone="failed"
               title="AI 가 쓴 파이썬과 실제 실행되는 코드가 다를 수 있습니다."
-              body="아래 Pine 이 실제로 도는 코드입니다. 파이썬 설명과 어긋나 보이면 Pine 을 기준으로 읽으세요."
-            />
+              body="아래 Pine 이 실제로 도는 코드입니다. 대조기는 식별자 집합만 비교하므로 확정하지 못합니다."
+            >
+              {/* ★어긋난 식별자를 보여주지 않으면 「다를 수 있다」가 확인 불가능한 주장이 된다. */}
+              <p className="dim mono">
+                {[
+                  result.drift.only_in_llm.length > 0
+                    ? `파이썬에만: ${result.drift.only_in_llm.slice(0, 8).join(", ")}`
+                    : null,
+                  result.drift.only_in_rendered.length > 0
+                    ? `Pine 에만: ${result.drift.only_in_rendered.slice(0, 8).join(", ")}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" / ")}
+              </p>
+            </StateBox>
           ) : null}
 
+          {/* ★AI 층 격리 — 위의 판정 칩·미지원 목록은 코드 분석기 산출이고 여기는 LLM 산문이다.
+              같은 서체·같은 좌측 바로 나란히 두면 사용자가 어느 줄이 검증된 사실인지 못 가른다. */}
           {result.notes.length > 0 ? (
-            <ul className="brief-list" data-testid="generate-notes">
-              {result.notes.map((n) => (
-                <li key={n}>{n}</li>
-              ))}
-            </ul>
+            <div className="narrative" data-testid="generate-notes">
+              <div className="brief-verdict">
+                <span className="chip ai">AI 가 덧붙인 말 · 판정이 아닙니다</span>
+              </div>
+              <ul className="brief-list">
+                {result.notes.map((n) => (
+                  <li key={n}>{n}</li>
+                ))}
+              </ul>
+            </div>
           ) : null}
 
           <div className="table-wrap">
@@ -120,7 +164,13 @@ export function GenerateWithAI({
             type="button"
             className="btn btn-primary btn-xs"
             disabled={!result.is_runnable}
-            onClick={() => onUsePine(result.pine_source)}
+            onClick={() => {
+              onUsePine(result.pine_source);
+              // ★편집기는 이 패널보다 위 카드라 화면 밖일 수 있다. 피드백이 없으면 사용자는
+              //   반영됐는지 몰라 같은 버튼을 반복해 누르고, 그 사이 직접 붙여넣은 Pine 은
+              //   이미 덮어써져 있다. 위저드의 다른 두 주입 경로도 toast 를 띄운다.
+              toast.success("생성한 Pine 을 편집기에 넣었습니다. 기존 소스는 덮어썼습니다.");
+            }}
           >
             이 Pine 코드 쓰기
           </button>

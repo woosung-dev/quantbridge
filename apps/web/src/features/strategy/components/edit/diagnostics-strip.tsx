@@ -197,7 +197,24 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         aria-labelledby="diag-tab-param"
         hidden={tab !== "param"}
       >
-        {!live ? (
+        {preview.isError ? (
+          // ★실패를 「없음」으로 숨기면 사용자는 자기 전략에 input 이 정말 없는 줄 알고
+          //   최적화를 포기한다. `usePreviewParse` 는 retry 가 없어 한 번 실패가 그대로 남는다.
+          <StateBox
+            testId="diag-param-error"
+            tone="failed"
+            title="파라미터를 확인하지 못했습니다."
+            body="파싱 요청이 실패했습니다. 파라미터가 없는 것이 아니라 확인하지 못한 것입니다."
+          >
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => preview.refetch()}
+            >
+              다시 시도
+            </button>
+          </StateBox>
+        ) : !live ? (
           <StateBox
             testId="diag-param-empty"
             title="아직 파싱된 파라미터가 없습니다."

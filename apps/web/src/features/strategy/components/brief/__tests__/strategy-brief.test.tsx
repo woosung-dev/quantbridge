@@ -6,6 +6,8 @@
 //     비는 것이 정상이고, 그때 「신호 없음」이라고 쓰면 거짓이다.
 
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { ApiError } from "@/lib/api-client";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import { StrategyBriefPanel } from "@/features/strategy/components/brief/strategy-brief";
@@ -168,8 +170,7 @@ describe("StrategyBriefPanel — 결정론 층", () => {
     );
     render(<StrategyBriefPanel strategyId="s-1" />);
 
-    const toggle = screen.getByRole("button", { name: "파이썬으로 보기" });
-    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "펼치기" }));
 
     // ★본문보다 먼저 「실행되는 코드가 아니다」가 나와야 한다.
     expect(screen.getByTestId("python-view-disclaimer").textContent).toContain(
@@ -188,7 +189,7 @@ describe("StrategyBriefPanel — 결정론 층", () => {
       }),
     );
     render(<StrategyBriefPanel strategyId="s-1" />);
-    fireEvent.click(screen.getByRole("button", { name: "파이썬으로 보기" }));
+    fireEvent.click(screen.getByRole("button", { name: "펼치기" }));
 
     expect(screen.getByTestId("python-view-preserved").textContent).toContain("2곳");
   });
@@ -196,6 +197,95 @@ describe("StrategyBriefPanel — 결정론 층", () => {
   it("python_view 가 없으면 버튼 자체를 그리지 않는다", () => {
     ready(makeBrief({ python_view: null }));
     render(<StrategyBriefPanel strategyId="s-1" />);
-    expect(screen.queryByRole("button", { name: "파이썬으로 보기" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "펼치기" })).toBeNull();
+  });
+
+  // ── UI 감사 회귀 (2026-08-27) ────────────────────────────────────────────
+  // ★★BE 는 파싱 실패 시 구조 추출 예외를 삼키고 빈 목록을 돌려준다(service.py 계약).
+  //   그 빈 목록을 「없다」로 인쇄하면 **사용자가 자기 전략에 진입/청산이 없다고 믿고**
+  //   그대로 백테스트를 제출한다. 이 제품의 핵심 가치(정직한 가정 표시) 정면 위반이다.
+  it("★파싱이 실패하면 빈 목록을 「없다」로 단정하지 않는다", () => {
+    ready(
+      makeBrief({
+        orders: [],
+        parse: {
+          ...makeBrief().parse,
+          status: "error",
+          is_runnable: false,
+          errors: [{ code: "syntax", message: "예상치 못한 토큰", line: 4 }],
+          inputs: [],
+          functions_used: [],
+        },
+      }),
+    );
+    render(<StrategyBriefPanel strategyId="s-1" />);
+
+    // 확정 단정이 사라져야 한다.
+    const body = screen.getByTestId("strategy-brief").textContent ?? "";
+    expect(body).not.toContain("주문 호출이 없습니다");
+    expect(body).not.toContain("조절할 파라미터를 선언하지 않았습니다");
+    expect(body).toContain("읽지 못해");
+
+    // ★그리고 「실행 불가」의 이유가 화면에 있어야 한다 — 종전에는 0줄이었다.
+    const failed = screen.getByTestId("brief-parse-failed").textContent ?? "";
+    expect(failed).toContain("예상치 못한 토큰");
+    expect(failed).toContain("L4");
+  });
+
+  it("파싱이 성공했을 때는 「없다」가 정직한 단정이다 (음성 대조)", () => {
+    ready(makeBrief({ orders: [], parse: { ...makeBrief().parse, inputs: [] } }));
+    render(<StrategyBriefPanel strategyId="s-1" />);
+
+    const body = screen.getByTestId("strategy-brief").textContent ?? "";
+    expect(body).toContain("주문 호출이 없습니다");
+    expect(screen.queryByTestId("brief-parse-failed")).toBeNull();
+  });
+
+  it("★서버의 내부 개발 메모를 판정 칩에 원문으로 박지 않는다", () => {
+    const memo = "heikinashi() 사용 - Trust Layer 위반 (Sprint 29 ADR). dogfood-only 사용 권장.";
+    ready(makeBrief({ parse: { ...makeBrief().parse, dogfood_only_warning: memo } }));
+    render(<StrategyBriefPanel strategyId="s-1" />);
+
+    // 칩은 사용자 언어로, 원문은 본문 절로 내려간다.
+    expect(screen.getByTestId("brief-degraded").textContent).not.toContain("Sprint 29");
+    expect(screen.getByTestId("brief-degraded-detail").textContent).toContain("Sprint 29");
+  });
+
+  it("★브리핑 로드 실패에 재시도와 상관 ID 가 있다", () => {
+    const refetch = vi.fn();
+    mockUseStrategyBrief.mockReturnValue({
+      isPending: false,
+      isError: true,
+      data: undefined,
+      error: new ApiError(502, "x", "실패", {
+        detail: { code: "x", detail: "생성 실패", error_id: "abc123def456" },
+      }),
+      refetch,
+    });
+    render(<StrategyBriefPanel strategyId="s-1" />);
+
+    // ★재시도가 없으면 유일한 탈출구가 새로고침이고, 백테스트 폼 안에서는 폼 값이 날아간다.
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(refetch).toHaveBeenCalled();
+    // ★서버가 만든 상관 ID 를 버리면 문의를 추적할 수 없다.
+    expect(screen.getByTestId("brief-error").textContent).toContain("abc123def456");
+  });
+
+  it("★파이썬 뷰 토글이 눌러도 사라지지 않는다 (포커스 유실 방지)", () => {
+    ready(
+      makeBrief({
+        python_view: { code: "x = 1\n", source_map: [[1, 3]], unrendered: 0 },
+      }),
+    );
+    render(<StrategyBriefPanel strategyId="s-1" />);
+
+    const btn = screen.getByRole("button", { name: "펼치기" });
+    btn.focus();
+    fireEvent.click(btn);
+
+    // 같은 엘리먼트가 살아 있어야 포커스가 유지된다.
+    expect(document.body.contains(btn)).toBe(true);
+    expect(document.activeElement).toBe(btn);
+    expect(btn.getAttribute("aria-expanded")).toBe("true");
   });
 });
