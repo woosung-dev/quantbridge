@@ -491,6 +491,18 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 > 해법은 레포에 이미 있었다(`tests/waitlist/conftest.py` 의 limiter reset) — `tests/strategy` 에만
 > 없었다. 전역 비활성화는 안 한다: waitlist 가 429 를 **실제로 검증**한다.
 
+~~**다음 행동 = 개발 항목을 ⓪ 표에서 고른다**~~ → **2026-08-28 서버 배포를 먼저 했다.**
+`9e71aa96`(2026-08-16) → `5f16952b`, **405 커밋**. DDL 2건 적용(`20260817_0001 → 20260817_0002`) ·
+소크 재고정 + 창 재개(06:30:21Z) · FE 이미지 `5f16952b` 교체. 검증: `/health` 200 `env=production` ·
+신규 엔드포인트 3종 401(라우팅됨) · celery 3노드 `pong` · 누락 커밋 0 · 컨테이너 안 신규 UI 마커 실재.
+★**런북이 두 곳에서 틀렸고 배포가 그것을 물었다**(같은 PR 에서 수정) — ⑴ `down` 이 `quantbridge-db` 를
+**제거**하므로 문서의 `down → migrate --confirm` 은 **실행 불가능**했다(`docker exec` 대상이 없다).
+⑵ `uv sync` 단계가 **없었다** — 소크는 `apps/api/src` 만 remount 하는데 `openai>=1.60` 이 새로 붙었고
+`src.main` 이 그 체인을 물어, 그 단계 없이 재시작하면 **API 가 import 부터 죽는다**(워커 18 task 는 0건 무관).
+★**남은 사람 몫 1건** — 서버 LLM 키 3종이 전부 비어 있어 해설·생성·convert 는 503 이다
+(결정론 브리핑·Python 뷰·백테스트는 정상). `OPENAI_API_KEY` + `LLM_PROVIDER_ORDER=openai` 를
+`~/quantbridge/apps/api/.env.local` 에 넣고 유닛 재시작하면 열린다.
+
 **다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 브리핑 축이 끝났으므로 표의 세 후보로 돌아간다:
 **D([BL-827] `openapi-check` CI 편입 · ⑴ 은 한 줄)** · **B([BL-453] 재기술 필요)** ·
 **AP([BL-774] 사람 동반 필요)**. ★[BL-827] ⑴ 은 다른 회차에 동승 가능한 크기다.
@@ -662,6 +674,8 @@ brief 가 이제 데이터를 갖는다) · **[BL-834]**(`convert` 가 스키마
 | **C**  | ~~[BL-832] 콜드 파스가 **프로세스 경계마다** 다시 든다 — AST 를 프로세스 밖으로 캐시 ~~ | P1  | ★★★ | 중 | M | **건드림** | **2026-08-26 종결** — 로컬 디스크 L2 캐시 구현·변이 5/5·전량 5,440 green. 아래 ⓻ 참조. ~~옛 근거: [BL-829] preflight 가 이 항목을 낳았다. 그 항목의 전제(「지배 성분 = full-context 재시도」)가 실측으로 깨졌고(SLL 로 204→0 을 만들어도 **3.7%**), 진짜 지배 성분은 `closure_` **96.8%** 였다. 콜드 비용을 줄이는 **유일하게 실측된 축**이 이것이다 — pickle 왕복 digest 보존 확인, `i3_drfx` **53.38초 → 0.0048초**. ★첫 step 은 구현이 아니라 **저장소·pickle 신뢰 경계 결정** |
 | **AP** | [BL-774] TradingView webhook 이 **body 기반 HMAC** 을 요구한다 — 동적 alert 본문에서 성립하는지 **미확인**                                                                                                                                                                                                                                                                                                                           | P2  | ★★                                                                                                                | 중     | M               | 0줄            | ★첫 step 은 코드 수리가 아니라 **실측 1건**이다 — 정적 body 면 동작하고 `{{close}}` 류 placeholder 면 매번 401 이다. idempotency key 가 optional query 라 **같은 결정에 묶여 있다**(고정=충돌 / 생략=중복 주문). ★**외부 TradingView 접근이 필요해 사람이 함께 있어야 한다** |
 | **D**  | [BL-827] `openapi-check` 가 CI 밖이라 계약 drift 를 2주간 아무도 안 봤다 | P3  | ★★ | 하 | S | 0줄 | ★**2026-08-26 표 누락 수리** — `ACTIVE` · 「트리거 도래」인데 이 표에 행이 없었다(2026-08-25 등재 이후). 표 서문이 경고한 바로 그 drift 다. 실측 재확인 = `grep -c openapi .github/workflows/ci.yml` **0**. ⑴ 은 CI 한 줄이라 **다른 회차에 동승 가능**하고, ⑵ PoC 생성물 수명은 [ADR-031] 결론 확인이 선행 |
+| **E**  | [BL-833] Optimizer 폼이 Pine 변수명을 **손으로 타이핑**하게 한다                                                                                                                                                                                                                                                                                                                                                                        | P3  | ★★                                                                                                                | 하     | S               | 0줄            | ★**데이터가 이미 있다** — [ADR-040] Stage 1 이 `ParsePreviewResponse.inputs`(이름·타입·기본값)를 열었고 brief 도 같은 목록을 준다. 남은 것은 `form-schemas.ts:44` 의 자유 입력을 select 로 바꾸는 것뿐. ★**비용 함정** — 브리핑을 그냥 부르면 옵티마이저 화면에 **콜드 파스 53.38초**(`i3_drfx` 실측)가 붙는다. warm 경로나 목록 API 에 얹어라. ★스윕 불가(`input_type ∉ {int,float}`)는 **숨기지 말고 비활성+사유**로 |
+| **F**  | [BL-834] `convert` 만 스키마 강제·provider 선택 **밖**에 남았다 + `sliced` 도달 불가                                                                                                                                                                                                                                                                                                                                                     | P3  | ★                                                                                                                 | 중     | M               | **건드림**     | PR #840 이 `narrative/providers.py`(세 provider 스키마 강제 + `LLM_PROVIDER_ORDER`)를 세웠는데 `convert/service.py` 는 `tools=`/`response_schema=` **0건**으로 혼자 남아 문자열 수동 파싱 + anthropic→gemini 하드코딩이다. ★같이 묶인 둘 — `mode="sliced"`(토큰 **77~97% 절감**)가 BE 완비인데 FE `"full"` 하드코딩으로 **도달 불가**, 그 버튼의 유일한 호출처가 **422 에러 카드**라 정상 흐름 진입점 0개. ★**셋을 따로 고치면 세 번 연다** |
 
 > ★**강등** — 2026-08-24 n9 로 **O([BL-641]) · J([BL-547]) · BO([BL-811])** 3행이 내려갔다: [BL-547]·[BL-811] 은 **종결**(본문 삭제 — 원문은 `git show 1a1169a5:docs/backlog.md`), [BL-641] 은 **재분류** — Trigger 가 「소크 재기동 회차마다 재측정」이라 일회성 종결점이 없고 입력이 살아 있는 소크 창이다. 소크 회차에 **동승**시켜라. 2026-08-16 에 5행([BL-026]·[BL-726]·[BL-729]·[BL-730]·[BL-731], 원문 `git show b5e24fbf:docs/status.md`), 2026-08-17 야간에 4행([BL-725]·[BL-732]·[BL-735]·[BL-737], 원문 `git show 0875789c:docs/status.md`)을 지워 700줄 상한 안에서 신규 행 자리를 만들었다. 지운 것은 전부 **이미 취소선이던 사문**이다.
 > ★난이도·소요는 `[가정]`이고 preflight 에서 재측정한다.

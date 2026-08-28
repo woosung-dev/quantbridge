@@ -15,7 +15,7 @@
 | `soak-stack.sh pin`             | **끊는다**                  | `pin`은 귀속을 흐리는 시점이라 창을 닫는다는 정의가 `tools/scripts/soak-stack.sh:45-47`에 있다. 실행 중 고정본 위 재-pin도 거부한다(`:187-197`).                                                                                                              |
 | `soak-stack.sh down`            | **끊는다**                  | 같은 창 경계 정의(`tools/scripts/soak-stack.sh:45-50`)와 compose 중지 뒤 `down` 이벤트 기록(`:301-307`)이다.                                                                                                                                                  |
 | `soak-stack.sh up`              | 연다                        | celery ready 시각으로 `up` 이벤트를 기록해 새 창을 연다(`tools/scripts/soak-stack.sh:275-299`).                                                                                                                                                               |
-| `soak-stack.sh migrate`         | 안 끊는다                   | 컨테이너 생명주기를 바꾸지 않고 현재 DB에 `docker exec`만 한다(`tools/scripts/soak-stack.sh:324-407`). DDL 위험과 창 단절은 별개다.                                                                                                                           |
+| `soak-stack.sh migrate`         | 안 끊는다                   | 컨테이너 생명주기를 바꾸지 않고 현재 DB에 `docker exec`만 한다(`tools/scripts/soak-stack.sh:324-407`). DDL 위험과 창 단절은 별개다. ★**그래서 `quantbridge-db` 가 떠 있어야 한다** — `down` 뒤에 부르면 전제 미충족으로 죽는다(§3.3).                                                                                                                           |
 | `db-backup.sh run`              | 안 끊는다                   | 백업은 `docker exec`와 `docker cp`만 쓰며 기동·정지·재시작을 금지한다(`tools/scripts/db-backup.sh:50-62`, `:243-251`).                                                                                                                                        |
 | FE `docker compose up -d`       | 안 끊는다                   | FE는 서비스·볼륨이 소크와 겹치지 않으며, 창을 끊는 것은 `pin`/`down`뿐이다(`infra/compose/docker-compose.frontend.yml:1-7`).                                                                                                                                  |
 | `mise run up/down/migrate/seed` | **소크 배포에 쓰지 않는다** | 네 명령은 `assert-main-checkout`만 호출한다(`mise.toml:93-108`, `:240-245`, `:386-397`). 고정 소크를 막는 `assert-not-pinned`는 `up-isolated*` 세 갈래뿐이다(`mise.toml:166`, `:177`, `:189`). 즉 네 명령 전체가 고정본 보호로 막힌다는 해석은 코드와 다르다. |
@@ -166,6 +166,9 @@ entrypoint의 migration 경로를 우회한다(`tools/scripts/soak-stack.sh:310-
 받은 뒤에만** `QB_DDL_APPROVED=NO`를 `YES`로 바꿔 처음부터 다시 실행한다. 이 승인 변수는
 스크립트의 환경 변수가 아니라, 문서가 실수로 `--confirm`을 실행하지 않도록 둔 셸 가드다.
 
+★**2026-08-28 실측으로 세 곳이 고쳐졌다** — 종전 블록은 405 커밋 점프 배포에서 두 번 걸렸다.
+⑴ 미추적 파일을 세어 영원히 exit 2 · ⑵ `down` 뒤 `migrate` 는 **실행 불가능** · ⑶ `uv sync` 부재.
+
 ```bash
 ssh truewords-oracle 'bash -lc '"'"'
 set -euo pipefail
@@ -173,36 +176,65 @@ QB_DDL_APPROVED=NO  # 명시 승인 뒤에만 YES로 바꾼다.
 cd ~/quantbridge
 
 test "$(git branch --show-current)" = main
-test -z "$(git status --porcelain)" || {
+# ★`-uno` 다. 가드의 취지는 **추적 변경**인데 서버에는 배포와 무관한 미추적 백업
+#   (`.env.bak-*` · 재배치 전 `backend/`)이 상시 있다. 그것을 세면 이 블록은 영원히 exit 2 다.
+#   미추적이 pull 을 막는 경우는 main 에 같은 경로가 실재할 때뿐이니 그것만 따로 확인해라.
+test -z "$(git status --porcelain -uno)" || {
   echo "✗ 추적 변경이 있는 체크아웃에는 배포하지 않는다" >&2
   exit 2
 }
 git pull --ff-only origin main
 SHA="$(git rev-parse HEAD)"
 
-# ① 대상 DB·현재 revision·적용 대기만 읽는다. DDL 없음.
+# ① 의존성 동기화. ★소크는 `apps/api/src` 만 remount 하고 **venv 는 안 건드린다.**
+#   호스트 API 의 ExecStart 는 `apps/api/.venv/bin/uvicorn` 이라 새 런타임 의존성이 붙으면
+#   재시작이 곧 장애다 — 2026-08-28 실측: `openai>=1.60` 이 추가됐고 `src.main` 이
+#   `strategy.router → service → narrative.service → narrative.providers` 로 그 체인을 문다.
+#   Celery 워커 4대는 이미지에 굽힌 것을 쓰고 task 18개 중 이 체인을 무는 것은 0개다.
+(cd apps/api && uv sync)
+# ★재시작 **전에** import 를 재라. 살아 있는 API 를 죽이고 나서 알면 늦다.
+#   `src` 는 설치 패키지가 아니라 CWD 의존이라 `PYTHONPATH=.` 가 필요하다(§8 BE AGENTS).
+(cd apps/api && set -a && . ./.env.local && set +a \
+  && PYTHONPATH=. .venv/bin/python -c "import src.main; src.main.create_app()")
+
+# ② 대상 DB·현재 revision·적용 대기만 읽는다. DDL 없음.
 tools/scripts/soak-stack.sh migrate
 if [ "$QB_DDL_APPROVED" != YES ]; then
   echo "■ dry-run 완료. 서버 소크 DB DDL의 명시 승인 뒤 YES로 재실행" >&2
   exit 2
 fi
 
-# ② 실제 DDL은 창을 닫은 뒤, 새 창을 열기 전에만 실행한다.
+# ③ 창을 닫고 → 고정본을 바꾸고 → **db 만 먼저 올려** DDL 을 넣고 → 전체를 연다.
+#   ★★`down` 은 `quantbridge-db` 를 **제거**한다. 그래서 종전 문서의
+#     `down → migrate --confirm` 순서는 실행할 수 없었다 — `migrate` 는 그 컨테이너에
+#     `docker exec` 하므로 "alembic_version 을 못 읽었다 — 전제 미충족" 으로 죽는다.
+#     DDL 을 워커 정지 중에 넣는다는 **의도**(§2 ⑵)는 db 만 올리는 것으로 그대로 지켜진다.
 tools/scripts/soak-stack.sh down
-tools/scripts/soak-stack.sh migrate --confirm
 tools/scripts/soak-stack.sh pin "$SHA"
+docker compose --project-directory "$PWD" \
+  -f infra/compose/docker-compose.yml \
+  -f infra/compose/docker-compose.isolated.yml \
+  -f infra/compose/docker-compose.soak.yml up -d db
+until [ "$(docker inspect -f "{{.State.Health.Status}}" quantbridge-db)" = healthy ]; do sleep 2; done
+tools/scripts/soak-stack.sh migrate --confirm
 tools/scripts/soak-stack.sh up
 
-# ③ 소크 compose 밖의 호스트 API를 반영한다.
+# ④ 소크 compose 밖의 호스트 API를 반영한다.
 systemctl --user restart quantbridge-api.service
-sleep 8
+sleep 10
 
-# ④ 게이트가 읽는 실행 상태를 순서대로 되읽는다.
+# ⑤ 게이트가 읽는 실행 상태를 순서대로 되읽는다.
+#   ★헬스는 `/health` 로 재라. `/healthz` 는 12초 상한이 12.89초 celery inspect 를 감싸
+#     구조적으로 200 이 안 나온다(`frontend-deploy.md` §5) — 503 은 배포 실패가 아니다.
+curl -s --max-time 10 http://127.0.0.1:8100/health; echo
 tools/scripts/soak-stack.sh commit
 tools/scripts/soak-stack.sh status
 tools/scripts/soak-gate.sh
 '"'"''
 ```
+
+★**게이트는 배포 직후 exit 2(UNKNOWN)가 정상이다** — `up` 이 새 창을 열었으므로 연속 시간이
+0 에서 다시 센다. 직전 창의 누적은 구 SHA 로 닫힌다. 이것은 배포의 비용이지 결함이 아니다.
 
 `soak-stack.sh`에는 `ssh`가 0건이다. 운영자가 위처럼 `ssh truewords-oracle 'bash -lc …'`로 감싸야
 하며, `bash -lc`는 비로그인 셸에서 `uv` PATH가 빠지는 것을 막는다
