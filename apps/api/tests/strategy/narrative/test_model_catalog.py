@@ -328,13 +328,18 @@ def _client(monkeypatch):
     from src.auth.dependencies import get_current_user
     from src.auth.schemas import CurrentUser
     from src.main import create_app
+    from src.strategy.narrative import router as router_mod
 
     fake_fetchers(
         monkeypatch,
         openai=([C.ModelInfo(id="gpt-4.1-mini")], 1),
         gemini=([C.ModelInfo(id="gemini-3.5-flash-lite", display_name="Flash Lite")], 1),
-        anthropic=RuntimeError("no key"),
+        anthropic=RuntimeError("provider down"),
     )
+    # ★라우터가 보는 settings 를 고정한다. 안 하면 **주변 환경이 결과를 정한다** — 로컬에는
+    #   `.env.local` 의 키가 있어 fetcher 가 돌고, CI 에는 키가 없어 `fetch_provider` 가
+    #   그 앞의 키 검사에서 끊긴다. 그래서 로컬 초록 / CI 빨강이었다(2026-08-28 실측).
+    monkeypatch.setattr(router_mod, "settings", settings(), raising=True)
     app = create_app()
     return app, TestClient(app), get_current_user, CurrentUser
 
@@ -357,6 +362,8 @@ def test_models_endpoint_returns_200_and_the_documented_shape(monkeypatch):
         assert set(body) == {"providers", "order", "active"}
         by = {p["provider"]: p for p in body["providers"]}
         assert set(by) == set(C.KNOWN_PROVIDERS), "provider 하나가 죽어도 전부 실려야 한다"
+        # provider 가 죽은 것과 키가 없는 것은 **다른 사유**지만 둘 다 error 로 실린다.
+        # 여기서는 fetcher 예외 경로를 고정했으므로 그 이름이 나와야 한다.
         assert by["anthropic"]["error"] == "RuntimeError"
         assert by["anthropic"]["configured_listed"] is None
         assert by["gemini"]["models"][0]["display_name"] == "Flash Lite"
