@@ -499,9 +499,13 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 **제거**하므로 문서의 `down → migrate --confirm` 은 **실행 불가능**했다(`docker exec` 대상이 없다).
 ⑵ `uv sync` 단계가 **없었다** — 소크는 `apps/api/src` 만 remount 하는데 `openai>=1.60` 이 새로 붙었고
 `src.main` 이 그 체인을 물어, 그 단계 없이 재시작하면 **API 가 import 부터 죽는다**(워커 18 task 는 0건 무관).
-★**남은 사람 몫 1건** — 서버 LLM 키 3종이 전부 비어 있어 해설·생성·convert 는 503 이다
-(결정론 브리핑·Python 뷰·백테스트는 정상). `OPENAI_API_KEY` + `LLM_PROVIDER_ORDER=openai` 를
-`~/quantbridge/apps/api/.env.local` 에 넣고 유닛 재시작하면 열린다.
+★**LLM 키도 같은 날 넣었다** — 서버 `.env.local` 에 키 3종이 **한 줄도 없었다**(전부 INSERT).
+로컬 값을 옮기기 전에 세 provider 에 직접 물어 유효성을 쟀고 **openai 만 200**
+(anthropic `API key is invalid` · gemini `API_KEY_INVALID` — 둘 다 요청 형식이 아니라 **키 자체**가 무효).
+⇒ 키 3종을 다 넣되 **`LLM_PROVIDER_ORDER=openai`** 로 뒀다. `available_providers` 는 **키 존재만** 보고
+유효성은 안 보므로, 무효 키를 순서에 남기면 매 호출이 tenacity 3회를 태우고 넘어간다.
+**갱신하면 순서 문자열만 넓히면 된다** — PR #840 이 만든 구조가 정확히 그것이다.
+서버 실왕복 검증: `provider_order=['openai']` · `complete_json` 이 스키마 준수 JSON 반환.
 
 **다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 브리핑 축이 끝났으므로 표의 세 후보로 돌아간다:
 **D([BL-827] `openapi-check` CI 편입 · ⑴ 은 한 줄)** · **B([BL-453] 재기술 필요)** ·
