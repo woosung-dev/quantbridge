@@ -362,8 +362,17 @@ class Settings(BaseSettings):
         ),
     )
     gemini_model: str = Field(
-        default="gemini-2.0-flash",
-        description=("Gemini 모델 ID for convert fallback. flash 권장 (속도+무료 tier)."),
+        default="gemini-3.7-flash",
+        description=(
+            "Gemini 모델 ID. ★종전 기본값 `gemini-2.0-flash` 는 **폐기돼 404** 를 낸다 "
+            "(2026-08-28 실측 — `generateContent` 지원 39종 목록에 부재). "
+            "실측 확인된 대안: `gemini-3.7-flash`(기본) · `gemini-3.6-flash` · "
+            "`gemini-3.5-flash` · `gemini-3.5-flash-lite`(5/5 성공 · 평균 1.11초). "
+            "★기본값 3.7 은 2026-08-28 시점 **503 high demand 로 0/10** 이었다 — "
+            "`_call_gemini` 에는 tenacity 재시도가 없어(anthropic 에만 있다) 그대로 올라오고, "
+            "`complete_json` 이 다음 provider 로 넘긴다. 그 사이 확실히 도는 값이 필요하면 "
+            "`GEMINI_MODEL` 로 갈아라 — 서버는 `gemini-3.5-flash-lite` 로 뒀다."
+        ),
     )
     openai_api_key: SecretStr | None = Field(
         default=None,
@@ -384,10 +393,14 @@ class Settings(BaseSettings):
     #   키를 가진 provider 가 환경마다 다르다(2026-08-28 실측: 로컬은 openai 만 유효).
     #   쉼표 목록이며 **앞에서부터 시도**한다. 키가 없는 provider 는 조용히 건너뛴다.
     llm_provider_order: str = Field(
-        default="anthropic,openai,gemini",
+        default="openai,gemini",
         description=(
             "LLM provider 시도 순서(쉼표 구분). 유효 값: anthropic · openai · gemini. "
-            "하나만 적으면 그 provider 만 쓴다(fallback 없음)."
+            "하나만 적으면 그 provider 만 쓴다(fallback 없음). "
+            "★기본에서 **anthropic 은 뺐다**(2026-08-28 사용자 결정) — 어댑터는 그대로 있으니 "
+            "키를 넣고 이 목록에 이름을 되돌리면 다시 돈다. "
+            "★무효한 키를 목록에 남기지 마라: `available_providers` 는 **키 존재만** 보므로 "
+            "매 호출이 그 provider 를 시도하고 실패한 뒤에야 다음으로 넘어간다."
         ),
     )
 

@@ -73,14 +73,24 @@ class NarrativeService:
         self._settings = settings
 
     def explain(
-        self, *, source: str, facts: dict[str, Any], source_hash: str
+        self,
+        *,
+        source: str,
+        facts: dict[str, Any],
+        source_hash: str,
+        settings_override: Settings | None = None,
     ) -> StrategyNarrativeResponse:
+        """★`settings_override` 는 **요청이 고른 provider/model** 이다.
+
+        검증은 라우터가 `catalog.resolve_override` 로 이미 했다 — 여기서 다시 하지 않는다.
+        규칙이 두 곳에 살면 갈린다.
+        """
         user = USER_TEMPLATE.format(
             facts=json.dumps(facts, ensure_ascii=False, indent=2),
             numbered_source=number_source(source),
         )
         raw, provider = complete_json(
-            self._settings,
+            settings_override or self._settings,
             system=SYSTEM_PROMPT,
             user=user,
             schema=_OUTPUT_SCHEMA,

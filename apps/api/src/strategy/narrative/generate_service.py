@@ -18,6 +18,7 @@ import re
 from typing import Any
 
 from src.core.config import Settings
+from src.strategy.narrative.catalog import resolve_override
 from src.strategy.narrative.generate_prompt import SYSTEM_PROMPT, USER_TEMPLATE
 from src.strategy.narrative.providers import complete_json
 from src.strategy.narrative.schemas import (
@@ -124,8 +125,9 @@ class GenerateService:
 
     def generate(self, req: GenerateStrategyRequest) -> GenerateStrategyResponse:
         user = USER_TEMPLATE.format(prompt=req.prompt, symbol=req.symbol, timeframe=req.timeframe)
+        effective = resolve_override(self._settings, provider=req.provider, model=req.model)
         raw, provider = complete_json(
-            self._settings,
+            effective,
             system=SYSTEM_PROMPT,
             user=user,
             schema=_OUTPUT_SCHEMA,

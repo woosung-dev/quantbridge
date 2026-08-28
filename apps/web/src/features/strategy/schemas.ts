@@ -156,6 +156,40 @@ export const StrategyNarrativeSchema = z.object({
 });
 export type StrategyNarrative = z.infer<typeof StrategyNarrativeSchema>;
 
+// ★provider 목록 API 가 **실제로 준 것만** 담는다. provider 마다 주는 필드가 달라서
+//   (OpenAI 는 shutdown_date, Gemini 는 표시명·토큰 상한) 없는 쪽은 null 이고 화면은 그 자리를 비운다.
+//   `_KIT.md` §4.9 — 서버가 안 주는 필드를 그리면 가짜 데이터다.
+export const LlmModelItemSchema = z.object({
+  id: z.string(),
+  display_name: z.string().nullable().default(null),
+  shutdown_date: z.string().nullable().default(null),
+  input_token_limit: z.number().int().nullable().default(null),
+  output_token_limit: z.number().int().nullable().default(null),
+});
+
+export const LlmProviderModelsSchema = z.object({
+  provider: z.string(),
+  models: z.array(LlmModelItemSchema),
+  total_seen: z.number().int(),
+  configured: z.string().nullable().default(null),
+  // ★3값이다. null 은 "없다"가 아니라 **"목록을 못 읽어 모른다"** 이고 화면이 그렇게 말해야 한다.
+  configured_listed: z.boolean().nullable().default(null),
+  error: z.string().nullable().default(null),
+});
+
+export const LlmModelsSchema = z.object({
+  providers: z.array(LlmProviderModelsSchema),
+  order: z.array(z.string()),
+  active: z.string().nullable().default(null),
+});
+
+export type LlmModelItem = z.infer<typeof LlmModelItemSchema>;
+export type LlmProviderModels = z.infer<typeof LlmProviderModelsSchema>;
+export type LlmModels = z.infer<typeof LlmModelsSchema>;
+
+/** 화면이 고른 모델. 둘 다 있거나 둘 다 없다 — 서버 계약과 같다. */
+export type ModelChoice = { provider: string; model: string } | null;
+
 // ── [ADR-041] 자연어 → 전략 생성 ─────────────────────────────────────────────
 // ★**Pine 이 정본이다.** Python 은 사람이 읽는 뷰이고, 둘이 어긋나는 것을 **막을 수단이 없다** —
 //   설계는 제거 대신 **가시화**한다([ADR-041] §트레이드오프).

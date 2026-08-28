@@ -29,6 +29,7 @@ import {
   getStrategy,
   getStrategyBrief,
   generateStrategy,
+  getLlmModels,
   getStrategyNarrative,
   listStrategies,
   parseStrategy,
@@ -40,6 +41,8 @@ import { strategyKeys } from "./query-keys";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
+  LlmModels,
+  ModelChoice,
   StrategyBrief,
   GenerateStrategyResponse,
   StrategyNarrative,
@@ -126,11 +129,29 @@ export function useGenerateStrategy(): UseMutationResult<
   });
 }
 
-function makeNarrativeFetcher(id: string, getToken: TokenGetter) {
+function makeNarrativeFetcher(id: string, getToken: TokenGetter, choice: ModelChoice) {
   return async () => {
     const token = await getToken();
-    return getStrategyNarrative(id, token);
+    return getStrategyNarrative(id, token, choice);
   };
+}
+
+/**
+ * provider 별 **살아 있는** 모델 목록.
+ *
+ * ★`staleTime` 을 길게 둔다 — 서버가 이미 프로세스 안 TTL 캐시를 갖고 있고, 이 목록은
+ *   화면을 열 때마다 다시 물을 값이 아니다.
+ * ★`retry: 0` — provider 목록 API 가 죽었다고 해설 화면 전체를 재시도로 붙잡지 않는다.
+ */
+export function useLlmModels(enabled: boolean): UseQueryResult<LlmModels, Error> {
+  const { uid, getToken } = useAuthCtx();
+  return useQuery({
+    queryKey: strategyKeys.llmModels(uid),
+    queryFn: async () => getLlmModels(await getToken()),
+    enabled,
+    retry: 0,
+    staleTime: 10 * 60 * 1000,
+  });
 }
 
 /**
@@ -142,11 +163,12 @@ function makeNarrativeFetcher(id: string, getToken: TokenGetter) {
 export function useStrategyNarrative(
   id: string | undefined,
   enabled: boolean,
+  choice: ModelChoice = null,
 ): UseQueryResult<StrategyNarrative, Error> {
   const { uid, getToken } = useAuthCtx();
   return useQuery({
-    queryKey: id ? strategyKeys.narrative(uid, id) : strategyKeys.all(uid),
-    queryFn: makeNarrativeFetcher(id ?? "", getToken),
+    queryKey: id ? strategyKeys.narrative(uid, id, choice) : strategyKeys.all(uid),
+    queryFn: makeNarrativeFetcher(id ?? "", getToken, choice),
     enabled: Boolean(id) && enabled,
     retry: 0,
     staleTime: Number.POSITIVE_INFINITY,

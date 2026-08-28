@@ -19,6 +19,7 @@ from src.core.config import settings
 from src.strategy.dependencies import get_strategy_service
 from src.strategy.exceptions import StrategyNotFoundError
 from src.strategy.models import ParseStatus
+from src.strategy.narrative.catalog import ModelNotAvailableError, resolve_override
 from src.strategy.narrative.dependencies import get_generate_service
 from src.strategy.narrative.generate_service import GenerateService
 from src.strategy.narrative.schemas import (
@@ -174,12 +175,30 @@ async def get_strategy_brief(
 async def get_strategy_brief_narrative(
     request: Request,
     strategy_id: UUID = Path(...),
+    provider: str | None = Query(default=None, max_length=32),
+    model: str | None = Query(default=None, max_length=128),
     current_user: CurrentUser = Depends(get_current_user),
     service: StrategyService = Depends(get_strategy_service),
 ) -> StrategyNarrativeResponse:
-    """[ADR-040] 해설 층 — **판정하지 않는다.** 실패해도 `/brief` 로 화면이 완결된다."""
+    """[ADR-040] 해설 층 — **판정하지 않는다.** 실패해도 `/brief` 로 화면이 완결된다.
+
+    ★`provider`+`model` 은 **함께** 주는 선택 파라미터다(`GET /api/v1/llm/models` 의 목록에서 고른다).
+      안 주면 `LLM_PROVIDER_ORDER` 가 정한 기본이 돈다.
+    ★검증은 **왕복 전에** 한다 — 폐기·오타 모델을 그대로 보내면 404 가 503 으로 둔갑해 원인이 지워진다.
+    """
     try:
-        return await service.brief_narrative(strategy_id=strategy_id, owner_id=current_user.id)
+        effective = await asyncio.to_thread(
+            resolve_override, settings, provider=provider, model=model
+        )
+    except ModelNotAvailableError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "llm_model_not_available", "detail": str(exc)},
+        ) from exc
+    try:
+        return await service.brief_narrative(
+            strategy_id=strategy_id, owner_id=current_user.id, settings_override=effective
+        )
     except StrategyNotFoundError:
         raise
     except RuntimeError as exc:

@@ -16,15 +16,20 @@ import { useStrategyNarrative } from "@/features/strategy/hooks";
 import {
   LLM_PROVIDER_LABEL,
   NARRATIVE_STYLE_LABEL,
+  type ModelChoice,
   type NarrativeNote,
 } from "@/features/strategy/schemas";
+import { ModelPicker } from "./model-picker";
 import { CHIP_TONE_CLASS } from "@/lib/labels";
 import { describeApiError } from "@/lib/api-client";
 import { errorIdOf } from "@/features/strategy/error-id";
 
 export function NarrativePanel({ strategyId }: { strategyId: string }) {
   const [asked, setAsked] = useState(false);
-  const query = useStrategyNarrative(strategyId, asked);
+  // ★고른 모델은 **query key 에 들어간다**(strategyKeys.narrative). 안 들어가면 모델을
+  //   바꿔도 직전 모델의 답이 캐시에서 그대로 나온다 — 서버에 해설 캐시가 없으므로 이 키가 전부다.
+  const [choice, setChoice] = useState<ModelChoice>(null);
+  const query = useStrategyNarrative(strategyId, asked, choice);
   const data = query.data ?? null;
 
   // ★버튼을 **모든 상태에서 계속 마운트**한다. 조기 반환으로 블록을 갈아치우면 누른 순간
@@ -41,6 +46,9 @@ export function NarrativePanel({ strategyId }: { strategyId: string }) {
       >
         {asked ? "AI 해설 접기" : "AI 해설 보기"}
       </button>
+
+      {/* ★목록은 **열었을 때만** 부른다 — 접힐 카드에서 provider 3곳을 왕복할 이유가 없다. */}
+      <ModelPicker enabled={asked} value={choice} onChange={setChoice} />
 
       {/* ★도착·실패를 스크린리더에 알린다. `aria-busy` 는 라이브 리전이 아니라 억제 속성이다. */}
       <p className="sr-only" role="status">

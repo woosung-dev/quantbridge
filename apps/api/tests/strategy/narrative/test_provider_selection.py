@@ -38,7 +38,7 @@ def settings(order: str, **keys: str | None) -> Any:
         gemini_api_key=SecretStr(keys["gemini"]) if keys.get("gemini") else None,
         anthropic_model="claude-sonnet-4-6",
         openai_model="gpt-4.1-mini",
-        gemini_model="gemini-2.0-flash",
+        gemini_model="gemini-3.7-flash",
     )
 
 
@@ -229,3 +229,22 @@ def test_anthropic_without_tool_block_is_a_failure(monkeypatch):
     stub_anthropic(monkeypatch, cap, tool=False)
     with pytest.raises(RuntimeError):
         call(settings("anthropic", anthropic="k"))
+
+
+# ── ⑸ 기본 순서에서 anthropic 을 뺐다 (2026-08-28 사용자 결정) ────────────────
+def test_default_provider_order_excludes_anthropic() -> None:
+    """★`Settings()` 를 만들지 않고 **Field 기본값**을 직접 읽는다.
+
+    인스턴스를 만들면 그 결과가 `.env`·환경변수에 따라 달라져 **주변 환경이 판정을 정한다**
+    (같은 병으로 이 회차에 CI 가 한 번 빨갛게 됐다). 재려는 것은 「레포가 선언한 기본」이다.
+    ★anthropic 어댑터를 지운 것이 아니다 — `KNOWN_PROVIDERS` 에는 그대로 있고, 키를 넣고
+      이 목록에 이름을 되돌리면 다시 돈다. 그 경로는 아래 두 단언이 지킨다.
+    """
+    from src.core.config import Settings
+
+    default = Settings.model_fields["llm_provider_order"].default
+    assert default == "openai,gemini"
+    assert "anthropic" not in default
+    # 능력은 남아 있다 — 목록에 되돌리면 순서가 그대로 산다.
+    assert "anthropic" in P.KNOWN_PROVIDERS
+    assert P.provider_order(settings("anthropic,openai")) == ["anthropic", "openai"]

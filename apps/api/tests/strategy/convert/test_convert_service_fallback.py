@@ -18,8 +18,8 @@ from src.strategy.convert.service import ConvertService
 _SOURCE_CODE = '//@version=5\nindicator("Source")\nplot(close)'
 _CONVERTED_CODE = '//@version=5\nstrategy("Converted")\nstrategy.entry("Long", strategy.long)'
 _LEAK_MARKERS = (
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash",
-    "model=gemini-2.0-flash",
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash",
+    "model=gemini-3.7-flash",
     "request_id=req_0xDEADBEEF",
 )
 
