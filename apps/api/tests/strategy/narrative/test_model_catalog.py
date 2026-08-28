@@ -315,3 +315,52 @@ def test_unreadable_list_lets_the_override_through(monkeypatch):
     fake_fetchers(monkeypatch, gemini=RuntimeError("list api down"))
     out = C.resolve_override(settings(), provider="gemini", model="gemini-3.6-flash")
     assert out.gemini_model == "gemini-3.6-flash"
+
+
+# ── HTTP 계약 ───────────────────────────────────────────────────────────────
+# ★왜 이 절이 있나 — 위의 단위 테스트 29건이 전부 초록인 채로 엔드포인트가 **모든 요청에 500**
+#   을 냈다. `@limiter.limit` 는 헤더를 넣을 `response: Response` 를 시그니처에서 찾는데 그것이
+#   없었고(slowapi `_inject_headers`), `catalog()` 만 재는 테스트는 그 층을 지나지 않는다.
+#   ⇒ **라우터가 얇다는 것은 안 재도 된다는 뜻이 아니다.**
+def _client(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from src.auth.dependencies import get_current_user
+    from src.auth.schemas import CurrentUser
+    from src.main import create_app
+
+    fake_fetchers(
+        monkeypatch,
+        openai=([C.ModelInfo(id="gpt-4.1-mini")], 1),
+        gemini=([C.ModelInfo(id="gemini-3.5-flash-lite", display_name="Flash Lite")], 1),
+        anthropic=RuntimeError("no key"),
+    )
+    app = create_app()
+    return app, TestClient(app), get_current_user, CurrentUser
+
+
+def test_models_endpoint_requires_auth(monkeypatch):
+    _app, client, _dep, _cu = _client(monkeypatch)
+    assert client.get("/api/v1/llm/models").status_code == 401
+
+
+def test_models_endpoint_returns_200_and_the_documented_shape(monkeypatch):
+    """★이 단언이 `response: Response` 누락(전건 500)을 잡는다."""
+    from uuid import uuid4
+
+    app, client, dep, CurrentUserCls = _client(monkeypatch)
+    app.dependency_overrides[dep] = lambda: CurrentUserCls(id=uuid4(), auth_subject="t")
+    try:
+        r = client.get("/api/v1/llm/models")
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert set(body) == {"providers", "order", "active"}
+        by = {p["provider"]: p for p in body["providers"]}
+        assert set(by) == set(C.KNOWN_PROVIDERS), "provider 하나가 죽어도 전부 실려야 한다"
+        assert by["anthropic"]["error"] == "RuntimeError"
+        assert by["anthropic"]["configured_listed"] is None
+        assert by["gemini"]["models"][0]["display_name"] == "Flash Lite"
+        # provider 가 안 준 필드는 **없는 게 아니라 null** 이다(`_KIT.md` §4.9 — 화면이 자리를 비운다).
+        assert by["openai"]["models"][0]["display_name"] is None
+    finally:
+        app.dependency_overrides.clear()
