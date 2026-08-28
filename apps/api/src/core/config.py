@@ -393,10 +393,14 @@ class Settings(BaseSettings):
     #   키를 가진 provider 가 환경마다 다르다(2026-08-28 실측: 로컬은 openai 만 유효).
     #   쉼표 목록이며 **앞에서부터 시도**한다. 키가 없는 provider 는 조용히 건너뛴다.
     llm_provider_order: str = Field(
-        default="anthropic,openai,gemini",
+        default="openai,gemini",
         description=(
             "LLM provider 시도 순서(쉼표 구분). 유효 값: anthropic · openai · gemini. "
-            "하나만 적으면 그 provider 만 쓴다(fallback 없음)."
+            "하나만 적으면 그 provider 만 쓴다(fallback 없음). "
+            "★기본에서 **anthropic 은 뺐다**(2026-08-28 사용자 결정) — 어댑터는 그대로 있으니 "
+            "키를 넣고 이 목록에 이름을 되돌리면 다시 돈다. "
+            "★무효한 키를 목록에 남기지 마라: `available_providers` 는 **키 존재만** 보므로 "
+            "매 호출이 그 provider 를 시도하고 실패한 뒤에야 다음으로 넘어간다."
         ),
     )
 
