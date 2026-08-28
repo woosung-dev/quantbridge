@@ -27,6 +27,9 @@ import {
   createStrategy,
   deleteStrategy,
   getStrategy,
+  getStrategyBrief,
+  generateStrategy,
+  getStrategyNarrative,
   listStrategies,
   parseStrategy,
   rotateWebhookSecret,
@@ -37,6 +40,9 @@ import { strategyKeys } from "./query-keys";
 import type {
   CreateStrategyRequest,
   ParsePreviewResponse,
+  StrategyBrief,
+  GenerateStrategyResponse,
+  StrategyNarrative,
   StrategyCreateResponse,
   StrategyListQuery,
   StrategyListResponse,
@@ -97,6 +103,76 @@ export function useStrategy(id: string | undefined): UseQueryResult<StrategyResp
     queryKey: id ? strategyKeys.detail(uid, id) : strategyKeys.details(uid),
     queryFn: makeDetailFetcher(id ?? "", getToken),
     enabled: Boolean(id),
+  });
+}
+
+/**
+ * [ADR-041] 자연어 → 전략 생성. ★**저장하지 않는다** — 산출물만 돌려준다.
+ *
+ * 사용자가 검토한 뒤 기존 생성 흐름으로 저장한다(`convert` 선례). 검토 없이 저장되는 경로를
+ * 만들지 않는 것이 이 설계의 핵심이다 — Pine/Python 드리프트를 **막을 수 없기** 때문이다.
+ */
+export function useGenerateStrategy(): UseMutationResult<
+  GenerateStrategyResponse,
+  Error,
+  { prompt: string; symbol: string; timeframe: string }
+> {
+  const { getToken } = useAuthCtx();
+  return useMutation({
+    mutationFn: async (body) => {
+      const token = await getToken();
+      return generateStrategy(body, token);
+    },
+  });
+}
+
+function makeNarrativeFetcher(id: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getStrategyNarrative(id, token);
+  };
+}
+
+/**
+ * [ADR-040] 해설 층 — **판정이 아니다.**
+ *
+ * ★`enabled` 로 **사용자가 열 때만** 부른다. LLM 왕복이라 느리고 돈이 들며, 결정론 브리핑은
+ * 이미 화면을 완결시켜 두었다. 실패해도 브리핑은 그대로 산다(별 쿼리 키).
+ */
+export function useStrategyNarrative(
+  id: string | undefined,
+  enabled: boolean,
+): UseQueryResult<StrategyNarrative, Error> {
+  const { uid, getToken } = useAuthCtx();
+  return useQuery({
+    queryKey: id ? strategyKeys.narrative(uid, id) : strategyKeys.all(uid),
+    queryFn: makeNarrativeFetcher(id ?? "", getToken),
+    enabled: Boolean(id) && enabled,
+    retry: 0,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+}
+
+function makeBriefFetcher(id: string, getToken: TokenGetter) {
+  return async () => {
+    const token = await getToken();
+    return getStrategyBrief(id, token);
+  };
+}
+
+/**
+ * [ADR-040] 전략 브리핑 — 백테스트 제출 **전에** 보는 결정론 응답.
+ *
+ * ★서버가 Pine 을 파싱하므로 콜드 파스가 붙을 수 있다(큰 스크립트는 수십 초). 편집 중
+ * 재파싱하는 `usePreviewParse` 와 달리 **전략 id 단위**라 소스가 안 바뀌면 다시 안 부른다.
+ */
+export function useStrategyBrief(id: string | undefined): UseQueryResult<StrategyBrief, Error> {
+  const { uid, getToken } = useAuthCtx();
+  return useQuery({
+    queryKey: id ? strategyKeys.brief(uid, id) : strategyKeys.all(uid),
+    queryFn: makeBriefFetcher(id ?? "", getToken),
+    enabled: Boolean(id),
+    retry: 1,
   });
 }
 

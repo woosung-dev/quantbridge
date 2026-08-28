@@ -3,8 +3,8 @@
 // 저장 전 정적 진단 띠 — C 디자인 언어 이식 (screen-08 §02). 진짜 탭 3종(파싱/파라미터/지표).
 // §3-6: role="tablist" + role="tabpanel" 이 적법한 17벌 중 유일한 화면이라 진짜 <Tabs> 를 쓴다.
 // 데이터는 편집 버퍼(edit-store) pineSource 를 debounce 후 usePreviewParse 로 재파싱한 결과다.
-// 파라미터 표는 스키마에 파라미터 필드가 0건이라 미렌더한다(§4.9). 함수 호출 횟수·파싱 소요·
-// 사전 버전도 응답에 없어 미렌더한다. 지원 여부·감지 함수·시그널 수만 실데이터로 그린다.
+// 파라미터 표는 [ADR-040] Stage 1 에서 `ParsePreviewResponse.inputs` 가 열리며 실데이터가 됐다.
+// 함수 호출 횟수·파싱 소요·사전 버전은 여전히 응답에 없어 미렌더한다(§4.9). 없는 필드는 그리지 않는다.
 
 import { useState } from "react";
 import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
@@ -12,15 +12,18 @@ import { AlertTriangleIcon, RefreshCwIcon } from "lucide-react";
 import { selectPineSource, useEditStore } from "@/features/strategy/edit-store";
 import { usePreviewParse } from "@/features/strategy/hooks";
 import { PARSE_STATUS_LABEL, UNSUPPORTED_POLICY_NOTE } from "@/features/strategy/labels";
-import type { StrategyResponse } from "@/features/strategy/schemas";
+import { type InputDecl, isSweepable, type StrategyResponse } from "@/features/strategy/schemas";
 import { useDebouncedValue } from "@/features/strategy/utils";
+import { StrategyBriefPanel } from "@/features/strategy/components/brief/strategy-brief";
 import { StateBox } from "@/components/state-box";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
-type DiagTab = "parse" | "param" | "indicator";
+type DiagTab = "brief" | "parse" | "param" | "indicator";
 const PARSE_ENDPOINT_TEMPLATE = "POST /api/v1/strategies/parse";
 
 const TABS: ReadonlyArray<{ id: DiagTab; label: string }> = [
+  // [ADR-040] 브리핑이 첫 탭이다 — 「무엇을 하는 전략인가」가 「문법이 맞나」보다 먼저다.
+  { id: "brief", label: "브리핑" },
   { id: "parse", label: "파싱" },
   { id: "param", label: "파라미터" },
   { id: "indicator", label: "지표" },
@@ -31,7 +34,7 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
   const debounced = useDebouncedValue(pineSource, 500);
   const preview = usePreviewParse(debounced);
   const live = preview.data ?? null;
-  const [tab, setTab] = useState<DiagTab>("parse");
+  const [tab, setTab] = useState<DiagTab>("brief");
 
   const status = live?.status ?? strategy.parse_status;
   const supportedCount = live?.functions_used.length ?? 0;
@@ -82,6 +85,21 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* [ADR-040] 브리핑 탭 — 결정론 층 전용. LLM 이 만든 값은 하나도 없다. */}
+      <div
+        className="strip-body"
+        id="diag-panel-brief"
+        // ★WAI-ARIA APG(Tabs) — 포커스 가능한 요소가 없는 tabpanel 은 tabindex=0 이어야 키보드로
+        //   도달·스크롤할 수 있다(위 두 패널과 같은 근거).
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: 위 근거 — 규칙이 아니라 이 자리가 옳다.
+        tabIndex={0}
+        role="tabpanel"
+        aria-labelledby="diag-tab-brief"
+        hidden={tab !== "brief"}
+      >
+        <StrategyBriefPanel strategyId={strategy.id} />
       </div>
 
       {/* (a) 파싱 탭 */}
@@ -166,7 +184,7 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         )}
       </div>
 
-      {/* (b) 파라미터 탭 — 스키마에 파라미터 필드가 0건이라 표를 렌더하지 않는다(§4.9). */}
+      {/* (b) 파라미터 탭 — `inputs` 실데이터([ADR-040] Stage 1). */}
       <div
         className="strip-body"
         id="diag-panel-param"
@@ -179,11 +197,38 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         aria-labelledby="diag-tab-param"
         hidden={tab !== "param"}
       >
-        <StateBox
-          testId="diag-param-empty"
-          title="추출된 파라미터 표는 표시하지 않습니다."
-          body="서버 파싱 응답에 파라미터 목록(이름·타입·현재값·범위) 필드가 없어 이 표는 렌더하지 않습니다. 소스의 input 선언은 위 편집기에서 확인하세요."
-        />
+        {preview.isError ? (
+          // ★실패를 「없음」으로 숨기면 사용자는 자기 전략에 input 이 정말 없는 줄 알고
+          //   최적화를 포기한다. `usePreviewParse` 는 retry 가 없어 한 번 실패가 그대로 남는다.
+          <StateBox
+            testId="diag-param-error"
+            tone="failed"
+            title="파라미터를 확인하지 못했습니다."
+            body="파싱 요청이 실패했습니다. 파라미터가 없는 것이 아니라 확인하지 못한 것입니다."
+          >
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => preview.refetch()}
+            >
+              다시 시도
+            </button>
+          </StateBox>
+        ) : !live ? (
+          <StateBox
+            testId="diag-param-empty"
+            title="아직 파싱된 파라미터가 없습니다."
+            body="소스를 파싱하면 input 선언 목록이 여기에 표시됩니다."
+          />
+        ) : live.inputs.length === 0 ? (
+          <StateBox
+            testId="diag-param-none"
+            title="input 선언이 없습니다."
+            body="이 전략은 조절할 파라미터를 선언하지 않았습니다. 최적화·파라미터 안정성 분석의 대상이 아닙니다."
+          />
+        ) : (
+          <ParameterTable inputs={live.inputs} />
+        )}
       </div>
 
       {/* (c) 지표 탭 */}
@@ -257,6 +302,59 @@ export function DiagnosticsStrip({ strategy }: { strategy: StrategyResponse }) {
         )}
       </div>
     </div>
+  );
+}
+
+function ParameterTable({ inputs }: { inputs: readonly InputDecl[] }) {
+  const sweepable = inputs.filter(isSweepable).length;
+
+  return (
+    <>
+      <div className="table-wrap">
+        <table className="trades" aria-label={`파라미터 ${inputs.length}개`}>
+          <thead>
+            <tr>
+              <th scope="col">이름</th>
+              <th scope="col">설명</th>
+              <th scope="col">타입</th>
+              <th scope="col" className="num">
+                기본값
+              </th>
+              <th scope="col">스윕</th>
+            </tr>
+          </thead>
+          <tbody>
+            {inputs.map((p) => (
+              <tr key={p.var_name}>
+                {/* ★var_name 을 가공하지 마라 — 이것이 최적화가 쓰는 override 키다. */}
+                <td className="mono">{p.var_name}</td>
+                <td>{p.title ?? <span className="empty">{EMPTY_CELL}</span>}</td>
+                <td className="mono">{p.input_type}</td>
+                <td className="num mono">
+                  {p.defval ?? <span className="empty">{EMPTY_CELL}</span>}
+                </td>
+                <td>
+                  {isSweepable(p) ? (
+                    <span className={CHIP_TONE_CLASS.done}>가능</span>
+                  ) : (
+                    <span
+                      className={CHIP_TONE_CLASS.warn}
+                      title={`최적화는 input.int / input.float 만 스윕합니다. 이 항목은 ${p.input_type} 입니다.`}
+                    >
+                      불가
+                    </span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="strip-note">
+        {`${inputs.length}개 중 ${sweepable}개를 최적화·파라미터 안정성 분석에서 스윕할 수 있습니다. `}
+        나머지는 백테스트에서 기본값으로 실행됩니다.
+      </p>
+    </>
   );
 }
 

@@ -31,6 +31,34 @@ export const UnsupportedCallSchema = z.object({
 });
 export type UnsupportedCall = z.infer<typeof UnsupportedCallSchema>;
 
+// [ADR-040] Stage 1 — BE `InputDeclResponse` / `DeclarationResponse`.
+// ★`var_name` 은 표시용 라벨이 아니라 **override 키**다 — Optimizer / Param-Stability 가
+//   이 이름으로 파라미터를 스윕한다. 표에서 이름을 가공하지 마라.
+export const InputDeclSchema = z.object({
+  input_type: z.string(),
+  var_name: z.string(),
+  defval: z.string().nullable().default(null),
+  title: z.string().nullable().default(null),
+});
+export type InputDecl = z.infer<typeof InputDeclSchema>;
+
+export const DeclarationSchema = z.object({
+  kind: z.enum(["strategy", "indicator", "library", "unknown"]),
+  title: z.string().nullable().default(null),
+  default_qty_type: z.string().nullable().default(null),
+  default_qty_value: z.string().nullable().default(null),
+  pyramiding: z.number().int().nullable().default(null),
+});
+export type Declaration = z.infer<typeof DeclarationSchema>;
+
+// ★Optimizer 가 스윕할 수 있는 input_type 은 둘뿐이다 — BE `_validate_grid_search_pre`
+//   (`optimizer/engine/grid_search.py`) 가 `int`/`float` 외를 422 로 거부한다(BL-225).
+//   v4 무네임스페이스 `input(...)` 은 `generic` 이라 여기 안 든다.
+export const SWEEPABLE_INPUT_TYPES = ["int", "float"] as const;
+export function isSweepable(input: InputDecl): boolean {
+  return (SWEEPABLE_INPUT_TYPES as readonly string[]).includes(input.input_type);
+}
+
 export const ParsePreviewResponseSchema = z.object({
   status: ParseStatusSchema,
   pine_version: PineVersionSchema,
@@ -44,9 +72,109 @@ export const ParsePreviewResponseSchema = z.object({
   unsupported_builtins: z.array(z.string()).default([]),
   // BE UnsupportedCallResponse의 코드 위치와 우회안. 배열이 없던 구 응답도 허용한다.
   unsupported_calls: z.array(UnsupportedCallSchema).default([]),
+  // ★BE 는 이 필드를 보내는데(`coverage.dogfood_only_warning`) FE 스키마가 빠뜨려 버리고
+  //   있었다 — heikinashi 등 Trust Layer 위반 경고라 브리핑이 반드시 보여야 한다.
+  dogfood_only_warning: z.string().nullable().default(null),
   is_runnable: z.boolean().default(true),
+  // [ADR-040] Stage 1 — 파싱 실패 시 BE 가 null/[] 를 보낸다. 구 응답도 통과해야 한다.
+  declaration: DeclarationSchema.nullable().default(null),
+  inputs: z.array(InputDeclSchema).default([]),
 });
 export type ParsePreviewResponse = z.infer<typeof ParsePreviewResponseSchema>;
+
+// ── [ADR-040] 전략 브리핑 (결정론 층) ────────────────────────────────────────
+// ★이 응답에 LLM 이 만든 값은 하나도 없다. 해설 층은 별 엔드포인트다.
+export const BriefArgSchema = z.object({
+  name: z.string().nullable().default(null),
+  value: z.string(),
+});
+
+export const BriefOrderCallSchema = z.object({
+  name: z.string(),
+  line: z.number().int().nullable().default(null),
+  args: z.array(BriefArgSchema).default([]),
+});
+export type BriefOrderCall = z.infer<typeof BriefOrderCallSchema>;
+
+// [ADR-042] Pine AST 를 옮긴 **읽기 전용** Python 뷰. ★실행되는 코드가 아니다.
+export const PythonViewSchema = z.object({
+  code: z.string(),
+  // `[python 줄, pine 줄]` 1-based. 대응을 모르는 줄은 등장하지 않는다 — 지어내지 않는다.
+  source_map: z.array(z.tuple([z.number().int(), z.number().int()])).default([]),
+  // 못 옮겨 원문을 주석으로 보존한 노드 수. >0 이면 화면이 그 사실을 말해야 한다.
+  unrendered: z.number().int().default(0),
+});
+export type PythonView = z.infer<typeof PythonViewSchema>;
+
+export const StrategyBriefSchema = z.object({
+  strategy_id: z.string(),
+  source_hash: z.string().nullable().default(null),
+  track: z.enum(["S", "A", "M"]).nullable().default(null),
+  parse: ParsePreviewResponseSchema,
+  orders: z.array(BriefOrderCallSchema).default([]),
+  // ★Track S 의 `if cond` 형태에서는 **비는 것이 정상**이다 — BE `SignalExtractor` 는
+  //   `when=` · `plotshape` · `alertcondition` · `label.new(v ? ..)` 네 형태만 본다.
+  //   비었을 때 이 절을 **그리지 마라**. 「신호 없음」으로 읽히면 거짓이다(`_KIT.md` §4.9).
+  signals: z.array(z.string()).default([]),
+  python_view: PythonViewSchema.nullable().default(null),
+});
+export type StrategyBrief = z.infer<typeof StrategyBriefSchema>;
+
+// ── [ADR-040] 해설 층 (LLM) ─────────────────────────────────────────────────
+// ★★**판정이 아니다.** 실행 가능/미지원/degraded/Track 은 결정론 층이 낸다.
+//   화면은 이 층을 **시각적으로 격리**하고 「AI 해설 — 판정이 아닙니다」를 붙인다.
+export const NarrativeNoteSchema = z.object({
+  text: z.string(),
+  // ★서버가 실재하지 않는 줄을 이미 버렸다. 그래도 비면 렌더하지 않는다(두 겹).
+  pine_lines: z.array(z.number().int()).default([]),
+});
+export type NarrativeNote = z.infer<typeof NarrativeNoteSchema>;
+
+export const NARRATIVE_STYLE_LABEL: Record<string, string> = {
+  trend_following: "추세추종",
+  mean_reversion: "평균회귀",
+  breakout: "브레이크아웃",
+  volatility: "변동성",
+  other: "기타",
+};
+
+export const StrategyNarrativeSchema = z.object({
+  source_hash: z.string(),
+  provider: z.enum(["anthropic", "gemini"]),
+  summary: z.string(),
+  style: z.enum(["trend_following", "mean_reversion", "breakout", "volatility", "other"]),
+  assumptions: z.array(NarrativeNoteSchema).default([]),
+  risks: z.array(NarrativeNoteSchema).default([]),
+  dropped_ungrounded: z.number().int().default(0),
+});
+export type StrategyNarrative = z.infer<typeof StrategyNarrativeSchema>;
+
+// ── [ADR-041] 자연어 → 전략 생성 ─────────────────────────────────────────────
+// ★**Pine 이 정본이다.** Python 은 사람이 읽는 뷰이고, 둘이 어긋나는 것을 **막을 수단이 없다** —
+//   설계는 제거 대신 **가시화**한다([ADR-041] §트레이드오프).
+export const DriftReportSchema = z.object({
+  // 렌더러가 Pine 에서 뽑은 **정본** Python. 어긋나면 이쪽이 진실이다.
+  rendered_python: z.string(),
+  only_in_llm: z.array(z.string()).default([]),
+  only_in_rendered: z.array(z.string()).default([]),
+});
+export type DriftReport = z.infer<typeof DriftReportSchema>;
+
+export const GenerateStrategyResponseSchema = z.object({
+  provider: z.enum(["anthropic", "gemini"]),
+  pine_source: z.string(),
+  llm_python: z.string(),
+  notes: z.array(z.string()).default([]),
+  // ★판정은 LLM 이 아니라 `analyze_coverage` 가 낸다.
+  is_runnable: z.boolean(),
+  unsupported: z.array(z.string()).default([]),
+  drift: DriftReportSchema.nullable().default(null),
+});
+export type GenerateStrategyResponse = z.infer<typeof GenerateStrategyResponseSchema>;
+
+export function hasDrift(d: DriftReport | null): boolean {
+  return d !== null && (d.only_in_llm.length > 0 || d.only_in_rendered.length > 0);
+}
 
 export const TradingSessionSchema = z.enum(["asia", "london", "ny"]);
 export type TradingSession = z.infer<typeof TradingSessionSchema>;

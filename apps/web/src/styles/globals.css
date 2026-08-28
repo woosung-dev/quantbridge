@@ -4017,3 +4017,72 @@ a.chip:focus-visible {
 @media (min-width: 769px) and (max-width: 1024px) {
   .sidebar .qb-acct-action { display: none; }
 }
+
+/* ── [ADR-040] 전략 브리핑 ────────────────────────────────────────────────────
+   KITPORT 밖 언레이어드. 판정 칩 → 절 목록 구조이고 새 색/그림자를 만들지 않는다 —
+   전부 기존 토큰(--line, --muted, --bg-soft)을 쓴다. */
+.brief { display: flex; flex-direction: column; gap: 14px; }
+
+.brief-verdict { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.brief-section { display: flex; flex-direction: column; gap: 6px; }
+
+.brief-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.brief-list > li { padding-left: 10px; border-left: 2px solid var(--line); }
+
+/* 백테스트 폼의 접힌 카드 — 열어야 서버를 부른다(콜드 파스 비용). */
+.brief-details { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.brief-details > summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.brief-details[open] > summary { margin-bottom: 12px; }
+
+/* [ADR-042] 읽기 전용 Python 뷰 — 왼쪽 거터는 **원본 Pine 줄번호**다. */
+.python-view {
+  margin: 0;
+  padding: 10px 0;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.python-view-line { display: block; white-space: pre; }
+.python-view-gutter {
+  display: inline-block;
+  width: 44px;
+  padding-right: 10px;
+  text-align: right;
+  color: var(--ink-3);
+  user-select: none;
+}
+.python-view-code { padding-right: 12px; }
+/* ★거터가 없는 소비자(생성 결과 미리보기)는 좌측 인셋이 0 이 되어 코드가 테두리에 붙는다.
+   거터는 자기 폭으로 인셋을 만드므로 이 규칙이 그것을 중복 적용하지 않는다. */
+.python-view > code:not(:has(.python-view-gutter)) { display: block; padding: 0 12px; }
+
+/* [ADR-040] AI 해설 층 — ★결정론 층과 **시각적으로 갈라야** 한다. 판정처럼 보이면 안 된다. */
+.narrative {
+  padding: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--card-2);
+}
+
+/* [ADR-040] AI 층 전용 칩 — ★`.chip.accent`(코퍼)를 재사용하지 않는다.
+   그 토큰은 이 레포에서 「바 단위 이벤트 루프」 같은 **결정론 사실 배지**로 8곳이 쓰고 있어
+   AI 산출물에 붙이면 「시스템이 보증함」으로 읽힌다. 점선 테두리로 「확정 아님」을 말한다. */
+.chip.ai {
+  color: var(--ink-3);
+  border-style: dashed;
+  border-color: var(--line);
+  background: transparent;
+}

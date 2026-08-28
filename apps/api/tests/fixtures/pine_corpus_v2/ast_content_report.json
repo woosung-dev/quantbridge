@@ -1016,7 +1016,8 @@
             "name": "stop",
             "value": "hprice Add syminfo.mintick"
           }
-        ]
+        ],
+        "line": 13
       },
       {
         "name": "strategy.entry",
@@ -1037,7 +1038,8 @@
             "name": "stop",
             "value": "lprice Sub syminfo.mintick"
           }
-        ]
+        ],
+        "line": 20
       }
     ]
   },
@@ -1262,7 +1264,8 @@
             "name": "when",
             "value": "<BoolOp>"
           }
-        ]
+        ],
+        "line": 63
       },
       {
         "name": "strategy.entry",
@@ -1279,7 +1282,8 @@
             "name": "when",
             "value": "<BoolOp>"
           }
-        ]
+        ],
+        "line": 64
       }
     ]
   },
@@ -1596,7 +1600,8 @@
             "name": "when",
             "value": "longCondition"
           }
-        ]
+        ],
+        "line": 121
       },
       {
         "name": "strategy.close",
@@ -1613,7 +1618,8 @@
             "name": "when",
             "value": "<BoolOp>"
           }
-        ]
+        ],
+        "line": 205
       },
       {
         "name": "strategy.close",
@@ -1630,7 +1636,8 @@
             "name": "when",
             "value": "<BoolOp>"
           }
-        ]
+        ],
+        "line": 208
       }
     ]
   }

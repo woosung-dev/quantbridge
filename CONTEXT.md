@@ -32,6 +32,29 @@ create/update 시 파서가 즉시 set 하는 터미널 값으로 `ok` 또는 `e
 **Degraded Pine**:
 `heikinashi` / `request.security` / `timeframe.period` 처럼 supported 지만 TradingView 와 결과가 달라질 수 있는 호출 — backtest submit 시 `coverage.has_degraded` 이면 `allow_degraded_pine=true` 명시 동의 없이는 차단(Trust Layer, `backtest/service.py` 의 `has_degraded` 분기).
 
+**Strategy Brief**:
+백테스트 **제출 전에** 한 Strategy 가 무엇을 하는지 보여주는 화면·응답. **2층이고 층의 권한이 다르다** —
+**결정론 층**(`ast_extractor.extract_content` · `coverage.analyze_coverage` · `ast_classifier` · `SignalExtractor`)이
+판정어(실행 가능 / 미지원 / degraded / Track)를 **독점**하고, **해설 층**(LLM 산문)은 판정하지 않는 보조 설명이다.
+LLM 문장은 근거 줄(`pine_lines`)이 없으면 렌더되지 않고, LLM 이 실패해도 결정론 층으로 화면이 완결된다([ADR-040](./docs/adr/040-strategy-brief-outside-trust-layer.md)).
+★**Trust Layer 밖이다** — [ADR-020](./docs/adr/020-trust-layer-ci-design.md) §3 F 가 기각한 것은 *CI 판정 오라클로서의* LLM 이고 이것은 *사용자용 설명*이다.
+_Avoid_: 「AI 분석 결과」(판정으로 읽힌다), parse preview(별개 — 그쪽은 문법·커버리지만)
+
+**Python View**:
+Pine AST 를 읽을 수 있는 Python 으로 렌더한 **읽기 전용** 산출물(`pine_v2/py_renderer.py`) + 줄 대응표(`source_map`).
+★**실행되지 않는다.** 실행 경로가 없다는 것을 테스트가 집행한다([ADR-042](./docs/adr/042-pine-to-python-readonly-renderer.md)).
+의미 보존을 보증하지 않는 **읽기용 근사**이고 진실은 언제나 원본 Pine 이다.
+_Avoid_: transpile, Python 전략, "Python 으로 변환"(전부 실행을 함의한다)
+
+**Generated Strategy**:
+자연어 프롬프트로 LLM 이 만든 전략([ADR-041](./docs/adr/041-ai-strategy-generation.md)). LLM 이 **Pine 과 Python 을 둘 다** 내지만
+**Pine 이 정본**이고 Python 은 사람이 읽는 뷰다. `analyze_coverage` all-or-nothing 을 통과하지 못하면 저장되지 않는다.
+★**두 산출물의 드리프트는 제거되지 않고 가시화된다** — 통과한 Pine 을 **Python View** 로 렌더해 LLM 이 쓴 Python 과 대조한다.
+★★**탐지기는 식별자 집합 비교라 확정하지 못한다** — 「의미가 같은데 표현이 다름」과 「표현이 같은데 의미가 다름」을 못 가른다.
+그래서 화면은 「다릅니다」가 아니라 **「다를 수 있습니다」**로 말하고, 어긋나면 **렌더링본을 정본으로 제시**한다.
+★생성은 **저장하지 않는다** — 사용자가 검토하고 눌러야 편집기에 들어간다(검토 없는 저장 경로를 만들지 않는다).
+_Avoid_: "LLM 변환"(= 기존 전략의 **번역**이고 그것은 [ADR-011](./docs/adr/011-pine-execution-strategy-v4.md) §7 이 기각한 축이다 — 생성과 번역을 섞지 마라)
+
 ### Verification Context
 
 **Backtest**:
@@ -152,4 +175,9 @@ pine_v2 결과의 3-Layer parity 를 CI 에서 검증하는 회귀 안전망(ADR
   (numba · matplotlib · plotly · boto3 계열 포함). **numpy/pandas/scipy/scikit-learn 버전은 불변**이라
   pine_v2 수치에 영향이 없다. ★교훈: 「지표 계산 전용으로 강등」이라는 **헌법의 서술 자체가 드리프트**
   였다 — 강등 후 실제로는 import 0 건이었는데 아무도 다시 재지 않았다. **강등도 측정 대상이다.**
+- **2026-08-27** — **Strategy Context 에 용어 3종 신설** — **Strategy Brief** · **Python View** ·
+  **Generated Strategy**([ADR-040]·[ADR-041]·[ADR-042]). 셋 다 **실행 경계를 안 옮긴다** — 실행기는
+  `pine_v2` 하나 그대로이고, 새로 생긴 것은 *보여주는 층*(브리핑·Python 뷰)과 *만드는 입구*(생성)다.
+  ★같은 날 `docs/PRD.md` §4 의 「AI 전략 자동 생성 안 한다」 줄이 교체됐다 — 대신 「기존 Pine 을 Python 으로
+  번역해 실행」과 「Python 을 서버에서 실행」 둘이 명시적 비범위로 남았다.
 - **2026-08-05** — **pine_v2 정의 정밀화**([ADR-025] / [BL-595]). 「백테스트·라이브 신호의 단일 진실」은 **신호**에 대한 진술이고, 라이브의 **조건부 진입 체결** 권한은 주문 원장으로 옮겼다. 좁힌 것이 아니라 원래 그 문장이 뜻하던 경계를 코드와 맞춘 것이다 — 그동안 코드가 라이브에서도 체결을 정하고 있었고, 그것이 `position_divergence` 사망 5건의 뿌리였다. 대가는 **라이브 재현성**(원장이 재생 입력에 들어간다).

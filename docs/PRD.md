@@ -52,6 +52,8 @@ TradingView Pine Script 전략을 가져와 **같은 코드로** 백테스트 �
 | 영역 | 계약 | 상세 정본 |
 | --- | --- | --- |
 | 전략 | Pine 등록·파싱·지원 범위 판정. **미지원 항목이 하나라도 있으면 부분 실행하지 않는다** | [`domain/domain-overview.md`](./domain/domain-overview.md) · [`domain/supported-indicators.md`](./domain/supported-indicators.md) |
+| 전략 브리핑 | 백테스트 **제출 전에** 「이 전략이 무엇을 하는가」를 보여준다 — 판정어는 결정론 층(AST·coverage)이 내고 LLM 산문은 **판정하지 않는 보조 설명**이다. Python 은 **읽기 전용 뷰** | [`adr/040`](./adr/040-strategy-brief-outside-trust-layer.md) · [`adr/042`](./adr/042-pine-to-python-readonly-renderer.md) |
+| 전략 생성 | 자연어 → LLM 이 Pine+Python 산출, **Pine 이 정본**. all-or-nothing 통과 실패 시 저장 거부 | [`adr/041`](./adr/041-ai-strategy-generation.md) |
 | 백테스트 | `pine_v2` bar-by-bar 실행 결과와 리포트 | [`architecture/pine-execution-architecture.md`](./architecture/pine-execution-architecture.md) |
 | 검증 확장 | Monte Carlo · Walk-Forward · 파라미터 안정성 · 최적화 — 같은 백테스트 계약 재사용 | [`architecture/system-architecture.md`](./architecture/system-architecture.md) |
 | 시장 데이터 | OHLCV 수집 + TimescaleDB hypertable 보관 | [`architecture/data-flow.md`](./architecture/data-flow.md) |
@@ -65,7 +67,12 @@ TradingView Pine Script 전략을 가져와 **같은 코드로** 백테스트 �
 **설계 단계에서 제외한 것:**
 
 - **Web3 / 온체인 자동매매** — 중앙화 거래소(Spot + Perpetual) 한정
-- **AI 전략 자동 생성** — Pine 은 사용자가 작성/임포트한다. LLM 이 전략을 만들어주지 않는다
+- ~~**AI 전략 자동 생성** — Pine 은 사용자가 작성/임포트한다. LLM 이 전략을 만들어주지 않는다~~
+  → ★**2026-08-27 [ADR-041] 로 범위 안으로 들어왔다.** 자연어로 전략을 생성한다 — LLM 이 Pine 과
+  Python 을 둘 다 내고 **Pine 이 정본**이며, `analyze_coverage` all-or-nothing 이 저장 여부를 판정한다.
+  ★**여전히 안 하는 것 둘** — ⑴ 기존 Pine 을 LLM 이 **Python 으로 번역**해 실행([ADR-011] §7, 실측
+  「수렴도 0」) ⑵ 사용자·LLM 이 쓴 **Python 을 서버에서 실행**([ADR-004] 「영구 불채택」·[ADR-042] §실측).
+- **사용자 Python 전략 실행** — Python 은 **읽기 전용 뷰**로만 존재한다([ADR-042]). 실행기는 만들지 않는다
 - **모바일 네이티브 앱** — 반응형 웹만
 - **멀티 사용자 협업** — 실시간 공동 편집 없음
 - **옵션 등 파생상품** — Spot + Perpetual Futures 한정

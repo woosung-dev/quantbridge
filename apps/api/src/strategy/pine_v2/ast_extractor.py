@@ -98,9 +98,12 @@ class VarDecl:
 class StrategyCall:
     name: str  # "strategy.entry" | "strategy.exit" | "strategy.close" 등
     args: list[ArgValue] = field(default_factory=list)
+    # [ADR-040] 전략 브리핑이 「이 주문은 소스 어디서 나오나」를 보여준다. pynescript 노드가
+    # lineno 를 갖고 있어 새 파스 없이 얻는다. 기본 None — 기존 소비자 4곳은 안 읽는다.
+    line: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {"name": self.name, "args": [a.to_dict() for a in self.args]}
+        return {"name": self.name, "args": [a.to_dict() for a in self.args], "line": self.line}
 
 
 @dataclass(frozen=True)
@@ -375,7 +378,13 @@ def _extract_strategy_calls(tree: Any) -> list[StrategyCall]:
             continue
         name = _call_name(node)
         if name in _STRATEGY_EXEC_CALLS:
-            calls.append(StrategyCall(name=name, args=_extract_args(node)))
+            calls.append(
+                StrategyCall(
+                    name=name,
+                    args=_extract_args(node),
+                    line=getattr(node, "lineno", None),
+                )
+            )
     return calls
 
 

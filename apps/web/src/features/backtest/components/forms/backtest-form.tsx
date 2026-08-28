@@ -3,6 +3,7 @@
 // 스키마가 받치지 않는 값(예상 소요 시간·결측 봉 점검)은 그리지 않는다(§4.9). 거래소는 Bybit 고정.
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { AlertTriangleIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
@@ -10,6 +11,7 @@ import { AlertTriangleIcon, InboxIcon, RefreshCwIcon } from "lucide-react";
 import { FormErrorInline } from "@/components/form-error-inline";
 import { InfoIcon } from "@/components/info-icon";
 import { StateBox } from "@/components/state-box";
+import { StrategyBriefPanel } from "@/features/strategy/components/brief/strategy-brief";
 import { EMPTY_CELL } from "@/lib/labels";
 import { NEW_BACKTEST_LABEL } from "@/features/backtest/labels";
 import { formatDateTime } from "@/features/backtest/utils";
@@ -53,6 +55,10 @@ export function BacktestForm() {
     livePct,
     create,
   } = useBacktestForm();
+
+  // [ADR-040] 브리핑은 **열어야** 마운트된다 — `<details>` 는 닫혀 있어도 children 을 마운트하므로
+  // 그냥 두면 폼 진입 즉시 서버 파스가 돈다.
+  const [briefOpen, setBriefOpen] = useState(false);
 
   const {
     register,
@@ -288,6 +294,25 @@ export function BacktestForm() {
                   ) : null}
                 </>
               )}
+
+              {/* [ADR-040] 제출 직전 브리핑.
+                  ★★`<details>` 는 닫혀 있어도 React 가 children 을 **마운트한다** — 안에 그냥 두면
+                  폼 진입 즉시 서버 파스가 돈다(`i3_drfx` 콜드 53초). `briefOpen` 으로 **지연 마운트**한다. */}
+              {selectedItem ? (
+                <details
+                  className="brief-details"
+                  data-testid="backtest-brief"
+                  onToggle={(e) => setBriefOpen(e.currentTarget.open)}
+                >
+                  <summary>이 전략이 무엇을 하는지 보기</summary>
+                  {briefOpen ? (
+                    <StrategyBriefPanel
+                      strategyId={selectedItem.id}
+                      editHref={`/strategies/${selectedItem.id}/edit`}
+                    />
+                  ) : null}
+                </details>
+              ) : null}
 
               <p className="chart-note">
                 <InfoIcon />

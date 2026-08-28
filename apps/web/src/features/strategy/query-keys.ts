@@ -15,6 +15,11 @@ export const strategyKeys = {
   details: (userId: string) => [...strategyKeys.all(userId), "detail"] as const,
   detail: (userId: string, id: string) => [...strategyKeys.details(userId), id] as const,
   parse: (userId: string) => [...strategyKeys.all(userId), "parse"] as const,
+  // [ADR-040] 전략 브리핑 — 전략 id 단위. 소스가 바뀌면 detail 무효화와 함께 갱신된다.
+  brief: (userId: string, id: string) => [...strategyKeys.all(userId), "brief", id] as const,
+  // [ADR-040] 해설 층 — brief 와 **다른 키**다. 해설만 실패해도 브리핑 캐시가 안 죽는다.
+  narrative: (userId: string, id: string) =>
+    [...strategyKeys.all(userId), "narrative", id] as const,
   // Sprint 7b FIX: 마운트 자동 파싱용 — useQuery 기반 (StrictMode-safe idempotent).
   // 소스 전체를 key로 쓰면 같은 코드에 대한 중복 파싱 방지.
   parsePreview: (userId: string, pineSource: string) =>

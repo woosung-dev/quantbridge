@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import re
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -18,14 +19,25 @@ from sqlalchemy.exc import IntegrityError
 from src.backtest.serializers import metrics_summary_from_jsonb
 from src.strategy.exceptions import StrategyHasBacktests, StrategyNotFoundError
 from src.strategy.models import ParseStatus, PineVersion, Strategy
+from src.strategy.narrative.schemas import StrategyNarrativeResponse
+from src.strategy.pine_v2.ast_classifier import classify_script
+from src.strategy.pine_v2.ast_extractor import extract_content
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.parser_adapter import parse_to_ast
+from src.strategy.pine_v2.py_renderer import render_python
+from src.strategy.pine_v2.signal_extractor import SignalExtractor
 from src.strategy.repository import StrategyRepository
 from src.strategy.schemas import (
+    BriefArg,
+    BriefOrderCall,
     CreateStrategyRequest,
+    DeclarationResponse,
+    InputDeclResponse,
     LatestBacktestSummary,
     ParseError,
     ParsePreviewResponse,
+    PythonView,
+    StrategyBriefResponse,
     StrategyCreateResponse,
     StrategyLifecycle,
     StrategyListItem,
@@ -38,6 +50,7 @@ from src.strategy.schemas import (
 
 if TYPE_CHECKING:
     from src.backtest.repository import BacktestRepository
+    from src.strategy.narrative.service import NarrativeService
     from src.trading.repositories.live_signal_session_repository import LiveSignalSessionRepository
     from src.trading.services.webhook_secret_service import WebhookSecretService
 
@@ -45,6 +58,16 @@ if TYPE_CHECKING:
 _VERSION_RE = re.compile(r"//\s*@version\s*=\s*(\d+)", re.MULTILINE)
 _STRATEGY_ENTRY_RE = re.compile(r"\bstrategy\.entry\s*\(", re.MULTILINE)
 _STRATEGY_EXIT_RE = re.compile(r"\bstrategy\.(?:close(?:_all)?|exit)\s*\(", re.MULTILINE)
+# ★`_INPUT_RE` 는 `ast_extractor.extract_content().inputs` 의 중복 구현이 **아니다** —
+#   두 수는 다른 것을 센다. 정규식 = `input(` **호출 지점** 수, AST = **override 가능한**
+#   input 선언 수(= 단순 대입문의 좌변이 있는 것. 엔진이 그 이름으로만 값을 갈아끼운다).
+#   실측 2026-08-27 — corpus 9건은 전건 일치하고, 갈리는 것은 대입 없는 `plot(w=input.int(2))` ·
+#   중첩 · 사용자함수 본문 · 튜플 좌변 4형태이며 **AST 가 적게 센다**(`tests/strategy/
+#   test_param_count_vs_ast_inputs.py` 가 그 4형태를 고정한다).
+# ★★그리고 목록 경로는 AST 로 바꿀 수 없다 — 이 함수는 페이지의 **전 전략**에 대해 돌고,
+#   콜드 `extract_content` 는 실측 corpus 9건 합계 **72초**다(정규식 5.7ms · 12,700배).
+#   `parse_to_ast` 캐시가 비었거나(신규 프로세스·pynescript 업그레이드) LRU 로 밀리면
+#   목록 API 가 그 값을 문다. **파라미터 표·Optimizer 드롭다운은 AST 를 쓰고 목록은 이걸 쓴다.**
 _INPUT_RE = re.compile(r"\binput(?:\.\w+)?\s*\(", re.MULTILINE)
 _CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\(")
 _COMMENT_RE = re.compile(r"//[^\n]*")
@@ -181,6 +204,101 @@ async def _parse(
     )
 
 
+def _extract_structure(
+    source: str,
+) -> tuple[DeclarationResponse | None, list[InputDeclResponse]]:
+    """[ADR-040] 선언부 + input 선언을 AST 에서 뽑는다. **실패는 조용히 빈 값**이다.
+
+    ★파싱 비용이 여기서 새로 들지 않는다 — 호출 직전 `_parse` 가 부른 `parse_to_ast` 가
+    `lru_cache` 로 살아 있어 같은 소스는 L1 hit 다(`pine_v2/parser_adapter.py`).
+    ★`extract_content` 는 파싱 실패 시 예외를 던진다(그 모듈이 「호출자가 안전망을 둬야 한다」고
+    적어 뒀다). 판정은 이미 `_parse` 가 냈으므로 여기서 삼킨다 — **구조 추출 실패가 파싱
+    판정을 뒤집으면 안 된다.**
+    """
+    try:
+        content = extract_content(source)
+    except Exception:
+        return None, []
+
+    decl = DeclarationResponse(
+        kind=content.declaration.kind,
+        title=content.declaration.title,
+        default_qty_type=content.declaration.default_qty_type,
+        default_qty_value=content.declaration.default_qty_value,
+        pyramiding=content.declaration.pyramiding,
+    )
+    inputs = [
+        InputDeclResponse(
+            input_type=i.input_type,
+            var_name=i.var_name,
+            defval=i.defval,
+            title=i.title,
+        )
+        for i in content.inputs
+    ]
+    return decl, inputs
+
+
+def _render_python_view(source: str) -> PythonView | None:
+    """[ADR-042] 읽기 전용 Python 뷰. **실패는 조용히 None** 이다.
+
+    ★렌더는 판정자가 아니다 — 여기서 던지는 예외가 브리핑 전체를 500 으로 만들면
+    사용자는 판정조차 못 본다. `_extract_structure` · `_extract_brief_parts` 와 같은 계약이다.
+    ★★**이 산출물은 실행되지 않는다.** 응답 스키마 말고 어디로도 흘러가지 않으며,
+    그 부재를 `tests/strategy/pine_v2/test_py_renderer_not_executed.py` 가 집행한다.
+    """
+    try:
+        view = render_python(source)
+    except Exception:
+        return None
+    return PythonView(
+        code=view.code,
+        source_map=list(view.source_map),
+        unrendered=view.unrendered,
+    )
+
+
+def _extract_brief_parts(
+    source: str,
+) -> tuple[str | None, list[BriefOrderCall], list[str]]:
+    """[ADR-040] track · 주문 호출(줄번호 포함) · 신호 변수. **실패는 조용히 빈 값**이다.
+
+    ★`_extract_structure` 와 같은 계약이다 — 판정은 `_parse`/`analyze_coverage` 가 이미 냈고
+    여기서 던지는 예외가 브리핑 전체를 500 으로 만들면 **사용자는 판정조차 못 본다.**
+    ★셋을 한 함수에 묶은 이유는 셋 다 같은 AST 를 읽기 때문이다(파스 1회 · L1 캐시 공유).
+    """
+    track: str | None = None
+    orders: list[BriefOrderCall] = []
+    signals: list[str] = []
+
+    try:
+        track = classify_script(source).track
+    except Exception:
+        track = None
+
+    try:
+        calls = extract_content(source).strategy_calls
+    except Exception:
+        calls = []
+    for call in calls:
+        orders.append(
+            BriefOrderCall(
+                name=call.name,
+                line=call.line,
+                args=[BriefArg(name=a.name, value=a.value) for a in call.args],
+            )
+        )
+    # 소스 순서를 보존하되 줄번호가 있으면 그것으로 정렬한다 — 화면이 위에서 아래로 읽힌다.
+    orders.sort(key=lambda o: (o.line is None, o.line or 0))
+
+    try:
+        signals = list(SignalExtractor().extract(source, mode="ast").signal_vars)
+    except Exception:
+        signals = []
+
+    return track, orders, signals
+
+
 class StrategyService:
     def __init__(
         self,
@@ -194,11 +312,15 @@ class StrategyService:
         # None 이면 auto-issue 스킵 (테스트 / CLI 경로 호환).
         secret_svc: WebhookSecretService | None = None,
         live_session_repo: LiveSignalSessionRepository | None = None,
+        # [ADR-040] 해설 층. `secret_svc` 와 같은 optional 주입 형태다 — 없으면 그 엔드포인트만
+        # 503 이고 결정론 브리핑은 그대로 돈다.
+        narrative_svc: NarrativeService | None = None,
     ) -> None:
         self.repo = repo
         self.backtest_repo = backtest_repo
         self._secret_svc = secret_svc
         self.live_session_repo = live_session_repo
+        self._narrative_svc = narrative_svc
 
     async def parse_preview(self, pine_source: str) -> ParsePreviewResponse:
         status, version, warnings, errors, entry_count, exit_count, functions_used = await _parse(
@@ -206,6 +328,9 @@ class StrategyService:
         )
         # Sprint Y1: pre-flight coverage analyzer — 미지원 built-in 식별
         coverage = analyze_coverage(pine_source)
+        # [ADR-040] Stage 1 — 선언부 + 파라미터 표. `_parse` 의 L1 캐시에 얹히지만
+        # 트리 순회는 CPU 라 to_thread 선례(`_parse`)를 그대로 따른다.
+        declaration, inputs = await asyncio.to_thread(_extract_structure, pine_source)
         return ParsePreviewResponse(
             status=status,
             pine_version=version,
@@ -220,6 +345,8 @@ class StrategyService:
             # Sprint 29 Slice A: heikinashi Trust Layer 위반 경고
             dogfood_only_warning=coverage.dogfood_only_warning,
             is_runnable=(status == ParseStatus.ok and coverage.is_runnable),
+            declaration=declaration,
+            inputs=inputs,
         )
 
     async def create(
@@ -348,6 +475,67 @@ class StrategyService:
         if strategy is None:
             raise StrategyNotFoundError()
         return StrategyResponse.model_validate(strategy)
+
+    async def brief(self, *, strategy_id: UUID, owner_id: UUID) -> StrategyBriefResponse:
+        """[ADR-040] 백테스트 제출 **전에** 보는 결정론 브리핑.
+
+        ★**LLM 이 만든 값이 하나도 없다.** 해설 층은 별 엔드포인트이고, 그쪽이 죽어도
+        이 응답만으로 화면이 완결되어야 한다는 것이 [ADR-040] 결정 4 다.
+        ★분석 대상은 `Strategy.pine_source` — 백테스트 제출 시 그 소스가 스냅샷으로 고정되므로
+        (`_ensure_current_strategy_version`) 「지금 제출하면 무엇이 도는가」와 일치한다.
+        """
+        strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
+        if strategy is None:
+            raise StrategyNotFoundError()
+
+        source = strategy.pine_source
+        parse = await self.parse_preview(source)
+        track, orders, signals = await asyncio.to_thread(_extract_brief_parts, source)
+        python_view = await asyncio.to_thread(_render_python_view, source)
+
+        return StrategyBriefResponse(
+            strategy_id=strategy.id,
+            # `repository.create_version` 과 **같은 식**이어야 한다 — 해설 캐시가 이 값을 키로 쓴다.
+            source_hash=hashlib.sha256(source.encode()).hexdigest(),
+            track=track,
+            parse=parse,
+            orders=orders,
+            signals=signals,
+            python_view=python_view,
+        )
+
+    async def brief_narrative(
+        self, *, strategy_id: UUID, owner_id: UUID
+    ) -> StrategyNarrativeResponse:
+        """[ADR-040] 해설 층 — **판정하지 않는다.**
+
+        ★결정론 브리핑(`brief`)과 **별 엔드포인트**인 이유는 하나다. 이쪽은 LLM 왕복이라 느리고
+        실패할 수 있는데, 화면은 그것을 기다리지 않고 이미 완결돼 있어야 한다([ADR-040] 결정 4).
+        ★같은 `source_hash` 를 실어 화면이 두 응답이 같은 소스를 말하는지 대조할 수 있게 한다.
+        """
+        strategy = await self.repo.find_by_id_and_owner(strategy_id, owner_id)
+        if strategy is None:
+            raise StrategyNotFoundError()
+        if self._narrative_svc is None:
+            raise RuntimeError("해설 provider 가 설정되지 않았습니다")
+
+        source = strategy.pine_source
+        source_hash = hashlib.sha256(source.encode()).hexdigest()
+        # 결정론 층이 뽑은 사실을 프롬프트 입력으로 준다 — 모델이 파싱을 다시 하지 않게.
+        declaration, inputs = await asyncio.to_thread(_extract_structure, source)
+        _track, orders, _signals = await asyncio.to_thread(_extract_brief_parts, source)
+        coverage = analyze_coverage(source)
+        facts = {
+            "declaration": declaration.model_dump() if declaration else None,
+            "inputs": [i.model_dump() for i in inputs],
+            "functions_used": list(coverage.used_functions),
+            "orders": [o.model_dump() for o in orders],
+        }
+
+        svc = self._narrative_svc
+        return await asyncio.to_thread(
+            svc.explain, source=source, facts=facts, source_hash=source_hash
+        )
 
     async def update(
         self,

@@ -40,6 +40,15 @@ vi.mock("@/features/strategy/components/new/parse-result-panel", () => ({
 }));
 
 vi.mock("@/features/strategy/hooks", () => ({
+  // [ADR-041] 위저드가 AI 생성 카드를 품는다. 이 파일들은 **위저드**를 재는 곳이라
+  // 생성 본문은 대상이 아니다 — 결과 없음 상태로 고정한다.
+  // 생성 계약은 `generate-with-ai.test.tsx` 가 잰다.
+  useGenerateStrategy: () => ({
+    mutate: () => {},
+    data: undefined,
+    isPending: false,
+    isError: false,
+  }),
   useCreateStrategy: () => ({ mutate: vi.fn(), isPending: false }),
   useParseStrategy: () => ({ mutate: vi.fn(), data: null, isPending: false, error: null }),
   usePreviewParse: () => ({ data: null, isFetching: false, error: null }),

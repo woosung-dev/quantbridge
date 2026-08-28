@@ -17,6 +17,12 @@ import {
   type ParsePreviewResponse,
   type StrategyCreateResponse,
   type StrategyListQuery,
+  type GenerateStrategyResponse,
+  GenerateStrategyResponseSchema,
+  type StrategyBrief,
+  StrategyBriefSchema,
+  type StrategyNarrative,
+  StrategyNarrativeSchema,
   type StrategyListResponse,
   type StrategyResponse,
   type UpdateStrategyRequest,
@@ -53,6 +59,37 @@ export async function getStrategy(id: string, token: string | null): Promise<Str
     token,
   });
   return StrategyResponseSchema.parse(raw);
+}
+
+export async function getStrategyBrief(id: string, token: string | null): Promise<StrategyBrief> {
+  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${id}/brief`, {
+    method: "GET",
+    token,
+  });
+  return StrategyBriefSchema.parse(raw);
+}
+
+export async function getStrategyNarrative(
+  id: string,
+  token: string | null,
+): Promise<StrategyNarrative> {
+  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${id}/brief/narrative`, {
+    method: "GET",
+    token,
+  });
+  return StrategyNarrativeSchema.parse(raw);
+}
+
+export async function generateStrategy(
+  body: { prompt: string; symbol: string; timeframe: string },
+  token: string | null,
+): Promise<GenerateStrategyResponse> {
+  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/generate`, {
+    method: "POST",
+    token,
+    body,
+  });
+  return GenerateStrategyResponseSchema.parse(raw);
 }
 
 export async function createStrategy(

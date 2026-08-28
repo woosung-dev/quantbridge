@@ -65,4 +65,12 @@ flowchart LR
 
 Backtest가 `pine_v2` 실행의 단일 소비자 경계다. Optimizer와 Stress Test는 이를 재실행하거나 완료된 Backtest 산출물을 사용한다. 따라서 실행 의미론을 바꾸면 세 도메인의 회귀를 함께 검증한다.
 
+★**실행이 아닌 소비자가 하나 더 있다 — 전략 브리핑**([ADR-040](../adr/040-strategy-brief-outside-trust-layer.md)).
+`GET /api/v1/strategies/{id}/brief` 는 `pine_v2` 를 **실행하지 않고** 정적 층 넷만 읽는다 —
+`ast_extractor.extract_content`(선언·input·주문호출+줄번호) · `coverage.analyze_coverage`(판정·미지원) ·
+`ast_classifier.classify_script`(Track) · `signal_extractor.SignalExtractor`(신호 변수).
+⇒ **실행 의미론을 바꿔도 브리핑은 안 깨지지만, 이 네 모듈의 반환 형태를 바꾸면 브리핑이 깨진다.**
+★`StrategyCall` 에 `line` 이 붙어 있고 그 값이 화면의 「소스 어디서 나오나」다 —
+`tests/fixtures/pine_corpus_v2/ast_content_report.json` 이 그 계약을 strict equality 로 잠근다.
+
 현재 용어·관계의 짧은 정본은 [`CONTEXT.md`](../../CONTEXT.md), 도메인 상태는 [`domain-overview.md`](../domain/domain-overview.md)에 둔다.

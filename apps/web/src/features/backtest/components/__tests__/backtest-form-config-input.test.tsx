@@ -24,6 +24,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/features/strategy/hooks", () => ({
+  // [ADR-040] 백테스트 폼이 브리핑 카드를 품는다. 이 파일은 **폼**을 재는 곳이라
+  // 브리핑 본문은 대상이 아니다 — 접힌 채로 두면 쿼리가 안 도므로 로딩으로 고정한다.
+  useStrategyBrief: () => ({ isPending: true, isError: false, data: undefined }),
   useStrategies: () => strategies,
   useStrategy: () => ({ data: null, isLoading: false, isError: false }),
 }));

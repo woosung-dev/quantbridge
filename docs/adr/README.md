@@ -49,6 +49,10 @@
 | [036](./036-tool-version-ssot-mise.md)                           | 도구 버전 SSOT = `mise.toml`                   | 결정           |                                      |
 | [037](./037-harness-zero-base.md)                                | 하네스 제로베이스 — 검사기 전량 철거           | 결정           | 복원 = 태그 `harness-v1`             |
 | [038](./038-docs-top-level-by-question.md)                       | `docs/` 최상위 질문별 분할 — `reference/` 해체 | 결정           | 복원 = `c3b35e5f`                    |
+| [039](./039-frontend-biome.md) | FE lint·format = Biome 단독 | 결정 | ESLint·prettier 제거 |
+| [040](./040-strategy-brief-outside-trust-layer.md) | 전략 브리핑 = Trust Layer 밖 보조 설명 | 결정 | 판정은 결정론 층 독점 |
+| [041](./041-ai-strategy-generation.md) | 자연어 → 전략 생성 (Pine 정본) | 결정 | PRD §4 비범위 1줄 개정 |
+| [042](./042-pine-to-python-readonly-renderer.md) | Pine AST → Python 읽기 전용 렌더러 | 결정 | 실행 경로 없음 — 004 의 미구현 대안 |
 
 ## 새 ADR 을 쓸 때
 

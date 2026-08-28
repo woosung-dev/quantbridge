@@ -20,7 +20,16 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mockSearchParams,
 }));
 
+const mockUseStrategyBrief = vi.hoisted(() => vi.fn());
+
 vi.mock("@/features/strategy/hooks", () => ({
+  // [ADR-040] 백테스트 폼이 브리핑 카드를 품는다. 이 파일은 **폼**을 재는 곳이라
+  // 브리핑 본문은 대상이 아니다 — 로딩으로 고정한다.
+  // ★spy 인 이유는 아래 「접혀 있으면 안 부른다」 테스트가 호출 여부를 재기 때문이다.
+  useStrategyBrief: (...args: unknown[]) => {
+    mockUseStrategyBrief(...args);
+    return { isPending: true, isError: false, data: undefined };
+  },
   useStrategies: () => strategies,
   // Sprint 38 BL-188 v3 — BacktestForm 가 useStrategy fetch (settings prefill).
   // 본 테스트 묶음은 sizing UI 와 무관 — null 반환으로 manual 기본 동작 유지.
@@ -583,5 +592,33 @@ describe("BacktestForm — 제출이 mutate 에 도달한다 (BL-698)", () => {
     });
 
     expect(mutate).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("BacktestForm — [ADR-040] 브리핑 카드는 열어야 마운트된다", () => {
+  beforeEach(() => {
+    mockUseStrategyBrief.mockClear();
+  });
+
+  it("★접혀 있으면 브리핑 쿼리를 부르지 않는다", () => {
+    // `<details>` 는 닫혀 있어도 React 가 children 을 **마운트한다**. 그냥 넣어 두면
+    // 폼에 들어오는 순간 서버 파스가 돈다(`i3_drfx` 콜드 53초). 지연 마운트가 그것을 막는다.
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    expect(screen.getByTestId("backtest-brief")).toBeTruthy();
+    expect(mockUseStrategyBrief).not.toHaveBeenCalled();
+  });
+
+  it("열면 부른다 (양성 대조)", () => {
+    // 위 단언은 이 대조가 없으면 판별력이 0이다 — 카드를 통째로 지워도 초록이 된다.
+    mockSearchParams = new URLSearchParams("strategy_id=abc");
+    render(<BacktestForm />);
+
+    const details = screen.getByTestId("backtest-brief") as HTMLDetailsElement;
+    details.open = true;
+    fireEvent(details, new Event("toggle", { bubbles: false }));
+
+    expect(mockUseStrategyBrief).toHaveBeenCalled();
   });
 });

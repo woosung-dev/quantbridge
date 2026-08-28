@@ -77,6 +77,7 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 | `health/` | `/healthz`·`/livez` | 상태 프로브. 소유 엔티티가 없다 |
 | `tasks/` | Celery task entrypoint | HTTP 표면이 아니다. prefork-safe 규칙은 §9 |
 | `scripts/` | 운영 entrypoint helper (`run_alembic_with_lock`) | `python -m src.scripts.*` 로 실행. 테스트·dogfood 스크립트는 여기가 아니라 `apps/api/scripts/`(앱 루트) |
+| `strategy/narrative/` | [ADR-040] 해설 층 LLM 클라이언트 | **DB 세션을 안 쥔다** — `convert/` 와 같은 형태(repository·models 없음). 결정론 브리핑은 `StrategyService` 가 갖고 여기는 LLM 왕복만 한다 |
 | `common/` · `core/` | 기술 기반 · 설정 | 도메인이 아니다 |
 
 `trading/` 은 예외가 아니라 **확장**이다 — `service.py`/`repository.py` 가 `services/`·`repositories/`
@@ -92,6 +93,7 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 | 거래소 API Key | AES-256(`Fernet`) 암호화 후 DB 저장. 평문 컬럼 금지 |
 | OHLCV 시계열 | TimescaleDB hypertable(`ts.ohlcv`) 에 저장. 일반 PostgreSQL 테이블 사용 금지 |
 | 실시간 가격 | 백엔드는 `ws_stream` 별도 queue + prefork worker (`docker-compose.yml` ws-stream 서비스가 정본) |
+| LLM 산출물 | **판정에 쓰지 마라** — 실행 가능·미지원·degraded 판정은 결정론 층(AST·coverage)이 독점한다([ADR-040]). LLM 문장은 근거 줄(`pine_lines`)이 없으면 **서버가 버린다** |
 | 관측 metric | 업무 **결과를 보고하는** `try` 본문·`except` 본문에서 metric mutation 을 raw 로 두지 마라 — `record_metric_safely` / `_count_safely` / `_touch_safely` 로 감싼다. **이유:** metric 실패 예외가 그 handler 로 흘러 **체결을 취소 실패로 오기록**하거나 계정 스윕을 중단시킨다(2026-08-24 실측 4건) |
 
 ## 5. 스트리밍 응답
