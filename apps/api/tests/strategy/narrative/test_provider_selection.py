@@ -38,7 +38,7 @@ def settings(order: str, **keys: str | None) -> Any:
         gemini_api_key=SecretStr(keys["gemini"]) if keys.get("gemini") else None,
         anthropic_model="claude-sonnet-4-6",
         openai_model="gpt-4.1-mini",
-        gemini_model="gemini-2.0-flash",
+        gemini_model="gemini-3.7-flash",
     )
 
 

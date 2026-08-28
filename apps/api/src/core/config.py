@@ -362,8 +362,17 @@ class Settings(BaseSettings):
         ),
     )
     gemini_model: str = Field(
-        default="gemini-2.0-flash",
-        description=("Gemini 모델 ID for convert fallback. flash 권장 (속도+무료 tier)."),
+        default="gemini-3.7-flash",
+        description=(
+            "Gemini 모델 ID. ★종전 기본값 `gemini-2.0-flash` 는 **폐기돼 404** 를 낸다 "
+            "(2026-08-28 실측 — `generateContent` 지원 39종 목록에 부재). "
+            "실측 확인된 대안: `gemini-3.7-flash`(기본) · `gemini-3.6-flash` · "
+            "`gemini-3.5-flash` · `gemini-3.5-flash-lite`(5/5 성공 · 평균 1.11초). "
+            "★기본값 3.7 은 2026-08-28 시점 **503 high demand 로 0/10** 이었다 — "
+            "`_call_gemini` 에는 tenacity 재시도가 없어(anthropic 에만 있다) 그대로 올라오고, "
+            "`complete_json` 이 다음 provider 로 넘긴다. 그 사이 확실히 도는 값이 필요하면 "
+            "`GEMINI_MODEL` 로 갈아라 — 서버는 `gemini-3.5-flash-lite` 로 뒀다."
+        ),
     )
     openai_api_key: SecretStr | None = Field(
         default=None,
