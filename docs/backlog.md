@@ -782,6 +782,34 @@ parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부�
 **상태:** ⬜ Open — 2026-08-16 에 코드 축(body-HMAC + optional idempotency)만 확정. **TradingView 쪽 실측 미착수**
 **트리거 판정:** 도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)
 
+### BL-833
+
+**Title:** Optimizer 폼이 Pine 변수명을 손으로 타이핑하게 한다 — 이제 brief 가 그 목록을 갖고 있다
+**Category:** FE / Optimizer
+**Priority:** P3
+**출처:** 2026-08-27 브리핑 축([ADR-040]) 작업 중 표면화. 코드 대조 확인
+
+**증상 (실측):** `apps/web/src/features/optimizer/form-schemas.ts:44` 가 `var_name: z.string().min(1, "변수 이름을 입력하세요.")` 라 사용자가 **Pine 변수명을 기억해 직접 친다**. 오타면 BE `_validate_grid_search_pre`(`optimizer/engine/grid_search.py:132-186`)가 422 로 거부하고 그제야 선언 목록을 알려 준다. `int`/`float` 이 아닌 input 도 거부되는데(BL-225) 그 사실도 미리 안 보인다.
+**왜 지금 가능해졌나:** [ADR-040] Stage 1 이 `ParsePreviewResponse.inputs`(이름·타입·기본값)를 열었고 `GET /strategies/{id}/brief` 도 같은 목록을 준다. **데이터가 이미 있다** — 남은 것은 폼을 드롭다운으로 바꾸는 것뿐이다.
+**권장 접근:** 자유 입력을 `inputs` 기반 select 로. ★스윕 불가(`input_type ∉ {int,float}`)를 **숨기지 말고 비활성 + 사유 표기**한다 — 목록에서 빼면 사용자가 그 파라미터가 없다고 읽는다(브리핑 표가 같은 판단을 했다).
+**★비용 함정:** 브리핑 엔드포인트를 그냥 부르면 옵티마이저 화면에 **콜드 Pine 파스**가 붙는다(`i3_drfx` 실측 53.38초). 캐시가 warm 한 경로를 쓰거나 목록 API 에 얹어라.
+
+**상태:** 🔵 ACTIVE — 2026-08-27 등재, 미수리
+**트리거 판정:** 도래 (데이터가 이미 있다)
+
+### BL-834
+
+**Title:** `convert` 는 아직 스키마 강제 밖이고, 토큰 77~97% 절감 경로는 FE 하드코딩으로 도달 불가다
+**Category:** BE+FE / LLM
+**Priority:** P3
+**출처:** 2026-08-27~28 [ADR-040]·[ADR-041] 및 provider 선택 구조(PR #840) 작업 중 표면화
+
+**증상 (실측):** ⑴ `strategy/convert/service.py` 는 `tools=`/`response_schema=` 가 **0건**이라 응답을 문자열로 수동 파싱하고 Gemini 의 ``` 펜스를 손으로 벗긴다 — PR #840 이 세운 `narrative/providers.py`(세 provider 스키마 강제 + `LLM_PROVIDER_ORDER`) 밖에 혼자 남았다. 그래서 `convert` 만 provider 선택이 안 되고 anthropic→gemini 하드코딩이다. ⑵ `mode="sliced"`(`SignalExtractor` 경유, 토큰 **77~97% 절감**)는 BE 구현·테스트 완비인데 FE 가 `"full"` 을 하드코딩한다(`ConvertWithAIButton.tsx:29`) ⇒ **도달 불가**. ⑶ 그 버튼의 유일한 호출처가 422 에러 카드(`form-error-inline.tsx:190`)라 **정상 흐름 진입점이 0개**다.
+**권장 접근:** ⑵⑶ 이 싸다(FE 두 줄 + 진입점 하나). ⑴ 은 convert 의 산출이 **코드 문자열**이라 JSON 스키마 계약을 먼저 정해야 해서 별도 판단이 필요하다 — 옮기지 않기로 정한다면 그 사유를 여기 적어 닫아라.
+
+**상태:** 🔵 ACTIVE — 2026-08-28 등재, 미수리
+**트리거 판정:** 도래 (⑵⑶ 은 단독 착수 가능)
+
 ### BL-827
 
 **Title:** 계약 drift 게이트가 CI 밖이라 2주간 아무도 안 봤고, PoC 생성물은 그 소스와 어긋난 채 굳었다
