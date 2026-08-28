@@ -4,7 +4,9 @@
 
 스택 정본은 **루트 `AGENTS.md` §2** 다. 여기 적는 것은 거기에 없는 BE 고유 사항뿐이다.
 - **배포** — Docker compose(개발) / 서버 소크 스택(§7). Object Storage · Vector DB 는 쓰지 않는다.
-- **LLM 키** — `core/config.py` 의 `anthropic_api_key` / `gemini_api_key`. 미설정이면 convert 비활성
+- **LLM 키** — `core/config.py` 의 `anthropic_api_key` / `openai_api_key` / `gemini_api_key`.
+  ★어느 것을 쓸지는 **`LLM_PROVIDER_ORDER`** 가 정한다(쉼표 목록, 앞에서부터 시도, 키 없으면 건너뜀).
+  전부 미설정이면 LLM 엔드포인트만 503 이고 결정론 브리핑·백테스트는 그대로 돈다
 - **시크릿 암호화** — 거래소 API 키는 AES-256(`Fernet`) 저장(§4)
 
 ## 2. 핵심 제약 사항 (Strict Rules)

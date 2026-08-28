@@ -130,6 +130,13 @@ export const NarrativeNoteSchema = z.object({
 });
 export type NarrativeNote = z.infer<typeof NarrativeNoteSchema>;
 
+// 어느 provider 가 썼는지 화면이 밝힌다 — AI 층임을 색·테두리 말고 **글자로도** 말한다.
+export const LLM_PROVIDER_LABEL: Record<string, string> = {
+  anthropic: "Claude",
+  openai: "GPT",
+  gemini: "Gemini",
+};
+
 export const NARRATIVE_STYLE_LABEL: Record<string, string> = {
   trend_following: "추세추종",
   mean_reversion: "평균회귀",
@@ -140,7 +147,7 @@ export const NARRATIVE_STYLE_LABEL: Record<string, string> = {
 
 export const StrategyNarrativeSchema = z.object({
   source_hash: z.string(),
-  provider: z.enum(["anthropic", "gemini"]),
+  provider: z.enum(["anthropic", "openai", "gemini"]),
   summary: z.string(),
   style: z.enum(["trend_following", "mean_reversion", "breakout", "volatility", "other"]),
   assumptions: z.array(NarrativeNoteSchema).default([]),
@@ -161,7 +168,7 @@ export const DriftReportSchema = z.object({
 export type DriftReport = z.infer<typeof DriftReportSchema>;
 
 export const GenerateStrategyResponseSchema = z.object({
-  provider: z.enum(["anthropic", "gemini"]),
+  provider: z.enum(["anthropic", "openai", "gemini"]),
   pine_source: z.string(),
   llm_python: z.string(),
   notes: z.array(z.string()).default([]),

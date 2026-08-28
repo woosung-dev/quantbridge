@@ -39,7 +39,10 @@ Trading(CCXT 주문) / Market Data(TimescaleDB).
 - **Worker** — Celery prefork(`_WORKER_LOOP` 통일 — `apps/api/AGENTS.md` §9)
 - **FE** — Next.js 16(App Router) · TypeScript strict · Tailwind · shadcn v4 · Zod v4 · Zustand · `pnpm`
 - **인증** — self-host Better Auth. 백엔드는 JWT 를 **JWKS 공개 키로 검증만** 한다([ADR-034](./docs/adr/034-auth-self-host-better-auth.md)) — 백엔드가 쥐는 인증 시크릿이 **없다**
-- **거래소** — CCXT(Bybit demo) · **LLM** — `anthropic` 우선 + `google-genai` fallback(호출부는 `strategy/convert/service.py` 한 곳)
+- **거래소** — CCXT(Bybit demo) · **LLM** — provider **순서는 코드가 아니라 설정**이 정한다
+  (`LLM_PROVIDER_ORDER` = `anthropic`·`openai`·`gemini` 중 쉼표 목록). 브리핑 해설·전략 생성의 호출부는
+  `strategy/narrative/providers.py` **한 곳**이고 세 provider 모두 **스키마를 강제**한다.
+  ★`strategy/convert/service.py` 는 아직 그 층 밖이다 — 거기는 스키마 강제가 0이라 문자열을 손으로 파싱한다
 - **테스트** — BE `pytest` · FE `vitest` + Playwright e2e · **lint 는 BE `ruff` / FE `biome` 단독**([ADR-039](./docs/adr/039-frontend-biome.md))
 - **도구 버전 SSOT = 루트 `mise.toml` 하나**([ADR-036](./docs/adr/036-tool-version-ssot-mise.md)) — 숫자를 다른 곳에 적지 마라(예외는 Dockerfile 2곳)
 

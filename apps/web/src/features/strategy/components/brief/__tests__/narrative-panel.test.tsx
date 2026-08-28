@@ -96,4 +96,12 @@ describe("NarrativePanel — 판정이 아닌 층", () => {
     const box = screen.getByTestId("narrative-error");
     expect(box.textContent).toContain("그대로 유효합니다");
   });
+
+  it("★어느 모델이 썼는지 글자로 밝힌다 (색·테두리만으로는 전달 안 된다)", () => {
+    ready({ ...NARRATIVE, provider: "openai" as const });
+    render(<NarrativePanel strategyId="s-1" />);
+    fireEvent.click(screen.getByRole("button", { name: "AI 해설 보기" }));
+
+    expect(screen.getByTestId("narrative-provider").textContent).toBe("GPT");
+  });
 });
