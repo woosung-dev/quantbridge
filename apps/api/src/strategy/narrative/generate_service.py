@@ -13,24 +13,18 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from typing import Any
 
-import anthropic
-from google import genai
-from google.genai import types as genai_types
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
-
 from src.core.config import Settings
 from src.strategy.narrative.generate_prompt import SYSTEM_PROMPT, USER_TEMPLATE
+from src.strategy.narrative.providers import complete_json
 from src.strategy.narrative.schemas import (
     DriftReport,
     GenerateStrategyRequest,
     GenerateStrategyResponse,
 )
-from src.strategy.narrative.service import _ANTHROPIC_TRANSIENT, NarrativeService
 from src.strategy.pine_v2.coverage import analyze_coverage
 from src.strategy.pine_v2.py_renderer import render_python
 
@@ -120,87 +114,24 @@ def detect_drift(*, pine_source: str, llm_python: str) -> DriftReport:
 
 
 class GenerateService:
-    """LLM 전용. **DB 세션을 쥐지 않는다**(`narrative/` 와 같은 형태)."""
+    """LLM 전용. **DB 세션을 쥐지 않는다**(`narrative/` 와 같은 형태).
+
+    ★provider 선택·fallback·스키마 강제는 `providers.complete_json` 이 맡는다.
+    """
 
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
 
     def generate(self, req: GenerateStrategyRequest) -> GenerateStrategyResponse:
-        anthropic_key = NarrativeService._secret(self._settings.anthropic_api_key)
-        gemini_key = NarrativeService._secret(self._settings.gemini_api_key)
-        if not anthropic_key and not gemini_key:
-            raise RuntimeError("ANTHROPIC_API_KEY 또는 GEMINI_API_KEY 중 하나가 필요합니다")
-
         user = USER_TEMPLATE.format(prompt=req.prompt, symbol=req.symbol, timeframe=req.timeframe)
-
-        provider = "anthropic"
-        raw: dict[str, Any] | None = None
-        if anthropic_key:
-            try:
-                raw = self._call_anthropic(anthropic_key, user)
-            except Exception as exc:
-                logger.exception("generate anthropic failed exc_type=%s", type(exc).__name__)
-                if not gemini_key:
-                    raise RuntimeError("Anthropic 전략 생성 실패 (Gemini fallback 미설정)") from exc
-        if raw is None:
-            try:
-                raw = self._call_gemini(gemini_key, user)
-            except Exception as exc:
-                logger.exception("generate gemini failed exc_type=%s", type(exc).__name__)
-                raise RuntimeError("전략 생성 provider 를 사용할 수 없습니다") from exc
-            provider = "gemini"
-
-        return self._build(raw, provider=provider)
-
-    # ── provider ─────────────────────────────────────────────────────────
-    @retry(
-        retry=retry_if_exception_type(_ANTHROPIC_TRANSIENT),
-        wait=wait_exponential(multiplier=1, min=1, max=8),
-        stop=stop_after_attempt(3),
-        reraise=True,
-    )
-    def _call_anthropic(self, api_key: str, user: str) -> dict[str, Any]:
-        client = anthropic.Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model=self._settings.anthropic_model,
-            max_tokens=4096,
+        raw, provider = complete_json(
+            self._settings,
             system=SYSTEM_PROMPT,
-            tools=[
-                {
-                    "name": _TOOL_NAME,
-                    "description": "Pine 전략과 그 파이썬 뷰를 산출합니다.",
-                    "input_schema": _OUTPUT_SCHEMA,
-                }
-            ],
-            tool_choice={"type": "tool", "name": _TOOL_NAME},
-            messages=[{"role": "user", "content": user}],
+            user=user,
+            schema=_OUTPUT_SCHEMA,
+            tool_name=_TOOL_NAME,
         )
-        for block in response.content or []:
-            if (
-                getattr(block, "type", None) == "tool_use"
-                and getattr(block, "name", "") == _TOOL_NAME
-            ):
-                payload = getattr(block, "input", None)
-                if isinstance(payload, dict):
-                    return payload
-        raise RuntimeError("도구 호출 응답이 오지 않았습니다")
-
-    def _call_gemini(self, api_key: str, user: str) -> dict[str, Any]:
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-            model=self._settings.gemini_model,
-            contents=user,
-            config=genai_types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=4096,
-                response_mime_type="application/json",
-                response_schema=_OUTPUT_SCHEMA,
-            ),
-        )
-        payload = json.loads(response.text or "{}")
-        if not isinstance(payload, dict):
-            raise RuntimeError("JSON 객체가 아닙니다")
-        return payload
+        return self._build(raw, provider=provider)
 
     # ── 판정 + 대조 ──────────────────────────────────────────────────────
     def _build(self, raw: dict[str, Any], *, provider: str) -> GenerateStrategyResponse:

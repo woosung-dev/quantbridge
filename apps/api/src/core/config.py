@@ -365,6 +365,31 @@ class Settings(BaseSettings):
         default="gemini-2.0-flash",
         description=("Gemini 모델 ID for convert fallback. flash 권장 (속도+무료 tier)."),
     )
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        description=(
+            "OpenAI API key. 발급: https://platform.openai.com/api-keys. "
+            "★구조화 출력은 Structured Outputs(strict)를 쓴다 — 세 provider 중 스키마 보증이 가장 강하다."
+        ),
+    )
+    openai_model: str = Field(
+        default="gpt-4.1-mini",
+        description=(
+            "OpenAI 모델 ID. 브리핑 해설·전략 생성은 짧은 JSON 이라 mini 가 비용 대비 합리적. "
+            "정확도 우선이면 gpt-4.1."
+        ),
+    )
+    # ★provider 를 **설정으로 고른다**([ADR-040]/[ADR-041] 후속). 종전에는 「anthropic 우선 →
+    #   gemini fallback」이 코드에 박혀 있었고 그 사실이 `AGENTS.md` 에도 하드코딩돼 있었는데,
+    #   키를 가진 provider 가 환경마다 다르다(2026-08-28 실측: 로컬은 openai 만 유효).
+    #   쉼표 목록이며 **앞에서부터 시도**한다. 키가 없는 provider 는 조용히 건너뛴다.
+    llm_provider_order: str = Field(
+        default="anthropic,openai,gemini",
+        description=(
+            "LLM provider 시도 순서(쉼표 구분). 유효 값: anthropic · openai · gemini. "
+            "하나만 적으면 그 provider 만 쓴다(fallback 없음)."
+        ),
+    )
 
     # --- Sprint 11 Phase C: Waitlist ---
     resend_api_key: SecretStr = Field(

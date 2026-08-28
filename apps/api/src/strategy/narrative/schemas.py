@@ -39,7 +39,7 @@ class StrategyNarrativeResponse(BaseModel):
     """
 
     source_hash: str
-    provider: Literal["anthropic", "gemini"]
+    provider: Literal["anthropic", "openai", "gemini"]
     summary: str
     style: NarrativeStyle
     assumptions: list[NarrativeNote] = Field(default_factory=list)
@@ -78,7 +78,7 @@ class DriftReport(BaseModel):
 class GenerateStrategyResponse(BaseModel):
     """생성 결과. **Pine 이 정본**이고 Python 은 사람이 읽는 뷰다."""
 
-    provider: Literal["anthropic", "gemini"]
+    provider: Literal["anthropic", "openai", "gemini"]
     pine_source: str
     llm_python: str
     notes: list[str] = Field(default_factory=list)

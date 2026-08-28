@@ -45,14 +45,23 @@ if close > st
 
 def _settings() -> Any:
     return SimpleNamespace(
+        llm_provider_order="anthropic",
         anthropic_api_key=SecretStr("k"),
+        openai_api_key=None,
         gemini_api_key=None,
         anthropic_model="claude-sonnet-4-6",
+        openai_model="gpt-4.1-mini",
         gemini_model="gemini-2.0-flash",
     )
 
 
 def _patch_anthropic(monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]) -> None:
+    """★provider 배선은 이제 `providers.complete_json` 이 갖는다.
+
+    그 층의 계약(순서·건너뛰기·스키마 강제·예외 미반사)은 `test_provider_selection.py` 가 잰다.
+    여기서는 **판정과 드리프트**만 재므로 provider 는 스텁으로 고정한다.
+    """
+
     class _Messages:
         def create(self, **kwargs: Any) -> Any:
             assert kwargs["tool_choice"] == {"type": "tool", "name": _TOOL_NAME}
@@ -60,7 +69,7 @@ def _patch_anthropic(monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any]) -
             return SimpleNamespace(content=[block])
 
     monkeypatch.setattr(
-        "src.strategy.narrative.generate_service.anthropic.Anthropic",
+        "src.strategy.narrative.providers.anthropic.Anthropic",
         lambda api_key: SimpleNamespace(messages=_Messages()),
     )
 

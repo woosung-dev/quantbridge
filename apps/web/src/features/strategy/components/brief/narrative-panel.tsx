@@ -13,7 +13,11 @@ import { useState } from "react";
 
 import { StateBox } from "@/components/state-box";
 import { useStrategyNarrative } from "@/features/strategy/hooks";
-import { NARRATIVE_STYLE_LABEL, type NarrativeNote } from "@/features/strategy/schemas";
+import {
+  LLM_PROVIDER_LABEL,
+  NARRATIVE_STYLE_LABEL,
+  type NarrativeNote,
+} from "@/features/strategy/schemas";
 import { CHIP_TONE_CLASS } from "@/lib/labels";
 import { describeApiError } from "@/lib/api-client";
 import { errorIdOf } from "@/features/strategy/error-id";
@@ -82,6 +86,11 @@ export function NarrativePanel({ strategyId }: { strategyId: string }) {
               </span>
               <span className={CHIP_TONE_CLASS.neutral}>
                 {NARRATIVE_STYLE_LABEL[data.style] ?? data.style}
+              </span>
+              {/* ★색과 테두리만으로 AI 층을 구분하면 색을 못 보는 사용자에게 전달되지 않는다
+                  (ui-ux-pro-max §1 color-not-only). 누가 썼는지 글자로도 밝힌다. */}
+              <span className="dim mono" data-testid="narrative-provider">
+                {LLM_PROVIDER_LABEL[data.provider] ?? data.provider}
               </span>
             </div>
 
