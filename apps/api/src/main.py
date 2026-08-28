@@ -427,6 +427,11 @@ def create_app() -> FastAPI:
 
     app.include_router(optimizer_router, prefix="/api/v1")
 
+    # [ADR-040] LLM provider 모델 카탈로그 — 설정한 모델이 provider 목록에 실재하는지 본다
+    from src.strategy.narrative.router import router as llm_router
+
+    app.include_router(llm_router, prefix="/api/v1")
+
     # pine-compat-experiment — indicator → strategy 변환
     from src.strategy.convert.router import router as convert_router
 

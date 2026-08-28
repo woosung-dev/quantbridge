@@ -53,6 +53,10 @@ class GenerateStrategyRequest(BaseModel):
     prompt: str = Field(min_length=10, max_length=2000)
     symbol: str = Field(default="BTC/USDT", max_length=32)
     timeframe: str = Field(default="1h", max_length=16)
+    # ★모델 선택은 **둘 다 또는 둘 다 아님**이다. 모델만 오면 어느 provider 인지 추측해야 하고,
+    #   추측이 틀리면 사용자는 「왜 다른 모델이 돌았지」를 디버깅한다. 검증 = `catalog.resolve_override`.
+    provider: str | None = Field(default=None, max_length=32)
+    model: str | None = Field(default=None, max_length=128)
 
 
 class DriftReport(BaseModel):
@@ -87,3 +91,39 @@ class GenerateStrategyResponse(BaseModel):
     unsupported: list[str] = Field(default_factory=list)
     # 실행 가능할 때만 채워진다 — 못 도는 Pine 은 렌더 기준선이 될 수 없다.
     drift: DriftReport | None = None
+
+
+class LlmModelItem(BaseModel):
+    """provider 목록 API 가 실제로 준 값만 담는다.
+
+    ★`_KIT.md` §4.9 — 서버가 안 주는 필드를 화면에 그리면 가짜 데이터다. provider 마다 주는
+    것이 달라서(OpenAI 는 `shutdown_date`, Gemini 는 토큰 상한·표시명) 없는 쪽은 `None` 이고
+    화면은 **그 자리를 비운다.**
+    """
+
+    id: str
+    display_name: str | None = None
+    shutdown_date: str | None = None
+    input_token_limit: int | None = None
+    output_token_limit: int | None = None
+
+
+class LlmProviderModels(BaseModel):
+    provider: str
+    models: list[LlmModelItem]
+    total_seen: int
+    configured: str | None = None
+    configured_listed: bool | None = None
+    error: str | None = None
+
+
+class LlmModelsResponse(BaseModel):
+    """★이 응답은 「고를 수 있는 후보」지 **「동작 보증」이 아니다.**
+
+    같은 날 실측 둘이 그 경계를 그린다 — `gemini-3.7-flash` 는 목록에 **있는데** 503 이고,
+    OpenAI 목록에는 capability 필드가 **없어** chat 가능 여부를 이름으로 추측한다.
+    """
+
+    providers: list[LlmProviderModels]
+    order: list[str]
+    active: str | None = None

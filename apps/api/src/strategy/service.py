@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 # asyncpg FK violation 타입 — 드라이버 부재 시 None으로 fallback (단위 테스트 호환)
@@ -505,7 +505,11 @@ class StrategyService:
         )
 
     async def brief_narrative(
-        self, *, strategy_id: UUID, owner_id: UUID
+        self,
+        *,
+        strategy_id: UUID,
+        owner_id: UUID,
+        settings_override: Any | None = None,
     ) -> StrategyNarrativeResponse:
         """[ADR-040] 해설 층 — **판정하지 않는다.**
 
@@ -534,7 +538,11 @@ class StrategyService:
 
         svc = self._narrative_svc
         return await asyncio.to_thread(
-            svc.explain, source=source, facts=facts, source_hash=source_hash
+            svc.explain,
+            source=source,
+            facts=facts,
+            source_hash=source_hash,
+            settings_override=settings_override,
         )
 
     async def update(

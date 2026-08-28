@@ -12,8 +12,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { NarrativePanel } from "@/features/strategy/components/brief/narrative-panel";
 
 const mockUseStrategyNarrative = vi.hoisted(() => vi.fn());
+// ★패널이 모델 선택 UI 를 품으므로 그 훅도 함께 막는다. 목록을 못 읽은 상태로 둬도
+//   패널 본문 단언은 그대로 성립해야 한다 — 선택 UI 가 해설을 가리면 안 된다.
+const mockUseLlmModels = vi.hoisted(() =>
+  vi.fn(() => ({
+    isPending: false,
+    isError: false,
+    data: undefined,
+  })),
+);
 vi.mock("@/features/strategy/hooks", () => ({
   useStrategyNarrative: (...args: unknown[]) => mockUseStrategyNarrative(...args),
+  useLlmModels: () => mockUseLlmModels(),
 }));
 
 const NARRATIVE = {
@@ -45,7 +55,8 @@ describe("NarrativePanel — 판정이 아닌 층", () => {
 
     expect(screen.getByTestId("narrative-idle")).toBeTruthy();
     // 훅은 불리지만 `enabled` 가 false 여야 한다 — 그것이 「서버를 안 부른다」의 실체다.
-    expect(mockUseStrategyNarrative).toHaveBeenCalledWith("s-1", false);
+    // ★세 번째 인자 = 고른 모델. 기본은 null(설정이 정한 provider/model 을 쓴다).
+    expect(mockUseStrategyNarrative).toHaveBeenCalledWith("s-1", false, null);
   });
 
   it("열면 켜진다 (양성 대조)", () => {
@@ -53,7 +64,7 @@ describe("NarrativePanel — 판정이 아닌 층", () => {
     render(<NarrativePanel strategyId="s-1" />);
     fireEvent.click(screen.getByRole("button", { name: "AI 해설 보기" }));
 
-    expect(mockUseStrategyNarrative).toHaveBeenLastCalledWith("s-1", true);
+    expect(mockUseStrategyNarrative).toHaveBeenLastCalledWith("s-1", true, null);
   });
 
   it("★「판정이 아닙니다」가 본문과 함께 뜬다", () => {

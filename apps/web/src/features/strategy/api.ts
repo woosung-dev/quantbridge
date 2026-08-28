@@ -22,6 +22,9 @@ import {
   type StrategyBrief,
   StrategyBriefSchema,
   type StrategyNarrative,
+  LlmModelsSchema,
+  type LlmModels,
+  type ModelChoice,
   StrategyNarrativeSchema,
   type StrategyListResponse,
   type StrategyResponse,
@@ -32,6 +35,7 @@ import {
 
 const STRATEGIES_PATH = "/api/v1/strategies";
 const PARSE_PATH = "/api/v1/strategies/parse";
+const LLM_PATH = "/api/v1/llm";
 
 export async function listStrategies(
   query: StrategyListQuery,
@@ -72,12 +76,22 @@ export async function getStrategyBrief(id: string, token: string | null): Promis
 export async function getStrategyNarrative(
   id: string,
   token: string | null,
+  choice: ModelChoice = null,
 ): Promise<StrategyNarrative> {
-  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${id}/brief/narrative`, {
+  // ★고른 모델은 쿼리로 간다. **둘 다 또는 둘 다 아님** — 서버가 한쪽만 오면 422 로 거절한다.
+  const qs = choice
+    ? `?provider=${encodeURIComponent(choice.provider)}&model=${encodeURIComponent(choice.model)}`
+    : "";
+  const raw = await apiFetch<unknown>(`${STRATEGIES_PATH}/${id}/brief/narrative${qs}`, {
     method: "GET",
     token,
   });
   return StrategyNarrativeSchema.parse(raw);
+}
+
+export async function getLlmModels(token: string | null): Promise<LlmModels> {
+  const raw = await apiFetch<unknown>(`${LLM_PATH}/models`, { method: "GET", token });
+  return LlmModelsSchema.parse(raw);
 }
 
 export async function generateStrategy(
