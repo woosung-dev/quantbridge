@@ -156,6 +156,8 @@ import 하는 것**을 error 로 막는다. 이동 시점 위반 0건이고 양�
 `interfaces/endpoints.md` 에 「보호된다」고 쓴 문장이 그 시점에 거짓이었다. 필터에 `--check` 를
 만들고 같은 게이트 3곳에 배선했다.
 
+2026-08-30 에 2단(PoC)을 삭제해 게이트는 1단만 남는다.
+
 부수로: eslint `**/app/**` 가 `@sentry/nextjs/app/router` 같은 **벤더 하위경로**까지 물었고
 (오탐, 탐침으로 실측), 템플릿 리터럴 `import(\`@/app/${n}\`)`은 **뚫렸다**. 앵커를 상대경로로
 좁히고`TemplateLiteral`선택자를 추가해 4갈래 전부 error·벤더 0건을 재확인했다.`export_openapi.py`는`APP_NAME`도 고정한다 —`info.title` 이 그 값이라 머신마다 판정이 갈렸다.

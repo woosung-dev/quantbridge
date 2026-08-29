@@ -457,17 +457,13 @@ run = "tools/scripts/ledger-vitals.sh"
 
 # OpenAPI 계약 drift — 커밋된 `contracts/openapi/openapi.json` 이 현재 코드의 산출물과 같은가.
 # ★env 통째 소싱이 전제다 — Settings 의 `trading_encryption_keys` 가 기본값 없는 필수 필드다.
-# ★2단도 함께 본다 — orval 이 실제로 읽는 것은 전량 파일이 아니라 이 부분집합이다.
-#   2026-08-16 적대 리뷰가 「1단만 게이트하고 2단은 무방비」를 잡았고 실제로 drift 해 있었다.
 [tasks.openapi-check]
-description = "OpenAPI 계약 drift (전량 + orval 부분집합 2단)"
+description = "OpenAPI 계약 drift (전량 1단)"
 run = """
 set -eu
 cd apps/api
 set -a; . ./.env.local; set +a
 uv run python scripts/export_openapi.py --check
-cd ..
-python3 tools/scripts/openapi-poc-filter.py --check
 """
 
 # ADR-037 제로베이스: gate-harnesses task(자기시험 14종 러너) 철거 — 검사기 층 자체가 철거됐다.

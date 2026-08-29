@@ -101,3 +101,9 @@ min / 2,902 B min+gzip** (zod external — zod 는 기존 의존이라 한계비
 
 PoC 산출물은 전부 추가 파일(+ eslint ignore 1줄)이라 커밋 revert 로 무손실 제거된다.
 런타임 경로는 이 회차에서 1바이트도 바뀌지 않았다.
+
+## 후속 (2026-08-30)
+
+- 비교 산출물 수명이 끝난 PoC 5좌표(`api-contract-poc/`·`orval.poc.config.ts`·`contracts/openapi/poc/`·`openapi-poc-filter.py`·필터 테스트)를 삭제한다.
+- 전면 전환 여부는 여전히 미결정이다.
+- 게이트는 전량 계약 파일의 1단 검사만 CI에 편입한다.

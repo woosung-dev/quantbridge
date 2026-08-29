@@ -26,9 +26,9 @@
 
 ## 계약 파일 — `contracts/openapi/openapi.json`
 
-OpenAPI 산출물이 레포에 **결정적으로 고정**돼 있다(`apps/api/scripts/export_openapi.py`, 키 정렬 + `APP_ENV=development` 강제 — 두 번 돌리면 byte-identical). 소비 경로는 **두 단이다** — `tools/scripts/openapi-poc-filter.py` 가 이 전량 export 에서 PoC 부분집합 `contracts/openapi/poc/openapi.poc.json` 을 뽑고, `apps/web/orval.poc.config.ts` 가 **그 부분집합**을 읽는다([ADR-031](../adr/031-api-contract-axis-poc.md)). orval 은 전량 파일을 직접 읽지 않는다.
+OpenAPI 산출물이 레포에 **결정적으로 고정**돼 있다(`apps/api/scripts/export_openapi.py`, 키 정렬 + `APP_ENV=development` 강제 — 두 번 돌리면 byte-identical). 소비·검증 경로는 **전량 계약 파일 1단**이다 — `contracts/openapi/openapi.json` 을 `export_openapi.py --check` 로 현재 API 정의와 대조한다([ADR-031](../adr/031-api-contract-axis-poc.md)).
 
-★**API 를 바꾸면 이 파일을 재생성해야 한다** — `mise run openapi-check` 가 drift 를 막고, CI `backend_static` 잡이 같은 검사를 한다(로컬 게이트 러너는 ADR-037 제로베이스로 철거 — green = 표준 러너 + CI 단일 게이트).
+★**API 를 바꾸면 이 파일을 재생성해야 한다** — `mise run openapi-check` 가 drift 를 막는다. CI backend 잡에는 이 lane의 step 3에서 `export_openapi.py --check` 스텝을 추가한다(로컬 게이트 러너는 ADR-037 제로베이스로 철거 — green = 표준 러너 + CI 단일 게이트).
 
 ## 갱신 규칙
 
