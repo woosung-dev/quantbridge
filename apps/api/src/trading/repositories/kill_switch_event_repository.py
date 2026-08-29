@@ -26,6 +26,15 @@ class KillSwitchEventRepository:
         await self.session.flush()
         return event
 
+    async def get_account_user_id(self, account_id: UUID) -> UUID | None:
+        """거래소 계정의 소유자 id. 실시간 발행 채널을 고르는 데만 쓴다.
+
+        ★KillSwitchService 가 `repo.session` 을 꺼내 직접 읽던 자리다 — `AsyncSession` 은
+        Repository 만 보유한다(apps/api/AGENTS.md §3). 게이트 = `test_repository_boundary_guard.py`.
+        """
+        account = await self.session.get(ExchangeAccount, account_id)
+        return account.user_id if account is not None else None
+
     async def get_by_id(self, event_id: UUID) -> KillSwitchEvent | None:
         result = await self.session.execute(
             select(KillSwitchEvent).where(KillSwitchEvent.id == event_id)  # type: ignore[arg-type]

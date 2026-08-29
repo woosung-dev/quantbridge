@@ -198,3 +198,78 @@ def test_repository_boundary_violations_do_not_expand_beyond_the_frozen_census()
 
     assert actual <= _FROZEN_VIOLATIONS, actual - _FROZEN_VIOLATIONS
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 두 번째 축 — Repository **리치스루**(`repo.session.<...>`)
+#
+# ★위의 census 는 이름이 말하는 그대로 **`select(` 호출만** 센다. 그래서 `repo.session.get(...)`
+#   처럼 repository 를 뚫고 세션을 직접 쓰는 경로는 **한 건도 세지 않는다** — 그런데도 원장은
+#   그 0 을 「Repository 경계 밖 접근 0건」으로 읽어 왔다([BL-763]). 재는 것을 늘려 그 간극을 없앤다.
+#   `AsyncSession` 은 Repository 만 보유한다(apps/api/AGENTS.md §3).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class _SessionReachThrough:
+    path: str
+    lineno: int
+    expression: str
+
+
+def _is_repository_receiver(node: ast.expr) -> bool:
+    """`self._events_repo` · `order_repo` 처럼 이름에 repo 가 든 수신자만 참."""
+    return "repo" in ast.unparse(node).lower()
+
+
+def _session_reach_throughs(path: Path) -> list[_SessionReachThrough]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    relative_path = path.relative_to(_REPOSITORY_ROOT).as_posix()
+    found: list[_SessionReachThrough] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute) or node.attr != "session":
+            continue
+        if not _is_repository_receiver(node.value):
+            continue
+        found.append(
+            _SessionReachThrough(
+                path=relative_path,
+                lineno=node.lineno,
+                expression=ast.unparse(node),
+            )
+        )
+    return found
+
+
+def test_reach_through_detector_separates_repository_receivers() -> None:
+    """양성/음성 대조 — repository 수신자만 세고 그 밖의 `.session` 은 안 센다."""
+    tree = ast.parse(
+        """
+await self._events_repo.session.get(ExchangeAccount, account_id)
+await order_repo.session.execute(stmt)
+await self._repo.commit()
+await request.session.get(x)
+self.session.get(y)
+"""
+    )
+    hits = [
+        ast.unparse(node)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and node.attr == "session"
+        and _is_repository_receiver(node.value)
+    ]
+
+    assert hits == ["self._events_repo.session", "order_repo.session"]
+
+
+def test_no_service_reaches_through_a_repository_to_its_session() -> None:
+    violations = {
+        (reach.path, reach.lineno, reach.expression)
+        for path in _scoped_source_paths()
+        for reach in _session_reach_throughs(path)
+    }
+
+    assert violations == set(), (
+        "Repository 를 뚫고 AsyncSession 을 직접 쓴다 (apps/api/AGENTS.md §3): "
+        f"{sorted(violations)}"
+    )

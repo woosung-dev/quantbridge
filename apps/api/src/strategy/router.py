@@ -123,6 +123,7 @@ async def list_strategies(
 @limiter.limit("5/minute")
 async def generate_strategy(
     request: Request,
+    response: Response,
     req: GenerateStrategyRequest,
     _: CurrentUser = Depends(get_current_user),
     svc: GenerateService = Depends(get_generate_service),
@@ -174,6 +175,7 @@ async def get_strategy_brief(
 @limiter.limit("10/minute")
 async def get_strategy_brief_narrative(
     request: Request,
+    response: Response,
     strategy_id: UUID = Path(...),
     provider: str | None = Query(default=None, max_length=32),
     model: str | None = Query(default=None, max_length=128),
