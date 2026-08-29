@@ -500,16 +500,28 @@ P(168h) 3.6e-06 → 9.6e-04, self-check 2/2).
 ⑵ `uv sync` 단계가 **없었다** — 소크는 `apps/api/src` 만 remount 하는데 `openai>=1.60` 이 새로 붙었고
 `src.main` 이 그 체인을 물어, 그 단계 없이 재시작하면 **API 가 import 부터 죽는다**(워커 18 task 는 0건 무관).
 ★**LLM 키도 같은 날 넣었다** — 서버 `.env.local` 에 키 3종이 **한 줄도 없었다**(전부 INSERT).
-로컬 값을 옮기기 전에 세 provider 에 직접 물어 유효성을 쟀고 **openai 만 200**
-(anthropic `API key is invalid` · gemini `API_KEY_INVALID` — 둘 다 요청 형식이 아니라 **키 자체**가 무효).
-⇒ 키 3종을 다 넣되 **`LLM_PROVIDER_ORDER=openai`** 로 뒀다. `available_providers` 는 **키 존재만** 보고
-유효성은 안 보므로, 무효 키를 순서에 남기면 매 호출이 tenacity 3회를 태우고 넘어간다.
-**갱신하면 순서 문자열만 넓히면 된다** — PR #840 이 만든 구조가 정확히 그것이다.
-서버 실왕복 검증: `provider_order=['openai']` · `complete_json` 이 스키마 준수 JSON 반환.
+옮기기 전에 세 provider 에 직접 물어 유효성을 쟀다. **최종 상태(2026-08-29) = `openai,gemini`** ·
+`GEMINI_MODEL=gemini-3.5-flash-lite` · **anthropic 은 제외**(사용자 결정 — 키 제거 + 기본 순서에서 삭제).
+★`available_providers` 는 **키 존재만** 보고 유효성은 안 본다 ⇒ **무효 키를 순서에 남기지 마라**
+(매 호출이 그것을 시도하고 실패한 뒤에야 다음으로 넘어간다).
+서버 실왕복 검증: openai · gemini **각각 개별 강제**로 스키마 준수 JSON 반환.
 
-**다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 브리핑 축이 끝났으므로 표의 세 후보로 돌아간다:
-**D([BL-827] `openapi-check` CI 편입 · ⑴ 은 한 줄)** · **B([BL-453] 재기술 필요)** ·
-**AP([BL-774] 사람 동반 필요)**. ★[BL-827] ⑴ 은 다른 회차에 동승 가능한 크기다.
+★★**그 검증이 결함을 하나 잡았다**(PR #843) — 기본값 **`gemini-2.0-flash` 가 폐기돼 404** 였고,
+convert 작성 시점부터의 기본값이라 **Gemini fallback 은 아무에게도 동작한 적이 없다.**
+★키 검사로는 못 잡는다(키는 유효 · 순서대로 한 번 부르면 openai 가 응답해 멀쩡해 보인다) —
+**provider 를 개별로 강제해야** 보였다. ⇒ `GET /api/v1/llm/models` 신설: provider 에게 목록을 물어
+설정값이 **살아 있는 목록에 있는지**(`configured_listed`) 대조한다. ★**3값이다** — 목록을 못 읽었으면
+`False` 가 아니라 `None`. 「못 봤다」를 「없다」로 접으면 죽은 목록 API 가 멀쩡한 설정을 오경보한다.
+
+★**2차 배포 (2026-08-29)** — `5f16952b` → `732ab067`(3커밋 · 마이그레이션 0 · 신규 의존성 0 · 신규 env 0).
+**API+FE 만 올리고 소크는 안 끊었다** — 그때 소크 창이 **23.7h/24h** 였고 미배포 커밋이 워커 import
+체인 밖(narrative/catalog)이라 창을 태울 이유가 없었다. 자격 획득 뒤 재고정한다.
+검증: `/api/v1/llm/models` 인증 없이 401 · 인증 후 200(openai 61/132 · gemini 39/53 둘 다 `✓목록에 있음`) ·
+FE 이미지 `732ab067` · 컨테이너 안 `model-picker` 마커 실재(양성/음성 대조 동반).
+
+**다음 행동 = 개발 항목을 ⓪ 표에서 고른다** — 배포·LLM 축이 끝났으므로 표의 **다섯 후보**로 돌아간다:
+**E([BL-833] Optimizer 드롭다운 — 추천, 데이터가 이미 있다)** · **D([BL-827] `openapi-check` CI 편입 · ⑴ 은 한 줄)** ·
+**F([BL-834] convert 를 provider 층 안으로)** · **B([BL-453] 재기술 필요)** · **AP([BL-774] 사람 동반 필요)**.
 ★**브리핑 축의 잔여 2건은 2026-08-28 원장에 등재했다** — **[BL-833]**(Optimizer `var_name` 자유 타이핑 ·
 brief 가 이제 데이터를 갖는다) · **[BL-834]**(`convert` 가 스키마 강제·provider 선택 밖 + `sliced` 도달 불가).
 둘 다 ACTIVE·도래라 ⓪ 표 후보가 **3 → 5** 가 됐다.
