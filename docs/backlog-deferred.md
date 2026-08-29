@@ -629,6 +629,53 @@ raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족�
 
 ---
 
+### BL-774
+
+**Title:** TradingView webhook 이 **body 기반 HMAC** 을 요구한다 — 동적 alert 본문에서 성립하는지 미확인
+**Category:** Backend / Trading ingress
+**Priority:** P2
+**Trigger:** ★**TradingView 유료 플랜을 다시 결제하기로 결정하면.** webhook alert 는 TradingView 유료 기능이고
+**지금은 결제하지 않는다**(2026-08-30 사용자 — 예전에는 결제했다). 결제 없이는 실측 자체가 불가능하다
+**Est:** M (실측 선행 · 결과에 따라 ingress 설계 분기)
+**출처:** 2026-08-16 외부 레포 비교 분석(finsight) 지적 → 코드 축만 확정, **TradingView 쪽은 [확인 필요]**
+
+**원인 / 영향:** `trading/webhook.py:116` 은 `hmac.new(secret, payload, sha256)` 으로 **요청 body
+전체**에 대한 HMAC 을 계산해 query `token` 과 비교한다. FE 도 그대로 안내한다 —
+`tab-webhook.tsx` 의 URL 템플릿이 `.../webhooks/{strategyId}?token={HMAC}` 이고 힌트 문구가
+「`{HMAC}` 자리에는 secret 과 body 로 만든 HMAC-SHA256 토큰을 채웁니다」다.
+
+**[확인 필요] — 아직 실측하지 않은 것:** TradingView alert 는 URL 과 message 를 **정적으로** 지정한다.
+⑴ body 가 완전히 고정이면 HMAC 도 고정이므로 이 방식은 **동작한다**(외부 분석의 「불가능」은 과장이다)
+⑵ 그러나 body 에 `{{close}}`·`{{time}}`·`{{strategy.order.action}}` 같은 placeholder 를 넣는 순간
+본문이 매 alert 마다 달라지고 **고정 token 은 전부 401 이 된다.** 실제로 어느 쪽인지는
+**사용자의 alert 본문 설계에 달려 있고 아직 실측이 없다.**
+
+**함께 볼 것 — idempotency:** `trading/router.py` 의 idempotency key 는 **optional query
+parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부되고, 생략하면 TradingView 의
+재전송이 **중복 주문**이 된다. 즉 HMAC 축과 idempotency 축이 **같은 결정에 묶여 있다.**
+
+**권장 접근:** ⑴ ★**먼저 실측해라** — 실제 TradingView alert 하나를 정적 body 로 걸어 200 이 나는지
+확인한다. 코드를 고치기 전에 이 한 건이 설계를 가른다 ⑵ 동적 body 가 필요하다고 판정되면 세 갈래 중
+선택: (a) 고정 endpoint token + body fingerprint (b) 서명 relay (c) 서버가
+`strategy_version + symbol + side + bar_timestamp` 로 idempotency key 를 **자동 생성**
+⑶ (c) 는 [BL-773] 의 `strategy_version` 에 의존한다 — 순서를 보라
+
+**Risk:** 🟡 (ingress 계약 변경은 기존 연결을 끊을 수 있다. 지금 실사용 연결이 있는지부터 확인)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-30 재기술(종전 마커 `⬜ Open` 은 [ADR-028] 판정어 5종 밖이었다).
+코드 축(body-HMAC + optional idempotency)은 2026-08-16 에 확정됐고 **TradingView 쪽 실측은 미착수**다.
+**트리거 판정:** ~~도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)~~
+→ ★**2026-08-30 미도래로 재판정.** 「첫 step 은 실측 1건」은 여전히 맞지만 **그 실측을 할 수단이 없다** —
+webhook alert 는 유료 플랜에서만 만들어지고 현재 결제하지 않는다. **결제가 선행**이다.
+
+★★**[사용자 방향 · 미확정] 이 항목의 값을 정하는 것은 결제가 아니라 타겟이다.** 2026-08-30 사용자 =
+「**결제를 하지 않는 대상**도 쓸 수 있게 타겟팅을 생각하고 있다」. 그 방향이 확정되면 webhook 은
+**주 경로가 아니게 된다**(무료 TradingView 계정은 webhook alert 를 못 만든다) — 이 항목은 그때
+「결제 사용자용 선택적 고급 경로」로 내려가고, 대신 **무료 사용자의 진입 경로**가 제품 축이 된다.
+⇒ **그 방향 결정이 이 항목보다 앞선다.** 확정되면 `docs/PRD.md` 범위 절이 먼저 바뀐다
+
+---
+
 ### BL-005
 
 **Title:** Beta 외부 공개 게이트 — 사용자 결정 축
