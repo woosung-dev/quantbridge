@@ -28,6 +28,11 @@
 > ⑶ **멀티 거래소 안 한다** — Bybit 하나. OKX·Binance 전제 항목을 닫는다
 > 셋 중 하나라도 뒤집히면 위 SHA 에서 해당 축을 되살려라 — **다시 쓰지 말고 되살려라.**
 >
+> ★★**2026-08-30 배치 1 종결 5건 tombstone.** 원문 = `git show 165b1e97:docs/backlog.md`(`backlog-deferred.md` 동일 SHA).
+> 다섯 다 **닫는 근거가 이미 자기 섹션 본문에 있었다** — [BL-453] 「⇒ 종결 후보다」 자기 선언(선언·사용 두 축 모두 CI 가드 green) ·
+> [BL-371] 트리거 「post-Beta」가 결정 ⑵ 로 **발화 불가** · [BL-776] 2026-08-19 결정 「개방 유지 + 카피 수정」이 이미 닫음 ·
+> [BL-792]·[BL-796] 트리거 대상이 레포에 **0건**. ⇒ 40건 → **35건**.
+>
 > ⚠️★**BL-nnn 인용이 섹션을 못 찾는 것은 정상이다.** 이 다이어트로 **269종**이 새로 끊겼고,
 > 그 전에도 **156종**이 이미 끊겨 있었다(2026-08-23 실측 — RESOLVED 아카이브·roadmap 전용 항목).
 > 인용 1,507회를 고치는 대신 이 tombstone 하나로 닫는다. 끊긴 인용을 보면 위 SHA 를 열어라.
@@ -194,7 +199,7 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
   - ~~**BL-070** 도메인 + DNS + Cloudflare~~ → **2026-08-23 정정: 도메인·DNS 는 이미 있다**
     (2026-08-16 실측 — `qb.woosung.dev` 302 · `qb-api.woosung.dev/health` 200). 남은 것은
     **Cloudflare Access 제거 여부**이고 그것은 **「유지」가 사용자 결정**이다(`status.md` §320).
-    걷으면 [BL-776](개방 가입)이 즉시 발현한다.
+    걷으면 가입이 **개방**된다 — 2026-08-19 사용자 결정 = 「개방 유지 + 카피 수정」(초대 게이트를 짓지 않는다).
   - ~~**BL-071** Backend 프로덕션 배포 (Cloud Run/Railway/Render + … + Clerk production + 보안 헤더 gunicorn)~~
     → **2026-08-23 정정: 서술 3절 중 2절이 죽었다.** ⑴ **Clerk 은 없다** — [ADR-034](./adr/034-auth-self-host-better-auth.md)
     가 2026-08-17 에 self-host Better Auth 로 교체했고 코드의 `clerk` 언급 8건은 전부 **묘비 주석**이다.
@@ -294,27 +299,6 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | [BL-557](#bl-557) | (P3) `qb_active_orders` 게이지가 **음수(-2.0)** 로 표류 — inc 1곳 / dec 약 18곳                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | 그 게이지로 무언가를 판단하기 전                                                                                  | S         | 2026-07-30 live-entry-completeness                     |
 | [BL-616](#bl-616) | 부트스트랩을 **우회해 만든** 워크트리는 husky 훅이 없다 — `pnpm install` 을 건너뛰면 `prepare: husky` 가 안 돌아 `.husky/_`(미트래킹)가 안 생기고, git 은 없는 `core.hooksPath` 를 **경고 없이 무시**한다. 실태: 워크트리 5개 중 **4개 정상**, 우회 생성된 1개만 결손(2026-08-07 정상화 완료). ★남은 축 = **감지 수단이 없다** — 훅이 안 도는 실패 모드는 출력이 0줄이라 「통과」와 구별되지 않는다                                                                                                                                                                                                                                                                                            | 워크트리에서 훅 미작동이 또 관측되면                                                                              | S         | 2026-08-07 ADR-027 회차 (자기 커밋에서 발견)           |
 
-### BL-371
-
-**Title:** ws-stream 고빈도 fill 스트레스 — orphan buffer cap 1000 + concurrent 순서 미검증
-**Category:** Trading / Hardening (observability)
-**Priority:** P3
-**Trigger:** post-Beta 실거래 빈도 상승 시 (monitor)
-**Est:** S (2-4h)
-**상태:** 🟡 부분 해결 — 버퍼·cap·gauge 축은 BL-448 로 소멸하고 discarded 카운터·테스트가 대체됐다; 남은 건 out-of-order/고빈도 stress 테스트뿐(Trigger 미도래). (2026-08-09 status-triage-mass 코드 대조)
-**트리거 판정:** 미도래 — 외생 조건(post-Beta 실거래 빈도 상승). Beta 미도달. 본문도 「현재 데모 빈도엔 충분 · 현재는 등재만」으로 스스로 적었다 (2026-08-11 bl-703-partial-verdicts)
-**출처:** `2026-06-26-trading-deepen-2.md`
-
-**현 상태:** ~~`state_handler.py` orphan buffer FIFO cap 1000(`_ORPHAN_MAX`)~~ → **2026-08-09 [BL-448](#bl-448) 로 버퍼·cap·gauge 가 통째로 사라졌다** (읽는 프로덕션 경로가 없었다). 남은 관심사는 out-of-order WS fill message / supervisor crash-restart cycle 의 고빈도(>100 fills/s) 스트레스 테스트 미검증뿐이다. 현재 데모 빈도엔 충분.
-
-**권장 접근:** post-Beta 모니터링 — ~~`qb_ws_orphan_buffer_size` gauge alert >800~~ → **`qb_ws_orphan_discarded_total{reason="terminal_event_lost"}` 증가율**(버퍼 크기라는 축 자체가 없어졌다) + 필요 시 concurrent ordering 테스트 추가. 현재는 등재만.
-
-**영향 파일:** `trading/websocket/state_handler.py` + 테스트.
-
-**Risk:** 🟢 (현재 미발현, monitor).
-
----
-
 ## Beta 오픈 번들 — 단일 milestone
 
 > **deferred** — Beta 본격 진입 trigger (BL-005 self-assessment ≥ 7/10 + 본인 의지 second gate) 도래 시 main 으로 row 이동.
@@ -371,42 +355,6 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 **원인 / 영향:** ccxt `fetch_positions` 의 position 필드는 Full-mode SL + set-trading-stop 트레일링만 담는다. QB 가 tpslMode=Partial 로 부착한 limit-TP 는 별도 조건부 주문이라 §03 에 안 나온다(각주로 고지). 또 reduce-only 청산은 포지션만 flatten 하고 잔여 조건부 주문은 스윕하지 않는다(포지션-부착 TP/SL 은 Bybit 이 flat 시 자동취소).
 
 **권장 접근:** `fetch_open_orders`(conditional) 조인으로 완전 TP/SL 표시 + 청산 시 열린 reduce-only 조건부 주문 취소.
-
----
-
-### BL-453
-
-**Title:** StrEnum + 평문 String 컬럼 필드 — 새 세션 재조회 시 `.value`/`.name` 접근이 크래시할 수 있음
-**Category:** Backend / trading (defensive — 패턴 재발 방지)
-**Priority:** P3
-**Trigger:** 이 5개 필드 중 하나에 `.value`/`.name`/`isinstance(..., <EnumClass>)` 를 새 세션 재조회 결과에 쓰는 코드가 추가될 때
-**Est:** S (1-2h — 감사 + lint 가드 또는 테스트 1건씩)
-**출처:** 2026-07-25 exit-attribution dogfood 실측 (`context-notes.md` §9.9) — **실제로 프로덕션 코드에서 한 건 발생해 수정함**
-
-**원인 / 영향:** `ExchangeExit.classification`(`ExitClassification` StrEnum)이 `sa_column=Column("classification", String(24), ...)` 로 선언돼 있다(Sprint 26 의 `UndefinedObjectError` 회피 워크어라운드, `models.py:438-440`). 메모리에서 갓 만든 객체는 `.classification` 이 진짜 enum 이라 `.value` 가 되지만, **다른 세션에서 새로 `SELECT` 한 행은 SQLAlchemy 가 plain `str` 을 그대로 준다**(재캐스팅 없음) — `.value` 접근이 `AttributeError` 를 던진다. dogfood 에서 `_alert_new_exchange_exits` 가 정확히 이 경로로 죽어 신규 미귀속 행 알림이 매 사이클 조용히 실패하고 있었다(§7.3 대로 실측으로만 드러남 — 유닛테스트는 fake repo 라 잡지 못했다). `str(row.classification)` 로 수정 완료(`StrEnum.__str__` 이 값 자체를 돌려주므로 reload/메모리 양쪽 안전) + 실 DB 회귀 테스트 부착.
-
-**감사 결과** — 같은 패턴(StrEnum 타입 + 평문 String 컬럼)인 필드가 4개 더 있다: `LiveSignalSession.interval` · `LiveSignalEvent.status` · `AlertRule.rule_type` · `AlertRule.channel`. 전수 조사 결과 **현재는 이 4개 모두 `==`/`!=`/`str()` 만 쓰거나 호출부가 없어 안전**하다(`StrEnum` 이 `str` 서브클래스라 비교 연산은 reload 여부와 무관). 즉 지금 당장 고칠 버그는 없고, **미래에 이 필드들에 `.value`/`.name` 을 쓰는 코드가 추가되면 같은 함정을 반복**할 잠재 위험만 남아 있다.
-
-**권장 접근:** (a) 최소 — 5개 필드 선언부에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만 사용" 주석을 통일해서 남긴다(현재 `interval` 필드에만 있음, 나머지 4개엔 없음) (b) 중간 — ruff 커스텀 규칙 또는 AST 기반 테스트(이 레포의 `test_no_module_level_loop_bound_state.py` 패턴 참고)로 이 5개 필드명에 대한 `.value`/`.name` 접근을 정적으로 금지 (c) 근본 — Sprint 26 워크어라운드가 아직 필요한지 재검토하고, 필요 없으면 `sa.Enum` 으로 되돌려 SQLAlchemy 가 재캐스팅을 대신하게 한다.
-
-**Risk:** 🟢 (현재 실제 발생한 크래시는 이미 수정됨. 이 항목은 재발 방지용 예방적 등재)
-
-**상태:** 🟡 **부분 Resolved — 권장안 (a) 까지 (2026-07-25, `stage/exit-money-path`).** `tasks/trading.py:1698` 의 마지막 `.value` 잔존(`qb_exchange_exit_rows_total` 라벨)을 `str(row.classification)` 로 바꿨다. 지금은 메모리 객체라 안전하지만, 소스가 재조회 경로로 바뀌는 리팩터 한 번이면 dogfood 때와 같은 크래시가 재현되는 자리였다(grep 결과 코드베이스에 남은 유일한 `.value`). 그리고 **감사 목록에서 빠져 있던 `ExchangeExit.attribution_confidence` 를 포함해 6개 필드 전부**에 "`.value`/`.name` 금지, `==`/`!=`/`str()` 만" 주석을 통일했다(`models.py:441 · 583 · 634 · 640 · 718 · 742`). ~~권장안 (b) 정적 가드와 (c) `sa.Enum` 복귀는 미착수.~~
-→ ★**2026-08-24 n9-trading-contract — (b) 의 「선언 축」만 닫혔다. 「사용 축」은 구조적으로 못 닫는다.**
-신설 `apps/api/tests/trading/test_strenum_column_contract.py` 가 `sa_column=Column(..., String(...))` 위에 StrEnum 주석이 얹힌 필드를 AST 로 수집해(6건) **전건이 BL-453 계약 주석을 달고 있는지**를 잰다. 7번째 필드를 계약 없이 추가하면 red 다.
-~~★★**사용처 가드(「이 6개 필드에 `.value`/`.name` 금지」)는 기각됐다 — 다시 만들지 마라.** `apps/api/src` 전량 AST 실측에서 12건이 걸렸고 **12건 전부 위양성**이었다: `bt.status.value`·`run.status.value`(backtest·optimizer·stress_test)의 `status` 는 **진짜 Enum 컬럼**이라 `.value` 가 정당하고, `tally.channel.value`(`trading/entry_completeness.py`)의 `tally` 는 `ChannelTally` 라는 **로컬 dataclass** 다. ⇒ **필드 이름만으로는 소유 클래스를 못 가른다.**~~
-~~⇒ **잔여 = 사용 축 · (c) `sa.Enum` 복귀.** 사용 축을 닫으려면 이름이 아니라 **타입**을 봐야 하므로 mypy 게이트가 선행 조건이다(현재 CI 는 `ruff` 만 잰다).~~
-
-★★★**2026-08-30 코드 대조 — 바로 위 두 줄이 둘 다 거짓이다. 이 섹션이 자기 자신을 반증하고 있었다.**
-「기각됐다 — 다시 만들지 마라」고 적힌 그 가드가 **이미 레포에 있고 green 이다**: `apps/api/tests/trading/test_no_strenum_value_access.py`(18KB, n7 PR #797). 2026-08-30 전량 pytest **5,568 passed** 에 포함돼 통과했다. ⓪ 표 B행이 2026-08-24 에 같은 것을 적어 뒀는데 **이 섹션 본문만 안 따라왔다** — 원장 안에서 두 자리가 서로 반대를 말하고 있었다.
-
-★**위양성 12건 문제는 「못 가른다」가 아니라 이미 풀려 있다.** 가드는 두 수단으로 그것을 처리한다: ⑴ **스코프** — `_SCANNED_DIRECTORIES = (src/trading, src/tasks)` 라 위양성의 출처였던 backtest·optimizer·stress_test 가 애초에 대상 밖이다. ⑵ **allowlist** — `entry_completeness.py` 의 `ChannelTally` 3건이 `(파일, 속성, **비어 있지 않은 사유**)` 3튜플로 등재돼 있고, **각 항목이 실제 AST hit 하나와 대응해야** 해서 낡은 면제가 남으면 그 자신이 red 다. 게다가 대상 필드를 이름이 아니라 **`models.py` AST 에서 파생**하고(StrEnum 주석 + `Column(..., String(N))`), `_MIN_SCANNED_FILES = 70` 양성 대조까지 붙어 있다.
-
-★**「mypy 게이트가 선행」도 거짓이다** — mypy 는 `.value` 축을 못 잡으므로 AC 로 쓰면 항진명제다(⓪ 표 B행 2026-08-24 실측). 그리고 선행일 필요도 없다. 가드가 이미 그 일을 하고 있다.
-
-⇒ ★**잔여는 (c) `sa.Enum` 복귀 하나뿐이다** — 「Sprint 26 의 `UndefinedObjectError` 워크어라운드가 아직 필요한가」라는 별개 질문이고, 선언 축(n9 `test_strenum_column_contract.py`)·사용 축(n7 위 가드) 둘 다 닫힌 지금 **재발 위험은 가드가 막고 있다.** ⇒ **종결 후보**다(⓪ 표 B행에서 사용자 1줄 결정).
-
-**트리거 판정:** ~~미도래 — 동승 조건. 「이 5개 필드에 `.value` 를 새로 쓰는 코드가 추가될 때」라 그 코드를 쓰는 회차에 붙는다. 단독 착수 시 값이 0이다 (2026-08-11 bl-703-partial-verdicts)~~ → **2026-08-30 재판정 — 그 트리거는 가드가 흡수했다.** 「`.value` 를 새로 쓰는 코드」는 이제 사람이 알아채는 것이 아니라 **CI 가 red 로 잡는다.** 남은 (c) 는 트리거가 「`sa.Enum` 워크어라운드를 실제로 걷어낼 이유가 생길 때」다 — 지금은 없다
 
 ---
 
