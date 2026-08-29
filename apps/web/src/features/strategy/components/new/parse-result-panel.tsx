@@ -7,6 +7,8 @@
 
 import { AlertTriangleIcon, CheckIcon } from "lucide-react";
 
+import { ConvertWithAIButton } from "@/features/backtest/components/ConvertWithAIButton";
+import type { ConvertIndicatorResponse } from "@/features/backtest/schemas";
 import { PARSE_STATUS_LABEL, UNSUPPORTED_POLICY_NOTE } from "@/features/strategy/labels";
 import { isSweepable, type ParsePreviewResponse } from "@/features/strategy/schemas";
 import { StateBox } from "@/components/state-box";
@@ -22,6 +24,8 @@ interface ParseResultPanelProps {
   onSave?: () => void;
   saving?: boolean;
   canSave?: boolean;
+  indicatorCode?: string;
+  onConverted?: (result: ConvertIndicatorResponse) => void;
 }
 
 export function ParseResultPanel({
@@ -31,6 +35,8 @@ export function ParseResultPanel({
   onSave,
   saving = false,
   canSave = false,
+  indicatorCode,
+  onConverted,
 }: ParseResultPanelProps) {
   const supported = result?.status === "ok" && (result?.unsupported_builtins.length ?? 0) === 0;
 
@@ -57,7 +63,14 @@ export function ParseResultPanel({
         ) : !result ? (
           <EmptyHint />
         ) : supported ? (
-          <SupportedBody result={result} onSave={onSave} saving={saving} canSave={canSave} />
+          <SupportedBody
+            result={result}
+            onSave={onSave}
+            saving={saving}
+            canSave={canSave}
+            indicatorCode={indicatorCode}
+            onConverted={onConverted}
+          />
         ) : (
           <UnsupportedBody result={result} />
         )}
@@ -109,11 +122,15 @@ function SupportedBody({
   onSave,
   saving,
   canSave,
+  indicatorCode,
+  onConverted,
 }: {
   result: ParsePreviewResponse;
   onSave?: () => void;
   saving?: boolean;
   canSave?: boolean;
+  indicatorCode?: string;
+  onConverted?: (result: ConvertIndicatorResponse) => void;
 }) {
   const supportedCount = result.functions_used.length;
   const unsupportedCount = result.unsupported_builtins.length;
@@ -186,6 +203,18 @@ function SupportedBody({
           ) : null}
         </div>
       </div>
+
+      {result.declaration?.kind === "indicator" && indicatorCode && onConverted ? (
+        <div className="mt-4 flex flex-col gap-2">
+          <p className="metric-note">
+            이 스크립트는 indicator라 진입/청산 주문이 없습니다. 백테스트하려면 strategy로 바꿔야
+            합니다.
+          </p>
+          <div>
+            <ConvertWithAIButton indicatorCode={indicatorCode} onConverted={onConverted} />
+          </div>
+        </div>
+      ) : null}
 
       <button
         className="btn btn-primary btn-block"
