@@ -5,12 +5,15 @@
     {
       "step": 0,
       "name": "drop-openapi-poc",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "set -u; fail=0\nfor p in apps/web/src/lib/api-contract-poc apps/web/orval.poc.config.ts contracts/openapi/poc tools/scripts/openapi-poc-filter.py apps/api/tests/scripts/test_openapi_poc_filter.py; do\n  if [ -e \"$p\" ]; then echo \"잔존: $p\"; fail=1; fi\ndone\nnf=$(git ls-files -- apps tools contracts mise.toml .github | wc -l | tr -d \" \")\n[ \"$nf\" -ge 100 ] || { echo \"양성 대조 실패: 스캔 대상이 ${nf}건뿐이다\"; fail=1; }\nhits=$(git ls-files -- apps tools contracts mise.toml .github | while IFS= read -r f; do [ -f \"$f\" ] || continue; grep -Il -e api-contract-poc -e 'orval\\.poc' -e openapi-poc-filter -e 'openapi\\.poc\\.json' \"$f\"; done)\nif [ -n \"$hits\" ]; then echo \"추적 중인 코드/설정에 PoC 참조가 남았다:\"; echo \"$hits\"; fail=1; fi\ngrep -q export_openapi mise.toml || { echo \"양성 대조 실패: mise.toml 이 export_openapi 를 안 부른다\"; fail=1; }\n[ -f contracts/openapi/openapi.json ] || { echo \"전량 계약 파일이 사라졌다\"; fail=1; }\nexit $fail",
         "cd apps/web && pnpm exec tsc --noEmit",
         "cd apps/web && pnpm exec biome check ."
-      ]
+      ],
+      "started_at": "2026-08-30T00:41:47+0900",
+      "summary": "PoC 생성물 5좌표와 2단 필터를 삭제하고 openapi-check를 전량 계약 파일 1단으로 축소했으며 관련 계약 문서를 갱신했다.",
+      "completed_at": "2026-08-30T00:44:43+0900"
     },
     {
       "step": 1,
@@ -41,5 +44,6 @@
         "cd apps/api && uv run mypy src"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-30T00:41:47+0900"
 }
