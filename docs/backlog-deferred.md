@@ -66,28 +66,6 @@
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
-### BL-519
-
-**Title:** 컨테이너로 API 를 띄우는 배포에는 multiprocess 배선이 없다 — 조용히 폴백해 worker 지표를 영영 못 본다
-**Category:** Infra / observability
-**Priority:** P2
-**Trigger:** 프로덕션 배포 시
-**Est:** S
-**상태:** ⏳ 대기 (트리거 미도래) — API 컨테이너 서비스도, production 미설정 경고 로그도 아직 없다 — 폴백은 여전히 무증상이다 (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 미도래 — 외생 조건(Beta·프로덕션 배포). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
-**출처:** 2026-07-28 live-observability 적대 검증
-
-**원인 / 영향:** `docker-compose.yml` 에 API 서비스가 **없다**(호스트 uvicorn). `PROMETHEUS_MULTIPROC_DIR` 을 주입하는 곳은 compose 의 worker 4곳 + Makefile 2곳뿐이다. `Dockerfile` 이 `/metrics` 디렉토리를 만들어 두지만 **그 값을 주입하는 곳이 레포 전체에 없다.**
-
-컨테이너 API 배포에서는 env 미설정 → 단일 프로세스 폴백 → **worker 지표가 안 보인다.** 그리고 그 상태가 200 을 반환하므로 **무증상**이다.
-
-★이번 세션에서는 `.env.example` 과 `docker-entrypoint.sh` 주석으로 **경고만** 남겼다. 배포 매니페스트가 이 레포에 없어 코드로 강제할 수 없다.
-
-**권장 접근:** 배포 매니페스트에 env + 공유 볼륨을 넣고, API 기동 시 `PROMETHEUS_MULTIPROC_DIR` 미설정을 **production 에서 경고 로그**로 남긴다.
-**Risk:** 🟡
-
----
-
 ## P3 — Nice-to-have / 컨벤션 정합
 
 ### BL-476
