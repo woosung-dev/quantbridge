@@ -542,20 +542,26 @@ brief 가 이제 데이터를 갖는다) · **[BL-834]**(`convert` 가 스키마
 > 2026-08-29~30 에 **코드로 대조**했다. 그래도 하네스 §1 대로 **설계 step 에서 다시 확인해라** —
 > 이 레포는 「적혀 있다 ≠ 그렇게 동작한다」를 8건 겪었다.
 
-**다음 행동 = 아래 3 lane 을 저작하고 주행한다 — `main` 에서 그대로 친다:**
+~~**다음 행동 = 아래 3 lane 을 저작하고 주행한다**~~ → ★**2026-08-30 저작 완료**(PR #847 · `a449845c`) —
+`phases/` 에 `ci-gates`·`convert-reach`·`optimizer-inputs` 3 lane 이 서 있고 `index.json` 은 전건 `pending` 이다.
+
+**다음 행동 = 그 3 lane 을 주행한다 — `main` 에서 그대로 친다:**
 
 ```
-/harness parallel 3 BL-827 BL-834 BL-833
+/harness parallel 3
 ```
 
-★**재료(BL 번호)를 반드시 함께 줘라.** 인자 없는 `/harness parallel 3` 은 「`pending` 전량」으로 읽히는데
-`phases/index.json` 이 `[]` 라 러너가 **「무엇을 할까」를 되묻고 멈춘다**(하네스 §호출 — 「pending 이 없으면 묻는다」).
-BL 번호는 `phases/` 의 디렉터리명이 아니므로 **「그것을 재료로 새 회차를 설계한다」** 분기로 들어간다.
+★★**BL 번호를 붙이지 마라 — 붙이면 이미 저작된 lane 을 버리고 새로 설계한다.**
+하네스 인자 규칙: `phases/` 디렉터리명 = 실행 / **그 밖의 값(티켓 ID 포함) = 새 회차 설계** /
+**생략 = `pending` 전량**(`.claude/commands/harness.md` §호출 표).
+지금 pending 이 정확히 그 3 lane 이므로 **생략이 맞다.**
+~~★**재료(BL 번호)를 반드시 함께 줘라.** … `phases/index.json` 이 `[]` 라 러너가 되묻고 멈춘다~~
+→ **그 전제는 저작으로 소멸했다**(`index.json` 이 더는 `[]` 가 아니다).
 ★**브랜치를 미리 파지 마라** — 전제 검사가 「메인이 `main` · 워킹트리 clean」을 요구하고,
 **stage 브랜치·워크트리 3벌은 러너가 직접 만든다**(손으로 파던 옛 절차는 2026-08-22 폐기).
-★lane 이름은 아래 표의 `ci-gates` · `convert-reach` · `optimizer-inputs` 를 그대로 써라.
+★lane 이름은 아래 표의 `ci-gates` · `convert-reach` · `optimizer-inputs` 다 — **한 lane 만 돌릴 때만** 이름을 준다.
 ★`phases/n12-execution-speed/` 는 **`runs/` 만 남은 gitignore 잔재**다(step 파일도 `index.json` 도 없다).
-회차가 아니니 무시하거나 지워라 — `phases/index.json` 이 `[]` 라 러너는 애초에 안 본다.
+회차가 아니니 무시하거나 지워라 — `phases/index.json` 이 그것을 등재하지 않아 러너는 애초에 안 본다.
 
 ### 착수 시점 baseline (2026-08-30 실측 — 재지 말고 이걸 써라. 단 하루 넘으면 다시 재라)
 
