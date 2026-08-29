@@ -17,14 +17,17 @@
     {
       "step": 1,
       "name": "wizard-convert-entry",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec vitest run src/features/strategy/components/new/__tests__/parse-result-panel-convert.test.tsx",
         "cd apps/web && pnpm exec vitest run src/features/strategy/components/new/__tests__/parse-result-panel.test.tsx",
         "set -u\ncd apps/web\nf=src/features/strategy/components/new/parse-result-panel.tsx\nt=src/features/strategy/components/new/__tests__/parse-result-panel-convert.test.tsx\nb=$(mktemp)\ncp \"$f\" \"$b\"\ntrap 'cp \"$b\" \"$f\"; rm -f \"$b\"' EXIT\nperl -pi -e 's/\"indicator\"/\"library\"/g' \"$f\"\nif cmp -s \"$f\" \"$b\"; then echo \"변이가 아무것도 안 바꿨다 — 리터럴 \\\"indicator\\\" 가 그 파일에 없다\"; exit 1; fi\nif pnpm exec vitest run \"$t\" >/dev/null 2>&1; then echo \"변이(indicator->library)에도 초록 — 이 스펙은 조건을 재지 않는다\"; exit 1; fi\nexit 0",
         "set -u\ncd apps/web\nw=src/features/strategy/components/new/new-strategy-wizard.tsx\n[ -f \"$w\" ] || { echo \"양성 대조 실패: 위저드 파일이 없다\"; exit 1; }\ngrep -q \"indicatorCode=\" \"$w\" || { echo \"위저드가 ParseResultPanel 에 indicatorCode 를 안 넘긴다\"; exit 1; }\ngrep -q \"onConverted=\" \"$w\" || { echo \"위저드가 ParseResultPanel 에 onConverted 를 안 넘긴다\"; exit 1; }\ngrep -q \"applyPineSource\" \"$w\" || { echo \"위저드가 applyPineSource 를 안 쓴다 — 변환 결과가 에디터로 안 들어간다\"; exit 1; }",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-30T00:45:23+0900",
+      "summary": "새 전략 위저드는 indicator 파싱 결과에서 변환 안내와 기존 변환 버튼을 보이며, 변환 코드를 에디터에 주입하고 warnings를 toast로 표시한다.",
+      "completed_at": "2026-08-30T00:50:06+0900"
     }
   ],
   "created_at": "2026-08-30T00:41:47+0900"
