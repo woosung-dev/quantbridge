@@ -542,24 +542,29 @@ brief 가 이제 데이터를 갖는다) · **[BL-834]**(`convert` 가 스키마
 > 2026-08-29~30 에 **코드로 대조**했다. 그래도 하네스 §1 대로 **설계 step 에서 다시 확인해라** —
 > 이 레포는 「적혀 있다 ≠ 그렇게 동작한다」를 8건 겪었다.
 
-~~**다음 행동 = 아래 3 lane 을 저작하고 주행한다**~~ → ★**2026-08-30 저작 완료**(PR #847 · `a449845c`) —
-`phases/` 에 `ci-gates`·`convert-reach`·`optimizer-inputs` 3 lane 이 서 있고 `index.json` 은 전건 `pending` 이다.
+~~**다음 행동 = 아래 3 lane 을 저작하고 주행한다 — `/harness parallel 3 BL-827 BL-834 BL-833`**~~
+→ ★**2026-08-30 저작·주행 착수 완료.** 저작 = PR #847(`a449845c`) · 주행 = `stage/n14` · 워크트리 `n14-w1/w2/w3` ·
+통합 PR **#851**. ★**그 지시는 저작 전 세션용으로 정확했다** — 당시 `phases/index.json` 이 `[]` 였으므로
+BL 번호를 재료로 준 것이 맞다(하네스 §호출 표: 디렉터리명 = 실행 / 그 밖의 값 = **새 회차 설계** / 생략 = `pending` 전량).
+★**그러나 저작이 끝난 지금 같은 명령을 다시 치면 안 된다** — `index.json` 이 더는 `[]` 가 아니라
+그 3 lane 을 `pending` 으로 갖고 있어, BL 번호를 주면 **저작된 lane 을 버리고 새 회차를 설계한다.**
+한 lane 만 다시 돌릴 일이 생기면 **디렉터리명**(`ci-gates`·`convert-reach`·`optimizer-inputs`)을 주고,
+전건이면 인자를 **생략**해라.
 
-**다음 행동 = 그 3 lane 을 주행한다 — `main` 에서 그대로 친다:**
+**다음 행동 = n14 3 lane 완주를 기다렸다가 통합 PR #851 을 판단한다.**
 
 ```
-/harness parallel 3
+python3 tools/harness/execute.py --status      # lane 진행
+gh pr list                                     # lane PR(base=stage/n14) · 통합 PR #851(base=main)
 ```
 
-★★**BL 번호를 붙이지 마라 — 붙이면 이미 저작된 lane 을 버리고 새로 설계한다.**
-하네스 인자 규칙: `phases/` 디렉터리명 = 실행 / **그 밖의 값(티켓 ID 포함) = 새 회차 설계** /
-**생략 = `pending` 전량**(`.claude/commands/harness.md` §호출 표).
-지금 pending 이 정확히 그 3 lane 이므로 **생략이 맞다.**
-~~★**재료(BL 번호)를 반드시 함께 줘라.** … `phases/index.json` 이 `[]` 라 러너가 되묻고 멈춘다~~
-→ **그 전제는 저작으로 소멸했다**(`index.json` 이 더는 `[]` 가 아니다).
+★**lane PR 은 러너가 CI green 을 보고 직접 머지한다.** 사람이 판단할 것은 **`stage/n14` → `main` 하나**다.
+★★**회차 종료 시 원장에 반영할 것 하나 — 잊지 마라.** 주행 세션이 [BL-833] 본문의 오류를 잡아 두고
+「지금 고치면 3 lane 공유 파일을 건드린다」며 **미뤘다**: 「옵티마이저 폼이 쥔 것은 `strategy_id`」가 거짓이고
+**실제로는 `backtest_id`** 다. `strategy_id` 는 picker 가 이미 렌더하는 `BacktestSummary` 에 있어
+**추가 요청은 여전히 0회**라는 결론 자체는 불변이다. ⇒ 통합 PR 머지 후 [BL-833] 섹션에 반영.
 ★**브랜치를 미리 파지 마라** — 전제 검사가 「메인이 `main` · 워킹트리 clean」을 요구하고,
 **stage 브랜치·워크트리 3벌은 러너가 직접 만든다**(손으로 파던 옛 절차는 2026-08-22 폐기).
-★lane 이름은 아래 표의 `ci-gates` · `convert-reach` · `optimizer-inputs` 다 — **한 lane 만 돌릴 때만** 이름을 준다.
 ★`phases/n12-execution-speed/` 는 **`runs/` 만 남은 gitignore 잔재**다(step 파일도 `index.json` 도 없다).
 회차가 아니니 무시하거나 지워라 — `phases/index.json` 이 그것을 등재하지 않아 러너는 애초에 안 본다.
 
