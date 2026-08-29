@@ -28,10 +28,14 @@
 > ⑶ **멀티 거래소 안 한다** — Bybit 하나. OKX·Binance 전제 항목을 닫는다
 > 셋 중 하나라도 뒤집히면 위 SHA 에서 해당 축을 되살려라 — **다시 쓰지 말고 되살려라.**
 >
-> ★★**2026-08-30 배치 1 종결 5건 tombstone.** 원문 = `git show 165b1e97:docs/backlog.md`(`backlog-deferred.md` 동일 SHA).
-> 다섯 다 **닫는 근거가 이미 자기 섹션 본문에 있었다** — [BL-453] 「⇒ 종결 후보다」 자기 선언(선언·사용 두 축 모두 CI 가드 green) ·
+> ★★**2026-08-30 원장 트리아주 tombstone — 종결 8건.** 원문 = `git show 165b1e97:docs/backlog.md`(`backlog-deferred.md` 동일 SHA).
+> **배치 1(5건) — 닫는 근거가 이미 자기 섹션 본문에 있었다:** [BL-453] 「⇒ 종결 후보다」 자기 선언(선언·사용 두 축 모두 CI 가드 green) ·
 > [BL-371] 트리거 「post-Beta」가 결정 ⑵ 로 **발화 불가** · [BL-776] 2026-08-19 결정 「개방 유지 + 카피 수정」이 이미 닫음 ·
-> [BL-792]·[BL-796] 트리거 대상이 레포에 **0건**. ⇒ 40건 → **35건**.
+> [BL-792]·[BL-796] 트리거 대상이 레포에 **0건**.
+> **배치 2(3건) — 2026-08-23 결정 3건이 트리거를 죽였다:** [BL-434] 잔여 근거가 [BL-437] **죽은 앵커**를 가리키고 남은 Partial-mode
+> limit-TP 는 dogfood 실측 「Bybit flat 시 자동취소」 · [BL-661] 앞절 「실자금 전환 전」이 결정 ⑴ 로 사망하고 **조용한 실패는 이미 제거**
+> (409 + 잔량 출력 + exit 3) · [BL-489] **처방이 없다** — 원장이 든 2-pass 가 고정점 논증으로 반증돼 착수하면 반증된 처방을 구현한다.
+> ⇒ 40건 → **32건**.
 >
 > ⚠️★**BL-nnn 인용이 섹션을 못 찾는 것은 정상이다.** 이 다이어트로 **269종**이 새로 끊겼고,
 > 그 전에도 **156종**이 이미 끊겨 있었다(2026-08-23 실측 — RESOLVED 아카이브·roadmap 전용 항목).
@@ -256,40 +260,6 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 
 > 추가 P0 — BL-005 본인 dogfood + BL-145 EffectiveLeverageEvaluator (deferred). Resolved P0 = BL-001/002/004 (`_archived.md`).
 
-### BL-489
-
-**Title:** 사이징 자본이 D2 구간(진입 창 밖 / 청산 창 안)에서 일시 함몰한다
-**Category:** Backend / trading (라이브 사이징)
-**Priority:** P2
-**Trigger:** BL-488 해소 후 (진입 이벤트 신뢰가 선행 조건)
-★**주의** — [BL-488] 은 **이 세션 이전부터 원장에 섹션이 없다**. 발화 판정은 사람이 한다
-**Est:** M (설계 선행 필요)
-**상태:** 🟡 **부분 해결 — 결함은 살아 있고 원장의 처방이 반증됐다** (2026-08-21 재기술). carry 는 여전히 `bar_time < window_start` 단일 절단이고 2-pass 재실행 흔적이 없다(2026-08-09 status-triage-mass 확인, 2026-08-17 레인 γ 재판정). ★**2026-08-20 하네스 3회차 실사가 권장안 (a) 2-pass 를 반증했다** — `percent_of_equity` 사이징에서 손익이 자본에 비례(P=k·C)하므로 불변식 `C+P=B+L` 은 고정점 `C*=(B+L)/(1+k)` 에서만 성립하고 2패스는 거기 도달하지 못한다(원장의 「레버리지 게이트 활성 시 진동 가능성」은 과소 표현이다). 근거로 든 `KNOWN_LIMITATION` 오라클도 **실재하지 않는다**(`grep -rn KNOWN_LIMITATION apps/api` = 0건). ⇒ **처방이 없는 상태다. 착수하려면 수렴하는 사이징 재계산 설계가 먼저다**
-**트리거 판정:** **미도래 (2026-08-21 재판정)** — 종전 판정은 「[BL-488] 해소 후」의 선행이 풀렸다는 것이었고 그것은 지금도 참이다. 그러나 **막는 것이 선행 BL 에서 처방으로 바뀌었다** — 원장이 든 2-pass 가 반증돼 지금 착수하면 반증된 처방을 구현하게 된다. 도래 = 수렴하는 사이징 재계산 설계가 서면으로 정해질 때. ★그래서 `docs/status.md` ⓪ 표에서 내렸다(ACTIVE ∪ (PARTIAL ∧ 도래) 정의를 지킨다)
-**출처:** 2026-07-26 live-engine-parity. 적대적 검증 지적 → 프로덕션 실증.
-
-**원인 / 영향:** `run_live` 는 warmup 창을 flat 에서 재실행하므로 창 시작 이전에 진입한 포지션은 열려 있지 않다. `close()` 가 `None` 을 반환해 그 거래의 청산이 재현되지 않는데, 그 청산의 `bar_time` 은 아직 `>= window_start` 라 carry(`bar_time < window_start`)에도 잡히지 않는다. 진입이 창을 벗어난 순간부터 청산이 창을 벗어날 때까지(보유 기간 + 지표 warmup) 그 손익이 **0 회 계상**된다.
-
-프로덕션 실증 (창은 정확히 300 바 = 11:50~16:49):
-
-```
-16:12Z  화면 3 건 · 5.16879987
-16:49Z  화면 2 건 · 4.07002377     <- 12:34 청산(+1.09877350)이 사라졌다
-        원장은 불변 3 건 · 5.16882074
-```
-
-★ 창을 벗어나서가 아니다. 그 거래의 **진입(11:50)이 창의 bar 0** 이 되어 EMA 가 재현 불가해진 것이다.
-
-**화면 총계는 이번 스프린트에서 해결됐다** (`sum_realized_pnl_all` 원장 SSOT — 17:10Z 실측으로 화면 == 원장 확인, 이후 1.5시간 유지). **남은 것은 `initial_capital` 뿐**이며, 미수정 시절의 영구 누락이 "일시 함몰 후 복귀" 로 완화된 상태다. `test_run_live_sizing.py` 의 KNOWN_LIMITATION 테스트가 이 한계를 못 박고 있다.
-
-**권장 접근:** (a) 2-pass — 잠정 자본으로 1회 실행해 엔진이 재현한 청산 집합을 얻고 `전체 원장 − 재현분` 을 정확한 carry 로 삼아 재실행한다. 레버리지 게이트 활성 시 진동 가능성 검증 필요. (b) entry↔close 페어링으로 진입 `bar_time` 기준 절단 — 단 **BL-488 이 진입 이벤트를 떨어뜨리므로 신뢰 불가**. (a) 우선.
-
-**영향 파일:** `tasks/live_signal.py`, `strategy/pine_v2/event_loop.py`.
-
-**Risk:** 🟡 (수량이 일시적으로 작아진다. 과대가 아니라 과소 방향).
-
----
-
 ## P3 — Nice-to-have / 컨벤션 정합
 
 > 12 archived (BL-050/051/052/053/054/055/056/057/138/139/151/153). ~~**활성 P3 = 8**~~ ★**stale** — 2026-08-08 `bl-audit.sh` 실측 P3 ACTIVE **101**. 이 파일 헤더 규약대로 집계 수치는 여기 박지 말고 스크립트를 돌려라 (BL-306/307 2026-05-15 CLAUDE.md align audit + BL-367/370/371 2026-06-26 trading-deepen-2 + BL-389/390/391 2026-06-30 backtest-deepen). ★2026-08-06 entry-set-divergence 강등 = BL-606/607/608/609.
@@ -335,26 +305,6 @@ BL-435/436 Resolved + BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이
 | #1                    | `tests/backtest/engine/test_golden_backtest.py:19`   | BL-022               |
 | #16                   | `tests/strategy/pine_v2/test_mutation_oracle.py:213` | BL-023               |
 | #4-7, #9-15 (12 skip) | `tests/strategy/pine_v2/test_*.py`                   | BL-026 (활성화 회귀) |
-
----
-
-### BL-434
-
-**상태:** 🟡 **부분 Resolved (2026-07-25 close-completeness)** — 완전 TP/SL **보고(display)** 는 착지, **청산 스윕은 [BL-437] 이연**(codex G0 2 BLOCKING). 근거: 본 섹션 `**⚠️ Partially Resolved …**` 리드인 줄 · 헤더 스프린트 변경 기록(`docs/backlog.md:23`, "BL-434 부분 Resolved(display) + 신규 BL-437(스윕 이연)").
-**트리거 판정:** 미도래 — 선행 [BL-437] 이 **DEFERRED**(2026-08-11 실측)이고, 남은 청산 스윕이 그쪽 몫이다. Trigger 의 앞절(코크핏 §03 표시)은 display 축이 이미 착지해 소멸했다 (2026-08-11 bl-703-partial-verdicts)
-
-**⚠️ Partially Resolved (2026-07-25 close-completeness)** — **완전 TP/SL 보고(display) 완료**: `fetch_open_conditional_orders`(2콜 union + orderId dedupe + stopOrderType 엄격분류) → position_service 조인(source-dedup·마크근접순) → §03 병합 표시(익절/손절 리스트) + has_trailing_stop 각주. dogfood 3계통(오라클 raw ↔ 앱 provider ↔ get_reconciliation 익절 66000/손절 62000). **청산 스윕은 BL-437 이연**(codex G0 2 BLOCKING: 타이밍 accept≠fill + account+symbol 공유 세션 오취소). dogfood 실측 = Partial 조건부 TP/SL 은 Bybit flat 시 자동취소(스윕 이연 안전).
-
-**Title:** 완전 TP/SL 보고 — 포지션-부착 외 조건부(Partial-mode limit-TP) 주문 미표시 + 청산 시 미스윕
-**Category:** Backend / Frontend / trading
-**Priority:** P3
-**Trigger:** 코크핏 §03 이 걸어둔 모든 TP/SL 을 보여줘야 하거나, 청산 후 잔여 조건부 주문 정리가 필요할 때
-**Est:** M (fetch_open_orders 조인 + 스키마 확장 + 청산 스윕)
-**출처:** 2026-07-24 trading-surface-pack (BL-431 은 포지션 필드만 read — Partial-mode limit-TP 는 별도 conditional order 라 미표시, 각주로 정직)
-
-**원인 / 영향:** ccxt `fetch_positions` 의 position 필드는 Full-mode SL + set-trading-stop 트레일링만 담는다. QB 가 tpslMode=Partial 로 부착한 limit-TP 는 별도 조건부 주문이라 §03 에 안 나온다(각주로 고지). 또 reduce-only 청산은 포지션만 flatten 하고 잔여 조건부 주문은 스윕하지 않는다(포지션-부착 TP/SL 은 Bybit 이 flat 시 자동취소).
-
-**권장 접근:** `fetch_open_orders`(conditional) 조인으로 완전 TP/SL 표시 + 청산 시 열린 reduce-only 조건부 주문 취소.
 
 ---
 
@@ -662,46 +612,6 @@ soak-exclusivity-and-observability 회차). 서버에 `dev.quantbridge.soak-logs
 **🔁 재확인 (2026-07-29, live-close-completeness 리뷰):** 거울 행이 **실재로 재확인**됐다 — `exchange_exits` 분류 집계에서 `ours` **30행**과 `unknown` **30행**이 건수뿐 아니라 **net 합계까지 −27.6870 으로 동일**했다. 같은 청산이 계정 행 2개에 각각 적재된다는 BL 본문의 진단과 일치한다.
 
 ★이 확인은 live-close-completeness 플랜(W4)이 "등재 내용 보강만" 으로 약속했으나 **그 PR 에서 누락**됐고, 사후 Spec 리뷰가 잡아 여기 반영한다. 스코프를 줄인 게 아니라 **적어놓고 안 한 것**이므로 같은 누락이 반복되지 않도록 기록해 둔다.
-
----
-
-### BL-661
-
-**Priority:** P1
-**카테고리:** Backend / trading (청산) · 운영 CLI
-**Trigger:** 실자금 전환 전 필수 / 조건부 진입을 쓰는 세션을 내릴 때
-**Est:** S
-**상태:** 🟡 부분 해결 — 2026-08-10 guards-blind-spots 에서 **거짓 성공을 없앴다**(보고 + exit 3). 포지션 0 인데 미체결 조건부 진입이 있으면 `409 detail={"code":"resting_conditional_entries",…}` 이고 CLI 가 잔량을 찍고 **exit 3** 으로 끝난다. **취소는 미구현**이라 부분이다 — 권장 접근의 「그것을 취소하도록」은 [BL-669](#bl-669) 로 분리했다. 변이 6/6 red · 음성 대조 green
-**트리거 판정:** 미도래 — 외생 조건(실자금 전환) + 동승(조건부 진입 세션을 내릴 때). 잔여인 「취소하도록」은 [BL-669] 로 분리됐고 그쪽은 **DEFERRED**(뒷절이 거래소 접촉 승인이다) (2026-08-11 bl-703-partial-verdicts)
-
-**`flatten` 이 「이미 flat」을 내고 exit 0 하는데 조건부 주문은 남아 있다.**
-
-`close_service.py:100-104` 는 `fetch_open_positions` 결과만 보고 비면 `409 no_open_position`
-을 낸다. **미체결 조건부 진입 주문은 보지 않는다.** 그런데 운영 CLI
-(`live_session_admin.py:383-387`)가 그 예외를 잡아 **`✓ 이미 flat 이다 (no_open_position).
-주문을 내지 않았다.` 를 출력하고 `return`** 한다 — 종료 코드 **0**.
-
-⇒ **조건부 주문이 살아 있는 채로 「정리 완료」로 읽힌다.** 그 주문은 나중에 트리거되어
-아무도 보고 있지 않은 시점에 포지션을 연다.
-
-★**이 레포는 같은 계열을 이미 겪었다** — 2026-08-08 `down` 이후 `FLAT=YES` 인데 엔진이 재무장해
-`d655f560`(FOREIGN sell) + `8d4272fe`(ours buy)가 거래소에 남았고 `EXCLUSIVE=NO` 가 됐다.
-그때는 `soak-restart.sh:288-304` 가 die 해서 드러났지만, **`flatten` 자신은 조용했다.**
-
-**왜 지금 아픈가:** [BL-003] runbook §7 rollback 이 `flatten` → `status` 순서인데, `flatten` 이
-거짓 성공을 내면 **실자금에서 조건부 주문을 남긴 채 「내렸다」고 판단**하게 된다. runbook 은
-「`status` 의 `RESTING_CONDITIONAL` 을 반드시 눈으로 확인하라」로 **문서 방어만** 해 뒀다 —
-코드 방어가 아니다.
-
-**권장 접근:** `close_position` 이 포지션과 **조건부 주문을 함께** 보고, 포지션이 없어도
-미체결 조건부가 있으면 그것을 취소하도록. 조회 계약은 이미 있다 —
-`fetch_open_conditional_orders(creds, symbol, reduce_only=None)`
-(`live_session_admin.py:242-244` 가 쓴다. ★`reduce_only=None` 은 협상 불가 계약이다).
-CLI 쪽은 `no_open_position` 을 **성공으로 출력하지 마라** — 최소한 조건부 잔량을 함께 찍어라.
-
-**Risk:** 🔴 실자금에서 고아 조건부 주문. 데모에서도 참이지만 손실이 가상이라 안 아팠다.
-
-**출처:** 2026-08-09 bl003-mainnet-runbook (codex 적대 리뷰 발견 2 — 코드 대조로 확정)
 
 ---
 
