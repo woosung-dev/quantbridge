@@ -1,3 +1,7 @@
 {
-  "phases": []
+  "phases": [
+    { "dir": "ci-gates", "status": "pending" },
+    { "dir": "convert-reach", "status": "pending" },
+    { "dir": "optimizer-inputs", "status": "pending" }
+  ]
 }
