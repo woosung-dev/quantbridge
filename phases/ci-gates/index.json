@@ -1,0 +1,45 @@
+{
+  "project": "QuantBridge",
+  "phase": "ci-gates",
+  "steps": [
+    {
+      "step": 0,
+      "name": "drop-openapi-poc",
+      "status": "pending",
+      "ac": [
+        "set -u; fail=0\nfor p in apps/web/src/lib/api-contract-poc apps/web/orval.poc.config.ts contracts/openapi/poc tools/scripts/openapi-poc-filter.py apps/api/tests/scripts/test_openapi_poc_filter.py; do\n  if [ -e \"$p\" ]; then echo \"잔존: $p\"; fail=1; fi\ndone\nnf=$(git ls-files -- apps tools contracts mise.toml .github | wc -l | tr -d \" \")\n[ \"$nf\" -ge 100 ] || { echo \"양성 대조 실패: 스캔 대상이 ${nf}건뿐이다\"; fail=1; }\nhits=$(git ls-files -- apps tools contracts mise.toml .github | while IFS= read -r f; do [ -f \"$f\" ] || continue; grep -Il -e api-contract-poc -e 'orval\\.poc' -e openapi-poc-filter -e 'openapi\\.poc\\.json' \"$f\"; done)\nif [ -n \"$hits\" ]; then echo \"추적 중인 코드/설정에 PoC 참조가 남았다:\"; echo \"$hits\"; fail=1; fi\ngrep -q export_openapi mise.toml || { echo \"양성 대조 실패: mise.toml 이 export_openapi 를 안 부른다\"; fail=1; }\n[ -f contracts/openapi/openapi.json ] || { echo \"전량 계약 파일이 사라졌다\"; fail=1; }\nexit $fail",
+        "cd apps/web && pnpm exec tsc --noEmit",
+        "cd apps/web && pnpm exec biome check ."
+      ]
+    },
+    {
+      "step": 1,
+      "name": "regenerate-openapi-contract",
+      "status": "pending",
+      "ac": [
+        "mise run openapi-check",
+        "python3 - <<'PY'\nimport json, sys\nd = json.load(open(\"contracts/openapi/openapi.json\"))\npaths = d[\"paths\"]\nneed = [\"/api/v1/llm/models\", \"/api/v1/strategies/generate\",\n        \"/api/v1/strategies/{strategy_id}/brief\", \"/api/v1/strategies/{strategy_id}/brief/narrative\"]\nmiss = [p for p in need if p not in paths]\nif miss:\n    sys.exit(\"계약에 없다: %s\" % miss)\nif len(paths) < 20:\n    sys.exit(\"양성 대조 실패: paths 가 %d개뿐이다\" % len(paths))\nprint(\"ok — paths %d\" % len(paths))\nPY"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "fix-mypy-errors",
+      "status": "pending",
+      "ac": [
+        "cd apps/api\nout=$(uv run mypy src 2>&1); rc=$?\necho \"$out\"\n[ $rc -eq 0 ] || exit 1\necho \"$out\" | grep -qE \"Success: no issues found in [0-9]+ source files\"",
+        "set -u\nd=$(git diff origin/main -- apps/api/src)\n[ -n \"$d\" ] || { echo \"양성 대조 실패: apps/api/src 에 변경이 0줄이다\"; exit 1; }\nn=$(printf '%s\\n' \"$d\" | grep -c '^+.*type: *ignore' || true)\n[ \"$n\" = \"0\" ] || { echo \"새 type: ignore 가 $n 건 들어갔다 — 수리가 아니라 은폐다\"; exit 1; }",
+        "set -eu\ncd apps/api\nset -a; . ./.env.local; set +a\nuv run pytest tests/strategy/test_strategy_brief.py tests/strategy/narrative tests/strategy/pine_v2/test_py_renderer.py tests/strategy/pine_v2/test_py_renderer_not_executed.py -q"
+      ]
+    },
+    {
+      "step": 3,
+      "name": "wire-ci-gates",
+      "status": "pending",
+      "ac": [
+        "cd apps/api && uv run python - <<'PY'\nimport yaml, sys\nw = yaml.safe_load(open(\"../../.github/workflows/ci.yml\"))\njobs = w[\"jobs\"]\nbe = jobs[\"backend\"][\"steps\"]\nruns = [str(s.get(\"run\") or \"\") for s in be]\nmiss = [n for n in [\"export_openapi.py --check\", \"mypy src\"] if not any(n in r for r in runs)]\nif miss:\n    sys.exit(\"backend 잡에 없다: %s\" % miss)\nif [s for s in be if s.get(\"continue-on-error\")]:\n    sys.exit(\"continue-on-error 가 붙은 backend 스텝이 있다 — 차단 게이트가 아니다\")\nfe = [str(s.get(\"run\") or \"\") for s in jobs[\"frontend\"][\"steps\"]]\nif not any(\"pnpm test\" in r for r in fe):\n    sys.exit(\"양성 대조 실패: frontend 잡의 기존 스텝을 못 읽었다\")\nenv = [s.get(\"env\") or {} for s in be if \"export_openapi.py --check\" in str(s.get(\"run\") or \"\")]\nif not any(\"TRADING_ENCRYPTION_KEYS\" in e for e in env):\n    sys.exit(\"계약 게이트 스텝에 TRADING_ENCRYPTION_KEYS env 가 없다\")\nprint(\"ok — backend steps %d\" % len(runs))\nPY",
+        "mise run openapi-check",
+        "cd apps/api && uv run mypy src"
+      ]
+    }
+  ]
+}
