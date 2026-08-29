@@ -30,12 +30,15 @@
     {
       "step": 2,
       "name": "fix-mypy-errors",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/api\nout=$(uv run mypy src 2>&1); rc=$?\necho \"$out\"\n[ $rc -eq 0 ] || exit 1\necho \"$out\" | grep -qE \"Success: no issues found in [0-9]+ source files\"",
         "set -u\nd=$(git diff origin/main -- apps/api/src)\n[ -n \"$d\" ] || { echo \"양성 대조 실패: apps/api/src 에 변경이 0줄이다\"; exit 1; }\nn=$(printf '%s\\n' \"$d\" | grep -c '^+.*type: *ignore' || true)\n[ \"$n\" = \"0\" ] || { echo \"새 type: ignore 가 $n 건 들어갔다 — 수리가 아니라 은폐다\"; exit 1; }",
         "set -eu\ncd apps/api\nset -a; . ./.env.local; set +a\nuv run pytest tests/strategy/test_strategy_brief.py tests/strategy/narrative tests/strategy/pine_v2/test_py_renderer.py tests/strategy/pine_v2/test_py_renderer_not_executed.py -q"
-      ]
+      ],
+      "started_at": "2026-08-30T00:47:59+0900",
+      "summary": "동적 렌더 핸들러·LLM style·Strategy Brief track 경계 타입을 좁혀 mypy src 230파일을 통과시켰다.",
+      "completed_at": "2026-08-30T00:55:52+0900"
     },
     {
       "step": 3,
