@@ -15,6 +15,7 @@ import {
   OPTIMIZER_DOMAIN_LABEL,
   OPTIMIZER_LIMIT_NOTE,
 } from "@/features/optimizer/labels";
+import { useStrategyInputs } from "@/features/optimizer/use-strategy-inputs";
 
 import { BayesianSearchForm } from "./bayesian-search-form";
 import { GeneticSearchForm } from "./genetic-search-form";
@@ -51,6 +52,10 @@ export function OptimizerPageView() {
         })),
     [backtestsQuery.data?.items],
   );
+  const strategyId = (backtestsQuery.data?.items ?? []).find(
+    (item) => item.id === backtestId,
+  )?.strategy_id;
+  const { inputs } = useStrategyInputs(strategyId);
 
   return (
     <main className="page">
@@ -148,13 +153,25 @@ export function OptimizerPageView() {
             </div>
 
             {showForm && backtestId && algorithm === "grid_search" && (
-              <GridSearchForm backtestId={backtestId} onSuccess={() => setShowForm(false)} />
+              <GridSearchForm
+                backtestId={backtestId}
+                inputs={inputs}
+                onSuccess={() => setShowForm(false)}
+              />
             )}
             {showForm && backtestId && algorithm === "bayesian" && (
-              <BayesianSearchForm backtestId={backtestId} onSuccess={() => setShowForm(false)} />
+              <BayesianSearchForm
+                backtestId={backtestId}
+                inputs={inputs}
+                onSuccess={() => setShowForm(false)}
+              />
             )}
             {showForm && backtestId && algorithm === "genetic" && (
-              <GeneticSearchForm backtestId={backtestId} onSuccess={() => setShowForm(false)} />
+              <GeneticSearchForm
+                backtestId={backtestId}
+                inputs={inputs}
+                onSuccess={() => setShowForm(false)}
+              />
             )}
 
             <p className="chart-note">

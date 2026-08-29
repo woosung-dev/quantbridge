@@ -19,6 +19,7 @@ import {
   rowsToParameters,
 } from "@/features/optimizer/form-schemas";
 import { useSubmitGridSearch } from "@/features/optimizer/hooks";
+import type { InputDecl } from "@/features/strategy/schemas";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 
 const FormSchema = z.object({
@@ -30,12 +31,13 @@ type FormValues = z.infer<typeof FormSchema>;
 
 interface Props {
   backtestId: string;
+  inputs?: InputDecl[];
   onSuccess?: (runId: string) => void;
 }
 
 const EMPTY_ROW = { var_name: "", kind: "integer", min: 10, max: 20, step: 5 };
 
-export function GridSearchForm({ backtestId, onSuccess }: Props) {
+export function GridSearchForm({ backtestId, inputs, onSuccess }: Props) {
   const submit = useSubmitGridSearch();
   const { errMsg, submitBody } = useOptimizerSubmit({
     mutateAsync: submit.mutateAsync,
@@ -79,6 +81,7 @@ export function GridSearchForm({ backtestId, onSuccess }: Props) {
         register={form.register}
         errors={form.formState.errors}
         legend="파라미터 (1~4개)"
+        inputs={inputs}
         emptyRow={EMPTY_ROW}
         renderRowCells={(idx, removeButton, errors, errorId) => (
           <>
