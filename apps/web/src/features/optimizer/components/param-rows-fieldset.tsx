@@ -17,6 +17,8 @@ import {
   type UseFormRegister,
 } from "react-hook-form";
 
+import { isSweepable, type InputDecl } from "@/features/strategy/schemas";
+
 import { FieldError } from "./optimizer-form-fields";
 
 const MAX_ROWS = 4;
@@ -27,6 +29,8 @@ export interface ParamRowsFieldsetProps<TValues extends FieldValues> {
   register: UseFormRegister<TValues>;
   errors: FieldErrors<TValues>;
   legend: string;
+  /** Pine parse에서 얻은 input 선언. 없으면 기존 자유 입력을 유지한다. */
+  inputs?: InputDecl[];
   /** append 시 기본 row 값 — 호출측 row 스키마 기본형. */
   emptyRow: Record<string, unknown>;
   /**
@@ -46,6 +50,7 @@ export function ParamRowsFieldset<TValues extends FieldValues>({
   register,
   errors,
   legend,
+  inputs,
   emptyRow,
   renderRowCells,
 }: ParamRowsFieldsetProps<TValues>) {
@@ -87,13 +92,37 @@ export function ParamRowsFieldset<TValues extends FieldValues>({
         return (
           <div key={field.id}>
             <div className="opt-param-row">
-              <input
-                placeholder="변수 이름 (예: length)"
-                className="input"
-                aria-invalid={errorMessage("var_name") ? "true" : "false"}
-                aria-describedby={errorMessage("var_name") ? errorId("var_name") : undefined}
-                {...register(`parameters.${idx}.var_name` as Path<TValues>)}
-              />
+              {inputs && inputs.length > 0 ? (
+                <select
+                  aria-label="변수 이름"
+                  className="select"
+                  aria-invalid={errorMessage("var_name") ? "true" : "false"}
+                  aria-describedby={errorMessage("var_name") ? errorId("var_name") : undefined}
+                  {...register(`parameters.${idx}.var_name` as Path<TValues>)}
+                >
+                  <option value="">변수 선택</option>
+                  {inputs.map((input) => {
+                    const sweepable = isSweepable(input);
+                    const label = `${input.var_name}${input.title ? ` · ${input.title}` : ""}${
+                      sweepable ? "" : ` (${input.input_type}: 스윕 불가)`
+                    }`;
+
+                    return (
+                      <option key={input.var_name} value={input.var_name} disabled={!sweepable}>
+                        {label}
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <input
+                  placeholder="변수 이름 (예: length)"
+                  className="input"
+                  aria-invalid={errorMessage("var_name") ? "true" : "false"}
+                  aria-describedby={errorMessage("var_name") ? errorId("var_name") : undefined}
+                  {...register(`parameters.${idx}.var_name` as Path<TValues>)}
+                />
+              )}
               {renderRowCells(
                 idx,
                 <button

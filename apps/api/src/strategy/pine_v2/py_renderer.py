@@ -17,8 +17,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from pynescript import ast as pyne_ast
 
@@ -248,7 +249,8 @@ class _Renderer:
                 return f"({pyne_ast.unparse(node).strip()})  # 원문"
             except Exception:
                 return "<원문 미상>"
-        return handler(node)
+        # `_expr_*` 메서드는 모두 str을 반환한다. 동적 조회만 그 정보를 mypy에서 감춘다.
+        return cast(Callable[[Any], str], handler)(node)
 
     def _expr_Name(self, node: Any) -> str:
         return str(node.id)

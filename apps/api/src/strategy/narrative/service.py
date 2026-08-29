@@ -13,19 +13,28 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 from src.core.config import Settings
 from src.strategy.narrative.prompt import SYSTEM_PROMPT, USER_TEMPLATE
 from src.strategy.narrative.providers import complete_json
 from src.strategy.narrative.schemas import (
     NarrativeNote,
+    NarrativeStyle,
     StrategyNarrativeResponse,
 )
 
 logger = logging.getLogger(__name__)
 
 _TOOL_NAME = "report_strategy_narrative"
+
+_NARRATIVE_STYLES: tuple[NarrativeStyle, ...] = (
+    "trend_following",
+    "mean_reversion",
+    "breakout",
+    "volatility",
+    "other",
+)
 
 # 세 provider 가 **같은 스키마**를 쓴다. OpenAI strict 모드가 요구하는
 # `additionalProperties: false` 는 `providers._strict` 가 한 번만 채운다.
@@ -125,12 +134,14 @@ class NarrativeService:
                 out.append(NarrativeNote(text=text, pine_lines=sorted(set(lines))))
             return out
 
-        style = raw.get("style")
+        raw_style = raw.get("style")
+        # 닫힌 허용 집합 멤버십을 통과한 값만 NarrativeStyle로 취급한다.
+        style = cast(NarrativeStyle, raw_style) if raw_style in _NARRATIVE_STYLES else "other"
         return StrategyNarrativeResponse(
             source_hash=source_hash,
             provider=provider,  # type: ignore[arg-type]
             summary=str(raw.get("summary") or "").strip(),
-            style=style if style in _OUTPUT_SCHEMA["properties"]["style"]["enum"] else "other",
+            style=style,
             assumptions=ground(raw.get("assumptions")),
             risks=ground(raw.get("risks")),
             dropped_ungrounded=dropped,

@@ -17,6 +17,11 @@ vi.mock("@/features/backtest/hooks", () => ({
   useBacktests: (...a: unknown[]) => useBacktests(...a),
 }));
 
+const useStrategyInputs = vi.fn();
+vi.mock("@/features/optimizer/use-strategy-inputs", () => ({
+  useStrategyInputs: (...a: unknown[]) => useStrategyInputs(...a),
+}));
+
 vi.mock("../bayesian-search-form", () => ({
   BayesianSearchForm: () => <div data-testid="form-bayesian" />,
 }));
@@ -141,6 +146,7 @@ function selectBacktestAndOpenForm() {
 
 beforeEach(() => {
   mockBacktests();
+  useStrategyInputs.mockReturnValue({ inputs: [], isLoading: false, error: null });
 });
 
 afterEach(() => {
@@ -244,6 +250,13 @@ describe("OptimizerPageView", () => {
     render(<OptimizerPageView />);
 
     expect(useBacktests.mock.calls[0]?.[0]).toEqual({ limit: 100, offset: 0 });
+  });
+
+  it("선택한 Backtest의 strategy_id로 Pine input 선언을 조회한다", () => {
+    render(<OptimizerPageView />);
+    selectBacktestAndOpenForm();
+
+    expect(useStrategyInputs).toHaveBeenLastCalledWith(COMPLETED_BACKTEST.strategy_id);
   });
 
   it("양성 대조: mock useBacktests가 호출되고 렌더 텍스트가 비어 있지 않다", () => {

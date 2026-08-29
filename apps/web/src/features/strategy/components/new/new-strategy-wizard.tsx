@@ -403,6 +403,13 @@ export function NewStrategyWizard() {
               onSave={handleSave}
               saving={create.isPending}
               canSave={canSave}
+              indicatorCode={pineSource}
+              onConverted={(result) => {
+                applyPineSource(result.converted_code);
+                if (result.warnings.length > 0) {
+                  toast.info(result.warnings.join("\n"));
+                }
+              }}
             />
           </section>
         </div>
