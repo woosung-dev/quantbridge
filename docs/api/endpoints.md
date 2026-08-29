@@ -28,7 +28,7 @@
 
 OpenAPI 산출물이 레포에 **결정적으로 고정**돼 있다(`apps/api/scripts/export_openapi.py`, 키 정렬 + `APP_ENV=development` 강제 — 두 번 돌리면 byte-identical). 소비·검증 경로는 **전량 계약 파일 1단**이다 — `contracts/openapi/openapi.json` 을 `export_openapi.py --check` 로 현재 API 정의와 대조한다([ADR-031](../adr/031-api-contract-axis-poc.md)).
 
-★**API 를 바꾸면 이 파일을 재생성해야 한다** — `mise run openapi-check` 가 drift 를 막는다. CI backend 잡에는 이 lane의 step 3에서 `export_openapi.py --check` 스텝을 추가한다(로컬 게이트 러너는 ADR-037 제로베이스로 철거 — green = 표준 러너 + CI 단일 게이트).
+★**API 를 바꾸면 이 파일을 재생성해야 한다** — 로컬은 `mise run openapi-check`, CI 는 **backend 잡이 `ruff` 직후 `uv run python scripts/export_openapi.py --check` 를 스텝으로 돈다**(`.github/workflows/ci.yml`, 2026-08-30 [BL-827] ⑴ 로 편입). 그 잡이 이미 가진 env 로 돌아가므로 `.env.local` 은 필요 없다. 로컬 게이트 러너는 [ADR-037] 제로베이스로 철거 — green = 표준 러너 + CI 단일 게이트.
 
 ## 갱신 규칙
 
