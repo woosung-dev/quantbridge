@@ -243,27 +243,6 @@
 
 ---
 
-### BL-833
-
-**Title:** Optimizer 폼이 Pine 변수명을 손으로 타이핑하게 한다 — 이제 brief 가 그 목록을 갖고 있다
-**Category:** FE / Optimizer
-**Priority:** P3
-**출처:** 2026-08-27 브리핑 축([ADR-040]) 작업 중 표면화. 코드 대조 확인
-
-**증상 (실측):** `apps/web/src/features/optimizer/form-schemas.ts:44` 가 `var_name: z.string().min(1, "변수 이름을 입력하세요.")` 라 사용자가 **Pine 변수명을 기억해 직접 친다**. 오타면 BE `_validate_grid_search_pre`(`optimizer/engine/grid_search.py:132-186`)가 422 로 거부하고 그제야 선언 목록을 알려 준다. `int`/`float` 이 아닌 input 도 거부되는데(BL-225) 그 사실도 미리 안 보인다.
-**왜 지금 가능해졌나:** [ADR-040] Stage 1 이 `ParsePreviewResponse.inputs`(이름·타입·기본값)를 열었고 `GET /strategies/{id}/brief` 도 같은 목록을 준다. **데이터가 이미 있다** — 남은 것은 폼을 드롭다운으로 바꾸는 것뿐이다.
-**권장 접근:** 자유 입력을 `inputs` 기반 select 로. ★스윕 불가(`input_type ∉ {int,float}`)를 **숨기지 말고 비활성 + 사유 표기**한다 — 목록에서 빼면 사용자가 그 파라미터가 없다고 읽는다(브리핑 표가 같은 판단을 했다).
-~~**★비용 함정:** 브리핑 엔드포인트를 그냥 부르면 옵티마이저 화면에 **콜드 Pine 파스**가 붙는다(`i3_drfx` 실측 53.38초). 캐시가 warm 한 경로를 쓰거나 목록 API 에 얹어라.~~
-→ ★★**2026-08-30 — 그 함정은 [BL-832] 가 이미 없앴다.** 53.38초는 **캐시 이전 수치**다. L2 디스크 캐시(`pine_v2/parser_adapter.py`, PR #837 · 2026-08-26)가 붙은 뒤로 콜드는 **프로세스당 1회가 아니라 소스당 1회**이고 재방문은 4.8ms 다. 옵티마이저 화면이 그 소스의 첫 파스를 물 확률 자체가 낮다(같은 전략의 편집 화면이 `StrategyBriefPanel` 로 이미 한 번 파스한다 — `edit/diagnostics-strip.tsx:102`). ⇒ **비용을 이유로 설계를 비틀지 마라.**
-
-★★★**2026-08-30 실측 — 진짜 제약은 따로 있다. `inputs` 를 주는 GET 이 없다.**
-`inputs` 는 **`ParsePreviewResponse`**(`POST /strategies/parse` — **소스 코드를 넘겨야 한다**)와 **`GET /strategies/{id}/brief`** 두 곳에만 있다. `StrategyResponse` 에는 **없다**(필드 전수 확인). 그런데 옵티마이저 폼이 쥐고 있는 것은 `strategy_id` 다.
-⇒ ★**확정 경로(2026-08-30) = `GET /strategies/{id}` 로 `pine_source` 를 받아 `POST /strategies/parse` 에 넘긴다.** 2왕복이지만 **BE 0줄 · 계약 변경 0**이라 계약 축(`contracts/**`)과 파일이 안 겹친다. `StrategyResponse.pine_source` 가 실재함을 확인했다.
-★대안 둘은 **버렸다**: `GET /{id}/brief` 는 응답이 무겁고 brief 계약에 옵티마이저를 묶는다 · `StrategyResponse` 에 `inputs` 추가는 **OpenAPI 계약 파일을 건드려** 같은 회차의 계약 lane 과 정면 충돌한다.
-
-**상태:** 🔵 ACTIVE — 2026-08-27 등재, 미수리. **2026-08-30 착수 경로 확정**
-**트리거 판정:** 도래 (데이터가 이미 있다 — 다만 `POST /parse` 경유다)
-
 ### BL-834
 
 **Title:** `convert` 는 아직 스키마 강제 밖이고, 토큰 77~97% 절감 경로는 FE 하드코딩으로 도달 불가다
@@ -279,8 +258,11 @@
 
 ★★**2026-08-30 — ⑴ 이 P3 에서 「사용자에게 거짓말 중」으로 올라갔다.** 2026-08-29 사용자 결정으로 **anthropic 키를 서버에서 제거**했는데(`status.md` — `LLM_PROVIDER_ORDER=openai,gemini`) `convert/service.py:35-121` 은 여전히 **anthropic → gemini 하드코딩**이다. 결과: ⑴ `anthropic_key is None` 이라 통째로 건너뛰고 **gemini 단독**으로 돌면서 ⑵ 응답 경고문은 `f"Gemini {model} 로 변환 완료 **(fallback)**"` 를 그대로 붙인다 — **fallback 이 아닌데 fallback 이라고 사용자 화면에 적는다**(`_convert_with_gemini` 의 `provider_warnings`). ⑶ `openai` 는 convert 에서 **영원히 도달 불가**다(provider 목록에 없다). ★키가 유효해도 이 셋은 안 고쳐진다 — [BL-833] 과 달리 **설정으로 못 푸는 코드 결함**이다.
 
-**상태:** 🔵 ACTIVE — 2026-08-28 등재, 미수리. **2026-08-30 ⑴ 재평가 — anthropic 제거로 증상이 발현했다**
-**트리거 판정:** 도래 (⑵⑶ 은 단독 착수 가능 · ⑴ 은 anthropic 제거로 **이미 발현 중**이라 더 미룰 근거가 약해졌다)
+★**2026-08-30 ⑵⑶ 종결**(n14 lane `convert-reach` · PR #849 → 통합 #851 `4b270510`). `ConvertWithAIButton` 이 `mode: "sliced"` 를 보내고, 새 전략 위저드가 `declaration.kind === "indicator"` 를 알아보고 변환을 권한 뒤 결과를 에디터에 넣어 재파싱한다. **LLM 왕복 0회 경로가 처음으로 도달 가능해졌다.** 판별력 증거 = 변이(`"sliced"`→`"full"` · `"indicator"`→`"library"`) 둘 다 red.
+★그 수리가 **진입점 사각 하나를 남겼다** — [BL-835]. 미지원 builtin 을 **함께** 가진 indicator 는 위저드에서 버튼을 못 본다.
+
+**상태:** 🟡 PARTIAL — ⑵⑶ 종결(2026-08-30). **남은 것은 ⑴ 뿐이다** — `convert/service.py` 를 `narrative/providers.py` 층으로 옮기는 일이고, 그 앞에 **JSON 스키마 계약 결정**(산출이 코드 문자열이다)이 선다
+**트리거 판정:** 도래 (⑴ 은 anthropic 키 제거로 **이미 발현 중** — 사용자 화면에 `(fallback)` 이라 거짓을 적고 `openai` 는 도달 불가다)
 
 ### BL-827
 
@@ -301,6 +283,41 @@
 
 ★**곁다리 — 문서가 게이트 부재를 가리고 있었다.** `docs/api/endpoints.md:31` 이 「`mise run openapi-check` 가 drift 를 막고, CI **`backend_static` 잡**이 같은 검사를 한다」고 적는다. **그 잡은 존재하지 않는다.** 이 줄을 함께 지워라 — 안 지우면 다음 사람이 또 「게이트가 있다」고 읽는다.
 
-**상태:** 🔵 ACTIVE — 2026-08-25 등재, 미수리. **2026-08-30 재측정으로 규모가 3배 이상 커졌다**
-**트리거 판정:** 도래 (⑴ 은 CI 한 줄 — **전제 실측으로 확인됨**. ⑵ 는 2026-08-30 사용자 결정 = 삭제로 선행이 풀렸다)
+★**2026-08-30 ⑴⑵ 종결**(n14 lane `ci-gates` · PR #850 → 통합 #851 `4b270510`). ⑴ `ci.yml` backend 잡에 `export_openapi.py --check` 와 `uv run mypy src` 를 **차단 게이트**로 얹었다(`ruff` 다음 · `pytest` 앞 · `continue-on-error` 없음). ⑵ PoC 7좌표 삭제 완료. 계약 파일은 **+848줄**로 재생성돼 엔드포인트 4종이 돌아왔고, `mise run openapi-check` 는 2단 → **1단**이 됐다. `endpoints.md` 의 유령 잡(`backend_static`) 문장도 지웠다.
+★**동승으로 mypy 3건을 수리했고 그중 하나는 타입 흠이 아니라 잠복 결함이었다** — [BL-836]. `classify_script().track` 의 도메인에 `"unknown"` 이 있는데 `StrategyBriefResponse.track` 은 `Literal["S","A","M"] | None` 이라, `unknown` 이 나오면 응답 생성에서 ValidationError = **brief 500** 이었다(기존 `try/except` 밖에서 난다).
+★**게이트가 실제로 도는 것을 CI 가 증인으로 세웠다** — 통합 PR #851 의 backend 잡이 두 스텝을 포함해 green. 머지 후 main 재측정도 둘 다 rc=0.
 
+**상태:** 🟡 PARTIAL — ⑴⑵ 종결(2026-08-30). **남은 것은 ⑶ 뿐이다** — `_to_detail` 에 `direction_counts[0] >= m.num_trades` 위반을 **관측 로그**로 남기는 일(응답은 깨지 말 것). 위 「동승 항목」의 `deriveTradeCounts` 침묵 보정이 그 근거다
+**트리거 판정:** 도래 (⑶ 은 단독 착수 가능 — 게이트 축이 닫혔으므로 남은 것은 관측 한 줄이다)
+
+---
+
+### BL-835
+
+**Title:** 위저드의 indicator 변환 진입점이 `supported` 분기에만 있어, 미지원 builtin 을 함께 가진 indicator 는 버튼을 못 본다
+**Category:** FE / Strategy
+**Priority:** P3
+**출처:** 2026-08-30 n14 `convert-reach` lane 의 diff 를 사람이 읽다가 발견 (코드 대조 확인)
+
+**증상 (실측):** `parse-result-panel.tsx` 가 변환 버튼을 **`SupportedBody` 안에서만** 렌더한다. 그런데 그 분기의 게이트는 `supported = status === "ok" && unsupported_builtins.length === 0` 이다. ⇒ `declaration.kind === "indicator"` 이면서 **미지원 builtin 을 함께 가진** 스크립트는 `UnsupportedBody` 로 떨어져 **변환 버튼이 안 보인다.** 그 사용자는 [BL-834] ⑶ 이 없애려던 바로 그 경로 — 백테스트를 제출해 422 를 받아야만 버튼을 만나는 경로 — 로 되돌아간다.
+**권장 접근:** 변환 블록을 두 분기의 **공통 자리**(카드 본문)로 올린다. ★조건은 `declaration.kind` 하나로 유지해라 — `unsupported_builtins` 를 조건에 섞으면 「indicator 가 아닌데 미지원인 스크립트」에까지 indicator→strategy 변환을 권하게 된다.
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 미수리
+**트리거 판정:** 도래 (단독 착수 가능 · FE 한 파일)
+
+---
+
+### BL-836
+
+**Title:** `track == "unknown"` 이 브리핑을 500 으로 만들던 잠복 결함이 수리됐는데 그 경로를 재는 테스트가 0건이다
+**Category:** BE / Strategy
+**Priority:** P3
+**출처:** 2026-08-30 n14 `ci-gates` lane 의 mypy 수리 diff 를 사람이 읽다가 발견 (코드 대조 확인)
+
+**증상 (실측):** `ast_classifier.py:31` 의 `Track = Literal["S", "A", "M", "unknown"]` 인데 `StrategyBriefResponse.track` 은 `Literal["S","A","M"] | None` 이다. `_extract_brief_parts` 는 `classify_script(source).track` 을 **그대로** 실어 보냈으므로, `_classify_track` 이 `"unknown"` 을 내는 스크립트(선언이 `strategy`/`indicator`/`library` 어느 것도 아닌 경우)는 응답 생성 시 pydantic ValidationError → **`GET /strategies/{id}/brief` 가 500** 이었다. ★그 함수의 `try/except` 는 이것을 못 잡는다 — 예외가 `try` 본문이 아니라 **응답 조립 시점**에 난다.
+**수리:** 2026-08-30 에 `"S"/"A"/"M"` 멤버십을 통과한 값만 싣고 나머지는 `None` 으로 떨어뜨리도록 좁혔다(PR #850). 그 함수 docstring 의 「실패는 조용히 빈 값」 계약과 일치한다.
+**남은 것:** **그 경로를 재는 테스트가 없다.** 지금 초록은 「`unknown` 이 안 난다」가 아니라 「아무도 안 재고 있다」다 — mypy 가 아니었으면 아무도 못 봤다는 것이 이 항목의 요지다.
+**권장 접근:** `unknown` 을 내는 최소 Pine 소스로 `GET /{id}/brief` 가 **200 · `track: null`** 임을 단언하는 테스트 1건. 양성 대조로 `strategy()` 소스가 `track: "S"` 를 내는 것을 같이 재라.
+
+**상태:** 🔵 ACTIVE — 2026-08-30 등재, 결함은 수리됨 · **회귀 테스트 미작성**
+**트리거 판정:** 도래 (단독 착수 가능 · 테스트 1건)
