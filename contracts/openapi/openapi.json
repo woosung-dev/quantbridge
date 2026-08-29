@@ -5117,7 +5117,7 @@
           "bayesian_n_initial_random": {
             "anyOf": [
               {
-                "maximum": 50.0,
+                "maximum": 100.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -5286,7 +5286,7 @@
           "bayesian_n_initial_random": {
             "anyOf": [
               {
-                "maximum": 50.0,
+                "maximum": 100.0,
                 "minimum": 1.0,
                 "type": "integer"
               },

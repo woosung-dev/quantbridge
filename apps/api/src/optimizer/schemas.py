@@ -156,7 +156,11 @@ class ParamSpace(BaseModel):
     parameters: dict[str, ParamSpaceField]
 
     # Sprint 55 = Bayesian 활성 2 필드 (schema_version=2 only).
-    bayesian_n_initial_random: int | None = Field(default=None, ge=1, le=50)
+    # ★상한 100 은 FE 와 **공유 계약**이다 — `apps/web/src/features/optimizer/schemas.ts` ·
+    #   `bayesian-search-form.tsx` · `makeOptimizerFormBaseFields(100)` 세 곳이 같은 값을 쓴다.
+    #   2026-08-30 까지 여기만 50 이라 51~100 입력이 FE 검증을 통과한 뒤 서버에서 422 였다.
+    #   게이트 = `tests/optimizer/test_bayesian_bound_contract.py`.
+    bayesian_n_initial_random: int | None = Field(default=None, ge=1, le=100)
     bayesian_acquisition: Literal["EI", "UCB", "PI"] | None = None
 
     # Sprint 56 = Genetic 4 필드 활성 (ADR-013 §2.1 + §7 amendment, schema_version=2 only).

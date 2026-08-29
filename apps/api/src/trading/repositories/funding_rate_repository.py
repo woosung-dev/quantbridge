@@ -1,17 +1,21 @@
 # trading.funding_rates read 전용 — backtest perp funding 차감용 시계열 조회.
 """FundingRateRepository — funding_rates read (Slice 4 perp funding 배선).
 
-raw-SQL 인제스션(`trading/funding.py`)만 있던 trading.funding_rates 에 read 메서드를
-추가한다. backtest 엔진이 [period_start, period_end] window 의 funding 시계열을 8h
-정산 경계 차감에 사용한다. read-only — commit/mutation 없음(cross-domain read).
+backtest 엔진이 [period_start, period_end] window 의 funding 시계열을 8h 정산 경계
+차감에 사용한다(`get_funding_series`).
+
+★**쓰기도 이 층이 갖는다**(2026-08-30) — 종전에는 멱등 INSERT 가 `trading/funding.py` 안에서
+raw `text()` + `session.commit()` 로 돌아 Repository 층을 통째로 우회했다(`apps/api/AGENTS.md` §3).
+게이트 = `tests/common/test_repository_boundary_guard.py` 의 raw-SQL 축.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 
 import pandas as pd
-from sqlalchemy import String, cast, select
+from sqlalchemy import String, cast, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.trading.models import FundingRate
@@ -20,6 +24,36 @@ from src.trading.models import FundingRate
 class FundingRateRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
+
+    async def upsert_many(self, rows: Sequence[FundingRate]) -> int:
+        """FundingRate 행을 멱등 저장하고 **새로 삽입된 수**를 반환한다.
+
+        중복 방지 = `(exchange, symbol, funding_timestamp)` UNIQUE index +
+        `ON CONFLICT DO NOTHING`. 그래서 재실행이 안전하고 반환값이 「신규」만 센다.
+        """
+        if not rows:
+            return 0
+
+        inserted = 0
+        for row in rows:
+            result = await self.session.execute(
+                text(
+                    "INSERT INTO trading.funding_rates "
+                    "(id, symbol, exchange, funding_rate, funding_timestamp, fetched_at) "
+                    "VALUES (:id, :symbol, :exchange, :funding_rate, :funding_timestamp, NOW()) "
+                    "ON CONFLICT (exchange, symbol, funding_timestamp) DO NOTHING"
+                ),
+                {
+                    "id": str(row.id),
+                    "symbol": row.symbol,
+                    "exchange": row.exchange,
+                    "funding_rate": str(row.funding_rate),
+                    "funding_timestamp": row.funding_timestamp,
+                },
+            )
+            inserted += result.rowcount  # type: ignore[attr-defined]
+        await self.session.commit()
+        return inserted
 
     async def get_funding_series(
         self, exchange: str, symbol: str, start: datetime, end: datetime

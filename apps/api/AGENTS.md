@@ -64,6 +64,12 @@ HTTP·WebSocket 이 그것을 공유한다. **새 검증 경로를 만들지 마
 
 ★**여러 repo 를 묶는 service** 는 `dependencies.py` 에서 **동일 session** 으로 조립하고 **한 번만 commit** 한다.
 
+★**「AsyncSession 금지」의 등재된 예외는 하나뿐이다** — `trading/services/order_service.py` 가
+`begin_nested()` SAVEPOINT 와 outer `commit()` 을 위해 세션을 생성자로 받는다(`:64`). 그 두 용도 밖으로
+세션을 쓰지 마라. 회귀 = `tests/trading/test_order_service_dispatch_snapshot.py` 가 `session.commit` 을 spy 한다.
+**새 예외를 만들려면 코드가 아니라 이 줄을 먼저 늘려라.** 게이트 = `tests/common/test_repository_boundary_guard.py`
+(경계 밖 `select(` · `repo.session` 리치스루 · 경계 밖 raw SQL 실행 **3축**).
+
 ★**코드 예제는 문서가 아니라 실물을 봐라** — 조립 표준 = `src/<도메인>/dependencies.py`, commit-spy
 표준 = `tests/*/test_*commits*.py`. **이유:** 문서 안의 예제는 낡지만 실물은 CI 가 지킨다.
 
@@ -140,10 +146,17 @@ apps/api/src/
 │                   #   ★조립 전용 디렉터리(api/)는 없다. /api/v1 프리픽스는 여기서 붙인다
 ├── [domain]/       # 3-Layer 7파일 도메인 — backtest · stress_test · optimizer · strategy
 │                   #   · trading · waitlist · auth (exchange 는 trading 으로 통합 — ADR-018)
+│                   # ★7파일은 **필수 코어**이지 상한이 아니다. 실제로 7개 도메인 전부가 부속
+│                   #   모듈을 더 갖는다 — 통용되는 확장 형태는 `engine/`(backtest·optimizer·
+│                   #   stress_test) · `providers/`(market_data) · `dispatcher.py`/`serializers.py`
 ├── auth/           # 사용자 원장 + 탈퇴. ★JWT 검증기는 realtime/auth.py
 ├── strategy/
 │   ├── convert/    # 지표 변환 서브도메인 (자체 router — prefix 는 /strategies 공유)
-│   └── pine_v2/    # Pine Script v2 인터프리터 (SSOT — interpreter / stdlib / coverage)
+│   ├── narrative/  # [ADR-040] 해설 층 LLM 클라이언트 (§3 예외 표)
+│   ├── pine/       # ★v1 잔해가 아니라 **공유 타입 모듈**이다 — `ParseOutcome`·`PineError`·
+│   │               #   `SignalResult` 를 `backtest/engine/{types,v2_adapter}.py` 가 import 한다.
+│   │               #   이름만 v1 을 가리킨다. 신규 코드는 여기에 넣지 마라
+│   └── pine_v2/    # Pine Script v2 인터프리터 (SSOT — interpreter / stdlib / coverage / runtime/)
 ├── trading/
 │   ├── services/   # ★단일 파일이 아니라 디렉터리로 분해됨
 │   ├── repositories/

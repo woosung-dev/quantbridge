@@ -37,6 +37,7 @@ import { formatPercent } from "@/features/backtest/utils";
 import { describeSharpe } from "@/features/backtest/sharpe-convention";
 import type { BacktestMetricsSummary } from "@/features/backtest/schemas";
 import { StateBox } from "@/components/state-box";
+import { StatValue } from "@/components/stat-value";
 import { CHIP_TONE_CLASS, EMPTY_CELL } from "@/lib/labels";
 
 const PAGE_SIZE = 20;
@@ -183,7 +184,9 @@ export function StrategyList() {
           <div>
             <h1 className="report-title">전략</h1>
             <div className="report-meta">
-              <span className="chip">{total}개</span>
+              <span className="chip">
+                <StatValue isError={isError}>{total}개</StatValue>
+              </span>
               <span className="chip accent">바 단위 이벤트 루프</span>
               <span className="chip">Bybit</span>
             </div>
@@ -295,7 +298,9 @@ export function StrategyList() {
           <p className="eyebrow">
             <span className="num">02</span> 목록
           </p>
-          <h2 className="section-title">전략 {total}개</h2>
+          <h2 className="section-title">
+            전략 <StatValue isError={isError}>{total}개</StatValue>
+          </h2>
           <p className="section-desc">
             선택한 기준으로 서버에서 정렬합니다. 심볼과 주기는 그 전략에 저장된 기본값입니다.
           </p>
@@ -344,7 +349,10 @@ export function StrategyList() {
           {/* total 은 BE 전역 건수지만 상태 분해는 client-side counts 라 현재 페이지(≤20)만
               반영한다. 페이지가 더 있으면 '이 페이지 기준' 을 붙여 전역 집계로 오인하지 않게 한다. */}
           <p className="runs-summary">
-            <span className="mono">{total}</span>개 · {hasMorePages ? "이 페이지 기준 " : ""}
+            <span className="mono">
+              <StatValue isError={isError}>{total}개</StatValue>
+            </span>{" "}
+            · {hasMorePages ? "이 페이지 기준 " : ""}
             변환 가능 <span className="mono">{counts.ok}</span> · 일부 미지원{" "}
             <span className="mono">{counts.unsupported}</span> · 오류{" "}
             <span className="mono">{counts.error}</span>

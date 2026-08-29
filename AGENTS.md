@@ -85,6 +85,9 @@ mise tasks             # 전체 목록   ·  mise run help ·  mise ls  # 도구
 # ★ALWAYS — BE pytest 는 .env.local 을 **통째로** 소싱한다 (DATABASE_URL 단독 주입 금지 — §3)
 cd apps/api && set -a; . ./.env.local; set +a; uv run pytest
 
+cd apps/api && uv run mypy src                # BE 타입 (차단 게이트)
+cd apps/api && uv run python scripts/export_openapi.py --check   # OpenAPI drift (차단 게이트)
+
 cd apps/web && pnpm exec biome check .        # FE lint (단독 게이트)
 ./tools/scripts/ledger-vitals.sh              # 원장 3축
 ```
@@ -126,7 +129,7 @@ herdr 함대 래퍼는 2026-08-13 제거됐다([ADR-030](./docs/adr/030-harness-
 | `.husky/pre-push` | main/master 직접 push (`stage\|feat\|fix\|chore\|docs\|test\|refactor\|hotfix/*` 는 통과) |
 | pre-commit `ledger-vitals.sh` | `다음 행동` ≤1 · ⓪ 표 ≥1행 · RESOLVED 역류 0 |
 | pre-commit lint-staged | 스테이지된 `.py` 에 `ruff check --fix` + `ruff format` |
-| CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` + `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
+| CI (`.github/workflows/ci.yml`) | **유일한 품질 게이트** — be: `ruff check .` → `scripts/export_openapi.py --check`(OpenAPI drift) → `mypy src` → `pytest` 전량 / fe: `biome`+`tsc`+`vitest`+`build` |
 | `tools/scripts/hooks/` | codex 레이어 가드 (위험 명령 차단) |
 
 ★**CI 는 `ruff format` 을 안 잰다** — 레포에 format 드리프트가 상시 있고 그것은 red 가 아니다.

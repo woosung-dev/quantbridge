@@ -42,7 +42,7 @@
 - **상태 3단계** — Server State = React Query · Client Global = Zustand(`store/ui-store.ts`) · Client Local =
   `useState`. ★사이드바 접힘은 상태가 아니라 **순수 CSS** 다(§10) — 토글 store 를 새로 만들지 마라
 - **React Query** — Query Key 하드코딩 금지 → 도메인별 `query-keys.ts` 팩토리(첫 인자 = `userId`). API 호출은
-  `features/[domain]/api.ts` 에 모은다(★예외 3곳 — `app/share/backtests/[token]/*` 2 · `test-order-webhook.ts`). 재는 것 없음
+  `features/[domain]/api.ts` 에 모은다(★예외 **4곳** — `app/share/backtests/[token]/*` 2 · `test-order-webhook.ts` · `lib/auth.ts` 가 자체 `apiBase` 보유. 2026-08-30 실측으로 3→4 정정). 재는 것 없음
 - **에러 핸들링** — 라우트 경계는 `error.tsx`(§6)가 이미 ErrorBoundary 다. 이 규칙이 말하는 것은 **컴포넌트
   내부의 `if (isLoading)`/`if (error)` 워터폴을 `Suspense` 로 걷으라**는 것이다. ★규칙이지 현황이 아니다
   (조기 반환 15건 · `<Suspense>` 1곳). 기존 위반을 선례로 읽지 마라
@@ -81,7 +81,9 @@ timeout 콜백에서 `ref.current` 읽기. 실물 = `features/strategy/draft.ts:
 
 ## 4. Directory Structure (FSD Lite)
 
-> 새 기능은 반드시 아래 구조로 배치한다. ★**배치를 재는 기계는 없다.**
+> 새 기능은 반드시 아래 구조로 배치한다. ★**배치를 재는 기계는 거의 없다** — 예외 하나는
+> `app/(dashboard)/__tests__/thin-routes.test.tsx` 로, **7개 라우트**가 「정적 metadata + 단일 feature 위임」
+> 인지 집행한다. 그 7개 밖의 배치는 여전히 아무도 안 잰다(2026-08-30 정정).
 
 ```
 src/

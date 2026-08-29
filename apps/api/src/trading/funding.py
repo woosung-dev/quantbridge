@@ -12,41 +12,23 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import text
-
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.trading.models import ExchangeName, FundingRate
+from src.trading.repositories.funding_rate_repository import FundingRateRepository
 
 logger = logging.getLogger(__name__)
 
 
 async def _store_rows(session: AsyncSession, rows: list[FundingRate]) -> int:
-    """FundingRate 행을 멱등 저장하고 새로 삽입된 수를 반환한다."""
-    if not rows:
-        return 0
+    """멱등 저장을 **Repository 에 위임**한다.
 
-    inserted = 0
-    for row in rows:
-        result = await session.execute(
-            text(
-                "INSERT INTO trading.funding_rates "
-                "(id, symbol, exchange, funding_rate, funding_timestamp, fetched_at) "
-                "VALUES (:id, :symbol, :exchange, :funding_rate, :funding_timestamp, NOW()) "
-                "ON CONFLICT (exchange, symbol, funding_timestamp) DO NOTHING"
-            ),
-            {
-                "id": str(row.id),
-                "symbol": row.symbol,
-                "exchange": row.exchange,
-                "funding_rate": str(row.funding_rate),
-                "funding_timestamp": row.funding_timestamp,
-            },
-        )
-        inserted += result.rowcount  # type: ignore[attr-defined]
-    await session.commit()
-    return inserted
+    ★종전에는 이 함수가 raw `text()` INSERT 와 `session.commit()` 을 직접 쳐서 Repository 층을
+    우회했다(2026-08-30 아키텍처 감사). SQL 은 `FundingRateRepository.upsert_many` 로 옮겼다 —
+    `AsyncSession` 은 그 층만 보유한다(`apps/api/AGENTS.md` §3).
+    """
+    return await FundingRateRepository(session).upsert_many(rows)
 
 
 async def fetch_and_store_funding_rates(

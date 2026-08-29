@@ -192,3 +192,33 @@ describe("proxy 인증·지역 제한 게이트", () => {
     expect(config.matcher).toHaveLength(2);
   });
 });
+
+// ── matcher 자체를 잰다 ────────────────────────────────────────────────────────
+// ★위 테스트들은 `proxy()` 를 **직접 부른다**. 그래서 Next 가 애초에 proxy 를 안 태우는 경로는
+//   한 건도 못 본다 — 게이트 우회는 함수 안이 아니라 `config.matcher` 에서 일어난다.
+//   2026-08-30 아키텍처 감사: 정적 자산 제외 lookahead 에 앵커가 없어서
+//   `/backtests/<id>.png` 같은 **동적 세그먼트 경로가 통째로 인증을 건너뛰었다.**
+describe("config.matcher — 어떤 경로가 proxy 를 타는가", () => {
+  const runsProxy = (pathname: string) => new RegExp(`^${config.matcher[0]}$`).test(pathname);
+
+  it.each([
+    ["/backtests/00000000-0000-0000-0000-000000000000.png"],
+    ["/backtests/anything.css"],
+    ["/optimizer/1.ico"],
+    ["/strategies/x.svg"],
+    ["/trading/report.pdf.png"],
+  ])("보호 라우트는 확장자가 붙어도 proxy 를 탄다: %s", (pathname) => {
+    expect(runsProxy(pathname)).toBe(true);
+  });
+
+  it.each([["/backtests"], ["/backtests/abc"], ["/dashboard"], ["/strategies/abc/edit"]])(
+    "음성 대조: 평범한 보호 라우트도 당연히 proxy 를 탄다: %s",
+    (pathname) => {
+      expect(runsProxy(pathname)).toBe(true);
+    },
+  );
+
+  it.each([["/favicon.ico"], ["/icon.svg"]])("루트 정적 자산은 여전히 제외된다: %s", (pathname) => {
+    expect(runsProxy(pathname)).toBe(false);
+  });
+});

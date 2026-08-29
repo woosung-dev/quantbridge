@@ -17,7 +17,10 @@ _Avoid_: Algorithm, Script(원본 코드 문자열은 `pine_source` 로 한정)
 **pine_v2**:
 Pine Script 를 트랜스파일 없이 AST 를 bar-by-bar 해석·실행하는 자체 인터프리터이자 백테스트·라이브 **신호**의 단일 진실(SSOT).
 ★**신호이지 체결이 아니다.** 백테스트에는 거래소가 없으므로 시뮬이 곧 거래소이고 체결도 `pine_v2` 가 정한다. 라이브에는 진짜 매칭엔진이 있으므로 **조건부 진입 체결의 권한은 주문 원장에 있다** — 원장이 증언하지 않은 체결을 엔진이 만들지 않고, 증언하면 엔진의 봉·트리거 판정과 무관하게 체결한다([ADR-025](./docs/adr/025-conditional-fill-ownership.md) / [BL-595]). 그 결과 **라이브 재생은 「전략 + OHLCV」만으로 재현되지 않는다** — 원장이 입력에 들어간다. 백테스트 경로는 인자 기본값으로 byte-identical 이며 테스트가 그 경계를 집행한다.
-_Avoid_: transpiler, "vectorbt 엔진", Pine v1(철거됨, Sprint 59)
+_Avoid_: transpiler, "vectorbt 엔진", Pine v1(인터프리터는 Sprint 59 에 철거됐다)
+★단 **`src/strategy/pine/` 은 현역이다**(2026-08-30 정정) — 135줄의 **공유 타입 모듈**이고
+(`ParseOutcome` · `PineError` · `SignalResult`) `backtest/engine/{types,v2_adapter}.py` 가 import 한다.
+「v1 이 철거됐다」를 「그 디렉터리가 없다」로 읽지 마라 — 이름만 v1 을 가리키는 잔존 경로다.
 
 **Track**:
 pine_v2 가 스크립트 선언을 분류해 실행 경로를 정하는 라우팅 분류 — **S**(strategy 선언 → native `run_historical`) / **A**(indicator|library + alert → `run_virtual_strategy` 가상 래퍼) / **M**(indicator|library, alert 없음 → 지표 pass-through `run_historical`). `library` 선언도 indicator 와 동일하게 alert 유무로 A/M 분기(`ast_classifier._classify_track`).
