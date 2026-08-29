@@ -66,28 +66,6 @@
 
 ## P1 — Risk mitigation / 알려진 broken bug 패턴 재발 방어
 
-### BL-519
-
-**Title:** 컨테이너로 API 를 띄우는 배포에는 multiprocess 배선이 없다 — 조용히 폴백해 worker 지표를 영영 못 본다
-**Category:** Infra / observability
-**Priority:** P2
-**Trigger:** 프로덕션 배포 시
-**Est:** S
-**상태:** ⏳ 대기 (트리거 미도래) — API 컨테이너 서비스도, production 미설정 경고 로그도 아직 없다 — 폴백은 여전히 무증상이다 (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 미도래 — 외생 조건(Beta·프로덕션 배포). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
-**출처:** 2026-07-28 live-observability 적대 검증
-
-**원인 / 영향:** `docker-compose.yml` 에 API 서비스가 **없다**(호스트 uvicorn). `PROMETHEUS_MULTIPROC_DIR` 을 주입하는 곳은 compose 의 worker 4곳 + Makefile 2곳뿐이다. `Dockerfile` 이 `/metrics` 디렉토리를 만들어 두지만 **그 값을 주입하는 곳이 레포 전체에 없다.**
-
-컨테이너 API 배포에서는 env 미설정 → 단일 프로세스 폴백 → **worker 지표가 안 보인다.** 그리고 그 상태가 200 을 반환하므로 **무증상**이다.
-
-★이번 세션에서는 `.env.example` 과 `docker-entrypoint.sh` 주석으로 **경고만** 남겼다. 배포 매니페스트가 이 레포에 없어 코드로 강제할 수 없다.
-
-**권장 접근:** 배포 매니페스트에 env + 공유 볼륨을 넣고, API 기동 시 `PROMETHEUS_MULTIPROC_DIR` 미설정을 **production 에서 경고 로그**로 남긴다.
-**Risk:** 🟡
-
----
-
 ## P3 — Nice-to-have / 컨벤션 정합
 
 ### BL-476
@@ -393,6 +371,13 @@ BL-562 는 "증명하지 못하면 버킷에 넣지 않는다" 를 원칙으로 
 **Est:** S
 **상태:** ⏳ **대기 (트리거 미도래)** — 관측된 결함(워크트리 1개의 훅 결손)은 2026-08-07 에 정상화했다. **감지 수단 부재**만 열려 있다.
 **트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
+★★**2026-08-30 — 원인은 재발했다. 실패 모드는 달랐다(그래서 아직 미도래).** 원장 트리아주 회차가
+`worktree-fix+check` 에서 커밋하려다 막혔다: `ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "lint-staged" not found`
+(`husky - pre-commit script failed (code 254)`). **`.husky/_` 는 있었고 훅은 돌았다** — 없던 것은
+`node_modules` 뿐이라 훅의 첫 줄이 **시끄럽게** 죽었다. 이 항목이 지목하는 조용한 실패
+(`core.hooksPath` 를 git 이 **경고 없이 무시**)와는 다른 모드다. ⇒ **트리거는 여전히 미도래**지만
+**원인(부트스트랩 우회 생성)이 3주 뒤 그대로 재발한다는 증거**라 이 항목은 닫지 않는다.
+수리 = `pnpm install`(952ms). 정본 진입은 `worktree-bootstrap.sh --adopt-env` 다.
 
 **부트스트랩을 우회해 만든 워크트리는 husky 훅이 없다.**
 
@@ -644,6 +629,53 @@ raw SQL 로」. 즉 이것은 실수가 아니라 **repository 표면이 부족�
 
 ---
 
+### BL-774
+
+**Title:** TradingView webhook 이 **body 기반 HMAC** 을 요구한다 — 동적 alert 본문에서 성립하는지 미확인
+**Category:** Backend / Trading ingress
+**Priority:** P2
+**Trigger:** ★**TradingView 유료 플랜을 다시 결제하기로 결정하면.** webhook alert 는 TradingView 유료 기능이고
+**지금은 결제하지 않는다**(2026-08-30 사용자 — 예전에는 결제했다). 결제 없이는 실측 자체가 불가능하다
+**Est:** M (실측 선행 · 결과에 따라 ingress 설계 분기)
+**출처:** 2026-08-16 외부 레포 비교 분석(finsight) 지적 → 코드 축만 확정, **TradingView 쪽은 [확인 필요]**
+
+**원인 / 영향:** `trading/webhook.py:116` 은 `hmac.new(secret, payload, sha256)` 으로 **요청 body
+전체**에 대한 HMAC 을 계산해 query `token` 과 비교한다. FE 도 그대로 안내한다 —
+`tab-webhook.tsx` 의 URL 템플릿이 `.../webhooks/{strategyId}?token={HMAC}` 이고 힌트 문구가
+「`{HMAC}` 자리에는 secret 과 body 로 만든 HMAC-SHA256 토큰을 채웁니다」다.
+
+**[확인 필요] — 아직 실측하지 않은 것:** TradingView alert 는 URL 과 message 를 **정적으로** 지정한다.
+⑴ body 가 완전히 고정이면 HMAC 도 고정이므로 이 방식은 **동작한다**(외부 분석의 「불가능」은 과장이다)
+⑵ 그러나 body 에 `{{close}}`·`{{time}}`·`{{strategy.order.action}}` 같은 placeholder 를 넣는 순간
+본문이 매 alert 마다 달라지고 **고정 token 은 전부 401 이 된다.** 실제로 어느 쪽인지는
+**사용자의 alert 본문 설계에 달려 있고 아직 실측이 없다.**
+
+**함께 볼 것 — idempotency:** `trading/router.py` 의 idempotency key 는 **optional query
+parameter** 다. 고정 키를 쓰면 다음 정상 alert 가 충돌로 거부되고, 생략하면 TradingView 의
+재전송이 **중복 주문**이 된다. 즉 HMAC 축과 idempotency 축이 **같은 결정에 묶여 있다.**
+
+**권장 접근:** ⑴ ★**먼저 실측해라** — 실제 TradingView alert 하나를 정적 body 로 걸어 200 이 나는지
+확인한다. 코드를 고치기 전에 이 한 건이 설계를 가른다 ⑵ 동적 body 가 필요하다고 판정되면 세 갈래 중
+선택: (a) 고정 endpoint token + body fingerprint (b) 서명 relay (c) 서버가
+`strategy_version + symbol + side + bar_timestamp` 로 idempotency key 를 **자동 생성**
+⑶ (c) 는 [BL-773] 의 `strategy_version` 에 의존한다 — 순서를 보라
+
+**Risk:** 🟡 (ingress 계약 변경은 기존 연결을 끊을 수 있다. 지금 실사용 연결이 있는지부터 확인)
+
+**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-30 재기술(종전 마커 `⬜ Open` 은 [ADR-028] 판정어 5종 밖이었다).
+코드 축(body-HMAC + optional idempotency)은 2026-08-16 에 확정됐고 **TradingView 쪽 실측은 미착수**다.
+**트리거 판정:** ~~도래 — 다만 첫 step 은 코드 수리가 아니라 **실측 1건**이다 (2026-08-16 external-comparison)~~
+→ ★**2026-08-30 미도래로 재판정.** 「첫 step 은 실측 1건」은 여전히 맞지만 **그 실측을 할 수단이 없다** —
+webhook alert 는 유료 플랜에서만 만들어지고 현재 결제하지 않는다. **결제가 선행**이다.
+
+★★**[사용자 방향 · 미확정] 이 항목의 값을 정하는 것은 결제가 아니라 타겟이다.** 2026-08-30 사용자 =
+「**결제를 하지 않는 대상**도 쓸 수 있게 타겟팅을 생각하고 있다」. 그 방향이 확정되면 webhook 은
+**주 경로가 아니게 된다**(무료 TradingView 계정은 webhook alert 를 못 만든다) — 이 항목은 그때
+「결제 사용자용 선택적 고급 경로」로 내려가고, 대신 **무료 사용자의 진입 경로**가 제품 축이 된다.
+⇒ **그 방향 결정이 이 항목보다 앞선다.** 확정되면 `docs/PRD.md` 범위 절이 먼저 바뀐다
+
+---
+
 ### BL-005
 
 **Title:** Beta 외부 공개 게이트 — 사용자 결정 축
@@ -676,50 +708,11 @@ runbook → [BL-005] 실자본 dogfood → [BL-070~072] Beta`** 였다.
 1. 서버 `.env.local` 에 키 3종 — `RESEND_API_KEY` · `RESEND_FROM_ADDRESS` · `WAITLIST_ADMIN_EMAILS`.
    절차·판정·롤백 전문 = [`operations/waitlist-activation.md`](./operations/waitlist-activation.md)
 2. Cloudflare Access 정책에 초대 대상 이메일 추가 — ★**env 로는 못 여는 관문**이다(런북 §4.0)
-3. Access 를 **걷지는 마라** — 걷으면 가입에 초대 토큰이 없어 개방 가입이 된다([BL-776])
+3. Access 를 **걷지는 마라** — 걷으면 가입이 개방된다(2026-08-19 결정으로 초대 게이트는 짓지 않는다)
 
 ★**코드·테스트·화면은 이미 완비다**(2026-08-16 [BL-072]). 막고 있는 것은 기술이 아니라 결정이다.
 
 ★**이 BL 은 세션이 열 수 없다** — Resend 키 발급과 Access 정책 편집이 둘 다 사용자 소유 콘솔이다.
-
-### BL-776
-
-**Title:** 대기자 명단이 있는데 **가입이 초대로 게이트되지 않는다** — Cloudflare Access 가 그 공백을 가려 왔다
-**Category:** Backend / FE · 접근 제어
-**Priority:** P1
-**Trigger:** ★공개 전환([BL-070] Access 제거) **직전**. Access 가 걸려 있는 동안은 발현하지 않는다
-★**주의** — [BL-070] 은 **처음부터 원장 섹션이 없다**(roadmap 체크박스로만 존재했고 그 파일도 2026-08-23 에 PRD 로 통합됐다). 발화 판정은 [BL-005] 와 함께 사람이 한다
-**Est:** M (가입 훅에 초대 검증 + 토큰 소비 + 상태 전이 `invited → joined`)
-**출처:** 2026-08-16 beta-cutover — 사용자가 「Access 를 왜 제거하나」라고 물어 재측정하다 확정
-
-**원인 / 영향:** `/sign-up(.*)` 은 `apps/web/src/proxy.ts` 의 **공개 라우트**이고, Better Auth 의
-`databaseHooks.user.create.before`(`apps/web/src/lib/auth.ts`)가 검사하는 것은 **국가 하나뿐**이다 —
-초대 토큰도, 대기자 명단 상태도, 이메일 검증도 없다(`requireEmailVerification: false`).
-`auth-form.tsx` 도 `signUp.email({email,password})` 만 부른다.
-
-⇒ **Cloudflare Access 를 제거하는 순간 인터넷의 누구나 계정을 만든다.** 대기자 명단
-([BL-072])은 존재하지만 **가입을 막지 않는다** — 승인 흐름과 실제 관문이 이어져 있지 않다.
-
-★**이것은 새로 생긴 결함이 아니라 가려져 있던 것이다.** Access(이메일 OTP)가 앞단에 있어서
-그 공백이 한 번도 발현하지 않았고, `/invite/[token]` 페이지가 이 회차에 생기면서 「초대 →
-가입」 경로가 처음으로 화면에 존재하게 되자 드러났다.
-
-**함께 볼 것:** 서버 `WAITLIST_ADMIN_EMAILS` 미설정(승인 엔드포인트 fail-closed 403) ·
-`RESEND_API_KEY` 미설정(초대 메일 발송 불가) — 즉 지금은 **초대 파이프라인 자체가 안 돈다.**
-그래서 Access 제거는 오늘 얻는 것이 0 이고 잃는 것만 있다.
-
-**권장 접근:** ⑴ `create.before` 훅에서 초대 토큰을 검증한다 — FE 가 가입 요청에 토큰을 실어
-보내고(초대 페이지에서 이어받는다) 훅이 BE `verify_invite_token` 으로 확인한다
-⑵ 가입 성공 시 대기자 행을 `invited → joined` 로 전이하고 **토큰을 소비**한다(재사용 차단)
-⑶ ★**음성 대조가 이 항목의 핵심이다** — 토큰 없이 `POST /api/auth/sign-up/email` 을 직접 쳐서
-**거부되는지** 확인해라. 화면에 입력칸이 없는 것은 게이트가 아니다
-⑷ 대안(코드 0): Beta 사용자 이메일을 Access 정책에 추가한다. 수십 명까지는 이쪽이 더 안전하다
-(문이 둘로 유지된다) — 그 규모를 넘을 때가 ⑴~⑶ 의 진짜 트리거다
-
-**Risk:** 🟠 (공개 전환과 묶여 있다. 이 항목 없이 Access 를 걷으면 **개방 가입**이 된다)
-
-**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-16 에 코드 대조로 확정(`proxy.ts` 공개 라우트 · `auth.ts` 훅 · `auth-form.tsx`). Cloudflare Access 가 앞단에 있는 동안은 발현하지 않는다. 미착수. ★**2026-08-19 사용자 결정 = 「개방 유지 + 카피 수정」** — 초대 게이트를 짓지 않는다. 근거는 이 항목 「함께 볼 것」이 이미 적어 둔 것이다: `WAITLIST_ADMIN_EMAILS` 미설정 · `RESEND_API_KEY` 미설정이라 **초대 파이프라인 자체가 안 돈다** ⇒ 게이트를 만들어도 발급할 초대가 없다. 대신 랜딩 CTA 의 「지금은 가입을 받지 않습니다」(`landing-cta.tsx:29`)가 코드 층 실태(개방)와 어긋나는 것을 카피로 해소한다. 이 항목의 트리거(= Access 제거 직전)는 **그대로다** — 그날 ⑴~⑶ 이 다시 필요해진다
-**트리거 판정:** 미도래 — Access 가 앞단에 있는 동안은 발현하지 않는다. 도래 = [BL-070] 의 Access 제거를 실제로 누르기 직전 (2026-08-16 beta-cutover)
 
 ### BL-791
 
@@ -738,28 +731,6 @@ runbook → [BL-005] 실자본 dogfood → [BL-070~072] Beta`** 였다.
 
 **상태:** ⏳ **대기 (트리거 미도래)** — CI 로그 확인이 선행이다
 **트리거 판정:** 미도래 — 판단 근거(CI 로그)를 아직 안 읽었다
-
----
-
-### BL-792
-
-**Title:** `tool-pin-audit.sh` 의 알려진 사각 둘 — **핀 위치를 안 보고**, 간접 실행을 못 본다
-**Category:** Infra / 게이트
-**Priority:** P3
-**Trigger:** ⏳ **대기** — 레포에 그 두 형태가 현재 0건이다
-**Est:** M (셸 파서 수준의 판정이 필요하다)
-**출처:** 2026-08-17 야간 CONTROL 적대 리뷰 (레인 β)
-
-**원인 / 영향:** ⑴ 호출은 **명령 위치**로 판정하지만 핀은 「파일 어딘가에 source + `qb_pin_tool_path` 문자열이 있으면 참」이다 — 도달 불가한 `if false; then … fi` 안에 넣어도 통과한다. ⑵ `tool=pnpm; "$tool" install` 이나 `eval 'uv run pytest'` 는 호출 정규식에 안 걸려 위반 0건이 된다.
-
-⇒ **「감사기가 초록이다」는 「위반이 없다」가 아니라 「내가 아는 형태의 위반이 없다」가 참인 문장이다.** 이 감사기는 실수 재유입을 막는 장치이지 적대적 우회를 막는 장치가 아니다.
-
-**처방:** 임의의 간접 실행을 정적으로 잡으려면 셸 파서가 필요하다 — 결함 크기에 비해 큰 장치다. 실용적 대안은 핀 **위치**만 보는 것(핀 소싱이 첫 도구 호출보다 앞 줄에 있는가). 레포에 그 두 형태가 실제로 나타나면 그때 착수해라.
-
-**Risk:** 🟢
-
-**상태:** ⏳ **대기 (트리거 미도래)** — 그 두 형태가 레포에 0건이다
-**트리거 판정:** 미도래 — 전수 grep 0건
 
 ---
 
@@ -804,44 +775,6 @@ runbook → [BL-005] 실자본 dogfood → [BL-070~072] Beta`** 였다.
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 표면이 좁고 대안이 더 비싸다
 **트리거 판정:** 미도래 — development 밖으로 나가는 계기가 없다
-
----
-
-### BL-796
-
-**Title:** [BL-788] census 파서가 못 보는 표 선언 3형태 — 그 모듈을 아무도 import 하지 않으면 **네 다리 전부 초록**이다
-**Category:** 테스트 / 인프라
-**Priority:** P3
-**Trigger:** ⏳ **대기** — `src/**` 실사용례 **0건**(2026-08-17 전수 grep). 셋 중 하나라도 쓰이기 시작하면 도래
-**Est:** S (파서 확장 — 다만 아래 「왜 지금 안 하나」를 먼저 읽어라)
-**출처:** 2026-08-17 metadata-scope — `/codex` 적대 리뷰 수리 뒤 독립 검증자가 찾음
-
-**원인 / 영향:** `apps/api/tests/test_metadata_table_coverage.py` 의 census 는 `src/**` 를 AST 로 훑어
-표 선언을 모으고, 그것이 이 검사면의 **유일한 기대치 원천**이다. 파서가 못 보는 형태가 셋 남았다:
-
-- ⓐ **대입 별칭** — `T = Table` 뒤의 `T("x", SQLModel.metadata, ...)`. `_local_aliases` 는 import 문만 본다
-- ⓑ **서브클래스** — `class MyTable(Table): ...` 뒤의 `MyTable("x", SQLModel.metadata, ...)`
-- ⓒ **동적 속성** — `getattr(sa, "Table")("x", SQLModel.metadata, ...)`
-
-★**위험한 것은 「못 본다」가 아니라 「못 보는 것이 조용하다」이다.** census 가 그 모듈을 못 보면
-선언 축은 「import 할 것이 없다」로 통과하고, 그 모듈을 아무도 import 하지 않으면 실행 축도
-「등록된 것이 census 와 같다」로 통과한다 — **네 다리가 전부 초록**이다. 이것이 [BL-788] 본체와
-정확히 같은 구조다(실행 축이 보는 것은 **누군가 import 한** 모듈뿐이라 선언 축의 사각을 못 덮는다).
-
-**처방:** 실제로 쓰이기 시작하면 파서를 넓혀라. 그때까지는 검사면 머리의 「★★초록이 말하지 않는 것」
-절이 정본이다 — **「이 파일의 초록은 『그런 표가 없다』가 아니라 『내가 본 형태 중에는 없었다』만
-말한다」**(`apps/api/AGENTS.md` §10).
-
-**왜 지금 안 하나:** 쫓으려면 파서가 대입·상속·동적 속성을 추적해야 하는데 그 추적이 **순서 의존**이라
-막는 결함보다 새로 만드는 결함이 크다. 그리고 셋 다 사고가 아니라 **적대적 저자**의 형태다 —
-검사면이 잡아야 하는 것은 사고다. 같은 판정을 [BL-789] 의 셸 제어흐름 모델링에서도 내렸다.
-
-**Risk:** 🟢 (테스트 검사면의 사각. 프로덕션 무관)
-
-**상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-17 등재. 실사용례 0건
-**트리거 판정:** 미도래 — `src/**` 에 ⓐⓑⓒ 어느 형태도 없다(전수 grep 실측)
-
----
 
 ---
 
