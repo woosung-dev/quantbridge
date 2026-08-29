@@ -5,11 +5,14 @@
     {
       "step": 0,
       "name": "strategy-inputs-hook",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec vitest run src/features/optimizer/__tests__/use-strategy-inputs.test.tsx",
         "set -u\ncd apps/web\nf=src/features/optimizer/use-strategy-inputs.ts\n[ -f \"$f\" ] || { echo \"훅 파일이 없다: $f\"; exit 1; }\ngrep -q \"useStrategy\" \"$f\" || { echo \"useStrategy 를 안 쓴다 — pine_source 를 어디서 얻나\"; exit 1; }\ngrep -q \"usePreviewParse\" \"$f\" || { echo \"usePreviewParse 를 안 쓴다 — inputs 를 어디서 얻나\"; exit 1; }\ngrep -q \"@/features/strategy/hooks\" \"$f\" || { echo \"양성 대조 실패: strategy 훅 모듈을 import 하지 않는다\"; exit 1; }"
-      ]
+      ],
+      "started_at": "2026-08-30T00:41:47+0900",
+      "summary": "useStrategy와 usePreviewParse를 합성해 전략 Pine input 선언 목록과 로딩·오류 상태를 제공한다.",
+      "completed_at": "2026-08-30T00:44:47+0900"
     },
     {
       "step": 1,
@@ -23,5 +26,6 @@
         "cd apps/web && pnpm exec tsc --noEmit"
       ]
     }
-  ]
+  ],
+  "created_at": "2026-08-30T00:41:47+0900"
 }
