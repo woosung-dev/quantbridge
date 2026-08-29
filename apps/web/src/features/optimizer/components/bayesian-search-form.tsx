@@ -23,6 +23,7 @@ import {
 } from "@/features/optimizer/form-schemas";
 import { useSubmitBayesianSearch } from "@/features/optimizer/hooks";
 import { BayesianAcquisitionSchema } from "@/features/optimizer/schemas";
+import type { InputDecl } from "@/features/strategy/schemas";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 
 const FormSchema = z.object({
@@ -40,6 +41,7 @@ type FormValues = z.infer<typeof FormSchema>;
 
 interface Props {
   backtestId: string;
+  inputs?: InputDecl[];
   onSuccess?: (runId: string) => void;
 }
 
@@ -51,7 +53,7 @@ const EMPTY_ROW = {
   log_scale: false,
 };
 
-export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
+export function BayesianSearchForm({ backtestId, inputs, onSuccess }: Props) {
   const submit = useSubmitBayesianSearch();
   const { errMsg, setErrMsg, submitBody } = useOptimizerSubmit({
     mutateAsync: submit.mutateAsync,
@@ -149,6 +151,7 @@ export function BayesianSearchForm({ backtestId, onSuccess }: Props) {
         register={form.register}
         errors={form.formState.errors}
         legend="파라미터 (1~4개)"
+        inputs={inputs}
         emptyRow={EMPTY_ROW}
         renderRowCells={(idx, removeButton, errors, errorId) => {
           const logScaleError =

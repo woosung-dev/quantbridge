@@ -22,6 +22,7 @@ import {
   rowsToParameters,
 } from "@/features/optimizer/form-schemas";
 import { useSubmitGeneticSearch } from "@/features/optimizer/hooks";
+import type { InputDecl } from "@/features/strategy/schemas";
 import { zodV4Resolver } from "@/lib/zod-v4-resolver";
 
 const FormSchema = z
@@ -82,6 +83,7 @@ type FormValues = z.infer<typeof FormSchema>;
 
 interface Props {
   backtestId: string;
+  inputs?: InputDecl[];
   onSuccess?: (runId: string) => void;
 }
 
@@ -93,7 +95,7 @@ const EMPTY_ROW = {
   step: "1",
 };
 
-export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
+export function GeneticSearchForm({ backtestId, inputs, onSuccess }: Props) {
   const submit = useSubmitGeneticSearch();
   const { errMsg, submitBody } = useOptimizerSubmit({
     mutateAsync: submit.mutateAsync,
@@ -246,6 +248,7 @@ export function GeneticSearchForm({ backtestId, onSuccess }: Props) {
         register={form.register}
         errors={form.formState.errors}
         legend="파라미터 (1~4개)"
+        inputs={inputs}
         emptyRow={EMPTY_ROW}
         renderRowCells={(idx, removeButton, errors, errorId) => (
           <>
