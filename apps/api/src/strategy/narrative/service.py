@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, cast
+from typing import Any, cast, get_args
 
 from src.core.config import Settings
 from src.strategy.narrative.prompt import SYSTEM_PROMPT, USER_TEMPLATE
@@ -28,13 +28,10 @@ logger = logging.getLogger(__name__)
 
 _TOOL_NAME = "report_strategy_narrative"
 
-_NARRATIVE_STYLES: tuple[NarrativeStyle, ...] = (
-    "trend_following",
-    "mean_reversion",
-    "breakout",
-    "volatility",
-    "other",
-)
+# ★사본을 만들지 마라 — 허용 집합의 SSOT 는 `NarrativeStyle` 하나다.
+# 손으로 나열하면 「타입 · 런타임 멤버십 · LLM 에 보내는 enum」 셋이 갈리고,
+# 갈린 순간 모델이 스키마상 허용된 값을 내도 조용히 `"other"` 로 접힌다.
+_NARRATIVE_STYLES: tuple[NarrativeStyle, ...] = get_args(NarrativeStyle)
 
 # 세 provider 가 **같은 스키마**를 쓴다. OpenAI strict 모드가 요구하는
 # `additionalProperties: false` 는 `providers._strict` 가 한 번만 채운다.
@@ -57,7 +54,9 @@ _OUTPUT_SCHEMA: dict[str, Any] = {
         "summary": {"type": "string", "description": "한 문단. 무엇을 보고 언제 사고 언제 파는가."},
         "style": {
             "type": "string",
-            "enum": ["trend_following", "mean_reversion", "breakout", "volatility", "other"],
+            # 위와 같은 이유로 여기도 파생이다 — LLM 이 받는 enum 과 우리가 받아들이는
+            # 집합이 갈리면 그 차이는 예외가 아니라 침묵한 강등으로 나타난다.
+            "enum": list(_NARRATIVE_STYLES),
         },
         "assumptions": {"type": "array", "items": _NOTE_SCHEMA},
         "risks": {"type": "array", "items": _NOTE_SCHEMA},

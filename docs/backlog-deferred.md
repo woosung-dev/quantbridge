@@ -68,36 +68,6 @@
 
 ## P3 — Nice-to-have / 컨벤션 정합
 
-### BL-476
-
-**Title:** 공개 webhook 핸들러가 동기 CCXT 왕복 3회를 태운다 (실측 **+4.8초**)
-**Category:** Backend / trading (지연)
-**Priority:** P2
-**Trigger:** TradingView 실연동 전 / webhook 타임아웃 관측 시
-**Est:** M
-**상태:** ⏳ 대기 (트리거 미도래) — webhook 라우터가 여전히 동기로 OrderService.execute 를 호출하고 가드의 CCXT 3회(mark/min_notional/balance)가 그대로 인라인이다. (2026-08-09 status-triage-mass 확인)
-**트리거 판정:** 미도래 — 외생 조건(외부 관측). 우리 의지로 만들 수 없다 (2026-08-10 bl-trigger-triage)
-**출처:** 2026-07-26 BL-474 dogfood 실측
-
-**원인 / 영향:** BL-474 로 `leverage` 가 채워지면서 `order_service.py:218-266` 의 notional 가드가 webhook 경로에서 **처음으로 도달 가능**해졌다. 그 대가로 동기 HTTP 핸들러 안에 CCXT 왕복 3회가 들어왔다.
-
-```
-fetch_mark_price     1663 ms   -> 64532.7
-fetch_min_notional   1549 ms   -> 5.0
-fetch_balance_usdt   1600 ms   -> 190549.99
-TOTAL                4812 ms
-```
-
-각 호출이 계정 재조회 + 자격증명 복호화 + ephemeral ccxt 클라이언트 생성(`timeout: 30000`)을 한다. 위는 정상 응답 기준이고, 거래소가 느리거나 죽으면 **최악 90초**까지 늘어난다 — TradingView 는 webhook 을 재시도하므로 중복 신호가 될 수 있다(멱등키가 있으나 client-generated 라 재시도마다 새 값이면 무력).
-
-**★게이트가 못 잡는 종류다.** 테스트는 provider 를 stub 으로 갈아끼우므로 항상 0ms 다. 회귀는 프로덕션에서만 보인다.
-
-**권장 접근:** 가드를 Celery 경계 뒤로 옮긴다 — `OrderService.execute` 는 행을 만들고 즉시 201 을 주고, `tasks/trading.py:_execute_with_session` 이 발주 직전에 가드를 평가해 실패 시 `rejected` 로 전이. 이미 그 경로에 `except ProviderError` graceful 전이가 있다. 다만 **거부 시점이 응답 뒤로 밀리는** 계약 변경이라 별도 결정이 필요하다.
-
-**Risk:** 🟡 (지연 절벽, 데이터 오류는 아님)
-
----
-
 ## 변경 이력
 
 ### BL-527
@@ -855,3 +825,11 @@ runbook → [BL-005] 실자본 dogfood → [BL-070~072] Beta`** 였다.
 
 **상태:** ⏳ **대기 (트리거 미도래)** — 2026-08-25 등재. n13 은 범위 밖으로 명시 제외(회차 범위 = 블로킹 하나)
 **트리거:** strategy router 의 인증·제한 축을 손대는 회차, 또는 외부 공개(Beta) 판단이 열릴 때
+
+★★**2026-08-30 — 이 엔드포인트의 표면이 넓어졌다(트리거는 아직 미도래).** [BL-833] 수리(PR #848)로
+**옵티마이저 화면이 이 엔드포인트를 자동으로 친다** — `useStrategyInputs` 가
+`GET /strategies/{id}` → `POST /strategies/parse` 를 호출해 `var_name` 드롭다운을 채운다.
+종전에는 사용자가 위저드에서 **명시적으로** 파스를 눌러야 닿는 경로였다.
+★**완화 요인 둘** — ⑴ `usePreviewParse` 가 `staleTime: Infinity` + 소스 문자열 키라 같은 전략 재방문은 요청 0회 ·
+⑵ L2 디스크 캐시([BL-832] · PR #837)로 콜드는 **소스당 1회**(재방문 4.8ms)다. 위 「52.37초」는 캐시 이전 수치다.
+⇒ **판정 불변(미도래)이지만 트리거 앞절이 가까워졌다** — strategy router 를 다음에 열 때 같이 닫아라.
