@@ -17,14 +17,17 @@
     {
       "step": 1,
       "name": "var-name-select",
-      "status": "pending",
+      "status": "completed",
       "ac": [
         "cd apps/web && pnpm exec vitest run src/features/optimizer/components/__tests__/param-rows-var-name-select.test.tsx",
         "set -u\ncd apps/web\nf=src/features/optimizer/components/param-rows-fieldset.tsx\nt=src/features/optimizer/components/__tests__/param-rows-var-name-select.test.tsx\nb=$(mktemp)\ncp \"$f\" \"$b\"\ntrap 'cp \"$b\" \"$f\"; rm -f \"$b\"' EXIT\ngit show origin/main:apps/web/src/features/optimizer/components/param-rows-fieldset.tsx > \"$f\" || { echo \"base 판을 못 읽었다\"; exit 1; }\nif cmp -s \"$f\" \"$b\"; then echo \"변이가 아무것도 안 바꿨다 — fieldset 이 base 와 동일하다\"; exit 1; fi\nif pnpm exec vitest run \"$t\" >/dev/null 2>&1; then echo \"자유 입력 판으로 되돌려도 초록 — 이 스펙은 select 를 재지 않는다\"; exit 1; fi\nexit 0",
         "cd apps/web && pnpm exec vitest run src/features/optimizer/components/__tests__/optimizer-forms-field-errors.test.tsx src/features/optimizer/components/__tests__/optimizer-forms-characterization.test.tsx src/features/optimizer/components/__tests__/optimizer-page-view.test.tsx",
         "set -u\ncd apps/web\nv=src/features/optimizer/components/optimizer-page-view.tsx\ngrep -q \"useStrategyInputs\" \"$v\" || { echo \"page-view 가 useStrategyInputs 를 안 쓴다\"; exit 1; }\ngrep -q \"strategy_id\" \"$v\" || { echo \"page-view 가 선택된 백테스트에서 strategy_id 를 안 꺼낸다\"; exit 1; }\nn=0\nfor f in src/features/optimizer/components/grid-search-form.tsx src/features/optimizer/components/bayesian-search-form.tsx src/features/optimizer/components/genetic-search-form.tsx; do\n  grep -q \"inputs\" \"$f\" && n=$((n+1))\ndone\n[ \"$n\" = \"3\" ] || { echo \"3폼 중 ${n}개만 inputs 를 통과시킨다\"; exit 1; }",
         "cd apps/web && pnpm exec tsc --noEmit"
-      ]
+      ],
+      "started_at": "2026-08-30T00:44:49+0900",
+      "summary": "선택한 Backtest의 Strategy Pine input 선언으로 var_name을 드롭다운화하고, 스윕 불가 타입은 사유와 함께 비활성으로 표시한다.",
+      "completed_at": "2026-08-30T00:49:37+0900"
     }
   ],
   "created_at": "2026-08-30T00:41:47+0900"
