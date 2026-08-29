@@ -26,7 +26,8 @@ export function ConvertWithAIButton({ indicatorCode, onConverted }: ConvertWithA
     setIsConverting(true);
     try {
       const result = await convertIndicator(
-        { code: indicatorCode, strategy_name: "Converted Strategy", mode: "full" },
+        // AST 슬라이싱을 먼저 시도해 바로 실행 가능하면 LLM 호출 없이 반환한다.
+        { code: indicatorCode, strategy_name: "Converted Strategy", mode: "sliced" },
         token,
       );
       onConverted(result);
